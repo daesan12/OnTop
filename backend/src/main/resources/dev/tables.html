@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OnTop · 테이블 동기화</title>
+  <style>
+    :root { color-scheme: light; font-family: system-ui, sans-serif; color: #172a26; background: #f3f5f1; }
+    * { box-sizing: border-box; }
+    body { margin: 0 auto; max-width: 1040px; padding: 48px 24px; }
+    header { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+    h1 { font-size: 30px; margin: 8px 0; letter-spacing: -1px; }
+    h2 { font-size: 18px; margin: 0 0 18px; }
+    p { color: #52645b; line-height: 1.7; }
+    .label { color: #47705f; font-size: 12px; font-weight: 700; letter-spacing: 2px; }
+    .card { background: white; border: 1px solid #dce3db; border-radius: 16px; padding: 24px; margin-top: 20px; }
+    .row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+    button, select { font: inherit; border: 1px solid #cbd6cd; border-radius: 8px; padding: 10px 14px; }
+    button { cursor: pointer; background: white; color: #243f33; }
+    button.primary { background: #245640; color: white; border-color: #245640; }
+    button:disabled { opacity: .4; cursor: default; }
+    #connection { font-size: 14px; font-weight: 700; }
+    #identity { overflow-wrap: anywhere; font-size: 13px; }
+    .seats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin: 20px 0; }
+    .seat { padding: 22px; border-radius: 12px; background: #f4f6f2; overflow-wrap: anywhere; }
+    .seat strong { display: block; margin-bottom: 12px; }
+    .seat small { display: block; margin-top: 10px; color: #53685c; }
+    #notice { min-height: 28px; color: #9b3826; }
+    #allReady { font-weight: 700; }
+    pre { background: #172a26; color: #d3e9da; padding: 20px; border-radius: 12px;
+      max-height: 320px; overflow: auto; white-space: pre-wrap; font-size: 12px; }
+    @media (max-width: 600px) { body { padding: 24px 16px; } header { align-items: start; } }
+  </style>
+</head>
+<body>
+  <header>
+    <div><span class="label">ONTOP / LOCAL DEVELOPMENT</span><h1>테이블 동기화</h1></div>
+    <span id="connection">연결 안 됨</span>
+  </header>
+  <p>두 탭을 열어 같은 테이블에 착석하세요. 각 연결은 별도 임시 사용자입니다.<br>
+    데이터는 서버 메모리에만 저장합니다. 전원 준비 후 실제 게임은 시작하지 않습니다.</p>
+  <section class="card">
+    <h2>연결</h2>
+    <div class="row"><button id="connect" class="primary">연결하기</button><button id="disconnect" disabled>연결 종료</button></div>
+    <p id="identity">서버에서 임시 사용자 ID를 발급합니다.</p>
+  </section>
+  <section class="card">
+    <div class="row"><h2 id="tableTitle">착석할 테이블 선택</h2></div>
+    <div class="row">
+      <select id="table" aria-label="테이블"><option>table-1</option><option>table-2</option></select>
+      <button id="join" class="primary" disabled>착석</button><button id="leave" disabled>퇴장</button>
+    </div>
+    <div id="seats" class="seats"><div class="seat">착석하면 좌석 상태가 표시됩니다.</div></div>
+    <div class="row"><button id="ready" disabled>준비</button><button id="cancel" disabled>준비 취소</button>
+      <span id="allReady">대기 중</span></div>
+    <p id="notice" role="status"></p>
+  </section>
+  <section class="card"><h2>메시지 기록</h2><pre id="log" aria-live="polite">연결 후 송수신 기록이 표시됩니다.</pre></section>
+  <script>
+    'use strict';
+    const el = id => document.getElementById(id);
+    let socket = null;
+    let userId = null;
+    let state = null;
+    let pending = null;
+    const versions = new Map();
+    const history = [];
+
+    function record(direction, message) {
+      history.unshift(`${new Date().toLocaleTimeString()} ${direction}\n${JSON.stringify(message, null, 2)}`);
+      history.splice(40);
+      el('log').textContent = history.join('\n\n');
+    }
+
+    function render() {
+      const open = socket?.readyState === WebSocket.OPEN && userId !== null;
+      const busy = pending !== null;
+      el('connect').disabled = socket !== null;
+      el('disconnect').disabled = socket === null;
+      el('join').disabled = !open || busy || state !== null;
+      el('table').disabled = !open || busy || state !== null;
+      el('leave').disabled = !open || busy || state === null;
+      el('ready').disabled = !open || busy || state === null;
+      el('cancel').disabled = !open || busy || state === null;
+      el('identity').textContent = userId ?? '서버에서 임시 사용자 ID를 발급합니다.';
+      el('tableTitle').textContent = state ? `${state.tableId} · 버전 ${state.version}` : '착석할 테이블 선택';
+      el('allReady').textContent = state?.allReady ? '전원 준비 완료' : '대기 중';
+      el('seats').replaceChildren();
+      if (!state) {
+        const empty = document.createElement('div');
+        empty.className = 'seat';
+        empty.textContent = '착석하면 좌석 상태가 표시됩니다.';
+        el('seats').append(empty);
+        return;
+      }
+      for (const seat of state.seats) {
+        const card = document.createElement('div');
+        card.className = 'seat';
+        const title = document.createElement('strong');
+        title.textContent = `좌석 ${seat.seatNumber}${seat.userId === userId ? ' · 나' : ''}`;
+        const identity = document.createElement('span');
+        identity.textContent = seat.userId ?? '빈 좌석';
+        const ready = document.createElement('small');
+        ready.textContent = seat.userId ? (seat.ready ? '● 준비 완료' : '○ 준비 전') : '참가 대기';
+        card.append(title, identity, ready);
+        el('seats').append(card);
+      }
+    }
+
+    function send(type, payload) {
+      if (!userId || pending || socket?.readyState !== WebSocket.OPEN) return;
+      const message = { requestId: crypto.randomUUID(), type, payload };
+      pending = message.requestId;
+      el('notice').textContent = '';
+      try {
+        socket.send(JSON.stringify(message));
+        record('→', message);
+      } catch (error) {
+        el('notice').textContent = '전송에 실패했습니다. 연결을 다시 만드세요.';
+        socket.close();
+      }
+      render();
+    }
+
+    el('connect').onclick = () => {
+      state = null;
+      userId = null;
+      pending = null;
+      versions.clear();
+      el('notice').textContent = '';
+      const current = new WebSocket(`${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/ws/tables`);
+      socket = current;
+      el('connection').textContent = '연결 중';
+      render();
+      current.onmessage = event => {
+        if (socket !== current) return;
+        const message = JSON.parse(event.data);
+        record('←', message);
+        if (message.requestId === pending) pending = null;
+        if (message.type === 'CONNECTED') {
+          userId = message.payload.userId;
+          el('connection').textContent = '연결됨';
+        } else if (message.type === 'TABLE_STATE') {
+          const next = message.payload;
+          if (next.version >= (versions.get(next.tableId) ?? -1)) {
+            versions.set(next.tableId, next.version);
+            state = next;
+          }
+        } else if (message.type === 'TABLE_LEFT') {
+          state = null;
+        } else if (message.type === 'ERROR') {
+          el('notice').textContent = `${message.payload.code} · ${message.payload.message}`;
+          if (message.payload.code === 'INTERNAL_ERROR') current.close();
+        }
+        render();
+      };
+      current.onclose = () => {
+        if (socket !== current) return;
+        el('notice').textContent = pending ? '연결이 종료되어 미완료 요청을 실패로 처리했습니다.' : '연결이 종료되었습니다.';
+        socket = null;
+        userId = null;
+        state = null;
+        pending = null;
+        versions.clear();
+        el('connection').textContent = '연결 안 됨';
+        render();
+      };
+      current.onerror = () => { el('notice').textContent = '연결 오류가 발생했습니다.'; };
+    };
+    el('disconnect').onclick = () => socket?.close();
+    el('join').onclick = () => send('TABLE_JOIN', { tableId: el('table').value });
+    el('ready').onclick = () => send('READY_SET', { ready: true });
+    el('cancel').onclick = () => send('READY_SET', { ready: false });
+    el('leave').onclick = () => send('TABLE_LEAVE', {});
+    render();
+  </script>
+</body>
+</html>
