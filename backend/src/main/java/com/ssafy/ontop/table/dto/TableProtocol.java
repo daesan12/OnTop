@@ -52,6 +52,7 @@ public final class TableProtocol {
                     && !payload.get("gameCode").textValue().isBlank();
             case "TABLE_LEAVE" -> fields(payload, Set.of());
             case "GAME_START_CHECK" -> fields(payload, Set.of());
+            case "GAME_RECONNECT_CHECK" -> fields(payload, Set.of());
             default -> throw new RequestException(requestId, "UNSUPPORTED_MESSAGE_TYPE", "지원하지 않는 메시지입니다.");
         };
         if (!valid) {

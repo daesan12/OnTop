@@ -2,6 +2,7 @@ package com.ssafy.ontop.table.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser;
+import com.ssafy.ontop.game.reconnect.GameReconnectService;
 import com.ssafy.ontop.game.start.GameStartCommand;
 import com.ssafy.ontop.game.start.GameStartCommand.Participant;
 import com.ssafy.ontop.game.start.GameStartGateway;
@@ -27,6 +28,7 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 import org.springframework.web.socket.WebSocketSession;
@@ -46,43 +48,56 @@ public class TableHub {
     private final Map<String, Long> startRevisions = new HashMap<>();
     private final Optional<GameStartGateway> gateway;
     private final boolean startRehearsal;
+    private final Optional<GameReconnectService> reconnect;
     private final ExecutorService startWorkers = Executors.newVirtualThreadPerTaskExecutor();
     private boolean stopped;
 
     public TableHub(ObjectMapper mapper, Optional<GameStartGateway> gateway,
-            @Value("${ontop.start-rehearsal.enabled:false}") boolean startRehearsal) {
+            boolean startRehearsal) {
+        this(mapper, gateway, startRehearsal, Optional.empty());
+    }
+
+    @Autowired
+    public TableHub(ObjectMapper mapper, Optional<GameStartGateway> gateway,
+            @Value("${ontop.start-rehearsal.enabled:false}") boolean startRehearsal,
+            Optional<GameReconnectService> reconnect) {
         if (startRehearsal && gateway.isEmpty()) {
             throw new IllegalArgumentException("시작 연동 검증 대역이 필요합니다.");
         }
         this.gateway = gateway;
         this.startRehearsal = startRehearsal;
+        this.reconnect = reconnect;
         protocol = new TableProtocol(mapper, startRehearsal);
     }
 
     public synchronized void connect(WebSocketSession session) {
         String userId = "dev-" + UUID.randomUUID();
-        register(session, userId);
+        register(session, userId, null);
     }
 
     public synchronized boolean connectAuthenticated(WebSocketSession session, VerifiedWebSocketUser user) {
         String userId = Long.toString(user.userId());
-        // 단일 사용자 좌석 구조를 보호하는 임시 방어다. 재접속/교체 정책 구현과 구분한다.
+        // 사용자 확정: 기존 연결이 살아 있으면 새 연결만 거절한다.
         if (seating.containsKey(userId)
                 || members.values().stream().anyMatch(member -> member.userId().equals(userId))) {
             return false;
         }
-        register(session, userId);
+        Member member = register(session, userId, user.userId());
+        reconnect.ifPresent(service -> service.connected(user.userId(), session.getId(),
+                (requestId, view) -> member.peer().offer(protocol.encode(requestId, "GAME_CONNECTION_STATE", view))));
         return true;
     }
 
-    private void register(WebSocketSession session, String userId) {
+    private Member register(WebSocketSession session, String userId, Long accountId) {
         TablePeer peer = new TablePeer(session, () -> disconnect(session.getId()));
-        members.put(session.getId(), new Member(userId, peer));
+        Member member = new Member(userId, peer, accountId);
+        members.put(session.getId(), member);
         peer.offer(protocol.encode(null, "CONNECTED", Map.of("userId", userId)));
         if (startRehearsal) {
             peer.offer(protocol.encode(null, "GAME_START_STATE", TableStartAttempt.View.waiting(null, 0, null)));
         }
         peer.start();
+        return member;
     }
 
     public synchronized TableListResponse listTables() {
@@ -110,6 +125,18 @@ public class TableHub {
         try {
             Request request = protocol.parse(text);
             requestId = request.requestId();
+            if (request.type().equals("GAME_RECONNECT_CHECK")) {
+                if (member.accountId() == null || reconnect.isEmpty()) {
+                    fail(request, "RECOVERY_NOT_AVAILABLE", "인증된 경기 복구 연결이 필요합니다.");
+                }
+                reconnect.get().refresh(member.accountId(), sessionId, request.requestId(),
+                        (id, view) -> member.peer().offer(protocol.encode(id, "GAME_CONNECTION_STATE", view)));
+                return;
+            }
+            if (member.accountId() != null && reconnect.isPresent()
+                    && !reconnect.get().canUseLobby(member.accountId(), sessionId)) {
+                fail(request, "GAME_RECOVERY_REQUIRED", "현재 경기 복구 상태를 먼저 확인해주세요.");
+            }
             switch (request.type()) {
                 case "TABLE_JOIN" -> join(member, request);
                 case "READY_SET" -> ready(member, request);
@@ -132,6 +159,9 @@ public class TableHub {
             return;
         }
         member.peer().stop();
+        if (member.accountId() != null) {
+            reconnect.ifPresent(service -> service.disconnected(member.accountId(), sessionId));
+        }
         String tableId = seating.get(member.userId());
         if (tableId != null) {
             TableStartAttempt attempt = starts.get(tableId);
@@ -370,6 +400,6 @@ public class TableHub {
         target.peer().offer(protocol.encode(requestId, "GAME_START_STATE", view));
     }
 
-    private record Member(String userId, TablePeer peer) {
+    private record Member(String userId, TablePeer peer, Long accountId) {
     }
 }

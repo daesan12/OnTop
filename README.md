@@ -57,6 +57,8 @@ Linux/macOS에서는 `sh ./gradlew bootRun --args='--spring.profiles.active=loca
 
 구조와 진입점 설명은 [CODE_GUIDE](CODE_GUIDE.md)를 참고한다.
 
+[경기 재접속 연결부](docs/game-reconnect.md)는 동일 계정의 추가 연결 차단과 30초 내 최신 경기 복귀를 담당한다. 실제 로그인·경기 엔진은 연결 전이며 테스트 대역으로 검증한다.
+
 ## 게임 시작 연동 검증
 
 인증 방식 미정 상태의 [웹소켓 인증 연결부](docs/websocket-authentication.md)를 추가했다. `--ontop.websocket.authenticated=true`는 서버 검증기 Bean이 있어야 연결할 수 있으며, 검증기 없이 켜면 503이다. 실제 네이버·SSAFY 로그인은 미구현이다. dev 전용 시작 검증 옵션과 동시에 켤 수 없다.

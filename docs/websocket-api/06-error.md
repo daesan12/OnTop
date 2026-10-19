@@ -38,6 +38,8 @@
 | `GAME_PLAYER_LIMIT` | 현재 착석자가 선택하려는 게임 최대 인원보다 많음 | 인원이 줄어든 뒤 변경. 강제 퇴장 없음 |
 | `UNSUPPORTED_GAME` | 지원하지 않는 게임 코드 | 허용된 게임 선택 |
 | `TABLE_BUSY` | 선택적 시작 검증의 STARTING·CONFIRMED에서 변경 | 기존 시작 결과 확인. 새 변경 요청 반복 금지 |
+| `GAME_RECOVERY_REQUIRED` | 경기 조회 중·진행 중·만료 미확정 상태의 테이블 변경 | GAME_CONNECTION_STATE 확인 |
+| `RECOVERY_NOT_AVAILABLE` | 임시 개발 사용자 등 복구 연결 대상이 아님 | 인증 연결 설정 확인 |
 | `INTERNAL_ERROR` | 예상치 못한 서버 처리 오류 | 오류 표시. 무조건 자동 재시도하지 않음 |
 
 - 공통 형식 검사 → 지원 type 확인 → 개별 payload 검사 → 업무 상태 검사 순서로 검증합니다.
