@@ -55,6 +55,12 @@
       <span id="allReady">대기 중</span></div>
     <p id="notice" role="status"></p>
   </section>
+  <section id="startPanel" class="card" hidden>
+    <h2>게임 시작 연동 검증</h2>
+    <p>전원 준비 시 검증용 요청을 보냅니다. 실제 게임 실행·엽전 차감·DB 저장은 하지 않습니다.</p>
+    <p id="startStatus" role="status">착석 후 두 명 모두 준비해주세요.</p>
+    <button id="checkStart" disabled>시작 결과 다시 확인</button>
+  </section>
   <section class="card"><h2>메시지 기록</h2><pre id="log" aria-live="polite">연결 후 송수신 기록이 표시됩니다.</pre></section>
   <script>
     'use strict';
@@ -63,7 +69,10 @@
     let userId = null;
     let state = null;
     let pending = null;
+    let startState = null;
+    let rehearsalEnabled = false;
     const versions = new Map();
+    const startVersions = new Map();
     const history = [];
 
     function record(direction, message) {
@@ -75,13 +84,27 @@
     function render() {
       const open = socket?.readyState === WebSocket.OPEN && userId !== null;
       const busy = pending !== null;
+      const frozen = startState && ['STARTING', 'CONFIRMED'].includes(startState.phase);
       el('connect').disabled = socket !== null;
       el('disconnect').disabled = socket === null;
       el('join').disabled = !open || busy || state !== null;
       el('table').disabled = !open || busy || state !== null;
-      el('leave').disabled = !open || busy || state === null;
-      el('ready').disabled = !open || busy || state === null;
-      el('cancel').disabled = !open || busy || state === null;
+      el('leave').disabled = !open || busy || state === null || frozen;
+      el('ready').disabled = !open || busy || state === null || frozen;
+      el('cancel').disabled = !open || busy || state === null || frozen;
+      el('startPanel').hidden = !rehearsalEnabled;
+      el('checkStart').disabled = !open || busy || !state || startState?.phase !== 'STARTING';
+      if (startState?.phase === 'CONFIRMED') {
+        el('startStatus').textContent = `연동 검증 성공 · ${startState.gameSessionId} · 실제 게임은 실행하지 않습니다. `
+          + '다시 검증하려면 서버를 재시작해주세요.';
+      } else if (startState?.phase === 'STARTING') {
+        el('startStatus').textContent = '시작 결과를 확인 중입니다. 새 시작 요청은 보내지 않습니다. '
+          + '결과가 계속 대기 중이면 아래 버튼으로 같은 요청의 결과를 확인하세요.';
+      } else {
+        el('startStatus').textContent = startState?.code === 'START_REJECTED'
+          ? '시작이 거절되었습니다. 준비를 초기화했습니다. 실제 차감은 없습니다.'
+          : '착석 후 두 명 모두 준비해주세요.';
+      }
       el('identity').textContent = userId ?? '서버에서 임시 사용자 ID를 발급합니다.';
       el('tableTitle').textContent = state ? `${state.tableId} · 버전 ${state.version}` : '착석할 테이블 선택';
       el('allReady').textContent = state?.allReady ? '전원 준비 완료' : '대기 중';
@@ -126,7 +149,10 @@
       state = null;
       userId = null;
       pending = null;
+      startState = null;
+      rehearsalEnabled = false;
       versions.clear();
+      startVersions.clear();
       el('notice').textContent = '';
       const current = new WebSocket(`${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/ws/tables`);
       socket = current;
@@ -148,6 +174,14 @@
           }
         } else if (message.type === 'TABLE_LEFT') {
           state = null;
+          startState = null;
+        } else if (message.type === 'GAME_START_STATE') {
+          rehearsalEnabled = message.payload.simulation === true;
+          const next = message.payload;
+          if (next.revision >= (startVersions.get(next.tableId) ?? -1)) {
+            startVersions.set(next.tableId, next.revision);
+            startState = next;
+          }
         } else if (message.type === 'ERROR') {
           el('notice').textContent = `${message.payload.code} · ${message.payload.message}`;
           if (message.payload.code === 'INTERNAL_ERROR') current.close();
@@ -161,7 +195,10 @@
         userId = null;
         state = null;
         pending = null;
+        startState = null;
+        rehearsalEnabled = false;
         versions.clear();
+        startVersions.clear();
         el('connection').textContent = '연결 안 됨';
         render();
       };
@@ -172,6 +209,7 @@
     el('ready').onclick = () => send('READY_SET', { ready: true });
     el('cancel').onclick = () => send('READY_SET', { ready: false });
     el('leave').onclick = () => send('TABLE_LEAVE', {});
+    el('checkStart').onclick = () => send('GAME_START_CHECK', {});
     render();
   </script>
 </body>

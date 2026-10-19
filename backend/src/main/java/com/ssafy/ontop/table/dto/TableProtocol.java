@@ -11,8 +11,14 @@ import java.util.Set;
 public final class TableProtocol {
 
     private final ObjectMapper mapper;
+    private final boolean startRehearsal;
 
     public TableProtocol(ObjectMapper mapper) {
+        this(mapper, false);
+    }
+
+    public TableProtocol(ObjectMapper mapper, boolean startRehearsal) {
+        this.startRehearsal = startRehearsal;
         this.mapper = mapper.copy().enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
                 .enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION);
     }
@@ -35,11 +41,15 @@ public final class TableProtocol {
         }
         String type = root.get("type").textValue();
         JsonNode payload = root.get("payload");
+        if (type.equals("GAME_START_CHECK") && !startRehearsal) {
+            throw new RequestException(requestId, "UNSUPPORTED_MESSAGE_TYPE", "지원하지 않는 메시지입니다.");
+        }
         boolean valid = switch (type) {
             case "TABLE_JOIN" -> fields(payload, Set.of("tableId")) && payload.get("tableId").isTextual()
                     && !payload.get("tableId").textValue().isBlank();
             case "READY_SET" -> fields(payload, Set.of("ready")) && payload.get("ready").isBoolean();
             case "TABLE_LEAVE" -> fields(payload, Set.of());
+            case "GAME_START_CHECK" -> fields(payload, Set.of());
             default -> throw new RequestException(requestId, "UNSUPPORTED_MESSAGE_TYPE", "지원하지 않는 메시지입니다.");
         };
         if (!valid) {

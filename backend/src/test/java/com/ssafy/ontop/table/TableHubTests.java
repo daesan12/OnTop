@@ -6,6 +6,7 @@ import com.ssafy.ontop.table.service.TableHub;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
@@ -26,7 +27,7 @@ import static org.mockito.Mockito.when;
 class TableHubTests {
 
     private final ObjectMapper mapper = new ObjectMapper();
-    private final TableHub hub = new TableHub(mapper);
+    private final TableHub hub = new TableHub(mapper, Optional.empty(), false);
 
     @AfterEach
     void shutdown() {

@@ -3,6 +3,7 @@ package com.ssafy.ontop.table.domain;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 
 // TableHub의 상태 잠금 안에서만 접근한다. 연결 객체나 DB 엔티티를 보관하지 않는다.
 public final class TableRoom {
@@ -49,6 +50,15 @@ public final class TableRoom {
         }
         boolean allReady = seats.stream().allMatch(seat -> seat.userId() != null && seat.ready());
         return new Snapshot(tableId, version, 2, 2, List.copyOf(seats), allReady);
+    }
+
+    public void returnToWaiting(Set<String> connectedUsers) {
+        for (int index = 0; index < users.length; index++) {
+            if (users[index] != null && !connectedUsers.contains(users[index])) {
+                users[index] = null;
+            }
+        }
+        membershipChanged();
     }
 
     private int indexOf(String userId) {
