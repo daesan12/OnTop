@@ -15,13 +15,17 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.annotation.DirtiesContext;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 @ActiveProfiles("local")
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "ontop.start-rehearsal.enabled=true", "ontop.start-rehearsal.delay-millis=0",
         "ontop.start-rehearsal.countdown-millis=60000"
@@ -32,6 +36,42 @@ class GameStartWebSocketTests {
 
     @LocalServerPort
     private int port;
+
+    @ParameterizedTest
+    @CsvSource({"ONE_CARD,3", "ONE_CARD,4", "LIAR_BRIDGE,3", "LIAR_BRIDGE,4"})
+    void 다인_실제연결에서_선택한_게임의_같은_시작결과를_받는다(String game, int count) throws Exception {
+        List<Client> players = new ArrayList<>();
+        try {
+            for (int index = 0; index < count; index++) {
+                Client player = new Client();
+                players.add(player);
+                player.send("TABLE_JOIN", Map.of("tableId", "table-2"));
+                player.await(message -> message.path("type").asText().equals("TABLE_STATE"));
+                if (index == 0) {
+                    player.send("GAME_SELECT", Map.of("gameCode", game));
+                    player.await(message -> message.path("type").asText().equals("TABLE_STATE")
+                            && message.path("payload").path("gameCode").asText().equals(game));
+                }
+            }
+            for (int index = 0; index < count; index++) {
+                int seat = index;
+                Client player = players.get(index);
+                player.send("READY_SET", Map.of("ready", true));
+                player.await(message -> message.path("type").asText().equals("TABLE_STATE")
+                        && message.path("payload").path("seats").get(seat).path("ready").asBoolean());
+            }
+            JsonNode result = players.getFirst().confirmed().path("payload");
+            assertThat(result.path("gameCode").asText()).isEqualTo(game);
+            for (int index = 1; index < count; index++) {
+                assertThat(players.get(index).confirmed().path("payload")).isEqualTo(result);
+            }
+            for (Client player : players) {
+                assertThat(player.phases).doesNotContain("COUNTDOWN");
+            }
+        } finally {
+            players.forEach(Client::close);
+        }
+    }
 
     @Test
     void 전원_준비하면_과거_타이머_설정과_무관하게_카운트다운_없이_시작한다() throws Exception {

@@ -3,6 +3,7 @@ package com.ssafy.ontop.table;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ssafy.ontop.table.service.TableHub;
+import com.ssafy.ontop.table.domain.TableGame;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -15,6 +16,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 
@@ -34,13 +37,22 @@ class TableHubTests {
         hub.shutdown();
     }
 
-    @Test
-    void 마지막_좌석에_동시에_요청해도_한_명만_착석한다() throws Exception {
+    @ParameterizedTest
+    @EnumSource(TableGame.class)
+    void 마지막_좌석에_동시에_요청해도_한_명만_착석한다(TableGame game) throws Exception {
         Peer owner = peer();
         Peer first = peer();
         Peer second = peer();
         owner.send("TABLE_JOIN", Map.of("tableId", "table-1"));
         owner.next();
+        owner.send("GAME_SELECT", Map.of("gameCode", game.name()));
+        owner.next();
+        for (int count = 1; count < game.maximumPlayers() - 1; count++) {
+            Peer filler = peer();
+            filler.send("TABLE_JOIN", Map.of("tableId", "table-1"));
+            filler.next();
+            owner.next();
+        }
         CountDownLatch start = new CountDownLatch(1);
 
         Thread firstRequest = Thread.startVirtualThread(() -> joinAfter(start, first));
@@ -55,12 +67,12 @@ class TableHubTests {
                 .containsExactlyInAnyOrder("TABLE_STATE", "ERROR");
         JsonNode error = firstResult.path("type").asText().equals("ERROR") ? firstResult : secondResult;
         assertThat(error.path("payload").path("code").asText()).isEqualTo("TABLE_FULL");
-        assertThat(hub.listTables().tables().getFirst().occupiedSeats()).isEqualTo(2);
+        assertThat(hub.listTables().tables().getFirst().occupiedSeats()).isEqualTo(game.maximumPlayers());
         assertThat(hub.listTables().tables().getFirst().availableSeats()).isZero();
         assertThat(hub.listTables().tables().getFirst().joinable()).isFalse();
         JsonNode state = owner.next().path("payload");
-        assertThat(state.path("version").asLong()).isEqualTo(2);
-        assertThat(state.path("seats")).hasSize(2);
+        assertThat(state.path("version").asLong()).isEqualTo(game.maximumPlayers() + 1);
+        assertThat(state.path("seats")).hasSize(game.maximumPlayers());
         assertThat(state.path("seats").get(0).path("userId").asText()).isNotEqualTo(
                 state.path("seats").get(1).path("userId").asText());
     }

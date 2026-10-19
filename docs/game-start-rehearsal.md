@@ -1,6 +1,6 @@
 # 게임 시작 연동 검증
 
-두 명이 준비하면 시작 요청을 보내고 결과를 받아 화면에 표시하는 개발용 기능이다. 팀원의 DB 코드가 없어도 네 쪽 흐름을 확인할 수 있다. **엽전 차감·DB 저장·실제 게임 실행·AI 대행은 하지 않는다.**
+최소 2명 이상 현재 참가자가 전원 준비하면 시작 요청을 보내고 결과를 받아 화면에 표시하는 개발용 기능이다. 팀원의 DB 코드가 없어도 네 쪽 흐름을 확인할 수 있다. **엽전 차감·DB 저장·실제 게임 실행·AI 대행은 하지 않는다.**
 
 기준은 사용자 지정 [OnTop 통합 기획서 v0.4](https://app.notion.com/p/OnTop_-_-154161842b868387b6ad0174db68ee71)다. 전원 준비 시 별도 카운트다운 없이 시작 요청을 보낸다. 과거의 `countdown-millis` 설정·COUNTDOWN 상태·마감 시각 필드는 제거했다. 실제 경기 진입에는 B의 성공 결과가 필요하며, 즉시 시작 요청을 실제 DB 처리의 즉시 완료와 혼동하지 않는다. [정책 대조표](erd-policy-alignment.md)에 ERD 문서와 충돌을 구분했다.
 
@@ -18,7 +18,7 @@ IntelliJ에서 활성화된 프로파일은 `local`로 두고, 실행 구성의 
 .\gradlew.bat bootRun --args='--spring.profiles.active=local --ontop.start-rehearsal.enabled=true'
 ```
 
-[개발 페이지](http://localhost:8080/dev/tables)를 두 탭에서 열고 연결 → 같은 테이블 착석 → 첫 착석자의 [게임 선택](websocket-api/07-game-select.md) → 두 명 모두 준비를 누른다. 선택한 게임 코드로 시작 요청을 보내고 화면에 성공 결과를 표시한다. 네 게임의 선택·연동 경계를 검증하며 실제 게임 규칙을 실행하지 않는다. 미착석·게임 미선택 상태의 GAME_START_STATE.gameCode는 null이다.
+[개발 페이지](http://localhost:8080/dev/tables)를 2~4개 탭에서 열고 연결 → 같은 테이블 착석 → 첫 착석자의 [게임 선택](websocket-api/07-game-select.md) → 현재 참가자 전원 준비를 누른다. 선택한 게임 코드로 시작 요청을 보내고 화면에 성공 결과를 표시한다. 네 게임의 선택·연동 경계를 검증하며 실제 게임 규칙을 실행하지 않는다. 미착석·게임 미선택 상태의 GAME_START_STATE.gameCode는 null이다.
 
 기본값은 꺼짐이다. 켜지 않으면 기존 명세대로 `allReady=true` 표시만 하고 준비 취소·퇴장이 가능하다. `local` 외에는 플래그를 켜도 개발 경로와 검증 대역이 활성화되지 않는다.
 

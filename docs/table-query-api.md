@@ -24,7 +24,8 @@ DB 없는 `local` 개발용 API다. 개발 화면에서 현재 테이블과 빈�
       "readyCount": 1,
       "allReady": false,
       "status": "WAITING",
-      "joinable": true
+      "joinable": true,
+      "gameCode": "OMOK"
     }
   ]
 }
@@ -36,12 +37,12 @@ DB 없는 `local` 개발용 API다. 개발 화면에서 현재 테이블과 빈�
 | --- | --- | --- |
 | tables | array | 테이블 요약 목록. 테이블이 없으면 빈 배열 |
 | tableId | string | 테이블 식별자. ERD의 게임 세션 ID와 다름 |
-| capacity | integer | 좌석 정원. 현재 2 |
+| capacity | integer | 미선택 4, 오목·주사위 2, 원카드·거짓말 4 |
 | minimumPlayers | integer | 최소 참가 인원. 현재 2 |
 | occupiedSeats | integer | 착석 또는 시작 연동 결과 때문에 보존 중인 좌석 수 |
 | availableSeats | integer | 정원에서 점유 좌석 수를 뺀 값 |
 | readyCount | integer | 점유 좌석 중 준비 상태인 수 |
-| allReady | boolean | 현재 2석 모두 착석·준비했는지 |
+| allReady | boolean | 게임 선택·최소 2명 충족, 현재 착석자 모두 준비. 빈 좌석 제외 |
 | status | string | 아래 상태 값 |
 | joinable | boolean | 테이블이 대기 상태이고 빈자리가 있는지 |
 | gameCode | string 또는 null | 선택한 게임 코드. 미선택·빈 테이블이면 null |

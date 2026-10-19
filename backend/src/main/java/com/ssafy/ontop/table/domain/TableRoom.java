@@ -10,8 +10,8 @@ import java.util.Set;
 public final class TableRoom {
 
     private final String tableId;
-    private final String[] users = new String[2];
-    private final boolean[] ready = new boolean[2];
+    private final String[] users = new String[4];
+    private final boolean[] ready = new boolean[4];
     private final LinkedHashSet<String> arrivalOrder = new LinkedHashSet<>();
     private TableGame game;
     private long version;
@@ -21,7 +21,7 @@ public final class TableRoom {
     }
 
     public boolean join(String userId) {
-        for (int index = 0; index < users.length; index++) {
+        for (int index = 0; index < capacity(); index++) {
             if (users[index] == null) {
                 users[index] = userId;
                 arrivalOrder.add(userId);
@@ -49,6 +49,17 @@ public final class TableRoom {
         if (game == selected) {
             return false;
         }
+        if (arrivalOrder.size() > selected.maximumPlayers()) {
+            throw new IllegalArgumentException("선택한 게임의 최대 인원을 초과했습니다.");
+        }
+        // 정원이 줄어들면 상위 좌석의 참가자가 사라지지 않도록 착석 순서대로 재배치한다.
+        if (selected.maximumPlayers() < capacity()) {
+            Arrays.fill(users, null);
+            int index = 0;
+            for (String user : arrivalOrder) {
+                users[index++] = user;
+            }
+        }
         game = selected;
         membershipChanged();
         return true;
@@ -66,12 +77,18 @@ public final class TableRoom {
 
     public Snapshot snapshot() {
         List<Seat> seats = new ArrayList<>();
-        for (int index = 0; index < users.length; index++) {
+        for (int index = 0; index < capacity(); index++) {
             seats.add(new Seat(index + 1, users[index], ready[index]));
         }
-        boolean allReady = game != null && seats.stream().allMatch(seat -> seat.userId() != null && seat.ready());
-        return new Snapshot(tableId, version, 2, 2, List.copyOf(seats), allReady,
+        int minimum = game == null ? 2 : game.minimumPlayers();
+        boolean allReady = game != null && arrivalOrder.size() >= minimum
+                && seats.stream().filter(seat -> seat.userId() != null).allMatch(Seat::ready);
+        return new Snapshot(tableId, version, capacity(), minimum, List.copyOf(seats), allReady,
                 arrivalOrder.isEmpty() ? null : arrivalOrder.getFirst(), game == null ? null : game.name());
+    }
+
+    private int capacity() {
+        return game == null ? users.length : game.maximumPlayers();
     }
 
     public void returnToWaiting(Set<String> connectedUsers) {

@@ -113,6 +113,25 @@ class GameSelectionTests {
         assertThat(message.path("payload").path("code").asText()).isEqualTo(code);
     }
 
+    @Test
+    void 세명_착석중_2인게임_선택은_거절하고_선택과_준비와_버전을_보존한다() throws Exception {
+        Peer first = peer();
+        Peer second = peer();
+        Peer third = peer();
+        first.request("TABLE_JOIN", Map.of("tableId", "table-1"));
+        first.request("GAME_SELECT", Map.of("gameCode", "ONE_CARD"));
+        second.request("TABLE_JOIN", Map.of("tableId", "table-1"));
+        third.request("TABLE_JOIN", Map.of("tableId", "table-1"));
+        JsonNode before = first.request("READY_SET", Map.of("ready", true)).path("payload");
+        assertCode(first.request("GAME_SELECT", Map.of("gameCode", "OMOK")), "GAME_PLAYER_LIMIT");
+        assertCode(first.request("GAME_SELECT", Map.of("gameCode", "DICE")), "GAME_PLAYER_LIMIT");
+        JsonNode after = first.request("TABLE_JOIN", Map.of("tableId", "table-1")).path("payload");
+        assertThat(after).isEqualTo(before);
+        assertThat(hub.listTables().tables().getFirst().occupiedSeats()).isEqualTo(3);
+        assertThat(hub.listTables().tables().getFirst().availableSeats()).isEqualTo(1);
+        assertThat(hub.listTables().tables().getFirst().capacity()).isEqualTo(4);
+    }
+
     private Peer peer() throws Exception {
         Peer peer = new Peer();
         WebSocketSession session = mock(WebSocketSession.class);

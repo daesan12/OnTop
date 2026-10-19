@@ -46,13 +46,13 @@
 | --- | --- | --- |
 | `tableId` | string | 테이블 식별자 |
 | `version` | integer | 테이블별 상태 버전. 서버 시작 시 0, 실제 변경마다 1 증가 |
-| `capacity` | integer | 전체 좌석 수. 이번 범위에서는 2 |
-| `minimumPlayers` | integer | 전원 준비 판정 최소 인원. 이번 범위에서는 2 |
+| `capacity` | integer | 게임별 최대 인원. 오목·주사위 2, 원카드·거짓말·미선택 4 |
+| `minimumPlayers` | integer | 전원 준비 판정 최소 인원. 현재 네 게임 모두 2 |
 | `seats` | array | 빈 좌석을 포함한 전체 좌석. seatNumber 오름차순 |
 | `seats[].seatNumber` | integer | 1부터 capacity까지의 좌석 번호 |
 | `seats[].userId` | string 또는 null | 임시 사용자 ID. 빈 좌석이면 null |
 | `seats[].ready` | boolean | 준비 여부. 빈 좌석은 false |
-| `allReady` | boolean | 최소 인원 충족 및 현재 참가자 모두 준비 여부 |
+| `allReady` | boolean | 게임 선택·최소 인원 충족 및 현재 착석자 전원 준비. 빈 좌석은 제외 |
 | `selectorUserId` | string 또는 null | 현재 참가자 중 가장 먼저 착석한 사용자. 빈 테이블이면 null |
 | `gameCode` | string 또는 null | 선택한 게임 코드. 미선택이면 null. [게임 선택](07-game-select.md) 참고 |
 

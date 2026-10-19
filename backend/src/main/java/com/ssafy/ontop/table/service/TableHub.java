@@ -192,6 +192,10 @@ public class TableHub {
         if (game == null) {
             fail(request, "UNSUPPORTED_GAME", "지원하지 않는 게임입니다.");
         }
+        long occupied = room.snapshot().seats().stream().filter(seat -> seat.userId() != null).count();
+        if (occupied > game.maximumPlayers()) {
+            fail(request, "GAME_PLAYER_LIMIT", "참가자가 선택한 게임의 최대 인원보다 많습니다.");
+        }
         if (room.selectGame(game)) {
             starts.remove(tableId);
             publish(room, member, request.requestId());
@@ -249,6 +253,7 @@ public class TableHub {
         }
         GameStartCommand command = new GameStartCommand(UUID.randomUUID(), snapshot.tableId(), snapshot.version(),
                 snapshot.gameCode(), snapshot.seats().stream()
+                        .filter(seat -> seat.userId() != null)
                         .map(seat -> new Participant(seat.userId(), seat.seatNumber())).toList());
         TableStartAttempt attempt = new TableStartAttempt(command);
         starts.put(snapshot.tableId(), attempt);

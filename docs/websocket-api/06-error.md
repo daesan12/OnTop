@@ -35,6 +35,7 @@
 | `NOT_SEATED` | 미착석 상태의 준비·퇴장 요청 | 먼저 착석 |
 | `NOT_GAME_SELECTOR` | 게임 선택 담당자가 아님 | 첫 착석자 또는 권한을 넘겨받은 참가자가 선택 |
 | `GAME_NOT_SELECTED` | 게임 선택 전 준비 true 요청 | 게임 선택 후 다시 준비 |
+| `GAME_PLAYER_LIMIT` | 현재 착석자가 선택하려는 게임 최대 인원보다 많음 | 인원이 줄어든 뒤 변경. 강제 퇴장 없음 |
 | `UNSUPPORTED_GAME` | 지원하지 않는 게임 코드 | 허용된 게임 선택 |
 | `TABLE_BUSY` | 선택적 시작 검증의 STARTING·CONFIRMED에서 변경 | 기존 시작 결과 확인. 새 변경 요청 반복 금지 |
 | `INTERNAL_ERROR` | 예상치 못한 서버 처리 오류 | 오류 표시. 무조건 자동 재시도하지 않음 |

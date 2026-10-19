@@ -37,7 +37,7 @@
     <div><span class="label">ONTOP / LOCAL DEVELOPMENT</span><h1>테이블 동기화</h1></div>
     <span id="connection">연결 안 됨</span>
   </header>
-  <p>두 탭을 열어 같은 테이블에 착석하세요. 각 연결은 별도 임시 사용자입니다.<br>
+  <p>2~4개 탭을 열어 같은 테이블에 착석하세요. 각 연결은 별도 임시 사용자입니다.<br>
     데이터는 서버 메모리에만 저장합니다. 전원 준비 후 실제 게임은 시작하지 않습니다.</p>
   <section class="card">
     <h2>연결</h2>
@@ -73,7 +73,7 @@
   <section id="startPanel" class="card" hidden>
     <h2>게임 시작 연동 검증</h2>
     <p>전원 준비 시 검증용 요청을 보냅니다. 실제 게임 실행·엽전 차감·DB 저장은 하지 않습니다.</p>
-    <p id="startStatus" role="status">착석 후 두 명 모두 준비해주세요.</p>
+    <p id="startStatus" role="status">게임 선택 후 참가자 모두 준비해주세요.</p>
     <button id="checkStart" disabled>시작 결과 다시 확인</button>
   </section>
   <section class="card"><h2>메시지 기록</h2><pre id="log" aria-live="polite">연결 후 송수신 기록이 표시됩니다.</pre></section>
@@ -182,10 +182,11 @@
       } else {
         el('startStatus').textContent = startState?.code === 'START_REJECTED'
           ? '시작이 거절되었습니다. 준비를 초기화했습니다. 실제 차감은 없습니다.'
-          : '착석 후 두 명 모두 준비해주세요.';
+          : '게임 선택 후 참가자 모두 준비해주세요.';
       }
       el('identity').textContent = userId ?? '서버에서 임시 사용자 ID를 발급합니다.';
-      el('tableTitle').textContent = state ? `${state.tableId} · 버전 ${state.version}` : '착석할 테이블 선택';
+      el('tableTitle').textContent = state
+        ? `${state.tableId} · ${state.minimumPlayers}~${state.capacity}명 · 버전 ${state.version}` : '착석할 테이블 선택';
       el('allReady').textContent = state?.allReady ? '전원 준비 완료' : '대기 중';
       el('seats').replaceChildren();
       if (!state) {

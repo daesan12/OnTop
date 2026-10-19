@@ -58,7 +58,7 @@ class TableQueryTests {
                     "allReady", "status", "joinable", "gameCode");
             assertThat(table.path("gameCode").isNull()).isTrue();
             assertThat(table.path("occupiedSeats").asInt()).isZero();
-            assertThat(table.path("availableSeats").asInt()).isEqualTo(2);
+            assertThat(table.path("availableSeats").asInt()).isEqualTo(4);
             assertThat(table.path("readyCount").asInt()).isZero();
             assertThat(table.path("allReady").asBoolean()).isFalse();
             assertThat(table.path("status").asText()).isEqualTo("WAITING");
@@ -97,10 +97,11 @@ class TableQueryTests {
 
     private void assertSummary(int occupied, int ready, boolean joinable, boolean allReady) {
         JsonNode table = http.getForObject("/api/v1/tables", JsonNode.class).path("tables").get(0);
-        assertThat(table.path("capacity").asInt()).isEqualTo(2);
+        int capacity = occupied == 0 ? 4 : 2;
+        assertThat(table.path("capacity").asInt()).isEqualTo(capacity);
         assertThat(table.path("minimumPlayers").asInt()).isEqualTo(2);
         assertThat(table.path("occupiedSeats").asInt()).isEqualTo(occupied);
-        assertThat(table.path("availableSeats").asInt()).isEqualTo(2 - occupied);
+        assertThat(table.path("availableSeats").asInt()).isEqualTo(capacity - occupied);
         assertThat(table.path("readyCount").asInt()).isEqualTo(ready);
         assertThat(table.path("joinable").asBoolean()).isEqualTo(joinable);
         assertThat(table.path("allReady").asBoolean()).isEqualTo(allReady);

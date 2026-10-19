@@ -22,6 +22,8 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 
@@ -32,6 +34,35 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class GameStartFlowTests {
+
+    @ParameterizedTest
+    @CsvSource({"ONE_CARD,2", "ONE_CARD,3", "ONE_CARD,4", "LIAR_BRIDGE,2", "LIAR_BRIDGE,3", "LIAR_BRIDGE,4"})
+    void 다인게임은_현재_참가자_전원_준비시_빈좌석을_제외하고_한번_시작한다(String game, int count)
+            throws Exception {
+        Peer first = seated();
+        first.request("GAME_SELECT", Map.of("gameCode", game));
+        List<Peer> players = new java.util.ArrayList<>();
+        players.add(first);
+        for (int index = 1; index < count; index++) {
+            players.add(seated());
+        }
+        for (int index = 0; index < count - 1; index++) {
+            players.get(index).request("READY_SET", Map.of("ready", true));
+        }
+        assertThat(gateway.starts.get()).isZero();
+        assertThat(hub.listTables().tables().getFirst().allReady()).isFalse();
+        players.getLast().request("READY_SET", Map.of("ready", true));
+        for (Peer player : players) {
+            assertThat(player.phase("CONFIRMED").path("payload").path("gameCode").asText()).isEqualTo(game);
+        }
+        assertThat(gateway.command.gameCode()).isEqualTo(game);
+        assertThat(gateway.command.participants()).extracting(GameStartCommand.Participant::userId)
+                .containsExactlyElementsOf(players.stream().map(player -> player.userId).toList());
+        assertThat(gateway.starts.get()).isEqualTo(1);
+        assertThat(hub.listTables().tables().getFirst().occupiedSeats()).isEqualTo(count);
+        assertThat(hub.listTables().tables().getFirst().availableSeats()).isEqualTo(4 - count);
+        assertThat(hub.listTables().tables().getFirst().joinable()).isFalse();
+    }
 
     private final ObjectMapper mapper = new ObjectMapper();
     private final Gateway gateway = new Gateway();
