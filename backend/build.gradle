@@ -28,6 +28,27 @@ tasks.named('test') {
     useJUnitPlatform()
 }
 
+tasks.register('flowTest', Test) {
+    description = '착석·준비·heartbeat 끊김·29초 복귀/30초 만료 시나리오 실행'
+    group = 'verification'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnitPlatform()
+    filter {
+        includeTestsMatching 'com.ssafy.ontop.table.FullFlowTests'
+    }
+    // 반복 실행해도 실제 소켓 시나리오를 다시 확인한다.
+    outputs.upToDateWhen { false }
+    outputs.cacheIf { false }
+    systemProperty 'logging.level.root', 'ERROR'
+    systemProperty 'spring.main.banner-mode', 'off'
+    testLogging {
+        events 'passed', 'failed', 'skipped'
+        showStandardStreams = true
+        exceptionFormat = 'short'
+    }
+}
+
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
 }

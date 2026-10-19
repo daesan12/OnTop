@@ -57,6 +57,16 @@ Linux/macOS에서는 `sh ./gradlew bootRun --args='--spring.profiles.active=loca
 
 구조와 진입점 설명은 [CODE_GUIDE](CODE_GUIDE.md)를 참고한다.
 
+## 전체 흐름 한 번에 확인
+
+`backend/`에서 실행한다. 서버를 따로 켜지 않아도 된다.
+
+```powershell
+.\gradlew.bat flowTest
+```
+
+착석·게임 선택·준비·끊김 감지·29초 복귀/30초 만료를 확인한다. 인증·경기 생성은 테스트 대역이다. 단계별 결과와 HTML 보고서는 [도구 안내](docs/flow-test.md)를 참고한다.
+
 [경기 재접속 연결부](docs/game-reconnect.md)는 동일 계정의 추가 연결 차단과 30초 내 최신 경기 복귀를 담당한다. 실제 로그인·경기 엔진은 연결 전이며 테스트 대역으로 검증한다.
 
 [heartbeat](docs/websocket-heartbeat.md)는 기본 10초 주기·10초 응답 제한으로 무응답 연결을 감지한다. 감지 후 기존 연결 권한을 제거하고 30초 재접속 유예로 이어진다. 표준 브라우저는 Ping/Pong을 자동 처리한다.
