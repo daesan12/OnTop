@@ -21,7 +21,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @ActiveProfiles("local")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
-        "ontop.start-rehearsal.enabled=true", "ontop.start-rehearsal.delay-millis=0"
+        "ontop.start-rehearsal.enabled=true", "ontop.start-rehearsal.delay-millis=0",
+        "ontop.start-rehearsal.countdown-millis=150"
 })
 class GameStartWebSocketTests {
 
@@ -39,6 +40,9 @@ class GameStartWebSocketTests {
             second.await(message -> message.path("type").asText().equals("TABLE_STATE"));
             first.send("READY_SET", Map.of("ready", true));
             second.send("READY_SET", Map.of("ready", true));
+            JsonNode countdown = first.await(message -> message.path("payload").path("phase").asText()
+                    .equals("COUNTDOWN"));
+            assertThat(countdown.path("payload").path("countdownEndsAt").asText()).isNotBlank();
             JsonNode firstResult = first.confirmed();
             JsonNode secondResult = second.confirmed();
 

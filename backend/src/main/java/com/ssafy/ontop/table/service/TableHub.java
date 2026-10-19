@@ -21,6 +21,9 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,15 +48,25 @@ public class TableHub {
     private final Optional<GameStartGateway> gateway;
     private final boolean startRehearsal;
     private final ExecutorService startWorkers = Executors.newVirtualThreadPerTaskExecutor();
+    private final ScheduledThreadPoolExecutor countdownTimer = new ScheduledThreadPoolExecutor(1,
+            Thread.ofPlatform().daemon(true).name("table-countdown-", 0).factory());
+    private final Map<String, ScheduledFuture<?>> countdownTasks = new HashMap<>();
+    private final long countdownMillis;
     private boolean stopped;
 
     public TableHub(ObjectMapper mapper, Optional<GameStartGateway> gateway,
-            @Value("${ontop.start-rehearsal.enabled:false}") boolean startRehearsal) {
+            @Value("${ontop.start-rehearsal.enabled:false}") boolean startRehearsal,
+            @Value("${ontop.start-rehearsal.countdown-millis:5000}") long countdownMillis) {
         if (startRehearsal && gateway.isEmpty()) {
             throw new IllegalArgumentException("시작 연동 검증 대역이 필요합니다.");
         }
         this.gateway = gateway;
         this.startRehearsal = startRehearsal;
+        if (countdownMillis < 0 || countdownMillis > 60000) {
+            throw new IllegalArgumentException("검증 카운트다운은 0~60000ms입니다.");
+        }
+        this.countdownMillis = countdownMillis;
+        countdownTimer.setRemoveOnCancelPolicy(true);
         protocol = new TableProtocol(mapper, startRehearsal);
     }
 
@@ -77,6 +90,9 @@ public class TableHub {
             TableStartAttempt attempt = starts.get(tableId);
             String status = attempt == null || !attempt.frozen() ? "WAITING"
                     : attempt.starting() ? "STARTING" : "REHEARSAL_CONFIRMED";
+            if (attempt != null && attempt.countingDown()) {
+                status = "COUNTDOWN";
+            }
             int available = snapshot.capacity() - occupied;
             return new TableSummaryResponse(tableId, snapshot.capacity(), snapshot.minimumPlayers(), occupied,
                     available, ready, snapshot.allReady(), status, available > 0 && status.equals("WAITING"));
@@ -115,6 +131,7 @@ public class TableHub {
         member.peer().stop();
         String tableId = seating.get(member.userId());
         if (tableId != null) {
+            cancelCountdown(tableId);
             TableStartAttempt attempt = starts.get(tableId);
             if (attempt != null && attempt.frozen()) {
                 if (attempt.starting() && !attempt.dispatched()) {
@@ -137,6 +154,9 @@ public class TableHub {
         members.clear();
         seating.clear();
         starts.clear();
+        countdownTasks.values().forEach(task -> task.cancel(false));
+        countdownTasks.clear();
+        countdownTimer.shutdownNow();
         startWorkers.shutdownNow();
     }
 
@@ -169,6 +189,9 @@ public class TableHub {
         ensureWaiting(room.snapshot().tableId(), request);
         if (room.setReady(member.userId(), request.payload().get("ready").booleanValue())) {
             publish(room, member, request.requestId());
+            if (!room.snapshot().allReady()) {
+                cancelCountdown(room.snapshot().tableId());
+            }
             beginStartIfReady(room);
         } else {
             replyState(member, request, room);
@@ -180,6 +203,7 @@ public class TableHub {
         ensureWaiting(room.snapshot().tableId(), request);
         String tableId = seating.remove(member.userId());
         room.leave(member.userId());
+        cancelCountdown(tableId);
         member.peer().offer(protocol.encode(request.requestId(), "TABLE_LEFT", Map.of("tableId", tableId)));
         publish(room, null, null);
     }
@@ -221,25 +245,62 @@ public class TableHub {
         if (!startRehearsal || !snapshot.allReady()) {
             return;
         }
+        TableStartAttempt current = starts.get(snapshot.tableId());
+        if (current != null && (current.countingDown() || current.frozen())) {
+            return;
+        }
         GameStartCommand command = new GameStartCommand(UUID.randomUUID(), snapshot.tableId(), snapshot.version(),
                 "OMOK", snapshot.seats().stream()
                         .map(seat -> new Participant(seat.userId(), seat.seatNumber())).toList());
-        TableStartAttempt attempt = new TableStartAttempt(command);
+        TableStartAttempt attempt = new TableStartAttempt(command, countdownMillis);
         starts.put(snapshot.tableId(), attempt);
         publishStart(snapshot.tableId());
-        startWorkers.execute(() -> dispatchStart(snapshot.tableId(), attempt));
+        if (countdownMillis == 0) {
+            startWorkers.execute(() -> dispatchStart(snapshot.tableId(), attempt));
+        } else {
+            countdownTasks.put(snapshot.tableId(), countdownTimer.schedule(
+                    () -> submitCountdownStart(snapshot.tableId(), attempt),
+                    countdownMillis, TimeUnit.MILLISECONDS));
+        }
+    }
+
+    private synchronized void submitCountdownStart(String tableId, TableStartAttempt attempt) {
+        if (!stopped) {
+            startWorkers.execute(() -> dispatchStart(tableId, attempt));
+        }
+    }
+
+    private void cancelCountdown(String tableId) {
+        TableStartAttempt attempt = starts.get(tableId);
+        if (attempt == null || !attempt.countingDown()) {
+            return;
+        }
+        ScheduledFuture<?> task = countdownTasks.remove(tableId);
+        if (task != null) {
+            task.cancel(false);
+        }
+        attempt.cancelCountdown();
+        publishStart(tableId);
     }
 
     private void dispatchStart(String tableId, TableStartAttempt attempt) {
         synchronized (this) {
-            if (stopped || starts.get(tableId) != attempt || !attempt.starting()) {
+            if (stopped || starts.get(tableId) != attempt || (!attempt.starting() && !attempt.countingDown())) {
                 return;
             }
+            countdownTasks.remove(tableId);
             Set<String> connected = connectedUsers();
-            if (!attempt.command().participants().stream().allMatch(player -> connected.contains(player.userId()))) {
+            TableRoom.Snapshot snapshot = rooms.get(tableId).snapshot();
+            if (snapshot.version() != attempt.command().tableVersion() || !snapshot.allReady()
+                    || !attempt.command().participants().stream()
+                            .allMatch(player -> connected.contains(player.userId()))) {
                 applyStartResult(tableId, attempt,
                         GameStartResult.rejected(attempt.command().startAttemptId(), "PARTICIPANT_LEFT"));
                 return;
+            }
+            if (attempt.countingDown()) {
+                attempt.finishCountdown();
+                publishStart(tableId);
             }
             attempt.dispatch();
         }

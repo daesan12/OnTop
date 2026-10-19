@@ -77,7 +77,7 @@ class GameStartContractTests {
                 new GameStartResult(command.startAttemptId(), Outcome.REJECTED, "game", List.of(), 0, 0, "REJECTED"));
 
         for (GameStartResult result : invalid) {
-            TableStartAttempt attempt = new TableStartAttempt(command);
+            TableStartAttempt attempt = new TableStartAttempt(command, 0);
             attempt.apply(result);
 
             assertThat(attempt.starting()).isTrue();

@@ -67,4 +67,6 @@ Linux/macOS에서는 `sh ./gradlew bootRun --args='--spring.profiles.active=loca
 
 명령은 `backend/`에서 실행한다. IntelliJ에서는 활성 프로파일 `local`과 프로그램 인수 `--ontop.start-rehearsal.enabled=true`를 지정한다. 같은 개발 페이지에서 두 명 모두 준비하면 연동 검증 영역에 결과가 나온다. 이 옵션이 없으면 기존 준비 확인 기능만 동작한다.
 
+정원만 차서는 시작하지 않으며 전원 준비 후 카운트다운을 거친다. 기본 5초는 개발 검증용 설정값이다. 카운트다운 중 준비 취소·퇴장·연결 종료 시 취소되고, 다시 전원 준비하면 새로 시작한다. 시간은 `--ontop.start-rehearsal.countdown-millis=5000`으로 조정한다.
+
 거절·지연 시나리오와 추가 메시지는 [시작 연동 검증 안내](docs/game-start-rehearsal.md)에 있다. 성공 뒤 실제 경기 종료를 구현하지 않았으므로 좌석을 예약한 채 유지하며 새 검증은 다른 테이블이나 서버 재시작으로 수행한다.

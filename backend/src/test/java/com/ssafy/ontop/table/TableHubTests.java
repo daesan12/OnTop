@@ -27,7 +27,7 @@ import static org.mockito.Mockito.when;
 class TableHubTests {
 
     private final ObjectMapper mapper = new ObjectMapper();
-    private final TableHub hub = new TableHub(mapper, Optional.empty(), false);
+    private final TableHub hub = new TableHub(mapper, Optional.empty(), false, 0);
 
     @AfterEach
     void shutdown() {

@@ -102,7 +102,7 @@
         const selected = el('table').value;
         el('table').replaceChildren();
         el('tableList').replaceChildren();
-        const labels = { WAITING: '대기 중', STARTING: '시작 결과 확인 중',
+        const labels = { WAITING: '대기 중', COUNTDOWN: '시작 카운트다운', STARTING: '시작 결과 확인 중',
           REHEARSAL_CONFIRMED: '연동 검증 완료 (실제 경기 아님)' };
         for (const table of tables) {
           const option = document.createElement('option');
@@ -142,6 +142,14 @@
       el('log').textContent = history.join('\n\n');
     }
 
+    function renderCountdown() {
+      if (startState?.phase !== 'COUNTDOWN') return;
+      const seconds = Math.max(0, Math.ceil((Date.parse(startState.countdownEndsAt) - Date.now()) / 1000));
+      el('startStatus').textContent = seconds > 0
+        ? `전원 준비 완료 · 시작까지 ${seconds}초 · 준비 취소 또는 퇴장으로 취소할 수 있습니다.`
+        : '카운트다운 완료 · 서버의 시작 처리를 기다립니다.';
+    }
+
     function render() {
       const open = socket?.readyState === WebSocket.OPEN && userId !== null;
       const busy = pending !== null;
@@ -159,13 +167,17 @@
       if (startState?.phase === 'CONFIRMED') {
         el('startStatus').textContent = `연동 검증 성공 · ${startState.gameSessionId} · 실제 게임은 실행하지 않습니다. `
           + '다시 검증하려면 서버를 재시작해주세요.';
+      } else if (startState?.phase === 'COUNTDOWN') {
+        renderCountdown();
       } else if (startState?.phase === 'STARTING') {
         el('startStatus').textContent = '시작 결과를 확인 중입니다. 새 시작 요청은 보내지 않습니다. '
           + '결과가 계속 대기 중이면 아래 버튼으로 같은 요청의 결과를 확인하세요.';
       } else {
         el('startStatus').textContent = startState?.code === 'START_REJECTED'
           ? '시작이 거절되었습니다. 준비를 초기화했습니다. 실제 차감은 없습니다.'
-          : '착석 후 두 명 모두 준비해주세요.';
+          : startState?.code === 'COUNTDOWN_CANCELLED'
+            ? '카운트다운이 취소되었습니다. 전원이 다시 준비하면 시작합니다.'
+            : '착석 후 두 명 모두 준비해주세요.';
       }
       el('identity').textContent = userId ?? '서버에서 임시 사용자 ID를 발급합니다.';
       el('tableTitle').textContent = state ? `${state.tableId} · 버전 ${state.version}` : '착석할 테이블 선택';
@@ -274,6 +286,7 @@
     el('checkStart').onclick = () => send('GAME_START_CHECK', {});
     el('refreshTables').onclick = refreshTables;
     el('table').onchange = render;
+    setInterval(renderCountdown, 250);
     render();
     refreshTables();
   </script>
