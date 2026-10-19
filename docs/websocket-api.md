@@ -4,6 +4,8 @@
 
 기능 이름을 열면 요청·응답 JSON과 처리 규칙을 볼 수 있습니다. 공통 형식·ERD 관계는 [📌 공통 규격](websocket-api/00-common.md)에 정리했습니다.
 
+[연결 생존 확인(heartbeat)](websocket-heartbeat.md)은 WebSocket Ping/Pong 제어 프레임을 사용합니다. 별도 JSON 요청 없이 응답 없는 연결을 정리하고 30초 재접속 처리로 이어집니다.
+
 기본 모드는 아래 명세를 유지합니다. 별도로 켜는 DB 없는 [게임 시작 연동 검증](game-start-rehearsal.md)에는 추가 메시지와 입력 제한이 있습니다. 실제 게임 시작·차감 기능은 아닙니다.
 
 ## API 목록

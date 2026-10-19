@@ -16,7 +16,11 @@ import com.ssafy.ontop.table.dto.TableProtocol.Request;
 import com.ssafy.ontop.table.dto.TableProtocol.RequestException;
 import com.ssafy.ontop.table.dto.TableSummaryResponse;
 import com.ssafy.ontop.table.websocket.TablePeer;
+import com.ssafy.ontop.table.websocket.WebSocketHeartbeat;
 import jakarta.annotation.PreDestroy;
+import java.nio.ByteBuffer;
+import java.time.Duration;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -24,6 +28,8 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,6 +56,10 @@ public class TableHub {
     private final boolean startRehearsal;
     private final Optional<GameReconnectService> reconnect;
     private final ExecutorService startWorkers = Executors.newVirtualThreadPerTaskExecutor();
+    private final ScheduledExecutorService heartbeatTimer = Executors.newSingleThreadScheduledExecutor(
+            Thread.ofPlatform().daemon(true).name("table-heartbeat").factory());
+    private final Duration heartbeatInterval;
+    private final Duration heartbeatTimeout;
     private boolean stopped;
 
     public TableHub(ObjectMapper mapper, Optional<GameStartGateway> gateway,
@@ -57,17 +67,30 @@ public class TableHub {
         this(mapper, gateway, startRehearsal, Optional.empty());
     }
 
+    public TableHub(ObjectMapper mapper, Optional<GameStartGateway> gateway,
+            boolean startRehearsal,
+            Optional<GameReconnectService> reconnect) {
+        this(mapper, gateway, startRehearsal, reconnect, Duration.ofSeconds(10), Duration.ofSeconds(10));
+    }
+
     @Autowired
     public TableHub(ObjectMapper mapper, Optional<GameStartGateway> gateway,
             @Value("${ontop.start-rehearsal.enabled:false}") boolean startRehearsal,
-            Optional<GameReconnectService> reconnect) {
+            Optional<GameReconnectService> reconnect,
+            @Value("${ontop.websocket.heartbeat.interval:10s}") Duration heartbeatInterval,
+            @Value("${ontop.websocket.heartbeat.timeout:10s}") Duration heartbeatTimeout) {
         if (startRehearsal && gateway.isEmpty()) {
             throw new IllegalArgumentException("시작 연동 검증 대역이 필요합니다.");
         }
         this.gateway = gateway;
         this.startRehearsal = startRehearsal;
         this.reconnect = reconnect;
+        // 잘못된 시간 설정은 연결을 받기 전에 실패시킨다.
+        new WebSocketHeartbeat(heartbeatInterval, heartbeatTimeout, System::nanoTime);
+        this.heartbeatInterval = heartbeatInterval;
+        this.heartbeatTimeout = heartbeatTimeout;
         protocol = new TableProtocol(mapper, startRehearsal);
+        heartbeatTimer.scheduleWithFixedDelay(this::checkHeartbeats, 100, 100, TimeUnit.MILLISECONDS);
     }
 
     public synchronized void connect(WebSocketSession session) {
@@ -89,7 +112,8 @@ public class TableHub {
     }
 
     private Member register(WebSocketSession session, String userId, Long accountId) {
-        TablePeer peer = new TablePeer(session, () -> disconnect(session.getId()));
+        TablePeer peer = new TablePeer(session, () -> disconnect(session.getId()),
+                new WebSocketHeartbeat(heartbeatInterval, heartbeatTimeout, System::nanoTime));
         Member member = new Member(userId, peer, accountId);
         members.put(session.getId(), member);
         peer.offer(protocol.encode(null, "CONNECTED", Map.of("userId", userId)));
@@ -98,6 +122,24 @@ public class TableHub {
         }
         peer.start();
         return member;
+    }
+
+    public synchronized void pong(String sessionId, ByteBuffer payload) {
+        Member member = members.get(sessionId);
+        if (member != null) {
+            member.peer().pong(payload);
+        }
+    }
+
+    private synchronized void checkHeartbeats() {
+        if (stopped) {
+            return;
+        }
+        for (var entry : new ArrayList<>(members.entrySet())) {
+            if (!entry.getValue().peer().checkHeartbeat()) {
+                disconnect(entry.getKey());
+            }
+        }
     }
 
     public synchronized TableListResponse listTables() {
@@ -182,6 +224,7 @@ public class TableHub {
     @PreDestroy
     public synchronized void shutdown() {
         stopped = true;
+        heartbeatTimer.shutdownNow();
         members.values().forEach(member -> member.peer().stop());
         members.clear();
         seating.clear();

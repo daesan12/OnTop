@@ -11,6 +11,7 @@
 | WebSocket API 명세 | [websocket-api.md](websocket-api.md) | DB 없는 연결·테이블 착석·첫 착석자의 게임 선택·퇴장·준비 동기화 계약. local 구현·검증 완료 |
 | WebSocket 인증 연결부 | [websocket-authentication.md](websocket-authentication.md) | 서버 검증 사용자 연결·실패 차단. 실제 로그인·JWT/세션 방식은 미연결 |
 | 경기 재접속 연결부 | [game-reconnect.md](game-reconnect.md) | 추가 연결 차단·30초 내 최신 경기 복귀·만료 처리 경계. 실제 경기 담당 미연결 |
+| WebSocket heartbeat | [websocket-heartbeat.md](websocket-heartbeat.md) | Ping/Pong으로 무응답 연결 감지 후 30초 재접속 유예 연결 |
 | 테이블 목록 조회 API | [table-query-api.md](table-query-api.md) | local 전용 GET 목록, 빈자리·준비 인원·입장 가능 여부와 개발 화면 조회 규칙 |
 | 게임 시작 연동 계약 초안 | [game-start-contract-draft.md](game-start-contract-draft.md) | A·B의 시작 요청·결과·중복 처리 제안. 공유 완료, 재화·종료 정책은 정식 연결 전 재대조 필요 |
 | 게임 시작 연동 검증 | [game-start-rehearsal.md](game-start-rehearsal.md) | 선택해서 켜는 DB 없는 시작 요청·성공·거절·조회 확인 기능. 실제 경기·차감 없음 |
