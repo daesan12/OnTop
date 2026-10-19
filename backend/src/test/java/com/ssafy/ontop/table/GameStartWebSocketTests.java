@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.WebSocket;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
@@ -22,7 +24,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @ActiveProfiles("local")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "ontop.start-rehearsal.enabled=true", "ontop.start-rehearsal.delay-millis=0",
-        "ontop.start-rehearsal.countdown-millis=150"
+        "ontop.start-rehearsal.countdown-millis=60000"
 })
 class GameStartWebSocketTests {
 
@@ -32,17 +34,20 @@ class GameStartWebSocketTests {
     private int port;
 
     @Test
-    void 실제_연결에서도_전원_준비_후_검증_성공을_양쪽에_보낸다() throws Exception {
+    void 전원_준비하면_과거_타이머_설정과_무관하게_카운트다운_없이_시작한다() throws Exception {
         try (Client first = new Client(); Client second = new Client()) {
             first.send("TABLE_JOIN", Map.of("tableId", "table-1"));
             first.await(message -> message.path("type").asText().equals("TABLE_STATE"));
             second.send("TABLE_JOIN", Map.of("tableId", "table-1"));
             second.await(message -> message.path("type").asText().equals("TABLE_STATE"));
+            second.await(message -> message.path("type").asText().equals("GAME_START_STATE")
+                    && message.path("payload").path("phase").asText().equals("WAITING"));
+            assertThat(second.phases).contains("WAITING").doesNotContain("STARTING", "CONFIRMED");
             first.send("READY_SET", Map.of("ready", true));
+            first.await(message -> message.path("type").asText().equals("TABLE_STATE")
+                    && message.path("payload").path("seats").get(0).path("ready").asBoolean());
+            assertThat(first.phases).doesNotContain("STARTING", "CONFIRMED");
             second.send("READY_SET", Map.of("ready", true));
-            JsonNode countdown = first.await(message -> message.path("payload").path("phase").asText()
-                    .equals("COUNTDOWN"));
-            assertThat(countdown.path("payload").path("countdownEndsAt").asText()).isNotBlank();
             JsonNode firstResult = first.confirmed();
             JsonNode secondResult = second.confirmed();
 
@@ -50,6 +55,11 @@ class GameStartWebSocketTests {
             assertThat(firstResult.path("requestId").isNull()).isTrue();
             assertThat(firstResult.path("payload").path("gameSessionId").asText()).startsWith("demo-game-");
             assertThat(firstResult.path("payload").path("simulation").asBoolean()).isTrue();
+            assertThat(first.phases).containsSubsequence("WAITING", "STARTING", "CONFIRMED")
+                    .doesNotContain("COUNTDOWN");
+            assertThat(second.phases).containsSubsequence("WAITING", "STARTING", "CONFIRMED")
+                    .doesNotContain("COUNTDOWN");
+            assertThat(firstResult.path("payload").has("countdownEndsAt")).isFalse();
         }
     }
 
@@ -57,6 +67,7 @@ class GameStartWebSocketTests {
 
         private final HttpClient http = HttpClient.newHttpClient();
         private final BlockingQueue<String> messages = new LinkedBlockingQueue<>();
+        private final List<String> phases = new ArrayList<>();
         private final StringBuilder fragments = new StringBuilder();
         private final WebSocket socket;
 
@@ -99,6 +110,9 @@ class GameStartWebSocketTests {
                 String text = messages.poll(Math.max(0, deadline - System.nanoTime()), TimeUnit.NANOSECONDS);
                 assertThat(text).isNotNull();
                 JsonNode message = mapper.readTree(text);
+                if (message.path("type").asText().equals("GAME_START_STATE")) {
+                    phases.add(message.path("payload").path("phase").asText());
+                }
                 if (predicate.test(message)) {
                     return message;
                 }

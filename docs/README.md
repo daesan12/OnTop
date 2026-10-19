@@ -10,9 +10,9 @@
 | 백엔드 담당 분담표 | [backend-responsibilities.md](backend-responsibilities.md) | 실시간 통신·데이터 정합성 담당과 시작·베팅·정산 연결점 |
 | WebSocket API 명세 | [websocket-api.md](websocket-api.md) | DB 없는 연결·테이블 착석·퇴장·준비 동기화 계약. local 구현·검증 완료 |
 | 테이블 목록 조회 API | [table-query-api.md](table-query-api.md) | local 전용 GET 목록, 빈자리·준비 인원·입장 가능 여부와 개발 화면 조회 규칙 |
-| 게임 시작 연동 계약 초안 | [game-start-contract-draft.md](game-start-contract-draft.md) | A·B의 시작 요청·차감·결과·중복 처리 제안. 팀원 검토 전이며 현행 API 아님 |
+| 게임 시작 연동 계약 초안 | [game-start-contract-draft.md](game-start-contract-draft.md) | A·B의 시작 요청·결과·중복 처리 제안. 공유 완료, 재화·종료 정책은 정식 연결 전 재대조 필요 |
 | 게임 시작 연동 검증 | [game-start-rehearsal.md](game-start-rehearsal.md) | 선택해서 켜는 DB 없는 시작 요청·성공·거절·조회 확인 기능. 실제 경기·차감 없음 |
-| ERD 정책 대조 | [erd-policy-alignment.md](erd-policy-alignment.md) | 최신 Notion·ERD·사용자 정정과 기존 시작 초안의 차이 및 실제 구현 범위 |
+| 제품 기준·ERD 대조 | [erd-policy-alignment.md](erd-policy-alignment.md) | 사용자 지정 OnTop v0.4 우선순위, ERD·과거 초안과의 차이 및 실제 구현 범위 |
 
 실제 코드의 구조·실행 흐름·현재 상태와 학습 포인트는 프로젝트 루트의 [CODE_GUIDE.md](../CODE_GUIDE.md)에 둔다.
 

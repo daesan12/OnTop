@@ -35,7 +35,7 @@ class GameStartFlowTests {
 
     private final ObjectMapper mapper = new ObjectMapper();
     private final Gateway gateway = new Gateway();
-    private final TableHub hub = new TableHub(mapper, Optional.of(gateway), true, 0);
+    private final TableHub hub = new TableHub(mapper, Optional.of(gateway), true);
 
     @AfterEach
     void shutdown() {

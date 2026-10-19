@@ -3,7 +3,6 @@ package com.ssafy.ontop.table.domain;
 import com.ssafy.ontop.game.start.GameStartCommand;
 import com.ssafy.ontop.game.start.GameStartResult;
 import com.ssafy.ontop.game.start.GameStartResult.Outcome;
-import java.time.Instant;
 
 // TableHub의 잠금 안에서만 변경한다. 실제 경기 실행 상태와 구분되는 시작 연동 상태다.
 public final class TableStartAttempt {
@@ -14,13 +13,9 @@ public final class TableStartAttempt {
     private String gameSessionId;
     private boolean dispatched;
     private boolean checking;
-    private final String countdownEndsAt;
 
-    public TableStartAttempt(GameStartCommand command, long countdownMillis) {
+    public TableStartAttempt(GameStartCommand command) {
         this.command = command;
-        phase = countdownMillis == 0 ? "STARTING" : "COUNTDOWN";
-        countdownEndsAt = countdownMillis == 0 ? null : Instant.now().plusMillis(countdownMillis).toString();
-        code = countdownMillis == 0 ? "START_PENDING" : "COUNTDOWN_PENDING";
     }
 
     public GameStartCommand command() {
@@ -28,21 +23,7 @@ public final class TableStartAttempt {
     }
 
     public boolean frozen() {
-        return phase.equals("STARTING") || phase.equals("CONFIRMED");
-    }
-
-    public boolean countingDown() {
-        return phase.equals("COUNTDOWN");
-    }
-
-    public void cancelCountdown() {
-        phase = "WAITING";
-        code = "COUNTDOWN_CANCELLED";
-    }
-
-    public void finishCountdown() {
-        phase = "STARTING";
-        code = "START_PENDING";
+        return !phase.equals("WAITING");
     }
 
     public boolean starting() {
@@ -104,15 +85,15 @@ public final class TableStartAttempt {
 
     public View view(long revision) {
         return new View(command.tableId(), revision, phase, command.startAttemptId().toString(), command.gameCode(),
-                gameSessionId, code, true, countingDown() ? countdownEndsAt : null);
+                gameSessionId, code, true);
     }
 
     public record View(String tableId, long revision, String phase, String startAttemptId, String gameCode,
-            String gameSessionId, String code, boolean simulation, String countdownEndsAt) {
+            String gameSessionId, String code, boolean simulation) {
 
         public static View waiting(String tableId, long revision) {
             return new View(tableId, revision, tableId == null ? "NOT_SEATED" : "WAITING", null, "OMOK",
-                    null, null, true, null);
+                    null, null, true);
         }
     }
 }

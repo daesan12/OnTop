@@ -1,6 +1,8 @@
 # 게임 시작 연동 검증
 
-두 명이 준비하면 카운트다운 뒤 시작 요청을 보내고 결과를 받아 화면에 표시하는 개발용 기능이다. 팀원의 DB 코드가 없어도 네 쪽 흐름을 확인할 수 있다. **코인 예약·차감·DB 저장·실제 게임 실행·AI 대행은 하지 않는다.** 최신 정책과 차이는 [정책 대조표](erd-policy-alignment.md)를 참고한다.
+두 명이 준비하면 시작 요청을 보내고 결과를 받아 화면에 표시하는 개발용 기능이다. 팀원의 DB 코드가 없어도 네 쪽 흐름을 확인할 수 있다. **엽전 차감·DB 저장·실제 게임 실행·AI 대행은 하지 않는다.**
+
+기준은 사용자 지정 [OnTop 통합 기획서 v0.4](https://app.notion.com/p/OnTop_-_-154161842b868387b6ad0174db68ee71)다. 전원 준비 시 별도 카운트다운 없이 시작 요청을 보낸다. 과거의 `countdown-millis` 설정·COUNTDOWN 상태·마감 시각 필드는 제거했다. 실제 경기 진입에는 B의 성공 결과가 필요하며, 즉시 시작 요청을 실제 DB 처리의 즉시 완료와 혼동하지 않는다. [정책 대조표](erd-policy-alignment.md)에 ERD 문서와 충돌을 구분했다.
 
 ## 켜는 방법
 
@@ -27,7 +29,6 @@ IntelliJ에서 활성화된 프로파일은 `local`로 두고, 실행 구성의 
 | 인수 | 확인할 동작 |
 | --- | --- |
 | 기본값 `SUCCESS` | 전원 준비 → 요청 → 연동 검증 성공 |
-| `--ontop.start-rehearsal.countdown-millis=5000` | 전원 준비 후 카운트다운. 기본 5초는 local 검증값이며 실서비스 확정값이 아님. 0~60000ms, 0은 테스트의 즉시 시작용 |
 | `--ontop.start-rehearsal.scenario=REJECT` | 전원 준비 → 거절 → 전원 준비 초기화·다시 준비 가능 |
 | `--ontop.start-rehearsal.scenario=DELAYED_SUCCESS` | 결과 대기 → 같은 요청의 결과 확인 → 검증 성공 |
 | `--ontop.start-rehearsal.delay-millis=5000` | 응답 대기 시간 조정. 기본 500ms, 0~60000ms |
@@ -39,7 +40,7 @@ IntelliJ에서 활성화된 프로파일은 `local`로 두고, 실행 구성의 
 ## 서버 내부의 흐름
 
 1. `TableHub.beginStartIfReady()`가 준비된 참가자와 좌석을 복사하고 시작 시도 ID를 한 번 생성한다.
-2. `TableStartAttempt`가 `COUNTDOWN`과 마감 시각을 알린다. 정원만 차서는 시작하지 않는다. 준비 취소·퇴장·연결 종료는 카운트다운을 취소한다. 만료 시 현재 시도·좌석 버전·전원 준비·연결을 재검증한 뒤 `STARTING`으로 바꾸고 입력 변경을 `TABLE_BUSY`로 제한한다. 취소된 이전 타이머는 새 시도를 시작하지 못한다.
+2. `TableStartAttempt`가 `STARTING` 상태를 유지한다. 그동안 착석·퇴장·준비 변경은 `TABLE_BUSY`로 거절한다. 같은 테이블의 반복 착석은 현재 상태만 반환한다.
 3. 별도 작업 스레드가 상태 잠금 밖에서 `GameStartGateway.startGame()`을 호출한다.
 4. 확정 성공이면 `CONFIRMED`, 확정 거절이면 `WAITING`으로 바꾸고 준비를 초기화한다. 결과 불명·잘못된 결과·충돌이면 `STARTING`을 유지한다.
 5. 결과 조회는 `findStartResult()`를 사용한다. 현재 시도와 다른 ID·참가자·판돈의 성공 결과는 받아들이지 않는다.
@@ -54,7 +55,7 @@ IntelliJ에서 활성화된 프로파일은 `local`로 두고, 실행 구성의 
 
 ### GAME_START_STATE
 
-서버 → 클라이언트. 연결 직후에는 `tableId=null`, `phase=NOT_SEATED`로 검증 모드임을 알려준다. 착석하면 `WAITING`, 전원 준비 후에는 `COUNTDOWN`, 만료·조건 재검증 후 `STARTING`, 검증 성공 후에는 `CONFIRMED`다.
+서버 → 클라이언트. 연결 직후에는 `tableId=null`, `phase=NOT_SEATED`로 검증 모드임을 알려준다. 착석하면 `WAITING`, 전원 준비 후에는 `STARTING`, 검증 성공 후에는 `CONFIRMED`다.
 
 ```json
 {
@@ -68,15 +69,13 @@ IntelliJ에서 활성화된 프로파일은 `local`로 두고, 실행 구성의 
     "gameCode": "OMOK",
     "gameSessionId": "demo-game-example",
     "code": null,
-    "simulation": true,
-    "countdownEndsAt": null
+    "simulation": true
   }
 }
 ```
 
 - 같은 테이블 참가자에게만 알린다. `revision`은 테이블별 시작 상태 알림 순서이며 기존 좌석 `version`과 별개다.
 - 화면은 낮은 revision을 무시하며 새 연결에서 캐시를 비운다.
-- `COUNTDOWN`에는 UTC ISO-8601 마감 시각 `countdownEndsAt`, 다른 상태에는 null을 제공한다. 남은 초는 클라이언트 참고 표시이며 실제 시작은 서버가 결정한다. 취소는 `WAITING`과 `COUNTDOWN_CANCELLED`로 알린다. 준비 취소는 본인만 false, 퇴장·연결 종료는 기존대로 남은 사람의 준비도 초기화한다.
 - 거절은 공개 코드 `START_REJECTED`로만 알리고 계정별 잔액·참가 제한 사유를 전파하지 않는다.
 - 결과 미확정은 `START_PENDING`, `START_RESULT_UNKNOWN`, `START_RESULT_INVALID`, `START_CONFLICT`로 표시한다. 대기로 복귀하거나 새 차감을 요청하지 않는다.
 
@@ -92,7 +91,6 @@ IntelliJ에서 활성화된 프로파일은 `local`로 두고, 실행 구성의 
 
 - 미착석이면 `NOT_SEATED`, 시작 요청이 없으면 `START_NOT_REQUESTED`다.
 - 검증 모드가 꺼져 있으면 `UNSUPPORTED_MESSAGE_TYPE`이다.
-- 카운트다운 중 조회는 현재 상태만 반환하며 B 결과 조회를 실행하지 않는다.
 - 허용되지 않은 payload 필드는 기존 규칙대로 `INVALID_PAYLOAD`다.
 
 ## 연결 종료 경계

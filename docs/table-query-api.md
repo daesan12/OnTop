@@ -48,11 +48,10 @@ DB 없는 `local` 개발용 API다. 개발 화면에서 현재 테이블과 빈�
 | status | 의미 |
 | --- | --- |
 | WAITING | 착석·준비 대기. 정원이 차면 joinable=false |
-| COUNTDOWN | 선택적 시작 검증의 카운트다운. 준비 취소·퇴장 가능, joinable=false |
 | STARTING | 선택적 시작 연동 검증에서 결과 확인 중. joinable=false |
 | REHEARSAL_CONFIRMED | 시작 연동 검증 성공. 실제 경기 진행 상태가 아님. joinable=false |
 
-기본 실행에서는 `WAITING`만 나온다. [시작 연동 검증](game-start-rehearsal.md)을 켰을 때만 나머지 상태가 나온다. 호출 확정 후 연결이 끊겨도 결과를 기다리는 좌석은 점유 수에 포함한다. 확정 거절 시 끊긴 좌석을 정리하고 준비를 초기화한다.
+기본 실행에서는 `WAITING`만 나온다. [시작 연동 검증](game-start-rehearsal.md)을 켰을 때만 나머지 두 상태가 나온다. 호출 확정 후 연결이 끊겨도 결과를 기다리는 좌석은 점유 수에 포함한다. 확정 거절 시 끊긴 좌석을 정리하고 준비를 초기화한다.
 
 ## 프론트 사용 흐름
 
