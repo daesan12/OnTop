@@ -1,6 +1,7 @@
 package com.ssafy.ontop.table.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser;
 import com.ssafy.ontop.game.start.GameStartCommand;
 import com.ssafy.ontop.game.start.GameStartCommand.Participant;
 import com.ssafy.ontop.game.start.GameStartGateway;
@@ -60,6 +61,21 @@ public class TableHub {
 
     public synchronized void connect(WebSocketSession session) {
         String userId = "dev-" + UUID.randomUUID();
+        register(session, userId);
+    }
+
+    public synchronized boolean connectAuthenticated(WebSocketSession session, VerifiedWebSocketUser user) {
+        String userId = Long.toString(user.userId());
+        // 단일 사용자 좌석 구조를 보호하는 임시 방어다. 재접속/교체 정책 구현과 구분한다.
+        if (seating.containsKey(userId)
+                || members.values().stream().anyMatch(member -> member.userId().equals(userId))) {
+            return false;
+        }
+        register(session, userId);
+        return true;
+    }
+
+    private void register(WebSocketSession session, String userId) {
         TablePeer peer = new TablePeer(session, () -> disconnect(session.getId()));
         members.put(session.getId(), new Member(userId, peer));
         peer.offer(protocol.encode(null, "CONNECTED", Map.of("userId", userId)));

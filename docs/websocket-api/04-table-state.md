@@ -50,10 +50,10 @@
 | `minimumPlayers` | integer | 전원 준비 판정 최소 인원. 현재 네 게임 모두 2 |
 | `seats` | array | 빈 좌석을 포함한 전체 좌석. seatNumber 오름차순 |
 | `seats[].seatNumber` | integer | 1부터 capacity까지의 좌석 번호 |
-| `seats[].userId` | string 또는 null | 임시 사용자 ID. 빈 좌석이면 null |
+| `seats[].userId` | string 또는 null | 기본 dev ID / 인증 연결 모드 내부 ID 문자열. 빈 좌석이면 null |
 | `seats[].ready` | boolean | 준비 여부. 빈 좌석은 false |
 | `allReady` | boolean | 게임 선택·최소 인원 충족 및 현재 착석자 전원 준비. 빈 좌석은 제외 |
-| `selectorUserId` | string 또는 null | 현재 참가자 중 가장 먼저 착석한 사용자. 빈 테이블이면 null |
+| `selectorUserId` | string 또는 null | 현재 참가자 중 가장 먼저 착석한 사용자. 위 userId와 같은 규격. 빈 테이블이면 null |
 | `gameCode` | string 또는 null | 선택한 게임 코드. 미선택이면 null. [게임 선택](07-game-select.md) 참고 |
 
 빈 좌석은 다음과 같이 표현합니다.

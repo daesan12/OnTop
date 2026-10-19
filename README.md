@@ -59,6 +59,8 @@ Linux/macOS에서는 `sh ./gradlew bootRun --args='--spring.profiles.active=loca
 
 ## 게임 시작 연동 검증
 
+인증 방식 미정 상태의 [웹소켓 인증 연결부](docs/websocket-authentication.md)를 추가했다. `--ontop.websocket.authenticated=true`는 서버 검증기 Bean이 있어야 연결할 수 있으며, 검증기 없이 켜면 503이다. 실제 네이버·SSAFY 로그인은 미구현이다. dev 전용 시작 검증 옵션과 동시에 켤 수 없다.
+
 팀원의 DB 코드 없이 시작 요청·성공·거절·결과 조회를 확인할 수 있다. 실제 엽전이나 게임 기록은 변경하지 않는다.
 
 ```powershell
