@@ -40,7 +40,8 @@ class TableWebSocketTests {
         try (Client first = connect(); Client second = connect(); Client third = connect()) {
             assertThat(first.userId).startsWith("dev-").isNotEqualTo(second.userId);
             JsonNode joined = first.request("TABLE_JOIN", Map.of("tableId", "table-1"));
-            long version = joined.path("payload").path("version").asLong();
+            long version = first.request("GAME_SELECT", Map.of("gameCode", "OMOK"))
+                    .path("payload").path("version").asLong();
             assertThat(joined.path("payload").path("seats").get(0).path("userId").asText())
                     .isEqualTo(first.userId);
             assertThat(joined.path("payload").path("seats").get(1).path("userId").isNull()).isTrue();

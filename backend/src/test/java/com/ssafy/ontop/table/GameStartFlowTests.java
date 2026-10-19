@@ -62,6 +62,8 @@ class GameStartFlowTests {
         assertThat(hub.listTables().tables().getFirst().joinable()).isFalse();
         assertThat(first.request("TABLE_LEAVE", Map.of()).path("payload").path("code").asText())
                 .isEqualTo("TABLE_BUSY");
+        assertThat(first.request("GAME_SELECT", Map.of("gameCode", "DICE")).path("payload").path("code").asText())
+                .isEqualTo("TABLE_BUSY");
     }
 
     @Test
@@ -80,9 +82,14 @@ class GameStartFlowTests {
         assertThat(rejected.toString()).doesNotContain("PRIVATE_BALANCE_REASON");
         assertThat(state.path("seats").get(0).path("ready").asBoolean()).isFalse();
         assertThat(state.path("seats").get(1).path("ready").asBoolean()).isFalse();
+        first.request("GAME_SELECT", Map.of("gameCode", "DICE"));
+        JsonNode changed = first.phase("WAITING").path("payload");
+        assertThat(changed.path("gameCode").asText()).isEqualTo("DICE");
+        assertThat(changed.path("startAttemptId").isNull()).isTrue();
         prepare(first, second);
         first.phase("CONFIRMED");
         assertThat(gateway.command.startAttemptId()).isNotEqualTo(oldId);
+        assertThat(gateway.command.gameCode()).isEqualTo("DICE");
         assertThat(gateway.starts.get()).isEqualTo(2);
     }
 
@@ -97,6 +104,9 @@ class GameStartFlowTests {
 
         assertThat(first.request("READY_SET", Map.of("ready", true)).path("payload").path("code").asText())
                 .isEqualTo("TABLE_BUSY");
+        assertThat(first.request("GAME_SELECT", Map.of("gameCode", "DICE")).path("payload").path("code").asText())
+                .isEqualTo("TABLE_BUSY");
+        assertThat(gateway.command.gameCode()).isEqualTo("OMOK");
         first.request("GAME_START_CHECK", Map.of());
         first.phase("CONFIRMED");
 
@@ -216,6 +226,24 @@ class GameStartFlowTests {
     }
 
     @Test
+    void 시작_거절후_테이블이_비면_새_참가자에게_이전_게임을_알리지_않는다() throws Exception {
+        gateway.start = command -> GameStartResult.rejected(command.startAttemptId(), "TEST_REJECTED");
+        Peer first = seated();
+        Peer second = seated();
+        prepare(first, second);
+        first.await(message -> message.path("payload").path("code").asText().equals("START_REJECTED"));
+        first.request("TABLE_LEAVE", Map.of());
+        second.request("TABLE_LEAVE", Map.of());
+        Peer newcomer = peer();
+        JsonNode state = newcomer.request("TABLE_JOIN", Map.of("tableId", "table-1")).path("payload");
+        JsonNode start = newcomer.phase("WAITING").path("payload");
+        assertThat(state.path("gameCode").isNull()).isTrue();
+        assertThat(start.path("gameCode").isNull()).isTrue();
+        assertThat(start.path("startAttemptId").isNull()).isTrue();
+        assertThat(start.path("code").isNull()).isTrue();
+    }
+
+    @Test
     void 두_준비_요청이_겹쳐도_시작은_한_번만_요청한다() throws Exception {
         Peer first = seated();
         Peer second = seated();
@@ -302,7 +330,10 @@ class GameStartFlowTests {
 
     private Peer seated() throws Exception {
         Peer peer = peer();
-        peer.request("TABLE_JOIN", Map.of("tableId", "table-1"));
+        JsonNode state = peer.request("TABLE_JOIN", Map.of("tableId", "table-1")).path("payload");
+        if (state.path("gameCode").isNull()) {
+            peer.request("GAME_SELECT", Map.of("gameCode", "OMOK"));
+        }
         return peer;
     }
 

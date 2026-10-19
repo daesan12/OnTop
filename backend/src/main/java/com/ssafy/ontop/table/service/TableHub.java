@@ -5,6 +5,7 @@ import com.ssafy.ontop.game.start.GameStartCommand;
 import com.ssafy.ontop.game.start.GameStartCommand.Participant;
 import com.ssafy.ontop.game.start.GameStartGateway;
 import com.ssafy.ontop.game.start.GameStartResult;
+import com.ssafy.ontop.table.domain.TableGame;
 import com.ssafy.ontop.table.domain.TableRoom;
 import com.ssafy.ontop.table.domain.TableStartAttempt;
 import com.ssafy.ontop.table.dto.TableListResponse;
@@ -63,7 +64,7 @@ public class TableHub {
         members.put(session.getId(), new Member(userId, peer));
         peer.offer(protocol.encode(null, "CONNECTED", Map.of("userId", userId)));
         if (startRehearsal) {
-            peer.offer(protocol.encode(null, "GAME_START_STATE", TableStartAttempt.View.waiting(null, 0)));
+            peer.offer(protocol.encode(null, "GAME_START_STATE", TableStartAttempt.View.waiting(null, 0, null)));
         }
         peer.start();
     }
@@ -79,7 +80,8 @@ public class TableHub {
                     : attempt.starting() ? "STARTING" : "REHEARSAL_CONFIRMED";
             int available = snapshot.capacity() - occupied;
             return new TableSummaryResponse(tableId, snapshot.capacity(), snapshot.minimumPlayers(), occupied,
-                    available, ready, snapshot.allReady(), status, available > 0 && status.equals("WAITING"));
+                    available, ready, snapshot.allReady(), status, available > 0 && status.equals("WAITING"),
+                    snapshot.gameCode());
         }).toList());
     }
 
@@ -95,6 +97,7 @@ public class TableHub {
             switch (request.type()) {
                 case "TABLE_JOIN" -> join(member, request);
                 case "READY_SET" -> ready(member, request);
+                case "GAME_SELECT" -> selectGame(member, request);
                 case "TABLE_LEAVE" -> leave(member, request);
                 case "GAME_START_CHECK" -> checkStart(member, request);
                 default -> throw new IllegalStateException("검증되지 않은 메시지");
@@ -167,9 +170,32 @@ public class TableHub {
     private void ready(Member member, Request request) {
         TableRoom room = seatedRoom(member, request);
         ensureWaiting(room.snapshot().tableId(), request);
+        if (request.payload().get("ready").booleanValue() && room.snapshot().gameCode() == null) {
+            fail(request, "GAME_NOT_SELECTED", "먼저 게임을 선택해주세요.");
+        }
         if (room.setReady(member.userId(), request.payload().get("ready").booleanValue())) {
             publish(room, member, request.requestId());
             beginStartIfReady(room);
+        } else {
+            replyState(member, request, room);
+        }
+    }
+
+    private void selectGame(Member member, Request request) {
+        TableRoom room = seatedRoom(member, request);
+        String tableId = room.snapshot().tableId();
+        ensureWaiting(tableId, request);
+        if (!room.isSelector(member.userId())) {
+            fail(request, "NOT_GAME_SELECTOR", "먼저 착석한 참가자만 게임을 선택할 수 있습니다.");
+        }
+        TableGame game = TableGame.find(request.payload().get("gameCode").textValue());
+        if (game == null) {
+            fail(request, "UNSUPPORTED_GAME", "지원하지 않는 게임입니다.");
+        }
+        if (room.selectGame(game)) {
+            starts.remove(tableId);
+            publish(room, member, request.requestId());
+            publishStart(tableId);
         } else {
             replyState(member, request, room);
         }
@@ -222,7 +248,7 @@ public class TableHub {
             return;
         }
         GameStartCommand command = new GameStartCommand(UUID.randomUUID(), snapshot.tableId(), snapshot.version(),
-                "OMOK", snapshot.seats().stream()
+                snapshot.gameCode(), snapshot.seats().stream()
                         .map(seat -> new Participant(seat.userId(), seat.seatNumber())).toList());
         TableStartAttempt attempt = new TableStartAttempt(command);
         starts.put(snapshot.tableId(), attempt);
@@ -316,7 +342,9 @@ public class TableHub {
         }
         long revision = startRevisions.getOrDefault(tableId, 0L);
         TableStartAttempt attempt = starts.get(tableId);
-        TableStartAttempt.View view = attempt == null ? TableStartAttempt.View.waiting(tableId, revision)
+        String gameCode = tableId == null ? null : rooms.get(tableId).snapshot().gameCode();
+        TableStartAttempt.View view = attempt == null || gameCode == null
+                ? TableStartAttempt.View.waiting(tableId, revision, gameCode)
                 : attempt.view(revision);
         target.peer().offer(protocol.encode(requestId, "GAME_START_STATE", view));
     }

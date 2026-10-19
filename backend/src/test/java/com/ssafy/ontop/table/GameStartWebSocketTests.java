@@ -43,6 +43,9 @@ class GameStartWebSocketTests {
             second.await(message -> message.path("type").asText().equals("GAME_START_STATE")
                     && message.path("payload").path("phase").asText().equals("WAITING"));
             assertThat(second.phases).contains("WAITING").doesNotContain("STARTING", "CONFIRMED");
+            first.send("GAME_SELECT", Map.of("gameCode", "DICE"));
+            first.await(message -> message.path("type").asText().equals("TABLE_STATE")
+                    && message.path("payload").path("gameCode").asText().equals("DICE"));
             first.send("READY_SET", Map.of("ready", true));
             first.await(message -> message.path("type").asText().equals("TABLE_STATE")
                     && message.path("payload").path("seats").get(0).path("ready").asBoolean());
@@ -55,6 +58,7 @@ class GameStartWebSocketTests {
             assertThat(firstResult.path("requestId").isNull()).isTrue();
             assertThat(firstResult.path("payload").path("gameSessionId").asText()).startsWith("demo-game-");
             assertThat(firstResult.path("payload").path("simulation").asBoolean()).isTrue();
+            assertThat(firstResult.path("payload").path("gameCode").asText()).isEqualTo("DICE");
             assertThat(first.phases).containsSubsequence("WAITING", "STARTING", "CONFIRMED")
                     .doesNotContain("COUNTDOWN");
             assertThat(second.phases).containsSubsequence("WAITING", "STARTING", "CONFIRMED")

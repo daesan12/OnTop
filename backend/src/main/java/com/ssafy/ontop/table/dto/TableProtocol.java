@@ -48,6 +48,8 @@ public final class TableProtocol {
             case "TABLE_JOIN" -> fields(payload, Set.of("tableId")) && payload.get("tableId").isTextual()
                     && !payload.get("tableId").textValue().isBlank();
             case "READY_SET" -> fields(payload, Set.of("ready")) && payload.get("ready").isBoolean();
+            case "GAME_SELECT" -> fields(payload, Set.of("gameCode")) && payload.get("gameCode").isTextual()
+                    && !payload.get("gameCode").textValue().isBlank();
             case "TABLE_LEAVE" -> fields(payload, Set.of());
             case "GAME_START_CHECK" -> fields(payload, Set.of());
             default -> throw new RequestException(requestId, "UNSUPPORTED_MESSAGE_TYPE", "지원하지 않는 메시지입니다.");

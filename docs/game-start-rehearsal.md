@@ -18,7 +18,7 @@ IntelliJ에서 활성화된 프로파일은 `local`로 두고, 실행 구성의 
 .\gradlew.bat bootRun --args='--spring.profiles.active=local --ontop.start-rehearsal.enabled=true'
 ```
 
-[개발 페이지](http://localhost:8080/dev/tables)를 두 탭에서 열고 연결 → 같은 테이블 착석 → 두 명 모두 준비를 누른다. 화면의 게임 시작 연동 검증 영역에 성공 결과가 표시된다. 게임 종류는 검증용 `OMOK`으로 고정한다.
+[개발 페이지](http://localhost:8080/dev/tables)를 두 탭에서 열고 연결 → 같은 테이블 착석 → 첫 착석자의 [게임 선택](websocket-api/07-game-select.md) → 두 명 모두 준비를 누른다. 선택한 게임 코드로 시작 요청을 보내고 화면에 성공 결과를 표시한다. 네 게임의 선택·연동 경계를 검증하며 실제 게임 규칙을 실행하지 않는다. 미착석·게임 미선택 상태의 GAME_START_STATE.gameCode는 null이다.
 
 기본값은 꺼짐이다. 켜지 않으면 기존 명세대로 `allReady=true` 표시만 하고 준비 취소·퇴장이 가능하다. `local` 외에는 플래그를 켜도 개발 경로와 검증 대역이 활성화되지 않는다.
 

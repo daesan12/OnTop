@@ -74,6 +74,7 @@ class TableHubTests {
         second.send("TABLE_JOIN", Map.of("tableId", "table-1"));
         first.next();
         second.next();
+        selectGame(first, second);
         second.send("READY_SET", Map.of("ready", true));
         first.next();
         second.next();
@@ -83,7 +84,7 @@ class TableHubTests {
         JsonNode state = second.next().path("payload");
         second.send("TABLE_JOIN", Map.of("tableId", "table-1"));
 
-        assertThat(state.path("version").asLong()).isEqualTo(4);
+        assertThat(state.path("version").asLong()).isEqualTo(5);
         assertThat(state.path("seats").get(0).path("userId").isNull()).isTrue();
         assertThat(state.path("seats").get(1).path("ready").asBoolean()).isFalse();
         assertThat(second.next().path("payload")).isEqualTo(state);
@@ -99,13 +100,13 @@ class TableHubTests {
         second.send("TABLE_JOIN", Map.of("tableId", "table-1"));
         first.next();
         second.next();
+        selectGame(first, second);
         first.fail.set(true);
-
         second.send("READY_SET", Map.of("ready", true));
-        assertThat(second.next().path("payload").path("version").asLong()).isEqualTo(3);
+        assertThat(second.next().path("payload").path("version").asLong()).isEqualTo(4);
         JsonNode cleaned = second.next().path("payload");
 
-        assertThat(cleaned.path("version").asLong()).isEqualTo(4);
+        assertThat(cleaned.path("version").asLong()).isEqualTo(5);
         assertThat(cleaned.path("seats").get(0).path("userId").isNull()).isTrue();
         assertThat(cleaned.path("seats").get(1).path("ready").asBoolean()).isFalse();
     }
@@ -119,6 +120,7 @@ class TableHubTests {
         second.send("TABLE_JOIN", Map.of("tableId", "table-1"));
         first.next();
         second.next();
+        selectGame(first, second);
         first.block.set(true);
 
         try {
@@ -130,8 +132,8 @@ class TableHubTests {
         } finally {
             first.release.countDown();
         }
-        assertThat(first.next().path("payload").path("version").asLong()).isEqualTo(3);
         assertThat(first.next().path("payload").path("version").asLong()).isEqualTo(4);
+        assertThat(first.next().path("payload").path("version").asLong()).isEqualTo(5);
     }
 
     @Test
@@ -143,22 +145,29 @@ class TableHubTests {
         second.send("TABLE_JOIN", Map.of("tableId", "table-1"));
         first.next();
         second.next();
+        selectGame(first, second);
         first.block.set(true);
 
         try {
             first.send("READY_SET", Map.of("ready", true));
             assertThat(first.blocked.await(5, TimeUnit.SECONDS)).isTrue();
-            assertThat(second.next().path("payload").path("version").asLong()).isEqualTo(3);
+            assertThat(second.next().path("payload").path("version").asLong()).isEqualTo(4);
             for (int count = 0; count < 129; count++) {
                 first.send("READY_SET", Map.of("ready", true));
             }
             JsonNode state = second.next().path("payload");
 
-            assertThat(state.path("version").asLong()).isEqualTo(4);
+            assertThat(state.path("version").asLong()).isEqualTo(5);
             assertThat(state.path("seats").get(0).path("userId").isNull()).isTrue();
         } finally {
             first.release.countDown();
         }
+    }
+
+    private void selectGame(Peer first, Peer second) throws Exception {
+        first.send("GAME_SELECT", Map.of("gameCode", "OMOK"));
+        first.next();
+        second.next();
     }
 
     private void joinAfter(CountDownLatch start, Peer peer) {

@@ -5,6 +5,8 @@ import com.ssafy.ontop.table.dto.TableProtocol;
 import com.ssafy.ontop.table.dto.TableProtocol.RequestException;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
@@ -12,6 +14,15 @@ import static org.assertj.core.api.Assertions.catchThrowableOfType;
 class TableProtocolTests {
 
     private final TableProtocol protocol = new TableProtocol(new ObjectMapper());
+
+    @ParameterizedTest
+    @ValueSource(strings = {"{}", "{\"gameCode\":null}", "{\"gameCode\":1}", "{\"gameCode\":\" \"}",
+            "{\"gameCode\":\"OMOK\",\"userId\":\"forged\"}"})
+    void 게임선택의_누락_타입_권한위조_필드를_거절한다(String payload) {
+        RequestException error = catchThrowableOfType(RequestException.class, () -> protocol.parse(
+                "{\"requestId\":\"select-1\",\"type\":\"GAME_SELECT\",\"payload\":" + payload + "}"));
+        assertThat(error.code()).isEqualTo("INVALID_PAYLOAD");
+    }
 
     @Test
     void 오류의_요청_ID는_유효할_때만_반환한다() {

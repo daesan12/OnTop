@@ -44,6 +44,7 @@ DB 없는 `local` 개발용 API다. 개발 화면에서 현재 테이블과 빈�
 | allReady | boolean | 현재 2석 모두 착석·준비했는지 |
 | status | string | 아래 상태 값 |
 | joinable | boolean | 테이블이 대기 상태이고 빈자리가 있는지 |
+| gameCode | string 또는 null | 선택한 게임 코드. 미선택·빈 테이블이면 null |
 
 | status | 의미 |
 | --- | --- |

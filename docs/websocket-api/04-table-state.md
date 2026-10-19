@@ -35,7 +35,9 @@
         "ready": false
       }
     ],
-    "allReady": false
+    "allReady": false,
+    "selectorUserId": "dev-7cc07e8b-8460-4a78-8897-5e9acd875d91",
+    "gameCode": "OMOK"
   }
 }
 ```
@@ -51,6 +53,8 @@
 | `seats[].userId` | string 또는 null | 임시 사용자 ID. 빈 좌석이면 null |
 | `seats[].ready` | boolean | 준비 여부. 빈 좌석은 false |
 | `allReady` | boolean | 최소 인원 충족 및 현재 참가자 모두 준비 여부 |
+| `selectorUserId` | string 또는 null | 현재 참가자 중 가장 먼저 착석한 사용자. 빈 테이블이면 null |
+| `gameCode` | string 또는 null | 선택한 게임 코드. 미선택이면 null. [게임 선택](07-game-select.md) 참고 |
 
 빈 좌석은 다음과 같이 표현합니다.
 

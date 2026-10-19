@@ -91,8 +91,8 @@ public final class TableStartAttempt {
     public record View(String tableId, long revision, String phase, String startAttemptId, String gameCode,
             String gameSessionId, String code, boolean simulation) {
 
-        public static View waiting(String tableId, long revision) {
-            return new View(tableId, revision, tableId == null ? "NOT_SEATED" : "WAITING", null, "OMOK",
+        public static View waiting(String tableId, long revision, String gameCode) {
+            return new View(tableId, revision, tableId == null ? "NOT_SEATED" : "WAITING", null, gameCode,
                     null, null, true);
         }
     }

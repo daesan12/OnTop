@@ -33,6 +33,10 @@
 | `ALREADY_SEATED` | 다른 테이블에 착석 중 | 퇴장 완료 후 다시 착석 |
 | `TABLE_FULL` | 빈 좌석 없음 | 다른 테이블 선택 또는 재시도 |
 | `NOT_SEATED` | 미착석 상태의 준비·퇴장 요청 | 먼저 착석 |
+| `NOT_GAME_SELECTOR` | 게임 선택 담당자가 아님 | 첫 착석자 또는 권한을 넘겨받은 참가자가 선택 |
+| `GAME_NOT_SELECTED` | 게임 선택 전 준비 true 요청 | 게임 선택 후 다시 준비 |
+| `UNSUPPORTED_GAME` | 지원하지 않는 게임 코드 | 허용된 게임 선택 |
+| `TABLE_BUSY` | 선택적 시작 검증의 STARTING·CONFIRMED에서 변경 | 기존 시작 결과 확인. 새 변경 요청 반복 금지 |
 | `INTERNAL_ERROR` | 예상치 못한 서버 처리 오류 | 오류 표시. 무조건 자동 재시도하지 않음 |
 
 - 공통 형식 검사 → 지원 type 확인 → 개별 payload 검사 → 업무 상태 검사 순서로 검증합니다.

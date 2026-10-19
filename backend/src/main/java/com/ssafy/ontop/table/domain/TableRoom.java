@@ -2,6 +2,7 @@ package com.ssafy.ontop.table.domain;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -11,6 +12,8 @@ public final class TableRoom {
     private final String tableId;
     private final String[] users = new String[2];
     private final boolean[] ready = new boolean[2];
+    private final LinkedHashSet<String> arrivalOrder = new LinkedHashSet<>();
+    private TableGame game;
     private long version;
 
     public TableRoom(String tableId) {
@@ -21,6 +24,7 @@ public final class TableRoom {
         for (int index = 0; index < users.length; index++) {
             if (users[index] == null) {
                 users[index] = userId;
+                arrivalOrder.add(userId);
                 membershipChanged();
                 return true;
             }
@@ -30,7 +34,24 @@ public final class TableRoom {
 
     public void leave(String userId) {
         users[indexOf(userId)] = null;
+        arrivalOrder.remove(userId);
+        if (arrivalOrder.isEmpty()) {
+            game = null;
+        }
         membershipChanged();
+    }
+
+    public boolean isSelector(String userId) {
+        return !arrivalOrder.isEmpty() && arrivalOrder.getFirst().equals(userId);
+    }
+
+    public boolean selectGame(TableGame selected) {
+        if (game == selected) {
+            return false;
+        }
+        game = selected;
+        membershipChanged();
+        return true;
     }
 
     public boolean setReady(String userId, boolean value) {
@@ -48,8 +69,9 @@ public final class TableRoom {
         for (int index = 0; index < users.length; index++) {
             seats.add(new Seat(index + 1, users[index], ready[index]));
         }
-        boolean allReady = seats.stream().allMatch(seat -> seat.userId() != null && seat.ready());
-        return new Snapshot(tableId, version, 2, 2, List.copyOf(seats), allReady);
+        boolean allReady = game != null && seats.stream().allMatch(seat -> seat.userId() != null && seat.ready());
+        return new Snapshot(tableId, version, 2, 2, List.copyOf(seats), allReady,
+                arrivalOrder.isEmpty() ? null : arrivalOrder.getFirst(), game == null ? null : game.name());
     }
 
     public void returnToWaiting(Set<String> connectedUsers) {
@@ -57,6 +79,10 @@ public final class TableRoom {
             if (users[index] != null && !connectedUsers.contains(users[index])) {
                 users[index] = null;
             }
+        }
+        arrivalOrder.retainAll(connectedUsers);
+        if (arrivalOrder.isEmpty()) {
+            game = null;
         }
         membershipChanged();
     }
@@ -79,6 +105,6 @@ public final class TableRoom {
     }
 
     public record Snapshot(String tableId, long version, int capacity, int minimumPlayers,
-            List<Seat> seats, boolean allReady) {
+            List<Seat> seats, boolean allReady, String selectorUserId, String gameCode) {
     }
 }
