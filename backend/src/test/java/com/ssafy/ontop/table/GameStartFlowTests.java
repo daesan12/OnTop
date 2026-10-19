@@ -58,6 +58,8 @@ class GameStartFlowTests {
         assertThat(gateway.starts.get()).isEqualTo(1);
         assertThat(gateway.command.participants()).extracting(GameStartCommand.Participant::userId)
                 .containsExactly(first.userId, second.userId);
+        assertThat(hub.listTables().tables().getFirst().status()).isEqualTo("REHEARSAL_CONFIRMED");
+        assertThat(hub.listTables().tables().getFirst().joinable()).isFalse();
         assertThat(first.request("TABLE_LEAVE", Map.of()).path("payload").path("code").asText())
                 .isEqualTo("TABLE_BUSY");
     }
@@ -167,6 +169,11 @@ class GameStartFlowTests {
         try {
             assertThat(entered.await(5, TimeUnit.SECONDS)).isTrue();
             hub.disconnect(first.id);
+            assertThat(hub.listTables().tables().getFirst().status()).isEqualTo("STARTING");
+            assertThat(hub.listTables().tables().getFirst().occupiedSeats()).isEqualTo(2);
+            assertThat(hub.listTables().tables().getFirst().availableSeats()).isZero();
+            assertThat(hub.listTables().tables().getFirst().readyCount()).isEqualTo(2);
+            assertThat(hub.listTables().tables().getFirst().joinable()).isFalse();
             JsonNode held = second.request("TABLE_JOIN", Map.of("tableId", "table-1")).path("payload");
             assertThat(held.path("seats").get(0).path("userId").asText()).isEqualTo(first.userId);
 
@@ -196,6 +203,11 @@ class GameStartFlowTests {
 
         assertThat(state.path("seats").get(0).path("userId").isNull()).isTrue();
         assertThat(state.path("seats").get(1).path("ready").asBoolean()).isFalse();
+        assertThat(hub.listTables().tables().getFirst().status()).isEqualTo("WAITING");
+        assertThat(hub.listTables().tables().getFirst().occupiedSeats()).isEqualTo(1);
+        assertThat(hub.listTables().tables().getFirst().availableSeats()).isEqualTo(1);
+        assertThat(hub.listTables().tables().getFirst().readyCount()).isZero();
+        assertThat(hub.listTables().tables().getFirst().joinable()).isTrue();
     }
 
     private void prepare(Peer first, Peer second) throws Exception {

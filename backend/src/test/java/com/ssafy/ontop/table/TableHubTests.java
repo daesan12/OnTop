@@ -55,6 +55,9 @@ class TableHubTests {
                 .containsExactlyInAnyOrder("TABLE_STATE", "ERROR");
         JsonNode error = firstResult.path("type").asText().equals("ERROR") ? firstResult : secondResult;
         assertThat(error.path("payload").path("code").asText()).isEqualTo("TABLE_FULL");
+        assertThat(hub.listTables().tables().getFirst().occupiedSeats()).isEqualTo(2);
+        assertThat(hub.listTables().tables().getFirst().availableSeats()).isZero();
+        assertThat(hub.listTables().tables().getFirst().joinable()).isFalse();
         JsonNode state = owner.next().path("payload");
         assertThat(state.path("version").asLong()).isEqualTo(2);
         assertThat(state.path("seats")).hasSize(2);

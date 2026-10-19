@@ -7,9 +7,11 @@ import com.ssafy.ontop.game.start.GameStartGateway;
 import com.ssafy.ontop.game.start.GameStartResult;
 import com.ssafy.ontop.table.domain.TableRoom;
 import com.ssafy.ontop.table.domain.TableStartAttempt;
+import com.ssafy.ontop.table.dto.TableListResponse;
 import com.ssafy.ontop.table.dto.TableProtocol;
 import com.ssafy.ontop.table.dto.TableProtocol.Request;
 import com.ssafy.ontop.table.dto.TableProtocol.RequestException;
+import com.ssafy.ontop.table.dto.TableSummaryResponse;
 import com.ssafy.ontop.table.websocket.TablePeer;
 import jakarta.annotation.PreDestroy;
 import java.util.HashMap;
@@ -64,6 +66,21 @@ public class TableHub {
             peer.offer(protocol.encode(null, "GAME_START_STATE", TableStartAttempt.View.waiting(null, 0)));
         }
         peer.start();
+    }
+
+    public synchronized TableListResponse listTables() {
+        return new TableListResponse(rooms.keySet().stream().sorted().map(tableId -> {
+            TableRoom.Snapshot snapshot = rooms.get(tableId).snapshot();
+            int occupied = (int) snapshot.seats().stream().filter(seat -> seat.userId() != null).count();
+            int ready = (int) snapshot.seats().stream()
+                    .filter(seat -> seat.userId() != null && seat.ready()).count();
+            TableStartAttempt attempt = starts.get(tableId);
+            String status = attempt == null || !attempt.frozen() ? "WAITING"
+                    : attempt.starting() ? "STARTING" : "REHEARSAL_CONFIRMED";
+            int available = snapshot.capacity() - occupied;
+            return new TableSummaryResponse(tableId, snapshot.capacity(), snapshot.minimumPlayers(), occupied,
+                    available, ready, snapshot.allReady(), status, available > 0 && status.equals("WAITING"));
+        }).toList());
     }
 
     public synchronized void receive(String sessionId, String text) {
