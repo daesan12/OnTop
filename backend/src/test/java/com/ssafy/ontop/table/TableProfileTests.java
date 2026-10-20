@@ -25,5 +25,6 @@ class TableProfileTests {
             assertThat(http.getForEntity(path, String.class).getStatusCode().value()).isEqualTo(404);
         }
         assertThat(registry.find("ontop.websocket.connections.active").gauge()).isNull();
+        assertThat(registry.find("ontop.websocket.messages.sent").functionCounter()).isNull();
     }
 }

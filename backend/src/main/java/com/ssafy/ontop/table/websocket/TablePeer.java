@@ -6,6 +6,7 @@ import java.time.Duration;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.LongConsumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.socket.CloseStatus;
@@ -25,6 +26,7 @@ public final class TablePeer {
     private final AtomicBoolean active = new AtomicBoolean(true);
     private final AtomicBoolean closing = new AtomicBoolean();
     private final WebSocketHeartbeat heartbeat;
+    private final LongConsumer textSent;
     private final Thread sender;
 
     public TablePeer(WebSocketSession session, Runnable cleanup) {
@@ -33,9 +35,15 @@ public final class TablePeer {
     }
 
     public TablePeer(WebSocketSession session, Runnable cleanup, WebSocketHeartbeat heartbeat) {
+        this(session, cleanup, heartbeat, bytes -> { });
+    }
+
+    public TablePeer(WebSocketSession session, Runnable cleanup, WebSocketHeartbeat heartbeat,
+            LongConsumer textSent) {
         this.session = session;
         this.cleanup = cleanup;
         this.heartbeat = heartbeat;
+        this.textSent = textSent;
         sender = Thread.ofVirtual().name("table-send-" + session.getId()).unstarted(this::sendLoop);
     }
 
@@ -81,6 +89,9 @@ public final class TablePeer {
                     continue;
                 }
                 session.sendMessage(message);
+                if (message instanceof TextMessage text) {
+                    textSent.accept(text.asBytes().length);
+                }
             }
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();

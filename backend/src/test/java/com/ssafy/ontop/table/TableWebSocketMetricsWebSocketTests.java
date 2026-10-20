@@ -1,8 +1,13 @@
 package com.ssafy.ontop.table;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ssafy.ontop.table.service.TableHub;
 import com.ssafy.ontop.table.service.TableHub.MetricsSnapshot;
+import com.ssafy.ontop.table.service.TableHub.TransmissionSnapshot;
 import io.micrometer.core.instrument.MeterRegistry;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
@@ -31,24 +36,47 @@ class TableWebSocketMetricsWebSocketTests {
 
     @Test
     void 실제소켓_입퇴장과_메시지가_자동등록지표에_반영되고_관리HTTP는_비노출이다() throws Exception {
+        List<JsonNode> received = new ArrayList<>();
         assertCounts(0, 0, 0, 0);
         try (ScenarioClient remaining = new ScenarioClient(port, "metrics-second")) {
-            remaining.await(message -> message.path("type").asText().equals("CONNECTED"));
+            received.add(remaining.await(message -> message.path("type").asText().equals("CONNECTED")));
             try (ScenarioClient first = new ScenarioClient(port, "metrics-first")) {
-                first.await(message -> message.path("type").asText().equals("CONNECTED"));
-                assertThat(first.request("TABLE_JOIN", Map.of("tableId", "table-1"))
-                        .path("type").asText()).isEqualTo("TABLE_STATE");
-                assertThat(first.request("UNKNOWN", Map.of()).path("type").asText()).isEqualTo("ERROR");
+                received.add(first.await(message -> message.path("type").asText().equals("CONNECTED")));
+                JsonNode joined = first.request("TABLE_JOIN", Map.of("tableId", "table-1"));
+                received.add(joined);
+                assertThat(joined.path("type").asText()).isEqualTo("TABLE_STATE");
+                JsonNode rejected = first.request("UNKNOWN", Map.of());
+                received.add(rejected);
+                assertThat(rejected.path("type").asText()).isEqualTo("ERROR");
                 assertCounts(2, 2, 0, 2);
             }
             assertCounts(1, 2, 1, 2);
-            assertThat(remaining.request("TABLE_JOIN", Map.of("tableId", "table-1"))
-                    .path("type").asText()).isEqualTo("TABLE_STATE");
+            JsonNode joined = remaining.request("TABLE_JOIN", Map.of("tableId", "table-1"));
+            received.add(joined);
+            assertThat(joined.path("type").asText()).isEqualTo("TABLE_STATE");
         }
         assertCounts(0, 2, 2, 3);
+        assertTransmission(received);
         assertThat(http.getForEntity("/actuator/metrics", String.class).getStatusCode())
                 .isEqualTo(HttpStatus.NOT_FOUND);
         assertThat(http.getForEntity("/actuator/health", String.class).getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    private void assertTransmission(List<JsonNode> received) throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        long expectedBytes = 0;
+        for (JsonNode message : received) {
+            expectedBytes += mapper.writeValueAsBytes(message).length;
+        }
+        TransmissionSnapshot expected = new TransmissionSnapshot(received.size(), expectedBytes);
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (!hub.transmissionSnapshot().equals(expected) && System.nanoTime() < deadline) {
+            Thread.sleep(10);
+        }
+        assertThat(received).hasSize(5);
+        assertThat(hub.transmissionSnapshot()).isEqualTo(expected);
+        assertThat(registry.get("ontop.websocket.messages.sent").functionCounter().count()).isEqualTo(5);
+        assertThat(registry.get("ontop.websocket.bytes.sent").functionCounter().count()).isEqualTo(expectedBytes);
     }
 
     private void assertCounts(long active, long accepted, long closed, long received) throws Exception {

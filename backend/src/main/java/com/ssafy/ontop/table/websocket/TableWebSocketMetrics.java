@@ -36,5 +36,14 @@ public final class TableWebSocketMetrics implements MeterBinder {
                 value -> value.metricsSnapshot().receivedMessages())
                 .description("Text messages received from registered WebSocket connections, including invalid requests")
                 .register(registry);
+        FunctionCounter.builder("ontop.websocket.messages.sent", hub,
+                value -> value.transmissionSnapshot().messages())
+                .description("Completed WebSocket text send calls since this Hub started")
+                .register(registry);
+        FunctionCounter.builder("ontop.websocket.bytes.sent", hub,
+                value -> value.transmissionSnapshot().bytes())
+                .description("UTF-8 payload bytes of completed WebSocket text send calls")
+                .baseUnit("bytes")
+                .register(registry);
     }
 }

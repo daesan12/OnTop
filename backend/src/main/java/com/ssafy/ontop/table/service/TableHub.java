@@ -46,6 +46,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -92,6 +93,8 @@ public class TableHub {
     private long acceptedConnections;
     private long closedConnections;
     private long receivedMessages;
+    private final LongAdder sentMessages = new LongAdder();
+    private final LongAdder sentBytes = new LongAdder();
     private boolean stopped;
 
     public TableHub(ObjectMapper mapper, Optional<GameStartGateway> gateway,
@@ -231,7 +234,7 @@ public class TableHub {
 
     private Member register(WebSocketSession session, String userId, Long accountId) {
         TablePeer peer = new TablePeer(session, () -> disconnect(session.getId()),
-                new WebSocketHeartbeat(heartbeatInterval, heartbeatTimeout, System::nanoTime));
+                new WebSocketHeartbeat(heartbeatInterval, heartbeatTimeout, System::nanoTime), this::textSent);
         Member member = new Member(userId, peer, accountId);
         members.put(session.getId(), member);
         acceptedConnections++;
@@ -432,6 +435,19 @@ public class TableHub {
 
     public record MetricsSnapshot(long activeConnections, long acceptedConnections,
             long closedConnections, long receivedMessages) {
+    }
+
+    // 송신자에서 호출한다. Hub 상태 잠금을 잡거나 식별자·본문을 보관하지 않는다.
+    private void textSent(long bytes) {
+        sentMessages.increment();
+        sentBytes.add(bytes);
+    }
+
+    public TransmissionSnapshot transmissionSnapshot() {
+        return new TransmissionSnapshot(sentMessages.sum(), sentBytes.sum());
+    }
+
+    public record TransmissionSnapshot(long messages, long bytes) {
     }
 
     private void join(Member member, Request request) {
