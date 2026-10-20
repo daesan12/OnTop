@@ -2,7 +2,7 @@
 
 기존 Raw WebSocket `/ws/tables` 연결을 재사용한다. `local` 전용이며 별도 `/ws/world` 연결은 만들지 않는다. 기존 인증·중복 접속 차단·heartbeat·연결별 송신 순서를 그대로 사용한다.
 
-기준은 [OnTop v0.4](https://app.notion.com/p/OnTop_-_-154161842b868387b6ad0174db68ee71)의 광장·실시간 통신과 [채널 목록 계약](channel-query-api.md)이다. 아래 메시지 이름·필드·버전은 구현의 통신 계약이다. 같은 채널 위치 공유·채팅 송수신 기반을 구현했다. 최종 근거리 채팅 반경·맵 충돌 판정은 미확정/미연결이다. 채널 설정 시 채널별 테이블을 생성하고 해당 채널 입장 후에만 착석한다. [테이블 조회 계약](table-query-api.md)의 channelId 필터와 서버 발급 tableId를 사용한다. 채널 설정 없는 기존 개발 모드만 table-1·table-2를 유지한다.
+기준은 [OnTop v0.4](https://app.notion.com/p/OnTop_-_-154161842b868387b6ad0174db68ee71)의 광장·실시간 통신과 [채널 목록 계약](channel-query-api.md)이다. 아래 메시지 이름·필드·버전은 구현의 통신 계약이다. 같은 채널 위치 공유·채팅 송수신 기반을 구현했다. 채팅은 기본 20m 근거리 필터를 적용하며 맵 충돌 판정은 미연결이다. 채널 설정 시 채널별 테이블을 생성하고 해당 채널 입장 후에만 착석한다. [테이블 조회 계약](table-query-api.md)의 channelId 필터와 서버 발급 tableId를 사용한다. 채널 설정 없는 기존 개발 모드만 table-1·table-2를 유지한다.
 
 ## 입장
 
@@ -93,7 +93,7 @@
 }
 ```
 
-- `x/y/z`는 장면 좌표, `yaw`는 Y축 회전각(라디안)이다. 모두 유한한 JSON 숫자만 허용한다. 문자열·null·추가 필드는 `INVALID_PAYLOAD`다. 실제 좌표 단위·맵 경계·충돌·최대 속도 판정은 모델링 연동 전 미구현이다. 서버가 위치의 물리적 타당성을 검증한 결과가 아니라 클라이언트 보고 위치의 공유다.
+- `x/y/z`는 장면 좌표, `yaw`는 Y축 회전각(라디안)이다. 모두 유한한 JSON 숫자만 허용한다. 문자열·null·추가 필드는 `INVALID_PAYLOAD`다. 전송 좌표는 1단위=1m이며 맵 경계·충돌·최대 속도 판정은 모델링 연동 전 미구현이다. 서버가 위치의 물리적 타당성을 검증한 결과가 아니라 클라이언트 보고 위치의 공유다.
 - `sequence`는 채널 입장 기간 동안 사용자별 증가 정수다(0~9007199254740991). 음수·소수·범위 초과는 거절한다. 마지막 승인 순번 이하이면 위치·버전은 유지하고 요청자에게 현재 WORLD_STATE만 반환한다. 타인 알림은 없다. requestId는 여전히 요청 대응용이며 이동 순서는 sequence로 판단한다.
 - 변경 성공은 요청자에게 같은 requestId의 WORLD_STATE, 같은 채널의 나머지 참가자에게 requestId=null인 전체 스냅샷을 보낸다. 다른 채널·미입장 연결에는 보내지 않는다. AOI(가까운 사람만 전송)·차이분 전송은 아직 없다.
 - `avatars`는 현재 채널 참가자 전원이며 입장 순서다. 위치를 아직 보고하지 않은 참가자의 `position`은 null이다. 원점 좌표나 최종 스폰 위치를 임의 배정하지 않는다. 프론트는 null을 이동 좌표로 해석하지 않는다.
@@ -107,7 +107,7 @@
 
 ## 채널 채팅 기반 · WORLD_CHAT_SEND / WORLD_CHAT_MESSAGE
 
-현재 local 검증 범위는 같은 채널 전체 전달이다. 기획의 최종 근거리 반경은 정해지지 않았으므로 이 단계를 근거리 필터 완료로 취급하지 않는다. 기존 소켓·서버 사용자·채널을 사용한다.
+현재 local 계약은 발신자 기준 같은 채널의 XZ 반경 20m 이내 전달이다. 먼저 WORLD_MOVE로 위치를 보고한다. 위치가 없으면 WORLD_POSITION_REQUIRED다. [근거리 설정·관전 계약](world-proximity.md)을 함께 따른다.
 
 ```json
 {"requestId":"chat-1","type":"WORLD_CHAT_SEND","payload":{"text":"안녕 👋"}}
@@ -127,7 +127,7 @@
 }
 ```
 
-- 성공은 본인에게 원래 requestId의 WORLD_CHAT_MESSAGE, 같은 채널의 나머지 참가자에게 requestId=null인 같은 payload를 보낸다. 별도 ACK는 없다. 미입장·다른 채널에는 전달하지 않는다. 대기 테이블에 착석한 사용자도 현재 채널 채팅을 사용할 수 있다.
+- 성공은 본인에게 원래 requestId의 WORLD_CHAT_MESSAGE, 같은 채널에서 위치가 확인되고 발신자 반경 20m 이내인 나머지 참가자에게 requestId=null인 같은 payload를 보낸다. 별도 ACK는 없다. 미입장·다른 채널·위치 미보고·범위 밖 타인에게 전달하지 않는다. 대기 착석자는 마지막 수락 위치로 이용한다.
 - `userId`는 서버 연결의 내부 ID, `messageId`는 서버 발급 UUID, `sentAt`은 서버 UTC 시각이다. 닉네임·프로필 연동은 아직 없다. 클라이언트가 userId/channelId/messageId/시각을 payload에 넣으면 INVALID_PAYLOAD다.
 - `text`는 문자열 하나만 허용한다. 앞뒤 공백을 제거한 1~200 Unicode 코드포인트이며 이모지 하나는 코드포인트 기준으로 센다. 조합 이모지는 여러 코드포인트일 수 있다. 빈 문자열·공백만·초과·개행/탭/제어문자·U+2028/U+2029 줄 구분 문자·짝 없는 surrogate는 INVALID_PAYLOAD다. HTML 같은 문자열은 일반 텍스트로 보존하므로 프론트는 textContent 등 텍스트 렌더링을 사용하며 HTML로 삽입하지 않는다.
 - 기본 최소 전송 간격은 사용자별 1초다. `ontop.world.chat.minimum-interval`로 0 초과~60초 이하를 설정한다. 빠른 재전송은 CHAT_TOO_FREQUENT이며 메시지를 전달하거나 마지막 성공 시간을 연장하지 않는다. 채널 이동·퇴장·재입장으로 간격을 초기화하지 않는다. 연결 종료·heartbeat·앱 종료에서는 관련 메모리를 정리한다.
@@ -136,7 +136,7 @@
 - 보관·이력 조회·재접속 재전송은 없다. 전달된 메시지는 수신 순서로 처리하고 sentAt으로 서버 순서를 다시 정렬하지 않는다. requestId는 멱등성 키가 아니므로 자동 재시도하면 간격 이후 중복 채팅이 생길 수 있다. 새 연결에는 과거 메시지를 보내지 않는다.
 - 이동·준비·채널 인원·위치 버전은 채팅으로 변경하지 않는다. 채팅 본문을 서버 로그에 남기지 않는다.
 
-`WorldChatTests`는 입력·간격·서버 메타데이터·정리를, `WorldChatHubTests`는 실제 송신 큐의 채널 격리·착석 중 사용·이동 후 제한을, `WorldChatWebSocketTests`는 인증 대역의 실제 소켓·heartbeat 후 정리를 검사한다. 실제 채팅 화면·정식 로그인·근거리 반경·운영 검증은 포함하지 않는다.
+`WorldChatTests`는 입력·간격·서버 메타데이터·정리를, `WorldChatHubTests`는 실제 송신 큐의 채널 격리·착석 중 사용·이동 후 제한을, `WorldChatWebSocketTests`는 인증 대역의 실제 소켓·heartbeat 후 정리를 검사한다. 실제 채팅 화면·정식 로그인·운영 검증은 포함하지 않는다. 거리 검증은 WorldProximityTests/WebSocketTests에서 수행한다.
 
 ## 감정표현 전송 기반 · WORLD_EMOTE_SEND / WORLD_EMOTE_EVENT
 

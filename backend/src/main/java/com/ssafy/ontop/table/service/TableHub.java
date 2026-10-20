@@ -27,11 +27,13 @@ import com.ssafy.ontop.table.websocket.TablePeer;
 import com.ssafy.ontop.table.websocket.WebSocketHeartbeat;
 import com.ssafy.ontop.world.config.WorldChannelProperties;
 import com.ssafy.ontop.world.config.WorldEmoteProperties;
+import com.ssafy.ontop.world.config.WorldProximityProperties;
 import com.ssafy.ontop.world.domain.ChatText;
 import com.ssafy.ontop.world.domain.EmoteCode;
 import com.ssafy.ontop.world.service.WorldChannelRegistry;
 import com.ssafy.ontop.world.service.WorldChatService;
 import com.ssafy.ontop.world.service.WorldEmoteService;
+import com.ssafy.ontop.world.service.WorldProximity;
 import jakarta.annotation.PreDestroy;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -87,6 +89,7 @@ public class TableHub {
     private final WorldChannelRegistry channels;
     private final WorldChatService chat;
     private final WorldEmoteService emotes;
+    private final WorldProximity proximity;
     private final ExecutorService startWorkers = Executors.newVirtualThreadPerTaskExecutor();
     private final ScheduledExecutorService heartbeatTimer = Executors.newSingleThreadScheduledExecutor(
             Thread.ofPlatform().daemon(true).name("table-heartbeat").factory());
@@ -165,7 +168,6 @@ public class TableHub {
                 channels, chat, emotes, gameStates, gameActions, Optional.empty());
     }
 
-    @Autowired
     public TableHub(ObjectMapper mapper, Optional<GameStartGateway> gateway,
             @Value("${ontop.start-rehearsal.enabled:false}") boolean startRehearsal,
             Optional<GameReconnectService> reconnect,
@@ -174,6 +176,20 @@ public class TableHub {
             WorldChannelRegistry channels, WorldChatService chat, WorldEmoteService emotes,
             Optional<GameStateGateway> gameStates, Optional<GameActionGateway> gameActions,
             Optional<GameResultService> gameResults) {
+        this(mapper, gateway, startRehearsal, reconnect, heartbeatInterval, heartbeatTimeout, channels, chat,
+                emotes, gameStates, gameActions, gameResults,
+                new WorldProximity(channels, new WorldProximityProperties(null, null, null)));
+    }
+
+    @Autowired
+    public TableHub(ObjectMapper mapper, Optional<GameStartGateway> gateway,
+            @Value("${ontop.start-rehearsal.enabled:false}") boolean startRehearsal,
+            Optional<GameReconnectService> reconnect,
+            @Value("${ontop.websocket.heartbeat.interval:10s}") Duration heartbeatInterval,
+            @Value("${ontop.websocket.heartbeat.timeout:10s}") Duration heartbeatTimeout,
+            WorldChannelRegistry channels, WorldChatService chat, WorldEmoteService emotes,
+            Optional<GameStateGateway> gameStates, Optional<GameActionGateway> gameActions,
+            Optional<GameResultService> gameResults, WorldProximity proximity) {
         if (startRehearsal && gateway.isEmpty()) {
             throw new IllegalArgumentException("시작 연동 검증 대역이 필요합니다.");
         }
@@ -186,6 +202,7 @@ public class TableHub {
         this.channels = channels;
         this.chat = chat;
         this.emotes = emotes;
+        this.proximity = proximity;
         for (ConnectionCloseReason reason : ConnectionCloseReason.values()) {
             closedByReason.put(reason, new LongAdder());
         }
@@ -501,6 +518,7 @@ public class TableHub {
         }
         seating.put(member.userId(), tableId);
         clearWatch(member, null);
+        clearGameWatch(member);
         publish(room, member, request.requestId());
         replyStartState(member, tableId, null);
     }
@@ -526,6 +544,7 @@ public class TableHub {
         }
         WorldChannelRegistry.State state = channels.leave(member.userId());
         clearWatch(member, null);
+        clearGameWatch(member);
         member.peer().offer(protocol.encode(request.requestId(), "CHANNEL_LEFT",
                 Map.of("channelId", state.channelId())));
         publishChannel(state, null, null);
@@ -543,6 +562,7 @@ public class TableHub {
         WorldChannelRegistry.WorldChange change = channels.move(member.userId(), position);
         if (change.changed()) {
             publishWorld(change.state(), member, request.requestId());
+            refreshWatchRange(member);
         } else {
             member.peer().offer(protocol.encode(request.requestId(), "WORLD_STATE", change.state()));
         }
@@ -553,12 +573,15 @@ public class TableHub {
         if (channelId == null) {
             fail(request, "NOT_IN_CHANNEL", "먼저 채널에 입장해주세요.");
         }
+        if (!proximity.hasPosition(member.userId())) {
+            fail(request, "WORLD_POSITION_REQUIRED", "먼저 광장 위치를 전송해주세요.");
+        }
         WorldChatService.Message message = chat.create(channelId, member.userId(),
                 new ChatText(request.payload().get("text").textValue()));
         member.peer().offer(protocol.encode(request.requestId(), "WORLD_CHAT_MESSAGE", message));
         String notice = protocol.encode(null, "WORLD_CHAT_MESSAGE", message);
         for (Member target : members.values()) {
-            if (target != member && channelId.equals(channels.channelOf(target.userId()))) {
+            if (target != member && proximity.canHear(member.userId(), target.userId())) {
                 target.peer().offer(notice);
             }
         }
@@ -675,6 +698,9 @@ public class TableHub {
         if (seating.containsKey(member.userId())) {
             fail(request, "TABLE_BUSY", "먼저 테이블에서 퇴장해주세요.");
         }
+        if (!canWatchTable(member, tableId)) {
+            fail(request, "TABLE_OUT_OF_RANGE", "테이블 관전 범위를 확인해주세요.");
+        }
         String current = watching.get(member.userId());
         if (current != null && !current.equals(tableId)) {
             fail(request, "ALREADY_WATCHING", "기존 테이블 보기부터 종료해주세요.");
@@ -703,7 +729,11 @@ public class TableHub {
             if (snapshot.tableId().equals(seating.get(target.userId()))) {
                 target.peer().offer(protocol.encode(target == actor ? requestId : null, "TABLE_STATE", snapshot));
             } else if (snapshot.tableId().equals(watching.get(target.userId()))) {
-                target.peer().offer(protocol.encode(null, "TABLE_WATCH_STATE", snapshot));
+                if (canWatchTable(target, snapshot.tableId())) {
+                    target.peer().offer(protocol.encode(null, "TABLE_WATCH_STATE", snapshot));
+                } else {
+                    clearWatch(target, null);
+                }
             }
         }
     }
@@ -864,6 +894,10 @@ public class TableHub {
             return;
         }
         stateQueries.remove(sessionId);
+        if (error == null && view.role() == GameStateView.Role.SPECTATOR
+                && !canSpectate(sessionId, member, view.tableId())) {
+            error = "GAME_STATE_ACCESS_DENIED";
+        }
         if (error == null && view.role() == GameStateView.Role.PLAYER
                 && (reconnect.isEmpty()
                         || !reconnect.get().canControlGame(member.accountId(), sessionId, view.gameId()))) {
@@ -895,6 +929,9 @@ public class TableHub {
         }
         if (gameStates.isEmpty()) {
             fail(request, "GAME_STATE_NOT_CONFIGURED", "경기 상태 연결이 준비되지 않았습니다.");
+        }
+        if (seating.containsKey(member.userId())) {
+            fail(request, "TABLE_BUSY", "먼저 테이블에서 퇴장해주세요.");
         }
         StatePush previous = statePushes.get(sessionId);
         if (previous != null && previous.role == GameStateView.Role.SPECTATOR) {
@@ -1032,12 +1069,17 @@ public class TableHub {
                 || (push.initialRequestId != null && view.version() < push.deliveredVersion))) {
             error = "GAME_STATE_STALE";
         }
+        if (error == null && push.role == GameStateView.Role.SPECTATOR
+                && !canSpectate(sessionId, push.member, view.tableId())) {
+            error = "GAME_STATE_ACCESS_DENIED";
+        }
         if (error != null) {
             push.member.peer().offer(protocol.error(push.initialRequestId, error, "경기 상태를 가져올 수 없습니다."));
             if (push.role == GameStateView.Role.SPECTATOR) {
                 statePushes.remove(sessionId);
             }
         } else if (view.version() > push.deliveredVersion || push.initialRequestId != null) {
+            push.tableId = view.tableId();
             push.deliveredVersion = view.version();
             push.member.peer().offer(protocol.encode(push.initialRequestId, "GAME_STATE", view));
             push.initialRequestId = null;
@@ -1051,7 +1093,41 @@ public class TableHub {
         if (push.role == GameStateView.Role.PLAYER) {
             return canSendGameAction(sessionId, push.member, push.gameId);
         }
-        return reconnect.isEmpty() || reconnect.get().canUseLobby(push.member.accountId(), sessionId);
+        return !seating.containsKey(push.member.userId())
+                && (reconnect.isEmpty() || reconnect.get().canUseLobby(push.member.accountId(), sessionId))
+                && (push.tableId == null || canWatchTable(push.member, push.tableId));
+    }
+
+    private boolean canWatchTable(Member member, String tableId) {
+        return proximity.canWatch(member.userId(), tableId, tableChannels.get(tableId));
+    }
+
+    private boolean canSpectate(String sessionId, Member member, String tableId) {
+        return !seating.containsKey(member.userId()) && canWatchTable(member, tableId)
+                && (reconnect.isEmpty() || reconnect.get().canUseLobby(member.accountId(), sessionId));
+    }
+
+    private void clearGameWatch(Member member) {
+        for (var entry : new ArrayList<>(statePushes.entrySet())) {
+            StatePush push = entry.getValue();
+            if (push.member == member && push.role == GameStateView.Role.SPECTATOR) {
+                statePushes.remove(entry.getKey());
+                closePendingWatch(push, "GAME_STATE_ACCESS_DENIED");
+            }
+        }
+    }
+
+    private void refreshWatchRange(Member member) {
+        String tableId = watching.get(member.userId());
+        if (tableId != null && !canWatchTable(member, tableId)) {
+            clearWatch(member, null);
+        }
+        for (StatePush push : new ArrayList<>(statePushes.values())) {
+            if (push.member == member && push.role == GameStateView.Role.SPECTATOR
+                    && push.tableId != null && !canWatchTable(member, push.tableId)) {
+                clearGameWatch(member);
+            }
+        }
     }
 
     private void sendGameAction(String sessionId, Member member, Request request) {
@@ -1122,6 +1198,7 @@ public class TableHub {
     }
 
     private static final class StatePush {
+        private String tableId;
         private final Member member;
         private final String gameId;
         private final GameStateView.Role role;

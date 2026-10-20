@@ -20,7 +20,7 @@ WebSocket JSON과 `postman/collections`의 native YAML은 공식 v3 스키마에
 | 2 | HTTP 02 설정, 03·04 테이블 목록 Send | tableIdA·tableIdB가 선택한 환경에 자동 저장됨 |
 | 3 | WebSocket 01 참가자 A와 02 참가자 B에서 각각 Connect | 둘 다 CONNECTED, 서로 다른 dev 사용자 |
 | 4 | A·B 모두 `01 광장 A 입장` 메시지 Send | CHANNEL_STATE와 WORLD_STATE |
-| 5 | A의 위치·채팅·감정표현 메시지 Send | B에도 상태/이벤트 수신. 이동은 착석 전에 테스트 |
+| 5 | A·B 모두 위치 보고 후 채팅·감정표현 메시지 Send | 채팅은 같은 채널·보고 위치 기준 발신자 반경 20m 이내에서만 수신. 이동은 착석 전에 테스트 |
 | 6 | A `05 착석` → B `05 착석` → A `06 오목 선택` | 같은 테이블의 두 좌석·게임 선택 공유 |
 | 7 | A·B 모두 `07 준비` | TABLE_STATE.allReady=true. 기본 모드는 실제 경기 시작 안 함 |
 | 8 | 준비 취소·테이블 퇴장·광장 퇴장 | 서로 상태 갱신. 광장 퇴장은 착석 해제 후 가능 |
@@ -31,7 +31,7 @@ WebSocket 탭 하나가 사용자 하나다. **Connect를 유지한 채 Saved Me
 
 ## 관전자·끊김·시작 검증
 
-- **03 관전자 C**: Connect → 광장 A 입장 → 테이블 보기. TABLE_WATCH_STATE를 받지만 좌석/준비 인원은 늘지 않는다. 경기 관전은 별도 GAME_WATCH 연결부이며 실제 엔진·권한 판정은 연동 대기다.
+- **03 관전자 C**: Connect → 광장 A 입장 → 미터 위치 보고 → 테이블 보기. 서버 테이블 좌표 설정과 중심 20m 이내가 필요하다. 좌표 미설정/범위 밖이면 TABLE_OUT_OF_RANGE가 정상이다. 성공 시 TABLE_WATCH_STATE를 받지만 좌석/준비 인원은 늘지 않는다. 경기 관전은 별도 GAME_WATCH이며 Gateway 내부 tableId와 기존 인증/자격도 필요하다.
 - **채널 격리**: B가 테이블·광장을 퇴장한 뒤 광장 B로 입장한다. A의 이동·채팅·감정표현이 B에게 오지 않아야 한다.
 - **대기 중 끊김**: B 탭의 Disconnect를 누르면 A에서 B 좌석/준비/위치·채널 인원이 정리된다. 기본 dev 재연결은 새 사용자이며 이전 좌석 복구가 아니다.
 - **heartbeat**: JSON PING을 보내는 기능이 아니다. 서버 Ping에 Postman이 Pong을 처리한다. Disconnect는 정상 종료이므로 heartbeat 무응답 실험과 다르다. 무응답·29/30초 경계 검증은 기존 `backend/gradlew.bat flowTest`가 담당한다.
@@ -59,3 +59,5 @@ WebSocket 탭 하나가 사용자 하나다. **Connect를 유지한 채 Saved Me
 `generate.mjs`가 요청 데이터 원본이다. Node.js로 `node postman/generate.mjs`를 실행하면 JSON 내보내기와 native YAML을 함께 갱신한다. `node postman/generate.mjs --check`는 파일을 바꾸지 않고 생성 결과를 대조한다. 생성 파일을 직접 바꾼 뒤 재생성하면 덮어써지므로 원본을 먼저 수정한다. 계정 정보·토큰은 파일에 넣지 않는다.
 
 공식 형식: [Postman v3 스키마](https://schema.postman.com/collection/json/v3.0.0/draft-07/collection.json), [로컬 컬렉션 구조](https://learning.postman.com/docs/use/native-git/setup).
+
+거리 설정·제약은 [근거리 채팅·관전](../docs/world-proximity.md)을 따른다. 2026-10-21 로컬 생성 파일은 최신화했으며 Postman 웹 저장본은 별도 반영 전이다.

@@ -35,7 +35,7 @@ import static org.assertj.core.api.Assertions.assertThat;
         "spring.profiles.active=local", "ontop.websocket.authenticated=true",
         "ontop.websocket.heartbeat.interval=200ms", "ontop.websocket.heartbeat.timeout=2s"
 })
-@Import({AuthenticatedWebSocketTests.AuthFixture.class, GameCommunicationFlowTests.Fixture.class})
+@Import({AuthenticatedWebSocketTests.AuthFixture.class, GameCommunicationFlowTests.Fixture.class, AllowedWatchFixture.class})
 @DirtiesContext
 class GameCommunicationFlowTests {
 

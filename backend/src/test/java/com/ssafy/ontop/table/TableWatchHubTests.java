@@ -37,7 +37,11 @@ class TableWatchHubTests {
     private TableHub hub = new TableHub(mapper, Optional.empty(), false, Optional.empty(),
             Duration.ofSeconds(10), Duration.ofSeconds(10),
             new WorldChannelRegistry(new WorldChannelProperties(List.of(
-                    new Channel("one", "하나", 8), new Channel("two", "둘", 8)))));
+                    new Channel("one", "하나", 8), new Channel("two", "둘", 8)))),
+            new com.ssafy.ontop.world.service.WorldChatService(Duration.ofSeconds(1)),
+            new com.ssafy.ontop.world.service.WorldEmoteService(
+                    new com.ssafy.ontop.world.config.WorldEmoteProperties(null), Duration.ofSeconds(1)),
+            Optional.empty(), Optional.empty(), Optional.empty(), AllowedWatchFixture.allowed());
 
     @AfterEach
     void shutdown() {
@@ -192,7 +196,13 @@ class TableWatchHubTests {
             commands.add(command);
             return GameStartResult.succeeded(command, "demo-session");
         });
-        hub = new TableHub(mapper, Optional.of(gateway), true);
+        hub = new TableHub(mapper, Optional.of(gateway), true, Optional.empty(),
+                Duration.ofSeconds(10), Duration.ofSeconds(10),
+                new WorldChannelRegistry(new WorldChannelProperties(null)),
+                new com.ssafy.ontop.world.service.WorldChatService(Duration.ofSeconds(1)),
+                new com.ssafy.ontop.world.service.WorldEmoteService(
+                        new com.ssafy.ontop.world.config.WorldEmoteProperties(null), Duration.ofSeconds(1)),
+                Optional.empty(), Optional.empty(), Optional.empty(), AllowedWatchFixture.allowed());
         Peer first = peer();
         Peer second = peer();
         Peer viewer = peer();

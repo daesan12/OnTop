@@ -112,6 +112,7 @@ class WorldChatHubTests {
         private void join(String channel) throws Exception {
             request("CHANNEL_JOIN", Map.of("channelId", channel));
             next("WORLD_STATE");
+            registry.move(userId, new WorldChannelRegistry.Position(0, 0, 0, 0, 0));
         }
 
         private JsonNode request(String type, Object payload) throws Exception {

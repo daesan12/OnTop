@@ -20,7 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
         "ontop.world.channels[1].channel-id=two", "ontop.world.channels[1].name=둘",
         "ontop.world.channels[1].capacity=4"
 })
-@Import(AuthenticatedWebSocketTests.AuthFixture.class)
+@Import({AuthenticatedWebSocketTests.AuthFixture.class, AllowedWatchFixture.class})
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class TableWatchWebSocketTests {
 

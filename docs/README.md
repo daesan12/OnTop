@@ -18,7 +18,7 @@
 | 전체 흐름 테스트 도구 | [flow-test.md](flow-test.md) | 한 명령으로 착석·준비·끊김·복귀 확인. 인증/경기는 테스트 대역 |
 | 테이블 목록 조회 API | [table-query-api.md](table-query-api.md) | local 전용 GET 목록, 빈자리·준비 인원·입장 가능 여부와 개발 화면 조회 규칙 |
 | 채널 목록 조회 API | [channel-query-api.md](channel-query-api.md) | local 설정 기반 GET 목록·인증 경계·인원 공급자 연결점. 실제 로그인 미연결. 채널 입장 상태 반영 |
-| 광장 WebSocket | [world-websocket-api.md](world-websocket-api.md) | 기존 소켓으로 채널 입장·퇴장·인원 동기화. 채널별 테이블·위치 공유·채널 채팅 기반 구현. 맵 충돌·근거리 채팅 미연결 |
+| 광장 WebSocket | [world-websocket-api.md](world-websocket-api.md) | 기존 소켓으로 채널 입장·퇴장·인원 동기화. 채널별 테이블·위치 공유·채널 채팅 기반 구현. 20m 근거리 채팅·관전 검사 구현, 실제 맵 배치 미설정 |
 | 게임 시작 연동 계약 초안 | [game-start-contract-draft.md](game-start-contract-draft.md) | A·B의 시작 요청·결과·중복 처리 제안. 공유 완료, 재화·종료 정책은 정식 연결 전 재대조 필요 |
 | 게임 시작 연동 검증 | [game-start-rehearsal.md](game-start-rehearsal.md) | 선택해서 켜는 DB 없는 시작 요청·성공·거절·조회 확인 기능. 실제 경기·차감 없음 |
 | 제품 기준·ERD 대조 | [erd-policy-alignment.md](erd-policy-alignment.md) | 사용자 지정 OnTop v0.4 우선순위, ERD·과거 초안과의 차이 및 실제 구현 범위 |
@@ -54,3 +54,5 @@ WebSocket의 현재 연결·누적 등록/종료·수신 텍스트·완료 송�
 - 수신본 정리일: 2026-10-18. Notion 최신본과의 대조는 수행하지 않았다.
 - 원문 파일명·내용과 이미지의 상대 링크를 유지해 `conventions/git-source/`에 보존했다. 상세 출처·통합 원문 해시는 [수신 안내](conventions/git.md)에 있다.
 - 부속 문서와 통합 문서의 브랜치·커밋 규칙에 차이가 있어 팀 확인 항목을 남겼다. 백엔드 코드 컨벤션은 사용자 지시에 따라 별도로 정한 기준이며 받은 원문이 아니다.
+
+근거리 설정: [채팅·관전 20m](world-proximity.md) — 서버 테이블 좌표, 내부 경기 tableId, 범위 이탈/미설정 처리.

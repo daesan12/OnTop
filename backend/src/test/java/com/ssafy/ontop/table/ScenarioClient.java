@@ -62,9 +62,14 @@ final class ScenarioClient implements AutoCloseable {
     }
 
     JsonNode request(String type, Object payload) throws Exception {
+        String id = sendRequest(type, payload);
+        return await(message -> message.path("requestId").asText().equals(id));
+    }
+
+    String sendRequest(String type, Object payload) throws Exception {
         String id = UUID.randomUUID().toString();
         send(1, MAPPER.writeValueAsBytes(Map.of("type", type, "requestId", id, "payload", payload)));
-        return await(message -> message.path("requestId").asText().equals(id));
+        return id;
     }
 
     JsonNode state(String status) throws Exception {

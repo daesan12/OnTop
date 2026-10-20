@@ -333,7 +333,7 @@ class GameWatchTests {
         hub = new TableHub(mapper, Optional.empty(), false, Optional.of(reconnect),
                 Duration.ofSeconds(60), Duration.ofSeconds(60),
                 new WorldChannelRegistry(new WorldChannelProperties(null)), new WorldChatService(Duration.ofSeconds(1)),
-                new WorldEmoteService(new WorldEmoteProperties(null), Duration.ofSeconds(1)), Optional.of(states));
+                new WorldEmoteService(new WorldEmoteProperties(null), Duration.ofSeconds(1)), Optional.of(states), Optional.empty(), Optional.empty(), AllowedWatchFixture.allowed());
     }
 
     private Peer peer(Long userId) throws Exception {

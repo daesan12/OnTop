@@ -6,6 +6,7 @@ import org.springframework.context.annotation.Profile;
 
 @Configuration
 @Profile("local")
-@EnableConfigurationProperties({WorldChannelProperties.class, WorldEmoteProperties.class})
+@EnableConfigurationProperties({WorldChannelProperties.class, WorldEmoteProperties.class,
+        WorldProximityProperties.class})
 public class WorldChannelConfiguration {
 }

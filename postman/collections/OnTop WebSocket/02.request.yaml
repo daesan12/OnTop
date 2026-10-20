@@ -18,6 +18,11 @@
     "contentType": "json"
     "content": "{\n  \"requestId\": \"{{$guid}}\",\n  \"type\": \"CHANNEL_JOIN\",\n  \"payload\": {\n    \"channelId\": \"{{channelIdA}}\"\n  }\n}"
   -
+    "name": "위치 보고 → WORLD_STATE (채팅·관전 전 필수, 실제 미터 좌표 사용)"
+    "$kind": "websocket-message"
+    "contentType": "json"
+    "content": "{\n  \"requestId\": \"{{$guid}}\",\n  \"type\": \"WORLD_MOVE\",\n  \"payload\": {\n    \"sequence\": 0,\n    \"x\": 1.5,\n    \"y\": 0,\n    \"z\": -2,\n    \"yaw\": 0\n  }\n}"
+  -
     "name": "05 A 테이블 착석 → TABLE_STATE"
     "$kind": "websocket-message"
     "contentType": "json"

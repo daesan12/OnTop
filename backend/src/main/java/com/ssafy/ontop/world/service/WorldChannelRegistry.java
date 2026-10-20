@@ -96,6 +96,15 @@ public class WorldChannelRegistry implements ChannelPresence {
         return membership.get(userId);
     }
 
+    public synchronized Position positionOf(String userId) {
+        String channelId = membership.get(userId);
+        if (channelId == null) {
+            return null;
+        }
+        Movement movement = rooms.get(channelId).positions.get(userId);
+        return movement == null ? null : movement.position();
+    }
+
     public synchronized WorldState worldState(String channelId) {
         return rooms.get(channelId).worldState();
     }

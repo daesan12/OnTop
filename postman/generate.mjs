@@ -76,6 +76,8 @@ const message = (name, type, payload = {}) => ({
     content: JSON.stringify({ requestId: '{{$guid}}', type, payload }, null, 2)
 });
 const joinA = () => message('01 광장 A 입장 → CHANNEL_STATE + WORLD_STATE', 'CHANNEL_JOIN', { channelId: '{{channelIdA}}' });
+const locate = () => message('위치 보고 → WORLD_STATE (채팅·관전 전 필수, 실제 미터 좌표 사용)',
+    'WORLD_MOVE', { sequence: 0, x: 1.5, y: 0, z: -2, yaw: 0 });
 const sitA = () => message('05 A 테이블 착석 → TABLE_STATE', 'TABLE_JOIN', { tableId: '{{tableIdA}}' });
 const ready = flag => message(flag ? '07 준비 → TABLE_STATE' : '추가 준비 취소 → TABLE_STATE', 'READY_SET', { ready: flag });
 const leave = () => message('추가 테이블 퇴장 → TABLE_LEFT', 'TABLE_LEAVE');
@@ -116,15 +118,15 @@ const wsItems = [
     wsRequest('02 참가자 B — 두 번째 착석하는 사람',
         'A와 별개 연결입니다. A가 먼저 앉은 다음 05 착석을 보내고, A 게임 선택 후 07 준비를 보냅니다. '
         + 'A의 상태 변경도 requestId=null 알림으로 들어옵니다. 원카드/거짓말은 2~4명이며 추가 탭으로 다른 임시 사용자를 만들 수 있습니다.',
-        [joinA(), sitA(), ready(true), ready(false), leave(), channelLeave(),
+        [joinA(), locate(), sitA(), ready(true), ready(false), leave(), channelLeave(),
             message('추가 채팅', 'WORLD_CHAT_SEND', { text: 'B도 접속했어!' }),
             message('다른 채널 격리 확인 — B 광장으로 (현재 채널 퇴장 후)', 'CHANNEL_JOIN', { channelId: '{{channelIdB}}' }),
             message('다른 채널 B 테이블 착석', 'TABLE_JOIN', { tableId: '{{tableIdB}}' }),
             message('오류 선택권 없음 — A가 먼저 앉았을 때만', 'GAME_SELECT', { gameCode: 'DICE' })]),
     wsRequest('03 관전자 C — 공개 대기 상태 보기',
-        '광장 A 입장 후 TABLE_WATCH를 보냅니다. TABLE_WATCH_STATE를 받으며 좌석·준비 인원은 늘지 않습니다. '
+        '광장 A 입장·위치 보고 후 TABLE_WATCH를 보냅니다. 서버 테이블 좌표가 설정되어 있고 중심 20m 이내여야 합니다. 미설정/범위 밖은 TABLE_OUT_OF_RANGE입니다. TABLE_WATCH_STATE를 받으며 좌석·준비 인원은 늘지 않습니다. '
         + '실제 경기 관전 권한이나 원카드 손패 구독이 아닙니다. 착석 성공 시 구독은 자동 종료됩니다.',
-        [joinA(), message('02 테이블 보기 → TABLE_WATCH_STATE', 'TABLE_WATCH', { tableId: '{{tableIdA}}' }),
+        [joinA(), locate(), message('02 테이블 보기 → TABLE_WATCH_STATE', 'TABLE_WATCH', { tableId: '{{tableIdA}}' }),
             message('03 보기 종료 → TABLE_WATCH_LEFT', 'TABLE_UNWATCH'),
             message('오류 관전자 준비 → NOT_SEATED (미착석일 때)', 'READY_SET', { ready: true }),
             message('추가 관전자 채팅', 'WORLD_CHAT_SEND', { text: '구경 중이야!' }),
@@ -143,7 +145,7 @@ const wsItems = [
         + '입력의 expectedVersion=0과 input은 형식 예시이므로 최신 GAME_STATE의 버전과 게임별 확정 입력으로 수정하세요. '
         + 'actionId는 같은 행동 재확인에만 재사용하고 새 행동은 새 ID를 사용합니다. '
         + '참가자는 복구 후 입력 성공 시 본인 공개/개인 GAME_STATE를 자동 수신합니다. '
-        + '관전자는 GAME_WATCH 성공 후 빈 privateState의 GAME_STATE만 수신하며 GAME_UNWATCH로 해제합니다. '
+        + '관전자는 채널·미터 위치 보고·서버 테이블 좌표와 Gateway 내부 tableId가 필요하며 중심 20m 이내에서 GAME_WATCH합니다. 성공 후 빈 privateState의 GAME_STATE만 수신하며 GAME_UNWATCH 또는 범위 이탈로 해제합니다. '
         + '최초 응답은 원래 requestId, 자동 알림은 null입니다. 이 연결은 아직 경기 성공 시연용이 아닙니다.',
         [message('01 경기 상태 조회 → dev: GAME_STATE_AUTH_REQUIRED', 'GAME_STATE_CHECK', { gameId: '{{gameId}}' }),
             message('02 경기 입력 → dev: GAME_ACTION_AUTH_REQUIRED', 'GAME_ACTION_SEND',

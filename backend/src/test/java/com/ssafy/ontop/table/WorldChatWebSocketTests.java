@@ -87,5 +87,6 @@ class WorldChatWebSocketTests {
     private void join(ScenarioClient client, String channel) throws Exception {
         client.request("CHANNEL_JOIN", Map.of("channelId", channel));
         client.await(message -> message.path("type").asText().equals("WORLD_STATE"));
+        client.request("WORLD_MOVE", Map.of("sequence", 0, "x", 0, "y", 0, "z", 0, "yaw", 0));
     }
 }

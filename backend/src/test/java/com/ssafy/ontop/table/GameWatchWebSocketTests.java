@@ -26,7 +26,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "spring.profiles.active=local", "ontop.websocket.authenticated=true"
 })
-@Import({AuthenticatedWebSocketTests.AuthFixture.class, GameWatchWebSocketTests.Fixture.class})
+@Import({AuthenticatedWebSocketTests.AuthFixture.class, GameWatchWebSocketTests.Fixture.class, AllowedWatchFixture.class})
 @DirtiesContext
 class GameWatchWebSocketTests {
 

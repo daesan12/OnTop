@@ -83,6 +83,7 @@ class WorldEmoteHubTests {
         assertThat(user.request("WORLD_EMOTE_SEND", Map.of("emoteCode", "WAVE"))
                 .path("payload").path("code").asText()).isEqualTo("NOT_IN_CHANNEL");
         user.join("one");
+        registry.move(user.userId, new WorldChannelRegistry.Position(0, 0, 0, 0, 0));
         user.request("TABLE_JOIN", Map.of("tableId", hub.listTables("one").tables().getFirst().tableId()));
         assertThat(user.request("WORLD_EMOTE_SEND", Map.of("emoteCode", "WAVE"))
                 .path("type").asText()).isEqualTo("WORLD_EMOTE_EVENT");

@@ -25,7 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
         "ontop.world.channels[1].channel-id=two", "ontop.world.channels[1].name=둘",
         "ontop.world.channels[1].capacity=3"
 })
-@Import(AuthenticatedWebSocketTests.AuthFixture.class)
+@Import({AuthenticatedWebSocketTests.AuthFixture.class, AllowedWatchFixture.class})
 @DirtiesContext
 class WorldFullFlowTests {
 
@@ -50,6 +50,7 @@ class WorldFullFlowTests {
                     || isType(message, "WORLD_EMOTE_EVENT"), () -> join(second, "one"));
             assertThat(avatar(late, "101").path("position").path("x").asDouble()).isEqualTo(3);
             assertThat(avatar(late, "202").path("position").isNull()).isTrue();
+            payload(second, "WORLD_MOVE", move(0, 4), "WORLD_STATE");
             first.await(message -> isType(message, "WORLD_STATE")
                     && message.path("payload").path("avatars").size() == 2);
             JsonNode chat = payload(second, "WORLD_CHAT_SEND", Map.of("text", "같이 놀자 👋"),
@@ -106,6 +107,7 @@ class WorldFullFlowTests {
                 JsonNode fresh = join(returned, "one");
                 assertThat(avatar(fresh, "202").path("position").isNull()).isTrue();
                 assertThat(table().path("occupiedSeats").asInt()).isEqualTo(1);
+                payload(returned, "WORLD_MOVE", move(0, 4), "WORLD_STATE");
                 payload(returned, "WORLD_CHAT_SEND", Map.of("text", "다시 입장"), "WORLD_CHAT_MESSAGE");
                 payload(returned, "WORLD_EMOTE_SEND", Map.of("emoteCode", "CLAP"), "WORLD_EMOTE_EVENT");
                 JsonNode seated = payload(returned, "TABLE_JOIN", Map.of("tableId", tableId), "TABLE_STATE");
