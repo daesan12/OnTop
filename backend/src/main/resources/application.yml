@@ -1,3 +1,13 @@
 spring:
   application:
     name: ontop
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      show-components: never

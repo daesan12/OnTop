@@ -22,6 +22,8 @@
 
 ## 받은 파일 관리
 
+인프라 전달: [헬스체크 API](health-check.md) — `GET /actuator/health`, 정상 200/UP, 현재 검사 범위·배포 시 경로 안내.
+
 경기 진행의 새 로컬 연결 계약: [공개·개인 상태 조회](game-state-api.md). 실제 경기 엔진 미연결이며 기존 Notion WebSocket 목록에는 아직 게시하지 않았다.
 
 - 파일은 용도에 맞는 폴더와 짧고 일정한 이름으로 보관한다. 현재 팀 규칙은 `docs/conventions/`에 둔다.
