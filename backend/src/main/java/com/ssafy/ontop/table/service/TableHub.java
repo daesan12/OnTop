@@ -7,6 +7,8 @@ import com.ssafy.ontop.game.start.GameStartCommand;
 import com.ssafy.ontop.game.start.GameStartCommand.Participant;
 import com.ssafy.ontop.game.start.GameStartGateway;
 import com.ssafy.ontop.game.start.GameStartResult;
+import com.ssafy.ontop.game.state.GameStateGateway;
+import com.ssafy.ontop.game.state.GameStateView;
 import com.ssafy.ontop.table.domain.TableGame;
 import com.ssafy.ontop.table.domain.TableRoom;
 import com.ssafy.ontop.table.domain.TableStartAttempt;
@@ -30,6 +32,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -64,6 +67,8 @@ public class TableHub {
     private final Map<String, Long> startRevisions = new HashMap<>();
     private final Optional<GameStartGateway> gateway;
     private final boolean startRehearsal;
+    private final Optional<GameStateGateway> gameStates;
+    private final Set<String> stateQueries = new HashSet<>();
     private final Optional<GameReconnectService> reconnect;
     private final WorldChannelRegistry channels;
     private final WorldChatService chat;
@@ -108,17 +113,29 @@ public class TableHub {
                 new WorldEmoteService(new WorldEmoteProperties(null), Duration.ofSeconds(1)));
     }
 
-    @Autowired
     public TableHub(ObjectMapper mapper, Optional<GameStartGateway> gateway,
             @Value("${ontop.start-rehearsal.enabled:false}") boolean startRehearsal,
             Optional<GameReconnectService> reconnect,
             @Value("${ontop.websocket.heartbeat.interval:10s}") Duration heartbeatInterval,
             @Value("${ontop.websocket.heartbeat.timeout:10s}") Duration heartbeatTimeout,
             WorldChannelRegistry channels, WorldChatService chat, WorldEmoteService emotes) {
+        this(mapper, gateway, startRehearsal, reconnect, heartbeatInterval, heartbeatTimeout,
+                channels, chat, emotes, Optional.empty());
+    }
+
+    @Autowired
+    public TableHub(ObjectMapper mapper, Optional<GameStartGateway> gateway,
+            @Value("${ontop.start-rehearsal.enabled:false}") boolean startRehearsal,
+            Optional<GameReconnectService> reconnect,
+            @Value("${ontop.websocket.heartbeat.interval:10s}") Duration heartbeatInterval,
+            @Value("${ontop.websocket.heartbeat.timeout:10s}") Duration heartbeatTimeout,
+            WorldChannelRegistry channels, WorldChatService chat, WorldEmoteService emotes,
+            Optional<GameStateGateway> gameStates) {
         if (startRehearsal && gateway.isEmpty()) {
             throw new IllegalArgumentException("시작 연동 검증 대역이 필요합니다.");
         }
         this.gateway = gateway;
+        this.gameStates = gameStates;
         this.startRehearsal = startRehearsal;
         this.reconnect = reconnect;
         this.channels = channels;
@@ -233,6 +250,10 @@ public class TableHub {
         try {
             Request request = protocol.parse(text);
             requestId = request.requestId();
+            if (request.type().equals("GAME_STATE_CHECK")) {
+                checkGameState(sessionId, member, request);
+                return;
+            }
             if (request.type().equals("GAME_RECONNECT_CHECK")) {
                 if (member.accountId() == null || reconnect.isEmpty()) {
                     fail(request, "RECOVERY_NOT_AVAILABLE", "인증된 경기 복구 연결이 필요합니다.");
@@ -280,6 +301,7 @@ public class TableHub {
             return;
         }
         member.peer().stop();
+        stateQueries.remove(sessionId);
         watching.remove(member.userId());
         chat.disconnected(member.userId());
         emotes.disconnected(member.userId());
@@ -319,6 +341,7 @@ public class TableHub {
         emotes.clear();
         seating.clear();
         watching.clear();
+        stateQueries.clear();
         starts.clear();
         startWorkers.shutdownNow();
     }
@@ -677,6 +700,55 @@ public class TableHub {
                 ? TableStartAttempt.View.waiting(tableId, revision, gameCode)
                 : attempt.view(revision);
         target.peer().offer(protocol.encode(requestId, "GAME_START_STATE", view));
+    }
+
+    private void checkGameState(String sessionId, Member member, Request request) {
+        if (member.accountId() == null) {
+            fail(request, "GAME_STATE_AUTH_REQUIRED", "인증된 사용자만 경기 상태를 조회할 수 있습니다.");
+        }
+        if (gameStates.isEmpty()) {
+            fail(request, "GAME_STATE_NOT_CONFIGURED", "경기 상태 연결이 준비되지 않았습니다.");
+        }
+        if (!stateQueries.add(sessionId)) {
+            fail(request, "GAME_STATE_PENDING", "이전 경기 상태 조회가 진행 중입니다.");
+        }
+        String gameId = request.payload().get("gameId").textValue();
+        // 경기 담당의 조회는 Hub 잠금 밖에서 실행한다. 응답은 이 연결에만 전달한다.
+        startWorkers.execute(() -> {
+            GameStateView view = null;
+            String error = null;
+            try {
+                view = gameStates.orElseThrow().load(member.accountId(), gameId).orElse(null);
+                if (view == null) {
+                    error = "GAME_STATE_ACCESS_DENIED";
+                } else if (view.userId() != member.accountId() || !view.gameId().equals(gameId)) {
+                    view = null;
+                    error = "GAME_STATE_INVALID";
+                }
+            } catch (RuntimeException exception) {
+                // 외부 구현의 예외에 손패 등이 포함될 수 있으므로 내용은 전송·기록하지 않는다.
+                error = "GAME_STATE_UNAVAILABLE";
+            }
+            finishGameState(sessionId, member, request.requestId(), view, error);
+        });
+    }
+
+    private synchronized void finishGameState(String sessionId, Member member, String requestId,
+            GameStateView view, String error) {
+        if (stopped || members.get(sessionId) != member) {
+            return;
+        }
+        stateQueries.remove(sessionId);
+        if (error == null && view.role() == GameStateView.Role.PLAYER
+                && (reconnect.isEmpty()
+                        || !reconnect.get().canControlGame(member.accountId(), sessionId, view.gameId()))) {
+            error = "GAME_RECOVERY_REQUIRED";
+        }
+        if (error != null) {
+            member.peer().offer(protocol.error(requestId, error, "경기 상태를 가져올 수 없습니다."));
+        } else {
+            member.peer().offer(protocol.encode(requestId, "GAME_STATE", view));
+        }
     }
 
     private record Member(String userId, TablePeer peer, Long accountId) {

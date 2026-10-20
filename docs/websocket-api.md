@@ -10,6 +10,8 @@
 
 ## API 목록
 
+추가 로컬 연결부: [경기 공개·개인 상태 조회](game-state-api.md)의 `GAME_STATE_CHECK` / `GAME_STATE`. 인증 연결과 경기 담당 Gateway가 필요하며 실제 엔진은 미연결입니다. 아래 기존 Notion 동기화 목록에는 아직 게시하지 않았습니다.
+
 | 도메인 | 진행상황 | 방식 | 방향 | 기능 | 메시지 타입 | URL |
 | --- | --- | --- | --- | --- | --- | --- |
 | 연결 | 로컬 검증 완료 | WS | 서버 → 클라이언트 | [🔗 연결 완료](websocket-api/01-connected.md) | CONNECTED | /ws/tables |

@@ -66,6 +66,9 @@ public final class TableProtocol {
             case "TABLE_LEAVE", "TABLE_UNWATCH" -> fields(payload, Set.of());
             case "GAME_START_CHECK" -> fields(payload, Set.of());
             case "GAME_RECONNECT_CHECK" -> fields(payload, Set.of());
+            case "GAME_STATE_CHECK" -> fields(payload, Set.of("gameId")) && payload.get("gameId").isTextual()
+                    && !payload.get("gameId").textValue().isBlank()
+                    && payload.get("gameId").textValue().length() <= 120;
             default -> throw new RequestException(requestId, "UNSUPPORTED_MESSAGE_TYPE", "지원하지 않는 메시지입니다.");
         };
         if (!valid) {
