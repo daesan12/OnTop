@@ -30,6 +30,7 @@
 | `UNSUPPORTED_MESSAGE_TYPE` | 형식은 맞지만 지원하지 않는 type | 지원 메시지로 수정 |
 | `INVALID_PAYLOAD` | 메시지별 필드 누락·타입·허용 필드 오류 | 입력 수정 |
 | `TABLE_NOT_FOUND` | 등록되지 않은 테이블 | 선택 가능한 테이블 사용 |
+| `TABLE_CHANNEL_MISMATCH` | 현재 채널과 테이블 소속이 다름 | 현재 채널 목록에서 선택 |
 | `ALREADY_SEATED` | 다른 테이블에 착석 중 | 퇴장 완료 후 다시 착석 |
 | `TABLE_FULL` | 빈 좌석 없음 | 다른 테이블 선택 또는 재시도 |
 | `NOT_SEATED` | 미착석 상태의 준비·퇴장 요청 | 먼저 착석 |
@@ -40,7 +41,7 @@
 | `CHANNEL_NOT_FOUND` | 등록되지 않은 채널 | 채널 목록 확인 |
 | `ALREADY_IN_CHANNEL` | 다른 채널에 입장 중 | 기존 채널 퇴장 후 입장 |
 | `CHANNEL_FULL` | 채널 정원 초과 | 다른 채널 선택 |
-| `NOT_IN_CHANNEL` | 채널 미입장 상태에서 퇴장 | 현재 입장 상태 확인 |
+| `NOT_IN_CHANNEL` | 채널 미입장 상태의 퇴장 또는 설정 환경에서 착석 | 현재 입장 상태 확인 |
 | `TABLE_BUSY` | 착석 중 채널 변경·퇴장 또는 선택적 시작 검증의 STARTING·CONFIRMED에서 변경 | 기존 시작 결과 확인. 새 변경 요청 반복 금지 |
 | `GAME_RECOVERY_REQUIRED` | 경기 조회 중·진행 중·만료 미확정 상태의 테이블 변경 | GAME_CONNECTION_STATE 확인 |
 | `RECOVERY_NOT_AVAILABLE` | 임시 개발 사용자 등 복구 연결 대상이 아님 | 인증 연결 설정 확인 |

@@ -21,6 +21,7 @@ import com.ssafy.ontop.world.config.WorldChannelProperties;
 import com.ssafy.ontop.world.service.WorldChannelRegistry;
 import jakarta.annotation.PreDestroy;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -48,8 +49,9 @@ public class TableHub {
     private static final Logger log = LoggerFactory.getLogger(TableHub.class);
 
     private final TableProtocol protocol;
-    private final Map<String, TableRoom> rooms = Map.of(
-            "table-1", new TableRoom("table-1"), "table-2", new TableRoom("table-2"));
+    private final Map<String, TableRoom> rooms = new HashMap<>();
+    private final Map<String, String> tableChannels = new HashMap<>();
+    private final Set<String> channelIds;
     private final Map<String, Member> members = new HashMap<>();
     private final Map<String, String> seating = new HashMap<>();
     private final Map<String, TableStartAttempt> starts = new HashMap<>();
@@ -97,6 +99,21 @@ public class TableHub {
         this.startRehearsal = startRehearsal;
         this.reconnect = reconnect;
         this.channels = channels;
+        channelIds = Set.copyOf(channels.snapshot().keySet());
+        if (channelIds.isEmpty()) {
+            rooms.put("table-1", new TableRoom("table-1"));
+            rooms.put("table-2", new TableRoom("table-2"));
+        } else {
+            // tableId는 채널 사이에서도 유일하다. 시작 연동과 보존 좌석도 같은 키로 격리한다.
+            for (String channelId : channelIds) {
+                for (int number = 1; number <= 2; number++) {
+                    String tableId = "table-" + UUID.nameUUIDFromBytes(
+                            (channelId + "\0table-" + number).getBytes(StandardCharsets.UTF_8));
+                    rooms.put(tableId, new TableRoom(tableId));
+                    tableChannels.put(tableId, channelId);
+                }
+            }
+        }
         // 잘못된 시간 설정은 연결을 받기 전에 실패시킨다.
         new WebSocketHeartbeat(heartbeatInterval, heartbeatTimeout, System::nanoTime);
         this.heartbeatInterval = heartbeatInterval;
@@ -155,7 +172,19 @@ public class TableHub {
     }
 
     public synchronized TableListResponse listTables() {
-        return new TableListResponse(rooms.keySet().stream().sorted().map(tableId -> {
+        return listTables(null);
+    }
+
+    public synchronized TableListResponse listTables(String channelId) {
+        if (!channelIds.isEmpty() && (channelId == null || channelId.isBlank())) {
+            throw new TableScopeException("CHANNEL_REQUIRED", "조회할 채널을 지정해주세요.");
+        }
+        if (channelId != null && !channelIds.contains(channelId)) {
+            throw new TableScopeException("CHANNEL_NOT_FOUND", "등록되지 않은 채널입니다.");
+        }
+        return new TableListResponse(rooms.keySet().stream()
+                .filter(id -> channelId == null || channelId.equals(tableChannels.get(id)))
+                .sorted().map(tableId -> {
             TableRoom.Snapshot snapshot = rooms.get(tableId).snapshot();
             int occupied = (int) snapshot.seats().stream().filter(seat -> seat.userId() != null).count();
             int ready = (int) snapshot.seats().stream()
@@ -258,6 +287,15 @@ public class TableHub {
         TableRoom room = rooms.get(tableId);
         if (room == null) {
             fail(request, "TABLE_NOT_FOUND", "등록되지 않은 테이블입니다.");
+        }
+        if (!channelIds.isEmpty()) {
+            String channelId = channels.channelOf(member.userId());
+            if (channelId == null) {
+                fail(request, "NOT_IN_CHANNEL", "먼저 채널에 입장해주세요.");
+            }
+            if (!channelId.equals(tableChannels.get(tableId))) {
+                fail(request, "TABLE_CHANNEL_MISMATCH", "현재 채널의 테이블만 이용할 수 있습니다.");
+            }
         }
         String current = seating.get(member.userId());
         if (current != null) {
@@ -496,5 +534,19 @@ public class TableHub {
     }
 
     private record Member(String userId, TablePeer peer, Long accountId) {
+    }
+
+    public static final class TableScopeException extends RuntimeException {
+
+        private final String code;
+
+        private TableScopeException(String code, String message) {
+            super(message);
+            this.code = code;
+        }
+
+        public String code() {
+            return code;
+        }
     }
 }

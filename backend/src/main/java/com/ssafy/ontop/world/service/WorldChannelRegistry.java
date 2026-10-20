@@ -67,6 +67,10 @@ public class WorldChannelRegistry implements ChannelPresence {
         return channelId.equals(membership.get(userId));
     }
 
+    public synchronized String channelOf(String userId) {
+        return membership.get(userId);
+    }
+
     @Override
     public synchronized Map<String, Integer> snapshot() {
         Map<String, Integer> counts = new LinkedHashMap<>();
