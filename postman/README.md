@@ -6,7 +6,7 @@
 2. 같은 계정으로 **My Workspace**를 연다. 웹에 저장한 **OnTop HTTP**, **OnTop WebSocket**, **OnTop Local**을 사용한다.
 3. 오른쪽 위 환경을 **OnTop Local**로 선택한다. 다른 포트라면 환경의 `baseUrl`·`wsUrl`을 함께 바꾼다.
 
-HTTP JSON과 환경 JSON은 웹 Import로 가져오기를 확인했다. **WebSocket v3 JSON은 현재 웹 Import에서 거절되어**, 웹에서 연결 5개와 저장 메시지 51개를 직접 등록했다. 새로고침 후 모든 메시지 본문을 원본과 대조했다.
+HTTP JSON과 환경 JSON은 웹 Import로 가져오기를 확인했다. **WebSocket v3 JSON은 현재 웹 Import에서 거절되어** 웹에서 직접 등록한다. 현재 생성 원본은 연결 6개·메시지 57개다. **웹에 저장된 것은 기존 5개·51개이며, 새 06 연결·6개 메시지는 로컬 파일에만 있다.** 웹 편집 후 재조회에서 내용이 누락되거나 예시와 다른 JSON이 확인되어 이번 임시 요청은 삭제했다. 웹 최신화는 미완료다.
 
 WebSocket JSON과 `postman/collections`의 native YAML은 공식 v3 스키마에 맞춘 원본·백업이다. 공식 로컬 컬렉션 사용 방식은 데스크톱 **Open Folder**이지만, 이 경로의 실제 가져오기는 검증하지 않았다. 웹 Import에 WebSocket JSON을 다시 넣지 않는다.
 
@@ -31,7 +31,7 @@ WebSocket 탭 하나가 사용자 하나다. **Connect를 유지한 채 Saved Me
 
 ## 관전자·끊김·시작 검증
 
-- **03 관전자 C**: Connect → 광장 A 입장 → 테이블 보기. TABLE_WATCH_STATE를 받지만 좌석/준비 인원은 늘지 않는다. 실제 경기 관전·비공개 정보 구독은 미구현이다.
+- **03 관전자 C**: Connect → 광장 A 입장 → 테이블 보기. TABLE_WATCH_STATE를 받지만 좌석/준비 인원은 늘지 않는다. 경기 관전은 별도 GAME_WATCH 연결부이며 실제 엔진·권한 판정은 연동 대기다.
 - **채널 격리**: B가 테이블·광장을 퇴장한 뒤 광장 B로 입장한다. A의 이동·채팅·감정표현이 B에게 오지 않아야 한다.
 - **대기 중 끊김**: B 탭의 Disconnect를 누르면 A에서 B 좌석/준비/위치·채널 인원이 정리된다. 기본 dev 재연결은 새 사용자이며 이전 좌석 복구가 아니다.
 - **heartbeat**: JSON PING을 보내는 기능이 아니다. 서버 Ping에 Postman이 Pong을 처리한다. Disconnect는 정상 종료이므로 heartbeat 무응답 실험과 다르다. 무응답·29/30초 경계 검증은 기존 `backend/gradlew.bat flowTest`가 담당한다.
@@ -39,15 +39,20 @@ WebSocket 탭 하나가 사용자 하나다. **Connect를 유지한 채 Saved Me
 
 ## 아직 성공시킬 수 없는 기능
 
+**06 경기 통신 — 인증·엔진 연동 대기**에는 경기 조회·입력·관전·해제와 잘못된 요청 예시가 있다. 현재 dev 모드에서는 요청 이름에 적힌 오류가 정상이다. 실제 로그인/경기 엔진이 붙기 전에는 성공 시연으로 사용하지 않는다. 입력의 버전 0·좌표는 형식 예시이며, 실제 연동 시 최신 경기 버전과 게임별 확정 입력으로 수정한다. 새 행동은 새 actionId, 같은 행동 재확인은 같은 actionId·내용을 유지한다.
+
 | 요청 | 현재 정상적인 결과 / 필요한 것 |
 | --- | --- |
 | GET /api/v1/channels | 401 UNAUTHENTICATED. 로그인 Principal 구현 필요 |
 | GAME_RECONNECT_CHECK | dev에서는 RECOVERY_NOT_AVAILABLE. 실제 인증 + GameRecoveryGateway 필요 |
 | GAME_STATE_CHECK | dev에서는 GAME_STATE_AUTH_REQUIRED. 실제 인증 + GameStateGateway·경기 복구 필요 |
+| GAME_ACTION_SEND | dev에서는 GAME_ACTION_AUTH_REQUIRED. 실제 인증 + GameActionGateway·경기 복구 필요 |
+| GAME_WATCH | dev에서는 GAME_STATE_AUTH_REQUIRED. 실제 인증 + GameStateGateway 관전 자격 필요 |
+| GAME_UNWATCH | 미구독이면 GAME_NOT_WATCHING. 성공은 GAME_WATCH_LEFT |
 | GAME_START_CHECK | 기본 모드에서는 UNSUPPORTED_MESSAGE_TYPE. 선택적 시작 검증 모드에서만 사용 |
 | 같은 계정 중복 연결·30초 경기 복귀 | dev ID로 재현 불가. 테스트 대역 기반 flowTest에는 포함됨 |
 
-`X-Test-Login`, 임의 Bearer 토큰, userId 헤더를 넣어도 실제 서버 로그인은 되지 않는다. 인증 모드를 켜기만 하면 검증기 미등록으로 503이므로 일반 테스트에서는 켜지 않는다. 게임 입력·승패·정산 API는 아직 구현되지 않아 가짜 요청을 추가하지 않았다.
+`X-Test-Login`, 임의 Bearer 토큰, userId 헤더를 넣어도 실제 서버 로그인은 되지 않는다. 인증 모드를 켜기만 하면 검증기 미등록으로 503이므로 일반 테스트에서는 켜지 않는다. 게임 입력은 전달 연결부만 구현했고, 실제 게임 규칙·승패·정산은 연동되지 않았다. 성공하는 것처럼 보이는 가짜 요청은 제공하지 않는다.
 
 ## 파일 관리
 

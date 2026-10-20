@@ -136,7 +136,23 @@ const wsItems = [
         [joinA(), sitA(), select('OMOK'), ready(true), message('08 같은 시작 시도 결과 확인', 'GAME_START_CHECK')]),
     wsRequest('05 선택적 시작 검증 B — 서버 옵션 필요',
         '04 A가 먼저 착석 → B 착석 → A 게임 선택 → 양쪽 준비. 인증 모드와 시작 검증 모드는 함께 켤 수 없습니다.',
-        [joinA(), sitA(), ready(true), message('08 시작 상태 재확인', 'GAME_START_CHECK')])
+        [joinA(), sitA(), ready(true), message('08 시작 상태 재확인', 'GAME_START_CHECK')]),
+    wsRequest('06 경기 통신 — 인증·엔진 연동 대기',
+        '현재 기본 dev 연결에서 정상 결과는 아래 이름의 오류입니다. 임의 인증 헤더를 넣지 마세요. '
+        + '실제 로그인·GameActionGateway·GameStateGateway 연동 후 gameId를 실제 경기 ID로 바꿉니다. '
+        + '입력의 expectedVersion=0과 input은 형식 예시이므로 최신 GAME_STATE의 버전과 게임별 확정 입력으로 수정하세요. '
+        + 'actionId는 같은 행동 재확인에만 재사용하고 새 행동은 새 ID를 사용합니다. '
+        + '참가자는 복구 후 입력 성공 시 본인 공개/개인 GAME_STATE를 자동 수신합니다. '
+        + '관전자는 GAME_WATCH 성공 후 빈 privateState의 GAME_STATE만 수신하며 GAME_UNWATCH로 해제합니다. '
+        + '최초 응답은 원래 requestId, 자동 알림은 null입니다. 이 연결은 아직 경기 성공 시연용이 아닙니다.',
+        [message('01 경기 상태 조회 → dev: GAME_STATE_AUTH_REQUIRED', 'GAME_STATE_CHECK', { gameId: '{{gameId}}' }),
+            message('02 경기 입력 → dev: GAME_ACTION_AUTH_REQUIRED', 'GAME_ACTION_SEND',
+                { gameId: '{{gameId}}', actionId: 'example-action-1', expectedVersion: 0, input: { x: 3 } }),
+            message('03 경기 관전 → dev: GAME_STATE_AUTH_REQUIRED', 'GAME_WATCH', { gameId: '{{gameId}}' }),
+            message('04 경기 관전 종료 → 미구독: GAME_NOT_WATCHING', 'GAME_UNWATCH'),
+            message('05 오류 관전 사용자 위조 → INVALID_PAYLOAD', 'GAME_WATCH', { gameId: '{{gameId}}', userId: 101 }),
+            message('06 오류 음수 경기 버전 → INVALID_PAYLOAD', 'GAME_ACTION_SEND',
+                { gameId: '{{gameId}}', actionId: 'example-action-2', expectedVersion: -1, input: {} })])
 ];
 const guide = '현재 코드의 local 통신 검증용. 서버는 local,visual-test로 실행하고 OnTop Local 환경을 선택하세요. '
     + '로그인·DB·실제 경기 엔진은 아직 없습니다. HTTP 테이블 조회로 ID 저장 후 WebSocket을 연결합니다. '

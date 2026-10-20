@@ -1,0 +1,44 @@
+"name": "06 경기 통신 — 인증·엔진 연동 대기"
+"$kind": "websocket-request"
+"url": "{{wsUrl}}"
+"description": "현재 기본 dev 연결에서 정상 결과는 아래 이름의 오류입니다. 임의 인증 헤더를 넣지 마세요. 실제 로그인·GameActionGateway·GameStateGateway 연동 후 gameId를 실제 경기 ID로 바꿉니다. 입력의 expectedVersion=0과 input은 형식 예시이므로 최신 GAME_STATE의 버전과 게임별 확정 입력으로 수정하세요. actionId는 같은 행동 재확인에만 재사용하고 새 행동은 새 ID를 사용합니다. 참가자는 복구 후 입력 성공 시 본인 공개/개인 GAME_STATE를 자동 수신합니다. 관전자는 GAME_WATCH 성공 후 빈 privateState의 GAME_STATE만 수신하며 GAME_UNWATCH로 해제합니다. 최초 응답은 원래 requestId, 자동 알림은 null입니다. 이 연결은 아직 경기 성공 시연용이 아닙니다."
+"headers":
+  -
+    "key": "Origin"
+    "value": "{{baseUrl}}"
+    "description": "서버와 같은 출처. CORS/Origin 허용 범위를 넓히지 않습니다."
+"settings":
+  "handshakeTimeout": 10000
+  "retryCount": 0
+  "maxPayload": 1048576
+"messages":
+  -
+    "name": "01 경기 상태 조회 → dev: GAME_STATE_AUTH_REQUIRED"
+    "$kind": "websocket-message"
+    "contentType": "json"
+    "content": "{\n  \"requestId\": \"{{$guid}}\",\n  \"type\": \"GAME_STATE_CHECK\",\n  \"payload\": {\n    \"gameId\": \"{{gameId}}\"\n  }\n}"
+  -
+    "name": "02 경기 입력 → dev: GAME_ACTION_AUTH_REQUIRED"
+    "$kind": "websocket-message"
+    "contentType": "json"
+    "content": "{\n  \"requestId\": \"{{$guid}}\",\n  \"type\": \"GAME_ACTION_SEND\",\n  \"payload\": {\n    \"gameId\": \"{{gameId}}\",\n    \"actionId\": \"example-action-1\",\n    \"expectedVersion\": 0,\n    \"input\": {\n      \"x\": 3\n    }\n  }\n}"
+  -
+    "name": "03 경기 관전 → dev: GAME_STATE_AUTH_REQUIRED"
+    "$kind": "websocket-message"
+    "contentType": "json"
+    "content": "{\n  \"requestId\": \"{{$guid}}\",\n  \"type\": \"GAME_WATCH\",\n  \"payload\": {\n    \"gameId\": \"{{gameId}}\"\n  }\n}"
+  -
+    "name": "04 경기 관전 종료 → 미구독: GAME_NOT_WATCHING"
+    "$kind": "websocket-message"
+    "contentType": "json"
+    "content": "{\n  \"requestId\": \"{{$guid}}\",\n  \"type\": \"GAME_UNWATCH\",\n  \"payload\": {}\n}"
+  -
+    "name": "05 오류 관전 사용자 위조 → INVALID_PAYLOAD"
+    "$kind": "websocket-message"
+    "contentType": "json"
+    "content": "{\n  \"requestId\": \"{{$guid}}\",\n  \"type\": \"GAME_WATCH\",\n  \"payload\": {\n    \"gameId\": \"{{gameId}}\",\n    \"userId\": 101\n  }\n}"
+  -
+    "name": "06 오류 음수 경기 버전 → INVALID_PAYLOAD"
+    "$kind": "websocket-message"
+    "contentType": "json"
+    "content": "{\n  \"requestId\": \"{{$guid}}\",\n  \"type\": \"GAME_ACTION_SEND\",\n  \"payload\": {\n    \"gameId\": \"{{gameId}}\",\n    \"actionId\": \"example-action-2\",\n    \"expectedVersion\": -1,\n    \"input\": {}\n  }\n}"
