@@ -89,6 +89,9 @@ public class TableHub {
             Thread.ofPlatform().daemon(true).name("table-heartbeat").factory());
     private final Duration heartbeatInterval;
     private final Duration heartbeatTimeout;
+    private long acceptedConnections;
+    private long closedConnections;
+    private long receivedMessages;
     private boolean stopped;
 
     public TableHub(ObjectMapper mapper, Optional<GameStartGateway> gateway,
@@ -231,6 +234,7 @@ public class TableHub {
                 new WebSocketHeartbeat(heartbeatInterval, heartbeatTimeout, System::nanoTime));
         Member member = new Member(userId, peer, accountId);
         members.put(session.getId(), member);
+        acceptedConnections++;
         peer.offer(protocol.encode(null, "CONNECTED", Map.of("userId", userId)));
         if (startRehearsal) {
             peer.offer(protocol.encode(null, "GAME_START_STATE", TableStartAttempt.View.waiting(null, 0, null)));
@@ -290,6 +294,7 @@ public class TableHub {
         if (member == null) {
             return;
         }
+        receivedMessages++;
         String requestId = null;
         try {
             Request request = protocol.parse(text);
@@ -363,6 +368,7 @@ public class TableHub {
         if (member == null) {
             return;
         }
+        closedConnections++;
         member.peer().stop();
         gameResults.ifPresent(service -> service.disconnected(sessionId));
         stateQueries.remove(sessionId);
@@ -404,6 +410,7 @@ public class TableHub {
             member.peer().stop();
             gameResults.ifPresent(service -> service.disconnected(sessionId));
         });
+        closedConnections += members.size();
         members.clear();
         channels.clear();
         chat.clear();
@@ -416,6 +423,15 @@ public class TableHub {
         actionRequests.clear();
         starts.clear();
         startWorkers.shutdownNow();
+    }
+
+    // 식별자·본문 없이 현재 수명 상태만 읽는다. 네트워크 I/O나 외부 조회는 하지 않는다.
+    public synchronized MetricsSnapshot metricsSnapshot() {
+        return new MetricsSnapshot(members.size(), acceptedConnections, closedConnections, receivedMessages);
+    }
+
+    public record MetricsSnapshot(long activeConnections, long acceptedConnections,
+            long closedConnections, long receivedMessages) {
     }
 
     private void join(Member member, Request request) {

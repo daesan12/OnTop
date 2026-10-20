@@ -1,0 +1,40 @@
+package com.ssafy.ontop.table.websocket;
+
+import com.ssafy.ontop.table.service.TableHub;
+import io.micrometer.core.instrument.FunctionCounter;
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.binder.MeterBinder;
+import org.springframework.context.annotation.Profile;
+import org.springframework.stereotype.Component;
+
+@Component
+@Profile("local")
+public final class TableWebSocketMetrics implements MeterBinder {
+
+    private final TableHub hub;
+
+    public TableWebSocketMetrics(TableHub hub) {
+        this.hub = hub;
+    }
+
+    @Override
+    public void bindTo(MeterRegistry registry) {
+        Gauge.builder("ontop.websocket.connections.active", hub,
+                value -> value.metricsSnapshot().activeConnections())
+                .description("Currently registered WebSocket connections")
+                .register(registry);
+        FunctionCounter.builder("ontop.websocket.connections.accepted", hub,
+                value -> value.metricsSnapshot().acceptedConnections())
+                .description("WebSocket connections registered since this Hub started")
+                .register(registry);
+        FunctionCounter.builder("ontop.websocket.connections.closed", hub,
+                value -> value.metricsSnapshot().closedConnections())
+                .description("Registered WebSocket connections cleaned up since this Hub started")
+                .register(registry);
+        FunctionCounter.builder("ontop.websocket.messages.received", hub,
+                value -> value.metricsSnapshot().receivedMessages())
+                .description("Text messages received from registered WebSocket connections, including invalid requests")
+                .register(registry);
+    }
+}

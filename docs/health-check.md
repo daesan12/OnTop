@@ -17,3 +17,22 @@ Spring Boot Actuator를 사용하며 모든 프로필에 적용한다. 현재 �
 `local` 프로필은 `127.0.0.1`에만 바인딩한다. 다른 컨테이너·호스트에서 확인하려면 배포 설정의 바인딩·포트·프록시 경로를 맞춰야 한다. 이번 작업에서 local 바인딩은 변경하지 않았다. 추후 Spring Security를 추가할 때도 인프라 헬스체크의 접근 허용을 유지해야 한다.
 
 [Spring Boot 3.5 공식 문서](https://docs.spring.io/spring-boot/3.5/reference/actuator/endpoints.html)
+
+## WebSocket 운영 지표
+
+`local`의 현재 WebSocket 서버는 기존 Actuator의 `MeterRegistry`에 다음 숫자를 등록한다. 게임 규칙이나 클라이언트 API를 추가한 기능이 아니다.
+
+| 이름 | 종류 | 의미 |
+| --- | --- | --- |
+| `ontop.websocket.connections.active` | Gauge | 현재 Hub에 등록된 연결 수. 연결 정리 시 감소 |
+| `ontop.websocket.connections.accepted` | FunctionCounter | Hub 생성 이후 수락·등록한 연결 누적 수 |
+| `ontop.websocket.connections.closed` | FunctionCounter | 등록된 연결을 정리한 누적 수. 앱 종료 정리도 포함 |
+| `ontop.websocket.messages.received` | FunctionCounter | 현재 등록된 연결에서 받은 텍스트 메시지 누적 수. 형식 오류·업무 거절 요청도 포함 |
+
+현재 수인 Gauge와 달리 누적 수는 실행 중 감소하지 않는다. 정상 종료·송신 실패·heartbeat·큐 초과는 기존 Hub 정리 경로에서 한 번만 계수한다. 이미 제거된 연결의 반복 종료/뒤늦은 텍스트는 추가로 세지 않는다. 인증 실패나 같은 계정 추가 연결 거절은 등록된 연결 수에 포함하지 않는다. Ping/Pong·서버 송신 메시지·텍스트의 바이트 수는 수신 메시지 수가 아니다.
+
+숫자는 현재 프로세스의 해당 Hub 기준이며 재시작하면 초기화된다. 사용자/채널/경기 ID·본문·로그인 제공자 태그는 추가하지 않는다. `TableWebSocketMetrics`가 MeterBinder로 자동 등록하며, 외부 exporter와 수집 주기·대시보드는 인프라 연동 시 구성한다. 이 계수만으로 최대 동접·처리량·지연·정산 정상 여부를 판단하지 않는다.
+
+현재 HTTP 노출은 기존처럼 **health만**이다. `/actuator/metrics`를 켜거나 외부 수집기를 설치·배포하지 않았다. 확인은 내부 MeterRegistry와 `TableWebSocketMetricsTests`·실제 소켓 `TableWebSocketMetricsWebSocketTests`로 수행한다. 정식 배포 프로필에 개발 Hub가 생겼다는 의미도 아니다.
+
+[Micrometer Gauge·Counter 안내](https://docs.micrometer.io/micrometer/reference/concepts/counters.html)

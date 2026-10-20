@@ -1,5 +1,6 @@
 package com.ssafy.ontop.table;
 
+import io.micrometer.core.instrument.MeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -14,6 +15,8 @@ class TableProfileTests {
 
     @Autowired
     private TestRestTemplate http;
+    @Autowired
+    private MeterRegistry registry;
 
     @Test
     void local_외_환경에는_개발_경로와_리소스가_없다() {
@@ -21,5 +24,6 @@ class TableProfileTests {
                 "/api/v1/channels"}) {
             assertThat(http.getForEntity(path, String.class).getStatusCode().value()).isEqualTo(404);
         }
+        assertThat(registry.find("ontop.websocket.connections.active").gauge()).isNull();
     }
 }
