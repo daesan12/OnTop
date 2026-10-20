@@ -1,6 +1,6 @@
 # 🔌 WebSocket API 명세서
 
-**연결 주소** `ws://localhost:8080/ws/tables` · **범위** 연결·채널 입퇴장·착석·게임 선택·퇴장·준비 동기화 · **구현 상태** 로컬 검증 완료
+**연결 주소** `ws://localhost:8080/ws/tables` · **범위** 연결·광장·테이블 공개 대기 상태 · **구현 상태** 로컬 통신 검증 완료, 실제 로그인·경기·정산 미연결
 
 기능 이름을 열면 요청·응답 JSON과 처리 규칙을 볼 수 있습니다. 공통 형식·ERD 관계는 [📌 공통 규격](websocket-api/00-common.md)에 정리했습니다.
 
@@ -19,20 +19,32 @@
 | 테이블 | 로컬 검증 완료 | WS | 클라이언트 → 서버 | [🎮 게임 선택](websocket-api/07-game-select.md) | GAME_SELECT | /ws/tables |
 | 테이블 | 로컬 검증 완료 | WS | 클라이언트 → 서버 | [✅ 준비·준비 취소](websocket-api/03-ready-set.md) | READY_SET | /ws/tables |
 | 테이블 | 로컬 검증 완료 | WS | 서버 → 클라이언트 | [📡 테이블 상태 알림](websocket-api/04-table-state.md) | TABLE_STATE | /ws/tables |
-| 테이블 보기 | 공개 대기 상태 구현·경기 미연결 | WS | 양방향 | [👀 착석 없는 상태 구독·종료](websocket-api/08-table-watch.md) | TABLE_WATCH / TABLE_UNWATCH / TABLE_WATCH_STATE / TABLE_WATCH_LEFT | /ws/tables |
+| 테이블 보기 | 로컬 검증 완료·공개 대기 상태만 | WS | 클라이언트 → 서버 | [👀 테이블 보기](websocket-api/08-table-watch.md) | TABLE_WATCH | /ws/tables |
+| 테이블 보기 | 로컬 검증 완료·공개 대기 상태만 | WS | 클라이언트 → 서버 | [보기 종료](websocket-api/08-table-watch.md) | TABLE_UNWATCH | /ws/tables |
+| 테이블 보기 | 로컬 검증 완료·공개 대기 상태만 | WS | 서버 → 클라이언트 | [보기 상태](websocket-api/08-table-watch.md) | TABLE_WATCH_STATE | /ws/tables |
+| 테이블 보기 | 로컬 검증 완료·공개 대기 상태만 | WS | 서버 → 클라이언트 | [보기 종료 알림](websocket-api/08-table-watch.md) | TABLE_WATCH_LEFT | /ws/tables |
 | 테이블 | 로컬 검증 완료 | WS | 클라이언트 → 서버 | [🚪 테이블 퇴장](websocket-api/05-table-leave.md) | TABLE_LEAVE | /ws/tables |
 | 테이블 | 로컬 검증 완료 | WS | 서버 → 클라이언트 | [👋 퇴장 완료](websocket-api/05-table-leave.md) | TABLE_LEFT | /ws/tables |
 | 공통 | 로컬 검증 완료 | WS | 서버 → 클라이언트 | [⚠️ 오류 응답](websocket-api/06-error.md) | ERROR | /ws/tables |
+| 연결 | 로컬 검증 완료 | 제어 프레임 | 서버 Ping / 클라이언트 Pong | [연결 생존 확인](websocket-heartbeat.md) | Ping / Pong | /ws/tables |
+| 시작 검증 | 검증 대역 구현·실제 시작 미연결 | WS | 클라이언트 → 서버 | [시작 결과 확인](game-start-rehearsal.md) | GAME_START_CHECK | /ws/tables |
+| 시작 검증 | 검증 대역 구현·실제 시작 미연결 | WS | 서버 → 클라이언트 | [시작 연동 상태](game-start-rehearsal.md) | GAME_START_STATE | /ws/tables |
+| 공통 | 실제 연동 전·범위 안내 | 문서 | 해당 없음 | [공통 규격·연결 흐름](websocket-api/00-common.md) | 공통 규격 | /ws/tables |
 
 채널 입장·퇴장·위치 공유 메시지는 기존 소켓을 재사용합니다. 상세 요청·응답은 [채널 WebSocket 명세](world-websocket-api.md)를 따릅니다. 채널은 서버 설정으로 등록하며 기본 목록은 비어 있습니다. 위치 공유는 local 구현이며 맵·충돌 판정은 미연결입니다. 채널을 설정하면 테이블도 채널별로 분리되며 해당 채널 입장이 필요합니다. 채널 설정 없는 기존 개발 모드는 유지합니다.
 
 | 방향 | 메시지 | 성공 결과 |
 | --- | --- | --- |
 | 클라이언트 → 서버 | CHANNEL_JOIN | 본인과 같은 채널 참가자에게 CHANNEL_STATE |
+| 서버 → 클라이언트 | CHANNEL_STATE | 채널별 인원·참가자 전체 상태 |
 | 클라이언트 → 서버 | CHANNEL_LEAVE | 본인 CHANNEL_LEFT, 남은 참가자 CHANNEL_STATE |
+| 서버 → 클라이언트 | CHANNEL_LEFT | 명시적 채널 퇴장 완료 |
 | 클라이언트 → 서버 | WORLD_MOVE | 본인과 같은 채널 참가자에게 WORLD_STATE |
+| 서버 → 클라이언트 | WORLD_STATE | 채널별 최신 보고 위치 전체 상태 |
 | 클라이언트 → 서버 | WORLD_CHAT_SEND | 본인과 같은 채널 참가자에게 WORLD_CHAT_MESSAGE |
+| 서버 → 클라이언트 | WORLD_CHAT_MESSAGE | 승인된 일반 텍스트 채팅 |
 | 클라이언트 → 서버 | WORLD_EMOTE_SEND | 본인과 같은 채널 참가자에게 WORLD_EMOTE_EVENT |
+| 서버 → 클라이언트 | WORLD_EMOTE_EVENT | 승인된 감정표현 코드 |
 
 CHANNEL_JOIN 성공·다른 사용자 입퇴장·종료 때는 WORLD_STATE도 알립니다. 위치 미보고 참가자는 position=null이며 채널 인원 버전과 위치 버전은 따로 관리합니다.
 
@@ -42,7 +54,7 @@ CHANNEL_JOIN 성공·다른 사용자 입퇴장·종료 때는 WORLD_STATE도 �
 
 ## 흐름
 
-**연결 → 착석 → 첫 착석자의 게임 선택 → 준비 → 전원 준비 표시 → 준비 취소·퇴장**
+**연결 → 채널 입장 → 이동·채팅·감정표현 → 현재 채널 테이블 조회 → 보기 또는 착석 → 첫 착석자의 게임 선택 → 준비 → 전원 준비 표시 → 준비 취소·퇴장**
 
 - CONNECTED로 임시 사용자 ID를 받습니다.
 - TABLE_JOIN·GAME_SELECT·READY_SET의 성공 결과는 TABLE_STATE로 받습니다.
@@ -53,9 +65,9 @@ CHANNEL_JOIN 성공·다른 사용자 입퇴장·종료 때는 WORLD_STATE도 �
 ## Notion에 옮길 때
 
 - 목록에는 짧은 속성만 두고, 긴 request·response JSON은 각 기능 페이지 본문에 넣습니다.
-- 표에 담당자를 추가할 때 실제 담당자를 선택합니다. 현재 문서는 이름을 임의로 지정하지 않았습니다.
+- 해당 실시간 계약 담당자는 장대산이며 Notion 표시명은 **대산 장**입니다. 기존 담당자 속성을 사용합니다.
 - HTTP API의 GET·POST 대신 **방식 WS / 방향 / 메시지 타입**을 사용합니다. 연결 이후 기능마다 별도 HTTP URL을 만들지 않습니다.
 - 이 파일과 상세 Markdown을 ZIP으로 가져오면 페이지 문서로 사용할 수 있습니다. 이 Markdown 표가 Notion 데이터베이스로 자동 변환되거나 속성이 자동 생성되는 것은 아닙니다.
 - 기존 Notion 데이터베이스를 유지할 경우 목록의 각 행을 만들고 해당 상세 내용을 행의 페이지 본문에 넣습니다.
 
-v1.2 · 2026-10-20 · Notion의 구현 API와 대조해 인증·복구 알림 조건, 시작 검증의 추가 착석 응답·퇴장 차단, 오류 안내와 게임 선택 사용 예시를 보완했습니다. Notion은 이번 작업에서 수동 반영했으며 자동 동기화되지 않습니다. 실제 로그인·경기·정산은 미연결입니다.
+v1.3 · 2026-10-20 · 기준 코드 e0057a8. [기존 Notion WebSocket 데이터베이스](https://app.notion.com/p/3fe161842b8680a1b9b1f557d172c826?v=3fe161842b8680aaa3b3000ce341ce27)에 기존 14개를 유지하고 광장 10개·공개 테이블 보기 4개를 추가해 28개 항목으로 정리했습니다. 각 행은 기능·메시지·방향·진행상황·도메인·URL·담당자 속성과 상세 본문을 유지합니다. 완료는 해당 로컬 통신 계약의 구현·검증 완료이며, 경기 복구 2개·시작 검증 2개·공통 안내는 정식 연동 전이라 진행 중입니다. 실제 로그인·경기·정산·근거리 필터·3D 모션 완료를 뜻하지 않습니다. 감정표현 종류·단축키·모션은 팀/프론트가 정하고 WAVE/CLAP은 테스트 예시입니다. 수동 반영이며 자동 동기화되지 않습니다.
