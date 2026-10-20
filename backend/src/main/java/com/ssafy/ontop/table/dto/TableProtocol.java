@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ssafy.ontop.world.domain.ChatText;
+import com.ssafy.ontop.world.domain.EmoteCode;
 import java.util.Map;
 import java.util.Set;
 
@@ -50,6 +51,7 @@ public final class TableProtocol {
                     && !payload.get("channelId").textValue().isBlank();
             case "CHANNEL_LEAVE" -> fields(payload, Set.of());
             case "WORLD_CHAT_SEND" -> fields(payload, Set.of("text")) && validChatText(payload.get("text"));
+            case "WORLD_EMOTE_SEND" -> fields(payload, Set.of("emoteCode")) && validEmoteCode(payload.get("emoteCode"));
             case "WORLD_MOVE" -> fields(payload, Set.of("sequence", "x", "y", "z", "yaw"))
                     && payload.get("sequence").isIntegralNumber() && payload.get("sequence").canConvertToLong()
                     && payload.get("sequence").longValue() >= 0
@@ -113,6 +115,16 @@ public final class TableProtocol {
             return false;
         }
         return expected.stream().allMatch(node::has);
+    }
+
+    private boolean validEmoteCode(JsonNode value) {
+        if (!value.isTextual()) return false;
+        try {
+            new EmoteCode(value.textValue());
+            return true;
+        } catch (IllegalArgumentException exception) {
+            return false;
+        }
     }
 
     public record Request(String requestId, String type, JsonNode payload) {

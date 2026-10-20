@@ -137,3 +137,34 @@
 - 이동·준비·채널 인원·위치 버전은 채팅으로 변경하지 않는다. 채팅 본문을 서버 로그에 남기지 않는다.
 
 `WorldChatTests`는 입력·간격·서버 메타데이터·정리를, `WorldChatHubTests`는 실제 송신 큐의 채널 격리·착석 중 사용·이동 후 제한을, `WorldChatWebSocketTests`는 인증 대역의 실제 소켓·heartbeat 후 정리를 검사한다. 실제 채팅 화면·정식 로그인·근거리 반경·운영 검증은 포함하지 않는다.
+
+## 감정표현 전송 기반 · WORLD_EMOTE_SEND / WORLD_EMOTE_EVENT
+
+OnTop v0.4의 광장 감정표현을 위한 local 전송 기반이다. 최종 모션 목록·모델링·AI 감정 분류는 미연결이다. 서버의 `ontop.world.emote.codes`에 등록한 코드만 허용한다. 기본 목록은 비어 있으며 `local,visual-test`의 `WAVE`, `CLAP`은 송수신 검증용 코드다. 최종 제품의 동작·애니메이션으로 확정하지 않는다.
+
+```json
+{"requestId":"emote-1","type":"WORLD_EMOTE_SEND","payload":{"emoteCode":"WAVE"}}
+```
+
+```json
+{
+  "requestId":"emote-1",
+  "type":"WORLD_EMOTE_EVENT",
+  "payload":{
+    "eventId":"00000000-0000-4000-8000-000000000001",
+    "channelId":"channel-1",
+    "userId":"dev-example",
+    "emoteCode":"WAVE",
+    "sentAt":"2026-10-20T00:00:00Z"
+  }
+}
+```
+
+- 요청은 `emoteCode` 하나만 받는다. 대문자 영문으로 시작하고 대문자·숫자·밑줄로 된 1~32자다. 공백 정리·대소문자 변환을 하지 않는다. 잘못된 형식/추가 필드는 INVALID_PAYLOAD, 문법은 맞지만 서버에 미등록된 코드는 EMOTE_NOT_SUPPORTED다. 잘못된 서버 설정·중복 코드는 앱 시작 시 거절한다.
+- 서버 연결에서 사용자와 현재 채널을 확인한다. 성공은 본인에게 같은 requestId의 WORLD_EMOTE_EVENT, 같은 채널의 다른 참가자에게 requestId=null의 같은 payload를 보낸다. 다른 채널·미입장 연결에 보내지 않는다. 좌표 기반 근거리 필터는 포함하지 않는다.
+- eventId(UUID)와 sentAt(UTC)은 서버가 생성한다. 프론트는 등록한 코드와 아바타 모션을 매핑한다. 아직 없는 모션을 임의 재생하거나 emoteCode를 HTML/동적 코드로 실행하지 않는다. 실제 모션 매핑/카탈로그 조회는 이번 구현에 없다.
+- 사용자별 기본 1초 간격이다. `ontop.world.emote.minimum-interval`은 0 초과~60초 이하이며 local 구현 설정값이다. 빠르면 EMOTE_TOO_FREQUENT, 미등록/거절은 마지막 성공 시각을 연장하지 않는다. 다른 표현으로 바꾸거나 채널을 이동해도 해당 연결의 제한은 유지한다. 채팅 전송 간격과 별도로 관리한다.
+- 대기 착석자·테이블 상태 구독자도 같은 채널 안에서 사용한다. 좌석·준비·선택권·인원·위치 버전은 바꾸지 않는다. 미입장은 NOT_IN_CHANNEL, 기존 인증 경기 복구 제한은 GAME_RECOVERY_REQUIRED다. 실제 경기 중 정책을 새로 정하거나 복구 제한을 우회하지 않는다.
+- 연결 종료·heartbeat·앱 종료에서 간격 상태를 정리한다. 이력 저장·재접속 재전송·현재 재생 모션 스냅샷은 없다. requestId는 멱등성 키가 아니므로 자동 재전송하지 않는다. 수신 eventId를 중복 표시하지 않도록 처리할 수 있다.
+
+검증: WorldEmoteTests(설정/입력·간격 경계/정리), WorldEmoteHubTests(수신 대상·착석/채널 이동·채팅 간격 분리), WorldEmoteWebSocketTests(서버 인증 대역·위조·추가 접속 차단·heartbeat 후 새 연결), TableProtocolTests. 기존 개발 화면에는 이모트 버튼이 없다. 실제 3D·운영·부하 검증을 뜻하지 않는다. 저장소 계약은 Notion과 자동 동기화되지 않는다.

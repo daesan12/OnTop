@@ -18,9 +18,12 @@ import com.ssafy.ontop.table.dto.TableSummaryResponse;
 import com.ssafy.ontop.table.websocket.TablePeer;
 import com.ssafy.ontop.table.websocket.WebSocketHeartbeat;
 import com.ssafy.ontop.world.config.WorldChannelProperties;
+import com.ssafy.ontop.world.config.WorldEmoteProperties;
 import com.ssafy.ontop.world.domain.ChatText;
+import com.ssafy.ontop.world.domain.EmoteCode;
 import com.ssafy.ontop.world.service.WorldChannelRegistry;
 import com.ssafy.ontop.world.service.WorldChatService;
+import com.ssafy.ontop.world.service.WorldEmoteService;
 import jakarta.annotation.PreDestroy;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -64,6 +67,7 @@ public class TableHub {
     private final Optional<GameReconnectService> reconnect;
     private final WorldChannelRegistry channels;
     private final WorldChatService chat;
+    private final WorldEmoteService emotes;
     private final ExecutorService startWorkers = Executors.newVirtualThreadPerTaskExecutor();
     private final ScheduledExecutorService heartbeatTimer = Executors.newSingleThreadScheduledExecutor(
             Thread.ofPlatform().daemon(true).name("table-heartbeat").factory());
@@ -96,13 +100,21 @@ public class TableHub {
                 new WorldChatService(Duration.ofSeconds(1)));
     }
 
+    public TableHub(ObjectMapper mapper, Optional<GameStartGateway> gateway,
+            boolean startRehearsal, Optional<GameReconnectService> reconnect,
+            Duration heartbeatInterval, Duration heartbeatTimeout,
+            WorldChannelRegistry channels, WorldChatService chat) {
+        this(mapper, gateway, startRehearsal, reconnect, heartbeatInterval, heartbeatTimeout, channels, chat,
+                new WorldEmoteService(new WorldEmoteProperties(null), Duration.ofSeconds(1)));
+    }
+
     @Autowired
     public TableHub(ObjectMapper mapper, Optional<GameStartGateway> gateway,
             @Value("${ontop.start-rehearsal.enabled:false}") boolean startRehearsal,
             Optional<GameReconnectService> reconnect,
             @Value("${ontop.websocket.heartbeat.interval:10s}") Duration heartbeatInterval,
             @Value("${ontop.websocket.heartbeat.timeout:10s}") Duration heartbeatTimeout,
-            WorldChannelRegistry channels, WorldChatService chat) {
+            WorldChannelRegistry channels, WorldChatService chat, WorldEmoteService emotes) {
         if (startRehearsal && gateway.isEmpty()) {
             throw new IllegalArgumentException("시작 연동 검증 대역이 필요합니다.");
         }
@@ -111,6 +123,7 @@ public class TableHub {
         this.reconnect = reconnect;
         this.channels = channels;
         this.chat = chat;
+        this.emotes = emotes;
         channelIds = Set.copyOf(channels.snapshot().keySet());
         if (channelIds.isEmpty()) {
             rooms.put("table-1", new TableRoom("table-1"));
@@ -237,6 +250,7 @@ public class TableHub {
                 case "CHANNEL_LEAVE" -> leaveChannel(member, request);
                 case "WORLD_MOVE" -> moveWorld(member, request);
                 case "WORLD_CHAT_SEND" -> sendChat(member, request);
+                case "WORLD_EMOTE_SEND" -> sendEmote(member, request);
                 case "TABLE_JOIN" -> join(member, request);
                 case "TABLE_WATCH" -> watch(member, request);
                 case "TABLE_UNWATCH" -> unwatch(member, request);
@@ -246,6 +260,8 @@ public class TableHub {
                 case "GAME_START_CHECK" -> checkStart(member, request);
                 default -> throw new IllegalStateException("검증되지 않은 메시지");
             }
+        } catch (WorldEmoteService.EmoteException exception) {
+            member.peer().offer(protocol.error(requestId, exception.code(), exception.getMessage()));
         } catch (WorldChatService.ChatException exception) {
             member.peer().offer(protocol.error(requestId, "CHAT_TOO_FREQUENT", exception.getMessage()));
         } catch (WorldChannelRegistry.ChannelException exception) {
@@ -266,6 +282,7 @@ public class TableHub {
         member.peer().stop();
         watching.remove(member.userId());
         chat.disconnected(member.userId());
+        emotes.disconnected(member.userId());
         WorldChannelRegistry.State channelState = channels.disconnect(member.userId());
         if (channelState != null) {
             publishChannel(channelState, null, null);
@@ -299,6 +316,7 @@ public class TableHub {
         members.clear();
         channels.clear();
         chat.clear();
+        emotes.clear();
         seating.clear();
         watching.clear();
         starts.clear();
@@ -394,6 +412,22 @@ public class TableHub {
         for (Member target : members.values()) {
             if (target != member && channelId.equals(channels.channelOf(target.userId()))) {
                 target.peer().offer(notice);
+            }
+        }
+    }
+
+    private void sendEmote(Member member, Request request) {
+        String channelId = channels.channelOf(member.userId());
+        if (channelId == null) {
+            fail(request, "NOT_IN_CHANNEL", "먼저 채널에 입장해주세요.");
+        }
+        WorldEmoteService.Event event = emotes.create(channelId, member.userId(),
+                new EmoteCode(request.payload().get("emoteCode").textValue()));
+        member.peer().offer(protocol.encode(request.requestId(), "WORLD_EMOTE_EVENT", event));
+        String notification = protocol.encode(null, "WORLD_EMOTE_EVENT", event);
+        for (Member target : members.values()) {
+            if (target != member && channelId.equals(channels.channelOf(target.userId()))) {
+                target.peer().offer(notification);
             }
         }
     }

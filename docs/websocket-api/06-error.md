@@ -43,7 +43,9 @@
 | `CHANNEL_FULL` | 채널 정원 초과 | 다른 채널 선택 |
 | `MOVE_TOO_FREQUENT` | 최소 간격보다 빠른 새 이동 | 최신 위치를 모아 간격 후 전송 |
 | `CHAT_TOO_FREQUENT` | 최소 간격보다 빠른 채팅 | 간격 후 새 메시지 전송. 무조건 자동 재시도하지 않음 |
-| `NOT_IN_CHANNEL` | 채널 미입장 상태의 이동·채팅·퇴장 또는 설정 환경에서 착석 | 현재 입장 상태 확인 |
+| `EMOTE_NOT_SUPPORTED` | 서버에 등록되지 않은 감정표현 코드 | 등록 코드 확인 |
+| `EMOTE_TOO_FREQUENT` | 최소 간격보다 빠른 감정표현 | 간격 후 사용. 무조건 자동 재시도하지 않음 |
+| `NOT_IN_CHANNEL` | 채널 미입장 상태의 이동·채팅·감정표현·퇴장 또는 설정 환경에서 착석 | 현재 입장 상태 확인 |
 | `TABLE_BUSY` | 착석 중 채널 변경·퇴장 또는 선택적 시작 검증의 STARTING·CONFIRMED에서 변경 | 기존 시작 결과 확인. 새 변경 요청 반복 금지 |
 | `GAME_RECOVERY_REQUIRED` | 경기 조회 중·진행 중·만료 미확정 상태의 테이블 변경 | GAME_CONNECTION_STATE 확인 |
 | `RECOVERY_NOT_AVAILABLE` | 임시 개발 사용자 등 복구 연결 대상이 아님 | 인증 연결 설정 확인 |

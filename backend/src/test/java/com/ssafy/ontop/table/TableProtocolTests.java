@@ -16,6 +16,18 @@ class TableProtocolTests {
     private final TableProtocol protocol = new TableProtocol(new ObjectMapper());
 
     @ParameterizedTest
+    @ValueSource(strings = {"{}", "{\"emoteCode\":null}", "{\"emoteCode\":1}", "{\"emoteCode\":\"wave\"}",
+            "{\"emoteCode\":\" \"}", "{\"emoteCode\":\"WAVE\",\"userId\":\"forged\"}",
+            "{\"emoteCode\":\"WAVE\",\"channelId\":\"other\"}",
+            "{\"emoteCode\":\"WAVE\",\"eventId\":\"forged\"}"})
+    void 감정표현_입력과_신원_채널_식별자_위조를_거절한다(String payload) {
+        RequestException error = catchThrowableOfType(RequestException.class, () -> protocol.parse(
+                "{\"requestId\":\"emote-1\",\"type\":\"WORLD_EMOTE_SEND\",\"payload\":" + payload + "}"));
+        assertThat(error).isNotNull();
+        assertThat(error.code()).isEqualTo("INVALID_PAYLOAD");
+    }
+
+    @ParameterizedTest
     @ValueSource(strings = {"{}", "{\"tableId\":null}", "{\"tableId\":1}", "{\"tableId\":\" \"}",
             "{\"tableId\":\"table-1\",\"userId\":\"forged\"}",
             "{\"tableId\":\"table-1\",\"channelId\":\"other\"}"})
