@@ -14,11 +14,11 @@
 | `GameRecoveryGateway` | 경기 담당에게 현재 상태 조회와 만료 처리를 부탁하는 인터페이스 |
 | `GameRecoverySnapshot` | 한 사용자에게 보여도 되는 경기 상태와 버전 |
 
-인증 연결 직후 `CONNECTED` 다음 `GAME_CONNECTION_STATE`가 온다. 조회 중에는 테이블 변경을 막는다. 경기 담당이 없으면 자동 조회 없이 기존 대기 기능을 유지하며, 명시적 복구 조회는 `UNAVAILABLE / RECOVERY_NOT_CONFIGURED`다. 이 상태를 복구 성공으로 표시하지 않는다.
+인증 모드에 경기 담당 `GameRecoveryGateway`가 등록된 경우 연결 직후 `CONNECTED` 다음 `GAME_CONNECTION_STATE`가 온다. 조회 중에는 테이블 변경을 막는다. 경기 담당이 없으면 자동 조회 없이 기존 대기 기능을 유지하며, 명시적 복구 조회는 `UNAVAILABLE / RECOVERY_NOT_CONFIGURED`다. 이 상태를 복구 성공으로 표시하지 않는다.
 
 ## 메시지
 
-연결 직후 자동 조회한다. 조회 실패·처리 중에는 같은 연결에서 다음 요청으로 다시 확인할 수 있다. 사용자·경기 ID는 서버에서 정하므로 요청에 넣지 않는다.
+경기 담당이 등록된 인증 연결에서 자동 조회한다. 조회 실패·처리 중에는 같은 연결에서 다음 요청으로 다시 확인할 수 있다. 사용자·경기 ID는 서버에서 정하므로 요청에 넣지 않는다.
 
 ```json
 {"requestId":"check-1","type":"GAME_RECONNECT_CHECK","payload":{}}
