@@ -36,7 +36,7 @@ java -jar build/libs/ontop-0.0.1-SNAPSHOT.jar
 
 ## 현재 구현 범위
 
-DB 없는 Raw WebSocket 연결·테이블 착석·퇴장·준비 동기화와 [채널 입장·퇴장·접속 인원 반영](docs/world-websocket-api.md)을 구현했다. 채널별 테이블 분리도 구현했다. 위치 이동은 아직 없다. 전체 단계는 [진행 상황](docs/backend-progress.md)에 있다. 개발용 기능은 `local` 프로필에서만 활성화된다. DB·정식 인증·실제 게임·재접속 복구·정산은 포함하지 않는다. `/`의 `404`는 정상이다.
+DB 없는 Raw WebSocket 연결·테이블 착석·퇴장·준비 동기화와 [채널 입장·퇴장·접속 인원 반영](docs/world-websocket-api.md)을 구현했다. 채널별 테이블 분리도 구현했다. 위치 이동은 아직 없다. 개발용 기능은 `local` 프로필에서만 활성화된다. DB·정식 인증·실제 게임·재접속 복구·정산은 포함하지 않는다. `/`의 `404`는 정상이다.
 
 ```powershell
 cd backend

@@ -4,7 +4,6 @@
 
 | 자료        | 현재 참고 파일                             | 용도                                             |
 | ----------- | ------------------------------------------ | ------------------------------------------------ |
-| 백엔드 진행 상황 | [backend-progress.md](backend-progress.md) | 전체 사용자 흐름에서 완료·연결부·미구현 구분 |
 | Jira 컨벤션 | [conventions/jira.md](conventions/jira.md) | Epic·Story 구조, 제목, 설명 양식, 중복 방지 규칙 |
 | Git 컨벤션 수신본 | [conventions/git.md](conventions/git.md) | 원문 3개·이미지 2개와 상충하는 규칙 확인 항목 |
 | 백엔드 코드 컨벤션 | [conventions/backend-code.md](conventions/backend-code.md) | 포맷·명명·패키지·객체·예외·로그·테스트 작성 기준 |
