@@ -66,6 +66,8 @@ CHANNEL_JOIN 성공·다른 사용자 입퇴장·종료 때는 WORLD_STATE도 �
 
 ## Notion에 옮길 때
 
+후속 로컬 연결부: [경기 상태 조회](game-state-api.md), [공통 경기 입력 전달](game-action-api.md). 아래 28개 Notion 항목에 아직 게시하지 않았으며 실제 엔진 연동 완료와 구분합니다.
+
 - 목록에는 짧은 속성만 두고, 긴 request·response JSON은 각 기능 페이지 본문에 넣습니다.
 - 해당 실시간 계약 담당자는 장대산이며 Notion 표시명은 **대산 장**입니다. 기존 담당자 속성을 사용합니다.
 - HTTP API의 GET·POST 대신 **방식 WS / 방향 / 메시지 타입**을 사용합니다. 연결 이후 기능마다 별도 HTTP URL을 만들지 않습니다.

@@ -2,6 +2,9 @@ package com.ssafy.ontop.table.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser;
+import com.ssafy.ontop.game.action.GameActionCommand;
+import com.ssafy.ontop.game.action.GameActionGateway;
+import com.ssafy.ontop.game.action.GameActionResult;
 import com.ssafy.ontop.game.reconnect.GameReconnectService;
 import com.ssafy.ontop.game.start.GameStartCommand;
 import com.ssafy.ontop.game.start.GameStartCommand.Participant;
@@ -69,6 +72,8 @@ public class TableHub {
     private final boolean startRehearsal;
     private final Optional<GameStateGateway> gameStates;
     private final Set<String> stateQueries = new HashSet<>();
+    private final Optional<GameActionGateway> gameActions;
+    private final Set<String> actionRequests = new HashSet<>();
     private final Optional<GameReconnectService> reconnect;
     private final WorldChannelRegistry channels;
     private final WorldChatService chat;
@@ -123,7 +128,6 @@ public class TableHub {
                 channels, chat, emotes, Optional.empty());
     }
 
-    @Autowired
     public TableHub(ObjectMapper mapper, Optional<GameStartGateway> gateway,
             @Value("${ontop.start-rehearsal.enabled:false}") boolean startRehearsal,
             Optional<GameReconnectService> reconnect,
@@ -131,11 +135,24 @@ public class TableHub {
             @Value("${ontop.websocket.heartbeat.timeout:10s}") Duration heartbeatTimeout,
             WorldChannelRegistry channels, WorldChatService chat, WorldEmoteService emotes,
             Optional<GameStateGateway> gameStates) {
+        this(mapper, gateway, startRehearsal, reconnect, heartbeatInterval, heartbeatTimeout,
+                channels, chat, emotes, gameStates, Optional.empty());
+    }
+
+    @Autowired
+    public TableHub(ObjectMapper mapper, Optional<GameStartGateway> gateway,
+            @Value("${ontop.start-rehearsal.enabled:false}") boolean startRehearsal,
+            Optional<GameReconnectService> reconnect,
+            @Value("${ontop.websocket.heartbeat.interval:10s}") Duration heartbeatInterval,
+            @Value("${ontop.websocket.heartbeat.timeout:10s}") Duration heartbeatTimeout,
+            WorldChannelRegistry channels, WorldChatService chat, WorldEmoteService emotes,
+            Optional<GameStateGateway> gameStates, Optional<GameActionGateway> gameActions) {
         if (startRehearsal && gateway.isEmpty()) {
             throw new IllegalArgumentException("시작 연동 검증 대역이 필요합니다.");
         }
         this.gateway = gateway;
         this.gameStates = gameStates;
+        this.gameActions = gameActions;
         this.startRehearsal = startRehearsal;
         this.reconnect = reconnect;
         this.channels = channels;
@@ -250,6 +267,10 @@ public class TableHub {
         try {
             Request request = protocol.parse(text);
             requestId = request.requestId();
+            if (request.type().equals("GAME_ACTION_SEND")) {
+                sendGameAction(sessionId, member, request);
+                return;
+            }
             if (request.type().equals("GAME_STATE_CHECK")) {
                 checkGameState(sessionId, member, request);
                 return;
@@ -302,6 +323,7 @@ public class TableHub {
         }
         member.peer().stop();
         stateQueries.remove(sessionId);
+        actionRequests.remove(sessionId);
         watching.remove(member.userId());
         chat.disconnected(member.userId());
         emotes.disconnected(member.userId());
@@ -342,6 +364,7 @@ public class TableHub {
         seating.clear();
         watching.clear();
         stateQueries.clear();
+        actionRequests.clear();
         starts.clear();
         startWorkers.shutdownNow();
     }
@@ -748,6 +771,66 @@ public class TableHub {
             member.peer().offer(protocol.error(requestId, error, "경기 상태를 가져올 수 없습니다."));
         } else {
             member.peer().offer(protocol.encode(requestId, "GAME_STATE", view));
+        }
+    }
+
+    private void sendGameAction(String sessionId, Member member, Request request) {
+        if (member.accountId() == null) {
+            fail(request, "GAME_ACTION_AUTH_REQUIRED", "인증된 사용자만 경기 입력을 보낼 수 있습니다.");
+        }
+        if (gameActions.isEmpty()) {
+            fail(request, "GAME_ACTION_NOT_CONFIGURED", "경기 입력 연결이 준비되지 않았습니다.");
+        }
+        String gameId = request.payload().get("gameId").textValue();
+        if (!canSendGameAction(sessionId, member, gameId)) {
+            fail(request, "GAME_RECOVERY_REQUIRED", "현재 경기 복구 상태를 먼저 확인해주세요.");
+        }
+        if (!actionRequests.add(sessionId)) {
+            fail(request, "GAME_ACTION_PENDING", "이전 경기 입력이 처리 중입니다.");
+        }
+        GameActionCommand command = new GameActionCommand(member.accountId(), gameId,
+                request.payload().get("actionId").textValue(), request.payload().get("expectedVersion").longValue(),
+                request.payload().get("input"));
+        startWorkers.execute(() -> {
+            GameActionResult result = null;
+            String error = null;
+            try {
+                if (!canSendGameAction(sessionId, member, gameId)) {
+                    error = "GAME_RECOVERY_REQUIRED";
+                } else {
+                    result = gameActions.orElseThrow().apply(command);
+                    if (result == null || result.userId() != command.userId()
+                            || !result.gameId().equals(gameId) || !result.actionId().equals(command.actionId())
+                            || result.version() < command.expectedVersion()) {
+                        error = "GAME_ACTION_INVALID";
+                    }
+                }
+            } catch (GameActionGateway.Rejected rejected) {
+                error = "GAME_ACTION_" + rejected.reason().name();
+            } catch (RuntimeException exception) {
+                // 예외에는 게임 입력·비공개 상태가 있을 수 있다. 전송하거나 기록하지 않는다.
+                error = "GAME_ACTION_UNAVAILABLE";
+            }
+            finishGameAction(sessionId, member, request.requestId(), result, error);
+        });
+    }
+
+    private synchronized boolean canSendGameAction(String sessionId, Member member, String gameId) {
+        return !stopped && members.get(sessionId) == member && reconnect.isPresent()
+                && reconnect.get().canControlGame(member.accountId(), sessionId, gameId);
+    }
+
+    private synchronized void finishGameAction(String sessionId, Member member, String requestId,
+            GameActionResult result, String error) {
+        if (stopped || members.get(sessionId) != member) {
+            return;
+        }
+        actionRequests.remove(sessionId);
+        if (error != null) {
+            member.peer().offer(protocol.error(requestId, error, "경기 입력을 처리할 수 없습니다."));
+        } else {
+            member.peer().offer(protocol.encode(requestId, "GAME_ACTION_RESULT", Map.of(
+                    "gameId", result.gameId(), "actionId", result.actionId(), "version", result.version())));
         }
     }
 
