@@ -124,6 +124,11 @@ DB가 없는 환경에서는 해당 항목을 미검증으로 기록한다.
 
 DB 없는 Raw WebSocket 연결·테이블 착석·퇴장·준비 동기화를 구현했다. 개발용 기능은 `local` 프로필에서만 활성화된다. MySQL·JPA·Flyway 실행 기반은 `db` 프로필에 준비했으며 도메인 테이블·정식 인증·실제 게임·정산은 미구현이다. `/`의 `404`는 정상이다.
 
+AUTH-01의 `GET /api/v1/auth/{provider}/authorize`는 SSAFY/NAVER 인가 페이지로 302 이동한다.
+필요한 환경변수·로컬 실행·NAVER state 보관·SSAFY CSRF 미확인 사항은
+[소셜 로그인 시작 API](docs/auth-authorize.md)를 참고한다. 콜백과 로그인 완료는 AUTH-02 범위로 아직 없다.
+OAuth 환경변수 없이도 기본 앱과 기존 WebSocket 개발은 실행되며, 설정이 없는 provider의 인가 요청만 500으로 실패한다.
+
 ```powershell
 cd backend
 .\gradlew.bat bootRun --args='--spring.profiles.active=local'

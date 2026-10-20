@@ -9,6 +9,26 @@ spring:
     init:
       mode: never
 
+ontop:
+  oauth:
+    ssafy:
+      client-id: ${SSAFY_CLIENT_ID:}
+      redirect-uri: ${SSAFY_REDIRECT_URI:}
+    naver:
+      client-id: ${NAVER_CLIENT_ID:}
+      redirect-uri: ${NAVER_REDIRECT_URI:}
+
+server:
+  servlet:
+    session:
+      timeout: 10m
+      tracking-modes: cookie
+      cookie:
+        http-only: true
+        secure: true
+        same-site: lax
+        path: /api/v1/auth
+
 ---
 spring:
   config:
