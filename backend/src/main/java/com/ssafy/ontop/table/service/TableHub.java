@@ -11,6 +11,7 @@ import com.ssafy.ontop.game.start.GameStartCommand.Participant;
 import com.ssafy.ontop.game.start.GameStartGateway;
 import com.ssafy.ontop.game.start.GameStartResult;
 import com.ssafy.ontop.game.state.GameStateGateway;
+import com.ssafy.ontop.game.state.GameStateChanged;
 import com.ssafy.ontop.game.state.GameStateView;
 import com.ssafy.ontop.table.domain.TableGame;
 import com.ssafy.ontop.table.domain.TableRoom;
@@ -50,6 +51,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Profile;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 import org.springframework.web.socket.WebSocketSession;
 
@@ -72,6 +74,7 @@ public class TableHub {
     private final boolean startRehearsal;
     private final Optional<GameStateGateway> gameStates;
     private final Set<String> stateQueries = new HashSet<>();
+    private final Map<String, StatePush> statePushes = new HashMap<>();
     private final Optional<GameActionGateway> gameActions;
     private final Set<String> actionRequests = new HashSet<>();
     private final Optional<GameReconnectService> reconnect;
@@ -323,6 +326,7 @@ public class TableHub {
         }
         member.peer().stop();
         stateQueries.remove(sessionId);
+        statePushes.remove(sessionId);
         actionRequests.remove(sessionId);
         watching.remove(member.userId());
         chat.disconnected(member.userId());
@@ -364,6 +368,7 @@ public class TableHub {
         seating.clear();
         watching.clear();
         stateQueries.clear();
+        statePushes.clear();
         actionRequests.clear();
         starts.clear();
         startWorkers.shutdownNow();
@@ -770,7 +775,94 @@ public class TableHub {
         if (error != null) {
             member.peer().offer(protocol.error(requestId, error, "경기 상태를 가져올 수 없습니다."));
         } else {
+            if (view.role() == GameStateView.Role.PLAYER) {
+                StatePush push = statePushes.get(sessionId);
+                if (push != null && push.gameId.equals(view.gameId()) && view.version() < push.deliveredVersion) {
+                    member.peer().offer(protocol.error(requestId, "GAME_STATE_STALE", "최신 경기 상태를 확인해주세요."));
+                    return;
+                }
+                if (push == null || !push.gameId.equals(view.gameId())) {
+                    push = new StatePush(member, view.gameId());
+                    statePushes.put(sessionId, push);
+                }
+                push.deliveredVersion = Math.max(push.deliveredVersion, view.version());
+            }
             member.peer().offer(protocol.encode(requestId, "GAME_STATE", view));
+        }
+    }
+
+    @EventListener
+    public synchronized void gameStateChanged(GameStateChanged change) {
+        if (stopped || gameStates.isEmpty() || reconnect.isEmpty()) {
+            return;
+        }
+        for (var entry : members.entrySet()) {
+            String sessionId = entry.getKey();
+            Member member = entry.getValue();
+            if (member.accountId() == null || !canSendGameAction(sessionId, member, change.gameId())) {
+                continue;
+            }
+            StatePush push = statePushes.get(sessionId);
+            if (push == null || !push.gameId.equals(change.gameId())) {
+                push = new StatePush(member, change.gameId());
+                statePushes.put(sessionId, push);
+            }
+            push.requestedVersion = Math.max(push.requestedVersion, change.version());
+            if (!push.running && push.requestedVersion > push.deliveredVersion) {
+                loadStatePush(sessionId, push);
+            }
+        }
+    }
+
+    // 같은 연결의 변경 알림은 최신 버전으로 합친다. 느린 사용자 조회는 다른 사용자를 막지 않는다.
+    private void loadStatePush(String sessionId, StatePush push) {
+        push.running = true;
+        long requestedVersion = push.requestedVersion;
+        startWorkers.execute(() -> {
+            GameStateView view = null;
+            String error = null;
+            try {
+                if (!canSendGameAction(sessionId, push.member, push.gameId)) {
+                    error = "GAME_RECOVERY_REQUIRED";
+                } else {
+                    view = gameStates.orElseThrow().load(push.member.accountId(), push.gameId).orElse(null);
+                    if (view == null) {
+                        error = "GAME_STATE_ACCESS_DENIED";
+                    } else if (view.userId() != push.member.accountId() || !view.gameId().equals(push.gameId)
+                            || view.role() != GameStateView.Role.PLAYER) {
+                        error = "GAME_STATE_INVALID";
+                    }
+                }
+            } catch (RuntimeException exception) {
+                // 사용자별 비공개 상태나 엔진 예외 내용은 방송·기록하지 않는다.
+                error = "GAME_STATE_UNAVAILABLE";
+            }
+            finishStatePush(sessionId, push, requestedVersion, view, error);
+        });
+    }
+
+    private synchronized void finishStatePush(String sessionId, StatePush push, long requestedVersion,
+            GameStateView view, String error) {
+        if (stopped || members.get(sessionId) != push.member || statePushes.get(sessionId) != push) {
+            return;
+        }
+        push.running = false;
+        if (!canSendGameAction(sessionId, push.member, push.gameId)) {
+            statePushes.remove(sessionId);
+            return;
+        }
+        if (push.requestedVersion > requestedVersion && (error != null || view.version() < push.requestedVersion)) {
+            loadStatePush(sessionId, push);
+            return;
+        }
+        if (error == null && view.version() < push.requestedVersion) {
+            error = "GAME_STATE_STALE";
+        }
+        if (error != null) {
+            push.member.peer().offer(protocol.error(null, error, "경기 상태를 가져올 수 없습니다."));
+        } else if (view.version() > push.deliveredVersion) {
+            push.deliveredVersion = view.version();
+            push.member.peer().offer(protocol.encode(null, "GAME_STATE", view));
         }
     }
 
@@ -812,6 +904,10 @@ public class TableHub {
                 error = "GAME_ACTION_UNAVAILABLE";
             }
             finishGameAction(sessionId, member, request.requestId(), result, error);
+            if (error == null) {
+                // 입력자 연결이 끊겨도 확정된 변경은 남은 참가자에게 전달한다.
+                gameStateChanged(new GameStateChanged(result.gameId(), result.version()));
+            }
         });
     }
 
@@ -835,6 +931,19 @@ public class TableHub {
     }
 
     private record Member(String userId, TablePeer peer, Long accountId) {
+    }
+
+    private static final class StatePush {
+        private final Member member;
+        private final String gameId;
+        private long requestedVersion = -1;
+        private long deliveredVersion = -1;
+        private boolean running;
+
+        private StatePush(Member member, String gameId) {
+            this.member = member;
+            this.gameId = gameId;
+        }
     }
 
     public static final class TableScopeException extends RuntimeException {
