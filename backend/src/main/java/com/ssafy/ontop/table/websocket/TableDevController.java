@@ -1,6 +1,7 @@
 package com.ssafy.ontop.table.websocket;
 
 import com.ssafy.ontop.world.config.WorldChannelProperties;
+import com.ssafy.ontop.world.config.WorldEmoteProperties;
 import java.time.Duration;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
@@ -21,15 +22,21 @@ public class TableDevController {
     private final boolean authenticated;
     private final Duration movementInterval;
     private final Duration chatInterval;
+    private final WorldEmoteProperties emotes;
+    private final Duration emoteInterval;
 
     public TableDevController(WorldChannelProperties world,
             @Value("${ontop.websocket.authenticated:false}") boolean authenticated,
             @Value("${ontop.world.movement.minimum-interval:100ms}") Duration movementInterval,
-            @Value("${ontop.world.chat.minimum-interval:1s}") Duration chatInterval) {
+            @Value("${ontop.world.chat.minimum-interval:1s}") Duration chatInterval,
+            WorldEmoteProperties emotes,
+            @Value("${ontop.world.emote.minimum-interval:1s}") Duration emoteInterval) {
         this.world = world;
         this.authenticated = authenticated;
         this.movementInterval = movementInterval;
         this.chatInterval = chatInterval;
+        this.emotes = emotes;
+        this.emoteInterval = emoteInterval;
     }
 
     @GetMapping(value = "/dev/tables", produces = MediaType.TEXT_HTML_VALUE)
@@ -43,10 +50,11 @@ public class TableDevController {
             return ResponseEntity.notFound().cacheControl(CacheControl.noStore()).build();
         }
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(new WorldConfig(world.channels(),
-                Math.max(1, movementInterval.toMillis()), Math.max(1, chatInterval.toMillis())));
+                Math.max(1, movementInterval.toMillis()), Math.max(1, chatInterval.toMillis()),
+                emotes.codes(), Math.max(1, emoteInterval.toMillis())));
     }
 
     public record WorldConfig(List<WorldChannelProperties.Channel> channels, long movementIntervalMs,
-            long chatIntervalMs) {
+            long chatIntervalMs, List<String> emoteCodes, long emoteIntervalMs) {
     }
 }

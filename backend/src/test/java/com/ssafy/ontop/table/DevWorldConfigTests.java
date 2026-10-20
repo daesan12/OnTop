@@ -27,7 +27,11 @@ class DevWorldConfigTests {
                 .andExpect(jsonPath("$.channels[0].currentUsers").doesNotExist())
                 .andExpect(jsonPath("$.channels[0].userIds").doesNotExist())
                 .andExpect(jsonPath("$.movementIntervalMs").value(100))
-                .andExpect(jsonPath("$.chatIntervalMs").value(1000));
+                .andExpect(jsonPath("$.chatIntervalMs").value(1000))
+                .andExpect(jsonPath("$.emoteCodes.length()").value(2))
+                .andExpect(jsonPath("$.emoteCodes[0]").value("WAVE"))
+                .andExpect(jsonPath("$.emoteCodes[1]").value("CLAP"))
+                .andExpect(jsonPath("$.emoteIntervalMs").value(1000));
         mvc.perform(get("/api/v1/channels")).andExpect(status().isUnauthorized());
     }
 }

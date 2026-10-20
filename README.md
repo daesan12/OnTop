@@ -40,7 +40,7 @@ DB 없는 Raw WebSocket 연결·테이블 착석·퇴장·준비 동기화와 [�
 
 ### 브라우저에서 광장·채팅 보기
 
-감정표현도 기존 소켓의 WORLD_EMOTE_SEND/WORLD_EMOTE_EVENT로 전달한다. `ontop.world.emote.codes`에 등록한 코드만 허용하고 기본 목록은 비어 있다. `local,visual-test`의 WAVE/CLAP은 검증 코드이며 최종 모션 목록이 아니다. 기본 1초 간격·같은 채널 전달·종료 정리를 구현했다. [광장 명세](docs/world-websocket-api.md)를 참고한다. 실제 모션·개발 화면 버튼·AI 감정분류는 아직 없다.
+감정표현도 기존 소켓의 WORLD_EMOTE_SEND/WORLD_EMOTE_EVENT로 전달한다. `ontop.world.emote.codes`에 등록한 코드만 허용하고 기본 목록은 비어 있다. `local,visual-test`의 WAVE/CLAP은 검증 코드이며 최종 모션 목록이 아니다. 기본 1초 간격·같은 채널 전달·종료 정리를 구현했다. [광장 명세](docs/world-websocket-api.md)를 참고한다. 개발 화면의 감정표현 선택·보내기로 최근 수신 20건을 확인한다. 실제 모션·AI 감정분류는 아직 없다.
 
 [착석 없는 테이블 상태 구독](docs/websocket-api/08-table-watch.md)도 기존 소켓으로 제공한다. 같은 채널의 착석자·게임 선택·준비 상태를 받으며 좌석·시작 참가자에 포함되지 않는다. 개발 화면의 **테이블 보기 / 보기 종료**로 별도 읽기 전용 상태를 확인한다. 다른 두 탭에서 같은 테이블에 착석·게임 선택·준비하면 구독 탭에도 반영된다. 실제 경기 관전은 아직 없다.
 
