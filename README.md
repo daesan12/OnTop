@@ -55,7 +55,6 @@ Linux/macOS에서는 `sh ./gradlew bootRun --args='--spring.profiles.active=loca
 
 [메시지 명세](docs/websocket-api.md)에 요청·응답과 오류 규칙이 있다. 텍스트 메시지 한도는 16 KiB이며, 연결별 송신 대기열 128개가 가득 차면 해당 연결을 종료하고 좌석을 정리한다. 여러 서버 간 상태 공유나 성능 검증은 아직 하지 않았다.
 
-구조와 진입점 설명은 [CODE_GUIDE](CODE_GUIDE.md)를 참고한다.
 
 ## 전체 흐름 한 번에 확인
 

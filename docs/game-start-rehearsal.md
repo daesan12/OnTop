@@ -103,4 +103,3 @@ IntelliJ에서 활성화된 프로파일은 `local`로 두고, 실행 구성의 
 
 - [기존 대기 WebSocket 명세](websocket-api.md)
 - [B와 논의할 정식 시작 계약 초안](game-start-contract-draft.md)
-- [코드 흐름 설명](../CODE_GUIDE.md)

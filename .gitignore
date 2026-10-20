@@ -1,5 +1,13 @@
 .gitnexus/
 
+# Local agent instructions and personal code guide
+AGENTS.md
+AGENTS.override.md
+agent.md
+CODE_GUIDE.md
+.agents/
+.codex/
+
 # Gradle and build outputs
 .gradle/
 build/
