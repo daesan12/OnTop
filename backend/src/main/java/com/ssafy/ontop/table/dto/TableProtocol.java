@@ -76,7 +76,9 @@ public final class TableProtocol {
                     && payload.get("expectedVersion").longValue() >= 0
                     && payload.get("expectedVersion").longValue() <= 9_007_199_254_740_991L
                     && payload.get("input").isObject();
-            case "GAME_STATE_CHECK" -> fields(payload, Set.of("gameId")) && payload.get("gameId").isTextual()
+            case "GAME_UNWATCH" -> fields(payload, Set.of());
+            case "GAME_STATE_CHECK", "GAME_WATCH" -> fields(payload, Set.of("gameId"))
+                    && payload.get("gameId").isTextual()
                     && !payload.get("gameId").textValue().isBlank()
                     && payload.get("gameId").textValue().length() <= 120;
             default -> throw new RequestException(requestId, "UNSUPPORTED_MESSAGE_TYPE", "지원하지 않는 메시지입니다.");
