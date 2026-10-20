@@ -1,0 +1,11 @@
+"name": "02 개발용 채널·감정표현 설정"
+"$kind": "http-request"
+"method": "GET"
+"url": "{{baseUrl}}/dev/world-config"
+"description": "local,visual-test 실행 필요. 실제 사용자 채널 목록 API를 우회하는 경로가 아니라 개발용 정적 설정입니다."
+"auth":
+  "type": "noauth"
+"scripts":
+  -
+    "type": "afterResponse"
+    "code": "pm.test('HTTP 200', () => pm.response.to.have.status(200));\npm.test('visual-test 설정', () => {\n    const body = pm.response.json();\n    pm.expect(body.channels.map(c => c.channelId)).to.include.members(['visual-a', 'visual-b']);\n    pm.expect(body.emoteCodes).to.include('WAVE');\n});"

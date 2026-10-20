@@ -1,0 +1,59 @@
+"name": "03 관전자 C — 공개 대기 상태 보기"
+"$kind": "websocket-request"
+"url": "{{wsUrl}}"
+"description": "광장 A 입장 후 TABLE_WATCH를 보냅니다. TABLE_WATCH_STATE를 받으며 좌석·준비 인원은 늘지 않습니다. 실제 경기 관전 권한이나 원카드 손패 구독이 아닙니다. 착석 성공 시 구독은 자동 종료됩니다."
+"headers":
+  -
+    "key": "Origin"
+    "value": "{{baseUrl}}"
+    "description": "서버와 같은 출처. CORS/Origin 허용 범위를 넓히지 않습니다."
+"settings":
+  "handshakeTimeout": 10000
+  "retryCount": 0
+  "maxPayload": 1048576
+"messages":
+  -
+    "name": "01 광장 A 입장 → CHANNEL_STATE + WORLD_STATE"
+    "$kind": "websocket-message"
+    "contentType": "json"
+    "content": "{\n  \"requestId\": \"{{$guid}}\",\n  \"type\": \"CHANNEL_JOIN\",\n  \"payload\": {\n    \"channelId\": \"{{channelIdA}}\"\n  }\n}"
+  -
+    "name": "02 테이블 보기 → TABLE_WATCH_STATE"
+    "$kind": "websocket-message"
+    "contentType": "json"
+    "content": "{\n  \"requestId\": \"{{$guid}}\",\n  \"type\": \"TABLE_WATCH\",\n  \"payload\": {\n    \"tableId\": \"{{tableIdA}}\"\n  }\n}"
+  -
+    "name": "03 보기 종료 → TABLE_WATCH_LEFT"
+    "$kind": "websocket-message"
+    "contentType": "json"
+    "content": "{\n  \"requestId\": \"{{$guid}}\",\n  \"type\": \"TABLE_UNWATCH\",\n  \"payload\": {}\n}"
+  -
+    "name": "오류 관전자 준비 → NOT_SEATED (미착석일 때)"
+    "$kind": "websocket-message"
+    "contentType": "json"
+    "content": "{\n  \"requestId\": \"{{$guid}}\",\n  \"type\": \"READY_SET\",\n  \"payload\": {\n    \"ready\": true\n  }\n}"
+  -
+    "name": "추가 관전자 채팅"
+    "$kind": "websocket-message"
+    "contentType": "json"
+    "content": "{\n  \"requestId\": \"{{$guid}}\",\n  \"type\": \"WORLD_CHAT_SEND\",\n  \"payload\": {\n    \"text\": \"구경 중이야!\"\n  }\n}"
+  -
+    "name": "추가 감정표현"
+    "$kind": "websocket-message"
+    "contentType": "json"
+    "content": "{\n  \"requestId\": \"{{$guid}}\",\n  \"type\": \"WORLD_EMOTE_SEND\",\n  \"payload\": {\n    \"emoteCode\": \"CLAP\"\n  }\n}"
+  -
+    "name": "05 A 테이블 착석 → TABLE_STATE"
+    "$kind": "websocket-message"
+    "contentType": "json"
+    "content": "{\n  \"requestId\": \"{{$guid}}\",\n  \"type\": \"TABLE_JOIN\",\n  \"payload\": {\n    \"tableId\": \"{{tableIdA}}\"\n  }\n}"
+  -
+    "name": "추가 테이블 퇴장 → TABLE_LEFT"
+    "$kind": "websocket-message"
+    "contentType": "json"
+    "content": "{\n  \"requestId\": \"{{$guid}}\",\n  \"type\": \"TABLE_LEAVE\",\n  \"payload\": {}\n}"
+  -
+    "name": "추가 광장 퇴장 → CHANNEL_LEFT (착석 중이면 먼저 테이블 퇴장)"
+    "$kind": "websocket-message"
+    "contentType": "json"
+    "content": "{\n  \"requestId\": \"{{$guid}}\",\n  \"type\": \"CHANNEL_LEAVE\",\n  \"payload\": {}\n}"

@@ -1,0 +1,11 @@
+"name": "06 채널 없는 테이블 조회 — 400"
+"$kind": "http-request"
+"method": "GET"
+"url": "{{baseUrl}}/api/v1/tables"
+"description": "visual-test처럼 채널이 등록된 상태에서만 CHANNEL_REQUIRED입니다. local만 켜면 200이므로 실행 설정을 맞추세요."
+"auth":
+  "type": "noauth"
+"scripts":
+  -
+    "type": "afterResponse"
+    "code": "pm.test('HTTP 400', () => pm.response.to.have.status(400));\npm.test('CHANNEL_REQUIRED', () => pm.expect(pm.response.json().code).to.eql('CHANNEL_REQUIRED'));"

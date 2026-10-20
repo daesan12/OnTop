@@ -1,0 +1,11 @@
+"name": "07 없는 채널 테이블 조회 — 404"
+"$kind": "http-request"
+"method": "GET"
+"url": "{{baseUrl}}/api/v1/tables?channelId=not-a-channel"
+"description": "잘못된 채널을 정상적으로 거절하는지 확인합니다."
+"auth":
+  "type": "noauth"
+"scripts":
+  -
+    "type": "afterResponse"
+    "code": "pm.test('HTTP 404', () => pm.response.to.have.status(404));\npm.test('CHANNEL_NOT_FOUND', () => pm.expect(pm.response.json().code).to.eql('CHANNEL_NOT_FOUND'));"

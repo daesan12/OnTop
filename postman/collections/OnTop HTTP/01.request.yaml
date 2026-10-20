@@ -1,0 +1,11 @@
+"name": "01 서버 헬스체크"
+"$kind": "http-request"
+"method": "GET"
+"url": "{{baseUrl}}/actuator/health"
+"description": "정상 HTTP 200 / UP. DB·Redis·경기 엔진의 정상 여부를 보장하지 않습니다."
+"auth":
+  "type": "noauth"
+"scripts":
+  -
+    "type": "afterResponse"
+    "code": "pm.test('HTTP 200', () => pm.response.to.have.status(200));\npm.test('UP만 노출', () => pm.expect(pm.response.json()).to.deep.eql({status: 'UP'}));"

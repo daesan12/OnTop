@@ -1,0 +1,34 @@
+"name": "05 선택적 시작 검증 B — 서버 옵션 필요"
+"$kind": "websocket-request"
+"url": "{{wsUrl}}"
+"description": "04 A가 먼저 착석 → B 착석 → A 게임 선택 → 양쪽 준비. 인증 모드와 시작 검증 모드는 함께 켤 수 없습니다."
+"headers":
+  -
+    "key": "Origin"
+    "value": "{{baseUrl}}"
+    "description": "서버와 같은 출처. CORS/Origin 허용 범위를 넓히지 않습니다."
+"settings":
+  "handshakeTimeout": 10000
+  "retryCount": 0
+  "maxPayload": 1048576
+"messages":
+  -
+    "name": "01 광장 A 입장 → CHANNEL_STATE + WORLD_STATE"
+    "$kind": "websocket-message"
+    "contentType": "json"
+    "content": "{\n  \"requestId\": \"{{$guid}}\",\n  \"type\": \"CHANNEL_JOIN\",\n  \"payload\": {\n    \"channelId\": \"{{channelIdA}}\"\n  }\n}"
+  -
+    "name": "05 A 테이블 착석 → TABLE_STATE"
+    "$kind": "websocket-message"
+    "contentType": "json"
+    "content": "{\n  \"requestId\": \"{{$guid}}\",\n  \"type\": \"TABLE_JOIN\",\n  \"payload\": {\n    \"tableId\": \"{{tableIdA}}\"\n  }\n}"
+  -
+    "name": "07 준비 → TABLE_STATE"
+    "$kind": "websocket-message"
+    "contentType": "json"
+    "content": "{\n  \"requestId\": \"{{$guid}}\",\n  \"type\": \"READY_SET\",\n  \"payload\": {\n    \"ready\": true\n  }\n}"
+  -
+    "name": "08 시작 상태 재확인"
+    "$kind": "websocket-message"
+    "contentType": "json"
+    "content": "{\n  \"requestId\": \"{{$guid}}\",\n  \"type\": \"GAME_START_CHECK\",\n  \"payload\": {}\n}"
