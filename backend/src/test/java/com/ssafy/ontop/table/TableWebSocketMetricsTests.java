@@ -54,7 +54,10 @@ class TableWebSocketMetricsTests {
         hub.disconnect("dev");
         hub.receive("dev", "not-json");
         assertMetrics(1, 2, 1, 2);
-        assertThat(registry.getMeters()).hasSize(6).allSatisfy(meter ->
+        assertThat(registry.getMeters()).hasSize(13);
+        assertThat(registry.getMeters().stream()
+                .filter(meter -> !meter.getId().getName().equals("ontop.websocket.connections.closed.by.reason")))
+                .allSatisfy(meter ->
                 assertThat(meter.getId().getTags()).isEmpty());
     }
 

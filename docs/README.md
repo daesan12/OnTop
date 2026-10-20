@@ -29,7 +29,7 @@
 
 인프라 전달: [헬스체크 API](health-check.md) — `GET /actuator/health`, 정상 200/UP, 현재 검사 범위·배포 시 경로 안내.
 
-WebSocket의 현재 연결·누적 등록/종료·수신 텍스트·완료 송신 수/UTF-8 바이트 지표는 같은 [운영 안내](health-check.md#websocket-운영-지표)에 있다. 현재 local MeterRegistry에 등록하며 외부 수집기·관리 HTTP 노출은 추가하지 않았다.
+WebSocket의 현재 연결·누적 등록/종료·수신 텍스트·완료 송신 수/UTF-8 바이트·종료 사유별 지표는 같은 [운영 안내](health-check.md#websocket-운영-지표)에 있다. 현재 local MeterRegistry에 등록하며 외부 수집기·관리 HTTP 노출은 추가하지 않았다.
 
 경기 진행의 연결 계약: [공개·개인 상태 조회](game-state-api.md), [입력 전달](game-action-api.md), [상세 7종](websocket-api/09-game-communication.md). 2026-10-20 기존 Notion WebSocket 목록에 반영하고 본문·담당자·진행상황을 재조회했다. 실제 경기 엔진은 미연결이다.
 

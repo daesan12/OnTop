@@ -30,6 +30,7 @@ Spring Boot Actuator를 사용하며 모든 프로필에 적용한다. 현재 �
 | `ontop.websocket.messages.received` | FunctionCounter | 현재 등록된 연결에서 받은 텍스트 메시지 누적 수. 형식 오류·업무 거절 요청도 포함 |
 | `ontop.websocket.messages.sent` | FunctionCounter | `sendMessage`가 예외 없이 반환한 텍스트 메시지 누적 수 |
 | `ontop.websocket.bytes.sent` | FunctionCounter(bytes) | 위 송신의 UTF-8 텍스트 payload 누적 바이트 |
+| `ontop.websocket.connections.closed.by.reason` | FunctionCounter(reason) | 서버가 먼저 기록한 사유별 종료 누적 수. 고정7종 |
 
 현재 수인 Gauge와 달리 누적 수는 실행 중 감소하지 않는다. 정상 종료·송신 실패·heartbeat·큐 초과는 기존 Hub 정리 경로에서 한 번만 계수한다. 이미 제거된 연결의 반복 종료/뒤늦은 텍스트는 추가로 세지 않는다. 인증 실패나 같은 계정 추가 연결 거절은 등록된 연결 수에 포함하지 않는다. Ping/Pong·서버 송신 메시지·텍스트의 바이트 수는 수신 메시지 수가 아니다.
 
@@ -37,8 +38,22 @@ Spring Boot Actuator를 사용하며 모든 프로필에 적용한다. 현재 �
 
 송신 스레드는 LongAdder에 숫자만 더하며 Hub 상태 잠금·DB 조회를 하지 않는다. 메시지 수와 바이트 수는 실행 중 각각 읽는 누적 지표이므로 한 번의 원자적인 쌍으로 취급하지 않는다. 계수만 준비한 것이며 전송량 전후 비교·AOI 적용·성능 개선 측정은 별도 작업이다.
 
+종료 사유의 `reason` 태그는 아래7개만 등록한다. 연결 하나는 전체 종료 수와 사유 하나에 각각 한 번 집계한다. 사유가 경합하면 서버에서 먼저 기록한 값을 유지하며, 나중의 Close 이벤트나 중복 정리는 덮어쓰지 않는다. 각 누적 지표는 별도로 읽으므로 동시 실행 중의 서로 다른 샘플을 원자적 합계로 취급하지 않는다.
+
+| reason | 서버가 관찰한 정리 경로 |
+| --- | --- |
+| `SOCKET_CLOSED` | WebSocket 종료 콜백. 정상 Close를 포함하며 사용자 의도/물리적 장애 원인을 추정하지 않음 |
+| `TRANSPORT_ERROR` | 전송 계층 오류 콜백 |
+| `HEARTBEAT_TIMEOUT` | Ping 전송 대기 또는 Pong 응답 제한 만료 |
+| `SEND_QUEUE_FULL` | 텍스트 또는 Ping을 송신 대기열에 더 넣지 못함 |
+| `SEND_ERROR` | 송신 루프의 IOException/RuntimeException |
+| `SERVER_SHUTDOWN` | 앱 종료 시 남아 있는 연결 정리 |
+| `UNSPECIFIED` | 구체 사유가 주어지지 않은 정리 |
+
+이 목록은 장애의 물리적 근본 원인을 확정하는 코드가 아니다. 기존 Close 코드와30초 경기 복구·좌석 정리 순서는 바꾸지 않는다. 사용자/채널/경기별 태그나 예외 메시지는 지표에 넣지 않는다.
+
 숫자는 현재 프로세스의 해당 Hub 기준이며 재시작하면 초기화된다. 사용자/채널/경기 ID·본문·로그인 제공자 태그는 추가하지 않는다. `TableWebSocketMetrics`가 MeterBinder로 자동 등록하며, 외부 exporter와 수집 주기·대시보드는 인프라 연동 시 구성한다. 이 계수만으로 최대 동접·처리량·지연·정산 정상 여부를 판단하지 않는다.
 
-현재 HTTP 노출은 기존처럼 **health만**이다. `/actuator/metrics`를 켜거나 외부 수집기를 설치·배포하지 않았다. 확인은 내부 MeterRegistry와 `TableWebSocketMetricsTests`·송신 경계 `TablePeerTransmissionTests`·실제 소켓 `TableWebSocketMetricsWebSocketTests`로 수행한다. 정식 배포 프로필에 개발 Hub가 생겼다는 의미도 아니다.
+현재 HTTP 노출은 기존처럼 **health만**이다. `/actuator/metrics`를 켜거나 외부 수집기를 설치·배포하지 않았다. 확인은 내부 MeterRegistry와 `TableWebSocketMetricsTests`·송신 경계 `TablePeerTransmissionTests`·실제 소켓 `TableWebSocketMetricsWebSocketTests`로 수행한다. 종료 분류는 `ConnectionCloseReasonTests`와 실제 Close/무응답 소켓 `ConnectionCloseReasonWebSocketTests`를 사용한다. 정식 배포 프로필에 개발 Hub가 생겼다는 의미도 아니다.
 
 [Micrometer Gauge·Counter 안내](https://docs.micrometer.io/micrometer/reference/concepts/counters.html)

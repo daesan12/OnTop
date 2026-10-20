@@ -45,5 +45,12 @@ public final class TableWebSocketMetrics implements MeterBinder {
                 .description("UTF-8 payload bytes of completed WebSocket text send calls")
                 .baseUnit("bytes")
                 .register(registry);
+        for (ConnectionCloseReason reason : ConnectionCloseReason.values()) {
+            FunctionCounter.builder("ontop.websocket.connections.closed.by.reason", hub,
+                    value -> value.closedConnections(reason))
+                    .tag("reason", reason.name())
+                    .description("Registered connections cleaned up, classified by first observed server reason")
+                    .register(registry);
+        }
     }
 }

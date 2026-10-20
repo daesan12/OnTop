@@ -6,6 +6,7 @@ import java.time.Duration;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongConsumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,6 +26,7 @@ public final class TablePeer {
     private final BlockingQueue<WebSocketMessage<?>> outgoing = new ArrayBlockingQueue<>(128);
     private final AtomicBoolean active = new AtomicBoolean(true);
     private final AtomicBoolean closing = new AtomicBoolean();
+    private final AtomicReference<ConnectionCloseReason> closeReason = new AtomicReference<>();
     private final WebSocketHeartbeat heartbeat;
     private final LongConsumer textSent;
     private final Thread sender;
@@ -53,7 +55,7 @@ public final class TablePeer {
 
     public void offer(String message) {
         if (active.get() && !outgoing.offer(new TextMessage(message))) {
-            stop();
+            stop(ConnectionCloseReason.SEND_QUEUE_FULL);
         }
     }
 
@@ -63,9 +65,14 @@ public final class TablePeer {
         }
         WebSocketHeartbeat.Probe probe = heartbeat.probe();
         if (probe.expired()) {
+            rememberCloseReason(ConnectionCloseReason.HEARTBEAT_TIMEOUT);
             return false;
         }
-        return probe.ping() == null || outgoing.offer(probe.ping());
+        if (probe.ping() != null && !outgoing.offer(probe.ping())) {
+            rememberCloseReason(ConnectionCloseReason.SEND_QUEUE_FULL);
+            return false;
+        }
+        return true;
     }
 
     public void pong(ByteBuffer payload) {
@@ -73,12 +80,26 @@ public final class TablePeer {
     }
 
     public void stop() {
+        stop(ConnectionCloseReason.UNSPECIFIED);
+    }
+
+    public void stop(ConnectionCloseReason reason) {
+        rememberCloseReason(reason);
         active.set(false);
         sender.interrupt();
         // 송신이 막혀 있어도 Hub 정리/타이머를 기다리게 하지 않는다.
         if (closing.compareAndSet(false, true)) {
             Thread.ofVirtual().name("table-close-" + session.getId()).start(this::closeSession);
         }
+    }
+
+    public ConnectionCloseReason closeReason() {
+        ConnectionCloseReason reason = closeReason.get();
+        return reason == null ? ConnectionCloseReason.UNSPECIFIED : reason;
+    }
+
+    private void rememberCloseReason(ConnectionCloseReason reason) {
+        closeReason.compareAndSet(null, reason);
     }
 
     private void sendLoop() {
@@ -96,8 +117,10 @@ public final class TablePeer {
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
         } catch (IOException | RuntimeException exception) {
+            rememberCloseReason(ConnectionCloseReason.SEND_ERROR);
             log.debug("WebSocket 전송 종료 session={}", session.getId(), exception);
         } finally {
+            rememberCloseReason(ConnectionCloseReason.UNSPECIFIED);
             active.set(false);
             outgoing.clear();
             cleanup.run();

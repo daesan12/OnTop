@@ -22,6 +22,7 @@ import com.ssafy.ontop.table.dto.TableProtocol;
 import com.ssafy.ontop.table.dto.TableProtocol.Request;
 import com.ssafy.ontop.table.dto.TableProtocol.RequestException;
 import com.ssafy.ontop.table.dto.TableSummaryResponse;
+import com.ssafy.ontop.table.websocket.ConnectionCloseReason;
 import com.ssafy.ontop.table.websocket.TablePeer;
 import com.ssafy.ontop.table.websocket.WebSocketHeartbeat;
 import com.ssafy.ontop.world.config.WorldChannelProperties;
@@ -36,6 +37,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -95,6 +97,7 @@ public class TableHub {
     private long receivedMessages;
     private final LongAdder sentMessages = new LongAdder();
     private final LongAdder sentBytes = new LongAdder();
+    private final Map<ConnectionCloseReason, LongAdder> closedByReason = new EnumMap<>(ConnectionCloseReason.class);
     private boolean stopped;
 
     public TableHub(ObjectMapper mapper, Optional<GameStartGateway> gateway,
@@ -183,6 +186,9 @@ public class TableHub {
         this.channels = channels;
         this.chat = chat;
         this.emotes = emotes;
+        for (ConnectionCloseReason reason : ConnectionCloseReason.values()) {
+            closedByReason.put(reason, new LongAdder());
+        }
         channelIds = Set.copyOf(channels.snapshot().keySet());
         if (channelIds.isEmpty()) {
             rooms.put("table-1", new TableRoom("table-1"));
@@ -367,12 +373,18 @@ public class TableHub {
     }
 
     public synchronized void disconnect(String sessionId) {
+        Member member = members.get(sessionId);
+        if (member != null) {
+            disconnect(sessionId, member.peer().closeReason());
+        }
+    }
+
+    public synchronized void disconnect(String sessionId, ConnectionCloseReason reason) {
         Member member = members.remove(sessionId);
         if (member == null) {
             return;
         }
-        closedConnections++;
-        member.peer().stop();
+        closeMember(member, reason);
         gameResults.ifPresent(service -> service.disconnected(sessionId));
         stateQueries.remove(sessionId);
         statePushes.remove(sessionId);
@@ -410,10 +422,9 @@ public class TableHub {
         stopped = true;
         heartbeatTimer.shutdownNow();
         members.forEach((sessionId, member) -> {
-            member.peer().stop();
+            closeMember(member, ConnectionCloseReason.SERVER_SHUTDOWN);
             gameResults.ifPresent(service -> service.disconnected(sessionId));
         });
-        closedConnections += members.size();
         members.clear();
         channels.clear();
         chat.clear();
@@ -426,6 +437,16 @@ public class TableHub {
         actionRequests.clear();
         starts.clear();
         startWorkers.shutdownNow();
+    }
+
+    private void closeMember(Member member, ConnectionCloseReason reason) {
+        member.peer().stop(reason);
+        closedConnections++;
+        closedByReason.get(member.peer().closeReason()).increment();
+    }
+
+    public long closedConnections(ConnectionCloseReason reason) {
+        return closedByReason.get(reason).sum();
     }
 
     // 식별자·본문 없이 현재 수명 상태만 읽는다. 네트워크 I/O나 외부 조회는 하지 않는다.
