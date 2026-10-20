@@ -56,6 +56,7 @@ public class TableHub {
     private final Set<String> channelIds;
     private final Map<String, Member> members = new HashMap<>();
     private final Map<String, String> seating = new HashMap<>();
+    private final Map<String, String> watching = new HashMap<>();
     private final Map<String, TableStartAttempt> starts = new HashMap<>();
     private final Map<String, Long> startRevisions = new HashMap<>();
     private final Optional<GameStartGateway> gateway;
@@ -237,6 +238,8 @@ public class TableHub {
                 case "WORLD_MOVE" -> moveWorld(member, request);
                 case "WORLD_CHAT_SEND" -> sendChat(member, request);
                 case "TABLE_JOIN" -> join(member, request);
+                case "TABLE_WATCH" -> watch(member, request);
+                case "TABLE_UNWATCH" -> unwatch(member, request);
                 case "READY_SET" -> ready(member, request);
                 case "GAME_SELECT" -> selectGame(member, request);
                 case "TABLE_LEAVE" -> leave(member, request);
@@ -261,6 +264,7 @@ public class TableHub {
             return;
         }
         member.peer().stop();
+        watching.remove(member.userId());
         chat.disconnected(member.userId());
         WorldChannelRegistry.State channelState = channels.disconnect(member.userId());
         if (channelState != null) {
@@ -296,6 +300,7 @@ public class TableHub {
         channels.clear();
         chat.clear();
         seating.clear();
+        watching.clear();
         starts.clear();
         startWorkers.shutdownNow();
     }
@@ -329,6 +334,7 @@ public class TableHub {
             fail(request, "TABLE_FULL", "빈 좌석이 없습니다.");
         }
         seating.put(member.userId(), tableId);
+        clearWatch(member, null);
         publish(room, member, request.requestId());
         replyStartState(member, tableId, null);
     }
@@ -353,6 +359,7 @@ public class TableHub {
             fail(request, "TABLE_BUSY", "먼저 테이블에서 퇴장해주세요.");
         }
         WorldChannelRegistry.State state = channels.leave(member.userId());
+        clearWatch(member, null);
         member.peer().offer(protocol.encode(request.requestId(), "CHANNEL_LEFT",
                 Map.of("channelId", state.channelId())));
         publishChannel(state, null, null);
@@ -468,11 +475,53 @@ public class TableHub {
         member.peer().offer(protocol.encode(request.requestId(), "TABLE_STATE", room.snapshot()));
     }
 
+    private void watch(Member member, Request request) {
+        String tableId = request.payload().get("tableId").textValue();
+        TableRoom room = rooms.get(tableId);
+        if (room == null) {
+            fail(request, "TABLE_NOT_FOUND", "등록되지 않은 테이블입니다.");
+        }
+        if (!channelIds.isEmpty()) {
+            String channelId = channels.channelOf(member.userId());
+            if (channelId == null) {
+                fail(request, "NOT_IN_CHANNEL", "먼저 채널에 입장해주세요.");
+            }
+            if (!channelId.equals(tableChannels.get(tableId))) {
+                fail(request, "TABLE_CHANNEL_MISMATCH", "현재 채널의 테이블만 볼 수 있습니다.");
+            }
+        }
+        if (seating.containsKey(member.userId())) {
+            fail(request, "TABLE_BUSY", "먼저 테이블에서 퇴장해주세요.");
+        }
+        String current = watching.get(member.userId());
+        if (current != null && !current.equals(tableId)) {
+            fail(request, "ALREADY_WATCHING", "기존 테이블 보기부터 종료해주세요.");
+        }
+        watching.put(member.userId(), tableId);
+        member.peer().offer(protocol.encode(request.requestId(), "TABLE_WATCH_STATE", room.snapshot()));
+    }
+
+    private void unwatch(Member member, Request request) {
+        if (!watching.containsKey(member.userId())) {
+            fail(request, "NOT_WATCHING", "현재 보고 있는 테이블이 없습니다.");
+        }
+        clearWatch(member, request.requestId());
+    }
+
+    private void clearWatch(Member member, String requestId) {
+        String tableId = watching.remove(member.userId());
+        if (tableId != null) {
+            member.peer().offer(protocol.encode(requestId, "TABLE_WATCH_LEFT", Map.of("tableId", tableId)));
+        }
+    }
+
     private void publish(TableRoom room, Member actor, String requestId) {
         TableRoom.Snapshot snapshot = room.snapshot();
         for (Member target : members.values()) {
             if (snapshot.tableId().equals(seating.get(target.userId()))) {
                 target.peer().offer(protocol.encode(target == actor ? requestId : null, "TABLE_STATE", snapshot));
+            } else if (snapshot.tableId().equals(watching.get(target.userId()))) {
+                target.peer().offer(protocol.encode(null, "TABLE_WATCH_STATE", snapshot));
             }
         }
     }

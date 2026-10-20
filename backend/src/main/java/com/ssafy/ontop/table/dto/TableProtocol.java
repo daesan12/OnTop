@@ -56,12 +56,12 @@ public final class TableProtocol {
                     && payload.get("sequence").longValue() <= 9_007_199_254_740_991L
                     && finite(payload.get("x")) && finite(payload.get("y"))
                     && finite(payload.get("z")) && finite(payload.get("yaw"));
-            case "TABLE_JOIN" -> fields(payload, Set.of("tableId")) && payload.get("tableId").isTextual()
+            case "TABLE_JOIN", "TABLE_WATCH" -> fields(payload, Set.of("tableId")) && payload.get("tableId").isTextual()
                     && !payload.get("tableId").textValue().isBlank();
             case "READY_SET" -> fields(payload, Set.of("ready")) && payload.get("ready").isBoolean();
             case "GAME_SELECT" -> fields(payload, Set.of("gameCode")) && payload.get("gameCode").isTextual()
                     && !payload.get("gameCode").textValue().isBlank();
-            case "TABLE_LEAVE" -> fields(payload, Set.of());
+            case "TABLE_LEAVE", "TABLE_UNWATCH" -> fields(payload, Set.of());
             case "GAME_START_CHECK" -> fields(payload, Set.of());
             case "GAME_RECONNECT_CHECK" -> fields(payload, Set.of());
             default -> throw new RequestException(requestId, "UNSUPPORTED_MESSAGE_TYPE", "지원하지 않는 메시지입니다.");

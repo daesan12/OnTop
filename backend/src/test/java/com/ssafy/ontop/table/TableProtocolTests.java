@@ -16,6 +16,25 @@ class TableProtocolTests {
     private final TableProtocol protocol = new TableProtocol(new ObjectMapper());
 
     @ParameterizedTest
+    @ValueSource(strings = {"{}", "{\"tableId\":null}", "{\"tableId\":1}", "{\"tableId\":\" \"}",
+            "{\"tableId\":\"table-1\",\"userId\":\"forged\"}",
+            "{\"tableId\":\"table-1\",\"channelId\":\"other\"}"})
+    void 테이블_보기의_누락_타입과_추가_필드를_거절한다(String payload) {
+        RequestException error = catchThrowableOfType(RequestException.class, () -> protocol.parse(
+                "{\"requestId\":\"watch-1\",\"type\":\"TABLE_WATCH\",\"payload\":" + payload + "}"));
+        assertThat(error.code()).isEqualTo("INVALID_PAYLOAD");
+    }
+
+    @Test
+    void 테이블_보기_종료는_빈_객체만_허용한다() {
+        assertThat(protocol.parse("{\"requestId\":\"stop-1\",\"type\":\"TABLE_UNWATCH\",\"payload\":{}}")
+                .type()).isEqualTo("TABLE_UNWATCH");
+        assertThat(catchThrowableOfType(RequestException.class, () -> protocol.parse(
+                "{\"requestId\":\"stop-1\",\"type\":\"TABLE_UNWATCH\",\"payload\":{\"tableId\":\"table-1\"}}"))
+                .code()).isEqualTo("INVALID_PAYLOAD");
+    }
+
+    @ParameterizedTest
     @ValueSource(strings = {"{}", "{\"text\":null}", "{\"text\":1}", "{\"text\":\"  \"}",
             "{\"text\":\"a\\nb\"}", "{\"text\":\"hello\",\"userId\":\"forged\"}",
             "{\"text\":\"hello\",\"channelId\":\"other\"}",
