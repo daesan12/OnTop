@@ -6,7 +6,7 @@
 2. 같은 계정으로 **My Workspace**를 연다. 웹에 저장한 **OnTop HTTP**, **OnTop WebSocket**, **OnTop Local**을 사용한다.
 3. 오른쪽 위 환경을 **OnTop Local**로 선택한다. 다른 포트라면 환경의 `baseUrl`·`wsUrl`을 함께 바꾼다.
 
-HTTP JSON과 환경 JSON은 웹 Import로 가져오기를 확인했다. **WebSocket v3 JSON은 현재 웹 Import에서 거절되어** 웹에서 직접 등록한다. 현재 생성 원본은 연결 6개·메시지 57개다. **웹에 저장된 것은 기존 5개·51개이며, 새 06 연결·6개 메시지는 로컬 파일에만 있다.** 웹 편집 후 재조회에서 내용이 누락되거나 예시와 다른 JSON이 확인되어 이번 임시 요청은 삭제했다. 웹 최신화는 미완료다.
+HTTP JSON과 환경 JSON은 웹 Import로 가져오기를 확인했다. **WebSocket v3 JSON은 현재 웹 Import에서 거절되어** 웹에서 직접 등록했다. 생성 원본과 웹 모두 연결 6개·메시지 57개다. 기존 5개 요청 ID를 보존하고 [06 경기 통신](https://dfd333-5957.postman.co/workspace/My-Workspace~fef8d4dd-529e-48e5-8bde-17f840fd2dd3/ws-raw-request/6ad7466f88a68a951684b2d7?sideView=agentMode)을 추가했다. 2026-10-20 새로고침 후 새 메시지 6개의 JSON·URL·Origin 헤더를 원본과 대조했다. 실행 조건과 기대 오류는 요청명·각 저장 메시지 이름과 이 문서를 따른다.
 
 WebSocket JSON과 `postman/collections`의 native YAML은 공식 v3 스키마에 맞춘 원본·백업이다. 공식 로컬 컬렉션 사용 방식은 데스크톱 **Open Folder**이지만, 이 경로의 실제 가져오기는 검증하지 않았다. 웹 Import에 WebSocket JSON을 다시 넣지 않는다.
 

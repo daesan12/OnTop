@@ -28,7 +28,7 @@
 
 인프라 전달: [헬스체크 API](health-check.md) — `GET /actuator/health`, 정상 200/UP, 현재 검사 범위·배포 시 경로 안내.
 
-경기 진행의 새 로컬 연결 계약: [공개·개인 상태 조회](game-state-api.md), [입력 전달](game-action-api.md), [Notion 양식의 상세 7종](websocket-api/09-game-communication.md). 실제 경기 엔진 미연결이며 기존 Notion WebSocket 목록에는 아직 게시하지 않았다.
+경기 진행의 연결 계약: [공개·개인 상태 조회](game-state-api.md), [입력 전달](game-action-api.md), [상세 7종](websocket-api/09-game-communication.md). 2026-10-20 기존 Notion WebSocket 목록에 반영하고 본문·담당자·진행상황을 재조회했다. 실제 경기 엔진은 미연결이다.
 
 - 파일은 용도에 맞는 폴더와 짧고 일정한 이름으로 보관한다. 현재 팀 규칙은 `docs/conventions/`에 둔다.
 - 받은 원문의 내용은 임의로 고치거나 요약본으로 대체하지 않는다. 출처·수신일·원래 파일명은 이 안내에 남긴다. 작업할 때는 연결된 원문에서 해당 규칙을 읽는다.

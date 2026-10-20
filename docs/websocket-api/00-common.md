@@ -181,3 +181,12 @@ TABLE_WATCH_STATE는 착석 TABLE_STATE와 별도 캐시에 저장합니다. 구
 - 사용자 제공 1차 ERD 이미지: 사용자·지갑·거래 원장·게임 종류·게임 세션·게임 참가자·미니게임 세션.
 - 사용자 지정 [OnTop 통합 기획서 v0.4](https://app.notion.com/p/OnTop_-_-154161842b868387b6ad0174db68ee71): 첫 착석자의 게임 선택·전원 준비. 선택자 대기 중 이탈 시 남은 참가자에게 권한을 넘기는 규칙은 2026-10-19 사용자 확인으로 보완했다. 과거 v0.3의 AI 대행 가정은 현재 구현 기준으로 사용하지 않는다.
 - [Spring WebSocket 서버 문서](https://docs.spring.io/spring-framework/reference/6.2/web/websocket/server.html): Raw WebSocket 처리, Origin 제한, 연결별 동시 전송 제어.
+
+## 10. 경기 통신 연결부
+
+2026-10-20 [경기 통신 상세 7종](09-game-communication.md)을 기존 Notion 목록과 공통 안내에 반영했다. 위 기본 대기 흐름에 실제 경기 엔진·차감·정산이 추가된 것은 아니다.
+
+- `GAME_STATE_CHECK`와 `GAME_STATE`: 인증 계정의 상태 조회·참가자 자동 갱신. 공개 상태와 본인 개인 상태만 개별 전송한다.
+- `GAME_ACTION_SEND`와 `GAME_ACTION_RESULT`: 경기 입력 전달·처리 확인. 실제 턴·규칙·중복 반영 방지는 경기 담당이 연결한다.
+- `GAME_WATCH`·`GAME_UNWATCH`·`GAME_WATCH_LEFT`: 대기 테이블 보기와 별개인 경기 관전 연결부. 관전자 개인 상태는 `{}`이며 Gateway에서 현재 권한을 확인한다.
+- 실제 로그인·엔진은 미연결이다. 새 항목은 진행 중이며 기본 dev의 인증 필요 오류가 정상이다. 최초 응답은 원래 요청 ID, 자동 갱신은 null이다.
