@@ -11,6 +11,7 @@
 | WebSocket API 명세 | [websocket-api.md](websocket-api.md) | DB 없는 연결·테이블 착석·첫 착석자의 게임 선택·퇴장·준비 동기화 계약. local 구현·검증 완료 |
 | WebSocket 인증 연결부 | [websocket-authentication.md](websocket-authentication.md) | 서버 검증 사용자 연결·실패 차단. 실제 로그인·JWT/세션 방식은 미연결 |
 | 경기 입력 연결부 | [game-action-api.md](game-action-api.md) | 인증 참가자 입력 전달·처리 확인. 실제 경기 엔진·멱등성 저장은 미연결 |
+| 경기 종료·정산 결과 전달 | [game-result-api.md](game-result-api.md) | 본인 확정 결과 자동 전송·재조회. 종료/PENDING/SETTLED 구분. 실제 DB·지급 미연결, 웹 게시 대기 |
 | 경기 상태 조회·자동 전송·관전 | [game-state-api.md](game-state-api.md) | 참가자 공개/개인 정보 분리·관전자 공개 상태 구독·변경 알림 병합. 실제 엔진·맵 권한 판정 미연결 |
 | 경기 재접속 연결부 | [game-reconnect.md](game-reconnect.md) | 추가 연결 차단·30초 내 최신 경기 복귀·만료 처리 경계. 실제 경기 담당 미연결 |
 | WebSocket heartbeat | [websocket-heartbeat.md](websocket-heartbeat.md) | Ping/Pong으로 무응답 연결 감지 후 30초 재접속 유예 연결 |

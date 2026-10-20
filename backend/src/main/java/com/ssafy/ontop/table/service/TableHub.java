@@ -6,6 +6,7 @@ import com.ssafy.ontop.game.action.GameActionCommand;
 import com.ssafy.ontop.game.action.GameActionGateway;
 import com.ssafy.ontop.game.action.GameActionResult;
 import com.ssafy.ontop.game.reconnect.GameReconnectService;
+import com.ssafy.ontop.game.result.GameResultService;
 import com.ssafy.ontop.game.start.GameStartCommand;
 import com.ssafy.ontop.game.start.GameStartCommand.Participant;
 import com.ssafy.ontop.game.start.GameStartGateway;
@@ -79,6 +80,7 @@ public class TableHub {
     private final Optional<GameActionGateway> gameActions;
     private final Set<String> actionRequests = new HashSet<>();
     private final Optional<GameReconnectService> reconnect;
+    private final Optional<GameResultService> gameResults;
     private final WorldChannelRegistry channels;
     private final WorldChatService chat;
     private final WorldEmoteService emotes;
@@ -143,7 +145,6 @@ public class TableHub {
                 channels, chat, emotes, gameStates, Optional.empty());
     }
 
-    @Autowired
     public TableHub(ObjectMapper mapper, Optional<GameStartGateway> gateway,
             @Value("${ontop.start-rehearsal.enabled:false}") boolean startRehearsal,
             Optional<GameReconnectService> reconnect,
@@ -151,6 +152,19 @@ public class TableHub {
             @Value("${ontop.websocket.heartbeat.timeout:10s}") Duration heartbeatTimeout,
             WorldChannelRegistry channels, WorldChatService chat, WorldEmoteService emotes,
             Optional<GameStateGateway> gameStates, Optional<GameActionGateway> gameActions) {
+        this(mapper, gateway, startRehearsal, reconnect, heartbeatInterval, heartbeatTimeout,
+                channels, chat, emotes, gameStates, gameActions, Optional.empty());
+    }
+
+    @Autowired
+    public TableHub(ObjectMapper mapper, Optional<GameStartGateway> gateway,
+            @Value("${ontop.start-rehearsal.enabled:false}") boolean startRehearsal,
+            Optional<GameReconnectService> reconnect,
+            @Value("${ontop.websocket.heartbeat.interval:10s}") Duration heartbeatInterval,
+            @Value("${ontop.websocket.heartbeat.timeout:10s}") Duration heartbeatTimeout,
+            WorldChannelRegistry channels, WorldChatService chat, WorldEmoteService emotes,
+            Optional<GameStateGateway> gameStates, Optional<GameActionGateway> gameActions,
+            Optional<GameResultService> gameResults) {
         if (startRehearsal && gateway.isEmpty()) {
             throw new IllegalArgumentException("시작 연동 검증 대역이 필요합니다.");
         }
@@ -159,6 +173,7 @@ public class TableHub {
         this.gameActions = gameActions;
         this.startRehearsal = startRehearsal;
         this.reconnect = reconnect;
+        this.gameResults = gameResults;
         this.channels = channels;
         this.chat = chat;
         this.emotes = emotes;
@@ -198,6 +213,14 @@ public class TableHub {
             return false;
         }
         Member member = register(session, userId, user.userId());
+        gameResults.ifPresent(service -> service.connected(session.getId(), user.userId(), delivery -> {
+            if (delivery.errorCode() != null) {
+                member.peer().offer(protocol.error(delivery.requestId(), delivery.errorCode(),
+                        "경기 결과를 확인할 수 없습니다."));
+            } else {
+                member.peer().offer(protocol.encode(delivery.requestId(), "GAME_RESULT", delivery.result()));
+            }
+        }));
         reconnect.ifPresent(service -> service.connected(user.userId(), session.getId(),
                 (requestId, view) -> member.peer().offer(protocol.encode(requestId, "GAME_CONNECTION_STATE", view))));
         return true;
@@ -271,6 +294,16 @@ public class TableHub {
         try {
             Request request = protocol.parse(text);
             requestId = request.requestId();
+            if (request.type().equals("GAME_RESULT_CHECK")) {
+                if (member.accountId() == null) {
+                    fail(request, "GAME_RESULT_AUTH_REQUIRED", "인증된 사용자만 결과를 확인할 수 있습니다.");
+                }
+                if (gameResults.isEmpty()) {
+                    fail(request, "GAME_RESULT_NOT_CONFIGURED", "경기 결과 연결이 필요합니다.");
+                }
+                gameResults.get().check(sessionId, requestId, request.payload().get("gameSessionId").textValue());
+                return;
+            }
             if (request.type().equals("GAME_UNWATCH")) {
                 unwatchGame(sessionId, member, request);
                 return;
@@ -331,6 +364,7 @@ public class TableHub {
             return;
         }
         member.peer().stop();
+        gameResults.ifPresent(service -> service.disconnected(sessionId));
         stateQueries.remove(sessionId);
         statePushes.remove(sessionId);
         actionRequests.remove(sessionId);
@@ -366,7 +400,10 @@ public class TableHub {
     public synchronized void shutdown() {
         stopped = true;
         heartbeatTimer.shutdownNow();
-        members.values().forEach(member -> member.peer().stop());
+        members.forEach((sessionId, member) -> {
+            member.peer().stop();
+            gameResults.ifPresent(service -> service.disconnected(sessionId));
+        });
         members.clear();
         channels.clear();
         chat.clear();

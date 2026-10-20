@@ -152,7 +152,11 @@ const wsItems = [
             message('04 경기 관전 종료 → 미구독: GAME_NOT_WATCHING', 'GAME_UNWATCH'),
             message('05 오류 관전 사용자 위조 → INVALID_PAYLOAD', 'GAME_WATCH', { gameId: '{{gameId}}', userId: 101 }),
             message('06 오류 음수 경기 버전 → INVALID_PAYLOAD', 'GAME_ACTION_SEND',
-                { gameId: '{{gameId}}', actionId: 'example-action-2', expectedVersion: -1, input: {} })])
+                  { gameId: '{{gameId}}', actionId: 'example-action-2', expectedVersion: -1, input: {} }),
+            message('07 본인 종료·정산 결과 조회 → dev: GAME_RESULT_AUTH_REQUIRED', 'GAME_RESULT_CHECK',
+                  { gameSessionId: '{{gameId}}' }),
+            message('08 오류 정산 금액 지정 → INVALID_PAYLOAD', 'GAME_RESULT_CHECK',
+                  { gameSessionId: '{{gameId}}', myCoinDelta: 100 })])
 ];
 const guide = '현재 코드의 local 통신 검증용. 서버는 local,visual-test로 실행하고 OnTop Local 환경을 선택하세요. '
     + '로그인·DB·실제 경기 엔진은 아직 없습니다. HTTP 테이블 조회로 ID 저장 후 WebSocket을 연결합니다. '

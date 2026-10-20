@@ -462,6 +462,18 @@
           "$kind": "websocket-message",
           "contentType": "json",
           "content": "{\n  \"requestId\": \"{{$guid}}\",\n  \"type\": \"GAME_ACTION_SEND\",\n  \"payload\": {\n    \"gameId\": \"{{gameId}}\",\n    \"actionId\": \"example-action-2\",\n    \"expectedVersion\": -1,\n    \"input\": {}\n  }\n}"
+        },
+        {
+          "name": "07 본인 종료·정산 결과 조회 → dev: GAME_RESULT_AUTH_REQUIRED",
+          "$kind": "websocket-message",
+          "contentType": "json",
+          "content": "{\n  \"requestId\": \"{{$guid}}\",\n  \"type\": \"GAME_RESULT_CHECK\",\n  \"payload\": {\n    \"gameSessionId\": \"{{gameId}}\"\n  }\n}"
+        },
+        {
+          "name": "08 오류 정산 금액 지정 → INVALID_PAYLOAD",
+          "$kind": "websocket-message",
+          "contentType": "json",
+          "content": "{\n  \"requestId\": \"{{$guid}}\",\n  \"type\": \"GAME_RESULT_CHECK\",\n  \"payload\": {\n    \"gameSessionId\": \"{{gameId}}\",\n    \"myCoinDelta\": 100\n  }\n}"
         }
       ]
     }

@@ -66,6 +66,10 @@ public final class TableProtocol {
             case "TABLE_LEAVE", "TABLE_UNWATCH" -> fields(payload, Set.of());
             case "GAME_START_CHECK" -> fields(payload, Set.of());
             case "GAME_RECONNECT_CHECK" -> fields(payload, Set.of());
+            case "GAME_RESULT_CHECK" -> fields(payload, Set.of("gameSessionId"))
+                    && payload.get("gameSessionId").isTextual()
+                    && !payload.get("gameSessionId").textValue().isBlank()
+                    && payload.get("gameSessionId").textValue().length() <= 120;
             case "GAME_ACTION_SEND" -> fields(payload, Set.of("gameId", "actionId", "expectedVersion", "input"))
                     && payload.get("gameId").isTextual() && !payload.get("gameId").textValue().isBlank()
                     && payload.get("gameId").textValue().length() <= 120

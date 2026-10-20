@@ -206,6 +206,14 @@ class AuthenticatedWebSocketTests {
         }
     }
 
+    @Test
+    void 결과담당이_없으면_결과조회는_미연동으로_응답한다() throws Exception {
+        try (Client client = new Client("naver")) {
+            assertThat(client.request("GAME_RESULT_CHECK", Map.of("gameSessionId", "701"))
+                    .path("payload").path("code").asText()).isEqualTo("GAME_RESULT_NOT_CONFIGURED");
+        }
+    }
+
     // 테스트 소스에만 존재하는 서버 인증 대역이다. 이 헤더를 읽는 운영 코드는 없다.
     @TestConfiguration(proxyBeanMethods = false)
     static class AuthFixture {
