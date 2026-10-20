@@ -6,7 +6,7 @@
 2. 같은 계정으로 **My Workspace**를 연다. 웹에 저장한 **OnTop HTTP**, **OnTop WebSocket**, **OnTop Local**을 사용한다.
 3. 오른쪽 위 환경을 **OnTop Local**로 선택한다. 다른 포트라면 환경의 `baseUrl`·`wsUrl`을 함께 바꾼다.
 
-HTTP JSON과 환경 JSON은 웹 Import로 가져오기를 확인했다. **WebSocket v3 JSON은 현재 웹 Import에서 거절되어** 웹에서 직접 등록했다. 웹 확인본은 연결6개·메시지57개이며, 이번 종료 결과 예시2개를 더한 로컬 생성 원본은 연결6개·메시지59개다. 새 예시2개는 웹 반영 전이다. 기존 5개 요청 ID를 보존하고 [06 경기 통신](https://dfd333-5957.postman.co/workspace/My-Workspace~fef8d4dd-529e-48e5-8bde-17f840fd2dd3/ws-raw-request/6ad7466f88a68a951684b2d7?sideView=agentMode)을 추가했다. 2026-10-20 새로고침 후 새 메시지 6개의 JSON·URL·Origin 헤더를 원본과 대조했다. 실행 조건과 기대 오류는 요청명·각 저장 메시지 이름과 이 문서를 따른다.
+HTTP JSON과 환경 JSON은 웹 Import로 가져오기를 확인했다. **WebSocket v3 JSON은 현재 웹 Import에서 거절되어** 웹에서 직접 등록했다. 웹과 로컬 원본 모두 연결6개·메시지59개다. 06 경기 통신의 기존6개와 종료 결과 조회·금액 위조 거절2개, 총8개 메시지를 새로고침 후 원본 JSON과 대조했다. 기존 5개 요청 ID를 보존하고 [06 경기 통신](https://dfd333-5957.postman.co/workspace/My-Workspace~fef8d4dd-529e-48e5-8bde-17f840fd2dd3/ws-raw-request/6ad7466f88a68a951684b2d7?sideView=agentMode)을 추가했다. 2026-10-20 새로고침 후 새 메시지 6개의 JSON·URL·Origin 헤더를 원본과 대조했다. 실행 조건과 기대 오류는 요청명·각 저장 메시지 이름과 이 문서를 따른다.
 
 WebSocket JSON과 `postman/collections`의 native YAML은 공식 v3 스키마에 맞춘 원본·백업이다. 공식 로컬 컬렉션 사용 방식은 데스크톱 **Open Folder**이지만, 이 경로의 실제 가져오기는 검증하지 않았다. 웹 Import에 WebSocket JSON을 다시 넣지 않는다.
 
@@ -39,7 +39,7 @@ WebSocket 탭 하나가 사용자 하나다. **Connect를 유지한 채 Saved Me
 
 ## 아직 성공시킬 수 없는 기능
 
-**06 경기 통신 — 인증·엔진 연동 대기**에는 경기 조회·입력·관전·해제와 잘못된 요청 예시가 있다. 현재 dev 모드에서는 요청 이름에 적힌 오류가 정상이다. 로컬 원본에는 07 본인 종료 결과 조회와 08 금액 위조 거절 예시도 추가했다. dev 결과 조회는 GAME_RESULT_AUTH_REQUIRED가 정상이며 실제 인증+결과 Gateway가 있어야 성공한다. 결과 읽기는 지급을 실행하지 않는다. 실제 로그인/경기 엔진이 붙기 전에는 성공 시연으로 사용하지 않는다. 입력의 버전 0·좌표는 형식 예시이며, 실제 연동 시 최신 경기 버전과 게임별 확정 입력으로 수정한다. 새 행동은 새 actionId, 같은 행동 재확인은 같은 actionId·내용을 유지한다.
+**06 경기 통신 — 인증·엔진 연동 대기**에는 경기 조회·입력·관전·해제와 잘못된 요청 예시가 있다. 현재 dev 모드에서는 요청 이름에 적힌 오류가 정상이다. 07 본인 종료 결과 조회와 08 금액 위조 거절 예시도 웹에 저장했다. dev 결과 조회는 GAME_RESULT_AUTH_REQUIRED가 정상이며 실제 인증+결과 Gateway가 있어야 성공한다. 결과 읽기는 지급을 실행하지 않는다. 실제 로그인/경기 엔진이 붙기 전에는 성공 시연으로 사용하지 않는다. 입력의 버전 0·좌표는 형식 예시이며, 실제 연동 시 최신 경기 버전과 게임별 확정 입력으로 수정한다. 새 행동은 새 actionId, 같은 행동 재확인은 같은 actionId·내용을 유지한다.
 
 | 요청 | 현재 정상적인 결과 / 필요한 것 |
 | --- | --- |

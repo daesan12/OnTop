@@ -190,3 +190,7 @@ TABLE_WATCH_STATE는 착석 TABLE_STATE와 별도 캐시에 저장합니다. 구
 - `GAME_ACTION_SEND`와 `GAME_ACTION_RESULT`: 경기 입력 전달·처리 확인. 실제 턴·규칙·중복 반영 방지는 경기 담당이 연결한다.
 - `GAME_WATCH`·`GAME_UNWATCH`·`GAME_WATCH_LEFT`: 대기 테이블 보기와 별개인 경기 관전 연결부. 관전자 개인 상태는 `{}`이며 Gateway에서 현재 권한을 확인한다.
 - 실제 로그인·엔진은 미연결이다. 새 항목은 진행 중이며 기본 dev의 인증 필요 오류가 정상이다. 최초 응답은 원래 요청 ID, 자동 갱신은 null이다.
+
+## 11. 경기 종료·정산 결과
+
+2026-10-20 [결과 계약](../game-result-api.md)의 GAME_RESULT_CHECK/GAME_RESULT를 Notion 상세2종과 공통·오류 안내에 반영하고 다시 열어 확인했다. 본인 참가 결과만 전달하며 PENDING/null 순증감과 SETTLED/확정 순증감을 구분한다. 결과 알림으로 지급이나 좌석·조작권 전환을 실행하지 않는다. Postman06의 저장 메시지8개도 원본과 대조했다. 실제 DB·정산·지급은 미연결이다.
