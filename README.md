@@ -93,12 +93,12 @@ sh ./gradlew bootRun --args='--spring.profiles.active=local,db'
 - JPA `ddl-auto`는 `validate`여서 테이블을 생성·변경하지 않는다. `schema.sql`·`data.sql` 초기화도 비활성화했다.
 - `baseline-on-migrate=false`이며 migration 이름과 체크섬을 검증한다.
   이력 없이 이미 테이블이 있는 DB가 거절되면 자동 baseline을 켜지 말고 기존 스키마 편입 방법을 검토한다.
-- 현재 migration SQL은 **0개**다. 첫 실제 스키마가 확정될 때 `V1`을 추가한다.
-  users를 포함한 9개 테이블이나 빈 migration은 이 작업에서 만들지 않는다.
+- 현재 migration SQL은 **1개**, `V1__create_users.sql`이다. `users`만 생성한다.
+  컬럼·제약조건·닉네임 정책은 [users 스키마 안내](docs/users-schema.md)를 따른다.
 
 DB 연결 검증은 `db` 프로필로 시작한 뒤 Flyway의 MySQL 연결·검증 로그와 앱 시작 성공을 확인한다.
-현재는 `No migrations found` 안내가 나올 수 있으며 적용할 버전은 없다.
-Flyway 내부 관리용 `flyway_schema_history`는 생성될 수 있지만 도메인 테이블은 생성하지 않는다.
+빈 DB에서는 V1 적용 성공과 JPA 검증 완료를 확인한다. 재시작 시 현재 버전은 1이고 중복 적용하지 않는다.
+생성되는 테이블은 `users`와 Flyway 내부 관리용 `flyway_schema_history`다.
 MySQL 클라이언트에서 `SHOW TABLES;`로 확인하고, 이력 테이블이 있다면 다음 조회로 적용 내역을 확인한다:
 
 ```sql
@@ -116,13 +116,16 @@ DB가 없어도 기존 회귀 검증은 `backend/`에서 실행할 수 있다:
 
 이 테스트 통과만으로 실제 MySQL 접속·권한·Flyway 실행을 검증한 것은 아니다.
 DB가 없는 환경에서는 해당 항목을 미검증으로 기록한다.
+실제 MySQL 8.4에서 users·JPA·Flyway를 확인하는 별도 `mysqlTest` 실행 방법은
+[users DB 검증](docs/users-schema.md#실제-mysql-검증)을 참고한다. 기본 `clean build`에는 DB 접속 테스트를 포함하지 않는다.
+`db` 프로필의 연결 세션과 Hibernate JDBC 시각은 UTC로 고정한다.
 
 설정 근거: [Spring Boot 3.5 DB 초기화](https://docs.spring.io/spring-boot/3.5/how-to/data-initialization.html),
 [관리 의존성](https://docs.spring.io/spring-boot/3.5/appendix/dependency-versions/coordinates.html).
 
 ## 현재 구현 범위
 
-DB 없는 Raw WebSocket 연결·테이블 착석·퇴장·준비 동기화를 구현했다. 개발용 기능은 `local` 프로필에서만 활성화된다. MySQL·JPA·Flyway 실행 기반은 `db` 프로필에 준비했으며 도메인 테이블·정식 인증·실제 게임·정산은 미구현이다. `/`의 `404`는 정상이다.
+DB 없는 Raw WebSocket 연결·테이블 착석·퇴장·준비 동기화를 구현했다. 개발용 기능은 `local` 프로필에서만 활성화된다. `db` 프로필에는 MySQL·JPA·Flyway와 users 스키마·Entity·Repository를 준비했다. 회원가입·온보딩 API·정식 로그인 완료·실제 게임·정산은 미구현이다. `/`의 `404`는 정상이다.
 
 AUTH-01의 `GET /api/v1/auth/{provider}/authorize`는 SSAFY/NAVER 인가 페이지로 302 이동한다.
 필요한 환경변수·로컬 실행·NAVER state 보관·SSAFY CSRF 미확인 사항은
