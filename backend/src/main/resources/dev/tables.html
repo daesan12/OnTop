@@ -101,6 +101,7 @@
     <div class="row">
       <select id="table" aria-label="테이블" disabled></select>
       <button id="join" class="primary" disabled>착석</button><button id="leave" disabled>퇴장</button>
+      <button id="watch" disabled>테이블 보기</button><button id="unwatch" disabled>보기 종료</button>
     </div>
     <div id="seats" class="seats"><div class="seat">착석하면 좌석 상태가 표시됩니다.</div></div>
     <div class="row">
@@ -116,6 +117,12 @@
       <span id="allReady">대기 중</span></div>
     <p id="notice" role="status"></p>
   </section>
+  <section class="card" aria-labelledby="watchTitle">
+    <h2 id="watchTitle">착석 없이 테이블 보기</h2>
+    <p class="hint">선택한 테이블의 착석·게임 선택·준비 상태만 실시간으로 봅니다. 실제 경기 관전 화면은 아닙니다.</p>
+    <p id="watchStatus" role="status">테이블을 선택하고 ‘테이블 보기’를 누르세요.</p>
+    <div id="watchSeats" class="seats"></div>
+  </section>
   <section id="startPanel" class="card" hidden>
     <h2>게임 시작 연동 검증</h2>
     <p>전원 준비 시 검증용 요청을 보냅니다. 실제 게임 실행·엽전 차감·DB 저장은 하지 않습니다.</p>
@@ -129,6 +136,8 @@
     let socket = null;
     let userId = null;
     let state = null;
+    let watchState = null;
+    let watchTarget = null;
     let pending = null;
     let startState = null;
     let rehearsalEnabled = false;
@@ -170,6 +179,8 @@
     }
 
     function resetWorld() {
+      watchState = null;
+      watchTarget = null;
       channelState = null;
       worldState = null;
       worldVersion = -1;
@@ -287,6 +298,11 @@
       el('connect').disabled = socket !== null;
       el('disconnect').disabled = socket === null;
       const selected = tables.find(table => table.tableId === el('table').value);
+      el('watch').disabled = !open || busy || state !== null || !listValid || !selected
+        || (watchState !== null && watchState.tableId !== selected.tableId);
+      el('watch').textContent = watchState ? '보기 새로고침' : '테이블 보기';
+      el('unwatch').disabled = !open || busy || watchState === null;
+      renderWatch();
       el('join').disabled = !open || busy || state !== null || !listValid || !selected?.joinable;
       el('table').disabled = !open || busy || state !== null || !listValid || tables.length === 0;
       el('leave').disabled = !open || busy || state === null || frozen;
@@ -335,6 +351,29 @@
         ready.textContent = seat.userId ? (seat.ready ? '● 준비 완료' : '○ 준비 전') : '참가 대기';
         card.append(title, identity, ready);
         el('seats').append(card);
+      }
+    }
+
+    function renderWatch() {
+      el('watchSeats').replaceChildren();
+      if (!watchState) {
+        el('watchStatus').textContent = '테이블을 선택하고 ‘테이블 보기’를 누르세요.';
+        return;
+      }
+      el('watchStatus').textContent = `${watchState.tableId} · ${gameNames[watchState.gameCode] ?? '게임 미선택'}`
+        + ` · 버전 ${watchState.version} · ` + (watchState.allReady ? '전원 준비 완료' : '대기 중')
+        + ' · 나는 착석하지 않은 상태입니다. 다른 테이블을 보려면 먼저 보기 종료를 누르세요.';
+      for (const seat of watchState.seats) {
+        const card = document.createElement('div');
+        card.className = 'seat';
+        const title = document.createElement('strong');
+        title.textContent = `좌석 ${seat.seatNumber}`;
+        const identity = document.createElement('span');
+        identity.textContent = seat.userId ?? '빈 좌석';
+        const ready = document.createElement('small');
+        ready.textContent = seat.userId ? (seat.ready ? '● 준비 완료' : '○ 준비 전') : '참가 대기';
+        card.append(title, identity, ready);
+        el('watchSeats').append(card);
       }
     }
 
@@ -403,6 +442,7 @@
     function send(type, payload) {
       if (!userId || pending || socket?.readyState !== WebSocket.OPEN) return false;
       const message = { requestId: crypto.randomUUID(), type, payload };
+      if (type === 'TABLE_WATCH') watchTarget = payload.tableId;
       pending = message.requestId;
       const current = socket;
       pendingTimer = setTimeout(() => {
@@ -489,6 +529,16 @@
             chatReadyAt = Date.now() + chatInterval;
             setTimeout(render, chatInterval + 1);
           }
+        } else if (message.type === 'TABLE_WATCH_STATE') {
+          const next = message.payload;
+          if (next.tableId === watchTarget && (!watchState || next.version >= watchState.version)) {
+            watchState = next;
+          }
+        } else if (message.type === 'TABLE_WATCH_LEFT') {
+          if (message.payload.tableId === watchTarget) {
+            watchState = null;
+            watchTarget = null;
+          }
         } else if (message.type === 'TABLE_STATE') {
           const next = message.payload;
           if (next.version >= (versions.get(next.tableId) ?? -1)) {
@@ -507,6 +557,7 @@
             startState = next;
           }
         } else if (message.type === 'ERROR') {
+          if (direct) watchTarget = watchState?.tableId ?? null;
           el('notice').textContent = `${message.payload.code} · ${message.payload.message}`;
           if (message.payload.code === 'INTERNAL_ERROR') current.close();
         }
@@ -533,6 +584,8 @@
     };
     el('disconnect').onclick = () => socket?.close();
     el('join').onclick = () => send('TABLE_JOIN', { tableId: el('table').value });
+    el('watch').onclick = () => send('TABLE_WATCH', { tableId: el('table').value });
+    el('unwatch').onclick = () => send('TABLE_UNWATCH', {});
     el('ready').onclick = () => send('READY_SET', { ready: true });
     el('cancel').onclick = () => send('READY_SET', { ready: false });
     el('leave').onclick = () => send('TABLE_LEAVE', {});
