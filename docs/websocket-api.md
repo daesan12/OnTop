@@ -23,12 +23,15 @@
 | 테이블 | 로컬 검증 완료 | WS | 서버 → 클라이언트 | [👋 퇴장 완료](websocket-api/05-table-leave.md) | TABLE_LEFT | /ws/tables |
 | 공통 | 로컬 검증 완료 | WS | 서버 → 클라이언트 | [⚠️ 오류 응답](websocket-api/06-error.md) | ERROR | /ws/tables |
 
-채널 입장·퇴장 메시지는 기존 소켓을 재사용합니다. 상세 요청·응답은 [채널 WebSocket 명세](world-websocket-api.md)를 따릅니다. 채널은 서버 설정으로 등록하며 기본 목록은 비어 있습니다. 이동은 미구현입니다. 채널을 설정하면 테이블도 채널별로 분리되며 해당 채널 입장이 필요합니다. 채널 설정 없는 기존 개발 모드는 유지합니다.
+채널 입장·퇴장·위치 공유 메시지는 기존 소켓을 재사용합니다. 상세 요청·응답은 [채널 WebSocket 명세](world-websocket-api.md)를 따릅니다. 채널은 서버 설정으로 등록하며 기본 목록은 비어 있습니다. 위치 공유는 local 구현이며 맵·충돌 판정은 미연결입니다. 채널을 설정하면 테이블도 채널별로 분리되며 해당 채널 입장이 필요합니다. 채널 설정 없는 기존 개발 모드는 유지합니다.
 
 | 방향 | 메시지 | 성공 결과 |
 | --- | --- | --- |
 | 클라이언트 → 서버 | CHANNEL_JOIN | 본인과 같은 채널 참가자에게 CHANNEL_STATE |
 | 클라이언트 → 서버 | CHANNEL_LEAVE | 본인 CHANNEL_LEFT, 남은 참가자 CHANNEL_STATE |
+| 클라이언트 → 서버 | WORLD_MOVE | 본인과 같은 채널 참가자에게 WORLD_STATE |
+
+CHANNEL_JOIN 성공·다른 사용자 입퇴장·종료 때는 WORLD_STATE도 알립니다. 위치 미보고 참가자는 position=null이며 채널 인원 버전과 위치 버전은 따로 관리합니다.
 
 ## 흐름
 

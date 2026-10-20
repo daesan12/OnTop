@@ -2,7 +2,7 @@
 
 기존 Raw WebSocket `/ws/tables` 연결을 재사용한다. `local` 전용이며 별도 `/ws/world` 연결은 만들지 않는다. 기존 인증·중복 접속 차단·heartbeat·연결별 송신 순서를 그대로 사용한다.
 
-기준은 [OnTop v0.4](https://app.notion.com/p/OnTop_-_-154161842b868387b6ad0174db68ee71)의 광장·실시간 통신과 [채널 목록 계약](channel-query-api.md)이다. 아래 메시지 이름·필드·버전은 이번 구현의 통신 계약이다. 이동·좌표·채팅은 후속 범위다. 채널 설정 시 채널별 테이블을 생성하고 해당 채널 입장 후에만 착석한다. [테이블 조회 계약](table-query-api.md)의 channelId 필터와 서버 발급 tableId를 사용한다. 채널 설정 없는 기존 개발 모드만 table-1·table-2를 유지한다.
+기준은 [OnTop v0.4](https://app.notion.com/p/OnTop_-_-154161842b868387b6ad0174db68ee71)의 광장·실시간 통신과 [채널 목록 계약](channel-query-api.md)이다. 아래 메시지 이름·필드·버전은 구현의 통신 계약이다. 같은 채널의 최신 위치 공유를 구현했고 채팅·맵 충돌 판정은 후속 범위다. 채널 설정 시 채널별 테이블을 생성하고 해당 채널 입장 후에만 착석한다. [테이블 조회 계약](table-query-api.md)의 channelId 필터와 서버 발급 tableId를 사용한다. 채널 설정 없는 기존 개발 모드만 table-1·table-2를 유지한다.
 
 ## 입장
 
@@ -68,5 +68,38 @@
 | `NOT_IN_CHANNEL` | 입장하지 않은 연결의 퇴장 요청 |
 | `TABLE_BUSY` | 테이블 착석 중 채널 변경·퇴장 |
 | `GAME_RECOVERY_REQUIRED` | 경기 복구 상태가 대기 기능을 막음 |
+| `MOVE_TOO_FREQUENT` | 새 순번의 이동이 최소 전송 간격보다 빠름 |
 
 예상하지 못한 오류는 기존 `INTERNAL_ERROR`를 따른다. 오류 메시지 문자열보다 code로 분기한다.
+
+## 광장 이동 · WORLD_MOVE / WORLD_STATE
+
+채널 입장 후 미착석 상태에서 기존 소켓으로 전송한다. 사용자·채널 ID를 payload에 넣지 않는다. 서버가 현재 연결에서 확인한다.
+
+```json
+{"requestId":"move-1","type":"WORLD_MOVE","payload":{"sequence":0,"x":1.5,"y":0,"z":-2,"yaw":0.5}}
+```
+
+```json
+{
+  "requestId":"move-1",
+  "type":"WORLD_STATE",
+  "payload":{
+    "channelId":"channel-1",
+    "version":2,
+    "avatars":[{"userId":"dev-example","position":{"sequence":0,"x":1.5,"y":0,"z":-2.0,"yaw":0.5}}]
+  }
+}
+```
+
+- `x/y/z`는 장면 좌표, `yaw`는 Y축 회전각(라디안)이다. 모두 유한한 JSON 숫자만 허용한다. 문자열·null·추가 필드는 `INVALID_PAYLOAD`다. 실제 좌표 단위·맵 경계·충돌·최대 속도 판정은 모델링 연동 전 미구현이다. 서버가 위치의 물리적 타당성을 검증한 결과가 아니라 클라이언트 보고 위치의 공유다.
+- `sequence`는 채널 입장 기간 동안 사용자별 증가 정수다(0~9007199254740991). 음수·소수·범위 초과는 거절한다. 마지막 승인 순번 이하이면 위치·버전은 유지하고 요청자에게 현재 WORLD_STATE만 반환한다. 타인 알림은 없다. requestId는 여전히 요청 대응용이며 이동 순서는 sequence로 판단한다.
+- 변경 성공은 요청자에게 같은 requestId의 WORLD_STATE, 같은 채널의 나머지 참가자에게 requestId=null인 전체 스냅샷을 보낸다. 다른 채널·미입장 연결에는 보내지 않는다. AOI(가까운 사람만 전송)·차이분 전송은 아직 없다.
+- `avatars`는 현재 채널 참가자 전원이며 입장 순서다. 위치를 아직 보고하지 않은 참가자의 `position`은 null이다. 원점 좌표나 최종 스폰 위치를 임의 배정하지 않는다. 프론트는 null을 이동 좌표로 해석하지 않는다.
+- WORLD_STATE의 version은 채널별 입장·퇴장·유효 이동마다 증가한다. CHANNEL_STATE.version은 기존 입퇴장 전용이므로 두 버전을 서로 비교하지 않는다. 이동은 채널 인원·정원을 바꾸지 않는다.
+- 최초·반복 CHANNEL_JOIN 응답인 CHANNEL_STATE 뒤 본인에게 requestId=null의 WORLD_STATE도 보낸다. 실제 새 입장이면 기존 참가자도 갱신된 두 스냅샷을 순서대로 받는다. 늦은 입장자는 기존 참가자의 최신 위치를 받는다.
+- CHANNEL_LEAVE는 본인에게 CHANNEL_LEFT만 주며 본인 위치 캐시를 지워야 한다. 남은 참가자는 CHANNEL_STATE 다음 WORLD_STATE를 받는다. 종료·heartbeat도 남은 참가자에게 두 스냅샷을 보내며 떠난 사용자의 위치·순번·전송 간격 상태를 제거한다. 재입장은 position=null, 새 sequence부터 시작한다. 게임 30초 복구와 광장 위치 복구는 별개다.
+- 착석 중 이동은 TABLE_BUSY, 미입장은 NOT_IN_CHANNEL, 경기 복구 제한은 기존 GAME_RECOVERY_REQUIRED다. 거절은 위치·순번을 바꾸지 않는다.
+- 새 이동의 최소 간격은 사용자별 기본 100ms다. `ontop.world.movement.minimum-interval`로 0 초과~60초 이하를 설정한다. 너무 빠르면 MOVE_TOO_FREQUENT이며 순번도 소비하지 않는다. 프론트는 프레임마다 보내지 말고 간격 안의 변경을 최신 하나로 모은다. 이 기본값은 성능·채널 정원을 측정한 결과가 아니다.
+
+검증은 `WorldMovementTests`의 제어 시계로 순번·간격 경계를, `WorldMovementHubTests`로 수신 대상·착석 제한을, `WorldMovementWebSocketTests`로 실제 소켓·인증 대역·heartbeat 정리·같은 계정 재입장을 확인한다. 화면 보간·이동 애니메이션·정식 로그인은 포함하지 않는다.

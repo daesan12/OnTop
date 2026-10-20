@@ -59,7 +59,7 @@ ontop:
 
 중복 ID·빈 ID/이름·0 이하 정원은 설정 오류로 앱 시작을 실패시킨다. 설정을 바꾼 뒤 서버를 다시 실행한다.
 
-읽는 순서는 `WorldChannelProperties`(설정) → `ChannelQueryController.listChannels`(HTTP·인증 경계) → `ChannelQueryService.listChannels`(현재 인원과 조회 응답)다. 광장 입장·퇴장은 [채널 WebSocket 계약](world-websocket-api.md)으로 연결했다. 이동 동기화는 후속 범위다.
+읽는 순서는 `WorldChannelProperties`(설정) → `ChannelQueryController.listChannels`(HTTP·인증 경계) → `ChannelQueryService.listChannels`(현재 인원과 조회 응답)다. 광장 입장·퇴장은 [채널 WebSocket 계약](world-websocket-api.md)으로 연결했다. 같은 채널 위치 공유는 WORLD_MOVE / WORLD_STATE를 사용한다.
 
 ## 검증
 

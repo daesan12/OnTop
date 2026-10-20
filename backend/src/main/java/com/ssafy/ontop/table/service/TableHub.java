@@ -223,6 +223,7 @@ public class TableHub {
             switch (request.type()) {
                 case "CHANNEL_JOIN" -> joinChannel(member, request);
                 case "CHANNEL_LEAVE" -> leaveChannel(member, request);
+                case "WORLD_MOVE" -> moveWorld(member, request);
                 case "TABLE_JOIN" -> join(member, request);
                 case "READY_SET" -> ready(member, request);
                 case "GAME_SELECT" -> selectGame(member, request);
@@ -249,6 +250,7 @@ public class TableHub {
         WorldChannelRegistry.State channelState = channels.disconnect(member.userId());
         if (channelState != null) {
             publishChannel(channelState, null, null);
+            publishWorld(channels.worldState(channelState.channelId()), null, null);
         }
         if (member.accountId() != null) {
             reconnect.ifPresent(service -> service.disconnected(member.accountId(), sessionId));
@@ -323,8 +325,10 @@ public class TableHub {
         WorldChannelRegistry.Change change = channels.join(member.userId(), channelId);
         if (change.changed()) {
             publishChannel(change.state(), member, request.requestId());
+            publishWorld(channels.worldState(channelId), null, null);
         } else {
             member.peer().offer(protocol.encode(request.requestId(), "CHANNEL_STATE", change.state()));
+            member.peer().offer(protocol.encode(null, "WORLD_STATE", channels.worldState(channelId)));
         }
     }
 
@@ -336,6 +340,33 @@ public class TableHub {
         member.peer().offer(protocol.encode(request.requestId(), "CHANNEL_LEFT",
                 Map.of("channelId", state.channelId())));
         publishChannel(state, null, null);
+        publishWorld(channels.worldState(state.channelId()), null, null);
+    }
+
+    private void moveWorld(Member member, Request request) {
+        if (seating.containsKey(member.userId())) {
+            fail(request, "TABLE_BUSY", "먼저 테이블에서 퇴장해주세요.");
+        }
+        var payload = request.payload();
+        var position = new WorldChannelRegistry.Position(payload.get("sequence").longValue(),
+                payload.get("x").doubleValue(), payload.get("y").doubleValue(),
+                payload.get("z").doubleValue(), payload.get("yaw").doubleValue());
+        WorldChannelRegistry.WorldChange change = channels.move(member.userId(), position);
+        if (change.changed()) {
+            publishWorld(change.state(), member, request.requestId());
+        } else {
+            member.peer().offer(protocol.encode(request.requestId(), "WORLD_STATE", change.state()));
+        }
+    }
+
+    private void publishWorld(WorldChannelRegistry.WorldState state, Member actor, String requestId) {
+        Set<String> recipients = state.avatars().stream().map(WorldChannelRegistry.Avatar::userId)
+                .collect(Collectors.toSet());
+        for (Member target : members.values()) {
+            if (recipients.contains(target.userId())) {
+                target.peer().offer(protocol.encode(target == actor ? requestId : null, "WORLD_STATE", state));
+            }
+        }
     }
 
     private void publishChannel(WorldChannelRegistry.State state, Member actor, String requestId) {

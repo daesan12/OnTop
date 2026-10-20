@@ -48,6 +48,12 @@ public final class TableProtocol {
             case "CHANNEL_JOIN" -> fields(payload, Set.of("channelId")) && payload.get("channelId").isTextual()
                     && !payload.get("channelId").textValue().isBlank();
             case "CHANNEL_LEAVE" -> fields(payload, Set.of());
+            case "WORLD_MOVE" -> fields(payload, Set.of("sequence", "x", "y", "z", "yaw"))
+                    && payload.get("sequence").isIntegralNumber() && payload.get("sequence").canConvertToLong()
+                    && payload.get("sequence").longValue() >= 0
+                    && payload.get("sequence").longValue() <= 9_007_199_254_740_991L
+                    && finite(payload.get("x")) && finite(payload.get("y"))
+                    && finite(payload.get("z")) && finite(payload.get("yaw"));
             case "TABLE_JOIN" -> fields(payload, Set.of("tableId")) && payload.get("tableId").isTextual()
                     && !payload.get("tableId").textValue().isBlank();
             case "READY_SET" -> fields(payload, Set.of("ready")) && payload.get("ready").isBoolean();
@@ -82,6 +88,10 @@ public final class TableProtocol {
         }
         String id = root.get("requestId").textValue();
         return !id.isBlank() && id.length() <= 64;
+    }
+
+    private boolean finite(JsonNode value) {
+        return value.isNumber() && Double.isFinite(value.doubleValue());
     }
 
     private boolean fields(JsonNode node, Set<String> expected) {

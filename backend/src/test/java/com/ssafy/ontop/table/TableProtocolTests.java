@@ -16,6 +16,30 @@ class TableProtocolTests {
     private final TableProtocol protocol = new TableProtocol(new ObjectMapper());
 
     @ParameterizedTest
+    @ValueSource(strings = {
+            "{}", "{\"sequence\":0,\"x\":1,\"y\":0,\"z\":0}",
+            "{\"sequence\":-1,\"x\":1,\"y\":0,\"z\":0,\"yaw\":0}",
+            "{\"sequence\":0.5,\"x\":1,\"y\":0,\"z\":0,\"yaw\":0}",
+            "{\"sequence\":9007199254740992,\"x\":1,\"y\":0,\"z\":0,\"yaw\":0}",
+            "{\"sequence\":0,\"x\":1e400,\"y\":0,\"z\":0,\"yaw\":0}",
+            "{\"sequence\":0,\"x\":\"1\",\"y\":0,\"z\":0,\"yaw\":0}",
+            "{\"sequence\":0,\"x\":1,\"y\":0,\"z\":0,\"yaw\":null}",
+            "{\"sequence\":0,\"x\":1,\"y\":0,\"z\":0,\"yaw\":0,\"userId\":\"forged\"}"
+    })
+    void 이동_필드와_좌표_타입과_순번과_신원위조를_검사한다(String payload) {
+        RequestException error = catchThrowableOfType(RequestException.class, () -> protocol.parse(
+                "{\"requestId\":\"move-1\",\"type\":\"WORLD_MOVE\",\"payload\":" + payload + "}"));
+        assertThat(error.code()).isEqualTo("INVALID_PAYLOAD");
+    }
+
+    @Test
+    void 이동_순번은_브라우저의_최대_안전_정수까지_허용한다() {
+        assertThat(protocol.parse("{\"requestId\":\"move-1\",\"type\":\"WORLD_MOVE\","
+                + "\"payload\":{\"sequence\":9007199254740991,\"x\":1.25,\"y\":0,\"z\":-2,\"yaw\":0}}")
+                .payload().path("sequence").longValue()).isEqualTo(9_007_199_254_740_991L);
+    }
+
+    @ParameterizedTest
     @ValueSource(strings = {"{}", "{\"gameCode\":null}", "{\"gameCode\":1}", "{\"gameCode\":\" \"}",
             "{\"gameCode\":\"OMOK\",\"userId\":\"forged\"}"})
     void 게임선택의_누락_타입_권한위조_필드를_거절한다(String payload) {

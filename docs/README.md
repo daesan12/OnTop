@@ -15,7 +15,7 @@
 | 전체 흐름 테스트 도구 | [flow-test.md](flow-test.md) | 한 명령으로 착석·준비·끊김·복귀 확인. 인증/경기는 테스트 대역 |
 | 테이블 목록 조회 API | [table-query-api.md](table-query-api.md) | local 전용 GET 목록, 빈자리·준비 인원·입장 가능 여부와 개발 화면 조회 규칙 |
 | 채널 목록 조회 API | [channel-query-api.md](channel-query-api.md) | local 설정 기반 GET 목록·인증 경계·인원 공급자 연결점. 실제 로그인 미연결. 채널 입장 상태 반영 |
-| 채널 입장·퇴장 WebSocket | [world-websocket-api.md](world-websocket-api.md) | 기존 소켓으로 채널 입장·퇴장·인원 동기화. 채널별 테이블 분리 구현. 이동 미구현 |
+| 채널 입장·퇴장 WebSocket | [world-websocket-api.md](world-websocket-api.md) | 기존 소켓으로 채널 입장·퇴장·인원 동기화. 채널별 테이블·위치 공유 구현. 맵 충돌 판정 미연결 |
 | 게임 시작 연동 계약 초안 | [game-start-contract-draft.md](game-start-contract-draft.md) | A·B의 시작 요청·결과·중복 처리 제안. 공유 완료, 재화·종료 정책은 정식 연결 전 재대조 필요 |
 | 게임 시작 연동 검증 | [game-start-rehearsal.md](game-start-rehearsal.md) | 선택해서 켜는 DB 없는 시작 요청·성공·거절·조회 확인 기능. 실제 경기·차감 없음 |
 | 제품 기준·ERD 대조 | [erd-policy-alignment.md](erd-policy-alignment.md) | 사용자 지정 OnTop v0.4 우선순위, ERD·과거 초안과의 차이 및 실제 구현 범위 |

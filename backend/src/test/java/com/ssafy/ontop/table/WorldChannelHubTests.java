@@ -177,7 +177,11 @@ class WorldChannelHubTests {
         doAnswer(invocation -> {
             Object message = invocation.getArgument(0);
             if (message instanceof TextMessage text) {
-                peer.messages.add(mapper.readTree(text.getPayload()));
+                JsonNode value = mapper.readTree(text.getPayload());
+                // 위치 알림은 WorldMovementHubTests에서 검증하고 여기서는 기존 채널·테이블 계약만 읽는다.
+                if (!value.path("type").asText().equals("WORLD_STATE")) {
+                    peer.messages.add(value);
+                }
             }
             return null;
         }).when(session).sendMessage(any());
