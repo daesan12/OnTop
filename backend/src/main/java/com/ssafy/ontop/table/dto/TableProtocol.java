@@ -45,6 +45,9 @@ public final class TableProtocol {
             throw new RequestException(requestId, "UNSUPPORTED_MESSAGE_TYPE", "지원하지 않는 메시지입니다.");
         }
         boolean valid = switch (type) {
+            case "CHANNEL_JOIN" -> fields(payload, Set.of("channelId")) && payload.get("channelId").isTextual()
+                    && !payload.get("channelId").textValue().isBlank();
+            case "CHANNEL_LEAVE" -> fields(payload, Set.of());
             case "TABLE_JOIN" -> fields(payload, Set.of("tableId")) && payload.get("tableId").isTextual()
                     && !payload.get("tableId").textValue().isBlank();
             case "READY_SET" -> fields(payload, Set.of("ready")) && payload.get("ready").isBoolean();

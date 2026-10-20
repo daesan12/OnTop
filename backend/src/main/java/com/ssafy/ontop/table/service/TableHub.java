@@ -17,6 +17,8 @@ import com.ssafy.ontop.table.dto.TableProtocol.RequestException;
 import com.ssafy.ontop.table.dto.TableSummaryResponse;
 import com.ssafy.ontop.table.websocket.TablePeer;
 import com.ssafy.ontop.table.websocket.WebSocketHeartbeat;
+import com.ssafy.ontop.world.config.WorldChannelProperties;
+import com.ssafy.ontop.world.service.WorldChannelRegistry;
 import jakarta.annotation.PreDestroy;
 import java.nio.ByteBuffer;
 import java.time.Duration;
@@ -55,6 +57,7 @@ public class TableHub {
     private final Optional<GameStartGateway> gateway;
     private final boolean startRehearsal;
     private final Optional<GameReconnectService> reconnect;
+    private final WorldChannelRegistry channels;
     private final ExecutorService startWorkers = Executors.newVirtualThreadPerTaskExecutor();
     private final ScheduledExecutorService heartbeatTimer = Executors.newSingleThreadScheduledExecutor(
             Thread.ofPlatform().daemon(true).name("table-heartbeat").factory());
@@ -73,18 +76,27 @@ public class TableHub {
         this(mapper, gateway, startRehearsal, reconnect, Duration.ofSeconds(10), Duration.ofSeconds(10));
     }
 
+    public TableHub(ObjectMapper mapper, Optional<GameStartGateway> gateway,
+            boolean startRehearsal, Optional<GameReconnectService> reconnect,
+            Duration heartbeatInterval, Duration heartbeatTimeout) {
+        this(mapper, gateway, startRehearsal, reconnect, heartbeatInterval, heartbeatTimeout,
+                new WorldChannelRegistry(new WorldChannelProperties(null)));
+    }
+
     @Autowired
     public TableHub(ObjectMapper mapper, Optional<GameStartGateway> gateway,
             @Value("${ontop.start-rehearsal.enabled:false}") boolean startRehearsal,
             Optional<GameReconnectService> reconnect,
             @Value("${ontop.websocket.heartbeat.interval:10s}") Duration heartbeatInterval,
-            @Value("${ontop.websocket.heartbeat.timeout:10s}") Duration heartbeatTimeout) {
+            @Value("${ontop.websocket.heartbeat.timeout:10s}") Duration heartbeatTimeout,
+            WorldChannelRegistry channels) {
         if (startRehearsal && gateway.isEmpty()) {
             throw new IllegalArgumentException("시작 연동 검증 대역이 필요합니다.");
         }
         this.gateway = gateway;
         this.startRehearsal = startRehearsal;
         this.reconnect = reconnect;
+        this.channels = channels;
         // 잘못된 시간 설정은 연결을 받기 전에 실패시킨다.
         new WebSocketHeartbeat(heartbeatInterval, heartbeatTimeout, System::nanoTime);
         this.heartbeatInterval = heartbeatInterval;
@@ -180,6 +192,8 @@ public class TableHub {
                 fail(request, "GAME_RECOVERY_REQUIRED", "현재 경기 복구 상태를 먼저 확인해주세요.");
             }
             switch (request.type()) {
+                case "CHANNEL_JOIN" -> joinChannel(member, request);
+                case "CHANNEL_LEAVE" -> leaveChannel(member, request);
                 case "TABLE_JOIN" -> join(member, request);
                 case "READY_SET" -> ready(member, request);
                 case "GAME_SELECT" -> selectGame(member, request);
@@ -187,6 +201,8 @@ public class TableHub {
                 case "GAME_START_CHECK" -> checkStart(member, request);
                 default -> throw new IllegalStateException("검증되지 않은 메시지");
             }
+        } catch (WorldChannelRegistry.ChannelException exception) {
+            member.peer().offer(protocol.error(requestId, exception.code(), exception.getMessage()));
         } catch (RequestException exception) {
             member.peer().offer(protocol.error(exception.requestId(), exception.code(), exception.getMessage()));
         } catch (RuntimeException exception) {
@@ -201,6 +217,10 @@ public class TableHub {
             return;
         }
         member.peer().stop();
+        WorldChannelRegistry.State channelState = channels.disconnect(member.userId());
+        if (channelState != null) {
+            publishChannel(channelState, null, null);
+        }
         if (member.accountId() != null) {
             reconnect.ifPresent(service -> service.disconnected(member.accountId(), sessionId));
         }
@@ -227,6 +247,7 @@ public class TableHub {
         heartbeatTimer.shutdownNow();
         members.values().forEach(member -> member.peer().stop());
         members.clear();
+        channels.clear();
         seating.clear();
         starts.clear();
         startWorkers.shutdownNow();
@@ -254,6 +275,37 @@ public class TableHub {
         seating.put(member.userId(), tableId);
         publish(room, member, request.requestId());
         replyStartState(member, tableId, null);
+    }
+
+    private void joinChannel(Member member, Request request) {
+        String channelId = request.payload().get("channelId").textValue();
+        if (seating.containsKey(member.userId()) && !channels.isInChannel(member.userId(), channelId)) {
+            fail(request, "TABLE_BUSY", "먼저 테이블에서 퇴장해주세요.");
+        }
+        WorldChannelRegistry.Change change = channels.join(member.userId(), channelId);
+        if (change.changed()) {
+            publishChannel(change.state(), member, request.requestId());
+        } else {
+            member.peer().offer(protocol.encode(request.requestId(), "CHANNEL_STATE", change.state()));
+        }
+    }
+
+    private void leaveChannel(Member member, Request request) {
+        if (seating.containsKey(member.userId())) {
+            fail(request, "TABLE_BUSY", "먼저 테이블에서 퇴장해주세요.");
+        }
+        WorldChannelRegistry.State state = channels.leave(member.userId());
+        member.peer().offer(protocol.encode(request.requestId(), "CHANNEL_LEFT",
+                Map.of("channelId", state.channelId())));
+        publishChannel(state, null, null);
+    }
+
+    private void publishChannel(WorldChannelRegistry.State state, Member actor, String requestId) {
+        for (Member target : members.values()) {
+            if (state.userIds().contains(target.userId())) {
+                target.peer().offer(protocol.encode(target == actor ? requestId : null, "CHANNEL_STATE", state));
+            }
+        }
     }
 
     private void ready(Member member, Request request) {

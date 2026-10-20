@@ -14,6 +14,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -142,6 +143,7 @@ class ChannelQueryTests {
     static class PresenceConfiguration {
 
         @Bean
+        @Primary
         TestPresence presence() {
             return new TestPresence();
         }

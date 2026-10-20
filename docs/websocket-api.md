@@ -1,6 +1,6 @@
 # 🔌 WebSocket API 명세서
 
-**연결 주소** `ws://localhost:8080/ws/tables` · **범위** 연결·착석·게임 선택·퇴장·준비 동기화 · **구현 상태** 로컬 검증 완료
+**연결 주소** `ws://localhost:8080/ws/tables` · **범위** 연결·채널 입퇴장·착석·게임 선택·퇴장·준비 동기화 · **구현 상태** 로컬 검증 완료
 
 기능 이름을 열면 요청·응답 JSON과 처리 규칙을 볼 수 있습니다. 공통 형식·ERD 관계는 [📌 공통 규격](websocket-api/00-common.md)에 정리했습니다.
 
@@ -22,6 +22,13 @@
 | 테이블 | 로컬 검증 완료 | WS | 클라이언트 → 서버 | [🚪 테이블 퇴장](websocket-api/05-table-leave.md) | TABLE_LEAVE | /ws/tables |
 | 테이블 | 로컬 검증 완료 | WS | 서버 → 클라이언트 | [👋 퇴장 완료](websocket-api/05-table-leave.md) | TABLE_LEFT | /ws/tables |
 | 공통 | 로컬 검증 완료 | WS | 서버 → 클라이언트 | [⚠️ 오류 응답](websocket-api/06-error.md) | ERROR | /ws/tables |
+
+채널 입장·퇴장 메시지는 기존 소켓을 재사용합니다. 상세 요청·응답은 [채널 WebSocket 명세](world-websocket-api.md)를 따릅니다. 채널은 서버 설정으로 등록하며 기본 목록은 비어 있습니다. 이동·채널별 테이블 분리는 미구현이고 기존 테이블 요청에 채널 입장을 강제하지 않습니다.
+
+| 방향 | 메시지 | 성공 결과 |
+| --- | --- | --- |
+| 클라이언트 → 서버 | CHANNEL_JOIN | 본인과 같은 채널 참가자에게 CHANNEL_STATE |
+| 클라이언트 → 서버 | CHANNEL_LEAVE | 본인 CHANNEL_LEFT, 남은 참가자 CHANNEL_STATE |
 
 ## 흐름
 

@@ -37,7 +37,11 @@
 | `GAME_NOT_SELECTED` | 게임 선택 전 준비 true 요청 | 게임 선택 후 다시 준비 |
 | `GAME_PLAYER_LIMIT` | 현재 착석자가 선택하려는 게임 최대 인원보다 많음 | 인원이 줄어든 뒤 변경. 강제 퇴장 없음 |
 | `UNSUPPORTED_GAME` | 지원하지 않는 게임 코드 | 허용된 게임 선택 |
-| `TABLE_BUSY` | 선택적 시작 검증의 STARTING·CONFIRMED에서 변경 | 기존 시작 결과 확인. 새 변경 요청 반복 금지 |
+| `CHANNEL_NOT_FOUND` | 등록되지 않은 채널 | 채널 목록 확인 |
+| `ALREADY_IN_CHANNEL` | 다른 채널에 입장 중 | 기존 채널 퇴장 후 입장 |
+| `CHANNEL_FULL` | 채널 정원 초과 | 다른 채널 선택 |
+| `NOT_IN_CHANNEL` | 채널 미입장 상태에서 퇴장 | 현재 입장 상태 확인 |
+| `TABLE_BUSY` | 착석 중 채널 변경·퇴장 또는 선택적 시작 검증의 STARTING·CONFIRMED에서 변경 | 기존 시작 결과 확인. 새 변경 요청 반복 금지 |
 | `GAME_RECOVERY_REQUIRED` | 경기 조회 중·진행 중·만료 미확정 상태의 테이블 변경 | GAME_CONNECTION_STATE 확인 |
 | `RECOVERY_NOT_AVAILABLE` | 임시 개발 사용자 등 복구 연결 대상이 아님 | 인증 연결 설정 확인 |
 | `START_NOT_REQUESTED` | 시작 검증 모드에서 시작 시도 없이 결과 조회 | 게임 선택·전원 준비 이후 조회 |
