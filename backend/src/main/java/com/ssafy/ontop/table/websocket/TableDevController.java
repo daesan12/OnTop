@@ -1,9 +1,15 @@
 package com.ssafy.ontop.table.websocket;
 
+import com.ssafy.ontop.world.config.WorldChannelProperties;
+import java.time.Duration;
+import java.util.List;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.MediaType;
+import org.springframework.http.CacheControl;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -11,8 +17,36 @@ import org.springframework.web.bind.annotation.RestController;
 @Profile("local")
 public class TableDevController {
 
+    private final WorldChannelProperties world;
+    private final boolean authenticated;
+    private final Duration movementInterval;
+    private final Duration chatInterval;
+
+    public TableDevController(WorldChannelProperties world,
+            @Value("${ontop.websocket.authenticated:false}") boolean authenticated,
+            @Value("${ontop.world.movement.minimum-interval:100ms}") Duration movementInterval,
+            @Value("${ontop.world.chat.minimum-interval:1s}") Duration chatInterval) {
+        this.world = world;
+        this.authenticated = authenticated;
+        this.movementInterval = movementInterval;
+        this.chatInterval = chatInterval;
+    }
+
     @GetMapping(value = "/dev/tables", produces = MediaType.TEXT_HTML_VALUE)
     public Resource page() {
         return new ClassPathResource("dev/tables.html");
+    }
+
+    @GetMapping("/dev/world-config")
+    public ResponseEntity<WorldConfig> worldConfig() {
+        if (authenticated) {
+            return ResponseEntity.notFound().cacheControl(CacheControl.noStore()).build();
+        }
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(new WorldConfig(world.channels(),
+                Math.max(1, movementInterval.toMillis()), Math.max(1, chatInterval.toMillis())));
+    }
+
+    public record WorldConfig(List<WorldChannelProperties.Channel> channels, long movementIntervalMs,
+            long chatIntervalMs) {
     }
 }

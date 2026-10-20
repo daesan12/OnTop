@@ -38,6 +38,18 @@ java -jar build/libs/ontop-0.0.1-SNAPSHOT.jar
 
 DB 없는 Raw WebSocket 연결·테이블 착석·퇴장·준비 동기화와 [채널 입장·퇴장·접속 인원 반영](docs/world-websocket-api.md)을 구현했다. 채널별 테이블 분리도 구현했다. 같은 채널의 최신 위치 공유·채팅 송수신 기반도 구현했다. 근거리 채팅 반경·욕설 판정·메시지 보관은 아직 없다. 맵 충돌·속도 판정은 아직 없다. 개발용 기능은 `local` 프로필에서만 활성화된다. DB·정식 인증·실제 게임·재접속 복구·정산은 포함하지 않는다. `/`의 `404`는 정상이다.
 
+### 브라우저에서 광장·채팅 보기
+
+검증용 채널 두 개를 켜려면 `backend/`에서 실행한다. 샘플 설정은 최종 채널 수·정원이 아니다.
+
+```powershell
+.\gradlew.bat bootRun --args='--spring.profiles.active=local,visual-test --server.port=8081'
+```
+
+`http://localhost:8081/dev/tables?tab=A`와 `?tab=B`를 두 탭에서 연다. 각 탭에서 **연결하기 → 광장 A → 채널 입장** 후 지도 클릭·채팅을 확인한다. 같은 테이블에 착석하고 첫 착석자가 게임을 선택한 뒤 두 사람 모두 준비한다. 착석 중 이동 버튼은 비활성화된다. 테이블 퇴장·채널 변경·연결 종료도 다른 탭에서 확인할 수 있다.
+
+지도는 위치 동기화를 보는 2D 화면이며 실제 3D 맵이 아니다. 채널 설정이 없으면 기존 테이블 전용 모드를 유지한다. `/dev/world-config`는 local 개발 모드의 설정만 반환하고 실제 사용자·현재 인원은 노출하지 않는다. 인증 모드에서는 이 설정 경로가 404이며 정식 채널 API의 인증은 유지한다. 사용 중인 포트의 서버를 종료하지 말고 다른 포트를 지정한다.
+
 ```powershell
 cd backend
 .\gradlew.bat bootRun --args='--spring.profiles.active=local'
