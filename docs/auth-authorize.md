@@ -122,7 +122,8 @@ curl.exe --silent --show-error --output NUL --write-out '%{http_code}' http://lo
 
 위 명령은 상태 코드만 출력하여 Location의 state·세션 쿠키를 콘솔에 남기지 않는다.
 DB와 함께 실행할 때만 기존 DB 환경변수를 주입하고 `--spring.profiles.active=local,db`를 사용한다.
-`application-db.yml`, JPA validate, Flyway와 migration SQL 0개 상태는 변경하지 않았다.
+DB 구성은 별도 [users 스키마 안내](users-schema.md)를 따른다.
+JPA는 validate를 유지하며 현재 Flyway V1은 users만 생성한다.
 
 ## 검증과 운영 유의점
 
