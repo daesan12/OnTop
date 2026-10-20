@@ -34,9 +34,95 @@ sh ./gradlew bootRun
 java -jar build/libs/ontop-0.0.1-SNAPSHOT.jar
 ```
 
+## MySQL + Flyway
+
+DB가 필요한 실행에서만 `db` 프로필을 추가한다. Spring Boot 3.5.16의 의존성 관리로
+Spring Data JPA, MySQL Connector/J, Flyway Core와 MySQL 지원 모듈의 버전을 맞춘다.
+
+| 실행 프로필 | DB 동작 |
+| --- | --- |
+| 미지정, `local`, `test` (`db` 없음) | DataSource·JPA·Flyway 자동 설정 제외. 기존 DB 없는 실행·테스트 유지 |
+| `db` | 환경변수로 MySQL 연결, Flyway 실행 후 JPA 검증 |
+| `local,db` | MySQL 연결과 기존 local WebSocket 개발 기능을 함께 사용 |
+
+DB를 사용하는 배포에는 반드시 `db` 프로필을 활성화한다. 환경변수만 설정하고 프로필을 생략하면 DB는 활성화되지 않는다.
+`local`의 `127.0.0.1` 바인딩은 `local,db`에서도 유지된다.
+
+### DB 준비와 환경변수
+
+별도 MySQL 서버에서 관리자가 빈 데이터베이스와 해당 DB에 접근할 사용자를 준비한다.
+Flyway 이력 테이블과 향후 migration을 실행할 수 있는 권한이 필요하다. 예를 들어 DB만 먼저 준비하려면:
+
+```sql
+CREATE DATABASE ontop CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+```
+
+| 필수 환경변수 | 용도 |
+| --- | --- |
+| `DB_URL` | MySQL JDBC URL. 예: `jdbc:mysql://127.0.0.1:3306/ontop?connectionTimeZone=UTC` |
+| `DB_USERNAME` | DB 사용자 이름 |
+| `DB_PASSWORD` | DB 비밀번호 |
+
+세 값에는 기본값이 없다. `db` 실행 전 셸·IDE·배포 환경에서 주입한다. 필수 설정이 없거나 DB 연결에 실패하면 앱이 시작되지 않는다.
+Spring Boot가 `.env`를 자동으로 읽지는 않는다.
+비밀번호를 YAML·JDBC URL·Git에 넣지 않는다. `.env` 파일은 Git 추적에서 제외한다.
+
+PowerShell에서 현재 세션에 설정하고 실행하는 예시 (`backend/`에서 실행):
+
+```powershell
+$env:DB_URL = 'jdbc:mysql://127.0.0.1:3306/ontop?connectionTimeZone=UTC'
+$env:DB_USERNAME = Read-Host 'DB 사용자 이름'
+$env:DB_PASSWORD = [System.Net.NetworkCredential]::new('', (Read-Host 'DB 비밀번호' -AsSecureString)).Password
+.\gradlew.bat bootRun --args='--spring.profiles.active=local,db'
+```
+
+Linux/macOS에서는 세 환경변수를 배포 환경이나 셸에 주입한 뒤 실행한다:
+
+```sh
+sh ./gradlew bootRun --args='--spring.profiles.active=local,db'
+```
+
+개발 WebSocket이 필요 없는 DB 실행은 `--spring.profiles.active=db`를 사용한다.
+빌드된 JAR에도 같은 인수를 전달할 수 있다.
+
+### Migration과 검증
+
+- 경로는 `backend/src/main/resources/db/migration/`이다.
+- 파일명은 `V<양의 정수>__<lower_snake_case_설명>.sql`을 사용한다.
+  버전 중복 방지·적용된 SQL 관리 규칙은 [migration 안내](backend/src/main/resources/db/migration/README.md)를 따른다.
+- JPA `ddl-auto`는 `validate`여서 테이블을 생성·변경하지 않는다. `schema.sql`·`data.sql` 초기화도 비활성화했다.
+- `baseline-on-migrate=false`이며 migration 이름과 체크섬을 검증한다.
+  이력 없이 이미 테이블이 있는 DB가 거절되면 자동 baseline을 켜지 말고 기존 스키마 편입 방법을 검토한다.
+- 현재 migration SQL은 **0개**다. 첫 실제 스키마가 확정될 때 `V1`을 추가한다.
+  users를 포함한 9개 테이블이나 빈 migration은 이 작업에서 만들지 않는다.
+
+DB 연결 검증은 `db` 프로필로 시작한 뒤 Flyway의 MySQL 연결·검증 로그와 앱 시작 성공을 확인한다.
+현재는 `No migrations found` 안내가 나올 수 있으며 적용할 버전은 없다.
+Flyway 내부 관리용 `flyway_schema_history`는 생성될 수 있지만 도메인 테이블은 생성하지 않는다.
+MySQL 클라이언트에서 `SHOW TABLES;`로 확인하고, 이력 테이블이 있다면 다음 조회로 적용 내역을 확인한다:
+
+```sql
+SELECT installed_rank, version, description, success
+FROM flyway_schema_history
+ORDER BY installed_rank;
+```
+
+DB가 없어도 기존 회귀 검증은 `backend/`에서 실행할 수 있다:
+
+```powershell
+.\gradlew.bat clean build
+.\gradlew.bat flowTest
+```
+
+이 테스트 통과만으로 실제 MySQL 접속·권한·Flyway 실행을 검증한 것은 아니다.
+DB가 없는 환경에서는 해당 항목을 미검증으로 기록한다.
+
+설정 근거: [Spring Boot 3.5 DB 초기화](https://docs.spring.io/spring-boot/3.5/how-to/data-initialization.html),
+[관리 의존성](https://docs.spring.io/spring-boot/3.5/appendix/dependency-versions/coordinates.html).
+
 ## 현재 구현 범위
 
-DB 없는 Raw WebSocket 연결·테이블 착석·퇴장·준비 동기화를 구현했다. 개발용 기능은 `local` 프로필에서만 활성화된다. DB·정식 인증·실제 게임·재접속 복구·정산은 포함하지 않는다. `/`의 `404`는 정상이다.
+DB 없는 Raw WebSocket 연결·테이블 착석·퇴장·준비 동기화를 구현했다. 개발용 기능은 `local` 프로필에서만 활성화된다. MySQL·JPA·Flyway 실행 기반은 `db` 프로필에 준비했으며 도메인 테이블·정식 인증·실제 게임·정산은 미구현이다. `/`의 `404`는 정상이다.
 
 ```powershell
 cd backend
