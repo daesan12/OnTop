@@ -30,7 +30,7 @@ tasks.named('test') {
 }
 
 tasks.register('flowTest', Test) {
-    description = '광장·테이블 전체 흐름 및 heartbeat·29초 복귀/30초 만료 시나리오 실행'
+    description = '광장·테이블·경기 통신 및 heartbeat·복귀/만료 시나리오 실행'
     group = 'verification'
     testClassesDirs = sourceSets.test.output.classesDirs
     classpath = sourceSets.test.runtimeClasspath
@@ -38,6 +38,7 @@ tasks.register('flowTest', Test) {
     filter {
         includeTestsMatching 'com.ssafy.ontop.table.FullFlowTests'
         includeTestsMatching 'com.ssafy.ontop.table.WorldFullFlowTests'
+        includeTestsMatching 'com.ssafy.ontop.table.GameCommunicationFlowTests'
     }
     // 반복 실행해도 실제 소켓 시나리오를 다시 확인한다.
     outputs.upToDateWhen { false }

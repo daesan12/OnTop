@@ -235,6 +235,7 @@ class AuthenticatedWebSocketTests {
                     Principal principal = switch (login == null ? "" : login) {
                         case "naver" -> new TestPrincipal(101, "NAVER", true);
                         case "ssafy" -> new TestPrincipal(202, "SSAFY", true);
+                        case "spectator" -> new TestPrincipal(505, "NAVER", true);
                         case "expired" -> new TestPrincipal(303, "NAVER", false);
                         case "unsupported" -> new TestPrincipal(404, "GOOGLE", true);
                         default -> null;
