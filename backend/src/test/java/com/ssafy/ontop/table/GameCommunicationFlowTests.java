@@ -7,6 +7,10 @@ import com.ssafy.ontop.game.action.GameActionGateway;
 import com.ssafy.ontop.game.action.GameActionResult;
 import com.ssafy.ontop.game.reconnect.GameRecoveryGateway;
 import com.ssafy.ontop.game.reconnect.GameRecoverySnapshot;
+import com.ssafy.ontop.game.result.GameResultCommitted;
+import com.ssafy.ontop.game.result.GameResultGateway;
+import com.ssafy.ontop.game.result.GameResultView;
+import com.ssafy.ontop.game.result.GameResultView.SettlementStatus;
 import com.ssafy.ontop.game.state.GameStateGateway;
 import com.ssafy.ontop.game.state.GameStateView;
 import java.util.Map;
@@ -20,6 +24,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.annotation.DirtiesContext;
@@ -38,9 +43,11 @@ class GameCommunicationFlowTests {
     private int port;
     @Autowired
     private Engine engine;
+    @Autowired
+    private ApplicationEventPublisher events;
 
     @Test
-    void 경기입력과_개인상태와_관전을_복귀후까지_이어검증한다() throws Exception {
+    void 경기입력과_복귀부터_종료와_정산결과까지_이어검증한다() throws Exception {
         System.out.println("[SIMULATED] 인증·경기는 테스트 대역. 실제 게임 규칙·DB·정산 검증 아님.");
         try (ScenarioClient first = new ScenarioClient(port, "naver");
                 ScenarioClient second = new ScenarioClient(port, "ssafy");
@@ -89,10 +96,36 @@ class GameCommunicationFlowTests {
                         assertAction(returned, "after-unwatch", 11);
                         assertState(returned.await(GameCommunicationFlowTests::automaticState), 101, 12);
                         assertState(second.await(GameCommunicationFlowTests::automaticState), 202, 12);
+                        assertThat(engine.actionCount).isEqualTo(4);
+                        pass("관전 해제 후 갱신 미수신 / 참가자는 계속 갱신");
+
+                        engine.finish();
+                        System.out.println("[SIMULATED] 경기 담당의 종료·저장 결과를 대역으로 주입. 승패 계산·지급 없음.");
+                        returned.request("GAME_RECONNECT_CHECK", Map.of());
+                        second.request("GAME_RECONNECT_CHECK", Map.of());
+                        returned.state("FINISHED");
+                        second.state("FINISHED");
+                        var rejected = returned.request("GAME_ACTION_SEND", action("after-finish", 13));
+                        assertThat(rejected.path("payload").path("code").asText())
+                                .isEqualTo("GAME_RECOVERY_REQUIRED");
+                        assertThat(engine.actionCount).isEqualTo(4);
+                        publishResults();
+                        assertResult(returned.await(GameCommunicationFlowTests::isResult), 13, null);
+                        assertResult(second.await(GameCommunicationFlowTests::isResult), 13, null);
+                        pass("종료 상태 복구 반영 → 입력 차단 → 본인 종료 결과 PENDING/null 수신");
+
+                        engine.settle();
+                        publishResults();
+                        assertResult(returned.await(GameCommunicationFlowTests::isResult), 14, 1L);
+                        assertResult(second.await(GameCommunicationFlowTests::isResult), 14, -1L);
+                        assertResult(returned.request("GAME_RESULT_CHECK", Map.of("gameSessionId", "flow-game")),
+                                14, 1L);
+                        assertResult(second.request("GAME_RESULT_CHECK", Map.of("gameSessionId", "flow-game")),
+                                14, -1L);
+                        assertThat(engine.actionCount).isEqualTo(4);
+                        pass("SETTLED 본인 순증감 +1/-1 격리 / 저장 결과 재조회 / 관전자 결과 미수신");
                         return null;
                     });
-                    assertThat(engine.actionCount).isEqualTo(4);
-                    pass("관전 해제 후 갱신 미수신 / 참가자는 계속 갱신");
                 }
                 return null;
             });
@@ -117,7 +150,35 @@ class GameCommunicationFlowTests {
     }
 
     private static boolean privateOrActionResult(JsonNode message) {
-        return message.toString().contains("mine-") || message.path("type").asText().equals("GAME_ACTION_RESULT");
+        return message.toString().contains("mine-") || message.path("type").asText().equals("GAME_ACTION_RESULT")
+                || isResult(message);
+    }
+
+    private static boolean isResult(JsonNode message) {
+        return message.path("type").asText().equals("GAME_RESULT");
+    }
+
+    private void publishResults() {
+        for (long userId : new long[]{101, 202}) {
+            events.publishEvent(new GameResultCommitted(engine.result(userId, "flow-game").orElseThrow()));
+        }
+    }
+
+    private static void assertResult(JsonNode message, long version, Long delta) {
+        assertThat(message.path("type").asText()).isEqualTo("GAME_RESULT");
+        var payload = message.path("payload");
+        assertThat(payload.path("gameSessionId").asText()).isEqualTo("flow-game");
+        assertThat(payload.path("version").asLong()).isEqualTo(version);
+        assertThat(payload.path("status").asText()).isEqualTo("FINISHED");
+        assertThat(payload.path("settlementStatus").asText()).isEqualTo(delta == null ? "PENDING" : "SETTLED");
+        if (delta == null) {
+            assertThat(payload.path("myCoinDelta").isNull()).isTrue();
+        } else {
+            assertThat(payload.path("myCoinDelta").asLong()).isEqualTo(delta);
+        }
+        assertThat(payload.has("userId")).isFalse();
+        assertThat(payload.path("participants").findValuesAsText("userId")).containsExactly("101", "202");
+        assertThat(message.toString()).doesNotContain("mine-");
     }
 
     private static void assertState(JsonNode message, long userId, long version) {
@@ -147,6 +208,11 @@ class GameCommunicationFlowTests {
         Engine engine() {
             return new Engine();
         }
+
+        @Bean
+        GameResultGateway results(Engine engine) {
+            return engine::result;
+        }
     }
 
     // 게임별 규칙·영속 멱등성을 구현하지 않는 통신 검증 대역이다.
@@ -155,9 +221,12 @@ class GameCommunicationFlowTests {
         private final BlockingQueue<Long> loads = new LinkedBlockingQueue<>();
         private long version = 8;
         private int actionCount;
+        private boolean finished;
+        private SettlementStatus settlement = SettlementStatus.PENDING;
 
         @Override
         public synchronized GameActionResult apply(GameActionCommand command) {
+            assertThat(finished).as("종료 후 입력은 Gateway에 도달하면 안 됨").isFalse();
             assertThat(Set.of(101L, 202L)).contains(command.userId());
             assertThat(command.gameId()).isEqualTo("flow-game");
             assertThat(command.expectedVersion()).isEqualTo(version);
@@ -182,8 +251,26 @@ class GameCommunicationFlowTests {
             loads.add(userId);
             return Set.of(101L, 202L).contains(userId)
                     ? Optional.of(new GameRecoverySnapshot(userId, "flow-game", 2, version,
-                            GameRecoverySnapshot.Phase.PLAYING, mapper.createObjectNode().put("hand", "mine-" + userId)))
+                            finished ? GameRecoverySnapshot.Phase.FINISHED : GameRecoverySnapshot.Phase.PLAYING,
+                            mapper.createObjectNode().put("hand", "mine-" + userId)))
                     : Optional.empty();
+        }
+
+        private synchronized void finish() {
+            finished = true;
+            version++;
+        }
+
+        private synchronized void settle() {
+            settlement = SettlementStatus.SETTLED;
+            version++;
+        }
+
+        private synchronized Optional<GameResultView> result(long userId, String gameId) {
+            if (!finished || !gameId.equals("flow-game") || !Set.of(101L, 202L).contains(userId)) {
+                return Optional.empty();
+            }
+            return Optional.of(GameResultTests.result(userId, gameId, version, settlement));
         }
 
         @Override
