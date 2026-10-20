@@ -1,8 +1,8 @@
-# 광장 채널 입장·퇴장
+# 광장 WebSocket · 채널·이동·채팅
 
 기존 Raw WebSocket `/ws/tables` 연결을 재사용한다. `local` 전용이며 별도 `/ws/world` 연결은 만들지 않는다. 기존 인증·중복 접속 차단·heartbeat·연결별 송신 순서를 그대로 사용한다.
 
-기준은 [OnTop v0.4](https://app.notion.com/p/OnTop_-_-154161842b868387b6ad0174db68ee71)의 광장·실시간 통신과 [채널 목록 계약](channel-query-api.md)이다. 아래 메시지 이름·필드·버전은 구현의 통신 계약이다. 같은 채널의 최신 위치 공유를 구현했고 채팅·맵 충돌 판정은 후속 범위다. 채널 설정 시 채널별 테이블을 생성하고 해당 채널 입장 후에만 착석한다. [테이블 조회 계약](table-query-api.md)의 channelId 필터와 서버 발급 tableId를 사용한다. 채널 설정 없는 기존 개발 모드만 table-1·table-2를 유지한다.
+기준은 [OnTop v0.4](https://app.notion.com/p/OnTop_-_-154161842b868387b6ad0174db68ee71)의 광장·실시간 통신과 [채널 목록 계약](channel-query-api.md)이다. 아래 메시지 이름·필드·버전은 구현의 통신 계약이다. 같은 채널 위치 공유·채팅 송수신 기반을 구현했다. 최종 근거리 채팅 반경·맵 충돌 판정은 미확정/미연결이다. 채널 설정 시 채널별 테이블을 생성하고 해당 채널 입장 후에만 착석한다. [테이블 조회 계약](table-query-api.md)의 channelId 필터와 서버 발급 tableId를 사용한다. 채널 설정 없는 기존 개발 모드만 table-1·table-2를 유지한다.
 
 ## 입장
 
@@ -69,6 +69,7 @@
 | `TABLE_BUSY` | 테이블 착석 중 채널 변경·퇴장 |
 | `GAME_RECOVERY_REQUIRED` | 경기 복구 상태가 대기 기능을 막음 |
 | `MOVE_TOO_FREQUENT` | 새 순번의 이동이 최소 전송 간격보다 빠름 |
+| `CHAT_TOO_FREQUENT` | 채팅 전송이 사용자별 최소 간격보다 빠름 |
 
 예상하지 못한 오류는 기존 `INTERNAL_ERROR`를 따른다. 오류 메시지 문자열보다 code로 분기한다.
 
@@ -103,3 +104,36 @@
 - 새 이동의 최소 간격은 사용자별 기본 100ms다. `ontop.world.movement.minimum-interval`로 0 초과~60초 이하를 설정한다. 너무 빠르면 MOVE_TOO_FREQUENT이며 순번도 소비하지 않는다. 프론트는 프레임마다 보내지 말고 간격 안의 변경을 최신 하나로 모은다. 이 기본값은 성능·채널 정원을 측정한 결과가 아니다.
 
 검증은 `WorldMovementTests`의 제어 시계로 순번·간격 경계를, `WorldMovementHubTests`로 수신 대상·착석 제한을, `WorldMovementWebSocketTests`로 실제 소켓·인증 대역·heartbeat 정리·같은 계정 재입장을 확인한다. 화면 보간·이동 애니메이션·정식 로그인은 포함하지 않는다.
+
+## 채널 채팅 기반 · WORLD_CHAT_SEND / WORLD_CHAT_MESSAGE
+
+현재 local 검증 범위는 같은 채널 전체 전달이다. 기획의 최종 근거리 반경은 정해지지 않았으므로 이 단계를 근거리 필터 완료로 취급하지 않는다. 기존 소켓·서버 사용자·채널을 사용한다.
+
+```json
+{"requestId":"chat-1","type":"WORLD_CHAT_SEND","payload":{"text":"안녕 👋"}}
+```
+
+```json
+{
+  "requestId":"chat-1",
+  "type":"WORLD_CHAT_MESSAGE",
+  "payload":{
+    "messageId":"00000000-0000-4000-8000-000000000001",
+    "channelId":"channel-1",
+    "userId":"dev-example",
+    "text":"안녕 👋",
+    "sentAt":"2026-10-20T00:00:00Z"
+  }
+}
+```
+
+- 성공은 본인에게 원래 requestId의 WORLD_CHAT_MESSAGE, 같은 채널의 나머지 참가자에게 requestId=null인 같은 payload를 보낸다. 별도 ACK는 없다. 미입장·다른 채널에는 전달하지 않는다. 대기 테이블에 착석한 사용자도 현재 채널 채팅을 사용할 수 있다.
+- `userId`는 서버 연결의 내부 ID, `messageId`는 서버 발급 UUID, `sentAt`은 서버 UTC 시각이다. 닉네임·프로필 연동은 아직 없다. 클라이언트가 userId/channelId/messageId/시각을 payload에 넣으면 INVALID_PAYLOAD다.
+- `text`는 문자열 하나만 허용한다. 앞뒤 공백을 제거한 1~200 Unicode 코드포인트이며 이모지 하나는 코드포인트 기준으로 센다. 조합 이모지는 여러 코드포인트일 수 있다. 빈 문자열·공백만·초과·개행/탭/제어문자·U+2028/U+2029 줄 구분 문자·짝 없는 surrogate는 INVALID_PAYLOAD다. HTML 같은 문자열은 일반 텍스트로 보존하므로 프론트는 textContent 등 텍스트 렌더링을 사용하며 HTML로 삽입하지 않는다.
+- 기본 최소 전송 간격은 사용자별 1초다. `ontop.world.chat.minimum-interval`로 0 초과~60초 이하를 설정한다. 빠른 재전송은 CHAT_TOO_FREQUENT이며 메시지를 전달하거나 마지막 성공 시간을 연장하지 않는다. 채널 이동·퇴장·재입장으로 간격을 초기화하지 않는다. 연결 종료·heartbeat·앱 종료에서는 관련 메모리를 정리한다.
+- 간격 제한은 현재 연결 수명 기준의 기초 도배 방지다. 재접속 이후까지 지속되는 계정 제재·욕설 판정·감정 분석은 미구현이다. 설정값은 성능 실측이나 최종 제품 정책으로 정한 값이 아니다.
+- 미입장은 NOT_IN_CHANNEL이다. 기존 인증 경기 복구 제한은 GAME_RECOVERY_REQUIRED로 유지한다. 실제 경기 중 채팅 정책을 새로 확정하거나 복구 게이트를 우회하지 않는다.
+- 보관·이력 조회·재접속 재전송은 없다. 전달된 메시지는 수신 순서로 처리하고 sentAt으로 서버 순서를 다시 정렬하지 않는다. requestId는 멱등성 키가 아니므로 자동 재시도하면 간격 이후 중복 채팅이 생길 수 있다. 새 연결에는 과거 메시지를 보내지 않는다.
+- 이동·준비·채널 인원·위치 버전은 채팅으로 변경하지 않는다. 채팅 본문을 서버 로그에 남기지 않는다.
+
+`WorldChatTests`는 입력·간격·서버 메타데이터·정리를, `WorldChatHubTests`는 실제 송신 큐의 채널 격리·착석 중 사용·이동 후 제한을, `WorldChatWebSocketTests`는 인증 대역의 실제 소켓·heartbeat 후 정리를 검사한다. 실제 채팅 화면·정식 로그인·근거리 반경·운영 검증은 포함하지 않는다.

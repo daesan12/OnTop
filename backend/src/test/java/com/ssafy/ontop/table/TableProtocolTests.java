@@ -16,6 +16,18 @@ class TableProtocolTests {
     private final TableProtocol protocol = new TableProtocol(new ObjectMapper());
 
     @ParameterizedTest
+    @ValueSource(strings = {"{}", "{\"text\":null}", "{\"text\":1}", "{\"text\":\"  \"}",
+            "{\"text\":\"a\\nb\"}", "{\"text\":\"hello\",\"userId\":\"forged\"}",
+            "{\"text\":\"hello\",\"channelId\":\"other\"}",
+            "{\"text\":\"a\\u2028b\"}", "{\"text\":\"a\\u2029b\"}"})
+    void 채팅의_형식과_신원_수신채널_위조를_거절한다(String payload) {
+        RequestException error = catchThrowableOfType(RequestException.class, () -> protocol.parse(
+                "{\"requestId\":\"chat-1\",\"type\":\"WORLD_CHAT_SEND\",\"payload\":" + payload + "}"));
+        assertThat(error).isNotNull();
+        assertThat(error.code()).isEqualTo("INVALID_PAYLOAD");
+    }
+
+    @ParameterizedTest
     @ValueSource(strings = {
             "{}", "{\"sequence\":0,\"x\":1,\"y\":0,\"z\":0}",
             "{\"sequence\":-1,\"x\":1,\"y\":0,\"z\":0,\"yaw\":0}",

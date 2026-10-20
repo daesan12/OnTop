@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ssafy.ontop.world.domain.ChatText;
 import java.util.Map;
 import java.util.Set;
 
@@ -48,6 +49,7 @@ public final class TableProtocol {
             case "CHANNEL_JOIN" -> fields(payload, Set.of("channelId")) && payload.get("channelId").isTextual()
                     && !payload.get("channelId").textValue().isBlank();
             case "CHANNEL_LEAVE" -> fields(payload, Set.of());
+            case "WORLD_CHAT_SEND" -> fields(payload, Set.of("text")) && validChatText(payload.get("text"));
             case "WORLD_MOVE" -> fields(payload, Set.of("sequence", "x", "y", "z", "yaw"))
                     && payload.get("sequence").isIntegralNumber() && payload.get("sequence").canConvertToLong()
                     && payload.get("sequence").longValue() >= 0
@@ -92,6 +94,18 @@ public final class TableProtocol {
 
     private boolean finite(JsonNode value) {
         return value.isNumber() && Double.isFinite(value.doubleValue());
+    }
+
+    private boolean validChatText(JsonNode value) {
+        if (!value.isTextual()) {
+            return false;
+        }
+        try {
+            new ChatText(value.textValue());
+            return true;
+        } catch (IllegalArgumentException exception) {
+            return false;
+        }
     }
 
     private boolean fields(JsonNode node, Set<String> expected) {

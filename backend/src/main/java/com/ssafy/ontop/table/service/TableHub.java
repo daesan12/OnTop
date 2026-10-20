@@ -18,7 +18,9 @@ import com.ssafy.ontop.table.dto.TableSummaryResponse;
 import com.ssafy.ontop.table.websocket.TablePeer;
 import com.ssafy.ontop.table.websocket.WebSocketHeartbeat;
 import com.ssafy.ontop.world.config.WorldChannelProperties;
+import com.ssafy.ontop.world.domain.ChatText;
 import com.ssafy.ontop.world.service.WorldChannelRegistry;
+import com.ssafy.ontop.world.service.WorldChatService;
 import jakarta.annotation.PreDestroy;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -60,6 +62,7 @@ public class TableHub {
     private final boolean startRehearsal;
     private final Optional<GameReconnectService> reconnect;
     private final WorldChannelRegistry channels;
+    private final WorldChatService chat;
     private final ExecutorService startWorkers = Executors.newVirtualThreadPerTaskExecutor();
     private final ScheduledExecutorService heartbeatTimer = Executors.newSingleThreadScheduledExecutor(
             Thread.ofPlatform().daemon(true).name("table-heartbeat").factory());
@@ -85,13 +88,20 @@ public class TableHub {
                 new WorldChannelRegistry(new WorldChannelProperties(null)));
     }
 
+    public TableHub(ObjectMapper mapper, Optional<GameStartGateway> gateway,
+            boolean startRehearsal, Optional<GameReconnectService> reconnect,
+            Duration heartbeatInterval, Duration heartbeatTimeout, WorldChannelRegistry channels) {
+        this(mapper, gateway, startRehearsal, reconnect, heartbeatInterval, heartbeatTimeout, channels,
+                new WorldChatService(Duration.ofSeconds(1)));
+    }
+
     @Autowired
     public TableHub(ObjectMapper mapper, Optional<GameStartGateway> gateway,
             @Value("${ontop.start-rehearsal.enabled:false}") boolean startRehearsal,
             Optional<GameReconnectService> reconnect,
             @Value("${ontop.websocket.heartbeat.interval:10s}") Duration heartbeatInterval,
             @Value("${ontop.websocket.heartbeat.timeout:10s}") Duration heartbeatTimeout,
-            WorldChannelRegistry channels) {
+            WorldChannelRegistry channels, WorldChatService chat) {
         if (startRehearsal && gateway.isEmpty()) {
             throw new IllegalArgumentException("시작 연동 검증 대역이 필요합니다.");
         }
@@ -99,6 +109,7 @@ public class TableHub {
         this.startRehearsal = startRehearsal;
         this.reconnect = reconnect;
         this.channels = channels;
+        this.chat = chat;
         channelIds = Set.copyOf(channels.snapshot().keySet());
         if (channelIds.isEmpty()) {
             rooms.put("table-1", new TableRoom("table-1"));
@@ -224,6 +235,7 @@ public class TableHub {
                 case "CHANNEL_JOIN" -> joinChannel(member, request);
                 case "CHANNEL_LEAVE" -> leaveChannel(member, request);
                 case "WORLD_MOVE" -> moveWorld(member, request);
+                case "WORLD_CHAT_SEND" -> sendChat(member, request);
                 case "TABLE_JOIN" -> join(member, request);
                 case "READY_SET" -> ready(member, request);
                 case "GAME_SELECT" -> selectGame(member, request);
@@ -231,6 +243,8 @@ public class TableHub {
                 case "GAME_START_CHECK" -> checkStart(member, request);
                 default -> throw new IllegalStateException("검증되지 않은 메시지");
             }
+        } catch (WorldChatService.ChatException exception) {
+            member.peer().offer(protocol.error(requestId, "CHAT_TOO_FREQUENT", exception.getMessage()));
         } catch (WorldChannelRegistry.ChannelException exception) {
             member.peer().offer(protocol.error(requestId, exception.code(), exception.getMessage()));
         } catch (RequestException exception) {
@@ -247,6 +261,7 @@ public class TableHub {
             return;
         }
         member.peer().stop();
+        chat.disconnected(member.userId());
         WorldChannelRegistry.State channelState = channels.disconnect(member.userId());
         if (channelState != null) {
             publishChannel(channelState, null, null);
@@ -279,6 +294,7 @@ public class TableHub {
         members.values().forEach(member -> member.peer().stop());
         members.clear();
         channels.clear();
+        chat.clear();
         seating.clear();
         starts.clear();
         startWorkers.shutdownNow();
@@ -356,6 +372,22 @@ public class TableHub {
             publishWorld(change.state(), member, request.requestId());
         } else {
             member.peer().offer(protocol.encode(request.requestId(), "WORLD_STATE", change.state()));
+        }
+    }
+
+    private void sendChat(Member member, Request request) {
+        String channelId = channels.channelOf(member.userId());
+        if (channelId == null) {
+            fail(request, "NOT_IN_CHANNEL", "먼저 채널에 입장해주세요.");
+        }
+        WorldChatService.Message message = chat.create(channelId, member.userId(),
+                new ChatText(request.payload().get("text").textValue()));
+        member.peer().offer(protocol.encode(request.requestId(), "WORLD_CHAT_MESSAGE", message));
+        String notice = protocol.encode(null, "WORLD_CHAT_MESSAGE", message);
+        for (Member target : members.values()) {
+            if (target != member && channelId.equals(channels.channelOf(target.userId()))) {
+                target.peer().offer(notice);
+            }
         }
     }
 

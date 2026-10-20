@@ -30,8 +30,11 @@
 | 클라이언트 → 서버 | CHANNEL_JOIN | 본인과 같은 채널 참가자에게 CHANNEL_STATE |
 | 클라이언트 → 서버 | CHANNEL_LEAVE | 본인 CHANNEL_LEFT, 남은 참가자 CHANNEL_STATE |
 | 클라이언트 → 서버 | WORLD_MOVE | 본인과 같은 채널 참가자에게 WORLD_STATE |
+| 클라이언트 → 서버 | WORLD_CHAT_SEND | 본인과 같은 채널 참가자에게 WORLD_CHAT_MESSAGE |
 
 CHANNEL_JOIN 성공·다른 사용자 입퇴장·종료 때는 WORLD_STATE도 알립니다. 위치 미보고 참가자는 position=null이며 채널 인원 버전과 위치 버전은 따로 관리합니다.
+
+채널 채팅은 일반 텍스트 1~200 Unicode 코드포인트·기본 1초 간격입니다. [광장 계약](world-websocket-api.md)의 요청·응답·전달 범위를 따릅니다. 근거리 반경·욕설 판정·메시지 이력은 미구현입니다.
 
 ## 흐름
 
