@@ -8,6 +8,7 @@
 | Git 컨벤션 수신본 | [conventions/git.md](conventions/git.md) | 원문 3개·이미지 2개와 상충하는 규칙 확인 항목 |
 | 백엔드 코드 컨벤션 | [conventions/backend-code.md](conventions/backend-code.md) | 포맷·명명·패키지·객체·예외·로그·테스트 작성 기준 |
 | 백엔드 담당 분담표 | [backend-responsibilities.md](backend-responsibilities.md) | 실시간 통신·데이터 정합성 담당과 시작·베팅·정산 연결점 |
+| 상점·인벤토리 | [shop-inventory.md](shop-inventory.md) | 인증 목록·구매 원자성/중복·보유·장착, 선택적 SQL·공통 지갑 통합 경계 |
 | 게임 엔진 통신 분기 | [game-engine-routing.md](game-engine-routing.md) | 서버 경기 ID별 입력·상태·복구 분기와 교차 점유. 오목·주사위·원카드·거짓말 다리 연결 |
 | 주사위 실행 계약 | [farkle.md](farkle.md) | 점수·굴림·저장·버스트·핫 다이스·즉시승리·차례30초 넘김. 실제 재화/저장은 별도 |
 | 원카드 실행 계약 | [onecard.md](onecard.md) | 제출·공격·특수카드·개인손패·선언/신고·30초넘김. 기권손패정책은확인대기·필수명시설정 |

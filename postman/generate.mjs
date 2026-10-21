@@ -12,7 +12,7 @@ const variables = {
     tableIdA: '',
     tableIdB: '',
     gameId: 'replace-with-real-game-id',
-    accessToken: '', websocketTicket: ''
+    accessToken: '', websocketTicket: '', shopItemId: '', userItemId: '', purchaseRequestKey: '', purchaseId: ''
 };
 
 const statusTest = status => `pm.test('HTTP ${status}', () => pm.response.to.have.status(${status}));`;
@@ -121,6 +121,44 @@ pm.test('공개 요약과 캐시 금지', () => {
 loginTables.headers = [{ key: 'Authorization', value: 'Bearer {{accessToken}}' },
     { key: 'Origin', value: '{{baseUrl}}' }];
 httpItems.push(loginTables);
+
+const shopAuth = [{key: 'Authorization', value: 'Bearer {{accessToken}}'}, {key: 'Origin', value: '{{baseUrl}}'}];
+const shopSetup = requireEnvironment + `\nif (!pm.environment.get('accessToken')) throw new Error('개인 로컬 Access JWT가 필요합니다.');`;
+const catalog = http('13 상점 판매 아이템 조회', '/api/v1/shop/items', 200,
+    'SHOP-01: local,db + ontop.shop.enabled=true·공통 지갑/상점 스키마가 필요합니다. 판매 상품을 조회하며 첫 itemId를 개인 환경에 저장합니다.',
+    `const items=pm.response.json().items; pm.expect(items).to.be.an('array');
+if(items.length) pm.environment.set('shopItemId',items[0].itemId);`, shopSetup);
+catalog.headers = shopAuth; httpItems.push(catalog);
+const purchaseBefore = shopSetup + `\nif(!/^[1-9][0-9]*$/.test(String(pm.environment.get('shopItemId')||''))) throw new Error('13에서 판매 itemId를 선택하세요.');`;
+const purchaseBody = {mode:'raw',raw:'{\n  "itemId": {{shopItemId}},\n  "quantity": 1\n}',options:{raw:{language:'json'}}};
+const purchaseHeaders = [...shopAuth,{key:'Content-Type',value:'application/json'},
+    {key:'Idempotency-Key',value:'{{purchaseRequestKey}}'}];
+const purchase = http('14 아이템 구매 — 새 구매 키', '/api/v1/shop/purchases', 200,
+    'SHOP-02: 실행할 때마다 새 키를 만듭니다. 같은 구매 재확인은15를 사용합니다. 실제 상품 가격으로 엽전이 차감됩니다. 테스트 계정으로 확인하세요. 의상 중복 정책은 명시 설정이며 기본값이 없습니다.',
+    `const body=pm.response.json(); pm.expect(body.purchaseId).to.be.a('string');
+pm.environment.set('purchaseId',body.purchaseId); pm.environment.set('userItemId',body.userItemId);`,
+    purchaseBefore + `\npm.environment.set('purchaseRequestKey',pm.variables.replaceIn('{{$guid}}'));`);
+purchase.method='POST'; purchase.headers=purchaseHeaders; purchase.body=purchaseBody; httpItems.push(purchase);
+const replay = http('15 동일 구매 재요청 — 추가 차감 없음', '/api/v1/shop/purchases', 200,
+    '14의 키·itemId·수량을 유지합니다. 가격/판매 상태가 바뀌어도 같은 영수증을 반환합니다. 새 구매는14입니다.',
+    `pm.expect(pm.response.json().purchaseId).to.eql(pm.environment.get('purchaseId'));`,
+    purchaseBefore + `\nif(!pm.environment.get('purchaseRequestKey')) throw new Error('먼저14를 실행하세요.');`);
+replay.method='POST'; replay.headers=purchaseHeaders; replay.body=purchaseBody; httpItems.push(replay);
+const inventory = http('16 내 보유 아이템 조회', '/api/v1/users/me/items', 200,
+    'INVENTORY-01: 본인 quantity>0 보유·수량·장착 여부를 조회합니다. 판매 종료 보유도 표시합니다.',
+    `pm.expect(pm.response.json().items).to.be.an('array');`,shopSetup);
+inventory.headers=shopAuth; httpItems.push(inventory);
+const equip = http('17 보유 의상 장착·변경', '/api/v1/users/me/equipment', 200,
+    'INVENTORY-02: 본인 보유 EQUIPMENT의 userItemId로 수정합니다. 같은 부위는 하나만 장착합니다. 소비형·타인 소유는 실패합니다. 내부 커밋 알림과 3D 외형 연동은 구분합니다.',
+    `pm.expect(pm.response.json().equipment).to.be.an('array');`,
+    shopSetup + `\nif(!/^[1-9][0-9]*$/.test(String(pm.environment.get('userItemId')||''))) throw new Error('장착할 본인 보유 ID를 설정하세요.');`);
+equip.method='PATCH'; equip.headers=[...shopAuth,{key:'Content-Type',value:'application/json'}];
+equip.body={mode:'raw',raw:'{\n  "userItemId": {{userItemId}}\n}',options:{raw:{language:'json'}}}; httpItems.push(equip);
+const conflict = http('18 같은 구매 키에 다른 수량 — 409', '/api/v1/shop/purchases', 409,
+    '14 성공 뒤 같은 계정·itemId·키를 유지하며 수량만2로 바꿔 충돌을 확인합니다. 추가 차감/지급은 없습니다.',
+    codeTest('IDEMPOTENCY_CONFLICT'),purchaseBefore + `\nif(!pm.environment.get('purchaseRequestKey')) throw new Error('먼저14를 실행하세요.');`);
+conflict.method='POST'; conflict.headers=purchaseHeaders;
+conflict.body={mode:'raw',raw:'{\n  "itemId": {{shopItemId}},\n  "quantity": 2\n}',options:{raw:{language:'json'}}}; httpItems.push(conflict);
 
 const message = (name, type, payload = {}) => ({
     name, $kind: 'websocket-message', contentType: 'json',
@@ -324,7 +362,7 @@ const httpV21 = {
     item: httpItems.map(item => ({
         name: item.name,
         request: { method: item.method, url: item.url, description: item.description, auth: { type: 'noauth' },
-            ...(item.headers ? { header: item.headers } : {}) },
+            ...(item.headers ? { header: item.headers } : {}), ...(item.body ? {body:item.body} : {}) },
         event: item.scripts.map(script => ({ listen: script.type === 'beforeRequest' ? 'prerequest' : 'test',
             script: { type: 'text/javascript', exec: script.code.split('\n') } }))
     }))
@@ -343,6 +381,9 @@ function yaml(value, indent = 0) {
         + (nested(item) ? '\n' + yaml(item, indent + 2) : ' ' + JSON.stringify(item))).join('\n');
 }
 const outputs = new Map([
+    ['OnTop-Shop.postman_collection.json', JSON.stringify({info: {...httpV21.info, name: 'OnTop Shop',
+        description: 'SHOP-01/02 · INVENTORY-01/02. 13목록→14구매→15동일키 재요청→16보유→17장착. 18은 같은키 충돌 검사. local,db + ontop.shop.enabled=true + 공통/상점 스키마, 의상 정책 명시 설정이 필요합니다. 테스트 계정의 개인 로컬 Access JWT만 사용하고 공유하지 마세요. 기본 DB에 스키마를 자동 적용하지 않았습니다. 실제 DB 초기화·공통 재화 통합·3D 외형 계약은 별도 확인합니다.'},
+        item: httpV21.item.slice(12)}, null, 2) + '\n'],
     ['OnTop-HTTP.postman_collection.json', JSON.stringify(httpV21, null, 2) + '\n'],
     ['OnTop-WebSocket.postman_collection.json', JSON.stringify(wsV3, null, 2) + '\n'],
     ['OnTop-Local.postman_environment.json', JSON.stringify(environment, null, 2) + '\n']

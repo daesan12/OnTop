@@ -123,3 +123,9 @@ Postman 웹에서도 HTTP10의 URL·헤더·응답 검사 스크립트·안내�
 첫 착석자가 GAME_SELECT에서 DICE targetScore=2000/4000/6000을 선택합니다. 목표 변경은 전원 준비를 해제합니다. TABLE_STATE·TABLE_WATCH_STATE·HTTP12 요약은 targetScore를 포함하며 다른 게임은 null입니다.
 
 실제 종료 → 좌석 유지·ready=false·SETTLING → 현재 경기 전체 SETTLED 확인 → WAITING에서 다시 전원 준비 → 새 시도·경기 ID로 다음 판을 시작합니다. 알림 누락은 GAME_RESULT_CHECK 재조회로 복구하며 조회는 지급을 실행하지 않습니다. 실제 DB·원장·정산 통합 검증은 별도입니다.
+
+## 상점·인벤토리 4개 API
+
+13목록→14구매→15같은 키 재요청→16보유→17장착 순서입니다. 18은 같은 키의 다른 수량409 검사입니다. 14는 새 키를 만들고15는 기존 키를 유지합니다. userItemId는 장착 가능한 본인 의상으로 선택합니다. local,db + ontop.shop.enabled=true·공통 지갑/원장·상점 스키마와 의상 중복 정책 명시 설정이 필요합니다. 실제 판매 가격으로 차감하므로 테스트 계정에서 확인합니다.
+
+현재 생성본은 HTTP18개·WebSocket7개·저장 메시지89개입니다. 기존 웹 컬렉션을 덮어쓰지 않고 상점6개만 OnTop Shop 컬렉션으로 가져올 수 있도록 OnTop-Shop.postman_collection.json도 함께 생성합니다. 환경에 accessToken·shopItemId·userItemId·purchaseRequestKey·purchaseId를 개인 로컬 값으로 사용하며 인증 원문을 공유하지 않습니다. 구매/보유/장착 계약과 선택적 SQL 적용 조건은 [상점 명세](../docs/shop-inventory.md)를 따릅니다.
