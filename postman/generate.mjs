@@ -175,8 +175,25 @@ const wsItems = [
                   { gameId: '{{gameId}}', actionId: 'omok-move-1', expectedVersion: 0, input: { x: 7, y: 7 } }),
             message('10 오목 같은 actionId 다른 좌표 — ACTION_ID_CONFLICT', 'GAME_ACTION_SEND',
                   { gameId: '{{gameId}}', actionId: 'omok-move-1', expectedVersion: 0, input: { x: 8, y: 7 } }),
-            message('11 오목 복귀 조회 — 기존 판·버전·턴 마감 유지', 'GAME_RECONNECT_CHECK')])
+            message('11 오목 복귀 조회 — 기존 판·버전·턴 마감 유지', 'GAME_RECONNECT_CHECK'),
+            message('12 주사위 첫 굴림 — DICE 경기·현재 차례·version0', 'GAME_ACTION_SEND',
+                  { gameId: '{{gameId}}', actionId: 'dice-roll-1', expectedVersion: 0, input: { kind: 'roll', selectedIds: [] } }),
+            message('13 주사위 재굴림 — 0번이 득점할 때·최신 버전으로 수정', 'GAME_ACTION_SEND',
+                  { gameId: '{{gameId}}', actionId: 'dice-roll-2', expectedVersion: 1, input: { kind: 'roll', selectedIds: [0] } }),
+            message('14 주사위 Bank — 0번이 득점할 때·최신 버전으로 수정', 'GAME_ACTION_SEND',
+                  { gameId: '{{gameId}}', actionId: 'dice-bank-1', expectedVersion: 1, input: { kind: 'bank', selectedIds: [0] } }),
+            message('15 주사위 동일 첫 굴림 재확인 — 12와 같은 계정·경기', 'GAME_ACTION_SEND',
+                  { gameId: '{{gameId}}', actionId: 'dice-roll-1', expectedVersion: 0, input: { kind: 'roll', selectedIds: [] } })])
 ];
+const farkleGuide = '주사위(DICE)는 local의 ontop.games.farkle.enabled=true로 선택 활성화하며 서버 내부 참가 확정 후 생성한 경기에서 실행합니다. '
+    + '12는 최초 굴림,13은 재굴림,14는Bank,15는12의 동일행동 재확인입니다. 13/14는 최신 GAME_STATE.version과 현재 dice의 held=false 득점 ID로 수정하세요. 서로 순차 실행하는 고정 시나리오가 아닙니다. '
+    + 'input={kind:roll/bank,selectedIds:중복없는0~5정수배열}만 허용합니다. 선택 전체의 겹치지 않는 득점 조합 중 최대합, 굴림 간 조합결합 불가. '
+    + '1=100,5=50,동일3개는1일때1000/그외눈×100,4·5·6개는2·4·8배,12345=500,23456=750,123456=1500. 최소Bank제한·세쌍보너스 없음. '
+    + 'BUST는이번턴만소실,HOT DICE는이번턴유지·6개재굴림. 서버확정목표2000/4000/6000에Bank로도달시즉시승리·상대추가턴없음. '
+    + '한차례전체30초,재굴림·거절·재접속으로연장하지않으며 만료시저장총점유지·이번턴소실·차례넘김. 오목은기존시간패. '
+    + 'publicState:gameCode=DICE,status,players,scores,targetScore,turnTimeLimitMs=30000,turnUserId,turnDeadline,turnScore,dice[{id,value,held}],stage(AWAITING_ROLL/SELECTING/FINISHED),rollId,round,hotDice,lastEvent,winnerUserId,endReason,endedAt. '
+    + 'privateState={},새차례첫굴림전dice=[]. BANK/BUST는바로다음차례상태를전송하며 프론트가rollId/lastEvent로연출합니다. 종료는TARGET_REACHED/RECONNECT_EXPIRED이며DB정산확정과구분합니다. ';
+wsItems[5].description += '\n\n' + farkleGuide;
 const guide = '현재 코드의 local 통신 검증용. 서버는 local,visual-test로 실행하고 OnTop Local 환경을 선택하세요. '
     + '실제 오목 엔진은 선택적으로 켤 수 있으며 로그인·시작 차감·DB 정산은 미연결입니다. HTTP 테이블 조회로 ID 저장 후 WebSocket을 연결합니다. '
     + '웹에서 저장한 컬렉션은 동일 계정·워크스페이스 앱에서 사용하며 로컬 테스트는 Desktop App에서 실행하세요.';

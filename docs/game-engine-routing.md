@@ -14,6 +14,6 @@
 
 ## 현재 범위
 
-OmokEngine에 등록/종료 색인을 연결했다. 다른 게임과의 분기 검사는 실제 오목 엔진 두 인스턴스로 수행하며, 주사위 판정 완료나 실제 주사위 프론트 연동을 뜻하지 않는다. 원본 Farkle 타입의 roll/bank·선택 ID·상태 구조는 확인했으나 득점표·최종 라운드·시간 초과 규칙은 현재 기획/수령 자료만으로 확정할 수 없다. 확인 전 임의 주사위 입력 예제·점수표를 게시하지 않는다.
+OmokEngine과 [FarkleEngine](farkle.md)에 등록/종료 색인을 연결했다. 수신 게임 규칙 ZIP과 사용자30초 차례넘김 결정에 따라 주사위 판정을 구현했다. FarkleFlowTests는 실제 두 엔진을 함께 활성화해 주사위 종료 뒤 오목 복구 전환까지 검증한다. 실제 프론트·로그인·시작 차감·DB 정산 연동 완료를 뜻하지 않는다.
 
 검증 진입점은 GameEngineRouterTests, GameEngineProfileTests, OmokEngineTests, OmokFlowTests, OmokDemoHttpTests, TableProfileTests다. 서버 메모리 색인은 재시작/다중 서버의 참가/복구 원장이 아니다.

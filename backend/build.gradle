@@ -52,6 +52,7 @@ tasks.register('flowTest', Test) {
         includeTestsMatching 'com.ssafy.ontop.table.GameCommunicationFlowTests'
         includeTestsMatching 'com.ssafy.ontop.table.WorldProximityWebSocketTests.채팅과관전_거리이탈부터_재접속까지_연속확인한다'
         includeTestsMatching 'com.ssafy.ontop.table.OmokFlowTests'
+        includeTestsMatching 'com.ssafy.ontop.table.FarkleFlowTests'
         includeTestsMatching 'com.ssafy.ontop.table.WorldMovementWebSocketTests'
     }
     // 반복 실행해도 실제 소켓 시나리오를 다시 확인한다.
