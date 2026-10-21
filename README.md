@@ -190,7 +190,7 @@ Linux/macOS에서는 `sh ./gradlew bootRun --args='--spring.profiles.active=loca
 2. 각 탭에서 연결 → `table-1` 착석 → 첫 착석자가 게임 선택 → 각자 준비를 누른다. 두 화면에 전원 준비 완료가 표시된다.
 3. 준비 취소·퇴장·연결 종료를 실행해 상대 탭의 상태 변화를 확인한다.
 
-개발 페이지의 **목록 새로고침**으로 테이블별 착석·준비 인원과 빈자리를 확인한다. [테이블 목록 API](docs/table-query-api.md)는 `GET /api/v1/tables`이며 `local`에서 추가 옵션 없이 사용할 수 있다. 목록은 조회 시점의 상태이고 착석 후 좌석·준비 상태는 WebSocket으로 동기화한다.
+개발 페이지의 **목록 새로고침**으로 테이블별 착석·준비 인원과 빈자리를 확인한다. [테이블 목록 API](docs/table-query-api.md)는 `GET /api/v1/tables`다. 기본 개발 모드는 무인증, `ontop.websocket.authenticated=true` 모드는 로그인 Access JWT·활성 계정 확인과 허용 출처 CORS를 적용한다. 로그인 조회 → 접속권 → 채널 입장 → 응답 tableId로 착석·준비하며 Postman HTTP12로 목록을 재확인한다. 목록은 예약이 아니며 실제 착석에서 다시 검사한다.
 
 [채널 목록 API](docs/channel-query-api.md)는 `GET /api/v1/channels`이며 `local`에서 서버 설정과 실제 광장 인원을 제공한다. Access JWT 서명·만료와 활성 계정을 검증하며 기존 서버 Principal도 지원한다. DB 계정 어댑터는 `db` 프로필이 필요하다. 인증 없이 직접 조회하면401이며 기본 설정은 빈 목록이다. 로그인 → 채널 조회 → 접속권 → WS 채널 입장 → 인원 재조회로 연결한다. 실제 외부 OAuth/DB 검증은 별도다.
 

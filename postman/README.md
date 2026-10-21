@@ -1,5 +1,9 @@
 # OnTop Postman 테스트
 
+## 로그인 테이블 조회
+
+인증 모드는 HTTP11 채널 목록 → 선택한 channelIdA 설정 → **HTTP12 로그인 사용자 테이블 조회·ID 저장** → HTTP10 접속권 → WS07 채널 입장·착석·선택·준비 순서다. HTTP12가 tableIdA를 저장하며 이후 같은 요청을 다시 보내 착석/준비/퇴장·heartbeat 종료의 공개 요약을 확인한다. 실제 로그인 Access JWT는 개인 로컬 accessToken에만 둔다. local,db + ontop.websocket.authenticated=true 필요, 실제 DB 차감/정산은 별도다. 기본 개발 모드03/04 예제는 유지한다.
+
 ## 처음 한 번
 
 1. 서버 활성 프로필을 **`local,visual-test`**로 설정하고 재실행한다. 기본 포트는 8080이다.
@@ -106,6 +110,8 @@ HTTP11 채널 목록 확인 → HTTP10 접속권 발급 → WS07 연결/CHANNEL_
 
 WS07의07은 `{}`로 같은 시작 시도 결과만 조회합니다.08은 GAME_START_STATE의 확정 gameSessionId를 개인 gameId 변수에 넣은 뒤 본인 경기 상태를 확인합니다. 전원 준비 후 STARTING → PLAYING(simulation=false), GAME_CONNECTION_STATE 복구가 이어지며 거절은 준비 초기화·미확정은 같은 시도 조회입니다. 실제 B GameStartGateway와 해당 엔진 + ontop.game-start.enabled=true가 필요합니다. 현재 저장소에는 DB Gateway가 없어 기본값 false이며 옵션만 켜서 차감 성공하지 않습니다. 오목/원카드/다리 지원은 활성화한 엔진·필수 정책 설정에 따르고 주사위는 목표 전달 계약 확정 전 차감 요청 전에 거절합니다. [연결 조건](../docs/committed-game-start.md)을 먼저 확인하세요. 개발용 WS04/05의 simulation=true 검증과 분리합니다.
 
-Postman 웹에서도 HTTP10의 URL·헤더·응답 검사 스크립트·안내와 WS07의 URL·Origin·안내·저장 메시지6개를 다시 열어 대조했습니다. HTTP11 로그인 채널 조회의 URL·인증/Origin 헤더·응답 검사·사용 설명도 페이지를 다시 열어 저장본을 확인했습니다. HTTP05는 미인증 실패 예제로 구분했습니다. OnTop Local의 accessToken/websocketTicket 값은 비워뒀습니다. 실제 계정으로 요청을 보내거나 로그인 원문을 웹에 저장하지 않았습니다. 생성본은 HTTP11개·WebSocket7개·메시지89개입니다.
+Postman 웹에서도 HTTP10의 URL·헤더·응답 검사 스크립트·안내와 WS07의 URL·Origin·안내·저장 메시지6개를 다시 열어 대조했습니다. HTTP11 로그인 채널 조회의 URL·인증/Origin 헤더·응답 검사·사용 설명도 페이지를 다시 열어 저장본을 확인했습니다. HTTP05는 미인증 실패 예제로 구분했습니다. OnTop Local의 accessToken/websocketTicket 값은 비워뒀습니다. 실제 계정으로 요청을 보내거나 로그인 원문을 웹에 저장하지 않았습니다. 생성본은 HTTP12개·WebSocket7개·메시지89개입니다.
 
 2026-10-21 인증 시작 연결: WS07 저장 메시지07(GAME_START_CHECK)·08(GAME_STATE_CHECK)을 웹에 반영하고 새로고침 후 대조했다. 요청별 Docs는 재로드 시 저장되지 않아 시작 조건·경계 안내는 컬렉션 Overview에 보관했다. 기존01~06 메시지와 접속권 URL·Origin은 유지한다. 실제 DB 차감 성공을 웹에서 실행한 검증은 아니다.
+
+2026-10-21 HTTP12: 웹 저장 후 다시 열어 GET URL·Authorization/Origin·요청 전 tableIdA 초기화·응답 공개 요약 검사/ID 저장·Docs를 대조했다. 기존 HTTP01~11과 WS07 메시지는 유지하며 실제 계정 원문이나 요청 실행은 하지 않았다.

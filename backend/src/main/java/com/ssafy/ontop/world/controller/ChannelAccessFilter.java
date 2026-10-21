@@ -15,6 +15,7 @@ import java.security.Principal;
 import java.util.Arrays;
 import java.util.Collections;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
@@ -29,18 +30,24 @@ public class ChannelAccessFilter extends OncePerRequestFilter {
     private final ObjectProvider<WebSocketAccountLookup> accounts;
     private final AuthExchangeOriginPolicy origins;
     private final ObjectMapper mapper;
+    private final boolean authenticatedTables;
 
     public ChannelAccessFilter(AccessJwtService jwt, ObjectProvider<WebSocketAccountLookup> accounts,
-            AuthExchangeOriginPolicy origins, ObjectMapper mapper) {
+            AuthExchangeOriginPolicy origins, ObjectMapper mapper,
+            @Value("${ontop.websocket.authenticated:false}") boolean authenticatedTables) {
         this.jwt = jwt;
         this.accounts = accounts;
         this.origins = origins;
         this.mapper = mapper;
+        this.authenticatedTables = authenticatedTables;
     }
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return !request.getRequestURI().equals(request.getContextPath() + "/api/v1/channels")
+        String path = request.getRequestURI();
+        boolean protectedQuery = path.equals(request.getContextPath() + "/api/v1/channels")
+                || authenticatedTables && path.equals(request.getContextPath() + "/api/v1/tables");
+        return !protectedQuery
                 || !(request.getMethod().equals("GET") || request.getMethod().equals("OPTIONS"));
     }
 
@@ -112,7 +119,7 @@ public class ChannelAccessFilter extends OncePerRequestFilter {
         String message = switch (status) {
             case 401 -> "로그인이 필요합니다.";
             case 403 -> "허용되지 않은 요청 출처입니다.";
-            default -> "채널 목록을 확인할 수 없습니다.";
+            default -> "목록을 확인할 수 없습니다.";
         };
         response.setStatus(status);
         response.setHeader("Cache-Control", "no-store");

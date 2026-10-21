@@ -75,6 +75,7 @@ tasks.register('flowTest', Test) {
         includeTestsMatching 'com.ssafy.ontop.table.FullFlowTests'
         includeTestsMatching 'com.ssafy.ontop.table.LoginWebSocketFlowTests'
         includeTestsMatching 'com.ssafy.ontop.table.LoginChannelFlowTests'
+        includeTestsMatching 'com.ssafy.ontop.table.LoginTableFlowTests'
         includeTestsMatching 'com.ssafy.ontop.table.CommittedStartFlowTests'
         includeTestsMatching 'com.ssafy.ontop.table.WorldFullFlowTests'
         includeTestsMatching 'com.ssafy.ontop.table.GameCommunicationFlowTests'

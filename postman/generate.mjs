@@ -102,6 +102,26 @@ channelRequest.headers = [{ key: 'Authorization', value: 'Bearer {{accessToken}}
     { key: 'Origin', value: '{{baseUrl}}' }];
 httpItems.push(channelRequest);
 
+const loginTables = http('12 로그인 사용자 테이블 조회·ID 저장', '/api/v1/tables?channelId={{channelIdA}}', 200,
+    'TABLE-01: local,db + ontop.websocket.authenticated=true와 실제 로그인 Access JWT가 필요합니다. '
+    + 'HTTP11에서 선택한 채널을 개인 channelIdA로 설정하고 이 응답의 tableIdA로 WS07에서 착석합니다. '
+    + '채널 입장·착석·게임 선택·준비·퇴장/heartbeat 뒤 재조회하면 공개 요약을 확인합니다. 조회는 예약이 아닙니다. '
+    + '401 미인증/만료/비활성,403 출처거절,503 인증/계정 장애. 인증 후400 채널 누락·404 없는 채널. '
+    + '기본 개발 모드는03/04이며 실제 DB 차감/정산 성공 검증과 구분합니다. 토큰을 공유하지 마세요.',
+    saveTable('tableIdA') + `
+pm.test('공개 요약과 캐시 금지', () => {
+    pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store');
+    pm.response.json().tables.forEach(table => {
+        pm.expect(table).to.have.all.keys('tableId', 'capacity', 'minimumPlayers', 'occupiedSeats',
+            'availableSeats', 'readyCount', 'allReady', 'status', 'joinable', 'gameCode');
+        pm.expect(table.availableSeats).to.eql(table.capacity - table.occupiedSeats);
+        pm.expect(table.joinable).to.eql(table.status === 'WAITING' && table.availableSeats > 0);
+    });
+});`, tableBefore('tableIdA'));
+loginTables.headers = [{ key: 'Authorization', value: 'Bearer {{accessToken}}' },
+    { key: 'Origin', value: '{{baseUrl}}' }];
+httpItems.push(loginTables);
+
 const message = (name, type, payload = {}) => ({
     name, $kind: 'websocket-message', contentType: 'json',
     content: JSON.stringify({ requestId: '{{$guid}}', type, payload }, null, 2)

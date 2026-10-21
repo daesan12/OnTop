@@ -23,7 +23,7 @@
 | 경기 재접속 연결부 | [game-reconnect.md](game-reconnect.md) | 추가 연결 차단·30초 내 최신 경기 복귀·만료 처리 경계. 선택적 4종 엔진 상태·차례·마감 복구 지원 |
 | WebSocket heartbeat | [websocket-heartbeat.md](websocket-heartbeat.md) | Ping/Pong으로 무응답 연결 감지 후 30초 재접속 유예 연결 |
 | 전체 흐름 테스트 도구 | [flow-test.md](flow-test.md) | 한 명령으로 착석·준비·끊김·복귀 확인. 인증/경기는 테스트 대역 |
-| 테이블 목록 조회 API | [table-query-api.md](table-query-api.md) | local 전용 GET 목록, 빈자리·준비 인원·입장 가능 여부와 개발 화면 조회 규칙 |
+| 테이블 목록 조회 API | [table-query-api.md](table-query-api.md) | local GET, 인증 모드의 JWT·활성 계정 확인과 착석·준비·종료 목록 반영 |
 | 채널 목록 조회 API | [channel-query-api.md](channel-query-api.md) | Access JWT·활성 계정 인증, 설정 기반 목록과 광장 실제 인원. 외부 OAuth/실제 DB 검증 별도 |
 | 광장 WebSocket | [world-websocket-api.md](world-websocket-api.md) | 기존 소켓으로 채널 입장·퇴장·인원 동기화. 채널별 테이블·위치 공유·채널 채팅 기반 구현. 20m 근거리 채팅·관전 검사 구현, 실제 맵 배치 미설정 |
 | 게임 시작 연동 계약 초안 | [game-start-contract-draft.md](game-start-contract-draft.md) | 로그인→시작→경기→복귀→결과의 현재 연결부·정식 연동 경계. 과거 초안은 별도 구분 |

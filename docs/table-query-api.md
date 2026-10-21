@@ -1,12 +1,23 @@
 # 테이블 목록 조회 API
 
-DB 없는 `local` 개발용 API다. 개발 화면에서 현재 테이블과 빈자리를 확인할 때 사용한다. 정식 인증과 DB 연결은 별도 작업이다.
+`local`의 현재 테이블·빈자리 조회 API다. `ontop.websocket.authenticated=true`에서는 기존 로그인 Access JWT·활성 계정 인증을 연결한다. 기본 개발 모드(false)의 무인증 조회는 개발 화면 검증용으로 유지한다. DB 차감·경기 저장과 별개다.
+
+## 로그인부터 착석까지
+
+1. 로그인 후 `Authorization: Bearer <Access JWT>`로 채널 목록을 조회한다.
+2. 선택한 `channelId`로 이 GET을 호출하고 응답의 서버 `tableId`를 사용한다. 읽기만으로 입장·예약·착석하지 않는다.
+3. 접속권 발급 → WebSocket 연결 → CHANNEL_JOIN → TABLE_JOIN → GAME_SELECT → READY_SET.
+4. 같은 GET을 다시 호출하면 착석·준비·퇴장·heartbeat 종료의 공개 요약이 반영된다. 조회 시점의 빈자리이며 실제 착석 때 다시 검사한다.
+
+인증 모드의 GET/OPTIONS는 기존 `ChannelAccessFilter`가 채널 조회와 같은 JWT 서명·만료·활성 계정 확인 및 허용 Origin 정책을 적용한다. 토큰 URL·userId 쿼리·X-User-Id·접속권·온보딩 토큰을 인증으로 사용하지 않는다. 기존 서버 Principal은 유지하지만 명시한 Authorization은 반드시 검증한다. DB 계정 어댑터는 `local,db`가 필요하다. GET은 접속권을 소비하지 않는다.
+
+허용 Origin의 GET/Authorization 프리플라이트는204. 성공·오류 모두 no-store, 허용 출처 CORS 헤더를 유지한다. 미인증/만료/위조/비활성401 UNAUTHENTICATED, 출처/프리플라이트 거절403 FORBIDDEN, JWT 설정·계정 조회 장애503 SERVICE_UNAVAILABLE이며 내부 예외는 노출하지 않는다. 인증을 먼저 확인하므로 무인증 채널 누락 요청도401이다. 개발 모드의 기존 GET·오류 계약은 유지한다.
 
 | 항목 | 값 |
 | --- | --- |
 | Method | `GET` |
 | URL | `/api/v1/tables` |
-| 요청 본문·필수 헤더 | 없음. 채널 설정 환경에서는 Query `channelId` 필수 |
+| 요청 본문·필수 헤더 | Body 없음. 인증 모드는 Authorization 필수. 채널 설정 환경에서는 Query `channelId` 필수 |
 | 성공 | `200 OK`, `Content-Type: application/json`, `Cache-Control: no-store` |
 | local 외 환경 | `404 Not Found` |
 
@@ -42,7 +53,7 @@ DB 없는 `local` 개발용 API다. 개발 화면에서 현재 테이블과 빈�
 | 400 | CHANNEL_REQUIRED | 채널이 설정됐는데 channelId 누락·공백 |
 | 404 | CHANNEL_NOT_FOUND | 등록되지 않은 channelId |
 
-오류 본문은 `{code,message,details:null}`이며 성공·오류 모두 `Cache-Control: no-store`다. 이번 local 조회는 기존 개발용 무인증 경로를 유지한다. 정식 인증은 후속 연결이며 채널 목록 API의 인증 정책을 완화하지 않는다.
+오류 본문은 `{code,message,details:null}`이며 성공·오류 모두 `Cache-Control: no-store`다. 위 채널 오류는 인증 모드에서 인증을 통과한 뒤 적용한다. 채널 목록의 항상 인증 필수 정책은 바꾸지 않는다.
 
 | 필드 | 타입 | 의미 |
 | --- | --- | --- |
