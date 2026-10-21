@@ -29,6 +29,15 @@ tasks.named('test') {
     useJUnitPlatform()
 }
 
+tasks.register('omokDemo', JavaExec) {
+    description = '127.0.0.1:18081에서 테스트 전용 오목 화면 실행 (운영 JAR 제외)'
+    group = 'verification'
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.ssafy.ontop.demo.OmokDemoApplication'
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
+}
+
 tasks.register('flowTest', Test) {
     description = '광장·테이블·경기 통신 및 heartbeat·복귀/만료 시나리오 실행'
     group = 'verification'
