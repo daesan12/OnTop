@@ -192,7 +192,7 @@ Linux/macOS에서는 `sh ./gradlew bootRun --args='--spring.profiles.active=loca
 
 개발 페이지의 **목록 새로고침**으로 테이블별 착석·준비 인원과 빈자리를 확인한다. [테이블 목록 API](docs/table-query-api.md)는 `GET /api/v1/tables`이며 `local`에서 추가 옵션 없이 사용할 수 있다. 목록은 조회 시점의 상태이고 착석 후 좌석·준비 상태는 WebSocket으로 동기화한다.
 
-[채널 목록 API](docs/channel-query-api.md)는 `GET /api/v1/channels`이며 `local`에서 서버 설정의 채널 정보를 제공한다. 서버 인증 Principal이 필요해 실제 로그인 연결 전에는 직접 조회 시 401이다. 채널 정원을 고정하거나 가짜 사용자를 만들지 않으며, 기본 설정은 빈 채널 목록이다. 실제 광장 입장·인원 동기화는 아직 미연결이다.
+[채널 목록 API](docs/channel-query-api.md)는 `GET /api/v1/channels`이며 `local`에서 서버 설정과 실제 광장 인원을 제공한다. Access JWT 서명·만료와 활성 계정을 검증하며 기존 서버 Principal도 지원한다. DB 계정 어댑터는 `db` 프로필이 필요하다. 인증 없이 직접 조회하면401이며 기본 설정은 빈 목록이다. 로그인 → 채널 조회 → 접속권 → WS 채널 입장 → 인원 재조회로 연결한다. 실제 외부 OAuth/DB 검증은 별도다.
 
 `local`은 `127.0.0.1`에 바인딩한다. 동일 출처만 허용하므로 페이지와 WebSocket의 호스트·포트를 일치시킨다. 새 연결은 새 임시 사용자이며 서버 재시작 시 좌석·버전이 초기화된다. 테이블은 `table-1`, `table-2`이며 미선택 시 4석, 오목·주사위는 2석, 원카드·거짓말은 4석이다.
 

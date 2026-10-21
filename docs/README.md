@@ -16,7 +16,7 @@
 | 세 게임 브라우저 테스트 | [games-demo.md](games-demo.md) | 주사위·원카드·다리 입력과 A/B 개인·관전자 공개 상태를 한 화면에서 확인. 테스트 전용18082 |
 | 팀 협의 목록 | [team-decisions.md](team-decisions.md) | 미확정 제품 정책과 실제 연동에 필요한 답을 한곳에 정리 |
 | WebSocket API 명세 | [websocket-api.md](websocket-api.md) | DB 없는 연결·테이블 착석·첫 착석자의 게임 선택·퇴장·준비 동기화 계약. local 구현·검증 완료 |
-| WebSocket 인증 연결부 | [websocket-authentication.md](websocket-authentication.md) | 서버 검증 사용자 연결·실패 차단. 실제 로그인·JWT/세션 방식은 미연결 |
+| WebSocket 인증 연결부 | [websocket-authentication.md](websocket-authentication.md) | Access JWT → 30초1회용 접속권 → 검증 사용자 연결. 외부 OAuth/실제 DB 검증 별도 |
 | 경기 입력 연결부 | [game-action-api.md](game-action-api.md) | 인증 참가자 입력 전달·처리 확인. 4종 엔진·메모리 중복 검증 지원. 영속 저장은 미연결 |
 | 경기 종료·정산 결과 전달 | [game-result-api.md](game-result-api.md) | 본인 확정 결과 자동 전송·재조회. 종료/PENDING/SETTLED 구분. 실제 DB·지급 미연결, Notion·Postman 웹 저장 확인 |
 | 경기 상태 조회·자동 전송·관전 | [game-state-api.md](game-state-api.md) | 참가자 공개/개인 정보 분리·관전자 공개 상태 구독·변경 알림 병합. 선택적 4종 엔진·20m 검사 지원. 실제 맵 배치 설정 필요 |
@@ -24,7 +24,7 @@
 | WebSocket heartbeat | [websocket-heartbeat.md](websocket-heartbeat.md) | Ping/Pong으로 무응답 연결 감지 후 30초 재접속 유예 연결 |
 | 전체 흐름 테스트 도구 | [flow-test.md](flow-test.md) | 한 명령으로 착석·준비·끊김·복귀 확인. 인증/경기는 테스트 대역 |
 | 테이블 목록 조회 API | [table-query-api.md](table-query-api.md) | local 전용 GET 목록, 빈자리·준비 인원·입장 가능 여부와 개발 화면 조회 규칙 |
-| 채널 목록 조회 API | [channel-query-api.md](channel-query-api.md) | local 설정 기반 GET 목록·인증 경계·인원 공급자 연결점. 실제 로그인 미연결. 채널 입장 상태 반영 |
+| 채널 목록 조회 API | [channel-query-api.md](channel-query-api.md) | Access JWT·활성 계정 인증, 설정 기반 목록과 광장 실제 인원. 외부 OAuth/실제 DB 검증 별도 |
 | 광장 WebSocket | [world-websocket-api.md](world-websocket-api.md) | 기존 소켓으로 채널 입장·퇴장·인원 동기화. 채널별 테이블·위치 공유·채널 채팅 기반 구현. 20m 근거리 채팅·관전 검사 구현, 실제 맵 배치 미설정 |
 | 게임 시작 연동 계약 초안 | [game-start-contract-draft.md](game-start-contract-draft.md) | 로그인→시작→경기→복귀→결과의 현재 연결부·정식 연동 경계. 과거 초안은 별도 구분 |
 | 게임 시작 연동 검증 | [game-start-rehearsal.md](game-start-rehearsal.md) | 선택해서 켜는 DB 없는 시작 요청·성공·거절·조회 확인 기능. 실제 경기·차감 없음 |

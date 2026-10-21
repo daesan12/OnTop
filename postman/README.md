@@ -54,7 +54,7 @@ WebSocket 탭 하나가 사용자 하나다. **Connect를 유지한 채 Saved Me
 
 | 요청 | 현재 정상적인 결과 / 필요한 것 |
 | --- | --- |
-| GET /api/v1/channels | 401 UNAUTHENTICATED. 로그인 Principal 구현 필요 |
+| GET /api/v1/channels | 05는 미인증401, 11은 Access JWT로200. 계정 조회/인증 설정 장애503 |
 | GAME_RECONNECT_CHECK | dev에서는 RECOVERY_NOT_AVAILABLE. 실제 인증 + GameRecoveryGateway 필요 |
 | GAME_STATE_CHECK | dev에서는 GAME_STATE_AUTH_REQUIRED. 실제 인증 + GameStateGateway·경기 복구 필요 |
 | GAME_ACTION_SEND | dev에서는 GAME_ACTION_AUTH_REQUIRED. 실제 인증 + GameActionGateway·경기 복구 필요 |
@@ -96,6 +96,10 @@ WebSocket 탭 하나가 사용자 하나다. **Connect를 유지한 채 Saved Me
 
 HTTP10 `POST /api/v1/auth/websocket-ticket`과 WS07 `/ws/tables?ticket={{websocketTicket}}`을 추가했습니다. local,db와 authenticated=true에서 로그인 Access JWT를 개인 로컬 accessToken에 입력합니다. 응답의 최대30초1회용 ticket을 개인 로컬 websocketTicket에 넣고 즉시 연결합니다. 발급/접속 Origin은 모두 baseUrl로 맞추며 Access JWT는 URL에 넣지 않습니다. 접속권을 재사용하지 말고 실패·재접속 때 다시 발급합니다. 토큰·접속권을 공유/동기화하지 않도록 두 변수의 공유 기본값은 비워둡니다. 자동으로 인증 원문을 환경변수에 저장하는 스크립트는 넣지 않습니다.
 
-WS07 저장 메시지는 광장입장·착석·게임선택·준비·퇴장·복귀조회입니다. 채널이 등록된 서버에서는 CHANNEL_JOIN 뒤에 같은 채널의 tableId로 착석합니다. 같은 계정 중복 접속1008과 heartbeat 후30초 경기복구는 기존 계약입니다. 다른 사용자 검증은 각자의 Access JWT와 접속권으로 합니다. 서버가 실제 경기를 생성·차감했다고 가정하지 않습니다. HTTP05 채널목록의 REST Principal 어댑터는 별도여서 기존401 예제를 유지합니다.
+WS07 저장 메시지는 광장입장·착석·게임선택·준비·퇴장·복귀조회입니다. 채널이 등록된 서버에서는 CHANNEL_JOIN 뒤에 같은 채널의 tableId로 착석합니다. 같은 계정 중복 접속1008과 heartbeat 후30초 경기복구는 기존 계약입니다. 다른 사용자 검증은 각자의 Access JWT와 접속권으로 합니다. 서버가 실제 경기를 생성·차감했다고 가정하지 않습니다. HTTP05는 인증 헤더 없는401 실패 예제로 유지하고 HTTP11은 실제 Access JWT를 사용하는 채널 조회입니다.
 
-Postman 웹에서도 HTTP10의 URL·헤더·응답 검사 스크립트·안내와 WS07의 URL·Origin·안내·저장 메시지6개를 다시 열어 대조했습니다. OnTop Local의 accessToken/websocketTicket 값은 비워뒀습니다. 실제 계정으로 요청을 보내거나 로그인 원문을 웹에 저장하지 않았습니다. 생성본은 HTTP10개·WebSocket7개·메시지87개입니다.
+## 로그인 후 채널 선택
+
+HTTP11 채널 목록 확인 → HTTP10 접속권 발급 → WS07 연결/CHANNEL_JOIN → HTTP11 재조회 순서입니다. 조회는 예약하지 않으며 채널 미설정은 items:[]입니다. 채널 ID를 임의로 만들지 않습니다. 토큰은 개인 로컬 변수에만 넣습니다. 서버는 local,db와 동일 JWT 설정이 필요하며 출처는 ontop.auth.allowed-origins에 맞춥니다. 접속권 발급/WS 연결에는 별도로 authenticated=true가 필요합니다. HTTP11은 그 옵션과 독립적입니다.
+
+Postman 웹에서도 HTTP10의 URL·헤더·응답 검사 스크립트·안내와 WS07의 URL·Origin·안내·저장 메시지6개를 다시 열어 대조했습니다. HTTP11 로그인 채널 조회의 URL·인증/Origin 헤더·응답 검사·사용 설명도 페이지를 다시 열어 저장본을 확인했습니다. HTTP05는 미인증 실패 예제로 구분했습니다. OnTop Local의 accessToken/websocketTicket 값은 비워뒀습니다. 실제 계정으로 요청을 보내거나 로그인 원문을 웹에 저장하지 않았습니다. 생성본은 HTTP11개·WebSocket7개·메시지87개입니다.

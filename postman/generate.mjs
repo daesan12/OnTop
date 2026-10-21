@@ -57,8 +57,8 @@ const httpItems = [
     http('04 광장 B 테이블 조회·ID 저장', '/api/v1/tables?channelId={{channelIdB}}', 200,
         '응답의 첫 테이블 ID를 tableIdB에 저장합니다. A/B의 tableId는 서로 다릅니다.',
         saveTable('tableIdB'), tableBefore('tableIdB')),
-    http('05 채널 목록 — 현재는 인증 오류가 정상', '/api/v1/channels', 401,
-        '실제 로그인 코드가 없어 현재는 401 UNAUTHENTICATED가 정상입니다. 임의 userId·테스트 인증 헤더를 넣지 않습니다.',
+    http('05 채널 목록 — 미인증 401', '/api/v1/channels', 401,
+        '인증 헤더 없는 실패 예제입니다. 로그인 성공 조회는 11을 사용하세요. 임의 userId·테스트 인증 헤더는 인증되지 않습니다.',
         codeTest('UNAUTHENTICATED')),
     http('06 채널 없는 테이블 조회 — 400', '/api/v1/tables', 400,
         'visual-test처럼 채널이 등록된 상태에서만 CHANNEL_REQUIRED입니다. local만 켜면 200이므로 실행 설정을 맞추세요.',
@@ -84,6 +84,23 @@ ticketRequest.method = 'POST';
 ticketRequest.headers = [{ key: 'Authorization', value: 'Bearer {{accessToken}}' },
     { key: 'Origin', value: '{{baseUrl}}' }];
 httpItems.push(ticketRequest);
+
+const channelRequest = http('11 로그인 사용자 채널 목록 조회', '/api/v1/channels', 200,
+    'local,db와 실제 로그인 Access JWT가 필요합니다. 개인 로컬 accessToken 사용. '
+    + '조회는 입장/예약을 하지 않습니다. WS07의 CHANNEL_JOIN 뒤 다시 보내면 currentUsers/joinable 변화를 확인할 수 있습니다. '
+    + '채널 미설정은 items:[]입니다. 401 미인증/만료/탈퇴,403 출처거절,503 인증/인원 조회 장애. 토큰을 공유하지 마세요.',
+    `pm.test('채널 목록 형식', () => {
+    const items = pm.response.json().items;
+    pm.expect(items).to.be.an('array');
+    items.forEach(item => {
+        pm.expect(item).to.have.all.keys('channelId', 'name', 'currentUsers', 'capacity', 'joinable');
+        pm.expect(item.currentUsers).to.be.a('number').and.at.least(0);
+        pm.expect(item.joinable).to.eql(item.currentUsers < item.capacity);
+    });
+});`);
+channelRequest.headers = [{ key: 'Authorization', value: 'Bearer {{accessToken}}' },
+    { key: 'Origin', value: '{{baseUrl}}' }];
+httpItems.push(channelRequest);
 
 const message = (name, type, payload = {}) => ({
     name, $kind: 'websocket-message', contentType: 'json',

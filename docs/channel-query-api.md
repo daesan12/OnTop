@@ -1,12 +1,14 @@
 # 채널 목록 조회
 
-`GET /api/v1/channels` · `local` 구현 · DB 없음 · 채널 입장 연동 · 실제 로그인 미연결
+`GET /api/v1/channels` · `local` 구현 · 설정 기반 목록 · Access JWT/활성 계정 인증 · 채널 입장 연동
 
 기준: [Notion WORLD-01](https://app.notion.com/p/WORLD-01-3ff161842b8680318410d278a91ea174)와 REST 공통 규격. 백엔드 A의 광장 조회 기능이다.
 
 ## 요청과 응답
 
-Body 없음. 인증 담당이 검증해서 서버 요청에 설정한 `Principal`이 필요하다. JWT·세션 전달 방식이나 소셜 로그인을 새로 구현하지 않는다. `userId` 쿼리·`X-User-Id`·검증되지 않은 Authorization 값으로 인증을 대신할 수 없다.
+Body 없음. `Authorization: Bearer <Access JWT>`로 기존 로그인 토큰을 보낸다. `ChannelAccessFilter`가 기존 `AccessJwtService`로 서명·만료를 검증하고 `WebSocketAccountLookup`으로 활성 계정/내부 ID를 확인해 서버 `Principal`에 연결한다. DB 어댑터 사용은 `local,db`가 필요하다. 이 GET은 websocket.authenticated 옵션과 독립적이며 접속권 발급/소비를 하지 않는다. 기존 서버 인증 Principal도 유지하지만 Authorization을 함께 보냈다면 반드시 그 토큰을 검증한다. `userId` 쿼리·`X-User-Id`·온보딩 토큰·웹소켓 접속권은 인증 수단이 아니다.
+
+브라우저는 `ontop.auth.allowed-origins`에 설정된 출처만 허용한다. OPTIONS는 GET/Authorization 프리플라이트를204로 처리하며 오류에도 허용 출처 CORS 헤더를 유지한다. Origin 없는 Postman 요청도 인증은 필수다.
 
 성공은 HTTP 200이며 `data` 래퍼 없이 다음 필드를 반환한다. 아래 이름·숫자는 형식 예시다.
 
@@ -35,8 +37,9 @@ Body 없음. 인증 담당이 검증해서 서버 요청에 설정한 `Principal
 
 | HTTP | code | 조건 |
 | --- | --- | --- |
-| 401 | `UNAUTHENTICATED` | 서버 인증 Principal 없음. 실제 로그인 연결 전에는 브라우저 직접 조회도 이 결과다. |
-| 503 | `SERVICE_UNAVAILABLE` | 등록된 광장 인원 공급자가 실패하거나 잘못된 인원 상태를 반환. 내부 예외는 응답하지 않음. |
+| 401 | `UNAUTHENTICATED` | 인증 없음, 잘못된/중복 Bearer, JWT 만료·위조, 비활성 계정. |
+| 403 | `FORBIDDEN` | 허용되지 않은 Origin 또는 GET/Authorization 외 프리플라이트. |
+| 503 | `SERVICE_UNAVAILABLE` | JWT 설정·활성 계정 조회 또는 인원 공급자 장애. 내부 예외는 응답하지 않음. |
 
 ```json
 {"code":"UNAUTHENTICATED","message":"로그인이 필요합니다.","details":null}
@@ -59,7 +62,7 @@ ontop:
 
 중복 ID·빈 ID/이름·0 이하 정원은 설정 오류로 앱 시작을 실패시킨다. 설정을 바꾼 뒤 서버를 다시 실행한다.
 
-읽는 순서는 `WorldChannelProperties`(설정) → `ChannelQueryController.listChannels`(HTTP·인증 경계) → `ChannelQueryService.listChannels`(현재 인원과 조회 응답)다. 광장 입장·퇴장은 [채널 WebSocket 계약](world-websocket-api.md)으로 연결했다. 같은 채널 위치 공유는 WORLD_MOVE / WORLD_STATE를 사용한다.
+읽는 순서는 `ChannelAccessFilter`(JWT/계정·출처) → `ChannelQueryController.listChannels`(서버 인증 경계) → `ChannelQueryService.listChannels`(설정과 인원 스냅샷)다. 프론트는 로그인 → 이 GET으로 채널 확인 → [접속권 발급](websocket-authentication.md) → WS 연결 → CHANNEL_JOIN → 테이블 조회/착석 순서로 사용한다. GET 재조회로 입장/퇴장에 따른 currentUsers/joinable 변화를 확인한다. 같은 채널 위치 공유는 WORLD_MOVE / WORLD_STATE를 사용한다.
 
 ## 검증
 
@@ -67,6 +70,7 @@ ontop:
 
 ```powershell
 .\gradlew.bat test --tests '*ChannelQuery*' --tests '*TableProfileTests'
+.\gradlew.bat test --tests '*LoginChannelFlowTests'
 ```
 
-실제 랜덤 포트에서 미인증 401을 확인한다. 성공 응답은 MockMvc가 서버 Principal과 인원 공급자 대역을 주입해 확인한다. 실제 로그인 성공·부하 검증을 뜻하지 않는다. 실제 소켓 인원 반영은 WorldChannelWebSocketTests에서 별도로 검사한다.
+LoginChannelFlowTests는 실제 JWT 서명·검증기와 랜덤 포트 HTTP/RawWS에서 조회 → 접속권 → 입장 → 만석 → 퇴장 → 재조회를 검사한다. 만료/탈퇴401·계정 조회 장애503·위조/중복헤더·CORS를 포함한다. 계정 조회만 대역이며 외부 OAuth·실제 MySQL·프론트·운영 검증과 구분한다. 기존 ChannelQueryTests는 서버 Principal/인원 공급자 대역으로 응답 필드와 공급자 장애를 검사한다.

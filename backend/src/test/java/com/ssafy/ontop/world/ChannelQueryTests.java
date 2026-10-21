@@ -25,6 +25,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "spring.profiles.active=local",
+        "ontop.auth.jwt-secret-base64=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
         "ontop.world.channels[0].channel-id=channel-2", "ontop.world.channels[0].name=검증 채널 2",
         "ontop.world.channels[0].capacity=3",
         "ontop.world.channels[1].channel-id=channel-1", "ontop.world.channels[1].name=검증 채널 1",
