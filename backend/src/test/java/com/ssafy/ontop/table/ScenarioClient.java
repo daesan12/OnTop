@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 
@@ -20,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 // 테스트 전용: 백그라운드 Pong을 끄면 소켓을 닫지 않고 무응답을 재현할 수 있다.
 final class ScenarioClient implements AutoCloseable {
+    final String userId;
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private final Socket socket;
@@ -30,8 +32,11 @@ final class ScenarioClient implements AutoCloseable {
     private final Thread reader;
     private volatile boolean replyToPing = true;
     private volatile Throwable failure;
+    private volatile Predicate<JsonNode> forbidden = message -> false;
 
     ScenarioClient(int port, String login) throws Exception {
+        userId = switch (login) { case "naver" -> "101"; case "ssafy" -> "202"; case "spectator" -> "505";
+            default -> login; };
         socket = new Socket("127.0.0.1", port);
         input = new DataInputStream(socket.getInputStream());
         output = socket.getOutputStream();
@@ -60,9 +65,14 @@ final class ScenarioClient implements AutoCloseable {
     }
 
     JsonNode request(String type, Object payload) throws Exception {
+        String id = sendRequest(type, payload);
+        return await(message -> message.path("requestId").asText().equals(id));
+    }
+
+    String sendRequest(String type, Object payload) throws Exception {
         String id = UUID.randomUUID().toString();
         send(1, MAPPER.writeValueAsBytes(Map.of("type", type, "requestId", id, "payload", payload)));
-        return await(message -> message.path("requestId").asText().equals(id));
+        return id;
     }
 
     JsonNode state(String status) throws Exception {
@@ -88,6 +98,30 @@ final class ScenarioClient implements AutoCloseable {
         replyToPing = false;
     }
 
+    void assertNoMessage(Predicate<JsonNode> predicate) throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(300);
+        while (System.nanoTime() < deadline) {
+            JsonNode message = messages.poll(20, TimeUnit.MILLISECONDS);
+            if (message != null) {
+                assertThat(predicate.test(message)).as("수신하면 안 되는 메시지: %s", message).isFalse();
+            }
+            if (failure != null) {
+                throw new AssertionError("시나리오 소켓 수신 실패", failure);
+            }
+        }
+    }
+
+    <T> T assertNoMessageDuring(Predicate<JsonNode> predicate, Callable<T> action) throws Exception {
+        forbidden = predicate;
+        try {
+            T result = action.call();
+            assertNoMessage(predicate);
+            return result;
+        } finally {
+            forbidden = message -> false;
+        }
+    }
+
     int awaitClose() throws Exception {
         Integer code = closes.poll(5, TimeUnit.SECONDS);
         assertThat(code).as("서버가 연결을 종료해야 함; 수신 오류=%s", failure).isNotNull();
@@ -111,7 +145,9 @@ final class ScenarioClient implements AutoCloseable {
                 byte[] payload = new byte[length];
                 input.readFully(payload);
                 if (opcode == 1) {
-                    assertThat(messages.offer(MAPPER.readTree(payload))).as("시나리오 수신 큐 초과").isTrue();
+                    JsonNode message = MAPPER.readTree(payload);
+                    assertThat(forbidden.test(message)).as("동작 중 수신 금지 메시지: %s", message).isFalse();
+                    assertThat(messages.offer(message)).as("시나리오 수신 큐 초과").isTrue();
                 } else if (opcode == 9 && replyToPing) {
                     send(10, payload);
                 } else if (opcode == 8) {

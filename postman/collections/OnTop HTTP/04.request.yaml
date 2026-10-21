@@ -1,0 +1,14 @@
+"name": "04 광장 B 테이블 조회·ID 저장"
+"$kind": "http-request"
+"method": "GET"
+"url": "{{baseUrl}}/api/v1/tables?channelId={{channelIdB}}"
+"description": "응답의 첫 테이블 ID를 tableIdB에 저장합니다. A/B의 tableId는 서로 다릅니다."
+"auth":
+  "type": "noauth"
+"scripts":
+  -
+    "type": "beforeRequest"
+    "code": "if (!pm.environment.name) throw new Error('먼저 OnTop Local 환경을 선택해주세요.');\npm.environment.unset('tableIdB');"
+  -
+    "type": "afterResponse"
+    "code": "pm.test('HTTP 200', () => pm.response.to.have.status(200));\n\npm.test('테이블 목록 형식', () => {\n    const tables = pm.response.json().tables;\n    pm.expect(tables).to.be.an('array').that.is.not.empty;\n    pm.expect(tables[0].tableId).to.be.a('string').and.not.empty;\n});\nif (pm.response.code === 200) {\n    const tables = pm.response.json().tables;\n    if (Array.isArray(tables) && tables[0] && typeof tables[0].tableId === 'string') {\n        pm.environment.set('tableIdB', tables[0].tableId);\n    }\n}"

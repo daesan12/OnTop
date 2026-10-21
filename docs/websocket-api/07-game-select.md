@@ -10,7 +10,9 @@
 {
   "requestId": "select-001",
   "type": "GAME_SELECT",
-  "payload": { "gameCode": "DICE" }
+  "payload": {
+    "gameCode": "DICE"
+  }
 }
 ```
 

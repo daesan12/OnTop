@@ -1,0 +1,11 @@
+"name": "08 기존 브라우저 테스트 화면"
+"$kind": "http-request"
+"method": "GET"
+"url": "{{baseUrl}}/dev/tables"
+"description": "HTML 응답 확인용입니다. 화면 조작은 브라우저에서 엽니다."
+"auth":
+  "type": "noauth"
+"scripts":
+  -
+    "type": "afterResponse"
+    "code": "pm.test('HTTP 200', () => pm.response.to.have.status(200));\npm.test('HTML', () => pm.expect(pm.response.headers.get('Content-Type')).to.include('text/html'));"

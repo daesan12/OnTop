@@ -18,8 +18,11 @@ repositories {
 }
 
 dependencies {
+    implementation 'com.github.stephengold:Minie:9.0.3'
+    implementation 'org.jmonkeyengine:jme3-desktop:3.8.1-stable'
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-websocket'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.flywaydb:flyway-core'
     implementation 'com.nimbusds:nimbus-jose-jwt:10.10'
@@ -53,14 +56,31 @@ tasks.register('mysqlTest', Test) {
     }
 }
 
+tasks.register('omokDemo', JavaExec) {
+    description = '127.0.0.1:18081에서 테스트 전용 오목 화면 실행 (운영 JAR 제외)'
+    group = 'verification'
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.ssafy.ontop.demo.OmokDemoApplication'
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
+}
+
 tasks.register('flowTest', Test) {
-    description = '착석·준비·heartbeat 끊김·29초 복귀/30초 만료 시나리오 실행'
+    description = '광장·테이블·경기 통신 및 heartbeat·복귀/만료 시나리오 실행'
     group = 'verification'
     testClassesDirs = sourceSets.test.output.classesDirs
     classpath = sourceSets.test.runtimeClasspath
     useJUnitPlatform()
     filter {
         includeTestsMatching 'com.ssafy.ontop.table.FullFlowTests'
+        includeTestsMatching 'com.ssafy.ontop.table.WorldFullFlowTests'
+        includeTestsMatching 'com.ssafy.ontop.table.GameCommunicationFlowTests'
+        includeTestsMatching 'com.ssafy.ontop.table.WorldProximityWebSocketTests.채팅과관전_거리이탈부터_재접속까지_연속확인한다'
+        includeTestsMatching 'com.ssafy.ontop.table.OmokFlowTests'
+        includeTestsMatching 'com.ssafy.ontop.table.FarkleFlowTests'
+        includeTestsMatching 'com.ssafy.ontop.table.OneCardFlowTests'
+        includeTestsMatching 'com.ssafy.ontop.table.BridgeFlowTests'
+        includeTestsMatching 'com.ssafy.ontop.table.WorldMovementWebSocketTests'
     }
     // 반복 실행해도 실제 소켓 시나리오를 다시 확인한다.
     outputs.upToDateWhen { false }
@@ -72,6 +92,15 @@ tasks.register('flowTest', Test) {
         showStandardStreams = true
         exceptionFormat = 'short'
     }
+}
+
+tasks.register('gamesDemo', JavaExec) {
+    description = '127.0.0.1:18082에서 테스트 전용 주사위·원카드·다리 화면 실행 (운영 JAR 제외)'
+    group = 'verification'
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.ssafy.ontop.demo.GamesDemoApplication'
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
 }
 
 tasks.withType(JavaCompile).configureEach {

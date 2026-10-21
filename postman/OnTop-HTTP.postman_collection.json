@@ -1,0 +1,262 @@
+{
+  "info": {
+    "name": "OnTop HTTP",
+    "description": "현재 코드의 local 통신 검증용. 서버는 local,visual-test로 실행하고 OnTop Local 환경을 선택하세요. 실제 오목 엔진은 선택적으로 켤 수 있으며 로그인·시작 차감·DB 정산은 미연결입니다. HTTP 테이블 조회로 ID 저장 후 WebSocket을 연결합니다. 웹에서 저장한 컬렉션은 동일 계정·워크스페이스 앱에서 사용하며 로컬 테스트는 Desktop App에서 실행하세요.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "01 서버 헬스체크",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/actuator/health",
+        "description": "정상 HTTP 200 / UP. DB·Redis·경기 엔진의 정상 여부를 보장하지 않습니다.",
+        "auth": {
+          "type": "noauth"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('UP만 노출', () => pm.expect(pm.response.json()).to.deep.eql({status: 'UP'}));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 개발용 채널·감정표현 설정",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/dev/world-config",
+        "description": "local,visual-test 실행 필요. 실제 사용자 채널 목록 API를 우회하는 경로가 아니라 개발용 정적 설정입니다.",
+        "auth": {
+          "type": "noauth"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('visual-test 설정', () => {",
+              "    const body = pm.response.json();",
+              "    pm.expect(body.channels.map(c => c.channelId)).to.include.members(['visual-a', 'visual-b']);",
+              "    pm.expect(body.emoteCodes).to.include('WAVE');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 광장 A 테이블 조회·ID 저장",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/v1/tables?channelId={{channelIdA}}",
+        "description": "응답의 첫 테이블 ID를 선택한 OnTop Local 환경의 tableIdA에 저장합니다. WebSocket보다 먼저 Send 하세요.",
+        "auth": {
+          "type": "noauth"
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.environment.name) throw new Error('먼저 OnTop Local 환경을 선택해주세요.');",
+              "pm.environment.unset('tableIdA');"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "",
+              "pm.test('테이블 목록 형식', () => {",
+              "    const tables = pm.response.json().tables;",
+              "    pm.expect(tables).to.be.an('array').that.is.not.empty;",
+              "    pm.expect(tables[0].tableId).to.be.a('string').and.not.empty;",
+              "});",
+              "if (pm.response.code === 200) {",
+              "    const tables = pm.response.json().tables;",
+              "    if (Array.isArray(tables) && tables[0] && typeof tables[0].tableId === 'string') {",
+              "        pm.environment.set('tableIdA', tables[0].tableId);",
+              "    }",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 광장 B 테이블 조회·ID 저장",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/v1/tables?channelId={{channelIdB}}",
+        "description": "응답의 첫 테이블 ID를 tableIdB에 저장합니다. A/B의 tableId는 서로 다릅니다.",
+        "auth": {
+          "type": "noauth"
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.environment.name) throw new Error('먼저 OnTop Local 환경을 선택해주세요.');",
+              "pm.environment.unset('tableIdB');"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "",
+              "pm.test('테이블 목록 형식', () => {",
+              "    const tables = pm.response.json().tables;",
+              "    pm.expect(tables).to.be.an('array').that.is.not.empty;",
+              "    pm.expect(tables[0].tableId).to.be.a('string').and.not.empty;",
+              "});",
+              "if (pm.response.code === 200) {",
+              "    const tables = pm.response.json().tables;",
+              "    if (Array.isArray(tables) && tables[0] && typeof tables[0].tableId === 'string') {",
+              "        pm.environment.set('tableIdB', tables[0].tableId);",
+              "    }",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 채널 목록 — 현재는 인증 오류가 정상",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/v1/channels",
+        "description": "실제 로그인 코드가 없어 현재는 401 UNAUTHENTICATED가 정상입니다. 임의 userId·테스트 인증 헤더를 넣지 않습니다.",
+        "auth": {
+          "type": "noauth"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 401', () => pm.response.to.have.status(401));",
+              "pm.test('UNAUTHENTICATED', () => pm.expect(pm.response.json().code).to.eql('UNAUTHENTICATED'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 채널 없는 테이블 조회 — 400",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/v1/tables",
+        "description": "visual-test처럼 채널이 등록된 상태에서만 CHANNEL_REQUIRED입니다. local만 켜면 200이므로 실행 설정을 맞추세요.",
+        "auth": {
+          "type": "noauth"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+              "pm.test('CHANNEL_REQUIRED', () => pm.expect(pm.response.json().code).to.eql('CHANNEL_REQUIRED'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 없는 채널 테이블 조회 — 404",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/v1/tables?channelId=not-a-channel",
+        "description": "잘못된 채널을 정상적으로 거절하는지 확인합니다.",
+        "auth": {
+          "type": "noauth"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 404', () => pm.response.to.have.status(404));",
+              "pm.test('CHANNEL_NOT_FOUND', () => pm.expect(pm.response.json().code).to.eql('CHANNEL_NOT_FOUND'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "08 기존 브라우저 테스트 화면",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/dev/tables",
+        "description": "HTML 응답 확인용입니다. 화면 조작은 브라우저에서 엽니다.",
+        "auth": {
+          "type": "noauth"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('HTML', () => pm.expect(pm.response.headers.get('Content-Type')).to.include('text/html'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "09 관리 API 비노출 확인",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/actuator/env",
+        "description": "health 이외 관리 API를 노출하지 않는지 확인합니다.",
+        "auth": {
+          "type": "noauth"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 404', () => pm.response.to.have.status(404));",
+              ""
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

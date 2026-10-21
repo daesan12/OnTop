@@ -5,6 +5,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ssafy.ontop.world.domain.ChatText;
+import com.ssafy.ontop.world.domain.EmoteCode;
 import java.util.Map;
 import java.util.Set;
 
@@ -45,14 +47,39 @@ public final class TableProtocol {
             throw new RequestException(requestId, "UNSUPPORTED_MESSAGE_TYPE", "지원하지 않는 메시지입니다.");
         }
         boolean valid = switch (type) {
-            case "TABLE_JOIN" -> fields(payload, Set.of("tableId")) && payload.get("tableId").isTextual()
+            case "CHANNEL_JOIN" -> fields(payload, Set.of("channelId")) && payload.get("channelId").isTextual()
+                    && !payload.get("channelId").textValue().isBlank();
+            case "CHANNEL_LEAVE" -> fields(payload, Set.of());
+            case "WORLD_CHAT_SEND" -> fields(payload, Set.of("text")) && validChatText(payload.get("text"));
+            case "WORLD_EMOTE_SEND" -> fields(payload, Set.of("emoteCode")) && validEmoteCode(payload.get("emoteCode"));
+            case "WORLD_MOVE" -> validMove(payload);
+            case "TABLE_JOIN", "TABLE_WATCH" -> fields(payload, Set.of("tableId")) && payload.get("tableId").isTextual()
                     && !payload.get("tableId").textValue().isBlank();
             case "READY_SET" -> fields(payload, Set.of("ready")) && payload.get("ready").isBoolean();
             case "GAME_SELECT" -> fields(payload, Set.of("gameCode")) && payload.get("gameCode").isTextual()
                     && !payload.get("gameCode").textValue().isBlank();
-            case "TABLE_LEAVE" -> fields(payload, Set.of());
+            case "TABLE_LEAVE", "TABLE_UNWATCH" -> fields(payload, Set.of());
             case "GAME_START_CHECK" -> fields(payload, Set.of());
             case "GAME_RECONNECT_CHECK" -> fields(payload, Set.of());
+            case "GAME_RESULT_CHECK" -> fields(payload, Set.of("gameSessionId"))
+                    && payload.get("gameSessionId").isTextual()
+                    && !payload.get("gameSessionId").textValue().isBlank()
+                    && payload.get("gameSessionId").textValue().length() <= 120;
+            case "GAME_ACTION_SEND" -> fields(payload, Set.of("gameId", "actionId", "expectedVersion", "input"))
+                    && payload.get("gameId").isTextual() && !payload.get("gameId").textValue().isBlank()
+                    && payload.get("gameId").textValue().length() <= 120
+                    && payload.get("actionId").isTextual() && !payload.get("actionId").textValue().isBlank()
+                    && payload.get("actionId").textValue().length() <= 64
+                    && payload.get("expectedVersion").isIntegralNumber()
+                    && payload.get("expectedVersion").canConvertToLong()
+                    && payload.get("expectedVersion").longValue() >= 0
+                    && payload.get("expectedVersion").longValue() <= 9_007_199_254_740_991L
+                    && payload.get("input").isObject();
+            case "GAME_UNWATCH" -> fields(payload, Set.of());
+            case "GAME_STATE_CHECK", "GAME_WATCH" -> fields(payload, Set.of("gameId"))
+                    && payload.get("gameId").isTextual()
+                    && !payload.get("gameId").textValue().isBlank()
+                    && payload.get("gameId").textValue().length() <= 120;
             default -> throw new RequestException(requestId, "UNSUPPORTED_MESSAGE_TYPE", "지원하지 않는 메시지입니다.");
         };
         if (!valid) {
@@ -69,6 +96,15 @@ public final class TableProtocol {
         }
     }
 
+    private boolean validMove(JsonNode payload) {
+        try {
+            com.ssafy.ontop.world.movement.MoveInput.parse(payload);
+            return true;
+        } catch (IllegalArgumentException exception) {
+            return false;
+        }
+    }
+
     public String error(String requestId, String code, String message) {
         return encode(requestId, "ERROR", Map.of("code", code, "message", message));
     }
@@ -81,11 +117,37 @@ public final class TableProtocol {
         return !id.isBlank() && id.length() <= 64;
     }
 
+    private boolean finite(JsonNode value) {
+        return value.isNumber() && Double.isFinite(value.doubleValue());
+    }
+
+    private boolean validChatText(JsonNode value) {
+        if (!value.isTextual()) {
+            return false;
+        }
+        try {
+            new ChatText(value.textValue());
+            return true;
+        } catch (IllegalArgumentException exception) {
+            return false;
+        }
+    }
+
     private boolean fields(JsonNode node, Set<String> expected) {
         if (node == null || !node.isObject() || node.size() != expected.size()) {
             return false;
         }
         return expected.stream().allMatch(node::has);
+    }
+
+    private boolean validEmoteCode(JsonNode value) {
+        if (!value.isTextual()) return false;
+        try {
+            new EmoteCode(value.textValue());
+            return true;
+        } catch (IllegalArgumentException exception) {
+            return false;
+        }
     }
 
     public record Request(String requestId, String type, JsonNode payload) {

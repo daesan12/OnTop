@@ -1,6 +1,27 @@
 # 게임 시작 연동 계약 초안
 
-상태: 사용자 알림으로 초안 공유 완료. 본문은 이전 정책의 검토안이며 정식 연결 전 재대조 필요 · 관련 이슈: [S15P31B105-26](https://ssafy.atlassian.net/browse/S15P31B105-26)
+상태: 초안 공유 완료. 2026-10-21 현재 코드·OnTop v0.4와 재대조. **내부 연결부 준비와 실제 경기 연동 완료를 구분한다.** 관련 이슈: [S15P31B105-26](https://ssafy.atlassian.net/browse/S15P31B105-26)
+
+## 먼저 읽을 현행 연결 흐름
+
+제품 기준은 [OnTop v0.4](https://app.notion.com/p/OnTop_-_-154161842b868387b6ad0174db68ee71), 프론트 계약은 [기존 API 명세서](https://app.notion.com/p/API-062161842b868239a9ef81452674b90c)다. 새 외부 API나 메시지를 이 문서에서 확정하지 않는다.
+
+| 흐름 | 현재 연결부와 실제 코드 | 정식 연결 시 확인할 것 |
+| --- | --- | --- |
+| 로그인 → 광장 입장 | [WebSocketUserResolver](../backend/src/main/java/com/ssafy/ontop/auth/websocket/WebSocketUserResolver.java)로 서버 Principal을 내부 계정에 매핑. 채널 입장·이동·20m 채팅 구현 | 실제 인증 전달 방식과 계정 매핑. 임의 userId/테스트 헤더를 로그인으로 사용하지 않음 |
+| 착석 → 선택 → 전원 준비 | 첫 착석자가 게임 선택, 2명 이상 현재 참가자 전원이 준비하면 조건 충족. 카운트다운 없음 | 인증 사용자 기반 실제 시작은 아직 활성화하지 않음 |
+| 참가 확정 → 시작 결과 | [GameStartGateway](../backend/src/main/java/com/ssafy/ontop/game/start/GameStartGateway.java)의 startGame/findStartResult. [시작 요청](../backend/src/main/java/com/ssafy/ontop/game/start/GameStartCommand.java)과 [결과](../backend/src/main/java/com/ssafy/ontop/game/start/GameStartResult.java) 타입 존재 | 실제 차감 커밋·시작 결과를 경기 실행/복구 상태에 연결. gameSessionId·tableId·gameCode 매핑과 실패 복구 합의 |
+| 경기 입력 → 본인/공개 상태 | [입력 연결](game-action-api.md)·[상태/관전 연결](game-state-api.md). 인증·조작권·공개/개인 정보·20m 관전 범위 검사 구현 | 게임별 규칙/턴/버전/비공개 상태를 실제 Gateway 구현과 대조 |
+| 단절 → 복귀 또는 만료 | [heartbeat](websocket-heartbeat.md) → [30초 재접속](game-reconnect.md), 턴 마감은 유지 | 실제 GameRecoveryGateway의 현재 경기·기권/탈락 반영. 자동진행 AI는 후속 범위 |
+| 종료 → 정산 결과 | [결과 전송](game-result-api.md)의 GAME_RESULT_CHECK/GAME_RESULT. 조회·알림은 지급 실행을 하지 않음 | 실제 저장 결과와 PENDING/SETTLED 연결. 다음 판 좌석/로비 전환은 별도 확정 필요 |
+
+현재 `GameStartGateway`는 **개발용 시작 검증 경로에서만 호출**된다. `ontop.start-rehearsal.enabled=true`는 dev 사용자와 대역을 위한 옵션이며 인증 모드와 동시에 켜면 설정 오류다. 실제 Gateway Bean을 등록하거나 플래그만 바꾸면 정식 시작이 완성되는 구조가 아니다. 성공한 대역은 좌석을 유지하며 실제 경기 실행·차감·종료 정리를 하지 않는다.
+
+현재 검증 결과는 [전체 흐름 실행 안내](flow-test.md)를 따른다. 실제 로컬 서버/소켓을 사용하지만 인증·경기 상태는 테스트 대역이다. 문서의 프로토타입 현황이나 대역 성공을 실제 로그인·경기·정산 완료로 표시하지 않는다.
+
+**다음 개발의 경계:** 실제 인증 전달/내부 ID, 시작 커밋 후 경기 실행·복구 연결, 담당 게임과 세부 규칙, 실제 맵의 테이블 좌표를 확정한 뒤 해당 흐름을 끝까지 연결한다. 추가 베팅·예외 정산은 기획서의 결정 필요 항목이며 임의 구현하지 않는다. 아래 과거 초안의 AI 대행·카운트다운·미구현 설명을 현행 요구로 적용하지 않는다.
+
+## 과거 검토안 — 현행 정책·구현 근거로 사용하지 않음
 
 **2026-10-19 후속 확인:** 사용자가 지정한 OnTop 통합 기획서 v0.4를 제품 기준으로 삼는다. 먼저 착석한 사람이 게임을 선택하고 2명 이상 착석한 참가자가 모두 준비하면 추가 카운트다운 없이 시작을 요청한다. 실제 시작 확정은 B의 성공 응답을 기다린다. 별도 ERD 정책의 코인 예약·정산·양수 베팅·AI 대행 제외와 아래 과거 초안의 차이는 [정책 대조표](erd-policy-alignment.md)에 구분했다. 재화·종료 정책은 정식 연결 전 재대조해야 하며 공유 완료가 계약 전체의 합의 완료를 뜻하지 않는다.
 

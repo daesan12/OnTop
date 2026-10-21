@@ -44,6 +44,17 @@ server:
 logging:
   level:
     org.hibernate.engine.jdbc.spi.SqlExceptionHelper: "OFF"
+    com.jme3.bullet: WARN
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      show-components: never
 
 ---
 spring:

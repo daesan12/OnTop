@@ -12,7 +12,7 @@
 | 응답·알림 요약 | 좌석·준비·전원 준비·상태 버전 |
 | 수신 대상 | 요청자 또는 같은 테이블 참가자 |
 
-착석·준비 요청의 성공 응답 또는 참가자·준비 상태 변경 알림으로 전송합니다.
+착석·게임 선택·준비 요청의 성공 응답 또는 참가자·선택 게임·준비 상태 변경 알림으로 전송합니다.
 
 ```json
 {
@@ -20,7 +20,7 @@
   "type": "TABLE_STATE",
   "payload": {
     "tableId": "table-1",
-    "version": 3,
+    "version": 5,
     "capacity": 2,
     "minimumPlayers": 2,
     "seats": [
@@ -37,7 +37,7 @@
     ],
     "allReady": false,
     "selectorUserId": "dev-7cc07e8b-8460-4a78-8897-5e9acd875d91",
-    "gameCode": "OMOK"
+    "gameCode": "DICE"
   }
 }
 ```

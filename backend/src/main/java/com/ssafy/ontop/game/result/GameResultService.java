@@ -1,0 +1,125 @@
+package com.ssafy.ontop.game.result;
+
+import jakarta.annotation.PreDestroy;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.function.Consumer;
+import org.springframework.context.annotation.Profile;
+import org.springframework.context.event.EventListener;
+import org.springframework.stereotype.Service;
+
+@Service
+@Profile("local")
+public class GameResultService {
+
+    private final Optional<GameResultGateway> gateway;
+    private final Map<String, Slot> connections = new HashMap<>();
+    private final ExecutorService workers = Executors.newVirtualThreadPerTaskExecutor();
+    private boolean stopped;
+
+    public GameResultService(Optional<GameResultGateway> gateway) {
+        this.gateway = gateway;
+    }
+
+    public synchronized void connected(String sessionId, long userId, Consumer<Delivery> output) {
+        if (!stopped) {
+            connections.put(sessionId, new Slot(userId, output));
+        }
+    }
+
+    public synchronized void disconnected(String sessionId) {
+        connections.remove(sessionId);
+    }
+
+    public synchronized void check(String sessionId, String requestId, String gameId) {
+        Slot slot = connections.get(sessionId);
+        if (slot == null || stopped) {
+            return;
+        }
+        if (gateway.isEmpty() || slot.loading) {
+            slot.output.accept(new Delivery(requestId, null,
+                    gateway.isEmpty() ? "GAME_RESULT_NOT_CONFIGURED" : "GAME_RESULT_PENDING"));
+            return;
+        }
+        slot.loading = true;
+        workers.execute(() -> load(sessionId, slot, requestId, gameId));
+    }
+
+    private void load(String sessionId, Slot slot, String requestId, String gameId) {
+        GameResultView result = null;
+        String error = null;
+        try {
+            result = gateway.orElseThrow().load(slot.userId, gameId).orElse(null);
+            if (result == null) {
+                error = "GAME_RESULT_ACCESS_DENIED";
+            } else if (result.userId() != slot.userId || !result.gameSessionId().equals(gameId)) {
+                error = "GAME_RESULT_INVALID";
+            }
+        } catch (RuntimeException exception) {
+            error = "GAME_RESULT_UNAVAILABLE";
+        }
+        synchronized (this) {
+            if (stopped || connections.get(sessionId) != slot) {
+                return;
+            }
+            slot.loading = false;
+            if (error == null && result.version() < slot.versions.getOrDefault(gameId, -1L)) {
+                error = "GAME_RESULT_STALE";
+            }
+            if (error == null) {
+                remember(slot, result);
+            }
+            slot.output.accept(new Delivery(requestId, error == null ? result : null, error));
+        }
+    }
+
+    @EventListener
+    public synchronized void committed(GameResultCommitted event) {
+        if (stopped) {
+            return;
+        }
+        GameResultView result = event.result();
+        for (Slot slot : connections.values()) {
+            if (slot.userId != result.userId()
+                    || result.version() <= slot.versions.getOrDefault(result.gameSessionId(), -1L)) {
+                continue;
+            }
+            remember(slot, result);
+            slot.output.accept(new Delivery(null, result, null));
+        }
+    }
+
+    private void remember(Slot slot, GameResultView result) {
+        slot.versions.remove(result.gameSessionId());
+        slot.versions.put(result.gameSessionId(), result.version());
+        // 현재 연결의 최근64경기만 중복 억제한다. 영속 이력·재접속 복구의 대체물이 아니다.
+        if (slot.versions.size() > 64) {
+            slot.versions.remove(slot.versions.keySet().iterator().next());
+        }
+    }
+
+    @PreDestroy
+    public synchronized void shutdown() {
+        stopped = true;
+        connections.clear();
+        workers.shutdownNow();
+    }
+
+    public record Delivery(String requestId, GameResultView result, String errorCode) { }
+
+    private static final class Slot {
+        private final long userId;
+        private final Consumer<Delivery> output;
+        private final Map<String, Long> versions = new LinkedHashMap<>();
+        private boolean loading;
+
+        private Slot(long userId, Consumer<Delivery> output) {
+            this.userId = userId;
+            this.output = output;
+        }
+    }
+}

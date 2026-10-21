@@ -16,6 +16,73 @@ class TableProtocolTests {
     private final TableProtocol protocol = new TableProtocol(new ObjectMapper());
 
     @ParameterizedTest
+    @ValueSource(strings = {"{}", "{\"emoteCode\":null}", "{\"emoteCode\":1}", "{\"emoteCode\":\"wave\"}",
+            "{\"emoteCode\":\" \"}", "{\"emoteCode\":\"WAVE\",\"userId\":\"forged\"}",
+            "{\"emoteCode\":\"WAVE\",\"channelId\":\"other\"}",
+            "{\"emoteCode\":\"WAVE\",\"eventId\":\"forged\"}"})
+    void 감정표현_입력과_신원_채널_식별자_위조를_거절한다(String payload) {
+        RequestException error = catchThrowableOfType(RequestException.class, () -> protocol.parse(
+                "{\"requestId\":\"emote-1\",\"type\":\"WORLD_EMOTE_SEND\",\"payload\":" + payload + "}"));
+        assertThat(error).isNotNull();
+        assertThat(error.code()).isEqualTo("INVALID_PAYLOAD");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"{}", "{\"tableId\":null}", "{\"tableId\":1}", "{\"tableId\":\" \"}",
+            "{\"tableId\":\"table-1\",\"userId\":\"forged\"}",
+            "{\"tableId\":\"table-1\",\"channelId\":\"other\"}"})
+    void 테이블_보기의_누락_타입과_추가_필드를_거절한다(String payload) {
+        RequestException error = catchThrowableOfType(RequestException.class, () -> protocol.parse(
+                "{\"requestId\":\"watch-1\",\"type\":\"TABLE_WATCH\",\"payload\":" + payload + "}"));
+        assertThat(error.code()).isEqualTo("INVALID_PAYLOAD");
+    }
+
+    @Test
+    void 테이블_보기_종료는_빈_객체만_허용한다() {
+        assertThat(protocol.parse("{\"requestId\":\"stop-1\",\"type\":\"TABLE_UNWATCH\",\"payload\":{}}")
+                .type()).isEqualTo("TABLE_UNWATCH");
+        assertThat(catchThrowableOfType(RequestException.class, () -> protocol.parse(
+                "{\"requestId\":\"stop-1\",\"type\":\"TABLE_UNWATCH\",\"payload\":{\"tableId\":\"table-1\"}}"))
+                .code()).isEqualTo("INVALID_PAYLOAD");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"{}", "{\"text\":null}", "{\"text\":1}", "{\"text\":\"  \"}",
+            "{\"text\":\"a\\nb\"}", "{\"text\":\"hello\",\"userId\":\"forged\"}",
+            "{\"text\":\"hello\",\"channelId\":\"other\"}",
+            "{\"text\":\"a\\u2028b\"}", "{\"text\":\"a\\u2029b\"}"})
+    void 채팅의_형식과_신원_수신채널_위조를_거절한다(String payload) {
+        RequestException error = catchThrowableOfType(RequestException.class, () -> protocol.parse(
+                "{\"requestId\":\"chat-1\",\"type\":\"WORLD_CHAT_SEND\",\"payload\":" + payload + "}"));
+        assertThat(error).isNotNull();
+        assertThat(error.code()).isEqualTo("INVALID_PAYLOAD");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "{}", "{\"sequence\":0,\"x\":1,\"y\":0,\"z\":0}",
+            "{\"sequence\":-1,\"x\":1,\"y\":0,\"z\":0,\"yaw\":0}",
+            "{\"sequence\":0.5,\"x\":1,\"y\":0,\"z\":0,\"yaw\":0}",
+            "{\"sequence\":9007199254740992,\"x\":1,\"y\":0,\"z\":0,\"yaw\":0}",
+            "{\"sequence\":0,\"x\":1e400,\"y\":0,\"z\":0,\"yaw\":0}",
+            "{\"sequence\":0,\"x\":\"1\",\"y\":0,\"z\":0,\"yaw\":0}",
+            "{\"sequence\":0,\"x\":1,\"y\":0,\"z\":0,\"yaw\":null}",
+            "{\"sequence\":0,\"x\":1,\"y\":0,\"z\":0,\"yaw\":0,\"userId\":\"forged\"}"
+    })
+    void 이동_필드와_좌표_타입과_순번과_신원위조를_검사한다(String payload) {
+        RequestException error = catchThrowableOfType(RequestException.class, () -> protocol.parse(
+                "{\"requestId\":\"move-1\",\"type\":\"WORLD_MOVE\",\"payload\":" + payload + "}"));
+        assertThat(error.code()).isEqualTo("INVALID_PAYLOAD");
+    }
+
+    @Test
+    void 이동_입력순번은_uint32최대까지_허용한다() {
+        assertThat(protocol.parse("{\"requestId\":\"move-1\",\"type\":\"WORLD_MOVE\","
+                + "\"payload\":{\"seq\":4294967295,\"dx\":1,\"dz\":0,\"run\":false}}")
+                .payload().path("seq").longValue()).isEqualTo(4_294_967_295L);
+    }
+
+    @ParameterizedTest
     @ValueSource(strings = {"{}", "{\"gameCode\":null}", "{\"gameCode\":1}", "{\"gameCode\":\" \"}",
             "{\"gameCode\":\"OMOK\",\"userId\":\"forged\"}"})
     void 게임선택의_누락_타입_권한위조_필드를_거절한다(String payload) {

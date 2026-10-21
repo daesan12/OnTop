@@ -36,6 +36,14 @@ class TableWebSocketTests {
     private int port;
 
     @Test
+    void 임시사용자는_경기결과를_조회할수없다() throws Exception {
+        try (Client client = connect()) {
+            assertCode(client.request("GAME_RESULT_CHECK", Map.of("gameSessionId", "701")),
+                    "GAME_RESULT_AUTH_REQUIRED");
+        }
+    }
+
+    @Test
     void 두_연결의_착석_준비_취소_퇴장과_종료를_동기화한다() throws Exception {
         try (Client first = connect(); Client second = connect(); Client third = connect()) {
             assertThat(first.userId).startsWith("dev-").isNotEqualTo(second.userId);

@@ -53,11 +53,11 @@ public class TableWebSocketHandler extends TextWebSocketHandler {
 
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
-        hub.disconnect(session.getId());
+        hub.disconnect(session.getId(), ConnectionCloseReason.SOCKET_CLOSED);
     }
 
     @Override
     public void handleTransportError(WebSocketSession session, Throwable exception) {
-        hub.disconnect(session.getId());
+        hub.disconnect(session.getId(), ConnectionCloseReason.TRANSPORT_ERROR);
     }
 }
