@@ -41,6 +41,9 @@ public class RefreshToken {
     @Column(name = "revoked_at", columnDefinition = "TIMESTAMP(3)")
     private Instant revokedAt;
 
+    @Column(name = "rotated_at", columnDefinition = "TIMESTAMP(3)")
+    private Instant rotatedAt;
+
     protected RefreshToken() {
     }
 
@@ -63,6 +66,14 @@ public class RefreshToken {
         if (revokedAt == null) {
             revokedAt = Objects.requireNonNull(now);
         }
+    }
+
+    public void rotate(Instant now) {
+        if (!isUsableAt(now)) {
+            throw new IllegalStateException("사용할 수 없는 Refresh 인증입니다.");
+        }
+        revokedAt = now;
+        rotatedAt = now;
     }
 
     public Long getId() {
@@ -91,6 +102,10 @@ public class RefreshToken {
 
     public Instant getRevokedAt() {
         return revokedAt;
+    }
+
+    public Instant getRotatedAt() {
+        return rotatedAt;
     }
 
     @Override

@@ -19,6 +19,16 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
 
     Optional<RefreshToken> findByTokenHash(String tokenHash);
 
+    // 먼저 user를 잠근 뒤 Refresh를 잠근다. 잠금 전 엔티티를 읽어 1차 캐시에 남기지 않는다.
+    @Query("select r.user.id as userId, r.rotatedAt as rotatedAt from RefreshToken r where r.tokenHash = :hash")
+    Optional<TokenReference> findReferenceByTokenHash(@Param("hash") String hash);
+
+    interface TokenReference {
+        Long getUserId();
+
+        Instant getRotatedAt();
+    }
+
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("update RefreshToken r set r.revokedAt = :now where r.user.id = :userId "
             + "and r.sessionId = :sessionId and r.revokedAt is null")

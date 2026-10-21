@@ -11,6 +11,8 @@
 
 S15P31B105-80의 첫 migration은 `V1__create_users.sql`이며 `users`만 생성한다.
 S15P31B105-89의 `V2__create_refresh_tokens.sql`은 users FK를 가진 Refresh 해시 테이블만 추가한다.
+S15P31B105-63의 `V3__add_refresh_token_rotation.sql`은 Refresh 회전 시각과 CHECK를 추가한다.
+기존 V2 행은 rotated_at=NULL로 유지하며 V1/V2의 SQL·체크섬을 변경하지 않는다.
 JWT/Refresh 원문·서명 키·DB 사용자 설정은 SQL에 포함하지 않는다.
 이 Markdown 파일은 SQL migration으로 실행되지 않는다.
 이미 V1이 적용된 DB에서는 Flyway가 체크섬을 검증하고 재적용하지 않는다.
