@@ -6,6 +6,7 @@ import com.ssafy.ontop.game.state.GameStateChanged;
 import com.ssafy.ontop.game.state.GameStateGateway;
 import com.ssafy.ontop.game.state.GameStateView;
 import java.nio.charset.StandardCharsets;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -28,6 +29,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "spring.profiles.active=local", "ontop.websocket.authenticated=true",
+        "ontop.websocket.heartbeat.interval=200ms", "ontop.websocket.heartbeat.timeout=2s",
         "ontop.world.movement.minimum-interval=1ms", "ontop.world.chat.minimum-interval=1ms",
         "ontop.world.channels[0].channel-id=one", "ontop.world.channels[0].name=하나",
         "ontop.world.channels[0].capacity=5",
@@ -165,6 +167,116 @@ class WorldProximityWebSocketTests {
             assertThat(code(viewer.request("GAME_STATE_CHECK", Map.of("gameId", "game"))))
                     .isEqualTo("GAME_STATE_ACCESS_DENIED");
         }
+    }
+
+    @Test
+    void 채팅과관전_거리이탈부터_재접속까지_연속확인한다() throws Exception {
+        System.out.println("[SIMULATED] 실제 임시 Spring 서버·TCP/WebSocket 사용. 인증·경기 상태는 대역, 테이블 원점은 테스트 좌표. 이동/채팅 제한1ms, heartbeat 200ms/2초.");
+        try (ScenarioClient sender = connect("naver"); ScenarioClient viewer = connect("ssafy")) {
+            join(sender, "one");
+            join(viewer, "one");
+            move(sender, 0, 0, 0);
+            move(viewer, 0, 19, 0);
+            assertChat(sender, viewer, "19m 안");
+            move(viewer, 1, 20, 0);
+            assertChat(sender, viewer, "20m 경계");
+            move(viewer, 2, 21, 0);
+            viewer.assertNoMessageDuring(m -> type(m, "WORLD_CHAT_MESSAGE"),
+                    () -> sender.request("WORLD_CHAT_SEND", Map.of("text", "21m 밖")));
+            move(viewer, 3, 20, 0);
+            assertChat(sender, viewer, "20m 복귀");
+            System.out.println("[PASS] 채팅 19m·20m 수신 → 21m 미수신 → 20m 복귀 수신");
+
+            assertThat(type(viewer.request("TABLE_WATCH", Map.of("tableId", TABLE)), "TABLE_WATCH_STATE"))
+                    .isTrue();
+            assertSpectator(viewer.request("GAME_WATCH", Map.of("gameId", "game")), 1);
+            move(viewer, 4, 21, 0);
+            var ended = new HashSet<String>();
+            for (int index = 0; index < 2; index++) {
+                JsonNode notice = viewer.await(m -> type(m, "TABLE_WATCH_LEFT") || type(m, "GAME_WATCH_LEFT"));
+                assertThat(notice.path("requestId").isNull()).isTrue();
+                ended.add(notice.path("type").asText());
+            }
+            assertThat(ended).containsExactlyInAnyOrder("TABLE_WATCH_LEFT", "GAME_WATCH_LEFT");
+            assertThat(code(viewer.request("TABLE_UNWATCH", Map.of()))).isEqualTo("NOT_WATCHING");
+            assertThat(code(viewer.request("GAME_UNWATCH", Map.of()))).isEqualTo("GAME_NOT_WATCHING");
+            assertThat(code(viewer.request("TABLE_WATCH", Map.of("tableId", TABLE))))
+                    .isEqualTo("TABLE_OUT_OF_RANGE");
+            assertThat(code(viewer.request("GAME_WATCH", Map.of("gameId", "game"))))
+                    .isEqualTo("GAME_STATE_ACCESS_DENIED");
+            viewer.assertNoMessageDuring(WorldProximityWebSocketTests::watchState, () -> {
+                fixture.version.set(2);
+                events.publishEvent(new GameStateChanged("game", 2));
+                return sender.request("TABLE_JOIN", Map.of("tableId", TABLE));
+            });
+            System.out.println("[PASS] 21m 이탈 → 대기/경기 관전 해제·재요청 거절·상태 미전송");
+
+            viewer.assertNoMessageDuring(WorldProximityWebSocketTests::watchState, () -> {
+                move(viewer, 5, 20, 0);
+                fixture.version.set(3);
+                events.publishEvent(new GameStateChanged("game", 3));
+                return sender.request("TABLE_LEAVE", Map.of());
+            });
+            assertThat(type(viewer.request("TABLE_WATCH", Map.of("tableId", TABLE)), "TABLE_WATCH_STATE"))
+                    .isTrue();
+            assertSpectator(viewer.request("GAME_WATCH", Map.of("gameId", "game")), 3);
+            sender.request("TABLE_JOIN", Map.of("tableId", TABLE));
+            viewer.await(m -> type(m, "TABLE_WATCH_STATE")
+                    && m.path("payload").path("seats").findValuesAsText("userId").contains("101"));
+            fixture.version.set(4);
+            events.publishEvent(new GameStateChanged("game", 4));
+            assertSpectator(viewer.await(m -> type(m, "GAME_STATE")), 4);
+            System.out.println("[PASS] 20m 복귀만으로 자동 관전 없음 → 재구독 후 좌석·공개 경기 상태 수신");
+
+            viewer.stopPong();
+            assertThat(viewer.awaitClose()).isEqualTo(1001);
+            sender.await(m -> type(m, "CHANNEL_STATE") && m.path("payload").path("currentUsers").asInt() == 1);
+            try (ScenarioClient reconnected = connect("ssafy")) {
+                join(reconnected, "one");
+                assertThat(code(reconnected.request("WORLD_CHAT_SEND", Map.of("text", "위치 재보고 전"))))
+                        .isEqualTo("WORLD_POSITION_REQUIRED");
+                assertThat(code(reconnected.request("TABLE_WATCH", Map.of("tableId", TABLE))))
+                        .isEqualTo("TABLE_OUT_OF_RANGE");
+                assertThat(code(reconnected.request("GAME_WATCH", Map.of("gameId", "game"))))
+                        .isEqualTo("GAME_STATE_ACCESS_DENIED");
+                reconnected.assertNoMessageDuring(WorldProximityWebSocketTests::watchState, () -> {
+                    move(reconnected, 0, 20, 0);
+                    fixture.version.set(5);
+                    events.publishEvent(new GameStateChanged("game", 5));
+                    return sender.request("TABLE_LEAVE", Map.of());
+                });
+                assertChat(sender, reconnected, "재접속 후 채팅");
+                assertThat(type(reconnected.request("TABLE_WATCH", Map.of("tableId", TABLE)), "TABLE_WATCH_STATE"))
+                        .isTrue();
+                assertSpectator(reconnected.request("GAME_WATCH", Map.of("gameId", "game")), 5);
+                sender.request("TABLE_JOIN", Map.of("tableId", TABLE));
+                reconnected.await(m -> type(m, "TABLE_WATCH_STATE")
+                        && m.path("payload").path("seats").findValuesAsText("userId").contains("101"));
+                fixture.version.set(6);
+                events.publishEvent(new GameStateChanged("game", 6));
+                assertSpectator(reconnected.await(m -> type(m, "GAME_STATE")), 6);
+                System.out.println("[PASS] Pong 중단 종료 → 동일 계정 재접속 → 위치 재보고·채팅·관전 재구독 성공");
+            }
+        }
+    }
+
+    private static boolean watchState(JsonNode message) {
+        return type(message, "TABLE_WATCH_STATE") || type(message, "GAME_STATE");
+    }
+
+    private void assertChat(ScenarioClient sender, ScenarioClient receiver, String text) throws Exception {
+        JsonNode sent = sender.request("WORLD_CHAT_SEND", Map.of("text", text));
+        assertThat(type(sent, "WORLD_CHAT_MESSAGE")).isTrue();
+        JsonNode received = receiver.await(m -> type(m, "WORLD_CHAT_MESSAGE"));
+        assertThat(received.path("requestId").isNull()).isTrue();
+        assertThat(received.path("payload")).isEqualTo(sent.path("payload"));
+    }
+
+    private void assertSpectator(JsonNode message, long version) {
+        assertThat(type(message, "GAME_STATE")).isTrue();
+        assertThat(message.path("payload").path("version").asLong()).isEqualTo(version);
+        assertThat(message.path("payload").path("privateState").isEmpty()).isTrue();
+        assertThat(message.path("payload").has("tableId")).isFalse();
     }
 
     private ScenarioClient connect(String login) throws Exception {
