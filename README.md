@@ -128,8 +128,15 @@ DB가 없는 환경에서는 해당 항목을 미검증으로 기록한다.
 DB 없는 Raw WebSocket 연결·테이블 착석·퇴장·준비 동기화를 구현했다. 개발용 기능은 `local` 프로필에서만 활성화된다. `db` 프로필에는 MySQL·JPA·Flyway와 users 스키마·Entity·Repository를 준비했다. 회원가입·온보딩 API·정식 로그인 완료·실제 게임·정산은 미구현이다. `/`의 `404`는 정상이다.
 
 AUTH-01의 `GET /api/v1/auth/{provider}/authorize`는 SSAFY/NAVER 인가 페이지로 302 이동한다.
-필요한 환경변수·로컬 실행·NAVER state 보관·SSAFY CSRF 미확인 사항은
-[소셜 로그인 시작 API](docs/auth-authorize.md)를 참고한다. 콜백과 로그인 완료는 AUTH-02 범위로 아직 없다.
+필요한 환경변수·로컬 실행·공통 state 보관·SSAFY 확인 범위는
+[소셜 로그인 시작 API](docs/auth-authorize.md)를 참고한다.
+AUTH-02의 `GET /api/v1/auth/{provider}/callback`은 state 검증·공급자 조회·회원 상태 판별 후
+60초 일회용 교환 코드만 반환한다. db 프로필이 필요하며 신규 사용자를 저장하지 않는다.
+7일 이내 탈퇴 계정은 같은 ID로 복구하고 7일 초과는 데이터를 보존하며 재가입을 보류한다.
+JWT·교환 REST API·온보딩은 후속 범위다. 환경변수·오류·프론트 전달·수동 시험은
+[콜백 API와 후속 교환 계약](docs/auth-callback.md)을 참고한다.
+프론트 callback 주소 미설정 시의 200 JSON은 로컬 수동 검증용 계약이다.
+콜백 테스트에는 `local,db`가 필요하며, `local`만 사용하면 고정 진단 로그와 함께 503으로 거절한다.
 OAuth 환경변수 없이도 기본 앱과 기존 WebSocket 개발은 실행되며, 설정이 없는 provider의 인가 요청만 500으로 실패한다.
 
 ```powershell
@@ -166,7 +173,7 @@ Linux/macOS에서는 `sh ./gradlew bootRun --args='--spring.profiles.active=loca
 
 ## 게임 시작 연동 검증
 
-인증 방식 미정 상태의 [웹소켓 인증 연결부](docs/websocket-authentication.md)를 추가했다. `--ontop.websocket.authenticated=true`는 서버 검증기 Bean이 있어야 연결할 수 있으며, 검증기 없이 켜면 503이다. 실제 네이버·SSAFY 로그인은 미구현이다. dev 전용 시작 검증 옵션과 동시에 켤 수 없다.
+인증 방식 미정 상태의 [웹소켓 인증 연결부](docs/websocket-authentication.md)를 추가했다. `--ontop.websocket.authenticated=true`는 서버 검증기 Bean이 있어야 연결할 수 있으며, 검증기 없이 켜면 503이다. 소셜 callback의 교환 코드는 아직 WebSocket 인증과 연결되지 않았다. dev 전용 시작 검증 옵션과 동시에 켤 수 없다.
 
 팀원의 DB 코드 없이 시작 요청·성공·거절·결과 조회를 확인할 수 있다. 실제 엽전이나 게임 기록은 변경하지 않는다.
 

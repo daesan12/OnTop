@@ -1,8 +1,9 @@
 package com.ssafy.ontop.auth.controller;
 
+import com.ssafy.ontop.auth.config.OAuthClientSettings;
 import com.ssafy.ontop.auth.config.OAuthProperties;
 import com.ssafy.ontop.auth.service.AuthAuthorizeService;
-import com.ssafy.ontop.auth.service.NaverStateStore;
+import com.ssafy.ontop.auth.service.OAuthStateStore;
 import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
@@ -23,6 +24,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import static com.ssafy.ontop.auth.domain.OAuthProvider.NAVER;
+import static com.ssafy.ontop.auth.domain.OAuthProvider.SSAFY;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -37,19 +40,19 @@ class AuthControllerTests {
     private static final String NAVER_CALLBACK = "http://localhost:8080/api/v1/auth/naver/callback";
     private static final String SSAFY_CLIENT_ID = "ssafy+client /?&=한글";
 
-    private NaverStateStore stateStore;
+    private OAuthStateStore stateStore;
     private MockMvc mvc;
 
     @BeforeEach
     void setUp() {
-        stateStore = new NaverStateStore();
+        stateStore = new OAuthStateStore();
         mvc = mvc(new OAuthProperties(
                 new OAuthProperties.Client(SSAFY_CLIENT_ID, SSAFY_CALLBACK),
                 new OAuthProperties.Client("naver-test-client", NAVER_CALLBACK)), "local");
     }
 
     @Test
-    void SSAFY는_정확한_인가주소와_세_파라미터로_302_응답한다() throws Exception {
+    void SSAFY는_정확한_인가주소와_state를_포함해_302_응답한다() throws Exception {
         MvcResult result = mvc.perform(get("/api/v1/auth/ssafy/authorize"))
                 .andExpect(status().isFound())
                 .andExpect(header().string("Cache-Control", "no-store"))
@@ -61,10 +64,11 @@ class AuthControllerTests {
         assertThat(location.getScheme()).isEqualTo("https");
         assertThat(location.getHost()).isEqualTo("project.ssafy.com");
         assertThat(location.getPath()).isEqualTo("/oauth/sso-check");
-        assertThat(query(location)).containsExactlyInAnyOrderEntriesOf(Map.of(
+        assertThat(query(location)).hasSize(4).containsAllEntriesOf(Map.of(
                 "client_id", SSAFY_CLIENT_ID, "redirect_uri", SSAFY_CALLBACK, "response_type", "code"));
         assertThat(location.getRawQuery()).contains("%2B", "%26", "%3D", "%20", "%ED%95%9C");
-        assertThat(result.getRequest().getSession(false)).isNull();
+        assertThat(result.getRequest().getSession(false)).isNotNull();
+        assertThat(stateStore.consume(result.getRequest(), SSAFY, query(location).get("state"))).isTrue();
     }
 
     @Test
@@ -84,9 +88,9 @@ class AuthControllerTests {
                 .containsEntry("response_type", "code").containsEntry("redirect_uri", NAVER_CALLBACK);
         assertThat(state).matches("[A-Za-z0-9_-]{43}").isNotEqualTo(query(location(second)).get("state"));
         assertThat(first.getRequest().getSession(false)).isNotNull();
-        assertThat(stateStore.consume(new MockHttpServletRequest(), state)).isFalse();
-        assertThat(stateStore.consume(first.getRequest(), state)).isTrue();
-        assertThat(stateStore.consume(first.getRequest(), state)).isFalse();
+        assertThat(stateStore.consume(new MockHttpServletRequest(), NAVER, state)).isFalse();
+        assertThat(stateStore.consume(first.getRequest(), NAVER, state)).isTrue();
+        assertThat(stateStore.consume(first.getRequest(), NAVER, state)).isFalse();
     }
 
     @ParameterizedTest
@@ -169,7 +173,8 @@ class AuthControllerTests {
         MockEnvironment environment = new MockEnvironment();
         environment.setActiveProfiles(profiles);
         return MockMvcBuilders.standaloneSetup(
-                        new AuthController(new AuthAuthorizeService(properties, stateStore, environment)))
+                        new AuthController(new AuthAuthorizeService(
+                                new OAuthClientSettings(properties, environment), stateStore)))
                 .setControllerAdvice(new AuthExceptionHandler()).build();
     }
 

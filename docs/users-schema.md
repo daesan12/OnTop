@@ -4,8 +4,9 @@
 
 첫 Flyway migration `backend/src/main/resources/db/migration/V1__create_users.sql`로 users만 생성한다.
 User Entity·LoginProvider·CharacterGender enum·UserRepository를 `com.ssafy.ontop.user`에 둔다.
-OAuth 콜백·토큰 교환·JWT·가입/온보딩 API·탈퇴/복구 서비스·삭제 배치는 구현하지 않는다.
-OAuth 인증 성공만으로 users에 저장하는 연결 코드도 없다.
+S15P31B105-80의 범위는 스키마·Entity·Repository다. 이후 AUTH-02에서 콜백·기존 계정 복구를 추가했다.
+JWT·가입/온보딩 API·탈퇴 API·삭제 배치는 아직 없다. OAuth 인증 성공만으로 users에 저장하지 않는다.
+현재 로그인 상태 분기는 [AUTH-02](auth-callback.md)를 따른다.
 
 ## 컬럼과 제약조건
 
@@ -68,10 +69,12 @@ strict mode를 유지해야 하며, 비엄격 모드의 자동 잘림을 입력 
 
 - `findByLoginProviderAndProviderUserId(LoginProvider, String)`: 탈퇴 사용자도 조회한다.
 - `existsByNickname(String)`: 정상·탈퇴 사용자 전체를 조회한다.
+- `findForLogin(LoginProvider, String)`: AUTH-02가 트랜잭션 안에서 사용하는 PESSIMISTIC_WRITE 소셜키 조회다.
 
 전역 soft delete 필터·자동 삭제 SQL·상태별 UNIQUE를 사용하지 않는다.
-탈퇴 상태를 숨기지 않고 AUTH 후속 작업에서 deleted_at으로 정상·복구·신규 대상을 판별해야 한다.
-탈퇴 시각 기록·7일 이내 복구·7일 경과 분기 자체는 이번에 구현하지 않는다.
+탈퇴 상태를 숨기지 않고 AUTH-02에서 deleted_at으로 정상·복구·재가입 보류를 판별한다.
+정확히 7일 이내는 같은 ID로 복구하고, 7일 초과는 기존 행을 보존하며 409로 보류한다.
+탈퇴 시각 기록 API와 영구 삭제는 아직 없다.
 
 **미확정 충돌:** 기존 행을 남긴 채 7일 초과 동일 소셜 계정의 새 행을 추가하면 복합 UNIQUE가 거절한다.
 따라서 신규 온보딩을 확정하기 전에 기존 소셜 식별자와 데이터의 보존·해제 방법을 결정해야 한다.
@@ -111,7 +114,8 @@ $env:TEST_DB_PASSWORD = [System.Net.NetworkCredential]::new('', (Read-Host '검�
 
 첫 mysqlTest에서 Flyway가 V1을 적용하고 JPA validate가 성공해야 한다.
 다음 실행에서는 V1을 다시 적용하지 않고 체크섬과 JPA 매핑을 검증한다.
-mysqlTest는 매번 실행되며 테스트 사용자 데이터는 트랜잭션 종료 시 롤백한다.
+mysqlTest는 매번 실행되며 UsersMySqlTests의 데이터는 트랜잭션 종료 시 롤백한다.
+AUTH-02의 실제 커밋·동시 복구 검증 fixture는 별도 전용 DB에 보존한다.
 테이블·Flyway 이력은 보존한다. Flyway clean·DROP·데이터 초기화는 실행하지 않는다.
 
 검증 항목:

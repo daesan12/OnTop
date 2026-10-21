@@ -11,6 +11,7 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Objects;
@@ -74,6 +75,15 @@ public class User {
     @PreUpdate
     void updateTimestamp() {
         updatedAt = Instant.now().truncatedTo(ChronoUnit.MILLIS);
+    }
+
+    public boolean restoreWithinRecoveryPeriod(Instant now) {
+        Objects.requireNonNull(now);
+        if (deletedAt == null || now.isBefore(deletedAt) || now.isAfter(deletedAt.plus(Duration.ofDays(7)))) {
+            return false;
+        }
+        deletedAt = null;
+        return true;
     }
 
     public Long getId() {

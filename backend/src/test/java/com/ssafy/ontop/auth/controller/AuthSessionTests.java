@@ -36,17 +36,17 @@ class AuthSessionTests {
     }
 
     @Test
-    void SSAFY_리다이렉트에는_불필요한_세션_쿠키를_만들지_않는다() throws Exception {
+    void SSAFY_리다이렉트도_state를_위한_세션_쿠키를_만든다() throws Exception {
         HttpResponse<Void> response = get("/api/v1/auth/ssafy/authorize");
 
         assertThat(response.statusCode()).isEqualTo(302);
-        assertThat(response.headers().allValues("Set-Cookie")).isEmpty();
+        assertThat(response.headers().allValues("Set-Cookie")).hasSize(1);
     }
 
     @Test
-    void 두_provider의_callback과_로그아웃은_아직_제공하지_않는다() throws Exception {
-        assertThat(get("/api/v1/auth/ssafy/callback").statusCode()).isEqualTo(404);
-        assertThat(get("/api/v1/auth/naver/callback").statusCode()).isEqualTo(404);
+    void 두_provider의_callback은_state_없이_거절하고_로그아웃은_아직_없다() throws Exception {
+        assertThat(get("/api/v1/auth/ssafy/callback").statusCode()).isEqualTo(400);
+        assertThat(get("/api/v1/auth/naver/callback").statusCode()).isEqualTo(400);
         assertThat(get("/api/v1/auth/logout").statusCode()).isEqualTo(404);
     }
 
