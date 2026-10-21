@@ -5,7 +5,13 @@ OnTop v0.4의 서버 결과 판정과 기존 [GAME-03 결과 조회](https://app
 ## 결과 조회
 
 ```json
-{"requestId":"result-1","type":"GAME_RESULT_CHECK","payload":{"gameSessionId":"701"}}
+{
+  "requestId": "result-1",
+  "type": "GAME_RESULT_CHECK",
+  "payload": {
+    "gameSessionId": "701"
+  }
+}
 ```
 
 서버가 인증한 내부 계정과 경기 ID를 `GameResultGateway.load()`에 전달한다. Gateway는 본인 참가 여부를 검사하고 저장된 종료 결과만 읽는다. 타인 경기·없는 경기·미종료 경기는 모두 빈 Optional로 처리하여 존재 여부를 노출하지 않는다. 관전자도 본인 참가 기록이 없으면 거절한다. dev 임시 사용자는 조회할 수 없다.
@@ -14,19 +20,28 @@ OnTop v0.4의 서버 결과 판정과 기존 [GAME-03 결과 조회](https://app
 
 ```json
 {
-  "requestId":"result-1",
-  "type":"GAME_RESULT",
-  "payload":{
-    "version":12,
-    "gameSessionId":"701",
-    "gameCode":"DICE",
-    "status":"FINISHED",
-    "endReason":"NORMAL",
-    "settlementStatus":"PENDING",
-    "betAmountPerPlayer":1,
-    "participants":[{"userId":"101","result":"WIN"},{"userId":"202","result":"LOSE"}],
-    "myCoinDelta":null,
-    "endedAt":"2026-10-20T00:05:00Z"
+  "requestId": "result-1",
+  "type": "GAME_RESULT",
+  "payload": {
+    "version": 12,
+    "gameSessionId": "701",
+    "gameCode": "DICE",
+    "status": "FINISHED",
+    "endReason": "NORMAL",
+    "settlementStatus": "PENDING",
+    "betAmountPerPlayer": 1,
+    "participants": [
+      {
+        "userId": "101",
+        "result": "WIN"
+      },
+      {
+        "userId": "202",
+        "result": "LOSE"
+      }
+    ],
+    "myCoinDelta": null,
+    "endedAt": "2026-10-20T00:05:00Z"
   }
 }
 ```

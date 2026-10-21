@@ -57,9 +57,7 @@
       "turnUserId": "101"
     },
     "privateState": {
-      "hand": [
-        "example-card"
-      ]
+      "hand": ["example-card"]
     }
   }
 }
@@ -114,9 +112,7 @@
       "turnUserId": "101"
     },
     "privateState": {
-      "hand": [
-        "example-card"
-      ]
+      "hand": ["example-card"]
     }
   }
 }

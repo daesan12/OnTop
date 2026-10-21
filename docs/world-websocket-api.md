@@ -7,7 +7,13 @@
 ## 입장
 
 ```json
-{"requestId":"channel-join-1","type":"CHANNEL_JOIN","payload":{"channelId":"channel-1"}}
+{
+  "requestId": "channel-join-1",
+  "type": "CHANNEL_JOIN",
+  "payload": {
+    "channelId": "channel-1"
+  }
+}
 ```
 
 서버 설정에 있는 채널로만 입장한다. 사용자 ID는 기존 연결에서 찾으며 요청으로 보내지 않는다. 한 연결은 한 채널에만 참여한다. 다른 채널로 바꾸려면 먼저 `CHANNEL_LEAVE`를 보낸다. 기존 채널을 자동으로 옮기지 않는다.
@@ -16,15 +22,15 @@
 
 ```json
 {
-  "requestId":"channel-join-1",
-  "type":"CHANNEL_STATE",
-  "payload":{
-    "channelId":"channel-1",
-    "name":"검증 채널",
-    "version":1,
-    "capacity":3,
-    "currentUsers":1,
-    "userIds":["dev-example"]
+  "requestId": "channel-join-1",
+  "type": "CHANNEL_STATE",
+  "payload": {
+    "channelId": "channel-1",
+    "name": "검증 채널",
+    "version": 1,
+    "capacity": 3,
+    "currentUsers": 1,
+    "userIds": ["dev-example"]
   }
 }
 ```
@@ -38,11 +44,21 @@
 ## 퇴장
 
 ```json
-{"requestId":"channel-leave-1","type":"CHANNEL_LEAVE","payload":{}}
+{
+  "requestId": "channel-leave-1",
+  "type": "CHANNEL_LEAVE",
+  "payload": {}
+}
 ```
 
 ```json
-{"requestId":"channel-leave-1","type":"CHANNEL_LEFT","payload":{"channelId":"channel-1"}}
+{
+  "requestId": "channel-leave-1",
+  "type": "CHANNEL_LEFT",
+  "payload": {
+    "channelId": "channel-1"
+  }
+}
 ```
 
 본인에게 `CHANNEL_LEFT`, 남은 사람에게 버전이 증가한 `CHANNEL_STATE`를 보낸다. 연결은 유지하며 다른 채널 입장이 가능하다. 퇴장한 연결에는 이전 채널의 후속 상태를 보내지 않는다. 이미 미입장이면 `NOT_IN_CHANNEL`이다. 착석 중에는 먼저 `TABLE_LEAVE`로 대기 좌석을 정리해야 한다.
@@ -78,7 +94,17 @@
 2026-10-21 사용자 요청으로 **서버 입력 기반 이동**으로 전환했다. 기존 좌표 보고 payload는 호환하지 않으며 INVALID_PAYLOAD로 거절한다.
 
 ```json
-{"requestId":"move-1","type":"WORLD_MOVE","payload":{"seq":1,"dx":0,"dz":-1,"run":false,"jump":false}}
+{
+  "requestId": "move-1",
+  "type": "WORLD_MOVE",
+  "payload": {
+    "seq": 1,
+    "dx": 0,
+    "dz": -1,
+    "run": false,
+    "jump": false
+  }
+}
 ```
 
 - seq: 채널 입장 기간 중1~4294967295 증가 정수. dx/dz: 각[-1,1] 유한 숫자, 대각선 길이가1을 넘으면 정규화. run은 boolean 필수, jump는 boolean 선택(기본false). 사용자·채널·시각·dt·최종 좌표·회전각은 보내지 않는다.
@@ -91,7 +117,30 @@
 - 착석 중 TABLE_BUSY, 미입장 NOT_IN_CHANNEL, 경기 복구 제한 GAME_RECOVERY_REQUIRED. 착석 시 입력을 정리하고 몸체를 정지한다. 퇴장·heartbeat·연결 종료는 몸체/입력을 제거하며 재입장은 새 스폰·seq 초기화다. 경기30초 복구와 구분한다.
 
 ```json
-{"requestId":null,"type":"WORLD_STATE","payload":{"channelId":"channel-1","version":3,"mapVersion":"544bc6fa3890c77e8de0ec91d27f93981b4d23a477918963757e4762294ba8d0","avatars":[{"userId":"dev-example","position":{"lastInputSeq":1,"x":-2.025,"y":0.84,"z":34,"yaw":3.141592653589793,"moving":false,"running":false,"swimming":false}}]}}
+{
+  "requestId": null,
+  "type": "WORLD_STATE",
+  "payload": {
+    "channelId": "channel-1",
+    "version": 3,
+    "mapVersion": "544bc6fa3890c77e8de0ec91d27f93981b4d23a477918963757e4762294ba8d0",
+    "avatars": [
+      {
+        "userId": "dev-example",
+        "position": {
+          "lastInputSeq": 1,
+          "x": -2.025,
+          "y": 0.84,
+          "z": 34,
+          "yaw": 3.141592653589793,
+          "moving": false,
+          "running": false,
+          "swimming": false
+        }
+      }
+    ]
+  }
+}
 ```
 
 맵 밖 스폰을 막기 위해 제공 맵의 검증된16개 스폰 영역을 순환한다(아바타 간 충돌 제외). mapVersion은 수령 manifest의 SHA-256이며 위치는 예시다. avatars는 입장 순서, version은 입퇴장·입력수락·위치/모션 변화 시 증가하며 CHANNEL_STATE와 비교하지 않는다. 동일 채널의 낮은 버전은 무시하고 연결/채널 변경 시 캐시를 비운다. 프론트는 같은 맵 버전을 사용해 보간·서버 위치 보정을 담당한다. 기존 Colyseus adapter를 자동 변환한 것은 아니다. 채팅·관전20m는 이 서버 위치를 읽으며 테이블 좌표는 기존 서버 설정을 유지한다.
@@ -105,19 +154,25 @@
 현재 local 계약은 발신자 기준 같은 채널의 XZ 반경 20m 이내 전달이다. 채널 입장 시 서버 스폰을 부여한다. 방어적으로 위치가 없으면 WORLD_POSITION_REQUIRED다. [근거리 설정·관전 계약](world-proximity.md)을 함께 따른다.
 
 ```json
-{"requestId":"chat-1","type":"WORLD_CHAT_SEND","payload":{"text":"안녕 👋"}}
+{
+  "requestId": "chat-1",
+  "type": "WORLD_CHAT_SEND",
+  "payload": {
+    "text": "안녕 👋"
+  }
+}
 ```
 
 ```json
 {
-  "requestId":"chat-1",
-  "type":"WORLD_CHAT_MESSAGE",
-  "payload":{
-    "messageId":"00000000-0000-4000-8000-000000000001",
-    "channelId":"channel-1",
-    "userId":"dev-example",
-    "text":"안녕 👋",
-    "sentAt":"2026-10-20T00:00:00Z"
+  "requestId": "chat-1",
+  "type": "WORLD_CHAT_MESSAGE",
+  "payload": {
+    "messageId": "00000000-0000-4000-8000-000000000001",
+    "channelId": "channel-1",
+    "userId": "dev-example",
+    "text": "안녕 👋",
+    "sentAt": "2026-10-20T00:00:00Z"
   }
 }
 ```
@@ -140,19 +195,25 @@ OnTop v0.4의 광장 감정표현을 위한 local 전송 기반이다. 최종 �
 표현 종류·단축키는 팀이 정하며 선택 UI·아바타 모션 재생은 프론트가 맡는다. 서버는 같은 채널에 승인된 표현 코드를 전달한다. 현재 아이템 소유권·구매 권한 조건은 없고 같은 채널의 대기 착석자·테이블 보기 사용자도 사용할 수 있다. 실제 경기 복구의 기존 연결 제한은 별도로 유지한다.
 
 ```json
-{"requestId":"emote-1","type":"WORLD_EMOTE_SEND","payload":{"emoteCode":"WAVE"}}
+{
+  "requestId": "emote-1",
+  "type": "WORLD_EMOTE_SEND",
+  "payload": {
+    "emoteCode": "WAVE"
+  }
+}
 ```
 
 ```json
 {
-  "requestId":"emote-1",
-  "type":"WORLD_EMOTE_EVENT",
-  "payload":{
-    "eventId":"00000000-0000-4000-8000-000000000001",
-    "channelId":"channel-1",
-    "userId":"dev-example",
-    "emoteCode":"WAVE",
-    "sentAt":"2026-10-20T00:00:00Z"
+  "requestId": "emote-1",
+  "type": "WORLD_EMOTE_EVENT",
+  "payload": {
+    "eventId": "00000000-0000-4000-8000-000000000001",
+    "channelId": "channel-1",
+    "userId": "dev-example",
+    "emoteCode": "WAVE",
+    "sentAt": "2026-10-20T00:00:00Z"
   }
 }
 ```

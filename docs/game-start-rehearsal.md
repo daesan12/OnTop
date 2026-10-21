@@ -84,7 +84,11 @@ IntelliJ에서 활성화된 프로파일은 `local`로 두고, 실행 구성의 
 클라이언트 → 서버. 현재 착석한 테이블의 같은 시작 시도 결과를 조회한다. tableId·사용자·시도 ID를 클라이언트가 지정하지 않는다.
 
 ```json
-{ "requestId": "check-1", "type": "GAME_START_CHECK", "payload": {} }
+{
+  "requestId": "check-1",
+  "type": "GAME_START_CHECK",
+  "payload": {}
+}
 ```
 
 요청 ID를 복사한 현재 `GAME_START_STATE`를 먼저 응답한다. 조회가 필요하면 별도 작업으로 조회하고 결과를 테이블 참가자에게 요청 ID가 null인 알림으로 보낸다. 첫 응답은 최종 결과 도착을 보장하는 응답이 아니다. 진행 중인 조회가 있으면 추가 조회 작업을 겹쳐 실행하지 않는다.

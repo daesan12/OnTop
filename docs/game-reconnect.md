@@ -21,20 +21,26 @@
 경기 담당이 등록된 인증 연결에서 자동 조회한다. 조회 실패·처리 중에는 같은 연결에서 다음 요청으로 다시 확인할 수 있다. 사용자·경기 ID는 서버에서 정하므로 요청에 넣지 않는다.
 
 ```json
-{"requestId":"check-1","type":"GAME_RECONNECT_CHECK","payload":{}}
+{
+  "requestId": "check-1",
+  "type": "GAME_RECONNECT_CHECK",
+  "payload": {}
+}
 ```
 
 ```json
 {
-  "requestId":"check-1",
-  "type":"GAME_CONNECTION_STATE",
-  "payload":{
-    "status":"RESTORED",
-    "gameId":"game-1",
-    "version":8,
-    "state":{"turnDeadline":"2026-10-19T07:00:30Z"},
-    "reconnectUntil":null,
-    "code":null
+  "requestId": "check-1",
+  "type": "GAME_CONNECTION_STATE",
+  "payload": {
+    "status": "RESTORED",
+    "gameId": "game-1",
+    "version": 8,
+    "state": {
+      "turnDeadline": "2026-10-19T07:00:30Z"
+    },
+    "reconnectUntil": null,
+    "code": null
   }
 }
 ```

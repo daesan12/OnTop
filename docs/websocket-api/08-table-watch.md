@@ -5,27 +5,41 @@
 ## 요청과 응답
 
 ```json
-{"requestId":"watch-1","type":"TABLE_WATCH","payload":{"tableId":"서버 목록에서 받은 테이블 ID"}}
+{
+  "requestId": "watch-1",
+  "type": "TABLE_WATCH",
+  "payload": {
+    "tableId": "서버 목록에서 받은 테이블 ID"
+  }
+}
 ```
 
 성공은 본인에게 같은 요청 ID의 `TABLE_WATCH_STATE`다. payload는 [TABLE_STATE](04-table-state.md)와 같은 공개 대기 스냅샷이다.
 
 ```json
 {
-  "requestId":"watch-1",
-  "type":"TABLE_WATCH_STATE",
-  "payload":{
-    "tableId":"table-example",
-    "version":2,
-    "capacity":2,
-    "minimumPlayers":2,
-    "seats":[
-      {"seatNumber":1,"userId":"dev-example","ready":false},
-      {"seatNumber":2,"userId":null,"ready":false}
+  "requestId": "watch-1",
+  "type": "TABLE_WATCH_STATE",
+  "payload": {
+    "tableId": "table-example",
+    "version": 2,
+    "capacity": 2,
+    "minimumPlayers": 2,
+    "seats": [
+      {
+        "seatNumber": 1,
+        "userId": "dev-example",
+        "ready": false
+      },
+      {
+        "seatNumber": 2,
+        "userId": null,
+        "ready": false
+      }
     ],
-    "allReady":false,
-    "selectorUserId":"dev-example",
-    "gameCode":"OMOK"
+    "allReady": false,
+    "selectorUserId": "dev-example",
+    "gameCode": "OMOK"
   }
 }
 ```
@@ -42,11 +56,21 @@
 ## 구독 종료와 정리
 
 ```json
-{"requestId":"stop-1","type":"TABLE_UNWATCH","payload":{}}
+{
+  "requestId": "stop-1",
+  "type": "TABLE_UNWATCH",
+  "payload": {}
+}
 ```
 
 ```json
-{"requestId":"stop-1","type":"TABLE_WATCH_LEFT","payload":{"tableId":"table-example"}}
+{
+  "requestId": "stop-1",
+  "type": "TABLE_WATCH_LEFT",
+  "payload": {
+    "tableId": "table-example"
+  }
+}
 ```
 
 - 명시적 종료는 같은 requestId로 완료 응답한다. 종료 후 해당 테이블의 알림을 보내지 않는다. 이미 송신 큐에 들어간 이전 알림은 종료 응답보다 앞에 도착할 수 있으므로 종료 응답에서 캐시를 비운다.

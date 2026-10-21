@@ -9,19 +9,29 @@ OnTop v0.4의 **비공개 정보는 본인에게만 전송, 관전자는 공개 
 인증된 연결에서 다음을 보낸다. `gameId`는 조회 대상이며 접근 권한의 증명이 아니다. 사용자 ID·역할은 요청에 넣을 수 없다.
 
 ```json
-{"requestId":"state-1","type":"GAME_STATE_CHECK","payload":{"gameId":"game-1"}}
+{
+  "requestId": "state-1",
+  "type": "GAME_STATE_CHECK",
+  "payload": {
+    "gameId": "game-1"
+  }
+}
 ```
 
 ```json
 {
-  "requestId":"state-1",
-  "type":"GAME_STATE",
-  "payload":{
-    "gameId":"game-1",
-    "version":8,
-    "role":"PLAYER",
-    "publicState":{"turnUserId":"101"},
-    "privateState":{"hand":["example-card"]}
+  "requestId": "state-1",
+  "type": "GAME_STATE",
+  "payload": {
+    "gameId": "game-1",
+    "version": 8,
+    "role": "PLAYER",
+    "publicState": {
+      "turnUserId": "101"
+    },
+    "privateState": {
+      "hand": ["example-card"]
+    }
   }
 }
 ```
@@ -83,23 +93,51 @@ OnTop v0.4의 **비공개 정보는 본인에게만 전송, 관전자는 공개 
 기존 TABLE_WATCH는 대기 테이블 공개 상태만 구독한다. 경기 관전은 별도 GAME_WATCH로 요청하며, gameId만 안다고 관전 권한이 생기지 않는다.
 
 ```json
-{"requestId":"watch-1","type":"GAME_WATCH","payload":{"gameId":"game-1"}}
+{
+  "requestId": "watch-1",
+  "type": "GAME_WATCH",
+  "payload": {
+    "gameId": "game-1"
+  }
+}
 ```
 
 현재 인증 계정이며 로비 사용이 가능한 연결에서 요청한다. 기존 경기 복구 중/참가 중 연결은 GAME_RECOVERY_REQUIRED다. `GameStateGateway.load(userId, gameId)`가 현재 관전 자격을 확인하고 SPECTATOR 역할·빈 privateState를 반환해야 구독이 성립한다. PLAYER 역할이나 다른 사용자/경기의 상태는 전송하지 않는다. 최초 GAME_STATE는 원래 requestId로 응답하고 이후 변경은 requestId=null로 자동 전송한다.
 
 ```json
-{"requestId":"watch-1","type":"GAME_STATE","payload":{"gameId":"game-1","version":8,"role":"SPECTATOR","publicState":{"turnUserId":"101"},"privateState":{}}}
+{
+  "requestId": "watch-1",
+  "type": "GAME_STATE",
+  "payload": {
+    "gameId": "game-1",
+    "version": 8,
+    "role": "SPECTATOR",
+    "publicState": {
+      "turnUserId": "101"
+    },
+    "privateState": {}
+  }
+}
 ```
 
 현재 연결 하나는 경기 하나만 구독한다. 조회 중인 요청도 자리를 차지하며, 다른 경기로 바꾸려면 먼저 GAME_UNWATCH한다. 중복 요청은 GAME_ALREADY_WATCHING으로 거절한다. 이는 현재 로컬 연결 계약이며 정식 UI 전환은 별도이며 거리 검사는 20m 근거리 계약을 따른다.
 
 ```json
-{"requestId":"unwatch-1","type":"GAME_UNWATCH","payload":{}}
+{
+  "requestId": "unwatch-1",
+  "type": "GAME_UNWATCH",
+  "payload": {}
+}
 ```
 
 ```json
-{"requestId":"unwatch-1","type":"GAME_WATCH_LEFT","payload":{"gameId":"game-1"}}
+{
+  "requestId": "unwatch-1",
+  "type": "GAME_WATCH_LEFT",
+  "payload": {
+    "gameId": "game-1"
+  }
+}
 ```
 
 - 해제 후 도착한 자동 조회 결과는 폐기한다. 최초 확인 전 취소하면 이전 GAME_WATCH 요청에는 GAME_WATCH_CANCELLED 오류를, 해제 요청에는 GAME_WATCH_LEFT를 보낸다. 구독이 없으면 GAME_NOT_WATCHING이다.

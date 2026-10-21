@@ -5,13 +5,32 @@ OnTop v0.4의 서버 판정·재접속 정책을 따르는 local 연결부다. �
 ## 입력과 처리 확인
 
 ```json
-{"requestId":"request-1","type":"GAME_ACTION_SEND","payload":{"gameId":"game-1","actionId":"action-1","expectedVersion":8,"input":{"x":3}}}
+{
+  "requestId": "request-1",
+  "type": "GAME_ACTION_SEND",
+  "payload": {
+    "gameId": "game-1",
+    "actionId": "action-1",
+    "expectedVersion": 8,
+    "input": {
+      "x": 3
+    }
+  }
+}
 ```
 
 `input`은 게임 담당이 검증할 JSON 객체다. 위 좌표는 형식 예시이며 특정 게임의 확정 명세가 아니다. userId·역할·결과를 클라이언트가 지정하지 않는다. gameId는 1~120자, actionId는 1~64자이며 공백만인 값은 거절한다. expectedVersion은 현재 화면에서 본 경기 버전인 0~9007199254740991 정수다. 기존 소켓 메시지 크기 제한도 적용한다.
 
 ```json
-{"requestId":"request-1","type":"GAME_ACTION_RESULT","payload":{"gameId":"game-1","actionId":"action-1","version":9}}
+{
+  "requestId": "request-1",
+  "type": "GAME_ACTION_RESULT",
+  "payload": {
+    "gameId": "game-1",
+    "actionId": "action-1",
+    "version": 9
+  }
+}
 ```
 
 서버가 검증한 내부 계정으로 기존 재접속 서비스의 해당 경기 조작 가능 여부를 확인한 뒤 `GameActionGateway.apply()`에 전달한다. 관전자·미복구·다른 경기 입력은 전달하지 않는다. 참가/턴/종료 여부·게임별 필드·버전 검사는 경기 담당이 실제 변경과 함께 다시 검사한다.
