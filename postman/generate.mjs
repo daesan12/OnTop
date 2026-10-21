@@ -195,7 +195,15 @@ const wsItems = [
             message('20 원카드 선언 — 한 장 pending 3초 내·최신 버전', 'GAME_ACTION_SEND',
                   { gameId: '{{gameId}}', actionId: 'onecard-declare-1', expectedVersion: 0, input: { kind: 'declare-one' } }),
             message('21 원카드 미선언 신고 — targetUserId·최신 버전 수정', 'GAME_ACTION_SEND',
-                  { gameId: '{{gameId}}', actionId: 'onecard-catch-1', expectedVersion: 0, input: { kind: 'catch-one', targetUserId: 'replace-with-public-player-user-id' } })])
+                  { gameId: '{{gameId}}', actionId: 'onecard-catch-1', expectedVersion: 0, input: { kind: 'catch-one', targetUserId: 'replace-with-public-player-user-id' } }),
+            message('22 다리 비밀 굴림 — 본인 AWAITING_ROLL·최신 버전', 'GAME_ACTION_SEND',
+                  { gameId: '{{gameId}}', actionId: 'bridge-roll-1', expectedVersion: 0, input: { kind: 'roll' } }),
+            message('23 다리 숫자 선언 — 본인 DECLARING·최신 버전', 'GAME_ACTION_SEND',
+                  { gameId: '{{gameId}}', actionId: 'bridge-declare-1', expectedVersion: 0, input: { kind: 'declare', value: 4 } }),
+            message('24 다리 믿기 — 본인 RESPONDING·최신 버전', 'GAME_ACTION_SEND',
+                  { gameId: '{{gameId}}', actionId: 'bridge-trust-1', expectedVersion: 0, input: { kind: 'trust' } }),
+            message('25 다리 다우트 — 본인 RESPONDING·최신 버전', 'GAME_ACTION_SEND',
+                  { gameId: '{{gameId}}', actionId: 'bridge-doubt-1', expectedVersion: 0, input: { kind: 'doubt' } })])
 ];
 const farkleGuide = '주사위(DICE)는 local의 ontop.games.farkle.enabled=true로 선택 활성화하며 서버 내부 참가 확정 후 생성한 경기에서 실행합니다. '
     + '12는 최초 굴림,13은 재굴림,14는Bank,15는12의 동일행동 재확인입니다. 13/14는 최신 GAME_STATE.version과 현재 dice의 held=false 득점 ID로 수정하세요. 서로 순차 실행하는 고정 시나리오가 아닙니다. '
@@ -216,6 +224,15 @@ const onecardGuide = '원카드(ONE_CARD)는2~4명·54장·7장배분·서버랜
     + '선언/신고반응창은별도3초·첫유효행동우선·신고2장벌칙·만료만으로자동벌칙없음. 마지막특수카드도효과없이즉시승리. 덱재구성/부족시가능장수/교착최소손패공동승리. '
     + '공격/특수카드세부표는docs/onecard.md. 서버승패는DB정산·재화지급과구분하며실제인증·참가확정서버생성이필요합니다. ';
 wsItems[5].description += '\n\n' + onecardGuide;
+const bridgeGuide = '거짓말다리(LIAR_BRIDGE)는2~4명·각7개말,local의ontop.games.bridge.enabled=true와서버내부참가확정경기로실행합니다. '
+    + '22~25는독립예제입니다. 최신gameId/expectedVersion과turnUserId/responderUserId·stage에맞춰사용하고새행동은새actionId를사용합니다. '
+    + 'input=roll/declare(value1~4)/trust/doubt만허용,눈/승자/추가필드주입은거절합니다. 원본TS의phaseVersion/turnId는input으로보내지않습니다. '
+    + '굴림·선언·각판단30초. 굴림/선언만료는자동굴림·자동선언없이현재차례넘김,판단만료는믿고다음판단자. 판정연출1.5초입력차단. 복귀는같은눈/기존마감유지. '
+    + '본인DECLARING/RESPONDING만privateState={userId,turnId,die:1~4또는X},상대·관전자·판정후는{}. 모두믿은resolution은actualFace키자체없음,다우트때만actualFace/challengerUserId/wasBluff공개. '
+    + '공개상태는stage,turnId,turnUserId,responderUserId,turnDeadline,phaseTimeLimitMs30000,resolutionVisualMs1500,declaration,responseOrder,acceptedBy,players(말/점수/기권),goalSlots8개,nextGoalSlot,resolution,operations,lastEvent,winnerUserIds/endReason/endedAt. '
+    + '슬롯은영구순번1~8/VACATED재사용없음. 골인말만있는사람은판단가능,실패시최저슬롯제거. 페널티/이동/슬롯발급/기권적용후승패판정. 3골인우선,8발급/말소진시미기권최고점공동승리. '
+    + '복구state={publicState,privateState}. 기존20m관전/30초유예유지. 승패는DB정산·지급완료아님. 상세docs/bridge.md. ';
+wsItems[5].description += '\n\n' + bridgeGuide;
 const guide = '현재 코드의 local 통신 검증용. 서버는 local,visual-test로 실행하고 OnTop Local 환경을 선택하세요. '
     + '실제 오목 엔진은 선택적으로 켤 수 있으며 로그인·시작 차감·DB 정산은 미연결입니다. HTTP 테이블 조회로 ID 저장 후 WebSocket을 연결합니다. '
     + '웹에서 저장한 컬렉션은 동일 계정·워크스페이스 앱에서 사용하며 로컬 테스트는 Desktop App에서 실행하세요.';

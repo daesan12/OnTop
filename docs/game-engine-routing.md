@@ -1,6 +1,6 @@
 # 게임별 공통 통신 분기
 
-기존 GAME_ACTION_SEND / GAME_STATE_CHECK / GAME_WATCH / GAME_RECONNECT_CHECK의 공통 JSON 형식은 바꾸지 않는다. 서버가 생성한 경기 ID로 입력·상태·복구 담당 엔진을 선택한다. 현재 규칙 엔진은 오목·주사위·원카드다. 게임별 input과 상태는 각 계약을 따른다.
+기존 GAME_ACTION_SEND / GAME_STATE_CHECK / GAME_WATCH / GAME_RECONNECT_CHECK의 공통 JSON 형식은 바꾸지 않는다. 서버가 생성한 경기 ID로 입력·상태·복구 담당 엔진을 선택한다. 현재 규칙 엔진은 오목·주사위·원카드·거짓말 다리다. 게임별 input과 상태는 각 계약을 따른다.
 
 ## 서버 내부 연결
 
@@ -14,6 +14,6 @@
 
 ## 현재 범위
 
-OmokEngine, [FarkleEngine](farkle.md), [OneCardEngine](onecard.md)에 등록/종료 색인을 연결했다. FarkleFlowTests는 주사위 종료 뒤 오목 복구 전환을, OneCardFlowTests는 본인 손패 격리·관전·복귀·30초 넘김을 실제 소켓으로 검증한다. 원카드 기권 손패 정책은 확인 대기이며 기본값 없이 명시 설정을 요구한다. 실제 프론트·로그인·시작 차감·DB 정산 연동 완료를 뜻하지 않는다.
+OmokEngine, [FarkleEngine](farkle.md), [OneCardEngine](onecard.md), [BridgeEngine](bridge.md)에 등록/종료 색인을 연결했다. FarkleFlowTests는 주사위 종료 뒤 오목 복구 전환을, OneCardFlowTests는 본인 손패 격리·관전·복귀·30초 넘김을 실제 소켓으로 검증한다. 원카드 기권 손패 정책은 확인 대기이며 기본값 없이 명시 설정을 요구한다. 실제 프론트·로그인·시작 차감·DB 정산 연동 완료를 뜻하지 않는다.
 
 검증 진입점은 GameEngineRouterTests, GameEngineProfileTests, OmokEngineTests, OmokFlowTests, OmokDemoHttpTests, TableProfileTests다. 서버 메모리 색인은 재시작/다중 서버의 참가/복구 원장이 아니다.
