@@ -35,7 +35,7 @@ class WorldEmoteHubTests {
     private final ObjectMapper mapper = new ObjectMapper();
     private final AtomicLong nanos = new AtomicLong();
     private final WorldChannelRegistry registry = new WorldChannelRegistry(new WorldChannelProperties(List.of(
-            new Channel("one", "하나", 3), new Channel("two", "둘", 3))));
+            new Channel("one", "하나", 3), new Channel("two", "둘", 3))), Duration.ofNanos(1), () -> 0L);
     private final TableHub hub = new TableHub(mapper, Optional.empty(), false, Optional.empty(),
             Duration.ofSeconds(10), Duration.ofSeconds(10), registry,
             new WorldChatService(Duration.ofSeconds(1)),

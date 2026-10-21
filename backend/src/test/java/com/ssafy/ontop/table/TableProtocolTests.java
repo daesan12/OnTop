@@ -76,10 +76,10 @@ class TableProtocolTests {
     }
 
     @Test
-    void 이동_순번은_브라우저의_최대_안전_정수까지_허용한다() {
+    void 이동_입력순번은_uint32최대까지_허용한다() {
         assertThat(protocol.parse("{\"requestId\":\"move-1\",\"type\":\"WORLD_MOVE\","
-                + "\"payload\":{\"sequence\":9007199254740991,\"x\":1.25,\"y\":0,\"z\":-2,\"yaw\":0}}")
-                .payload().path("sequence").longValue()).isEqualTo(9_007_199_254_740_991L);
+                + "\"payload\":{\"seq\":4294967295,\"dx\":1,\"dz\":0,\"run\":false}}")
+                .payload().path("seq").longValue()).isEqualTo(4_294_967_295L);
     }
 
     @ParameterizedTest

@@ -52,12 +52,7 @@ public final class TableProtocol {
             case "CHANNEL_LEAVE" -> fields(payload, Set.of());
             case "WORLD_CHAT_SEND" -> fields(payload, Set.of("text")) && validChatText(payload.get("text"));
             case "WORLD_EMOTE_SEND" -> fields(payload, Set.of("emoteCode")) && validEmoteCode(payload.get("emoteCode"));
-            case "WORLD_MOVE" -> fields(payload, Set.of("sequence", "x", "y", "z", "yaw"))
-                    && payload.get("sequence").isIntegralNumber() && payload.get("sequence").canConvertToLong()
-                    && payload.get("sequence").longValue() >= 0
-                    && payload.get("sequence").longValue() <= 9_007_199_254_740_991L
-                    && finite(payload.get("x")) && finite(payload.get("y"))
-                    && finite(payload.get("z")) && finite(payload.get("yaw"));
+            case "WORLD_MOVE" -> validMove(payload);
             case "TABLE_JOIN", "TABLE_WATCH" -> fields(payload, Set.of("tableId")) && payload.get("tableId").isTextual()
                     && !payload.get("tableId").textValue().isBlank();
             case "READY_SET" -> fields(payload, Set.of("ready")) && payload.get("ready").isBoolean();
@@ -98,6 +93,15 @@ public final class TableProtocol {
             return mapper.writeValueAsString(new Response(requestId, type, payload));
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException("서버 메시지 직렬화 실패", exception);
+        }
+    }
+
+    private boolean validMove(JsonNode payload) {
+        try {
+            com.ssafy.ontop.world.movement.MoveInput.parse(payload);
+            return true;
+        } catch (IllegalArgumentException exception) {
+            return false;
         }
     }
 

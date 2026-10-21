@@ -227,6 +227,7 @@ public class TableHub {
         this.heartbeatTimeout = heartbeatTimeout;
         protocol = new TableProtocol(mapper, startRehearsal);
         heartbeatTimer.scheduleWithFixedDelay(this::checkHeartbeats, 100, 100, TimeUnit.MILLISECONDS);
+        heartbeatTimer.scheduleWithFixedDelay(this::advanceWorld, 33, 33, TimeUnit.MILLISECONDS);
     }
 
     public synchronized void connect(WebSocketSession session) {
@@ -517,6 +518,7 @@ public class TableHub {
             fail(request, "TABLE_FULL", "빈 좌석이 없습니다.");
         }
         seating.put(member.userId(), tableId);
+        channels.stopMovement(member.userId());
         clearWatch(member, null);
         clearGameWatch(member);
         publish(room, member, request.requestId());
@@ -551,17 +553,34 @@ public class TableHub {
         publishWorld(channels.worldState(state.channelId()), null, null);
     }
 
+    private synchronized void advanceWorld() {
+        if (stopped) {
+            return;
+        }
+        try {
+            for (var state : channels.advance(Set.copyOf(seating.keySet()))) {
+                publishWorld(state, null, null);
+                for (Member member : java.util.List.copyOf(members.values())) {
+                    if (channels.isInChannel(member.userId(), state.channelId())) {
+                        refreshWatchRange(member);
+                    }
+                }
+            }
+        } catch (RuntimeException exception) {
+            // Do not silently lose the scheduled simulation after one failed tick.
+            org.slf4j.LoggerFactory.getLogger(TableHub.class).error("광장 이동 tick 실패", exception);
+        }
+    }
+
     private void moveWorld(Member member, Request request) {
         if (seating.containsKey(member.userId())) {
             fail(request, "TABLE_BUSY", "먼저 테이블에서 퇴장해주세요.");
         }
         var payload = request.payload();
-        var position = new WorldChannelRegistry.Position(payload.get("sequence").longValue(),
-                payload.get("x").doubleValue(), payload.get("y").doubleValue(),
-                payload.get("z").doubleValue(), payload.get("yaw").doubleValue());
-        WorldChannelRegistry.WorldChange change = channels.move(member.userId(), position);
+        WorldChannelRegistry.WorldChange change = channels.input(member.userId(),
+                com.ssafy.ontop.world.movement.MoveInput.parse(payload));
         if (change.changed()) {
-            publishWorld(change.state(), member, request.requestId());
+            member.peer().offer(protocol.encode(request.requestId(), "WORLD_STATE", change.state()));
             refreshWatchRange(member);
         } else {
             member.peer().offer(protocol.encode(request.requestId(), "WORLD_STATE", change.state()));

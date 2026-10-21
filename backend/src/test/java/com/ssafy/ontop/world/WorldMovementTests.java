@@ -25,16 +25,16 @@ class WorldMovementTests {
     void 늦은_입장자에게_최신_위치를_주고_이전_스냅샷과_채널_인원_버전은_유지한다() {
         registry.join("a", "one");
         var initial = registry.worldState("one");
-        assertThat(initial.avatars().getFirst().position()).isNull();
+        assertThat(initial.avatars().getFirst().position()).isNotNull();
         registry.move("a", pose(7, 12));
         registry.join("b", "one");
         var current = registry.worldState("one");
         assertThat(current.avatars().getFirst().position().x()).isEqualTo(12);
-        assertThat(current.avatars().get(1).position()).isNull();
+        assertThat(current.avatars().get(1).position()).isNotNull();
         assertThat(current.version()).isEqualTo(3);
         assertThat(registry.join("b", "one").state().version()).isEqualTo(2);
         assertThat(initial.avatars()).hasSize(1);
-        assertThat(initial.avatars().getFirst().position()).isNull();
+        assertThat(initial.avatars().getFirst().position()).isNotNull();
         assertThatThrownBy(() -> current.avatars().clear()).isInstanceOf(UnsupportedOperationException.class);
     }
 
@@ -74,7 +74,7 @@ class WorldMovementTests {
         assertThat(registry.disconnect("a")).isNull();
         assertThat(registry.worldState("one").version()).isEqualTo(version);
         registry.join("a", "two");
-        assertThat(registry.worldState("two").avatars().getFirst().position()).isNull();
+        assertThat(registry.worldState("two").avatars().getFirst().position()).isNotNull();
         assertThat(registry.move("a", pose(0, 1)).changed()).isTrue();
         registry.clear();
         assertThat(registry.worldState("two").avatars()).isEmpty();

@@ -50,14 +50,14 @@
 | 서버 → 클라이언트 | CHANNEL_STATE | 채널별 인원·참가자 전체 상태 |
 | 클라이언트 → 서버 | CHANNEL_LEAVE | 본인 CHANNEL_LEFT, 남은 참가자 CHANNEL_STATE |
 | 서버 → 클라이언트 | CHANNEL_LEFT | 명시적 채널 퇴장 완료 |
-| 클라이언트 → 서버 | WORLD_MOVE | 본인과 같은 채널 참가자에게 WORLD_STATE |
+| 클라이언트 → 서버 | WORLD_MOVE | 본인 WORLD_STATE 수락 확인, 같은 채널은 서버 틱 변화 100ms 동기화 |
 | 서버 → 클라이언트 | WORLD_STATE | 채널별 최신 보고 위치 전체 상태 |
 | 클라이언트 → 서버 | WORLD_CHAT_SEND | 본인과 같은 채널 참가자에게 WORLD_CHAT_MESSAGE |
 | 서버 → 클라이언트 | WORLD_CHAT_MESSAGE | 승인된 일반 텍스트 채팅 |
 | 클라이언트 → 서버 | WORLD_EMOTE_SEND | 본인과 같은 채널 참가자에게 WORLD_EMOTE_EVENT |
 | 서버 → 클라이언트 | WORLD_EMOTE_EVENT | 승인된 감정표현 코드 |
 
-CHANNEL_JOIN 성공·다른 사용자 입퇴장·종료 때는 WORLD_STATE도 알립니다. 위치 미보고 참가자는 position=null이며 채널 인원 버전과 위치 버전은 따로 관리합니다.
+CHANNEL_JOIN 성공·다른 사용자 입퇴장·종료 때는 WORLD_STATE도 알립니다. 입장 시 서버 스폰 위치가 생성되며 채널 인원 버전과 위치 버전은 따로 관리합니다.
 
 채널 채팅은 일반 텍스트 1~200 Unicode 코드포인트·기본 1초 간격입니다. [광장 계약](world-websocket-api.md)의 요청·응답·전달 범위를 따릅니다. 채팅·관전은 기본 20m이며 [거리 설정](world-proximity.md)을 따릅니다. 욕설 판정·메시지 이력은 미구현입니다.
 

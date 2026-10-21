@@ -25,7 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
         "ontop.world.channels[1].channel-id=two", "ontop.world.channels[1].name=둘",
         "ontop.world.channels[1].capacity=3"
 })
-@Import({AuthenticatedWebSocketTests.AuthFixture.class, AllowedWatchFixture.class})
+@Import({AuthenticatedWebSocketTests.AuthFixture.class, AllowedWatchFixture.class, FrozenWorldFixture.class})
 @DirtiesContext
 class WorldFullFlowTests {
 
@@ -39,7 +39,7 @@ class WorldFullFlowTests {
             join(first, "one");
             join(second, "two");
             JsonNode moved = payload(first, "WORLD_MOVE", move(0, 3), "WORLD_STATE");
-            assertThat(avatar(moved, "101").path("position").path("x").asDouble()).isEqualTo(3);
+            assertThat(avatar(moved, "101").path("position").path("x").asDouble()).isEqualTo(com.ssafy.ontop.world.movement.ParkScene.load().spawn(0).x);
             payload(first, "WORLD_CHAT_SEND", Map.of("text", "격리 확인"), "WORLD_CHAT_MESSAGE");
             payload(first, "WORLD_EMOTE_SEND", Map.of("emoteCode", "WAVE"), "WORLD_EMOTE_EVENT");
             second.assertNoMessage(message -> message.path("type").asText().startsWith("WORLD_"));
@@ -48,8 +48,8 @@ class WorldFullFlowTests {
             payload(second, "CHANNEL_LEAVE", Map.of(), "CHANNEL_LEFT");
             JsonNode late = second.assertNoMessageDuring(message -> isType(message, "WORLD_CHAT_MESSAGE")
                     || isType(message, "WORLD_EMOTE_EVENT"), () -> join(second, "one"));
-            assertThat(avatar(late, "101").path("position").path("x").asDouble()).isEqualTo(3);
-            assertThat(avatar(late, "202").path("position").isNull()).isTrue();
+            assertThat(avatar(late, "101").path("position").path("x").asDouble()).isEqualTo(com.ssafy.ontop.world.movement.ParkScene.load().spawn(0).x);
+            assertThat(avatar(late, "202").path("position").isObject()).isTrue();
             payload(second, "WORLD_MOVE", move(0, 4), "WORLD_STATE");
             first.await(message -> isType(message, "WORLD_STATE")
                     && message.path("payload").path("avatars").size() == 2);
@@ -93,7 +93,7 @@ class WorldFullFlowTests {
                     && message.path("payload").path("currentUsers").asInt() == 1);
             JsonNode cleaned = first.await(message -> isType(message, "WORLD_STATE")
                     && message.path("payload").path("avatars").size() == 1).path("payload");
-            assertThat(avatar(cleaned, "101").path("position").path("x").asDouble()).isEqualTo(3);
+            assertThat(avatar(cleaned, "101").path("position").path("x").asDouble()).isEqualTo(com.ssafy.ontop.world.movement.ParkScene.load().spawn(0).x);
             JsonNode remaining = first.await(message -> isType(message, "TABLE_STATE")
                     && !message.path("payload").path("seats").findValuesAsText("userId").contains("202"))
                     .path("payload");
@@ -105,7 +105,7 @@ class WorldFullFlowTests {
 
             try (ScenarioClient returned = connect("ssafy")) {
                 JsonNode fresh = join(returned, "one");
-                assertThat(avatar(fresh, "202").path("position").isNull()).isTrue();
+                assertThat(avatar(fresh, "202").path("position").isObject()).isTrue();
                 assertThat(table().path("occupiedSeats").asInt()).isEqualTo(1);
                 payload(returned, "WORLD_MOVE", move(0, 4), "WORLD_STATE");
                 payload(returned, "WORLD_CHAT_SEND", Map.of("text", "다시 입장"), "WORLD_CHAT_MESSAGE");
@@ -113,7 +113,7 @@ class WorldFullFlowTests {
                 JsonNode seated = payload(returned, "TABLE_JOIN", Map.of("tableId", tableId), "TABLE_STATE");
                 assertThat(seated.path("allReady").asBoolean()).isFalse();
                 assertThat(table().path("occupiedSeats").asInt()).isEqualTo(2);
-                pass("같은 계정 새 연결 → 위치 미보고·좌석 자동 복구 없음·간격 정리·다시 착석");
+                pass("같은 계정 새 연결 → 서버 스폰·좌석 자동 복구 없음·간격 정리·다시 착석");
             }
         }
     }
@@ -157,7 +157,7 @@ class WorldFullFlowTests {
     }
 
     private static Map<String, Object> move(long sequence, double x) {
-        return Map.of("sequence", sequence, "x", x, "y", 0, "z", -2, "yaw", 0.5);
+        return Map.of("seq", sequence + 1, "dx", 0, "dz", 0, "run", false);
     }
 
     private static boolean isType(JsonNode message, String type) {

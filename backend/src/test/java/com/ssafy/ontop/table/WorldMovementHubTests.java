@@ -29,7 +29,7 @@ class WorldMovementHubTests {
 
     private final ObjectMapper mapper = new ObjectMapper();
     private final WorldChannelRegistry registry = new WorldChannelRegistry(new WorldChannelProperties(List.of(
-            new Channel("one", "하나", 3), new Channel("two", "둘", 3))));
+            new Channel("one", "하나", 3), new Channel("two", "둘", 3))), Duration.ofNanos(1), () -> 0L);
     private final TableHub hub = new TableHub(mapper, Optional.empty(), false, Optional.empty(),
             Duration.ofSeconds(10), Duration.ofSeconds(10), registry);
 
@@ -53,10 +53,10 @@ class WorldMovementHubTests {
         other.next("WORLD_STATE");
 
         JsonNode result = first.request("WORLD_MOVE", move(1, 3));
-        JsonNode notice = second.next("WORLD_STATE");
+        // 입력 ACK는 본인에게만 간다. 주기 방송은 실제 소켓 검사에서 확인한다.
         assertThat(result.path("requestId").isTextual()).isTrue();
-        assertThat(notice.path("requestId").isNull()).isTrue();
-        assertThat(notice.path("payload")).isEqualTo(result.path("payload"));
+
+
         assertThat(other.messages.poll(150, TimeUnit.MILLISECONDS)).isNull();
         assertThat(first.request("WORLD_MOVE", move(1, 999)).path("payload")).isEqualTo(result.path("payload"));
         assertThat(second.messages.poll(150, TimeUnit.MILLISECONDS)).isNull();
@@ -86,7 +86,7 @@ class WorldMovementHubTests {
     }
 
     private Map<String, Object> move(long sequence, double x) {
-        return Map.of("sequence", sequence, "x", x, "y", 0, "z", -2, "yaw", 0.5);
+        return Map.of("seq", sequence + 1, "dx", 0, "dz", 0, "run", false);
     }
 
     private Peer peer() throws Exception {

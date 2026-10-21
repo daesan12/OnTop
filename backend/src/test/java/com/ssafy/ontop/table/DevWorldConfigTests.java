@@ -26,7 +26,7 @@ class DevWorldConfigTests {
                 .andExpect(jsonPath("$.channels[0].channelId").value("visual-a"))
                 .andExpect(jsonPath("$.channels[0].currentUsers").doesNotExist())
                 .andExpect(jsonPath("$.channels[0].userIds").doesNotExist())
-                .andExpect(jsonPath("$.movementIntervalMs").value(100))
+                .andExpect(jsonPath("$.movementIntervalMs").value(50))
                 .andExpect(jsonPath("$.chatIntervalMs").value(1000))
                 .andExpect(jsonPath("$.emoteCodes.length()").value(2))
                 .andExpect(jsonPath("$.emoteCodes[0]").value("WAVE"))

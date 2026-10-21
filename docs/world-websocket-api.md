@@ -2,7 +2,7 @@
 
 기존 Raw WebSocket `/ws/tables` 연결을 재사용한다. `local` 전용이며 별도 `/ws/world` 연결은 만들지 않는다. 기존 인증·중복 접속 차단·heartbeat·연결별 송신 순서를 그대로 사용한다.
 
-기준은 [OnTop v0.4](https://app.notion.com/p/OnTop_-_-154161842b868387b6ad0174db68ee71)의 광장·실시간 통신과 [채널 목록 계약](channel-query-api.md)이다. 아래 메시지 이름·필드·버전은 구현의 통신 계약이다. 같은 채널 위치 공유·채팅 송수신 기반을 구현했다. 채팅은 기본 20m 근거리 필터를 적용하며 맵 충돌 판정은 미연결이다. 채널 설정 시 채널별 테이블을 생성하고 해당 채널 입장 후에만 착석한다. [테이블 조회 계약](table-query-api.md)의 channelId 필터와 서버 발급 tableId를 사용한다. 채널 설정 없는 기존 개발 모드만 table-1·table-2를 유지한다.
+기준은 [OnTop v0.4](https://app.notion.com/p/OnTop_-_-154161842b868387b6ad0174db68ee71)의 광장·실시간 통신과 [채널 목록 계약](channel-query-api.md)이다. 아래 메시지 이름·필드·버전은 구현의 통신 계약이다. 같은 채널 위치 공유·채팅 송수신 기반을 구현했다. 채팅은 기본20m 근거리 필터와 서버 판정 위치를 사용한다. 채널 설정 시 채널별 테이블을 생성하고 해당 채널 입장 후에만 착석한다. [테이블 조회 계약](table-query-api.md)의 channelId 필터와 서버 발급 tableId를 사용한다. 채널 설정 없는 기존 개발 모드만 table-1·table-2를 유지한다.
 
 ## 입장
 
@@ -75,39 +75,34 @@
 
 ## 광장 이동 · WORLD_MOVE / WORLD_STATE
 
-채널 입장 후 미착석 상태에서 기존 소켓으로 전송한다. 사용자·채널 ID를 payload에 넣지 않는다. 서버가 현재 연결에서 확인한다.
+2026-10-21 사용자 요청으로 **서버 입력 기반 이동**으로 전환했다. 기존 좌표 보고 payload는 호환하지 않으며 INVALID_PAYLOAD로 거절한다.
 
 ```json
-{"requestId":"move-1","type":"WORLD_MOVE","payload":{"sequence":0,"x":1.5,"y":0,"z":-2,"yaw":0.5}}
+{"requestId":"move-1","type":"WORLD_MOVE","payload":{"seq":1,"dx":0,"dz":-1,"run":false,"jump":false}}
 ```
+
+- seq: 채널 입장 기간 중1~4294967295 증가 정수. dx/dz: 각[-1,1] 유한 숫자, 대각선 길이가1을 넘으면 정규화. run은 boolean 필수, jump는 boolean 선택(기본false). 사용자·채널·시각·dt·최종 좌표·회전각은 보내지 않는다.
+- 입장 시 서버가 스폰을 부여한다. m/Y-up이며 위치는 캐릭터 캡슐 중심이다. 본인 입력 확인은 원래 requestId의 WORLD_STATE이고 위치는 직전 계산 값일 수 있다. lastInputSeq는 마지막 **수락한** 입력 확인이며 해당 입력이 전부 시뮬레이션됐다는 뜻은 아니다.
+- 서버가30Hz 고정 간격으로 계산하며 변화가 있으면 약100ms마다 같은 채널에 requestId=null의 전체 WORLD_STATE를 보낸다. 입력 빈도가 물리 계산 시간을 늘리지 않는다. 지연 시 최대3스텝만 보충하며 과도한 지연분은 버린다. 운영 처리량을 측정한 값은 아니다.
+- 입력 최소 간격 기본50ms(ontop.world.movement.minimum-interval 설정), 새 입력이250ms 없으면 수평 이동 정지. 과거/중복 seq는 재적용·만료 연장 없이 최신 상태만 본인에게 응답한다. 너무 빠른 새 입력은 MOVE_TOO_FREQUENT이며 순번을 소비하지 않는다.
+- 걷기6.25m/s·달리기9m/s·기본 점프6.2m/s·중력-18m/s²·추락 한도20m/s·자동 단차0.22m. 반지름0.30/중앙 선분 반높이0.48m 캡슐을 사용한다. 참조 여유0.02m는 맵 경계·발 위치 계산에 사용하며 Bullet 캡슐의 내부 margin은 Rapier skin과 별개다. 공중 재점프는 차단한다.
+- 수령한 shared-config 전체를 bake한 park.json은 박스1,142개·메시4개(지형/팔각정 계단/전망대 경사로·데크·난간/팔각정 울타리)·팔각정 바닥 hull9개를 포함한다. 메시로 합친 박스를 중복 등록하지 않는다. 물리 엔진은 Java Minie9.0.3/Bullet이며 TypeScript/Rapier와 수치적으로 동일한 엔진은 아니다.
+- 수영 속도·부력·징검다리 오르기·전망대 전용 점프는 전달 코드에 맞춰 처리한다. 전체3D 프론트 동작 동등성·Linux native·운영 부하 검증은 별도다. 생성/입력/계산/조회/제거를 채널별 전용 물리 thread에 모은다.
+- 착석 중 TABLE_BUSY, 미입장 NOT_IN_CHANNEL, 경기 복구 제한 GAME_RECOVERY_REQUIRED. 착석 시 입력을 정리하고 몸체를 정지한다. 퇴장·heartbeat·연결 종료는 몸체/입력을 제거하며 재입장은 새 스폰·seq 초기화다. 경기30초 복구와 구분한다.
 
 ```json
-{
-  "requestId":"move-1",
-  "type":"WORLD_STATE",
-  "payload":{
-    "channelId":"channel-1",
-    "version":2,
-    "avatars":[{"userId":"dev-example","position":{"sequence":0,"x":1.5,"y":0,"z":-2.0,"yaw":0.5}}]
-  }
-}
+{"requestId":null,"type":"WORLD_STATE","payload":{"channelId":"channel-1","version":3,"mapVersion":"544bc6fa3890c77e8de0ec91d27f93981b4d23a477918963757e4762294ba8d0","avatars":[{"userId":"dev-example","position":{"lastInputSeq":1,"x":-2.025,"y":0.84,"z":34,"yaw":3.141592653589793,"moving":false,"running":false,"swimming":false}}]}}
 ```
 
-- `x/y/z`는 장면 좌표, `yaw`는 Y축 회전각(라디안)이다. 모두 유한한 JSON 숫자만 허용한다. 문자열·null·추가 필드는 `INVALID_PAYLOAD`다. 전송 좌표는 1단위=1m이며 맵 경계·충돌·최대 속도 판정은 모델링 연동 전 미구현이다. 서버가 위치의 물리적 타당성을 검증한 결과가 아니라 클라이언트 보고 위치의 공유다.
-- `sequence`는 채널 입장 기간 동안 사용자별 증가 정수다(0~9007199254740991). 음수·소수·범위 초과는 거절한다. 마지막 승인 순번 이하이면 위치·버전은 유지하고 요청자에게 현재 WORLD_STATE만 반환한다. 타인 알림은 없다. requestId는 여전히 요청 대응용이며 이동 순서는 sequence로 판단한다.
-- 변경 성공은 요청자에게 같은 requestId의 WORLD_STATE, 같은 채널의 나머지 참가자에게 requestId=null인 전체 스냅샷을 보낸다. 다른 채널·미입장 연결에는 보내지 않는다. AOI(가까운 사람만 전송)·차이분 전송은 아직 없다.
-- `avatars`는 현재 채널 참가자 전원이며 입장 순서다. 위치를 아직 보고하지 않은 참가자의 `position`은 null이다. 원점 좌표나 최종 스폰 위치를 임의 배정하지 않는다. 프론트는 null을 이동 좌표로 해석하지 않는다.
-- WORLD_STATE의 version은 채널별 입장·퇴장·유효 이동마다 증가한다. CHANNEL_STATE.version은 기존 입퇴장 전용이므로 두 버전을 서로 비교하지 않는다. 이동은 채널 인원·정원을 바꾸지 않는다.
-- 최초·반복 CHANNEL_JOIN 응답인 CHANNEL_STATE 뒤 본인에게 requestId=null의 WORLD_STATE도 보낸다. 실제 새 입장이면 기존 참가자도 갱신된 두 스냅샷을 순서대로 받는다. 늦은 입장자는 기존 참가자의 최신 위치를 받는다.
-- CHANNEL_LEAVE는 본인에게 CHANNEL_LEFT만 주며 본인 위치 캐시를 지워야 한다. 남은 참가자는 CHANNEL_STATE 다음 WORLD_STATE를 받는다. 종료·heartbeat도 남은 참가자에게 두 스냅샷을 보내며 떠난 사용자의 위치·순번·전송 간격 상태를 제거한다. 재입장은 position=null, 새 sequence부터 시작한다. 게임 30초 복구와 광장 위치 복구는 별개다.
-- 착석 중 이동은 TABLE_BUSY, 미입장은 NOT_IN_CHANNEL, 경기 복구 제한은 기존 GAME_RECOVERY_REQUIRED다. 거절은 위치·순번을 바꾸지 않는다.
-- 새 이동의 최소 간격은 사용자별 기본 100ms다. `ontop.world.movement.minimum-interval`로 0 초과~60초 이하를 설정한다. 너무 빠르면 MOVE_TOO_FREQUENT이며 순번도 소비하지 않는다. 프론트는 프레임마다 보내지 말고 간격 안의 변경을 최신 하나로 모은다. 이 기본값은 성능·채널 정원을 측정한 결과가 아니다.
+맵 밖 스폰을 막기 위해 제공 맵의 검증된16개 스폰 영역을 순환한다(아바타 간 충돌 제외). mapVersion은 수령 manifest의 SHA-256이며 위치는 예시다. avatars는 입장 순서, version은 입퇴장·입력수락·위치/모션 변화 시 증가하며 CHANNEL_STATE와 비교하지 않는다. 동일 채널의 낮은 버전은 무시하고 연결/채널 변경 시 캐시를 비운다. 프론트는 같은 맵 버전을 사용해 보간·서버 위치 보정을 담당한다. 기존 Colyseus adapter를 자동 변환한 것은 아니다. 채팅·관전20m는 이 서버 위치를 읽으며 테이블 좌표는 기존 서버 설정을 유지한다.
 
-검증은 `WorldMovementTests`의 제어 시계로 순번·간격 경계를, `WorldMovementHubTests`로 수신 대상·착석 제한을, `WorldMovementWebSocketTests`로 실제 소켓·인증 대역·heartbeat 정리·같은 계정 재입장을 확인한다. 화면 보간·이동 애니메이션·정식 로그인은 포함하지 않는다.
+변경 맵을 재생성할 때는 Node24에서 `node --experimental-vm-modules backend/tools/bake-world.mjs <handoff-directory>`를 실행한다. shared-config28개 모듈을 제한된 VM에서 읽고 원본 manifest의 크기/해시를 대조한다. Node/TypeScript는 서버 실행 의존성이 아니다.
+
+검증 진입점은 WorldPhysicsTests(실제 맵), WorldMovementWebSocketTests(실제 임시 서버/소켓), WorldProximityWebSocketTests(서버 위치를 주입한 거리 계약 fixture)다. 거리 테스트의 고정 위치를 클라이언트 순간이동 구현으로 해석하지 않는다.
 
 ## 채널 채팅 기반 · WORLD_CHAT_SEND / WORLD_CHAT_MESSAGE
 
-현재 local 계약은 발신자 기준 같은 채널의 XZ 반경 20m 이내 전달이다. 먼저 WORLD_MOVE로 위치를 보고한다. 위치가 없으면 WORLD_POSITION_REQUIRED다. [근거리 설정·관전 계약](world-proximity.md)을 함께 따른다.
+현재 local 계약은 발신자 기준 같은 채널의 XZ 반경 20m 이내 전달이다. 채널 입장 시 서버 스폰을 부여한다. 방어적으로 위치가 없으면 WORLD_POSITION_REQUIRED다. [근거리 설정·관전 계약](world-proximity.md)을 함께 따른다.
 
 ```json
 {"requestId":"chat-1","type":"WORLD_CHAT_SEND","payload":{"text":"안녕 👋"}}
@@ -127,7 +122,7 @@
 }
 ```
 
-- 성공은 본인에게 원래 requestId의 WORLD_CHAT_MESSAGE, 같은 채널에서 위치가 확인되고 발신자 반경 20m 이내인 나머지 참가자에게 requestId=null인 같은 payload를 보낸다. 별도 ACK는 없다. 미입장·다른 채널·위치 미보고·범위 밖 타인에게 전달하지 않는다. 대기 착석자는 마지막 수락 위치로 이용한다.
+- 성공은 본인에게 원래 requestId의 WORLD_CHAT_MESSAGE, 같은 채널에서 위치가 확인되고 발신자 반경 20m 이내인 나머지 참가자에게 requestId=null인 같은 payload를 보낸다. 별도 ACK는 없다. 미입장·다른 채널·위치 미보고·범위 밖 타인에게 전달하지 않는다. 대기 착석자는 서버가 유지한 위치로 이용한다.
 - `userId`는 서버 연결의 내부 ID, `messageId`는 서버 발급 UUID, `sentAt`은 서버 UTC 시각이다. 닉네임·프로필 연동은 아직 없다. 클라이언트가 userId/channelId/messageId/시각을 payload에 넣으면 INVALID_PAYLOAD다.
 - `text`는 문자열 하나만 허용한다. 앞뒤 공백을 제거한 1~200 Unicode 코드포인트이며 이모지 하나는 코드포인트 기준으로 센다. 조합 이모지는 여러 코드포인트일 수 있다. 빈 문자열·공백만·초과·개행/탭/제어문자·U+2028/U+2029 줄 구분 문자·짝 없는 surrogate는 INVALID_PAYLOAD다. HTML 같은 문자열은 일반 텍스트로 보존하므로 프론트는 textContent 등 텍스트 렌더링을 사용하며 HTML로 삽입하지 않는다.
 - 기본 최소 전송 간격은 사용자별 1초다. `ontop.world.chat.minimum-interval`로 0 초과~60초 이하를 설정한다. 빠른 재전송은 CHAT_TOO_FREQUENT이며 메시지를 전달하거나 마지막 성공 시간을 연장하지 않는다. 채널 이동·퇴장·재입장으로 간격을 초기화하지 않는다. 연결 종료·heartbeat·앱 종료에서는 관련 메모리를 정리한다.

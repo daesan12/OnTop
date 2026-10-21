@@ -2,6 +2,10 @@ spring:
   application:
     name: ontop
 
+logging:
+  level:
+    com.jme3.bullet: WARN
+
 management:
   endpoints:
     web:

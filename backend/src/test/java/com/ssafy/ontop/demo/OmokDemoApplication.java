@@ -43,8 +43,8 @@ public final class OmokDemoApplication {
                 "--ontop.websocket.authenticated=true", "--ontop.games.omok.enabled=true",
                 "--ontop.start-rehearsal.enabled=false", "--ontop.world.channels[0].channel-id=" + CHANNEL,
                 "--ontop.world.channels[0].name=오목 테스트", "--ontop.world.channels[0].capacity=10",
-                "--ontop.world.proximity.tables[" + TABLE + "].x=0",
-                "--ontop.world.proximity.tables[" + TABLE + "].z=0");
+                "--ontop.world.proximity.tables[" + TABLE + "].x=-2.025",
+                "--ontop.world.proximity.tables[" + TABLE + "].z=34");
     }
 
     @TestConfiguration(proxyBeanMethods = false)

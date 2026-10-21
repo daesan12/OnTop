@@ -44,8 +44,8 @@ class OmokFlowTests {
 
     @DynamicPropertySource
     static void locations(DynamicPropertyRegistry properties) {
-        properties.add("ontop.world.proximity.tables[" + TABLE + "].x", () -> 0);
-        properties.add("ontop.world.proximity.tables[" + TABLE + "].z", () -> 0);
+        properties.add("ontop.world.proximity.tables[" + TABLE + "].x", () -> com.ssafy.ontop.world.movement.ParkScene.load().spawn(0).x);
+        properties.add("ontop.world.proximity.tables[" + TABLE + "].z", () -> com.ssafy.ontop.world.movement.ParkScene.load().spawn(0).z);
     }
 
     @Test
@@ -206,7 +206,7 @@ class OmokFlowTests {
 
     private void joinWatch(ScenarioClient client) throws Exception {
         client.request("CHANNEL_JOIN", Map.of("channelId", "one"));
-        client.request("WORLD_MOVE", Map.of("sequence", 0, "x", 0, "y", 0, "z", 0, "yaw", 0));
+        client.request("WORLD_MOVE", Map.of("seq", 1, "dx", 0, "dz", 0, "run", false));
     }
 
     private void play(ScenarioClient client, String id, long version, int x, int y) throws Exception {

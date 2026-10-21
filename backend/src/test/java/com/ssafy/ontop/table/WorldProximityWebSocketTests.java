@@ -36,7 +36,7 @@ import static org.assertj.core.api.Assertions.assertThat;
         "ontop.world.channels[1].channel-id=two", "ontop.world.channels[1].name=둘",
         "ontop.world.channels[1].capacity=5"
 })
-@Import({AuthenticatedWebSocketTests.AuthFixture.class, WorldProximityWebSocketTests.Fixture.class})
+@Import({AuthenticatedWebSocketTests.AuthFixture.class, WorldProximityWebSocketTests.Fixture.class, FrozenWorldFixture.class})
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class WorldProximityWebSocketTests {
     private static final String TABLE = tableId("one", 1);
@@ -48,6 +48,7 @@ class WorldProximityWebSocketTests {
     private ApplicationEventPublisher events;
     @Autowired
     private Fixture fixture;
+    @Autowired private com.ssafy.ontop.world.service.WorldChannelRegistry positions;
 
     @DynamicPropertySource
     static void locations(DynamicPropertyRegistry properties) {
@@ -64,8 +65,7 @@ class WorldProximityWebSocketTests {
             join(sender, "one");
             join(receiver, "one");
             join(unknown, "one");
-            assertThat(code(sender.request("WORLD_CHAT_SEND", Map.of("text", "위치 없음"))))
-                    .isEqualTo("WORLD_POSITION_REQUIRED");
+            assertThat(positions.positionOf(sender.userId)).isNotNull(); // 입장 시 서버 스폰을 부여한다.
             move(sender, 0, 0, 0);
             move(receiver, 0, 12, 16);
             JsonNode sent = sender.request("WORLD_CHAT_SEND", Map.of("text", "20m 경계"));
@@ -171,7 +171,7 @@ class WorldProximityWebSocketTests {
 
     @Test
     void 채팅과관전_거리이탈부터_재접속까지_연속확인한다() throws Exception {
-        System.out.println("[SIMULATED] 실제 임시 Spring 서버·TCP/WebSocket 사용. 인증·경기 상태는 대역, 테이블 원점은 테스트 좌표. 이동/채팅 제한1ms, heartbeat 200ms/2초.");
+        System.out.println("[SIMULATED] 실제 임시 Spring 서버·TCP/WebSocket 사용. 인증·경기 상태는 대역, 테이블 원점은 테스트 좌표. 서버 내부 경계 위치 주입·물리 시계 정지, 채팅 제한1ms, heartbeat 200ms/2초.");
         try (ScenarioClient sender = connect("naver"); ScenarioClient viewer = connect("ssafy")) {
             join(sender, "one");
             join(viewer, "one");
@@ -234,7 +234,7 @@ class WorldProximityWebSocketTests {
             try (ScenarioClient reconnected = connect("ssafy")) {
                 join(reconnected, "one");
                 assertThat(code(reconnected.request("WORLD_CHAT_SEND", Map.of("text", "위치 재보고 전"))))
-                        .isEqualTo("WORLD_POSITION_REQUIRED");
+                        .isNullOrEmpty();
                 assertThat(code(reconnected.request("TABLE_WATCH", Map.of("tableId", TABLE))))
                         .isEqualTo("TABLE_OUT_OF_RANGE");
                 assertThat(code(reconnected.request("GAME_WATCH", Map.of("gameId", "game"))))
@@ -255,7 +255,7 @@ class WorldProximityWebSocketTests {
                 fixture.version.set(6);
                 events.publishEvent(new GameStateChanged("game", 6));
                 assertSpectator(reconnected.await(m -> type(m, "GAME_STATE")), 6);
-                System.out.println("[PASS] Pong 중단 종료 → 동일 계정 재접속 → 위치 재보고·채팅·관전 재구독 성공");
+                System.out.println("[PASS] Pong 중단 종료 → 동일 계정 재접속 → 서버 스폰·경계 위치 주입·채팅·관전 재구독 성공");
             }
         }
     }
@@ -290,8 +290,11 @@ class WorldProximityWebSocketTests {
     }
 
     private void move(ScenarioClient client, long sequence, double x, double z) throws Exception {
-        assertThat(type(client.request("WORLD_MOVE", Map.of("sequence", sequence, "x", x, "y", 0,
-                "z", z, "yaw", 0)), "WORLD_STATE")).isTrue();
+        // This suite isolates distance contracts: trusted server pose fixture, no client coordinate API.
+        positions.move(client.userId, new com.ssafy.ontop.world.service.WorldChannelRegistry.Position(
+                sequence * 2 + 1, x, .8, z, 0));
+        assertThat(type(client.request("WORLD_MOVE", Map.of("seq", sequence * 2 + 1,
+                "dx", 0, "dz", 0, "run", false)), "WORLD_STATE")).isTrue();
     }
 
     private static boolean type(JsonNode message, String type) {

@@ -85,7 +85,7 @@ async function refreshState() {
   if(currentRole==='viewer') {
     await send('GAME_RECONNECT_CHECK');
     if(!current())return;
-    if(!viewerReady){await send('CHANNEL_JOIN',{channelId:config.channelId});if(!current())return;await send('WORLD_MOVE',{sequence:Date.now(),x:0,y:0,z:0,yaw:0});if(!current())return;viewerReady=true;}
+    if(!viewerReady){await send('CHANNEL_JOIN',{channelId:config.channelId});if(!current())return;await send('WORLD_MOVE',{seq:1,dx:0,dz:0,run:false});if(!current())return;viewerReady=true;}
     if(watchingGame===target){await send('GAME_STATE_CHECK',{gameId:target});return;}
     if(watchingGame){await send('GAME_UNWATCH');if(!current())return;}
     await send('GAME_WATCH',{gameId:target});

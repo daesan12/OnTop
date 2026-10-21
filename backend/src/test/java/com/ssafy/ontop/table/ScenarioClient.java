@@ -21,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 // 테스트 전용: 백그라운드 Pong을 끄면 소켓을 닫지 않고 무응답을 재현할 수 있다.
 final class ScenarioClient implements AutoCloseable {
+    final String userId;
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private final Socket socket;
@@ -34,6 +35,8 @@ final class ScenarioClient implements AutoCloseable {
     private volatile Predicate<JsonNode> forbidden = message -> false;
 
     ScenarioClient(int port, String login) throws Exception {
+        userId = switch (login) { case "naver" -> "101"; case "ssafy" -> "202"; case "spectator" -> "505";
+            default -> login; };
         socket = new Socket("127.0.0.1", port);
         input = new DataInputStream(socket.getInputStream());
         output = socket.getOutputStream();
