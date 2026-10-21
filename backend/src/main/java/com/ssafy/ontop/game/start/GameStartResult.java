@@ -30,4 +30,11 @@ public record GameStartResult(UUID startAttemptId, Outcome outcome, String gameS
     public enum Outcome {
         SUCCEEDED, REJECTED, PENDING, CONFLICT
     }
+
+    public boolean isCommittedSuccess(GameStartCommand command) {
+        return command.startAttemptId().equals(startAttemptId) && outcome == Outcome.SUCCEEDED
+                && gameSessionId != null && !gameSessionId.isBlank() && gameSessionId.length() <= 120
+                && command.participants().equals(participants) && entryFeePerPlayer == 1
+                && totalPot == command.participants().size();
+    }
 }

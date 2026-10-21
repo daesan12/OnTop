@@ -27,6 +27,7 @@
 | 채널 목록 조회 API | [channel-query-api.md](channel-query-api.md) | Access JWT·활성 계정 인증, 설정 기반 목록과 광장 실제 인원. 외부 OAuth/실제 DB 검증 별도 |
 | 광장 WebSocket | [world-websocket-api.md](world-websocket-api.md) | 기존 소켓으로 채널 입장·퇴장·인원 동기화. 채널별 테이블·위치 공유·채널 채팅 기반 구현. 20m 근거리 채팅·관전 검사 구현, 실제 맵 배치 미설정 |
 | 게임 시작 연동 계약 초안 | [game-start-contract-draft.md](game-start-contract-draft.md) | 로그인→시작→경기→복귀→결과의 현재 연결부·정식 연동 경계. 과거 초안은 별도 구분 |
+| 인증 경기 시작 연결 | [committed-game-start.md](committed-game-start.md) | 전원 준비→차감 확정 Gateway→엔진/복구. 실제 DB 차감·정산 구현/검증 별도 |
 | 게임 시작 연동 검증 | [game-start-rehearsal.md](game-start-rehearsal.md) | 선택해서 켜는 DB 없는 시작 요청·성공·거절·조회 확인 기능. 실제 경기·차감 없음 |
 | 제품 기준·ERD 대조 | [erd-policy-alignment.md](erd-policy-alignment.md) | 사용자 지정 OnTop v0.4 우선순위, ERD·과거 초안과의 차이 및 실제 구현 범위 |
 

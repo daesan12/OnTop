@@ -102,4 +102,10 @@ WS07 저장 메시지는 광장입장·착석·게임선택·준비·퇴장·복
 
 HTTP11 채널 목록 확인 → HTTP10 접속권 발급 → WS07 연결/CHANNEL_JOIN → HTTP11 재조회 순서입니다. 조회는 예약하지 않으며 채널 미설정은 items:[]입니다. 채널 ID를 임의로 만들지 않습니다. 토큰은 개인 로컬 변수에만 넣습니다. 서버는 local,db와 동일 JWT 설정이 필요하며 출처는 ontop.auth.allowed-origins에 맞춥니다. 접속권 발급/WS 연결에는 별도로 authenticated=true가 필요합니다. HTTP11은 그 옵션과 독립적입니다.
 
-Postman 웹에서도 HTTP10의 URL·헤더·응답 검사 스크립트·안내와 WS07의 URL·Origin·안내·저장 메시지6개를 다시 열어 대조했습니다. HTTP11 로그인 채널 조회의 URL·인증/Origin 헤더·응답 검사·사용 설명도 페이지를 다시 열어 저장본을 확인했습니다. HTTP05는 미인증 실패 예제로 구분했습니다. OnTop Local의 accessToken/websocketTicket 값은 비워뒀습니다. 실제 계정으로 요청을 보내거나 로그인 원문을 웹에 저장하지 않았습니다. 생성본은 HTTP11개·WebSocket7개·메시지87개입니다.
+## 인증 경기 시작
+
+WS07의07은 `{}`로 같은 시작 시도 결과만 조회합니다.08은 GAME_START_STATE의 확정 gameSessionId를 개인 gameId 변수에 넣은 뒤 본인 경기 상태를 확인합니다. 전원 준비 후 STARTING → PLAYING(simulation=false), GAME_CONNECTION_STATE 복구가 이어지며 거절은 준비 초기화·미확정은 같은 시도 조회입니다. 실제 B GameStartGateway와 해당 엔진 + ontop.game-start.enabled=true가 필요합니다. 현재 저장소에는 DB Gateway가 없어 기본값 false이며 옵션만 켜서 차감 성공하지 않습니다. 오목/원카드/다리 지원은 활성화한 엔진·필수 정책 설정에 따르고 주사위는 목표 전달 계약 확정 전 차감 요청 전에 거절합니다. [연결 조건](../docs/committed-game-start.md)을 먼저 확인하세요. 개발용 WS04/05의 simulation=true 검증과 분리합니다.
+
+Postman 웹에서도 HTTP10의 URL·헤더·응답 검사 스크립트·안내와 WS07의 URL·Origin·안내·저장 메시지6개를 다시 열어 대조했습니다. HTTP11 로그인 채널 조회의 URL·인증/Origin 헤더·응답 검사·사용 설명도 페이지를 다시 열어 저장본을 확인했습니다. HTTP05는 미인증 실패 예제로 구분했습니다. OnTop Local의 accessToken/websocketTicket 값은 비워뒀습니다. 실제 계정으로 요청을 보내거나 로그인 원문을 웹에 저장하지 않았습니다. 생성본은 HTTP11개·WebSocket7개·메시지89개입니다.
+
+2026-10-21 인증 시작 연결: WS07 저장 메시지07(GAME_START_CHECK)·08(GAME_STATE_CHECK)을 웹에 반영하고 새로고침 후 대조했다. 요청별 Docs는 재로드 시 저장되지 않아 시작 조건·경계 안내는 컬렉션 Overview에 보관했다. 기존01~06 메시지와 접속권 URL·Origin은 유지한다. 실제 DB 차감 성공을 웹에서 실행한 검증은 아니다.

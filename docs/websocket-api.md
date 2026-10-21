@@ -8,7 +8,7 @@
 
 [연결 생존 확인(heartbeat)](websocket-heartbeat.md)은 WebSocket Ping/Pong 제어 프레임을 사용합니다. 별도 JSON 요청 없이 응답 없는 연결을 정리하고 30초 재접속 처리로 이어집니다.
 
-기본 모드는 아래 명세를 유지합니다. 별도로 켜는 DB 없는 [게임 시작 연동 검증](game-start-rehearsal.md)에는 추가 메시지와 입력 제한이 있습니다. 실제 게임 시작·차감 기능은 아닙니다.
+기본 모드는 아래 명세를 유지합니다. 별도 DB 없는 [시작 검증](game-start-rehearsal.md)과 [인증 경기 시작 연결](committed-game-start.md)은 구분합니다. 후자는 B 커밋 성공 후 실제 엔진을 생성하는 A 연결부이며 실제 DB Gateway 구현/검증은 별도입니다.
 
 ## API 목록
 
@@ -31,8 +31,8 @@
 | 테이블 | 로컬 검증 완료 | WS | 서버 → 클라이언트 | [👋 퇴장 완료](websocket-api/05-table-leave.md) | TABLE_LEFT | /ws/tables |
 | 공통 | 로컬 검증 완료 | WS | 서버 → 클라이언트 | [⚠️ 오류 응답](websocket-api/06-error.md) | ERROR | /ws/tables |
 | 연결 | 로컬 검증 완료 | 제어 프레임 | 서버 Ping / 클라이언트 Pong | [연결 생존 확인](websocket-heartbeat.md) | Ping / Pong | /ws/tables |
-| 시작 검증 | 완료·검증 전용(실제 시작 미연결) | WS | 클라이언트 → 서버 | [시작 결과 확인](game-start-rehearsal.md) | GAME_START_CHECK | /ws/tables |
-| 시작 검증 | 완료·검증 전용(실제 시작 미연결) | WS | 서버 → 클라이언트 | [시작 연동 상태](game-start-rehearsal.md) | GAME_START_STATE | /ws/tables |
+| 시작 | 연결부 구현·DB 확정 통합 별도 | WS | 클라이언트 → 서버 | [시작 결과 확인](committed-game-start.md) | GAME_START_CHECK | /ws/tables |
+| 시작 | 연결부 구현·DB 확정 통합 별도 | WS | 서버 → 클라이언트 | [시작 연동 상태](committed-game-start.md) | GAME_START_STATE | /ws/tables |
 | 공통 | 완료·공통 계약 문서 | 문서 | 해당 없음 | [공통 규격·연결 흐름](websocket-api/00-common.md) | 공통 규격 | /ws/tables |
 | 경기 | 완료·4종 엔진 로컬 검증 | WS | 클라이언트 → 서버 | [경기 상태 조회](websocket-api/09-game-communication.md) | GAME_STATE_CHECK | /ws/tables |
 | 경기 | 완료·4종 엔진 로컬 검증 | WS | 서버 → 클라이언트 | [경기 상태 수신·자동 갱신](websocket-api/09-game-communication.md) | GAME_STATE | /ws/tables |
@@ -73,7 +73,7 @@ CHANNEL_JOIN 성공·다른 사용자 입퇴장·종료 때는 WORLD_STATE도 �
 - TABLE_JOIN·GAME_SELECT·READY_SET의 성공 결과는 TABLE_STATE로 받습니다.
 - TABLE_LEAVE의 성공 결과는 본인에게 TABLE_LEFT, 남은 참가자에게 TABLE_STATE로 전달합니다.
 - 실패하면 요청자에게 ERROR를 반환합니다.
-- 전원 준비는 표시만 합니다. 게임 시작·DB 저장·판돈 차감·정산은 이번 범위가 아닙니다.
+- 기본 모드의 전원 준비는 표시만 합니다. 별도 인증 시작 모드에서는 확정 요청→엔진 연결을 실행하며 실제 DB 차감·정산 구현과 구분합니다.
 
 ## Notion에 옮길 때
 

@@ -1,6 +1,6 @@
 # 게임 시작 연동 계약 초안
 
-상태: 초안 공유 완료. 2026-10-21 현재 코드·OnTop v0.4와 재대조. **내부 연결부 준비와 실제 경기 연동 완료를 구분한다.** 관련 이슈: [S15P31B105-26](https://ssafy.atlassian.net/browse/S15P31B105-26)
+상태: 2026-10-21 [인증 경기 시작 연결](committed-game-start.md) 구현. A의 확정 요청→엔진/복구 연결과 실제 DB 차감 완료는 구분한다. 아래 현행 표는 이 연결 전의 경계 이력이며 최신 동작·설정·검증은 연결 문서를 우선한다. 관련 이슈: [S15P31B105-26](https://ssafy.atlassian.net/browse/S15P31B105-26)
 
 ## 먼저 읽을 현행 연결 흐름
 
@@ -15,7 +15,7 @@
 | 단절 → 복귀 또는 만료 | [heartbeat](websocket-heartbeat.md) → [30초 재접속](game-reconnect.md), 턴 마감은 유지 | 실제 GameRecoveryGateway의 현재 경기·기권/탈락 반영. 자동진행 AI는 후속 범위 |
 | 종료 → 정산 결과 | [결과 전송](game-result-api.md)의 GAME_RESULT_CHECK/GAME_RESULT. 조회·알림은 지급 실행을 하지 않음 | 실제 저장 결과와 PENDING/SETTLED 연결. 다음 판 좌석/로비 전환은 별도 확정 필요 |
 
-현재 `GameStartGateway`는 **개발용 시작 검증 경로에서만 호출**된다. `ontop.start-rehearsal.enabled=true`는 dev 사용자와 대역을 위한 옵션이며 인증 모드와 동시에 켜면 설정 오류다. 실제 Gateway Bean을 등록하거나 플래그만 바꾸면 정식 시작이 완성되는 구조가 아니다. 성공한 대역은 좌석을 유지하며 실제 경기 실행·차감·종료 정리를 하지 않는다.
+`GameStartGateway`는 개발 검증과 별도의 인증 시작 연결에서 호출한다. `ontop.start-rehearsal.enabled=true`는 계속 dev 대역 전용이다. 인증 시작은 `ontop.game-start.enabled=true`와 실제 B Gateway가 필요하며, B 성공 검증 후 엔진을 생성한다. 저장소에는 실제 DB Gateway가 없어 기본 설정은 끈 상태다. 개발 대역 성공은 실제 차감으로 표시하지 않는다.
 
 현재 검증 결과는 [전체 흐름 실행 안내](flow-test.md)를 따른다. 실제 로컬 서버/소켓을 사용하지만 인증·경기 상태는 테스트 대역이다. 문서의 프로토타입 현황이나 대역 성공을 실제 로그인·경기·정산 완료로 표시하지 않는다.
 

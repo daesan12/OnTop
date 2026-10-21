@@ -1,7 +1,7 @@
 "name": "07 로그인 사용자 — 1회용 접속권"
 "$kind": "websocket-request"
 "url": "{{wsUrl}}?ticket={{websocketTicket}}"
-"description": "WORLD_MOVE는 {seq,dx,dz,run,jump?} 입력만 허용합니다. seq1~4294967295, dx/dz 각[-1,1] 대각선 정규화, run필수 boolean/jump선택. 서버30Hz·변화100ms동기화·입력50ms·250ms만료. 걷기6.25/달리기9/점프6.2/중력-18/단차0.22. 채널 입장 시 서버 스폰(캡슐 중심), lastInputSeq는 수락순번, mapVersion 대조. 기존 sequence/x/y/z/yaw 주입은 INVALID_PAYLOAD. 재접속30초·채팅/관전20m 유지. 먼저 HTTP10을 보내 30초 접속권을 받으세요. 개인 로컬 websocketTicket에 넣고 즉시 Connect. HTTP10과 같은 Origin을 사용하고 재접속마다 새 접속권을 발급합니다. JWT는 URL에 넣지 않습니다. CONNECTED 내부ID → TABLE_JOIN → GAME_SELECT → READY_SET, 중복 연결1008·heartbeat·30초복구는 기존 계약입니다. 토큰/접속권 원문은 공유·동기화하지 마세요."
+"description": "WORLD_MOVE는 {seq,dx,dz,run,jump?} 입력만 허용합니다. seq1~4294967295, dx/dz 각[-1,1] 대각선 정규화, run필수 boolean/jump선택. 서버30Hz·변화100ms동기화·입력50ms·250ms만료. 걷기6.25/달리기9/점프6.2/중력-18/단차0.22. 채널 입장 시 서버 스폰(캡슐 중심), lastInputSeq는 수락순번, mapVersion 대조. 기존 sequence/x/y/z/yaw 주입은 INVALID_PAYLOAD. 재접속30초·채팅/관전20m 유지. 먼저 HTTP10을 보내 30초 접속권을 받으세요. 개인 로컬 websocketTicket에 넣고 즉시 Connect. HTTP10과 같은 Origin을 사용하고 재접속마다 새 접속권을 발급합니다. JWT는 URL에 넣지 않습니다. CONNECTED 내부ID → TABLE_JOIN → GAME_SELECT → READY_SET, 중복 연결1008·heartbeat·30초복구는 기존 계약입니다. 실제 시작은 ontop.game-start.enabled=true + 실제 B GameStartGateway + 사용할 엔진이 필요합니다. 전원 준비 → STARTING → 확정 후 PLAYING(simulation=false), GAME_CONNECTION_STATE로 본인 상태/조작권 복구. 미확정이면07로 같은 시도를 조회하고 새 차감을 요청하지 않습니다. 개발 rehearsal과 동시 사용 금지. 기본 서버는 시작 옵션을 끈 상태이며 실제 DB Gateway가 없으므로 옵션만 켜서 성공하지 않습니다. 토큰/접속권 원문은 공유·동기화하지 마세요."
 "headers":
   -
     "key": "Origin"
@@ -42,3 +42,13 @@
     "$kind": "websocket-message"
     "contentType": "json"
     "content": "{\n  \"requestId\": \"{{$guid}}\",\n  \"type\": \"GAME_RECONNECT_CHECK\",\n  \"payload\": {}\n}"
+  -
+    "name": "07 동일 시작 시도 결과 조회"
+    "$kind": "websocket-message"
+    "contentType": "json"
+    "content": "{\n  \"requestId\": \"{{$guid}}\",\n  \"type\": \"GAME_START_CHECK\",\n  \"payload\": {}\n}"
+  -
+    "name": "08 확정 경기 상태 조회"
+    "$kind": "websocket-message"
+    "contentType": "json"
+    "content": "{\n  \"requestId\": \"{{$guid}}\",\n  \"type\": \"GAME_STATE_CHECK\",\n  \"payload\": {\n    \"gameId\": \"{{gameId}}\"\n  }\n}"

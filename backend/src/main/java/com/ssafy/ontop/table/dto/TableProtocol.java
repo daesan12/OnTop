@@ -13,7 +13,7 @@ import java.util.Set;
 public final class TableProtocol {
 
     private final ObjectMapper mapper;
-    private final boolean startRehearsal;
+    private boolean startRehearsal;
 
     public TableProtocol(ObjectMapper mapper) {
         this(mapper, false);
@@ -24,6 +24,9 @@ public final class TableProtocol {
         this.mapper = mapper.copy().enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
                 .enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION);
     }
+
+    // Spring 초기 연결 때만 호출한다. 기본/개발용 계약은 그대로 둔다.
+    public void enableStartQueries() { startRehearsal = true; }
 
     public Request parse(String text) {
         JsonNode root;

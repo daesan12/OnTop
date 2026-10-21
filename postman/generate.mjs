@@ -268,13 +268,20 @@ wsItems.push({ ...wsRequest('07 로그인 사용자 — 1회용 접속권',
     '먼저 HTTP10을 보내 30초 접속권을 받으세요. 개인 로컬 websocketTicket에 넣고 즉시 Connect. '
     + 'HTTP10과 같은 Origin을 사용하고 재접속마다 새 접속권을 발급합니다. JWT는 URL에 넣지 않습니다. '
     + 'CONNECTED 내부ID → TABLE_JOIN → GAME_SELECT → READY_SET, 중복 연결1008·heartbeat·30초복구는 기존 계약입니다. '
+    + '실제 시작은 ontop.game-start.enabled=true + 실제 B GameStartGateway + 사용할 엔진이 필요합니다. '
+    + '전원 준비 → STARTING → 확정 후 PLAYING(simulation=false), GAME_CONNECTION_STATE로 본인 상태/조작권 복구. '
+    + '미확정이면07로 같은 시도를 조회하고 새 차감을 요청하지 않습니다. 개발 rehearsal과 동시 사용 금지. '
+    + '기본 서버는 시작 옵션을 끈 상태이며 실제 DB Gateway가 없으므로 옵션만 켜서 성공하지 않습니다. '
     + '토큰/접속권 원문은 공유·동기화하지 마세요.', [
         message('01 광장 입장', 'CHANNEL_JOIN', { channelId: '{{channelIdA}}' }),
         message('02 착석', 'TABLE_JOIN', { tableId: '{{tableIdA}}' }),
         message('03 첫 착석자 게임 선택', 'GAME_SELECT', { gameCode: 'OMOK' }),
         message('04 준비', 'READY_SET', { ready: true }),
         message('05 퇴장', 'TABLE_LEAVE'),
-        message('06 복귀 상태 재조회', 'GAME_RECONNECT_CHECK')]), url: '{{wsUrl}}?ticket={{websocketTicket}}' });
+        message('06 복귀 상태 재조회', 'GAME_RECONNECT_CHECK'),
+        message('07 동일 시작 시도 결과 조회', 'GAME_START_CHECK'),
+        message('08 확정 경기 상태 조회', 'GAME_STATE_CHECK', {gameId: '{{gameId}}'})]),
+    url: '{{wsUrl}}?ticket={{websocketTicket}}' });
 const guide = '현재 코드의 local 통신 검증용. 서버는 local,visual-test로 실행하고 OnTop Local 환경을 선택하세요. '
     + '실제 오목 엔진은 선택적으로 켤 수 있으며 로그인·시작 차감·DB 정산은 미연결입니다. HTTP 테이블 조회로 ID 저장 후 WebSocket을 연결합니다. '
     + '웹에서 저장한 컬렉션은 동일 계정·워크스페이스 앱에서 사용하며 로컬 테스트는 Desktop App에서 실행하세요.';

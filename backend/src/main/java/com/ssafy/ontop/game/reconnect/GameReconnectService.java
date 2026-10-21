@@ -84,6 +84,20 @@ public class GameReconnectService {
                         || slot.status.equals("ELIMINATED"));
     }
 
+    public synchronized void startPending(long userId) {
+        if (gateway.isPresent()) { users.computeIfAbsent(userId, Slot::new).pendingStart = true; }
+    }
+
+    public synchronized void startResolved(long userId) {
+        Slot slot = users.get(userId);
+        if (slot == null || stopped || gateway.isEmpty()) { return; }
+        slot.pendingStart = false;
+        // 시작 전 LOBBY 조회가 늦게 끝나 새 경기 상태를 덮지 못하게 한다.
+        slot.generation++;
+        slot.loading = false;
+        submitLoad(slot, null);
+    }
+
     // 경기 입력 담당이 사용한다. 복구 완료한 현재 연결만 해당 경기를 조작할 수 있다.
     public synchronized boolean canControlGame(long userId, String sessionId, String gameId) {
         Slot slot = users.get(userId);
@@ -202,12 +216,13 @@ public class GameReconnectService {
             slot.status = slot.snapshot.phase() == Phase.PLAYING ? "RESTORED" : slot.snapshot.phase().name();
         }
         if (slot.sessionId == null) {
-            if (slot.snapshot == null || slot.snapshot.phase() != Phase.PLAYING) {
+            if (!slot.pendingStart && (slot.snapshot == null || slot.snapshot.phase() != Phase.PLAYING)) {
                 users.remove(slot.userId, slot);
             }
             return;
         }
-        if (!slot.status.equals("EXPIRED")) {
+        if (!slot.status.equals("EXPIRED") && !(slot.pendingStart
+                && (slot.snapshot == null || slot.snapshot.phase() != Phase.PLAYING))) {
             slot.deadline = null;
             slot.disconnectedAt = null;
             slot.expiration = null;
@@ -284,6 +299,7 @@ public class GameReconnectService {
         private long generation;
         private boolean loading;
         private boolean returnedInTime;
+        private boolean pendingStart;
         private String status = "PENDING";
         private Instant disconnectedAt;
         private Instant deadline;
