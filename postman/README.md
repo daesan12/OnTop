@@ -67,6 +67,8 @@ WebSocket 탭 하나가 사용자 하나다. **Connect를 유지한 채 Saved Me
 
 ## 파일 관리
 
+2026-10-21 Postman 웹의 OnTop WebSocket Overview에 렌주 규칙을 반영하고 새로고침 후 저장본을 확인했다. 흑33·44·장목은 `GAME_ACTION_FORBIDDEN_MOVE`로 거절하며 판·버전·차례·턴 마감을 유지한다. 흑 정확한5목/백5개이상 승리와 같은 수의 정확한5목 우선 규칙을 안내한다. 기존 연결6개·저장 메시지67개의 JSON은 변경하지 않았다.
+
 `generate.mjs`가 요청 데이터 원본이다. Node.js로 `node postman/generate.mjs`를 실행하면 JSON 내보내기와 native YAML을 함께 갱신한다. `node postman/generate.mjs --check`는 파일을 바꾸지 않고 생성 결과를 대조한다. 생성 파일을 직접 바꾼 뒤 재생성하면 덮어써지므로 원본을 먼저 수정한다. 계정 정보·토큰은 파일에 넣지 않는다.
 
 공식 형식: [Postman v3 스키마](https://schema.postman.com/collection/json/v3.0.0/draft-07/collection.json), [로컬 컬렉션 구조](https://learning.postman.com/docs/use/native-git/setup).
