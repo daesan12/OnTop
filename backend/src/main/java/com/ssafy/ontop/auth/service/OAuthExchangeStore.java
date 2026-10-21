@@ -57,7 +57,7 @@ public class OAuthExchangeStore {
         return code;
     }
 
-    // AUTH-03의 서버 내부 계약이다. 공개 교환 API는 아직 없으며 원래 세션에서만 소비한다.
+    // 인증 교환 API의 서버 내부 계약이다. 원래 세션에서만 한 번 소비한다.
     public synchronized Optional<LoginOutcome> consume(HttpServletRequest request, String code) {
         removeExpired();
         HttpSession session = request.getSession(false);

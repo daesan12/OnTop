@@ -93,12 +93,13 @@ sh ./gradlew bootRun --args='--spring.profiles.active=local,db'
 - JPA `ddl-auto`는 `validate`여서 테이블을 생성·변경하지 않는다. `schema.sql`·`data.sql` 초기화도 비활성화했다.
 - `baseline-on-migrate=false`이며 migration 이름과 체크섬을 검증한다.
   이력 없이 이미 테이블이 있는 DB가 거절되면 자동 baseline을 켜지 말고 기존 스키마 편입 방법을 검토한다.
-- 현재 migration SQL은 **1개**, `V1__create_users.sql`이다. `users`만 생성한다.
+- 현재 migration SQL은 **2개**다. V1은 users, V2는 Refresh 해시 저장용 refresh_tokens를 생성한다.
   컬럼·제약조건·닉네임 정책은 [users 스키마 안내](docs/users-schema.md)를 따른다.
 
 DB 연결 검증은 `db` 프로필로 시작한 뒤 Flyway의 MySQL 연결·검증 로그와 앱 시작 성공을 확인한다.
-빈 DB에서는 V1 적용 성공과 JPA 검증 완료를 확인한다. 재시작 시 현재 버전은 1이고 중복 적용하지 않는다.
-생성되는 테이블은 `users`와 Flyway 내부 관리용 `flyway_schema_history`다.
+빈 DB에서는 V1·V2 적용 성공과 JPA 검증 완료를 확인한다. 기존 V1 DB에서는 V2만 추가 적용한다.
+재시작 시 현재 버전은 2이고 중복 적용하지 않는다.
+생성되는 테이블은 `users`, `refresh_tokens`, Flyway 내부 관리용 `flyway_schema_history`다.
 MySQL 클라이언트에서 `SHOW TABLES;`로 확인하고, 이력 테이블이 있다면 다음 조회로 적용 내역을 확인한다:
 
 ```sql
@@ -125,7 +126,7 @@ DB가 없는 환경에서는 해당 항목을 미검증으로 기록한다.
 
 ## 현재 구현 범위
 
-DB 없는 Raw WebSocket 연결·테이블 착석·퇴장·준비 동기화를 구현했다. 개발용 기능은 `local` 프로필에서만 활성화된다. `db` 프로필에는 MySQL·JPA·Flyway와 users 스키마·Entity·Repository를 준비했다. 회원가입·온보딩 API·정식 로그인 완료·실제 게임·정산은 미구현이다. `/`의 `404`는 정상이다.
+DB 없는 Raw WebSocket 연결·테이블 착석·퇴장·준비 동기화를 구현했다. 개발용 기능은 `local` 프로필에서만 활성화된다. `db` 프로필에는 MySQL·JPA·Flyway와 users/refresh_tokens 스키마를 준비했다. 회원가입·온보딩 API·서비스 전체 인증 적용·실제 게임·정산은 미구현이다. `/`의 `404`는 정상이다.
 
 AUTH-01의 `GET /api/v1/auth/{provider}/authorize`는 SSAFY/NAVER 인가 페이지로 302 이동한다.
 필요한 환경변수·로컬 실행·공통 state 보관·SSAFY 확인 범위는
@@ -133,10 +134,17 @@ AUTH-01의 `GET /api/v1/auth/{provider}/authorize`는 SSAFY/NAVER 인가 페이�
 AUTH-02의 `GET /api/v1/auth/{provider}/callback`은 state 검증·공급자 조회·회원 상태 판별 후
 60초 일회용 교환 코드만 반환한다. db 프로필이 필요하며 신규 사용자를 저장하지 않는다.
 7일 이내 탈퇴 계정은 같은 ID로 복구하고 7일 초과는 데이터를 보존하며 재가입을 보류한다.
-JWT·교환 REST API·온보딩은 후속 범위다. 환경변수·오류·프론트 전달·수동 시험은
+AUTH-02 환경변수·오류·프론트 전달·수동 시험은
 [콜백 API와 후속 교환 계약](docs/auth-callback.md)을 참고한다.
 프론트 callback 주소 미설정 시의 200 JSON은 로컬 수동 검증용 계약이다.
 콜백 테스트에는 `local,db`가 필요하며, `local`만 사용하면 고정 진단 로그와 함께 503으로 거절한다.
+
+S15P31B105-89의 `POST /api/v1/auth/exchange`는 동일 세션의 교환 코드를 한 번 소비한다.
+기존/복구 회원은 30분 Access JWT와 DB 해시로 저장한 7일 HttpOnly Refresh 쿠키를 받는다.
+신규 회원은 users 생성 없이 10분 온보딩 전용 난수 토큰만 받는다.
+서명 키 `AUTH_JWT_SECRET_BASE64`는 CSPRNG로 생성해 환경에 주입하며 기본 키는 없다.
+[인증 교환 API](docs/auth-exchange.md)에 Origin/CORS·쿠키 설정, 실패 정책, USER-05/Refresh 후속 계약,
+Postman 테스트 방법이 있다. 로그아웃·Refresh 갱신/회전·온보딩 API는 후속 범위다.
 OAuth 환경변수 없이도 기본 앱과 기존 WebSocket 개발은 실행되며, 설정이 없는 provider의 인가 요청만 500으로 실패한다.
 
 ```powershell
