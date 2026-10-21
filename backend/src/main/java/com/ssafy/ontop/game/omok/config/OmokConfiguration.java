@@ -1,6 +1,8 @@
 package com.ssafy.ontop.game.omok.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ssafy.ontop.game.engine.GameEngineGateways;
+import com.ssafy.ontop.game.engine.GameEngineRouter;
 import com.ssafy.ontop.game.omok.service.OmokEngine;
 import java.time.Clock;
 import java.util.Optional;
@@ -11,15 +13,18 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Profile;
 
 @Configuration(proxyBeanMethods = false)
 @Profile("local")
 @ConditionalOnProperty(name = "ontop.games.omok.enabled", havingValue = "true")
+@Import(GameEngineGateways.class)
 public class OmokConfiguration {
     @Bean
-    OmokEngine omokEngine(ObjectMapper mapper, Optional<Clock> clock, ApplicationEventPublisher events) {
-        return new OmokEngine(mapper, clock.orElseGet(Clock::systemUTC), events::publishEvent);
+    OmokEngine omokEngine(ObjectMapper mapper, Optional<Clock> clock, ApplicationEventPublisher events,
+            GameEngineRouter router) {
+        return new OmokEngine(mapper, clock.orElseGet(Clock::systemUTC), events::publishEvent, router);
     }
 
     @Bean(destroyMethod = "shutdownNow")

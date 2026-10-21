@@ -3,14 +3,13 @@ package com.ssafy.ontop.game.omok.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ssafy.ontop.game.action.GameActionCommand;
-import com.ssafy.ontop.game.action.GameActionGateway;
 import com.ssafy.ontop.game.action.GameActionResult;
+import com.ssafy.ontop.game.engine.GameEngine;
+import com.ssafy.ontop.game.engine.GameEngineRouter;
 import com.ssafy.ontop.game.omok.domain.OmokMatch;
 import com.ssafy.ontop.game.omok.domain.OmokMatch.Snapshot;
-import com.ssafy.ontop.game.reconnect.GameRecoveryGateway;
 import com.ssafy.ontop.game.reconnect.GameRecoverySnapshot;
 import com.ssafy.ontop.game.state.GameStateChanged;
-import com.ssafy.ontop.game.state.GameStateGateway;
 import com.ssafy.ontop.game.state.GameStateView;
 import java.time.Clock;
 import java.util.ArrayList;
@@ -22,18 +21,24 @@ import java.util.function.Consumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public final class OmokEngine implements GameActionGateway, GameStateGateway, GameRecoveryGateway {
+public final class OmokEngine implements GameEngine {
     private static final Logger log = LoggerFactory.getLogger(OmokEngine.class);
     private final ObjectMapper mapper;
     private final Clock clock;
     private final Consumer<Object> events;
+    private final GameEngineRouter router;
     private final Map<String, OmokMatch> games = new HashMap<>();
     private final Map<Long, String> latest = new HashMap<>();
 
     public OmokEngine(ObjectMapper mapper, Clock clock, Consumer<Object> events) {
+        this(mapper, clock, events, new GameEngineRouter());
+    }
+
+    public OmokEngine(ObjectMapper mapper, Clock clock, Consumer<Object> events, GameEngineRouter router) {
         this.mapper = mapper;
         this.clock = clock;
         this.events = events;
+        this.router = router;
     }
 
     // 실제 참가·차감 커밋을 확인한 서버 코드만 호출한다. 외부 HTTP/WS 생성 API는 제공하지 않는다.
@@ -55,7 +60,9 @@ public final class OmokEngine implements GameActionGateway, GameStateGateway, Ga
                     || state.whiteUserId() == whiteUserId))) {
                 throw new IllegalStateException("이미 진행 중인 오목 경기입니다.");
             }
-            games.put(gameId, new OmokMatch(gameId, tableId, blackUserId, whiteUserId, clock.instant()));
+            OmokMatch game = new OmokMatch(gameId, tableId, blackUserId, whiteUserId, clock.instant());
+            router.register(this, gameId, tableId, List.of(blackUserId, whiteUserId));
+            games.put(gameId, game);
             latest.put(blackUserId, gameId);
             latest.put(whiteUserId, gameId);
         }
@@ -149,6 +156,7 @@ public final class OmokEngine implements GameActionGateway, GameStateGateway, Ga
         if (before.version() != after.version()) {
             notices.add(new GameStateChanged(after.gameId(), after.version()));
             if (before.endedAt() == null && after.endedAt() != null) {
+                router.finished(this, after.gameId());
                 notices.add(new OmokGameFinished(after.gameId(), after.tableId(), after.version(),
                         after.blackUserId(), after.whiteUserId(), after.winnerUserId(), after.endReason(), after.endedAt()));
             }
