@@ -11,7 +11,8 @@ const variables = {
     channelIdB: 'visual-b',
     tableIdA: '',
     tableIdB: '',
-    gameId: 'replace-with-real-game-id'
+    gameId: 'replace-with-real-game-id',
+    accessToken: '', websocketTicket: ''
 };
 
 const statusTest = status => `pm.test('HTTP ${status}', () => pm.response.to.have.status(${status}));`;
@@ -70,6 +71,19 @@ const httpItems = [
     http('09 관리 API 비노출 확인', '/actuator/env', 404,
         'health 이외 관리 API를 노출하지 않는지 확인합니다.')
 ];
+
+const ticketRequest = http('10 로그인 웹소켓 접속권 발급', '/api/v1/auth/websocket-ticket', 200,
+    'local,db + ontop.websocket.authenticated=true 필요. 개인 로컬 accessToken에 로그인 Access JWT를 입력하세요. '
+    + '최대30초1회용 ticket을 받은 즉시 07 인증 연결에서 사용합니다. 원문 토큰·접속권을 공유/동기화하지 마세요.',
+    `pm.test('접속권 응답', () => {
+    const body = pm.response.json();
+    pm.expect(body.ticket).to.match(/^wst_[A-Za-z0-9_-]{43}$/);
+    pm.expect(body.expiresIn).to.be.within(1, 30);
+});`);
+ticketRequest.method = 'POST';
+ticketRequest.headers = [{ key: 'Authorization', value: 'Bearer {{accessToken}}' },
+    { key: 'Origin', value: '{{baseUrl}}' }];
+httpItems.push(ticketRequest);
 
 const message = (name, type, payload = {}) => ({
     name, $kind: 'websocket-message', contentType: 'json',
@@ -233,6 +247,17 @@ const bridgeGuide = '거짓말다리(LIAR_BRIDGE)는2~4명·각7개말,local의o
     + '슬롯은영구순번1~8/VACATED재사용없음. 골인말만있는사람은판단가능,실패시최저슬롯제거. 페널티/이동/슬롯발급/기권적용후승패판정. 3골인우선,8발급/말소진시미기권최고점공동승리. '
     + '복구state={publicState,privateState}. 기존20m관전/30초유예유지. 승패는DB정산·지급완료아님. 상세docs/bridge.md. ';
 wsItems[5].description += '\n\n' + bridgeGuide;
+wsItems.push({ ...wsRequest('07 로그인 사용자 — 1회용 접속권',
+    '먼저 HTTP10을 보내 30초 접속권을 받으세요. 개인 로컬 websocketTicket에 넣고 즉시 Connect. '
+    + 'HTTP10과 같은 Origin을 사용하고 재접속마다 새 접속권을 발급합니다. JWT는 URL에 넣지 않습니다. '
+    + 'CONNECTED 내부ID → TABLE_JOIN → GAME_SELECT → READY_SET, 중복 연결1008·heartbeat·30초복구는 기존 계약입니다. '
+    + '토큰/접속권 원문은 공유·동기화하지 마세요.', [
+        message('01 광장 입장', 'CHANNEL_JOIN', { channelId: '{{channelIdA}}' }),
+        message('02 착석', 'TABLE_JOIN', { tableId: '{{tableIdA}}' }),
+        message('03 첫 착석자 게임 선택', 'GAME_SELECT', { gameCode: 'OMOK' }),
+        message('04 준비', 'READY_SET', { ready: true }),
+        message('05 퇴장', 'TABLE_LEAVE'),
+        message('06 복귀 상태 재조회', 'GAME_RECONNECT_CHECK')]), url: '{{wsUrl}}?ticket={{websocketTicket}}' });
 const guide = '현재 코드의 local 통신 검증용. 서버는 local,visual-test로 실행하고 OnTop Local 환경을 선택하세요. '
     + '실제 오목 엔진은 선택적으로 켤 수 있으며 로그인·시작 차감·DB 정산은 미연결입니다. HTTP 테이블 조회로 ID 저장 후 WebSocket을 연결합니다. '
     + '웹에서 저장한 컬렉션은 동일 계정·워크스페이스 앱에서 사용하며 로컬 테스트는 Desktop App에서 실행하세요.';
@@ -250,7 +275,8 @@ const httpV21 = {
     info: { name: httpV3.name, description: guide, schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json' },
     item: httpItems.map(item => ({
         name: item.name,
-        request: { method: item.method, url: item.url, description: item.description, auth: { type: 'noauth' } },
+        request: { method: item.method, url: item.url, description: item.description, auth: { type: 'noauth' },
+            ...(item.headers ? { header: item.headers } : {}) },
         event: item.scripts.map(script => ({ listen: script.type === 'beforeRequest' ? 'prerequest' : 'test',
             script: { type: 'text/javascript', exec: script.code.split('\n') } }))
     }))

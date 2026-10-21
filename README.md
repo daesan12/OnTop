@@ -215,7 +215,7 @@ Linux/macOS에서는 `sh ./gradlew bootRun --args='--spring.profiles.active=loca
 
 ## 게임 시작 연동 검증
 
-인증 방식 미정 상태의 [웹소켓 인증 연결부](docs/websocket-authentication.md)를 추가했다. `--ontop.websocket.authenticated=true`는 서버 검증기 Bean이 있어야 연결할 수 있으며, 검증기 없이 켜면 503이다. 소셜 callback의 교환 코드는 아직 WebSocket 인증과 연결되지 않았다. dev 전용 시작 검증 옵션과 동시에 켤 수 없다.
+[로그인 웹소켓 연결](docs/websocket-authentication.md)은 `local,db`와 `--ontop.websocket.authenticated=true`로 실행한다. 로그인 Access JWT로 `POST /api/v1/auth/websocket-ticket`을 호출하고, 받은 최대30초1회용 접속권으로 `/ws/tables?ticket=...`에 연결한다. DB 계정 조회가 없으면503, 접속권이 없거나 무효이면401이다. dev 전용 시작 검증 옵션과 동시에 켤 수 없다. 재접속마다 새 접속권을 받고 기존30초 경기복구 흐름을 따른다.
 
 팀원의 DB 코드 없이 시작 요청·성공·거절·결과 조회를 확인할 수 있다. 실제 엽전이나 게임 기록은 변경하지 않는다.
 

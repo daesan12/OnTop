@@ -8,10 +8,12 @@ import com.ssafy.ontop.table.websocket.TableWebSocketConfiguration;
 import com.ssafy.ontop.table.websocket.TableWebSocketHandler;
 import com.ssafy.ontop.table.service.TableHub;
 import java.security.Principal;
+import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.http.server.ServerHttpResponse;
@@ -31,6 +33,11 @@ class TableAuthenticationTests {
     private final ServerHttpRequest request = mock(ServerHttpRequest.class);
     private final ServerHttpResponse response = mock(ServerHttpResponse.class);
     private final WebSocketHandler handler = mock(WebSocketHandler.class);
+
+    @BeforeEach
+    void handshakeUri() {
+        when(request.getURI()).thenReturn(URI.create("http://localhost/ws/tables"));
+    }
 
     @Test
     void 인증속성없이_연결처리기가_호출돼도_Hub에_등록하지않는다() throws Exception {

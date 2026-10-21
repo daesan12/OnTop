@@ -1,0 +1,44 @@
+"name": "07 로그인 사용자 — 1회용 접속권"
+"$kind": "websocket-request"
+"url": "{{wsUrl}}?ticket={{websocketTicket}}"
+"description": "WORLD_MOVE는 {seq,dx,dz,run,jump?} 입력만 허용합니다. seq1~4294967295, dx/dz 각[-1,1] 대각선 정규화, run필수 boolean/jump선택. 서버30Hz·변화100ms동기화·입력50ms·250ms만료. 걷기6.25/달리기9/점프6.2/중력-18/단차0.22. 채널 입장 시 서버 스폰(캡슐 중심), lastInputSeq는 수락순번, mapVersion 대조. 기존 sequence/x/y/z/yaw 주입은 INVALID_PAYLOAD. 재접속30초·채팅/관전20m 유지. 먼저 HTTP10을 보내 30초 접속권을 받으세요. 개인 로컬 websocketTicket에 넣고 즉시 Connect. HTTP10과 같은 Origin을 사용하고 재접속마다 새 접속권을 발급합니다. JWT는 URL에 넣지 않습니다. CONNECTED 내부ID → TABLE_JOIN → GAME_SELECT → READY_SET, 중복 연결1008·heartbeat·30초복구는 기존 계약입니다. 토큰/접속권 원문은 공유·동기화하지 마세요."
+"headers":
+  -
+    "key": "Origin"
+    "value": "{{baseUrl}}"
+    "description": "서버와 같은 출처. CORS/Origin 허용 범위를 넓히지 않습니다."
+"settings":
+  "handshakeTimeout": 10000
+  "retryCount": 0
+  "maxPayload": 1048576
+"messages":
+  -
+    "name": "01 광장 입장"
+    "$kind": "websocket-message"
+    "contentType": "json"
+    "content": "{\n  \"requestId\": \"{{$guid}}\",\n  \"type\": \"CHANNEL_JOIN\",\n  \"payload\": {\n    \"channelId\": \"{{channelIdA}}\"\n  }\n}"
+  -
+    "name": "02 착석"
+    "$kind": "websocket-message"
+    "contentType": "json"
+    "content": "{\n  \"requestId\": \"{{$guid}}\",\n  \"type\": \"TABLE_JOIN\",\n  \"payload\": {\n    \"tableId\": \"{{tableIdA}}\"\n  }\n}"
+  -
+    "name": "03 첫 착석자 게임 선택"
+    "$kind": "websocket-message"
+    "contentType": "json"
+    "content": "{\n  \"requestId\": \"{{$guid}}\",\n  \"type\": \"GAME_SELECT\",\n  \"payload\": {\n    \"gameCode\": \"OMOK\"\n  }\n}"
+  -
+    "name": "04 준비"
+    "$kind": "websocket-message"
+    "contentType": "json"
+    "content": "{\n  \"requestId\": \"{{$guid}}\",\n  \"type\": \"READY_SET\",\n  \"payload\": {\n    \"ready\": true\n  }\n}"
+  -
+    "name": "05 퇴장"
+    "$kind": "websocket-message"
+    "contentType": "json"
+    "content": "{\n  \"requestId\": \"{{$guid}}\",\n  \"type\": \"TABLE_LEAVE\",\n  \"payload\": {}\n}"
+  -
+    "name": "06 복귀 상태 재조회"
+    "$kind": "websocket-message"
+    "contentType": "json"
+    "content": "{\n  \"requestId\": \"{{$guid}}\",\n  \"type\": \"GAME_RECONNECT_CHECK\",\n  \"payload\": {}\n}"

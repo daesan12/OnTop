@@ -63,7 +63,7 @@ WebSocket 탭 하나가 사용자 하나다. **Connect를 유지한 채 Saved Me
 | GAME_START_CHECK | 기본 모드에서는 UNSUPPORTED_MESSAGE_TYPE. 선택적 시작 검증 모드에서만 사용 |
 | 같은 계정 중복 연결·30초 경기 복귀 | dev ID로 재현 불가. 테스트 대역 기반 flowTest에는 포함됨 |
 
-`X-Test-Login`, 임의 Bearer 토큰, userId 헤더를 넣어도 실제 서버 로그인은 되지 않는다. 인증 모드를 켜기만 하면 검증기 미등록으로 503이므로 일반 dev 테스트에서는 켜지 않는다. 오목 규칙·승패는 구현했고 실제 로그인·시작 차감·DB 정산은 별도 연동이다. 성공하는 것처럼 보이는 가짜 요청은 제공하지 않는다.
+`X-Test-Login`, 임의 Bearer 토큰, userId 헤더를 넣어도 실제 서버 로그인은 되지 않는다. 인증 모드는 실제 Access JWT와 DB 계정 조회가 필요하며, 일반 dev 테스트에서는 켜지 않는다. 인증 모드에서 접속권 없이 연결하면 401, 계정 조회가 불가능하면 503이다. 오목 규칙·승패는 구현했고 실제 소셜 로그인·시작 차감·DB 정산 검증은 별도다.
 
 ## 파일 관리
 
@@ -90,3 +90,12 @@ WebSocket 탭 하나가 사용자 하나다. **Connect를 유지한 채 Saved Me
 ## 거짓말 다리 입력·비밀 눈 예제
 
 06의22~25는 비밀 굴림·숫자 선언·믿기·다우트의 독립 예제다. 현재 stage/turnUserId/responderUserId와 최신 버전을 사용한다. 본인만 privateState.die를 받으며 모두 믿으면 resolution.actualFace 키가 없다. 굴림/선언/각판단30초·넘김, 연출1.5초와 슬롯/기권은 [다리 계약](../docs/bridge.md)을 따른다. 총6연결81메시지. 실제 인증·서버 참가 확정이 필요하며 기본dev의 오류는 유지한다.
+
+
+## 로그인 사용자 접속권 · Jira25
+
+HTTP10 `POST /api/v1/auth/websocket-ticket`과 WS07 `/ws/tables?ticket={{websocketTicket}}`을 추가했습니다. local,db와 authenticated=true에서 로그인 Access JWT를 개인 로컬 accessToken에 입력합니다. 응답의 최대30초1회용 ticket을 개인 로컬 websocketTicket에 넣고 즉시 연결합니다. 발급/접속 Origin은 모두 baseUrl로 맞추며 Access JWT는 URL에 넣지 않습니다. 접속권을 재사용하지 말고 실패·재접속 때 다시 발급합니다. 토큰·접속권을 공유/동기화하지 않도록 두 변수의 공유 기본값은 비워둡니다. 자동으로 인증 원문을 환경변수에 저장하는 스크립트는 넣지 않습니다.
+
+WS07 저장 메시지는 광장입장·착석·게임선택·준비·퇴장·복귀조회입니다. 채널이 등록된 서버에서는 CHANNEL_JOIN 뒤에 같은 채널의 tableId로 착석합니다. 같은 계정 중복 접속1008과 heartbeat 후30초 경기복구는 기존 계약입니다. 다른 사용자 검증은 각자의 Access JWT와 접속권으로 합니다. 서버가 실제 경기를 생성·차감했다고 가정하지 않습니다. HTTP05 채널목록의 REST Principal 어댑터는 별도여서 기존401 예제를 유지합니다.
+
+Postman 웹에서도 HTTP10의 URL·헤더·응답 검사 스크립트·안내와 WS07의 URL·Origin·안내·저장 메시지6개를 다시 열어 대조했습니다. OnTop Local의 accessToken/websocketTicket 값은 비워뒀습니다. 실제 계정으로 요청을 보내거나 로그인 원문을 웹에 저장하지 않았습니다. 생성본은 HTTP10개·WebSocket7개·메시지87개입니다.
