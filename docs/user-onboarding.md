@@ -63,14 +63,16 @@ Refresh 원문은 JSON에 포함하지 않고 기존 ONTOP_REFRESH HttpOnly 쿠�
 ## 토큰 소비와 트랜잭션
 
 1. Origin/CORS와 JSON/닉네임/성별 형식을 검증한다.
-2. Authorization 헤더 하나의 OnboardingTokenStore Bearer 토큰을 확인하고 원자적으로 consume한다.
+2. Authorization 헤더 하나의 OnboardingTokenStore Bearer 토큰을 확인하고 원자적으로 claim(임시 선점)한다.
    저장소는 HttpServletRequest/HttpSession 인자를 받지 않고 세션 ID를 보관하지 않는다.
-3. 소비한 OAuthIdentity만 사용한다. providerUserId를 클라이언트에서 받지 않는다.
-4. UserOnboardingPersistenceService.create의 트랜잭션에서 소셜키와 닉네임을 조회한다. 탈퇴 행을 제외하지 않는다.
+3. 선점한 OAuthIdentity만 사용한다. providerUserId를 클라이언트에서 받지 않는다.
+4. UserOnboardingPersistenceService.create의 독립된 REQUIRES_NEW 트랜잭션에서 소셜키와 닉네임을 조회한다.
+   탈퇴 행을 제외하지 않는다. TransactionSynchronization.afterCompletion으로 실제 커밋/롤백 완료를 기록한다.
 5. User를 saveAndFlush하고 AuthExchangePersistenceService.issueForNewUser를 호출한다.
 6. 기존 Access 서명·Refresh 난수/해시 저장 로직을 재사용한다. issueForNewUser는 MANDATORY이므로 같은
    트랜잭션에 참여한다. 별도 REQUIRES_NEW로 자격 정보만 커밋하지 않는다.
-7. 최상위 트랜잭션 커밋 후 201 및 Refresh 쿠키를 만든다. 세션 작업은 수행하지 않는다.
+7. 커밋 완료가 확인되고 인증 응답 준비가 성공한 뒤 complete로 토큰을 최종 소비한다.
+   201 및 Refresh 쿠키를 반환한다. 세션 작업은 수행하지 않는다.
 
 JWT 발급·Refresh 저장·커밋 실패 시 성공 응답/새 Refresh 쿠키를 보내지 않는다.
 JWT/Refresh 저장 실패가 회원 INSERT 뒤에 발생해도 users와 refresh_tokens가 함께 롤백된다.
@@ -79,26 +81,42 @@ JWT/Refresh 저장 실패가 회원 INSERT 뒤에 발생해도 users와 refresh_
 
 | 실패 시점 | 온보딩 토큰 | 재시도 |
 | --- | --- | --- |
-| Origin/JSON/닉네임/성별 형식 오류 | 소비하지 않음 | 남은 10분 안에 같은 Bearer로 수정 요청 가능 |
-| 잘못된 헤더/위조 토큰 | 원래 유효 토큰은 소비하지 않음 | 올바른 Bearer 필요, 세션은 무관 |
-| 정확히 600초 경과/이미 소비됨 | 사용 불가 | 소셜 로그인부터 다시 시작 |
-| consume 이후 중복/설정/DB/발급 오류 | 복원하지 않음 | 소셜 로그인부터 다시 시작 |
+| Origin/JSON/닉네임/성별 형식 오류 | 선점하지 않음 | 남은 유효기간 안에 같은 Bearer로 수정 요청 가능 |
+| 잘못된 헤더/위조 토큰 | 원래 유효 토큰은 선점하지 않음 | 올바른 Bearer 필요, 세션은 무관 |
+| 정확히 600초 경과/이미 완료·무효화됨 | 사용 불가, 401 | 소셜 로그인부터 다시 시작 |
+| 같은 토큰의 다른 요청이 처리 중 | 추가 선점 거절, 401 | 처리 중인 요청의 결과를 기다린다 |
+| 닉네임 중복 + 롤백 완료 확인 | 선점 해제, 409 USER_NICKNAME_ALREADY_EXISTS | 최초 만료 전 같은 Bearer + 다른 닉네임으로 재시도 |
+| 이미 가입된 소셜키 | 무효화, 409 USER_ALREADY_REGISTERED | 새 OAuth 로그인으로 기존 회원 흐름 이용 |
+| 설정/DB/발급 오류·중복 원인 조회 실패 | 무효화 | 소셜 로그인부터 다시 시작 |
+| 커밋/롤백 결과 불명 | 무효화, 503 | 토큰을 재활성화하지 않고 새 로그인으로 상태 확인 |
 
-닉네임 중복 409도 consume 이후라 토큰을 재사용하지 않는다. 임의 복원/자동 재시도를 추가하지 않는다.
+닉네임 충돌은 사전 조회와 실제 DB UNIQUE 경합 모두 위 정책을 적용한다. 닉네임 409는 반드시 롤백 완료가
+확인된 경우에만 반환한다. 롤백을 확인할 수 없으면 503이며 토큰을 무효화한다. 서버의 자동 재시도는 없다.
+선점 해제는 기존 항목의 원래 만료 시각을 그대로 유지하며 새 토큰을 발급하거나 소비한 토큰을 복원하지 않는다.
+만료 직전에 선점한 요청은 처리 도중 600초가 지나도 커밋을 마칠 수 있지만, 실패 후 만료된 토큰으로 재시도할 수 없다.
 USER-04가 구현되면 가입 확정 전 중복 확인 UX에 사용할 수 있으나 DB 최종 UNIQUE를 대신하지 않는다.
 
-메모리 consume과 DB 커밋은 하나의 분산 트랜잭션이 아니다. 재시작/DB 장애에 토큰을 복구하지 않는다.
+### 토큰 상태 전이
+
+`사용 가능 → 선점 중 → 성공 소비`가 정상 흐름이다. `선점 중 → 사용 가능`은 롤백이 확인된 닉네임 중복에만
+허용한다. 나머지 실패는 `선점 중 → 무효화`다. 모든 상태는 최초 만료 시각을 넘겨 재활성화되지 않는다.
+선점 객체의 소유권을 비교하므로 이전 요청의 지연된 해제/무효화가 다음 요청의 선점을 변경할 수 없다.
+만료된 선점도 주기적으로 제거하며 완료/무효화 항목을 메모리에 계속 보관하지 않는다.
+
+메모리 선점/확정과 DB 커밋은 하나의 분산 트랜잭션이 아니다. 재시작/DB 장애에 토큰을 복구하지 않는다.
 커밋 후 네트워크/응답 실패가 발생하면 회원과 전달되지 않은 Refresh 해시가 남을 수 있다.
 이때 가입을 삭제하거나 토큰을 복원하지 않는다. 새 OAuth 로그인의 기존 회원 AUTHENTICATED 흐름을 이용한다.
+커밋 후 Refresh 쿠키/응답 준비에 실패한 경우도 토큰을 무효화한다. 이미 커밋한 가입을 되돌리거나 재시도하지 않는다.
 자동 증가 ID의 공백은 롤백 시 생길 수 있으며 오류가 아니다.
 
 ## 동시 요청과 중복
 
-- 같은 토큰은 synchronized consume으로 한 요청만 DB 단계에 진입한다. 나머지는 401이다.
+- 같은 토큰은 synchronized claim으로 한 요청만 DB 단계에 진입한다. 처리 중 다른 요청은 401이다.
 - 같은 소셜 계정의 서로 다른 토큰이나 같은 닉네임의 가입은 사전 조회 후 경합할 수 있다.
 - 없는 행의 비관적 잠금에 의존하지 않고 기존 두 DB UNIQUE가 최종 차단한다.
-- DataIntegrityViolationException 발생 시 실패한 트랜잭션이 롤백된 뒤 새 조회로 소셜키/닉네임 충돌을 분류한다.
-  기존 회원을 갱신·복구·덮어쓰지 않는다. 충돌을 확인하지 못하거나 DB 조회도 실패하면 503이다.
+- DataIntegrityViolationException 발생 시 afterCompletion의 STATUS_ROLLED_BACK을 확인하고 새 조회로
+  소셜키/닉네임 충돌을 분류한다. 소셜키 중복을 우선한다. 닉네임 중복만 선점을 해제한다.
+  기존 회원을 갱신·복구·덮어쓰지 않는다. 롤백/충돌을 확인하지 못하거나 DB 조회도 실패하면 503이다.
 - 데드락/잠금 시간 초과 등 저장소 실패에는 성공을 가장하거나 자동 재시도하지 않는다.
 - 서로 다른 공급자의 같은 providerUserId는 별도 소셜키이므로 서로 다른 회원으로 가입할 수 있다.
 
@@ -134,10 +152,10 @@ MySQL 중복키 메시지에는 providerUserId가 포함될 수 있어 Hibernate
 | 400 | USER_INVALID_ONBOARDING_REQUEST | 누락/잘못된 JSON·자료형·추가 필드·Content-Type |
 | 400 | USER_INVALID_NICKNAME | 닉네임 형식 |
 | 400 | USER_INVALID_CHARACTER_GENDER | 성별 값 |
-| 401 | AUTH_INVALID_ONBOARDING_TOKEN | 누락·위조·만료·소비됨·일반 JWT |
+| 401 | AUTH_INVALID_ONBOARDING_TOKEN | 누락·위조·만료·처리 중·소비됨·무효화됨·일반 JWT |
 | 403 | AUTH_ORIGIN_NOT_ALLOWED | Origin/preflight/Fetch Metadata 거절 |
-| 409 | USER_NICKNAME_ALREADY_EXISTS | 탈퇴 행 포함 닉네임 중복 |
-| 409 | USER_ALREADY_REGISTERED | 이미 가입된 소셜키 |
+| 409 | USER_NICKNAME_ALREADY_EXISTS | 탈퇴 행 포함 닉네임 중복, 최초 만료 전 같은 토큰 재시도 가능 |
+| 409 | USER_ALREADY_REGISTERED | 이미 가입된 소셜키, 새 OAuth 로그인 필요 |
 | 500 | AUTH_TOKEN_CONFIGURATION_ERROR | JWT/쿠키/Origin 설정 오류 |
 | 503 | USER_ONBOARDING_UNAVAILABLE | db 비활성·DB/커밋 장애·분류할 수 없는 무결성 실패 |
 
@@ -150,7 +168,9 @@ MySQL 중복키 메시지에는 providerUserId가 포함될 수 있어 Hibernate
 3. **아직 ontop_dev에 없는 소셜 계정**으로 담당자가 직접 로그인한다. 이미 준비한 기존 회원 계정을 삭제하거나
    식별자를 바꿔 신규로 가장하지 않는다. NAVER는 실제 앱의 허용 테스트 계정/검수 상태를 확인한다.
 4. 같은 세션의 89번 교환 API에서 ONBOARDING_REQUIRED와 onboardingToken을 받는다.
-5. 10분 안에 이 문서의 POST를 호출한다. Authorization: Bearer에는 onboardingToken만 넣는다.
+5. 최초 발급 후 10분 안에 이 문서의 POST를 호출한다. Authorization: Bearer에는 onboardingToken만 넣는다.
+   기존에 사용 중인 닉네임으로 409 USER_NICKNAME_ALREADY_EXISTS를 확인한 뒤, 같은 토큰과 새 닉네임으로
+   재시도하면 201이어야 한다. 반복 409로 발급 시각/만료를 연장할 수 없다. 새 회원 생성은 로컬에서 승인 후 진행한다.
    온보딩 요청에 JSESSIONID를 보내지 않아도 201이어야 한다. Refresh 쿠키를 사용할 API 호스트는 일관되게 사용한다.
 6. 201의 사용자 정보·Access JWT, Refresh Set-Cookie를 확인한다. JWT 서명·클레임 확인은
    [로컬 검증 방법](auth-exchange.md#브라우저postman-수동-테스트)을 사용하고 외부 JWT 사이트에 붙여넣지 않는다.
@@ -158,15 +178,18 @@ MySQL 중복키 메시지에는 providerUserId가 포함될 수 있어 Hibernate
    Refresh 쿠키 원문 전체 SHA-256이 token_hash와 같고 수명 7일·revoked_at=NULL인지 확인한다.
    보고서에는 값이 아닌 일치 여부만 남긴다. 기존 사용자/Refresh 행은 보존한다.
 8. 같은 온보딩 토큰 재사용은 401이며 추가 행이 없어야 한다. 새 로그인은 AUTHENTICATED여야 한다.
-9. 입력 형식 오류 400 후에는 같은 토큰으로 수정할 수 있다. 중복 409/저장 실패 후에는 로그인부터 다시 시작한다.
+9. 입력 형식 오류 400·닉네임 409 후에는 원래 만료 전 같은 토큰으로 수정할 수 있다.
+   소셜키 409/저장 실패/만료 후에는 새 로그인으로 진행한다. 같은 토큰을 병렬로 자동 재전송하지 않는다.
 
 실제 토큰·코드·세션·식별자는 콘솔·채팅·공유 Postman 환경·스크린샷에 남기지 않는다.
 테스트 전용 공개 가입/인증 우회 API는 없다.
 
 ## 자동화 검증과 후속 작업
 
-UserOnboardingControllerTests는 입력·인증·일회 소비·만료·동시 소비·오류·커밋 실패·Origin을 검증한다.
+OnboardingTokenStoreTests는 선점 소유권·반복 해제 후 고정 만료·동시 선점·최종 소비/무효화를 검증한다.
+UserOnboardingControllerTests는 입력·인증·일회 소비·닉네임 재시도·고정 만료·동시 요청·오류·커밋/롤백 실패·Origin을 검증한다.
 UserOnboardingMySqlTests는 회원/Refresh/JWT·FK·대소문자·탈퇴 닉네임·동시 가입·롤백과 실제 HTTP 흐름을 검증한다.
+사전 조회 직후 별도 연결이 닉네임을 먼저 커밋하게 하여 실제 MySQL UNIQUE 충돌 후 같은 토큰 재시도를 검증한다.
 새 쿠키 jar에서 세션 없이 201을 받고, 같은 소셜 계정으로 다시 OAuth 교환하면 AUTHENTICATED인지 확인한다.
 외부 공급자는 테스트 Bean에서만 Mock하며 실제 공급자 성공을 가장하지 않는다.
 
@@ -182,21 +205,22 @@ AUTH-03/04, USER-04, Wallet, 전역 서비스 인증, 분산 토큰 저장, 요�
 
 ### 실제 검증 기록
 
-2026-10-21, `feat/S15P31B105-91-user-onboarding`, Java 21에서 검증했다.
+2026-10-21, `feat/S15P31B105-91-user-onboarding`, Java 21에서 닉네임 409 재시도 보완을 검증했다.
 
 | 항목 | 결과 |
 | --- | --- |
-| clean build / 기본 test | 세션 결합 제거 후 393개 통과, 실패·오류·건너뜀 0 |
+| clean build / 기본 test | 405개 통과, 실패·오류·건너뜀 0 |
 | flowTest | 실제 WebSocket 흐름 2개 통과 |
-| mysqlTest | MySQL 8.4.11에서 56개 통과, 신규 온보딩 14개 포함 |
-| 신규 Controller 테스트 | 50개 통과, 세션 없는 201·다른 세션·만료·재사용·위조·일반 JWT 거절 포함 |
+| mysqlTest | MySQL 8.4.11에서 57개 통과, 온보딩 15개 포함 |
+| OnboardingTokenStoreTests | 7개 통과, 고정 만료·선점 소유권·동시 선점·소비/무효화 포함 |
+| UserOnboardingControllerTests | 55개 통과, 세션 없는 재시도·고정 만료·커밋/롤백 결과 불명 차단 포함 |
 | JPA / Flyway | validate 성공, 현재 V2, 재적용 0개 |
 | git diff --check | 통과 |
 
 기존 `ontop-auth61-test-20261021-073629-ac72f0` 컨테이너와
 `ontop_users80_test_auth61_20261021_073629_ac72f0` DB(127.0.0.1:49701)를 재사용했다.
 신규 컨테이너/볼륨은 생성·삭제하지 않았다. 실제 공급자 로그인은 실행하지 않았다.
-개발 DB ontop_dev는 작업 전후 users 1행·Refresh 1행, 각 데이터 체크섬과 V1/V2 이력이 동일했다.
+개발 DB ontop_dev는 작업 전후 users 2행·Refresh 3행, 각 데이터 체크섬과 V1/V2 이력이 동일했다.
 해당 DB에 테스트를 실행하거나 데이터를 추가·수정·삭제하지 않았다.
 결과 보고서는 `backend/build/reports/tests/{test,flowTest,mysqlTest}/index.html`에 있다.
 

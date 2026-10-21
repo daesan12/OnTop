@@ -33,6 +33,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -65,6 +66,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -89,7 +91,7 @@ class UserOnboardingMySqlTests {
     private MockMvc mvc;
     @Autowired
     private ObjectMapper mapper;
-    @Autowired
+    @MockitoSpyBean
     private UserRepository users;
     @Autowired
     private OnboardingTokenStore tokens;
@@ -169,6 +171,9 @@ class UserOnboardingMySqlTests {
         assertThat(users.findById(existing.getId()).orElseThrow().getNickname()).isEqualTo(nickname);
         assertThat(users.count()).isEqualTo(beforeUsers);
         assertThat(refresh.count()).isEqualTo(beforeRefresh);
+        onboard(token, nickname()).andExpect(status().isCreated());
+        assertThat(users.count()).isEqualTo(beforeUsers + 1);
+        assertThat(refresh.count()).isEqualTo(beforeRefresh + 1);
         onboard(token, nickname()).andExpect(status().isUnauthorized());
     }
 
@@ -183,6 +188,7 @@ class UserOnboardingMySqlTests {
                 .andExpect(jsonPath("$.code").value("USER_NICKNAME_ALREADY_EXISTS"));
 
         assertThat(users.findById(existing.getId()).orElseThrow().getDeletedAt()).isNotNull();
+        onboard(token, nickname()).andExpect(status().isCreated());
     }
 
     @Test
@@ -192,8 +198,10 @@ class UserOnboardingMySqlTests {
         long beforeUsers = users.count();
         long beforeRefresh = refresh.count();
 
-        onboard(token(identity), nickname()).andExpect(status().isConflict())
+        String duplicate = token(identity);
+        onboard(duplicate, nickname()).andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("USER_ALREADY_REGISTERED"));
+        onboard(duplicate, nickname()).andExpect(status().isUnauthorized());
 
         assertThat(users.count()).isEqualTo(beforeUsers);
         assertThat(refresh.count()).isEqualTo(beforeRefresh);
@@ -244,6 +252,49 @@ class UserOnboardingMySqlTests {
         assertThat(results).containsExactlyInAnyOrder(201, 409);
         assertThat(users.count()).isEqualTo(beforeUsers + 1);
         assertThat(refresh.count()).isEqualTo(beforeRefresh + 1);
+        String retry = results.getFirst() == 409 ? firstToken : secondToken;
+        onboard(retry, nickname()).andExpect(status().isCreated());
+        assertThat(users.count()).isEqualTo(beforeUsers + 2);
+        assertThat(refresh.count()).isEqualTo(beforeRefresh + 2);
+    }
+
+    @Test
+    void 사전조회_직후_다른_소셜계정이_닉네임을_선점한_DB_UNIQUE_충돌도_재시도한다() throws Exception {
+        String nickname = nickname();
+        OAuthIdentity identity = identity(OAuthProvider.SSAFY);
+        String token = token(identity);
+        long beforeUsers = users.count();
+        long beforeRefresh = refresh.count();
+        AtomicBoolean inserted = new AtomicBoolean();
+        doAnswer(invocation -> {
+            boolean exists = jdbc.queryForObject("SELECT COUNT(*) FROM users WHERE nickname = ?",
+                    Long.class, nickname) > 0;
+            if (!exists && inserted.compareAndSet(false, true)) {
+                // 별도 연결에서 사전 조회 뒤 먼저 커밋하여 실제 MySQL UNIQUE 실패를 강제한다.
+                try (var executor = Executors.newSingleThreadExecutor()) {
+                    executor.submit(() -> jdbc.update("""
+                            INSERT INTO users (login_provider, provider_user_id, nickname, character_gender,
+                                created_at, updated_at)
+                            VALUES ('NAVER', ?, ?, 'MALE', UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))
+                            """, "onboard91-race-" + UUID.randomUUID(), nickname)).get(10, TimeUnit.SECONDS);
+                }
+            }
+            return exists;
+        }).when(users).existsByNickname(nickname);
+
+        onboard(token, nickname).andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("USER_NICKNAME_ALREADY_EXISTS"))
+                .andExpect(header().doesNotExist("Set-Cookie"));
+
+        assertThat(inserted).isTrue();
+        assertThat(users.findByLoginProviderAndProviderUserId(LoginProvider.SSAFY, identity.providerUserId()))
+                .isEmpty();
+        assertThat(users.count()).isEqualTo(beforeUsers + 1);
+        assertThat(refresh.count()).isEqualTo(beforeRefresh);
+        onboard(token, nickname()).andExpect(status().isCreated());
+        assertThat(users.count()).isEqualTo(beforeUsers + 2);
+        assertThat(refresh.count()).isEqualTo(beforeRefresh + 1);
+        onboard(token, nickname()).andExpect(status().isUnauthorized());
     }
 
     @Test

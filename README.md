@@ -146,11 +146,12 @@ S15P31B105-89의 `POST /api/v1/auth/exchange`는 동일 세션의 교환 코드�
 [인증 교환 API](docs/auth-exchange.md)에 Origin/CORS·쿠키 설정, 실패 정책, USER-05/Refresh 후속 계약,
 Postman 테스트 방법이 있다. 로그아웃·Refresh 갱신/회전은 후속 범위다.
 
-S15P31B105-91의 `POST /api/v1/users/onboarding`은 세션에 독립적인 온보딩 Bearer 토큰을 한 번 소비하고
+S15P31B105-91의 `POST /api/v1/users/onboarding`은 세션에 독립적인 온보딩 Bearer 토큰을 임시 선점하고
 2~8자 닉네임·성별로 가입을 확정한다. users와 Refresh 저장은 한 트랜잭션이며 201로 Access JWT를 반환한다.
 별도 회원가입 버튼 없이 신규 소셜 계정만 이 흐름을 거친다. 기존 회원은 교환 API에서 바로 로그인한다.
 온보딩에는 JSESSIONID가 필요 없다. OAuth 세션과 Refresh 쿠키의 Path는 기존 `/api/v1/auth`다.
-[온보딩 API](docs/user-onboarding.md)에 입력/중복·실패 재로그인·Bearer/쿠키·수동 테스트 계약이 있다.
+가입 성공 시 토큰을 최종 소비한다. 롤백이 확인된 닉네임 중복 409는 최초 10분 만료 전 같은 토큰으로 재시도할 수 있다.
+[온보딩 API](docs/user-onboarding.md)에 닉네임 재시도·소셜 계정 중복/기타 실패 재로그인·Bearer/쿠키·수동 테스트 계약이 있다.
 OAuth 환경변수 없이도 기본 앱과 기존 WebSocket 개발은 실행되며, 설정이 없는 provider의 인가 요청만 500으로 실패한다.
 
 ```powershell

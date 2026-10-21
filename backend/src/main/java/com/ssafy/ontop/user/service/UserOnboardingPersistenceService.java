@@ -9,7 +9,10 @@ import com.ssafy.ontop.user.exception.UserOnboardingException;
 import com.ssafy.ontop.user.repository.UserRepository;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Service
 @Profile("db")
@@ -23,8 +26,10 @@ public class UserOnboardingPersistenceService {
         this.credentials = credentials;
     }
 
-    @Transactional
-    public CreatedMember create(OAuthIdentity identity, UserOnboardingRequest input) {
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public CreatedMember create(OAuthIdentity identity, UserOnboardingRequest input, TransactionOutcome outcome) {
+        // 호출자가 커밋/롤백의 실제 완료를 확인한 뒤에만 토큰 상태를 변경한다.
+        TransactionSynchronizationManager.registerSynchronization(outcome);
         if (users.findByLoginProviderAndProviderUserId(identity.provider().loginProvider(),
                 identity.providerUserId()).isPresent()) {
             throw new UserOnboardingException(UserOnboardingException.Error.ALREADY_REGISTERED);
@@ -57,6 +62,23 @@ public class UserOnboardingPersistenceService {
         @Override
         public String toString() {
             return "CreatedMember[redacted]";
+        }
+    }
+
+    public static final class TransactionOutcome implements TransactionSynchronization {
+        private volatile int status = STATUS_UNKNOWN;
+
+        @Override
+        public void afterCompletion(int status) {
+            this.status = status;
+        }
+
+        public boolean committed() {
+            return status == STATUS_COMMITTED;
+        }
+
+        public boolean rolledBack() {
+            return status == STATUS_ROLLED_BACK;
         }
     }
 }

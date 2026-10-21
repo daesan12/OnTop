@@ -53,11 +53,45 @@ public class OnboardingTokenStore {
         return pending(token).identity();
     }
 
-    // USER-05는 입력 검증 후 일회 소비하고 DB UNIQUE를 재검증해야 한다. 실패 후 복원하지 않는다.
+    // 트랜잭션이 없는 내부 소비용이다. USER-05는 claim/complete/releaseNicknameConflict를 사용한다.
     public synchronized OAuthIdentity consume(String token) {
+        Claim claim = claim(token);
+        complete(claim);
+        return claim.identity();
+    }
+
+    public synchronized Claim claim(String token) {
         Pending pending = pending(token);
-        entries.remove(OpaqueTokens.digest(token));
-        return pending.identity();
+        Claim claim = new Claim(OpaqueTokens.digest(token), pending);
+        pending.claim = claim;
+        return claim;
+    }
+
+    // 성공한 DB 커밋 이후 확정한다. 처리 도중 만료/정리된 선점도 다시 활성화하지 않는다.
+    public synchronized void complete(Claim claim) {
+        invalidate(claim);
+    }
+
+    // 확인된 닉네임 충돌 + 확인된 롤백에만 호출한다. 발급/만료 시각을 바꾸지 않는다.
+    public synchronized void releaseNicknameConflict(Claim claim) {
+        if (owns(claim)) {
+            if (claim.pending.expiresAt.isAfter(clock.instant())) {
+                claim.pending.claim = null;
+            } else {
+                entries.remove(claim.hash);
+            }
+        }
+    }
+
+    // 실패 또는 커밋 결과 불명은 재활성화하지 않는다. 과거 선점으로 새 선점을 해제할 수 없다.
+    public synchronized void invalidate(Claim claim) {
+        if (owns(claim)) {
+            entries.remove(claim.hash);
+        }
+    }
+
+    private boolean owns(Claim claim) {
+        return entries.get(claim.hash) == claim.pending && claim.pending.claim == claim;
     }
 
     private Pending pending(String token) {
@@ -66,7 +100,7 @@ public class OnboardingTokenStore {
             throw invalid();
         }
         Pending pending = entries.get(OpaqueTokens.digest(token));
-        if (pending == null) {
+        if (pending == null || pending.claim != null) {
             throw invalid();
         }
         return pending;
@@ -75,7 +109,7 @@ public class OnboardingTokenStore {
     @Scheduled(fixedDelay = 30000)
     public synchronized void removeExpired() {
         Instant now = clock.instant();
-        entries.values().removeIf(value -> !value.expiresAt().isAfter(now));
+        entries.values().removeIf(value -> !value.expiresAt.isAfter(now));
     }
 
     @PreDestroy
@@ -87,6 +121,37 @@ public class OnboardingTokenStore {
         return new AuthExchangeException(AuthExchangeException.Error.INVALID_ONBOARDING);
     }
 
-    private record Pending(OAuthIdentity identity, Instant expiresAt) {
+    public static final class Claim {
+        private final String hash;
+        private final Pending pending;
+
+        private Claim(String hash, Pending pending) {
+            this.hash = hash;
+            this.pending = pending;
+        }
+
+        public OAuthIdentity identity() {
+            return pending.identity;
+        }
+
+        @Override
+        public String toString() {
+            return "OnboardingClaim[redacted]";
+        }
+    }
+
+    private static final class Pending {
+        private final OAuthIdentity identity;
+        private final Instant expiresAt;
+        private Claim claim;
+
+        private Pending(OAuthIdentity identity, Instant expiresAt) {
+            this.identity = identity;
+            this.expiresAt = expiresAt;
+        }
+
+        private OAuthIdentity identity() {
+            return identity;
+        }
     }
 }
