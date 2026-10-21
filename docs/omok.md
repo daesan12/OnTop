@@ -65,3 +65,9 @@
 ## 한 번에 검증
 
 `backend/`에서 `.\gradlew.bat flowTest`를 실행한다. OmokFlowTests는 실제 오목 규칙·Spring 서버·소켓·거리 서비스를 사용하여 착수/관전/중복/heartbeat 복귀/승리와 자동 시간패를 검사한다. 인증·참가 확정과 시간 경계는 테스트 대역/제어 시계이며 DB·지급 성공이나 실제 30초 대기 시험이 아니다.
+
+## 프론트 연동 명세·예제
+
+기존 Notion [경기 입력 전달](https://app.notion.com/p/3ff161842b86805d82b8f359845312f8), [상태 수신·자동 갱신](https://app.notion.com/p/3ff161842b86809497f0d0f87db8e98b), [복구 조회](https://app.notion.com/p/3ff161842b8680d785c8c027000052d9)에 오목 규칙을 반영했다. 공통 API의 다른 게임·정식 시작 연동까지 완료한 것은 아니므로 담당자 대산 장·진행 중 속성은 유지한다.
+
+[Postman 웹](https://dfd333-5957.postman.co/workspace/My-Workspace~fef8d4dd-529e-48e5-8bde-17f840fd2dd3/ws-raw-request/6ad7466f88a68a951684b2d7)의 기존 06 경기 통신 요청에서 02 착수·09 동일 행동 재확인·10 내용 충돌·11 복귀 조회를 사용한다. 실행 선행조건과 30초/상태 규칙은 OnTop WebSocket Overview 및 [테스트 안내](../postman/README.md)를 따른다. 2026-10-21 새로고침 후 웹 저장본을 대조했다. 웹 저장 확인은 실제 로그인·시작·지급 성공이나 데스크톱 동기화 검증을 뜻하지 않는다.
