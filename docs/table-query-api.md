@@ -36,7 +36,8 @@
       "allReady": false,
       "status": "WAITING",
       "joinable": true,
-      "gameCode": "OMOK"
+      "gameCode": "OMOK",
+      "targetScore": null
     }
   ]
 }
@@ -68,10 +69,12 @@
 | status | string | 아래 상태 값 |
 | joinable | boolean | 테이블이 대기 상태이고 빈자리가 있는지 |
 | gameCode | string 또는 null | 선택한 게임 코드. 미선택·빈 테이블이면 null |
+| targetScore | integer 또는 null | DICE의 선택 목표2000/4000/6000. 다른 게임·미선택이면 null |
 
 | status | 의미 |
 | --- | --- |
 | WAITING | 착석·준비 대기. 정원이 차면 joinable=false |
+| SETTLING | 실제 경기 종료 후 저장된 정산 완료 확인 대기. 준비0·좌석 유지·joinable=false |
 | STARTING | 선택적 시작 연동 검증에서 결과 확인 중. joinable=false |
 | REHEARSAL_CONFIRMED | 시작 연동 검증 성공. 실제 경기 진행 상태가 아님. joinable=false |
 | PLAYING | 별도 인증 시작 모드에서 B 확정 성공 후 엔진 생성. joinable=false |

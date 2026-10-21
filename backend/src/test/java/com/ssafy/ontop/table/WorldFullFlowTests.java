@@ -93,7 +93,7 @@ class WorldFullFlowTests {
             assertThat(payload(second, "READY_SET", Map.of("ready", true), "ERROR").path("code").asText())
                     .isEqualTo("NOT_SEATED");
             payload(second, "TABLE_JOIN", Map.of("tableId", tableId), "TABLE_STATE");
-            payload(first, "GAME_SELECT", Map.of("gameCode", "DICE"), "TABLE_STATE");
+            payload(first, "GAME_SELECT", Map.of("gameCode", "DICE", "targetScore", 4000), "TABLE_STATE");
             assertThat(payload(first, "READY_SET", Map.of("ready", true), "TABLE_STATE")
                     .path("allReady").asBoolean()).isFalse();
             JsonNode ready = payload(second, "READY_SET", Map.of("ready", true), "TABLE_STATE");

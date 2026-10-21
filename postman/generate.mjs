@@ -113,7 +113,7 @@ pm.test('공개 요약과 캐시 금지', () => {
     pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store');
     pm.response.json().tables.forEach(table => {
         pm.expect(table).to.have.all.keys('tableId', 'capacity', 'minimumPlayers', 'occupiedSeats',
-            'availableSeats', 'readyCount', 'allReady', 'status', 'joinable', 'gameCode');
+            'availableSeats', 'readyCount', 'allReady', 'status', 'joinable', 'gameCode', 'targetScore');
         pm.expect(table.availableSeats).to.eql(table.capacity - table.occupiedSeats);
         pm.expect(table.joinable).to.eql(table.status === 'WAITING' && table.availableSeats > 0);
     });
@@ -135,7 +135,8 @@ const ready = flag => message(flag ? '07 준비 → TABLE_STATE' : '추가 준�
 const leave = () => message('추가 테이블 퇴장 → TABLE_LEFT', 'TABLE_LEAVE');
 const channelLeave = () => message('추가 광장 퇴장 → CHANNEL_LEFT (착석 중이면 먼저 테이블 퇴장)', 'CHANNEL_LEAVE');
 const select = code => message(code === 'OMOK' ? '06 첫 착석자 오목 선택 → TABLE_STATE'
-    : `추가 첫 착석자 ${code} 선택 (전원 준비 초기화)`, 'GAME_SELECT', { gameCode: code });
+    : `추가 첫 착석자 ${code} 선택 (전원 준비 초기화)`, 'GAME_SELECT',
+    code === 'DICE' ? { gameCode: code, targetScore: 4000 } : { gameCode: code });
 const primaryMessages = [
     joinA(),
     message('02 걷기 입력 seq1 → WORLD_STATE (미착석)', 'WORLD_MOVE', { seq: 1, dx: 0, dz: -1, run: false, jump: false }),
@@ -180,7 +181,7 @@ const wsItems = [
             message('추가 채팅', 'WORLD_CHAT_SEND', { text: 'B도 접속했어!' }),
             message('다른 채널 격리 확인 — B 광장으로 (현재 채널 퇴장 후)', 'CHANNEL_JOIN', { channelId: '{{channelIdB}}' }),
             message('다른 채널 B 테이블 착석', 'TABLE_JOIN', { tableId: '{{tableIdB}}' }),
-            message('오류 선택권 없음 — A가 먼저 앉았을 때만', 'GAME_SELECT', { gameCode: 'DICE' })]),
+            message('오류 선택권 없음 — A가 먼저 앉았을 때만', 'GAME_SELECT', { gameCode: 'DICE', targetScore: 4000 })]),
     wsRequest('03 관전자 C — 공개 대기 상태 보기',
         '광장 A 입장·서버 스폰 확인 후 TABLE_WATCH를 보냅니다. 서버 테이블 좌표가 설정되어 있고 중심 20m 이내여야 합니다. 미설정/범위 밖은 TABLE_OUT_OF_RANGE입니다. TABLE_WATCH_STATE를 받으며 좌석·준비 인원은 늘지 않습니다. '
         + 'x/z는 1단위=1m인 서버 판정 위치입니다. 방향 입력을 반복해 실제 테이블 중심에 접근합니다. 거리 초과 이동 시 TABLE_WATCH_LEFT로 종료하고 다시 가까워져도 자동 재구독하지 않습니다. '
@@ -304,7 +305,7 @@ wsItems.push({ ...wsRequest('07 로그인 사용자 — 1회용 접속권',
         message('08 확정 경기 상태 조회', 'GAME_STATE_CHECK', {gameId: '{{gameId}}'})]),
     url: '{{wsUrl}}?ticket={{websocketTicket}}' });
 const guide = '현재 코드의 local 통신 검증용. 서버는 local,visual-test로 실행하고 OnTop Local 환경을 선택하세요. '
-    + '실제 오목 엔진은 선택적으로 켤 수 있으며 로그인·시작 차감·DB 정산은 미연결입니다. HTTP 테이블 조회로 ID 저장 후 WebSocket을 연결합니다. '
+    + '인증 시작 연결부와 엔진은 선택 활성화하며 실제 DB 차감·정산 통합 검증은 별도입니다. HTTP 테이블 조회로 ID 저장 후 WebSocket을 연결합니다. '
     + '웹에서 저장한 컬렉션은 동일 계정·워크스페이스 앱에서 사용하며 로컬 테스트는 Desktop App에서 실행하세요.';
 const httpV3 = { name: 'OnTop HTTP', $kind: 'collection', description: guide, items: httpItems };
 const wsGuide = '# 근거리 채팅·관전 테스트 (20m)\n\n'
@@ -314,7 +315,9 @@ const wsGuide = '# 근거리 채팅·관전 테스트 (20m)\n\n'
         .replace(' publicState에는', '\n\npublicState에는')
         .replace(' 09/10은', '\n\n09/10은')}`).join('\n\n')
     + '\n\n서버 테이블 좌표가 미설정이면 관전 성공 대신 범위 오류가 정상입니다. 실제 맵 좌표를 임의로 정하지 않습니다. '
-    + `기존 연결 ${wsItems.length}개와 저장 메시지 ${wsItems.reduce((sum, item) => sum + item.messages.length, 0)}개를 사용합니다.`;
+    + `기존 연결 ${wsItems.length}개와 저장 메시지 ${wsItems.reduce((sum, item) => sum + item.messages.length, 0)}개를 사용합니다.`
+    + '\n\n2026-10-22: 첫 착석자가 GAME_SELECT의 DICE targetScore를2000/4000/6000 중 선택합니다. 누락 GAME_OPTIONS_REQUIRED, 잘못된 값 INVALID_PAYLOAD이며 목표 변경도 전원 준비를 해제합니다. TABLE_STATE/TABLE_WATCH_STATE/HTTP12 요약에 targetScore가 추가되고 다른 게임은null입니다. '
+    + '실제 종료 후 좌석 유지·ready=false·SETTLING, 현재 경기 전체 SETTLED 확인 후 WAITING에서 다시 전원 준비하면 새 시도·경기ID로 시작합니다. 정산 알림 누락은 GAME_RESULT_CHECK 재조회로 복구하며 조회는 지급을 실행하지 않습니다. 실제 DB 잔액·원장·정산·운영 적용은 별도 통합 검증입니다.';
 const wsV3 = { name: 'OnTop WebSocket', $kind: 'collection', description: wsGuide, items: wsItems };
 const httpV21 = {
     info: { name: httpV3.name, description: guide, schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json' },

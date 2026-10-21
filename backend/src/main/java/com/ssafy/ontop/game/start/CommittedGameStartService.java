@@ -1,11 +1,13 @@
 package com.ssafy.ontop.game.start;
 
 import com.ssafy.ontop.game.bridge.service.BridgeEngine;
+import com.ssafy.ontop.game.farkle.service.FarkleEngine;
 import com.ssafy.ontop.game.omok.service.OmokEngine;
 import com.ssafy.ontop.game.onecard.service.OneCardEngine;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
@@ -20,9 +22,17 @@ public class CommittedGameStartService {
     private final Optional<OmokEngine> omok;
     private final Optional<OneCardEngine> onecard;
     private final Optional<BridgeEngine> bridge;
+    private final Optional<FarkleEngine> dice;
 
     public CommittedGameStartService(GameStartGateway gateway, Optional<OmokEngine> omok,
+            Optional<OneCardEngine> onecard, Optional<BridgeEngine> bridge, boolean authenticated, boolean rehearsal) {
+        this(gateway, omok, onecard, bridge, Optional.empty(), authenticated, rehearsal);
+    }
+
+    @Autowired
+    public CommittedGameStartService(GameStartGateway gateway, Optional<OmokEngine> omok,
             Optional<OneCardEngine> onecard, Optional<BridgeEngine> bridge,
+            Optional<FarkleEngine> dice,
             @Value("${ontop.websocket.authenticated:false}") boolean authenticated,
             @Value("${ontop.start-rehearsal.enabled:false}") boolean rehearsal) {
         if (!authenticated || rehearsal || gateway instanceof LocalGameStartGateway) {
@@ -32,6 +42,7 @@ public class CommittedGameStartService {
         this.omok = omok;
         this.onecard = onecard;
         this.bridge = bridge;
+        this.dice = dice;
     }
 
     public GameStartResult start(GameStartCommand command) {
@@ -54,6 +65,7 @@ public class CommittedGameStartService {
                 case "OMOK" -> omok.isPresent() && players.size() == 2;
                 case "ONE_CARD" -> onecard.isPresent();
                 case "LIAR_BRIDGE" -> bridge.isPresent();
+                case "DICE" -> dice.isPresent() && players.size() == 2 && command.targetScore() != null;
                 default -> false;
             };
         } catch (IllegalArgumentException exception) {
@@ -69,6 +81,8 @@ public class CommittedGameStartService {
                         players.get(0), players.get(1));
                 case "ONE_CARD" -> onecard.orElseThrow().create(result.gameSessionId(), command.tableId(), players);
                 case "LIAR_BRIDGE" -> bridge.orElseThrow().create(result.gameSessionId(), command.tableId(), players);
+                case "DICE" -> dice.orElseThrow().create(result.gameSessionId(), command.tableId(), players,
+                        command.targetScore());
                 default -> throw new IllegalStateException("경기 실행 설정을 확인해주세요.");
             }
         }

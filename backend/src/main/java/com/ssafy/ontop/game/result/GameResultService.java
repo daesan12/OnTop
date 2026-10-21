@@ -14,18 +14,27 @@ import java.util.function.Consumer;
 import org.springframework.context.annotation.Profile;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 
 @Service
 @Profile("local")
 public class GameResultService {
 
     private final Optional<GameResultGateway> gateway;
+    private final ApplicationEventPublisher events;
     private final Map<String, Slot> connections = new HashMap<>();
     private final ExecutorService workers = Executors.newVirtualThreadPerTaskExecutor();
     private boolean stopped;
 
     public GameResultService(Optional<GameResultGateway> gateway) {
+        this(gateway, event -> { });
+    }
+
+    @Autowired
+    public GameResultService(Optional<GameResultGateway> gateway, ApplicationEventPublisher events) {
         this.gateway = gateway;
+        this.events = events;
     }
 
     public synchronized void connected(String sessionId, long userId, Consumer<Delivery> output) {
@@ -83,6 +92,7 @@ public class GameResultService {
             remember(slot, result);
             slot.output.accept(new Delivery(null, result, null));
         }
+        notifyRead(result);
     }
 
     private void load(String sessionId, Slot slot, String requestId, String gameId) {
@@ -110,6 +120,14 @@ public class GameResultService {
                 remember(slot, result);
             }
             slot.output.accept(new Delivery(requestId, error == null ? result : null, error));
+        }
+        if (error == null) { notifyRead(result); }
+    }
+
+    private void notifyRead(GameResultView result) {
+        try { events.publishEvent(new GameResultLoaded(result)); }
+        catch (RuntimeException exception) {
+            org.slf4j.LoggerFactory.getLogger(GameResultService.class).warn("저장 결과 후속 상태 반영 실패");
         }
     }
 

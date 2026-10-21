@@ -123,6 +123,9 @@
         <option value="OMOK">오목</option><option value="DICE">주사위 한 판</option>
         <option value="ONE_CARD">원카드</option><option value="LIAR_BRIDGE">거짓말 다리 건너기</option>
       </select>
+      <select id="targetScore" aria-label="주사위 목표 점수" disabled>
+        <option value="2000">2,000점</option><option value="4000" selected>4,000점</option><option value="6000">6,000점</option>
+      </select>
       <button id="selectGame" disabled>게임 선택</button>
     </div>
     <p id="gameStatus" role="status">첫 착석자가 게임을 선택합니다.</p>
@@ -326,7 +329,7 @@
       renderWorld(open, busy);
       renderEmotes(open, busy);
       el('refreshTables').disabled = listLoading || !configLoaded || (channels.length > 0 && !channelState);
-      const frozen = startState && ['STARTING', 'CONFIRMED'].includes(startState.phase);
+      const frozen = startState && ['STARTING', 'CONFIRMED', 'PLAYING', 'SETTLING'].includes(startState.phase);
       el('connect').disabled = socket !== null;
       el('disconnect').disabled = socket === null;
       const selected = tables.find(table => table.tableId === el('table').value);
@@ -342,6 +345,7 @@
       el('cancel').disabled = !open || busy || state === null || frozen;
       const canSelect = open && !busy && state?.selectorUserId === userId && !frozen;
       el('game').disabled = !canSelect;
+      el('targetScore').disabled = !canSelect || el('game').value !== 'DICE';
       el('selectGame').disabled = !canSelect || !el('game').value;
       el('gameStatus').textContent = !state ? '첫 착석자가 게임을 선택합니다.'
         : `${gameNames[state.gameCode] ?? '게임 미선택'} · `
@@ -605,6 +609,7 @@
             versions.set(next.tableId, next.version);
             state = next;
             el('game').value = next.gameCode ?? '';
+            if (next.targetScore != null) el('targetScore').value = String(next.targetScore);
           }
         } else if (message.type === 'TABLE_LEFT') {
           state = null;
@@ -657,7 +662,8 @@
     el('refreshTables').onclick = refreshTables;
     el('table').onchange = render;
     el('game').onchange = render;
-    el('selectGame').onclick = () => send('GAME_SELECT', { gameCode: el('game').value });
+    el('selectGame').onclick = () => send('GAME_SELECT', el('game').value === 'DICE'
+      ? { gameCode: 'DICE', targetScore: Number(el('targetScore').value) } : { gameCode: el('game').value });
     el('enterChannel').onclick = () => send('CHANNEL_JOIN', { channelId: el('channel').value });
     el('leaveChannel').onclick = () => send('CHANNEL_LEAVE', {});
     function sendMove(x, z) {

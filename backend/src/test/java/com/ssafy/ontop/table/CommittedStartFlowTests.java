@@ -1,6 +1,7 @@
 package com.ssafy.ontop.table;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.ssafy.ontop.auth.service.AccessJwtService;
 import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser;
 import com.ssafy.ontop.auth.websocket.WebSocketAccountLookup;
@@ -45,7 +46,7 @@ import static org.mockito.Mockito.when;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "spring.profiles.active=local", "ontop.websocket.authenticated=true", "ontop.game-start.enabled=true",
-        "ontop.games.omok.enabled=true", "ontop.websocket.heartbeat.interval=200ms",
+        "ontop.games.omok.enabled=true", "ontop.games.farkle.enabled=true", "ontop.websocket.heartbeat.interval=200ms",
         "ontop.websocket.heartbeat.timeout=2s",
         "ontop.auth.jwt-secret-base64=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
 })
@@ -55,7 +56,8 @@ class CommittedStartFlowTests {
     private static final String GAME = "committed-test-game";
     @LocalServerPort int port;
     @Autowired AccessJwtService jwt;
-    @Autowired OmokEngine engine;
+    @org.springframework.test.context.bean.override.mockito.MockitoSpyBean OmokEngine engine;
+    @Autowired com.ssafy.ontop.game.farkle.service.FarkleEngine dice;
     @Autowired LedgerDouble ledger;
     @Autowired OmokFlowTests.TestClock clock;
     @Autowired TableHub hub;
@@ -151,10 +153,11 @@ class CommittedStartFlowTests {
     }
 
     @Test
-    void 목표전달미정주사위는차감요청전에거절한다() throws Exception {
+    void 목표없는주사위선택은차감요청전에거절한다() throws Exception {
         try (var first = connect(101); var second = connect(202)) {
-            prepare(first, second, "DICE");
-            first.await(m -> m.path("payload").path("code").asText().equals("START_REJECTED"));
+            first.request("TABLE_JOIN", Map.of("tableId", "table-1"));
+            assertThat(first.request("GAME_SELECT", Map.of("gameCode", "DICE"))
+                    .path("payload").path("code").asText()).isEqualTo("GAME_OPTIONS_REQUIRED");
             assertThat(ledger.starts.get()).isZero();
             assertThat(ledger.debits.get()).isZero();
         }
@@ -182,7 +185,7 @@ class CommittedStartFlowTests {
     private void prepare(ScenarioClient first, ScenarioClient second, String game) throws Exception {
         first.request("TABLE_JOIN", Map.of("tableId", "table-1"));
         second.request("TABLE_JOIN", Map.of("tableId", "table-1"));
-        first.request("GAME_SELECT", Map.of("gameCode", game));
+        first.request("GAME_SELECT", game.equals("DICE") ? Map.of("gameCode", game, "targetScore", 4000) : Map.of("gameCode", game));
         first.request("READY_SET", Map.of("ready", true));
         second.request("READY_SET", Map.of("ready", true));
     }
@@ -201,7 +204,19 @@ class CommittedStartFlowTests {
             clock.advanceSeconds(30);
             engine.tick();
             for (var client : List.of(first, second)) {
-                var pending = client.await(m -> m.path("type").asText().equals("GAME_RESULT"));
+                boolean[] finished = {false};
+                JsonNode[] receivedResult = {null};
+                client.await(message -> {
+                    if (message.path("type").asText().equals("GAME_CONNECTION_STATE")
+                            && message.path("payload").path("status").asText().equals("FINISHED")) {
+                        finished[0] = true;
+                    }
+                    if (message.path("type").asText().equals("GAME_RESULT")) {
+                        receivedResult[0] = message;
+                    }
+                    return finished[0] && receivedResult[0] != null;
+                });
+                var pending = receivedResult[0];
                 assertThat(pending.path("requestId").isNull()).isTrue();
                 assertThat(pending.path("payload").path("settlementStatus").asText()).isEqualTo("PENDING");
                 assertThat(pending.path("payload").path("myCoinDelta").isNull()).isTrue();
@@ -210,7 +225,7 @@ class CommittedStartFlowTests {
                     .isEqualTo("TURN_TIMEOUT");
             assertThat(first.request("GAME_ACTION_SEND", Map.of("gameId", GAME, "actionId", "late",
                     "expectedVersion", 1, "input", Map.of("x", 7, "y", 7)))
-                    .path("payload").path("code").asText()).isEqualTo("GAME_ACTION_INVALID_ACTION");
+                    .path("payload").path("code").asText()).isEqualTo("GAME_RECOVERY_REQUIRED");
             for (long user : new long[]{101, 202}) {
                 results.saved.put(user, result(user, SettlementStatus.SETTLED));
                 events.publishEvent(new GameResultCommitted(results.saved.get(user)));
@@ -235,6 +250,96 @@ class CommittedStartFlowTests {
                 List.of(new GameResultView.Participant("101", "LOSE"), new GameResultView.Participant("202", "WIN")),
                 settlement == SettlementStatus.PENDING ? null : user == 101 ? -1L : 1L,
                 clock.instant().plusSeconds(settlement == SettlementStatus.PENDING ? 30 : 0));
+    }
+
+    @Test
+    void 주사위목표선택_확정시작_굴림_재접속까지같은목표를쓴다() throws Exception {
+        try (var first = connect(101); var second = connect(202)) {
+            first.request("TABLE_JOIN", Map.of("tableId", "table-1"));
+            second.request("TABLE_JOIN", Map.of("tableId", "table-1"));
+            assertThat(second.request("GAME_SELECT", Map.of("gameCode", "DICE", "targetScore", 2000))
+                    .path("payload").path("code").asText()).isEqualTo("NOT_GAME_SELECTOR");
+            first.request("GAME_SELECT", Map.of("gameCode", "DICE", "targetScore", 6000));
+            first.request("READY_SET", Map.of("ready", true));
+            var selected = first.request("GAME_SELECT", Map.of("gameCode", "DICE", "targetScore", 2000));
+            assertThat(selected.path("payload").path("targetScore").asInt()).isEqualTo(2000);
+            assertThat(hub.listTables().tables().getFirst().readyCount()).isZero();
+            first.request("READY_SET", Map.of("ready", true)); second.request("READY_SET", Map.of("ready", true));
+            ledger.release.countDown(); playing(first); first.state("RESTORED"); second.state("RESTORED");
+            assertThat(ledger.lastCommand.targetScore()).isEqualTo(2000);
+            var state = dice.load(101, GAME).orElseThrow();
+            assertThat(state.publicState().path("targetScore").asInt()).isEqualTo(2000);
+            var current = state.publicState().path("turnUserId").asText().equals("101") ? first : second;
+            assertThat(current.request("GAME_ACTION_SEND", Map.of("gameId", GAME, "actionId", "roll-1",
+                    "expectedVersion", 0, "input", Map.of("kind", "roll", "selectedIds", List.of())))
+                    .path("type").asText()).isEqualTo("GAME_ACTION_RESULT");
+            second.stopPong(); assertThat(second.awaitClose()).isEqualTo(1001);
+            try (var returned = connect(202, "RESTORED")) {
+                assertThat(returned.request("GAME_STATE_CHECK", Map.of("gameId", GAME))
+                        .path("payload").path("publicState").path("targetScore").asInt()).isEqualTo(2000);
+            }
+            assertThat(ledger.debits).hasValue(1);
+        }
+    }
+
+    @Test
+    void 정산대기는준비를막고_알림유실은저장조회로풀어_새경기를시작한다() throws Exception {
+        try (var first = connect(101); var second = connect(202)) {
+            prepare(first, second, "OMOK"); ledger.release.countDown(); playing(first);
+            first.state("RESTORED"); second.state("RESTORED");
+            clock.advanceSeconds(30); engine.tick();
+            first.await(m -> m.path("type").asText().equals("GAME_START_STATE")
+                    && m.path("payload").path("phase").asText().equals("SETTLING"));
+            first.state("FINISHED"); second.state("FINISHED");
+            assertThat(hub.listTables().tables().getFirst().occupiedSeats()).isEqualTo(2);
+            assertThat(hub.listTables().tables().getFirst().readyCount()).isZero();
+            assertThat(first.request("READY_SET", Map.of("ready", true)).path("payload").path("code").asText())
+                    .isEqualTo("TABLE_BUSY");
+            var pending = result(101, SettlementStatus.PENDING);
+            events.publishEvent(new GameResultCommitted(pending));
+            events.publishEvent(new GameResultCommitted(new GameResultView(101, 2, GAME, "OMOK",
+                    GameResultView.Status.FINISHED, "TURN_TIMEOUT", SettlementStatus.SETTLED, 1,
+                    List.of(new GameResultView.Participant("101", "LOSE"),
+                            new GameResultView.Participant("303", "WIN")), -1L, clock.instant())));
+            assertThat(hub.listTables().tables().getFirst().status()).isEqualTo("SETTLING");
+            // 실제 DB 커밋 알림을 놓친 상황: 저장 Gateway의 SETTLED를 명시 조회해 복구한다.
+            // 위 잘못된 참가자 알림과 구분되는 더 최신 저장 버전이다.
+            var stored = result(101, SettlementStatus.SETTLED);
+            results.saved.put(101L, new GameResultView(stored.userId(), 3, stored.gameSessionId(), stored.gameCode(),
+                    stored.status(), stored.endReason(), stored.settlementStatus(), stored.betAmountPerPlayer(),
+                    stored.participants(), stored.myCoinDelta(), stored.endedAt()));
+            first.request("GAME_RESULT_CHECK", Map.of("gameSessionId", GAME));
+            first.await(m -> m.path("type").asText().equals("GAME_START_STATE")
+                    && m.path("payload").path("phase").asText().equals("WAITING"));
+            first.request("READY_SET", Map.of("ready", true)); second.request("READY_SET", Map.of("ready", true));
+            first.await(m -> m.path("type").asText().equals("GAME_START_STATE")
+                    && m.path("payload").path("gameSessionId").asText().equals(GAME + "-2")
+                    && m.path("payload").path("phase").asText().equals("PLAYING"));
+            events.publishEvent(new GameResultCommitted(results.saved.get(101L)));
+            hub.roundEnded("table-1", GAME);
+            assertThat(hub.listTables().tables().getFirst().status()).isEqualTo("PLAYING");
+            assertThat(ledger.debits).hasValue(2);
+            assertThat(engine.load(101, GAME + "-2")).isPresent();
+        }
+    }
+
+    @Test
+    void 엔진생성직후끝나도_시작성공반영뒤종료와정산을복구한다() throws Exception {
+        org.mockito.Mockito.doAnswer(call -> {
+            Object value = call.callRealMethod();
+            clock.advanceSeconds(30); engine.tick();
+            events.publishEvent(new GameResultCommitted(result(101, SettlementStatus.SETTLED)));
+            return value;
+        }).when(engine).create(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyLong());
+        try (var first = connect(101); var second = connect(202)) {
+            prepare(first, second, "OMOK"); ledger.release.countDown();
+            first.await(m -> m.path("type").asText().equals("GAME_START_STATE")
+                    && m.path("payload").path("phase").asText().equals("WAITING")
+                    && m.path("payload").path("gameSessionId").asText().equals(GAME));
+            assertThat(hub.listTables().tables().getFirst().status()).isEqualTo("WAITING");
+            assertThat(hub.listTables().tables().getFirst().readyCount()).isZero();
+        }
     }
 
     @ParameterizedTest
@@ -318,17 +423,19 @@ class CommittedStartFlowTests {
         final AtomicInteger starts = new AtomicInteger();
         final AtomicInteger lookups = new AtomicInteger();
         final AtomicInteger debits = new AtomicInteger();
+        volatile GameStartCommand lastCommand;
         volatile String mode = "SUCCESS";
         volatile GameStartResult committed;
 
         @Override public GameStartResult startGame(GameStartCommand command) {
             starts.incrementAndGet();
+            lastCommand = command;
             entered.countDown();
             try {
                 if (!release.await(8, TimeUnit.SECONDS)) { throw new IllegalStateException("test timeout"); }
             } catch (InterruptedException exception) { throw new IllegalStateException(exception); }
             if (mode.equals("REJECT")) { return GameStartResult.rejected(command.startAttemptId(), "BALANCE"); }
-            committed = GameStartResult.succeeded(command, GAME);
+            committed = GameStartResult.succeeded(command, starts.get() == 1 ? GAME : GAME + "-" + starts.get());
             debits.incrementAndGet();
             if (mode.equals("UNKNOWN")) { throw new IllegalStateException("test response lost after commit"); }
             if (mode.equals("INVALID")) {

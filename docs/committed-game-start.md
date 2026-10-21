@@ -8,7 +8,7 @@
 - B가 구현한 `GameStartGateway` Bean이 필수다. 현재 저장소에는 실제 DB Gateway가 없으므로 이 옵션을 켜면 의존성 누락으로 시작에 실패한다. 기본값은 false다.
 - `ontop.start-rehearsal.enabled=true`와 동시 사용하거나 LocalGameStartGateway를 실제 시작에 사용할 수 없다.
 - 사용할 게임 엔진을 별도로 활성화한다. 오목은 `ontop.games.omok.enabled=true`. 원카드/거짓말 다리는 해당 엔진과 필수 설정이 필요하다. 원카드 기권 손패 정책에 임의 기본값을 넣지 않는다.
-- 주사위는 목표 점수를 현재 테이블 선택에서 전달하는 계약이 없어 이 연결에서는 차감 요청 전에 거절한다. 임의 목표로 시작하지 않는다.
+- 주사위는 `ontop.games.farkle.enabled=true`와 첫 착석자가 선택한 targetScore(2000/4000/6000)가 필요하다. GAME_SELECT → 테이블 스냅샷 → 고정 GameStartCommand → 같은 경기 ID의 FarkleEngine.create로 전달한다. 미선택 목표·미설정 엔진은 차감 전에 거절한다.
 
 실제 서버 설정이나 배포 옵션은 이번 작업에서 변경하지 않는다. 테스트 전용 LedgerDouble은 실제 지갑·잔액·DB 트랜잭션이 아니다.
 
@@ -50,7 +50,15 @@ GAME_START_CHECK/GAME_START_STATE의 필드와 방향은 유지한다. 개발용
 }
 ```
 
-이 예제는 응답 형식이며 실제 DB에 저장된 경기/차감 증거가 아니다. GET 테이블 목록은 해당 테이블을 PLAYING/joinable=false로 표시한다. 경기 종료 후 정산·좌석 유지/로비 복귀는 별도 연결 범위여서 이번 시작 연결에서 좌석을 임의 해제하지 않는다.
+이 예제는 응답 형식이며 실제 DB에 저장된 경기/차감 증거가 아니다. GET 테이블 목록은 해당 테이블을 PLAYING/joinable=false로 표시한다. targetScore는 테이블 상태·HTTP 요약에 추가하며 주사위만 값이 있고 다른 게임은 null이다.
+
+## 종료·정산·다음 판 · 2026-10-22 사용자 확정
+
+실제 엔진 종료 → 좌석 유지·전원 준비 false → GAME_START_STATE.phase=SETTLING 및 HTTP status=SETTLING(joinable=false) → 경기 전체 SETTLED 확인 → WAITING → 다시 전원 준비 → 새 startAttemptId/확정 gameSessionId로 새 경기다. 카운트다운이나 자동 재시작은 없다. 정산 대기 중 게임 선택·준비·퇴장은 TABLE_BUSY로 보호한다.
+
+SETTLED는 경기 전체 정산 트랜잭션의 커밋 상태이며 참가자별 알림 수신 완료 횟수가 아니다. 일치하는 확정 경기 ID·게임 코드·최초 참가자 집합·판돈1과 본인 참가를 검사한다. PENDING·타 경기·잘못된 참가자 결과로 다음 판을 열지 않는다. GameResultCommitted 또는 GameResultGateway에서 검증해 읽은 GameResultLoaded로 확인하며, 이벤트 유실 시 기존 GAME_RESULT_CHECK로 재조회한다. 저장되지 않은 상태·읽기 실패에는 그대로 대기한다. DB 저장·지급은 이 연결부가 호출하지 않는다.
+
+시작 성공을 Hub에 반영하기 전에 엔진이 종료될 수 있으므로 조기 종료/정산 알림을 해당 시도에 보존하고, 확정 경기 ID가 같은 경우만 재적용한다. 이전 경기의 늦은 알림은 새 경기를 해제하지 않는다. 정산 후 접속 중인 좌석·선택 게임·주사위 목표는 유지하고 준비는 해제한다. 끊긴 사용자의 예약 좌석은 대기 전환 시 기존 정책대로 정리하며, 새로 접속하면 종료 결과를 조회하고 다시 착석한다. 메모리 상태이므로 재시작/다중 서버 복구 보장은 별도다.
 
 ## 끊김과 검증 범위
 

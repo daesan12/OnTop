@@ -110,10 +110,16 @@ HTTP11 채널 목록 확인 → HTTP10 접속권 발급 → WS07 연결/CHANNEL_
 
 ## 인증 경기 시작
 
-WS07의07은 `{}`로 같은 시작 시도 결과만 조회합니다.08은 GAME_START_STATE의 확정 gameSessionId를 개인 gameId 변수에 넣은 뒤 본인 경기 상태를 확인합니다. 전원 준비 후 STARTING → PLAYING(simulation=false), GAME_CONNECTION_STATE 복구가 이어지며 거절은 준비 초기화·미확정은 같은 시도 조회입니다. 실제 B GameStartGateway와 해당 엔진 + ontop.game-start.enabled=true가 필요합니다. 현재 저장소에는 DB Gateway가 없어 기본값 false이며 옵션만 켜서 차감 성공하지 않습니다. 오목/원카드/다리 지원은 활성화한 엔진·필수 정책 설정에 따르고 주사위는 목표 전달 계약 확정 전 차감 요청 전에 거절합니다. [연결 조건](../docs/committed-game-start.md)을 먼저 확인하세요. 개발용 WS04/05의 simulation=true 검증과 분리합니다.
+WS07의07은 `{}`로 같은 시작 시도 결과만 조회합니다.08은 GAME_START_STATE의 확정 gameSessionId를 개인 gameId 변수에 넣은 뒤 본인 경기 상태를 확인합니다. 전원 준비 후 STARTING → PLAYING(simulation=false), GAME_CONNECTION_STATE 복구가 이어지며 거절은 준비 초기화·미확정은 같은 시도 조회입니다. 실제 B GameStartGateway와 해당 엔진 + ontop.game-start.enabled=true가 필요합니다. 현재 저장소에는 DB Gateway가 없어 기본값 false이며 옵션만 켜서 차감 성공하지 않습니다. 오목/원카드/다리 지원은 활성화한 엔진·필수 정책 설정에 따르고 주사위는 첫 착석자가 GAME_SELECT.targetScore로2000/4000/6000 중 목표를 선택하며 시작 시 고정합니다. [연결 조건](../docs/committed-game-start.md)을 먼저 확인하세요. 개발용 WS04/05의 simulation=true 검증과 분리합니다.
 
 Postman 웹에서도 HTTP10의 URL·헤더·응답 검사 스크립트·안내와 WS07의 URL·Origin·안내·저장 메시지6개를 다시 열어 대조했습니다. HTTP11 로그인 채널 조회의 URL·인증/Origin 헤더·응답 검사·사용 설명도 페이지를 다시 열어 저장본을 확인했습니다. HTTP05는 미인증 실패 예제로 구분했습니다. OnTop Local의 accessToken/websocketTicket 값은 비워뒀습니다. 실제 계정으로 요청을 보내거나 로그인 원문을 웹에 저장하지 않았습니다. 생성본은 HTTP12개·WebSocket7개·메시지89개입니다.
 
 2026-10-21 인증 시작 연결: WS07 저장 메시지07(GAME_START_CHECK)·08(GAME_STATE_CHECK)을 웹에 반영하고 새로고침 후 대조했다. 요청별 Docs는 재로드 시 저장되지 않아 시작 조건·경계 안내는 컬렉션 Overview에 보관했다. 기존01~06 메시지와 접속권 URL·Origin은 유지한다. 실제 DB 차감 성공을 웹에서 실행한 검증은 아니다.
 
 2026-10-21 HTTP12: 웹 저장 후 다시 열어 GET URL·Authorization/Origin·요청 전 tableIdA 초기화·응답 공개 요약 검사/ID 저장·Docs를 대조했다. 기존 HTTP01~11과 WS07 메시지는 유지하며 실제 계정 원문이나 요청 실행은 하지 않았다.
+
+## 2026-10-22 주사위 목표·정산 후 다음 판
+
+첫 착석자가 GAME_SELECT에서 DICE targetScore=2000/4000/6000을 선택합니다. 목표 변경은 전원 준비를 해제합니다. TABLE_STATE·TABLE_WATCH_STATE·HTTP12 요약은 targetScore를 포함하며 다른 게임은 null입니다.
+
+실제 종료 → 좌석 유지·ready=false·SETTLING → 현재 경기 전체 SETTLED 확인 → WAITING에서 다시 전원 준비 → 새 시도·경기 ID로 다음 판을 시작합니다. 알림 누락은 GAME_RESULT_CHECK 재조회로 복구하며 조회는 지급을 실행하지 않습니다. 실제 DB·원장·정산 통합 검증은 별도입니다.

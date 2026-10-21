@@ -13,6 +13,8 @@ public final class TableStartAttempt {
     private String gameSessionId;
     private boolean dispatched;
     private boolean checking;
+    private final java.util.Set<String> endedGames = new java.util.HashSet<>();
+    private final java.util.Set<String> settledGames = new java.util.HashSet<>();
 
     public TableStartAttempt(GameStartCommand command) {
         this.command = command;
@@ -28,6 +30,24 @@ public final class TableStartAttempt {
 
     public boolean starting() {
         return phase.equals("STARTING");
+    }
+
+    public String phase() { return phase; }
+
+    public boolean endRound() {
+        if (!phase.equals("PLAYING")) { return false; }
+        phase = "SETTLING";
+        return true;
+    }
+
+    public void rememberEnd(String gameId) { endedGames.add(gameId); }
+    public boolean endedEarly() { return gameSessionId != null && endedGames.contains(gameSessionId); }
+    public void markSettled(String gameId) { settledGames.add(gameId); }
+
+    public boolean returnAfterSettlement() {
+        if (!phase.equals("SETTLING") || !settledGames.contains(gameSessionId)) { return false; }
+        phase = "WAITING";
+        return true;
     }
 
     public boolean dispatched() {

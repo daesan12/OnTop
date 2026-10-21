@@ -62,7 +62,7 @@ class LoginWebSocketFlowTests {
                     .path("payload").path("userId").asText()).isEqualTo("101");
             first.request("TABLE_JOIN", Map.of("tableId", "table-1"));
             second.request("TABLE_JOIN", Map.of("tableId", "table-1"));
-            first.request("GAME_SELECT", Map.of("gameCode", "DICE"));
+            first.request("GAME_SELECT", Map.of("gameCode", "DICE", "targetScore", 4000));
             first.request("READY_SET", Map.of("ready", true));
             JsonNode ready = second.request("READY_SET", Map.of("ready", true)).path("payload");
             assertThat(ready.path("allReady").asBoolean()).isTrue();

@@ -5,6 +5,9 @@ import com.ssafy.ontop.game.farkle.service.FarkleGameFinished;
 import com.ssafy.ontop.game.omok.service.OmokGameFinished;
 import com.ssafy.ontop.game.onecard.service.OneCardGameFinished;
 import java.util.List;
+import com.ssafy.ontop.table.service.TableHub;
+import org.springframework.beans.factory.annotation.Autowired;
+import java.util.Optional;
 import org.springframework.context.annotation.Profile;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
@@ -14,28 +17,39 @@ import org.springframework.stereotype.Component;
 @Profile("local")
 public class GameFinishedResultListener {
     private final GameResultService results;
+    private final Optional<TableHub> tables;
 
     public GameFinishedResultListener(GameResultService results) {
+        this(results, Optional.empty());
+    }
+
+    @Autowired
+    public GameFinishedResultListener(GameResultService results, Optional<TableHub> tables) {
         this.results = results;
+        this.tables = tables;
     }
 
     @EventListener
     public void finished(OmokGameFinished event) {
+        tables.ifPresent(hub -> hub.roundEnded(event.tableId(), event.gameId()));
         results.finished(event.gameId(), List.of(event.blackUserId(), event.whiteUserId()));
     }
 
     @EventListener
     public void finished(FarkleGameFinished event) {
+        tables.ifPresent(hub -> hub.roundEnded(event.tableId(), event.gameId()));
         results.finished(event.gameId(), event.players());
     }
 
     @EventListener
     public void finished(OneCardGameFinished event) {
+        tables.ifPresent(hub -> hub.roundEnded(event.tableId(), event.gameId()));
         results.finished(event.gameId(), event.players());
     }
 
     @EventListener
     public void finished(BridgeGameFinished event) {
+        tables.ifPresent(hub -> hub.roundEnded(event.tableId(), event.gameId()));
         results.finished(event.gameId(), event.players());
     }
 }

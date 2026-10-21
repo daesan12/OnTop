@@ -45,7 +45,7 @@ class TableHubTests {
         Peer second = peer();
         owner.send("TABLE_JOIN", Map.of("tableId", "table-1"));
         owner.next();
-        owner.send("GAME_SELECT", Map.of("gameCode", game.name()));
+        owner.send("GAME_SELECT", game == TableGame.DICE ? Map.of("gameCode", game.name(), "targetScore", 4000) : Map.of("gameCode", game.name()));
         owner.next();
         for (int count = 1; count < game.maximumPlayers() - 1; count++) {
             Peer filler = peer();

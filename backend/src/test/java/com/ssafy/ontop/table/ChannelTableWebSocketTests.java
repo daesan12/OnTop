@@ -70,7 +70,7 @@ class ChannelTableWebSocketTests {
             seat(second, "channel-1", one);
             seat(other, "channel-2", two);
             seat(fourth, "channel-2", two);
-            first.request("GAME_SELECT", Map.of("gameCode", "DICE"));
+            first.request("GAME_SELECT", Map.of("gameCode", "DICE", "targetScore", 4000));
             first.request("READY_SET", Map.of("ready", true));
             second.request("READY_SET", Map.of("ready", true));
             JsonNode firstStart = confirmed(first);

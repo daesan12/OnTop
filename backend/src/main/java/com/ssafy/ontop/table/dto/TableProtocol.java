@@ -59,8 +59,7 @@ public final class TableProtocol {
             case "TABLE_JOIN", "TABLE_WATCH" -> fields(payload, Set.of("tableId")) && payload.get("tableId").isTextual()
                     && !payload.get("tableId").textValue().isBlank();
             case "READY_SET" -> fields(payload, Set.of("ready")) && payload.get("ready").isBoolean();
-            case "GAME_SELECT" -> fields(payload, Set.of("gameCode")) && payload.get("gameCode").isTextual()
-                    && !payload.get("gameCode").textValue().isBlank();
+            case "GAME_SELECT" -> validGameSelection(payload);
             case "TABLE_LEAVE", "TABLE_UNWATCH" -> fields(payload, Set.of());
             case "GAME_START_CHECK" -> fields(payload, Set.of());
             case "GAME_RECONNECT_CHECK" -> fields(payload, Set.of());
@@ -106,6 +105,14 @@ public final class TableProtocol {
         } catch (IllegalArgumentException exception) {
             return false;
         }
+    }
+
+    private boolean validGameSelection(JsonNode payload) {
+        if (!payload.path("gameCode").isTextual() || payload.path("gameCode").textValue().isBlank()) { return false; }
+        if (!payload.has("targetScore")) { return fields(payload, Set.of("gameCode")); }
+        return fields(payload, Set.of("gameCode", "targetScore")) && payload.path("gameCode").asText().equals("DICE")
+                && payload.path("targetScore").isIntegralNumber() && payload.path("targetScore").canConvertToInt()
+                && Set.of(2000, 4000, 6000).contains(payload.path("targetScore").intValue());
     }
 
     public String error(String requestId, String code, String message) {

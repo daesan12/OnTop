@@ -7,6 +7,8 @@ import com.ssafy.ontop.game.action.GameActionGateway;
 import com.ssafy.ontop.game.action.GameActionResult;
 import com.ssafy.ontop.game.reconnect.GameReconnectService;
 import com.ssafy.ontop.game.result.GameResultService;
+import com.ssafy.ontop.game.result.GameResultCommitted;
+import com.ssafy.ontop.game.result.GameResultView;
 import com.ssafy.ontop.game.start.GameStartCommand;
 import com.ssafy.ontop.game.start.GameStartCommand.Participant;
 import com.ssafy.ontop.game.start.GameStartGateway;
@@ -320,11 +322,11 @@ public class TableHub {
                     .filter(seat -> seat.userId() != null && seat.ready()).count();
             TableStartAttempt attempt = starts.get(tableId);
             String status = attempt == null || !attempt.frozen() ? "WAITING"
-                    : attempt.starting() ? "STARTING" : committedStarts.isPresent() ? "PLAYING" : "REHEARSAL_CONFIRMED";
+                    : attempt.starting() ? "STARTING" : committedStarts.isPresent() ? attempt.phase() : "REHEARSAL_CONFIRMED";
             int available = snapshot.capacity() - occupied;
             return new TableSummaryResponse(tableId, snapshot.capacity(), snapshot.minimumPlayers(), occupied,
                     available, ready, snapshot.allReady(), status, available > 0 && status.equals("WAITING"),
-                    snapshot.gameCode());
+                    snapshot.gameCode(), snapshot.targetScore());
         }).toList());
     }
 
@@ -685,7 +687,11 @@ public class TableHub {
         if (occupied > game.maximumPlayers()) {
             fail(request, "GAME_PLAYER_LIMIT", "참가자가 선택한 게임의 최대 인원보다 많습니다.");
         }
-        if (room.selectGame(game)) {
+        Integer targetScore = request.payload().has("targetScore") ? request.payload().get("targetScore").intValue() : null;
+        if (game == TableGame.DICE && targetScore == null) {
+            fail(request, "GAME_OPTIONS_REQUIRED", "주사위 목표 2000/4000/6000점 중 하나를 선택해주세요.");
+        }
+        if (room.selectGame(game, targetScore)) {
             starts.remove(tableId);
             publish(room, member, request.requestId());
             publishStart(tableId);
@@ -792,7 +798,7 @@ public class TableHub {
         GameStartCommand command = new GameStartCommand(UUID.randomUUID(), snapshot.tableId(), snapshot.version(),
                 snapshot.gameCode(), snapshot.seats().stream()
                         .filter(seat -> seat.userId() != null)
-                        .map(seat -> new Participant(seat.userId(), seat.seatNumber())).toList());
+                        .map(seat -> new Participant(seat.userId(), seat.seatNumber())).toList(), snapshot.targetScore());
         TableStartAttempt attempt = new TableStartAttempt(command);
         starts.put(snapshot.tableId(), attempt);
         if (committedStarts.isPresent()) {
@@ -879,6 +885,7 @@ public class TableHub {
             attempt.command().participants().forEach(player -> reconnect.ifPresent(service ->
                     service.startResolved(Long.parseLong(player.userId()))));
         }
+        if (attempt.endedEarly()) { roundEnded(tableId, attempt.view(0, false).gameSessionId()); }
     }
 
     private Set<String> connectedUsers() {
@@ -892,6 +899,62 @@ public class TableHub {
                 replyStartState(target, tableId, null);
             }
         }
+    }
+
+    /** 실제 엔진 종료만 테이블을 정산 대기로 전환한다. 과거 경기 알림은 무시한다. */
+    public synchronized void roundEnded(String tableId, String gameId) {
+        if (stopped || committedStarts.isEmpty()) { return; }
+        TableStartAttempt attempt = starts.get(tableId);
+        if (attempt != null && attempt.starting()) {
+            // 엔진 생성과 Hub 성공 반영 사이의 종료를 보존한다. 나중에 확정 경기 ID와 대조한다.
+            attempt.rememberEnd(gameId);
+            return;
+        }
+        if (attempt == null || !gameId.equals(attempt.view(0, false).gameSessionId()) || !attempt.endRound()) { return; }
+        TableRoom room = rooms.get(tableId);
+        room.resetReady();
+        publish(room, null, null);
+        publishStart(tableId);
+        attempt.command().participants().forEach(player -> reconnect.ifPresent(service ->
+                service.startResolved(Long.parseLong(player.userId()))));
+        releaseSettledRound(tableId, attempt);
+    }
+
+    @EventListener
+    public synchronized void roundSettled(GameResultCommitted event) {
+        if (stopped || committedStarts.isEmpty()) { return; }
+        GameResultView result = event.result();
+        if (result.settlementStatus() != GameResultView.SettlementStatus.SETTLED) { return; }
+        for (var entry : starts.entrySet()) {
+            TableStartAttempt attempt = entry.getValue();
+            if ((!attempt.starting() && !attempt.phase().equals("PLAYING") && !attempt.phase().equals("SETTLING"))
+                    || !attempt.starting() && !result.gameSessionId().equals(attempt.view(0, false).gameSessionId())
+                    || !result.gameCode().equals(attempt.command().gameCode())
+                    || result.betAmountPerPlayer() != 1) { continue; }
+            Set<String> expected = attempt.command().participants().stream().map(Participant::userId)
+                    .collect(Collectors.toSet());
+            Set<String> actual = result.participants().stream().map(GameResultView.Participant::userId)
+                    .collect(Collectors.toSet());
+            if (!expected.equals(actual) || !expected.contains(Long.toString(result.userId()))) { continue; }
+            // 경기 전체 SETTLED를 확인한다. 알림이 먼저 와도 엔진 종료 전에는 다음 판을 열지 않는다.
+            attempt.markSettled(result.gameSessionId());
+            releaseSettledRound(entry.getKey(), attempt);
+        }
+    }
+
+    @EventListener
+    public void roundResultLoaded(com.ssafy.ontop.game.result.GameResultLoaded event) {
+        roundSettled(new GameResultCommitted(event.result()));
+    }
+
+    private void releaseSettledRound(String tableId, TableStartAttempt attempt) {
+        if (!attempt.returnAfterSettlement()) { return; }
+        Set<String> connected = connectedUsers();
+        TableRoom room = rooms.get(tableId);
+        room.returnToWaiting(connected);
+        seating.entrySet().removeIf(entry -> entry.getValue().equals(tableId) && !connected.contains(entry.getKey()));
+        publish(room, null, null);
+        publishStart(tableId);
     }
 
     private void replyStartState(Member target, String tableId, String requestId) {

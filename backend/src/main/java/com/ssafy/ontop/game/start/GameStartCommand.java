@@ -5,10 +5,18 @@ import java.util.Objects;
 import java.util.UUID;
 
 public record GameStartCommand(UUID startAttemptId, String tableId, long tableVersion, String gameCode,
-        List<Participant> participants) {
+        List<Participant> participants, Integer targetScore) {
+
+    public GameStartCommand(UUID attempt, String table, long version, String code, List<Participant> players) {
+        this(attempt, table, version, code, players, null);
+    }
 
     public GameStartCommand {
         Objects.requireNonNull(startAttemptId);
+        if (targetScore != null && (!"DICE".equals(gameCode)
+                || !java.util.Set.of(2000, 4000, 6000).contains(targetScore))) {
+            throw new IllegalArgumentException("주사위 목표를 확인해주세요.");
+        }
         participants = List.copyOf(participants);
         if (tableId == null || tableId.isBlank() || tableVersion < 0 || gameCode == null || gameCode.isBlank()
                 || participants.size() < 2 || participants.size() > 4

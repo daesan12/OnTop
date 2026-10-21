@@ -2,6 +2,8 @@
 
 연결·메시지 공통 형식과 ERD 경계입니다. 처음 한 번 확인하고 개별 기능 페이지를 참고합니다.
 
+2026-10-22 사용자 확정: DICE 선택은 GAME_SELECT에 targetScore 정수2000/4000/6000을 함께 보낸다. TABLE_STATE/TABLE_WATCH_STATE/테이블 HTTP 요약에도 targetScore가 추가된다(다른 게임 null). 실제 종료 시 좌석 유지·전원 준비 해제 및 GAME_START_STATE/HTTP status=SETTLING → 경기 전체 SETTLED 확인 → WAITING → 다시 전원 준비로 새 경기다. 알림 유실은 GAME_RESULT_CHECK 저장 조회로 복구하며 임의 정산 성공·자동 다음 판은 없다.
+
 2026-10-21 코드 기준. [인증 연결](../websocket-authentication.md)은 Access JWT·활성 계정 → 30초1회용 접속권 → 소켓을 연결합니다. [경기 통신](09-game-communication.md)은 4종 엔진의 입력·상태·관전·복구, [광장 계약](../world-websocket-api.md)은 서버 이동·충돌·20m 채팅을 다룹니다. [인증 시작](../committed-game-start.md)은 B 커밋 성공 검증 뒤 엔진·복구를 연결합니다. 실제 DB 차감·원장·정산과 외부OAuth/MySQL·프론트·운영 검증은 별도입니다.
 
 ## 1. 적용 범위
