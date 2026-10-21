@@ -6,7 +6,7 @@
 
 ## 현재 구현 범위
 
-`local`의 인증 모드에서 동작하는 **연결부**다. 실제 로그인·경기 엔진·DB는 아직 없다. 인증 담당의 `WebSocketUserResolver`와 경기 담당의 `GameRecoveryGateway` Bean이 필요하다. 테스트에만 인증·경기 대역이 있으며 운영 코드에 임의 계정/경기를 생성하지 않는다. 개발용 시작 검증의 `demo-game`은 복구 대상으로 사용하지 않는다.
+`local`의 인증 모드에서 동작하는 **연결부**다. 선택적 [오목 엔진](omok.md)이 실제 판·차례·마감 복구를 제공한다. 인증 담당의 `WebSocketUserResolver`가 필요하며 실제 로그인·시작 차감·DB 정산은 미연결이다. 테스트에서 인증·참가 확정을 주입하며 운영 코드에 임의 계정/경기를 생성하지 않는다. 개발용 시작 검증의 `demo-game`은 복구 대상으로 사용하지 않는다.
 
 | 파일 | 역할 |
 | --- | --- |
@@ -61,7 +61,7 @@
 3. 연결부는 턴을 정지하거나 재시작하지 않는다. 경기 담당의 현재 턴·원래 마감 시각을 그대로 받는다. 늦게 끝난 이전 연결의 조회는 새 연결에 전달하지 않는다.
 4. 30초가 지나면 `graceExpired`에 eventId·userId·gameId·단절/마감 시각·FORFEIT/ELIMINATE를 보낸다. 경기 담당은 **eventId로 멱등 처리**하고 해당 경기의 참가자가 여전히 진행 중일 때만 적용한다. 이미 종료된 경기에는 중복 기권·정산을 만들지 않는다. 예외 시 같은 eventId로 재시도한다.
 5. 만료 성공 후에도 현재 상태를 다시 읽는다. 오프라인 사용자의 종료가 확인되면 복구 기록을 제거한다. 엔진이 계속 진행 중이라고 하면 복귀를 허용하지 않는다.
-6. `GAME_ACTION_SEND`는 `TableHub.sendGameAction()`에서 `canControlGame(userId, sessionId, gameId)`를 확인한 뒤 입력 Gateway를 잠금 밖에서 호출한다. 호출 직전에도 현재 연결의 복구 권한을 확인한다. 실제 턴·현재 참가 자격·중복 입력 검증은 경기 담당 `GameActionGateway` 구현체의 책임이며 아직 미연결이다. [입력 연결 계약](game-action-api.md)을 함께 따른다.
+6. `GAME_ACTION_SEND`는 `TableHub.sendGameAction()`에서 `canControlGame(userId, sessionId, gameId)`를 확인한 뒤 입력 Gateway를 잠금 밖에서 호출한다. 호출 직전에도 현재 연결의 복구 권한을 확인한다. 실제 턴·현재 참가 자격·중복 입력 검증은 경기 담당 `GameActionGateway` 구현체의 책임이며 오목은 선택적으로 연결되는 OmokEngine이 처리한다. [입력 연결 계약](game-action-api.md)을 함께 따른다.
 
 30초는 클라이언트의 추정 단절 시각이 아니라 **서버의 종료 감지 시각**부터다. [heartbeat](websocket-heartbeat.md)가 응답 없는 연결을 감지하면 같은 종료 경로로 전달한다. 다중 서버·재시작 후 복구는 아직 없고 연결 기록은 메모리에 있다. 복구 조회 실패 후 다시 끊겨도 최초 유예를 연장하지 않는다. 유예 안에 복구가 완료된 뒤 다시 끊기면 새 유예다.
 
