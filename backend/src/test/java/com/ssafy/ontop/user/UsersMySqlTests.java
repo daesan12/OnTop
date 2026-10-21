@@ -74,13 +74,13 @@ class UsersMySqlTests {
     }
 
     @Test
-    void V1과_V2가_성공하고_users와_Refresh와_Flyway_이력이_존재한다() {
+    void V1부터_V3까지_성공하고_users와_Refresh와_Flyway_이력이_존재한다() {
         assertThat(jdbc.queryForList("SHOW TABLES", String.class))
                 .containsExactlyInAnyOrder("users", "refresh_tokens", "flyway_schema_history");
         assertThat(jdbc.queryForObject(
                 "SELECT COUNT(*) FROM flyway_schema_history WHERE version = '1' AND success = 1", Integer.class))
                 .isEqualTo(1);
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("2");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("3");
     }
 
     @Test
@@ -271,7 +271,7 @@ class UsersMySqlTests {
 
         assertThat(flyway.migrate().migrationsExecuted).isZero();
 
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM flyway_schema_history", Integer.class)).isEqualTo(2);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM flyway_schema_history", Integer.class)).isEqualTo(3);
         entityManager.clear();
         assertThat(users.findByLoginProviderAndProviderUserId(LoginProvider.SSAFY, "migration-retry")
                 .orElseThrow().getId()).isEqualTo(originalId);

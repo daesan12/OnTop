@@ -351,11 +351,11 @@ class UserOnboardingMySqlTests {
     }
 
     @Test
-    void 인증_발급은_호출자_트랜잭션이_없으면_거절하며_V1_V2만_유지한다() {
+    void 인증_발급은_호출자_트랜잭션이_없으면_거절하며_현재_마이그레이션을_유지한다() {
         User user = new User(LoginProvider.SSAFY, "onboard91-unpersisted", nickname(), CharacterGender.MALE);
         assertThatThrownBy(() -> credentials.issueForNewUser(user))
                 .isInstanceOf(IllegalTransactionStateException.class);
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("2");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("3");
         assertThat(flyway.migrate().migrationsExecuted).isZero();
     }
 

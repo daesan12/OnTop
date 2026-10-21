@@ -201,7 +201,8 @@ git diff --check
 
 기존 ontop_users80_test_ 접두어 테스트 DB를 재사용한다. 테스트에서 추가한 onboard91- 사용자와 Refresh fixture는
 해당 DB에만 보존한다. V1/V2·개발 DB·기존 Docker 컨테이너/볼륨은 초기화·삭제하지 않는다.
-AUTH-03/04, USER-04, Wallet, 전역 서비스 인증, 분산 토큰 저장, 요청량 제한, 만료 행 보관/삭제는 후속 범위다.
+AUTH-03, USER-04, Wallet, 전역 서비스 인증, 분산 토큰 저장, 요청량 제한, 만료 행 보관/삭제는 후속 범위다.
+가입 후 받은 Refresh 쿠키의 재발급/회전은 별도 [AUTH-04](auth-refresh.md) 계약을 따른다.
 
 ### 실제 검증 기록
 
