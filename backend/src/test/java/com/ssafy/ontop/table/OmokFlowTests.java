@@ -11,6 +11,8 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -111,22 +113,88 @@ class OmokFlowTests {
         }
     }
 
-    @Test
-    void 소켓에서_흑삼삼을_거절하고_같은버전과_차례로_계속한다() throws Exception {
+    @ParameterizedTest(name = "흑 금수: {0}")
+    @ValueSource(strings = {"DOUBLE_THREE", "DOUBLE_FOUR", "OVERLINE"})
+    void 소켓에서_흑금수를_거절하고_같은버전과_차례로_계속한다(String rule) throws Exception {
         engine.create("omok", TABLE, 101, 202);
         try (ScenarioClient black = connect("naver", "RESTORED");
-                ScenarioClient white = connect("ssafy", "RESTORED")) {
-            int[][] points = {{6,7},{8,7},{7,6},{7,8}};
-            for(int i=0;i<4;i++) {
-                play(black,"b"+i,i*2,points[i][0],points[i][1]);
-                play(white,"w"+i,i*2+1,i*2,0);
-            }
-            var before = engine.load(101,"omok").orElseThrow();
-            assertThat(black.request("GAME_ACTION_SEND",action("forbidden",8,7,7))
+                ScenarioClient white = connect("ssafy", "RESTORED");
+                ScenarioClient viewer = connect("spectator", "LOBBY")) {
+            int[][] points = switch (rule) {
+                case "DOUBLE_THREE" -> new int[][] {{6,7},{8,7},{7,6},{7,8}};
+                case "DOUBLE_FOUR" -> new int[][] {{3,7},{5,7},{6,7},{9,7}};
+                case "OVERLINE" -> new int[][] {{4,7},{5,7},{6,7},{8,7},{9,7}};
+                default -> throw new IllegalArgumentException(rule);
+            };
+            prepareForbidden(black, white, points);
+            long version = points.length * 2L;
+            joinWatch(viewer);
+            assertState(viewer.request("GAME_WATCH", Map.of("gameId", "omok")), version, "PLAYING");
+            white.await(m -> stateVersion(m, version));
+            var before = engine.load(101, "omok").orElseThrow();
+            // 오류가 상대/관전자의 새 상태로 잘못 방송되지 않는지도 같은 구간에 관찰한다.
+            viewer.assertNoMessageDuring(m -> stateVersion(m, version + 1), () ->
+                    white.assertNoMessageDuring(m -> stateVersion(m, version + 1), () -> {
+                        assertThat(black.request("GAME_ACTION_SEND", action("forbidden", version, 7, 7))
+                                .path("payload").path("code").asText()).isEqualTo("GAME_ACTION_FORBIDDEN_MOVE");
+                        return null;
+                    }));
+            assertThat(black.request("GAME_STATE_CHECK", Map.of("gameId", "omok"))
+                    .path("payload").path("publicState")).isEqualTo(before.publicState());
+            assertThat(engine.load(101, "omok").orElseThrow()).isEqualTo(before);
+            play(black, "legal", version, 0, 14);
+            assertState(white.await(m -> stateVersion(m, version + 1)), version + 1, "PLAYING");
+            assertState(viewer.await(m -> stateVersion(m, version + 1)), version + 1, "PLAYING");
+            System.out.println("[PASS] " + rule + " 소켓 거절·상태 불변·잘못된 갱신 미수신·다음 합법 착수");
+        }
+    }
+
+    @Test
+    void 금수후_끊겼다가복귀해도_원래마감에시간패한다() throws Exception {
+        engine.create("omok", TABLE, 101, 202);
+        try (ScenarioClient black = connect("naver", "RESTORED");
+                ScenarioClient white = connect("ssafy", "RESTORED");
+                ScenarioClient viewer = connect("spectator", "LOBBY")) {
+            prepareForbidden(black, white, new int[][] {{6,7},{8,7},{7,6},{7,8}});
+            joinWatch(viewer);
+            viewer.request("GAME_WATCH", Map.of("gameId", "omok"));
+            var before = engine.load(101, "omok").orElseThrow().publicState();
+            clock.advanceSeconds(10);
+            assertThat(black.request("GAME_ACTION_SEND", action("forbidden", 8, 7, 7))
                     .path("payload").path("code").asText()).isEqualTo("GAME_ACTION_FORBIDDEN_MOVE");
-            assertThat(engine.load(101,"omok").orElseThrow()).isEqualTo(before);
-            play(black,"legal",8,0,14);
-            assertState(white.await(m -> stateVersion(m,9)),9,"PLAYING");
+            black.stopPong();
+            assertThat(black.awaitClose()).isEqualTo(1001);
+            try (ScenarioClient returned = connect("naver", "RESTORED")) {
+                JsonNode recovered = returned.request("GAME_STATE_CHECK", Map.of("gameId", "omok"));
+                assertState(recovered, 8, "PLAYING");
+                assertThat(recovered.path("payload").path("publicState")).isEqualTo(before);
+                clock.advanceSeconds(19);
+                assertState(returned.request("GAME_STATE_CHECK", Map.of("gameId", "omok")), 8, "PLAYING");
+                // tick/조회/새 착수 없이 실제 scheduler가 원래 30초 마감에 종료해야 한다.
+                clock.advanceSeconds(1);
+                JsonNode ended = returned.await(m -> stateVersion(m, 9));
+                assertState(ended, 9, "FINISHED");
+                JsonNode state = ended.path("payload").path("publicState");
+                assertThat(state.path("endReason").asText()).isEqualTo("TURN_TIMEOUT");
+                assertThat(state.path("winnerUserId").asText()).isEqualTo("202");
+                assertThat(state.path("endedAt")).isEqualTo(before.path("turnDeadline"));
+                assertThat(state.path("board")).isEqualTo(before.path("board"));
+                assertThat(state.path("moveCount").asInt()).isEqualTo(8);
+                assertState(white.await(m -> stateVersion(m, 9)), 9, "FINISHED");
+                assertState(viewer.await(m -> stateVersion(m, 9)), 9, "FINISHED");
+                assertThat(returned.request("GAME_ACTION_SEND", action("late", 9, 0, 14))
+                        .path("payload").path("code").asText()).isEqualTo("GAME_ACTION_INVALID_ACTION");
+                assertThat(returned.request("GAME_STATE_CHECK", Map.of("gameId", "omok"))
+                        .path("payload").path("publicState")).isEqualTo(state);
+                System.out.println("[PASS] 금수 → 실제 heartbeat 단절/복귀 → 29초 진행/원래30초 시간패 → 전원 알림·종료 재조회");
+            }
+        }
+    }
+
+    private void prepareForbidden(ScenarioClient black, ScenarioClient white, int[][] points) throws Exception {
+        for (int index = 0; index < points.length; index++) {
+            play(black, "b" + index, index * 2L, points[index][0], points[index][1]);
+            play(white, "w" + index, index * 2L + 1, index * 2, 0);
         }
     }
 
