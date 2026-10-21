@@ -39,7 +39,7 @@
 
 WebSocket의 현재 연결·누적 등록/종료·수신 텍스트·완료 송신 수/UTF-8 바이트·종료 사유별 지표는 같은 [운영 안내](health-check.md#websocket-운영-지표)에 있다. 현재 local MeterRegistry에 등록하며 외부 수집기·관리 HTTP 노출은 추가하지 않았다.
 
-경기 진행의 연결 계약: [공개·개인 상태 조회](game-state-api.md), [입력 전달](game-action-api.md), [상세 7종](websocket-api/09-game-communication.md). 2026-10-20 기존 Notion WebSocket 목록에 반영하고 본문·담당자·진행상황을 재조회했다. 선택적으로 활성화하는 [오목](omok.md)·[주사위](farkle.md)·[원카드](onecard.md)·[거짓말 다리](bridge.md) 실제 엔진이 있다. 실제 로그인·시작 차감·DB 정산은 미연결이다.
+경기 진행의 연결 계약: [공개·개인 상태 조회](game-state-api.md), [입력 전달](game-action-api.md), [상세 7종](websocket-api/09-game-communication.md). 기존 Notion 목록과 담당자·진행상황을 유지한다. 선택 활성화하는 [오목](omok.md)·[주사위](farkle.md)·[원카드](onecard.md)·[거짓말 다리](bridge.md) 엔진과 [접속권 인증](websocket-authentication.md)·[차감 확정 후 시작 연결](committed-game-start.md)이 있다. 실제 DB 차감·정산 및 외부OAuth/MySQL·운영 검증은 별도다. 2026-10-21 공통 안내의 오래된 미연결 설명을 현재 코드와 맞췄다.
 
 - 파일은 용도에 맞는 폴더와 짧고 일정한 이름으로 보관한다. 현재 팀 규칙은 `docs/conventions/`에 둔다.
 - 받은 원문의 내용은 임의로 고치거나 요약본으로 대체하지 않는다. 출처·수신일·원래 파일명은 이 안내에 남긴다. 작업할 때는 연결된 원문에서 해당 규칙을 읽는다.
