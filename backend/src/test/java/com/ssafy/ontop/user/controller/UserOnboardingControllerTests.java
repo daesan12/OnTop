@@ -31,8 +31,8 @@ import java.util.stream.IntStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.invocation.InvocationOnMock;
 import org.springframework.aop.framework.ProxyFactory;
 import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import org.springframework.dao.DataAccessResourceFailureException;
@@ -46,14 +46,18 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.TransactionSystemException;
 import org.springframework.transaction.annotation.AnnotationTransactionAttributeSource;
 import org.springframework.transaction.interceptor.TransactionInterceptor;
-import org.springframework.transaction.support.SimpleTransactionStatus;
+import org.springframework.transaction.support.AbstractPlatformTransactionManager;
+import org.springframework.transaction.support.DefaultTransactionStatus;
+import org.springframework.transaction.support.TransactionSynchronization;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -86,11 +90,7 @@ class UserOnboardingControllerTests {
                 List.of(), new AuthTokenProperties.RefreshCookie(false, "Lax", "/api/v1/auth")), clock);
         tokens = new OnboardingTokenStore(clock);
         persistence = mock(UserOnboardingPersistenceService.class);
-        when(persistence.create(any(), any())).thenAnswer(invocation -> {
-            UserOnboardingRequest input = invocation.getArgument(1);
-            return new UserOnboardingPersistenceService.CreatedMember(new UserOnboardingResponse(42,
-                    input.nickname(), input.characterGender(), jwt.issue(42)), "rt_fixture_private");
-        });
+        when(persistence.create(any(), any(), any())).thenAnswer(this::created);
         session = new MockHttpSession();
         mvc = mvc(persistence, false);
     }
@@ -191,22 +191,54 @@ class UserOnboardingControllerTests {
         verifyNoInteractions(persistence);
     }
 
-    @ParameterizedTest
-    @EnumSource(value = UserOnboardingException.Error.class, names = {"NICKNAME_TAKEN", "ALREADY_REGISTERED"})
-    void 회원이나_닉네임_중복은_409이며_소비한_토큰을_복원하지_않는다(UserOnboardingException.Error error)
-            throws Exception {
-        doThrow(new UserOnboardingException(error)).when(persistence).create(any(), any());
+    @Test
+    void 닉네임_중복_롤백_후_같은_Bearer와_다른_닉네임으로_세션없이_재시도한다() throws Exception {
+        doAnswer(invocation -> {
+            rolledBack(invocation);
+            throw new UserOnboardingException(UserOnboardingException.Error.NICKNAME_TAKEN);
+        }).doAnswer(this::created).when(persistence).create(any(), any(), any());
         String token = issue();
 
-        onboard(token, session, "미지", "MALE").andExpect(status().isConflict())
-                .andExpect(jsonPath("$.code").value(error.code())).andExpect(header().doesNotExist("Set-Cookie"));
-        onboard(token, session, "미지", "MALE").andExpect(status().isUnauthorized());
+        onboard(token, null, "미지", "MALE").andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("USER_NICKNAME_ALREADY_EXISTS"))
+                .andExpect(header().doesNotExist("Set-Cookie"));
+        onboard(token, null, "다른미지", "MALE").andExpect(status().isCreated());
+        onboard(token, null, "또미지", "MALE").andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void 반복되는_닉네임_중복도_최초_600초_만료를_연장하지_않는다() throws Exception {
+        doAnswer(invocation -> {
+            rolledBack(invocation);
+            throw new UserOnboardingException(UserOnboardingException.Error.NICKNAME_TAKEN);
+        }).when(persistence).create(any(), any(), any());
+        String token = issue();
+        for (long seconds : new long[] {0, 300, 599}) {
+            when(clock.instant()).thenReturn(START.plusSeconds(seconds));
+            onboard(token, null, "미지", "MALE").andExpect(status().isConflict());
+        }
+        when(clock.instant()).thenReturn(START.plusSeconds(600));
+        onboard(token, null, "새미지", "MALE").andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void 이미_가입한_소셜계정은_409_후_새_OAuth_로그인이_필요하다() throws Exception {
+        doAnswer(invocation -> {
+            rolledBack(invocation);
+            throw new UserOnboardingException(UserOnboardingException.Error.ALREADY_REGISTERED);
+        }).when(persistence).create(any(), any(), any());
+        String token = issue();
+        onboard(token, null, "미지", "MALE").andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("USER_ALREADY_REGISTERED"));
+        onboard(token, null, "새미지", "MALE").andExpect(status().isUnauthorized());
     }
 
     @Test
     void UNIQUE_경합은_롤백_후_새_조회로_분류하며_SQL_원문을_노출하지_않는다() throws Exception {
-        doThrow(new DataIntegrityViolationException("fixture-private-social-id"))
-                .when(persistence).create(any(), any());
+        doAnswer(invocation -> {
+            rolledBack(invocation);
+            throw new DataIntegrityViolationException("fixture-private-social-id");
+        }).doAnswer(this::created).when(persistence).create(any(), any(), any());
         when(persistence.conflict(any(), anyString())).thenReturn(UserOnboardingException.Error.NICKNAME_TAKEN);
         String token = issue();
 
@@ -214,12 +246,35 @@ class UserOnboardingControllerTests {
 
         assertThat(result.getResponse().getContentAsString()).doesNotContain("fixture-private-social-id", token);
         verify(persistence).conflict(any(), anyString());
+        onboard(token, null, "새미지", "MALE").andExpect(status().isCreated());
+    }
+
+    @Test
+    void 닉네임_예외라도_롤백_확인이_없으면_재시도를_허용하지_않는다() throws Exception {
+        doThrow(new UserOnboardingException(UserOnboardingException.Error.NICKNAME_TAKEN))
+                .when(persistence).create(any(), any(), any());
+        String token = issue();
+        onboard(token, null, "미지", "MALE").andExpect(status().isServiceUnavailable());
+        onboard(token, null, "새미지", "MALE").andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void 롤백은_확인되어도_중복_원인_조회_실패는_토큰을_재활성화하지_않는다() throws Exception {
+        doAnswer(invocation -> {
+            rolledBack(invocation);
+            throw new DataIntegrityViolationException("fixture-private");
+        }).when(persistence).create(any(), any(), any());
+        when(persistence.conflict(any(), anyString()))
+                .thenThrow(new DataAccessResourceFailureException("fixture-private"));
+        String token = issue();
+        onboard(token, null, "미지", "MALE").andExpect(status().isServiceUnavailable());
+        onboard(token, null, "새미지", "MALE").andExpect(status().isUnauthorized());
     }
 
     @Test
     void 저장_실패와_DB_비활성은_503이며_코드와_토큰을_복원하지_않는다() throws Exception {
         doThrow(new DataAccessResourceFailureException("fixture-private-store"))
-                .when(persistence).create(any(), any());
+                .when(persistence).create(any(), any(), any());
         String token = issue();
 
         MvcResult result = onboard(token, session, "미지", "MALE").andExpect(status().isServiceUnavailable())
@@ -242,8 +297,9 @@ class UserOnboardingControllerTests {
         onboard(token, session, "미지", "MALE").andExpect(status().isUnauthorized());
     }
 
-    @Test
-    void 커밋_실패시_성공_응답이나_Refresh_쿠키가_없다() throws Exception {
+    @ParameterizedTest
+    @ValueSource(strings = {"transaction", "integrity", "rollback"})
+    void 커밋_결과_불명이나_롤백_실패시_성공_응답과_쿠키와_재활성화가_없다(String failure) throws Exception {
         UserRepository users = mock(UserRepository.class);
         when(users.saveAndFlush(any())).thenAnswer(invocation -> {
             User user = invocation.getArgument(0);
@@ -255,9 +311,32 @@ class UserOnboardingControllerTests {
         when(issuer.issueForNewUser(any())).thenReturn(
                 new AuthExchangePersistenceService.Credentials(accessToken, "rt_fixture_private"));
         UserOnboardingPersistenceService target = new UserOnboardingPersistenceService(users, issuer);
-        PlatformTransactionManager manager = mock(PlatformTransactionManager.class);
-        when(manager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
-        doThrow(new TransactionSystemException("fixture-private-commit")).when(manager).commit(any());
+        if (failure.equals("rollback")) {
+            when(users.existsByNickname(anyString())).thenReturn(true);
+        }
+        PlatformTransactionManager manager = new AbstractPlatformTransactionManager() {
+            @Override
+            protected Object doGetTransaction() {
+                return new Object();
+            }
+
+            @Override
+            protected void doBegin(Object transaction, TransactionDefinition definition) {
+            }
+
+            @Override
+            protected void doCommit(DefaultTransactionStatus status) {
+                if (failure.equals("integrity")) {
+                    throw new DataIntegrityViolationException("fixture-private-commit");
+                }
+                throw new TransactionSystemException("fixture-private-commit");
+            }
+
+            @Override
+            protected void doRollback(DefaultTransactionStatus status) {
+                throw new TransactionSystemException("fixture-private-rollback");
+            }
+        };
         TransactionInterceptor interceptor = new TransactionInterceptor();
         interceptor.setTransactionManager(manager);
         interceptor.setTransactionAttributeSource(new AnnotationTransactionAttributeSource());
@@ -271,7 +350,9 @@ class UserOnboardingControllerTests {
                 .andExpect(header().doesNotExist("Set-Cookie")).andReturn();
 
         assertThat(result.getResponse().getContentAsString()).doesNotContain("accessToken", "fixture-private-commit");
-        verify(issuer).issueForNewUser(any());
+        if (!failure.equals("rollback")) {
+            verify(issuer).issueForNewUser(any());
+        }
         onboard(token, session, "미지", "MALE").andExpect(status().isUnauthorized());
     }
 
@@ -292,7 +373,7 @@ class UserOnboardingControllerTests {
             assertThat(created).isEqualTo(1);
             assertThat(denied).isEqualTo(7);
         }
-        verify(persistence).create(any(), any());
+        verify(persistence).create(any(), any(), any());
     }
 
     @Test
@@ -321,6 +402,19 @@ class UserOnboardingControllerTests {
 
     private String issue() {
         return tokens.issue(new OAuthIdentity(OAuthProvider.SSAFY, "fixture-verified-social"));
+    }
+
+    private UserOnboardingPersistenceService.CreatedMember created(InvocationOnMock invocation) {
+        UserOnboardingRequest input = invocation.getArgument(1);
+        UserOnboardingPersistenceService.TransactionOutcome outcome = invocation.getArgument(2);
+        outcome.afterCompletion(TransactionSynchronization.STATUS_COMMITTED);
+        return new UserOnboardingPersistenceService.CreatedMember(new UserOnboardingResponse(42,
+                input.nickname(), input.characterGender(), jwt.issue(42)), "rt_fixture_private");
+    }
+
+    private void rolledBack(InvocationOnMock invocation) {
+        UserOnboardingPersistenceService.TransactionOutcome outcome = invocation.getArgument(2);
+        outcome.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK);
     }
 
     private void assertTokenValid(String token) {

@@ -36,7 +36,32 @@ public class UserOnboardingService {
         if (headers.size() != 1 || !headers.getFirst().regionMatches(true, 0, "Bearer ", 0, 7)) {
             throw new AuthExchangeException(AuthExchangeException.Error.INVALID_ONBOARDING);
         }
-        OAuthIdentity identity = tokens.consume(headers.getFirst().substring(7));
+        OnboardingTokenStore.Claim claim = tokens.claim(headers.getFirst().substring(7));
+        boolean retryable = false;
+        UserOnboardingPersistenceService.TransactionOutcome outcome =
+                new UserOnboardingPersistenceService.TransactionOutcome();
+        try {
+            Result result = create(claim.identity(), input, outcome);
+            tokens.complete(claim);
+            return result;
+        } catch (UserOnboardingException exception) {
+            if (exception.error() == UserOnboardingException.Error.NICKNAME_TAKEN) {
+                if (!outcome.rolledBack()) {
+                    throw new UserOnboardingException(UserOnboardingException.Error.STORAGE);
+                }
+                tokens.releaseNicknameConflict(claim);
+                retryable = true;
+            }
+            throw exception;
+        } finally {
+            if (!retryable) {
+                tokens.invalidate(claim);
+            }
+        }
+    }
+
+    private Result create(OAuthIdentity identity, UserOnboardingRequest input,
+            UserOnboardingPersistenceService.TransactionOutcome outcome) {
         UserOnboardingPersistenceService creator = persistence.getIfAvailable();
         if (creator == null) {
             throw new UserOnboardingException(UserOnboardingException.Error.STORAGE);
@@ -44,8 +69,12 @@ public class UserOnboardingService {
         cookies.validate();
         UserOnboardingPersistenceService.CreatedMember created;
         try {
-            created = creator.create(identity, input);
+            created = creator.create(identity, input, outcome);
         } catch (DataIntegrityViolationException exception) {
+            // 커밋 단계의 무결성 예외도 가능하다. 롤백 완료가 확인되지 않으면 재시도하지 않는다.
+            if (!outcome.rolledBack()) {
+                throw new UserOnboardingException(UserOnboardingException.Error.STORAGE);
+            }
             UserOnboardingException.Error error;
             try {
                 error = creator.conflict(identity, input.nickname());
@@ -54,6 +83,9 @@ public class UserOnboardingService {
             }
             throw new UserOnboardingException(error);
         } catch (DataAccessException | TransactionException exception) {
+            throw new UserOnboardingException(UserOnboardingException.Error.STORAGE);
+        }
+        if (!outcome.committed()) {
             throw new UserOnboardingException(UserOnboardingException.Error.STORAGE);
         }
         // DB 커밋 후에만 응답 자격 정보를 공개한다. 전송 실패가 DB 가입을 되돌리지는 않는다.
