@@ -47,7 +47,8 @@ AuthRefreshPersistenceService.rotate는 REQUIRES_NEW 트랜잭션이다.
 
 같은 회원의 요청은 로그인 세션이 달라도 회원 잠금에서 잠시 직렬화된다. 폐기 범위는 user_id + session_id다.
 같은 토큰 동시 요청은 하나만 회전하고 다른 요청은 401이다. 새 Refresh를 중복 발급하지 않는다.
-AUTH-03도 이 잠금 순서와 세션 범위를 따라야 한다. 회원 잠금 없이 Refresh부터 잠그면 데드락 위험이 있다.
+[AUTH-03 로그아웃](auth-logout.md)도 이 잠금 순서와 세션 범위를 따른다.
+회원 잠금 없이 Refresh부터 잠그면 데드락 위험이 있다.
 
 DB 저장/JWT 발급 실패는 이전 폐기와 새 저장을 롤백한다. 자동 재시도는 하지 않는다.
 재사용 탐지 시에는 예외 대신 거절 결과를 반환하여 **세션 폐기를 커밋한 뒤** 401로 바꾼다.
@@ -96,7 +97,7 @@ DB 커밋·HTTP 전달은 원자적이지 않다. 커밋 후 응답을 잃으면
 
 RefreshCookieService와 기존 환경변수를 그대로 재사용한다. host-only·HttpOnly·Path=/api/v1/auth·Max-Age=604800이다.
 local HTTP에서만 Secure=false를 허용한다. 운영은 HTTPS/Secure가 필수이며 SameSite=None도 Secure가 필수다.
-AUTH-03 경로가 정해지면 Path를 더 좁히는 방안을 별도로 검토한다. 이번 작업은 쿠키 Path를 변경하지 않는다.
+AUTH-03은 /api/v1/auth/logout이다. 쿠키 Path=/api/v1/auth는 유지하며 더 좁히는 방안은 별도 검토한다.
 
 AuthRefreshOriginFilter는 POST/OPTIONS /api/v1/auth/refresh에만 적용한다.
 기존 AuthExchangeOriginPolicy의 정확한 허용 Origin 검증을 재사용하고 Origin 누락/null/중복을 모두 거절한다.

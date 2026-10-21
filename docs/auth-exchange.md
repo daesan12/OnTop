@@ -105,7 +105,7 @@ session_id는 10분짜리 HttpSession ID와 별개다. 향후 Refresh 갱신을 
 - revokeSession(userId, sessionId, now)는 해당 계열의 미폐기 행만 갱신한다. 호출자 트랜잭션이 필요하다.
 - 회전 시 기존 행 폐기와 같은 session_id의 새 해시 저장을 하나의 트랜잭션으로 처리하는 설계를 사용할 수 있다.
 - AUTH-04 재발급/회전은 [재발급 API](auth-refresh.md)로 구현했다. V3의 rotated_at을 사용한다.
-  일반 폐기와 회전을 구분하며, 잠금 순서는 회원 → Refresh다. 로그아웃 API는 후속 범위다.
+  일반 폐기와 회전을 구분하며, 잠금 순서는 회원 → Refresh다. 로그아웃은 [AUTH-03](auth-logout.md)을 따른다.
 - DB 만료/폐기 행의 보관·정리 정책과 사용자 영구 삭제는 구현하지 않았다.
   FK가 사용자 삭제를 제한하므로 향후 보존 정책과 함께 처리해야 한다.
 
@@ -273,7 +273,8 @@ Mockito의 Java agent 경고는 있었지만 빌드/테스트 실패는 없었�
    원래 세션의 유효 코드는 다른 세션의 오입력 때문에 소진되지 않는다.
 9. Origin 위조는 403, 본문 누락/잘못된 JSON은 400이다. DB/발급 실패 뒤에는 authorize부터 다시 시작한다.
 10. Refresh 갱신은 [AUTH-04](auth-refresh.md)의 Origin 필수·본문 없는 쿠키 요청을 사용한다.
-    로그아웃 HTTP endpoint는 아직 없다. 테스트 편의용 우회 API를 추가하지 않는다.
+    로그아웃은 [AUTH-03](auth-logout.md)의 Origin 필수·본문 없는 쿠키 요청을 사용한다.
+    로그아웃 뒤 프론트는 Access JWT를 지운다. 테스트 편의용 우회 API를 추가하지 않는다.
 
 Access JWT는 외부 JWT 사이트에 붙여넣지 않는다. PowerShell 7 이상에서 아래 예시로 서명과 핵심 클레임을 확인할 수 있다.
 서명 키는 앞에서 주입한 같은 AUTH_JWT_SECRET_BASE64를 사용한다. 토큰은 보안 입력으로 받고 값은 출력하지 않는다.
@@ -303,6 +304,6 @@ try {
 
 ## 남은 운영 결정
 
-AUTH-03 로그아웃, 분산 온보딩 저장, 만료 행 보관/정리,
+분산 온보딩 저장, 만료 행 보관/정리,
 전체 REST/WebSocket 검증 연결, 요청량 제한, 실제 Vercel/TLS/브라우저 쿠키 검증은 후속 범위다.
 SSAFY/NAVER 실제 로그인은 이번 자동화 작업에서 수행하지 않는다. 기존 공급자 검증 범위를 유지한다.

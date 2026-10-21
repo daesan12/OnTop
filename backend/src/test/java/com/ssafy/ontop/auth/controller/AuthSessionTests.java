@@ -44,10 +44,10 @@ class AuthSessionTests {
     }
 
     @Test
-    void 두_provider의_callback은_state_없이_거절하고_로그아웃은_아직_없다() throws Exception {
+    void 두_provider의_callback은_state_없이_거절하고_GET_로그아웃은_허용하지_않는다() throws Exception {
         assertThat(get("/api/v1/auth/ssafy/callback").statusCode()).isEqualTo(400);
         assertThat(get("/api/v1/auth/naver/callback").statusCode()).isEqualTo(400);
-        assertThat(get("/api/v1/auth/logout").statusCode()).isEqualTo(404);
+        assertThat(get("/api/v1/auth/logout").statusCode()).isEqualTo(405);
     }
 
     private HttpResponse<Void> get(String path) throws Exception {

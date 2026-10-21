@@ -144,11 +144,16 @@ S15P31B105-89의 `POST /api/v1/auth/exchange`는 동일 세션의 교환 코드�
 신규 회원은 users 생성 없이 10분 온보딩 전용 난수 토큰만 받는다.
 서명 키 `AUTH_JWT_SECRET_BASE64`는 CSPRNG로 생성해 환경에 주입하며 기본 키는 없다.
 [인증 교환 API](docs/auth-exchange.md)에 Origin/CORS·쿠키 설정, 실패 정책, USER-05/Refresh 후속 계약,
-Postman 테스트 방법이 있다. 로그아웃은 후속 범위다.
+Postman 테스트 방법이 있다.
 
 S15P31B105-63의 `POST /api/v1/auth/refresh`는 ONTOP_REFRESH 쿠키로 30분 Access JWT와 새 7일 Refresh를 발급한다.
 본문/Bearer/JSESSIONID는 필요 없으며 허용된 Origin 헤더가 필수다. 같은 session_id에서 회전하고 만료를 슬라이딩한다.
 V3는 회전 시각만 추가한다. [재발급 API](docs/auth-refresh.md)에 동시 요청·5초 유예·세션 폐기·CSRF·수동 검증 계약이 있다.
+
+S15P31B105-62의 `POST /api/v1/auth/logout`은 현재 Refresh 로그인 계열만 폐기하고 204와 삭제 쿠키를 반환한다.
+본문/Bearer/JSESSIONID 없이 허용된 Origin과 Refresh 쿠키를 사용하며 반복/쿠키 누락에도 멱등적이다.
+Path=/api/v1/auth를 유지한다. Access JWT는 최대 30분 유효할 수 있어 프론트도 메모리의 JWT를 지워야 한다.
+[로그아웃 API](docs/auth-logout.md)에 장애·Rotation 경합·쿠키/Origin·수동 검증 계약이 있다.
 
 S15P31B105-91의 `POST /api/v1/users/onboarding`은 세션에 독립적인 온보딩 Bearer 토큰을 임시 선점하고
 2~8자 닉네임·성별로 가입을 확정한다. users와 Refresh 저장은 한 트랜잭션이며 201로 Access JWT를 반환한다.
