@@ -183,7 +183,19 @@ const wsItems = [
             message('14 주사위 Bank — 0번이 득점할 때·최신 버전으로 수정', 'GAME_ACTION_SEND',
                   { gameId: '{{gameId}}', actionId: 'dice-bank-1', expectedVersion: 1, input: { kind: 'bank', selectedIds: [0] } }),
             message('15 주사위 동일 첫 굴림 재확인 — 12와 같은 계정·경기', 'GAME_ACTION_SEND',
-                  { gameId: '{{gameId}}', actionId: 'dice-roll-1', expectedVersion: 0, input: { kind: 'roll', selectedIds: [] } })])
+                  { gameId: '{{gameId}}', actionId: 'dice-roll-1', expectedVersion: 0, input: { kind: 'roll', selectedIds: [] } }),
+            message('16 원카드 제출 — 본인 손패 cardId·최신 버전으로 수정', 'GAME_ACTION_SEND',
+                  { gameId: '{{gameId}}', actionId: 'onecard-play-1', expectedVersion: 0, input: { kind: 'play', cardId: 'replace-with-your-hand-card-id' } }),
+            message('17 원카드 일반 뽑기 — 공격 아닐 때·최신 버전', 'GAME_ACTION_SEND',
+                  { gameId: '{{gameId}}', actionId: 'onecard-draw-1', expectedVersion: 0, input: { kind: 'draw' } }),
+            message('18 원카드 누적 공격 받기 — 공격 중·최신 버전', 'GAME_ACTION_SEND',
+                  { gameId: '{{gameId}}', actionId: 'onecard-accept-1', expectedVersion: 0, input: { kind: 'accept-attack' } }),
+            message('19 원카드 무늬 선택 — 본인 CHOOSE_SUIT·최신 버전', 'GAME_ACTION_SEND',
+                  { gameId: '{{gameId}}', actionId: 'onecard-suit-1', expectedVersion: 0, input: { kind: 'select-suit', suit: 'hearts' } }),
+            message('20 원카드 선언 — 한 장 pending 3초 내·최신 버전', 'GAME_ACTION_SEND',
+                  { gameId: '{{gameId}}', actionId: 'onecard-declare-1', expectedVersion: 0, input: { kind: 'declare-one' } }),
+            message('21 원카드 미선언 신고 — targetUserId·최신 버전 수정', 'GAME_ACTION_SEND',
+                  { gameId: '{{gameId}}', actionId: 'onecard-catch-1', expectedVersion: 0, input: { kind: 'catch-one', targetUserId: 'replace-with-public-player-user-id' } })])
 ];
 const farkleGuide = '주사위(DICE)는 local의 ontop.games.farkle.enabled=true로 선택 활성화하며 서버 내부 참가 확정 후 생성한 경기에서 실행합니다. '
     + '12는 최초 굴림,13은 재굴림,14는Bank,15는12의 동일행동 재확인입니다. 13/14는 최신 GAME_STATE.version과 현재 dice의 held=false 득점 ID로 수정하세요. 서로 순차 실행하는 고정 시나리오가 아닙니다. '
@@ -194,6 +206,16 @@ const farkleGuide = '주사위(DICE)는 local의 ontop.games.farkle.enabled=true
     + 'publicState:gameCode=DICE,status,players,scores,targetScore,turnTimeLimitMs=30000,turnUserId,turnDeadline,turnScore,dice[{id,value,held}],stage(AWAITING_ROLL/SELECTING/FINISHED),rollId,round,hotDice,lastEvent,winnerUserId,endReason,endedAt. '
     + 'privateState={},새차례첫굴림전dice=[]. BANK/BUST는바로다음차례상태를전송하며 프론트가rollId/lastEvent로연출합니다. 종료는TARGET_REACHED/RECONNECT_EXPIRED이며DB정산확정과구분합니다. ';
 wsItems[5].description += '\n\n' + farkleGuide;
+const onecardGuide = '원카드(ONE_CARD)는2~4명·54장·7장배분·서버랜덤선공이며 local의 ontop.games.onecard.enabled=true로 선택 활성화합니다. '
+    + '기권손패정책은확인대기이며 forfeit-hand-policy=REMOVE(판에서제외)/RECYCLE(덱환원셔플)을서버에서명시해야합니다. 기본값없음,미지정활성화는실패합니다. 테스트정책은제품정책확정이아닙니다. '
+    + '16~21은독립예제입니다. gameId/expectedVersion은실제경기·최신버전,cardId는본인privateState.hand,targetUserId는공개players.userId로수정합니다. '
+    + 'input kind=play(cardId)/draw/accept-attack/select-suit(suit=hearts,diamonds,clubs,spades)/declare-one/catch-one(targetUserId문자열). '
+    + '공개상태에는players장수/활성/선언창,topCard/activeSuit,attackTotal/lastAttack,drawCount,stage(PLAYING/CHOOSE_SUIT/FINISHED),direction,extraAction,turnUserId/turnDeadline,turnCount,winnerUserIds/endReason/endedAt. '
+    + '본인privateState만userId/hand/playableCardIds/canDraw를포함하고관전자privateState={}. 복구state={publicState,privateState}는본인손패·마감유지. '
+    + '한차례30초,K/무늬선택/재접속으로연장하지않음. 만료시F1대로일반1장/공격누적받고넘김,무늬선택은최다무늬자동선택후넘김(동률hearts,diamonds,clubs,spades순서). 시간패없음. '
+    + '선언/신고반응창은별도3초·첫유효행동우선·신고2장벌칙·만료만으로자동벌칙없음. 마지막특수카드도효과없이즉시승리. 덱재구성/부족시가능장수/교착최소손패공동승리. '
+    + '공격/특수카드세부표는docs/onecard.md. 서버승패는DB정산·재화지급과구분하며실제인증·참가확정서버생성이필요합니다. ';
+wsItems[5].description += '\n\n' + onecardGuide;
 const guide = '현재 코드의 local 통신 검증용. 서버는 local,visual-test로 실행하고 OnTop Local 환경을 선택하세요. '
     + '실제 오목 엔진은 선택적으로 켤 수 있으며 로그인·시작 차감·DB 정산은 미연결입니다. HTTP 테이블 조회로 ID 저장 후 WebSocket을 연결합니다. '
     + '웹에서 저장한 컬렉션은 동일 계정·워크스페이스 앱에서 사용하며 로컬 테스트는 Desktop App에서 실행하세요.';

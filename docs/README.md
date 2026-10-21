@@ -10,6 +10,7 @@
 | 백엔드 담당 분담표 | [backend-responsibilities.md](backend-responsibilities.md) | 실시간 통신·데이터 정합성 담당과 시작·베팅·정산 연결점 |
 | 게임 엔진 통신 분기 | [game-engine-routing.md](game-engine-routing.md) | 서버 경기 ID별 입력·상태·복구 분기와 교차 점유. 오목·주사위 연결 |
 | 주사위 실행 계약 | [farkle.md](farkle.md) | 점수·굴림·저장·버스트·핫 다이스·즉시승리·차례30초 넘김. 실제 재화/저장은 별도 |
+| 원카드 실행 계약 | [onecard.md](onecard.md) | 제출·공격·특수카드·개인손패·선언/신고·30초넘김. 기권손패정책은확인대기·필수명시설정 |
 | 오목 실행 계약 | [omok.md](omok.md) | 15×15 렌주 금수·착수·승패·한 수30초 시간패·상태/복구 연결. 실제 시작/재화 저장은 별도 연동 |
 | 오목 브라우저 테스트 | [omok-demo.md](omok-demo.md) | 별도 loopback 서버에서 흑·백·관전·끊김/복귀·승패를 직접 확인. 로그인/참가 확정은 테스트 대역 |
 | WebSocket API 명세 | [websocket-api.md](websocket-api.md) | DB 없는 연결·테이블 착석·첫 착석자의 게임 선택·퇴장·준비 동기화 계약. local 구현·검증 완료 |
