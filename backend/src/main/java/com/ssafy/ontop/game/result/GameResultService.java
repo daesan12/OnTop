@@ -2,9 +2,12 @@ package com.ssafy.ontop.game.result;
 
 import jakarta.annotation.PreDestroy;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Consumer;
@@ -47,6 +50,39 @@ public class GameResultService {
         }
         slot.loading = true;
         workers.execute(() -> load(sessionId, slot, requestId, gameId));
+    }
+
+    /** 규칙 엔진의 종료는 지급 완료가 아니다. 이미 저장된 본인 결과만 한 번 확인한다. */
+    public synchronized void finished(String gameId, List<Long> participants) {
+        if (stopped || gateway.isEmpty()) {
+            return;
+        }
+        for (var entry : connections.entrySet()) {
+            Slot slot = entry.getValue();
+            if (participants.contains(slot.userId) && slot.refreshing.add(gameId)) {
+                String sessionId = entry.getKey();
+                workers.execute(() -> refresh(sessionId, slot, gameId));
+            }
+        }
+    }
+
+    private void refresh(String sessionId, Slot slot, String gameId) {
+        GameResultView result = null;
+        try {
+            result = gateway.orElseThrow().load(slot.userId, gameId).orElse(null);
+        } catch (RuntimeException exception) {
+            // 저장 전·일시 실패를 결과로 꾸미지 않는다. 커밋 알림 또는 명시 조회로 복구한다.
+        }
+        synchronized (this) {
+            slot.refreshing.remove(gameId);
+            if (stopped || connections.get(sessionId) != slot || result == null
+                    || result.userId() != slot.userId || !result.gameSessionId().equals(gameId)
+                    || result.version() <= slot.versions.getOrDefault(gameId, -1L)) {
+                return;
+            }
+            remember(slot, result);
+            slot.output.accept(new Delivery(null, result, null));
+        }
     }
 
     private void load(String sessionId, Slot slot, String requestId, String gameId) {
@@ -115,6 +151,7 @@ public class GameResultService {
         private final long userId;
         private final Consumer<Delivery> output;
         private final Map<String, Long> versions = new LinkedHashMap<>();
+        private final Set<String> refreshing = new HashSet<>();
         private boolean loading;
 
         private Slot(long userId, Consumer<Delivery> output) {

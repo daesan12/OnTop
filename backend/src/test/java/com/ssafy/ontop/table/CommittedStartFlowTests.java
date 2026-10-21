@@ -5,6 +5,10 @@ import com.ssafy.ontop.auth.service.AccessJwtService;
 import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser;
 import com.ssafy.ontop.auth.websocket.WebSocketAccountLookup;
 import com.ssafy.ontop.game.omok.service.OmokEngine;
+import com.ssafy.ontop.game.result.GameResultCommitted;
+import com.ssafy.ontop.game.result.GameResultGateway;
+import com.ssafy.ontop.game.result.GameResultView;
+import com.ssafy.ontop.game.result.GameResultView.SettlementStatus;
 import com.ssafy.ontop.game.start.GameStartCommand;
 import com.ssafy.ontop.game.start.GameStartGateway;
 import com.ssafy.ontop.game.start.GameStartResult;
@@ -15,9 +19,11 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Clock;
 import java.util.Map;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
@@ -29,6 +35,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -52,6 +59,8 @@ class CommittedStartFlowTests {
     @Autowired LedgerDouble ledger;
     @Autowired OmokFlowTests.TestClock clock;
     @Autowired TableHub hub;
+    @Autowired ResultStoreDouble results;
+    @Autowired ApplicationEventPublisher events;
     @MockitoBean WebSocketAccountLookup accounts;
     @MockitoBean(name = "oauthClock") Clock oauthClock;
 
@@ -178,6 +187,56 @@ class CommittedStartFlowTests {
         second.request("READY_SET", Map.of("ready", true));
     }
 
+    @Test
+    void 실제시간패종료_자동결과_정산알림_재접속조회까지이어진다() throws Exception {
+        try (var first = connect(101); var second = connect(202)) {
+            prepare(first, second, "OMOK");
+            ledger.release.countDown();
+            playing(first);
+            first.state("RESTORED"); second.state("RESTORED");
+            // 결과 저장 경계만 대역이다. 시작·30초 시간패 판정·JWT·소켓은 실제 구현이다.
+            for (long user : new long[]{101, 202}) {
+                results.saved.put(user, result(user, SettlementStatus.PENDING));
+            }
+            clock.advanceSeconds(30);
+            engine.tick();
+            for (var client : List.of(first, second)) {
+                var pending = client.await(m -> m.path("type").asText().equals("GAME_RESULT"));
+                assertThat(pending.path("requestId").isNull()).isTrue();
+                assertThat(pending.path("payload").path("settlementStatus").asText()).isEqualTo("PENDING");
+                assertThat(pending.path("payload").path("myCoinDelta").isNull()).isTrue();
+            }
+            assertThat(engine.load(101, GAME).orElseThrow().publicState().path("endReason").asText())
+                    .isEqualTo("TURN_TIMEOUT");
+            assertThat(first.request("GAME_ACTION_SEND", Map.of("gameId", GAME, "actionId", "late",
+                    "expectedVersion", 1, "input", Map.of("x", 7, "y", 7)))
+                    .path("payload").path("code").asText()).isEqualTo("GAME_ACTION_INVALID_ACTION");
+            for (long user : new long[]{101, 202}) {
+                results.saved.put(user, result(user, SettlementStatus.SETTLED));
+                events.publishEvent(new GameResultCommitted(results.saved.get(user)));
+            }
+            assertThat(first.await(m -> m.path("type").asText().equals("GAME_RESULT"))
+                    .path("payload").path("myCoinDelta").asLong()).isEqualTo(-1);
+            assertThat(second.await(m -> m.path("type").asText().equals("GAME_RESULT"))
+                    .path("payload").path("myCoinDelta").asLong()).isEqualTo(1);
+            first.stopPong(); assertThat(first.awaitClose()).isEqualTo(1001);
+            try (var returned = connect(101, "FINISHED")) {
+                var replay = returned.request("GAME_RESULT_CHECK", Map.of("gameSessionId", GAME));
+                assertThat(replay.path("payload").path("version").asLong()).isEqualTo(2);
+                assertThat(replay.path("payload").path("myCoinDelta").asLong()).isEqualTo(-1);
+            }
+            assertThat(ledger.debits.get()).isEqualTo(1);
+        }
+    }
+
+    private GameResultView result(long user, SettlementStatus settlement) {
+        return new GameResultView(user, settlement == SettlementStatus.PENDING ? 1 : 2, GAME, "OMOK",
+                GameResultView.Status.FINISHED, "TURN_TIMEOUT", settlement, 1,
+                List.of(new GameResultView.Participant("101", "LOSE"), new GameResultView.Participant("202", "WIN")),
+                settlement == SettlementStatus.PENDING ? null : user == 101 ? -1L : 1L,
+                clock.instant().plusSeconds(settlement == SettlementStatus.PENDING ? 30 : 0));
+    }
+
     @ParameterizedTest
     @ValueSource(ints = {29, 30})
     void 확정전재접속도원래유예를지우지않는다(int seconds) throws Exception {
@@ -242,6 +301,14 @@ class CommittedStartFlowTests {
     @TestConfiguration(proxyBeanMethods = false)
     static class Fixture {
         @Bean LedgerDouble ledgerDouble() { return new LedgerDouble(); }
+        @Bean ResultStoreDouble resultStoreDouble() { return new ResultStoreDouble(); }
+    }
+
+    static class ResultStoreDouble implements GameResultGateway {
+        final Map<Long, GameResultView> saved = new ConcurrentHashMap<>();
+        @Override public Optional<GameResultView> load(long user, String game) {
+            return Optional.ofNullable(saved.get(user)).filter(result -> result.gameSessionId().equals(game));
+        }
     }
 
     // 차감/DB 담당 경계의 대역. 실제 잔액·원장·DB 트랜잭션 성공을 뜻하지 않는다.
