@@ -145,9 +145,7 @@ class AuthExchangeMySqlTests {
                 .andExpect(header().doesNotExist("Set-Cookie")).andReturn();
 
         String token = mapper.readTree(result.getResponse().getContentAsString()).path("onboardingToken").asText();
-        MockHttpServletRequest request = new MockHttpServletRequest();
-        request.setSession(session);
-        assertThat(onboarding.verify(request, token).providerUserId()).isEqualTo(providerId);
+        assertThat(onboarding.verify(token).providerUserId()).isEqualTo(providerId);
         assertThatThrownBy(() -> jwt.verify(token)).isInstanceOf(AuthExchangeException.class);
         assertThat(users.count()).isEqualTo(beforeUsers);
         assertThat(refreshTokens.count()).isEqualTo(beforeRefresh);

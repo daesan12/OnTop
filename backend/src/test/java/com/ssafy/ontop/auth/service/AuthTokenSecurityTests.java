@@ -24,7 +24,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.mock.env.MockEnvironment;
-import org.springframework.mock.web.MockHttpServletRequest;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -110,31 +109,27 @@ class AuthTokenSecurityTests {
     }
 
     @Test
-    void 온보딩은_세션에_결합되고_Access로_검증되지_않으며_10분_만료된다() {
+    void 온보딩은_독립_Bearer이며_Access로_검증되지_않고_10분_만료된다() {
         OnboardingTokenStore store = new OnboardingTokenStore(clock);
-        MockHttpServletRequest request = new MockHttpServletRequest();
-        request.getSession(true);
         OAuthIdentity identity = new OAuthIdentity(OAuthProvider.SSAFY, "fixture-verified-id");
-        String token = store.issue(request, identity);
+        String token = store.issue(identity);
 
-        assertThat(store.verify(request, token)).isEqualTo(identity);
+        assertThat(token).matches("ob_[A-Za-z0-9_-]{43}");
+        assertThat(store.issue(identity)).isNotEqualTo(token);
+        assertThat(store.verify(token)).isEqualTo(identity);
         assertThatThrownBy(() -> jwt.verify(token)).isInstanceOf(AuthExchangeException.class);
-        assertThatThrownBy(() -> store.verify(request, jwt.issue(1))).isInstanceOf(AuthExchangeException.class);
-        assertThatThrownBy(() -> store.verify(new MockHttpServletRequest(), token))
-                .isInstanceOf(AuthExchangeException.class);
+        assertThatThrownBy(() -> store.verify(jwt.issue(1))).isInstanceOf(AuthExchangeException.class);
         when(clock.instant()).thenReturn(START.plusSeconds(600));
-        assertThatThrownBy(() -> store.verify(request, token)).isInstanceOf(AuthExchangeException.class);
+        assertThatThrownBy(() -> store.verify(token)).isInstanceOf(AuthExchangeException.class);
     }
 
     @Test
     void 온보딩도_동시_소비는_한_번만_가능하다() throws Exception {
         OnboardingTokenStore store = new OnboardingTokenStore(clock);
-        MockHttpServletRequest request = new MockHttpServletRequest();
-        request.getSession(true);
-        String token = store.issue(request, new OAuthIdentity(OAuthProvider.NAVER, "fixture-id"));
+        String token = store.issue(new OAuthIdentity(OAuthProvider.NAVER, "fixture-id"));
         List<Callable<Boolean>> tasks = IntStream.range(0, 8).mapToObj(index -> (Callable<Boolean>) () -> {
             try {
-                store.consume(request, token);
+                store.consume(token);
                 return true;
             } catch (AuthExchangeException exception) {
                 return false;
@@ -155,17 +150,15 @@ class AuthTokenSecurityTests {
     @Test
     void 온보딩_용량_제한과_주기_정리는_유효한_토큰을_임의_제거하지_않는다() {
         OnboardingTokenStore store = new OnboardingTokenStore(clock, new SecureRandom(), 1);
-        MockHttpServletRequest request = new MockHttpServletRequest();
-        request.getSession(true);
         OAuthIdentity identity = new OAuthIdentity(OAuthProvider.SSAFY, "fixture-id");
-        String token = store.issue(request, identity);
-        assertThatThrownBy(() -> store.issue(request, identity)).isInstanceOf(AuthExchangeException.class);
-        assertThat(store.verify(request, token)).isEqualTo(identity);
+        String token = store.issue(identity);
+        assertThatThrownBy(() -> store.issue(identity)).isInstanceOf(AuthExchangeException.class);
+        assertThat(store.verify(token)).isEqualTo(identity);
         when(clock.instant()).thenReturn(START.plusSeconds(600));
         store.removeExpired();
-        assertThat(store.verify(request, store.issue(request, identity))).isEqualTo(identity);
+        assertThat(store.verify(store.issue(identity))).isEqualTo(identity);
         store.clearOnShutdown();
-        assertThatThrownBy(() -> store.verify(request, token)).isInstanceOf(AuthExchangeException.class);
+        assertThatThrownBy(() -> store.verify(token)).isInstanceOf(AuthExchangeException.class);
     }
 
     @ParameterizedTest

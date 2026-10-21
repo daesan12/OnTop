@@ -5,7 +5,8 @@
 `GET /api/v1/auth/{provider}/authorize`는 소문자 `ssafy`, `naver`만 허용한다.
 성공 시 본문 없는 HTTP 302와 `Location`, `Cache-Control: no-store`, `Referrer-Policy: no-referrer`를 반환한다.
 AUTH-02에서 콜백·공급자 토큰/프로필 조회·회원 상태 판별·일회용 교환 코드 발급을 추가했다.
-JWT·사용자 생성·온보딩·로그아웃은 아직 없다. [콜백 계약](auth-callback.md)을 함께 참고한다.
+AUTH-01은 JWT·사용자 생성·온보딩·로그아웃을 담당하지 않는다. [콜백](auth-callback.md),
+[인증 교환](auth-exchange.md), [USER-05](user-onboarding.md) 계약을 함께 참고한다.
 
 기존 프로젝트에는 Spring Security/OAuth2 Client 의존성과 SecurityFilterChain,
 공통 REST 오류 DTO·ControllerAdvice가 없었다. 기능별 DTO와 ResponseEntity를 사용하는 기존 방식을 따랐다.
@@ -54,7 +55,8 @@ OAuth 설정이 없어도 DB 없는 기본 실행과 WebSocket 개발은 가능�
 - `OAuthStateStore.consume(request, provider, state)`는 같은 세션/provider의 유효한 값을 원자적으로 제거한다.
   한 번 성공한 state는 다시 사용할 수 없고 다른 세션/provider에서는 소비할 수 없다.
   AUTH-02의 성공·오류 callback에서 외부 토큰 교환 전에 호출한다.
-- 쿠키는 HttpOnly, SameSite=Lax, 기본 Secure, host-only, Path=`/api/v1/auth`다.
+- 세션 쿠키는 HttpOnly, SameSite=Lax, 기본 Secure, host-only, Path=`/api/v1/auth`다.
+  USER-05는 독립 Bearer 토큰을 사용하므로 세션 쿠키 경로를 넓히지 않는다.
   URL 기반 세션 추적은 비활성화했다. `local`에서만 HTTP 개발을 위해 Secure=false다.
   실제 로그인을 시작할 때는 브라우저의 최상위 페이지 이동을 사용한다.
   SameSite=Lax는 NAVER에서 돌아오는 최상위 GET 콜백의 세션 전달을 위한 설정이다.

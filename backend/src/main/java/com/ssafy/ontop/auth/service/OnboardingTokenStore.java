@@ -3,8 +3,6 @@ package com.ssafy.ontop.auth.service;
 import com.ssafy.ontop.auth.domain.OAuthIdentity;
 import com.ssafy.ontop.auth.exception.AuthExchangeException;
 import jakarta.annotation.PreDestroy;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpSession;
 import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Instant;
@@ -35,11 +33,7 @@ public class OnboardingTokenStore {
         this.capacity = capacity;
     }
 
-    public synchronized String issue(HttpServletRequest request, OAuthIdentity identity) {
-        HttpSession session = request.getSession(false);
-        if (session == null) {
-            throw invalid();
-        }
+    public synchronized String issue(OAuthIdentity identity) {
         removeExpired();
         if (entries.size() >= capacity) {
             throw new AuthExchangeException(AuthExchangeException.Error.CAPACITY);
@@ -50,31 +44,29 @@ public class OnboardingTokenStore {
             raw = "ob_" + OpaqueTokens.generate(random);
             hash = OpaqueTokens.digest(raw);
         } while (entries.containsKey(hash));
-        entries.put(hash, new Pending(identity, OpaqueTokens.digest(session.getId()),
-                clock.instant().plusSeconds(LIFETIME_SECONDS)));
+        entries.put(hash, new Pending(identity, clock.instant().plusSeconds(LIFETIME_SECONDS)));
         return raw;
     }
 
     // USER-05 전용 검증 경계다. 일반 Access JWT 검증자와 연결하지 않는다.
-    public synchronized OAuthIdentity verify(HttpServletRequest request, String token) {
-        return pending(request, token).identity();
+    public synchronized OAuthIdentity verify(String token) {
+        return pending(token).identity();
     }
 
     // USER-05는 입력 검증 후 일회 소비하고 DB UNIQUE를 재검증해야 한다. 실패 후 복원하지 않는다.
-    public synchronized OAuthIdentity consume(HttpServletRequest request, String token) {
-        Pending pending = pending(request, token);
+    public synchronized OAuthIdentity consume(String token) {
+        Pending pending = pending(token);
         entries.remove(OpaqueTokens.digest(token));
         return pending.identity();
     }
 
-    private Pending pending(HttpServletRequest request, String token) {
+    private Pending pending(String token) {
         removeExpired();
-        HttpSession session = request.getSession(false);
-        if (session == null || token == null || !token.matches("ob_[A-Za-z0-9_-]{43}")) {
+        if (token == null || !token.matches("ob_[A-Za-z0-9_-]{43}")) {
             throw invalid();
         }
         Pending pending = entries.get(OpaqueTokens.digest(token));
-        if (pending == null || !pending.sessionHash().equals(OpaqueTokens.digest(session.getId()))) {
+        if (pending == null) {
             throw invalid();
         }
         return pending;
@@ -95,6 +87,6 @@ public class OnboardingTokenStore {
         return new AuthExchangeException(AuthExchangeException.Error.INVALID_ONBOARDING);
     }
 
-    private record Pending(OAuthIdentity identity, String sessionHash, Instant expiresAt) {
+    private record Pending(OAuthIdentity identity, Instant expiresAt) {
     }
 }
