@@ -112,19 +112,26 @@ const wsRequest = (name, description, messages) => ({
 const wsItems = [
     wsRequest('01 참가자 A — 먼저 착석하는 사람',
         'Connect 한 번 후 CONNECTED를 확인하고 Saved Messages에서 보냅니다. 메시지마다 새 연결을 만들면 다른 임시 사용자가 됩니다. '
-        + '기본 흐름: A/B 모두 광장 입장 → A 먼저 착석 → B 착석 → A 게임 선택 → A/B 준비. '
+        + '기본 흐름: A/B 모두 광장 입장 → 모두 WORLD_MOVE 위치 보고 → A 먼저 착석 → B 착석 → A 게임 선택 → A/B 준비. '
+        + '채팅은 같은 채널의 보고 위치 기준 XZ 반경 20m(경계 포함) 안에서만 수신합니다. x/z는 1단위=1m이며 위치 미보고 송신은 WORLD_POSITION_REQUIRED입니다. '
         + '나머지 추가/오류 메시지는 각 선행조건을 맞춘 뒤 따로 보냅니다. WAVE/CLAP은 최종 모션 종류가 아닌 예시입니다.',
         primaryMessages),
     wsRequest('02 참가자 B — 두 번째 착석하는 사람',
         'A와 별개 연결입니다. A가 먼저 앉은 다음 05 착석을 보내고, A 게임 선택 후 07 준비를 보냅니다. '
+        + '채팅 전에는 A/B 모두 위치 보고가 필요합니다. 근거리 검사는 XZ 평면 20m이며 경계도 포함합니다. '
+        + '거리 예제는 A가 첫 위치(1.5,-2)를 유지하고 양쪽 미착석일 때 사용합니다. B 경계/밖/복귀 순서대로 이동하고 각 단계에서 A가 채팅을 보냅니다. 경계·복귀에서는 B 수신, 밖에서는 미수신이 정상입니다. 이동은 100ms·채팅은 1초 이상 간격입니다. '
         + 'A의 상태 변경도 requestId=null 알림으로 들어옵니다. 원카드/거짓말은 2~4명이며 추가 탭으로 다른 임시 사용자를 만들 수 있습니다.',
         [joinA(), locate(), sitA(), ready(true), ready(false), leave(), channelLeave(),
+            message('거리 1 — A 첫 위치 유지·미착석: 정확히 20m (100ms 후)', 'WORLD_MOVE', { sequence: 1, x: 21.5, y: 0, z: -2, yaw: 0 }),
+            message('거리 2 — A 첫 위치 유지·미착석: 21m 밖 (100ms 후)', 'WORLD_MOVE', { sequence: 2, x: 22.5, y: 0, z: -2, yaw: 0 }),
+            message('거리 3 — A 첫 위치로 복귀·미착석 (100ms 후)', 'WORLD_MOVE', { sequence: 3, x: 1.5, y: 0, z: -2, yaw: 0 }),
             message('추가 채팅', 'WORLD_CHAT_SEND', { text: 'B도 접속했어!' }),
             message('다른 채널 격리 확인 — B 광장으로 (현재 채널 퇴장 후)', 'CHANNEL_JOIN', { channelId: '{{channelIdB}}' }),
             message('다른 채널 B 테이블 착석', 'TABLE_JOIN', { tableId: '{{tableIdB}}' }),
             message('오류 선택권 없음 — A가 먼저 앉았을 때만', 'GAME_SELECT', { gameCode: 'DICE' })]),
     wsRequest('03 관전자 C — 공개 대기 상태 보기',
         '광장 A 입장·위치 보고 후 TABLE_WATCH를 보냅니다. 서버 테이블 좌표가 설정되어 있고 중심 20m 이내여야 합니다. 미설정/범위 밖은 TABLE_OUT_OF_RANGE입니다. TABLE_WATCH_STATE를 받으며 좌석·준비 인원은 늘지 않습니다. '
+        + 'x/z는 1단위=1m이며 저장된 위치는 형식 예시이므로 실제 테이블 중심에 맞춰 바꿉니다. 거리 초과 이동 시 TABLE_WATCH_LEFT로 종료하고 다시 가까워져도 자동 재구독하지 않습니다. '
         + '실제 경기 관전 권한이나 원카드 손패 구독이 아닙니다. 착석 성공 시 구독은 자동 종료됩니다.',
         [joinA(), locate(), message('02 테이블 보기 → TABLE_WATCH_STATE', 'TABLE_WATCH', { tableId: '{{tableIdA}}' }),
             message('03 보기 종료 → TABLE_WATCH_LEFT', 'TABLE_UNWATCH'),
@@ -146,6 +153,7 @@ const wsItems = [
         + 'actionId는 같은 행동 재확인에만 재사용하고 새 행동은 새 ID를 사용합니다. '
         + '참가자는 복구 후 입력 성공 시 본인 공개/개인 GAME_STATE를 자동 수신합니다. '
         + '관전자는 채널·미터 위치 보고·서버 테이블 좌표와 Gateway 내부 tableId가 필요하며 중심 20m 이내에서 GAME_WATCH합니다. 성공 후 빈 privateState의 GAME_STATE만 수신하며 GAME_UNWATCH 또는 범위 이탈로 해제합니다. '
+        + 'GAME_STATE_CHECK의 SPECTATOR도 동일한 범위를 검사합니다. 위치·좌표·내부 tableId 미확인/범위 밖은 GAME_STATE_ACCESS_DENIED입니다. 이동 이탈·채널 퇴장·착석은 GAME_WATCH_LEFT이며 범위 복귀로 자동 재관전하지 않습니다. 위치 보고와 채널 입장은 01~03 연결의 예제를 같은 연결에서 사용합니다. '
         + '최초 응답은 원래 requestId, 자동 알림은 null입니다. 이 연결은 아직 경기 성공 시연용이 아닙니다.',
         [message('01 경기 상태 조회 → dev: GAME_STATE_AUTH_REQUIRED', 'GAME_STATE_CHECK', { gameId: '{{gameId}}' }),
             message('02 경기 입력 → dev: GAME_ACTION_AUTH_REQUIRED', 'GAME_ACTION_SEND',
@@ -164,7 +172,11 @@ const guide = '현재 코드의 local 통신 검증용. 서버는 local,visual-t
     + '로그인·DB·실제 경기 엔진은 아직 없습니다. HTTP 테이블 조회로 ID 저장 후 WebSocket을 연결합니다. '
     + '웹에서 저장한 컬렉션은 동일 계정·워크스페이스 앱에서 사용하며 로컬 테스트는 Desktop App에서 실행하세요.';
 const httpV3 = { name: 'OnTop HTTP', $kind: 'collection', description: guide, items: httpItems };
-const wsV3 = { name: 'OnTop WebSocket', $kind: 'collection', description: guide, items: wsItems };
+const wsGuide = '# 근거리 채팅·관전 테스트 (20m)\n\n'
+    + [0, 1, 2, 5].map(index => `## ${String(index + 1).padStart(2, '0')} 연결\n${wsItems[index].description}`).join('\n\n')
+    + '\n\n서버 테이블 좌표가 미설정이면 관전 성공 대신 범위 오류가 정상입니다. 실제 맵 좌표를 임의로 정하지 않습니다. '
+    + `기존 연결 ${wsItems.length}개와 저장 메시지 ${wsItems.reduce((sum, item) => sum + item.messages.length, 0)}개를 사용합니다.`;
+const wsV3 = { name: 'OnTop WebSocket', $kind: 'collection', description: wsGuide, items: wsItems };
 const httpV21 = {
     info: { name: httpV3.name, description: guide, schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json' },
     item: httpItems.map(item => ({

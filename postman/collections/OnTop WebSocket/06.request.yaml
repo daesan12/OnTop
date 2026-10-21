@@ -1,7 +1,7 @@
 "name": "06 경기 통신 — 인증·엔진 연동 대기"
 "$kind": "websocket-request"
 "url": "{{wsUrl}}"
-"description": "현재 기본 dev 연결에서 정상 결과는 아래 이름의 오류입니다. 임의 인증 헤더를 넣지 마세요. 실제 로그인·GameActionGateway·GameStateGateway 연동 후 gameId를 실제 경기 ID로 바꿉니다. 입력의 expectedVersion=0과 input은 형식 예시이므로 최신 GAME_STATE의 버전과 게임별 확정 입력으로 수정하세요. actionId는 같은 행동 재확인에만 재사용하고 새 행동은 새 ID를 사용합니다. 참가자는 복구 후 입력 성공 시 본인 공개/개인 GAME_STATE를 자동 수신합니다. 관전자는 채널·미터 위치 보고·서버 테이블 좌표와 Gateway 내부 tableId가 필요하며 중심 20m 이내에서 GAME_WATCH합니다. 성공 후 빈 privateState의 GAME_STATE만 수신하며 GAME_UNWATCH 또는 범위 이탈로 해제합니다. 최초 응답은 원래 requestId, 자동 알림은 null입니다. 이 연결은 아직 경기 성공 시연용이 아닙니다."
+"description": "현재 기본 dev 연결에서 정상 결과는 아래 이름의 오류입니다. 임의 인증 헤더를 넣지 마세요. 실제 로그인·GameActionGateway·GameStateGateway 연동 후 gameId를 실제 경기 ID로 바꿉니다. 입력의 expectedVersion=0과 input은 형식 예시이므로 최신 GAME_STATE의 버전과 게임별 확정 입력으로 수정하세요. actionId는 같은 행동 재확인에만 재사용하고 새 행동은 새 ID를 사용합니다. 참가자는 복구 후 입력 성공 시 본인 공개/개인 GAME_STATE를 자동 수신합니다. 관전자는 채널·미터 위치 보고·서버 테이블 좌표와 Gateway 내부 tableId가 필요하며 중심 20m 이내에서 GAME_WATCH합니다. 성공 후 빈 privateState의 GAME_STATE만 수신하며 GAME_UNWATCH 또는 범위 이탈로 해제합니다. GAME_STATE_CHECK의 SPECTATOR도 동일한 범위를 검사합니다. 위치·좌표·내부 tableId 미확인/범위 밖은 GAME_STATE_ACCESS_DENIED입니다. 이동 이탈·채널 퇴장·착석은 GAME_WATCH_LEFT이며 범위 복귀로 자동 재관전하지 않습니다. 위치 보고와 채널 입장은 01~03 연결의 예제를 같은 연결에서 사용합니다. 최초 응답은 원래 requestId, 자동 알림은 null입니다. 이 연결은 아직 경기 성공 시연용이 아닙니다."
 "headers":
   -
     "key": "Origin"

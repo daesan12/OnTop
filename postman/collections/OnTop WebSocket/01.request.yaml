@@ -1,7 +1,7 @@
 "name": "01 참가자 A — 먼저 착석하는 사람"
 "$kind": "websocket-request"
 "url": "{{wsUrl}}"
-"description": "Connect 한 번 후 CONNECTED를 확인하고 Saved Messages에서 보냅니다. 메시지마다 새 연결을 만들면 다른 임시 사용자가 됩니다. 기본 흐름: A/B 모두 광장 입장 → A 먼저 착석 → B 착석 → A 게임 선택 → A/B 준비. 나머지 추가/오류 메시지는 각 선행조건을 맞춘 뒤 따로 보냅니다. WAVE/CLAP은 최종 모션 종류가 아닌 예시입니다."
+"description": "Connect 한 번 후 CONNECTED를 확인하고 Saved Messages에서 보냅니다. 메시지마다 새 연결을 만들면 다른 임시 사용자가 됩니다. 기본 흐름: A/B 모두 광장 입장 → 모두 WORLD_MOVE 위치 보고 → A 먼저 착석 → B 착석 → A 게임 선택 → A/B 준비. 채팅은 같은 채널의 보고 위치 기준 XZ 반경 20m(경계 포함) 안에서만 수신합니다. x/z는 1단위=1m이며 위치 미보고 송신은 WORLD_POSITION_REQUIRED입니다. 나머지 추가/오류 메시지는 각 선행조건을 맞춘 뒤 따로 보냅니다. WAVE/CLAP은 최종 모션 종류가 아닌 예시입니다."
 "headers":
   -
     "key": "Origin"

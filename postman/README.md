@@ -6,7 +6,7 @@
 2. 같은 계정으로 **My Workspace**를 연다. 웹에 저장한 **OnTop HTTP**, **OnTop WebSocket**, **OnTop Local**을 사용한다.
 3. 오른쪽 위 환경을 **OnTop Local**로 선택한다. 다른 포트라면 환경의 `baseUrl`·`wsUrl`을 함께 바꾼다.
 
-HTTP JSON과 환경 JSON은 웹 Import로 가져오기를 확인했다. **WebSocket v3 JSON은 현재 웹 Import에서 거절되어** 웹에서 직접 등록했다. 웹과 로컬 원본 모두 연결6개·메시지59개다. 06 경기 통신의 기존6개와 종료 결과 조회·금액 위조 거절2개, 총8개 메시지를 새로고침 후 원본 JSON과 대조했다. 기존 5개 요청 ID를 보존하고 [06 경기 통신](https://dfd333-5957.postman.co/workspace/My-Workspace~fef8d4dd-529e-48e5-8bde-17f840fd2dd3/ws-raw-request/6ad7466f88a68a951684b2d7?sideView=agentMode)을 추가했다. 2026-10-20 새로고침 후 새 메시지 6개의 JSON·URL·Origin 헤더를 원본과 대조했다. 실행 조건과 기대 오류는 요청명·각 저장 메시지 이름과 이 문서를 따른다.
+HTTP JSON과 환경 JSON은 웹 Import로 가져오기를 확인했다. **WebSocket v3 JSON은 현재 웹 Import에서 거절되어** 웹에서 직접 등록했다. 2026-10-21 웹과 로컬 원본 모두 연결6개·메시지64개다. 기존 요청을 유지하고 B·C 위치 보고와 B의 20m 경계·21m 밖·복귀 예제를 추가했다. 새로고침 후 웹 저장 메시지64개의 JSON을 원본과 대조했다. 실행 조건은 **OnTop WebSocket → Overview**의 공통 안내를 먼저 읽는다. 요청별 Docs 설명은 웹에서 저장되지 않아 공통 안내에 모았으며, 공통 안내는 새로고침 후 저장본을 확인했다.
 
 WebSocket JSON과 `postman/collections`의 native YAML은 공식 v3 스키마에 맞춘 원본·백업이다. 공식 로컬 컬렉션 사용 방식은 데스크톱 **Open Folder**이지만, 이 경로의 실제 가져오기는 검증하지 않았다. 웹 Import에 WebSocket JSON을 다시 넣지 않는다.
 
@@ -28,6 +28,8 @@ WebSocket JSON과 `postman/collections`의 native YAML은 공식 v3 스키마에
 WebSocket 탭 하나가 사용자 하나다. **Connect를 유지한 채 Saved Messages에서 골라 Send**한다. 메시지마다 새 탭을 만들거나 다시 연결하지 않는다. 자동 Run으로 모든 메시지를 순서대로 보내는 묶음이 아니다. 추가·오류 메시지는 이름에 적힌 조건을 맞춰 개별 실행한다.
 
 채팅·감정표현은 각각 1초 간격을 둔다. 위치 `sequence`는 저장된 0 → 1 순서로 보내고, 이후 이동은 숫자를 늘린다. 예전 순번 재전송은 위치를 갱신하지 않는다. `requestId`의 `{{$guid}}`는 Postman이 매 전송 새 값으로 치환한다.
+
+**20m 채팅 확인:** A·B 모두 미착석 상태에서 광장 입장·첫 위치 보고를 한다. A는 `(x=1.5, z=-2)`를 유지하고 B의 `거리 1 → 거리 2 → 거리 3`을 각각 보낸 뒤 A가 채팅한다. B는 20m 경계·복귀에서 수신하고 21m 밖에서는 받지 않아야 한다. 이동끼리 100ms, 채팅끼리 1초 이상 간격을 둔다. 이 예제는 B가 다른 이동을 보내기 전 새 연결에서 실행하며, 이미 이동했다면 순번을 최신값보다 늘린다. 배열 순서대로 전체 메시지를 자동 실행하지 않는다.
 
 ## 관전자·끊김·시작 검증
 
@@ -60,4 +62,4 @@ WebSocket 탭 하나가 사용자 하나다. **Connect를 유지한 채 Saved Me
 
 공식 형식: [Postman v3 스키마](https://schema.postman.com/collection/json/v3.0.0/draft-07/collection.json), [로컬 컬렉션 구조](https://learning.postman.com/docs/use/native-git/setup).
 
-거리 설정·제약은 [근거리 채팅·관전](../docs/world-proximity.md)을 따른다. 2026-10-21 로컬 생성 파일은 최신화했으며 Postman 웹 저장본은 별도 반영 전이다.
+거리 설정·제약은 [근거리 채팅·관전](../docs/world-proximity.md)을 따른다. 테이블 좌표는 실제 맵 배치가 확정된 후 서버에 설정한다. 좌표가 없는 현재 설정에서 관전 성공을 기대하지 않는다. 이번 확인은 웹 저장본·예제 계약 대조이며, 실제 서버 전송·데스크톱 동기화·로그인/경기 엔진 연동 검증과 구분한다.
