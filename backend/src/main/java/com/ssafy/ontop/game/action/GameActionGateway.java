@@ -7,7 +7,7 @@ public interface GameActionGateway {
     GameActionResult apply(GameActionCommand command);
 
     enum Rejection {
-        ACCESS_DENIED, INVALID_ACTION, NOT_YOUR_TURN, STALE_VERSION, ACTION_ID_CONFLICT
+        ACCESS_DENIED, INVALID_ACTION, NOT_YOUR_TURN, STALE_VERSION, ACTION_ID_CONFLICT, FORBIDDEN_MOVE
     }
 
     final class Rejected extends RuntimeException {

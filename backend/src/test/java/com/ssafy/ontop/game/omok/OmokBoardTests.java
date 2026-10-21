@@ -26,7 +26,7 @@ class OmokBoardTests {
     }
 
     @Test
-    void 중간을_채워_여섯돌이_이어져도_자유룰_승리다() {
+    void 백은_중간을_채워_여섯돌이_이어져도_승리다() {
         OmokBoard board = new OmokBoard();
         for (int x : new int[]{0, 1, 2, 4, 5}) {
             board.place(Stone.WHITE, x, 0);
@@ -36,13 +36,16 @@ class OmokBoardTests {
     }
 
     @Test
-    void 삼삼_형태를_금수로_거절하지않는다() {
+    void 흑의_삼삼을_거절하고_판전체를_보존한다() {
         OmokBoard board = new OmokBoard();
-        for (int[] point : new int[][]{{6, 7}, {8, 7}, {7, 6}, {7, 8}, {7, 7}}) {
+        for (int[] point : new int[][]{{6, 7}, {8, 7}, {7, 6}, {7, 8}}) {
             board.place(Stone.BLACK, point[0], point[1]);
         }
+        var before = board.snapshot();
+        assertThatThrownBy(() -> board.place(Stone.BLACK, 7, 7)).isInstanceOf(OmokBoard.ForbiddenMove.class);
+        assertThat(board.snapshot()).isEqualTo(before);
+        board.place(Stone.BLACK, 0, 0);
         assertThat(board.snapshot().moveCount()).isEqualTo(5);
-        assertThat(board.snapshot().outcome()).isEqualTo(Outcome.PLAYING);
     }
 
     @Test

@@ -159,6 +159,24 @@ class OmokEngineTests {
         assertThat(events.stream().filter(OmokGameFinished.class::isInstance)).hasSize(1);
     }
 
+    @Test
+    void 금수거절은_버전과_판과_마감을_보존하고_같은차례의_다른착수가_가능하다() {
+        int[][] points = {{6,7},{8,7},{7,6},{7,8}};
+        for (int i=0;i<points.length;i++) {
+            play(101,"b"+i,i*2,points[i][0],points[i][1]);
+            play(202,"w"+i,i*2+1,i*2,0);
+        }
+        var before = engine.load(101,"game").orElseThrow();
+        int eventCount = events.size();
+        clock.advanceMillis(1000);
+        reject(Rejection.FORBIDDEN_MOVE, () -> play(101,"forbidden",8,7,7));
+        assertThat(engine.load(101,"game").orElseThrow()).isEqualTo(before);
+        assertThat(events).hasSize(eventCount);
+        play(101,"retry-other",8,0,14);
+        assertThat(state().path("moveCount").asInt()).isEqualTo(9);
+        assertThat(state().path("turnUserId").asText()).isEqualTo("202");
+    }
+
     private String concurrentPlay(CountDownLatch go, String id, int x) throws Exception {
         go.await();
         try {

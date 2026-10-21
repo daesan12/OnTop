@@ -66,6 +66,8 @@ public final class OmokMatch {
         try {
             board.place(command.userId() == blackUserId ? OmokBoard.Stone.BLACK : OmokBoard.Stone.WHITE,
                     input.get("x").intValue(), input.get("y").intValue());
+        } catch (OmokBoard.ForbiddenMove exception) {
+            throw new Rejected(Rejection.FORBIDDEN_MOVE);
         } catch (IllegalArgumentException exception) {
             throw new Rejected(Rejection.INVALID_ACTION);
         }

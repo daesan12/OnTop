@@ -40,6 +40,7 @@ OnTop v0.4의 서버 판정·재접속 정책을 따르는 local 연결부다. �
 | GAME_ACTION_PENDING | 같은 연결의 이전 입력 진행 중 |
 | GAME_ACTION_ACCESS_DENIED | 엔진에서 참가 권한 없음/경기 없음. 존재 여부 구분 안 함 |
 | GAME_ACTION_INVALID_ACTION | 게임 규칙상 잘못된 입력 |
+| GAME_ACTION_FORBIDDEN_MOVE | 오목 흑의 33·44·장목 금수. 판·버전·차례·턴 마감 유지 |
 | GAME_ACTION_NOT_YOUR_TURN | 현재 차례 아님 |
 | GAME_ACTION_STALE_VERSION | 경기 상태가 바뀜 |
 | GAME_ACTION_ACTION_ID_CONFLICT | 같은 행동 ID에 다른 내용 |

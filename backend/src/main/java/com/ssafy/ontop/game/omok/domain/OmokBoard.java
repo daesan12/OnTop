@@ -4,7 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-// 시간·계정·재화와 독립된 자유룰 오목판이다. 경기 서비스가 차례와 입력 권한을 확인한다.
+// 시간·계정·재화와 독립된 렌주 오목판이다. 경기 서비스가 차례와 입력 권한을 확인한다.
 public final class OmokBoard {
     public static final int SIZE = 15;
     private static final int[][] DIRECTIONS = {{1, 0}, {0, 1}, {1, 1}, {1, -1}};
@@ -19,12 +19,19 @@ public final class OmokBoard {
             throw new IllegalArgumentException("착수할 수 없는 위치 또는 종료된 오목판입니다.");
         }
         cells[y][x] = stone.code();
+        if (stone == Stone.BLACK) {
+            boolean forbidden;
+            try { forbidden = new RenjuRules(cells).forbidden(x, y); }
+            finally { cells[y][x] = 0; }
+            if (forbidden) throw new ForbiddenMove();
+            cells[y][x] = stone.code();
+        }
         moveCount++;
         lastMove = new Move(x, y, stone);
         for (int[] direction : DIRECTIONS) {
             int connected = 1 + count(stone, x, y, direction[0], direction[1])
                     + count(stone, x, y, -direction[0], -direction[1]);
-            if (connected >= 5) {
+            if (stone == Stone.BLACK ? connected == 5 : connected >= 5) {
                 outcome = stone == Stone.BLACK ? Outcome.BLACK_WIN : Outcome.WHITE_WIN;
                 return;
             }
@@ -74,6 +81,10 @@ public final class OmokBoard {
     }
 
     public enum Outcome { PLAYING, BLACK_WIN, WHITE_WIN, DRAW }
+
+    public static final class ForbiddenMove extends IllegalArgumentException {
+        public ForbiddenMove() { super("흑의 삼삼·사사·장목 금수입니다."); }
+    }
 
     public record Move(int x, int y, Stone stone) { }
 

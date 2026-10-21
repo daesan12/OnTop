@@ -71,6 +71,7 @@ function receive(event) {
   } else if(m.type==='ERROR') status(friendly(p.code),true);
 }
 function friendly(code) {
+  if(code==='GAME_ACTION_FORBIDDEN_MOVE') return '흑의 금수(33·44·장목)예요. 다른 곳에 두세요. 남은 시간은 계속 흘러요.';
   return ({GAME_ACTION_NOT_YOUR_TURN:'아직 내 차례가 아니에요.',GAME_ACTION_STALE_VERSION:'판이 바뀌었어요. 상태를 다시 조회해 주세요.',GAME_ACTION_INVALID_ACTION:'이미 둔 자리이거나 종료된 경기예요.',GAME_RECOVERY_REQUIRED:'경기 복구를 먼저 완료해야 해요.',GAME_STATE_ACCESS_DENIED:'관전 조건을 확인해 주세요.',GAME_ACTION_UNAVAILABLE:'착수 결과가 불확실해요. 재전송하지 말고 상태를 조회해 주세요.'})[code]||'요청 확인: '+code;
 }
 function refresh() {

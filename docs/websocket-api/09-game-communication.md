@@ -182,7 +182,8 @@
 - requestId는 응답 연결용, actionId는 행동 식별용입니다. 새 행동은 새 ID, 같은 행동의 재확인은 같은 actionId·expectedVersion·input을 유지합니다.
 - 중복 반영 방지는 경기 담당 책임입니다. (userId,gameId,actionId)의 같은 내용은 기존 결과, 다른 내용은 충돌이어야 합니다. 연결부 자체에 영속 중복 제거는 없습니다.
 - 동일 연결 입력은 한 번에 하나입니다. 엔진 전달 후 끊겨도 행동을 취소하지 않습니다. 예외·잘못된 결과는 반영 여부가 불명이므로 자동 재전송하지 말고 상태를 조회합니다.
-- 오류: INVALID_PAYLOAD, GAME_ACTION_AUTH_REQUIRED, GAME_ACTION_NOT_CONFIGURED, GAME_RECOVERY_REQUIRED, GAME_ACTION_PENDING, GAME_ACTION_ACCESS_DENIED, GAME_ACTION_INVALID_ACTION, GAME_ACTION_NOT_YOUR_TURN, GAME_ACTION_STALE_VERSION, GAME_ACTION_ACTION_ID_CONFLICT, GAME_ACTION_INVALID, GAME_ACTION_UNAVAILABLE. dev는 AUTH_REQUIRED가 정상입니다.
+- 오목 흑의 33·44·장목은 GAME_ACTION_FORBIDDEN_MOVE로 거절하며 판·버전·차례·턴 마감은 유지한다. 흑 정확한 5목/백 5개 이상 승리와 가짜 3 등 예외는 [오목 실행 계약](../omok.md)을 따른다.
+- 오류: INVALID_PAYLOAD, GAME_ACTION_AUTH_REQUIRED, GAME_ACTION_NOT_CONFIGURED, GAME_RECOVERY_REQUIRED, GAME_ACTION_PENDING, GAME_ACTION_ACCESS_DENIED, GAME_ACTION_INVALID_ACTION, GAME_ACTION_FORBIDDEN_MOVE, GAME_ACTION_NOT_YOUR_TURN, GAME_ACTION_STALE_VERSION, GAME_ACTION_ACTION_ID_CONFLICT, GAME_ACTION_INVALID, GAME_ACTION_UNAVAILABLE. dev는 AUTH_REQUIRED가 정상입니다.
 
 ## 경기 입력 처리 확인 · GAME_ACTION_RESULT
 
@@ -385,4 +386,4 @@
 
 ## 오목 실제 입력
 
-오목의 input은 x/y 두 필드만 허용하며 각각 0~14 정수인 판 좌표입니다. 예: `{"x":7,"y":7}`. 15×15 자유룰·흑 선공·5개 이상 승리, 한 수 30초 도달 시 시간패·총시간 제한 없음입니다. 복귀해도 기존 턴 마감을 유지합니다. 상태 필드·서버 내부 경기 생성·정산 경계는 [오목 계약](../omok.md)을 따릅니다.
+오목의 input은 x/y 두 필드만 허용하며 각각 0~14 정수인 판 좌표입니다. 예: `{"x":7,"y":7}`. 15×15 렌주·흑 선공·흑 정확히5목/백5개이상 승리·흑33/44/장목 금수, 한 수 30초 도달 시 시간패·총시간 제한 없음입니다. 복귀해도 기존 턴 마감을 유지합니다. 상태 필드·서버 내부 경기 생성·정산 경계는 [오목 계약](../omok.md)을 따릅니다.

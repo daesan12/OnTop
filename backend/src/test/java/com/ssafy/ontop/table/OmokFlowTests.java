@@ -111,6 +111,25 @@ class OmokFlowTests {
         }
     }
 
+    @Test
+    void 소켓에서_흑삼삼을_거절하고_같은버전과_차례로_계속한다() throws Exception {
+        engine.create("omok", TABLE, 101, 202);
+        try (ScenarioClient black = connect("naver", "RESTORED");
+                ScenarioClient white = connect("ssafy", "RESTORED")) {
+            int[][] points = {{6,7},{8,7},{7,6},{7,8}};
+            for(int i=0;i<4;i++) {
+                play(black,"b"+i,i*2,points[i][0],points[i][1]);
+                play(white,"w"+i,i*2+1,i*2,0);
+            }
+            var before = engine.load(101,"omok").orElseThrow();
+            assertThat(black.request("GAME_ACTION_SEND",action("forbidden",8,7,7))
+                    .path("payload").path("code").asText()).isEqualTo("GAME_ACTION_FORBIDDEN_MOVE");
+            assertThat(engine.load(101,"omok").orElseThrow()).isEqualTo(before);
+            play(black,"legal",8,0,14);
+            assertState(white.await(m -> stateVersion(m,9)),9,"PLAYING");
+        }
+    }
+
     private ScenarioClient connect(String login, String status) throws Exception {
         ScenarioClient client = new ScenarioClient(port, login);
         client.state(status);
