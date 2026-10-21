@@ -21,7 +21,7 @@ class TableProfileTests {
     @Test
     void local_외_환경에는_개발_경로와_리소스가_없다() {
         for (String path : new String[] {"/ws/tables", "/dev/tables", "/dev/world-config", "/dev/tables.html", "/api/v1/tables",
-                "/api/v1/channels"}) {
+                "/api/v1/channels", "/dev/games", "/dev/games/config", "/dev/games/games.js", "/dev/games/games.css"}) {
             assertThat(http.getForEntity(path, String.class).getStatusCode().value()).isEqualTo(404);
         }
         assertThat(registry.find("ontop.websocket.connections.active").gauge()).isNull();

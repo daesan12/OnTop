@@ -69,6 +69,15 @@ tasks.register('flowTest', Test) {
     }
 }
 
+tasks.register('gamesDemo', JavaExec) {
+    description = '127.0.0.1:18082에서 테스트 전용 주사위·원카드·다리 화면 실행 (운영 JAR 제외)'
+    group = 'verification'
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.ssafy.ontop.demo.GamesDemoApplication'
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
+}
+
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
 }

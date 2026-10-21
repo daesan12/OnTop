@@ -13,6 +13,8 @@
 | 원카드 실행 계약 | [onecard.md](onecard.md) | 제출·공격·특수카드·개인손패·선언/신고·30초넘김. 기권손패정책은확인대기·필수명시설정 |
 | 오목 실행 계약 | [omok.md](omok.md) | 15×15 렌주 금수·착수·승패·한 수30초 시간패·상태/복구 연결. 실제 시작/재화 저장은 별도 연동 |
 | 오목 브라우저 테스트 | [omok-demo.md](omok-demo.md) | 별도 loopback 서버에서 흑·백·관전·끊김/복귀·승패를 직접 확인. 로그인/참가 확정은 테스트 대역 |
+| 세 게임 브라우저 테스트 | [games-demo.md](games-demo.md) | 주사위·원카드·다리 입력과 A/B 개인·관전자 공개 상태를 한 화면에서 확인. 테스트 전용18082 |
+| 팀 협의 목록 | [team-decisions.md](team-decisions.md) | 미확정 제품 정책과 실제 연동에 필요한 답을 한곳에 정리 |
 | WebSocket API 명세 | [websocket-api.md](websocket-api.md) | DB 없는 연결·테이블 착석·첫 착석자의 게임 선택·퇴장·준비 동기화 계약. local 구현·검증 완료 |
 | WebSocket 인증 연결부 | [websocket-authentication.md](websocket-authentication.md) | 서버 검증 사용자 연결·실패 차단. 실제 로그인·JWT/세션 방식은 미연결 |
 | 경기 입력 연결부 | [game-action-api.md](game-action-api.md) | 인증 참가자 입력 전달·처리 확인. 오목 엔진·메모리 중복 검증 지원. 영속 저장은 미연결 |
