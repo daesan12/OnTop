@@ -1,5 +1,9 @@
 .gitnexus/
 
+# Local database credentials
+.env
+.env.*
+
 # Local agent instructions and personal code guide
 AGENTS.md
 AGENTS.override.md

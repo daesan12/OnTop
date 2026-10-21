@@ -1,9 +1,49 @@
 spring:
   application:
     name: ontop
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  sql:
+    init:
+      mode: never
 
+ontop:
+  auth:
+    jwt-secret-base64: ${AUTH_JWT_SECRET_BASE64:}
+    jwt-issuer: ${AUTH_JWT_ISSUER:ontop}
+    allowed-origins: ${AUTH_ALLOWED_ORIGINS:}
+    refresh-cookie:
+      secure: ${AUTH_REFRESH_COOKIE_SECURE:true}
+      same-site: ${AUTH_REFRESH_COOKIE_SAME_SITE:Lax}
+      path: ${AUTH_REFRESH_COOKIE_PATH:/api/v1/auth}
+  oauth:
+    frontend-callback-uri: ${AUTH_FRONTEND_CALLBACK_URI:}
+    ssafy:
+      client-id: ${SSAFY_CLIENT_ID:}
+      client-secret: ${SSAFY_CLIENT_SECRET:}
+      redirect-uri: ${SSAFY_REDIRECT_URI:}
+    naver:
+      client-id: ${NAVER_CLIENT_ID:}
+      client-secret: ${NAVER_CLIENT_SECRET:}
+      redirect-uri: ${NAVER_REDIRECT_URI:}
+
+server:
+  servlet:
+    session:
+      timeout: 10m
+      tracking-modes: cookie
+      cookie:
+        http-only: true
+        secure: true
+        same-site: lax
+        path: /api/v1/auth
+
+# MySQL 중복키 예외 원문에는 소셜 식별자가 포함될 수 있다. 외부 입력/SQL 원문을 기록하지 않는다.
 logging:
   level:
+    org.hibernate.engine.jdbc.spi.SqlExceptionHelper: "OFF"
     com.jme3.bullet: WARN
 
 management:
@@ -15,3 +55,14 @@ management:
     health:
       show-details: never
       show-components: never
+
+---
+spring:
+  config:
+    activate:
+      on-profile: "!db"
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+      - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
+      - org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration

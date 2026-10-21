@@ -23,12 +23,37 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-websocket'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.flywaydb:flyway-core'
+    implementation 'com.nimbusds:nimbus-jose-jwt:10.10'
+    runtimeOnly 'org.flywaydb:flyway-mysql'
+    runtimeOnly 'com.mysql:mysql-connector-j'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
 tasks.named('test') {
-    useJUnitPlatform()
+    useJUnitPlatform {
+        excludeTags 'mysql'
+    }
+}
+
+tasks.register('mysqlTest', Test) {
+    description = '별도 MySQL 8.4 DB에서 V1/V2·제약조건·JPA 매핑·인증 상태와 교환 검증'
+    group = 'verification'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnitPlatform {
+        includeTags 'mysql'
+    }
+    // JVM 기본 시간대가 UTC가 아니어도 TIMESTAMP/Instant 왕복이 같은 시각인지 확인한다.
+    systemProperty 'user.timezone', 'Asia/Seoul'
+    outputs.upToDateWhen { false }
+    outputs.cacheIf { false }
+    testLogging {
+        events 'passed', 'failed', 'skipped'
+        exceptionFormat = 'short'
+    }
 }
 
 tasks.register('omokDemo', JavaExec) {
