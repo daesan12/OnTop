@@ -38,10 +38,18 @@ public class RefreshCookieService {
     }
 
     public String issue(String raw) {
+        return builder(raw).maxAge(Duration.ofSeconds(LIFETIME_SECONDS)).build().toString();
+    }
+
+    public String clear() {
+        return builder("").maxAge(Duration.ZERO).build().toString();
+    }
+
+    private ResponseCookie.ResponseCookieBuilder builder(String raw) {
         validate();
         AuthTokenProperties.RefreshCookie cookie = properties.refreshCookie();
         return ResponseCookie.from(NAME, raw).httpOnly(true).secure(cookie.secure()).sameSite(cookie.sameSite())
-                .path(cookie.path()).maxAge(Duration.ofSeconds(LIFETIME_SECONDS)).build().toString();
+                .path(cookie.path());
     }
 
     private AuthExchangeException invalid() {
