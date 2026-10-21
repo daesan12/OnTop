@@ -7,6 +7,8 @@
 검증된 소셜 식별자로 회원 상태를 판별하고 **60초짜리 일회용 교환 코드**를 발급한다.
 이 코드와 세션 쿠키만으로 서비스 REST/WebSocket에 로그인한 것은 아니다.
 JWT 발급·교환 REST API·신규 users 생성·온보딩·로그아웃은 이번 범위에 없다.
+이 경계는 AUTH-02의 범위다. 이후 S15P31B105-89에서 추가한
+[POST 인증 교환 API](auth-exchange.md)는 이 콜백의 교환 코드와 같은 세션을 사용한다.
 
 프론트 주소가 아직 없으므로 `AUTH_FRONTEND_CALLBACK_URI`는 기본적으로 비어 있다.
 미설정 시의 HTTP 200 JSON은 **로컬 수동 테스트를 위한 개발 검증용 계약**이며 아래 두 필드만 포함한다.
@@ -119,7 +121,8 @@ updated_at은 기존 JPA 생명주기 콜백으로 갱신한다. V1 스키마·U
 - 발급/소비 시 만료 항목을 정리하고 30초 주기로도 정리한다. 종료 시 지운다.
 - 단일 인스턴스 메모리다. 재시작·장애·원래 세션 상실 시 인가부터 다시 진행해야 한다.
 
-**이번에는 교환 REST API가 없다.** 후속 인증 API는 다음을 지켜야 한다.
+**AUTH-02 자체에는 교환 REST API가 없다.** 현재 구현된 교환 API는 [별도 문서](auth-exchange.md)를 따른다.
+다음 원칙을 교환 및 후속 기능에서 유지한다.
 
 1. 원래 세션 쿠키가 전송되는 `/api/v1/auth` 경계에서 코드를 body로 받고 내부 consume을 호출한다.
 2. 회원의 현재 탈퇴 상태·사용 가능 여부를 다시 검증한다. NEW_MEMBER는 온보딩 완료 전 접근 권한을 주지 않는다.
@@ -213,18 +216,18 @@ Mock 테스트는 실제 외부 OAuth 성공을 의미하지 않는다. 실제 �
    Postman만으로 브라우저와 다른 세션을 사용한 callback은 400이 정상이다.
    유효 state에 존재하지 않는 테스트 code를 붙인 토큰 실패 시험은 별도 테스트 앱에서만 수동으로 한다.
    외부 성공·실패 계약은 자동화 Mock 테스트로 우선 확인하며 디버그 인증 API를 만들지 않는다.
-7. 현재 공개 교환 API가 없으므로 브라우저/Postman에서 코드 소비·JWT 발급은 진행할 수 없다.
-   만료·동시 소비는 저장소 자동화 테스트로 확인하고 후속 교환 API가 생기면 HTTP로 추가 검증한다.
+7. 발급된 코드는 [인증 교환 수동 테스트](auth-exchange.md#브라우저postman-수동-테스트)에 따라
+   동일 세션의 POST /api/v1/auth/exchange로 소비한다. 만료·재사용 시 로그인부터 다시 진행한다.
 8. NAVER는 검수 승인·허용 테스트 계정 범위가 확인된 후 같은 절차를 진행한다.
 
 ## 운영 전 남은 결정
 
-프론트 callback 주소, 교환 REST/JWT/온보딩 계약, 분산 저장소, 요청량 제한, 운영 TLS·CORS 배포 검증,
+프론트 callback 주소, USER-05 온보딩 API, 분산 저장소, 요청량 제한, 운영 TLS·CORS 배포 검증,
 SSAFY 전체 state 반환 범위, NAVER 승인 및 실연동, 7일 초과 데이터 처리 정책이 남아 있다.
 프록시/APM/HTTP 디버그 로그에 callback query, Location, Cookie, 토큰 body/Authorization이 기록되지 않게 한다.
 AUTH-02가 WebSocket Principal이나 서비스 접근 제어를 구현한 것으로 취급하면 안 된다.
 
-## 이번 작업의 실제 검증 기록
+## AUTH-02 시점의 실제 검증 기록
 
 2026-10-21, `feat/S15P31B105-61-auth-callback`에서 Java 21로 검증했다.
 
@@ -237,6 +240,7 @@ AUTH-02가 WebSocket Principal이나 서비스 접근 제어를 구현한 것으
 
 실제 DB에는 users와 flyway_schema_history만 존재하며 V1 성공 이력은 한 개다.
 V1과 기존 DB 프로필·게임/WebSocket 코드는 변경하지 않았다. 커밋·Push·MR은 실행하지 않았다.
+위 기록은 AUTH-02 당시 결과다. 이후 V2·교환 API를 포함한 검증 결과는 [인증 교환 문서](auth-exchange.md)를 따른다.
 보고서는 `backend/build/reports/tests/{test,flowTest,mysqlTest}/index.html`에 있다.
 외부 공급자의 실제 로그인은 이번에 수행하지 않았다.
 

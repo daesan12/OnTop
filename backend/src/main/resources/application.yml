@@ -10,6 +10,14 @@ spring:
       mode: never
 
 ontop:
+  auth:
+    jwt-secret-base64: ${AUTH_JWT_SECRET_BASE64:}
+    jwt-issuer: ${AUTH_JWT_ISSUER:ontop}
+    allowed-origins: ${AUTH_ALLOWED_ORIGINS:}
+    refresh-cookie:
+      secure: ${AUTH_REFRESH_COOKIE_SECURE:true}
+      same-site: ${AUTH_REFRESH_COOKIE_SAME_SITE:Lax}
+      path: ${AUTH_REFRESH_COOKIE_PATH:/api/v1/auth}
   oauth:
     frontend-callback-uri: ${AUTH_FRONTEND_CALLBACK_URI:}
     ssafy:

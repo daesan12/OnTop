@@ -10,6 +10,8 @@
 - `baseline-on-migrate`는 `false`다. 기존 데이터가 있는 DB는 스키마와 이력 편입 절차를 별도로 검토한다.
 
 S15P31B105-80의 첫 migration은 `V1__create_users.sql`이며 `users`만 생성한다.
+S15P31B105-89의 `V2__create_refresh_tokens.sql`은 users FK를 가진 Refresh 해시 테이블만 추가한다.
+JWT/Refresh 원문·서명 키·DB 사용자 설정은 SQL에 포함하지 않는다.
 이 Markdown 파일은 SQL migration으로 실행되지 않는다.
 이미 V1이 적용된 DB에서는 Flyway가 체크섬을 검증하고 재적용하지 않는다.
 Wallet·UserItems·GameSessions 등 다른 도메인은 이후 별도 migration으로 추가한다.

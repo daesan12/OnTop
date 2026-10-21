@@ -5,7 +5,8 @@
 첫 Flyway migration `backend/src/main/resources/db/migration/V1__create_users.sql`로 users만 생성한다.
 User Entity·LoginProvider·CharacterGender enum·UserRepository를 `com.ssafy.ontop.user`에 둔다.
 S15P31B105-80의 범위는 스키마·Entity·Repository다. 이후 AUTH-02에서 콜백·기존 계정 복구를 추가했다.
-JWT·가입/온보딩 API·탈퇴 API·삭제 배치는 아직 없다. OAuth 인증 성공만으로 users에 저장하지 않는다.
+JWT·Refresh 발급은 이후 [인증 교환 API](auth-exchange.md)에서 구현했다.
+가입/온보딩 API·탈퇴 API·삭제 배치는 아직 없다. OAuth 인증 성공만으로 users에 저장하지 않는다.
 현재 로그인 상태 분기는 [AUTH-02](auth-callback.md)를 따른다.
 
 ## 컬럼과 제약조건
@@ -112,15 +113,15 @@ $env:TEST_DB_PASSWORD = [System.Net.NetworkCredential]::new('', (Read-Host '검�
 .\gradlew.bat flowTest
 ```
 
-첫 mysqlTest에서 Flyway가 V1을 적용하고 JPA validate가 성공해야 한다.
-다음 실행에서는 V1을 다시 적용하지 않고 체크섬과 JPA 매핑을 검증한다.
+첫 mysqlTest에서 Flyway가 V1·V2를 적용하고 JPA validate가 성공해야 한다.
+기존 V1 DB에는 V2 Refresh 테이블만 추가된다. 다음 실행은 두 버전을 다시 적용하지 않고 체크섬을 검증한다.
 mysqlTest는 매번 실행되며 UsersMySqlTests의 데이터는 트랜잭션 종료 시 롤백한다.
-AUTH-02의 실제 커밋·동시 복구 검증 fixture는 별도 전용 DB에 보존한다.
+AUTH-02/인증 교환의 실제 커밋·동시성 fixture는 별도 전용 DB에 보존한다.
 테이블·Flyway 이력은 보존한다. Flyway clean·DROP·데이터 초기화는 실행하지 않는다.
 
 검증 항목:
 
-- MySQL 8.4·strict mode·UTC 연결, users와 이력 테이블만 존재하는지.
+- MySQL 8.4·strict mode·UTC 연결, users·refresh_tokens·이력 테이블이 존재하는지.
 - 8개 컬럼 자료형·NULL·밀리초 정밀도·IDENTITY, UNIQUE 2개와 CHECK 2개.
 - 동일 소셜키·닉네임·대소문자만 다른 닉네임의 중복 거절.
 - 다른 provider의 동일 식별자 허용, 소셜 식별자의 대소문자 구분.
