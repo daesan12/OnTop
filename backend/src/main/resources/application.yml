@@ -11,11 +11,14 @@ spring:
 
 ontop:
   oauth:
+    frontend-callback-uri: ${AUTH_FRONTEND_CALLBACK_URI:}
     ssafy:
       client-id: ${SSAFY_CLIENT_ID:}
+      client-secret: ${SSAFY_CLIENT_SECRET:}
       redirect-uri: ${SSAFY_REDIRECT_URI:}
     naver:
       client-id: ${NAVER_CLIENT_ID:}
+      client-secret: ${NAVER_CLIENT_SECRET:}
       redirect-uri: ${NAVER_REDIRECT_URI:}
 
 server:

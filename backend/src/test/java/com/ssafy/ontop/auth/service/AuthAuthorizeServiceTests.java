@@ -1,5 +1,6 @@
 package com.ssafy.ontop.auth.service;
 
+import com.ssafy.ontop.auth.config.OAuthClientSettings;
 import com.ssafy.ontop.auth.config.OAuthProperties;
 import com.ssafy.ontop.auth.exception.AuthAuthorizeException;
 import java.net.URI;
@@ -27,7 +28,8 @@ class AuthAuthorizeServiceTests {
         OAuthProperties properties = new OAuthProperties(
                 new OAuthProperties.Client("ssafy-test-client", origin + "/api/v1/auth/ssafy/callback"),
                 new OAuthProperties.Client("naver-test-client", origin + "/api/v1/auth/naver/callback"));
-        AuthAuthorizeService service = new AuthAuthorizeService(properties, new NaverStateStore(), environment);
+        AuthAuthorizeService service = new AuthAuthorizeService(
+                new OAuthClientSettings(properties, environment), new OAuthStateStore());
         MockHttpServletRequest request = new MockHttpServletRequest();
 
         if (allowed) {

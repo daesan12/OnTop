@@ -2,7 +2,7 @@ package com.ssafy.ontop.auth.controller;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ssafy.ontop.auth.service.NaverStateStore;
+import com.ssafy.ontop.auth.service.OAuthStateStore;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import java.net.HttpCookie;
@@ -30,6 +30,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import static com.ssafy.ontop.auth.domain.OAuthProvider.NAVER;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @ActiveProfiles("local")
@@ -121,7 +122,7 @@ class NaverSessionRoundTripTests {
 
     private JsonNode callback(String cookie, String state) throws Exception {
         HttpRequest.Builder request = HttpRequest.newBuilder(URI.create(
-                "http://localhost:" + port + "/api/v1/auth/naver/callback?state="
+                "http://localhost:" + port + "/api/v1/auth/naver/state-test-callback?state="
                         + URLEncoder.encode(state, StandardCharsets.UTF_8))).GET();
         if (!cookie.isEmpty()) {
             request.header(HttpHeaders.COOKIE, cookie);
@@ -150,7 +151,7 @@ class NaverSessionRoundTripTests {
     static class CallbackTestConfiguration {
 
         @Bean
-        CallbackProbeController callbackProbeController(NaverStateStore stateStore) {
+        CallbackProbeController callbackProbeController(OAuthStateStore stateStore) {
             return new CallbackProbeController(stateStore);
         }
     }
@@ -160,19 +161,19 @@ class NaverSessionRoundTripTests {
     @RestController
     static class CallbackProbeController {
 
-        private final NaverStateStore stateStore;
+        private final OAuthStateStore stateStore;
 
-        CallbackProbeController(NaverStateStore stateStore) {
+        CallbackProbeController(OAuthStateStore stateStore) {
             this.stateStore = stateStore;
         }
 
-        @GetMapping("/api/v1/auth/naver/callback")
+        @GetMapping("/api/v1/auth/naver/state-test-callback")
         public CallbackProbeResponse receive(HttpServletRequest request, @RequestParam String state) {
             HttpSession session = request.getSession(false);
             boolean requestedSessionMatches = session != null
                     && session.getId().equals(request.getRequestedSessionId());
             return new CallbackProbeResponse(session != null, requestedSessionMatches,
-                    stateStore.consume(request, state));
+                    stateStore.consume(request, NAVER, state));
         }
     }
 
