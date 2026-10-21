@@ -6,7 +6,8 @@
 User Entity·LoginProvider·CharacterGender enum·UserRepository를 `com.ssafy.ontop.user`에 둔다.
 S15P31B105-80의 범위는 스키마·Entity·Repository다. 이후 AUTH-02에서 콜백·기존 계정 복구를 추가했다.
 JWT·Refresh 발급은 이후 [인증 교환 API](auth-exchange.md)에서 구현했다.
-가입/온보딩 API·탈퇴 API·삭제 배치는 아직 없다. OAuth 인증 성공만으로 users에 저장하지 않는다.
+가입 확정은 [USER-05 온보딩 API](user-onboarding.md)에서 구현했다. 탈퇴 API·삭제 배치는 아직 없다.
+OAuth 인증 성공만으로 users에 저장하지 않고 닉네임/성별 온보딩 완료 시 생성한다.
 현재 로그인 상태 분기는 [AUTH-02](auth-callback.md)를 따른다.
 
 ## 컬럼과 제약조건
@@ -30,9 +31,9 @@ JWT·Refresh 발급은 이후 [인증 교환 API](auth-exchange.md)에서 구현
 
 ## 닉네임 형식과 collation
 
-확정된 입력 정책은 **1~8자, 한글 완성형(가-힣)·영문 대소문자(A-Z/a-z)·숫자(0-9)만 허용**이다.
-공백·특수문자·이모지는 허용하지 않는다. 해당 정규식 검증은 USER-04/USER-05에서 구현한다.
-이번 Entity에는 입력 정규식·길이 검증 서비스·닉네임 API를 추가하지 않았다.
+현재 확정된 입력 정책은 **2~8자, 한글 완성형(가-힣)·영문 대소문자(A-Z/a-z)·숫자(0-9)만 허용**이다.
+공백·특수문자·이모지는 허용하지 않는다. USER-05 요청 DTO에서 형식을 검증한다. USER-04 API는 미구현이다.
+최소 2자는 API 입력 정책이고 기존 Entity 길이 8과 V1 SQL은 변경하지 않는다.
 VARCHAR(8)·NOT NULL·UNIQUE만으로 빈 문자열과 잘못된 문자 형식을 모두 막을 수 있는 것은 아니다.
 
 사용자가 확정한 기준에 따라 `OnTop`과 `ontop`은 같은 닉네임이다.

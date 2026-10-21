@@ -14,6 +14,7 @@ import java.util.UUID;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -51,12 +52,25 @@ public class AuthExchangePersistenceService {
         if (user.getDeletedAt() != null || user.getLoginProvider() != outcome.provider().loginProvider()) {
             throw changed();
         }
+        return issueCredentials(user);
+    }
+
+    // USER-05의 회원 INSERT와 Refresh INSERT는 반드시 같은 호출자 트랜잭션에 참여한다.
+    @Transactional(propagation = Propagation.MANDATORY)
+    public Credentials issueForNewUser(User user) {
+        if (user.getId() == null || user.getDeletedAt() != null) {
+            throw changed();
+        }
+        return issueCredentials(user);
+    }
+
+    private Credentials issueCredentials(User user) {
         String access = jwt.issue(user.getId());
         String refresh = "rt_" + OpaqueTokens.generate(random);
         Instant now = clock.instant().truncatedTo(ChronoUnit.MILLIS);
         refreshTokens.saveAndFlush(new RefreshToken(user, UUID.randomUUID().toString(), OpaqueTokens.digest(refresh),
                 now, now.plusSeconds(RefreshCookieService.LIFETIME_SECONDS)));
-        // 호출자는 Spring 트랜잭션 프록시가 커밋에 성공한 후에만 이 값을 받는다.
+        // HTTP 계층은 최상위 발급/가입 트랜잭션의 커밋 성공 후에만 이 값을 사용한다.
         return new Credentials(access, refresh);
     }
 

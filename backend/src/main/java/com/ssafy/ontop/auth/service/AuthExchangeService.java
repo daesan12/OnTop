@@ -37,8 +37,7 @@ public class AuthExchangeService {
             if (outcome.status() == LoginOutcome.Status.NEW_MEMBER) {
                 issuer.verifyNew(outcome);
                 rotateSession(request);
-                String token = onboarding.issue(request,
-                        new OAuthIdentity(outcome.provider(), outcome.providerUserId()));
+                String token = onboarding.issue(new OAuthIdentity(outcome.provider(), outcome.providerUserId()));
                 return new Result(new AuthExchangeResponse.Onboarding(token), null);
             }
             cookies.validate();

@@ -40,6 +40,11 @@ server:
         same-site: lax
         path: /api/v1/auth
 
+# MySQL 중복키 예외 원문에는 소셜 식별자가 포함될 수 있다. 외부 입력/SQL 원문을 기록하지 않는다.
+logging:
+  level:
+    org.hibernate.engine.jdbc.spi.SqlExceptionHelper: "OFF"
+
 ---
 spring:
   config:

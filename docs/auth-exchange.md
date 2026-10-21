@@ -58,17 +58,21 @@ Nimbus JOSE + JWT 10.10을 사용하며 Spring Security 필터 체인은 추가�
 
 온보딩 인증은 `ob_` 접두어와 256비트 SecureRandom 난수로 만든 **불투명 토큰**이다.
 JWT·사용자 ID·소셜 식별자가 토큰 안에 들어가지 않는다.
-서버의 OnboardingTokenStore에 토큰 SHA-256 해시, 세션 ID 해시, 검증된 OAuthIdentity, 만료 시각을 보관한다.
+서버의 OnboardingTokenStore에 토큰 SHA-256 해시, 검증된 OAuthIdentity, 만료 시각을 보관한다.
+온보딩 토큰은 세션과 독립적인 일회성 Bearer 인증이며 세션 ID를 저장하거나 검증하지 않는다.
 
-- 발급 후 600초 유효, 원래 세션에서만 검증/소비한다.
-- verify(request, token)은 USER-05용 검증이며 provider/providerUserId를 반환한다.
-- consume(request, token)은 같은 정보를 원자적으로 한 번 반환한다. 재사용·다른 세션·만료는 401이다.
+- 발급 후 600초 유효, JSESSIONID 없이 검증/소비한다.
+- verify(token)은 USER-05용 검증이며 provider/providerUserId를 반환한다.
+- consume(token)은 같은 정보를 원자적으로 한 번 반환한다. 재사용·위조·만료는 401이다.
 - 검증은 반복할 수 있지만 가입 확정 전에는 반드시 consume을 사용해야 한다.
 - USER-05는 입력 검증 후 consume하고 DB 트랜잭션과 소셜키/nickname UNIQUE를 재검증해야 한다.
   가입 실패 후 토큰을 복원하지 않는 계약이다. 실패하면 로그인부터 다시 시작한다.
 - 최대 10,000개, 발급/검증/소비 및 30초 주기로 만료를 정리한다. 종료 시 지운다.
-- 단일 인스턴스 메모리다. 재시작·원래 세션 상실 시 다시 로그인해야 한다.
+- 단일 인스턴스 메모리다. 재시작 시 다시 로그인해야 한다. 이미 발급된 온보딩 토큰은 OAuth 세션 상실과 독립적이다.
 - JWT 서명 키를 사용하지 않는다. Access JWT용 키가 없어도 온보딩 난수 발급은 가능하다.
+
+온보딩 확정 HTTP API는 [USER-05](user-onboarding.md)다. Authorization Bearer 토큰만으로 인증한다.
+USER-05에서는 JWT 발급이 필요하므로 서명 키 설정이 필수다.
 
 교환 시 신규 소셜키가 이미 users에 있으면 AUTH_MEMBER_STATE_CHANGED로 거절한다.
 조회 이후 다른 요청에서 가입할 수 있으므로 USER-05의 UNIQUE 재검증을 생략해서는 안 된다.
@@ -116,7 +120,8 @@ Origin/JSON 형식 거절은 코드를 소비하지 않는다. 유효 형식의 
 기존 클라이언트 쿠키는 이 실패 응답에서 변경하지 않는다.
 
 성공 시 세션 ID를 교체해 세션 고정을 방어한다. 원래 HttpSession 속성은 유지되며 새 JSESSIONID를 사용해야 한다.
-다른 탭의 이미 발급된 교환 코드/온보딩 토큰은 이전 세션 ID에 묶여 실패할 수 있다. 새 로그인으로 진행한다.
+다른 탭의 이미 발급된 교환 코드는 이전 세션 ID에 묶여 실패할 수 있다. 새 로그인으로 진행한다.
+발급을 마친 온보딩 토큰은 세션 회전과 무관하게 남은 유효기간 안에 사용할 수 있다.
 DB 커밋과 세션 교체/HTTP 전달은 하나의 분산 트랜잭션이 아니다.
 커밋 후 세션 상실·네트워크 실패가 나면 전달되지 않은 Refresh 해시 행이 남을 수 있다.
 원문을 재조회하거나 교환 코드를 복원하지 않는다. 새 로그인과 후속 만료/폐기 정책으로 처리한다.
@@ -141,7 +146,8 @@ AuthExchangeOriginFilter는 **POST/OPTIONS /api/v1/auth/exchange에만** 적용�
 - 브라우저 단순 form/text 요청은 JSON 본문 변환 단계에서 거절한다.
 - 교환 코드는 256비트·세션 결합이고 URL에 넣지 않는다. 이 경계가 코드 소비 전에 CSRF 요청을 제한한다.
 
-기존 JSESSIONID의 HttpOnly/Secure/SameSite=Lax/Path=/api/v1/auth 정책은 변경하지 않았다.
+JSESSIONID는 HttpOnly/Secure/SameSite=Lax와 기존 Path=/api/v1/auth를 유지한다.
+USER-05를 위해 넓혔던 Path=/api/v1 변경은 되돌렸다. Refresh 쿠키의 Path=/api/v1/auth도 유지한다.
 같은 출처의 local POST에는 호환된다. 브라우저에서는 fetch의 credentials 설정과 실제 쿠키 전달을 확인한다.
 
 Vercel과 API가 다른 사이트라면 다음을 배포 환경에서 함께 결정한다.
@@ -252,19 +258,19 @@ Mockito의 Java agent 경고는 있었지만 빌드/테스트 실패는 없었�
    실제 코드·쿠키·토큰을 문서·채팅·스크린샷·Postman 공유 환경에 남기지 않는다.
 3. callback의 exchangeCode를 발급 후 60초 안에 사용한다. 브라우저 개발자 도구에서 해당 API 호스트의
    JSESSIONID를 확인하고 Postman의 같은 localhost 호스트 cookie jar에 로컬로만 설정한다.
-   Path=/api/v1/auth이며 localhost와 127.0.0.1을 혼용하지 않는다. HttpOnly 쿠키는 JS로 읽지 않는다.
+   세션 Path=/api/v1/auth이며 localhost와 127.0.0.1을 혼용하지 않는다. HttpOnly 쿠키는 JS로 읽지 않는다.
 4. POST http://localhost:8080/api/v1/auth/exchange, JSON body에 exchangeCode만 넣는다.
    Postman 자동 redirect·콘솔/네트워크 기록·응답 자동 저장 및 공유를 끈다. Origin은 생략하거나 허용 목록의 값만 쓴다.
 5. 기존/복구 회원: AUTHENTICATED, expiresIn=1800과 Access JWT가 기대된다.
    Set-Cookie의 ONTOP_REFRESH에 HttpOnly·Path·Max-Age·SameSite가 있는지 값은 가리고 확인한다.
    local HTTP에서는 Secure=false, HTTPS 운영에서는 Secure여야 한다. Refresh는 JSON에 없어야 한다.
 6. 신규: ONBOARDING_REQUIRED, expiresIn=600과 ob_ 전용 토큰만 기대된다.
-   새로운 Refresh는 발급되지 않고 users가 늘지 않는다. USER-05가 아직 없으므로 가입 완료까지 진행할 수 없다.
-7. 성공 응답의 새 JSESSIONID를 Postman cookie jar에 유지한다. 응답 세션 ID 교체를 무시하면 온보딩 검증이 실패할 수 있다.
+   이 교환만으로 새로운 Refresh는 발급되지 않고 users가 늘지 않는다. 이후 [USER-05](user-onboarding.md)로 가입한다.
+7. OAuth 교환의 세션 ID 회전 정책은 유지한다. 이후 USER-05는 발급된 온보딩 Bearer로 호출하며 JSESSIONID는 필요 없다.
 8. 같은 코드를 다시 보내거나 60초 이후 처음 보내면 401이다. 다른 cookie jar로 시도해도 401이고,
    원래 세션의 유효 코드는 다른 세션의 오입력 때문에 소진되지 않는다.
 9. Origin 위조는 403, 본문 누락/잘못된 JSON은 400이다. DB/발급 실패 뒤에는 authorize부터 다시 시작한다.
-10. Refresh 갱신·로그아웃·USER-05 HTTP endpoint는 아직 없다. 테스트 편의용 우회 API를 추가하지 않는다.
+10. Refresh 갱신·로그아웃 HTTP endpoint는 아직 없다. 테스트 편의용 우회 API를 추가하지 않는다.
 
 Access JWT는 외부 JWT 사이트에 붙여넣지 않는다. PowerShell 7 이상에서 아래 예시로 서명과 핵심 클레임을 확인할 수 있다.
 서명 키는 앞에서 주입한 같은 AUTH_JWT_SECRET_BASE64를 사용한다. 토큰은 보안 입력으로 받고 값은 출력하지 않는다.
@@ -294,6 +300,6 @@ try {
 
 ## 남은 운영 결정
 
-AUTH-03 로그아웃·AUTH-04 회전/갱신, USER-05 가입 확정, 분산 온보딩 저장, 만료 행 보관/정리,
+AUTH-03 로그아웃·AUTH-04 회전/갱신, 분산 온보딩 저장, 만료 행 보관/정리,
 전체 REST/WebSocket 검증 연결, 요청량 제한, 실제 Vercel/TLS/브라우저 쿠키 검증은 후속 범위다.
 SSAFY/NAVER 실제 로그인은 이번 자동화 작업에서 수행하지 않는다. 기존 공급자 검증 범위를 유지한다.

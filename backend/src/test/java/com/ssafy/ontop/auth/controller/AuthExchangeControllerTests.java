@@ -133,9 +133,7 @@ class AuthExchangeControllerTests {
         JsonNode body = mapper.readTree(result.getResponse().getContentAsString());
         assertThat(body.size()).isEqualTo(3);
         String token = body.path("onboardingToken").asText();
-        MockHttpServletRequest request = new MockHttpServletRequest();
-        request.setSession(session);
-        assertThat(onboarding.verify(request, token).providerUserId()).isEqualTo("fixture-id");
+        assertThat(onboarding.verify(token).providerUserId()).isEqualTo("fixture-id");
         verify(persistence, times(0)).issueExisting(any());
     }
 

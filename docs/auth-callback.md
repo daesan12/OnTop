@@ -222,10 +222,11 @@ Mock 테스트는 실제 외부 OAuth 성공을 의미하지 않는다. 실제 �
 
 ## 운영 전 남은 결정
 
-프론트 callback 주소, USER-05 온보딩 API, 분산 저장소, 요청량 제한, 운영 TLS·CORS 배포 검증,
+프론트 callback 주소, 분산 저장소, 요청량 제한, 운영 TLS·CORS 배포 검증,
 SSAFY 전체 state 반환 범위, NAVER 승인 및 실연동, 7일 초과 데이터 처리 정책이 남아 있다.
 프록시/APM/HTTP 디버그 로그에 callback query, Location, Cookie, 토큰 body/Authorization이 기록되지 않게 한다.
 AUTH-02가 WebSocket Principal이나 서비스 접근 제어를 구현한 것으로 취급하면 안 된다.
+USER-05 가입 확정과 세션에 독립적인 Bearer 인증은 [온보딩 문서](user-onboarding.md)를 따른다.
 
 ## AUTH-02 시점의 실제 검증 기록
 
