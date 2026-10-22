@@ -5,22 +5,13 @@ import peopleImage from '../assets/park-people.png'
 import avatarImage from '../assets/park-avatar.png'
 import { ParkScene } from './ParkScene'
 import './park.css'
-
-type ChatMessage = { id: number; name: string; text: string; own?: boolean }
-
-const initialMessages: ChatMessage[] = [
-  { id: 1, name: '산책자이종혁', text: '오, 불 켜짐' },
-  { id: 2, name: '나민택기아니다잉', text: '여기 짤택기인데' },
-]
-
-// These values match the design fixture until the park/player API is connected.
-const parkView = {
-  name: '공원 01',
-  players: 13,
-  capacity: 16,
-  balance: 1_000_000,
-  nickname: '돼지병아리여덟자',
-}
+import './scene.css'
+import { useShallow } from 'zustand/react/shallow'
+import { useSession } from '../network/worldClient'
+import { ParkRuntimeProvider, useParkRuntime } from './runtime/ParkRuntime'
+import { setChatInputOpen } from '../world/input'
+import { ParkTools } from './ParkTools'
+import type { QualityPreset } from '../config'
 
 const shortcuts = [
   { key: 'WASD', action: '이동' },
@@ -31,7 +22,7 @@ const shortcuts = [
 ]
 
 function isTextControl(target: EventTarget | null): boolean {
-  return target instanceof HTMLElement && Boolean(target.closest('input, textarea, select, button, a, [contenteditable="true"]'))
+  return target instanceof HTMLElement && Boolean(target.closest('input, textarea, select, button, a, [contenteditable="true"], [role="button"]'))
 }
 
 function getHudScale(): number {
@@ -39,11 +30,20 @@ function getHudScale(): number {
   return Math.min(1, window.innerWidth / 1920, window.innerHeight / 1080)
 }
 
-export function ParkPage({ onExit, exitError }: { onExit: () => void; exitError: string }) {
+type ParkProps = { onExit: () => void; exitError: string; onAuthEnded: () => void }
+export function ParkPage(props: ParkProps) {
+  return <ParkRuntimeProvider onAuthEnded={props.onAuthEnded}><ParkContent {...props}/></ParkRuntimeProvider>
+}
+function ParkContent({ onExit, exitError }: ParkProps) {
+  const runtime = useParkRuntime()
+  const session = useSession(useShallow(s=>({ status:s.status,channelName:s.channelName,playerCount:s.playerCount,capacity:s.capacity,sessionId:s.sessionId,roomId:s.roomId,messages:s.messages,pending:s.pending,account:s.account,profiles:s.profiles })))
+  const [quality,setQuality] = useState<QualityPreset>('low')
+  const parkView = { name:session.channelName || '채널 선택', players:session.playerCount, capacity:session.capacity, nickname:session.account?.nickname ?? '정보 미연동' }
+  const messages = session.messages.map(message=>({ ...message,name:session.profiles[message.userId]?.nickname ?? (message.userId===session.sessionId?'나':('산책자 '+message.userId.slice(-6))),own:message.userId===session.sessionId }))
   const [hudScale, setHudScale] = useState(getHudScale)
   const [chatOpen, setChatOpen] = useState(false)
   const [draft, setDraft] = useState('')
-  const [messages, setMessages] = useState(initialMessages)
+
   const inputRef = useRef<HTMLInputElement>(null)
   const messageListRef = useRef<HTMLDivElement>(null)
 
@@ -54,7 +54,9 @@ export function ParkPage({ onExit, exitError }: { onExit: () => void; exitError:
   }, [])
 
   useEffect(() => {
+    setChatInputOpen(chatOpen)
     if (chatOpen) inputRef.current?.focus()
+    return () => setChatInputOpen(false)
   }, [chatOpen])
 
   useEffect(() => {
@@ -78,11 +80,8 @@ export function ParkPage({ onExit, exitError }: { onExit: () => void; exitError:
     messageListRef.current?.scrollTo({ top: messageListRef.current.scrollHeight })
   }, [messages])
 
-  const sendMessage = () => {
-    const text = draft.trim()
-    if (text) {
-      setMessages((current) => [...current, { id: Date.now(), name: '나', text, own: true }])
-    }
+  const sendMessage = async () => {
+    if (!await runtime.sendChat(draft)) return
     setDraft('')
     setChatOpen(false)
     inputRef.current?.blur()
@@ -91,7 +90,7 @@ export function ParkPage({ onExit, exitError }: { onExit: () => void; exitError:
   const handleInputKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
       event.preventDefault()
-      sendMessage()
+      void sendMessage()
     }
   }
 
@@ -101,9 +100,9 @@ export function ParkPage({ onExit, exitError }: { onExit: () => void; exitError:
       '--park-edge': `${30 * hudScale}px`,
       '--park-shortcuts-half-width': `${390 * hudScale}px`,
     } as CSSProperties}>
-      <ParkScene />
+      <ParkScene quality={quality} />
       <div className="park-hud">
-        <section className="park-location" aria-label="현재 공원과 접속 인원">
+        <section className="park-location" aria-label="현재 공원과 접속 인원" role="button" tabIndex={0} aria-haspopup="true" onClick={()=>window.dispatchEvent(new Event('ontop-toggle-channels'))} onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();window.dispatchEvent(new Event('ontop-toggle-channels'))}}}>
           <img className="park-location__leaf" src={leafImage} alt="" />
           <div className="park-location__details">
             <div className="park-location__name">{parkView.name}</div>
@@ -118,7 +117,7 @@ export function ParkPage({ onExit, exitError }: { onExit: () => void; exitError:
         <div className="park-account">
           <div className="park-account__summary" aria-label="내 정보">
             <img className="park-account__coin" src={coinImage} alt="엽전" />
-            <span className="park-account__balance">{parkView.balance.toLocaleString('ko-KR')}냥</span>
+            <span className="park-account__balance">{session.account?.balance == null ? '—' : session.account.balance.toLocaleString('ko-KR')}냥</span>
             <span className="park-account__separator" aria-hidden="true" />
             <span className="park-account__nickname">{parkView.nickname}</span>
             <span className="park-account__avatar"><img src={avatarImage} alt="내 캐릭터" /></span>
@@ -141,10 +140,10 @@ export function ParkPage({ onExit, exitError }: { onExit: () => void; exitError:
             </div>
           </div>
           {chatOpen ? (
-            <form className="park-chat__composer park-chat__composer--open" onSubmit={(event) => { event.preventDefault(); sendMessage() }}>
+            <form className="park-chat__composer park-chat__composer--open" onSubmit={(event) => { event.preventDefault(); void sendMessage() }}>
               <label className="visually-hidden" htmlFor="park-chat-input">주변 채팅 메시지</label>
-              <input id="park-chat-input" ref={inputRef} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={handleInputKeyDown} placeholder="메시지를 입력하세요" maxLength={300} autoComplete="off" />
-              <button type="submit" aria-label="메시지 보내기">
+              <input id="park-chat-input" ref={inputRef} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={handleInputKeyDown} placeholder="메시지를 입력하세요" maxLength={400} autoComplete="off" />
+              <button type="submit" aria-label="메시지 보내기" disabled={session.pending || !session.roomId}>
                 <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true">
                   <path d="M4 12h15m-6-6 6 6-6 6" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
@@ -163,6 +162,7 @@ export function ParkPage({ onExit, exitError }: { onExit: () => void; exitError:
           ))}
         </aside>
       </div>
+      <ParkTools quality={quality} onQuality={setQuality}/>
     </main>
   )
 }

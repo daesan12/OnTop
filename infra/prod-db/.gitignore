@@ -1,0 +1,5 @@
+compose.env
+secrets/
+*.sql.gz
+*.sql.gz.sha256
+wg0.conf
