@@ -1,4 +1,4 @@
-package com.ssafy.ontop.shop.persistence;
+package com.ssafy.ontop.item.domain;
 
 import com.ssafy.ontop.shop.ShopModels;
 import jakarta.persistence.Column;
@@ -12,9 +12,9 @@ import jakarta.persistence.Table;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
-@Entity(name = "ShopItem")
+@Entity(name = "Item")
 @Table(name = "items")
-public class ShopItem {
+public class Item {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     @Column(name = "item_code", nullable = false, length = 50)
@@ -34,7 +34,7 @@ public class ShopItem {
     @Column(name = "is_for_sale", nullable = false)
     private boolean forSale;
 
-    protected ShopItem() { }
+    protected Item() { }
 
     public ShopModels.Item toItem() {
         return new ShopModels.Item(id, itemCode, name, itemType, equipSlot, price, imageKey);

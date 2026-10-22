@@ -1,5 +1,6 @@
 package com.ssafy.ontop.shop;
 
+import com.ssafy.ontop.inventory.domain.UserItem;
 import com.ssafy.ontop.shop.ShopModels.DuplicateEquipmentPolicy;
 import com.ssafy.ontop.shop.ShopModels.Equipment;
 import com.ssafy.ontop.shop.ShopModels.EquipmentChanged;
@@ -8,7 +9,6 @@ import com.ssafy.ontop.shop.ShopModels.ItemList;
 import com.ssafy.ontop.shop.ShopModels.ItemType;
 import com.ssafy.ontop.shop.ShopModels.OwnedItem;
 import com.ssafy.ontop.shop.ShopModels.Purchase;
-import com.ssafy.ontop.shop.persistence.ShopOwnedItem;
 import com.ssafy.ontop.shop.persistence.ShopPurchase;
 import com.ssafy.ontop.shop.persistence.ShopRepository;
 import com.ssafy.ontop.wallet.domain.Wallet;
@@ -40,7 +40,7 @@ public class ShopService {
 
     public ItemList catalog() {
         return transactions.execute(status -> new ItemList(repository.catalog().stream()
-                .map(com.ssafy.ontop.shop.persistence.ShopItem::toItem).toList()));
+                .map(com.ssafy.ontop.item.domain.Item::toItem).toList()));
     }
 
     public Inventory inventory(long userId) {
@@ -77,7 +77,7 @@ public class ShopService {
             int nextQuantity;
             try {
                 total = Math.multiplyExact(item.price(), quantity);
-                nextQuantity = Math.addExact(existing.map(ShopOwnedItem::quantity).orElse(0), quantity);
+                nextQuantity = Math.addExact(existing.map(UserItem::quantity).orElse(0), quantity);
             } catch (ArithmeticException exception) {
                 throw error(400, "QUANTITY_TOO_LARGE", "구매 수량이 너무 큽니다.");
             }
@@ -88,9 +88,9 @@ public class ShopService {
                 throw error(409, "INSUFFICIENT_BALANCE", "사용 가능한 엽전이 부족합니다.");
             }
             wallet.debit(total);
-            ShopOwnedItem holding;
+            UserItem holding;
             if (existing.isEmpty()) {
-                holding = new ShopOwnedItem(userId, entity, nextQuantity);
+                holding = new UserItem(userId, entity, nextQuantity);
                 repository.persist(holding);
             } else {
                 holding = existing.get();
@@ -128,7 +128,7 @@ public class ShopService {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override public void afterCommit() { equipmentCommitted(userId); }
             });
-            return new Equipment(holdings.stream().map(ShopOwnedItem::toOwnedItem)
+            return new Equipment(holdings.stream().map(UserItem::toOwnedItem)
                     .filter(item -> item.quantity() > 0 && item.equipped()).toList());
         });
     }
@@ -147,7 +147,7 @@ public class ShopService {
     }
 
     private List<OwnedItem> owned(long userId, boolean equippedOnly) {
-        return repository.owned(userId).stream().map(ShopOwnedItem::toOwnedItem)
+        return repository.owned(userId).stream().map(UserItem::toOwnedItem)
                 .filter(item -> !equippedOnly || item.equipped()).toList();
     }
 

@@ -1,5 +1,7 @@
 package com.ssafy.ontop.shop.persistence;
 
+import com.ssafy.ontop.inventory.domain.UserItem;
+import com.ssafy.ontop.item.domain.Item;
 import com.ssafy.ontop.wallet.domain.Wallet;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
@@ -16,8 +18,8 @@ public class ShopRepository {
     private final EntityManager entities;
     public ShopRepository(EntityManager entities) { this.entities = entities; }
 
-    public List<ShopItem> catalog() {
-        return entities.createQuery("select i from ShopItem i where i.forSale = true order by i.id", ShopItem.class)
+    public List<Item> catalog() {
+        return entities.createQuery("select i from Item i where i.forSale = true order by i.id", Item.class)
                 .getResultList();
     }
     public Optional<Wallet> lockWallet(long userId) {
@@ -32,26 +34,26 @@ public class ShopRepository {
                 ShopPurchase.class).setParameter("user", userId).setParameter("key", key)
                 .getResultList().stream().findFirst();
     }
-    public Optional<ShopItem> saleItem(long itemId) {
-        var item = entities.find(ShopItem.class, itemId, LockModeType.PESSIMISTIC_READ);
+    public Optional<Item> saleItem(long itemId) {
+        var item = entities.find(Item.class, itemId, LockModeType.PESSIMISTIC_READ);
         if (item != null) { entities.refresh(item, LockModeType.PESSIMISTIC_READ); }
-        return Optional.ofNullable(item).filter(ShopItem::forSale);
+        return Optional.ofNullable(item).filter(Item::forSale);
     }
-    public Optional<ShopOwnedItem> holding(long userId, long itemId) {
-        var rows = entities.createQuery("select o from ShopOwnedItem o where o.userId = :user and o.item.id = :item",
-                ShopOwnedItem.class).setParameter("user", userId).setParameter("item", itemId)
+    public Optional<UserItem> holding(long userId, long itemId) {
+        var rows = entities.createQuery("select o from UserItem o where o.userId = :user and o.item.id = :item",
+                UserItem.class).setParameter("user", userId).setParameter("item", itemId)
                 .getResultList();
         rows.forEach(holding -> entities.refresh(holding, LockModeType.PESSIMISTIC_WRITE));
         return rows.stream().findFirst();
     }
-    public List<ShopOwnedItem> owned(long userId) {
-        return entities.createQuery("select o from ShopOwnedItem o join fetch o.item where o.userId = :user"
-                + " and o.quantity > 0 order by o.id", ShopOwnedItem.class)
+    public List<UserItem> owned(long userId) {
+        return entities.createQuery("select o from UserItem o join fetch o.item where o.userId = :user"
+                + " and o.quantity > 0 order by o.id", UserItem.class)
                 .setParameter("user", userId).getResultList();
     }
-    public List<ShopOwnedItem> ownedForUpdate(long userId) {
-        var rows = entities.createQuery("select o from ShopOwnedItem o where o.userId = :user"
-                + " order by o.id", ShopOwnedItem.class)
+    public List<UserItem> ownedForUpdate(long userId) {
+        var rows = entities.createQuery("select o from UserItem o where o.userId = :user"
+                + " order by o.id", UserItem.class)
                 .setParameter("user", userId).setLockMode(LockModeType.PESSIMISTIC_WRITE).getResultList();
         rows.forEach(holding -> entities.refresh(holding, LockModeType.PESSIMISTIC_WRITE));
         return rows;

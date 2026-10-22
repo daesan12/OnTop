@@ -73,14 +73,16 @@ Java21 Wrapper mysqlTest --tests '*ShopMySqlTests': 별도 MySQL8.4에서 실제
 
 ## 2026-10-22 JPA 전환
 
-API 경로·요청·응답·오류·동일 키 재요청·미확정 의상 정책은 그대로다. ShopService → ShopRepository(EntityManager/JPQL) → ShopItem/ShopOwnedItem/ShopPurchase/Wallet/WalletTransaction 순서로 읽는다. SQL 마이그레이션은 계속 Flyway가 관리하고 JPA ddl-auto=validate를 유지한다.
+API 경로·요청·응답·오류·동일 키 재요청·미확정 의상 정책은 그대로다. ShopService → ShopRepository(EntityManager/JPQL) → Item/UserItem/ShopPurchase/Wallet/WalletTransaction 순서로 읽는다. SQL 마이그레이션은 계속 Flyway가 관리하고 JPA ddl-auto=validate를 유지한다.
 
 지갑 잠금 후 refresh로 이전에 관리 중인 잔액을 갱신한다. 신규 트랜잭션은 READ_COMMITTED를 사용하고 없는 영수증·보유 행에는 gap 잠금을 걸지 않는다. 기존 보유 엔티티는 refresh로 갱신하고, 장착은 보유 엔티티 변경으로 같은 부위 하나만 남긴다. 기존 외부 트랜잭션에 참여하며 장착 알림은 실제 커밋 뒤에만 발생한다.
 
-상점이 비활성인 DB에는 추가 테이블을 요구하지 않도록 OntopApplication은 기존 User/RefreshToken 패키지를 스캔하고, ShopConfiguration이 활성화될 때만 상점 엔티티와 wallet.domain.Wallet 패키지를 합친다. 다른 도메인 엔티티를 새로 추가할 때도 해당 패키지를 스캔 대상으로 등록해야 한다. 지갑 엔티티는 wallet.domain.Wallet 하나로 사용한다. 게임 판돈·정산을 연결할 때 기존 Wallet을 확장·재사용하고 같은 wallets 테이블에 별도 엔티티를 중복 생성하지 않는다. 현재 경기 재화 처리 통합 완료를 뜻하지 않는다.
+상점이 비활성인 DB에는 추가 테이블을 요구하지 않도록 OntopApplication은 기존 User/RefreshToken 패키지를 스캔하고, ShopConfiguration이 활성화될 때만 item.domain.Item·inventory.domain.UserItem·shop.persistence.ShopPurchase·wallet.domain 패키지를 합친다. 다른 도메인 엔티티를 새로 추가할 때도 해당 패키지를 스캔 대상으로 등록해야 한다. 지갑 엔티티는 wallet.domain.Wallet 하나로 사용한다. 게임 판돈·정산을 연결할 때 기존 Wallet을 확장·재사용하고 같은 wallets 테이블에 별도 엔티티를 중복 생성하지 않는다. 현재 경기 재화 처리 통합 완료를 뜻하지 않는다.
 
 외부 트랜잭션에 참여하면 외부 격리 수준을 그대로 따른다. 구매를 포함하는 공통 흐름은 READ_COMMITTED를 사용한다. 외부 REPEATABLE_READ 트랜잭션이 구매 전 읽기 스냅샷을 이미 만들었다면 이후 다른 트랜잭션의 새 영수증/보유 행은 보이지 않을 수 있다. 이는 기존 JDBC 일반 조회에도 있던 조건이며, 그 경우까지 자동 복구한다고 보장하지 않는다. 외부 트랜잭션 롤백의 원자성은 유지한다.
 
 ## 지갑 엔티티 이름·위치
 
 지갑은 `com.ssafy.ontop.wallet.domain.Wallet`이며 ERD의 `wallets` 테이블 한 행에 연결된다. 상점 전용 지갑 테이블을 따로 만들지 않는다. ShopRepository의 JPQL도 `Wallet`을 사용한다. 이름·패키지만 정리하며 기존 API·컬럼·트랜잭션·예약금·멱등성·장착 커밋 알림은 유지하고 DB 마이그레이션은 추가하지 않는다. 거래 원장은 `com.ssafy.ontop.wallet.domain.WalletTransaction`이며 기존 `wallet_transactions` 테이블에 연결된다. 현재 생성 로직은 기존 SHOP_PURCHASE 기록을 유지하며, 이 이름 정리만으로 경기·미니게임 거래 처리까지 구현된 것은 아니다.
+
+상품 엔티티는 `item/domain/Item.java` → items, 보유 엔티티는 `inventory/domain/UserItem.java` → user_items다. ShopConfiguration은 두 엔티티 패키지와 영수증·지갑 패키지를 조건부 등록한다. 구매 영수증 ShopPurchase → shop_purchases는 이미 테이블에 맞는 이름이라 유지한다. 회원·인증 엔티티와 그 서비스는 수정하지 않는다. 상품/보유 DTO의 JSON 필드와 API URL은 그대로다.
