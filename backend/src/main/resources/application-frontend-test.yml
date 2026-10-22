@@ -1,0 +1,34 @@
+# Run explicitly with local,db,frontend-test. This is not a deployment profile.
+server:
+  address: 127.0.0.1
+  port: 8080
+  servlet:
+    session:
+      cookie:
+        secure: false
+
+ontop:
+  websocket:
+    authenticated: true
+  auth:
+    allowed-origins: ${FRONTEND_ORIGIN:http://localhost:5173},http://localhost:8080
+    refresh-cookie:
+      secure: false
+  oauth:
+    frontend-callback-uri: ${AUTH_FRONTEND_CALLBACK_URI:http://localhost:5173/auth/callback}
+  world:
+    channels:
+      - channel-id: channel-1
+        name: 연동 테스트 A
+        capacity: 4
+      - channel-id: channel-2
+        name: 연동 테스트 B
+        capacity: 4
+    proximity:
+      chat-radius: 20
+      watch-radius: 20
+      tables:
+        table-6fcc18fe-a301-3142-a69f-f3f67d026d62: { x: -10, z: 18 }
+        table-69d1811f-c44e-32d4-bf72-1f4ebe5fb0dd: { x: 10, z: 18 }
+        table-c07ae818-2248-3150-8970-820b5529dfb7: { x: -10, z: 18 }
+        table-ce87bea5-89c6-3892-b08e-489bcbef8533: { x: 10, z: 18 }
