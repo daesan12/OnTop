@@ -1,6 +1,7 @@
-package com.ssafy.ontop.shop;
+package com.ssafy.ontop.shop.service;
 
-import com.ssafy.ontop.shop.persistence.ShopRepository;
+import com.ssafy.ontop.shop.domain.EquipmentChanged;
+import com.ssafy.ontop.shop.repository.ShopRepository;
 import com.ssafy.ontop.table.service.TableHub;
 import com.ssafy.ontop.world.service.WorldAppearanceGateway;
 import java.util.List;
@@ -40,8 +41,10 @@ public class ShopWorldAppearanceGateway implements WorldAppearanceGateway {
     }
 
     @EventListener
-    public void equipmentCommitted(ShopModels.EquipmentChanged event) {
+    public void equipmentCommitted(EquipmentChanged event) {
         TableHub hub = hubs.getIfAvailable();
-        if (hub != null) { hub.refreshAppearance(event.userId()); }
+        if (hub != null) {
+            hub.refreshAppearance(event.userId());
+        }
     }
 }

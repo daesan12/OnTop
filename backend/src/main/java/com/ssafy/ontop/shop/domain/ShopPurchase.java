@@ -1,6 +1,6 @@
-package com.ssafy.ontop.shop.persistence;
+package com.ssafy.ontop.shop.domain;
 
-import com.ssafy.ontop.shop.ShopModels.Purchase;
+import com.ssafy.ontop.shop.dto.PurchaseResponse;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
@@ -31,14 +31,23 @@ public class ShopPurchase {
     @Column(name = "created_at", nullable = false, columnDefinition = "TIMESTAMP(3)")
     private Instant createdAt;
 
-    protected ShopPurchase() { }
-    public ShopPurchase(long userId, String key, Purchase purchase) {
-        this.userId = userId; requestKey = key; purchaseId = purchase.purchaseId();
-        itemId = purchase.itemId(); quantity = purchase.quantity(); unitPrice = purchase.unitPrice();
-        totalPrice = purchase.totalPrice(); balanceAfter = purchase.balanceAfter();
-        userItemId = purchase.userItemId(); createdAt = Instant.now();
+    protected ShopPurchase() {
     }
-    public Purchase toPurchase() {
-        return new Purchase(purchaseId, itemId, quantity, unitPrice, totalPrice, balanceAfter, userItemId);
+
+    public ShopPurchase(long userId, String key, PurchaseResponse purchase) {
+        this.userId = userId;
+        requestKey = key;
+        purchaseId = purchase.purchaseId();
+        itemId = purchase.itemId();
+        quantity = purchase.quantity();
+        unitPrice = purchase.unitPrice();
+        totalPrice = purchase.totalPrice();
+        balanceAfter = purchase.balanceAfter();
+        userItemId = purchase.userItemId();
+        createdAt = Instant.now();
+    }
+
+    public PurchaseResponse toPurchase() {
+        return new PurchaseResponse(purchaseId, itemId, quantity, unitPrice, totalPrice, balanceAfter, userItemId);
     }
 }

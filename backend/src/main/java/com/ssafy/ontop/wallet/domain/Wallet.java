@@ -23,9 +23,23 @@ public class Wallet {
     @Column(name = "updated_at", nullable = false, columnDefinition = "TIMESTAMP(3)")
     private Instant updatedAt;
 
-    protected Wallet() { }
-    public long id() { return id; }
-    public long balance() { return balance; }
-    public long reserved() { return reserved; }
-    public void debit(long total) { balance -= total; updatedAt = Instant.now(); }
+    protected Wallet() {
+    }
+
+    public long id() {
+        return id;
+    }
+
+    public long balance() {
+        return balance;
+    }
+
+    public long reserved() {
+        return reserved;
+    }
+
+    public void debit(long total) {
+        balance -= total;
+        updatedAt = Instant.now();
+    }
 }

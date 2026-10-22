@@ -1,9 +1,11 @@
-package com.ssafy.ontop.shop;
+package com.ssafy.ontop.shop.config;
 
 import com.ssafy.ontop.inventory.domain.UserItem;
 import com.ssafy.ontop.item.domain.Item;
-import com.ssafy.ontop.shop.persistence.ShopPurchase;
-import com.ssafy.ontop.shop.persistence.ShopRepository;
+import com.ssafy.ontop.shop.domain.DuplicateEquipmentPolicy;
+import com.ssafy.ontop.shop.domain.ShopPurchase;
+import com.ssafy.ontop.shop.repository.ShopRepository;
+import com.ssafy.ontop.shop.service.ShopService;
 import com.ssafy.ontop.wallet.domain.Wallet;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
@@ -21,6 +23,6 @@ public class ShopConfiguration {
     @Bean
     ShopService shopService(ShopRepository repository, PlatformTransactionManager transactions,
             ApplicationEventPublisher events) {
-        return new ShopService(repository, transactions, events, ShopModels.DuplicateEquipmentPolicy.REJECT);
+        return new ShopService(repository, transactions, events, DuplicateEquipmentPolicy.REJECT);
     }
 }

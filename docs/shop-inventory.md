@@ -81,7 +81,7 @@ API 경로·요청·응답·동일 키 재요청은 그대로다. 의상 중복 
 
 지갑 잠금 후 refresh로 이전에 관리 중인 잔액을 갱신한다. 신규 트랜잭션은 READ_COMMITTED를 사용하고 없는 영수증·보유 행에는 gap 잠금을 걸지 않는다. 기존 보유 엔티티는 refresh로 갱신하고, 장착은 보유 엔티티 변경으로 같은 부위 하나만 남긴다. 기존 외부 트랜잭션에 참여하며 장착 알림은 실제 커밋 뒤에만 발생한다.
 
-상점이 비활성인 DB에는 추가 테이블을 요구하지 않도록 OntopApplication은 기존 User/RefreshToken 패키지를 스캔하고, ShopConfiguration이 활성화될 때만 item.domain.Item·inventory.domain.UserItem·shop.persistence.ShopPurchase·wallet.domain 패키지를 합친다. 다른 도메인 엔티티를 새로 추가할 때도 해당 패키지를 스캔 대상으로 등록해야 한다. 지갑 엔티티는 wallet.domain.Wallet 하나로 사용한다. 게임 판돈·정산을 연결할 때 기존 Wallet을 확장·재사용하고 같은 wallets 테이블에 별도 엔티티를 중복 생성하지 않는다. 현재 경기 재화 처리 통합 완료를 뜻하지 않는다.
+상점이 비활성인 DB에는 추가 테이블을 요구하지 않도록 OntopApplication은 기존 User/RefreshToken 패키지를 스캔하고, ShopConfiguration이 활성화될 때만 item.domain.Item·inventory.domain.UserItem·shop.domain.ShopPurchase·wallet.domain 패키지를 합친다. 다른 도메인 엔티티를 새로 추가할 때도 해당 패키지를 스캔 대상으로 등록해야 한다. 지갑 엔티티는 wallet.domain.Wallet 하나로 사용한다. 게임 판돈·정산을 연결할 때 기존 Wallet을 확장·재사용하고 같은 wallets 테이블에 별도 엔티티를 중복 생성하지 않는다. 현재 경기 재화 처리 통합 완료를 뜻하지 않는다.
 
 외부 트랜잭션에 참여하면 외부 격리 수준을 그대로 따른다. 구매를 포함하는 공통 흐름은 READ_COMMITTED를 사용한다. 외부 REPEATABLE_READ 트랜잭션이 구매 전 읽기 스냅샷을 이미 만들었다면 이후 다른 트랜잭션의 새 영수증/보유 행은 보이지 않을 수 있다. 이는 기존 JDBC 일반 조회에도 있던 조건이며, 그 경우까지 자동 복구한다고 보장하지 않는다. 외부 트랜잭션 롤백의 원자성은 유지한다.
 
@@ -92,3 +92,9 @@ API 경로·요청·응답·동일 키 재요청은 그대로다. 의상 중복 
 상품 엔티티는 `item/domain/Item.java` → items, 보유 엔티티는 `inventory/domain/UserItem.java` → user_items다. ShopConfiguration은 두 엔티티 패키지와 영수증·지갑 패키지를 조건부 등록한다. 구매 영수증 ShopPurchase → shop_purchases는 이미 테이블에 맞는 이름이라 유지한다. 회원·인증 엔티티와 그 서비스는 수정하지 않는다. 상품/보유 DTO의 JSON 필드와 API URL은 그대로다.
 
 2026-10-22 경기 참조 보완: WalletTransaction에 ERD의 `game_session_id`, `minigame_session_id`를 nullable `Long`으로 매핑한다. 상점 생성자는 두 값을 NULL로 유지하며 기존 API는 바뀌지 않는다. 실제 공통 원장 DB에도 BIGINT NULL 두 컬럼이 필요하다. 공통 테이블의 운영 DDL·경기 엔티티·정산 서비스는 이 변경에서 수정하지 않는다. 테스트 경계는 새 V101로 확장해 기존 V99 체크섬을 보존한다.
+
+## 코드 컨벤션에 따른 위치
+
+- 엔티티: `shop/domain/ShopPurchase.java`, `item/domain/Item.java`, `inventory/domain/UserItem.java`, `wallet/domain/Wallet.java`, `wallet/domain/WalletTransaction.java`.
+- 상점 설정·서비스·저장소는 `shop/config`, `shop/service`, `shop/repository`, 응답은 `shop/dto/*Response`로 분리한다. 응답 JSON 필드와 엔티티 테이블·컬럼은 유지한다.
+- 인증 필터가 직접 참조하는 `shop/ShopController`와 `shop/ShopException`은 호환 위치를 유지한다. 인증·회원 코드 및 필터 구현은 수정하지 않는다.

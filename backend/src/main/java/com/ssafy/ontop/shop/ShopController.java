@@ -1,9 +1,10 @@
 package com.ssafy.ontop.shop;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.ssafy.ontop.shop.service.ShopService;
+import jakarta.servlet.http.HttpServletRequest;
 import java.security.Principal;
 import java.util.Collections;
-import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Profile;
 import org.springframework.dao.DataAccessException;
@@ -22,7 +23,9 @@ import org.springframework.web.bind.annotation.RestController;
 public class ShopController {
     private final ObjectProvider<ShopService> services;
 
-    public ShopController(ObjectProvider<ShopService> services) { this.services = services; }
+    public ShopController(ObjectProvider<ShopService> services) {
+        this.services = services;
+    }
 
     @GetMapping("/api/v1/shop/items")
     public ResponseEntity<?> catalog(Principal principal) {
@@ -38,12 +41,14 @@ public class ShopController {
     @PostMapping("/api/v1/shop/purchases")
     public ResponseEntity<?> purchase(Principal principal, @RequestBody JsonNode body, HttpServletRequest request) {
         long userId = account(principal);
-        if (!body.isObject() || body.size() != 2 || !positive(body.get("itemId"))
-                || !positive(body.get("quantity")) || !body.get("quantity").canConvertToInt()) {
+        if (!body.isObject() || body.size() != 2 || !isPositive(body.get("itemId"))
+                || !isPositive(body.get("quantity")) || !body.get("quantity").canConvertToInt()) {
             throw invalid();
         }
         var keys = Collections.list(request.getHeaders("Idempotency-Key"));
-        if (keys.size() != 1 || !keys.getFirst().matches("[A-Za-z0-9_-]{1,64}")) { throw invalid(); }
+        if (keys.size() != 1 || !keys.getFirst().matches("[A-Za-z0-9_-]{1,64}")) {
+            throw invalid();
+        }
         return ok(service().purchase(userId, body.get("itemId").longValue(),
                 body.get("quantity").intValue(), keys.getFirst()));
     }
@@ -51,7 +56,9 @@ public class ShopController {
     @PatchMapping("/api/v1/users/me/equipment")
     public ResponseEntity<?> equip(Principal principal, @RequestBody JsonNode body) {
         long userId = account(principal);
-        if (!body.isObject() || body.size() != 1 || !positive(body.get("userItemId"))) { throw invalid(); }
+        if (!body.isObject() || body.size() != 1 || !isPositive(body.get("userItemId"))) {
+            throw invalid();
+        }
         return ok(service().equip(userId, body.get("userItemId").longValue()));
     }
 
@@ -64,17 +71,21 @@ public class ShopController {
     }
 
     private long account(Principal principal) {
-        if (principal == null) { throw new ShopException(401, "UNAUTHENTICATED", "로그인이 필요합니다."); }
+        if (principal == null) {
+            throw new ShopException(401, "UNAUTHENTICATED", "로그인이 필요합니다.");
+        }
         try {
             long id = Long.parseLong(principal.getName());
-            if (id <= 0) { throw new NumberFormatException(); }
+            if (id <= 0) {
+                throw new NumberFormatException();
+            }
             return id;
         } catch (NumberFormatException exception) {
             throw new ShopException(401, "UNAUTHENTICATED", "로그인이 필요합니다.");
         }
     }
 
-    private static boolean positive(JsonNode value) {
+    private static boolean isPositive(JsonNode value) {
         return value != null && value.isIntegralNumber() && value.canConvertToLong() && value.longValue() > 0;
     }
 
@@ -93,7 +104,9 @@ public class ShopController {
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
-    ResponseEntity<?> malformed() { return shopError(invalid()); }
+    ResponseEntity<?> malformed() {
+        return shopError(invalid());
+    }
 
     @ExceptionHandler({DataAccessException.class, IllegalArgumentException.class})
     ResponseEntity<?> unavailable() {

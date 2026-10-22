@@ -32,9 +32,15 @@ public class WalletTransaction {
     @Column(name = "created_at", nullable = false, columnDefinition = "TIMESTAMP(3)")
     private Instant createdAt;
 
-    protected WalletTransaction() { }
+    protected WalletTransaction() {
+    }
+
     public WalletTransaction(long walletId, long itemId, long total, String key) {
-        this.walletId = walletId; this.itemId = itemId; balanceDelta = -total;
-        transactionType = "SHOP_PURCHASE"; idempotencyKey = key; createdAt = Instant.now();
+        this.walletId = walletId;
+        this.itemId = itemId;
+        balanceDelta = -total;
+        transactionType = "SHOP_PURCHASE";
+        idempotencyKey = key;
+        createdAt = Instant.now();
     }
 }

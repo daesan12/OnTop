@@ -1,6 +1,6 @@
 package com.ssafy.ontop.item.domain;
 
-import com.ssafy.ontop.shop.ShopModels;
+import com.ssafy.ontop.shop.dto.ItemResponse;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -23,10 +23,10 @@ public class Item {
     private String name;
     @Enumerated(EnumType.STRING) @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(name = "item_type", nullable = false, length = 20)
-    private ShopModels.ItemType itemType;
+    private ItemType itemType;
     @Enumerated(EnumType.STRING) @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(name = "equip_slot", length = 20)
-    private ShopModels.EquipSlot equipSlot;
+    private EquipSlot equipSlot;
     @Column(nullable = false)
     private long price;
     @Column(name = "image_key", nullable = false)
@@ -34,10 +34,14 @@ public class Item {
     @Column(name = "is_for_sale", nullable = false)
     private boolean forSale;
 
-    protected Item() { }
-
-    public ShopModels.Item toItem() {
-        return new ShopModels.Item(id, itemCode, name, itemType, equipSlot, price, imageKey);
+    protected Item() {
     }
-    public boolean forSale() { return forSale; }
+
+    public ItemResponse toItem() {
+        return new ItemResponse(id, itemCode, name, itemType, equipSlot, price, imageKey);
+    }
+
+    public boolean isForSale() {
+        return forSale;
+    }
 }
