@@ -63,7 +63,7 @@ export default function App() {
     return <OnboardingPage onComplete={onAuthenticated} onReturnToLogin={onReturnToLogin} />
   }
   if (page === 'park' && getAuthSession()?.status === 'AUTHENTICATED') {
-    return <ParkPage onExit={onExit} exitError={exitError} />
+    return <ParkPage onExit={onExit} exitError={exitError} onAuthEnded={onReturnToLogin} />
   }
   if (page === 'checking') return <main className="auth-loading" role="status">로그인 상태 확인 중…</main>
   return <LoginPage />

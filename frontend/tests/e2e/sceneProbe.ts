@@ -1,0 +1,154 @@
+// Dev-server-only inspection helper. Never imported by production code or bundled with the app.
+import { _roots } from '@react-three/fiber'
+import {
+  Box3,
+  Mesh,
+  Vector3,
+  type BufferAttribute,
+  type InterleavedBufferAttribute,
+} from 'three'
+import {
+  environmentClock,
+  environmentConfig,
+} from '../../src/world/environmentState'
+import { resetMetrics, summarizeFrames } from '../../src/performance/metrics'
+import { useSession } from '../../src/network/worldClient'
+import { viewControls } from '../../src/world/input'
+import { setDisplayProfiles } from '../../src/network/profileBridge'
+
+function root() {
+  const canvas = document.querySelector('canvas')!
+  return _roots.get(canvas)!.store.getState()
+}
+export function sceneProbe() {
+  const { scene, camera, gl } = root(),
+    state = useSession.getState()
+  let geometryBytes = 0,
+    textureBytes = 0
+  const geometries = new Set(),
+    textures = new Set()
+  scene.traverse((object) => {
+    if (!(object instanceof Mesh)) return
+    if (!geometries.has(object.geometry)) {
+      geometries.add(object.geometry)
+      for (const a of Object.values(object.geometry.attributes) as (
+        BufferAttribute | InterleavedBufferAttribute
+      )[])
+        geometryBytes += (
+          'isInterleavedBufferAttribute' in a ? a.data.array : a.array
+        ).byteLength
+      geometryBytes += object.geometry.index?.array.byteLength ?? 0
+    }
+    for (const material of Array.isArray(object.material)
+      ? object.material
+      : [object.material])
+      for (const value of Object.values(material)) {
+        if (
+          value &&
+          typeof value === 'object' &&
+          'isTexture' in value &&
+          !textures.has(value)
+        ) {
+          textures.add(value)
+          const image = (
+            value as { image?: { width?: number; height?: number } }
+          ).image
+          if (image?.width && image.height)
+            textureBytes += (image.width * image.height * 4 * 4) / 3
+        }
+      }
+  })
+  const context = gl.getContext(),
+    debug = context.getExtension('WEBGL_debug_renderer_info')
+  return {
+    metrics: summarizeFrames(),
+    camera: camera.position.toArray(),
+    seated: !!state.tableId,
+    ownVisible: scene.getObjectByName('avatar-' + state.sessionId)?.visible,
+    remoteVisible: scene.getObjectByName('avatar-102')?.visible,
+    geometryBytesEstimate: geometryBytes,
+    textureBytesEstimate: textureBytes,
+    gpu: debug
+      ? context.getParameter(debug.UNMASKED_RENDERER_WEBGL)
+      : 'unavailable',
+    gpuTimerAvailable: !!context.getExtension(
+      'EXT_disjoint_timer_query_webgl2',
+    ),
+    hardwareConcurrency: navigator.hardwareConcurrency,
+  }
+}
+export function pointForTable(id: string) {
+  const { scene, camera, size } = root(),
+    object = scene.getObjectByName(id)
+  if (!object) throw new Error('Missing table')
+  const box = new Box3().setFromObject(object),
+    point = box.getCenter(new Vector3())
+  point.y = box.max.y - 0.3
+  point.project(camera)
+  return {
+    x: ((point.x + 1) * size.width) / 2,
+    y: ((1 - point.y) * size.height) / 2,
+  }
+}
+export function visualTime(phase: number) {
+  environmentClock.reset()
+  environmentClock.sync(
+    environmentConfig.epochMs + environmentConfig.dayDurationMs * phase,
+    performance.now(),
+  )
+}
+export function resetFrames() {
+  resetMetrics()
+}
+export function assetVisibility(on: boolean) {
+  const { scene } = root()
+  const original = scene.getObjectByName('placeholder-park')
+  if (original) original.visible = on
+}
+export function orbit(yaw: number, pitch = 0.35, distance = 6.8) {
+  Object.assign(viewControls, { yaw, pitch, distance })
+}
+export function avatarLODs() {
+  const { scene } = root()
+  return ['101', '102'].map((id) => {
+    const root = scene.getObjectByName('avatar-' + id)
+    return {
+      id,
+      visible: root?.visible,
+      near: root?.getObjectByName('near-body')?.visible,
+      far: root?.getObjectByName('far-body')?.visible,
+    }
+  })
+}
+export function fixtureProfiles() {
+  setDisplayProfiles(
+    {
+      '101': { nickname: '테스트 산책자', character: 'girl' },
+      '102': { nickname: '테스트 친구', character: 'man' },
+    },
+    { nickname: '테스트 산책자', balance: 1234 },
+  )
+}
+export async function gpuTimes(count = 8) {
+  const context = root().gl.getContext() as WebGL2RenderingContext,
+    ext = context.getExtension('EXT_disjoint_timer_query_webgl2')
+  if (!ext) return { status: 'extension unavailable', ms: [] as number[] }
+  const ms: number[] = []
+  for (let i = 0; i < count; i++) {
+    await new Promise(requestAnimationFrame)
+    const query = context.createQuery()!
+    context.beginQuery(ext.TIME_ELAPSED_EXT, query)
+    await new Promise(requestAnimationFrame)
+    context.endQuery(ext.TIME_ELAPSED_EXT)
+    for (let tries = 0; tries < 120; tries++) {
+      if (context.getQueryParameter(query, context.QUERY_RESULT_AVAILABLE)) {
+        if (!context.getParameter(ext.GPU_DISJOINT_EXT))
+          ms.push(context.getQueryParameter(query, context.QUERY_RESULT) / 1e6)
+        break
+      }
+      await new Promise(requestAnimationFrame)
+    }
+    context.deleteQuery(query)
+  }
+  return { status: ms.length ? 'available' : 'no non-disjoint samples', ms }
+}
