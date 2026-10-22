@@ -6,18 +6,22 @@ type CallbackState =
   | { status: 'success'; session: AuthSession }
   | { status: 'error'; message: string }
 
-export function AuthCallbackPage() {
+export function AuthCallbackPage({ onAuthenticated }: { onAuthenticated: () => void }) {
   const [state, setState] = useState<CallbackState>({ status: 'loading' })
 
   useEffect(() => {
     let active = true
     exchangeCallbackCode()
-      .then((session) => { if (active) setState({ status: 'success', session }) })
+      .then((session) => {
+        if (!active) return
+        if (session.status === 'AUTHENTICATED') onAuthenticated()
+        else setState({ status: 'success', session })
+      })
       .catch((error: unknown) => {
         if (active) setState({ status: 'error', message: error instanceof Error ? error.message : '로그인을 완료하지 못했습니다.' })
       })
     return () => { active = false }
-  }, [])
+  }, [onAuthenticated])
 
   const title = state.status === 'loading' ? '로그인 확인 중' : state.status === 'error'
     ? '로그인을 완료하지 못했습니다' : state.session.status === 'AUTHENTICATED'

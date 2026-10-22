@@ -4,9 +4,49 @@ export type AuthSession =
 
 let currentSession: AuthSession | null = null
 let callbackExchange: Promise<AuthSession> | null = null
+let refreshRequest: Promise<boolean> | null = null
 
 export function getAuthSession(): AuthSession | null {
   return currentSession
+}
+
+export function clearAuthSession(): void {
+  currentSession = null
+  callbackExchange = null
+  refreshRequest = null
+}
+
+export function restoreAuthSession(): Promise<boolean> {
+  if (currentSession?.status === 'AUTHENTICATED') return Promise.resolve(true)
+  if (refreshRequest) return refreshRequest
+
+  refreshRequest = fetch('/api/v1/auth/refresh', {
+    method: 'POST',
+    credentials: 'include',
+    cache: 'no-store',
+  }).then(async (response) => {
+    if (!response.ok) return false
+    const body: unknown = await response.json()
+    if (!body || typeof body !== 'object' || !('accessToken' in body) || typeof body.accessToken !== 'string') {
+      return false
+    }
+    currentSession = { status: 'AUTHENTICATED', accessToken: body.accessToken }
+    return true
+  }).catch(() => false).finally(() => {
+    refreshRequest = null
+  })
+
+  return refreshRequest
+}
+
+export async function logout(): Promise<void> {
+  const response = await fetch('/api/v1/auth/logout', {
+    method: 'POST',
+    credentials: 'include',
+    cache: 'no-store',
+  })
+  if (!response.ok) throw new Error('공원에서 나가지 못했습니다. 잠시 후 다시 시도해 주세요.')
+  clearAuthSession()
 }
 
 export function exchangeCallbackCode(): Promise<AuthSession> {
