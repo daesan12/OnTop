@@ -134,7 +134,7 @@ const purchaseBody = {mode:'raw',raw:'{\n  "itemId": {{shopItemId}},\n  "quantit
 const purchaseHeaders = [...shopAuth,{key:'Content-Type',value:'application/json'},
     {key:'Idempotency-Key',value:'{{purchaseRequestKey}}'}];
 const purchase = http('14 아이템 구매 — 새 구매 키', '/api/v1/shop/purchases', 200,
-    'SHOP-02: 실행할 때마다 새 키를 만듭니다. 같은 구매 재확인은15를 사용합니다. 실제 상품 가격으로 엽전이 차감됩니다. 테스트 계정으로 확인하세요. 의상 중복 정책은 명시 설정이며 기본값이 없습니다.',
+    'SHOP-02: 실행할 때마다 새 키를 만듭니다. 같은 구매 재확인은15를 사용합니다. 실제 상품 가격으로 엽전이 차감됩니다. 테스트 계정으로 확인하세요. 보유 의상 재구매·의상 수량1 이외는409 ITEM_ALREADY_OWNED이며 추가 차감하지 않습니다. 같은 키·같은 본문은 이전 영수증 반환, 소비형 수량 누적은 유지합니다.',
     `const body=pm.response.json(); pm.expect(body.purchaseId).to.be.a('string');
 pm.environment.set('purchaseId',body.purchaseId); pm.environment.set('userItemId',body.userItemId);`,
     purchaseBefore + `\npm.environment.set('purchaseRequestKey',pm.variables.replaceIn('{{$guid}}'));`);
@@ -149,7 +149,7 @@ const inventory = http('16 내 보유 아이템 조회', '/api/v1/users/me/items
     `pm.expect(pm.response.json().items).to.be.an('array');`,shopSetup);
 inventory.headers=shopAuth; httpItems.push(inventory);
 const equip = http('17 보유 의상 장착·변경', '/api/v1/users/me/equipment', 200,
-    'INVENTORY-02: 본인 보유 EQUIPMENT의 userItemId로 수정합니다. 같은 부위는 하나만 장착합니다. 소비형·타인 소유는 실패합니다. 내부 커밋 알림과 3D 외형 연동은 구분합니다.',
+    'INVENTORY-02: 본인 보유 EQUIPMENT의 userItemId로 수정합니다. 같은 부위는 하나만 장착합니다. 소비형·타인 소유는 실패합니다. 실제 커밋 뒤 같은 채널 본인·참가자에게 WORLD_STATE.payload.avatars[].equipment를 전송합니다. 공개 필드는 itemId/itemCode/equipSlot/imageKey만, null은 기존 외형 유지·[]는 장착 없음입니다. WS07로 채널 입장 후 이 요청을 실행하고 같은 채널 수신·다른 채널 미수신을 확인하세요. 재접속은 새 티켓→CHANNEL_JOIN 후 최신 장착을 복구합니다. 실제 3D 에셋 매핑은 별도 협의입니다.',
     `pm.expect(pm.response.json().equipment).to.be.an('array');`,
     shopSetup + `\nif(!/^[1-9][0-9]*$/.test(String(pm.environment.get('userItemId')||''))) throw new Error('장착할 본인 보유 ID를 설정하세요.');`);
 equip.method='PATCH'; equip.headers=[...shopAuth,{key:'Content-Type',value:'application/json'}];
@@ -306,7 +306,7 @@ const farkleGuide = '주사위(DICE)는 local의 ontop.games.farkle.enabled=true
     + 'privateState={},새차례첫굴림전dice=[]. BANK/BUST는바로다음차례상태를전송하며 프론트가rollId/lastEvent로연출합니다. 종료는TARGET_REACHED/RECONNECT_EXPIRED이며DB정산확정과구분합니다. ';
 wsItems[5].description += '\n\n' + farkleGuide;
 const onecardGuide = '원카드(ONE_CARD)는2~4명·54장·7장배분·서버랜덤선공이며 local의 ontop.games.onecard.enabled=true로 선택 활성화합니다. '
-    + '기권손패정책은확인대기이며 forfeit-hand-policy=REMOVE(판에서제외)/RECYCLE(덱환원셔플)을서버에서명시해야합니다. 기본값없음,미지정활성화는실패합니다. 테스트정책은제품정책확정이아닙니다. '
+    + '2026-10-22확정: 기권손패는이번경기에서제외(REMOVE)하며뽑기덱환원/셔플없음. 다음판은새덱,별도정책설정불필요. '
     + '16~21은독립예제입니다. gameId/expectedVersion은실제경기·최신버전,cardId는본인privateState.hand,targetUserId는공개players.userId로수정합니다. '
     + 'input kind=play(cardId)/draw/accept-attack/select-suit(suit=hearts,diamonds,clubs,spades)/declare-one/catch-one(targetUserId문자열). '
     + '공개상태에는players장수/활성/선언창,topCard/activeSuit,attackTotal/lastAttack,drawCount,stage(PLAYING/CHOOSE_SUIT/FINISHED),direction,extraAction,turnUserId/turnDeadline,turnCount,winnerUserIds/endReason/endedAt. '
@@ -356,7 +356,9 @@ const wsGuide = '# 근거리 채팅·관전 테스트 (20m)\n\n'
     + `기존 연결 ${wsItems.length}개와 저장 메시지 ${wsItems.reduce((sum, item) => sum + item.messages.length, 0)}개를 사용합니다.`
     + '\n\n2026-10-22: 첫 착석자가 GAME_SELECT의 DICE targetScore를2000/4000/6000 중 선택합니다. 누락 GAME_OPTIONS_REQUIRED, 잘못된 값 INVALID_PAYLOAD이며 목표 변경도 전원 준비를 해제합니다. TABLE_STATE/TABLE_WATCH_STATE/HTTP12 요약에 targetScore가 추가되고 다른 게임은null입니다. '
     + '실제 종료 후 좌석 유지·ready=false·SETTLING, 현재 경기 전체 SETTLED 확인 후 WAITING에서 다시 전원 준비하면 새 시도·경기ID로 시작합니다. 정산 알림 누락은 GAME_RESULT_CHECK 재조회로 복구하며 조회는 지급을 실행하지 않습니다. 실제 DB 잔액·원장·정산·운영 적용은 별도 통합 검증입니다.';
-const wsV3 = { name: 'OnTop WebSocket', $kind: 'collection', description: wsGuide, items: wsItems };
+const appearanceGuide = '\n\n2026-10-22 의상 동기화: local,db + ontop.shop.enabled=true. WS07의 인증 사용자 두 명이 같은 채널에 CHANNEL_JOIN 후 본인이 HTTP17로 장착하면 WORLD_STATE.payload.avatars[].equipment가 갱신됩니다. 다른 채널에는 전파하지 않습니다. 새 티켓→재접속→CHANNEL_JOIN 후 최신 장착을 복구합니다. 공개 필드는 itemId/itemCode/equipSlot/imageKey, 최대5개·부위당 하나이며 null은 미조회/사용 불가로 기존 외형 유지, []는 장착 없음입니다. 이동 tick은 캐시를 쓰고 조회 실패는 기존 외형을 유지합니다. 실제 3D 에셋 매핑·렌더링 연동은 별도 협의입니다. 예시: {"requestId":null,"type":"WORLD_STATE","payload":{"channelId":"channel-1","version":4,"avatars":[{"userId":"101","position":{"lastInputSeq":0,"x":-2.025,"y":0.84,"z":34,"yaw":0,"moving":false,"running":false,"swimming":false},"equipment":[{"itemId":1,"itemCode":"RED_TOP","equipSlot":"TOP","imageKey":"demo-red-top"}]}],"mapVersion":"544bc6fa3890c77e8de0ec91d27f93981b4d23a477918963757e4762294ba8d0"}}';
+wsItems[6].description += appearanceGuide;
+const wsV3 = { name: 'OnTop WebSocket', $kind: 'collection', description: wsGuide + appearanceGuide, items: wsItems };
 const httpV21 = {
     info: { name: httpV3.name, description: guide, schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json' },
     item: httpItems.map(item => ({
@@ -382,7 +384,7 @@ function yaml(value, indent = 0) {
 }
 const outputs = new Map([
     ['OnTop-Shop.postman_collection.json', JSON.stringify({info: {...httpV21.info, name: 'OnTop Shop',
-        description: 'SHOP-01/02 · INVENTORY-01/02. 13목록→14구매→15동일키 재요청→16보유→17장착. 18은 같은키 충돌 검사. local,db + ontop.shop.enabled=true + 공통/상점 스키마, 의상 정책 명시 설정이 필요합니다. 테스트 계정의 개인 로컬 Access JWT만 사용하고 공유하지 마세요. 기본 DB에 스키마를 자동 적용하지 않았습니다. 실제 DB 초기화·공통 재화 통합·3D 외형 계약은 별도 확인합니다.\n\n2026-10-22: 상점 저장 처리를 JPA 엔티티·JPQL로 전환했습니다. 기존 6개 요청·응답·중복 구매 방지·롤백 계약은 그대로이며 예제 수정 없이 사용할 수 있습니다.'},
+        description: 'SHOP-01/02 · INVENTORY-01/02. 13목록→14구매→15동일키 재요청→16보유→17장착. 18은 같은키 충돌 검사. local,db + ontop.shop.enabled=true + 공통/상점 스키마가 필요합니다. 보유 의상 재구매는 서버에서 거절하고 소비형은 수량을 누적합니다. 테스트 계정의 개인 로컬 Access JWT만 사용하고 공유하지 마세요. 기본 DB에 스키마를 자동 적용하지 않았습니다. 실제 DB 초기화·공통 재화 통합·3D 외형 계약은 별도 확인합니다.\n\n2026-10-22: 상점 저장 처리를 JPA 엔티티·JPQL로 전환했습니다. 기존 6개 요청·응답·중복 구매 방지·롤백 계약은 그대로이며 예제 수정 없이 사용할 수 있습니다.' + appearanceGuide},
         item: httpV21.item.slice(12)}, null, 2) + '\n'],
     ['OnTop-HTTP.postman_collection.json', JSON.stringify(httpV21, null, 2) + '\n'],
     ['OnTop-WebSocket.postman_collection.json', JSON.stringify(wsV3, null, 2) + '\n'],

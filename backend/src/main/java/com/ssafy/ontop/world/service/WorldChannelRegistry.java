@@ -94,6 +94,7 @@ public class WorldChannelRegistry implements ChannelPresence {
         Room room = rooms.get(channelId);
         room.users.remove(userId);
         room.positions.remove(userId);
+        room.equipment.remove(userId);
         room.physics.remove(userId);
         if (room.users.isEmpty()) {
             room.physics.close();
@@ -123,6 +124,21 @@ public class WorldChannelRegistry implements ChannelPresence {
 
     public synchronized WorldState worldState(String channelId) {
         return rooms.get(channelId).worldState();
+    }
+
+    public synchronized WorldState equipment(String userId, List<WorldAppearanceGateway.Equipment> equipment) {
+        String channelId = membership.get(userId);
+        if (channelId == null) { return null; }
+        var copy = List.copyOf(equipment);
+        if (copy.size() > 5 || copy.stream().map(WorldAppearanceGateway.Equipment::equipSlot).distinct().count()
+                != copy.size()) {
+            throw new IllegalArgumentException("장착 부위별 하나의 의상만 전송할 수 있습니다.");
+        }
+        Room room = rooms.get(channelId);
+        if (copy.equals(room.equipment.get(userId))) { return null; }
+        room.equipment.put(userId, copy);
+        room.worldVersion++;
+        return room.worldState();
     }
 
     /** Trusted server fixture relocation; never used by the WebSocket movement handler. */
@@ -244,6 +260,7 @@ public class WorldChannelRegistry implements ChannelPresence {
             if (!room.users.isEmpty()) {
                 room.users.clear();
                 room.positions.clear();
+                room.equipment.clear();
                 room.version++;
                 room.worldVersion++;
             }
@@ -268,7 +285,7 @@ public class WorldChannelRegistry implements ChannelPresence {
         }
     }
 
-    public record Avatar(String userId, Position position) {
+    public record Avatar(String userId, Position position, List<WorldAppearanceGateway.Equipment> equipment) {
     }
 
     public record WorldState(String channelId, long version, List<Avatar> avatars, String mapVersion) {
@@ -311,6 +328,7 @@ public class WorldChannelRegistry implements ChannelPresence {
         private final Channel definition;
         private final LinkedHashSet<String> users = new LinkedHashSet<>();
         private final Map<String, Movement> positions = new HashMap<>();
+        private final Map<String, List<WorldAppearanceGateway.Equipment>> equipment = new HashMap<>();
         private long version;
         private long worldVersion;
         private WorldPhysics physics;
@@ -327,7 +345,8 @@ public class WorldChannelRegistry implements ChannelPresence {
 
         private WorldState worldState() {
             return new WorldState(definition.channelId(), worldVersion, users.stream()
-                    .map(user -> new Avatar(user, positions.containsKey(user) ? positions.get(user).position() : null))
+                    .map(user -> new Avatar(user, positions.containsKey(user) ? positions.get(user).position() : null,
+                            equipment.get(user)))
                     .toList(), ParkScene.load().version());
         }
     }

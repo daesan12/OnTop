@@ -390,7 +390,7 @@
 
 ## 원카드 실제 입력
 
-원카드(ONE_CARD)는 play(cardId), draw, accept-attack, select-suit(suit), declare-one, catch-one(targetUserId) 여섯 kind를 사용합니다. 손패는 본인 privateState에만 전달하며 cardId는 거기서 선택합니다. 한 차례30초 후 일반1장/공격누적장수를 받고 넘깁니다. K·무늬선택·복귀는 기존 마감 유지, 선언/신고는 별도3초 반응창입니다. 기권 손패 정책은 확인 대기이며 기본값 없이 명시 설정이 필요합니다. 입력·공개/개인 상태·효과·활성화 조건은 [원카드 계약](../onecard.md)을 따릅니다.
+원카드(ONE_CARD)는 play(cardId), draw, accept-attack, select-suit(suit), declare-one, catch-one(targetUserId) 여섯 kind를 사용합니다. 손패는 본인 privateState에만 전달하며 cardId는 거기서 선택합니다. 한 차례30초 후 일반1장/공격누적장수를 받고 넘깁니다. K·무늬선택·복귀는 기존 마감 유지, 선언/신고는 별도3초 반응창입니다. 기권 손패는 2026-10-22 사용자 확정으로 이번 경기에서 제외(REMOVE)하며 뽑기 덱에 환원/셔플하지 않습니다. 다음 판은 새 덱이고 별도 정책 설정은 필요하지 않습니다. 입력·공개/개인 상태·효과·활성화 조건은 [원카드 계약](../onecard.md)을 따릅니다.
 
 ## 거짓말 다리 실제 입력
 

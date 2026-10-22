@@ -7,7 +7,7 @@
 - `local` + `ontop.websocket.authenticated=true` + `ontop.game-start.enabled=true`.
 - B가 구현한 `GameStartGateway` Bean이 필수다. 현재 저장소에는 실제 DB Gateway가 없으므로 이 옵션을 켜면 의존성 누락으로 시작에 실패한다. 기본값은 false다.
 - `ontop.start-rehearsal.enabled=true`와 동시 사용하거나 LocalGameStartGateway를 실제 시작에 사용할 수 없다.
-- 사용할 게임 엔진을 별도로 활성화한다. 오목은 `ontop.games.omok.enabled=true`. 원카드/거짓말 다리는 해당 엔진과 필수 설정이 필요하다. 원카드 기권 손패 정책에 임의 기본값을 넣지 않는다.
+- 사용할 게임 엔진을 별도로 활성화한다. 오목은 `ontop.games.omok.enabled=true`. 원카드/거짓말 다리는 해당 엔진을 활성화해야 한다. 원카드 기권 손패는 사용자 확정에 따라 REMOVE(이번 경기에서 제외)로 고정하며 별도 정책 설정은 필요하지 않다.
 - 주사위는 `ontop.games.farkle.enabled=true`와 첫 착석자가 선택한 targetScore(2000/4000/6000)가 필요하다. GAME_SELECT → 테이블 스냅샷 → 고정 GameStartCommand → 같은 경기 ID의 FarkleEngine.create로 전달한다. 미선택 목표·미설정 엔진은 차감 전에 거절한다.
 
 실제 서버 설정이나 배포 옵션은 이번 작업에서 변경하지 않는다. 테스트 전용 LedgerDouble은 실제 지갑·잔액·DB 트랜잭션이 아니다.

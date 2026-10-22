@@ -2,7 +2,7 @@
 
 2026-10-21 수신 규칙 ZIP의 rules/02_onecard.md(F1 현행)를 우선하고 상세 원카드 v1.0을 보조로 대조했다. 2~4인,54장(조커2장 포함),7장배분,랜덤선공이다. 첫 바닥은4/5/6/8/9/10. 서버가 초기덱을 섞고 유효 바닥 선택 후 남은덱도 섞는다. 4인에게 숫자카드가 모두 배분되어 바닥후보가 없으면 공개 전 초기배분만 최대8회 재시도하고 반복실패는 경기점유 없이 거절한다.
 
-**기권 손패 정책은 확인 대기**다. 임의 기본값은 두지 않았다. 활성화 시 아래 REMOVE/RECYCLE을 서버 설정으로 명시해야 하며, 테스트의 RECYCLE 설정을 제품 정책 확정으로 보지 않는다. 현재 문서/구현/검증을 그 경계와 구분한다.
+**2026-10-22 사용자 확정: 기권자의 손패는 이번 경기에서 제외한다(REMOVE).** 뽑기 덱에 돌려 넣거나 섞지 않는다. 남은 참가자는 기존 뽑기 덱으로 계속하며 다음 경기는 전체 새 덱으로 시작한다. 정식 엔진·소켓 검사·개발 시연에 같은 정책을 적용한다.
 
 ## 입력
 
@@ -51,7 +51,7 @@ GAME_CONNECTION_STATE의복구state는 `{publicState,privateState}`다. 본인�
 
 ## 활성화·정산 경계
 
-local의 `ontop.games.onecard.enabled=true` 및 필수 `ontop.games.onecard.forfeit-hand-policy=REMOVE` 또는 `RECYCLE`. REMOVE는기권손패를이번판뽑기대상에서제외,RECYCLE은뽑기덱으로돌려셔플한다. 사용자정책선택전기본값없음. 기본local은엔진꺼짐,정책누락채로활성화하면기동을거절한다.
+local의 `ontop.games.onecard.enabled=true`로 선택 활성화한다. 기권 손패는 정식 OneCardConfiguration이 REMOVE로 고정한다. 별도 forfeit-hand-policy 설정은 필요하지 않으며 제품 정책 선택에 사용하지 않는다. 기본 local은 엔진 꺼짐을 유지한다. 내부 도메인에 남은 RECYCLE 분기는 대안 알고리즘 검사 용도이며 정식 서버 설정으로 활성화하지 않는다.
 
 실제참가/차감커밋을확인한서버만 `OneCardEngine.create(gameId,tableId,List<Long> players)`를호출한다. 외부임의생성/인증우회API없음. 공유GameEngineRouter가다른게임과의중복경기를막는다. OneCardGameFinished는승패판정,DB정산/지급완료가아니다. 메모리기록이며서버재시작/다중서버영속성은별도다.
 

@@ -37,6 +37,7 @@ import com.ssafy.ontop.world.service.WorldChannelRegistry;
 import com.ssafy.ontop.world.service.WorldChatService;
 import com.ssafy.ontop.world.service.WorldEmoteService;
 import com.ssafy.ontop.world.service.WorldProximity;
+import com.ssafy.ontop.world.service.WorldAppearanceGateway;
 import jakarta.annotation.PreDestroy;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -75,6 +76,8 @@ public class TableHub {
     private final Map<String, String> tableChannels = new HashMap<>();
     private final Set<String> channelIds;
     private final Map<String, Member> members = new HashMap<>();
+    private final Map<String, AppearancePush> appearancePushes = new HashMap<>();
+    private Optional<WorldAppearanceGateway> appearances = Optional.empty();
     private final Map<String, String> seating = new HashMap<>();
     private final Map<String, String> watching = new HashMap<>();
     private final Map<String, TableStartAttempt> starts = new HashMap<>();
@@ -428,6 +431,7 @@ public class TableHub {
         watching.remove(member.userId());
         chat.disconnected(member.userId());
         emotes.disconnected(member.userId());
+        appearancePushes.remove(member.userId());
         WorldChannelRegistry.State channelState = channels.disconnect(member.userId());
         if (channelState != null) {
             publishChannel(channelState, null, null);
@@ -455,6 +459,7 @@ public class TableHub {
 
     @PreDestroy
     public synchronized void shutdown() {
+        appearancePushes.clear();
         stopped = true;
         heartbeatTimer.shutdownNow();
         members.forEach((sessionId, member) -> {
@@ -556,6 +561,71 @@ public class TableHub {
             member.peer().offer(protocol.encode(request.requestId(), "CHANNEL_STATE", change.state()));
             member.peer().offer(protocol.encode(null, "WORLD_STATE", channels.worldState(channelId)));
         }
+        refreshAppearance(member);
+    }
+
+    @Autowired
+    public void appearanceGateway(Optional<WorldAppearanceGateway> gateway) {
+        appearances = gateway;
+    }
+
+    /** 커밋 알림은 갱신 요청만 등록한다. DB 조회는 Hub 잠금 밖의 작업 스레드에서 수행한다. */
+    public synchronized void refreshAppearance(long userId) {
+        members.values().stream().filter(member -> member.accountId() != null && member.accountId() == userId)
+                .findFirst().ifPresent(this::refreshAppearance);
+    }
+
+    private void refreshAppearance(Member member) {
+        String channel = channels.channelOf(member.userId());
+        if (stopped || appearances.isEmpty() || member.accountId() == null || channel == null) { return; }
+        AppearancePush push = appearancePushes.get(member.userId());
+        if (push == null || push.member != member || !push.channel.equals(channel)) {
+            push = new AppearancePush(member, channel);
+            appearancePushes.put(member.userId(), push);
+        }
+        push.requested++;
+        if (!push.running) {
+            push.running = true;
+            AppearancePush pending = push;
+            startWorkers.execute(() -> loadAppearance(pending));
+        }
+    }
+
+    private void loadAppearance(AppearancePush push) {
+        while (true) {
+            long requested;
+            synchronized (this) {
+                if (!appearanceCurrent(push)) { return; }
+                requested = push.requested;
+            }
+            java.util.List<WorldAppearanceGateway.Equipment> equipment = null;
+            try {
+                equipment = appearances.orElseThrow().equipment(push.member.accountId());
+            } catch (RuntimeException exception) {
+                log.warn("장착 외형 조회 실패. 다음 채널 입장 또는 장착 변경 때 다시 확인합니다.");
+            }
+            synchronized (this) {
+                if (!appearanceCurrent(push)) { return; }
+                // 더 최근 커밋 알림을 받았다면 오래된 조회 결과를 보내지 않고 다시 읽는다.
+                if (requested != push.requested) { continue; }
+                push.running = false;
+                if (equipment != null) {
+                    try {
+                        var state = channels.equipment(push.member.userId(), equipment);
+                        if (state != null) { publishWorld(state, null, null); }
+                    } catch (RuntimeException exception) {
+                        log.warn("장착 외형 상태를 반영하지 못했습니다.");
+                    }
+                }
+                return;
+            }
+        }
+    }
+
+    private boolean appearanceCurrent(AppearancePush push) {
+        return !stopped && appearancePushes.get(push.member.userId()) == push
+                && members.values().stream().anyMatch(member -> member == push.member)
+                && push.channel.equals(channels.channelOf(push.member.userId()));
     }
 
     private void leaveChannel(Member member, Request request) {
@@ -563,6 +633,7 @@ public class TableHub {
             fail(request, "TABLE_BUSY", "먼저 테이블에서 퇴장해주세요.");
         }
         WorldChannelRegistry.State state = channels.leave(member.userId());
+        appearancePushes.remove(member.userId());
         clearWatch(member, null);
         clearGameWatch(member);
         member.peer().offer(protocol.encode(request.requestId(), "CHANNEL_LEFT",
@@ -1308,6 +1379,18 @@ public class TableHub {
     }
 
     private record Member(String userId, TablePeer peer, Long accountId) {
+    }
+
+    private static final class AppearancePush {
+        private final Member member;
+        private final String channel;
+        private long requested;
+        private boolean running;
+
+        private AppearancePush(Member member, String channel) {
+            this.member = member;
+            this.channel = channel;
+        }
     }
 
     private static final class StatePush {
