@@ -49,6 +49,7 @@ public final class OmokDemoApplication {
 
     @TestConfiguration(proxyBeanMethods = false)
     @Profile("omok-demo")
+    @org.springframework.context.annotation.Import(DemoSecurityConfiguration.class)
     public static class Fixture {
         @Bean
         WebSocketUserResolver demoResolver() {

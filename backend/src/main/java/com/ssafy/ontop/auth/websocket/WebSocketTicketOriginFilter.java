@@ -19,7 +19,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 @Component
 @Profile("local")
 @ConditionalOnProperty(name = "ontop.websocket.authenticated", havingValue = "true")
-@Order(-89)
+@Order(-101)
 public class WebSocketTicketOriginFilter extends OncePerRequestFilter {
 
     private final AuthExchangeOriginPolicy origins;

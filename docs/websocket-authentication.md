@@ -2,6 +2,8 @@
 
 기존 네이버·SSAFY 로그인에서 받은 **Access JWT → 30초 1회용 접속권 → 웹소켓** 순서입니다. 2026-10-21 사용자 승인, Jira S15P31B105-25. 기본 dev 임시 사용자 모드와 구분합니다.
 
+최신 dev에는 [REST 공통 인증](rest-authentication.md)의 `AccessAuthenticationService`·`AuthenticatedUser`가 추가됐다. 아래 접속권 구현은 이 기능 브랜치에 있으며, 공통 인증 Principal 매핑·인증 기본값·로그아웃/탈퇴·게스트 정책 연결은 별도 범위다.
+
 ## 실행 조건
 
 `local,db`와 `--ontop.websocket.authenticated=true`를 사용합니다. DB/JWT/OAuth 환경변수는 기존 [인증 교환](auth-exchange.md)·[DB 안내](../README.md)를 따릅니다. `db` 없는 서버에서는 계정 조회가 준비되지 않아 접속권 발급이 503입니다. 운영 프로필 공개·배포는 이번 범위가 아닙니다. 인증 모드와 start-rehearsal은 동시에 켤 수 없습니다.
@@ -59,3 +61,5 @@ CONNECTED → 필요하면 자동 GAME_CONNECTION_STATE 확인 → 채널이 설
 LoginWebSocketFlowTests는 실제 AccessJwtService 서명·검증, HTTP 발급, Raw WebSocket 연결, 착석·전원 준비·중복 차단·heartbeat 끊김·29초 복귀·30초 만료를 연결합니다. 계정 조회와 경기 생성은 테스트 대역입니다. WebSocketTicketTests는 만료·Access 남은 수명·동시 단일 소비·출처·탈퇴·상한과 DB 매핑 코드를 검사합니다. 외부 소셜 로그인·실제 MySQL 접속·정산 성공을 뜻하지 않습니다.
 
 브라우저 생성자는 URL과 프로토콜만 받습니다: [MDN](https://developer.mozilla.org/en-US/docs/Web/API/WebSocket/WebSocket). 연결 전 검증은 [Spring HandshakeInterceptor](https://docs.spring.io/spring-framework/reference/6.2/web/websocket/server.html)를 사용합니다.
+
+2026-10-22 REST 인증 병합 검증: 채널 조회 필터는 공통 AccessAuthenticationService를 재사용한다. 기존 채널/상점/접속권 preflight 처리는 공통 Security보다 먼저 실행하고, 실제 보호 REST 요청에는 공통 회원 인증도 적용한다. 광장·게임 Hub와 재접속 정책은 변경하지 않는다. 연결 후 로그아웃·탈퇴 종료 및 게스트 정책은 이번 병합에 포함하지 않는다.

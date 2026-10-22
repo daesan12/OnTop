@@ -2,6 +2,8 @@ package com.ssafy.ontop.world;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ssafy.ontop.auth.security.RestSecurityTestSupport;
+import com.ssafy.ontop.auth.service.AccessJwtService;
 import com.ssafy.ontop.world.service.ChannelPresence;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -32,8 +34,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "ontop.world.channels[1].capacity=2"
 })
 @AutoConfigureMockMvc
-@Import(ChannelQueryTests.PresenceConfiguration.class)
+@Import({ChannelQueryTests.PresenceConfiguration.class, RestSecurityTestSupport.class})
 class ChannelQueryTests {
+
+    @Autowired
+    private AccessJwtService jwt;
 
     @Autowired
     private MockMvc mvc;
@@ -61,9 +66,8 @@ class ChannelQueryTests {
         assertThat(response.getStatusCode().value()).isEqualTo(401);
         assertThat(response.getHeaders().getCacheControl()).isEqualTo("no-store");
         assertThat(response.getBody().properties()).extracting(Map.Entry::getKey)
-                .containsExactlyInAnyOrder("code", "message", "details");
-        assertThat(response.getBody().path("code").asText()).isEqualTo("UNAUTHENTICATED");
-        assertThat(response.getBody().path("details").isNull()).isTrue();
+                .containsExactlyInAnyOrder("code", "message");
+        assertThat(response.getBody().path("code").asText()).isEqualTo("AUTH_AUTHENTICATION_REQUIRED");
         assertThat(presence.reads.get()).isZero();
     }
 
@@ -116,7 +120,7 @@ class ChannelQueryTests {
     void 인원_공급자_실패를_0명_성공으로_바꾸거나_내부_오류를_노출하지_않는다() throws Exception {
         presence.fail = true;
 
-        var response = mvc.perform(get("/api/v1/channels").principal(() -> "server-authenticated-test-user"))
+        var response = mvc.perform(get("/api/v1/channels").header("Authorization", bearer()))
                 .andExpect(status().isServiceUnavailable()).andExpect(header().string("Cache-Control", "no-store"))
                 .andReturn().getResponse().getContentAsString();
 
@@ -128,16 +132,20 @@ class ChannelQueryTests {
 
     @Test
     void 조회_API로_채널을_생성할_수_없다() throws Exception {
-        mvc.perform(post("/api/v1/channels").principal(() -> "server-authenticated-test-user"))
+        mvc.perform(post("/api/v1/channels").header("Authorization", bearer()))
                 .andExpect(status().isMethodNotAllowed());
     }
 
     private JsonNode authenticatedList() throws Exception {
-        // 인증 담당이 서버 요청에 Principal을 넣는 경계만 검증한다. 실제 로그인 성공을 뜻하지 않는다.
-        var response = mvc.perform(get("/api/v1/channels").principal(() -> "server-authenticated-test-user"))
+        // 실제 Security JWT 검증을 통과하고 회원 조회만 테스트 Fixture로 대체한다.
+        var response = mvc.perform(get("/api/v1/channels").header("Authorization", bearer()))
                 .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"))
                 .andReturn().getResponse().getContentAsString();
         return mapper.readTree(response);
+    }
+
+    private String bearer() {
+        return "Bearer " + jwt.issue(RestSecurityTestSupport.USER_ID);
     }
 
     @TestConfiguration

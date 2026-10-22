@@ -2,9 +2,9 @@ package com.ssafy.ontop.world.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ssafy.ontop.auth.exception.AuthExchangeException;
-import com.ssafy.ontop.auth.service.AccessJwtService;
+import com.ssafy.ontop.auth.security.AccessAuthenticationService;
+import com.ssafy.ontop.auth.security.RestAuthenticationException;
 import com.ssafy.ontop.auth.service.AuthExchangeOriginPolicy;
-import com.ssafy.ontop.auth.websocket.WebSocketAccountLookup;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -14,7 +14,6 @@ import java.io.IOException;
 import java.security.Principal;
 import java.util.Arrays;
 import java.util.Collections;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
 import org.springframework.core.annotation.Order;
@@ -23,20 +22,18 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 @Component
 @Profile("local")
-@Order(-88)
+@Order(-101)
 public class ChannelAccessFilter extends OncePerRequestFilter {
 
-    private final AccessJwtService jwt;
-    private final ObjectProvider<WebSocketAccountLookup> accounts;
+    private final AccessAuthenticationService authentication;
     private final AuthExchangeOriginPolicy origins;
     private final ObjectMapper mapper;
     private final boolean authenticatedTables;
 
-    public ChannelAccessFilter(AccessJwtService jwt, ObjectProvider<WebSocketAccountLookup> accounts,
+    public ChannelAccessFilter(AccessAuthenticationService authentication,
             AuthExchangeOriginPolicy origins, ObjectMapper mapper,
             @Value("${ontop.websocket.authenticated:false}") boolean authenticatedTables) {
-        this.jwt = jwt;
-        this.accounts = accounts;
+        this.authentication = authentication;
         this.origins = origins;
         this.mapper = mapper;
         this.authenticatedTables = authenticatedTables;
@@ -81,8 +78,9 @@ public class ChannelAccessFilter extends OncePerRequestFilter {
 
         var authorization = Collections.list(request.getHeaders("Authorization"));
         if (authorization.isEmpty()) {
-            // 기존 서버 인증 Principal 경계는 유지한다. 미인증은 Controller에서 401 처리한다.
-            chain.doFilter(request, response);
+            // 기본 REST 모드는 공통 Security entrypoint, 기존 인증 소켓 모드는 기존 오류 계약을 유지한다.
+            if (authenticatedTables) { error(response, 401); }
+            else { chain.doFilter(request, response); }
             return;
         }
         Principal principal;
@@ -91,12 +89,10 @@ public class ChannelAccessFilter extends OncePerRequestFilter {
                 error(response, 401);
                 return;
             }
-            long userId = jwt.verify(authorization.getFirst().substring(7));
-            var lookup = accounts.getIfAvailable();
-            if (lookup == null) { error(response, 503); return; }
-            var user = lookup.findActive(userId).filter(value -> value.userId() == userId);
-            if (user.isEmpty()) { error(response, 401); return; }
-            principal = () -> Long.toString(userId);
+            principal = authentication.authenticate(authorization.getFirst().substring(7));
+        } catch (RestAuthenticationException exception) {
+            error(response, exception.error().status());
+            return;
         } catch (AuthExchangeException exception) {
             error(response, exception.error().status().value() == 401 ? 401 : 503);
             return;

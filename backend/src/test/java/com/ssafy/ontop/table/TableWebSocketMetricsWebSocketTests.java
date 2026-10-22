@@ -2,9 +2,9 @@ package com.ssafy.ontop.table;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ssafy.ontop.table.service.TableHub;
 import com.ssafy.ontop.table.service.TableHub.MetricsSnapshot;
 import com.ssafy.ontop.table.service.TableHub.TransmissionSnapshot;
+import com.ssafy.ontop.table.service.TableHub;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.util.ArrayList;
 import java.util.List;
@@ -58,7 +58,7 @@ class TableWebSocketMetricsWebSocketTests {
         assertCounts(0, 2, 2, 3);
         assertTransmission(received);
         assertThat(http.getForEntity("/actuator/metrics", String.class).getStatusCode())
-                .isEqualTo(HttpStatus.NOT_FOUND);
+                .isEqualTo(HttpStatus.UNAUTHORIZED);
         assertThat(http.getForEntity("/actuator/health", String.class).getStatusCode()).isEqualTo(HttpStatus.OK);
     }
 

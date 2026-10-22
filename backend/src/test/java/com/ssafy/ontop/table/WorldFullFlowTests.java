@@ -3,6 +3,7 @@ package com.ssafy.ontop.table;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ssafy.ontop.auth.service.AccessJwtService;
+import com.ssafy.ontop.auth.security.RestSecurityTestSupport;
 import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser;
 import com.ssafy.ontop.auth.websocket.WebSocketAccountLookup;
 import java.net.URI;
@@ -34,7 +35,7 @@ import static org.mockito.Mockito.when;
         "ontop.world.channels[1].channel-id=two", "ontop.world.channels[1].name=둘",
         "ontop.world.channels[1].capacity=3"
 })
-@Import({AuthenticatedWebSocketTests.AuthFixture.class, AllowedWatchFixture.class, FrozenWorldFixture.class})
+@Import({AuthenticatedWebSocketTests.AuthFixture.class, AllowedWatchFixture.class, FrozenWorldFixture.class, RestSecurityTestSupport.class})
 @DirtiesContext
 class WorldFullFlowTests {
 
@@ -149,7 +150,7 @@ class WorldFullFlowTests {
     private JsonNode table() throws Exception {
         try (HttpClient http = HttpClient.newHttpClient()) {
             var response = http.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port
-                    + "/api/v1/tables?channelId=one")).header("Authorization", "Bearer " + jwt.issue(101))
+                    + "/api/v1/tables?channelId=one")).header("Authorization", "Bearer " + jwt.issue(RestSecurityTestSupport.USER_ID))
                     .GET().build(), HttpResponse.BodyHandlers.ofString());
             assertThat(response.statusCode()).isEqualTo(200);
             assertThat(response.headers().firstValue("Cache-Control")).contains("no-store");

@@ -35,7 +35,7 @@ class HealthEndpointTests {
         assertThat(response.getBody().path("status").asText()).isEqualTo("UP");
         for (String endpoint : new String[]{"env", "configprops", "beans", "metrics"}) {
             assertThat(http.getForEntity("/actuator/" + endpoint, String.class).getStatusCode())
-                    .isEqualTo(HttpStatus.NOT_FOUND);
+                    .isEqualTo(HttpStatus.UNAUTHORIZED);
         }
     }
 

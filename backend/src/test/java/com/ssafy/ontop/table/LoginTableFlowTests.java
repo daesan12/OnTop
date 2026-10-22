@@ -32,6 +32,7 @@ import static org.mockito.Mockito.when;
         "ontop.world.channels[1].channel-id=channel-2", "ontop.world.channels[1].name=광장 B",
         "ontop.world.channels[1].capacity=3"
 })
+@org.springframework.context.annotation.Import(com.ssafy.ontop.auth.websocket.MemberAuthenticationFixture.class)
 class LoginTableFlowTests {
     @LocalServerPort int port;
     @Autowired AccessJwtService jwt;

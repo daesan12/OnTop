@@ -33,7 +33,7 @@ import static org.mockito.Mockito.when;
         "ontop.auth.jwt-secret-base64=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
         "ontop.websocket.heartbeat.interval=200ms", "ontop.websocket.heartbeat.timeout=2s"
 })
-@Import(FullFlowTests.Fixture.class)
+@Import({FullFlowTests.Fixture.class, com.ssafy.ontop.auth.websocket.MemberAuthenticationFixture.class})
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class LoginWebSocketFlowTests {
 

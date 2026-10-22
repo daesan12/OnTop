@@ -2,6 +2,8 @@ package com.ssafy.ontop.table;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ssafy.ontop.auth.security.RestSecurityTestSupport;
+import com.ssafy.ontop.auth.service.AccessJwtService;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -9,8 +11,10 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.annotation.DirtiesContext;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -24,7 +28,11 @@ import static org.assertj.core.api.Assertions.assertThat;
         "ontop.world.channels[1].capacity=4"
 })
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
+@Import(RestSecurityTestSupport.class)
 class ChannelTableWebSocketTests {
+
+    @Autowired
+    private AccessJwtService jwt;
 
     @LocalServerPort
     private int port;
@@ -133,6 +141,7 @@ class ChannelTableWebSocketTests {
 
     private HttpResponse<String> query(HttpClient http, String query) throws Exception {
         return http.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/api/v1/tables" + query))
+                        .header("Authorization", "Bearer " + jwt.issue(RestSecurityTestSupport.USER_ID))
                 .timeout(Duration.ofSeconds(5)).GET().build(), HttpResponse.BodyHandlers.ofString());
     }
 }

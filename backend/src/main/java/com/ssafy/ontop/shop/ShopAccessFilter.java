@@ -23,7 +23,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 @Component
 @Profile("local")
-@Order(-87)
+@Order(-101)
 public class ShopAccessFilter extends OncePerRequestFilter {
     private static final Set<String> PATHS = Set.of("/api/v1/shop/items", "/api/v1/shop/purchases",
             "/api/v1/users/me/items", "/api/v1/users/me/equipment");

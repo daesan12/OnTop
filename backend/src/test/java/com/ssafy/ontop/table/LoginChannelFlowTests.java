@@ -28,6 +28,7 @@ import static org.mockito.Mockito.when;
         "ontop.world.channels[0].channel-id=channel-1", "ontop.world.channels[0].name=검증 채널",
         "ontop.world.channels[0].capacity=1"
 })
+@org.springframework.context.annotation.Import(com.ssafy.ontop.auth.websocket.MemberAuthenticationFixture.class)
 class LoginChannelFlowTests {
 
     @LocalServerPort int port;

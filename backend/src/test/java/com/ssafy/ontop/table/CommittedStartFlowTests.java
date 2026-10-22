@@ -50,7 +50,7 @@ import static org.mockito.Mockito.when;
         "ontop.websocket.heartbeat.timeout=2s",
         "ontop.auth.jwt-secret-base64=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
 })
-@Import({CommittedStartFlowTests.Fixture.class, OmokFlowTests.Fixture.class})
+@Import({CommittedStartFlowTests.Fixture.class, OmokFlowTests.Fixture.class, com.ssafy.ontop.auth.websocket.MemberAuthenticationFixture.class})
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class CommittedStartFlowTests {
     private static final String GAME = "committed-test-game";

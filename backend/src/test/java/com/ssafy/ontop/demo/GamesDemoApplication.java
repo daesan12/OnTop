@@ -58,6 +58,7 @@ public final class GamesDemoApplication {
 
     @TestConfiguration(proxyBeanMethods=false)
     @Profile("local & games-demo")
+    @org.springframework.context.annotation.Import(DemoSecurityConfiguration.class)
     public static class Fixture {
         @Bean WebSocketUserResolver gamesDemoResolver() {
             return principal -> principal instanceof DemoPrincipal player

@@ -26,6 +26,7 @@ import static org.mockito.Mockito.when;
         "spring.profiles.active=local",
         "ontop.auth.jwt-secret-base64=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
 })
+@org.springframework.context.annotation.Import(com.ssafy.ontop.auth.websocket.MemberAuthenticationFixture.class)
 class ShopHttpTests {
     @LocalServerPort int port;
     @Autowired AccessJwtService jwt;
