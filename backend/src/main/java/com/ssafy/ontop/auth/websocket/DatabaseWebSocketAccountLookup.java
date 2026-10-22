@@ -1,26 +1,30 @@
 package com.ssafy.ontop.auth.websocket;
 
-import com.ssafy.ontop.user.repository.UserRepository;
+import com.ssafy.ontop.auth.security.AccessAuthenticationService;
+import com.ssafy.ontop.auth.security.RestAuthenticationException;
 import java.util.Optional;
-import org.springframework.context.annotation.Profile;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 @Service
-@Profile("db")
 public class DatabaseWebSocketAccountLookup implements WebSocketAccountLookup {
 
-    private final UserRepository users;
+    private final AccessAuthenticationService authentication;
 
-    public DatabaseWebSocketAccountLookup(UserRepository users) {
-        this.users = users;
+    public DatabaseWebSocketAccountLookup(AccessAuthenticationService authentication) {
+        this.authentication = authentication;
     }
 
     @Override
-    @Transactional(readOnly = true)
     public Optional<VerifiedWebSocketUser> findActive(long userId) {
-        return users.findById(userId).filter(user -> user.getDeletedAt() == null)
-                .map(user -> new VerifiedWebSocketUser(user.getId(),
-                        VerifiedWebSocketUser.Provider.valueOf(user.getLoginProvider().name())));
+        try {
+            return Optional.of(VerifiedWebSocketUser.from(authentication.requireActive(userId)));
+        } catch (RestAuthenticationException exception) {
+            if (exception.error() == RestAuthenticationException.Error.MEMBER_CHANGED) {
+                return Optional.empty();
+            }
+            throw new WebSocketTicketException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "WS_ACCOUNT_UNAVAILABLE");
+        }
     }
 }

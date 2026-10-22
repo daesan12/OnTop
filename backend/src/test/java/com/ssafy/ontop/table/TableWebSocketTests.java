@@ -28,6 +28,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @ActiveProfiles("local")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@org.springframework.test.context.TestPropertySource(properties = "ontop.websocket.authenticated=false")
 class TableWebSocketTests {
 
     private final ObjectMapper mapper = new ObjectMapper();

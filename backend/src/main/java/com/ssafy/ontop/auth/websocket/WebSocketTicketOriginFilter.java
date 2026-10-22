@@ -11,14 +11,12 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.Arrays;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.context.annotation.Profile;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 @Component
-@Profile("local")
-@ConditionalOnProperty(name = "ontop.websocket.authenticated", havingValue = "true")
+@ConditionalOnProperty(name = "ontop.websocket.authenticated", havingValue = "true", matchIfMissing = true)
 @Order(-101)
 public class WebSocketTicketOriginFilter extends OncePerRequestFilter {
 

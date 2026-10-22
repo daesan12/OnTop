@@ -35,6 +35,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 })
 @AutoConfigureMockMvc
 @Import({ChannelQueryTests.PresenceConfiguration.class, RestSecurityTestSupport.class})
+@org.springframework.test.context.TestPropertySource(properties = "ontop.websocket.authenticated=false")
 class ChannelQueryTests {
 
     @Autowired

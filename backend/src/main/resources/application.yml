@@ -10,6 +10,8 @@ spring:
       mode: never
 
 ontop:
+  websocket:
+    authenticated: ${WEBSOCKET_AUTHENTICATED:true}
   auth:
     jwt-secret-base64: ${AUTH_JWT_SECRET_BASE64:}
     jwt-issuer: ${AUTH_JWT_ISSUER:ontop}

@@ -29,6 +29,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 @Import(RestSecurityTestSupport.class)
+@org.springframework.test.context.TestPropertySource(properties = "ontop.websocket.authenticated=false")
 class WorldChannelWebSocketTests {
 
     @Autowired

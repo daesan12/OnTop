@@ -19,8 +19,8 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ActiveProfiles;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -30,6 +30,7 @@ import static org.assertj.core.api.Assertions.assertThat;
         "ontop.start-rehearsal.enabled=true", "ontop.start-rehearsal.delay-millis=0",
         "ontop.start-rehearsal.countdown-millis=60000"
 })
+@org.springframework.test.context.TestPropertySource(properties = "ontop.websocket.authenticated=false")
 class GameStartWebSocketTests {
 
     private final ObjectMapper mapper = new ObjectMapper();

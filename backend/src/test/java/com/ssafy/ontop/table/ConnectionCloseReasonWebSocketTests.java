@@ -21,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
         "ontop.websocket.heartbeat.interval=100ms", "ontop.websocket.heartbeat.timeout=1s"
 })
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
+@org.springframework.test.context.TestPropertySource(properties = "ontop.websocket.authenticated=false")
 class ConnectionCloseReasonWebSocketTests {
 
     @LocalServerPort

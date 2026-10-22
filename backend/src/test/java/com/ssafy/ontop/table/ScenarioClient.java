@@ -43,6 +43,12 @@ final class ScenarioClient implements AutoCloseable {
     }
 
     ScenarioClient(int port, String login, String ticket, String origin) throws Exception {
+        this(port, login, ticket, origin,
+                origin == null ? "127.0.0.1:" + port : java.net.URI.create(origin).getAuthority());
+    }
+
+    // Host를 Origin에서 자동 생성하는 기존 대역과 달리 실제 교차 출처/프록시 요청을 재현한다.
+    ScenarioClient(int port, String login, String ticket, String origin, String authority) throws Exception {
         userId = switch (login) { case "naver" -> "101"; case "ssafy" -> "202"; case "spectator" -> "505";
             default -> login; };
         socket = new Socket("127.0.0.1", port);
@@ -52,7 +58,6 @@ final class ScenarioClient implements AutoCloseable {
             socket.setSoTimeout(5000);
             String path = ticket == null ? "/ws/tables" : "/ws/tables?ticket=" + ticket;
             String authentication = ticket == null ? "X-Test-Login: " + login + "\r\n" : "";
-            String authority = origin == null ? "127.0.0.1:" + port : java.net.URI.create(origin).getAuthority();
             String originHeader = origin == null ? "" : "Origin: " + origin + "\r\n";
             String headers = "GET " + path + " HTTP/1.1\r\nHost: " + authority
                     + "\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13"
