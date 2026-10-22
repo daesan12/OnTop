@@ -2,7 +2,9 @@ package com.ssafy.ontop.user.dto;
 
 import com.ssafy.ontop.auth.service.AccessJwtService;
 import com.ssafy.ontop.user.domain.CharacterGender;
+import io.swagger.v3.oas.annotations.media.Schema;
 
+@Schema(requiredProperties = {"userId", "nickname", "characterGender", "accessToken", "tokenType", "expiresIn"})
 public record UserOnboardingResponse(long userId, String nickname, CharacterGender characterGender,
         String accessToken, String tokenType, long expiresIn) {
 

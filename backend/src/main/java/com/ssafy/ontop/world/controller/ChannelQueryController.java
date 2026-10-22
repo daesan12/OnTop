@@ -1,6 +1,14 @@
 package com.ssafy.ontop.world.controller;
 
+import com.ssafy.ontop.auth.dto.AuthErrorResponse;
 import com.ssafy.ontop.world.service.ChannelQueryService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import java.security.Principal;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,6 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @Profile("local")
+@Tag(name = "Channel")
 public class ChannelQueryController {
 
     private static final Logger log = LoggerFactory.getLogger(ChannelQueryController.class);
@@ -23,6 +32,18 @@ public class ChannelQueryController {
         this.service = service;
     }
 
+    @Operation(summary = "채널 목록 조회 (local)", description = "local 프로필에서만 등록되는 실제 채널/현재 인원 조회입니다. 입장/예약하지 않습니다. 인증은 기존 ChannelAccessFilter와 REST 보안 정책을 따릅니다. 운영 프로필 전환은 미완료입니다.",
+            security = {@SecurityRequirement(name = "AccessJwt")})
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "성공 (Cache-Control: no-store)",
+                content = @Content(mediaType = "application/json", schema = @Schema(implementation = com.ssafy.ontop.world.dto.ChannelListResponse.class))),
+        @ApiResponse(responseCode = "401", description = "UNAUTHENTICATED 또는 REST 인증 오류",
+                content = @Content(mediaType = "application/json", schema = @Schema(implementation = AuthErrorResponse.class))),
+        @ApiResponse(responseCode = "403", description = "FORBIDDEN 또는 REST 인가 오류",
+                content = @Content(mediaType = "application/json", schema = @Schema(implementation = AuthErrorResponse.class))),
+        @ApiResponse(responseCode = "503", description = "SERVICE_UNAVAILABLE 또는 REST 회원 조회 장애",
+                content = @Content(mediaType = "application/json", schema = @Schema(implementation = AuthErrorResponse.class)))
+    })
     @GetMapping("/api/v1/channels")
     public ResponseEntity<?> listChannels(Principal principal) {
         // 인증 담당이 서버 요청에 설정한 Principal만 사용한다. 헤더·userId·Principal 이름을 파싱하지 않는다.

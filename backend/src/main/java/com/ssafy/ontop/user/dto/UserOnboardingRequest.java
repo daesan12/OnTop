@@ -4,8 +4,14 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.ssafy.ontop.user.domain.CharacterGender;
 import com.ssafy.ontop.user.exception.UserOnboardingException;
 import com.ssafy.ontop.user.validation.NicknameValidator;
+import io.swagger.v3.oas.annotations.media.Schema;
 
-public record UserOnboardingRequest(String nickname, CharacterGender characterGender) {
+@Schema(additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+public record UserOnboardingRequest(
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
+                minLength = 2, maxLength = 8, pattern = "[가-힣A-Za-z0-9]{2,8}", example = "미지") String nickname,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
+                example = "FEMALE") CharacterGender characterGender) {
 
     public UserOnboardingRequest {
         NicknameValidator.validate(nickname);

@@ -9,6 +9,19 @@ spring:
     init:
       mode: never
 
+# 기본/운영에서는 문서 리소스를 등록하지 않는다.
+springdoc:
+  api-docs:
+    enabled: false
+    version: OPENAPI_3_0
+  swagger-ui:
+    enabled: false
+    persist-authorization: false
+    with-credentials: true
+    disable-swagger-default-url: true
+  override-with-generic-response: false
+  paths-to-match: /api/v1/**
+
 ontop:
   websocket:
     authenticated: ${WEBSOCKET_AUTHENTICATED:true}
@@ -68,3 +81,14 @@ spring:
       - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
       - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
       - org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration
+
+---
+spring:
+  config:
+    activate:
+      on-profile: "(local | dev) & !prod & !production"
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
