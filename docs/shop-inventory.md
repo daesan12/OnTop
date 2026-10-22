@@ -39,7 +39,7 @@ JPA EntityManager·JPQL 저장소를 사용한다. 지갑 PESSIMISTIC_WRITE(MySQ
 
 같은 사용자·같은 키의 다른 itemId/quantity는409 IDEMPOTENCY_CONFLICT다. 계정별 키 범위는 독립이고 대소문자를 구분한다. 공통 원장 키는 shop:사용자:SHA256(키)로 만들어 원장 문자열 collation의 대소문자 병합을 피한다. 영수증 UNIQUE(user_id,request_key)는 ascii_bin이다.
 
-404 ITEM_NOT_FOUND,409 INSUFFICIENT_BALANCE/WALLET_NOT_READY/ITEM_ALREADY_OWNED/SHOP_POLICY_REQUIRED,400 QUANTITY_TOO_LARGE. 의상 중복 구매는 사용자 정책이 미확정이라 ontop.shop.duplicate-equipment-policy=REJECT 또는 STACK을 명시해야 한다. 미설정 의상 구매는 차감 전 거절하고 소비형은 진행 가능하다. REJECT는 의상 수량1·기보유 거절, STACK은 보유 수량 합산이며 두 방식 모두 검증했다. 테스트/시연의 REJECT는 팀 정책 확정이 아니다.
+404 ITEM_NOT_FOUND,409 INSUFFICIENT_BALANCE/WALLET_NOT_READY/ITEM_ALREADY_OWNED,400 QUANTITY_TOO_LARGE. **2026-10-22 사용자 확정: 보유 의상은 중복 구매 거절(REJECT).** 의상은 수량1만 구매 가능하며 기보유 재구매/다른 수량은 차감·원장·보유 변경 전에409 ITEM_ALREADY_OWNED다. 같은 구매 키·같은 본문 재요청은 이전 영수증을 반환하므로 중복 구매로 거절하지 않는다. 소비형은 수량을 누적한다. 정식 ShopConfiguration에서 REJECT로 고정하며 별도 duplicate-equipment-policy 설정은 필요하지 않다. 내부 STACK/미지정 방어 분기는 정식 서버 설정으로 활성화하지 않는다. 기존 보유 수량을 자동 정리하거나 DB를 변경하지 않는다.
 
 ## INVENTORY-01 · GET /api/v1/users/me/items
 
@@ -53,7 +53,9 @@ JPA EntityManager·JPQL 저장소를 사용한다. 지갑 PESSIMISTIC_WRITE(MySQ
 
 본인 소유·EQUIPMENT·유효 장착 부위를 검사하고 같은 부위의 기존 의상을 해제한 뒤 선택 의상을 장착한다. 응답 `{equipment:[{userItemId,item:{상품 필드},quantity,equipped:true}]}`는 전체 장착 목록이다. 타인/없는 보유404 OWNED_ITEM_NOT_FOUND, 소비형409 ITEM_NOT_EQUIPPABLE. 동시 장착도 같은 지갑 행으로 직렬화해 같은 부위 하나만 유지한다. 동일 의상 재장착은 추가 차감하지 않는다.
 
-커밋 뒤 내부 EquipmentChanged(userId)를 발행하며 외부 트랜잭션이 롤백되면 알리지 않는다. 알림 리스너 실패를 이미 저장된 장착 실패로 응답하지 않는다. 2026-10-22 사용자가 REST 장착 저장 성공 후 같은 채널에 웹소켓으로 변경을 알리는 방식을 선택했다. 최초 입장·재접속 때 최신 장착 상태 복구도 필요하다. 이는 확정된 방향이며 현재 외형 전파 구현 완료를 뜻하지 않는다. 3D 에셋 매핑·WS 메시지와 필드 계약은 별도 확인이며 신규 WS 메시지/의상 해제·소비 API를 임의 추가하지 않았다.
+커밋 뒤 내부 EquipmentChanged(userId)를 발행하며 외부 트랜잭션이 롤백되면 알리지 않는다. 알림 리스너 실패를 이미 저장된 장착 실패로 응답하지 않는다. ShopWorldAppearanceGateway가 TableHub의 비동기 갱신을 요청하고, 별도 읽기 전용 READ_COMMITTED 트랜잭션으로 최신 장착을 조회한다. Hub 잠금 밖에서 조회한 뒤 같은 연결·채널·최신 요청인지 확인해 캐시에 반영하고 같은 채널의 본인·다른 참가자에게 WORLD_STATE를 전송한다. 최초·반복 CHANNEL_JOIN 및 재접속 후 CHANNEL_JOIN도 최신 상태를 조회한다. 이동 tick마다 DB를 조회하지 않으며 조회 실패는 기존 캐시를 유지한다.
+
+공개 필드는 `WORLD_STATE.payload.avatars[].equipment`이며 itemId·itemCode·equipSlot·imageKey만 최대5개 전달한다. null은 아직 조회되지 않았거나 기능 비활성/조회 실패인 상태이므로 기존 외형을 지우지 않는다. []는 조회 성공·장착 없음이다. 가격·보유 ID·수량은 공개하지 않는다. 기존 REST 응답은 그대로다. [메시지 계약](world-websocket-api.md#의상-변경-동기화)을 참고한다. 실제 3D 에셋 매핑·프론트 렌더링 연동은 별도 협의이며 신규 WS 요청/의상 해제·소비 API는 추가하지 않았다.
 
 ## DB 연결 경계
 
@@ -69,11 +71,13 @@ JPA EntityManager·JPQL 저장소를 사용한다. 지갑 PESSIMISTIC_WRITE(MySQ
 
 Java21 Wrapper mysqlTest --tests '*ShopMySqlTests': 별도 MySQL8.4에서 실제 JWT/HTTP/SQL·중복8요청·동시 잔액·롤백·예약금·장착·커밋 후 알림을 검사한다. ShopHttpTests는 인증·불허 출처·잘못된 본문/키를 검사한다. 기존 users/auth MySQL suite와 다른 DB를 사용한다.
 
+WorldAppearanceMySqlTests는 장착·광장·테이블을 연결해 확인한다. 실제 JWT/접속권·HTTP 장착·Raw WebSocket으로 이동 입력 수락→착석/전원 준비→착석 중 의상 교체(테이블 상태 유지)→heartbeat 단절→새 티켓/채널 입장·최신 의상 복구→재착석·재준비를 검증한다. 대기 좌석은 단절 시 정리되며 외형 복구가 자동 착석/준비를 뜻하지 않는다. 물리는 시간 고정 fixture이며 경기 DB 차감·정산·실제3D 렌더링 검증과 구분한다. 실행·확인 범위는 [통합 검사](flow-test.md#실제-db-의상테이블-통합-검증)를 따른다.
+
 테스트 클래스패스의 shopDemo는 loopback 전용 ontop_shop_test_demo* DB만 허용하고 http://127.0.0.1:18083/dev/shop 화면을 제공한다. 100엽전·3개 상품·시연 계정만 초기화하며 실제 REST를 호출한다. 운영 JAR에 화면·테스트 계정·우회 인증을 포함하지 않는다. 의상 REJECT는 시연 조건이다. DB_URL/DB_USERNAME/DB_PASSWORD와 검증용 AUTH_JWT_SECRET_BASE64가 필요하며 원문을 캡처/공유하지 않는다.
 
 ## 2026-10-22 JPA 전환
 
-API 경로·요청·응답·오류·동일 키 재요청·미확정 의상 정책은 그대로다. ShopService → ShopRepository(EntityManager/JPQL) → Item/UserItem/ShopPurchase/Wallet/WalletTransaction 순서로 읽는다. SQL 마이그레이션은 계속 Flyway가 관리하고 JPA ddl-auto=validate를 유지한다.
+API 경로·요청·응답·동일 키 재요청은 그대로다. 의상 중복 정책은 위 2026-10-22 사용자 확정 REJECT를 따른다. ShopService → ShopRepository(EntityManager/JPQL) → Item/UserItem/ShopPurchase/Wallet/WalletTransaction 순서로 읽는다. SQL 마이그레이션은 계속 Flyway가 관리하고 JPA ddl-auto=validate를 유지한다.
 
 지갑 잠금 후 refresh로 이전에 관리 중인 잔액을 갱신한다. 신규 트랜잭션은 READ_COMMITTED를 사용하고 없는 영수증·보유 행에는 gap 잠금을 걸지 않는다. 기존 보유 엔티티는 refresh로 갱신하고, 장착은 보유 엔티티 변경으로 같은 부위 하나만 남긴다. 기존 외부 트랜잭션에 참여하며 장착 알림은 실제 커밋 뒤에만 발생한다.
 

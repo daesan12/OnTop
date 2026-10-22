@@ -5,7 +5,6 @@ import com.ssafy.ontop.item.domain.Item;
 import com.ssafy.ontop.shop.persistence.ShopPurchase;
 import com.ssafy.ontop.shop.persistence.ShopRepository;
 import com.ssafy.ontop.wallet.domain.Wallet;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.context.ApplicationEventPublisher;
@@ -21,10 +20,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 public class ShopConfiguration {
     @Bean
     ShopService shopService(ShopRepository repository, PlatformTransactionManager transactions,
-            ApplicationEventPublisher events,
-            @Value("${ontop.shop.duplicate-equipment-policy:}") String duplicatePolicy) {
-        var policy = duplicatePolicy.isBlank() ? null
-                : ShopModels.DuplicateEquipmentPolicy.valueOf(duplicatePolicy);
-        return new ShopService(repository, transactions, events, policy);
+            ApplicationEventPublisher events) {
+        return new ShopService(repository, transactions, events, ShopModels.DuplicateEquipmentPolicy.REJECT);
     }
 }

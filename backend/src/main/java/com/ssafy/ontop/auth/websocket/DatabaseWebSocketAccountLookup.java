@@ -16,9 +16,9 @@ public class DatabaseWebSocketAccountLookup implements WebSocketAccountLookup {
     }
 
     @Override
-    public Optional<VerifiedWebSocketUser> findActive(long userId) {
+    public Optional<VerifiedWebSocketUser> findActive(long userId, String sessionId) {
         try {
-            return Optional.of(VerifiedWebSocketUser.from(authentication.requireActive(userId)));
+            return Optional.of(VerifiedWebSocketUser.from(authentication.requireActive(userId, sessionId)));
         } catch (RestAuthenticationException exception) {
             if (exception.error() == RestAuthenticationException.Error.MEMBER_CHANGED) {
                 return Optional.empty();

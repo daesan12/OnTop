@@ -48,7 +48,7 @@ public class OnboardingTokenStore {
         return raw;
     }
 
-    // USER-05 전용 검증 경계다. 일반 Access JWT 검증자와 연결하지 않는다.
+    // USER-04/05 전용 검증 경계다. 일반 Access JWT 검증자와 연결하지 않는다.
     public synchronized OAuthIdentity verify(String token) {
         return pending(token).identity();
     }

@@ -19,6 +19,7 @@ import java.util.Base64;
 import java.util.BitSet;
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
@@ -37,9 +38,12 @@ public class AccessJwtService {
         this.clock = clock;
     }
 
-    public String issue(long userId) {
+    public String issue(long userId, String sessionId) {
         if (userId <= 0) {
             throw new AuthExchangeException(AuthExchangeException.Error.MEMBER_CHANGED);
+        }
+        if (!validSessionId(sessionId)) {
+            throw invalid();
         }
         byte[] key = signingKey();
         Instant now = clock.instant().truncatedTo(ChronoUnit.SECONDS);
@@ -47,7 +51,8 @@ public class AccessJwtService {
                 new JWTClaimsSet.Builder().issuer(properties.jwtIssuer()).audience(AUDIENCE)
                         .subject(Long.toString(userId)).issueTime(Date.from(now)).notBeforeTime(Date.from(now))
                         .expirationTime(Date.from(now.plusSeconds(LIFETIME_SECONDS)))
-                        .jwtID(OpaqueTokens.generate(random)).claim("token_use", "access").build());
+                        .jwtID(OpaqueTokens.generate(random)).claim("token_use", "access")
+                        .claim("sid", sessionId).build());
         try {
             token.sign(new MACSigner(key));
             return token.serialize();
@@ -91,16 +96,29 @@ public class AccessJwtService {
                 throw invalid();
             }
             long userId = Long.parseLong(claims.getSubject());
-            if (userId <= 0) {
+            String sessionId = claims.getStringClaim("sid");
+            if (userId <= 0 || !validSessionId(sessionId)) {
                 throw invalid();
             }
-            return new VerifiedAccess(userId, expires.toInstant());
+            return new VerifiedAccess(userId, sessionId, expires.toInstant());
         } catch (ParseException | JOSEException | IllegalArgumentException exception) {
             throw invalid();
         }
     }
 
-    public record VerifiedAccess(long userId, Instant expiresAt) {
+    public record VerifiedAccess(long userId, String sessionId, Instant expiresAt) {
+        @Override
+        public String toString() {
+            return "VerifiedAccess[redacted]";
+        }
+    }
+
+    private boolean validSessionId(String value) {
+        try {
+            return value != null && UUID.fromString(value).toString().equals(value);
+        } catch (IllegalArgumentException exception) {
+            return false;
+        }
     }
 
     private byte[] signingKey() {

@@ -2,12 +2,13 @@ package com.ssafy.ontop.table;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser;
+import com.ssafy.ontop.auth.security.TestLoginSessions;
 import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser.Provider;
+import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser;
 import com.ssafy.ontop.game.reconnect.GameReconnectService;
 import com.ssafy.ontop.game.state.GameStateGateway;
-import com.ssafy.ontop.game.state.GameStateView;
 import com.ssafy.ontop.game.state.GameStateView.Role;
+import com.ssafy.ontop.game.state.GameStateView;
 import com.ssafy.ontop.table.dto.TableProtocol;
 import com.ssafy.ontop.table.service.TableHub;
 import com.ssafy.ontop.world.config.WorldChannelProperties;
@@ -200,7 +201,7 @@ class GameStateTests {
         if (userId == null) {
             hub.connect(session);
         } else {
-            assertThat(hub.connectAuthenticated(session, new VerifiedWebSocketUser(userId, Provider.NAVER))).isTrue();
+            assertThat(hub.connectAuthenticated(session, new VerifiedWebSocketUser(userId, Provider.NAVER, TestLoginSessions.ID))).isTrue();
         }
         assertThat(peer.next().path("type").asText()).isEqualTo("CONNECTED");
         return peer;

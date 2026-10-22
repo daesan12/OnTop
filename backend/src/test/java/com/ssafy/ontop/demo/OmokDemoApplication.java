@@ -1,6 +1,7 @@
 package com.ssafy.ontop.demo;
 
 import com.ssafy.ontop.OntopApplication;
+import com.ssafy.ontop.auth.security.TestLoginSessions;
 import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser;
 import com.ssafy.ontop.auth.websocket.WebSocketUserResolver;
 import com.ssafy.ontop.game.omok.service.OmokEngine;
@@ -55,7 +56,7 @@ public final class OmokDemoApplication {
         WebSocketUserResolver demoResolver() {
             return principal -> principal instanceof DemoPrincipal player
                     ? Optional.of(new VerifiedWebSocketUser(player.id(), player.id() == 202
-                            ? VerifiedWebSocketUser.Provider.SSAFY : VerifiedWebSocketUser.Provider.NAVER))
+                            ? VerifiedWebSocketUser.Provider.SSAFY : VerifiedWebSocketUser.Provider.NAVER, TestLoginSessions.ID))
                     : Optional.empty();
         }
 

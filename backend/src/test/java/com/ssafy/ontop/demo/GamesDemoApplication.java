@@ -1,6 +1,7 @@
 package com.ssafy.ontop.demo;
 
 import com.ssafy.ontop.OntopApplication;
+import com.ssafy.ontop.auth.security.TestLoginSessions;
 import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser;
 import com.ssafy.ontop.auth.websocket.WebSocketUserResolver;
 import com.ssafy.ontop.game.bridge.service.BridgeEngine;
@@ -49,8 +50,7 @@ public final class GamesDemoApplication {
                 "--spring.profiles.active=local,games-demo","--server.address=127.0.0.1","--server.port=18082",
                 "--ontop.websocket.authenticated=true","--ontop.start-rehearsal.enabled=false",
                 "--ontop.games.farkle.enabled=true","--ontop.games.onecard.enabled=true","--ontop.games.bridge.enabled=true",
-                // 미확정 제품 정책이 아니라 이 테스트 서버의 조건이다.
-                "--ontop.games.onecard.forfeit-hand-policy=RECYCLE",
+                // 기권 손패 제외는 정식 엔진과 같은 확정 정책이다.
                 "--ontop.world.channels[0].channel-id="+CHANNEL,"--ontop.world.channels[0].name=게임 검증",
                 "--ontop.world.channels[0].capacity=10",
                 "--ontop.world.proximity.tables["+TABLE+"].x=-2.025","--ontop.world.proximity.tables["+TABLE+"].z=34");
@@ -63,7 +63,7 @@ public final class GamesDemoApplication {
         @Bean WebSocketUserResolver gamesDemoResolver() {
             return principal -> principal instanceof DemoPrincipal player
                     ? Optional.of(new VerifiedWebSocketUser(player.id(),player.id()==202
-                        ? VerifiedWebSocketUser.Provider.SSAFY : VerifiedWebSocketUser.Provider.NAVER)) : Optional.empty();
+                        ? VerifiedWebSocketUser.Provider.SSAFY : VerifiedWebSocketUser.Provider.NAVER, TestLoginSessions.ID)) : Optional.empty();
         }
         @Bean FilterRegistrationBean<OncePerRequestFilter> gamesDemoPrincipal() {
             var registration=new FilterRegistrationBean<OncePerRequestFilter>();

@@ -9,24 +9,25 @@ Boot 3.5.16의 이번 의존성 해석 결과는 Spring Security 6.5.11이다. S
 보호 REST 요청
   → StrictBearerTokenResolver (Authorization 하나만 허용, 쿼리/본문/쿠키 인증 불가)
   → BearerTokenAuthenticationFilter / JwtAuthenticationProvider
-  → AccessJwtDecoder → 기존 AccessJwtService.verify()
-  → AccessAuthenticationService.requireActive(검증된 JWT subject)
-  → JpaActiveMemberLookup → users.id / deleted_at 조회
+  → AccessJwtDecoder → 기존 AccessJwtService.verifyAccess()
+  → AccessAuthenticationService.requireActive(검증된 JWT subject, sid)
+  → JpaActiveMemberLookup → users 활성 상태 + Refresh 로그인 계열 활성 상태 조회
   → Authentication(AuthenticatedUser, ROLE_MEMBER) → SecurityContext → Controller
 ```
 
 `AccessJwtDecoder`는 기존 검증 서비스를 호출한 뒤 검증된 클레임을 Spring Jwt 표현으로 변환한다.
 HS256 서명·exp/iat/nbf·Issuer·Audience·Header typ·token_use·crit·최대 수명·양수 내부 subject 검증은
-`AccessJwtService.verify()`가 그대로 담당한다. 발급 클레임과 30분 수명을 변경하지 않는다.
+`AccessJwtService.verifyAccess()`가 담당한다. S15P31B105-113에서 sid를 추가하고30분 수명은 유지한다.
 컨텍스트의 credentials는 null이며 Principal의 toString은 식별자를 출력하지 않는다.
 토큰이나 Authentication 전체를 애플리케이션 로그에 기록하지 않는다.
 
 | 체인 | 경로 | 인증·세션 정책 |
 | --- | --- | --- |
+| 순서 0 | `/api/v1/users/nickname-availability` | 전용 혼합 Bearer 검증. [USER-04](nickname-availability.md)의 서비스가 온보딩 또는 Access 인증을 필수 수행 |
 | 순서 1 | 아래 명시적 공개/별도 인증 경로 | Resource Server 없음. 기존 별도 검증 유지. Security는 세션을 생성하지 않으며 애플리케이션의 OAuth 세션 생성/조회/ID 회전은 허용 |
 | 순서 2 | 그 외 모든 경로 | Stateless Bearer 인증 + 매 요청 활성 회원 조회. 관리 경로는 인증 후에도 denyAll |
 
-두 체인 모두 NullSecurityContextRepository를 사용한다. HttpSession에 SecurityContext를 저장하거나
+세 체인 모두 NullSecurityContextRepository를 사용한다. HttpSession에 SecurityContext를 저장하거나
 기존 세션의 인증을 REST 인증으로 읽지 않는다. 별도 인증 체인의 Servlet API 래핑을 비활성화하여
 기존 WebSocket 인증 필터가 제공하는 Servlet Principal도 덮어쓰지 않는다.
 일반 REST를 위한 별도 ThreadLocal은 만들지 않는다.
@@ -46,6 +47,9 @@ HttpSecurity를 요구하지 않으며, 실제 Servlet 서버에서는 프로필
 | POST `/api/v1/auth/refresh` | 별도 인증 | ONTOP_REFRESH + 허용 Origin, DB Rotation |
 | POST `/api/v1/auth/logout` | 별도 인증 | ONTOP_REFRESH + 허용 Origin, 현재 로그인 계열 폐기 |
 | POST `/api/v1/users/onboarding` | 별도 인증 | 독립 ob_ Bearer, 최초 600초 만료, 선점·409 재시도·성공 확정, 기존 Origin 검증 |
+| GET `/api/v1/users/me` | **Access JWT + 활성 회원/로그인 세션** | Principal의 내부 userId로 본인 프로필 조회. [USER-01](user-me.md) |
+| PATCH `/api/v1/users/me` | **Access JWT + 활성 회원/로그인 세션** | Principal의 본인 닉네임만 수정. 최종 UNIQUE 검증. [USER-02](user-nickname-update.md) |
+| GET `/api/v1/users/nickname-availability` | 온보딩 Bearer 또는 Access JWT | 닉네임 사전 조회, 본인 제외·DB collation 기준. [USER-04](nickname-availability.md) |
 | GET `/api/v1/channels` | **Access JWT + 활성 회원** | 현재 Controller는 local에서만 등록됨 |
 | GET `/api/v1/tables` | **Access JWT + 활성 회원** | 현재 Controller는 local에서만 등록됨. 채널 설정 시 channelId 필요 |
 | GET `/dev/tables` | 공개 개발 페이지 | local에서만 등록됨 |
@@ -56,7 +60,7 @@ HttpSecurity를 요구하지 않으며, 실제 Servlet 서버에서는 프로필
 
 `/actuator/**` 중 health를 제외한 경로는 익명 401, 정상 회원 403이다.
 Actuator 노출 설정 자체도 기존 health 전용을 유지한다.
-현재 운영 소스에 게임 REST Controller, 닉네임 중복 확인 API, 일반 회원가입 API는 없다.
+현재 운영 소스에 게임 REST Controller와 일반 회원가입 API는 없다.
 새 REST 경로는 기본적으로 ROLE_MEMBER를 요구한다. 새 공개 경로가 필요하면 명시적으로 검토해 등록해야 한다.
 없는 경로도 인증 전에 401을 받을 수 있으며, 인증 후에는 MVC의 기존 404/405가 적용된다.
 ERROR dispatch는 기본 오류 응답을 보존하도록 별도 체인에서 처리하며 MVC 오류 페이지를 새 API로 만들지 않는다.
@@ -129,22 +133,22 @@ Service에 ID를 전달할 때는 요청 본문의 임의 ID 대신 이 인증 �
 
 HTTP 이외의 후속 연결은 `AccessAuthenticationService.authenticate(rawAccessToken)`으로
 기존 JWT 검증과 현재 활성 회원 조회를 함께 수행하고 AuthenticatedUser를 받을 수 있다.
-`requireActive(id)`만으로 임의 클라이언트 ID를 인증하면 안 된다. 이 메서드는 이미 JWT 검증된 ID에만 사용한다.
+`requireActive(id, sid)`는 이미 검증된 회원/로그인 계열에만 사용한다. 클라이언트의 임의 ID를 인증하지 않는다.
 
 ### WebSocket 인계
 
 S15P31B105-100에서 MR !14의 접속권 구조와 공통 회원 인증을 연결했다.
 접속권 발급은 보호 체인의 JWT 검증·requireActive() 조회를 각각 한 번 수행한다. 기존 AuthenticatedUser Principal과
 검증된 만료를 담은 Authentication.details(AuthenticatedAccess)를 서비스에서 재사용한다.
-VerifiedWebSocketUser.from()으로 매핑하고, 연결 때 requireActive(id)를 다시 호출하는 어댑터로
-탈퇴를 재확인한다. 새로운 접속권 저장소나 JWT 검증 알고리즘은 만들지 않았다.
+VerifiedWebSocketUser.from()으로 매핑하고, 연결 때 requireActive(id, sid)를 다시 호출하는 어댑터로
+회원과 로그인 계열을 재확인한다. 새로운 접속권 저장소나 JWT 검증 알고리즘은 만들지 않았다.
 회원 없음/탈퇴는 401, 연결 시 DB 장애는 503으로 구분한다.
 
 브라우저는 보호 POST로 최대30초 1회용 접속권을 받은 뒤 `/ws/tables?ticket=...`으로 연결한다.
 Access JWT를 URL에 추가하거나 WebSocket 임의 Authorization 헤더를 가정하지 않는다.
 REST SecurityContext는 요청 종료 후 정리되며 기존 VERIFIED_USER 세션 속성/Hub 계약을 그대로 사용한다.
 인증 기본값은 true이고 false는 명시적 local(+db/visual-test) 개발 조합에서만 허용한다.
-로그아웃·탈퇴에 따른 연결 강제 종료와 로그인 세션 매핑은 후속 Story다.
+S15P31B105-113에서 로그인 계열 매핑·로그아웃 커밋 후 종료를 연결했다. 탈퇴 API의 실제 호출은 후속 User Story다.
 전달 방식·실제 회원 테스트·프로필 변경 범위는 [WebSocket 인증 계약](websocket-authentication.md)을 따른다.
 
 ## 오류와 보안 헤더
@@ -184,7 +188,7 @@ cd backend
    채널 설정이 있으면 tables에 유효한 channelId를 전달한다. 인증 후 200/도메인 오류를 확인한다.
 3. Authorization 제거 → 401 REQUIRED, 임의 문자열/온보딩 토큰/변조 서명 → 401 INVALID를 확인한다.
    만료 검증은 별도 로컬 토큰이 실제 30분 지난 뒤 수행한다. 서명 키를 공유하거나 수명 정책을 바꾸지 않는다.
-4. Access를 유지한 채 Refresh 로그아웃 → 204, Refresh 재발급 → 401, 활성 회원의 기존 Access → 만료 전 접근 가능.
+4. Access를 유지한 채 로그아웃 → 204, Refresh 재발급 → 401, 같은 sid의 기존 Access → 401을 확인한다.
 5. 탈퇴 판정은 개발 ontop_dev 데이터를 임의 수정하지 않고 격리 MySQL 테스트의 소유 fixture로 검증한다.
    존재하지 않는 ID·deleted_at 값이 있는 회원은 401 MEMBER_STATE_CHANGED여야 한다.
    Postman에서도 확인하려면 별도 Run Configuration을 전용 `ontop_users80_test_*` DB에 연결하고 정상 OAuth/
@@ -241,9 +245,10 @@ git diff --check
 - Authorization/Cookie/쿼리의 OAuth code를 프록시·APM·TRACE 로그에 기록하지 않는다.
 - 보호 REST는 매 요청 DB에 의존한다. DB 장애는 인증 우회 없이 503이다. 캐시/성능 최적화는 별도 검토한다.
 
-로그아웃은 Refresh 로그인 계열만 폐기한다. Access에는 session_id가 없으므로 활성 회원의 기존 Access는
-최대 30분 동안 사용할 수 있다. 프론트는 로그아웃 후 메모리 Access를 삭제한다.
-세션별 즉시 차단/블랙리스트/클레임 변경은 구현하지 않았다. 탈퇴 회원은 DB 활성 확인으로 차단한다.
+로그아웃은 같은 sid의 Refresh 로그인 계열과 Access 인증을 차단한다. 탈퇴 회원도 DB 상태로 차단한다.
+sid 없는 기존 JWT는 Refresh 또는 OAuth로 새로 발급받아야 한다. 프론트는 로그아웃 후 메모리 Access를 삭제한다.
+JWT 블랙리스트는 없으며, 커밋 전 인증된 진행 중 REST 요청은 소급 취소하지 않는다.
+상세 계약은 [로그인 세션 무효화](session-invalidation.md)를 따른다.
 
 구조 참고: [Spring Security JWT Resource Server](https://docs.spring.io/spring-security/reference/6.5/servlet/oauth2/resource-server/jwt.html),
 [SecurityFilterChain](https://docs.spring.io/spring-security/reference/6.5/servlet/architecture.html),

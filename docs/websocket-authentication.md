@@ -4,7 +4,8 @@
 MR !14의 접속권 저장·소비·Origin 결합을 유지하고, S15P31B105-100에서 공통 회원 인증과 연결했습니다.
 
 [REST 공통 인증](rest-authentication.md)의 `AccessAuthenticationService`와 `AuthenticatedUser`를 재사용합니다.
-JWT 발급/클레임, OAuth, Refresh 정책은 변경하지 않습니다. 게스트와 연결 강제 종료는 후속 Story입니다.
+S15P31B105-113에서 JWT sid와 로그인 계열 종료를 연결했습니다. OAuth·Refresh 회전/쿠키 정책은 유지합니다.
+게스트·즉시 기권·정산은 후속 Story입니다. [세션 무효화 계약](session-invalidation.md)을 함께 확인합니다.
 
 ## 실행 조건
 
@@ -65,7 +66,7 @@ WebSocket 등록 설정에는 이번 Origin 정책 연결을 반영했습니다.
 
 1. 기존 Origin 필터가 허용 출처/preflight를 검사합니다.
 2. 보호 SecurityFilterChain의 Resource Server가 기존 AccessJwtDecoder/AccessJwtService로 JWT를 한 번 검증합니다.
-3. 공통 `AccessAuthenticationService.requireActive()`가 회원을 한 번 조회합니다.
+3. 공통 `AccessAuthenticationService.requireActive(userId, sid)`가 회원/로그인 계열을 한 번 조회합니다.
 4. SecurityContext의 Authentication에 기존 `AuthenticatedUser` Principal과 검증된 만료 메타데이터를 저장합니다.
    details는 `AuthenticatedAccess(user, expiresAt)`이며 원문 JWT를 포함하지 않습니다.
 5. Controller/접속권 서비스가 이 Authentication을 받아 발급합니다. 서비스는 인증 여부·회원 Principal·
@@ -117,7 +118,7 @@ Spring 기본 Origin 검사 → HTTP Upgrade`입니다. [Spring 등록 구현](h
 이미 소비한 접속권은 복원하지 않습니다.** 프록시의 내부 Host가 프론트 Origin과 달라도 명시된 출처는 허용합니다.
 Host를 Origin과 같게 꾸미는 것만으로 비허용 출처를 우회할 수 없습니다.
 
-- 접속권은 256비트 난수이며 서버에는 SHA-256 해시·내부 ID·출처·만료만 메모리 보관합니다.
+- 접속권은 256비트 난수이며 서버에는 SHA-256 해시·내부 ID·로그인 sid·출처·만료만 메모리 보관합니다.
 - 하나의 접속권은 동시 요청에서도 한 번만 소비합니다. 소비 이후 인증 실패·Upgrade 실패·중복 연결 거절 뒤에는 새 접속권을 발급받습니다.
 - 연결 시 DB 계정 상태를 다시 확인합니다. 유효하면 기존 CONNECTED의 userId에 양수 내부 ID 문자열을 보냅니다. JSON 양식은 그대로입니다.
 - 누락·위조·만료·재사용·발급 출처 불일치·중복 ticket 쿼리는 HTTP401, 계정 조회 실패는503입니다. 비허용 Origin은403입니다.
@@ -154,7 +155,8 @@ async function connectTables(accessToken) {
 
 `AuthenticatedUser`와 `VerifiedWebSocketUser`는 별도 타입을 유지합니다.
 `VerifiedWebSocketUser.from()`이 내부 userId를 보존하고 SSAFY/NAVER를 명시적으로 매핑합니다.
-핸드셰이크의 기존 WebSocketAccountLookup 어댑터는 공통 `requireActive(userId)`로 DB 활성 상태를 다시 확인합니다.
+핸드셰이크의 WebSocketAccountLookup 어댑터는 공통 `requireActive(userId, sid)`로 회원/계열을 다시 확인합니다.
+S15P31B105-113에서 Upgrade 후 pending 연결 등록과 폐기 알림 사이의 경합도 재검증합니다.
 실제 읽기 전용 트랜잭션과 users 조회는 기존 JpaActiveMemberLookup이 담당합니다.
 발급 후 탈퇴한 회원은 이 시점에 401이며, DB 장애는 503으로 구분합니다.
 DB 확인 직후 발생하는 탈퇴와 이미 연결된 소켓의 종료는 별도 연결 폐기 정책이 필요합니다.
@@ -170,16 +172,17 @@ CONNECTED → 필요하면 자동 GAME_CONNECTION_STATE 확인 → 채널이 설
 
 살아 있는 같은 계정의 추가 소켓은 새 연결만1008로 종료합니다. 대기 중 끊기면 좌석·준비는 정리합니다. 실제 경기의 heartbeat 단절은 감지 시점부터30초 유예입니다. **다시 접속권을 발급**받아 연결하면 기존 [경기 복귀](game-reconnect.md) 경로가 최신 상태를 돌려줍니다. 재접속은 원래 턴 마감을 연장하지 않습니다. 경기 복구 Gateway가 없으면 자동 복구를 가정하지 않고 명시 조회는 UNAVAILABLE입니다.
 
-접속권 메모리는 단일 인스턴스이며 재시작하면 소멸합니다. 서버는 해시·ID·Origin·만료만 보관하며 계정당4개/
+접속권 메모리는 단일 인스턴스이며 재시작하면 소멸합니다. 서버는 해시·ID·로그인 sid·Origin·만료만 보관하며 계정당4개/
 전체10,000개 상한과 발급 시 만료 정리를 유지합니다. 소비 후 인증/DB/Upgrade/중복 연결 실패 시 복원하지 않습니다.
 새 접속권을 발급받아야 합니다.
 
 연결한 뒤에는 기존 Access 만료만으로 소켓을 닫지 않습니다. 새 연결·재접속은 새 접속권이 필요하며,
 Access가 만료됐다면 기존 Refresh API로 갱신한 뒤 발급받습니다. 기존 30초 네트워크 복귀·중복 연결·턴 타이머는 그대로입니다.
-로그아웃은 Refresh를 폐기하며 프론트는 Access와 소켓을 정리해야 합니다. 현재 Access에는 로그인 session_id가 없으므로
-로그아웃 후 남은 최대30분 동안 접속권을 다시 받을 수 있는 한계가 있습니다.
-로그아웃 시 현재 로그인 계열 연결 종료/즉시 기권, 탈퇴 시 전체 연결 종료/즉시 기권, 로그인 세션 연결 매핑,
-게스트·다중 서버 접속권 공유·정산 정책 변경은 후속 Story입니다.
+S15P31B105-113부터 로그아웃 커밋 후 같은 sid의 Access/미소비 접속권은 거절하고 그 계열 소켓을4401로 닫습니다.
+다른 로그인 계열은 유지합니다. 탈퇴용 내부 알림은 커밋 후 그 회원의 전체 소켓을4403으로 닫습니다.
+실제 탈퇴 API 호출·즉시 기권·정산·게스트·다중 서버 알림은 후속 Story입니다.
+현재 경기 복귀 서비스는 인증 종료 사유를 전달받지 않아 기존30초 유예가 시작될 수 있습니다.
+[세션 무효화와 연결 종료](session-invalidation.md)에 트랜잭션·장애·프론트 계약을 정리했습니다.
 
 ## 실제 회원 수동 테스트
 

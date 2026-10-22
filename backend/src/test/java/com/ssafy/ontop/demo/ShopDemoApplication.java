@@ -1,6 +1,7 @@
 package com.ssafy.ontop.demo;
 
 import com.ssafy.ontop.OntopApplication;
+import com.ssafy.ontop.auth.security.TestLoginSessions;
 import com.ssafy.ontop.auth.service.AccessJwtService;
 import com.ssafy.ontop.auth.service.AuthExchangeOriginPolicy;
 import jakarta.servlet.http.HttpServletRequest;
@@ -27,7 +28,7 @@ public final class ShopDemoApplication {
         }
         new SpringApplication(OntopApplication.class, Fixture.class).run(
                 "--spring.profiles.active=local,db,shop-demo", "--server.address=127.0.0.1", "--server.port=18083",
-                "--ontop.shop.enabled=true", "--ontop.shop.duplicate-equipment-policy=REJECT",
+                "--ontop.shop.enabled=true",
                 "--spring.flyway.locations=classpath:db/migration,classpath:db/shop-fixture,classpath:db/shop",
                 "--ontop.auth.allowed-origins=http://127.0.0.1:18083");
     }
@@ -73,8 +74,7 @@ public final class ShopDemoApplication {
         ResponseEntity<?> config(HttpServletRequest request) {
             origins.allowedOrigin(request);
             return ResponseEntity.ok().cacheControl(CacheControl.noStore())
-                    .body(Map.of("accessToken", jwt.issue(101)));
+                    .body(Map.of("accessToken", jwt.issue(101, TestLoginSessions.ID)));
         }
     }
 }
-

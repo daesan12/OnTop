@@ -2,12 +2,13 @@ package com.ssafy.ontop.table;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser;
+import com.ssafy.ontop.auth.security.TestLoginSessions;
 import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser.Provider;
+import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser;
 import com.ssafy.ontop.game.reconnect.GameReconnectService;
 import com.ssafy.ontop.game.reconnect.GameRecoveryGateway;
-import com.ssafy.ontop.game.reconnect.GameRecoverySnapshot;
 import com.ssafy.ontop.game.reconnect.GameRecoverySnapshot.Phase;
+import com.ssafy.ontop.game.reconnect.GameRecoverySnapshot;
 import com.ssafy.ontop.table.service.TableHub;
 import java.io.IOException;
 import java.time.Duration;
@@ -119,7 +120,7 @@ class TransportFailureRecoveryTests {
     }
 
     private VerifiedWebSocketUser identity(long userId) {
-        return new VerifiedWebSocketUser(userId, Provider.NAVER);
+        return new VerifiedWebSocketUser(userId, Provider.NAVER, TestLoginSessions.ID);
     }
 
     private WebSocketSession mockSocket(String id) {

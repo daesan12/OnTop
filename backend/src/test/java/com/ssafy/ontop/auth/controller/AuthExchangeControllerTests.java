@@ -8,6 +8,7 @@ import com.ssafy.ontop.auth.domain.LoginOutcome;
 import com.ssafy.ontop.auth.domain.OAuthProvider;
 import com.ssafy.ontop.auth.exception.AuthExchangeException;
 import com.ssafy.ontop.auth.repository.RefreshTokenRepository;
+import com.ssafy.ontop.auth.security.TestLoginSessions;
 import com.ssafy.ontop.auth.service.AccessJwtService;
 import com.ssafy.ontop.auth.service.AuthExchangeOriginPolicy;
 import com.ssafy.ontop.auth.service.AuthExchangePersistenceService;
@@ -25,6 +26,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
@@ -93,7 +95,7 @@ class AuthExchangeControllerTests {
         persistence = mock(AuthExchangePersistenceService.class);
         when(persistence.issueExisting(any())).thenAnswer(invocation -> {
             LoginOutcome outcome = invocation.getArgument(0);
-            return new AuthExchangePersistenceService.Credentials(jwt.issue(outcome.userId()), "rt_fixture_private");
+            return new AuthExchangePersistenceService.Credentials(jwt.issue(outcome.userId(), TestLoginSessions.ID), "rt_fixture_private");
         });
         session = new MockHttpSession();
         mvc = mvc(persistence);
@@ -153,7 +155,7 @@ class AuthExchangeControllerTests {
         exchange("A".repeat(43), session).andExpect(status().isUnauthorized());
         exchange(code, new MockHttpSession()).andExpect(status().isUnauthorized());
         mvc.perform(post("/api/v1/auth/exchange").contentType(MediaType.APPLICATION_JSON)
-                        .content(mapper.writeValueAsString(java.util.Map.of("exchangeCode", code))))
+                        .content(mapper.writeValueAsString(Map.of("exchangeCode", code))))
                 .andExpect(status().isUnauthorized());
         exchange(code, session).andExpect(status().isOk());
         String expired = issue(existing());
@@ -243,7 +245,7 @@ class AuthExchangeControllerTests {
     @Test
     void 출처_거절은_코드를_소비하지_않고_허용된_출처는_명시적으로만_CORS를_받는다() throws Exception {
         String code = issue(existing());
-        String body = mapper.writeValueAsString(java.util.Map.of("exchangeCode", code));
+        String body = mapper.writeValueAsString(Map.of("exchangeCode", code));
         mvc.perform(post("/api/v1/auth/exchange").session(session).contentType(MediaType.APPLICATION_JSON)
                         .header("Origin", "https://attacker.example.test").content(body))
                 .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("AUTH_ORIGIN_NOT_ALLOWED"))
@@ -258,7 +260,7 @@ class AuthExchangeControllerTests {
     @Test
     void null_출처와_출처없는_cross_site와_단순_form_요청을_거절한다() throws Exception {
         String code = issue(existing());
-        String body = mapper.writeValueAsString(java.util.Map.of("exchangeCode", code));
+        String body = mapper.writeValueAsString(Map.of("exchangeCode", code));
         mvc.perform(post("/api/v1/auth/exchange").session(session).header("Origin", "null")
                         .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isForbidden());
         mvc.perform(post("/api/v1/auth/exchange").session(session).header("Sec-Fetch-Site", "cross-site")
@@ -292,7 +294,7 @@ class AuthExchangeControllerTests {
 
     private ResultActions exchange(String code, MockHttpSession cookieSession) throws Exception {
         return mvc.perform(post("/api/v1/auth/exchange").session(cookieSession).contentType(MediaType.APPLICATION_JSON)
-                .content(mapper.writeValueAsString(java.util.Map.of("exchangeCode", code))));
+                .content(mapper.writeValueAsString(Map.of("exchangeCode", code))));
     }
 
     private MockMvc mvc(AuthExchangePersistenceService issuer) {

@@ -1,0 +1,48 @@
+{
+  "source": "소리함.glb",
+  "sourceBytes": 64197316,
+  "sourceSha256": "140033564cdd6d49616682910c88cd5ee7a281de59221698ff59770a51c256eb",
+  "provenance": "User supplied for integration into this park; no independent license assertion",
+  "generator": "Tripo",
+  "runtime": "red-mailbox.glb",
+  "runtimeBytes": 1009032,
+  "runtimeSha256": "4e19ed9913522a86acd99b815fd16ec2b7dcd01810fe91c0d6dd276828fbd600",
+  "sourceTriangles": 1936370,
+  "embeddedTextures": "WebP: colour 2048 quality 96, normal and roughness 1024 quality 90; shared by LODs",
+  "lods": [
+    {
+      "name": "mailbox-detail",
+      "triangles": 23998,
+      "vertices": 16215,
+      "min": [
+        -0.28461387753486633,
+        0.000014951178854971658,
+        -0.2696240246295929
+      ],
+      "max": [
+        0.28465649485588074,
+        0.9793456792831421,
+        0.2696336507797241
+      ]
+    },
+    {
+      "name": "mailbox-distant",
+      "triangles": 12000,
+      "vertices": 16215,
+      "min": [
+        -0.28461387753486633,
+        0.000014951178854971658,
+        -0.2696240246295929
+      ],
+      "max": [
+        0.28465649485588074,
+        0.9793456792831421,
+        0.2696336507797241
+      ],
+      "lockedLetterVertices": 701,
+      "relativeError": 0.0010397258447483182,
+      "uvSeamsPreserved": true
+    }
+  ],
+  "optimization": "24k detail; 12k distant derived from detail with locked letter/slot and UV seams, shared vertex buffers, lossless Meshopt encoding"
+}

@@ -50,7 +50,7 @@ class AuthLogoutPersistenceServiceTests {
         when(tokens.findReferenceByTokenHash(HASH)).thenReturn(Optional.of(reference));
         when(users.findForAuthenticationById(42L)).thenReturn(Optional.of(user));
         when(tokens.findForUpdateByHash(HASH)).thenReturn(Optional.of(token));
-        service = new AuthLogoutPersistenceService(tokens, users, Clock.fixed(NOW, ZoneOffset.UTC));
+        service = new AuthLogoutPersistenceService(tokens, users, Clock.fixed(NOW, ZoneOffset.UTC), mock(AuthenticationRevocations.class));
     }
 
     @Test

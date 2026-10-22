@@ -14,6 +14,6 @@
 
 ## 현재 범위
 
-OmokEngine, [FarkleEngine](farkle.md), [OneCardEngine](onecard.md), [BridgeEngine](bridge.md)에 등록/종료 색인을 연결했다. FarkleFlowTests는 주사위 종료 뒤 오목 복구 전환을, OneCardFlowTests는 본인 손패 격리·관전·복귀·30초 넘김을 실제 소켓으로 검증한다. 원카드 기권 손패 정책은 확인 대기이며 기본값 없이 명시 설정을 요구한다. 실제 프론트·로그인·시작 차감·DB 정산 연동 완료를 뜻하지 않는다.
+OmokEngine, [FarkleEngine](farkle.md), [OneCardEngine](onecard.md), [BridgeEngine](bridge.md)에 등록/종료 색인을 연결했다. FarkleFlowTests는 주사위 종료 뒤 오목 복구 전환을, OneCardFlowTests는 본인 손패 격리·관전·복귀·30초 넘김을 실제 소켓으로 검증한다. 원카드 기권 손패는 2026-10-22 사용자 확정 REMOVE(이번 경기에서 제외)이며 정식 서버의 별도 정책 설정은 필요하지 않다. 실제 프론트·로그인·시작 차감·DB 정산 연동 완료를 뜻하지 않는다.
 
 검증 진입점은 GameEngineRouterTests, GameEngineProfileTests, OmokEngineTests, OmokFlowTests, OmokDemoHttpTests, TableProfileTests다. 서버 메모리 색인은 재시작/다중 서버의 참가/복구 원장이 아니다.

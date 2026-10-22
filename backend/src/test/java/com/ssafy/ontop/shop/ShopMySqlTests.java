@@ -2,7 +2,11 @@ package com.ssafy.ontop.shop;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ssafy.ontop.auth.domain.LoginOutcome;
+import com.ssafy.ontop.auth.domain.OAuthProvider;
+import com.ssafy.ontop.auth.security.TestLoginSessions;
 import com.ssafy.ontop.auth.service.AccessJwtService;
+import com.ssafy.ontop.auth.service.AuthExchangePersistenceService;
 import com.ssafy.ontop.shop.ShopModels.DuplicateEquipmentPolicy;
 import com.ssafy.ontop.shop.ShopModels.EquipmentChanged;
 import com.ssafy.ontop.shop.ShopModels.Purchase;
@@ -11,7 +15,9 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -29,11 +35,12 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 
 @Tag("mysql")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "spring.profiles.active=local,db", "ontop.shop.enabled=true",
-        "ontop.shop.duplicate-equipment-policy=REJECT",
         "spring.flyway.locations=classpath:db/migration,classpath:db/shop-fixture,classpath:db/shop",
         "ontop.auth.jwt-secret-base64=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
 })
@@ -44,6 +51,8 @@ class ShopMySqlTests {
     @org.springframework.test.context.bean.override.mockito.MockitoSpyBean
     com.ssafy.ontop.shop.persistence.ShopRepository repository;
     @Autowired AccessJwtService jwt;
+    @Autowired AuthExchangePersistenceService issuer;
+    private final Map<Long, String> accessTokens = new HashMap<>();
     @Autowired PlatformTransactionManager manager;
     @LocalServerPort int port;
     private final ObjectMapper mapper = new ObjectMapper();
@@ -62,6 +71,7 @@ class ShopMySqlTests {
 
     @BeforeEach
     void setup() {
+        accessTokens.clear();
         jdbc.execute("DROP TRIGGER IF EXISTS shop_test_fail_ledger");
         for (String table : List.of("shop_purchases", "wallet_transactions", "user_items", "wallets",
                 "items", "refresh_tokens", "users")) {
@@ -74,6 +84,9 @@ class ShopMySqlTests {
                     VALUES (?, 'NAVER', ?, ?, 'MALE', CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3))
                     """, user, "shop-test-" + user, "shop" + user);
             jdbc.update("INSERT INTO wallets(user_id, balance, reserved_balance) VALUES (?, 100, 0)", user);
+            accessTokens.put(user, issuer.issueExisting(new LoginOutcome(
+                    OAuthProvider.NAVER,
+                    LoginOutcome.Status.EXISTING_MEMBER, user, null)).accessToken());
         }
         item(1, "EQUIPMENT", "TOP", 10, true);
         item(2, "EQUIPMENT", "TOP", 20, true);
@@ -263,14 +276,38 @@ class ShopMySqlTests {
     }
 
     @Test
-    void 미확정의상정책은기본값없이차단하고두정책을명시선택한다() {
-        var unset = new ShopService(repository, manager, event -> { }, null);
-        assertThatThrownBy(() -> unset.purchase(101, 1, 1, "unset")).isInstanceOf(ShopException.class);
-        shop.purchase(101, 1, 1, "first-equip");
-        assertThatThrownBy(() -> shop.purchase(101, 1, 1, "duplicate")).isInstanceOf(ShopException.class);
-        var stack = new ShopService(repository, manager, event -> { }, DuplicateEquipmentPolicy.STACK);
-        stack.purchase(101, 1, 2, "stack");
-        assertThat(shop.inventory(101).items().getFirst().quantity()).isEqualTo(3);
+    void 의상중복구매는동시요청도차단하고_동일구매재조회와소비형누적은유지한다() throws Exception {
+        String path = "/api/v1/shop/purchases";
+        String body = "{\"itemId\":1,\"quantity\":1}";
+        var first = request("POST", path, 101, body, "first-equip");
+        assertThat(first.statusCode()).isEqualTo(200);
+        assertThat(json(request("POST", path, 101, body, "first-equip"))).isEqualTo(json(first));
+        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            var start = new CountDownLatch(1);
+            var requests = new ArrayList<java.util.concurrent.Future<HttpResponse<String>>>();
+            for (int index = 0; index < 6; index++) {
+                String key = "duplicate-" + index;
+                requests.add(executor.submit(() -> {
+                    if (!start.await(5, TimeUnit.SECONDS)) { throw new AssertionError("구매 대기 초과"); }
+                    return request("POST", path, 101, body, key);
+                }));
+            }
+            start.countDown();
+            for (var pending : requests) {
+                var response = pending.get(10, TimeUnit.SECONDS);
+                assertThat(response.statusCode()).isEqualTo(409);
+                assertThat(json(response).path("code").asText()).isEqualTo("ITEM_ALREADY_OWNED");
+            }
+        }
+        assertThat(balance(101)).isEqualTo(90);
+        assertThat(count("shop_purchases")).isEqualTo(1);
+        assertThat(count("wallet_transactions")).isEqualTo(1);
+        assertThat(shop.inventory(101).items().getFirst().quantity()).isEqualTo(1);
+        shop.purchase(101, 3, 2, "food-one");
+        shop.purchase(101, 3, 3, "food-two");
+        assertThat(shop.inventory(101).items().stream().filter(item -> item.item().itemId() == 3)
+                .findFirst().orElseThrow().quantity()).isEqualTo(5);
+        assertThat(balance(101)).isEqualTo(65);
     }
 
     @Test
@@ -355,7 +392,7 @@ class ShopMySqlTests {
             bothRead.countDown();
             if (!bothRead.await(5, TimeUnit.SECONDS)) { throw new AssertionError("동시 조회 실패"); }
             return result;
-        }).when(repository).holding(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.eq(3L));
+        }).when(repository).holding(anyLong(), eq(3L));
         try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
             var first = executor.submit(() -> shop.purchase(101, 3, 1, "first-user"));
             var second = executor.submit(() -> shop.purchase(202, 3, 1, "second-user"));
@@ -386,7 +423,8 @@ class ShopMySqlTests {
     private HttpResponse<String> request(String method, String path, long userId, String body, String key)
             throws Exception {
         var request = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + path))
-                .header("Authorization", "Bearer " + jwt.issue(userId))
+                .header("Authorization", "Bearer " + accessTokens.getOrDefault(userId,
+                        jwt.issue(userId, TestLoginSessions.ID)))
                 .header("Origin", "http://localhost:8080");
         if (key != null) { request.header("Idempotency-Key", key); }
         if (body != null) { request.header("Content-Type", "application/json"); }

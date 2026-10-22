@@ -1,0 +1,93 @@
+{
+  "provenance": "User supplied Tripo drafts for this project; no independent license assertion.",
+  "process": "User-supplied boy_web_noanim/girl_web_noanim surfaces and UVs; source Mixamo 65-joint skin reposed and mapped to 49 identity-axis runtime joints with model-specific bind positions; corrected head/torso influences and welded seam weights; maximum four normalized influences; whole-surface near/far LODs, one shared material; female seated skirt corrective; lossless Meshopt geometry. No new character generated from a reference image.",
+  "textureAtlas": "One original 2048x2048 RGB colour WebP per character, byte-preserved from the supplied GLB and shared across LODs/instances. No normal or metallic-roughness maps in this source. WebP reduces transfer only; KTX2 GPU compression is not applied.",
+  "records": [
+    {
+      "character": "man",
+      "source": {
+        "file": "boy_web_noanim.glb",
+        "sha256": "3738cc63de820c30f2bae20060b2804a1af8a6b2e0d17a57fdad2f41e18a5aec",
+        "bytes": 979316,
+        "triangles": 51921,
+        "generator": "Tripo (user supplied)"
+      },
+      "runtime": {
+        "file": "man.glb",
+        "sha256": "e7e837ed118943678200a28c038bddaa0ab102d0c35c3777a8879e4e27e2dc1c",
+        "bytes": 1408144,
+        "triangles": {
+          "near": 24000,
+          "far": 5999
+        }
+      },
+      "editable": {
+        "file": "assets/characters/man.blend",
+        "sha256": "cb7db79a48e23cb4967ee4821290770d17faec3b172088e8c283547542b3ff8d",
+        "bytes": 2014774
+      },
+      "heightMeters": 1.7,
+      "bones": 49,
+      "surfaceRevision": 6,
+      "parts": [
+        {
+          "name": "near-body",
+          "triangles": 24000,
+          "vertices": 13116
+        },
+        {
+          "name": "far-body",
+          "triangles": 5999,
+          "vertices": 3528
+        }
+      ],
+      "limitations": [
+        "Source surface only; no concealed body reconstruction",
+        "Procedural animation, no facial rig or cloth simulation"
+      ]
+    },
+    {
+      "character": "girl",
+      "source": {
+        "file": "girl_web_noanim.glb",
+        "sha256": "369d88dd8b4679667f6fa7e899ef13728c2e4a5949137fe9159ee35d3fb521c9",
+        "bytes": 1000064,
+        "triangles": 56309,
+        "generator": "Tripo (user supplied)"
+      },
+      "runtime": {
+        "file": "girl.glb",
+        "sha256": "351d3c2ca6d1258a5e171b04882a0721d10efe963be6cf9ee1d862b714b8fda8",
+        "bytes": 1502380,
+        "triangles": {
+          "near": 23999,
+          "far": 6000
+        }
+      },
+      "editable": {
+        "file": "assets/characters/girl.blend",
+        "sha256": "3eb425bfbb201ebeb235003b66e8fb0b5c25458622e8c66899e6aa989d1fd014",
+        "bytes": 2213842
+      },
+      "heightMeters": 1.7,
+      "bones": 49,
+      "surfaceRevision": 6,
+      "parts": [
+        {
+          "name": "near-body",
+          "triangles": 23999,
+          "vertices": 12172
+        },
+        {
+          "name": "far-body",
+          "triangles": 6000,
+          "vertices": 3084
+        }
+      ],
+      "limitations": [
+        "Source surface only; no concealed body reconstruction",
+        "Procedural animation, no facial rig or cloth simulation"
+      ]
+    }
+  ]
+}

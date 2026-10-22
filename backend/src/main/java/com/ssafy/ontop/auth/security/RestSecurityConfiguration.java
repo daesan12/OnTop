@@ -22,6 +22,20 @@ import org.springframework.security.web.context.NullSecurityContextRepository;
 public class RestSecurityConfiguration {
 
     @Bean
+    @Order(0)
+    SecurityFilterChain nicknameAvailabilityChain(HttpSecurity http, AuthExchangeOriginPolicy origins,
+            ObjectMapper mapper, RestSecurityErrorHandler errors) throws Exception {
+        http.securityMatcher("/api/v1/users/nickname-availability");
+        common(http, errors);
+        http.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .securityContext(context -> context.securityContextRepository(new NullSecurityContextRepository()))
+                .addFilterBefore(new RestCorsFilter(origins, mapper, errors), BearerTokenAuthenticationFilter.class)
+                // 이 경로만 두 종류의 Bearer를 서비스에서 필수 검증한다. 온보딩을 ROLE_MEMBER로 승격하지 않는다.
+                .authorizeHttpRequests(authorize -> authorize.anyRequest().permitAll());
+        return http.build();
+    }
+
+    @Bean
     @Order(1)
     SecurityFilterChain separateAuthenticationChain(HttpSecurity http, RestSecurityErrorHandler errors)
             throws Exception {
@@ -55,7 +69,7 @@ public class RestSecurityConfiguration {
                         .authenticationEntryPoint(errors).accessDeniedHandler(errors)
                         .jwt(jwt -> jwt.decoder(decoder).jwtAuthenticationConverter(verified -> {
                             AuthenticatedUser user = authentication.requireActive(
-                                    Long.parseLong(verified.getSubject()));
+                                    Long.parseLong(verified.getSubject()), verified.getClaimAsString("sid"));
                             var result = UsernamePasswordAuthenticationToken.authenticated(user, null,
                                     List.of(new SimpleGrantedAuthority("ROLE_MEMBER")));
                             // 접속권은 이 요청에서 검증된 회원/만료 정보를 재사용한다. 원문 JWT는 보관하지 않는다.

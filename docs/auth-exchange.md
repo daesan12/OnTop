@@ -37,7 +37,7 @@ Nimbus JOSE + JWT 10.10을 사용하며 Spring Security 필터 체인은 추가�
 
 - 알고리즘 HS256 고정, JOSE typ=`at+jwt`, token_use=`access`.
 - sub는 양수 내부 user ID 문자열, iss는 AUTH_JWT_ISSUER, aud는 `ontop-api`.
-- iat·nbf·exp와 난수 jti를 포함한다. 수명은 1800초이며 정확히 만료 시점부터 거절한다.
+- iat·nbf·exp와 난수 jti, Refresh 로그인 계열 UUID인 sid를 포함한다. 수명은1800초이며 만료 시점부터 거절한다.
 - 검증 시 서명·알고리즘·typ·목적·issuer·audience·시간·주체를 검사한다.
   `alg=none`, 다른 알고리즘, 잘못된 목적·주체, 위조·미래·만료 토큰은 거절한다.
 - 서명 키는 AUTH_JWT_SECRET_BASE64의 표준 Base64를 디코딩해 사용한다.
@@ -47,9 +47,10 @@ Nimbus JOSE + JWT 10.10을 사용하며 Spring Security 필터 체인은 추가�
   키가 없어도 기존 DB 없는 앱/WebSocket 개발과 OAuth 시작은 가능하다.
 - 현재 단일 키다. 키 교체 시 기존 Access JWT는 무효화된다. 다중 키 순환은 별도 설계한다.
 
-일반 REST/Wallet/Game/WebSocket 검증자는 **AccessJwtService.verify만** 사용해야 한다.
-온보딩 인증을 이 메서드로 검증하면 실패한다. 이 Story는 전체 REST 필터·WebSocket 인증 연결을 구현하지 않는다.
-현재 로그인 상태의 DB 재검증은 발급 시 수행한다. 발급 후 탈퇴/로그아웃에 대한 Access 무효화 정책은 후속 범위다.
+서비스 인증은 **AccessAuthenticationService.authenticate**를 사용해 서명과 현재 회원/로그인 계열을 함께 확인한다.
+AccessJwtService.verify/verifyAccess만으로는 DB 폐기 상태를 확인하지 않는다. 온보딩 Bearer를 Access로 받지 않는다.
+S15P31B105-113부터 sid 없는 레거시 Access는 거절한다. 로그인·온보딩·Refresh의 발급 계약은
+[로그인 세션 무효화](session-invalidation.md)를 따른다.
 
 근거: [Nimbus 공식 문서](https://connect2id.com/products/nimbus-jose-jwt),
 [Maven Central 10.10](https://central.sonatype.com/artifact/com.nimbusds/nimbus-jose-jwt/10.10).

@@ -1,5 +1,8 @@
 # 신규 회원 온보딩 — S15P31B105-91 USER-05
 
+닉네임 사전 안내는 [USER-04 조회 API](nickname-availability.md)를 사용한다.
+두 API는 NicknameValidator를 공유하며, 조회 결과와 관계없이 아래 최종 중복 검증/UNIQUE/409 재시도 정책을 유지한다.
+
 ## 사용자 흐름과 범위
 
 시작 화면에는 `네이버로 시작하기`, `SSAFY로 시작하기`만 있다. 별도 회원가입 버튼/화면을 전제하지 않는다.
@@ -204,6 +207,8 @@ git diff --check
 USER-04, Wallet, 전역 서비스 인증, 분산 토큰 저장, 요청량 제한, 만료 행 보관/삭제는 후속 범위다.
 가입 후 받은 Refresh 쿠키의 재발급/회전은 별도 [AUTH-04](auth-refresh.md) 계약을 따른다.
 현재 로그인 계열 로그아웃은 [AUTH-03](auth-logout.md)을 따른다. 온보딩 정책은 변경하지 않는다.
+발급 Access에는 같은 Refresh 로그인 계열의 sid가 포함된다. [세션 무효화](session-invalidation.md)에 따라
+그 계열 로그아웃 후에는 Access와 미소비 WebSocket 접속권도 거절된다.
 
 ### 실제 검증 기록
 

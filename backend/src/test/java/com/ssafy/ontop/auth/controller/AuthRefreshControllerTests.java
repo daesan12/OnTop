@@ -7,11 +7,13 @@ import com.ssafy.ontop.auth.domain.RefreshToken;
 import com.ssafy.ontop.auth.exception.AuthExchangeException;
 import com.ssafy.ontop.auth.exception.AuthRefreshException;
 import com.ssafy.ontop.auth.repository.RefreshTokenRepository;
+import com.ssafy.ontop.auth.security.TestLoginSessions;
 import com.ssafy.ontop.auth.service.AccessJwtService;
 import com.ssafy.ontop.auth.service.AuthExchangeOriginPolicy;
 import com.ssafy.ontop.auth.service.AuthExchangePersistenceService;
 import com.ssafy.ontop.auth.service.AuthRefreshPersistenceService;
 import com.ssafy.ontop.auth.service.AuthRefreshService;
+import com.ssafy.ontop.auth.service.AuthenticationRevocations;
 import com.ssafy.ontop.auth.service.RefreshCookieService;
 import com.ssafy.ontop.user.domain.CharacterGender;
 import com.ssafy.ontop.user.domain.LoginProvider;
@@ -82,7 +84,7 @@ class AuthRefreshControllerTests {
         jwt = new AccessJwtService(properties, clock);
         persistence = mock(AuthRefreshPersistenceService.class);
         when(persistence.rotate(any(), any())).thenAnswer(invocation ->
-                new AuthRefreshPersistenceService.Rotation(jwt.issue(42), "rt_fixture_private", null));
+                new AuthRefreshPersistenceService.Rotation(jwt.issue(42, TestLoginSessions.ID), "rt_fixture_private", null));
         mvc = mvc(persistence, false);
     }
 
@@ -117,7 +119,7 @@ class AuthRefreshControllerTests {
         mvc.perform(post(PATH).header("Origin", ORIGIN)).andExpect(status().isUnauthorized());
         mvc.perform(post(PATH).header("Origin", ORIGIN).cookie(new Cookie("ONTOP_REFRESH", raw),
                 new Cookie("ONTOP_REFRESH", raw))).andExpect(status().isUnauthorized());
-        mvc.perform(post(PATH).header("Origin", ORIGIN).cookie(new Cookie("ONTOP_REFRESH", jwt.issue(42))))
+        mvc.perform(post(PATH).header("Origin", ORIGIN).cookie(new Cookie("ONTOP_REFRESH", jwt.issue(42, TestLoginSessions.ID))))
                 .andExpect(status().isUnauthorized());
         verifyNoInteractions(persistence);
     }
@@ -185,8 +187,8 @@ class AuthRefreshControllerTests {
                 START.minusSeconds(1), START.plusSeconds(604800));
         when(tokens.findForUpdateByHash(any())).thenReturn(Optional.of(previous));
         when(issuer.issueForSession(any(), any())).thenReturn(
-                new AuthExchangePersistenceService.Credentials(jwt.issue(42), "rt_fixture_private"));
-        var target = new AuthRefreshPersistenceService(tokens, users, issuer, clock);
+                new AuthExchangePersistenceService.Credentials(jwt.issue(42, TestLoginSessions.ID), "rt_fixture_private"));
+        var target = new AuthRefreshPersistenceService(tokens, users, issuer, clock, mock(AuthenticationRevocations.class));
         PlatformTransactionManager manager = mock(PlatformTransactionManager.class);
         when(manager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
         doThrow(new TransactionSystemException("fixture-private-commit")).when(manager).commit(any());

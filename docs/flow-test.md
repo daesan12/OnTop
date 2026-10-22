@@ -92,4 +92,14 @@ DB Gateway 연결 후 실제 트랜잭션·결과 저장·정산 통합 검증�
 
 Java 21과 기존 Gradle 의존성 다운로드 환경이 필요하다. 실제 로그인 정보나 토큰은 입력하지 않는다.
 
+## 실제 DB 의상·테이블 통합 검증
+
+별도 격리 MySQL에서 `backend/gradlew.bat -p backend mysqlTest --tests '*WorldAppearanceMySqlTests'`로 실행한다. TEST_SHOP_DB_URL은 loopback의 `ontop_shop_test_*` 스키마만 허용하며 TEST_SHOP_DB_USERNAME/PASSWORD는 개인 환경에 설정한다. fixture가 해당 테스트 스키마를 초기화하므로 공용 개발/운영 DB를 연결하지 않는다. 일반 flowTest에는 DB 의존 검사를 섞지 않는다.
+
+`장착후이동입력_착석준비_heartbeat정리와재입장을한흐름으로확인한다`는 실제 테스트 회원/JWT→접속권→채널 입장→장착 REST→WORLD_MOVE 입력 수락→2명 착석/오목 선택/전원 준비→착석 중 의상 교체→동일한 좌석·준비·테이블 버전 유지→Pong 중단/1001 종료→대기 좌석·준비 정리→새 접속권/채널 재입장→최신 의상·이동 seq0 복구→재착석/다시 전원 준비를 연속 확인한다. 외형 갱신 때문에 테이블 상태가 초기화되거나, 반대로 의상을 복구하면서 대기 좌석/준비를 자동 복구하는 오류를 구분한다.
+
+MySQL·HTTP·Raw WebSocket·heartbeat는 실제 실행이다. 물리 시간은 FrozenWorldFixture로 고정해 입력 수락과 외형 캐시 보존을 확인하며 이동 거리/속도 검증이 아니다. 실제 경기 시작 DB Gateway는 연결하지 않아 전원 준비 상태가 WAITING인 것을 확인한다. 진행 경기30초 복귀·차감·정산·3D 렌더링의 통합 성공을 뜻하지 않는다. heartbeat200ms/2초는 테스트 설정이며 제품 기본 시간을 변경하지 않는다. 별도 기존 검사는 롤백 미전파·채널 격리·오프라인 장착 변경 복구를 확인한다.
+
+결과는 `backend/build/reports/tests/mysqlTest/index.html` 및 `backend/build/test-results/mysqlTest/`에서 확인한다. XML 표준 출력의 APPEARANCE_FLOW와 PUBLIC_WORLD_STATE는 검사에 사용한 격리 테스트 계정·공개 외형 상태이며 인증 토큰/접속권은 출력하지 않는다.
+
 FarkleFlowTests·OneCardFlowTests·BridgeFlowTests는 실제 게임 엔진·SecureRandom·소켓으로 각 게임의 상태/복구/시간/종료 흐름을 검사한다. 원카드는 본인 손패 격리, 다리는 비밀 눈·비공개/공개 판정을 포함한다. 인증/시작은 테스트 대역·시각은 제어시계, 원카드 기권 손패 정책은 테스트 조건으로 명시하고 제품 확정과 구분한다.

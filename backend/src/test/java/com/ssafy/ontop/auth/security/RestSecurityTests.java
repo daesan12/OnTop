@@ -48,6 +48,7 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -82,8 +83,8 @@ class RestSecurityTests {
 
     @BeforeEach
     void activeFixture() {
-        when(members.findActive(anyLong())).thenAnswer(call -> Optional.of(
-                new AuthenticatedUser(call.getArgument(0), LoginProvider.SSAFY)));
+        when(members.findActive(anyLong(), anyString())).thenAnswer(call -> Optional.of(
+                new AuthenticatedUser(call.getArgument(0), LoginProvider.SSAFY, TestLoginSessions.ID)));
     }
 
     @Test
@@ -121,7 +122,7 @@ class RestSecurityTests {
 
     @Test
     void 중복_Authorization은_정상_JWT가_있어도_거절한다() throws Exception {
-        mvc.perform(get("/api/v1/tables").header("Authorization", "Bearer " + jwt.issue(42), "Bearer other"))
+        mvc.perform(get("/api/v1/tables").header("Authorization", "Bearer " + jwt.issue(42, TestLoginSessions.ID), "Bearer other"))
                 .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("AUTH_INVALID_ACCESS_TOKEN"));
         verifyNoInteractions(members);
     }
@@ -137,14 +138,14 @@ class RestSecurityTests {
 
     @Test
     void 존재하지_않거나_탈퇴한_회원은_서명상_유효해도_거절한다() throws Exception {
-        when(members.findActive(42)).thenReturn(Optional.empty());
+        when(members.findActive(42, TestLoginSessions.ID)).thenReturn(Optional.empty());
         mvc.perform(auth(get("/api/v1/tables"))).andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("AUTH_MEMBER_STATE_CHANGED"));
     }
 
     @Test
     void DB_장애는_내부_예외나_사용자_식별자_없이_503이다() throws Exception {
-        when(members.findActive(42)).thenThrow(new DataAccessResourceFailureException("sensitive-fixture-detail"));
+        when(members.findActive(42, TestLoginSessions.ID)).thenThrow(new DataAccessResourceFailureException("sensitive-fixture-detail"));
         String response = mvc.perform(auth(get("/api/v1/tables"))).andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.code").value("AUTH_MEMBER_LOOKUP_UNAVAILABLE"))
                 .andReturn().getResponse().getContentAsString();
@@ -155,11 +156,11 @@ class RestSecurityTests {
     void 세션과_쿠키와_쿼리는_REST_인증을_대신하지_못하고_요청간_누출되지_않는다() throws Exception {
         MockHttpSession session = new MockHttpSession();
         session.setAttribute("SPRING_SECURITY_CONTEXT", new SecurityContextImpl(
-                UsernamePasswordAuthenticationToken.authenticated(new AuthenticatedUser(42, LoginProvider.SSAFY),
+                UsernamePasswordAuthenticationToken.authenticated(new AuthenticatedUser(42, LoginProvider.SSAFY, TestLoginSessions.ID),
                         null, List.of(new SimpleGrantedAuthority("ROLE_MEMBER")))));
         mvc.perform(auth(get("/api/v1/tables").session(session))).andExpect(status().isOk())
                 .andExpect(header().doesNotExist("Set-Cookie"));
-        mvc.perform(get("/api/v1/tables").session(session).param("access_token", jwt.issue(42))
+        mvc.perform(get("/api/v1/tables").session(session).param("access_token", jwt.issue(42, TestLoginSessions.ID))
                         .cookie(new jakarta.servlet.http.Cookie("ONTOP_REFRESH", "rt_not-access")))
                 .andExpect(status().isUnauthorized());
         mvc.perform(get("/api/v1/tables")).andExpect(status().isUnauthorized());
@@ -241,14 +242,17 @@ class RestSecurityTests {
                 .toList();
         assertThat(mappings).containsExactlyInAnyOrder("GET /api/v1/auth/{provider}/authorize",
                 "GET /api/v1/auth/{provider}/callback", "POST /api/v1/auth/exchange", "POST /api/v1/auth/refresh",
-                "POST /api/v1/auth/logout", "POST /api/v1/users/onboarding", "GET /api/v1/channels",
+                "POST /api/v1/auth/logout", "POST /api/v1/users/onboarding", "GET /api/v1/users/me",
+                "GET /api/v1/users/nickname-availability",
+                "PATCH /api/v1/users/me",
+                "GET /api/v1/channels",
                 "GET /api/v1/tables", "GET /dev/tables", "GET /dev/world-config",
                 "GET /api/v1/shop/items", "POST /api/v1/shop/purchases",
                 "GET /api/v1/users/me/items", "PATCH /api/v1/users/me/equipment");
     }
 
     private MockHttpServletRequestBuilder auth(MockHttpServletRequestBuilder request) {
-        return request.header("Authorization", "Bearer " + jwt.issue(42));
+        return request.header("Authorization", "Bearer " + jwt.issue(42, TestLoginSessions.ID));
     }
 
     private String altered(String defect) throws Exception {
@@ -267,6 +271,7 @@ class RestSecurityTests {
                 .notBeforeTime(Date.from(now)).expirationTime(Date.from(defect.equals("expired") ? now.minusSeconds(1)
                         : now.plusSeconds(defect.equals("longLifetime") ? 1801 : 1800)))
                 .jwtID(UUID.randomUUID().toString()).claim("token_use", defect.equals("purpose") ? "onboarding" : "access")
+                .claim("sid", TestLoginSessions.ID)
                 .build();
         SignedJWT token = new SignedJWT(header.build(), claims);
         byte[] key = defect.equals("signature") || defect.equals("algorithm") ? new byte[64] : KEY;
