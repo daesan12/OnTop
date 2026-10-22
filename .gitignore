@@ -3,6 +3,7 @@
 # Local database credentials
 .env
 .env.*
+!.env.example
 
 # Local agent instructions and personal code guide
 AGENTS.md

@@ -4,6 +4,34 @@ Java 21 + Spring Boot 3.5.16 백엔드다. 앱은 `backend/`에 있으며 Gradle
 
 ## 실행 준비
 
+### 팀원용 환경변수
+
+저장소 루트의 [.env.example](.env.example)을 `.env`로 복사하고 DB 계정·JWT 키·사용할 로그인 공급자 값을 채운다. 실제 비밀값은 공유 파일이나 Git에 넣지 않는다. `.env`는 자동으로 읽히지 않으므로 아래처럼 현재 PowerShell 세션에 주입한다. 값은 따옴표 없이 한 줄에 작성하고 주석은 별도 줄로 둔다.
+
+```powershell
+# 저장소 루트에서 실행. 이미 .env가 있으면 복사하지 않는다.
+if (-not (Test-Path -LiteralPath .env)) { Copy-Item .env.example .env }
+# .env를 편집해 필수 빈 값을 채운 후 실행
+Get-Content -LiteralPath .env -Encoding UTF8 | ForEach-Object {
+    if ($_ -match '^\s*([A-Z][A-Z0-9_]*)=(.*)$') {
+        [Environment]::SetEnvironmentVariable($Matches[1], $Matches[2], 'Process')
+    }
+}
+.\backend\gradlew.bat -p backend bootRun
+```
+
+개인 로컬 JWT 키가 필요하면 아래 명령으로 생성한 값을 `.env`의 `AUTH_JWT_SECRET_BASE64`에 넣는다. 팀 통합 환경은 같은 서버 키를 안전하게 공유한다.
+
+```powershell
+$jwtBytes = New-Object byte[] 32
+$jwtRandom = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+$jwtRandom.GetBytes($jwtBytes)
+$jwtRandom.Dispose()
+[Convert]::ToBase64String($jwtBytes)
+```
+
+`local,db`는 준비된 MySQL에 기본 Flyway 마이그레이션을 실행한다. `local`만 쓰면 DB 없이 기동할 수 있지만 실제 로그인·DB API는 사용할 수 없다. 프론트 origin·로그인 완료 URL·공급자 콜백은 실제 실행 주소에 맞춘다. 상점의 추가 스키마·활성화 조건은 [상점 안내](docs/shop-inventory.md)를 따른다.
+
 JDK 21을 설치하고 `JAVA_HOME`과 `PATH`가 해당 JDK를 가리키도록 설정한다. `java -version`과 Wrapper의 `--version`으로 확인한다. 최초 빌드는 의존성을 내려받을 네트워크 연결이 필요하다. 전역 Gradle 설치는 필요 없다.
 
 Windows 한글 경로에서 Gradle 8의 테스트 실행 인자 파일을 읽을 수 있도록 `gradle.properties`는 Gradle JVM의 기본 인코딩을 OS 기본값(`COMPAT`)에 맞춘다. Java 소스 컴파일 인코딩은 `UTF-8`로 고정한다.
