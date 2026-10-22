@@ -1,8 +1,15 @@
 name: ontop-dev-app
 
+x-logging: &default-logging
+  driver: local
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   mysql:
     image: mysql:8.4.11
+    logging: *default-logging
     restart: unless-stopped
     stop_grace_period: 90s
     environment:
@@ -30,6 +37,7 @@ services:
 
   app:
     image: ${BACKEND_IMAGE:?Set BACKEND_IMAGE to the private Docker Hub image}
+    logging: *default-logging
     restart: unless-stopped
     stop_grace_period: 30s
     depends_on:
@@ -59,6 +67,7 @@ services:
 
   nginx:
     image: nginx:stable-alpine
+    logging: *default-logging
     restart: unless-stopped
     depends_on:
       app:
