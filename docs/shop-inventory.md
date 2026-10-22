@@ -39,7 +39,7 @@ JPA EntityManager·JPQL 저장소를 사용한다. 지갑 PESSIMISTIC_WRITE(MySQ
 
 같은 사용자·같은 키의 다른 itemId/quantity는409 IDEMPOTENCY_CONFLICT다. 계정별 키 범위는 독립이고 대소문자를 구분한다. 공통 원장 키는 shop:사용자:SHA256(키)로 만들어 원장 문자열 collation의 대소문자 병합을 피한다. 영수증 UNIQUE(user_id,request_key)는 ascii_bin이다.
 
-404 ITEM_NOT_FOUND,409 INSUFFICIENT_BALANCE/WALLET_NOT_READY/ITEM_ALREADY_OWNED/SHOP_POLICY_REQUIRED,400 QUANTITY_TOO_LARGE. 의상 중복 구매는 사용자 정책이 미확정이라 ontop.shop.duplicate-equipment-policy=REJECT 또는 STACK을 명시해야 한다. 미설정 의상 구매는 차감 전 거절하고 소비형은 진행 가능하다. REJECT는 의상 수량1·기보유 거절, STACK은 보유 수량 합산이며 두 방식 모두 검증했다. 테스트/시연의 REJECT는 팀 정책 확정이 아니다.
+404 ITEM_NOT_FOUND,409 INSUFFICIENT_BALANCE/WALLET_NOT_READY/ITEM_ALREADY_OWNED,400 QUANTITY_TOO_LARGE. **2026-10-22 사용자 확정: 보유 의상은 중복 구매 거절(REJECT).** 의상은 수량1만 구매 가능하며 기보유 재구매/다른 수량은 차감·원장·보유 변경 전에409 ITEM_ALREADY_OWNED다. 같은 구매 키·같은 본문 재요청은 이전 영수증을 반환하므로 중복 구매로 거절하지 않는다. 소비형은 수량을 누적한다. 정식 ShopConfiguration에서 REJECT로 고정하며 별도 duplicate-equipment-policy 설정은 필요하지 않다. 내부 STACK/미지정 방어 분기는 정식 서버 설정으로 활성화하지 않는다. 기존 보유 수량을 자동 정리하거나 DB를 변경하지 않는다.
 
 ## INVENTORY-01 · GET /api/v1/users/me/items
 
@@ -77,7 +77,7 @@ WorldAppearanceMySqlTests는 장착·광장·테이블을 연결해 확인한다
 
 ## 2026-10-22 JPA 전환
 
-API 경로·요청·응답·오류·동일 키 재요청·미확정 의상 정책은 그대로다. ShopService → ShopRepository(EntityManager/JPQL) → Item/UserItem/ShopPurchase/Wallet/WalletTransaction 순서로 읽는다. SQL 마이그레이션은 계속 Flyway가 관리하고 JPA ddl-auto=validate를 유지한다.
+API 경로·요청·응답·동일 키 재요청은 그대로다. 의상 중복 정책은 위 2026-10-22 사용자 확정 REJECT를 따른다. ShopService → ShopRepository(EntityManager/JPQL) → Item/UserItem/ShopPurchase/Wallet/WalletTransaction 순서로 읽는다. SQL 마이그레이션은 계속 Flyway가 관리하고 JPA ddl-auto=validate를 유지한다.
 
 지갑 잠금 후 refresh로 이전에 관리 중인 잔액을 갱신한다. 신규 트랜잭션은 READ_COMMITTED를 사용하고 없는 영수증·보유 행에는 gap 잠금을 걸지 않는다. 기존 보유 엔티티는 refresh로 갱신하고, 장착은 보유 엔티티 변경으로 같은 부위 하나만 남긴다. 기존 외부 트랜잭션에 참여하며 장착 알림은 실제 커밋 뒤에만 발생한다.
 

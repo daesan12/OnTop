@@ -134,7 +134,7 @@ const purchaseBody = {mode:'raw',raw:'{\n  "itemId": {{shopItemId}},\n  "quantit
 const purchaseHeaders = [...shopAuth,{key:'Content-Type',value:'application/json'},
     {key:'Idempotency-Key',value:'{{purchaseRequestKey}}'}];
 const purchase = http('14 아이템 구매 — 새 구매 키', '/api/v1/shop/purchases', 200,
-    'SHOP-02: 실행할 때마다 새 키를 만듭니다. 같은 구매 재확인은15를 사용합니다. 실제 상품 가격으로 엽전이 차감됩니다. 테스트 계정으로 확인하세요. 의상 중복 정책은 명시 설정이며 기본값이 없습니다.',
+    'SHOP-02: 실행할 때마다 새 키를 만듭니다. 같은 구매 재확인은15를 사용합니다. 실제 상품 가격으로 엽전이 차감됩니다. 테스트 계정으로 확인하세요. 보유 의상 재구매·의상 수량1 이외는409 ITEM_ALREADY_OWNED이며 추가 차감하지 않습니다. 같은 키·같은 본문은 이전 영수증 반환, 소비형 수량 누적은 유지합니다.',
     `const body=pm.response.json(); pm.expect(body.purchaseId).to.be.a('string');
 pm.environment.set('purchaseId',body.purchaseId); pm.environment.set('userItemId',body.userItemId);`,
     purchaseBefore + `\npm.environment.set('purchaseRequestKey',pm.variables.replaceIn('{{$guid}}'));`);
@@ -306,7 +306,7 @@ const farkleGuide = '주사위(DICE)는 local의 ontop.games.farkle.enabled=true
     + 'privateState={},새차례첫굴림전dice=[]. BANK/BUST는바로다음차례상태를전송하며 프론트가rollId/lastEvent로연출합니다. 종료는TARGET_REACHED/RECONNECT_EXPIRED이며DB정산확정과구분합니다. ';
 wsItems[5].description += '\n\n' + farkleGuide;
 const onecardGuide = '원카드(ONE_CARD)는2~4명·54장·7장배분·서버랜덤선공이며 local의 ontop.games.onecard.enabled=true로 선택 활성화합니다. '
-    + '기권손패정책은확인대기이며 forfeit-hand-policy=REMOVE(판에서제외)/RECYCLE(덱환원셔플)을서버에서명시해야합니다. 기본값없음,미지정활성화는실패합니다. 테스트정책은제품정책확정이아닙니다. '
+    + '2026-10-22확정: 기권손패는이번경기에서제외(REMOVE)하며뽑기덱환원/셔플없음. 다음판은새덱,별도정책설정불필요. '
     + '16~21은독립예제입니다. gameId/expectedVersion은실제경기·최신버전,cardId는본인privateState.hand,targetUserId는공개players.userId로수정합니다. '
     + 'input kind=play(cardId)/draw/accept-attack/select-suit(suit=hearts,diamonds,clubs,spades)/declare-one/catch-one(targetUserId문자열). '
     + '공개상태에는players장수/활성/선언창,topCard/activeSuit,attackTotal/lastAttack,drawCount,stage(PLAYING/CHOOSE_SUIT/FINISHED),direction,extraAction,turnUserId/turnDeadline,turnCount,winnerUserIds/endReason/endedAt. '
@@ -384,7 +384,7 @@ function yaml(value, indent = 0) {
 }
 const outputs = new Map([
     ['OnTop-Shop.postman_collection.json', JSON.stringify({info: {...httpV21.info, name: 'OnTop Shop',
-        description: 'SHOP-01/02 · INVENTORY-01/02. 13목록→14구매→15동일키 재요청→16보유→17장착. 18은 같은키 충돌 검사. local,db + ontop.shop.enabled=true + 공통/상점 스키마, 의상 정책 명시 설정이 필요합니다. 테스트 계정의 개인 로컬 Access JWT만 사용하고 공유하지 마세요. 기본 DB에 스키마를 자동 적용하지 않았습니다. 실제 DB 초기화·공통 재화 통합·3D 외형 계약은 별도 확인합니다.\n\n2026-10-22: 상점 저장 처리를 JPA 엔티티·JPQL로 전환했습니다. 기존 6개 요청·응답·중복 구매 방지·롤백 계약은 그대로이며 예제 수정 없이 사용할 수 있습니다.' + appearanceGuide},
+        description: 'SHOP-01/02 · INVENTORY-01/02. 13목록→14구매→15동일키 재요청→16보유→17장착. 18은 같은키 충돌 검사. local,db + ontop.shop.enabled=true + 공통/상점 스키마가 필요합니다. 보유 의상 재구매는 서버에서 거절하고 소비형은 수량을 누적합니다. 테스트 계정의 개인 로컬 Access JWT만 사용하고 공유하지 마세요. 기본 DB에 스키마를 자동 적용하지 않았습니다. 실제 DB 초기화·공통 재화 통합·3D 외형 계약은 별도 확인합니다.\n\n2026-10-22: 상점 저장 처리를 JPA 엔티티·JPQL로 전환했습니다. 기존 6개 요청·응답·중복 구매 방지·롤백 계약은 그대로이며 예제 수정 없이 사용할 수 있습니다.' + appearanceGuide},
         item: httpV21.item.slice(12)}, null, 2) + '\n'],
     ['OnTop-HTTP.postman_collection.json', JSON.stringify(httpV21, null, 2) + '\n'],
     ['OnTop-WebSocket.postman_collection.json', JSON.stringify(wsV3, null, 2) + '\n'],

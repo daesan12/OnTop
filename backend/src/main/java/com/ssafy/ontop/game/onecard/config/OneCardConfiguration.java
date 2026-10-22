@@ -5,7 +5,6 @@ import com.ssafy.ontop.game.engine.GameEngineGateways;
 import com.ssafy.ontop.game.engine.GameEngineRouter;
 import com.ssafy.ontop.game.onecard.service.OneCardEngine;
 import com.ssafy.ontop.game.onecard.domain.ForfeitHandPolicy;
-import org.springframework.beans.factory.annotation.Value;
 import java.security.SecureRandom;
 import java.time.Clock;
 import java.util.Optional;
@@ -26,11 +25,10 @@ import org.springframework.context.annotation.Profile;
 public class OneCardConfiguration {
     @Bean
     OneCardEngine onecardEngine(ObjectMapper mapper, Optional<Clock> clock, ApplicationEventPublisher events,
-            GameEngineRouter router,
-            @Value("${ontop.games.onecard.forfeit-hand-policy}") ForfeitHandPolicy forfeitHandPolicy) {
+            GameEngineRouter router) {
         SecureRandom random = new SecureRandom();
         return new OneCardEngine(mapper, clock.orElseGet(Clock::systemUTC), events::publishEvent, router,
-                cards -> java.util.Collections.shuffle(cards, random), random::nextInt, forfeitHandPolicy);
+                cards -> java.util.Collections.shuffle(cards, random), random::nextInt, ForfeitHandPolicy.REMOVE);
     }
 
     @Bean(destroyMethod = "shutdownNow")

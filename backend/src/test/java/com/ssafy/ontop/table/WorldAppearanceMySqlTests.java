@@ -30,7 +30,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "spring.profiles.active=local,db", "ontop.shop.enabled=true", "ontop.websocket.authenticated=true",
         "ontop.websocket.heartbeat.interval=200ms", "ontop.websocket.heartbeat.timeout=2s",
-        "ontop.shop.duplicate-equipment-policy=REJECT",
         "spring.flyway.locations=classpath:db/migration,classpath:db/shop-fixture,classpath:db/shop",
         "ontop.auth.jwt-secret-base64=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
         "ontop.world.channels[0].channel-id=a", "ontop.world.channels[0].name=A",
