@@ -8,10 +8,23 @@
 - Compose Nginx가 `api.on-top.world`의 80/443을 수신한다. 외부 `https://api.on-top.world/actuator/health`는 `200 {"status":"UP"}`, HTTP는 HTTPS로 `308` 이동, TLS 검증은 성공했다. 인증서 갱신 훅의 Compose Nginx 재로드도 시험했다. 임시 TLS Nginx 컨테이너는 제거했다.
 - `app.env`, `deploy.env`, DB 비밀번호는 PROD-APP의 `/etc/ontop/prod-app/`에 저장한다. JWT 키는 서버에서 생성했다. **SSAFY·Naver OAuth 자격 증명은 아직 입력되지 않아 로그인은 사용할 수 없다.** 이미지 태그는 이번 Story 검증용이며 정식 릴리스 태그가 아니다.
 - 현재 Flyway는 MySQL 8.4 연결·마이그레이션에 성공했지만, 실행 로그에 해당 Flyway 버전의 최신 시험 지원 버전이 MySQL 8.1이라는 경고가 남는다. 후속 의존성 검토가 필요하다.
-- DEV-CI 인스턴스·개발용 앱/DB, 실제 OAuth 로그인, 채널·게임 기능은 아직 검증되지 않았다. Story는 진행 중으로 유지한다.
+- DEV-CI 인스턴스와 개발용 앱/DB는 아래 상태까지 검증했다. 실제 OAuth 로그인, 채널·게임 기능은 아직 검증되지 않았다. Story는 진행 중으로 유지한다.
 - Vercel `ontop-frontend` 프로젝트의 Preview와 Production 배포가 모두 `Ready`다. pnpm 11.25.0 의존성 설치와 `tsc --noEmit && vite build`가 성공했다. `frontend/pnpm-workspace.yaml`은 `sharp`의 빌드 스크립트만 허용한다. Preview는 Vercel Authentication으로 보호되며, `vercel curl --head`로 `/`, `/auth/callback`, `/onboarding`, `/park`가 모두 200 HTML을 반환하는 것을 확인했다. 앞선 일반 `vercel deploy` 시도의 Production 설치 오류는 과거 배포 기록이다.
 - 가비아의 `@`·`www` DNS는 Vercel로 연결된다. `https://www.on-top.world/`와 `/auth/callback`은 200 HTML, `https://on-top.world/`은 `www`로 308 이동한다. 운영 `www`의 `/api/v1/users/me`는 백엔드 직접 요청과 같이 인증 없는 경우 401 JSON을 반환해 API 전달 경로를 확인했다. `https://api.on-top.world/actuator/health`는 200이다. PROD-APP의 `AUTH_FRONTEND_CALLBACK_URI`는 `https://www.on-top.world/auth/callback`이며 앱은 `healthy`다. SSAFY OAuth 시작 주소는 자격 증명이 없어 현재 500 JSON을 반환한다. WSS와 로그인 왕복은 아직 검증하지 못했다.
-- 이번 Vercel Production 배포는 사용자의 로컬 작업 트리에서 CLI로 실행됐다. `frontend/vercel.json`과 프론트 WebSocket 도메인 변경은 아직 커밋·푸시되지 않았으므로, Git 저장소만으로 이 배포를 재현할 수 없다.
+- 이번 Vercel Production 배포는 사용자가 CLI로 실행했다. `frontend/vercel.json`과 프론트 WebSocket 도메인 변경은 이후 `dev` 브랜치에 병합됐다. GitLab 푸시로 Vercel을 자동 배포하는 연결은 Story 116에서 진행한다.
+- SSAFY Client ID·Secret은 발급받았으나 현재 공급자에 등록된 Redirect URI는 로컬용 `http://localhost:8080/api/v1/auth/ssafy/callback`이다. 운영 로그인을 위해 공급자 등록 주소와 서버의 `SSAFY_REDIRECT_URI`를 `https://www.on-top.world/api/v1/auth/ssafy/callback`으로 일치시켜야 한다. 로컬 주소를 유지해야 하고 하나의 Client에 여러 Redirect URI를 등록할 수 없다면 운영용 Client를 별도로 발급받는다. 로그인 시작 요청은 `www.on-top.world/api/`에서 세션을 발급하고 OAuth `state`와 교환 코드는 같은 세션에서만 검증한다. 공급자 등록과 서버 설정을 맞추기 전까지 운영 OAuth는 미완료다.
+
+## 2026-10-22 개발 배포 상태
+
+- 추가 계정의 DEV-CI 인스턴스는 Ubuntu 26.04.1 LTS, t3.large, 50 GiB 루트 볼륨, 탄력적 IP `3.36.196.164`다. 최초 루트 볼륨 `vol-0d457da4390189a8f`는 암호화되지 않았다. 서울 리전의 EBS 기본 암호화를 활성화하고, 인스턴스를 정상 중지해 만든 직접 스냅샷 `snap-017402faea15b468f`에서 루트 볼륨을 교체했다. 현재 부팅된 볼륨 ID는 `vol-0f814b91a6bd9ee85`이며 사용자가 AWS 콘솔에서 `암호화됨: 예`를 확인했다. 기존 암호화되지 않은 볼륨과 스냅샷의 잔존 상태를 AWS 콘솔에서 확인하고, 복구용으로 더 이상 필요하지 않을 때 정리해야 한다. 사용자는 보안그룹 인바운드가 SSH 22(본인 IP), HTTP 80, HTTPS 443뿐임을 확인했다. Docker Engine 29.9.2와 Compose v5.6.1을 공식 Docker apt 저장소로 설치했다. Jenkins는 Story 116에서 설치한다.
+- `/opt/ontop/infra/app`에 이 디렉터리를 배치하고 `bootstrap-dev.sh`로 `/etc/ontop/dev-app/`의 개발 전용 DB 비밀번호 2개와 JWT 키를 서버에서 생성했다. `app.env`·`deploy.env`는 root 0600, MySQL root 비밀번호 파일은 root 0600, 앱 비밀번호 파일은 root:10001 0640이다. `mysql`은 `ontop_dev` DB를 named volume에 보관하며 호스트 포트 3306은 열지 않는다.
+- 개발용 Compose의 세 컨테이너는 Docker `local` 로그 드라이버로 각 로그 파일을 최대 10 MiB, 3개까지 보관한다. 기존 MySQL named volume을 유지한 채 Compose 설정을 다시 적용했다.
+- 사용자의 비공개 이미지 `wooaw/ontop-backend:story115-preview-20261022`(`sha256:a877b391da0fb9e7412cf0fe8f1834e36c84ebeb5e757d9f3f474885e109f5dc`)를 로컬 Docker 이미지에서 SSH로 복사해 로드했다. DEV-CI 서버에는 Docker Hub PAT를 저장하지 않았다. 앱은 `db` 프로필에서 자체 MySQL에 연결했고 Flyway 3개 마이그레이션이 성공했다. MySQL·앱 컨테이너는 `healthy`다. Flyway의 MySQL 8.4 지원 경고는 운영과 동일하게 남는다.
+- 가비아 `dev-api` A 레코드는 이 서버의 탄력적 IP를 가리킨다. Nginx와 Let's Encrypt 인증서를 설정했으며 `https://dev-api.on-top.world/actuator/health`는 외부에서 `200 {"status":"UP"}`, HTTP는 HTTPS로 `308` 이동한다. 인증서 만료일은 2027-01-20이다. 갱신 훅의 인증서 복사·Compose Nginx 재로드와 Certbot 갱신 모의 시험이 성공했다.
+- 개발용 SSAFY Client ID·Secret은 넣지 않았다. 개발 프론트 `dev.on-top.world`, Vercel의 개발 API 전달 규칙, OAuth 공급자 Redirect URI도 아직 연결되지 않았다. API 헬스가 정상이더라도 로그인·WSS·게임이 동작한다는 뜻은 아니다.
+- Compose 설정을 다시 적용해도 Flyway 스키마 버전 3이 남아 있음을 확인했다. 서버를 재부팅한 뒤 Docker와 세 컨테이너가 자동으로 돌아왔고, 앱 기동 중 잠깐의 502 이후 HTTPS 헬스가 다시 `200`이 됐다. 인증 없는 `/api/v1/users/me`는 401 JSON, 루트 `/`는 Nginx 404를 반환한다. 외부에서 3306·8080 TCP 접속 시험은 3초 제한 시간 안에 연결되지 않았다. Docker와 Certbot 타이머는 부팅 시 활성화로 설정돼 있다.
+- 암호화된 루트 볼륨으로 교체한 뒤 SSH에서 현재 볼륨의 시리얼이 `vol0f814b91a6bd9ee85`임을 확인했다. MySQL·앱 컨테이너는 모두 `healthy`, Flyway 스키마 버전은 3으로 유지됐다. 시작 중 일시적 502 후 `https://dev-api.on-top.world/actuator/health`는 TLS 검증을 통과하며 `200 {"status":"UP"}`을 반환했다.
+- 재부팅 후 메모리 7.6 GiB 중 약 6.4 GiB가 사용 가능했고, 루트 파일시스템은 48 GiB 중 4.6 GiB 사용 중이었다. Jenkins 빌드를 함께 실행할 때의 CPU 크레딧·메모리 사용량은 Story 116에서 다시 측정한다.
 
 현재 `db` 프로필은 인증·DB와 헬스체크를 실행하지만, 채널 조회·게임 구현의 여러 Bean이 `local` 프로필에 묶여 있다. 이 구성을 그대로 운영하면 **전체 게임이 동작한다고 판정할 수 없다.** 백엔드 담당자와 운영 프로필의 Bean·개발 전용 엔드포인트 경계를 확정하기 전에는 `local,db`를 운영 우회책으로 켜지 않는다. GitLab Webhook/Jenkins 자동 배포는 Story 116, 게임 드레인과 blue/green 전환은 Story 118의 범위다.
 
@@ -47,6 +60,7 @@ docker push "$IMAGE"
 
 - PROD-APP의 실제 버전은 Ubuntu **24.04.4**다. `infra/prod-db/install-docker.sh`는 **Ubuntu 26.04 전용**이므로 사용하지 않는다. 이 디렉터리의 `install-docker.sh`는 공식 Docker apt 저장소로 24.04/26.04에 설치하며, 기존 Docker 또는 충돌 패키지가 있으면 중단한다.
 - DEV-CI는 사용자가 생성할 Ubuntu 26.04 인스턴스에 같은 스크립트로 Docker Engine과 Compose plugin을 설치한다. Jenkins는 다음 Story에서 설치한다.
+- 새 DEV-CI 서버에서는 `sudo bash infra/app/bootstrap-dev.sh wooaw/ontop-backend:<태그>`로 저장소 밖의 설정·비밀번호 파일을 처음 한 번 만든다. 이미 존재하는 설정 파일은 재실행해도 덮어쓰지 않는다. 이미지 태그를 바꿀 때는 `/etc/ontop/dev-app/deploy.env`를 별도로 수정한다.
 - 두 서버의 호스트 방화벽과 AWS 보안 그룹은 80/443만 서비스용으로 열고, SSH는 관리자 IP로 제한한다. PROD-APP에서 DB의 WireGuard 주소로 접근하는 기존 경로를 유지한다. 앱 8080과 dev MySQL 3306은 외부에 공개하지 않는다.
 - 서버 시간 동기화, 디스크 여유, Docker 로그 용량을 확인한다. dev DB의 named volume을 삭제하면 데이터가 사라지므로 `docker compose down -v`를 운영 명령으로 사용하지 않는다.
 
@@ -100,7 +114,13 @@ sudo docker compose --env-file /etc/ontop/prod-app/deploy.env -f infra/app/compo
 
 Certbot 갱신 후 인증서 복사와 Compose Nginx 재적용을 위해 `certbot-deploy-hook.sh`를 `/etc/letsencrypt/renewal-hooks/deploy/ontop-prod-app.sh`에 `root:root`, `0750`으로 설치한다. 앱이 아직 배포되지 않았으면 인증서만 복사하고, Nginx 컨테이너가 생긴 뒤에는 재로드한다. `sudo certbot renew --dry-run --cert-name api.on-top.world`와 인증서 만료일 확인을 수행한다. Nginx는 `/api/`를 HTTP API로, `/ws/`를 WebSocket Upgrade로 프록시한다. `/actuator/health`는 상태 확인에 사용하고 나머지 경로는 404로 닫는다.
 
+DEV-CI는 `dev-api.on-top.world` 인증서를 `/etc/ontop/dev-app/tls`로 복사하고 `certbot-dev-deploy-hook.sh`를 `/etc/letsencrypt/renewal-hooks/deploy/ontop-dev-app.sh`에 설치했다. `deploy.env`의 Nginx 설정은 `nginx/tls.conf`를 가리킨다. `sudo certbot renew --dry-run --cert-name dev-api.on-top.world --no-random-sleep-on-renew`로 갱신 경로를 시험한다. 마지막 옵션은 수동 시험 때 Certbot의 무작위 대기를 생략한다.
+
 프론트의 HTTP API 호출은 기존 `/api/v1` 상대 경로를 유지한다. `frontend/vercel.json`은 요청 호스트가 `www.on-top.world`일 때만 `/api/*`를 `https://api.on-top.world/api/*`로 전달한다. 따라서 Preview와 다른 Vercel 호스트가 운영 API에 연결되지 않는다. 쿠키가 필요한 로그인 요청도 브라우저에서는 같은 프론트 주소로 보낸다. WebSocket은 프론트 코드가 `www.on-top.world`에서만 `wss://api.on-top.world/ws/tables`로 직접 연결하고, 로컬 개발 주소는 기존 Vite 프록시를 사용한다. `AUTH_ALLOWED_ORIGINS`에는 `www.on-top.world`가 포함되어 있다. Preview의 정적 SPA 경로와 운영 도메인의 인증 없는 API 전달은 확인했다. WSS와 로그인 왕복은 아직 검증하지 못했다. 개발 프론트와 dev API의 별도 연결은 DEV-CI 구축 후 추가한다. `*.vercel.app` Preview에서는 운영 API를 연결하지 않으므로 실제 OAuth·게임 검증에는 운영 커스텀 도메인 또는 별도 dev 환경을 사용한다. Vercel 빌드에 넣는 `VITE_*` 값은 브라우저에 공개되는 주소만 사용하고 비밀번호를 넣지 않는다.
+
+SSAFY 공급자에 등록할 운영 Redirect URI는 `https://www.on-top.world/api/v1/auth/ssafy/callback`이다. 공급자가 이 주소로 브라우저를 돌려보내면 Vercel의 `/api/*` 규칙이 같은 백엔드로 전달한다. 서버의 `SSAFY_REDIRECT_URI`도 정확히 같은 문자열이어야 한다. 로그인 시작과 콜백을 서로 다른 서브도메인으로 나누면 host-only `JSESSIONID`가 콜백에 포함되지 않아 OAuth `state` 및 교환 코드 검증에 실패한다. Client ID·Secret은 서버의 `/etc/ontop/prod-app/app.env`에만 입력하고 저장소·채팅·Vercel 빌드 변수에 넣지 않는다.
+
+개발용 로그인을 연결할 때도 시작과 콜백을 `dev.on-top.world` 한 호스트로 통일하고 `/api/*`를 `dev-api.on-top.world`로 전달한다. 개발 공급자 등록 주소와 `SSAFY_REDIRECT_URI`는 `https://dev.on-top.world/api/v1/auth/ssafy/callback`으로 맞춘다. 개발용 프론트 도메인·공급자 등록 전에는 DEV-CI의 API 헬스와 DB 연결까지만 검증한다.
 
 ## 4. 완료 검증
 
@@ -110,4 +130,4 @@ Certbot 갱신 후 인증서 복사와 Compose Nginx 재적용을 위해 `certbo
 4. 실제 도메인에서 `GET /actuator/health`가 `200`이고, API·로그인 왕복과 WSS `/ws/tables` 연결이 정상이다. health `UP`만으로 게임 흐름을 통과했다고 보지 않는다.
 5. Certbot 갱신 시험, 컨테이너/호스트 재시작 후 복구, dev DB 데이터 유지, 이미지 태그 기록을 확인한다.
 
-DEV-CI 서버, OAuth 공급자 등록과 local 전용 게임 Bean의 운영 계약이 준비되지 않았으므로 해당 검증은 미완료로 남기고 Jira Story를 완료 처리하지 않는다.
+개발 프론트 도메인·API 전달, OAuth 공급자 등록과 local 전용 게임 Bean의 운영 계약이 준비되지 않았으므로 해당 검증은 미완료로 남기고 Jira Story를 완료 처리하지 않는다.
