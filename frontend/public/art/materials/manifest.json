@@ -1,0 +1,150 @@
+{
+  "license": "CC0-1.0",
+  "licenseUrl": "https://polyhaven.com/license",
+  "downloadedAt": "2026-10-14T04:52:23.633Z",
+  "sources": [
+    {
+      "material": "wood",
+      "id": "wood_table_001",
+      "url": "https://polyhaven.com/a/wood_table_001"
+    },
+    {
+      "material": "stone",
+      "id": "rock_boulder_dry",
+      "url": "https://polyhaven.com/a/rock_boulder_dry"
+    },
+    {
+      "material": "grass",
+      "id": "leafy_grass",
+      "url": "https://polyhaven.com/a/leafy_grass"
+    },
+    {
+      "material": "bark",
+      "id": "bark_brown_02",
+      "url": "https://polyhaven.com/a/bark_brown_02"
+    }
+  ],
+  "processing": "1K source JPG -> 512px WebP maps, 1024px wood/grass base color. Wood/stone/bark desaturated and lightened to combine with instance tints. OpenGL normal and roughness channels retain data colors.",
+  "files": [
+    {
+      "file": "wood-color.webp",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/wood_table_001/wood_table_001_diff_1k.jpg",
+      "sourceMd5": "56652a7339b16a76afad20d3585f66ea",
+      "sha256": "44fbb08f55e7a556f899fed2d2b405b9fbca25c900546890831a1e17183bb430",
+      "bytes": 134126,
+      "width": 1024,
+      "height": 1024,
+      "colorSpace": "sRGB"
+    },
+    {
+      "file": "wood-normal.webp",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/wood_table_001/wood_table_001_nor_gl_1k.jpg",
+      "sourceMd5": "6360e09967add8baecaa5ecc55fb5e03",
+      "sha256": "9d03244ae2888e28f9b14458e3c60b1ae49f34308d9a4f887d5f2154182628af",
+      "bytes": 2822,
+      "width": 512,
+      "height": 512,
+      "colorSpace": "linear"
+    },
+    {
+      "file": "wood-roughness.webp",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/wood_table_001/wood_table_001_rough_1k.jpg",
+      "sourceMd5": "05b60bd20a1cc4355c5d73a99b245d44",
+      "sha256": "46c07e25286483194052179b31b4b83dae01bd2b0136bfa0cefa65e1c39cf98f",
+      "bytes": 46508,
+      "width": 512,
+      "height": 512,
+      "colorSpace": "linear"
+    },
+    {
+      "file": "stone-color.webp",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rock_boulder_dry/rock_boulder_dry_diff_1k.jpg",
+      "sourceMd5": "da794cd9be3db91e3160cf081109f322",
+      "sha256": "763015c40fce012a8b535af6c3f82aee59eda3c1516936a30ac157cc3be4ec90",
+      "bytes": 57802,
+      "width": 512,
+      "height": 512,
+      "colorSpace": "sRGB"
+    },
+    {
+      "file": "stone-normal.webp",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rock_boulder_dry/rock_boulder_dry_nor_gl_1k.jpg",
+      "sourceMd5": "6f1c575ceed560ae253f65518cf748e2",
+      "sha256": "1ec8278e2333a6a64b32c0c57806a81acfbca74ce9edc3f201eaabc1e439e894",
+      "bytes": 67550,
+      "width": 512,
+      "height": 512,
+      "colorSpace": "linear"
+    },
+    {
+      "file": "stone-roughness.webp",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rock_boulder_dry/rock_boulder_dry_rough_1k.jpg",
+      "sourceMd5": "0c8b15df3e31c15256da5f8e1b0d0759",
+      "sha256": "230563de19e355fcbb2ba206ccea3c5ecae8d81b0682fb0d892882724c28fd06",
+      "bytes": 53214,
+      "width": 512,
+      "height": 512,
+      "colorSpace": "linear"
+    },
+    {
+      "file": "grass-color.webp",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/leafy_grass/leafy_grass_diff_1k.jpg",
+      "sourceMd5": "0dbc071e91d6905edfcfbe8eb785a1ab",
+      "sha256": "1a18a8875db9af05b63e7a6af3b1f1bc1df0451ee1ab8fc39badfc22da740cab",
+      "bytes": 410122,
+      "width": 1024,
+      "height": 1024,
+      "colorSpace": "sRGB"
+    },
+    {
+      "file": "grass-normal.webp",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/leafy_grass/leafy_grass_nor_gl_1k.jpg",
+      "sourceMd5": "8279e096e204ea326d57a318869f99df",
+      "sha256": "107d4b7af00a6d3cfc76655ced374a8f3e819b9710149214442b8122340b35d2",
+      "bytes": 148836,
+      "width": 512,
+      "height": 512,
+      "colorSpace": "linear"
+    },
+    {
+      "file": "grass-roughness.webp",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/leafy_grass/leafy_grass_rough_1k.jpg",
+      "sourceMd5": "05f6bb1383e12b327727d313c5899cf2",
+      "sha256": "1bc50bc500ccf76a2ac1a03e834f1b424f2bef225bc962ecc4fe9779d46442a1",
+      "bytes": 11944,
+      "width": 512,
+      "height": 512,
+      "colorSpace": "linear"
+    },
+    {
+      "file": "bark-color.webp",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/bark_brown_02/bark_brown_02_diff_1k.jpg",
+      "sourceMd5": "6669cca520594bdca19f94084984ab72",
+      "sha256": "15e2ce5bbca32f601273360e266ad9db0215302933f721238829dbef0d37a0d1",
+      "bytes": 53666,
+      "width": 512,
+      "height": 512,
+      "colorSpace": "sRGB"
+    },
+    {
+      "file": "bark-normal.webp",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/bark_brown_02/bark_brown_02_nor_gl_1k.jpg",
+      "sourceMd5": "1cad3fe0349a44df2d4d1c2859c79920",
+      "sha256": "e48c8da0d910903285f209f6a2b1f948db86b2928cf6f7e7cc82409f6b3c116c",
+      "bytes": 136092,
+      "width": 512,
+      "height": 512,
+      "colorSpace": "linear"
+    },
+    {
+      "file": "bark-roughness.webp",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/bark_brown_02/bark_brown_02_rough_1k.jpg",
+      "sourceMd5": "bbcde696e5b9418cdcb2abe638965417",
+      "sha256": "f8ef3320cd1c37b66016f5f2644fe0fcc835e901e00b3bdd0ba94c13b17f6f81",
+      "bytes": 29852,
+      "width": 512,
+      "height": 512,
+      "colorSpace": "linear"
+    }
+  ]
+}

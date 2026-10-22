@@ -1,5 +1,7 @@
 # OnTop frontend
 
+공원 3D·기존 HUD의 공통 WebSocket 연결, 실행/검증 방법과 남은 연동 사항은 [PARK_INTEGRATION.md](docs/PARK_INTEGRATION.md)를 참고한다. 기존 로그인·온보딩 UI와 공원 HUD 디자인을 유지한다. 이관 에셋의 실측 및 미완료 항목은 [ASSET_OPTIMIZATION_STATUS.md](docs/ASSET_OPTIMIZATION_STATUS.md)에 기록한다.
+
 React, TypeScript, Vite, React Three Fiber 기반 프론트엔드다. 현재 첫 화면은 Figma `02-C 로그인 · 내가 고친거 · Desktop 1920`을 구현한 로그인 진입 UI다. 이전 회전 상자 및 클릭 횟수 검증 데모는 제거했다.
 
 ## 실행

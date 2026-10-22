@@ -1,0 +1,29 @@
+/** Render positions every frame; sample expensive remote skeleton/sole poses
+ * less often when idle or distant. Server events bypass the sampling delay. */
+export class AvatarPoseCadence {
+  private elapsed = 0
+  private previousKey: string | undefined
+  private previousActive = false
+  private distant = false
+
+  advance(
+    delta: number,
+    distance: number,
+    own: boolean,
+    active: boolean,
+    key: string,
+  ) {
+    if (distance > 16) this.distant = true
+    else if (distance < 12) this.distant = false
+    const interval =
+      own || (active && !this.distant) ? 0 : active ? 1 / 15 : 1 / 12
+    const changed = this.previousKey !== key || this.previousActive !== active
+    this.previousKey = key
+    this.previousActive = active
+    this.elapsed += Math.min(Math.max(0, delta), 0.1)
+    if (!changed && this.elapsed + 1e-8 < interval) return 0
+    const step = this.elapsed
+    this.elapsed = 0
+    return step
+  }
+}
