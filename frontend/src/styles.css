@@ -1,0 +1,213 @@
+@font-face {
+  font-family: 'BusanDandiMyeongjo';
+  src: url('./assets/BusanDandiMyeongjo-300.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'BusanDandiMyeongjo';
+  src: url('./assets/BusanDandiMyeongjo-500.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'BusanDandiMyeongjo';
+  src: url('./assets/BusanDandiMyeongjo-700.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+}
+
+:root {
+  font-family: 'BusanDandiMyeongjo', serif;
+  color: #27372b;
+  background: #d4d5c4;
+  font-synthesis: none;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root { width: 100%; min-height: 100%; margin: 0; }
+
+button { font: inherit; }
+
+.login-page {
+  position: relative;
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow: hidden;
+  background: url('./assets/park-background.png') center / cover no-repeat;
+}
+
+.login-panel {
+  position: absolute;
+  top: 5.37vh;
+  right: 6.4vw;
+  width: min(34.12vw, 60.6vh);
+  aspect-ratio: 1034 / 1521;
+  background: url('./assets/login-panel.png') center / contain no-repeat;
+  container-type: inline-size;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.login-actions {
+  position: absolute;
+  inset: 0;
+}
+
+.entry-button {
+  position: absolute;
+  left: 13.28%;
+  width: 73.89%;
+  height: 7.68%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4em;
+  padding: 0;
+  border-radius: 1.25cqw;
+  cursor: pointer;
+  font-size: 3.1cqw;
+  font-weight: 500;
+  line-height: 1;
+  transition: filter 150ms ease, transform 150ms ease;
+}
+
+.entry-button:hover { filter: brightness(1.07); }
+.entry-button:active { transform: translateY(2px); }
+.entry-button:focus-visible { outline: 3px solid #173b24; outline-offset: 3px; }
+
+.entry-button--naver {
+  top: 48.39%;
+  color: white;
+  border: 0.35cqw solid #62a95c;
+  background: #5ba653;
+  box-shadow: inset 0 0 0 0.32cqw #8bc487;
+}
+
+.naver-mark {
+  font-family: 'BusanDandiMyeongjo', serif;
+  font-size: 4.2cqw;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.entry-button--ssafy {
+  top: 57.63%;
+  color: white;
+  border: 0.35cqw solid #5d9fce;
+  background: #599bd0;
+  box-shadow: inset 0 0 0 0.32cqw #8dbbe1;
+}
+
+.ssafy-mark {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  width: 4.1cqw;
+  height: 4.1cqw;
+  padding: 0.2cqw;
+  color: white;
+  background: #141d22;
+  font-size: 0.75cqw;
+  font-weight: 700;
+  line-height: 1.05;
+  text-align: center;
+}
+
+.entry-divider {
+  position: absolute;
+  top: 67.91%;
+  left: 13.44%;
+  width: 73.59%;
+  border-top: 1px dashed #9eaa8f;
+}
+
+.entry-button--guest {
+  top: 70.51%;
+  height: 8.1%;
+  color: #354437;
+  border: 0.28cqw solid #33483a;
+  background: #f1efe3;
+  box-shadow: inset 0 0 0 1.05cqw #f1efe3, inset 0 0 0 1.3cqw #bbc3b7;
+}
+
+.guest-caption {
+  position: absolute;
+  top: 79.9%;
+  left: 0;
+  width: 100%;
+  margin: 0;
+  color: #9e9f82;
+  font-size: 2.18cqw;
+  font-weight: 300;
+  text-align: center;
+}
+
+.entry-status {
+  position: absolute;
+  top: 84%;
+  left: 14%;
+  width: 72%;
+  margin: 0;
+  color: #55634a;
+  font-size: 2.2cqw;
+  text-align: center;
+}
+
+.callback-content {
+  position: absolute;
+  top: 49%;
+  left: 14%;
+  width: 72%;
+  color: #354437;
+  text-align: center;
+}
+
+.callback-content h1 {
+  margin: 0 0 0.8em;
+  font-size: 4.2cqw;
+  font-weight: 700;
+}
+
+.callback-content p {
+  margin: 0;
+  font-size: 2.8cqw;
+  line-height: 1.5;
+}
+
+.callback-content a {
+  display: inline-block;
+  margin-top: 1.5em;
+  color: #245a37;
+  font-size: 2.8cqw;
+  text-underline-offset: 0.25em;
+}
+
+.callback-content a:focus-visible { outline: 3px solid #173b24; outline-offset: 3px; }
+
+@media (max-aspect-ratio: 9/10) {
+  .login-page { min-height: 720px; }
+  .login-panel {
+    top: 50%;
+    right: 50%;
+    width: min(88vw, 53vh, 480px);
+    transform: translate(50%, -50%);
+  }
+}
