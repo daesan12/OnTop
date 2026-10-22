@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import { AuthCallbackPage } from './auth/AuthCallbackPage'
-import { getAuthSession, logout, restoreAuthSession } from './auth/authFlow'
+import { clearAuthSession, getAuthSession, logout, restoreAuthSession } from './auth/authFlow'
 import { LoginPage } from './login/LoginPage'
+import { OnboardingPage } from './onboarding/OnboardingPage'
 import { ParkPage } from './park/ParkPage'
 
-type Page = 'checking' | 'login' | 'callback' | 'park'
+type Page = 'checking' | 'login' | 'callback' | 'onboarding' | 'park'
 
 export default function App() {
   const [page, setPage] = useState<Page>(() =>
@@ -33,6 +34,17 @@ export default function App() {
     setPage('park')
   }, [])
 
+  const onOnboardingRequired = useCallback(() => {
+    window.history.replaceState(null, '', '/onboarding')
+    setPage('onboarding')
+  }, [])
+
+  const onReturnToLogin = useCallback(() => {
+    clearAuthSession()
+    window.history.replaceState(null, '', '/')
+    setPage('login')
+  }, [])
+
   const onExit = async () => {
     setExitError('')
     try {
@@ -44,7 +56,12 @@ export default function App() {
     }
   }
 
-  if (page === 'callback') return <AuthCallbackPage onAuthenticated={onAuthenticated} />
+  if (page === 'callback') {
+    return <AuthCallbackPage onAuthenticated={onAuthenticated} onOnboardingRequired={onOnboardingRequired} />
+  }
+  if (page === 'onboarding' && getAuthSession()?.status === 'ONBOARDING_REQUIRED') {
+    return <OnboardingPage onComplete={onAuthenticated} onReturnToLogin={onReturnToLogin} />
+  }
   if (page === 'park' && getAuthSession()?.status === 'AUTHENTICATED') {
     return <ParkPage onExit={onExit} exitError={exitError} />
   }
