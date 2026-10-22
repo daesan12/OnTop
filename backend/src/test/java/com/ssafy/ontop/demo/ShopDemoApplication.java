@@ -28,7 +28,7 @@ public final class ShopDemoApplication {
         }
         new SpringApplication(OntopApplication.class, Fixture.class).run(
                 "--spring.profiles.active=local,db,shop-demo", "--server.address=127.0.0.1", "--server.port=18083",
-                "--ontop.shop.enabled=true", "--ontop.shop.duplicate-equipment-policy=REJECT",
+                "--ontop.shop.enabled=true",
                 "--spring.flyway.locations=classpath:db/migration,classpath:db/shop-fixture,classpath:db/shop",
                 "--ontop.auth.allowed-origins=http://127.0.0.1:18083");
     }

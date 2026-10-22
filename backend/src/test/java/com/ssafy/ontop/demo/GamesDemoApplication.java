@@ -50,8 +50,7 @@ public final class GamesDemoApplication {
                 "--spring.profiles.active=local,games-demo","--server.address=127.0.0.1","--server.port=18082",
                 "--ontop.websocket.authenticated=true","--ontop.start-rehearsal.enabled=false",
                 "--ontop.games.farkle.enabled=true","--ontop.games.onecard.enabled=true","--ontop.games.bridge.enabled=true",
-                // 미확정 제품 정책이 아니라 이 테스트 서버의 조건이다.
-                "--ontop.games.onecard.forfeit-hand-policy=RECYCLE",
+                // 기권 손패 제외는 정식 엔진과 같은 확정 정책이다.
                 "--ontop.world.channels[0].channel-id="+CHANNEL,"--ontop.world.channels[0].name=게임 검증",
                 "--ontop.world.channels[0].capacity=10",
                 "--ontop.world.proximity.tables["+TABLE+"].x=-2.025","--ontop.world.proximity.tables["+TABLE+"].z=34");

@@ -19,7 +19,6 @@ import static org.assertj.core.api.Assertions.*;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "spring.profiles.active=local", "ontop.websocket.authenticated=true", "ontop.games.onecard.enabled=true",
-        "ontop.games.onecard.forfeit-hand-policy=RECYCLE",
         "ontop.websocket.heartbeat.interval=200ms", "ontop.websocket.heartbeat.timeout=2s",
         "ontop.world.channels[0].channel-id=cards", "ontop.world.channels[0].name=카드테스트", "ontop.world.channels[0].capacity=3"
 })
