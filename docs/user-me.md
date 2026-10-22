@@ -1,6 +1,7 @@
 # USER-01 내 정보 조회 — S15P31B105-120
 
 닉네임 변경은 [USER-02 PATCH](user-nickname-update.md)가 같은 UserProfileResponse를 재사용한다.
+회원 탈퇴는 [USER-03 DELETE](user-withdrawal.md)가 본인 Soft Delete와 전 로그인 계열 폐기를 수행한다.
 
 ## 요청과 응답
 

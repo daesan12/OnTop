@@ -245,6 +245,7 @@ class RestSecurityTests {
                 "POST /api/v1/auth/logout", "POST /api/v1/users/onboarding", "GET /api/v1/users/me",
                 "GET /api/v1/users/nickname-availability",
                 "PATCH /api/v1/users/me",
+                "DELETE /api/v1/users/me",
                 "GET /api/v1/channels",
                 "GET /api/v1/tables", "GET /dev/tables", "GET /dev/world-config",
                 "GET /api/v1/shop/items", "POST /api/v1/shop/purchases",

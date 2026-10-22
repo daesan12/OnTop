@@ -49,6 +49,7 @@ HttpSecurity를 요구하지 않으며, 실제 Servlet 서버에서는 프로필
 | POST `/api/v1/users/onboarding` | 별도 인증 | 독립 ob_ Bearer, 최초 600초 만료, 선점·409 재시도·성공 확정, 기존 Origin 검증 |
 | GET `/api/v1/users/me` | **Access JWT + 활성 회원/로그인 세션** | Principal의 내부 userId로 본인 프로필 조회. [USER-01](user-me.md) |
 | PATCH `/api/v1/users/me` | **Access JWT + 활성 회원/로그인 세션** | Principal의 본인 닉네임만 수정. 최종 UNIQUE 검증. [USER-02](user-nickname-update.md) |
+| DELETE `/api/v1/users/me` | **Access JWT + 활성 회원/로그인 세션** | 본인 Soft Delete·전 계열 폐기·커밋 후 전체 연결 종료. [USER-03](user-withdrawal.md) |
 | GET `/api/v1/users/nickname-availability` | 온보딩 Bearer 또는 Access JWT | 닉네임 사전 조회, 본인 제외·DB collation 기준. [USER-04](nickname-availability.md) |
 | GET `/api/v1/channels` | **Access JWT + 활성 회원** | 현재 Controller는 local에서만 등록됨 |
 | GET `/api/v1/tables` | **Access JWT + 활성 회원** | 현재 Controller는 local에서만 등록됨. 채널 설정 시 channelId 필요 |
@@ -148,7 +149,7 @@ VerifiedWebSocketUser.from()으로 매핑하고, 연결 때 requireActive(id, si
 Access JWT를 URL에 추가하거나 WebSocket 임의 Authorization 헤더를 가정하지 않는다.
 REST SecurityContext는 요청 종료 후 정리되며 기존 VERIFIED_USER 세션 속성/Hub 계약을 그대로 사용한다.
 인증 기본값은 true이고 false는 명시적 local(+db/visual-test) 개발 조합에서만 허용한다.
-S15P31B105-113에서 로그인 계열 매핑·로그아웃 커밋 후 종료를 연결했다. 탈퇴 API의 실제 호출은 후속 User Story다.
+S15P31B105-113의 로그인 계열 매핑·커밋 후 종료를 USER-03 탈퇴 API에서도 재사용한다.
 전달 방식·실제 회원 테스트·프로필 변경 범위는 [WebSocket 인증 계약](websocket-authentication.md)을 따른다.
 
 ## 오류와 보안 헤더
