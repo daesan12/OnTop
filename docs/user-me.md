@@ -1,5 +1,7 @@
 # USER-01 내 정보 조회 — S15P31B105-120
 
+닉네임 변경은 [USER-02 PATCH](user-nickname-update.md)가 같은 UserProfileResponse를 재사용한다.
+
 ## 요청과 응답
 
 `GET /api/v1/users/me`는 정상 회원의 Access JWT를 요구한다. 요청 본문과 userId 파라미터는 받지 않는다.
