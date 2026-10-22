@@ -2,12 +2,15 @@ package com.ssafy.ontop.table;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ssafy.ontop.auth.security.RestSecurityTestSupport;
+import com.ssafy.ontop.auth.service.AccessJwtService;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Import;
@@ -25,9 +28,13 @@ import static org.assertj.core.api.Assertions.assertThat;
         "ontop.world.channels[1].channel-id=two", "ontop.world.channels[1].name=둘",
         "ontop.world.channels[1].capacity=3"
 })
-@Import({AuthenticatedWebSocketTests.AuthFixture.class, AllowedWatchFixture.class, FrozenWorldFixture.class})
+@Import({AuthenticatedWebSocketTests.AuthFixture.class, AllowedWatchFixture.class, FrozenWorldFixture.class,
+        RestSecurityTestSupport.class})
 @DirtiesContext
 class WorldFullFlowTests {
+
+    @Autowired
+    private AccessJwtService jwt;
 
     @LocalServerPort
     private int port;
@@ -132,7 +139,9 @@ class WorldFullFlowTests {
     private JsonNode table() throws Exception {
         try (HttpClient http = HttpClient.newHttpClient()) {
             var response = http.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port
-                    + "/api/v1/tables?channelId=one")).GET().build(), HttpResponse.BodyHandlers.ofString());
+                    + "/api/v1/tables?channelId=one"))
+                    .header("Authorization", "Bearer " + jwt.issue(RestSecurityTestSupport.USER_ID))
+                    .GET().build(), HttpResponse.BodyHandlers.ofString());
             assertThat(response.statusCode()).isEqualTo(200);
             assertThat(response.headers().firstValue("Cache-Control")).contains("no-store");
             JsonNode tables = new ObjectMapper().readTree(response.body()).path("tables");

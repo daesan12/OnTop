@@ -1,17 +1,30 @@
 package com.ssafy.ontop.table;
 
+import com.ssafy.ontop.auth.security.RestSecurityTestSupport;
+import com.ssafy.ontop.auth.service.AccessJwtService;
 import io.micrometer.core.instrument.MeterRegistry;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.context.annotation.Import;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "spring.profiles.active=test", "ontop.start-rehearsal.enabled=true"
 })
+@Import(RestSecurityTestSupport.class)
 class TableProfileTests {
+
+    @Autowired
+    private AccessJwtService jwt;
+
+    @BeforeEach
+    void authenticateRest() {
+        RestSecurityTestSupport.authenticate(http, jwt);
+    }
 
     @Autowired
     private TestRestTemplate http;

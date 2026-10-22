@@ -151,6 +151,15 @@ class NaverSessionRoundTripTests {
     static class CallbackTestConfiguration {
 
         @Bean
+        @org.springframework.core.annotation.Order(0)
+        org.springframework.security.web.SecurityFilterChain probeChain(
+                org.springframework.security.config.annotation.web.builders.HttpSecurity http) throws Exception {
+            return http.securityMatcher("/api/v1/auth/naver/state-test-callback")
+                    .csrf(csrf -> csrf.disable()).requestCache(cache -> cache.disable())
+                    .authorizeHttpRequests(authorize -> authorize.anyRequest().permitAll()).build();
+        }
+
+        @Bean
         CallbackProbeController callbackProbeController(OAuthStateStore stateStore) {
             return new CallbackProbeController(stateStore);
         }

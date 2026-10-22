@@ -2,12 +2,15 @@ package com.ssafy.ontop.table;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ssafy.ontop.auth.security.RestSecurityTestSupport;
+import com.ssafy.ontop.auth.service.AccessJwtService;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -25,7 +28,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 })
 @AutoConfigureMockMvc
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
+@Import(RestSecurityTestSupport.class)
 class WorldChannelWebSocketTests {
+
+    @Autowired
+    private AccessJwtService jwt;
 
     @LocalServerPort
     private int port;
@@ -92,7 +99,8 @@ class WorldChannelWebSocketTests {
 
     private JsonNode channel(String channelId) throws Exception {
         // 실제 소켓 상태를 읽되 HTTP의 로그인 경계만 서버 Principal 대역으로 통과한다.
-        String response = mvc.perform(get("/api/v1/channels").principal(() -> "server-authenticated-test-user"))
+        String response = mvc.perform(get("/api/v1/channels")
+                        .header("Authorization", "Bearer " + jwt.issue(RestSecurityTestSupport.USER_ID)))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
         for (JsonNode channel : mapper.readTree(response).path("items")) {
             if (channel.path("channelId").asText().equals(channelId)) {

@@ -177,7 +177,12 @@ S15P31B105-91의 `POST /api/v1/users/onboarding`은 세션에 독립적인 온�
 온보딩에는 JSESSIONID가 필요 없다. OAuth 세션과 Refresh 쿠키의 Path는 기존 `/api/v1/auth`다.
 가입 성공 시 토큰을 최종 소비한다. 롤백이 확인된 닉네임 중복 409는 최초 10분 만료 전 같은 토큰으로 재시도할 수 있다.
 [온보딩 API](docs/user-onboarding.md)에 닉네임 재시도·소셜 계정 중복/기타 실패 재로그인·Bearer/쿠키·수동 테스트 계약이 있다.
-OAuth 환경변수 없이도 기본 앱과 기존 WebSocket 개발은 실행되며, 설정이 없는 provider의 인가 요청만 500으로 실패한다.
+OAuth 환경변수 없이도 기본 앱과 기존 WebSocket 개발은 실행되며, 설정이 없는 provider의 인가 요청은 500으로 실패한다.
+
+S15P31B105-99는 Spring Security Resource Server로 보호 REST의 Access JWT와 활성 회원을 검증한다.
+OAuth 세션과 온보딩/Refresh/Logout의 별도 인증 계약은 유지한다.
+공개·보호 경로, Principal 사용법, 401/403/503, 프론트 CORS 및 WebSocket 인계 계약은
+[REST 인증 공통 처리](docs/rest-authentication.md)를 참고한다.
 
 ```powershell
 cd backend
@@ -190,9 +195,9 @@ Linux/macOS에서는 `sh ./gradlew bootRun --args='--spring.profiles.active=loca
 2. 각 탭에서 연결 → `table-1` 착석 → 첫 착석자가 게임 선택 → 각자 준비를 누른다. 두 화면에 전원 준비 완료가 표시된다.
 3. 준비 취소·퇴장·연결 종료를 실행해 상대 탭의 상태 변화를 확인한다.
 
-개발 페이지의 **목록 새로고침**으로 테이블별 착석·준비 인원과 빈자리를 확인한다. [테이블 목록 API](docs/table-query-api.md)는 `GET /api/v1/tables`이며 `local`에서 추가 옵션 없이 사용할 수 있다. 목록은 조회 시점의 상태이고 착석 후 좌석·준비 상태는 WebSocket으로 동기화한다.
+개발 페이지와 WebSocket은 유지한다. [테이블 목록 API](docs/table-query-api.md)의 `GET /api/v1/tables`는 이제 Access JWT와 활성 회원 확인이 필요하다. 기존 페이지의 **목록 새로고침** 요청은 Bearer 헤더를 보내지 않아 401이며, UI 토큰 연결은 담당자 후속 작업이다. REST 수동 조회는 `local,db`에서 Postman Bearer 인증으로 검증한다. 목록은 조회 시점의 상태이고 착석 후 좌석·준비 상태는 WebSocket으로 동기화한다.
 
-[채널 목록 API](docs/channel-query-api.md)는 `GET /api/v1/channels`이며 `local`에서 서버 설정의 채널 정보를 제공한다. 서버 인증 Principal이 필요해 실제 로그인 연결 전에는 직접 조회 시 401이다. 채널 정원을 고정하거나 가짜 사용자를 만들지 않으며, 기본 설정은 빈 채널 목록이다. 실제 광장 입장·인원 동기화는 아직 미연결이다.
+[채널 목록 API](docs/channel-query-api.md)는 `GET /api/v1/channels`이며 `local`에서 서버 설정의 채널 정보를 제공한다. Access JWT와 DB 활성 회원 검증 후 서버 Principal이 전달되며, 무인증 조회는 401이다. 채널 정원을 고정하거나 가짜 사용자를 만들지 않으며, 기본 설정은 빈 채널 목록이다. 광장·게임·WebSocket 내부 로직은 이번 인증 작업에서 변경하지 않았다.
 
 `local`은 `127.0.0.1`에 바인딩한다. 동일 출처만 허용하므로 페이지와 WebSocket의 호스트·포트를 일치시킨다. 새 연결은 새 임시 사용자이며 서버 재시작 시 좌석·버전이 초기화된다. 테이블은 `table-1`, `table-2`이며 미선택 시 4석, 오목·주사위는 2석, 원카드·거짓말은 4석이다.
 
