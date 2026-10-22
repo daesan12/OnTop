@@ -7,6 +7,12 @@ plugins {
 group = 'com.ssafy.ontop'
 version = '0.0.1-SNAPSHOT'
 
+springBoot {
+    buildInfo {
+        properties { time = null }
+    }
+}
+
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(21)
@@ -25,6 +31,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.17'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.flywaydb:flyway-core'
     implementation 'com.nimbusds:nimbus-jose-jwt:10.10'
@@ -32,6 +39,10 @@ dependencies {
     runtimeOnly 'com.mysql:mysql-connector-j'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.security:spring-security-test'
+    testImplementation('io.swagger.parser.v3:swagger-parser-v3:2.1.36') {
+        // parser의 javax Swagger core와 중복하지 않고 springdoc의 Jakarta core를 재사용한다.
+        exclude group: 'io.swagger.core.v3'
+    }
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
@@ -112,6 +123,17 @@ tasks.register('gamesDemo', JavaExec) {
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
+}
+
+tasks.register('exportOpenApi', Test) {
+    description = '실제 local HTTP 문서 엔드포인트에서 docs/api/openapi.yaml 재생성 (DB 불필요)'
+    group = 'documentation'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnitPlatform()
+    filter { includeTestsMatching 'com.ssafy.ontop.api.OpenApiLocalTests' }
+    systemProperty 'ontop.openapi.export', 'true'
+    outputs.upToDateWhen { false }
 }
 
 tasks.register('shopDemo', JavaExec) {

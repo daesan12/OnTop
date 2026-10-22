@@ -96,6 +96,12 @@ public class User {
         this.nickname = nickname;
     }
 
+    public void deactivate(Instant now) {
+        if (deletedAt == null) {
+            deletedAt = Objects.requireNonNull(now).truncatedTo(ChronoUnit.MILLIS);
+        }
+    }
+
     public LoginProvider getLoginProvider() {
         return loginProvider;
     }

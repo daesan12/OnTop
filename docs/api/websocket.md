@@ -1,0 +1,121 @@
+# OnTop WebSocket 연결 및 메시지 계약
+
+REST Swagger의 `POST /api/v1/auth/websocket-ticket`과 구분한다. 현재 소스의
+TableProtocol, TableHub, TableHandshakeInterceptor, MemberWebSocketConnections를 기준으로 작성했다.
+상세 payload는 기존 [공통 메시지](../websocket-api/00-common.md), [회원 인증](../websocket-authentication.md),
+[113번 세션 무효화](../session-invalidation.md) 및 아래 개별 계약을 따른다.
+이 문서는 게임/지갑 기능을 활성화하거나 프로토콜을 변경하지 않는다.
+
+## 연결 순서
+
+1. 실제 OAuth·교환/온보딩을 완료하여 유효한 Access JWT를 얻는다.
+2. `POST /api/v1/auth/websocket-ticket`에 `Authorization: Bearer <Access JWT>`를 보낸다.
+   Spring Security가 JWT·활성 회원·sid를 검증한 Authentication을 서비스가 재사용한다.
+   클라이언트 userId·Refresh·온보딩 토큰으로 발급할 수 없다.
+3. 응답 `{ticket,expiresIn}`의 접속권으로 즉시 연결한다.
+
+```javascript
+// jwt는 실제 로그인에서 받은 메모리의 Access JWT다. 출력/로그에 기록하지 않는다.
+const response = await fetch('http://localhost:8080/api/v1/auth/websocket-ticket', {
+  method: 'POST', headers: { Authorization: `Bearer ${jwt}` }
+});
+if (!response.ok) throw new Error('접속권 발급 실패');
+const { ticket } = await response.json();
+const socket = new WebSocket(`ws://localhost:8080/ws/tables?ticket=${encodeURIComponent(ticket)}`);
+```
+
+브라우저는 WebSocket 생성 시 임의 Authorization 헤더를 넣을 수 없다. Origin은 브라우저가 자동 전송한다.
+HTTPS 환경은 `https` REST와 `wss://…/ws/tables`를 사용한다.
+프론트 `http://localhost:5173` / 백엔드 `http://localhost:8080`이라면 local의 AUTH_ALLOWED_ORIGINS에
+프론트 Origin을 명시적으로 추가한다. 프론트 페이지의 동일 Origin으로 발급·연결해야 한다.
+
+## Origin·접속권·로그인 계열
+
+- AUTH_ALLOWED_ORIGINS의 기존 형식/정규화/검증을 REST와 WebSocket이 공유한다. 와일드카드는 허용하지 않는다.
+- 핸드셰이크는 허용 Origin 검사 → 접속권 일회 소비/발급 Origin 일치/회원·sid 확인 순서다.
+  비허용 Origin은 소비 전에 거절한다. 허용된 Origin끼리도 발급/연결이 다르면 소비 후 실패하므로 새로 발급한다.
+- 접속권은 256비트 난수, 최대30초·Access 만료 상한·일회용, 인메모리 SHA-256 해시 보관이다.
+  회원당 미사용 최대4개, 전체 최대10000개를 넘으면 발급은 429다.
+- 새 접속/재접속마다 새 접속권을 받는다. JWT/Refresh 원문을 URL이나 WebSocket session 속성에 저장하지 않는다.
+- 소비 시와 연결 등록 시 회원·sid를 재확인하고 커밋 후 폐기 이벤트와 연결 경합을 처리한다.
+  로그아웃/탈퇴 후 미사용 접속권도 차단된다. Access JWT가 연결 중 만료되는 것만으로 기존 연결을 닫지는 않는다.
+- 프록시 access log/APM/오류 추적에서 `ticket` 쿼리 원문을 제외한다. 전체 URL/쿠키/JWT를 로그에 기록하지 않는다.
+- 기본 인증은 true다. `WEBSOCKET_AUTHENTICATED=false`는 local 및 허용된 보조 db/visual-test 조합에서만 가능하다.
+  dev/prod 혼합에서 false는 시작 실패한다. 개발 데모 사용자는 실제 회원 인증 계약에서 제외한다.
+
+## 종료 및 재접속
+
+| 단계/코드 | 실제 의미 | 처리 |
+| --- | --- | --- |
+| HTTP 401 | 잘못된/만료/재사용 접속권, 회원/sid 무효 | 필요시 새 로그인 후 새 접속권 |
+| HTTP 403 | 비허용 Origin 등 | 설정/요청 출처 확인 |
+| HTTP 503 | 핸드셰이크 인증 조회 장애 | 일시 장애, 의도적 기권 아님 |
+| WS 4401 | 로그인 sid 폐기, 등록 시 인증 무효 | 해당 계열 JWT/접속권 재사용 불가 |
+| WS 4403 | 회원 비활성화 커밋 후 전체 연결 종료 | 모든 로그인 계열 차단 |
+| WS 1013 | Upgrade 후 연결 등록 시 일시 인증 장애 | 서버/DB 장애로 처리 |
+| WS 1008 | 중복 회원 연결 또는 인증/정책 위반 | 기존 연결 유지, 새 중복 연결 거절 |
+| WS 1011 | 연결 등록의 서버 오류 | 서버 장애 |
+| WS 1001 | 기존 전송/연결 정리 경로의 Going away | 단독으로 로그아웃/탈퇴 의미 아님 |
+
+로그아웃은 트랜잭션 커밋 후 해당 sid만, 탈퇴는 커밋 후 회원의 전체 sid를 종료한다.
+롤백이면 연결을 유지하며 종료 I/O 실패가 이미 커밋된 DB 상태를 되돌리지는 않는다.
+로그인 계열이 달라도 동일 회원의 WebSocket 중복 연결은 기존 한 연결 제한을 유지한다.
+네트워크 단절은 heartbeat/전송 실패 등 **서버가 감지한 시각부터** 기존 경기 재접속 30초를 적용한다.
+새 연결에는 새 접속권과 유효한 sid가 필요하며, 턴/마감은 초기화하지 않는다.
+로그아웃/탈퇴 close reason은 네트워크와 구분하지만 기존 경기 단절 연결부에 30초 유예가 생길 수 있다.
+즉시 기권·정산은 이번 인증 연동으로 완성되지 않았다. 상세는 [경기 재접속](../game-reconnect.md).
+
+## 공통 프레임
+
+```json
+{"requestId":"req-001","type":"TABLE_JOIN","payload":{"tableId":"table-1"}}
+```
+
+- 텍스트 JSON 객체, requestId는 공백이 아닌1~64자, type은 대소문자를 구분하며 payload는 객체다.
+- 원문16KiB 제한, 중복 키/추가 JSON/정의되지 않은 필드·payload는 거절한다.
+- 서버도 `{requestId,type,payload}`를 사용한다. 직접 응답은 요청 ID, 자발적 broadcast는 null이다.
+- ERROR payload는 기존 `{code,message}`다. 임의 userId·sid로 다른 회원을 지정할 수 없다.
+- requestId는 응답 연결용이지 영속 구매/경기 입력의 멱등성 보장이 아니다.
+
+## 실제 수신 메시지
+
+| 범위 | 클라이언트 type | 서버 응답/알림 |
+| --- | --- | --- |
+| 연결 | HTTP Upgrade 후 자동 | CONNECTED (`payload.userId`는 서버 식별) |
+| 광장 | CHANNEL_JOIN / CHANNEL_LEAVE | CHANNEL_STATE / CHANNEL_LEFT / WORLD_STATE |
+| 이동 | WORLD_MOVE | WORLD_STATE |
+| 채팅·감정 | WORLD_CHAT_SEND / WORLD_EMOTE_SEND | WORLD_CHAT_MESSAGE / WORLD_EMOTE_EVENT |
+| 착석·준비 | TABLE_JOIN / TABLE_LEAVE / READY_SET / GAME_SELECT | TABLE_STATE / TABLE_LEFT |
+| 대기 테이블 보기 | TABLE_WATCH / TABLE_UNWATCH | TABLE_WATCH_STATE / TABLE_WATCH_LEFT |
+| 시작 확인 | GAME_START_CHECK | GAME_START_STATE (시작 연결부 활성 시만 요청 허용) |
+| 경기 복구 | GAME_RECONNECT_CHECK | GAME_CONNECTION_STATE |
+| 경기 상태·관전 | GAME_STATE_CHECK / GAME_WATCH / GAME_UNWATCH | GAME_STATE / GAME_WATCH_LEFT |
+| 경기 입력 | GAME_ACTION_SEND | GAME_ACTION_RESULT (개별 GAME_STATE 갱신과 구분) |
+| 경기 결과 | GAME_RESULT_CHECK | GAME_RESULT |
+| 오류 | 잘못된 메시지/권한/연동 미준비 | ERROR |
+
+이 목록은 TableProtocol.parse의 실제 switch와 Hub 전송을 대조했다.
+기능의 Gateway/엔진/시작 모드가 준비되지 않으면 기존 NOT_CONFIGURED/권한/상태 오류를 반환하며
+메시지 이름이 존재한다고 모든 게임/영속 정산이 운영 활성 상태인 것은 아니다.
+
+## 게임 메시지 구조
+
+```json
+{
+  "requestId": "action-001",
+  "type": "GAME_ACTION_SEND",
+  "payload": {"gameId":"game-1","actionId":"action-1","expectedVersion":1,"input":{}}
+}
+```
+
+`input`은 게임별 규칙이며 위 빈 객체는 구조 설명이다. 유효한 실제 게임 동작을 보장하는 예제가 아니다.
+gameId 최대120자, actionId 최대64자, expectedVersion은0~9007199254740991 정수다.
+GAME_ACTION_RESULT는 `{gameId,actionId,version}` 확인이며 손패/상태를 넣지 않는다.
+GAME_STATE는 `{gameId,version,role,publicState,privateState}`이며 관전자 privateState는 `{}`다.
+내부 수신 확인용 GameStateView.userId/tableId는 JSON에 노출하지 않는다.
+GAME_RESULT는 version/gameSessionId/gameCode/status/endReason/settlementStatus/betAmountPerPlayer/
+participants/myCoinDelta/endedAt이며 PENDING의 myCoinDelta는 null이다. 응답을 받았다고 지급이 수행되는 것은 아니다.
+
+세부 필드와 선택적4종 엔진 계약은 기존 [경기 통신](../websocket-api/09-game-communication.md),
+[경기 입력](../game-action-api.md), [결과](../game-result-api.md), [광장](../world-websocket-api.md)를 따른다.
+게스트 인증, 로그아웃/탈퇴의 즉시 기권·지갑 정산, 다중 인스턴스 접속권/연결 추적·서버 재시작 복구는 후속 영역이다.

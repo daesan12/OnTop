@@ -6,7 +6,8 @@
 User Entity·LoginProvider·CharacterGender enum·UserRepository를 `com.ssafy.ontop.user`에 둔다.
 S15P31B105-80의 범위는 스키마·Entity·Repository다. 이후 AUTH-02에서 콜백·기존 계정 복구를 추가했다.
 JWT·Refresh 발급은 이후 [인증 교환 API](auth-exchange.md)에서 구현했다.
-가입 확정은 [USER-05 온보딩 API](user-onboarding.md)에서 구현했다. 탈퇴 API·삭제 배치는 아직 없다.
+가입 확정은 [USER-05 온보딩 API](user-onboarding.md), 탈퇴는 [USER-03](user-withdrawal.md)에서 구현했다.
+영구 삭제 배치는 아직 없다.
 OAuth 인증 성공만으로 users에 저장하지 않고 닉네임/성별 온보딩 완료 시 생성한다.
 현재 로그인 상태 분기는 [AUTH-02](auth-callback.md)를 따른다.
 
@@ -76,7 +77,7 @@ strict mode를 유지해야 하며, 비엄격 모드의 자동 잘림을 입력 
 전역 soft delete 필터·자동 삭제 SQL·상태별 UNIQUE를 사용하지 않는다.
 탈퇴 상태를 숨기지 않고 AUTH-02에서 deleted_at으로 정상·복구·재가입 보류를 판별한다.
 정확히 7일 이내는 같은 ID로 복구하고, 7일 초과는 기존 행을 보존하며 409로 보류한다.
-탈퇴 시각 기록 API와 영구 삭제는 아직 없다.
+탈퇴 시각 기록과 전 로그인 계열 폐기는 USER-03이 담당한다. 영구 삭제는 구현하지 않는다.
 
 **미확정 충돌:** 기존 행을 남긴 채 7일 초과 동일 소셜 계정의 새 행을 추가하면 복합 UNIQUE가 거절한다.
 따라서 신규 온보딩을 확정하기 전에 기존 소셜 식별자와 데이터의 보존·해제 방법을 결정해야 한다.

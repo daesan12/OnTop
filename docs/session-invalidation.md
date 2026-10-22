@@ -68,12 +68,12 @@ MemberWebSocketConnections는 WebSocket ID → (내부 userId, 로그인 sid, �
 
 Access JWT가 연결 중 만료되는 것만으로 소켓을 닫지 않습니다. 새 연결에는 유효한 Access로 발급한 새 접속권이 필요합니다.
 
-## 향후 User 탈퇴 연동
+## User 탈퇴 연동
 
-현재 탈퇴 REST API/이벤트는 없습니다. 신규 User API를 만들지 않았습니다.
-`MemberConnectionTermination.memberDeactivated(userId)`는 향후 User 트랜잭션에서 사용할 인터페이스입니다.
+후속 [USER-03 탈퇴 API](user-withdrawal.md)가 기존 인터페이스와 커밋 후 리스너를 연결했습니다.
+`MemberConnectionTermination.memberDeactivated(userId)`는 User 탈퇴 트랜잭션 안에서 호출합니다.
 
-User 담당자는 다음을 같은 트랜잭션으로 처리해야 합니다.
+USER-03은 다음을 같은 트랜잭션으로 처리합니다.
 
 1. 기존 인증과 같은 순서로 회원 행 잠금 및 상태 재검증
 2. deleted_at 기록
@@ -83,7 +83,7 @@ User 담당자는 다음을 같은 트랜잭션으로 처리해야 합니다.
 
 커밋 후 해당 회원의 전체 연결은 4403 `Member inactive` / MEMBER_DEACTIVATED로 정리합니다.
 롤백은 연결을 유지합니다. 트랜잭션 없는 알림 호출은 실패하며 즉시 종료로 대체하지 않습니다.
-탈퇴 API·전체 계열 DB 폐기 업무·복구 시 과거 자격 처리의 실제 User 연동은 후속 Story입니다.
+탈퇴 API·전체 계열 DB 폐기·복구 시 과거 자격 유지 차단은 USER-03에서 검증합니다.
 회원 deleted_at이 이미 기록된 상태의 신규 인증은 별도 이벤트 유무와 무관하게 DB 조회에서 차단합니다.
 
 ## 게임 영역 경계
