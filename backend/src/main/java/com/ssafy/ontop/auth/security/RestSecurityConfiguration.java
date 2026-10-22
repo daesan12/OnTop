@@ -22,6 +22,20 @@ import org.springframework.security.web.context.NullSecurityContextRepository;
 public class RestSecurityConfiguration {
 
     @Bean
+    @Order(0)
+    SecurityFilterChain nicknameAvailabilityChain(HttpSecurity http, AuthExchangeOriginPolicy origins,
+            ObjectMapper mapper, RestSecurityErrorHandler errors) throws Exception {
+        http.securityMatcher("/api/v1/users/nickname-availability");
+        common(http, errors);
+        http.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .securityContext(context -> context.securityContextRepository(new NullSecurityContextRepository()))
+                .addFilterBefore(new RestCorsFilter(origins, mapper, errors), BearerTokenAuthenticationFilter.class)
+                // 이 경로만 두 종류의 Bearer를 서비스에서 필수 검증한다. 온보딩을 ROLE_MEMBER로 승격하지 않는다.
+                .authorizeHttpRequests(authorize -> authorize.anyRequest().permitAll());
+        return http.build();
+    }
+
+    @Bean
     @Order(1)
     SecurityFilterChain separateAuthenticationChain(HttpSecurity http, RestSecurityErrorHandler errors)
             throws Exception {

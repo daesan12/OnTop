@@ -23,10 +23,11 @@ HS256 서명·exp/iat/nbf·Issuer·Audience·Header typ·token_use·crit·최대
 
 | 체인 | 경로 | 인증·세션 정책 |
 | --- | --- | --- |
+| 순서 0 | `/api/v1/users/nickname-availability` | 전용 혼합 Bearer 검증. [USER-04](nickname-availability.md)의 서비스가 온보딩 또는 Access 인증을 필수 수행 |
 | 순서 1 | 아래 명시적 공개/별도 인증 경로 | Resource Server 없음. 기존 별도 검증 유지. Security는 세션을 생성하지 않으며 애플리케이션의 OAuth 세션 생성/조회/ID 회전은 허용 |
 | 순서 2 | 그 외 모든 경로 | Stateless Bearer 인증 + 매 요청 활성 회원 조회. 관리 경로는 인증 후에도 denyAll |
 
-두 체인 모두 NullSecurityContextRepository를 사용한다. HttpSession에 SecurityContext를 저장하거나
+세 체인 모두 NullSecurityContextRepository를 사용한다. HttpSession에 SecurityContext를 저장하거나
 기존 세션의 인증을 REST 인증으로 읽지 않는다. 별도 인증 체인의 Servlet API 래핑을 비활성화하여
 기존 WebSocket 인증 필터가 제공하는 Servlet Principal도 덮어쓰지 않는다.
 일반 REST를 위한 별도 ThreadLocal은 만들지 않는다.
@@ -47,6 +48,7 @@ HttpSecurity를 요구하지 않으며, 실제 Servlet 서버에서는 프로필
 | POST `/api/v1/auth/logout` | 별도 인증 | ONTOP_REFRESH + 허용 Origin, 현재 로그인 계열 폐기 |
 | POST `/api/v1/users/onboarding` | 별도 인증 | 독립 ob_ Bearer, 최초 600초 만료, 선점·409 재시도·성공 확정, 기존 Origin 검증 |
 | GET `/api/v1/users/me` | **Access JWT + 활성 회원/로그인 세션** | Principal의 내부 userId로 본인 프로필 조회. [USER-01](user-me.md) |
+| GET `/api/v1/users/nickname-availability` | 온보딩 Bearer 또는 Access JWT | 닉네임 사전 조회, 본인 제외·DB collation 기준. [USER-04](nickname-availability.md) |
 | GET `/api/v1/channels` | **Access JWT + 활성 회원** | 현재 Controller는 local에서만 등록됨 |
 | GET `/api/v1/tables` | **Access JWT + 활성 회원** | 현재 Controller는 local에서만 등록됨. 채널 설정 시 channelId 필요 |
 | GET `/dev/tables` | 공개 개발 페이지 | local에서만 등록됨 |
@@ -57,7 +59,7 @@ HttpSecurity를 요구하지 않으며, 실제 Servlet 서버에서는 프로필
 
 `/actuator/**` 중 health를 제외한 경로는 익명 401, 정상 회원 403이다.
 Actuator 노출 설정 자체도 기존 health 전용을 유지한다.
-현재 운영 소스에 게임 REST Controller, 닉네임 중복 확인 API, 일반 회원가입 API는 없다.
+현재 운영 소스에 게임 REST Controller와 일반 회원가입 API는 없다.
 새 REST 경로는 기본적으로 ROLE_MEMBER를 요구한다. 새 공개 경로가 필요하면 명시적으로 검토해 등록해야 한다.
 없는 경로도 인증 전에 401을 받을 수 있으며, 인증 후에는 MVC의 기존 404/405가 적용된다.
 ERROR dispatch는 기본 오류 응답을 보존하도록 별도 체인에서 처리하며 MVC 오류 페이지를 새 API로 만들지 않는다.

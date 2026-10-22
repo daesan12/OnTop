@@ -3,13 +3,12 @@ package com.ssafy.ontop.user.dto;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ssafy.ontop.user.domain.CharacterGender;
 import com.ssafy.ontop.user.exception.UserOnboardingException;
+import com.ssafy.ontop.user.validation.NicknameValidator;
 
 public record UserOnboardingRequest(String nickname, CharacterGender characterGender) {
 
     public UserOnboardingRequest {
-        if (nickname == null || !nickname.matches("[가-힣A-Za-z0-9]{2,8}")) {
-            throw new UserOnboardingException(UserOnboardingException.Error.INVALID_NICKNAME);
-        }
+        NicknameValidator.validate(nickname);
         if (characterGender == null) {
             throw new UserOnboardingException(UserOnboardingException.Error.INVALID_GENDER);
         }
