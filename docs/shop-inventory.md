@@ -53,13 +53,15 @@ HTTP200 응답 형식. 예제는 검증용 상품·잔액이며 실제 사용자
 
 본인 소유·EQUIPMENT·유효 장착 부위를 검사하고 같은 부위의 기존 의상을 해제한 뒤 선택 의상을 장착한다. 응답 `{equipment:[{userItemId,item:{상품 필드},quantity,equipped:true}]}`는 전체 장착 목록이다. 타인/없는 보유404 OWNED_ITEM_NOT_FOUND, 소비형409 ITEM_NOT_EQUIPPABLE. 동시 장착도 같은 지갑 행으로 직렬화해 같은 부위 하나만 유지한다. 동일 의상 재장착은 추가 차감하지 않는다.
 
-커밋 뒤 내부 EquipmentChanged(userId)를 발행하며 외부 트랜잭션이 롤백되면 알리지 않는다. 알림 리스너 실패를 이미 저장된 장착 실패로 응답하지 않는다. 3D 에셋 매핑·WORLD_STATE 외형 필드 계약은 별도 확인이며 신규 WS 메시지/의상 해제·소비 API를 임의 추가하지 않았다.
+커밋 뒤 내부 EquipmentChanged(userId)를 발행하며 외부 트랜잭션이 롤백되면 알리지 않는다. 알림 리스너 실패를 이미 저장된 장착 실패로 응답하지 않는다. 2026-10-22 사용자가 REST 장착 저장 성공 후 같은 채널에 웹소켓으로 변경을 알리는 방식을 선택했다. 최초 입장·재접속 때 최신 장착 상태 복구도 필요하다. 이는 확정된 방향이며 현재 외형 전파 구현 완료를 뜻하지 않는다. 3D 에셋 매핑·WS 메시지와 필드 계약은 별도 확인이며 신규 WS 메시지/의상 해제·소비 API를 임의 추가하지 않았다.
 
 ## DB 연결 경계
 
 선택적 `backend/src/main/resources/db/shop/V100__create_shop_inventory.sql`은 items/user_items/shop_purchases만 만든다. 현재 기본 Flyway 위치 db/migration에는 포함하지 않았다. 이미 팀 스키마가 있는 DB에 중복 적용하지 말고 최종 DDL과 대조 후 해당 위치를 통합한다. 사용자·지갑·경기·공통 원장은 재정의하지 않는다.
 
-공통 지갑 담당과 확인할 조건: wallets.user_id UNIQUE·id 자동 생성, balance는 전체 잔액이고 reserved_balance는 그 일부, 원장 id 자동 생성·idempotency_key UNIQUE·item_id/SHOP_PURCHASE 지원, 모두 같은 MySQL DataSource/InnoDB. 다른 재화 변경도 같은 지갑 행 잠금/조건부 갱신으로 충돌을 보호해야 한다. V100의 AUTO_INCREMENT·UNIQUE·CHECK·FK와 영수증 테이블은 ERD 미리보기에 없는 실행 제약 보완이며 ERD 원본은 수정하지 않았다.
+2026-10-22 사용자 확정: 구매·판돈·정산 등 재화 변경은 같은 지갑 행을 잠그고 순서대로 처리한다. 구매의 FOR UPDATE는 이미 구현됐으며 실제 공통 서비스 전체의 적용 완료를 뜻하지 않는다.
+
+공통 지갑 담당과 확인할 조건: wallets.user_id UNIQUE·id 자동 생성, balance는 전체 잔액이고 reserved_balance는 그 일부, 원장 id 자동 생성·idempotency_key UNIQUE·item_id/SHOP_PURCHASE 지원, 모두 같은 MySQL DataSource/InnoDB. 다른 재화 변경도 같은 지갑 행 잠금을 사용해야 한다. V100의 AUTO_INCREMENT·UNIQUE·CHECK·FK와 영수증 테이블은 ERD 미리보기에 없는 실행 제약 보완이며 ERD 원본은 수정하지 않았다.
 
 테스트 전용 db/shop-fixture/V99는 공통 지갑/원장을 최소 구성한 경계 fixture다. 제품의 지갑 초기화·게임 정산 구현이 아니고 운영/개발 DB에 적용하지 않는다. 검증은 TEST_SHOP_DB_URL=loopback/ontop_shop_test_*만 허용한다.
 
