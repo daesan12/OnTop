@@ -1,4 +1,4 @@
-package com.ssafy.ontop.shop.persistence;
+package com.ssafy.ontop.wallet.domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -8,9 +8,9 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
 
-@Entity(name = "ShopWalletTransaction")
+@Entity(name = "WalletTransaction")
 @Table(name = "wallet_transactions")
-public class ShopWalletTransaction {
+public class WalletTransaction {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     @Column(name = "wallet_id", nullable = false)
@@ -28,8 +28,8 @@ public class ShopWalletTransaction {
     @Column(name = "created_at", nullable = false, columnDefinition = "TIMESTAMP(3)")
     private Instant createdAt;
 
-    protected ShopWalletTransaction() { }
-    public ShopWalletTransaction(long walletId, long itemId, long total, String key) {
+    protected WalletTransaction() { }
+    public WalletTransaction(long walletId, long itemId, long total, String key) {
         this.walletId = walletId; this.itemId = itemId; balanceDelta = -total;
         transactionType = "SHOP_PURCHASE"; idempotencyKey = key; createdAt = Instant.now();
     }

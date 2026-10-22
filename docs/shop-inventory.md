@@ -73,7 +73,7 @@ Java21 Wrapper mysqlTest --tests '*ShopMySqlTests': 별도 MySQL8.4에서 실제
 
 ## 2026-10-22 JPA 전환
 
-API 경로·요청·응답·오류·동일 키 재요청·미확정 의상 정책은 그대로다. ShopService → ShopRepository(EntityManager/JPQL) → ShopItem/ShopOwnedItem/ShopPurchase/Wallet/ShopWalletTransaction 순서로 읽는다. SQL 마이그레이션은 계속 Flyway가 관리하고 JPA ddl-auto=validate를 유지한다.
+API 경로·요청·응답·오류·동일 키 재요청·미확정 의상 정책은 그대로다. ShopService → ShopRepository(EntityManager/JPQL) → ShopItem/ShopOwnedItem/ShopPurchase/Wallet/WalletTransaction 순서로 읽는다. SQL 마이그레이션은 계속 Flyway가 관리하고 JPA ddl-auto=validate를 유지한다.
 
 지갑 잠금 후 refresh로 이전에 관리 중인 잔액을 갱신한다. 신규 트랜잭션은 READ_COMMITTED를 사용하고 없는 영수증·보유 행에는 gap 잠금을 걸지 않는다. 기존 보유 엔티티는 refresh로 갱신하고, 장착은 보유 엔티티 변경으로 같은 부위 하나만 남긴다. 기존 외부 트랜잭션에 참여하며 장착 알림은 실제 커밋 뒤에만 발생한다.
 
@@ -83,4 +83,4 @@ API 경로·요청·응답·오류·동일 키 재요청·미확정 의상 정�
 
 ## 지갑 엔티티 이름·위치
 
-지갑은 `com.ssafy.ontop.wallet.domain.Wallet`이며 ERD의 `wallets` 테이블 한 행에 연결된다. 상점 전용 지갑 테이블을 따로 만들지 않는다. ShopRepository의 JPQL도 `Wallet`을 사용한다. 이름·패키지만 정리하며 기존 API·컬럼·트랜잭션·예약금·멱등성·장착 커밋 알림은 유지하고 DB 마이그레이션은 추가하지 않는다. `ShopWalletTransaction`은 구매 원장 매핑으로 이번 이름 변경 대상이 아니다.
+지갑은 `com.ssafy.ontop.wallet.domain.Wallet`이며 ERD의 `wallets` 테이블 한 행에 연결된다. 상점 전용 지갑 테이블을 따로 만들지 않는다. ShopRepository의 JPQL도 `Wallet`을 사용한다. 이름·패키지만 정리하며 기존 API·컬럼·트랜잭션·예약금·멱등성·장착 커밋 알림은 유지하고 DB 마이그레이션은 추가하지 않는다. 거래 원장은 `com.ssafy.ontop.wallet.domain.WalletTransaction`이며 기존 `wallet_transactions` 테이블에 연결된다. 현재 생성 로직은 기존 SHOP_PURCHASE 기록을 유지하며, 이 이름 정리만으로 경기·미니게임 거래 처리까지 구현된 것은 아니다.

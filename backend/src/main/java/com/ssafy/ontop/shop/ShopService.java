@@ -11,8 +11,8 @@ import com.ssafy.ontop.shop.ShopModels.Purchase;
 import com.ssafy.ontop.shop.persistence.ShopOwnedItem;
 import com.ssafy.ontop.shop.persistence.ShopPurchase;
 import com.ssafy.ontop.shop.persistence.ShopRepository;
-import com.ssafy.ontop.shop.persistence.ShopWalletTransaction;
 import com.ssafy.ontop.wallet.domain.Wallet;
+import com.ssafy.ontop.wallet.domain.WalletTransaction;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.context.ApplicationEventPublisher;
@@ -96,7 +96,7 @@ public class ShopService {
                 holding = existing.get();
                 holding.quantity(nextQuantity);
             }
-            repository.persist(new ShopWalletTransaction(wallet.id(), itemId, total, ledgerKey(userId, key)));
+            repository.persist(new WalletTransaction(wallet.id(), itemId, total, ledgerKey(userId, key)));
             var result = new Purchase(UUID.randomUUID().toString(), itemId, quantity, item.price(),
                     total, wallet.balance(), holding.id());
             repository.persist(new ShopPurchase(userId, key, result));

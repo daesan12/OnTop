@@ -71,7 +71,7 @@ class UsersMySqlTests {
         assertThat(entityManagerFactory.getMetamodel().getEntities())
                 .extracting(type -> type.getJavaType().getName())
                 .noneMatch(name -> name.startsWith("com.ssafy.ontop.shop."))
-                .doesNotContain("com.ssafy.ontop.wallet.domain.Wallet");
+                .noneMatch(name -> name.startsWith("com.ssafy.ontop.wallet."));
     }
 
     @Test
