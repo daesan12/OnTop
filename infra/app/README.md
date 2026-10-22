@@ -8,8 +8,10 @@
 - Compose Nginx가 `api.on-top.world`의 80/443을 수신한다. 외부 `https://api.on-top.world/actuator/health`는 `200 {"status":"UP"}`, HTTP는 HTTPS로 `308` 이동, TLS 검증은 성공했다. 인증서 갱신 훅의 Compose Nginx 재로드도 시험했다. 임시 TLS Nginx 컨테이너는 제거했다.
 - `app.env`, `deploy.env`, DB 비밀번호는 PROD-APP의 `/etc/ontop/prod-app/`에 저장한다. JWT 키는 서버에서 생성했다. **SSAFY·Naver OAuth 자격 증명은 아직 입력되지 않아 로그인은 사용할 수 없다.** 이미지 태그는 이번 Story 검증용이며 정식 릴리스 태그가 아니다.
 - 현재 Flyway는 MySQL 8.4 연결·마이그레이션에 성공했지만, 실행 로그에 해당 Flyway 버전의 최신 시험 지원 버전이 MySQL 8.1이라는 경고가 남는다. 후속 의존성 검토가 필요하다.
-- DEV-CI 인스턴스·개발용 앱/DB, Vercel 최종 도메인, 실제 OAuth 로그인, 채널·게임 기능은 아직 검증되지 않았다. Story는 진행 중으로 유지한다.
-- Vercel `ontop-frontend` 프로젝트의 Preview 배포가 성공했다. `vercel deploy --environment preview --logs`에서 pnpm 11.25.0 의존성 설치, `sharp` 설치 스크립트, `tsc --noEmit && vite build`, `Ready`를 확인했다. `frontend/pnpm-workspace.yaml`은 `sharp`의 빌드 스크립트만 허용한다. Preview URL은 Vercel Authentication으로 보호되며, 실제 페이지 응답 확인은 아직 수행하지 못했다. 앞선 일반 `vercel deploy` 시도는 Production 대상으로 기록됐으나 의존성 설치 오류로 실패했다. 최종 도메인·API/WSS·로그인 연결과 Production 배포는 아직 남았다.
+- DEV-CI 인스턴스·개발용 앱/DB, 실제 OAuth 로그인, 채널·게임 기능은 아직 검증되지 않았다. Story는 진행 중으로 유지한다.
+- Vercel `ontop-frontend` 프로젝트의 Preview와 Production 배포가 모두 `Ready`다. pnpm 11.25.0 의존성 설치와 `tsc --noEmit && vite build`가 성공했다. `frontend/pnpm-workspace.yaml`은 `sharp`의 빌드 스크립트만 허용한다. Preview는 Vercel Authentication으로 보호되며, `vercel curl --head`로 `/`, `/auth/callback`, `/onboarding`, `/park`가 모두 200 HTML을 반환하는 것을 확인했다. 앞선 일반 `vercel deploy` 시도의 Production 설치 오류는 과거 배포 기록이다.
+- 가비아의 `@`·`www` DNS는 Vercel로 연결된다. `https://www.on-top.world/`와 `/auth/callback`은 200 HTML, `https://on-top.world/`은 `www`로 308 이동한다. 운영 `www`의 `/api/v1/users/me`는 백엔드 직접 요청과 같이 인증 없는 경우 401 JSON을 반환해 API 전달 경로를 확인했다. `https://api.on-top.world/actuator/health`는 200이다. PROD-APP의 `AUTH_FRONTEND_CALLBACK_URI`는 `https://www.on-top.world/auth/callback`이며 앱은 `healthy`다. SSAFY OAuth 시작 주소는 자격 증명이 없어 현재 500 JSON을 반환한다. WSS와 로그인 왕복은 아직 검증하지 못했다.
+- 이번 Vercel Production 배포는 사용자의 로컬 작업 트리에서 CLI로 실행됐다. `frontend/vercel.json`과 프론트 WebSocket 도메인 변경은 아직 커밋·푸시되지 않았으므로, Git 저장소만으로 이 배포를 재현할 수 없다.
 
 현재 `db` 프로필은 인증·DB와 헬스체크를 실행하지만, 채널 조회·게임 구현의 여러 Bean이 `local` 프로필에 묶여 있다. 이 구성을 그대로 운영하면 **전체 게임이 동작한다고 판정할 수 없다.** 백엔드 담당자와 운영 프로필의 Bean·개발 전용 엔드포인트 경계를 확정하기 전에는 `local,db`를 운영 우회책으로 켜지 않는다. GitLab Webhook/Jenkins 자동 배포는 Story 116, 게임 드레인과 blue/green 전환은 Story 118의 범위다.
 
@@ -85,7 +87,7 @@ sudo docker compose --env-file /etc/ontop/prod-app/deploy.env -f infra/app/compo
 
 ## 3. 도메인·HTTPS/WSS
 
-도메인은 가비아에서 구입한 `on-top.world`다. **DNS 호스트** 메뉴가 아닌 **DNS 관리툴 → 레코드 추가**에서 `api` CNAME을 제공 서버의 `k15b105.p.ssafy.io.`로 설정한다. 가비아의 CNAME 값은 끝에 점(`.`)이 필요하다. `dev-api`는 DEV-CI 서버를 만든 뒤 해당 서버의 고정 공인 주소로 연결한다. `on-top.world`와 `www.on-top.world`는 Vercel 프로젝트의 Domains 화면에서 요구하는 A/CNAME 값을 가비아에 입력한다. `dev.on-top.world`도 Vercel 개발 프로젝트에 연결한 뒤 해당 화면의 값을 사용한다. Vercel에 표시된 값과 다를 수 있으므로 예시 IP를 복사하지 않는다. `prod.app.env`는 `on-top.world`을 프론트의 대표 주소로 가정한다. Vercel에서 `www`를 대표 주소로 선택했다면 프론트 콜백 주소도 맞춰 바꾼다. SSL 인증서의 발급·갱신은 호스트의 Certbot webroot를 사용한다.
+도메인은 가비아에서 구입한 `on-top.world`다. **DNS 호스트** 메뉴가 아닌 **DNS 관리툴 → 레코드 추가**에서 `api` CNAME을 제공 서버의 `k15b105.p.ssafy.io.`로 설정한다. 가비아의 CNAME 값은 끝에 점(`.`)이 필요하다. `dev-api`는 DEV-CI 서버를 만든 뒤 해당 서버의 고정 공인 주소로 연결한다. Vercel 운영 프론트의 대표 주소는 `www.on-top.world`이고 `on-top.world`은 여기로 308 이동한다. 가비아의 `@`와 `www`는 Vercel 프로젝트 Domains 화면의 요구 값으로 설정했다. `dev.on-top.world`은 DEV-CI 구축 후 개발용 Vercel 환경에 연결한다. Vercel에 표시된 값과 다를 수 있으므로 예시 IP를 복사하지 않는다. SSL 인증서의 발급·갱신은 호스트의 Certbot webroot를 사용한다.
 
 ```bash
 sudo apt-get install -y certbot
@@ -98,7 +100,7 @@ sudo docker compose --env-file /etc/ontop/prod-app/deploy.env -f infra/app/compo
 
 Certbot 갱신 후 인증서 복사와 Compose Nginx 재적용을 위해 `certbot-deploy-hook.sh`를 `/etc/letsencrypt/renewal-hooks/deploy/ontop-prod-app.sh`에 `root:root`, `0750`으로 설치한다. 앱이 아직 배포되지 않았으면 인증서만 복사하고, Nginx 컨테이너가 생긴 뒤에는 재로드한다. `sudo certbot renew --dry-run --cert-name api.on-top.world`와 인증서 만료일 확인을 수행한다. Nginx는 `/api/`를 HTTP API로, `/ws/`를 WebSocket Upgrade로 프록시한다. `/actuator/health`는 상태 확인에 사용하고 나머지 경로는 404로 닫는다.
 
-현재 프론트는 `/api/v1`과 `/ws/tables`를 Vercel 페이지의 같은 origin으로 호출한다. 별도 API 도메인을 직접 쓰려면 프론트 주소 설정, 인증 요청의 credentials, 백엔드 Origin·쿠키·OAuth 콜백을 함께 맞춰야 한다. 프론트·백엔드 담당 영역을 수정하기 전 이 계약을 공유한다. `*.vercel.app` 임시 도메인과 별도 API 도메인은 쿠키 관점에서 다른 사이트이므로 로그인 검증에는 최종 커스텀 도메인 조합을 우선 사용한다. Vercel 빌드에 넣는 `VITE_*` 값은 브라우저에 공개되는 주소만 사용하고 비밀번호를 넣지 않는다.
+프론트의 HTTP API 호출은 기존 `/api/v1` 상대 경로를 유지한다. `frontend/vercel.json`은 요청 호스트가 `www.on-top.world`일 때만 `/api/*`를 `https://api.on-top.world/api/*`로 전달한다. 따라서 Preview와 다른 Vercel 호스트가 운영 API에 연결되지 않는다. 쿠키가 필요한 로그인 요청도 브라우저에서는 같은 프론트 주소로 보낸다. WebSocket은 프론트 코드가 `www.on-top.world`에서만 `wss://api.on-top.world/ws/tables`로 직접 연결하고, 로컬 개발 주소는 기존 Vite 프록시를 사용한다. `AUTH_ALLOWED_ORIGINS`에는 `www.on-top.world`가 포함되어 있다. Preview의 정적 SPA 경로와 운영 도메인의 인증 없는 API 전달은 확인했다. WSS와 로그인 왕복은 아직 검증하지 못했다. 개발 프론트와 dev API의 별도 연결은 DEV-CI 구축 후 추가한다. `*.vercel.app` Preview에서는 운영 API를 연결하지 않으므로 실제 OAuth·게임 검증에는 운영 커스텀 도메인 또는 별도 dev 환경을 사용한다. Vercel 빌드에 넣는 `VITE_*` 값은 브라우저에 공개되는 주소만 사용하고 비밀번호를 넣지 않는다.
 
 ## 4. 완료 검증
 
@@ -108,4 +110,4 @@ Certbot 갱신 후 인증서 복사와 Compose Nginx 재적용을 위해 `certbo
 4. 실제 도메인에서 `GET /actuator/health`가 `200`이고, API·로그인 왕복과 WSS `/ws/tables` 연결이 정상이다. health `UP`만으로 게임 흐름을 통과했다고 보지 않는다.
 5. Certbot 갱신 시험, 컨테이너/호스트 재시작 후 복구, dev DB 데이터 유지, 이미지 태그 기록을 확인한다.
 
-DEV-CI 서버, Vercel 최종 도메인, OAuth 공급자 등록과 local 전용 게임 Bean의 운영 계약이 준비되지 않았으므로 해당 검증은 미완료로 남기고 Jira Story를 완료 처리하지 않는다.
+DEV-CI 서버, OAuth 공급자 등록과 local 전용 게임 Bean의 운영 계약이 준비되지 않았으므로 해당 검증은 미완료로 남기고 Jira Story를 완료 처리하지 않는다.
