@@ -382,7 +382,7 @@ function yaml(value, indent = 0) {
 }
 const outputs = new Map([
     ['OnTop-Shop.postman_collection.json', JSON.stringify({info: {...httpV21.info, name: 'OnTop Shop',
-        description: 'SHOP-01/02 · INVENTORY-01/02. 13목록→14구매→15동일키 재요청→16보유→17장착. 18은 같은키 충돌 검사. local,db + ontop.shop.enabled=true + 공통/상점 스키마, 의상 정책 명시 설정이 필요합니다. 테스트 계정의 개인 로컬 Access JWT만 사용하고 공유하지 마세요. 기본 DB에 스키마를 자동 적용하지 않았습니다. 실제 DB 초기화·공통 재화 통합·3D 외형 계약은 별도 확인합니다.'},
+        description: 'SHOP-01/02 · INVENTORY-01/02. 13목록→14구매→15동일키 재요청→16보유→17장착. 18은 같은키 충돌 검사. local,db + ontop.shop.enabled=true + 공통/상점 스키마, 의상 정책 명시 설정이 필요합니다. 테스트 계정의 개인 로컬 Access JWT만 사용하고 공유하지 마세요. 기본 DB에 스키마를 자동 적용하지 않았습니다. 실제 DB 초기화·공통 재화 통합·3D 외형 계약은 별도 확인합니다.\n\n2026-10-22: 상점 저장 처리를 JPA 엔티티·JPQL로 전환했습니다. 기존 6개 요청·응답·중복 구매 방지·롤백 계약은 그대로이며 예제 수정 없이 사용할 수 있습니다.'},
         item: httpV21.item.slice(12)}, null, 2) + '\n'],
     ['OnTop-HTTP.postman_collection.json', JSON.stringify(httpV21, null, 2) + '\n'],
     ['OnTop-WebSocket.postman_collection.json', JSON.stringify(wsV3, null, 2) + '\n'],

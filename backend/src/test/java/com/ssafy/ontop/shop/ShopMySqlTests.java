@@ -40,6 +40,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class ShopMySqlTests {
     @Autowired JdbcTemplate jdbc;
     @Autowired ShopService shop;
+    @Autowired jakarta.persistence.EntityManager entities;
+    @org.springframework.test.context.bean.override.mockito.MockitoSpyBean
+    com.ssafy.ontop.shop.persistence.ShopRepository repository;
     @Autowired AccessJwtService jwt;
     @Autowired PlatformTransactionManager manager;
     @LocalServerPort int port;
@@ -226,11 +229,11 @@ class ShopMySqlTests {
 
     @Test
     void 미확정의상정책은기본값없이차단하고두정책을명시선택한다() {
-        var unset = new ShopService(jdbc, manager, event -> { }, null);
+        var unset = new ShopService(repository, manager, event -> { }, null);
         assertThatThrownBy(() -> unset.purchase(101, 1, 1, "unset")).isInstanceOf(ShopException.class);
         shop.purchase(101, 1, 1, "first-equip");
         assertThatThrownBy(() -> shop.purchase(101, 1, 1, "duplicate")).isInstanceOf(ShopException.class);
-        var stack = new ShopService(jdbc, manager, event -> { }, DuplicateEquipmentPolicy.STACK);
+        var stack = new ShopService(repository, manager, event -> { }, DuplicateEquipmentPolicy.STACK);
         stack.purchase(101, 1, 2, "stack");
         assertThat(shop.inventory(101).items().getFirst().quantity()).isEqualTo(3);
     }
@@ -248,7 +251,7 @@ class ShopMySqlTests {
     void 외부트랜잭션롤백이면장착변경과후속알림이없다() {
         long owned = shop.purchase(101, 1, 1, "owned").userItemId();
         var events = new ArrayList<Object>();
-        var service = new ShopService(jdbc, manager, events::add, DuplicateEquipmentPolicy.REJECT);
+        var service = new ShopService(repository, manager, events::add, DuplicateEquipmentPolicy.REJECT);
         new TransactionTemplate(manager).execute(status -> {
             service.equip(101, owned);
             assertThat(events).isEmpty();
@@ -259,6 +262,80 @@ class ShopMySqlTests {
         assertThat(shop.inventory(101).items()).noneMatch(ShopModels.OwnedItem::equipped);
         service.equip(101, owned);
         assertThat(events).singleElement().isInstanceOf(EquipmentChanged.class);
+    }
+
+    @Test
+    void READ_COMMITTED에서관리중인지갑이있어도동시커밋된구매를덮어쓰지않는다() {
+        readCommittedTransaction().execute(status -> {
+            long walletId = jdbc.queryForObject("SELECT id FROM wallets WHERE user_id = 101", Long.class);
+            var stale = entities.find(com.ssafy.ontop.shop.persistence.ShopWallet.class, walletId);
+            assertThat(stale.balance()).isEqualTo(100);
+            assertThat(shop.inventory(101).items()).isEmpty();
+            try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+                var committed = executor.submit(() -> shop.purchase(101, 3, 2, "outside"))
+                        .get(10, TimeUnit.SECONDS);
+                assertThat(shop.purchase(101, 3, 2, "outside")).isEqualTo(committed);
+            } catch (Exception exception) { throw new AssertionError(exception); }
+            assertThat(shop.purchase(101, 3, 1, "inside").balanceAfter()).isEqualTo(85);
+            return null;
+        });
+        assertThat(balance(101)).isEqualTo(85);
+        assertThat(shop.inventory(101).items().getFirst().quantity()).isEqualTo(3);
+        assertThat(count("wallet_transactions")).isEqualTo(2);
+    }
+
+    @Test
+    void 이전에조회한보유엔티티도잠금후최신수량으로증가한다() {
+        shop.purchase(101, 3, 1, "initial");
+        readCommittedTransaction().execute(status -> {
+            assertThat(shop.inventory(101).items().getFirst().quantity()).isEqualTo(1);
+            try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+                executor.submit(() -> shop.purchase(101, 3, 2, "outside-holding")).get(10, TimeUnit.SECONDS);
+            } catch (Exception exception) { throw new AssertionError(exception); }
+            shop.purchase(101, 3, 1, "inside-holding");
+            return null;
+        });
+        assertThat(shop.inventory(101).items().getFirst().quantity()).isEqualTo(4);
+        assertThat(balance(101)).isEqualTo(80);
+    }
+
+    @Test
+    void 수량0보유는장착불가하고교체시같은부위장착을해제한다() {
+        long zero = shop.purchase(101, 1, 1, "zero").userItemId();
+        long next = shop.purchase(101, 2, 1, "next").userItemId();
+        shop.equip(101, zero);
+        jdbc.update("UPDATE user_items SET quantity = 0 WHERE id = ?", zero);
+        assertThatThrownBy(() -> shop.equip(101, zero)).isInstanceOf(ShopException.class);
+        assertThat(shop.equip(101, next).equipment()).extracting(ShopModels.OwnedItem::userItemId)
+                .containsExactly(next);
+        assertThat(jdbc.queryForObject("SELECT is_equipped FROM user_items WHERE id = ?", Boolean.class, zero))
+                .isFalse();
+    }
+
+    @Test
+    void 다른사용자의첫구매가보유조회직후겹쳐도둘다성공한다() throws Exception {
+        var bothRead = new CountDownLatch(2);
+        org.mockito.Mockito.doAnswer(invocation -> {
+            Object result = invocation.callRealMethod();
+            bothRead.countDown();
+            if (!bothRead.await(5, TimeUnit.SECONDS)) { throw new AssertionError("동시 조회 실패"); }
+            return result;
+        }).when(repository).holding(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.eq(3L));
+        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            var first = executor.submit(() -> shop.purchase(101, 3, 1, "first-user"));
+            var second = executor.submit(() -> shop.purchase(202, 3, 1, "second-user"));
+            assertThat(first.get(10, TimeUnit.SECONDS).balanceAfter()).isEqualTo(95);
+            assertThat(second.get(10, TimeUnit.SECONDS).balanceAfter()).isEqualTo(95);
+        }
+        assertThat(count("shop_purchases")).isEqualTo(2);
+        assertThat(count("wallet_transactions")).isEqualTo(2);
+        assertThat(count("user_items")).isEqualTo(2);
+    }
+
+    private TransactionTemplate readCommittedTransaction() {
+        var transaction = new TransactionTemplate(manager);
+        transaction.setIsolationLevel(org.springframework.transaction.TransactionDefinition.ISOLATION_READ_COMMITTED);
+        return transaction;
     }
 
     private long balance(long user) {
@@ -283,4 +360,3 @@ class ShopMySqlTests {
         return http.send(request.build(), HttpResponse.BodyHandlers.ofString());
     }
 }
-

@@ -67,6 +67,13 @@ class UsersMySqlTests {
     }
 
     @Test
+    void 상점비활성DB는상점엔티티와스키마를요구하지않는다() {
+        assertThat(entityManagerFactory.getMetamodel().getEntities())
+                .extracting(type -> type.getJavaType().getName())
+                .noneMatch(name -> name.startsWith("com.ssafy.ontop.shop."));
+    }
+
+    @Test
     void MySQL_84와_strict_mode와_UTC_세션으로_검증한다() {
         assertThat(jdbc.queryForObject("SELECT VERSION()", String.class)).startsWith("8.4.");
         assertThat(jdbc.queryForObject("SELECT @@session.sql_mode", String.class)).contains("STRICT_TRANS_TABLES");

@@ -35,7 +35,7 @@ HTTP200 응답 형식. 예제는 검증용 상품·잔액이며 실제 사용자
 }
 ```
 
-지갑 행 FOR UPDATE → 기존 영수증 확인 → 판매 상품/가격 읽기 → balance-reserved_balance 잔액 검사 → 차감·보유 지급·SHOP_PURCHASE 원장·영수증을 같은 Spring 트랜잭션으로 저장한다. 원장/영수증 저장 실패에도 차감·지급이 전부 롤백된다. 판매 상태·가격이 바뀌어도 같은 키·같은 요청은 최초 영수증을 반환한다. balanceAfter는 해당 구매 당시 전체 잔액이며 이후 현재 잔액으로 바꾸지 않는다. 예약 금액은 쓰거나 변경하지 않는다.
+JPA EntityManager·JPQL 저장소를 사용한다. 지갑 PESSIMISTIC_WRITE(MySQL FOR UPDATE) → 기존 영수증 확인 → 판매 상품/가격 읽기 → balance-reserved_balance 잔액 검사 → 차감·보유 지급·SHOP_PURCHASE 원장·영수증을 같은 JpaTransactionManager 트랜잭션으로 저장한다. 지갑·보유 수량·장착은 관리 엔티티 변경 감지, 원장·영수증은 persist/flush로 저장한다. 상점 제품 코드에는 JdbcTemplate·네이티브 SQL을 사용하지 않는다. 검증 데이터 준비·독립 SQL 확인은 테스트에서만 JDBC를 사용한다. 원장/영수증 저장 실패에도 차감·지급이 전부 롤백된다. 판매 상태·가격이 바뀌어도 같은 키·같은 요청은 최초 영수증을 반환한다. balanceAfter는 해당 구매 당시 전체 잔액이며 이후 현재 잔액으로 바꾸지 않는다. 예약 금액은 쓰거나 변경하지 않는다.
 
 같은 사용자·같은 키의 다른 itemId/quantity는409 IDEMPOTENCY_CONFLICT다. 계정별 키 범위는 독립이고 대소문자를 구분한다. 공통 원장 키는 shop:사용자:SHA256(키)로 만들어 원장 문자열 collation의 대소문자 병합을 피한다. 영수증 UNIQUE(user_id,request_key)는 ascii_bin이다.
 
@@ -70,3 +70,13 @@ HTTP200 응답 형식. 예제는 검증용 상품·잔액이며 실제 사용자
 Java21 Wrapper mysqlTest --tests '*ShopMySqlTests': 별도 MySQL8.4에서 실제 JWT/HTTP/SQL·중복8요청·동시 잔액·롤백·예약금·장착·커밋 후 알림을 검사한다. ShopHttpTests는 인증·불허 출처·잘못된 본문/키를 검사한다. 기존 users/auth MySQL suite와 다른 DB를 사용한다.
 
 테스트 클래스패스의 shopDemo는 loopback 전용 ontop_shop_test_demo* DB만 허용하고 http://127.0.0.1:18083/dev/shop 화면을 제공한다. 100엽전·3개 상품·시연 계정만 초기화하며 실제 REST를 호출한다. 운영 JAR에 화면·테스트 계정·우회 인증을 포함하지 않는다. 의상 REJECT는 시연 조건이다. DB_URL/DB_USERNAME/DB_PASSWORD와 검증용 AUTH_JWT_SECRET_BASE64가 필요하며 원문을 캡처/공유하지 않는다.
+
+## 2026-10-22 JPA 전환
+
+API 경로·요청·응답·오류·동일 키 재요청·미확정 의상 정책은 그대로다. ShopService → ShopRepository(EntityManager/JPQL) → ShopItem/ShopOwnedItem/ShopPurchase/ShopWallet/ShopWalletTransaction 순서로 읽는다. SQL 마이그레이션은 계속 Flyway가 관리하고 JPA ddl-auto=validate를 유지한다.
+
+지갑 잠금 후 refresh로 이전에 관리 중인 잔액을 갱신한다. 신규 트랜잭션은 READ_COMMITTED를 사용하고 없는 영수증·보유 행에는 gap 잠금을 걸지 않는다. 기존 보유 엔티티는 refresh로 갱신하고, 장착은 보유 엔티티 변경으로 같은 부위 하나만 남긴다. 기존 외부 트랜잭션에 참여하며 장착 알림은 실제 커밋 뒤에만 발생한다.
+
+상점이 비활성인 DB에는 추가 테이블을 요구하지 않도록 OntopApplication은 기존 User/RefreshToken 패키지를 스캔하고, ShopConfiguration이 활성화될 때만 상점 엔티티 패키지를 합친다. 다른 도메인 엔티티를 새로 추가할 때도 해당 패키지를 스캔 대상으로 등록해야 한다. 공통 지갑 담당의 최종 엔티티가 생기면 같은 테이블의 상점 매핑과 통합하고, 같은 행을 서로 다른 엔티티로 중복 관리하지 않도록 한다. 현재 통합 완료를 뜻하지 않는다.
+
+외부 트랜잭션에 참여하면 외부 격리 수준을 그대로 따른다. 구매를 포함하는 공통 흐름은 READ_COMMITTED를 사용한다. 외부 REPEATABLE_READ 트랜잭션이 구매 전 읽기 스냅샷을 이미 만들었다면 이후 다른 트랜잭션의 새 영수증/보유 행은 보이지 않을 수 있다. 이는 기존 JDBC 일반 조회에도 있던 조건이며, 그 경우까지 자동 복구한다고 보장하지 않는다. 외부 트랜잭션 롤백의 원자성은 유지한다.
