@@ -13,6 +13,8 @@ import {
 } from '../../network/protocol'
 import { bindAnchor, parseBindings } from '../../network/tableBindings'
 import { setDisplayProfiles } from '../../network/profileBridge'
+import { canPlace, receiveGame, tableBusy, useGame } from '../../game/store'
+import { parkBindingsUrl } from './deployment'
 import {
   avatars,
   clearChannel,
@@ -136,7 +138,7 @@ export class ParkRuntime {
       if (!this.active || generation !== this.generation) return
       const [body, config, profile] = await Promise.all([
         this.getJSON('/api/v1/channels', { signal: abort.signal }),
-        fetch('/park-bindings.json', {
+        fetch(parkBindingsUrl(), {
           signal: abort.signal,
           cache: 'no-store',
         }).then((r) => {
@@ -210,6 +212,16 @@ export class ParkRuntime {
   private message(message: Envelope) {
     if (!this.active) return
     receive(message)
+    const session = useSession.getState()
+    try {
+      receiveGame(message, session.sessionId, session.tableId)
+    } catch (error) {
+      useGame.setState({
+        uncertain: true,
+        error: '경기 응답 형식을 확인하지 못해 입력을 중지했습니다.',
+      })
+      throw error
+    }
     if (message.type === 'CONNECTED') {
       const profile = this.ownProfile
       if (!profile || profile.userId !== message.payload.userId) {
@@ -254,6 +266,8 @@ export class ParkRuntime {
   selectChannel = (channelId: string) =>
     this.action(async () => {
       const state = useSession.getState()
+      if (tableBusy())
+        throw new Error('경기 진행·복구·정산 중에는 채널을 바꿀 수 없습니다.')
       if (state.tableId) throw new Error('먼저 테이블에서 일어나주세요.')
       if (state.roomId === channelId) return
       if (!state.channels.some((c) => c.channelId === channelId))
@@ -296,6 +310,7 @@ export class ParkRuntime {
     if (
       !s.roomId ||
       !s.mapCompatible ||
+      tableBusy() ||
       s.tableId ||
       !this.socket.connected ||
       ![dx, dz].every(Number.isFinite)
@@ -326,7 +341,7 @@ export class ParkRuntime {
       this.report('이 테이블의 서버 배치 연결이 아직 설정되지 않았습니다.')
       return
     }
-    if (s.tableId) return
+    if (s.tableId || tableBusy()) return
     void this.action(async () => {
       if (s.watchedTableId && s.watchedTableId !== tableId)
         await this.socket.request('TABLE_UNWATCH', {}, ['TABLE_WATCH_LEFT'])
@@ -337,6 +352,8 @@ export class ParkRuntime {
   }
   joinTable = () =>
     this.action(async () => {
+      if (tableBusy())
+        throw new Error('먼저 진행 중인 경기 상태를 확인해주세요.')
       const s = useSession.getState()
       if (!s.mapCompatible) throw new Error('서버 맵 버전을 먼저 확인해주세요.')
       const tableId = bindAnchor(
@@ -353,8 +370,127 @@ export class ParkRuntime {
     })
   leaveTable = () =>
     this.action(async () => {
+      if (tableBusy())
+        throw new Error('경기 진행·복구·정산 중에는 일어날 수 없습니다.')
       await this.socket.request('TABLE_LEAVE', {}, ['TABLE_LEFT'])
     })
+  selectOmok = () =>
+    this.action(async () => {
+      const s = useSession.getState(),
+        table = s.tableStates[s.tableId]
+      if (tableBusy() || !table || table.selectorUserId !== s.sessionId)
+        throw new Error(
+          '대기 중인 테이블의 게임 선택 담당자만 선택할 수 있습니다.',
+        )
+      await this.socket.request('GAME_SELECT', { gameCode: 'OMOK' }, [
+        'TABLE_STATE',
+      ])
+    })
+  setReady = (ready: boolean) =>
+    this.action(async () => {
+      const s = useSession.getState()
+      if (tableBusy() || s.tableStates[s.tableId]?.gameCode !== 'OMOK')
+        throw new Error('오목을 선택한 대기 테이블에서 준비해주세요.')
+      await this.socket.request('READY_SET', { ready }, ['TABLE_STATE'])
+    })
+  checkStart = () =>
+    this.action(() =>
+      this.socket.request('GAME_START_CHECK', {}, ['GAME_START_STATE']),
+    )
+  checkRecovery = () =>
+    this.action(() =>
+      this.socket.request('GAME_RECONNECT_CHECK', {}, [
+        'GAME_CONNECTION_STATE',
+      ]),
+    )
+  checkGame = () =>
+    this.action(async () => {
+      const s = useGame.getState(),
+        gameId = s.game?.gameId ?? s.permittedGameId
+      if (!gameId) throw new Error('서버에서 확인한 경기 ID가 없습니다.')
+      await this.socket.request('GAME_STATE_CHECK', { gameId }, ['GAME_STATE'])
+    })
+  checkResult = () =>
+    this.action(async () => {
+      const s = useGame.getState()
+      if (
+        !s.permittedGameId ||
+        s.game?.role !== 'PLAYER' ||
+        s.game.omok.status !== 'FINISHED'
+      )
+        throw new Error('본인이 참가한 종료 경기만 확인할 수 있습니다.')
+      await this.socket.request(
+        'GAME_RESULT_CHECK',
+        { gameSessionId: s.permittedGameId },
+        ['GAME_RESULT'],
+      )
+    })
+  placeOmok = (x: number, y: number) =>
+    this.action(async () => {
+      const own = useSession.getState(),
+        s = useGame.getState()
+      if (own.status !== 'connected' || !canPlace(own.sessionId, x, y))
+        throw new Error('본인 차례와 최신 경기 상태를 확인해주세요.')
+      const game = s.game!
+      const generation = this.generation
+      useGame.setState({ pending: true, error: '' })
+      try {
+        await this.socket.request(
+          'GAME_ACTION_SEND',
+          {
+            gameId: game.gameId,
+            actionId: crypto.randomUUID(),
+            expectedVersion: game.version,
+            input: { x, y },
+          },
+          ['GAME_ACTION_RESULT'],
+        )
+      } catch (error) {
+        const explicitRejection =
+          error instanceof ServerError &&
+          [
+            'GAME_ACTION_FORBIDDEN_MOVE',
+            'GAME_ACTION_INVALID_ACTION',
+            'GAME_ACTION_NOT_YOUR_TURN',
+          ].includes(error.code)
+        if (
+          generation === this.generation &&
+          useGame.getState().permittedGameId === game.gameId
+        )
+          useGame.setState({
+            uncertain: !explicitRejection,
+            error:
+              error instanceof Error
+                ? error.message
+                : '착수 결과를 확인해주세요.',
+          })
+        throw error
+      } finally {
+        if (generation === this.generation) useGame.setState({ pending: false })
+      }
+    })
+  /** gameId must come from an approved public game reference; no guessed table→game IDs. */
+  watchGame = (gameId: string) =>
+    this.action(async () => {
+      if (
+        !gameId.trim() ||
+        gameId.length > 120 ||
+        tableBusy() ||
+        useGame.getState().watchedGameId
+      )
+        throw new Error('관전 가능한 경기 정보를 확인해주세요.')
+      useGame.setState({ watchedGameId: gameId })
+      try {
+        await this.socket.request('GAME_WATCH', { gameId }, ['GAME_STATE'])
+      } catch (error) {
+        useGame.setState({ watchedGameId: '', game: null })
+        throw error
+      }
+    })
+  unwatchGame = () =>
+    this.action(() =>
+      this.socket.request('GAME_UNWATCH', {}, ['GAME_WATCH_LEFT']),
+    )
   closeTable = () => {
     if (useSession.getState().watchedTableId)
       void this.action(async () => {

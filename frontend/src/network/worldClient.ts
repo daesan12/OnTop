@@ -11,6 +11,7 @@ import {
 } from './protocol'
 import type { TableBinding } from './tableBindings'
 import { EXPECTED_MAP_VERSION } from '../config/mapVersion'
+import { resetGame } from '../game/store'
 
 export interface Pose {
   x: number
@@ -123,6 +124,7 @@ let channelVersion = -1,
 const chatIds = new Set<string>()
 const emoteIds = new Set<string>()
 export function resetWorld(status: Session['status'] = 'idle', error = '') {
+  resetGame()
   avatars.clear()
   worldPoses.clear()
   channelVersion = worldVersion = -1
@@ -131,6 +133,7 @@ export function resetWorld(status: Session['status'] = 'idle', error = '') {
   useSession.setState({ ...initial(), status, error })
 }
 export function clearChannel() {
+  resetGame()
   avatars.clear()
   worldPoses.clear()
   channelVersion = worldVersion = -1
@@ -381,6 +384,6 @@ export function receive(message: Envelope) {
       if (typeof p.message === 'string')
         useSession.setState({ error: p.message })
       break
-    // GAME_* private payloads are deliberately not cached or rendered by this park/lobby slice.
+    // Game messages are validated separately by game/store; no private payload is cached here.
   }
 }

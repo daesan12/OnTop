@@ -1,5 +1,9 @@
 # OnTop frontend
 
+팀 BE의 격리 로컬 테스트는 [LOCAL_BE_VERIFICATION.md](docs/LOCAL_BE_VERIFICATION.md)를 참고한다. FE는 pnpm dev:frontend-test로 실행하며 이 모드에서만 전달받은 테스트 테이블 ID를 적용한다.
+
+공통 경기 흐름·오목 준비는 [OMOK_INTEGRATION.md](docs/OMOK_INTEGRATION.md), 기존 프로토타입의 기능별 반영/누락은 [PROTOTYPE_FEATURE_AUDIT.md](docs/PROTOTYPE_FEATURE_AUDIT.md)를 참고한다. 실제 BE 플레이 완료와 계약 대역 검증을 구분한다.
+
 공원 3D·기존 HUD의 공통 WebSocket 연결, 실행/검증 방법과 남은 연동 사항은 [PARK_INTEGRATION.md](docs/PARK_INTEGRATION.md)를 참고한다. 기존 로그인·온보딩 UI와 공원 HUD 디자인을 유지한다. 이관 에셋의 실측 및 미완료 항목은 [ASSET_OPTIMIZATION_STATUS.md](docs/ASSET_OPTIMIZATION_STATUS.md)에 기록한다.
 
 React, TypeScript, Vite, React Three Fiber 기반 프론트엔드다. 현재 첫 화면은 Figma `02-C 로그인 · 내가 고친거 · Desktop 1920`을 구현한 로그인 진입 UI다. 이전 회전 상자 및 클릭 횟수 검증 데모는 제거했다.
