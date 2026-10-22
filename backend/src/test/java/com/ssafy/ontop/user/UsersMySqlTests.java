@@ -70,7 +70,8 @@ class UsersMySqlTests {
     void 상점비활성DB는상점엔티티와스키마를요구하지않는다() {
         assertThat(entityManagerFactory.getMetamodel().getEntities())
                 .extracting(type -> type.getJavaType().getName())
-                .noneMatch(name -> name.startsWith("com.ssafy.ontop.shop."));
+                .noneMatch(name -> name.startsWith("com.ssafy.ontop.shop."))
+                .doesNotContain("com.ssafy.ontop.wallet.domain.Wallet");
     }
 
     @Test

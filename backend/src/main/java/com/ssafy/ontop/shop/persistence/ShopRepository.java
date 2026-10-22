@@ -1,5 +1,6 @@
 package com.ssafy.ontop.shop.persistence;
 
+import com.ssafy.ontop.wallet.domain.Wallet;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
 import java.util.List;
@@ -19,8 +20,8 @@ public class ShopRepository {
         return entities.createQuery("select i from ShopItem i where i.forSale = true order by i.id", ShopItem.class)
                 .getResultList();
     }
-    public Optional<ShopWallet> lockWallet(long userId) {
-        var rows = entities.createQuery("select w from ShopWallet w where w.userId = :user", ShopWallet.class)
+    public Optional<Wallet> lockWallet(long userId) {
+        var rows = entities.createQuery("select w from Wallet w where w.userId = :user", Wallet.class)
                 .setParameter("user", userId).setLockMode(LockModeType.PESSIMISTIC_WRITE).getResultList();
         // 외부 트랜잭션이 이전에 읽은 지갑도 잠금 획득 뒤 현재 DB 값으로 갱신한다.
         rows.forEach(wallet -> entities.refresh(wallet, LockModeType.PESSIMISTIC_WRITE));

@@ -11,8 +11,8 @@ import com.ssafy.ontop.shop.ShopModels.Purchase;
 import com.ssafy.ontop.shop.persistence.ShopOwnedItem;
 import com.ssafy.ontop.shop.persistence.ShopPurchase;
 import com.ssafy.ontop.shop.persistence.ShopRepository;
-import com.ssafy.ontop.shop.persistence.ShopWallet;
 import com.ssafy.ontop.shop.persistence.ShopWalletTransaction;
+import com.ssafy.ontop.wallet.domain.Wallet;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.context.ApplicationEventPublisher;
@@ -53,7 +53,7 @@ public class ShopService {
             throw error(400, "INVALID_REQUEST", "아이템·수량·중복 방지 키를 확인하세요.");
         }
         return transactions.execute(status -> {
-            ShopWallet wallet = lockWallet(userId);
+            Wallet wallet = lockWallet(userId);
             var previous = repository.receipt(userId, key);
             if (previous.isPresent()) {
                 var saved = previous.get().toPurchase();
@@ -141,7 +141,7 @@ public class ShopService {
         }
     }
 
-    private ShopWallet lockWallet(long userId) {
+    private Wallet lockWallet(long userId) {
         return repository.lockWallet(userId).orElseThrow(() ->
                 error(409, "WALLET_NOT_READY", "지갑 초기화가 필요합니다."));
     }

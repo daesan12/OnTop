@@ -1,4 +1,4 @@
-package com.ssafy.ontop.shop.persistence;
+package com.ssafy.ontop.wallet.domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -8,10 +8,10 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
 
-/** 공통 wallets의 상점 사용 컬럼 매핑. 생성·초기화·게임 정산은 수행하지 않는다. */
-@Entity(name = "ShopWallet")
+/** wallets 테이블의 사용자 지갑. 현재 구매 차감에 사용하며 게임 정산은 별도 연결한다. */
+@Entity(name = "Wallet")
 @Table(name = "wallets")
-public class ShopWallet {
+public class Wallet {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     @Column(name = "user_id", nullable = false, updatable = false)
@@ -23,7 +23,7 @@ public class ShopWallet {
     @Column(name = "updated_at", nullable = false, columnDefinition = "TIMESTAMP(3)")
     private Instant updatedAt;
 
-    protected ShopWallet() { }
+    protected Wallet() { }
     public long id() { return id; }
     public long balance() { return balance; }
     public long reserved() { return reserved; }

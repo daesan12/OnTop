@@ -268,7 +268,7 @@ class ShopMySqlTests {
     void READ_COMMITTED에서관리중인지갑이있어도동시커밋된구매를덮어쓰지않는다() {
         readCommittedTransaction().execute(status -> {
             long walletId = jdbc.queryForObject("SELECT id FROM wallets WHERE user_id = 101", Long.class);
-            var stale = entities.find(com.ssafy.ontop.shop.persistence.ShopWallet.class, walletId);
+            var stale = entities.find(com.ssafy.ontop.wallet.domain.Wallet.class, walletId);
             assertThat(stale.balance()).isEqualTo(100);
             assertThat(shop.inventory(101).items()).isEmpty();
             try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
