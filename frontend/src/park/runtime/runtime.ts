@@ -14,6 +14,7 @@ import {
 import { bindAnchor, parseBindings } from '../../network/tableBindings'
 import { setDisplayProfiles } from '../../network/profileBridge'
 import { canPlace, receiveGame, tableBusy, useGame } from '../../game/store'
+import { parkBindingsUrl } from './deployment'
 import {
   avatars,
   clearChannel,
@@ -137,7 +138,7 @@ export class ParkRuntime {
       if (!this.active || generation !== this.generation) return
       const [body, config, profile] = await Promise.all([
         this.getJSON('/api/v1/channels', { signal: abort.signal }),
-        fetch('/park-bindings.json', {
+        fetch(parkBindingsUrl(), {
           signal: abort.signal,
           cache: 'no-store',
         }).then((r) => {
