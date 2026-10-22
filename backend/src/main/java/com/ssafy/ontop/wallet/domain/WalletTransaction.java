@@ -15,6 +15,10 @@ public class WalletTransaction {
     private Long id;
     @Column(name = "wallet_id", nullable = false)
     private long walletId;
+    @Column(name = "game_session_id")
+    private Long gameSessionId;
+    @Column(name = "minigame_session_id")
+    private Long minigameSessionId;
     @Column(name = "item_id")
     private Long itemId;
     @Column(name = "transaction_type", nullable = false, length = 32)

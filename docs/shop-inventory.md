@@ -86,3 +86,5 @@ API 경로·요청·응답·오류·동일 키 재요청·미확정 의상 정�
 지갑은 `com.ssafy.ontop.wallet.domain.Wallet`이며 ERD의 `wallets` 테이블 한 행에 연결된다. 상점 전용 지갑 테이블을 따로 만들지 않는다. ShopRepository의 JPQL도 `Wallet`을 사용한다. 이름·패키지만 정리하며 기존 API·컬럼·트랜잭션·예약금·멱등성·장착 커밋 알림은 유지하고 DB 마이그레이션은 추가하지 않는다. 거래 원장은 `com.ssafy.ontop.wallet.domain.WalletTransaction`이며 기존 `wallet_transactions` 테이블에 연결된다. 현재 생성 로직은 기존 SHOP_PURCHASE 기록을 유지하며, 이 이름 정리만으로 경기·미니게임 거래 처리까지 구현된 것은 아니다.
 
 상품 엔티티는 `item/domain/Item.java` → items, 보유 엔티티는 `inventory/domain/UserItem.java` → user_items다. ShopConfiguration은 두 엔티티 패키지와 영수증·지갑 패키지를 조건부 등록한다. 구매 영수증 ShopPurchase → shop_purchases는 이미 테이블에 맞는 이름이라 유지한다. 회원·인증 엔티티와 그 서비스는 수정하지 않는다. 상품/보유 DTO의 JSON 필드와 API URL은 그대로다.
+
+2026-10-22 경기 참조 보완: WalletTransaction에 ERD의 `game_session_id`, `minigame_session_id`를 nullable `Long`으로 매핑한다. 상점 생성자는 두 값을 NULL로 유지하며 기존 API는 바뀌지 않는다. 실제 공통 원장 DB에도 BIGINT NULL 두 컬럼이 필요하다. 공통 테이블의 운영 DDL·경기 엔티티·정산 서비스는 이 변경에서 수정하지 않는다. 테스트 경계는 새 V101로 확장해 기존 V99 체크섬을 보존한다.

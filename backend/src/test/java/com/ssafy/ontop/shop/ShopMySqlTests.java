@@ -89,6 +89,41 @@ class ShopMySqlTests {
     }
 
     @Test
+    void 거래원장_경기참조는NullableLong으로조회하고_상점구매는비워둔다() {
+        shop.purchase(101, 3, 1, "session-reference");
+        var tx = new TransactionTemplate(manager);
+        tx.executeWithoutResult(status -> {
+            Object[] refs = entities.createQuery("""
+                    select t.gameSessionId, t.minigameSessionId
+                    from WalletTransaction t where t.transactionType = 'SHOP_PURCHASE'
+                    """, Object[].class).getSingleResult();
+            assertThat(refs).containsExactly(null, null);
+        });
+        long gameId = 3_000_000_001L;
+        long minigameId = 4_000_000_001L;
+        jdbc.update("""
+                INSERT INTO wallet_transactions(wallet_id, game_session_id, transaction_type,
+                    balance_delta, reserved_delta, idempotency_key)
+                SELECT id, ?, 'GAME_WIN', 10, -10, 'game-reference' FROM wallets WHERE user_id = 101
+                """, gameId);
+        jdbc.update("""
+                INSERT INTO wallet_transactions(wallet_id, minigame_session_id, transaction_type,
+                    balance_delta, reserved_delta, idempotency_key)
+                SELECT id, ?, 'MINIGAME_REWARD', 10, 0, 'minigame-reference' FROM wallets WHERE user_id = 101
+                """, minigameId);
+        tx.executeWithoutResult(status -> {
+            var refs = entities.createQuery("""
+                    select t.gameSessionId, t.minigameSessionId
+                    from WalletTransaction t where t.idempotencyKey in ('game-reference', 'minigame-reference')
+                    order by t.idempotencyKey
+                    """, Object[].class).getResultList();
+            assertThat(refs).hasSize(2);
+            assertThat(refs.get(0)).containsExactly(gameId, null);
+            assertThat(refs.get(1)).containsExactly(null, minigameId);
+        });
+    }
+
+    @Test
     void 실제JWT_HTTP_구매부터보유조회와같은부위장착교체까지() throws Exception {
         assertThat(jdbc.queryForObject("SELECT VERSION()", String.class)).startsWith("8.4.");
         var list = request("GET", "/api/v1/shop/items", 101, null, null);
