@@ -1,5 +1,7 @@
 # 공원 3D · 공통 WebSocket 연결
 
+이 문서는 첫 공원 이관의 기록이다. 후속 공통 경기 흐름·오목 준비는 [OMOK_INTEGRATION.md](OMOK_INTEGRATION.md), 기능별 현재 반영 여부는 [PROTOTYPE_FEATURE_AUDIT.md](PROTOTYPE_FEATURE_AUDIT.md)를 따른다.
+
 2026-10-22. `dev`의 `f42faec`에서 시작해 최신 `d2d571f`의 USER-01 계약을 반영한 **공원/테이블 대기 공간 FE 이관**이다. 변경은 frontend 안에만 있다. 서버 구현·DB·계약 파일은 변경하지 않았다.
 
 ## 기존 팀원 작업 보존

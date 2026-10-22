@@ -9,6 +9,7 @@ import { BeveledBox } from '../../world/art/BeveledBox'
 import { WoodTable } from './WoodTable'
 import { StonePicnicTable } from './StonePicnicTable'
 import { MainPavilionTable } from './MainPavilionTable'
+import { OmokBoard } from '../../game/OmokBoard'
 
 /** Stable game/seat anchors survive replacement of the visual table subtree. */
 export function TableShell({ anchor }: { anchor: TableAnchor }) {
@@ -75,6 +76,7 @@ export function TableShell({ anchor }: { anchor: TableAnchor }) {
           </Instances>
         </>
       )}
+      <OmokBoard anchor={anchor} />
     </group>
   )
 }

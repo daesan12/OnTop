@@ -15,6 +15,45 @@ import { resetMetrics, summarizeFrames } from '../../src/performance/metrics'
 import { useSession } from '../../src/network/worldClient'
 import { viewControls } from '../../src/world/input'
 import { setDisplayProfiles } from '../../src/network/profileBridge'
+import { GOMOKU } from '../../src/config'
+import type { InstancedMesh } from 'three'
+import { omokCamera } from '../../src/game/cameraState'
+export const omokCameraReady = () => omokCamera.ready
+export function pointForOmok(x: number, y: number) {
+  const { scene, camera, gl } = root()
+  const object = scene.getObjectByName(
+    'omok-board-' + useSession.getState().focusedAnchorId,
+  )!
+  const point = object
+    .localToWorld(
+      new Vector3(
+        (x / 14 - 0.5) * GOMOKU.boardSpan,
+        0.019,
+        (y / 14 - 0.5) * GOMOKU.boardSpan,
+      ),
+    )
+    .project(camera)
+  const box = gl.domElement.getBoundingClientRect()
+  return {
+    x: ((point.x + 1) * box.width) / 2,
+    y: ((1 - point.y) * box.height) / 2,
+  }
+}
+export function omokGeometry() {
+  const { scene, gl } = root()
+  const count: number[] = []
+  scene.traverse((o) => {
+    if (o.name.startsWith('omok-board-'))
+      o.children.forEach((c) => {
+        if ('isInstancedMesh' in c) count.push((c as InstancedMesh).count)
+      })
+  })
+  return {
+    counts: count,
+    calls: gl.info.render.calls,
+    triangles: gl.info.render.triangles,
+  }
+}
 
 function root() {
   const canvas = document.querySelector('canvas')!

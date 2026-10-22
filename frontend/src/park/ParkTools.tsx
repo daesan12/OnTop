@@ -5,6 +5,8 @@ import { useSession } from '../network/worldClient'
 import { bindAnchor } from '../network/tableBindings'
 import { useParkRuntime } from './runtime/ParkRuntime'
 import { summarizeFrames } from '../performance/metrics'
+import { GameControls, OmokPanel } from '../game/OmokPanel'
+import { useGame, tableBusy } from '../game/store'
 
 export function ParkTools({
   quality,
@@ -14,6 +16,8 @@ export function ParkTools({
   onQuality: (value: QualityPreset) => void
 }) {
   const runtime = useParkRuntime()
+  const gameVisible = useGame((s) => !!s.game)
+  const gameBusy = useGame(tableBusy)
   const state = useSession(
     useShallow((s) => ({
       status: s.status,
@@ -112,7 +116,7 @@ export function ParkTools({
           </section>
         )}
       </div>
-      {state.focusedAnchorId && (
+      {state.focusedAnchorId && !gameVisible && (
         <section
           role="dialog"
           aria-label="테이블 정보"
@@ -145,7 +149,7 @@ export function ParkTools({
               )}
               {state.tableId === tableId ? (
                 <button
-                  disabled={state.pending}
+                  disabled={state.pending || gameBusy}
                   onClick={() => void runtime.leaveTable()}
                 >
                   일어나기
@@ -158,10 +162,12 @@ export function ParkTools({
                   앉기
                 </button>
               )}
+              {tableId && <GameControls tableId={tableId} />}
             </>
           )}
         </section>
       )}
+      <OmokPanel />
       {(state.error ||
         state.status === 'joining' ||
         state.status === 'reconnecting') && (
