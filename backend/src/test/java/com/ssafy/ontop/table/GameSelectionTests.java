@@ -40,7 +40,7 @@ class GameSelectionTests {
         first.request("TABLE_JOIN", Map.of("tableId", "table-1"));
         second.request("TABLE_JOIN", Map.of("tableId", "table-1"));
         first.next();
-        JsonNode selected = first.request("GAME_SELECT", Map.of("gameCode", game));
+        JsonNode selected = first.request("GAME_SELECT", game.equals("DICE") ? Map.of("gameCode", game, "targetScore", 4000) : Map.of("gameCode", game));
         JsonNode notice = second.next();
 
         assertThat(notice.path("payload")).isEqualTo(selected.path("payload"));
@@ -51,12 +51,13 @@ class GameSelectionTests {
         second.next();
         JsonNode ready = second.request("READY_SET", Map.of("ready", true));
         first.next();
-        JsonNode repeated = first.request("GAME_SELECT", Map.of("gameCode", game));
+        JsonNode repeated = first.request("GAME_SELECT", game.equals("DICE") ? Map.of("gameCode", game, "targetScore", 4000) : Map.of("gameCode", game));
         assertThat(repeated.path("payload")).isEqualTo(ready.path("payload"));
         assertThat(second.messages.poll(100, TimeUnit.MILLISECONDS)).isNull();
 
         String next = game.equals("OMOK") ? "DICE" : "OMOK";
-        JsonNode changed = first.request("GAME_SELECT", Map.of("gameCode", next)).path("payload");
+        JsonNode changed = first.request("GAME_SELECT", next.equals("DICE")
+                ? Map.of("gameCode", next, "targetScore", 4000) : Map.of("gameCode", next)).path("payload");
         second.next();
         assertThat(changed.path("allReady").asBoolean()).isFalse();
         assertThat(changed.path("version").asLong()).isEqualTo(ready.path("payload").path("version").asLong() + 1);
@@ -72,7 +73,7 @@ class GameSelectionTests {
         assertCode(first.request("READY_SET", Map.of("ready", true)), "GAME_NOT_SELECTED");
         second.request("TABLE_JOIN", Map.of("tableId", "table-1"));
         JsonNode before = first.next().path("payload");
-        assertCode(second.request("GAME_SELECT", Map.of("gameCode", "DICE")), "NOT_GAME_SELECTOR");
+        assertCode(second.request("GAME_SELECT", Map.of("gameCode", "DICE", "targetScore", 4000)), "NOT_GAME_SELECTOR");
         assertCode(first.request("GAME_SELECT", Map.of("gameCode", "CHESS")), "UNSUPPORTED_GAME");
         assertThat(first.request("TABLE_JOIN", Map.of("tableId", "table-1")).path("payload")).isEqualTo(before);
         assertThat(hub.listTables().tables().get(1).gameCode()).isNull();
@@ -86,7 +87,7 @@ class GameSelectionTests {
         first.request("TABLE_JOIN", Map.of("tableId", "table-1"));
         second.request("TABLE_JOIN", Map.of("tableId", "table-1"));
         first.next();
-        first.request("GAME_SELECT", Map.of("gameCode", "DICE"));
+        first.request("GAME_SELECT", Map.of("gameCode", "DICE", "targetScore", 4000));
         second.next();
         first.request("TABLE_LEAVE", Map.of());
         JsonNode left = second.next().path("payload");
@@ -124,7 +125,7 @@ class GameSelectionTests {
         third.request("TABLE_JOIN", Map.of("tableId", "table-1"));
         JsonNode before = first.request("READY_SET", Map.of("ready", true)).path("payload");
         assertCode(first.request("GAME_SELECT", Map.of("gameCode", "OMOK")), "GAME_PLAYER_LIMIT");
-        assertCode(first.request("GAME_SELECT", Map.of("gameCode", "DICE")), "GAME_PLAYER_LIMIT");
+        assertCode(first.request("GAME_SELECT", Map.of("gameCode", "DICE", "targetScore", 4000)), "GAME_PLAYER_LIMIT");
         JsonNode after = first.request("TABLE_JOIN", Map.of("tableId", "table-1")).path("payload");
         assertThat(after).isEqualTo(before);
         assertThat(hub.listTables().tables().getFirst().occupiedSeats()).isEqualTo(3);

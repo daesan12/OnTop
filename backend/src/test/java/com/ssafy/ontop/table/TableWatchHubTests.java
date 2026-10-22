@@ -77,7 +77,7 @@ class TableWatchHubTests {
         assertThat(ready.has("gameSessionId")).isFalse();
         assertThat(viewer.request("READY_SET", Map.of("ready", true)).path("payload").path("code").asText())
                 .isEqualTo("NOT_SEATED");
-        assertThat(viewer.request("GAME_SELECT", Map.of("gameCode", "DICE"))
+        assertThat(viewer.request("GAME_SELECT", Map.of("gameCode", "DICE", "targetScore", 4000))
                 .path("payload").path("code").asText()).isEqualTo("NOT_SEATED");
     }
 

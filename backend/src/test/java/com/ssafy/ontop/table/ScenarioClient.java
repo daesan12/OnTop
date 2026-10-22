@@ -35,6 +35,14 @@ final class ScenarioClient implements AutoCloseable {
     private volatile Predicate<JsonNode> forbidden = message -> false;
 
     ScenarioClient(int port, String login) throws Exception {
+        this(port, login, null);
+    }
+
+    ScenarioClient(int port, String login, String ticket) throws Exception {
+        this(port, login, ticket, null);
+    }
+
+    ScenarioClient(int port, String login, String ticket, String origin) throws Exception {
         userId = switch (login) { case "naver" -> "101"; case "ssafy" -> "202"; case "spectator" -> "505";
             default -> login; };
         socket = new Socket("127.0.0.1", port);
@@ -42,9 +50,13 @@ final class ScenarioClient implements AutoCloseable {
         output = socket.getOutputStream();
         try {
             socket.setSoTimeout(5000);
-            String headers = "GET /ws/tables HTTP/1.1\r\nHost: 127.0.0.1:" + port
+            String path = ticket == null ? "/ws/tables" : "/ws/tables?ticket=" + ticket;
+            String authentication = ticket == null ? "X-Test-Login: " + login + "\r\n" : "";
+            String authority = origin == null ? "127.0.0.1:" + port : java.net.URI.create(origin).getAuthority();
+            String originHeader = origin == null ? "" : "Origin: " + origin + "\r\n";
+            String headers = "GET " + path + " HTTP/1.1\r\nHost: " + authority
                     + "\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13"
-                    + "\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nX-Test-Login: " + login + "\r\n\r\n";
+                    + "\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n" + authentication + originHeader + "\r\n";
             output.write(headers.getBytes(StandardCharsets.US_ASCII));
             output.flush();
             ByteArrayOutputStream response = new ByteArrayOutputStream();

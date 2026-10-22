@@ -11,7 +11,8 @@ const variables = {
     channelIdB: 'visual-b',
     tableIdA: '',
     tableIdB: '',
-    gameId: 'replace-with-real-game-id'
+    gameId: 'replace-with-real-game-id',
+    accessToken: '', websocketTicket: '', shopItemId: '', userItemId: '', purchaseRequestKey: '', purchaseId: ''
 };
 
 const statusTest = status => `pm.test('HTTP ${status}', () => pm.response.to.have.status(${status}));`;
@@ -56,8 +57,8 @@ const httpItems = [
     http('04 광장 B 테이블 조회·ID 저장', '/api/v1/tables?channelId={{channelIdB}}', 200,
         '응답의 첫 테이블 ID를 tableIdB에 저장합니다. A/B의 tableId는 서로 다릅니다.',
         saveTable('tableIdB'), tableBefore('tableIdB')),
-    http('05 채널 목록 — 현재는 인증 오류가 정상', '/api/v1/channels', 401,
-        '실제 로그인 코드가 없어 현재는 401 UNAUTHENTICATED가 정상입니다. 임의 userId·테스트 인증 헤더를 넣지 않습니다.',
+    http('05 채널 목록 — 미인증 401', '/api/v1/channels', 401,
+        '인증 헤더 없는 실패 예제입니다. 로그인 성공 조회는 11을 사용하세요. 임의 userId·테스트 인증 헤더는 인증되지 않습니다.',
         codeTest('UNAUTHENTICATED')),
     http('06 채널 없는 테이블 조회 — 400', '/api/v1/tables', 400,
         'visual-test처럼 채널이 등록된 상태에서만 CHANNEL_REQUIRED입니다. local만 켜면 200이므로 실행 설정을 맞추세요.',
@@ -70,6 +71,94 @@ const httpItems = [
     http('09 관리 API 비노출 확인', '/actuator/env', 404,
         'health 이외 관리 API를 노출하지 않는지 확인합니다.')
 ];
+
+const ticketRequest = http('10 로그인 웹소켓 접속권 발급', '/api/v1/auth/websocket-ticket', 200,
+    'local,db + ontop.websocket.authenticated=true 필요. 개인 로컬 accessToken에 로그인 Access JWT를 입력하세요. '
+    + '최대30초1회용 ticket을 받은 즉시 07 인증 연결에서 사용합니다. 원문 토큰·접속권을 공유/동기화하지 마세요.',
+    `pm.test('접속권 응답', () => {
+    const body = pm.response.json();
+    pm.expect(body.ticket).to.match(/^wst_[A-Za-z0-9_-]{43}$/);
+    pm.expect(body.expiresIn).to.be.within(1, 30);
+});`);
+ticketRequest.method = 'POST';
+ticketRequest.headers = [{ key: 'Authorization', value: 'Bearer {{accessToken}}' },
+    { key: 'Origin', value: '{{baseUrl}}' }];
+httpItems.push(ticketRequest);
+
+const channelRequest = http('11 로그인 사용자 채널 목록 조회', '/api/v1/channels', 200,
+    'local,db와 실제 로그인 Access JWT가 필요합니다. 개인 로컬 accessToken 사용. '
+    + '조회는 입장/예약을 하지 않습니다. WS07의 CHANNEL_JOIN 뒤 다시 보내면 currentUsers/joinable 변화를 확인할 수 있습니다. '
+    + '채널 미설정은 items:[]입니다. 401 미인증/만료/탈퇴,403 출처거절,503 인증/인원 조회 장애. 토큰을 공유하지 마세요.',
+    `pm.test('채널 목록 형식', () => {
+    const items = pm.response.json().items;
+    pm.expect(items).to.be.an('array');
+    items.forEach(item => {
+        pm.expect(item).to.have.all.keys('channelId', 'name', 'currentUsers', 'capacity', 'joinable');
+        pm.expect(item.currentUsers).to.be.a('number').and.at.least(0);
+        pm.expect(item.joinable).to.eql(item.currentUsers < item.capacity);
+    });
+});`);
+channelRequest.headers = [{ key: 'Authorization', value: 'Bearer {{accessToken}}' },
+    { key: 'Origin', value: '{{baseUrl}}' }];
+httpItems.push(channelRequest);
+
+const loginTables = http('12 로그인 사용자 테이블 조회·ID 저장', '/api/v1/tables?channelId={{channelIdA}}', 200,
+    'TABLE-01: local,db + ontop.websocket.authenticated=true와 실제 로그인 Access JWT가 필요합니다. '
+    + 'HTTP11에서 선택한 채널을 개인 channelIdA로 설정하고 이 응답의 tableIdA로 WS07에서 착석합니다. '
+    + '채널 입장·착석·게임 선택·준비·퇴장/heartbeat 뒤 재조회하면 공개 요약을 확인합니다. 조회는 예약이 아닙니다. '
+    + '401 미인증/만료/비활성,403 출처거절,503 인증/계정 장애. 인증 후400 채널 누락·404 없는 채널. '
+    + '기본 개발 모드는03/04이며 실제 DB 차감/정산 성공 검증과 구분합니다. 토큰을 공유하지 마세요.',
+    saveTable('tableIdA') + `
+pm.test('공개 요약과 캐시 금지', () => {
+    pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store');
+    pm.response.json().tables.forEach(table => {
+        pm.expect(table).to.have.all.keys('tableId', 'capacity', 'minimumPlayers', 'occupiedSeats',
+            'availableSeats', 'readyCount', 'allReady', 'status', 'joinable', 'gameCode', 'targetScore');
+        pm.expect(table.availableSeats).to.eql(table.capacity - table.occupiedSeats);
+        pm.expect(table.joinable).to.eql(table.status === 'WAITING' && table.availableSeats > 0);
+    });
+});`, tableBefore('tableIdA'));
+loginTables.headers = [{ key: 'Authorization', value: 'Bearer {{accessToken}}' },
+    { key: 'Origin', value: '{{baseUrl}}' }];
+httpItems.push(loginTables);
+
+const shopAuth = [{key: 'Authorization', value: 'Bearer {{accessToken}}'}, {key: 'Origin', value: '{{baseUrl}}'}];
+const shopSetup = requireEnvironment + `\nif (!pm.environment.get('accessToken')) throw new Error('개인 로컬 Access JWT가 필요합니다.');`;
+const catalog = http('13 상점 판매 아이템 조회', '/api/v1/shop/items', 200,
+    'SHOP-01: local,db + ontop.shop.enabled=true·공통 지갑/상점 스키마가 필요합니다. 판매 상품을 조회하며 첫 itemId를 개인 환경에 저장합니다.',
+    `const items=pm.response.json().items; pm.expect(items).to.be.an('array');
+if(items.length) pm.environment.set('shopItemId',items[0].itemId);`, shopSetup);
+catalog.headers = shopAuth; httpItems.push(catalog);
+const purchaseBefore = shopSetup + `\nif(!/^[1-9][0-9]*$/.test(String(pm.environment.get('shopItemId')||''))) throw new Error('13에서 판매 itemId를 선택하세요.');`;
+const purchaseBody = {mode:'raw',raw:'{\n  "itemId": {{shopItemId}},\n  "quantity": 1\n}',options:{raw:{language:'json'}}};
+const purchaseHeaders = [...shopAuth,{key:'Content-Type',value:'application/json'},
+    {key:'Idempotency-Key',value:'{{purchaseRequestKey}}'}];
+const purchase = http('14 아이템 구매 — 새 구매 키', '/api/v1/shop/purchases', 200,
+    'SHOP-02: 실행할 때마다 새 키를 만듭니다. 같은 구매 재확인은15를 사용합니다. 실제 상품 가격으로 엽전이 차감됩니다. 테스트 계정으로 확인하세요. 의상 중복 정책은 명시 설정이며 기본값이 없습니다.',
+    `const body=pm.response.json(); pm.expect(body.purchaseId).to.be.a('string');
+pm.environment.set('purchaseId',body.purchaseId); pm.environment.set('userItemId',body.userItemId);`,
+    purchaseBefore + `\npm.environment.set('purchaseRequestKey',pm.variables.replaceIn('{{$guid}}'));`);
+purchase.method='POST'; purchase.headers=purchaseHeaders; purchase.body=purchaseBody; httpItems.push(purchase);
+const replay = http('15 동일 구매 재요청 — 추가 차감 없음', '/api/v1/shop/purchases', 200,
+    '14의 키·itemId·수량을 유지합니다. 가격/판매 상태가 바뀌어도 같은 영수증을 반환합니다. 새 구매는14입니다.',
+    `pm.expect(pm.response.json().purchaseId).to.eql(pm.environment.get('purchaseId'));`,
+    purchaseBefore + `\nif(!pm.environment.get('purchaseRequestKey')) throw new Error('먼저14를 실행하세요.');`);
+replay.method='POST'; replay.headers=purchaseHeaders; replay.body=purchaseBody; httpItems.push(replay);
+const inventory = http('16 내 보유 아이템 조회', '/api/v1/users/me/items', 200,
+    'INVENTORY-01: 본인 quantity>0 보유·수량·장착 여부를 조회합니다. 판매 종료 보유도 표시합니다.',
+    `pm.expect(pm.response.json().items).to.be.an('array');`,shopSetup);
+inventory.headers=shopAuth; httpItems.push(inventory);
+const equip = http('17 보유 의상 장착·변경', '/api/v1/users/me/equipment', 200,
+    'INVENTORY-02: 본인 보유 EQUIPMENT의 userItemId로 수정합니다. 같은 부위는 하나만 장착합니다. 소비형·타인 소유는 실패합니다. 내부 커밋 알림과 3D 외형 연동은 구분합니다.',
+    `pm.expect(pm.response.json().equipment).to.be.an('array');`,
+    shopSetup + `\nif(!/^[1-9][0-9]*$/.test(String(pm.environment.get('userItemId')||''))) throw new Error('장착할 본인 보유 ID를 설정하세요.');`);
+equip.method='PATCH'; equip.headers=[...shopAuth,{key:'Content-Type',value:'application/json'}];
+equip.body={mode:'raw',raw:'{\n  "userItemId": {{userItemId}}\n}',options:{raw:{language:'json'}}}; httpItems.push(equip);
+const conflict = http('18 같은 구매 키에 다른 수량 — 409', '/api/v1/shop/purchases', 409,
+    '14 성공 뒤 같은 계정·itemId·키를 유지하며 수량만2로 바꿔 충돌을 확인합니다. 추가 차감/지급은 없습니다.',
+    codeTest('IDEMPOTENCY_CONFLICT'),purchaseBefore + `\nif(!pm.environment.get('purchaseRequestKey')) throw new Error('먼저14를 실행하세요.');`);
+conflict.method='POST'; conflict.headers=purchaseHeaders;
+conflict.body={mode:'raw',raw:'{\n  "itemId": {{shopItemId}},\n  "quantity": 2\n}',options:{raw:{language:'json'}}}; httpItems.push(conflict);
 
 const message = (name, type, payload = {}) => ({
     name, $kind: 'websocket-message', contentType: 'json',
@@ -84,7 +173,8 @@ const ready = flag => message(flag ? '07 준비 → TABLE_STATE' : '추가 준�
 const leave = () => message('추가 테이블 퇴장 → TABLE_LEFT', 'TABLE_LEAVE');
 const channelLeave = () => message('추가 광장 퇴장 → CHANNEL_LEFT (착석 중이면 먼저 테이블 퇴장)', 'CHANNEL_LEAVE');
 const select = code => message(code === 'OMOK' ? '06 첫 착석자 오목 선택 → TABLE_STATE'
-    : `추가 첫 착석자 ${code} 선택 (전원 준비 초기화)`, 'GAME_SELECT', { gameCode: code });
+    : `추가 첫 착석자 ${code} 선택 (전원 준비 초기화)`, 'GAME_SELECT',
+    code === 'DICE' ? { gameCode: code, targetScore: 4000 } : { gameCode: code });
 const primaryMessages = [
     joinA(),
     message('02 걷기 입력 seq1 → WORLD_STATE (미착석)', 'WORLD_MOVE', { seq: 1, dx: 0, dz: -1, run: false, jump: false }),
@@ -129,7 +219,7 @@ const wsItems = [
             message('추가 채팅', 'WORLD_CHAT_SEND', { text: 'B도 접속했어!' }),
             message('다른 채널 격리 확인 — B 광장으로 (현재 채널 퇴장 후)', 'CHANNEL_JOIN', { channelId: '{{channelIdB}}' }),
             message('다른 채널 B 테이블 착석', 'TABLE_JOIN', { tableId: '{{tableIdB}}' }),
-            message('오류 선택권 없음 — A가 먼저 앉았을 때만', 'GAME_SELECT', { gameCode: 'DICE' })]),
+            message('오류 선택권 없음 — A가 먼저 앉았을 때만', 'GAME_SELECT', { gameCode: 'DICE', targetScore: 4000 })]),
     wsRequest('03 관전자 C — 공개 대기 상태 보기',
         '광장 A 입장·서버 스폰 확인 후 TABLE_WATCH를 보냅니다. 서버 테이블 좌표가 설정되어 있고 중심 20m 이내여야 합니다. 미설정/범위 밖은 TABLE_OUT_OF_RANGE입니다. TABLE_WATCH_STATE를 받으며 좌석·준비 인원은 늘지 않습니다. '
         + 'x/z는 1단위=1m인 서버 판정 위치입니다. 방향 입력을 반복해 실제 테이블 중심에 접근합니다. 거리 초과 이동 시 TABLE_WATCH_LEFT로 종료하고 다시 가까워져도 자동 재구독하지 않습니다. '
@@ -156,6 +246,7 @@ const wsItems = [
         + '관전자는 채널·미터 방향 입력·서버 테이블 좌표와 Gateway 내부 tableId가 필요하며 중심 20m 이내에서 GAME_WATCH합니다. 성공 후 빈 privateState의 GAME_STATE만 수신하며 GAME_UNWATCH 또는 범위 이탈로 해제합니다. '
         + 'GAME_STATE_CHECK의 SPECTATOR도 동일한 범위를 검사합니다. 위치·좌표·내부 tableId 미확인/범위 밖은 GAME_STATE_ACCESS_DENIED입니다. 이동 이탈·채널 퇴장·착석은 GAME_WATCH_LEFT이며 범위 복귀로 자동 재관전하지 않습니다. 방향 입력와 채널 입장은 01~03 연결의 예제를 같은 연결에서 사용합니다. '
         + '최초 응답은 원래 requestId, 자동 알림은 null입니다. GAME_STATE가 GAME_ACTION_RESULT보다 먼저 올 수 있어 확인은 requestId/actionId, 상태는 version으로 독립 처리합니다. '
+        + '경기 종료 시 4종 엔진의 서버 종료 알림이 현재 참가자 본인의 저장 결과를 1회 자동 조회합니다. 결과가 있으면 GAME_RESULT(requestId=null)를 수신합니다. 미저장·읽기 실패 때는 가짜 결과/자동 오류를 보내지 않습니다. 이후 DB 담당의 커밋 알림으로 PENDING/null → SETTLED/본인 확정 순증감을 수신하거나 07 GAME_RESULT_CHECK로 재조회합니다. 재접속도 07로 다시 읽습니다. 결과 version과 경기 상태 version은 별개이며 결과 조회는 지급을 실행하지 않습니다. '
         + '오목은 15×15 렌주·흑 선공·흑 정확히 5목/백 5개 이상 승리. 흑 33·44·장목은 GAME_ACTION_FORBIDDEN_MOVE로 거절하고 판·버전·차례·턴 마감은 유지합니다. 같은 수의 정확한 5목은 금수보다 우선합니다. 한 수 30초 도달 시 시간패·총시간 제한 없음입니다. 복귀해도 기존 turnDeadline은 유지하며 재접속 유예보다 턴 마감이 먼저면 종료합니다. '
         + 'publicState에는 gameCode/status, boardSize/board[y][x](0빈칸/1흑/2백), blackUserId/whiteUserId, moveCount/lastMove, turnUserId/turnDeadline, winnerUserId/endReason/endedAt이 있습니다. 참가자·관전자 privateState는 모두 {}입니다. 종료 사유는 FIVE_IN_ROW, BOARD_FULL, TURN_TIMEOUT, RECONNECT_EXPIRED이며 종료 후 차례·턴 마감은 null입니다. 승패 상태는 정산 확정이 아니며 엽전 지급은 별도입니다. '
         + '09/10은 02 성공 후 actionId·원래 버전을 유지하고 각각 중복 확인·내용 충돌을 검사합니다. 11은 복귀 조회이며 마감을 연장하지 않습니다. 기본 dev에서는 여전히 인증 오류가 정상이고 경기 성공 시연용이 아닙니다.',
@@ -233,8 +324,26 @@ const bridgeGuide = '거짓말다리(LIAR_BRIDGE)는2~4명·각7개말,local의o
     + '슬롯은영구순번1~8/VACATED재사용없음. 골인말만있는사람은판단가능,실패시최저슬롯제거. 페널티/이동/슬롯발급/기권적용후승패판정. 3골인우선,8발급/말소진시미기권최고점공동승리. '
     + '복구state={publicState,privateState}. 기존20m관전/30초유예유지. 승패는DB정산·지급완료아님. 상세docs/bridge.md. ';
 wsItems[5].description += '\n\n' + bridgeGuide;
+wsItems.push({ ...wsRequest('07 로그인 사용자 — 1회용 접속권',
+    '먼저 HTTP10을 보내 30초 접속권을 받으세요. 개인 로컬 websocketTicket에 넣고 즉시 Connect. '
+    + 'HTTP10과 같은 Origin을 사용하고 재접속마다 새 접속권을 발급합니다. JWT는 URL에 넣지 않습니다. '
+    + 'CONNECTED 내부ID → TABLE_JOIN → GAME_SELECT → READY_SET, 중복 연결1008·heartbeat·30초복구는 기존 계약입니다. '
+    + '실제 시작은 ontop.game-start.enabled=true + 실제 B GameStartGateway + 사용할 엔진이 필요합니다. '
+    + '전원 준비 → STARTING → 확정 후 PLAYING(simulation=false), GAME_CONNECTION_STATE로 본인 상태/조작권 복구. '
+    + '미확정이면07로 같은 시도를 조회하고 새 차감을 요청하지 않습니다. 개발 rehearsal과 동시 사용 금지. '
+    + '기본 서버는 시작 옵션을 끈 상태이며 실제 DB Gateway가 없으므로 옵션만 켜서 성공하지 않습니다. '
+    + '토큰/접속권 원문은 공유·동기화하지 마세요.', [
+        message('01 광장 입장', 'CHANNEL_JOIN', { channelId: '{{channelIdA}}' }),
+        message('02 착석', 'TABLE_JOIN', { tableId: '{{tableIdA}}' }),
+        message('03 첫 착석자 게임 선택', 'GAME_SELECT', { gameCode: 'OMOK' }),
+        message('04 준비', 'READY_SET', { ready: true }),
+        message('05 퇴장', 'TABLE_LEAVE'),
+        message('06 복귀 상태 재조회', 'GAME_RECONNECT_CHECK'),
+        message('07 동일 시작 시도 결과 조회', 'GAME_START_CHECK'),
+        message('08 확정 경기 상태 조회', 'GAME_STATE_CHECK', {gameId: '{{gameId}}'})]),
+    url: '{{wsUrl}}?ticket={{websocketTicket}}' });
 const guide = '현재 코드의 local 통신 검증용. 서버는 local,visual-test로 실행하고 OnTop Local 환경을 선택하세요. '
-    + '실제 오목 엔진은 선택적으로 켤 수 있으며 로그인·시작 차감·DB 정산은 미연결입니다. HTTP 테이블 조회로 ID 저장 후 WebSocket을 연결합니다. '
+    + '인증 시작 연결부와 엔진은 선택 활성화하며 실제 DB 차감·정산 통합 검증은 별도입니다. HTTP 테이블 조회로 ID 저장 후 WebSocket을 연결합니다. '
     + '웹에서 저장한 컬렉션은 동일 계정·워크스페이스 앱에서 사용하며 로컬 테스트는 Desktop App에서 실행하세요.';
 const httpV3 = { name: 'OnTop HTTP', $kind: 'collection', description: guide, items: httpItems };
 const wsGuide = '# 근거리 채팅·관전 테스트 (20m)\n\n'
@@ -244,13 +353,16 @@ const wsGuide = '# 근거리 채팅·관전 테스트 (20m)\n\n'
         .replace(' publicState에는', '\n\npublicState에는')
         .replace(' 09/10은', '\n\n09/10은')}`).join('\n\n')
     + '\n\n서버 테이블 좌표가 미설정이면 관전 성공 대신 범위 오류가 정상입니다. 실제 맵 좌표를 임의로 정하지 않습니다. '
-    + `기존 연결 ${wsItems.length}개와 저장 메시지 ${wsItems.reduce((sum, item) => sum + item.messages.length, 0)}개를 사용합니다.`;
+    + `기존 연결 ${wsItems.length}개와 저장 메시지 ${wsItems.reduce((sum, item) => sum + item.messages.length, 0)}개를 사용합니다.`
+    + '\n\n2026-10-22: 첫 착석자가 GAME_SELECT의 DICE targetScore를2000/4000/6000 중 선택합니다. 누락 GAME_OPTIONS_REQUIRED, 잘못된 값 INVALID_PAYLOAD이며 목표 변경도 전원 준비를 해제합니다. TABLE_STATE/TABLE_WATCH_STATE/HTTP12 요약에 targetScore가 추가되고 다른 게임은null입니다. '
+    + '실제 종료 후 좌석 유지·ready=false·SETTLING, 현재 경기 전체 SETTLED 확인 후 WAITING에서 다시 전원 준비하면 새 시도·경기ID로 시작합니다. 정산 알림 누락은 GAME_RESULT_CHECK 재조회로 복구하며 조회는 지급을 실행하지 않습니다. 실제 DB 잔액·원장·정산·운영 적용은 별도 통합 검증입니다.';
 const wsV3 = { name: 'OnTop WebSocket', $kind: 'collection', description: wsGuide, items: wsItems };
 const httpV21 = {
     info: { name: httpV3.name, description: guide, schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json' },
     item: httpItems.map(item => ({
         name: item.name,
-        request: { method: item.method, url: item.url, description: item.description, auth: { type: 'noauth' } },
+        request: { method: item.method, url: item.url, description: item.description, auth: { type: 'noauth' },
+            ...(item.headers ? { header: item.headers } : {}), ...(item.body ? {body:item.body} : {}) },
         event: item.scripts.map(script => ({ listen: script.type === 'beforeRequest' ? 'prerequest' : 'test',
             script: { type: 'text/javascript', exec: script.code.split('\n') } }))
     }))
@@ -269,6 +381,9 @@ function yaml(value, indent = 0) {
         + (nested(item) ? '\n' + yaml(item, indent + 2) : ' ' + JSON.stringify(item))).join('\n');
 }
 const outputs = new Map([
+    ['OnTop-Shop.postman_collection.json', JSON.stringify({info: {...httpV21.info, name: 'OnTop Shop',
+        description: 'SHOP-01/02 · INVENTORY-01/02. 13목록→14구매→15동일키 재요청→16보유→17장착. 18은 같은키 충돌 검사. local,db + ontop.shop.enabled=true + 공통/상점 스키마, 의상 정책 명시 설정이 필요합니다. 테스트 계정의 개인 로컬 Access JWT만 사용하고 공유하지 마세요. 기본 DB에 스키마를 자동 적용하지 않았습니다. 실제 DB 초기화·공통 재화 통합·3D 외형 계약은 별도 확인합니다.\n\n2026-10-22: 상점 저장 처리를 JPA 엔티티·JPQL로 전환했습니다. 기존 6개 요청·응답·중복 구매 방지·롤백 계약은 그대로이며 예제 수정 없이 사용할 수 있습니다.'},
+        item: httpV21.item.slice(12)}, null, 2) + '\n'],
     ['OnTop-HTTP.postman_collection.json', JSON.stringify(httpV21, null, 2) + '\n'],
     ['OnTop-WebSocket.postman_collection.json', JSON.stringify(wsV3, null, 2) + '\n'],
     ['OnTop-Local.postman_environment.json', JSON.stringify(environment, null, 2) + '\n']

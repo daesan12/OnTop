@@ -121,7 +121,7 @@ class WorldChannelHubTests {
         second.request("TABLE_JOIN", Map.of("tableId", table("channel-1")));
         first.next();
         other.request("TABLE_JOIN", Map.of("tableId", table("channel-2")));
-        first.request("GAME_SELECT", Map.of("gameCode", "DICE"));
+        first.request("GAME_SELECT", Map.of("gameCode", "DICE", "targetScore", 4000));
         second.next();
         first.request("READY_SET", Map.of("ready", true));
         second.next();
@@ -151,7 +151,7 @@ class WorldChannelHubTests {
         first.next();
         String tableId = table("channel-1");
         owner.request("TABLE_JOIN", Map.of("tableId", tableId));
-        owner.request("GAME_SELECT", Map.of("gameCode", "DICE"));
+        owner.request("GAME_SELECT", Map.of("gameCode", "DICE", "targetScore", 4000));
         CountDownLatch gate = new CountDownLatch(1);
         try (var workers = Executors.newVirtualThreadPerTaskExecutor()) {
             var one = workers.submit(() -> { gate.await(); return first.request("TABLE_JOIN", Map.of("tableId", tableId)); });

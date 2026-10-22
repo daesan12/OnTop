@@ -64,7 +64,7 @@ class FullFlowTests {
                     .contains("101", "202");
             pass("두 명 같은 테이블 착석");
 
-            assertThat(first.request("GAME_SELECT", Map.of("gameCode", "DICE"))
+            assertThat(first.request("GAME_SELECT", Map.of("gameCode", "DICE", "targetScore", 4000))
                     .path("payload").path("gameCode").asText()).isEqualTo("DICE");
             second.await(message -> message.path("type").asText().equals("TABLE_STATE")
                     && message.path("payload").path("gameCode").asText().equals("DICE"));
@@ -140,13 +140,13 @@ class FullFlowTests {
     }
 
     static class Engine implements GameRecoveryGateway {
-        private final BlockingQueue<Long> loads = new LinkedBlockingQueue<>();
-        private final BlockingQueue<GraceExpiration> expirations = new LinkedBlockingQueue<>();
-        private final String turnDeadline = "2026-10-19T00:00:30Z";
+        final BlockingQueue<Long> loads = new LinkedBlockingQueue<>();
+        final BlockingQueue<GraceExpiration> expirations = new LinkedBlockingQueue<>();
+        final String turnDeadline = "2026-10-19T00:00:30Z";
         private volatile boolean active;
-        private volatile long version = 1;
+        volatile long version = 1;
 
-        private void activate(JsonNode ready) {
+        void activate(JsonNode ready) {
             assertThat(ready.path("allReady").asBoolean()).isTrue();
             assertThat(ready.path("gameCode").asText()).isEqualTo("DICE");
             assertThat(ready.path("seats").findValuesAsText("userId")).containsExactly("101", "202");
@@ -168,7 +168,7 @@ class FullFlowTests {
     }
 
     static class TestClock extends Clock {
-        private volatile Instant now = Instant.parse("2026-10-19T00:00:00Z");
+        volatile Instant now = Instant.parse("2026-10-19T00:00:00Z");
 
         @Override
         public ZoneId getZone() { return ZoneOffset.UTC; }

@@ -2,6 +2,8 @@
 
 > **TABLE_STATE** · 서버 → 클라이언트
 
+2026-10-22 추가: payload.targetScore는 DICE의 선택 목표2000/4000/6000, 다른 게임은 null이다. 목표 변경도 전원 준비를 초기화한다. 실제 종료 시 좌석 유지·전원 준비=false 상태를 전송한다. 정산 대기/재준비 단계는 GAME_START_STATE의 SETTLING/WAITING으로 구분한다.
+
 | 항목 | 내용 |
 | --- | --- |
 | 도메인 | 테이블 |
@@ -37,7 +39,8 @@
     ],
     "allReady": false,
     "selectorUserId": "dev-7cc07e8b-8460-4a78-8897-5e9acd875d91",
-    "gameCode": "DICE"
+    "gameCode": "DICE",
+    "targetScore": 4000
   }
 }
 ```
@@ -55,6 +58,7 @@
 | `allReady` | boolean | 게임 선택·최소 인원 충족 및 현재 착석자 전원 준비. 빈 좌석은 제외 |
 | `selectorUserId` | string 또는 null | 현재 참가자 중 가장 먼저 착석한 사용자. 위 userId와 같은 규격. 빈 테이블이면 null |
 | `gameCode` | string 또는 null | 선택한 게임 코드. 미선택이면 null. [게임 선택](07-game-select.md) 참고 |
+| `targetScore` | integer 또는 null | DICE 목표 2000/4000/6000. 다른 게임·미선택은 null |
 
 빈 좌석은 다음과 같이 표현합니다.
 

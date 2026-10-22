@@ -1,0 +1,30 @@
+"name": "17 보유 의상 장착·변경"
+"$kind": "http-request"
+"method": "PATCH"
+"url": "{{baseUrl}}/api/v1/users/me/equipment"
+"description": "INVENTORY-02: 본인 보유 EQUIPMENT의 userItemId로 수정합니다. 같은 부위는 하나만 장착합니다. 소비형·타인 소유는 실패합니다. 내부 커밋 알림과 3D 외형 연동은 구분합니다."
+"auth":
+  "type": "noauth"
+"scripts":
+  -
+    "type": "beforeRequest"
+    "code": "if (!pm.environment.name) throw new Error('먼저 OnTop Local 환경을 선택해주세요.');\nif (!pm.environment.get('accessToken')) throw new Error('개인 로컬 Access JWT가 필요합니다.');\nif(!/^[1-9][0-9]*$/.test(String(pm.environment.get('userItemId')||''))) throw new Error('장착할 본인 보유 ID를 설정하세요.');"
+  -
+    "type": "afterResponse"
+    "code": "pm.test('HTTP 200', () => pm.response.to.have.status(200));\npm.expect(pm.response.json().equipment).to.be.an('array');"
+"headers":
+  -
+    "key": "Authorization"
+    "value": "Bearer {{accessToken}}"
+  -
+    "key": "Origin"
+    "value": "{{baseUrl}}"
+  -
+    "key": "Content-Type"
+    "value": "application/json"
+"body":
+  "mode": "raw"
+  "raw": "{\n  \"userItemId\": {{userItemId}}\n}"
+  "options":
+    "raw":
+      "language": "json"

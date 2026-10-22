@@ -2,24 +2,31 @@ package com.ssafy.ontop.table;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ssafy.ontop.auth.security.RestSecurityTestSupport;
 import com.ssafy.ontop.auth.service.AccessJwtService;
+import com.ssafy.ontop.auth.security.RestSecurityTestSupport;
+import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser;
+import com.ssafy.ontop.auth.websocket.WebSocketAccountLookup;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.Map;
+import java.util.Optional;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.when;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "spring.profiles.active=local", "ontop.websocket.authenticated=true",
+        "ontop.auth.jwt-secret-base64=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
         "ontop.websocket.heartbeat.interval=200ms", "ontop.websocket.heartbeat.timeout=2s",
         "ontop.world.chat.minimum-interval=60s", "ontop.world.emote.minimum-interval=60s",
         "ontop.world.emote.codes[0]=WAVE", "ontop.world.emote.codes[1]=CLAP",
@@ -28,16 +35,20 @@ import static org.assertj.core.api.Assertions.assertThat;
         "ontop.world.channels[1].channel-id=two", "ontop.world.channels[1].name=둘",
         "ontop.world.channels[1].capacity=3"
 })
-@Import({AuthenticatedWebSocketTests.AuthFixture.class, AllowedWatchFixture.class, FrozenWorldFixture.class,
-        RestSecurityTestSupport.class})
+@Import({AuthenticatedWebSocketTests.AuthFixture.class, AllowedWatchFixture.class, FrozenWorldFixture.class, RestSecurityTestSupport.class})
 @DirtiesContext
 class WorldFullFlowTests {
 
-    @Autowired
-    private AccessJwtService jwt;
-
     @LocalServerPort
     private int port;
+    @Autowired private AccessJwtService jwt;
+    @MockitoBean private WebSocketAccountLookup accounts;
+
+    @BeforeEach
+    void authenticatedHttp() {
+        when(accounts.findActive(101)).thenReturn(Optional.of(new VerifiedWebSocketUser(101,
+                VerifiedWebSocketUser.Provider.NAVER)));
+    }
 
     @Test
     void 광장부터_착석과_준비_끊김_정리까지_확인한다() throws Exception {
@@ -83,7 +94,7 @@ class WorldFullFlowTests {
             assertThat(payload(second, "READY_SET", Map.of("ready", true), "ERROR").path("code").asText())
                     .isEqualTo("NOT_SEATED");
             payload(second, "TABLE_JOIN", Map.of("tableId", tableId), "TABLE_STATE");
-            payload(first, "GAME_SELECT", Map.of("gameCode", "DICE"), "TABLE_STATE");
+            payload(first, "GAME_SELECT", Map.of("gameCode", "DICE", "targetScore", 4000), "TABLE_STATE");
             assertThat(payload(first, "READY_SET", Map.of("ready", true), "TABLE_STATE")
                     .path("allReady").asBoolean()).isFalse();
             JsonNode ready = payload(second, "READY_SET", Map.of("ready", true), "TABLE_STATE");
@@ -139,8 +150,7 @@ class WorldFullFlowTests {
     private JsonNode table() throws Exception {
         try (HttpClient http = HttpClient.newHttpClient()) {
             var response = http.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port
-                    + "/api/v1/tables?channelId=one"))
-                    .header("Authorization", "Bearer " + jwt.issue(RestSecurityTestSupport.USER_ID))
+                    + "/api/v1/tables?channelId=one")).header("Authorization", "Bearer " + jwt.issue(RestSecurityTestSupport.USER_ID))
                     .GET().build(), HttpResponse.BodyHandlers.ofString());
             assertThat(response.statusCode()).isEqualTo(200);
             assertThat(response.headers().firstValue("Cache-Control")).contains("no-store");

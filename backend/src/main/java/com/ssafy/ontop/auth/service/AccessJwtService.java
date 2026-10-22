@@ -58,6 +58,10 @@ public class AccessJwtService {
 
     // 일반 REST/WebSocket 검증자는 이 경계만 사용한다. 온보딩 토큰을 받아들이지 않는다.
     public long verify(String value) {
+        return verifyAccess(value).userId();
+    }
+
+    public VerifiedAccess verifyAccess(String value) {
         byte[] key = signingKey();
         try {
             if (value == null || value.length() > 8192
@@ -90,10 +94,13 @@ public class AccessJwtService {
             if (userId <= 0) {
                 throw invalid();
             }
-            return userId;
+            return new VerifiedAccess(userId, expires.toInstant());
         } catch (ParseException | JOSEException | IllegalArgumentException exception) {
             throw invalid();
         }
+    }
+
+    public record VerifiedAccess(long userId, Instant expiresAt) {
     }
 
     private byte[] signingKey() {

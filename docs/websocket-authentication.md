@@ -1,38 +1,65 @@
-# 웹소켓 인증 연결부
+# 로그인 사용자와 웹소켓 연결
 
-OAuth 로그인과 Access 발급 및 [Spring Security REST 인증](rest-authentication.md)은 구현되어 있다.
-WebSocket은 **인증 전달 방식 미정, 연결부 준비 단계**다. 이번 REST 인증을 핸드셰이크에 자동 적용하지 않는다.
-공통 `AccessAuthenticationService`/`AuthenticatedUser`의 재사용 계약과 후속 담당 범위는 위 문서를 참고한다.
-[Jira #25](https://ssafy.atlassian.net/browse/S15P31B105-25)는 실제 WebSocket 인증 연결 전까지 진행 중으로 관리한다.
+기존 네이버·SSAFY 로그인에서 받은 **Access JWT → 30초 1회용 접속권 → 웹소켓** 순서입니다. 2026-10-21 사용자 승인, Jira S15P31B105-25. 기본 dev 임시 사용자 모드와 구분합니다.
 
-| 파일 | 하는 일 |
+최신 dev에는 [REST 공통 인증](rest-authentication.md)의 `AccessAuthenticationService`·`AuthenticatedUser`가 추가됐다. 아래 접속권 구현은 이 기능 브랜치에 있으며, 공통 인증 Principal 매핑·인증 기본값·로그아웃/탈퇴·게스트 정책 연결은 별도 범위다.
+
+## 실행 조건
+
+`local,db`와 `--ontop.websocket.authenticated=true`를 사용합니다. DB/JWT/OAuth 환경변수는 기존 [인증 교환](auth-exchange.md)·[DB 안내](../README.md)를 따릅니다. `db` 없는 서버에서는 계정 조회가 준비되지 않아 접속권 발급이 503입니다. 운영 프로필 공개·배포는 이번 범위가 아닙니다. 인증 모드와 start-rehearsal은 동시에 켤 수 없습니다.
+
+## 1. 접속권 발급
+
+| 항목 | 내용 |
 | --- | --- |
-| `WebSocketUserResolver` | 인증 담당이 서버 Principal을 검증하고 내부 계정으로 바꾸는 연결점 |
-| `VerifiedWebSocketUser` | 검증이 끝난 내부 사용자 ID와 로그인 제공자(NAVER·SSAFY) |
-| `TableHandshakeInterceptor` | 연결 전에 검증기를 호출하고 인증 실패를 차단 |
+| 방식·URL | POST `/api/v1/auth/websocket-ticket` |
+| 담당자·상태 | 장대산 · 로컬 구현·검증 완료 |
+| 인증 | `Authorization: Bearer <Access JWT>` 하나 |
+| 요청 본문 | 없음 |
+| 성공 | 200, Cache-Control: no-store |
 
-## 동작
+```json
+{
+  "ticket": "wst_<일회용 접속권>",
+  "expiresIn": 30
+}
+```
 
-기본 `local` 실행은 기존 `dev-UUID` 검증 모드다. `--ontop.websocket.authenticated=true`로 인증 연결 모드를 켠다. 이 모드도 현재는 local에서만 활성화된다.
+`expiresIn`은 최대30초이며 Access JWT의 남은 수명이 더 짧으면 그 시간을 넘지 않습니다. 온보딩 토큰·외부 제공자 토큰·사용자 ID는 받지 않습니다. 서명·발급자·대상·목적·만료 검증은 기존 AccessJwtService를 재사용하고, DB users에서 내부 ID·NAVER/SSAFY·탈퇴 여부를 확인합니다.
 
-1. 인증 담당의 HTTP 인증 코드가 서버 Principal을 만든다. JWT·세션 등 전달 방식은 아직 정하지 않았다.
-2. 담당 코드가 `WebSocketUserResolver` Bean을 제공한다. 로그인 유효성·계정 상태·제공자를 확인하고 **외부 제공자 ID를 양수 내부 계정 ID로 매핑**해 반환한다. 일반 Principal의 이름 자체를 내부 ID로 사용하지 않는다.
-3. 연결부가 검증된 사용자만 웹소켓 속성에 보관하고, Hub가 그 ID를 사용자·좌석에 사용한다. 요청 JSON·쿼리·임의 헤더의 userId는 인증 수단이 아니다.
-
-| 상황 | 처리 |
+| 오류 | 의미 |
 | --- | --- |
-| 검증기 Bean 없음·검증기 오류 | HTTP 503, 웹소켓 연결 차단 |
-| Principal 없음·검증 결과 없음 | HTTP 401, 연결 차단 |
-| 기본 개발 모드 | 기존 dev 사용자 생성. 인증 연결 성공으로 간주하지 않음 |
-| 동일 내부 계정의 추가 연결·결과 대기로 보존 중인 좌석 | 기존 연결·좌석 유지, 새 연결만 WebSocket 1008 종료 |
-| 인증 연결 + start-rehearsal 동시 활성화 | 앱 설정 오류. dev 사용자 전용 시작 대역에 실제 계정을 넣지 않음 |
+| 401 AUTH_INVALID_ACCESS_TOKEN | 누락·중복 Authorization, 위조·만료·잘못된 목적의 JWT |
+| 401 INVALID_WS_TICKET | 탈퇴·없는 계정, 만료·사용한 접속권 등 |
+| 403 AUTH_ORIGIN_NOT_ALLOWED | 허용되지 않은 Origin/preflight |
+| 429 WS_TICKET_LIMIT | 미소비 접속권 계정당4개 또는 서버 전체10,000개 상한 |
+| 500 AUTH_TOKEN_CONFIGURATION_ERROR | JWT 키·발급자 설정 오류 |
+| 503 WS_ACCOUNT_UNAVAILABLE | DB 계정 조회 미설정·실패 |
 
-동일 출처 제한은 유지한다. 브라우저 WebSocket에 임의 Authorization 헤더를 넣는 방식을 가정하거나 URL에 토큰을 붙이지 않는다. 운영 핸드셰이크에서 토큰·쿠키를 전달하는 방식과 갱신·로그아웃 시 연결 해제는 후속 작업이다.
+브라우저 Origin은 AUTH_ALLOWED_ORIGINS로 검사합니다. OPTIONS는 POST와 Authorization 요청 헤더만 허용합니다. Origin 없는 Postman/네이티브 요청도 유효한 Access JWT가 필요합니다. 토큰·접속권 원문은 로그·공유 환경·문서·스크린샷에 저장하지 않습니다.
 
-사용자가 **기존 연결 유지·새 연결 거절**을 확정했다. 끊긴 뒤 같은 계정의 경기 복귀는 [30초 재접속 연결부](game-reconnect.md)를 따른다. 실제 경기 담당이 최신 상태를 제공해야 하며 기본 dev 모드의 대기 좌석은 복구하지 않는다. 개발용 시작 검증의 결과 미확정·검증 완료 좌석은 기존처럼 보존하며 실제 경기로 취급하지 않는다.
+## 2. 웹소켓 연결
 
-## 검증 범위
+`/ws/tables?ticket=<접속권>`으로 연결합니다. 기존 동일 출처 정책을 유지하므로 프론트와 서버를 같은 공개 출처로 프록시합니다. 발급 시 Origin 유무·값이 연결 때와 같아야 합니다. 브라우저에서 발급했다면 Origin 없는 Postman으로 옮겨 쓰지 않습니다. URL에 Access JWT를 넣거나 임의 Authorization 헤더를 추가하지 않습니다.
 
-`AuthenticatedWebSocketTests`의 HTTP 필터·X-Test-Login 헤더는 **테스트 소스에만 있는 서버 인증 대역**이다. 실제 계정 로그인이나 토큰 서명 검증을 대신하지 않는다. 운영 소스에는 해당 헤더를 읽는 코드가 없다. 실제 인증 코드가 준비되면 같은 인터페이스에 연결하고 만료·탈퇴·로그아웃·배포 환경을 다시 통합 검증해야 한다.
+- 접속권은 256비트 난수이며 서버에는 SHA-256 해시·내부 ID·출처·만료만 메모리 보관합니다.
+- 하나의 접속권은 동시 요청에서도 한 번만 소비합니다. 인증 실패·Upgrade 실패·중복 연결 거절 뒤에는 새 접속권을 발급받습니다.
+- 연결 시 DB 계정 상태를 다시 확인합니다. 유효하면 기존 CONNECTED의 userId에 양수 내부 ID 문자열을 보냅니다. JSON 양식은 그대로입니다.
+- 누락·위조·만료·재사용·출처 불일치·중복 ticket 쿼리는 HTTP401, 계정 조회 실패는503입니다. 타출처 Upgrade는 기존 정책대로403입니다.
+- 서버의 검증된 Principal을 쓰는 기존 WebSocketUserResolver 연결점도 유지합니다. 클라이언트 userId·일반 Principal 이름을 직접 신뢰하지 않습니다.
 
-참고: [OnTop 통합 기획서 v0.4](https://app.notion.com/p/OnTop_-_-154161842b868387b6ad0174db68ee71)의 정식 네이버·SSAFY 로그인 기준, [Spring 6.2 WebSocket handshake](https://docs.spring.io/spring-framework/reference/6.2/web/websocket/server.html).
+## 3. 착석·준비·끊김·복귀
+
+CONNECTED → 필요하면 자동 GAME_CONNECTION_STATE 확인 → 채널이 설정됐으면 CHANNEL_JOIN → TABLE_JOIN → 첫 착석자 GAME_SELECT → 참가자 전원 READY_SET입니다. 2명 이상 전원 준비 조건은 그대로이며, 실제 경기 생성·참가비 차감은 별도입니다.
+
+살아 있는 같은 계정의 추가 소켓은 새 연결만1008로 종료합니다. 대기 중 끊기면 좌석·준비는 정리합니다. 실제 경기의 heartbeat 단절은 감지 시점부터30초 유예입니다. **다시 접속권을 발급**받아 연결하면 기존 [경기 복귀](game-reconnect.md) 경로가 최신 상태를 돌려줍니다. 재접속은 원래 턴 마감을 연장하지 않습니다. 경기 복구 Gateway가 없으면 자동 복구를 가정하지 않고 명시 조회는 UNAVAILABLE입니다.
+
+접속권 메모리는 단일 인스턴스이며 재시작하면 소멸합니다. 기존 로그인 계약과 마찬가지로 REST 로그아웃은 Refresh를 폐기하고 프론트는 Access JWT를 지우고 소켓을 닫습니다. 이미 열린 소켓을 로그아웃·JWT 만료 시 서버가 즉시 끊는 기능, 다중 서버 접속권 공유는 이번 범위가 아닙니다.
+
+## 검증
+
+LoginWebSocketFlowTests는 실제 AccessJwtService 서명·검증, HTTP 발급, Raw WebSocket 연결, 착석·전원 준비·중복 차단·heartbeat 끊김·29초 복귀·30초 만료를 연결합니다. 계정 조회와 경기 생성은 테스트 대역입니다. WebSocketTicketTests는 만료·Access 남은 수명·동시 단일 소비·출처·탈퇴·상한과 DB 매핑 코드를 검사합니다. 외부 소셜 로그인·실제 MySQL 접속·정산 성공을 뜻하지 않습니다.
+
+브라우저 생성자는 URL과 프로토콜만 받습니다: [MDN](https://developer.mozilla.org/en-US/docs/Web/API/WebSocket/WebSocket). 연결 전 검증은 [Spring HandshakeInterceptor](https://docs.spring.io/spring-framework/reference/6.2/web/websocket/server.html)를 사용합니다.
+
+2026-10-22 REST 인증 병합 검증: 채널 조회 필터는 공통 AccessAuthenticationService를 재사용한다. 기존 채널/상점/접속권 preflight 처리는 공통 Security보다 먼저 실행하고, 실제 보호 REST 요청에는 공통 회원 인증도 적용한다. 광장·게임 Hub와 재접속 정책은 변경하지 않는다. 연결 후 로그아웃·탈퇴 종료 및 게스트 정책은 이번 병합에 포함하지 않는다.

@@ -76,6 +76,10 @@ tasks.register('flowTest', Test) {
     useJUnitPlatform()
     filter {
         includeTestsMatching 'com.ssafy.ontop.table.FullFlowTests'
+        includeTestsMatching 'com.ssafy.ontop.table.LoginWebSocketFlowTests'
+        includeTestsMatching 'com.ssafy.ontop.table.LoginChannelFlowTests'
+        includeTestsMatching 'com.ssafy.ontop.table.LoginTableFlowTests'
+        includeTestsMatching 'com.ssafy.ontop.table.CommittedStartFlowTests'
         includeTestsMatching 'com.ssafy.ontop.table.WorldFullFlowTests'
         includeTestsMatching 'com.ssafy.ontop.table.GameCommunicationFlowTests'
         includeTestsMatching 'com.ssafy.ontop.table.WorldProximityWebSocketTests.채팅과관전_거리이탈부터_재접속까지_연속확인한다'
@@ -108,4 +112,13 @@ tasks.register('gamesDemo', JavaExec) {
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
+}
+
+tasks.register('shopDemo', JavaExec) {
+    description = '격리 MySQL·테스트 계정으로 127.0.0.1:18083 상점 검증 화면 실행 (운영 JAR 제외)'
+    group = 'verification'
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.ssafy.ontop.demo.ShopDemoApplication'
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
 }

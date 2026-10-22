@@ -40,7 +40,7 @@ class GameStartFlowTests {
     void 다인게임은_현재_참가자_전원_준비시_빈좌석을_제외하고_한번_시작한다(String game, int count)
             throws Exception {
         Peer first = seated();
-        first.request("GAME_SELECT", Map.of("gameCode", game));
+        first.request("GAME_SELECT", game.equals("DICE") ? Map.of("gameCode", game, "targetScore", 4000) : Map.of("gameCode", game));
         List<Peer> players = new java.util.ArrayList<>();
         players.add(first);
         for (int index = 1; index < count; index++) {
@@ -93,7 +93,7 @@ class GameStartFlowTests {
         assertThat(hub.listTables().tables().getFirst().joinable()).isFalse();
         assertThat(first.request("TABLE_LEAVE", Map.of()).path("payload").path("code").asText())
                 .isEqualTo("TABLE_BUSY");
-        assertThat(first.request("GAME_SELECT", Map.of("gameCode", "DICE")).path("payload").path("code").asText())
+        assertThat(first.request("GAME_SELECT", Map.of("gameCode", "DICE", "targetScore", 4000)).path("payload").path("code").asText())
                 .isEqualTo("TABLE_BUSY");
     }
 
@@ -113,7 +113,7 @@ class GameStartFlowTests {
         assertThat(rejected.toString()).doesNotContain("PRIVATE_BALANCE_REASON");
         assertThat(state.path("seats").get(0).path("ready").asBoolean()).isFalse();
         assertThat(state.path("seats").get(1).path("ready").asBoolean()).isFalse();
-        first.request("GAME_SELECT", Map.of("gameCode", "DICE"));
+        first.request("GAME_SELECT", Map.of("gameCode", "DICE", "targetScore", 4000));
         JsonNode changed = first.phase("WAITING").path("payload");
         assertThat(changed.path("gameCode").asText()).isEqualTo("DICE");
         assertThat(changed.path("startAttemptId").isNull()).isTrue();
@@ -135,7 +135,7 @@ class GameStartFlowTests {
 
         assertThat(first.request("READY_SET", Map.of("ready", true)).path("payload").path("code").asText())
                 .isEqualTo("TABLE_BUSY");
-        assertThat(first.request("GAME_SELECT", Map.of("gameCode", "DICE")).path("payload").path("code").asText())
+        assertThat(first.request("GAME_SELECT", Map.of("gameCode", "DICE", "targetScore", 4000)).path("payload").path("code").asText())
                 .isEqualTo("TABLE_BUSY");
         assertThat(gateway.command.gameCode()).isEqualTo("OMOK");
         first.request("GAME_START_CHECK", Map.of());

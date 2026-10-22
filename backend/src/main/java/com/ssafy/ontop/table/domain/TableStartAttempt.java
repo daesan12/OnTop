@@ -13,6 +13,8 @@ public final class TableStartAttempt {
     private String gameSessionId;
     private boolean dispatched;
     private boolean checking;
+    private final java.util.Set<String> endedGames = new java.util.HashSet<>();
+    private final java.util.Set<String> settledGames = new java.util.HashSet<>();
 
     public TableStartAttempt(GameStartCommand command) {
         this.command = command;
@@ -28,6 +30,24 @@ public final class TableStartAttempt {
 
     public boolean starting() {
         return phase.equals("STARTING");
+    }
+
+    public String phase() { return phase; }
+
+    public boolean endRound() {
+        if (!phase.equals("PLAYING")) { return false; }
+        phase = "SETTLING";
+        return true;
+    }
+
+    public void rememberEnd(String gameId) { endedGames.add(gameId); }
+    public boolean endedEarly() { return gameSessionId != null && endedGames.contains(gameSessionId); }
+    public void markSettled(String gameId) { settledGames.add(gameId); }
+
+    public boolean returnAfterSettlement() {
+        if (!phase.equals("SETTLING") || !settledGames.contains(gameSessionId)) { return false; }
+        phase = "WAITING";
+        return true;
     }
 
     public boolean dispatched() {
@@ -61,9 +81,7 @@ public final class TableStartAttempt {
             return;
         }
         if (result.outcome() == Outcome.SUCCEEDED) {
-            if (result.gameSessionId() == null || result.gameSessionId().isBlank()
-                    || !command.participants().equals(result.participants()) || result.entryFeePerPlayer() != 1
-                    || result.totalPot() != command.participants().size()) {
+            if (!result.isCommittedSuccess(command)) {
                 code = "START_RESULT_INVALID";
                 return;
             }
@@ -84,16 +102,28 @@ public final class TableStartAttempt {
     }
 
     public View view(long revision) {
+        return view(revision, true);
+    }
+
+    public void playing() {
+        if (phase.equals("CONFIRMED")) { phase = "PLAYING"; }
+    }
+
+    public View view(long revision, boolean simulation) {
         return new View(command.tableId(), revision, phase, command.startAttemptId().toString(), command.gameCode(),
-                gameSessionId, code, true);
+                gameSessionId, code, simulation);
     }
 
     public record View(String tableId, long revision, String phase, String startAttemptId, String gameCode,
             String gameSessionId, String code, boolean simulation) {
 
         public static View waiting(String tableId, long revision, String gameCode) {
+            return waiting(tableId, revision, gameCode, true);
+        }
+
+        public static View waiting(String tableId, long revision, String gameCode, boolean simulation) {
             return new View(tableId, revision, tableId == null ? "NOT_SEATED" : "WAITING", null, gameCode,
-                    null, null, true);
+                    null, null, simulation);
         }
     }
 }

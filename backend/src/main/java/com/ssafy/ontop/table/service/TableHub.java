@@ -7,10 +7,13 @@ import com.ssafy.ontop.game.action.GameActionGateway;
 import com.ssafy.ontop.game.action.GameActionResult;
 import com.ssafy.ontop.game.reconnect.GameReconnectService;
 import com.ssafy.ontop.game.result.GameResultService;
+import com.ssafy.ontop.game.result.GameResultCommitted;
+import com.ssafy.ontop.game.result.GameResultView;
 import com.ssafy.ontop.game.start.GameStartCommand;
 import com.ssafy.ontop.game.start.GameStartCommand.Participant;
 import com.ssafy.ontop.game.start.GameStartGateway;
 import com.ssafy.ontop.game.start.GameStartResult;
+import com.ssafy.ontop.game.start.CommittedGameStartService;
 import com.ssafy.ontop.game.state.GameStateGateway;
 import com.ssafy.ontop.game.state.GameStateChanged;
 import com.ssafy.ontop.game.state.GameStateView;
@@ -78,6 +81,7 @@ public class TableHub {
     private final Map<String, Long> startRevisions = new HashMap<>();
     private final Optional<GameStartGateway> gateway;
     private final boolean startRehearsal;
+    private Optional<CommittedGameStartService> committedStarts = Optional.empty();
     private final Optional<GameStateGateway> gameStates;
     private final Set<String> stateQueries = new HashSet<>();
     private final Map<String, StatePush> statePushes = new HashMap<>();
@@ -102,6 +106,12 @@ public class TableHub {
     private final LongAdder sentBytes = new LongAdder();
     private final Map<ConnectionCloseReason, LongAdder> closedByReason = new EnumMap<>(ConnectionCloseReason.class);
     private boolean stopped;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void configureCommittedStarts(Optional<CommittedGameStartService> service) {
+        committedStarts = service;
+        if (service.isPresent()) { protocol.enableStartQueries(); }
+    }
 
     public TableHub(ObjectMapper mapper, Optional<GameStartGateway> gateway,
             boolean startRehearsal) {
@@ -238,7 +248,9 @@ public class TableHub {
     public synchronized boolean connectAuthenticated(WebSocketSession session, VerifiedWebSocketUser user) {
         String userId = Long.toString(user.userId());
         // 사용자 확정: 기존 연결이 살아 있으면 새 연결만 거절한다.
-        if (seating.containsKey(userId)
+        boolean reservedStart = committedStarts.isPresent() && seating.containsKey(userId)
+                && starts.containsKey(seating.get(userId)) && starts.get(seating.get(userId)).frozen();
+        if (seating.containsKey(userId) && !reservedStart
                 || members.values().stream().anyMatch(member -> member.userId().equals(userId))) {
             return false;
         }
@@ -253,6 +265,7 @@ public class TableHub {
         }));
         reconnect.ifPresent(service -> service.connected(user.userId(), session.getId(),
                 (requestId, view) -> member.peer().offer(protocol.encode(requestId, "GAME_CONNECTION_STATE", view))));
+        if (reservedStart) { replyStartState(member, seating.get(userId), null); }
         return true;
     }
 
@@ -263,8 +276,9 @@ public class TableHub {
         members.put(session.getId(), member);
         acceptedConnections++;
         peer.offer(protocol.encode(null, "CONNECTED", Map.of("userId", userId)));
-        if (startRehearsal) {
-            peer.offer(protocol.encode(null, "GAME_START_STATE", TableStartAttempt.View.waiting(null, 0, null)));
+        if (startRehearsal || committedStarts.isPresent()) {
+            peer.offer(protocol.encode(null, "GAME_START_STATE", TableStartAttempt.View.waiting(null, 0, null,
+                    committedStarts.isEmpty())));
         }
         peer.start();
         return member;
@@ -308,11 +322,11 @@ public class TableHub {
                     .filter(seat -> seat.userId() != null && seat.ready()).count();
             TableStartAttempt attempt = starts.get(tableId);
             String status = attempt == null || !attempt.frozen() ? "WAITING"
-                    : attempt.starting() ? "STARTING" : "REHEARSAL_CONFIRMED";
+                    : attempt.starting() ? "STARTING" : committedStarts.isPresent() ? attempt.phase() : "REHEARSAL_CONFIRMED";
             int available = snapshot.capacity() - occupied;
             return new TableSummaryResponse(tableId, snapshot.capacity(), snapshot.minimumPlayers(), occupied,
                     available, ready, snapshot.allReady(), status, available > 0 && status.equals("WAITING"),
-                    snapshot.gameCode());
+                    snapshot.gameCode(), snapshot.targetScore());
         }).toList());
     }
 
@@ -354,6 +368,10 @@ public class TableHub {
                 }
                 reconnect.get().refresh(member.accountId(), sessionId, request.requestId(),
                         (id, view) -> member.peer().offer(protocol.encode(id, "GAME_CONNECTION_STATE", view)));
+                return;
+            }
+            if (request.type().equals("GAME_START_CHECK")) {
+                checkStart(member, request);
                 return;
             }
             if (member.accountId() != null && reconnect.isPresent()
@@ -669,7 +687,11 @@ public class TableHub {
         if (occupied > game.maximumPlayers()) {
             fail(request, "GAME_PLAYER_LIMIT", "참가자가 선택한 게임의 최대 인원보다 많습니다.");
         }
-        if (room.selectGame(game)) {
+        Integer targetScore = request.payload().has("targetScore") ? request.payload().get("targetScore").intValue() : null;
+        if (game == TableGame.DICE && targetScore == null) {
+            fail(request, "GAME_OPTIONS_REQUIRED", "주사위 목표 2000/4000/6000점 중 하나를 선택해주세요.");
+        }
+        if (room.selectGame(game, targetScore)) {
             starts.remove(tableId);
             publish(room, member, request.requestId());
             publishStart(tableId);
@@ -770,15 +792,19 @@ public class TableHub {
 
     private void beginStartIfReady(TableRoom room) {
         TableRoom.Snapshot snapshot = room.snapshot();
-        if (!startRehearsal || !snapshot.allReady()) {
+        if ((!startRehearsal && committedStarts.isEmpty()) || !snapshot.allReady()) {
             return;
         }
         GameStartCommand command = new GameStartCommand(UUID.randomUUID(), snapshot.tableId(), snapshot.version(),
                 snapshot.gameCode(), snapshot.seats().stream()
                         .filter(seat -> seat.userId() != null)
-                        .map(seat -> new Participant(seat.userId(), seat.seatNumber())).toList());
+                        .map(seat -> new Participant(seat.userId(), seat.seatNumber())).toList(), snapshot.targetScore());
         TableStartAttempt attempt = new TableStartAttempt(command);
         starts.put(snapshot.tableId(), attempt);
+        if (committedStarts.isPresent()) {
+            command.participants().forEach(player -> reconnect.ifPresent(service ->
+                    service.startPending(Long.parseLong(player.userId()))));
+        }
         publishStart(snapshot.tableId());
         startWorkers.execute(() -> dispatchStart(snapshot.tableId(), attempt));
     }
@@ -813,16 +839,22 @@ public class TableHub {
 
     private void callGateway(String tableId, TableStartAttempt attempt, boolean lookup) {
         try {
-            GameStartGateway target = gateway.orElseThrow();
-            GameStartResult result = lookup ? target.findStartResult(attempt.command().startAttemptId())
-                    : target.startGame(attempt.command());
+            GameStartResult result;
+            if (committedStarts.isPresent()) {
+                result = lookup ? committedStarts.get().find(attempt.command())
+                        : committedStarts.get().start(attempt.command());
+            } else {
+                GameStartGateway target = gateway.orElseThrow();
+                result = lookup ? target.findStartResult(attempt.command().startAttemptId())
+                        : target.startGame(attempt.command());
+            }
             synchronized (this) {
                 if (!stopped && starts.get(tableId) == attempt && attempt.starting()) {
                     applyStartResult(tableId, attempt, result);
                 }
             }
         } catch (RuntimeException exception) {
-            log.warn("시작 연동 결과 미확정 table={} attempt={}", tableId, attempt.command().startAttemptId(), exception);
+            log.warn("시작 연동 결과 미확정 table={} attempt={}", tableId, attempt.command().startAttemptId());
             synchronized (this) {
                 if (!stopped && starts.get(tableId) == attempt && attempt.starting()) {
                     attempt.uncertain();
@@ -840,6 +872,7 @@ public class TableHub {
 
     private void applyStartResult(String tableId, TableStartAttempt attempt, GameStartResult result) {
         attempt.apply(result);
+        if (committedStarts.isPresent()) { attempt.playing(); }
         if (!attempt.frozen()) {
             Set<String> connected = connectedUsers();
             rooms.get(tableId).returnToWaiting(connected);
@@ -848,6 +881,11 @@ public class TableHub {
             publish(rooms.get(tableId), null, null);
         }
         publishStart(tableId);
+        if (committedStarts.isPresent() && !attempt.starting()) {
+            attempt.command().participants().forEach(player -> reconnect.ifPresent(service ->
+                    service.startResolved(Long.parseLong(player.userId()))));
+        }
+        if (attempt.endedEarly()) { roundEnded(tableId, attempt.view(0, false).gameSessionId()); }
     }
 
     private Set<String> connectedUsers() {
@@ -863,16 +901,72 @@ public class TableHub {
         }
     }
 
+    /** 실제 엔진 종료만 테이블을 정산 대기로 전환한다. 과거 경기 알림은 무시한다. */
+    public synchronized void roundEnded(String tableId, String gameId) {
+        if (stopped || committedStarts.isEmpty()) { return; }
+        TableStartAttempt attempt = starts.get(tableId);
+        if (attempt != null && attempt.starting()) {
+            // 엔진 생성과 Hub 성공 반영 사이의 종료를 보존한다. 나중에 확정 경기 ID와 대조한다.
+            attempt.rememberEnd(gameId);
+            return;
+        }
+        if (attempt == null || !gameId.equals(attempt.view(0, false).gameSessionId()) || !attempt.endRound()) { return; }
+        TableRoom room = rooms.get(tableId);
+        room.resetReady();
+        publish(room, null, null);
+        publishStart(tableId);
+        attempt.command().participants().forEach(player -> reconnect.ifPresent(service ->
+                service.startResolved(Long.parseLong(player.userId()))));
+        releaseSettledRound(tableId, attempt);
+    }
+
+    @EventListener
+    public synchronized void roundSettled(GameResultCommitted event) {
+        if (stopped || committedStarts.isEmpty()) { return; }
+        GameResultView result = event.result();
+        if (result.settlementStatus() != GameResultView.SettlementStatus.SETTLED) { return; }
+        for (var entry : starts.entrySet()) {
+            TableStartAttempt attempt = entry.getValue();
+            if ((!attempt.starting() && !attempt.phase().equals("PLAYING") && !attempt.phase().equals("SETTLING"))
+                    || !attempt.starting() && !result.gameSessionId().equals(attempt.view(0, false).gameSessionId())
+                    || !result.gameCode().equals(attempt.command().gameCode())
+                    || result.betAmountPerPlayer() != 1) { continue; }
+            Set<String> expected = attempt.command().participants().stream().map(Participant::userId)
+                    .collect(Collectors.toSet());
+            Set<String> actual = result.participants().stream().map(GameResultView.Participant::userId)
+                    .collect(Collectors.toSet());
+            if (!expected.equals(actual) || !expected.contains(Long.toString(result.userId()))) { continue; }
+            // 경기 전체 SETTLED를 확인한다. 알림이 먼저 와도 엔진 종료 전에는 다음 판을 열지 않는다.
+            attempt.markSettled(result.gameSessionId());
+            releaseSettledRound(entry.getKey(), attempt);
+        }
+    }
+
+    @EventListener
+    public void roundResultLoaded(com.ssafy.ontop.game.result.GameResultLoaded event) {
+        roundSettled(new GameResultCommitted(event.result()));
+    }
+
+    private void releaseSettledRound(String tableId, TableStartAttempt attempt) {
+        if (!attempt.returnAfterSettlement()) { return; }
+        Set<String> connected = connectedUsers();
+        TableRoom room = rooms.get(tableId);
+        room.returnToWaiting(connected);
+        seating.entrySet().removeIf(entry -> entry.getValue().equals(tableId) && !connected.contains(entry.getKey()));
+        publish(room, null, null);
+        publishStart(tableId);
+    }
+
     private void replyStartState(Member target, String tableId, String requestId) {
-        if (!startRehearsal) {
+        if (!startRehearsal && committedStarts.isEmpty()) {
             return;
         }
         long revision = startRevisions.getOrDefault(tableId, 0L);
         TableStartAttempt attempt = starts.get(tableId);
         String gameCode = tableId == null ? null : rooms.get(tableId).snapshot().gameCode();
         TableStartAttempt.View view = attempt == null || gameCode == null
-                ? TableStartAttempt.View.waiting(tableId, revision, gameCode)
-                : attempt.view(revision);
+                ? TableStartAttempt.View.waiting(tableId, revision, gameCode, committedStarts.isEmpty())
+                : attempt.view(revision, committedStarts.isEmpty());
         target.peer().offer(protocol.encode(requestId, "GAME_START_STATE", view));
     }
 

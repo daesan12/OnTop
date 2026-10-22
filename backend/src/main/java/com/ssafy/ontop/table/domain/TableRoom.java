@@ -14,6 +14,7 @@ public final class TableRoom {
     private final boolean[] ready = new boolean[4];
     private final LinkedHashSet<String> arrivalOrder = new LinkedHashSet<>();
     private TableGame game;
+    private Integer targetScore;
     private long version;
 
     public TableRoom(String tableId) {
@@ -37,6 +38,7 @@ public final class TableRoom {
         arrivalOrder.remove(userId);
         if (arrivalOrder.isEmpty()) {
             game = null;
+            targetScore = null;
         }
         membershipChanged();
     }
@@ -46,7 +48,14 @@ public final class TableRoom {
     }
 
     public boolean selectGame(TableGame selected) {
-        if (game == selected) {
+        return selectGame(selected, null);
+    }
+
+    public boolean selectGame(TableGame selected, Integer target) {
+        if (target != null && (selected != TableGame.DICE || !Set.of(2000, 4000, 6000).contains(target))) {
+            throw new IllegalArgumentException("주사위 목표를 확인해주세요.");
+        }
+        if (game == selected && java.util.Objects.equals(targetScore, target)) {
             return false;
         }
         if (arrivalOrder.size() > selected.maximumPlayers()) {
@@ -61,6 +70,7 @@ public final class TableRoom {
             }
         }
         game = selected;
+        targetScore = target;
         membershipChanged();
         return true;
     }
@@ -84,7 +94,7 @@ public final class TableRoom {
         boolean allReady = game != null && arrivalOrder.size() >= minimum
                 && seats.stream().filter(seat -> seat.userId() != null).allMatch(Seat::ready);
         return new Snapshot(tableId, version, capacity(), minimum, List.copyOf(seats), allReady,
-                arrivalOrder.isEmpty() ? null : arrivalOrder.getFirst(), game == null ? null : game.name());
+                arrivalOrder.isEmpty() ? null : arrivalOrder.getFirst(), game == null ? null : game.name(), targetScore);
     }
 
     private int capacity() {
@@ -100,6 +110,7 @@ public final class TableRoom {
         arrivalOrder.retainAll(connectedUsers);
         if (arrivalOrder.isEmpty()) {
             game = null;
+            targetScore = null;
         }
         membershipChanged();
     }
@@ -118,10 +129,12 @@ public final class TableRoom {
         version++;
     }
 
+    public void resetReady() { membershipChanged(); }
+
     public record Seat(int seatNumber, String userId, boolean ready) {
     }
 
     public record Snapshot(String tableId, long version, int capacity, int minimumPlayers,
-            List<Seat> seats, boolean allReady, String selectorUserId, String gameCode) {
+            List<Seat> seats, boolean allReady, String selectorUserId, String gameCode, Integer targetScore) {
     }
 }

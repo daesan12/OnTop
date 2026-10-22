@@ -81,4 +81,4 @@
     "name": "오류 선택권 없음 — A가 먼저 앉았을 때만"
     "$kind": "websocket-message"
     "contentType": "json"
-    "content": "{\n  \"requestId\": \"{{$guid}}\",\n  \"type\": \"GAME_SELECT\",\n  \"payload\": {\n    \"gameCode\": \"DICE\"\n  }\n}"
+    "content": "{\n  \"requestId\": \"{{$guid}}\",\n  \"type\": \"GAME_SELECT\",\n  \"payload\": {\n    \"gameCode\": \"DICE\",\n    \"targetScore\": 4000\n  }\n}"
