@@ -5,6 +5,7 @@ import com.ssafy.ontop.auth.client.OAuthProviderClient;
 import com.ssafy.ontop.auth.domain.RefreshToken;
 import com.ssafy.ontop.auth.exception.AuthExchangeException;
 import com.ssafy.ontop.auth.repository.RefreshTokenRepository;
+import com.ssafy.ontop.auth.security.TestLoginSessions;
 import com.ssafy.ontop.user.domain.CharacterGender;
 import com.ssafy.ontop.user.domain.LoginProvider;
 import com.ssafy.ontop.user.domain.User;
@@ -63,6 +64,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -126,7 +128,7 @@ class AuthRefreshMySqlTests {
     @Test
     void 정상_회전은_새_JWT와_같은_세션의_Refresh를_발급하고_7일을_슬라이딩한다() throws Exception {
         SessionToken original = fixture();
-        String oldAccess = jwt.issue(original.user().getId());
+        String oldAccess = jwt.issue(original.user().getId(), TestLoginSessions.ID);
         long count = tokens.count();
         Instant now = START.plusSeconds(3600);
         when(clock.instant()).thenReturn(now);
@@ -288,7 +290,8 @@ class AuthRefreshMySqlTests {
     void JWT_발급_실패도_기존_토큰을_폐기하지_않는다() throws Exception {
         SessionToken original = fixture();
         long count = tokens.count();
-        doThrow(new AuthExchangeException(AuthExchangeException.Error.CONFIGURATION)).when(jwt).issue(anyLong());
+        doThrow(new AuthExchangeException(AuthExchangeException.Error.CONFIGURATION))
+                .when(jwt).issue(anyLong(), anyString());
         refresh(original.raw()).andExpect(status().isInternalServerError())
                 .andExpect(header().doesNotExist("Set-Cookie"));
         assertRollback(original, count);

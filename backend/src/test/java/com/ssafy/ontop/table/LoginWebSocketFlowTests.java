@@ -2,6 +2,7 @@ package com.ssafy.ontop.table;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ssafy.ontop.auth.security.TestLoginSessions;
 import com.ssafy.ontop.auth.service.AccessJwtService;
 import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser;
 import com.ssafy.ontop.auth.websocket.WebSocketAccountLookup;
@@ -48,10 +49,10 @@ class LoginWebSocketFlowTests {
     @BeforeEach
     void accounts() {
         when(oauthClock.instant()).thenAnswer(invocation -> clock.instant());
-        when(accounts.findActive(101)).thenReturn(Optional.of(new VerifiedWebSocketUser(101,
-                VerifiedWebSocketUser.Provider.NAVER)));
-        when(accounts.findActive(202)).thenReturn(Optional.of(new VerifiedWebSocketUser(202,
-                VerifiedWebSocketUser.Provider.SSAFY)));
+        when(accounts.findActive(101, TestLoginSessions.ID)).thenReturn(Optional.of(new VerifiedWebSocketUser(101,
+                VerifiedWebSocketUser.Provider.NAVER, TestLoginSessions.ID)));
+        when(accounts.findActive(202, TestLoginSessions.ID)).thenReturn(Optional.of(new VerifiedWebSocketUser(202,
+                VerifiedWebSocketUser.Provider.SSAFY, TestLoginSessions.ID)));
     }
 
     @ParameterizedTest
@@ -100,27 +101,27 @@ class LoginWebSocketFlowTests {
 
     @Test
     void 위조토큰과_온보딩토큰은_접속권을발급하지않는다() throws Exception {
-        for (String token : new String[]{"forged", "ob_test", jwt.issue(101) + "x"}) {
+        for (String token : new String[]{"forged", "ob_test", jwt.issue(101, TestLoginSessions.ID) + "x"}) {
             assertThat(issue(token).statusCode()).isEqualTo(401);
         }
-        when(accounts.findActive(101)).thenReturn(Optional.empty());
-        assertThat(issue(jwt.issue(101)).statusCode()).isEqualTo(401);
+        when(accounts.findActive(101, TestLoginSessions.ID)).thenReturn(Optional.empty());
+        assertThat(issue(jwt.issue(101, TestLoginSessions.ID)).statusCode()).isEqualTo(401);
     }
 
     @Test
     void 실제Upgrade에서_재사용과_중복쿼리와_출처변경을차단한다() throws Exception {
-        String ticket = mapper.readTree(issue(jwt.issue(101)).body()).path("ticket").asText();
+        String ticket = mapper.readTree(issue(jwt.issue(101, TestLoginSessions.ID)).body()).path("ticket").asText();
         try (var connected = new ScenarioClient(port, "101", ticket)) {
             connected.await(m -> m.path("type").asText().equals("CONNECTED"));
             assertThatThrownBy(() -> new ScenarioClient(port, "101", ticket))
                     .isInstanceOf(AssertionError.class).hasMessageContaining("401");
         }
-        String duplicate = mapper.readTree(issue(jwt.issue(101)).body()).path("ticket").asText();
+        String duplicate = mapper.readTree(issue(jwt.issue(101, TestLoginSessions.ID)).body()).path("ticket").asText();
         assertThatThrownBy(() -> new ScenarioClient(port, "101", duplicate + "&ticket=" + duplicate))
                 .isInstanceOf(AssertionError.class).hasMessageContaining("401");
         try (HttpClient client = HttpClient.newHttpClient()) {
             var badOrigin = client.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port
-                    + "/api/v1/auth/websocket-ticket")).header("Authorization", "Bearer " + jwt.issue(101))
+                    + "/api/v1/auth/websocket-ticket")).header("Authorization", "Bearer " + jwt.issue(101, TestLoginSessions.ID))
                     .header("Origin", "https://untrusted.invalid").POST(HttpRequest.BodyPublishers.noBody()).build(),
                     HttpResponse.BodyHandlers.ofString());
             assertThat(badOrigin.statusCode()).isEqualTo(403);
@@ -132,7 +133,7 @@ class LoginWebSocketFlowTests {
             assertThat(preflight.statusCode()).isEqualTo(204);
             assertThat(preflight.headers().firstValue("Access-Control-Allow-Headers")).contains("Authorization");
             var browserTicket = client.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port
-                    + "/api/v1/auth/websocket-ticket")).header("Authorization", "Bearer " + jwt.issue(101))
+                    + "/api/v1/auth/websocket-ticket")).header("Authorization", "Bearer " + jwt.issue(101, TestLoginSessions.ID))
                     .header("Origin", "http://localhost:8080").POST(HttpRequest.BodyPublishers.noBody()).build(),
                     HttpResponse.BodyHandlers.ofString());
             assertThat(browserTicket.statusCode()).isEqualTo(200);
@@ -143,7 +144,7 @@ class LoginWebSocketFlowTests {
                         .path("payload").path("userId").asText()).isEqualTo("101");
             }
             String mismatched = mapper.readTree(client.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:"
-                    + port + "/api/v1/auth/websocket-ticket")).header("Authorization", "Bearer " + jwt.issue(101))
+                    + port + "/api/v1/auth/websocket-ticket")).header("Authorization", "Bearer " + jwt.issue(101, TestLoginSessions.ID))
                     .header("Origin", "http://localhost:8080").POST(HttpRequest.BodyPublishers.noBody()).build(),
                     HttpResponse.BodyHandlers.ofString()).body()).path("ticket").asText();
             assertThatThrownBy(() -> new ScenarioClient(port, "101", mismatched))
@@ -152,7 +153,7 @@ class LoginWebSocketFlowTests {
     }
 
     private ScenarioClient connect(long userId) throws Exception {
-        var response = issue(jwt.issue(userId));
+        var response = issue(jwt.issue(userId, TestLoginSessions.ID));
         assertThat(response.statusCode()).isEqualTo(200);
         assertThat(response.headers().firstValue("Cache-Control")).contains("no-store");
         String ticket = mapper.readTree(response.body()).path("ticket").asText();

@@ -1,6 +1,7 @@
 package com.ssafy.ontop.table;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ssafy.ontop.auth.security.TestLoginSessions;
 import com.ssafy.ontop.auth.service.AccessJwtService;
 import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser;
 import com.ssafy.ontop.auth.websocket.WebSocketAccountLookup;
@@ -41,13 +42,13 @@ class LoginChannelFlowTests {
     @BeforeEach
     void setup() {
         when(clock.instant()).thenReturn(now);
-        when(accounts.findActive(101)).thenReturn(Optional.of(new VerifiedWebSocketUser(101,
-                VerifiedWebSocketUser.Provider.NAVER)));
+        when(accounts.findActive(101, TestLoginSessions.ID)).thenReturn(Optional.of(new VerifiedWebSocketUser(101,
+                VerifiedWebSocketUser.Provider.NAVER, TestLoginSessions.ID)));
     }
 
     @Test
     void JWT조회_접속권발급_광장입장_만석조회_퇴장을한흐름으로검증한다() throws Exception {
-        String token = jwt.issue(101);
+        String token = jwt.issue(101, TestLoginSessions.ID);
         var before = send("GET", "/api/v1/channels", "Authorization", "Bearer " + token);
         assertThat(before.statusCode()).isEqualTo(200);
         assertThat(before.headers().firstValue("Cache-Control")).contains("no-store");
@@ -74,25 +75,25 @@ class LoginChannelFlowTests {
     @Test
     void 미인증_위조_온보딩_접속권_중복헤더로목록을조회할수없다() throws Exception {
         assertThat(send("GET", "/api/v1/channels?userId=101", "X-User-Id", "101").statusCode()).isEqualTo(401);
-        for (String token : new String[]{"forged", "ob_test", "wst_test", jwt.issue(101) + "x"}) {
+        for (String token : new String[]{"forged", "ob_test", "wst_test", jwt.issue(101, TestLoginSessions.ID) + "x"}) {
             var response = send("GET", "/api/v1/channels", "Authorization", "Bearer " + token);
             assertThat(response.statusCode()).isEqualTo(401);
             assertThat(mapper.readTree(response.body()).path("code").asText()).isEqualTo("UNAUTHENTICATED");
             assertThat(mapper.readTree(response.body()).path("details").isNull()).isTrue();
         }
-        assertThat(send("GET", "/api/v1/channels", "Authorization", "Bearer " + jwt.issue(101),
-                "Authorization", "Bearer " + jwt.issue(101)).statusCode()).isEqualTo(401);
+        assertThat(send("GET", "/api/v1/channels", "Authorization", "Bearer " + jwt.issue(101, TestLoginSessions.ID),
+                "Authorization", "Bearer " + jwt.issue(101, TestLoginSessions.ID)).statusCode()).isEqualTo(401);
     }
 
     @Test
     void 만료와탈퇴는401_계정조회장애는503이며내부오류를노출하지않는다() throws Exception {
-        String token = jwt.issue(101);
+        String token = jwt.issue(101, TestLoginSessions.ID);
         when(clock.instant()).thenReturn(now.plusSeconds(1800));
         assertThat(send("GET", "/api/v1/channels", "Authorization", "Bearer " + token).statusCode()).isEqualTo(401);
         when(clock.instant()).thenReturn(now);
-        when(accounts.findActive(101)).thenReturn(Optional.empty());
+        when(accounts.findActive(101, TestLoginSessions.ID)).thenReturn(Optional.empty());
         assertThat(send("GET", "/api/v1/channels", "Authorization", "Bearer " + token).statusCode()).isEqualTo(401);
-        when(accounts.findActive(101)).thenThrow(new IllegalStateException("private-storage-detail"));
+        when(accounts.findActive(101, TestLoginSessions.ID)).thenThrow(new IllegalStateException("private-storage-detail"));
         var failure = send("GET", "/api/v1/channels", "Authorization", "Bearer " + token);
         assertThat(failure.statusCode()).isEqualTo(503);
         assertThat(failure.body()).doesNotContain("private-storage-detail", token);
@@ -108,14 +109,14 @@ class LoginChannelFlowTests {
         assertThat(unauthenticated.statusCode()).isEqualTo(401);
         assertThat(unauthenticated.headers().firstValue("Access-Control-Allow-Origin")).contains("http://localhost:8080");
         assertThat(send("GET", "/api/v1/channels", "Origin", "https://untrusted.invalid",
-                "Authorization", "Bearer " + jwt.issue(101)).statusCode()).isEqualTo(403);
+                "Authorization", "Bearer " + jwt.issue(101, TestLoginSessions.ID)).statusCode()).isEqualTo(403);
         assertThat(send("OPTIONS", "/api/v1/channels", "Origin", "http://localhost:8080",
                 "Access-Control-Request-Method", "POST").statusCode()).isEqualTo(403);
         assertThat(send("OPTIONS", "/api/v1/channels", "Origin", "http://localhost:8080",
                 "Access-Control-Request-Method", "GET", "Access-Control-Request-Headers", "X-User-Id")
                 .statusCode()).isEqualTo(403);
         assertThat(send("GET", "/api/v1/channels", "Origin", "http://localhost:8080",
-                "Authorization", "Bearer " + jwt.issue(101)).statusCode()).isEqualTo(200);
+                "Authorization", "Bearer " + jwt.issue(101, TestLoginSessions.ID)).statusCode()).isEqualTo(200);
     }
 
     private HttpResponse<String> send(String method, String path, String... headers) throws Exception {

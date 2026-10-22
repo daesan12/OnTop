@@ -2,6 +2,7 @@ package com.ssafy.ontop.table;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ssafy.ontop.auth.security.TestLoginSessions;
 import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser;
 import com.ssafy.ontop.game.reconnect.GameReconnectService;
 import com.ssafy.ontop.game.state.GameStateChanged;
@@ -348,7 +349,7 @@ class GameWatchTests {
             hub.connect(session);
         } else {
             assertThat(hub.connectAuthenticated(session,
-                    new VerifiedWebSocketUser(userId, VerifiedWebSocketUser.Provider.NAVER))).isTrue();
+                    new VerifiedWebSocketUser(userId, VerifiedWebSocketUser.Provider.NAVER, TestLoginSessions.ID))).isTrue();
         }
         assertThat(peer.next().path("type").asText()).isEqualTo("CONNECTED");
         return peer;

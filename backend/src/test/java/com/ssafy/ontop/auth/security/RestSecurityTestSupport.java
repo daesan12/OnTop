@@ -30,12 +30,12 @@ public class RestSecurityTestSupport {
 
     @Bean
     ActiveMemberLookup fixtureMembers() {
-        return id -> id == USER_ID ? Optional.of(new AuthenticatedUser(id, LoginProvider.SSAFY)) : Optional.empty();
+        return (id, sessionId) -> id == USER_ID ? Optional.of(new AuthenticatedUser(id, LoginProvider.SSAFY, TestLoginSessions.ID)) : Optional.empty();
     }
 
     public static void authenticate(TestRestTemplate http, AccessJwtService jwt) {
         http.getRestTemplate().setInterceptors(List.of((request, body, execution) -> {
-            request.getHeaders().setBearerAuth(jwt.issue(USER_ID));
+            request.getHeaders().setBearerAuth(jwt.issue(USER_ID, TestLoginSessions.ID));
             return execution.execute(request, body);
         }));
     }

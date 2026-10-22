@@ -1,7 +1,11 @@
 package com.ssafy.ontop.table;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ssafy.ontop.auth.domain.LoginOutcome;
+import com.ssafy.ontop.auth.domain.OAuthProvider;
+import com.ssafy.ontop.auth.security.TestLoginSessions;
 import com.ssafy.ontop.auth.service.AccessJwtService;
+import com.ssafy.ontop.auth.service.AuthExchangePersistenceService;
 import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser;
 import com.ssafy.ontop.auth.websocket.WebSocketAccountLookup;
 import com.ssafy.ontop.user.domain.CharacterGender;
@@ -31,6 +35,9 @@ import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 
 @Tag("mysql")
@@ -44,6 +51,8 @@ class MemberWebSocketMySqlTests {
     private ObjectMapper mapper;
     @Autowired
     private AccessJwtService jwt;
+    @Autowired
+    private AuthExchangePersistenceService issuer;
     @Autowired
     private WebSocketAccountLookup accounts;
     @Autowired
@@ -71,11 +80,12 @@ class MemberWebSocketMySqlTests {
     @EnumSource(LoginProvider.class)
     void 실제DB_회원이_접속권과_소켓으로_동일_내부ID와_제공자를_사용한다(LoginProvider provider) throws Exception {
         User user = fixture(provider);
-        var identity = accounts.findActive(user.getId()).orElseThrow();
+        String access = access(user);
+        var identity = accounts.findActive(user.getId(), jwt.verifyAccess(access).sessionId()).orElseThrow();
         assertThat(identity.userId()).isEqualTo(user.getId());
         assertThat(identity.provider()).isEqualTo(VerifiedWebSocketUser.Provider.valueOf(provider.name()));
 
-        HttpResponse<String> issued = issue(jwt.issue(user.getId()));
+        HttpResponse<String> issued = issue(access);
         assertThat(issued.statusCode()).isEqualTo(200);
         String ticket = mapper.readTree(issued.body()).path("ticket").asText();
         try (ScenarioClient socket = new ScenarioClient(port, Long.toString(user.getId()), ticket)) {
@@ -87,9 +97,9 @@ class MemberWebSocketMySqlTests {
 
     @Test
     void 발급후_실제DB탈퇴와_존재하지_않는_회원은_연결과_발급을_차단한다() throws Exception {
-        assertThat(issue(jwt.issue(Long.MAX_VALUE)).statusCode()).isEqualTo(401);
+        assertThat(issue(jwt.issue(Long.MAX_VALUE, TestLoginSessions.ID)).statusCode()).isEqualTo(401);
         User user = fixture(LoginProvider.SSAFY);
-        String access = jwt.issue(user.getId());
+        String access = access(user);
         String ticket = mapper.readTree(issue(access).body()).path("ticket").asText();
 
         jdbc.update("UPDATE users SET deleted_at = CURRENT_TIMESTAMP(3) WHERE id = ?", user.getId());
@@ -102,9 +112,11 @@ class MemberWebSocketMySqlTests {
     @Test
     void Repository_장애는_발급과_Handshake_모두_503이고_접속권은_복구하지_않는다() throws Exception {
         User user = fixture(LoginProvider.NAVER);
-        String access = jwt.issue(user.getId());
+        String access = access(user);
         String ticket = mapper.readTree(issue(access).body()).path("ticket").asText();
-        doThrow(new DataAccessResourceFailureException("private-mysql-fixture")).when(users).findById(user.getId());
+        doThrow(new DataAccessResourceFailureException("private-mysql-fixture")).when(users)
+                .findActiveForLoginSession(eq(user.getId()),
+                        anyString(), any());
 
         HttpResponse<String> failed = issue(access);
         assertThat(failed.statusCode()).isEqualTo(503);
@@ -116,6 +128,12 @@ class MemberWebSocketMySqlTests {
     private User fixture(LoginProvider provider) {
         return users.saveAndFlush(new User(provider, "auth100-fixture-" + UUID.randomUUID(),
                 "W" + UUID.randomUUID().toString().replace("-", "").substring(0, 7), CharacterGender.MALE));
+    }
+
+    private String access(User user) {
+        return issuer.issueExisting(new LoginOutcome(
+                OAuthProvider.valueOf(user.getLoginProvider().name()),
+                LoginOutcome.Status.EXISTING_MEMBER, user.getId(), null)).accessToken();
     }
 
     private HttpResponse<String> issue(String access) throws Exception {

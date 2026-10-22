@@ -19,12 +19,14 @@ public class AuthLogoutPersistenceService {
     private final RefreshTokenRepository tokens;
     private final UserRepository users;
     private final Clock clock;
+    private final AuthenticationRevocations revocations;
 
     public AuthLogoutPersistenceService(RefreshTokenRepository tokens, UserRepository users,
-            @Qualifier("oauthClock") Clock clock) {
+            @Qualifier("oauthClock") Clock clock, AuthenticationRevocations revocations) {
         this.tokens = tokens;
         this.users = users;
         this.clock = clock;
+        this.revocations = revocations;
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -47,5 +49,6 @@ public class AuthLogoutPersistenceService {
         // Rotation이 먼저 끝났어도 이전 해시로 같은 계열의 후속 토큰까지 폐기한다.
         // 만료/폐기 이력은 계열 식별에만 사용하며 다른 계열 제재나 재사용 탐지는 수행하지 않는다.
         tokens.revokeSession(userId, token.getSessionId(), clock.instant().truncatedTo(ChronoUnit.MILLIS));
+        revocations.sessionRevoked(userId, token.getSessionId());
     }
 }

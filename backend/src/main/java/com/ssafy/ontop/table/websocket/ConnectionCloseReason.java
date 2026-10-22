@@ -8,5 +8,7 @@ public enum ConnectionCloseReason {
     SEND_QUEUE_FULL,
     SEND_ERROR,
     SERVER_SHUTDOWN,
+    AUTH_SESSION_REVOKED,
+    MEMBER_DEACTIVATED,
     UNSPECIFIED
 }

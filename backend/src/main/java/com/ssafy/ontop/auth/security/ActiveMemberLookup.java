@@ -4,5 +4,5 @@ import java.util.Optional;
 
 @FunctionalInterface
 public interface ActiveMemberLookup {
-    Optional<AuthenticatedUser> findActive(long userId);
+    Optional<AuthenticatedUser> findActive(long userId, String sessionId);
 }

@@ -148,6 +148,7 @@ class UserOnboardingMySqlTests {
         String raw = result.getResponse().getHeader("Set-Cookie").split(";", 2)[0].substring("ONTOP_REFRESH=".length());
         RefreshToken stored = refresh.findByTokenHash(digest(raw)).orElseThrow();
         assertThat(stored.getUserId()).isEqualTo(user.getId());
+        assertThat(jwt.verifyAccess(body.path("accessToken").asText()).sessionId()).isEqualTo(stored.getSessionId());
         assertThat(stored.getTokenHash()).hasSize(64).isNotEqualTo(raw);
         assertThat(stored.getExpiresAt()).isEqualTo(stored.getCreatedAt().plusSeconds(604800));
         assertThat(stored.getRevokedAt()).isNull();
@@ -338,7 +339,8 @@ class UserOnboardingMySqlTests {
         String token = token(identity);
         long beforeUsers = users.count();
         long beforeRefresh = refresh.count();
-        doThrow(new AuthExchangeException(AuthExchangeException.Error.CONFIGURATION)).when(jwt).issue(anyLong());
+        doThrow(new AuthExchangeException(AuthExchangeException.Error.CONFIGURATION))
+                .when(jwt).issue(anyLong(), anyString());
 
         onboard(token, nickname()).andExpect(status().isInternalServerError())
                 .andExpect(header().doesNotExist("Set-Cookie"));

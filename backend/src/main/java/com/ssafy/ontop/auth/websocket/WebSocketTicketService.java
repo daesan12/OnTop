@@ -39,7 +39,8 @@ public class WebSocketTicketService {
                 || !(authentication.getPrincipal() instanceof AuthenticatedUser user)
                 || !(authentication.getDetails() instanceof AccessAuthenticationService.AuthenticatedAccess access)
                 || !user.equals(access.user()) || access.expiresAt() == null
-                || authentication.getAuthorities().stream().noneMatch(role -> role.getAuthority().equals("ROLE_MEMBER"))) {
+                || authentication.getAuthorities().stream()
+                        .noneMatch(role -> role.getAuthority().equals("ROLE_MEMBER"))) {
             throw unauthorized();
         }
         VerifiedWebSocketUser verifiedUser = VerifiedWebSocketUser.from(user);
@@ -57,7 +58,7 @@ public class WebSocketTicketService {
             String value = "wst_" + Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
             Instant expires = now.plusSeconds(lifetime);
             if (expires.isAfter(access.expiresAt())) { expires = access.expiresAt(); }
-            grants.put(hash(value), new Grant(verifiedUser.userId(), origin, expires));
+            grants.put(hash(value), new Grant(verifiedUser.userId(), verifiedUser.sessionId(), origin, expires));
             return new Ticket(value, lifetime);
         }
     }
@@ -68,17 +69,18 @@ public class WebSocketTicketService {
         synchronized (grants) { grant = grants.remove(hash(value)); }
         if (grant == null || !grant.expiresAt().isAfter(clock.instant())
                 || !Objects.equals(grant.origin(), origin)) { throw unauthorized(); }
-        return active(grant.userId());
+        return active(grant.userId(), grant.sessionId());
     }
 
-    private VerifiedWebSocketUser active(long userId) {
+    private VerifiedWebSocketUser active(long userId, String sessionId) {
         WebSocketAccountLookup lookup = accounts.getIfAvailable();
         if (lookup == null) {
             throw new WebSocketTicketException(HttpStatus.SERVICE_UNAVAILABLE, "WS_ACCOUNT_UNAVAILABLE");
         }
         try {
-            Optional<VerifiedWebSocketUser> user = lookup.findActive(userId);
-            return user.filter(value -> value.userId() == userId).orElseThrow(WebSocketTicketService::unauthorized);
+            Optional<VerifiedWebSocketUser> user = lookup.findActive(userId, sessionId);
+            return user.filter(value -> value.userId() == userId && value.sessionId().equals(sessionId))
+                    .orElseThrow(WebSocketTicketService::unauthorized);
         } catch (WebSocketTicketException exception) {
             throw exception;
         } catch (RuntimeException exception) {
@@ -97,7 +99,7 @@ public class WebSocketTicketService {
         return new WebSocketTicketException(HttpStatus.UNAUTHORIZED, "INVALID_WS_TICKET");
     }
 
-    private record Grant(long userId, String origin, Instant expiresAt) { }
+    private record Grant(long userId, String sessionId, String origin, Instant expiresAt) { }
 
     public record Ticket(String ticket, long expiresIn) {
         @Override public String toString() { return "Ticket[redacted]"; }

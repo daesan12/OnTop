@@ -8,6 +8,7 @@ import com.ssafy.ontop.auth.repository.RefreshTokenRepository;
 import com.ssafy.ontop.auth.service.AuthExchangeOriginPolicy;
 import com.ssafy.ontop.auth.service.AuthLogoutPersistenceService;
 import com.ssafy.ontop.auth.service.AuthLogoutService;
+import com.ssafy.ontop.auth.service.AuthenticationRevocations;
 import com.ssafy.ontop.auth.service.RefreshCookieService;
 import com.ssafy.ontop.user.domain.CharacterGender;
 import com.ssafy.ontop.user.domain.LoginProvider;
@@ -193,7 +194,7 @@ class AuthLogoutControllerTests {
         RefreshToken token = new RefreshToken(user, UUID.randomUUID().toString(), "a".repeat(64),
                 NOW.minusSeconds(1), NOW.plusSeconds(604800));
         when(tokens.findForUpdateByHash(any())).thenReturn(Optional.of(token));
-        var target = new AuthLogoutPersistenceService(tokens, users, clock);
+        var target = new AuthLogoutPersistenceService(tokens, users, clock, mock(AuthenticationRevocations.class));
         PlatformTransactionManager manager = mock(PlatformTransactionManager.class);
         when(manager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
         doThrow(new TransactionSystemException("fixture-private-commit")).when(manager).commit(any());

@@ -3,6 +3,7 @@ package com.ssafy.ontop.table;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ssafy.ontop.auth.security.RestSecurityTestSupport;
+import com.ssafy.ontop.auth.security.TestLoginSessions;
 import com.ssafy.ontop.auth.service.AccessJwtService;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -101,7 +102,7 @@ class WorldChannelWebSocketTests {
     private JsonNode channel(String channelId) throws Exception {
         // 실제 소켓 상태를 읽되 HTTP의 로그인 경계만 서버 Principal 대역으로 통과한다.
         String response = mvc.perform(get("/api/v1/channels")
-                        .header("Authorization", "Bearer " + jwt.issue(RestSecurityTestSupport.USER_ID)))
+                        .header("Authorization", "Bearer " + jwt.issue(RestSecurityTestSupport.USER_ID, TestLoginSessions.ID)))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
         for (JsonNode channel : mapper.readTree(response).path("items")) {
             if (channel.path("channelId").asText().equals(channelId)) {

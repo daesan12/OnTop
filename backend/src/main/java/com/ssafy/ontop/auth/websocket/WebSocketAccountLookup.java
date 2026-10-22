@@ -4,5 +4,5 @@ import java.util.Optional;
 
 @FunctionalInterface
 public interface WebSocketAccountLookup {
-    Optional<VerifiedWebSocketUser> findActive(long userId);
+    Optional<VerifiedWebSocketUser> findActive(long userId, String sessionId);
 }

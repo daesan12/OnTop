@@ -73,10 +73,11 @@ public class ShopAccessFilter extends OncePerRequestFilter {
             if (headers.size() != 1 || !headers.getFirst().startsWith("Bearer ")) {
                 throw new ShopException(401, "UNAUTHENTICATED", "로그인이 필요합니다.");
             }
-            long userId = jwt.verify(headers.getFirst().substring(7));
+            var access = jwt.verifyAccess(headers.getFirst().substring(7));
+            long userId = access.userId();
             var lookup = accounts.getIfAvailable();
             if (lookup == null) { throw new ShopException(503, "SHOP_UNAVAILABLE", "계정을 확인할 수 없습니다."); }
-            if (lookup.findActive(userId).filter(user -> user.userId() == userId).isEmpty()) {
+            if (lookup.findActive(userId, access.sessionId()).filter(user -> user.userId() == userId).isEmpty()) {
                 throw new ShopException(401, "UNAUTHENTICATED", "로그인이 필요합니다.");
             }
             Principal principal = () -> Long.toString(userId);
@@ -103,4 +104,3 @@ public class ShopAccessFilter extends OncePerRequestFilter {
                         : "요청을 처리할 수 없습니다.", null));
     }
 }
-

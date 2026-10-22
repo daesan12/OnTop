@@ -74,7 +74,7 @@ public class AuthExchangePersistenceService {
     }
 
     private Credentials issueCredentials(User user, String sessionId) {
-        String access = jwt.issue(user.getId());
+        String access = jwt.issue(user.getId(), sessionId);
         String refresh = "rt_" + OpaqueTokens.generate(random);
         Instant now = clock.instant().truncatedTo(ChronoUnit.MILLIS);
         refreshTokens.saveAndFlush(new RefreshToken(user, sessionId, OpaqueTokens.digest(refresh),
