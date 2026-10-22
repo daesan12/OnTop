@@ -1,7 +1,8 @@
 package com.ssafy.ontop.table.websocket;
 
-import com.ssafy.ontop.table.service.TableHub;
+import com.ssafy.ontop.auth.websocket.MemberWebSocketConnections;
 import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser;
+import com.ssafy.ontop.table.service.TableHub;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.stereotype.Component;
@@ -17,11 +18,14 @@ public class TableWebSocketHandler extends TextWebSocketHandler {
 
     private final TableHub hub;
     private final boolean authenticated;
+    private final MemberWebSocketConnections connections;
 
     public TableWebSocketHandler(TableHub hub,
-            @Value("${ontop.websocket.authenticated:true}") boolean authenticated) {
+            @Value("${ontop.websocket.authenticated:true}") boolean authenticated,
+            MemberWebSocketConnections connections) {
         this.hub = hub;
         this.authenticated = authenticated;
+        this.connections = connections;
     }
 
     @Override
@@ -36,14 +40,15 @@ public class TableWebSocketHandler extends TextWebSocketHandler {
             session.close(CloseStatus.POLICY_VIOLATION.withReason("Authentication required"));
             return;
         }
-        if (!hub.connectAuthenticated(session, user)) {
-            session.close(CloseStatus.POLICY_VIOLATION.withReason("User session unavailable"));
-        }
+        connections.connect(session, user, () -> hub.connectAuthenticated(session, user),
+                reason -> hub.disconnect(session.getId(), reason));
     }
 
     @Override
     protected void handleTextMessage(WebSocketSession session, TextMessage message) {
-        hub.receive(session.getId(), message.getPayload());
+        if (!connections.isClosing(session)) {
+            hub.receive(session.getId(), message.getPayload());
+        }
     }
 
     @Override
@@ -53,11 +58,11 @@ public class TableWebSocketHandler extends TextWebSocketHandler {
 
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
-        hub.disconnect(session.getId(), ConnectionCloseReason.SOCKET_CLOSED);
+        hub.disconnect(session.getId(), connections.remove(session, ConnectionCloseReason.SOCKET_CLOSED));
     }
 
     @Override
     public void handleTransportError(WebSocketSession session, Throwable exception) {
-        hub.disconnect(session.getId(), ConnectionCloseReason.TRANSPORT_ERROR);
+        hub.disconnect(session.getId(), connections.remove(session, ConnectionCloseReason.TRANSPORT_ERROR));
     }
 }

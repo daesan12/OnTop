@@ -56,7 +56,7 @@ class AuthRefreshPersistenceServiceTests {
         when(tokens.findForUpdateByHash(HASH)).thenReturn(Optional.of(previous));
         when(credentials.issueForSession(user, previous.getSessionId()))
                 .thenReturn(new AuthExchangePersistenceService.Credentials("fixture-access", "fixture-refresh"));
-        service = new AuthRefreshPersistenceService(tokens, users, credentials, clock);
+        service = new AuthRefreshPersistenceService(tokens, users, credentials, clock, mock(AuthenticationRevocations.class));
     }
 
     @Test

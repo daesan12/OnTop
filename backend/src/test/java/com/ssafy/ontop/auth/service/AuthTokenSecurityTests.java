@@ -10,6 +10,7 @@ import com.ssafy.ontop.auth.config.AuthTokenProperties;
 import com.ssafy.ontop.auth.domain.OAuthIdentity;
 import com.ssafy.ontop.auth.domain.OAuthProvider;
 import com.ssafy.ontop.auth.exception.AuthExchangeException;
+import com.ssafy.ontop.auth.security.TestLoginSessions;
 import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Instant;
@@ -49,13 +50,14 @@ class AuthTokenSecurityTests {
 
     @Test
     void Access_JWT는_30분이며_서명과_주체와_목적이_일치한다() throws Exception {
-        String token = jwt.issue(42);
+        String token = jwt.issue(42, TestLoginSessions.ID);
         JWTClaimsSet claims = SignedJWT.parse(token).getJWTClaimsSet();
 
         assertThat(jwt.verify(token)).isEqualTo(42);
         assertThat(claims.getExpirationTime().toInstant()).isEqualTo(START.plusSeconds(1800));
         assertThat(claims.getSubject()).isEqualTo("42");
         assertThat(claims.getStringClaim("token_use")).isEqualTo("access");
+        assertThat(claims.getStringClaim("sid")).isEqualTo(TestLoginSessions.ID);
         assertThat(claims.getAudience()).containsExactly("ontop-api");
         when(clock.instant()).thenReturn(START.plusSeconds(1800));
         assertThatThrownBy(() -> jwt.verify(token)).isInstanceOf(AuthExchangeException.class);
@@ -63,7 +65,7 @@ class AuthTokenSecurityTests {
 
     @Test
     void 위조_서명과_다른_키와_다른_알고리즘은_거절한다() throws Exception {
-        String token = jwt.issue(1);
+        String token = jwt.issue(1, TestLoginSessions.ID);
         String[] parts = token.split("\\.");
         String signature = (parts[2].startsWith("A") ? "B" : "A") + parts[2].substring(1);
         assertThatThrownBy(() -> jwt.verify(parts[0] + "." + parts[1] + "." + signature))
@@ -78,7 +80,8 @@ class AuthTokenSecurityTests {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"purpose", "audience", "issuer", "future", "subject", "type", "lifetime"})
+    @ValueSource(strings = {"purpose", "audience", "issuer", "future", "subject", "type", "lifetime",
+            "missingSession", "invalidSession"})
     void 정상_서명이어도_잘못된_클레임은_거절한다(String invalid) throws Exception {
         JWTClaimsSet.Builder claims = new JWTClaimsSet.Builder().issuer(invalid.equals("issuer") ? "other" : "ontop")
                 .audience(invalid.equals("audience") ? "onboarding" : "ontop-api")
@@ -87,6 +90,9 @@ class AuthTokenSecurityTests {
                 .notBeforeTime(Date.from(START)).expirationTime(Date.from(START.plusSeconds(
                         invalid.equals("lifetime") ? 1801 : 1800))).jwtID("fixture-id")
                 .claim("token_use", invalid.equals("purpose") ? "onboarding" : "access");
+        if (!invalid.equals("missingSession")) {
+            claims.claim("sid", invalid.equals("invalidSession") ? "untrusted-session" : TestLoginSessions.ID);
+        }
         SignedJWT signed = new SignedJWT(new JWSHeader.Builder(JWSAlgorithm.HS256)
                 .type(new JOSEObjectType(invalid.equals("type") ? "JWT" : "at+jwt")).build(), claims.build());
         signed.sign(new MACSigner(key));
@@ -104,7 +110,7 @@ class AuthTokenSecurityTests {
         };
         AccessJwtService unsafe = new AccessJwtService(properties(encoded, true, "Lax", "/api/v1/auth"), clock);
 
-        assertThatThrownBy(() -> unsafe.issue(1)).isInstanceOfSatisfying(AuthExchangeException.class,
+        assertThatThrownBy(() -> unsafe.issue(1, TestLoginSessions.ID)).isInstanceOfSatisfying(AuthExchangeException.class,
                 exception -> assertThat(exception.error()).isEqualTo(AuthExchangeException.Error.CONFIGURATION));
     }
 
@@ -118,7 +124,7 @@ class AuthTokenSecurityTests {
         assertThat(store.issue(identity)).isNotEqualTo(token);
         assertThat(store.verify(token)).isEqualTo(identity);
         assertThatThrownBy(() -> jwt.verify(token)).isInstanceOf(AuthExchangeException.class);
-        assertThatThrownBy(() -> store.verify(jwt.issue(1))).isInstanceOf(AuthExchangeException.class);
+        assertThatThrownBy(() -> store.verify(jwt.issue(1, TestLoginSessions.ID))).isInstanceOf(AuthExchangeException.class);
         when(clock.instant()).thenReturn(START.plusSeconds(600));
         assertThatThrownBy(() -> store.verify(token)).isInstanceOf(AuthExchangeException.class);
     }

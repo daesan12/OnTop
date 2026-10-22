@@ -1,5 +1,6 @@
 package com.ssafy.ontop.shop;
 
+import com.ssafy.ontop.auth.security.TestLoginSessions;
 import com.ssafy.ontop.auth.service.AccessJwtService;
 import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser;
 import com.ssafy.ontop.auth.websocket.WebSocketAccountLookup;
@@ -36,8 +37,8 @@ class ShopHttpTests {
 
     @BeforeEach
     void setup() {
-        when(accounts.findActive(101)).thenReturn(Optional.of(new VerifiedWebSocketUser(101,
-                VerifiedWebSocketUser.Provider.NAVER)));
+        when(accounts.findActive(101, TestLoginSessions.ID)).thenReturn(Optional.of(new VerifiedWebSocketUser(101,
+                VerifiedWebSocketUser.Provider.NAVER, TestLoginSessions.ID)));
         when(shop.catalog()).thenReturn(new ShopModels.ItemList(List.of()));
         when(shop.inventory(101)).thenReturn(new ShopModels.Inventory(List.of()));
     }
@@ -48,8 +49,8 @@ class ShopHttpTests {
                 "/api/v1/shop/purchases", "/api/v1/users/me/equipment")) {
             assertThat(send("GET", path, null, null).statusCode()).isEqualTo(401);
         }
-        assertThat(send("GET", "/api/v1/users/me/items", null, jwt.issue(101)).statusCode()).isEqualTo(200);
-        assertThat(send("GET", "/api/v1/shop/items", null, jwt.issue(101)).body()).isEqualTo("{\"items\":[]}");
+        assertThat(send("GET", "/api/v1/users/me/items", null, jwt.issue(101, TestLoginSessions.ID)).statusCode()).isEqualTo(200);
+        assertThat(send("GET", "/api/v1/shop/items", null, jwt.issue(101, TestLoginSessions.ID)).body()).isEqualTo("{\"items\":[]}");
     }
 
     @ParameterizedTest
@@ -60,7 +61,7 @@ class ShopHttpTests {
             "{\"itemId\":1}", "[]", "{"
     })
     void 구매의금액사용자위조와잘못된수량을차단한다(String body) throws Exception {
-        var response = send("POST", "/api/v1/shop/purchases", body, jwt.issue(101), "Idempotency-Key", "valid-key");
+        var response = send("POST", "/api/v1/shop/purchases", body, jwt.issue(101, TestLoginSessions.ID), "Idempotency-Key", "valid-key");
         assertThat(response.statusCode()).isEqualTo(400);
         assertThat(response.body()).contains("INVALID_REQUEST");
         verifyNoInteractions(shop);
@@ -69,10 +70,10 @@ class ShopHttpTests {
     @Test
     void 중복방지키는필수이고중복헤더와잘못된문자를거절한다() throws Exception {
         String body = "{\"itemId\":1,\"quantity\":1}";
-        assertThat(send("POST", "/api/v1/shop/purchases", body, jwt.issue(101)).statusCode()).isEqualTo(400);
-        assertThat(send("POST", "/api/v1/shop/purchases", body, jwt.issue(101),
+        assertThat(send("POST", "/api/v1/shop/purchases", body, jwt.issue(101, TestLoginSessions.ID)).statusCode()).isEqualTo(400);
+        assertThat(send("POST", "/api/v1/shop/purchases", body, jwt.issue(101, TestLoginSessions.ID),
                 "Idempotency-Key", "one", "Idempotency-Key", "two").statusCode()).isEqualTo(400);
-        assertThat(send("POST", "/api/v1/shop/purchases", body, jwt.issue(101),
+        assertThat(send("POST", "/api/v1/shop/purchases", body, jwt.issue(101, TestLoginSessions.ID),
                 "Idempotency-Key", "key!").statusCode()).isEqualTo(400);
         verifyNoInteractions(shop);
     }
@@ -80,7 +81,7 @@ class ShopHttpTests {
     @Test
     void 장착에사용자부위위조필드를추가하면거절한다() throws Exception {
         assertThat(send("PATCH", "/api/v1/users/me/equipment",
-                "{\"userItemId\":1,\"slot\":\"TOP\"}", jwt.issue(101)).statusCode()).isEqualTo(400);
+                "{\"userItemId\":1,\"slot\":\"TOP\"}", jwt.issue(101, TestLoginSessions.ID)).statusCode()).isEqualTo(400);
         verifyNoInteractions(shop);
     }
 
@@ -92,19 +93,19 @@ class ShopHttpTests {
         assertThat(preflight.statusCode()).isEqualTo(204);
         assertThat(preflight.headers().firstValue("Access-Control-Allow-Origin").orElseThrow())
                 .isEqualTo("http://localhost:8080");
-        var denied = send("GET", "/api/v1/shop/items", null, jwt.issue(101), "Origin", "https://attacker.example");
+        var denied = send("GET", "/api/v1/shop/items", null, jwt.issue(101, TestLoginSessions.ID), "Origin", "https://attacker.example");
         assertThat(denied.statusCode()).isEqualTo(403);
-        var okay = send("GET", "/api/v1/shop/items", null, jwt.issue(101));
+        var okay = send("GET", "/api/v1/shop/items", null, jwt.issue(101, TestLoginSessions.ID));
         assertThat(okay.headers().firstValue("Cache-Control").orElseThrow()).contains("no-store");
     }
 
     @Test
     void 위조만료수단중복인증과비활성계정을거절한다() throws Exception {
-        for (String token : List.of("forged", "wst_fake", jwt.issue(101) + "x", jwt.issue(202))) {
+        for (String token : List.of("forged", "wst_fake", jwt.issue(101, TestLoginSessions.ID) + "x", jwt.issue(202, TestLoginSessions.ID))) {
             assertThat(send("GET", "/api/v1/shop/items", null, token).statusCode()).isEqualTo(401);
         }
-        assertThat(send("GET", "/api/v1/shop/items", null, jwt.issue(101),
-                "Authorization", "Bearer " + jwt.issue(101)).statusCode()).isEqualTo(401);
+        assertThat(send("GET", "/api/v1/shop/items", null, jwt.issue(101, TestLoginSessions.ID),
+                "Authorization", "Bearer " + jwt.issue(101, TestLoginSessions.ID)).statusCode()).isEqualTo(401);
         verifyNoInteractions(shop);
     }
 
@@ -118,4 +119,3 @@ class ShopHttpTests {
                 : HttpRequest.BodyPublishers.ofString(body)).build(), HttpResponse.BodyHandlers.ofString());
     }
 }
-

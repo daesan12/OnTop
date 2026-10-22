@@ -2,6 +2,7 @@ package com.ssafy.ontop.table;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ssafy.ontop.auth.security.TestLoginSessions;
 import com.ssafy.ontop.auth.service.AccessJwtService;
 import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser;
 import com.ssafy.ontop.auth.websocket.WebSocketAccountLookup;
@@ -45,8 +46,8 @@ class LoginTableFlowTests {
     void setup() {
         when(clock.instant()).thenReturn(now);
         for (long id : new long[]{101, 202}) {
-            when(accounts.findActive(id)).thenReturn(Optional.of(new VerifiedWebSocketUser(id,
-                    VerifiedWebSocketUser.Provider.NAVER)));
+            when(accounts.findActive(id, TestLoginSessions.ID)).thenReturn(Optional.of(new VerifiedWebSocketUser(id,
+                    VerifiedWebSocketUser.Provider.NAVER, TestLoginSessions.ID)));
         }
     }
 
@@ -95,23 +96,23 @@ class LoginTableFlowTests {
     void 미인증과_위조_다른토큰_중복헤더는_공개목록도거절한다() throws Exception {
         assertError(send("GET", "/api/v1/tables?channelId=channel-1&userId=101", "X-User-Id", "101"),
                 401, "UNAUTHENTICATED");
-        for (String token : new String[]{"forged", "ob_test", "wst_test", jwt.issue(101) + "x"}) {
+        for (String token : new String[]{"forged", "ob_test", "wst_test", jwt.issue(101, TestLoginSessions.ID) + "x"}) {
             assertError(send("GET", "/api/v1/tables?channelId=channel-1", "Authorization", "Bearer " + token),
                     401, "UNAUTHENTICATED");
         }
-        assertError(send("GET", "/api/v1/tables?channelId=channel-1", "Authorization", "Bearer " + jwt.issue(101),
-                "Authorization", "Bearer " + jwt.issue(101)), 401, "UNAUTHENTICATED");
+        assertError(send("GET", "/api/v1/tables?channelId=channel-1", "Authorization", "Bearer " + jwt.issue(101, TestLoginSessions.ID),
+                "Authorization", "Bearer " + jwt.issue(101, TestLoginSessions.ID)), 401, "UNAUTHENTICATED");
     }
 
     @Test
     void 만료와비활성은401_계정장애는503이며_내부정보를노출하지않는다() throws Exception {
-        String token = jwt.issue(101);
+        String token = jwt.issue(101, TestLoginSessions.ID);
         when(clock.instant()).thenReturn(now.plusSeconds(1800));
         assertError(query(token, "channel-1"), 401, "UNAUTHENTICATED");
         when(clock.instant()).thenReturn(now);
-        when(accounts.findActive(101)).thenReturn(Optional.empty());
+        when(accounts.findActive(101, TestLoginSessions.ID)).thenReturn(Optional.empty());
         assertError(query(token, "channel-1"), 401, "UNAUTHENTICATED");
-        when(accounts.findActive(101)).thenThrow(new IllegalStateException("private-account-storage"));
+        when(accounts.findActive(101, TestLoginSessions.ID)).thenThrow(new IllegalStateException("private-account-storage"));
         var failure = query(token, "channel-1");
         assertError(failure, 503, "SERVICE_UNAVAILABLE");
         assertThat(failure.body()).doesNotContain("private-account-storage", token);
@@ -128,18 +129,18 @@ class LoginTableFlowTests {
         var unauthenticated = send("GET", "/api/v1/tables", "Origin", origin);
         assertError(unauthenticated, 401, "UNAUTHENTICATED");
         assertThat(unauthenticated.headers().firstValue("Access-Control-Allow-Origin")).contains(origin);
-        var missing = send("GET", "/api/v1/tables", "Origin", origin, "Authorization", "Bearer " + jwt.issue(101));
+        var missing = send("GET", "/api/v1/tables", "Origin", origin, "Authorization", "Bearer " + jwt.issue(101, TestLoginSessions.ID));
         assertError(missing, 400, "CHANNEL_REQUIRED");
         assertThat(missing.headers().firstValue("Access-Control-Allow-Origin")).contains(origin);
-        assertError(query(jwt.issue(101), "missing"), 404, "CHANNEL_NOT_FOUND");
+        assertError(query(jwt.issue(101, TestLoginSessions.ID), "missing"), 404, "CHANNEL_NOT_FOUND");
         assertError(send("GET", "/api/v1/tables?channelId=channel-1", "Origin", "https://untrusted.invalid",
-                "Authorization", "Bearer " + jwt.issue(101)), 403, "FORBIDDEN");
+                "Authorization", "Bearer " + jwt.issue(101, TestLoginSessions.ID)), 403, "FORBIDDEN");
         assertError(send("OPTIONS", "/api/v1/tables", "Origin", origin,
                 "Access-Control-Request-Method", "POST"), 403, "FORBIDDEN");
     }
 
     private JsonNode list(String channel) throws Exception {
-        var response = query(jwt.issue(101), channel);
+        var response = query(jwt.issue(101, TestLoginSessions.ID), channel);
         assertThat(response.statusCode()).isEqualTo(200);
         assertThat(response.headers().firstValue("Cache-Control")).contains("no-store");
         assertThat(response.body()).doesNotContain("userId", "seats", "gameSessionId", "startAttemptId", "ticket");
@@ -154,7 +155,7 @@ class LoginTableFlowTests {
     }
 
     private ScenarioClient connect(long id) throws Exception {
-        var response = send("POST", "/api/v1/auth/websocket-ticket", "Authorization", "Bearer " + jwt.issue(id));
+        var response = send("POST", "/api/v1/auth/websocket-ticket", "Authorization", "Bearer " + jwt.issue(id, TestLoginSessions.ID));
         assertThat(response.statusCode()).isEqualTo(200);
         var socket = new ScenarioClient(port, Long.toString(id), mapper.readTree(response.body()).path("ticket").asText());
         socket.await(message -> message.path("type").asText().equals("CONNECTED"));

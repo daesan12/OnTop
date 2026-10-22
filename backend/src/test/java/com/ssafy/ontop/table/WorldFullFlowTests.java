@@ -2,8 +2,9 @@ package com.ssafy.ontop.table;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ssafy.ontop.auth.service.AccessJwtService;
 import com.ssafy.ontop.auth.security.RestSecurityTestSupport;
+import com.ssafy.ontop.auth.security.TestLoginSessions;
+import com.ssafy.ontop.auth.service.AccessJwtService;
 import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser;
 import com.ssafy.ontop.auth.websocket.WebSocketAccountLookup;
 import java.net.URI;
@@ -46,8 +47,8 @@ class WorldFullFlowTests {
 
     @BeforeEach
     void authenticatedHttp() {
-        when(accounts.findActive(101)).thenReturn(Optional.of(new VerifiedWebSocketUser(101,
-                VerifiedWebSocketUser.Provider.NAVER)));
+        when(accounts.findActive(101, TestLoginSessions.ID)).thenReturn(Optional.of(new VerifiedWebSocketUser(101,
+                VerifiedWebSocketUser.Provider.NAVER, TestLoginSessions.ID)));
     }
 
     @Test
@@ -150,7 +151,7 @@ class WorldFullFlowTests {
     private JsonNode table() throws Exception {
         try (HttpClient http = HttpClient.newHttpClient()) {
             var response = http.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port
-                    + "/api/v1/tables?channelId=one")).header("Authorization", "Bearer " + jwt.issue(RestSecurityTestSupport.USER_ID))
+                    + "/api/v1/tables?channelId=one")).header("Authorization", "Bearer " + jwt.issue(RestSecurityTestSupport.USER_ID, TestLoginSessions.ID))
                     .GET().build(), HttpResponse.BodyHandlers.ofString());
             assertThat(response.statusCode()).isEqualTo(200);
             assertThat(response.headers().firstValue("Cache-Control")).contains("no-store");

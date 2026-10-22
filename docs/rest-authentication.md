@@ -9,15 +9,15 @@ Boot 3.5.16의 이번 의존성 해석 결과는 Spring Security 6.5.11이다. S
 보호 REST 요청
   → StrictBearerTokenResolver (Authorization 하나만 허용, 쿼리/본문/쿠키 인증 불가)
   → BearerTokenAuthenticationFilter / JwtAuthenticationProvider
-  → AccessJwtDecoder → 기존 AccessJwtService.verify()
-  → AccessAuthenticationService.requireActive(검증된 JWT subject)
-  → JpaActiveMemberLookup → users.id / deleted_at 조회
+  → AccessJwtDecoder → 기존 AccessJwtService.verifyAccess()
+  → AccessAuthenticationService.requireActive(검증된 JWT subject, sid)
+  → JpaActiveMemberLookup → users 활성 상태 + Refresh 로그인 계열 활성 상태 조회
   → Authentication(AuthenticatedUser, ROLE_MEMBER) → SecurityContext → Controller
 ```
 
 `AccessJwtDecoder`는 기존 검증 서비스를 호출한 뒤 검증된 클레임을 Spring Jwt 표현으로 변환한다.
 HS256 서명·exp/iat/nbf·Issuer·Audience·Header typ·token_use·crit·최대 수명·양수 내부 subject 검증은
-`AccessJwtService.verify()`가 그대로 담당한다. 발급 클레임과 30분 수명을 변경하지 않는다.
+`AccessJwtService.verifyAccess()`가 담당한다. S15P31B105-113에서 sid를 추가하고30분 수명은 유지한다.
 컨텍스트의 credentials는 null이며 Principal의 toString은 식별자를 출력하지 않는다.
 토큰이나 Authentication 전체를 애플리케이션 로그에 기록하지 않는다.
 
@@ -129,22 +129,22 @@ Service에 ID를 전달할 때는 요청 본문의 임의 ID 대신 이 인증 �
 
 HTTP 이외의 후속 연결은 `AccessAuthenticationService.authenticate(rawAccessToken)`으로
 기존 JWT 검증과 현재 활성 회원 조회를 함께 수행하고 AuthenticatedUser를 받을 수 있다.
-`requireActive(id)`만으로 임의 클라이언트 ID를 인증하면 안 된다. 이 메서드는 이미 JWT 검증된 ID에만 사용한다.
+`requireActive(id, sid)`는 이미 검증된 회원/로그인 계열에만 사용한다. 클라이언트의 임의 ID를 인증하지 않는다.
 
 ### WebSocket 인계
 
 S15P31B105-100에서 MR !14의 접속권 구조와 공통 회원 인증을 연결했다.
 접속권 발급은 보호 체인의 JWT 검증·requireActive() 조회를 각각 한 번 수행한다. 기존 AuthenticatedUser Principal과
 검증된 만료를 담은 Authentication.details(AuthenticatedAccess)를 서비스에서 재사용한다.
-VerifiedWebSocketUser.from()으로 매핑하고, 연결 때 requireActive(id)를 다시 호출하는 어댑터로
-탈퇴를 재확인한다. 새로운 접속권 저장소나 JWT 검증 알고리즘은 만들지 않았다.
+VerifiedWebSocketUser.from()으로 매핑하고, 연결 때 requireActive(id, sid)를 다시 호출하는 어댑터로
+회원과 로그인 계열을 재확인한다. 새로운 접속권 저장소나 JWT 검증 알고리즘은 만들지 않았다.
 회원 없음/탈퇴는 401, 연결 시 DB 장애는 503으로 구분한다.
 
 브라우저는 보호 POST로 최대30초 1회용 접속권을 받은 뒤 `/ws/tables?ticket=...`으로 연결한다.
 Access JWT를 URL에 추가하거나 WebSocket 임의 Authorization 헤더를 가정하지 않는다.
 REST SecurityContext는 요청 종료 후 정리되며 기존 VERIFIED_USER 세션 속성/Hub 계약을 그대로 사용한다.
 인증 기본값은 true이고 false는 명시적 local(+db/visual-test) 개발 조합에서만 허용한다.
-로그아웃·탈퇴에 따른 연결 강제 종료와 로그인 세션 매핑은 후속 Story다.
+S15P31B105-113에서 로그인 계열 매핑·로그아웃 커밋 후 종료를 연결했다. 탈퇴 API의 실제 호출은 후속 User Story다.
 전달 방식·실제 회원 테스트·프로필 변경 범위는 [WebSocket 인증 계약](websocket-authentication.md)을 따른다.
 
 ## 오류와 보안 헤더
@@ -184,7 +184,7 @@ cd backend
    채널 설정이 있으면 tables에 유효한 channelId를 전달한다. 인증 후 200/도메인 오류를 확인한다.
 3. Authorization 제거 → 401 REQUIRED, 임의 문자열/온보딩 토큰/변조 서명 → 401 INVALID를 확인한다.
    만료 검증은 별도 로컬 토큰이 실제 30분 지난 뒤 수행한다. 서명 키를 공유하거나 수명 정책을 바꾸지 않는다.
-4. Access를 유지한 채 Refresh 로그아웃 → 204, Refresh 재발급 → 401, 활성 회원의 기존 Access → 만료 전 접근 가능.
+4. Access를 유지한 채 로그아웃 → 204, Refresh 재발급 → 401, 같은 sid의 기존 Access → 401을 확인한다.
 5. 탈퇴 판정은 개발 ontop_dev 데이터를 임의 수정하지 않고 격리 MySQL 테스트의 소유 fixture로 검증한다.
    존재하지 않는 ID·deleted_at 값이 있는 회원은 401 MEMBER_STATE_CHANGED여야 한다.
    Postman에서도 확인하려면 별도 Run Configuration을 전용 `ontop_users80_test_*` DB에 연결하고 정상 OAuth/
@@ -241,9 +241,10 @@ git diff --check
 - Authorization/Cookie/쿼리의 OAuth code를 프록시·APM·TRACE 로그에 기록하지 않는다.
 - 보호 REST는 매 요청 DB에 의존한다. DB 장애는 인증 우회 없이 503이다. 캐시/성능 최적화는 별도 검토한다.
 
-로그아웃은 Refresh 로그인 계열만 폐기한다. Access에는 session_id가 없으므로 활성 회원의 기존 Access는
-최대 30분 동안 사용할 수 있다. 프론트는 로그아웃 후 메모리 Access를 삭제한다.
-세션별 즉시 차단/블랙리스트/클레임 변경은 구현하지 않았다. 탈퇴 회원은 DB 활성 확인으로 차단한다.
+로그아웃은 같은 sid의 Refresh 로그인 계열과 Access 인증을 차단한다. 탈퇴 회원도 DB 상태로 차단한다.
+sid 없는 기존 JWT는 Refresh 또는 OAuth로 새로 발급받아야 한다. 프론트는 로그아웃 후 메모리 Access를 삭제한다.
+JWT 블랙리스트는 없으며, 커밋 전 인증된 진행 중 REST 요청은 소급 취소하지 않는다.
+상세 계약은 [로그인 세션 무효화](session-invalidation.md)를 따른다.
 
 구조 참고: [Spring Security JWT Resource Server](https://docs.spring.io/spring-security/reference/6.5/servlet/oauth2/resource-server/jwt.html),
 [SecurityFilterChain](https://docs.spring.io/spring-security/reference/6.5/servlet/architecture.html),

@@ -3,6 +3,7 @@ package com.ssafy.ontop.world;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ssafy.ontop.auth.security.RestSecurityTestSupport;
+import com.ssafy.ontop.auth.security.TestLoginSessions;
 import com.ssafy.ontop.auth.service.AccessJwtService;
 import com.ssafy.ontop.world.service.ChannelPresence;
 import java.util.Map;
@@ -146,7 +147,7 @@ class ChannelQueryTests {
     }
 
     private String bearer() {
-        return "Bearer " + jwt.issue(RestSecurityTestSupport.USER_ID);
+        return "Bearer " + jwt.issue(RestSecurityTestSupport.USER_ID, TestLoginSessions.ID);
     }
 
     @TestConfiguration

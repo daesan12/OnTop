@@ -124,6 +124,7 @@ class AuthExchangeMySqlTests {
         String raw = refreshValue(result.getResponse().getHeader("Set-Cookie"));
         RefreshToken saved = refreshTokens.findByTokenHash(OpaqueTokens.digest(raw)).orElseThrow();
         assertThat(saved.getUserId()).isEqualTo(user.getId());
+        assertThat(jwt.verifyAccess(body.path("accessToken").asText()).sessionId()).isEqualTo(saved.getSessionId());
         assertThat(saved.getTokenHash()).hasSize(64).isNotEqualTo(raw);
         assertThat(saved.getExpiresAt()).isEqualTo(saved.getCreatedAt().plusSeconds(604800));
         assertThat(saved.getRevokedAt()).isNull();

@@ -12,10 +12,10 @@ import org.springframework.dao.DataAccessResourceFailureException;
 public class MemberAuthenticationFixture {
     @Bean
     ActiveMemberLookup socketFixtureMembers(WebSocketAccountLookup accounts) {
-        return id -> {
+        return (id, sessionId) -> {
             try {
-                return accounts.findActive(id).map(user -> new AuthenticatedUser(user.userId(),
-                        LoginProvider.valueOf(user.provider().name())));
+                return accounts.findActive(id, sessionId).map(user -> new AuthenticatedUser(user.userId(),
+                        LoginProvider.valueOf(user.provider().name()), user.sessionId()));
             } catch (RuntimeException exception) {
                 throw new DataAccessResourceFailureException("테스트 회원 조회 불가");
             }

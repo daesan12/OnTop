@@ -43,7 +43,7 @@ class RestWithoutDatabaseTests {
         mvc.perform(get("/actuator/health")).andExpect(status().isOk());
         mvc.perform(get("/dev/tables")).andExpect(status().isOk());
         mvc.perform(get("/api/v1/tables")).andExpect(status().isUnauthorized());
-        mvc.perform(get("/api/v1/tables").header("Authorization", "Bearer " + jwt.issue(42)))
+        mvc.perform(get("/api/v1/tables").header("Authorization", "Bearer " + jwt.issue(42, TestLoginSessions.ID)))
                 .andExpect(status().isServiceUnavailable()).andExpect(jsonPath("$.code").value("AUTH_MEMBER_LOOKUP_UNAVAILABLE"));
     }
 }

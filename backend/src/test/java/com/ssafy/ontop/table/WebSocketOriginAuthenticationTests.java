@@ -3,6 +3,7 @@ package com.ssafy.ontop.table;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ssafy.ontop.auth.security.ActiveMemberLookup;
 import com.ssafy.ontop.auth.security.AuthenticatedUser;
+import com.ssafy.ontop.auth.security.TestLoginSessions;
 import com.ssafy.ontop.auth.service.AccessJwtService;
 import com.ssafy.ontop.user.domain.LoginProvider;
 import java.net.URI;
@@ -67,8 +68,8 @@ class WebSocketOriginAuthenticationTests {
     void member() {
         now = Instant.parse("2026-10-22T00:00:00Z");
         when(clock.instant()).thenAnswer(call -> now);
-        when(members.findActive(anyLong())).thenAnswer(call -> Optional.of(
-                new AuthenticatedUser(call.getArgument(0), LoginProvider.SSAFY)));
+        when(members.findActive(anyLong(), anyString())).thenAnswer(call -> Optional.of(
+                new AuthenticatedUser(call.getArgument(0), LoginProvider.SSAFY, TestLoginSessions.ID)));
     }
 
     @Test
@@ -113,12 +114,12 @@ class WebSocketOriginAuthenticationTests {
 
     @Test
     void HTTP_발급은_JWT검증과_내부회원조회를_각각_한번만_수행한다() throws Exception {
-        String access = jwt.issue(108);
+        String access = jwt.issue(108, TestLoginSessions.ID);
         clearInvocations(jwt, members);
         HttpResponse<String> response = issue(access, FRONTEND_ORIGIN);
         assertThat(response.statusCode()).isEqualTo(200);
         verify(jwt, times(1)).verifyAccess(anyString());
-        verify(members, times(1)).findActive(108);
+        verify(members, times(1)).findActive(108, TestLoginSessions.ID);
         verifyNoMoreInteractions(members);
         assertThat(response.headers().firstValue("Set-Cookie")).isEmpty();
         assertThat(response.headers().firstValue("Access-Control-Allow-Origin")).contains(FRONTEND_ORIGIN);
@@ -128,7 +129,7 @@ class WebSocketOriginAuthenticationTests {
 
     @Test
     void 사전_Origin_거절은_JWT와_회원조회도_수행하지_않는다() throws Exception {
-        String access = jwt.issue(109);
+        String access = jwt.issue(109, TestLoginSessions.ID);
         clearInvocations(jwt, members);
         assertThat(issue(access, "https://untrusted.invalid").statusCode()).isEqualTo(403);
         verify(jwt, times(0)).verifyAccess(anyString());
@@ -139,12 +140,12 @@ class WebSocketOriginAuthenticationTests {
     void 교차_Origin에서_인증누락과_위조와_탈퇴회원은_여전히_401이다() throws Exception {
         assertThat(issue(null, FRONTEND_ORIGIN).statusCode()).isEqualTo(401);
         assertThat(issue("forged", FRONTEND_ORIGIN).statusCode()).isEqualTo(401);
-        when(members.findActive(110)).thenReturn(Optional.empty());
-        assertThat(issue(jwt.issue(110), FRONTEND_ORIGIN).statusCode()).isEqualTo(401);
+        when(members.findActive(110, TestLoginSessions.ID)).thenReturn(Optional.empty());
+        assertThat(issue(jwt.issue(110, TestLoginSessions.ID), FRONTEND_ORIGIN).statusCode()).isEqualTo(401);
     }
 
     private String ticket(long id, String origin) throws Exception {
-        HttpResponse<String> response = issue(jwt.issue(id), origin);
+        HttpResponse<String> response = issue(jwt.issue(id, TestLoginSessions.ID), origin);
         assertThat(response.statusCode()).isEqualTo(200);
         return mapper.readTree(response.body()).path("ticket").asText();
     }

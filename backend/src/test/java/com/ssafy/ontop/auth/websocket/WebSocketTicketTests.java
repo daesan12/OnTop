@@ -5,6 +5,7 @@ import com.ssafy.ontop.auth.security.AccessAuthenticationService;
 import com.ssafy.ontop.auth.security.ActiveMemberLookup;
 import com.ssafy.ontop.auth.security.AuthenticatedUser;
 import com.ssafy.ontop.auth.security.JpaActiveMemberLookup;
+import com.ssafy.ontop.auth.security.TestLoginSessions;
 import com.ssafy.ontop.auth.service.AccessJwtService;
 import com.ssafy.ontop.user.domain.CharacterGender;
 import com.ssafy.ontop.user.domain.LoginProvider;
@@ -40,10 +41,10 @@ class WebSocketTicketTests {
 
     WebSocketTicketService service() {
         beans.addBean("accounts", accounts);
-        when(accounts.findActive(101)).thenReturn(Optional.of(new VerifiedWebSocketUser(101,
-                VerifiedWebSocketUser.Provider.NAVER)));
-        beans.addBean("members", (ActiveMemberLookup) id -> accounts.findActive(id).map(user ->
-                new AuthenticatedUser(user.userId(), LoginProvider.valueOf(user.provider().name()))));
+        when(accounts.findActive(101, TestLoginSessions.ID)).thenReturn(Optional.of(new VerifiedWebSocketUser(101,
+                VerifiedWebSocketUser.Provider.NAVER, TestLoginSessions.ID)));
+        beans.addBean("members", (ActiveMemberLookup) (id, sessionId) -> accounts.findActive(id, TestLoginSessions.ID).map(user ->
+                new AuthenticatedUser(user.userId(), LoginProvider.valueOf(user.provider().name()), TestLoginSessions.ID)));
         return new WebSocketTicketService(beans.getBeanProvider(WebSocketAccountLookup.class), clock);
     }
 
@@ -58,7 +59,7 @@ class WebSocketTicketTests {
 
     @Test void 접속권은_30초경계에서만료하고_Access남은시간보다길지않다() {
         var service = service();
-        String access = jwt.issue(101);
+        String access = jwt.issue(101, TestLoginSessions.ID);
         var ticket = service.issue(authenticated(access), null);
         assertThat(ticket.expiresIn()).isEqualTo(30);
         assertThat(ticket.toString()).doesNotContain(ticket.ticket());
@@ -73,7 +74,7 @@ class WebSocketTicketTests {
 
     @Test void 같은접속권의_동시소비는_한개만성공한다() throws Exception {
         var service = service();
-        var ticket = service.issue(authenticated(jwt.issue(101)), null);
+        var ticket = service.issue(authenticated(jwt.issue(101, TestLoginSessions.ID)), null);
         try (var workers = Executors.newFixedThreadPool(4)) {
             var jobs = IntStream.range(0, 8).mapToObj(i -> (Callable<Boolean>) () -> {
                 try { service.consume(ticket.ticket(), null); return true; }
@@ -87,27 +88,27 @@ class WebSocketTicketTests {
 
     @Test void 출처변경과_발급후탈퇴와_중복사용을차단한다() {
         var service = service();
-        var ticket = service.issue(authenticated(jwt.issue(101)), "https://app.example");
+        var ticket = service.issue(authenticated(jwt.issue(101, TestLoginSessions.ID)), "https://app.example");
         assertThatThrownBy(() -> service.consume(ticket.ticket(), null)).isInstanceOf(WebSocketTicketException.class);
         assertThatThrownBy(() -> service.consume(ticket.ticket(), "https://app.example"))
                 .isInstanceOf(WebSocketTicketException.class);
-        var deleted = service.issue(authenticated(jwt.issue(101)), null);
-        when(accounts.findActive(101)).thenReturn(Optional.empty());
+        var deleted = service.issue(authenticated(jwt.issue(101, TestLoginSessions.ID)), null);
+        when(accounts.findActive(101, TestLoginSessions.ID)).thenReturn(Optional.empty());
         assertThatThrownBy(() -> service.consume(deleted.ticket(), null)).isInstanceOf(WebSocketTicketException.class);
     }
 
     @Test void 계정별상한을넘으면거절하고_만료후에는다시발급한다() {
         var service = service();
-        for (int i = 0; i < 4; i++) { service.issue(authenticated(jwt.issue(101)), null); }
-        assertThatThrownBy(() -> service.issue(authenticated(jwt.issue(101)), null)).isInstanceOf(WebSocketTicketException.class)
+        for (int i = 0; i < 4; i++) { service.issue(authenticated(jwt.issue(101, TestLoginSessions.ID)), null); }
+        assertThatThrownBy(() -> service.issue(authenticated(jwt.issue(101, TestLoginSessions.ID)), null)).isInstanceOf(WebSocketTicketException.class)
                 .satisfies(e -> assertThat(((WebSocketTicketException)e).status().value()).isEqualTo(429));
         clock.now = clock.now.plusSeconds(30);
-        assertThat(service.issue(authenticated(jwt.issue(101)), null).expiresIn()).isEqualTo(30);
+        assertThat(service.issue(authenticated(jwt.issue(101, TestLoginSessions.ID)), null).expiresIn()).isEqualTo(30);
     }
 
     @Test void 서비스는_ID나_Principal만으로_접속권을_발급하지_않는다() {
         var service = service();
-        var principal = new AuthenticatedUser(101, LoginProvider.NAVER);
+        var principal = new AuthenticatedUser(101, LoginProvider.NAVER, TestLoginSessions.ID);
         var noDetails = UsernamePasswordAuthenticationToken.authenticated(principal, null,
                 List.of(new SimpleGrantedAuthority("ROLE_MEMBER")));
         var wrongPrincipal = UsernamePasswordAuthenticationToken.authenticated("101", null,
@@ -117,25 +118,26 @@ class WebSocketTicketTests {
             assertThatThrownBy(() -> service.issue(candidate, null)).isInstanceOf(WebSocketTicketException.class);
         }
         noDetails.setDetails(new AccessAuthenticationService.AuthenticatedAccess(
-                new AuthenticatedUser(202, LoginProvider.SSAFY), clock.instant().plusSeconds(30)));
+                new AuthenticatedUser(202, LoginProvider.SSAFY, TestLoginSessions.ID), clock.instant().plusSeconds(30)));
         assertThatThrownBy(() -> service.issue(noDetails, null)).isInstanceOf(WebSocketTicketException.class);
-        var expired = authenticated(jwt.issue(101));
+        var expired = authenticated(jwt.issue(101, TestLoginSessions.ID));
         clock.now = clock.now.plusSeconds(1800);
         assertThatThrownBy(() -> service.issue(expired, null)).isInstanceOf(WebSocketTicketException.class);
     }
 
     @Test void DB조회는_실제내부ID와제공자를매핑하고_탈퇴사용자를제외한다() {
         var repository = mock(UserRepository.class);
-        beans.addBean("members", new JpaActiveMemberLookup(repository));
+        beans.addBean("members", new JpaActiveMemberLookup(repository, clock));
         var lookup = new DatabaseWebSocketAccountLookup(
                 new AccessAuthenticationService(jwt, beans.getBeanProvider(ActiveMemberLookup.class)));
         var user = new User(LoginProvider.SSAFY, "test-provider", "테스트", CharacterGender.MALE);
         ReflectionTestUtils.setField(user, "id", 202L);
-        when(repository.findById(202L)).thenReturn(Optional.of(user));
-        assertThat(lookup.findActive(202)).contains(new VerifiedWebSocketUser(202,
-                VerifiedWebSocketUser.Provider.SSAFY));
+        when(repository.findActiveForLoginSession(202L, TestLoginSessions.ID, clock.instant()))
+                .thenReturn(Optional.of(user));
+        assertThat(lookup.findActive(202, TestLoginSessions.ID)).contains(new VerifiedWebSocketUser(202,
+                VerifiedWebSocketUser.Provider.SSAFY, TestLoginSessions.ID));
         ReflectionTestUtils.setField(user, "deletedAt", clock.instant());
-        assertThat(lookup.findActive(202)).isEmpty();
+        assertThat(lookup.findActive(202, TestLoginSessions.ID)).isEmpty();
     }
 
     static class MutableClock extends Clock {

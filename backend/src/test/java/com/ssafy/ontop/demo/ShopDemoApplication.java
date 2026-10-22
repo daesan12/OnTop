@@ -1,6 +1,7 @@
 package com.ssafy.ontop.demo;
 
 import com.ssafy.ontop.OntopApplication;
+import com.ssafy.ontop.auth.security.TestLoginSessions;
 import com.ssafy.ontop.auth.service.AccessJwtService;
 import com.ssafy.ontop.auth.service.AuthExchangeOriginPolicy;
 import jakarta.servlet.http.HttpServletRequest;
@@ -73,8 +74,7 @@ public final class ShopDemoApplication {
         ResponseEntity<?> config(HttpServletRequest request) {
             origins.allowedOrigin(request);
             return ResponseEntity.ok().cacheControl(CacheControl.noStore())
-                    .body(Map.of("accessToken", jwt.issue(101)));
+                    .body(Map.of("accessToken", jwt.issue(101, TestLoginSessions.ID)));
         }
     }
 }
-
