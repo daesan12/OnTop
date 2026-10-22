@@ -71,6 +71,8 @@ JPA EntityManager·JPQL 저장소를 사용한다. 지갑 PESSIMISTIC_WRITE(MySQ
 
 Java21 Wrapper mysqlTest --tests '*ShopMySqlTests': 별도 MySQL8.4에서 실제 JWT/HTTP/SQL·중복8요청·동시 잔액·롤백·예약금·장착·커밋 후 알림을 검사한다. ShopHttpTests는 인증·불허 출처·잘못된 본문/키를 검사한다. 기존 users/auth MySQL suite와 다른 DB를 사용한다.
 
+WorldAppearanceMySqlTests는 장착·광장·테이블을 연결해 확인한다. 실제 JWT/접속권·HTTP 장착·Raw WebSocket으로 이동 입력 수락→착석/전원 준비→착석 중 의상 교체(테이블 상태 유지)→heartbeat 단절→새 티켓/채널 입장·최신 의상 복구→재착석·재준비를 검증한다. 대기 좌석은 단절 시 정리되며 외형 복구가 자동 착석/준비를 뜻하지 않는다. 물리는 시간 고정 fixture이며 경기 DB 차감·정산·실제3D 렌더링 검증과 구분한다. 실행·확인 범위는 [통합 검사](flow-test.md#실제-db-의상테이블-통합-검증)를 따른다.
+
 테스트 클래스패스의 shopDemo는 loopback 전용 ontop_shop_test_demo* DB만 허용하고 http://127.0.0.1:18083/dev/shop 화면을 제공한다. 100엽전·3개 상품·시연 계정만 초기화하며 실제 REST를 호출한다. 운영 JAR에 화면·테스트 계정·우회 인증을 포함하지 않는다. 의상 REJECT는 시연 조건이다. DB_URL/DB_USERNAME/DB_PASSWORD와 검증용 AUTH_JWT_SECRET_BASE64가 필요하며 원문을 캡처/공유하지 않는다.
 
 ## 2026-10-22 JPA 전환

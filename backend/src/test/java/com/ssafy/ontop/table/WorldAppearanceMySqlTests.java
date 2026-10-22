@@ -17,6 +17,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -28,6 +29,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Tag("mysql")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "spring.profiles.active=local,db", "ontop.shop.enabled=true", "ontop.websocket.authenticated=true",
+        "ontop.websocket.heartbeat.interval=200ms", "ontop.websocket.heartbeat.timeout=2s",
         "ontop.shop.duplicate-equipment-policy=REJECT",
         "spring.flyway.locations=classpath:db/migration,classpath:db/shop-fixture,classpath:db/shop",
         "ontop.auth.jwt-secret-base64=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
@@ -36,6 +38,7 @@ import static org.assertj.core.api.Assertions.assertThat;
         "ontop.world.channels[1].name=B", "ontop.world.channels[1].capacity=3"
 })
 @Import(FrozenWorldFixture.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class WorldAppearanceMySqlTests {
     @LocalServerPort int port;
     @Autowired JdbcTemplate jdbc;
@@ -109,6 +112,83 @@ class WorldAppearanceMySqlTests {
                 otherChannel.assertNoMessage(message -> WorldAppearanceFlowTests.hasItem(message, "BLUE_TOP"));
             }
         }
+    }
+
+    @Test
+    void 장착후이동입력_착석준비_heartbeat정리와재입장을한흐름으로확인한다() throws Exception {
+        long red = shop.purchase(101, 1, 1, "flow-red").userItemId();
+        long blue = shop.purchase(101, 2, 1, "flow-blue").userItemId();
+        String tableId = tables().get(0).path("tableId").asText();
+        try (var wearer = connect(101); var partner = connect(202)) {
+            wearer.request("CHANNEL_JOIN", Map.of("channelId", "a"));
+            partner.request("CHANNEL_JOIN", Map.of("channelId", "a"));
+            assertThat(equip(red).statusCode()).isEqualTo(200);
+            wearer.await(message -> WorldAppearanceFlowTests.hasItem(message, "RED_TOP"));
+            partner.await(message -> WorldAppearanceFlowTests.hasItem(message, "RED_TOP"));
+            JsonNode move = wearer.request("WORLD_MOVE",
+                    Map.of("seq", 1, "dx", 1, "dz", 0, "run", false, "jump", false));
+            assertThat(move.path("type").asText()).isEqualTo("WORLD_STATE");
+            assertThat(WorldAppearanceFlowTests.hasItem(move, "RED_TOP")).isTrue();
+            assertThat(avatar(move, "101").path("position").path("lastInputSeq").asInt()).isEqualTo(1);
+
+            assertThat(wearer.request("TABLE_JOIN", Map.of("tableId", tableId)).path("type").asText())
+                    .isEqualTo("TABLE_STATE");
+            partner.request("TABLE_JOIN", Map.of("tableId", tableId));
+            wearer.request("GAME_SELECT", Map.of("gameCode", "OMOK"));
+            wearer.request("READY_SET", Map.of("ready", true));
+            assertThat(partner.request("READY_SET", Map.of("ready", true))
+                    .path("payload").path("allReady").asBoolean()).isTrue();
+            JsonNode ready = tables().get(0);
+            assertThat(ready.path("occupiedSeats").asInt()).isEqualTo(2);
+            assertThat(ready.path("readyCount").asInt()).isEqualTo(2);
+            // 실제 경기 DB Gateway는 연결하지 않는다. 준비 완료와 경기/차감 확정을 구분한다.
+            assertThat(ready.path("status").asText()).isEqualTo("WAITING");
+
+            assertThat(equip(blue).statusCode()).isEqualTo(200);
+            wearer.await(message -> WorldAppearanceFlowTests.hasItem(message, "BLUE_TOP"));
+            partner.await(message -> WorldAppearanceFlowTests.hasItem(message, "BLUE_TOP"));
+            assertThat(tables().get(0)).isEqualTo(ready); // 장착 갱신이 좌석·준비·버전을 바꾸지 않는다.
+            wearer.stopPong();
+            assertThat(wearer.awaitClose()).isEqualTo(1001);
+            partner.await(message -> message.path("type").asText().equals("TABLE_STATE")
+                    && message.path("payload").path("seats").findValuesAsText("userId").stream()
+                            .noneMatch("101"::equals));
+            JsonNode cleaned = tables().get(0);
+            assertThat(cleaned.path("occupiedSeats").asInt()).isEqualTo(1);
+            assertThat(cleaned.path("readyCount").asInt()).isZero();
+
+            try (var restored = connect(101)) {
+                restored.request("CHANNEL_JOIN", Map.of("channelId", "a"));
+                JsonNode recovered = restored.await(message -> WorldAppearanceFlowTests.hasItem(message, "BLUE_TOP"));
+                assertThat(avatar(recovered, "101").path("position").path("lastInputSeq").asInt()).isZero();
+                assertThat(restored.request("READY_SET", Map.of("ready", true))
+                        .path("payload").path("code").asText()).isEqualTo("NOT_SEATED");
+                restored.request("TABLE_JOIN", Map.of("tableId", tableId));
+                assertThat(tables().get(0).path("readyCount").asInt()).isZero();
+                partner.request("READY_SET", Map.of("ready", true));
+                assertThat(restored.request("READY_SET", Map.of("ready", true))
+                        .path("payload").path("allReady").asBoolean()).isTrue();
+                System.out.println("[APPEARANCE_FLOW] 실제 JWT/HTTP/MySQL/RawWS: 장착→이동 입력→착석/전원준비→장착변경→heartbeat→새티켓/채널입장→외형복구/재착석 PASS. 물리 시간 고정, 경기 DB 차감·3D 렌더링 검증 아님.");
+                System.out.println("[PUBLIC_WORLD_STATE] " + recovered);
+                restored.request("TABLE_LEAVE", Map.of());
+            }
+            partner.request("TABLE_LEAVE", Map.of());
+        }
+    }
+
+    private JsonNode tables() throws Exception {
+        var response = http.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port
+                + "/api/v1/tables?channelId=a")).header("Authorization", "Bearer " + jwt.issue(101))
+                .GET().build(), HttpResponse.BodyHandlers.ofString());
+        assertThat(response.statusCode()).isEqualTo(200);
+        return mapper.readTree(response.body()).path("tables");
+    }
+
+    private JsonNode avatar(JsonNode message, String userId) {
+        for (var avatar : message.path("payload").path("avatars")) {
+            if (avatar.path("userId").asText().equals(userId)) { return avatar; }
+        }
+        throw new AssertionError("아바타 없음: " + userId);
     }
 
     private ScenarioClient connect(long userId) throws Exception {
