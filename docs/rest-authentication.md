@@ -48,6 +48,7 @@ HttpSecurity를 요구하지 않으며, 실제 Servlet 서버에서는 프로필
 | POST `/api/v1/auth/logout` | 별도 인증 | ONTOP_REFRESH + 허용 Origin, 현재 로그인 계열 폐기 |
 | POST `/api/v1/users/onboarding` | 별도 인증 | 독립 ob_ Bearer, 최초 600초 만료, 선점·409 재시도·성공 확정, 기존 Origin 검증 |
 | GET `/api/v1/users/me` | **Access JWT + 활성 회원/로그인 세션** | Principal의 내부 userId로 본인 프로필 조회. [USER-01](user-me.md) |
+| PATCH `/api/v1/users/me` | **Access JWT + 활성 회원/로그인 세션** | Principal의 본인 닉네임만 수정. 최종 UNIQUE 검증. [USER-02](user-nickname-update.md) |
 | GET `/api/v1/users/nickname-availability` | 온보딩 Bearer 또는 Access JWT | 닉네임 사전 조회, 본인 제외·DB collation 기준. [USER-04](nickname-availability.md) |
 | GET `/api/v1/channels` | **Access JWT + 활성 회원** | 현재 Controller는 local에서만 등록됨 |
 | GET `/api/v1/tables` | **Access JWT + 활성 회원** | 현재 Controller는 local에서만 등록됨. 채널 설정 시 channelId 필요 |
