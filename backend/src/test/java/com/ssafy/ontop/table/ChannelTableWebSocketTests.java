@@ -3,6 +3,7 @@ package com.ssafy.ontop.table;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ssafy.ontop.auth.security.RestSecurityTestSupport;
+import com.ssafy.ontop.auth.security.TestLoginSessions;
 import com.ssafy.ontop.auth.service.AccessJwtService;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -142,7 +143,7 @@ class ChannelTableWebSocketTests {
 
     private HttpResponse<String> query(HttpClient http, String query) throws Exception {
         return http.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/api/v1/tables" + query))
-                        .header("Authorization", "Bearer " + jwt.issue(RestSecurityTestSupport.USER_ID))
+                        .header("Authorization", "Bearer " + jwt.issue(RestSecurityTestSupport.USER_ID, TestLoginSessions.ID))
                 .timeout(Duration.ofSeconds(5)).GET().build(), HttpResponse.BodyHandlers.ofString());
     }
 }

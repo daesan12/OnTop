@@ -1,6 +1,7 @@
 package com.ssafy.ontop.demo;
 
 import com.ssafy.ontop.OntopApplication;
+import com.ssafy.ontop.auth.security.TestLoginSessions;
 import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser;
 import com.ssafy.ontop.auth.websocket.WebSocketUserResolver;
 import com.ssafy.ontop.game.bridge.service.BridgeEngine;
@@ -62,7 +63,7 @@ public final class GamesDemoApplication {
         @Bean WebSocketUserResolver gamesDemoResolver() {
             return principal -> principal instanceof DemoPrincipal player
                     ? Optional.of(new VerifiedWebSocketUser(player.id(),player.id()==202
-                        ? VerifiedWebSocketUser.Provider.SSAFY : VerifiedWebSocketUser.Provider.NAVER)) : Optional.empty();
+                        ? VerifiedWebSocketUser.Provider.SSAFY : VerifiedWebSocketUser.Provider.NAVER, TestLoginSessions.ID)) : Optional.empty();
         }
         @Bean FilterRegistrationBean<OncePerRequestFilter> gamesDemoPrincipal() {
             var registration=new FilterRegistrationBean<OncePerRequestFilter>();

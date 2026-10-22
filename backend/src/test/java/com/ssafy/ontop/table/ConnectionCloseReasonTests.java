@@ -1,6 +1,8 @@
 package com.ssafy.ontop.table;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ssafy.ontop.auth.security.AccessAuthenticationService;
+import com.ssafy.ontop.auth.websocket.MemberWebSocketConnections;
 import com.ssafy.ontop.table.service.TableHub;
 import com.ssafy.ontop.table.websocket.ConnectionCloseReason;
 import com.ssafy.ontop.table.websocket.TablePeer;
@@ -50,7 +52,7 @@ class ConnectionCloseReasonTests {
 
     @Test
     void 소켓종료와_전송오류_이벤트를_구분하고_중복이벤트는_다시_세지않는다() throws Exception {
-        TableWebSocketHandler handler = new TableWebSocketHandler(hub, false);
+        TableWebSocketHandler handler = new TableWebSocketHandler(hub, false, new MemberWebSocketConnections(mock(AccessAuthenticationService.class)));
         Peer closed = new Peer();
         Peer error = new Peer();
 
@@ -137,11 +139,12 @@ class ConnectionCloseReasonTests {
         assertReason(ConnectionCloseReason.SERVER_SHUTDOWN, 1);
         assertTotal(2);
         assertThat(registry.find("ontop.websocket.connections.closed.by.reason").functionCounters())
-                .hasSize(7).allSatisfy(counter -> {
+                .hasSize(ConnectionCloseReason.values().length).allSatisfy(counter -> {
                     assertThat(counter.getId().getTags()).hasSize(1);
                     assertThat(counter.getId().getTag("reason")).isIn(
                             "SOCKET_CLOSED", "TRANSPORT_ERROR", "HEARTBEAT_TIMEOUT", "SEND_QUEUE_FULL",
-                            "SEND_ERROR", "SERVER_SHUTDOWN", "UNSPECIFIED");
+                            "SEND_ERROR", "SERVER_SHUTDOWN", "UNSPECIFIED", "AUTH_SESSION_REVOKED",
+                            "MEMBER_DEACTIVATED");
                 });
     }
 

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ssafy.ontop.auth.security.ActiveMemberLookup;
 import com.ssafy.ontop.auth.security.AuthenticatedUser;
+import com.ssafy.ontop.auth.security.TestLoginSessions;
 import com.ssafy.ontop.auth.service.AccessJwtService;
 import com.ssafy.ontop.table.websocket.TableWebSocketHandler;
 import com.ssafy.ontop.user.domain.LoginProvider;
@@ -33,6 +34,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.when;
 
@@ -66,8 +68,8 @@ class MemberWebSocketAuthenticationTests {
     void activeMembers() {
         now = Instant.parse("2026-10-22T00:00:00Z");
         when(clock.instant()).thenAnswer(call -> now);
-        when(members.findActive(anyLong())).thenAnswer(call -> Optional.of(new AuthenticatedUser(
-                call.getArgument(0), LoginProvider.SSAFY)));
+        when(members.findActive(anyLong(), anyString())).thenAnswer(call -> Optional.of(new AuthenticatedUser(
+                call.getArgument(0), LoginProvider.SSAFY, TestLoginSessions.ID)));
     }
 
     @Test
@@ -92,10 +94,10 @@ class MemberWebSocketAuthenticationTests {
     @Test
     void Access_누락과_위조와_온보딩과_만료는_발급하지_않는다() throws Exception {
         assertThat(issue(null).statusCode()).isEqualTo(401);
-        for (String raw : new String[] {"forged", "ob_not-an-access-token", jwt.issue(101) + "x"}) {
+        for (String raw : new String[] {"forged", "ob_not-an-access-token", jwt.issue(101, TestLoginSessions.ID) + "x"}) {
             assertThat(issue(raw).statusCode()).isEqualTo(401);
         }
-        String expired = jwt.issue(101);
+        String expired = jwt.issue(101, TestLoginSessions.ID);
         now = now.plusSeconds(1800);
         assertThat(issue(expired).statusCode()).isEqualTo(401);
     }
@@ -103,8 +105,8 @@ class MemberWebSocketAuthenticationTests {
     @Test
     void 없는회원과_탈퇴회원은_발급과_이미_발급된_접속을_모두_차단한다() throws Exception {
         String ticket = issueTicket(101);
-        when(members.findActive(101)).thenReturn(Optional.empty());
-        assertThat(issue(jwt.issue(101)).statusCode()).isEqualTo(401);
+        when(members.findActive(101, TestLoginSessions.ID)).thenReturn(Optional.empty());
+        assertThat(issue(jwt.issue(101, TestLoginSessions.ID)).statusCode()).isEqualTo(401);
         assertUpgradeRejected(ticket, 401);
         assertUpgradeRejected(ticket, 401);
     }
@@ -112,12 +114,12 @@ class MemberWebSocketAuthenticationTests {
     @Test
     void DB_장애는_발급과_연결에서_503이며_실패_접속권은_복원하지_않는다() throws Exception {
         String ticket = issueTicket(101);
-        when(members.findActive(101)).thenThrow(new DataAccessResourceFailureException("private-db-fixture"));
-        HttpResponse<String> response = issue(jwt.issue(101));
+        when(members.findActive(101, TestLoginSessions.ID)).thenThrow(new DataAccessResourceFailureException("private-db-fixture"));
+        HttpResponse<String> response = issue(jwt.issue(101, TestLoginSessions.ID));
         assertThat(response.statusCode()).isEqualTo(503);
         assertThat(response.body()).doesNotContain("private-db-fixture", "Exception");
         assertUpgradeRejected(ticket, 503);
-        doReturn(Optional.of(new AuthenticatedUser(101, LoginProvider.SSAFY))).when(members).findActive(101);
+        doReturn(Optional.of(new AuthenticatedUser(101, LoginProvider.SSAFY, TestLoginSessions.ID))).when(members).findActive(101, TestLoginSessions.ID);
         assertUpgradeRejected(ticket, 401);
     }
 
@@ -138,7 +140,7 @@ class MemberWebSocketAuthenticationTests {
 
     @Test
     void 연결후_Access만료는_소켓을_끊지_않고_재발급에는_새Access가_필요하다() throws Exception {
-        String access = jwt.issue(202);
+        String access = jwt.issue(202, TestLoginSessions.ID);
         String ticket = mapper.readTree(issue(access).body()).path("ticket").asText();
         try (ScenarioClient socket = new ScenarioClient(port, "202", ticket)) {
             socket.await(message -> message.path("type").asText().equals("CONNECTED"));
@@ -167,7 +169,7 @@ class MemberWebSocketAuthenticationTests {
     }
 
     private String issueTicket(long id) throws Exception {
-        HttpResponse<String> response = issue(jwt.issue(id));
+        HttpResponse<String> response = issue(jwt.issue(id, TestLoginSessions.ID));
         assertThat(response.statusCode()).isEqualTo(200);
         assertThat(response.headers().firstValue("Cache-Control")).contains("no-store");
         assertThat(response.headers().firstValue("Set-Cookie")).isEmpty();

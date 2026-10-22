@@ -3,6 +3,7 @@ package com.ssafy.ontop.auth.service;
 import com.ssafy.ontop.auth.client.OAuthProviderClient;
 import com.ssafy.ontop.auth.domain.RefreshToken;
 import com.ssafy.ontop.auth.repository.RefreshTokenRepository;
+import com.ssafy.ontop.auth.security.TestLoginSessions;
 import com.ssafy.ontop.user.domain.CharacterGender;
 import com.ssafy.ontop.user.domain.LoginProvider;
 import com.ssafy.ontop.user.domain.User;
@@ -114,7 +115,7 @@ class AuthLogoutMySqlTests {
     @Test
     void 로그아웃은_204와_삭제쿠키를_주고_Refresh를_폐기하지만_기존_Access_서명은_유효하다() throws Exception {
         SessionToken original = fixture();
-        String access = jwt.issue(original.user().getId());
+        String access = jwt.issue(original.user().getId(), TestLoginSessions.ID);
         long count = tokens.count();
 
         MvcResult result = logout(original.raw()).andExpect(status().isNoContent()).andReturn();

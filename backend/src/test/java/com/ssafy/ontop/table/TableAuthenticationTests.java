@@ -1,26 +1,29 @@
 package com.ssafy.ontop.table;
 
-import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser;
-import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser.Provider;
-import com.ssafy.ontop.auth.websocket.WebSocketUserResolver;
+import com.ssafy.ontop.auth.security.AccessAuthenticationService;
+import com.ssafy.ontop.auth.security.TestLoginSessions;
 import com.ssafy.ontop.auth.service.AuthExchangeOriginPolicy;
+import com.ssafy.ontop.auth.websocket.MemberWebSocketConnections;
+import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser.Provider;
+import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser;
+import com.ssafy.ontop.auth.websocket.WebSocketUserResolver;
+import com.ssafy.ontop.table.service.TableHub;
 import com.ssafy.ontop.table.websocket.TableHandshakeInterceptor;
 import com.ssafy.ontop.table.websocket.TableWebSocketConfiguration;
 import com.ssafy.ontop.table.websocket.TableWebSocketHandler;
-import com.ssafy.ontop.table.service.TableHub;
-import java.security.Principal;
 import java.net.URI;
+import java.security.Principal;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.http.server.ServerHttpResponse;
+import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.WebSocketHandler;
 import org.springframework.web.socket.WebSocketSession;
-import org.springframework.web.socket.CloseStatus;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -45,7 +48,7 @@ class TableAuthenticationTests {
         TableHub hub = mock(TableHub.class);
         WebSocketSession session = mock(WebSocketSession.class);
         when(session.getAttributes()).thenReturn(Map.of());
-        new TableWebSocketHandler(hub, true).afterConnectionEstablished(session);
+        new TableWebSocketHandler(hub, true, new MemberWebSocketConnections(mock(AccessAuthenticationService.class))).afterConnectionEstablished(session);
         verify(session).close(CloseStatus.POLICY_VIOLATION.withReason("Authentication required"));
         verifyNoInteractions(hub);
     }
@@ -53,7 +56,7 @@ class TableAuthenticationTests {
     @Test
     void 검증기_미설정과_미인증과_검증실패는_서버신원없이_연결을_막는다() {
         Map<String, Object> attributes = new HashMap<>();
-        attributes.put(TableHandshakeInterceptor.VERIFIED_USER, new VerifiedWebSocketUser(99, Provider.SSAFY));
+        attributes.put(TableHandshakeInterceptor.VERIFIED_USER, new VerifiedWebSocketUser(99, Provider.SSAFY, TestLoginSessions.ID));
         TableHandshakeInterceptor missing = new TableHandshakeInterceptor(true, Optional.empty());
         assertThat(missing.beforeHandshake(request, response, handler, attributes)).isFalse();
         verify(response).setStatusCode(HttpStatus.SERVICE_UNAVAILABLE);
@@ -75,7 +78,7 @@ class TableAuthenticationTests {
     void Principal_이름_대신_검증된_내부계정만_보관하고_검증기_오류도_차단한다() {
         Principal principal = () -> "untrusted-provider-subject";
         when(request.getPrincipal()).thenReturn(principal);
-        VerifiedWebSocketUser expected = new VerifiedWebSocketUser(123, Provider.NAVER);
+        VerifiedWebSocketUser expected = new VerifiedWebSocketUser(123, Provider.NAVER, TestLoginSessions.ID);
         WebSocketUserResolver resolver = mock(WebSocketUserResolver.class);
         when(resolver.resolve(principal)).thenReturn(Optional.of(expected));
         TableHandshakeInterceptor interceptor = new TableHandshakeInterceptor(true, Optional.of(resolver));
@@ -98,7 +101,7 @@ class TableAuthenticationTests {
         assertThatThrownBy(() -> new TableWebSocketConfiguration(mock(TableWebSocketHandler.class), dev, true, true,
                 mock(AuthExchangeOriginPolicy.class)))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new VerifiedWebSocketUser(0, Provider.NAVER))
+        assertThatThrownBy(() -> new VerifiedWebSocketUser(0, Provider.NAVER, TestLoginSessions.ID))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 }

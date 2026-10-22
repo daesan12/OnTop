@@ -2,13 +2,16 @@ package com.ssafy.ontop.table;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ssafy.ontop.auth.service.AccessJwtService;
+import com.ssafy.ontop.auth.domain.LoginOutcome;
+import com.ssafy.ontop.auth.domain.OAuthProvider;
+import com.ssafy.ontop.auth.service.AuthExchangePersistenceService;
 import com.ssafy.ontop.shop.ShopService;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.List;
+import java.util.HashMap;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
@@ -41,7 +44,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 class WorldAppearanceMySqlTests {
     @LocalServerPort int port;
     @Autowired JdbcTemplate jdbc;
-    @Autowired AccessJwtService jwt;
+    @Autowired AuthExchangePersistenceService issuer;
+    private final Map<Long, String> accessTokens = new HashMap<>();
     @Autowired ShopService shop;
     @Autowired PlatformTransactionManager transactions;
     private final ObjectMapper mapper = new ObjectMapper();
@@ -60,6 +64,7 @@ class WorldAppearanceMySqlTests {
 
     @BeforeEach
     void setup() {
+        accessTokens.clear();
         for (String table : List.of("shop_purchases", "wallet_transactions", "user_items", "wallets",
                 "items", "refresh_tokens", "users")) { jdbc.update("DELETE FROM " + table); }
         for (long id : new long[]{101, 202, 303}) {
@@ -68,6 +73,8 @@ class WorldAppearanceMySqlTests {
                         created_at, updated_at) VALUES (?, 'NAVER', ?, ?, 'MALE', NOW(3), NOW(3))
                     """, id, "appearance-" + id, "look" + id);
             jdbc.update("INSERT INTO wallets(user_id, balance, reserved_balance) VALUES (?, 100, 0)", id);
+            accessTokens.put(id, issuer.issueExisting(new LoginOutcome(
+                    OAuthProvider.NAVER, LoginOutcome.Status.EXISTING_MEMBER, id, null)).accessToken());
         }
         for (long id : new long[]{1, 2}) {
             String code = id == 1 ? "RED_TOP" : "BLUE_TOP";
@@ -177,7 +184,7 @@ class WorldAppearanceMySqlTests {
 
     private JsonNode tables() throws Exception {
         var response = http.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port
-                + "/api/v1/tables?channelId=a")).header("Authorization", "Bearer " + jwt.issue(101))
+                + "/api/v1/tables?channelId=a")).header("Authorization", "Bearer " + accessTokens.get(101L))
                 .GET().build(), HttpResponse.BodyHandlers.ofString());
         assertThat(response.statusCode()).isEqualTo(200);
         return mapper.readTree(response.body()).path("tables");
@@ -192,7 +199,7 @@ class WorldAppearanceMySqlTests {
 
     private ScenarioClient connect(long userId) throws Exception {
         var response = http.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port
-                + "/api/v1/auth/websocket-ticket")).header("Authorization", "Bearer " + jwt.issue(userId))
+                + "/api/v1/auth/websocket-ticket")).header("Authorization", "Bearer " + accessTokens.get(userId))
                 .POST(HttpRequest.BodyPublishers.noBody()).build(), HttpResponse.BodyHandlers.ofString());
         assertThat(response.statusCode()).isEqualTo(200);
         return new ScenarioClient(port, Long.toString(userId), mapper.readTree(response.body()).path("ticket").asText());
@@ -200,7 +207,7 @@ class WorldAppearanceMySqlTests {
 
     private HttpResponse<String> equip(long ownedId) throws Exception {
         return http.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port
-                + "/api/v1/users/me/equipment")).header("Authorization", "Bearer " + jwt.issue(101))
+                + "/api/v1/users/me/equipment")).header("Authorization", "Bearer " + accessTokens.get(101L))
                 .header("Content-Type", "application/json")
                 .method("PATCH", HttpRequest.BodyPublishers.ofString("{\"userItemId\":" + ownedId + "}"))
                 .build(), HttpResponse.BodyHandlers.ofString());

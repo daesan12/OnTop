@@ -2,7 +2,11 @@ package com.ssafy.ontop.shop;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ssafy.ontop.auth.domain.LoginOutcome;
+import com.ssafy.ontop.auth.domain.OAuthProvider;
+import com.ssafy.ontop.auth.security.TestLoginSessions;
 import com.ssafy.ontop.auth.service.AccessJwtService;
+import com.ssafy.ontop.auth.service.AuthExchangePersistenceService;
 import com.ssafy.ontop.shop.ShopModels.DuplicateEquipmentPolicy;
 import com.ssafy.ontop.shop.ShopModels.EquipmentChanged;
 import com.ssafy.ontop.shop.ShopModels.Purchase;
@@ -11,7 +15,9 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -29,6 +35,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 
 @Tag("mysql")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
@@ -43,6 +51,8 @@ class ShopMySqlTests {
     @org.springframework.test.context.bean.override.mockito.MockitoSpyBean
     com.ssafy.ontop.shop.persistence.ShopRepository repository;
     @Autowired AccessJwtService jwt;
+    @Autowired AuthExchangePersistenceService issuer;
+    private final Map<Long, String> accessTokens = new HashMap<>();
     @Autowired PlatformTransactionManager manager;
     @LocalServerPort int port;
     private final ObjectMapper mapper = new ObjectMapper();
@@ -61,6 +71,7 @@ class ShopMySqlTests {
 
     @BeforeEach
     void setup() {
+        accessTokens.clear();
         jdbc.execute("DROP TRIGGER IF EXISTS shop_test_fail_ledger");
         for (String table : List.of("shop_purchases", "wallet_transactions", "user_items", "wallets",
                 "items", "refresh_tokens", "users")) {
@@ -73,6 +84,9 @@ class ShopMySqlTests {
                     VALUES (?, 'NAVER', ?, ?, 'MALE', CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3))
                     """, user, "shop-test-" + user, "shop" + user);
             jdbc.update("INSERT INTO wallets(user_id, balance, reserved_balance) VALUES (?, 100, 0)", user);
+            accessTokens.put(user, issuer.issueExisting(new LoginOutcome(
+                    OAuthProvider.NAVER,
+                    LoginOutcome.Status.EXISTING_MEMBER, user, null)).accessToken());
         }
         item(1, "EQUIPMENT", "TOP", 10, true);
         item(2, "EQUIPMENT", "TOP", 20, true);
@@ -378,7 +392,7 @@ class ShopMySqlTests {
             bothRead.countDown();
             if (!bothRead.await(5, TimeUnit.SECONDS)) { throw new AssertionError("동시 조회 실패"); }
             return result;
-        }).when(repository).holding(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.eq(3L));
+        }).when(repository).holding(anyLong(), eq(3L));
         try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
             var first = executor.submit(() -> shop.purchase(101, 3, 1, "first-user"));
             var second = executor.submit(() -> shop.purchase(202, 3, 1, "second-user"));
@@ -409,7 +423,8 @@ class ShopMySqlTests {
     private HttpResponse<String> request(String method, String path, long userId, String body, String key)
             throws Exception {
         var request = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + path))
-                .header("Authorization", "Bearer " + jwt.issue(userId))
+                .header("Authorization", "Bearer " + accessTokens.getOrDefault(userId,
+                        jwt.issue(userId, TestLoginSessions.ID)))
                 .header("Origin", "http://localhost:8080");
         if (key != null) { request.header("Idempotency-Key", key); }
         if (body != null) { request.header("Content-Type", "application/json"); }

@@ -2,14 +2,15 @@ package com.ssafy.ontop.table;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ssafy.ontop.auth.security.TestLoginSessions;
 import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser;
 import com.ssafy.ontop.game.reconnect.GameReconnectService;
 import com.ssafy.ontop.game.start.GameStartCommand;
 import com.ssafy.ontop.game.start.GameStartGateway;
 import com.ssafy.ontop.game.start.GameStartResult;
 import com.ssafy.ontop.table.service.TableHub;
-import com.ssafy.ontop.world.config.WorldChannelProperties;
 import com.ssafy.ontop.world.config.WorldChannelProperties.Channel;
+import com.ssafy.ontop.world.config.WorldChannelProperties;
 import com.ssafy.ontop.world.service.WorldChannelRegistry;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -258,7 +259,7 @@ class TableWatchHubTests {
             return null;
         }).when(session).sendMessage(any());
         if (accountId == null) hub.connect(session);
-        else hub.connectAuthenticated(session, new VerifiedWebSocketUser(accountId, VerifiedWebSocketUser.Provider.NAVER));
+        else hub.connectAuthenticated(session, new VerifiedWebSocketUser(accountId, VerifiedWebSocketUser.Provider.NAVER, TestLoginSessions.ID));
         peer.userId = peer.next("CONNECTED").path("payload").path("userId").asText();
         return peer;
     }

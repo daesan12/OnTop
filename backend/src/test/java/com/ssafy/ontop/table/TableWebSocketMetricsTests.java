@@ -1,10 +1,12 @@
 package com.ssafy.ontop.table;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser;
+import com.ssafy.ontop.auth.security.TestLoginSessions;
 import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser.Provider;
-import com.ssafy.ontop.table.service.TableHub;
+import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser;
 import com.ssafy.ontop.table.service.TableHub.MetricsSnapshot;
+import com.ssafy.ontop.table.service.TableHub;
+import com.ssafy.ontop.table.websocket.ConnectionCloseReason;
 import com.ssafy.ontop.table.websocket.TableWebSocketMetrics;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.io.IOException;
@@ -41,9 +43,9 @@ class TableWebSocketMetricsTests {
         new TableWebSocketMetrics(hub).bindTo(registry);
         assertMetrics(0, 0, 0, 0);
         hub.connect(socket("dev"));
-        assertThat(hub.connectAuthenticated(socket("account"), new VerifiedWebSocketUser(101, Provider.NAVER)))
+        assertThat(hub.connectAuthenticated(socket("account"), new VerifiedWebSocketUser(101, Provider.NAVER, TestLoginSessions.ID)))
                 .isTrue();
-        assertThat(hub.connectAuthenticated(socket("duplicate"), new VerifiedWebSocketUser(101, Provider.NAVER)))
+        assertThat(hub.connectAuthenticated(socket("duplicate"), new VerifiedWebSocketUser(101, Provider.NAVER, TestLoginSessions.ID)))
                 .isFalse();
         hub.receive("dev", "not-json");
         hub.receive("account", "{\"requestId\":\"leave-1\",\"type\":\"TABLE_LEAVE\",\"payload\":{}}");
@@ -54,7 +56,7 @@ class TableWebSocketMetricsTests {
         hub.disconnect("dev");
         hub.receive("dev", "not-json");
         assertMetrics(1, 2, 1, 2);
-        assertThat(registry.getMeters()).hasSize(13);
+        assertThat(registry.getMeters()).hasSize(6 + ConnectionCloseReason.values().length);
         assertThat(registry.getMeters().stream()
                 .filter(meter -> !meter.getId().getName().equals("ontop.websocket.connections.closed.by.reason")))
                 .allSatisfy(meter ->

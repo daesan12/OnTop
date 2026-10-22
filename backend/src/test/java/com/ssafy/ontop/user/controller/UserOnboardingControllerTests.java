@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ssafy.ontop.auth.config.AuthTokenProperties;
 import com.ssafy.ontop.auth.domain.OAuthIdentity;
 import com.ssafy.ontop.auth.domain.OAuthProvider;
-import com.ssafy.ontop.auth.exception.AuthExchangeException;
+import com.ssafy.ontop.auth.security.TestLoginSessions;
 import com.ssafy.ontop.auth.service.AccessJwtService;
 import com.ssafy.ontop.auth.service.AuthExchangeOriginPolicy;
 import com.ssafy.ontop.auth.service.AuthExchangePersistenceService;
@@ -160,7 +160,7 @@ class UserOnboardingControllerTests {
         String body = mapper.writeValueAsString(Map.of("nickname", "미지", "characterGender", "FEMALE"));
         mvc.perform(post("/api/v1/users/onboarding").session(session).contentType(MediaType.APPLICATION_JSON)
                 .content(body)).andExpect(status().isUnauthorized());
-        for (String invalid : List.of("ob_" + "A".repeat(43), "invalid", jwt.issue(42))) {
+        for (String invalid : List.of("ob_" + "A".repeat(43), "invalid", jwt.issue(42, TestLoginSessions.ID))) {
             onboard(invalid, null, "미지", "FEMALE").andExpect(status().isUnauthorized())
                     .andExpect(jsonPath("$.code").value("AUTH_INVALID_ONBOARDING_TOKEN"));
         }
@@ -307,7 +307,7 @@ class UserOnboardingControllerTests {
             return user;
         });
         AuthExchangePersistenceService issuer = mock(AuthExchangePersistenceService.class);
-        String accessToken = jwt.issue(42);
+        String accessToken = jwt.issue(42, TestLoginSessions.ID);
         when(issuer.issueForNewUser(any())).thenReturn(
                 new AuthExchangePersistenceService.Credentials(accessToken, "rt_fixture_private"));
         UserOnboardingPersistenceService target = new UserOnboardingPersistenceService(users, issuer);
@@ -409,7 +409,7 @@ class UserOnboardingControllerTests {
         UserOnboardingPersistenceService.TransactionOutcome outcome = invocation.getArgument(2);
         outcome.afterCompletion(TransactionSynchronization.STATUS_COMMITTED);
         return new UserOnboardingPersistenceService.CreatedMember(new UserOnboardingResponse(42,
-                input.nickname(), input.characterGender(), jwt.issue(42)), "rt_fixture_private");
+                input.nickname(), input.characterGender(), jwt.issue(42, TestLoginSessions.ID)), "rt_fixture_private");
     }
 
     private void rolledBack(InvocationOnMock invocation) {

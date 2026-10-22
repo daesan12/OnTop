@@ -2,9 +2,13 @@ package com.ssafy.ontop.table;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser;
+import com.ssafy.ontop.auth.security.ActiveMemberLookup;
+import com.ssafy.ontop.auth.security.AuthenticatedUser;
+import com.ssafy.ontop.auth.security.TestLoginSessions;
 import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser.Provider;
+import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser;
 import com.ssafy.ontop.auth.websocket.WebSocketUserResolver;
+import com.ssafy.ontop.user.domain.LoginProvider;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -18,6 +22,7 @@ import java.net.http.WebSocketHandshakeException;
 import java.security.Principal;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletionStage;
@@ -33,8 +38,8 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
-import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.web.filter.OncePerRequestFilter;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -217,6 +222,16 @@ class AuthenticatedWebSocketTests {
     // 테스트 소스에만 존재하는 서버 인증 대역이다. 이 헤더를 읽는 운영 코드는 없다.
     @TestConfiguration(proxyBeanMethods = false)
     static class AuthFixture {
+        @Bean
+        @org.springframework.context.annotation.Primary
+        ActiveMemberLookup fixtureSessions() {
+            return (id, sessionId) -> Set.of(42L, 101L, 202L, 505L).contains(id)
+                    && TestLoginSessions.ID.equals(sessionId)
+                    ? Optional.of(new AuthenticatedUser(id,
+                            id == 202 || id == 42 ? LoginProvider.SSAFY
+                                    : LoginProvider.NAVER, sessionId))
+                    : Optional.empty();
+        }
 
         @Bean
         WebSocketUserResolver testResolver() {
@@ -225,8 +240,8 @@ class AuthenticatedWebSocketTests {
                     return Optional.empty();
                 }
                 return switch (user.provider()) {
-                    case "NAVER" -> Optional.of(new VerifiedWebSocketUser(user.id(), Provider.NAVER));
-                    case "SSAFY" -> Optional.of(new VerifiedWebSocketUser(user.id(), Provider.SSAFY));
+                    case "NAVER" -> Optional.of(new VerifiedWebSocketUser(user.id(), Provider.NAVER, TestLoginSessions.ID));
+                    case "SSAFY" -> Optional.of(new VerifiedWebSocketUser(user.id(), Provider.SSAFY, TestLoginSessions.ID));
                     default -> Optional.empty();
                 };
             };

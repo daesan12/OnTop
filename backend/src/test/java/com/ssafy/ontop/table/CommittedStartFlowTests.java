@@ -1,15 +1,16 @@
 package com.ssafy.ontop.table;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ssafy.ontop.auth.security.TestLoginSessions;
 import com.ssafy.ontop.auth.service.AccessJwtService;
 import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser;
 import com.ssafy.ontop.auth.websocket.WebSocketAccountLookup;
 import com.ssafy.ontop.game.omok.service.OmokEngine;
 import com.ssafy.ontop.game.result.GameResultCommitted;
 import com.ssafy.ontop.game.result.GameResultGateway;
-import com.ssafy.ontop.game.result.GameResultView;
 import com.ssafy.ontop.game.result.GameResultView.SettlementStatus;
+import com.ssafy.ontop.game.result.GameResultView;
 import com.ssafy.ontop.game.start.GameStartCommand;
 import com.ssafy.ontop.game.start.GameStartGateway;
 import com.ssafy.ontop.game.start.GameStartResult;
@@ -19,12 +20,12 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Clock;
-import java.util.Map;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,13 +36,15 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.web.server.LocalServerPort;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
@@ -69,10 +72,10 @@ class CommittedStartFlowTests {
     @BeforeEach
     void accounts() {
         when(oauthClock.instant()).thenAnswer(invocation -> clock.instant());
-        when(accounts.findActive(101)).thenReturn(Optional.of(new VerifiedWebSocketUser(101,
-                VerifiedWebSocketUser.Provider.NAVER)));
-        when(accounts.findActive(202)).thenReturn(Optional.of(new VerifiedWebSocketUser(202,
-                VerifiedWebSocketUser.Provider.SSAFY)));
+        when(accounts.findActive(101, TestLoginSessions.ID)).thenReturn(Optional.of(new VerifiedWebSocketUser(101,
+                VerifiedWebSocketUser.Provider.NAVER, TestLoginSessions.ID)));
+        when(accounts.findActive(202, TestLoginSessions.ID)).thenReturn(Optional.of(new VerifiedWebSocketUser(202,
+                VerifiedWebSocketUser.Provider.SSAFY, TestLoginSessions.ID)));
     }
 
     @Test
@@ -330,8 +333,8 @@ class CommittedStartFlowTests {
             clock.advanceSeconds(30); engine.tick();
             events.publishEvent(new GameResultCommitted(result(101, SettlementStatus.SETTLED)));
             return value;
-        }).when(engine).create(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
-                org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyLong());
+        }).when(engine).create(anyString(), anyString(),
+                anyLong(), anyLong());
         try (var first = connect(101); var second = connect(202)) {
             prepare(first, second, "OMOK"); ledger.release.countDown();
             first.await(m -> m.path("type").asText().equals("GAME_START_STATE")
@@ -393,7 +396,7 @@ class CommittedStartFlowTests {
     private ScenarioClient connect(long id, String state) throws Exception {
         try (var http = HttpClient.newHttpClient()) {
             var response = http.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port
-                    + "/api/v1/auth/websocket-ticket")).header("Authorization", "Bearer " + jwt.issue(id))
+                    + "/api/v1/auth/websocket-ticket")).header("Authorization", "Bearer " + jwt.issue(id, TestLoginSessions.ID))
                     .POST(HttpRequest.BodyPublishers.noBody()).build(), HttpResponse.BodyHandlers.ofString());
             assertThat(response.statusCode()).isEqualTo(200);
             var client = new ScenarioClient(port, Long.toString(id),

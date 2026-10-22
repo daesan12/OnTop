@@ -27,6 +27,9 @@ import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -72,7 +75,7 @@ class RestAuthenticationMySqlTests {
     void 실제_DB_활성회원과_내부_ID를_인증하고_회원정보를_변경하지_않는다() throws Exception {
         User user = fixture();
         long before = users.count();
-        String token = jwt.issue(user.getId());
+        String token = access(user);
 
         mvc.perform(get("/api/v1/channels").header("Authorization", "Bearer " + token)).andExpect(status().isOk());
         mvc.perform(get("/api/v1/tables").header("Authorization", "Bearer " + token)).andExpect(status().isOk());
@@ -88,10 +91,10 @@ class RestAuthenticationMySqlTests {
 
     @Test
     void 존재하지_않는_내부_ID와_탈퇴회원을_매_요청_DB에서_차단한다() throws Exception {
-        mvc.perform(get("/api/v1/tables").header("Authorization", "Bearer " + jwt.issue(Long.MAX_VALUE)))
+        mvc.perform(get("/api/v1/tables").header("Authorization", "Bearer " + jwt.issue(Long.MAX_VALUE, TestLoginSessions.ID)))
                 .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("AUTH_MEMBER_STATE_CHANGED"));
         User user = fixture();
-        String token = jwt.issue(user.getId());
+        String token = access(user);
         mvc.perform(get("/api/v1/tables").header("Authorization", "Bearer " + token)).andExpect(status().isOk());
 
         jdbc.update("UPDATE users SET deleted_at = CURRENT_TIMESTAMP(3) WHERE id = ?", user.getId());
@@ -103,9 +106,12 @@ class RestAuthenticationMySqlTests {
     @Test
     void Repository_장애를_Security_응답_503으로_변환한다() throws Exception {
         User user = fixture();
-        doThrow(new DataAccessResourceFailureException("test-internal-db-detail")).when(users).findById(user.getId());
+        String access = access(user);
+        doThrow(new DataAccessResourceFailureException("test-internal-db-detail")).when(users)
+                .findActiveForLoginSession(eq(user.getId()),
+                        anyString(), any());
 
-        String body = mvc.perform(get("/api/v1/tables").header("Authorization", "Bearer " + jwt.issue(user.getId())))
+        String body = mvc.perform(get("/api/v1/tables").header("Authorization", "Bearer " + access))
                 .andExpect(status().isServiceUnavailable()).andExpect(jsonPath("$.code").value("AUTH_MEMBER_LOOKUP_UNAVAILABLE"))
                 .andReturn().getResponse().getContentAsString();
 
@@ -113,7 +119,7 @@ class RestAuthenticationMySqlTests {
     }
 
     @Test
-    void 로그아웃은_Refresh만_폐기하고_활성회원_Access의_기존_유효기간을_바꾸지_않는다() throws Exception {
+    void 로그아웃은_Refresh와_같은_로그인계열의_Access를_즉시_차단한다() throws Exception {
         User user = fixture();
         var issued = issuer.issueExisting(new LoginOutcome(OAuthProvider.SSAFY,
                 LoginOutcome.Status.EXISTING_MEMBER, user.getId(), null));
@@ -124,7 +130,12 @@ class RestAuthenticationMySqlTests {
         mvc.perform(post("/api/v1/auth/refresh").header("Origin", "http://localhost:8080").cookie(cookie))
                 .andExpect(status().isUnauthorized());
         mvc.perform(get("/api/v1/tables").header("Authorization", "Bearer " + issued.accessToken()))
-                .andExpect(status().isOk());
+                .andExpect(status().isUnauthorized());
+    }
+
+    private String access(User user) {
+        return issuer.issueExisting(new LoginOutcome(OAuthProvider.SSAFY,
+                LoginOutcome.Status.EXISTING_MEMBER, user.getId(), null)).accessToken();
     }
 
     private User fixture() {

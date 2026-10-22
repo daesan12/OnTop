@@ -23,13 +23,16 @@ public class AuthRefreshPersistenceService {
     private final UserRepository users;
     private final AuthExchangePersistenceService credentials;
     private final Clock clock;
+    private final AuthenticationRevocations revocations;
 
     public AuthRefreshPersistenceService(RefreshTokenRepository tokens, UserRepository users,
-            AuthExchangePersistenceService credentials, @Qualifier("oauthClock") Clock clock) {
+            AuthExchangePersistenceService credentials, @Qualifier("oauthClock") Clock clock,
+            AuthenticationRevocations revocations) {
         this.tokens = tokens;
         this.users = users;
         this.credentials = credentials;
         this.clock = clock;
+        this.revocations = revocations;
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -48,6 +51,7 @@ public class AuthRefreshPersistenceService {
         Instant now = clock.instant().truncatedTo(ChronoUnit.MILLIS);
         if (user.getDeletedAt() != null) {
             tokens.revokeSession(userId, previous.getSessionId(), now);
+            revocations.sessionRevoked(userId, previous.getSessionId());
             return Rotation.denied(AuthRefreshException.Error.MEMBER_CHANGED);
         }
         if (previous.getRotatedAt() != null) {
@@ -57,6 +61,7 @@ public class AuthRefreshPersistenceService {
                 return Rotation.denied(AuthRefreshException.Error.ALREADY_ROTATED);
             }
             tokens.revokeSession(userId, previous.getSessionId(), now);
+            revocations.sessionRevoked(userId, previous.getSessionId());
             // 여기서 예외를 던지면 폐기도 롤백된다. 거절 결과를 커밋한 후 HTTP 계층이 401로 변환한다.
             return Rotation.denied(AuthRefreshException.Error.REUSE_DETECTED);
         }
