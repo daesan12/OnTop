@@ -58,6 +58,7 @@ export class ParkRuntime {
     },
     socket: (ticket) => {
       const url = new URL('/ws/tables', window.location.href)
+      if (url.hostname === 'www.on-top.world') url.hostname = 'api.on-top.world'
       url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
       url.searchParams.set('ticket', ticket)
       return new WebSocket(url) // Sole production WebSocket constructor in frontend/src.
