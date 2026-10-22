@@ -26,6 +26,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     boolean existsByNickname(String nickname);
 
+    boolean existsByNicknameAndIdNot(String nickname, Long id);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select u from User u where u.loginProvider = :provider and u.providerUserId = :providerUserId")
     Optional<User> findForLogin(@Param("provider") LoginProvider provider,
