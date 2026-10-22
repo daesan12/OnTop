@@ -242,7 +242,8 @@ class RestSecurityTests {
                 .toList();
         assertThat(mappings).containsExactlyInAnyOrder("GET /api/v1/auth/{provider}/authorize",
                 "GET /api/v1/auth/{provider}/callback", "POST /api/v1/auth/exchange", "POST /api/v1/auth/refresh",
-                "POST /api/v1/auth/logout", "POST /api/v1/users/onboarding", "GET /api/v1/channels",
+                "POST /api/v1/auth/logout", "POST /api/v1/users/onboarding", "GET /api/v1/users/me",
+                "GET /api/v1/channels",
                 "GET /api/v1/tables", "GET /dev/tables", "GET /dev/world-config",
                 "GET /api/v1/shop/items", "POST /api/v1/shop/purchases",
                 "GET /api/v1/users/me/items", "PATCH /api/v1/users/me/equipment");
