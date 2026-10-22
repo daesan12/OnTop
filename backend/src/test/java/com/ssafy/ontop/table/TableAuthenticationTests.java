@@ -3,6 +3,7 @@ package com.ssafy.ontop.table;
 import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser;
 import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser.Provider;
 import com.ssafy.ontop.auth.websocket.WebSocketUserResolver;
+import com.ssafy.ontop.auth.service.AuthExchangeOriginPolicy;
 import com.ssafy.ontop.table.websocket.TableHandshakeInterceptor;
 import com.ssafy.ontop.table.websocket.TableWebSocketConfiguration;
 import com.ssafy.ontop.table.websocket.TableWebSocketHandler;
@@ -94,7 +95,8 @@ class TableAuthenticationTests {
         TableHandshakeInterceptor dev = new TableHandshakeInterceptor(false, Optional.of(resolver));
         assertThat(dev.beforeHandshake(request, response, handler, new HashMap<>())).isTrue();
         verifyNoInteractions(resolver);
-        assertThatThrownBy(() -> new TableWebSocketConfiguration(mock(TableWebSocketHandler.class), dev, true, true))
+        assertThatThrownBy(() -> new TableWebSocketConfiguration(mock(TableWebSocketHandler.class), dev, true, true,
+                mock(AuthExchangeOriginPolicy.class)))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new VerifiedWebSocketUser(0, Provider.NAVER))
                 .isInstanceOf(IllegalArgumentException.class);

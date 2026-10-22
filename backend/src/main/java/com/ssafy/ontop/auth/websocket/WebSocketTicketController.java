@@ -4,18 +4,16 @@ import com.ssafy.ontop.auth.dto.AuthErrorResponse;
 import com.ssafy.ontop.auth.exception.AuthExchangeException;
 import com.ssafy.ontop.auth.service.AuthExchangeOriginPolicy;
 import jakarta.servlet.http.HttpServletRequest;
-import java.util.Collections;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.context.annotation.Profile;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@Profile("local")
-@ConditionalOnProperty(name = "ontop.websocket.authenticated", havingValue = "true")
+@ConditionalOnProperty(name = "ontop.websocket.authenticated", havingValue = "true", matchIfMissing = true)
 public class WebSocketTicketController {
 
     private final WebSocketTicketService tickets;
@@ -27,13 +25,10 @@ public class WebSocketTicketController {
     }
 
     @PostMapping("/api/v1/auth/websocket-ticket")
-    public ResponseEntity<WebSocketTicketService.Ticket> issue(HttpServletRequest request) {
+    public ResponseEntity<WebSocketTicketService.Ticket> issue(HttpServletRequest request,
+            Authentication authentication) {
         String origin = origins.allowedOrigin(request);
-        var authorization = Collections.list(request.getHeaders("Authorization"));
-        if (authorization.size() != 1 || !authorization.getFirst().startsWith("Bearer ")) {
-            throw new AuthExchangeException(AuthExchangeException.Error.INVALID_ACCESS);
-        }
-        var ticket = tickets.issue(authorization.getFirst().substring(7), origin);
+        var ticket = tickets.issue(authentication, origin);
         return ResponseEntity.ok().cacheControl(CacheControl.noStore())
                 .header("Referrer-Policy", "no-referrer").body(ticket);
     }

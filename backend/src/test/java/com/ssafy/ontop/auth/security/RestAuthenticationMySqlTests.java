@@ -37,6 +37,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles({"local", "db"})
 @SpringBootTest
 @AutoConfigureMockMvc(print = MockMvcPrint.NONE)
+@org.springframework.test.context.TestPropertySource(properties = "ontop.websocket.authenticated=false")
 class RestAuthenticationMySqlTests {
     private static final String KEY = randomKey();
     @Autowired

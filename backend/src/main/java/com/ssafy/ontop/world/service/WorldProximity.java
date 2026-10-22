@@ -2,11 +2,11 @@ package com.ssafy.ontop.world.service;
 
 import com.ssafy.ontop.world.config.WorldProximityProperties;
 import com.ssafy.ontop.world.service.WorldChannelRegistry.Position;
-import org.springframework.context.annotation.Profile;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.stereotype.Service;
 
 @Service
-@Profile("local")
+@ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 public class WorldProximity {
 
     private final WorldChannelRegistry channels;

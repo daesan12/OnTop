@@ -40,20 +40,23 @@ public class AuthExchangeOriginPolicy {
         } catch (IllegalArgumentException exception) {
             throw denied();
         }
+        if (configuredOrigins().contains(requested)) {
+            return requested;
+        }
+        throw denied();
+    }
+
+    // REST와 WebSocket 등록이 같은 설정·정규화·와일드카드 거절 정책을 사용한다.
+    public List<String> configuredOrigins() {
         List<String> allowed = properties.allowedOrigins() == null ? List.of() : properties.allowedOrigins();
         if (allowed.size() > 32) {
             throw new AuthExchangeException(AuthExchangeException.Error.CONFIGURATION);
         }
-        for (String configured : allowed) {
-            try {
-                if (normalize(configured).equals(requested)) {
-                    return requested;
-                }
-            } catch (IllegalArgumentException exception) {
-                throw new AuthExchangeException(AuthExchangeException.Error.CONFIGURATION);
-            }
+        try {
+            return allowed.stream().map(this::normalize).distinct().toList();
+        } catch (IllegalArgumentException exception) {
+            throw new AuthExchangeException(AuthExchangeException.Error.CONFIGURATION);
         }
-        throw denied();
     }
 
     private String normalize(String value) {

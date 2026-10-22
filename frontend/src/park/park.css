@@ -1,0 +1,272 @@
+.park-page {
+  position: relative;
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow: hidden;
+  color: #f3efe3;
+  background: #645e48;
+  font-family: 'BusanDandiMyeongjo', serif;
+  font-weight: 300;
+}
+
+.park-scene,
+.park-scene::after,
+.park-hud {
+  position: absolute;
+  inset: 0;
+}
+
+.park-scene {
+  background: url('../assets/park-overview.png') center / cover no-repeat;
+}
+
+.park-scene::after {
+  content: '';
+  background: rgba(23, 20, 14, 0.16);
+}
+
+.park-hud { pointer-events: none; }
+.park-hud button, .park-hud input, .park-chat__list { pointer-events: auto; }
+
+.park-location {
+  position: absolute;
+  top: var(--park-edge);
+  left: var(--park-edge);
+  display: flex;
+  align-items: center;
+  width: 235px;
+  height: 95px;
+  padding: 13px 20px;
+  border-radius: 15px;
+  background: rgba(28, 27, 22, 0.93);
+  box-shadow: 0 7px 20px rgba(20, 19, 13, 0.12);
+  transform: scale(var(--park-ui-scale));
+  transform-origin: top left;
+}
+
+.park-location__leaf { width: 54px; height: 62px; object-fit: contain; transform: scale(1.2); }
+.park-location__details { margin-left: 8px; white-space: nowrap; }
+.park-location__name { font-size: 26px; line-height: 1.2; }
+.park-location__population { display: flex; align-items: center; gap: 7px; margin-top: 2px; font-size: 20px; white-space: nowrap; }
+.park-location__population img { width: 22px; height: 22px; object-fit: contain; }
+.park-location .park-chevron { position: absolute; right: 22px; top: 32px; }
+
+.park-chevron {
+  display: block;
+  width: 11px;
+  height: 11px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+}
+
+.park-account {
+  position: absolute;
+  top: var(--park-edge);
+  right: var(--park-edge);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+  transform: scale(var(--park-ui-scale));
+  transform-origin: top right;
+}
+
+.park-account__summary {
+  display: flex;
+  align-items: center;
+  width: 495px;
+  height: 80px;
+  padding: 9px 22px 9px 14px;
+  border-radius: 16px;
+  background: rgba(28, 27, 22, 0.95);
+  box-shadow: 0 7px 20px rgba(20, 19, 13, 0.12);
+  white-space: nowrap;
+}
+
+.park-account__coin { flex: 0 0 auto; width: 56px; height: 56px; object-fit: contain; transform: scale(1.2); }
+.park-account__balance { margin-left: 28px; font-size: 20px; }
+.park-account__separator { width: 1px; height: 41px; margin: 0 15px; background: rgba(240, 236, 216, 0.62); }
+.park-account__nickname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 19px; }
+.park-account__avatar { position: relative; flex: 0 0 52px; width: 52px; height: 52px; margin: 0 15px 0 10px; overflow: hidden; border: 2px solid #eee7d2; border-radius: 50%; background: #e9ddc5; }
+.park-account__avatar img { position: absolute; top: -7px; left: -13px; width: 75px; height: auto; }
+.park-account__summary .park-chevron { flex: 0 0 auto; margin-top: -5px; }
+
+.park-exit {
+  min-width: 80px;
+  height: 44px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 14px;
+  color: #f2eddb;
+  background: rgba(29, 28, 23, 0.95);
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.park-exit:hover { background: #3c392f; }
+.park-exit-error { max-width: 300px; margin: 0; padding: 10px 12px; border-radius: 8px; color: #2a2519; background: #f7eee0; font-size: 14px; }
+
+.park-chat {
+  position: absolute;
+  bottom: var(--park-edge);
+  left: var(--park-edge);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 430px;
+  transform: scale(var(--park-ui-scale));
+  transform-origin: bottom left;
+}
+
+.park-chat__messages {
+  display: flex;
+  flex-direction: column;
+  height: 270px;
+  padding: 29px 29px 25px;
+  border-radius: 15px;
+  background: rgba(32, 29, 24, 0.87);
+}
+
+.park-chat__messages h1 {
+  flex: 0 0 auto;
+  margin: 0;
+  padding-bottom: 9px;
+  border-bottom: 1px solid rgba(234, 229, 211, 0.18);
+  font-size: 20px;
+  font-weight: 300;
+  line-height: 1.4;
+}
+
+.park-chat__list {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 10px;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.park-chat__list::-webkit-scrollbar { display: none; }
+
+.park-chat__message { display: flex; flex: 0 0 auto; gap: 14px; margin: 0; font-size: 18px; line-height: 1.35; white-space: nowrap; }
+.park-chat__message:first-child { margin-top: auto; }
+.park-chat__author { flex: 0 0 130px; overflow: hidden; color: #e4b541; text-overflow: ellipsis; }
+.park-chat__author--own { color: #f2d77d; }
+.park-chat__message > span:last-child { min-width: 0; overflow-wrap: anywhere; white-space: normal; }
+
+.park-chat__composer {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 60px;
+  border: 0;
+  border-radius: 15px;
+  font-size: 17px;
+}
+
+.park-chat__composer--closed {
+  justify-content: space-between;
+  padding: 0 15px 0 30px;
+  color: #e5e0d0;
+  background: rgba(32, 29, 24, 0.9);
+  cursor: pointer;
+  text-align: left;
+}
+
+.park-chat__composer--closed:hover { background: rgba(46, 42, 33, 0.96); }
+.park-chat__composer--closed kbd {
+  padding: 8px 12px;
+  border-radius: 10px;
+  color: #3b3b30;
+  background: #ebe9d9;
+  font: inherit;
+  font-size: 14px;
+}
+
+.park-chat__composer--open { padding: 0 14px 0 29px; background: rgba(242, 241, 226, 0.94); }
+.park-chat__composer--open input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  color: #333126;
+  background: transparent;
+  font: inherit;
+}
+.park-chat__composer--open input::placeholder { color: #9c9b8e; opacity: 1; }
+.park-chat__composer--open:focus-within { outline: 2px solid #e0d7b8; outline-offset: 2px; }
+.park-chat__composer--open button {
+  display: grid;
+  flex: 0 0 31px;
+  place-items: center;
+  width: 31px;
+  height: 31px;
+  padding: 0;
+  border: 0;
+  border-radius: 9px;
+  color: #29251d;
+  background: #d7d2bb;
+  cursor: pointer;
+  font-size: 24px;
+  line-height: 1;
+}
+
+.park-shortcuts {
+  position: absolute;
+  bottom: var(--park-edge);
+  left: calc(50% - var(--park-shortcuts-half-width));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  width: 780px;
+  height: 60px;
+  padding: 0 24px;
+  border-radius: 15px;
+  background: rgba(31, 28, 24, 0.9);
+  transform: scale(var(--park-ui-scale));
+  transform-origin: bottom left;
+}
+
+.park-shortcuts__item { display: flex; align-items: center; gap: 11px; white-space: nowrap; font-size: 16px; }
+.park-shortcuts kbd { padding: 6px 12px; border-radius: 18px; background: rgba(247, 242, 227, 0.08); font: inherit; font-size: 13px; }
+.park-hud button:focus-visible { outline: 2px solid #f6e9ae; outline-offset: 3px; }
+
+.auth-loading { display: grid; min-height: 100dvh; place-items: center; color: #f3efe3; background: #27372b; }
+
+@media (max-width: 900px) {
+  .park-location { top: 16px; left: 16px; transform: scale(0.8); transform-origin: top left; }
+  .park-account { top: 16px; right: 16px; transform: none; }
+  .park-account__summary { width: min(410px, calc(100vw - 240px)); min-width: 290px; height: 60px; padding: 6px 12px; }
+  .park-account__coin { width: 42px; height: 42px; }
+  .park-account__balance { margin-left: 8px; font-size: 15px; }
+  .park-account__separator { height: 28px; margin: 0 8px; }
+  .park-account__nickname { font-size: 14px; }
+  .park-account__avatar { flex-basis: 39px; width: 39px; height: 39px; margin: 0 8px; }
+  .park-account__avatar img { top: -6px; left: -10px; width: 58px; }
+  .park-account__summary .park-chevron { width: 8px; height: 8px; }
+  .park-exit { min-width: 65px; height: 34px; font-size: 13px; }
+  .park-chat { bottom: 16px; left: 16px; width: min(430px, calc(100% - 32px)); transform: none; }
+  .park-chat__messages { height: min(270px, 34vh); }
+  .park-shortcuts { left: auto; right: 16px; bottom: 16px; width: auto; max-width: calc(100% - 480px); padding: 0 10px; gap: 8px; transform: none; }
+  .park-shortcuts__item { gap: 3px; }
+  .park-shortcuts kbd { padding: 4px 7px; }
+}
+
+@media (max-width: 700px) {
+  .park-account__summary { width: 255px; min-width: 0; }
+  .park-account__coin { width: 35px; height: 35px; }
+  .park-account__balance { font-size: 13px; }
+  .park-account__separator { margin: 0 6px; }
+  .park-account__nickname { display: none; }
+  .park-account__avatar { margin-left: auto; }
+  .park-shortcuts { bottom: 365px; left: 16px; right: 16px; width: auto; max-width: none; height: 46px; overflow-x: auto; justify-content: flex-start; }
+  .park-shortcuts__item { font-size: 12px; }
+  .park-chat__messages { height: 270px; }
+}

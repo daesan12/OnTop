@@ -8,7 +8,7 @@ import java.util.Map;
 import java.util.Optional;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Profile;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.http.server.ServerHttpResponse;
@@ -18,7 +18,7 @@ import org.springframework.web.socket.server.HandshakeInterceptor;
 import org.springframework.web.util.UriComponentsBuilder;
 
 @Component
-@Profile("local")
+@ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 public class TableHandshakeInterceptor implements HandshakeInterceptor {
 
     public static final String VERIFIED_USER = TableHandshakeInterceptor.class.getName() + ".user";
@@ -32,7 +32,7 @@ public class TableHandshakeInterceptor implements HandshakeInterceptor {
     }
 
     @Autowired
-    public TableHandshakeInterceptor(@Value("${ontop.websocket.authenticated:false}") boolean authenticated,
+    public TableHandshakeInterceptor(@Value("${ontop.websocket.authenticated:true}") boolean authenticated,
             Optional<WebSocketUserResolver> resolver, Optional<WebSocketTicketService> tickets) {
         this.authenticated = authenticated;
         this.resolver = resolver;

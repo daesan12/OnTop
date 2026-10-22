@@ -3,7 +3,7 @@ package com.ssafy.ontop.table.websocket;
 import com.ssafy.ontop.table.service.TableHub;
 import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Profile;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.PongMessage;
@@ -12,14 +12,14 @@ import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 @Component
-@Profile("local")
+@ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 public class TableWebSocketHandler extends TextWebSocketHandler {
 
     private final TableHub hub;
     private final boolean authenticated;
 
     public TableWebSocketHandler(TableHub hub,
-            @Value("${ontop.websocket.authenticated:false}") boolean authenticated) {
+            @Value("${ontop.websocket.authenticated:true}") boolean authenticated) {
         this.hub = hub;
         this.authenticated = authenticated;
     }

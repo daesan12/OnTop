@@ -5,11 +5,11 @@ import io.micrometer.core.instrument.FunctionCounter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.binder.MeterBinder;
-import org.springframework.context.annotation.Profile;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.stereotype.Component;
 
 @Component
-@Profile("local")
+@ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 public final class TableWebSocketMetrics implements MeterBinder {
 
     private final TableHub hub;

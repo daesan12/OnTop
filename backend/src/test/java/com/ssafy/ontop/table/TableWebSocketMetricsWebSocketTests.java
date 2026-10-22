@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {"spring.profiles.active=local", "spring.application.name=ontop-websocket-metrics-test"})
 @DirtiesContext
+@org.springframework.test.context.TestPropertySource(properties = "ontop.websocket.authenticated=false")
 class TableWebSocketMetricsWebSocketTests {
 
     @LocalServerPort
