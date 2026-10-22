@@ -53,7 +53,9 @@ JPA EntityManager·JPQL 저장소를 사용한다. 지갑 PESSIMISTIC_WRITE(MySQ
 
 본인 소유·EQUIPMENT·유효 장착 부위를 검사하고 같은 부위의 기존 의상을 해제한 뒤 선택 의상을 장착한다. 응답 `{equipment:[{userItemId,item:{상품 필드},quantity,equipped:true}]}`는 전체 장착 목록이다. 타인/없는 보유404 OWNED_ITEM_NOT_FOUND, 소비형409 ITEM_NOT_EQUIPPABLE. 동시 장착도 같은 지갑 행으로 직렬화해 같은 부위 하나만 유지한다. 동일 의상 재장착은 추가 차감하지 않는다.
 
-커밋 뒤 내부 EquipmentChanged(userId)를 발행하며 외부 트랜잭션이 롤백되면 알리지 않는다. 알림 리스너 실패를 이미 저장된 장착 실패로 응답하지 않는다. 2026-10-22 사용자가 REST 장착 저장 성공 후 같은 채널에 웹소켓으로 변경을 알리는 방식을 선택했다. 최초 입장·재접속 때 최신 장착 상태 복구도 필요하다. 이는 확정된 방향이며 현재 외형 전파 구현 완료를 뜻하지 않는다. 3D 에셋 매핑·WS 메시지와 필드 계약은 별도 확인이며 신규 WS 메시지/의상 해제·소비 API를 임의 추가하지 않았다.
+커밋 뒤 내부 EquipmentChanged(userId)를 발행하며 외부 트랜잭션이 롤백되면 알리지 않는다. 알림 리스너 실패를 이미 저장된 장착 실패로 응답하지 않는다. ShopWorldAppearanceGateway가 TableHub의 비동기 갱신을 요청하고, 별도 읽기 전용 READ_COMMITTED 트랜잭션으로 최신 장착을 조회한다. Hub 잠금 밖에서 조회한 뒤 같은 연결·채널·최신 요청인지 확인해 캐시에 반영하고 같은 채널의 본인·다른 참가자에게 WORLD_STATE를 전송한다. 최초·반복 CHANNEL_JOIN 및 재접속 후 CHANNEL_JOIN도 최신 상태를 조회한다. 이동 tick마다 DB를 조회하지 않으며 조회 실패는 기존 캐시를 유지한다.
+
+공개 필드는 `WORLD_STATE.payload.avatars[].equipment`이며 itemId·itemCode·equipSlot·imageKey만 최대5개 전달한다. null은 아직 조회되지 않았거나 기능 비활성/조회 실패인 상태이므로 기존 외형을 지우지 않는다. []는 조회 성공·장착 없음이다. 가격·보유 ID·수량은 공개하지 않는다. 기존 REST 응답은 그대로다. [메시지 계약](world-websocket-api.md#의상-변경-동기화)을 참고한다. 실제 3D 에셋 매핑·프론트 렌더링 연동은 별도 협의이며 신규 WS 요청/의상 해제·소비 API는 추가하지 않았다.
 
 ## DB 연결 경계
 

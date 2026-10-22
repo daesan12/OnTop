@@ -51,6 +51,14 @@ public class ShopRepository {
                 + " and o.quantity > 0 order by o.id", UserItem.class)
                 .setParameter("user", userId).getResultList();
     }
+
+    public List<UserItem> equipped(long userId) {
+        return entities.createQuery("select o from UserItem o join fetch o.item i where o.userId = :user"
+                + " and o.equipped = true and o.quantity > 0 and i.itemType = :type"
+                + " and i.equipSlot is not null order by i.equipSlot", UserItem.class)
+                .setParameter("user", userId).setParameter("type", com.ssafy.ontop.shop.ShopModels.ItemType.EQUIPMENT)
+                .getResultList();
+    }
     public List<UserItem> ownedForUpdate(long userId) {
         var rows = entities.createQuery("select o from UserItem o where o.userId = :user"
                 + " order by o.id", UserItem.class)

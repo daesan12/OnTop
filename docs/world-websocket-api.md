@@ -122,11 +122,11 @@
   "type": "WORLD_STATE",
   "payload": {
     "channelId": "channel-1",
-    "version": 3,
+    "version": 4,
     "mapVersion": "544bc6fa3890c77e8de0ec91d27f93981b4d23a477918963757e4762294ba8d0",
     "avatars": [
       {
-        "userId": "dev-example",
+        "userId": "101",
         "position": {
           "lastInputSeq": 1,
           "x": -2.025,
@@ -136,14 +136,31 @@
           "moving": false,
           "running": false,
           "swimming": false
-        }
+        },
+        "equipment": [
+          {
+            "itemId": 1,
+            "itemCode": "RED_TOP",
+            "equipSlot": "TOP",
+            "imageKey": "demo-red-top"
+          }
+        ]
       }
     ]
   }
 }
 ```
 
-맵 밖 스폰을 막기 위해 제공 맵의 검증된16개 스폰 영역을 순환한다(아바타 간 충돌 제외). mapVersion은 수령 manifest의 SHA-256이며 위치는 예시다. avatars는 입장 순서, version은 입퇴장·입력수락·위치/모션 변화 시 증가하며 CHANNEL_STATE와 비교하지 않는다. 동일 채널의 낮은 버전은 무시하고 연결/채널 변경 시 캐시를 비운다. 프론트는 같은 맵 버전을 사용해 보간·서버 위치 보정을 담당한다. 기존 Colyseus adapter를 자동 변환한 것은 아니다. 채팅·관전20m는 이 서버 위치를 읽으며 테이블 좌표는 기존 서버 설정을 유지한다.
+맵 밖 스폰을 막기 위해 제공 맵의 검증된16개 스폰 영역을 순환한다(아바타 간 충돌 제외). mapVersion은 수령 manifest의 SHA-256이며 위치·상품은 예시다. avatars는 입장 순서, version은 입퇴장·입력수락·위치/모션·장착 외형 변화 시 증가하며 CHANNEL_STATE와 비교하지 않는다. 동일 채널의 낮은 버전은 무시하고 연결/채널 변경 시 캐시를 비운다. 프론트는 같은 맵 버전을 사용해 보간·서버 위치 보정을 담당한다. 기존 Colyseus adapter를 자동 변환한 것은 아니다. 채팅·관전20m는 이 서버 위치를 읽으며 테이블 좌표는 기존 서버 설정을 유지한다.
+
+### 의상 변경 동기화
+
+- INVENTORY-02 장착 REST의 실제 커밋 뒤 같은 채널 본인·다른 참가자에게 갱신 WORLD_STATE(requestId=null)를 전송한다. 롤백·다른 채널은 알리지 않는다. 기존 REST 응답·소켓 메시지 이름은 유지한다.
+- `avatars[].equipment`는 공개 `{itemId,itemCode,equipSlot,imageKey}` 배열이며 최대5개·부위당 하나다. 가격·수량·보유 ID는 포함하지 않는다. DB가 보유·부위를 판정하며 클라이언트 외형/좌표 입력은 허용하지 않는다.
+- `null`은 미조회·기능 비활성·최초 조회 실패라서 기존 외형을 지우지 않는다. `[]`는 조회 성공·장착 없음이다. 기존 캐시가 있으면 조회 실패 시 마지막 외형을 보존한다.
+- 최초·반복 CHANNEL_JOIN과 재접속 후 CHANNEL_JOIN 때 최신 장착을 비동기 조회한다. 입장 초기 상태는 null일 수 있다. 읽기는 Hub 잠금 밖의 별도 트랜잭션으로 수행하고 이동 tick은 캐시를 재사용한다. 이전 요청·연결·채널의 늦은 결과는 버린다. 퇴장·끊김은 캐시를 정리한다.
+- 상점 활성(local,db + ontop.shop.enabled=true) 조건이 필요하다. 실제 imageKey→3D 에셋 및 기본 외형 매핑·렌더링은 프론트와 협의한다. 테스트 JSON의 상품은 실제 에셋 확정값이 아니다.
+- WorldAppearanceFlowTests는 지연 조회·최신 요청·채널 변경·실패 캐시·주입 거절, WorldAppearanceMySqlTests는 실제 JWT/티켓/소켓·장착 REST·같은 채널 전파·롤백·재접속을 검증한다. 운영/실제 3D 프론트 연동 성공을 의미하지 않는다.
 
 변경 맵을 재생성할 때는 Node24에서 `node --experimental-vm-modules backend/tools/bake-world.mjs <handoff-directory>`를 실행한다. shared-config28개 모듈을 제한된 VM에서 읽고 원본 manifest의 크기/해시를 대조한다. Node/TypeScript는 서버 실행 의존성이 아니다.
 
