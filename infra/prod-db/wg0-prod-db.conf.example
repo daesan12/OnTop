@@ -1,0 +1,9 @@
+# Install as /etc/wireguard/wg0.conf on PROD-DB after replacing keys.
+[Interface]
+Address = 10.77.0.1/30
+ListenPort = 51820
+PrivateKey = REPLACE_DB_PRIVATE_KEY
+
+[Peer]
+PublicKey = REPLACE_PROD_APP_PUBLIC_KEY
+AllowedIPs = 10.77.0.2/32
