@@ -1,0 +1,67 @@
+name: ontop-prod-db
+
+services:
+  mysql:
+    image: mysql:8.4.11
+    restart: unless-stopped
+    stop_grace_period: 90s
+    environment:
+      MYSQL_ROOT_PASSWORD_FILE: /run/secrets/mysql_root_password
+      MYSQL_ROOT_HOST: localhost
+      MYSQL_DATABASE: ontop
+      MYSQL_USER: ontop_app
+      MYSQL_PASSWORD_FILE: /run/secrets/mysql_app_password
+      TZ: UTC
+    command:
+      - --default-time-zone=+00:00
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+    ports:
+      - "${DB_WG_IP:?Set DB_WG_IP to the DB WireGuard address}:3306:3306"
+    volumes:
+      - type: bind
+        source: ${DB_DATA_DIR:?Set DB_DATA_DIR to the mounted EBS path}
+        target: /var/lib/mysql
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./admin-client.sh
+        target: /usr/local/bin/ontop-admin-client.sh
+        read_only: true
+    secrets:
+      - mysql_root_password
+      - mysql_app_password
+    healthcheck:
+      test: ["CMD", "sh", "/usr/local/bin/ontop-admin-client.sh", "mysql", "--batch", "--skip-column-names", "-e", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  restore-test:
+    image: mysql:8.4.11
+    profiles: [restore-test]
+    network_mode: none
+    environment:
+      MYSQL_ROOT_PASSWORD_FILE: /run/secrets/mysql_root_password
+      MYSQL_ROOT_HOST: localhost
+      MYSQL_DATABASE: ontop
+      TZ: UTC
+    volumes:
+      - type: bind
+        source: ${RESTORE_TEST_DATA_DIR:-/var/lib/ontop-restore-test}
+        target: /var/lib/mysql
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./admin-client.sh
+        target: /usr/local/bin/ontop-admin-client.sh
+        read_only: true
+    secrets:
+      - mysql_root_password
+
+secrets:
+  mysql_root_password:
+    file: ${DB_ROOT_PASSWORD_FILE:?Set DB_ROOT_PASSWORD_FILE outside the repository}
+  mysql_app_password:
+    file: ${DB_APP_PASSWORD_FILE:?Set DB_APP_PASSWORD_FILE outside the repository}

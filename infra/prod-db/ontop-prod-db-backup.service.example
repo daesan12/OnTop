@@ -1,0 +1,9 @@
+# Copy to /etc/systemd/system/ontop-prod-db-backup.service after checking the checkout path.
+[Unit]
+Description=Back up OnTop production MySQL to private S3
+Requires=ontop-prod-db.service
+After=ontop-prod-db.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/bash /opt/ontop/infra/prod-db/backup.sh

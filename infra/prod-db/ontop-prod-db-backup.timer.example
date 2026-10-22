@@ -1,0 +1,12 @@
+# Copy to /etc/systemd/system/ontop-prod-db-backup.timer.
+[Unit]
+Description=Daily OnTop production MySQL backup
+
+[Timer]
+# 03:00 Asia/Seoul (KST, UTC+09:00)
+OnCalendar=*-*-* 18:00:00 UTC
+Persistent=true
+Unit=ontop-prod-db-backup.service
+
+[Install]
+WantedBy=timers.target
