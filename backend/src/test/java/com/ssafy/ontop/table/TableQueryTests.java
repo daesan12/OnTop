@@ -27,6 +27,7 @@ import static org.mockito.Mockito.when;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = "spring.profiles.active=local")
 @Import(RestSecurityTestSupport.class)
+@org.springframework.test.context.TestPropertySource(properties = "ontop.websocket.authenticated=false")
 class TableQueryTests {
 
     @Autowired

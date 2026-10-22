@@ -53,10 +53,16 @@ public class RestSecurityConfiguration {
                         .anyRequest().hasRole("MEMBER"))
                 .oauth2ResourceServer(resource -> resource.bearerTokenResolver(new StrictBearerTokenResolver())
                         .authenticationEntryPoint(errors).accessDeniedHandler(errors)
-                        .jwt(jwt -> jwt.decoder(decoder).jwtAuthenticationConverter(verified ->
-                                UsernamePasswordAuthenticationToken.authenticated(
-                                        authentication.requireActive(Long.parseLong(verified.getSubject())), null,
-                                        List.of(new SimpleGrantedAuthority("ROLE_MEMBER"))))));
+                        .jwt(jwt -> jwt.decoder(decoder).jwtAuthenticationConverter(verified -> {
+                            AuthenticatedUser user = authentication.requireActive(
+                                    Long.parseLong(verified.getSubject()));
+                            var result = UsernamePasswordAuthenticationToken.authenticated(user, null,
+                                    List.of(new SimpleGrantedAuthority("ROLE_MEMBER")));
+                            // 접속권은 이 요청에서 검증된 회원/만료 정보를 재사용한다. 원문 JWT는 보관하지 않는다.
+                            result.setDetails(new AccessAuthenticationService.AuthenticatedAccess(
+                                    user, verified.getExpiresAt()));
+                            return result;
+                        })));
         return http.build();
     }
 

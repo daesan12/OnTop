@@ -18,7 +18,7 @@ public class TableQueryController {
     private final boolean authenticated;
 
     public TableQueryController(TableHub hub,
-            @Value("${ontop.websocket.authenticated:false}") boolean authenticated) {
+            @Value("${ontop.websocket.authenticated:true}") boolean authenticated) {
         this.hub = hub;
         this.authenticated = authenticated;
     }

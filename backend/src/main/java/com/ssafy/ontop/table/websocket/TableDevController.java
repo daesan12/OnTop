@@ -26,7 +26,7 @@ public class TableDevController {
     private final Duration emoteInterval;
 
     public TableDevController(WorldChannelProperties world,
-            @Value("${ontop.websocket.authenticated:false}") boolean authenticated,
+            @Value("${ontop.websocket.authenticated:true}") boolean authenticated,
             @Value("${ontop.world.movement.minimum-interval:50ms}") Duration movementInterval,
             @Value("${ontop.world.chat.minimum-interval:1s}") Duration chatInterval,
             WorldEmoteProperties emotes,

@@ -51,7 +51,8 @@ HttpSecurity를 요구하지 않으며, 실제 Servlet 서버에서는 프로필
 | GET `/dev/tables` | 공개 개발 페이지 | local에서만 등록됨 |
 | GET `/dev/world-config` | 공개 개발 설정 | local에서만 등록됨. 기존 WebSocket 인증 모드에서는 404 |
 | GET `/actuator/health`, 하위 health 경로 | 공개 | 기존 상태만 공개, 상세 정보는 never |
-| `/ws/tables` | 기존 WebSocket 정책 | local 핸드셰이크/기존 Interceptor에 위임. 이번 REST JWT 체인은 적용하지 않음 |
+| POST `/api/v1/auth/websocket-ticket` | Access JWT + 활성 회원 | S15P31B105-100에서 공통 회원 인증과 연결. 최대30초 1회용 접속권 |
+| `/ws/tables` | 별도 접속권 인증 | Servlet 환경에서 기존 Interceptor에 위임. URL에 Access JWT를 받지 않음 |
 
 `/actuator/**` 중 health를 제외한 경로는 익명 401, 정상 회원 403이다.
 Actuator 노출 설정 자체도 기존 health 전용을 유지한다.
@@ -132,21 +133,19 @@ HTTP 이외의 후속 연결은 `AccessAuthenticationService.authenticate(rawAcc
 
 ### WebSocket 인계
 
-이번 변경은 TableHandshakeInterceptor, WebSocketUserResolver, VerifiedWebSocketUser,
-TableHub, 게임 메시지 라우팅/프로필을 수정하지 않는다. `/ws/tables`에 Bearer 인증을 새로 붙이지 않았다.
-기존 `ontop.websocket.authenticated=true`에서는 Servlet Principal과 resolver가 여전히 필요하며
-현재 운영 WebSocketUserResolver 구현체는 없다. 인증 모드 준비가 완료됐다는 뜻이 아니다.
+S15P31B105-100에서 MR !14의 접속권 구조와 공통 회원 인증을 연결했다.
+접속권 발급은 보호 체인의 JWT 검증·requireActive() 조회를 각각 한 번 수행한다. 기존 AuthenticatedUser Principal과
+검증된 만료를 담은 Authentication.details(AuthenticatedAccess)를 서비스에서 재사용한다.
+VerifiedWebSocketUser.from()으로 매핑하고, 연결 때 requireActive(id)를 다시 호출하는 어댑터로
+탈퇴를 재확인한다. 새로운 접속권 저장소나 JWT 검증 알고리즘은 만들지 않았다.
+회원 없음/탈퇴는 401, 연결 시 DB 장애는 503으로 구분한다.
 
-담당자는 전달 방식 합의 후 공통 서비스로 인증된 AuthenticatedUser를 얻고,
-`VerifiedWebSocketUser(userId, Provider)`로 제공자를 명시적으로 매핑하는 어댑터를 연결할 수 있다.
-Principal.getName()이나 query의 userId를 무검증으로 캐스팅하지 않는다.
-브라우저 WebSocket은 임의 Authorization 헤더를 직접 설정할 수 없으므로 전달 방식/재인증/만료/
-탈퇴/로그아웃 시 연결 종료는 후속 합의와 통합 시험이 필요하다. URL에 JWT를 추가하는 우회책은 구현하지 않는다.
-REST SecurityContext는 요청 종료 후 정리된다. 이후 WebSocket 메시지 스레드에서 REST 컨텍스트가 유지된다고
-가정하지 않고, 합의한 연결 인증이 끝난 VerifiedWebSocketUser를 기존 WebSocket 세션 계약으로 전달해야 한다.
-후속 resolver 어댑터에서는 공통 서비스의 401 오류를 Optional.empty()로 변환해야 기존 Interceptor의 401 계약을
-유지할 수 있다. DB/설정 장애는 기존 연결 불가 503 분기로 처리한다. 공통 예외를 전부 그대로 던져
-잘못된 JWT까지 서버 장애 503으로 바꾸지 않도록 구분해야 한다. 해당 어댑터는 이번에 구현하지 않았다.
+브라우저는 보호 POST로 최대30초 1회용 접속권을 받은 뒤 `/ws/tables?ticket=...`으로 연결한다.
+Access JWT를 URL에 추가하거나 WebSocket 임의 Authorization 헤더를 가정하지 않는다.
+REST SecurityContext는 요청 종료 후 정리되며 기존 VERIFIED_USER 세션 속성/Hub 계약을 그대로 사용한다.
+인증 기본값은 true이고 false는 명시적 local(+db/visual-test) 개발 조합에서만 허용한다.
+로그아웃·탈퇴에 따른 연결 강제 종료와 로그인 세션 매핑은 후속 Story다.
+전달 방식·실제 회원 테스트·프로필 변경 범위는 [WebSocket 인증 계약](websocket-authentication.md)을 따른다.
 
 ## 오류와 보안 헤더
 
@@ -196,7 +195,8 @@ cd backend
    Postman은 브라우저 CORS를 강제하지 않으므로 실제 프론트에서도 확인해야 한다.
 7. 보호 경로에 정상 Access를 붙여 `/actuator/metrics` → 403, health는 토큰 없이 상태만 반환하는지 확인한다.
 
-DB 없는 기본/local 실행과 WebSocket 개발 모드는 계속 시작된다. 보호 REST는 DB 없는 상태에서
+DB 없는 기본/local 실행은 계속 시작된다. 익명 WebSocket 개발은 local에서 authenticated=false를 명시한다.
+보호 REST는 DB 없는 상태에서
 무인증 401, 정상 JWT + 회원 조회 불가 503으로 안전하게 실패한다. DB 없이 보호 REST를 공개하지 않는다.
 `/dev/tables` 페이지 자체와 WebSocket은 유지되지만 기존 페이지의 **목록 새로고침** fetch에는 Bearer가 없으므로
 새 정책에서 401이다. 팀원 페이지는 수정하지 않았으며, 정식 UI의 Access 헤더 연결이 후속 작업이다.

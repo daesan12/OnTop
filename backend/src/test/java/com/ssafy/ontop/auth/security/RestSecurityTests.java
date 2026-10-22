@@ -61,6 +61,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "ontop.oauth.naver.client-id=fixture-naver"})
 @AutoConfigureMockMvc(print = MockMvcPrint.NONE)
 @Import(RestSecurityTests.ProbeConfiguration.class)
+@org.springframework.test.context.TestPropertySource(properties = "ontop.websocket.authenticated=false")
 class RestSecurityTests {
     private static final byte[] KEY = randomKey();
     private static final String ISSUER = "ontop-rest-test";

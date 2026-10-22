@@ -32,7 +32,7 @@ public class ChannelAccessFilter extends OncePerRequestFilter {
 
     public ChannelAccessFilter(AccessAuthenticationService authentication,
             AuthExchangeOriginPolicy origins, ObjectMapper mapper,
-            @Value("${ontop.websocket.authenticated:false}") boolean authenticatedTables) {
+            @Value("${ontop.websocket.authenticated:true}") boolean authenticatedTables) {
         this.authentication = authentication;
         this.origins = origins;
         this.mapper = mapper;

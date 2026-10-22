@@ -20,6 +20,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest(properties = "spring.profiles.active=local")
 @AutoConfigureMockMvc(print = MockMvcPrint.NONE)
+@org.springframework.test.context.TestPropertySource(properties = "ontop.websocket.authenticated=false")
 class RestWithoutDatabaseTests {
     @Autowired
     private MockMvc mvc;
