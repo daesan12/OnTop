@@ -735,7 +735,7 @@
       "request": {
         "method": "POST",
         "url": "{{baseUrl}}/api/v1/minigames/sessions",
-        "description": "MINI-01: local,db + ontop.minigames.enabled=true + 공통/미니게임 스키마 필요. 같은 키 재전송은 같은 세션. 시작은 보상/차감하지 않습니다.",
+        "description": "MINI-01 v2: local,db + ontop.minigames.enabled=true + V110/V111 필요. 같은 키는 같은 세션/불 세기. 새 키는 이전 판 포기. 60초·6칸·15점당1냥·KST 하루100냥. 탭 이동 중 시간 진행, 랭킹 제외.",
         "auth": {
           "type": "noauth"
         },
@@ -785,7 +785,7 @@
             "type": "text/javascript",
             "exec": [
               "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
-              "pm.environment.set('minigameSessionId',pm.response.json().minigameSessionId);"
+              "if(pm.response.code===201){ const s=pm.response.json(); pm.environment.set('minigameSessionId',s.minigameSessionId); pm.environment.set('minigameHeats',JSON.stringify(s.heats)); pm.environment.set('minigameStartedAt',s.startedAt); pm.environment.unset('minigameLog'); pm.expect(s.heats).to.have.lengthOf(64); pm.expect(s.rulesVersion).to.eql('v2'); }"
             ]
           }
         }
@@ -836,11 +836,11 @@
       ]
     },
     {
-      "name": "21 미검증 붕어빵 완료 — 지급 차단",
+      "name": "21 붕어빵 입력 검증·보상 확정",
       "request": {
         "method": "POST",
         "url": "{{baseUrl}}/api/v1/minigames/sessions/{{minigameSessionId}}/complete",
-        "description": "MINI-03: 기본 서버에는 굽기 검증 소스가 없으므로 MINIGAME_NOT_VERIFIED. score/rewardAmount/userId를 보내지 않습니다. 검증 소스 연결 후3개당2엽전을 DB에 한 번 지급합니다.",
+        "description": "MINI-03 v2: 시작 후60초 이상 기다린 뒤 제출. minigameLog에 실제 FE 로그를 넣거나 비워두면 발급 heats로 황금7개(86점) 테스트 입력을 만듭니다. 테스트 입력은 개발 서버 검증용이며 실제 플레이 증거가 아닙니다. 최소50ms·같은칸300ms·6칸·상태 순서를 검증합니다. 결과86점/계산5냥, 일일상한 적용. 같은 판 재전송은 최초 결과. 422 TOO_EARLY는 기다린 후 재시도, LOG_INVALID는 첫 사유 유지. score/rewardAmount/userId 금지. 포기 테스트는 새 판을 시작한 뒤22를 실행하세요.",
         "auth": {
           "type": "noauth"
         },
@@ -860,7 +860,7 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{}",
+          "raw": "{\n  \"log\": {{minigameLog}},\n  \"seenTips\": [\"START\", \"GOLD\"],\n  \"clientScore\": 86\n}",
           "options": {
             "raw": {
               "language": "json"
@@ -876,7 +876,15 @@
             "exec": [
               "if (!pm.environment.name) throw new Error('먼저 OnTop Local 환경을 선택해주세요.');",
               "if (!pm.environment.get('accessToken')) throw new Error('개인 로컬 Access JWT가 필요합니다.');",
-              "if(!/^[1-9][0-9]*$/.test(String(pm.environment.get('minigameSessionId')||''))) throw new Error('먼저19를 실행하세요.');"
+              "if(!/^[1-9][0-9]*$/.test(String(pm.environment.get('minigameSessionId')||''))) throw new Error('먼저19를 실행하세요.');",
+              "if(!pm.environment.get('minigameLog')) {",
+              " const heats=JSON.parse(pm.environment.get('minigameHeats')||'[]'); if(heats.length!==64) throw new Error('먼저19 실행');",
+              " const log=[];",
+              " for(let i=0;i<7;i++){const slot=i%6,pour=i<6?i*350:22000,fill=pour+3000,d=Math.ceil(600000/heats[i]);",
+              " log.push({slot,action:'POUR',t:pour},{slot,action:'FILL',t:fill},{slot,action:'TURN',t:fill+d},{slot,action:'TURN',t:fill+2*d});}",
+              " log.sort((a,b)=>a.t-b.t); let last=-50; log.forEach(e=>{e.t=Math.max(e.t,last+50);last=e.t;});",
+              " pm.environment.set('minigameLog',JSON.stringify(log));",
+              "}"
             ]
           }
         },
@@ -885,8 +893,8 @@
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test('HTTP 409', () => pm.response.to.have.status(409));",
-              "pm.test('MINIGAME_NOT_VERIFIED', () => pm.expect(pm.response.json().code).to.eql('MINIGAME_NOT_VERIFIED'));"
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "if(pm.response.code===200){const r=pm.response.json(); pm.expect(r.coinsGranted).to.be.within(0,r.coinsCalculated); pm.expect(r.todayEarned).to.be.at.most(100); pm.expect(r.rewardAmount).to.eql(r.coinsGranted);}"
             ]
           }
         }
@@ -944,6 +952,49 @@
             "exec": [
               "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
               "pm.expect(pm.response.json().status).to.eql('ABANDONED'); pm.expect(pm.response.json().rewardAmount).to.eql(0);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "23 붕어빵 오늘 보상·첫 판·안내 조회",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/v1/minigames/sessions",
+        "description": "MINI-02 추가 조회: KST todayEarned, dailyCap100, isFirstGame, seenTips, rulesVersion v2. 랭킹 없음.",
+        "auth": {
+          "type": "noauth"
+        },
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          },
+          {
+            "key": "Origin",
+            "value": "{{baseUrl}}"
+          }
+        ]
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.environment.name) throw new Error('먼저 OnTop Local 환경을 선택해주세요.');",
+              "if (!pm.environment.get('accessToken')) throw new Error('개인 로컬 Access JWT가 필요합니다.');"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.expect(pm.response.json().dailyCap).to.eql(100); pm.expect(pm.response.json().rulesVersion).to.eql('v2');"
             ]
           }
         }

@@ -1,17 +1,17 @@
-"name": "21 미검증 붕어빵 완료 — 지급 차단"
+"name": "21 붕어빵 입력 검증·보상 확정"
 "$kind": "http-request"
 "method": "POST"
 "url": "{{baseUrl}}/api/v1/minigames/sessions/{{minigameSessionId}}/complete"
-"description": "MINI-03: 기본 서버에는 굽기 검증 소스가 없으므로 MINIGAME_NOT_VERIFIED. score/rewardAmount/userId를 보내지 않습니다. 검증 소스 연결 후3개당2엽전을 DB에 한 번 지급합니다."
+"description": "MINI-03 v2: 시작 후60초 이상 기다린 뒤 제출. minigameLog에 실제 FE 로그를 넣거나 비워두면 발급 heats로 황금7개(86점) 테스트 입력을 만듭니다. 테스트 입력은 개발 서버 검증용이며 실제 플레이 증거가 아닙니다. 최소50ms·같은칸300ms·6칸·상태 순서를 검증합니다. 결과86점/계산5냥, 일일상한 적용. 같은 판 재전송은 최초 결과. 422 TOO_EARLY는 기다린 후 재시도, LOG_INVALID는 첫 사유 유지. score/rewardAmount/userId 금지. 포기 테스트는 새 판을 시작한 뒤22를 실행하세요."
 "auth":
   "type": "noauth"
 "scripts":
   -
     "type": "beforeRequest"
-    "code": "if (!pm.environment.name) throw new Error('먼저 OnTop Local 환경을 선택해주세요.');\nif (!pm.environment.get('accessToken')) throw new Error('개인 로컬 Access JWT가 필요합니다.');\nif(!/^[1-9][0-9]*$/.test(String(pm.environment.get('minigameSessionId')||''))) throw new Error('먼저19를 실행하세요.');"
+    "code": "if (!pm.environment.name) throw new Error('먼저 OnTop Local 환경을 선택해주세요.');\nif (!pm.environment.get('accessToken')) throw new Error('개인 로컬 Access JWT가 필요합니다.');\nif(!/^[1-9][0-9]*$/.test(String(pm.environment.get('minigameSessionId')||''))) throw new Error('먼저19를 실행하세요.');\nif(!pm.environment.get('minigameLog')) {\n const heats=JSON.parse(pm.environment.get('minigameHeats')||'[]'); if(heats.length!==64) throw new Error('먼저19 실행');\n const log=[];\n for(let i=0;i<7;i++){const slot=i%6,pour=i<6?i*350:22000,fill=pour+3000,d=Math.ceil(600000/heats[i]);\n log.push({slot,action:'POUR',t:pour},{slot,action:'FILL',t:fill},{slot,action:'TURN',t:fill+d},{slot,action:'TURN',t:fill+2*d});}\n log.sort((a,b)=>a.t-b.t); let last=-50; log.forEach(e=>{e.t=Math.max(e.t,last+50);last=e.t;});\n pm.environment.set('minigameLog',JSON.stringify(log));\n}"
   -
     "type": "afterResponse"
-    "code": "pm.test('HTTP 409', () => pm.response.to.have.status(409));\npm.test('MINIGAME_NOT_VERIFIED', () => pm.expect(pm.response.json().code).to.eql('MINIGAME_NOT_VERIFIED'));"
+    "code": "pm.test('HTTP 200', () => pm.response.to.have.status(200));\nif(pm.response.code===200){const r=pm.response.json(); pm.expect(r.coinsGranted).to.be.within(0,r.coinsCalculated); pm.expect(r.todayEarned).to.be.at.most(100); pm.expect(r.rewardAmount).to.eql(r.coinsGranted);}"
 "headers":
   -
     "key": "Authorization"
@@ -24,7 +24,7 @@
     "value": "application/json"
 "body":
   "mode": "raw"
-  "raw": "{}"
+  "raw": "{\n  \"log\": {{minigameLog}},\n  \"seenTips\": [\"START\", \"GOLD\"],\n  \"clientScore\": 86\n}"
   "options":
     "raw":
       "language": "json"
