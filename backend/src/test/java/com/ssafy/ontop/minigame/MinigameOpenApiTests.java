@@ -36,11 +36,14 @@ class MinigameOpenApiTests {
             assertThat(body.path("required").toString()).isEqualTo("[\"minigameType\"]");
             assertThat(body.path("additionalProperties").asBoolean(true)).isFalse();
             var complete = paths.path("/api/v1/minigames/sessions/{sessionId}/complete").path("post");
-            assertThat(complete.at("/responses/409/description").asText()).contains("MINIGAME_NOT_VERIFIED");
+            assertThat(complete.at("/responses/422/description").asText()).contains("LOG_INVALID", "TOO_EARLY");
             assertThat(complete.at("/requestBody/content/application~1json/schema/additionalProperties")
                     .asBoolean(true)).isFalse();
-            assertThat(complete.at("/requestBody/content/application~1json/schema/properties").size()).isZero();
-            assertThat(complete.path("description").asText()).contains("local,db", "실제 굽기 판정 소스");
+            assertThat(complete.at("/requestBody/content/application~1json/schema/properties/log/maxItems").asInt())
+                    .isEqualTo(1200);
+            assertThat(complete.path("description").asText()).contains("local,db", "dev,db", "v2", "100냥")
+                    .doesNotContain("local 전용");
+            assertThat(paths.path("/api/v1/minigames/sessions").has("get")).isTrue();
         }
     }
 }

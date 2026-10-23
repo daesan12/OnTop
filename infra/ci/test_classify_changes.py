@@ -20,6 +20,10 @@ class ChangeClassificationTests(unittest.TestCase):
         flags = classify(["README.md", "docs/auth.md"])
         self.assertFalse(any(flags.values()))
 
+    def test_analytics_only(self):
+        flags = classify(["analytics/queries/01_daily_active.sql", "analytics/scripts/run.py"])
+        self.assertFalse(any(flags.values()))
+
     def test_infra_requires_review(self):
         flags = classify(["infra/prod-db/compose.yaml", "infra/app/compose.dev.yaml"])
         self.assertEqual(flags["PROD_CONFIG_CHANGED"], 1)

@@ -12,7 +12,7 @@ const variables = {
     tableIdA: '',
     tableIdB: '',
     gameId: 'replace-with-real-game-id',
-    minigameSessionId: '', minigameRequestKey: '',
+    minigameSessionId: '', minigameRequestKey: '', minigameHeats: '', minigameLog: '', minigameStartedAt: '',
     accessToken: '', websocketTicket: '', shopItemId: '', userItemId: '', purchaseRequestKey: '', purchaseId: ''
 };
 
@@ -162,8 +162,8 @@ conflict.method='POST'; conflict.headers=purchaseHeaders;
 conflict.body={mode:'raw',raw:'{\n  "itemId": {{shopItemId}},\n  "quantity": 2\n}',options:{raw:{language:'json'}}}; httpItems.push(conflict);
 
 const miniStart = http('19 붕어빵 시작 — 세션 ID 저장', '/api/v1/minigames/sessions', 201,
-    'MINI-01: local,db + ontop.minigames.enabled=true + 공통/미니게임 스키마 필요. 같은 키 재전송은 같은 세션. 시작은 보상/차감하지 않습니다.',
-    `pm.environment.set('minigameSessionId',pm.response.json().minigameSessionId);`,
+    'MINI-01 v2: local,db + ontop.minigames.enabled=true 또는 dev,db에서 사용. dev는 V110/V111 추가 적용과 기본 활성화. 개인 환경 baseUrl=https://dev-api.on-top.world 및 해당 서버 Access JWT 사용(병합·배포 후). 같은 키는 같은 세션/불 세기. 새 키는 이전 판 포기. 60초·6칸·15점당1냥·KST 하루100냥. 탭 이동 중 시간 진행, 랭킹 제외.',
+    `if(pm.response.code===201){ const s=pm.response.json(); pm.environment.set('minigameSessionId',s.minigameSessionId); pm.environment.set('minigameHeats',JSON.stringify(s.heats)); pm.environment.set('minigameStartedAt',s.startedAt); pm.environment.unset('minigameLog'); pm.expect(s.heats).to.have.lengthOf(64); pm.expect(s.rulesVersion).to.eql('v2'); }`,
     shopSetup + `\npm.environment.set('minigameRequestKey',pm.variables.replaceIn('{{$guid}}'));`);
 miniStart.method='POST'; miniStart.headers=[...shopAuth,{key:'Content-Type',value:'application/json'},
     {key:'Idempotency-Key',value:'{{minigameRequestKey}}'}];
@@ -174,16 +174,28 @@ const miniLoad=http('20 본인 미니게임 상태', '/api/v1/minigames/sessions
     'MINI-02: 본인만 조회. 진행 중 score/endedAt=null, rewardAmount=0. 타인은404.',
     `pm.expect(pm.response.json().minigameSessionId).to.eql(pm.environment.get('minigameSessionId'));`,miniBefore);
 miniLoad.headers=shopAuth; httpItems.push(miniLoad);
-const miniComplete=http('21 미검증 붕어빵 완료 — 지급 차단', '/api/v1/minigames/sessions/{{minigameSessionId}}/complete',409,
-    'MINI-03: 기본 서버에는 굽기 검증 소스가 없으므로 MINIGAME_NOT_VERIFIED. score/rewardAmount/userId를 보내지 않습니다. 검증 소스 연결 후3개당2엽전을 DB에 한 번 지급합니다.',
-    codeTest('MINIGAME_NOT_VERIFIED'),miniBefore);
+const miniComplete=http('21 붕어빵 입력 검증·보상 확정', '/api/v1/minigames/sessions/{{minigameSessionId}}/complete',200,
+    'MINI-03 v2: 시작 후60초 이상 기다린 뒤 제출. minigameLog에 실제 FE 로그를 넣거나 비워두면 발급 heats로 황금7개(86점) 테스트 입력을 만듭니다. 테스트 입력은 개발 서버 검증용이며 실제 플레이 증거가 아닙니다. 최소50ms·같은칸300ms·6칸·상태 순서를 검증합니다. 결과86점/계산5냥, 일일상한 적용. 같은 판 재전송은 최초 결과. 422 TOO_EARLY는 기다린 후 재시도, LOG_INVALID는 첫 사유 유지. score/rewardAmount/userId 금지. 포기 테스트는 새 판을 시작한 뒤22를 실행하세요.',
+    `if(pm.response.code===200){const r=pm.response.json(); pm.expect(r.coinsGranted).to.be.within(0,r.coinsCalculated); pm.expect(r.todayEarned).to.be.at.most(100); pm.expect(r.rewardAmount).to.eql(r.coinsGranted);}`,
+    miniBefore+`\nif(!pm.environment.get('minigameLog')) {
+ const heats=JSON.parse(pm.environment.get('minigameHeats')||'[]'); if(heats.length!==64) throw new Error('먼저19 실행');
+ const log=[];
+ for(let i=0;i<7;i++){const slot=i%6,pour=i<6?i*350:22000,fill=pour+3000,d=Math.ceil(600000/heats[i]);
+ log.push({slot,action:'POUR',t:pour},{slot,action:'FILL',t:fill},{slot,action:'TURN',t:fill+d},{slot,action:'TURN',t:fill+2*d});}
+ log.sort((a,b)=>a.t-b.t); let last=-50; log.forEach(e=>{e.t=Math.max(e.t,last+50);last=e.t;});
+ pm.environment.set('minigameLog',JSON.stringify(log));
+}`);
 miniComplete.method='POST'; miniComplete.headers=[...shopAuth,{key:'Content-Type',value:'application/json'}];
-miniComplete.body={mode:'raw',raw:'{}',options:{raw:{language:'json'}}}; httpItems.push(miniComplete);
+miniComplete.body={mode:'raw',raw:'{\n  "log": {{minigameLog}},\n  "seenTips": ["START", "GOLD"],\n  "clientScore": 86\n}',options:{raw:{language:'json'}}}; httpItems.push(miniComplete);
 const miniAbandon=http('22 붕어빵 중도 포기', '/api/v1/minigames/sessions/{{minigameSessionId}}/abandon',200,
     'MINI-04: PLAYING→ABANDONED, 보상0. 반복 포기는 같은 결과, 이미 완료된 세션은409로 지급 취소 방지.',
     `pm.expect(pm.response.json().status).to.eql('ABANDONED'); pm.expect(pm.response.json().rewardAmount).to.eql(0);`,miniBefore);
 miniAbandon.method='POST'; miniAbandon.headers=[...shopAuth,{key:'Content-Type',value:'application/json'}];
 miniAbandon.body={mode:'raw',raw:'{}',options:{raw:{language:'json'}}}; httpItems.push(miniAbandon);
+const miniOverview=http('23 붕어빵 오늘 보상·첫 판·안내 조회','/api/v1/minigames/sessions',200,
+    'MINI-02 추가 조회: KST todayEarned, dailyCap100, isFirstGame, seenTips, rulesVersion v2. 랭킹 없음.',
+    `pm.expect(pm.response.json().dailyCap).to.eql(100); pm.expect(pm.response.json().rulesVersion).to.eql('v2');`,shopSetup);
+miniOverview.headers=shopAuth; httpItems.push(miniOverview);
 
 const message = (name, type, payload = {}) => ({
     name, $kind: 'websocket-message', contentType: 'json',
@@ -409,7 +421,7 @@ function yaml(value, indent = 0) {
         + (nested(item) ? '\n' + yaml(item, indent + 2) : ' ' + JSON.stringify(item))).join('\n');
 }
 const outputs = new Map([
-    ['OnTop-Minigame.postman_collection.json', JSON.stringify({info:{...httpV21.info,name:'OnTop Minigame',description:'MINI01~04: 19시작→20조회→21미검증 보상 차단→22포기. 실제 굽기 성공 검증 소스는 별도 연동합니다. 상세docs/minigame-api.md.'},item:httpV21.item.slice(18)},null,2)+'\n'],
+    ['OnTop-Minigame.postman_collection.json', JSON.stringify({info:{...httpV21.info,name:'OnTop Minigame',description:'붕어빵 v2: 23시작화면조회→19시작→60초 플레이→21입력 검증·보상. 20본인판조회,22포기는 별도 새 판에서 확인. 15점당1냥·KST 하루100냥·랭킹 제외·탭 이동 시간 진행. 기존 API 경로 유지. docs/minigame-api.md.'},item:httpV21.item.slice(18)},null,2)+'\n'],
     ['OnTop-Shop.postman_collection.json', JSON.stringify({info: {...httpV21.info, name: 'OnTop Shop',
         description: 'SHOP-01/02 · INVENTORY-01/02. 13목록→14구매→15동일키 재요청→16보유→17장착. 18은 같은키 충돌 검사. local,db + ontop.shop.enabled=true + 공통/상점 스키마가 필요합니다. 보유 의상 재구매는 서버에서 거절하고 소비형은 수량을 누적합니다. 테스트 계정의 개인 로컬 Access JWT만 사용하고 공유하지 마세요. 기본 DB에 스키마를 자동 적용하지 않았습니다. 실제 DB 초기화·공통 재화 통합·3D 외형 계약은 별도 확인합니다.\n\n2026-10-22: 상점 저장 처리를 JPA 엔티티·JPQL로 전환했습니다. 기존 6개 요청·응답·중복 구매 방지·롤백 계약은 그대로이며 예제 수정 없이 사용할 수 있습니다.' + appearanceGuide},
         item: httpV21.item.slice(12,18)}, null, 2) + '\n'],

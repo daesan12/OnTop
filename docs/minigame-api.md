@@ -1,38 +1,93 @@
-# 붕어빵 미니게임 API
+# 붕어빵 미니게임 API · v2
 
-기준: [OnTop 통합 기획서 v0.4](https://app.notion.com/p/OnTop_-_-154161842b868387b6ad0174db68ee71), Notion MINI-01~04(2026-10-23 조회), ERD의 minigame_sessions. 회원 로그인 JWT를 기존 REST 인증으로 검증하며 임의 userId/score/rewardAmount는 받지 않는다. 모든 응답은 Cache-Control: no-store다.
+기준: 2026-10-23 수신한 `붕어빵_뒤집기_최종기획.md`, BE·FE 작업명세와 사용자 확정 사항.
+이 문서는 기존 MINI-01~04 경로를 유지한 구현 계약이다. 랭킹은 제외하고 탭 이동 중에도 시간은 흐른다.
+가게 위치·캐릭터 배치는 미정이며 이 REST 흐름을 막지 않는다.
 
-## 범위와 실행
+## 실행과 저장
 
-- `local,db`, `ontop.minigames.enabled=true`일 때 JPA 서비스가 활성화된다. 기본 비활성이고 미설정 서비스는 503 MINIGAME_NOT_CONFIGURED다. 운영 활성화·공통 DB 스키마 배포는 이번 작업에 포함하지 않는다.
-- 공통 users/wallets/wallet_transactions를 재사용한다. 명시적으로 Flyway locations에 `classpath:db/minigame`을 추가하면 V110이 minigame_sessions와 시작 중복 요청 영수증 minigame_start_requests를 생성한다. 기존 마이그레이션·공통 지갑 DDL은 수정하지 않는다.
-- 최신 dev 통합 후 공통 지갑은 기본 `db/migration`의 V4를 사용한다. 신규 검증 DB에는 이전 V99/V101 상점 지갑 fixture를 함께 적용하지 않는다. 기존 DB에 적용된 이력·체크섬은 변경하지 않으며 운영 DB를 자동 변경하지 않는다.
-- minigame_sessions는 ERD의 id/user_id/minigame_type/status/score/reward_amount/started_at/ended_at에 맞춘다. 영수증은 API 멱등성을 위한 보조 테이블이다.
-- 실제 굽기 입력·서버 성공 판정은 명세에서 미정이다. `VerifiedMinigameResultSource.findCompletedCount(userId, sessionId)`에 서버가 검증·보관한 해당 세션의 최종 성공 개수를 연결해야 보상을 지급한다. 등록된 구현이 없거나 검증 결과가 없으면 409 MINIGAME_NOT_VERIFIED이며 돈/상태를 변경하지 않는다. 프론트 점수·단순 경과 시간·테스트 결과를 검증 근거로 쓰지 않는다.
+- 기존 Access JWT와 활성 회원 인증을 재사용한다. 사용자 ID는 인증에서 가져오고 요청 본문에서 받지 않는다.
+- `local,db` + `ontop.minigames.enabled=true`, 또는 `dev,db`에서 활성화한다. dev는 기본 활성화한다.
+- `prod`/`production`을 함께 켜면 미니게임 컨트롤러·저장소·서비스·CORS 예외를 등록하지 않는다.
+- Flyway locations: `classpath:db/migration,classpath:db/minigame`. 상점도 쓰면 `classpath:db/shop` 추가.
+- V110 기존 공통 세션/시작 영수증 유지. V111은 붕어빵 전용 입력·불 세기·최초 결과를 보관하는
+  `bungeoppang_records`, 안내 이력 `bungeoppang_profiles`와 일일 보상 조회 인덱스를 추가한다.
+- 공통 `Wallet`, `WalletTransaction`을 사용한다. 거래 종류 `MINIGAME_REWARD`, 참조 `minigame_session_id`,
+  키 `minigame-reward:{id}`를 유지하며 별도 지갑을 만들지 않는다.
+- 지갑 → 세션 잠금 순서. 같은 회원의 시작/완료/포기/상점 구매가 같은 지갑 잠금을 사용한다.
+  일일 합계는 이 잠금 안에서 완료 세션을 조회하므로 중복 집계 테이블 없이 상한을 지킨다.
+- 응답은 `Cache-Control: no-store`. BIGINT ID는 문자열로 응답한다.
+
+### 개발 서버 연동 설정
+
+- 개발 프론트는 `https://dev.on-top.world`, 백엔드는 `https://dev-api.on-top.world`다.
+  프론트의 기존 `/api/v1` 프록시 또는 위 백엔드 주소를 사용하고 Access JWT를 전달한다.
+- 기존 `AUTH_ALLOWED_ORIGINS`에 실제 프론트 origin이 있어야 한다. 와일드카드나 운영 프론트 주소를
+  임의로 추가하지 않는다. 미니게임 경로의 OPTIONS만 `Authorization, Content-Type, Idempotency-Key`를
+  허용하며 실제 GET/POST 회원 인증은 기존 공통 인증을 그대로 거친다.
+- `dev,db`의 Flyway는 `db/migration` + `db/minigame`을 읽는다. 기존 공통 테이블은 보존하고
+  V110/V111의 미니게임 테이블·인덱스만 추가한다. `ddl-auto=validate`와 Flyway 검증을 유지한다.
+  `clean`/`repair`/`out-of-order`나 기존 스키마 초기화는 사용하지 않는다.
+- 기존 공통 마이그레이션 V1~V6가 먼저 적용된 DB를 기준으로 한다. 이미 고번호 V100/V110 등을
+  적용했지만 V5/V6가 없는 별도 DB는 먼저 이력을 확인해야 한다. 이 MR은 그런 DB를 임의 복구하지 않는다.
+- 이미 지갑이 있는 정상 회원으로 시작·조회·완료를 연동한다. 기존 회원의 지갑 생성은 별도 관리 작업이다.
+- 이 설정은 MR 병합 후 개발 이미지 재빌드·배포 때 적용된다. MR 생성/로컬 검증만으로 원격 반영을 뜻하지 않는다.
 
 ## MINI-01 · 시작
 
-POST `/api/v1/minigames/sessions`. `Idempotency-Key: 1~64자리 영숫자/_/-` 필수. 로그인 사용자의 지갑 행 잠금 안에서 세션/영수증을 함께 생성한다. 같은 회원·같은 키는 최초 201 응답을 재현하며 다른 회원의 같은 키는 별도다. 현재 지원 입력은 아래 한 종류이며 미지원 종류/추가 필드는400이다. 키 필수화는 명세의 시작 재전송 제안을 구현한 계약이다.
+`POST /api/v1/minigames/sessions`
+
+헤더: `Authorization: Bearer <Access JWT>`, `Content-Type: application/json`,
+`Idempotency-Key: 영숫자/_/- 1~64자`.
 
 ```json
-{"minigameType":"BUNGEOPPANG"}
+{
+  "minigameType": "BUNGEOPPANG"
+}
 ```
 
-201 응답:
+성공 HTTP 201:
+
 ```json
 {
   "minigameSessionId": "901",
   "minigameType": "BUNGEOPPANG",
   "status": "PLAYING",
-  "startedAt": "2026-10-23T00:10:00Z"
+  "startedAt": "2026-10-23T00:00:00Z",
+  "rulesVersion": "v2",
+  "heats": [100, 85, 115],
+  "isFirstGame": true
 }
 ```
 
-시작은 지갑 잔액/예약금/거래 원장을 변경하지 않는다. 종료된 세션의 같은 시작 키도 최초 생성 응답을 반환하며 현재 상태는 MINI-02로 조회한다. 새 플레이는 새 키를 사용한다. 동시 진행 세션 수·유효시간·시간당 상한은 임의로 정하지 않았다.
+위 `heats`는 길이를 줄인 표시 예시다. 실제로는 85~115 정수 **64개**이며 FILL 순서대로 소비한다.
+동일 회원·키 재요청은 최초 응답과 불 세기를 재현한다. 다시 하기는 새 키로 호출한다.
+새 키 시작은 기존 진행 판을 ABANDONED로 종료한다. 본인별 활성 판은 하나다.
+시작 제한 기본값은 명세의 예시인 60초당 10회이며 `ontop.minigames.starts-per-minute`로 조정한다.
+같은 키 재시도는 제한 횟수를 추가 소비하지 않는다. 시작 시 잔액 차감/지급은 없다.
 
-## MINI-02 · 본인 상태 조회
+## MINI-02 · 조회
 
-GET `/api/v1/minigames/sessions/{minigameSessionId}`. 양수 BIGINT의 문자열 ID. 타인/없는 세션은 동일404 MINIGAME_NOT_FOUND다.
+### 시작 화면
+
+`GET /api/v1/minigames/sessions` → HTTP 200:
+
+```json
+{
+  "todayEarned": 5,
+  "dailyCap": 100,
+  "isFirstGame": false,
+  "seenTips": ["GOLD", "START"],
+  "rulesVersion": "v2"
+}
+```
+
+오늘은 Asia/Seoul 날짜다. 검증 완료 판이 한 번도 없으면 `isFirstGame=true`다.
+포기·거부·만료 판은 첫 판 완료로 세지 않는다.
+
+### 본인 판
+
+`GET /api/v1/minigames/sessions/{minigameSessionId}` → HTTP 200:
 
 ```json
 {
@@ -40,75 +95,110 @@ GET `/api/v1/minigames/sessions/{minigameSessionId}`. 양수 BIGINT의 문자열
   "status": "PLAYING",
   "score": null,
   "rewardAmount": 0,
-  "startedAt": "2026-10-23T00:10:00Z",
+  "startedAt": "2026-10-23T00:00:00Z",
   "endedAt": null
 }
 ```
 
-PLAYING/COMPLETED/ABANDONED/INVALID를 표현하며 진행 중 최종 점수/완료 시각은 null. 완료 후 score는 서버 검증 완료 개수다.
+상태는 기존 ERD의 PLAYING / COMPLETED / ABANDONED / INVALID를 유지한다.
+명세의 VERIFIED는 COMPLETED, REJECTED/EXPIRED는 INVALID에 대응한다.
+시작 후 10분 이상 지난 진행 판은 조회·완료·다음 시작에서 INVALID로 정리한다.
+타인 판과 없는 판은 동일한 404다.
 
 ## MINI-03 · 완료·보상 확정
 
-POST `/api/v1/minigames/sessions/{minigameSessionId}/complete`, JSON body `{}`. 회원/세션 범위를 검사하고 지갑 행 → 세션 행을 잠근다. 이미 COMPLETED이면 검증 모듈을 재호출하거나 재지급하지 않고 같은 결과를 반환한다.
+`POST /api/v1/minigames/sessions/{minigameSessionId}/complete`
+
+```json
+{
+  "log": [
+    { "slot": 0, "action": "POUR", "t": 180 },
+    { "slot": 0, "action": "FILL", "t": 900 },
+    { "slot": 0, "action": "TURN", "t": 6650 },
+    { "slot": 0, "action": "TURN", "t": 12300 }
+  ],
+  "seenTips": ["GOLD"],
+  "clientScore": 10
+}
+```
+
+- `log` 필수, 최대 1200줄. slot 0~5, action POUR/FILL/TURN/DISCARD, t 0~60000 정수.
+- 시각 역행·전체 50ms 미만 입력·동일 칸 300ms 미만 입력·상태 불일치·65번째 FILL은 거절한다.
+- 재료 선택/아무 일도 일어나지 않은 입력은 로그에서 제외한다. 버려도 소비한 불 세기는 돌려놓지 않는다.
+- FE는 카운트다운 3.5초 뒤 게임 시간을 0부터 센다. 서버는 판 발급 후 최소 60초 경과를 검사한다.
+  TOO_EARLY는 판을 소모하지 않으므로 시간이 지난 뒤 같은 판으로 다시 제출할 수 있다.
+- 40초 전은 한 면 8초, 이후는 6초로 계산하며 경계에 걸친 면은 시간을 나누어 정수 계산한다.
+- 익힘 0~49/100 이상은 실패(물고기 전체 0점), 50~69/91~99는 면당 2점, 70~90은 면당 5점.
+- 양면 황금은 콤보 +1, 일반 성공은 유지, 실패/버리기는 초기화. 갱신 후 3~5콤보 ×1.2,
+  6 이상 ×1.5 적용, 소수는 버림. 끝에 남은 미완성 붕어빵은 0점이다.
+- `clientScore`는 선택적인 비교 기록이며 지급 근거가 아니다. score/rewardAmount/userId 추가 필드는 400.
+- `seenTips` 선택, 최대 5개. START/POUR/GOLD/BURNT/RUSH만 완료 시 합쳐 저장하고 모르는 키는 무시한다.
+
+성공 HTTP 200 (양면 황금 7개 예시):
 
 ```json
 {
   "minigameSessionId": "901",
   "status": "COMPLETED",
-  "verifiedCompletedCount": 3,
-  "rewardAmount": 2
+  "verifiedCompletedCount": 7,
+  "rewardAmount": 5,
+  "score": 86,
+  "made": 7,
+  "golden": 7,
+  "failed": 0,
+  "wasted": 0,
+  "maxCombo": 7,
+  "coinsCalculated": 5,
+  "coinsGranted": 5,
+  "todayEarned": 5,
+  "dailyCap": 100,
+  "capReached": false
 }
 ```
 
-서버 검증 개수3개당2엽전. 최종 개수는0 이상의 안전 정수여야 한다. 잔여1~2개 폐기/이월 정책이 미정이므로 3의 배수가 아닌 결과는409 MINIGAME_POLICY_REQUIRED로 보류하고 PLAYING/잔액을 유지한다. 이 보류를 제품의 잔여 폐기 정책으로 취급하지 않는다.
+15점당 1냥(나머지 버림), 한국 날짜 하루 최대 100냥. 자정을 넘어 제출하면 제출 처리 날짜에 포함한다.
+`verifiedCompletedCount`는 꺼낸 개수(made), `rewardAmount`는 실제 지급액(coinsGranted)과 같은 호환 필드다.
+상한으로 0냥이어도 COMPLETED로 저장한다. 첫 결과를 저장하므로 재요청은 날짜·상한이 달라도 처음 응답을 반환한다.
+세션 완료·보상·거래·결과·안내 저장은 한 트랜잭션이며 저장 실패 시 전부 롤백한다.
 
-세션 COMPLETED·지갑 증가·MINIGAME_REWARD 원장을 같은 트랜잭션으로 저장한다. 원장 키 `minigame-reward:{sessionId}` 고정, minigame_session_id 참조, game_session_id/item_id는null. reserved_balance는 변경하지 않는다. 보상0은 거래 원장 없이 완료한다. 검증 조회는 지급하지 않고 결과는 해당 세션에 고정된 불변 값이어야 한다. 원장 저장 실패는 세션/지갑도 롤백한다.
-
-## MINI-04 · 중도 포기
-
-POST `/api/v1/minigames/sessions/{minigameSessionId}/abandon`, JSON body `{}`.
+입력 검증 실패 HTTP 422:
 
 ```json
-{"minigameSessionId":"901","status":"ABANDONED","rewardAmount":0}
+{
+  "code": "LOG_INVALID",
+  "message": "입력 기록을 확인할 수 없습니다.",
+  "details": null,
+  "detail": "ACTION_STATE_MISMATCH",
+  "index": 0
+}
 ```
 
-PLAYING→ABANDONED이며 보상 없음. 같은 포기는 동일 결과. COMPLETED 포기는409 MINIGAME_ALREADY_COMPLETED, ABANDONED 완료는409 MINIGAME_ALREADY_ABANDONED다. 완료/포기 경합은 같은 지갑·세션 잠금으로 최종 상태 하나만 확정한다.
+거부된 입력과 첫 사유도 저장한다. 같은 판을 고친 로그로 재제출해도 처음 422가 반환된다.
+이 검증은 규칙 위반을 걸러내며, 완벽하게 조작한 유효 로그·매크로까지 판별하는 보장은 아니다.
 
-## 오류
+## MINI-04 · 포기
 
-| HTTP | code | 의미 |
-| --- | --- | --- |
-| 400 | UNSUPPORTED_MINIGAME | 미지원 미니게임 종류 |
-| 400 | INVALID_REQUEST | 잘못된 종류/키/ID/JSON·금지 필드 |
-| 401 | UNAUTHENTICATED | 로그인 필요, 실제 인증 오류는 기존 공통 규격 |
-| 404 | MINIGAME_NOT_FOUND | 본인 세션 없음 |
-| 409 | MINIGAME_NOT_VERIFIED | 서버 검증 결과 없음/유효하지 않은 개수 |
-| 409 | MINIGAME_POLICY_REQUIRED | 잔여1~2개 처리 정책 미정 |
-| 409 | MINIGAME_ALREADY_COMPLETED | 완료된 세션 포기 차단 |
-| 409 | MINIGAME_ALREADY_ABANDONED | 포기한 세션 완료 차단 |
-| 409 | MINIGAME_ALREADY_FINISHED | 기타 종료 상태 변경 차단 |
-| 503 | MINIGAME_NOT_CONFIGURED | 미니게임 DB 서비스 비활성 |
-| 503 | MINIGAME_UNAVAILABLE | 저장 실패/지갑 부재/범위 초과 등 |
+`POST /api/v1/minigames/sessions/{minigameSessionId}/abandon`, 본문 `{}`.
+기존처럼 HTTP 200 `{ "minigameSessionId": "901", "status": "ABANDONED", "rewardAmount": 0 }`.
+포기 재요청은 동일 응답, 완료한 판은 409로 보상을 취소하지 않는다.
 
-## 남은 연동·협의
+## 오류·검증 경계
 
-- 서버 굽기 입력·성공 판정 방식/실제 프론트 플레이 결과 → VerifiedMinigameResultSource 연결.
-- 남은1~2개 폐기/세션 간 이월 및 보상0 완료의 사용자 흐름.
-- 진행 세션 수·만료·시간당 상한이 필요하면 별도 정책 확정. 현재 임의 제한 없음.
-- 공통 지갑의 같은 행 잠금·원장 키/세션 FK 최종 DDL을 DB 담당과 맞춘다.
+400 INVALID_REQUEST / UNSUPPORTED_MINIGAME, 401 인증 실패, 404 MINIGAME_NOT_FOUND,
+409 RULES_VERSION_MISMATCH / MINIGAME_ALREADY_* / GAME_NOT_ACTIVE,
+422 TOO_EARLY / LOG_INVALID, 429 TOO_MANY_STARTS,
+503 MINIGAME_NOT_CONFIGURED / MINIGAME_UNAVAILABLE.
 
-API/DB 저장 구현과 실제 굽기 게임·외부 OAuth·운영 적용 완료는 구분한다. MySQL 검증에서 검증 결과 소스만 대역으로 제공한다.
+V111 이전 판은 불 세기가 없어 RULES_VERSION_MISMATCH이며 새 판이 필요하다.
+실제 프론트 연동·가게 배치·서버 배포와 API/격리 MySQL 검증은 별개다. 랭킹 API는 추가하지 않는다.
 
-## MySQL 검증 결과 · 2026-10-23
+## 확인한 검증 · 2026-10-23
 
-Java 21에서 `mysqlTest --tests '*MinigameMySqlTests'`를 실행해 7개 모두 통과했다(실패·오류·스킵 0). 기존 MySQL 8.4 컨테이너의 새 `ontop_minigame_test_` 전용 스키마만 사용했으며 기존 서비스·상점 검증 스키마는 변경하지 않았다.
-
-- 시작·본인 조회·미검증 완료 거절·서버 결과 지급·중복 완료 HTTP/DB 확인
-- 같은 키 동시 시작 시 세션 하나 생성
-- 동시 완료 6건의 보상 한 번 지급
-- 완료/포기 경합의 최종 상태·지급 일치
-- 원장 저장 실패 시 세션·지갑 롤백 후 재시도 성공
-- 미확정 잔여 정책·포기 재시도 시 미지급
-- 상점 구매와 미니게임 보상의 동시 지갑 증감 보존
-
-실제 JPA·MySQL 행 잠금·트랜잭션을 검증했으며 성공 개수 제공만 테스트 대역이다. 실제 붕어빵 판정 연동이나 운영 배포가 완료됐다는 의미는 아니다.
+- Java21 전체 백엔드: 153 suites / 1305 tests, 실패·오류·스킵0. `test bootJar` 성공.
+- `exportOpenApi` 실제 HTTP YAML 재생성·정적 명세 대조 성공. 새 조회 경로를 매핑 계약에 추가했다.
+- 격리 MySQL8.4: 12개 통과. 실제 발급 불 세기·입력 재생, 본인 인증 HTTP 흐름, 동시 완료6건,
+  완료/포기 경합, 지갑/원장 롤백·재시도, 구매와 보상 동시 증감, 일일 상한, 전날 보상 제외,
+  만료, 동일 시작 키, 새 판의 이전 판 포기, 시작 횟수 제한을 검증했다. 검증 소스 대역은 제거했다.
+- 테스트는 이번 작업 전용 `ontop_minigame_test_v2_20261023_1510`에서 실행했다. 기존 데이터 초기화 없음.
+- Postman 생성 결과 `node postman/generate.mjs --check` 일치. 테스트 입력 생성은 개발용 예시이며
+  실제 사람이 플레이했다는 근거가 아니다. 실제 FE 화면/운영 지갑 연동 성공으로 확대하지 않는다.

@@ -93,8 +93,11 @@ abstract class OpenApiHttpTestSupport {
         }
         if (environment.acceptsProfiles(Profiles.of("local"))) {
             expected.addAll(Set.of("GET /api/v1/shop/items",
-                    "POST /api/v1/shop/purchases", "GET /api/v1/users/me/items", "PATCH /api/v1/users/me/equipment",
-                    "POST /api/v1/minigames/sessions", "GET /api/v1/minigames/sessions/{sessionId}",
+                    "POST /api/v1/shop/purchases", "GET /api/v1/users/me/items", "PATCH /api/v1/users/me/equipment"));
+        }
+        if (environment.acceptsProfiles(Profiles.of("(local | dev) & !prod & !production"))) {
+            expected.addAll(Set.of("POST /api/v1/minigames/sessions", "GET /api/v1/minigames/sessions",
+                    "GET /api/v1/minigames/sessions/{sessionId}",
                     "POST /api/v1/minigames/sessions/{sessionId}/complete",
                     "POST /api/v1/minigames/sessions/{sessionId}/abandon"));
         }

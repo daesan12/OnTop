@@ -1,6 +1,8 @@
 # Deployed development park. Authentication and persistence still use the db profile.
 # Local demo controllers and in-memory game-start/settlement fixtures are not enabled.
 ontop:
+  minigames:
+    enabled: true
   world:
     channels:
       - channel-id: channel-1

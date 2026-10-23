@@ -18,6 +18,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import java.security.Principal;
 import java.util.Collections;
+import java.util.Set;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Profile;
 import org.springframework.dao.DataAccessException;
@@ -33,7 +34,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@Profile("local")
+@Profile("(local | dev) & !prod & !production")
 @RequestMapping("/api/v1/minigames/sessions")
 @Tag(name = "MINIGAME")
 @SecurityRequirement(name = "AccessJwt")
@@ -56,6 +57,7 @@ public class MinigameController {
     @Operation(summary = "붕어빵 세션 시작", description = "같은 회원·Idempotency-Key는 최초 세션 생성 응답을 반환합니다.")
     @ApiResponse(responseCode = "201", description = "생성 또는 같은 키의 최초 생성 응답",
             content = @Content(mediaType = "application/json", schema = @Schema(implementation = MinigameStartResponse.class)))
+    @ApiResponse(responseCode = "429", description = "TOO_MANY_STARTS")
     public ResponseEntity<?> start(Principal principal, @RequestBody JsonNode body, HttpServletRequest request) {
         long userId = account(principal);
         if (!body.isObject() || body.size() != 1 || !body.path("minigameType").isTextual()) {
@@ -81,16 +83,35 @@ public class MinigameController {
         return ok(service().load(account(principal), sessionId(sessionId)));
     }
 
+    @GetMapping
+    @Operation(summary = "붕어빵 시작 화면 상태 조회", description = "한국 날짜 기준 오늘 보상·첫 판·확인한 안내를 조회합니다.")
+    @ApiResponse(responseCode = "200", description = "오늘 보상과 안내 상태",
+            content = @Content(mediaType = "application/json", schema = @Schema(implementation = com.ssafy.ontop.minigame.dto.BungeoppangStatusResponse.class)))
+    public ResponseEntity<?> status(Principal principal) {
+        return ok(service().status(account(principal)));
+    }
+
     @PostMapping("/{sessionId}/complete")
     @Operation(summary = "미니게임 완료·보상 확정", description = "서버 검증 결과만 사용하며 중복 지급하지 않습니다.")
     @ApiResponse(responseCode = "200", description = "완료 또는 기존 완료 결과",
             content = @Content(mediaType = "application/json", schema = @Schema(implementation = MinigameCompleteResponse.class)))
     @ApiResponse(responseCode = "404", description = "MINIGAME_NOT_FOUND")
-    @ApiResponse(responseCode = "409", description = "MINIGAME_NOT_VERIFIED / MINIGAME_POLICY_REQUIRED / 종료 상태 충돌")
+    @ApiResponse(responseCode = "409", description = "RULES_VERSION_MISMATCH / 종료 상태 충돌")
+    @ApiResponse(responseCode = "422", description = "LOG_INVALID / TOO_EARLY")
     public ResponseEntity<?> complete(Principal principal, @PathVariable String sessionId, @RequestBody JsonNode body) {
         long userId = account(principal);
-        empty(body);
-        return ok(service().complete(userId, sessionId(sessionId)));
+        if (!body.isObject() || !body.has("log")) { throw invalid(); }
+        body.fieldNames().forEachRemaining(field -> {
+            if (!Set.of("log", "seenTips", "clientScore").contains(field)) { throw invalid(); }
+        });
+        if (body.has("seenTips") && (!body.path("seenTips").isArray() || body.path("seenTips").size() > 5)) {
+            throw invalid();
+        }
+        if (body.has("clientScore") && (!body.path("clientScore").isIntegralNumber()
+                || !body.path("clientScore").canConvertToInt() || body.path("clientScore").intValue() < 0)) {
+            throw invalid();
+        }
+        return ok(service().complete(userId, sessionId(sessionId), body));
     }
 
     @PostMapping("/{sessionId}/abandon")
@@ -156,7 +177,7 @@ public class MinigameController {
     @ExceptionHandler(MinigameException.class)
     ResponseEntity<?> failure(MinigameException exception) {
         return ResponseEntity.status(exception.status()).cacheControl(CacheControl.noStore())
-                .body(new ErrorResponse(exception.code(), exception.getMessage(), null));
+                .body(new ErrorResponse(exception.code(), exception.getMessage(), null, exception.detail(), exception.index()));
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
@@ -169,6 +190,6 @@ public class MinigameController {
         return failure(new MinigameException(503, "MINIGAME_UNAVAILABLE", "미니게임을 처리할 수 없습니다."));
     }
 
-    public record ErrorResponse(String code, String message, Object details) {
+    public record ErrorResponse(String code, String message, Object details, String detail, Integer index) {
     }
 }

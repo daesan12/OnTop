@@ -40,7 +40,12 @@ def classify(paths: list[str]) -> dict[str, int]:
             result["MANUAL_REVIEW"] = 1
         elif normalized.startswith("postman/"):
             result["BACKEND_CHANGED"] = 1
-        elif normalized.startswith("docs/") or normalized.endswith(".md"):
+        elif (
+            normalized.startswith("docs/")
+            or normalized.startswith("analytics/")
+            or normalized.endswith(".md")
+        ):
+            # Offline analytics queries and scripts are not part of a deployed build.
             continue
         else:
             # Unknown shared files must not silently skip checks or deploy.
