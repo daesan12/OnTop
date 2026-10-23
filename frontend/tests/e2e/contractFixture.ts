@@ -21,6 +21,10 @@ export async function fixture(
     bindings?: boolean
     players?: number
     omok?: boolean
+    manualMovement?: boolean
+    ownUserId?: '101' | '102'
+    emoteBindings?: boolean
+    position?: { x: number; y: number; z: number; yaw: number }
   } = {},
 ) {
   let tickets = 0,
@@ -45,7 +49,13 @@ export async function fixture(
     running: false,
     swimming: false,
     lastInputSeq: 0,
+    ...options.position,
   }
+  let emoteResponse: 'approve' | 'reject' | 'hold' = 'approve'
+  let emoteCounter = 0
+  let lastEmote: { eventId: string; channelId: string; userId: string; emoteCode: string; sentAt: string } | undefined
+  let emoteRequestId = ''
+  let remotePosition: Partial<typeof position> = {}
   let seated = false,
     rejectChat = false
   let gameCode: string | null = null,
@@ -172,7 +182,7 @@ export async function fixture(
         'Bearer fixture-access',
       )
       return route.fulfill({
-        json: { userId: 101, nickname: '공원 산책자', characterGender: 'MALE' },
+        json: { userId: Number(options.ownUserId ?? '101'), nickname: '공원 산책자', characterGender: 'MALE' },
       })
     }
     if (url.pathname === '/api/v1/channels')
@@ -214,6 +224,7 @@ export async function fixture(
   await page.route('**/park-bindings.json', (route) =>
     route.fulfill({
       json: {
+        emotes: options.emoteBindings === false ? [] : [{ motion: 'EMOTE_CLAP', code: 'CLAP' }, { motion: 'EMOTE_WAVE', code: 'WAVE' }],
         bindings:
           options.bindings === false
             ? []
@@ -239,6 +250,7 @@ export async function fixture(
                     ...position,
                     x: anchor.position[0] + (i % 4) * 2,
                     z: anchor.position[2] - 2 - Math.floor(i / 4) * 2,
+                    ...(i === 1 ? remotePosition : {}),
                   },
           })),
         },
@@ -278,7 +290,7 @@ export async function fixture(
       JSON.stringify({
         requestId: null,
         type: 'CONNECTED',
-        payload: { userId: '101' },
+        payload: { userId: options.ownUserId ?? '101' },
       }),
     )
     if (options.omok)
@@ -318,10 +330,12 @@ export async function fixture(
       }
       if (type === 'WORLD_MOVE') {
         Object.assign(position, {
-          x: position.x + Number(payload.dx) * 0.1,
-          z: position.z + Number(payload.dz) * 0.1,
-          moving: !!(payload.dx || payload.dz),
-          running: payload.run,
+          ...(!options.manualMovement ? {
+            x: position.x + Number(payload.dx) * 0.1,
+            z: position.z + Number(payload.dz) * 0.1,
+            moving: !!(payload.dx || payload.dz),
+            running: payload.run,
+          } : {}),
           lastInputSeq: payload.seq,
         })
         world(ws, requestId)
@@ -351,6 +365,13 @@ export async function fixture(
                 },
           ),
         )
+      }
+      if (type === 'WORLD_EMOTE_SEND') {
+        emoteRequestId = requestId
+        lastEmote = { eventId: `fixture-emote-${++emoteCounter}-${Date.now()}`, channelId: 'fixture-channel',
+          userId: options.ownUserId ?? '101', emoteCode: payload.emoteCode, sentAt: new Date().toISOString() }
+        if (emoteResponse === 'approve') emit(ws, 'WORLD_EMOTE_EVENT', lastEmote, requestId)
+        if (emoteResponse === 'reject') emit(ws, 'ERROR', { code: 'EMOTE_NOT_SUPPORTED', message: '등록되지 않은 감정표현입니다.' }, requestId)
       }
       if (type === 'TABLE_WATCH') table(ws, 'TABLE_WATCH_STATE', requestId)
       if (type === 'TABLE_UNWATCH')
@@ -516,5 +537,13 @@ export async function fixture(
       sockets.at(-1)!.close({ code: 4401, reason: 'Login session ended' })
     },
     world: () => world(sockets.at(-1)!),
+    emoteResponse: (response: typeof emoteResponse) => { emoteResponse = response },
+    completeEmote: () => { if (lastEmote) emit(sockets.at(-1)!, 'WORLD_EMOTE_EVENT', lastEmote, emoteRequestId) },
+    lastEmote: () => lastEmote,
+    emote: (event: NonNullable<typeof lastEmote>) => emit(sockets.at(-1)!, 'WORLD_EMOTE_EVENT', event),
+
+    players: (count: number) => { options.players = count; world(sockets.at(-1)!) },
+    pose: (patch: Partial<typeof position>) => { Object.assign(position, patch); world(sockets.at(-1)!) },
+    remotePose: (patch: Partial<typeof position>) => { remotePosition = { ...remotePosition, ...patch }; world(sockets.at(-1)!) },
   }
 }

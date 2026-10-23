@@ -9,13 +9,16 @@
   },
   "scripts": {
     "dev": "vite",
+    "dev:facilities": "vite --mode facility-preview",
     "dev:frontend-test": "vite --mode frontend-test --host localhost --port 5173 --strictPort",
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "test:e2e:facilities": "playwright test --config playwright.facilities.config.ts",
     "typecheck:tests": "tsc --project tsconfig.tests.json --noEmit",
+    "check:migration": "node scripts/check-migration-boundary.mjs",
     "assets:chair": "node scripts/prepare-wood-chair.mjs"
   },
   "dependencies": {

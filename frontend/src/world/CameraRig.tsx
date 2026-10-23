@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { PerspectiveCamera, Vector3 } from 'three'
-import { CAMERA, GOMOKU, TABLES, groundHeight, tableScale } from '../config'
+import { CAMERA, CHARACTER, GOMOKU, TABLES, groundHeight, tableScale } from '../config'
 import { useGame } from '../game/store'
 import { omokCamera } from '../game/cameraState'
 import { avatars, sampleAvatar, useSession } from '../network/worldClient'
 import { cameraOcclusion, CameraOcclusionFader } from './cameraOcclusion'
 import { installRoamingInput, viewControls } from './input'
+import { interactionAim } from '../features/interactions/interactionAim'
+import { constrainRoamingCamera } from './cameraCollision'
 
 export function CameraRig() {
   const { gl } = useThree()
@@ -17,6 +19,9 @@ export function CameraRig() {
       look: new Vector3(),
       pose: { x: 0, y: 0, z: 0, yaw: 0 },
       owner: '',
+      direction: new Vector3(),
+      bench: '',
+      savedView: { ...viewControls },
     }),
     [],
   )
@@ -26,10 +31,12 @@ export function CameraRig() {
   useEffect(
     () => () => {
       occlusion.dispose()
+      if (state.bench) Object.assign(viewControls, state.savedView)
+      interactionAim.ready = false
       omokCamera.ready = false
       omokCamera.anchorId = ''
     },
-    [occlusion],
+    [occlusion, state],
   )
   useFrame(({ camera, scene }, delta) => {
     scan.current += delta
@@ -41,6 +48,9 @@ export function CameraRig() {
     const session = useSession.getState(),
       avatar = avatars.get(session.sessionId)
     if (!avatar) {
+      interactionAim.ready = false
+      if (state.bench) Object.assign(viewControls, state.savedView)
+      state.bench = ''
       omokCamera.ready = false
       omokCamera.anchorId = ''
       camera.position.set(110, 115, 138)
@@ -50,10 +60,19 @@ export function CameraRig() {
     }
     sampleAvatar(avatar, performance.now(), state.pose)
     const pose = state.pose,
-      seated = !!avatar.tableId && avatar.seatIndex >= 0
+      seated = !!(avatar.tableId || avatar.benchId) && avatar.seatIndex >= 0
+    if (avatar.benchId && state.bench !== avatar.benchId) {
+      state.savedView = { ...viewControls }
+      viewControls.yaw = pose.yaw + Math.PI
+      viewControls.pitch = 0
+      state.bench = avatar.benchId
+    } else if (!avatar.benchId && state.bench) {
+      Object.assign(viewControls, state.savedView)
+      state.bench = ''
+    }
     const game = useGame.getState().game
     const boardFocus =
-      seated &&
+      seated && !!avatar.tableId &&
       game?.omok.status === 'PLAYING' &&
       (game.role === 'SPECTATOR' || game.omok.turnUserId === session.sessionId)
     state.look.set(pose.x, pose.y + CAMERA.focusHeight - 0.8, pose.z)
@@ -76,6 +95,14 @@ export function CameraRig() {
         state.look.x,
         state.look.y + 2.6 * tableScale(anchor),
         state.look.z + 0.001,
+      )
+    } else if (avatar.benchId) {
+      state.desired.set(pose.x, pose.y - 0.8 + CHARACTER.height - 0.2
+        + CHARACTER.seatedHipHeight - CHARACTER.hipHeight, pose.z)
+      state.look.set(
+        state.desired.x - Math.sin(viewControls.yaw) * Math.cos(viewControls.pitch),
+        state.desired.y - Math.sin(viewControls.pitch),
+        state.desired.z - Math.cos(viewControls.yaw) * Math.cos(viewControls.pitch),
       )
     } else if (seated) {
       const anchor = TABLES.find((t) => t.id === avatar.tableId)
@@ -102,7 +129,16 @@ export function CameraRig() {
       state.desired,
       1 - Math.exp(-12 * Math.min(delta, 0.1)),
     )
+    if (!seated) constrainRoamingCamera(camera.position)
     camera.lookAt(state.look)
+    camera.getWorldDirection(state.direction)
+    interactionAim.ready = true
+    interactionAim.x = camera.position.x
+    interactionAim.y = camera.position.y
+    interactionAim.z = camera.position.z
+    interactionAim.dx = state.direction.x
+    interactionAim.dy = state.direction.y
+    interactionAim.dz = state.direction.z
     omokCamera.anchorId = boardFocus ? avatar.tableId : ''
     omokCamera.ready =
       !!boardFocus && camera.position.distanceTo(state.desired) < 0.005
@@ -113,7 +149,7 @@ export function CameraRig() {
         camera.updateProjectionMatrix()
       }
     }
-    cameraOcclusion.focus.value.copy(state.focus)
+    cameraOcclusion.focus.value.set(pose.x, pose.y + CAMERA.focusHeight - 0.8, pose.z)
     cameraOcclusion.strength.value = seated ? 0 : 1
     occlusion.update(camera.position, state.focus, !seated, delta)
   })

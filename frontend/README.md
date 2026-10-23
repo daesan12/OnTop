@@ -1,5 +1,15 @@
 # OnTop frontend
 
+M00 프론트 연결 계층 분리와 배포 경계 검사는 [MIGRATION_M00.md](docs/MIGRATION_M00.md)를 참고한다. 기존 로그인·Spring HTTP/WS·월드/경기 연결을 유지하며, 기능별 이관과 개발 목업은 후속 단계에서 분리한다.
+
+M01 공통 E 선택·벤치와 개발 전용 벤치 목업의 연결 범위·검증은 [MIGRATION_M01.md](docs/MIGRATION_M01.md)를 참고한다.
+
+M02 이동 입력·점프·수영 표시의 기존 BE 연결 유지와 분리 검증은 [MIGRATION_M02.md](docs/MIGRATION_M02.md)를 참고한다.
+
+M03 기존 캐릭터 자산·기본 자세·LOD·자원 수명의 분리 검증은 [MIGRATION_M03.md](docs/MIGRATION_M03.md)를 참고한다.
+
+M04 감정표현·G 휠의 기존 소켓 연결과 개발 전용 미연결 표현 목업은 [MIGRATION_M04.md](docs/MIGRATION_M04.md)를 참고한다.
+
 팀 BE의 격리 로컬 테스트는 [LOCAL_BE_VERIFICATION.md](docs/LOCAL_BE_VERIFICATION.md)를 참고한다. FE는 pnpm dev:frontend-test로 실행하며 이 모드에서만 전달받은 테스트 테이블 ID를 적용한다.
 
 공통 경기 흐름·오목 준비는 [OMOK_INTEGRATION.md](docs/OMOK_INTEGRATION.md), 기존 프로토타입의 기능별 반영/누락은 [PROTOTYPE_FEATURE_AUDIT.md](docs/PROTOTYPE_FEATURE_AUDIT.md)를 참고한다. 실제 BE 플레이 완료와 계약 대역 검증을 구분한다.

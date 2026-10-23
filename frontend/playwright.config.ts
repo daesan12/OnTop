@@ -3,6 +3,8 @@ import os from 'node:os'
 import path from 'node:path'
 export default defineConfig({
   testDir: './tests/e2e',
+  // Preview-only mock assertions use playwright.facilities.config.ts.
+  testIgnore: '**/m04.spec.ts',
   timeout: 120_000,
   workers: 1,
   outputDir:
