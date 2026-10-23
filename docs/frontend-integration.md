@@ -1,5 +1,24 @@
 # 두 계정 로컬 연동 테스트
 
+## 개발 서버 공원 진입
+
+2026-10-23 인프라 안내 기준 개발 BE는 `https://dev-api.on-top.world`, 운영 BE는
+`https://api.on-top.world`다. 이번 공원 진입 수정의 배포 대상은 개발 서버만이다.
+개발 WebSocket은 `wss://dev-api.on-top.world/ws/tables?ticket=<매번 새 접속권>`을 사용한다.
+
+개발 배포는 수정 소스로 이미지를 다시 빌드하고, 서버의 `compose.dev.yaml`도 함께 갱신해
+`SPRING_PROFILES_ACTIVE=dev,db`를 적용해야 한다. 기존 이미지의 프로필만 바꿔서는 해결되지 않는다.
+Compose 변경은 현재 Jenkins 분류에서 `MANUAL_REVIEW=1`이므로 자동 이미지 발행·배포가 생략된다.
+인프라 담당자가 수정 이미지와 서버 Compose를 함께 반영한 뒤 실제 회원 Access로
+`GET /api/v1/channels`와 `GET /api/v1/tables?channelId=channel-1`의 200,
+새 접속권으로 WSS 연결 및 `CHANNEL_JOIN` 성공을 확인한다. 비밀키·DB 데이터는 변경하지 않는다.
+
+개발 설정의 채널은 `channel-1`(개발 공원, 정원 40)이다. 테이블 ID는 조회 응답을 사용한다.
+개발 조회 API는 공통 REST 인증·CORS 정책을 유지한다. `/dev/tables`, `/dev/world-config`,
+local 전용 게임 시작·정산 대역은 활성화하지 않는다. 게임 엔진·판돈 예약/정산의 실제 배포와
+프론트의 공원 테이블 모델 매핑은 별도 확인이 필요하며, 공원 입장 복구만으로 완료로 보지 않는다.
+이 문서의 주소·절차는 실행 결과가 아니며 실제 원격 배포 확인은 별도다.
+
 ## 주소와 실행
 
 - BE: `http://localhost:8080`

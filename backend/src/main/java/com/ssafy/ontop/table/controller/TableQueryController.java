@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@Profile("local")
+@Profile("(local | dev) & !prod & !production")
 @Tag(name = "Table")
 public class TableQueryController {
 
@@ -32,7 +32,7 @@ public class TableQueryController {
         this.authenticated = authenticated;
     }
 
-    @Operation(summary = "채널 테이블 목록 조회 (local)", description = "local 프로필에서만 등록됩니다. 실제 TableHub의 현재 상태를 조회하며 입장/예약하지 않습니다. channelId 누락/불일치 시 기존 400/404 정책을 따릅니다. 회원 인증 기본값 true를 기준으로 문서화합니다. 비인증 개발 데모는 정식 사용 대상이 아닙니다.",
+    @Operation(summary = "채널 테이블 목록 조회", description = "local/dev 프로필에서 실제 TableHub의 현재 상태를 조회하며 입장/예약하지 않습니다. channelId 누락/불일치 시 기존 400/404 정책을 따릅니다. Access JWT와 활성 회원 검증이 필요합니다. 비인증 개발 데모는 정식 사용 대상이 아닙니다.",
             security = {@SecurityRequirement(name = "AccessJwt")})
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "성공 (Cache-Control: no-store)",

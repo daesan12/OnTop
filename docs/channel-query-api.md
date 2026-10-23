@@ -1,14 +1,14 @@
 # 채널 목록 조회
 
-`GET /api/v1/channels` · `local` 구현 · 설정 기반 목록 · Access JWT/활성 계정 인증 · 채널 입장 연동
+`GET /api/v1/channels` · `local/dev` 구현 · 설정 기반 목록 · Access JWT/활성 계정 인증 · 채널 입장 연동
 
 기준: [Notion WORLD-01](https://app.notion.com/p/WORLD-01-3ff161842b8680318410d278a91ea174)와 REST 공통 규격. 백엔드 A의 광장 조회 기능이다.
 
 ## 요청과 응답
 
-Body 없음. `Authorization: Bearer <Access JWT>`로 기존 로그인 토큰을 보낸다. `ChannelAccessFilter`가 기존 `AccessJwtService`로 서명·만료를 검증하고 `WebSocketAccountLookup`으로 활성 계정/내부 ID를 확인해 서버 `Principal`에 연결한다. DB 어댑터 사용은 `local,db`가 필요하다. 이 GET은 websocket.authenticated 옵션과 독립적이며 접속권 발급/소비를 하지 않는다. 기존 서버 인증 Principal도 유지하지만 Authorization을 함께 보냈다면 반드시 그 토큰을 검증한다. `userId` 쿼리·`X-User-Id`·온보딩 토큰·웹소켓 접속권은 인증 수단이 아니다.
+Body 없음. `Authorization: Bearer <Access JWT>`로 기존 로그인 토큰을 보낸다. `local`에서는 `ChannelAccessFilter`와 공통 REST 보안 체인, `dev`에서는 공통 REST 보안 체인이 Access JWT·활성 회원/로그인 세션을 검증해 서버 `Principal`에 연결한다. DB 어댑터 사용은 `local,db` 또는 개발 배포의 `dev,db`가 필요하다. 이 GET은 websocket.authenticated 옵션과 독립적이며 접속권 발급/소비를 하지 않는다. 기존 서버 인증 Principal도 유지하지만 Authorization을 함께 보냈다면 반드시 그 토큰을 검증한다. `userId` 쿼리·`X-User-Id`·온보딩 토큰·웹소켓 접속권은 인증 수단이 아니다.
 
-브라우저는 `ontop.auth.allowed-origins`에 설정된 출처만 허용한다. OPTIONS는 GET/Authorization 프리플라이트를204로 처리하며 오류에도 허용 출처 CORS 헤더를 유지한다. Origin 없는 Postman 요청도 인증은 필수다.
+브라우저는 `ontop.auth.allowed-origins`에 설정된 출처만 허용한다. OPTIONS는 GET/Authorization 프리플라이트를 허용하며(local 204, dev 공통 CORS의 2xx) 오류에도 허용 출처 CORS 헤더를 유지한다. Origin 없는 Postman 요청도 인증은 필수다.
 
 성공은 HTTP 200이며 `data` 래퍼 없이 다음 필드를 반환한다. 아래 이름·숫자는 형식 예시다.
 
@@ -45,11 +45,11 @@ Body 없음. `Authorization: Bearer <Access JWT>`로 기존 로그인 토큰을 
 {"code":"UNAUTHENTICATED","message":"로그인이 필요합니다.","details":null}
 ```
 
-`local` 외 프로필에서는 경로가 등록되지 않는다. 가짜 로그인·개발용 무인증 우회 경로는 제공하지 않는다.
+`local` 또는 `dev`에서 등록하며 `prod`/`production`이 함께 켜지면 등록하지 않는다. 가짜 로그인·개발용 무인증 우회 경로는 제공하지 않는다.
 
 ## 설정과 연결
 
-`application-local.yml` 등에 다음 구조로 채널을 추가할 수 있다. 예시는 검증용이며 기본 파일에는 넣지 않았다. `capacity`는 실제 사용할 환경에서 정한다.
+`application-local.yml` 또는 `application-dev.yml` 등에 다음 구조로 채널을 추가할 수 있다. 아래 예시는 검증용이다. 개발 배포의 `application-dev.yml`에는 channel-1(개발 공원, 정원 40)을 등록했다. `capacity`는 실제 사용할 환경에서 정한다.
 
 ```yaml
 ontop:
