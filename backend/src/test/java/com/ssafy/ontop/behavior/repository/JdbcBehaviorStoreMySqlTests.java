@@ -25,9 +25,7 @@ import static org.assertj.core.api.Assertions.offset;
 
 @Tag("mysql")
 @ActiveProfiles("db")
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE, properties = {
-        "spring.flyway.locations=classpath:db/migration,classpath:db/behavior"
-})
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
 class JdbcBehaviorStoreMySqlTests {
 
     private static final Instant AT = Instant.parse("2026-10-23T01:02:03.456Z");

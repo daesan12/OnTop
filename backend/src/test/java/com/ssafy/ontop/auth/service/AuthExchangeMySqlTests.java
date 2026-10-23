@@ -214,11 +214,11 @@ class AuthExchangeMySqlTests {
     }
 
     @Test
-    void 현재_V4와_기존_FK와_JPA_validate와_재실행을_확인한다() {
+    void 현재_V6와_기존_FK와_JPA_validate와_재실행을_확인한다() {
         assertThat(jdbc.queryForObject("SELECT VERSION()", String.class)).startsWith("8.4.");
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("4");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("6");
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success = 1", Integer.class))
-                .isEqualTo(4);
+                .isEqualTo(6);
         long userCount = users.count();
         long refreshCount = refreshTokens.count();
         assertThat(flyway.migrate().migrationsExecuted).isZero();

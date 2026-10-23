@@ -316,7 +316,7 @@ class AuthLogoutMySqlTests {
         logout(original.raw()).andExpect(status().isNoContent());
         assertThat(users.count()).isEqualTo(before);
         assertThat(users.findById(original.user().getId()).orElseThrow().getDeletedAt()).isNotNull();
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("4");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("6");
         assertThat(flyway.migrate().migrationsExecuted).isZero();
     }
 
