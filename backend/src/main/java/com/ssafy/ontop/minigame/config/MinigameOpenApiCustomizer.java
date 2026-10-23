@@ -17,7 +17,7 @@ import org.springframework.web.method.HandlerMethod;
 
 /** JsonNode 파싱의 엄격한 계약을 문서에만 반영한다. 실제 입력 검증·인증은 변경하지 않는다. */
 @Component
-@Profile("local & !prod & !production")
+@Profile("(local | dev) & !prod & !production")
 public class MinigameOpenApiCustomizer implements OperationCustomizer {
     @Override
     public Operation customize(Operation operation, HandlerMethod handler) {
@@ -50,7 +50,8 @@ public class MinigameOpenApiCustomizer implements OperationCustomizer {
                     .addMediaType("application/json", new io.swagger.v3.oas.models.media.MediaType().schema(schema))));
         }
         operation.setDescription((operation.getDescription() == null ? "" : operation.getDescription() + " ")
-                + "local 전용. 서비스는 local,db + ontop.minigames.enabled=true 및 V110/V111 선택 적용이 필요합니다. "
+                + "local,db + ontop.minigames.enabled=true 또는 dev,db에서 사용합니다. dev는 기본 활성화하며 "
+                + "공통 스키마에 V110/V111을 추가합니다. prod/production에서는 비활성화합니다. "
                 + "v2 입력 기록을 서버가 재생합니다. 60초, 15점당 1냥, KST 하루 100냥. "
                 + "탭 이동 중에도 시간은 흐르며 랭킹은 제외합니다. score·rewardAmount·userId를 본문에 넣지 않습니다.");
         return operation;

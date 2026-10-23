@@ -34,7 +34,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@Profile("local")
+@Profile("(local | dev) & !prod & !production")
 @RequestMapping("/api/v1/minigames/sessions")
 @Tag(name = "MINIGAME")
 @SecurityRequirement(name = "AccessJwt")
