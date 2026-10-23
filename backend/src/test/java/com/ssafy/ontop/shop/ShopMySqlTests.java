@@ -41,7 +41,7 @@ import static org.mockito.ArgumentMatchers.eq;
 @Tag("mysql")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "spring.profiles.active=local,db", "ontop.shop.enabled=true",
-        "spring.flyway.locations=classpath:db/migration,classpath:db/shop-fixture,classpath:db/shop",
+        "spring.flyway.locations=classpath:db/migration,classpath:db/shop",
         "ontop.auth.jwt-secret-base64=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
 })
 class ShopMySqlTests {
@@ -54,6 +54,7 @@ class ShopMySqlTests {
     @Autowired AuthExchangePersistenceService issuer;
     private final Map<Long, String> accessTokens = new HashMap<>();
     @Autowired PlatformTransactionManager manager;
+    @Autowired com.ssafy.ontop.wallet.service.WalletInitializationService walletInitializer;
     @LocalServerPort int port;
     private final ObjectMapper mapper = new ObjectMapper();
     private final HttpClient http = HttpClient.newHttpClient();
@@ -92,6 +93,29 @@ class ShopMySqlTests {
         item(2, "EQUIPMENT", "TOP", 20, true);
         item(3, "CONSUMABLE", null, 5, true);
         item(4, "EQUIPMENT", "HAIR", 1, false);
+    }
+
+    @Test
+    void 공통초기화는_기존상점지갑과_원장없는잔액을_보존한다() {
+        assertThat(walletInitializer.initializeActiveMember(101))
+                .isEqualTo(com.ssafy.ontop.wallet.service.WalletInitializationService.Result.PRESERVED);
+        assertThat(balance(101)).isEqualTo(100);
+        assertThat(count("wallet_transactions")).isZero();
+    }
+
+    @Test
+    void 지갑없이_보유기록이_있는회원은_자동지급하지_않는다() {
+        jdbc.update("""
+                INSERT INTO users(id,login_provider,provider_user_id,nickname,character_gender,created_at,updated_at)
+                VALUES (303,'NAVER','shop-wallet-review','검토대상','MALE',UTC_TIMESTAMP(3),UTC_TIMESTAMP(3))
+                """);
+        jdbc.update("INSERT INTO user_items(user_id,item_id,quantity) VALUES (303,3,1)");
+
+        assertThatThrownBy(() -> walletInitializer.initializeActiveMember(303))
+                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class)
+                .hasMessageContaining("WALLET_INITIALIZATION_REVIEW_REQUIRED");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM wallets WHERE user_id=303", Long.class)).isZero();
+        assertThat(count("wallet_transactions")).isZero();
     }
 
     private void item(long id, String type, String slot, long price, boolean sale) {
@@ -228,9 +252,10 @@ class ShopMySqlTests {
 
     @Test
     void 원장쓰기실패시차감과아이템지급과영수증이전부롤백된다() {
+        // 격리 DB의 임시 CHECK로 실제 원장 INSERT만 실패시킨다. SUPER/서버 전역 설정이 필요 없다.
         jdbc.execute("""
-                CREATE TRIGGER shop_test_fail_ledger BEFORE INSERT ON wallet_transactions
-                FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'test-only ledger failure'
+                ALTER TABLE wallet_transactions ADD CONSTRAINT ck_shop_test_fail_ledger
+                CHECK (transaction_type <> 'SHOP_PURCHASE')
                 """);
         try {
             assertThatThrownBy(() -> shop.purchase(101, 3, 1, "rollback")).isInstanceOf(RuntimeException.class);
@@ -238,7 +263,7 @@ class ShopMySqlTests {
             assertThat(count("user_items")).isZero();
             assertThat(count("wallet_transactions")).isZero();
             assertThat(count("shop_purchases")).isZero();
-        } finally { jdbc.execute("DROP TRIGGER shop_test_fail_ledger"); }
+        } finally { jdbc.execute("ALTER TABLE wallet_transactions DROP CHECK ck_shop_test_fail_ledger"); }
         assertThat(shop.purchase(101, 3, 1, "rollback").balanceAfter()).isEqualTo(95);
     }
 

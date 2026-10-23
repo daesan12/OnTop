@@ -29,7 +29,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Tag("mysql")
 @ActiveProfiles({"local", "db"})
 @SpringBootTest(properties = {"ontop.shop.enabled=true",
-        "spring.flyway.locations=classpath:db/migration,classpath:db/shop-fixture,classpath:db/shop"})
+        "spring.flyway.locations=classpath:db/migration,classpath:db/shop"})
 @AutoConfigureMockMvc(print = MockMvcPrint.NONE)
 class UserWithdrawalReferencesMySqlTests {
 

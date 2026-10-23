@@ -65,7 +65,7 @@ JPA EntityManager·JPQL 저장소를 사용한다. 지갑 PESSIMISTIC_WRITE(MySQ
 
 공통 지갑 담당과 확인할 조건: wallets.user_id UNIQUE·id 자동 생성, balance는 전체 잔액이고 reserved_balance는 그 일부, 원장 id 자동 생성·idempotency_key UNIQUE·item_id/SHOP_PURCHASE 지원, 모두 같은 MySQL DataSource/InnoDB. 다른 재화 변경도 같은 지갑 행 잠금을 사용해야 한다. V100의 AUTO_INCREMENT·UNIQUE·CHECK·FK와 영수증 테이블은 ERD 미리보기에 없는 실행 제약 보완이며 ERD 원본은 수정하지 않았다.
 
-테스트 전용 db/shop-fixture/V99는 공통 지갑/원장을 최소 구성한 경계 fixture다. 제품의 지갑 초기화·게임 정산 구현이 아니고 운영/개발 DB에 적용하지 않는다. 검증은 TEST_SHOP_DB_URL=loopback/ontop_shop_test_*만 허용한다.
+공통 지갑 후속 작업: 기본 V4가 wallets/원장을 생성한다. 신규 Shop 검증/시연은 db/migration,db/shop만 로드하고 과거 V99/V101 fixture를 제외한다. 이미 적용된 fixture 파일과 기존 DB는 보존하며 새 격리 DB를 사용한다. 검증은 TEST_SHOP_DB_URL=loopback/ontop_shop_test_*만 허용한다. [생성·최초100코인·기존 회원 명령](wallet-initialization.md)을 따른다.
 
 ## 실행·검증 화면
 
@@ -81,7 +81,7 @@ API 경로·요청·응답·동일 키 재요청은 그대로다. 의상 중복 
 
 지갑 잠금 후 refresh로 이전에 관리 중인 잔액을 갱신한다. 신규 트랜잭션은 READ_COMMITTED를 사용하고 없는 영수증·보유 행에는 gap 잠금을 걸지 않는다. 기존 보유 엔티티는 refresh로 갱신하고, 장착은 보유 엔티티 변경으로 같은 부위 하나만 남긴다. 기존 외부 트랜잭션에 참여하며 장착 알림은 실제 커밋 뒤에만 발생한다.
 
-상점이 비활성인 DB에는 추가 테이블을 요구하지 않도록 OntopApplication은 기존 User/RefreshToken 패키지를 스캔하고, ShopConfiguration이 활성화될 때만 item.domain.Item·inventory.domain.UserItem·shop.persistence.ShopPurchase·wallet.domain 패키지를 합친다. 다른 도메인 엔티티를 새로 추가할 때도 해당 패키지를 스캔 대상으로 등록해야 한다. 지갑 엔티티는 wallet.domain.Wallet 하나로 사용한다. 게임 판돈·정산을 연결할 때 기존 Wallet을 확장·재사용하고 같은 wallets 테이블에 별도 엔티티를 중복 생성하지 않는다. 현재 경기 재화 처리 통합 완료를 뜻하지 않는다.
+공통 Wallet 도입 후 OntopApplication은 User/RefreshToken/wallet.domain을 등록한다. ShopConfiguration은 활성화될 때 item.domain.Item·inventory.domain.UserItem·shop.persistence.ShopPurchase만 추가한다. 상점이 꺼져도 db 프로필은 기본 V4의 공통 Wallet을 사용한다. 게임 판돈·정산도 기존 Wallet 하나를 재사용하며 별도 Wallet Entity를 만들지 않는다. 현재 경기 재화 처리 통합 완료를 뜻하지 않는다.
 
 외부 트랜잭션에 참여하면 외부 격리 수준을 그대로 따른다. 구매를 포함하는 공통 흐름은 READ_COMMITTED를 사용한다. 외부 REPEATABLE_READ 트랜잭션이 구매 전 읽기 스냅샷을 이미 만들었다면 이후 다른 트랜잭션의 새 영수증/보유 행은 보이지 않을 수 있다. 이는 기존 JDBC 일반 조회에도 있던 조건이며, 그 경우까지 자동 복구한다고 보장하지 않는다. 외부 트랜잭션 롤백의 원자성은 유지한다.
 

@@ -51,6 +51,8 @@ HttpSecurity를 요구하지 않으며, 실제 Servlet 서버에서는 프로필
 | PATCH `/api/v1/users/me` | **Access JWT + 활성 회원/로그인 세션** | Principal의 본인 닉네임만 수정. 최종 UNIQUE 검증. [USER-02](user-nickname-update.md) |
 | DELETE `/api/v1/users/me` | **Access JWT + 활성 회원/로그인 세션** | 본인 Soft Delete·전 계열 폐기·커밋 후 전체 연결 종료. [USER-03](user-withdrawal.md) |
 | GET `/api/v1/users/nickname-availability` | 온보딩 Bearer 또는 Access JWT | 닉네임 사전 조회, 본인 제외·DB collation 기준. [USER-04](nickname-availability.md) |
+| GET `/api/v1/wallets/me` | **Access JWT + 활성 회원/로그인 세션** | 본인 잔액 조회. [WALLET](wallet-balance.md) |
+| GET `/api/v1/wallets/me/transactions` | **Access JWT + 활성 회원/로그인 세션** | 본인 원장의 거래 ID 커서 조회. [WALLET](wallet-transactions.md) |
 | GET `/api/v1/channels` | **Access JWT + 활성 회원** | 현재 Controller는 local에서만 등록됨 |
 | GET `/api/v1/tables` | **Access JWT + 활성 회원** | 현재 Controller는 local에서만 등록됨. 채널 설정 시 channelId 필요 |
 | GET `/dev/tables` | 공개 개발 페이지 | local에서만 등록됨 |

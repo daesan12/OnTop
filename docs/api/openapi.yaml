@@ -6,6 +6,9 @@ info:
 servers:
 - url: /
   description: 현재 문서 서버 (local/dev)
+tags:
+- name: WALLET
+  description: 인증된 본인의 지갑 조회
 paths:
   /api/v1/users/onboarding:
     post:
@@ -13,9 +16,9 @@ paths:
       - User
       summary: 신규 회원 온보딩
       description: 온보딩 전용 Bearer만 허용하며 JSESSIONID가 필요 없습니다. nickname/characterGender만
-        입력합니다. 회원 생성과 Refresh 저장은 원자적입니다. 201 성공 후 토큰 소비; 확인된 닉네임 충돌+롤백(409 USER_NICKNAME_ALREADY_EXISTS)만
-        같은 토큰으로 재시도하며 최초 만료는 연장하지 않습니다. 중복 소셜 계정/기타 실패/커밋 불명은 새 OAuth가 필요합니다. Wallet은
-        생성하지 않습니다.
+        입력합니다. 회원·지갑·최초 100코인 SIGNUP_BONUS 원장·Refresh 저장은 원자적입니다. 201 성공 후 토큰 소비;
+        확인된 닉네임 충돌+롤백(409 USER_NICKNAME_ALREADY_EXISTS)만 같은 토큰으로 재시도하며 최초 만료는 연장하지
+        않습니다. 중복 소셜 계정/기타 실패/커밋 불명은 새 OAuth가 필요합니다.
       operationId: onboard
       parameters:
       - name: Origin
@@ -126,8 +129,7 @@ paths:
       summary: 아이템 구매
       description: "지갑을 잠그고 잔액 차감·보유량·거래 원장·멱등 영수증을 한 트랜잭션으로 저장합니다. 의상 중복 구매는 REJECT\
         \ 정책입니다. Idempotency-Key가 필요합니다. local 프로필 전용. 실제 서비스는 local,db 및 ontop.shop.enabled=true,\
-        \ 별도 상점 스키마/지갑 준비가 필요합니다. 기본 users/Refresh DB만으로 동작하지 않으며 Wallet 생성·운영 프로필\
-        \ 전환은 미완료입니다."
+        \ 별도 상점 스키마와 회원 지갑이 필요합니다. 공통 V1~V4만으로 상점 스키마가 생성되지 않으며 운영 프로필 전환은 미완료입니다."
       operationId: purchase
       parameters:
       - name: Idempotency-Key
@@ -853,8 +855,8 @@ paths:
       - Shop
       summary: 내 의상 장착
       description: "보유한 의상을 같은 슬롯의 기존 장착과 교체합니다. 커밋 후 의상 변경 이벤트를 발행합니다. local 프로필\
-        \ 전용. 실제 서비스는 local,db 및 ontop.shop.enabled=true, 별도 상점 스키마/지갑 준비가 필요합니다.\
-        \ 기본 users/Refresh DB만으로 동작하지 않으며 Wallet 생성·운영 프로필 전환은 미완료입니다."
+        \ 전용. 실제 서비스는 local,db 및 ontop.shop.enabled=true, 별도 상점 스키마와 회원 지갑이 필요합니다\
+        . 공통 V1~V4만으로 상점 스키마가 생성되지 않으며 운영 프로필 전환은 미완료입니다."
       operationId: equip
       requestBody:
         content:
@@ -964,6 +966,192 @@ paths:
                 - $ref: "#/components/schemas/ErrorResponse"
       security:
       - AccessJwt: []
+  /api/v1/wallets/me:
+    get:
+      tags:
+      - WALLET
+      summary: 본인 지갑 잔액 조회
+      description: 활성 회원과 유효한 sid의 Access JWT가 필요합니다. 전체 잔액에 예약 잔액이 포함되며 사용 가능 잔액은
+        balance - reservedBalance입니다. 회원 ID를 입력받지 않으며 지갑 생성·보너스 지급·원장 기록을 하지 않습니다.
+      operationId: me_1
+      responses:
+        "200":
+          description: "성공 (Cache-Control: no-store)"
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalletBalanceResponse"
+        "401":
+          description: AUTH_AUTHENTICATION_REQUIRED / AUTH_INVALID_ACCESS_TOKEN /
+            AUTH_MEMBER_STATE_CHANGED
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "403":
+          description: AUTH_ORIGIN_NOT_ALLOWED / AUTH_ACCESS_DENIED / AUTH_REQUEST_REJECTED
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "409":
+          description: "WALLET_NOT_READY: 회원 지갑이 아직 생성되지 않음"
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "500":
+          description: AUTH_TOKEN_CONFIGURATION_ERROR
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "503":
+          description: WALLET_UNAVAILABLE / AUTH_MEMBER_LOOKUP_UNAVAILABLE
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+      security:
+      - AccessJwt: []
+  /api/v1/wallets/me/transactions:
+    get:
+      tags:
+      - WALLET
+      summary: 본인 코인 거래 내역 조회
+      description: "활성 회원과 유효한 sid의 Access JWT가 필요합니다. 거래 ID 내림차순이며 cursor가 있으면 ID\
+        \ < cursor인 본인 지갑 원장만 반환합니다. size보다 한 건 더 조회해 hasNext를 판단합니다. nextCursor는\
+        \ 다음 페이지가 있을 때만 마지막 반환 거래 ID이며, 없으면 null입니다. 조회는 예약·지급·차감을 수행하지 않습니다."
+      operationId: transactions
+      parameters:
+      - name: cursor
+        in: query
+        description: 이 ID 미만의 거래 조회. 생략 시 최신부터
+        required: false
+        schema:
+          minimum: 1
+          type: integer
+          format: int64
+      - name: size
+        in: query
+        description: "페이지 크기 (기본 20, 최대 100)"
+        required: false
+        schema:
+          maximum: 100
+          minimum: 1
+          type: integer
+          default: 20
+      responses:
+        "200":
+          description: "성공 (Cache-Control: no-store)"
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalletTransactionPageResponse"
+        "400":
+          description: "WALLET_INVALID_PAGE_REQUEST: cursor는 양수, size는 1~100"
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "401":
+          description: AUTH_AUTHENTICATION_REQUIRED / AUTH_INVALID_ACCESS_TOKEN /
+            AUTH_MEMBER_STATE_CHANGED
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "403":
+          description: AUTH_ORIGIN_NOT_ALLOWED / AUTH_ACCESS_DENIED / AUTH_REQUEST_REJECTED
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "409":
+          description: "WALLET_NOT_READY: 회원 지갑이 아직 생성되지 않음"
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "500":
+          description: AUTH_TOKEN_CONFIGURATION_ERROR
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "503":
+          description: WALLET_UNAVAILABLE / AUTH_MEMBER_LOOKUP_UNAVAILABLE
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+      security:
+      - AccessJwt: []
   /api/v1/users/nickname-availability:
     get:
       tags:
@@ -1060,8 +1248,8 @@ paths:
       - Shop
       summary: 내 보유 아이템
       description: "인증된 본인 계정의 수량이 양수인 보유 아이템을 조회합니다. local 프로필 전용. 실제 서비스는 local,db\
-        \ 및 ontop.shop.enabled=true, 별도 상점 스키마/지갑 준비가 필요합니다. 기본 users/Refresh DB만으\
-        로 동작하지 않으며 Wallet 생성·운영 프로필 전환은 미완료입니다."
+        \ 및 ontop.shop.enabled=true, 별도 상점 스키마와 회원 지갑이 필요합니다. 공통 V1~V4만으로 상점 스키마가\
+        \ 생성되지 않으며 운영 프로필 전환은 미완료입니다."
       operationId: inventory
       responses:
         "200":
@@ -1258,8 +1446,7 @@ paths:
       - Shop
       summary: 판매 아이템 목록
       description: "판매 중인 실제 Item 목록을 조회합니다. local 프로필 전용. 실제 서비스는 local,db 및 ontop.shop.enabled=true,\
-        \ 별도 상점 스키마/지갑 준비가 필요합니다. 기본 users/Refresh DB만으로 동작하지 않으며 Wallet 생성·운영 프로필\
-        \ 전환은 미완료입니다."
+        \ 별도 상점 스키마와 회원 지갑이 필요합니다. 공통 V1~V4만으로 상점 스키마가 생성되지 않으며 운영 프로필 전환은 미완료입니다."
       operationId: catalog
       responses:
         "200":
@@ -1824,6 +2011,103 @@ components:
           format: int32
         equipped:
           type: boolean
+    WalletBalanceResponse:
+      required:
+      - availableBalance
+      - balance
+      - reservedBalance
+      type: object
+      properties:
+        balance:
+          minimum: 0
+          type: integer
+          description: 전체 보유 코인. 예약 잔액을 포함합니다.
+          format: int64
+          example: 100
+        reservedBalance:
+          minimum: 0
+          type: integer
+          description: 전체 잔액 중 예약된 코인
+          format: int64
+          example: 0
+        availableBalance:
+          minimum: 0
+          type: integer
+          description: "사용 가능 코인: balance - reservedBalance"
+          format: int64
+          example: 100
+    WalletTransactionPageResponse:
+      required:
+      - hasNext
+      - nextCursor
+      - transactions
+      type: object
+      properties:
+        transactions:
+          type: array
+          description: 거래 ID 내림차순. 내역이 없으면 빈 배열
+          items:
+            $ref: "#/components/schemas/WalletTransactionResponse"
+        nextCursor:
+          type: integer
+          description: 다음 요청의 cursor. 다음 페이지가 없으면 null
+          format: int64
+          nullable: true
+        hasNext:
+          type: boolean
+          description: 다음 페이지 존재 여부
+    WalletTransactionResponse:
+      required:
+      - balanceDelta
+      - createdAt
+      - gameSessionId
+      - itemId
+      - minigameSessionId
+      - reservedDelta
+      - transactionId
+      - transactionType
+      type: object
+      properties:
+        transactionId:
+          type: integer
+          description: 거래 ID
+          format: int64
+          example: 1
+        transactionType:
+          type: string
+          description: 원장에 기록된 거래 유형
+          example: SIGNUP_BONUS
+        balanceDelta:
+          type: integer
+          description: 전체 잔액 증감
+          format: int64
+          example: 100
+        reservedDelta:
+          type: integer
+          description: 예약 잔액 증감
+          format: int64
+          example: 0
+        itemId:
+          type: integer
+          description: 관련 상품 ID. 없으면 null
+          format: int64
+          nullable: true
+        gameSessionId:
+          type: integer
+          description: 관련 게임 세션 ID. 없으면 null
+          format: int64
+          nullable: true
+        minigameSessionId:
+          type: integer
+          description: 관련 미니게임 세션 ID. 없으면 null
+          format: int64
+          nullable: true
+        createdAt:
+          type: string
+          description: 원장 기록 시각 (UTC)
+          format: date-time
+          example: 2026-10-23T10:00:00Z
+      description: 거래 ID 내림차순. 내역이 없으면 빈 배열
     NicknameAvailabilityResponse:
       required:
       - available
