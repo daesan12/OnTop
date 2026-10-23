@@ -6,7 +6,7 @@ export const FITNESS = {
   pedalHeight: 0.24,
   hipHeight: AVATAR.hipHeight * AVATAR.scale,
   handleHeight: 0.24 + (1.25 - 0.24) * AVATAR.scale,
-  handleReach: 0.6 * AVATAR.scale,
+  handleReach: 0.3 * AVATAR.scale,
   swingRadians: 0.43,
   cycleSeconds: 2.4,
   exitOffset: 2.2,
@@ -304,7 +304,7 @@ export function sampleFitnessMotion(
       out.leftArm = -1.6 + Math.sin(phase) * 0.65 * ease
       out.rightArm = -1.6 + Math.sin(phase + Math.PI) * 0.65 * ease
       out.armZ = 0.25 + Math.cos(phase) * 0.5 * ease
-      out.wheel = phase
+      out.wheel = Math.sin(phase) * 0.85 * ease
       break
     case 'surfer':
       out.bodyZ = a * 0.65

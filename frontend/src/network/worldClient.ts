@@ -18,6 +18,7 @@ import { samePose, sampleMovement } from '../world/movementPresentation'
 import { EmoteTimeline, parseEmoteEvent, type EmoteEvent } from '../features/emotes/timeline'
 import { resetEmotes, useEmoteState } from '../features/emotes/state'
 import { findEmote, type EmoteId } from '../features/emotes/catalog'
+import { releaseFitnessUser, resetFitnessState, useFitnessState } from '../features/fitness/state'
 
 export interface Pose {
   x: number
@@ -81,9 +82,10 @@ export interface Session {
   bindings: TableBinding[]
   mapCompatible: boolean
   mapVersion: string
-  // Unsupported facility state stays absent; renderers never invent server occupancy.
+  // Fitness display IDs come from explicit development leases, never guessed wire fields.
   telescopeId: string
   benchId: string
+  fitnessId: string
   profiles: Record<string, DisplayProfile>
   account: { nickname: string; balance: number | null } | null
 }
@@ -111,6 +113,7 @@ const initial = (): Session => ({
   mapVersion: '',
   telescopeId: '',
   benchId: '',
+  fitnessId: '',
   profiles: {},
   account: null,
 })
@@ -130,6 +133,7 @@ let channelVersion = -1,
 const chatIds = new Set<string>()
 const emoteTimeline = new EmoteTimeline()
 export function resetWorld(status: Session['status'] = 'idle', error = '') {
+  resetFitnessState()
   resetEmotes(true)
   emoteTimeline.clearChannel()
   resetGame()
@@ -142,6 +146,7 @@ export function resetWorld(status: Session['status'] = 'idle', error = '') {
   useSession.setState({ ...initial(), status, error })
 }
 export function clearChannel() {
+  resetFitnessState()
   resetEmotes()
   emoteTimeline.clearChannel()
   resetGame()
@@ -168,6 +173,7 @@ export function clearChannel() {
     mapVersion: '',
     mapCompatible: false,
     benchId: '',
+    fitnessId: '',
   })
 }
 export function sampleAvatar(
@@ -205,12 +211,16 @@ export const authoritativePose = (userId: string): Pose | undefined => {
 }
 export function refreshActivityPresentation() {
   const state = useSession.getState()
+  for (const table of Object.values(state.tableStates)) for (const seat of table.seats)
+    if (seat.userId && useFitnessState.getState().placements[seat.userId]) releaseFitnessUser(seat.userId)
   if (Object.values(state.tableStates).some(table => table.seats.some(seat =>
     seat.userId && useBenchState.getState().placements[seat.userId]))) resetBenchState()
   for (const [id, a] of avatars) {
-    const previousActivity = a.tableId || a.benchId
+    const previousActivity = a.tableId || a.benchId || a.fitnessId
     a.tableId = ''
     a.benchId = ''
+    a.fitnessId = ''
+    a.fitnessStartedAt = 0
     a.seatIndex = -1
     const authoritative = worldPoses.get(id)
     if (authoritative) a.current = { ...authoritative }
@@ -236,17 +246,28 @@ export function refreshActivityPresentation() {
     }
     const bench = useBenchState.getState().placements[id]
     if (!a.tableId && bench?.channelId === state.roomId) {
+      if (useFitnessState.getState().placements[id]) releaseFitnessUser(id)
       a.benchId = bench.benchId
       a.seatIndex = bench.seat
       a.current = { ...bench.pose }
       a.previous = { ...a.current }
       a.moving = a.running = false
     }
-    const activity = a.tableId || a.benchId
+    const fitness = useFitnessState.getState().placements[id]
+    if (!a.tableId && !a.benchId && fitness?.channelId === state.roomId) {
+      a.fitnessId = fitness.stationId
+      a.fitnessStartedAt = fitness.startedAt
+      a.current = { ...fitness.pose }
+      a.previous = { ...fitness.pose }
+      a.moving = a.running = false
+    }
+    const activity = a.tableId || a.benchId || a.fitnessId
     if (activity && previousActivity !== activity) cancelAvatarEmote(id)
   }
-  const benchId = avatars.get(state.sessionId)?.benchId ?? ''
-  if (state.benchId !== benchId) useSession.setState({ benchId })
+  const own = avatars.get(state.sessionId)
+  const benchId = own?.benchId ?? ''
+  const fitnessId = own?.fitnessId ?? ''
+  if (state.benchId !== benchId || state.fitnessId !== fitnessId) useSession.setState({ benchId, fitnessId })
 }
 export function receive(message: Envelope) {
   const p = message.payload,
@@ -283,7 +304,7 @@ export function receive(message: Envelope) {
         return
       worldVersion = next.version
       const mapCompatible = next.mapVersion === EXPECTED_MAP_VERSION
-      if (!mapCompatible) { resetBenchState(); clearRoamingInput() }
+      if (!mapCompatible) { resetBenchState(); resetFitnessState(); clearRoamingInput() }
       const ids = next.avatars.map((a) => a.userId),
         now = performance.now()
       if (!ids.includes(state.sessionId)) {
@@ -291,6 +312,8 @@ export function receive(message: Envelope) {
         clearRoamingInput()
       }
       if (!ids.includes(state.sessionId) || Object.keys(useBenchState.getState().placements).some(id => !ids.includes(id))) resetBenchState()
+      if (!ids.includes(state.sessionId)) resetFitnessState()
+      else for (const id of Object.keys(useFitnessState.getState().placements)) if (!ids.includes(id)) releaseFitnessUser(id)
       for (const id of avatars.keys())
         if (!ids.includes(id)) {
           avatars.delete(id)

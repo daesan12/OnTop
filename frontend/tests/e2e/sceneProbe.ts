@@ -317,3 +317,51 @@ export function emoteProbe() {
     avatars: ['101', '102'].map(id => ({ id, emote: avatars.get(id)?.emote, at: avatars.get(id)?.emoteAt })) }
 }
 export function fixtureInputFlag(flag: 'manualOpen' | 'mapOpen' | 'minigameOpen', open: boolean) { inputState[flag] = open }
+
+import { PULLDOWN_LIFT, AVATAR, createFitnessMotion, sampleFitnessMotion } from '../../src/config'
+import { fitnessService } from '../../src/features/fitness/service'
+import { fitnessSignal, useFitnessState } from '../../src/features/fitness/state'
+import { fitnessAnchors } from '../../src/features/fitness/anchors'
+import { authoritativePose } from '../../src/network/worldClient'
+export async function fixtureFitness(userId: string, stationId: string) {
+  const lease = await fitnessService.enter({ userId, channelId: useSession.getState().roomId,
+    position: fitnessAnchors(stationId).exit }, stationId, fitnessSignal(userId))
+  useFitnessState.setState(s => ({ placements: { ...s.placements, [userId]: lease } }))
+  refreshActivityPresentation()
+}
+export function fitnessProbe(stationId: string) {
+  const { scene } = root(), s = useSession.getState(), state = useFitnessState.getState()
+  const station = FITNESS_STATIONS.find(item => item.id === stationId)!
+  const lease = Object.values(state.placements).find(item => item.stationId === stationId)
+  const m = sampleFitnessMotion(station.kind, lease?.startedAt ?? 0, lease ? Date.now() : 0, createFitnessMotion())
+  const mechanism = scene.getObjectByName(stationId + '-mechanism')
+  const left = scene.getObjectByName(stationId + '-left-pedal')
+  const right = scene.getObjectByName(stationId + '-right-pedal')
+  const errors: number[] = []
+  const difference = (actual: number | undefined, expected: number) => errors.push(Math.abs((actual ?? Infinity) - expected))
+  if (station.kind === 'walker') { difference(left?.rotation.x, m.leftLeg); difference(right?.rotation.x, m.rightLeg) }
+  else if (station.kind === 'elliptical') {
+    difference(left?.position.y, station.baseHeight + (0.6 + m.leftPedalY) * AVATAR.scale)
+    difference(left?.position.z, m.leftPedalZ * AVATAR.scale)
+    difference(right?.position.z, m.rightPedalZ * AVATAR.scale)
+  } else if (station.kind === 'inversion') difference(mechanism?.rotation.x, m.mechanism)
+  else if (station.kind === 'surfer') difference(mechanism?.rotation.z, m.mechanism)
+  else if (station.kind === 'twister') difference(mechanism?.rotation.y, m.mechanism)
+  else if (station.kind === 'shoulder') difference(mechanism?.rotation.z, m.wheel)
+  else if (station.kind === 'backmassage') difference(mechanism?.rotation.x, m.wheel)
+  else if (station.kind === 'rower') difference(mechanism?.rotation.x, -m.mechanism * 0.5)
+  else if (station.kind === 'legpress') difference(mechanism?.position.z, 0.5 + m.mechanism * 0.35)
+  else if (station.kind === 'pulldown') difference(scene.getObjectByName('pulldown-seat-lift')?.position.y, m.mechanism * PULLDOWN_LIFT)
+  else difference(mechanism?.rotation.x, 0)
+  const avatar = avatars.get(s.sessionId)
+  return { fitnessId: s.fitnessId, pending: state.pending, lease, placements: state.placements,
+    occupantStartedAt: lease ? avatars.get(lease.userId)?.fitnessStartedAt : undefined,
+    occupantFitnessId: lease ? avatars.get(lease.userId)?.fitnessId : undefined,
+    authoritative: authoritativePose(s.sessionId), displayed: avatar?.current,
+    ownVisible: scene.getObjectByName('avatar-' + s.sessionId)?.visible,
+    remoteVisible: scene.getObjectByName('avatar-102')?.visible,
+    avatarStartedAt: avatar?.fitnessStartedAt, avatarFitnessId: avatar?.fitnessId,
+    machineError: Math.max(...errors), mechanism: mechanism?.rotation.toArray().slice(0, 3),
+    leftPedal: left?.rotation.x, figure: scene.getObjectByName('figure-' + s.sessionId)?.rotation.x,
+  }
+}

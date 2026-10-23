@@ -5,6 +5,8 @@ import { characterBones, createCharacterRig } from '../../src/world/art/Characte
 import { avatarEmoteAge, avatarPoseActive, avatarPoseKey, createAvatarMotion } from '../../src/world/avatarMotion'
 import { AvatarPoseCadence } from '../../src/performance/avatarPoseCadence'
 import { CLAP_EMOTE, FITNESS_STATIONS, SOCIAL_GESTURES } from '../../src/config'
+import { FITNESS, PULLDOWN_LIFT, createFitnessMotion, sampleFitnessMotion } from '../../src/config'
+import { sampleFitnessGrip } from '../../src/world/art/fitnessGrip'
 import type { AvatarSnapshot } from '../../src/network/worldClient'
 
 const pose = { x: -10, y: 0.8, z: 21, yaw: 0 }
@@ -43,6 +45,38 @@ describe('avatar pose transitions and resource ownership', () => {
   })
 
   for (const name of ['man', 'girl'] as const) {
+    it(`${name}: fits machine grips and seated hip height without changing model scale`, async () => {
+      const rig = createCharacterRig(await characterSource(name)), motion = createAvatarMotion(rig)
+      const base = new Group(), figure = new Group(), target = new Vector3(), hand = new Vector3()
+      base.add(figure); figure.add(rig.root)
+      const errors: Record<string, number> = {}
+      for (const station of FITNESS_STATIONS) {
+        base.position.y = station.baseHeight
+        for (const age of [0, 300, 600, 900, 1200, 1500, 1800, 2100, 2400]) {
+          const a = avatar({ fitnessId: station.id, fitnessStartedAt: 100 })
+          const sample = sampleFitnessMotion(station.kind, 100, 100 + age, createFitnessMotion())
+          for (let frame = 0; frame < 20; frame++) motion.apply(a, 100 + age, 1 / 30, pose, figure)
+          base.updateMatrixWorld(true)
+          if (['rower', 'situp', 'inversion', 'legpress', 'pulldown'].includes(station.kind)) {
+            rig.bones.hips.getWorldPosition(hand)
+            const lift = station.kind === 'pulldown' ? sample.mechanism * PULLDOWN_LIFT : 0
+            expect(hand.y).toBeCloseTo(station.baseHeight + FITNESS.hipHeight + lift, 5)
+          }
+          if (station.kind === 'walker') {
+            expect(rig.bones.upperLeg_L.rotation.x).toBeCloseTo(sample.rightLeg, 3)
+            expect(rig.bones.upperLeg_R.rotation.x).toBeCloseTo(sample.leftLeg, 3)
+          }
+          for (const side of ['L', 'R'] as const) {
+            if (!sampleFitnessGrip(station, sample, side, target)) continue
+            rig.bones[`hand_${side}`].getWorldPosition(hand)
+            errors[station.kind] = Math.max(errors[station.kind] ?? 0, hand.distanceTo(target))
+          }
+          expect(figure.scale.toArray()).toEqual([1, 1, 1])
+        }
+      }
+      expect(Math.max(...Object.values(errors))).toBeLessThan(0.085)
+      rig.dispose()
+    })
     it(`${name}: owns a private skeleton, shares immutable assets and preserves pose across LOD`, async () => {
       const source = await characterSource(name)
       const a = createCharacterRig(source), b = createCharacterRig(source)

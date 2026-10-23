@@ -4,6 +4,7 @@ import { parkRuntime } from '../../park/runtime/runtime'
 import { benchService } from './benchService'
 import { benchSignal, resetBenchState, useBenchState } from './benchState'
 import { canReachBench, type BenchSeat } from './benchAnchors'
+import { useFitnessState } from '../fitness/state'
 
 const clearInput = () => {
   if (typeof window !== 'undefined') window.dispatchEvent(new Event('ontop-clear-input'))
@@ -11,8 +12,8 @@ const clearInput = () => {
 export async function sitBench(benchId: string, seat: BenchSeat): Promise<boolean> {
   const session = useSession.getState(), state = useBenchState.getState()
   const avatar = avatars.get(session.sessionId)
-  if (session.status !== 'connected' || !session.mapCompatible || !avatar || state.pending || session.pending) return false
-  if (session.tableId || avatar.seatIndex >= 0 || tableBusy()) return false
+  if (session.status !== 'connected' || !session.mapCompatible || !avatar || state.pending || session.pending || useFitnessState.getState().pending) return false
+  if (session.tableId || avatar.seatIndex >= 0 || avatar.fitnessId || tableBusy()) return false
   parkRuntime.move(0, 0, false)
   useBenchState.setState({ pending: true, error: '' })
   clearInput()
@@ -24,7 +25,7 @@ export async function sitBench(benchId: string, seat: BenchSeat): Promise<boolea
     if (signal.aborted || useBenchState.getState().epoch !== epoch) return false
     const position = authoritativePose(session.sessionId)
     if (current.sessionId !== session.sessionId || current.roomId !== session.roomId
-      || current.status !== 'connected' || !current.mapCompatible || current.tableId || tableBusy()
+      || current.status !== 'connected' || !current.mapCompatible || current.tableId || current.fitnessId || useFitnessState.getState().pending || tableBusy()
       || !position || !canReachBench(position, benchId)) {
       resetBenchState()
       useBenchState.setState({ error: '위치나 이용 상태가 바뀌었습니다. 벤치 가까이에서 다시 시도해주세요.' })

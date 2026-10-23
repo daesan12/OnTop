@@ -18,6 +18,10 @@ M04 감정표현·G 휠의 기존 소켓 연결과 개발 전용 미연결 표�
 
 React, TypeScript, Vite, React Three Fiber 기반 프론트엔드다. 현재 첫 화면은 Figma `02-C 로그인 · 내가 고친거 · Desktop 1920`을 구현한 로그인 진입 UI다. 이전 회전 상자 및 클릭 횟수 검증 데모는 제거했다.
 
+## M05 운동기구 이관
+
+기존 로그인·BE 연결을 유지하고 11종/12대 운동기구 이용·표시를 분리했다. 미구현 이용 API는 `pnpm dev:facilities`에서만 현재 탭의 목업으로 검수하며 일반 개발/운영에서는 비활성화한다. 계약 경계와 검증은 [MIGRATION_M05.md](docs/MIGRATION_M05.md)를 따른다.
+
 ## 실행
 
 Node.js 24 LTS 계열과 pnpm 11을 사용한다. `.nvmrc`에는 Node 24 계열을 명시했다.

@@ -58,10 +58,10 @@ function art(s: FitnessStation) {
     pivot[1] = s.baseHeight + AVATAR.hipHeight * AVATAR.scale
     for (const side of [-1, 1]) {
       tube([side * 0.95, 0.1, 0], [side * 0.95, 1.5, 0], 0.09, green)
-      tube([side * 0.95, 1.1, 0], [side * 0.95, 1.1, 0.6])
+      tube([side * 0.95, 1.1, 0], [side * 0.95, 1.1, 0.18])
       moving.push(beam([side * 0.8, 0, 0], [side * 0.8, -0.51, 0], 0.05, cream))
     }
-    tube([-0.95, 1.1, 0.6], [0.95, 1.1, 0.6])
+    tube([-0.95, 1.1, 0.18], [0.95, 1.1, 0.18])
     movingBoxes.push({ p: [0, -0.51, 0], s: [1.65, 0.07, 0.65], c: rubber })
   } else if (kind === 'twister') {
     tube([0, 0.1, 0.6], [0, 1.3, 0.6], 0.11, green)
@@ -69,16 +69,16 @@ function art(s: FitnessStation) {
     pivot[1] = 0.13
   } else if (kind === 'shoulder') {
     tube([0, 0.1, 0.78], [0, 2, 0.78], 0.12, green)
-    pivot[1] = 1.25
-    pivot[2] = 0.55
+    pivot[1] = 1.02
+    pivot[2] = 0.28
     for (const side of [-1, 1])
       moving.push(
-        beam([0, 0, 0], [side * 0.58, 0, 0], 0.025, cream),
-        beam([0, 0, 0], [0, side * 0.58, 0], 0.025, cream),
+        beam([0, 0, 0], [side * 0.27, 0, 0], 0.025, cream),
+        beam([0, 0, 0], [0, side * 0.27, 0], 0.025, cream),
       )
     movingBoxes.push(
-      { p: [0.5, 0, -0.1], s: [0.12, 0.12, 0.2], c: rubber },
-      { p: [-0.5, 0, -0.1], s: [0.12, 0.12, 0.2], c: rubber },
+      { p: [0.23, 0, -0.1], s: [0.12, 0.12, 0.2], c: rubber },
+      { p: [-0.23, 0, -0.1], s: [0.12, 0.12, 0.2], c: rubber },
     )
   } else if (kind === 'backmassage') {
     const z = -0.32
@@ -96,11 +96,11 @@ function art(s: FitnessStation) {
       seatParts.push({ p: [0, 0.88, -0.28], s: [0.65, 0.6, 0.12], c: rubber })
     if (kind === 'rower') {
       tube([0, 0.15, -0.7], [0, 0.15, 0.9], 0.09, green)
-      pivot[1] = 0.8
-      pivot[2] = 0.55
+      pivot[1] = 0.65
+      pivot[2] = 0.05
       moving.push(
         beam([0, -0.6, 0.15], [0, 0.35, 0], 0.065, cream),
-        beam([-0.55, 0.35, 0], [0.55, 0.35, 0], 0.05, green),
+        beam([-0.24, 0.35, 0], [0.24, 0.35, 0], 0.05, green),
       )
       movingBoxes.push({ p: [0, -0.55, 0.25], s: [1, 0.12, 0.4], c: rubber })
     } else if (kind === 'legpress') {
@@ -112,12 +112,12 @@ function art(s: FitnessStation) {
       moving.push(beam([0, 0, 0], [0, -0.1, -0.5], 0.07, cream))
     } else if (kind === 'pulldown') {
       tube([0, 0.1, -0.6], [0, 2.3, -0.6], 0.12, green)
-      pivot[1] = 2.1
+      pivot[1] = 1.36
       pivot[2] = -0.4
       for (const side of [-1, 1]) {
-        moving.push(beam([0, 0, 0], [side * 0.65, 0, 0.35], 0.055, cream))
+        moving.push(beam([0, 0, 0], [side * 0.22, 0, 0.35], 0.055, cream))
         moving.push(
-          beam([side * 0.65, 0, 0.35], [side * 0.65, -0.3, 0.55], 0.055, green),
+          beam([side * 0.22, 0, 0.35], [side * 0.22, -0.3, 0.55], 0.055, green),
         )
       }
     } else if (kind === 'situp') {
@@ -174,7 +174,7 @@ export function ExerciseStation({ station }: { station: FitnessStation }) {
         moving.current.position.z += motion.mechanism * 0.35
         break
       case 'pulldown':
-        moving.current.rotation.x = motion.mechanism * 0.65
+        moving.current.rotation.x = motion.mechanism * 0.12
         break
     }
   })
@@ -241,7 +241,7 @@ export function ExerciseStation({ station }: { station: FitnessStation }) {
         )}
         {station.kind === 'shoulder' && (
           <mesh>
-            <torusGeometry args={[0.6, 0.04, 8, 40]} />
+            <torusGeometry args={[0.28, 0.04, 8, 40]} />
             <meshStandardMaterial
               color={green}
               metalness={0.35}

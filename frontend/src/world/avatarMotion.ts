@@ -1,4 +1,4 @@
-import type { Group } from 'three'
+import { Vector3, type Group } from 'three'
 import type { AvatarSnapshot, Pose } from '../network/worldClient'
 import {
   AVATAR,
@@ -11,6 +11,7 @@ import {
 import type { createCharacterRig } from './art/CharacterRig'
 import { createGait, pavingLift, sampleGait } from './art/characterMotion'
 import { sampleCharacterEmote } from './art/characterEmotes'
+import { createFitnessGrip } from './art/fitnessGrip'
 
 type Avatar = Pick<AvatarSnapshot,
   'connected' | 'moving' | 'running' | 'swimming' | 'seatIndex' |
@@ -20,6 +21,7 @@ type Avatar = Pick<AvatarSnapshot,
 type Rig = ReturnType<typeof createCharacterRig>
 const stations = new Map(FITNESS_STATIONS.map(station => [station.id, station]))
 const defaultDurationEmotes = new Set(['EMOTE_TSK', 'EMOTE_APPLAUSE_REQUEST', 'EMOTE_FART'])
+const supportedHipPoses = new Set(['rower', 'situp', 'inversion', 'legpress', 'pulldown'])
 
 /** Presentation precedence only. Occupancy/permissions come from the adapter. */
 export function avatarPoseKind(avatar: Avatar) {
@@ -48,6 +50,7 @@ export function avatarPoseKey(a: Avatar) {
 /** Per-player mutable pose state; no React updates or per-frame vectors. */
 export function createAvatarMotion(model: Rig) {
   const fitness = createFitnessMotion(), gait = createGait()
+  const grip = createFitnessGrip(), hipFit = new Vector3()
   let phase = 0, move = 0, run = 0
   return {
     apply(avatar: Avatar, now: number, delta: number, pose: Pose, figure: Group) {
@@ -104,12 +107,18 @@ export function createAvatarMotion(model: Rig) {
           avatar.connected ? now : avatar.fitnessStartedAt, fitness)
         figure.rotation.set(m.bodyX, m.bodyY, m.bodyZ)
         figure.position.set(0, m.offsetY * AVATAR.scale, m.offsetZ * AVATAR.scale)
-        set('upperLeg_L', m.leftLeg, m.lowerYaw, m.legZ)
-        set('upperLeg_R', m.rightLeg, m.lowerYaw, m.legZ)
-        set('lowerLeg_L', Math.max(0, -m.leftLeg) * 0.55)
-        set('lowerLeg_R', Math.max(0, -m.rightLeg) * 0.55)
-        set('upperArm_L', m.leftArm, 0, -m.armZ)
-        set('upperArm_R', m.rightArm, 0, m.armZ)
+        // Runtime L bones are +X; machine "left" parts are on -X.
+        set('upperLeg_L', m.rightLeg, m.lowerYaw, m.legZ)
+        set('upperLeg_R', m.leftLeg, m.lowerYaw, m.legZ)
+        set('lowerLeg_L', Math.max(0, -m.rightLeg) * 0.55)
+        set('lowerLeg_R', Math.max(0, -m.leftLeg) * 0.55)
+        set('upperArm_L', m.rightArm, 0, -m.armZ)
+        set('upperArm_R', m.leftArm, 0, m.armZ)
+        if (supportedHipPoses.has(station.kind)) {
+          hipFit.set(0, AVATAR.hipHeight * AVATAR.scale - model.hipHeight, 0).applyEuler(figure.rotation)
+          figure.position.add(hipFit)
+        }
+        grip(station, m, figure, model)
       }
       if (age !== null) {
         if (avatar.emote === 'EMOTE_FART') figure.rotation.x = Math.sin(Math.PI * age / NETWORK.emoteDurationMs) * 0.12
