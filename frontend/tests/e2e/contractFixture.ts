@@ -21,6 +21,7 @@ export async function fixture(
     bindings?: boolean
     players?: number
     omok?: boolean
+    manualMovement?: boolean
     position?: { x: number; y: number; z: number; yaw: number }
   } = {},
 ) {
@@ -48,6 +49,7 @@ export async function fixture(
     lastInputSeq: 0,
     ...options.position,
   }
+  let remotePosition: Partial<typeof position> = {}
   let seated = false,
     rejectChat = false
   let gameCode: string | null = null,
@@ -241,6 +243,7 @@ export async function fixture(
                     ...position,
                     x: anchor.position[0] + (i % 4) * 2,
                     z: anchor.position[2] - 2 - Math.floor(i / 4) * 2,
+                    ...(i === 1 ? remotePosition : {}),
                   },
           })),
         },
@@ -320,10 +323,12 @@ export async function fixture(
       }
       if (type === 'WORLD_MOVE') {
         Object.assign(position, {
-          x: position.x + Number(payload.dx) * 0.1,
-          z: position.z + Number(payload.dz) * 0.1,
-          moving: !!(payload.dx || payload.dz),
-          running: payload.run,
+          ...(!options.manualMovement ? {
+            x: position.x + Number(payload.dx) * 0.1,
+            z: position.z + Number(payload.dz) * 0.1,
+            moving: !!(payload.dx || payload.dz),
+            running: payload.run,
+          } : {}),
           lastInputSeq: payload.seq,
         })
         world(ws, requestId)
@@ -518,5 +523,8 @@ export async function fixture(
       sockets.at(-1)!.close({ code: 4401, reason: 'Login session ended' })
     },
     world: () => world(sockets.at(-1)!),
+    players: (count: number) => { options.players = count; world(sockets.at(-1)!) },
+    pose: (patch: Partial<typeof position>) => { Object.assign(position, patch); world(sockets.at(-1)!) },
+    remotePose: (patch: Partial<typeof position>) => { remotePosition = { ...remotePosition, ...patch }; world(sockets.at(-1)!) },
   }
 }

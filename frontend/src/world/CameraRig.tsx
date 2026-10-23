@@ -8,6 +8,7 @@ import { avatars, sampleAvatar, useSession } from '../network/worldClient'
 import { cameraOcclusion, CameraOcclusionFader } from './cameraOcclusion'
 import { installRoamingInput, viewControls } from './input'
 import { interactionAim } from '../features/interactions/interactionAim'
+import { constrainRoamingCamera } from './cameraCollision'
 
 export function CameraRig() {
   const { gl } = useThree()
@@ -128,6 +129,7 @@ export function CameraRig() {
       state.desired,
       1 - Math.exp(-12 * Math.min(delta, 0.1)),
     )
+    if (!seated) constrainRoamingCamera(camera.position)
     camera.lookAt(state.look)
     camera.getWorldDirection(state.direction)
     interactionAim.ready = true
@@ -147,7 +149,7 @@ export function CameraRig() {
         camera.updateProjectionMatrix()
       }
     }
-    cameraOcclusion.focus.value.copy(state.focus)
+    cameraOcclusion.focus.value.set(pose.x, pose.y + CAMERA.focusHeight - 0.8, pose.z)
     cameraOcclusion.strength.value = seated ? 0 : 1
     occlusion.update(camera.position, state.focus, !seated, delta)
   })

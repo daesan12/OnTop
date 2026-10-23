@@ -1,11 +1,12 @@
 import { CAMERA } from '../config'
-import { useSession } from '../network/worldClient'
+import { avatars, useSession } from '../network/worldClient'
 import { parkRuntime } from '../park/runtime/runtime'
 
 import { getParkInteraction, interactWithPark } from '../features/interactions/parkInteraction'
 import { standBench } from '../features/interactions/benchController'
 import { useBenchState } from '../features/interactions/benchState'
 import { panelOwnsKeys, roamingInput, textInputOwnsKeys } from './inputOwnership'
+import { cameraRelativeMove, MOVEMENT_INPUT_INTERVAL_MS, type MovementIntent } from '../network/movementInput'
 export { inputState, setChatInputOpen, textInputOwnsKeys } from './inputOwnership'
 export const viewControls = {
   yaw: 0,
@@ -35,9 +36,11 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
   let drag = false,
     jump = false,
     hadMovement = false
+  const intent: MovementIntent = { dx: 0, dz: 0, run: false, jump: false }
   const blocked = () =>
     document.hidden ||
     useSession.getState().status !== 'connected' ||
+    !avatars.has(useSession.getState().sessionId) ||
     panelOwnsKeys() ||
     textInputOwnsKeys(document.activeElement) ||
     !useSession.getState().mapCompatible ||
@@ -117,20 +120,19 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     const side =
       Number(keys.has('KeyD') || keys.has('ArrowRight')) -
       Number(keys.has('KeyA') || keys.has('ArrowLeft'))
-    const length = Math.max(1, Math.hypot(forward, side)),
-      yaw = viewControls.yaw
-    const dx = (side * Math.cos(yaw) - forward * Math.sin(yaw)) / length,
-      dz = (-side * Math.sin(yaw) - forward * Math.cos(yaw)) / length
+    cameraRelativeMove(forward, side, viewControls.yaw,
+      keys.has('ShiftLeft') || keys.has('ShiftRight'), jump, intent)
+    const { dx, dz } = intent
     if (dx || dz || jump || hadMovement)
       parkRuntime.move(
         dx,
         dz,
-        keys.has('ShiftLeft') || keys.has('ShiftRight'),
-        jump,
+        intent.run,
+        intent.jump,
       )
     hadMovement = !!(dx || dz)
     jump = false
-  }, 60)
+  }, MOVEMENT_INPUT_INTERVAL_MS)
   window.addEventListener('keydown', down)
   window.addEventListener('keyup', up)
   window.addEventListener('blur', stop)

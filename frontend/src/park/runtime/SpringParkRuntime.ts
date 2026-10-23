@@ -17,6 +17,7 @@ import { canPlace, receiveGame, tableBusy, useGame } from '../../game/store'
 import { parkBindingsUrl } from './deployment'
 import type { ParkRuntimePort } from './contracts'
 import { benchBusy } from '../../features/interactions/benchState'
+import { MovementInputBuffer, normalizedMove, stoppedIntent, type MovementIntent } from '../../network/movementInput'
 import {
   avatars,
   clearChannel,
@@ -48,6 +49,7 @@ export class ParkRuntime implements ParkRuntimePort {
   private authListeners = new Set<AuthEnded>()
   private actionBusy = false
   private ownProfile: ReturnType<typeof userProfile> | null = null
+  private movement = new MovementInputBuffer((intent, scope) => this.sendMovement(intent, scope))
   private socket = new SharedSocket({
     ticket: async (signal) => {
       const body = await this.getJSON('/api/v1/auth/websocket-ticket', {
@@ -83,6 +85,7 @@ export class ParkRuntime implements ParkRuntimePort {
       })
   }
   private authEnded() {
+    this.movement.clear()
     this.active = false
     clearTimeout(this.timer)
     this.bootAbort?.abort()
@@ -131,6 +134,7 @@ export class ParkRuntime implements ParkRuntimePort {
     void this.boot()
   }
   private async boot() {
+    this.movement.clear()
     const generation = ++this.generation
     this.actionBusy = false
     this.bootAbort?.abort()
@@ -170,6 +174,7 @@ export class ParkRuntime implements ParkRuntimePort {
     }
   }
   async stop() {
+    this.movement.clear()
     this.active = false
     ++this.generation
     this.actionBusy = false
@@ -180,6 +185,7 @@ export class ParkRuntime implements ParkRuntimePort {
     await closing
   }
   private closed(code: number) {
+    this.movement.clear()
     if (!this.active) return
     if (code === 4401 || code === 4403) {
       this.authEnded()
@@ -226,6 +232,8 @@ export class ParkRuntime implements ParkRuntimePort {
       })
       throw error
     }
+    if (!session.roomId || !session.mapCompatible || session.tableId || tableBusy() || !avatars.has(session.sessionId))
+      this.movement.clear(false)
     if (message.type === 'CONNECTED') {
       const profile = this.ownProfile
       if (!profile || profile.userId !== message.payload.userId) {
@@ -275,6 +283,7 @@ export class ParkRuntime implements ParkRuntimePort {
         throw new Error('경기 진행·복구·정산 중에는 채널을 바꿀 수 없습니다.')
       if (state.tableId) throw new Error('먼저 테이블에서 일어나주세요.')
       if (state.roomId === channelId) return
+      this.movement.clear()
       if (!state.channels.some((c) => c.channelId === channelId))
         throw new Error('서버 채널 목록을 확인해주세요.')
       if (state.roomId)
@@ -311,24 +320,25 @@ export class ParkRuntime implements ParkRuntimePort {
       // Only server echoes enter the message list. No optimistic duplicate or automatic replay.
     })
   move = (dx: number, dz: number, run: boolean, jump = false) => {
+    const intent = normalizedMove(dx, dz, run, jump)
+    if (!intent || !this.canSendMovement(intent)) return
+    this.movement.enqueue(intent, this.movementScope())
+  }
+  private movementScope() {
     const s = useSession.getState()
-    if (
-      !s.roomId ||
-      !s.mapCompatible ||
-      tableBusy() ||
-      s.tableId ||
-      (benchBusy(s.sessionId) && !!(dx || dz || run || jump)) ||
-      !this.socket.connected ||
-      ![dx, dz].every(Number.isFinite)
-    )
-      return
+    return JSON.stringify([this.generation, s.sessionId, s.roomId])
+  }
+  private canSendMovement(intent: MovementIntent) {
+    const s = useSession.getState()
+    return this.active && s.status === 'connected' && !!s.roomId && s.mapCompatible && avatars.has(s.sessionId)
+      && !tableBusy() && !s.tableId && (!benchBusy(s.sessionId) || stoppedIntent(intent)) && this.socket.connected
+  }
+  private sendMovement(intent: MovementIntent, scope: string) {
+    if (scope !== this.movementScope() || !this.canSendMovement(intent)) return
     try {
       this.socket.send('WORLD_MOVE', {
         seq: ++this.inputSequence,
-        dx,
-        dz,
-        run,
-        jump,
+        ...intent,
       })
     } catch {
       /* Disconnect handler owns the visible state. */

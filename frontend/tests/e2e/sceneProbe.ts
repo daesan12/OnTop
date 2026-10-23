@@ -18,6 +18,9 @@ import { setDisplayProfiles } from '../../src/network/profileBridge'
 import { GOMOKU } from '../../src/config'
 import type { InstancedMesh } from 'three'
 import { omokCamera } from '../../src/game/cameraState'
+import { Matrix4 } from 'three'
+import { avatars, sampleAvatar } from '../../src/network/worldClient'
+import { groundHeight } from '../../src/config'
 export const omokCameraReady = () => omokCamera.ready
 export function pointForOmok(x: number, y: number) {
   const { scene, camera, gl } = root()
@@ -206,3 +209,21 @@ export async function fixtureBench(userId: string, benchId: string, seat: 0 | 1)
 }
 export const benchProbe = () => ({ benchId: useSession.getState().benchId, pending: useBenchState.getState().pending,
   lease: useBenchState.getState().placements[useSession.getState().sessionId], ...sceneProbe() })
+
+export function movementProbe() {
+  const { scene, camera } = root(), s = useSession.getState()
+  const avatar = avatars.get(s.sessionId)
+  const ripple = scene.getObjectByName('swimming-ripples') as InstancedMesh | undefined
+  const rippleMatrix = new Matrix4()
+  if (ripple?.count) ripple.getMatrixAt(0, rippleMatrix)
+  return {
+    approved: avatar ? { ...avatar.current } : null,
+    sampled: avatar ? sampleAvatar(avatar, performance.now(), { x: 0, y: 0, z: 0, yaw: 0 }) : null,
+    moving: avatar?.moving, running: avatar?.running, swimming: avatar?.swimming,
+    remoteSwimming: avatars.get('102')?.swimming,
+    figureRotationX: scene.getObjectByName('figure-' + s.sessionId)?.rotation.x,
+    rippleCount: ripple?.count ?? 0,
+    ripplePosition: new Vector3().setFromMatrixPosition(rippleMatrix).toArray(),
+    cameraY: camera.position.y, terrainY: groundHeight(camera.position.x, camera.position.z),
+  }
+}

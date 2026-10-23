@@ -1,0 +1,125 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { clearAuthSession, restoreAuthSession } from '../../src/auth/authFlow'
+import type { SocketLike } from '../../src/network/socketClient'
+import { resetWorld, useSession } from '../../src/network/worldClient'
+import { ParkRuntime } from '../../src/park/runtime/runtime'
+import { EXPECTED_MAP_VERSION } from '../../src/config/mapVersion'
+
+const sockets: MovementSocket[] = []
+class MovementSocket implements SocketLike {
+  requests: { requestId: string; type: string; payload: Record<string, unknown> }[] = []
+  readyState = 0
+  onopen: SocketLike['onopen'] = null
+  onclose: SocketLike['onclose'] = null
+  onmessage: SocketLike['onmessage'] = null
+  onerror: SocketLike['onerror'] = null
+  constructor() {
+    sockets.push(this)
+    queueMicrotask(() => {
+      this.readyState = 1
+      this.onopen?.(new Event('open'))
+      this.emit('CONNECTED', { userId: '101' })
+    })
+  }
+  emit(type: string, payload: object, requestId: string | null = null) {
+    this.onmessage?.({ data: JSON.stringify({ type, payload, requestId }) } as MessageEvent)
+  }
+  send(data: string) {
+    const request = JSON.parse(data)
+    this.requests.push(request)
+    if (request.type === 'CHANNEL_JOIN') queueMicrotask(() => this.emit('CHANNEL_STATE', {
+      channelId: 'channel-1', name: '공원', version: 1, currentUsers: 1, capacity: 4, userIds: ['101'],
+    }, request.requestId))
+  }
+  close(code = 1000) {
+    this.readyState = 3
+    queueMicrotask(() => this.onclose?.({ code } as CloseEvent))
+  }
+}
+
+let runtime: ParkRuntime
+let socket: MovementSocket
+let version: number
+const position = { x: 0, y: 0.8, z: 34, yaw: 0, moving: false, running: false, swimming: false, lastInputSeq: 0 }
+const json = (body: unknown) => new Response(JSON.stringify(body))
+const moves = () => socket.requests.filter(request => request.type === 'WORLD_MOVE')
+function world(mapVersion = EXPECTED_MAP_VERSION, present = true) {
+  socket.emit('WORLD_STATE', { channelId: 'channel-1', version: ++version, mapVersion,
+    avatars: present ? [{ userId: '101', position }] : [] })
+}
+
+beforeEach(async () => {
+  clearAuthSession()
+  resetWorld()
+  sockets.length = version = 0
+  vi.stubGlobal('window', { location: { href: 'http://localhost:5198/park' } })
+  vi.stubGlobal('WebSocket', MovementSocket)
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+    if (url === '/api/v1/auth/refresh') return json({ accessToken: 'fixture-access' })
+    if (url === '/park-bindings.json') return json({ bindings: [] })
+    if (url === '/api/v1/channels') return json({ items: [{ channelId: 'channel-1', name: '공원', currentUsers: 0, capacity: 4, joinable: true }] })
+    if (url === '/api/v1/users/me') return json({ userId: 101, nickname: '회원', characterGender: 'MALE' })
+    if (url === '/api/v1/auth/websocket-ticket') return json({ ticket: 'fixture-ticket', expiresIn: 30 })
+    if (url.startsWith('/api/v1/tables?')) return json({ tables: [] })
+    throw new Error('Unexpected request: ' + url)
+  }))
+  runtime = new ParkRuntime()
+  await restoreAuthSession(true)
+  runtime.start()
+  await vi.waitFor(() => expect(useSession.getState().roomId).toBe('channel-1'))
+  socket = sockets.at(-1)!
+  world()
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date', 'performance'] })
+})
+
+afterEach(async () => {
+  await runtime.stop()
+  vi.useRealTimers()
+  clearAuthSession()
+  vi.unstubAllGlobals()
+})
+
+describe('M02 real runtime delivery through the existing SharedSocket', () => {
+  it('sends normalized intent with only existing fields and increases seq on actual delivery', async () => {
+    runtime.move(NaN, 0, false)
+    runtime.move(2, 0, false)
+    expect(moves()).toHaveLength(0)
+    runtime.move(1, 1, true, true)
+    expect(moves()).toHaveLength(1)
+    expect(moves()[0]!.payload.seq).toBe(1)
+    expect(Math.hypot(Number(moves()[0]!.payload.dx), Number(moves()[0]!.payload.dz))).toBeCloseTo(1)
+    runtime.move(1, 0, false)
+    runtime.move(0, -1, false)
+    expect(moves()).toHaveLength(1)
+    await vi.advanceTimersByTimeAsync(60)
+    expect(moves()).toHaveLength(2)
+    expect(moves()[1]!.payload).toEqual({ seq: 2, dx: 0, dz: -1, run: false, jump: false })
+    for (const request of moves()) expect(Object.keys(request.payload).sort()).toEqual(['dx', 'dz', 'jump', 'run', 'seq'])
+  })
+
+  it.each(['map mismatch', 'server seating', 'avatar removal'])(
+    'discards queued movement on %s even if the restriction is removed before the next send', async boundary => {
+      runtime.move(0, 0, false)
+      runtime.move(0, -1, true, true)
+      if (boundary === 'map mismatch') {
+        world('different-map')
+        world()
+      } else if (boundary === 'avatar removal') {
+        world(EXPECTED_MAP_VERSION, false)
+        runtime.move(1, 0, false)
+        world()
+      } else {
+        useSession.setState({ tables: [{ tableId: 't', capacity: 2, occupiedSeats: 1, availableSeats: 1,
+          joinable: true, gameCode: null, status: 'WAITING' }] })
+        socket.emit('TABLE_STATE', { tableId: 't', version: 1, capacity: 2, minimumPlayers: 2,
+          seats: [{ seatNumber: 1, userId: '101', ready: false }, { seatNumber: 2, userId: null, ready: false }],
+          allReady: false, selectorUserId: '101', gameCode: null, targetScore: null })
+        socket.emit('TABLE_LEFT', { tableId: 't' })
+      }
+      await vi.advanceTimersByTimeAsync(120)
+      expect(moves()).toHaveLength(1)
+      runtime.move(1, 0, false)
+      expect(moves()[1]!.payload).toEqual({ seq: 2, dx: 1, dz: 0, run: false, jump: false })
+    },
+  )
+})

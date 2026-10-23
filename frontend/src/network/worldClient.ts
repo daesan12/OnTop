@@ -14,6 +14,7 @@ import { EXPECTED_MAP_VERSION } from '../config/mapVersion'
 import { resetGame } from '../game/store'
 import { resetBenchState, useBenchState } from '../features/interactions/benchState'
 import { clearRoamingInput } from '../world/inputOwnership'
+import { samePose, sampleMovement } from '../world/movementPresentation'
 
 export interface Pose {
   x: number
@@ -169,21 +170,7 @@ export function sampleAvatar(
   now: number,
   target: Pose,
 ): Pose {
-  const t = Math.min(
-    1,
-    Math.max(0, (now - avatar.at) / NETWORK.interpolationMs),
-  )
-  for (const k of ['x', 'y', 'z'] as const)
-    target[k] =
-      avatar.previous[k] + (avatar.current[k] - avatar.previous[k]) * t
-  target.yaw =
-    avatar.previous.yaw +
-    Math.atan2(
-      Math.sin(avatar.current.yaw - avatar.previous.yaw),
-      Math.cos(avatar.current.yaw - avatar.previous.yaw),
-    ) *
-      t
-  return target
+  return sampleMovement(avatar, now, NETWORK.interpolationMs, target)
 }
 export const estimatedServerTime = () => Date.now() // Only for events carrying server ISO timestamps; world day clock is separate.
 export const authoritativePose = (userId: string): Pose | undefined => {
@@ -270,6 +257,7 @@ export function receive(message: Envelope) {
       if (!mapCompatible) { resetBenchState(); clearRoamingInput() }
       const ids = next.avatars.map((a) => a.userId),
         now = performance.now()
+      if (!ids.includes(state.sessionId)) clearRoamingInput()
       if (!ids.includes(state.sessionId) || Object.keys(useBenchState.getState().placements).some(id => !ids.includes(id))) resetBenchState()
       for (const id of avatars.keys())
         if (!ids.includes(id)) {
@@ -290,11 +278,15 @@ export function receive(message: Envelope) {
             z: position.z,
             yaw: position.yaw,
           }
-        if (old) sampleAvatar(old, now, previous)
+        const unchanged = old && samePose(old.current, position)
+        if (old) {
+          if (unchanged) Object.assign(previous, old.previous)
+          else sampleAvatar(old, now, previous)
+        }
         avatars.set(userId, {
           previous,
           current: { ...position },
-          at: now,
+          at: unchanged ? old.at : now,
           nickname:
             state.profiles[userId]?.nickname ??
             (userId === state.sessionId ? '나' : '산책자 ' + userId.slice(-6)),
