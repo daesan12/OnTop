@@ -21,6 +21,8 @@ import { findEmote, type EmoteId } from '../features/emotes/catalog'
 import { releaseFitnessUser, resetFitnessState, useFitnessState } from '../features/fitness/state'
 import { releaseTelescopeUser, resetTelescopeState, useTelescopeState } from '../features/telescopes/state'
 import { resetTelescopeView, telescopeView } from '../features/telescopeView'
+import { resetFeedbackState, useFeedbackState } from '../features/feedback/state'
+import { canReachFeedback } from '../features/feedback/validation'
 
 export interface Pose {
   x: number
@@ -135,6 +137,7 @@ let channelVersion = -1,
 const chatIds = new Set<string>()
 const emoteTimeline = new EmoteTimeline()
 export function resetWorld(status: Session['status'] = 'idle', error = '') {
+  resetFeedbackState(status !== 'idle')
   resetFitnessState()
   resetTelescopeState()
   resetEmotes(true)
@@ -148,7 +151,8 @@ export function resetWorld(status: Session['status'] = 'idle', error = '') {
   chatIds.clear()
   useSession.setState({ ...initial(), status, error })
 }
-export function clearChannel() {
+export function clearChannel(keepFeedbackDraft = false) {
+  resetFeedbackState(keepFeedbackDraft)
   resetFitnessState()
   resetTelescopeState()
   resetEmotes()
@@ -291,6 +295,8 @@ export function refreshActivityPresentation() {
   if (telescopeView.id !== telescopeId) resetTelescopeView(telescopeId)
   if (state.benchId !== benchId || state.fitnessId !== fitnessId || state.telescopeId !== telescopeId)
     useSession.setState({ benchId, fitnessId, telescopeId })
+  if (useFeedbackState.getState().open && (!own?.connected || own.seatIndex >= 0 || own.fitnessId
+    || own.telescopeId || own.swimming || !canReachFeedback(authoritativePose(state.sessionId)))) resetFeedbackState(true)
 }
 export function receive(message: Envelope) {
   const p = message.payload,
@@ -299,6 +305,7 @@ export function receive(message: Envelope) {
     case 'CONNECTED':
       if (typeof p.userId !== 'string' || !p.userId)
         throw new Error('사용자 연결 상태를 확인할 수 없습니다.')
+      if (useFeedbackState.getState().ownerId && useFeedbackState.getState().ownerId !== p.userId) resetFeedbackState()
       useSession.setState({ status: 'connected', sessionId: p.userId })
       break
     case 'CHANNEL_STATE': {
@@ -327,7 +334,7 @@ export function receive(message: Envelope) {
         return
       worldVersion = next.version
       const mapCompatible = next.mapVersion === EXPECTED_MAP_VERSION
-      if (!mapCompatible) { resetBenchState(); resetFitnessState(); resetTelescopeState(); clearRoamingInput() }
+      if (!mapCompatible) { resetBenchState(); resetFitnessState(); resetTelescopeState(); resetFeedbackState(true); clearRoamingInput() }
       const ids = next.avatars.map((a) => a.userId),
         now = performance.now()
       if (!ids.includes(state.sessionId)) {

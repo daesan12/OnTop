@@ -394,3 +394,34 @@ export function telescopeProbe(id: string) {
     remote: { id: avatars.get('102')?.telescopeId, yaw: avatars.get('102')?.telescopeYaw, pitch: avatars.get('102')?.telescopePitch },
   }
 }
+
+import { feedbackService } from '../../src/features/feedback/service'
+import { useFeedbackState } from '../../src/features/feedback/state'
+import type { FeedbackSubmission } from '../../src/features/feedback/contracts'
+let feedbackFault: 'normal' | 'reject' | 'hold' | 'acceptThenLose' = 'normal'
+let feedbackWrapped = false
+const feedbackCalls: FeedbackSubmission[] = []
+const feedbackAccepted: string[] = []
+export function fixtureFeedback(mode: typeof feedbackFault) {
+  feedbackFault = mode
+  if (feedbackWrapped) return
+  feedbackWrapped = true
+  const submit = feedbackService.submit.bind(feedbackService)
+  feedbackService.submit = async (payload, signal) => {
+    feedbackCalls.push(payload)
+    const fault = feedbackFault
+    if (fault === 'reject') throw new Error('테스트 저장 실패입니다. 같은 내용으로 다시 시도해주세요.')
+    if (fault === 'hold') return new Promise(() => {}) // Deliberately non-cooperating adapter for timeout/cancellation tests.
+    const result = await submit(payload, signal)
+    feedbackAccepted.push(result.receiptId)
+    if (fault === 'acceptThenLose') { feedbackFault = 'normal'; return new Promise(() => {}) }
+    return result
+  }
+}
+export function feedbackProbe() {
+  const own = useFeedbackState.getState()
+  return { ...own, calls: feedbackCalls.map(call => ({ operationId: call.operationId, keys: Object.keys(call).sort() })),
+    accepted: [...feedbackAccepted], controls: { ...viewControls }, feedbackOpen: inputState.feedbackOpen,
+    publicData: JSON.stringify({ session: useSession.getState(), avatars: [...avatars] }),
+  }
+}

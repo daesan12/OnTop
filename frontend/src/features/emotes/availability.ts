@@ -21,6 +21,6 @@ export function emoteUnavailable(id: EmoteId, now = Date.now()): string {
   if (session.pending || useBenchState.getState().pending || useFitnessState.getState().pending || useTelescopeState.getState().pending || tableBusy()) return '현재 작업을 마친 뒤 사용해주세요'
   if (avatar.fitnessId || avatar.telescopeId || avatar.swimming) return '시설 이용·수영을 마친 뒤 사용해주세요'
   if (avatar.moving) return '잠시 멈춘 뒤 사용해주세요'
-  if (inputState.blocked || inputState.chatOpen || inputState.manualOpen || inputState.mapOpen || inputState.minigameOpen) return '열린 창을 닫은 뒤 사용해주세요'
+  if (inputState.blocked || inputState.chatOpen || inputState.manualOpen || inputState.mapOpen || inputState.minigameOpen || inputState.feedbackOpen) return '열린 창을 닫은 뒤 사용해주세요'
   return ''
 }

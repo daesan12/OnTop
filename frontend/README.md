@@ -28,6 +28,8 @@ React, TypeScript, Vite, React Three Fiber 기반 프론트엔드다. 현재 첫
 
 ## 실행
 
+M07 지상 소리함의 작성·검증·실패/재시도·재접속 시 원문 보존은 [MIGRATION_M07.md](docs/MIGRATION_M07.md)를 참고한다. 미구현 제출 API만 `pnpm dev:facilities`의 페이지 메모리 목업으로 검수하며, 일반 환경에서는 작성 UI와 서버 연결 준비 안내를 표시하고 전송을 비활성화한다.
+
 Node.js 24 LTS 계열과 pnpm 11을 사용한다. `.nvmrc`에는 Node 24 계열을 명시했다.
 
 ```sh

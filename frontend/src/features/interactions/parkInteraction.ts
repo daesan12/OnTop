@@ -1,4 +1,4 @@
-import { FITNESS, FITNESS_STATIONS, GOMOKU, TABLES, TELESCOPES, TELESCOPE, tableScale } from '../../config'
+import { FITNESS, FITNESS_STATIONS, GOMOKU, TABLES, TELESCOPES, TELESCOPE, MAILBOX, tableScale } from '../../config'
 import { avatars, useSession } from '../../network/worldClient'
 import { tableBusy } from '../../game/store'
 import { parkRuntime } from '../../park/runtime/runtime'
@@ -16,9 +16,11 @@ import { canReachTelescope } from '../telescopes/anchors'
 import { useTelescopeState } from '../telescopes/state'
 import { telescopeService } from '../telescopes/service'
 import { enterTelescope } from '../telescopes/controller'
+import { canReachFeedback } from '../feedback/validation'
+import { openFeedback } from '../feedback/controller'
 
 export interface ParkInteraction {
-  kind: 'bench' | 'table' | 'fitness' | 'telescope'
+  kind: 'bench' | 'table' | 'fitness' | 'telescope' | 'feedback'
   id: string
   label: string
   seat?: 0 | 1
@@ -36,6 +38,11 @@ export function getParkInteraction(): ParkInteraction | null {
     || p.fitnessId || p.telescopeId || p.swimming || session.pending || benches.pending || fitness.pending
     || useTelescopeState.getState().pending || tableBusy() || panelOwnsKeys()) return null
   const choices: ParkInteraction[] = []
+  if (canReachFeedback(p.current)) {
+    const distance = Math.hypot(p.current.x - MAILBOX.x, p.current.z - MAILBOX.z)
+    choices.push({ kind: 'feedback', id: 'feedback-mailbox', label: '소리함에 의견 쓰기', occupied: false,
+      available: true, distance, score: interactionScore(distance, { x: MAILBOX.x, y: MAILBOX.height * 0.7, z: MAILBOX.z }) })
+  }
   for (const t of TELESCOPES) {
     if (!canReachTelescope(p.current, t.id)) continue
     const occupant = Object.values(useTelescopeState.getState().placements).find(lease => lease.channelId === session.roomId && lease.telescopeId === t.id)
@@ -81,6 +88,7 @@ export function interactWithPark(): boolean {
   const target = getParkInteraction()
   if (!target) return false
   if (target.kind === 'table') parkRuntime.inspectTable(target.id)
+  else if (target.kind === 'feedback') openFeedback()
   else if (target.kind === 'telescope' && target.available && !target.occupied) void enterTelescope(target.id)
   else if (target.kind === 'fitness' && target.available && !target.occupied) void enterFitness(target.id)
   else if (target.available && !target.occupied && target.seat !== undefined) void sitBench(target.id, target.seat)

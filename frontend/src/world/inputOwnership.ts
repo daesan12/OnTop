@@ -1,7 +1,7 @@
 /** Shared ownership flags; future manual/map/wheel/minigame panels use the same gate. */
 export const inputState = {
   blocked: false, chatOpen: false, manualOpen: false, mapOpen: false,
-  emoteWheelOpen: false, minigameOpen: false,
+  emoteWheelOpen: false, minigameOpen: false, feedbackOpen: false,
 }
 export const roamingInput = { ready: false }
 export function clearRoamingInput() {
