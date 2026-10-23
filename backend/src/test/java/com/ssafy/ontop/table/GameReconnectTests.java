@@ -13,6 +13,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.Optional;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
@@ -267,14 +268,23 @@ class GameReconnectTests {
         service.disconnected(101, "first", com.ssafy.ontop.game.result.GameDepartureReason.MEMBER_DEACTIVATED);
         GraceExpiration failed = engine.commands.poll(5, TimeUnit.SECONDS);
         assertThat(failed).isNotNull();
+        Inbox unavailable = connect("retrying");
+        unavailable.await("UNAVAILABLE");
+        service.refresh(101, "retrying", "retry-failure", unavailable::offer);
+        unavailable.await("UNAVAILABLE");
         engine.failExpiry = false;
         connect("returned").await("FINISHED");
-        GraceExpiration retried = engine.commands.poll(5, TimeUnit.SECONDS);
-        assertThat(retried.eventId()).isEqualTo(failed.eventId());
-        assertThat(retried.reason()).isEqualTo(failed.reason());
+        // 실패는 타이머/조회 경합에 따라 여러 번 재시도할 수 있다. 모든 시도는 같은 명령이어야 한다.
+        var attempts = new ArrayList<GraceExpiration>();
+        attempts.add(failed);
+        engine.commands.drainTo(attempts);
+        assertThat(attempts).hasSizeGreaterThanOrEqualTo(3)
+                .allSatisfy(command -> assertThat(command).isEqualTo(failed));
+        assertThat(engine.successfulExpirations.get()).isEqualTo(1);
         service.disconnected(101, "first", com.ssafy.ontop.game.result.GameDepartureReason.LOGOUT);
         assertThat(service.canUseLobby(101, "returned")).isTrue();
         assertThat(engine.commands.poll(100, TimeUnit.MILLISECONDS)).isNull();
+        assertThat(engine.successfulExpirations.get()).isEqualTo(1);
     }
 
     private GameRecoverySnapshot snapshot(long userId, int count, long version, Phase phase) {
@@ -306,6 +316,7 @@ class GameReconnectTests {
         private volatile GameRecoverySnapshot snapshot = snapshot(101, 2, 1, Phase.PLAYING);
         private volatile Function<Long, Optional<GameRecoverySnapshot>> load = user -> Optional.of(snapshot);
         private final BlockingQueue<GraceExpiration> commands = new LinkedBlockingQueue<>();
+        private final AtomicInteger successfulExpirations = new AtomicInteger();
         private volatile boolean keepPlaying;
         private volatile boolean failExpiry;
 
@@ -324,6 +335,7 @@ class GameReconnectTests {
                 snapshot = snapshot(101, snapshot.participantCount(), snapshot.version() + 1,
                         command.action() == Action.FORFEIT ? Phase.FINISHED : Phase.ELIMINATED);
             }
+            successfulExpirations.incrementAndGet();
             commands.add(command);
         }
     }
