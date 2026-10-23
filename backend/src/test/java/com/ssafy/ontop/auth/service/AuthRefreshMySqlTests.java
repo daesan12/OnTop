@@ -371,8 +371,8 @@ class AuthRefreshMySqlTests {
     }
 
     @Test
-    void V3와_시각_CHECK와_JPA_validate와_Flyway_재실행을_확인한다() {
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("3");
+    void V4와_시각_CHECK와_JPA_validate와_Flyway_재실행을_확인한다() {
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("4");
         assertThat(flyway.migrate().migrationsExecuted).isZero();
         assertThat(jdbc.queryForObject("""
                 SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE()

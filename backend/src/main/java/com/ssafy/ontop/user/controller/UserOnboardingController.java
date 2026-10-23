@@ -33,7 +33,7 @@ public class UserOnboardingController {
         this.service = service;
     }
 
-    @Operation(summary = "신규 회원 온보딩", description = "온보딩 전용 Bearer만 허용하며 JSESSIONID가 필요 없습니다. nickname/characterGender만 입력합니다. 회원 생성과 Refresh 저장은 원자적입니다. 201 성공 후 토큰 소비; 확인된 닉네임 충돌+롤백(409 USER_NICKNAME_ALREADY_EXISTS)만 같은 토큰으로 재시도하며 최초 만료는 연장하지 않습니다. 중복 소셜 계정/기타 실패/커밋 불명은 새 OAuth가 필요합니다. Wallet은 생성하지 않습니다.",
+    @Operation(summary = "신규 회원 온보딩", description = "온보딩 전용 Bearer만 허용하며 JSESSIONID가 필요 없습니다. nickname/characterGender만 입력합니다. 회원·지갑·최초 100코인 SIGNUP_BONUS 원장·Refresh 저장은 원자적입니다. 201 성공 후 토큰 소비; 확인된 닉네임 충돌+롤백(409 USER_NICKNAME_ALREADY_EXISTS)만 같은 토큰으로 재시도하며 최초 만료는 연장하지 않습니다. 중복 소셜 계정/기타 실패/커밋 불명은 새 OAuth가 필요합니다.",
             security = {@SecurityRequirement(name = "OnboardingBearer")},
             requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(required = true,
                     content = @Content(schema = @Schema(implementation = UserOnboardingRequest.class))))

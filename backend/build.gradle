@@ -70,6 +70,15 @@ tasks.register('mysqlTest', Test) {
     }
 }
 
+tasks.register('initializeWallets', JavaExec) {
+    description = '기존 활성 회원의 누락된 지갑만 초기화 (명시적 관리 명령, DB 환경변수 필요)'
+    group = 'application'
+    dependsOn classes
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.ssafy.ontop.wallet.admin.WalletInitializationCommand'
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
+}
+
 tasks.register('omokDemo', JavaExec) {
     description = '127.0.0.1:18081에서 테스트 전용 오목 화면 실행 (운영 JAR 제외)'
     group = 'verification'

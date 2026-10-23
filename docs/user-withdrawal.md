@@ -82,9 +82,9 @@ AuthUserStateService/restoreWithinRecoveryPeriod와 AUTH-02 문서의 실제 정
 - 2026-10-22 개발 ontop_dev 메타데이터의 읽기 전용 확인 결과도 users/refresh_tokens/Flyway 이력만 존재하고,
   users 참조 FK는 refresh_tokens의 RESTRICT/RESTRICT였다. 개발 스키마를 확장하거나 초기화하지 않았다.
 - 선택적 db/shop/V100은 user_items와 shop_purchases에서 users를 FK로 참조하며 명시적 cascade가 없다.
-- Wallet/WalletTransaction 엔티티는 ID 필드로 참조한다. 공통 wallets/원장 운영 생성 DDL은 기본 V1~V3에 없다.
-  테스트 V99는 지갑/원장 경계 fixture이고 V101은 nullable 경기 참조 컬럼이다.
-  이 fixture에는 지갑→회원/원장→경기 FK가 정의되어 있지 않으므로 운영 FK를 검증했다고 주장하지 않는다.
+- Wallet 후속 작업의 기본 V4는 wallets→users 및 원장→wallets NO ACTION FK로 부모 행 삭제를 차단한다.
+  경기/미니게임/items 참조는 선택적/미구현 스키마이므로 FK가 없다. 과거 V99/V101은 보존하고 신규 검증에서 제외한다.
+  탈퇴·복구는 [공통 Wallet](wallet-initialization.md)을 재초기화하거나 보너스를 중복 지급하지 않는다.
 - 사용자를 물리 삭제하지 않으므로 기존 ID 기반 FK를 유지한다. 지갑 잔액/예약액/원장/아이템/구매 기록은 수정하지 않는다.
 - 현재 저장소의 기본 마이그레이션에 실제 게임/참가자 기록 테이블 생성은 없다. 게임 기록 삭제/정산을 추가하지 않는다.
 - TableHub/게임 엔진/기권/베팅/정산 코드는 변경하지 않는다. 기존 Hub는 인증 종료에서도
