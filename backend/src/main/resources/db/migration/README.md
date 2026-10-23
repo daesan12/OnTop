@@ -21,6 +21,8 @@ V4__create_wallets.sql은 공통 wallets/wallet_transactions와 잔액 CHECK·FK
 신규 온보딩은 회원·100코인 지갑·SIGNUP_BONUS 원장·Refresh를 같은 트랜잭션에 저장한다.
 선택적 Shop V100은 기본 위치와 분리하며 기존 테스트 V99/V101은 보존하되 신규 실행 위치에서 제외한다.
 기존 fixture DB는 초기화하지 않고 새 격리 DB에서 검증한다. 상세 절차는 docs/wallet-initialization.md를 따른다.
+S15P31B105-140의 `V5__create_behavior_events.sql`, `V6__create_world_position_samples.sql`은 행동 로그 테이블을 추가한다.
+회원 FK 없이 분석용 기록만 저장하며 설계와 유실 기준은 docs/behavior-log.md를 따른다.
 GameSessions 등 미구현 도메인은 이후 별도 migration으로 추가한다.
 
 users의 collation·시각·탈퇴 데이터 보존 및 실제 MySQL 테스트는

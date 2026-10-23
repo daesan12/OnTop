@@ -1,5 +1,8 @@
 package com.ssafy.ontop.shop.service;
 
+import com.ssafy.ontop.behavior.domain.BehaviorEvent;
+import com.ssafy.ontop.behavior.domain.BehaviorEventType;
+import com.ssafy.ontop.behavior.service.BehaviorLog;
 import com.ssafy.ontop.inventory.domain.UserItem;
 import com.ssafy.ontop.item.domain.ItemType;
 import com.ssafy.ontop.shop.ShopException;
@@ -14,6 +17,7 @@ import com.ssafy.ontop.shop.dto.PurchaseResponse;
 import com.ssafy.ontop.shop.repository.ShopRepository;
 import com.ssafy.ontop.wallet.domain.Wallet;
 import com.ssafy.ontop.wallet.domain.WalletTransaction;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.slf4j.Logger;
@@ -32,14 +36,21 @@ public class ShopService {
     private final TransactionTemplate transactions;
     private final ApplicationEventPublisher events;
     private final DuplicateEquipmentPolicy duplicatePolicy;
+    private final BehaviorLog behaviorLog;
 
     public ShopService(ShopRepository repository, PlatformTransactionManager manager,
             ApplicationEventPublisher events, DuplicateEquipmentPolicy duplicatePolicy) {
+        this(repository, manager, events, duplicatePolicy, BehaviorLog.disabled());
+    }
+
+    public ShopService(ShopRepository repository, PlatformTransactionManager manager,
+            ApplicationEventPublisher events, DuplicateEquipmentPolicy duplicatePolicy, BehaviorLog behaviorLog) {
         this.repository = repository;
         this.transactions = new TransactionTemplate(manager);
         this.transactions.setIsolationLevel(TransactionDefinition.ISOLATION_READ_COMMITTED);
         this.events = events;
         this.duplicatePolicy = duplicatePolicy;
+        this.behaviorLog = behaviorLog;
     }
 
     public ItemListResponse catalog() {
@@ -105,6 +116,10 @@ public class ShopService {
                     total, wallet.balance(), holding.id());
             repository.persist(new ShopPurchase(userId, key, result));
             repository.flush();
+            // 같은 키 재요청(기존 영수증 반환)은 이 경로에 오지 않으므로 새 구매만 커밋 후 기록한다.
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override public void afterCommit() { purchaseCommitted(userId, result); }
+            });
             return result;
         });
     }
@@ -133,7 +148,7 @@ public class ShopService {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    equipmentCommitted(userId);
+                    equipmentCommitted(userId, selectedItem.itemId());
                 }
             });
             return new EquipmentResponse(holdings.stream().map(UserItem::toOwnedItem)
@@ -141,9 +156,18 @@ public class ShopService {
         });
     }
 
-    private void equipmentCommitted(long userId) {
+    private void purchaseCommitted(long userId, PurchaseResponse purchase) {
+        behaviorLog.record(() -> BehaviorEvent.builder(BehaviorEventType.SHOP_PURCHASED, Instant.now())
+                .userId(userId)
+                .prop("itemId", purchase.itemId())
+                .prop("quantity", purchase.quantity())
+                .prop("purchaseId", purchase.purchaseId())
+                .build());
+    }
+
+    private void equipmentCommitted(long userId, long itemId) {
         try {
-            events.publishEvent(new EquipmentChanged(userId));
+            events.publishEvent(new EquipmentChanged(userId, itemId));
         } catch (RuntimeException exception) {
             // 이벤트 예외에는 요청 데이터가 포함될 수 있어 원문 대신 실패 종류만 남긴다.
             log.warn("의상 변경 알림을 전달하지 못했습니다. 보유 목록을 다시 조회하세요. errorType={}",

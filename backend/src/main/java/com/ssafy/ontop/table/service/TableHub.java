@@ -2,6 +2,11 @@ package com.ssafy.ontop.table.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser;
+import com.ssafy.ontop.behavior.domain.BehaviorEvent;
+import com.ssafy.ontop.behavior.domain.BehaviorEventType;
+import com.ssafy.ontop.behavior.domain.PositionSample;
+import com.ssafy.ontop.behavior.service.BehaviorLog;
+import com.ssafy.ontop.behavior.service.PositionSampler;
 import com.ssafy.ontop.game.action.GameActionCommand;
 import com.ssafy.ontop.game.action.GameActionGateway;
 import com.ssafy.ontop.game.action.GameActionResult;
@@ -42,6 +47,7 @@ import jakarta.annotation.PreDestroy;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashMap;
@@ -55,6 +61,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -109,11 +116,45 @@ public class TableHub {
     private final LongAdder sentBytes = new LongAdder();
     private final Map<ConnectionCloseReason, LongAdder> closedByReason = new EnumMap<>(ConnectionCloseReason.class);
     private boolean stopped;
+    private BehaviorLog behaviorLog = BehaviorLog.disabled();
+    private final PositionSampler positionSampler = new PositionSampler(Duration.ofSeconds(1));
 
     @org.springframework.beans.factory.annotation.Autowired
     public void configureCommittedStarts(Optional<CommittedGameStartService> service) {
         committedStarts = service;
         if (service.isPresent()) { protocol.enableStartQueries(); }
+    }
+
+    /** 행동 로그(docs/behavior-log.md). 직접 생성한 Hub는 기록하지 않는다. */
+    @Autowired
+    public void configureBehaviorLog(BehaviorLog behaviorLog) {
+        this.behaviorLog = behaviorLog;
+    }
+
+    // 성공 처리 뒤에만 호출한다. 큐에 넣기만 하고 실패해도 예외를 던지지 않아 Hub 처리에 영향이 없다.
+    private void recordBehavior(BehaviorEventType type, Long accountId, UnaryOperator<BehaviorEvent.Builder> details) {
+        behaviorLog.record(() -> details.apply(BehaviorEvent.builder(type, Instant.now()).userId(accountId)).build());
+    }
+
+    // 물리 계산이 끝난 위치를 큐에 넣기만 한다. DB 접근·대기가 없어 tick을 막지 않는다. 착석 중에는 남기지 않는다.
+    private void recordPositions(WorldChannelRegistry.WorldState state, Set<String> onlyUsers) {
+        long now = System.nanoTime();
+        for (WorldChannelRegistry.Avatar avatar : state.avatars()) {
+            String userId = avatar.userId();
+            WorldChannelRegistry.Position position = avatar.position();
+            if ((onlyUsers != null && !onlyUsers.contains(userId)) || seating.containsKey(userId)
+                    || !positionSampler.shouldSample(userId, position.moving(), now)) {
+                continue;
+            }
+            behaviorLog.recordPosition(() -> new PositionSample(accountIdOf(userId), state.channelId(), Instant.now(),
+                    position.x(), position.y(), position.z(), position.moving(), position.running(),
+                    position.swimming(), state.mapVersion()));
+        }
+    }
+
+    // 인증 연결의 userId는 회원 번호다. local 개발 사용자(dev-…)는 회원이 아니므로 null로 남긴다.
+    private static Long accountIdOf(String userId) {
+        return !userId.isEmpty() && userId.chars().allMatch(Character::isDigit) ? Long.valueOf(userId) : null;
     }
 
     public TableHub(ObjectMapper mapper, Optional<GameStartGateway> gateway,
@@ -284,6 +325,7 @@ public class TableHub {
                     committedStarts.isEmpty())));
         }
         peer.start();
+        recordBehavior(BehaviorEventType.WS_CONNECTED, accountId, builder -> builder);
         return member;
     }
 
@@ -424,6 +466,8 @@ public class TableHub {
             return;
         }
         closeMember(member, reason);
+        recordBehavior(BehaviorEventType.WS_DISCONNECTED, member.accountId(),
+                builder -> builder.prop("reason", member.peer().closeReason().name()));
         gameResults.ifPresent(service -> service.disconnected(sessionId));
         stateQueries.remove(sessionId);
         statePushes.remove(sessionId);
@@ -432,10 +476,13 @@ public class TableHub {
         chat.disconnected(member.userId());
         emotes.disconnected(member.userId());
         appearancePushes.remove(member.userId());
+        positionSampler.forget(member.userId());
         WorldChannelRegistry.State channelState = channels.disconnect(member.userId());
         if (channelState != null) {
             publishChannel(channelState, null, null);
             publishWorld(channels.worldState(channelState.channelId()), null, null);
+            recordBehavior(BehaviorEventType.CHANNEL_LEFT, member.accountId(),
+                    builder -> builder.channelId(channelState.channelId()).prop("byDisconnect", true));
         }
         if (member.accountId() != null) {
             var departureReason = switch (reason) {
@@ -459,6 +506,8 @@ public class TableHub {
             TableRoom room = rooms.get(tableId);
             room.leave(member.userId());
             publish(room, null, null);
+            recordBehavior(BehaviorEventType.TABLE_LEFT, member.accountId(), builder -> builder.tableId(tableId)
+                    .channelId(tableChannels.get(tableId)).prop("byDisconnect", true));
         }
     }
 
@@ -551,6 +600,8 @@ public class TableHub {
         clearGameWatch(member);
         publish(room, member, request.requestId());
         replyStartState(member, tableId, null);
+        recordBehavior(BehaviorEventType.TABLE_JOINED, member.accountId(),
+                builder -> builder.tableId(tableId).channelId(tableChannels.get(tableId)));
     }
 
     private void joinChannel(Member member, Request request) {
@@ -561,7 +612,12 @@ public class TableHub {
         WorldChannelRegistry.Change change = channels.join(member.userId(), channelId);
         if (change.changed()) {
             publishChannel(change.state(), member, request.requestId());
-            publishWorld(channels.worldState(channelId), null, null);
+            WorldChannelRegistry.WorldState world = channels.worldState(channelId);
+            publishWorld(world, null, null);
+            recordBehavior(BehaviorEventType.CHANNEL_JOINED, member.accountId(),
+                    builder -> builder.channelId(channelId).prop("currentUsers", change.state().currentUsers()));
+            positionSampler.forget(member.userId());
+            recordPositions(world, Set.of(member.userId()));
         } else {
             member.peer().offer(protocol.encode(request.requestId(), "CHANNEL_STATE", change.state()));
             member.peer().offer(protocol.encode(null, "WORLD_STATE", channels.worldState(channelId)));
@@ -645,6 +701,9 @@ public class TableHub {
                 Map.of("channelId", state.channelId())));
         publishChannel(state, null, null);
         publishWorld(channels.worldState(state.channelId()), null, null);
+        recordBehavior(BehaviorEventType.CHANNEL_LEFT, member.accountId(),
+                builder -> builder.channelId(state.channelId()).prop("byDisconnect", false));
+        positionSampler.forget(member.userId());
     }
 
     private synchronized void advanceWorld() {
@@ -654,6 +713,7 @@ public class TableHub {
         try {
             for (var state : channels.advance(Set.copyOf(seating.keySet()))) {
                 publishWorld(state, null, null);
+                recordPositions(state, null);
                 for (Member member : java.util.List.copyOf(members.values())) {
                     if (channels.isInChannel(member.userId(), state.channelId())) {
                         refreshWatchRange(member);
@@ -693,11 +753,18 @@ public class TableHub {
                 new ChatText(request.payload().get("text").textValue()));
         member.peer().offer(protocol.encode(request.requestId(), "WORLD_CHAT_MESSAGE", message));
         String notice = protocol.encode(null, "WORLD_CHAT_MESSAGE", message);
+        int recipients = 0;
         for (Member target : members.values()) {
             if (target != member && proximity.canHear(member.userId(), target.userId())) {
                 target.peer().offer(notice);
+                recipients++;
             }
         }
+        // 채팅 본문은 남기지 않고 길이와 받은 사람 수만 남긴다.
+        int heard = recipients;
+        recordBehavior(BehaviorEventType.CHAT_SENT, member.accountId(), builder -> builder.channelId(channelId)
+                .prop("length", message.text().codePointCount(0, message.text().length()))
+                .prop("recipients", heard));
     }
 
     private void sendEmote(Member member, Request request) {
@@ -714,6 +781,8 @@ public class TableHub {
                 target.peer().offer(notification);
             }
         }
+        recordBehavior(BehaviorEventType.EMOTE_SENT, member.accountId(),
+                builder -> builder.channelId(channelId).prop("emoteCode", event.emoteCode()));
     }
 
     private void publishWorld(WorldChannelRegistry.WorldState state, Member actor, String requestId) {
@@ -740,8 +809,11 @@ public class TableHub {
         if (request.payload().get("ready").booleanValue() && room.snapshot().gameCode() == null) {
             fail(request, "GAME_NOT_SELECTED", "먼저 게임을 선택해주세요.");
         }
-        if (room.setReady(member.userId(), request.payload().get("ready").booleanValue())) {
+        boolean ready = request.payload().get("ready").booleanValue();
+        if (room.setReady(member.userId(), ready)) {
             publish(room, member, request.requestId());
+            recordBehavior(BehaviorEventType.TABLE_READY_SET, member.accountId(),
+                    builder -> builder.tableId(room.snapshot().tableId()).prop("ready", ready));
             beginStartIfReady(room);
         } else {
             replyState(member, request, room);
@@ -771,6 +843,8 @@ public class TableHub {
             starts.remove(tableId);
             publish(room, member, request.requestId());
             publishStart(tableId);
+            recordBehavior(BehaviorEventType.GAME_SELECTED, member.accountId(), builder -> builder.tableId(tableId)
+                    .prop("gameCode", game.name()).prop("targetScore", targetScore));
         } else {
             replyState(member, request, room);
         }
@@ -783,6 +857,8 @@ public class TableHub {
         room.leave(member.userId());
         member.peer().offer(protocol.encode(request.requestId(), "TABLE_LEFT", Map.of("tableId", tableId)));
         publish(room, null, null);
+        recordBehavior(BehaviorEventType.TABLE_LEFT, member.accountId(), builder -> builder.tableId(tableId)
+                .channelId(tableChannels.get(tableId)).prop("byDisconnect", false));
     }
 
     private TableRoom seatedRoom(Member member, Request request) {
@@ -824,6 +900,9 @@ public class TableHub {
         }
         watching.put(member.userId(), tableId);
         member.peer().offer(protocol.encode(request.requestId(), "TABLE_WATCH_STATE", room.snapshot()));
+        if (current == null) {
+            recordBehavior(BehaviorEventType.TABLE_WATCHED, member.accountId(), builder -> builder.tableId(tableId));
+        }
     }
 
     private void unwatch(Member member, Request request) {
@@ -949,6 +1028,9 @@ public class TableHub {
     private void applyStartResult(String tableId, TableStartAttempt attempt, GameStartResult result) {
         attempt.apply(result);
         if (committedStarts.isPresent()) { attempt.playing(); }
+        if (committedStarts.isPresent() && attempt.frozen() && !attempt.starting()) {
+            recordGameStarted(tableId, attempt, result);
+        }
         if (!attempt.frozen()) {
             Set<String> connected = connectedUsers();
             rooms.get(tableId).returnToWaiting(connected);
@@ -962,6 +1044,23 @@ public class TableHub {
                     service.startResolved(Long.parseLong(player.userId()))));
         }
         if (attempt.endedEarly()) { roundEnded(tableId, attempt.view(0, false).gameSessionId()); }
+    }
+
+    // 확정 경기만 기록한다. 리허설 확인은 실제 경기가 아니다. 참가자 ID는 인증 회원 번호다.
+    private void recordGameStarted(String tableId, TableStartAttempt attempt, GameStartResult result) {
+        GameStartCommand command = attempt.command();
+        String gameId = attempt.view(0, false).gameSessionId();
+        for (Participant player : command.participants()) {
+            recordBehavior(BehaviorEventType.GAME_STARTED, null, builder -> builder
+                    .userId(Long.valueOf(player.userId()))
+                    .tableId(tableId)
+                    .channelId(tableChannels.get(tableId))
+                    .gameId(gameId)
+                    .prop("gameCode", command.gameCode())
+                    .prop("players", command.participants().size())
+                    .prop("targetScore", command.targetScore())
+                    .prop("betAmountPerPlayer", result.reservedAmountPerPlayer()));
+        }
     }
 
     private Set<String> connectedUsers() {

@@ -1,5 +1,6 @@
 package com.ssafy.ontop.shop.config;
 
+import com.ssafy.ontop.behavior.service.BehaviorLog;
 import com.ssafy.ontop.inventory.domain.UserItem;
 import com.ssafy.ontop.item.domain.Item;
 import com.ssafy.ontop.shop.domain.DuplicateEquipmentPolicy;
@@ -21,7 +22,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 public class ShopConfiguration {
     @Bean
     ShopService shopService(ShopRepository repository, PlatformTransactionManager transactions,
-            ApplicationEventPublisher events) {
-        return new ShopService(repository, transactions, events, DuplicateEquipmentPolicy.REJECT);
+            ApplicationEventPublisher events, BehaviorLog behaviorLog) {
+        return new ShopService(repository, transactions, events, DuplicateEquipmentPolicy.REJECT, behaviorLog);
     }
 }
