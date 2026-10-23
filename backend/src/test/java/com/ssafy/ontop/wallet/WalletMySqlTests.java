@@ -73,11 +73,11 @@ class WalletMySqlTests {
     }
 
     @Test
-    void 상점없이_V4와_지갑엔티티와_FK와_조회인덱스가_등록된다() {
+    void 상점없이_V6와_지갑엔티티와_FK와_조회인덱스가_등록된다() {
         assertThat(jdbc.queryForObject("SELECT VERSION()", String.class)).startsWith("8.4.");
         assertThat(entities.getMetamodel().getEntities()).extracting(type -> type.getJavaType().getName())
                 .contains(Wallet.class.getName(), WalletTransaction.class.getName());
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("4");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("6");
         assertThat(flyway.migrate().migrationsExecuted).isZero();
         assertThat(jdbc.queryForList("""
                 SELECT CONSTRAINT_NAME FROM information_schema.REFERENTIAL_CONSTRAINTS

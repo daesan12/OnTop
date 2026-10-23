@@ -25,6 +25,9 @@ springdoc:
 ontop:
   websocket:
     authenticated: ${WEBSOCKET_AUTHENTICATED:true}
+  # 행동 로그는 db 프로필에서만 켤 수 있다. 큐·유실 기준은 docs/behavior-log.md 5장.
+  behavior-log:
+    enabled: ${BEHAVIOR_LOG_ENABLED:false}
   auth:
     jwt-secret-base64: ${AUTH_JWT_SECRET_BASE64:}
     jwt-issuer: ${AUTH_JWT_ISSUER:ontop}

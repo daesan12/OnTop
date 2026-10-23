@@ -4,6 +4,10 @@ import com.ssafy.ontop.auth.domain.LoginOutcome;
 import com.ssafy.ontop.auth.domain.RefreshToken;
 import com.ssafy.ontop.auth.exception.AuthExchangeException;
 import com.ssafy.ontop.auth.repository.RefreshTokenRepository;
+import com.ssafy.ontop.behavior.domain.BehaviorEvent;
+import com.ssafy.ontop.behavior.domain.BehaviorEventType;
+import com.ssafy.ontop.behavior.domain.LoginSessionKey;
+import com.ssafy.ontop.behavior.service.BehaviorLog;
 import com.ssafy.ontop.user.domain.User;
 import com.ssafy.ontop.user.repository.UserRepository;
 import java.security.SecureRandom;
@@ -11,11 +15,14 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Service
 @Profile("db")
@@ -25,14 +32,22 @@ public class AuthExchangePersistenceService {
     private final RefreshTokenRepository refreshTokens;
     private final AccessJwtService jwt;
     private final Clock clock;
+    private final BehaviorLog behaviorLog;
     private final SecureRandom random = new SecureRandom();
 
     public AuthExchangePersistenceService(UserRepository users, RefreshTokenRepository refreshTokens,
-            AccessJwtService jwt, @Qualifier("oauthClock") Clock clock) {
+            AccessJwtService jwt, Clock clock) {
+        this(users, refreshTokens, jwt, clock, BehaviorLog.disabled());
+    }
+
+    @Autowired
+    public AuthExchangePersistenceService(UserRepository users, RefreshTokenRepository refreshTokens,
+            AccessJwtService jwt, @Qualifier("oauthClock") Clock clock, BehaviorLog behaviorLog) {
         this.users = users;
         this.refreshTokens = refreshTokens;
         this.jwt = jwt;
         this.clock = clock;
+        this.behaviorLog = behaviorLog;
     }
 
     @Transactional
@@ -52,7 +67,26 @@ public class AuthExchangePersistenceService {
         if (user.getDeletedAt() != null || user.getLoginProvider() != outcome.provider().loginProvider()) {
             throw changed();
         }
-        return issueCredentials(user, UUID.randomUUID().toString());
+        String sessionId = UUID.randomUUID().toString();
+        Credentials issued = issueCredentials(user, sessionId);
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            recordLoginAfterCommit(user.getId(), sessionId, outcome);
+        }
+        return issued;
+    }
+
+    // 커밋된 로그인만 기록한다. 로그 실패는 로그인 응답에 영향을 주지 않는다.
+    private void recordLoginAfterCommit(long userId, String sessionId, LoginOutcome outcome) {
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                behaviorLog.record(() -> BehaviorEvent.builder(BehaviorEventType.AUTH_LOGIN, clock.instant())
+                        .userId(userId)
+                        .loginSessionId(LoginSessionKey.of(sessionId))
+                        .prop("provider", outcome.provider().name())
+                        .build());
+            }
+        });
     }
 
     // USER-05의 회원 INSERT와 Refresh INSERT는 반드시 같은 호출자 트랜잭션에 참여한다.

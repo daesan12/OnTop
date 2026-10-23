@@ -90,6 +90,12 @@ public class MemberWebSocketConnections {
     public void revoked(AuthenticationRevocations.Revoked event) {
         // 커밋 이후의 연결 종료 실패를 HTTP 로그아웃/폐기 실패로 반사하지 않는다.
         try {
+            ConnectionCloseReason reason = switch (event.reason()) {
+                case LOGOUT -> ConnectionCloseReason.LOGOUT;
+                case MEMBER_DEACTIVATED -> ConnectionCloseReason.MEMBER_DEACTIVATED;
+                case REFRESH_REUSE_DETECTED, SESSION_REVOKED -> ConnectionCloseReason.AUTH_SESSION_REVOKED;
+            };
+            boolean member = reason == ConnectionCloseReason.MEMBER_DEACTIVATED;
             List<Connection> selected;
             synchronized (this) {
                 selected = connections.values().stream().filter(connection ->
@@ -97,15 +103,13 @@ public class MemberWebSocketConnections {
                                 || connection.user().sessionId().equals(event.sessionId()))).toList();
                 for (Connection connection : selected) {
                     connections.remove(connection.socket().getId());
-                    connection.socket().getAttributes().put(END_REASON, event.sessionId() == null
-                            ? ConnectionCloseReason.MEMBER_DEACTIVATED : ConnectionCloseReason.AUTH_SESSION_REVOKED);
+                    connection.socket().getAttributes().put(END_REASON, reason);
                 }
             }
             for (Connection connection : selected) {
-                boolean member = event.sessionId() == null;
                 Thread.ofVirtual().name("auth-websocket-close").start(() -> close(connection,
                         new CloseStatus(member ? 4403 : 4401, member ? "Member inactive" : "Login session ended"),
-                        member ? ConnectionCloseReason.MEMBER_DEACTIVATED : ConnectionCloseReason.AUTH_SESSION_REVOKED));
+                        reason));
             }
         } catch (RuntimeException exception) {
             log.warn("커밋된 인증 폐기의 WebSocket 종료 처리를 완료하지 못했습니다.");

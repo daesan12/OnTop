@@ -35,6 +35,7 @@ class AuthRefreshPersistenceServiceTests {
     private AuthExchangePersistenceService credentials;
     private Clock clock;
     private AuthRefreshPersistenceService service;
+    private AuthenticationRevocations revocations;
     private RefreshToken previous;
     private RefreshTokenRepository.TokenReference reference;
     private User user;
@@ -56,7 +57,8 @@ class AuthRefreshPersistenceServiceTests {
         when(tokens.findForUpdateByHash(HASH)).thenReturn(Optional.of(previous));
         when(credentials.issueForSession(user, previous.getSessionId()))
                 .thenReturn(new AuthExchangePersistenceService.Credentials("fixture-access", "fixture-refresh"));
-        service = new AuthRefreshPersistenceService(tokens, users, credentials, clock, mock(AuthenticationRevocations.class));
+        revocations = mock(AuthenticationRevocations.class);
+        service = new AuthRefreshPersistenceService(tokens, users, credentials, clock, revocations);
     }
 
     @Test
@@ -71,6 +73,7 @@ class AuthRefreshPersistenceServiceTests {
         order.verify(tokens).findForUpdateByHash(HASH);
         order.verify(credentials).issueForSession(user, previous.getSessionId());
         assertThat(result.toString()).doesNotContain("fixture-access", "fixture-refresh");
+        verifyNoInteractions(revocations);
     }
 
     @ParameterizedTest
@@ -87,8 +90,11 @@ class AuthRefreshPersistenceServiceTests {
         verifyNoInteractions(credentials);
         if (delay > 5) {
             verify(tokens).revokeSession(42L, previous.getSessionId(), START.plusSeconds(60));
+            verify(revocations).sessionRevoked(42L, previous.getSessionId(),
+                    AuthenticationRevocations.Reason.REFRESH_REUSE_DETECTED);
         } else {
             verify(tokens, never()).revokeSession(any(), any(), any());
+            verifyNoInteractions(revocations);
         }
     }
 
@@ -100,7 +106,7 @@ class AuthRefreshPersistenceServiceTests {
         var result = service.rotate(HASH, START.plusSeconds(60));
         assertThat(result.rejection()).isEqualTo(AuthRefreshException.Error.ALREADY_ROTATED);
         verify(tokens, never()).revokeSession(any(), any(), any());
-        verifyNoInteractions(credentials);
+        verifyNoInteractions(credentials, revocations);
     }
 
     @ParameterizedTest
@@ -117,6 +123,7 @@ class AuthRefreshPersistenceServiceTests {
                 .isEqualTo(AuthRefreshException.Error.INVALID_TOKEN);
         verifyNoInteractions(credentials);
         verify(tokens, never()).revokeSession(any(), any(), any());
+        verifyNoInteractions(revocations);
     }
 
     @Test
@@ -124,6 +131,7 @@ class AuthRefreshPersistenceServiceTests {
         ReflectionTestUtils.setField(user, "deletedAt", START);
         assertThat(service.rotate(HASH, START).rejection()).isEqualTo(AuthRefreshException.Error.MEMBER_CHANGED);
         verify(tokens).revokeSession(42L, previous.getSessionId(), START.plusSeconds(60));
+        verify(revocations).sessionRevoked(42L, previous.getSessionId());
         verifyNoInteractions(credentials);
     }
 

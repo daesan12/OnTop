@@ -82,7 +82,12 @@
 | `SOCKET_CLOSED`, `TRANSPORT_ERROR`, `HEARTBEAT_TIMEOUT`, 송신 실패 등 | 기존 30초 재접속 유예 |
 | `AUTH_SESSION_REVOKED` | 원인이 불명확한 인증 계열 폐기. 로그아웃으로 추정하지 않고 기존 유예 유지 |
 
-인증 패키지는 변경하지 않았다. 현재 로그아웃 알림은 `AUTH_SESSION_REVOKED`를 쓰므로, 명시적 로그아웃의 실제 연결에는 인증 담당이 `LOGOUT` 사유를 구분해 전달해야 한다. 인증 폐기 이벤트에는 토큰 재사용 감지도 있으므로 일괄 즉시 기권으로 바꾸지 않는다. 탈퇴는 기존 `MEMBER_DEACTIVATED` 전달을 재사용한다.
+AUTH의 Revoked.reason=LOGOUT은 ConnectionCloseReason.LOGOUT으로 전달한다. REFRESH_REUSE_DETECTED와
+SESSION_REVOKED는 AUTH_SESSION_REVOKED로 전달하며 일괄 즉시 기권으로 바꾸지 않는다. 탈퇴는 기존 회원 전체
+MEMBER_DEACTIVATED/4403 전달을 재사용한다. 이번 AUTH 변경에서 Hub·복구 서비스·게임 엔진은 수정하지 않았다.
+이미 정리된 연결의 오프라인 30초 유예에 후속 사유를 적용하거나, 먼저 종료한 사유를 후속 이벤트로 승격하지 않는다.
+게임 복구 상태에는 로그인 sid 연결이 없어 userId만으로 오프라인 경기를 강제 기권시키지 않는다.
+자세한 이벤트·행동 로그 계약은 [세션 종료 원인](session-invalidation.md#auth-종료-원인과-소비자-계약)을 따른다.
 
 내부 `GraceExpiration`에 `GameDepartureReason`을 추가했다. 기존 6인자 생성자는 `DISCONNECT_TIMEOUT`을 사용한다. 즉시 이탈은 단절 시각=마감 시각이며 기존 비동기 조회·동일 eventId 재시도·경기별 멱등 판정을 재사용한다. 2인은 기권, 최초3~4인은 참가자 탈락이고 남은 경기는 계속한다. 이탈 후 다시 연결해도 참가 자격을 되살리지 않는다. 먼저 도래한 오목 시간패 등 이미 확정된 종료를 로그아웃으로 덮지 않는다.
 
