@@ -19,6 +19,8 @@ import { EmoteTimeline, parseEmoteEvent, type EmoteEvent } from '../features/emo
 import { resetEmotes, useEmoteState } from '../features/emotes/state'
 import { findEmote, type EmoteId } from '../features/emotes/catalog'
 import { releaseFitnessUser, resetFitnessState, useFitnessState } from '../features/fitness/state'
+import { releaseTelescopeUser, resetTelescopeState, useTelescopeState } from '../features/telescopes/state'
+import { resetTelescopeView, telescopeView } from '../features/telescopeView'
 
 export interface Pose {
   x: number
@@ -82,7 +84,7 @@ export interface Session {
   bindings: TableBinding[]
   mapCompatible: boolean
   mapVersion: string
-  // Fitness display IDs come from explicit development leases, never guessed wire fields.
+  // Facility display IDs come from explicit development leases, never guessed wire fields.
   telescopeId: string
   benchId: string
   fitnessId: string
@@ -134,6 +136,7 @@ const chatIds = new Set<string>()
 const emoteTimeline = new EmoteTimeline()
 export function resetWorld(status: Session['status'] = 'idle', error = '') {
   resetFitnessState()
+  resetTelescopeState()
   resetEmotes(true)
   emoteTimeline.clearChannel()
   resetGame()
@@ -147,6 +150,7 @@ export function resetWorld(status: Session['status'] = 'idle', error = '') {
 }
 export function clearChannel() {
   resetFitnessState()
+  resetTelescopeState()
   resetEmotes()
   emoteTimeline.clearChannel()
   resetGame()
@@ -174,6 +178,7 @@ export function clearChannel() {
     mapCompatible: false,
     benchId: '',
     fitnessId: '',
+    telescopeId: '',
   })
 }
 export function sampleAvatar(
@@ -212,15 +217,19 @@ export const authoritativePose = (userId: string): Pose | undefined => {
 export function refreshActivityPresentation() {
   const state = useSession.getState()
   for (const table of Object.values(state.tableStates)) for (const seat of table.seats)
+    if (seat.userId && useTelescopeState.getState().placements[seat.userId]) releaseTelescopeUser(seat.userId)
+  for (const table of Object.values(state.tableStates)) for (const seat of table.seats)
     if (seat.userId && useFitnessState.getState().placements[seat.userId]) releaseFitnessUser(seat.userId)
   if (Object.values(state.tableStates).some(table => table.seats.some(seat =>
     seat.userId && useBenchState.getState().placements[seat.userId]))) resetBenchState()
   for (const [id, a] of avatars) {
-    const previousActivity = a.tableId || a.benchId || a.fitnessId
+    const previousActivity = a.tableId || a.benchId || a.fitnessId || a.telescopeId
     a.tableId = ''
     a.benchId = ''
     a.fitnessId = ''
     a.fitnessStartedAt = 0
+    a.telescopeId = ''
+    a.telescopeYaw = a.telescopePitch = 0
     a.seatIndex = -1
     const authoritative = worldPoses.get(id)
     if (authoritative) a.current = { ...authoritative }
@@ -246,6 +255,7 @@ export function refreshActivityPresentation() {
     }
     const bench = useBenchState.getState().placements[id]
     if (!a.tableId && bench?.channelId === state.roomId) {
+      if (useTelescopeState.getState().placements[id]) releaseTelescopeUser(id)
       if (useFitnessState.getState().placements[id]) releaseFitnessUser(id)
       a.benchId = bench.benchId
       a.seatIndex = bench.seat
@@ -255,19 +265,32 @@ export function refreshActivityPresentation() {
     }
     const fitness = useFitnessState.getState().placements[id]
     if (!a.tableId && !a.benchId && fitness?.channelId === state.roomId) {
+      if (useTelescopeState.getState().placements[id]) releaseTelescopeUser(id)
       a.fitnessId = fitness.stationId
       a.fitnessStartedAt = fitness.startedAt
       a.current = { ...fitness.pose }
       a.previous = { ...fitness.pose }
       a.moving = a.running = false
     }
-    const activity = a.tableId || a.benchId || a.fitnessId
+    const telescope = useTelescopeState.getState().placements[id]
+    if (!a.tableId && !a.benchId && !a.fitnessId && telescope?.channelId === state.roomId) {
+      a.telescopeId = telescope.telescopeId
+      a.telescopeYaw = telescope.yaw
+      a.telescopePitch = telescope.pitch
+      a.current = { ...telescope.pose, yaw: telescope.yaw }
+      a.previous = { ...a.current }
+      a.moving = a.running = false
+    }
+    const activity = a.tableId || a.benchId || a.fitnessId || a.telescopeId
     if (activity && previousActivity !== activity) cancelAvatarEmote(id)
   }
   const own = avatars.get(state.sessionId)
   const benchId = own?.benchId ?? ''
   const fitnessId = own?.fitnessId ?? ''
-  if (state.benchId !== benchId || state.fitnessId !== fitnessId) useSession.setState({ benchId, fitnessId })
+  const telescopeId = own?.telescopeId ?? ''
+  if (telescopeView.id !== telescopeId) resetTelescopeView(telescopeId)
+  if (state.benchId !== benchId || state.fitnessId !== fitnessId || state.telescopeId !== telescopeId)
+    useSession.setState({ benchId, fitnessId, telescopeId })
 }
 export function receive(message: Envelope) {
   const p = message.payload,
@@ -304,7 +327,7 @@ export function receive(message: Envelope) {
         return
       worldVersion = next.version
       const mapCompatible = next.mapVersion === EXPECTED_MAP_VERSION
-      if (!mapCompatible) { resetBenchState(); resetFitnessState(); clearRoamingInput() }
+      if (!mapCompatible) { resetBenchState(); resetFitnessState(); resetTelescopeState(); clearRoamingInput() }
       const ids = next.avatars.map((a) => a.userId),
         now = performance.now()
       if (!ids.includes(state.sessionId)) {
@@ -314,6 +337,8 @@ export function receive(message: Envelope) {
       if (!ids.includes(state.sessionId) || Object.keys(useBenchState.getState().placements).some(id => !ids.includes(id))) resetBenchState()
       if (!ids.includes(state.sessionId)) resetFitnessState()
       else for (const id of Object.keys(useFitnessState.getState().placements)) if (!ids.includes(id)) releaseFitnessUser(id)
+      if (!ids.includes(state.sessionId)) resetTelescopeState()
+      else for (const id of Object.keys(useTelescopeState.getState().placements)) if (!ids.includes(id)) releaseTelescopeUser(id)
       for (const id of avatars.keys())
         if (!ids.includes(id)) {
           avatars.delete(id)

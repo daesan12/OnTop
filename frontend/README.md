@@ -22,6 +22,10 @@ React, TypeScript, Vite, React Three Fiber 기반 프론트엔드다. 현재 첫
 
 기존 로그인·BE 연결을 유지하고 11종/12대 운동기구 이용·표시를 분리했다. 미구현 이용 API는 `pnpm dev:facilities`에서만 현재 탭의 목업으로 검수하며 일반 개발/운영에서는 비활성화한다. 계약 경계와 검증은 [MIGRATION_M05.md](docs/MIGRATION_M05.md)를 따른다.
 
+## M06 망원경 이관
+
+기존 전망대 두 망원경의 E 이용·접안·확대·방향·반납과 시점 복원을 분리했다. 미구현 점유/방향 API는 `pnpm dev:facilities`에서만 현재 탭의 목업으로 검수하며 일반 개발/운영에서는 비활성화한다. 계약 경계와 검증은 [MIGRATION_M06.md](docs/MIGRATION_M06.md)를 따른다.
+
 ## 실행
 
 Node.js 24 LTS 계열과 pnpm 11을 사용한다. `.nvmrc`에는 Node 24 계열을 명시했다.

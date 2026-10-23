@@ -365,3 +365,32 @@ export function fitnessProbe(stationId: string) {
     leftPedal: left?.rotation.x, figure: scene.getObjectByName('figure-' + s.sessionId)?.rotation.x,
   }
 }
+
+import { telescopeService } from '../../src/features/telescopes/service'
+import { telescopeSignal, useTelescopeState } from '../../src/features/telescopes/state'
+import { telescopeAnchors } from '../../src/features/telescopes/anchors'
+import { telescopeView } from '../../src/features/telescopeView'
+export async function fixtureTelescope(userId: string, id: string, yaw?: number, pitch = -0.18) {
+  const signal = telescopeSignal(userId)
+  let lease = await telescopeService.enter({ userId, channelId: useSession.getState().roomId,
+    position: telescopeAnchors(id).use }, id, signal)
+  if (yaw !== undefined) lease = { ...lease, ...await telescopeService.aim(lease, { yaw, pitch }, signal) }
+  useTelescopeState.setState(s => ({ placements: { ...s.placements, [userId]: lease } }))
+  refreshActivityPresentation()
+}
+export function telescopeProbe(id: string) {
+  const { camera, scene } = root(), s = useSession.getState()
+  const state = useTelescopeState.getState()
+  const direction = camera.getWorldDirection(new Vector3())
+  return { id: s.telescopeId, pending: state.pending, placements: state.placements, view: { ...telescopeView },
+    controls: { ...viewControls }, fov: 'fov' in camera ? camera.fov as number : 0,
+    camera: camera.position.toArray(), direction: direction.toArray(),
+    ownVisible: scene.getObjectByName('avatar-' + s.sessionId)?.visible,
+    remoteVisible: scene.getObjectByName('avatar-102')?.visible,
+    instrumentVisible: scene.getObjectByName(id)?.visible,
+    swivel: scene.getObjectByName(id + '-swivel')?.rotation.y,
+    head: scene.getObjectByName(id + '-head')?.rotation.x,
+    authoritative: authoritativePose(s.sessionId), displayed: avatars.get(s.sessionId)?.current,
+    remote: { id: avatars.get('102')?.telescopeId, yaw: avatars.get('102')?.telescopeYaw, pitch: avatars.get('102')?.telescopePitch },
+  }
+}

@@ -7,6 +7,7 @@ import { useParkRuntime } from './runtime/ParkRuntime'
 import { summarizeFrames } from '../performance/metrics'
 import { GameControls, OmokPanel } from '../game/OmokPanel'
 import { useGame, tableBusy } from '../game/store'
+import { useTelescopeState } from '../features/telescopes/state'
 
 export function ParkTools({
   quality,
@@ -18,6 +19,8 @@ export function ParkTools({
   const runtime = useParkRuntime()
   const gameVisible = useGame((s) => !!s.game)
   const gameBusy = useGame(tableBusy)
+  const ownId = useSession(s => s.sessionId)
+  const telescopeBusy = useTelescopeState(s => s.pending || !!s.placements[ownId])
   const state = useSession(
     useShallow((s) => ({
       status: s.status,
@@ -66,6 +69,7 @@ export function ParkTools({
               key={channel.channelId}
               disabled={
                 state.pending ||
+                telescopeBusy ||
                 !!state.tableId ||
                 (!channel.joinable && channel.channelId !== state.roomId)
               }

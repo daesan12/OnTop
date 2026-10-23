@@ -18,6 +18,7 @@ import { parkBindingsUrl } from './deployment'
 import type { ParkRuntimePort } from './contracts'
 import { benchBusy } from '../../features/interactions/benchState'
 import { fitnessBusy } from '../../features/fitness/state'
+import { telescopeBusy } from '../../features/telescopes/state'
 import { MovementInputBuffer, normalizedMove, stoppedIntent, type MovementIntent } from '../../network/movementInput'
 import { emoteSource, emoteUnavailable } from '../../features/emotes/availability'
 import { parseEmoteBindings, previewEmoteBindings, type EmoteId } from '../../features/emotes/catalog'
@@ -289,6 +290,7 @@ export class ParkRuntime implements ParkRuntimePort {
       const state = useSession.getState()
       if (benchBusy(state.sessionId)) throw new Error('먼저 벤치에서 일어나주세요.')
       if (fitnessBusy(state.sessionId)) throw new Error('먼저 운동기구에서 내려와주세요.')
+      if (telescopeBusy(state.sessionId)) throw new Error('먼저 망원경에서 나와주세요.')
       if (tableBusy())
         throw new Error('경기 진행·복구·정산 중에는 채널을 바꿀 수 없습니다.')
       if (state.tableId) throw new Error('먼저 테이블에서 일어나주세요.')
@@ -377,7 +379,7 @@ export class ParkRuntime implements ParkRuntimePort {
   private canSendMovement(intent: MovementIntent) {
     const s = useSession.getState()
     return this.active && s.status === 'connected' && !!s.roomId && s.mapCompatible && avatars.has(s.sessionId)
-      && !tableBusy() && !s.tableId && (!(benchBusy(s.sessionId) || fitnessBusy(s.sessionId)) || stoppedIntent(intent)) && this.socket.connected
+      && !tableBusy() && !s.tableId && (!(benchBusy(s.sessionId) || fitnessBusy(s.sessionId) || telescopeBusy(s.sessionId)) || stoppedIntent(intent)) && this.socket.connected
   }
   private sendMovement(intent: MovementIntent, scope: string) {
     if (scope !== this.movementScope() || !this.canSendMovement(intent)) return
@@ -391,7 +393,7 @@ export class ParkRuntime implements ParkRuntimePort {
     }
   }
   inspectTable = (anchorId: string) => {
-    if (benchBusy(useSession.getState().sessionId) || fitnessBusy(useSession.getState().sessionId)) return
+    if (benchBusy(useSession.getState().sessionId) || fitnessBusy(useSession.getState().sessionId) || telescopeBusy(useSession.getState().sessionId)) return
     useSession.setState({ focusedAnchorId: anchorId })
     const s = useSession.getState(),
       tableId = bindAnchor(
@@ -417,6 +419,7 @@ export class ParkRuntime implements ParkRuntimePort {
     this.action(async () => {
       if (benchBusy(useSession.getState().sessionId)) throw new Error('먼저 벤치에서 일어나주세요.')
       if (fitnessBusy(useSession.getState().sessionId)) throw new Error('먼저 운동기구에서 내려와주세요.')
+      if (telescopeBusy(useSession.getState().sessionId)) throw new Error('먼저 망원경에서 나와주세요.')
       if (tableBusy())
         throw new Error('먼저 진행 중인 경기 상태를 확인해주세요.')
       const s = useSession.getState()

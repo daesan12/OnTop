@@ -36,10 +36,11 @@ function ObservationTelescope({ telescope: t }: { telescope: Telescope }) {
   return (
     <group ref={root} name={t.id} position={t.position} dispose={null}>
       <TelescopeModel part="base" />
-      <group ref={swivel} rotation={[0, t.yaw, 0]}>
+      <group ref={swivel} name={t.id + '-swivel'} rotation={[0, t.yaw, 0]}>
         <TelescopeModel part="yoke" />
         <group
           ref={head}
+          name={t.id + '-head'}
           position={[0, TELESCOPE.eyeHeight, 0]}
           rotation={[-TELESCOPE.initialPitch, 0, 0]}
         >

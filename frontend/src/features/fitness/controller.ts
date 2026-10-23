@@ -3,6 +3,7 @@ import { tableBusy } from '../../game/store'
 import { parkRuntime } from '../../park/runtime/runtime'
 import { clearRoamingInput, panelOwnsKeys } from '../../world/inputOwnership'
 import { useBenchState } from '../interactions/benchState'
+import { useTelescopeState } from '../telescopes/state'
 import { canReachFitness } from './anchors'
 import { fitnessService } from './service'
 import { fitnessSignal, releaseFitnessUser, useFitnessState } from './state'
@@ -10,7 +11,7 @@ import { fitnessSignal, releaseFitnessUser, useFitnessState } from './state'
 export async function enterFitness(stationId: string): Promise<boolean> {
   const session = useSession.getState(), state = useFitnessState.getState(), avatar = avatars.get(session.sessionId)
   if (session.status !== 'connected' || !session.mapCompatible || !avatar?.connected || state.pending || session.pending
-    || useBenchState.getState().pending || session.tableId || avatar.seatIndex >= 0 || avatar.fitnessId
+    || useBenchState.getState().pending || useTelescopeState.getState().pending || session.tableId || avatar.seatIndex >= 0 || avatar.fitnessId
     || avatar.telescopeId || avatar.swimming || tableBusy() || panelOwnsKeys() || !canReachFitness(avatar.current, stationId)) return false
   parkRuntime.move(0, 0, false)
   clearRoamingInput()
@@ -22,7 +23,7 @@ export async function enterFitness(stationId: string): Promise<boolean> {
     const current = useSession.getState(), position = authoritativePose(session.sessionId)
     const currentAvatar = avatars.get(session.sessionId)
     if (current.sessionId !== session.sessionId || current.roomId !== session.roomId || current.status !== 'connected'
-      || !current.mapCompatible || current.tableId || current.benchId || useBenchState.getState().pending || tableBusy()
+      || !current.mapCompatible || current.tableId || current.benchId || useBenchState.getState().pending || useTelescopeState.getState().pending || tableBusy()
       || !currentAvatar?.connected || currentAvatar.seatIndex >= 0 || currentAvatar.swimming || currentAvatar.telescopeId || !position || !canReachFitness(position, stationId)) {
       releaseFitnessUser(session.sessionId)
       useFitnessState.setState({ error: '위치나 이용 상태가 바뀌었습니다. 기구 가까이에서 다시 시도해주세요.' })

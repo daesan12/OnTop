@@ -1,4 +1,4 @@
-import { FITNESS, FITNESS_STATIONS, GOMOKU, TABLES, tableScale } from '../../config'
+import { FITNESS, FITNESS_STATIONS, GOMOKU, TABLES, TELESCOPES, TELESCOPE, tableScale } from '../../config'
 import { avatars, useSession } from '../../network/worldClient'
 import { tableBusy } from '../../game/store'
 import { parkRuntime } from '../../park/runtime/runtime'
@@ -12,9 +12,13 @@ import { useFitnessState } from '../fitness/state'
 import { fitnessService } from '../fitness/service'
 import { enterFitness } from '../fitness/controller'
 import { canReachFitness } from '../fitness/anchors'
+import { canReachTelescope } from '../telescopes/anchors'
+import { useTelescopeState } from '../telescopes/state'
+import { telescopeService } from '../telescopes/service'
+import { enterTelescope } from '../telescopes/controller'
 
 export interface ParkInteraction {
-  kind: 'bench' | 'table' | 'fitness'
+  kind: 'bench' | 'table' | 'fitness' | 'telescope'
   id: string
   label: string
   seat?: 0 | 1
@@ -29,9 +33,18 @@ export function getParkInteraction(): ParkInteraction | null {
   const session = useSession.getState(), benches = useBenchState.getState(), fitness = useFitnessState.getState()
   const p = avatars.get(session.sessionId)
   if (!roamingInput.ready || !p || session.status !== 'connected' || !session.mapCompatible || session.tableId || p.seatIndex >= 0
-    || p.fitnessId || p.swimming || session.pending || benches.pending || fitness.pending
-    || tableBusy() || panelOwnsKeys()) return null
+    || p.fitnessId || p.telescopeId || p.swimming || session.pending || benches.pending || fitness.pending
+    || useTelescopeState.getState().pending || tableBusy() || panelOwnsKeys()) return null
   const choices: ParkInteraction[] = []
+  for (const t of TELESCOPES) {
+    if (!canReachTelescope(p.current, t.id)) continue
+    const occupant = Object.values(useTelescopeState.getState().placements).find(lease => lease.channelId === session.roomId && lease.telescopeId === t.id)
+    const distance = Math.hypot(p.current.x - t.position[0], p.current.z - t.position[2])
+    choices.push({ kind: 'telescope', id: t.id, label: `${t.name} 이용하기`, occupied: !!occupant,
+      occupant: occupant ? avatars.get(occupant.userId)?.nickname ?? '이웃' : undefined,
+      available: telescopeService.mode !== 'unavailable', distance,
+      score: interactionScore(distance, { x: t.position[0], y: t.position[1] + TELESCOPE.eyeHeight, z: t.position[2] }) })
+  }
   for (const station of FITNESS_STATIONS) {
     if (!canReachFitness(p.current, station.id)) continue
     const occupant = Object.values(fitness.placements).find(lease => lease.channelId === session.roomId && lease.stationId === station.id)
@@ -68,6 +81,7 @@ export function interactWithPark(): boolean {
   const target = getParkInteraction()
   if (!target) return false
   if (target.kind === 'table') parkRuntime.inspectTable(target.id)
+  else if (target.kind === 'telescope' && target.available && !target.occupied) void enterTelescope(target.id)
   else if (target.kind === 'fitness' && target.available && !target.occupied) void enterFitness(target.id)
   else if (target.available && !target.occupied && target.seat !== undefined) void sitBench(target.id, target.seat)
   return true
