@@ -20,6 +20,7 @@ import { benchBusy } from '../../features/interactions/benchState'
 import { fitnessBusy } from '../../features/fitness/state'
 import { telescopeBusy } from '../../features/telescopes/state'
 import { resetFeedbackState, useFeedbackState } from '../../features/feedback/state'
+import { resetNotesState, useNotesState } from '../../features/notes/state'
 import { MovementInputBuffer, normalizedMove, stoppedIntent, type MovementIntent } from '../../network/movementInput'
 import { emoteSource, emoteUnavailable } from '../../features/emotes/availability'
 import { parseEmoteBindings, previewEmoteBindings, type EmoteId } from '../../features/emotes/catalog'
@@ -94,6 +95,7 @@ export class ParkRuntime implements ParkRuntimePort {
       })
   }
   private authEnded() {
+    resetNotesState()
     resetFeedbackState()
     this.movement.clear()
     this.active = false
@@ -303,7 +305,9 @@ export class ParkRuntime implements ParkRuntimePort {
       if (state.roomId)
         await this.socket.request('CHANNEL_LEAVE', {}, ['CHANNEL_LEFT'])
       const feedback = useFeedbackState.getState()
-      clearChannel(!state.roomId && feedback.ownerId === state.sessionId && feedback.channelId === channelId)
+      const notes = useNotesState.getState()
+      clearChannel(!state.roomId && feedback.ownerId === state.sessionId && feedback.channelId === channelId,
+        !state.roomId && notes.ownerId === state.sessionId && notes.channelId === channelId)
       this.inputSequence = 0
       const generation = this.generation
       await this.socket.request('CHANNEL_JOIN', { channelId }, [

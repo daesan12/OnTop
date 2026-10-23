@@ -18,9 +18,12 @@ import { telescopeService } from '../telescopes/service'
 import { enterTelescope } from '../telescopes/controller'
 import { canReachFeedback } from '../feedback/validation'
 import { openFeedback } from '../feedback/controller'
+import { NOTES_BOX } from '../../config/notes'
+import { canReachNotes } from '../notes/validation'
+import { openNotes } from '../notes/controller'
 
 export interface ParkInteraction {
-  kind: 'bench' | 'table' | 'fitness' | 'telescope' | 'feedback'
+  kind: 'bench' | 'table' | 'fitness' | 'telescope' | 'feedback' | 'notes'
   id: string
   label: string
   seat?: 0 | 1
@@ -38,6 +41,11 @@ export function getParkInteraction(): ParkInteraction | null {
     || p.fitnessId || p.telescopeId || p.swimming || session.pending || benches.pending || fitness.pending
     || useTelescopeState.getState().pending || tableBusy() || panelOwnsKeys()) return null
   const choices: ParkInteraction[] = []
+  if (canReachNotes(p.current)) {
+    const distance = Math.hypot(p.current.x - NOTES_BOX.x, p.current.z - NOTES_BOX.z)
+    choices.push({ kind: 'notes', id: 'tower-notes', label: '익명 메모 소리함 열기', occupied: false,
+      available: true, distance, score: interactionScore(distance, { x: NOTES_BOX.x, y: NOTES_BOX.y + 0.7, z: NOTES_BOX.z }) })
+  }
   if (canReachFeedback(p.current)) {
     const distance = Math.hypot(p.current.x - MAILBOX.x, p.current.z - MAILBOX.z)
     choices.push({ kind: 'feedback', id: 'feedback-mailbox', label: '소리함에 의견 쓰기', occupied: false,
@@ -88,6 +96,7 @@ export function interactWithPark(): boolean {
   const target = getParkInteraction()
   if (!target) return false
   if (target.kind === 'table') parkRuntime.inspectTable(target.id)
+  else if (target.kind === 'notes') openNotes()
   else if (target.kind === 'feedback') openFeedback()
   else if (target.kind === 'telescope' && target.available && !target.occupied) void enterTelescope(target.id)
   else if (target.kind === 'fitness' && target.available && !target.occupied) void enterFitness(target.id)

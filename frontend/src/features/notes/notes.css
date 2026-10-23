@@ -1,0 +1,26 @@
+.notes-backdrop { position: absolute; inset: 0; z-index: 30; display: grid; place-items: center; padding: 20px; box-sizing: border-box; background: #111b16b8; }
+.notes-dialog { position: relative; box-sizing: border-box; width: min(760px, 100%); max-height: calc(100dvh - 40px); overflow-y: auto; overscroll-behavior: contain; padding: 30px; border: 1px solid #b8ae8455; border-radius: 18px; background: #f4f0e3; color: #2f3c31; box-shadow: 0 20px 80px #0005; }
+.notes-dialog h2 { font-size: 24px; line-height: 1.4; margin: 12px 25px 12px 0; }
+.notes-dialog p { font-size: 15px; line-height: 1.6; overflow-wrap: anywhere; }
+.notes-dialog small { line-height: 1.5; color: #65745b; }
+.notes-dialog .notes-mode { background: #e7e5d3; padding: 10px 12px; border-radius: 8px; font-size: 13px; }
+.notes-heading, .notes-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.notes-heading { margin: 18px 0 12px; }
+.notes-wall { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; max-height: 30dvh; min-height: 80px; overflow-y: auto; overscroll-behavior: contain; padding: 4px; }
+.notes-wall .notes-empty { grid-column: 1 / -1; padding: 10px; color: #65745b; }
+.sticky-note { padding: 14px 16px; border: 1px solid #d7cca8; border-radius: 3px 3px 16px 3px; box-shadow: 0 3px 7px #514a2720; background: #f7e8b3; }
+.sticky-note p { white-space: pre-wrap; margin: 0 0 12px; }
+.note-color-1 { background: #dfe8cc; }.note-color-2 { background: #efdbce; }.note-color-3 { background: #dce7e8; }
+.notes-dialog label { display: block; margin: 18px 0 8px; }
+.notes-dialog textarea { width: 100%; box-sizing: border-box; min-height: 90px; max-height: 28dvh; resize: vertical; padding: 12px; border: 1px solid #7b8c6b; border-radius: 8px; background: #fffdf6; color: #26372c; font: inherit; line-height: 1.6; }
+.notes-dialog button { font: inherit; cursor: pointer; border: 1px solid #52634a; border-radius: 8px; background: #344e38; color: #fffdf0; padding: 10px 14px; }
+.notes-dialog button:disabled { opacity: .5; cursor: default; }
+.notes-dialog :is(button, textarea):focus-visible { outline: 2px solid #55704a; outline-offset: 2px; }
+.notes-dialog .notes-close { position: absolute; top: 12px; right: 14px; border: 0; background: transparent; color: #344e38; font-size: 26px; padding: 2px 8px; }
+.notes-actions { margin-top: 10px; }.notes-actions span { font-size: 13px; }
+.notes-dialog .notes-error { color: #9b352b; }
+@media (max-width: 600px) {
+  .notes-backdrop { padding: 12px; }.notes-dialog { padding: 24px 18px; max-height: calc(100dvh - 24px); }
+  .notes-dialog h2 { font-size: 20px; }.notes-wall { grid-template-columns: minmax(0, 1fr); max-height: 25dvh; }
+  .notes-actions { flex-direction: column; align-items: stretch; gap: 8px; }
+}

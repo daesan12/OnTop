@@ -16,6 +16,7 @@ import { ParkInteractionHint } from '../features/interactions/ParkInteractionHin
 import { EmoteWheel } from '../features/emotes/EmoteWheel'
 import { TelescopePanel } from '../features/telescopes/TelescopePanel'
 import { FeedbackPanel } from '../features/feedback/FeedbackPanel'
+import { AnonymousNotes } from '../features/notes/AnonymousNotes'
 
 const shortcuts = [
   { key: 'WASD', action: '이동' },
@@ -171,6 +172,7 @@ function ParkContent({ onExit, exitError }: ParkProps) {
       <EmoteWheel />
       <TelescopePanel />
       <FeedbackPanel />
+      <AnonymousNotes />
     </main>
   )
 }

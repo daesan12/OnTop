@@ -425,3 +425,43 @@ export function feedbackProbe() {
     publicData: JSON.stringify({ session: useSession.getState(), avatars: [...avatars] }),
   }
 }
+
+import { notesService } from '../../src/features/notes/service'
+import { useNotesState } from '../../src/features/notes/state'
+import { NOTES_BOX } from '../../src/config/notes'
+import type { NoteSubmission } from '../../src/features/notes/contracts'
+let notesFault: 'normal' | 'readReject' | 'holdRead' | 'reject' | 'hold' | 'acceptThenLose' = 'normal'
+let notesWrapped = false
+const noteCalls: NoteSubmission[] = []
+const noteAccepted: string[] = []
+export function fixtureNotes(mode: typeof notesFault) {
+  notesFault = mode
+  if (notesWrapped) return
+  notesWrapped = true
+  const read = notesService.read.bind(notesService), submit = notesService.submit.bind(notesService)
+  notesService.read = async (scope, signal) => {
+    if (notesFault === 'readReject') throw new Error('테스트 목록 조회 실패입니다.')
+    if (notesFault === 'holdRead') return new Promise(() => {})
+    return read(scope, signal)
+  }
+  notesService.submit = async (scope, submission, signal) => {
+    noteCalls.push({ ...submission })
+    if (notesFault === 'reject') throw new Error('테스트 메모 저장 실패입니다.')
+    if (notesFault === 'hold') return new Promise(() => {})
+    const result = await submit(scope, submission, signal)
+    noteAccepted.push(result.note.id)
+    if (notesFault === 'acceptThenLose') { notesFault = 'normal'; return new Promise(() => {}) }
+    return result
+  }
+}
+export function notesProbe() {
+  return { ...useNotesState.getState(), calls: noteCalls.map(c => ({ operationId: c.operationId, keys: Object.keys(c).sort() })),
+    accepted: [...noteAccepted], controls: { ...viewControls }, notesOpen: inputState.notesOpen,
+    publicData: JSON.stringify({ session: useSession.getState(), avatars: [...avatars] }) }
+}
+/** Another reader/writer on the same explicit page mock, not an actual network peer. */
+export async function fixtureNearbyNote(text: string) {
+  return notesService.submit({ userId: 'nearby-fixture', channelId: useSession.getState().roomId,
+    position: { x: NOTES_BOX.x, y: NOTES_BOX.y + 0.8, z: NOTES_BOX.z, yaw: 0 } },
+  { text, operationId: crypto.randomUUID() }, new AbortController().signal)
+}

@@ -23,6 +23,8 @@ import { releaseTelescopeUser, resetTelescopeState, useTelescopeState } from '..
 import { resetTelescopeView, telescopeView } from '../features/telescopeView'
 import { resetFeedbackState, useFeedbackState } from '../features/feedback/state'
 import { canReachFeedback } from '../features/feedback/validation'
+import { resetNotesState, useNotesState } from '../features/notes/state'
+import { canReachNotes } from '../features/notes/validation'
 
 export interface Pose {
   x: number
@@ -137,6 +139,7 @@ let channelVersion = -1,
 const chatIds = new Set<string>()
 const emoteTimeline = new EmoteTimeline()
 export function resetWorld(status: Session['status'] = 'idle', error = '') {
+  resetNotesState(status !== 'idle')
   resetFeedbackState(status !== 'idle')
   resetFitnessState()
   resetTelescopeState()
@@ -151,7 +154,8 @@ export function resetWorld(status: Session['status'] = 'idle', error = '') {
   chatIds.clear()
   useSession.setState({ ...initial(), status, error })
 }
-export function clearChannel(keepFeedbackDraft = false) {
+export function clearChannel(keepFeedbackDraft = false, keepNotesDraft = false) {
+  resetNotesState(keepNotesDraft)
   resetFeedbackState(keepFeedbackDraft)
   resetFitnessState()
   resetTelescopeState()
@@ -297,6 +301,8 @@ export function refreshActivityPresentation() {
     useSession.setState({ benchId, fitnessId, telescopeId })
   if (useFeedbackState.getState().open && (!own?.connected || own.seatIndex >= 0 || own.fitnessId
     || own.telescopeId || own.swimming || !canReachFeedback(authoritativePose(state.sessionId)))) resetFeedbackState(true)
+  if (useNotesState.getState().open && (!own?.connected || own.seatIndex >= 0 || own.fitnessId
+    || own.telescopeId || own.swimming || !canReachNotes(authoritativePose(state.sessionId)))) resetNotesState(true)
 }
 export function receive(message: Envelope) {
   const p = message.payload,
@@ -306,6 +312,7 @@ export function receive(message: Envelope) {
       if (typeof p.userId !== 'string' || !p.userId)
         throw new Error('사용자 연결 상태를 확인할 수 없습니다.')
       if (useFeedbackState.getState().ownerId && useFeedbackState.getState().ownerId !== p.userId) resetFeedbackState()
+      if (useNotesState.getState().ownerId && useNotesState.getState().ownerId !== p.userId) resetNotesState()
       useSession.setState({ status: 'connected', sessionId: p.userId })
       break
     case 'CHANNEL_STATE': {
@@ -334,7 +341,7 @@ export function receive(message: Envelope) {
         return
       worldVersion = next.version
       const mapCompatible = next.mapVersion === EXPECTED_MAP_VERSION
-      if (!mapCompatible) { resetBenchState(); resetFitnessState(); resetTelescopeState(); resetFeedbackState(true); clearRoamingInput() }
+      if (!mapCompatible) { resetBenchState(); resetFitnessState(); resetTelescopeState(); resetFeedbackState(true); resetNotesState(true); clearRoamingInput() }
       const ids = next.avatars.map((a) => a.userId),
         now = performance.now()
       if (!ids.includes(state.sessionId)) {
