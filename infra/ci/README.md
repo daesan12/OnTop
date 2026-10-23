@@ -8,7 +8,7 @@
 - 첫 실행에는 이전 성공 SHA가 없어 양쪽 테스트를 실행하고 기준 SHA만 기록한다. 이미 수동으로 올린 DEV 배포를 이 첫 실행이 교체하지 않는다. 이후 성공한 `dev` 빌드의 SHA를 `/var/lib/jenkins/ontop-state/dev.sha`에 기록한다.
 - `infra/app/compose.dev.yaml`의 CI Nginx 설정은 `zz-ci.conf`로 로드한다. 기존 `default.conf`보다 먼저 읽으면 `dev-api`에 CI 인증서가 제공되는 문제가 실제로 발생해 수정했다.
 - 인증서 갱신 훅을 수동 호출해 CI 인증서 복사와 Nginx 재로드를 확인했다. 이후 `ci.on-top.world`은 TLS 검증 성공·루트 403, `dev-api.on-top.world/actuator/health`는 TLS 검증 성공·200을 반환했다.
-- **남은 설정:** 이 Story의 `Jenkinsfile`을 `dev`에 병합한 뒤 최초 빌드와 GitLab 웹훅을 검증한다. Jenkins 초기 관리자 생성, GitLab Plugin 설치, 세 자격 증명 ID 등록을 확인했다. `ontop-dev` Pipeline 작업도 생성됐으며 GitLab 저장소 URL, `gitlab-ontop-read`, `*/dev`, `Jenkinsfile`, lightweight checkout 설정을 서버의 작업 설정에서 확인했다. 웹훅 트리거는 첫 빌드 전까지 비활성 상태다. ID 존재만 확인했으며 각 토큰의 실제 인증은 해당 단계에서 검증한다. 개발 Vercel 프로젝트 ID는 서버에 설정했다. 자격 증명 값은 저장소·Jira·채팅에 남기지 않는다. 외부 GitLab 장애가 복구돼 로그인 페이지는 DEV-CI에서 HTTP 200으로 확인했으며, 비공개 저장소 clone은 Jenkins 작업 실행 후 검증한다.
+- **남은 설정:** 수정된 `Jenkinsfile`을 `dev`에 반영한 뒤 최초 빌드와 GitLab 웹훅을 검증한다. Jenkins 초기 관리자 생성, GitLab Plugin 설치, 세 자격 증명 ID 등록을 확인했다. `ontop-dev` Pipeline 작업의 GitLab 저장소 URL, `gitlab-ontop-read`, `*/dev`, `Jenkinsfile`, lightweight checkout 설정도 확인했다. 첫 수동 빌드는 GitLab 인증과 체크아웃에 성공했으나, `env.GIT_BRANCH`가 비어 있어 브랜치 검증에서 실패했다. 이 수정에서는 `checkout scm` 반환값을 우선 사용하고, 값이 없으면 체크아웃된 SHA와 `origin/dev`를 대조한다. 실패한 빌드는 테스트·배포 전에 중단돼 기준 SHA와 배포 상태를 바꾸지 않았다. 웹훅 트리거는 첫 성공 빌드 전까지 비활성 상태다. 자격 증명 값은 저장소·Jira·채팅에 남기지 않는다.
 
 ## 1. Jenkins 초기 설정
 
@@ -59,6 +59,7 @@ VERCEL_PROJECT_ID=prj_...
 
 ## 5. 검증과 롤백
 
+- 2026-10-23 첫 수동 Jenkins 빌드는 GitLab 인증·체크아웃 후 브랜치 판별에서 중단됐다. 수정된 `Jenkinsfile`은 서버의 Groovy 문법 검사에 통과했고, 실패한 Jenkins 작업 공간에서 `HEAD`와 `origin/dev`가 같은 SHA임을 확인했다. 같은 작업 공간에서 Jenkins 계정으로 실행한 백엔드 `./gradlew --no-daemon test`는 `BUILD SUCCESSFUL`이었다. 전체 Jenkins 파이프라인은 수정 MR 병합 후 재검증한다.
 - 최초 Jenkins 빌드에서 변경 분류, Gradle 테스트, pnpm 테스트·빌드, Compose 구문 검사, 기준 SHA 기록을 확인한다. `FULL_CHECK=1`이면 배포는 건너뛴다.
 - Compose 구문 검사는 임시 빈 `app.env`를 사용한다. 실제 `/etc/ontop/dev-app/app.env`는 root 전용이라 Jenkins가 읽지 않으며 검사 로그에도 비밀 값이 나오지 않는다.
 - 이후 `backend/`만 바뀐 `dev` 커밋은 프론트 배포 없이, `frontend/`만 바뀐 커밋은 백엔드 이미지 빌드 없이 진행되는지 Jenkins Stage View와 배포 기록으로 확인한다. 실제 배포 검증 전에는 위 자격 증명과 실행 권한 설정이 필요하다.

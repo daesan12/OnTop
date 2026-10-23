@@ -12,16 +12,32 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                checkout scm
                 script {
-                    // Pipeline-from-SCM checks out a detached HEAD. The Git plugin
-                    // supplies GIT_BRANCH (for example, origin/dev) in that case.
-                    env.SOURCE_BRANCH = env.BRANCH_NAME ?:
-                        (env.GIT_LOCAL_BRANCH ?: env.GIT_BRANCH ?: '').replaceFirst(/^origin\//, '')
+                    // A Pipeline-from-SCM job may not populate env.GIT_BRANCH.
+                    // The checkout step returns its Git metadata directly.
+                    def checkoutVars = checkout scm
                     env.SOURCE_SHA = sh(script: 'git rev-parse HEAD', returnStdout: true).trim()
-                    if (!env.SOURCE_BRANCH || !(env.SOURCE_SHA ==~ /[0-9a-f]{40}/)) {
-                        error('A named Git branch and full commit SHA are required.')
+                    def branch = (checkoutVars?.GIT_LOCAL_BRANCH ?:
+                        checkoutVars?.GIT_BRANCH ?:
+                        env.BRANCH_NAME ?:
+                        env.GIT_LOCAL_BRANCH ?:
+                        env.GIT_BRANCH ?: '').toString().trim()
+                    branch = branch.replaceFirst(/^refs\/remotes\//, '')
+                        .replaceFirst(/^origin\//, '')
+                        .replaceFirst(/^refs\/heads\//, '')
+                    if (!branch) {
+                        // The job is pinned to */dev; a detached HEAD can be
+                        // identified by the fetched remote ref as a last resort.
+                        def devSha = sh(script: 'git rev-parse refs/remotes/origin/dev', returnStdout: true).trim()
+                        if (devSha == env.SOURCE_SHA) {
+                            branch = 'dev'
+                        }
                     }
+                    env.SOURCE_BRANCH = branch
+                    if (env.SOURCE_BRANCH != 'dev' || !(env.SOURCE_SHA ==~ /[0-9a-f]{40}/)) {
+                        error('ontop-dev requires the dev branch and a full commit SHA.')
+                    }
+                    echo "Checked out ${env.SOURCE_BRANCH}@${env.SOURCE_SHA}"
                 }
             }
         }
