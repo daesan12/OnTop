@@ -1,0 +1,8 @@
+# Deployed development park. Authentication and persistence still use the db profile.
+# Local demo controllers and in-memory game-start/settlement fixtures are not enabled.
+ontop:
+  world:
+    channels:
+      - channel-id: channel-1
+        name: 개발 공원
+        capacity: 40

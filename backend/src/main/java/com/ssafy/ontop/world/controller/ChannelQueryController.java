@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@Profile("local")
+@Profile("(local | dev) & !prod & !production")
 @Tag(name = "Channel")
 public class ChannelQueryController {
 
@@ -32,7 +32,7 @@ public class ChannelQueryController {
         this.service = service;
     }
 
-    @Operation(summary = "채널 목록 조회 (local)", description = "local 프로필에서만 등록되는 실제 채널/현재 인원 조회입니다. 입장/예약하지 않습니다. 인증은 기존 ChannelAccessFilter와 REST 보안 정책을 따릅니다. 운영 프로필 전환은 미완료입니다.",
+    @Operation(summary = "채널 목록 조회", description = "local/dev 프로필의 실제 채널/현재 인원 조회입니다. 입장/예약하지 않습니다. Access JWT와 활성 회원 검증이 필요합니다. 개발 배포는 dev,db 프로필을 사용합니다.",
             security = {@SecurityRequirement(name = "AccessJwt")})
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "성공 (Cache-Control: no-store)",

@@ -9,6 +9,8 @@ import com.ssafy.ontop.game.engine.GameEngineRouter;
 import com.ssafy.ontop.game.farkle.domain.FarkleMatch;
 import com.ssafy.ontop.game.farkle.domain.FarkleMatch.Snapshot;
 import com.ssafy.ontop.game.reconnect.GameRecoverySnapshot;
+import com.ssafy.ontop.game.result.GameDepartureReason;
+import com.ssafy.ontop.game.result.GameLifecycle;
 import com.ssafy.ontop.game.state.GameStateChanged;
 import com.ssafy.ontop.game.state.GameStateView;
 import java.time.Clock;
@@ -32,6 +34,7 @@ public final class FarkleEngine implements GameEngine {
     private final IntSupplier firstPlayer;
     private final Map<String, FarkleMatch> games = new HashMap<>();
     private final Map<Long, String> latest = new HashMap<>();
+    private final GameLifecycle lifecycle = new GameLifecycle();
 
     public FarkleEngine(ObjectMapper mapper, Clock clock, Consumer<Object> events, GameEngineRouter router,
             IntSupplier face, IntSupplier firstPlayer) {
@@ -120,7 +123,14 @@ public final class FarkleEngine implements GameEngine {
                     || clock.instant().isBefore(command.deadline())) { return; }
             Snapshot before = match.snapshot();
             match.expire(command.deadline());
-            match.forfeit(command.userId(), command.deadline());
+            collect(before, match.snapshot(), notices);
+            before = match.snapshot();
+            match.forfeit(command.userId(), command.deadline(), command.reason() == GameDepartureReason.DISCONNECT_TIMEOUT
+                    ? "RECONNECT_EXPIRED" : command.reason().name());
+            if (before.endedAt() == null && match.snapshot().endedAt() != null) {
+                lifecycle.left(command.gameId(), before.tableId(), "DICE", match.snapshot().version(),
+                        command.userId(), command.reason(), command.deadline(), notices);
+            }
             collect(before, match.snapshot(), notices);
         }
         publish(notices);
@@ -145,6 +155,9 @@ public final class FarkleEngine implements GameEngine {
             router.finished(this, after.gameId());
             notices.add(new FarkleGameFinished(after.gameId(), after.tableId(), after.version(), after.players(),
                     after.scores(), after.winnerUserId(), after.endReason(), after.endedAt()));
+            notices.add(lifecycle.finished(after.gameId(), after.tableId(), "DICE", after.version(), after.players(),
+                    after.winnerUserId() == null ? List.of() : List.of(after.winnerUserId()),
+                    after.endReason(), after.endedAt()));
         }
     }
 

@@ -95,9 +95,13 @@ public final class OmokMatch {
     }
 
     public void forfeit(long userId, Instant now) {
+        forfeit(userId, now, "RECONNECT_EXPIRED");
+    }
+
+    public void forfeit(long userId, Instant now, String reason) {
         if (endedAt == null && isPlayer(userId)) {
             version++;
-            finish(opponent(userId), "RECONNECT_EXPIRED", now);
+            finish(opponent(userId), reason, now);
         }
     }
 

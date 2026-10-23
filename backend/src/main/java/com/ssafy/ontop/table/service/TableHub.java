@@ -485,7 +485,12 @@ public class TableHub {
                     builder -> builder.channelId(channelState.channelId()).prop("byDisconnect", true));
         }
         if (member.accountId() != null) {
-            reconnect.ifPresent(service -> service.disconnected(member.accountId(), sessionId));
+            var departureReason = switch (reason) {
+                case LOGOUT -> com.ssafy.ontop.game.result.GameDepartureReason.LOGOUT;
+                case MEMBER_DEACTIVATED -> com.ssafy.ontop.game.result.GameDepartureReason.MEMBER_DEACTIVATED;
+                default -> com.ssafy.ontop.game.result.GameDepartureReason.DISCONNECT_TIMEOUT;
+            };
+            reconnect.ifPresent(service -> service.disconnected(member.accountId(), sessionId, departureReason));
         }
         String tableId = seating.get(member.userId());
         if (tableId != null) {
@@ -1054,7 +1059,7 @@ public class TableHub {
                     .prop("gameCode", command.gameCode())
                     .prop("players", command.participants().size())
                     .prop("targetScore", command.targetScore())
-                    .prop("betAmountPerPlayer", result.entryFeePerPlayer()));
+                    .prop("betAmountPerPlayer", result.reservedAmountPerPlayer()));
         }
     }
 

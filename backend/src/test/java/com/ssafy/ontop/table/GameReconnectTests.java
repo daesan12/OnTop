@@ -13,6 +13,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.Optional;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
@@ -235,6 +236,57 @@ class GameReconnectTests {
         return inbox;
     }
 
+    @Test
+    void 첫조회중로그아웃해도늦은조회가재접속유예를만들지않는다() throws Exception {
+        var entered = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        engine.load = user -> {
+            entered.countDown();
+            try {
+                assertThat(release.await(5, TimeUnit.SECONDS)).isTrue();
+            } catch (InterruptedException exception) {
+                throw new IllegalStateException(exception);
+            }
+            return Optional.of(engine.snapshot);
+        };
+        connect("first");
+        assertThat(entered.await(5, TimeUnit.SECONDS)).isTrue();
+        service.disconnected(101, "first", com.ssafy.ontop.game.result.GameDepartureReason.LOGOUT);
+        release.countDown();
+        GraceExpiration command = engine.commands.poll(5, TimeUnit.SECONDS);
+        assertThat(command).isNotNull();
+        assertThat(command.deadline()).isEqualTo(command.disconnectedAt());
+        assertThat(command.reason()).isEqualTo(com.ssafy.ontop.game.result.GameDepartureReason.LOGOUT);
+        connect("returned").await("FINISHED");
+        assertThat(service.canControlGame(101, "returned", "game-1")).isFalse();
+    }
+
+    @Test
+    void 즉시기권실패도같은이벤트와사유로재시도하며기존연결종료는새연결을건드리지않는다() throws Exception {
+        connect("first").await("RESTORED");
+        engine.failExpiry = true;
+        service.disconnected(101, "first", com.ssafy.ontop.game.result.GameDepartureReason.MEMBER_DEACTIVATED);
+        GraceExpiration failed = engine.commands.poll(5, TimeUnit.SECONDS);
+        assertThat(failed).isNotNull();
+        Inbox unavailable = connect("retrying");
+        unavailable.await("UNAVAILABLE");
+        service.refresh(101, "retrying", "retry-failure", unavailable::offer);
+        unavailable.await("UNAVAILABLE");
+        engine.failExpiry = false;
+        connect("returned").await("FINISHED");
+        // 실패는 타이머/조회 경합에 따라 여러 번 재시도할 수 있다. 모든 시도는 같은 명령이어야 한다.
+        var attempts = new ArrayList<GraceExpiration>();
+        attempts.add(failed);
+        engine.commands.drainTo(attempts);
+        assertThat(attempts).hasSizeGreaterThanOrEqualTo(3)
+                .allSatisfy(command -> assertThat(command).isEqualTo(failed));
+        assertThat(engine.successfulExpirations.get()).isEqualTo(1);
+        service.disconnected(101, "first", com.ssafy.ontop.game.result.GameDepartureReason.LOGOUT);
+        assertThat(service.canUseLobby(101, "returned")).isTrue();
+        assertThat(engine.commands.poll(100, TimeUnit.MILLISECONDS)).isNull();
+        assertThat(engine.successfulExpirations.get()).isEqualTo(1);
+    }
+
     private GameRecoverySnapshot snapshot(long userId, int count, long version, Phase phase) {
         return new GameRecoverySnapshot(userId, "game-1", count, version, phase,
                 mapper.createObjectNode().put("hand", "private-" + userId)
@@ -264,6 +316,7 @@ class GameReconnectTests {
         private volatile GameRecoverySnapshot snapshot = snapshot(101, 2, 1, Phase.PLAYING);
         private volatile Function<Long, Optional<GameRecoverySnapshot>> load = user -> Optional.of(snapshot);
         private final BlockingQueue<GraceExpiration> commands = new LinkedBlockingQueue<>();
+        private final AtomicInteger successfulExpirations = new AtomicInteger();
         private volatile boolean keepPlaying;
         private volatile boolean failExpiry;
 
@@ -282,6 +335,7 @@ class GameReconnectTests {
                 snapshot = snapshot(101, snapshot.participantCount(), snapshot.version() + 1,
                         command.action() == Action.FORFEIT ? Phase.FINISHED : Phase.ELIMINATED);
             }
+            successfulExpirations.incrementAndGet();
             commands.add(command);
         }
     }

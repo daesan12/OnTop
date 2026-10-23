@@ -29,6 +29,7 @@ import org.springframework.boot.test.context.TestComponent;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -177,7 +178,11 @@ class RestSecurityTests {
     @ParameterizedTest
     @ValueSource(strings = {"/actuator/health", "/dev/tables", "/dev/world-config"})
     void 공개_기존_GET는_임의_Authorization을_Access로_해석하지_않는다(String path) throws Exception {
-        mvc.perform(get(path).header("Authorization", "Basic malformed-public-header")).andExpect(status().isOk());
+        // 개인 HTML은 Git 제외 파일이다. 유무에 따른 200/404와 무관하게 회원 인증을 호출하면 안 된다.
+        int expectedStatus = path.equals("/dev/tables") && !new ClassPathResource("dev/tables.html").exists()
+                ? 404 : 200;
+        mvc.perform(get(path).header("Authorization", "Basic malformed-public-header"))
+                .andExpect(status().is(expectedStatus));
         verifyNoInteractions(members);
     }
 
@@ -250,7 +255,10 @@ class RestSecurityTests {
                 "GET /api/v1/channels",
                 "GET /api/v1/tables", "GET /dev/tables", "GET /dev/world-config",
                 "GET /api/v1/shop/items", "POST /api/v1/shop/purchases",
-                "GET /api/v1/users/me/items", "PATCH /api/v1/users/me/equipment");
+                "GET /api/v1/users/me/items", "PATCH /api/v1/users/me/equipment",
+                "POST /api/v1/minigames/sessions", "GET /api/v1/minigames/sessions/{sessionId}",
+                "POST /api/v1/minigames/sessions/{sessionId}/complete",
+                "POST /api/v1/minigames/sessions/{sessionId}/abandon");
     }
 
     private MockHttpServletRequestBuilder auth(MockHttpServletRequestBuilder request) {

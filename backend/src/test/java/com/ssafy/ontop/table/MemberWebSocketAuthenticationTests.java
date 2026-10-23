@@ -6,6 +6,7 @@ import com.ssafy.ontop.auth.security.ActiveMemberLookup;
 import com.ssafy.ontop.auth.security.AuthenticatedUser;
 import com.ssafy.ontop.auth.security.TestLoginSessions;
 import com.ssafy.ontop.auth.service.AccessJwtService;
+import com.ssafy.ontop.table.service.TableHub;
 import com.ssafy.ontop.table.websocket.TableWebSocketHandler;
 import com.ssafy.ontop.user.domain.LoginProvider;
 import java.net.URI;
@@ -50,6 +51,8 @@ class MemberWebSocketAuthenticationTests {
     private ObjectMapper mapper;
     @Autowired
     private ApplicationContext context;
+    @Autowired
+    private TableHub hub;
     @MockitoBean
     private ActiveMemberLookup members;
     @MockitoBean(name = "oauthClock")
@@ -80,12 +83,13 @@ class MemberWebSocketAuthenticationTests {
         try (ScenarioClient first = new ScenarioClient(port, "101", ticket)) {
             assertThat(first.await(message -> message.path("type").asText().equals("CONNECTED"))
                     .path("payload").path("userId").asText()).isEqualTo("101");
-            first.request("TABLE_JOIN", Map.of("tableId", "table-1"));
+            String table = enterPark(first, 0);
+            first.request("TABLE_JOIN", Map.of("tableId", table));
             try (ScenarioClient duplicate = new ScenarioClient(port, "101", issueTicket(101))) {
                 assertThat(duplicate.awaitClose()).isEqualTo(1008);
             }
-            assertThat(first.request("TABLE_JOIN", Map.of("tableId", "table-1"))
-                    .path("payload").path("tableId").asText()).isEqualTo("table-1");
+            assertThat(first.request("TABLE_JOIN", Map.of("tableId", table))
+                    .path("payload").path("tableId").asText()).isEqualTo(table);
             assertThat(first.request("GAME_SELECT", Map.of("gameCode", "OMOK", "userId", "202"))
                     .path("payload").path("code").asText()).isEqualTo("INVALID_PAYLOAD");
         }
@@ -144,9 +148,10 @@ class MemberWebSocketAuthenticationTests {
         String ticket = mapper.readTree(issue(access).body()).path("ticket").asText();
         try (ScenarioClient socket = new ScenarioClient(port, "202", ticket)) {
             socket.await(message -> message.path("type").asText().equals("CONNECTED"));
+            String table = enterPark(socket, 1);
             now = now.plusSeconds(1800);
-            assertThat(socket.request("TABLE_JOIN", Map.of("tableId", "table-2"))
-                    .path("payload").path("tableId").asText()).isEqualTo("table-2");
+            assertThat(socket.request("TABLE_JOIN", Map.of("tableId", table))
+                    .path("payload").path("tableId").asText()).isEqualTo(table);
             assertThat(issue(access).statusCode()).isEqualTo(401);
         }
     }
@@ -166,6 +171,12 @@ class MemberWebSocketAuthenticationTests {
             var results = workers.invokeAll(java.util.List.of(connect, connect));
             assertThat((results.get(0).get() ? 1 : 0) + (results.get(1).get() ? 1 : 0)).isEqualTo(1);
         }
+    }
+
+    private String enterPark(ScenarioClient socket, int tableIndex) throws Exception {
+        assertThat(socket.request("CHANNEL_JOIN", Map.of("channelId", "channel-1"))
+                .path("type").asText()).isEqualTo("CHANNEL_STATE");
+        return hub.listTables("channel-1").tables().get(tableIndex).tableId();
     }
 
     private String issueTicket(long id) throws Exception {

@@ -83,6 +83,12 @@ DB 커밋·HTTP 전달은 원자적이지 않다. 커밋 후 응답을 잃으면
 회전 이력이 있는 조상 토큰은 자체 만료가 지났더라도 재사용 탐지를 먼저 적용한다.
 슬라이딩으로 유효기간이 남은 최신 후속 토큰까지 같은 세션 범위로 폐기한다.
 
+실제 재사용 폐기 시 `AuthenticationRevocations.Revoked.reason=REFRESH_REUSE_DETECTED`를 발행한다.
+커밋 후 해당 sid의 WebSocket은 4401/AUTH_SESSION_REVOKED로 종료하며 명시적 LOGOUT으로 취급하지 않는다.
+정상 Rotation·허용된 중복 요청 거절은 폐기 이벤트가 없다. 비활성 회원 방어의 단일 계열 폐기는 SESSION_REVOKED이며,
+회원 탈퇴의 회원 전체 MEMBER_DEACTIVATED 이벤트와 구분한다. 게임의 기존 30초 유예 및 경합 제한은
+[종료 원인 계약](session-invalidation.md#auth-종료-원인과-소비자-계약)을 따른다.
+
 주의 사항:
 
 - 5초 이내의 공격자 재사용도 즉시 세션 폐기로 이어지지 않는다. 공격자가 먼저 회전하면 정상 사용자가

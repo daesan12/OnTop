@@ -144,7 +144,7 @@ class ConnectionCloseReasonTests {
                     assertThat(counter.getId().getTag("reason")).isIn(
                             "SOCKET_CLOSED", "TRANSPORT_ERROR", "HEARTBEAT_TIMEOUT", "SEND_QUEUE_FULL",
                             "SEND_ERROR", "SERVER_SHUTDOWN", "UNSPECIFIED", "AUTH_SESSION_REVOKED",
-                            "MEMBER_DEACTIVATED");
+                            "MEMBER_DEACTIVATED", "LOGOUT");
                 });
     }
 

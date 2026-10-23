@@ -209,3 +209,5 @@ TABLE_WATCH_STATE는 착석 TABLE_STATE와 별도 캐시에 저장합니다. 구
 [인증 시작 모드](../committed-game-start.md)는 실제 B Gateway와 엔진을 등록하고 별도 활성화해야 합니다. 전원 준비 → STARTING → B 커밋 성공 검증 → 엔진 생성 → PLAYING/simulation=false입니다. 개발 rehearsal의 CONFIRMED/simulation=true와 동시 사용하지 않습니다. 미확정은 같은 시작 시도 조회만 하며 새 차감을 요청하지 않습니다. 시작 대기 단절·재접속·이전 종료 경기 조회에서도 원래30초 유예를 유지합니다. DB 차감·원장·정산 구현은 별도입니다.
 
 현재 대조 기준은 57fcf1f/abade87/9cdbff7/b39c663입니다. 직전 실행 build flowTest의 일반887·흐름39개 실패0을 근거로 사용하며 이번 문구 수정에서 앱 검사를 새로 실행한 결과로 표시하지 않습니다. 계정 조회·B 차감 경계 대역과 실제 JWT/HTTP/RawWS·엔진 검증 범위를 구분합니다.
+
+2026-10-23 판돈 처리 기준: 전원 준비 → STARTING → DB 담당의 전원 판돈 예약 커밋 확인 → PLAYING. 시작 시 즉시 차감하지 않으며 종료 정산에서 예약 해제·차감·승자 지급을 확정한다. GAME_START_CHECK/STATE JSON은 유지하고 재조회는 신규 예약을 요청하지 않는다. 실제 DB 구현/검증은 별도이며 상세는 [예약 시작 계약](../committed-game-start.md)을 따른다.

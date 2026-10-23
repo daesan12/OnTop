@@ -6,7 +6,7 @@ import com.ssafy.ontop.behavior.domain.BehaviorEvent;
 import com.ssafy.ontop.behavior.domain.BehaviorEventType;
 import com.ssafy.ontop.behavior.domain.LoginSessionKey;
 import com.ssafy.ontop.behavior.domain.PositionSample;
-import com.ssafy.ontop.shop.ShopModels.EquipmentChanged;
+import com.ssafy.ontop.shop.domain.EquipmentChanged;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;

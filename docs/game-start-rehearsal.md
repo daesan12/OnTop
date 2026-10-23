@@ -77,7 +77,7 @@ IntelliJ에서 활성화된 프로파일은 `local`로 두고, 실행 구성의 
 - 같은 테이블 참가자에게만 알린다. `revision`은 테이블별 시작 상태 알림 순서이며 기존 좌석 `version`과 별개다.
 - 화면은 낮은 revision을 무시하며 새 연결에서 캐시를 비운다.
 - 거절은 공개 코드 `START_REJECTED`로만 알리고 계정별 잔액·참가 제한 사유를 전파하지 않는다.
-- 결과 미확정은 `START_PENDING`, `START_RESULT_UNKNOWN`, `START_RESULT_INVALID`, `START_CONFLICT`로 표시한다. 대기로 복귀하거나 새 차감을 요청하지 않는다.
+- 결과 미확정은 `START_PENDING`, `START_RESULT_UNKNOWN`, `START_RESULT_INVALID`, `START_CONFLICT`로 표시한다. 대기로 복귀하거나 새 예약을 요청하지 않는다.
 
 ### GAME_START_CHECK
 
@@ -107,3 +107,5 @@ IntelliJ에서 활성화된 프로파일은 `local`로 두고, 실행 구성의 
 
 - [기존 대기 WebSocket 명세](websocket-api.md)
 - [B와 논의할 정식 시작 계약 초안](game-start-contract-draft.md)
+
+2026-10-23: 내부 성공 결과는 RESERVED(판돈 예약 완료)로 통일했다. 이 개발 대역은 예약 성공 형식만 모사하며 실제 지갑 예약·차감·정산을 하지 않는다. 실제 인증 시작의 예약 조건은 [현행 연결 계약](committed-game-start.md)을 따른다.

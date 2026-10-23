@@ -1,0 +1,33 @@
+"name": "19 붕어빵 시작 — 세션 ID 저장"
+"$kind": "http-request"
+"method": "POST"
+"url": "{{baseUrl}}/api/v1/minigames/sessions"
+"description": "MINI-01: local,db + ontop.minigames.enabled=true + 공통/미니게임 스키마 필요. 같은 키 재전송은 같은 세션. 시작은 보상/차감하지 않습니다."
+"auth":
+  "type": "noauth"
+"scripts":
+  -
+    "type": "beforeRequest"
+    "code": "if (!pm.environment.name) throw new Error('먼저 OnTop Local 환경을 선택해주세요.');\nif (!pm.environment.get('accessToken')) throw new Error('개인 로컬 Access JWT가 필요합니다.');\npm.environment.set('minigameRequestKey',pm.variables.replaceIn('{{$guid}}'));"
+  -
+    "type": "afterResponse"
+    "code": "pm.test('HTTP 201', () => pm.response.to.have.status(201));\npm.environment.set('minigameSessionId',pm.response.json().minigameSessionId);"
+"headers":
+  -
+    "key": "Authorization"
+    "value": "Bearer {{accessToken}}"
+  -
+    "key": "Origin"
+    "value": "{{baseUrl}}"
+  -
+    "key": "Content-Type"
+    "value": "application/json"
+  -
+    "key": "Idempotency-Key"
+    "value": "{{minigameRequestKey}}"
+"body":
+  "mode": "raw"
+  "raw": "{\n  \"minigameType\": \"BUNGEOPPANG\"\n}"
+  "options":
+    "raw":
+      "language": "json"

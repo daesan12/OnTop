@@ -35,16 +35,18 @@ public class AuthenticationRevocations implements MemberConnectionTermination {
         events.publishEvent(event);
     }
 
-    /** 폐기 이유. 연결 종료 처리는 sessionId만 보며, 행동 로그가 로그아웃과 탈퇴를 구분하는 데 쓴다. */
     public enum Reason {
-        LOGOUT,
-        /** Refresh 재사용 탐지·탈퇴 회원 토큰 등 보안상 폐기 */
-        SESSION_REVOKED,
-        MEMBER_DEACTIVATED
+        LOGOUT, REFRESH_REUSE_DETECTED, SESSION_REVOKED, MEMBER_DEACTIVATED
     }
 
     public record Revoked(long userId, String sessionId, Reason reason) {
-        /** 기존 사용처 호환용. sessionId가 없으면 회원 전체 폐기다. */
+        public Revoked {
+            if (reason == null || (sessionId == null) != (reason == Reason.MEMBER_DEACTIVATED)) {
+                throw new IllegalArgumentException("인증 폐기 원인과 로그인 계열 범위가 일치해야 합니다.");
+            }
+        }
+
+        /** 기존 단일 계열 알림을 명시적 로그아웃으로 추정하지 않는다. */
         public Revoked(long userId, String sessionId) {
             this(userId, sessionId, sessionId == null ? Reason.MEMBER_DEACTIVATED : Reason.SESSION_REVOKED);
         }
