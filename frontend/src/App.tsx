@@ -14,6 +14,23 @@ export default function App() {
   const [exitError, setExitError] = useState('')
 
   useEffect(() => {
+    // A history-restored login page can retain stale React state after OAuth.
+    const recheckSession = () => {
+      if (window.location.pathname !== '/auth/callback') setPage('checking')
+    }
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) recheckSession()
+    }
+
+    window.addEventListener('pageshow', onPageShow)
+    window.addEventListener('popstate', recheckSession)
+    return () => {
+      window.removeEventListener('pageshow', onPageShow)
+      window.removeEventListener('popstate', recheckSession)
+    }
+  }, [])
+
+  useEffect(() => {
     if (page !== 'checking') return
     let active = true
     restoreAuthSession().then((authenticated) => {
