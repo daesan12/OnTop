@@ -1,0 +1,30 @@
+"name": "21 미검증 붕어빵 완료 — 지급 차단"
+"$kind": "http-request"
+"method": "POST"
+"url": "{{baseUrl}}/api/v1/minigames/sessions/{{minigameSessionId}}/complete"
+"description": "MINI-03: 기본 서버에는 굽기 검증 소스가 없으므로 MINIGAME_NOT_VERIFIED. score/rewardAmount/userId를 보내지 않습니다. 검증 소스 연결 후3개당2엽전을 DB에 한 번 지급합니다."
+"auth":
+  "type": "noauth"
+"scripts":
+  -
+    "type": "beforeRequest"
+    "code": "if (!pm.environment.name) throw new Error('먼저 OnTop Local 환경을 선택해주세요.');\nif (!pm.environment.get('accessToken')) throw new Error('개인 로컬 Access JWT가 필요합니다.');\nif(!/^[1-9][0-9]*$/.test(String(pm.environment.get('minigameSessionId')||''))) throw new Error('먼저19를 실행하세요.');"
+  -
+    "type": "afterResponse"
+    "code": "pm.test('HTTP 409', () => pm.response.to.have.status(409));\npm.test('MINIGAME_NOT_VERIFIED', () => pm.expect(pm.response.json().code).to.eql('MINIGAME_NOT_VERIFIED'));"
+"headers":
+  -
+    "key": "Authorization"
+    "value": "Bearer {{accessToken}}"
+  -
+    "key": "Origin"
+    "value": "{{baseUrl}}"
+  -
+    "key": "Content-Type"
+    "value": "application/json"
+"body":
+  "mode": "raw"
+  "raw": "{}"
+  "options":
+    "raw":
+      "language": "json"

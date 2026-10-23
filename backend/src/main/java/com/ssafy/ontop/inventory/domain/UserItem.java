@@ -1,7 +1,7 @@
 package com.ssafy.ontop.inventory.domain;
 
 import com.ssafy.ontop.item.domain.Item;
-import com.ssafy.ontop.shop.ShopModels;
+import com.ssafy.ontop.shop.dto.OwnedItemResponse;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -27,15 +27,36 @@ public class UserItem {
     @Column(name = "is_equipped", nullable = false)
     private boolean equipped;
 
-    protected UserItem() { }
-    public UserItem(long userId, Item item, int quantity) {
-        this.userId = userId; this.item = item; this.quantity = quantity;
+    protected UserItem() {
     }
-    public long id() { return id; }
-    public int quantity() { return quantity; }
-    public void quantity(int value) { quantity = value; }
-    public void equipped(boolean value) { equipped = value; }
-    public ShopModels.OwnedItem toOwnedItem() {
-        return new ShopModels.OwnedItem(id, item.toItem(), quantity, equipped);
+
+    public UserItem(long userId, Item item, int quantity) {
+        this.userId = userId;
+        this.item = item;
+        this.quantity = quantity;
+    }
+
+    public long id() {
+        return id;
+    }
+
+    public int quantity() {
+        return quantity;
+    }
+
+    public void updateQuantity(int value) {
+        quantity = value;
+    }
+
+    public void equip() {
+        equipped = true;
+    }
+
+    public void unequip() {
+        equipped = false;
+    }
+
+    public OwnedItemResponse toOwnedItem() {
+        return new OwnedItemResponse(id, item.toItem(), quantity, equipped);
     }
 }

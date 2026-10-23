@@ -9,6 +9,8 @@ import com.ssafy.ontop.game.engine.GameEngineRouter;
 import com.ssafy.ontop.game.omok.domain.OmokMatch;
 import com.ssafy.ontop.game.omok.domain.OmokMatch.Snapshot;
 import com.ssafy.ontop.game.reconnect.GameRecoverySnapshot;
+import com.ssafy.ontop.game.result.GameDepartureReason;
+import com.ssafy.ontop.game.result.GameLifecycle;
 import com.ssafy.ontop.game.state.GameStateChanged;
 import com.ssafy.ontop.game.state.GameStateView;
 import java.time.Clock;
@@ -29,6 +31,7 @@ public final class OmokEngine implements GameEngine {
     private final GameEngineRouter router;
     private final Map<String, OmokMatch> games = new HashMap<>();
     private final Map<Long, String> latest = new HashMap<>();
+    private final GameLifecycle lifecycle = new GameLifecycle();
 
     public OmokEngine(ObjectMapper mapper, Clock clock, Consumer<Object> events) {
         this(mapper, clock, events, new GameEngineRouter());
@@ -134,7 +137,15 @@ public final class OmokEngine implements GameEngine {
             }
             Snapshot before = game.snapshot();
             game.expire(command.deadline());
-            game.forfeit(command.userId(), command.deadline());
+            // 먼저 도래한 턴 시간패를 명시적 기권으로 덮지 않는다.
+            collect(before, game.snapshot(), notices);
+            before = game.snapshot();
+            game.forfeit(command.userId(), command.deadline(), command.reason() == GameDepartureReason.DISCONNECT_TIMEOUT
+                    ? "RECONNECT_EXPIRED" : command.reason().name());
+            if (before.endedAt() == null && game.snapshot().endedAt() != null) {
+                lifecycle.left(command.gameId(), before.tableId(), "OMOK", game.snapshot().version(),
+                        command.userId(), command.reason(), command.deadline(), notices);
+            }
             collect(before, game.snapshot(), notices);
         }
         publish(notices);
@@ -159,6 +170,10 @@ public final class OmokEngine implements GameEngine {
                 router.finished(this, after.gameId());
                 notices.add(new OmokGameFinished(after.gameId(), after.tableId(), after.version(),
                         after.blackUserId(), after.whiteUserId(), after.winnerUserId(), after.endReason(), after.endedAt()));
+                notices.add(lifecycle.finished(after.gameId(), after.tableId(), "OMOK", after.version(),
+                        List.of(after.blackUserId(), after.whiteUserId()),
+                        after.winnerUserId() == null ? List.of() : List.of(after.winnerUserId()),
+                        after.endReason(), after.endedAt()));
             }
         }
     }

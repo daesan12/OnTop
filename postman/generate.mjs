@@ -12,6 +12,7 @@ const variables = {
     tableIdA: '',
     tableIdB: '',
     gameId: 'replace-with-real-game-id',
+    minigameSessionId: '', minigameRequestKey: '',
     accessToken: '', websocketTicket: '', shopItemId: '', userItemId: '', purchaseRequestKey: '', purchaseId: ''
 };
 
@@ -159,6 +160,30 @@ const conflict = http('18 같은 구매 키에 다른 수량 — 409', '/api/v1/
     codeTest('IDEMPOTENCY_CONFLICT'),purchaseBefore + `\nif(!pm.environment.get('purchaseRequestKey')) throw new Error('먼저14를 실행하세요.');`);
 conflict.method='POST'; conflict.headers=purchaseHeaders;
 conflict.body={mode:'raw',raw:'{\n  "itemId": {{shopItemId}},\n  "quantity": 2\n}',options:{raw:{language:'json'}}}; httpItems.push(conflict);
+
+const miniStart = http('19 붕어빵 시작 — 세션 ID 저장', '/api/v1/minigames/sessions', 201,
+    'MINI-01: local,db + ontop.minigames.enabled=true + 공통/미니게임 스키마 필요. 같은 키 재전송은 같은 세션. 시작은 보상/차감하지 않습니다.',
+    `pm.environment.set('minigameSessionId',pm.response.json().minigameSessionId);`,
+    shopSetup + `\npm.environment.set('minigameRequestKey',pm.variables.replaceIn('{{$guid}}'));`);
+miniStart.method='POST'; miniStart.headers=[...shopAuth,{key:'Content-Type',value:'application/json'},
+    {key:'Idempotency-Key',value:'{{minigameRequestKey}}'}];
+miniStart.body={mode:'raw',raw:JSON.stringify({minigameType:'BUNGEOPPANG'},null,2),options:{raw:{language:'json'}}};
+httpItems.push(miniStart);
+const miniBefore=shopSetup+`\nif(!/^[1-9][0-9]*$/.test(String(pm.environment.get('minigameSessionId')||''))) throw new Error('먼저19를 실행하세요.');`;
+const miniLoad=http('20 본인 미니게임 상태', '/api/v1/minigames/sessions/{{minigameSessionId}}',200,
+    'MINI-02: 본인만 조회. 진행 중 score/endedAt=null, rewardAmount=0. 타인은404.',
+    `pm.expect(pm.response.json().minigameSessionId).to.eql(pm.environment.get('minigameSessionId'));`,miniBefore);
+miniLoad.headers=shopAuth; httpItems.push(miniLoad);
+const miniComplete=http('21 미검증 붕어빵 완료 — 지급 차단', '/api/v1/minigames/sessions/{{minigameSessionId}}/complete',409,
+    'MINI-03: 기본 서버에는 굽기 검증 소스가 없으므로 MINIGAME_NOT_VERIFIED. score/rewardAmount/userId를 보내지 않습니다. 검증 소스 연결 후3개당2엽전을 DB에 한 번 지급합니다.',
+    codeTest('MINIGAME_NOT_VERIFIED'),miniBefore);
+miniComplete.method='POST'; miniComplete.headers=[...shopAuth,{key:'Content-Type',value:'application/json'}];
+miniComplete.body={mode:'raw',raw:'{}',options:{raw:{language:'json'}}}; httpItems.push(miniComplete);
+const miniAbandon=http('22 붕어빵 중도 포기', '/api/v1/minigames/sessions/{{minigameSessionId}}/abandon',200,
+    'MINI-04: PLAYING→ABANDONED, 보상0. 반복 포기는 같은 결과, 이미 완료된 세션은409로 지급 취소 방지.',
+    `pm.expect(pm.response.json().status).to.eql('ABANDONED'); pm.expect(pm.response.json().rewardAmount).to.eql(0);`,miniBefore);
+miniAbandon.method='POST'; miniAbandon.headers=[...shopAuth,{key:'Content-Type',value:'application/json'}];
+miniAbandon.body={mode:'raw',raw:'{}',options:{raw:{language:'json'}}}; httpItems.push(miniAbandon);
 
 const message = (name, type, payload = {}) => ({
     name, $kind: 'websocket-message', contentType: 'json',
@@ -329,8 +354,9 @@ wsItems.push({ ...wsRequest('07 로그인 사용자 — 1회용 접속권',
     + 'HTTP10과 같은 Origin을 사용하고 재접속마다 새 접속권을 발급합니다. JWT는 URL에 넣지 않습니다. '
     + 'CONNECTED 내부ID → TABLE_JOIN → GAME_SELECT → READY_SET, 중복 연결1008·heartbeat·30초복구는 기존 계약입니다. '
     + '실제 시작은 ontop.game-start.enabled=true + 실제 B GameStartGateway + 사용할 엔진이 필요합니다. '
-    + '전원 준비 → STARTING → 확정 후 PLAYING(simulation=false), GAME_CONNECTION_STATE로 본인 상태/조작권 복구. '
-    + '미확정이면07로 같은 시도를 조회하고 새 차감을 요청하지 않습니다. 개발 rehearsal과 동시 사용 금지. '
+    + '전원 준비 → STARTING → 전원 판돈 예약 커밋 후 PLAYING(simulation=false), GAME_CONNECTION_STATE로 본인 상태/조작권 복구. '
+    + '시작 시 즉시 차감하지 않고 종료 정산 때 예약 해제·차감·승자 지급을 확정합니다. 실제 DB 처리는 별도입니다. '
+    + '미확정이면07로 같은 시도를 조회하고 새 예약을 요청하지 않습니다. 개발 rehearsal과 동시 사용 금지. '
     + '기본 서버는 시작 옵션을 끈 상태이며 실제 DB Gateway가 없으므로 옵션만 켜서 성공하지 않습니다. '
     + '토큰/접속권 원문은 공유·동기화하지 마세요.', [
         message('01 광장 입장', 'CHANNEL_JOIN', { channelId: '{{channelIdA}}' }),
@@ -383,9 +409,10 @@ function yaml(value, indent = 0) {
         + (nested(item) ? '\n' + yaml(item, indent + 2) : ' ' + JSON.stringify(item))).join('\n');
 }
 const outputs = new Map([
+    ['OnTop-Minigame.postman_collection.json', JSON.stringify({info:{...httpV21.info,name:'OnTop Minigame',description:'MINI01~04: 19시작→20조회→21미검증 보상 차단→22포기. 실제 굽기 성공 검증 소스는 별도 연동합니다. 상세docs/minigame-api.md.'},item:httpV21.item.slice(18)},null,2)+'\n'],
     ['OnTop-Shop.postman_collection.json', JSON.stringify({info: {...httpV21.info, name: 'OnTop Shop',
         description: 'SHOP-01/02 · INVENTORY-01/02. 13목록→14구매→15동일키 재요청→16보유→17장착. 18은 같은키 충돌 검사. local,db + ontop.shop.enabled=true + 공통/상점 스키마가 필요합니다. 보유 의상 재구매는 서버에서 거절하고 소비형은 수량을 누적합니다. 테스트 계정의 개인 로컬 Access JWT만 사용하고 공유하지 마세요. 기본 DB에 스키마를 자동 적용하지 않았습니다. 실제 DB 초기화·공통 재화 통합·3D 외형 계약은 별도 확인합니다.\n\n2026-10-22: 상점 저장 처리를 JPA 엔티티·JPQL로 전환했습니다. 기존 6개 요청·응답·중복 구매 방지·롤백 계약은 그대로이며 예제 수정 없이 사용할 수 있습니다.' + appearanceGuide},
-        item: httpV21.item.slice(12)}, null, 2) + '\n'],
+        item: httpV21.item.slice(12,18)}, null, 2) + '\n'],
     ['OnTop-HTTP.postman_collection.json', JSON.stringify(httpV21, null, 2) + '\n'],
     ['OnTop-WebSocket.postman_collection.json', JSON.stringify(wsV3, null, 2) + '\n'],
     ['OnTop-Local.postman_environment.json', JSON.stringify(environment, null, 2) + '\n']

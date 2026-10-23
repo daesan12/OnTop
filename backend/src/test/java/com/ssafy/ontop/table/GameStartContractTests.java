@@ -69,10 +69,10 @@ class GameStartContractTests {
     @Test
     void 성공_참가자_판돈_게임_ID와_거절_모순을_검사한다() {
         List<GameStartResult> invalid = List.of(
-                new GameStartResult(command.startAttemptId(), Outcome.SUCCEEDED, null,
+                new GameStartResult(command.startAttemptId(), Outcome.RESERVED, null,
                         command.participants(), 1, 2, null),
-                new GameStartResult(command.startAttemptId(), Outcome.SUCCEEDED, "game", List.of(), 1, 2, null),
-                new GameStartResult(command.startAttemptId(), Outcome.SUCCEEDED, "game",
+                new GameStartResult(command.startAttemptId(), Outcome.RESERVED, "game", List.of(), 1, 2, null),
+                new GameStartResult(command.startAttemptId(), Outcome.RESERVED, "game",
                         command.participants(), 2, 4, null),
                 new GameStartResult(command.startAttemptId(), Outcome.REJECTED, "game", List.of(), 0, 0, "REJECTED"));
 

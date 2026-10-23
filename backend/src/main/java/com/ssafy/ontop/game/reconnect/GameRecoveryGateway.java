@@ -1,5 +1,6 @@
 package com.ssafy.ontop.game.reconnect;
 
+import com.ssafy.ontop.game.result.GameDepartureReason;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
@@ -15,7 +16,15 @@ public interface GameRecoveryGateway {
     void graceExpired(GraceExpiration command);
 
     record GraceExpiration(UUID eventId, long userId, String gameId, Instant disconnectedAt,
-            Instant deadline, Action action) {
+            Instant deadline, Action action, GameDepartureReason reason) {
+        public GraceExpiration(UUID eventId, long userId, String gameId, Instant disconnectedAt,
+                Instant deadline, Action action) {
+            this(eventId, userId, gameId, disconnectedAt, deadline, action, GameDepartureReason.DISCONNECT_TIMEOUT);
+        }
+
+        public GraceExpiration {
+            java.util.Objects.requireNonNull(reason);
+        }
     }
 
     enum Action {

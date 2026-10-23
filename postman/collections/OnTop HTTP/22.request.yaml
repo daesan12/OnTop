@@ -1,0 +1,30 @@
+"name": "22 붕어빵 중도 포기"
+"$kind": "http-request"
+"method": "POST"
+"url": "{{baseUrl}}/api/v1/minigames/sessions/{{minigameSessionId}}/abandon"
+"description": "MINI-04: PLAYING→ABANDONED, 보상0. 반복 포기는 같은 결과, 이미 완료된 세션은409로 지급 취소 방지."
+"auth":
+  "type": "noauth"
+"scripts":
+  -
+    "type": "beforeRequest"
+    "code": "if (!pm.environment.name) throw new Error('먼저 OnTop Local 환경을 선택해주세요.');\nif (!pm.environment.get('accessToken')) throw new Error('개인 로컬 Access JWT가 필요합니다.');\nif(!/^[1-9][0-9]*$/.test(String(pm.environment.get('minigameSessionId')||''))) throw new Error('먼저19를 실행하세요.');"
+  -
+    "type": "afterResponse"
+    "code": "pm.test('HTTP 200', () => pm.response.to.have.status(200));\npm.expect(pm.response.json().status).to.eql('ABANDONED'); pm.expect(pm.response.json().rewardAmount).to.eql(0);"
+"headers":
+  -
+    "key": "Authorization"
+    "value": "Bearer {{accessToken}}"
+  -
+    "key": "Origin"
+    "value": "{{baseUrl}}"
+  -
+    "key": "Content-Type"
+    "value": "application/json"
+"body":
+  "mode": "raw"
+  "raw": "{}"
+  "options":
+    "raw":
+      "language": "json"

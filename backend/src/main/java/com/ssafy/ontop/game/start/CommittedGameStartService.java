@@ -12,7 +12,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 
-/** 차감 저장은 Gateway가 담당한다. 커밋된 성공을 확인한 뒤에만 메모리 엔진을 생성한다. */
+/** 판돈 예약 저장은 Gateway가 담당한다. 전원 예약 커밋을 확인한 뒤에만 메모리 엔진을 생성한다. 즉시 차감하지 않는다. */
 @Service
 @Profile("local")
 @ConditionalOnProperty(name = "ontop.game-start.enabled", havingValue = "true")
@@ -46,7 +46,7 @@ public class CommittedGameStartService {
     }
 
     public GameStartResult start(GameStartCommand command) {
-        // 아직 엔진이 없거나 주사위 목표 점수가 정해지지 않았으면 차감 요청 전에 거절한다.
+        // 아직 엔진이 없거나 주사위 목표 점수가 정해지지 않았으면 예약 요청 전에 거절한다.
         if (!supported(command)) {
             return GameStartResult.rejected(command.startAttemptId(), "GAME_RUNTIME_UNAVAILABLE");
         }
@@ -54,7 +54,7 @@ public class CommittedGameStartService {
     }
 
     public GameStartResult find(GameStartCommand command) {
-        // 결과 불명에서는 새 차감 요청을 보내지 않는다. 같은 경기 ID의 create는 멱등적이다.
+        // 결과 불명에서는 새 예약 요청을 보내지 않는다. 같은 경기 ID의 create는 멱등적이다.
         return activate(command, gateway.findStartResult(command.startAttemptId()));
     }
 
@@ -74,7 +74,7 @@ public class CommittedGameStartService {
     }
 
     private GameStartResult activate(GameStartCommand command, GameStartResult result) {
-        if (result != null && result.isCommittedSuccess(command)) {
+        if (result != null && result.isReservationCommitted(command)) {
             List<Long> players = players(command);
             switch (command.gameCode()) {
                 case "OMOK" -> omok.orElseThrow().create(result.gameSessionId(), command.tableId(),

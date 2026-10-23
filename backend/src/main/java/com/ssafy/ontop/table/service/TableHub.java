@@ -438,7 +438,12 @@ public class TableHub {
             publishWorld(channels.worldState(channelState.channelId()), null, null);
         }
         if (member.accountId() != null) {
-            reconnect.ifPresent(service -> service.disconnected(member.accountId(), sessionId));
+            var departureReason = switch (reason) {
+                case LOGOUT -> com.ssafy.ontop.game.result.GameDepartureReason.LOGOUT;
+                case MEMBER_DEACTIVATED -> com.ssafy.ontop.game.result.GameDepartureReason.MEMBER_DEACTIVATED;
+                default -> com.ssafy.ontop.game.result.GameDepartureReason.DISCONNECT_TIMEOUT;
+            };
+            reconnect.ifPresent(service -> service.disconnected(member.accountId(), sessionId, departureReason));
         }
         String tableId = seating.get(member.userId());
         if (tableId != null) {

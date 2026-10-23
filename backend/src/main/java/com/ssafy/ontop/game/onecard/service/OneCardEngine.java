@@ -11,6 +11,7 @@ import com.ssafy.ontop.game.onecard.domain.ForfeitHandPolicy;
 import com.ssafy.ontop.game.onecard.domain.OneCardMatch;
 import com.ssafy.ontop.game.onecard.domain.OneCardMatch.Snapshot;
 import com.ssafy.ontop.game.reconnect.GameRecoverySnapshot;
+import com.ssafy.ontop.game.result.GameLifecycle;
 import com.ssafy.ontop.game.state.GameStateChanged;
 import com.ssafy.ontop.game.state.GameStateView;
 import java.time.Clock;
@@ -35,6 +36,7 @@ public final class OneCardEngine implements GameEngine {
     private final ForfeitHandPolicy forfeitHandPolicy;
     private final Map<String, OneCardMatch> games = new HashMap<>();
     private final Map<Long, String> latest = new HashMap<>();
+    private final GameLifecycle lifecycle = new GameLifecycle();
 
     public OneCardEngine(ObjectMapper mapper, Clock clock, Consumer<Object> events, GameEngineRouter router,
             Consumer<List<OneCard>> shuffle, IntUnaryOperator firstPlayer, ForfeitHandPolicy forfeitHandPolicy) {
@@ -140,7 +142,14 @@ public final class OneCardEngine implements GameEngine {
                     || clock.instant().isBefore(command.deadline())) { return; }
             Snapshot before = match.snapshot();
             match.expire(command.deadline());
+            collect(before, match.snapshot(), notices);
+            before = match.snapshot();
+            boolean wasActive = before.endedAt() == null && match.isActive(command.userId());
             match.forfeit(command.userId(), command.deadline());
+            if (wasActive && !match.isActive(command.userId())) {
+                lifecycle.left(command.gameId(), before.tableId(), "ONE_CARD", match.snapshot().version(),
+                        command.userId(), command.reason(), command.deadline(), notices);
+            }
             collect(before, match.snapshot(), notices);
         }
         publish(notices);
@@ -164,6 +173,8 @@ public final class OneCardEngine implements GameEngine {
         if (before.endedAt() == null && after.endedAt() != null) {
             router.finished(this, after.gameId());
             notices.add(new OneCardGameFinished(after.gameId(), after.tableId(), after.version(), after.players(),
+                    after.winnerUserIds(), after.endReason(), after.endedAt()));
+            notices.add(lifecycle.finished(after.gameId(), after.tableId(), "ONE_CARD", after.version(), after.players(),
                     after.winnerUserIds(), after.endReason(), after.endedAt()));
         }
     }

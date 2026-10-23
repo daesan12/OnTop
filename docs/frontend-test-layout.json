@@ -1,0 +1,51 @@
+{
+  "profile": "local,db,frontend-test",
+  "backendUrl": "http://localhost:8080",
+  "webSocketUrl": "ws://localhost:8080/ws/tables",
+  "frontendOrigin": "http://localhost:5173",
+  "mapVersion": "544bc6fa3890c77e8de0ec91d27f93981b4d23a477918963757e4762294ba8d0",
+  "chatRadius": 20,
+  "watchRadius": 20,
+  "tables": [
+    {
+      "channelId": "channel-1",
+      "tableId": "table-6fcc18fe-a301-3142-a69f-f3f67d026d62",
+      "worldTableId": "table-1",
+      "position": {
+        "x": -10,
+        "y": 0,
+        "z": 18
+      }
+    },
+    {
+      "channelId": "channel-1",
+      "tableId": "table-69d1811f-c44e-32d4-bf72-1f4ebe5fb0dd",
+      "worldTableId": "table-2",
+      "position": {
+        "x": 10,
+        "y": 0,
+        "z": 18
+      }
+    },
+    {
+      "channelId": "channel-2",
+      "tableId": "table-c07ae818-2248-3150-8970-820b5529dfb7",
+      "worldTableId": "table-1",
+      "position": {
+        "x": -10,
+        "y": 0,
+        "z": 18
+      }
+    },
+    {
+      "channelId": "channel-2",
+      "tableId": "table-ce87bea5-89c6-3892-b08e-489bcbef8533",
+      "worldTableId": "table-2",
+      "position": {
+        "x": 10,
+        "y": 0,
+        "z": 18
+      }
+    }
+  ]
+}

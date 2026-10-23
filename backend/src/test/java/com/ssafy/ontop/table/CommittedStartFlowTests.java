@@ -61,7 +61,7 @@ class CommittedStartFlowTests {
     @Autowired AccessJwtService jwt;
     @org.springframework.test.context.bean.override.mockito.MockitoSpyBean OmokEngine engine;
     @Autowired com.ssafy.ontop.game.farkle.service.FarkleEngine dice;
-    @Autowired LedgerDouble ledger;
+    @Autowired ReservationDouble reservation;
     @Autowired OmokFlowTests.TestClock clock;
     @Autowired TableHub hub;
     @Autowired ResultStoreDouble results;
@@ -79,14 +79,14 @@ class CommittedStartFlowTests {
     }
 
     @Test
-    void 확정전미시작_성공후착수_중복조회와재접속은재차감하지않는다() throws Exception {
+    void 확정전미시작_성공후착수_중복조회와재접속은재예약하지않는다() throws Exception {
         try (var first = connect(101); var second = connect(202)) {
             prepare(first, second, "OMOK");
-            assertThat(ledger.entered.await(5, TimeUnit.SECONDS)).isTrue();
+            assertThat(reservation.entered.await(5, TimeUnit.SECONDS)).isTrue();
             assertThat(engine.load(101, GAME)).isEmpty();
             assertThat(first.request("TABLE_LEAVE", Map.of()).path("payload").path("code").asText())
                     .isEqualTo("TABLE_BUSY");
-            ledger.release.countDown();
+            reservation.release.countDown();
             playing(first);
             first.state("RESTORED");
             second.state("RESTORED");
@@ -102,53 +102,53 @@ class CommittedStartFlowTests {
                 assertThat(returned.request("GAME_STATE_CHECK", Map.of("gameId", GAME))
                         .path("payload").path("version").asLong()).isEqualTo(1);
             }
-            assertThat(ledger.starts.get()).isEqualTo(1);
-            assertThat(ledger.debits.get()).isEqualTo(1);
+            assertThat(reservation.starts.get()).isEqualTo(1);
+            assertThat(reservation.reservations.get()).isEqualTo(1);
             assertThat(hub.listTables().tables().getFirst().status()).isEqualTo("PLAYING");
         }
     }
 
     @Test
     void 확정거절은전원준비를초기화하고엔진을생성하지않는다() throws Exception {
-        ledger.mode = "REJECT";
+        reservation.mode = "REJECT";
         try (var first = connect(101); var second = connect(202)) {
             prepare(first, second, "OMOK");
-            assertThat(ledger.entered.await(5, TimeUnit.SECONDS)).isTrue();
-            ledger.release.countDown();
+            assertThat(reservation.entered.await(5, TimeUnit.SECONDS)).isTrue();
+            reservation.release.countDown();
             var rejected = first.await(m -> m.path("type").asText().equals("GAME_START_STATE")
                     && m.path("payload").path("code").asText().equals("START_REJECTED"));
             assertThat(rejected.path("payload").path("phase").asText()).isEqualTo("WAITING");
             assertThat(hub.listTables().tables().getFirst().readyCount()).isZero();
             assertThat(engine.load(101, GAME)).isEmpty();
-            assertThat(ledger.debits.get()).isZero();
+            assertThat(reservation.reservations.get()).isZero();
         }
     }
 
     @Test
-    void 커밋후응답유실은같은시도조회로복구하고다시차감하지않는다() throws Exception {
-        ledger.mode = "UNKNOWN";
+    void 커밋후응답유실은같은시도조회로복구하고다시예약하지않는다() throws Exception {
+        reservation.mode = "UNKNOWN";
         try (var first = connect(101); var second = connect(202)) {
             prepare(first, second, "OMOK");
-            assertThat(ledger.entered.await(5, TimeUnit.SECONDS)).isTrue();
-            ledger.release.countDown();
+            assertThat(reservation.entered.await(5, TimeUnit.SECONDS)).isTrue();
+            reservation.release.countDown();
             first.await(m -> m.path("payload").path("code").asText().equals("START_RESULT_UNKNOWN"));
             assertThat(engine.load(101, GAME)).isEmpty();
             first.request("GAME_START_CHECK", Map.of());
             playing(first);
             first.state("RESTORED");
-            assertThat(ledger.starts.get()).isEqualTo(1);
-            assertThat(ledger.lookups.get()).isEqualTo(1);
-            assertThat(ledger.debits.get()).isEqualTo(1);
+            assertThat(reservation.starts.get()).isEqualTo(1);
+            assertThat(reservation.lookups.get()).isEqualTo(1);
+            assertThat(reservation.reservations.get()).isEqualTo(1);
         }
     }
 
     @Test
     void 잘못된확정금액은엔진시작으로바꾸지않는다() throws Exception {
-        ledger.mode = "INVALID";
+        reservation.mode = "INVALID";
         try (var first = connect(101); var second = connect(202)) {
             prepare(first, second, "OMOK");
-            assertThat(ledger.entered.await(5, TimeUnit.SECONDS)).isTrue();
-            ledger.release.countDown();
+            assertThat(reservation.entered.await(5, TimeUnit.SECONDS)).isTrue();
+            reservation.release.countDown();
             first.await(m -> m.path("payload").path("code").asText().equals("START_RESULT_INVALID"));
             assertThat(engine.load(101, GAME)).isEmpty();
             assertThat(hub.listTables().tables().getFirst().status()).isEqualTo("STARTING");
@@ -156,29 +156,29 @@ class CommittedStartFlowTests {
     }
 
     @Test
-    void 목표없는주사위선택은차감요청전에거절한다() throws Exception {
+    void 목표없는주사위선택은예약요청전에거절한다() throws Exception {
         try (var first = connect(101); var second = connect(202)) {
             first.request("TABLE_JOIN", Map.of("tableId", "table-1"));
             assertThat(first.request("GAME_SELECT", Map.of("gameCode", "DICE"))
                     .path("payload").path("code").asText()).isEqualTo("GAME_OPTIONS_REQUIRED");
-            assertThat(ledger.starts.get()).isZero();
-            assertThat(ledger.debits.get()).isZero();
+            assertThat(reservation.starts.get()).isZero();
+            assertThat(reservation.reservations.get()).isZero();
         }
     }
 
     @ParameterizedTest
     @ValueSource(ints = {29, 30})
-    void 차감확정대기중끊겨도원래단절시각의복귀유예를유지한다(int seconds) throws Exception {
+    void 예약확정대기중끊겨도원래단절시각의복귀유예를유지한다(int seconds) throws Exception {
         try (var first = connect(101); var second = connect(202)) {
             prepare(first, second, "OMOK");
-            assertThat(ledger.entered.await(5, TimeUnit.SECONDS)).isTrue();
+            assertThat(reservation.entered.await(5, TimeUnit.SECONDS)).isTrue();
             second.stopPong();
             assertThat(second.awaitClose()).isEqualTo(1001);
             clock.advanceSeconds(seconds);
-            ledger.release.countDown();
+            reservation.release.countDown();
             playing(first);
             try (var returned = connect(202, seconds == 29 ? "RESTORED" : "FINISHED")) {
-                assertThat(ledger.debits.get()).isEqualTo(1);
+                assertThat(reservation.reservations.get()).isEqualTo(1);
                 assertThat(returned.request("GAME_START_CHECK", Map.of()).path("type").asText())
                         .isEqualTo("GAME_START_STATE");
             }
@@ -197,7 +197,7 @@ class CommittedStartFlowTests {
     void 실제시간패종료_자동결과_정산알림_재접속조회까지이어진다() throws Exception {
         try (var first = connect(101); var second = connect(202)) {
             prepare(first, second, "OMOK");
-            ledger.release.countDown();
+            reservation.release.countDown();
             playing(first);
             first.state("RESTORED"); second.state("RESTORED");
             // 결과 저장 경계만 대역이다. 시작·30초 시간패 판정·JWT·소켓은 실제 구현이다.
@@ -243,7 +243,7 @@ class CommittedStartFlowTests {
                 assertThat(replay.path("payload").path("version").asLong()).isEqualTo(2);
                 assertThat(replay.path("payload").path("myCoinDelta").asLong()).isEqualTo(-1);
             }
-            assertThat(ledger.debits.get()).isEqualTo(1);
+            assertThat(reservation.reservations.get()).isEqualTo(1);
         }
     }
 
@@ -268,8 +268,8 @@ class CommittedStartFlowTests {
             assertThat(selected.path("payload").path("targetScore").asInt()).isEqualTo(2000);
             assertThat(hub.listTables().tables().getFirst().readyCount()).isZero();
             first.request("READY_SET", Map.of("ready", true)); second.request("READY_SET", Map.of("ready", true));
-            ledger.release.countDown(); playing(first); first.state("RESTORED"); second.state("RESTORED");
-            assertThat(ledger.lastCommand.targetScore()).isEqualTo(2000);
+            reservation.release.countDown(); playing(first); first.state("RESTORED"); second.state("RESTORED");
+            assertThat(reservation.lastCommand.targetScore()).isEqualTo(2000);
             var state = dice.load(101, GAME).orElseThrow();
             assertThat(state.publicState().path("targetScore").asInt()).isEqualTo(2000);
             var current = state.publicState().path("turnUserId").asText().equals("101") ? first : second;
@@ -281,14 +281,14 @@ class CommittedStartFlowTests {
                 assertThat(returned.request("GAME_STATE_CHECK", Map.of("gameId", GAME))
                         .path("payload").path("publicState").path("targetScore").asInt()).isEqualTo(2000);
             }
-            assertThat(ledger.debits).hasValue(1);
+            assertThat(reservation.reservations).hasValue(1);
         }
     }
 
     @Test
     void 정산대기는준비를막고_알림유실은저장조회로풀어_새경기를시작한다() throws Exception {
         try (var first = connect(101); var second = connect(202)) {
-            prepare(first, second, "OMOK"); ledger.release.countDown(); playing(first);
+            prepare(first, second, "OMOK"); reservation.release.countDown(); playing(first);
             first.state("RESTORED"); second.state("RESTORED");
             clock.advanceSeconds(30); engine.tick();
             first.await(m -> m.path("type").asText().equals("GAME_START_STATE")
@@ -321,7 +321,7 @@ class CommittedStartFlowTests {
             events.publishEvent(new GameResultCommitted(results.saved.get(101L)));
             hub.roundEnded("table-1", GAME);
             assertThat(hub.listTables().tables().getFirst().status()).isEqualTo("PLAYING");
-            assertThat(ledger.debits).hasValue(2);
+            assertThat(reservation.reservations).hasValue(2);
             assertThat(engine.load(101, GAME + "-2")).isPresent();
         }
     }
@@ -336,7 +336,7 @@ class CommittedStartFlowTests {
         }).when(engine).create(anyString(), anyString(),
                 anyLong(), anyLong());
         try (var first = connect(101); var second = connect(202)) {
-            prepare(first, second, "OMOK"); ledger.release.countDown();
+            prepare(first, second, "OMOK"); reservation.release.countDown();
             first.await(m -> m.path("type").asText().equals("GAME_START_STATE")
                     && m.path("payload").path("phase").asText().equals("WAITING")
                     && m.path("payload").path("gameSessionId").asText().equals(GAME));
@@ -350,17 +350,17 @@ class CommittedStartFlowTests {
     void 확정전재접속도원래유예를지우지않는다(int seconds) throws Exception {
         try (var first = connect(101); var second = connect(202)) {
             prepare(first, second, "OMOK");
-            assertThat(ledger.entered.await(5, TimeUnit.SECONDS)).isTrue();
+            assertThat(reservation.entered.await(5, TimeUnit.SECONDS)).isTrue();
             second.stopPong();
             assertThat(second.awaitClose()).isEqualTo(1001);
             clock.advanceSeconds(seconds);
             try (var returned = connect(202, "LOBBY")) {
                 // 유예 안에 돌아온 시점이 기준이다. 확정이 더 늦어져도 그 복귀를 보존한다.
                 clock.advanceSeconds(2);
-                ledger.release.countDown();
+                reservation.release.countDown();
                 playing(first);
                 returned.state(seconds == 29 ? "RESTORED" : "FINISHED");
-                assertThat(ledger.debits.get()).isEqualTo(1);
+                assertThat(reservation.reservations.get()).isEqualTo(1);
             }
         }
     }
@@ -379,12 +379,12 @@ class CommittedStartFlowTests {
         engine.tick();
         try (var first = connect(101, "FINISHED"); var second = connect(202, "FINISHED")) {
             prepare(first, second, "OMOK");
-            assertThat(ledger.entered.await(5, TimeUnit.SECONDS)).isTrue();
+            assertThat(reservation.entered.await(5, TimeUnit.SECONDS)).isTrue();
             second.stopPong();
             assertThat(second.awaitClose()).isEqualTo(1001);
             clock.advanceSeconds(30);
             try (var returned = connect(202, "FINISHED")) {
-                ledger.release.countDown();
+                reservation.release.countDown();
                 playing(first);
                 assertThat(returned.state("FINISHED").path("gameId").asText()).isEqualTo(GAME);
             }
@@ -408,7 +408,7 @@ class CommittedStartFlowTests {
 
     @TestConfiguration(proxyBeanMethods = false)
     static class Fixture {
-        @Bean LedgerDouble ledgerDouble() { return new LedgerDouble(); }
+        @Bean ReservationDouble reservationDouble() { return new ReservationDouble(); }
         @Bean ResultStoreDouble resultStoreDouble() { return new ResultStoreDouble(); }
     }
 
@@ -419,13 +419,13 @@ class CommittedStartFlowTests {
         }
     }
 
-    // 차감/DB 담당 경계의 대역. 실제 잔액·원장·DB 트랜잭션 성공을 뜻하지 않는다.
-    static class LedgerDouble implements GameStartGateway {
+    // 예약/DB 담당 경계의 대역. 실제 잔액·원장·DB 트랜잭션 성공을 뜻하지 않는다.
+    static class ReservationDouble implements GameStartGateway {
         final CountDownLatch entered = new CountDownLatch(1);
         final CountDownLatch release = new CountDownLatch(1);
         final AtomicInteger starts = new AtomicInteger();
         final AtomicInteger lookups = new AtomicInteger();
-        final AtomicInteger debits = new AtomicInteger();
+        final AtomicInteger reservations = new AtomicInteger();
         volatile GameStartCommand lastCommand;
         volatile String mode = "SUCCESS";
         volatile GameStartResult committed;
@@ -438,11 +438,11 @@ class CommittedStartFlowTests {
                 if (!release.await(8, TimeUnit.SECONDS)) { throw new IllegalStateException("test timeout"); }
             } catch (InterruptedException exception) { throw new IllegalStateException(exception); }
             if (mode.equals("REJECT")) { return GameStartResult.rejected(command.startAttemptId(), "BALANCE"); }
-            committed = GameStartResult.succeeded(command, starts.get() == 1 ? GAME : GAME + "-" + starts.get());
-            debits.incrementAndGet();
+            committed = GameStartResult.reserved(command, starts.get() == 1 ? GAME : GAME + "-" + starts.get());
+            reservations.incrementAndGet();
             if (mode.equals("UNKNOWN")) { throw new IllegalStateException("test response lost after commit"); }
             if (mode.equals("INVALID")) {
-                return new GameStartResult(command.startAttemptId(), GameStartResult.Outcome.SUCCEEDED, GAME,
+                return new GameStartResult(command.startAttemptId(), GameStartResult.Outcome.RESERVED, GAME,
                         command.participants(), 99, 198, null);
             }
             return committed;

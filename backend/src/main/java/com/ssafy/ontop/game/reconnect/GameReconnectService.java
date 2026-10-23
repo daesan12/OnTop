@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.ssafy.ontop.game.reconnect.GameRecoveryGateway.Action;
 import com.ssafy.ontop.game.reconnect.GameRecoveryGateway.GraceExpiration;
 import com.ssafy.ontop.game.reconnect.GameRecoverySnapshot.Phase;
+import com.ssafy.ontop.game.result.GameDepartureReason;
 import jakarta.annotation.PreDestroy;
 import java.time.Clock;
 import java.time.Duration;
@@ -57,20 +58,30 @@ public class GameReconnectService {
     }
 
     public synchronized void disconnected(long userId, String sessionId) {
+        disconnected(userId, sessionId, GameDepartureReason.DISCONNECT_TIMEOUT);
+    }
+
+    public synchronized void disconnected(long userId, String sessionId, GameDepartureReason reason) {
+        java.util.Objects.requireNonNull(reason);
         Slot slot = users.get(userId);
         if (slot == null || !sessionId.equals(slot.sessionId)) {
             return;
         }
         slot.sessionId = null;
         slot.output = null;
-        if (slot.deadline == null) {
+        if (slot.deadline == null || reason != GameDepartureReason.DISCONNECT_TIMEOUT) {
             slot.disconnectedAt = clock.instant();
-            slot.deadline = slot.disconnectedAt.plus(GRACE);
+            slot.deadline = reason == GameDepartureReason.DISCONNECT_TIMEOUT
+                    ? slot.disconnectedAt.plus(GRACE) : slot.disconnectedAt;
+            slot.departureReason = reason;
         }
         slot.returnedInTime = false;
         // 경기 시작 이후 상태가 달라졌을 수 있어 종료 감지 때도 실제 경기 담당에게 조회한다.
         if (!slot.loading) {
             submitLoad(slot, null);
+        }
+        if (reason != GameDepartureReason.DISCONNECT_TIMEOUT) {
+            checkTimeouts();
         }
     }
 
@@ -239,7 +250,7 @@ public class GameReconnectService {
         if (slot.expiration == null) {
             slot.expiration = new GraceExpiration(UUID.randomUUID(), slot.userId, snapshot.gameId(),
                     slot.disconnectedAt, slot.deadline,
-                    snapshot.participantCount() == 2 ? Action.FORFEIT : Action.ELIMINATE);
+                    snapshot.participantCount() == 2 ? Action.FORFEIT : Action.ELIMINATE, slot.departureReason);
         }
         return slot.expiration;
     }
@@ -303,6 +314,7 @@ public class GameReconnectService {
         private String status = "PENDING";
         private Instant disconnectedAt;
         private Instant deadline;
+        private GameDepartureReason departureReason = GameDepartureReason.DISCONNECT_TIMEOUT;
         private GameRecoverySnapshot snapshot;
         private GraceExpiration expiration;
         private CompletableFuture<Void> expirationResult;
