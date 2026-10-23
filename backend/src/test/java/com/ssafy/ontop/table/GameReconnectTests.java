@@ -235,6 +235,48 @@ class GameReconnectTests {
         return inbox;
     }
 
+    @Test
+    void 첫조회중로그아웃해도늦은조회가재접속유예를만들지않는다() throws Exception {
+        var entered = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        engine.load = user -> {
+            entered.countDown();
+            try {
+                assertThat(release.await(5, TimeUnit.SECONDS)).isTrue();
+            } catch (InterruptedException exception) {
+                throw new IllegalStateException(exception);
+            }
+            return Optional.of(engine.snapshot);
+        };
+        connect("first");
+        assertThat(entered.await(5, TimeUnit.SECONDS)).isTrue();
+        service.disconnected(101, "first", com.ssafy.ontop.game.result.GameDepartureReason.LOGOUT);
+        release.countDown();
+        GraceExpiration command = engine.commands.poll(5, TimeUnit.SECONDS);
+        assertThat(command).isNotNull();
+        assertThat(command.deadline()).isEqualTo(command.disconnectedAt());
+        assertThat(command.reason()).isEqualTo(com.ssafy.ontop.game.result.GameDepartureReason.LOGOUT);
+        connect("returned").await("FINISHED");
+        assertThat(service.canControlGame(101, "returned", "game-1")).isFalse();
+    }
+
+    @Test
+    void 즉시기권실패도같은이벤트와사유로재시도하며기존연결종료는새연결을건드리지않는다() throws Exception {
+        connect("first").await("RESTORED");
+        engine.failExpiry = true;
+        service.disconnected(101, "first", com.ssafy.ontop.game.result.GameDepartureReason.MEMBER_DEACTIVATED);
+        GraceExpiration failed = engine.commands.poll(5, TimeUnit.SECONDS);
+        assertThat(failed).isNotNull();
+        engine.failExpiry = false;
+        connect("returned").await("FINISHED");
+        GraceExpiration retried = engine.commands.poll(5, TimeUnit.SECONDS);
+        assertThat(retried.eventId()).isEqualTo(failed.eventId());
+        assertThat(retried.reason()).isEqualTo(failed.reason());
+        service.disconnected(101, "first", com.ssafy.ontop.game.result.GameDepartureReason.LOGOUT);
+        assertThat(service.canUseLobby(101, "returned")).isTrue();
+        assertThat(engine.commands.poll(100, TimeUnit.MILLISECONDS)).isNull();
+    }
+
     private GameRecoverySnapshot snapshot(long userId, int count, long version, Phase phase) {
         return new GameRecoverySnapshot(userId, "game-1", count, version, phase,
                 mapper.createObjectNode().put("hand", "private-" + userId)

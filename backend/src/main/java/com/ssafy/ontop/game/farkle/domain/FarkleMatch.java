@@ -164,9 +164,13 @@ public final class FarkleMatch {
     }
 
     public void forfeit(long userId, Instant now) {
+        forfeit(userId, now, "RECONNECT_EXPIRED");
+    }
+
+    public void forfeit(long userId, Instant now, String reason) {
         if (endedAt == null && isPlayer(userId)) {
             version++;
-            finish(players.get(players.get(0) == userId ? 1 : 0), "RECONNECT_EXPIRED", now);
+            finish(players.get(players.get(0) == userId ? 1 : 0), reason, now);
         }
     }
 

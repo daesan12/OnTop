@@ -9,6 +9,7 @@ public enum ConnectionCloseReason {
     SEND_ERROR,
     SERVER_SHUTDOWN,
     AUTH_SESSION_REVOKED,
+    LOGOUT,
     MEMBER_DEACTIVATED,
     UNSPECIFIED
 }
