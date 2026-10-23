@@ -51,7 +51,7 @@ class TableRoundPolicyTests {
                 List.of(new GameStartCommand.Participant("101", 1), new GameStartCommand.Participant("202", 2)));
         var attempt = new TableStartAttempt(command);
         attempt.rememberEnd("old"); attempt.markSettled("old");
-        attempt.apply(GameStartResult.succeeded(command, "current")); attempt.playing();
+        attempt.apply(GameStartResult.reserved(command, "current")); attempt.playing();
         assertThat(attempt.endedEarly()).isFalse();
         assertThat(attempt.returnAfterSettlement()).isFalse();
         attempt.rememberEnd("current"); attempt.markSettled("current");

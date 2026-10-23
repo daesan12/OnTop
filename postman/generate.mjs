@@ -329,8 +329,9 @@ wsItems.push({ ...wsRequest('07 로그인 사용자 — 1회용 접속권',
     + 'HTTP10과 같은 Origin을 사용하고 재접속마다 새 접속권을 발급합니다. JWT는 URL에 넣지 않습니다. '
     + 'CONNECTED 내부ID → TABLE_JOIN → GAME_SELECT → READY_SET, 중복 연결1008·heartbeat·30초복구는 기존 계약입니다. '
     + '실제 시작은 ontop.game-start.enabled=true + 실제 B GameStartGateway + 사용할 엔진이 필요합니다. '
-    + '전원 준비 → STARTING → 확정 후 PLAYING(simulation=false), GAME_CONNECTION_STATE로 본인 상태/조작권 복구. '
-    + '미확정이면07로 같은 시도를 조회하고 새 차감을 요청하지 않습니다. 개발 rehearsal과 동시 사용 금지. '
+    + '전원 준비 → STARTING → 전원 판돈 예약 커밋 후 PLAYING(simulation=false), GAME_CONNECTION_STATE로 본인 상태/조작권 복구. '
+    + '시작 시 즉시 차감하지 않고 종료 정산 때 예약 해제·차감·승자 지급을 확정합니다. 실제 DB 처리는 별도입니다. '
+    + '미확정이면07로 같은 시도를 조회하고 새 예약을 요청하지 않습니다. 개발 rehearsal과 동시 사용 금지. '
     + '기본 서버는 시작 옵션을 끈 상태이며 실제 DB Gateway가 없으므로 옵션만 켜서 성공하지 않습니다. '
     + '토큰/접속권 원문은 공유·동기화하지 마세요.', [
         message('01 광장 입장', 'CHANNEL_JOIN', { channelId: '{{channelIdA}}' }),

@@ -101,7 +101,7 @@ class GameStartFlowTests {
     void 확정_거절이면_전원_준비를_풀고_다음_시도에는_새_ID를_사용한다() throws Exception {
         gateway.start = command -> gateway.starts.get() == 1
                 ? GameStartResult.rejected(command.startAttemptId(), "PRIVATE_BALANCE_REASON")
-                : GameStartResult.succeeded(command, "demo-game-next");
+                : GameStartResult.reserved(command, "demo-game-next");
         Peer first = seated();
         Peer second = seated();
         prepare(first, second);
@@ -163,7 +163,7 @@ class GameStartFlowTests {
     @Test
     void 충돌과_잘못된_결과는_대기로_돌리지_않는다() throws Exception {
         gateway.start = command -> GameStartResult.conflict(command.startAttemptId());
-        gateway.lookup = id -> new GameStartResult(UUID.randomUUID(), Outcome.SUCCEEDED, "wrong-game",
+        gateway.lookup = id -> new GameStartResult(UUID.randomUUID(), Outcome.RESERVED, "wrong-game",
                 gateway.command.participants(), 1, 2, null);
         Peer first = seated();
         Peer second = seated();
@@ -202,7 +202,7 @@ class GameStartFlowTests {
         gateway.start = command -> {
             entered.countDown();
             awaitLatch(release);
-            return GameStartResult.succeeded(command, "demo-game-held");
+            return GameStartResult.reserved(command, "demo-game-held");
         };
         Peer first = seated();
         Peer second = seated();
@@ -305,7 +305,7 @@ class GameStartFlowTests {
         gateway.lookup = id -> {
             entered.countDown();
             awaitLatch(release);
-            return GameStartResult.succeeded(gateway.command, "demo-game-lookup");
+            return GameStartResult.reserved(gateway.command, "demo-game-lookup");
         };
         Peer first = seated();
         Peer second = seated();
@@ -335,9 +335,9 @@ class GameStartFlowTests {
                 oldWorker.set(Thread.currentThread());
                 entered.countDown();
                 awaitLatch(release);
-                return GameStartResult.succeeded(command, "demo-game-old");
+                return GameStartResult.reserved(command, "demo-game-old");
             }
-            return GameStartResult.succeeded(command, "demo-game-new");
+            return GameStartResult.reserved(command, "demo-game-new");
         };
         gateway.lookup = id -> GameStartResult.rejected(id, "REJECTED");
         Peer first = seated();
@@ -431,8 +431,8 @@ class GameStartFlowTests {
         private volatile GameStartCommand command;
         private UUID lookedUp;
         private Function<GameStartCommand, GameStartResult> start = input ->
-                GameStartResult.succeeded(input, "demo-game-test");
-        private Function<UUID, GameStartResult> lookup = id -> GameStartResult.succeeded(command, "demo-game-test");
+                GameStartResult.reserved(input, "demo-game-test");
+        private Function<UUID, GameStartResult> lookup = id -> GameStartResult.reserved(command, "demo-game-test");
 
         @Override
         public GameStartResult startGame(GameStartCommand input) {

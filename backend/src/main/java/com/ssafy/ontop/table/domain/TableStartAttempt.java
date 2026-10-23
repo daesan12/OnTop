@@ -80,8 +80,8 @@ public final class TableStartAttempt {
             code = "START_RESULT_INVALID";
             return;
         }
-        if (result.outcome() == Outcome.SUCCEEDED) {
-            if (!result.isCommittedSuccess(command)) {
+        if (result.outcome() == Outcome.RESERVED) {
+            if (!result.isReservationCommitted(command)) {
                 code = "START_RESULT_INVALID";
                 return;
             }
@@ -89,8 +89,8 @@ public final class TableStartAttempt {
             gameSessionId = result.gameSessionId();
             code = null;
         } else if (result.outcome() == Outcome.REJECTED) {
-            if (result.gameSessionId() != null || !result.participants().isEmpty() || result.entryFeePerPlayer() != 0
-                    || result.totalPot() != 0 || result.code() == null || result.code().isBlank()) {
+            if (result.gameSessionId() != null || !result.participants().isEmpty() || result.reservedAmountPerPlayer() != 0
+                    || result.totalReservedAmount() != 0 || result.code() == null || result.code().isBlank()) {
                 code = "START_RESULT_INVALID";
                 return;
             }
