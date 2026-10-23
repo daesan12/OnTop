@@ -101,6 +101,8 @@ sudo docker compose --env-file /etc/ontop/prod-app/deploy.env -f infra/app/compo
 # 먼저 mysql과 app을 시작한다.
 ```
 
+DEV 앱의 `/tmp`는 실행 금지(`noexec`)를 유지한다. 첫 `CHANNEL_JOIN`에서 Bullet 물리 엔진이 네이티브 라이브러리를 추출하므로, `compose.dev.yaml`은 UID/GID `10001` 전용의 실행 가능 tmpfs `/run/ontop-native`를 만들고 `JAVA_TOOL_OPTIONS`의 `java.io.tmpdir`로 지정한다. 2026-10-23 DEV에서 `/tmp`만 사용했을 때 WebSocket `101` 직후 채널 입장 응답 없이 연결이 닫혔고, 전용 경로를 적용한 뒤 사용자가 개발 공원 입장을 확인했다. 헬스체크 `200`만으로 채널 입장을 검증했다고 판단하지 않는다.
+
 `bootstrap.conf`는 인증서 발급을 위한 HTTP 경로만 열고 API는 프록시하지 않는다. PROD-APP에서 임시 `ontop-acme-bootstrap`으로 ACME 경로를 검증한 후 `ontop-tls-bootstrap`으로 HTTPS를 준비하고 API에는 503을 반환했다. Certbot 갱신 모의 시험이 성공했다. 앱이 healthy가 된 뒤 임시 컨테이너를 중지하고 Compose Nginx로 전환했으며 외부 health 확인 후 임시 컨테이너를 제거했다. PROD-APP의 WireGuard·DB 연결, Flyway 초기 마이그레이션도 확인했다. DEV-CI의 MySQL·앱·Nginx도 시작해 외부 HTTPS 헬스를 확인했다. 예시의 `manual` 태그는 자리 표시자다. 실제 릴리스에는 커밋 SHA나 릴리스 태그를 기록한다.
 
 ## 3. 도메인·HTTPS/WSS

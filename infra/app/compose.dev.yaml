@@ -48,12 +48,15 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: dev,db
       SERVER_FORWARD_HEADERS_STRATEGY: framework
+      JAVA_TOOL_OPTIONS: -Djava.io.tmpdir=/run/ontop-native
       DB_PASSWORD_FILE: /run/secrets/mysql_app_password
     secrets:
       - mysql_app_password
     read_only: true
     tmpfs:
       - /tmp
+      # Bullet extracts its native library on first channel join; keep /tmp noexec.
+      - /run/ontop-native:exec,mode=0700,uid=10001,gid=10001,size=64m
     security_opt:
       - no-new-privileges:true
     cap_drop:
