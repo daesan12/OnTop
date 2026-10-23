@@ -12,6 +12,7 @@ import com.ssafy.ontop.auth.service.AuthExchangePersistenceService;
 import com.ssafy.ontop.auth.service.AuthUserStateService;
 import com.ssafy.ontop.auth.websocket.MemberWebSocketConnections;
 import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser;
+import com.ssafy.ontop.table.service.TableHub;
 import com.ssafy.ontop.table.websocket.ConnectionCloseReason;
 import com.ssafy.ontop.user.domain.CharacterGender;
 import com.ssafy.ontop.user.domain.LoginProvider;
@@ -80,6 +81,7 @@ class UserWithdrawalMySqlTests {
     @Autowired private AccessJwtService jwt;
     @Autowired private AccessAuthenticationService authentication;
     @Autowired private MemberWebSocketConnections connections;
+    @Autowired private TableHub hub;
     @Autowired private JdbcTemplate jdbc;
     @Autowired private ObjectMapper mapper;
     @MockitoSpyBean private RefreshTokenRepository tokens;
@@ -120,6 +122,7 @@ class UserWithdrawalMySqlTests {
         Instant priorRevoked = tokens.findByTokenHash(hash(first.refreshToken())).orElseThrow().getRevokedAt();
         now = now.plusSeconds(1);
         long count = users.count();
+        long closedBefore = hub.closedConnections(ConnectionCloseReason.MEMBER_DEACTIVATED);
         try (ScenarioClient socket = connected(user, first.accessToken());
                 ScenarioClient otherSocket = connected(other, otherLogin.accessToken())) {
             String waiting = ticket(first.accessToken());
@@ -130,6 +133,8 @@ class UserWithdrawalMySqlTests {
             assertThat(response.body()).isEmpty();
             assertThat(response.headers().firstValue("Cache-Control")).contains("no-store");
             assertThat(socket.awaitClose()).isEqualTo(4403);
+            await().atMost(5, TimeUnit.SECONDS).untilAsserted(() ->
+                    assertThat(hub.closedConnections(ConnectionCloseReason.MEMBER_DEACTIVATED)).isEqualTo(closedBefore + 1));
             User retained = users.findById(user.getId()).orElseThrow();
             assertThat(retained.getDeletedAt()).isEqualTo(now);
             assertThat(retained.getProviderUserId()).isEqualTo(user.getProviderUserId());
@@ -299,6 +304,48 @@ class UserWithdrawalMySqlTests {
             }
         }
         assertThat(issueTicket(credentials.accessToken()).statusCode()).isEqualTo(401);
+    }
+
+    @RepeatedTest(3)
+    void 실제_탈퇴와_다른계열의_로그아웃_경합은_전계열을_폐기하고_최초종료사유를_보존한다() throws Exception {
+        User user = member();
+        User otherUser = member();
+        var first = login(user);
+        var second = login(user);
+        var other = login(otherUser);
+        long logoutBefore = hub.closedConnections(ConnectionCloseReason.LOGOUT);
+        long memberBefore = hub.closedConnections(ConnectionCloseReason.MEMBER_DEACTIVATED);
+        try (ScenarioClient socket = connected(user, first.accessToken());
+                var workers = Executors.newFixedThreadPool(2)) {
+            CountDownLatch start = new CountDownLatch(1);
+            var logout = workers.submit(() -> {
+                start.await();
+                return send(HttpRequest.newBuilder(url("/api/v1/auth/logout"))
+                        .header("Cookie", "ONTOP_REFRESH=" + first.refreshToken())
+                        .header("Origin", "http://localhost:8080")
+                        .POST(HttpRequest.BodyPublishers.noBody()).build());
+            });
+            // 탈퇴는 별도 정상 sid로 인증하므로 첫 sid의 로그아웃이 인증 자체를 무효화하지 않는다.
+            var withdrawal = workers.submit(() -> { start.await(); return withdraw(second.accessToken()); });
+            start.countDown();
+            assertThat(logout.get(10, TimeUnit.SECONDS).statusCode()).isEqualTo(204);
+            assertThat(withdrawal.get(10, TimeUnit.SECONDS).statusCode()).isEqualTo(204);
+            int code = socket.awaitClose();
+            assertThat(code).isIn(4401, 4403);
+            await().atMost(5, TimeUnit.SECONDS).untilAsserted(() -> assertThat(
+                    hub.closedConnections(ConnectionCloseReason.LOGOUT) - logoutBefore
+                    + hub.closedConnections(ConnectionCloseReason.MEMBER_DEACTIVATED) - memberBefore).isEqualTo(1));
+            assertThat(hub.closedConnections(code == 4401 ? ConnectionCloseReason.LOGOUT
+                    : ConnectionCloseReason.MEMBER_DEACTIVATED))
+                    .isEqualTo((code == 4401 ? logoutBefore : memberBefore) + 1);
+            assertThat(activeTokens(user)).isZero();
+            assertThat(get("/api/v1/users/me", first.accessToken()).statusCode()).isEqualTo(401);
+            assertThat(get("/api/v1/users/me", second.accessToken()).statusCode()).isEqualTo(401);
+            assertThat(get("/api/v1/users/me", other.accessToken()).statusCode()).isEqualTo(200);
+            assertThat(refresh(other.refreshToken()).statusCode()).isEqualTo(200);
+            System.out.printf("AUTH_REASON_RACE withdrawalLogout withdrawal=204 logout=204 close=%d reason=%s otherRest=200%n",
+                    code, code == 4401 ? "LOGOUT" : "MEMBER_DEACTIVATED");
+        }
     }
 
     private User member() {

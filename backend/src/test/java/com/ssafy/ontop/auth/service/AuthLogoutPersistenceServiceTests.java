@@ -35,6 +35,7 @@ class AuthLogoutPersistenceServiceTests {
     private RefreshTokenRepository tokens;
     private UserRepository users;
     private AuthLogoutPersistenceService service;
+    private AuthenticationRevocations revocations;
     private RefreshToken token;
     private User user;
 
@@ -50,17 +51,19 @@ class AuthLogoutPersistenceServiceTests {
         when(tokens.findReferenceByTokenHash(HASH)).thenReturn(Optional.of(reference));
         when(users.findForAuthenticationById(42L)).thenReturn(Optional.of(user));
         when(tokens.findForUpdateByHash(HASH)).thenReturn(Optional.of(token));
-        service = new AuthLogoutPersistenceService(tokens, users, Clock.fixed(NOW, ZoneOffset.UTC), mock(AuthenticationRevocations.class));
+        revocations = mock(AuthenticationRevocations.class);
+        service = new AuthLogoutPersistenceService(tokens, users, Clock.fixed(NOW, ZoneOffset.UTC), revocations);
     }
 
     @Test
     void 회원_Refresh_순서로_잠그고_식별한_세션만_폐기한다() {
         service.logout(HASH);
-        var order = inOrder(tokens, users);
+        var order = inOrder(tokens, users, revocations);
         order.verify(tokens).findReferenceByTokenHash(HASH);
         order.verify(users).findForAuthenticationById(42L);
         order.verify(tokens).findForUpdateByHash(HASH);
         order.verify(tokens).revokeSession(42L, token.getSessionId(), NOW);
+        order.verify(revocations).sessionRevoked(42L, token.getSessionId(), AuthenticationRevocations.Reason.LOGOUT);
     }
 
     @ParameterizedTest
@@ -77,13 +80,14 @@ class AuthLogoutPersistenceServiceTests {
         }
         service.logout(HASH);
         verify(tokens).revokeSession(42L, token.getSessionId(), NOW);
+        verify(revocations).sessionRevoked(42L, token.getSessionId(), AuthenticationRevocations.Reason.LOGOUT);
     }
 
     @Test
     void 알수없는_해시는_회원_잠금이나_폐기를_하지_않는다() {
         when(tokens.findReferenceByTokenHash(HASH)).thenReturn(Optional.empty());
         service.logout(HASH);
-        verifyNoInteractions(users);
+        verifyNoInteractions(users, revocations);
         verify(tokens, never()).findForUpdateByHash(any());
         verify(tokens, never()).revokeSession(any(), any(), any());
     }
@@ -93,6 +97,7 @@ class AuthLogoutPersistenceServiceTests {
         when(tokens.findForUpdateByHash(HASH)).thenReturn(Optional.empty());
         service.logout(HASH);
         verify(tokens, never()).revokeSession(any(), any(), any());
+        verifyNoInteractions(revocations);
     }
 
     @Test
@@ -105,6 +110,7 @@ class AuthLogoutPersistenceServiceTests {
         ReflectionTestUtils.setField(token, "user", other);
         assertStorageFailure();
         verify(tokens, never()).revokeSession(any(), any(), any());
+        verifyNoInteractions(revocations);
     }
 
     private void assertStorageFailure() {

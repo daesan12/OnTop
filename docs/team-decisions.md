@@ -30,7 +30,7 @@
 ## 경기 종료·이탈 연동 · 2026-10-23
 
 - 게임 담당 구현: 공통 GameParticipantLeft/GameFinished, 모든 최초 참가자의 결과·이탈 사유·시각. 기존 게임별 이벤트/프론트 JSON 유지. DB 담당은 한 경로만 구독하고 eventId로 중복을 막는다. 실제 예약·정산 트랜잭션은 DB 담당 유지.
-- 인증 담당 확인: 명시적 로그아웃은 ConnectionCloseReason.LOGOUT으로 전달. MEMBER_DEACTIVATED는 기존 전달 경로 재사용. 토큰 재사용 감지 등 AUTH_SESSION_REVOKED를 일괄 로그아웃으로 분류하지 않는다. 인증 패키지 수정 없음.
+- 인증 담당 구현: Revoked.reason=LOGOUT만 ConnectionCloseReason.LOGOUT으로 전달. MEMBER_DEACTIVATED는 기존 회원 전체 전달 경로 재사용. REFRESH_REUSE_DETECTED/SESSION_REVOKED는 AUTH_SESSION_REVOKED로 유지하며 일괄 즉시 기권으로 분류하지 않는다. 게임 코드 변경 없이 기존 분기를 재사용하며 오프라인 유예/최초 원인 경합 제한은 session-invalidation.md에 기록한다.
 - DB 담당 확인: 이벤트 LOGOUT/MEMBER_DEACTIVATED와 ERD의 EXPLICIT_LEAVE 매핑, 최초 참가자 전체 저장, 중도 탈락 시 예약금 유지 후 경기 최종 정산. 세부 계약은 game-result-api.md/game-reconnect.md.
 
 ## 미니게임 연동·협의 · 2026-10-23

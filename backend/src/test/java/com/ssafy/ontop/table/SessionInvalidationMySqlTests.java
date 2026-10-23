@@ -136,7 +136,7 @@ class SessionInvalidationMySqlTests {
         var issuedBody = mapper.readTree(issued.body());
         assertThat(issuedBody.path("expiresIn").asLong()).isEqualTo(30);
         long issuedNanos = System.nanoTime();
-        long closedBefore = hub.closedConnections(ConnectionCloseReason.AUTH_SESSION_REVOKED);
+        long closedBefore = hub.closedConnections(ConnectionCloseReason.LOGOUT);
         try (ScenarioClient socket = new ScenarioClient(port, Long.toString(user.getId()),
                 issuedBody.path("ticket").asText())) {
             socket.await(message -> message.path("type").asText().equals("CONNECTED"));
@@ -168,12 +168,12 @@ class SessionInvalidationMySqlTests {
             System.out.printf("AUTH113_HTTP_WS ticketResponseToConnectedMs=%d issueStartToConnectedMs=%d "
                             + "unusedTicketAgeMs=%d beforeRest=200 ticket=200 logout=204 close=4401 "
                             + "afterRest=401 afterTicketIssue=401 unusedHandshake=401 "
-                            + "otherRest=200 otherRefresh=200 reason=sessionRevoked%n",
+                            + "otherRest=200 otherRefresh=200 reason=LOGOUT%n",
                     TimeUnit.NANOSECONDS.toMillis(connectedNanos - issuedNanos),
                     TimeUnit.NANOSECONDS.toMillis(connectedNanos - issueStarted), waitingAgeMillis);
         }
         await().atMost(5, TimeUnit.SECONDS).untilAsserted(() ->
-                assertThat(hub.closedConnections(ConnectionCloseReason.AUTH_SESSION_REVOKED)).isGreaterThan(closedBefore));
+                assertThat(hub.closedConnections(ConnectionCloseReason.LOGOUT)).isGreaterThan(closedBefore));
     }
 
     @Test
@@ -201,6 +201,8 @@ class SessionInvalidationMySqlTests {
         User user = member();
         var original = login(user);
         var other = login(user);
+        long closedBefore = hub.closedConnections(ConnectionCloseReason.AUTH_SESSION_REVOKED);
+        long logoutBefore = hub.closedConnections(ConnectionCloseReason.LOGOUT);
         try (ScenarioClient socket = connected(user, original.accessToken())) {
             now = now.plusSeconds(60);
             HttpResponse<String> response = post("refresh", original.refreshToken());
@@ -214,12 +216,47 @@ class SessionInvalidationMySqlTests {
             assertThat(get(access).statusCode()).isEqualTo(200);
             assertThat(post("refresh", original.refreshToken()).statusCode()).isEqualTo(401);
             assertThat(get(access).statusCode()).isEqualTo(200); // 5초 grace는 정상 계열을 폐기하지 않는다.
+            assertThat(socket.request("TABLE_JOIN", Map.of("tableId", "table-1"))
+                    .path("payload").path("tableId").asText()).isEqualTo("table-1");
             now = now.plusSeconds(6);
             assertThat(post("refresh", original.refreshToken()).statusCode()).isEqualTo(401);
             assertThat(socket.awaitClose()).isEqualTo(4401);
             assertThat(get(original.accessToken()).statusCode()).isEqualTo(401);
             assertThat(get(access).statusCode()).isEqualTo(401);
             assertThat(get(other.accessToken()).statusCode()).isEqualTo(200);
+        }
+        await().atMost(5, TimeUnit.SECONDS).untilAsserted(() ->
+                assertThat(hub.closedConnections(ConnectionCloseReason.AUTH_SESSION_REVOKED)).isEqualTo(closedBefore + 1));
+        assertThat(hub.closedConnections(ConnectionCloseReason.LOGOUT)).isEqualTo(logoutBefore);
+    }
+
+    @RepeatedTest(3)
+    void 실제_재사용감지와_로그아웃_경합은_같은계열만_폐기하고_최초종료사유를_보존한다() throws Exception {
+        User user = member();
+        var original = login(user);
+        var other = login(user);
+        assertThat(post("refresh", original.refreshToken()).statusCode()).isEqualTo(200);
+        now = now.plusSeconds(6);
+        long logoutBefore = hub.closedConnections(ConnectionCloseReason.LOGOUT);
+        long reuseBefore = hub.closedConnections(ConnectionCloseReason.AUTH_SESSION_REVOKED);
+        try (ScenarioClient socket = connected(user, original.accessToken());
+                var workers = Executors.newFixedThreadPool(2)) {
+            CountDownLatch start = new CountDownLatch(1);
+            var logout = workers.submit(() -> { start.await(); return post("logout", original.refreshToken()); });
+            var reuse = workers.submit(() -> { start.await(); return post("refresh", original.refreshToken()); });
+            start.countDown();
+            assertThat(logout.get(10, TimeUnit.SECONDS).statusCode()).isEqualTo(204);
+            assertThat(reuse.get(10, TimeUnit.SECONDS).statusCode()).isEqualTo(401);
+            assertThat(socket.awaitClose()).isEqualTo(4401);
+            await().atMost(5, TimeUnit.SECONDS).untilAsserted(() -> assertThat(
+                    hub.closedConnections(ConnectionCloseReason.LOGOUT) - logoutBefore
+                    + hub.closedConnections(ConnectionCloseReason.AUTH_SESSION_REVOKED) - reuseBefore).isEqualTo(1));
+            assertThat(get(original.accessToken()).statusCode()).isEqualTo(401);
+            assertThat(get(other.accessToken()).statusCode()).isEqualTo(200);
+            assertThat(post("refresh", other.refreshToken()).statusCode()).isEqualTo(200);
+            String reason = hub.closedConnections(ConnectionCloseReason.LOGOUT) > logoutBefore
+                    ? "LOGOUT" : "AUTH_SESSION_REVOKED";
+            System.out.printf("AUTH_REASON_RACE reuseLogout logout=204 reuse=401 close=4401 reason=%s otherRest=200%n", reason);
         }
     }
 
