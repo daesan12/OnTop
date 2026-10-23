@@ -63,7 +63,8 @@
 위치는 이벤트가 아니라 별도 테이블 `world_position_samples`(4장)에 남긴다.
 
 - **간격:** 움직이는 동안 1초. 걷기 6.25m/s·달리기 9m/s 기준으로 표본 사이 6~9m라서 실제 동선을 복원할 수 있다. 5초면 30~45m가 비어 호수·건물을 가로지르는 경로가 된다.
-- **대상:** 채널에 입장한 모든 사용자. 입장 직후 스폰 위치를 한 번 남긴다.
+- **대상:** 채널에 입장한 모든 사용자. 입장 직후 스폰 위치를 한 번 남긴다. 움직이기 시작하면 간격과 관계없이 바로 남긴다.
+- **구현:** `PositionSampler`가 남길지 정하고, `TableHub.advanceWorld`(물리 tick)와 `joinChannel`(스폰)이 큐에 넣는다. 퇴장·연결 종료 시 기록 상태를 지운다. local 개발 사용자(`dev-…`)는 `user_id`가 NULL이다.
 - **생략:** 테이블에 앉아 있는 동안은 남기지 않는다(착석 이벤트로 위치를 안다). 멈추면 `moving=false` 한 행을 남기고 다시 움직일 때까지 생략한다.
 - **값:** 서버 물리 계산 결과(`WorldChannelRegistry`의 위치)를 읽는다. `WORLD_MOVE` 입력값이 아니다. 입력은 최대 20회/초이고 실제 위치가 아니라서 남기지 않는다.
 - **구역:** 수집할 때 구역을 판정하지 않는다. 구역 경계는 분석 단계에서 파일로 정의하고 좌표를 구역으로 바꿔 집계한다. 경계를 바꾸면 과거 데이터도 다시 계산할 수 있다.
@@ -79,7 +80,7 @@
 | `GAME_SELECTED` | `TableHub.selectGame` 변경 | `gameCode`, `targetScore`(주사위) | 1 | 구현 |
 | `TABLE_WATCHED` | `TableHub.watch` 새 관전 | | 1 | 구현 |
 | `GAME_WATCHED` | `watchGame` 첫 상태 전달 | | 1 | 보류(요청 수락 뒤 비동기로 실패할 수 있어 성공 지점 확인 필요) |
-| `GAME_STARTED` | `TableHub.applyStartResult` 확정 경기 성공. 참가자마다 한 행 | `gameCode`, `players`, `targetScore`, `betAmountPerPlayer` | 1 | 구현 |
+| `GAME_STARTED` | `TableHub.applyStartResult` 확정 경기 성공. 참가자마다 한 행. 리허설 확인은 제외 | `gameCode`, `players`, `targetScore`, `betAmountPerPlayer` | 1 | 구현 |
 | `GAME_ACTION` | `sendGameAction` 성공 후 | `gameCode`, `actionKind` | 보류 | |
 | `GAME_ENDED` | 엔진 종료 이벤트(`OmokGameFinished` 등 4종) 리스너. 참가자마다 한 행 | `gameCode`, `endReason`, `players`, `won` | 1 | 구현 |
 | `GAME_SETTLED` | `TableHub.roundSettled` | `coinDelta`(본인) | 3 | 정산 작업 후 |
