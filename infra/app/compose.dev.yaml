@@ -69,6 +69,8 @@ services:
     image: nginx:stable-alpine
     logging: *default-logging
     restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       app:
         condition: service_started
@@ -91,6 +93,18 @@ services:
       - type: bind
         source: ${TLS_DIR:?Set TLS_DIR}
         target: /etc/nginx/tls
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${CI_NGINX_CONFIG_FILE:?Set CI_NGINX_CONFIG_FILE to the CI bootstrap or TLS config}
+        target: /etc/nginx/conf.d/zz-ci.conf
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${CI_TLS_DIR:?Set CI_TLS_DIR outside the repository}
+        target: /etc/nginx/ci-tls
         read_only: true
         bind:
           create_host_path: false
