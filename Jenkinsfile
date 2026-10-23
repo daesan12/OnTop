@@ -59,11 +59,28 @@ else
 fi
 python3 infra/ci/classify_changes.py --base "$base" --head "$SOURCE_SHA"
 ''', returnStdout: true).trim()
+                    // Jenkins' Groovy sandbox rejects dynamic env[key] writes.
+                    // Assign only the four flags used by this pipeline.
+                    env.BACKEND_CHANGED = ''
+                    env.FRONTEND_CHANGED = ''
+                    env.MANUAL_REVIEW = ''
+                    env.FULL_CHECK = ''
                     result.split('\n').each { line ->
-                        def pair = line.trim().split('=', 2)
-                        if (pair.size() == 2) {
-                            env[pair[0]] = pair[1]
+                        if (line.startsWith('BACKEND_CHANGED=')) {
+                            env.BACKEND_CHANGED = line.substring('BACKEND_CHANGED='.length())
+                        } else if (line.startsWith('FRONTEND_CHANGED=')) {
+                            env.FRONTEND_CHANGED = line.substring('FRONTEND_CHANGED='.length())
+                        } else if (line.startsWith('MANUAL_REVIEW=')) {
+                            env.MANUAL_REVIEW = line.substring('MANUAL_REVIEW='.length())
+                        } else if (line.startsWith('FULL_CHECK=')) {
+                            env.FULL_CHECK = line.substring('FULL_CHECK='.length())
                         }
+                    }
+                    if (!(env.BACKEND_CHANGED ==~ /[01]/) ||
+                        !(env.FRONTEND_CHANGED ==~ /[01]/) ||
+                        !(env.MANUAL_REVIEW ==~ /[01]/) ||
+                        !(env.FULL_CHECK ==~ /[01]/)) {
+                        error('Change classification returned missing or invalid flags.')
                     }
                     echo "Change flags: ${result.replace('\n', ', ')}"
                 }
