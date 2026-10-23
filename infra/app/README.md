@@ -2,7 +2,7 @@
 
 이 디렉터리는 Spring Boot API와 Nginx의 **수동 첫 배포**를 기록한다. 운영 DB는 `infra/prod-db/`의 별도 EC2에 있으며 PROD-APP에서 WireGuard `10.77.0.1:3306`으로 접속한다. DEV-CI는 자체 MySQL 볼륨을 사용한다. 어느 앱 컨테이너도 DB 포트를 호스트에 공개하지 않는다. 프론트는 Vercel에서 별도로 배포한다.
 
-2026-10-23에 DEV-CI에 Jenkins를 설치하고 `ci.on-top.world` HTTPS 웹훅 경로를 추가했다. 사용자 승인 후 Jenkins의 Docker·개발 배포 실행 권한도 설정했고 초기 관리자 계정도 생성됐다. 자격 증명 ID 세 개와 `ontop-dev` Pipeline 작업은 등록됐다. 첫 빌드와 GitLab 웹훅 연결은 이 Story의 MR을 `dev`에 병합한 뒤 진행한다. 현재 상태와 절차는 [`../ci/README.md`](../ci/README.md)에 기록한다. 기존 DEV 앱과 DB는 계속 실행 중이다.
+2026-10-23에 DEV-CI에 Jenkins를 설치하고 `ci.on-top.world` HTTPS 웹훅 경로를 추가했다. 사용자 승인 후 Jenkins의 Docker·개발 배포 실행 권한도 설정했고 초기 관리자 계정도 생성됐다. 자격 증명 ID 세 개와 `ontop-dev` Pipeline 작업은 등록됐다. 첫 수동 빌드의 GitLab 체크아웃은 성공했으나 브랜치 판별에서 중단됐다. 수정 후 빌드와 GitLab 웹훅 검증을 진행한다. 현재 상태와 절차는 [`../ci/README.md`](../ci/README.md)에 기록한다. 기존 DEV 앱과 DB는 계속 실행 중이다.
 
 ## 2026-10-22 운영 배포 상태
 
