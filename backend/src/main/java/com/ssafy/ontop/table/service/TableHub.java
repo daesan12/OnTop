@@ -4,7 +4,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser;
 import com.ssafy.ontop.behavior.domain.BehaviorEvent;
 import com.ssafy.ontop.behavior.domain.BehaviorEventType;
+import com.ssafy.ontop.behavior.domain.PositionSample;
 import com.ssafy.ontop.behavior.service.BehaviorLog;
+import com.ssafy.ontop.behavior.service.PositionSampler;
 import com.ssafy.ontop.game.action.GameActionCommand;
 import com.ssafy.ontop.game.action.GameActionGateway;
 import com.ssafy.ontop.game.action.GameActionResult;
@@ -115,6 +117,7 @@ public class TableHub {
     private final Map<ConnectionCloseReason, LongAdder> closedByReason = new EnumMap<>(ConnectionCloseReason.class);
     private boolean stopped;
     private BehaviorLog behaviorLog = BehaviorLog.disabled();
+    private final PositionSampler positionSampler = new PositionSampler(Duration.ofSeconds(1));
 
     @org.springframework.beans.factory.annotation.Autowired
     public void configureCommittedStarts(Optional<CommittedGameStartService> service) {
@@ -131,6 +134,27 @@ public class TableHub {
     // 성공 처리 뒤에만 호출한다. 큐에 넣기만 하고 실패해도 예외를 던지지 않아 Hub 처리에 영향이 없다.
     private void recordBehavior(BehaviorEventType type, Long accountId, UnaryOperator<BehaviorEvent.Builder> details) {
         behaviorLog.record(() -> details.apply(BehaviorEvent.builder(type, Instant.now()).userId(accountId)).build());
+    }
+
+    // 물리 계산이 끝난 위치를 큐에 넣기만 한다. DB 접근·대기가 없어 tick을 막지 않는다. 착석 중에는 남기지 않는다.
+    private void recordPositions(WorldChannelRegistry.WorldState state, Set<String> onlyUsers) {
+        long now = System.nanoTime();
+        for (WorldChannelRegistry.Avatar avatar : state.avatars()) {
+            String userId = avatar.userId();
+            WorldChannelRegistry.Position position = avatar.position();
+            if ((onlyUsers != null && !onlyUsers.contains(userId)) || seating.containsKey(userId)
+                    || !positionSampler.shouldSample(userId, position.moving(), now)) {
+                continue;
+            }
+            behaviorLog.recordPosition(() -> new PositionSample(accountIdOf(userId), state.channelId(), Instant.now(),
+                    position.x(), position.y(), position.z(), position.moving(), position.running(),
+                    position.swimming(), state.mapVersion()));
+        }
+    }
+
+    // 인증 연결의 userId는 회원 번호다. local 개발 사용자(dev-…)는 회원이 아니므로 null로 남긴다.
+    private static Long accountIdOf(String userId) {
+        return !userId.isEmpty() && userId.chars().allMatch(Character::isDigit) ? Long.valueOf(userId) : null;
     }
 
     public TableHub(ObjectMapper mapper, Optional<GameStartGateway> gateway,
@@ -452,6 +476,7 @@ public class TableHub {
         chat.disconnected(member.userId());
         emotes.disconnected(member.userId());
         appearancePushes.remove(member.userId());
+        positionSampler.forget(member.userId());
         WorldChannelRegistry.State channelState = channels.disconnect(member.userId());
         if (channelState != null) {
             publishChannel(channelState, null, null);
@@ -582,9 +607,12 @@ public class TableHub {
         WorldChannelRegistry.Change change = channels.join(member.userId(), channelId);
         if (change.changed()) {
             publishChannel(change.state(), member, request.requestId());
-            publishWorld(channels.worldState(channelId), null, null);
+            WorldChannelRegistry.WorldState world = channels.worldState(channelId);
+            publishWorld(world, null, null);
             recordBehavior(BehaviorEventType.CHANNEL_JOINED, member.accountId(),
                     builder -> builder.channelId(channelId).prop("currentUsers", change.state().currentUsers()));
+            positionSampler.forget(member.userId());
+            recordPositions(world, Set.of(member.userId()));
         } else {
             member.peer().offer(protocol.encode(request.requestId(), "CHANNEL_STATE", change.state()));
             member.peer().offer(protocol.encode(null, "WORLD_STATE", channels.worldState(channelId)));
@@ -670,6 +698,7 @@ public class TableHub {
         publishWorld(channels.worldState(state.channelId()), null, null);
         recordBehavior(BehaviorEventType.CHANNEL_LEFT, member.accountId(),
                 builder -> builder.channelId(state.channelId()).prop("byDisconnect", false));
+        positionSampler.forget(member.userId());
     }
 
     private synchronized void advanceWorld() {
@@ -679,6 +708,7 @@ public class TableHub {
         try {
             for (var state : channels.advance(Set.copyOf(seating.keySet()))) {
                 publishWorld(state, null, null);
+                recordPositions(state, null);
                 for (Member member : java.util.List.copyOf(members.values())) {
                     if (channels.isInChannel(member.userId(), state.channelId())) {
                         refreshWatchRange(member);
