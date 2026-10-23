@@ -125,6 +125,21 @@ sudo bash infra/prod-db/restore-test.sh ontop-prod-YYYYMMDDTHHMMSSZ.sql.gz
 sudo bash infra/prod-db/restore-test.sh ontop-prod-YYYYMMDDTHHMMSSZ.sql.gz TABLE_NAME EXPECTED_ROWS
 ```
 
+### 분석용 최신 백업 한 건 받기
+
+분석 담당자는 AWS 콘솔에서 비공개 백업 버킷의 `ontop/prod-db/` 경로를 열고, `ontop-prod-*.sql.gz` 중 **마지막 수정 시간이 가장 최근인 파일 한 개**와 이름이 같은 `.sha256` 파일을 개인 작업 폴더에 내려받는다. 버킷의 퍼블릭 액세스 차단은 유지하고, 접근 권한은 해당 백업 경로의 읽기 권한을 가진 담당자에게만 부여한다. 다운로드 링크나 SQL 원본을 Git, Jira, 채팅에 올리지 않는다.
+
+Windows PowerShell에서 아래처럼 체크섬을 확인한다. `<백업 파일명>`에는 콘솔에서 선택한 실제 파일명을 넣는다. 체크섬이 다르면 파일을 사용하지 않고 다시 받는다.
+
+```powershell
+$archive = 'ontop-prod-YYYYMMDDTHHMMSSZ.sql.gz'
+$expected = (Get-Content -LiteralPath ".\$archive.sha256" -Raw).Trim().Split(' ')[0]
+$actual = (Get-FileHash -Algorithm SHA256 -LiteralPath ".\$archive").Hash
+if ($actual -ine $expected) { throw 'Backup SHA-256 mismatch' }
+```
+
+원본 분석은 네트워크가 분리된 로컬 MySQL에 복원해 수행한다. 결과는 집계값만 공유하고, 작업이 끝나면 로컬 백업 파일과 복원 DB를 삭제한다. 백업에 행동 로그 테이블이 들어오려면 운영 앱의 V5·V6 마이그레이션과 로그 활성화가 먼저 완료돼야 한다.
+
 별도의 재해 복구에서는 새 EBS/EC2를 마련하고 백업을 가져와 복원해야 한다. 이 시험은 SQL 백업의 읽기·복원 가능성을 검증하며 EC2/EBS 전체 복구 시간은 측정하지 않는다. 백업 보관 기간과 목표 RPO/RTO는 서비스 정책으로 확정한다.
 
 ## 실서버 검증 기록
