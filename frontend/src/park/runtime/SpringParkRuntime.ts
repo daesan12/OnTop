@@ -18,8 +18,14 @@ import { parkBindingsUrl } from './deployment'
 import type { ParkRuntimePort } from './contracts'
 import { benchBusy } from '../../features/interactions/benchState'
 import { MovementInputBuffer, normalizedMove, stoppedIntent, type MovementIntent } from '../../network/movementInput'
+import { emoteSource, emoteUnavailable } from '../../features/emotes/availability'
+import { parseEmoteBindings, previewEmoteBindings, type EmoteId } from '../../features/emotes/catalog'
+import { emoteSignal, useEmoteState } from '../../features/emotes/state'
+import { mockEmote } from '../../features/emotes/mock/MockEmoteService'
 import {
   avatars,
+  cancelAvatarEmote,
+  presentEmote,
   clearChannel,
   receive,
   resetWorld,
@@ -163,6 +169,8 @@ export class ParkRuntime implements ParkRuntimePort {
       const channels = body.items.map(channel),
         bindings = parseBindings(config.bindings)
       useSession.setState({ channels, bindings })
+      useEmoteState.setState({ bindings: config.emotes === undefined && import.meta.env.DEV && import.meta.env.MODE === 'facility-preview'
+        ? { ...previewEmoteBindings } : parseEmoteBindings(config.emotes) })
       this.ownProfile = profile
       if (!channels.length)
         this.report('서버에 등록된 채널이 없습니다. 채널 설정을 확인해주세요.')
@@ -322,7 +330,43 @@ export class ParkRuntime implements ParkRuntimePort {
   move = (dx: number, dz: number, run: boolean, jump = false) => {
     const intent = normalizedMove(dx, dz, run, jump)
     if (!intent || !this.canSendMovement(intent)) return
+    if (!stoppedIntent(intent)) cancelAvatarEmote(useSession.getState().sessionId)
     this.movement.enqueue(intent, this.movementScope())
+  }
+  sendEmote = async (id: EmoteId): Promise<boolean> => {
+    const reason = emoteUnavailable(id)
+    if (reason || !this.active || !this.socket.connected) {
+      useEmoteState.setState({ error: reason || '공원 연결을 확인해주세요.' })
+      return false
+    }
+    const state = useEmoteState.getState(), session = useSession.getState()
+    const epoch = state.epoch, scope = this.movementScope(), source = emoteSource(id)
+    const current = () => useEmoteState.getState().epoch === epoch && this.movementScope() === scope && this.active
+    useEmoteState.setState({ pending: true, requestId: '', requested: id, cancelled: false, error: '', notice: '' })
+    this.move(0, 0, false)
+    try {
+      if (source === 'server') {
+        const response = await this.socket.request('WORLD_EMOTE_SEND', { emoteCode: state.bindings[id]! }, ['WORLD_EMOTE_EVENT'],
+          requestId => { if (current()) useEmoteState.setState({ requestId }) })
+        if (!current() || useEmoteState.getState().cancelled) return false
+        if (response.payload.userId !== session.sessionId || response.payload.channelId !== session.roomId
+          || response.payload.emoteCode !== state.bindings[id] || avatars.get(session.sessionId)?.emote !== id
+          || avatars.get(session.sessionId)?.emoteAt !== Date.parse(String(response.payload.sentAt)))
+          throw new Error('감정표현 승인 상태를 확인하지 못했습니다. 잠시 후 다시 시도해주세요.')
+      } else if (import.meta.env.DEV && import.meta.env.MODE === 'facility-preview' && source === 'mock') {
+        const event = await mockEmote(id, session.roomId, session.sessionId, emoteSignal())
+        if (!current() || useEmoteState.getState().cancelled) return false
+        if (!presentEmote({ ...event, emoteCode: 'MOCK' }, id, 'mock')) throw new Error('현재 상태에서는 감정표현을 사용할 수 없습니다.')
+      } else throw new Error('감정표현 서버 연결이 아직 준비되지 않았습니다.')
+      return true
+    } catch (error) {
+      if (current() && !useEmoteState.getState().cancelled) useEmoteState.setState({
+        error: error instanceof Error ? error.message : '감정표현을 사용하지 못했습니다.',
+      })
+      return false
+    } finally {
+      if (current()) useEmoteState.setState({ pending: false, requestId: '', requested: '' })
+    }
   }
   private movementScope() {
     const s = useSession.getState()

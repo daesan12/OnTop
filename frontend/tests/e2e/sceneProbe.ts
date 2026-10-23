@@ -309,3 +309,11 @@ export function watchCharacterResources() {
   })
 }
 export const characterResources = () => ({ ...resourceWatch })
+
+import { useEmoteState } from '../../src/features/emotes/state'
+import { inputState } from '../../src/world/inputOwnership'
+export function emoteProbe() {
+  return { ...useEmoteState.getState(), wheelOpen: inputState.emoteWheelOpen,
+    avatars: ['101', '102'].map(id => ({ id, emote: avatars.get(id)?.emote, at: avatars.get(id)?.emoteAt })) }
+}
+export function fixtureInputFlag(flag: 'manualOpen' | 'mapOpen' | 'minigameOpen', open: boolean) { inputState[flag] = open }

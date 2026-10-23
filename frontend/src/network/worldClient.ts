@@ -15,6 +15,9 @@ import { resetGame } from '../game/store'
 import { resetBenchState, useBenchState } from '../features/interactions/benchState'
 import { clearRoamingInput } from '../world/inputOwnership'
 import { samePose, sampleMovement } from '../world/movementPresentation'
+import { EmoteTimeline, parseEmoteEvent, type EmoteEvent } from '../features/emotes/timeline'
+import { resetEmotes, useEmoteState } from '../features/emotes/state'
+import { findEmote, type EmoteId } from '../features/emotes/catalog'
 
 export interface Pose {
   x: number
@@ -125,8 +128,10 @@ export const networkStats = {
 let channelVersion = -1,
   worldVersion = -1
 const chatIds = new Set<string>()
-const emoteIds = new Set<string>()
+const emoteTimeline = new EmoteTimeline()
 export function resetWorld(status: Session['status'] = 'idle', error = '') {
+  resetEmotes(true)
+  emoteTimeline.clearChannel()
   resetGame()
   resetBenchState()
   clearRoamingInput()
@@ -134,10 +139,11 @@ export function resetWorld(status: Session['status'] = 'idle', error = '') {
   worldPoses.clear()
   channelVersion = worldVersion = -1
   chatIds.clear()
-  emoteIds.clear()
   useSession.setState({ ...initial(), status, error })
 }
 export function clearChannel() {
+  resetEmotes()
+  emoteTimeline.clearChannel()
   resetGame()
   resetBenchState()
   clearRoamingInput()
@@ -145,7 +151,6 @@ export function clearChannel() {
   worldPoses.clear()
   channelVersion = worldVersion = -1
   chatIds.clear()
-  emoteIds.clear()
   useSession.setState({
     roomId: '',
     channelName: '',
@@ -173,6 +178,27 @@ export function sampleAvatar(
   return sampleMovement(avatar, now, NETWORK.interpolationMs, target)
 }
 export const estimatedServerTime = () => Date.now() // Only for events carrying server ISO timestamps; world day clock is separate.
+export function cancelAvatarEmote(userId: string) {
+  const avatar = avatars.get(userId)
+  if (avatar) { avatar.emote = ''; avatar.emoteAt = 0 }
+  emoteTimeline.cancel(userId, estimatedServerTime())
+  if (userId === useSession.getState().sessionId && useEmoteState.getState().pending)
+    useEmoteState.setState({ cancelled: true, notice: '이동이나 이용 상태 변경으로 감정표현이 취소되었습니다.' })
+}
+export function presentEmote(event: EmoteEvent, motion: EmoteId, source: 'server' | 'mock') {
+  const state = useSession.getState(), avatar = avatars.get(event.userId)
+  if (state.status !== 'connected' || event.channelId !== state.roomId || !state.mapCompatible
+    || !avatar?.connected || avatar.moving || avatar.swimming || avatar.fitnessId || avatar.telescopeId) return false
+  const playback = emoteTimeline.accept(event, motion, estimatedServerTime())
+  if (!playback) return false
+  avatar.emote = playback.motion
+  avatar.emoteAt = playback.at
+  if (event.userId === state.sessionId) useEmoteState.setState(s => ({
+    readyAt: Math.max(s.readyAt, playback.readyAt),
+    notice: source === 'mock' ? '목업 감정표현 · 이 화면에서만 표시됩니다.' : '',
+  }))
+  return true
+}
 export const authoritativePose = (userId: string): Pose | undefined => {
   const pose = worldPoses.get(userId)
   return pose ? { ...pose } : undefined
@@ -182,6 +208,7 @@ export function refreshActivityPresentation() {
   if (Object.values(state.tableStates).some(table => table.seats.some(seat =>
     seat.userId && useBenchState.getState().placements[seat.userId]))) resetBenchState()
   for (const [id, a] of avatars) {
+    const previousActivity = a.tableId || a.benchId
     a.tableId = ''
     a.benchId = ''
     a.seatIndex = -1
@@ -215,6 +242,8 @@ export function refreshActivityPresentation() {
       a.previous = { ...a.current }
       a.moving = a.running = false
     }
+    const activity = a.tableId || a.benchId
+    if (activity && previousActivity !== activity) cancelAvatarEmote(id)
   }
   const benchId = avatars.get(state.sessionId)?.benchId ?? ''
   if (state.benchId !== benchId) useSession.setState({ benchId })
@@ -257,12 +286,16 @@ export function receive(message: Envelope) {
       if (!mapCompatible) { resetBenchState(); clearRoamingInput() }
       const ids = next.avatars.map((a) => a.userId),
         now = performance.now()
-      if (!ids.includes(state.sessionId)) clearRoamingInput()
+      if (!ids.includes(state.sessionId)) {
+        cancelAvatarEmote(state.sessionId)
+        clearRoamingInput()
+      }
       if (!ids.includes(state.sessionId) || Object.keys(useBenchState.getState().placements).some(id => !ids.includes(id))) resetBenchState()
       for (const id of avatars.keys())
         if (!ids.includes(id)) {
           avatars.delete(id)
           worldPoses.delete(id)
+          emoteTimeline.forget(id)
         }
       for (const { userId, position } of next.avatars) {
         worldPoses.set(userId, {
@@ -308,6 +341,8 @@ export function receive(message: Envelope) {
           telescopePitch: 0,
           followTargetId: '',
         })
+        if ((old?.emote || (userId === state.sessionId && useEmoteState.getState().pending)) &&
+          (position.moving || position.swimming || (old && Math.abs(position.y - old.current.y) > 0.08))) cancelAvatarEmote(userId)
       }
       refreshActivityPresentation()
       networkStats.snapshotAt = now
@@ -323,6 +358,11 @@ export function receive(message: Envelope) {
             }
           : {}),
       })
+      if (state.mapCompatible && !mapCompatible) {
+        resetEmotes()
+        for (const id of avatars.keys()) cancelAvatarEmote(id)
+        clearRoamingInput()
+      }
       break
     }
     case 'WORLD_CHAT_MESSAGE': {
@@ -357,13 +397,22 @@ export function receive(message: Envelope) {
       })
       break
     }
-    case 'WORLD_EMOTE_EVENT':
-      // Final emote catalog is not supplied yet; receiving an event does not authorize a guessed motion mapping.
-      if (typeof p.eventId === 'string') {
-        emoteIds.add(p.eventId)
-        if (emoteIds.size > 200) emoteIds.clear()
+    case 'WORLD_EMOTE_EVENT': {
+      if (p.channelId !== state.roomId) return
+      const event = parseEmoteEvent(p), emoteState = useEmoteState.getState()
+      const motion = (Object.entries(emoteState.bindings) as [EmoteId, string][])
+        .find(([, code]) => code === event.emoteCode)?.[0]
+      if (!motion) return
+      if (event.userId === state.sessionId) {
+        if (!emoteState.pending || message.requestId !== emoteState.requestId || motion !== emoteState.requested) return
+        const at = Date.parse(event.sentAt)
+        if (at > estimatedServerTime() + 5000) return
+        useEmoteState.setState(s => ({ readyAt: Math.max(s.readyAt, at + findEmote(motion)!.cooldownMs) }))
+        if (emoteState.cancelled) return
       }
+      presentEmote(event, motion, 'server')
       break
+    }
     case 'TABLE_STATE':
     case 'TABLE_WATCH_STATE': {
       const next = tableState(p)
@@ -399,6 +448,7 @@ export function receive(message: Envelope) {
       break
     }
     case 'ERROR':
+      if (message.requestId && message.requestId === useEmoteState.getState().requestId) break
       if (typeof p.message === 'string')
         useSession.setState({ error: p.message })
       break

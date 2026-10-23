@@ -9,6 +9,7 @@ export interface ParkRuntimePort {
   reconnect(): void
   selectChannel(channelId: string): Promise<boolean>
   sendChat(text: string): Promise<boolean>
+  sendEmote(id: import('../../features/emotes/catalog').EmoteId): Promise<boolean>
   move(dx: number, dz: number, run: boolean, jump?: boolean): void
   inspectTable(anchorId: string): void
   closeTable(): void

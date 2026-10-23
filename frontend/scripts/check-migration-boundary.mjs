@@ -23,9 +23,9 @@ for (const name of Object.keys({ ...manifest.dependencies, ...manifest.devDepend
 // Run after a release build. The removed fake-entry app must not enter deployment output.
 for (const file of (await files(path.join(root, 'dist'))).filter(file => /\.(js|css|html)$/.test(file))) {
   const content = await readFile(file, 'utf8')
-  if (/MockMigrationApp|migration-mock-banner|mock-player-[ab]|M00_FRONTEND_MOCK_ONLY|M01_BENCH_MOCK_ONLY|class MockBenchService|벤치 요청이 취소되었습니다|다른 이웃이 먼저 앉았습니다/.test(content))
+  if (/MockMigrationApp|migration-mock-banner|mock-player-[ab]|M00_FRONTEND_MOCK_ONLY|M01_BENCH_MOCK_ONLY|class MockBenchService|벤치 요청이 취소되었습니다|다른 이웃이 먼저 앉았습니다|감정표현 목업 요청이 취소되었습니다/.test(content))
     failures.push(`Mock leaked into release: ${path.relative(root, file)}`)
   if (forbidden.test(content)) failures.push(`Prototype dependency in release: ${path.relative(root, file)}`)
 }
 if (failures.length) throw new Error(failures.join('\n'))
-console.log('M00/M01 boundary OK: frontend-local imports, no Colyseus/@tapgol dependency, no fake-entry app in release.')
+console.log('M00–M04 boundary OK: frontend-local imports, no Colyseus/@tapgol dependency, no fake-entry app in release.')

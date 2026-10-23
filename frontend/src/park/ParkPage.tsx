@@ -13,6 +13,7 @@ import { setChatInputOpen } from '../world/input'
 import { ParkTools } from './ParkTools'
 import type { QualityPreset } from '../config'
 import { ParkInteractionHint } from '../features/interactions/ParkInteractionHint'
+import { EmoteWheel } from '../features/emotes/EmoteWheel'
 
 const shortcuts = [
   { key: 'WASD', action: '이동' },
@@ -165,6 +166,7 @@ function ParkContent({ onExit, exitError }: ParkProps) {
       </div>
       <ParkTools quality={quality} onQuality={setQuality}/>
       <ParkInteractionHint />
+      <EmoteWheel />
     </main>
   )
 }
