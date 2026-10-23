@@ -13,15 +13,19 @@ public class AuthenticationRevocations implements MemberConnectionTermination {
     }
 
     public void sessionRevoked(long userId, String sessionId) {
+        sessionRevoked(userId, sessionId, Reason.SESSION_REVOKED);
+    }
+
+    public void sessionRevoked(long userId, String sessionId, Reason reason) {
         if (sessionId == null) {
             throw new IllegalArgumentException("단일 로그인 계열의 폐기에는 세션 식별자가 필요합니다.");
         }
-        publish(new Revoked(userId, sessionId));
+        publish(new Revoked(userId, sessionId, reason));
     }
 
     @Override
     public void memberDeactivated(long userId) {
-        publish(new Revoked(userId, null));
+        publish(new Revoked(userId, null, Reason.MEMBER_DEACTIVATED));
     }
 
     private void publish(Revoked event) {
@@ -31,7 +35,22 @@ public class AuthenticationRevocations implements MemberConnectionTermination {
         events.publishEvent(event);
     }
 
-    public record Revoked(long userId, String sessionId) {
+    public enum Reason {
+        LOGOUT, REFRESH_REUSE_DETECTED, SESSION_REVOKED, MEMBER_DEACTIVATED
+    }
+
+    public record Revoked(long userId, String sessionId, Reason reason) {
+        public Revoked {
+            if (reason == null || (sessionId == null) != (reason == Reason.MEMBER_DEACTIVATED)) {
+                throw new IllegalArgumentException("인증 폐기 원인과 로그인 계열 범위가 일치해야 합니다.");
+            }
+        }
+
+        /** 기존 단일 계열 알림을 명시적 로그아웃으로 추정하지 않는다. */
+        public Revoked(long userId, String sessionId) {
+            this(userId, sessionId, sessionId == null ? Reason.MEMBER_DEACTIVATED : Reason.SESSION_REVOKED);
+        }
+
         @Override
         public String toString() {
             return "AuthenticationRevoked[redacted]";
