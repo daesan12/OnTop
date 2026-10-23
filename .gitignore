@@ -29,3 +29,9 @@ bin/
 out/
 __pycache__/
 *.pyc
+
+# Personal local-only test screens
+/backend/src/main/resources/dev/tables.html
+/backend/src/test/resources/omok-demo/
+/backend/src/test/resources/games-demo/
+/backend/src/test/resources/shop-demo/
