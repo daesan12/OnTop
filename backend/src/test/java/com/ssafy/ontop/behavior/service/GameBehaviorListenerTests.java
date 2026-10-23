@@ -3,9 +3,10 @@ package com.ssafy.ontop.behavior.service;
 import com.ssafy.ontop.behavior.domain.BehaviorEvent;
 import com.ssafy.ontop.behavior.domain.BehaviorEventType;
 import com.ssafy.ontop.behavior.domain.PositionSample;
-import com.ssafy.ontop.game.farkle.service.FarkleGameFinished;
-import com.ssafy.ontop.game.omok.service.OmokGameFinished;
-import com.ssafy.ontop.game.onecard.service.OneCardGameFinished;
+import com.ssafy.ontop.game.result.GameDepartureReason;
+import com.ssafy.ontop.game.result.GameFinished;
+import com.ssafy.ontop.game.result.GameFinished.Participant;
+import com.ssafy.ontop.game.result.GameFinished.Result;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -23,39 +24,46 @@ class GameBehaviorListenerTests {
     private final GameBehaviorListener listener = new GameBehaviorListener(log);
 
     @Test
-    void 오목_종료는_참가자마다_승패와_함께_기록한다() {
-        listener.finished(new OmokGameFinished("game-1", "table-1", 7, 101, 202, 202L, "FIVE_IN_ROW", ENDED_AT));
+    void 경기_종료는_참가자마다_결과와_함께_기록한다() {
+        listener.finished(new GameFinished("game-1:finished", "game-1", "table-1", "OMOK", 7, List.of(
+                new Participant(101, Result.LOSE, null, null),
+                new Participant(202, Result.WIN, null, null)), "FIVE_IN_ROW", ENDED_AT));
 
         assertThat(log.events)
                 .extracting(BehaviorEvent::type, BehaviorEvent::userId, BehaviorEvent::occurredAt)
                 .containsExactly(
                         tuple(BehaviorEventType.GAME_ENDED, 101L, ENDED_AT),
                         tuple(BehaviorEventType.GAME_ENDED, 202L, ENDED_AT));
-        assertThat(log.events).extracting(event -> event.props().get("won")).containsExactly(false, true);
+        assertThat(log.events).extracting(event -> event.props().get("result")).containsExactly("LOSE", "WIN");
         assertThat(log.events.getFirst().props())
                 .containsEntry("gameCode", "OMOK")
                 .containsEntry("endReason", "FIVE_IN_ROW")
-                .containsEntry("players", 2);
+                .containsEntry("players", 2)
+                .doesNotContainKey("leaveReason");
         assertThat(log.events.getFirst().gameId()).isEqualTo("game-1");
         assertThat(log.events.getFirst().tableId()).isEqualTo("table-1");
     }
 
     @Test
-    void 승자가_없으면_모든_참가자를_won_false로_남긴다() {
-        listener.finished(new FarkleGameFinished("game-2", "table-1", 3, List.of(101L, 202L), List.of(0L, 0L),
-                null, "ABANDONED", ENDED_AT));
+    void 중도_이탈한_참가자는_기권과_이탈_사유를_남긴다() {
+        listener.finished(new GameFinished("game-2:finished", "game-2", "table-2", "ONE_CARD", 9, List.of(
+                new Participant(101, Result.FORFEIT, GameDepartureReason.DISCONNECT_TIMEOUT, ENDED_AT.minusSeconds(30)),
+                new Participant(202, Result.WIN, null, null),
+                new Participant(303, Result.LOSE, null, null)), "LAST_CARD", ENDED_AT));
 
-        assertThat(log.events).extracting(event -> event.props().get("won")).containsExactly(false, false);
-        assertThat(log.events.getFirst().props()).containsEntry("gameCode", "DICE");
+        assertThat(log.events.getFirst().props())
+                .containsEntry("result", "FORFEIT")
+                .containsEntry("leaveReason", "DISCONNECT_TIMEOUT")
+                .containsEntry("players", 3);
     }
 
     @Test
-    void 승자가_여럿인_게임은_승자_각각을_won_true로_남긴다() {
-        listener.finished(new OneCardGameFinished("game-3", "table-2", 9, List.of(101L, 202L, 303L),
-                List.of(101L, 303L), "LAST_CARD", ENDED_AT));
+    void 무승부는_모든_참가자를_DRAW로_남긴다() {
+        listener.finished(new GameFinished("game-3:finished", "game-3", "table-1", "DICE", 3, List.of(
+                new Participant(101, Result.DRAW, null, null),
+                new Participant(202, Result.DRAW, null, null)), "ABANDONED", ENDED_AT));
 
-        assertThat(log.events).extracting(event -> event.props().get("won")).containsExactly(true, false, true);
-        assertThat(log.events.getFirst().props()).containsEntry("players", 3).containsEntry("gameCode", "ONE_CARD");
+        assertThat(log.events).extracting(event -> event.props().get("result")).containsExactly("DRAW", "DRAW");
     }
 
     private static final class CapturingLog implements BehaviorLog {

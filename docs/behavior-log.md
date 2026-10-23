@@ -80,9 +80,9 @@
 | `GAME_SELECTED` | `TableHub.selectGame` 변경 | `gameCode`, `targetScore`(주사위) | 1 | 구현 |
 | `TABLE_WATCHED` | `TableHub.watch` 새 관전 | | 1 | 구현 |
 | `GAME_WATCHED` | `watchGame` 첫 상태 전달 | | 1 | 보류(요청 수락 뒤 비동기로 실패할 수 있어 성공 지점 확인 필요) |
-| `GAME_STARTED` | `TableHub.applyStartResult` 확정 경기 성공. 참가자마다 한 행. 리허설 확인은 제외 | `gameCode`, `players`, `targetScore`, `betAmountPerPlayer` | 1 | 구현 |
+| `GAME_STARTED` | `TableHub.applyStartResult` 확정 경기 성공. 참가자마다 한 행. 리허설 확인은 제외 | `gameCode`, `players`, `targetScore`, `betAmountPerPlayer`(1인 예약 판돈) | 1 | 구현 |
 | `GAME_ACTION` | `sendGameAction` 성공 후 | `gameCode`, `actionKind` | 보류 | |
-| `GAME_ENDED` | 엔진 종료 이벤트(`OmokGameFinished` 등 4종) 리스너. 참가자마다 한 행 | `gameCode`, `endReason`, `players`, `won` | 1 | 구현 |
+| `GAME_ENDED` | 네 엔진 공통 최종 판정 `GameFinished` 리스너. 참가자마다 한 행 | `gameCode`, `endReason`, `players`, `result`(WIN·LOSE·DRAW·FORFEIT), `leaveReason`(중도 이탈 시) | 1 | 구현 |
 | `GAME_SETTLED` | `TableHub.roundSettled` | `coinDelta`(본인) | 3 | 정산 작업 후 |
 | `GAME_RECONNECTED` | `GameReconnectService` 복구 성공 | | 1 | 미구현 |
 
@@ -212,7 +212,7 @@ TableHub / ShopService / Auth 서비스
 
 ## 7. 확인한 제약
 
-- 경기 종료는 엔진이 직접 발행하는 `*GameFinished` 이벤트를 받으므로 정산과 무관하게 기록할 수 있다. 운영에서 각 엔진이 켜져 있는지는 확인이 필요하다. 반면 `GameFinishedResultListener`는 `@Profile("local")`이고, 운영 코드에는 `GameResultCommitted`를 만드는 곳이나 `GameResultGateway` 구현이 없다. 그래서 정산 금액(`GAME_SETTLED`)은 정산 담당 작업이 끝나야 기록할 수 있다.
+- 경기 종료는 네 엔진이 공통으로 발행하는 `GameFinished`를 받으므로 정산과 무관하게 기록할 수 있다. 운영에서 각 엔진이 켜져 있는지는 확인이 필요하다. 반면 `GameFinishedResultListener`는 `@Profile("local")`이고, 운영 코드에는 `GameResultCommitted`를 만드는 곳이나 `GameResultGateway` 구현이 없다. 그래서 정산 금액(`GAME_SETTLED`)은 정산 담당 작업이 끝나야 기록할 수 있다.
 - `wallets`·`wallet_transactions`는 JPA 엔티티만 있고 운영 DDL은 아직 없다 (테스트 fixture에만 존재). 지갑 적립 경로도 없다.
 - 방·좌석·채널·경기 상태는 모두 메모리에 있다. 서버를 다시 시작하면 열려 있던 착석·경기의 종료 이벤트가 남지 않으므로, 분석할 때 "종료 없는 시작"을 따로 처리해야 한다.
 - 인증을 끈 local 모드의 사용자는 `dev-UUID` 형식이고 `accountId`가 없다. 이때 `user_id`는 NULL로 남긴다.
