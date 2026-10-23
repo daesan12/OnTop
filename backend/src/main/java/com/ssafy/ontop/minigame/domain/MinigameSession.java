@@ -62,6 +62,12 @@ public class MinigameSession {
         this.endedAt = endedAt;
     }
 
+    public void invalidate(Instant endedAt) {
+        requirePlaying();
+        this.status = "INVALID";
+        this.endedAt = endedAt;
+    }
+
     private void requirePlaying() {
         if (!status.equals("PLAYING")) {
             throw new IllegalStateException("진행 중인 미니게임만 종료할 수 있습니다.");

@@ -256,37 +256,14 @@ paths:
       security:
       - AccessJwt: []
   /api/v1/minigames/sessions:
-    post:
+    get:
       tags:
       - MINIGAME
-      summary: 붕어빵 세션 시작
-      description: "같은 회원·Idempotency-Key는 최초 세션 생성 응답을 반환합니다. local 전용. 서비스는 local,db\
-        \ + ontop.minigames.enabled=true 및 V110 선택 적용이 필요합니다. 실제 굽기 판정 소스가 없으면 완료\
-        /지급하지 않습니다. 점수·보상·userId를 본문에 넣지 않습니다."
-      operationId: start
-      parameters:
-      - name: Idempotency-Key
-        in: header
-        required: true
-        schema:
-          maxLength: 64
-          minLength: 1
-          pattern: "[A-Za-z0-9_-]{1,64}"
-          type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              required:
-              - minigameType
-              type: object
-              properties:
-                minigameType:
-                  type: string
-                  enum:
-                  - BUNGEOPPANG
-              additionalProperties: false
-        required: true
+      summary: 붕어빵 시작 화면 상태 조회
+      description: "한국 날짜 기준 오늘 보상·첫 판·확인한 안내를 조회합니다. local 전용. 서비스는 local,db + ontop.minigames.enabled=true\
+        \ 및 V110/V111 선택 적용이 필요합니다. v2 입력 기록을 서버가 재생합니다. 60초, 15점당 1냥, KST 하루 100냥\
+        . 탭 이동 중에도 시간은 흐르며 랭킹은 제외합니다. score·rewardAmount·userId를 본문에 넣지 않습니다."
+      operationId: status
       responses:
         "400":
           description: INVALID_REQUEST / UNSUPPORTED_MINIGAME
@@ -321,6 +298,52 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "200":
+          description: 오늘 보상과 안내 상태
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BungeoppangStatusResponse"
+      security:
+      - AccessJwt: []
+    post:
+      tags:
+      - MINIGAME
+      summary: 붕어빵 세션 시작
+      description: "같은 회원·Idempotency-Key는 최초 세션 생성 응답을 반환합니다. local 전용. 서비스는 local,db\
+        \ + ontop.minigames.enabled=true 및 V110/V111 선택 적용이 필요합니다. v2 입력 기록을 서버가 재\
+        생합니다. 60초, 15점당 1냥, KST 하루 100냥. 탭 이동 중에도 시간은 흐르며 랭킹은 제외합니다. score·rewardAmount·\
+        userId를 본문에 넣지 않습니다."
+      operationId: start
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          maxLength: 64
+          minLength: 1
+          pattern: "[A-Za-z0-9_-]{1,64}"
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              required:
+              - minigameType
+              type: object
+              properties:
+                minigameType:
+                  type: string
+                  enum:
+                  - BUNGEOPPANG
+              additionalProperties: false
+        required: true
+      responses:
         "201":
           description: 생성 또는 같은 키의 최초 생성 응답
           headers:
@@ -332,6 +355,50 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MinigameStartResponse"
+        "429":
+          description: TOO_MANY_STARTS
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+        "400":
+          description: INVALID_REQUEST / UNSUPPORTED_MINIGAME
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: 인증된 활성 회원 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "503":
+          description: MINIGAME_NOT_CONFIGURED / MINIGAME_UNAVAILABLE 또는 인증 DB 장애
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
       security:
       - AccessJwt: []
   /api/v1/minigames/sessions/{sessionId}/complete:
@@ -340,8 +407,8 @@ paths:
       - MINIGAME
       summary: 미니게임 완료·보상 확정
       description: "서버 검증 결과만 사용하며 중복 지급하지 않습니다. local 전용. 서비스는 local,db + ontop.minigames.enabled=true\
-        \ 및 V110 선택 적용이 필요합니다. 실제 굽기 판정 소스가 없으면 완료/지급하지 않습니다. 점수·보상·userId를 본문에 넣지\
-        \ 않습니다."
+        \ 및 V110/V111 선택 적용이 필요합니다. v2 입력 기록을 서버가 재생합니다. 60초, 15점당 1냥, KST 하루 100냥\
+        . 탭 이동 중에도 시간은 흐르며 랭킹은 제외합니다. score·rewardAmount·userId를 본문에 넣지 않습니다."
       operationId: complete
       parameters:
       - name: sessionId
@@ -353,7 +420,47 @@ paths:
         content:
           application/json:
             schema:
+              required:
+              - log
               type: object
+              properties:
+                log:
+                  maxItems: 1200
+                  type: array
+                  items:
+                    required:
+                    - slot
+                    - action
+                    - t
+                    type: object
+                    properties:
+                      slot:
+                        maximum: 5
+                        minimum: 0
+                        type: integer
+                        format: int32
+                      action:
+                        type: string
+                        enum:
+                        - POUR
+                        - FILL
+                        - TURN
+                        - DISCARD
+                      t:
+                        maximum: 60000
+                        minimum: 0
+                        type: integer
+                        format: int32
+                    additionalProperties: false
+                seenTips:
+                  maxItems: 5
+                  type: array
+                  items:
+                    type: string
+                clientScore:
+                  minimum: 0
+                  type: integer
+                  format: int32
               additionalProperties: false
         required: true
       responses:
@@ -380,7 +487,18 @@ paths:
               schema:
                 type: object
         "409":
-          description: MINIGAME_NOT_VERIFIED / MINIGAME_POLICY_REQUIRED / 종료 상태 충돌
+          description: RULES_VERSION_MISMATCH / 종료 상태 충돌
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+        "422":
+          description: LOG_INVALID / TOO_EARLY
           headers:
             Cache-Control:
               description: no-store
@@ -431,8 +549,8 @@ paths:
       - MINIGAME
       summary: 미니게임 포기
       description: "지급 없이 포기하며 같은 포기 요청은 기존 결과를 반환합니다. local 전용. 서비스는 local,db + ontop.minigames.enabled=true\
-        \ 및 V110 선택 적용이 필요합니다. 실제 굽기 판정 소스가 없으면 완료/지급하지 않습니다. 점수·보상·userId를 본문에 넣지\
-        \ 않습니다."
+        \ 및 V110/V111 선택 적용이 필요합니다. v2 입력 기록을 서버가 재생합니다. 60초, 15점당 1냥, KST 하루 100냥\
+        . 탭 이동 중에도 시간은 흐르며 랭킹은 제외합니다. score·rewardAmount·userId를 본문에 넣지 않습니다."
       operationId: abandon
       parameters:
       - name: sessionId
@@ -1774,8 +1892,9 @@ paths:
       tags:
       - MINIGAME
       summary: 본인 미니게임 상태 조회
-      description: "local 전용. 서비스는 local,db + ontop.minigames.enabled=true 및 V110\
-        \ 선택 적용이 필요합니다. 실제 굽기 판정 소스가 없으면 완료/지급하지 않습니다. 점수·보상·userId를 본문에 넣지 않습니다."
+      description: "local 전용. 서비스는 local,db + ontop.minigames.enabled=true 및 V110/V111\
+        \ 선택 적용이 필요합니다. v2 입력 기록을 서버가 재생합니다. 60초, 15점당 1냥, KST 하루 100냥. 탭 이동 중에도 시\
+        간은 흐르며 랭킹은 제외합니다. score·rewardAmount·userId를 본문에 넣지 않습니다."
       operationId: load
       parameters:
       - name: sessionId
@@ -2195,6 +2314,11 @@ components:
           type: string
         details:
           type: object
+        detail:
+          type: string
+        index:
+          type: integer
+          format: int32
     MinigameStartResponse:
       type: object
       properties:
@@ -2207,6 +2331,15 @@ components:
         startedAt:
           type: string
           format: date-time
+        rulesVersion:
+          type: string
+        heats:
+          type: array
+          items:
+            type: integer
+            format: int32
+        isFirstGame:
+          type: boolean
     MinigameCompleteResponse:
       type: object
       properties:
@@ -2220,6 +2353,38 @@ components:
         rewardAmount:
           type: integer
           format: int64
+        score:
+          type: integer
+          format: int64
+        made:
+          type: integer
+          format: int32
+        golden:
+          type: integer
+          format: int32
+        failed:
+          type: integer
+          format: int32
+        wasted:
+          type: integer
+          format: int32
+        maxCombo:
+          type: integer
+          format: int32
+        coinsCalculated:
+          type: integer
+          format: int64
+        coinsGranted:
+          type: integer
+          format: int64
+        todayEarned:
+          type: integer
+          format: int64
+        dailyCap:
+          type: integer
+          format: int32
+        capReached:
+          type: boolean
     MinigameAbandonResponse:
       type: object
       properties:
@@ -2538,6 +2703,23 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ItemResponse"
+    BungeoppangStatusResponse:
+      type: object
+      properties:
+        todayEarned:
+          type: integer
+          format: int64
+        dailyCap:
+          type: integer
+          format: int32
+        isFirstGame:
+          type: boolean
+        seenTips:
+          type: array
+          items:
+            type: string
+        rulesVersion:
+          type: string
     MinigameStatusResponse:
       type: object
       properties:
