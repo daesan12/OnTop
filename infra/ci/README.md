@@ -5,6 +5,7 @@
 - `ci.on-top.world`은 DEV-CI의 Nginx에서 HTTPS를 종료한다. 외부에는 `/project/` 웹훅만 전달하며 Jenkins 관리 화면은 SSH 터널의 `http://localhost:8081`로 연다. EC2 인바운드에 8081을 추가하지 않는다.
 - Jenkins LTS는 DEV-CI에 Java 21, 포트 8081, 최대 힙 1 GiB로 설치했다. Node 24.18.0, pnpm 11.25.0, Vercel CLI 65.1.0도 설치했다.
 - `Jenkinsfile`은 `dev` 브랜치의 변경 파일을 분류한다. `backend/` 변경은 Gradle 테스트 → Docker Hub 비공개 이미지 `wooaw/ontop-backend:sha-<전체 커밋 SHA>` → DEV 앱 갱신으로, `frontend/` 변경은 pnpm 테스트·빌드 → 별도 Vercel 프로젝트 `ontop-frontend-dev` 배포로 이어진다. 둘 다 바뀌면 양쪽을 실행한다. 운영 배포는 자동화하지 않는다.
+- `analytics/`의 오프라인 쿼리·스크립트만 바뀐 커밋은 `docs/`처럼 앱 빌드·배포 대상에서 제외한다. 다른 백엔드·프론트 변경이 함께 있으면 해당 앱의 기존 분류 규칙을 그대로 적용한다.
 - 첫 실행에는 이전 성공 SHA가 없어 양쪽 테스트를 실행하고 기준 SHA만 기록한다. 이미 수동으로 올린 DEV 배포를 이 첫 실행이 교체하지 않는다. 이후 성공한 `dev` 빌드의 SHA를 `/var/lib/jenkins/ontop-state/dev.sha`에 기록한다.
 - `infra/app/compose.dev.yaml`의 CI Nginx 설정은 `zz-ci.conf`로 로드한다. 기존 `default.conf`보다 먼저 읽으면 `dev-api`에 CI 인증서가 제공되는 문제가 실제로 발생해 수정했다.
 - 인증서 갱신 훅을 수동 호출해 CI 인증서 복사와 Nginx 재로드를 확인했다. 이후 `ci.on-top.world`은 TLS 검증 성공·루트 403, `dev-api.on-top.world/actuator/health`는 TLS 검증 성공·200을 반환했다.
