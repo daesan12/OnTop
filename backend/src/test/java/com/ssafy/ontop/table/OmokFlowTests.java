@@ -130,7 +130,9 @@ class OmokFlowTests {
             long version = points.length * 2L;
             joinWatch(viewer);
             assertState(viewer.request("GAME_WATCH", Map.of("gameId", "omok")), version, "PLAYING");
-            white.await(m -> stateVersion(m, version));
+            // request()는 응답 전에 도착한 비동기 상태를 소비할 수 있다.
+            // 준비 착수 완료는 현재 상태 조회로 확인하고, 금수 이후 방송은 아래에서 별도 검증한다.
+            assertState(white.request("GAME_STATE_CHECK", Map.of("gameId", "omok")), version, "PLAYING");
             var before = engine.load(101, "omok").orElseThrow();
             // 오류가 상대/관전자의 새 상태로 잘못 방송되지 않는지도 같은 구간에 관찰한다.
             viewer.assertNoMessageDuring(m -> stateVersion(m, version + 1), () ->
