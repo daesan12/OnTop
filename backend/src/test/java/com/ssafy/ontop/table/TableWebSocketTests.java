@@ -129,14 +129,14 @@ class TableWebSocketTests {
     }
 
     @Test
-    void 개발_페이지는_열리고_다른_출처의_연결은_거절한다() throws Exception {
+    void 로컬_개발_페이지_유무와_무관하게_다른_출처의_연결은_거절한다() throws Exception {
         try (HttpClient client = HttpClient.newHttpClient()) {
             HttpResponse<String> page = client.send(HttpRequest.newBuilder(
                     URI.create("http://127.0.0.1:" + port + "/dev/tables")).build(),
                     HttpResponse.BodyHandlers.ofString());
 
-            assertThat(page.statusCode()).isEqualTo(200);
-            assertThat(page.body()).contains("테이블 동기화");
+            boolean localPageExists = new org.springframework.core.io.ClassPathResource("dev/tables.html").exists();
+            assertThat(page.statusCode()).isEqualTo(localPageExists ? 200 : 404);
             assertThatThrownBy(() -> client.newWebSocketBuilder().header("Origin", "https://example.org")
                     .buildAsync(uri(), new WebSocket.Listener() { }).join()).hasCauseInstanceOf(
                             WebSocketHandshakeException.class);

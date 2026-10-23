@@ -41,8 +41,10 @@ public class TableDevController {
     }
 
     @GetMapping(value = "/dev/tables", produces = MediaType.TEXT_HTML_VALUE)
-    public Resource page() {
-        return new ClassPathResource("dev/tables.html");
+    public ResponseEntity<Resource> page() {
+        Resource page = new ClassPathResource("dev/tables.html");
+        return page.exists() ? ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(page)
+                : ResponseEntity.notFound().cacheControl(CacheControl.noStore()).build();
     }
 
     @GetMapping("/dev/world-config")
