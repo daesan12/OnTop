@@ -86,5 +86,30 @@ class WalletBalanceShopMySqlTests {
         }
         assertThat(jdbc.queryForMap("SELECT * FROM wallets WHERE user_id=?", user.getId())).isEqualTo(before);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM wallet_transactions", Long.class)).isEqualTo(entries);
+
+        var receiptBefore = jdbc.queryForList("SELECT * FROM shop_purchases WHERE user_id=?", user.getId());
+        try (HttpClient client = HttpClient.newHttpClient()) {
+            var response = client.send(HttpRequest.newBuilder(URI.create(
+                    "http://127.0.0.1:" + port + "/api/v1/wallets/me/transactions"))
+                    .header("Authorization", "Bearer " + access).GET().build(), HttpResponse.BodyHandlers.ofString());
+            assertThat(response.statusCode()).isEqualTo(200);
+            assertThat(response.headers().firstValue("Cache-Control")).contains("no-store");
+            var page = mapper.readTree(response.body());
+            assertThat(page.path("transactions").size()).isEqualTo(2);
+            var purchase = page.path("transactions").get(0);
+            assertThat(purchase.path("transactionType").asText()).isEqualTo("SHOP_PURCHASE");
+            assertThat(purchase.path("balanceDelta").asLong()).isEqualTo(-20);
+            assertThat(purchase.path("reservedDelta").asLong()).isZero();
+            assertThat(purchase.path("itemId").asLong()).isEqualTo(itemId);
+            assertThat(purchase.path("gameSessionId").isNull()).isTrue();
+            assertThat(purchase.path("minigameSessionId").isNull()).isTrue();
+            assertThat(page.path("transactions").get(1).path("transactionType").asText()).isEqualTo("SIGNUP_BONUS");
+            assertThat(page.path("nextCursor").isNull()).isTrue();
+            assertThat(response.body()).doesNotContain("idempotencyKey", "balanceAfter", "userId", "walletId");
+        }
+        assertThat(jdbc.queryForList("SELECT * FROM shop_purchases WHERE user_id=?", user.getId()))
+                .isEqualTo(receiptBefore);
+        assertThat(jdbc.queryForMap("SELECT * FROM wallets WHERE user_id=?", user.getId())).isEqualTo(before);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM wallet_transactions", Long.class)).isEqualTo(entries);
     }
 }

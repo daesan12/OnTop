@@ -4,6 +4,7 @@ import com.ssafy.ontop.wallet.domain.Wallet;
 import com.ssafy.ontop.wallet.dto.WalletBalanceResponse;
 import com.ssafy.ontop.wallet.exception.WalletQueryException;
 import com.ssafy.ontop.wallet.repository.WalletRepository;
+import com.ssafy.ontop.wallet.repository.WalletTransactionRepository;
 import java.time.Instant;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -32,7 +33,8 @@ class WalletQueryServiceTests {
         wallets = mock(WalletRepository.class);
         var beans = new StaticListableBeanFactory();
         beans.addBean("wallets", wallets);
-        service = new WalletQueryService(beans.getBeanProvider(WalletRepository.class));
+        service = new WalletQueryService(beans.getBeanProvider(WalletRepository.class),
+                beans.getBeanProvider(WalletTransactionRepository.class));
     }
 
     @ParameterizedTest
@@ -59,7 +61,9 @@ class WalletQueryServiceTests {
 
     @Test
     void DB없는_프로필도_구성되며_조회는_안전한_503이다() {
-        service = new WalletQueryService(new StaticListableBeanFactory().getBeanProvider(WalletRepository.class));
+        var beans = new StaticListableBeanFactory();
+        service = new WalletQueryService(beans.getBeanProvider(WalletRepository.class),
+                beans.getBeanProvider(WalletTransactionRepository.class));
         fails(WalletQueryException.Error.STORAGE);
     }
 

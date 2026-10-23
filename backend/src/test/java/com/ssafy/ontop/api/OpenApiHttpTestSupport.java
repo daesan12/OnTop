@@ -86,7 +86,8 @@ abstract class OpenApiHttpTestSupport {
                 "POST /api/v1/auth/exchange", "POST /api/v1/auth/refresh", "POST /api/v1/auth/logout",
                 "POST /api/v1/auth/websocket-ticket", "GET /api/v1/users/me", "PATCH /api/v1/users/me",
                 "DELETE /api/v1/users/me", "GET /api/v1/users/nickname-availability",
-                "POST /api/v1/users/onboarding", "GET /api/v1/wallets/me"));
+                "POST /api/v1/users/onboarding", "GET /api/v1/wallets/me",
+                "GET /api/v1/wallets/me/transactions"));
         if (environment.acceptsProfiles(Profiles.of("local"))) {
             expected.addAll(Set.of("GET /api/v1/channels", "GET /api/v1/tables", "GET /api/v1/shop/items",
                     "POST /api/v1/shop/purchases", "GET /api/v1/users/me/items", "PATCH /api/v1/users/me/equipment"));
@@ -117,6 +118,45 @@ abstract class OpenApiHttpTestSupport {
         assertThat(names).containsExactlyInAnyOrder("balance", "reservedBalance", "availableBalance");
         fields.forEach(field -> assertThat(field.path("format").asText()).isEqualTo("int64"));
         assertThat(fields.at("/availableBalance/description").asText()).contains("balance - reservedBalance");
+    }
+
+    @Test
+    void 원장_커서와_size및_nullable_참조필드와_오류를_문서화한다() throws Exception {
+        JsonNode api = json();
+        JsonNode operation = api.at("/paths/~1api~1v1~1wallets~1me~1transactions/get");
+        assertThat(operation.at("/security/0").has("AccessJwt")).isTrue();
+        assertThat(operation.path("tags").toString()).isEqualTo("[\"WALLET\"]");
+        assertThat(operation.has("requestBody")).isFalse();
+        assertThat(operation.path("parameters").size()).isEqualTo(2);
+        for (JsonNode parameter : operation.path("parameters")) {
+            assertThat(parameter.path("in").asText()).isEqualTo("query");
+            assertThat(parameter.path("required").asBoolean()).isFalse();
+            assertThat(parameter.at("/schema/type").asText()).isEqualTo("integer");
+            assertThat(parameter.at("/schema/minimum").asInt()).isEqualTo(1);
+            if (parameter.path("name").asText().equals("size")) {
+                assertThat(parameter.at("/schema/default").asInt()).isEqualTo(20);
+                assertThat(parameter.at("/schema/maximum").asInt()).isEqualTo(100);
+            } else {
+                assertThat(parameter.path("name").asText()).isEqualTo("cursor");
+                assertThat(parameter.at("/schema/format").asText()).isEqualTo("int64");
+            }
+        }
+        Set<String> responses = new HashSet<>();
+        operation.path("responses").fieldNames().forEachRemaining(responses::add);
+        assertThat(responses).contains("200", "400", "401", "403", "409", "503");
+        JsonNode page = api.at("/components/schemas/WalletTransactionPageResponse/properties");
+        assertThat(page.path("nextCursor").path("nullable").asBoolean()).isTrue();
+        assertThat(page.path("transactions").path("type").asText()).isEqualTo("array");
+        JsonNode fields = api.at("/components/schemas/WalletTransactionResponse/properties");
+        Set<String> names = new HashSet<>();
+        fields.fieldNames().forEachRemaining(names::add);
+        assertThat(names).containsExactlyInAnyOrder("transactionId", "transactionType", "balanceDelta",
+                "reservedDelta", "itemId", "gameSessionId", "minigameSessionId", "createdAt");
+        for (String field : Set.of("itemId", "gameSessionId", "minigameSessionId")) {
+            assertThat(fields.path(field).path("nullable").asBoolean()).isTrue();
+            assertThat(fields.path(field).path("format").asText()).isEqualTo("int64");
+        }
+        assertThat(fields.at("/createdAt/format").asText()).isEqualTo("date-time");
     }
 
     @Test

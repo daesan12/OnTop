@@ -61,7 +61,7 @@ Spring Security: Access JWT → 활성 회원/sid → ROLE_MEMBER
 ## Swagger와 테스트
 
 - 태그 WALLET, AccessJwt 인증, 3개 응답 필드와 401/403/409/500/503을 문서화한다.
-- 정적 docs/api/openapi.yaml은 기존 local HTTP export 절차로 생성한다. local 18개/dev 12개 operation이다.
+- 정적 docs/api/openapi.yaml은 기존 local HTTP export 절차로 생성한다. 거래 내역 추가 후 local 19개/dev 13개 operation이다.
 - 단위: 초기/부분/전액 예약/0잔액/long 경계, 미생성, DB·트랜잭션 장애, 불변성.
 - 실제 HTTP: Principal 기반 조회, 외부 ID 입력 무시, 누락·위조·만료·온보딩 Bearer 거절, sid/회원 비활성, 오류 캐시·민감정보 방지.
 - 격리 MySQL + 실제 HTTP: 온보딩 최초100코인, 예약액0/30/100, 다른 회원 격리, 실제 로그아웃/탈퇴 차단,
@@ -70,11 +70,11 @@ Spring Security: Access JWT → 활성 회원/sid → ROLE_MEMBER
   FOR UPDATE/FOR SHARE/LOCK IN SHARE MODE가 없는지도 검사한다. 운영 코드에 SQL 기록 기능을 추가하지 않는다.
 - 관련 초기화·온보딩·Shop·프로필 테스트를 선택 실행한다. 전체 회귀는 Wallet 도메인 MR 직전에 실행한다.
 
-## 다음 거래 내역 조회에서 재사용할 구성
+## 거래 내역 조회와의 공통 구성
 
 Principal 기반 WalletController, WalletQueryService, 읽기 전용 Wallet 조회, WalletExceptionHandler 및
-기존 WalletTransaction Entity/Repository를 재사용할 수 있다. 거래 페이지·DTO·조회 쿼리는 아직 구현하지 않았다.
-현재 잔액 조회가 지갑 생성·지급을 수행하지 않는 경계는 다음 조회 API에서도 유지한다.
+기존 WalletTransaction Entity/Repository를 재사용해 [거래 내역 조회](wallet-transactions.md)를 추가했다.
+잔액 조회가 지갑 생성·지급을 수행하지 않는 경계는 거래 내역 조회에서도 유지한다.
 
 ## 2026-10-23 실행 결과
 
