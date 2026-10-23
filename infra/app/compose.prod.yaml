@@ -1,0 +1,61 @@
+name: ontop-prod-app
+
+services:
+  app:
+    image: ${BACKEND_IMAGE:?Set BACKEND_IMAGE to the private Docker Hub image}
+    restart: unless-stopped
+    stop_grace_period: 30s
+    env_file:
+      - ${APP_ENV_FILE:?Set APP_ENV_FILE outside the repository}
+    environment:
+      SPRING_PROFILES_ACTIVE: db
+      SERVER_FORWARD_HEADERS_STRATEGY: framework
+      DB_PASSWORD_FILE: /run/secrets/db_password
+    secrets:
+      - db_password
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "--show-error", "--max-time", "3", "http://127.0.0.1:8080/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 60s
+
+  nginx:
+    image: nginx:stable-alpine
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_started
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - type: bind
+        source: ${NGINX_CONFIG_FILE:?Set NGINX_CONFIG_FILE to the bootstrap or TLS config}
+        target: /etc/nginx/conf.d/default.conf
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${ACME_WEBROOT_DIR:?Set ACME_WEBROOT_DIR}
+        target: /var/www/certbot
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${TLS_DIR:?Set TLS_DIR}
+        target: /etc/nginx/tls
+        read_only: true
+        bind:
+          create_host_path: false
+
+secrets:
+  db_password:
+    file: ${DB_PASSWORD_FILE:?Set DB_PASSWORD_FILE outside the repository}

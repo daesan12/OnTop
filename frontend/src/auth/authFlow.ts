@@ -10,6 +10,7 @@ export class OnboardingError extends Error {
   }
 }
 
+let sessionGeneration = 0
 let currentSession: AuthSession | null = null
 let callbackExchange: Promise<AuthSession> | null = null
 let refreshRequest: Promise<boolean> | null = null
@@ -19,32 +20,36 @@ export function getAuthSession(): AuthSession | null {
 }
 
 export function clearAuthSession(): void {
+  ++sessionGeneration
   currentSession = null
   callbackExchange = null
   refreshRequest = null
 }
 
-export function restoreAuthSession(): Promise<boolean> {
-  if (currentSession?.status === 'AUTHENTICATED') return Promise.resolve(true)
+export function restoreAuthSession(forceRefresh = false): Promise<boolean> {
+  if (!forceRefresh && currentSession?.status === 'AUTHENTICATED') return Promise.resolve(true)
   if (refreshRequest) return refreshRequest
 
-  refreshRequest = fetch('/api/v1/auth/refresh', {
+  const generation = sessionGeneration
+  const request = fetch('/api/v1/auth/refresh', {
     method: 'POST',
     credentials: 'include',
     cache: 'no-store',
   }).then(async (response) => {
-    if (!response.ok) return false
+    if (!response.ok || generation !== sessionGeneration) return false
     const body: unknown = await response.json()
     if (!body || typeof body !== 'object' || !('accessToken' in body) || typeof body.accessToken !== 'string') {
       return false
     }
+    if (generation !== sessionGeneration) return false
     currentSession = { status: 'AUTHENTICATED', accessToken: body.accessToken }
     return true
   }).catch(() => false).finally(() => {
-    refreshRequest = null
+    if (refreshRequest === request) refreshRequest = null
   })
 
-  return refreshRequest
+  refreshRequest = request
+  return request
 }
 
 export async function logout(): Promise<void> {

@@ -1,0 +1,2617 @@
+openapi: 3.0.1
+info:
+  title: OnTop API
+  description: OnTop REST API Documentation
+  version: 0.0.1-SNAPSHOT
+servers:
+- url: /
+  description: 현재 문서 서버 (local/dev)
+tags:
+- name: WALLET
+  description: 인증된 본인의 지갑 조회
+paths:
+  /api/v1/users/onboarding:
+    post:
+      tags:
+      - User
+      summary: 신규 회원 온보딩
+      description: 온보딩 전용 Bearer만 허용하며 JSESSIONID가 필요 없습니다. nickname/characterGender만
+        입력합니다. 회원·지갑·최초 100코인 SIGNUP_BONUS 원장·Refresh 저장은 원자적입니다. 201 성공 후 토큰 소비;
+        확인된 닉네임 충돌+롤백(409 USER_NICKNAME_ALREADY_EXISTS)만 같은 토큰으로 재시도하며 최초 만료는 연장하지
+        않습니다. 중복 소셜 계정/기타 실패/커밋 불명은 새 OAuth가 필요합니다.
+      operationId: onboard
+      parameters:
+      - name: Origin
+        in: header
+        description: 브라우저가 자동 전송합니다. AUTH_ALLOWED_ORIGINS의 명시적 Origin. Swagger UI와
+          같은 서버 Origin도 허용 목록에 추가하세요. Refresh/Logout은 필수; 다른 API는 비브라우저 Origin 누락을
+          기존 Fetch Metadata 정책으로 판정합니다.
+        required: false
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserOnboardingRequest"
+        required: true
+      responses:
+        "201":
+          description: "회원 생성 및 인증 발급 성공 (Cache-Control: no-store)"
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+            Set-Cookie:
+              description: "ONTOP_REFRESH; HttpOnly; Path=/api/v1/auth 기본값; Secure/SameSite\
+                \ 환경설정. Logout은 Max-Age=0 삭제, Exchange의 신규 회원 분기는 발급하지 않음. Exchange는\
+                \ OAuth 세션 쿠키 ID도 회전합니다."
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserOnboardingResponse"
+        "400":
+          description: USER_INVALID_ONBOARDING_REQUEST / USER_INVALID_NICKNAME / USER_INVALID_CHARACTER_GENDER
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "401":
+          description: AUTH_INVALID_ONBOARDING_TOKEN
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "403":
+          description: AUTH_ORIGIN_NOT_ALLOWED / AUTH_ACCESS_DENIED / AUTH_REQUEST_REJECTED
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "409":
+          description: USER_NICKNAME_ALREADY_EXISTS (확인된 롤백 시 재시도) / USER_ALREADY_REGISTERED
+            (새 OAuth 필요)
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "500":
+          description: AUTH_TOKEN_CONFIGURATION_ERROR
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "503":
+          description: USER_ONBOARDING_UNAVAILABLE
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+      security:
+      - OnboardingBearer: []
+  /api/v1/shop/purchases:
+    post:
+      tags:
+      - Shop
+      summary: 아이템 구매
+      description: "지갑을 잠그고 잔액 차감·보유량·거래 원장·멱등 영수증을 한 트랜잭션으로 저장합니다. 의상 중복 구매는 REJECT\
+        \ 정책입니다. Idempotency-Key가 필요합니다. local 프로필 전용. 실제 서비스는 local,db 및 ontop.shop.enabled=true,\
+        \ 별도 상점 스키마와 회원 지갑이 필요합니다. 공통 V1~V4만으로 상점 스키마가 생성되지 않으며 운영 프로필 전환은 미완료입니다."
+      operationId: purchase
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        description: "같은 회원·키·구매 내용은 기존 영수증 반환, 같은 키의 다른 내용은 409"
+        required: true
+        schema:
+          maxLength: 64
+          minLength: 1
+          pattern: "[A-Za-z0-9_-]{1,64}"
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              required:
+              - itemId
+              - quantity
+              type: object
+              properties:
+                itemId:
+                  minimum: 1
+                  type: integer
+                  format: int64
+                quantity:
+                  maximum: 2147483647
+                  minimum: 1
+                  type: integer
+                  format: int32
+              additionalProperties: false
+        required: true
+      responses:
+        "200":
+          description: 성공
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PurchaseResponse"
+        "400":
+          description: INVALID_REQUEST 또는 QUANTITY_TOO_LARGE
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: 기존 REST 인증/인가/설정 오류
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "403":
+          description: 기존 REST 인증/인가/설정 오류
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "404":
+          description: ITEM_NOT_FOUND 또는 OWNED_ITEM_NOT_FOUND
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: WALLET_NOT_READY / ITEM_ALREADY_OWNED / IDEMPOTENCY_CONFLICT
+            / INSUFFICIENT_BALANCE / ITEM_NOT_EQUIPPABLE
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: 기존 REST 인증/인가/설정 오류
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "503":
+          description: SHOP_NOT_CONFIGURED / SHOP_UNAVAILABLE 또는 인증 DB 장애
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                anyOf:
+                - $ref: "#/components/schemas/AuthErrorResponse"
+                - $ref: "#/components/schemas/ErrorResponse"
+      security:
+      - AccessJwt: []
+  /api/v1/minigames/sessions:
+    post:
+      tags:
+      - MINIGAME
+      summary: 붕어빵 세션 시작
+      description: "같은 회원·Idempotency-Key는 최초 세션 생성 응답을 반환합니다. local 전용. 서비스는 local,db\
+        \ + ontop.minigames.enabled=true 및 V110 선택 적용이 필요합니다. 실제 굽기 판정 소스가 없으면 완료\
+        /지급하지 않습니다. 점수·보상·userId를 본문에 넣지 않습니다."
+      operationId: start
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          maxLength: 64
+          minLength: 1
+          pattern: "[A-Za-z0-9_-]{1,64}"
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              required:
+              - minigameType
+              type: object
+              properties:
+                minigameType:
+                  type: string
+                  enum:
+                  - BUNGEOPPANG
+              additionalProperties: false
+        required: true
+      responses:
+        "400":
+          description: INVALID_REQUEST / UNSUPPORTED_MINIGAME
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: 인증된 활성 회원 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "503":
+          description: MINIGAME_NOT_CONFIGURED / MINIGAME_UNAVAILABLE 또는 인증 DB 장애
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "201":
+          description: 생성 또는 같은 키의 최초 생성 응답
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MinigameStartResponse"
+      security:
+      - AccessJwt: []
+  /api/v1/minigames/sessions/{sessionId}/complete:
+    post:
+      tags:
+      - MINIGAME
+      summary: 미니게임 완료·보상 확정
+      description: "서버 검증 결과만 사용하며 중복 지급하지 않습니다. local 전용. 서비스는 local,db + ontop.minigames.enabled=true\
+        \ 및 V110 선택 적용이 필요합니다. 실제 굽기 판정 소스가 없으면 완료/지급하지 않습니다. 점수·보상·userId를 본문에 넣지\
+        \ 않습니다."
+      operationId: complete
+      parameters:
+      - name: sessionId
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+        required: true
+      responses:
+        "200":
+          description: 완료 또는 기존 완료 결과
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MinigameCompleteResponse"
+        "404":
+          description: MINIGAME_NOT_FOUND
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+        "409":
+          description: MINIGAME_NOT_VERIFIED / MINIGAME_POLICY_REQUIRED / 종료 상태 충돌
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+        "400":
+          description: INVALID_REQUEST / UNSUPPORTED_MINIGAME
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: 인증된 활성 회원 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "503":
+          description: MINIGAME_NOT_CONFIGURED / MINIGAME_UNAVAILABLE 또는 인증 DB 장애
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      security:
+      - AccessJwt: []
+  /api/v1/minigames/sessions/{sessionId}/abandon:
+    post:
+      tags:
+      - MINIGAME
+      summary: 미니게임 포기
+      description: "지급 없이 포기하며 같은 포기 요청은 기존 결과를 반환합니다. local 전용. 서비스는 local,db + ontop.minigames.enabled=true\
+        \ 및 V110 선택 적용이 필요합니다. 실제 굽기 판정 소스가 없으면 완료/지급하지 않습니다. 점수·보상·userId를 본문에 넣지\
+        \ 않습니다."
+      operationId: abandon
+      parameters:
+      - name: sessionId
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+        required: true
+      responses:
+        "200":
+          description: 포기 또는 기존 포기 결과
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MinigameAbandonResponse"
+        "404":
+          description: MINIGAME_NOT_FOUND
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+        "409":
+          description: MINIGAME_ALREADY_COMPLETED / 종료 상태 충돌
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+        "400":
+          description: INVALID_REQUEST / UNSUPPORTED_MINIGAME
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: 인증된 활성 회원 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "503":
+          description: MINIGAME_NOT_CONFIGURED / MINIGAME_UNAVAILABLE 또는 인증 DB 장애
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      security:
+      - AccessJwt: []
+  /api/v1/auth/websocket-ticket:
+    post:
+      tags:
+      - Auth
+      summary: WebSocket 일회용 접속권
+      description: "Access JWT로 인증한 활성 회원 및 sid와 허용된 Origin에 결합합니다. 최대 30초(Access\
+        \ 만료 상한), 일회용입니다. /ws/tables?ticket= 연결 시 같은 Origin·회원·sid를 재확인합니다. 새 연결/재\
+        접속마다 발급하세요. 브라우저는 WebSocket Authorization 헤더를 직접 설정할 수 없습니다."
+      operationId: issue
+      parameters:
+      - name: Origin
+        in: header
+        description: 브라우저가 자동 전송합니다. AUTH_ALLOWED_ORIGINS의 명시적 Origin. Swagger UI와
+          같은 서버 Origin도 허용 목록에 추가하세요. Refresh/Logout은 필수; 다른 API는 비브라우저 Origin 누락을
+          기존 Fetch Metadata 정책으로 판정합니다.
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          description: "성공 (Cache-Control: no-store)"
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ticket"
+        "401":
+          description: AUTH_AUTHENTICATION_REQUIRED / AUTH_INVALID_ACCESS_TOKEN /
+            AUTH_MEMBER_STATE_CHANGED
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "403":
+          description: AUTH_ORIGIN_NOT_ALLOWED / AUTH_ACCESS_DENIED / AUTH_REQUEST_REJECTED
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "500":
+          description: AUTH_TOKEN_CONFIGURATION_ERROR
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "503":
+          description: AUTH_MEMBER_LOOKUP_UNAVAILABLE
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "429":
+          description: "WS_TICKET_LIMIT: 회원별 4개 또는 저장소 최대 접속권 수 초과"
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+      security:
+      - AccessJwt: []
+  /api/v1/auth/refresh:
+    post:
+      tags:
+      - Auth
+      summary: Access/Refresh 재발급
+      description: "본문과 Authorization 헤더가 필요하지 않습니다. ONTOP_REFRESH 쿠키와 허용된 Origin을\
+        \ 사용합니다. 매번 Rotation하며 동일 sid로 7일 슬라이딩 만료합니다. 이미 회전한 토큰은 401; 회전 후 5초 이내 중\
+        복 요청은 추가 폐기 없이 거절하고, 그 이후 재사용 탐지 시 해당 sid를 폐기합니다."
+      operationId: refresh
+      parameters:
+      - name: Origin
+        in: header
+        description: 브라우저가 자동 전송합니다. AUTH_ALLOWED_ORIGINS의 명시적 Origin. Swagger UI와
+          같은 서버 Origin도 허용 목록에 추가하세요. Refresh/Logout은 필수; 다른 API는 비브라우저 Origin 누락을
+          기존 Fetch Metadata 정책으로 판정합니다.
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: "성공 (Cache-Control: no-store)"
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+            Set-Cookie:
+              description: "ONTOP_REFRESH; HttpOnly; Path=/api/v1/auth 기본값; Secure/SameSite\
+                \ 환경설정. Logout은 Max-Age=0 삭제, Exchange의 신규 회원 분기는 발급하지 않음. Exchange는\
+                \ OAuth 세션 쿠키 ID도 회전합니다."
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthRefreshResponse"
+        "400":
+          description: AUTH_INVALID_REFRESH_REQUEST
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "401":
+          description: AUTH_INVALID_REFRESH_TOKEN / AUTH_REFRESH_ALREADY_ROTATED /
+            AUTH_REFRESH_REUSE_DETECTED / AUTH_MEMBER_STATE_CHANGED
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "403":
+          description: AUTH_ORIGIN_NOT_ALLOWED / AUTH_ACCESS_DENIED / AUTH_REQUEST_REJECTED
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "500":
+          description: AUTH_TOKEN_CONFIGURATION_ERROR
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "503":
+          description: AUTH_REFRESH_STORAGE_UNAVAILABLE
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+      security:
+      - RefreshCookie: []
+  /api/v1/auth/logout:
+    post:
+      tags:
+      - Auth
+      summary: 현재 로그인 세션 로그아웃
+      description: 본문/Access JWT/JSESSIONID 없이 Refresh 쿠키와 허용된 Origin을 사용합니다. 쿠키 누락/만료/위조도
+        멱등 204입니다. 식별된 sid 전체를 폐기하고 커밋 후 해당 WebSocket을 4401로 종료합니다. 기존 Access JWT와
+        미사용 접속권도 즉시 거절됩니다. 다른 로그인 계열은 유지합니다. 발급과 같은 속성의 Max-Age=0 쿠키를 반환합니다.
+      operationId: logout
+      parameters:
+      - name: Origin
+        in: header
+        description: 브라우저가 자동 전송합니다. AUTH_ALLOWED_ORIGINS의 명시적 Origin. Swagger UI와
+          같은 서버 Origin도 허용 목록에 추가하세요. Refresh/Logout은 필수; 다른 API는 비브라우저 Origin 누락을
+          기존 Fetch Metadata 정책으로 판정합니다.
+        required: true
+        schema:
+          type: string
+      responses:
+        "204":
+          description: 성공. 응답 본문 없음
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+            Set-Cookie:
+              description: "ONTOP_REFRESH; HttpOnly; Path=/api/v1/auth 기본값; Secure/SameSite\
+                \ 환경설정. Logout은 Max-Age=0 삭제, Exchange의 신규 회원 분기는 발급하지 않음. Exchange는\
+                \ OAuth 세션 쿠키 ID도 회전합니다."
+              schema:
+                type: string
+        "400":
+          description: AUTH_INVALID_LOGOUT_REQUEST
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "403":
+          description: AUTH_ORIGIN_NOT_ALLOWED / AUTH_ACCESS_DENIED / AUTH_REQUEST_REJECTED
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "500":
+          description: AUTH_TOKEN_CONFIGURATION_ERROR
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "503":
+          description: AUTH_LOGOUT_STORAGE_UNAVAILABLE
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+      security:
+      - RefreshCookie: []
+      - {}
+  /api/v1/auth/exchange:
+    post:
+      tags:
+      - Auth
+      summary: 일회용 코드 교환
+      description: "60초 교환 코드와 OAuth와 동일한 HttpSession이 필요합니다. Origin 허용 목록을 검증합니다\
+        . 코드 일회 소비 후 실패하면 새 로그인이 필요합니다. 기존/복구 회원은 Access JWT(1800초)와 HttpOnly Refresh\
+        \ 쿠키(7일), 신규는 온보딩 전용 Bearer(600초)만 받습니다. 성공 시 세션 ID가 회전합니다."
+      operationId: exchange
+      parameters:
+      - name: Origin
+        in: header
+        description: 브라우저가 자동 전송합니다. AUTH_ALLOWED_ORIGINS의 명시적 Origin. Swagger UI와
+          같은 서버 Origin도 허용 목록에 추가하세요. Refresh/Logout은 필수; 다른 API는 비브라우저 Origin 누락을
+          기존 Fetch Metadata 정책으로 판정합니다.
+        required: false
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              required:
+              - exchangeCode
+              type: object
+              properties:
+                exchangeCode:
+                  maxLength: 43
+                  minLength: 43
+                  pattern: "[A-Za-z0-9_-]{43}"
+                  type: string
+              additionalProperties: false
+        required: true
+      responses:
+        "200":
+          description: "성공 (Cache-Control: no-store)"
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+            Set-Cookie:
+              description: "ONTOP_REFRESH; HttpOnly; Path=/api/v1/auth 기본값; Secure/SameSite\
+                \ 환경설정. Logout은 Max-Age=0 삭제, Exchange의 신규 회원 분기는 발급하지 않음. Exchange는\
+                \ OAuth 세션 쿠키 ID도 회전합니다."
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthExchangeResponse"
+        "400":
+          description: AUTH_INVALID_EXCHANGE_REQUEST
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "401":
+          description: AUTH_INVALID_EXCHANGE_CODE / AUTH_MEMBER_STATE_CHANGED
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "403":
+          description: AUTH_ORIGIN_NOT_ALLOWED / AUTH_ACCESS_DENIED / AUTH_REQUEST_REJECTED
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "500":
+          description: AUTH_TOKEN_CONFIGURATION_ERROR
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "503":
+          description: AUTH_EXCHANGE_STORAGE_UNAVAILABLE / AUTH_ONBOARDING_CAPACITY_EXCEEDED
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+      security:
+      - OAuthSession: []
+  /api/v1/users/me:
+    get:
+      tags:
+      - User
+      summary: 내 정보 조회
+      description: 검증된 Principal의 내부 userId로 조회합니다. 요청으로 userId를 받지 않으며 소셜 식별자/인증
+        정보는 반환하지 않습니다. 활성 회원과 유효한 sid가 필요합니다.
+      operationId: me
+      responses:
+        "200":
+          description: "성공 (Cache-Control: no-store)"
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfileResponse"
+        "401":
+          description: AUTH_AUTHENTICATION_REQUIRED / AUTH_INVALID_ACCESS_TOKEN /
+            AUTH_MEMBER_STATE_CHANGED
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "403":
+          description: AUTH_ORIGIN_NOT_ALLOWED / AUTH_ACCESS_DENIED / AUTH_REQUEST_REJECTED
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "500":
+          description: AUTH_TOKEN_CONFIGURATION_ERROR
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "503":
+          description: AUTH_MEMBER_LOOKUP_UNAVAILABLE
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+      security:
+      - AccessJwt: []
+    delete:
+      tags:
+      - User
+      summary: 회원 탈퇴
+      description: "회원 행을 잠그고 deleted_at 기록 및 모든 Refresh 계열 폐기를 한 DB 트랜잭션에서 수행합니다\
+        . 커밋 후 모든 WebSocket을 4403으로 종료합니다. 회원/관련 기록의 영구 삭제, 즉시 기권/정산은 수행하지 않습니다. 기\
+        존 OAuth는 7일 이내 복구하며 7일 초과 재가입은 보류합니다. 이미 탈퇴한 회원의 JWT는 401입니다."
+      operationId: withdraw
+      responses:
+        "204":
+          description: 성공. 응답 본문 없음
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+        "401":
+          description: AUTH_AUTHENTICATION_REQUIRED / AUTH_INVALID_ACCESS_TOKEN /
+            AUTH_MEMBER_STATE_CHANGED
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "403":
+          description: AUTH_ORIGIN_NOT_ALLOWED / AUTH_ACCESS_DENIED / AUTH_REQUEST_REJECTED
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "500":
+          description: AUTH_TOKEN_CONFIGURATION_ERROR
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "503":
+          description: USER_WITHDRAWAL_UNAVAILABLE / AUTH_MEMBER_LOOKUP_UNAVAILABLE
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+      security:
+      - AccessJwt: []
+    patch:
+      tags:
+      - User
+      summary: 내 닉네임 수정
+      description: "nickname만 수정합니다. 완성형 한글/영문/숫자 2~8자. 대소문자 무시 UNIQUE(탈퇴 회원 포함),\
+        \ 본인 닉네임은 허용합니다. 동일 이름 요청은 성공하며 대소문자만 변경하면 요청 표기를 저장합니다. 사전 조회와 별도로 트랜잭션에서\
+        \ 최종 중복 검증합니다."
+      operationId: update
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserNicknameUpdateRequest"
+        required: true
+      responses:
+        "200":
+          description: "성공 (Cache-Control: no-store)"
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfileResponse"
+        "400":
+          description: USER_INVALID_NICKNAME_UPDATE_REQUEST / USER_INVALID_NICKNAME
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "401":
+          description: AUTH_AUTHENTICATION_REQUIRED / AUTH_INVALID_ACCESS_TOKEN /
+            AUTH_MEMBER_STATE_CHANGED
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "403":
+          description: AUTH_ORIGIN_NOT_ALLOWED / AUTH_ACCESS_DENIED / AUTH_REQUEST_REJECTED
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "409":
+          description: USER_NICKNAME_ALREADY_EXISTS
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "500":
+          description: AUTH_TOKEN_CONFIGURATION_ERROR
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "503":
+          description: USER_PROFILE_UPDATE_UNAVAILABLE / AUTH_MEMBER_LOOKUP_UNAVAILABLE
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+      security:
+      - AccessJwt: []
+  /api/v1/users/me/equipment:
+    patch:
+      tags:
+      - Shop
+      summary: 내 의상 장착
+      description: "보유한 의상을 같은 슬롯의 기존 장착과 교체합니다. 커밋 후 의상 변경 이벤트를 발행합니다. local 프로필\
+        \ 전용. 실제 서비스는 local,db 및 ontop.shop.enabled=true, 별도 상점 스키마와 회원 지갑이 필요합니다\
+        . 공통 V1~V4만으로 상점 스키마가 생성되지 않으며 운영 프로필 전환은 미완료입니다."
+      operationId: equip
+      requestBody:
+        content:
+          application/json:
+            schema:
+              required:
+              - userItemId
+              type: object
+              properties:
+                userItemId:
+                  minimum: 1
+                  type: integer
+                  format: int64
+              additionalProperties: false
+        required: true
+      responses:
+        "200":
+          description: 성공
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EquipmentResponse"
+        "400":
+          description: INVALID_REQUEST 또는 QUANTITY_TOO_LARGE
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: 기존 REST 인증/인가/설정 오류
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "403":
+          description: 기존 REST 인증/인가/설정 오류
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "404":
+          description: ITEM_NOT_FOUND 또는 OWNED_ITEM_NOT_FOUND
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: WALLET_NOT_READY / ITEM_ALREADY_OWNED / IDEMPOTENCY_CONFLICT
+            / INSUFFICIENT_BALANCE / ITEM_NOT_EQUIPPABLE
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: 기존 REST 인증/인가/설정 오류
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "503":
+          description: SHOP_NOT_CONFIGURED / SHOP_UNAVAILABLE 또는 인증 DB 장애
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                anyOf:
+                - $ref: "#/components/schemas/AuthErrorResponse"
+                - $ref: "#/components/schemas/ErrorResponse"
+      security:
+      - AccessJwt: []
+  /api/v1/wallets/me:
+    get:
+      tags:
+      - WALLET
+      summary: 본인 지갑 잔액 조회
+      description: 활성 회원과 유효한 sid의 Access JWT가 필요합니다. 전체 잔액에 예약 잔액이 포함되며 사용 가능 잔액은
+        balance - reservedBalance입니다. 회원 ID를 입력받지 않으며 지갑 생성·보너스 지급·원장 기록을 하지 않습니다.
+      operationId: me_1
+      responses:
+        "200":
+          description: "성공 (Cache-Control: no-store)"
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalletBalanceResponse"
+        "401":
+          description: AUTH_AUTHENTICATION_REQUIRED / AUTH_INVALID_ACCESS_TOKEN /
+            AUTH_MEMBER_STATE_CHANGED
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "403":
+          description: AUTH_ORIGIN_NOT_ALLOWED / AUTH_ACCESS_DENIED / AUTH_REQUEST_REJECTED
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "409":
+          description: "WALLET_NOT_READY: 회원 지갑이 아직 생성되지 않음"
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "500":
+          description: AUTH_TOKEN_CONFIGURATION_ERROR
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "503":
+          description: WALLET_UNAVAILABLE / AUTH_MEMBER_LOOKUP_UNAVAILABLE
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+      security:
+      - AccessJwt: []
+  /api/v1/wallets/me/transactions:
+    get:
+      tags:
+      - WALLET
+      summary: 본인 코인 거래 내역 조회
+      description: "활성 회원과 유효한 sid의 Access JWT가 필요합니다. 거래 ID 내림차순이며 cursor가 있으면 ID\
+        \ < cursor인 본인 지갑 원장만 반환합니다. size보다 한 건 더 조회해 hasNext를 판단합니다. nextCursor는\
+        \ 다음 페이지가 있을 때만 마지막 반환 거래 ID이며, 없으면 null입니다. 조회는 예약·지급·차감을 수행하지 않습니다."
+      operationId: transactions
+      parameters:
+      - name: cursor
+        in: query
+        description: 이 ID 미만의 거래 조회. 생략 시 최신부터
+        required: false
+        schema:
+          minimum: 1
+          type: integer
+          format: int64
+      - name: size
+        in: query
+        description: "페이지 크기 (기본 20, 최대 100)"
+        required: false
+        schema:
+          maximum: 100
+          minimum: 1
+          type: integer
+          default: 20
+      responses:
+        "200":
+          description: "성공 (Cache-Control: no-store)"
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalletTransactionPageResponse"
+        "400":
+          description: "WALLET_INVALID_PAGE_REQUEST: cursor는 양수, size는 1~100"
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "401":
+          description: AUTH_AUTHENTICATION_REQUIRED / AUTH_INVALID_ACCESS_TOKEN /
+            AUTH_MEMBER_STATE_CHANGED
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "403":
+          description: AUTH_ORIGIN_NOT_ALLOWED / AUTH_ACCESS_DENIED / AUTH_REQUEST_REJECTED
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "409":
+          description: "WALLET_NOT_READY: 회원 지갑이 아직 생성되지 않음"
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "500":
+          description: AUTH_TOKEN_CONFIGURATION_ERROR
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "503":
+          description: WALLET_UNAVAILABLE / AUTH_MEMBER_LOOKUP_UNAVAILABLE
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+      security:
+      - AccessJwt: []
+  /api/v1/users/nickname-availability:
+    get:
+      tags:
+      - User
+      summary: 닉네임 사용 가능 여부
+      description: "Access JWT 또는 온보딩 전용 Bearer 중 하나를 사용합니다. 온보딩 토큰은 소비/연장하지 않습니다\
+        . 완성형 한글/영문/숫자 2~8자, 대소문자 무시, 탈퇴 회원 포함. 기존 회원의 현재 닉네임은 true입니다. 조회는 예약이 아니\
+        며 실제 가입/변경 시 최종 검증이 필요합니다."
+      operationId: check
+      parameters:
+      - name: nickname
+        in: query
+        required: true
+        schema:
+          maxLength: 8
+          minLength: 2
+          pattern: "[가-힣A-Za-z0-9]{2,8}"
+          type: string
+          example: 온탑고수
+      responses:
+        "200":
+          description: "성공 (Cache-Control: no-store)"
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NicknameAvailabilityResponse"
+        "400":
+          description: USER_INVALID_NICKNAME
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "401":
+          description: AUTH_AUTHENTICATION_REQUIRED / AUTH_INVALID_ACCESS_TOKEN /
+            AUTH_MEMBER_STATE_CHANGED / AUTH_INVALID_ONBOARDING_TOKEN
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "403":
+          description: AUTH_ORIGIN_NOT_ALLOWED / AUTH_ACCESS_DENIED / AUTH_REQUEST_REJECTED
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "500":
+          description: AUTH_TOKEN_CONFIGURATION_ERROR
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "503":
+          description: USER_ONBOARDING_UNAVAILABLE / AUTH_MEMBER_LOOKUP_UNAVAILABLE
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+      security:
+      - AccessJwt: []
+      - OnboardingBearer: []
+  /api/v1/users/me/items:
+    get:
+      tags:
+      - Shop
+      summary: 내 보유 아이템
+      description: "인증된 본인 계정의 수량이 양수인 보유 아이템을 조회합니다. local 프로필 전용. 실제 서비스는 local,db\
+        \ 및 ontop.shop.enabled=true, 별도 상점 스키마와 회원 지갑이 필요합니다. 공통 V1~V4만으로 상점 스키마가\
+        \ 생성되지 않으며 운영 프로필 전환은 미완료입니다."
+      operationId: inventory
+      responses:
+        "200":
+          description: 성공
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InventoryResponse"
+        "401":
+          description: 기존 REST 인증/인가/설정 오류
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "403":
+          description: 기존 REST 인증/인가/설정 오류
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "500":
+          description: 기존 REST 인증/인가/설정 오류
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "503":
+          description: SHOP_NOT_CONFIGURED / SHOP_UNAVAILABLE 또는 인증 DB 장애
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                anyOf:
+                - $ref: "#/components/schemas/AuthErrorResponse"
+                - $ref: "#/components/schemas/ErrorResponse"
+      security:
+      - AccessJwt: []
+  /api/v1/tables:
+    get:
+      tags:
+      - Table
+      summary: 채널 테이블 목록 조회 (local)
+      description: local 프로필에서만 등록됩니다. 실제 TableHub의 현재 상태를 조회하며 입장/예약하지 않습니다. channelId
+        누락/불일치 시 기존 400/404 정책을 따릅니다. 회원 인증 기본값 true를 기준으로 문서화합니다. 비인증 개발 데모는 정식 사용
+        대상이 아닙니다.
+      operationId: listTables
+      parameters:
+      - name: channelId
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          description: "성공 (Cache-Control: no-store)"
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TableListResponse"
+        "400":
+          description: CHANNEL_REQUIRED
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                anyOf:
+                - $ref: "#/components/schemas/AuthErrorResponse"
+                - type: object
+                  properties:
+                    code:
+                      type: string
+                    message:
+                      type: string
+                    details:
+                      nullable: true
+        "401":
+          description: UNAUTHENTICATED 또는 REST 인증 오류
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                anyOf:
+                - $ref: "#/components/schemas/AuthErrorResponse"
+                - type: object
+                  properties:
+                    code:
+                      type: string
+                    message:
+                      type: string
+                    details:
+                      nullable: true
+        "403":
+          description: FORBIDDEN 또는 REST 인가 오류
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                anyOf:
+                - $ref: "#/components/schemas/AuthErrorResponse"
+                - type: object
+                  properties:
+                    code:
+                      type: string
+                    message:
+                      type: string
+                    details:
+                      nullable: true
+        "404":
+          description: 존재하지 않는 채널
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                anyOf:
+                - $ref: "#/components/schemas/AuthErrorResponse"
+                - type: object
+                  properties:
+                    code:
+                      type: string
+                    message:
+                      type: string
+                    details:
+                      nullable: true
+        "503":
+          description: SERVICE_UNAVAILABLE 또는 REST 회원 조회 장애
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                anyOf:
+                - $ref: "#/components/schemas/AuthErrorResponse"
+                - type: object
+                  properties:
+                    code:
+                      type: string
+                    message:
+                      type: string
+                    details:
+                      nullable: true
+      security:
+      - AccessJwt: []
+  /api/v1/shop/items:
+    get:
+      tags:
+      - Shop
+      summary: 판매 아이템 목록
+      description: "판매 중인 실제 Item 목록을 조회합니다. local 프로필 전용. 실제 서비스는 local,db 및 ontop.shop.enabled=true,\
+        \ 별도 상점 스키마와 회원 지갑이 필요합니다. 공통 V1~V4만으로 상점 스키마가 생성되지 않으며 운영 프로필 전환은 미완료입니다."
+      operationId: catalog
+      responses:
+        "200":
+          description: 성공
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ItemListResponse"
+        "401":
+          description: 기존 REST 인증/인가/설정 오류
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "403":
+          description: 기존 REST 인증/인가/설정 오류
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "500":
+          description: 기존 REST 인증/인가/설정 오류
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "503":
+          description: SHOP_NOT_CONFIGURED / SHOP_UNAVAILABLE 또는 인증 DB 장애
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                anyOf:
+                - $ref: "#/components/schemas/AuthErrorResponse"
+                - $ref: "#/components/schemas/ErrorResponse"
+      security:
+      - AccessJwt: []
+  /api/v1/minigames/sessions/{sessionId}:
+    get:
+      tags:
+      - MINIGAME
+      summary: 본인 미니게임 상태 조회
+      description: "local 전용. 서비스는 local,db + ontop.minigames.enabled=true 및 V110\
+        \ 선택 적용이 필요합니다. 실제 굽기 판정 소스가 없으면 완료/지급하지 않습니다. 점수·보상·userId를 본문에 넣지 않습니다."
+      operationId: load
+      parameters:
+      - name: sessionId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: 본인 세션
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MinigameStatusResponse"
+        "404":
+          description: MINIGAME_NOT_FOUND
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+        "400":
+          description: INVALID_REQUEST / UNSUPPORTED_MINIGAME
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: 인증된 활성 회원 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "503":
+          description: MINIGAME_NOT_CONFIGURED / MINIGAME_UNAVAILABLE 또는 인증 DB 장애
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      security:
+      - AccessJwt: []
+  /api/v1/channels:
+    get:
+      tags:
+      - Channel
+      summary: 채널 목록 조회 (local)
+      description: local 프로필에서만 등록되는 실제 채널/현재 인원 조회입니다. 입장/예약하지 않습니다. 인증은 기존 ChannelAccessFilter와
+        REST 보안 정책을 따릅니다. 운영 프로필 전환은 미완료입니다.
+      operationId: listChannels
+      responses:
+        "200":
+          description: "성공 (Cache-Control: no-store)"
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChannelListResponse"
+        "401":
+          description: UNAUTHENTICATED 또는 REST 인증 오류
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                anyOf:
+                - $ref: "#/components/schemas/AuthErrorResponse"
+                - type: object
+                  properties:
+                    code:
+                      type: string
+                    message:
+                      type: string
+                    details:
+                      nullable: true
+        "403":
+          description: FORBIDDEN 또는 REST 인가 오류
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                anyOf:
+                - $ref: "#/components/schemas/AuthErrorResponse"
+                - type: object
+                  properties:
+                    code:
+                      type: string
+                    message:
+                      type: string
+                    details:
+                      nullable: true
+        "503":
+          description: SERVICE_UNAVAILABLE 또는 REST 회원 조회 장애
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                anyOf:
+                - $ref: "#/components/schemas/AuthErrorResponse"
+                - type: object
+                  properties:
+                    code:
+                      type: string
+                    message:
+                      type: string
+                    details:
+                      nullable: true
+      security:
+      - AccessJwt: []
+  /api/v1/auth/{provider}/callback:
+    get:
+      tags:
+      - Auth
+      summary: 소셜 로그인 콜백
+      description: "공급자 전용 수신점. 동일 OAuth 세션·provider·state를 일회 검증한 뒤 토큰/프로필을 조회합니다\
+        . 신규 users 행을 만들지 않습니다. 탈퇴 7일 이내 복구, 초과 시 AUTH_REJOIN_PENDING(409)입니다. AUTH_FRONTEND_CALLBACK_URI\
+        \ 설정 시 fragment의 exchange_code로 302; 미설정 200 JSON은 로컬 수동 검증용 계약입니다. OAuth\
+        \ 토큰/JWT를 반환하지 않습니다."
+      operationId: callback
+      parameters:
+      - name: provider
+        in: path
+        required: true
+        schema:
+          type: string
+          enum:
+          - ssafy
+          - naver
+      - name: state
+        in: query
+        description: 동일 OAuth 세션/provider의 서버 발급 state
+        required: true
+        schema:
+          type: string
+      - name: code
+        in: query
+        description: 성공 시 공급자 인가 코드
+        required: false
+        schema:
+          maxLength: 4096
+          type: string
+      - name: error
+        in: query
+        description: 공급자 거절 시 code 대신 전달
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          description: "성공 (Cache-Control: no-store)"
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthCallbackResponse"
+        "302":
+          description: 설정에 따른 리다이렉트
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+            Location:
+              description: "인가 시작은 공급자 URL, callback은 설정된 프론트 URI의 exchange_code fragment"
+              schema:
+                type: string
+                format: uri
+        "400":
+          description: AUTH_UNSUPPORTED_PROVIDER / AUTH_INVALID_STATE / AUTH_INVALID_CALLBACK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "401":
+          description: AUTH_PROVIDER_DENIED
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "409":
+          description: "AUTH_REJOIN_PENDING (7일 경과, 재가입 미구현)"
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "500":
+          description: AUTH_CONFIGURATION_ERROR
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "502":
+          description: 외부 공급자 토큰 교환 또는 프로필 조회 실패
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "503":
+          description: AUTH_DATABASE_UNAVAILABLE / AUTH_EXCHANGE_CAPACITY_EXCEEDED
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+      security:
+      - OAuthSession: []
+  /api/v1/auth/{provider}/authorize:
+    get:
+      tags:
+      - Auth
+      summary: 소셜 로그인 시작
+      description: ssafy/naver만 지원합니다. 신뢰된 설정의 callback URI와 서버 발급 state로 302 이동합니다.
+        client_secret은 인가 URL에 포함하지 않습니다. 브라우저 탐색으로 시작하고 OAuth 세션 쿠키를 유지하세요.
+      operationId: authorize
+      parameters:
+      - name: provider
+        in: path
+        required: true
+        schema:
+          type: string
+          enum:
+          - ssafy
+          - naver
+      responses:
+        "302":
+          description: 설정에 따른 리다이렉트
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+            Location:
+              description: "인가 시작은 공급자 URL, callback은 설정된 프론트 URI의 exchange_code fragment"
+              schema:
+                type: string
+                format: uri
+        "400":
+          description: AUTH_UNSUPPORTED_PROVIDER
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "500":
+          description: AUTH_CONFIGURATION_ERROR
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+components:
+  schemas:
+    UserOnboardingRequest:
+      required:
+      - characterGender
+      - nickname
+      type: object
+      properties:
+        nickname:
+          maxLength: 8
+          minLength: 2
+          pattern: "[가-힣A-Za-z0-9]{2,8}"
+          type: string
+          example: 미지
+        characterGender:
+          type: string
+          example: FEMALE
+          enum:
+          - MALE
+          - FEMALE
+      additionalProperties: false
+    UserOnboardingResponse:
+      required:
+      - accessToken
+      - characterGender
+      - expiresIn
+      - nickname
+      - tokenType
+      - userId
+      type: object
+      properties:
+        userId:
+          type: integer
+          format: int64
+        nickname:
+          type: string
+        characterGender:
+          type: string
+          enum:
+          - MALE
+          - FEMALE
+        accessToken:
+          type: string
+        tokenType:
+          type: string
+        expiresIn:
+          type: integer
+          format: int64
+    AuthErrorResponse:
+      required:
+      - code
+      - message
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+    PurchaseResponse:
+      type: object
+      properties:
+        purchaseId:
+          type: string
+        itemId:
+          type: integer
+          format: int64
+        quantity:
+          type: integer
+          format: int32
+        unitPrice:
+          type: integer
+          format: int64
+        totalPrice:
+          type: integer
+          format: int64
+        balanceAfter:
+          type: integer
+          format: int64
+        userItemId:
+          type: integer
+          format: int64
+    ErrorResponse:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+    MinigameStartResponse:
+      type: object
+      properties:
+        minigameSessionId:
+          type: string
+        minigameType:
+          type: string
+        status:
+          type: string
+        startedAt:
+          type: string
+          format: date-time
+    MinigameCompleteResponse:
+      type: object
+      properties:
+        minigameSessionId:
+          type: string
+        status:
+          type: string
+        verifiedCompletedCount:
+          type: integer
+          format: int64
+        rewardAmount:
+          type: integer
+          format: int64
+    MinigameAbandonResponse:
+      type: object
+      properties:
+        minigameSessionId:
+          type: string
+        status:
+          type: string
+        rewardAmount:
+          type: integer
+          format: int64
+    Ticket:
+      type: object
+      properties:
+        ticket:
+          type: string
+        expiresIn:
+          type: integer
+          format: int64
+    AuthRefreshResponse:
+      required:
+      - accessToken
+      - expiresIn
+      - tokenType
+      type: object
+      properties:
+        accessToken:
+          type: string
+        tokenType:
+          type: string
+        expiresIn:
+          type: integer
+          format: int64
+    AuthExchangeResponse:
+      type: object
+      discriminator:
+        propertyName: status
+      oneOf:
+      - $ref: "#/components/schemas/Authenticated"
+      - $ref: "#/components/schemas/Onboarding"
+    Authenticated:
+      required:
+      - accessToken
+      - expiresIn
+      - status
+      - tokenType
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+          - AUTHENTICATED
+        accessToken:
+          type: string
+        tokenType:
+          type: string
+          enum:
+          - Bearer
+        expiresIn:
+          type: integer
+          format: int64
+          example: 1800
+    Onboarding:
+      required:
+      - expiresIn
+      - onboardingToken
+      - status
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+          - ONBOARDING_REQUIRED
+        onboardingToken:
+          type: string
+        expiresIn:
+          type: integer
+          format: int64
+          example: 600
+    UserNicknameUpdateRequest:
+      required:
+      - nickname
+      type: object
+      properties:
+        nickname:
+          maxLength: 8
+          minLength: 2
+          pattern: "[가-힣A-Za-z0-9]{2,8}"
+          type: string
+          example: 온탑고수
+      additionalProperties: false
+    UserProfileResponse:
+      required:
+      - characterGender
+      - nickname
+      - userId
+      type: object
+      properties:
+        userId:
+          type: integer
+          description: 내부 회원 ID
+          format: int64
+          example: 1
+        nickname:
+          type: string
+          example: 미지
+        characterGender:
+          type: string
+          example: FEMALE
+          enum:
+          - MALE
+          - FEMALE
+    EquipmentResponse:
+      type: object
+      properties:
+        equipment:
+          type: array
+          items:
+            $ref: "#/components/schemas/OwnedItemResponse"
+    ItemResponse:
+      type: object
+      properties:
+        itemId:
+          type: integer
+          format: int64
+        itemCode:
+          type: string
+        name:
+          type: string
+        itemType:
+          type: string
+          enum:
+          - EQUIPMENT
+          - CONSUMABLE
+        equipSlot:
+          type: string
+          enum:
+          - HAIR
+          - FACE
+          - TOP
+          - BOTTOM
+          - SHOES
+        price:
+          type: integer
+          format: int64
+        imageKey:
+          type: string
+    OwnedItemResponse:
+      type: object
+      properties:
+        userItemId:
+          type: integer
+          format: int64
+        item:
+          $ref: "#/components/schemas/ItemResponse"
+        quantity:
+          type: integer
+          format: int32
+        equipped:
+          type: boolean
+    WalletBalanceResponse:
+      required:
+      - availableBalance
+      - balance
+      - reservedBalance
+      type: object
+      properties:
+        balance:
+          minimum: 0
+          type: integer
+          description: 전체 보유 코인. 예약 잔액을 포함합니다.
+          format: int64
+          example: 100
+        reservedBalance:
+          minimum: 0
+          type: integer
+          description: 전체 잔액 중 예약된 코인
+          format: int64
+          example: 0
+        availableBalance:
+          minimum: 0
+          type: integer
+          description: "사용 가능 코인: balance - reservedBalance"
+          format: int64
+          example: 100
+    WalletTransactionPageResponse:
+      required:
+      - hasNext
+      - nextCursor
+      - transactions
+      type: object
+      properties:
+        transactions:
+          type: array
+          description: 거래 ID 내림차순. 내역이 없으면 빈 배열
+          items:
+            $ref: "#/components/schemas/WalletTransactionResponse"
+        nextCursor:
+          type: integer
+          description: 다음 요청의 cursor. 다음 페이지가 없으면 null
+          format: int64
+          nullable: true
+        hasNext:
+          type: boolean
+          description: 다음 페이지 존재 여부
+    WalletTransactionResponse:
+      required:
+      - balanceDelta
+      - createdAt
+      - gameSessionId
+      - itemId
+      - minigameSessionId
+      - reservedDelta
+      - transactionId
+      - transactionType
+      type: object
+      properties:
+        transactionId:
+          type: integer
+          description: 거래 ID
+          format: int64
+          example: 1
+        transactionType:
+          type: string
+          description: 원장에 기록된 거래 유형
+          example: SIGNUP_BONUS
+        balanceDelta:
+          type: integer
+          description: 전체 잔액 증감
+          format: int64
+          example: 100
+        reservedDelta:
+          type: integer
+          description: 예약 잔액 증감
+          format: int64
+          example: 0
+        itemId:
+          type: integer
+          description: 관련 상품 ID. 없으면 null
+          format: int64
+          nullable: true
+        gameSessionId:
+          type: integer
+          description: 관련 게임 세션 ID. 없으면 null
+          format: int64
+          nullable: true
+        minigameSessionId:
+          type: integer
+          description: 관련 미니게임 세션 ID. 없으면 null
+          format: int64
+          nullable: true
+        createdAt:
+          type: string
+          description: 원장 기록 시각 (UTC)
+          format: date-time
+          example: 2026-10-23T10:00:00Z
+      description: 거래 ID 내림차순. 내역이 없으면 빈 배열
+    NicknameAvailabilityResponse:
+      required:
+      - available
+      - nickname
+      type: object
+      properties:
+        nickname:
+          type: string
+        available:
+          type: boolean
+    InventoryResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/OwnedItemResponse"
+    TableListResponse:
+      type: object
+      properties:
+        tables:
+          type: array
+          items:
+            $ref: "#/components/schemas/TableSummaryResponse"
+    TableSummaryResponse:
+      type: object
+      properties:
+        tableId:
+          type: string
+        capacity:
+          type: integer
+          format: int32
+        minimumPlayers:
+          type: integer
+          format: int32
+        occupiedSeats:
+          type: integer
+          format: int32
+        availableSeats:
+          type: integer
+          format: int32
+        readyCount:
+          type: integer
+          format: int32
+        allReady:
+          type: boolean
+        status:
+          type: string
+        joinable:
+          type: boolean
+        gameCode:
+          type: string
+        targetScore:
+          type: integer
+          format: int32
+    ItemListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ItemResponse"
+    MinigameStatusResponse:
+      type: object
+      properties:
+        minigameSessionId:
+          type: string
+        status:
+          type: string
+        score:
+          type: integer
+          format: int64
+        rewardAmount:
+          type: integer
+          format: int64
+        startedAt:
+          type: string
+          format: date-time
+        endedAt:
+          type: string
+          format: date-time
+    ChannelListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChannelResponse"
+    ChannelResponse:
+      type: object
+      properties:
+        channelId:
+          type: string
+        name:
+          type: string
+        currentUsers:
+          type: integer
+          format: int32
+        capacity:
+          type: integer
+          format: int32
+        joinable:
+          type: boolean
+    AuthCallbackResponse:
+      required:
+      - exchangeCode
+      - expiresIn
+      type: object
+      properties:
+        exchangeCode:
+          type: string
+        expiresIn:
+          type: integer
+          format: int64
+  securitySchemes:
+    AccessJwt:
+      type: http
+      description: 30분 Access JWT. 서명/Issuer/Audience/typ/token_use/만료 및 sid·활성 회원
+        검증. 로그아웃한 로그인 계열·탈퇴 회원은 거절합니다.
+      scheme: bearer
+      bearerFormat: JWT
+    OnboardingBearer:
+      type: http
+      description: 89번 교환 API의 ob_ 온보딩 전용 Bearer. 독립 인증·600초. 온보딩/닉네임 조회만 가능하며 조회는
+        소비하지 않습니다. Access JWT가 아닙니다.
+      scheme: bearer
+      bearerFormat: opaque
+    RefreshCookie:
+      type: apiKey
+      description: HttpOnly Refresh 쿠키. Origin 필수. 브라우저는 Cookie 헤더를 임의로 설정할 수 없으므로
+        Authorize 입력으로 쿠키를 만들 수 없습니다. 실제 로그인으로 발급받습니다.
+      name: ONTOP_REFRESH
+      in: cookie
+    OAuthSession:
+      type: apiKey
+      description: 인가 시작에서 생성된 동일 OAuth HttpSession. callback의 state와 exchangeCode에
+        결합됩니다. 교환 성공 시 세션 ID가 회전합니다.
+      name: JSESSIONID
+      in: cookie

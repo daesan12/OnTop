@@ -1,8 +1,20 @@
 package com.ssafy.ontop.minigame.controller;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.ssafy.ontop.auth.dto.AuthErrorResponse;
+import com.ssafy.ontop.minigame.dto.MinigameAbandonResponse;
+import com.ssafy.ontop.minigame.dto.MinigameCompleteResponse;
+import com.ssafy.ontop.minigame.dto.MinigameStartResponse;
+import com.ssafy.ontop.minigame.dto.MinigameStatusResponse;
 import com.ssafy.ontop.minigame.service.MinigameException;
 import com.ssafy.ontop.minigame.service.MinigameService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import java.security.Principal;
 import java.util.Collections;
@@ -23,6 +35,16 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @Profile("local")
 @RequestMapping("/api/v1/minigames/sessions")
+@Tag(name = "MINIGAME")
+@SecurityRequirement(name = "AccessJwt")
+@ApiResponses({
+    @ApiResponse(responseCode = "400", description = "INVALID_REQUEST / UNSUPPORTED_MINIGAME",
+            content = @Content(mediaType = "application/json", schema = @Schema(implementation = MinigameController.ErrorResponse.class))),
+    @ApiResponse(responseCode = "401", description = "인증된 활성 회원 필요",
+            content = @Content(mediaType = "application/json", schema = @Schema(implementation = AuthErrorResponse.class))),
+    @ApiResponse(responseCode = "503", description = "MINIGAME_NOT_CONFIGURED / MINIGAME_UNAVAILABLE 또는 인증 DB 장애",
+            content = @Content(mediaType = "application/json", schema = @Schema(implementation = MinigameController.ErrorResponse.class)))
+})
 public class MinigameController {
     private final ObjectProvider<MinigameService> services;
 
@@ -31,6 +53,9 @@ public class MinigameController {
     }
 
     @PostMapping
+    @Operation(summary = "붕어빵 세션 시작", description = "같은 회원·Idempotency-Key는 최초 세션 생성 응답을 반환합니다.")
+    @ApiResponse(responseCode = "201", description = "생성 또는 같은 키의 최초 생성 응답",
+            content = @Content(mediaType = "application/json", schema = @Schema(implementation = MinigameStartResponse.class)))
     public ResponseEntity<?> start(Principal principal, @RequestBody JsonNode body, HttpServletRequest request) {
         long userId = account(principal);
         if (!body.isObject() || body.size() != 1 || !body.path("minigameType").isTextual()) {
@@ -48,11 +73,20 @@ public class MinigameController {
     }
 
     @GetMapping("/{sessionId}")
+    @Operation(summary = "본인 미니게임 상태 조회")
+    @ApiResponse(responseCode = "200", description = "본인 세션",
+            content = @Content(mediaType = "application/json", schema = @Schema(implementation = MinigameStatusResponse.class)))
+    @ApiResponse(responseCode = "404", description = "MINIGAME_NOT_FOUND")
     public ResponseEntity<?> load(Principal principal, @PathVariable String sessionId) {
         return ok(service().load(account(principal), sessionId(sessionId)));
     }
 
     @PostMapping("/{sessionId}/complete")
+    @Operation(summary = "미니게임 완료·보상 확정", description = "서버 검증 결과만 사용하며 중복 지급하지 않습니다.")
+    @ApiResponse(responseCode = "200", description = "완료 또는 기존 완료 결과",
+            content = @Content(mediaType = "application/json", schema = @Schema(implementation = MinigameCompleteResponse.class)))
+    @ApiResponse(responseCode = "404", description = "MINIGAME_NOT_FOUND")
+    @ApiResponse(responseCode = "409", description = "MINIGAME_NOT_VERIFIED / MINIGAME_POLICY_REQUIRED / 종료 상태 충돌")
     public ResponseEntity<?> complete(Principal principal, @PathVariable String sessionId, @RequestBody JsonNode body) {
         long userId = account(principal);
         empty(body);
@@ -60,6 +94,11 @@ public class MinigameController {
     }
 
     @PostMapping("/{sessionId}/abandon")
+    @Operation(summary = "미니게임 포기", description = "지급 없이 포기하며 같은 포기 요청은 기존 결과를 반환합니다.")
+    @ApiResponse(responseCode = "200", description = "포기 또는 기존 포기 결과",
+            content = @Content(mediaType = "application/json", schema = @Schema(implementation = MinigameAbandonResponse.class)))
+    @ApiResponse(responseCode = "404", description = "MINIGAME_NOT_FOUND")
+    @ApiResponse(responseCode = "409", description = "MINIGAME_ALREADY_COMPLETED / 종료 상태 충돌")
     public ResponseEntity<?> abandon(Principal principal, @PathVariable String sessionId, @RequestBody JsonNode body) {
         long userId = account(principal);
         empty(body);

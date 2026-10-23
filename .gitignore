@@ -27,3 +27,5 @@ build/
 .vscode/
 bin/
 out/
+__pycache__/
+*.pyc

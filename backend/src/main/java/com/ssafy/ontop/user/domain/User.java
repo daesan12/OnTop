@@ -1,5 +1,6 @@
 package com.ssafy.ontop.user.domain;
 
+import com.ssafy.ontop.user.validation.NicknameValidator;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -88,6 +89,17 @@ public class User {
 
     public Long getId() {
         return id;
+    }
+
+    public void changeNickname(String nickname) {
+        NicknameValidator.validate(nickname);
+        this.nickname = nickname;
+    }
+
+    public void deactivate(Instant now) {
+        if (deletedAt == null) {
+            deletedAt = Objects.requireNonNull(now).truncatedTo(ChronoUnit.MILLIS);
+        }
     }
 
     public LoginProvider getLoginProvider() {

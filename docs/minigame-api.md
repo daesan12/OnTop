@@ -6,6 +6,7 @@
 
 - `local,db`, `ontop.minigames.enabled=true`일 때 JPA 서비스가 활성화된다. 기본 비활성이고 미설정 서비스는 503 MINIGAME_NOT_CONFIGURED다. 운영 활성화·공통 DB 스키마 배포는 이번 작업에 포함하지 않는다.
 - 공통 users/wallets/wallet_transactions를 재사용한다. 명시적으로 Flyway locations에 `classpath:db/minigame`을 추가하면 V110이 minigame_sessions와 시작 중복 요청 영수증 minigame_start_requests를 생성한다. 기존 마이그레이션·공통 지갑 DDL은 수정하지 않는다.
+- 최신 dev 통합 후 공통 지갑은 기본 `db/migration`의 V4를 사용한다. 신규 검증 DB에는 이전 V99/V101 상점 지갑 fixture를 함께 적용하지 않는다. 기존 DB에 적용된 이력·체크섬은 변경하지 않으며 운영 DB를 자동 변경하지 않는다.
 - minigame_sessions는 ERD의 id/user_id/minigame_type/status/score/reward_amount/started_at/ended_at에 맞춘다. 영수증은 API 멱등성을 위한 보조 테이블이다.
 - 실제 굽기 입력·서버 성공 판정은 명세에서 미정이다. `VerifiedMinigameResultSource.findCompletedCount(userId, sessionId)`에 서버가 검증·보관한 해당 세션의 최종 성공 개수를 연결해야 보상을 지급한다. 등록된 구현이 없거나 검증 결과가 없으면 409 MINIGAME_NOT_VERIFIED이며 돈/상태를 변경하지 않는다. 프론트 점수·단순 경과 시간·테스트 결과를 검증 근거로 쓰지 않는다.
 

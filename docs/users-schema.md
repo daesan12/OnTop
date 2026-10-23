@@ -6,7 +6,8 @@
 User Entity·LoginProvider·CharacterGender enum·UserRepository를 `com.ssafy.ontop.user`에 둔다.
 S15P31B105-80의 범위는 스키마·Entity·Repository다. 이후 AUTH-02에서 콜백·기존 계정 복구를 추가했다.
 JWT·Refresh 발급은 이후 [인증 교환 API](auth-exchange.md)에서 구현했다.
-가입 확정은 [USER-05 온보딩 API](user-onboarding.md)에서 구현했다. 탈퇴 API·삭제 배치는 아직 없다.
+가입 확정은 [USER-05 온보딩 API](user-onboarding.md), 탈퇴는 [USER-03](user-withdrawal.md)에서 구현했다.
+영구 삭제 배치는 아직 없다.
 OAuth 인증 성공만으로 users에 저장하지 않고 닉네임/성별 온보딩 완료 시 생성한다.
 현재 로그인 상태 분기는 [AUTH-02](auth-callback.md)를 따른다.
 
@@ -32,7 +33,7 @@ OAuth 인증 성공만으로 users에 저장하지 않고 닉네임/성별 온�
 ## 닉네임 형식과 collation
 
 현재 확정된 입력 정책은 **2~8자, 한글 완성형(가-힣)·영문 대소문자(A-Z/a-z)·숫자(0-9)만 허용**이다.
-공백·특수문자·이모지는 허용하지 않는다. USER-05 요청 DTO에서 형식을 검증한다. USER-04 API는 미구현이다.
+공백·특수문자·이모지는 허용하지 않는다. USER-04 조회와 USER-05 요청 DTO는 NicknameValidator를 공유한다.
 최소 2자는 API 입력 정책이고 기존 Entity 길이 8과 V1 SQL은 변경하지 않는다.
 VARCHAR(8)·NOT NULL·UNIQUE만으로 빈 문자열과 잘못된 문자 형식을 모두 막을 수 있는 것은 아니다.
 
@@ -76,7 +77,7 @@ strict mode를 유지해야 하며, 비엄격 모드의 자동 잘림을 입력 
 전역 soft delete 필터·자동 삭제 SQL·상태별 UNIQUE를 사용하지 않는다.
 탈퇴 상태를 숨기지 않고 AUTH-02에서 deleted_at으로 정상·복구·재가입 보류를 판별한다.
 정확히 7일 이내는 같은 ID로 복구하고, 7일 초과는 기존 행을 보존하며 409로 보류한다.
-탈퇴 시각 기록 API와 영구 삭제는 아직 없다.
+탈퇴 시각 기록과 전 로그인 계열 폐기는 USER-03이 담당한다. 영구 삭제는 구현하지 않는다.
 
 **미확정 충돌:** 기존 행을 남긴 채 7일 초과 동일 소셜 계정의 새 행을 추가하면 복합 UNIQUE가 거절한다.
 따라서 신규 온보딩을 확정하기 전에 기존 소셜 식별자와 데이터의 보존·해제 방법을 결정해야 한다.

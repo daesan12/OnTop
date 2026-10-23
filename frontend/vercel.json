@@ -1,0 +1,18 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "has": [{ "type": "host", "value": "www.on-top.world" }],
+      "destination": "https://api.on-top.world/api/:path*"
+    },
+    {
+      "source": "/api/:path*",
+      "has": [{ "type": "host", "value": "dev.on-top.world" }],
+      "destination": "https://dev-api.on-top.world/api/:path*"
+    },
+    { "source": "/auth/callback", "destination": "/index.html" },
+    { "source": "/onboarding", "destination": "/index.html" },
+    { "source": "/park", "destination": "/index.html" }
+  ]
+}

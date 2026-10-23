@@ -40,7 +40,7 @@ import static org.mockito.Mockito.when;
 @Tag("mysql")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "spring.profiles.active=local,db", "ontop.minigames.enabled=true", "ontop.shop.enabled=true",
-        "spring.flyway.locations=classpath:db/migration,classpath:db/shop-fixture,classpath:db/shop,classpath:db/minigame",
+        "spring.flyway.locations=classpath:db/migration,classpath:db/shop,classpath:db/minigame",
         "ontop.auth.jwt-secret-base64=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
 })
 class MinigameMySqlTests {

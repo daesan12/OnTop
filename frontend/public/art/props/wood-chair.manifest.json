@@ -1,0 +1,40 @@
+{
+  "source": {
+    "file": "model.glb",
+    "sha256": "4ff2da30b8cb6e531932404b06a11c3cd42756a65b60763e68735ebb1b7cd299",
+    "bytes": 2762892,
+    "triangles": 4351
+  },
+  "runtime": {
+    "file": "wood-chair.glb",
+    "sha256": "833d953305869c0f332911b60261f2264a0ee07183fb777987196e68ab116320",
+    "bytes": 709224,
+    "triangles": 1128,
+    "materials": 1,
+    "textures": [
+      {
+        "name": "Color_afdd2d90-d311-4155-8e7a-eefef0917553",
+        "sourceWidth": 2048,
+        "sourceHeight": 2048,
+        "targetMax": 2048,
+        "bytes": 414302
+      },
+      {
+        "name": "ORM_afdd2d90-d311-4155-8e7a-eefef0917553",
+        "sourceWidth": 2048,
+        "sourceHeight": 2048,
+        "targetMax": 1024,
+        "bytes": 151150
+      },
+      {
+        "name": "NormalGL_afdd2d90-d311-4155-8e7a-eefef0917553",
+        "sourceWidth": 2048,
+        "sourceHeight": 2048,
+        "targetMax": 1024,
+        "bytes": 97512
+      }
+    ]
+  },
+  "provenance": "Chair island extracted from the existing user-supplied Tripo table set. No new license assertion.",
+  "optimization": "One chair geometry/material instanced per table. Lossless Meshopt geometry, WebP color 2048 and normal/ORM up to 1024. No KTX2. One small static prop LOD; table/sector culling retained. Populated-scene measurements required."
+}

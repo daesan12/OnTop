@@ -1,5 +1,8 @@
 # 신규 회원 온보딩 — S15P31B105-91 USER-05
 
+닉네임 사전 안내는 [USER-04 조회 API](nickname-availability.md)를 사용한다.
+두 API는 NicknameValidator를 공유하며, 조회 결과와 관계없이 아래 최종 중복 검증/UNIQUE/409 재시도 정책을 유지한다.
+
 ## 사용자 흐름과 범위
 
 시작 화면에는 `네이버로 시작하기`, `SSAFY로 시작하기`만 있다. 별도 회원가입 버튼/화면을 전제하지 않는다.
@@ -9,8 +12,9 @@ AUTH-01 인가 → AUTH-02 콜백 → 89번 교환 API로 진행한다.
 - ONBOARDING_REQUIRED: 아직 users가 없는 계정이다. 닉네임과 캐릭터 성별을 정하고 USER-05를 호출한다.
 - 탈퇴 7일 이내 복구와 7일 초과 재가입 보류는 기존 AUTH-02 정책을 따른다.
 
-USER-05는 가입을 확정하고 JWT/Refresh를 발급한다. Wallet·USER-04 중복 확인 API·로그아웃·재발급·전역 REST/
-WebSocket 인증은 구현하지 않는다. 중복 회원 오류는 DB 무결성 보호이며 별도 회원가입 흐름을 추가한 것이 아니다.
+USER-05는 가입을 확정하고 JWT/Refresh를 발급한다. Wallet 후속 작업으로 회원·100코인 지갑·SIGNUP_BONUS
+원장·Refresh를 같은 트랜잭션에서 생성한다. [공통 지갑 정책](wallet-initialization.md)을 따른다.
+USER-04·로그아웃·재발급·전역 인증은 별도 구현을 사용한다. 중복 회원 오류는 DB 무결성 보호다.
 
 ## HTTP 계약
 
@@ -201,7 +205,8 @@ git diff --check
 
 기존 ontop_users80_test_ 접두어 테스트 DB를 재사용한다. 테스트에서 추가한 onboard91- 사용자와 Refresh fixture는
 해당 DB에만 보존한다. V1/V2·개발 DB·기존 Docker 컨테이너/볼륨은 초기화·삭제하지 않는다.
-USER-04, Wallet, 전역 서비스 인증, 분산 토큰 저장, 요청량 제한, 만료 행 보관/삭제는 후속 범위다.
+당시 후속 범위였던 USER-04·전역 인증은 별도 작업으로 구현됐다. Wallet 생성·최초 지급은
+[공통 지갑 초기화](wallet-initialization.md)에 연결했다. 분산 토큰 저장·요청량 제한·만료 행 정리는 별도 범위다.
 가입 후 받은 Refresh 쿠키의 재발급/회전은 별도 [AUTH-04](auth-refresh.md) 계약을 따른다.
 현재 로그인 계열 로그아웃은 [AUTH-03](auth-logout.md)을 따른다. 온보딩 정책은 변경하지 않는다.
 발급 Access에는 같은 Refresh 로그인 계열의 sid가 포함된다. [세션 무효화](session-invalidation.md)에 따라

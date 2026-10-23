@@ -7,6 +7,12 @@ plugins {
 group = 'com.ssafy.ontop'
 version = '0.0.1-SNAPSHOT'
 
+springBoot {
+    buildInfo {
+        properties { time = null }
+    }
+}
+
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(21)
@@ -25,6 +31,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.17'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.flywaydb:flyway-core'
     implementation 'com.nimbusds:nimbus-jose-jwt:10.10'
@@ -32,6 +39,10 @@ dependencies {
     runtimeOnly 'com.mysql:mysql-connector-j'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.security:spring-security-test'
+    testImplementation('io.swagger.parser.v3:swagger-parser-v3:2.1.36') {
+        // parser의 javax Swagger core와 중복하지 않고 springdoc의 Jakarta core를 재사용한다.
+        exclude group: 'io.swagger.core.v3'
+    }
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
@@ -51,12 +62,24 @@ tasks.register('mysqlTest', Test) {
     }
     // JVM 기본 시간대가 UTC가 아니어도 TIMESTAMP/Instant 왕복이 같은 시각인지 확인한다.
     systemProperty 'user.timezone', 'Asia/Seoul'
+    // 전체 MySQL 회귀에서 캐시된 컨텍스트마다 Hikari 풀이 남아 연결 한도를 소진하지 않게 한다.
+    // 개별 테스트의 풀 크기·동시성은 유지하고, 오래된 테스트 컨텍스트와 유휴 풀만 닫는다.
+    systemProperty 'spring.test.context.cache.maxSize', '8'
     outputs.upToDateWhen { false }
     outputs.cacheIf { false }
     testLogging {
         events 'passed', 'failed', 'skipped'
         exceptionFormat = 'short'
     }
+}
+
+tasks.register('initializeWallets', JavaExec) {
+    description = '기존 활성 회원의 누락된 지갑만 초기화 (명시적 관리 명령, DB 환경변수 필요)'
+    group = 'application'
+    dependsOn classes
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.ssafy.ontop.wallet.admin.WalletInitializationCommand'
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
 }
 
 tasks.register('omokDemo', JavaExec) {
@@ -112,6 +135,17 @@ tasks.register('gamesDemo', JavaExec) {
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
+}
+
+tasks.register('exportOpenApi', Test) {
+    description = '실제 local HTTP 문서 엔드포인트에서 docs/api/openapi.yaml 재생성 (DB 불필요)'
+    group = 'documentation'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnitPlatform()
+    filter { includeTestsMatching 'com.ssafy.ontop.api.OpenApiLocalTests' }
+    systemProperty 'ontop.openapi.export', 'true'
+    outputs.upToDateWhen { false }
 }
 
 tasks.register('shopDemo', JavaExec) {
