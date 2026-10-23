@@ -4,8 +4,9 @@ S15P31B105-178. 서버가 남기는 행동 로그(`behavior_events`, `world_posi
 
 ## 데이터 접근 원칙
 
-- **운영 DB에 직접 쿼리하지 않는다.** 위치·구역 쿼리는 행 전체를 읽어서 운영 중인 게임 DB를 느리게 만들 수 있다. 인프라 담당에게 백업 파일(`ontop-prod-*.sql.gz`, 매일 KST 03:00)을 받아 로컬 MySQL 컨테이너에 복원해서 분석한다.
-- **원본 데이터와 결과 파일은 커밋하지 않는다.** `analytics/out/`, `analytics/data/`, CSV는 `.gitignore`로 제외했다. 회원 번호가 들어 있으므로 팀 공유는 집계 결과만 한다.
+- **운영 DB에 직접 쿼리하지 않는다.** 위치·구역 쿼리는 행 전체를 읽어서 운영 중인 게임 DB를 느리게 만들 수 있다. 매일 KST 03:00에 만들어지는 백업(`ontop-prod-*.sql.gz`)을 받아 **네트워크가 분리된** 로컬 MySQL 컨테이너에 복원해서 분석한다. 백업을 받는 방법은 [infra/prod-db/README.md](../infra/prod-db/README.md)의 "분석용 최신 백업 한 건 받기"를 따른다.
+- **원본 데이터와 결과 파일은 커밋하지 않는다.** `analytics/out/`, `analytics/data/`, CSV는 `.gitignore`로 제외했다. 백업 파일, 다운로드 링크, SQL 원본은 Git·Jira·채팅에 올리지 않는다. 회원 번호가 들어 있으므로 팀 공유는 집계 결과만 한다.
+- **작업이 끝나면 지운다.** 로컬 백업 파일, 복원한 컨테이너·DB, `analytics/out/`의 결과 파일을 모두 삭제한다.
 - 시각은 DB에 UTC로 저장되고, 쿼리 결과의 날짜·시간은 모두 한국 시간이다. 각 쿼리가 `SET time_zone = '+00:00'`으로 시작하므로 DB 설정과 관계없이 같은 결과가 나온다.
 
 ## 준비
@@ -16,8 +17,10 @@ S15P31B105-178. 서버가 남기는 행동 로그(`behavior_events`, `world_posi
 
 ```powershell
 $env:ANALYTICS_MYSQL_PASSWORD = '<로컬 분석용 임의 비밀번호>'
-docker run -d --name ontop-analytics-mysql -e MYSQL_ROOT_PASSWORD=$env:ANALYTICS_MYSQL_PASSWORD mysql:8.4
+docker run -d --name ontop-analytics-mysql --network none -e MYSQL_ROOT_PASSWORD=$env:ANALYTICS_MYSQL_PASSWORD mysql:8.4
 ```
+
+`--network none`으로 컨테이너를 외부·다른 컨테이너와 분리한다. 쿼리는 `docker exec`로 실행하므로 네트워크가 없어도 된다.
 
 ## 쿼리 검증 (가짜 데이터)
 
@@ -31,17 +34,45 @@ python analytics/scripts/verify.py --container ontop-analytics-mysql
 
 ## 실제 데이터 분석
 
-```powershell
-# 백업 복원 (파일은 analytics/data/에 두면 Git에서 제외된다)
-docker exec ontop-analytics-mysql sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -e "CREATE DATABASE ontop_snapshot"'
-docker cp analytics/data/ontop-prod-YYYYMMDDTHHMMSSZ.sql.gz ontop-analytics-mysql:/tmp/backup.sql.gz
-docker exec ontop-analytics-mysql sh -c 'gunzip -c /tmp/backup.sql.gz | mysql -uroot -p"$MYSQL_ROOT_PASSWORD" ontop_snapshot'
+행동 로그 테이블은 운영 앱이 V5·V6 마이그레이션과 로그 활성화를 마친 뒤의 백업에만 들어 있다.
 
+**1. 백업 받기와 체크섬 확인**
+[infra/prod-db/README.md](../infra/prod-db/README.md) 절차대로 최신 `.sql.gz`와 같은 이름의 `.sha256`을 `analytics/data/`에 받는다(Git 제외 경로). 체크섬이 다르면 사용하지 않고 다시 받는다.
+
+```powershell
+$archive = 'ontop-prod-YYYYMMDDTHHMMSSZ.sql.gz'
+$expected = (Get-Content -LiteralPath "analytics/data/$archive.sha256" -Raw).Trim().Split(' ')[0]
+$actual = (Get-FileHash -Algorithm SHA256 -LiteralPath "analytics/data/$archive").Hash
+if ($actual -ine $expected) { throw 'Backup SHA-256 mismatch' }
+```
+
+**2. 네트워크 분리 컨테이너에 복원** (위 "준비"의 `--network none` 컨테이너)
+
+```powershell
+docker exec ontop-analytics-mysql sh -c 'MYSQL_PWD=$MYSQL_ROOT_PASSWORD mysqladmin -uroot create ontop_snapshot'
+docker cp "analytics/data/$archive" ontop-analytics-mysql:/tmp/backup.sql.gz
+docker exec ontop-analytics-mysql sh -c 'gunzip -c /tmp/backup.sql.gz | MYSQL_PWD=$MYSQL_ROOT_PASSWORD mysql -uroot ontop_snapshot && rm /tmp/backup.sql.gz'
+```
+
+Windows PowerShell 5.1은 작은따옴표 안의 큰따옴표를 외부 프로그램에 넘길 때 지운다. 그래서 위 명령은 안쪽에 큰따옴표가 없게 작성했다. 비밀번호는 컨테이너 안의 환경변수로만 전달된다.
+
+**3. 쿼리 실행**
+
+```powershell
 # 쿼리 하나를 표로 보기
 python analytics/scripts/run.py --container ontop-analytics-mysql --database ontop_snapshot 02_new_user_funnel.sql
 
 # 전체를 analytics/out/*.csv로 저장 (Excel에서 한글이 깨지지 않게 저장)
 python analytics/scripts/run.py --container ontop-analytics-mysql --database ontop_snapshot --all --csv
+```
+
+**4. 작업 후 삭제**
+팀에 공유할 집계값을 정리한 뒤 컨테이너(복원 DB 포함), 백업 파일, 결과 파일을 지운다.
+
+```powershell
+docker rm -f ontop-analytics-mysql
+Remove-Item -LiteralPath "analytics/data/$archive", "analytics/data/$archive.sha256"
+if (Test-Path analytics/out) { Remove-Item -Recurse -Force analytics/out }
 ```
 
 ## 지표
