@@ -6,7 +6,8 @@
 - `balance`는 전체 잔액, `reserved_balance`는 그중 예약된 금액이다. 사용 가능 잔액은 두 값의 차이다.
 - 최초 원장은 `SIGNUP_BONUS`, balance_delta=100, reserved_delta=0, `idempotency_key=signup:<내부 userId>`다.
 - OAuth 성공/인증 교환/로그인/계정 복구/조회에서는 지갑을 생성하거나 보너스를 지급하지 않는다.
-- 지갑 조회 REST API, 게임 예약·정산, 미니게임 보상은 이 작업에 포함하지 않았다.
+- 초기화 Story에는 지갑 조회 REST를 포함하지 않았다. 후속 구현한 [본인 잔액 조회](wallet-balance.md)는
+  초기화·지급을 호출하지 않는다. 게임 예약·정산·미니게임 보상은 별도 범위다.
 - 현재 브랜치 이름에 Jira 133이 있지만 실제 이슈 유형·상위 Epic은 Jira 접근 없이 확정하지 않는다.
 
 ## DB 스키마

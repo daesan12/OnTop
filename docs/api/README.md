@@ -68,6 +68,7 @@ application.yml은 기본 enabled=false, `(local | dev) & !prod & !production`�
 | User | DELETE /api/v1/users/me | Access JWT | 204 |
 | User | GET /api/v1/users/nickname-availability | Access JWT **또는** 온보딩 Bearer | 200 |
 | User | POST /api/v1/users/onboarding | 온보딩 Bearer | 201 |
+| WALLET | GET /api/v1/wallets/me | Access JWT·활성 sid | 200 |
 | Channel | GET /api/v1/channels | Access JWT | 200 |
 | Table | GET /api/v1/tables?channelId=… | Access JWT (회원 인증 기본 모드) | 200 |
 | Shop | GET /api/v1/shop/items | Access JWT | 200 |
@@ -75,7 +76,7 @@ application.yml은 기본 enabled=false, `(local | dev) & !prod & !production`�
 | Shop | GET /api/v1/users/me/items | Access JWT | 200 |
 | Shop | PATCH /api/v1/users/me/equipment | Access JWT | 200 |
 
-**local은 17개 operation, dev는 Auth/User 11개 operation**이다. 현재 Channel/Table/Shop Controller는 local 전용이다.
+**local은 18개 operation, dev는 Auth/User/WALLET 12개 operation**이다. 현재 Channel/Table/Shop Controller는 local 전용이다.
 ChannelQueryService는 설정 채널과 현재 presence를, TableHub는 실제 테이블 상태를 조회한다.
 ShopService/ShopRepository는 실제 지갑 잠금·구매 원장/멱등 영수증·보유/장착 트랜잭션을 구현한다.
 상점 서비스는 추가로 `local,db`, `ontop.shop.enabled=true`, 별도 상점 스키마와 지갑이 필요하다.
@@ -89,9 +90,10 @@ SHOP_NOT_CONFIGURED(503) 또는 WALLET_NOT_READY(409)다. 온보딩 최초100코
 - `/dev/tables`, `/dev/world-config`: 개발 화면/설정이므로 `@Hidden` 및 API 경로 필터로 제외. 라우팅은 유지한다.
 - `/ws/tables`: HTTP REST operation이 아니므로 별도 WebSocket 문서에 기록한다.
 - `/actuator/health`: 별도 관측 엔드포인트. 기존 공개 정책은 유지하며 도메인 명세에서는 제외한다.
-- Wallet 전용 생성/조회 REST API 및 기획서상의 추가 상점/게임 REST는 추가하지 않았다.
+- Wallet 잔액 조회는 [현재 계약](../wallet-balance.md)에 따라 구현했다. 거래 내역 조회·Wallet 생성 전용 REST 및
+  기획서상의 추가 상점/게임 REST는 추가하지 않았다.
   온보딩 내부의 지갑 생성·가입 보너스는 기존 온보딩 operation 설명에 반영한다.
-- 현재 Controller를 따라 조사한 17개에 Stub/TODO/고정 임시 응답 API는 없었다.
+- 현재 Controller를 따라 조사한 18개에 Stub/TODO/고정 임시 응답 API는 없었다.
   local 제한과 선택적 서비스 미등록 상태는 운영 미완료 조건으로 명시한다.
 - 경기 시작 차감·영속 정산 및 즉시 기권의 전체 연동은 REST 문서화로 완료되었다고 판단하지 않는다.
 

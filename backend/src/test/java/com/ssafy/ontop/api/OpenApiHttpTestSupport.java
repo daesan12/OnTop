@@ -86,7 +86,7 @@ abstract class OpenApiHttpTestSupport {
                 "POST /api/v1/auth/exchange", "POST /api/v1/auth/refresh", "POST /api/v1/auth/logout",
                 "POST /api/v1/auth/websocket-ticket", "GET /api/v1/users/me", "PATCH /api/v1/users/me",
                 "DELETE /api/v1/users/me", "GET /api/v1/users/nickname-availability",
-                "POST /api/v1/users/onboarding"));
+                "POST /api/v1/users/onboarding", "GET /api/v1/wallets/me"));
         if (environment.acceptsProfiles(Profiles.of("local"))) {
             expected.addAll(Set.of("GET /api/v1/channels", "GET /api/v1/tables", "GET /api/v1/shop/items",
                     "POST /api/v1/shop/purchases", "GET /api/v1/users/me/items", "PATCH /api/v1/users/me/equipment"));
@@ -99,6 +99,24 @@ abstract class OpenApiHttpTestSupport {
         assertThat(api.path("info").path("description").asText()).isEqualTo("OnTop REST API Documentation");
         assertThat(api.path("info").path("version").asText()).isEqualTo(build.getVersion());
         assertThat(api.path("servers").get(0).path("url").asText()).isEqualTo("/");
+    }
+
+    @Test
+    void 본인지갑은_Access전용이며_세잔액과_409및503을_문서화한다() throws Exception {
+        JsonNode api = json();
+        JsonNode operation = api.at("/paths/~1api~1v1~1wallets~1me/get");
+        assertThat(operation.path("tags").toString()).isEqualTo("[\"WALLET\"]");
+        assertThat(operation.at("/security/0").has("AccessJwt")).isTrue();
+        assertThat(operation.has("requestBody")).isFalse();
+        assertThat(operation.path("parameters").size()).isZero();
+        assertThat(operation.at("/responses/409/description").asText()).contains("WALLET_NOT_READY");
+        assertThat(operation.at("/responses/503/description").asText()).contains("WALLET_UNAVAILABLE");
+        JsonNode fields = api.at("/components/schemas/WalletBalanceResponse/properties");
+        Set<String> names = new HashSet<>();
+        fields.fieldNames().forEachRemaining(names::add);
+        assertThat(names).containsExactlyInAnyOrder("balance", "reservedBalance", "availableBalance");
+        fields.forEach(field -> assertThat(field.path("format").asText()).isEqualTo("int64"));
+        assertThat(fields.at("/availableBalance/description").asText()).contains("balance - reservedBalance");
     }
 
     @Test
