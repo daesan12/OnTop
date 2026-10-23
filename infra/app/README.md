@@ -2,6 +2,8 @@
 
 이 디렉터리는 Spring Boot API와 Nginx의 **수동 첫 배포**를 기록한다. 운영 DB는 `infra/prod-db/`의 별도 EC2에 있으며 PROD-APP에서 WireGuard `10.77.0.1:3306`으로 접속한다. DEV-CI는 자체 MySQL 볼륨을 사용한다. 어느 앱 컨테이너도 DB 포트를 호스트에 공개하지 않는다. 프론트는 Vercel에서 별도로 배포한다.
 
+2026-10-23에 DEV-CI에 Jenkins를 설치하고 `ci.on-top.world` HTTPS 웹훅 경로를 추가했다. 사용자 승인 후 Jenkins의 Docker·개발 배포 실행 권한도 설정했고 초기 관리자 계정도 생성됐다. 자격 증명 ID 세 개와 `ontop-dev` Pipeline 작업은 등록됐다. 첫 빌드와 GitLab 웹훅 연결은 이 Story의 MR을 `dev`에 병합한 뒤 진행한다. 현재 상태와 절차는 [`../ci/README.md`](../ci/README.md)에 기록한다. 기존 DEV 앱과 DB는 계속 실행 중이다.
+
 ## 2026-10-22 운영 배포 상태
 
 - PROD-APP에 `wooaw/ontop-backend:story115-preview-20261022` 이미지(`sha256:a877b391da0fb9e7412cf0fe8f1834e36c84ebeb5e757d9f3f474885e109f5dc`)를 설치했다. 앱은 `db` 프로필과 운영 DB를 사용하며 `healthy` 상태다. Hikari 연결과 Flyway 3개 마이그레이션 성공을 로그에서 확인했다.
@@ -61,7 +63,7 @@ docker push "$IMAGE"
 ## 1. 서버 준비
 
 - PROD-APP의 실제 버전은 Ubuntu **24.04.4**다. `infra/prod-db/install-docker.sh`는 **Ubuntu 26.04 전용**이므로 사용하지 않는다. 이 디렉터리의 `install-docker.sh`는 공식 Docker apt 저장소로 24.04/26.04에 설치하며, 기존 Docker 또는 충돌 패키지가 있으면 중단한다.
-- DEV-CI는 Ubuntu 26.04 인스턴스에 같은 스크립트로 Docker Engine과 Compose plugin을 설치했다. Jenkins는 다음 Story에서 설치한다.
+- DEV-CI는 Ubuntu 26.04 인스턴스에 같은 스크립트로 Docker Engine과 Compose plugin을 설치했다. Jenkins 설정은 [`../ci/README.md`](../ci/README.md)를 따른다.
 - 새 DEV-CI 서버에서는 `sudo bash infra/app/bootstrap-dev.sh wooaw/ontop-backend:<태그>`로 저장소 밖의 설정·비밀번호 파일을 처음 한 번 만든다. 이미 존재하는 설정 파일은 재실행해도 덮어쓰지 않는다. 이미지 태그를 바꿀 때는 `/etc/ontop/dev-app/deploy.env`를 별도로 수정한다.
 - 두 서버의 호스트 방화벽과 AWS 보안 그룹은 80/443만 서비스용으로 열고, SSH는 관리자 IP로 제한한다. PROD-APP에서 DB의 WireGuard 주소로 접근하는 기존 경로를 유지한다. 앱 8080과 dev MySQL 3306은 외부에 공개하지 않는다.
 - 서버 시간 동기화, 디스크 여유, Docker 로그 용량을 확인한다. dev DB의 named volume을 삭제하면 데이터가 사라지므로 `docker compose down -v`를 운영 명령으로 사용하지 않는다.
