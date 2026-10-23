@@ -1,5 +1,8 @@
 package com.ssafy.ontop.shop;
 
+import com.ssafy.ontop.behavior.domain.BehaviorEvent;
+import com.ssafy.ontop.behavior.domain.BehaviorEventType;
+import com.ssafy.ontop.behavior.service.BehaviorLog;
 import com.ssafy.ontop.inventory.domain.UserItem;
 import com.ssafy.ontop.shop.ShopModels.DuplicateEquipmentPolicy;
 import com.ssafy.ontop.shop.ShopModels.Equipment;
@@ -13,6 +16,7 @@ import com.ssafy.ontop.shop.persistence.ShopPurchase;
 import com.ssafy.ontop.shop.persistence.ShopRepository;
 import com.ssafy.ontop.wallet.domain.Wallet;
 import com.ssafy.ontop.wallet.domain.WalletTransaction;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.context.ApplicationEventPublisher;
@@ -28,14 +32,21 @@ public class ShopService {
     private final TransactionTemplate transactions;
     private final ApplicationEventPublisher events;
     private final DuplicateEquipmentPolicy duplicatePolicy;
+    private final BehaviorLog behaviorLog;
 
     public ShopService(ShopRepository repository, PlatformTransactionManager manager,
             ApplicationEventPublisher events, DuplicateEquipmentPolicy duplicatePolicy) {
+        this(repository, manager, events, duplicatePolicy, BehaviorLog.disabled());
+    }
+
+    public ShopService(ShopRepository repository, PlatformTransactionManager manager,
+            ApplicationEventPublisher events, DuplicateEquipmentPolicy duplicatePolicy, BehaviorLog behaviorLog) {
         this.repository = repository;
         this.transactions = new TransactionTemplate(manager);
         this.transactions.setIsolationLevel(TransactionDefinition.ISOLATION_READ_COMMITTED);
         this.events = events;
         this.duplicatePolicy = duplicatePolicy;
+        this.behaviorLog = behaviorLog;
     }
 
     public ItemList catalog() {
@@ -101,6 +112,10 @@ public class ShopService {
                     total, wallet.balance(), holding.id());
             repository.persist(new ShopPurchase(userId, key, result));
             repository.flush();
+            // 같은 키 재요청(기존 영수증 반환)은 이 경로에 오지 않으므로 새 구매만 커밋 후 기록한다.
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override public void afterCommit() { purchaseCommitted(userId, result); }
+            });
             return result;
         });
     }
@@ -126,15 +141,24 @@ public class ShopService {
             selected.equipped(true);
             repository.flush();
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override public void afterCommit() { equipmentCommitted(userId); }
+                @Override public void afterCommit() { equipmentCommitted(userId, selectedItem.itemId()); }
             });
             return new Equipment(holdings.stream().map(UserItem::toOwnedItem)
                     .filter(item -> item.quantity() > 0 && item.equipped()).toList());
         });
     }
 
-    private void equipmentCommitted(long userId) {
-        try { events.publishEvent(new EquipmentChanged(userId)); }
+    private void purchaseCommitted(long userId, Purchase purchase) {
+        behaviorLog.record(() -> BehaviorEvent.builder(BehaviorEventType.SHOP_PURCHASED, Instant.now())
+                .userId(userId)
+                .prop("itemId", purchase.itemId())
+                .prop("quantity", purchase.quantity())
+                .prop("purchaseId", purchase.purchaseId())
+                .build());
+    }
+
+    private void equipmentCommitted(long userId, long itemId) {
+        try { events.publishEvent(new EquipmentChanged(userId, itemId)); }
         catch (RuntimeException exception) {
             System.getLogger(ShopService.class.getName()).log(System.Logger.Level.WARNING,
                     "의상 변경 알림을 전달하지 못했습니다. 보유 목록을 다시 조회할 수 있습니다.");
