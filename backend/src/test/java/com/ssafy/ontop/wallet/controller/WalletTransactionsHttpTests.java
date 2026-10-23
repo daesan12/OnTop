@@ -94,7 +94,7 @@ class WalletTransactionsHttpTests {
         assertThat(response.headers().firstValue("Cache-Control")).contains("no-store");
         assertThat(response.headers().firstValue("Referrer-Policy")).contains("no-referrer");
         assertThat(response.headers().firstValue("Set-Cookie")).isEmpty();
-        assertThat(response.body()).doesNotContain(TestLoginSessions.ID, "userId", 
+        assertThat(response.body()).doesNotContain(TestLoginSessions.ID, "userId",
                 "walletId", "Token", "idempotencyKey", "balanceAfter");
         verify(wallets).findByUserId(42);
         verifyNoMoreInteractions(wallets);

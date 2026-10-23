@@ -30,11 +30,12 @@
 ## Entity·Repository와 트랜잭션
 
 `OntopApplication`이 User/RefreshToken과 함께 wallet.domain을 등록한다. Shop이 꺼진 db/dev,db/local,db에서도
-Wallet/WalletTransaction을 사용하며, db가 없는 기본/local/dev 실행에는 DataSource/JPA/Wallet 서비스가 없다.
+Wallet/WalletTransaction을 사용하며, db가 없는 기본/local/dev 실행에는 DataSource/JPA/WalletRepository와
+초기화 서비스가 없다. 조회 Controller/WalletQueryService는 등록되며, 실제 DB 인증·조회에는 db 프로필이 필요하다.
 ShopConfiguration은 선택적 상품·보유·영수증 Entity만 추가한다.
 
 - WalletRepository: 회원 ID 조회, 향후 쓰기용 PESSIMISTIC_WRITE 조회, 관리 명령의 활성 회원 ID 페이지 조회.
-- WalletTransactionRepository: 저장과 최초 지급 키 존재 검사.
+- WalletTransactionRepository: 저장·최초 지급 키 존재 검사·본인 지갑의 읽기 전용 커서 조회.
 - WalletInitializationService.initializeActiveMember: 회원 행 잠금 → 비활성 제외 → 기존 Wallet 보존 →
   지급 키/관련 참조 검사 → Wallet과 SIGNUP_BONUS 원장 저장.
 - 회원 행 잠금으로 동일 회원의 동시 초기화를 직렬화한다. user_id UNIQUE와 원장 키 UNIQUE가 최종 방어다.
