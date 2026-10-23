@@ -2,7 +2,25 @@
 
 OnTop v0.4의 서버 결과 판정과 기존 [GAME-03 결과 조회](https://app.notion.com/p/3ff161842b8680709b63cf6e8d1efc2b)의 필드를 따른다. local 인증 연결에서 동작한다. 실제 Access JWT·1회용 접속권 및 4종 규칙 엔진은 연결했다. 결과 저장 Gateway·정산 계산·원장·DB는 별도 담당이다. 아래 두 WS 메시지의 기존 필드는 유지하며, 실제 DB 연동을 포함한 상태는 진행 중이다. 기존 REST 담당 구현이나 정산 정책을 바꾸지 않는다.
 
-## 결과 조회
+## 공통 경기 종료·이탈 이벤트 · 2026-10-23
+
+아래는 서버 내부 Spring 이벤트이며 새 WebSocket 메시지가 아니다. `GAME_RESULT_CHECK` / `GAME_RESULT`의 기존 JSON 필드는 유지한다. 게임별 기존 종료 이벤트도 호환 목적으로 유지하며, DB 소비자는 공통 이벤트 또는 게임별 이벤트 중 한 경로만 구독한다.
+
+| 이벤트 | 필드 / 의미 |
+| --- | --- |
+| `GameParticipantLeft` | eventId, gameId, tableId, gameCode, version, userId, leaveReason, leftAt. 경기 참가 자격 상실 시 한 번 발행. 3~4인 경기 중도 이탈에도 경기 전체 종료를 기다리지 않음 |
+| `GameFinished` | eventId, gameId, tableId, gameCode, version, participants, endReason, endedAt. 최초 참가자 전체의 최종 판정 |
+| `GameFinished.Participant` | 내부 long userId, result(WIN/LOSE/DRAW/FORFEIT), nullable leaveReason/leftAt. 먼저 이탈한 참가자도 최종 결과에 포함 |
+
+`gameCode`는 OMOK/DICE/ONE_CARD/LIAR_BRIDGE. `leaveReason`은 LOGOUT/MEMBER_DEACTIVATED/DISCONNECT_TIMEOUT이며, 일반 패배나 턴 시간패는 이탈 사유가 없고 LOSE다. 이탈자는 FORFEIT, 그 외 엔진의 승자 목록은 WIN, 나머지는 LOSE, 승자 없는 무승부는 DRAW다. 말 제거가 보류된 다리 기권도 입력 자격 상실 시 이탈 이벤트를 내보낸다. 이 이벤트는 말 제거 완료를 뜻하지 않는다.
+
+중복 종료/이탈 요청은 추가 판정을 만들지 않는다. 소비자는 `gameId:finished` / `gameId:left:userId` 형태의 eventId를 중복 방지 키로 사용한다. 한 변경에서 이탈 이벤트가 최종 종료 이벤트보다 먼저 발행되며, 이전 이탈 사유·시각은 최종 결과에도 유지된다. 엔진 잠금 안에서 판정을 확정하고 잠금 밖에서 이벤트를 발행한다. 알림은 메모리 기반이며 재시작/리스너 실패 후 영속 재전달은 보장하지 않는다.
+
+이벤트는 금액·지갑 정보·정산 완료 상태를 포함하지 않는다. DB 담당은 자신의 트랜잭션에서 참가자/결과를 저장하고 예약금 정산을 수행한 뒤, 기존 `GameResultCommitted`로 확정된 결과를 전달한다. 이탈 직후 경기 전체를 정산하거나 통신부에서 금액을 계산하지 않는다. ERD의 leave_reason이 EXPLICIT_LEAVE/DISCONNECT_TIMEOUT만 허용한다면 LOGOUT/MEMBER_DEACTIVATED를 EXPLICIT_LEAVE로 매핑하는 저장 계약을 DB 담당과 확인한다.
+
+명시적 로그아웃은 인증 담당이 LOGOUT 종료 사유를 전달해야 하며, 인증 코드를 임의로 수정하지 않았다. 상세한 즉시 이탈/30초 유예 구분은 [재접속 명세](game-reconnect.md)를 따른다.
+
+## 결과 조회 메시지
 
 ```json
 {

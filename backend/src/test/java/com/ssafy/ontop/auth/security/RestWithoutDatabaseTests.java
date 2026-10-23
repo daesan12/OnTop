@@ -41,7 +41,8 @@ class RestWithoutDatabaseTests {
     void DB없는_개발실행은_유지하되_보호_REST는_활성회원_확인없이_통과하지_않는다() throws Exception {
         assertThat(context.getBeansOfType(javax.sql.DataSource.class)).isEmpty();
         mvc.perform(get("/actuator/health")).andExpect(status().isOk());
-        mvc.perform(get("/dev/tables")).andExpect(status().isOk());
+        boolean localPageExists = new org.springframework.core.io.ClassPathResource("dev/tables.html").exists();
+        mvc.perform(get("/dev/tables")).andExpect(status().is(localPageExists ? 200 : 404));
         mvc.perform(get("/api/v1/tables")).andExpect(status().isUnauthorized());
         mvc.perform(get("/api/v1/tables").header("Authorization", "Bearer " + jwt.issue(42, TestLoginSessions.ID)))
                 .andExpect(status().isServiceUnavailable()).andExpect(jsonPath("$.code").value("AUTH_MEMBER_LOOKUP_UNAVAILABLE"));

@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ssafy.ontop.auth.domain.LoginOutcome;
 import com.ssafy.ontop.auth.domain.OAuthProvider;
 import com.ssafy.ontop.auth.service.AuthExchangePersistenceService;
-import com.ssafy.ontop.shop.ShopService;
+import com.ssafy.ontop.shop.service.ShopService;
 import com.ssafy.ontop.user.domain.CharacterGender;
 import com.ssafy.ontop.user.domain.LoginProvider;
 import com.ssafy.ontop.user.domain.User;

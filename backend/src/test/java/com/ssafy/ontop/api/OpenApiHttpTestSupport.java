@@ -90,7 +90,10 @@ abstract class OpenApiHttpTestSupport {
                 "GET /api/v1/wallets/me/transactions"));
         if (environment.acceptsProfiles(Profiles.of("local"))) {
             expected.addAll(Set.of("GET /api/v1/channels", "GET /api/v1/tables", "GET /api/v1/shop/items",
-                    "POST /api/v1/shop/purchases", "GET /api/v1/users/me/items", "PATCH /api/v1/users/me/equipment"));
+                    "POST /api/v1/shop/purchases", "GET /api/v1/users/me/items", "PATCH /api/v1/users/me/equipment",
+                    "POST /api/v1/minigames/sessions", "GET /api/v1/minigames/sessions/{sessionId}",
+                    "POST /api/v1/minigames/sessions/{sessionId}/complete",
+                    "POST /api/v1/minigames/sessions/{sessionId}/abandon"));
         }
         Set<String> actual = new HashSet<>();
         api.path("paths").fields().forEachRemaining(path -> path.getValue().fieldNames().forEachRemaining(method ->

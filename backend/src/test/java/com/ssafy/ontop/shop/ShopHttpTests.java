@@ -4,6 +4,9 @@ import com.ssafy.ontop.auth.security.TestLoginSessions;
 import com.ssafy.ontop.auth.service.AccessJwtService;
 import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser;
 import com.ssafy.ontop.auth.websocket.WebSocketAccountLookup;
+import com.ssafy.ontop.shop.dto.InventoryResponse;
+import com.ssafy.ontop.shop.dto.ItemListResponse;
+import com.ssafy.ontop.shop.service.ShopService;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -39,8 +42,8 @@ class ShopHttpTests {
     void setup() {
         when(accounts.findActive(101, TestLoginSessions.ID)).thenReturn(Optional.of(new VerifiedWebSocketUser(101,
                 VerifiedWebSocketUser.Provider.NAVER, TestLoginSessions.ID)));
-        when(shop.catalog()).thenReturn(new ShopModels.ItemList(List.of()));
-        when(shop.inventory(101)).thenReturn(new ShopModels.Inventory(List.of()));
+        when(shop.catalog()).thenReturn(new ItemListResponse(List.of()));
+        when(shop.inventory(101)).thenReturn(new InventoryResponse(List.of()));
     }
 
     @Test

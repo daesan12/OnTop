@@ -29,8 +29,38 @@ class CommittedStartContractTests {
             Optional.empty(), Optional.empty(), true, false);
 
     @Test
+    void 전원판돈예약커밋을확인해야엔진을생성한다() {
+        var pending = GameStartResult.pending(command.startAttemptId());
+        var reserved = GameStartResult.reserved(command, "game");
+        when(gateway.startGame(command)).thenReturn(pending);
+        when(gateway.findStartResult(command.startAttemptId())).thenReturn(reserved);
+
+        assertThat(service.start(command)).isEqualTo(pending);
+        verifyNoInteractions(omok);
+        assertThat(service.find(command)).isEqualTo(reserved);
+        verify(omok).create("game", "table", 101, 202);
+        verify(gateway, times(1)).startGame(command);
+    }
+
+    @Test
+    void 예약미완료나일부예약과예약금액불일치는엔진을열지않는다() {
+        var id = command.startAttemptId();
+        for (var invalid : List.of(
+                new GameStartResult(id, GameStartResult.Outcome.PENDING, "game", command.participants(), 1, 2, null),
+                new GameStartResult(id, GameStartResult.Outcome.RESERVED, "game", command.participants(), 0, 0, null),
+                new GameStartResult(id, GameStartResult.Outcome.RESERVED, "game", command.participants(), 1, 1, null),
+                new GameStartResult(id, GameStartResult.Outcome.RESERVED, "game", command.participants(), 2, 4, null),
+                new GameStartResult(id, GameStartResult.Outcome.RESERVED, "game",
+                        command.participants().subList(0, 1), 1, 1, null))) {
+            when(gateway.startGame(command)).thenReturn(invalid);
+            service.start(command);
+        }
+        verifyNoInteractions(omok);
+    }
+
+    @Test
     void 엔진생성실패는같은확정결과조회로재시도하고시작요청은반복하지않는다() {
-        var committed = GameStartResult.succeeded(command, "game");
+        var committed = GameStartResult.reserved(command, "game");
         when(gateway.startGame(command)).thenReturn(committed);
         when(gateway.findStartResult(command.startAttemptId())).thenReturn(committed);
         doThrow(new IllegalStateException("runtime unavailable")).doNothing()
@@ -47,13 +77,13 @@ class CommittedStartContractTests {
         when(gateway.startGame(command)).thenReturn(GameStartResult.pending(command.startAttemptId()));
         service.start(command);
         when(gateway.findStartResult(command.startAttemptId())).thenReturn(new GameStartResult(UUID.randomUUID(),
-                GameStartResult.Outcome.SUCCEEDED, "game", command.participants(), 1, 2, null));
+                GameStartResult.Outcome.RESERVED, "game", command.participants(), 1, 2, null));
         service.find(command);
         verifyNoInteractions(omok);
     }
 
     @Test
-    void 비계정ID와미설정엔진은차감전에거절한다() {
+    void 비계정ID와미설정엔진은예약전에거절한다() {
         var invalid = new GameStartCommand(UUID.randomUUID(), "table", 1, "OMOK",
                 List.of(new GameStartCommand.Participant("dev-a", 1), new GameStartCommand.Participant("202", 2)));
         assertThat(service.start(invalid).outcome()).isEqualTo(GameStartResult.Outcome.REJECTED);

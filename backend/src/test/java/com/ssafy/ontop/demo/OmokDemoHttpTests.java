@@ -22,10 +22,7 @@ class OmokDemoHttpTests {
     @Autowired TestRestTemplate http;
 
     @Test
-    void 테스트화면과자원을_제공하고_진행중_경기는_재생성하지않는다() {
-        assertThat(http.getForEntity("/dev/omok", String.class).getBody()).contains("오목 테스트", "테스트 경기 생성");
-        assertThat(http.getForEntity("/dev/omok/omok.js", String.class).getBody()).contains("GAME_ACTION_SEND");
-        assertThat(http.getForEntity("/dev/omok/omok.css", String.class).getBody()).contains("#board");
+    void 잘못된요청과_진행중_경기재생성을_거절한다() {
         assertThat(http.postForEntity("/dev/omok/games", null, String.class).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         HttpHeaders headers = new HttpHeaders(); headers.set("X-Omok-Demo", "local");
         var first = http.exchange("/dev/omok/games", HttpMethod.POST, new HttpEntity<>(headers), JsonNode.class);

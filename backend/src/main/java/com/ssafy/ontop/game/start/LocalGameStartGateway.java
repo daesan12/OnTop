@@ -64,7 +64,7 @@ public class LocalGameStartGateway implements GameStartGateway {
         if (scenario == Scenario.DELAYED_SUCCESS && System.nanoTime() - entry.readyAtNanos() < 0) {
             return GameStartResult.pending(entry.command().startAttemptId());
         }
-        return GameStartResult.succeeded(entry.command(), entry.gameSessionId());
+        return GameStartResult.reserved(entry.command(), entry.gameSessionId());
     }
 
     public enum Scenario {

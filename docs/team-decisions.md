@@ -26,3 +26,16 @@
 이미 결정된 내용: 오목은 한 수30초 초과 시 시간패·총시간 제한 없음. 나머지 게임은30초 후 차례 넘김. 다리의 굴림/선언/각 판단은30초이며, 원카드 선언/신고의 별도3초 반응창은 차례 제한과 구분합니다.
 
 결과2종(`GAME_RESULT_CHECK`, `GAME_RESULT`)의 실제 연결에는 정산 저장 담당의 `GameResultGateway`가 필요합니다. 확정 경기 ID·참가자별 결과/금액·종료 이유·PENDING/SETTLED 상태·단조 증가 버전의 매핑, 커밋 성공 뒤 `GameResultCommitted` 발행 시점을 함께 확인합니다. 현재 통신부·대역 검증은 완료지만 임의 금액이나 가짜 정산 완료를 만들지 않습니다.
+
+## 경기 종료·이탈 연동 · 2026-10-23
+
+- 게임 담당 구현: 공통 GameParticipantLeft/GameFinished, 모든 최초 참가자의 결과·이탈 사유·시각. 기존 게임별 이벤트/프론트 JSON 유지. DB 담당은 한 경로만 구독하고 eventId로 중복을 막는다. 실제 예약·정산 트랜잭션은 DB 담당 유지.
+- 인증 담당 확인: 명시적 로그아웃은 ConnectionCloseReason.LOGOUT으로 전달. MEMBER_DEACTIVATED는 기존 전달 경로 재사용. 토큰 재사용 감지 등 AUTH_SESSION_REVOKED를 일괄 로그아웃으로 분류하지 않는다. 인증 패키지 수정 없음.
+- DB 담당 확인: 이벤트 LOGOUT/MEMBER_DEACTIVATED와 ERD의 EXPLICIT_LEAVE 매핑, 최초 참가자 전체 저장, 중도 탈락 시 예약금 유지 후 경기 최종 정산. 세부 계약은 game-result-api.md/game-reconnect.md.
+
+## 미니게임 연동·협의 · 2026-10-23
+
+- 사용자 추가 담당: MINI-01~04 붕어빵 시작/조회/완료·보상/포기. 기존 경기 DB 예약·정산은 B 담당 유지.
+- 서버 굽기 입력·성공 판정 자료와 세션별 최종 검증 결과 연결이 필요하다. 검증 결과가 없으면 보상은409 MINIGAME_NOT_VERIFIED로 차단한다.
+- 잔여1~2개 폐기/이월 정책 미정. 임의로 버리거나 지급하지 않고409 MINIGAME_POLICY_REQUIRED로 보류한다.
+- 진행 세션 수·만료·시간당 보상 상한은 미정이며 임의 제한은 추가하지 않는다. 상세 API/검증 경계는 [미니게임 계약](minigame-api.md)을 따른다.

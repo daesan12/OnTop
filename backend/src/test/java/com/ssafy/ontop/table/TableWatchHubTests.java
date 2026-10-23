@@ -195,7 +195,7 @@ class TableWatchHubTests {
         when(gateway.startGame(any())).thenAnswer(invocation -> {
             GameStartCommand command = invocation.getArgument(0);
             commands.add(command);
-            return GameStartResult.succeeded(command, "demo-session");
+            return GameStartResult.reserved(command, "demo-session");
         });
         hub = new TableHub(mapper, Optional.of(gateway), true, Optional.empty(),
                 Duration.ofSeconds(10), Duration.ofSeconds(10),

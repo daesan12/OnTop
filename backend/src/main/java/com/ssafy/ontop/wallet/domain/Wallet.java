@@ -27,8 +27,33 @@ public class Wallet {
     @Column(name = "updated_at", nullable = false, columnDefinition = "TIMESTAMP(3)")
     private Instant updatedAt;
 
-    protected Wallet() { }
+    protected Wallet() {
+    }
 
+    public long id() {
+        return id;
+    }
+
+    public long balance() {
+        return balance;
+    }
+
+    public long reserved() {
+        return reserved;
+    }
+
+    public void debit(long total) {
+        balance -= total;
+        updatedAt = Instant.now();
+    }
+
+    public void creditReward(long amount) {
+        if (amount < 0 || reserved < 0 || balance < reserved) {
+            throw new IllegalArgumentException("보상 금액과 지갑 상태를 확인하세요.");
+        }
+        balance = Math.addExact(balance, amount);
+        updatedAt = Instant.now();
+    }
     public static Wallet forSignup(long userId, Instant now) {
         if (userId <= 0) {
             throw new IllegalArgumentException("내부 회원 ID가 필요합니다.");
@@ -41,8 +66,4 @@ public class Wallet {
         return wallet;
     }
 
-    public long id() { return id; }
-    public long balance() { return balance; }
-    public long reserved() { return reserved; }
-    public void debit(long total) { balance -= total; updatedAt = Instant.now(); }
 }

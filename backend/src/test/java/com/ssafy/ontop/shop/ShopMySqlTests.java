@@ -7,9 +7,12 @@ import com.ssafy.ontop.auth.domain.OAuthProvider;
 import com.ssafy.ontop.auth.security.TestLoginSessions;
 import com.ssafy.ontop.auth.service.AccessJwtService;
 import com.ssafy.ontop.auth.service.AuthExchangePersistenceService;
-import com.ssafy.ontop.shop.ShopModels.DuplicateEquipmentPolicy;
-import com.ssafy.ontop.shop.ShopModels.EquipmentChanged;
-import com.ssafy.ontop.shop.ShopModels.Purchase;
+import com.ssafy.ontop.shop.domain.DuplicateEquipmentPolicy;
+import com.ssafy.ontop.shop.domain.EquipmentChanged;
+import com.ssafy.ontop.shop.dto.OwnedItemResponse;
+import com.ssafy.ontop.shop.dto.PurchaseResponse;
+import com.ssafy.ontop.shop.repository.ShopRepository;
+import com.ssafy.ontop.shop.service.ShopService;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -49,7 +52,7 @@ class ShopMySqlTests {
     @Autowired ShopService shop;
     @Autowired jakarta.persistence.EntityManager entities;
     @org.springframework.test.context.bean.override.mockito.MockitoSpyBean
-    com.ssafy.ontop.shop.persistence.ShopRepository repository;
+    ShopRepository repository;
     @Autowired AccessJwtService jwt;
     @Autowired AuthExchangePersistenceService issuer;
     private final Map<Long, String> accessTokens = new HashMap<>();
@@ -177,15 +180,15 @@ class ShopMySqlTests {
         assertThat(json(equipped).path("equipment").size()).isEqualTo(1);
         long second = shop.purchase(101, 2, 1, "second-top").userItemId();
         shop.equip(101, second);
-        assertThat(shop.inventory(101).items()).filteredOn(ShopModels.OwnedItem::equipped)
-                .extracting(ShopModels.OwnedItem::userItemId).containsExactly(second);
+        assertThat(shop.inventory(101).items()).filteredOn(OwnedItemResponse::equipped)
+                .extracting(OwnedItemResponse::userItemId).containsExactly(second);
         assertThat(json(request("GET", "/api/v1/users/me/items", 202, null, null)).path("items").isEmpty()).isTrue();
         assertThat(list.headers().firstValue("Cache-Control").orElseThrow()).contains("no-store");
     }
 
     @Test
     void 같은키_동시8요청은한번만차감지급하고같은영수증을돌려준다() throws Exception {
-        List<Purchase> results = new ArrayList<>();
+        List<PurchaseResponse> results = new ArrayList<>();
         var gate = new CountDownLatch(1);
         try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
             var futures = java.util.stream.IntStream.range(0, 8).mapToObj(index ->
@@ -227,7 +230,7 @@ class ShopMySqlTests {
             gate.countDown();
             for (var task : tasks) { task.get(10, TimeUnit.SECONDS); }
         }
-        assertThat(shop.inventory(101).items()).filteredOn(ShopModels.OwnedItem::equipped).hasSize(1);
+        assertThat(shop.inventory(101).items()).filteredOn(OwnedItemResponse::equipped).hasSize(1);
     }
 
     @Test
@@ -341,7 +344,7 @@ class ShopMySqlTests {
         assertThatThrownBy(() -> shop.equip(202, mine.userItemId())).isInstanceOf(ShopException.class);
         var consumable = shop.purchase(101, 3, 1, "food");
         assertThatThrownBy(() -> shop.equip(101, consumable.userItemId())).isInstanceOf(ShopException.class);
-        assertThat(shop.inventory(101).items()).noneMatch(ShopModels.OwnedItem::equipped);
+        assertThat(shop.inventory(101).items()).noneMatch(OwnedItemResponse::equipped);
     }
 
     @Test
@@ -356,7 +359,7 @@ class ShopMySqlTests {
             return null;
         });
         assertThat(events).isEmpty();
-        assertThat(shop.inventory(101).items()).noneMatch(ShopModels.OwnedItem::equipped);
+        assertThat(shop.inventory(101).items()).noneMatch(OwnedItemResponse::equipped);
         service.equip(101, owned);
         assertThat(events).singleElement().isInstanceOf(EquipmentChanged.class);
     }
@@ -403,7 +406,7 @@ class ShopMySqlTests {
         shop.equip(101, zero);
         jdbc.update("UPDATE user_items SET quantity = 0 WHERE id = ?", zero);
         assertThatThrownBy(() -> shop.equip(101, zero)).isInstanceOf(ShopException.class);
-        assertThat(shop.equip(101, next).equipment()).extracting(ShopModels.OwnedItem::userItemId)
+        assertThat(shop.equip(101, next).equipment()).extracting(OwnedItemResponse::userItemId)
                 .containsExactly(next);
         assertThat(jdbc.queryForObject("SELECT is_equipped FROM user_items WHERE id = ?", Boolean.class, zero))
                 .isFalse();

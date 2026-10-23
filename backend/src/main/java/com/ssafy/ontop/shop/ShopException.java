@@ -10,7 +10,12 @@ public class ShopException extends RuntimeException {
         this.code = code;
     }
 
-    public int status() { return status; }
-    public String code() { return code; }
+    public int status() {
+        return status;
+    }
+
+    public String code() {
+        return code;
+    }
 }
 
