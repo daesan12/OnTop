@@ -16,7 +16,12 @@ S15P31B105-63의 `V3__add_refresh_token_rotation.sql`은 Refresh 회전 시각�
 JWT/Refresh 원문·서명 키·DB 사용자 설정은 SQL에 포함하지 않는다.
 이 Markdown 파일은 SQL migration으로 실행되지 않는다.
 이미 V1이 적용된 DB에서는 Flyway가 체크섬을 검증하고 재적용하지 않는다.
-Wallet·UserItems·GameSessions 등 다른 도메인은 이후 별도 migration으로 추가한다.
+V4__create_wallets.sql은 공통 wallets/wallet_transactions와 잔액 CHECK·FK·멱등 키를 추가한다.
+기존 회원 데이터 지급은 migration에서 수행하지 않고 명시적 initializeWallets 관리 명령으로 분리한다.
+신규 온보딩은 회원·100코인 지갑·SIGNUP_BONUS 원장·Refresh를 같은 트랜잭션에 저장한다.
+선택적 Shop V100은 기본 위치와 분리하며 기존 테스트 V99/V101은 보존하되 신규 실행 위치에서 제외한다.
+기존 fixture DB는 초기화하지 않고 새 격리 DB에서 검증한다. 상세 절차는 docs/wallet-initialization.md를 따른다.
+GameSessions 등 미구현 도메인은 이후 별도 migration으로 추가한다.
 
 users의 collation·시각·탈퇴 데이터 보존 및 실제 MySQL 테스트는
 저장소 루트의 `docs/users-schema.md`를 따른다.

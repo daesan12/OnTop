@@ -7,6 +7,8 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.Objects;
 
 @Entity(name = "WalletTransaction")
 @Table(name = "wallet_transactions")
@@ -36,5 +38,26 @@ public class WalletTransaction {
     public WalletTransaction(long walletId, long itemId, long total, String key) {
         this.walletId = walletId; this.itemId = itemId; balanceDelta = -total;
         transactionType = "SHOP_PURCHASE"; idempotencyKey = key; createdAt = Instant.now();
+    }
+
+    public static String signupBonusKey(long userId) {
+        if (userId <= 0) {
+            throw new IllegalArgumentException("내부 회원 ID가 필요합니다.");
+        }
+        return "signup:" + userId;
+    }
+
+    public static WalletTransaction signupBonus(long walletId, long userId, Instant now) {
+        if (walletId <= 0) {
+            throw new IllegalArgumentException("저장된 지갑이 필요합니다.");
+        }
+        WalletTransaction transaction = new WalletTransaction();
+        transaction.walletId = walletId;
+        transaction.transactionType = "SIGNUP_BONUS";
+        transaction.balanceDelta = Wallet.SIGNUP_BALANCE;
+        transaction.reservedDelta = 0;
+        transaction.idempotencyKey = signupBonusKey(userId);
+        transaction.createdAt = Objects.requireNonNull(now).truncatedTo(ChronoUnit.MILLIS);
+        return transaction;
     }
 }

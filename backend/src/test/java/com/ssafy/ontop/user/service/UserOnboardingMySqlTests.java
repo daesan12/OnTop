@@ -15,6 +15,8 @@ import com.ssafy.ontop.user.domain.CharacterGender;
 import com.ssafy.ontop.user.domain.LoginProvider;
 import com.ssafy.ontop.user.domain.User;
 import com.ssafy.ontop.user.repository.UserRepository;
+import com.ssafy.ontop.wallet.repository.WalletRepository;
+import com.ssafy.ontop.wallet.repository.WalletTransactionRepository;
 import java.net.CookieManager;
 import java.net.CookiePolicy;
 import java.net.URI;
@@ -99,6 +101,10 @@ class UserOnboardingMySqlTests {
     private AccessJwtService jwt;
     @MockitoSpyBean
     private RefreshTokenRepository refresh;
+    @MockitoSpyBean
+    private WalletRepository wallets;
+    @MockitoSpyBean
+    private WalletTransactionRepository walletTransactions;
     @MockitoBean
     private OAuthProviderClient provider;
     @Autowired
@@ -145,6 +151,15 @@ class UserOnboardingMySqlTests {
         assertThat(user.getCharacterGender()).isEqualTo(CharacterGender.FEMALE);
         assertThat(user.getCreatedAt()).isNotNull().isEqualTo(user.getUpdatedAt());
         assertThat(user.getDeletedAt()).isNull();
+        var wallet = wallets.findByUserId(user.getId()).orElseThrow();
+        assertThat(wallet.balance()).isEqualTo(100);
+        assertThat(wallet.reserved()).isZero();
+        assertThat(jdbc.queryForMap("""
+                SELECT transaction_type,balance_delta,reserved_delta FROM wallet_transactions
+                WHERE wallet_id=? AND idempotency_key=?
+                """, wallet.id(), "signup:" + user.getId()))
+                .containsEntry("transaction_type", "SIGNUP_BONUS")
+                .containsEntry("balance_delta", 100L).containsEntry("reserved_delta", 0L);
         String raw = result.getResponse().getHeader("Set-Cookie").split(";", 2)[0].substring("ONTOP_REFRESH=".length());
         RefreshToken stored = refresh.findByTokenHash(digest(raw)).orElseThrow();
         assertThat(stored.getUserId()).isEqualTo(user.getId());
@@ -319,6 +334,8 @@ class UserOnboardingMySqlTests {
         String token = token(identity);
         long beforeUsers = users.count();
         long beforeRefresh = refresh.count();
+        long beforeWallets = wallets.count();
+        long beforeLedger = walletTransactions.count();
         doThrow(new DataAccessResourceFailureException("fixture-private-refresh-store"))
                 .when(refresh).saveAndFlush(any());
 
@@ -329,6 +346,8 @@ class UserOnboardingMySqlTests {
                 .isEmpty();
         assertThat(users.count()).isEqualTo(beforeUsers);
         assertThat(refresh.count()).isEqualTo(beforeRefresh);
+        assertThat(wallets.count()).isEqualTo(beforeWallets);
+        assertThat(walletTransactions.count()).isEqualTo(beforeLedger);
         assertThat(result.getResponse().getContentAsString()).doesNotContain("accessToken", "fixture-private");
         onboard(token, nickname()).andExpect(status().isUnauthorized());
     }
@@ -339,6 +358,8 @@ class UserOnboardingMySqlTests {
         String token = token(identity);
         long beforeUsers = users.count();
         long beforeRefresh = refresh.count();
+        long beforeWallets = wallets.count();
+        long beforeLedger = walletTransactions.count();
         doThrow(new AuthExchangeException(AuthExchangeException.Error.CONFIGURATION))
                 .when(jwt).issue(anyLong(), anyString());
 
@@ -347,8 +368,36 @@ class UserOnboardingMySqlTests {
 
         assertThat(users.count()).isEqualTo(beforeUsers);
         assertThat(refresh.count()).isEqualTo(beforeRefresh);
+        assertThat(wallets.count()).isEqualTo(beforeWallets);
+        assertThat(walletTransactions.count()).isEqualTo(beforeLedger);
         assertThat(users.findByLoginProviderAndProviderUserId(LoginProvider.SSAFY, identity.providerUserId()))
                 .isEmpty();
+        onboard(token, nickname()).andExpect(status().isUnauthorized());
+    }
+
+    @ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"wallet", "ledger"})
+    void 지갑이나_가입원장_실패는_회원과_인증까지_롤백한다(String failure) throws Exception {
+        long beforeUsers = users.count();
+        long beforeRefresh = refresh.count();
+        long beforeWallets = wallets.count();
+        long beforeLedger = walletTransactions.count();
+        if (failure.equals("wallet")) {
+            doThrow(new DataAccessResourceFailureException("fixture-wallet-store"))
+                    .when(wallets).saveAndFlush(any());
+        } else {
+            doThrow(new DataAccessResourceFailureException("fixture-ledger-store"))
+                    .when(walletTransactions).saveAndFlush(any());
+        }
+        String token = token(identity(OAuthProvider.SSAFY));
+
+        onboard(token, nickname()).andExpect(status().isServiceUnavailable())
+                .andExpect(header().doesNotExist("Set-Cookie"));
+
+        assertThat(users.count()).isEqualTo(beforeUsers);
+        assertThat(refresh.count()).isEqualTo(beforeRefresh);
+        assertThat(wallets.count()).isEqualTo(beforeWallets);
+        assertThat(walletTransactions.count()).isEqualTo(beforeLedger);
         onboard(token, nickname()).andExpect(status().isUnauthorized());
     }
 
@@ -357,7 +406,7 @@ class UserOnboardingMySqlTests {
         User user = new User(LoginProvider.SSAFY, "onboard91-unpersisted", nickname(), CharacterGender.MALE);
         assertThatThrownBy(() -> credentials.issueForNewUser(user))
                 .isInstanceOf(IllegalTransactionStateException.class);
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("3");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("4");
         assertThat(flyway.migrate().migrationsExecuted).isZero();
     }
 

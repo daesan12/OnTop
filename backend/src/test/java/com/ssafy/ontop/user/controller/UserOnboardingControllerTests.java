@@ -310,7 +310,10 @@ class UserOnboardingControllerTests {
         String accessToken = jwt.issue(42, TestLoginSessions.ID);
         when(issuer.issueForNewUser(any())).thenReturn(
                 new AuthExchangePersistenceService.Credentials(accessToken, "rt_fixture_private"));
-        UserOnboardingPersistenceService target = new UserOnboardingPersistenceService(users, issuer);
+        var wallets = mock(com.ssafy.ontop.wallet.service.WalletInitializationService.class);
+        when(wallets.initializeActiveMember(42)).thenReturn(
+                com.ssafy.ontop.wallet.service.WalletInitializationService.Result.CREATED);
+        UserOnboardingPersistenceService target = new UserOnboardingPersistenceService(users, issuer, wallets);
         if (failure.equals("rollback")) {
             when(users.existsByNickname(anyString())).thenReturn(true);
         }

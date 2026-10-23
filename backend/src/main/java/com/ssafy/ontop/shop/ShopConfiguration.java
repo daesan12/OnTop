@@ -5,7 +5,6 @@ import com.ssafy.ontop.inventory.domain.UserItem;
 import com.ssafy.ontop.item.domain.Item;
 import com.ssafy.ontop.shop.persistence.ShopPurchase;
 import com.ssafy.ontop.shop.persistence.ShopRepository;
-import com.ssafy.ontop.wallet.domain.Wallet;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.context.ApplicationEventPublisher;
@@ -17,7 +16,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 @Configuration
 @Profile("local & db")
 @ConditionalOnProperty(name = "ontop.shop.enabled", havingValue = "true")
-@EntityScan(basePackageClasses = {Item.class, UserItem.class, ShopPurchase.class, Wallet.class})
+@EntityScan(basePackageClasses = {Item.class, UserItem.class, ShopPurchase.class})
 public class ShopConfiguration {
     @Bean
     ShopService shopService(ShopRepository repository, PlatformTransactionManager transactions,
