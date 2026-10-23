@@ -40,7 +40,7 @@
 | event_type | 연결 지점 | props | 단계 | 상태 |
 | --- | --- | --- | --- | --- |
 | `AUTH_LOGIN` | `AuthExchangePersistenceService.issueExisting` 커밋 후 | `provider` | 1 | 구현 |
-| `USER_ONBOARDED` | `UserOnboardingPersistenceService.create` 커밋 후 | `gender`(캐릭터 선택) | 1 | 지갑 작업 머지 후 |
+| `USER_ONBOARDED` | `UserOnboardingPersistenceService.create` 커밋 후(회원·지갑·Refresh 함께) | `gender`(캐릭터 선택), `provider` | 1 | 구현 |
 | `AUTH_LOGOUT` | `Revoked(reason=LOGOUT)` 커밋 후 리스너 | | 1 | 구현 |
 | `USER_WITHDRAWN` | `Revoked(reason=MEMBER_DEACTIVATED)` 커밋 후 리스너 | | 1 | 구현 |
 | `WS_CONNECTED` | `TableHub.register` | | 1 | 구현 |
@@ -156,7 +156,7 @@ CREATE TABLE world_position_samples (
 ```
 
 - 원장이 아니므로 `users`에 외래키를 걸지 않는다. 탈퇴 처리는 아래 "남은 결정"에서 정한다.
-- 마이그레이션은 지갑 작업과 번호가 겹치지 않도록 `backend/src/main/resources/db/behavior`(V200, V201)에 두고 기본 Flyway 경로에 넣지 않는다. 지갑 작업 머지 후 `db/migration`의 다음 번호로 옮기고, V1~V3를 고정 검사하는 MySQL 테스트도 함께 갱신한다.
+- 마이그레이션은 지갑 작업(V4) 다음 번호인 `V5__create_behavior_events.sql`, `V6__create_world_position_samples.sql`이다.
 - 분석이 늘면 월 단위 파티션이나 일별 집계 테이블(`behavior_daily_*`)을 추가한다. 처음부터 만들지 않는다.
 
 ## 5. 수집 흐름
