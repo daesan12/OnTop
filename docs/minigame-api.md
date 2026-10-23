@@ -7,7 +7,8 @@
 ## 실행과 저장
 
 - 기존 Access JWT와 활성 회원 인증을 재사용한다. 사용자 ID는 인증에서 가져오고 요청 본문에서 받지 않는다.
-- 기존대로 `local,db` + `ontop.minigames.enabled=true`에서 활성화한다. 배포 프로필 변경은 포함하지 않는다.
+- `local,db` + `ontop.minigames.enabled=true`, 또는 `dev,db`에서 활성화한다. dev는 기본 활성화한다.
+- `prod`/`production`을 함께 켜면 미니게임 컨트롤러·저장소·서비스·CORS 예외를 등록하지 않는다.
 - Flyway locations: `classpath:db/migration,classpath:db/minigame`. 상점도 쓰면 `classpath:db/shop` 추가.
 - V110 기존 공통 세션/시작 영수증 유지. V111은 붕어빵 전용 입력·불 세기·최초 결과를 보관하는
   `bungeoppang_records`, 안내 이력 `bungeoppang_profiles`와 일일 보상 조회 인덱스를 추가한다.
@@ -16,6 +17,21 @@
 - 지갑 → 세션 잠금 순서. 같은 회원의 시작/완료/포기/상점 구매가 같은 지갑 잠금을 사용한다.
   일일 합계는 이 잠금 안에서 완료 세션을 조회하므로 중복 집계 테이블 없이 상한을 지킨다.
 - 응답은 `Cache-Control: no-store`. BIGINT ID는 문자열로 응답한다.
+
+### 개발 서버 연동 설정
+
+- 개발 프론트는 `https://dev.on-top.world`, 백엔드는 `https://dev-api.on-top.world`다.
+  프론트의 기존 `/api/v1` 프록시 또는 위 백엔드 주소를 사용하고 Access JWT를 전달한다.
+- 기존 `AUTH_ALLOWED_ORIGINS`에 실제 프론트 origin이 있어야 한다. 와일드카드나 운영 프론트 주소를
+  임의로 추가하지 않는다. 미니게임 경로의 OPTIONS만 `Authorization, Content-Type, Idempotency-Key`를
+  허용하며 실제 GET/POST 회원 인증은 기존 공통 인증을 그대로 거친다.
+- `dev,db`의 Flyway는 `db/migration` + `db/minigame`을 읽는다. 기존 공통 테이블은 보존하고
+  V110/V111의 미니게임 테이블·인덱스만 추가한다. `ddl-auto=validate`와 Flyway 검증을 유지한다.
+  `clean`/`repair`/`out-of-order`나 기존 스키마 초기화는 사용하지 않는다.
+- 기존 공통 마이그레이션 V1~V6가 먼저 적용된 DB를 기준으로 한다. 이미 고번호 V100/V110 등을
+  적용했지만 V5/V6가 없는 별도 DB는 먼저 이력을 확인해야 한다. 이 MR은 그런 DB를 임의 복구하지 않는다.
+- 이미 지갑이 있는 정상 회원으로 시작·조회·완료를 연동한다. 기존 회원의 지갑 생성은 별도 관리 작업이다.
+- 이 설정은 MR 병합 후 개발 이미지 재빌드·배포 때 적용된다. MR 생성/로컬 검증만으로 원격 반영을 뜻하지 않는다.
 
 ## MINI-01 · 시작
 

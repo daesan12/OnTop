@@ -15,7 +15,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Repository;
 
 @Repository
-@Profile("local & db")
+@Profile("(local | dev) & db & !prod & !production")
 @ConditionalOnProperty(name = "ontop.minigames.enabled", havingValue = "true")
 public class MinigameRepository {
     private final EntityManager entities;

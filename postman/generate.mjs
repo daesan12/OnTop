@@ -162,7 +162,7 @@ conflict.method='POST'; conflict.headers=purchaseHeaders;
 conflict.body={mode:'raw',raw:'{\n  "itemId": {{shopItemId}},\n  "quantity": 2\n}',options:{raw:{language:'json'}}}; httpItems.push(conflict);
 
 const miniStart = http('19 붕어빵 시작 — 세션 ID 저장', '/api/v1/minigames/sessions', 201,
-    'MINI-01 v2: local,db + ontop.minigames.enabled=true + V110/V111 필요. 같은 키는 같은 세션/불 세기. 새 키는 이전 판 포기. 60초·6칸·15점당1냥·KST 하루100냥. 탭 이동 중 시간 진행, 랭킹 제외.',
+    'MINI-01 v2: local,db + ontop.minigames.enabled=true 또는 dev,db에서 사용. dev는 V110/V111 추가 적용과 기본 활성화. 개인 환경 baseUrl=https://dev-api.on-top.world 및 해당 서버 Access JWT 사용(병합·배포 후). 같은 키는 같은 세션/불 세기. 새 키는 이전 판 포기. 60초·6칸·15점당1냥·KST 하루100냥. 탭 이동 중 시간 진행, 랭킹 제외.',
     `if(pm.response.code===201){ const s=pm.response.json(); pm.environment.set('minigameSessionId',s.minigameSessionId); pm.environment.set('minigameHeats',JSON.stringify(s.heats)); pm.environment.set('minigameStartedAt',s.startedAt); pm.environment.unset('minigameLog'); pm.expect(s.heats).to.have.lengthOf(64); pm.expect(s.rulesVersion).to.eql('v2'); }`,
     shopSetup + `\npm.environment.set('minigameRequestKey',pm.variables.replaceIn('{{$guid}}'));`);
 miniStart.method='POST'; miniStart.headers=[...shopAuth,{key:'Content-Type',value:'application/json'},

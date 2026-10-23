@@ -2,7 +2,7 @@
 "$kind": "http-request"
 "method": "POST"
 "url": "{{baseUrl}}/api/v1/minigames/sessions"
-"description": "MINI-01 v2: local,db + ontop.minigames.enabled=true + V110/V111 필요. 같은 키는 같은 세션/불 세기. 새 키는 이전 판 포기. 60초·6칸·15점당1냥·KST 하루100냥. 탭 이동 중 시간 진행, 랭킹 제외."
+"description": "MINI-01 v2: local,db + ontop.minigames.enabled=true 또는 dev,db에서 사용. dev는 V110/V111 추가 적용과 기본 활성화. 개인 환경 baseUrl=https://dev-api.on-top.world 및 해당 서버 Access JWT 사용(병합·배포 후). 같은 키는 같은 세션/불 세기. 새 키는 이전 판 포기. 60초·6칸·15점당1냥·KST 하루100냥. 탭 이동 중 시간 진행, 랭킹 제외."
 "auth":
   "type": "noauth"
 "scripts":

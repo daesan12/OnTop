@@ -14,7 +14,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.transaction.PlatformTransactionManager;
 
 @Configuration
-@Profile("local & db")
+@Profile("(local | dev) & db & !prod & !production")
 @ConditionalOnProperty(name = "ontop.minigames.enabled", havingValue = "true")
 @EntityScan(basePackageClasses = {MinigameSession.class, Wallet.class})
 public class MinigameConfiguration {

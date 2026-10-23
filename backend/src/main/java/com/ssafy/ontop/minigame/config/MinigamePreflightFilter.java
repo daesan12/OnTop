@@ -19,7 +19,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 /** 공통 인증 코드를 바꾸지 않고 시작 API의 Idempotency-Key 사전 요청만 지원한다. */
 @Component
-@Profile("local")
+@Profile("(local | dev) & !prod & !production")
 @Order(-101)
 public class MinigamePreflightFilter extends OncePerRequestFilter {
     private final AuthExchangeOriginPolicy origins;

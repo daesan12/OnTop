@@ -41,7 +41,8 @@ class MinigameOpenApiTests {
                     .asBoolean(true)).isFalse();
             assertThat(complete.at("/requestBody/content/application~1json/schema/properties/log/maxItems").asInt())
                     .isEqualTo(1200);
-            assertThat(complete.path("description").asText()).contains("local,db", "v2", "100냥");
+            assertThat(complete.path("description").asText()).contains("local,db", "dev,db", "v2", "100냥")
+                    .doesNotContain("local 전용");
             assertThat(paths.path("/api/v1/minigames/sessions").has("get")).isTrue();
         }
     }
