@@ -21,6 +21,7 @@ export async function fixture(
     bindings?: boolean
     players?: number
     omok?: boolean
+    position?: { x: number; y: number; z: number; yaw: number }
   } = {},
 ) {
   let tickets = 0,
@@ -45,6 +46,7 @@ export async function fixture(
     running: false,
     swimming: false,
     lastInputSeq: 0,
+    ...options.position,
   }
   let seated = false,
     rejectChat = false

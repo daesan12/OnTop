@@ -1,43 +1,20 @@
-import { CAMERA, TABLES, tableScale } from '../config'
-import { avatars, useSession } from '../network/worldClient'
+import { CAMERA } from '../config'
+import { useSession } from '../network/worldClient'
 import { parkRuntime } from '../park/runtime/runtime'
 
-export const inputState = { blocked: false, chatOpen: false }
+import { getParkInteraction, interactWithPark } from '../features/interactions/parkInteraction'
+import { standBench } from '../features/interactions/benchController'
+import { useBenchState } from '../features/interactions/benchState'
+import { panelOwnsKeys, roamingInput, textInputOwnsKeys } from './inputOwnership'
+export { inputState, setChatInputOpen, textInputOwnsKeys } from './inputOwnership'
 export const viewControls = {
   yaw: 0,
   pitch: CAMERA.pitch as number,
   distance: CAMERA.distance as number,
 }
-export function textInputOwnsKeys(target: EventTarget | null) {
-  return (
-    target instanceof HTMLElement &&
-    !!target.closest(
-      'input,textarea,select,button,a,[contenteditable="true"],[role="dialog"]',
-    )
-  )
-}
-export function setChatInputOpen(open: boolean) {
-  inputState.chatOpen = open
-  if (open) window.dispatchEvent(new Event('ontop-clear-input'))
-}
 export function nearestTable(): string | null {
-  const state = useSession.getState(),
-    position = avatars.get(state.sessionId)?.current
-  if (!position || !state.mapCompatible || state.tableId) return null
-  let nearest: { id: string; distance: number } | undefined
-  for (const table of TABLES) {
-    const distance = Math.hypot(
-      position.x - table.position[0],
-      position.z - table.position[2],
-    )
-    if (
-      distance <= 3.5 * tableScale(table) &&
-      Math.abs(position.y - 0.8 - table.position[1]) < 1.3 &&
-      (!nearest || distance < nearest.distance)
-    )
-      nearest = { id: table.id, distance }
-  }
-  return nearest?.id ?? null
+  const target = getParkInteraction()
+  return target?.kind === 'table' ? target.id : null
 }
 export function installRoamingInput(canvas: HTMLCanvasElement) {
   const keys = new Set<string>()
@@ -60,8 +37,8 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     hadMovement = false
   const blocked = () =>
     document.hidden ||
-    inputState.blocked ||
-    inputState.chatOpen ||
+    useSession.getState().status !== 'connected' ||
+    panelOwnsKeys() ||
     textInputOwnsKeys(document.activeElement) ||
     !useSession.getState().mapCompatible ||
     !!useSession.getState().tableId
@@ -81,26 +58,33 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
       return
     if (movement.has(event.code)) {
       event.preventDefault()
+      if (useSession.getState().benchId) {
+        if (!event.repeat && event.code !== 'ShiftLeft' && event.code !== 'ShiftRight') void standBench()
+        if (event.repeat) return
+      }
       keys.add(event.code)
     }
     if (event.code === 'Space' && !event.repeat) {
       event.preventDefault()
-      jump = true
+      if (!useSession.getState().benchId && !useBenchState.getState().pending) jump = true
     }
     if (event.code === 'KeyE' && !event.repeat) {
-      const table = nearestTable()
-      if (table) parkRuntime.inspectTable(table)
+      if (interactWithPark()) {
+        event.preventDefault()
+        canvas.focus({ preventScroll: true })
+        stop()
+      }
     }
   }
   const up = (event: KeyboardEvent) => keys.delete(event.code)
   const pointerDown = (event: PointerEvent) => {
-    if (event.button === 0 && !inputState.chatOpen) {
+    if (event.button === 0 && !panelOwnsKeys()) {
       drag = true
       canvas.focus({ preventScroll: true })
     }
   }
   const pointerMove = (event: PointerEvent) => {
-    if (!drag || inputState.chatOpen || inputState.blocked) return
+    if (!drag || blocked()) return
     viewControls.yaw -= event.movementX * 0.004
     viewControls.pitch = Math.max(
       -0.2,
@@ -111,7 +95,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     drag = false
   }
   const wheel = (event: WheelEvent) => {
-    if (inputState.chatOpen) return
+    if (blocked() || useSession.getState().benchId) return
     event.preventDefault()
     viewControls.distance = Math.max(
       CAMERA.minDistance,
@@ -123,9 +107,10 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
   }
   const interval = setInterval(() => {
     if (blocked()) {
-      if (hadMovement || keys.size) stop()
+      if (hadMovement || keys.size || jump) stop()
       return
     }
+    if (useSession.getState().benchId || useBenchState.getState().pending) return
     const forward =
       Number(keys.has('KeyW') || keys.has('ArrowUp')) -
       Number(keys.has('KeyS') || keys.has('ArrowDown'))
@@ -155,7 +140,9 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
   window.addEventListener('pointermove', pointerMove)
   window.addEventListener('pointerup', pointerUp)
   canvas.addEventListener('wheel', wheel, { passive: false })
+  roamingInput.ready = true
   return () => {
+    roamingInput.ready = false
     clearInterval(interval)
     stop()
     window.removeEventListener('keydown', down)

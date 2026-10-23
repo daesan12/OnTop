@@ -12,6 +12,8 @@ import {
 import type { TableBinding } from './tableBindings'
 import { EXPECTED_MAP_VERSION } from '../config/mapVersion'
 import { resetGame } from '../game/store'
+import { resetBenchState, useBenchState } from '../features/interactions/benchState'
+import { clearRoamingInput } from '../world/inputOwnership'
 
 export interface Pose {
   x: number
@@ -125,6 +127,8 @@ const chatIds = new Set<string>()
 const emoteIds = new Set<string>()
 export function resetWorld(status: Session['status'] = 'idle', error = '') {
   resetGame()
+  resetBenchState()
+  clearRoamingInput()
   avatars.clear()
   worldPoses.clear()
   channelVersion = worldVersion = -1
@@ -134,6 +138,8 @@ export function resetWorld(status: Session['status'] = 'idle', error = '') {
 }
 export function clearChannel() {
   resetGame()
+  resetBenchState()
+  clearRoamingInput()
   avatars.clear()
   worldPoses.clear()
   channelVersion = worldVersion = -1
@@ -155,6 +161,7 @@ export function clearChannel() {
     focusedAnchorId: '',
     mapVersion: '',
     mapCompatible: false,
+    benchId: '',
   })
 }
 export function sampleAvatar(
@@ -179,10 +186,17 @@ export function sampleAvatar(
   return target
 }
 export const estimatedServerTime = () => Date.now() // Only for events carrying server ISO timestamps; world day clock is separate.
-function applySeats() {
+export const authoritativePose = (userId: string): Pose | undefined => {
+  const pose = worldPoses.get(userId)
+  return pose ? { ...pose } : undefined
+}
+export function refreshActivityPresentation() {
   const state = useSession.getState()
+  if (Object.values(state.tableStates).some(table => table.seats.some(seat =>
+    seat.userId && useBenchState.getState().placements[seat.userId]))) resetBenchState()
   for (const [id, a] of avatars) {
     a.tableId = ''
+    a.benchId = ''
     a.seatIndex = -1
     const authoritative = worldPoses.get(id)
     if (authoritative) a.current = { ...authoritative }
@@ -206,7 +220,17 @@ function applySeats() {
       }
       a.previous = { ...a.current }
     }
+    const bench = useBenchState.getState().placements[id]
+    if (!a.tableId && bench?.channelId === state.roomId) {
+      a.benchId = bench.benchId
+      a.seatIndex = bench.seat
+      a.current = { ...bench.pose }
+      a.previous = { ...a.current }
+      a.moving = a.running = false
+    }
   }
+  const benchId = avatars.get(state.sessionId)?.benchId ?? ''
+  if (state.benchId !== benchId) useSession.setState({ benchId })
 }
 export function receive(message: Envelope) {
   const p = message.payload,
@@ -243,8 +267,10 @@ export function receive(message: Envelope) {
         return
       worldVersion = next.version
       const mapCompatible = next.mapVersion === EXPECTED_MAP_VERSION
+      if (!mapCompatible) { resetBenchState(); clearRoamingInput() }
       const ids = next.avatars.map((a) => a.userId),
         now = performance.now()
+      if (!ids.includes(state.sessionId) || Object.keys(useBenchState.getState().placements).some(id => !ids.includes(id))) resetBenchState()
       for (const id of avatars.keys())
         if (!ids.includes(id)) {
           avatars.delete(id)
@@ -291,7 +317,7 @@ export function receive(message: Envelope) {
           followTargetId: '',
         })
       }
-      applySeats()
+      refreshActivityPresentation()
       networkStats.snapshotAt = now
       networkStats.patches++
       useSession.setState({
@@ -363,21 +389,21 @@ export function receive(message: Envelope) {
             }
           : { watchedTableId: next.tableId }),
       })
-      applySeats()
+      refreshActivityPresentation()
       break
     }
     case 'TABLE_LEFT': {
       const tableStates = { ...state.tableStates }
       delete tableStates[state.tableId]
       useSession.setState({ tableId: '', seatIndex: -1, tableStates })
-      applySeats()
+      refreshActivityPresentation()
       break
     }
     case 'TABLE_WATCH_LEFT': {
       const tableStates = { ...state.tableStates }
       delete tableStates[state.watchedTableId]
       useSession.setState({ watchedTableId: '', tableStates })
-      applySeats()
+      refreshActivityPresentation()
       break
     }
     case 'ERROR':

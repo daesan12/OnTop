@@ -191,3 +191,18 @@ export async function gpuTimes(count = 8) {
   }
   return { status: ms.length ? 'available' : 'no non-disjoint samples', ms }
 }
+
+// M01-only probes, loaded by browser tests through the dev server.
+import { findBench } from '../../src/features/interactions/benchAnchors'
+import { benchService } from '../../src/features/interactions/benchService'
+import { benchSignal, useBenchState } from '../../src/features/interactions/benchState'
+import { refreshActivityPresentation } from '../../src/network/worldClient'
+export async function fixtureBench(userId: string, benchId: string, seat: 0 | 1) {
+  const bench = findBench(benchId)!, session = useSession.getState()
+  const lease = await benchService.sit({ userId, channelId: session.roomId,
+    position: { x: bench.position[0], y: bench.position[1] + 0.8, z: bench.position[2] + 2, yaw: 0 } }, benchId, seat, benchSignal())
+  useBenchState.setState(s => ({ placements: { ...s.placements, [userId]: lease } }))
+  refreshActivityPresentation()
+}
+export const benchProbe = () => ({ benchId: useSession.getState().benchId, pending: useBenchState.getState().pending,
+  lease: useBenchState.getState().placements[useSession.getState().sessionId], ...sceneProbe() })

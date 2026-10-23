@@ -16,6 +16,7 @@ import { setDisplayProfiles } from '../../network/profileBridge'
 import { canPlace, receiveGame, tableBusy, useGame } from '../../game/store'
 import { parkBindingsUrl } from './deployment'
 import type { ParkRuntimePort } from './contracts'
+import { benchBusy } from '../../features/interactions/benchState'
 import {
   avatars,
   clearChannel,
@@ -269,6 +270,7 @@ export class ParkRuntime implements ParkRuntimePort {
   selectChannel = (channelId: string) =>
     this.action(async () => {
       const state = useSession.getState()
+      if (benchBusy(state.sessionId)) throw new Error('먼저 벤치에서 일어나주세요.')
       if (tableBusy())
         throw new Error('경기 진행·복구·정산 중에는 채널을 바꿀 수 없습니다.')
       if (state.tableId) throw new Error('먼저 테이블에서 일어나주세요.')
@@ -315,6 +317,7 @@ export class ParkRuntime implements ParkRuntimePort {
       !s.mapCompatible ||
       tableBusy() ||
       s.tableId ||
+      (benchBusy(s.sessionId) && !!(dx || dz || run || jump)) ||
       !this.socket.connected ||
       ![dx, dz].every(Number.isFinite)
     )
@@ -332,6 +335,7 @@ export class ParkRuntime implements ParkRuntimePort {
     }
   }
   inspectTable = (anchorId: string) => {
+    if (benchBusy(useSession.getState().sessionId)) return
     useSession.setState({ focusedAnchorId: anchorId })
     const s = useSession.getState(),
       tableId = bindAnchor(
@@ -355,6 +359,7 @@ export class ParkRuntime implements ParkRuntimePort {
   }
   joinTable = () =>
     this.action(async () => {
+      if (benchBusy(useSession.getState().sessionId)) throw new Error('먼저 벤치에서 일어나주세요.')
       if (tableBusy())
         throw new Error('먼저 진행 중인 경기 상태를 확인해주세요.')
       const s = useSession.getState()
