@@ -19,7 +19,10 @@ import { GOMOKU } from '../../src/config'
 import type { InstancedMesh } from 'three'
 import { omokCamera } from '../../src/game/cameraState'
 import { Matrix4 } from 'three'
-import { avatars, sampleAvatar } from '../../src/network/worldClient'
+import { avatars, sampleAvatar, estimatedServerTime, type AvatarSnapshot } from '../../src/network/worldClient'
+import { SkinnedMesh, ShaderMaterial } from 'three'
+import { FITNESS_STATIONS } from '../../src/config'
+import { ADVERTISEMENT_SCHEDULE } from '../../src/world/art/advertisementMedia'
 import { groundHeight } from '../../src/config'
 export const omokCameraReady = () => omokCamera.ready
 export function pointForOmok(x: number, y: number) {
@@ -227,3 +230,82 @@ export function movementProbe() {
     cameraY: camera.position.y, terrainY: groundHeight(camera.position.x, camera.position.z),
   }
 }
+
+/** Keep unrelated advertisement uploads out of the avatar allocation/disposal comparison. */
+export function fixtureStaticAdvertisementClock() {
+  const at = ADVERTISEMENT_SCHEDULE.totalMs * 10_000 + 1000 // First two slots are static posters.
+  environmentClock.reset()
+  environmentClock.sync(at, performance.now())
+  environmentClock.now = () => at
+}
+export function advertisementPostersReady() {
+  const { scene, gl } = root()
+  const textures = new Set<import('three').Texture>()
+  scene.traverse(object => {
+    if (object.name !== 'rotating-advertisement' || !(object instanceof Mesh) || !(object.material instanceof ShaderMaterial)) return
+    for (const key of ['current', 'next']) textures.add(object.material.uniforms[key]!.value)
+  })
+  return textures.size > 0 && [...textures].every(texture => texture.image instanceof HTMLImageElement
+    && texture.image.complete && !!(gl.properties.get(texture) as { __webglTexture?: WebGLTexture }).__webglTexture)
+}
+
+
+// Unsupported action data stays in this test module, outside application entry points.
+export function fixtureCharacterPose(id: string, patch: Partial<AvatarSnapshot>) {
+  Object.assign(avatars.get(id)!, patch,
+    patch.emote && patch.emoteAt === undefined ? { emoteAt: estimatedServerTime() - 700 } : {})
+}
+export function fixtureExercise(index: number) {
+  for (const id of ['101', '102']) fixtureCharacterPose(id, {
+    fitnessId: FITNESS_STATIONS[index]!.id, fitnessStartedAt: estimatedServerTime() - 1100,
+    swimming: false, benchId: '', seatIndex: -1, emote: '',
+  })
+}
+export function characterProbe() {
+  const { scene, gl } = root()
+  return {
+    memory: { ...gl.info.memory },
+    avatars: ['101', '102'].map(id => {
+      const object = scene.getObjectByName('avatar-' + id)
+      const model = object?.getObjectByName('character-model')
+      const near = model?.getObjectByName('near-body') as SkinnedMesh | undefined
+      const far = model?.getObjectByName('far-body') as SkinnedMesh | undefined
+      const bone = (name: string) => {
+        const rotation = model?.getObjectByName(name)?.rotation
+        return rotation ? [rotation.x, rotation.y, rotation.z] : undefined
+      }
+      return { id, character: object?.userData.character, visible: object?.visible,
+        near: near?.visible, far: far?.visible, skeleton: near?.skeleton.uuid,
+        texture: near?.skeleton.boneTexture?.uuid, geometry: near?.geometry.uuid,
+        // Test-only inspection of the pinned Three renderer; allocation alone is not a GPU upload.
+        textureUploaded: !!near?.skeleton.boneTexture && !!(gl.properties.get(near.skeleton.boneTexture) as { __webglTexture?: WebGLTexture }).__webglTexture,
+        bones: near?.skeleton.bones.length, arm: bone('upperArm_R'), elbow: bone('lowerArm_L'),
+        leg: bone('upperLeg_L'), figureX: scene.getObjectByName('figure-' + id)?.rotation.x,
+        seatedCloth: near?.morphTargetInfluences?.[near.morphTargetDictionary?.seatedCloth ?? -1],
+      }
+    }),
+  }
+}
+const resourceWatch = { disposed: 0, sharedDisposed: 0 }
+export function watchCharacterResources() {
+  resourceWatch.disposed = resourceWatch.sharedDisposed = 0
+  const object = root().scene.getObjectByName('avatar-102')!
+  const skeletons = new Set(), geometries = new Set(), materials = new Set()
+  object.traverse(child => {
+    if (!(child instanceof SkinnedMesh)) return
+    if (!skeletons.has(child.skeleton)) {
+      skeletons.add(child.skeleton)
+      child.skeleton.boneTexture?.addEventListener('dispose', () => resourceWatch.disposed++)
+    }
+    if (!geometries.has(child.geometry)) {
+      geometries.add(child.geometry)
+      child.geometry.addEventListener('dispose', () => resourceWatch.sharedDisposed++)
+    }
+    for (const material of Array.isArray(child.material) ? child.material : [child.material]) {
+      if (materials.has(material)) continue
+      materials.add(material)
+      material.addEventListener('dispose', () => resourceWatch.sharedDisposed++)
+    }
+  })
+}
+export const characterResources = () => ({ ...resourceWatch })
