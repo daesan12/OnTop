@@ -13,8 +13,8 @@ import { normalizeTelescopeAim } from '../features/telescopes/anchors'
 import { telescopeView, zoomTelescope } from '../features/telescopeView'
 import { inputState, panelOwnsKeys, roamingInput, textInputOwnsKeys } from './inputOwnership'
 import { cameraRelativeMove, MOVEMENT_INPUT_INTERVAL_MS, type MovementIntent } from '../network/movementInput'
-import { tableBusy, useGame } from '../game/store'
-import { lobbyStatus, waitingForRound } from '../features/tableLobby/model'
+import { useGame } from '../game/store'
+import { canLeaveByMovement } from '../features/tableLobby/model'
 import { seatScope, turnSeatedLook } from '../features/tableLobby/state'
 export { inputState, setChatInputOpen, textInputOwnsKeys } from './inputOwnership'
 export const viewControls = {
@@ -68,8 +68,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     if (!event.repeat && !event.isComposing && !event.ctrlKey && !event.altKey && !event.metaKey
       && session.status === 'connected' && !session.pending && !document.hidden && session.mapCompatible
       && table && !panelOwnsKeys() && !textInputOwnsKeys(document.activeElement)
-      && waitingForRound(useGame.getState().start, session.tableId)
-      && lobbyStatus(table, session.sessionId, tableBusy()).canLeaveByMovement
+      && canLeaveByMovement(table, session.sessionId, useGame.getState())
       && movement.has(event.code) && !event.code.startsWith('Shift')) {
       event.preventDefault()
       stop()

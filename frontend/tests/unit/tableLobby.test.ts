@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { gameSelection, lobbyStatus, waitingForRound } from '../../src/features/tableLobby/model'
+import { canLeaveByMovement, gameSelection, lobbyStatus, waitingForRound } from '../../src/features/tableLobby/model'
 import { createMockPublicMatchService } from '../../src/features/tableLobby/mock/MockPublicMatchService'
 import { publicMatchService } from '../../src/features/tableLobby/publicMatch'
 import { resetTableLobby, seatScope, seatedLook, turnSeatedLook, useTableLobby } from '../../src/features/tableLobby/state'
@@ -20,6 +20,23 @@ const result = { version: 2, gameSessionId: 'game', gameCode: 'OMOK', status: 'F
 const send = (type: string, payload: Record<string, unknown>) => receiveGame({ type, payload, requestId: null }, '101', 'table')
 beforeEach(() => { resetGame(); resetTableLobby() })
 describe('M09 lobby authority and completed round presentation', () => {
+  it('permits only a normal unready leave when optional start events are absent', () => {
+    expect(canLeaveByMovement(table, '101', useGame.getState())).toBe(true)
+    expect(canLeaveByMovement(table, '103', useGame.getState())).toBe(false)
+    expect(canLeaveByMovement({ ...table, seats: table.seats.map(s => ({ ...s, ready: true })) }, '101', useGame.getState())).toBe(false)
+    const state = useGame.getState()
+    for (const recovery of ['PENDING', 'RESTORED', 'EXPIRED', 'UNAVAILABLE'] as const)
+      expect(canLeaveByMovement(table, '101', { ...state, recovery, permittedGameId: 'g' })).toBe(false)
+    expect(canLeaveByMovement(table, '101', { ...state, pending: true })).toBe(false)
+    expect(canLeaveByMovement(table, '101', { ...state, uncertain: true })).toBe(false)
+    expect(canLeaveByMovement(table, '101', { ...state, permittedGameId: 'g' })).toBe(false)
+    for (const phase of ['STARTING', 'CONFIRMED', 'PLAYING', 'SETTLING', 'NOT_SEATED'] as const)
+      expect(canLeaveByMovement(table, '101', { ...state, start: { ...start('WAITING', 1), phase } })).toBe(false)
+    expect(canLeaveByMovement(table, '101', { ...state, start: { ...start('WAITING', 1), tableId: 'other' } })).toBe(false)
+    expect(canLeaveByMovement(table, '101', { ...state, start: start('WAITING', 1) })).toBe(true)
+    // A rehearsal WAITING permits leaving but still cannot dismiss a real next-round result.
+    expect(canLeaveByMovement(table, '101', { ...state, start: { ...start('WAITING', 1), simulation: true } })).toBe(true)
+  })
   it('uses server selector identity rather than first seat or rule-player index', () => {
     expect(lobbyStatus(table, '101', false)).toMatchObject({ host: true, count: 2, canReady: true, canLeaveByMovement: true })
     expect(lobbyStatus(table, '102', false).host).toBe(false)

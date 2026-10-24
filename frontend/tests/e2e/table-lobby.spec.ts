@@ -10,6 +10,44 @@ async function load(p: Page) {
   await expect(lobby(p)).toBeVisible()
 }
 
+test('unready movement exit works without optional GAME_START_STATE, while ready and owned input stay protected', async ({ page }) => {
+  const errors: string[] = []
+  page.on('pageerror', e => errors.push(e.message))
+  const server = await fixture(page, { omok: true, m09: true, startEvents: false })
+  await load(page)
+  for (const selected of [false, true]) {
+    await lobby(page).getByRole('button', { name: '앉기', exact: true }).click()
+    if (selected) {
+      await lobby(page).getByRole('button', { name: '오목 선택', exact: true }).click()
+      await lobby(page).getByRole('button', { name: '준비', exact: true }).click()
+      await expect(lobby(page)).toContainText('준비·경기·정산 중 이동키로 퇴장하지 않습니다.')
+      await lobby(page).getByRole('button', { name: '테이블 정보 닫기' }).click()
+      await page.locator('canvas').focus()
+      await page.keyboard.press('KeyW')
+      expect(server.sent.filter(m => m.type === 'TABLE_LEAVE')).toHaveLength(1)
+      await page.getByRole('button', { name: '테이블 로비 열기', exact: true }).click()
+      await lobby(page).getByRole('button', { name: '준비 취소', exact: true }).click()
+    }
+    await expect(lobby(page)).toContainText('창을 닫고 이동키로 일어날 수 있어요.')
+    await page.keyboard.press('KeyW') // Focus remains inside the dialog.
+    expect(server.sent.filter(m => m.type === 'TABLE_LEAVE')).toHaveLength(selected ? 1 : 0)
+    await lobby(page).getByRole('button', { name: '테이블 정보 닫기' }).click()
+    await page.locator('canvas').focus()
+    await page.keyboard.press('ShiftLeft')
+    expect(server.sent.filter(m => m.type === 'TABLE_LEAVE')).toHaveLength(selected ? 1 : 0)
+    await page.keyboard.press('KeyS')
+    await expect.poll(() => server.sent.filter(m => m.type === 'TABLE_LEAVE').length).toBe(selected ? 2 : 1)
+    if (!selected) {
+      await screenshot(page, 'movement-exit-without-start-state')
+      await page.keyboard.press('KeyE')
+      await expect(lobby(page)).toBeVisible()
+    }
+  }
+  expect(server.sent.some(m => /RESIGN|FORFEIT/.test(m.type))).toBe(false)
+  expect(errors).toEqual([])
+  expect(await page.locator('vite-error-overlay').count()).toBe(0)
+})
+
 test('M09 lobby uses server host, four seats and exact game/target commands; preserves explicit exit', async ({ page }) => {
   const errors: string[] = []; page.on('pageerror', e => errors.push(e.message))
   const server = await fixture(page, { omok: true, m09: true })

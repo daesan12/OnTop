@@ -1,5 +1,6 @@
 import type { TableState } from '../../network/protocol'
 import type { StartState } from '../../game/protocol'
+import { tableBusy, type useGame } from '../../game/store'
 
 export const TABLE_GAMES = [
   { code: 'OMOK', name: '오목', capacity: 2, playable: true },
@@ -32,3 +33,13 @@ export function lobbyStatus(table: TableState, ownId: string, busy: boolean) {
 }
 export const waitingForRound = (start: StartState | null, tableId: string) =>
   start?.tableId === tableId && start.phase === 'WAITING' && !start.simulation
+
+/** Missing optional start events must not prevent a normal TABLE_LEAVE request.
+ * The server still checks WAITING; no local unseat, resign or next-round fallback.
+ */
+export function canLeaveByMovement(table: TableState, ownId: string, game: ReturnType<typeof useGame.getState>) {
+  return lobbyStatus(table, ownId, tableBusy(game)).canLeaveByMovement
+    && !game.pending && !game.uncertain && !game.game && !game.permittedGameId && !game.watchedGameId
+    && (!game.start || (game.start.tableId === table.tableId && game.start.phase === 'WAITING'))
+    && (!game.lastResult || game.lastResult.settlementStatus === 'SETTLED')
+}

@@ -22,37 +22,59 @@ export function normalizedMove(dx: number, dz: number, run: boolean, jump: boole
 }
 
 /** Coalesce quick changes without violating the existing input cadence.
+ * Async delivery waits for the server reply, then spaces the next input from that reply.
+ * This prevents delayed packets from arriving as a burst, even when local sends were spaced.
  * A stop cancels an unsent jump; reset never replays input into a new connection.
  */
 export class MovementInputBuffer {
   private lastSent = -Infinity
   private pending: { intent: MovementIntent; scope: string } | undefined
   private timer: ReturnType<typeof setTimeout> | undefined
+  private inFlight = false
+  private delivery = 0
   constructor(
-    private readonly send: (intent: MovementIntent, scope: string) => void,
+    private readonly send: (intent: MovementIntent, scope: string) => void | Promise<void>,
     private readonly now = () => performance.now(),
   ) {}
   enqueue(intent: MovementIntent, scope: string) {
     const previous = this.pending
     this.pending = { scope, intent: { ...intent,
       jump: !stoppedIntent(intent) && (intent.jump || (previous?.scope === scope && previous.intent.jump) || false) } }
-    if (this.timer !== undefined) return
-    const delay = Math.max(0, MOVEMENT_INPUT_INTERVAL_MS - (this.now() - this.lastSent))
-    if (!delay) this.flush()
-    else this.timer = setTimeout(() => this.flush(), delay)
+    if (this.timer === undefined && !this.inFlight) this.flush()
   }
   private flush() {
     this.timer = undefined
+    if (!this.pending || this.inFlight) return
+    // Timers may fire before a fractional delay has fully elapsed. Recheck the clock.
+    const delay = MOVEMENT_INPUT_INTERVAL_MS - (this.now() - this.lastSent)
+    if (delay > 0) {
+      this.timer = setTimeout(() => this.flush(), Math.ceil(delay))
+      return
+    }
     const next = this.pending
     this.pending = undefined
-    if (!next) return
     this.lastSent = this.now()
-    this.send(next.intent, next.scope)
+    const response = this.send(next.intent, next.scope)
+    if (response) {
+      const delivery = ++this.delivery
+      this.inFlight = true
+      const complete = () => {
+        if (delivery !== this.delivery) return
+        this.inFlight = false
+        this.lastSent = this.now()
+        this.flush()
+      }
+      void response.then(complete, complete)
+    }
   }
   clear(resetCadence = true) {
     clearTimeout(this.timer)
     this.timer = undefined
     this.pending = undefined
-    if (resetCadence) this.lastSent = -Infinity
+    if (resetCadence) {
+      ++this.delivery
+      this.inFlight = false
+      this.lastSent = -Infinity
+    }
   }
 }

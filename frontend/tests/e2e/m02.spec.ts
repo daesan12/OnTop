@@ -60,7 +60,7 @@ test('M02 preserves the movement protocol, one-shot Space and stopping across bl
   server.close(1012)
   await expect.poll(() => server.connections, { timeout: 15_000 }).toBe(2)
   const countAfterReconnect = moves().length
-  // Wait beyond an input cadence to detect held-key replay, without inventing an ack requirement.
+  // Wait beyond an input cadence to detect held-key replay.
   await page.waitForTimeout(250)
   expect(moves().slice(countAfterReconnect).some(m => m.payload.dx || m.payload.dz || m.payload.jump)).toBe(false)
   await page.keyboard.up('KeyW')

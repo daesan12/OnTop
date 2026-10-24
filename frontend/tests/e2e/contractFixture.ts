@@ -29,6 +29,7 @@ export async function fixture(
     onecard?: 2 | 3 | 4
     bridge?: 2 | 3 | 4
     m09?: boolean
+    startEvents?: boolean
     manualMovement?: boolean
     ownUserId?: '101' | '102'
     emoteBindings?: boolean
@@ -123,7 +124,7 @@ export async function fixture(
     ws: WebSocketRoute,
     phase: string,
     requestId: string | null = null,
-  ) =>
+  ) => options.startEvents !== false &&
     emit(
       ws,
       'GAME_START_STATE',
