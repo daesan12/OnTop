@@ -18,6 +18,8 @@ import { TelescopePanel } from '../features/telescopes/TelescopePanel'
 import { FeedbackPanel } from '../features/feedback/FeedbackPanel'
 import { AnonymousNotes } from '../features/notes/AnonymousNotes'
 import { ManualHost } from '../features/manual/ManualHost'
+import { ParkMap } from '../features/navigation/ParkMap'
+import { ParkNavigation } from '../features/navigation/NavigationHud'
 import { inputState } from '../world/inputOwnership'
 import { BungeoppangHud } from '../features/bungeoppang/BungeoppangHud'
 import { useBungeoppang } from '../features/bungeoppang/store'
@@ -71,7 +73,7 @@ function ParkContent({ onExit, exitError }: ParkProps) {
 
   useEffect(() => {
     const handleKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (inputState.manualOpen || event.isComposing || event.altKey || event.ctrlKey || event.metaKey) return
+      if (inputState.manualOpen || inputState.mapOpen || event.isComposing || event.altKey || event.ctrlKey || event.metaKey) return
       if (event.key === 'Escape' && chatOpen) {
         setChatOpen(false)
         inputRef.current?.blur()
@@ -179,6 +181,8 @@ function ParkContent({ onExit, exitError }: ParkProps) {
       <FeedbackPanel />
       <AnonymousNotes />
       <BungeoppangHud />
+      <ParkMap />
+      <ParkNavigation />
       <ManualHost />
     </main>
   )
