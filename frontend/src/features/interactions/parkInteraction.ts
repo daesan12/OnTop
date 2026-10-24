@@ -1,6 +1,6 @@
 import { FITNESS, FITNESS_STATIONS, GOMOKU, TABLES, TELESCOPES, TELESCOPE, MAILBOX, tableScale } from '../../config'
 import { avatars, useSession } from '../../network/worldClient'
-import { tableBusy } from '../../game/store'
+import { tableBusy, useGame } from '../../game/store'
 import { parkRuntime } from '../../park/runtime/runtime'
 import { panelOwnsKeys, roamingInput } from '../../world/inputOwnership'
 import { benchAnchors } from './benchAnchors'
@@ -39,7 +39,7 @@ export function getParkInteraction(): ParkInteraction | null {
   const p = avatars.get(session.sessionId)
   if (!roamingInput.ready || !p || session.status !== 'connected' || !session.mapCompatible || session.tableId || p.seatIndex >= 0
     || p.fitnessId || p.telescopeId || p.swimming || session.pending || benches.pending || fitness.pending
-    || useTelescopeState.getState().pending || tableBusy() || panelOwnsKeys()) return null
+    || useTelescopeState.getState().pending || tableBusy() || useGame.getState().watchedGameId || panelOwnsKeys()) return null
   const choices: ParkInteraction[] = []
   if (canReachNotes(p.current)) {
     const distance = Math.hypot(p.current.x - NOTES_BOX.x, p.current.z - NOTES_BOX.z)

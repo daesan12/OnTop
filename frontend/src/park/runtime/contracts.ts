@@ -16,12 +16,16 @@ export interface ParkRuntimePort {
   joinTable(): Promise<boolean>
   leaveTable(): Promise<boolean>
   selectOmok(): Promise<boolean>
+  selectGame(code: import('../../features/tableLobby/model').TableGameCode, targetScore?: number): Promise<boolean>
   setReady(ready: boolean): Promise<boolean>
   checkStart(): Promise<boolean>
   checkRecovery(): Promise<boolean>
   checkGame(): Promise<boolean>
   checkResult(): Promise<boolean>
   placeOmok(x: number, y: number): Promise<boolean>
+  actDice(kind: 'roll' | 'bank', selectedIds: readonly number[]): Promise<boolean>
+  actOneCard(input: import('../../game/onecard/protocol').OneCardInput): Promise<boolean>
+  actBridge(input: import('../../game/bridge/protocol').BridgeInput): Promise<boolean>
   watchGame(gameId: string): Promise<boolean>
   unwatchGame(): Promise<boolean>
 }

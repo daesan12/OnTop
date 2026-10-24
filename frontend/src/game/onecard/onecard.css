@@ -1,0 +1,20 @@
+.park-page .onecard-panel { position:absolute; right:var(--park-edge); bottom:calc(var(--park-edge) + 80px); width:min(490px,39vw); max-height:calc(100dvh - 220px); overflow:auto; z-index:5; }
+.onecard-players { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+.onecard-players>div { display:flex; flex-direction:column; padding:8px; border:1px solid #e7d7aa55; border-radius:8px; gap:4px; min-width:0; overflow-wrap:anywhere; }
+.onecard-players .active { border-color:#f0bd67; background:#f0bd6718; }
+.onecard-public { display:flex; gap:16px; align-items:center; }
+.onecard-public>div:last-child { display:flex; flex-direction:column; gap:6px; }
+.onecard-hand { display:flex; flex-wrap:nowrap; flex-shrink:0; gap:9px; overflow-x:auto; overflow-y:hidden; padding:13px 4px 9px; overscroll-behavior:contain; scrollbar-width:thin; scrollbar-color:#829983 #203c32; }
+.park-page .onecard-panel .onecard-card { background:#f8f1df; color:#263f3c; border:2px solid #e0d5b8; border-radius:8px; display:flex; flex-direction:column; align-items:center; justify-content:space-between; width:90px; min-width:90px; min-height:124px; padding:7px 6px; text-align:center; flex-shrink:0; box-shadow:0 3px 0 #071a164d; }
+.park-page .onecard-panel .onecard-card .onecard-rank { align-self:flex-start; font:bold 20px Georgia,serif; }
+.park-page .onecard-panel .onecard-card .onecard-symbol { font:40px/1 Georgia,serif; }
+.park-page .onecard-panel .onecard-card small { font-size:9px; line-height:1.2; min-height:20px; }
+.park-page .onecard-panel .onecard-card.red { color:#ae353e; }
+.park-page .onecard-panel .onecard-card:disabled { opacity:.6; }
+.park-page .onecard-hand .onecard-card:not(:disabled) { border-color:#90c5a1; box-shadow:0 0 0 2px #90c5a155; }
+.park-page .onecard-hand .onecard-card:hover:not(:disabled) { background:#fff9e9; transform:translateY(-6px); }
+.park-page .onecard-panel .onecard-card[aria-pressed=true] { border-color:#edce76; box-shadow:0 0 0 3px #edce7699; background:#fff9e9; transform:translateY(-3px); }
+.onecard-actions { display:flex; flex-wrap:wrap; gap:7px; }
+.onecard-rules { border-top:1px solid #e7d7aa55; font-size:13px; }
+@media(max-width:700px) { .park-page .onecard-panel { width:calc(100vw - 2 * var(--park-edge)); max-height:calc(100dvh - 210px); bottom:calc(var(--park-edge) + 68px); } }
+@media(max-height:800px) { .park-page .onecard-panel { font-size:13px; gap:6px; } .onecard-hand { max-height:160px; } }

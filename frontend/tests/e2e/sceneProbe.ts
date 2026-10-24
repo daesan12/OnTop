@@ -4,6 +4,7 @@ import {
   Box3,
   Mesh,
   Vector3,
+  Texture,
   type BufferAttribute,
   type InterleavedBufferAttribute,
 } from 'three'
@@ -19,11 +20,15 @@ import { GOMOKU } from '../../src/config'
 import type { InstancedMesh } from 'three'
 import { omokCamera } from '../../src/game/cameraState'
 import { Matrix4 } from 'three'
+import { useGame } from '../../src/game/store'
 import { avatars, sampleAvatar, estimatedServerTime, type AvatarSnapshot } from '../../src/network/worldClient'
 import { SkinnedMesh, ShaderMaterial } from 'three'
 import { FITNESS_STATIONS } from '../../src/config'
 import { ADVERTISEMENT_SCHEDULE } from '../../src/world/art/advertisementMedia'
 import { groundHeight } from '../../src/config'
+import { parkRuntime } from '../../src/park/runtime/runtime'
+import { useDiceUI, diceCamera } from '../../src/game/farkle/controls'
+export const inspectTable = () => parkRuntime.inspectTable('table-1')
 export const omokCameraReady = () => omokCamera.ready
 export function pointForOmok(x: number, y: number) {
   const { scene, camera, gl } = root()
@@ -60,6 +65,80 @@ export function omokGeometry() {
     triangles: gl.info.render.triangles,
   }
 }
+export function omokPresentationProbe() {
+  const { scene, gl } = root()
+  const board = scene.getObjectByName('omok-board-' + useSession.getState().focusedAnchorId)
+  const hover = board?.getObjectByName('omok-hover'), last = board?.getObjectByName('omok-last-move')
+  return { hover: !!hover?.visible, hoverPosition: hover?.position.toArray() ?? null,
+    lastMove: last?.position.toArray() ?? null, cursor: gl.domElement.style.cursor }
+}
+// M10 visual QA: inspect render-only supplies without changing game or transport state.
+export function omokArtProbe(visible?: boolean) {
+  const { scene } = root()
+  const board = scene.getObjectByName('omok-board-' + useSession.getState().focusedAnchorId)
+  if (board && visible !== undefined) board.visible = visible
+  const art = board?.getObjectByName('walnut-gomoku-assets')
+  const bounds = art ? new Box3().setFromObject(art) : null
+  const batches: { name: string; count: number; triangles: number }[] = []
+  art?.traverse(o => {
+    if (!('isInstancedMesh' in o)) return
+    const m = o as InstancedMesh
+    batches.push({ name: m.name, count: m.count, triangles: (m.geometry.index?.count ?? m.geometry.attributes.position!.count) / 3 })
+  })
+  return { present: !!art, batches, bounds: bounds ? [bounds.min.toArray(), bounds.max.toArray()] : null }
+}
+export function pointForOmokLocal(x: number, y: number, z: number) {
+  const { scene, camera, gl } = root()
+  const board = scene.getObjectByName('omok-board-' + useSession.getState().focusedAnchorId)!
+  const p = board.localToWorld(new Vector3(x, y, z)).project(camera), box = gl.domElement.getBoundingClientRect()
+  return { x: (p.x + 1) * box.width / 2, y: (1 - p.y) * box.height / 2 }
+}
+const omokResources = { instances: 0, shared: 0 }
+export function watchOmokResources() {
+  omokResources.instances = omokResources.shared = 0
+  const { scene } = root(), geometries = new Set(), materials = new Set()
+  scene.getObjectByName('omok-board-' + useSession.getState().focusedAnchorId)?.traverse(o => {
+    if (!('isInstancedMesh' in o)) return
+    const mesh = o as InstancedMesh
+    mesh.addEventListener('dispose', () => omokResources.instances++)
+    // Inlay's JSX boxGeometry is table-owned; all other shapes here are cached primitives.
+    if (mesh.geometry.type !== 'BoxGeometry' && !geometries.has(mesh.geometry)) { geometries.add(mesh.geometry); mesh.geometry.addEventListener('dispose', () => omokResources.shared++) }
+    // Only externally shared stone materials are expected to survive this table.
+    if (!o.name && (o.parent?.name.startsWith('omok-board-'))) {
+      for (const m of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
+        if (!materials.has(m)) { materials.add(m); m.addEventListener('dispose', () => omokResources.shared++) }
+      }
+    }
+  })
+}
+export const omokResourceProbe = () => ({ ...omokResources })
+export function farkleProbe() {
+  const { scene } = root()
+  const dice: { id: string; face: number; held: boolean; quaternion: number[] }[] = []
+  scene.traverse(o => { if (o.name.startsWith('farkle-die-')) dice.push({ id: o.name, face: o.userData.face, held: o.userData.held, quaternion: o.quaternion.toArray() }) })
+  return { dice, cameraReady: diceCamera.ready, cup: useDiceUI.getState().cup, selected: useDiceUI.getState().selectedIds }
+}
+export function pointForFarkleCup() {
+  const { scene, camera, gl } = root()
+  const cup = scene.getObjectByName('farkle-cup-table-1')!
+  const p = cup.localToWorld(new Vector3(0, .15, 0)).project(camera), box = gl.domElement.getBoundingClientRect()
+  return { x: (p.x + 1) * box.width / 2, y: (1 - p.y) * box.height / 2 }
+}
+const diceResources = { disposed: 0, sharedDisposed: 0 }
+export function watchDiceResources() {
+  diceResources.disposed = diceResources.sharedDisposed = 0
+  const geometries = new Set(), materials = new Set()
+  root().scene.traverse(child => {
+    if (!child.parent?.name.startsWith('farkle-die-') || !(child instanceof Mesh)) return
+    const mesh = child
+    if ('isInstancedMesh' in mesh) (mesh as InstancedMesh).addEventListener('dispose', () => diceResources.disposed++)
+    if (!geometries.has(mesh.geometry)) { geometries.add(mesh.geometry); mesh.geometry.addEventListener('dispose', () => diceResources.sharedDisposed++) }
+    for (const m of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
+      if (!materials.has(m)) { materials.add(m); m.addEventListener('dispose', () => diceResources.sharedDisposed++) }
+    }
+  })
+}
+export const diceResourceProbe = () => ({ ...diceResources })
 
 function root() {
   const canvas = document.querySelector('canvas')!
@@ -464,4 +543,83 @@ export async function fixtureNearbyNote(text: string) {
   return notesService.submit({ userId: 'nearby-fixture', channelId: useSession.getState().roomId,
     position: { x: NOTES_BOX.x, y: NOTES_BOX.y + 0.8, z: NOTES_BOX.z, yaw: 0 } },
   { text, operationId: crypto.randomUUID() }, new AbortController().signal)
+}
+
+
+// M09: seed only the missing public-reference port in the explicit preview build.
+import { publicMatchService } from '../../src/features/tableLobby/publicMatch'
+import { useTableLobby, seatedLook } from '../../src/features/tableLobby/state'
+import type { PublicMatchReference } from '../../src/features/tableLobby/publicMatch'
+export function previewPublicMatch(ref: PublicMatchReference) {
+  if (!import.meta.env.DEV || import.meta.env.MODE !== 'facility-preview' || publicMatchService.mode !== 'mock') throw new Error('Preview only')
+  ;(publicMatchService as typeof publicMatchService & { set(ref: PublicMatchReference): void }).set(ref)
+}
+export function onecardProbe() {
+  const scene = root().scene, top = scene.getObjectByName('onecard-public-top'), backs = scene.getObjectByName('onecard-public-card-backs') as InstancedMesh | undefined
+  return { top: top?.userData.cardId, backs: backs?.count ?? 0, visible: !!scene.getObjectByName('onecard-table'),
+    publicData: JSON.stringify({ session: useSession.getState(), avatars: [...avatars] }) }
+}
+export function bridgeProbe() {
+  const { scene } = root(), b = useGame.getState().game?.bridge, pieces = scene.getObjectByName('bridge-pawns') as InstancedMesh | undefined
+  const pawns = b?.players.flatMap(p => p.pawns) ?? [], matrix = new Matrix4()
+  return { visible: !!scene.getObjectByName('bridge-table'), count: pieces?.count ?? 0,
+    crosses: (scene.getObjectByName('bridge-vacated') as InstancedMesh | undefined)?.count ?? 0,
+    pawns: pieces ? pawns.map((p, i) => { pieces.getMatrixAt(i, matrix); return { id: p.id, status: p.status, position: matrix.elements.slice(12, 15), scale: Math.hypot(...matrix.elements.slice(0, 3)) } }) : [],
+    publicData: JSON.stringify({ session: useSession.getState(), avatars: [...avatars] }) }
+}
+export function boardgameArtProbe() {
+  const { scene } = root()
+  const pawn = scene.getObjectByName('bridge-pawns') as InstancedMesh | undefined
+  const top = scene.getObjectByName('onecard-public-top')
+  const mat = scene.getObjectByName('onecard-felt-mat')
+  const cup = scene.getObjectByName('farkle-cup-' + useSession.getState().focusedAnchorId)
+  const cupMeshes: Mesh[] = []
+  cup?.traverse(o => { if (o instanceof Mesh) cupMeshes.push(o) })
+  return { cardMat: !!mat, cardSurfaceY: top?.position.y, deck: !!scene.getObjectByName('onecard-draw-deck'),
+    cupMeshes: cupMeshes.length, originalTray: !!scene.getObjectByName('farkle-oak-tray'),
+    boardModel: !!scene.getObjectByName('board-lod'), boardNear: scene.getObjectByName('board-detail')?.visible,
+    boardFar: scene.getObjectByName('board-distant')?.visible,
+    pawnTriangles: pawn ? (pawn.geometry.index?.count ?? pawn.geometry.attributes.position!.count) / 3 : 0 }
+}
+const bridgeResources = { instances: 0, shared: 0 }
+export const bridgeResourceProbe = () => ({ ...bridgeResources })
+export function watchBridgeResources() {
+  const resources = new Set<object>()
+  root().scene.getObjectByName('bridge-table')?.traverse(object => {
+    if (!(object instanceof Mesh)) return
+    if ('isInstancedMesh' in object) object.addEventListener('dispose', () => bridgeResources.instances++)
+    for (const resource of [object.geometry, ...(Array.isArray(object.material) ? object.material : [object.material])]) {
+      if (!resources.has(resource)) { resources.add(resource); resource.addEventListener('dispose', () => bridgeResources.shared++) }
+    }
+  })
+}
+const onecardResources = { textures: 0, materials: 0, instances: 0, shared: 0 }
+const watchedOneCardResources = new WeakSet<object>()
+export const onecardResourceProbe = () => ({ ...onecardResources })
+export function watchOneCardResources() {
+  const scene = root().scene
+  scene.getObjectByName('onecard-table')?.traverse(object => {
+    if (!(object instanceof Mesh)) return
+    if (!watchedOneCardResources.has(object.geometry)) {
+      watchedOneCardResources.add(object.geometry); object.geometry.addEventListener('dispose', () => onecardResources.shared++)
+    }
+    for (const material of Array.isArray(object.material) ? object.material : [object.material]) {
+      if (watchedOneCardResources.has(material)) continue
+      watchedOneCardResources.add(material)
+      if ('map' in material && material.map instanceof Texture) {
+        material.addEventListener('dispose', () => onecardResources.materials++)
+        material.map.addEventListener('dispose', () => onecardResources.textures++)
+      } else material.addEventListener('dispose', () => onecardResources.shared++)
+    }
+  })
+  const backs = scene.getObjectByName('onecard-public-card-backs') as InstancedMesh | undefined
+  if (backs && !watchedOneCardResources.has(backs)) {
+    watchedOneCardResources.add(backs); backs.addEventListener('dispose', () => onecardResources.instances++)
+  }
+}
+export function tablePresentationProbe() {
+  const { camera } = root()
+  return { query: useTableLobby.getState(), yaw: seatedLook.yaw, seatIndex: useSession.getState().seatIndex,
+    ownTable: useSession.getState().tableId, camera: camera.position.toArray(), omokCamera: { ...omokCamera },
+    publicMatchMode: publicMatchService.mode }
 }

@@ -47,10 +47,26 @@
   color: #fffdf4;
   text-shadow: 0 0 1px #222;
 }
+.park-page .omok-accessible-board .last-move {
+  box-shadow: inset 0 0 0 2px #e67f25;
+}
+.park-page .omok-accessible-board button:focus-visible {
+  outline: 2px solid #1d5939;
+  outline-offset: -2px;
+}
+.park-page .omok-last-move-text { color: #f4cd87; }
+.park-page .omok-surrender-preview { border-top: 1px solid #e6ddbf55; padding-top: 8px; }
 .park-page .omok-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+@media (max-width: 600px) {
+  .park-page .omok-panel {
+    width: min(360px, calc(100vw - 2 * var(--park-edge)));
+    max-height: calc(100dvh - 220px);
+    bottom: calc(var(--park-edge) + 68px);
+  }
 }
 @media (max-height: 800px) {
   .park-page .omok-panel {

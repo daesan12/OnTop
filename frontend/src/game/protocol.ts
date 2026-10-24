@@ -1,4 +1,6 @@
 import { integer, record } from '../network/protocol'
+import { parseOneCard, parseHand, type OneCard, type Hand } from './onecard/protocol'
+import { parseBridge, parseSecret, type Bridge, type SecretDie } from './bridge/protocol'
 
 export type Recovery =
   | 'UNKNOWN'
@@ -36,12 +38,26 @@ export interface Omok {
   endReason: string | null
   endedAt: string | null
 }
-export interface Game {
+interface GameHeader {
   gameId: string
   version: number
   role: 'PLAYER' | 'SPECTATOR'
-  omok: Omok
 }
+export interface OmokGame extends GameHeader { omok: Omok; dice?: never; onecard?: never; hand?: never; bridge?: never; secret?: never }
+export interface DiceGame extends GameHeader { dice: Farkle; omok?: never; onecard?: never; hand?: never; bridge?: never; secret?: never }
+export interface OneCardGame extends GameHeader { onecard: OneCard; hand: Hand | null; omok?: never; dice?: never; bridge?: never; secret?: never }
+export interface BridgeGame extends GameHeader { bridge: Bridge; secret: SecretDie | null; omok?: never; dice?: never; onecard?: never; hand?: never }
+export type Game = OmokGame | DiceGame | OneCardGame | BridgeGame
+export interface Farkle {
+  gameCode: 'DICE'; status: 'PLAYING' | 'FINISHED'; players: string[]; scores: number[]
+  targetScore: number; turnTimeLimitMs: 30000; turnUserId: string | null; turnDeadline: string | null
+  turnScore: number; dice: { id: number; value: number; held: boolean }[]
+  stage: 'AWAITING_ROLL' | 'SELECTING' | 'FINISHED'; rollId: number; round: number
+  hotDice: boolean; lastEvent: 'START' | 'ROLL' | 'HOT_DICE' | 'BANK' | 'BUST' | 'TURN_TIMEOUT'
+  winnerUserId: string | null; endReason: string | null; endedAt: string | null
+}
+export const gameState = (g: Game) => g.omok ?? g.dice ?? g.onecard ?? g.bridge
+export const gamePlayers = (g: Game) => g.omok ? [g.omok.blackUserId, g.omok.whiteUserId] : g.dice ? g.dice.players : (g.onecard ?? g.bridge).players.map(p => p.userId)
 export interface Result {
   version: number
   gameSessionId: string
@@ -174,27 +190,36 @@ export function parseOmok(p: unknown): Omok {
     endedAt: p.endedAt as string | null,
   }
 }
-export function parseGame(p: Record<string, unknown>): Game {
+export function parseGame(p: Record<string, unknown>, ownId = ''): Game {
   if (
     !id(p.gameId) ||
     !integer(p.version) ||
     !['PLAYER', 'SPECTATOR'].includes(String(p.role)) ||
     !record(p.privateState) ||
-    Object.keys(p.privateState).length !== 0
+    (!(record(p.publicState) && ['ONE_CARD', 'LIAR_BRIDGE'].includes(String(p.publicState.gameCode)) && p.role === 'PLAYER') && Object.keys(p.privateState).length !== 0)
   )
-    throw new Error('오목 공개 상태 또는 관전 권한을 확인해주세요.')
-  return {
+    throw new Error('경기 공개 상태 또는 관전 권한을 확인해주세요.')
+  const common = {
     gameId: p.gameId,
     version: p.version,
     role: p.role as Game['role'],
-    omok: parseOmok(p.publicState),
   }
+  if (record(p.publicState) && p.publicState.gameCode === 'LIAR_BRIDGE') {
+    const bridge = parseBridge(p.publicState)
+    return { ...common, bridge, secret: parseSecret(p.privateState, ownId, common.role, bridge) }
+  }
+  if (record(p.publicState) && p.publicState.gameCode === 'ONE_CARD') {
+    const onecard = parseOneCard(p.publicState)
+    return { ...common, onecard, hand: p.role === 'PLAYER' ? parseHand(p.privateState, ownId, onecard) : null }
+  }
+  return record(p.publicState) && p.publicState.gameCode === 'DICE'
+    ? { ...common, dice: parseFarkle(p.publicState) } : { ...common, omok: parseOmok(p.publicState) }
 }
 export function parseResult(p: Record<string, unknown>, ownId: string): Result {
   if (
     !id(p.gameSessionId) ||
     !integer(p.version) ||
-    p.gameCode !== 'OMOK' ||
+    !['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE'].includes(String(p.gameCode)) ||
     !['FINISHED', 'INVALID'].includes(String(p.status)) ||
     !['PENDING', 'SETTLED'].includes(String(p.settlementStatus)) ||
     !integer(p.betAmountPerPlayer) ||
@@ -215,7 +240,7 @@ export function parseResult(p: Record<string, unknown>, ownId: string): Result {
   return {
     version: p.version,
     gameSessionId: p.gameSessionId,
-    gameCode: 'OMOK',
+    gameCode: String(p.gameCode),
     status: p.status as Result['status'],
     settlementStatus: p.settlementStatus as Result['settlementStatus'],
     myCoinDelta: p.myCoinDelta as number | null,
@@ -223,5 +248,36 @@ export function parseResult(p: Record<string, unknown>, ownId: string): Result {
       userId: String(v.userId),
       result: String(v.result),
     })),
+  }
+}
+
+export function parseFarkle(p: unknown): Farkle {
+  if (!record(p) || p.gameCode !== 'DICE' || !['PLAYING', 'FINISHED'].includes(String(p.status))
+    || !Array.isArray(p.players) || p.players.length !== 2 || !p.players.every(id) || new Set(p.players).size !== 2
+    || !Array.isArray(p.scores) || p.scores.length !== 2 || !p.scores.every(integer)
+    || ![2000, 4000, 6000].includes(Number(p.targetScore)) || typeof p.targetScore !== 'number' || p.turnTimeLimitMs !== 30000
+    || !integer(p.turnScore) || !integer(p.rollId) || !integer(p.round) || p.round < 1
+    || !['AWAITING_ROLL', 'SELECTING', 'FINISHED'].includes(String(p.stage)) || typeof p.hotDice !== 'boolean'
+    || !['START', 'ROLL', 'HOT_DICE', 'BANK', 'BUST', 'TURN_TIMEOUT'].includes(String(p.lastEvent))
+    || !nullableId(p.winnerUserId) || !nullableId(p.endReason) || !(p.endedAt === null || date(p.endedAt))
+    || !Array.isArray(p.dice) || ![0, 6].includes(p.dice.length)
+    || !p.dice.every(d => record(d) && integer(d.id) && d.id <= 5 && integer(d.value) && d.value >= 1 && d.value <= 6 && typeof d.held === 'boolean')
+    || new Set(p.dice.map(d => d.id)).size !== p.dice.length)
+    throw new Error('주사위 공개 상태 형식을 확인해주세요.')
+  if ((p.status === 'PLAYING' && (!id(p.turnUserId) || !p.players.includes(p.turnUserId) || !date(p.turnDeadline)
+      || p.winnerUserId !== null || p.endedAt !== null || p.endReason !== null || p.stage === 'FINISHED'))
+    || (p.status === 'FINISHED' && (p.turnUserId !== null || p.turnDeadline !== null || !date(p.endedAt)
+      || !id(p.endReason) || !id(p.winnerUserId) || !p.players.includes(p.winnerUserId) || p.stage !== 'FINISHED'))
+    || (p.stage === 'AWAITING_ROLL' && p.dice.length !== 0)
+    || (p.stage === 'SELECTING' && p.dice.length !== 6))
+    throw new Error('주사위 차례·단계·마감을 확인해주세요.')
+  return {
+    gameCode: 'DICE', status: p.status as Farkle['status'], players: [...p.players], scores: [...p.scores],
+    targetScore: p.targetScore, turnTimeLimitMs: 30000, turnUserId: p.turnUserId as string | null,
+    turnDeadline: p.turnDeadline as string | null, turnScore: p.turnScore,
+    dice: p.dice.map(d => ({ id: Number(d.id), value: Number(d.value), held: Boolean(d.held) })),
+    stage: p.stage as Farkle['stage'], rollId: p.rollId, round: p.round, hotDice: p.hotDice,
+    lastEvent: p.lastEvent as Farkle['lastEvent'], winnerUserId: p.winnerUserId as string | null,
+    endReason: p.endReason as string | null, endedAt: p.endedAt as string | null,
   }
 }

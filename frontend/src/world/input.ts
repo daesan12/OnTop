@@ -11,8 +11,11 @@ import { aimTelescope, leaveTelescope } from '../features/telescopes/controller'
 import { useTelescopeState } from '../features/telescopes/state'
 import { normalizeTelescopeAim } from '../features/telescopes/anchors'
 import { telescopeView, zoomTelescope } from '../features/telescopeView'
-import { panelOwnsKeys, roamingInput, textInputOwnsKeys } from './inputOwnership'
+import { inputState, panelOwnsKeys, roamingInput, textInputOwnsKeys } from './inputOwnership'
 import { cameraRelativeMove, MOVEMENT_INPUT_INTERVAL_MS, type MovementIntent } from '../network/movementInput'
+import { tableBusy, useGame } from '../game/store'
+import { lobbyStatus, waitingForRound } from '../features/tableLobby/model'
+import { seatScope, turnSeatedLook } from '../features/tableLobby/state'
 export { inputState, setChatInputOpen, textInputOwnsKeys } from './inputOwnership'
 export const viewControls = {
   yaw: 0,
@@ -40,6 +43,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
   const previousTabIndex = canvas.getAttribute('tabindex')
   canvas.tabIndex = -1
   let drag = false,
+    seatDragging = '',
     jump = false,
     hadMovement = false
   const intent: MovementIntent = { dx: 0, dz: 0, run: false, jump: false }
@@ -50,13 +54,28 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     panelOwnsKeys() ||
     textInputOwnsKeys(document.activeElement) ||
     !useSession.getState().mapCompatible ||
+    !!useGame.getState().watchedGameId ||
     !!useSession.getState().tableId
   const stop = () => {
     keys.clear()
     drag = jump = hadMovement = false
+    seatDragging = ''
     parkRuntime.move(0, 0, false)
   }
   const down = (event: KeyboardEvent) => {
+    const session = useSession.getState(), table = session.tableStates[session.tableId]
+    // TABLE_LEAVE is distinct from resign. A delayed movement key can never become a forfeit.
+    if (!event.repeat && !event.isComposing && !event.ctrlKey && !event.altKey && !event.metaKey
+      && session.status === 'connected' && !session.pending && !document.hidden && session.mapCompatible
+      && table && !panelOwnsKeys() && !textInputOwnsKeys(document.activeElement)
+      && waitingForRound(useGame.getState().start, session.tableId)
+      && lobbyStatus(table, session.sessionId, tableBusy()).canLeaveByMovement
+      && movement.has(event.code) && !event.code.startsWith('Shift')) {
+      event.preventDefault()
+      stop()
+      void parkRuntime.leaveTable()
+      return
+    }
     if (
       event.isComposing ||
       event.ctrlKey ||
@@ -100,12 +119,29 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
   }
   const up = (event: KeyboardEvent) => keys.delete(event.code)
   const pointerDown = (event: PointerEvent) => {
+    const session = useSession.getState(), scope = seatScope(session)
+    if (event.button === 2 && scope && session.status === 'connected'
+      && !Object.values(inputState).some(Boolean) && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName ?? '')) {
+      event.preventDefault()
+      seatDragging = scope
+      canvas.focus({ preventScroll: true })
+      return
+    }
     if (event.button === 0 && !panelOwnsKeys()) {
       drag = true
       canvas.focus({ preventScroll: true })
     }
   }
   const pointerMove = (event: PointerEvent) => {
+    if (seatDragging) {
+      const session = useSession.getState()
+      if (seatDragging !== seatScope(session) || session.status !== 'connected' || Object.values(inputState).some(Boolean)) {
+        seatDragging = ''
+        return
+      }
+      turnSeatedLook(seatDragging, event.movementX)
+      return
+    }
     if (!drag || blocked()) return
     if (useSession.getState().telescopeId) {
       if (useTelescopeState.getState().pending) return
@@ -122,7 +158,9 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
   }
   const pointerUp = () => {
     drag = false
+    seatDragging = ''
   }
+  const contextMenu = (event: Event) => { if (useSession.getState().tableId) event.preventDefault() }
   const wheel = (event: WheelEvent) => {
     if (blocked() || useSession.getState().benchId) return
     event.preventDefault()
@@ -173,6 +211,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
   window.addEventListener('ontop-clear-input', stop)
   document.addEventListener('visibilitychange', stop)
   canvas.addEventListener('pointerdown', pointerDown)
+  canvas.addEventListener('contextmenu', contextMenu)
   window.addEventListener('pointermove', pointerMove)
   window.addEventListener('pointerup', pointerUp)
   canvas.addEventListener('wheel', wheel, { passive: false })
@@ -188,6 +227,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     window.removeEventListener('ontop-clear-input', stop)
     document.removeEventListener('visibilitychange', stop)
     canvas.removeEventListener('pointerdown', pointerDown)
+    canvas.removeEventListener('contextmenu', contextMenu)
     window.removeEventListener('pointermove', pointerMove)
     window.removeEventListener('pointerup', pointerUp)
     canvas.removeEventListener('wheel', wheel)

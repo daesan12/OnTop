@@ -10,6 +10,9 @@ import { WoodTable } from './WoodTable'
 import { StonePicnicTable } from './StonePicnicTable'
 import { MainPavilionTable } from './MainPavilionTable'
 import { OmokBoard } from '../../game/OmokBoard'
+import { FarkleTable } from '../../game/farkle/FarkleTable'
+import { OneCardBoard } from '../../game/onecard/OneCardBoard'
+import { BridgeBoard } from '../../game/bridge/BridgeBoard'
 
 /** Stable game/seat anchors survive replacement of the visual table subtree. */
 export function TableShell({ anchor }: { anchor: TableAnchor }) {
@@ -77,6 +80,9 @@ export function TableShell({ anchor }: { anchor: TableAnchor }) {
         </>
       )}
       <OmokBoard anchor={anchor} />
+      <FarkleTable anchor={anchor} />
+      <OneCardBoard anchor={anchor} />
+      <BridgeBoard anchor={anchor} />
     </group>
   )
 }

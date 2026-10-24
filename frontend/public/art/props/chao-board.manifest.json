@@ -1,0 +1,24 @@
+{
+  "source": "boardgame_1.glb",
+  "sourceBytes": 60425444,
+  "sourceSha256": "c348ecc1d2c802cba1d1a9a8d8d15442a2068e2ea787a2907d5a82cd4ff04b9a",
+  "runtime": "chao-board.glb",
+  "runtimeBytes": 2622236,
+  "runtimeSha256": "e5991a11911e8e6c537162016090f83b1a14e802e6dda6bbb25b39048982b86e",
+  "lods": [
+    {
+      "name": "tripo_mesh_5a92acec-c4d7-491a-b363-5d12cffb3b2a",
+      "triangles": 23999,
+      "primitives": 1
+    },
+    {
+      "name": "tripo_mesh_5a92acec-c4d7-491a-b363-5d12cffb3b2a.001",
+      "triangles": 8000,
+      "primitives": 1
+    }
+  ],
+  "provenance": "User-supplied local GLB for this project; no independent license assertion.",
+  "processing": "UV-preserving Blender collapse; original 2048 color atlas, 1024 normal/roughness; shared-texture LOD; lossless Meshopt buffers and WebP images.",
+  "repair": "Retained supplied diorama; normalized to 1.86m length, bridge along +X; dynamic pawns remain server-snapshot driven.",
+  "gpuTextureCompression": false
+}

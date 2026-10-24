@@ -4,6 +4,9 @@ import {
   id,
   parseGame,
   parseOmok,
+  parseFarkle,
+  gameState,
+  gamePlayers,
   parseStart,
   parseResult,
   recoveryStatuses,
@@ -24,6 +27,9 @@ interface Session {
   awaitingVersion: number
   error: string
   result: Result | null
+  lastResult: Result | null
+  completedGameId: string
+  dismissedResult: { gameId: string; version: number } | null
 }
 const initial = (): Session => ({
   start: null,
@@ -36,6 +42,9 @@ const initial = (): Session => ({
   awaitingVersion: -1,
   error: '',
   result: null,
+  lastResult: null,
+  completedGameId: '',
+  dismissedResult: null,
 })
 export const useGame = create<Session>(initial)
 export const resetGame = () => useGame.setState(initial(), true)
@@ -56,7 +65,7 @@ export function canPlace(
   const s = useGame.getState(),
     g = s.game
   return (
-    !!g &&
+    !!g?.omok &&
     g.role === 'PLAYER' &&
     g.gameId === s.permittedGameId &&
     s.recovery === 'RESTORED' &&
@@ -79,6 +88,10 @@ export function canPlace(
 function applyGame(next: Game) {
   const s = useGame.getState()
   if (s.game?.gameId === next.gameId && next.version < s.game.version) return
+  if (s.game?.gameId === next.gameId && gameState(s.game).gameCode !== gameState(next).gameCode) {
+    useGame.setState({ uncertain: true, error: '경기 종류를 다시 확인해주세요.' })
+    return
+  }
   useGame.setState({
     game: next,
     ...(next.version >= s.awaitingVersion ? { uncertain: false } : {}),
@@ -89,7 +102,9 @@ function applyGame(next: Game) {
 export function receiveGame(m: Envelope, ownId: string, tableId: string) {
   const p = m.payload,
     s = useGame.getState()
-  if (m.type === 'GAME_START_STATE') {
+  if (m.type === 'TABLE_LEFT') {
+    resetGame()
+  } else if (m.type === 'GAME_START_STATE') {
     const next = parseStart(p)
     if (next.tableId !== null && next.tableId !== tableId) return
     if (s.start?.tableId === next.tableId && next.revision < s.start.revision)
@@ -105,6 +120,9 @@ export function receiveGame(m: Envelope, ownId: string, tableId: string) {
               ? {
                   game: null,
                   result: null,
+                  lastResult: null,
+                  completedGameId: '',
+                  dismissedResult: null,
                   uncertain: false,
                   awaitingVersion: -1,
                 }
@@ -116,6 +134,7 @@ export function receiveGame(m: Envelope, ownId: string, tableId: string) {
             game: null,
             permittedGameId: '',
             result: null,
+            completedGameId: s.permittedGameId || s.completedGameId,
             awaitingVersion: -1,
             uncertain: false,
           }
@@ -128,8 +147,8 @@ export function receiveGame(m: Envelope, ownId: string, tableId: string) {
     if (['RESTORED', 'FINISHED', 'ELIMINATED'].includes(status)) {
       if (!id(p.gameId) || !integer(p.version) || !record(p.state))
         throw new Error('경기 복구 응답을 확인해주세요.')
-      // Other game modules are not imported by this OMOK slice.
-      if (p.state.gameCode !== 'OMOK') {
+      const wrappedGame = record(p.state.publicState) && ['ONE_CARD', 'LIAR_BRIDGE'].includes(String(p.state.publicState.gameCode))
+      if (!wrappedGame && !['OMOK', 'DICE'].includes(String(p.state.gameCode))) {
         useGame.setState({
           recovery: status,
           permittedGameId: p.gameId,
@@ -138,8 +157,11 @@ export function receiveGame(m: Envelope, ownId: string, tableId: string) {
         })
         return
       }
-      const omok = parseOmok(p.state)
-      if (![omok.blackUserId, omok.whiteUserId].includes(ownId))
+      const next: Game = wrappedGame ? parseGame({ gameId: p.gameId, version: p.version, role: 'PLAYER',
+        publicState: p.state.publicState, privateState: p.state.privateState }, ownId) : p.state.gameCode === 'DICE'
+        ? { gameId: p.gameId, version: p.version, role: 'PLAYER', dice: parseFarkle(p.state) }
+        : { gameId: p.gameId, version: p.version, role: 'PLAYER', omok: parseOmok(p.state) }
+      if (!gamePlayers(next).includes(ownId))
         throw new Error('본인 경기 복구가 아닙니다.')
       if (s.permittedGameId && s.permittedGameId !== p.gameId) return
       if (s.game?.gameId === p.gameId && p.version < s.game.version) return
@@ -147,8 +169,10 @@ export function receiveGame(m: Envelope, ownId: string, tableId: string) {
         recovery: status,
         permittedGameId: p.gameId,
         uncertain: false,
+        ...(p.gameId !== s.permittedGameId && p.gameId !== s.completedGameId
+          ? { lastResult: null, completedGameId: '', dismissedResult: null } : {}),
       })
-      applyGame({ gameId: p.gameId, version: p.version, role: 'PLAYER', omok })
+      applyGame(next)
     } else {
       useGame.setState({
         recovery: status,
@@ -165,7 +189,7 @@ export function receiveGame(m: Envelope, ownId: string, tableId: string) {
     }
   } else if (m.type === 'GAME_STATE') {
     if (p.gameId !== s.permittedGameId && p.gameId !== s.watchedGameId) return
-    if (!record(p.publicState) || p.publicState.gameCode !== 'OMOK') {
+    if (!record(p.publicState) || !['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE'].includes(String(p.publicState.gameCode))) {
       useGame.setState({
         game: null,
         uncertain: true,
@@ -173,11 +197,11 @@ export function receiveGame(m: Envelope, ownId: string, tableId: string) {
       })
       return
     }
-    const next = parseGame(p)
+    const next = parseGame(p, ownId)
     if (
       next.role === 'PLAYER' &&
       (p.gameId !== s.permittedGameId ||
-        ![next.omok.blackUserId, next.omok.whiteUserId].includes(ownId))
+        !gamePlayers(next).includes(ownId))
     )
       return
     if (next.role === 'SPECTATOR' && p.gameId !== s.watchedGameId) return
@@ -188,15 +212,16 @@ export function receiveGame(m: Envelope, ownId: string, tableId: string) {
         awaitingVersion: Math.max(s.awaitingVersion, p.version),
       })
   } else if (m.type === 'GAME_RESULT') {
-    if (p.gameSessionId !== s.permittedGameId || s.game?.role === 'SPECTATOR')
+    if ((p.gameSessionId !== s.permittedGameId && p.gameSessionId !== s.completedGameId) || s.game?.role === 'SPECTATOR')
       return
     const next = parseResult(p, ownId)
     if (
-      s.result?.gameSessionId === next.gameSessionId &&
-      next.version < s.result.version
+      s.lastResult?.gameSessionId === next.gameSessionId &&
+      next.version < s.lastResult.version
     )
       return
-    useGame.setState({ result: next })
+    const dismissed = s.dismissedResult?.gameId === next.gameSessionId && s.dismissedResult.version >= next.version
+    useGame.setState({ lastResult: dismissed ? null : next, ...(p.gameSessionId === s.permittedGameId ? { result: next } : {}) })
   } else if (m.type === 'GAME_WATCH_LEFT') {
     if (p.gameId !== s.watchedGameId) return
     useGame.setState({
@@ -221,4 +246,12 @@ export function receiveGame(m: Envelope, ownId: string, tableId: string) {
         error: '경기 관전 권한을 다시 확인해주세요.',
       })
   }
+}
+
+export function canPlayDice(ownId: string, now = Date.now()) {
+  const s = useGame.getState(), g = s.game
+  return !!g?.dice && g.role === 'PLAYER' && g.gameId === s.permittedGameId && s.recovery === 'RESTORED'
+    && !['STARTING', 'CONFIRMED', 'SETTLING'].includes(s.start?.phase ?? '') && !s.pending && !s.uncertain
+    && g.version >= s.awaitingVersion && g.dice.status === 'PLAYING' && g.dice.turnUserId === ownId
+    && Date.parse(g.dice.turnDeadline!) > now
 }
