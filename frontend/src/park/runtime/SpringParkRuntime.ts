@@ -407,15 +407,18 @@ export class ParkRuntime implements ParkRuntimePort {
       && !tableBusy() && !s.tableId && (!useGame.getState().watchedGameId || stoppedIntent(intent))
       && (!(benchBusy(s.sessionId) || fitnessBusy(s.sessionId) || telescopeBusy(s.sessionId)) || stoppedIntent(intent)) && this.socket.connected
   }
-  private sendMovement(intent: MovementIntent, scope: string) {
+  private async sendMovement(intent: MovementIntent, scope: string) {
     if (scope !== this.movementScope() || !this.canSendMovement(intent)) return
     try {
-      this.socket.send('WORLD_MOVE', {
+      await this.socket.request('WORLD_MOVE', {
         seq: ++this.inputSequence,
         ...intent,
-      })
-    } catch {
-      /* Disconnect handler owns the visible state. */
+      }, ['WORLD_STATE'])
+    } catch (error) {
+      if (scope !== this.movementScope() || !this.active) return
+      // A rejected or timed-out input is never replayed; fresh key input may resume.
+      this.movement.clear(false)
+      this.report(error)
     }
   }
   inspectTable = (anchorId: string) => {
@@ -648,7 +651,7 @@ export class ParkRuntime implements ParkRuntimePort {
       )
         throw new Error('관전 가능한 경기 정보를 확인해주세요.')
       const generation = this.generation
-      this.movement.clear()
+      this.movement.clear(false)
       useGame.setState({ watchedGameId: gameId })
       try {
         await this.socket.request('GAME_WATCH', { gameId }, ['GAME_STATE'])

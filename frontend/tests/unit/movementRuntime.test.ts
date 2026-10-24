@@ -7,6 +7,7 @@ import { EXPECTED_MAP_VERSION } from '../../src/config/mapVersion'
 
 const sockets: MovementSocket[] = []
 class MovementSocket implements SocketLike {
+  holdMoves = false
   requests: { requestId: string; type: string; payload: Record<string, unknown> }[] = []
   readyState = 0
   onopen: SocketLike['onopen'] = null
@@ -30,6 +31,11 @@ class MovementSocket implements SocketLike {
     if (request.type === 'CHANNEL_JOIN') queueMicrotask(() => this.emit('CHANNEL_STATE', {
       channelId: 'channel-1', name: '공원', version: 1, currentUsers: 1, capacity: 4, userIds: ['101'],
     }, request.requestId))
+    if (request.type === 'WORLD_MOVE' && !this.holdMoves) queueMicrotask(() => this.replyMove(request))
+  }
+  replyMove(request: MovementSocket['requests'][number]) {
+    this.emit('WORLD_STATE', { channelId: 'channel-1', version: ++version, mapVersion: EXPECTED_MAP_VERSION,
+      avatars: [{ userId: '101', position: { ...position, lastInputSeq: request.payload.seq } }] }, request.requestId)
   }
   close(code = 1000) {
     this.readyState = 3
@@ -80,6 +86,36 @@ afterEach(async () => {
 })
 
 describe('M02 real runtime delivery through the existing SharedSocket', () => {
+  it('does not pipeline movement during delayed replies or release it on unrelated world broadcasts', async () => {
+    socket.holdMoves = true
+    runtime.move(0, -1, false)
+    runtime.move(1, 0, true, true)
+    await vi.advanceTimersByTimeAsync(180)
+    world()
+    await vi.advanceTimersByTimeAsync(60)
+    expect(moves()).toHaveLength(1)
+    socket.replyMove(moves()[0]!)
+    await vi.advanceTimersByTimeAsync(59)
+    expect(moves()).toHaveLength(1)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(moves()[1]!.payload).toEqual({ seq: 2, dx: 1, dz: 0, run: true, jump: true })
+    runtime.move(0, 0, false)
+    socket.replyMove(moves()[1]!)
+    await vi.advanceTimersByTimeAsync(60)
+    expect(moves()[2]!.payload).toEqual({ seq: 3, dx: 0, dz: 0, run: false, jump: false })
+  })
+  it.each(['rejection', 'timeout'])('discards queued jumps on movement %s, reports it and accepts fresh input', async mode => {
+    socket.holdMoves = true
+    runtime.move(0, -1, false)
+    runtime.move(1, 0, false, true)
+    if (mode === 'rejection') socket.emit('ERROR', { code: 'MOVE_TOO_FREQUENT', message: '이동 간격 오류' }, moves()[0]!.requestId)
+    else await vi.advanceTimersByTimeAsync(8000)
+    await vi.advanceTimersByTimeAsync(120)
+    expect(moves()).toHaveLength(1)
+    expect(useSession.getState().error).toContain(mode === 'rejection' ? '이동 간격 오류' : '응답 시간이 초과')
+    runtime.move(1, 0, false)
+    expect(moves()[1]!.payload).toEqual({ seq: 2, dx: 1, dz: 0, run: false, jump: false })
+  })
   it('sends normalized intent with only existing fields and increases seq on actual delivery', async () => {
     runtime.move(NaN, 0, false)
     runtime.move(2, 0, false)

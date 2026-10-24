@@ -5,7 +5,7 @@ import { useSession } from '../../network/worldClient'
 import { useGame, tableBusy } from '../../game/store'
 import { useParkRuntime } from '../../park/runtime/ParkRuntime'
 import { GameControls } from '../../game/OmokPanel'
-import { TABLE_GAMES, lobbyStatus, waitingForRound } from './model'
+import { TABLE_GAMES, canLeaveByMovement, waitingForRound } from './model'
 import { publicMatchService } from './publicMatch'
 import { resetSeatedLook, useTableLobby } from './state'
 import './tableLobby.css'
@@ -22,6 +22,10 @@ export function TableLobby() {
   const game = useGame(s => s.game), start = useGame(s => s.start), busy = useGame(tableBusy)
   const lastResult = useGame(s => s.lastResult)
   const gameError = useGame(s => s.error)
+  const movementExit = useGame(game => {
+    const table = s.states[s.seated]
+    return !!table && canLeaveByMovement(table, s.own, game)
+  })
   const query = useTableLobby(useShallow(s => ({ tableId: s.tableId, status: s.status, error: s.error })))
   const [, setRefreshReference] = useState(0)
   const tableId = s.seated || bindAnchor(s.bindings, s.channel, s.focused, s.tables.map(t => t.tableId))
@@ -29,7 +33,6 @@ export function TableLobby() {
   const summary = s.tables.find(t => t.tableId === tableId)
   const ownTable = s.seated === tableId && !!tableId
   if (!s.focused || game) return null
-  const lobby = table ? lobbyStatus(table, s.own, busy) : null
   const ref = tableId ? publicMatchService.find({ channelId: s.channel, tableId }) : null
   const canWatch = !!ref && ref.tableId === tableId && ref.channelId === s.channel
     && !s.seated && !busy && s.connected
@@ -52,12 +55,12 @@ export function TableLobby() {
         <p>{lastResult.settlementStatus === 'SETTLED' ? `정산 완료 · 내 엽전 증감 ${lastResult.myCoinDelta}` : '정산 확인 대기'}</p>
         <p>좌석은 유지됩니다. 서버가 대기실을 연 뒤 다시 준비하면 새 판을 시작합니다.</p>
         <button disabled={s.pending || !s.connected || !waitingForRound(start, tableId)} onClick={() => useGame.setState({ lastResult: null, dismissedResult: { gameId: lastResult.gameSessionId, version: lastResult.version } })}>
-          {lobby?.host ? '다음 판 준비' : '대기실로 돌아가기'}</button>
+          {table?.selectorUserId === s.own ? '다음 판 준비' : '대기실로 돌아가기'}</button>
       </section>}
       {ownTable ? <>
         <GameControls tableId={tableId} />
         <button disabled={s.pending || busy || !s.connected} onClick={() => void runtime.leaveTable()}>일어나기</button>
-        <p className="table-lobby-note">{lobby?.canLeaveByMovement ? '미준비 대기 중에는 창을 닫고 이동키로 일어날 수 있어요.' : '준비·경기·정산 중 이동키로 퇴장하지 않습니다.'}</p>
+        <p className="table-lobby-note">{movementExit ? '미준비 대기 중에는 창을 닫고 이동키로 일어날 수 있어요.' : '준비·경기·정산 중 이동키로 퇴장하지 않습니다.'}</p>
         <button onClick={resetSeatedLook}>정면 보기</button>
         <small>마우스 오른쪽 드래그로 주변을 둘러볼 수 있어요.</small>
       </> : <>

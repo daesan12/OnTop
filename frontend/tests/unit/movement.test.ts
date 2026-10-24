@@ -59,6 +59,44 @@ describe('M02 movement intent and delivery', () => {
     buffer.clear()
     expect(vi.getTimerCount()).toBe(0)
   })
+  it('rechecks fractional timer deadlines instead of delivering an early callback', async () => {
+    vi.useFakeTimers()
+    let now = 0
+    const send = vi.fn()
+    const buffer = new MovementInputBuffer(send, () => now)
+    buffer.enqueue(idle(), 'a')
+    now = .25
+    buffer.enqueue({ ...idle(), dx: 1 }, 'a')
+    now = 59.99
+    await vi.advanceTimersByTimeAsync(60)
+    expect(send).toHaveBeenCalledTimes(1)
+    now = 60
+    await vi.advanceTimersByTimeAsync(1)
+    expect(send).toHaveBeenCalledTimes(2)
+  })
+  it('coalesces behind an acknowledgement and spaces from its arrival, including a queued stop', async () => {
+    vi.useFakeTimers()
+    const replies: (() => void)[] = []
+    const send = vi.fn(() => new Promise<void>(resolve => replies.push(resolve)))
+    const buffer = new MovementInputBuffer(send, () => Date.now())
+    buffer.enqueue({ ...idle(), dz: -1 }, 'a')
+    buffer.enqueue({ ...idle(), dx: 1, jump: true }, 'a')
+    await vi.advanceTimersByTimeAsync(180)
+    expect(send).toHaveBeenCalledTimes(1)
+    buffer.enqueue(idle(), 'a')
+    replies[0]!()
+    await vi.advanceTimersByTimeAsync(59)
+    expect(send).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(send.mock.calls[1]).toEqual([idle(), 'a'])
+    buffer.clear()
+    buffer.enqueue({ ...idle(), dx: 1 }, 'b')
+    buffer.enqueue({ ...idle(), dz: 1 }, 'b')
+    replies[1]!() // Old connection's completion cannot release b's in-flight send.
+    await vi.advanceTimersByTimeAsync(180)
+    expect(send).toHaveBeenCalledTimes(3)
+    buffer.clear()
+  })
 })
 
 describe('M02 approved movement presentation', () => {

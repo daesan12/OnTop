@@ -34,6 +34,10 @@ class MovementSocket implements SocketLike {
     if (request.type === 'CHANNEL_JOIN') queueMicrotask(() => this.emit('CHANNEL_STATE', {
       channelId: 'channel-1', name: '공원', version: 1, currentUsers: 1, capacity: 4, userIds: ['101'],
     }, request.requestId))
+    if (request.type === 'WORLD_MOVE') queueMicrotask(() => this.emit('WORLD_STATE', {
+      channelId: 'channel-1', version: ++version, mapVersion: EXPECTED_MAP_VERSION,
+      avatars: [{ userId: '101', position: { ...position, lastInputSeq: request.payload.seq } }],
+    }, request.requestId))
     if (request.type === 'WORLD_CHAT_SEND') queueMicrotask(() => this.emit('WORLD_CHAT_MESSAGE', {
       messageId: 'fixture-chat-' + this.requests.length, channelId: 'channel-1', userId: '101',
       text: request.payload.text, sentAt: new Date().toISOString(),
