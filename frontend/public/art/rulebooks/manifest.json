@@ -1,0 +1,55 @@
+{
+  "format": "WebP quality90, original dimensions; page-on-demand DOM images, no Three textures",
+  "entries": [
+    {
+      "file": "farkle-scores.webp",
+      "source": "topgoal/apps/web/public/art/rulebooks/farkle-scores.png",
+      "sourceBytes": 1572949,
+      "bytes": 154960,
+      "width": 1672,
+      "height": 941,
+      "sourceSha256": "cc19bc0801ebe6cf3123b6bbc24529e26fc60eb069a596c762db7ec3354d120a",
+      "sha256": "a201954d7e98f16b676644baeb6ac9550f1ce9e7d49b20a5cb31a87251b7fcb7"
+    },
+    {
+      "file": "onecard-play.webp",
+      "source": "topgoal/apps/web/public/art/rulebooks/onecard-play.png",
+      "sourceBytes": 1823820,
+      "bytes": 198758,
+      "width": 1672,
+      "height": 941,
+      "sourceSha256": "2cbdfe4c8fc0a78e15d06501bdc1261ba402618a1dd51eaf19976d3e085d8ea9",
+      "sha256": "bfd7cab407cf056eb434ce5855fbf048ac4c48b0e1b80c3cadaf300a2b769671"
+    },
+    {
+      "file": "onecard-actions.webp",
+      "source": "topgoal/apps/web/public/art/rulebooks/onecard-actions.png",
+      "sourceBytes": 1652376,
+      "bytes": 166618,
+      "width": 1672,
+      "height": 941,
+      "sourceSha256": "a410d27d4b0afc9603570c38fb5bc4e8e4ede832c3b8b03cec3a067980c2a538",
+      "sha256": "6264390ddb10ed1252140eeaa7febf7cc50bf37b6483e4479fd629b81b30e762"
+    },
+    {
+      "file": "bridge-play.webp",
+      "source": "topgoal/apps/web/public/art/rulebooks/bridge-play.png",
+      "sourceBytes": 2016750,
+      "bytes": 270618,
+      "width": 1672,
+      "height": 940,
+      "sourceSha256": "b67d11582ba2b3a8541c2756f9b52b8f26b42f492634d374361bff0c2c33a7e7",
+      "sha256": "8de394fa8ff925a18face25dbdc8e2a968017c9a71493935116458117bea3fa0"
+    },
+    {
+      "file": "bridge-result-dice-v2.webp",
+      "source": "topgoal/apps/web/public/art/rulebooks/bridge-result-dice-v2.png",
+      "sourceBytes": 1864773,
+      "bytes": 214200,
+      "width": 1672,
+      "height": 941,
+      "sourceSha256": "3ff55935ba34512faf9b6e93090485e20a639c40786881bf6c8bb6d9b4bde8d7",
+      "sha256": "fc0c2a4e33cfa9500a5e9771f7b71727dae1d04f1da37bcd24c8f8ed388bc133"
+    }
+  ]
+}

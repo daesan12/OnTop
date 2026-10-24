@@ -76,7 +76,7 @@ export function installDiceControls() {
     if (s.status !== 'connected' || s.sessionId !== old.sessionId || s.roomId !== old.roomId) resetDiceUI()
   })
   const down = (e: KeyboardEvent) => {
-    if (!useGame.getState().game?.dice) return
+    if (!useGame.getState().game?.dice || inputState.manualOpen) return
     if (e.code === 'Escape' && (useDiceUI.getState().cup !== 'idle' || useDiceUI.getState().scoreOpen)) {
       e.preventDefault(); e.stopImmediatePropagation()
       if (useDiceUI.getState().scoreOpen) toggleScoreSheet(); else cancelCup()
@@ -92,10 +92,10 @@ export function installDiceControls() {
     if (e.code === 'KeyR') { e.preventDefault(); rollDice() }
     if (e.code === 'KeyQ') { e.preventDefault(); bankDice() }
   }
-  window.addEventListener('keydown', down, true); window.addEventListener('blur', cancel)
+  window.addEventListener('ontop-manual-open', cancel); window.addEventListener('keydown', down, true); window.addEventListener('blur', cancel)
   document.addEventListener('visibilitychange', cancel)
   return () => {
-    unsubGame(); unsubSession(); window.removeEventListener('keydown', down, true); window.removeEventListener('blur', cancel)
+    unsubGame(); unsubSession(); window.removeEventListener('ontop-manual-open', cancel); window.removeEventListener('keydown', down, true); window.removeEventListener('blur', cancel)
     document.removeEventListener('visibilitychange', cancel); resetDiceUI()
   }
 }

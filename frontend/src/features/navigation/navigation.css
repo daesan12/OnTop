@@ -1,0 +1,161 @@
+.park-quick-button {
+  position: relative;
+  z-index: 12;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 40px;
+  padding: 0 11px;
+  border-radius: 10px;
+  border: 1px solid #fff4d85c;
+  background: #203c32ed;
+  color: #faf5e8;
+  box-shadow: 0 2px 10px #10231c26;
+  font-size: 12px;
+  pointer-events: auto;
+}
+.park-quick-button:hover,
+.park-quick-button[aria-pressed="true"],
+.park-quick-button[aria-expanded="true"] {
+  background: #385b48;
+  border-color: #e8d4a4;
+}
+
+.park-quick-button > svg {
+  width: 19px;
+  height: 19px;
+}
+.park-quick-button kbd {
+  padding: 1px 4px;
+  border: 1px solid #fbf5e53b;
+  border-radius: 4px;
+  background: #ffffff0d;
+  color: #e4d8b8;
+  font: 10px inherit;
+}
+.park-map-panel {
+  position: absolute;
+  right: 0;
+  bottom: 50px;
+  z-index: 13;
+  width: 300px;
+  max-width: calc(100vw - 36px);
+  max-height: calc(100dvh - 88px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 13px;
+  border: 1px solid #d8d1bc;
+  border-radius: 14px;
+  background: #f3f1e5f5;
+  color: #25483b;
+  box-shadow: 0 8px 30px #122c3833;
+  pointer-events: auto;
+}
+.park-map-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.park-map-heading strong {
+  font-size: 14px;
+}
+.park-map-heading button {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  font-size: 20px;
+  background: transparent;
+  border-color: transparent;
+}
+
+.park-navigation {
+  position: absolute;
+  top: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 14;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: max-content;
+  max-width: min(540px, calc(100vw - 40px));
+  padding: 13px 15px;
+  border: 1px solid #86b5a16b;
+  border-radius: 16px;
+  background: #15372eef;
+  color: #fff9e7;
+  box-shadow: 0 8px 28px #0003;
+  pointer-events: none;
+}
+.park-navigation strong {
+  display: block;
+  margin: 3px 0;
+  font-size: 15px;
+}
+.park-navigation small {
+  color: #b9d7c8;
+  font-size: 11px;
+}
+.park-navigation p {
+  margin: 0;
+  font-size: 12px;
+  max-width: 340px;
+}
+.park-navigation button {
+  pointer-events: auto;
+  align-self: flex-start;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 23px;
+  cursor: pointer;
+  padding: 0 5px;
+}
+.navigation-compass {
+  width: 46px;
+  height: 46px;
+  flex: 0 0 46px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #ffffff13;
+  color: #f4d98f;
+  font-size: 30px;
+}
+.navigation-compass svg {
+  width: 32px;
+  height: 32px;
+}
+.map-destination {
+  text-align: left;
+  border: 1px solid #557b6850;
+  border-radius: 5px;
+  background: #ffffff55;
+  color: #244738;
+  padding: 5px;
+  cursor: pointer;
+  font: inherit;
+}
+.map-destination:hover,
+.map-destination:focus-visible {
+  background: #c6eee0;
+  outline: 2px solid #287e70;
+}
+.park-map { position:absolute; top:var(--park-edge, 30px); left:calc(50% - 180px); z-index:12; }
+.park-map-panel { position:fixed; inset:105px var(--park-edge,30px) auto auto; width:370px; max-width:calc(100vw - 32px); max-height:calc(100dvh - 145px); margin:0; font-family:inherit; color-scheme:light; }
+.park-map-panel::backdrop { background:#10251b20; }
+.park-map-heading { position:sticky; top:-13px; background:#f3f1e5; z-index:1; padding:4px 0; }
+.park-map-panel svg { width:100%; display:block; }
+.park-map-panel [role="button"]:focus-visible, .park-map-panel button:focus-visible { outline:2px solid #287e70; outline-offset:2px; }
+.park-map-note, .park-map-hover { font-size:12px; line-height:1.65; margin:6px 0; }
+.park-map-hover { min-height:20px; }
+.map-destinations { display:grid; grid-template-columns:1fr 1fr; gap:5px 8px; font-size:12px; }
+.park-navigation { top:calc(var(--park-edge,30px) + 82px); max-width:min(480px,calc(100vw - 40px)); }
+.park-page:has(.park-runtime-tools [aria-label="그래픽과 성능"]) .park-navigation { display:none; }
+.park-map-panel [aria-label="현재 내 위치"] { pointer-events:none; }
+@media(max-width:900px) {
+  .park-map { top:134px; left:50%; transform:translateX(-50%); }
+  .park-map-panel { inset:182px 16px auto auto; max-height:calc(100dvh - 205px); }
+  .park-navigation { top:184px; }
+}

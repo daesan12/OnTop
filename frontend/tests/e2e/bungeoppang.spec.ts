@@ -48,13 +48,15 @@ test('M14 original six-slot controls, actual 60s, same-key/result retries, serve
   expect((await state(page)).tool).toBe('bean')
   for (const key of keys) { await page.keyboard.press(key); await page.waitForTimeout(80) }
   await page.keyboard.press('F1')
-  await expect(page.getByRole('dialog', { name: '붕어빵 조작 안내' })).toBeVisible()
+  await expect(page.getByRole('dialog', { name: '게임 설명서', exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', {name: '붕어빵 굽기', exact: true})).toBeVisible()
+  await expect(page.locator('.game-manual')).toHaveAttribute('data-phase', 'open')
   const help = await state(page)
   await page.keyboard.press('KeyQ'); await page.waitForTimeout(400)
   expect((await state(page)).log).toHaveLength(help.log.length)
   expect((await state(page)).t).toBeGreaterThan(help.t)
   await page.keyboard.press('Escape')
-  await expect(page.getByRole('dialog', { name: '붕어빵 조작 안내' })).toHaveCount(0)
+  await expect(page.getByRole('dialog', { name: '게임 설명서', exact: true })).toHaveCount(0)
   // Original pointer controls use the projected fixed slot hit boxes.
   const point = await page.evaluate(async () => (await import('/src/features/bungeoppang/bungeoppangView.ts' as string)).slotScreen[5])
   await page.mouse.click(point.x, point.y, { button: 'right' })
