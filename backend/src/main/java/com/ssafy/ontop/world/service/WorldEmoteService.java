@@ -20,9 +20,10 @@ public class WorldEmoteService {
 
     private final Set<String> codes;
     private final long minimumIntervalNanos;
+    private final Map<String, Duration> cooldowns;
     private final Clock clock;
     private final LongSupplier nanoTime;
-    private final Map<String, Long> lastSent = new HashMap<>();
+    private final Map<String, Sent> lastSent = new HashMap<>();
 
     @Autowired
     public WorldEmoteService(WorldEmoteProperties properties,
@@ -38,6 +39,7 @@ public class WorldEmoteService {
         }
         codes = Set.copyOf(properties.codes());
         minimumIntervalNanos = minimumInterval.toNanos();
+        cooldowns = properties.cooldowns();
         this.clock = clock;
         this.nanoTime = nanoTime;
     }
@@ -45,12 +47,14 @@ public class WorldEmoteService {
     public synchronized Event create(String channelId, String userId, EmoteCode code) {
         if (!codes.contains(code.value())) throw new EmoteException("EMOTE_NOT_SUPPORTED", "등록되지 않은 감정표현입니다.");
         long now = nanoTime.getAsLong();
-        Long previous = lastSent.get(userId);
-        if (previous != null && now - previous < minimumIntervalNanos) {
+        Sent previous = lastSent.get(userId);
+        if (previous != null && now - previous.at() < previous.interval()) {
             throw new EmoteException("EMOTE_TOO_FREQUENT", "감정표현 전송 간격을 확인해주세요.");
         }
         Event event = new Event(UUID.randomUUID().toString(), channelId, userId, code.value(), clock.instant().toString());
-        lastSent.put(userId, now);
+        long interval = Math.max(minimumIntervalNanos,
+                cooldowns.getOrDefault(code.value(), Duration.ZERO).toNanos());
+        lastSent.put(userId, new Sent(now, interval));
         return event;
     }
 
@@ -63,6 +67,9 @@ public class WorldEmoteService {
     }
 
     public record Event(String eventId, String channelId, String userId, String emoteCode, String sentAt) {
+    }
+
+    private record Sent(long at, long interval) {
     }
 
     public static final class EmoteException extends RuntimeException {

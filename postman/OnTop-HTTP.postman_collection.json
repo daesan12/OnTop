@@ -999,6 +999,299 @@
           }
         }
       ]
+    },
+    {
+      "name": "24 소리함 비공개 의견 접수",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/v1/feedback",
+        "description": "M07 비공개 소리함. local/dev,db + 기능 활성화·V120 순서 조율 후 스키마 적용 필요. 인증 회원이 서버 소리함 좌표(-10.8,0.8,14.5) 2.6m·높이±0.7m 이내에서 작성합니다. 테이블/경기/시설/수영 중 불가, 새 의견15초 간격. 같은 operationId·본문·채널은 기존 영수증, 다른 내용409. 본문5~600 UTF-16 단위·NFC/제어문자 제거. 90일 보관·탈퇴 시 작성자 연결 제거, 관리자만 조회. dev 기본 비활성(경로 미등록)이며 V112 등 기존 마이그레이션 순서 조율 전 자동 적용하지 않습니다.",
+        "auth": {
+          "type": "noauth"
+        },
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"operationId\": \"{{feedbackOperationId}}\",\n  \"channelId\": \"{{channelIdA}}\",\n  \"text\": \"공원을 개선해주세요\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.environment.name) throw new Error('먼저 OnTop Local 환경을 선택해주세요.');",
+              "if (!pm.environment.get('accessToken')) throw new Error('개인 로컬 Access JWT가 필요합니다.');",
+              "pm.environment.set('feedbackOperationId',pm.variables.replaceIn('{{$guid}}'));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+              "const r=pm.response.json(); pm.expect(r.receiptId).to.be.a('string'); pm.expect(r).not.to.have.property('text');",
+              "if(pm.response.code===201) pm.environment.set('feedbackReceiptId',r.receiptId);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "25 소리함 동일 요청 복구",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/v1/feedback",
+        "description": "M07 비공개 소리함. local/dev,db + 기능 활성화·V120 순서 조율 후 스키마 적용 필요. 인증 회원이 서버 소리함 좌표(-10.8,0.8,14.5) 2.6m·높이±0.7m 이내에서 작성합니다. 테이블/경기/시설/수영 중 불가, 새 의견15초 간격. 같은 operationId·본문·채널은 기존 영수증, 다른 내용409. 본문5~600 UTF-16 단위·NFC/제어문자 제거. 90일 보관·탈퇴 시 작성자 연결 제거, 관리자만 조회. dev 기본 비활성(경로 미등록)이며 V112 등 기존 마이그레이션 순서 조율 전 자동 적용하지 않습니다. 24의 키·본문·채널을 그대로 보냅니다. 키를 새로 만들지 않습니다.",
+        "auth": {
+          "type": "noauth"
+        },
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"operationId\": \"{{feedbackOperationId}}\",\n  \"channelId\": \"{{channelIdA}}\",\n  \"text\": \"공원을 개선해주세요\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.environment.name) throw new Error('먼저 OnTop Local 환경을 선택해주세요.');",
+              "if (!pm.environment.get('accessToken')) throw new Error('개인 로컬 Access JWT가 필요합니다.');",
+              "if(!pm.environment.get('feedbackOperationId')) throw new Error('24를 먼저 실행하세요.');"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+              "pm.expect(pm.response.json().receiptId).to.eql(pm.environment.get('feedbackReceiptId'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "26 관리자 소리함 조회",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/v1/admin/feedback?limit=20",
+        "description": "M07 비공개 소리함. local/dev,db + 기능 활성화·V120 순서 조율 후 스키마 적용 필요. 인증 회원이 서버 소리함 좌표(-10.8,0.8,14.5) 2.6m·높이±0.7m 이내에서 작성합니다. 테이블/경기/시설/수영 중 불가, 새 의견15초 간격. 같은 operationId·본문·채널은 기존 영수증, 다른 내용409. 본문5~600 UTF-16 단위·NFC/제어문자 제거. 90일 보관·탈퇴 시 작성자 연결 제거, 관리자만 조회. dev 기본 비활성(경로 미등록)이며 V112 등 기존 마이그레이션 순서 조율 전 자동 적용하지 않습니다. 서버 관리자 목록에 등록된 본인의 Access JWT로 바꿔 실행합니다. 일반 회원403이 정상입니다. nextCursor를 cursor 쿼리에 넣어 다음 페이지를 조회하고 text를 일반 텍스트로 표시하세요.",
+        "auth": {
+          "type": "noauth"
+        },
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ]
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.environment.name) throw new Error('먼저 OnTop Local 환경을 선택해주세요.');",
+              "if (!pm.environment.get('accessToken')) throw new Error('개인 로컬 Access JWT가 필요합니다.');"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.expect(pm.response.json().items).to.be.an('array');"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "27 전망대 익명 메모 작성",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/v1/notes",
+        "description": "M08 공개 익명 메모. local/dev,db + notes.enabled=true + 전용 privacy-secret + V121 순서 조율 후 스키마 적용 필요. 서버 위치(54.5,18.92,48.5) XZ2.6m·높이차0.7m미만, 테이블/시설/수영 중 불가. 전 채널 공용 최신120장·쓰기15초/읽기1초. 메모/응답은 id,text,createdAt만 사용. 24시간 동일키 재확인,410은 자동 재게시 금지. 창을 연 동안2초마다 겹치지 않게 조회하고 닫기·이탈·단절 시 중지. docs/notes-api.md.",
+        "auth": {
+          "type": "noauth"
+        },
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"operationId\": \"{{noteOperationId}}\",\n  \"channelId\": \"{{channelIdA}}\",\n  \"text\": \"오늘도 좋은 하루 보내세요\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.environment.name) throw new Error('먼저 OnTop Local 환경을 선택해주세요.');",
+              "if (!pm.environment.get('accessToken')) throw new Error('개인 로컬 Access JWT가 필요합니다.');",
+              "pm.environment.set('noteOperationId',Date.now()+'_'+pm.variables.replaceIn('{{$guid}}'));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+              "const r=pm.response.json(); pm.expect(Object.keys(r.note).sort()).to.eql(['createdAt','id','text']);",
+              "if(pm.response.code===201) pm.environment.set('noteId',r.note.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "28 익명 메모 동일 요청 재확인",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/v1/notes",
+        "description": "M08 공개 익명 메모. local/dev,db + notes.enabled=true + 전용 privacy-secret + V121 순서 조율 후 스키마 적용 필요. 서버 위치(54.5,18.92,48.5) XZ2.6m·높이차0.7m미만, 테이블/시설/수영 중 불가. 전 채널 공용 최신120장·쓰기15초/읽기1초. 메모/응답은 id,text,createdAt만 사용. 24시간 동일키 재확인,410은 자동 재게시 금지. 창을 연 동안2초마다 겹치지 않게 조회하고 닫기·이탈·단절 시 중지. docs/notes-api.md.",
+        "auth": {
+          "type": "noauth"
+        },
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"operationId\": \"{{noteOperationId}}\",\n  \"channelId\": \"{{channelIdA}}\",\n  \"text\": \"오늘도 좋은 하루 보내세요\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.environment.name) throw new Error('먼저 OnTop Local 환경을 선택해주세요.');",
+              "if (!pm.environment.get('accessToken')) throw new Error('개인 로컬 Access JWT가 필요합니다.');",
+              "if(!pm.environment.get('noteOperationId')) throw new Error('27을 먼저 실행하세요.');"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+              "pm.expect(pm.response.json().note.id).to.eql(pm.environment.get('noteId'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "29 전망대 익명 메모 조회",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/v1/notes?channelId={{channelIdA}}",
+        "description": "M08 공개 익명 메모. local/dev,db + notes.enabled=true + 전용 privacy-secret + V121 순서 조율 후 스키마 적용 필요. 서버 위치(54.5,18.92,48.5) XZ2.6m·높이차0.7m미만, 테이블/시설/수영 중 불가. 전 채널 공용 최신120장·쓰기15초/읽기1초. 메모/응답은 id,text,createdAt만 사용. 24시간 동일키 재확인,410은 자동 재게시 금지. 창을 연 동안2초마다 겹치지 않게 조회하고 닫기·이탈·단절 시 중지. docs/notes-api.md.",
+        "auth": {
+          "type": "noauth"
+        },
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ]
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.environment.name) throw new Error('먼저 OnTop Local 환경을 선택해주세요.');",
+              "if (!pm.environment.get('accessToken')) throw new Error('개인 로컬 Access JWT가 필요합니다.');"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "const notes=pm.response.json().notes;pm.expect(notes).to.be.an('array');pm.expect(notes.length).to.be.at.most(120);",
+              "notes.forEach(n=>pm.expect(Object.keys(n).sort()).to.eql(['createdAt','id','text']));"
+            ]
+          }
+        }
+      ]
     }
   ]
 }
