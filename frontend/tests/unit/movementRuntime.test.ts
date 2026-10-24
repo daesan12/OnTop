@@ -4,6 +4,7 @@ import type { SocketLike } from '../../src/network/socketClient'
 import { resetWorld, useSession } from '../../src/network/worldClient'
 import { ParkRuntime } from '../../src/park/runtime/runtime'
 import { EXPECTED_MAP_VERSION } from '../../src/config/mapVersion'
+import { inputState } from '../../src/world/inputOwnership'
 
 const sockets: MovementSocket[] = []
 class MovementSocket implements SocketLike {
@@ -79,10 +80,52 @@ beforeEach(async () => {
 })
 
 afterEach(async () => {
+  inputState.minigameOpen = false
   await runtime.stop()
   vi.useRealTimers()
   clearAuthSession()
   vi.unstubAllGlobals()
+})
+
+describe('M14 authenticated REST and movement ownership boundary', () => {
+  it('reuses the same start body and key through the existing 401 refresh flow', async () => {
+    const original = vi.mocked(fetch).getMockImplementation()!
+    const attempts: RequestInit[] = []
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      if (input === '/api/v1/minigames/sessions') {
+        attempts.push(init!)
+        return attempts.length === 1 ? new Response('{}', { status: 401 }) : json({ minigameSessionId: '901' })
+      }
+      return original(input, init)
+    })
+    const body = JSON.stringify({ minigameType: 'BUNGEOPPANG' })
+    expect(await runtime.requestJSON('/api/v1/minigames/sessions', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': 'same-round' }, body,
+    })).toEqual({ minigameSessionId: '901' })
+    expect(attempts).toHaveLength(2)
+    for (const attempt of attempts) {
+      expect(attempt.body).toBe(body)
+      expect(attempt.credentials).toBe('omit')
+      expect(attempt.headers).toMatchObject({ Authorization: 'Bearer fixture-access', 'Idempotency-Key': 'same-round' })
+    }
+    await expect(runtime.requestJSON('/api/v1/users/other')).rejects.toThrow('사용할 수 없는 요청')
+  })
+  it('preserves BE error codes without returning local success', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ code: 'TOO_EARLY' }), { status: 422 }))
+    await expect(runtime.requestJSON('/api/v1/minigames/sessions/901/complete', { method: 'POST', body: '{}' }))
+      .rejects.toMatchObject({ status: 422, code: 'TOO_EARLY' })
+  })
+  it('blocks movement during cooking while retaining stop delivery and subsequent roaming', async () => {
+    inputState.minigameOpen = true
+    runtime.move(0, -1, true, true)
+    expect(moves()).toHaveLength(0)
+    runtime.move(0, 0, false)
+    expect(moves()).toHaveLength(1)
+    await vi.advanceTimersByTimeAsync(60)
+    inputState.minigameOpen = false
+    runtime.move(1, 0, false)
+    expect(moves()).toHaveLength(2)
+  })
 })
 
 describe('M02 real runtime delivery through the existing SharedSocket', () => {
