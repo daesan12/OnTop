@@ -25,6 +25,8 @@ import { resetFeedbackState, useFeedbackState } from '../features/feedback/state
 import { canReachFeedback } from '../features/feedback/validation'
 import { resetNotesState, useNotesState } from '../features/notes/state'
 import { canReachNotes } from '../features/notes/validation'
+import { resetTableLobby } from '../features/tableLobby/state'
+import { publicMatchService } from '../features/tableLobby/publicMatch'
 
 export interface Pose {
   x: number
@@ -146,6 +148,8 @@ export function resetWorld(status: Session['status'] = 'idle', error = '') {
   resetEmotes(true)
   emoteTimeline.clearChannel()
   resetGame()
+  resetTableLobby()
+  publicMatchService.clear()
   resetBenchState()
   clearRoamingInput()
   avatars.clear()
@@ -162,6 +166,8 @@ export function clearChannel(keepFeedbackDraft = false, keepNotesDraft = false) 
   resetEmotes()
   emoteTimeline.clearChannel()
   resetGame()
+  resetTableLobby()
+  publicMatchService.clear()
   resetBenchState()
   clearRoamingInput()
   avatars.clear()

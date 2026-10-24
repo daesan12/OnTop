@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { useGame, canPlace, tableBusy, recoveryBlocked } from './store'
 import { useSession } from '../network/worldClient'
 import { useParkRuntime } from '../park/runtime/ParkRuntime'
+import { TABLE_GAMES, TARGET_SCORES, lobbyStatus } from '../features/tableLobby/model'
+import { useTableLobby } from '../features/tableLobby/state'
 import './game.css'
 
 export function GameControls({ tableId }: { tableId: string }) {
@@ -12,26 +14,33 @@ export function GameControls({ tableId }: { tableId: string }) {
     pending = useSession((s) => s.pending)
   const start = useGame((s) => s.start),
     recovery = useGame((s) => s.recovery)
+  const [target, setTarget] = useState(2000)
   if (seated !== tableId || !table) return null
   const busy = tableBusy(),
     mine = table.seats.find((s) => s.userId === own)
+  const lobby = lobbyStatus(table, own, busy)
   return (
     <div className="omok-lobby">
       <strong>
         게임 ·{' '}
         {table.gameCode === 'OMOK' ? '오목' : (table.gameCode ?? '선택 전')}
       </strong>
-      <button
-        disabled={
-          pending ||
-          busy ||
-          table.selectorUserId !== own ||
-          table.gameCode === 'OMOK'
-        }
-        onClick={() => void runtime.selectOmok()}
-      >
-        오목 선택
-      </button>
+      <p>{lobby.host ? '방장 · 게임과 목표를 선택할 수 있어요.' : '방장이 게임을 선택합니다.'}</p>
+      <div className="table-game-options" role="group" aria-label="게임 선택">
+        {TABLE_GAMES.map(game => <button key={game.code}
+          disabled={pending || busy || !lobby.host || table.gameCode === game.code}
+          aria-pressed={table.gameCode === game.code}
+          onClick={() => void runtime.selectGame(game.code, game.code === 'DICE' ? target : undefined)}>
+          {game.name} 선택
+        </button>)}
+      </div>
+      <label>주사위 목표 점수 <select aria-label="주사위 목표 점수" value={table.gameCode === 'DICE' ? table.targetScore ?? target : target}
+        disabled={pending || busy || !lobby.host}
+        onChange={event => { const score = Number(event.target.value); setTarget(score); if (table.gameCode === 'DICE') void runtime.selectGame('DICE', score) }}>
+        {TARGET_SCORES.map(score => <option key={score} value={score}>{score}점</option>)}
+      </select></label>
+      {table.gameCode && table.gameCode !== 'OMOK' && <p>이 게임의 플레이 화면은 준비 중입니다. 현재는 대기실 설정만 변경할 수 있습니다.</p>}
+      <p>{lobby.count}/{table.capacity}명 · 최소 {table.minimumPlayers}명</p>
       <button
         disabled={pending || busy || table.gameCode !== 'OMOK'}
         onClick={() => void runtime.setReady(!mine?.ready)}
@@ -47,7 +56,7 @@ export function GameControls({ tableId }: { tableId: string }) {
               ? '경기가 끝나 정산 확인을 기다리고 있습니다.'
               : table.allReady
                 ? '전원 준비 완료 · 서버 시작 상태 대기'
-                : '참가자 모두 준비하면 서버가 시작을 확인합니다.'}
+                : lobby.message}
       </p>
       {start?.code && <p>{start.code}</p>}
       {start?.phase === 'STARTING' && (
@@ -71,6 +80,7 @@ export function OmokPanel() {
     own = useSession((s) => s.sessionId)
   const connected = useSession((s) => s.status === 'connected'),
     pending = useSession((s) => s.pending)
+  const spectatorView = useTableLobby(s => s.spectatorView)
   const [now, setNow] = useState(Date.now)
   useEffect(() => {
     if (!s.game?.omok.turnDeadline) return
@@ -78,13 +88,13 @@ export function OmokPanel() {
     return () => clearInterval(timer)
   }, [s.game?.omok.turnDeadline])
   const g = s.game
-  if (!g && !recoveryBlocked() && !s.error) return null
+  if (!g && !recoveryBlocked() && (!s.error || !s.permittedGameId)) return null
   const deadline = g?.omok.turnDeadline,
     remaining = deadline
       ? Math.max(0, Math.ceil((Date.parse(deadline) - now) / 1000))
       : null
   const o = g?.omok,
-    myTurn = o?.turnUserId === own
+    myTurn = g?.role === 'PLAYER' && o?.turnUserId === own
   return (
     <section className="park-runtime-panel omok-panel" aria-label="오목 경기">
       <strong>{g?.role === 'SPECTATOR' ? '오목 관전' : '오목'}</strong>
@@ -95,12 +105,14 @@ export function OmokPanel() {
           <p aria-live="polite">
             {o.status === 'FINISHED'
               ? o.winnerUserId
-                ? o.winnerUserId === own
+                ? g.role === 'PLAYER' && o.winnerUserId === own
                   ? '승리'
                   : '경기 종료 · 승자 ' + o.winnerUserId
                 : '경기 종료 · 무승부'
               : myTurn
                 ? '내 차례'
+                : g.role === 'SPECTATOR'
+                  ? o.turnUserId === o.blackUserId ? '흑 차례' : '백 차례'
                 : '상대 차례'}{' '}
             · {o.moveCount}수
           </p>
@@ -156,6 +168,10 @@ export function OmokPanel() {
           {g.version < s.awaitingVersion && (
             <p>착수 확인 수신 · 최신 판을 기다리고 있습니다.</p>
           )}
+          {g.role === 'SPECTATOR' && <div role="group" aria-label="관전 시점" className="table-spectator-controls">
+            <button aria-pressed={spectatorView === 'board'} onClick={() => useTableLobby.setState({ spectatorView: 'board' })}>공개 판 보기</button>
+            <button aria-pressed={spectatorView === 'table'} onClick={() => useTableLobby.setState({ spectatorView: 'table' })}>테이블 둘러보기</button>
+          </div>}
           <div className="omok-actions">
             <button
               disabled={pending || !connected}

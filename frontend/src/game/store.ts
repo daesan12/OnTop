@@ -24,6 +24,9 @@ interface Session {
   awaitingVersion: number
   error: string
   result: Result | null
+  lastResult: Result | null
+  completedGameId: string
+  dismissedResult: { gameId: string; version: number } | null
 }
 const initial = (): Session => ({
   start: null,
@@ -36,6 +39,9 @@ const initial = (): Session => ({
   awaitingVersion: -1,
   error: '',
   result: null,
+  lastResult: null,
+  completedGameId: '',
+  dismissedResult: null,
 })
 export const useGame = create<Session>(initial)
 export const resetGame = () => useGame.setState(initial(), true)
@@ -89,7 +95,9 @@ function applyGame(next: Game) {
 export function receiveGame(m: Envelope, ownId: string, tableId: string) {
   const p = m.payload,
     s = useGame.getState()
-  if (m.type === 'GAME_START_STATE') {
+  if (m.type === 'TABLE_LEFT') {
+    resetGame()
+  } else if (m.type === 'GAME_START_STATE') {
     const next = parseStart(p)
     if (next.tableId !== null && next.tableId !== tableId) return
     if (s.start?.tableId === next.tableId && next.revision < s.start.revision)
@@ -105,6 +113,9 @@ export function receiveGame(m: Envelope, ownId: string, tableId: string) {
               ? {
                   game: null,
                   result: null,
+                  lastResult: null,
+                  completedGameId: '',
+                  dismissedResult: null,
                   uncertain: false,
                   awaitingVersion: -1,
                 }
@@ -116,6 +127,7 @@ export function receiveGame(m: Envelope, ownId: string, tableId: string) {
             game: null,
             permittedGameId: '',
             result: null,
+            completedGameId: s.permittedGameId || s.completedGameId,
             awaitingVersion: -1,
             uncertain: false,
           }
@@ -147,6 +159,8 @@ export function receiveGame(m: Envelope, ownId: string, tableId: string) {
         recovery: status,
         permittedGameId: p.gameId,
         uncertain: false,
+        ...(p.gameId !== s.permittedGameId && p.gameId !== s.completedGameId
+          ? { lastResult: null, completedGameId: '', dismissedResult: null } : {}),
       })
       applyGame({ gameId: p.gameId, version: p.version, role: 'PLAYER', omok })
     } else {
@@ -188,15 +202,16 @@ export function receiveGame(m: Envelope, ownId: string, tableId: string) {
         awaitingVersion: Math.max(s.awaitingVersion, p.version),
       })
   } else if (m.type === 'GAME_RESULT') {
-    if (p.gameSessionId !== s.permittedGameId || s.game?.role === 'SPECTATOR')
+    if ((p.gameSessionId !== s.permittedGameId && p.gameSessionId !== s.completedGameId) || s.game?.role === 'SPECTATOR')
       return
     const next = parseResult(p, ownId)
     if (
-      s.result?.gameSessionId === next.gameSessionId &&
-      next.version < s.result.version
+      s.lastResult?.gameSessionId === next.gameSessionId &&
+      next.version < s.lastResult.version
     )
       return
-    useGame.setState({ result: next })
+    const dismissed = s.dismissedResult?.gameId === next.gameSessionId && s.dismissedResult.version >= next.version
+    useGame.setState({ lastResult: dismissed ? null : next, ...(p.gameSessionId === s.permittedGameId ? { result: next } : {}) })
   } else if (m.type === 'GAME_WATCH_LEFT') {
     if (p.gameId !== s.watchedGameId) return
     useGame.setState({

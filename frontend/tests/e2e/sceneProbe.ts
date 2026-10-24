@@ -465,3 +465,19 @@ export async function fixtureNearbyNote(text: string) {
     position: { x: NOTES_BOX.x, y: NOTES_BOX.y + 0.8, z: NOTES_BOX.z, yaw: 0 } },
   { text, operationId: crypto.randomUUID() }, new AbortController().signal)
 }
+
+
+// M09: seed only the missing public-reference port in the explicit preview build.
+import { publicMatchService } from '../../src/features/tableLobby/publicMatch'
+import { useTableLobby, seatedLook } from '../../src/features/tableLobby/state'
+import type { PublicMatchReference } from '../../src/features/tableLobby/publicMatch'
+export function previewPublicMatch(ref: PublicMatchReference) {
+  if (!import.meta.env.DEV || import.meta.env.MODE !== 'facility-preview' || publicMatchService.mode !== 'mock') throw new Error('Preview only')
+  ;(publicMatchService as typeof publicMatchService & { set(ref: PublicMatchReference): void }).set(ref)
+}
+export function tablePresentationProbe() {
+  const { camera } = root()
+  return { query: useTableLobby.getState(), yaw: seatedLook.yaw, seatIndex: useSession.getState().seatIndex,
+    ownTable: useSession.getState().tableId, camera: camera.position.toArray(), omokCamera: { ...omokCamera },
+    publicMatchMode: publicMatchService.mode }
+}

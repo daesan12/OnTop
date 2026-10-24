@@ -1,0 +1,17 @@
+.park-page .table-lobby { gap: 12px; max-height: calc(100dvh - 180px); overflow: auto; }
+.table-lobby-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.table-lobby-heading button { flex: 0 0 auto; }
+.table-lobby-role { color: #dfd2b0; margin: 0; }
+.table-seat-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.table-seat-list li { display: flex; justify-content: space-between; gap: 12px; border: 1px solid #e6ddbf44; border-radius: 8px; padding: 9px 10px; }
+.table-seat-list li[data-own=true] { background: #e6ddbf18; border-color: #dfd2b0; }
+.table-lobby-note, .table-preview-label { font-size: 12px; line-height: 1.6; }
+.table-preview-label { color: #f6d595; }
+.table-game-options { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.table-game-options button { min-width: 0; padding: 8px; }
+.table-game-options button[aria-pressed=true] { background: #51614a; border-color: #d2d9ad; }
+.table-round-result { border: 1px solid #c5b786; border-radius: 10px; padding: 12px; }
+.table-spectator-controls { display: flex; flex-wrap: wrap; gap: 6px; }
+@media (max-width: 600px) {
+  .park-page .table-lobby { width: calc(100vw - 24px); right: 12px; bottom: 92px; max-height: calc(100dvh - 210px); font-size: 13px; }
+}

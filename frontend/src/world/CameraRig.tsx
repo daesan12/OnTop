@@ -10,6 +10,7 @@ import { avatars, sampleAvatar, useSession } from '../network/worldClient'
 import { cameraOcclusion, CameraOcclusionFader } from './cameraOcclusion'
 import { installRoamingInput, viewControls } from './input'
 import { constrainRoamingCamera } from './cameraCollision'
+import { seatScope, seatedLook, resetSeatedLook, useTableLobby } from '../features/tableLobby/state'
 
 export function CameraRig() {
   const { gl, camera: mountedCamera } = useThree()
@@ -26,6 +27,7 @@ export function CameraRig() {
       savedTelescopeView: { ...viewControls },
       savedFov: CAMERA.fov as number,
       direction: new Vector3(),
+      seatScope: '',
     }),
     [],
   )
@@ -46,6 +48,7 @@ export function CameraRig() {
       }
       omokCamera.ready = false
       omokCamera.anchorId = ''
+      resetSeatedLook()
     },
     [occlusion, state, mountedCamera],
   )
@@ -113,8 +116,14 @@ export function CameraRig() {
       state.bench = ''
     }
     const game = useGame.getState().game
+    const scope = seatScope(session)
+    if (state.seatScope !== scope) { resetSeatedLook(); state.seatScope = scope }
+    const looking = !!scope && useTableLobby.getState().lookScope === scope
+    const watchedAnchor = game?.role === 'SPECTATOR' && session.watchedTableId
+      ? TABLES.find(t => t.id === session.bindings.find(b => b.channelId === session.roomId && b.tableId === session.watchedTableId)?.anchorId) : undefined
+    const spectatorBoard = !!watchedAnchor && useTableLobby.getState().spectatorView === 'board'
     const boardFocus =
-      seated && !!avatar.tableId &&
+      !looking && seated && !!avatar.tableId &&
       game?.omok.status === 'PLAYING' &&
       (game.role === 'SPECTATOR' || game.omok.turnUserId === session.sessionId)
     state.look.set(pose.x, pose.y + CAMERA.focusHeight - 0.8, pose.z)
@@ -126,8 +135,8 @@ export function CameraRig() {
       state.look,
       1 - Math.exp(-CAMERA.followSpeed * Math.min(delta, 0.1)),
     )
-    if (boardFocus) {
-      const anchor = TABLES.find((t) => t.id === avatar.tableId)!
+    if (boardFocus || spectatorBoard) {
+      const anchor = watchedAnchor ?? TABLES.find((t) => t.id === avatar.tableId)!
       state.look.set(
         anchor.position[0],
         anchor.position[1] + GOMOKU.boardY,
@@ -138,6 +147,9 @@ export function CameraRig() {
         state.look.y + 2.6 * tableScale(anchor),
         state.look.z + 0.001,
       )
+    } else if (watchedAnchor) {
+      state.look.set(watchedAnchor.position[0], watchedAnchor.position[1] + 1, watchedAnchor.position[2])
+      state.desired.set(state.look.x + 4 * tableScale(watchedAnchor), state.look.y + 3 * tableScale(watchedAnchor), state.look.z + 4 * tableScale(watchedAnchor))
     } else if (avatar.benchId) {
       state.desired.set(pose.x, pose.y - 0.8 + CHARACTER.height - 0.2
         + CHARACTER.seatedHipHeight - CHARACTER.hipHeight, pose.z)
@@ -154,6 +166,10 @@ export function CameraRig() {
         (anchor?.position[1] ?? pose.y) + 1.05,
         anchor?.position[2] ?? pose.z - 1,
       )
+      if (looking) {
+        const yaw = Math.atan2(state.look.x - pose.x, state.look.z - pose.z) + seatedLook.yaw
+        state.look.set(pose.x + Math.sin(yaw) * 4, state.desired.y - 0.05, pose.z + Math.cos(yaw) * 4)
+      }
     } else {
       const horizontal = viewControls.distance * Math.cos(viewControls.pitch)
       state.desired.set(
@@ -171,7 +187,7 @@ export function CameraRig() {
       state.desired,
       1 - Math.exp(-12 * Math.min(delta, 0.1)),
     )
-    if (!seated) constrainRoamingCamera(camera.position)
+    if (!seated && !watchedAnchor) constrainRoamingCamera(camera.position)
     camera.lookAt(state.look)
     camera.getWorldDirection(state.direction)
     interactionAim.ready = true
@@ -181,11 +197,11 @@ export function CameraRig() {
     interactionAim.dx = state.direction.x
     interactionAim.dy = state.direction.y
     interactionAim.dz = state.direction.z
-    omokCamera.anchorId = boardFocus ? avatar.tableId : ''
+    omokCamera.anchorId = boardFocus ? avatar.tableId : spectatorBoard ? watchedAnchor!.id : ''
     omokCamera.ready =
-      !!boardFocus && camera.position.distanceTo(state.desired) < 0.005
+      !!(boardFocus || spectatorBoard) && camera.position.distanceTo(state.desired) < 0.005
     if (camera instanceof PerspectiveCamera) {
-      const fov = boardFocus ? GOMOKU.topDownFov : seated ? 76 : CAMERA.fov
+      const fov = boardFocus || spectatorBoard ? GOMOKU.topDownFov : seated ? 76 : CAMERA.fov
       if (Math.abs(camera.fov - fov) > 0.01) {
         camera.fov = fov
         camera.updateProjectionMatrix()

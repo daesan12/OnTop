@@ -42,6 +42,7 @@ export function OmokBoard({ anchor }: { anchor: TableAnchor }) {
       roomId: s.roomId,
       tableStates: s.tableStates,
       tableId: s.tableId,
+      watchedTableId: s.watchedTableId,
     })),
   )
   const game = useGame((s) => s.game),
@@ -54,7 +55,8 @@ export function OmokBoard({ anchor }: { anchor: TableAnchor }) {
   const relevant =
     !!game &&
     !!binding &&
-    (start?.tableId === binding.tableId || session.tableId === binding.tableId)
+    (start?.tableId === binding.tableId || session.tableId === binding.tableId ||
+      (game.role === 'SPECTATOR' && session.watchedTableId === binding.tableId))
   if (!selected && !relevant) return null
   return <OmokSurface anchor={anchor} game={relevant ? game : null} />
 }

@@ -21,6 +21,7 @@ export async function fixture(
     bindings?: boolean
     players?: number
     omok?: boolean
+    m09?: boolean
     manualMovement?: boolean
     ownUserId?: '101' | '102'
     emoteBindings?: boolean
@@ -56,6 +57,8 @@ export async function fixture(
   let lastEmote: { eventId: string; channelId: string; userId: string; emoteCode: string; sentAt: string } | undefined
   let emoteRequestId = ''
   let remotePosition: Partial<typeof position> = {}
+  let rejectGameWatch = false
+  let watchMode: 'normal' | 'reject' | 'hold' = 'normal', watchRequestId = '', selectorOverride: string | undefined, targetScore: number | null = null
   let seated = false,
     rejectChat = false
   let gameCode: string | null = null,
@@ -112,14 +115,14 @@ export async function fixture(
       },
       requestId,
     )
-  const game = (ws: WebSocketRoute, requestId: string | null = null) =>
+  const game = (ws: WebSocketRoute, requestId: string | null = null, role = 'PLAYER') =>
     emit(
       ws,
       'GAME_STATE',
       {
         gameId,
         version: gameVersion,
-        role: 'PLAYER',
+        role,
         publicState: omok(),
         privateState: {},
       },
@@ -214,7 +217,7 @@ export async function fixture(
               status: 'WAITING',
               joinable: !seated,
               gameCode: null,
-              targetScore: null,
+              targetScore,
             },
           ],
         },
@@ -264,20 +267,16 @@ export async function fixture(
         payload: {
           tableId,
           version: ++version,
-          capacity: 2,
+          capacity: options.m09 && !['OMOK', 'DICE'].includes(gameCode ?? '') ? 4 : 2,
           minimumPlayers: 2,
-          seats: [
-            { seatNumber: 1, userId: seated ? '101' : null, ready },
-            {
-              seatNumber: 2,
-              userId: '102',
-              ready: options.omok ? ready : false,
-            },
-          ],
+          seats: Array.from({ length: options.m09 && !['OMOK', 'DICE'].includes(gameCode ?? '') ? 4 : 2 }, (_, i) => ({
+            seatNumber: i + 1, userId: i === 0 ? seated ? '101' : null : i === 1 ? '102' : null,
+            ready: i === 0 ? ready : i === 1 && options.omok ? ready : false,
+          })),
           allReady: ready,
-          selectorUserId: seated ? '101' : '102',
+          selectorUserId: selectorOverride ?? (seated ? '101' : '102'),
           gameCode,
-          targetScore: null,
+          targetScore,
         },
       }),
     )
@@ -373,7 +372,16 @@ export async function fixture(
         if (emoteResponse === 'approve') emit(ws, 'WORLD_EMOTE_EVENT', lastEmote, requestId)
         if (emoteResponse === 'reject') emit(ws, 'ERROR', { code: 'EMOTE_NOT_SUPPORTED', message: '등록되지 않은 감정표현입니다.' }, requestId)
       }
-      if (type === 'TABLE_WATCH') table(ws, 'TABLE_WATCH_STATE', requestId)
+      if (type === 'TABLE_WATCH') {
+        watchRequestId = requestId
+        if (watchMode === 'reject') emit(ws, 'ERROR', { code: 'TABLE_OUT_OF_RANGE', message: '테이블 관전 범위를 확인해주세요.' }, requestId)
+        if (watchMode === 'normal') table(ws, 'TABLE_WATCH_STATE', requestId)
+      }
+      if (options.m09 && type === 'GAME_WATCH') {
+        if (rejectGameWatch) emit(ws, 'ERROR', { code: 'GAME_STATE_ACCESS_DENIED', message: '경기 관전 권한이 없습니다.' }, requestId)
+        else game(ws, requestId, 'SPECTATOR')
+      }
+      if (options.m09 && type === 'GAME_UNWATCH') emit(ws, 'GAME_WATCH_LEFT', { gameId }, requestId)
       if (type === 'TABLE_UNWATCH')
         ws.send(
           JSON.stringify({
@@ -406,6 +414,7 @@ export async function fixture(
       }
       if (options.omok && type === 'GAME_SELECT') {
         gameCode = String(payload.gameCode)
+        targetScore = payload.targetScore ?? null
         ready = false
         table(ws, 'TABLE_STATE', requestId)
         start(ws, 'WAITING')
@@ -451,6 +460,10 @@ export async function fixture(
   })
   return {
     sent,
+    rejectGameWatch: (value: boolean) => { rejectGameWatch = value },
+    watchMode: (mode: typeof watchMode) => { watchMode = mode },
+    replyWatch: () => table(sockets.at(-1)!, 'TABLE_WATCH_STATE', watchRequestId),
+    host: (id: string) => { selectorOverride = id; table(sockets.at(-1)!, 'TABLE_STATE', null) },
     confirmStart: () => {
       started = true
       gameDeadline = new Date(Date.now() + 30_000).toISOString()
