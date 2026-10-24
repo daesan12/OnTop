@@ -324,8 +324,10 @@ export function advertisementPostersReady() {
     if (object.name !== 'rotating-advertisement' || !(object instanceof Mesh) || !(object.material instanceof ShaderMaterial)) return
     for (const key of ['current', 'next']) textures.add(object.material.uniforms[key]!.value)
   })
-  return textures.size > 0 && [...textures].every(texture => texture.image instanceof HTMLImageElement
-    && texture.image.complete && !!(gl.properties.get(texture) as { __webglTexture?: WebGLTexture }).__webglTexture)
+  return textures.size > 0 && [...textures].every(texture =>
+    (texture.image instanceof HTMLImageElement ? texture.image.complete
+      : typeof ImageBitmap !== 'undefined' && texture.image instanceof ImageBitmap && texture.image.width > 0)
+    && !!(gl.properties.get(texture) as { __webglTexture?: WebGLTexture }).__webglTexture)
 }
 
 

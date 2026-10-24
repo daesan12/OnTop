@@ -29,6 +29,10 @@ import {
   usesPortraitAdvertisement,
 } from './advertisementMedia'
 import { createAdvertisementGeometry } from './advertisementGeometry'
+import {
+  disposeAdvertisementPoster,
+  prepareAdvertisementPoster,
+} from './advertisementPoster'
 export { ADVERTISEMENTS } from './advertisementMedia'
 
 interface MediaResource {
@@ -114,11 +118,9 @@ export function AdvertisementResources({ children }: { children: ReactNode }) {
     urls.forEach((url) => {
       loader.load(
         url,
-        (texture) => {
-          if (!live) {
-            texture.dispose()
-            return
-          }
+        async (loaded) => {
+          const texture = await prepareAdvertisementPoster(loaded, () => live)
+          if (!texture) return
           texture.colorSpace = SRGBColorSpace
           texture.name = url
           texture.anisotropy = 16
@@ -126,7 +128,7 @@ export function AdvertisementResources({ children }: { children: ReactNode }) {
             const resource = resources[i]
             if (ad.imageUrl === url) {
               const usingPoster = resource.texture === resource.poster
-              resource.poster.dispose()
+              disposeAdvertisementPoster(resource.poster)
               resource.poster = texture
               if (usingPoster || !resource.videoTexture || resource.failed)
                 resource.texture = texture
@@ -166,7 +168,7 @@ export function AdvertisementResources({ children }: { children: ReactNode }) {
         if (r.portraitPoster) posters.add(r.portraitPoster)
         r.videoTexture?.dispose()
       }
-      posters.forEach((texture) => texture.dispose())
+      posters.forEach(disposeAdvertisementPoster)
     }
   }, [resources])
   useFrame(() => {
