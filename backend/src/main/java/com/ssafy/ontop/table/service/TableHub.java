@@ -38,12 +38,13 @@ import com.ssafy.ontop.world.config.WorldEmoteProperties;
 import com.ssafy.ontop.world.config.WorldProximityProperties;
 import com.ssafy.ontop.world.domain.ChatText;
 import com.ssafy.ontop.world.domain.EmoteCode;
+import com.ssafy.ontop.world.service.WorldAppearanceGateway;
 import com.ssafy.ontop.world.service.WorldChannelRegistry;
 import com.ssafy.ontop.world.service.WorldChatService;
 import com.ssafy.ontop.world.service.WorldEmoteService;
-import com.ssafy.ontop.world.service.WorldProximity;
-import com.ssafy.ontop.world.service.WorldAppearanceGateway;
+import com.ssafy.ontop.world.service.WorldFacilityService;
 import com.ssafy.ontop.world.service.WorldProfileGateway;
+import com.ssafy.ontop.world.service.WorldProximity;
 import jakarta.annotation.PreDestroy;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -109,6 +110,7 @@ public class TableHub {
     private final WorldChatService chat;
     private final WorldEmoteService emotes;
     private final WorldProximity proximity;
+    private final WorldFacilityService facilities = new WorldFacilityService();
     private final ExecutorService startWorkers = Executors.newVirtualThreadPerTaskExecutor();
     private final ScheduledExecutorService heartbeatTimer = Executors.newSingleThreadScheduledExecutor(
             Thread.ofPlatform().daemon(true).name("table-heartbeat").factory());
@@ -436,6 +438,8 @@ public class TableHub {
                 case "WORLD_MOVE" -> moveWorld(member, request);
                 case "WORLD_CHAT_SEND" -> sendChat(member, request);
                 case "WORLD_EMOTE_SEND" -> sendEmote(member, request);
+                case "WORLD_FACILITY_CATALOG", "WORLD_FACILITY_CHECK", "WORLD_FACILITY_USE",
+                        "WORLD_FACILITY_RELEASE", "WORLD_FACILITY_AIM" -> facility(member, request);
                 case "TABLE_JOIN" -> join(member, request);
                 case "TABLE_WATCH" -> watch(member, request);
                 case "TABLE_UNWATCH" -> unwatch(member, request);
@@ -445,6 +449,8 @@ public class TableHub {
                 case "GAME_START_CHECK" -> checkStart(member, request);
                 default -> throw new IllegalStateException("검증되지 않은 메시지");
             }
+        } catch (WorldFacilityService.FacilityException exception) {
+            member.peer().offer(protocol.error(requestId, exception.code(), exception.getMessage()));
         } catch (WorldEmoteService.EmoteException exception) {
             member.peer().offer(protocol.error(requestId, exception.code(), exception.getMessage()));
         } catch (WorldChatService.ChatException exception) {
@@ -484,7 +490,13 @@ public class TableHub {
         appearancePushes.remove(member.userId());
         profileMemberships.remove(member);
         positionSampler.forget(member.userId());
+        String facilityChannel = channels.channelOf(member.userId());
+        boolean wasUsingFacility = facilities.current(member.userId()) != null;
+        facilities.disconnected(member.userId());
         WorldChannelRegistry.State channelState = channels.disconnect(member.userId());
+        if (wasUsingFacility) {
+            publishFacilities(facilityChannel, null, null);
+        }
         if (channelState != null) {
             publishChannel(channelState, null, null);
             publishWorld(channels.worldState(channelState.channelId()), null, null);
@@ -530,6 +542,7 @@ public class TableHub {
         });
         members.clear();
         channels.clear();
+        facilities.clear();
         chat.clear();
         emotes.clear();
         seating.clear();
@@ -575,6 +588,9 @@ public class TableHub {
     }
 
     private void join(Member member, Request request) {
+        if (facilities.current(member.userId()) != null) {
+            fail(request, "FACILITY_BUSY", "먼저 시설 이용을 종료해주세요.");
+        }
         String tableId = request.payload().get("tableId").textValue();
         TableRoom room = rooms.get(tableId);
         if (room == null) {
@@ -778,7 +794,12 @@ public class TableHub {
         if (seating.containsKey(member.userId())) {
             fail(request, "TABLE_BUSY", "먼저 테이블에서 퇴장해주세요.");
         }
+        boolean wasUsingFacility = facilities.current(member.userId()) != null;
+        facilities.release(member.userId());
         WorldChannelRegistry.State state = channels.leave(member.userId());
+        if (wasUsingFacility) {
+            publishFacilities(state.channelId(), null, null);
+        }
         profileMemberships.remove(member);
         appearancePushes.remove(member.userId());
         clearWatch(member, null);
@@ -813,6 +834,9 @@ public class TableHub {
     }
 
     private void moveWorld(Member member, Request request) {
+        if (facilities.current(member.userId()) != null) {
+            fail(request, "FACILITY_BUSY", "먼저 시설 이용을 종료해주세요.");
+        }
         if (seating.containsKey(member.userId())) {
             fail(request, "TABLE_BUSY", "먼저 테이블에서 퇴장해주세요.");
         }
@@ -851,6 +875,80 @@ public class TableHub {
         recordBehavior(BehaviorEventType.CHAT_SENT, member.accountId(), builder -> builder.channelId(channelId)
                 .prop("length", message.text().codePointCount(0, message.text().length()))
                 .prop("recipients", heard));
+    }
+
+    private void facility(Member member, Request request) {
+        String channel = channels.channelOf(member.userId());
+        if (channel == null) {
+            fail(request, "NOT_IN_CHANNEL", "먼저 채널에 입장해주세요.");
+        }
+        var payload = request.payload();
+        switch (request.type()) {
+            case "WORLD_FACILITY_CATALOG" -> {
+                var catalog = facilities.catalog();
+                int offset = Math.min(payload.path("offset").asInt(0), catalog.facilities().size());
+                int end = Math.min(offset + 10, catalog.facilities().size());
+                member.peer().offer(protocol.encode(request.requestId(), "WORLD_FACILITY_CATALOG", Map.of(
+                        "mapVersion", catalog.mapVersion(), "total", catalog.facilities().size(),
+                        "offset", offset, "nextOffset", end < catalog.facilities().size() ? end : -1,
+                        "facilities", catalog.facilities().subList(offset, end),
+                        "aimIntervalMs", catalog.aimIntervalMs(), "minPitch", catalog.minPitch(),
+                        "maxPitch", catalog.maxPitch(), "initialPitch", catalog.initialPitch())));
+            }
+            case "WORLD_FACILITY_CHECK" -> member.peer().offer(
+                    protocol.encode(request.requestId(), "WORLD_FACILITY_STATE", facilities.state(channel)));
+            case "WORLD_FACILITY_USE" -> {
+                if (seating.containsKey(member.userId())) {
+                    fail(request, "TABLE_BUSY", "먼저 테이블에서 퇴장해주세요.");
+                }
+                long before = facilities.state(channel).version();
+                var lease = facilities.use(member.userId(), channel, request.requestId(),
+                        payload.path("facilityId").asText(), payload.path("seatIndex").asInt(),
+                        channels.positionOf(member.userId()));
+                if (before == facilities.state(channel).version()) {
+                    member.peer().offer(protocol.encode(request.requestId(), "WORLD_FACILITY_STATE",
+                            facilities.state(channel)));
+                    return;
+                }
+                channels.holdFacility(member.userId(), lease.pose());
+                clearWatch(member, null);
+                clearGameWatch(member);
+                publishFacilities(channel, member, request.requestId());
+                publishWorld(channels.worldState(channel), null, null);
+            }
+            case "WORLD_FACILITY_RELEASE" -> {
+                var lease = facilities.requireOwner(member.userId(), payload.path("leaseId").asText());
+                var exit = channels.facilityExit(member.userId(), lease);
+                if (exit == null) {
+                    fail(request, "FACILITY_EXIT_BLOCKED", "하차 위치가 막혀 있습니다. 잠시 후 다시 시도해주세요.");
+                }
+                channels.releaseFacility(member.userId(), exit);
+                facilities.release(member.userId());
+                publishFacilities(channel, member, request.requestId());
+                publishWorld(channels.worldState(channel), null, null);
+            }
+            case "WORLD_FACILITY_AIM" -> {
+                long before = facilities.state(channel).version();
+                facilities.aim(member.userId(), payload.path("leaseId").asText(), payload.path("seq").asLong(),
+                        payload.path("yaw").asDouble(), payload.path("pitch").asDouble());
+                if (before == facilities.state(channel).version()) {
+                    member.peer().offer(protocol.encode(request.requestId(), "WORLD_FACILITY_STATE",
+                            facilities.state(channel)));
+                } else {
+                    publishFacilities(channel, member, request.requestId());
+                }
+            }
+            default -> throw new IllegalStateException("검증되지 않은 시설 명령");
+        }
+    }
+
+    private void publishFacilities(String channel, Member actor, String requestId) {
+        var state = facilities.state(channel);
+        for (Member target : java.util.List.copyOf(members.values())) {
+            if (channels.isInChannel(target.userId(), channel)) {
+                target.peer().offer(protocol.encode(target == actor ? requestId : null, "WORLD_FACILITY_STATE", state));
+            }
+        }
     }
 
     private void sendEmote(Member member, Request request) {

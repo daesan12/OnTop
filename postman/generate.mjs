@@ -13,7 +13,8 @@ const variables = {
     tableIdB: '',
     gameId: 'replace-with-real-game-id',
     minigameSessionId: '', minigameRequestKey: '', minigameHeats: '', minigameLog: '', minigameStartedAt: '',
-    accessToken: '', websocketTicket: '', shopItemId: '', userItemId: '', purchaseRequestKey: '', purchaseId: ''
+    accessToken: '', websocketTicket: '', shopItemId: '', userItemId: '', purchaseRequestKey: '', purchaseId: '',
+    facilityLeaseId: ''
 };
 
 const statusTest = status => `pm.test('HTTP ${status}', () => pm.response.to.have.status(${status}));`;
@@ -234,6 +235,18 @@ const primaryMessages = [
     message('연동 전 경기 상태 조회 → dev에서는 GAME_STATE_AUTH_REQUIRED', 'GAME_STATE_CHECK', { gameId: '{{gameId}}' }),
     message('연동 전 시작 조회 → 기본 모드는 UNSUPPORTED_MESSAGE_TYPE', 'GAME_START_CHECK')
 ];
+primaryMessages.push(
+    message('시설 01 목록 → WORLD_FACILITY_CATALOG (10개씩)', 'WORLD_FACILITY_CATALOG', {}),
+    message('시설 02 점유 조회 → WORLD_FACILITY_STATE (입장·재접속 필수)', 'WORLD_FACILITY_CHECK', {}),
+    message('시설 03 벤치 이용 → WORLD_FACILITY_STATE (서버 근접 필요)', 'WORLD_FACILITY_USE',
+        { facilityId: 'bench-0', seatIndex: 0 }),
+    message('시설 04 망원경 이용 → WORLD_FACILITY_STATE (정상 접근 필요)', 'WORLD_FACILITY_USE',
+        { facilityId: 'telescope-1', seatIndex: 0 }),
+    message('시설 05 망원경 방향 → WORLD_FACILITY_STATE (100ms 간격)', 'WORLD_FACILITY_AIM',
+        { leaseId: '{{facilityLeaseId}}', seq: 1, yaw: 0.5, pitch: -0.2 }),
+    message('시설 06 반납 → WORLD_FACILITY_STATE (본인 leaseId)', 'WORLD_FACILITY_RELEASE',
+        { leaseId: '{{facilityLeaseId}}' })
+);
 const wsRequest = (name, description, messages) => ({
     name, $kind: 'websocket-request', url: '{{wsUrl}}',
     description: movementGuide + description,
@@ -407,7 +420,18 @@ const publicProfileGuide = '\n\n2026-10-24 공개 프로필: db 프로필의 인
     + '감정표현 5종은 WAVE/CLAP/APPLAUSE_REQUEST/TSK/FART, 손 인사/박수 5초·나머지 1.8초의 FE 간격을 적용합니다. 직전 성공 표현 기준으로 다른 표현도 대기하며 상태별 허용/취소는 별도 확인입니다. '
     + 'FE park-bindings.emotes 매핑·3D 렌더링·배포 확인은 별도입니다.';
 wsItems[6].description += appearanceGuide + publicProfileGuide;
-const wsV3 = { name: 'OnTop WebSocket', $kind: 'collection', description: wsGuide + appearanceGuide + publicProfileGuide,
+const facilityGuide = '\n\n## 시설 이용·점유 동기화 (2026-10-25)\n\n'
+    + 'CHANNEL_JOIN 후 시설01 CATALOG(10개씩 nextOffset, -1종료)→시설02 CHECK(입장·재접속 필수)→시설03/04 USE→시설05 AIM(망원경만)→시설06 RELEASE. '
+    + '벤치80개×2석, 운동기구12대·망원경2대×1명. 같은 채널 WORLD_FACILITY_STATE.occupancies 전체 상태와 version을 사용합니다. '
+    + '본인 leaseId를 로컬 facilityLeaseId 변수에 복사하거나05/06 JSON에 직접 넣으세요. 이전 이용 ID·다른 사용자 ID는 거절합니다. '
+    + '서버 승인 위치 기준 벤치/기구3m·망원경2m, 높이+0.8m±0.7m. 이 값과100ms/pitch범위는 FE 초기 설정이며 최종 정책은 협의 목록에 있습니다. '
+    + '이용 중 이동/점프/테이블 착석은 FACILITY_BUSY. 하차 승인 후 WORLD_STATE 위치에서 이동합니다. '
+    + '망원경 yaw[-π,π],pitch[-1.35,1.15],seq1~4294967295,100ms 간격. 과거seq는 본인 ACK만, 확대/FOV는FE. '
+    + '단절/채널퇴장 즉시 해제, 재접속 CHECK 후 재이용하며 경기30초유예는 그대로입니다. '
+    + '위치 주입 API는 없습니다. Postman에서 원거리 USE 오류는 정상이며 성공 검수는 실제 이동 후 요청하세요. '
+    + '단일 JVM 메모리 점유, 다중 서버·실제 FE 모션·운영 적용은 별도 검수입니다. docs/world-facility-api.md.';
+const wsV3 = { name: 'OnTop WebSocket', $kind: 'collection', description: wsGuide + appearanceGuide + publicProfileGuide
+        + facilityGuide,
     items: wsItems };
 const httpV21 = {
     info: { name: httpV3.name, description: guide, schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json' },

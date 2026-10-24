@@ -352,6 +352,44 @@ public final class WorldPhysics implements AutoCloseable {
                 });
     }
 
+    /** 시설 이용 자세는 충돌 계산에서 분리하고, 이전 이동 입력을 폐기한다. */
+    public void hold(String id, double x, double y, double z, double yaw) {
+        call(() -> {
+            Actor actor = actors.get(id);
+            stopNow(id);
+            if (!actor.seated) {
+                space.removeCollisionObject(actor.body);
+                actor.seated = true;
+            }
+            actor.body.warp(new Vector3f((float) x, (float) y, (float) z));
+            actor.body.setLinearVelocity(Vector3f.ZERO);
+            actor.yaw = yaw;
+            actor.swimming = false;
+            return null;
+        });
+    }
+
+    /** 하차 전 캡슐 관통과 발밑 지지면을 검사한다. */
+    public boolean canStand(double x, double y, double z) {
+        return call(() -> {
+            var center = new Vector3f((float) x, (float) y, (float) z);
+            var probe = new com.jme3.bullet.objects.PhysicsGhostObject(
+                    new CapsuleCollisionShape(number("radius"), number("halfHeight") * 2, 1));
+            probe.setCollisionGroup(1);
+            probe.setCollideWithGroups(2);
+            probe.setPhysicsLocation(center);
+            boolean[] blocked = {false};
+            space.contactTest(probe, event -> {
+                if (event.getDistance1() < -0.04f) {
+                    blocked[0] = true;
+                }
+            });
+            float depth = number("halfHeight") + number("radius") + 0.17f;
+            return !blocked[0] && space.rayTest(center, center.add(0, -depth, 0)).stream()
+                    .anyMatch(hit -> hit.getCollisionObject().getCollisionGroup() == 2);
+        });
+    }
+
     private void placeNow(String id, double x, double y, double z) {
         Actor a = actors.get(id);
         stop(id);

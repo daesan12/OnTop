@@ -56,6 +56,22 @@ public final class TableProtocol {
             case "WORLD_CHAT_SEND" -> fields(payload, Set.of("text")) && validChatText(payload.get("text"));
             case "WORLD_EMOTE_SEND" -> fields(payload, Set.of("emoteCode")) && validEmoteCode(payload.get("emoteCode"));
             case "WORLD_MOVE" -> validMove(payload);
+            case "WORLD_FACILITY_CHECK" -> fields(payload, Set.of());
+            case "WORLD_FACILITY_CATALOG" -> fields(payload, Set.of())
+                    || fields(payload, Set.of("offset")) && payload.path("offset").isIntegralNumber()
+                            && payload.path("offset").canConvertToInt() && payload.path("offset").asInt() >= 0;
+            case "WORLD_FACILITY_USE" -> fields(payload, Set.of("facilityId", "seatIndex"))
+                    && payload.path("facilityId").isTextual() && !payload.path("facilityId").asText().isBlank()
+                    && payload.path("facilityId").asText().length() <= 80
+                    && payload.path("seatIndex").isIntegralNumber() && payload.path("seatIndex").canConvertToInt()
+                    && payload.path("seatIndex").asInt() >= 0 && payload.path("seatIndex").asInt() <= 1;
+            case "WORLD_FACILITY_RELEASE" -> fields(payload, Set.of("leaseId")) && validLease(payload);
+            case "WORLD_FACILITY_AIM" -> fields(payload, Set.of("leaseId", "seq", "yaw", "pitch"))
+                    && validLease(payload) && payload.path("seq").isIntegralNumber()
+                    && payload.path("seq").canConvertToLong() && payload.path("seq").asLong() > 0
+                    && payload.path("seq").asLong() <= 4_294_967_295L
+                    && payload.path("yaw").isNumber() && Double.isFinite(payload.path("yaw").asDouble())
+                    && payload.path("pitch").isNumber() && Double.isFinite(payload.path("pitch").asDouble());
             case "TABLE_JOIN", "TABLE_WATCH" -> fields(payload, Set.of("tableId")) && payload.get("tableId").isTextual()
                     && !payload.get("tableId").textValue().isBlank();
             case "READY_SET" -> fields(payload, Set.of("ready")) && payload.get("ready").isBoolean();
@@ -96,6 +112,11 @@ public final class TableProtocol {
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException("서버 메시지 직렬화 실패", exception);
         }
+    }
+
+    private boolean validLease(JsonNode payload) {
+        return payload.path("leaseId").isTextual() && !payload.path("leaseId").asText().isBlank()
+                && payload.path("leaseId").asText().length() <= 64;
     }
 
     private boolean validMove(JsonNode payload) {

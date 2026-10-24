@@ -96,6 +96,7 @@ public class WorldChannelRegistry implements ChannelPresence {
         room.positions.remove(userId);
         room.equipment.remove(userId);
         room.profiles.remove(userId);
+        room.held.remove(userId);
         room.physics.remove(userId);
         if (room.users.isEmpty()) {
             room.physics.close();
@@ -208,6 +209,30 @@ public class WorldChannelRegistry implements ChannelPresence {
         }
     }
 
+    public synchronized void holdFacility(String userId, WorldFacilityService.Pose pose) {
+        Room room = rooms.get(membership.get(userId));
+        room.physics.hold(userId, pose.x(), pose.y(), pose.z(), pose.yaw());
+        room.held.add(userId);
+        Movement previous = room.positions.get(userId);
+        room.positions.put(userId, new Movement(position(room.physics.snapshot(userId)), previous.acceptedAtNanos()));
+        room.worldVersion++;
+    }
+
+    public synchronized WorldFacilityService.Pose facilityExit(String userId, WorldFacilityService.Lease lease) {
+        Room room = rooms.get(membership.get(userId));
+        for (var pose : List.of(lease.exit(), lease.returnPose())) {
+            if (room.physics.canStand(pose.x(), pose.y(), pose.z())) {
+                return pose;
+            }
+        }
+        return null;
+    }
+
+    public synchronized void releaseFacility(String userId, WorldFacilityService.Pose pose) {
+        holdFacility(userId, pose);
+        rooms.get(membership.get(userId)).held.remove(userId);
+    }
+
     /** Fixed simulation time, bounded catch-up. Client input frequency cannot add simulation steps. */
     public synchronized List<WorldState> advance(java.util.Set<String> seated) {
         long now = nanoTime.getAsLong();
@@ -219,7 +244,9 @@ public class WorldChannelRegistry implements ChannelPresence {
             long tick = now - (steps - i - 1) * WorldPhysics.STEP_NANOS;
             for (Room room : rooms.values()) {
                 if (room.physics != null) {
-                    room.physics.step(tick, seated);
+                    var frozen = new java.util.HashSet<>(seated);
+                    frozen.addAll(room.held);
+                    room.physics.step(tick, frozen);
                 }
             }
         }
@@ -277,6 +304,7 @@ public class WorldChannelRegistry implements ChannelPresence {
                 room.positions.clear();
                 room.equipment.clear();
                 room.profiles.clear();
+                room.held.clear();
                 room.version++;
                 room.worldVersion++;
             }
@@ -350,6 +378,7 @@ public class WorldChannelRegistry implements ChannelPresence {
         private final Map<String, Movement> positions = new HashMap<>();
         private final Map<String, List<WorldAppearanceGateway.Equipment>> equipment = new HashMap<>();
         private final Map<String, WorldProfileGateway.Profile> profiles = new HashMap<>();
+        private final java.util.Set<String> held = new java.util.HashSet<>();
         private long version;
         private long worldVersion;
         private WorldPhysics physics;

@@ -142,3 +142,33 @@
     "$kind": "websocket-message"
     "contentType": "json"
     "content": "{\n  \"requestId\": \"{{$guid}}\",\n  \"type\": \"GAME_START_CHECK\",\n  \"payload\": {}\n}"
+  -
+    "name": "시설 01 목록 → WORLD_FACILITY_CATALOG (10개씩)"
+    "$kind": "websocket-message"
+    "contentType": "json"
+    "content": "{\n  \"requestId\": \"{{$guid}}\",\n  \"type\": \"WORLD_FACILITY_CATALOG\",\n  \"payload\": {}\n}"
+  -
+    "name": "시설 02 점유 조회 → WORLD_FACILITY_STATE (입장·재접속 필수)"
+    "$kind": "websocket-message"
+    "contentType": "json"
+    "content": "{\n  \"requestId\": \"{{$guid}}\",\n  \"type\": \"WORLD_FACILITY_CHECK\",\n  \"payload\": {}\n}"
+  -
+    "name": "시설 03 벤치 이용 → WORLD_FACILITY_STATE (서버 근접 필요)"
+    "$kind": "websocket-message"
+    "contentType": "json"
+    "content": "{\n  \"requestId\": \"{{$guid}}\",\n  \"type\": \"WORLD_FACILITY_USE\",\n  \"payload\": {\n    \"facilityId\": \"bench-0\",\n    \"seatIndex\": 0\n  }\n}"
+  -
+    "name": "시설 04 망원경 이용 → WORLD_FACILITY_STATE (정상 접근 필요)"
+    "$kind": "websocket-message"
+    "contentType": "json"
+    "content": "{\n  \"requestId\": \"{{$guid}}\",\n  \"type\": \"WORLD_FACILITY_USE\",\n  \"payload\": {\n    \"facilityId\": \"telescope-1\",\n    \"seatIndex\": 0\n  }\n}"
+  -
+    "name": "시설 05 망원경 방향 → WORLD_FACILITY_STATE (100ms 간격)"
+    "$kind": "websocket-message"
+    "contentType": "json"
+    "content": "{\n  \"requestId\": \"{{$guid}}\",\n  \"type\": \"WORLD_FACILITY_AIM\",\n  \"payload\": {\n    \"leaseId\": \"{{facilityLeaseId}}\",\n    \"seq\": 1,\n    \"yaw\": 0.5,\n    \"pitch\": -0.2\n  }\n}"
+  -
+    "name": "시설 06 반납 → WORLD_FACILITY_STATE (본인 leaseId)"
+    "$kind": "websocket-message"
+    "contentType": "json"
+    "content": "{\n  \"requestId\": \"{{$guid}}\",\n  \"type\": \"WORLD_FACILITY_RELEASE\",\n  \"payload\": {\n    \"leaseId\": \"{{facilityLeaseId}}\"\n  }\n}"
