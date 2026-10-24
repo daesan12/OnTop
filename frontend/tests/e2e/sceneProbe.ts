@@ -317,3 +317,151 @@ export function emoteProbe() {
     avatars: ['101', '102'].map(id => ({ id, emote: avatars.get(id)?.emote, at: avatars.get(id)?.emoteAt })) }
 }
 export function fixtureInputFlag(flag: 'manualOpen' | 'mapOpen' | 'minigameOpen', open: boolean) { inputState[flag] = open }
+
+import { PULLDOWN_LIFT, AVATAR, createFitnessMotion, sampleFitnessMotion } from '../../src/config'
+import { fitnessService } from '../../src/features/fitness/service'
+import { fitnessSignal, useFitnessState } from '../../src/features/fitness/state'
+import { fitnessAnchors } from '../../src/features/fitness/anchors'
+import { authoritativePose } from '../../src/network/worldClient'
+export async function fixtureFitness(userId: string, stationId: string) {
+  const lease = await fitnessService.enter({ userId, channelId: useSession.getState().roomId,
+    position: fitnessAnchors(stationId).exit }, stationId, fitnessSignal(userId))
+  useFitnessState.setState(s => ({ placements: { ...s.placements, [userId]: lease } }))
+  refreshActivityPresentation()
+}
+export function fitnessProbe(stationId: string) {
+  const { scene } = root(), s = useSession.getState(), state = useFitnessState.getState()
+  const station = FITNESS_STATIONS.find(item => item.id === stationId)!
+  const lease = Object.values(state.placements).find(item => item.stationId === stationId)
+  const m = sampleFitnessMotion(station.kind, lease?.startedAt ?? 0, lease ? Date.now() : 0, createFitnessMotion())
+  const mechanism = scene.getObjectByName(stationId + '-mechanism')
+  const left = scene.getObjectByName(stationId + '-left-pedal')
+  const right = scene.getObjectByName(stationId + '-right-pedal')
+  const errors: number[] = []
+  const difference = (actual: number | undefined, expected: number) => errors.push(Math.abs((actual ?? Infinity) - expected))
+  if (station.kind === 'walker') { difference(left?.rotation.x, m.leftLeg); difference(right?.rotation.x, m.rightLeg) }
+  else if (station.kind === 'elliptical') {
+    difference(left?.position.y, station.baseHeight + (0.6 + m.leftPedalY) * AVATAR.scale)
+    difference(left?.position.z, m.leftPedalZ * AVATAR.scale)
+    difference(right?.position.z, m.rightPedalZ * AVATAR.scale)
+  } else if (station.kind === 'inversion') difference(mechanism?.rotation.x, m.mechanism)
+  else if (station.kind === 'surfer') difference(mechanism?.rotation.z, m.mechanism)
+  else if (station.kind === 'twister') difference(mechanism?.rotation.y, m.mechanism)
+  else if (station.kind === 'shoulder') difference(mechanism?.rotation.z, m.wheel)
+  else if (station.kind === 'backmassage') difference(mechanism?.rotation.x, m.wheel)
+  else if (station.kind === 'rower') difference(mechanism?.rotation.x, -m.mechanism * 0.5)
+  else if (station.kind === 'legpress') difference(mechanism?.position.z, 0.5 + m.mechanism * 0.35)
+  else if (station.kind === 'pulldown') difference(scene.getObjectByName('pulldown-seat-lift')?.position.y, m.mechanism * PULLDOWN_LIFT)
+  else difference(mechanism?.rotation.x, 0)
+  const avatar = avatars.get(s.sessionId)
+  return { fitnessId: s.fitnessId, pending: state.pending, lease, placements: state.placements,
+    occupantStartedAt: lease ? avatars.get(lease.userId)?.fitnessStartedAt : undefined,
+    occupantFitnessId: lease ? avatars.get(lease.userId)?.fitnessId : undefined,
+    authoritative: authoritativePose(s.sessionId), displayed: avatar?.current,
+    ownVisible: scene.getObjectByName('avatar-' + s.sessionId)?.visible,
+    remoteVisible: scene.getObjectByName('avatar-102')?.visible,
+    avatarStartedAt: avatar?.fitnessStartedAt, avatarFitnessId: avatar?.fitnessId,
+    machineError: Math.max(...errors), mechanism: mechanism?.rotation.toArray().slice(0, 3),
+    leftPedal: left?.rotation.x, figure: scene.getObjectByName('figure-' + s.sessionId)?.rotation.x,
+  }
+}
+
+import { telescopeService } from '../../src/features/telescopes/service'
+import { telescopeSignal, useTelescopeState } from '../../src/features/telescopes/state'
+import { telescopeAnchors } from '../../src/features/telescopes/anchors'
+import { telescopeView } from '../../src/features/telescopeView'
+export async function fixtureTelescope(userId: string, id: string, yaw?: number, pitch = -0.18) {
+  const signal = telescopeSignal(userId)
+  let lease = await telescopeService.enter({ userId, channelId: useSession.getState().roomId,
+    position: telescopeAnchors(id).use }, id, signal)
+  if (yaw !== undefined) lease = { ...lease, ...await telescopeService.aim(lease, { yaw, pitch }, signal) }
+  useTelescopeState.setState(s => ({ placements: { ...s.placements, [userId]: lease } }))
+  refreshActivityPresentation()
+}
+export function telescopeProbe(id: string) {
+  const { camera, scene } = root(), s = useSession.getState()
+  const state = useTelescopeState.getState()
+  const direction = camera.getWorldDirection(new Vector3())
+  return { id: s.telescopeId, pending: state.pending, placements: state.placements, view: { ...telescopeView },
+    controls: { ...viewControls }, fov: 'fov' in camera ? camera.fov as number : 0,
+    camera: camera.position.toArray(), direction: direction.toArray(),
+    ownVisible: scene.getObjectByName('avatar-' + s.sessionId)?.visible,
+    remoteVisible: scene.getObjectByName('avatar-102')?.visible,
+    instrumentVisible: scene.getObjectByName(id)?.visible,
+    swivel: scene.getObjectByName(id + '-swivel')?.rotation.y,
+    head: scene.getObjectByName(id + '-head')?.rotation.x,
+    authoritative: authoritativePose(s.sessionId), displayed: avatars.get(s.sessionId)?.current,
+    remote: { id: avatars.get('102')?.telescopeId, yaw: avatars.get('102')?.telescopeYaw, pitch: avatars.get('102')?.telescopePitch },
+  }
+}
+
+import { feedbackService } from '../../src/features/feedback/service'
+import { useFeedbackState } from '../../src/features/feedback/state'
+import type { FeedbackSubmission } from '../../src/features/feedback/contracts'
+let feedbackFault: 'normal' | 'reject' | 'hold' | 'acceptThenLose' = 'normal'
+let feedbackWrapped = false
+const feedbackCalls: FeedbackSubmission[] = []
+const feedbackAccepted: string[] = []
+export function fixtureFeedback(mode: typeof feedbackFault) {
+  feedbackFault = mode
+  if (feedbackWrapped) return
+  feedbackWrapped = true
+  const submit = feedbackService.submit.bind(feedbackService)
+  feedbackService.submit = async (payload, signal) => {
+    feedbackCalls.push(payload)
+    const fault = feedbackFault
+    if (fault === 'reject') throw new Error('테스트 저장 실패입니다. 같은 내용으로 다시 시도해주세요.')
+    if (fault === 'hold') return new Promise(() => {}) // Deliberately non-cooperating adapter for timeout/cancellation tests.
+    const result = await submit(payload, signal)
+    feedbackAccepted.push(result.receiptId)
+    if (fault === 'acceptThenLose') { feedbackFault = 'normal'; return new Promise(() => {}) }
+    return result
+  }
+}
+export function feedbackProbe() {
+  const own = useFeedbackState.getState()
+  return { ...own, calls: feedbackCalls.map(call => ({ operationId: call.operationId, keys: Object.keys(call).sort() })),
+    accepted: [...feedbackAccepted], controls: { ...viewControls }, feedbackOpen: inputState.feedbackOpen,
+    publicData: JSON.stringify({ session: useSession.getState(), avatars: [...avatars] }),
+  }
+}
+
+import { notesService } from '../../src/features/notes/service'
+import { useNotesState } from '../../src/features/notes/state'
+import { NOTES_BOX } from '../../src/config/notes'
+import type { NoteSubmission } from '../../src/features/notes/contracts'
+let notesFault: 'normal' | 'readReject' | 'holdRead' | 'reject' | 'hold' | 'acceptThenLose' = 'normal'
+let notesWrapped = false
+const noteCalls: NoteSubmission[] = []
+const noteAccepted: string[] = []
+export function fixtureNotes(mode: typeof notesFault) {
+  notesFault = mode
+  if (notesWrapped) return
+  notesWrapped = true
+  const read = notesService.read.bind(notesService), submit = notesService.submit.bind(notesService)
+  notesService.read = async (scope, signal) => {
+    if (notesFault === 'readReject') throw new Error('테스트 목록 조회 실패입니다.')
+    if (notesFault === 'holdRead') return new Promise(() => {})
+    return read(scope, signal)
+  }
+  notesService.submit = async (scope, submission, signal) => {
+    noteCalls.push({ ...submission })
+    if (notesFault === 'reject') throw new Error('테스트 메모 저장 실패입니다.')
+    if (notesFault === 'hold') return new Promise(() => {})
+    const result = await submit(scope, submission, signal)
+    noteAccepted.push(result.note.id)
+    if (notesFault === 'acceptThenLose') { notesFault = 'normal'; return new Promise(() => {}) }
+    return result
+  }
+}
+export function notesProbe() {
+  return { ...useNotesState.getState(), calls: noteCalls.map(c => ({ operationId: c.operationId, keys: Object.keys(c).sort() })),
+    accepted: [...noteAccepted], controls: { ...viewControls }, notesOpen: inputState.notesOpen,
+    publicData: JSON.stringify({ session: useSession.getState(), avatars: [...avatars] }) }
+}
+/** Another reader/writer on the same explicit page mock, not an actual network peer. */
+export async function fixtureNearbyNote(text: string) {
+  return notesService.submit({ userId: 'nearby-fixture', channelId: useSession.getState().roomId,
+    position: { x: NOTES_BOX.x, y: NOTES_BOX.y + 0.8, z: NOTES_BOX.z, yaw: 0 } },
+  { text, operationId: crypto.randomUUID() }, new AbortController().signal)
+}

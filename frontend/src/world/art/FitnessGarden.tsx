@@ -1,6 +1,6 @@
 import { ExerciseStation } from './ExerciseStation'
 import { EllipticalStation } from './EllipticalStation'
-import { useRef } from 'react'
+import { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { type Group } from 'three'
 import {
@@ -8,7 +8,8 @@ import {
   FITNESS,
   FITNESS_AREA,
   FITNESS_STATIONS,
-  fitnessSwing,
+  createFitnessMotion,
+  sampleFitnessMotion,
 } from '../../config'
 import { avatars, estimatedServerTime } from '../../network/worldClient'
 import { beam, Instances, type Part } from './Instances'
@@ -90,6 +91,7 @@ const metal = fitnessMetal
 function Walker({ station }: { station: (typeof FITNESS_STATIONS)[number] }) {
   const left = useRef<Group>(null),
     right = useRef<Group>(null)
+  const motion = useMemo(createFitnessMotion, [])
   useFrame(() => {
     let startedAt = 0
     for (const visitor of avatars.values()) {
@@ -97,7 +99,8 @@ function Walker({ station }: { station: (typeof FITNESS_STATIONS)[number] }) {
       if (visitor.connected) startedAt = visitor.fitnessStartedAt
       break
     }
-    const angle = startedAt ? fitnessSwing(startedAt, estimatedServerTime()) : 0
+    sampleFitnessMotion('walker', startedAt, startedAt ? estimatedServerTime() : 0, motion)
+    const angle = motion.leftLeg
     if (left.current) left.current.rotation.x = angle
     if (right.current) right.current.rotation.x = -angle
   })

@@ -18,7 +18,19 @@ M04 감정표현·G 휠의 기존 소켓 연결과 개발 전용 미연결 표�
 
 React, TypeScript, Vite, React Three Fiber 기반 프론트엔드다. 현재 첫 화면은 Figma `02-C 로그인 · 내가 고친거 · Desktop 1920`을 구현한 로그인 진입 UI다. 이전 회전 상자 및 클릭 횟수 검증 데모는 제거했다.
 
+## M05 운동기구 이관
+
+기존 로그인·BE 연결을 유지하고 11종/12대 운동기구 이용·표시를 분리했다. 미구현 이용 API는 `pnpm dev:facilities`에서만 현재 탭의 목업으로 검수하며 일반 개발/운영에서는 비활성화한다. 계약 경계와 검증은 [MIGRATION_M05.md](docs/MIGRATION_M05.md)를 따른다.
+
+## M06 망원경 이관
+
+기존 전망대 두 망원경의 E 이용·접안·확대·방향·반납과 시점 복원을 분리했다. 미구현 점유/방향 API는 `pnpm dev:facilities`에서만 현재 탭의 목업으로 검수하며 일반 개발/운영에서는 비활성화한다. 계약 경계와 검증은 [MIGRATION_M06.md](docs/MIGRATION_M06.md)를 따른다.
+
 ## 실행
+
+M08 전망대 익명 메모의 정상 E 진입·목록·작성·실패/재시도·재접속 처리는 [MIGRATION_M08.md](docs/MIGRATION_M08.md)를 참고한다. 미구현 조회·게시만 `dev:facilities`의 페이지 메모리 목업으로 분리하며 일반 환경에서는 서버 연결 준비 안내와 비활성 버튼을 표시한다.
+
+M07 지상 소리함의 작성·검증·실패/재시도·재접속 시 원문 보존은 [MIGRATION_M07.md](docs/MIGRATION_M07.md)를 참고한다. 미구현 제출 API만 `pnpm dev:facilities`의 페이지 메모리 목업으로 검수하며, 일반 환경에서는 작성 UI와 서버 연결 준비 안내를 표시하고 전송을 비활성화한다.
 
 Node.js 24 LTS 계열과 pnpm 11을 사용한다. `.nvmrc`에는 Node 24 계열을 명시했다.
 

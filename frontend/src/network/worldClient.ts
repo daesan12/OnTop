@@ -18,6 +18,13 @@ import { samePose, sampleMovement } from '../world/movementPresentation'
 import { EmoteTimeline, parseEmoteEvent, type EmoteEvent } from '../features/emotes/timeline'
 import { resetEmotes, useEmoteState } from '../features/emotes/state'
 import { findEmote, type EmoteId } from '../features/emotes/catalog'
+import { releaseFitnessUser, resetFitnessState, useFitnessState } from '../features/fitness/state'
+import { releaseTelescopeUser, resetTelescopeState, useTelescopeState } from '../features/telescopes/state'
+import { resetTelescopeView, telescopeView } from '../features/telescopeView'
+import { resetFeedbackState, useFeedbackState } from '../features/feedback/state'
+import { canReachFeedback } from '../features/feedback/validation'
+import { resetNotesState, useNotesState } from '../features/notes/state'
+import { canReachNotes } from '../features/notes/validation'
 
 export interface Pose {
   x: number
@@ -81,9 +88,10 @@ export interface Session {
   bindings: TableBinding[]
   mapCompatible: boolean
   mapVersion: string
-  // Unsupported facility state stays absent; renderers never invent server occupancy.
+  // Facility display IDs come from explicit development leases, never guessed wire fields.
   telescopeId: string
   benchId: string
+  fitnessId: string
   profiles: Record<string, DisplayProfile>
   account: { nickname: string; balance: number | null } | null
 }
@@ -111,6 +119,7 @@ const initial = (): Session => ({
   mapVersion: '',
   telescopeId: '',
   benchId: '',
+  fitnessId: '',
   profiles: {},
   account: null,
 })
@@ -130,6 +139,10 @@ let channelVersion = -1,
 const chatIds = new Set<string>()
 const emoteTimeline = new EmoteTimeline()
 export function resetWorld(status: Session['status'] = 'idle', error = '') {
+  resetNotesState(status !== 'idle')
+  resetFeedbackState(status !== 'idle')
+  resetFitnessState()
+  resetTelescopeState()
   resetEmotes(true)
   emoteTimeline.clearChannel()
   resetGame()
@@ -141,7 +154,11 @@ export function resetWorld(status: Session['status'] = 'idle', error = '') {
   chatIds.clear()
   useSession.setState({ ...initial(), status, error })
 }
-export function clearChannel() {
+export function clearChannel(keepFeedbackDraft = false, keepNotesDraft = false) {
+  resetNotesState(keepNotesDraft)
+  resetFeedbackState(keepFeedbackDraft)
+  resetFitnessState()
+  resetTelescopeState()
   resetEmotes()
   emoteTimeline.clearChannel()
   resetGame()
@@ -168,6 +185,8 @@ export function clearChannel() {
     mapVersion: '',
     mapCompatible: false,
     benchId: '',
+    fitnessId: '',
+    telescopeId: '',
   })
 }
 export function sampleAvatar(
@@ -205,12 +224,20 @@ export const authoritativePose = (userId: string): Pose | undefined => {
 }
 export function refreshActivityPresentation() {
   const state = useSession.getState()
+  for (const table of Object.values(state.tableStates)) for (const seat of table.seats)
+    if (seat.userId && useTelescopeState.getState().placements[seat.userId]) releaseTelescopeUser(seat.userId)
+  for (const table of Object.values(state.tableStates)) for (const seat of table.seats)
+    if (seat.userId && useFitnessState.getState().placements[seat.userId]) releaseFitnessUser(seat.userId)
   if (Object.values(state.tableStates).some(table => table.seats.some(seat =>
     seat.userId && useBenchState.getState().placements[seat.userId]))) resetBenchState()
   for (const [id, a] of avatars) {
-    const previousActivity = a.tableId || a.benchId
+    const previousActivity = a.tableId || a.benchId || a.fitnessId || a.telescopeId
     a.tableId = ''
     a.benchId = ''
+    a.fitnessId = ''
+    a.fitnessStartedAt = 0
+    a.telescopeId = ''
+    a.telescopeYaw = a.telescopePitch = 0
     a.seatIndex = -1
     const authoritative = worldPoses.get(id)
     if (authoritative) a.current = { ...authoritative }
@@ -236,17 +263,46 @@ export function refreshActivityPresentation() {
     }
     const bench = useBenchState.getState().placements[id]
     if (!a.tableId && bench?.channelId === state.roomId) {
+      if (useTelescopeState.getState().placements[id]) releaseTelescopeUser(id)
+      if (useFitnessState.getState().placements[id]) releaseFitnessUser(id)
       a.benchId = bench.benchId
       a.seatIndex = bench.seat
       a.current = { ...bench.pose }
       a.previous = { ...a.current }
       a.moving = a.running = false
     }
-    const activity = a.tableId || a.benchId
+    const fitness = useFitnessState.getState().placements[id]
+    if (!a.tableId && !a.benchId && fitness?.channelId === state.roomId) {
+      if (useTelescopeState.getState().placements[id]) releaseTelescopeUser(id)
+      a.fitnessId = fitness.stationId
+      a.fitnessStartedAt = fitness.startedAt
+      a.current = { ...fitness.pose }
+      a.previous = { ...fitness.pose }
+      a.moving = a.running = false
+    }
+    const telescope = useTelescopeState.getState().placements[id]
+    if (!a.tableId && !a.benchId && !a.fitnessId && telescope?.channelId === state.roomId) {
+      a.telescopeId = telescope.telescopeId
+      a.telescopeYaw = telescope.yaw
+      a.telescopePitch = telescope.pitch
+      a.current = { ...telescope.pose, yaw: telescope.yaw }
+      a.previous = { ...a.current }
+      a.moving = a.running = false
+    }
+    const activity = a.tableId || a.benchId || a.fitnessId || a.telescopeId
     if (activity && previousActivity !== activity) cancelAvatarEmote(id)
   }
-  const benchId = avatars.get(state.sessionId)?.benchId ?? ''
-  if (state.benchId !== benchId) useSession.setState({ benchId })
+  const own = avatars.get(state.sessionId)
+  const benchId = own?.benchId ?? ''
+  const fitnessId = own?.fitnessId ?? ''
+  const telescopeId = own?.telescopeId ?? ''
+  if (telescopeView.id !== telescopeId) resetTelescopeView(telescopeId)
+  if (state.benchId !== benchId || state.fitnessId !== fitnessId || state.telescopeId !== telescopeId)
+    useSession.setState({ benchId, fitnessId, telescopeId })
+  if (useFeedbackState.getState().open && (!own?.connected || own.seatIndex >= 0 || own.fitnessId
+    || own.telescopeId || own.swimming || !canReachFeedback(authoritativePose(state.sessionId)))) resetFeedbackState(true)
+  if (useNotesState.getState().open && (!own?.connected || own.seatIndex >= 0 || own.fitnessId
+    || own.telescopeId || own.swimming || !canReachNotes(authoritativePose(state.sessionId)))) resetNotesState(true)
 }
 export function receive(message: Envelope) {
   const p = message.payload,
@@ -255,6 +311,8 @@ export function receive(message: Envelope) {
     case 'CONNECTED':
       if (typeof p.userId !== 'string' || !p.userId)
         throw new Error('사용자 연결 상태를 확인할 수 없습니다.')
+      if (useFeedbackState.getState().ownerId && useFeedbackState.getState().ownerId !== p.userId) resetFeedbackState()
+      if (useNotesState.getState().ownerId && useNotesState.getState().ownerId !== p.userId) resetNotesState()
       useSession.setState({ status: 'connected', sessionId: p.userId })
       break
     case 'CHANNEL_STATE': {
@@ -283,7 +341,7 @@ export function receive(message: Envelope) {
         return
       worldVersion = next.version
       const mapCompatible = next.mapVersion === EXPECTED_MAP_VERSION
-      if (!mapCompatible) { resetBenchState(); clearRoamingInput() }
+      if (!mapCompatible) { resetBenchState(); resetFitnessState(); resetTelescopeState(); resetFeedbackState(true); resetNotesState(true); clearRoamingInput() }
       const ids = next.avatars.map((a) => a.userId),
         now = performance.now()
       if (!ids.includes(state.sessionId)) {
@@ -291,6 +349,10 @@ export function receive(message: Envelope) {
         clearRoamingInput()
       }
       if (!ids.includes(state.sessionId) || Object.keys(useBenchState.getState().placements).some(id => !ids.includes(id))) resetBenchState()
+      if (!ids.includes(state.sessionId)) resetFitnessState()
+      else for (const id of Object.keys(useFitnessState.getState().placements)) if (!ids.includes(id)) releaseFitnessUser(id)
+      if (!ids.includes(state.sessionId)) resetTelescopeState()
+      else for (const id of Object.keys(useTelescopeState.getState().placements)) if (!ids.includes(id)) releaseTelescopeUser(id)
       for (const id of avatars.keys())
         if (!ids.includes(id)) {
           avatars.delete(id)

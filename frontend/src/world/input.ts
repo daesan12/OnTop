@@ -1,10 +1,16 @@
-import { CAMERA } from '../config'
+import { CAMERA, TELESCOPE } from '../config'
 import { avatars, useSession } from '../network/worldClient'
 import { parkRuntime } from '../park/runtime/runtime'
 
 import { getParkInteraction, interactWithPark } from '../features/interactions/parkInteraction'
 import { standBench } from '../features/interactions/benchController'
 import { useBenchState } from '../features/interactions/benchState'
+import { useFitnessState } from '../features/fitness/state'
+import { leaveFitness } from '../features/fitness/controller'
+import { aimTelescope, leaveTelescope } from '../features/telescopes/controller'
+import { useTelescopeState } from '../features/telescopes/state'
+import { normalizeTelescopeAim } from '../features/telescopes/anchors'
+import { telescopeView, zoomTelescope } from '../features/telescopeView'
 import { panelOwnsKeys, roamingInput, textInputOwnsKeys } from './inputOwnership'
 import { cameraRelativeMove, MOVEMENT_INPUT_INTERVAL_MS, type MovementIntent } from '../network/movementInput'
 export { inputState, setChatInputOpen, textInputOwnsKeys } from './inputOwnership'
@@ -59,17 +65,30 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
       blocked()
     )
       return
+    if (useSession.getState().telescopeId) {
+      if (movement.has(event.code) || event.code === 'Space') event.preventDefault()
+      if ((event.code === 'KeyE' || event.code === 'Escape') && !event.repeat) {
+        event.preventDefault()
+        void leaveTelescope()
+      }
+      return
+    }
     if (movement.has(event.code)) {
       event.preventDefault()
       if (useSession.getState().benchId) {
         if (!event.repeat && event.code !== 'ShiftLeft' && event.code !== 'ShiftRight') void standBench()
         if (event.repeat) return
       }
+      if (useSession.getState().fitnessId) {
+        if (!event.repeat && event.code !== 'ShiftLeft' && event.code !== 'ShiftRight') void leaveFitness()
+        if (event.repeat) return
+      }
       keys.add(event.code)
     }
     if (event.code === 'Space' && !event.repeat) {
       event.preventDefault()
-      if (!useSession.getState().benchId && !useBenchState.getState().pending) jump = true
+      if (!useSession.getState().benchId && !useSession.getState().fitnessId
+        && !useBenchState.getState().pending && !useFitnessState.getState().pending && !useTelescopeState.getState().pending) jump = true
     }
     if (event.code === 'KeyE' && !event.repeat) {
       if (interactWithPark()) {
@@ -88,6 +107,13 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
   }
   const pointerMove = (event: PointerEvent) => {
     if (!drag || blocked()) return
+    if (useSession.getState().telescopeId) {
+      if (useTelescopeState.getState().pending) return
+      const sensitivity = 0.003 / Math.sqrt(telescopeView.zoom)
+      Object.assign(telescopeView, normalizeTelescopeAim(telescopeView.yaw - event.movementX * sensitivity,
+        telescopeView.pitch - event.movementY * sensitivity))
+      return
+    }
     viewControls.yaw -= event.movementX * 0.004
     viewControls.pitch = Math.max(
       -0.2,
@@ -100,6 +126,10 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
   const wheel = (event: WheelEvent) => {
     if (blocked() || useSession.getState().benchId) return
     event.preventDefault()
+    if (useSession.getState().telescopeId) {
+      if (!useTelescopeState.getState().pending) zoomTelescope(-event.deltaY * 0.003)
+      return
+    }
     viewControls.distance = Math.max(
       CAMERA.minDistance,
       Math.min(
@@ -113,7 +143,8 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
       if (hadMovement || keys.size || jump) stop()
       return
     }
-    if (useSession.getState().benchId || useBenchState.getState().pending) return
+    if (useSession.getState().benchId || useSession.getState().fitnessId || useSession.getState().telescopeId
+      || useBenchState.getState().pending || useFitnessState.getState().pending || useTelescopeState.getState().pending) return
     const forward =
       Number(keys.has('KeyW') || keys.has('ArrowUp')) -
       Number(keys.has('KeyS') || keys.has('ArrowDown'))
@@ -133,6 +164,9 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     hadMovement = !!(dx || dz)
     jump = false
   }, MOVEMENT_INPUT_INTERVAL_MS)
+  const aiming = setInterval(() => {
+    if (!blocked() && useSession.getState().telescopeId) void aimTelescope()
+  }, TELESCOPE.aimIntervalMs)
   window.addEventListener('keydown', down)
   window.addEventListener('keyup', up)
   window.addEventListener('blur', stop)
@@ -146,6 +180,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
   return () => {
     roamingInput.ready = false
     clearInterval(interval)
+    clearInterval(aiming)
     stop()
     window.removeEventListener('keydown', down)
     window.removeEventListener('keyup', up)

@@ -14,6 +14,9 @@ import { ParkTools } from './ParkTools'
 import type { QualityPreset } from '../config'
 import { ParkInteractionHint } from '../features/interactions/ParkInteractionHint'
 import { EmoteWheel } from '../features/emotes/EmoteWheel'
+import { TelescopePanel } from '../features/telescopes/TelescopePanel'
+import { FeedbackPanel } from '../features/feedback/FeedbackPanel'
+import { AnonymousNotes } from '../features/notes/AnonymousNotes'
 
 const shortcuts = [
   { key: 'WASD', action: '이동' },
@@ -167,6 +170,9 @@ function ParkContent({ onExit, exitError }: ParkProps) {
       <ParkTools quality={quality} onQuality={setQuality}/>
       <ParkInteractionHint />
       <EmoteWheel />
+      <TelescopePanel />
+      <FeedbackPanel />
+      <AnonymousNotes />
     </main>
   )
 }

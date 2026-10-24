@@ -43,8 +43,8 @@ const pedal: Part[] = [
 ]
 // The handle pivots about the same shoulder axis as the stylized avatar.
 const handle: Part[] = [
-  beam([0, -0.1, 0.05], [0, -0.58, 0.05], 0.035, fitnessColors.cream),
-  beam([-0.12, -0.58, 0.05], [0.12, -0.58, 0.05], 0.045, fitnessColors.frame),
+  beam([0, -0.1, 0.05], [0, -0.28, 0.05], 0.035, fitnessColors.cream),
+  beam([-0.12, -0.28, 0.05], [0.12, -0.28, 0.05], 0.045, fitnessColors.frame),
 ]
 export function EllipticalStation({ station }: { station: FitnessStation }) {
   const left = useRef<Group>(null),
@@ -111,7 +111,7 @@ export function EllipticalStation({ station }: { station: FitnessStation }) {
       <group
         ref={lh}
         position={[
-          -0.44 * AVATAR.scale,
+          -0.32 * AVATAR.scale,
           station.baseHeight + 1.08 * AVATAR.scale,
           0,
         ]}
@@ -124,7 +124,7 @@ export function EllipticalStation({ station }: { station: FitnessStation }) {
       <group
         ref={rh}
         position={[
-          0.44 * AVATAR.scale,
+          0.32 * AVATAR.scale,
           station.baseHeight + 1.08 * AVATAR.scale,
           0,
         ]}

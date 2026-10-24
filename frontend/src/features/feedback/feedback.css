@@ -1,0 +1,22 @@
+.feedback-backdrop { position: absolute; inset: 0; z-index: 30; display: grid; place-items: center; background: #111b16b8; padding: 20px; box-sizing: border-box; }
+.feedback-dialog { position: relative; box-sizing: border-box; width: min(560px, 100%); max-height: calc(100dvh - 40px); overflow-y: auto; overscroll-behavior: contain; padding: 32px; border: 1px solid #b8ae8455; border-radius: 18px; background: #f4f0e3; color: #2f3c31; box-shadow: 0 20px 80px #0005; }
+.feedback-kicker { color: #65745b; }
+.feedback-dialog h2 { margin: 12px 24px 12px 0; font-size: 24px; line-height: 1.4; }
+.feedback-dialog p { margin: 10px 0; font-size: 15px; line-height: 1.6; overflow-wrap: anywhere; }
+.feedback-dialog small { line-height: 1.5; }
+.feedback-dialog .feedback-mode { padding: 10px 12px; border-radius: 8px; background: #e7e5d3; font-size: 13px; }
+.feedback-dialog label { display: block; margin: 18px 0 8px; }
+.feedback-dialog textarea { width: 100%; box-sizing: border-box; min-height: 150px; resize: vertical; max-height: 38dvh; padding: 12px; border: 1px solid #7b8c6b; border-radius: 8px; background: #fffdf6; color: #26372c; font: inherit; line-height: 1.6; }
+.feedback-dialog textarea:focus { outline: 2px solid #55704a; outline-offset: 2px; }
+.feedback-dialog button { font: inherit; cursor: pointer; border: 1px solid #52634a; border-radius: 8px; background: #344e38; color: #fffdf0; padding: 10px 16px; }
+.feedback-dialog button:disabled { opacity: 0.5; cursor: default; }
+.feedback-dialog .feedback-close { position: absolute; right: 16px; top: 12px; border: 0; background: transparent; color: #344e38; font-size: 26px; padding: 2px 8px; }
+.feedback-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; }
+.feedback-actions span { font-size: 13px; }
+.feedback-dialog .feedback-error { color: #9b352b; }
+@media (max-width: 600px) {
+  .feedback-backdrop { padding: 12px; }
+  .feedback-dialog { padding: 24px 18px; max-height: calc(100dvh - 24px); }
+  .feedback-dialog h2 { font-size: 20px; }
+  .feedback-actions { align-items: stretch; flex-direction: column; gap: 8px; }
+}

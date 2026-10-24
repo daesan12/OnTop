@@ -1,17 +1,18 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { PerspectiveCamera, Vector3 } from 'three'
-import { CAMERA, CHARACTER, GOMOKU, TABLES, groundHeight, tableScale } from '../config'
+import { CAMERA, CHARACTER, GOMOKU, TABLES, TELESCOPE, TELESCOPES, telescopeFov, groundHeight, tableScale } from '../config'
+import { telescopeView } from '../features/telescopeView'
+import { interactionAim } from '../features/interactions/interactionAim'
 import { useGame } from '../game/store'
 import { omokCamera } from '../game/cameraState'
 import { avatars, sampleAvatar, useSession } from '../network/worldClient'
 import { cameraOcclusion, CameraOcclusionFader } from './cameraOcclusion'
 import { installRoamingInput, viewControls } from './input'
-import { interactionAim } from '../features/interactions/interactionAim'
 import { constrainRoamingCamera } from './cameraCollision'
 
 export function CameraRig() {
-  const { gl } = useThree()
+  const { gl, camera: mountedCamera } = useThree()
   const state = useMemo(
     () => ({
       focus: new Vector3(),
@@ -19,9 +20,12 @@ export function CameraRig() {
       look: new Vector3(),
       pose: { x: 0, y: 0, z: 0, yaw: 0 },
       owner: '',
-      direction: new Vector3(),
       bench: '',
       savedView: { ...viewControls },
+      telescope: '',
+      savedTelescopeView: { ...viewControls },
+      savedFov: CAMERA.fov as number,
+      direction: new Vector3(),
     }),
     [],
   )
@@ -31,12 +35,19 @@ export function CameraRig() {
   useEffect(
     () => () => {
       occlusion.dispose()
-      if (state.bench) Object.assign(viewControls, state.savedView)
       interactionAim.ready = false
+      if (state.bench) Object.assign(viewControls, state.savedView)
+      if (state.telescope) {
+        Object.assign(viewControls, state.savedTelescopeView)
+        if (mountedCamera instanceof PerspectiveCamera) {
+          mountedCamera.fov = state.savedFov
+          mountedCamera.updateProjectionMatrix()
+        }
+      }
       omokCamera.ready = false
       omokCamera.anchorId = ''
     },
-    [occlusion, state],
+    [occlusion, state, mountedCamera],
   )
   useFrame(({ camera, scene }, delta) => {
     scan.current += delta
@@ -47,10 +58,24 @@ export function CameraRig() {
     }
     const session = useSession.getState(),
       avatar = avatars.get(session.sessionId)
+    const telescope = session.status === 'connected' && session.mapCompatible
+      ? TELESCOPES.find(t => t.id === session.telescopeId) : undefined
+    if (telescope && !state.telescope) {
+      state.telescope = telescope.id
+      state.savedTelescopeView = { ...viewControls }
+      if (camera instanceof PerspectiveCamera) state.savedFov = camera.fov
+    } else if (!telescope && state.telescope) {
+      Object.assign(viewControls, state.savedTelescopeView)
+      if (camera instanceof PerspectiveCamera) {
+        camera.fov = state.savedFov
+        camera.updateProjectionMatrix()
+      }
+      state.telescope = ''
+      state.owner = ''
+    }
     if (!avatar) {
       interactionAim.ready = false
-      if (state.bench) Object.assign(viewControls, state.savedView)
-      state.bench = ''
+      if (state.bench) { Object.assign(viewControls, state.savedView); state.bench = '' }
       omokCamera.ready = false
       omokCamera.anchorId = ''
       camera.position.set(110, 115, 138)
@@ -59,6 +84,23 @@ export function CameraRig() {
       return
     }
     sampleAvatar(avatar, performance.now(), state.pose)
+    if (telescope) {
+      const { yaw, pitch } = telescopeView
+      camera.position.set(telescope.position[0], telescope.position[1] + TELESCOPE.eyeHeight, telescope.position[2])
+      state.look.set(camera.position.x + Math.sin(yaw) * Math.cos(pitch), camera.position.y + Math.sin(pitch),
+        camera.position.z + Math.cos(yaw) * Math.cos(pitch))
+      camera.lookAt(state.look)
+      if (camera instanceof PerspectiveCamera) {
+        const fov = telescopeFov(state.savedFov, telescopeView.zoom)
+        if (Math.abs(camera.fov - fov) > 0.001) { camera.fov = fov; camera.updateProjectionMatrix() }
+      }
+      state.focus.set(state.pose.x, state.pose.y + CAMERA.focusHeight - 0.8, state.pose.z)
+      interactionAim.ready = omokCamera.ready = false
+      omokCamera.anchorId = ''
+      cameraOcclusion.strength.value = 0
+      occlusion.update(camera.position, state.focus, false, delta)
+      return
+    }
     const pose = state.pose,
       seated = !!(avatar.tableId || avatar.benchId) && avatar.seatIndex >= 0
     if (avatar.benchId && state.bench !== avatar.benchId) {

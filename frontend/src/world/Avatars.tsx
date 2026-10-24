@@ -59,7 +59,7 @@ function Avatar({
     const seated = avatar.seatIndex >= 0
     const own = id === useSession.getState().sessionId
     // Hide only this client's own model; other clients retain the full avatar.
-    root.current.visible = !(own && (avatar.tableId || avatar.benchId) && seated)
+    root.current.visible = !(own && ((avatar.tableId || avatar.benchId) && seated || avatar.telescopeId))
     root.current.position.set(
       pose.x,
       pose.y - 0.8 + (seated ? CHARACTER.seatedHipHeight - model.hipHeight : 0),
