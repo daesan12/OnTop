@@ -10,6 +10,8 @@ import { useFitnessState } from '../fitness/state'
 import { leaveFitness } from '../fitness/controller'
 import { findFitness } from '../fitness/anchors'
 import { useTelescopeState } from '../telescopes/state'
+import { fitnessService } from '../fitness/service'
+import { telescopeService } from '../telescopes/service'
 
 export function ParkInteractionHint() {
   const { benchId, fitnessId, status } = useSession(useShallow(s => ({ benchId: s.benchId, fitnessId: s.fitnessId, status: s.status })))
@@ -32,24 +34,24 @@ export function ParkInteractionHint() {
   return <aside className="park-runtime-panel park-interaction" aria-label="가까운 상호작용"
     data-target-id={fitnessId || target?.id || benchId} data-fitness-id={fitnessId || (target?.kind === 'fitness' ? target.id : undefined)}>
     {fitnessId ? <>
-      <strong>{station?.name} 이용 중 · 목업</strong>
+      <strong>{station?.name} 이용 중{fitnessService.mode === 'mock' ? ' · 목업' : ''}</strong>
       <small>{station?.instruction}</small>
       <button type="button" aria-label="운동기구에서 내려오기" disabled={fitness.pending || status !== 'connected'}
         onClick={event => { void leaveFitness(); event.currentTarget.blur() }}>내려오기 · WASD / 방향키</button>
-      <small>목업 이용은 현재 탭의 표시만 변경합니다.</small>
+      <small>{fitnessService.mode === 'mock' ? '목업 이용은 현재 탭의 표시만 변경합니다.' : '서버가 점유와 운동 시작 시각을 동기화합니다.'}</small>
     </> : benchId ? <>
-      <strong>벤치 이용 중 · {benchService.mode === 'mock' ? '목업' : '서버 연결 필요'}</strong>
+      <strong>벤치 이용 중{benchService.mode === 'mock' ? ' · 목업' : ''}</strong>
       <button type="button" aria-label="벤치에서 일어나기" disabled={pending || status !== 'connected'}
         onClick={event => { void standBench(); event.currentTarget.blur() }}>일어나기 · WASD / 방향키</button>
-      <small>목업 착석은 현재 탭의 표시만 변경합니다.</small>
+      <small>{benchService.mode === 'mock' ? '목업 착석은 현재 탭의 표시만 변경합니다.' : '서버가 좌석 점유를 동기화합니다.'}</small>
     </> : target && <button type="button" aria-keyshortcuts="E"
       disabled={pending || fitness.pending || telescopePending || target.occupied || !target.available}
       onClick={event => { interactWithPark(); event.currentTarget.blur() }}>
       <kbd>E</kbd> {target.occupied ? target.kind === 'fitness' || target.kind === 'telescope' ? `${target.occupant} 님이 사용 중 · ${target.label}` : '벤치에 빈자리가 없어요'
         : target.available ? target.label : target.kind === 'fitness' ? '운동기구 서버 연결 필요' : target.kind === 'telescope' ? '망원경 서버 연결 필요' : '벤치 서버 연결 필요'}
-      {target.kind === 'bench' && target.available && ' · 목업'}
-      {target.kind === 'fitness' && target.available && ' · 목업'}
-      {target.kind === 'telescope' && target.available && ' · 목업'}
+      {target.kind === 'bench' && target.available && benchService.mode === 'mock' && ' · 목업'}
+      {target.kind === 'fitness' && target.available && fitnessService.mode === 'mock' && ' · 목업'}
+      {target.kind === 'telescope' && target.available && telescopeService.mode === 'mock' && ' · 목업'}
     </button>}
     {pending && <span role="status">벤치 이용 요청 확인 중…</span>}
     {fitness.pending && <span role="status">운동기구 이용 요청 확인 중…</span>}

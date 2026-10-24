@@ -8,6 +8,10 @@ export interface ParkRuntimePort {
   addAuthListener(listener: () => void): () => void
   reconnect(): void
   requestJSON(path: string, init?: RequestInit): Promise<unknown>
+  checkFacilities(reloadCatalog?: boolean): Promise<void>
+  useFacility(facilityId: string, seatIndex: number, signal: AbortSignal): Promise<import('../../features/facilities/protocol').FacilityLease>
+  releaseFacility(leaseId: string, signal: AbortSignal): Promise<void>
+  aimFacility(leaseId: string, aim: { yaw: number; pitch: number }, signal: AbortSignal): Promise<{ yaw: number; pitch: number }>
   selectChannel(channelId: string): Promise<boolean>
   sendChat(text: string): Promise<boolean>
   sendEmote(id: import('../../features/emotes/catalog').EmoteId): Promise<boolean>

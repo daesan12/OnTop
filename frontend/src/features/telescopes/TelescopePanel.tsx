@@ -6,6 +6,7 @@ import { openManual } from '../manual/manualState'
 import { telescopeView, zoomTelescope } from '../telescopeView'
 import { leaveTelescope } from './controller'
 import { useTelescopeState } from './state'
+import { telescopeService } from './service'
 import './telescopes.css'
 
 export function TelescopePanel() {
@@ -28,7 +29,7 @@ export function TelescopePanel() {
   return <>
     <div className="telescope-viewfinder" aria-hidden="true"><span /></div>
     <aside className="telescope-panel park-runtime-panel" aria-label="전망 망원경" data-telescope-id={id}>
-      <div><strong>전망 망원경 · 목업</strong><output aria-label="확대 배율">{zoom.toFixed(1)}×</output></div>
+      <div><strong>전망 망원경{telescopeService.mode === 'mock' ? ' · 목업' : ''}</strong><output aria-label="확대 배율">{zoom.toFixed(1)}×</output></div>
       <p>드래그로 방향 · 휠로 확대</p>
       <div className="telescope-actions">
         <button type="button" aria-label="망원경 축소" disabled={pending || zoom <= TELESCOPE.minZoom}
@@ -39,7 +40,7 @@ export function TelescopePanel() {
           onClick={event => { void leaveTelescope(); event.currentTarget.blur() }}>나가기 · E / Esc</button>
       </div>
       <button type="button" aria-label="망원경 설명서 열기" onClick={() => openManual('controls')}>조작 설명 · F1</button>
-      <small>점유·방향은 현재 화면의 목업입니다. 확대는 나에게만 적용됩니다.</small>
+      <small>{telescopeService.mode === 'mock' ? '점유·방향은 현재 화면의 목업입니다.' : '점유·방향은 서버가 동기화합니다.'} 확대는 나에게만 적용됩니다.</small>
       {pending && <span role="status">망원경 반납 확인 중…</span>}
       {error && <div role="alert">{error}</div>}
     </aside>

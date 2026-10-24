@@ -18,6 +18,7 @@ import { TelescopePanel } from '../features/telescopes/TelescopePanel'
 import { FeedbackPanel } from '../features/feedback/FeedbackPanel'
 import { AnonymousNotes } from '../features/notes/AnonymousNotes'
 import { ManualHost } from '../features/manual/ManualHost'
+import { FacilityStatus } from '../features/facilities/FacilityStatus'
 import { ManualWorldActions } from '../features/manual/ManualWorldActions'
 import { resetMetrics } from '../performance/metrics'
 import { ParkMap } from '../features/navigation/ParkMap'
@@ -182,6 +183,7 @@ function ParkContent({ onExit, exitError }: ParkProps) {
       </div>
       <ParkTools quality={quality} onQuality={changeQuality}/>
       <ParkInteractionHint />
+      <FacilityStatus />
       <EmoteWheel />
       <TelescopePanel />
       <FeedbackPanel />
