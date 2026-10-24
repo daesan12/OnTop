@@ -18,6 +18,10 @@ FE 연동 확인: 시간 포함 operationId 생성/동일 키 유지, ISO시각 
   시설 점유는 30초 보존하지 않으며 기존 경기 유예는 유지한다.
 - FE 후속: 목업 포트를 USE/RELEASE/AIM/CHECK로 교체, 입장/재접속 CHECK 필수,
   mapVersion 대조와 leaseId·요청/연결 수명 확인, 승인 WORLD_STATE 위치·공통 startedAt 반영.
+- 2026-10-25 실제 FE 코드/통신 점검: 빌드 모드 시설 서비스는 unavailable, 입장 CHECK 미송신,
+  WORLD_FACILITY_STATE 미적용을 재현했다. 서버/공통 소켓 검증과 실제 시설 UI 완료를 구분한다.
+  프로필도 서버 nickname/characterGender 수신은 확인했지만 FE 표시에는 적용되지 않아
+  worldClient의 WORLD_STATE 수신부에서 profiles/avatars에 매핑하는 연결이 필요하다.
 - 시설 중 감정표현 허용/취소는 미확정, 임의 추가 제한 없음. 확대/FOV는 FE 유지.
 - 서버 단일 JVM 점유. 같은 채널을 여러 인스턴스로 나누려면 점유 공유·라우팅 정책 합의 필요.
 
