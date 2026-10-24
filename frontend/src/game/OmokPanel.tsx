@@ -4,6 +4,8 @@ import { useSession } from '../network/worldClient'
 import { useParkRuntime } from '../park/runtime/ParkRuntime'
 import { TABLE_GAMES, TARGET_SCORES, lobbyStatus } from '../features/tableLobby/model'
 import { useTableLobby } from '../features/tableLobby/state'
+import { lastMoveText, omokEndReason, omokOutcome } from './omokPresentation'
+import { OmokSurrender } from './OmokSurrender'
 import './game.css'
 
 export function GameControls({ tableId }: { tableId: string }) {
@@ -104,11 +106,7 @@ export function OmokPanel() {
         <>
           <p aria-live="polite">
             {o.status === 'FINISHED'
-              ? o.winnerUserId
-                ? g.role === 'PLAYER' && o.winnerUserId === own
-                  ? '승리'
-                  : '경기 종료 · 승자 ' + o.winnerUserId
-                : '경기 종료 · 무승부'
+              ? omokOutcome(o, own, g.role === 'SPECTATOR')
               : myTurn
                 ? '내 차례'
                 : g.role === 'SPECTATOR'
@@ -119,6 +117,9 @@ export function OmokPanel() {
           {remaining !== null && (
             <p>남은 시간 약 {remaining}초 · 최종 마감은 서버가 판정합니다.</p>
           )}
+          {remaining === 0 && <p role="status">착수 시간이 끝났습니다. 서버의 종료 판정을 기다리고 있습니다.</p>}
+          <p className="omok-last-move-text">{lastMoveText(o.lastMove)}</p>
+          {s.pending && <p role="status">착수 요청 중 · 서버 확인을 기다리고 있습니다.</p>}
           <p>
             {g.role === 'SPECTATOR'
               ? '관전자는 돌을 놓을 수 없습니다.'
@@ -135,7 +136,9 @@ export function OmokPanel() {
               row.map((stone, x) => (
                 <button
                   key={y * 15 + x}
-                  className={stone === 1 ? 'black' : stone === 2 ? 'white' : ''}
+                  className={(stone === 1 ? 'black' : stone === 2 ? 'white' : '') +
+                    (o.lastMove?.x === x && o.lastMove.y === y ? ' last-move' : '')}
+                  aria-current={o.lastMove?.x === x && o.lastMove.y === y ? true : undefined}
                   aria-label={`${y + 1}행 ${x + 1}열 ${stone === 1 ? '흑돌' : stone === 2 ? '백돌' : '빈칸'}`}
                   disabled={!connected || pending || !canPlace(own, x, y, now)}
                   onClick={() => void runtime.placeOmok(x, y)}
@@ -149,8 +152,8 @@ export function OmokPanel() {
             15×15 렌주 · 흑 33/44/장목 금수 · 한 수 30초. 금수·승패는 서버
             판정입니다.
           </small>
-          {o.status === 'FINISHED' && <p>종료 사유: {o.endReason}</p>}
-          {s.result ? (
+          {o.status === 'FINISHED' && <p>종료 사유: {omokEndReason(o.endReason)}</p>}
+          {g.role === 'PLAYER' && (s.result ? (
             <p>
               {s.result.settlementStatus === 'SETTLED'
                 ? `정산 완료 · 내 엽전 증감 ${s.result.myCoinDelta}`
@@ -158,7 +161,7 @@ export function OmokPanel() {
             </p>
           ) : (
             o.status === 'FINISHED' && <p>결과·정산 확인 전입니다.</p>
-          )}
+          ))}
           {s.uncertain && (
             <p>
               착수 반영 여부를 확인해야 합니다. 같은 수를 자동 재전송하지
@@ -196,6 +199,9 @@ export function OmokPanel() {
               </button>
             )}
           </div>
+          {g.role === 'PLAYER' && o.status === 'PLAYING' && <OmokSurrender key={`${own}:${g.gameId}`}
+            context={{ userId: own, gameId: g.gameId, version: g.version }}
+            disabled={pending || !connected || recoveryBlocked() || s.uncertain} />}
         </>
       )}
       {recoveryBlocked() && (

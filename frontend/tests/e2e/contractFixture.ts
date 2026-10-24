@@ -71,6 +71,9 @@ export async function fixture(
     forbid = false
   const gameId = 'fixture-confirmed-omok'
   let gameDeadline = new Date(Date.now() + 30_000).toISOString()
+  let nextActionError: { code: string; message: string } | null = null
+  let dropAction = false
+  let finishReason = 'TURN_TIMEOUT', winner: string | null = '101'
   const board: number[][] = Array.from({ length: 15 }, () => Array(15).fill(0))
   let lastMove: { x: number; y: number; stone: string } | null = null,
     turn = '101'
@@ -85,8 +88,8 @@ export async function fixture(
     turnDeadline: finished ? null : gameDeadline,
     moveCount: board.flat().filter(Boolean).length,
     lastMove,
-    winnerUserId: finished ? '101' : null,
-    endReason: finished ? 'TURN_TIMEOUT' : null,
+    winnerUserId: finished ? winner : null,
+    endReason: finished ? finishReason : null,
     endedAt: finished ? new Date().toISOString() : null,
   })
   const emit = (
@@ -430,6 +433,12 @@ export async function fixture(
       if (options.omok && type === 'GAME_RECONNECT_CHECK') recovery(ws)
       if (options.omok && type === 'GAME_RESULT_CHECK') result(ws, requestId)
       if (options.omok && type === 'GAME_ACTION_SEND') {
+        if (dropAction) return
+        if (nextActionError) {
+          const error = nextActionError; nextActionError = null
+          emit(ws, 'ERROR', error, requestId)
+          return
+        }
         if (forbid) {
           forbid = false
           emit(
@@ -444,9 +453,9 @@ export async function fixture(
           return
         }
         const { x, y } = payload.input
-        board[y]![x] = 1
-        lastMove = { x, y, stone: 'BLACK' }
-        turn = '102'
+        board[y]![x] = options.ownUserId === '102' ? 2 : 1
+        lastMove = { x, y, stone: options.ownUserId === '102' ? 'WHITE' : 'BLACK' }
+        turn = options.ownUserId === '102' ? '101' : '102'
         gameVersion++
         emit(
           ws,
@@ -460,6 +469,12 @@ export async function fixture(
   })
   return {
     sent,
+    rejectNextAction: (code: string, message: string) => { nextActionError = { code, message } },
+    dropActions: (value: boolean) => { dropAction = value },
+    turnTo: (userId: string, deadline = new Date(Date.now() + 30_000).toISOString()) => {
+      turn = userId; gameDeadline = deadline; gameVersion++; game(sockets.at(-1)!)
+    },
+    resendGame: (role = 'PLAYER') => game(sockets.at(-1)!, null, role),
     rejectGameWatch: (value: boolean) => { rejectGameWatch = value },
     watchMode: (mode: typeof watchMode) => { watchMode = mode },
     replyWatch: () => table(sockets.at(-1)!, 'TABLE_WATCH_STATE', watchRequestId),
@@ -494,11 +509,13 @@ export async function fixture(
         code: null,
       }),
     restoreGame: () => recovery(sockets.at(-1)!),
-    finishGame: () => {
+    finishGame: (reason = 'TURN_TIMEOUT', winnerId: string | null = '101') => {
       finished = true
+      finishReason = reason; winner = winnerId
       gameVersion++
       game(sockets.at(-1)!)
-      start(sockets.at(-1)!, 'SETTLING')
+      // Start/settlement lifecycle is participant-only; a public watcher has no own start state.
+      if (seated) start(sockets.at(-1)!, 'SETTLING')
     },
     settle: () => {
       settled = true

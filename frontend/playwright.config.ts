@@ -4,7 +4,7 @@ import path from 'node:path'
 export default defineConfig({
   testDir: './tests/e2e',
   // Preview-only mock assertions use playwright.facilities.config.ts.
-  testIgnore: ['**/m04.spec.ts', '**/m05.spec.ts', '**/m06.spec.ts', '**/m07.spec.ts', '**/m08.spec.ts', '**/m09.spec.ts'],
+  testIgnore: ['**/m04.spec.ts', '**/m05.spec.ts', '**/m06.spec.ts', '**/m07.spec.ts', '**/m08.spec.ts', '**/m09.spec.ts', '**/m10.spec.ts'],
   timeout: 120_000,
   workers: 1,
   outputDir:

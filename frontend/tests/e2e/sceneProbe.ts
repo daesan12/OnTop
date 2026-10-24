@@ -24,6 +24,8 @@ import { SkinnedMesh, ShaderMaterial } from 'three'
 import { FITNESS_STATIONS } from '../../src/config'
 import { ADVERTISEMENT_SCHEDULE } from '../../src/world/art/advertisementMedia'
 import { groundHeight } from '../../src/config'
+import { parkRuntime } from '../../src/park/runtime/runtime'
+export const inspectTable = () => parkRuntime.inspectTable('table-1')
 export const omokCameraReady = () => omokCamera.ready
 export function pointForOmok(x: number, y: number) {
   const { scene, camera, gl } = root()
@@ -59,6 +61,13 @@ export function omokGeometry() {
     calls: gl.info.render.calls,
     triangles: gl.info.render.triangles,
   }
+}
+export function omokPresentationProbe() {
+  const { scene, gl } = root()
+  const board = scene.getObjectByName('omok-board-' + useSession.getState().focusedAnchorId)
+  const hover = board?.getObjectByName('omok-hover'), last = board?.getObjectByName('omok-last-move')
+  return { hover: !!hover?.visible, hoverPosition: hover?.position.toArray() ?? null,
+    lastMove: last?.position.toArray() ?? null, cursor: gl.domElement.style.cursor }
 }
 
 function root() {
