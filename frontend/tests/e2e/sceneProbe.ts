@@ -129,9 +129,9 @@ export function watchDiceResources() {
   diceResources.disposed = diceResources.sharedDisposed = 0
   const geometries = new Set(), materials = new Set()
   root().scene.traverse(child => {
-    if (!child.parent?.name.startsWith('farkle-die-') || !('isInstancedMesh' in child)) return
-    const mesh = child as InstancedMesh
-    mesh.addEventListener('dispose', () => diceResources.disposed++)
+    if (!child.parent?.name.startsWith('farkle-die-') || !(child instanceof Mesh)) return
+    const mesh = child
+    if ('isInstancedMesh' in mesh) (mesh as InstancedMesh).addEventListener('dispose', () => diceResources.disposed++)
     if (!geometries.has(mesh.geometry)) { geometries.add(mesh.geometry); mesh.geometry.addEventListener('dispose', () => diceResources.sharedDisposed++) }
     for (const m of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
       if (!materials.has(m)) { materials.add(m); m.addEventListener('dispose', () => diceResources.sharedDisposed++) }
@@ -566,6 +566,13 @@ export function bridgeProbe() {
     crosses: (scene.getObjectByName('bridge-vacated') as InstancedMesh | undefined)?.count ?? 0,
     pawns: pieces ? pawns.map((p, i) => { pieces.getMatrixAt(i, matrix); return { id: p.id, status: p.status, position: matrix.elements.slice(12, 15), scale: Math.hypot(...matrix.elements.slice(0, 3)) } }) : [],
     publicData: JSON.stringify({ session: useSession.getState(), avatars: [...avatars] }) }
+}
+export function boardgameArtProbe() {
+  const { scene } = root()
+  const cup = scene.getObjectByName('farkle-cup-' + useSession.getState().focusedAnchorId)
+  const cupMeshes: Mesh[] = []
+  cup?.traverse(o => { if (o instanceof Mesh) cupMeshes.push(o) })
+  return { cupMeshes: cupMeshes.length, originalTray: !!scene.getObjectByName('farkle-oak-tray') }
 }
 const bridgeResources = { instances: 0, shared: 0 }
 export const bridgeResourceProbe = () => ({ ...bridgeResources })

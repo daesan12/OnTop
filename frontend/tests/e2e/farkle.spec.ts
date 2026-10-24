@@ -50,7 +50,8 @@ test('M11 uses exact roll/held selection/Hot Dice/Bank commands, public eyes, se
   await expect.poll(async () => (await probe(page)).cameraReady).toBe(true)
   const render = await probe(page)
   expect(render.dice.map((d: { face: number }) => d.face)).toEqual([1, 2, 3, 4, 5, 6])
-  const normals = [[0, 1, 0], [1, 0, 0], [0, 0, 1], [0, 0, -1], [-1, 0, 0], [0, -1, 0]]
+  // Original bone atlas: +X=3, -X=4, +Y=1, -Y=6, +Z=2, -Z=5.
+  const normals = [[0, 1, 0], [0, 0, 1], [1, 0, 0], [-1, 0, 0], [0, 0, -1], [0, -1, 0]]
   for (const d of render.dice) {
     const [x, y, z, w] = d.quaternion, [nx, ny, nz] = normals[d.face - 1]!
     const topY = 2 * (x! * y! + z! * w!) * nx! + (1 - 2 * (x! * x! + z! * z!)) * ny! + 2 * (y! * z! - x! * w!) * nz!
@@ -66,7 +67,8 @@ test('M11 uses exact roll/held selection/Hot Dice/Bank commands, public eyes, se
   server.settle(); await expect(panel(page)).toContainText('정산 완료 · 내 엽전 증감 1')
   await expect(page.locator('.park-account__balance')).toHaveText('—냥')
   server.nextRound(); await expect(panel(page)).toHaveCount(0)
-  await expect.poll(() => page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).diceResourceProbe())).toEqual({ disposed: 6, sharedDisposed: 0 })
+  // The original textured dice use cached meshes; six per-die pip instance buffers are gone.
+  await expect.poll(() => page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).diceResourceProbe())).toEqual({ disposed: 0, sharedDisposed: 0 })
   await expect(page.getByRole('button', { name: '준비', exact: true })).toBeEnabled()
   const actions = server.sent.filter(m => m.type === 'GAME_ACTION_SEND')
   expect(actions).toHaveLength(4)
