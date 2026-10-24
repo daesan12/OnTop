@@ -158,10 +158,16 @@ class WorldFacilityFlowTests {
             assertThatThrownBy(() -> hub.requireFeedbackAccess(userId, "a", -9, .8, 34.75))
                     .isInstanceOf(com.ssafy.ontop.feedback.service.FeedbackException.class)
                     .hasMessageContaining("시설");
+            assertThatThrownBy(() -> hub.requireNotesAccess(userId, "a", -9, .8, 34.75))
+                    .isInstanceOf(com.ssafy.ontop.notes.service.NoteException.class)
+                    .hasMessageContaining("시설");
             first.request("WORLD_FACILITY_RELEASE", Map.of("leaseId", id));
             first.request("TABLE_JOIN", Map.of("tableId", hub.listTables("a").tables().getFirst().tableId()));
             assertThatThrownBy(() -> hub.requireFeedbackAccess(userId, "a", -9, .8, 34.75))
                     .isInstanceOf(com.ssafy.ontop.feedback.service.FeedbackException.class)
+                    .hasMessageContaining("테이블");
+            assertThatThrownBy(() -> hub.requireNotesAccess(userId, "a", -9, .8, 34.75))
+                    .isInstanceOf(com.ssafy.ontop.notes.service.NoteException.class)
                     .hasMessageContaining("테이블");
         }
     }

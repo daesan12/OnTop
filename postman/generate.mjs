@@ -14,7 +14,7 @@ const variables = {
     gameId: 'replace-with-real-game-id',
     minigameSessionId: '', minigameRequestKey: '', minigameHeats: '', minigameLog: '', minigameStartedAt: '',
     accessToken: '', websocketTicket: '', shopItemId: '', userItemId: '', purchaseRequestKey: '', purchaseId: '',
-    facilityLeaseId: '', feedbackOperationId: '', feedbackReceiptId: ''
+    facilityLeaseId: '', feedbackOperationId: '', feedbackReceiptId: '', noteOperationId: '', noteId: ''
 };
 
 const statusTest = status => `pm.test('HTTP ${status}', () => pm.response.to.have.status(${status}));`;
@@ -223,6 +223,28 @@ const feedbackAdmin = http('26 관리자 소리함 조회','/api/v1/admin/feedba
     + 'nextCursor를 cursor 쿼리에 넣어 다음 페이지를 조회하고 text를 일반 텍스트로 표시하세요.',
     `pm.expect(pm.response.json().items).to.be.an('array');`,shopSetup);
 feedbackAdmin.headers=[{key:'Authorization',value:'Bearer {{accessToken}}'}]; httpItems.push(feedbackAdmin);
+
+const notesDescription = 'M08 공개 익명 메모. local/dev,db + notes.enabled=true + 전용 privacy-secret + V121 순서 조율 후 스키마 적용 필요. '
+    + '서버 위치(54.5,18.92,48.5) XZ2.6m·높이차0.7m미만, 테이블/시설/수영 중 불가. '
+    + '전 채널 공용 최신120장·쓰기15초/읽기1초. 메모/응답은 id,text,createdAt만 사용. '
+    + '24시간 동일키 재확인,410은 자동 재게시 금지. 창을 연 동안2초마다 겹치지 않게 조회하고 닫기·이탈·단절 시 중지. docs/notes-api.md.';
+const notesBody = {mode:'raw',raw:JSON.stringify({operationId:'{{noteOperationId}}',channelId:'{{channelIdA}}',
+    text:'오늘도 좋은 하루 보내세요'},null,2),options:{raw:{language:'json'}}};
+const noteNew = http('27 전망대 익명 메모 작성','/api/v1/notes',201,notesDescription,
+    `const r=pm.response.json(); pm.expect(Object.keys(r.note).sort()).to.eql(['createdAt','id','text']);
+if(pm.response.code===201) pm.environment.set('noteId',r.note.id);`,
+    shopSetup + `\npm.environment.set('noteOperationId',Date.now()+'_'+pm.variables.replaceIn('{{$guid}}'));`);
+noteNew.method='POST';noteNew.headers=[{key:'Authorization',value:'Bearer {{accessToken}}'},
+    {key:'Content-Type',value:'application/json'}];noteNew.body=notesBody;httpItems.push(noteNew);
+const noteReplay = http('28 익명 메모 동일 요청 재확인','/api/v1/notes',201,notesDescription,
+    `pm.expect(pm.response.json().note.id).to.eql(pm.environment.get('noteId'));`,
+    shopSetup + `\nif(!pm.environment.get('noteOperationId')) throw new Error('27을 먼저 실행하세요.');`);
+noteReplay.method='POST';noteReplay.headers=noteNew.headers;noteReplay.body=notesBody;httpItems.push(noteReplay);
+const noteRead = http('29 전망대 익명 메모 조회','/api/v1/notes?channelId={{channelIdA}}',200,notesDescription,
+    `const notes=pm.response.json().notes;pm.expect(notes).to.be.an('array');pm.expect(notes.length).to.be.at.most(120);
+notes.forEach(n=>pm.expect(Object.keys(n).sort()).to.eql(['createdAt','id','text']));`,shopSetup);
+noteRead.headers=[{key:'Authorization',value:'Bearer {{accessToken}}'}];httpItems.push(noteRead);
+
 
 const message = (name, type, payload = {}) => ({
     name, $kind: 'websocket-message', contentType: 'json',
@@ -490,6 +512,7 @@ const outputs = new Map([
     ['OnTop-HTTP.postman_collection.json', JSON.stringify(httpV21, null, 2) + '\n'],
     ['OnTop-Feedback.postman_collection.json', JSON.stringify({info:{...httpV21.info,name:'OnTop Feedback',
         description:feedbackDescription + ' 환경 accessToken/channelIdA/baseUrl 사용. 24는 새 접수 키,25는 원래 키 복구,26은 관리자 JWT로 조회. 실제 비밀키·토큰은 파일에 포함하지 않습니다.'},item:httpV21.item.slice(23,26)},null,2)+'\n'],
+    ['OnTop-Notes.postman_collection.json', JSON.stringify({info:{...httpV21.info,name:'OnTop Notes',description:notesDescription},item:httpV21.item.slice(26,29)},null,2)+'\n'],
     ['OnTop-WebSocket.postman_collection.json', JSON.stringify(wsV3, null, 2) + '\n'],
     ['OnTop-Local.postman_environment.json', JSON.stringify(environment, null, 2) + '\n']
 ]);

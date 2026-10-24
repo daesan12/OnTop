@@ -1,6 +1,9 @@
 # Deployed development park. Authentication and persistence still use the db profile.
 # Local demo controllers and in-memory game-start/settlement fixtures are not enabled.
 ontop:
+  notes:
+    enabled: ${NOTES_ENABLED:false}
+    privacy-secret: ${NOTES_PRIVACY_SECRET:}
   feedback:
     # 신규 마이그레이션은 팀 버전 순서 조율 후 명시적으로 활성화한다.
     enabled: ${FEEDBACK_ENABLED:false}

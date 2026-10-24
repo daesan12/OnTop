@@ -895,6 +895,24 @@ public class TableHub {
         }
     }
 
+    /** REST 익명 메모함 요청에도 클라이언트 좌표 대신 같은 시점의 서버 위치·활동을 사용한다. DB I/O는 하지 않는다. */
+    public synchronized void requireNotesAccess(long userId, String channelId, double x, double y, double z) {
+        String identity = Long.toString(userId);
+        var position = channels.positionOf(identity);
+        if (!channels.isInChannel(identity, channelId) || position == null) {
+            throw new com.ssafy.ontop.notes.service.NoteException(409, "NOT_IN_CHANNEL",
+                    "연결된 공원 채널을 확인해주세요.");
+        }
+        if (seating.containsKey(identity) || facilities.current(identity) != null || position.swimming()) {
+            throw new com.ssafy.ontop.notes.service.NoteException(409, "NOTES_ACTIVITY_CONFLICT",
+                    "테이블·시설 이용과 수영을 종료해주세요.");
+        }
+        if (Math.hypot(position.x() - x, position.z() - z) > 2.6 || Math.abs(position.y() - y) >= 0.7) {
+            throw new com.ssafy.ontop.notes.service.NoteException(403, "NOTES_OUT_OF_RANGE",
+                    "익명 메모함 가까이 같은 높이에서 작성해주세요.");
+        }
+    }
+
     private void facility(Member member, Request request) {
         String channel = channels.channelOf(member.userId());
         if (channel == null) {
