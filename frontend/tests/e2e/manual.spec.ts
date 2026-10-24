@@ -1,11 +1,45 @@
 import { test, expect, type Page } from '@playwright/test'
 import { fixture, screenshot } from './contractFixture'
+import { MAILBOX, NOTES_BOX } from '../../src/config'
 
 const manual=(page:Page)=>page.getByRole('dialog',{name:'게임 설명서',exact:true})
+
+for (const kind of ['feedback', 'notes'] as const) test('M15 F1 owns Tab/Escape above the '+kind+' draft and restores that dialog', async ({page}) => {
+  const position = kind === 'feedback'
+    ? {x:MAILBOX.x,y:.8,z:MAILBOX.z+1,yaw:Math.PI}
+    : {x:NOTES_BOX.x,y:NOTES_BOX.y+.8,z:NOTES_BOX.z+1,yaw:Math.PI}
+  const server=await fixture(page,{manualMovement:true,position}); await loaded(page)
+  expect(await page.evaluate(async kind=>{
+    const controller=await import('/src/features/'+kind+'/controller.ts')
+    return controller[kind==='feedback'?'openFeedback':'openNotes']()
+  },kind)).toBe(true)
+  const panel=page.getByRole('dialog',{name:kind==='feedback'?'온탑 소리함':'전망대 익명 메모',exact:true})
+  const draft=panel.getByRole('textbox'); await draft.fill('F1 아래에서 보존할 작성 내용')
+  await page.keyboard.press('F1'); await opened(page)
+  await page.keyboard.press('Tab'); await expect(manual(page).getByLabel('그래픽 품질')).toBeFocused()
+  const sent=server.sent.length
+  await manual(page).focus()
+  for(const key of ['KeyW','KeyE','Space','KeyG','KeyM'])await page.keyboard.press(key)
+  await close(page)
+  await expect(panel).toBeVisible(); await expect(draft).toHaveValue('F1 아래에서 보존할 작성 내용'); await expect(draft).toBeFocused()
+  await screenshot(page,'m15-'+kind+'-draft-restored')
+  expect(await page.evaluate(async()=>({...((await import('/src/world/inputOwnership.ts' as string)).inputState)}))).toMatchObject({manualOpen:false,[kind==='feedback'?'feedbackOpen':'notesOpen']:true})
+  expect(server.sent.slice(sent).some(m=>m.type==='WORLD_MOVE'&&(m.payload.dx||m.payload.dz||m.payload.jump)||/GAME_ACTION|TABLE_JOIN|WORLD_EMOTE_SEND|WORLD_CHAT_SEND/.test(m.type))).toBe(false)
+  await page.keyboard.press('Escape'); await expect(panel).toHaveCount(0)
+  await page.locator('canvas').focus(); await page.keyboard.down('KeyW')
+  await expect.poll(()=>server.sent.slice(sent).some(m=>m.type==='WORLD_MOVE'&&(m.payload.dx||m.payload.dz))).toBe(true)
+  await page.keyboard.up('KeyW')
+})
 async function loaded(page:Page) {
   await page.goto('/park')
   await expect(page).toHaveTitle('OnTop')
+  await expect(page.getByLabel('공원 기본 화면')).toBeVisible()
   await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({timeout:90000})
+  await expect.poll(()=>page.evaluate(async()=>{
+    const {roamingInput}=await import('/src/world/inputOwnership.ts' as string)
+    const {useSession}=await import('/src/network/worldClient.ts' as string)
+    return roamingInput.ready && useSession.getState().status==='connected'
+  })).toBe(true)
   await page.locator('canvas').focus()
 }
 async function opened(page:Page) {
@@ -73,6 +107,7 @@ test('M15 F1 works offline, reduced motion, aborts opening, and never leaks held
   await page.emulateMedia({reducedMotion:'reduce'}); await context.setOffline(true)
   await page.keyboard.press('F1'); await opened(page)
   await expect(manual(page).getByRole('button',{name:'오목 설명 읽기',exact:true})).toBeVisible()
+  await manual(page).focus()
   await page.keyboard.press('KeyE'); await page.keyboard.press('KeyG'); await page.keyboard.press('KeyM'); await page.keyboard.press('Enter')
   await expect(page.getByRole('textbox',{name:'주변 채팅 메시지'})).toHaveCount(0)
   await expect(page.getByRole('dialog',{name:'감정표현 선택'})).toHaveCount(0)
@@ -95,6 +130,7 @@ for(const [code,title,options] of [
   const commands=server.sent.filter(m=>/GAME_ACTION|TABLE_LEAVE|READY_SET/.test(m.type)).length
   await page.keyboard.press('F1'); await opened(page)
   await expect(manual(page).getByRole('heading',{name:title,exact:true,level:3})).toBeVisible()
+  await manual(page).focus()
   for(const key of ['KeyW','Space','KeyE','KeyR','KeyQ','KeyT','Digit1']) await page.keyboard.press(key)
   expect(server.sent.filter(m=>/GAME_ACTION|TABLE_LEAVE|READY_SET/.test(m.type))).toHaveLength(commands)
   await close(page)
