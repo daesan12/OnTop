@@ -10,6 +10,10 @@ import { benchService } from '../../src/features/interactions/benchService'
 import { avatars, receive, resetWorld, useSession } from '../../src/network/worldClient'
 import { EXPECTED_MAP_VERSION } from '../../src/config/mapVersion'
 import { inputState, roamingInput } from '../../src/world/inputOwnership'
+vi.mock('../../src/features/interactions/benchService', async () => {
+  const { MockBenchService } = await import('../../src/features/interactions/mock/MockBenchService')
+  return { benchService: new MockBenchService() }
+})
 
 const bench = benchAnchors[0]!
 const near = { x: bench.position[0], y: bench.position[1] + 0.8, z: bench.position[2] + 2, yaw: 0 }

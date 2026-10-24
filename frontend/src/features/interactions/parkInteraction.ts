@@ -3,7 +3,8 @@ import { avatars, useSession } from '../../network/worldClient'
 import { tableBusy, useGame } from '../../game/store'
 import { parkRuntime } from '../../park/runtime/runtime'
 import { panelOwnsKeys, roamingInput } from '../../world/inputOwnership'
-import { benchAnchors } from './benchAnchors'
+import { benchAnchors, canReachBench } from './benchAnchors'
+import { facilityAvailable, facilityMovementBlocked, useFacilityState } from '../facilities/state'
 import { useBenchState } from './benchState'
 import { benchService } from './benchService'
 import { sitBench } from './benchController'
@@ -40,6 +41,7 @@ export interface ParkInteraction {
 export function getParkInteraction(): ParkInteraction | null {
   const session = useSession.getState(), benches = useBenchState.getState(), fitness = useFitnessState.getState()
   const p = avatars.get(session.sessionId)
+  if (facilityMovementBlocked(session.sessionId)) return null
   if (!roamingInput.ready || !p || session.status !== 'connected' || !session.mapCompatible || session.tableId || p.seatIndex >= 0
     || p.fitnessId || p.telescopeId || p.swimming || session.pending || benches.pending || fitness.pending
     || useTelescopeState.getState().pending || tableBusy() || useGame.getState().watchedGameId || panelOwnsKeys()) return null
@@ -65,7 +67,7 @@ export function getParkInteraction(): ParkInteraction | null {
     const distance = Math.hypot(p.current.x - t.position[0], p.current.z - t.position[2])
     choices.push({ kind: 'telescope', id: t.id, label: `${t.name} 이용하기`, occupied: !!occupant,
       occupant: occupant ? avatars.get(occupant.userId)?.nickname ?? '이웃' : undefined,
-      available: telescopeService.mode !== 'unavailable', distance,
+      available: telescopeService.mode === 'server' ? facilityAvailable(t.id) : telescopeService.mode !== 'unavailable', distance,
       score: interactionScore(distance, { x: t.position[0], y: t.position[1] + TELESCOPE.eyeHeight, z: t.position[2] }) })
   }
   for (const station of FITNESS_STATIONS) {
@@ -74,19 +76,19 @@ export function getParkInteraction(): ParkInteraction | null {
     const distance = Math.hypot(p.current.x - station.position[0], p.current.z - station.position[2])
     choices.push({ kind: 'fitness', id: station.id, label: `${station.name} 이용하기`, occupied: !!occupant,
       occupant: occupant ? avatars.get(occupant.userId)?.nickname ?? '이웃' : undefined,
-      available: fitnessService.mode !== 'unavailable', distance,
+      available: fitnessService.mode === 'server' ? facilityAvailable(station.id) : fitnessService.mode !== 'unavailable', distance,
       score: interactionScore(distance, { x: station.position[0], y: station.position[1] + FITNESS.handleHeight, z: station.position[2] }) })
   }
   for (const bench of benchAnchors) {
     const distance = Math.hypot(p.current.x - bench.position[0], p.current.z - bench.position[2])
-    if (distance > bench.radius || Math.abs(p.current.y - bench.position[1] - 0.8) > bench.heightTolerance) continue
+    if (!canReachBench(p.current, bench.id)) continue
     const taken = new Set(Object.values(benches.placements)
       .filter(lease => lease.channelId === session.roomId && lease.benchId === bench.id).map(lease => lease.seat))
     const available = ([0, 1] as const).filter(seat => !taken.has(seat))
     for (const seat of available.length ? available : [undefined]) {
-      const pose = bench.seats[seat ?? 0]!
+      const pose = useFacilityState.getState().catalog[bench.id]?.seats[seat ?? 0] ?? bench.seats[seat ?? 0]!
       choices.push({ kind: 'bench', id: bench.id, seat, label: '벤치에 앉기', occupied: seat === undefined,
-        available: benchService.mode !== 'unavailable', distance,
+        available: benchService.mode === 'server' ? facilityAvailable(bench.id) : benchService.mode !== 'unavailable', distance,
         score: interactionScore(distance, { x: pose.x, y: pose.y - 0.2, z: pose.z }) })
     }
   }

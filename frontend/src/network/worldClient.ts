@@ -27,6 +27,8 @@ import { resetNotesState, useNotesState } from '../features/notes/state'
 import { canReachNotes } from '../features/notes/validation'
 import { resetTableLobby } from '../features/tableLobby/state'
 import { publicMatchService } from '../features/tableLobby/publicMatch'
+import { resetFacilities } from '../features/facilities/state'
+import type { FacilityLease } from '../features/facilities/protocol'
 
 export interface Pose {
   x: number
@@ -141,6 +143,7 @@ let channelVersion = -1,
 const chatIds = new Set<string>()
 const emoteTimeline = new EmoteTimeline()
 export function resetWorld(status: Session['status'] = 'idle', error = '') {
+  resetFacilities()
   resetNotesState(status !== 'idle')
   resetFeedbackState(status !== 'idle')
   resetFitnessState()
@@ -159,6 +162,7 @@ export function resetWorld(status: Session['status'] = 'idle', error = '') {
   useSession.setState({ ...initial(), status, error })
 }
 export function clearChannel(keepFeedbackDraft = false, keepNotesDraft = false) {
+  resetFacilities()
   resetNotesState(keepNotesDraft)
   resetFeedbackState(keepFeedbackDraft)
   resetFitnessState()
@@ -228,14 +232,31 @@ export const authoritativePose = (userId: string): Pose | undefined => {
   const pose = worldPoses.get(userId)
   return pose ? { ...pose } : undefined
 }
+/** Full server occupancy projection. Wire pose/exit never overwrite WORLD_STATE coordinates. */
+export function applyFacilityOccupancies(leases: readonly FacilityLease[]) {
+  const benches: Record<string, import('../features/interactions/benchContracts').BenchLease> = {}
+  const fitness: Record<string, import('../features/fitness/contracts').FitnessLease> = {}
+  const telescopes: Record<string, import('../features/telescopes/contracts').TelescopeLease> = {}
+  for (const lease of leases) {
+    const common = { leaseId: lease.leaseId, userId: lease.userId, channelId: lease.channelId, pose: lease.pose, exit: lease.exit }
+    if (lease.kind === 'BENCH') benches[lease.userId] = { ...common, benchId: lease.facilityId, seat: lease.seatIndex as 0 | 1 }
+    if (lease.kind === 'FITNESS') fitness[lease.userId] = { ...common, stationId: lease.facilityId, startedAt: Date.parse(lease.startedAt) }
+    if (lease.kind === 'TELESCOPE') telescopes[lease.userId] = { ...common, grantId: lease.leaseId,
+      telescopeId: lease.facilityId, yaw: lease.yaw, pitch: lease.pitch }
+  }
+  useBenchState.setState({ placements: benches })
+  useFitnessState.setState({ placements: fitness })
+  useTelescopeState.setState({ placements: telescopes })
+  refreshActivityPresentation()
+}
 export function refreshActivityPresentation() {
   const state = useSession.getState()
   for (const table of Object.values(state.tableStates)) for (const seat of table.seats)
-    if (seat.userId && useTelescopeState.getState().placements[seat.userId]) releaseTelescopeUser(seat.userId)
+    if (seat.userId && useTelescopeState.getState().placements[seat.userId] && !useTelescopeState.getState().placements[seat.userId]!.leaseId) releaseTelescopeUser(seat.userId)
   for (const table of Object.values(state.tableStates)) for (const seat of table.seats)
-    if (seat.userId && useFitnessState.getState().placements[seat.userId]) releaseFitnessUser(seat.userId)
+    if (seat.userId && useFitnessState.getState().placements[seat.userId] && !useFitnessState.getState().placements[seat.userId]!.leaseId) releaseFitnessUser(seat.userId)
   if (Object.values(state.tableStates).some(table => table.seats.some(seat =>
-    seat.userId && useBenchState.getState().placements[seat.userId]))) resetBenchState()
+    seat.userId && useBenchState.getState().placements[seat.userId] && !useBenchState.getState().placements[seat.userId]!.leaseId))) resetBenchState()
   for (const [id, a] of avatars) {
     const previousActivity = a.tableId || a.benchId || a.fitnessId || a.telescopeId
     a.tableId = ''
@@ -248,6 +269,8 @@ export function refreshActivityPresentation() {
     const authoritative = worldPoses.get(id)
     if (authoritative) a.current = { ...authoritative }
     for (const table of Object.values(state.tableStates)) {
+      if (useBenchState.getState().placements[id]?.leaseId || useFitnessState.getState().placements[id]?.leaseId
+        || useTelescopeState.getState().placements[id]?.leaseId) break
       const seat = table.seats.find((s) => s.userId === id)
       const binding = state.bindings.find(
         (b) => b.channelId === state.roomId && b.tableId === table.tableId,
@@ -273,7 +296,7 @@ export function refreshActivityPresentation() {
       if (useFitnessState.getState().placements[id]) releaseFitnessUser(id)
       a.benchId = bench.benchId
       a.seatIndex = bench.seat
-      a.current = { ...bench.pose }
+      a.current = { ...(bench.leaseId ? authoritative ?? a.current : bench.pose) }
       a.previous = { ...a.current }
       a.moving = a.running = false
     }
@@ -282,8 +305,8 @@ export function refreshActivityPresentation() {
       if (useTelescopeState.getState().placements[id]) releaseTelescopeUser(id)
       a.fitnessId = fitness.stationId
       a.fitnessStartedAt = fitness.startedAt
-      a.current = { ...fitness.pose }
-      a.previous = { ...fitness.pose }
+      a.current = { ...(fitness.leaseId ? authoritative ?? a.current : fitness.pose) }
+      a.previous = { ...a.current }
       a.moving = a.running = false
     }
     const telescope = useTelescopeState.getState().placements[id]
@@ -291,7 +314,7 @@ export function refreshActivityPresentation() {
       a.telescopeId = telescope.telescopeId
       a.telescopeYaw = telescope.yaw
       a.telescopePitch = telescope.pitch
-      a.current = { ...telescope.pose, yaw: telescope.yaw }
+      a.current = { ...(telescope.leaseId ? authoritative ?? a.current : telescope.pose), yaw: telescope.yaw }
       a.previous = { ...a.current }
       a.moving = a.running = false
     }
@@ -302,7 +325,11 @@ export function refreshActivityPresentation() {
   const benchId = own?.benchId ?? ''
   const fitnessId = own?.fitnessId ?? ''
   const telescopeId = own?.telescopeId ?? ''
-  if (telescopeView.id !== telescopeId) resetTelescopeView(telescopeId)
+  if (telescopeView.id !== telescopeId) {
+    resetTelescopeView(telescopeId)
+    const lease = useTelescopeState.getState().placements[state.sessionId]
+    if (lease?.leaseId) { telescopeView.yaw = lease.yaw; telescopeView.pitch = lease.pitch }
+  }
   if (state.benchId !== benchId || state.fitnessId !== fitnessId || state.telescopeId !== telescopeId)
     useSession.setState({ benchId, fitnessId, telescopeId })
   if (useFeedbackState.getState().open && (!own?.connected || own.seatIndex >= 0 || own.fitnessId
@@ -354,11 +381,12 @@ export function receive(message: Envelope) {
         cancelAvatarEmote(state.sessionId)
         clearRoamingInput()
       }
-      if (!ids.includes(state.sessionId) || Object.keys(useBenchState.getState().placements).some(id => !ids.includes(id))) resetBenchState()
-      if (!ids.includes(state.sessionId)) resetFitnessState()
-      else for (const id of Object.keys(useFitnessState.getState().placements)) if (!ids.includes(id)) releaseFitnessUser(id)
-      if (!ids.includes(state.sessionId)) resetTelescopeState()
-      else for (const id of Object.keys(useTelescopeState.getState().placements)) if (!ids.includes(id)) releaseTelescopeUser(id)
+      if ((!ids.includes(state.sessionId) && !Object.values(useBenchState.getState().placements).some(lease => lease.leaseId))
+        || Object.entries(useBenchState.getState().placements).some(([id, lease]) => !lease.leaseId && !ids.includes(id))) resetBenchState()
+      if (!ids.includes(state.sessionId) && !Object.values(useFitnessState.getState().placements).some(lease => lease.leaseId)) resetFitnessState()
+      else for (const [id, lease] of Object.entries(useFitnessState.getState().placements)) if (!lease.leaseId && !ids.includes(id)) releaseFitnessUser(id)
+      if (!ids.includes(state.sessionId) && !Object.values(useTelescopeState.getState().placements).some(lease => lease.leaseId)) resetTelescopeState()
+      else for (const [id, lease] of Object.entries(useTelescopeState.getState().placements)) if (!lease.leaseId && !ids.includes(id)) releaseTelescopeUser(id)
       for (const id of avatars.keys())
         if (!ids.includes(id)) {
           avatars.delete(id)

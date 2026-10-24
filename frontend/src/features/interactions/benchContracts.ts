@@ -7,6 +7,8 @@ export interface BenchContext {
   position: Pose
 }
 export interface BenchLease {
+  leaseId?: string
+  exit?: Pose
   channelId: string
   userId: string
   benchId: string
@@ -15,7 +17,7 @@ export interface BenchLease {
 }
 /** FE-only port. Approved backend commands/DTOs must be mapped here later. */
 export interface BenchService {
-  readonly mode: 'mock' | 'unavailable'
+  readonly mode: 'server' | 'mock' | 'unavailable'
   sit(context: BenchContext, benchId: string, seat: BenchSeat, signal: AbortSignal): Promise<BenchLease>
   stand(lease: BenchLease, signal: AbortSignal): Promise<void>
 }

@@ -1,8 +1,11 @@
 import { FITNESS, FITNESS_STATIONS } from '../../config'
 import type { Pose } from '../../network/worldClient'
+import { facilityInRange } from '../facilities/state'
 
 export const findFitness = (id: string) => FITNESS_STATIONS.find(station => station.id === id)
 export function canReachFitness(position: Pose, id: string) {
+  const approved = facilityInRange(position, id)
+  if (approved !== undefined) return approved
   const station = findFitness(id)
   return !!station && [position.x, position.y, position.z].every(Number.isFinite)
     && Math.hypot(position.x - station.position[0], position.z - station.position[2]) <= FITNESS.interactionRadius

@@ -9,6 +9,7 @@ import { telescopeView } from '../telescopeView'
 import { canReachTelescope, normalizeTelescopeAim } from './anchors'
 import { telescopeService } from './service'
 import { releaseTelescopeUser, telescopeSignal, useTelescopeState } from './state'
+import { useFacilityState } from '../facilities/state'
 
 export async function enterTelescope(id: string): Promise<boolean> {
   const session = useSession.getState(), state = useTelescopeState.getState(), avatar = avatars.get(session.sessionId)
@@ -23,6 +24,7 @@ export async function enterTelescope(id: string): Promise<boolean> {
   try {
     const lease = await telescopeService.enter({ userId: session.sessionId, channelId: session.roomId, position: { ...avatar.current } }, id, signal)
     if (signal.aborted || useTelescopeState.getState().epoch !== epoch) return false
+    if (telescopeService.mode === 'server') return true
     const current = useSession.getState(), position = authoritativePose(session.sessionId), a = avatars.get(session.sessionId)
     if (current.sessionId !== session.sessionId || current.roomId !== session.roomId || current.status !== 'connected'
       || !current.mapCompatible || current.tableId || current.benchId || current.fitnessId || tableBusy()
@@ -53,6 +55,7 @@ export async function leaveTelescope(): Promise<boolean> {
   try {
     await telescopeService.leave(lease, signal)
     if (signal.aborted || useTelescopeState.getState().epoch !== epoch) return false
+    if (telescopeService.mode === 'server') return true
     releaseTelescopeUser(session.sessionId)
     refreshActivityPresentation() // Restore actual Spring approach position, not the proposed exit anchor.
     return true
@@ -70,17 +73,23 @@ export async function aimTelescope(yaw = telescopeView.yaw, pitch = telescopeVie
   const session = useSession.getState(), state = useTelescopeState.getState(), lease = state.placements[session.sessionId]
   if (!lease || state.pending || session.status !== 'connected' || !session.mapCompatible || panelOwnsKeys()
     || (pendingAim?.epoch === state.epoch) || !Number.isFinite(yaw) || !Number.isFinite(pitch)) return false
-  const aim = normalizeTelescopeAim(yaw, pitch), now = Date.now()
+  const aim = normalizeTelescopeAim(yaw, pitch), now = telescopeService.mode === 'server' ? performance.now() : Date.now()
+  const interval = telescopeService.mode === 'server' ? useFacilityState.getState().options?.aimIntervalMs ?? TELESCOPE.aimIntervalMs : TELESCOPE.aimIntervalMs
   if ((lease.yaw === aim.yaw && lease.pitch === aim.pitch)
-    || (lastAim.epoch === state.epoch && lastAim.grantId === lease.grantId && now - lastAim.at < TELESCOPE.aimIntervalMs)) return false
+    || (lastAim.epoch === state.epoch && lastAim.grantId === lease.grantId && now - lastAim.at < interval)) return false
   lastAim = { epoch: state.epoch, grantId: lease.grantId, at: now }
   const request = { epoch: state.epoch }, signal = telescopeSignal(session.sessionId)
   pendingAim = request
   try {
     const approved = await telescopeService.aim(lease, aim, signal)
+    if (telescopeService.mode === 'server' && lastAim.epoch === state.epoch && lastAim.grantId === lease.grantId) lastAim.at = performance.now()
     const current = useSession.getState(), latest = useTelescopeState.getState()
     if (signal.aborted || latest.epoch !== state.epoch || latest.pending || current.sessionId !== session.sessionId
       || current.roomId !== session.roomId || latest.placements[session.sessionId]?.grantId !== lease.grantId) return false
+    if (telescopeService.mode === 'server') {
+      useTelescopeState.setState({ error: '' })
+      return true
+    }
     const direction = normalizeTelescopeAim(approved.yaw, approved.pitch)
     useTelescopeState.setState(s => ({ placements: { ...s.placements, [session.sessionId]: { ...lease, ...direction } }, error: '' }))
     refreshActivityPresentation()

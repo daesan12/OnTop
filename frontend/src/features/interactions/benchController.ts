@@ -24,6 +24,7 @@ export async function sitBench(benchId: string, seat: BenchSeat): Promise<boolea
       position: { ...avatar.current } }, benchId, seat, signal)
     const current = useSession.getState()
     if (signal.aborted || useBenchState.getState().epoch !== epoch) return false
+    if (benchService.mode === 'server') return true
     const position = authoritativePose(session.sessionId)
     if (current.sessionId !== session.sessionId || current.roomId !== session.roomId
       || current.status !== 'connected' || !current.mapCompatible || current.tableId || current.fitnessId || useFitnessState.getState().pending || current.telescopeId || useTelescopeState.getState().pending || tableBusy()
@@ -52,6 +53,7 @@ export async function standBench(): Promise<boolean> {
   try {
     await benchService.stand(lease, signal)
     if (signal.aborted || useBenchState.getState().epoch !== epoch) return false
+    if (benchService.mode === 'server') return true
     const placements = { ...useBenchState.getState().placements }
     delete placements[session.sessionId]
     useBenchState.setState({ placements })

@@ -2,6 +2,7 @@ import type { Pose } from '../../network/worldClient'
 
 export interface FitnessContext { userId: string; channelId: string; position: Pose }
 export interface FitnessLease {
+  leaseId?: string
   userId: string
   channelId: string
   stationId: string
@@ -11,7 +12,7 @@ export interface FitnessLease {
 }
 /** Frontend port, not proposed Spring commands or wire DTOs. */
 export interface FitnessService {
-  readonly mode: 'mock' | 'unavailable'
+  readonly mode: 'server' | 'mock' | 'unavailable'
   enter(context: FitnessContext, stationId: string, signal: AbortSignal): Promise<FitnessLease>
   leave(lease: FitnessLease, signal: AbortSignal): Promise<void>
 }
