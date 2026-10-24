@@ -11,7 +11,7 @@ import type { Card, OneCardInput } from './protocol'
 import './onecard.css'
 
 function CardFace({ card }: { card: Card }) {
-  return <><span>{card.suit ? card.rank : 'JOKER'}</span><strong>{card.suit ? SUIT_GLYPH[card.suit] : '✦'}</strong><small>{cardEffect(card)}</small></>
+  return <><span className="onecard-rank">{card.suit ? card.rank : 'JOKER'}</span><strong className="onecard-symbol">{card.suit ? SUIT_GLYPH[card.suit] : '✦'}</strong><small>{cardEffect(card)}</small></>
 }
 export function OneCardPanel() {
   const s = useGame(), session = useSession(useShallow(s => ({ sessionId: s.sessionId, roomId: s.roomId, profiles: s.profiles, status: s.status, pending: s.pending }))), runtime = useParkRuntime()

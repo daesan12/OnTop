@@ -569,10 +569,13 @@ export function bridgeProbe() {
 }
 export function boardgameArtProbe() {
   const { scene } = root()
+  const top = scene.getObjectByName('onecard-public-top')
+  const mat = scene.getObjectByName('onecard-felt-mat')
   const cup = scene.getObjectByName('farkle-cup-' + useSession.getState().focusedAnchorId)
   const cupMeshes: Mesh[] = []
   cup?.traverse(o => { if (o instanceof Mesh) cupMeshes.push(o) })
-  return { cupMeshes: cupMeshes.length, originalTray: !!scene.getObjectByName('farkle-oak-tray') }
+  return { cardMat: !!mat, cardSurfaceY: top?.position.y, deck: !!scene.getObjectByName('onecard-draw-deck'),
+    cupMeshes: cupMeshes.length, originalTray: !!scene.getObjectByName('farkle-oak-tray') }
 }
 const bridgeResources = { instances: 0, shared: 0 }
 export const bridgeResourceProbe = () => ({ ...bridgeResources })
