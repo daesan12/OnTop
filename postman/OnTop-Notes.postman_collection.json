@@ -1,0 +1,156 @@
+{
+  "info": {
+    "name": "OnTop Notes",
+    "description": "M08 공개 익명 메모. local/dev,db + notes.enabled=true + 전용 privacy-secret + V121 순서 조율 후 스키마 적용 필요. 서버 위치(54.5,18.92,48.5) XZ2.6m·높이차0.7m미만, 테이블/시설/수영 중 불가. 전 채널 공용 최신120장·쓰기15초/읽기1초. 메모/응답은 id,text,createdAt만 사용. 24시간 동일키 재확인,410은 자동 재게시 금지. 창을 연 동안2초마다 겹치지 않게 조회하고 닫기·이탈·단절 시 중지. docs/notes-api.md.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "27 전망대 익명 메모 작성",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/v1/notes",
+        "description": "M08 공개 익명 메모. local/dev,db + notes.enabled=true + 전용 privacy-secret + V121 순서 조율 후 스키마 적용 필요. 서버 위치(54.5,18.92,48.5) XZ2.6m·높이차0.7m미만, 테이블/시설/수영 중 불가. 전 채널 공용 최신120장·쓰기15초/읽기1초. 메모/응답은 id,text,createdAt만 사용. 24시간 동일키 재확인,410은 자동 재게시 금지. 창을 연 동안2초마다 겹치지 않게 조회하고 닫기·이탈·단절 시 중지. docs/notes-api.md.",
+        "auth": {
+          "type": "noauth"
+        },
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"operationId\": \"{{noteOperationId}}\",\n  \"channelId\": \"{{channelIdA}}\",\n  \"text\": \"오늘도 좋은 하루 보내세요\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.environment.name) throw new Error('먼저 OnTop Local 환경을 선택해주세요.');",
+              "if (!pm.environment.get('accessToken')) throw new Error('개인 로컬 Access JWT가 필요합니다.');",
+              "pm.environment.set('noteOperationId',Date.now()+'_'+pm.variables.replaceIn('{{$guid}}'));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+              "const r=pm.response.json(); pm.expect(Object.keys(r.note).sort()).to.eql(['createdAt','id','text']);",
+              "if(pm.response.code===201) pm.environment.set('noteId',r.note.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "28 익명 메모 동일 요청 재확인",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/v1/notes",
+        "description": "M08 공개 익명 메모. local/dev,db + notes.enabled=true + 전용 privacy-secret + V121 순서 조율 후 스키마 적용 필요. 서버 위치(54.5,18.92,48.5) XZ2.6m·높이차0.7m미만, 테이블/시설/수영 중 불가. 전 채널 공용 최신120장·쓰기15초/읽기1초. 메모/응답은 id,text,createdAt만 사용. 24시간 동일키 재확인,410은 자동 재게시 금지. 창을 연 동안2초마다 겹치지 않게 조회하고 닫기·이탈·단절 시 중지. docs/notes-api.md.",
+        "auth": {
+          "type": "noauth"
+        },
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"operationId\": \"{{noteOperationId}}\",\n  \"channelId\": \"{{channelIdA}}\",\n  \"text\": \"오늘도 좋은 하루 보내세요\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.environment.name) throw new Error('먼저 OnTop Local 환경을 선택해주세요.');",
+              "if (!pm.environment.get('accessToken')) throw new Error('개인 로컬 Access JWT가 필요합니다.');",
+              "if(!pm.environment.get('noteOperationId')) throw new Error('27을 먼저 실행하세요.');"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+              "pm.expect(pm.response.json().note.id).to.eql(pm.environment.get('noteId'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "29 전망대 익명 메모 조회",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/v1/notes?channelId={{channelIdA}}",
+        "description": "M08 공개 익명 메모. local/dev,db + notes.enabled=true + 전용 privacy-secret + V121 순서 조율 후 스키마 적용 필요. 서버 위치(54.5,18.92,48.5) XZ2.6m·높이차0.7m미만, 테이블/시설/수영 중 불가. 전 채널 공용 최신120장·쓰기15초/읽기1초. 메모/응답은 id,text,createdAt만 사용. 24시간 동일키 재확인,410은 자동 재게시 금지. 창을 연 동안2초마다 겹치지 않게 조회하고 닫기·이탈·단절 시 중지. docs/notes-api.md.",
+        "auth": {
+          "type": "noauth"
+        },
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ]
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.environment.name) throw new Error('먼저 OnTop Local 환경을 선택해주세요.');",
+              "if (!pm.environment.get('accessToken')) throw new Error('개인 로컬 Access JWT가 필요합니다.');"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "const notes=pm.response.json().notes;pm.expect(notes).to.be.an('array');pm.expect(notes.length).to.be.at.most(120);",
+              "notes.forEach(n=>pm.expect(Object.keys(n).sort()).to.eql(['createdAt','id','text']));"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
