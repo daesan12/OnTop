@@ -13,6 +13,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.annotation.DirtiesContext;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "spring.profiles.active=local", "ontop.websocket.authenticated=true",
@@ -145,6 +146,23 @@ class WorldFacilityFlowTests {
             assertCode(use(first, "unknown", 0), "FACILITY_NOT_FOUND");
             first.request("TABLE_JOIN", Map.of("tableId", hub.listTables("a").tables().getFirst().tableId()));
             assertCode(use(first, "bench-0", 0), "TABLE_BUSY");
+        }
+    }
+
+    @Test
+    void 시설과_테이블을_실제_이용중이면_소리함_접수를_차단한다() throws Exception {
+        try (var first = client("naver", "a")) {
+            locate(first, -9, .8, 34.75);
+            String id = lease(use(first, "bench-0", 0), first.userId).path("leaseId").asText();
+            long userId = Long.parseLong(first.userId);
+            assertThatThrownBy(() -> hub.requireFeedbackAccess(userId, "a", -9, .8, 34.75))
+                    .isInstanceOf(com.ssafy.ontop.feedback.service.FeedbackException.class)
+                    .hasMessageContaining("시설");
+            first.request("WORLD_FACILITY_RELEASE", Map.of("leaseId", id));
+            first.request("TABLE_JOIN", Map.of("tableId", hub.listTables("a").tables().getFirst().tableId()));
+            assertThatThrownBy(() -> hub.requireFeedbackAccess(userId, "a", -9, .8, 34.75))
+                    .isInstanceOf(com.ssafy.ontop.feedback.service.FeedbackException.class)
+                    .hasMessageContaining("테이블");
         }
     }
 

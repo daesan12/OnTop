@@ -14,7 +14,7 @@ const variables = {
     gameId: 'replace-with-real-game-id',
     minigameSessionId: '', minigameRequestKey: '', minigameHeats: '', minigameLog: '', minigameStartedAt: '',
     accessToken: '', websocketTicket: '', shopItemId: '', userItemId: '', purchaseRequestKey: '', purchaseId: '',
-    facilityLeaseId: ''
+    facilityLeaseId: '', feedbackOperationId: '', feedbackReceiptId: ''
 };
 
 const statusTest = status => `pm.test('HTTP ${status}', () => pm.response.to.have.status(${status}));`;
@@ -197,6 +197,32 @@ const miniOverview=http('23 붕어빵 오늘 보상·첫 판·안내 조회','/a
     'MINI-02 추가 조회: KST todayEarned, dailyCap100, isFirstGame, seenTips, rulesVersion v2. 랭킹 없음.',
     `pm.expect(pm.response.json().dailyCap).to.eql(100); pm.expect(pm.response.json().rulesVersion).to.eql('v2');`,shopSetup);
 miniOverview.headers=shopAuth; httpItems.push(miniOverview);
+
+const feedbackDescription = 'M07 비공개 소리함. local/dev,db + 기능 활성화·V120 순서 조율 후 스키마 적용 필요. '
+    + '인증 회원이 서버 소리함 좌표(-10.8,0.8,14.5) 2.6m·높이±0.7m 이내에서 작성합니다. '
+    + '테이블/경기/시설/수영 중 불가, 새 의견15초 간격. 같은 operationId·본문·채널은 기존 영수증, 다른 내용409. '
+    + '본문5~600 UTF-16 단위·NFC/제어문자 제거. 90일 보관·탈퇴 시 작성자 연결 제거, 관리자만 조회. '
+    + 'dev 기본 비활성(경로 미등록)이며 V112 등 기존 마이그레이션 순서 조율 전 자동 적용하지 않습니다.';
+const feedbackBody = {mode:'raw', raw:JSON.stringify({operationId:'{{feedbackOperationId}}',
+    channelId:'{{channelIdA}}', text:'공원을 개선해주세요'},null,2),options:{raw:{language:'json'}}};
+const feedbackNew = http('24 소리함 비공개 의견 접수','/api/v1/feedback',201,feedbackDescription,
+    `const r=pm.response.json(); pm.expect(r.receiptId).to.be.a('string'); pm.expect(r).not.to.have.property('text');
+if(pm.response.code===201) pm.environment.set('feedbackReceiptId',r.receiptId);`,
+    shopSetup + `\npm.environment.set('feedbackOperationId',pm.variables.replaceIn('{{$guid}}'));`);
+    feedbackNew.method='POST'; feedbackNew.headers=[{key:'Authorization',value:'Bearer {{accessToken}}'},
+        {key:'Content-Type',value:'application/json'}];
+feedbackNew.body=feedbackBody; httpItems.push(feedbackNew);
+const feedbackReplay = http('25 소리함 동일 요청 복구','/api/v1/feedback',201,
+    feedbackDescription + ' 24의 키·본문·채널을 그대로 보냅니다. 키를 새로 만들지 않습니다.',
+    `pm.expect(pm.response.json().receiptId).to.eql(pm.environment.get('feedbackReceiptId'));`,
+    shopSetup + `\nif(!pm.environment.get('feedbackOperationId')) throw new Error('24를 먼저 실행하세요.');`);
+feedbackReplay.method='POST'; feedbackReplay.headers=feedbackNew.headers; feedbackReplay.body=feedbackBody;
+httpItems.push(feedbackReplay);
+const feedbackAdmin = http('26 관리자 소리함 조회','/api/v1/admin/feedback?limit=20',200,
+    feedbackDescription + ' 서버 관리자 목록에 등록된 본인의 Access JWT로 바꿔 실행합니다. 일반 회원403이 정상입니다. '
+    + 'nextCursor를 cursor 쿼리에 넣어 다음 페이지를 조회하고 text를 일반 텍스트로 표시하세요.',
+    `pm.expect(pm.response.json().items).to.be.an('array');`,shopSetup);
+feedbackAdmin.headers=[{key:'Authorization',value:'Bearer {{accessToken}}'}]; httpItems.push(feedbackAdmin);
 
 const message = (name, type, payload = {}) => ({
     name, $kind: 'websocket-message', contentType: 'json',
@@ -457,11 +483,13 @@ function yaml(value, indent = 0) {
         + (nested(item) ? '\n' + yaml(item, indent + 2) : ' ' + JSON.stringify(item))).join('\n');
 }
 const outputs = new Map([
-    ['OnTop-Minigame.postman_collection.json', JSON.stringify({info:{...httpV21.info,name:'OnTop Minigame',description:'붕어빵 v2: 23시작화면조회→19시작→60초 플레이→21입력 검증·보상. 20본인판조회,22포기는 별도 새 판에서 확인. 15점당1냥·KST 하루100냥·랭킹 제외·탭 이동 시간 진행. 기존 API 경로 유지. docs/minigame-api.md.'},item:httpV21.item.slice(18)},null,2)+'\n'],
+    ['OnTop-Minigame.postman_collection.json', JSON.stringify({info:{...httpV21.info,name:'OnTop Minigame',description:'붕어빵 v2: 23시작화면조회→19시작→60초 플레이→21입력 검증·보상. 20본인판조회,22포기는 별도 새 판에서 확인. 15점당1냥·KST 하루100냥·랭킹 제외·탭 이동 시간 진행. 기존 API 경로 유지. docs/minigame-api.md.'},item:httpV21.item.slice(18,23)},null,2)+'\n'],
     ['OnTop-Shop.postman_collection.json', JSON.stringify({info: {...httpV21.info, name: 'OnTop Shop',
         description: 'SHOP-01/02 · INVENTORY-01/02. 13목록→14구매→15동일키 재요청→16보유→17장착. 18은 같은키 충돌 검사. local,db + ontop.shop.enabled=true + 공통/상점 스키마가 필요합니다. 보유 의상 재구매는 서버에서 거절하고 소비형은 수량을 누적합니다. 테스트 계정의 개인 로컬 Access JWT만 사용하고 공유하지 마세요. 기본 DB에 스키마를 자동 적용하지 않았습니다. 실제 DB 초기화·공통 재화 통합·3D 외형 계약은 별도 확인합니다.\n\n2026-10-22: 상점 저장 처리를 JPA 엔티티·JPQL로 전환했습니다. 기존 6개 요청·응답·중복 구매 방지·롤백 계약은 그대로이며 예제 수정 없이 사용할 수 있습니다.' + appearanceGuide},
         item: httpV21.item.slice(12,18)}, null, 2) + '\n'],
     ['OnTop-HTTP.postman_collection.json', JSON.stringify(httpV21, null, 2) + '\n'],
+    ['OnTop-Feedback.postman_collection.json', JSON.stringify({info:{...httpV21.info,name:'OnTop Feedback',
+        description:feedbackDescription + ' 환경 accessToken/channelIdA/baseUrl 사용. 24는 새 접수 키,25는 원래 키 복구,26은 관리자 JWT로 조회. 실제 비밀키·토큰은 파일에 포함하지 않습니다.'},item:httpV21.item.slice(23,26)},null,2)+'\n'],
     ['OnTop-WebSocket.postman_collection.json', JSON.stringify(wsV3, null, 2) + '\n'],
     ['OnTop-Local.postman_environment.json', JSON.stringify(environment, null, 2) + '\n']
 ]);

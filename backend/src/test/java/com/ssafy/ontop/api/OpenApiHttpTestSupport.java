@@ -100,6 +100,9 @@ abstract class OpenApiHttpTestSupport {
                     "GET /api/v1/minigames/sessions/{sessionId}",
                     "POST /api/v1/minigames/sessions/{sessionId}/complete",
                     "POST /api/v1/minigames/sessions/{sessionId}/abandon"));
+            if (environment.getProperty("ontop.feedback.enabled", Boolean.class, false)) {
+                expected.addAll(Set.of("POST /api/v1/feedback", "GET /api/v1/admin/feedback"));
+            }
         }
         Set<String> actual = new HashSet<>();
         api.path("paths").fields().forEachRemaining(path -> path.getValue().fieldNames().forEachRemaining(method ->

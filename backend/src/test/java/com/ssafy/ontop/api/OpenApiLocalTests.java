@@ -10,7 +10,8 @@ import org.springframework.test.context.ActiveProfiles;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+        properties = "ontop.feedback.enabled=true")
 @ActiveProfiles("local")
 class OpenApiLocalTests extends OpenApiHttpTestSupport {
 

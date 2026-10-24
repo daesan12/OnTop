@@ -41,4 +41,7 @@ public record FeedbackText(String value) {
                 || code >= 0x2000 && code <= 0x200A || code == 0x2028 || code == 0x2029 || code == 0x202F
                 || code == 0x205F || code == 0x3000 || code == 0xFEFF;
     }
+
+    @Override
+    public String toString() { return "FeedbackText[redacted]"; }
 }
