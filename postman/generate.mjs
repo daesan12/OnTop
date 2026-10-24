@@ -217,10 +217,14 @@ const primaryMessages = [
     message('02 걷기 입력 seq1 → WORLD_STATE (미착석)', 'WORLD_MOVE', { seq: 1, dx: 0, dz: -1, run: false, jump: false }),
     message('추가 달리기 입력 seq2 → WORLD_STATE (50ms 후·미착석)', 'WORLD_MOVE', { seq: 2, dx: 0, dz: -1, run: true, jump: false }),
     message('03 채팅 → WORLD_CHAT_MESSAGE (1초 간격)', 'WORLD_CHAT_SEND', { text: '안녕! Postman으로 테스트 중이야 👋' }),
-    message('04 손흔들기 예시 → WORLD_EMOTE_EVENT (1초 간격)', 'WORLD_EMOTE_SEND', { emoteCode: 'WAVE' }),
+    message('04 손흔들기 → WORLD_EMOTE_EVENT (다음 사용 5초)', 'WORLD_EMOTE_SEND', { emoteCode: 'WAVE' }),
     sitA(), select('OMOK'), ready(true), ready(false), leave(), channelLeave(),
     message('추가 광장 B 입장 (A 퇴장 후)', 'CHANNEL_JOIN', { channelId: '{{channelIdB}}' }),
-    message('추가 박수 예시 → WORLD_EMOTE_EVENT', 'WORLD_EMOTE_SEND', { emoteCode: 'CLAP' }),
+    message('추가 박수 → WORLD_EMOTE_EVENT (다음 사용 5초)', 'WORLD_EMOTE_SEND', { emoteCode: 'CLAP' }),
+    message('추가 박수 부탁 → WORLD_EMOTE_EVENT (다음 사용 1.8초)', 'WORLD_EMOTE_SEND',
+        { emoteCode: 'APPLAUSE_REQUEST' }),
+    message('추가 에잉 쯧쯧 → WORLD_EMOTE_EVENT (다음 사용 1.8초)', 'WORLD_EMOTE_SEND', { emoteCode: 'TSK' }),
+    message('추가 방귀 → WORLD_EMOTE_EVENT (다음 사용 1.8초)', 'WORLD_EMOTE_SEND', { emoteCode: 'FART' }),
     select('DICE'), select('ONE_CARD'), select('LIAR_BRIDGE'),
     message('오류 미등록 감정표현 → EMOTE_NOT_SUPPORTED', 'WORLD_EMOTE_SEND', { emoteCode: 'NOT_REGISTERED' }),
     message('오류 없는 테이블 → TABLE_NOT_FOUND', 'TABLE_JOIN', { tableId: 'not-a-table' }),
@@ -242,7 +246,7 @@ const wsItems = [
         'Connect 한 번 후 CONNECTED를 확인하고 Saved Messages에서 보냅니다. 메시지마다 새 연결을 만들면 다른 임시 사용자가 됩니다. '
         + '기본 흐름: A/B 모두 광장 입장 → 서버 스폰 확인 후 WORLD_MOVE 방향 입력 → A 먼저 착석 → B 착석 → A 게임 선택 → A/B 준비. '
         + '채팅은 같은 채널의 보고 위치 기준 XZ 반경 20m(경계 포함) 안에서만 수신합니다. x/z는 1단위=1m이며 위치 미보고 송신은 WORLD_POSITION_REQUIRED입니다. '
-        + '나머지 추가/오류 메시지는 각 선행조건을 맞춘 뒤 따로 보냅니다. WAVE/CLAP은 최종 모션 종류가 아닌 예시입니다.',
+        + '나머지 추가/오류 메시지는 각 선행조건을 맞춘 뒤 따로 보냅니다. local/dev 기본 감정표현은 WAVE/CLAP/APPLAUSE_REQUEST/TSK/FART 5종이며 직전 표현이 손 인사/박수면 5초, 나머지는 1.8초 뒤 다음 표현을 보냅니다. 활동별 제한은 별도 확인입니다.',
         primaryMessages),
     wsRequest('02 참가자 B — 두 번째 착석하는 사람',
         'A와 별개 연결입니다. A가 먼저 앉은 다음 05 착석을 보내고, A 게임 선택 후 07 준비를 보냅니다. '
@@ -395,8 +399,16 @@ const wsGuide = '# 근거리 채팅·관전 테스트 (20m)\n\n'
     + '\n\n2026-10-22: 첫 착석자가 GAME_SELECT의 DICE targetScore를2000/4000/6000 중 선택합니다. 누락 GAME_OPTIONS_REQUIRED, 잘못된 값 INVALID_PAYLOAD이며 목표 변경도 전원 준비를 해제합니다. TABLE_STATE/TABLE_WATCH_STATE/HTTP12 요약에 targetScore가 추가되고 다른 게임은null입니다. '
     + '실제 종료 후 좌석 유지·ready=false·SETTLING, 현재 경기 전체 SETTLED 확인 후 WAITING에서 다시 전원 준비하면 새 시도·경기ID로 시작합니다. 정산 알림 누락은 GAME_RESULT_CHECK 재조회로 복구하며 조회는 지급을 실행하지 않습니다. 실제 DB 잔액·원장·정산·운영 적용은 별도 통합 검증입니다.';
 const appearanceGuide = '\n\n2026-10-22 의상 동기화: local,db + ontop.shop.enabled=true. WS07의 인증 사용자 두 명이 같은 채널에 CHANNEL_JOIN 후 본인이 HTTP17로 장착하면 WORLD_STATE.payload.avatars[].equipment가 갱신됩니다. 다른 채널에는 전파하지 않습니다. 새 티켓→재접속→CHANNEL_JOIN 후 최신 장착을 복구합니다. 공개 필드는 itemId/itemCode/equipSlot/imageKey, 최대5개·부위당 하나이며 null은 미조회/사용 불가로 기존 외형 유지, []는 장착 없음입니다. 이동 tick은 캐시를 쓰고 조회 실패는 기존 외형을 유지합니다. 실제 3D 에셋 매핑·렌더링 연동은 별도 협의입니다. 예시: {"requestId":null,"type":"WORLD_STATE","payload":{"channelId":"channel-1","version":4,"avatars":[{"userId":"101","position":{"lastInputSeq":0,"x":-2.025,"y":0.84,"z":34,"yaw":0,"moving":false,"running":false,"swimming":false},"equipment":[{"itemId":1,"itemCode":"RED_TOP","equipSlot":"TOP","imageKey":"demo-red-top"}]}],"mapVersion":"544bc6fa3890c77e8de0ec91d27f93981b4d23a477918963757e4762294ba8d0"}}';
-wsItems[6].description += appearanceGuide;
-const wsV3 = { name: 'OnTop WebSocket', $kind: 'collection', description: wsGuide + appearanceGuide, items: wsItems };
+const publicProfileGuide = '\n\n2026-10-24 공개 프로필: db 프로필의 인증 사용자로 채널 입장하면 '
+    + 'WORLD_STATE.avatars[].nickname/characterGender가 비동기 갱신됩니다. characterGender는 MALE/FEMALE 캐릭터 외형이며 실제 성별이 아닙니다. '
+    + '최초 미조회·DB 없는 사용자에는 null이며 기존 표시를 지우지 않습니다. 접속 중 회원은 5초마다 일괄 조회하므로 '
+    + 'HTTP PATCH /api/v1/users/me로 닉네임 변경 후 다음 조회 완료 때 같은 채널에 반영됩니다. 재접속은 새 티켓→CHANNEL_JOIN. '
+    + '다른 채널 미노출·클라이언트 프로필 주입 거절·조회 장애 시 기존 값 유지를 확인하세요. 기존 equipment/위치 계약은 유지합니다. '
+    + '감정표현 5종은 WAVE/CLAP/APPLAUSE_REQUEST/TSK/FART, 손 인사/박수 5초·나머지 1.8초의 FE 간격을 적용합니다. 직전 성공 표현 기준으로 다른 표현도 대기하며 상태별 허용/취소는 별도 확인입니다. '
+    + 'FE park-bindings.emotes 매핑·3D 렌더링·배포 확인은 별도입니다.';
+wsItems[6].description += appearanceGuide + publicProfileGuide;
+const wsV3 = { name: 'OnTop WebSocket', $kind: 'collection', description: wsGuide + appearanceGuide + publicProfileGuide,
+    items: wsItems };
 const httpV21 = {
     info: { name: httpV3.name, description: guide, schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json' },
     item: httpItems.map(item => ({

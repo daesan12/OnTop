@@ -43,6 +43,7 @@ import com.ssafy.ontop.world.service.WorldChatService;
 import com.ssafy.ontop.world.service.WorldEmoteService;
 import com.ssafy.ontop.world.service.WorldProximity;
 import com.ssafy.ontop.world.service.WorldAppearanceGateway;
+import com.ssafy.ontop.world.service.WorldProfileGateway;
 import jakarta.annotation.PreDestroy;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -85,6 +86,10 @@ public class TableHub {
     private final Map<String, Member> members = new HashMap<>();
     private final Map<String, AppearancePush> appearancePushes = new HashMap<>();
     private Optional<WorldAppearanceGateway> appearances = Optional.empty();
+    private Optional<WorldProfileGateway> profiles = Optional.empty();
+    private final Map<Member, ProfileTarget> profileMemberships = new HashMap<>();
+    private boolean profilesLoading;
+    private boolean profilesRequested;
     private final Map<String, String> seating = new HashMap<>();
     private final Map<String, String> watching = new HashMap<>();
     private final Map<String, TableStartAttempt> starts = new HashMap<>();
@@ -282,6 +287,7 @@ public class TableHub {
         protocol = new TableProtocol(mapper, startRehearsal);
         heartbeatTimer.scheduleWithFixedDelay(this::checkHeartbeats, 100, 100, TimeUnit.MILLISECONDS);
         heartbeatTimer.scheduleWithFixedDelay(this::advanceWorld, 33, 33, TimeUnit.MILLISECONDS);
+        heartbeatTimer.scheduleWithFixedDelay(this::pollProfiles, 5, 5, TimeUnit.SECONDS);
     }
 
     public synchronized void connect(WebSocketSession session) {
@@ -476,6 +482,7 @@ public class TableHub {
         chat.disconnected(member.userId());
         emotes.disconnected(member.userId());
         appearancePushes.remove(member.userId());
+        profileMemberships.remove(member);
         positionSampler.forget(member.userId());
         WorldChannelRegistry.State channelState = channels.disconnect(member.userId());
         if (channelState != null) {
@@ -514,6 +521,7 @@ public class TableHub {
     @PreDestroy
     public synchronized void shutdown() {
         appearancePushes.clear();
+        profileMemberships.clear();
         stopped = true;
         heartbeatTimer.shutdownNow();
         members.forEach((sessionId, member) -> {
@@ -623,6 +631,83 @@ public class TableHub {
             member.peer().offer(protocol.encode(null, "WORLD_STATE", channels.worldState(channelId)));
         }
         refreshAppearance(member);
+        if (change.changed() || !profileMemberships.containsKey(member)) {
+            profileMemberships.put(member, new ProfileTarget(member, channelId));
+        }
+        refreshProfiles();
+    }
+
+    @Autowired
+    public void profileGateway(Optional<WorldProfileGateway> gateway) {
+        profiles = gateway;
+    }
+
+    private synchronized void pollProfiles() {
+        // 느린 조회 중 정기 확인만 반복됐을 때 결과를 계속 무효화하지 않는다.
+        if (!profilesLoading) {
+            refreshProfiles();
+        }
+    }
+
+    /** 인증/회원 코드를 수정하지 않고 입장 및 주기 조회로 공개 정보 변경을 반영한다. */
+    public synchronized void refreshProfiles() {
+        if (stopped || profiles.isEmpty()) {
+            return;
+        }
+        profilesRequested = true;
+        if (!profilesLoading) {
+            profilesLoading = true;
+            startWorkers.execute(this::loadProfiles);
+        }
+    }
+
+    private void loadProfiles() {
+        while (true) {
+            java.util.List<ProfileTarget> targets;
+            synchronized (this) {
+                if (stopped) {
+                    profilesLoading = false;
+                    return;
+                }
+                profilesRequested = false;
+                targets = profileMemberships.values().stream()
+                        .filter(target -> target.member().accountId() != null).toList();
+            }
+            Map<Long, WorldProfileGateway.Profile> loaded = Map.of();
+            try {
+                if (!targets.isEmpty()) {
+                    loaded = Map.copyOf(profiles.orElseThrow().profiles(targets.stream()
+                            .map(target -> target.member().accountId()).collect(Collectors.toSet())));
+                }
+            } catch (RuntimeException exception) {
+                log.warn("공개 프로필 조회 실패. 기존 표시를 유지하고 다음 주기에 다시 확인합니다.");
+            }
+            synchronized (this) {
+                if (stopped) {
+                    profilesLoading = false;
+                    return;
+                }
+                Set<String> changedChannels = new HashSet<>();
+                for (ProfileTarget target : targets) {
+                    Member member = target.member();
+                    var profile = loaded.get(member.accountId());
+                    if (profile != null && profileMemberships.get(member) == target
+                            && target.channel().equals(channels.channelOf(member.userId()))) {
+                        if (channels.profile(member.userId(), profile) != null) {
+                            changedChannels.add(target.channel());
+                        }
+                    }
+                }
+                for (String channel : changedChannels) {
+                    publishWorld(channels.worldState(channel), null, null);
+                }
+                if (profilesRequested) {
+                    continue;
+                }
+                profilesLoading = false;
+                return;
+            }
+        }
     }
 
     @Autowired
@@ -694,6 +779,7 @@ public class TableHub {
             fail(request, "TABLE_BUSY", "먼저 테이블에서 퇴장해주세요.");
         }
         WorldChannelRegistry.State state = channels.leave(member.userId());
+        profileMemberships.remove(member);
         appearancePushes.remove(member.userId());
         clearWatch(member, null);
         clearGameWatch(member);
@@ -1480,6 +1566,9 @@ public class TableHub {
             member.peer().offer(protocol.encode(requestId, "GAME_ACTION_RESULT", Map.of(
                     "gameId", result.gameId(), "actionId", result.actionId(), "version", result.version())));
         }
+    }
+
+    private record ProfileTarget(Member member, String channel) {
     }
 
     private record Member(String userId, TablePeer peer, Long accountId) {

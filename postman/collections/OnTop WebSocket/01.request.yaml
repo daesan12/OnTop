@@ -1,7 +1,7 @@
 "name": "01 참가자 A — 먼저 착석하는 사람"
 "$kind": "websocket-request"
 "url": "{{wsUrl}}"
-"description": "WORLD_MOVE는 {seq,dx,dz,run,jump?} 입력만 허용합니다. seq1~4294967295, dx/dz 각[-1,1] 대각선 정규화, run필수 boolean/jump선택. 서버30Hz·변화100ms동기화·입력50ms·250ms만료. 걷기6.25/달리기9/점프6.2/중력-18/단차0.22. 채널 입장 시 서버 스폰(캡슐 중심), lastInputSeq는 수락순번, mapVersion 대조. 기존 sequence/x/y/z/yaw 주입은 INVALID_PAYLOAD. 재접속30초·채팅/관전20m 유지. Connect 한 번 후 CONNECTED를 확인하고 Saved Messages에서 보냅니다. 메시지마다 새 연결을 만들면 다른 임시 사용자가 됩니다. 기본 흐름: A/B 모두 광장 입장 → 서버 스폰 확인 후 WORLD_MOVE 방향 입력 → A 먼저 착석 → B 착석 → A 게임 선택 → A/B 준비. 채팅은 같은 채널의 보고 위치 기준 XZ 반경 20m(경계 포함) 안에서만 수신합니다. x/z는 1단위=1m이며 위치 미보고 송신은 WORLD_POSITION_REQUIRED입니다. 나머지 추가/오류 메시지는 각 선행조건을 맞춘 뒤 따로 보냅니다. WAVE/CLAP은 최종 모션 종류가 아닌 예시입니다."
+"description": "WORLD_MOVE는 {seq,dx,dz,run,jump?} 입력만 허용합니다. seq1~4294967295, dx/dz 각[-1,1] 대각선 정규화, run필수 boolean/jump선택. 서버30Hz·변화100ms동기화·입력50ms·250ms만료. 걷기6.25/달리기9/점프6.2/중력-18/단차0.22. 채널 입장 시 서버 스폰(캡슐 중심), lastInputSeq는 수락순번, mapVersion 대조. 기존 sequence/x/y/z/yaw 주입은 INVALID_PAYLOAD. 재접속30초·채팅/관전20m 유지. Connect 한 번 후 CONNECTED를 확인하고 Saved Messages에서 보냅니다. 메시지마다 새 연결을 만들면 다른 임시 사용자가 됩니다. 기본 흐름: A/B 모두 광장 입장 → 서버 스폰 확인 후 WORLD_MOVE 방향 입력 → A 먼저 착석 → B 착석 → A 게임 선택 → A/B 준비. 채팅은 같은 채널의 보고 위치 기준 XZ 반경 20m(경계 포함) 안에서만 수신합니다. x/z는 1단위=1m이며 위치 미보고 송신은 WORLD_POSITION_REQUIRED입니다. 나머지 추가/오류 메시지는 각 선행조건을 맞춘 뒤 따로 보냅니다. local/dev 기본 감정표현은 WAVE/CLAP/APPLAUSE_REQUEST/TSK/FART 5종이며 직전 표현이 손 인사/박수면 5초, 나머지는 1.8초 뒤 다음 표현을 보냅니다. 활동별 제한은 별도 확인입니다."
 "headers":
   -
     "key": "Origin"
@@ -33,7 +33,7 @@
     "contentType": "json"
     "content": "{\n  \"requestId\": \"{{$guid}}\",\n  \"type\": \"WORLD_CHAT_SEND\",\n  \"payload\": {\n    \"text\": \"안녕! Postman으로 테스트 중이야 👋\"\n  }\n}"
   -
-    "name": "04 손흔들기 예시 → WORLD_EMOTE_EVENT (1초 간격)"
+    "name": "04 손흔들기 → WORLD_EMOTE_EVENT (다음 사용 5초)"
     "$kind": "websocket-message"
     "contentType": "json"
     "content": "{\n  \"requestId\": \"{{$guid}}\",\n  \"type\": \"WORLD_EMOTE_SEND\",\n  \"payload\": {\n    \"emoteCode\": \"WAVE\"\n  }\n}"
@@ -73,10 +73,25 @@
     "contentType": "json"
     "content": "{\n  \"requestId\": \"{{$guid}}\",\n  \"type\": \"CHANNEL_JOIN\",\n  \"payload\": {\n    \"channelId\": \"{{channelIdB}}\"\n  }\n}"
   -
-    "name": "추가 박수 예시 → WORLD_EMOTE_EVENT"
+    "name": "추가 박수 → WORLD_EMOTE_EVENT (다음 사용 5초)"
     "$kind": "websocket-message"
     "contentType": "json"
     "content": "{\n  \"requestId\": \"{{$guid}}\",\n  \"type\": \"WORLD_EMOTE_SEND\",\n  \"payload\": {\n    \"emoteCode\": \"CLAP\"\n  }\n}"
+  -
+    "name": "추가 박수 부탁 → WORLD_EMOTE_EVENT (다음 사용 1.8초)"
+    "$kind": "websocket-message"
+    "contentType": "json"
+    "content": "{\n  \"requestId\": \"{{$guid}}\",\n  \"type\": \"WORLD_EMOTE_SEND\",\n  \"payload\": {\n    \"emoteCode\": \"APPLAUSE_REQUEST\"\n  }\n}"
+  -
+    "name": "추가 에잉 쯧쯧 → WORLD_EMOTE_EVENT (다음 사용 1.8초)"
+    "$kind": "websocket-message"
+    "contentType": "json"
+    "content": "{\n  \"requestId\": \"{{$guid}}\",\n  \"type\": \"WORLD_EMOTE_SEND\",\n  \"payload\": {\n    \"emoteCode\": \"TSK\"\n  }\n}"
+  -
+    "name": "추가 방귀 → WORLD_EMOTE_EVENT (다음 사용 1.8초)"
+    "$kind": "websocket-message"
+    "contentType": "json"
+    "content": "{\n  \"requestId\": \"{{$guid}}\",\n  \"type\": \"WORLD_EMOTE_SEND\",\n  \"payload\": {\n    \"emoteCode\": \"FART\"\n  }\n}"
   -
     "name": "추가 첫 착석자 DICE 선택 (전원 준비 초기화)"
     "$kind": "websocket-message"

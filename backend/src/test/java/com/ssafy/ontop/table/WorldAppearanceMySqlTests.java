@@ -6,6 +6,8 @@ import com.ssafy.ontop.auth.domain.LoginOutcome;
 import com.ssafy.ontop.auth.domain.OAuthProvider;
 import com.ssafy.ontop.auth.service.AuthExchangePersistenceService;
 import com.ssafy.ontop.shop.service.ShopService;
+import com.ssafy.ontop.table.service.TableHub;
+import com.ssafy.ontop.world.service.WorldProfileGateway;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -47,6 +49,8 @@ class WorldAppearanceMySqlTests {
     @Autowired AuthExchangePersistenceService issuer;
     private final Map<Long, String> accessTokens = new HashMap<>();
     @Autowired ShopService shop;
+    @Autowired TableHub hub;
+    @Autowired WorldProfileGateway profiles;
     @Autowired PlatformTransactionManager transactions;
     private final ObjectMapper mapper = new ObjectMapper();
     private final HttpClient http = HttpClient.newHttpClient();
@@ -83,6 +87,49 @@ class WorldAppearanceMySqlTests {
                     VALUES (?, ?, ?, 'EQUIPMENT', 'TOP', 10, ?, TRUE)
                     """, id, code, code, "demo-" + code.toLowerCase());
         }
+    }
+
+    @Test
+    void 실제회원프로필은공개필드만조회하고_닉네임변경과재접속에반영한다() throws Exception {
+        jdbc.update("UPDATE users SET character_gender='FEMALE' WHERE id=202");
+        assertThat(profiles.profiles(java.util.Set.of(101L, 202L, 999L))).hasSize(2)
+                .containsEntry(202L, new WorldProfileGateway.Profile("look202", "FEMALE"));
+        try (var first = connect(101); var second = connect(202); var other = connect(303)) {
+            first.request("CHANNEL_JOIN", Map.of("channelId", "a"));
+            second.request("CHANNEL_JOIN", Map.of("channelId", "a"));
+            other.request("CHANNEL_JOIN", Map.of("channelId", "b"));
+            first.await(message -> publicProfile(message, "202", "look202", "FEMALE"));
+            var updated = http.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port
+                    + "/api/v1/users/me")).header("Authorization", "Bearer " + accessTokens.get(202L))
+                    .header("Content-Type", "application/json")
+                    .method("PATCH", HttpRequest.BodyPublishers.ofString("{\"nickname\":\"새로운닉네임\"}"))
+                    .build(), HttpResponse.BodyHandlers.ofString());
+            assertThat(updated.statusCode()).isEqualTo(200);
+            hub.refreshProfiles();
+            JsonNode changed = first.await(message -> publicProfile(message, "202", "새로운닉네임", "FEMALE"));
+            assertThat(changed.toString()).doesNotContain("providerUserId", "loginProvider", "accessToken");
+            other.assertNoMessage(message -> publicProfile(message, "202", "새로운닉네임", "FEMALE"));
+            second.request("CHANNEL_LEAVE", Map.of());
+            second.request("CHANNEL_JOIN", Map.of("channelId", "a"));
+            second.await(message -> publicProfile(message, "202", "새로운닉네임", "FEMALE"));
+            System.out.println("[PUBLIC_PROFILE_STATE] " + changed);
+        }
+        jdbc.update("UPDATE users SET deleted_at=NOW(3) WHERE id=202");
+        assertThat(profiles.profiles(java.util.Set.of(202L))).isEmpty();
+    }
+
+    private boolean publicProfile(JsonNode message, String userId, String nickname, String gender) {
+        if (!message.path("type").asText().equals("WORLD_STATE")) {
+            return false;
+        }
+        for (JsonNode avatar : message.path("payload").path("avatars")) {
+            if (avatar.path("userId").asText().equals(userId)
+                    && avatar.path("nickname").asText().equals(nickname)
+                    && avatar.path("characterGender").asText().equals(gender)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Test
