@@ -7,6 +7,7 @@ export interface ParkRuntimePort {
   stop(): Promise<void>
   addAuthListener(listener: () => void): () => void
   reconnect(): void
+  requestJSON(path: string, init?: RequestInit): Promise<unknown>
   selectChannel(channelId: string): Promise<boolean>
   sendChat(text: string): Promise<boolean>
   sendEmote(id: import('../../features/emotes/catalog').EmoteId): Promise<boolean>

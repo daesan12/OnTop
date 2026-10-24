@@ -21,9 +21,12 @@ import { openFeedback } from '../feedback/controller'
 import { NOTES_BOX } from '../../config/notes'
 import { canReachNotes } from '../notes/validation'
 import { openNotes } from '../notes/controller'
+import { canReachBungeoppang } from '../bungeoppang/access'
+import { openBungeoppang } from '../bungeoppang/store'
+import { MINI_PROPS } from '../../config'
 
 export interface ParkInteraction {
-  kind: 'bench' | 'table' | 'fitness' | 'telescope' | 'feedback' | 'notes'
+  kind: 'bench' | 'table' | 'fitness' | 'telescope' | 'feedback' | 'notes' | 'bungeoppang'
   id: string
   label: string
   seat?: 0 | 1
@@ -41,6 +44,11 @@ export function getParkInteraction(): ParkInteraction | null {
     || p.fitnessId || p.telescopeId || p.swimming || session.pending || benches.pending || fitness.pending
     || useTelescopeState.getState().pending || tableBusy() || useGame.getState().watchedGameId || panelOwnsKeys()) return null
   const choices: ParkInteraction[] = []
+  if (canReachBungeoppang(p.current)) {
+    const cart = MINI_PROPS[0], distance = Math.hypot(p.current.x - cart.x, p.current.z - cart.z)
+    choices.push({ kind: 'bungeoppang', id: cart.id, label: '붕어빵 굽기', occupied: false, available: true,
+      distance, score: interactionScore(distance, { x: cart.x, y: 1.875, z: cart.z }) })
+  }
   if (canReachNotes(p.current)) {
     const distance = Math.hypot(p.current.x - NOTES_BOX.x, p.current.z - NOTES_BOX.z)
     choices.push({ kind: 'notes', id: 'tower-notes', label: '익명 메모 소리함 열기', occupied: false,
@@ -95,7 +103,8 @@ export function getParkInteraction(): ParkInteraction | null {
 export function interactWithPark(): boolean {
   const target = getParkInteraction()
   if (!target) return false
-  if (target.kind === 'table') parkRuntime.inspectTable(target.id)
+  if (target.kind === 'bungeoppang') openBungeoppang()
+  else if (target.kind === 'table') parkRuntime.inspectTable(target.id)
   else if (target.kind === 'notes') openNotes()
   else if (target.kind === 'feedback') openFeedback()
   else if (target.kind === 'telescope' && target.available && !target.occupied) void enterTelescope(target.id)

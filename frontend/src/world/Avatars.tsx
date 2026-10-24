@@ -9,6 +9,7 @@ import { SwimmingRipples } from './SwimmingRipples'
 import { AvatarPoseCadence } from '../performance/avatarPoseCadence'
 import { CHARACTER } from '../config'
 import { FartCloud } from './art/FartCloud'
+import { bungeoppangView } from '../features/bungeoppang/bungeoppangView'
 
 import {
   AvatarOverlayPositions,
@@ -59,7 +60,9 @@ function Avatar({
     const seated = avatar.seatIndex >= 0
     const own = id === useSession.getState().sessionId
     // Hide only this client's own model; other clients retain the full avatar.
-    root.current.visible = !(own && ((avatar.tableId || avatar.benchId) && seated || avatar.telescopeId))
+    const cookingHidden = (own && (bungeoppangView.active || performance.now() < bungeoppangView.returningUntil))
+      || (bungeoppangView.active && Math.hypot(pose.x - bungeoppangView.standX, pose.z - bungeoppangView.standZ) < bungeoppangView.hideOthersRadius)
+    root.current.visible = !cookingHidden && !(own && ((avatar.tableId || avatar.benchId) && seated || avatar.telescopeId))
     root.current.position.set(
       pose.x,
       pose.y - 0.8 + (seated ? CHARACTER.seatedHipHeight - model.hipHeight : 0),

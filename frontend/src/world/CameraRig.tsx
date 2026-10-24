@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
-import { PerspectiveCamera, Vector3 } from 'three'
+import { PerspectiveCamera, Quaternion, Vector3 } from 'three'
+import { bungeoppangView } from '../features/bungeoppang/bungeoppangView'
 import { CAMERA, CHARACTER, GOMOKU, TABLES, TELESCOPE, TELESCOPES, telescopeFov, groundHeight, tableScale } from '../config'
 import { telescopeView } from '../features/telescopeView'
 import { interactionAim } from '../features/interactions/interactionAim'
@@ -29,6 +30,8 @@ export function CameraRig() {
       savedFov: CAMERA.fov as number,
       direction: new Vector3(),
       seatScope: '',
+      bungeoppangFov: null as number | null,
+      rotation: new Quaternion(), targetRotation: new Quaternion(),
     }),
     [],
   )
@@ -50,6 +53,9 @@ export function CameraRig() {
       omokCamera.ready = false
       omokCamera.anchorId = ''
       resetSeatedLook()
+      if (state.bungeoppangFov !== null && mountedCamera instanceof PerspectiveCamera) {
+        mountedCamera.fov = state.bungeoppangFov; mountedCamera.updateProjectionMatrix()
+      }
     },
     [occlusion, state, mountedCamera],
   )
@@ -87,6 +93,32 @@ export function CameraRig() {
       camera.lookAt(0, 4, 0)
       state.owner = ''
       return
+    }
+    if (bungeoppangView.active) {
+      if (camera instanceof PerspectiveCamera) {
+        state.bungeoppangFov ??= camera.fov
+        camera.fov += (bungeoppangView.fov - camera.fov) * (1 - Math.exp(-6 * delta))
+        camera.updateProjectionMatrix()
+      }
+      state.desired.set(...bungeoppangView.position)
+      state.look.set(...bungeoppangView.target)
+      state.rotation.copy(camera.quaternion)
+      camera.lookAt(state.look); state.targetRotation.copy(camera.quaternion)
+      camera.quaternion.slerpQuaternions(state.rotation, state.targetRotation, 1 - Math.exp(-6 * delta))
+      camera.position.lerp(state.desired, 1 - Math.exp(-6 * delta))
+      state.focus.set(avatar.current.x, avatar.current.y + CAMERA.focusHeight - .8, avatar.current.z)
+      interactionAim.ready = omokCamera.ready = false
+      omokCamera.anchorId = ''
+      cameraOcclusion.strength.value = 0
+      occlusion.update(camera.position, state.look, false, delta)
+      return
+    }
+    if (state.bungeoppangFov !== null && camera instanceof PerspectiveCamera) {
+      camera.fov += (state.bungeoppangFov - camera.fov) * (1 - Math.exp(-7 * delta))
+      if (performance.now() >= bungeoppangView.returningUntil) {
+        camera.fov = state.bungeoppangFov; state.bungeoppangFov = null
+      }
+      camera.updateProjectionMatrix()
     }
     sampleAvatar(avatar, performance.now(), state.pose)
     if (telescope) {
@@ -191,7 +223,11 @@ export function CameraRig() {
       1 - Math.exp(-12 * Math.min(delta, 0.1)),
     )
     if (!seated && !watchedAnchor) constrainRoamingCamera(camera.position)
-    camera.lookAt(state.look)
+    if (performance.now() < bungeoppangView.returningUntil) {
+      state.rotation.copy(camera.quaternion)
+      camera.lookAt(state.look); state.targetRotation.copy(camera.quaternion)
+      camera.quaternion.slerpQuaternions(state.rotation, state.targetRotation, 1 - Math.exp(-7 * delta))
+    } else camera.lookAt(state.look)
     diceCamera.ready = !!(diceFocus || (spectatorBoard && game?.dice)) && camera.position.distanceTo(state.desired) < .005
     camera.getWorldDirection(state.direction)
     interactionAim.ready = true
@@ -204,7 +240,7 @@ export function CameraRig() {
     omokCamera.anchorId = boardFocus ? avatar.tableId : spectatorBoard ? watchedAnchor!.id : ''
     omokCamera.ready =
       !!(boardFocus || spectatorBoard) && camera.position.distanceTo(state.desired) < 0.005
-    if (camera instanceof PerspectiveCamera) {
+    if (camera instanceof PerspectiveCamera && state.bungeoppangFov === null) {
       const fov = boardFocus || spectatorBoard || diceFocus ? GOMOKU.topDownFov : seated ? 76 : CAMERA.fov
       if (Math.abs(camera.fov - fov) > 0.01) {
         camera.fov = fov
