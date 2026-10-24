@@ -569,13 +569,17 @@ export function bridgeProbe() {
 }
 export function boardgameArtProbe() {
   const { scene } = root()
+  const pawn = scene.getObjectByName('bridge-pawns') as InstancedMesh | undefined
   const top = scene.getObjectByName('onecard-public-top')
   const mat = scene.getObjectByName('onecard-felt-mat')
   const cup = scene.getObjectByName('farkle-cup-' + useSession.getState().focusedAnchorId)
   const cupMeshes: Mesh[] = []
   cup?.traverse(o => { if (o instanceof Mesh) cupMeshes.push(o) })
   return { cardMat: !!mat, cardSurfaceY: top?.position.y, deck: !!scene.getObjectByName('onecard-draw-deck'),
-    cupMeshes: cupMeshes.length, originalTray: !!scene.getObjectByName('farkle-oak-tray') }
+    cupMeshes: cupMeshes.length, originalTray: !!scene.getObjectByName('farkle-oak-tray'),
+    boardModel: !!scene.getObjectByName('board-lod'), boardNear: scene.getObjectByName('board-detail')?.visible,
+    boardFar: scene.getObjectByName('board-distant')?.visible,
+    pawnTriangles: pawn ? (pawn.geometry.index?.count ?? pawn.geometry.attributes.position!.count) / 3 : 0 }
 }
 const bridgeResources = { instances: 0, shared: 0 }
 export const bridgeResourceProbe = () => ({ ...bridgeResources })

@@ -8,19 +8,25 @@ export const EVENTS: Record<string, string> = { START: '첫 차례', ROLL: '비�
   ALL_TRUSTED: '모두 믿음 · 실제 눈은 공개하지 않습니다.', DOUBT_SUCCESS: '거짓말을 찾아냈습니다.', DOUBT_FAILED: '선언이 사실입니다.',
   TURN_TIMEOUT: '시간 만료 · 굴림/선언 없이 차례를 넘겼습니다.', JUDGE_TIMEOUT: '판단 시간 만료 · 믿기로 처리되었습니다.', PLAYER_LEFT: '참가자 기권 상태가 변경되었습니다.' }
 export interface Pose { x: number; y: number; z: number; scale: number; roll: number }
+// Original optimized GLB set and its authored paths, before the shared tabletop scale.
+export const CHAO_BOARD_MODEL = '/art/props/chao-board.glb'
+export const CHAO_PAWN_MODEL = '/art/props/chao-pawn.glb'
+export const CHAO_TABLETOP_SCALE = .5
 export const plankX = (position: number) => -.62 + (position - 1) * .14
-export const goalZ = (slot: number) => -.45 + (slot - 1) * .128
-export const plankY = (position: number) => .055 + Math.sin((position - 1) / 7 * Math.PI) * .04
+export const goalX = (_slot: number) => .61
+export const goalZ = (slot: number) => -.4 + (slot - 1) * .12
+export const goalY = (slot: number) => [.396, .37, .365, .371, .373, .37, .368, .393][slot - 1]!
+export const plankY = (position: number) => [.278, .319, .34, .348, .341, .355, .351, .354][position - 1]!
 export function pawnPose(pawn: Pawn, playerIndex: number): Pose {
   const pose: Pose = { x: 0, y: .05, z: 0, scale: 0, roll: 0 }
   if (pawn.status === 'ACTIVE') {
-    pose.x = pawn.position === 0 ? -.8 : plankX(pawn.position); pose.y = pawn.position === 0 ? .05 : plankY(pawn.position)
-    pose.z = (playerIndex - 1.5) * .08; pose.scale = 1
+    pose.x = pawn.position === 0 ? -.76 : plankX(pawn.position); pose.y = pawn.position === 0 ? .244 : plankY(pawn.position)
+    pose.z = (playerIndex - 1.5) * .043; pose.scale = .6
   } else if (pawn.goalSlot !== null && ['SCORED', 'REMOVED_SCORED'].includes(pawn.status)) {
-    pose.x = .82; pose.z = goalZ(pawn.goalSlot); pose.y = .075; pose.scale = pawn.status === 'SCORED' ? 1 : 0
+    pose.x = goalX(pawn.goalSlot); pose.z = goalZ(pawn.goalSlot); pose.y = goalY(pawn.goalSlot); pose.scale = pawn.status === 'SCORED' ? .72 : 0
   } else {
-    const n = (pawn.id - 1) % 7; pose.x = -.94 + n % 2 * .045; pose.z = -.48 + playerIndex * .23 + Math.floor(n / 2) * .035
-    pose.scale = pawn.status === 'RESERVE' ? .5 : 0
+    const n = pawn.id % 7; pose.x = -.84 + n % 2 * .037; pose.y = .245; pose.z = -.186 + playerIndex * .1 + Math.floor(n / 2) * .024
+    pose.scale = pawn.status === 'RESERVE' ? .3 : 0
   }
   return pose
 }
