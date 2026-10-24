@@ -25,7 +25,7 @@ export function GameControls({ tableId }: { tableId: string }) {
     <div className="omok-lobby">
       <strong>
         게임 ·{' '}
-        {table.gameCode === 'OMOK' ? '오목' : (table.gameCode ?? '선택 전')}
+        {TABLE_GAMES.find(g => g.code === table.gameCode)?.name ?? table.gameCode ?? '선택 전'}
       </strong>
       <p>{lobby.host ? '방장 · 게임과 목표를 선택할 수 있어요.' : '방장이 게임을 선택합니다.'}</p>
       <div className="table-game-options" role="group" aria-label="게임 선택">
@@ -41,10 +41,10 @@ export function GameControls({ tableId }: { tableId: string }) {
         onChange={event => { const score = Number(event.target.value); setTarget(score); if (table.gameCode === 'DICE') void runtime.selectGame('DICE', score) }}>
         {TARGET_SCORES.map(score => <option key={score} value={score}>{score}점</option>)}
       </select></label>
-      {table.gameCode && table.gameCode !== 'OMOK' && <p>이 게임의 플레이 화면은 준비 중입니다. 현재는 대기실 설정만 변경할 수 있습니다.</p>}
+      {table.gameCode && !TABLE_GAMES.some(g => g.code === table.gameCode && g.playable) && <p>이 게임의 플레이 화면은 준비 중입니다. 현재는 대기실 설정만 변경할 수 있습니다.</p>}
       <p>{lobby.count}/{table.capacity}명 · 최소 {table.minimumPlayers}명</p>
       <button
-        disabled={pending || busy || table.gameCode !== 'OMOK'}
+        disabled={pending || !lobby.canReady}
         onClick={() => void runtime.setReady(!mine?.ready)}
       >
         {mine?.ready ? '준비 취소' : '준비'}
@@ -85,13 +85,13 @@ export function OmokPanel() {
   const spectatorView = useTableLobby(s => s.spectatorView)
   const [now, setNow] = useState(Date.now)
   useEffect(() => {
-    if (!s.game?.omok.turnDeadline) return
+    if (!s.game?.omok?.turnDeadline) return
     const timer = setInterval(() => setNow(Date.now()), 250)
     return () => clearInterval(timer)
-  }, [s.game?.omok.turnDeadline])
-  const g = s.game
+  }, [s.game?.omok?.turnDeadline])
+  const g = s.game?.omok ? s.game : null
   if (!g && !recoveryBlocked() && (!s.error || !s.permittedGameId)) return null
-  const deadline = g?.omok.turnDeadline,
+  const deadline = g?.omok?.turnDeadline,
     remaining = deadline
       ? Math.max(0, Math.ceil((Date.parse(deadline) - now) / 1000))
       : null

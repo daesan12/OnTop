@@ -25,6 +25,7 @@ import { FITNESS_STATIONS } from '../../src/config'
 import { ADVERTISEMENT_SCHEDULE } from '../../src/world/art/advertisementMedia'
 import { groundHeight } from '../../src/config'
 import { parkRuntime } from '../../src/park/runtime/runtime'
+import { useDiceUI, diceCamera } from '../../src/game/farkle/controls'
 export const inspectTable = () => parkRuntime.inspectTable('table-1')
 export const omokCameraReady = () => omokCamera.ready
 export function pointForOmok(x: number, y: number) {
@@ -69,6 +70,33 @@ export function omokPresentationProbe() {
   return { hover: !!hover?.visible, hoverPosition: hover?.position.toArray() ?? null,
     lastMove: last?.position.toArray() ?? null, cursor: gl.domElement.style.cursor }
 }
+export function farkleProbe() {
+  const { scene } = root()
+  const dice: { id: string; face: number; held: boolean; quaternion: number[] }[] = []
+  scene.traverse(o => { if (o.name.startsWith('farkle-die-')) dice.push({ id: o.name, face: o.userData.face, held: o.userData.held, quaternion: o.quaternion.toArray() }) })
+  return { dice, cameraReady: diceCamera.ready, cup: useDiceUI.getState().cup, selected: useDiceUI.getState().selectedIds }
+}
+export function pointForFarkleCup() {
+  const { scene, camera, gl } = root()
+  const cup = scene.getObjectByName('farkle-cup-table-1')!
+  const p = cup.localToWorld(new Vector3(0, .15, 0)).project(camera), box = gl.domElement.getBoundingClientRect()
+  return { x: (p.x + 1) * box.width / 2, y: (1 - p.y) * box.height / 2 }
+}
+const diceResources = { disposed: 0, sharedDisposed: 0 }
+export function watchDiceResources() {
+  diceResources.disposed = diceResources.sharedDisposed = 0
+  const geometries = new Set(), materials = new Set()
+  root().scene.traverse(child => {
+    if (!child.parent?.name.startsWith('farkle-die-') || !('isInstancedMesh' in child)) return
+    const mesh = child as InstancedMesh
+    mesh.addEventListener('dispose', () => diceResources.disposed++)
+    if (!geometries.has(mesh.geometry)) { geometries.add(mesh.geometry); mesh.geometry.addEventListener('dispose', () => diceResources.sharedDisposed++) }
+    for (const m of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
+      if (!materials.has(m)) { materials.add(m); m.addEventListener('dispose', () => diceResources.sharedDisposed++) }
+    }
+  })
+}
+export const diceResourceProbe = () => ({ ...diceResources })
 
 function root() {
   const canvas = document.querySelector('canvas')!

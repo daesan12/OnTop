@@ -13,7 +13,9 @@ import {
 } from '../../network/protocol'
 import { bindAnchor, parseBindings } from '../../network/tableBindings'
 import { setDisplayProfiles } from '../../network/profileBridge'
-import { canPlace, receiveGame, tableBusy, useGame } from '../../game/store'
+import { canPlace, canPlayDice, receiveGame, tableBusy, useGame } from '../../game/store'
+import { gameState } from '../../game/protocol'
+import { validDiceAction } from '../../game/farkle/scoring'
 import { parkBindingsUrl } from './deployment'
 import type { ParkRuntimePort } from './contracts'
 import { benchBusy } from '../../features/interactions/benchState'
@@ -501,8 +503,8 @@ export class ParkRuntime implements ParkRuntimePort {
   setReady = (ready: boolean) =>
     this.action(async () => {
       const s = useSession.getState()
-      if (tableBusy() || s.tableStates[s.tableId]?.gameCode !== 'OMOK')
-        throw new Error('오목을 선택한 대기 테이블에서 준비해주세요.')
+      if (tableBusy() || !['OMOK', 'DICE'].includes(s.tableStates[s.tableId]?.gameCode ?? ''))
+        throw new Error('플레이 가능한 게임을 선택한 대기 테이블에서 준비해주세요.')
       await this.socket.request('READY_SET', { ready }, ['TABLE_STATE'])
     })
   checkStart = () =>
@@ -528,7 +530,7 @@ export class ParkRuntime implements ParkRuntimePort {
       if (
         !s.permittedGameId ||
         s.game?.role !== 'PLAYER' ||
-        s.game.omok.status !== 'FINISHED'
+        gameState(s.game).status !== 'FINISHED'
       )
         throw new Error('본인이 참가한 종료 경기만 확인할 수 있습니다.')
       await this.socket.request(
@@ -581,6 +583,22 @@ export class ParkRuntime implements ParkRuntimePort {
         if (generation === this.generation) useGame.setState({ pending: false })
       }
     })
+  actDice = (kind: 'roll' | 'bank', selectedIds: readonly number[]) => this.action(async () => {
+    const own = useSession.getState(), g = useGame.getState().game
+    if (own.status !== 'connected' || !g?.dice || !canPlayDice(own.sessionId) || !validDiceAction(g.dice, kind, selectedIds))
+      throw new Error('본인 차례·득점 선택·최신 주사위 상태를 확인해주세요.')
+    const generation = this.generation
+    useGame.setState({ pending: true, error: '' })
+    try {
+      await this.socket.request('GAME_ACTION_SEND', { gameId: g.gameId, actionId: crypto.randomUUID(),
+        expectedVersion: g.version, input: { kind, selectedIds: [...selectedIds] } }, ['GAME_ACTION_RESULT'])
+    } catch (error) {
+      if (generation === this.generation && useGame.getState().permittedGameId === g.gameId)
+        useGame.setState({ uncertain: !(error instanceof ServerError && ['GAME_ACTION_INVALID_ACTION', 'GAME_ACTION_NOT_YOUR_TURN'].includes(error.code)),
+          error: error instanceof Error ? error.message : '주사위 처리 결과를 확인해주세요.' })
+      throw error
+    } finally { if (generation === this.generation) useGame.setState({ pending: false }) }
+  })
   /** gameId must come from an approved public game reference; no guessed table→game IDs. */
   watchGame = (gameId: string) =>
     this.action(async () => {

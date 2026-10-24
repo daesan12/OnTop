@@ -28,4 +28,4 @@ for (const file of (await files(path.join(root, 'dist'))).filter(file => /\.(js|
   if (forbidden.test(content)) failures.push(`Prototype dependency in release: ${path.relative(root, file)}`)
 }
 if (failures.length) throw new Error(failures.join('\n'))
-console.log('M00–M10 boundary OK: frontend-local imports, no Colyseus/@tapgol dependency, no fake-entry app in release.')
+console.log('M00–M11 boundary OK: frontend-local imports, no Colyseus/@tapgol dependency, no fake-entry app in release.')

@@ -51,7 +51,7 @@ export function OmokBoard({ anchor }: { anchor: TableAnchor }) {
       watchedTableId: s.watchedTableId,
     })),
   )
-  const game = useGame((s) => s.game),
+  const game = useGame((s) => s.game?.omok ? s.game : null),
     start = useGame((s) => s.start)
   const binding = session.bindings.find(
     (b) => b.channelId === session.roomId && b.anchorId === anchor.id,
@@ -71,7 +71,7 @@ function OmokSurface({
   game,
 }: {
   anchor: TableAnchor
-  game: ReturnType<typeof useGame.getState>['game']
+  game: import('./protocol').OmokGame | null
 }) {
   const relevant = !!game
   const board = relevant ? game.omok.board : null

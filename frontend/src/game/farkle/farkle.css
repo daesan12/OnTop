@@ -1,0 +1,17 @@
+.park-page .farkle-panel { position: absolute; right: var(--park-edge); bottom: calc(var(--park-edge) + 80px); z-index: 5;
+  width: min(420px, 35vw); max-height: calc(100dvh - 230px); overflow: auto; }
+.park-page .farkle-scores { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.park-page .farkle-scores > div { display: grid; gap: 5px; padding: 10px; border: 1px solid #d1b87b55; border-radius: 8px; }
+.park-page .farkle-scores .active { border-color: #e5bb65; background: #c58f2522; }
+.park-page .farkle-scores progress { width: 100%; accent-color: #d7aa54; }
+.park-page .farkle-dice-list { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 5px; }
+.park-page .farkle-dice-list button { display: flex; flex-direction: column; padding: 4px; min-width: 0; align-items: center; }
+.park-page .farkle-dice-list button > span { font-family: Arial, sans-serif; font-size: 32px; line-height: 1.2; }
+.park-page .farkle-dice-list button[aria-pressed="true"] { background: #d6b162; color: #27231a; }
+.park-page .farkle-dice-list button:disabled { opacity: .65; }
+.park-page .farkle-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+.park-page .farkle-rules { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 30;
+  width: min(560px, calc(100vw - 40px)); max-height: 80dvh; overflow: auto; box-shadow: 0 0 0 100vmax #0008; }
+.park-page .farkle-rules table { width: 100%; border-collapse: collapse; }
+.park-page .farkle-rules td, .park-page .farkle-rules th { padding: 8px; border-bottom: 1px solid #d1b87b55; text-align: left; }
+@media(max-width: 600px) { .park-page .farkle-panel { width: calc(100vw - 2 * var(--park-edge)); max-height: calc(100dvh - 230px); } }

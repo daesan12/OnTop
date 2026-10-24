@@ -4,6 +4,7 @@ import path from 'node:path'
 import fs from 'node:fs/promises'
 import { TABLES } from '../../src/config'
 import { EXPECTED_MAP_VERSION } from '../../src/config/mapVersion'
+import type { Farkle } from '../../src/game/protocol'
 
 // Contract fixtures intercept HTTP/RawWS only in tests. No production fake-auth or socket bypass.
 const anchor = TABLES[0]!
@@ -21,6 +22,7 @@ export async function fixture(
     bindings?: boolean
     players?: number
     omok?: boolean
+    dice?: boolean
     m09?: boolean
     manualMovement?: boolean
     ownUserId?: '101' | '102'
@@ -58,6 +60,7 @@ export async function fixture(
   let emoteRequestId = ''
   let remotePosition: Partial<typeof position> = {}
   let rejectGameWatch = false
+  let watchingGame = false
   let watchMode: 'normal' | 'reject' | 'hold' = 'normal', watchRequestId = '', selectorOverride: string | undefined, targetScore: number | null = null
   let seated = false,
     rejectChat = false
@@ -69,7 +72,11 @@ export async function fixture(
     finished = false,
     holdState = false,
     forbid = false
-  const gameId = 'fixture-confirmed-omok'
+  const gameId = options.dice ? 'fixture-confirmed-dice' : 'fixture-confirmed-omok'
+  let diceState: Farkle = { gameCode: 'DICE', status: 'PLAYING', players: ['101', '102'], scores: [0, 0], targetScore: 4000,
+    turnTimeLimitMs: 30000, turnUserId: '101', turnDeadline: new Date(Date.now() + 30000).toISOString(), turnScore: 0, dice: [],
+    stage: 'AWAITING_ROLL', rollId: 0, round: 1, hotDice: false, lastEvent: 'START', winnerUserId: null, endReason: null, endedAt: null }
+  const diceReplies: { input: object; patch: Partial<Farkle> }[] = []
   let gameDeadline = new Date(Date.now() + 30_000).toISOString()
   let nextActionError: { code: string; message: string } | null = null
   let dropAction = false
@@ -118,7 +125,7 @@ export async function fixture(
       },
       requestId,
     )
-  const game = (ws: WebSocketRoute, requestId: string | null = null, role = 'PLAYER') =>
+  const game = (ws: WebSocketRoute, requestId: string | null = null, role = watchingGame ? 'SPECTATOR' : 'PLAYER') =>
     emit(
       ws,
       'GAME_STATE',
@@ -126,7 +133,7 @@ export async function fixture(
         gameId,
         version: gameVersion,
         role,
-        publicState: omok(),
+        publicState: options.dice ? diceState : omok(),
         privateState: {},
       },
       requestId,
@@ -136,7 +143,7 @@ export async function fixture(
       status: 'RESTORED',
       gameId,
       version: gameVersion,
-      state: omok(),
+      state: options.dice ? diceState : omok(),
       reconnectUntil: null,
       code: null,
     })
@@ -149,7 +156,7 @@ export async function fixture(
       {
         version: resultVersion,
         gameSessionId: gameId,
-        gameCode: 'OMOK',
+        gameCode: options.dice ? 'DICE' : 'OMOK',
         status: 'FINISHED',
         endReason: 'NORMAL',
         settlementStatus: settled ? 'SETTLED' : 'PENDING',
@@ -382,9 +389,9 @@ export async function fixture(
       }
       if (options.m09 && type === 'GAME_WATCH') {
         if (rejectGameWatch) emit(ws, 'ERROR', { code: 'GAME_STATE_ACCESS_DENIED', message: '경기 관전 권한이 없습니다.' }, requestId)
-        else game(ws, requestId, 'SPECTATOR')
+        else { watchingGame = true; game(ws, requestId, 'SPECTATOR') }
       }
-      if (options.m09 && type === 'GAME_UNWATCH') emit(ws, 'GAME_WATCH_LEFT', { gameId }, requestId)
+      if (options.m09 && type === 'GAME_UNWATCH') { watchingGame = false; emit(ws, 'GAME_WATCH_LEFT', { gameId }, requestId) }
       if (type === 'TABLE_UNWATCH')
         ws.send(
           JSON.stringify({
@@ -418,6 +425,7 @@ export async function fixture(
       if (options.omok && type === 'GAME_SELECT') {
         gameCode = String(payload.gameCode)
         targetScore = payload.targetScore ?? null
+        if (options.dice && gameCode === 'DICE') diceState = { ...diceState, targetScore: targetScore ?? 4000 }
         ready = false
         table(ws, 'TABLE_STATE', requestId)
         start(ws, 'WAITING')
@@ -437,6 +445,15 @@ export async function fixture(
         if (nextActionError) {
           const error = nextActionError; nextActionError = null
           emit(ws, 'ERROR', error, requestId)
+          return
+        }
+        if (options.dice) {
+          const reply = diceReplies.shift()
+          expect(reply, 'A test must explicitly script each server dice response').toBeTruthy()
+          expect(payload.input).toEqual(reply!.input)
+          diceState = { ...diceState, ...reply!.patch }; gameVersion++
+          emit(ws, 'GAME_ACTION_RESULT', { gameId, actionId: payload.actionId, version: gameVersion }, requestId)
+          if (!holdState) game(ws)
           return
         }
         if (forbid) {
@@ -469,6 +486,8 @@ export async function fixture(
   })
   return {
     sent,
+    diceReply: (input: object, patch: Partial<Farkle>) => { diceReplies.push({ input, patch }) },
+    diceSnapshot: (patch: Partial<Farkle>, role = 'PLAYER') => { diceState = { ...diceState, ...patch }; gameVersion++; game(sockets.at(-1)!, null, role) },
     rejectNextAction: (code: string, message: string) => { nextActionError = { code, message } },
     dropActions: (value: boolean) => { dropAction = value },
     turnTo: (userId: string, deadline = new Date(Date.now() + 30_000).toISOString()) => {
@@ -482,6 +501,7 @@ export async function fixture(
     confirmStart: () => {
       started = true
       gameDeadline = new Date(Date.now() + 30_000).toISOString()
+      if (options.dice) diceState = { ...diceState, turnDeadline: gameDeadline }
       start(sockets.at(-1)!, 'PLAYING')
       recovery(sockets.at(-1)!)
     },

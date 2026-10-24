@@ -120,12 +120,12 @@ describe('server-authoritative OMOK slice', () => {
     expect(canPlace('101', 7, 7)).toBe(false)
     expect(tableBusy()).toBe(true)
     restore()
-    expect(useGame.getState().game!.omok.turnDeadline).toBe(deadline)
+    expect(useGame.getState().game!.omok!.turnDeadline).toBe(deadline)
   })
   it('ack is not a stone; freezes input until matching or newer public state', () => {
     restore()
     send('GAME_ACTION_RESULT', { gameId: 'game-real', version: 1 })
-    expect(useGame.getState().game!.omok.moveCount).toBe(0)
+    expect(useGame.getState().game!.omok!.moveCount).toBe(0)
     expect(canPlace('101', 7, 7)).toBe(false)
     const next = omok()
     next.board[7]![7] = 1
@@ -136,7 +136,7 @@ describe('server-authoritative OMOK slice', () => {
     })
     send('GAME_STATE', snapshot(1, next))
     send('GAME_STATE', snapshot(0))
-    expect(useGame.getState().game!.omok.moveCount).toBe(1)
+    expect(useGame.getState().game!.omok!.moveCount).toBe(1)
     expect(canPlace('101', 7, 7)).toBe(false)
   })
   it('accepts state before ack without rolling back or blocking newer version', () => {

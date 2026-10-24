@@ -11,6 +11,7 @@ import { cameraOcclusion, CameraOcclusionFader } from './cameraOcclusion'
 import { installRoamingInput, viewControls } from './input'
 import { constrainRoamingCamera } from './cameraCollision'
 import { seatScope, seatedLook, resetSeatedLook, useTableLobby } from '../features/tableLobby/state'
+import { useDiceUI, diceCamera } from '../game/farkle/controls'
 
 export function CameraRig() {
   const { gl, camera: mountedCamera } = useThree()
@@ -53,6 +54,7 @@ export function CameraRig() {
     [occlusion, state, mountedCamera],
   )
   useFrame(({ camera, scene }, delta) => {
+    diceCamera.ready = false
     scan.current += delta
     if (scan.current >= 0.5) {
       const park = scene.getObjectByName('placeholder-park')
@@ -124,8 +126,9 @@ export function CameraRig() {
     const spectatorBoard = !!watchedAnchor && useTableLobby.getState().spectatorView === 'board'
     const boardFocus =
       !looking && seated && !!avatar.tableId &&
-      game?.omok.status === 'PLAYING' &&
+      game?.omok?.status === 'PLAYING' &&
       (game.role === 'SPECTATOR' || game.omok.turnUserId === session.sessionId)
+    const diceFocus = !looking && seated && !!avatar.tableId && !!game?.dice && game.role === 'PLAYER' && useDiceUI.getState().boardView
     state.look.set(pose.x, pose.y + CAMERA.focusHeight - 0.8, pose.z)
     if (state.owner !== session.sessionId) {
       state.focus.copy(state.look)
@@ -135,7 +138,7 @@ export function CameraRig() {
       state.look,
       1 - Math.exp(-CAMERA.followSpeed * Math.min(delta, 0.1)),
     )
-    if (boardFocus || spectatorBoard) {
+    if (boardFocus || spectatorBoard || diceFocus) {
       const anchor = watchedAnchor ?? TABLES.find((t) => t.id === avatar.tableId)!
       state.look.set(
         anchor.position[0],
@@ -144,7 +147,7 @@ export function CameraRig() {
       )
       state.desired.set(
         state.look.x,
-        state.look.y + 2.6 * tableScale(anchor),
+        state.look.y + (diceFocus || (spectatorBoard && game?.dice) ? 3.2 : 2.6) * tableScale(anchor),
         state.look.z + 0.001,
       )
     } else if (watchedAnchor) {
@@ -189,6 +192,7 @@ export function CameraRig() {
     )
     if (!seated && !watchedAnchor) constrainRoamingCamera(camera.position)
     camera.lookAt(state.look)
+    diceCamera.ready = !!(diceFocus || (spectatorBoard && game?.dice)) && camera.position.distanceTo(state.desired) < .005
     camera.getWorldDirection(state.direction)
     interactionAim.ready = true
     interactionAim.x = camera.position.x
@@ -201,7 +205,7 @@ export function CameraRig() {
     omokCamera.ready =
       !!(boardFocus || spectatorBoard) && camera.position.distanceTo(state.desired) < 0.005
     if (camera instanceof PerspectiveCamera) {
-      const fov = boardFocus || spectatorBoard ? GOMOKU.topDownFov : seated ? 76 : CAMERA.fov
+      const fov = boardFocus || spectatorBoard || diceFocus ? GOMOKU.topDownFov : seated ? 76 : CAMERA.fov
       if (Math.abs(camera.fov - fov) > 0.01) {
         camera.fov = fov
         camera.updateProjectionMatrix()

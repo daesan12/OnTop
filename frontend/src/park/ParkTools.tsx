@@ -4,7 +4,7 @@ import type { QualityPreset } from '../config'
 import { useSession } from '../network/worldClient'
 import { useParkRuntime } from './runtime/ParkRuntime'
 import { summarizeFrames } from '../performance/metrics'
-import { OmokPanel } from '../game/OmokPanel'
+import { GamePanel } from '../game/GamePanel'
 import { TableLobby } from '../features/tableLobby/TableLobby'
 import { useTelescopeState } from '../features/telescopes/state'
 
@@ -115,7 +115,7 @@ export function ParkTools({
         )}
       </div>
       <TableLobby />
-      <OmokPanel />
+      <GamePanel />
       {(state.error ||
         state.status === 'joining' ||
         state.status === 'reconnecting') && (

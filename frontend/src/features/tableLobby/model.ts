@@ -3,7 +3,7 @@ import type { StartState } from '../../game/protocol'
 
 export const TABLE_GAMES = [
   { code: 'OMOK', name: '오목', capacity: 2, playable: true },
-  { code: 'DICE', name: '주사위 한 판', capacity: 2, playable: false },
+  { code: 'DICE', name: '주사위 한 판', capacity: 2, playable: true },
   { code: 'ONE_CARD', name: '원카드', capacity: 4, playable: false },
   { code: 'LIAR_BRIDGE', name: '거짓말 다리 건너기', capacity: 4, playable: false },
 ] as const
@@ -24,7 +24,7 @@ export function lobbyStatus(table: TableState, ownId: string, busy: boolean) {
   return {
     mine, count, host: table.selectorUserId === ownId,
     canLeaveByMovement: !!mine && !mine.ready && !busy,
-    canReady: !!mine && !busy && table.gameCode === 'OMOK',
+    canReady: !!mine && !busy && TABLE_GAMES.some(g => g.code === table.gameCode && g.playable),
     message: count < table.minimumPlayers
       ? `최소 ${table.minimumPlayers}명 필요 · 현재 ${count}명`
       : table.allReady ? '전원 준비 완료 · 서버 시작 상태 대기' : '참가자 모두 준비하면 서버가 시작을 확인합니다.',
