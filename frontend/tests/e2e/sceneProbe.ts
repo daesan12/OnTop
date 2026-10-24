@@ -72,6 +72,46 @@ export function omokPresentationProbe() {
   return { hover: !!hover?.visible, hoverPosition: hover?.position.toArray() ?? null,
     lastMove: last?.position.toArray() ?? null, cursor: gl.domElement.style.cursor }
 }
+// M10 visual QA: inspect render-only supplies without changing game or transport state.
+export function omokArtProbe(visible?: boolean) {
+  const { scene } = root()
+  const board = scene.getObjectByName('omok-board-' + useSession.getState().focusedAnchorId)
+  if (board && visible !== undefined) board.visible = visible
+  const art = board?.getObjectByName('walnut-gomoku-assets')
+  const bounds = art ? new Box3().setFromObject(art) : null
+  const batches: { name: string; count: number; triangles: number }[] = []
+  art?.traverse(o => {
+    if (!('isInstancedMesh' in o)) return
+    const m = o as InstancedMesh
+    batches.push({ name: m.name, count: m.count, triangles: (m.geometry.index?.count ?? m.geometry.attributes.position!.count) / 3 })
+  })
+  return { present: !!art, batches, bounds: bounds ? [bounds.min.toArray(), bounds.max.toArray()] : null }
+}
+export function pointForOmokLocal(x: number, y: number, z: number) {
+  const { scene, camera, gl } = root()
+  const board = scene.getObjectByName('omok-board-' + useSession.getState().focusedAnchorId)!
+  const p = board.localToWorld(new Vector3(x, y, z)).project(camera), box = gl.domElement.getBoundingClientRect()
+  return { x: (p.x + 1) * box.width / 2, y: (1 - p.y) * box.height / 2 }
+}
+const omokResources = { instances: 0, shared: 0 }
+export function watchOmokResources() {
+  omokResources.instances = omokResources.shared = 0
+  const { scene } = root(), geometries = new Set(), materials = new Set()
+  scene.getObjectByName('omok-board-' + useSession.getState().focusedAnchorId)?.traverse(o => {
+    if (!('isInstancedMesh' in o)) return
+    const mesh = o as InstancedMesh
+    mesh.addEventListener('dispose', () => omokResources.instances++)
+    // Inlay's JSX boxGeometry is table-owned; all other shapes here are cached primitives.
+    if (mesh.geometry.type !== 'BoxGeometry' && !geometries.has(mesh.geometry)) { geometries.add(mesh.geometry); mesh.geometry.addEventListener('dispose', () => omokResources.shared++) }
+    // Only externally shared stone materials are expected to survive this table.
+    if (!o.name && (o.parent?.name.startsWith('omok-board-'))) {
+      for (const m of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
+        if (!materials.has(m)) { materials.add(m); m.addEventListener('dispose', () => omokResources.shared++) }
+      }
+    }
+  })
+}
+export const omokResourceProbe = () => ({ ...omokResources })
 export function farkleProbe() {
   const { scene } = root()
   const dice: { id: string; face: number; held: boolean; quaternion: number[] }[] = []
