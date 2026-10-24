@@ -19,6 +19,7 @@ import { AvatarOverlays, type OverlayTargets } from './AvatarOverlays'
 import { PerformanceProbe } from '../performance/PerformanceProbe'
 import { AdaptiveResolution } from '../performance/AdaptiveResolution'
 import { preloadWorldAssets } from './worldAssets'
+import { BungeoppangGrill } from '../features/bungeoppang/BungeoppangGrill'
 
 preloadWorldAssets()
 
@@ -142,6 +143,7 @@ export const WorldCanvas = memo(function WorldCanvas({
           <SceneReady onReady={onReady} />
         </Suspense>
         <Avatars overlayTargets={overlayTargets} />
+        <BungeoppangGrill />
 
         <ParkPigeons quality={quality} />
         <CameraRig />

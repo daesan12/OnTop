@@ -17,6 +17,8 @@ import { EmoteWheel } from '../features/emotes/EmoteWheel'
 import { TelescopePanel } from '../features/telescopes/TelescopePanel'
 import { FeedbackPanel } from '../features/feedback/FeedbackPanel'
 import { AnonymousNotes } from '../features/notes/AnonymousNotes'
+import { BungeoppangHud } from '../features/bungeoppang/BungeoppangHud'
+import { useBungeoppang } from '../features/bungeoppang/store'
 
 const shortcuts = [
   { key: 'WASD', action: '이동' },
@@ -40,6 +42,7 @@ export function ParkPage(props: ParkProps) {
   return <ParkRuntimeProvider onAuthEnded={props.onAuthEnded}><ParkContent {...props}/></ParkRuntimeProvider>
 }
 function ParkContent({ onExit, exitError }: ParkProps) {
+  const bungeoppang = useBungeoppang(s => s.phase !== 'idle')
   const runtime = useParkRuntime()
   const session = useSession(useShallow(s=>({ status:s.status,channelName:s.channelName,playerCount:s.playerCount,capacity:s.capacity,sessionId:s.sessionId,roomId:s.roomId,messages:s.messages,pending:s.pending,account:s.account,profiles:s.profiles })))
   const [quality,setQuality] = useState<QualityPreset>('low')
@@ -100,7 +103,7 @@ function ParkContent({ onExit, exitError }: ParkProps) {
   }
 
   return (
-    <main className="park-page" aria-label="공원 기본 화면" style={{
+    <main className="park-page" aria-label="공원 기본 화면" data-bungeoppang={bungeoppang} style={{
       '--park-ui-scale': hudScale,
       '--park-edge': `${30 * hudScale}px`,
       '--park-shortcuts-half-width': `${390 * hudScale}px`,
@@ -173,6 +176,7 @@ function ParkContent({ onExit, exitError }: ParkProps) {
       <TelescopePanel />
       <FeedbackPanel />
       <AnonymousNotes />
+      <BungeoppangHud />
     </main>
   )
 }

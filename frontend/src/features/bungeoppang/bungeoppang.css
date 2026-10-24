@@ -1,0 +1,435 @@
+/* Original v2 HUD and cooking overlays. Plate picking passes through to the canvas. */
+.bung-root {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+  color: #3b2a1a;
+  font-family: inherit;
+}
+.bung-root button {
+  pointer-events: auto;
+  font: inherit;
+  cursor: pointer;
+  color: #3b2a1a;
+  background: #fff;
+  border: 1px solid #b08a5a;
+  border-radius: 8px;
+  padding: 7px 16px;
+}
+.bung-root button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.bung-root .bung-help-button { position: absolute; right: 22px; bottom: 22px; }
+.park-page[data-bungeoppang="true"] .park-location,
+.park-page[data-bungeoppang="true"] .park-shortcuts,
+.park-page[data-bungeoppang="true"] .park-runtime-tools { visibility: hidden; }
+.bung-root .bung-primary {
+  background: #8a5a35;
+  border-color: #8a5a35;
+  color: #fffaf0;
+  font-weight: 600;
+}
+.bung-root .bung-link {
+  border: 0;
+  background: none;
+  padding: 0;
+  text-decoration: underline;
+  color: #6e4628;
+}
+.bung-root kbd {
+  display: inline-block;
+  min-width: 1.2em;
+  margin-left: 4px;
+  padding: 0 5px;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  font-size: 11px;
+  font-family: inherit;
+  line-height: 1.5;
+}
+.bung-panel {
+  pointer-events: auto;
+  background: #fffaf0;
+  border: 1px solid #d9c7a8;
+  border-radius: 12px;
+  box-shadow: 0 10px 34px #2a1a0c40;
+  padding: 18px 22px;
+  font-size: 14px;
+  line-height: 1.55;
+}
+.bung-panel h2 {
+  margin: 0 0 10px;
+  font-size: 19px;
+}
+.bung-panel p {
+  margin: 6px 0;
+}
+.bung-panel footer {
+  margin-top: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: #6e4628;
+}
+.bung-row {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+.bung-start {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  transform: translate(-50%, -50%);
+  width: min(560px, 90vw);
+  text-align: center;
+}
+.bung-start .bung-primary {
+  margin: 10px 0 2px;
+  padding: 10px 36px;
+  font-size: 15px;
+}
+.bung-steps {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  padding: 0;
+  margin: 6px 0;
+  list-style: none;
+  font-size: 13px;
+}
+.bung-steps li {
+  background: #faeeda;
+  color: #633806;
+  padding: 4px 10px;
+  border-radius: 6px;
+}
+.bung-steps li + li::before {
+  content: "→";
+  margin: 0 8px 0 -2px;
+  color: #b08a5a;
+}
+.bung-keys-line,
+.bung-mock-note {
+  font-size: 12px;
+  color: #6e4628;
+}
+.bung-mock-note {
+  margin-top: 8px !important;
+  color: #854f0b;
+}
+.bung-cap {
+  color: #854f0b;
+  font-size: 13px;
+}
+.bung-error {
+  color: #a32d2d;
+  font-size: 13px;
+}
+.bung-dim {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: #1e140a73;
+  pointer-events: auto;
+}
+.bung-confirm {
+  width: min(380px, 90vw);
+  text-align: center;
+}
+.bung-result {
+  width: min(600px, 92vw);
+}
+.bung-result header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.bung-result header b {
+  font-size: 26px;
+}
+.bung-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin: 8px 0;
+}
+.bung-grid div {
+  background: #fff;
+  border: 1px solid #e6d6bb;
+  border-radius: 8px;
+  padding: 5px 9px;
+}
+.bung-grid small {
+  display: block;
+  font-size: 11px;
+  color: #6e4628;
+}
+.bung-grid b {
+  font-size: 17px;
+}
+.bung-coins {
+  display: flex;
+  justify-content: space-between;
+  background: #faeeda;
+  color: #633806;
+  border-radius: 8px;
+  padding: 7px 11px;
+}
+.bung-big-text {
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  transform: translate(-50%, -50%);
+  font-size: 92px;
+  font-weight: 700;
+  color: #fffaf0;
+  text-shadow: 0 4px 20px #2a1a0c99;
+}
+.bung-timer,
+.bung-score {
+  position: absolute;
+  top: 18px;
+  background: #fffaf0;
+  border: 1px solid #d9c7a8;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-weight: 600;
+}
+.bung-timer {
+  left: 18px;
+  font-size: 22px;
+  min-width: 64px;
+  text-align: center;
+}
+.bung-timer small {
+  font-size: 12px;
+  margin-left: 2px;
+}
+.bung-timer[data-rush="true"] {
+  color: #a32d2d;
+  border-color: #e24b4a;
+}
+.bung-score {
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 18px;
+  font-size: 15px;
+  font-weight: 400;
+}
+.bung-score em {
+  font-style: normal;
+  color: #854f0b;
+  margin-left: 6px;
+}
+.bung-banner {
+  position: absolute;
+  left: 50%;
+  top: 14%;
+  transform: translateX(-50%);
+  background: #a32d2d;
+  color: #fcebeb;
+  border-radius: 8px;
+  padding: 8px 20px;
+  font-size: 17px;
+  font-weight: 700;
+}
+.bung-edge {
+  position: absolute;
+  inset: 0;
+  border: 6px solid #e24b4a;
+  opacity: 0;
+}
+.bung-edge[data-state="warn"] {
+  animation: bung-blink 0.5s step-end infinite;
+}
+.bung-edge[data-state="rush"] {
+  opacity: 0.55;
+}
+@keyframes bung-blink {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.15;
+  }
+}
+.bung-tools {
+  position: absolute;
+  left: 50%;
+  bottom: 22px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.bung-tools-label {
+  font-size: 12px;
+  color: #fffaf0;
+  text-shadow: 0 1px 4px #2a1a0caa;
+}
+.bung-tools button {
+  background: #fffaf0;
+  font-size: 14px;
+}
+.bung-tools button[data-active="true"] {
+  background: #8a5a35;
+  border-color: #8a5a35;
+  color: #fffaf0;
+  font-weight: 700;
+}
+/* 칸 위 DOM: 3D 루프가 transform으로 옮긴다. */
+.bung-slot {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  --slot-width: 120px;
+}
+.bung-slot-key {
+  position: absolute;
+  left: calc(var(--slot-width) * -0.55);
+  top: calc(var(--slot-width) * -0.32);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #e9dcc6;
+  text-shadow: 0 1px 3px #000;
+}
+.bung-slot-label {
+  position: absolute;
+  left: 0;
+  top: calc(var(--slot-width) * -0.42);
+  transform: translate(-50%, -100%);
+  white-space: nowrap;
+  font-size: 12px;
+  border-radius: 6px;
+  padding: 1px 7px;
+  background: #fffaf0;
+  color: #3b2a1a;
+}
+.bung-slot-label[data-ok="false"] {
+  background: #d3d1c7;
+  color: #444441;
+}
+.bung-gauge {
+  position: absolute;
+  left: calc(var(--slot-width) * -0.36);
+  width: calc(var(--slot-width) * 0.72);
+  top: calc(var(--slot-width) * 0.3);
+  height: 6px;
+  border-radius: 3px;
+  background: #3a3634cc;
+  overflow: hidden;
+  display: none;
+}
+.bung-slot[data-cooking="true"] .bung-gauge {
+  display: block;
+}
+.bung-gauge-fill {
+  display: block;
+  height: 100%;
+  width: 0;
+}
+.bung-steam {
+  position: absolute;
+  left: -14px;
+  top: calc(var(--slot-width) * -0.25);
+  width: 28px;
+  height: 18px;
+  display: none;
+}
+.bung-slot[data-steam="steam"] .bung-steam,
+.bung-slot[data-steam="smoke"] .bung-steam {
+  display: block;
+}
+.bung-steam i {
+  position: absolute;
+  bottom: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #fffaf0;
+  opacity: 0;
+  animation: bung-steam 1.2s linear infinite;
+}
+.bung-steam i:nth-child(2) {
+  left: 10px;
+  animation-delay: 0.4s;
+}
+.bung-steam i:nth-child(3) {
+  left: 20px;
+  animation-delay: 0.8s;
+}
+.bung-slot[data-steam="smoke"] .bung-steam i {
+  background: #5f5e5a;
+  width: 9px;
+  height: 9px;
+}
+@keyframes bung-steam {
+  0% {
+    transform: translateY(0);
+    opacity: 0.8;
+  }
+  100% {
+    transform: translateY(-18px);
+    opacity: 0;
+  }
+}
+.bung-popup {
+  position: absolute;
+  transform: translate(-50%, 0);
+  padding: 2px 9px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  animation: bung-rise 0.9s ease-out forwards;
+  background: #f1efe8;
+  color: #444441;
+}
+.bung-popup[data-tone="PERFECT"] {
+  background: #faeeda;
+  color: #633806;
+}
+.bung-popup[data-tone="GOOD"] {
+  background: #eaf3de;
+  color: #27500a;
+}
+.bung-popup[data-tone="BURNT"] {
+  background: #fcebeb;
+  color: #791f1f;
+}
+.bung-popup[data-tone="SIZZLE"] {
+  background: #fffaf0;
+  color: #854f0b;
+}
+@keyframes bung-rise {
+  to {
+    transform: translate(-50%, -26px);
+    opacity: 0;
+  }
+}
+.bung-tip {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  background: #fffaf0;
+  border: 1px solid #b08a5a;
+  border-radius: 8px;
+  padding: 5px 10px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+@media (prefers-reduced-motion: reduce) {
+  .bung-edge[data-state="warn"],
+  .bung-steam i,
+  .bung-popup {
+    animation: none;
+  }
+}

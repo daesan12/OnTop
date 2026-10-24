@@ -4,6 +4,8 @@ import {
   restoreAuthSession,
 } from '../../auth/authFlow'
 import { SharedSocket, ServerError } from '../../network/socketClient'
+import { RestError } from '../../network/restError'
+import { inputState } from '../../world/inputOwnership'
 import {
   channel,
   record,
@@ -143,13 +145,21 @@ export class ParkRuntime implements ParkRuntimePort {
       response = await fetchOnce()
     }
     if (response.status === 401 || response.status === 403) this.authEnded()
-    if (!response.ok)
-      throw new Error(
+    if (!response.ok) {
+      const body: unknown = await response.json().catch(() => null)
+      throw new RestError(response.status, record(body) && typeof body.code === 'string' ? body.code : 'HTTP_ERROR',
         response.status === 401
           ? '로그인을 다시 확인해주세요.'
           : `서버 요청에 실패했습니다. (${response.status})`,
       )
+    }
     return response.json()
+  }
+  requestJSON = async (path: string, init: RequestInit = {}) => {
+    if (!this.active || !/^\/api\/v1\/(?:minigames\/sessions(?:\/\d+(?:\/(?:complete|abandon))?)?|wallets\/me)$/.test(path))
+      throw new Error('현재 공원에서 사용할 수 없는 요청입니다.')
+    const signals = [this.bootAbort?.signal, init.signal].filter((s): s is AbortSignal => !!s)
+    return this.getJSON(path, { ...init, signal: AbortSignal.any(signals) })
   }
   start() {
     if (this.active) return
@@ -310,6 +320,7 @@ export class ParkRuntime implements ParkRuntimePort {
   selectChannel = (channelId: string) =>
     this.action(async () => {
       const state = useSession.getState()
+      if (inputState.minigameOpen) throw new Error('먼저 미니게임을 마쳐주세요.')
       if (benchBusy(state.sessionId)) throw new Error('먼저 벤치에서 일어나주세요.')
       if (fitnessBusy(state.sessionId)) throw new Error('먼저 운동기구에서 내려와주세요.')
       if (telescopeBusy(state.sessionId)) throw new Error('먼저 망원경에서 나와주세요.')
@@ -405,6 +416,7 @@ export class ParkRuntime implements ParkRuntimePort {
     const s = useSession.getState()
     return this.active && s.status === 'connected' && !!s.roomId && s.mapCompatible && avatars.has(s.sessionId)
       && !tableBusy() && !s.tableId && (!useGame.getState().watchedGameId || stoppedIntent(intent))
+      && (!inputState.minigameOpen || stoppedIntent(intent))
       && (!(benchBusy(s.sessionId) || fitnessBusy(s.sessionId) || telescopeBusy(s.sessionId)) || stoppedIntent(intent)) && this.socket.connected
   }
   private async sendMovement(intent: MovementIntent, scope: string) {
@@ -422,6 +434,7 @@ export class ParkRuntime implements ParkRuntimePort {
     }
   }
   inspectTable = (anchorId: string) => {
+    if (inputState.minigameOpen) return
     if (this.actionBusy || useSession.getState().pending) return
     if (benchBusy(useSession.getState().sessionId) || fitnessBusy(useSession.getState().sessionId) || telescopeBusy(useSession.getState().sessionId)) return
     useSession.setState({ focusedAnchorId: anchorId })
@@ -468,6 +481,7 @@ export class ParkRuntime implements ParkRuntimePort {
   }
   joinTable = () =>
     this.action(async () => {
+      if (inputState.minigameOpen) throw new Error('먼저 미니게임을 마쳐주세요.')
       if (benchBusy(useSession.getState().sessionId)) throw new Error('먼저 벤치에서 일어나주세요.')
       if (fitnessBusy(useSession.getState().sessionId)) throw new Error('먼저 운동기구에서 내려와주세요.')
       if (telescopeBusy(useSession.getState().sessionId)) throw new Error('먼저 망원경에서 나와주세요.')
