@@ -20,6 +20,7 @@ import { GOMOKU } from '../../src/config'
 import type { InstancedMesh } from 'three'
 import { omokCamera } from '../../src/game/cameraState'
 import { Matrix4 } from 'three'
+import { useGame } from '../../src/game/store'
 import { avatars, sampleAvatar, estimatedServerTime, type AvatarSnapshot } from '../../src/network/worldClient'
 import { SkinnedMesh, ShaderMaterial } from 'three'
 import { FITNESS_STATIONS } from '../../src/config'
@@ -517,6 +518,26 @@ export function onecardProbe() {
   const scene = root().scene, top = scene.getObjectByName('onecard-public-top'), backs = scene.getObjectByName('onecard-public-card-backs') as InstancedMesh | undefined
   return { top: top?.userData.cardId, backs: backs?.count ?? 0, visible: !!scene.getObjectByName('onecard-table'),
     publicData: JSON.stringify({ session: useSession.getState(), avatars: [...avatars] }) }
+}
+export function bridgeProbe() {
+  const { scene } = root(), b = useGame.getState().game?.bridge, pieces = scene.getObjectByName('bridge-pawns') as InstancedMesh | undefined
+  const pawns = b?.players.flatMap(p => p.pawns) ?? [], matrix = new Matrix4()
+  return { visible: !!scene.getObjectByName('bridge-table'), count: pieces?.count ?? 0,
+    crosses: (scene.getObjectByName('bridge-vacated') as InstancedMesh | undefined)?.count ?? 0,
+    pawns: pieces ? pawns.map((p, i) => { pieces.getMatrixAt(i, matrix); return { id: p.id, status: p.status, position: matrix.elements.slice(12, 15), scale: Math.hypot(...matrix.elements.slice(0, 3)) } }) : [],
+    publicData: JSON.stringify({ session: useSession.getState(), avatars: [...avatars] }) }
+}
+const bridgeResources = { instances: 0, shared: 0 }
+export const bridgeResourceProbe = () => ({ ...bridgeResources })
+export function watchBridgeResources() {
+  const resources = new Set<object>()
+  root().scene.getObjectByName('bridge-table')?.traverse(object => {
+    if (!(object instanceof Mesh)) return
+    if ('isInstancedMesh' in object) object.addEventListener('dispose', () => bridgeResources.instances++)
+    for (const resource of [object.geometry, ...(Array.isArray(object.material) ? object.material : [object.material])]) {
+      if (!resources.has(resource)) { resources.add(resource); resource.addEventListener('dispose', () => bridgeResources.shared++) }
+    }
+  })
 }
 const onecardResources = { textures: 0, materials: 0, instances: 0, shared: 0 }
 const watchedOneCardResources = new WeakSet<object>()

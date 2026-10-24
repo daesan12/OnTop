@@ -18,6 +18,8 @@ import { gameState } from '../../game/protocol'
 import { validDiceAction } from '../../game/farkle/scoring'
 import { canActOneCard } from '../../game/onecard/actions'
 import type { OneCardInput } from '../../game/onecard/protocol'
+import { canActBridge } from '../../game/bridge/actions'
+import type { BridgeInput } from '../../game/bridge/protocol'
 import { parkBindingsUrl } from './deployment'
 import type { ParkRuntimePort } from './contracts'
 import { benchBusy } from '../../features/interactions/benchState'
@@ -505,7 +507,7 @@ export class ParkRuntime implements ParkRuntimePort {
   setReady = (ready: boolean) =>
     this.action(async () => {
       const s = useSession.getState()
-      if (tableBusy() || !['OMOK', 'DICE', 'ONE_CARD'].includes(s.tableStates[s.tableId]?.gameCode ?? ''))
+      if (tableBusy() || !['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE'].includes(s.tableStates[s.tableId]?.gameCode ?? ''))
         throw new Error('플레이 가능한 게임을 선택한 대기 테이블에서 준비해주세요.')
       await this.socket.request('READY_SET', { ready }, ['TABLE_STATE'])
     })
@@ -614,6 +616,21 @@ export class ParkRuntime implements ParkRuntimePort {
       if (generation === this.generation && useGame.getState().permittedGameId === g.gameId)
         useGame.setState({ uncertain: !(error instanceof ServerError && ['GAME_ACTION_INVALID_ACTION', 'GAME_ACTION_NOT_YOUR_TURN'].includes(error.code)),
           error: error instanceof Error ? error.message : '원카드 처리 결과를 확인해주세요.' })
+      throw error
+    } finally { if (generation === this.generation) useGame.setState({ pending: false }) }
+  })
+  actBridge = (input: BridgeInput) => this.action(async () => {
+    const own = useSession.getState(), g = useGame.getState().game
+    if (own.status !== 'connected' || !g?.bridge || !canActBridge(own.sessionId, input))
+      throw new Error('본인 차례·현재 판단자·비공개 눈·최신 경기 상태를 확인해주세요.')
+    const generation = this.generation
+    useGame.setState({ pending: true, error: '' })
+    try {
+      await this.socket.request('GAME_ACTION_SEND', { gameId: g.gameId, actionId: crypto.randomUUID(), expectedVersion: g.version, input: { ...input } }, ['GAME_ACTION_RESULT'])
+    } catch (error) {
+      if (generation === this.generation && useGame.getState().permittedGameId === g.gameId)
+        useGame.setState({ uncertain: !(error instanceof ServerError && ['GAME_ACTION_INVALID_ACTION', 'GAME_ACTION_NOT_YOUR_TURN'].includes(error.code)),
+          error: error instanceof Error ? error.message : '다리 경기 처리 결과를 확인해주세요.' })
       throw error
     } finally { if (generation === this.generation) useGame.setState({ pending: false }) }
   })

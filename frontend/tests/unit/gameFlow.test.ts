@@ -71,7 +71,7 @@ describe('server-authoritative OMOK slice', () => {
     restore()
     send('GAME_STATE', {
       ...snapshot(1),
-      publicState: { gameCode: 'LIAR_BRIDGE' },
+      publicState: { gameCode: 'UNSUPPORTED_GAME' },
     })
     expect(useGame.getState().game).toBeNull()
     expect(canPlace('101', 7, 7)).toBe(false)

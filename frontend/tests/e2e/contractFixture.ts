@@ -6,6 +6,8 @@ import { TABLES } from '../../src/config'
 import { EXPECTED_MAP_VERSION } from '../../src/config/mapVersion'
 import type { Farkle } from '../../src/game/protocol'
 import type { OneCard, Hand, Card } from '../../src/game/onecard/protocol'
+import { bridgeState as makeBridge } from '../fixtures/bridge'
+import type { Bridge, SecretDie } from '../../src/game/bridge/protocol'
 
 // Contract fixtures intercept HTTP/RawWS only in tests. No production fake-auth or socket bypass.
 const anchor = TABLES[0]!
@@ -25,6 +27,7 @@ export async function fixture(
     omok?: boolean
     dice?: boolean
     onecard?: 2 | 3 | 4
+    bridge?: 2 | 3 | 4
     m09?: boolean
     manualMovement?: boolean
     ownUserId?: '101' | '102'
@@ -74,7 +77,9 @@ export async function fixture(
     finished = false,
     holdState = false,
     forbid = false
-  const gameId = options.onecard ? 'fixture-confirmed-onecard' : options.dice ? 'fixture-confirmed-dice' : 'fixture-confirmed-omok'
+  const gameId = options.bridge ? 'fixture-confirmed-bridge' : options.onecard ? 'fixture-confirmed-onecard' : options.dice ? 'fixture-confirmed-dice' : 'fixture-confirmed-omok'
+  let bridgeState = makeBridge(options.bridge), bridgeSecret: SecretDie | null = null
+  const bridgeReplies: { input: object; patch: Partial<Bridge>; secret: SecretDie | null }[] = []
   const initialHand: Card[] = ['4', '7', 'K', 'Q', 'J', '2', 'A'].map(rank => ({ id: `hearts-${rank}`, suit: 'hearts', rank }))
   let cardState: OneCard = { gameCode: 'ONE_CARD', status: 'PLAYING', players: Array.from({ length: options.onecard ?? 2 }, (_, i) => ({ userId: String(101 + i), cardCount: 7,
     active: true, oneCardUntil: null, oneCardStatus: 'none' })), turnUserId: options.ownUserId ?? '101', turnDeadline: new Date(Date.now() + 30000).toISOString(), turnTimeLimitMs: 30000,
@@ -142,8 +147,8 @@ export async function fixture(
         gameId,
         version: gameVersion,
         role,
-        publicState: options.onecard ? cardState : options.dice ? diceState : omok(),
-        privateState: options.onecard && role === 'PLAYER' ? cardHand : {},
+        publicState: options.bridge ? bridgeState : options.onecard ? cardState : options.dice ? diceState : omok(),
+        privateState: role === 'SPECTATOR' ? {} : options.bridge ? bridgeSecret ?? {} : options.onecard ? cardHand : {},
       },
       requestId,
     )
@@ -152,7 +157,7 @@ export async function fixture(
       status: 'RESTORED',
       gameId,
       version: gameVersion,
-      state: options.onecard ? { publicState: cardState, privateState: cardHand } : options.dice ? diceState : omok(),
+      state: options.bridge ? { publicState: bridgeState, privateState: bridgeSecret ?? {} } : options.onecard ? { publicState: cardState, privateState: cardHand } : options.dice ? diceState : omok(),
       reconnectUntil: null,
       code: null,
     })
@@ -165,7 +170,7 @@ export async function fixture(
       {
         version: resultVersion,
         gameSessionId: gameId,
-        gameCode: options.onecard ? 'ONE_CARD' : options.dice ? 'DICE' : 'OMOK',
+        gameCode: options.bridge ? 'LIAR_BRIDGE' : options.onecard ? 'ONE_CARD' : options.dice ? 'DICE' : 'OMOK',
         status: 'FINISHED',
         endReason: 'NORMAL',
         settlementStatus: settled ? 'SETTLED' : 'PENDING',
@@ -456,6 +461,13 @@ export async function fixture(
           emit(ws, 'ERROR', error, requestId)
           return
         }
+        if (options.bridge) {
+          const reply = bridgeReplies.shift(); expect(reply, 'Explicitly script each approved bridge response').toBeTruthy(); expect(payload.input).toEqual(reply!.input)
+          bridgeState = { ...bridgeState, ...reply!.patch }; bridgeSecret = reply!.secret; gameVersion++
+          emit(ws, 'GAME_ACTION_RESULT', { gameId, actionId: payload.actionId, version: gameVersion }, requestId)
+          if (!holdState) game(ws)
+          return
+        }
         if (options.onecard) {
           const reply = cardReplies.shift()
           expect(reply, 'Explicitly script each approved one-card response').toBeTruthy()
@@ -504,6 +516,9 @@ export async function fixture(
   })
   return {
     sent,
+    bridgeReply: (input: object, patch: Partial<Bridge>, secret: SecretDie | null = null) => bridgeReplies.push({ input, patch, secret }),
+    bridgeSnapshot: (patch: Partial<Bridge>, secret: SecretDie | null = null, role = 'PLAYER') => { bridgeState = { ...bridgeState, ...patch }; bridgeSecret = secret; gameVersion++; game(sockets.at(-1)!, null, role) },
+    bridgeState: () => structuredClone(bridgeState),
     cardReply: (input: object, patch: Partial<OneCard>, hand: Hand) => { cardReplies.push({ input, patch, hand }) },
     cardSnapshot: (patch: Partial<OneCard>, hand = cardHand, role = 'PLAYER') => { cardState = { ...cardState, ...patch }; cardHand = hand; gameVersion++; game(sockets.at(-1)!, null, role) },
     cardState: () => structuredClone(cardState),
@@ -525,6 +540,7 @@ export async function fixture(
       gameDeadline = new Date(Date.now() + 30_000).toISOString()
       if (options.dice) diceState = { ...diceState, turnDeadline: gameDeadline }
       if (options.onecard) cardState = { ...cardState, turnDeadline: gameDeadline }
+      if (options.bridge) bridgeState = { ...bridgeState, turnDeadline: gameDeadline }
       start(sockets.at(-1)!, 'PLAYING')
       recovery(sockets.at(-1)!)
     },

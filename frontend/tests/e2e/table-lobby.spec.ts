@@ -23,7 +23,7 @@ test('M09 lobby uses server host, four seats and exact game/target commands; pre
   await expect(lobby(page).getByRole('listitem')).toHaveCount(4)
   await expect(lobby(page).getByRole('button', { name: '준비', exact: true })).toBeEnabled()
   await lobby(page).getByRole('button', { name: '거짓말 다리 건너기 선택', exact: true }).click()
-  await expect(lobby(page).getByRole('button', { name: '준비', exact: true })).toBeDisabled()
+  await expect(lobby(page).getByRole('button', { name: '준비', exact: true })).toBeEnabled()
   await lobby(page).getByLabel('주사위 목표 점수').selectOption('4000')
   await lobby(page).getByRole('button', { name: '주사위 한 판 선택', exact: true }).click()
   await expect(lobby(page).getByRole('listitem')).toHaveCount(2)
