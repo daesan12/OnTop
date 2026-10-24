@@ -846,6 +846,7 @@
 /* World utilities are available on demand with F1, not over the park view. */
 .manual-world-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 16px;
   flex-shrink: 0;
@@ -862,6 +863,11 @@
 .manual-world-actions select,
 .manual-world-actions button {
   padding: 5px 10px;
+  border: 1px solid #c3b58f;
+  border-radius: 5px;
+  color: #25483b;
+  background: #f8f3e5;
+  font: inherit;
 }
 /* The paper is revealed at its final size; text is never scaled horizontally. */
 .game-manual {

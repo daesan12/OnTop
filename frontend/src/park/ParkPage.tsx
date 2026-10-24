@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react'
 import coinImage from '../assets/yeopjeon-icon.png'
 import leafImage from '../assets/park-leaf.png'
 import peopleImage from '../assets/park-people.png'
@@ -18,6 +18,8 @@ import { TelescopePanel } from '../features/telescopes/TelescopePanel'
 import { FeedbackPanel } from '../features/feedback/FeedbackPanel'
 import { AnonymousNotes } from '../features/notes/AnonymousNotes'
 import { ManualHost } from '../features/manual/ManualHost'
+import { ManualWorldActions } from '../features/manual/ManualWorldActions'
+import { resetMetrics } from '../performance/metrics'
 import { ParkMap } from '../features/navigation/ParkMap'
 import { ParkNavigation } from '../features/navigation/NavigationHud'
 import { inputState } from '../world/inputOwnership'
@@ -50,6 +52,10 @@ function ParkContent({ onExit, exitError }: ParkProps) {
   const runtime = useParkRuntime()
   const session = useSession(useShallow(s=>({ status:s.status,channelName:s.channelName,playerCount:s.playerCount,capacity:s.capacity,sessionId:s.sessionId,roomId:s.roomId,messages:s.messages,pending:s.pending,account:s.account,profiles:s.profiles })))
   const [quality,setQuality] = useState<QualityPreset>('low')
+  const changeQuality = useCallback((value: QualityPreset) => {
+    setQuality(value)
+    resetMetrics()
+  }, [])
   const parkView = { name:session.channelName || '채널 선택', players:session.playerCount, capacity:session.capacity, nickname:session.account?.nickname ?? '정보 미연동' }
   const messages = session.messages.map(message=>({ ...message,name:session.profiles[message.userId]?.nickname ?? (message.userId===session.sessionId?'나':('산책자 '+message.userId.slice(-6))),own:message.userId===session.sessionId }))
   const [hudScale, setHudScale] = useState(getHudScale)
@@ -174,7 +180,7 @@ function ParkContent({ onExit, exitError }: ParkProps) {
           ))}
         </aside>
       </div>
-      <ParkTools quality={quality} onQuality={setQuality}/>
+      <ParkTools quality={quality} onQuality={changeQuality}/>
       <ParkInteractionHint />
       <EmoteWheel />
       <TelescopePanel />
@@ -183,7 +189,7 @@ function ParkContent({ onExit, exitError }: ParkProps) {
       <BungeoppangHud />
       <ParkMap />
       <ParkNavigation />
-      <ManualHost />
+      <ManualHost worldActions={<ManualWorldActions quality={quality} onQuality={changeQuality} onExit={onExit} />} />
     </main>
   )
 }
