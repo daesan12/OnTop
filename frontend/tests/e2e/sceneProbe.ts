@@ -4,6 +4,7 @@ import {
   Box3,
   Mesh,
   Vector3,
+  Texture,
   type BufferAttribute,
   type InterleavedBufferAttribute,
 } from 'three'
@@ -511,6 +512,35 @@ import type { PublicMatchReference } from '../../src/features/tableLobby/publicM
 export function previewPublicMatch(ref: PublicMatchReference) {
   if (!import.meta.env.DEV || import.meta.env.MODE !== 'facility-preview' || publicMatchService.mode !== 'mock') throw new Error('Preview only')
   ;(publicMatchService as typeof publicMatchService & { set(ref: PublicMatchReference): void }).set(ref)
+}
+export function onecardProbe() {
+  const scene = root().scene, top = scene.getObjectByName('onecard-public-top'), backs = scene.getObjectByName('onecard-public-card-backs') as InstancedMesh | undefined
+  return { top: top?.userData.cardId, backs: backs?.count ?? 0, visible: !!scene.getObjectByName('onecard-table'),
+    publicData: JSON.stringify({ session: useSession.getState(), avatars: [...avatars] }) }
+}
+const onecardResources = { textures: 0, materials: 0, instances: 0, shared: 0 }
+const watchedOneCardResources = new WeakSet<object>()
+export const onecardResourceProbe = () => ({ ...onecardResources })
+export function watchOneCardResources() {
+  const scene = root().scene
+  scene.getObjectByName('onecard-table')?.traverse(object => {
+    if (!(object instanceof Mesh)) return
+    if (!watchedOneCardResources.has(object.geometry)) {
+      watchedOneCardResources.add(object.geometry); object.geometry.addEventListener('dispose', () => onecardResources.shared++)
+    }
+    for (const material of Array.isArray(object.material) ? object.material : [object.material]) {
+      if (watchedOneCardResources.has(material)) continue
+      watchedOneCardResources.add(material)
+      if ('map' in material && material.map instanceof Texture) {
+        material.addEventListener('dispose', () => onecardResources.materials++)
+        material.map.addEventListener('dispose', () => onecardResources.textures++)
+      } else material.addEventListener('dispose', () => onecardResources.shared++)
+    }
+  })
+  const backs = scene.getObjectByName('onecard-public-card-backs') as InstancedMesh | undefined
+  if (backs && !watchedOneCardResources.has(backs)) {
+    watchedOneCardResources.add(backs); backs.addEventListener('dispose', () => onecardResources.instances++)
+  }
 }
 export function tablePresentationProbe() {
   const { camera } = root()

@@ -4,7 +4,7 @@ import type { StartState } from '../../game/protocol'
 export const TABLE_GAMES = [
   { code: 'OMOK', name: '오목', capacity: 2, playable: true },
   { code: 'DICE', name: '주사위 한 판', capacity: 2, playable: true },
-  { code: 'ONE_CARD', name: '원카드', capacity: 4, playable: false },
+  { code: 'ONE_CARD', name: '원카드', capacity: 4, playable: true },
   { code: 'LIAR_BRIDGE', name: '거짓말 다리 건너기', capacity: 4, playable: false },
 ] as const
 export type TableGameCode = typeof TABLE_GAMES[number]['code']

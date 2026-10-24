@@ -1,4 +1,5 @@
 import { integer, record } from '../network/protocol'
+import { parseOneCard, parseHand, type OneCard, type Hand } from './onecard/protocol'
 
 export type Recovery =
   | 'UNKNOWN'
@@ -41,9 +42,10 @@ interface GameHeader {
   version: number
   role: 'PLAYER' | 'SPECTATOR'
 }
-export interface OmokGame extends GameHeader { omok: Omok; dice?: never }
-export interface DiceGame extends GameHeader { dice: Farkle; omok?: never }
-export type Game = OmokGame | DiceGame
+export interface OmokGame extends GameHeader { omok: Omok; dice?: never; onecard?: never; hand?: never }
+export interface DiceGame extends GameHeader { dice: Farkle; omok?: never; onecard?: never; hand?: never }
+export interface OneCardGame extends GameHeader { onecard: OneCard; hand: Hand | null; omok?: never; dice?: never }
+export type Game = OmokGame | DiceGame | OneCardGame
 export interface Farkle {
   gameCode: 'DICE'; status: 'PLAYING' | 'FINISHED'; players: string[]; scores: number[]
   targetScore: number; turnTimeLimitMs: 30000; turnUserId: string | null; turnDeadline: string | null
@@ -52,8 +54,8 @@ export interface Farkle {
   hotDice: boolean; lastEvent: 'START' | 'ROLL' | 'HOT_DICE' | 'BANK' | 'BUST' | 'TURN_TIMEOUT'
   winnerUserId: string | null; endReason: string | null; endedAt: string | null
 }
-export const gameState = (g: Game) => g.omok ?? g.dice
-export const gamePlayers = (g: Game) => g.omok ? [g.omok.blackUserId, g.omok.whiteUserId] : g.dice.players
+export const gameState = (g: Game) => g.omok ?? g.dice ?? g.onecard
+export const gamePlayers = (g: Game) => g.omok ? [g.omok.blackUserId, g.omok.whiteUserId] : g.dice ? g.dice.players : g.onecard.players.map(p => p.userId)
 export interface Result {
   version: number
   gameSessionId: string
@@ -186,19 +188,23 @@ export function parseOmok(p: unknown): Omok {
     endedAt: p.endedAt as string | null,
   }
 }
-export function parseGame(p: Record<string, unknown>): Game {
+export function parseGame(p: Record<string, unknown>, ownId = ''): Game {
   if (
     !id(p.gameId) ||
     !integer(p.version) ||
     !['PLAYER', 'SPECTATOR'].includes(String(p.role)) ||
     !record(p.privateState) ||
-    Object.keys(p.privateState).length !== 0
+    (!(record(p.publicState) && p.publicState.gameCode === 'ONE_CARD' && p.role === 'PLAYER') && Object.keys(p.privateState).length !== 0)
   )
     throw new Error('경기 공개 상태 또는 관전 권한을 확인해주세요.')
   const common = {
     gameId: p.gameId,
     version: p.version,
     role: p.role as Game['role'],
+  }
+  if (record(p.publicState) && p.publicState.gameCode === 'ONE_CARD') {
+    const onecard = parseOneCard(p.publicState)
+    return { ...common, onecard, hand: p.role === 'PLAYER' ? parseHand(p.privateState, ownId, onecard) : null }
   }
   return record(p.publicState) && p.publicState.gameCode === 'DICE'
     ? { ...common, dice: parseFarkle(p.publicState) } : { ...common, omok: parseOmok(p.publicState) }
@@ -207,7 +213,7 @@ export function parseResult(p: Record<string, unknown>, ownId: string): Result {
   if (
     !id(p.gameSessionId) ||
     !integer(p.version) ||
-    !['OMOK', 'DICE'].includes(String(p.gameCode)) ||
+    !['OMOK', 'DICE', 'ONE_CARD'].includes(String(p.gameCode)) ||
     !['FINISHED', 'INVALID'].includes(String(p.status)) ||
     !['PENDING', 'SETTLED'].includes(String(p.settlementStatus)) ||
     !integer(p.betAmountPerPlayer) ||

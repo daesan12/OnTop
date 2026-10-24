@@ -5,6 +5,7 @@ import fs from 'node:fs/promises'
 import { TABLES } from '../../src/config'
 import { EXPECTED_MAP_VERSION } from '../../src/config/mapVersion'
 import type { Farkle } from '../../src/game/protocol'
+import type { OneCard, Hand, Card } from '../../src/game/onecard/protocol'
 
 // Contract fixtures intercept HTTP/RawWS only in tests. No production fake-auth or socket bypass.
 const anchor = TABLES[0]!
@@ -23,6 +24,7 @@ export async function fixture(
     players?: number
     omok?: boolean
     dice?: boolean
+    onecard?: 2 | 3 | 4
     m09?: boolean
     manualMovement?: boolean
     ownUserId?: '101' | '102'
@@ -72,7 +74,14 @@ export async function fixture(
     finished = false,
     holdState = false,
     forbid = false
-  const gameId = options.dice ? 'fixture-confirmed-dice' : 'fixture-confirmed-omok'
+  const gameId = options.onecard ? 'fixture-confirmed-onecard' : options.dice ? 'fixture-confirmed-dice' : 'fixture-confirmed-omok'
+  const initialHand: Card[] = ['4', '7', 'K', 'Q', 'J', '2', 'A'].map(rank => ({ id: `hearts-${rank}`, suit: 'hearts', rank }))
+  let cardState: OneCard = { gameCode: 'ONE_CARD', status: 'PLAYING', players: Array.from({ length: options.onecard ?? 2 }, (_, i) => ({ userId: String(101 + i), cardCount: 7,
+    active: true, oneCardUntil: null, oneCardStatus: 'none' })), turnUserId: options.ownUserId ?? '101', turnDeadline: new Date(Date.now() + 30000).toISOString(), turnTimeLimitMs: 30000,
+    direction: 1, stage: 'PLAYING', extraAction: false, topCard: { id: 'hearts-5', suit: 'hearts', rank: '5' }, activeSuit: 'hearts', drawCount: 54 - (options.onecard ?? 2) * 7 - 1,
+    attackTotal: 0, lastAttack: null, turnCount: 1, winnerUserIds: [], endReason: null, endedAt: null }
+  let cardHand: Hand = { userId: options.ownUserId ?? '101', hand: initialHand, playableCardIds: initialHand.map(c => c.id), canDraw: true }
+  const cardReplies: { input: object; patch: Partial<OneCard>; hand: Hand }[] = []
   let diceState: Farkle = { gameCode: 'DICE', status: 'PLAYING', players: ['101', '102'], scores: [0, 0], targetScore: 4000,
     turnTimeLimitMs: 30000, turnUserId: '101', turnDeadline: new Date(Date.now() + 30000).toISOString(), turnScore: 0, dice: [],
     stage: 'AWAITING_ROLL', rollId: 0, round: 1, hotDice: false, lastEvent: 'START', winnerUserId: null, endReason: null, endedAt: null }
@@ -133,8 +142,8 @@ export async function fixture(
         gameId,
         version: gameVersion,
         role,
-        publicState: options.dice ? diceState : omok(),
-        privateState: {},
+        publicState: options.onecard ? cardState : options.dice ? diceState : omok(),
+        privateState: options.onecard && role === 'PLAYER' ? cardHand : {},
       },
       requestId,
     )
@@ -143,7 +152,7 @@ export async function fixture(
       status: 'RESTORED',
       gameId,
       version: gameVersion,
-      state: options.dice ? diceState : omok(),
+      state: options.onecard ? { publicState: cardState, privateState: cardHand } : options.dice ? diceState : omok(),
       reconnectUntil: null,
       code: null,
     })
@@ -156,7 +165,7 @@ export async function fixture(
       {
         version: resultVersion,
         gameSessionId: gameId,
-        gameCode: options.dice ? 'DICE' : 'OMOK',
+        gameCode: options.onecard ? 'ONE_CARD' : options.dice ? 'DICE' : 'OMOK',
         status: 'FINISHED',
         endReason: 'NORMAL',
         settlementStatus: settled ? 'SETTLED' : 'PENDING',
@@ -447,6 +456,15 @@ export async function fixture(
           emit(ws, 'ERROR', error, requestId)
           return
         }
+        if (options.onecard) {
+          const reply = cardReplies.shift()
+          expect(reply, 'Explicitly script each approved one-card response').toBeTruthy()
+          expect(payload.input).toEqual(reply!.input)
+          cardState = { ...cardState, ...reply!.patch }; cardHand = reply!.hand; gameVersion++
+          emit(ws, 'GAME_ACTION_RESULT', { gameId, actionId: payload.actionId, version: gameVersion }, requestId)
+          if (!holdState) game(ws)
+          return
+        }
         if (options.dice) {
           const reply = diceReplies.shift()
           expect(reply, 'A test must explicitly script each server dice response').toBeTruthy()
@@ -486,6 +504,10 @@ export async function fixture(
   })
   return {
     sent,
+    cardReply: (input: object, patch: Partial<OneCard>, hand: Hand) => { cardReplies.push({ input, patch, hand }) },
+    cardSnapshot: (patch: Partial<OneCard>, hand = cardHand, role = 'PLAYER') => { cardState = { ...cardState, ...patch }; cardHand = hand; gameVersion++; game(sockets.at(-1)!, null, role) },
+    cardState: () => structuredClone(cardState),
+    cardHand: () => structuredClone(cardHand),
     diceReply: (input: object, patch: Partial<Farkle>) => { diceReplies.push({ input, patch }) },
     diceSnapshot: (patch: Partial<Farkle>, role = 'PLAYER') => { diceState = { ...diceState, ...patch }; gameVersion++; game(sockets.at(-1)!, null, role) },
     rejectNextAction: (code: string, message: string) => { nextActionError = { code, message } },
@@ -502,6 +524,7 @@ export async function fixture(
       started = true
       gameDeadline = new Date(Date.now() + 30_000).toISOString()
       if (options.dice) diceState = { ...diceState, turnDeadline: gameDeadline }
+      if (options.onecard) cardState = { ...cardState, turnDeadline: gameDeadline }
       start(sockets.at(-1)!, 'PLAYING')
       recovery(sockets.at(-1)!)
     },

@@ -1,0 +1,17 @@
+.park-page .onecard-panel { position:absolute; right:var(--park-edge); bottom:calc(var(--park-edge) + 80px); width:min(490px,39vw); max-height:calc(100dvh - 220px); overflow:auto; z-index:5; }
+.onecard-players { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+.onecard-players>div { display:flex; flex-direction:column; padding:8px; border:1px solid #e7d7aa55; border-radius:8px; gap:4px; min-width:0; overflow-wrap:anywhere; }
+.onecard-players .active { border-color:#f0bd67; background:#f0bd6718; }
+.onecard-public { display:flex; gap:16px; align-items:center; }
+.onecard-public>div:last-child { display:flex; flex-direction:column; gap:6px; }
+.onecard-hand { display:flex; flex-wrap:wrap; gap:7px; max-height:250px; overflow:auto; padding:4px; }
+.park-page .onecard-card { background:#faf2dd; color:#253a38; border:2px solid #bcb08e; border-radius:8px; display:flex; flex-direction:column; justify-content:space-between; width:87px; min-width:87px; min-height:123px; padding:8px; text-align:center; flex-shrink:0; }
+.park-page .onecard-card strong { font-size:30px; line-height:1.15; }
+.park-page .onecard-card small { font-size:10px; }
+.park-page .onecard-card.red { color:#a32d3a; }
+.park-page .onecard-card:disabled { opacity:.6; }
+.park-page .onecard-card[aria-pressed=true] { border-color:#e6a52f; box-shadow:0 0 0 2px #e6a52f; }
+.onecard-actions { display:flex; flex-wrap:wrap; gap:7px; }
+.onecard-rules { border-top:1px solid #e7d7aa55; font-size:13px; }
+@media(max-width:700px) { .park-page .onecard-panel { width:calc(100vw - 2 * var(--park-edge)); max-height:calc(100dvh - 210px); bottom:calc(var(--park-edge) + 68px); } }
+@media(max-height:800px) { .park-page .onecard-panel { font-size:13px; gap:6px; } .onecard-hand { max-height:160px; } }

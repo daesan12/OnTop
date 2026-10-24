@@ -24,6 +24,7 @@ export interface ParkRuntimePort {
   checkResult(): Promise<boolean>
   placeOmok(x: number, y: number): Promise<boolean>
   actDice(kind: 'roll' | 'bank', selectedIds: readonly number[]): Promise<boolean>
+  actOneCard(input: import('../../game/onecard/protocol').OneCardInput): Promise<boolean>
   watchGame(gameId: string): Promise<boolean>
   unwatchGame(): Promise<boolean>
 }
