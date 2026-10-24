@@ -17,6 +17,8 @@ import { EmoteWheel } from '../features/emotes/EmoteWheel'
 import { TelescopePanel } from '../features/telescopes/TelescopePanel'
 import { FeedbackPanel } from '../features/feedback/FeedbackPanel'
 import { AnonymousNotes } from '../features/notes/AnonymousNotes'
+import { ManualHost } from '../features/manual/ManualHost'
+import { inputState } from '../world/inputOwnership'
 import { BungeoppangHud } from '../features/bungeoppang/BungeoppangHud'
 import { useBungeoppang } from '../features/bungeoppang/store'
 
@@ -69,7 +71,7 @@ function ParkContent({ onExit, exitError }: ParkProps) {
 
   useEffect(() => {
     const handleKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (event.isComposing || event.altKey || event.ctrlKey || event.metaKey) return
+      if (inputState.manualOpen || event.isComposing || event.altKey || event.ctrlKey || event.metaKey) return
       if (event.key === 'Escape' && chatOpen) {
         setChatOpen(false)
         inputRef.current?.blur()
@@ -177,6 +179,7 @@ function ParkContent({ onExit, exitError }: ParkProps) {
       <FeedbackPanel />
       <AnonymousNotes />
       <BungeoppangHud />
+      <ManualHost />
     </main>
   )
 }

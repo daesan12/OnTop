@@ -65,7 +65,6 @@ export function BungeoppangHud() {
       {phase === "ending" && <div className="bung-big-text">끝!</div>}
       {phase === "result" && <ResultPanel />}
       <ExitConfirm />
-      <BungeoppangHelp />
       {phase !== 'leaving' && <button className="bung-help-button" onClick={() => setBungeoppangHelp(true)}>F1 조작 안내</button>}
     </div>
   );
@@ -77,12 +76,6 @@ function useMinigameInput(active: boolean) {
     let wheelSum = 0,
       wheelLock = 0;
     const keydown = (event: KeyboardEvent) => {
-      if (!event.repeat && !event.isComposing && !event.ctrlKey && !event.altKey && !event.metaKey
-        && (event.code === 'F1' || (event.code === 'Escape' && useBungeoppang.getState().helpOpen))) {
-        event.preventDefault(); event.stopImmediatePropagation();
-        setBungeoppangHelp(event.code === 'F1' && !useBungeoppang.getState().helpOpen);
-        return;
-      }
       if (
         typing() ||
         event.isComposing ||
@@ -528,19 +521,4 @@ function ResultPanel() {
       </section>
     </div>
   );
-}
-
-function BungeoppangHelp() {
-  const open = useBungeoppang(s => s.helpOpen);
-  if (!open) return null;
-  return <div className="bung-dim"><section className="bung-panel bung-result" role="dialog" aria-label="붕어빵 조작 안내">
-    <h2>붕어빵 굽기 · 조작 안내</h2><Steps />
-    <p>Q W E / A S D 또는 철판 클릭으로 칸을 조작해요.</p>
-    <p>Space·휠 위: 반죽 / 1·휠 아래: 팥. 우클릭 또는 Shift+칸 키로 버려요.</p>
-    <p>노릇한 황금색일 때 뒤집고 양면을 구워 꺼내요. 덜 익거나 타면 0점이에요.</p>
-    <p>양면 황금 콤보 3~5는 ×1.2, 6 이상은 ×1.5예요. 40초부터 불이 세져요.</p>
-    <p>60초 조리 후 서버가 점수를 검증해 15점당 1냥, 한국 날짜 기준 하루 최대 100냥을 지급해요.</p>
-    <p>설명서·채팅·그만두기 확인 중에도 시간이 흐릅니다. Esc: 그만두기 확인.</p>
-    <button autoFocus onClick={() => setBungeoppangHelp(false)}>안내 닫기 · F1 / Esc</button>
-  </section></div>;
 }

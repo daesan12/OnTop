@@ -4,7 +4,7 @@ import base from './playwright.config'
 // Missing emotes are previewed only in this explicit development mode.
 export default defineConfig({
   ...base,
-  testMatch: /m(?:0[1-9]|1[0-3])\.spec\.ts/,
+  testMatch: /(?:m(?:0[1-9]|1[0-3])|manual-preview)\.spec\.ts/,
   testIgnore: [],
   use: { ...base.use, baseURL: 'http://127.0.0.1:5196' },
   webServer: {
