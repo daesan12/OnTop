@@ -92,8 +92,8 @@ describe('M09 lobby authority and completed round presentation', () => {
     resetTableLobby()
     expect(useTableLobby.getState().lookScope).toBe('')
   })
-  it('has no reference in ordinary mode; preview mock only supplies explicitly seeded public IDs', () => {
-    expect(publicMatchService.mode).toBe('unavailable')
+  it('uses the server provider in ordinary mode; preview mock only supplies explicitly seeded public IDs', () => {
+    expect(publicMatchService.mode).toBe('server')
     const mock = createMockPublicMatchService()
     expect(mock.find({ channelId: 'a', tableId: 't' })).toBeNull()
     mock.set({ channelId: 'a', tableId: 't', gameId: 'g' })

@@ -16,6 +16,8 @@
 }
 .bench-spectator, .bench-spectator > [role="group"] { display:flex; flex-wrap:wrap; gap:8px; }
 .bench-spectator { flex-direction:column; }
+.bench-watch-status { max-width:210px; font-size:12px; line-height:1.5; color:#dfd9bd; }
+.park-page:has(.bench-spectator button[aria-pressed="true"]) :is([aria-label="오목 경기"],.farkle-panel,.onecard-panel,.bridge-panel) { bottom:calc(var(--park-edge) + 140px); max-height:calc(100dvh - 280px); }
 .bench-spectator button[aria-pressed="true"] { border-color:#dfd2b0; background:#51614a; }
 .park-page .park-interaction:has(.bench-spectator button[aria-pressed="true"]) { left:auto; right:var(--park-edge); bottom:var(--park-edge); transform:none; width:max-content; max-width:calc(100vw - 280px); flex-direction:row; flex-wrap:wrap; padding:12px 16px; }
 .park-interaction:has(.bench-spectator button[aria-pressed="true"]) > :is(strong,small) { display:none; }
