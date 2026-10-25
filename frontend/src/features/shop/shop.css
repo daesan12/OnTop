@@ -1,4 +1,6 @@
 .park-account-actions { display: flex; gap: 8px; pointer-events: auto; }
+.park-shop-launcher:disabled { cursor: not-allowed; color: #d8d1bd; background: #36362f; }
+.park-shop-construction { margin-left: 6px; padding: 2px 5px; border: 1px solid #bfa862; border-radius: 4px; color: #f4d88c; font-size: 11px; white-space: nowrap; }
 .shop-panel { width: min(760px, calc(100vw - 28px)); max-width: calc(100vw - 28px); max-height: calc(100dvh - 28px); padding: 0; border: 1px solid #ccbd8c; border-radius: 20px; color: #28392e; background: #f7f1df; box-shadow: 0 18px 70px #0006; }
 .shop-panel::backdrop { background: #111e19a8; }
 .shop-panel * { box-sizing: border-box; }
@@ -41,6 +43,8 @@
   .park-account-actions { flex-direction: column-reverse; align-items: flex-end; gap: 8px; }
 }
 @media (max-width: 520px) {
+  .park-shop-launcher { padding: 0 8px; font-size: 12px; }
+  .park-shop-construction { margin-left: 4px; padding: 2px 4px; font-size: 10px; }
   .shop-heading { padding: 17px 16px; }
   .shop-heading h2 { font-size: 20px; }
   .shop-content { padding: 12px 16px 18px; }

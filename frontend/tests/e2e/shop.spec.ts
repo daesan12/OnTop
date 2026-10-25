@@ -15,6 +15,36 @@ async function choose(page: Page, name = '검증 상의 가') {
   await dialog(page).getByRole('button', { name: `${name} 구매 선택`, exact: true }).click()
   await expect(dialog(page).getByRole('region', { name: '구매 내용 확인' })).toBeVisible()
 }
+for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
+  test(`shop is under construction and cannot be opened at ${viewport.width}px`, async ({ page }) => {
+    await page.setViewportSize(viewport)
+    const errors: string[] = []
+    page.on('pageerror', error => errors.push(error.message))
+    const server = await fixture(page, { manualMovement: true })
+    const rest = await shopFixture(page, equipment => server.equipment('101', equipment))
+    await page.goto('/park')
+    await expect(page).toHaveTitle('OnTop')
+    await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90000 })
+    const button = page.getByRole('button', { name: '상점 · 옷장 (공사중)', exact: true })
+    await expect(button).toBeVisible()
+    await expect(button).toBeDisabled()
+    const box = await button.boundingBox()
+    await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2)
+    await expect(dialog(page)).toBeHidden()
+    await expect(page.getByRole('button', { name: '나가기', exact: true })).toBeEnabled()
+    await page.keyboard.press('F1')
+    await expect(page.getByRole('dialog', { name: '게임 설명서' })).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('dialog', { name: '게임 설명서' })).toBeHidden()
+    expect(rest.calls).toEqual([])
+    expect(errors).toEqual([])
+    await expect(page.locator('vite-error-overlay')).toHaveCount(0)
+    await screenshot(page, `shop-under-construction-${viewport.width}`)
+  })
+}
+
+// Keep the completed integration scenarios for the later shop reopening.
+test.describe.skip('shop integration — deferred while the launcher is under construction', () => {
 test('catalog -> confirmed purchase -> current wallet -> inventory -> equip, with only approved WORLD_STATE appearance', async ({ page }) => {
   const errors: string[] = [], consoleErrors: string[] = []
   page.on('pageerror', e => errors.push(e.message)); page.on('console', m => { if (m.type() === 'error') consoleErrors.push(m.text()) })
@@ -149,4 +179,5 @@ test('an explicit account exit clears unfinished private purchase state and neve
   await expect(page.getByRole('button', { name: 'SSAFY로 계속하기', exact: true })).toBeVisible()
   expect(await page.evaluate(() => sessionStorage.getItem('ontop.shop.pending.v1:101'))).toBeNull()
   expect(rest.calls.filter(call => call.method === 'POST')).toHaveLength(1)
+})
 })

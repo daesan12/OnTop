@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef } from 'react'
 import { useSession } from '../../network/worldClient'
 import { emptyEquipment } from '../../network/equipment'
 import { inputState } from '../../world/inputOwnership'
-import { closeShop, equipShopItem, openShop, purchaseShopItem, refreshShop, resetShop,
+import { closeShop, equipShopItem, purchaseShopItem, refreshShop, resetShop,
   selectShopItem, setShopQuantity, useShop } from './controller'
 import type { ShopItem } from './contracts'
 import './shop.css'
@@ -12,9 +12,10 @@ const money = (value: number) => `${value.toLocaleString('ko-KR')}냥`
 const category = (item: ShopItem) => item.equipSlot ? slotNames[item.equipSlot] : item.itemType === 'EQUIPMENT' ? '의상' : '소비 아이템'
 
 export function ShopLauncher() {
-  const status = useSession(s => s.status), room = useSession(s => s.roomId)
-  return <button className="park-shop-launcher park-exit" type="button" aria-label="상점·보유 아이템 열기"
-    aria-haspopup="dialog" disabled={status !== 'connected' || !room} onClick={openShop}>상점 · 옷장</button>
+  return <button className="park-shop-launcher park-exit" type="button" disabled
+    aria-label="상점 · 옷장 (공사중)" title="상점은 공사중입니다. 추후 오픈 예정입니다.">
+    상점 · 옷장 <span className="park-shop-construction">공사중</span>
+  </button>
 }
 export function ShopPanel() {
   const s = useShop(), panel = useRef<HTMLDialogElement>(null), previousFocus = useRef<HTMLElement | null>(null)
