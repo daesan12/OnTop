@@ -205,6 +205,11 @@ V111 이전 판은 불 세기가 없어 RULES_VERSION_MISMATCH이며 새 판이 
 
 ## 실제 프론트 서비스 연동 검증 · 2026-10-25
 
+상점 구매와 완료 보상이 겹치는 HTTP/DB 검증은
+[구매·붕어빵 보상 동시 처리](shop-inventory.md#구매붕어빵-보상-동시-처리)를 따른다.
+구매 먼저·보상 먼저·구매 롤백 뒤 같은 키 재시도에서도 잔액·예약금·원장·영수증을 확인한다.
+새 API·보상 규칙·경기 예약/정산 구현을 추가한 작업은 아니다.
+
 `MinigameFrontendMySqlTests`는 현재 프론트의 `createBungeoppangService`와 `replayGrill`을 그대로
 불러 실제 회원 JWT → Spring HTTP → JPA → 별도 MySQL8.4까지 연결한다. 시작/조회/완료/포기와
 지갑 조회를 검증하며 응답 대역은 사용하지 않는다. 사용하지 않는 월드 런타임 singleton만 격리한다.
