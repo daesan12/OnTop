@@ -29,6 +29,7 @@ import { resetTableLobby } from '../features/tableLobby/state'
 import { publicMatchService } from '../features/tableLobby/publicMatch'
 import { resetFacilities } from '../features/facilities/state'
 import type { FacilityLease } from '../features/facilities/protocol'
+import { sameEquipment, type PublicEquipment } from './equipment'
 
 export interface Pose {
   x: number
@@ -97,6 +98,7 @@ export interface Session {
   benchId: string
   fitnessId: string
   profiles: Record<string, DisplayProfile>
+  equipment: Record<string, readonly PublicEquipment[]>
   account: { nickname: string; balance: number | null } | null
 }
 const initial = (): Session => ({
@@ -125,6 +127,7 @@ const initial = (): Session => ({
   benchId: '',
   fitnessId: '',
   profiles: {},
+  equipment: {},
   account: null,
 })
 export const useSession = create<Session>(initial)
@@ -199,6 +202,7 @@ export function clearChannel(keepFeedbackDraft = false, keepNotesDraft = false) 
     fitnessId: '',
     telescopeId: '',
     profiles: profiles[sessionId] ? { [sessionId]: profiles[sessionId] } : {},
+    equipment: {},
   })
 }
 export function sampleAvatar(
@@ -382,7 +386,19 @@ export function receive(message: Envelope) {
       // Preserve the last approved values while the server's async profile read is pending.
       // Copy only on profile changes; movement ticks keep the same store references.
       let profiles = state.profiles
+      let equipment = state.equipment
       const present = new Set(ids)
+      for (const id of Object.keys(equipment)) {
+        if (present.has(id)) continue
+        if (equipment === state.equipment) equipment = { ...equipment }
+        delete equipment[id]
+      }
+      for (const avatar of next.avatars) {
+        // null/missing is an unfinished or failed DB read, not an unequip command.
+        if (avatar.equipment == null || sameEquipment(equipment[avatar.userId], avatar.equipment)) continue
+        if (equipment === state.equipment) equipment = { ...equipment }
+        equipment[avatar.userId] = avatar.equipment.map(({ itemId, itemCode, equipSlot, imageKey }) => ({ itemId, itemCode, equipSlot, imageKey }))
+      }
       for (const id of Object.keys(profiles)) {
         if (id !== state.sessionId && !present.has(id)) {
           if (profiles === state.profiles) profiles = { ...profiles }
@@ -472,6 +488,7 @@ export function receive(message: Envelope) {
       useSession.setState({
         ids: ids.join('\0') === state.ids.join('\0') ? state.ids : ids,
         profiles,
+        equipment,
         ...(state.account && profiles[state.sessionId]
           && state.account.nickname !== profiles[state.sessionId]!.nickname
           ? { account: { ...state.account, nickname: profiles[state.sessionId]!.nickname } } : {}),

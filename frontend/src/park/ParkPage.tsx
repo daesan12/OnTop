@@ -26,6 +26,7 @@ import { ParkNavigation } from '../features/navigation/NavigationHud'
 import { inputState } from '../world/inputOwnership'
 import { BungeoppangHud } from '../features/bungeoppang/BungeoppangHud'
 import { useBungeoppang } from '../features/bungeoppang/store'
+import { ShopLauncher, ShopPanel } from '../features/shop/ShopPanel'
 
 const shortcuts = [
   { key: 'WASD', action: '이동' },
@@ -80,7 +81,7 @@ function ParkContent({ onExit, exitError }: ParkProps) {
 
   useEffect(() => {
     const handleKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (inputState.manualOpen || inputState.mapOpen || event.isComposing || event.altKey || event.ctrlKey || event.metaKey) return
+      if (inputState.manualOpen || inputState.mapOpen || inputState.shopOpen || event.isComposing || event.altKey || event.ctrlKey || event.metaKey) return
       if (event.key === 'Escape' && chatOpen) {
         setChatOpen(false)
         inputRef.current?.blur()
@@ -142,7 +143,7 @@ function ParkContent({ onExit, exitError }: ParkProps) {
             <span className="park-account__avatar"><img src={avatarImage} alt="내 캐릭터" /></span>
             <span className="park-chevron" aria-hidden="true" />
           </div>
-          <button className="park-exit" type="button" onClick={onExit}>나가기</button>
+          <div className="park-account-actions"><ShopLauncher /><button className="park-exit" type="button" onClick={onExit}>나가기</button></div>
           {exitError && <p className="park-exit-error" role="alert">{exitError}</p>}
         </div>
 
@@ -188,6 +189,7 @@ function ParkContent({ onExit, exitError }: ParkProps) {
       <TelescopePanel />
       <FeedbackPanel />
       <AnonymousNotes />
+      <ShopPanel />
       <BungeoppangHud />
       <ParkMap />
       <ParkNavigation />

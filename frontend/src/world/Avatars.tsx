@@ -10,6 +10,7 @@ import { AvatarPoseCadence } from '../performance/avatarPoseCadence'
 import { CHARACTER } from '../config'
 import { FartCloud } from './art/FartCloud'
 import { bungeoppangView } from '../features/bungeoppang/bungeoppangView'
+import { emptyEquipment } from '../network/equipment'
 
 import {
   AvatarOverlayPositions,
@@ -32,6 +33,7 @@ function Avatar({
 }) {
   const sources = useLoader(ParkAssetLoader, characterUrls)
   const variant = useSession(state => state.profiles[id]?.character ?? 'man')
+  const equipment = useSession(state => state.equipment[id] ?? emptyEquipment)
   const model = useMemo(
     () => createCharacterRig(sources[variant === 'girl' ? 1 : 0]!),
     [sources, variant],
@@ -93,7 +95,9 @@ function Avatar({
       ref={root}
       name={`avatar-${id}`}
       dispose={null}
-      userData={{ character: variant }}
+      // Approved public appearance reaches the renderer. No guessed asset or material
+      // substitution: product-specific models/textures have not been supplied yet.
+      userData={{ character: variant, equipment, equipmentAssetsPending: equipment.length > 0 }}
     >
       <FartCloud id={id} />
       <group ref={figure} name={`figure-${id}`}>

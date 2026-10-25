@@ -1,4 +1,12 @@
 // Dev-server-only inspection helper. Never imported by production code or bundled with the app.
+export function equipmentProbe() {
+  const s = useSession.getState()
+  return { approved: s.equipment, models: s.ids.map(id => {
+    const avatar = root().scene.getObjectByName('avatar-' + id)
+    return { id: avatar?.name, equipment: (avatar?.userData.equipment ?? []) as import('../../src/network/equipment').PublicEquipment[],
+      assetsPending: avatar?.userData.equipmentAssetsPending }
+  }) }
+}
 import { _roots } from '@react-three/fiber'
 import {
   Box3,
