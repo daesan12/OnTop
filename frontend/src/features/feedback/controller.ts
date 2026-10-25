@@ -2,6 +2,7 @@ import { tableBusy } from '../../game/store'
 import { avatars, authoritativePose, useSession } from '../../network/worldClient'
 import { parkRuntime } from '../../park/runtime/runtime'
 import { clearRoamingInput, inputState, panelOwnsKeys } from '../../world/inputOwnership'
+import { rememberRoamingView } from '../../world/cameraReturn'
 import { useBenchState } from '../interactions/benchState'
 import { useFitnessState } from '../fitness/state'
 import { useTelescopeState } from '../telescopes/state'
@@ -21,6 +22,7 @@ export function openFeedback(): boolean {
   if (!eligible() || panelOwnsKeys()) return false
   const session = useSession.getState(), state = useFeedbackState.getState()
   if (state.ownerId !== session.sessionId || state.channelId !== session.roomId) resetFeedbackState()
+  rememberRoamingView(session.sessionId, session.roomId)
   parkRuntime.move(0, 0, false)
   clearRoamingInput()
   inputState.feedbackOpen = true

@@ -7,12 +7,14 @@ import { useTelescopeState } from '../telescopes/state'
 import { canReachFitness } from './anchors'
 import { fitnessService } from './service'
 import { fitnessSignal, releaseFitnessUser, useFitnessState } from './state'
+import { rememberRoamingView } from '../../world/cameraReturn'
 
 export async function enterFitness(stationId: string): Promise<boolean> {
   const session = useSession.getState(), state = useFitnessState.getState(), avatar = avatars.get(session.sessionId)
   if (session.status !== 'connected' || !session.mapCompatible || !avatar?.connected || state.pending || session.pending
     || useBenchState.getState().pending || useTelescopeState.getState().pending || session.tableId || avatar.seatIndex >= 0 || avatar.fitnessId
     || avatar.telescopeId || avatar.swimming || tableBusy() || panelOwnsKeys() || !canReachFitness(avatar.current, stationId)) return false
+  rememberRoamingView(session.sessionId, session.roomId)
   parkRuntime.move(0, 0, false)
   clearRoamingInput()
   useFitnessState.setState({ pending: true, operation: 'enter', error: '' })

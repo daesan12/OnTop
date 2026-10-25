@@ -11,6 +11,8 @@ import { CHARACTER } from '../config'
 import { FartCloud } from './art/FartCloud'
 import { bungeoppangView } from '../features/bungeoppang/bungeoppangView'
 import { emptyEquipment } from '../network/equipment'
+import { roamingFirstPerson } from './roamingCamera'
+import { useGame } from '../game/store'
 
 import {
   AvatarOverlayPositions,
@@ -64,7 +66,8 @@ function Avatar({
     // Hide only this client's own model; other clients retain the full avatar.
     const cookingHidden = (own && (bungeoppangView.active || performance.now() < bungeoppangView.returningUntil))
       || (bungeoppangView.active && Math.hypot(pose.x - bungeoppangView.standX, pose.z - bungeoppangView.standZ) < bungeoppangView.hideOthersRadius)
-    root.current.visible = !cookingHidden && !(own && ((avatar.tableId || avatar.benchId) && seated || avatar.telescopeId))
+    root.current.visible = !cookingHidden && !(own && (((avatar.tableId || avatar.benchId) && seated || avatar.telescopeId)
+      || roamingFirstPerson(avatar, !!useGame.getState().watchedGameId)))
     root.current.position.set(
       pose.x,
       pose.y - 0.8 + (seated ? CHARACTER.seatedHipHeight - model.hipHeight : 0),

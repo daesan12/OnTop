@@ -27,6 +27,8 @@ import { inputState } from '../world/inputOwnership'
 import { BungeoppangHud } from '../features/bungeoppang/BungeoppangHud'
 import { useBungeoppang } from '../features/bungeoppang/store'
 import { ShopLauncher, ShopPanel } from '../features/shop/ShopPanel'
+import { AdvertisementLink } from '../features/advertisements/AdvertisementLink'
+import { CameraControls } from '../features/camera/CameraControls'
 
 const shortcuts = [
   { key: 'WASD', action: '이동' },
@@ -81,7 +83,7 @@ function ParkContent({ onExit, exitError }: ParkProps) {
 
   useEffect(() => {
     const handleKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (inputState.manualOpen || inputState.mapOpen || inputState.shopOpen || event.isComposing || event.altKey || event.ctrlKey || event.metaKey) return
+      if (inputState.manualOpen || inputState.mapOpen || inputState.shopOpen || inputState.advertisementOpen || event.isComposing || event.altKey || event.ctrlKey || event.metaKey) return
       if (event.key === 'Escape' && chatOpen) {
         setChatOpen(false)
         inputRef.current?.blur()
@@ -190,6 +192,8 @@ function ParkContent({ onExit, exitError }: ParkProps) {
       <FeedbackPanel />
       <AnonymousNotes />
       <ShopPanel />
+      <AdvertisementLink />
+      <CameraControls />
       <BungeoppangHud />
       <ParkMap />
       <ParkNavigation />

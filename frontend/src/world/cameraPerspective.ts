@@ -1,4 +1,7 @@
 import { create } from 'zustand'
+import { CAMERA } from '../config'
+
+export const viewControls = { yaw: 0, pitch: CAMERA.pitch as number, distance: CAMERA.distance as number }
 
 export type CameraPerspective = 'first-person' | 'third-person'
 const storageKey = 'ontap-camera-perspective-v1'
@@ -22,6 +25,10 @@ export function toggleCameraPerspective() {
     useCameraPerspective.getState().perspective === 'third-person'
       ? 'first-person'
       : 'third-person'
+  setCameraPerspective(perspective)
+}
+
+export function setCameraPerspective(perspective: CameraPerspective) {
   useCameraPerspective.setState({ perspective })
   try {
     localStorage.setItem(storageKey, perspective)

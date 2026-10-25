@@ -16,12 +16,12 @@ import { cameraRelativeMove, MOVEMENT_INPUT_INTERVAL_MS, type MovementIntent } f
 import { useGame } from '../game/store'
 import { canLeaveByMovement } from '../features/tableLobby/model'
 import { seatScope, turnSeatedLook } from '../features/tableLobby/state'
+import { installMouseLook, mouseLookReturn } from './mouseLook'
+import { canControlRoamingCamera } from './roamingCamera'
+import { toggleCameraPerspective, useCameraPerspective, viewControls } from './cameraPerspective'
+import { cancelMouseLookReturn, resetCameraReturn } from './cameraReturn'
 export { inputState, setChatInputOpen, textInputOwnsKeys } from './inputOwnership'
-export const viewControls = {
-  yaw: 0,
-  pitch: CAMERA.pitch as number,
-  distance: CAMERA.distance as number,
-}
+export { viewControls } from './cameraPerspective'
 export function nearestTable(): string | null {
   const target = getParkInteraction()
   return target?.kind === 'table' ? target.id : null
@@ -62,7 +62,32 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     seatDragging = ''
     parkRuntime.move(0, 0, false)
   }
+  const rotate = (x: number, y: number) => {
+    viewControls.yaw -= x * 0.004
+    viewControls.pitch = Math.max(-0.2, Math.min(1.1, viewControls.pitch + y * 0.003))
+  }
+  const mouseLook = installMouseLook(canvas, canControlRoamingCamera, rotate, stop, cancelMouseLookReturn)
+  const clear = () => { mouseLook.release(); stop() }
+  const abandonMouseLook = () => { cancelMouseLookReturn(); clear() }
+  const changePerspective = () => {
+    if (!canControlRoamingCamera()) return
+    stop()
+    toggleCameraPerspective()
+    canvas.focus({ preventScroll: true })
+  }
+  const unsubscribe = useSession.subscribe((next, previous) => {
+    if (!canControlRoamingCamera() || next.roomId !== previous.roomId || next.sessionId !== previous.sessionId) {
+      mouseLook.release()
+    }
+    if (next.roomId !== previous.roomId || next.sessionId !== previous.sessionId) { resetCameraReturn(); stop() }
+  })
+  const focus = (event: FocusEvent) => {
+    if (event.target === canvas) return
+    mouseLook.release()
+    if (hadMovement || keys.size || jump || drag || seatDragging) stop()
+  }
   const down = (event: KeyboardEvent) => {
+    if (event.defaultPrevented) return
     const session = useSession.getState(), table = session.tableStates[session.tableId]
     // TABLE_LEAVE is distinct from resign. A delayed movement key can never become a forfeit.
     if (!event.repeat && !event.isComposing && !event.ctrlKey && !event.altKey && !event.metaKey
@@ -83,6 +108,11 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
       blocked()
     )
       return
+    if (event.code === 'KeyV' && !event.repeat && !event.shiftKey && canControlRoamingCamera()) {
+      event.preventDefault()
+      changePerspective()
+      return
+    }
     if (useSession.getState().telescopeId) {
       if (movement.has(event.code) || event.code === 'Space') event.preventDefault()
       if ((event.code === 'KeyE' || event.code === 'Escape') && !event.repeat) {
@@ -118,6 +148,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
   }
   const up = (event: KeyboardEvent) => keys.delete(event.code)
   const pointerDown = (event: PointerEvent) => {
+    if (mouseLook.locked()) return
     const session = useSession.getState(), scope = seatScope(session)
     if (event.button === 2 && scope && session.status === 'connected'
       && !Object.values(inputState).some(Boolean) && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName ?? '')) {
@@ -132,6 +163,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     }
   }
   const pointerMove = (event: PointerEvent) => {
+    if (mouseLook.locked()) return
     if (seatDragging) {
       const session = useSession.getState()
       if (seatDragging !== seatScope(session) || session.status !== 'connected' || Object.values(inputState).some(Boolean)) {
@@ -149,11 +181,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
         telescopeView.pitch - event.movementY * sensitivity))
       return
     }
-    viewControls.yaw -= event.movementX * 0.004
-    viewControls.pitch = Math.max(
-      -0.2,
-      Math.min(1.1, viewControls.pitch + event.movementY * 0.003),
-    )
+    rotate(event.movementX, event.movementY)
   }
   const pointerUp = () => {
     drag = false
@@ -167,6 +195,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
       if (!useTelescopeState.getState().pending) zoomTelescope(-event.deltaY * 0.003)
       return
     }
+    if (canControlRoamingCamera() && useCameraPerspective.getState().perspective === 'first-person') return
     viewControls.distance = Math.max(
       CAMERA.minDistance,
       Math.min(
@@ -176,6 +205,8 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     )
   }
   const interval = setInterval(() => {
+    if (!canControlRoamingCamera()) mouseLook.release()
+    else if (mouseLookReturn.requested) mouseLook.resume()
     if (blocked()) {
       if (hadMovement || keys.size || jump) stop()
       return
@@ -206,9 +237,11 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
   }, TELESCOPE.aimIntervalMs)
   window.addEventListener('keydown', down)
   window.addEventListener('keyup', up)
-  window.addEventListener('blur', stop)
-  window.addEventListener('ontop-clear-input', stop)
-  document.addEventListener('visibilitychange', stop)
+  window.addEventListener('blur', abandonMouseLook)
+  window.addEventListener('ontop-clear-input', clear)
+  window.addEventListener('ontop-toggle-camera-perspective', changePerspective)
+  document.addEventListener('visibilitychange', abandonMouseLook)
+  document.addEventListener('focusin', focus)
   canvas.addEventListener('pointerdown', pointerDown)
   canvas.addEventListener('contextmenu', contextMenu)
   window.addEventListener('pointermove', pointerMove)
@@ -219,12 +252,17 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     roamingInput.ready = false
     clearInterval(interval)
     clearInterval(aiming)
+    unsubscribe()
+    mouseLook.dispose()
+    resetCameraReturn()
     stop()
     window.removeEventListener('keydown', down)
     window.removeEventListener('keyup', up)
-    window.removeEventListener('blur', stop)
-    window.removeEventListener('ontop-clear-input', stop)
-    document.removeEventListener('visibilitychange', stop)
+    window.removeEventListener('blur', abandonMouseLook)
+    window.removeEventListener('ontop-clear-input', clear)
+    window.removeEventListener('ontop-toggle-camera-perspective', changePerspective)
+    document.removeEventListener('visibilitychange', abandonMouseLook)
+    document.removeEventListener('focusin', focus)
     canvas.removeEventListener('pointerdown', pointerDown)
     canvas.removeEventListener('contextmenu', contextMenu)
     window.removeEventListener('pointermove', pointerMove)

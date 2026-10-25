@@ -24,7 +24,7 @@ import { resetMetrics, summarizeFrames } from '../../src/performance/metrics'
 import { useSession } from '../../src/network/worldClient'
 import { viewControls } from '../../src/world/input'
 import { setDisplayProfiles } from '../../src/network/profileBridge'
-import { GOMOKU } from '../../src/config'
+import { CHARACTER, GOMOKU } from '../../src/config'
 import type { InstancedMesh } from 'three'
 import { omokCamera } from '../../src/game/cameraState'
 import { Matrix4 } from 'three'
@@ -151,6 +151,36 @@ export const diceResourceProbe = () => ({ ...diceResources })
 function root() {
   const canvas = document.querySelector('canvas')!
   return _roots.get(canvas)!.store.getState()
+}
+export function adCameraProbe() {
+  const { camera, scene } = root(), s = useSession.getState()
+  const own = avatars.get(s.sessionId)
+  return { controls: { ...viewControls }, camera: camera.position.toArray(), direction: camera.getWorldDirection(new Vector3()).toArray(),
+    pose: own ? { ...own.current } : null,
+    ownVisible: scene.getObjectByName('avatar-' + s.sessionId)?.visible,
+    remoteVisible: scene.getObjectByName('avatar-102')?.visible,
+    active: document.pointerLockElement === document.querySelector('canvas') }
+}
+/** A fixture-approved pose in front of a real poster, then an actual browser raycast click. */
+export function advertisementTarget() {
+  const { scene } = root()
+  let target: Mesh | undefined
+  scene.traverse(o => { if (!target && o.name === 'park-static-advertisement' && o.userData.face === 1) target = o as Mesh })
+  if (!target) throw new Error('Missing original advertisement')
+  target.updateWorldMatrix(true, false)
+  const point = target.getWorldPosition(new Vector3()), normal = new Vector3(0, 0, 1).transformDirection(target.matrixWorld)
+  const position = point.clone().addScaledVector(normal, 5)
+  // Keep the test eye aligned with the poster. This is a rendering fixture, not a physics test.
+  position.y = point.y - (CHARACTER.height - .2 - .8)
+  viewControls.yaw = Math.atan2(normal.x, normal.z); viewControls.pitch = 0
+  return { x: position.x, y: position.y, z: position.z, yaw: 0 }
+}
+export function advertisementPoint() {
+  const { scene, camera, gl } = root()
+  let target: Mesh | undefined
+  scene.traverse(o => { if (!target && o.name === 'park-static-advertisement' && o.userData.face === 1) target = o as Mesh })
+  const point = target!.getWorldPosition(new Vector3()).project(camera), box = gl.domElement.getBoundingClientRect()
+  return { x: box.left + (point.x + 1) * box.width / 2, y: box.top + (1 - point.y) * box.height / 2 }
 }
 export function sceneProbe() {
   const { scene, camera, gl } = root(),

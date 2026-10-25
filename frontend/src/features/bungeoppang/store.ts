@@ -14,6 +14,7 @@ import {
 } from "./rules";
 import { inputState } from "../../world/inputOwnership";
 import { useSession } from '../../network/worldClient';
+import { rememberRoamingView } from '../../world/cameraReturn';
 import { canOpenBungeoppang } from './access';
 import {
   bungeoppangClock as clock,
@@ -186,6 +187,8 @@ const crossed = Array.from({ length: R.slots }, () => ({
 // ---------- 진입과 나가기 ----------
 export function openBungeoppang() {
   if (get().phase !== "idle" || !canOpenBungeoppang()) return;
+  const session = useSession.getState();
+  rememberRoamingView(session.sessionId, session.roomId);
   ++visit;
   set({ phase: "entering", ...initial(), status: null, seenTips: [] });
   inputState.minigameOpen = true;

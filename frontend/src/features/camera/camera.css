@@ -1,0 +1,6 @@
+.park-camera-controls { position:absolute; right:var(--park-edge,30px); bottom:calc(var(--park-edge,30px) + 140px); display:flex; gap:8px; z-index:6; }
+.park-camera-controls kbd { font:inherit; font-size:11px; opacity:.75; }
+.park-camera-controls button:focus-visible { outline:2px solid #e8d4a4; outline-offset:3px; }
+.park-camera-controls button:disabled { opacity:.55; cursor:default; }
+.park-camera-message { position:absolute; right:0; bottom:48px; width:280px; max-width:calc(100vw - 32px); margin:0; padding:10px 14px; border:1px solid #b9c7b0; border-radius:10px; background:#f6f0dc; color:#294d40; font-size:13px; line-height:1.6; }
+@media(max-width:900px) { .park-camera-controls { right:16px; bottom:420px; } }
