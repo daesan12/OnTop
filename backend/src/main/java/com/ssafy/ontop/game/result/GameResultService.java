@@ -18,7 +18,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
 
 @Service
-@Profile("local")
+@Profile("(local | dev) & !prod & !production")
 public class GameResultService {
 
     private final Optional<GameResultGateway> gateway;

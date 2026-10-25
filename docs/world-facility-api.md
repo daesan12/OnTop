@@ -86,6 +86,42 @@
 제외 ID는 facilities.json의 excluded에 남는다. 현재 94개 전부 일치·제외 없음.
 맵/앵커가 바뀌면 생성 후 제외 목록을 확인해야 한다. 기존 bake-world·CI 자동 생성 정책은 변경하지 않았다.
 
+## 현재 FE 연동 점검 · 2026-10-25
+
+`WorldFrontendMySqlTests`에서 실제 회원 DB·접속권 인증·FE `SharedSocket`으로 94개 목록,
+벤치 두 좌석/충돌/반납, 단절 즉시 해제·재접속 CHECK·오래된 lease 거절,
+운동기구 점유, 망원경 방향·타인 변경 거절을 확인했다. 프로필/시설 통신 시나리오 4개와
+Java 통합 흐름 1개가 통과했으며, 기존 BE 회귀 16개·FE 회귀 44개도 통과했다.
+
+**공통 소켓 검증과 실제 시설 화면 연결은 다르다.** 최초 점검 `e7dca36`의 FE 빌드 모드에서 bench/fitness/telescope
+서비스는 `unavailable`이며, `worldClient.receive`는 `WORLD_FACILITY_STATE`를 상태에 적용하지 않는다.
+`ParkRuntime`도 입장 시 CHECK를 보내지 않는 것을 실제 송신 기록으로 확인했다. 로컬 개발 벤치 목업
+성공을 서버 점유 성공으로 취급하지 않는다. 팀원 FE 코드·기존 API·인증 코드는 변경하지 않았다.
+
+후속 dev `7e42f48`에는 팀원의 FacilityClient·시설 서버 포트가 반영됐다. 기존 연동 검증을 보강해
+실제 ParkRuntime의 목록 준비·입장 CHECK·벤치 이용 → session/avatars 표시 상태 → 반납을 확인했다.
+세 서비스의 mode는 server이며, 운동기구/망원경은 기존 SharedSocket 실제 통신 검증을 재통과했다.
+3D 클릭·모션 검수와 브라우저 쿠키/CORS·원격 배포는 여전히 별도다. 상대 공개 프로필 표시는 미반영이다.
+이전 미연결 진단은 위 최초 버전의 관찰이며 현재 시설 서비스 상태로 해석하지 않는다.
+
+재현은 backend 폴더에서 아래와 같이 실행한다. Node24·기존 프론트 의존성과 **새 전용 MySQL DB**가
+필요하다. DB가 비어 있지 않으면 거절하며 기존 데이터를 초기화하지 않는다. 신규 Flyway SQL은 없다.
+
+```powershell
+$env:TEST_WORLD_FRONTEND = 'true'
+$env:TEST_WORLD_FRONTEND_DB_URL = 'jdbc:mysql://127.0.0.1:<port>/ontop_world_test_frontend_<unique>?serverTimezone=UTC'
+$env:TEST_WORLD_DB_USERNAME = '<test-db-user>'
+$env:TEST_WORLD_DB_PASSWORD = '<test-db-password>'
+.\gradlew.bat mysqlTest --tests 'com.ssafy.ontop.table.WorldFrontendMySqlTests'
+```
+
+위 테스트는 Node에서 브라우저 API만 어댑터로 연결한다. 실제 FE `ParkRuntime` 로그인 복원·내 정보·접속권·
+입장과 공통 소켓은 사용하지만 3D 렌더링·브라우저 쿠키/CORS·원격 배포는 검증하지 않는다.
+Node WebSocket은 Origin을 넣지 않으므로 접속권 발급도 Origin 없이 동일하게 맞춘다.
+서버 인증/Origin 정책을 완화하지 않는다. 위치는 테스트 전용 서버 fixture로 준비하고 물리 시간은 고정한다.
+걷기·충돌 경로 재현이나 화면 클릭 성공으로 확대하지 않는다. 진단의 `frontend*Matched/Applied=false`는
+미연결 관찰값이며, 테스트 통과가 그 기능의 UI 완료를 뜻하지 않는다.
+
 ## 오류 응답
 
 공통 `ERROR {code,message}` 형식을 유지한다. 승인 실패를 FE 목업 성공으로 대체하지 않는다.

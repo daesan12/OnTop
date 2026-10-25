@@ -21,6 +21,50 @@ local 전용 게임 시작·정산 대역은 활성화하지 않는다. 게임 �
 
 ## 주소와 실행
 
+### 경기 시작·엔진·복구·결과 활성화
+
+경기 연결부와 네 엔진 설정은 `local`/`dev`에서 등록할 수 있다(`prod`/`production` 혼합 시 제외).
+dev에서는 `GAME_START_ENABLED=true`와 사용할 엔진의 `GAME_OMOK_ENABLED`, `GAME_FARKLE_ENABLED`,
+`GAME_ONECARD_ENABLED`, `GAME_BRIDGE_ENABLED`를 명시적으로 켠다. 기본값은 모두 false다.
+실제 DB `GameStartGateway`가 없으면 시작 옵션을 켠 서버는 기동하지 않는다.
+실제 `GameResultGateway`와 정산 커밋 알림도 연결해야 저장 결과 조회·다음 판 전환이 완성된다.
+인증 설정·메시지 필드는 유지하며 local 시연용 예약 대역은 dev에 등록하지 않는다.
+소스 등록 범위 변경이며 실제 개발 서버 활성화·DB 정산 검증·배포 완료를 뜻하지 않는다.
+dev 단독 프로필의 JWT/접속권·착석·준비·예약 확정·엔진·복귀·결과 알림 테스트는
+`DevCommittedStartFlowTests`이며 회원 조회/예약/결과 저장은 테스트 대역이다.
+
+### 소리함·익명 메모 활성화 전 확인
+
+두 API는 dev 기본 비활성이다. **V112·V120·V121 적용 순서를 팀과 맞춘 뒤에만** 실제 공유 DB에 적용한다.
+기존 Flyway locations/이력/데이터를 보존하며 repair·outOfOrder·초기화를 자동 실행하지 않는다.
+
+- dev,db: `FEEDBACK_ENABLED=true`, `FEEDBACK_ADMINISTRATOR_IDS=<관리자 회원 ID 목록>`.
+- dev,db: `NOTES_ENABLED=true`, `NOTES_PRIVACY_SECRET=<32자 이상 전용 비밀키>`.
+- 기존 `SPRING_FLYWAY_LOCATIONS` 목록에 `classpath:db/feedback`, `classpath:db/notes`를 추가한다.
+  공통·미니게임·상점·경기 등 기존 활성 경로를 두 경로로 덮어쓰지 않는다.
+- 일반 `.env`는 자동 로딩되지 않는다. 실행 환경변수에 지정한다. 아래 로컬 실행기는 별도 허용 목록의
+  `.env.frontend-test`를 사용하므로 이 옵션을 그 파일에 임의 추가하면 거절된다.
+- 프론트는 현재 두 서비스가 `unavailable`이다. REST 포트 연결과 ISO 시각→ms 변환이 필요하다.
+  API 본문에 FE 내부 userId/position을 보내지 않는다. 메모 재시도 키는 시각 포함 동일 키를 유지한다.
+
+2026-10-25 `ParkContentDevMySqlTests`로 **별도 빈 MySQL DB**에서 실제 dev 환경변수,
+공통+미니게임+소리함+메모 스키마를 함께 켜서 접수·재시도·관리자 조회·익명 목록·미니게임 시작/조회/포기를
+검증했다. 팀원 인증/FE 코드는 변경하지 않았고 실제 공유 DB/서버에는 적용하지 않았다.
+REST·WS는 실제 회원 인증을 사용하며 위치는 서버 fixture/고정 물리 시간으로 준비한다.
+브라우저 쿠키·3D UI·보상 지급·개발 서버 배포의 완료를 뜻하지 않는다.
+
+검증 재현은 backend 폴더에서 실행한다. 테스트는 기존 회원이 있는 DB를 거절하고 삭제하지 않는다.
+
+```powershell
+$env:TEST_PARK_CONTENT = 'true'
+$env:TEST_PARK_CONTENT_DB_URL = 'jdbc:mysql://127.0.0.1:<port>/ontop_content_test_dev_<unique>?serverTimezone=UTC'
+$env:TEST_PARK_CONTENT_DB_USERNAME = '<test-db-user>'
+$env:TEST_PARK_CONTENT_DB_PASSWORD = '<test-db-password>'
+.\gradlew.bat mysqlTest --tests 'com.ssafy.ontop.table.ParkContentDevMySqlTests'
+```
+
+### 두 계정 로컬 실행
+
 - BE: `http://localhost:8080`
 - WebSocket: `ws://localhost:8080/ws/tables?ticket=<매번 새 접속권>`
 - 프론트: `http://localhost:5173`

@@ -17,6 +17,7 @@ CODE_GUIDE.md
 # Gradle and build outputs
 .gradle/
 build/
+backend/node_modules/
 
 # IDE files
 .idea/

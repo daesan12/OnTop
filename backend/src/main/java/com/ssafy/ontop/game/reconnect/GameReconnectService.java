@@ -24,7 +24,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 
 @Service
-@Profile("local")
+@Profile("(local | dev) & !prod & !production")
 public class GameReconnectService {
 
     private static final Duration GRACE = Duration.ofSeconds(30);

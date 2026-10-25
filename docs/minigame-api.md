@@ -202,3 +202,31 @@ V111 이전 판은 불 세기가 없어 RULES_VERSION_MISMATCH이며 새 판이 
 - 테스트는 이번 작업 전용 `ontop_minigame_test_v2_20261023_1510`에서 실행했다. 기존 데이터 초기화 없음.
 - Postman 생성 결과 `node postman/generate.mjs --check` 일치. 테스트 입력 생성은 개발용 예시이며
   실제 사람이 플레이했다는 근거가 아니다. 실제 FE 화면/운영 지갑 연동 성공으로 확대하지 않는다.
+
+## 실제 프론트 서비스 연동 검증 · 2026-10-25
+
+`MinigameFrontendMySqlTests`는 현재 프론트의 `createBungeoppangService`와 `replayGrill`을 그대로
+불러 실제 회원 JWT → Spring HTTP → JPA → 별도 MySQL8.4까지 연결한다. 시작/조회/완료/포기와
+지갑 조회를 검증하며 응답 대역은 사용하지 않는다. 사용하지 않는 월드 런타임 singleton만 격리한다.
+
+- 시작 키 재사용, 이른 완료의 재시도, FE/BE 점수 일치, 완료 재요청의 보상 1회 지급,
+  다른 회원 접근 차단, 포기 재요청과 종료된 시작 영수증 거절: FE 시나리오 5개 통과.
+- Java 통합 흐름 1개에서 실제 DB의 완료/포기 상태, 보상 거래 1건, 잔액 100→105,
+  별도 회원 잔액·예약금 보존까지 확인했다. 기존 붕어빵 회귀 54개도 통과했다.
+- 60초 대기를 줄이기 위해 해당 테스트 DB의 세션 시작 시각만 65초 전으로 조정했다.
+  3D 화면 조작·실제 OAuth 제공자 로그인·개발 서버 배포 성공을 뜻하지 않는다.
+
+실행 전 저장소 프론트 의존성과 Node를 준비하고, **새 전용 DB**를 사용한다. 기존 데이터가 있는 DB는
+테스트가 거절하며 초기화하지 않는다. 신규 Flyway SQL은 추가하지 않는다.
+
+```powershell
+$env:TEST_MINIGAME_FRONTEND = 'true'
+$env:TEST_MINIGAME_FRONTEND_DB_URL = 'jdbc:mysql://127.0.0.1:<port>/ontop_minigame_test_frontend_<unique>?serverTimezone=UTC'
+$env:TEST_MINIGAME_DB_USERNAME = '<test-db-user>'
+$env:TEST_MINIGAME_DB_PASSWORD = '<test-db-password>'
+# backend 폴더에서 실행. JWT는 테스트가 발급하며 명령/파일에 저장하지 않는다.
+.\gradlew.bat mysqlTest --tests 'com.ssafy.ontop.minigame.MinigameFrontendMySqlTests'
+```
+
+기본 백엔드 테스트에는 포함되지 않는다. `TEST_MINIGAME_FRONTEND=true`를 지정한 MySQL 검증에서만
+실행하고, Vitest는 기존 `frontend/node_modules`를 재사용한다. API 경로·요청·응답 계약 변경은 없다.
