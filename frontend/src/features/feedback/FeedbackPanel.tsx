@@ -53,6 +53,7 @@ export function FeedbackPanel() {
       <p id="feedback-description">좋았던 점, 불편했던 점, 원하는 기능을 남겨주세요. 관리자에게만 전달하는 의견이며 다른 이용자에게 공개하지 않습니다.</p>
       <p className="feedback-mode">{feedbackService.mode === 'mock'
         ? '개발 목업 · 실제 관리자에게 전송하거나 영구 저장하지 않습니다.'
+        : feedbackService.mode === 'server' ? '서버에 비공개로 접수합니다. 접수 결과를 확인한 뒤 작성 내용이 지워집니다.'
         : '서버 연결 준비 중입니다. 내용을 작성할 수 있지만 아직 전송할 수 없습니다.'}</p>
       <form onSubmit={event => { event.preventDefault(); void submitFeedback() }}>
         <label htmlFor="park-feedback-text">의견 내용</label>

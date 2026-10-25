@@ -163,19 +163,25 @@ export class ParkRuntime implements ParkRuntimePort {
       if (init.signal?.aborted) throw new Error('연결 요청이 취소되었습니다.')
       response = await fetchOnce()
     }
-    if (response.status === 401 || response.status === 403) this.authEnded()
+    const feedbackForbidden = response.status === 403 && url === '/api/v1/feedback'
+    if (response.status === 401 || (response.status === 403 && !feedbackForbidden)) this.authEnded()
     if (!response.ok) {
       const body: unknown = await response.json().catch(() => null)
-      throw new RestError(response.status, record(body) && typeof body.code === 'string' ? body.code : 'HTTP_ERROR',
+      const code = record(body) && typeof body.code === 'string' ? body.code : 'HTTP_ERROR'
+      // The feedback distance rejection is a business error, not an ended login session.
+      if (feedbackForbidden && code !== 'FEEDBACK_OUT_OF_RANGE') this.authEnded()
+      throw new RestError(response.status, code,
         response.status === 401
           ? '로그인을 다시 확인해주세요.'
           : `서버 요청에 실패했습니다. (${response.status})`,
+        record(body) && typeof body.nextAllowedAt === 'string' ? body.nextAllowedAt : undefined,
       )
     }
     return response.json()
   }
   requestJSON = async (path: string, init: RequestInit = {}) => {
-    if (!this.active || !/^\/api\/v1\/(?:minigames\/sessions(?:\/\d+(?:\/(?:complete|abandon))?)?|wallets\/me)$/.test(path))
+    if (!this.active || !/^\/api\/v1\/(?:minigames\/sessions(?:\/\d+(?:\/(?:complete|abandon))?)?|wallets\/me|feedback)$/.test(path)
+      || (path === '/api/v1/feedback' && init.method !== 'POST'))
       throw new Error('현재 공원에서 사용할 수 없는 요청입니다.')
     const signals = [this.bootAbort?.signal, init.signal].filter((s): s is AbortSignal => !!s)
     return this.getJSON(path, { ...init, signal: AbortSignal.any(signals) })

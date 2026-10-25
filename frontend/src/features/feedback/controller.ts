@@ -6,6 +6,7 @@ import { useBenchState } from '../interactions/benchState'
 import { useFitnessState } from '../fitness/state'
 import { useTelescopeState } from '../telescopes/state'
 import { feedbackService } from './service'
+import { FeedbackServiceError } from './contracts'
 import { feedbackSignal, resetFeedbackState, useFeedbackState } from './state'
 import { canReachFeedback, FEEDBACK_TIMEOUT_MS, parseFeedbackText } from './validation'
 
@@ -63,7 +64,10 @@ export async function submitFeedback(): Promise<boolean> {
       notice: feedbackService.mode === 'mock' ? '목업 전달을 확인했어요. 실제 관리자에게 전송하거나 영구 저장하지 않습니다.' : '의견을 전달했어요. 고맙습니다!' })
     return true
   } catch (error) {
-    if (current()) useFeedbackState.setState({ error: timedOut
+    if (current()) useFeedbackState.setState({
+      ...(error instanceof FeedbackServiceError && error.nextAllowedAt !== undefined
+        ? { nextAllowedAt: Math.max(useFeedbackState.getState().nextAllowedAt, error.nextAllowedAt) } : {}),
+      error: timedOut
       ? '응답 시간이 초과되어 전달 결과를 확인하지 못했습니다. 원문은 보관했으며 같은 내용으로 다시 시도할 수 있어요.'
       : error instanceof Error ? error.message : '의견을 전달하지 못했습니다. 다시 시도해주세요.' })
     return false

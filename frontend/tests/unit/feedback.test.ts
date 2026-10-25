@@ -11,7 +11,7 @@ import { inputState, roamingInput } from '../../src/world/inputOwnership'
 import { interactionAim } from '../../src/features/interactions/interactionAim'
 import { getParkInteraction } from '../../src/features/interactions/parkInteraction'
 import { useFitnessState } from '../../src/features/fitness/state'
-import type { FeedbackReceipt } from '../../src/features/feedback/contracts'
+import { FeedbackServiceError, type FeedbackReceipt } from '../../src/features/feedback/contracts'
 import type { Pose } from '../../src/network/worldClient'
 
 vi.mock('../../src/features/feedback/service', async () => {
@@ -42,6 +42,21 @@ const compose = () => { expect(openFeedback()).toBe(true); editFeedbackDraft(bod
 const receipt = (): FeedbackReceipt => ({ receiptId: 'approved', acceptedAt: Date.now(), nextAllowedAt: Date.now() + 15_000 })
 
 describe('M07 private feedback validation and request lifecycle', () => {
+  it('uses the server cooldown deadline and retains the same retry operation until approval', async () => {
+    compose()
+    const nextAllowedAt = Date.now() + 15_000
+    const send = vi.spyOn(feedbackService, 'submit')
+      .mockRejectedValueOnce(new FeedbackServiceError('FEEDBACK_COOLDOWN', '잠시 후', nextAllowedAt))
+      .mockResolvedValueOnce(receipt())
+    expect(await submitFeedback()).toBe(false)
+    const operationId = useFeedbackState.getState().operationId
+    expect(useFeedbackState.getState()).toMatchObject({ draft: body, nextAllowedAt, pending: false })
+    expect(await submitFeedback()).toBe(false)
+    expect(send).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(15_001)
+    expect(await submitFeedback()).toBe(true)
+    expect(send.mock.calls[1]![0].operationId).toBe(operationId)
+  })
   it('validates raw/normalized 5~600 characters, NFC and controls while keeping newlines', () => {
     expect(parseFeedbackText('  공원 의견입니다.\n고맙습니다\u200b\u0000 ')).toBe('공원 의견입니다.\n고맙습니다')
     expect(parseFeedbackText('가'.repeat(5).normalize('NFD'))).toBe('가'.repeat(5))
