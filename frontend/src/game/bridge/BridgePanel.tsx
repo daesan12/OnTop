@@ -68,6 +68,6 @@ export function BridgePanel() {
       <p>굴림·선언·각 판단 30초. 굴림/선언 만료는 차례 넘김, 판단 만료는 믿기입니다. 판정 연출은 1.5초이며 다음 단계는 서버가 엽니다.</p>
       <p>각자 말 7개, 다리 8칸을 지나 골인합니다. 유효 골인 3개 즉시 승리, 골인 슬롯은 1~8 순차 발급·제거 후 재사용하지 않습니다. 공동 승리와 벌칙은 서버 결과를 따릅니다.</p></div>}
     {spectator && <div className="bridge-actions" role="group" aria-label="관전 시점"><button aria-pressed={view === 'board'} onClick={() => useTableLobby.setState({ spectatorView: 'board' })}>공개 판 보기</button><button aria-pressed={view === 'table'} onClick={() => useTableLobby.setState({ spectatorView: 'table' })}>테이블 둘러보기</button></div>}
-    {!spectator && !finished && <OmokSurrender key={`${ownId}:${g.gameId}`} context={{ userId: ownId, gameId: g.gameId, version: g.version }} disabled={!fresh || session.pending || !!own?.forfeited || !!own?.pendingForfeit} />}
+    {!spectator && <OmokSurrender key={`${ownId}:${g.gameId}`} context={{ userId: ownId, gameId: g.gameId, version: g.version }} disabled={!fresh || session.pending || !!own?.forfeited || !!own?.pendingForfeit} />}
   </section>
 }

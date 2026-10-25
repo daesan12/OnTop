@@ -24,6 +24,7 @@ import { bindAnchor, parseBindings } from '../../network/tableBindings'
 import { setDisplayProfiles } from '../../network/profileBridge'
 import { canPlace, canPlayDice, receiveGame, tableBusy, useGame } from '../../game/store'
 import { gameState } from '../../game/protocol'
+import { canStartForfeit, canRetryForfeit, definiteForfeitRejection, forfeitError, interruptForfeit, parseForfeitResult, resetForfeit, useForfeit } from '../../game/forfeit'
 import { validDiceAction } from '../../game/farkle/scoring'
 import { canActOneCard } from '../../game/onecard/actions'
 import type { OneCardInput } from '../../game/onecard/protocol'
@@ -88,6 +89,7 @@ export class ParkRuntime implements ParkRuntimePort {
   private spectatorChecks = new Map<string, string>()
   private obsoleteGameWatchRequests = new Set<string>()
   private tableClosing: Promise<boolean> | null = null
+  private forfeitRequests = new Map<string, string>()
   private movement = new MovementInputBuffer((intent, scope) => this.sendMovement(intent, scope))
   private socket = new SharedSocket({
     ticket: async (signal) => {
@@ -179,6 +181,8 @@ export class ParkRuntime implements ParkRuntimePort {
       })
   }
   private authEnded() {
+    this.forfeitRequests.clear()
+    resetForfeit()
     this.resetSpectator()
     this.facilities.reset()
     resetNotesState()
@@ -255,6 +259,7 @@ export class ParkRuntime implements ParkRuntimePort {
     void this.boot()
   }
   private async boot() {
+    interruptForfeit()
     this.resetSpectator()
     this.facilities.reset()
     this.facilityMapInvalid = false
@@ -300,6 +305,8 @@ export class ParkRuntime implements ParkRuntimePort {
     }
   }
   async stop() {
+    this.forfeitRequests.clear()
+    resetForfeit()
     this.resetSpectator()
     this.facilities.reset()
     this.movement.clear()
@@ -313,6 +320,7 @@ export class ParkRuntime implements ParkRuntimePort {
     await closing
   }
   private closed(code: number) {
+    interruptForfeit()
     this.resetSpectator()
     this.facilities.reset()
     this.movement.clear()
@@ -351,6 +359,8 @@ export class ParkRuntime implements ParkRuntimePort {
   }
   private message(message: Envelope) {
     if (!this.active) return
+    if (message.type === 'ERROR' && message.requestId && this.forfeitRequests.has(message.requestId)
+      && this.forfeitRequests.get(message.requestId) !== JSON.stringify([useSession.getState().sessionId, useGame.getState().permittedGameId])) return
     if (message.type === 'ERROR' && message.requestId && this.obsoleteGameWatchRequests.has(message.requestId)) return
     if (message.type === 'GAME_STATE' && message.payload.role === 'SPECTATOR'
       && (!this.spectator.accepts(message.payload.gameId) || message.requestId !== null && message.requestId !== this.gameWatchRequestId
@@ -395,6 +405,7 @@ export class ParkRuntime implements ParkRuntimePort {
     if (!session.roomId || !session.mapCompatible || session.tableId || useGame.getState().watchedGameId || tableBusy() || !avatars.has(session.sessionId))
       this.movement.clear(false)
     if (message.type === 'CONNECTED') {
+      if (useForfeit.getState().attempt?.userId !== message.payload.userId) resetForfeit()
       const profile = this.ownProfile
       if (!profile || profile.userId !== message.payload.userId) {
         this.authEnded()
@@ -707,6 +718,38 @@ export class ParkRuntime implements ParkRuntimePort {
         ['GAME_RESULT'],
       )
     })
+  forfeitGame = (gameId: string, retry = false) => this.action(async () => {
+    const own = useSession.getState(), state = useGame.getState()
+    if (own.status !== 'connected' || own.sessionId === '' || state.permittedGameId !== gameId
+      || !(retry ? canRetryForfeit(own.sessionId, state) : canStartForfeit(own.sessionId, state)))
+      throw new Error('현재 본인의 경기와 복구 상태를 확인해주세요.')
+    const previous = useForfeit.getState().attempt
+    const attempt = { userId: own.sessionId, gameId,
+      actionId: previous?.userId === own.sessionId && previous.gameId === gameId ? previous.actionId : crypto.randomUUID(),
+      status: 'pending' as const, error: '' }
+    const generation = this.generation
+    useForfeit.setState({ attempt }); useGame.setState({ pending: true, error: '' })
+    const current = () => this.active && generation === this.generation && useSession.getState().sessionId === attempt.userId
+      && useGame.getState().permittedGameId === gameId && useForfeit.getState().attempt === attempt
+    try {
+      const reply = await this.socket.request('GAME_FORFEIT', { gameId, actionId: attempt.actionId }, ['GAME_FORFEIT_RESULT'], id => {
+        this.forfeitRequests.set(id, JSON.stringify([own.sessionId, gameId]))
+        if (this.forfeitRequests.size > 64) this.forfeitRequests.delete(this.forfeitRequests.keys().next().value!)
+      })
+      if (!current()) return
+      const receipt = parseForfeitResult(reply.payload, attempt)
+      useForfeit.setState({ attempt: { ...attempt, status: 'approved' } })
+      useGame.setState(s => ({ awaitingVersion: Math.max(s.awaitingVersion, receipt.version) }))
+    } catch (cause) {
+      if (current()) {
+        const code = cause instanceof ServerError ? cause.code : ''
+        useForfeit.setState({ attempt: { ...attempt, status: definiteForfeitRejection(code) ? 'rejected' : 'uncertain', error: forfeitError(code) } })
+        throw cause
+      }
+    } finally {
+      if (generation === this.generation && useGame.getState().permittedGameId === gameId) useGame.setState({ pending: false })
+    }
+  })
   placeOmok = (x: number, y: number) =>
     this.action(async () => {
       const own = useSession.getState(),

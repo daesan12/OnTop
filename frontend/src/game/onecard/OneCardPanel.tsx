@@ -88,6 +88,6 @@ export function OneCardPanel() {
       <p>차례 전체 30초, 한 장이 되면 선언·신고 3초. 먼저 승인된 반응만 유효하며 3초 만료만으로 벌칙을 받지 않습니다. 셔플·카드 효과·벌칙·승자는 서버가 결정합니다.</p></div>}
     {spectator && <div className="onecard-actions" role="group" aria-label="관전 시점"><button aria-pressed={view === 'board'} onClick={() => useTableLobby.setState({ spectatorView: 'board' })}>공개 판 보기</button>
       <button aria-pressed={view === 'table'} onClick={() => useTableLobby.setState({ spectatorView: 'table' })}>테이블 둘러보기</button></div>}
-    {!spectator && !finished && <OmokSurrender key={`${ownId}:${g.gameId}`} context={{ userId: ownId, gameId: g.gameId, version: g.version }} disabled={session.pending || !fresh} />}
+    {!spectator && <OmokSurrender key={`${ownId}:${g.gameId}`} context={{ userId: ownId, gameId: g.gameId, version: g.version }} disabled={session.pending || !fresh} />}
   </section>
 }

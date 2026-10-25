@@ -1,11 +1,12 @@
 import { useGame } from '../store'
+import { forfeitBlocksInput } from '../forfeit'
 import { isSuit, type OneCardInput } from './protocol'
 
 /** Only permission/expiry checks here. Legal cards, effects, shuffle and winners belong to BE. */
 export function canUseOneCard(ownId: string) {
   const s = useGame.getState(), g = s.game
   return !!g?.onecard && g.role === 'PLAYER' && g.gameId === s.permittedGameId && s.recovery === 'RESTORED'
-    && !['STARTING', 'CONFIRMED', 'SETTLING'].includes(s.start?.phase ?? '') && !s.pending && !s.uncertain
+    && !['STARTING', 'CONFIRMED', 'SETTLING'].includes(s.start?.phase ?? '') && !s.pending && !s.uncertain && !forfeitBlocksInput(g.gameId)
     && g.version >= s.awaitingVersion && g.onecard.status === 'PLAYING' && g.hand?.userId === ownId
     && g.onecard.players.some(p => p.userId === ownId && p.active)
 }

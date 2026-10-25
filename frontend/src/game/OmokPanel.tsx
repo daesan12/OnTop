@@ -199,7 +199,7 @@ export function OmokPanel() {
               </button>
             )}
           </div>
-          {g.role === 'PLAYER' && o.status === 'PLAYING' && <OmokSurrender key={`${own}:${g.gameId}`}
+          {g.role === 'PLAYER' && <OmokSurrender key={`${own}:${g.gameId}`}
             context={{ userId: own, gameId: g.gameId, version: g.version }}
             disabled={pending || !connected || recoveryBlocked() || s.uncertain} />}
         </>
