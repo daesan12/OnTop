@@ -1,0 +1,11 @@
+"name": "32 랭킹 미인증 거부"
+"$kind": "http-request"
+"method": "GET"
+"url": "{{baseUrl}}/api/v1/rankings"
+"description": "Authorization 없이 호출해 기존 REST 인증 거부를 확인합니다."
+"auth":
+  "type": "noauth"
+"scripts":
+  -
+    "type": "afterResponse"
+    "code": "pm.test('HTTP 401', () => pm.response.to.have.status(401));\npm.test('AUTH_AUTHENTICATION_REQUIRED', () => pm.expect(pm.response.json().code).to.eql('AUTH_AUTHENTICATION_REQUIRED'));"

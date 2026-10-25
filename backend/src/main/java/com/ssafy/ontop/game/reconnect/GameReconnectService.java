@@ -163,6 +163,24 @@ public class GameReconnectService {
                 && slot.snapshot != null && slot.snapshot.gameId().equals(gameId);
     }
 
+    // 종료·탈락 후에도 동일 경기의 기권 영수증을 재확인할 수 있다. 새 경기에는 적용하지 않는다.
+    public synchronized boolean canForfeitGame(long userId, String sessionId, String gameId) {
+        Slot slot = users.get(userId);
+        return slot != null && sessionId.equals(slot.sessionId) && slot.snapshot != null
+                && slot.snapshot.gameId().equals(gameId)
+                && (slot.status.equals("RESTORED") || slot.status.equals("FINISHED")
+                        || slot.status.equals("ELIMINATED"));
+    }
+
+    // 기권 전 시작한 느린 조회가 기권 후 참가 자격을 되살리지 못하게 세대를 교체한다.
+    public synchronized void forfeitResolved(long userId, String sessionId) {
+        Slot slot = users.get(userId);
+        if (stopped || gateway.isEmpty() || slot == null || !sessionId.equals(slot.sessionId)) { return; }
+        slot.generation++;
+        slot.loading = false;
+        submitLoad(slot, null);
+    }
+
     public synchronized void refresh(long userId, String sessionId, String requestId,
             BiConsumer<String, View> output) {
         if (gateway.isEmpty()) {

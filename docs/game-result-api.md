@@ -12,7 +12,7 @@ OnTop v0.4의 서버 결과 판정과 기존 [GAME-03 결과 조회](https://app
 | `GameFinished` | eventId, gameId, tableId, gameCode, version, participants, endReason, endedAt. 최초 참가자 전체의 최종 판정 |
 | `GameFinished.Participant` | 내부 long userId, result(WIN/LOSE/DRAW/FORFEIT), nullable leaveReason/leftAt. 먼저 이탈한 참가자도 최종 결과에 포함 |
 
-`gameCode`는 OMOK/DICE/ONE_CARD/LIAR_BRIDGE. `leaveReason`은 LOGOUT/MEMBER_DEACTIVATED/DISCONNECT_TIMEOUT이며, 일반 패배나 턴 시간패는 이탈 사유가 없고 LOSE다. 이탈자는 FORFEIT, 그 외 엔진의 승자 목록은 WIN, 나머지는 LOSE, 승자 없는 무승부는 DRAW다. 말 제거가 보류된 다리 기권도 입력 자격 상실 시 이탈 이벤트를 내보낸다. 이 이벤트는 말 제거 완료를 뜻하지 않는다.
+`gameCode`는 OMOK/DICE/ONE_CARD/LIAR_BRIDGE. `leaveReason`은 LOGOUT/MEMBER_DEACTIVATED/DISCONNECT_TIMEOUT/EXPLICIT_LEAVE이며, 일반 패배나 턴 시간패는 이탈 사유가 없고 LOSE다. 이탈자는 FORFEIT, 그 외 엔진의 승자 목록은 WIN, 나머지는 LOSE, 승자 없는 무승부는 DRAW다. 말 제거가 보류된 다리 기권도 입력 자격 상실 시 이탈 이벤트를 내보낸다. 이 이벤트는 말 제거 완료를 뜻하지 않는다.
 
 중복 종료/이탈 요청은 추가 판정을 만들지 않는다. 소비자는 `gameId:finished` / `gameId:left:userId` 형태의 eventId를 중복 방지 키로 사용한다. 한 변경에서 이탈 이벤트가 최종 종료 이벤트보다 먼저 발행되며, 이전 이탈 사유·시각은 최종 결과에도 유지된다. 엔진 잠금 안에서 판정을 확정하고 잠금 밖에서 이벤트를 발행한다. 알림은 메모리 기반이며 재시작/리스너 실패 후 영속 재전달은 보장하지 않는다.
 
@@ -87,6 +87,10 @@ SETTLED 알림은 위 형식에서 version을 증가시키고 settlementStatus�
 5. 결과 통신 version은 엔진의 착수 version과 별개다. 정산만 변경돼도 저장 결과의 version을 올려야 한다. 오프라인 복귀는 본인 경기 ID로 명시 재조회한다.
 
 ## 서버 담당 연결
+
+수동 [GAME_FORFEIT](game-forfeit-api.md)는 공통 이탈 이벤트의 EXPLICIT_LEAVE를 사용한다.
+중도 탈락만으로 전체 경기 정산을 요청하지 않으며 최종 GameFinished는 기존 단일 경로로 받는다.
+기권 승인은 DB 정산 완료가 아니다. 결과 조회·커밋 후 알림 계약과 금액 계산은 변경하지 않는다.
 
 1. 결과 저장 또는 정산 **커밋 성공 뒤** 본인별 `GameResultView`를 생성하고 `ApplicationEventPublisher.publishEvent(new GameResultCommitted(view))`를 발행한다. 이벤트는 클라이언트 요청이 아니며 userId는 내부 수신자 확인용이다.
 2. `GameResultService`가 같은 내부 계정의 현재 인증 연결에만 requestId=null의 GAME_RESULT를 보낸다. 채널·테이블·관전자에게 방송하지 않는다. JSON에는 내부 userId를 제외한다.

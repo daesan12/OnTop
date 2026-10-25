@@ -41,6 +41,40 @@ class GameReconnectTests {
     }
 
     @Test
+    void 수동기권전의느린조회가_기권후탈락상태와로비권한을덮지못한다() throws Exception {
+        Inbox inbox = connect("first");
+        inbox.await("RESTORED");
+        var oldRead = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        var completed = new CountDownLatch(1);
+        var calls = new AtomicInteger();
+        engine.load = user -> {
+            if (calls.incrementAndGet() == 1) {
+                var old = engine.snapshot;
+                oldRead.countDown();
+                try { release.await(5, TimeUnit.SECONDS); }
+                catch (InterruptedException exception) { Thread.currentThread().interrupt(); }
+                finally { completed.countDown(); }
+                return Optional.of(old);
+            }
+            return Optional.of(engine.snapshot);
+        };
+        service.refresh(101, "first", "old", (id, view) -> { });
+        assertThat(oldRead.await(5, TimeUnit.SECONDS)).isTrue();
+        engine.snapshot = snapshot(101, 3, 2, Phase.ELIMINATED);
+        service.forfeitResolved(101, "first");
+        assertThat(inbox.await("ELIMINATED").version()).isEqualTo(2);
+        release.countDown();
+        assertThat(completed.await(5, TimeUnit.SECONDS)).isTrue();
+        assertThat(inbox.messages.poll(200, TimeUnit.MILLISECONDS)).isNull();
+        assertThat(service.canControlGame(101, "first", "game-1")).isFalse();
+        assertThat(service.canUseLobby(101, "first")).isTrue();
+        assertThat(service.canForfeitGame(101, "first", "game-1")).isTrue();
+        assertThat(service.canForfeitGame(101, "other", "game-1")).isFalse();
+        assertThat(service.canForfeitGame(101, "first", "another-game")).isFalse();
+    }
+
+    @Test
     void 유예_안에_새연결로_최신_본인상태를_복구하고_턴시간을_변경하지않는다() throws Exception {
         Inbox first = connect("first");
         first.await("RESTORED");

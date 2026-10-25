@@ -98,6 +98,10 @@ MEMBER_DEACTIVATED/4403 전달을 재사용한다. 이번 AUTH 변경에서 Hub�
 
 ## 검증 범위
 
+수동 기권 확정 후 승인 응답 유실·단절은 참가권 복원이 아니다. FINISHED/ELIMINATED 확인 후
+보존된 테이블의 원래 채널로 다시 입장하고 같은 기권 명령을 재확인할 수 있다. 다른 채널은 TABLE_BUSY다.
+TableGameIdFlowTests는 승인 유실/정산 알림/저장 조회에서 다음 판까지 검증하며 DB 경계는 대역이다.
+
 `OfflineGameDepartureTests`는 실제 원카드 엔진과 Spring 트랜잭션 이벤트를 연결해 단절 후 로그아웃/탈퇴,
 로그인 sid 격리·다른 세션 복귀·롤백·중복 알림·단절 콜백 전후 경합·최초 인증 사유 보존을 검사한다.
 WebSocketSession과 트랜잭션 관리자는 테스트 대역이며 실제 로그인/DB 정산 검증은 아니다.

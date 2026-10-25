@@ -12,6 +12,7 @@ import { rememberRoamingView } from '../../world/cameraReturn'
 import { benchTable, benchViewScope } from '../../features/interactions/benchSpectator'
 import { useBenchState } from '../../features/interactions/benchState'
 import { useFacilityState } from '../../features/facilities/state'
+import { filterChat } from '../../features/chat/filterChat'
 import {
   channel,
   record,
@@ -480,7 +481,7 @@ export class ParkRuntime implements ParkRuntimePort {
     })
   sendChat = (value: string) =>
     this.action(async () => {
-      const text = validateChat(value)
+      const text = filterChat(validateChat(value))
       if (!useSession.getState().roomId)
         throw new Error('먼저 채널에 입장해주세요.')
       await this.socket.request('WORLD_CHAT_SEND', { text }, [

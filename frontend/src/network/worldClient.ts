@@ -1,5 +1,7 @@
 import { create } from 'zustand'
-import { NETWORK, TABLES, tableSeats, type CharacterId } from '../config'
+import { NETWORK, OVERHEAD, TABLES, tableSeats, type CharacterId } from '../config'
+import { CHAT } from '../features/chat/settings'
+import { filterChat } from '../features/chat/filterChat'
 import {
   channelState,
   worldState,
@@ -528,11 +530,11 @@ export function receive(message: Envelope) {
       const chat = {
         id: p.messageId,
         userId: p.userId,
-        text: p.text,
+        text: filterChat(p.text),
         sentAt: p.sentAt,
       }
       chatIds.add(chat.id)
-      const messages = [...state.messages, chat].slice(-200)
+      const messages = [...state.messages, chat].slice(-CHAT.historyLimit)
       if (chatIds.size > 400) {
         chatIds.clear()
         messages.forEach((m) => chatIds.add(m.id))
@@ -541,7 +543,7 @@ export function receive(message: Envelope) {
         messages,
         bubbles: {
           ...state.bubbles,
-          [chat.userId]: { ...chat, expiresAt: performance.now() + 10_000 },
+          [chat.userId]: { ...chat, expiresAt: performance.now() + OVERHEAD.bubbleDurationMs },
         },
       })
       break

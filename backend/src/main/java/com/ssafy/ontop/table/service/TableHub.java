@@ -10,6 +10,8 @@ import com.ssafy.ontop.behavior.service.PositionSampler;
 import com.ssafy.ontop.game.action.GameActionCommand;
 import com.ssafy.ontop.game.action.GameActionGateway;
 import com.ssafy.ontop.game.action.GameActionResult;
+import com.ssafy.ontop.game.action.GameForfeitCommand;
+import com.ssafy.ontop.game.action.GameForfeitResult;
 import com.ssafy.ontop.game.reconnect.GameReconnectService;
 import com.ssafy.ontop.game.result.GameResultService;
 import com.ssafy.ontop.game.result.GameResultCommitted;
@@ -379,7 +381,7 @@ public class TableHub {
             int available = snapshot.capacity() - occupied;
             return new TableSummaryResponse(tableId, snapshot.capacity(), snapshot.minimumPlayers(), occupied,
                     available, ready, snapshot.allReady(), status, available > 0 && status.equals("WAITING"),
-                    snapshot.gameCode(), snapshot.targetScore());
+                    snapshot.gameCode(), snapshot.targetScore(), publicGameId(tableId));
         }).toList());
     }
 
@@ -409,6 +411,10 @@ public class TableHub {
             }
             if (request.type().equals("GAME_ACTION_SEND")) {
                 sendGameAction(sessionId, member, request);
+                return;
+            }
+            if (request.type().equals("GAME_FORFEIT")) {
+                sendGameForfeit(sessionId, member, request);
                 return;
             }
             if (request.type().equals("GAME_STATE_CHECK")) {
@@ -634,7 +640,9 @@ public class TableHub {
 
     private void joinChannel(Member member, Request request) {
         String channelId = request.payload().get("channelId").textValue();
-        if (seating.containsKey(member.userId()) && !channels.isInChannel(member.userId(), channelId)) {
+        // 정산 대기 좌석을 보존한 재접속자는 원래 테이블 채널로 돌아올 수 있다.
+        if (seating.containsKey(member.userId()) && !channels.isInChannel(member.userId(), channelId)
+                && !channelId.equals(tableChannels.get(seating.get(member.userId())))) {
             fail(request, "TABLE_BUSY", "먼저 테이블에서 퇴장해주세요.");
         }
         WorldChannelRegistry.Change change = channels.join(member.userId(), channelId);
@@ -1094,7 +1102,7 @@ public class TableHub {
     }
 
     private void replyState(Member member, Request request, TableRoom room) {
-        member.peer().offer(protocol.encode(request.requestId(), "TABLE_STATE", room.snapshot()));
+        member.peer().offer(protocol.encode(request.requestId(), "TABLE_STATE", publicSnapshot(room)));
     }
 
     private void watch(Member member, Request request) {
@@ -1123,7 +1131,7 @@ public class TableHub {
             fail(request, "ALREADY_WATCHING", "기존 테이블 보기부터 종료해주세요.");
         }
         watching.put(member.userId(), tableId);
-        member.peer().offer(protocol.encode(request.requestId(), "TABLE_WATCH_STATE", room.snapshot()));
+        member.peer().offer(protocol.encode(request.requestId(), "TABLE_WATCH_STATE", publicSnapshot(room)));
         if (current == null) {
             recordBehavior(BehaviorEventType.TABLE_WATCHED, member.accountId(), builder -> builder.tableId(tableId));
         }
@@ -1144,7 +1152,7 @@ public class TableHub {
     }
 
     private void publish(TableRoom room, Member actor, String requestId) {
-        TableRoom.Snapshot snapshot = room.snapshot();
+        TableRoom.Snapshot snapshot = publicSnapshot(room);
         for (Member target : members.values()) {
             if (snapshot.tableId().equals(seating.get(target.userId()))) {
                 target.peer().offer(protocol.encode(target == actor ? requestId : null, "TABLE_STATE", snapshot));
@@ -1156,6 +1164,16 @@ public class TableHub {
                 }
             }
         }
+    }
+
+    private TableRoom.Snapshot publicSnapshot(TableRoom room) {
+        return room.snapshot(publicGameId(room.snapshot().tableId()));
+    }
+
+    private String publicGameId(String tableId) {
+        TableStartAttempt attempt = starts.get(tableId);
+        return committedStarts.isPresent() && attempt != null && attempt.phase().equals("PLAYING")
+                && !attempt.endedEarly() ? attempt.view(0, false).gameSessionId() : null;
     }
 
     private void fail(Request request, String code, String message) {
@@ -1254,6 +1272,11 @@ public class TableHub {
         if (committedStarts.isPresent()) { attempt.playing(); }
         if (committedStarts.isPresent() && attempt.frozen() && !attempt.starting()) {
             recordGameStarted(tableId, attempt, result);
+            if (publicGameId(tableId) != null) {
+                TableRoom room = rooms.get(tableId);
+                room.publicStateChanged();
+                publish(room, null, null);
+            }
         }
         if (!attempt.frozen()) {
             Set<String> connected = connectedUsers();
@@ -1685,6 +1708,63 @@ public class TableHub {
                 gameStateChanged(new GameStateChanged(result.gameId(), result.version()));
             }
         });
+    }
+
+    private void sendGameForfeit(String sessionId, Member member, Request request) {
+        if (member.accountId() == null) {
+            fail(request, "GAME_FORFEIT_AUTH_REQUIRED", "인증된 사용자만 기권할 수 있습니다.");
+        }
+        if (gameActions.isEmpty()) {
+            fail(request, "GAME_FORFEIT_NOT_CONFIGURED", "경기 입력 연결이 준비되지 않았습니다.");
+        }
+        String gameId = request.payload().path("gameId").asText();
+        if (!canForfeitGame(sessionId, member, gameId)) {
+            fail(request, "GAME_RECOVERY_REQUIRED", "현재 경기 복구 상태를 먼저 확인해주세요.");
+        }
+        if (!actionRequests.add(sessionId)) {
+            fail(request, "GAME_ACTION_PENDING", "이전 경기 입력이 처리 중입니다.");
+        }
+        var command = new GameForfeitCommand(member.accountId(), gameId,
+                request.payload().path("actionId").asText());
+        startWorkers.execute(() -> {
+            GameForfeitResult result = null;
+            String error = null;
+            try {
+                if (!canForfeitGame(sessionId, member, gameId)) {
+                    error = "GAME_RECOVERY_REQUIRED";
+                } else {
+                    result = gameActions.orElseThrow().forfeit(command);
+                    if (result == null || result.userId() != command.userId() || !gameId.equals(result.gameId())
+                            || !command.actionId().equals(result.actionId()) || result.version() < 0) {
+                        error = "GAME_FORFEIT_INVALID";
+                    }
+                }
+            } catch (GameActionGateway.Rejected rejected) {
+                error = "GAME_FORFEIT_" + rejected.reason().name();
+            } catch (RuntimeException exception) {
+                error = "GAME_FORFEIT_UNAVAILABLE";
+            }
+            finishGameForfeit(sessionId, member, request.requestId(), result, error);
+        });
+    }
+
+    private synchronized boolean canForfeitGame(String sessionId, Member member, String gameId) {
+        return !stopped && members.get(sessionId) == member && reconnect.isPresent()
+                && reconnect.get().canForfeitGame(member.accountId(), sessionId, gameId);
+    }
+
+    private synchronized void finishGameForfeit(String sessionId, Member member, String requestId,
+            GameForfeitResult result, String error) {
+        if (stopped || members.get(sessionId) != member) { return; }
+        actionRequests.remove(sessionId);
+        if (error != null) {
+            member.peer().offer(protocol.error(requestId, error, "기권을 처리할 수 없습니다."));
+        } else {
+            member.peer().offer(protocol.encode(requestId, "GAME_FORFEIT_RESULT", Map.of(
+                    "gameId", result.gameId(), "actionId", result.actionId(), "version", result.version(),
+                    "duplicate", result.duplicate())));
+            reconnect.orElseThrow().forfeitResolved(member.accountId(), sessionId);
+        }
     }
 
     private synchronized boolean canSendGameAction(String sessionId, Member member, String gameId) {

@@ -252,6 +252,7 @@ class RestSecurityTests {
                 "PATCH /api/v1/users/me",
                 "DELETE /api/v1/users/me",
                 "GET /api/v1/wallets/me", "GET /api/v1/wallets/me/transactions",
+                "GET /api/v1/rankings",
                 "GET /api/v1/channels",
                 "GET /api/v1/tables", "GET /dev/tables", "GET /dev/world-config",
                 "GET /api/v1/shop/items", "POST /api/v1/shop/purchases",

@@ -192,6 +192,7 @@ TABLE_WATCH_STATE는 착석 TABLE_STATE와 별도 캐시에 저장합니다. 구
 
 - `GAME_STATE_CHECK`와 `GAME_STATE`: 인증 계정의 상태 조회·참가자 자동 갱신. 공개 상태와 본인 개인 상태만 개별 전송한다.
 - `GAME_ACTION_SEND`와 `GAME_ACTION_RESULT`: 경기 입력 전달·처리 확인. 선택 활성화한 4종 엔진이 턴·규칙·메모리 중복 반영을 검사한다. 영속 중복 처리는 별도다.
+- `GAME_FORFEIT`와 `GAME_FORFEIT_RESULT`: [본인 수동 기권](../game-forfeit-api.md). 단절 유예 없이 처리하고 소켓은 유지한다. 중복 승인과 DB 정산 완료는 구분한다.
 - `GAME_WATCH`·`GAME_UNWATCH`·`GAME_WATCH_LEFT`: 대기 테이블 보기와 별개인 경기 관전 연결부. 관전자 개인 상태는 `{}`이며 Gateway에서 현재 권한을 확인한다.
 - 7종은 엔진 연결·로컬 검증 범위로 완료다. 기본 dev의 인증 필요 오류는 정상이며 최초 응답은 원래 요청 ID, 자동 갱신은 null이다. 실제 DB·지급·운영 검증 완료를 뜻하지 않는다.
 

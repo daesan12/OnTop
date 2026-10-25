@@ -16,6 +16,31 @@ class TableProtocolTests {
     private final TableProtocol protocol = new TableProtocol(new ObjectMapper());
 
     @ParameterizedTest
+    @ValueSource(strings = {"{}", "{\"gameId\":\"g\"}", "{\"gameId\":\"g\",\"actionId\":null}",
+            "{\"gameId\":1,\"actionId\":\"a\"}", "{\"gameId\":\"g\",\"actionId\":\" \"}",
+            "{\"gameId\":\"g\",\"actionId\":\"a\",\"userId\":202}",
+            "{\"gameId\":\"g\",\"actionId\":\"a\",\"reason\":\"LOGOUT\"}",
+            "{\"gameId\":\"g\",\"actionId\":\"a\",\"cancel\":true}"})
+    void 수동기권_누락_형식_사용자위조와추가필드는거절한다(String payload) {
+        RequestException error = catchThrowableOfType(RequestException.class, () -> protocol.parse(
+                "{\"requestId\":\"forfeit-1\",\"type\":\"GAME_FORFEIT\",\"payload\":" + payload + "}"));
+        assertThat(error.code()).isEqualTo("INVALID_PAYLOAD");
+    }
+
+    @Test
+    void 수동기권_식별자길이경계를검사한다() throws Exception {
+        var mapper = new ObjectMapper();
+        String valid = mapper.writeValueAsString(Map.of("requestId", "f", "type", "GAME_FORFEIT",
+                "payload", Map.of("gameId", "g".repeat(120), "actionId", "a".repeat(64))));
+        assertThat(protocol.parse(valid).type()).isEqualTo("GAME_FORFEIT");
+        for (String text : new String[] {valid.replace("g".repeat(120), "g".repeat(121)),
+                valid.replace("a".repeat(64), "a".repeat(65))}) {
+            assertThat(catchThrowableOfType(RequestException.class, () -> protocol.parse(text)).code())
+                    .isEqualTo("INVALID_PAYLOAD");
+        }
+    }
+
+    @ParameterizedTest
     @ValueSource(strings = {"{}", "{\"emoteCode\":null}", "{\"emoteCode\":1}", "{\"emoteCode\":\"wave\"}",
             "{\"emoteCode\":\" \"}", "{\"emoteCode\":\"WAVE\",\"userId\":\"forged\"}",
             "{\"emoteCode\":\"WAVE\",\"channelId\":\"other\"}",

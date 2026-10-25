@@ -67,7 +67,7 @@ export async function fixture(
     ...options.position,
   }
   let emoteResponse: 'approve' | 'reject' | 'hold' = 'approve'
-  let emoteCounter = 0
+  let emoteCounter = 0, chatCounter = 0
   let lastEmote: { eventId: string; channelId: string; userId: string; emoteCode: string; sentAt: string } | undefined
   let emoteRequestId = ''
   let remotePosition: Partial<typeof position> = {}
@@ -225,6 +225,7 @@ export async function fixture(
         json: { userId: Number(options.ownUserId ?? '101'), nickname: '공원 산책자', characterGender: 'MALE' },
       })
     }
+    if (url.pathname === '/api/v1/wallets/me') return route.fulfill({ json: { balance: 100, reservedBalance: 0, availableBalance: 100 } })
     if (url.pathname === '/api/v1/channels')
       return route.fulfill({
         json: {
@@ -677,7 +678,7 @@ export async function fixture(
       publicProfiles[userId] = profile; world(sockets.at(-1)!)
     },
     chatFrom: (userId: string, text: string) => emit(sockets.at(-1)!, 'WORLD_CHAT_MESSAGE', {
-      channelId: 'fixture-channel', userId, text, messageId: `fixture-chat-${version}`, sentAt: new Date().toISOString(),
+      channelId: 'fixture-channel', userId, text, messageId: `fixture-chat-${++chatCounter}`, sentAt: new Date().toISOString(),
     }),
     emoteResponse: (response: typeof emoteResponse) => { emoteResponse = response },
     completeEmote: () => { if (lastEmote) emit(sockets.at(-1)!, 'WORLD_EMOTE_EVENT', lastEmote, emoteRequestId) },

@@ -94,6 +94,11 @@ public final class TableProtocol {
                     && payload.get("expectedVersion").longValue() <= 9_007_199_254_740_991L
                     && payload.get("input").isObject();
             case "GAME_UNWATCH" -> fields(payload, Set.of());
+            case "GAME_FORFEIT" -> fields(payload, Set.of("gameId", "actionId"))
+                    && payload.path("gameId").isTextual() && !payload.path("gameId").asText().isBlank()
+                    && payload.path("gameId").asText().length() <= 120
+                    && payload.path("actionId").isTextual() && !payload.path("actionId").asText().isBlank()
+                    && payload.path("actionId").asText().length() <= 64;
             case "GAME_STATE_CHECK", "GAME_WATCH" -> fields(payload, Set.of("gameId"))
                     && payload.get("gameId").isTextual()
                     && !payload.get("gameId").textValue().isBlank()

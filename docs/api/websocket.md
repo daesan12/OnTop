@@ -1,5 +1,8 @@
 # OnTop WebSocket 연결 및 메시지 계약
 
+수동 기권은 [GAME_FORFEIT / GAME_FORFEIT_RESULT](../game-forfeit-api.md)를 사용한다.
+현재 인증 참가자만 요청하며 소켓은 유지한다. 기권 승인과 DB 정산 완료는 구분한다.
+
 REST Swagger의 `POST /api/v1/auth/websocket-ticket`과 구분한다. 현재 소스의
 TableProtocol, TableHub, TableHandshakeInterceptor, MemberWebSocketConnections를 기준으로 작성했다.
 상세 payload는 기존 [공통 메시지](../websocket-api/00-common.md), [회원 인증](../websocket-authentication.md),

@@ -87,9 +87,11 @@ abstract class OpenApiHttpTestSupport {
                 "POST /api/v1/auth/websocket-ticket", "GET /api/v1/users/me", "PATCH /api/v1/users/me",
                 "DELETE /api/v1/users/me", "GET /api/v1/users/nickname-availability",
                 "POST /api/v1/users/onboarding", "GET /api/v1/wallets/me",
-                "GET /api/v1/wallets/me/transactions"));
+                "GET /api/v1/wallets/me/transactions", "GET /api/v1/rankings"));
         if (environment.acceptsProfiles(Profiles.of("(local | dev) & !prod & !production"))) {
             expected.addAll(Set.of("GET /api/v1/channels", "GET /api/v1/tables"));
+            assertThat(api.at("/components/schemas/TableSummaryResponse/properties/gameId/nullable").asBoolean())
+                    .isTrue();
         }
         if (environment.acceptsProfiles(Profiles.of("(local | dev) & !prod & !production"))) {
             expected.addAll(Set.of("GET /api/v1/shop/items",
@@ -111,6 +113,9 @@ abstract class OpenApiHttpTestSupport {
         api.path("paths").fields().forEachRemaining(path -> path.getValue().fieldNames().forEachRemaining(method ->
                 actual.add(method.toUpperCase() + " " + path.getKey())));
         assertThat(actual).isEqualTo(expected);
+        assertThat(api.at("/components/schemas/RankingMyRank/nullable").asBoolean()).isTrue();
+        assertThat(api.at("/components/schemas/RankingResponse/properties/myRank/$ref").asText())
+                .isEqualTo("#/components/schemas/RankingMyRank");
         assertThat(api.path("info").path("title").asText()).isEqualTo("OnTop API");
         assertThat(api.path("info").path("description").asText()).isEqualTo("OnTop REST API Documentation");
         assertThat(api.path("info").path("version").asText()).isEqualTo(build.getVersion());

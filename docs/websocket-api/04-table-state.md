@@ -40,7 +40,8 @@
     "allReady": false,
     "selectorUserId": "dev-7cc07e8b-8460-4a78-8897-5e9acd875d91",
     "gameCode": "DICE",
-    "targetScore": 4000
+    "targetScore": 4000,
+    "gameId": null
   }
 }
 ```
@@ -59,6 +60,7 @@
 | `selectorUserId` | string 또는 null | 현재 참가자 중 가장 먼저 착석한 사용자. 위 userId와 같은 규격. 빈 테이블이면 null |
 | `gameCode` | string 또는 null | 선택한 게임 코드. 미선택이면 null. [게임 선택](07-game-select.md) 참고 |
 | `targetScore` | integer 또는 null | DICE 목표 2000/4000/6000. 다른 게임·미선택은 null |
+| `gameId` | string 또는 null | 확정 PLAYING 경기의 공개 ID. 대기·시작 결과 미확정·리허설·거절·종료·정산 대기는 null |
 
 빈 좌석은 다음과 같이 표현합니다.
 
@@ -71,6 +73,7 @@
 ```
 
 - 변경분만 보내지 않고 전체 상태를 전송합니다.
+- 경기 시작 확정 때도 version을 증가시켜 gameId를 전송합니다. 종료는 null, 다음 판은 새 ID입니다. GAME_START_STATE/GAME_RESULT의 상세 시작·정산 계약은 유지합니다.
 - 같은 테이블의 참가자에게만 전송합니다. 다른 테이블·미착석 연결에는 전송하지 않습니다.
 - 서버는 상태 처리 순서대로 각 연결에 메시지를 전달합니다. 클라이언트는 같은 테이블의 마지막 적용 버전보다 작은 상태를 무시합니다.
 - 같은 버전은 중복 요청의 정상 응답일 수 있습니다. requestId에 따른 요청 완료 처리는 수행하고, 화면 상태는 동일하게 유지합니다.

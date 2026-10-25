@@ -38,6 +38,8 @@
 | 경기 | 완료·4종 엔진 로컬 검증 | WS | 서버 → 클라이언트 | [경기 상태 수신·자동 갱신](websocket-api/09-game-communication.md) | GAME_STATE | /ws/tables |
 | 경기 | 완료·4종 엔진 로컬 검증 | WS | 클라이언트 → 서버 | [경기 입력 전달](websocket-api/09-game-communication.md) | GAME_ACTION_SEND | /ws/tables |
 | 경기 | 완료·4종 엔진 로컬 검증 | WS | 서버 → 클라이언트 | [경기 입력 처리 확인](websocket-api/09-game-communication.md) | GAME_ACTION_RESULT | /ws/tables |
+| 경기 | 완료·로컬 검증 | WS | 클라이언트 → 서버 | [수동 기권](game-forfeit-api.md) | GAME_FORFEIT | /ws/tables |
+| 경기 | 완료·로컬 검증 | WS | 서버 → 클라이언트 | [수동 기권 승인·중복 확인](game-forfeit-api.md) | GAME_FORFEIT_RESULT | /ws/tables |
 | 경기 | 완료·4종 엔진 로컬 검증 | WS | 클라이언트 → 서버 | [경기 관전 시작](websocket-api/09-game-communication.md) | GAME_WATCH | /ws/tables |
 | 경기 | 완료·4종 엔진 로컬 검증 | WS | 클라이언트 → 서버 | [경기 관전 종료](websocket-api/09-game-communication.md) | GAME_UNWATCH | /ws/tables |
 | 경기 | 완료·4종 엔진 로컬 검증 | WS | 서버 → 클라이언트 | [경기 관전 종료 알림](websocket-api/09-game-communication.md) | GAME_WATCH_LEFT | /ws/tables |

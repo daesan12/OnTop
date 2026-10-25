@@ -152,7 +152,7 @@ for (const viewport of [
       await expect(panel).toContainText('정산 대기 중')
       server.settle()
       await expect(panel).toContainText('정산 완료 · 내 엽전 증감 1')
-      await expect(page.locator('.park-account__balance')).toHaveText('—냥')
+      await expect(page.getByLabel('보유 엽전', { exact: true })).toHaveText('100냥')
       await screenshot(
         page,
         'omok-settlement' + (viewport.width === 1920 ? '' : '-1280'),

@@ -4,6 +4,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ssafy.ontop.game.action.GameActionCommand;
 import com.ssafy.ontop.game.action.GameActionResult;
+import com.ssafy.ontop.game.action.GameForfeitCommand;
+import com.ssafy.ontop.game.action.GameForfeitReceipts;
+import com.ssafy.ontop.game.action.GameForfeitResult;
 import com.ssafy.ontop.game.engine.GameEngine;
 import com.ssafy.ontop.game.engine.GameEngineRouter;
 import com.ssafy.ontop.game.omok.domain.OmokMatch;
@@ -32,6 +35,7 @@ public final class OmokEngine implements GameEngine {
     private final Map<String, OmokMatch> games = new HashMap<>();
     private final Map<Long, String> latest = new HashMap<>();
     private final GameLifecycle lifecycle = new GameLifecycle();
+    private final GameForfeitReceipts forfeits = new GameForfeitReceipts();
 
     public OmokEngine(ObjectMapper mapper, Clock clock, Consumer<Object> events) {
         this(mapper, clock, events, new GameEngineRouter());
@@ -124,6 +128,38 @@ public final class OmokEngine implements GameEngine {
                     state.endedAt() == null ? GameRecoverySnapshot.Phase.PLAYING
                             : GameRecoverySnapshot.Phase.FINISHED, publicState(state)));
         }
+    }
+
+    @Override
+    public GameForfeitResult forfeit(GameForfeitCommand command) {
+        List<Object> notices = new ArrayList<>();
+        GameForfeitResult result = null;
+        Rejected rejected = null;
+        synchronized (this) {
+            OmokMatch match = games.get(command.gameId());
+            if (match == null || !match.isPlayer(command.userId())) {
+                throw new Rejected(Rejection.ACCESS_DENIED);
+            }
+            GameForfeitResult previous = forfeits.previous(command);
+            if (previous != null) { return previous; }
+            var now = clock.instant();
+            Snapshot before = match.snapshot();
+            match.expire(now);
+            collect(before, match.snapshot(), notices);
+            before = match.snapshot();
+            if (before.endedAt() != null) {
+                rejected = new Rejected(Rejection.GAME_FINISHED);
+            } else {
+                match.forfeit(command.userId(), now, "EXPLICIT_LEAVE");
+                lifecycle.left(command.gameId(), before.tableId(), "OMOK", match.snapshot().version(),
+                        command.userId(), GameDepartureReason.EXPLICIT_LEAVE, now, notices);
+                collect(before, match.snapshot(), notices);
+                result = forfeits.accepted(command, match.snapshot().version());
+            }
+        }
+        publish(notices);
+        if (rejected != null) { throw rejected; }
+        return result;
     }
 
     @Override

@@ -3,6 +3,8 @@ package com.ssafy.ontop.game.engine;
 import com.ssafy.ontop.game.action.GameActionCommand;
 import com.ssafy.ontop.game.action.GameActionGateway;
 import com.ssafy.ontop.game.action.GameActionResult;
+import com.ssafy.ontop.game.action.GameForfeitCommand;
+import com.ssafy.ontop.game.action.GameForfeitResult;
 import com.ssafy.ontop.game.reconnect.GameRecoverySnapshot;
 import com.ssafy.ontop.game.state.GameStateView;
 import java.util.HashMap;
@@ -68,6 +70,15 @@ public final class GameEngineRouter implements GameEngine {
             throw new GameActionGateway.Rejected(GameActionGateway.Rejection.ACCESS_DENIED);
         }
         return registration.engine().apply(command);
+    }
+
+    @Override
+    public GameForfeitResult forfeit(GameForfeitCommand command) {
+        Registration registration = registration(command.gameId());
+        if (registration == null || !registration.players().contains(command.userId())) {
+            throw new GameActionGateway.Rejected(GameActionGateway.Rejection.ACCESS_DENIED);
+        }
+        return registration.engine().forfeit(command);
     }
 
     @Override
