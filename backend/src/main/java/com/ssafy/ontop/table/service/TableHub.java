@@ -315,7 +315,7 @@ public class TableHub {
                 member.peer().offer(protocol.encode(delivery.requestId(), "GAME_RESULT", delivery.result()));
             }
         }));
-        reconnect.ifPresent(service -> service.connected(user.userId(), session.getId(),
+        reconnect.ifPresent(service -> service.connected(user.userId(), session.getId(), user.sessionId(),
                 (requestId, view) -> member.peer().offer(protocol.encode(requestId, "GAME_CONNECTION_STATE", view))));
         if (reservedStart) { replyStartState(member, seating.get(userId), null); }
         return true;
@@ -509,7 +509,11 @@ public class TableHub {
                 case MEMBER_DEACTIVATED -> com.ssafy.ontop.game.result.GameDepartureReason.MEMBER_DEACTIVATED;
                 default -> com.ssafy.ontop.game.result.GameDepartureReason.DISCONNECT_TIMEOUT;
             };
-            reconnect.ifPresent(service -> service.disconnected(member.accountId(), sessionId, departureReason));
+            boolean authenticationClosed = reason == ConnectionCloseReason.LOGOUT
+                    || reason == ConnectionCloseReason.MEMBER_DEACTIVATED
+                    || reason == ConnectionCloseReason.AUTH_SESSION_REVOKED;
+            reconnect.ifPresent(service -> service.disconnected(member.accountId(), sessionId,
+                    departureReason, authenticationClosed));
         }
         String tableId = seating.get(member.userId());
         if (tableId != null) {
