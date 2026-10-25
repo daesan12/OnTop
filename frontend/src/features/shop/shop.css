@@ -1,0 +1,52 @@
+.park-account-actions { display: flex; gap: 8px; pointer-events: auto; }
+.shop-panel { width: min(760px, calc(100vw - 28px)); max-width: calc(100vw - 28px); max-height: calc(100dvh - 28px); padding: 0; border: 1px solid #ccbd8c; border-radius: 20px; color: #28392e; background: #f7f1df; box-shadow: 0 18px 70px #0006; }
+.shop-panel::backdrop { background: #111e19a8; }
+.shop-panel * { box-sizing: border-box; }
+.shop-panel button, .shop-panel input { font: inherit; }
+.shop-panel button { border: 1px solid #b9b18f; border-radius: 8px; padding: 9px 13px; background: #fffaf0; color: #293f31; cursor: pointer; }
+.shop-panel button:hover:not(:disabled) { background: #e5eddd; }
+.shop-panel button:disabled { opacity: .5; cursor: default; }
+.shop-panel :focus-visible { outline: 3px solid #32806a; outline-offset: 2px; }
+.shop-heading { position: sticky; top: 0; z-index: 1; padding: 22px 24px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; background: #263f32; color: #fff4d8; }
+.shop-heading h2 { margin: 6px 0 0; font-size: 24px; }
+.shop-heading small { color: #d0c69d; }
+.shop-heading button { font-size: 22px; line-height: 1; }
+.shop-wallet { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 24px; padding: 16px 24px; background: #eee6ce; }
+.shop-wallet span { display: flex; gap: 10px; align-items: baseline; }
+.shop-wallet strong { font-size: 20px; }
+.shop-wallet small { flex-basis: 100%; }
+.shop-tabs { display: flex; flex-wrap: wrap; gap: 8px; padding: 14px 24px 4px; }
+.shop-tabs button[aria-pressed="true"] { color: #fff9e9; background: #35533d; border-color: #35533d; }
+.shop-tabs .shop-refresh { margin-left: auto; font-size: 13px; }
+.shop-content { padding: 12px 24px 24px; min-height: 180px; }
+.shop-items { display: grid; gap: 10px; padding: 0; margin: 0; list-style: none; }
+.shop-item { display: flex; align-items: center; gap: 16px; padding: 16px; border: 1px solid #d7cda9; border-radius: 12px; background: #fffaf0; }
+.shop-item > div { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.shop-item h3 { margin: 4px 0; font-size: 17px; }
+.shop-item p { margin: 4px 0 0; font-size: 14px; }
+.shop-item small { color: #62715a; }
+.shop-item-mark { width: 46px; height: 46px; display: grid; place-items: center; flex: 0 0 auto; color: #657852; background: #e7ead7; border-radius: 12px; font-size: 24px; }
+.shop-error, .shop-notice, .shop-receipt, .shop-purchase-check, .shop-appearance { padding: 14px 16px; border-radius: 10px; overflow-wrap: anywhere; line-height: 1.6; }
+.shop-error { background: #fae6d9; color: #7c351f; }
+.shop-notice, .shop-receipt { background: #e3edda; }
+.shop-receipt h3, .shop-purchase-check h3 { margin: 0 0 8px; }
+.shop-receipt p { margin: 0 0 6px; }
+.shop-purchase-check { margin: 12px 0; border: 2px solid #667f4d; background: #eff0df; }
+.shop-purchase-check > div { display: flex; flex-wrap: wrap; gap: 8px; }
+.shop-purchase-check input { max-width: 120px; border: 1px solid #a8ad93; border-radius: 6px; padding: 6px; color: #203c29; background: white; }
+.shop-appearance { font-size: 13px; background: #eee9d7; }
+.shop-panel footer { padding: 13px 24px; border-top: 1px solid #d7cda9; color: #65715d; font-size: 12px; }
+@media (max-width: 900px) {
+  /* Preserve the existing logout position; keep the new launcher clear of F1/map. */
+  .park-account-actions { flex-direction: column-reverse; align-items: flex-end; gap: 8px; }
+}
+@media (max-width: 520px) {
+  .shop-heading { padding: 17px 16px; }
+  .shop-heading h2 { font-size: 20px; }
+  .shop-content { padding: 12px 16px 18px; }
+  .shop-wallet, .shop-tabs { padding-left: 16px; padding-right: 16px; }
+  .shop-tabs .shop-refresh { margin-left: 0; }
+  .shop-item { gap: 10px; padding: 12px; }
+  .shop-item-mark { display: none; }
+  .shop-item button { flex: 0 0 auto; font-size: 13px; padding: 8px; }
+}

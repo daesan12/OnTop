@@ -184,7 +184,11 @@ export class ParkRuntime implements ParkRuntimePort {
   requestJSON = async (path: string, init: RequestInit = {}) => {
     const notesRead = /^\/api\/v1\/notes\?channelId=[^&#?]+$/.test(path) && (init.method ?? 'GET') === 'GET'
     const notesWrite = path === '/api/v1/notes' && init.method === 'POST'
-    if (!this.active || (!notesRead && !notesWrite
+    const method = init.method ?? 'GET'
+    const shopRequest = (method === 'GET' && (path === '/api/v1/shop/items' || path === '/api/v1/users/me/items'))
+      || (method === 'POST' && path === '/api/v1/shop/purchases')
+      || (method === 'PATCH' && path === '/api/v1/users/me/equipment')
+    if (!this.active || (!notesRead && !notesWrite && !shopRequest
       && !/^\/api\/v1\/(?:minigames\/sessions(?:\/\d+(?:\/(?:complete|abandon))?)?|wallets\/me|feedback)$/.test(path))
       || (path === '/api/v1/feedback' && init.method !== 'POST'))
       throw new Error('현재 공원에서 사용할 수 없는 요청입니다.')

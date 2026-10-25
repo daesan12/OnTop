@@ -9,6 +9,7 @@ import type { OneCard, Hand, Card } from '../../src/game/onecard/protocol'
 import { bridgeState as makeBridge } from '../fixtures/bridge'
 import type { Bridge, SecretDie } from '../../src/game/bridge/protocol'
 import { facilityFixture } from './facilityFixture'
+import type { PublicEquipment } from '../../src/network/equipment'
 import developmentBindings from '../../public/park-bindings.dev.json' with { type: 'json' }
 
 // Contract fixtures intercept HTTP/RawWS only in tests. No production fake-auth or socket bypass.
@@ -69,6 +70,7 @@ export async function fixture(
   let emoteRequestId = ''
   let remotePosition: Partial<typeof position> = {}
   const publicProfiles = { ...options.publicProfiles }
+  const publicEquipment: Record<string, PublicEquipment[] | null> = {}
   let rejectGameWatch = false
   let watchingGame = false
   let watchMode: 'normal' | 'reject' | 'hold' = 'normal', watchRequestId = '', selectorOverride: string | undefined, targetScore: number | null = null
@@ -277,6 +279,7 @@ export async function fixture(
           avatars: Array.from({ length: options.players ?? 2 }, (_, i) => ({
             userId: String(101 + i),
             ...publicProfiles[String(101 + i)],
+            equipment: publicEquipment[String(101 + i)] ?? null,
             position:
               i === 0
                 ? position
@@ -530,6 +533,10 @@ export async function fixture(
   })
   return {
     sent,
+    equipment: (userId: string, equipment: PublicEquipment[] | null) => {
+      publicEquipment[userId] = equipment
+      for (const ws of sockets) world(ws)
+    },
     facilities,
     bridgeReply: (input: object, patch: Partial<Bridge>, secret: SecretDie | null = null) => bridgeReplies.push({ input, patch, secret }),
     bridgeSnapshot: (patch: Partial<Bridge>, secret: SecretDie | null = null, role = 'PLAYER') => { bridgeState = { ...bridgeState, ...patch }; bridgeSecret = secret; gameVersion++; game(sockets.at(-1)!, null, role) },
