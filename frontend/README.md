@@ -56,17 +56,19 @@ pnpm dev
 
 ## 화면 범위
 
-- `src/login/LoginPage.tsx`: 네이버, SSAFY, 게스트 진입 버튼을 렌더링한다. SSAFY 버튼은 인증 시작 API로 이동한다. 네이버와 게스트는 후속 연결 안내를 표시한다.
-- `src/auth/`: SSAFY 콜백의 일회용 교환 코드를 주소에서 즉시 제거하고 인증 교환 API를 호출한다. 교환 결과는 현재 탭의 메모리에만 보관한다. 광장 화면과 최초 프로필 설정 화면으로의 이동은 다음 작업 범위다.
+- `src/login/LoginPage.tsx`: 네이버·SSAFY 버튼은 각각 기존 `/api/v1/auth/naver/authorize`, `/api/v1/auth/ssafy/authorize`로 브라우저를 이동시킨다. 게스트는 BE 인증·월드 접속 명세가 없어 준비중으로 표시하고 진입을 비활성화한다.
+- `src/auth/`: 공통 콜백의 일회용 교환 코드를 주소에서 즉시 제거하고 인증 교환 API를 호출한다. `AUTHENTICATED`는 공원으로, `ONBOARDING_REQUIRED`는 기존 최초 프로필 설정으로 이동한다. Access/온보딩 토큰은 현재 탭의 메모리에만 보관하고 새로고침 시 기존 HttpOnly Refresh 쿠키로 세션을 복원한다.
 - `src/styles.css`: 제공받은 배경/패널 이미지에 UI를 배치하고 BusanDandiMyeongjo 웹폰트만 적용한다.
 - `src/assets/`: 프로젝트에서 제공받은 이미지 두 개와 BusanDandiMyeongjo 폰트 파일을 보관한다.
 
-3D 장면은 로그인 화면에 표시하지 않는다. 추후 광장/테이블 화면에서 React Three Fiber 장면과 DOM UI를 함께 배치한다.
+3D 장면은 로그인 화면에 표시하지 않는다. 공원/테이블 화면에서 기존 React Three Fiber 장면과 DOM UI를 함께 사용한다.
 
-## 로컬 SSAFY 로그인 연결
+## 로컬 소셜 로그인 연결
 
-Vite는 `/api/v1` 요청을 기본적으로 `http://127.0.0.1:8080`에 전달한다. 다른 주소의 백엔드를 사용할 경우 `API_PROXY_TARGET` 환경변수로 지정한다. 브라우저의 로그인은 `localhost` 호스트에서 시작해야 한다. 개발 서버를 `127.0.0.1`로 열었더라도 SSAFY 버튼은 `localhost`로 이동한다. 백엔드의 OAuth 세션 쿠키는 호스트별로 분리되기 때문이다.
+Vite는 `/api/v1` 요청을 기본적으로 `http://127.0.0.1:8080`에 전달한다. 다른 주소의 백엔드를 사용할 경우 `API_PROXY_TARGET` 환경변수로 지정한다. 브라우저의 로그인은 `localhost` 호스트에서 시작해야 한다. 개발 서버를 `127.0.0.1`로 열었더라도 두 소셜 버튼은 `localhost`로 이동한다. 백엔드의 OAuth 세션 쿠키는 호스트별로 분리되기 때문이다.
 
-백엔드에서 `local,db` 프로필과 SSAFY Client ID/Secret, JWT 서명 키, DB 연결을 설정해야 한다. 추가로 `AUTH_FRONTEND_CALLBACK_URI`를 실제 Vite 주소의 `/auth/callback`로 설정하고, `AUTH_ALLOWED_ORIGINS`에 해당 프론트 origin을 포함해야 한다. 예를 들어 Vite 주소가 `http://localhost:5173`이라면 콜백은 `http://localhost:5173/auth/callback`이다. 이 값들은 백엔드 실행 환경에서 설정하며 저장소에 비밀값을 기록하지 않는다.
+백엔드에서 `local,db` 프로필과 공급자별 Client ID/Secret, JWT 서명 키, DB 연결을 설정해야 한다. 네이버는 `NAVER_CLIENT_ID`, `NAVER_CLIENT_SECRET`, `NAVER_REDIRECT_URI`를 기존 BE 설정으로 주입한다. 추가로 `AUTH_FRONTEND_CALLBACK_URI`를 실제 Vite 주소의 `/auth/callback`로 설정하고, `AUTH_ALLOWED_ORIGINS`에 해당 프론트 origin을 포함해야 한다. 예를 들어 Vite 주소가 `http://localhost:5173`이라면 프론트 콜백은 `http://localhost:5173/auth/callback`이다. 공급자 콜백 `/api/v1/auth/{provider}/callback`과 프론트 콜백을 구분한다. 이 값들은 백엔드 실행 환경에서 설정하며 저장소에 비밀값을 기록하지 않는다.
 
-SSAFY 인증 성공 후 백엔드는 `#exchange_code=`가 붙은 프론트 콜백으로 이동한다. 프론트는 fragment를 제거한 뒤 같은 세션 쿠키로 `POST /api/v1/auth/exchange`를 한 번 호출한다. 결과가 `AUTHENTICATED`이면 Access Token, `ONBOARDING_REQUIRED`이면 온보딩 토큰을 메모리에 보관한다. 브라우저를 새로 고치면 메모리의 토큰은 사라진다. 세션 복원과 후속 화면 이동은 별도 작업이다.
+소셜 인증 성공 후 백엔드는 `#exchange_code=`가 붙은 공통 프론트 콜백으로 이동한다. 프론트는 fragment를 제거한 뒤 같은 세션 쿠키로 `POST /api/v1/auth/exchange`를 한 번 호출한다. 결과가 `AUTHENTICATED`이면 Access Token, `ONBOARDING_REQUIRED`이면 온보딩 토큰을 메모리에 보관한다. FE에서 공급자의 code/state·Client Secret을 만들거나 토큰을 저장소에 보관하지 않는다. 네이버 로그인 성공 여부는 실제 앱 설정·테스트 계정·공급자 왕복 검수와 구분한다.
+
+게스트 로그인은 현재 BE `LoginProvider`·REST/WS 인증 계약에 없다. 임의 JWT·회원 위장·로컬 성공으로 입장시키지 않는다. 게스트 발급 API, 세션 수명/복구/종료, 닉네임·외형, 채널·채팅 등 허용 범위가 확정되면 후속 연결한다. 근거는 루트 README의 API 문서와 `docs/auth-authorize.md`, `docs/auth-exchange.md`, `docs/api/websocket.md`다.
