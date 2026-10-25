@@ -32,7 +32,7 @@ test('M01 bench shares target selection, waits for approval, restores input/came
   await expect(page.getByLabel('공원 기본 화면')).toBeVisible()
   await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90_000 })
   await expect(page.locator('.park-account__nickname')).toHaveText('공원 산책자')
-  await expect(page.locator('.park-account__balance')).toHaveText('—냥')
+  await expect(page.getByLabel('보유 엽전', { exact: true })).toHaveText('100냥')
   const hint = page.getByLabel('가까운 상호작용')
   await expect(hint).toHaveAttribute('data-target-id', bench.id)
   // Keyboard and visible button use the same target and the shared facility transport.

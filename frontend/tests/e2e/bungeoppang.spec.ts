@@ -138,7 +138,7 @@ test('M14 distinguishes an uninitialized wallet and retries its real read with s
   await open(page)
   await expect(page.getByRole('region', { name: '붕어빵 굽기 시작' })).toContainText('운영 담당자의 지갑 초기화가 필요합니다')
   await expect(page.getByRole('button', { name: '시작', exact: true })).toBeDisabled()
-  await expect(page.getByLabel('내 정보')).toContainText('—냥')
+  await expect(page.getByLabel('보유 엽전', { exact: true })).toHaveText('지갑 준비 필요')
   await screenshot(page, 'm14-wallet-not-ready-mobile')
   const walletReads = server.walletReads
   await page.getByRole('button', { name: '잔액 다시 확인', exact: true }).click()
