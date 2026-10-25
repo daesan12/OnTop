@@ -49,6 +49,8 @@ FE의 2026-10-25 BE_HANDOFF 수동 기권 요청과 기존 경기 이탈 규칙�
 - 다리 선언·판단 중 기권은 기존 pendingForfeit 판정 경계를 유지한다. 참가권한·개인 주사위는 즉시 제거하고 말/슬롯 제거는 현재 판정 경계에서 적용한다.
 - 먼저 도래한 오목 시간패·완료 결과를 기권으로 덮지 않는다. 본인의 수동 기권 영수증이 없는 종료 경기는 거절한다.
 - 되돌리는 명령은 제공하지 않는다. 버튼 확인창·문구는 FE 협의 목록에 남긴다. 좌석은 기존 경기 종료 → 정산 확인 → 대기 정책을 유지하며 기권 승인이 TABLE_LEFT를 뜻하지 않는다.
+- 기권 확정 뒤 승인 응답을 못 받고 끊겼다면 새 접속권 → FINISHED 복구 → 원래 테이블의 CHANNEL_JOIN → 같은 gameId/actionId로 재확인한다. duplicate:true가 최초 반영을 확인하며 이탈·종료 이벤트는 늘어나지 않는다. 정산 대기 좌석을 이유로 원래 채널 복귀를 막지 않는다. 다른 채널 이동은 계속 금지한다.
+- PENDING 결과는 다음 판을 열지 않는다. 저장 결과 조회 또는 커밋 알림에서 전체 SETTLED 확인 후에도 전원이 다시 준비해야 시작한다. 새 경기 복구 후 과거 기권·종료·정산 알림은 새 판을 변경하지 않는다.
 
 ## 결과 저장·정산 경계
 
@@ -77,3 +79,7 @@ GameParticipantLeft.leaveReason=EXPLICIT_LEAVE를 최초 한 번 발행한다. �
 
 검증은 ManualForfeitEngineTests·ManualForfeitFlowTests·GameReconnectTests·TableProtocolTests다.
 실제 4종 엔진·로컬 서버 Raw WebSocket과 인증 조회 대역을 사용한다. 실제 DB 정산·FE 버튼·배포 검증과 구분한다.
+
+TableGameIdFlowTests는 실제 JWT·일회용 접속권·HTTP/RawWS로 기권→SETTLING→결과 PENDING→
+SETTLED→같은 테이블 다음 판을 확인한다. 커밋 알림·알림 유실 후 결과 조회·기권 승인 유실 후 재접속의
+3경로를 검사한다. 예약·결과 저장·정산은 대역이며 기존 계정 조회도 fixture다. 신규 SQL과 DB 지급 검증은 없다.

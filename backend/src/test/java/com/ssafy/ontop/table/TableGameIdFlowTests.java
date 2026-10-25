@@ -7,7 +7,11 @@ import com.ssafy.ontop.auth.service.AccessJwtService;
 import com.ssafy.ontop.auth.websocket.MemberAuthenticationFixture;
 import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser;
 import com.ssafy.ontop.auth.websocket.WebSocketAccountLookup;
+import com.ssafy.ontop.game.action.GameForfeitCommand;
+import com.ssafy.ontop.game.action.GameForfeitResult;
 import com.ssafy.ontop.game.omok.service.OmokEngine;
+import com.ssafy.ontop.game.result.GameFinished;
+import com.ssafy.ontop.game.result.GameParticipantLeft;
 import com.ssafy.ontop.game.result.GameResultCommitted;
 import com.ssafy.ontop.game.result.GameResultView;
 import com.ssafy.ontop.table.service.TableHub;
@@ -24,6 +28,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -31,9 +37,12 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.context.event.EventListener;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -55,7 +64,7 @@ import static org.mockito.Mockito.when;
         "ontop.auth.jwt-secret-base64=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
 })
 @Import({CommittedStartFlowTests.Fixture.class, OmokFlowTests.Fixture.class,
-        MemberAuthenticationFixture.class, FrozenWorldFixture.class})
+        MemberAuthenticationFixture.class, FrozenWorldFixture.class, TableGameIdFlowTests.LifecycleFixture.class})
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class TableGameIdFlowTests {
     private static final String TABLE = "table-" + UUID.nameUUIDFromBytes(
@@ -69,6 +78,8 @@ class TableGameIdFlowTests {
     @Autowired private WorldChannelRegistry positions;
     @Autowired private ApplicationEventPublisher events;
     @Autowired private CommittedStartFlowTests.ReservationDouble reservation;
+    @Autowired private CommittedStartFlowTests.ResultStoreDouble results;
+    @Autowired private LifecycleEvents lifecycle;
     @MockitoBean private WebSocketAccountLookup accounts;
     @MockitoBean(name = "oauthClock") private Clock oauthClock;
 
@@ -85,6 +96,128 @@ class TableGameIdFlowTests {
             when(accounts.findActive(id, TestLoginSessions.ID)).thenReturn(Optional.of(new VerifiedWebSocketUser(
                     id, VerifiedWebSocketUser.Provider.SSAFY, TestLoginSessions.ID)));
         }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"COMMIT", "QUERY", "LOST_ACK"})
+    void 수동기권부터_정산확인_다음판까지_중복이나과거알림으로_새경기를바꾸지않는다(String mode) throws Exception {
+        var committed = new CountDownLatch(1);
+        var releaseAck = new CountDownLatch(1);
+        if (mode.equals("LOST_ACK")) {
+            doAnswer(call -> {
+                GameForfeitResult result = (GameForfeitResult) call.callRealMethod();
+                if (!result.duplicate()) {
+                    committed.countDown();
+                    assertThat(releaseAck.await(8, TimeUnit.SECONDS)).isTrue();
+                }
+                return result;
+            }).when(engine).forfeit(org.mockito.ArgumentMatchers.any(GameForfeitCommand.class));
+        }
+        try (var first = connect(101, "one"); var second = connect(202, "one");
+                var viewer = connect(505, "one")) {
+            pose(viewer, 1, 0);
+            viewer.request("TABLE_WATCH", Map.of("tableId", TABLE));
+            prepare(first, second);
+            reservation.release.countDown();
+            String gameId = publicState(viewer, "committed-test-game").path("gameId").asText();
+            first.state("RESTORED");
+            second.state("RESTORED");
+            viewer.request("GAME_WATCH", Map.of("gameId", gameId));
+            Map<String, String> command = Map.of("gameId", gameId, "actionId", "manual-button");
+            ScenarioClient player = second;
+            ScenarioClient returned = null;
+            try {
+                JsonNode acknowledgement;
+                if (mode.equals("LOST_ACK")) {
+                    second.sendRequest("GAME_FORFEIT", command);
+                    assertThat(committed.await(5, TimeUnit.SECONDS)).isTrue();
+                    second.close();
+                    first.await(message -> message.path("type").asText().equals("CHANNEL_STATE")
+                            && message.at("/payload/currentUsers").asInt() == 2);
+                    returned = connect(202, "one", "FINISHED");
+                    player = returned;
+                    acknowledgement = player.request("GAME_FORFEIT", command);
+                    assertThat(acknowledgement.at("/payload/duplicate").asBoolean()).isTrue();
+                    releaseAck.countDown();
+                } else {
+                    acknowledgement = player.request("GAME_FORFEIT", command);
+                    assertThat(acknowledgement.at("/payload/duplicate").asBoolean()).isFalse();
+                }
+                assertThat(acknowledgement.path("type").asText()).isEqualTo("GAME_FORFEIT_RESULT");
+                player.state("FINISHED");
+                assertThat(player.request("CHANNEL_JOIN", Map.of("channelId", "two"))
+                        .at("/payload/code").asText()).isEqualTo("TABLE_BUSY");
+                var ended = viewer.await(message -> message.path("type").asText().equals("GAME_STATE")
+                        && message.at("/payload/publicState/status").asText().equals("FINISHED"));
+                assertThat(ended.at("/payload/privateState").isEmpty()).isTrue();
+                assertThat(ended.at("/payload/publicState/endReason").asText()).isEqualTo("EXPLICIT_LEAVE");
+                assertThat(summary().path("status").asText()).isEqualTo("SETTLING");
+                assertThat(summary().path("gameId").isNull()).isTrue();
+                assertThat(summary().path("occupiedSeats").asInt()).isEqualTo(2);
+                assertThat(summary().path("readyCount").asInt()).isZero();
+                assertThat(player.request("READY_SET", Map.of("ready", true))
+                        .at("/payload/code").asText()).isEqualTo("TABLE_BUSY");
+                var pending = forfeitResult(202, gameId, GameResultView.SettlementStatus.PENDING);
+                results.saved.put(202L, pending);
+                var pendingReply = player.request("GAME_RESULT_CHECK", Map.of("gameSessionId", gameId));
+                assertThat(pendingReply.at("/payload/settlementStatus").asText()).isEqualTo("PENDING");
+                assertThat(pendingReply.at("/payload/myCoinDelta").isNull()).isTrue();
+                assertThat(summary().path("status").asText()).isEqualTo("SETTLING");
+                assertThat(viewer.request("GAME_RESULT_CHECK", Map.of("gameSessionId", gameId))
+                        .at("/payload/code").asText()).isEqualTo("GAME_RESULT_ACCESS_DENIED");
+                var settled = forfeitResult(202, gameId, GameResultView.SettlementStatus.SETTLED);
+                results.saved.put(202L, settled);
+                JsonNode settlement;
+                if (mode.equals("QUERY")) {
+                    settlement = player.request("GAME_RESULT_CHECK", Map.of("gameSessionId", gameId));
+                } else {
+                    events.publishEvent(new GameResultCommitted(settled));
+                    settlement = player.await(message -> message.path("type").asText().equals("GAME_RESULT")
+                            && message.at("/payload/settlementStatus").asText().equals("SETTLED"));
+                }
+                assertThat(settlement.at("/payload/myCoinDelta").asLong()).isEqualTo(-1);
+                player.await(message -> message.path("type").asText().equals("GAME_START_STATE")
+                        && message.at("/payload/phase").asText().equals("WAITING"));
+                assertThat(summary().path("status").asText()).isEqualTo("WAITING");
+                first.request("READY_SET", Map.of("ready", true));
+                assertThat(reservation.starts).hasValue(1);
+                assertThat(summary().path("readyCount").asInt()).isEqualTo(1);
+                player.request("READY_SET", Map.of("ready", true));
+                var next = publicState(viewer, "committed-test-game-2");
+                first.state("RESTORED");
+                player.state("RESTORED");
+                assertThat(player.request("GAME_FORFEIT", command).at("/payload/code").asText())
+                        .isEqualTo("GAME_RECOVERY_REQUIRED");
+                events.publishEvent(new GameResultCommitted(settled));
+                hub.roundEnded(TABLE, gameId);
+                assertThat(summary().path("gameId").asText()).isEqualTo("committed-test-game-2");
+                assertThat(summary().path("status").asText()).isEqualTo("PLAYING");
+                assertThat(first.request("GAME_ACTION_SEND", Map.of("gameId", "committed-test-game-2",
+                        "actionId", "next-round-move", "expectedVersion", 0, "input", Map.of("x", 7, "y", 7)))
+                        .path("type").asText()).isEqualTo("GAME_ACTION_RESULT");
+                assertThat(reservation.reservations).hasValue(2);
+                assertThat(lifecycle.left).hasSize(1);
+                assertThat(lifecycle.finished).hasSize(1);
+                assertThat(lifecycle.finished.getFirst().participants().stream()
+                        .filter(participant -> participant.userId() == 202).findFirst().orElseThrow().result())
+                        .isEqualTo(GameFinished.Result.FORFEIT);
+                Files.writeString(Path.of("build/forfeit-next-round-" + mode + ".json"), mapper
+                        .writerWithDefaultPrettyPrinter().writeValueAsString(Map.of("mode", mode,
+                                "acknowledgement", acknowledgement, "ended", ended, "pending", pendingReply,
+                                "settlement", settlement, "nextRound", next)));
+            } finally {
+                releaseAck.countDown();
+                if (returned != null) { returned.close(); }
+            }
+        }
+    }
+
+    private GameResultView forfeitResult(long userId, String gameId, GameResultView.SettlementStatus status) {
+        return new GameResultView(userId, status == GameResultView.SettlementStatus.PENDING ? 1 : 2,
+                gameId, "OMOK", GameResultView.Status.FINISHED, "EXPLICIT_LEAVE", status, 1,
+                List.of(new GameResultView.Participant("101", "WIN"),
+                        new GameResultView.Participant("202", "FORFEIT")),
+                status == GameResultView.SettlementStatus.PENDING ? null : -1L, clock.instant());
     }
 
     @Test
@@ -241,11 +374,16 @@ class TableGameIdFlowTests {
     }
 
     private ScenarioClient connect(long id, String channel) throws Exception {
+        return connect(id, channel, "LOBBY");
+    }
+
+    private ScenarioClient connect(long id, String channel, String status) throws Exception {
         var response = request("POST", "/api/v1/auth/websocket-ticket", id);
         assertThat(response.statusCode()).isEqualTo(200);
         var client = new ScenarioClient(port, Long.toString(id), mapper.readTree(response.body()).path("ticket").asText());
-        client.state("LOBBY");
-        assertThat(client.request("CHANNEL_JOIN", Map.of("channelId", channel)).path("type").asText())
+        client.state(status);
+        var joined = client.request("CHANNEL_JOIN", Map.of("channelId", channel));
+        assertThat(joined.path("type").asText()).as("채널 입장 응답: %s", joined)
                 .isEqualTo("CHANNEL_STATE");
         return client;
     }
@@ -256,5 +394,17 @@ class TableGameIdFlowTests {
                     .header("Authorization", "Bearer " + jwt.issue(id, TestLoginSessions.ID))
                     .method(method, HttpRequest.BodyPublishers.noBody()).build(), HttpResponse.BodyHandlers.ofString());
         }
+    }
+
+    @TestConfiguration(proxyBeanMethods = false)
+    static class LifecycleFixture {
+        @Bean LifecycleEvents lifecycleEvents() { return new LifecycleEvents(); }
+    }
+
+    static class LifecycleEvents {
+        final List<GameParticipantLeft> left = new CopyOnWriteArrayList<>();
+        final List<GameFinished> finished = new CopyOnWriteArrayList<>();
+        @EventListener public void left(GameParticipantLeft event) { left.add(event); }
+        @EventListener public void finished(GameFinished event) { finished.add(event); }
     }
 }
