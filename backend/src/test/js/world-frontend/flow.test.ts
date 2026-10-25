@@ -24,15 +24,19 @@ const realFetch = globalThis.fetch
 const NativeWebSocket = globalThis.WebSocket
 const connections: SharedSocket[] = []
 const incoming: Envelope[] = []
+const socketMessages: Envelope[][] = []
 const sent: string[] = []
 let runtime: ParkRuntime | undefined
 let cookie = `ONTOP_REFRESH=${process.env.TEST_WORLD_REFRESH_TOKEN}`
+let ticketRequests = 0
 
 // Browser APIs are adapted to Node; HTTP/WS responses and tokens come from the real Spring server.
 beforeEach(() => {
   clearAuthSession()
   resetWorld()
   incoming.length = sent.length = 0
+  socketMessages.length = 0
+  ticketRequests = 0
   vi.stubGlobal('window', { location: new URL(base + '/park') })
   vi.stubGlobal('fetch', async (path: string, init: RequestInit = {}) => {
     if (path === '/park-bindings.json') {
@@ -45,6 +49,7 @@ beforeEach(() => {
     if (path !== '/api/v1/auth/websocket-ticket') headers.set('Origin', 'https://dev.on-top.world')
     if (path === '/api/v1/auth/refresh') headers.set('Cookie', cookie)
     const response = await realFetch(base + path, { ...init, headers, redirect: 'error' })
+    if (path === '/api/v1/auth/websocket-ticket' && response.ok) ticketRequests++
     const renewed = response.headers.getSetCookie().find(c => c.startsWith('ONTOP_REFRESH='))
     if (renewed) cookie = renewed.split(';')[0]!
     return response
@@ -52,7 +57,13 @@ beforeEach(() => {
   vi.stubGlobal('WebSocket', class extends NativeWebSocket {
     constructor(url: string | URL, protocols?: string | string[]) {
       super(url, protocols)
-      this.addEventListener('message', event => incoming.push(JSON.parse(String(event.data))))
+      const messages: Envelope[] = []
+      socketMessages.push(messages)
+      this.addEventListener('message', event => {
+        const message = JSON.parse(String(event.data)) as Envelope
+        messages.push(message)
+        incoming.push(message)
+      })
     }
     override send(data: string) { sent.push(JSON.parse(data).type); super.send(data) }
   })
@@ -102,11 +113,10 @@ function diagnostic(name: string, data: object) {
 }
 
 if (process.env.TEST_WORLD_PHASE === 'profile-bench') {
-  it('runs the actual ParkRuntime login/profile/socket path and diagnoses remote display reception', async () => {
+  it('projects actual server public profiles and bench leases through ParkRuntime', async () => {
     await peer(process.env.TEST_WORLD_OTHER_TOKEN!)
     expect(await restoreAuthSession(true)).toBe(true)
-    runtime = new ParkRuntime()
-    runtime.start()
+    const park = await enterPark()
     await vi.waitFor(() => expect(useSession.getState().roomId).toBe('channel-1'), { timeout: 8000 })
     await vi.waitFor(() => expect(incoming.some(m => m.type === 'WORLD_STATE'
       && (m.payload.avatars as { userId: string; nickname?: string; characterGender?: string }[])
@@ -114,6 +124,10 @@ if (process.env.TEST_WORLD_PHASE === 'profile-bench') {
     expect(useSession.getState().account?.nickname).toBe('검증회원101')
     expect(avatars.get('101')?.nickname).toBe('검증회원101')
     expect(avatars.get('101')?.character).toBe('man')
+    await vi.waitFor(() => {
+      expect(avatars.get('202')).toMatchObject({ nickname: '검증회원202', character: 'girl' })
+      expect(useSession.getState().profiles['202']).toEqual({ nickname: '검증회원202', character: 'girl' })
+    }, { timeout: 8000 })
     const display = avatars.get('202')
     diagnostic('remote-profile', {
       serverProfileReceived: true,
@@ -122,15 +136,14 @@ if (process.env.TEST_WORLD_PHASE === 'profile-bench') {
       frontendNickname: display?.nickname, frontendCharacter: display?.character,
     })
     await vi.waitFor(() => expect(useFacilityState.getState().ready).toBe(true), { timeout: 5000 })
-    const lease = await runtime.useFacility('bench-0', 0, new AbortController().signal)
+    const lease = await park.useFacility('bench-0', 0, new AbortController().signal)
     expect(useSession.getState().benchId).toBe('bench-0')
     expect(avatars.get('101')?.benchId).toBe('bench-0')
     diagnostic('facility-runtime', { catalogReady: true, frontendBenchApplied: true,
       facilityCheckSentOnJoin: sent.includes('WORLD_FACILITY_CHECK'),
       services: { bench: benchService.mode, fitness: fitnessService.mode, telescope: telescopeService.mode } })
-    await runtime.releaseFacility(lease.leaseId, new AbortController().signal)
+    await park.releaseFacility(lease.leaseId, new AbortController().signal)
     expect(useSession.getState().benchId).toBe('')
-    // Profile reception remains diagnostic; facility application above is asserted through real ParkRuntime.
   })
 
   it('uses actual FE SharedSocket for bench occupancy, conflict, release and reconnect', async () => {
@@ -169,6 +182,92 @@ if (process.env.TEST_WORLD_PHASE === 'profile-bench') {
     expect(leases(next)[0]!.leaseId).not.toBe(stale)
     await request(restored.client, 'WORLD_FACILITY_RELEASE', { leaseId: leases(next)[0]!.leaseId })
   })
+} else if (process.env.TEST_WORLD_PHASE === 'profile-refresh') {
+  it('propagates committed nickname updates without movement, isolates channels and restores fresh profiles on reconnect', async () => {
+    const observer = await peer(process.env.TEST_WORLD_OTHER_TOKEN!)
+    expect(await restoreAuthSession(true)).toBe(true)
+    const park = await enterPark()
+    await vi.waitFor(() => {
+      expect(useSession.getState().roomId).toBe('channel-1')
+      expect(avatars.get('202')).toMatchObject({ nickname: '검증회원202', character: 'girl' })
+    }, { timeout: 8000 })
+    const originalBalance = useSession.getState().account?.balance
+    // M14 조회 컴포넌트는 마운트하지 않는다. 미조회 null을 프로필 갱신이 덮지 않는지만 검사한다.
+    expect(originalBalance).toBeNull()
+    const ownMessages = socketMessages.find(messages => messages.some(m =>
+      m.type === 'CONNECTED' && m.payload.userId === '101'))!
+    expect(ownMessages).toBeDefined()
+
+    await updateNickname(process.env.TEST_WORLD_ACCESS_TOKEN!, '새주인101')
+    await updateNickname(process.env.TEST_WORLD_OTHER_TOKEN!, '새친구202')
+    await vi.waitFor(() => {
+      expect(avatars.get('101')?.nickname).toBe('새주인101')
+      expect(avatars.get('202')).toMatchObject({ nickname: '새친구202', character: 'girl' })
+      expect(useSession.getState().account).toEqual({ nickname: '새주인101', balance: originalBalance })
+      expect(useSession.getState().profiles['202']).toEqual({ nickname: '새친구202', character: 'girl' })
+    }, { timeout: 10000 })
+    expect(sent).not.toContain('WORLD_MOVE')
+    for (const message of incoming.filter(m => m.type === 'WORLD_STATE')) {
+      for (const avatar of message.payload.avatars as Record<string, unknown>[]) {
+        expect(Object.keys(avatar)).not.toContain('accessToken')
+        expect(Object.keys(avatar)).not.toContain('providerUserId')
+        expect(Object.keys(avatar)).not.toContain('loginProvider')
+        expect(Object.keys(avatar)).not.toContain('refreshToken')
+        expect(Object.keys(avatar)).not.toContain('email')
+      }
+    }
+
+    await observer.client.request('CHANNEL_LEAVE', {}, ['CHANNEL_LEFT'])
+    await vi.waitFor(() => {
+      expect(avatars.has('202')).toBe(false)
+      expect(useSession.getState().profiles['202']).toBeUndefined()
+    })
+    await observer.client.request('CHANNEL_JOIN', { channelId: 'channel-2' }, ['CHANNEL_STATE'])
+    const beforeForeignUpdate = observer.messages.length
+    const beforeForeignDelivery = ownMessages.length
+    await updateNickname(process.env.TEST_WORLD_OTHER_TOKEN!, '다른채널202')
+    await vi.waitFor(() => expect(observer.messages.slice(beforeForeignUpdate).some(m =>
+      hasProfile(m, 'channel-2', '202', '다른채널202'))).toBe(true), { timeout: 10000 })
+    // 같은 연결의 ACK까지 받아 앞서 큐에 들어간 메시지도 수신한 뒤 송신 격리를 검사한다.
+    expect(await park.sendChat('격리확인')).toBe(true)
+    const ownWorldUpdates = ownMessages.slice(beforeForeignDelivery).filter(m => m.type === 'WORLD_STATE')
+    expect(ownWorldUpdates.every(m => m.payload.channelId === 'channel-1')).toBe(true)
+    expect(ownWorldUpdates.some(m => (m.payload.avatars as { userId: string }[])
+      .some(avatar => avatar.userId === '202'))).toBe(false)
+    expect(useSession.getState().roomId).toBe('channel-1')
+    expect(avatars.has('202')).toBe(false)
+    expect(useSession.getState().profiles['202']).toBeUndefined()
+
+    await observer.client.request('CHANNEL_LEAVE', {}, ['CHANNEL_LEFT'])
+    await observer.client.request('CHANNEL_JOIN', { channelId: 'channel-1' }, ['CHANNEL_STATE'])
+    await vi.waitFor(() => expect(avatars.get('202')).toMatchObject({
+      nickname: '다른채널202', character: 'girl',
+    }), { timeout: 8000 })
+
+    const beforeDisconnect = observer.messages.length
+    const beforeReconnectTickets = ticketRequests
+    await park.stop()
+    expect(useSession.getState().profiles).toEqual({})
+    expect(avatars.size).toBe(0)
+    await vi.waitFor(() => expect(observer.messages.slice(beforeDisconnect).some(m =>
+      m.type === 'WORLD_STATE' && m.payload.channelId === 'channel-1'
+        && !(m.payload.avatars as { userId: string }[]).some(a => a.userId === '101'))).toBe(true))
+    await enterPark()
+    await vi.waitFor(() => {
+      expect(useSession.getState().status).toBe('connected')
+      expect(useSession.getState().sessionId).toBe('101')
+      expect(useSession.getState().roomId).toBe('channel-1')
+      expect(avatars.get('101')?.nickname).toBe('새주인101')
+      expect(avatars.get('202')).toMatchObject({ nickname: '다른채널202', character: 'girl' })
+      expect(useSession.getState().account?.balance).toBe(originalBalance)
+    }, { timeout: 8000 })
+    expect(ticketRequests).toBe(beforeReconnectTickets + 1)
+    diagnostic('public-profile-refresh', {
+      initialDisplayMatched: true, committedRenameMappedWithoutMovement: true,
+      unloadedWalletDisplayPreserved: true, foreignChannelTransportIsolated: true, departedProfileRemoved: true,
+      channelReentryMapped: true, freshTicketReconnectMapped: true, publicFieldsOnly: true,
+    })
+  }, 45000)
 } else if (process.env.TEST_WORLD_PHASE === 'fitness' || process.env.TEST_WORLD_PHASE === 'telescope') {
   const telescope = process.env.TEST_WORLD_PHASE === 'telescope'
   it(`uses actual FE SharedSocket for ${telescope ? 'telescope aim' : 'fitness'} ownership and cleanup`, async () => {
@@ -188,3 +287,27 @@ if (process.env.TEST_WORLD_PHASE === 'profile-bench') {
     await vi.waitFor(async () => expect(await check(observer.client)).toHaveLength(0), { timeout: 5000 })
   })
 } else { throw new Error('Unknown world integration phase') }
+
+async function updateNickname(token: string, nickname: string) {
+  const response = await fetch('/api/v1/users/me', {
+    method: 'PATCH', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ nickname }),
+  })
+  expect(response.status).toBe(200)
+  expect((await response.json()).nickname).toBe(nickname)
+}
+
+async function enterPark() {
+  const park = new ParkRuntime()
+  runtime = park
+  park.start()
+  await vi.waitFor(() => expect(useSession.getState().sessionId).toBe('101'), { timeout: 8000 })
+  expect(await park.selectChannel('channel-1')).toBe(true)
+  return park
+}
+
+function hasProfile(message: Envelope, channelId: string, userId: string, nickname: string) {
+  return message.type === 'WORLD_STATE' && message.payload.channelId === channelId
+    && (message.payload.avatars as { userId: string; nickname: string }[])
+      .some(avatar => avatar.userId === userId && avatar.nickname === nickname)
+}
