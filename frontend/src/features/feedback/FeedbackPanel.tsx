@@ -3,6 +3,7 @@ import { closeFeedback, submitFeedback } from './controller'
 import { feedbackService } from './service'
 import { editFeedbackDraft, useFeedbackState } from './state'
 import { parseFeedbackText } from './validation'
+import { inputState } from '../../world/inputOwnership'
 import './feedback.css'
 
 export function FeedbackPanel() {
@@ -13,6 +14,8 @@ export function FeedbackPanel() {
     if (!state.open) return
     area.current?.focus({ preventScroll: true })
     const keys = (event: KeyboardEvent) => {
+      // The native F1 dialog owns keys until its closing animation finishes.
+      if (inputState.manualOpen || event.code === 'F1') return
       if (event.isComposing || event.keyCode === 229) return
       if (event.code === 'Escape') { event.preventDefault(); closeFeedback() }
       if (event.code === 'Tab') {

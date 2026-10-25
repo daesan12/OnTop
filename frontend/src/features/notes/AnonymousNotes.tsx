@@ -4,6 +4,7 @@ import { closeNotes, refreshNotes, submitNote, watchNotes } from './controller'
 import { notesService } from './service'
 import { editNoteDraft, useNotesState } from './state'
 import { parseNoteText } from './validation'
+import { inputState } from '../../world/inputOwnership'
 import './notes.css'
 
 export function AnonymousNotes() {
@@ -14,6 +15,8 @@ export function AnonymousNotes() {
     if (!state.open) return
     area.current?.focus({ preventScroll: true })
     const keys = (event: KeyboardEvent) => {
+      // Keep the underlying draft/dialog intact while the F1 dialog owns keys.
+      if (inputState.manualOpen || event.code === 'F1') return
       if (event.isComposing || event.keyCode === 229) return
       if (event.code === 'Escape') { event.preventDefault(); closeNotes() }
       if (event.code === 'Tab') {

@@ -75,11 +75,13 @@ export function userProfile(value: unknown) {
 }
 const text = (x: unknown): x is string => typeof x === 'string' && x.length > 0
 export function parseEnvelope(data: unknown): Envelope {
-  if (typeof data !== 'string' || data.length > 65_536)
+  // A full 174-seat facility snapshot exceeds 64 KiB; other message limits stay unchanged.
+  if (typeof data !== 'string' || data.length > 262_144)
     throw new Error('서버 메시지 형식을 확인할 수 없습니다.')
   const value: unknown = JSON.parse(data)
   if (
     !record(value) ||
+    (data.length > 65_536 && value.type !== 'WORLD_FACILITY_STATE') ||
     !(
       value.requestId === null ||
       (text(value.requestId) && value.requestId.length <= 64)

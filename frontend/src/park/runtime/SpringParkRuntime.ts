@@ -4,6 +4,8 @@ import {
   restoreAuthSession,
 } from '../../auth/authFlow'
 import { SharedSocket, ServerError } from '../../network/socketClient'
+import { FacilityClient } from '../../network/facilityClient'
+import { facilityMovementBlocked, serverFacilities } from '../../features/facilities/state'
 import { RestError } from '../../network/restError'
 import { inputState } from '../../world/inputOwnership'
 import {
@@ -43,6 +45,7 @@ import {
   presentEmote,
   clearChannel,
   receive,
+  applyFacilityOccupancies,
   resetWorld,
   useSession,
 } from '../../network/worldClient'
@@ -73,6 +76,7 @@ export class ParkRuntime implements ParkRuntimePort {
   private tableWatchRequestId = ''
   private obsoleteWatchRequests = new Set<string>()
   private ownProfile: ReturnType<typeof userProfile> | null = null
+  private facilityMapInvalid = false
   private movement = new MovementInputBuffer((intent, scope) => this.sendMovement(intent, scope))
   private socket = new SharedSocket({
     ticket: async (signal) => {
@@ -96,6 +100,20 @@ export class ParkRuntime implements ParkRuntimePort {
     closed: (code) => this.closed(code),
     error: (message) => this.report(message),
   })
+  private facilities = new FacilityClient({
+    scope: () => {
+      const s = useSession.getState()
+      return { generation: this.generation, channelId: s.roomId, userId: s.sessionId,
+        connected: this.active && this.socket.connected && s.status === 'connected' }
+    },
+    request: (type, payload, expected, onId) => this.socket.request(type, payload, expected, onId),
+    apply: applyFacilityOccupancies,
+    blockMovement: () => this.movement.clear(false),
+  })
+  checkFacilities = (reloadCatalog = false) => this.facilities.refresh(reloadCatalog)
+  useFacility = (id: string, seat: number, signal: AbortSignal) => this.facilities.use(id, seat, signal)
+  releaseFacility = (id: string, signal: AbortSignal) => this.facilities.release(id, signal)
+  aimFacility = (id: string, aim: { yaw: number; pitch: number }, signal: AbortSignal) => this.facilities.aim(id, aim, signal)
   addAuthListener(listener: AuthEnded) {
     this.authListeners.add(listener)
     return () => {
@@ -109,6 +127,7 @@ export class ParkRuntime implements ParkRuntimePort {
       })
   }
   private authEnded() {
+    this.facilities.reset()
     resetNotesState()
     resetFeedbackState()
     this.movement.clear()
@@ -168,6 +187,8 @@ export class ParkRuntime implements ParkRuntimePort {
     void this.boot()
   }
   private async boot() {
+    this.facilities.reset()
+    this.facilityMapInvalid = false
     this.movement.clear()
     const generation = ++this.generation
     this.actionBusy = false
@@ -210,6 +231,7 @@ export class ParkRuntime implements ParkRuntimePort {
     }
   }
   async stop() {
+    this.facilities.reset()
     this.movement.clear()
     this.active = false
     ++this.generation
@@ -221,6 +243,7 @@ export class ParkRuntime implements ParkRuntimePort {
     await closing
   }
   private closed(code: number) {
+    this.facilities.reset()
     this.movement.clear()
     if (!this.active) return
     if (code === 4401 || code === 4403) {
@@ -257,6 +280,7 @@ export class ParkRuntime implements ParkRuntimePort {
   }
   private message(message: Envelope) {
     if (!this.active) return
+    if (serverFacilities && this.facilities.ownsError(message)) return
     if (message.type === 'ERROR' && message.requestId && this.obsoleteWatchRequests.has(message.requestId)) return
     if (message.type === 'TABLE_WATCH_STATE') {
       const q = useTableLobby.getState()
@@ -264,6 +288,21 @@ export class ParkRuntime implements ParkRuntimePort {
         (message.requestId !== null && message.requestId !== this.tableWatchRequestId)) return
     }
     receive(message)
+    if (serverFacilities) {
+      if (message.type === 'WORLD_FACILITY_STATE') this.facilities.accept(message)
+      if (message.type === 'WORLD_STATE') {
+        if (message.payload.channelId === useSession.getState().roomId && !useSession.getState().mapCompatible) {
+          if (!this.facilityMapInvalid) this.facilities.reset()
+          this.facilityMapInvalid = true
+        } else {
+          if (this.facilityMapInvalid && useSession.getState().mapCompatible) {
+            this.facilityMapInvalid = false
+            void this.facilities.begin().catch(() => {})
+          }
+          this.facilities.world(message.payload)
+        }
+      }
+    }
     const session = useSession.getState()
     try {
       receiveGame(message, session.sessionId, session.tableId)
@@ -328,6 +367,8 @@ export class ParkRuntime implements ParkRuntimePort {
         throw new Error('경기 진행·복구·정산 중에는 채널을 바꿀 수 없습니다.')
       if (state.tableId) throw new Error('먼저 테이블에서 일어나주세요.')
       if (state.roomId === channelId) return
+      this.facilities.reset()
+      this.facilityMapInvalid = false
       this.movement.clear()
       if (!state.channels.some((c) => c.channelId === channelId))
         throw new Error('서버 채널 목록을 확인해주세요.')
@@ -344,6 +385,8 @@ export class ParkRuntime implements ParkRuntimePort {
       ])
       this.preferredChannel = channelId
       this.retryCount = 0
+      // Initial world messages keep their existing order. Facilities explicitly query after CHANNEL_JOIN.
+      if (serverFacilities) void this.facilities.begin().catch(() => {})
       const body = await this.getJSON(
         `/api/v1/tables?channelId=${encodeURIComponent(channelId)}`,
         { signal: this.bootAbort?.signal },
@@ -415,6 +458,7 @@ export class ParkRuntime implements ParkRuntimePort {
   private canSendMovement(intent: MovementIntent) {
     const s = useSession.getState()
     return this.active && s.status === 'connected' && !!s.roomId && s.mapCompatible && avatars.has(s.sessionId)
+      && !facilityMovementBlocked(s.sessionId)
       && !tableBusy() && !s.tableId && (!useGame.getState().watchedGameId || stoppedIntent(intent))
       && (!inputState.minigameOpen || stoppedIntent(intent))
       && (!(benchBusy(s.sessionId) || fitnessBusy(s.sessionId) || telescopeBusy(s.sessionId)) || stoppedIntent(intent)) && this.socket.connected
@@ -434,6 +478,7 @@ export class ParkRuntime implements ParkRuntimePort {
     }
   }
   inspectTable = (anchorId: string) => {
+    if (facilityMovementBlocked(useSession.getState().sessionId)) return
     if (inputState.minigameOpen) return
     if (this.actionBusy || useSession.getState().pending) return
     if (benchBusy(useSession.getState().sessionId) || fitnessBusy(useSession.getState().sessionId) || telescopeBusy(useSession.getState().sessionId)) return
@@ -481,6 +526,7 @@ export class ParkRuntime implements ParkRuntimePort {
   }
   joinTable = () =>
     this.action(async () => {
+      if (facilityMovementBlocked(useSession.getState().sessionId)) throw new Error('먼저 시설 이용·승인 위치 확인을 마쳐주세요.')
       if (inputState.minigameOpen) throw new Error('먼저 미니게임을 마쳐주세요.')
       if (benchBusy(useSession.getState().sessionId)) throw new Error('먼저 벤치에서 일어나주세요.')
       if (fitnessBusy(useSession.getState().sessionId)) throw new Error('먼저 운동기구에서 내려와주세요.')

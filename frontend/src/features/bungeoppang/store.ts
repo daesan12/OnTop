@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { useManual, openManual, closeManual, resetManual } from "../manual/manualState";
 import { BUNGEOPPANG } from "./config";
 import {
   actionFor,
@@ -130,9 +131,8 @@ let loopTimer: ReturnType<typeof setInterval> | undefined;
 let transitionTimer: ReturnType<typeof setTimeout>;
 export function setBungeoppangHelp(open: boolean) {
   if (open && (get().phase === "idle" || get().phase === "leaving")) return;
-  inputState.manualOpen = open;
-  set({ helpOpen: open });
-  clearHeldInput();
+  if (open) openManual("fish-bread");
+  else if (useManual.getState().page === "fish-bread") closeManual();
 }
 async function refreshWallet(currentVisit: number) {
   const owner = useSession.getState().sessionId;
@@ -201,7 +201,7 @@ export function leaveBungeoppang() {
   clearTimeout(tipTimer);
   cancelAnimationFrame(raf);
   clearInterval(loopTimer);
-  if (get().helpOpen) setBungeoppangHelp(false);
+  if (get().helpOpen) resetManual();
   set({ phase: "leaving", confirmExit: false, tip: null });
   view.active = false;
   view.returningUntil = performance.now() + R.cameraTransitionMs;
@@ -220,7 +220,7 @@ export function resetBungeoppang() {
   clearTimeout(tipTimer);
   cancelAnimationFrame(raf);
   clearInterval(loopTimer);
-  if (get().helpOpen) inputState.manualOpen = false;
+  if (get().helpOpen) resetManual();
   startKey = '';
   submission = null;
   view.active = false;
@@ -506,3 +506,5 @@ function watchSlots(grill: GrillState) {
     }
   });
 }
+
+useManual.subscribe(s => { const helpOpen = s.open && s.page === "fish-bread"; if (get().helpOpen !== helpOpen) set({helpOpen}); });

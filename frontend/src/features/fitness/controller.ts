@@ -20,6 +20,7 @@ export async function enterFitness(stationId: string): Promise<boolean> {
   try {
     const lease = await fitnessService.enter({ userId: session.sessionId, channelId: session.roomId, position: { ...avatar.current } }, stationId, signal)
     if (signal.aborted || useFitnessState.getState().epoch !== epoch) return false
+    if (fitnessService.mode === 'server') return true
     const current = useSession.getState(), position = authoritativePose(session.sessionId)
     const currentAvatar = avatars.get(session.sessionId)
     if (current.sessionId !== session.sessionId || current.roomId !== session.roomId || current.status !== 'connected'
@@ -49,6 +50,7 @@ export async function leaveFitness(): Promise<boolean> {
   try {
     await fitnessService.leave(lease, signal)
     if (signal.aborted || useFitnessState.getState().epoch !== epoch) return false
+    if (fitnessService.mode === 'server') return true
     releaseFitnessUser(session.sessionId)
     // The mock cannot move a real Spring player to the exit anchor.
     refreshActivityPresentation()

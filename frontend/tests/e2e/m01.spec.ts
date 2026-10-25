@@ -35,18 +35,18 @@ test('M01 bench shares target selection, waits for approval, restores input/came
   await expect(page.locator('.park-account__balance')).toHaveText('—냥')
   const hint = page.getByLabel('가까운 상호작용')
   await expect(hint).toHaveAttribute('data-target-id', bench.id)
-  // Keyboard and visible button use the same target. No guessed facility WS command.
+  // Keyboard and visible button use the same target and the shared facility transport.
   await page.locator('canvas').focus()
   await page.keyboard.press('KeyE')
   await expect(hint.getByRole('button', { name: '벤치에서 일어나기' })).toBeVisible()
-  await expect(hint).toContainText('목업')
+  await expect(hint).not.toContainText('목업')
   const requestsWhileSeated = server.sent.length
   await page.evaluate(async () => {
     const { parkRuntime } = await import('/src/park/runtime/runtime.ts' as string)
     const { TABLES } = await import('/src/config/index.ts' as string)
     parkRuntime.move(1, 0, true, true)
     parkRuntime.inspectTable(TABLES[0].id)
-    await parkRuntime.joinTable()
+    await parkRuntime.joinTable().catch(() => {})
     await parkRuntime.selectChannel('other-channel')
   })
   expect(server.sent).toHaveLength(requestsWhileSeated)
@@ -58,11 +58,12 @@ test('M01 bench shares target selection, waits for approval, restores input/came
     const probe = await import('/tests/e2e/sceneProbe.ts' as string)
     return probe.benchProbe().ownVisible
   })).toBe(false)
-  await page.evaluate(async () => {
+  const remoteSeat = await page.evaluate(async () => {
     const probe = await import('/tests/e2e/sceneProbe.ts' as string)
     const mine = probe.benchProbe().lease
-    await probe.fixtureBench('102', mine.benchId, mine.seat === 0 ? 1 : 0)
+    return mine.seat === 0 ? 1 : 0
   })
+  server.facilities.remote(bench.id, remoteSeat)
   await expect.poll(() => page.evaluate(async () => {
     const probe = await import('/tests/e2e/sceneProbe.ts' as string)
     return probe.benchProbe().remoteVisible
@@ -96,6 +97,8 @@ test('M01 bench shares target selection, waits for approval, restores input/came
   await expect.poll(() => server.connections).toBe(2)
   await expect(page.locator('.park-account__nickname')).toHaveText('공원 산책자')
   expect(server.maxActive).toBe(1)
+  expect(server.sent.some(m => m.type === 'WORLD_FACILITY_USE')).toBe(true)
+  expect(server.sent.some(m => m.type === 'WORLD_FACILITY_RELEASE')).toBe(true)
   expect(server.sent.some(m => /BENCH|sit-bench|stand-bench/.test(m.type))).toBe(false)
   expect(errors).toEqual([])
   expect(consoleErrors).toEqual([])

@@ -3,7 +3,7 @@ import { useShallow } from 'zustand/react/shallow'
 import type { QualityPreset } from '../config'
 import { useSession } from '../network/worldClient'
 import { useParkRuntime } from './runtime/ParkRuntime'
-import { summarizeFrames } from '../performance/metrics'
+import { GraphicsSettings } from '../performance/GraphicsSettings'
 import { GamePanel } from '../game/GamePanel'
 import { TableLobby } from '../features/tableLobby/TableLobby'
 import { useTelescopeState } from '../features/telescopes/state'
@@ -33,14 +33,7 @@ export function ParkTools({
       pending: s.pending,
     })),
   )
-  const [channelOpen, setChannelOpen] = useState(false),
-    [settings, setSettings] = useState(false),
-    [report, setReport] = useState(summarizeFrames)
-  useEffect(() => {
-    if (!settings) return
-    const timer = setInterval(() => setReport(summarizeFrames()), 1000)
-    return () => clearInterval(timer)
-  }, [settings])
+  const [channelOpen, setChannelOpen] = useState(false)
   useEffect(() => {
     const toggle = () => setChannelOpen((value) => !value)
     window.addEventListener('ontop-toggle-channels', toggle)
@@ -79,40 +72,7 @@ export function ParkTools({
           const binding = state.bindings.find(b => b.channelId === state.roomId && b.tableId === state.tableId)
           if (binding) runtime.inspectTable(binding.anchorId)
         }}>테이블 로비 열기</button>}
-        <button
-          onClick={() => setSettings((value) => !value)}
-          aria-expanded={settings}
-        >
-          그래픽 · 성능
-        </button>
-        {settings && (
-          <section className="park-runtime-panel" aria-label="그래픽과 성능">
-            <label>
-              그래픽{' '}
-              <select
-                aria-label="그래픽 품질"
-                value={quality}
-                onChange={(event) =>
-                  onQuality(event.target.value as QualityPreset)
-                }
-              >
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-              </select>
-            </label>
-            <p>
-              {report.width}×{report.height} · {report.fps.toFixed(1)} FPS
-            </p>
-            <p>
-              p95 {report.p95.toFixed(1)}ms · {report.drawCalls} calls ·{' '}
-              {report.triangles.toLocaleString()} tris
-            </p>
-            <p>
-              {report.geometries} geometries · {report.textures} textures
-            </p>
-          </section>
-        )}
+        <GraphicsSettings quality={quality} onQuality={onQuality} />
       </div>
       <TableLobby />
       <GamePanel />

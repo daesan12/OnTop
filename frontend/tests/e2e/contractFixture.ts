@@ -8,6 +8,7 @@ import type { Farkle } from '../../src/game/protocol'
 import type { OneCard, Hand, Card } from '../../src/game/onecard/protocol'
 import { bridgeState as makeBridge } from '../fixtures/bridge'
 import type { Bridge, SecretDie } from '../../src/game/bridge/protocol'
+import { facilityFixture } from './facilityFixture'
 
 // Contract fixtures intercept HTTP/RawWS only in tests. No production fake-auth or socket bypass.
 const anchor = TABLES[0]!
@@ -305,6 +306,11 @@ export async function fixture(
         },
       }),
     )
+  const facilities = facilityFixture({
+    emit: (type, payload, id = null) => emit(sockets.at(-1)!, type, payload, id),
+    world: () => world(sockets.at(-1)!), position, userId: options.ownUserId ?? '101',
+    remotePosition: pose => { remotePosition = pose },
+  })
   await page.routeWebSocket('**/ws/tables?**', (ws) => {
     connections++
     active++
@@ -328,11 +334,13 @@ export async function fixture(
       })
     ws.onClose(() => {
       active--
+      facilities.disconnect()
     })
     ws.onMessage((data) => {
       const message = JSON.parse(String(data))
       sent.push(message)
       const { requestId, type, payload } = message
+      if (facilities.handle(type, payload, requestId)) return
       if (type === 'CHANNEL_JOIN') {
         ws.send(
           JSON.stringify({
@@ -517,6 +525,7 @@ export async function fixture(
   })
   return {
     sent,
+    facilities,
     bridgeReply: (input: object, patch: Partial<Bridge>, secret: SecretDie | null = null) => bridgeReplies.push({ input, patch, secret }),
     bridgeSnapshot: (patch: Partial<Bridge>, secret: SecretDie | null = null, role = 'PLAYER') => { bridgeState = { ...bridgeState, ...patch }; bridgeSecret = secret; gameVersion++; game(sockets.at(-1)!, null, role) },
     bridgeState: () => structuredClone(bridgeState),
