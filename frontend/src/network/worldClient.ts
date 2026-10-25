@@ -65,7 +65,7 @@ export interface ChatMessage {
   text: string
   sentAt: string
 }
-/** Frontend display port, not a proposed backend profile response. */
+/** Display values shared by users/me and approved WORLD_STATE public profiles. */
 export interface DisplayProfile {
   nickname: string
   character: CharacterId
@@ -162,6 +162,7 @@ export function resetWorld(status: Session['status'] = 'idle', error = '') {
   useSession.setState({ ...initial(), status, error })
 }
 export function clearChannel(keepFeedbackDraft = false, keepNotesDraft = false) {
+  const { sessionId, profiles } = useSession.getState()
   resetFacilities()
   resetNotesState(keepNotesDraft)
   resetFeedbackState(keepFeedbackDraft)
@@ -197,6 +198,7 @@ export function clearChannel(keepFeedbackDraft = false, keepNotesDraft = false) 
     benchId: '',
     fitnessId: '',
     telescopeId: '',
+    profiles: profiles[sessionId] ? { [sessionId]: profiles[sessionId] } : {},
   })
 }
 export function sampleAvatar(
@@ -377,6 +379,30 @@ export function receive(message: Envelope) {
       if (!mapCompatible) { resetBenchState(); resetFitnessState(); resetTelescopeState(); resetFeedbackState(true); resetNotesState(true); clearRoamingInput() }
       const ids = next.avatars.map((a) => a.userId),
         now = performance.now()
+      // Preserve the last approved values while the server's async profile read is pending.
+      // Copy only on profile changes; movement ticks keep the same store references.
+      let profiles = state.profiles
+      const present = new Set(ids)
+      for (const id of Object.keys(profiles)) {
+        if (id !== state.sessionId && !present.has(id)) {
+          if (profiles === state.profiles) profiles = { ...profiles }
+          delete profiles[id]
+        }
+      }
+      for (const avatar of next.avatars) {
+        if (avatar.nickname == null && avatar.characterGender == null) continue
+        const previous = profiles[avatar.userId]
+        const profile: DisplayProfile = {
+          nickname: avatar.nickname ?? previous?.nickname
+            ?? (avatar.userId === state.sessionId ? '나' : '산책자 ' + avatar.userId.slice(-6)),
+          character: avatar.characterGender === 'FEMALE' ? 'girl' : avatar.characterGender === 'MALE' ? 'man'
+            : previous?.character ?? 'man',
+        }
+        if (previous?.nickname !== profile.nickname || previous?.character !== profile.character) {
+          if (profiles === state.profiles) profiles = { ...profiles }
+          profiles[avatar.userId] = profile
+        }
+      }
       if (!ids.includes(state.sessionId)) {
         cancelAvatarEmote(state.sessionId)
         clearRoamingInput()
@@ -417,10 +443,10 @@ export function receive(message: Envelope) {
           current: { ...position },
           at: unchanged ? old.at : now,
           nickname:
-            state.profiles[userId]?.nickname ??
+            profiles[userId]?.nickname ??
             (userId === state.sessionId ? '나' : '산책자 ' + userId.slice(-6)),
           color: 0,
-          character: state.profiles[userId]?.character ?? 'man',
+          character: profiles[userId]?.character ?? 'man',
           moving: position.moving,
           running: position.running,
           swimming: position.swimming,
@@ -445,6 +471,10 @@ export function receive(message: Envelope) {
       networkStats.patches++
       useSession.setState({
         ids: ids.join('\0') === state.ids.join('\0') ? state.ids : ids,
+        profiles,
+        ...(state.account && profiles[state.sessionId]
+          && state.account.nickname !== profiles[state.sessionId]!.nickname
+          ? { account: { ...state.account, nickname: profiles[state.sessionId]!.nickname } } : {}),
         mapCompatible,
         mapVersion: next.mapVersion,
         ...(!mapCompatible

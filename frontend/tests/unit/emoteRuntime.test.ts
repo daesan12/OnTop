@@ -5,6 +5,7 @@ import { avatars, resetWorld, useSession } from '../../src/network/worldClient'
 import { useEmoteState } from '../../src/features/emotes/state'
 import { ParkRuntime } from '../../src/park/runtime/runtime'
 import { EXPECTED_MAP_VERSION } from '../../src/config/mapVersion'
+import developmentBindings from '../../public/park-bindings.dev.json' with { type: 'json' }
 
 const sockets: ContractSocket[] = []
 class ContractSocket implements SocketLike {
@@ -86,8 +87,8 @@ afterEach(async () => {
 })
 
 describe('M04 emote delivery through the existing Spring transport', () => {
-  async function movementSession() {
-    server()
+  async function movementSession(override?: Handler) {
+    server(override)
     await start()
     await vi.waitFor(() => expect(useSession.getState().roomId).toBe('channel-1'))
     const socket = sockets.at(-1)!
@@ -96,6 +97,25 @@ describe('M04 emote delivery through the existing Spring transport', () => {
         moving: false, running: false, swimming: false } }] })
     return socket
   }
+  it.each([
+    ['EMOTE_WAVE', 'WAVE', 5000], ['EMOTE_CLAP', 'CLAP', 5000],
+    ['EMOTE_APPLAUSE_REQUEST', 'APPLAUSE_REQUEST', 1800], ['EMOTE_TSK', 'TSK', 1800], ['EMOTE_FART', 'FART', 1800],
+  ] as const)('loads deployed dev mapping and waits for server approval for %s', async (motion, code, cooldownMs) => {
+    vi.stubGlobal('window', { location: { href: 'https://dev.on-top.world/park', hostname: 'dev.on-top.world' } })
+    const socket = await movementSession(path => path === '/park-bindings.dev.json' ? json(developmentBindings) : undefined)
+    socket.emoteResponse = 'hold'
+    const pending = runtime.sendEmote(motion)
+    expect(avatars.get('101')!.emote).toBe('')
+    const request = socket.requests.find(r => r.type === 'WORLD_EMOTE_SEND')!
+    expect(request.payload).toEqual({ emoteCode: code })
+    const event = { eventId: crypto.randomUUID(), channelId: 'channel-1', userId: '101', emoteCode: code, sentAt: new Date().toISOString() }
+    socket.emit('WORLD_EMOTE_EVENT', event, request.requestId)
+    expect(await pending).toBe(true)
+    expect(avatars.get('101')).toMatchObject({ emote: motion, emoteAt: Date.parse(event.sentAt) })
+    expect(useEmoteState.getState().readyAt).toBe(Date.parse(event.sentAt) + cooldownMs)
+    expect(await runtime.sendEmote(motion === 'EMOTE_WAVE' ? 'EMOTE_CLAP' : 'EMOTE_WAVE')).toBe(false)
+    expect(socket.requests.filter(r => r.type === 'WORLD_EMOTE_SEND')).toHaveLength(1)
+  })
   it('sends only the configured emote code and plays once after its own approval; neutral input preserves it', async () => {
     const socket = await movementSession()
     socket.emoteResponse = 'hold'

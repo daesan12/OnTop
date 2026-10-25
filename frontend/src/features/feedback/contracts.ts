@@ -1,6 +1,6 @@
 import type { Pose } from '../../network/worldClient'
 
-/** Internal FE port. Request ID, receipt and cooldown must be mapped to an approved BE contract. */
+/** Internal FE context. Only operationId/channelId/text belong in the REST payload. */
 export interface FeedbackSubmission {
   operationId: string
   userId: string
@@ -9,7 +9,10 @@ export interface FeedbackSubmission {
   text: string
 }
 export interface FeedbackReceipt { receiptId: string; acceptedAt: number; nextAllowedAt: number }
+export class FeedbackServiceError extends Error {
+  constructor(readonly code: string, message: string, readonly nextAllowedAt?: number) { super(message) }
+}
 export interface FeedbackService {
-  readonly mode: 'mock' | 'unavailable'
+  readonly mode: 'mock' | 'server' | 'unavailable'
   submit(submission: FeedbackSubmission, signal: AbortSignal): Promise<FeedbackReceipt>
 }

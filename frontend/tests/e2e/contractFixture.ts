@@ -9,6 +9,7 @@ import type { OneCard, Hand, Card } from '../../src/game/onecard/protocol'
 import { bridgeState as makeBridge } from '../fixtures/bridge'
 import type { Bridge, SecretDie } from '../../src/game/bridge/protocol'
 import { facilityFixture } from './facilityFixture'
+import developmentBindings from '../../public/park-bindings.dev.json' with { type: 'json' }
 
 // Contract fixtures intercept HTTP/RawWS only in tests. No production fake-auth or socket bypass.
 const anchor = TABLES[0]!
@@ -33,7 +34,8 @@ export async function fixture(
     startEvents?: boolean
     manualMovement?: boolean
     ownUserId?: '101' | '102'
-    emoteBindings?: boolean
+    emoteBindings?: boolean | 'development'
+    publicProfiles?: Record<string, { nickname?: string | null; characterGender?: 'MALE' | 'FEMALE' | null }>
     position?: { x: number; y: number; z: number; yaw: number }
   } = {},
 ) {
@@ -66,6 +68,7 @@ export async function fixture(
   let lastEmote: { eventId: string; channelId: string; userId: string; emoteCode: string; sentAt: string } | undefined
   let emoteRequestId = ''
   let remotePosition: Partial<typeof position> = {}
+  const publicProfiles = { ...options.publicProfiles }
   let rejectGameWatch = false
   let watchingGame = false
   let watchMode: 'normal' | 'reject' | 'hold' = 'normal', watchRequestId = '', selectorOverride: string | undefined, targetScore: number | null = null
@@ -253,7 +256,8 @@ export async function fixture(
   await page.route('**/park-bindings.json', (route) =>
     route.fulfill({
       json: {
-        emotes: options.emoteBindings === false ? [] : [{ motion: 'EMOTE_CLAP', code: 'CLAP' }, { motion: 'EMOTE_WAVE', code: 'WAVE' }],
+        emotes: options.emoteBindings === 'development' ? developmentBindings.emotes
+          : options.emoteBindings === false ? [] : [{ motion: 'EMOTE_CLAP', code: 'CLAP' }, { motion: 'EMOTE_WAVE', code: 'WAVE' }],
         bindings:
           options.bindings === false
             ? []
@@ -272,6 +276,7 @@ export async function fixture(
           mapVersion: options.mapVersion ?? EXPECTED_MAP_VERSION,
           avatars: Array.from({ length: options.players ?? 2 }, (_, i) => ({
             userId: String(101 + i),
+            ...publicProfiles[String(101 + i)],
             position:
               i === 0
                 ? position
@@ -636,6 +641,12 @@ export async function fixture(
       sockets.at(-1)!.close({ code: 4401, reason: 'Login session ended' })
     },
     world: () => world(sockets.at(-1)!),
+    profile: (userId: string, profile: NonNullable<typeof options.publicProfiles>[string]) => {
+      publicProfiles[userId] = profile; world(sockets.at(-1)!)
+    },
+    chatFrom: (userId: string, text: string) => emit(sockets.at(-1)!, 'WORLD_CHAT_MESSAGE', {
+      channelId: 'fixture-channel', userId, text, messageId: `fixture-chat-${version}`, sentAt: new Date().toISOString(),
+    }),
     emoteResponse: (response: typeof emoteResponse) => { emoteResponse = response },
     completeEmote: () => { if (lastEmote) emit(sockets.at(-1)!, 'WORLD_EMOTE_EVENT', lastEmote, emoteRequestId) },
     lastEmote: () => lastEmote,

@@ -1,6 +1,6 @@
 import { avatars, useSession, type DisplayProfile } from './worldClient'
 
-/** Display port: runtime supplies approved users/me; public profiles/wallet await their contracts. */
+/** Seed the authenticated users/me display; WORLD_STATE supplies later public profile updates. */
 export function setDisplayProfiles(
   profiles: Record<string, DisplayProfile>,
   account: { nickname: string; balance: number | null } | null = null,
@@ -28,5 +28,5 @@ export function setDisplayProfiles(
       profiles[id]?.nickname ??
       (id === state.sessionId ? '나' : '산책자 ' + id.slice(-6))
   }
-  useSession.setState({ profiles, account, ids: [...state.ids] })
+  useSession.setState({ profiles, account })
 }

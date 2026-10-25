@@ -43,6 +43,8 @@ const messages: Record<string, string> = {
   MINIGAME_ALREADY_ABANDONED: '이미 그만둔 판이에요. 새 판이 필요합니다.',
   MINIGAME_ALREADY_INVALID: '이미 종료된 판이에요. 새 판이 필요합니다.',
   MINIGAME_NOT_FOUND: '본인 판을 찾을 수 없어요.',
+  WALLET_NOT_READY: '계정의 지갑이 아직 준비되지 않았어요. 운영 담당자의 지갑 초기화가 필요합니다.',
+  WALLET_UNAVAILABLE: '지갑 잔액을 조회하지 못했어요. 잠시 후 잔액을 다시 확인해 주세요.',
 }
 /** Existing MINI-01~04 REST contract only. No browser settlement or failure-to-mock fallback. */
 export function createBungeoppangService(requestJSON: (path: string, init?: RequestInit) => Promise<unknown>): BungeoppangService {

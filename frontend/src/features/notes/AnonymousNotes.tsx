@@ -53,6 +53,7 @@ export function AnonymousNotes() {
       <h2>여기에 마음 한 장 남겨요</h2>
       <p id="notes-description">응원, 오늘의 기분, 하고 싶은 말. 이름 없이 메모함을 여는 이웃에게 보여요.</p>
       <p className="notes-mode">{unavailable ? '서버 연결 준비 중입니다. 아직 실제 메모를 조회하거나 게시할 수 없습니다.'
+        : notesService.mode === 'server' ? '전 채널 공용 익명 게시판 · 창을 연 동안 2초 간격으로 새 메모를 확인합니다.'
         : '개발 목업 · 현재 페이지에서만 공유합니다. 실제 사용자 간 전달·영구 저장은 하지 않습니다.'}</p>
       <div className="notes-heading">
         <strong>익명 메모 목록</strong>
@@ -73,7 +74,7 @@ export function AnonymousNotes() {
           rows={3} placeholder="오늘도 잘하고 있어요!" onChange={event => editNoteDraft(event.target.value)} aria-describedby="notes-length notes-result" />
         <div className="notes-actions">
           <span id="notes-length">{state.draft.length}/{NOTES_BOX.maxLength}자 · 최근 {NOTES_BOX.capacity}장</span>
-          <button type="submit" disabled={unavailable || state.loading || state.pending || !parseNoteText(state.draft) || remaining > 0}>
+          <button type="submit" disabled={unavailable || state.loading || state.pending || state.retryBlocked || !parseNoteText(state.draft) || remaining > 0}>
             {state.pending ? '붙이는 중…' : remaining ? `${remaining}초 후 붙이기` : retry ? '같은 메모 다시 붙이기' : '익명으로 붙이기'}
           </button>
         </div>

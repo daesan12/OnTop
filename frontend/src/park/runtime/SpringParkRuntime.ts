@@ -163,19 +163,30 @@ export class ParkRuntime implements ParkRuntimePort {
       if (init.signal?.aborted) throw new Error('연결 요청이 취소되었습니다.')
       response = await fetchOnce()
     }
-    if (response.status === 401 || response.status === 403) this.authEnded()
+    const distanceCode = url === '/api/v1/feedback' ? 'FEEDBACK_OUT_OF_RANGE'
+      : /^\/api\/v1\/notes(?:\?channelId=[^&#?]+)?$/.test(url) ? 'NOTES_OUT_OF_RANGE' : ''
+    const distanceForbidden = response.status === 403 && !!distanceCode
+    if (response.status === 401 || (response.status === 403 && !distanceForbidden)) this.authEnded()
     if (!response.ok) {
       const body: unknown = await response.json().catch(() => null)
-      throw new RestError(response.status, record(body) && typeof body.code === 'string' ? body.code : 'HTTP_ERROR',
+      const code = record(body) && typeof body.code === 'string' ? body.code : 'HTTP_ERROR'
+      // Only the documented distance rejection is a business error, not an ended login session.
+      if (distanceForbidden && code !== distanceCode) this.authEnded()
+      throw new RestError(response.status, code,
         response.status === 401
           ? '로그인을 다시 확인해주세요.'
           : `서버 요청에 실패했습니다. (${response.status})`,
+        record(body) && typeof body.nextAllowedAt === 'string' ? body.nextAllowedAt : undefined,
       )
     }
     return response.json()
   }
   requestJSON = async (path: string, init: RequestInit = {}) => {
-    if (!this.active || !/^\/api\/v1\/(?:minigames\/sessions(?:\/\d+(?:\/(?:complete|abandon))?)?|wallets\/me)$/.test(path))
+    const notesRead = /^\/api\/v1\/notes\?channelId=[^&#?]+$/.test(path) && (init.method ?? 'GET') === 'GET'
+    const notesWrite = path === '/api/v1/notes' && init.method === 'POST'
+    if (!this.active || (!notesRead && !notesWrite
+      && !/^\/api\/v1\/(?:minigames\/sessions(?:\/\d+(?:\/(?:complete|abandon))?)?|wallets\/me|feedback)$/.test(path))
+      || (path === '/api/v1/feedback' && init.method !== 'POST'))
       throw new Error('현재 공원에서 사용할 수 없는 요청입니다.')
     const signals = [this.bootAbort?.signal, init.signal].filter((s): s is AbortSignal => !!s)
     return this.getJSON(path, { ...init, signal: AbortSignal.any(signals) })

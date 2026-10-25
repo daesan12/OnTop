@@ -1,5 +1,17 @@
 # 개발 사이트 테이블 연결
 
+## M04 개발 감정표현 매핑 · 2026-10-25
+
+`public/park-bindings.dev.json`의 `emotes`에 BE 확정 코드 `WAVE`, `CLAP`,
+`APPLAUSE_REQUEST`, `TSK`, `FART`를 기존 FE 모션에 각각 연결한다.
+정확히 `dev.on-top.world`에서 이 파일을 선택하는 기존 경로를 재사용한다.
+기본/운영 `park-bindings.json`은 기존대로 두며, 운영 BE 코드 등록을 추정하지 않는다.
+기존 서버 승인 이벤트·시각·쿨다운·이동 취소와 미연결 시 비활성 처리를 유지한다.
+시설·수영·게임 중 정책, BE 설정/코드, 인증·테이블 매핑은 이 변경으로 수정하지 않는다.
+실제 개발 서버 반영·송수신 검수는 FE 배포 후 별도로 확인한다.
+
+## 기존 테이블 연결 기록
+
 2026-10-23 사용자가 로그인된 개발 사이트의 `GET /api/v1/tables?channelId=channel-1`
 Response를 제공했다. 응답에 있는 두 서버 ID를 기존 `docs/frontend-integration.md`와
 `docs/frontend-test-layout.json`의 table-1·2 배치에 대조했다. 응답 순서로 위치를 결정하지 않는다.

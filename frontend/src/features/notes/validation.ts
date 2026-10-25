@@ -2,6 +2,10 @@ import { NOTES_BOX, parseAnonymousNote, type AnonymousNote } from '../../config/
 import type { Pose } from '../../network/worldClient'
 
 export const NOTES_TIMEOUT_MS = 10_000
+export const NOTES_POLL_MS = 2_000
+export const compareNotes = (a: AnonymousNote, b: AnonymousNote) => b.createdAt - a.createdAt
+  || (/^\d+$/.test(a.id) && /^\d+$/.test(b.id)
+    ? a.id.length === b.id.length ? b.id.localeCompare(a.id) : b.id.length - a.id.length : b.id.localeCompare(a.id))
 export const parseNoteText = (text: string) => parseAnonymousNote({ text })
 export function canReachNotes(position: Pose | null | undefined): boolean {
   return !!position && [position.x, position.y, position.z].every(Number.isFinite)
@@ -20,5 +24,5 @@ export function parseNotes(value: unknown): AnonymousNote[] {
       || row.createdAt < 0 || ids.has(row.id)) throw new Error('메모 목록을 확인하지 못했습니다.')
     ids.add(row.id)
     return { id: row.id, text: parseNoteText(row.text)!, createdAt: row.createdAt }
-  }).sort((a, b) => b.createdAt - a.createdAt).slice(0, NOTES_BOX.capacity)
+  }).sort(compareNotes).slice(0, NOTES_BOX.capacity)
 }
