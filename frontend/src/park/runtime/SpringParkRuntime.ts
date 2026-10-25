@@ -8,6 +8,7 @@ import { FacilityClient } from '../../network/facilityClient'
 import { facilityMovementBlocked, serverFacilities } from '../../features/facilities/state'
 import { RestError } from '../../network/restError'
 import { inputState } from '../../world/inputOwnership'
+import { rememberRoamingView } from '../../world/cameraReturn'
 import {
   channel,
   record,
@@ -111,7 +112,11 @@ export class ParkRuntime implements ParkRuntimePort {
     blockMovement: () => this.movement.clear(false),
   })
   checkFacilities = (reloadCatalog = false) => this.facilities.refresh(reloadCatalog)
-  useFacility = (id: string, seat: number, signal: AbortSignal) => this.facilities.use(id, seat, signal)
+  useFacility = (id: string, seat: number, signal: AbortSignal) => {
+    const session = useSession.getState()
+    rememberRoamingView(session.sessionId, session.roomId)
+    return this.facilities.use(id, seat, signal)
+  }
   releaseFacility = (id: string, signal: AbortSignal) => this.facilities.release(id, signal)
   aimFacility = (id: string, aim: { yaw: number; pitch: number }, signal: AbortSignal) => this.facilities.aim(id, aim, signal)
   addAuthListener(listener: AuthEnded) {
@@ -497,6 +502,7 @@ export class ParkRuntime implements ParkRuntimePort {
     if (inputState.minigameOpen) return
     if (this.actionBusy || useSession.getState().pending) return
     if (benchBusy(useSession.getState().sessionId) || fitnessBusy(useSession.getState().sessionId) || telescopeBusy(useSession.getState().sessionId)) return
+    rememberRoamingView(useSession.getState().sessionId, useSession.getState().roomId)
     useSession.setState({ focusedAnchorId: anchorId })
     const s = useSession.getState(),
       tableId = bindAnchor(

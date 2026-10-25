@@ -1,0 +1,9 @@
+.park-advertisement-dialog { width:400px; max-width:calc(100vw - 40px); box-sizing:border-box; padding:26px; border:1px solid #a8b59a; border-radius:16px; color:#294d40; background:#f5f0df; font-family:inherit; box-shadow:0 18px 65px #0c201750; }
+.park-advertisement-dialog::backdrop { background:#10251b73; }
+.park-advertisement-dialog small { color:#64745c; }
+.park-advertisement-dialog h2 { margin:12px 0; font-size:21px; }
+.park-advertisement-dialog p { margin:12px 0 24px; line-height:1.7; font-size:14px; }
+.park-advertisement-actions { display:flex; justify-content:flex-end; flex-wrap:wrap; gap:10px; }
+.park-advertisement-actions button, .park-advertisement-actions a { display:inline-flex; align-items:center; justify-content:center; padding:10px 15px; border:1px solid #b4c0a7; border-radius:9px; background:#fffbed; color:#294d40; font:inherit; font-size:14px; text-decoration:none; cursor:pointer; }
+.park-advertisement-actions a { background:#294d40; color:#fff8e4; }
+.park-advertisement-actions :focus-visible { outline:2px solid #286b55; outline-offset:3px; }

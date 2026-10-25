@@ -6,6 +6,7 @@ import { benchSignal, resetBenchState, useBenchState } from './benchState'
 import { canReachBench, type BenchSeat } from './benchAnchors'
 import { useFitnessState } from '../fitness/state'
 import { useTelescopeState } from '../telescopes/state'
+import { rememberRoamingView } from '../../world/cameraReturn'
 
 const clearInput = () => {
   if (typeof window !== 'undefined') window.dispatchEvent(new Event('ontop-clear-input'))
@@ -15,6 +16,7 @@ export async function sitBench(benchId: string, seat: BenchSeat): Promise<boolea
   const avatar = avatars.get(session.sessionId)
   if (session.status !== 'connected' || !session.mapCompatible || !avatar || state.pending || session.pending || useFitnessState.getState().pending || useTelescopeState.getState().pending) return false
   if (session.tableId || avatar.seatIndex >= 0 || avatar.fitnessId || avatar.telescopeId || tableBusy()) return false
+  rememberRoamingView(session.sessionId, session.roomId)
   parkRuntime.move(0, 0, false)
   useBenchState.setState({ pending: true, error: '' })
   clearInput()

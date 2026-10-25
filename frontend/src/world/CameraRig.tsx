@@ -13,6 +13,14 @@ import { installRoamingInput, viewControls } from './input'
 import { constrainRoamingCamera } from './cameraCollision'
 import { seatScope, seatedLook, resetSeatedLook, useTableLobby } from '../features/tableLobby/state'
 import { useDiceUI, diceCamera } from '../game/farkle/controls'
+import { roamingFirstPerson } from './roamingCamera'
+import { rememberRoamingView, restoreRoamingView } from './cameraReturn'
+import { useFacilityState } from '../features/facilities/state'
+import { useBenchState } from '../features/interactions/benchState'
+import { useFitnessState } from '../features/fitness/state'
+import { useTelescopeState } from '../features/telescopes/state'
+import { useFeedbackState } from '../features/feedback/state'
+import { useNotesState } from '../features/notes/state'
 
 export function CameraRig() {
   const { gl, camera: mountedCamera } = useThree()
@@ -69,6 +77,14 @@ export function CameraRig() {
     }
     const session = useSession.getState(),
       avatar = avatars.get(session.sessionId)
+    const facilities = useFacilityState.getState()
+    const temporaryView = !!(avatar?.tableId || avatar?.benchId || avatar?.fitnessId || avatar?.telescopeId
+      || session.tableId || session.focusedAnchorId || useGame.getState().watchedGameId || bungeoppangView.active
+      || useFeedbackState.getState().open || useNotesState.getState().open)
+    if (temporaryView) rememberRoamingView(session.sessionId, session.roomId)
+    restoreRoamingView(session.sessionId, session.roomId, temporaryView || session.status !== 'connected'
+      || facilities.pending || facilities.awaitingWorld || facilities.uncertain
+      || useBenchState.getState().pending || useFitnessState.getState().pending || useTelescopeState.getState().pending)
     const telescope = session.status === 'connected' && session.mapCompatible
       ? TELESCOPES.find(t => t.id === session.telescopeId) : undefined
     if (telescope && !state.telescope) {
@@ -156,6 +172,7 @@ export function CameraRig() {
     const watchedAnchor = game?.role === 'SPECTATOR' && session.watchedTableId
       ? TABLES.find(t => t.id === session.bindings.find(b => b.channelId === session.roomId && b.tableId === session.watchedTableId)?.anchorId) : undefined
     const spectatorBoard = !!watchedAnchor && useTableLobby.getState().spectatorView === 'board'
+    const firstPerson = roamingFirstPerson(avatar, !!useGame.getState().watchedGameId)
     const boardFocus =
       !looking && seated && !!avatar.tableId &&
       game?.omok?.status === 'PLAYING' &&
@@ -205,6 +222,14 @@ export function CameraRig() {
         const yaw = Math.atan2(state.look.x - pose.x, state.look.z - pose.z) + seatedLook.yaw
         state.look.set(pose.x + Math.sin(yaw) * 4, state.desired.y - 0.05, pose.z + Math.cos(yaw) * 4)
       }
+    } else if (firstPerson) {
+      // Use the replicated capsule position without orbit lag or head bob.
+      state.desired.set(pose.x, pose.y - 0.8 + CHARACTER.height - 0.2, pose.z)
+      state.look.set(
+        state.desired.x - Math.sin(viewControls.yaw) * Math.cos(viewControls.pitch),
+        state.desired.y - Math.sin(viewControls.pitch),
+        state.desired.z - Math.cos(viewControls.yaw) * Math.cos(viewControls.pitch),
+      )
     } else {
       const horizontal = viewControls.distance * Math.cos(viewControls.pitch)
       state.desired.set(
@@ -218,11 +243,9 @@ export function CameraRig() {
       )
       state.look.copy(state.focus)
     }
-    camera.position.lerp(
-      state.desired,
-      1 - Math.exp(-12 * Math.min(delta, 0.1)),
-    )
-    if (!seated && !watchedAnchor) constrainRoamingCamera(camera.position)
+    if (firstPerson && performance.now() >= bungeoppangView.returningUntil) camera.position.copy(state.desired)
+    else camera.position.lerp(state.desired, 1 - Math.exp(-12 * Math.min(delta, 0.1)))
+    if (!firstPerson && !seated && !watchedAnchor) constrainRoamingCamera(camera.position)
     if (performance.now() < bungeoppangView.returningUntil) {
       state.rotation.copy(camera.quaternion)
       camera.lookAt(state.look); state.targetRotation.copy(camera.quaternion)
@@ -248,8 +271,8 @@ export function CameraRig() {
       }
     }
     cameraOcclusion.focus.value.set(pose.x, pose.y + CAMERA.focusHeight - 0.8, pose.z)
-    cameraOcclusion.strength.value = seated ? 0 : 1
-    occlusion.update(camera.position, state.focus, !seated, delta)
+    cameraOcclusion.strength.value = seated || firstPerson ? 0 : 1
+    occlusion.update(camera.position, state.focus, !seated && !firstPerson, delta)
   })
   return null
 }

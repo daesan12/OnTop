@@ -10,6 +10,7 @@ import { canReachTelescope, normalizeTelescopeAim } from './anchors'
 import { telescopeService } from './service'
 import { releaseTelescopeUser, telescopeSignal, useTelescopeState } from './state'
 import { useFacilityState } from '../facilities/state'
+import { rememberRoamingView } from '../../world/cameraReturn'
 
 export async function enterTelescope(id: string): Promise<boolean> {
   const session = useSession.getState(), state = useTelescopeState.getState(), avatar = avatars.get(session.sessionId)
@@ -17,6 +18,7 @@ export async function enterTelescope(id: string): Promise<boolean> {
     || useBenchState.getState().pending || useFitnessState.getState().pending || tableBusy() || panelOwnsKeys()
     || session.tableId || avatar.seatIndex >= 0 || avatar.fitnessId || avatar.telescopeId || avatar.swimming
     || !canReachTelescope(avatar.current, id)) return false
+  rememberRoamingView(session.sessionId, session.roomId)
   parkRuntime.move(0, 0, false)
   clearRoamingInput()
   useTelescopeState.setState({ pending: true, operation: 'enter', error: '' })

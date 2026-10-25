@@ -2,7 +2,7 @@
 export const inputState = {
   blocked: false, chatOpen: false, manualOpen: false, mapOpen: false,
   emoteWheelOpen: false, minigameOpen: false, feedbackOpen: false, notesOpen: false,
-  shopOpen: false,
+  shopOpen: false, advertisementOpen: false,
 }
 export const roamingInput = { ready: false }
 export function clearRoamingInput() {

@@ -3,6 +3,7 @@ import { tableBusy } from '../../game/store'
 import { avatars, authoritativePose, useSession } from '../../network/worldClient'
 import { parkRuntime } from '../../park/runtime/runtime'
 import { clearRoamingInput, inputState, panelOwnsKeys } from '../../world/inputOwnership'
+import { rememberRoamingView } from '../../world/cameraReturn'
 import { useBenchState } from '../interactions/benchState'
 import { useFitnessState } from '../fitness/state'
 import { useTelescopeState } from '../telescopes/state'
@@ -23,6 +24,7 @@ export function openNotes(): boolean {
   if (!scope || panelOwnsKeys()) return false
   const state = useNotesState.getState()
   if (state.ownerId !== scope.userId || state.channelId !== scope.channelId) resetNotesState()
+  rememberRoamingView(scope.userId, scope.channelId)
   parkRuntime.move(0, 0, false)
   clearRoamingInput()
   inputState.notesOpen = true
