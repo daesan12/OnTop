@@ -12,8 +12,9 @@ const variables = {
     tableIdA: '',
     tableIdB: '',
     gameId: 'replace-with-real-game-id',
-    minigameSessionId: '', minigameRequestKey: '',
-    accessToken: '', websocketTicket: '', shopItemId: '', userItemId: '', purchaseRequestKey: '', purchaseId: ''
+    minigameSessionId: '', minigameRequestKey: '', minigameHeats: '', minigameLog: '', minigameStartedAt: '',
+    accessToken: '', websocketTicket: '', shopItemId: '', userItemId: '', purchaseRequestKey: '', purchaseId: '',
+    facilityLeaseId: '', feedbackOperationId: '', feedbackReceiptId: '', noteOperationId: '', noteId: ''
 };
 
 const statusTest = status => `pm.test('HTTP ${status}', () => pm.response.to.have.status(${status}));`;
@@ -126,7 +127,7 @@ httpItems.push(loginTables);
 const shopAuth = [{key: 'Authorization', value: 'Bearer {{accessToken}}'}, {key: 'Origin', value: '{{baseUrl}}'}];
 const shopSetup = requireEnvironment + `\nif (!pm.environment.get('accessToken')) throw new Error('개인 로컬 Access JWT가 필요합니다.');`;
 const catalog = http('13 상점 판매 아이템 조회', '/api/v1/shop/items', 200,
-    'SHOP-01: local,db + ontop.shop.enabled=true·공통 지갑/상점 스키마가 필요합니다. 판매 상품을 조회하며 첫 itemId를 개인 환경에 저장합니다.',
+    'SHOP-01: local,db 또는 dev,db + ontop.shop.enabled=true(dev: SHOP_ENABLED=true)·공통 지갑/상점 스키마가 필요합니다. dev 사용 시 예제 Origin 헤더를 AUTH_ALLOWED_ORIGINS에 등록된 프론트 주소로 바꾸거나 비브라우저 테스트에서는 제외하세요. 판매 상품을 조회하며 첫 itemId를 개인 환경에 저장합니다.',
     `const items=pm.response.json().items; pm.expect(items).to.be.an('array');
 if(items.length) pm.environment.set('shopItemId',items[0].itemId);`, shopSetup);
 catalog.headers = shopAuth; httpItems.push(catalog);
@@ -162,8 +163,8 @@ conflict.method='POST'; conflict.headers=purchaseHeaders;
 conflict.body={mode:'raw',raw:'{\n  "itemId": {{shopItemId}},\n  "quantity": 2\n}',options:{raw:{language:'json'}}}; httpItems.push(conflict);
 
 const miniStart = http('19 붕어빵 시작 — 세션 ID 저장', '/api/v1/minigames/sessions', 201,
-    'MINI-01: local,db + ontop.minigames.enabled=true + 공통/미니게임 스키마 필요. 같은 키 재전송은 같은 세션. 시작은 보상/차감하지 않습니다.',
-    `pm.environment.set('minigameSessionId',pm.response.json().minigameSessionId);`,
+    'MINI-01 v2: local,db + ontop.minigames.enabled=true 또는 dev,db에서 사용. dev는 V110/V111 추가 적용과 기본 활성화. 개인 환경 baseUrl=https://dev-api.on-top.world 및 해당 서버 Access JWT 사용(병합·배포 후). 같은 키는 같은 세션/불 세기. 새 키는 이전 판 포기. 60초·6칸·15점당1냥·KST 하루100냥. 탭 이동 중 시간 진행, 랭킹 제외.',
+    `if(pm.response.code===201){ const s=pm.response.json(); pm.environment.set('minigameSessionId',s.minigameSessionId); pm.environment.set('minigameHeats',JSON.stringify(s.heats)); pm.environment.set('minigameStartedAt',s.startedAt); pm.environment.unset('minigameLog'); pm.expect(s.heats).to.have.lengthOf(64); pm.expect(s.rulesVersion).to.eql('v2'); }`,
     shopSetup + `\npm.environment.set('minigameRequestKey',pm.variables.replaceIn('{{$guid}}'));`);
 miniStart.method='POST'; miniStart.headers=[...shopAuth,{key:'Content-Type',value:'application/json'},
     {key:'Idempotency-Key',value:'{{minigameRequestKey}}'}];
@@ -174,16 +175,76 @@ const miniLoad=http('20 본인 미니게임 상태', '/api/v1/minigames/sessions
     'MINI-02: 본인만 조회. 진행 중 score/endedAt=null, rewardAmount=0. 타인은404.',
     `pm.expect(pm.response.json().minigameSessionId).to.eql(pm.environment.get('minigameSessionId'));`,miniBefore);
 miniLoad.headers=shopAuth; httpItems.push(miniLoad);
-const miniComplete=http('21 미검증 붕어빵 완료 — 지급 차단', '/api/v1/minigames/sessions/{{minigameSessionId}}/complete',409,
-    'MINI-03: 기본 서버에는 굽기 검증 소스가 없으므로 MINIGAME_NOT_VERIFIED. score/rewardAmount/userId를 보내지 않습니다. 검증 소스 연결 후3개당2엽전을 DB에 한 번 지급합니다.',
-    codeTest('MINIGAME_NOT_VERIFIED'),miniBefore);
+const miniComplete=http('21 붕어빵 입력 검증·보상 확정', '/api/v1/minigames/sessions/{{minigameSessionId}}/complete',200,
+    'MINI-03 v2: 시작 후60초 이상 기다린 뒤 제출. minigameLog에 실제 FE 로그를 넣거나 비워두면 발급 heats로 황금7개(86점) 테스트 입력을 만듭니다. 테스트 입력은 개발 서버 검증용이며 실제 플레이 증거가 아닙니다. 최소50ms·같은칸300ms·6칸·상태 순서를 검증합니다. 결과86점/계산5냥, 일일상한 적용. 같은 판 재전송은 최초 결과. 422 TOO_EARLY는 기다린 후 재시도, LOG_INVALID는 첫 사유 유지. score/rewardAmount/userId 금지. 포기 테스트는 새 판을 시작한 뒤22를 실행하세요.',
+    `if(pm.response.code===200){const r=pm.response.json(); pm.expect(r.coinsGranted).to.be.within(0,r.coinsCalculated); pm.expect(r.todayEarned).to.be.at.most(100); pm.expect(r.rewardAmount).to.eql(r.coinsGranted);}`,
+    miniBefore+`\nif(!pm.environment.get('minigameLog')) {
+ const heats=JSON.parse(pm.environment.get('minigameHeats')||'[]'); if(heats.length!==64) throw new Error('먼저19 실행');
+ const log=[];
+ for(let i=0;i<7;i++){const slot=i%6,pour=i<6?i*350:22000,fill=pour+3000,d=Math.ceil(600000/heats[i]);
+ log.push({slot,action:'POUR',t:pour},{slot,action:'FILL',t:fill},{slot,action:'TURN',t:fill+d},{slot,action:'TURN',t:fill+2*d});}
+ log.sort((a,b)=>a.t-b.t); let last=-50; log.forEach(e=>{e.t=Math.max(e.t,last+50);last=e.t;});
+ pm.environment.set('minigameLog',JSON.stringify(log));
+}`);
 miniComplete.method='POST'; miniComplete.headers=[...shopAuth,{key:'Content-Type',value:'application/json'}];
-miniComplete.body={mode:'raw',raw:'{}',options:{raw:{language:'json'}}}; httpItems.push(miniComplete);
+miniComplete.body={mode:'raw',raw:'{\n  "log": {{minigameLog}},\n  "seenTips": ["START", "GOLD"],\n  "clientScore": 86\n}',options:{raw:{language:'json'}}}; httpItems.push(miniComplete);
 const miniAbandon=http('22 붕어빵 중도 포기', '/api/v1/minigames/sessions/{{minigameSessionId}}/abandon',200,
     'MINI-04: PLAYING→ABANDONED, 보상0. 반복 포기는 같은 결과, 이미 완료된 세션은409로 지급 취소 방지.',
     `pm.expect(pm.response.json().status).to.eql('ABANDONED'); pm.expect(pm.response.json().rewardAmount).to.eql(0);`,miniBefore);
 miniAbandon.method='POST'; miniAbandon.headers=[...shopAuth,{key:'Content-Type',value:'application/json'}];
 miniAbandon.body={mode:'raw',raw:'{}',options:{raw:{language:'json'}}}; httpItems.push(miniAbandon);
+const miniOverview=http('23 붕어빵 오늘 보상·첫 판·안내 조회','/api/v1/minigames/sessions',200,
+    'MINI-02 추가 조회: KST todayEarned, dailyCap100, isFirstGame, seenTips, rulesVersion v2. 랭킹 없음.',
+    `pm.expect(pm.response.json().dailyCap).to.eql(100); pm.expect(pm.response.json().rulesVersion).to.eql('v2');`,shopSetup);
+miniOverview.headers=shopAuth; httpItems.push(miniOverview);
+
+const feedbackDescription = 'M07 비공개 소리함. local/dev,db + 기능 활성화·V120 순서 조율 후 스키마 적용 필요. '
+    + '인증 회원이 서버 소리함 좌표(-10.8,0.8,14.5) 2.6m·높이±0.7m 이내에서 작성합니다. '
+    + '테이블/경기/시설/수영 중 불가, 새 의견15초 간격. 같은 operationId·본문·채널은 기존 영수증, 다른 내용409. '
+    + '본문5~600 UTF-16 단위·NFC/제어문자 제거. 90일 보관·탈퇴 시 작성자 연결 제거, 관리자만 조회. '
+    + 'dev 기본 비활성(경로 미등록)이며 V112 등 기존 마이그레이션 순서 조율 전 자동 적용하지 않습니다.';
+const feedbackBody = {mode:'raw', raw:JSON.stringify({operationId:'{{feedbackOperationId}}',
+    channelId:'{{channelIdA}}', text:'공원을 개선해주세요'},null,2),options:{raw:{language:'json'}}};
+const feedbackNew = http('24 소리함 비공개 의견 접수','/api/v1/feedback',201,feedbackDescription,
+    `const r=pm.response.json(); pm.expect(r.receiptId).to.be.a('string'); pm.expect(r).not.to.have.property('text');
+if(pm.response.code===201) pm.environment.set('feedbackReceiptId',r.receiptId);`,
+    shopSetup + `\npm.environment.set('feedbackOperationId',pm.variables.replaceIn('{{$guid}}'));`);
+    feedbackNew.method='POST'; feedbackNew.headers=[{key:'Authorization',value:'Bearer {{accessToken}}'},
+        {key:'Content-Type',value:'application/json'}];
+feedbackNew.body=feedbackBody; httpItems.push(feedbackNew);
+const feedbackReplay = http('25 소리함 동일 요청 복구','/api/v1/feedback',201,
+    feedbackDescription + ' 24의 키·본문·채널을 그대로 보냅니다. 키를 새로 만들지 않습니다.',
+    `pm.expect(pm.response.json().receiptId).to.eql(pm.environment.get('feedbackReceiptId'));`,
+    shopSetup + `\nif(!pm.environment.get('feedbackOperationId')) throw new Error('24를 먼저 실행하세요.');`);
+feedbackReplay.method='POST'; feedbackReplay.headers=feedbackNew.headers; feedbackReplay.body=feedbackBody;
+httpItems.push(feedbackReplay);
+const feedbackAdmin = http('26 관리자 소리함 조회','/api/v1/admin/feedback?limit=20',200,
+    feedbackDescription + ' 서버 관리자 목록에 등록된 본인의 Access JWT로 바꿔 실행합니다. 일반 회원403이 정상입니다. '
+    + 'nextCursor를 cursor 쿼리에 넣어 다음 페이지를 조회하고 text를 일반 텍스트로 표시하세요.',
+    `pm.expect(pm.response.json().items).to.be.an('array');`,shopSetup);
+feedbackAdmin.headers=[{key:'Authorization',value:'Bearer {{accessToken}}'}]; httpItems.push(feedbackAdmin);
+
+const notesDescription = 'M08 공개 익명 메모. local/dev,db + notes.enabled=true + 전용 privacy-secret + V121 순서 조율 후 스키마 적용 필요. '
+    + '서버 위치(54.5,18.92,48.5) XZ2.6m·높이차0.7m미만, 테이블/시설/수영 중 불가. '
+    + '전 채널 공용 최신120장·쓰기15초/읽기1초. 메모/응답은 id,text,createdAt만 사용. '
+    + '24시간 동일키 재확인,410은 자동 재게시 금지. 창을 연 동안2초마다 겹치지 않게 조회하고 닫기·이탈·단절 시 중지. docs/notes-api.md.';
+const notesBody = {mode:'raw',raw:JSON.stringify({operationId:'{{noteOperationId}}',channelId:'{{channelIdA}}',
+    text:'오늘도 좋은 하루 보내세요'},null,2),options:{raw:{language:'json'}}};
+const noteNew = http('27 전망대 익명 메모 작성','/api/v1/notes',201,notesDescription,
+    `const r=pm.response.json(); pm.expect(Object.keys(r.note).sort()).to.eql(['createdAt','id','text']);
+if(pm.response.code===201) pm.environment.set('noteId',r.note.id);`,
+    shopSetup + `\npm.environment.set('noteOperationId',Date.now()+'_'+pm.variables.replaceIn('{{$guid}}'));`);
+noteNew.method='POST';noteNew.headers=[{key:'Authorization',value:'Bearer {{accessToken}}'},
+    {key:'Content-Type',value:'application/json'}];noteNew.body=notesBody;httpItems.push(noteNew);
+const noteReplay = http('28 익명 메모 동일 요청 재확인','/api/v1/notes',201,notesDescription,
+    `pm.expect(pm.response.json().note.id).to.eql(pm.environment.get('noteId'));`,
+    shopSetup + `\nif(!pm.environment.get('noteOperationId')) throw new Error('27을 먼저 실행하세요.');`);
+noteReplay.method='POST';noteReplay.headers=noteNew.headers;noteReplay.body=notesBody;httpItems.push(noteReplay);
+const noteRead = http('29 전망대 익명 메모 조회','/api/v1/notes?channelId={{channelIdA}}',200,notesDescription,
+    `const notes=pm.response.json().notes;pm.expect(notes).to.be.an('array');pm.expect(notes.length).to.be.at.most(120);
+notes.forEach(n=>pm.expect(Object.keys(n).sort()).to.eql(['createdAt','id','text']));`,shopSetup);
+noteRead.headers=[{key:'Authorization',value:'Bearer {{accessToken}}'}];httpItems.push(noteRead);
+
 
 const message = (name, type, payload = {}) => ({
     name, $kind: 'websocket-message', contentType: 'json',
@@ -205,10 +266,14 @@ const primaryMessages = [
     message('02 걷기 입력 seq1 → WORLD_STATE (미착석)', 'WORLD_MOVE', { seq: 1, dx: 0, dz: -1, run: false, jump: false }),
     message('추가 달리기 입력 seq2 → WORLD_STATE (50ms 후·미착석)', 'WORLD_MOVE', { seq: 2, dx: 0, dz: -1, run: true, jump: false }),
     message('03 채팅 → WORLD_CHAT_MESSAGE (1초 간격)', 'WORLD_CHAT_SEND', { text: '안녕! Postman으로 테스트 중이야 👋' }),
-    message('04 손흔들기 예시 → WORLD_EMOTE_EVENT (1초 간격)', 'WORLD_EMOTE_SEND', { emoteCode: 'WAVE' }),
+    message('04 손흔들기 → WORLD_EMOTE_EVENT (다음 사용 5초)', 'WORLD_EMOTE_SEND', { emoteCode: 'WAVE' }),
     sitA(), select('OMOK'), ready(true), ready(false), leave(), channelLeave(),
     message('추가 광장 B 입장 (A 퇴장 후)', 'CHANNEL_JOIN', { channelId: '{{channelIdB}}' }),
-    message('추가 박수 예시 → WORLD_EMOTE_EVENT', 'WORLD_EMOTE_SEND', { emoteCode: 'CLAP' }),
+    message('추가 박수 → WORLD_EMOTE_EVENT (다음 사용 5초)', 'WORLD_EMOTE_SEND', { emoteCode: 'CLAP' }),
+    message('추가 박수 부탁 → WORLD_EMOTE_EVENT (다음 사용 1.8초)', 'WORLD_EMOTE_SEND',
+        { emoteCode: 'APPLAUSE_REQUEST' }),
+    message('추가 에잉 쯧쯧 → WORLD_EMOTE_EVENT (다음 사용 1.8초)', 'WORLD_EMOTE_SEND', { emoteCode: 'TSK' }),
+    message('추가 방귀 → WORLD_EMOTE_EVENT (다음 사용 1.8초)', 'WORLD_EMOTE_SEND', { emoteCode: 'FART' }),
     select('DICE'), select('ONE_CARD'), select('LIAR_BRIDGE'),
     message('오류 미등록 감정표현 → EMOTE_NOT_SUPPORTED', 'WORLD_EMOTE_SEND', { emoteCode: 'NOT_REGISTERED' }),
     message('오류 없는 테이블 → TABLE_NOT_FOUND', 'TABLE_JOIN', { tableId: 'not-a-table' }),
@@ -218,6 +283,18 @@ const primaryMessages = [
     message('연동 전 경기 상태 조회 → dev에서는 GAME_STATE_AUTH_REQUIRED', 'GAME_STATE_CHECK', { gameId: '{{gameId}}' }),
     message('연동 전 시작 조회 → 기본 모드는 UNSUPPORTED_MESSAGE_TYPE', 'GAME_START_CHECK')
 ];
+primaryMessages.push(
+    message('시설 01 목록 → WORLD_FACILITY_CATALOG (10개씩)', 'WORLD_FACILITY_CATALOG', {}),
+    message('시설 02 점유 조회 → WORLD_FACILITY_STATE (입장·재접속 필수)', 'WORLD_FACILITY_CHECK', {}),
+    message('시설 03 벤치 이용 → WORLD_FACILITY_STATE (서버 근접 필요)', 'WORLD_FACILITY_USE',
+        { facilityId: 'bench-0', seatIndex: 0 }),
+    message('시설 04 망원경 이용 → WORLD_FACILITY_STATE (정상 접근 필요)', 'WORLD_FACILITY_USE',
+        { facilityId: 'telescope-1', seatIndex: 0 }),
+    message('시설 05 망원경 방향 → WORLD_FACILITY_STATE (100ms 간격)', 'WORLD_FACILITY_AIM',
+        { leaseId: '{{facilityLeaseId}}', seq: 1, yaw: 0.5, pitch: -0.2 }),
+    message('시설 06 반납 → WORLD_FACILITY_STATE (본인 leaseId)', 'WORLD_FACILITY_RELEASE',
+        { leaseId: '{{facilityLeaseId}}' })
+);
 const wsRequest = (name, description, messages) => ({
     name, $kind: 'websocket-request', url: '{{wsUrl}}',
     description: movementGuide + description,
@@ -230,12 +307,12 @@ const wsItems = [
         'Connect 한 번 후 CONNECTED를 확인하고 Saved Messages에서 보냅니다. 메시지마다 새 연결을 만들면 다른 임시 사용자가 됩니다. '
         + '기본 흐름: A/B 모두 광장 입장 → 서버 스폰 확인 후 WORLD_MOVE 방향 입력 → A 먼저 착석 → B 착석 → A 게임 선택 → A/B 준비. '
         + '채팅은 같은 채널의 보고 위치 기준 XZ 반경 20m(경계 포함) 안에서만 수신합니다. x/z는 1단위=1m이며 위치 미보고 송신은 WORLD_POSITION_REQUIRED입니다. '
-        + '나머지 추가/오류 메시지는 각 선행조건을 맞춘 뒤 따로 보냅니다. WAVE/CLAP은 최종 모션 종류가 아닌 예시입니다.',
+        + '나머지 추가/오류 메시지는 각 선행조건을 맞춘 뒤 따로 보냅니다. local/dev 기본 감정표현은 WAVE/CLAP/APPLAUSE_REQUEST/TSK/FART 5종이며 직전 표현이 손 인사/박수면 5초, 나머지는 1.8초 뒤 다음 표현을 보냅니다. 활동별 제한은 별도 확인입니다.',
         primaryMessages),
     wsRequest('02 참가자 B — 두 번째 착석하는 사람',
         'A와 별개 연결입니다. A가 먼저 앉은 다음 05 착석을 보내고, A 게임 선택 후 07 준비를 보냅니다. '
         + '채팅 전에는 A/B 모두 방향 입력가 필요합니다. 근거리 검사는 XZ 평면 20m이며 경계도 포함합니다. '
-        + '거리 예제는 A가 첫 위치(1.5,-2)를 유지하고 양쪽 미착석일 때 사용합니다. B 경계/밖/복귀 순서대로 이동하고 각 단계에서 A가 채팅을 보냅니다. 경계·복귀에서는 B 수신, 밖에서는 미수신이 정상입니다. 이동은 100ms·채팅은 1초 이상 간격입니다. '
+        + '양쪽 미착석 상태에서 WORLD_STATE의 실제 서버 위치로 XZ 거리 20m 안/밖을 확인합니다. B가 방향 입력으로 경계/밖/복귀 순서로 이동하고 각 단계에서 A가 채팅을 보냅니다. 경계·복귀에서는 B 수신, 밖에서는 미수신이 정상입니다. 스폰 좌표를 고정값으로 가정하거나 최종 좌표를 주입하지 않습니다. 이동 입력은 50ms·채팅은 1초 이상 간격입니다. '
         + 'A의 상태 변경도 requestId=null 알림으로 들어옵니다. 원카드/거짓말은 2~4명이며 추가 탭으로 다른 임시 사용자를 만들 수 있습니다.',
         [joinA(), locate(), sitA(), ready(true), ready(false), leave(), channelLeave(),
             message('이동 1 — seq2 걷기 (50ms 후, 수신한 서버 좌표 확인)', 'WORLD_MOVE', { seq: 2, dx: 0, dz: -1, run: false, jump: false }),
@@ -382,9 +459,28 @@ const wsGuide = '# 근거리 채팅·관전 테스트 (20m)\n\n'
     + `기존 연결 ${wsItems.length}개와 저장 메시지 ${wsItems.reduce((sum, item) => sum + item.messages.length, 0)}개를 사용합니다.`
     + '\n\n2026-10-22: 첫 착석자가 GAME_SELECT의 DICE targetScore를2000/4000/6000 중 선택합니다. 누락 GAME_OPTIONS_REQUIRED, 잘못된 값 INVALID_PAYLOAD이며 목표 변경도 전원 준비를 해제합니다. TABLE_STATE/TABLE_WATCH_STATE/HTTP12 요약에 targetScore가 추가되고 다른 게임은null입니다. '
     + '실제 종료 후 좌석 유지·ready=false·SETTLING, 현재 경기 전체 SETTLED 확인 후 WAITING에서 다시 전원 준비하면 새 시도·경기ID로 시작합니다. 정산 알림 누락은 GAME_RESULT_CHECK 재조회로 복구하며 조회는 지급을 실행하지 않습니다. 실제 DB 잔액·원장·정산·운영 적용은 별도 통합 검증입니다.';
-const appearanceGuide = '\n\n2026-10-22 의상 동기화: local,db + ontop.shop.enabled=true. WS07의 인증 사용자 두 명이 같은 채널에 CHANNEL_JOIN 후 본인이 HTTP17로 장착하면 WORLD_STATE.payload.avatars[].equipment가 갱신됩니다. 다른 채널에는 전파하지 않습니다. 새 티켓→재접속→CHANNEL_JOIN 후 최신 장착을 복구합니다. 공개 필드는 itemId/itemCode/equipSlot/imageKey, 최대5개·부위당 하나이며 null은 미조회/사용 불가로 기존 외형 유지, []는 장착 없음입니다. 이동 tick은 캐시를 쓰고 조회 실패는 기존 외형을 유지합니다. 실제 3D 에셋 매핑·렌더링 연동은 별도 협의입니다. 예시: {"requestId":null,"type":"WORLD_STATE","payload":{"channelId":"channel-1","version":4,"avatars":[{"userId":"101","position":{"lastInputSeq":0,"x":-2.025,"y":0.84,"z":34,"yaw":0,"moving":false,"running":false,"swimming":false},"equipment":[{"itemId":1,"itemCode":"RED_TOP","equipSlot":"TOP","imageKey":"demo-red-top"}]}],"mapVersion":"544bc6fa3890c77e8de0ec91d27f93981b4d23a477918963757e4762294ba8d0"}}';
-wsItems[6].description += appearanceGuide;
-const wsV3 = { name: 'OnTop WebSocket', $kind: 'collection', description: wsGuide + appearanceGuide, items: wsItems };
+const appearanceGuide = '\n\n2026-10-22 의상 동기화: local,db 또는 dev,db + ontop.shop.enabled=true(dev: SHOP_ENABLED=true). WS07의 인증 사용자 두 명이 같은 채널에 CHANNEL_JOIN 후 본인이 HTTP17로 장착하면 WORLD_STATE.payload.avatars[].equipment가 갱신됩니다. 다른 채널에는 전파하지 않습니다. 새 티켓→재접속→CHANNEL_JOIN 후 최신 장착을 복구합니다. 공개 필드는 itemId/itemCode/equipSlot/imageKey, 최대5개·부위당 하나이며 null은 미조회/사용 불가로 기존 외형 유지, []는 장착 없음입니다. 이동 tick은 캐시를 쓰고 조회 실패는 기존 외형을 유지합니다. 실제 3D 에셋 매핑·렌더링 연동은 별도 협의입니다. 예시: {"requestId":null,"type":"WORLD_STATE","payload":{"channelId":"channel-1","version":4,"avatars":[{"userId":"101","position":{"lastInputSeq":0,"x":-2.025,"y":0.84,"z":34,"yaw":0,"moving":false,"running":false,"swimming":false},"equipment":[{"itemId":1,"itemCode":"RED_TOP","equipSlot":"TOP","imageKey":"demo-red-top"}]}],"mapVersion":"544bc6fa3890c77e8de0ec91d27f93981b4d23a477918963757e4762294ba8d0"}}';
+const publicProfileGuide = '\n\n2026-10-24 공개 프로필: db 프로필의 인증 사용자로 채널 입장하면 '
+    + 'WORLD_STATE.avatars[].nickname/characterGender가 비동기 갱신됩니다. characterGender는 MALE/FEMALE 캐릭터 외형이며 실제 성별이 아닙니다. '
+    + '최초 미조회·DB 없는 사용자에는 null이며 기존 표시를 지우지 않습니다. 접속 중 회원은 5초마다 일괄 조회하므로 '
+    + 'HTTP PATCH /api/v1/users/me로 닉네임 변경 후 다음 조회 완료 때 같은 채널에 반영됩니다. 재접속은 새 티켓→CHANNEL_JOIN. '
+    + '다른 채널 미노출·클라이언트 프로필 주입 거절·조회 장애 시 기존 값 유지를 확인하세요. 기존 equipment/위치 계약은 유지합니다. '
+    + '감정표현 5종은 WAVE/CLAP/APPLAUSE_REQUEST/TSK/FART, 손 인사/박수 5초·나머지 1.8초의 FE 간격을 적용합니다. 직전 성공 표현 기준으로 다른 표현도 대기하며 상태별 허용/취소는 별도 확인입니다. '
+    + 'FE park-bindings.emotes 매핑·3D 렌더링·배포 확인은 별도입니다.';
+wsItems[6].description += appearanceGuide + publicProfileGuide;
+const facilityGuide = '\n\n## 시설 이용·점유 동기화 (2026-10-25)\n\n'
+    + 'CHANNEL_JOIN 후 시설01 CATALOG(10개씩 nextOffset, -1종료)→시설02 CHECK(입장·재접속 필수)→시설03/04 USE→시설05 AIM(망원경만)→시설06 RELEASE. '
+    + '벤치80개×2석, 운동기구12대·망원경2대×1명. 같은 채널 WORLD_FACILITY_STATE.occupancies 전체 상태와 version을 사용합니다. '
+    + '본인 leaseId를 로컬 facilityLeaseId 변수에 복사하거나05/06 JSON에 직접 넣으세요. 이전 이용 ID·다른 사용자 ID는 거절합니다. '
+    + '2026-10-25 사용자 확정: 서버 승인 위치 기준 벤치/기구3m·망원경2m, 높이+0.8m±0.7m, 단절 즉시 해제 후 재접속 재이용. 100ms/pitch범위는 현재 FE 설정이며 시설 감정표현 허용/취소는 협의 목록에 남아 있습니다. '
+    + '이용 중 이동/점프/테이블 착석은 FACILITY_BUSY. 하차 승인 후 WORLD_STATE 위치에서 이동합니다. '
+    + '망원경 yaw[-π,π],pitch[-1.35,1.15],seq1~4294967295,100ms 간격. 과거seq는 본인 ACK만, 확대/FOV는FE. '
+    + '단절/채널퇴장 즉시 해제, 재접속 CHECK 후 재이용하며 경기30초유예는 그대로입니다. '
+    + '위치 주입 API는 없습니다. Postman에서 원거리 USE 오류는 정상이며 성공 검수는 실제 이동 후 요청하세요. '
+    + '단일 JVM 메모리 점유, 다중 서버·실제 FE 모션·운영 적용은 별도 검수입니다. docs/world-facility-api.md.';
+const wsV3 = { name: 'OnTop WebSocket', $kind: 'collection', description: wsGuide + appearanceGuide + publicProfileGuide
+        + facilityGuide,
+    items: wsItems };
 const httpV21 = {
     info: { name: httpV3.name, description: guide, schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json' },
     item: httpItems.map(item => ({
@@ -409,11 +505,14 @@ function yaml(value, indent = 0) {
         + (nested(item) ? '\n' + yaml(item, indent + 2) : ' ' + JSON.stringify(item))).join('\n');
 }
 const outputs = new Map([
-    ['OnTop-Minigame.postman_collection.json', JSON.stringify({info:{...httpV21.info,name:'OnTop Minigame',description:'MINI01~04: 19시작→20조회→21미검증 보상 차단→22포기. 실제 굽기 성공 검증 소스는 별도 연동합니다. 상세docs/minigame-api.md.'},item:httpV21.item.slice(18)},null,2)+'\n'],
+    ['OnTop-Minigame.postman_collection.json', JSON.stringify({info:{...httpV21.info,name:'OnTop Minigame',description:'붕어빵 v2: 23시작화면조회→19시작→60초 플레이→21입력 검증·보상. 20본인판조회,22포기는 별도 새 판에서 확인. 15점당1냥·KST 하루100냥·랭킹 제외·탭 이동 시간 진행. 기존 API 경로 유지. docs/minigame-api.md.'},item:httpV21.item.slice(18,23)},null,2)+'\n'],
     ['OnTop-Shop.postman_collection.json', JSON.stringify({info: {...httpV21.info, name: 'OnTop Shop',
-        description: 'SHOP-01/02 · INVENTORY-01/02. 13목록→14구매→15동일키 재요청→16보유→17장착. 18은 같은키 충돌 검사. local,db + ontop.shop.enabled=true + 공통/상점 스키마가 필요합니다. 보유 의상 재구매는 서버에서 거절하고 소비형은 수량을 누적합니다. 테스트 계정의 개인 로컬 Access JWT만 사용하고 공유하지 마세요. 기본 DB에 스키마를 자동 적용하지 않았습니다. 실제 DB 초기화·공통 재화 통합·3D 외형 계약은 별도 확인합니다.\n\n2026-10-22: 상점 저장 처리를 JPA 엔티티·JPQL로 전환했습니다. 기존 6개 요청·응답·중복 구매 방지·롤백 계약은 그대로이며 예제 수정 없이 사용할 수 있습니다.' + appearanceGuide},
+        description: 'SHOP-01/02 · INVENTORY-01/02. 13목록→14구매→15동일키 재요청→16보유→17장착. 18은 같은키 충돌 검사. local,db 또는 dev,db + ontop.shop.enabled=true(dev: SHOP_ENABLED=true) + 공통/상점 스키마가 필요합니다. dev는 기본 비활성이며 기존 V100 적용 이력·버전 순서 확인 후 기존 Flyway locations에 db/shop을 명시적으로 추가합니다. 공유 DB/SQL/이력은 자동 변경하지 않습니다. 실제 배포 후 개인 환경 baseUrl=https://dev-api.on-top.world와 해당 서버 Access JWT를 사용합니다. 기존 예제 Origin={{baseUrl}}는 개발 API 호스트가 되어403일 수 있으므로 AUTH_ALLOWED_ORIGINS에 등록된 실제 프론트 주소로 바꾸거나 비브라우저 Postman에서는 Origin 헤더를 제외하세요. 보유 의상 재구매는 서버에서 거절하고 소비형은 수량을 누적합니다. 테스트 계정의 개인 로컬 Access JWT만 사용하고 공유하지 마세요. 기본 DB에 스키마를 자동 적용하지 않았습니다. 실제 DB 초기화·공통 재화 통합·3D 외형 계약은 별도 확인합니다.\n\n2026-10-22: 상점 저장 처리를 JPA 엔티티·JPQL로 전환했습니다. 기존 6개 요청·응답·중복 구매 방지·롤백 계약은 그대로이며 예제 수정 없이 사용할 수 있습니다.' + appearanceGuide},
         item: httpV21.item.slice(12,18)}, null, 2) + '\n'],
     ['OnTop-HTTP.postman_collection.json', JSON.stringify(httpV21, null, 2) + '\n'],
+    ['OnTop-Feedback.postman_collection.json', JSON.stringify({info:{...httpV21.info,name:'OnTop Feedback',
+        description:feedbackDescription + ' 환경 accessToken/channelIdA/baseUrl 사용. 24는 새 접수 키,25는 원래 키 복구,26은 관리자 JWT로 조회. 실제 비밀키·토큰은 파일에 포함하지 않습니다.'},item:httpV21.item.slice(23,26)},null,2)+'\n'],
+    ['OnTop-Notes.postman_collection.json', JSON.stringify({info:{...httpV21.info,name:'OnTop Notes',description:notesDescription},item:httpV21.item.slice(26,29)},null,2)+'\n'],
     ['OnTop-WebSocket.postman_collection.json', JSON.stringify(wsV3, null, 2) + '\n'],
     ['OnTop-Local.postman_environment.json', JSON.stringify(environment, null, 2) + '\n']
 ]);

@@ -406,7 +406,7 @@ class UserOnboardingMySqlTests {
         User user = new User(LoginProvider.SSAFY, "onboard91-unpersisted", nickname(), CharacterGender.MALE);
         assertThatThrownBy(() -> credentials.issueForNewUser(user))
                 .isInstanceOf(IllegalTransactionStateException.class);
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("4");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("6");
         assertThat(flyway.migrate().migrationsExecuted).isZero();
     }
 

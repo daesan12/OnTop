@@ -128,8 +128,10 @@ paths:
       - Shop
       summary: 아이템 구매
       description: "지갑을 잠그고 잔액 차감·보유량·거래 원장·멱등 영수증을 한 트랜잭션으로 저장합니다. 의상 중복 구매는 REJECT\
-        \ 정책입니다. Idempotency-Key가 필요합니다. local 프로필 전용. 실제 서비스는 local,db 및 ontop.shop.enabled=true,\
-        \ 별도 상점 스키마와 회원 지갑이 필요합니다. 공통 V1~V4만으로 상점 스키마가 생성되지 않으며 운영 프로필 전환은 미완료입니다."
+        \ 정책입니다. Idempotency-Key가 필요합니다. local/dev 프로필에서 등록됩니다(운영 혼합 제외). 실제 서비스는\
+        \ db 및 ontop.shop.enabled=true(dev: SHOP_ENABLED=true), 별도 상점 스키마와 회원 지갑이\
+        \ 필요합니다. 기존 V100 적용 이력·순서를 확인한 뒤 Flyway locations에 db/shop을 명시적으로 추가합니다. 기\
+        본 비활성·실제 배포는 별도입니다."
       operationId: purchase
       parameters:
       - name: Idempotency-Key
@@ -255,38 +257,206 @@ paths:
                 - $ref: "#/components/schemas/ErrorResponse"
       security:
       - AccessJwt: []
-  /api/v1/minigames/sessions:
-    post:
+  /api/v1/notes:
+    get:
       tags:
-      - MINIGAME
-      summary: 붕어빵 세션 시작
-      description: "같은 회원·Idempotency-Key는 최초 세션 생성 응답을 반환합니다. local 전용. 서비스는 local,db\
-        \ + ontop.minigames.enabled=true 및 V110 선택 적용이 필요합니다. 실제 굽기 판정 소스가 없으면 완료\
-        /지급하지 않습니다. 점수·보상·userId를 본문에 넣지 않습니다."
-      operationId: start
+      - NOTES
+      summary: 전망대 익명 메모 조회
+      description: 인증·서버 근접/활동 검사. 창을 연 동안2초마다 재조회하고 이탈·단절 시 중지.
+      operationId: list
       parameters:
-      - name: Idempotency-Key
-        in: header
+      - name: channelId
+        in: query
         required: true
         schema:
-          maxLength: 64
-          minLength: 1
-          pattern: "[A-Za-z0-9_-]{1,64}"
           type: string
+      responses:
+        "409":
+          description: NOT_IN_CHANNEL / NOTES_ACTIVITY_CONFLICT
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/NotesErrorResponse"
+        "429":
+          description: "NOTES_READ_COOLDOWN, nextAllowedAt 포함"
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/NotesErrorResponse"
+        "400":
+          description: INVALID_REQUEST / NOTES_TEXT_INVALID
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/NotesErrorResponse"
+        "401":
+          description: 활성 회원 인증 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/NotesErrorResponse"
+        "403":
+          description: NOTES_OUT_OF_RANGE
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/NotesErrorResponse"
+        "503":
+          description: NOTES_NOT_CONFIGURED / NOTES_UNAVAILABLE
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/NotesErrorResponse"
+      security:
+      - AccessJwt: []
+    post:
+      tags:
+      - NOTES
+      summary: 전망대 익명 메모 작성
+      description: "전 채널 공용 최신120장. operationId=발급시각ms_임의키, 24시간 재확인."
+      operationId: submit
       requestBody:
         content:
           application/json:
             schema:
-              required:
-              - minigameType
-              type: object
-              properties:
-                minigameType:
-                  type: string
-                  enum:
-                  - BUNGEOPPANG
-              additionalProperties: false
+              $ref: "#/components/schemas/NoteSubmissionRequest"
+            example:
+              operationId: 1761436800000_0123456789abcdef
+              channelId: channel-1
+              text: 공원을 개선해주세요
         required: true
+      responses:
+        "201":
+          description: 저장된 메모 또는 동일 요청의 기존 결과
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/NoteReceiptResponse"
+        "409":
+          description: IDEMPOTENCY_CONFLICT / NOT_IN_CHANNEL / NOTES_ACTIVITY_CONFLICT
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/NotesErrorResponse"
+        "429":
+          description: "NOTES_WRITE_COOLDOWN / NOTES_READ_COOLDOWN, nextAllowedAt\
+            \ 포함"
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/NotesErrorResponse"
+        "410":
+          description: "NOTE_REMOVED / NOTES_REQUEST_EXPIRED, 자동 재게시 금지"
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/NotesErrorResponse"
+        "400":
+          description: INVALID_REQUEST / NOTES_TEXT_INVALID
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/NotesErrorResponse"
+        "401":
+          description: 활성 회원 인증 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/NotesErrorResponse"
+        "403":
+          description: NOTES_OUT_OF_RANGE
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/NotesErrorResponse"
+        "503":
+          description: NOTES_NOT_CONFIGURED / NOTES_UNAVAILABLE
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/NotesErrorResponse"
+      security:
+      - AccessJwt: []
+  /api/v1/minigames/sessions:
+    get:
+      tags:
+      - MINIGAME
+      summary: 붕어빵 시작 화면 상태 조회
+      description: "한국 날짜 기준 오늘 보상·첫 판·확인한 안내를 조회합니다. local,db + ontop.minigames.enabled=true\
+        \ 또는 dev,db에서 사용합니다. dev는 기본 활성화하며 공통 스키마에 V110/V111을 추가합니다. prod/production에\
+        서는 비활성화합니다. v2 입력 기록을 서버가 재생합니다. 60초, 15점당 1냥, KST 하루 100냥. 탭 이동 중에도 시간은 흐\
+        르며 랭킹은 제외합니다. score·rewardAmount·userId를 본문에 넣지 않습니다."
+      operationId: status
       responses:
         "400":
           description: INVALID_REQUEST / UNSUPPORTED_MINIGAME
@@ -321,6 +491,52 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "200":
+          description: 오늘 보상과 안내 상태
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BungeoppangStatusResponse"
+      security:
+      - AccessJwt: []
+    post:
+      tags:
+      - MINIGAME
+      summary: 붕어빵 세션 시작
+      description: "같은 회원·Idempotency-Key는 최초 세션 생성 응답을 반환합니다. local,db + ontop.minigames.enabled=true\
+        \ 또는 dev,db에서 사용합니다. dev는 기본 활성화하며 공통 스키마에 V110/V111을 추가합니다. prod/production에\
+        서는 비활성화합니다. v2 입력 기록을 서버가 재생합니다. 60초, 15점당 1냥, KST 하루 100냥. 탭 이동 중에도 시간은 흐\
+        르며 랭킹은 제외합니다. score·rewardAmount·userId를 본문에 넣지 않습니다."
+      operationId: start
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          maxLength: 64
+          minLength: 1
+          pattern: "[A-Za-z0-9_-]{1,64}"
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              required:
+              - minigameType
+              type: object
+              properties:
+                minigameType:
+                  type: string
+                  enum:
+                  - BUNGEOPPANG
+              additionalProperties: false
+        required: true
+      responses:
         "201":
           description: 생성 또는 같은 키의 최초 생성 응답
           headers:
@@ -332,6 +548,50 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MinigameStartResponse"
+        "429":
+          description: TOO_MANY_STARTS
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+        "400":
+          description: INVALID_REQUEST / UNSUPPORTED_MINIGAME
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: 인증된 활성 회원 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "503":
+          description: MINIGAME_NOT_CONFIGURED / MINIGAME_UNAVAILABLE 또는 인증 DB 장애
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
       security:
       - AccessJwt: []
   /api/v1/minigames/sessions/{sessionId}/complete:
@@ -339,9 +599,10 @@ paths:
       tags:
       - MINIGAME
       summary: 미니게임 완료·보상 확정
-      description: "서버 검증 결과만 사용하며 중복 지급하지 않습니다. local 전용. 서비스는 local,db + ontop.minigames.enabled=true\
-        \ 및 V110 선택 적용이 필요합니다. 실제 굽기 판정 소스가 없으면 완료/지급하지 않습니다. 점수·보상·userId를 본문에 넣지\
-        \ 않습니다."
+      description: "서버 검증 결과만 사용하며 중복 지급하지 않습니다. local,db + ontop.minigames.enabled=true\
+        \ 또는 dev,db에서 사용합니다. dev는 기본 활성화하며 공통 스키마에 V110/V111을 추가합니다. prod/production에\
+        서는 비활성화합니다. v2 입력 기록을 서버가 재생합니다. 60초, 15점당 1냥, KST 하루 100냥. 탭 이동 중에도 시간은 흐\
+        르며 랭킹은 제외합니다. score·rewardAmount·userId를 본문에 넣지 않습니다."
       operationId: complete
       parameters:
       - name: sessionId
@@ -353,7 +614,47 @@ paths:
         content:
           application/json:
             schema:
+              required:
+              - log
               type: object
+              properties:
+                log:
+                  maxItems: 1200
+                  type: array
+                  items:
+                    required:
+                    - slot
+                    - action
+                    - t
+                    type: object
+                    properties:
+                      slot:
+                        maximum: 5
+                        minimum: 0
+                        type: integer
+                        format: int32
+                      action:
+                        type: string
+                        enum:
+                        - POUR
+                        - FILL
+                        - TURN
+                        - DISCARD
+                      t:
+                        maximum: 60000
+                        minimum: 0
+                        type: integer
+                        format: int32
+                    additionalProperties: false
+                seenTips:
+                  maxItems: 5
+                  type: array
+                  items:
+                    type: string
+                clientScore:
+                  minimum: 0
+                  type: integer
+                  format: int32
               additionalProperties: false
         required: true
       responses:
@@ -380,7 +681,18 @@ paths:
               schema:
                 type: object
         "409":
-          description: MINIGAME_NOT_VERIFIED / MINIGAME_POLICY_REQUIRED / 종료 상태 충돌
+          description: RULES_VERSION_MISMATCH / 종료 상태 충돌
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+        "422":
+          description: LOG_INVALID / TOO_EARLY
           headers:
             Cache-Control:
               description: no-store
@@ -430,9 +742,10 @@ paths:
       tags:
       - MINIGAME
       summary: 미니게임 포기
-      description: "지급 없이 포기하며 같은 포기 요청은 기존 결과를 반환합니다. local 전용. 서비스는 local,db + ontop.minigames.enabled=true\
-        \ 및 V110 선택 적용이 필요합니다. 실제 굽기 판정 소스가 없으면 완료/지급하지 않습니다. 점수·보상·userId를 본문에 넣지\
-        \ 않습니다."
+      description: "지급 없이 포기하며 같은 포기 요청은 기존 결과를 반환합니다. local,db + ontop.minigames.enabled=true\
+        \ 또는 dev,db에서 사용합니다. dev는 기본 활성화하며 공통 스키마에 V110/V111을 추가합니다. prod/production에\
+        서는 비활성화합니다. v2 입력 기록을 서버가 재생합니다. 60초, 15점당 1냥, KST 하루 100냥. 탭 이동 중에도 시간은 흐\
+        르며 랭킹은 제외합니다. score·rewardAmount·userId를 본문에 넣지 않습니다."
       operationId: abandon
       parameters:
       - name: sessionId
@@ -514,6 +827,103 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+      security:
+      - AccessJwt: []
+  /api/v1/feedback:
+    post:
+      tags:
+      - FEEDBACK
+      summary: 소리함 비공개 의견 접수
+      description: 회원·operationId별 중복 접수 방지. 본문 공개 방송 없음.
+      operationId: submit_1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubmissionRequest"
+            example:
+              operationId: feedback-1
+              channelId: channel-1
+              text: 공원을 개선해주세요
+        required: true
+      responses:
+        "201":
+          description: 접수 또는 동일 요청의 기존 영수증
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/FeedbackReceiptResponse"
+        "409":
+          description: IDEMPOTENCY_CONFLICT / NOT_IN_CHANNEL / FEEDBACK_ACTIVITY_CONFLICT
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/FeedbackReceiptResponse"
+        "429":
+          description: "FEEDBACK_COOLDOWN, nextAllowedAt 포함"
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/FeedbackReceiptResponse"
+        "400":
+          description: INVALID_REQUEST / FEEDBACK_TEXT_INVALID
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/FeedbackReceiptResponse"
+        "401":
+          description: 활성 회원 인증 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/FeedbackReceiptResponse"
+        "403":
+          description: FEEDBACK_OUT_OF_RANGE / FEEDBACK_ADMIN_REQUIRED
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/FeedbackReceiptResponse"
+        "503":
+          description: FEEDBACK_NOT_CONFIGURED / FEEDBACK_UNAVAILABLE
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/FeedbackReceiptResponse"
       security:
       - AccessJwt: []
   /api/v1/auth/websocket-ticket:
@@ -1115,9 +1525,10 @@ paths:
       tags:
       - Shop
       summary: 내 의상 장착
-      description: "보유한 의상을 같은 슬롯의 기존 장착과 교체합니다. 커밋 후 의상 변경 이벤트를 발행합니다. local 프로필\
-        \ 전용. 실제 서비스는 local,db 및 ontop.shop.enabled=true, 별도 상점 스키마와 회원 지갑이 필요합니다\
-        . 공통 V1~V4만으로 상점 스키마가 생성되지 않으며 운영 프로필 전환은 미완료입니다."
+      description: "보유한 의상을 같은 슬롯의 기존 장착과 교체합니다. 커밋 후 의상 변경 이벤트를 발행합니다. local/dev\
+        \ 프로필에서 등록됩니다(운영 혼합 제외). 실제 서비스는 db 및 ontop.shop.enabled=true(dev: SHOP_ENABLED=true),\
+        \ 별도 상점 스키마와 회원 지갑이 필요합니다. 기존 V100 적용 이력·순서를 확인한 뒤 Flyway locations에 db/shop을\
+        \ 명시적으로 추가합니다. 기본 비활성·실제 배포는 별도입니다."
       operationId: equip
       requestBody:
         content:
@@ -1508,9 +1919,10 @@ paths:
       tags:
       - Shop
       summary: 내 보유 아이템
-      description: "인증된 본인 계정의 수량이 양수인 보유 아이템을 조회합니다. local 프로필 전용. 실제 서비스는 local,db\
-        \ 및 ontop.shop.enabled=true, 별도 상점 스키마와 회원 지갑이 필요합니다. 공통 V1~V4만으로 상점 스키마가\
-        \ 생성되지 않으며 운영 프로필 전환은 미완료입니다."
+      description: "인증된 본인 계정의 수량이 양수인 보유 아이템을 조회합니다. local/dev 프로필에서 등록됩니다(운영 혼합\
+        \ 제외). 실제 서비스는 db 및 ontop.shop.enabled=true(dev: SHOP_ENABLED=true), 별도 상점\
+        \ 스키마와 회원 지갑이 필요합니다. 기존 V100 적용 이력·순서를 확인한 뒤 Flyway locations에 db/shop을 명시\
+        적으로 추가합니다. 기본 비활성·실제 배포는 별도입니다."
       operationId: inventory
       responses:
         "200":
@@ -1706,8 +2118,10 @@ paths:
       tags:
       - Shop
       summary: 판매 아이템 목록
-      description: "판매 중인 실제 Item 목록을 조회합니다. local 프로필 전용. 실제 서비스는 local,db 및 ontop.shop.enabled=true,\
-        \ 별도 상점 스키마와 회원 지갑이 필요합니다. 공통 V1~V4만으로 상점 스키마가 생성되지 않으며 운영 프로필 전환은 미완료입니다."
+      description: "판매 중인 실제 Item 목록을 조회합니다. local/dev 프로필에서 등록됩니다(운영 혼합 제외). 실제 서\
+        비스는 db 및 ontop.shop.enabled=true(dev: SHOP_ENABLED=true), 별도 상점 스키마와 회원 지갑\
+        이 필요합니다. 기존 V100 적용 이력·순서를 확인한 뒤 Flyway locations에 db/shop을 명시적으로 추가합니다. 기\
+        본 비활성·실제 배포는 별도입니다."
       operationId: catalog
       responses:
         "200":
@@ -1774,8 +2188,10 @@ paths:
       tags:
       - MINIGAME
       summary: 본인 미니게임 상태 조회
-      description: "local 전용. 서비스는 local,db + ontop.minigames.enabled=true 및 V110\
-        \ 선택 적용이 필요합니다. 실제 굽기 판정 소스가 없으면 완료/지급하지 않습니다. 점수·보상·userId를 본문에 넣지 않습니다."
+      description: "local,db + ontop.minigames.enabled=true 또는 dev,db에서 사용합니다. dev는\
+        \ 기본 활성화하며 공통 스키마에 V110/V111을 추가합니다. prod/production에서는 비활성화합니다. v2 입력 기록을\
+        \ 서버가 재생합니다. 60초, 15점당 1냥, KST 하루 100냥. 탭 이동 중에도 시간은 흐르며 랭킹은 제외합니다. score·\
+        rewardAmount·userId를 본문에 넣지 않습니다."
       operationId: load
       parameters:
       - name: sessionId
@@ -2105,6 +2521,73 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AuthErrorResponse"
+  /api/v1/admin/feedback:
+    get:
+      tags:
+      - FEEDBACK
+      summary: 관리자 소리함 조회
+      description: 서버 관리자 회원 ID 목록에 등록된 활성 회원만 조회합니다.
+      operationId: list_1
+      parameters:
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          type: string
+          default: ""
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: string
+          default: "20"
+      responses:
+        "400":
+          description: INVALID_REQUEST / FEEDBACK_TEXT_INVALID
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/FeedbackListResponse"
+        "401":
+          description: 활성 회원 인증 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/FeedbackListResponse"
+        "403":
+          description: FEEDBACK_OUT_OF_RANGE / FEEDBACK_ADMIN_REQUIRED
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/FeedbackListResponse"
+        "503":
+          description: FEEDBACK_NOT_CONFIGURED / FEEDBACK_UNAVAILABLE
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/FeedbackListResponse"
+      security:
+      - AccessJwt: []
 components:
   schemas:
     UserOnboardingRequest:
@@ -2195,6 +2678,48 @@ components:
           type: string
         details:
           type: object
+        detail:
+          type: string
+        index:
+          type: integer
+          format: int32
+    NoteSubmissionRequest:
+      type: object
+      properties:
+        operationId:
+          type: string
+        channelId:
+          type: string
+        text:
+          type: string
+    NoteReceiptResponse:
+      type: object
+      properties:
+        note:
+          $ref: "#/components/schemas/NoteResponse"
+        nextAllowedAt:
+          type: string
+          format: date-time
+    NoteResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        text:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    NotesErrorResponse:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        nextAllowedAt:
+          type: string
+          format: date-time
     MinigameStartResponse:
       type: object
       properties:
@@ -2207,6 +2732,15 @@ components:
         startedAt:
           type: string
           format: date-time
+        rulesVersion:
+          type: string
+        heats:
+          type: array
+          items:
+            type: integer
+            format: int32
+        isFirstGame:
+          type: boolean
     MinigameCompleteResponse:
       type: object
       properties:
@@ -2220,6 +2754,38 @@ components:
         rewardAmount:
           type: integer
           format: int64
+        score:
+          type: integer
+          format: int64
+        made:
+          type: integer
+          format: int32
+        golden:
+          type: integer
+          format: int32
+        failed:
+          type: integer
+          format: int32
+        wasted:
+          type: integer
+          format: int32
+        maxCombo:
+          type: integer
+          format: int32
+        coinsCalculated:
+          type: integer
+          format: int64
+        coinsGranted:
+          type: integer
+          format: int64
+        todayEarned:
+          type: integer
+          format: int64
+        dailyCap:
+          type: integer
+          format: int32
+        capReached:
+          type: boolean
     MinigameAbandonResponse:
       type: object
       properties:
@@ -2230,6 +2796,26 @@ components:
         rewardAmount:
           type: integer
           format: int64
+    SubmissionRequest:
+      type: object
+      properties:
+        operationId:
+          type: string
+        channelId:
+          type: string
+        text:
+          type: string
+    FeedbackReceiptResponse:
+      type: object
+      properties:
+        receiptId:
+          type: string
+        acceptedAt:
+          type: string
+          format: date-time
+        nextAllowedAt:
+          type: string
+          format: date-time
     Ticket:
       type: object
       properties:
@@ -2538,6 +3124,23 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ItemResponse"
+    BungeoppangStatusResponse:
+      type: object
+      properties:
+        todayEarned:
+          type: integer
+          format: int64
+        dailyCap:
+          type: integer
+          format: int32
+        isFirstGame:
+          type: boolean
+        seenTips:
+          type: array
+          items:
+            type: string
+        rulesVersion:
+          type: string
     MinigameStatusResponse:
       type: object
       properties:
@@ -2590,6 +3193,30 @@ components:
         expiresIn:
           type: integer
           format: int64
+    Entry:
+      type: object
+      properties:
+        receiptId:
+          type: string
+        authorUserId:
+          type: integer
+          format: int64
+        channelId:
+          type: string
+        text:
+          type: string
+        acceptedAt:
+          type: string
+          format: date-time
+    FeedbackListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Entry"
+        nextCursor:
+          type: string
   securitySchemes:
     AccessJwt:
       type: http

@@ -6,6 +6,10 @@ import com.ssafy.ontop.auth.security.TestLoginSessions;
 import com.ssafy.ontop.auth.service.AccessJwtService;
 import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser;
 import com.ssafy.ontop.auth.websocket.WebSocketAccountLookup;
+import com.ssafy.ontop.behavior.domain.BehaviorEvent;
+import com.ssafy.ontop.behavior.domain.BehaviorEventType;
+import com.ssafy.ontop.behavior.domain.PositionSample;
+import com.ssafy.ontop.behavior.service.BehaviorLog;
 import com.ssafy.ontop.game.omok.service.OmokEngine;
 import com.ssafy.ontop.game.result.GameResultCommitted;
 import com.ssafy.ontop.game.result.GameResultGateway;
@@ -25,9 +29,11 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -183,6 +189,31 @@ class CommittedStartFlowTests {
                         .isEqualTo("GAME_START_STATE");
             }
         }
+    }
+
+    @Test
+    void 확정_경기_시작은_참가자마다_행동_로그를_남긴다() throws Exception {
+        List<BehaviorEvent> started = new CopyOnWriteArrayList<>();
+        hub.configureBehaviorLog(new BehaviorLog() {
+            @Override public void record(Supplier<BehaviorEvent> event) {
+                BehaviorEvent value = event.get();
+                if (value.type() == BehaviorEventType.GAME_STARTED) { started.add(value); }
+            }
+            @Override public void recordPosition(Supplier<PositionSample> sample) { }
+        });
+
+        try (var first = connect(101); var second = connect(202)) {
+            prepare(first, second, "OMOK");
+            reservation.release.countDown();
+            playing(first);
+        }
+
+        assertThat(started).extracting(BehaviorEvent::userId).containsExactlyInAnyOrder(101L, 202L);
+        assertThat(started).allSatisfy(event -> {
+            assertThat(event.gameId()).isEqualTo(GAME);
+            assertThat(event.tableId()).isEqualTo("table-1");
+            assertThat(event.props()).containsEntry("gameCode", "OMOK").containsEntry("players", 2);
+        });
     }
 
     private void prepare(ScenarioClient first, ScenarioClient second, String game) throws Exception {

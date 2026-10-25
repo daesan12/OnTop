@@ -1,0 +1,17 @@
+.park-page .bridge-panel { position:absolute; right:var(--park-edge); bottom:calc(var(--park-edge) + 80px); width:min(490px,39vw); max-height:calc(100dvh - 220px); overflow:auto; z-index:5; }
+.bridge-players { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+.bridge-players>div { display:flex; flex-direction:column; padding:8px; border:1px solid; border-radius:8px; gap:4px; min-width:0; overflow-wrap:anywhere; }
+.bridge-pawn-status { display:flex; flex-wrap:wrap; gap:3px; font-size:9px; }
+.bridge-pawn-status span { border:1px solid #bda67477; padding:2px; border-radius:3px; }
+.bridge-pawn-status [data-status=SCORED] { background:#708f4e; }
+.bridge-pawn-status [data-status=FALLEN],.bridge-pawn-status [data-status=FORFEITED],.bridge-pawn-status [data-status=REMOVED_SCORED] { opacity:.5; text-decoration:line-through; }
+.bridge-private { display:flex; align-items:center; gap:12px; border:1px solid #eac78a; padding:8px; border-radius:8px; }
+.bridge-private>b { font-size:28px; min-width:40px; text-align:center; }
+.bridge-actions { display:flex; gap:7px; flex-wrap:wrap; }
+.bridge-goals { display:grid; grid-template-columns:repeat(8,minmax(0,1fr)); gap:4px; }
+.bridge-goals>span { border:1px solid #bda674; text-align:center; padding:5px 2px; border-radius:4px; font-size:12px; }
+.bridge-goals [data-status=OCCUPIED] { background:#6f7137; }
+.bridge-goals [data-status=VACATED] { background:#4f5852; color:#c8c1b1; }
+.bridge-rules { border-top:1px solid #bda67477; font-size:13px; }
+@media(max-width:700px) { .park-page .bridge-panel { width:calc(100vw - 2 * var(--park-edge)); max-height:calc(100dvh - 210px); bottom:calc(var(--park-edge) + 68px); } }
+@media(max-height:800px) { .park-page .bridge-panel { font-size:13px; gap:6px; } }

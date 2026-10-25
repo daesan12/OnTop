@@ -1,7 +1,8 @@
 import { createContext, useContext, useEffect, type ReactNode } from 'react'
 import { acquireRuntime, parkRuntime } from './runtime'
+import type { ParkRuntimePort } from './contracts'
 
-const Context = createContext<typeof parkRuntime | null>(null)
+const Context = createContext<ParkRuntimePort | null>(null)
 export function ParkRuntimeProvider({
   children,
   onAuthEnded,

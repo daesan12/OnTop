@@ -12,6 +12,24 @@ import {
 import type { TableBinding } from './tableBindings'
 import { EXPECTED_MAP_VERSION } from '../config/mapVersion'
 import { resetGame } from '../game/store'
+import { resetBenchState, useBenchState } from '../features/interactions/benchState'
+import { clearRoamingInput } from '../world/inputOwnership'
+import { samePose, sampleMovement } from '../world/movementPresentation'
+import { EmoteTimeline, parseEmoteEvent, type EmoteEvent } from '../features/emotes/timeline'
+import { resetEmotes, useEmoteState } from '../features/emotes/state'
+import { findEmote, type EmoteId } from '../features/emotes/catalog'
+import { releaseFitnessUser, resetFitnessState, useFitnessState } from '../features/fitness/state'
+import { releaseTelescopeUser, resetTelescopeState, useTelescopeState } from '../features/telescopes/state'
+import { resetTelescopeView, telescopeView } from '../features/telescopeView'
+import { resetFeedbackState, useFeedbackState } from '../features/feedback/state'
+import { canReachFeedback } from '../features/feedback/validation'
+import { resetNotesState, useNotesState } from '../features/notes/state'
+import { canReachNotes } from '../features/notes/validation'
+import { resetTableLobby } from '../features/tableLobby/state'
+import { publicMatchService } from '../features/tableLobby/publicMatch'
+import { resetFacilities } from '../features/facilities/state'
+import type { FacilityLease } from '../features/facilities/protocol'
+import { sameEquipment, type PublicEquipment } from './equipment'
 
 export interface Pose {
   x: number
@@ -48,7 +66,7 @@ export interface ChatMessage {
   text: string
   sentAt: string
 }
-/** Frontend display port, not a proposed backend profile response. */
+/** Display values shared by users/me and approved WORLD_STATE public profiles. */
 export interface DisplayProfile {
   nickname: string
   character: CharacterId
@@ -75,10 +93,12 @@ export interface Session {
   bindings: TableBinding[]
   mapCompatible: boolean
   mapVersion: string
-  // Unsupported facility state stays absent; renderers never invent server occupancy.
+  // Facility display IDs come from explicit development leases, never guessed wire fields.
   telescopeId: string
   benchId: string
+  fitnessId: string
   profiles: Record<string, DisplayProfile>
+  equipment: Record<string, readonly PublicEquipment[]>
   account: { nickname: string; balance: number | null } | null
 }
 const initial = (): Session => ({
@@ -105,7 +125,9 @@ const initial = (): Session => ({
   mapVersion: '',
   telescopeId: '',
   benchId: '',
+  fitnessId: '',
   profiles: {},
+  equipment: {},
   account: null,
 })
 export const useSession = create<Session>(initial)
@@ -122,23 +144,44 @@ export const networkStats = {
 let channelVersion = -1,
   worldVersion = -1
 const chatIds = new Set<string>()
-const emoteIds = new Set<string>()
+const emoteTimeline = new EmoteTimeline()
 export function resetWorld(status: Session['status'] = 'idle', error = '') {
+  resetFacilities()
+  resetNotesState(status !== 'idle')
+  resetFeedbackState(status !== 'idle')
+  resetFitnessState()
+  resetTelescopeState()
+  resetEmotes(true)
+  emoteTimeline.clearChannel()
   resetGame()
+  resetTableLobby()
+  publicMatchService.clear()
+  resetBenchState()
+  clearRoamingInput()
   avatars.clear()
   worldPoses.clear()
   channelVersion = worldVersion = -1
   chatIds.clear()
-  emoteIds.clear()
   useSession.setState({ ...initial(), status, error })
 }
-export function clearChannel() {
+export function clearChannel(keepFeedbackDraft = false, keepNotesDraft = false) {
+  const { sessionId, profiles } = useSession.getState()
+  resetFacilities()
+  resetNotesState(keepNotesDraft)
+  resetFeedbackState(keepFeedbackDraft)
+  resetFitnessState()
+  resetTelescopeState()
+  resetEmotes()
+  emoteTimeline.clearChannel()
   resetGame()
+  resetTableLobby()
+  publicMatchService.clear()
+  resetBenchState()
+  clearRoamingInput()
   avatars.clear()
   worldPoses.clear()
   channelVersion = worldVersion = -1
   chatIds.clear()
-  emoteIds.clear()
   useSession.setState({
     roomId: '',
     channelName: '',
@@ -155,6 +198,11 @@ export function clearChannel() {
     focusedAnchorId: '',
     mapVersion: '',
     mapCompatible: false,
+    benchId: '',
+    fitnessId: '',
+    telescopeId: '',
+    profiles: profiles[sessionId] ? { [sessionId]: profiles[sessionId] } : {},
+    equipment: {},
   })
 }
 export function sampleAvatar(
@@ -162,31 +210,73 @@ export function sampleAvatar(
   now: number,
   target: Pose,
 ): Pose {
-  const t = Math.min(
-    1,
-    Math.max(0, (now - avatar.at) / NETWORK.interpolationMs),
-  )
-  for (const k of ['x', 'y', 'z'] as const)
-    target[k] =
-      avatar.previous[k] + (avatar.current[k] - avatar.previous[k]) * t
-  target.yaw =
-    avatar.previous.yaw +
-    Math.atan2(
-      Math.sin(avatar.current.yaw - avatar.previous.yaw),
-      Math.cos(avatar.current.yaw - avatar.previous.yaw),
-    ) *
-      t
-  return target
+  return sampleMovement(avatar, now, NETWORK.interpolationMs, target)
 }
 export const estimatedServerTime = () => Date.now() // Only for events carrying server ISO timestamps; world day clock is separate.
-function applySeats() {
+export function cancelAvatarEmote(userId: string) {
+  const avatar = avatars.get(userId)
+  if (avatar) { avatar.emote = ''; avatar.emoteAt = 0 }
+  emoteTimeline.cancel(userId, estimatedServerTime())
+  if (userId === useSession.getState().sessionId && useEmoteState.getState().pending)
+    useEmoteState.setState({ cancelled: true, notice: '이동이나 이용 상태 변경으로 감정표현이 취소되었습니다.' })
+}
+export function presentEmote(event: EmoteEvent, motion: EmoteId, source: 'server' | 'mock') {
+  const state = useSession.getState(), avatar = avatars.get(event.userId)
+  if (state.status !== 'connected' || event.channelId !== state.roomId || !state.mapCompatible
+    || !avatar?.connected || avatar.moving || avatar.swimming || avatar.fitnessId || avatar.telescopeId) return false
+  const playback = emoteTimeline.accept(event, motion, estimatedServerTime())
+  if (!playback) return false
+  avatar.emote = playback.motion
+  avatar.emoteAt = playback.at
+  if (event.userId === state.sessionId) useEmoteState.setState(s => ({
+    readyAt: Math.max(s.readyAt, playback.readyAt),
+    notice: source === 'mock' ? '목업 감정표현 · 이 화면에서만 표시됩니다.' : '',
+  }))
+  return true
+}
+export const authoritativePose = (userId: string): Pose | undefined => {
+  const pose = worldPoses.get(userId)
+  return pose ? { ...pose } : undefined
+}
+/** Full server occupancy projection. Wire pose/exit never overwrite WORLD_STATE coordinates. */
+export function applyFacilityOccupancies(leases: readonly FacilityLease[]) {
+  const benches: Record<string, import('../features/interactions/benchContracts').BenchLease> = {}
+  const fitness: Record<string, import('../features/fitness/contracts').FitnessLease> = {}
+  const telescopes: Record<string, import('../features/telescopes/contracts').TelescopeLease> = {}
+  for (const lease of leases) {
+    const common = { leaseId: lease.leaseId, userId: lease.userId, channelId: lease.channelId, pose: lease.pose, exit: lease.exit }
+    if (lease.kind === 'BENCH') benches[lease.userId] = { ...common, benchId: lease.facilityId, seat: lease.seatIndex as 0 | 1 }
+    if (lease.kind === 'FITNESS') fitness[lease.userId] = { ...common, stationId: lease.facilityId, startedAt: Date.parse(lease.startedAt) }
+    if (lease.kind === 'TELESCOPE') telescopes[lease.userId] = { ...common, grantId: lease.leaseId,
+      telescopeId: lease.facilityId, yaw: lease.yaw, pitch: lease.pitch }
+  }
+  useBenchState.setState({ placements: benches })
+  useFitnessState.setState({ placements: fitness })
+  useTelescopeState.setState({ placements: telescopes })
+  refreshActivityPresentation()
+}
+export function refreshActivityPresentation() {
   const state = useSession.getState()
+  for (const table of Object.values(state.tableStates)) for (const seat of table.seats)
+    if (seat.userId && useTelescopeState.getState().placements[seat.userId] && !useTelescopeState.getState().placements[seat.userId]!.leaseId) releaseTelescopeUser(seat.userId)
+  for (const table of Object.values(state.tableStates)) for (const seat of table.seats)
+    if (seat.userId && useFitnessState.getState().placements[seat.userId] && !useFitnessState.getState().placements[seat.userId]!.leaseId) releaseFitnessUser(seat.userId)
+  if (Object.values(state.tableStates).some(table => table.seats.some(seat =>
+    seat.userId && useBenchState.getState().placements[seat.userId] && !useBenchState.getState().placements[seat.userId]!.leaseId))) resetBenchState()
   for (const [id, a] of avatars) {
+    const previousActivity = a.tableId || a.benchId || a.fitnessId || a.telescopeId
     a.tableId = ''
+    a.benchId = ''
+    a.fitnessId = ''
+    a.fitnessStartedAt = 0
+    a.telescopeId = ''
+    a.telescopeYaw = a.telescopePitch = 0
     a.seatIndex = -1
     const authoritative = worldPoses.get(id)
     if (authoritative) a.current = { ...authoritative }
     for (const table of Object.values(state.tableStates)) {
+      if (useBenchState.getState().placements[id]?.leaseId || useFitnessState.getState().placements[id]?.leaseId
+        || useTelescopeState.getState().placements[id]?.leaseId) break
       const seat = table.seats.find((s) => s.userId === id)
       const binding = state.bindings.find(
         (b) => b.channelId === state.roomId && b.tableId === table.tableId,
@@ -206,7 +296,52 @@ function applySeats() {
       }
       a.previous = { ...a.current }
     }
+    const bench = useBenchState.getState().placements[id]
+    if (!a.tableId && bench?.channelId === state.roomId) {
+      if (useTelescopeState.getState().placements[id]) releaseTelescopeUser(id)
+      if (useFitnessState.getState().placements[id]) releaseFitnessUser(id)
+      a.benchId = bench.benchId
+      a.seatIndex = bench.seat
+      a.current = { ...(bench.leaseId ? authoritative ?? a.current : bench.pose) }
+      a.previous = { ...a.current }
+      a.moving = a.running = false
+    }
+    const fitness = useFitnessState.getState().placements[id]
+    if (!a.tableId && !a.benchId && fitness?.channelId === state.roomId) {
+      if (useTelescopeState.getState().placements[id]) releaseTelescopeUser(id)
+      a.fitnessId = fitness.stationId
+      a.fitnessStartedAt = fitness.startedAt
+      a.current = { ...(fitness.leaseId ? authoritative ?? a.current : fitness.pose) }
+      a.previous = { ...a.current }
+      a.moving = a.running = false
+    }
+    const telescope = useTelescopeState.getState().placements[id]
+    if (!a.tableId && !a.benchId && !a.fitnessId && telescope?.channelId === state.roomId) {
+      a.telescopeId = telescope.telescopeId
+      a.telescopeYaw = telescope.yaw
+      a.telescopePitch = telescope.pitch
+      a.current = { ...(telescope.leaseId ? authoritative ?? a.current : telescope.pose), yaw: telescope.yaw }
+      a.previous = { ...a.current }
+      a.moving = a.running = false
+    }
+    const activity = a.tableId || a.benchId || a.fitnessId || a.telescopeId
+    if (activity && previousActivity !== activity) cancelAvatarEmote(id)
   }
+  const own = avatars.get(state.sessionId)
+  const benchId = own?.benchId ?? ''
+  const fitnessId = own?.fitnessId ?? ''
+  const telescopeId = own?.telescopeId ?? ''
+  if (telescopeView.id !== telescopeId) {
+    resetTelescopeView(telescopeId)
+    const lease = useTelescopeState.getState().placements[state.sessionId]
+    if (lease?.leaseId) { telescopeView.yaw = lease.yaw; telescopeView.pitch = lease.pitch }
+  }
+  if (state.benchId !== benchId || state.fitnessId !== fitnessId || state.telescopeId !== telescopeId)
+    useSession.setState({ benchId, fitnessId, telescopeId })
+  if (useFeedbackState.getState().open && (!own?.connected || own.seatIndex >= 0 || own.fitnessId
+    || own.telescopeId || own.swimming || !canReachFeedback(authoritativePose(state.sessionId)))) resetFeedbackState(true)
+  if (useNotesState.getState().open && (!own?.connected || own.seatIndex >= 0 || own.fitnessId
+    || own.telescopeId || own.swimming || !canReachNotes(authoritativePose(state.sessionId)))) resetNotesState(true)
 }
 export function receive(message: Envelope) {
   const p = message.payload,
@@ -215,6 +350,8 @@ export function receive(message: Envelope) {
     case 'CONNECTED':
       if (typeof p.userId !== 'string' || !p.userId)
         throw new Error('사용자 연결 상태를 확인할 수 없습니다.')
+      if (useFeedbackState.getState().ownerId && useFeedbackState.getState().ownerId !== p.userId) resetFeedbackState()
+      if (useNotesState.getState().ownerId && useNotesState.getState().ownerId !== p.userId) resetNotesState()
       useSession.setState({ status: 'connected', sessionId: p.userId })
       break
     case 'CHANNEL_STATE': {
@@ -243,12 +380,60 @@ export function receive(message: Envelope) {
         return
       worldVersion = next.version
       const mapCompatible = next.mapVersion === EXPECTED_MAP_VERSION
+      if (!mapCompatible) { resetBenchState(); resetFitnessState(); resetTelescopeState(); resetFeedbackState(true); resetNotesState(true); clearRoamingInput() }
       const ids = next.avatars.map((a) => a.userId),
         now = performance.now()
+      // Preserve the last approved values while the server's async profile read is pending.
+      // Copy only on profile changes; movement ticks keep the same store references.
+      let profiles = state.profiles
+      let equipment = state.equipment
+      const present = new Set(ids)
+      for (const id of Object.keys(equipment)) {
+        if (present.has(id)) continue
+        if (equipment === state.equipment) equipment = { ...equipment }
+        delete equipment[id]
+      }
+      for (const avatar of next.avatars) {
+        // null/missing is an unfinished or failed DB read, not an unequip command.
+        if (avatar.equipment == null || sameEquipment(equipment[avatar.userId], avatar.equipment)) continue
+        if (equipment === state.equipment) equipment = { ...equipment }
+        equipment[avatar.userId] = avatar.equipment.map(({ itemId, itemCode, equipSlot, imageKey }) => ({ itemId, itemCode, equipSlot, imageKey }))
+      }
+      for (const id of Object.keys(profiles)) {
+        if (id !== state.sessionId && !present.has(id)) {
+          if (profiles === state.profiles) profiles = { ...profiles }
+          delete profiles[id]
+        }
+      }
+      for (const avatar of next.avatars) {
+        if (avatar.nickname == null && avatar.characterGender == null) continue
+        const previous = profiles[avatar.userId]
+        const profile: DisplayProfile = {
+          nickname: avatar.nickname ?? previous?.nickname
+            ?? (avatar.userId === state.sessionId ? '나' : '산책자 ' + avatar.userId.slice(-6)),
+          character: avatar.characterGender === 'FEMALE' ? 'girl' : avatar.characterGender === 'MALE' ? 'man'
+            : previous?.character ?? 'man',
+        }
+        if (previous?.nickname !== profile.nickname || previous?.character !== profile.character) {
+          if (profiles === state.profiles) profiles = { ...profiles }
+          profiles[avatar.userId] = profile
+        }
+      }
+      if (!ids.includes(state.sessionId)) {
+        cancelAvatarEmote(state.sessionId)
+        clearRoamingInput()
+      }
+      if ((!ids.includes(state.sessionId) && !Object.values(useBenchState.getState().placements).some(lease => lease.leaseId))
+        || Object.entries(useBenchState.getState().placements).some(([id, lease]) => !lease.leaseId && !ids.includes(id))) resetBenchState()
+      if (!ids.includes(state.sessionId) && !Object.values(useFitnessState.getState().placements).some(lease => lease.leaseId)) resetFitnessState()
+      else for (const [id, lease] of Object.entries(useFitnessState.getState().placements)) if (!lease.leaseId && !ids.includes(id)) releaseFitnessUser(id)
+      if (!ids.includes(state.sessionId) && !Object.values(useTelescopeState.getState().placements).some(lease => lease.leaseId)) resetTelescopeState()
+      else for (const [id, lease] of Object.entries(useTelescopeState.getState().placements)) if (!lease.leaseId && !ids.includes(id)) releaseTelescopeUser(id)
       for (const id of avatars.keys())
         if (!ids.includes(id)) {
           avatars.delete(id)
           worldPoses.delete(id)
+          emoteTimeline.forget(id)
         }
       for (const { userId, position } of next.avatars) {
         worldPoses.set(userId, {
@@ -264,16 +449,20 @@ export function receive(message: Envelope) {
             z: position.z,
             yaw: position.yaw,
           }
-        if (old) sampleAvatar(old, now, previous)
+        const unchanged = old && samePose(old.current, position)
+        if (old) {
+          if (unchanged) Object.assign(previous, old.previous)
+          else sampleAvatar(old, now, previous)
+        }
         avatars.set(userId, {
           previous,
           current: { ...position },
-          at: now,
+          at: unchanged ? old.at : now,
           nickname:
-            state.profiles[userId]?.nickname ??
+            profiles[userId]?.nickname ??
             (userId === state.sessionId ? '나' : '산책자 ' + userId.slice(-6)),
           color: 0,
-          character: state.profiles[userId]?.character ?? 'man',
+          character: profiles[userId]?.character ?? 'man',
           moving: position.moving,
           running: position.running,
           swimming: position.swimming,
@@ -290,12 +479,19 @@ export function receive(message: Envelope) {
           telescopePitch: 0,
           followTargetId: '',
         })
+        if ((old?.emote || (userId === state.sessionId && useEmoteState.getState().pending)) &&
+          (position.moving || position.swimming || (old && Math.abs(position.y - old.current.y) > 0.08))) cancelAvatarEmote(userId)
       }
-      applySeats()
+      refreshActivityPresentation()
       networkStats.snapshotAt = now
       networkStats.patches++
       useSession.setState({
         ids: ids.join('\0') === state.ids.join('\0') ? state.ids : ids,
+        profiles,
+        equipment,
+        ...(state.account && profiles[state.sessionId]
+          && state.account.nickname !== profiles[state.sessionId]!.nickname
+          ? { account: { ...state.account, nickname: profiles[state.sessionId]!.nickname } } : {}),
         mapCompatible,
         mapVersion: next.mapVersion,
         ...(!mapCompatible
@@ -305,6 +501,11 @@ export function receive(message: Envelope) {
             }
           : {}),
       })
+      if (state.mapCompatible && !mapCompatible) {
+        resetEmotes()
+        for (const id of avatars.keys()) cancelAvatarEmote(id)
+        clearRoamingInput()
+      }
       break
     }
     case 'WORLD_CHAT_MESSAGE': {
@@ -339,13 +540,22 @@ export function receive(message: Envelope) {
       })
       break
     }
-    case 'WORLD_EMOTE_EVENT':
-      // Final emote catalog is not supplied yet; receiving an event does not authorize a guessed motion mapping.
-      if (typeof p.eventId === 'string') {
-        emoteIds.add(p.eventId)
-        if (emoteIds.size > 200) emoteIds.clear()
+    case 'WORLD_EMOTE_EVENT': {
+      if (p.channelId !== state.roomId) return
+      const event = parseEmoteEvent(p), emoteState = useEmoteState.getState()
+      const motion = (Object.entries(emoteState.bindings) as [EmoteId, string][])
+        .find(([, code]) => code === event.emoteCode)?.[0]
+      if (!motion) return
+      if (event.userId === state.sessionId) {
+        if (!emoteState.pending || message.requestId !== emoteState.requestId || motion !== emoteState.requested) return
+        const at = Date.parse(event.sentAt)
+        if (at > estimatedServerTime() + 5000) return
+        useEmoteState.setState(s => ({ readyAt: Math.max(s.readyAt, at + findEmote(motion)!.cooldownMs) }))
+        if (emoteState.cancelled) return
       }
+      presentEmote(event, motion, 'server')
       break
+    }
     case 'TABLE_STATE':
     case 'TABLE_WATCH_STATE': {
       const next = tableState(p)
@@ -363,24 +573,25 @@ export function receive(message: Envelope) {
             }
           : { watchedTableId: next.tableId }),
       })
-      applySeats()
+      refreshActivityPresentation()
       break
     }
     case 'TABLE_LEFT': {
       const tableStates = { ...state.tableStates }
       delete tableStates[state.tableId]
       useSession.setState({ tableId: '', seatIndex: -1, tableStates })
-      applySeats()
+      refreshActivityPresentation()
       break
     }
     case 'TABLE_WATCH_LEFT': {
       const tableStates = { ...state.tableStates }
       delete tableStates[state.watchedTableId]
       useSession.setState({ watchedTableId: '', tableStates })
-      applySeats()
+      refreshActivityPresentation()
       break
     }
     case 'ERROR':
+      if (message.requestId && message.requestId === useEmoteState.getState().requestId) break
       if (typeof p.message === 'string')
         useSession.setState({ error: p.message })
       break

@@ -79,8 +79,8 @@ button { font: inherit; }
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.4em;
-  padding: 0;
+  gap: 8px;
+  padding: 0 3cqw;
   border-radius: 1.25cqw;
   cursor: pointer;
   font-size: 3.1cqw;
@@ -92,43 +92,92 @@ button { font: inherit; }
 .entry-button:hover { filter: brightness(1.07); }
 .entry-button:active { transform: translateY(2px); }
 .entry-button:focus-visible { outline: 3px solid #173b24; outline-offset: 3px; }
+.entry-button:disabled { cursor: not-allowed; filter: grayscale(.4); opacity: .7; transform: none; }
+
+.entry-button--naver,
+.entry-button--ssafy {
+  display: grid;
+  grid-template-columns: 9.92cqw 26cqw;
+  column-gap: 10px;
+}
+
+.entry-button--naver > span:last-child,
+.entry-button--ssafy > span:last-child {
+  text-align: left;
+  white-space: nowrap;
+}
 
 .entry-button--naver {
   top: 48.39%;
-  color: white;
-  border: 0.35cqw solid #62a95c;
-  background: #5ba653;
-  box-shadow: inset 0 0 0 0.32cqw #8bc487;
+  color: #fff;
+  border: 0.3cqw solid #03a94d;
+  background: #03a94d;
+  box-shadow: 0 0.35cqw 0.7cqw #77633b26;
 }
 
-.naver-mark {
-  font-family: 'BusanDandiMyeongjo', serif;
-  font-size: 4.2cqw;
-  font-weight: 700;
-  line-height: 1;
+.entry-provider-logo {
+  position: relative;
+  display: block;
+  flex: 0 0 auto;
+  width: 9.92cqw;
+  height: 6.97cqw;
+}
+
+.entry-provider-artwork {
+  position: absolute;
+  display: block;
+}
+
+.entry-provider-logo--naver .entry-provider-artwork {
+  left: 0.538cqw;
+  top: -0.955cqw;
+  width: 8.845cqw;
+  height: 8.845cqw;
+}
+
+.entry-provider-logo--ssafy .entry-provider-artwork {
+  /* Align the text-bearing block (x:70–329, y:97–300), preserving the entire tail. */
+  left: -0.409cqw;
+  top: -1.857cqw;
+  width: 13.455cqw;
+  height: 13.455cqw;
+}
+
+/* The supplied cutouts also removed white lettering; restore it inside each silhouette. */
+.entry-provider-artwork::before {
+  content: '';
+  position: absolute;
+  background: #fff;
+}
+
+.entry-provider-logo--naver .entry-provider-artwork::before {
+  left: 29%;
+  top: 30.4%;
+  width: 42.4%;
+  height: 39.4%;
+}
+
+.entry-provider-logo--ssafy .entry-provider-artwork::before {
+  left: 18%;
+  top: 23%;
+  width: 44.4%;
+  height: 35%;
+}
+
+.entry-provider-logo img {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .entry-button--ssafy {
   top: 57.63%;
-  color: white;
-  border: 0.35cqw solid #5d9fce;
-  background: #599bd0;
-  box-shadow: inset 0 0 0 0.32cqw #8dbbe1;
-}
-
-.ssafy-mark {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  width: 4.1cqw;
-  height: 4.1cqw;
-  padding: 0.2cqw;
-  color: white;
-  background: #141d22;
-  font-size: 0.75cqw;
-  font-weight: 700;
-  line-height: 1.05;
-  text-align: center;
+  color: #fff;
+  border: 0.3cqw solid #3c90e2;
+  background: #3c90e2;
+  box-shadow: 0 0.35cqw 0.7cqw #77633b26;
 }
 
 .entry-divider {
@@ -203,7 +252,7 @@ button { font: inherit; }
 .callback-content a:focus-visible { outline: 3px solid #173b24; outline-offset: 3px; }
 
 @media (max-aspect-ratio: 9/10) {
-  .login-page { min-height: 720px; }
+  .login-page { min-height: max(720px, 100dvh); }
   .login-panel {
     top: 50%;
     right: 50%;

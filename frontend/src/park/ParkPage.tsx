@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react'
 import coinImage from '../assets/yeopjeon-icon.png'
 import leafImage from '../assets/park-leaf.png'
 import peopleImage from '../assets/park-people.png'
@@ -12,6 +12,23 @@ import { ParkRuntimeProvider, useParkRuntime } from './runtime/ParkRuntime'
 import { setChatInputOpen } from '../world/input'
 import { ParkTools } from './ParkTools'
 import type { QualityPreset } from '../config'
+import { ParkInteractionHint } from '../features/interactions/ParkInteractionHint'
+import { EmoteWheel } from '../features/emotes/EmoteWheel'
+import { TelescopePanel } from '../features/telescopes/TelescopePanel'
+import { FeedbackPanel } from '../features/feedback/FeedbackPanel'
+import { AnonymousNotes } from '../features/notes/AnonymousNotes'
+import { ManualHost } from '../features/manual/ManualHost'
+import { FacilityStatus } from '../features/facilities/FacilityStatus'
+import { ManualWorldActions } from '../features/manual/ManualWorldActions'
+import { resetMetrics } from '../performance/metrics'
+import { ParkMap } from '../features/navigation/ParkMap'
+import { ParkNavigation } from '../features/navigation/NavigationHud'
+import { inputState } from '../world/inputOwnership'
+import { BungeoppangHud } from '../features/bungeoppang/BungeoppangHud'
+import { useBungeoppang } from '../features/bungeoppang/store'
+import { ShopLauncher, ShopPanel } from '../features/shop/ShopPanel'
+import { AdvertisementLink } from '../features/advertisements/AdvertisementLink'
+import { CameraControls } from '../features/camera/CameraControls'
 
 const shortcuts = [
   { key: 'WASD', action: '이동' },
@@ -35,9 +52,14 @@ export function ParkPage(props: ParkProps) {
   return <ParkRuntimeProvider onAuthEnded={props.onAuthEnded}><ParkContent {...props}/></ParkRuntimeProvider>
 }
 function ParkContent({ onExit, exitError }: ParkProps) {
+  const bungeoppang = useBungeoppang(s => s.phase !== 'idle')
   const runtime = useParkRuntime()
   const session = useSession(useShallow(s=>({ status:s.status,channelName:s.channelName,playerCount:s.playerCount,capacity:s.capacity,sessionId:s.sessionId,roomId:s.roomId,messages:s.messages,pending:s.pending,account:s.account,profiles:s.profiles })))
   const [quality,setQuality] = useState<QualityPreset>('low')
+  const changeQuality = useCallback((value: QualityPreset) => {
+    setQuality(value)
+    resetMetrics()
+  }, [])
   const parkView = { name:session.channelName || '채널 선택', players:session.playerCount, capacity:session.capacity, nickname:session.account?.nickname ?? '정보 미연동' }
   const messages = session.messages.map(message=>({ ...message,name:session.profiles[message.userId]?.nickname ?? (message.userId===session.sessionId?'나':('산책자 '+message.userId.slice(-6))),own:message.userId===session.sessionId }))
   const [hudScale, setHudScale] = useState(getHudScale)
@@ -61,7 +83,7 @@ function ParkContent({ onExit, exitError }: ParkProps) {
 
   useEffect(() => {
     const handleKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (event.isComposing || event.altKey || event.ctrlKey || event.metaKey) return
+      if (inputState.manualOpen || inputState.mapOpen || inputState.shopOpen || inputState.advertisementOpen || event.isComposing || event.altKey || event.ctrlKey || event.metaKey) return
       if (event.key === 'Escape' && chatOpen) {
         setChatOpen(false)
         inputRef.current?.blur()
@@ -95,7 +117,7 @@ function ParkContent({ onExit, exitError }: ParkProps) {
   }
 
   return (
-    <main className="park-page" aria-label="공원 기본 화면" style={{
+    <main className="park-page" aria-label="공원 기본 화면" data-bungeoppang={bungeoppang} style={{
       '--park-ui-scale': hudScale,
       '--park-edge': `${30 * hudScale}px`,
       '--park-shortcuts-half-width': `${390 * hudScale}px`,
@@ -123,7 +145,7 @@ function ParkContent({ onExit, exitError }: ParkProps) {
             <span className="park-account__avatar"><img src={avatarImage} alt="내 캐릭터" /></span>
             <span className="park-chevron" aria-hidden="true" />
           </div>
-          <button className="park-exit" type="button" onClick={onExit}>나가기</button>
+          <div className="park-account-actions"><ShopLauncher /><button className="park-exit" type="button" onClick={onExit}>나가기</button></div>
           {exitError && <p className="park-exit-error" role="alert">{exitError}</p>}
         </div>
 
@@ -162,7 +184,20 @@ function ParkContent({ onExit, exitError }: ParkProps) {
           ))}
         </aside>
       </div>
-      <ParkTools quality={quality} onQuality={setQuality}/>
+      <ParkTools quality={quality} onQuality={changeQuality}/>
+      <ParkInteractionHint />
+      <FacilityStatus />
+      <EmoteWheel />
+      <TelescopePanel />
+      <FeedbackPanel />
+      <AnonymousNotes />
+      <ShopPanel />
+      <AdvertisementLink />
+      <CameraControls />
+      <BungeoppangHud />
+      <ParkMap />
+      <ParkNavigation />
+      <ManualHost worldActions={<ManualWorldActions quality={quality} onQuality={changeQuality} onExit={onExit} />} />
     </main>
   )
 }

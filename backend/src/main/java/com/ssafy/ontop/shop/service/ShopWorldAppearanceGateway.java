@@ -15,7 +15,7 @@ import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
 @Component
-@Profile("local & db")
+@Profile("(local | dev) & db & !prod & !production")
 @ConditionalOnProperty(name = "ontop.shop.enabled", havingValue = "true")
 public class ShopWorldAppearanceGateway implements WorldAppearanceGateway {
     private final ShopRepository repository;

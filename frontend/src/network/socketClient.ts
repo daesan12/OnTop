@@ -134,6 +134,7 @@ export class SharedSocket {
     type: string,
     payload: Record<string, unknown>,
     expected: readonly string[],
+    onRequestId?: (requestId: string) => void,
   ): Promise<Envelope> {
     if (!this.connected)
       return Promise.reject(new Error('실시간 서버 연결을 확인해주세요.'))
@@ -149,6 +150,7 @@ export class SharedSocket {
       }, this.deps.timeoutMs ?? 8000)
       this.pending.set(requestId, { expected, resolve, reject, timer })
       try {
+        onRequestId?.(requestId)
         this.socket!.send(JSON.stringify({ requestId, type, payload }))
       } catch {
         this.finish(requestId)

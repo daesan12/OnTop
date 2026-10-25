@@ -240,6 +240,11 @@
 
 .auth-loading { display: grid; min-height: 100dvh; place-items: center; color: #f3efe3; background: #27372b; }
 
+.facility-status { position: absolute; left: 20px; top: 150px; max-width: min(340px, calc(100% - 40px)); z-index: 12; }
+@media (max-width: 700px) {
+  .facility-status { top: 185px; }
+}
+
 @media (max-width: 900px) {
   .park-location { top: 16px; left: 16px; transform: scale(0.8); transform-origin: top left; }
   .park-account { top: 16px; right: 16px; transform: none; }

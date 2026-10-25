@@ -23,8 +23,19 @@ springdoc:
   paths-to-match: /api/v1/**
 
 ontop:
+  world:
+    emote:
+      cooldowns:
+        WAVE: 5s
+        CLAP: 5s
+        APPLAUSE_REQUEST: 1800ms
+        TSK: 1800ms
+        FART: 1800ms
   websocket:
     authenticated: ${WEBSOCKET_AUTHENTICATED:true}
+  # 행동 로그는 db 프로필에서만 켤 수 있다. 큐·유실 기준은 docs/behavior-log.md 5장.
+  behavior-log:
+    enabled: ${BEHAVIOR_LOG_ENABLED:false}
   auth:
     jwt-secret-base64: ${AUTH_JWT_SECRET_BASE64:}
     jwt-issuer: ${AUTH_JWT_ISSUER:ontop}
@@ -92,3 +103,8 @@ springdoc:
     enabled: true
   swagger-ui:
     enabled: true
+ontop:
+  world:
+    emote:
+      # FE 5종과 연결할 코드. 표현별 간격은 위 공통 설정을 따른다.
+      codes: ${WORLD_EMOTE_CODES:WAVE,CLAP,APPLAUSE_REQUEST,TSK,FART}

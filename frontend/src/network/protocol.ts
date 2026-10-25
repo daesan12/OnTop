@@ -1,3 +1,5 @@
+import { validPublicEquipment, type PublicEquipment } from './equipment'
+
 /** Existing Spring Raw WebSocket contracts; UI models live in worldClient. */
 export interface Envelope {
   requestId: string | null
@@ -29,7 +31,13 @@ export interface WorldState {
   channelId: string
   version: number
   mapVersion: string
-  avatars: { userId: string; position: Position }[]
+  avatars: {
+    userId: string
+    position: Position
+    nickname?: string | null
+    characterGender?: 'MALE' | 'FEMALE' | null
+    equipment?: PublicEquipment[] | null
+  }[]
 }
 export interface TableSummary {
   tableId: string
@@ -75,11 +83,13 @@ export function userProfile(value: unknown) {
 }
 const text = (x: unknown): x is string => typeof x === 'string' && x.length > 0
 export function parseEnvelope(data: unknown): Envelope {
-  if (typeof data !== 'string' || data.length > 65_536)
+  // A full 174-seat facility snapshot exceeds 64 KiB; other message limits stay unchanged.
+  if (typeof data !== 'string' || data.length > 262_144)
     throw new Error('서버 메시지 형식을 확인할 수 없습니다.')
   const value: unknown = JSON.parse(data)
   if (
     !record(value) ||
+    (data.length > 65_536 && value.type !== 'WORLD_FACILITY_STATE') ||
     !(
       value.requestId === null ||
       (text(value.requestId) && value.requestId.length <= 64)
@@ -131,7 +141,10 @@ export function worldState(value: Record<string, unknown>): WorldState {
     !text(value.mapVersion) ||
     !Array.isArray(value.avatars) ||
     !value.avatars.every(
-      (a) => record(a) && text(a.userId) && position(a.position),
+      (a) => record(a) && text(a.userId) && position(a.position)
+        && (a.nickname == null || (typeof a.nickname === 'string' && !!a.nickname.trim()))
+        && (a.characterGender == null || a.characterGender === 'MALE' || a.characterGender === 'FEMALE')
+        && (a.equipment == null || validPublicEquipment(a.equipment)),
     )
   )
     throw new Error('월드 상태 형식이 올바르지 않습니다.')

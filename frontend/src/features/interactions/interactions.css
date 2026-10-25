@@ -1,0 +1,16 @@
+.park-page .park-interaction {
+  position: absolute;
+  z-index: 7;
+  left: 50%;
+  bottom: 110px;
+  transform: translateX(-50%);
+  max-width: calc(100vw - 32px);
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+}
+.park-interaction kbd { margin-right: 8px; }
+.park-interaction small { max-width: 360px; line-height: 1.5; }
+@media (max-width: 600px) {
+  .park-page:has(.park-interaction[data-fitness-id]) .emotes { top: 140px; bottom: auto; }
+}

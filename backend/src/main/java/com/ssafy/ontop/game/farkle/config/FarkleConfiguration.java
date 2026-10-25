@@ -18,7 +18,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Profile;
 
 @Configuration(proxyBeanMethods = false)
-@Profile("local")
+@Profile("(local | dev) & !prod & !production")
 @ConditionalOnProperty(name = "ontop.games.farkle.enabled", havingValue = "true")
 @Import(GameEngineGateways.class)
 public class FarkleConfiguration {

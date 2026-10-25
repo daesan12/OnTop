@@ -1,6 +1,7 @@
 package com.ssafy.ontop.game.reconnect;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.ssafy.ontop.auth.service.AuthenticationRevocations.Revoked;
 import com.ssafy.ontop.game.reconnect.GameRecoveryGateway.Action;
 import com.ssafy.ontop.game.reconnect.GameRecoveryGateway.GraceExpiration;
 import com.ssafy.ontop.game.reconnect.GameRecoverySnapshot.Phase;
@@ -22,9 +23,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 @Service
-@Profile("local")
+@Profile("(local | dev) & !prod & !production")
 public class GameReconnectService {
 
     private static final Duration GRACE = Duration.ofSeconds(30);
@@ -44,12 +46,20 @@ public class GameReconnectService {
     }
 
     public synchronized void connected(long userId, String sessionId, BiConsumer<String, View> output) {
+        connected(userId, sessionId, null, output);
+    }
+
+    public synchronized void connected(long userId, String sessionId, String loginSessionId,
+            BiConsumer<String, View> output) {
         if (gateway.isEmpty() || stopped) {
             return;
         }
         Slot slot = users.computeIfAbsent(userId, Slot::new);
         slot.generation++;
         slot.sessionId = sessionId;
+        slot.loginSessionId = loginSessionId;
+        slot.authenticationClosed = false;
+        slot.pendingDeparture = null;
         slot.output = output;
         slot.returnedInTime = slot.deadline != null && clock.instant().isBefore(slot.deadline)
                 && slot.expiration == null;
@@ -62,11 +72,22 @@ public class GameReconnectService {
     }
 
     public synchronized void disconnected(long userId, String sessionId, GameDepartureReason reason) {
+        disconnected(userId, sessionId, reason, reason != GameDepartureReason.DISCONNECT_TIMEOUT);
+    }
+
+    public synchronized void disconnected(long userId, String sessionId, GameDepartureReason reason,
+            boolean authenticationClosed) {
         java.util.Objects.requireNonNull(reason);
         Slot slot = users.get(userId);
         if (slot == null || !sessionId.equals(slot.sessionId)) {
             return;
         }
+        slot.authenticationClosed = authenticationClosed;
+        // 인증 레지스트리가 선점한 종료 사유를 우선한다. 단절 콜백과 로그아웃의 순서만 보정한다.
+        if (!authenticationClosed && slot.pendingDeparture != null) {
+            reason = slot.pendingDeparture;
+        }
+        slot.pendingDeparture = null;
         slot.sessionId = null;
         slot.output = null;
         if (slot.deadline == null || reason != GameDepartureReason.DISCONNECT_TIMEOUT) {
@@ -83,6 +104,32 @@ public class GameReconnectService {
         if (reason != GameDepartureReason.DISCONNECT_TIMEOUT) {
             checkTimeouts();
         }
+    }
+
+    @TransactionalEventListener
+    public synchronized void authenticationRevoked(Revoked event) {
+        GameDepartureReason reason = switch (event.reason()) {
+            case LOGOUT -> GameDepartureReason.LOGOUT;
+            case MEMBER_DEACTIVATED -> GameDepartureReason.MEMBER_DEACTIVATED;
+            default -> null;
+        };
+        Slot slot = users.get(event.userId());
+        if (reason == null || stopped || slot == null || slot.authenticationClosed
+                || slot.expiration != null || slot.departureReason != GameDepartureReason.DISCONNECT_TIMEOUT
+                || slot.loginSessionId == null
+                || event.sessionId() != null && !event.sessionId().equals(slot.loginSessionId)) {
+            return;
+        }
+        if (slot.sessionId != null) {
+            // 살아 있는 소켓의 종료는 기존 인증 담당이 처리한다. 늦은 Hub 정리에만 이 사유를 쓴다.
+            if (slot.pendingDeparture == null) { slot.pendingDeparture = reason; }
+            return;
+        }
+        slot.departureReason = reason;
+        slot.disconnectedAt = clock.instant();
+        slot.deadline = slot.disconnectedAt;
+        slot.returnedInTime = false;
+        checkTimeouts();
     }
 
     public synchronized boolean canUseLobby(long userId, String sessionId) {
@@ -306,6 +353,9 @@ public class GameReconnectService {
     private static final class Slot {
         private final long userId;
         private String sessionId;
+        private String loginSessionId;
+        private boolean authenticationClosed;
+        private GameDepartureReason pendingDeparture;
         private BiConsumer<String, View> output;
         private long generation;
         private boolean loading;

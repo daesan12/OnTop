@@ -82,14 +82,14 @@ class UsersMySqlTests {
     }
 
     @Test
-    void V1부터_V4까지_성공하고_회원과_인증과_공통지갑_스키마가_존재한다() {
+    void V1부터_V6까지_성공하고_회원과_인증과_공통지갑과_행동로그_스키마가_존재한다() {
         assertThat(jdbc.queryForList("SHOW TABLES", String.class))
                 .containsExactlyInAnyOrder("users", "refresh_tokens", "wallets", "wallet_transactions",
-                        "flyway_schema_history");
+                        "behavior_events", "world_position_samples", "flyway_schema_history");
         assertThat(jdbc.queryForObject(
                 "SELECT COUNT(*) FROM flyway_schema_history WHERE version = '1' AND success = 1", Integer.class))
                 .isEqualTo(1);
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("4");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("6");
     }
 
     @Test
@@ -280,7 +280,7 @@ class UsersMySqlTests {
 
         assertThat(flyway.migrate().migrationsExecuted).isZero();
 
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM flyway_schema_history", Integer.class)).isEqualTo(4);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM flyway_schema_history", Integer.class)).isEqualTo(6);
         entityManager.clear();
         assertThat(users.findByLoginProviderAndProviderUserId(LoginProvider.SSAFY, "migration-retry")
                 .orElseThrow().getId()).isEqualTo(originalId);

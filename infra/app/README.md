@@ -32,6 +32,23 @@
 
 현재 `db` 프로필은 인증·DB와 헬스체크를 실행하지만, 채널 조회·게임 구현의 여러 Bean이 `local` 프로필에 묶여 있다. 이 구성을 그대로 운영하면 **전체 게임이 동작한다고 판정할 수 없다.** 백엔드 담당자와 운영 프로필의 Bean·개발 전용 엔드포인트 경계를 확정하기 전에는 `local,db`를 운영 우회책으로 켜지 않는다. GitLab Webhook/Jenkins 자동 배포는 Story 116, 게임 드레인과 blue/green 전환은 Story 118의 범위다.
 
+## 2026-10-23 행동 로그 설정 (S15P31B105-138, 140)
+
+`BEHAVIOR_LOG_ENABLED`의 기본값은 `false`다. `dev,db`와 `db` 프로필에서 동작하므로 프로필은 바꾸지 않는다. 실제 값은 저장소 밖의 `/etc/ontop/{dev-app,prod-app}/app.env`에만 둔다. Compose의 `env_file`을 수정한 뒤에는 `docker compose restart`가 아닌 앱 컨테이너 재생성이 필요하다. 앱 종료 대기 30초는 로그 저장 대기 최대 5초보다 길어 그대로 둔다.
+
+- **DEV:** 행동 로그 코드가 들어 있는 이미지에서 `app.env`에 `BEHAVIOR_LOG_ENABLED=true`를 추가하고 앱 컨테이너만 `up -d --no-deps --force-recreate app`으로 재생성했다. 실행 중인 컨테이너의 변수는 `true`, 앱 헬스는 `healthy`, 외부 `/actuator/health`는 `UP`이다. Flyway V5·V6는 모두 `success=1`이다. 사용자가 로그인하고 공원 채널에 입장한 뒤 유형별 집계에서 `AUTH_LOGIN`, `WS_CONNECTED`, `CHANNEL_JOINED`가 각각 1건, `world_position_samples`가 10건으로 확인됐다(2026-10-23 기준).
+- **PROD:** `/etc/ontop/prod-app/app.env`에 같은 값을 미리 추가했다. 현재 앱은 이전 `story115-preview-20261022` 이미지로 계속 실행 중이며 재생성하지 않았다. 행동 로그 코드가 포함된 승인 이미지로 **수동 승격할 때** 앱을 재생성하고 V5·V6 마이그레이션, 환경변수, 헬스를 검증한다. 운영 DB에 테이블을 미리 수동 생성하지 않는다.
+
+DEV 재검증은 서버의 최신 저장소에서 다음처럼 실행한다. 검증 스크립트는 MySQL secret을 컨테이너의 임시 옵션 파일로 읽고 종료 시 지운다. 비밀번호를 명령행 인수나 로그에 넣지 않는다.
+
+```bash
+cd /opt/ontop
+sudo docker compose --env-file /etc/ontop/dev-app/deploy.env -f infra/app/compose.dev.yaml exec -T app printenv BEHAVIOR_LOG_ENABLED
+sudo docker compose --env-file /etc/ontop/dev-app/deploy.env -f infra/app/compose.dev.yaml exec -T mysql sh -s -- ontop_dev < infra/app/verify-behavior-db.sh
+```
+
+첫 줄이 `true`, 다음 출력에서 V5·V6가 각각 `success=1`인지 확인한다. 로그인·채널 입장 후 같은 DB 검증을 반복해 `behavior_events`의 이벤트 건수가 증가하는지 본다. 위치 샘플은 해당 기능을 실제로 사용한 뒤 확인한다. 운영에서도 승인 이미지로 승격한 후 PROD-DB의 MySQL 컨테이너에 같은 스크립트를 `ontop` 인수로 실행한다. `false`로 되돌릴 때도 앱 컨테이너를 재생성해야 하며 기존 테이블과 데이터는 남는다. `ontop.behavior.dropped` 지표는 현재 외부 Actuator에 노출하지 않는다. 필요하면 인증된 내부 관측 경로를 별도 설계한다.
+
 ## 저장소 파일과 비밀정보
 
 | 서버 | Compose | 루트 소유 설정 파일 | DB 비밀번호 파일 |
@@ -100,6 +117,8 @@ sudo docker compose --env-file /etc/ontop/prod-app/deploy.env -f infra/app/compo
 # DEV-CI에서는 /etc/ontop/dev-app/deploy.env와 compose.dev.yaml을 사용하고,
 # 먼저 mysql과 app을 시작한다.
 ```
+
+DEV 앱의 `/tmp`는 실행 금지(`noexec`)를 유지한다. 첫 `CHANNEL_JOIN`에서 Bullet 물리 엔진이 네이티브 라이브러리를 추출하므로, `compose.dev.yaml`은 UID/GID `10001` 전용의 실행 가능 tmpfs `/run/ontop-native`를 만들고 `JAVA_TOOL_OPTIONS`의 `java.io.tmpdir`로 지정한다. 2026-10-23 DEV에서 `/tmp`만 사용했을 때 WebSocket `101` 직후 채널 입장 응답 없이 연결이 닫혔고, 전용 경로를 적용한 뒤 사용자가 개발 공원 입장을 확인했다. 헬스체크 `200`만으로 채널 입장을 검증했다고 판단하지 않는다.
 
 `bootstrap.conf`는 인증서 발급을 위한 HTTP 경로만 열고 API는 프록시하지 않는다. PROD-APP에서 임시 `ontop-acme-bootstrap`으로 ACME 경로를 검증한 후 `ontop-tls-bootstrap`으로 HTTPS를 준비하고 API에는 503을 반환했다. Certbot 갱신 모의 시험이 성공했다. 앱이 healthy가 된 뒤 임시 컨테이너를 중지하고 Compose Nginx로 전환했으며 외부 health 확인 후 임시 컨테이너를 제거했다. PROD-APP의 WireGuard·DB 연결, Flyway 초기 마이그레이션도 확인했다. DEV-CI의 MySQL·앱·Nginx도 시작해 외부 HTTPS 헬스를 확인했다. 예시의 `manual` 태그는 자리 표시자다. 실제 릴리스에는 커밋 SHA나 릴리스 태그를 기록한다.
 

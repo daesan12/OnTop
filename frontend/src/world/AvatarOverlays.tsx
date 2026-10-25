@@ -26,6 +26,8 @@ const AvatarOverlay = memo(function AvatarOverlay({
 }) {
   const bubble = useSession((state) => state.bubbles[id])
   const own = useSession((state) => state.sessionId === id)
+  const nickname = useSession(state => state.profiles[id]?.nickname
+    ?? (state.sessionId === id ? '나' : '산책자 ' + id.slice(-6)))
   const [expiredId, setExpiredId] = useState('')
   const elementRef = useRef<HTMLDivElement | null>(null)
   useEffect(() => {
@@ -61,7 +63,7 @@ const AvatarOverlay = memo(function AvatarOverlay({
       data-player-id={id}
     >
       {speaking && <div className="avatar-speech">{bubble.text}</div>}
-      <div className="avatar-nickname">{avatars.get(id)?.nickname}</div>
+      <div className="avatar-nickname">{nickname}</div>
     </div>
   )
 })

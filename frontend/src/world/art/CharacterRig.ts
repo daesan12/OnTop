@@ -202,13 +202,14 @@ export function createCharacterRig(source: GLTF) {
     wristY: number,
     wristZ: number,
     blend = 1,
+    fitGesture = fittedGestures,
   ) {
     const arm = armData[side],
       sign = side === 'L' ? 1 : -1
     // Supplied T-pose models have shorter arms and larger hands than the older
     // repaired models. Fit gesture paths into their reachable chest-space arc.
     // Keep the central clap gap unchanged so both palms can meet.
-    if (fittedGestures) {
+    if (fitGesture) {
       if (Math.abs(x) > 0.12) x *= 0.7
       y = arm.shoulder.y + 0.015 + (y - 0.85) * 0.75
       z *= 0.6
@@ -261,6 +262,10 @@ export function createCharacterRig(source: GLTF) {
     set,
     handPose,
     reachHand,
+    /** Equipment targets already use the actual model's local coordinates. */
+    reachFitnessHand(side: Side, x: number, y: number, z: number, wristX: number, wristY: number, wristZ: number) {
+      reachHand(side, x, y, z, wristX, wristY, wristZ, 1, false)
+    },
     /** Exported Y-up, identity rest rotations; validated by the asset tests. */
     apply(delta: number) {
       const dt = Math.max(0, Math.min(delta, 0.1))

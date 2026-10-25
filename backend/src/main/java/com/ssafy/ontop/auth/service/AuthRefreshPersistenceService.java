@@ -61,7 +61,8 @@ public class AuthRefreshPersistenceService {
                 return Rotation.denied(AuthRefreshException.Error.ALREADY_ROTATED);
             }
             tokens.revokeSession(userId, previous.getSessionId(), now);
-            revocations.sessionRevoked(userId, previous.getSessionId());
+            revocations.sessionRevoked(userId, previous.getSessionId(),
+                    AuthenticationRevocations.Reason.REFRESH_REUSE_DETECTED);
             // 여기서 예외를 던지면 폐기도 롤백된다. 거절 결과를 커밋한 후 HTTP 계층이 401로 변환한다.
             return Rotation.denied(AuthRefreshException.Error.REUSE_DETECTED);
         }

@@ -1,0 +1,35 @@
+{
+  "source": "boardgame_2.glb",
+  "sourceBytes": 61601236,
+  "sourceSha256": "a7e88fa1e28300ed41217d823c879b902fad09412c393659c328bba4a09efbce",
+  "runtime": "chao-pawn.glb",
+  "runtimeBytes": 89568,
+  "runtimeSha256": "29a798ea7d0775b761d28f6fc97c9e6d4b9a73fdf615d5d5c93cca32dd507b7d",
+  "colors": {
+    "red": "#dc404d",
+    "purple": "#a45ddd",
+    "green": "#36b968",
+    "blue": "#398bea"
+  },
+  "sourceTriangles": 1889822,
+  "lods": [
+    {
+      "name": "pawn-detail",
+      "triangles": 2400
+    },
+    {
+      "name": "pawn-distant",
+      "triangles": 600
+    }
+  ],
+  "processing": "Blender UV-preserving collapse; painted tone transferred to vertex color; one shared neutral material; lossless Meshopt; 4m LOD with 3.6m return threshold.",
+  "provenance": "User-supplied local GLB; original preserved; no independent license assertion.",
+  "dimensionsMeters": [
+    0.07,
+    0.11196887,
+    0.06981123
+  ],
+  "gpuTextureBytes": 0,
+  "textureCompression": "No textures remain; KTX2 is inapplicable.",
+  "runtimeBatching": "One InstancedMesh of up to 28 pawns with per-instance player colors; cached shared geometry and material."
+}

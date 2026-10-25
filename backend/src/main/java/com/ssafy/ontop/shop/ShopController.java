@@ -26,7 +26,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@Profile("local")
+@Profile("(local | dev) & !prod & !production")
 @Tag(name = "Shop")
 public class ShopController {
     private final ObjectProvider<ShopService> services;

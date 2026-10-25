@@ -91,12 +91,21 @@ abstract class OpenApiHttpTestSupport {
         if (environment.acceptsProfiles(Profiles.of("(local | dev) & !prod & !production"))) {
             expected.addAll(Set.of("GET /api/v1/channels", "GET /api/v1/tables"));
         }
-        if (environment.acceptsProfiles(Profiles.of("local"))) {
+        if (environment.acceptsProfiles(Profiles.of("(local | dev) & !prod & !production"))) {
             expected.addAll(Set.of("GET /api/v1/shop/items",
-                    "POST /api/v1/shop/purchases", "GET /api/v1/users/me/items", "PATCH /api/v1/users/me/equipment",
-                    "POST /api/v1/minigames/sessions", "GET /api/v1/minigames/sessions/{sessionId}",
+                    "POST /api/v1/shop/purchases", "GET /api/v1/users/me/items", "PATCH /api/v1/users/me/equipment"));
+        }
+        if (environment.acceptsProfiles(Profiles.of("(local | dev) & !prod & !production"))) {
+            expected.addAll(Set.of("POST /api/v1/minigames/sessions", "GET /api/v1/minigames/sessions",
+                    "GET /api/v1/minigames/sessions/{sessionId}",
                     "POST /api/v1/minigames/sessions/{sessionId}/complete",
                     "POST /api/v1/minigames/sessions/{sessionId}/abandon"));
+            if (environment.getProperty("ontop.notes.enabled", Boolean.class, false)) {
+                expected.addAll(Set.of("GET /api/v1/notes", "POST /api/v1/notes"));
+            }
+            if (environment.getProperty("ontop.feedback.enabled", Boolean.class, false)) {
+                expected.addAll(Set.of("POST /api/v1/feedback", "GET /api/v1/admin/feedback"));
+            }
         }
         Set<String> actual = new HashSet<>();
         api.path("paths").fields().forEachRemaining(path -> path.getValue().fieldNames().forEachRemaining(method ->
