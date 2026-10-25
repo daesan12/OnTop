@@ -22,12 +22,13 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** Actual FE transport/auth/profile diagnostics. Facility service/UI wiring is reported separately. */
+/** 실제 FE 상태 저장소와 회원 DB를 연결한다. 3D 렌더링·브라우저 Origin은 별도 검증이다. */
 @Tag("mysql")
 @EnabledIfEnvironmentVariable(named = "TEST_WORLD_FRONTEND", matches = "true")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
@@ -35,9 +36,12 @@ import static org.assertj.core.api.Assertions.assertThat;
         "ontop.auth.allowed-origins=https://dev.on-top.world",
         "ontop.auth.jwt-secret-base64=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
         "ontop.world.channels[0].channel-id=channel-1", "ontop.world.channels[0].name=연동검증",
-        "ontop.world.channels[0].capacity=4"
+        "ontop.world.channels[0].capacity=4",
+        "ontop.world.channels[1].channel-id=channel-2", "ontop.world.channels[1].name=분리검증",
+        "ontop.world.channels[1].capacity=4"
 })
 @Import(WorldFrontendMySqlTests.FixtureConfiguration.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class WorldFrontendMySqlTests {
     @Autowired JdbcTemplate jdbc;
     @Autowired AuthExchangePersistenceService issuer;
@@ -57,7 +61,7 @@ class WorldFrontendMySqlTests {
     }
 
     @Test
-    void 실제_프론트와_회원DB로_프로필과_시설통신을_검증하고_미연결을_구분한다() throws Exception {
+    void 실제_프론트와_회원DB로_시설이용과_프로필변경_채널격리_재접속을_검증한다() throws Exception {
         assertThat(Path.of("../frontend/node_modules/vitest/vitest.mjs")).exists();
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM users", Integer.class)).isZero();
         for (long id : new long[]{101, 202, 909}) {
@@ -76,13 +80,27 @@ class WorldFrontendMySqlTests {
         runFrontend("fitness", player.accessToken(), player.refreshToken(), other.accessToken());
         world.spawn(49.1, 18.92, 48.2);
         runFrontend("telescope", player.accessToken(), player.refreshToken(), other.accessToken());
+        var reconnectingPlayer = issuer.issueExisting(new LoginOutcome(OAuthProvider.NAVER,
+                LoginOutcome.Status.EXISTING_MEMBER, 101L, null));
+        world.spawn(-9, .8, 34.75);
+        runFrontend("profile-refresh", reconnectingPlayer.accessToken(), reconnectingPlayer.refreshToken(),
+                other.accessToken());
+        assertThat(jdbc.queryForObject("SELECT nickname FROM users WHERE id=101", String.class))
+                .isEqualTo("새주인101");
+        assertThat(jdbc.queryForObject("SELECT nickname FROM users WHERE id=202", String.class))
+                .isEqualTo("다른채널202");
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM wallet_transactions", Integer.class)).isZero();
-        assertThat(jdbc.queryForObject("SELECT balance FROM wallets WHERE user_id=909", Long.class)).isEqualTo(123);
-        assertThat(jdbc.queryForObject("SELECT reserved_balance FROM wallets WHERE user_id=909", Long.class)).isEqualTo(10);
+        for (long id : new long[]{101, 202, 909}) {
+            assertThat(jdbc.queryForObject("SELECT balance FROM wallets WHERE user_id=?", Long.class, id))
+                    .isEqualTo(123);
+            assertThat(jdbc.queryForObject("SELECT reserved_balance FROM wallets WHERE user_id=?", Long.class, id))
+                    .isEqualTo(10);
+        }
     }
 
     private void runFrontend(String phase, String access, String refresh, String other) throws Exception {
         Path output = temporary.resolve(phase + ".txt");
+        Path diagnostics = temporary.resolve(phase + "-diagnostics.jsonl");
         var builder = new ProcessBuilder("node", "../frontend/node_modules/vitest/vitest.mjs", "run", "--config",
                 "src/test/js/world-frontend/vitest.config.mts").redirectErrorStream(true).redirectOutput(output.toFile());
         builder.environment().put("TEST_WORLD_PHASE", phase);
@@ -90,7 +108,7 @@ class WorldFrontendMySqlTests {
         builder.environment().put("TEST_WORLD_ACCESS_TOKEN", access);
         builder.environment().put("TEST_WORLD_REFRESH_TOKEN", refresh);
         builder.environment().put("TEST_WORLD_OTHER_TOKEN", other);
-        builder.environment().put("TEST_WORLD_DIAGNOSTICS_FILE", temporary.resolve("diagnostics.jsonl").toString());
+        builder.environment().put("TEST_WORLD_DIAGNOSTICS_FILE", diagnostics.toString());
         Process process = builder.start();
         try {
             assertThat(process.waitFor(60, TimeUnit.SECONDS)).as("frontend phase %s timeout", phase).isTrue();
@@ -98,9 +116,9 @@ class WorldFrontendMySqlTests {
                     .replace(refresh, "[redacted]").replace(other, "[redacted]");
             System.out.println(report);
             assertThat(process.exitValue()).as("frontend phase %s: %s", phase, report).isZero();
-            if (phase.equals("profile-bench")) {
+            if (Files.exists(diagnostics)) {
                 System.out.println("[WORLD_INTEGRATION_DIAGNOSTICS]\n"
-                        + Files.readString(temporary.resolve("diagnostics.jsonl")));
+                        + Files.readString(diagnostics));
             }
         } finally {
             if (process.isAlive()) {

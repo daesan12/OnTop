@@ -20,8 +20,10 @@ FE 연동 확인: 시간 포함 operationId 생성/동일 키 유지, ISO시각 
   실제 ParkRuntime 목록/입장 CHECK·벤치 이용 상태/반납 및 공통 소켓 통신은 검증했고, 3D 화면 검수는 별도다.
 - 2026-10-25 최초 e7dca36 기준 FE 코드/통신 점검: 빌드 모드 시설 서비스는 unavailable, 입장 CHECK 미송신,
   WORLD_FACILITY_STATE 미적용을 재현했다. 서버/공통 소켓 검증과 실제 시설 UI 완료를 구분한다.
-  프로필도 서버 nickname/characterGender 수신은 확인했지만 FE 표시에는 적용되지 않아
-  worldClient의 WORLD_STATE 수신부에서 profiles/avatars에 매핑하는 연결이 필요하다.
+  당시 프로필은 서버 nickname/characterGender 수신만 확인하고 FE 표시 미연결로 구분했다.
+- 후속 dev `271f6f1`의 팀원 공개 프로필 연결을 실제 FE Runtime·JWT/HTTP/RawWS·격리 MySQL로 검증했다.
+  닉네임 정기 갱신·채널별 원시 미전송·퇴장 캐시 제거·새 접속권 수동 재연결을 확인했으며
+  실제 3D 모션/화면 공동 검수는 별도다. 신규 SQL·팀원 소스 변경 없음.
 - 시설 중 감정표현 허용/취소는 미확정, 임의 추가 제한 없음. 확대/FOV는 FE 유지.
 - 서버 단일 JVM 점유. 같은 채널을 여러 인스턴스로 나누려면 점유 공유·라우팅 정책 합의 필요.
 
