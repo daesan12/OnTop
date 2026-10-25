@@ -128,6 +128,11 @@ public class WorldChannelRegistry implements ChannelPresence {
         return rooms.get(channelId).worldState();
     }
 
+    public synchronized boolean hasMovementActivity(String userId) {
+        String channelId = membership.get(userId);
+        return channelId != null && rooms.get(channelId).physics.hasMovementActivity(userId, nanoTime.getAsLong());
+    }
+
     public synchronized WorldState equipment(String userId, List<WorldAppearanceGateway.Equipment> equipment) {
         String channelId = membership.get(userId);
         if (channelId == null) { return null; }

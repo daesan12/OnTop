@@ -126,6 +126,19 @@ public final class WorldPhysics implements AutoCloseable {
         return call(() -> inputNow(id, input, now));
     }
 
+    /** 물리 tick 전 입력과 입력 만료 뒤의 공중 상태도 활동 중으로 판정한다. */
+    public boolean hasMovementActivity(String id, long now) {
+        return call(() -> {
+            Actor actor = actors.get(id);
+            return actor != null && (actor.airborne || actor.jumpQueued || (inputActive(actor, now)
+                    && (actor.input.dx() != 0 || actor.input.dz() != 0 || actor.input.jump())));
+        });
+    }
+
+    private static boolean inputActive(Actor actor, long now) {
+        return actor.input != null && now >= actor.receivedAt && now - actor.receivedAt <= 250_000_000L;
+    }
+
     private boolean inputNow(String id, MoveInput input, long now) {
         Actor actor = actors.get(id);
         if (input.seq() <= actor.seq) {
@@ -182,8 +195,7 @@ public final class WorldPhysics implements AutoCloseable {
                 a.seated = false;
                 space.addCollisionObject(a.body);
             }
-            boolean active =
-                    a.input != null && now >= a.receivedAt && now - a.receivedAt <= 250_000_000L;
+            boolean active = inputActive(a, now);
             Vector3f position = a.body.getPhysicsLocation(null);
             a.swimming = swimming(position);
             float speed =
@@ -293,6 +305,7 @@ public final class WorldPhysics implements AutoCloseable {
                     a.lastSafe.set(x, position.y, z);
                 }
             }
+            a.airborne = !a.seated && !a.body.onGround();
         }
     }
 
@@ -365,6 +378,7 @@ public final class WorldPhysics implements AutoCloseable {
             actor.body.setLinearVelocity(Vector3f.ZERO);
             actor.yaw = yaw;
             actor.swimming = false;
+            actor.airborne = false;
             return null;
         });
     }
@@ -433,7 +447,7 @@ public final class WorldPhysics implements AutoCloseable {
         long seq;
         long receivedAt;
         double yaw = Math.PI;
-        boolean moving, running, swimming, jumpQueued, seated;
+        boolean moving, running, swimming, jumpQueued, seated, airborne;
         double climbTargetY;
 
         Actor(PhysicsCharacter body, int slot, Vector3f spawn) {

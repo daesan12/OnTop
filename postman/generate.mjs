@@ -521,14 +521,16 @@ const publicProfileGuide = '\n\n2026-10-24 공개 프로필: db 프로필의 인
     + '최초 미조회·DB 없는 사용자에는 null이며 기존 표시를 지우지 않습니다. 접속 중 회원은 5초마다 일괄 조회하므로 '
     + 'HTTP PATCH /api/v1/users/me로 닉네임 변경 후 다음 조회 완료 때 같은 채널에 반영됩니다. 재접속은 새 티켓→CHANNEL_JOIN. '
     + '다른 채널 미노출·클라이언트 프로필 주입 거절·조회 장애 시 기존 값 유지를 확인하세요. 기존 equipment/위치 계약은 유지합니다. '
-    + '감정표현 5종은 WAVE/CLAP/APPLAUSE_REQUEST/TSK/FART, 손 인사/박수 5초·나머지 1.8초의 FE 간격을 적용합니다. 직전 성공 표현 기준으로 다른 표현도 대기하며 상태별 허용/취소는 별도 확인입니다. '
+    + '감정표현 5종은 WAVE/CLAP/APPLAUSE_REQUEST/TSK/FART, 손 인사/박수 5초·나머지 1.8초입니다. 가만히 서 있을 때만 허용하며 이동·점프 중 공중 상태·수영·테이블(대기 포함)·시설 중은 EMOTE_ACTIVITY_CONFLICT, 기존 경기 복구 게이트는 GAME_RECOVERY_REQUIRED입니다. '
+    + '승인 후 새 이동/점프·착석·시설 이용은 WORLD_EMOTE_CANCELLED(requestId=null)를 같은 채널에 전송합니다. payload는 eventId/emoteEventId/channelId/userId/reason/sentAt이며 reason은 MOVEMENT/ACTIVITY_STARTED/CHANNEL_LEFT/DISCONNECTED입니다. '
+    + '프론트는 현재 채널/사용자/재생 원본 eventId와 emoteEventId가 일치할 때만 취소하며 중복·늦은 취소·이미 끝난 표현은 무시합니다. 취소/채널 이동으로 사용 간격은 초기화되지 않습니다. 새 REST나 클라이언트 취소 요청은 없으며 취소 알림 수신은 FE 연결이 필요합니다. '
     + 'FE park-bindings.emotes 매핑·3D 렌더링·배포 확인은 별도입니다.';
 wsItems[6].description += appearanceGuide + publicProfileGuide;
 const facilityGuide = '\n\n## 시설 이용·점유 동기화 (2026-10-25)\n\n'
     + 'CHANNEL_JOIN 후 시설01 CATALOG(10개씩 nextOffset, -1종료)→시설02 CHECK(입장·재접속 필수)→시설03/04 USE→시설05 AIM(망원경만)→시설06 RELEASE. '
     + '벤치80개×2석, 운동기구12대·망원경2대×1명. 같은 채널 WORLD_FACILITY_STATE.occupancies 전체 상태와 version을 사용합니다. '
     + '본인 leaseId를 로컬 facilityLeaseId 변수에 복사하거나05/06 JSON에 직접 넣으세요. 이전 이용 ID·다른 사용자 ID는 거절합니다. '
-    + '2026-10-25 사용자 확정: 서버 승인 위치 기준 벤치/기구3m·망원경2m, 높이+0.8m±0.7m, 단절 즉시 해제 후 재접속 재이용. 100ms/pitch범위는 현재 FE 설정이며 시설 감정표현 허용/취소는 협의 목록에 남아 있습니다. '
+    + '2026-10-25 사용자 확정: 서버 승인 위치 기준 벤치/기구3m·망원경2m, 높이+0.8m±0.7m, 단절 즉시 해제 후 재접속 재이용. 100ms/pitch범위는 현재 FE 설정입니다. 시설 이용 중 일반 감정표현은 금지하며 이용 승인 시 기존 표현을 취소합니다. '
     + '이용 중 이동/점프/테이블 착석은 FACILITY_BUSY. 하차 승인 후 WORLD_STATE 위치에서 이동합니다. '
     + '망원경 yaw[-π,π],pitch[-1.35,1.15],seq1~4294967295,100ms 간격. 과거seq는 본인 ACK만, 확대/FOV는FE. '
     + '단절/채널퇴장 즉시 해제, 재접속 CHECK 후 재이용하며 경기30초유예는 그대로입니다. '
