@@ -394,8 +394,13 @@ export const characterResources = () => ({ ...resourceWatch })
 import { useEmoteState } from '../../src/features/emotes/state'
 import { inputState } from '../../src/world/inputOwnership'
 export function emoteProbe() {
+  const { scene } = root()
   return { ...useEmoteState.getState(), wheelOpen: inputState.emoteWheelOpen,
-    avatars: ['101', '102'].map(id => ({ id, emote: avatars.get(id)?.emote, at: avatars.get(id)?.emoteAt })) }
+    avatars: ['101', '102'].map(id => ({ id, emote: avatars.get(id)?.emote, at: avatars.get(id)?.emoteAt,
+      arm: scene.getObjectByName('avatar-' + id)?.getObjectByName('upperArm_R')?.rotation.toArray().slice(0, 3) as number[] | undefined,
+      headYaw: scene.getObjectByName('avatar-' + id)?.getObjectByName('head')?.rotation.y,
+      cloudVisible: scene.getObjectByName('fart-' + id)?.visible,
+    })) }
 }
 export function fixtureInputFlag(flag: 'manualOpen' | 'mapOpen' | 'minigameOpen', open: boolean) { inputState[flag] = open }
 

@@ -9,6 +9,7 @@ import type { OneCard, Hand, Card } from '../../src/game/onecard/protocol'
 import { bridgeState as makeBridge } from '../fixtures/bridge'
 import type { Bridge, SecretDie } from '../../src/game/bridge/protocol'
 import { facilityFixture } from './facilityFixture'
+import developmentBindings from '../../public/park-bindings.dev.json' with { type: 'json' }
 
 // Contract fixtures intercept HTTP/RawWS only in tests. No production fake-auth or socket bypass.
 const anchor = TABLES[0]!
@@ -33,7 +34,7 @@ export async function fixture(
     startEvents?: boolean
     manualMovement?: boolean
     ownUserId?: '101' | '102'
-    emoteBindings?: boolean
+    emoteBindings?: boolean | 'development'
     publicProfiles?: Record<string, { nickname?: string | null; characterGender?: 'MALE' | 'FEMALE' | null }>
     position?: { x: number; y: number; z: number; yaw: number }
   } = {},
@@ -255,7 +256,8 @@ export async function fixture(
   await page.route('**/park-bindings.json', (route) =>
     route.fulfill({
       json: {
-        emotes: options.emoteBindings === false ? [] : [{ motion: 'EMOTE_CLAP', code: 'CLAP' }, { motion: 'EMOTE_WAVE', code: 'WAVE' }],
+        emotes: options.emoteBindings === 'development' ? developmentBindings.emotes
+          : options.emoteBindings === false ? [] : [{ motion: 'EMOTE_CLAP', code: 'CLAP' }, { motion: 'EMOTE_WAVE', code: 'WAVE' }],
         bindings:
           options.bindings === false
             ? []
