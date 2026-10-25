@@ -405,7 +405,13 @@ const wsItems = [
             message('24 다리 믿기 — 본인 RESPONDING·최신 버전', 'GAME_ACTION_SEND',
                   { gameId: '{{gameId}}', actionId: 'bridge-trust-1', expectedVersion: 0, input: { kind: 'trust' } }),
             message('25 다리 다우트 — 본인 RESPONDING·최신 버전', 'GAME_ACTION_SEND',
-                  { gameId: '{{gameId}}', actionId: 'bridge-doubt-1', expectedVersion: 0, input: { kind: 'doubt' } })])
+                  { gameId: '{{gameId}}', actionId: 'bridge-doubt-1', expectedVersion: 0, input: { kind: 'doubt' } }),
+            message('26 본인 경기 수동 기권 — 승인 뒤 취소 불가·소켓 유지', 'GAME_FORFEIT',
+                  { gameId: '{{gameId}}', actionId: 'manual-forfeit-1' }),
+            message('27 같은 기권 재확인 — duplicate:true·이벤트 재발행 없음', 'GAME_FORFEIT',
+                  { gameId: '{{gameId}}', actionId: 'manual-forfeit-1' }),
+            message('28 기권 사용자 위조 거절 — INVALID_PAYLOAD', 'GAME_FORFEIT',
+                  { gameId: '{{gameId}}', actionId: 'manual-forfeit-forged', userId: 'other-user' })])
 ];
 const farkleGuide = '주사위(DICE)는 local의 ontop.games.farkle.enabled=true로 선택 활성화하며 서버 내부 참가 확정 후 생성한 경기에서 실행합니다. '
     + '12는 최초 굴림,13은 재굴림,14는Bank,15는12의 동일행동 재확인입니다. 13/14는 최신 GAME_STATE.version과 현재 dice의 held=false 득점 ID로 수정하세요. 서로 순차 실행하는 고정 시나리오가 아닙니다. '
@@ -416,6 +422,14 @@ const farkleGuide = '주사위(DICE)는 local의 ontop.games.farkle.enabled=true
     + 'publicState:gameCode=DICE,status,players,scores,targetScore,turnTimeLimitMs=30000,turnUserId,turnDeadline,turnScore,dice[{id,value,held}],stage(AWAITING_ROLL/SELECTING/FINISHED),rollId,round,hotDice,lastEvent,winnerUserId,endReason,endedAt. '
     + 'privateState={},새차례첫굴림전dice=[]. BANK/BUST는바로다음차례상태를전송하며 프론트가rollId/lastEvent로연출합니다. 종료는TARGET_REACHED/RECONNECT_EXPIRED이며DB정산확정과구분합니다. ';
 wsItems[5].description += '\n\n' + farkleGuide;
+wsItems[5].description += '\n\n수동 기권: GAME_FORFEIT {gameId,actionId}만 허용하며 본인 차례/expectedVersion 불필요. '
+    + 'GAME_FORFEIT_RESULT는 {gameId,actionId,version,duplicate}. 동일 경기·참가자는 한번만 확정하고 재전송/재클릭은duplicate:true와최초version. '
+    + '소켓·로그인·채널을유지하며30초유예없이기권. 본인에게GAME_CONNECTION_STATE PENDING→FINISHED/ELIMINATED, '
+    + '참가자/허용관전자에게GAME_STATE. 응답과상태순서보장없음. 2인은상대승리,3~4인은본인탈락후계속. '
+    + '서버이벤트GameParticipantLeft EXPLICIT_LEAVE와최종GameFinished는기존DB정산연결계약이며승인응답이정산완료는아님. '
+    + '종료·다른사유탈락은GAME_FORFEIT_GAME_FINISHED/NOT_ACTIVE,관전자·다른경기·미복구는GAME_RECOVERY_REQUIRED. '
+    + '늦은오목시간패우선,다리pendingForfeit경계와원카드손패제외유지. 기권취소명령없음·좌석은기존정산후대기정책. '
+    + '로컬구현·검증완료/미배포,메모리중복영수증이며재시작·다중서버보장별도.';
 const onecardGuide = '원카드(ONE_CARD)는2~4명·54장·7장배분·서버랜덤선공이며 local의 ontop.games.onecard.enabled=true로 선택 활성화합니다. '
     + '2026-10-22확정: 기권손패는이번경기에서제외(REMOVE)하며뽑기덱환원/셔플없음. 다음판은새덱,별도정책설정불필요. '
     + '16~21은독립예제입니다. gameId/expectedVersion은실제경기·최신버전,cardId는본인privateState.hand,targetUserId는공개players.userId로수정합니다. '

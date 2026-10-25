@@ -10,6 +10,8 @@ import com.ssafy.ontop.behavior.service.PositionSampler;
 import com.ssafy.ontop.game.action.GameActionCommand;
 import com.ssafy.ontop.game.action.GameActionGateway;
 import com.ssafy.ontop.game.action.GameActionResult;
+import com.ssafy.ontop.game.action.GameForfeitCommand;
+import com.ssafy.ontop.game.action.GameForfeitResult;
 import com.ssafy.ontop.game.reconnect.GameReconnectService;
 import com.ssafy.ontop.game.result.GameResultService;
 import com.ssafy.ontop.game.result.GameResultCommitted;
@@ -409,6 +411,10 @@ public class TableHub {
             }
             if (request.type().equals("GAME_ACTION_SEND")) {
                 sendGameAction(sessionId, member, request);
+                return;
+            }
+            if (request.type().equals("GAME_FORFEIT")) {
+                sendGameForfeit(sessionId, member, request);
                 return;
             }
             if (request.type().equals("GAME_STATE_CHECK")) {
@@ -1700,6 +1706,63 @@ public class TableHub {
                 gameStateChanged(new GameStateChanged(result.gameId(), result.version()));
             }
         });
+    }
+
+    private void sendGameForfeit(String sessionId, Member member, Request request) {
+        if (member.accountId() == null) {
+            fail(request, "GAME_FORFEIT_AUTH_REQUIRED", "인증된 사용자만 기권할 수 있습니다.");
+        }
+        if (gameActions.isEmpty()) {
+            fail(request, "GAME_FORFEIT_NOT_CONFIGURED", "경기 입력 연결이 준비되지 않았습니다.");
+        }
+        String gameId = request.payload().path("gameId").asText();
+        if (!canForfeitGame(sessionId, member, gameId)) {
+            fail(request, "GAME_RECOVERY_REQUIRED", "현재 경기 복구 상태를 먼저 확인해주세요.");
+        }
+        if (!actionRequests.add(sessionId)) {
+            fail(request, "GAME_ACTION_PENDING", "이전 경기 입력이 처리 중입니다.");
+        }
+        var command = new GameForfeitCommand(member.accountId(), gameId,
+                request.payload().path("actionId").asText());
+        startWorkers.execute(() -> {
+            GameForfeitResult result = null;
+            String error = null;
+            try {
+                if (!canForfeitGame(sessionId, member, gameId)) {
+                    error = "GAME_RECOVERY_REQUIRED";
+                } else {
+                    result = gameActions.orElseThrow().forfeit(command);
+                    if (result == null || result.userId() != command.userId() || !gameId.equals(result.gameId())
+                            || !command.actionId().equals(result.actionId()) || result.version() < 0) {
+                        error = "GAME_FORFEIT_INVALID";
+                    }
+                }
+            } catch (GameActionGateway.Rejected rejected) {
+                error = "GAME_FORFEIT_" + rejected.reason().name();
+            } catch (RuntimeException exception) {
+                error = "GAME_FORFEIT_UNAVAILABLE";
+            }
+            finishGameForfeit(sessionId, member, request.requestId(), result, error);
+        });
+    }
+
+    private synchronized boolean canForfeitGame(String sessionId, Member member, String gameId) {
+        return !stopped && members.get(sessionId) == member && reconnect.isPresent()
+                && reconnect.get().canForfeitGame(member.accountId(), sessionId, gameId);
+    }
+
+    private synchronized void finishGameForfeit(String sessionId, Member member, String requestId,
+            GameForfeitResult result, String error) {
+        if (stopped || members.get(sessionId) != member) { return; }
+        actionRequests.remove(sessionId);
+        if (error != null) {
+            member.peer().offer(protocol.error(requestId, error, "기권을 처리할 수 없습니다."));
+        } else {
+            member.peer().offer(protocol.encode(requestId, "GAME_FORFEIT_RESULT", Map.of(
+                    "gameId", result.gameId(), "actionId", result.actionId(), "version", result.version(),
+                    "duplicate", result.duplicate())));
+            reconnect.orElseThrow().forfeitResolved(member.accountId(), sessionId);
+        }
     }
 
     private synchronized boolean canSendGameAction(String sessionId, Member member, String gameId) {
