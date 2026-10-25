@@ -65,7 +65,7 @@ test('M11 uses exact roll/held selection/Hot Dice/Bank commands, public eyes, se
   await bank(page).click(); await expect(panel(page)).toContainText('승리'); await expect(panel(page)).toContainText('2,050점')
   await panel(page).getByRole('button', { name: '정산 결과 확인' }).click(); await expect(panel(page)).toContainText('정산 대기 중')
   server.settle(); await expect(panel(page)).toContainText('정산 완료 · 내 엽전 증감 1')
-  await expect(page.locator('.park-account__balance')).toHaveText('—냥')
+  await expect(page.getByLabel('보유 엽전', { exact: true })).toHaveText('100냥')
   server.nextRound(); await expect(panel(page)).toHaveCount(0)
   // The original textured dice use cached meshes; six per-die pip instance buffers are gone.
   await expect.poll(() => page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).diceResourceProbe())).toEqual({ disposed: 0, sharedDisposed: 0 })

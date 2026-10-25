@@ -9,6 +9,7 @@ import { facilityMovementBlocked, serverFacilities } from '../../features/facili
 import { RestError } from '../../network/restError'
 import { inputState } from '../../world/inputOwnership'
 import { rememberRoamingView } from '../../world/cameraReturn'
+import { filterChat } from '../../features/chat/filterChat'
 import {
   channel,
   record,
@@ -422,7 +423,7 @@ export class ParkRuntime implements ParkRuntimePort {
     })
   sendChat = (value: string) =>
     this.action(async () => {
-      const text = validateChat(value)
+      const text = filterChat(validateChat(value))
       if (!useSession.getState().roomId)
         throw new Error('먼저 채널에 입장해주세요.')
       await this.socket.request('WORLD_CHAT_SEND', { text }, [
