@@ -90,6 +90,8 @@ abstract class OpenApiHttpTestSupport {
                 "GET /api/v1/wallets/me/transactions", "GET /api/v1/rankings"));
         if (environment.acceptsProfiles(Profiles.of("(local | dev) & !prod & !production"))) {
             expected.addAll(Set.of("GET /api/v1/channels", "GET /api/v1/tables"));
+            assertThat(api.at("/components/schemas/TableSummaryResponse/properties/gameId/nullable").asBoolean())
+                    .isTrue();
         }
         if (environment.acceptsProfiles(Profiles.of("(local | dev) & !prod & !production"))) {
             expected.addAll(Set.of("GET /api/v1/shop/items",

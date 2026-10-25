@@ -6,6 +6,11 @@ OnTop v0.4의 **비공개 정보는 본인에게만 전송, 관전자는 공개 
 
 ## 요청·응답
 
+2026-10-25 관전 대상 선택: GET /api/v1/tables의 해당 테이블 gameId 또는 TABLE_WATCH_STATE.payload.gameId를
+GAME_WATCH에 그대로 사용한다. tableId로 추측하지 않는다. 확정 PLAYING만 문자열이며 그 외는 null이다.
+시작/종료 때 테이블 version도 증가한다. ID 수신은 권한/구독을 부여하지 않고 기존 채널·20m 검사를 유지한다.
+FE는 null/새 ID를 받으면 기존 GAME_UNWATCH 후 새 관전을 요청한다. GAME_START_STATE.gameSessionId와 결과 계약은 유지한다.
+
 인증된 연결에서 다음을 보낸다. `gameId`는 조회 대상이며 접근 권한의 증명이 아니다. 사용자 ID·역할은 요청에 넣을 수 없다.
 
 ```json

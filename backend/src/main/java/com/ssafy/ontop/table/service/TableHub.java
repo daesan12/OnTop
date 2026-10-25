@@ -379,7 +379,7 @@ public class TableHub {
             int available = snapshot.capacity() - occupied;
             return new TableSummaryResponse(tableId, snapshot.capacity(), snapshot.minimumPlayers(), occupied,
                     available, ready, snapshot.allReady(), status, available > 0 && status.equals("WAITING"),
-                    snapshot.gameCode(), snapshot.targetScore());
+                    snapshot.gameCode(), snapshot.targetScore(), publicGameId(tableId));
         }).toList());
     }
 
@@ -1094,7 +1094,7 @@ public class TableHub {
     }
 
     private void replyState(Member member, Request request, TableRoom room) {
-        member.peer().offer(protocol.encode(request.requestId(), "TABLE_STATE", room.snapshot()));
+        member.peer().offer(protocol.encode(request.requestId(), "TABLE_STATE", publicSnapshot(room)));
     }
 
     private void watch(Member member, Request request) {
@@ -1123,7 +1123,7 @@ public class TableHub {
             fail(request, "ALREADY_WATCHING", "기존 테이블 보기부터 종료해주세요.");
         }
         watching.put(member.userId(), tableId);
-        member.peer().offer(protocol.encode(request.requestId(), "TABLE_WATCH_STATE", room.snapshot()));
+        member.peer().offer(protocol.encode(request.requestId(), "TABLE_WATCH_STATE", publicSnapshot(room)));
         if (current == null) {
             recordBehavior(BehaviorEventType.TABLE_WATCHED, member.accountId(), builder -> builder.tableId(tableId));
         }
@@ -1144,7 +1144,7 @@ public class TableHub {
     }
 
     private void publish(TableRoom room, Member actor, String requestId) {
-        TableRoom.Snapshot snapshot = room.snapshot();
+        TableRoom.Snapshot snapshot = publicSnapshot(room);
         for (Member target : members.values()) {
             if (snapshot.tableId().equals(seating.get(target.userId()))) {
                 target.peer().offer(protocol.encode(target == actor ? requestId : null, "TABLE_STATE", snapshot));
@@ -1156,6 +1156,16 @@ public class TableHub {
                 }
             }
         }
+    }
+
+    private TableRoom.Snapshot publicSnapshot(TableRoom room) {
+        return room.snapshot(publicGameId(room.snapshot().tableId()));
+    }
+
+    private String publicGameId(String tableId) {
+        TableStartAttempt attempt = starts.get(tableId);
+        return committedStarts.isPresent() && attempt != null && attempt.phase().equals("PLAYING")
+                && !attempt.endedEarly() ? attempt.view(0, false).gameSessionId() : null;
     }
 
     private void fail(Request request, String code, String message) {
@@ -1254,6 +1264,11 @@ public class TableHub {
         if (committedStarts.isPresent()) { attempt.playing(); }
         if (committedStarts.isPresent() && attempt.frozen() && !attempt.starting()) {
             recordGameStarted(tableId, attempt, result);
+            if (publicGameId(tableId) != null) {
+                TableRoom room = rooms.get(tableId);
+                room.publicStateChanged();
+                publish(room, null, null);
+            }
         }
         if (!attempt.frozen()) {
             Set<String> connected = connectedUsers();

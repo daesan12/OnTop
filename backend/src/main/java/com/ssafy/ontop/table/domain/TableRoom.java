@@ -86,6 +86,11 @@ public final class TableRoom {
     }
 
     public Snapshot snapshot() {
+        return snapshot(null);
+    }
+
+    // 경기 ID는 Hub의 확정 시작 상태에서 전달하며 좌석 모델에 중복 저장하지 않는다.
+    public Snapshot snapshot(String gameId) {
         List<Seat> seats = new ArrayList<>();
         for (int index = 0; index < capacity(); index++) {
             seats.add(new Seat(index + 1, users[index], ready[index]));
@@ -94,7 +99,8 @@ public final class TableRoom {
         boolean allReady = game != null && arrivalOrder.size() >= minimum
                 && seats.stream().filter(seat -> seat.userId() != null).allMatch(Seat::ready);
         return new Snapshot(tableId, version, capacity(), minimum, List.copyOf(seats), allReady,
-                arrivalOrder.isEmpty() ? null : arrivalOrder.getFirst(), game == null ? null : game.name(), targetScore);
+                arrivalOrder.isEmpty() ? null : arrivalOrder.getFirst(), game == null ? null : game.name(),
+                targetScore, gameId);
     }
 
     private int capacity() {
@@ -131,10 +137,15 @@ public final class TableRoom {
 
     public void resetReady() { membershipChanged(); }
 
+    public void publicStateChanged() {
+        version++;
+    }
+
     public record Seat(int seatNumber, String userId, boolean ready) {
     }
 
     public record Snapshot(String tableId, long version, int capacity, int minimumPlayers,
-            List<Seat> seats, boolean allReady, String selectorUserId, String gameCode, Integer targetScore) {
+            List<Seat> seats, boolean allReady, String selectorUserId, String gameCode, Integer targetScore,
+            String gameId) {
     }
 }

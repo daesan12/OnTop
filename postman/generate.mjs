@@ -108,6 +108,7 @@ const loginTables = http('12 로그인 사용자 테이블 조회·ID 저장', '
     'TABLE-01: local,db + ontop.websocket.authenticated=true와 실제 로그인 Access JWT가 필요합니다. '
     + 'HTTP11에서 선택한 채널을 개인 channelIdA로 설정하고 이 응답의 tableIdA로 WS07에서 착석합니다. '
     + '채널 입장·착석·게임 선택·준비·퇴장/heartbeat 뒤 재조회하면 공개 요약을 확인합니다. 조회는 예약이 아닙니다. '
+    + 'tables[].gameId는 확정 PLAYING 경기만 문자열이며 대기·리허설·미확정·종료·정산은null입니다. 선택한 테이블 ID를 추측하지 말고 gameId를 GAME_WATCH에 사용하세요. '
     + '401 미인증/만료/비활성,403 출처거절,503 인증/계정 장애. 인증 후400 채널 누락·404 없는 채널. '
     + '기본 개발 모드는03/04이며 실제 DB 차감/정산 성공 검증과 구분합니다. 토큰을 공유하지 마세요.',
     saveTable('tableIdA') + `
@@ -115,11 +116,17 @@ pm.test('공개 요약과 캐시 금지', () => {
     pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store');
     pm.response.json().tables.forEach(table => {
         pm.expect(table).to.have.all.keys('tableId', 'capacity', 'minimumPlayers', 'occupiedSeats',
-            'availableSeats', 'readyCount', 'allReady', 'status', 'joinable', 'gameCode', 'targetScore');
+            'availableSeats', 'readyCount', 'allReady', 'status', 'joinable', 'gameCode', 'targetScore', 'gameId');
+        if (table.status !== 'PLAYING') pm.expect(table.gameId).to.eql(null);
+        else pm.expect(table.gameId).to.be.a('string').and.not.empty;
         pm.expect(table.availableSeats).to.eql(table.capacity - table.occupiedSeats);
         pm.expect(table.joinable).to.eql(table.status === 'WAITING' && table.availableSeats > 0);
     });
-});`, tableBefore('tableIdA'));
+});
+if (pm.response.code === 200) {
+    const selected = pm.response.json().tables.find(table => table.tableId === pm.environment.get('tableIdA'));
+    pm.environment.set('gameId', selected && typeof selected.gameId === 'string' ? selected.gameId : '');
+}`, tableBefore('tableIdA'));
 loginTables.headers = [{ key: 'Authorization', value: 'Bearer {{accessToken}}' },
     { key: 'Origin', value: '{{baseUrl}}' }];
 httpItems.push(loginTables);
@@ -325,6 +332,8 @@ const wsItems = [
     wsRequest('03 관전자 C — 공개 대기 상태 보기',
         '광장 A 입장·서버 스폰 확인 후 TABLE_WATCH를 보냅니다. 서버 테이블 좌표가 설정되어 있고 중심 20m 이내여야 합니다. 미설정/범위 밖은 TABLE_OUT_OF_RANGE입니다. TABLE_WATCH_STATE를 받으며 좌석·준비 인원은 늘지 않습니다. '
         + 'x/z는 1단위=1m인 서버 판정 위치입니다. 방향 입력을 반복해 실제 테이블 중심에 접근합니다. 거리 초과 이동 시 TABLE_WATCH_LEFT로 종료하고 다시 가까워져도 자동 재구독하지 않습니다. '
+        + 'TABLE_WATCH_STATE.payload.gameId는 확정 PLAYING만 문자열이고 그 외null입니다. 시작·종료 때 version이 증가합니다. '
+        + '이 값을 개인 환경 gameId에 복사하거나 HTTP12로 받아 GAME_WATCH를 별도 요청하세요. null/새ID면 GAME_UNWATCH 후 새ID로 관전합니다. '
         + '실제 경기 관전 권한이나 원카드 손패 구독이 아닙니다. 착석 성공 시 구독은 자동 종료됩니다.',
         [joinA(), locate(), message('02 테이블 보기 → TABLE_WATCH_STATE', 'TABLE_WATCH', { tableId: '{{tableIdA}}' }),
             message('03 보기 종료 → TABLE_WATCH_LEFT', 'TABLE_UNWATCH'),

@@ -3196,6 +3196,10 @@ components:
         targetScore:
           type: integer
           format: int32
+        gameId:
+          type: string
+          description: PLAYING인 확정 경기의 공개 gameId. 나머지 상태는 null
+          nullable: true
     ItemListResponse:
       type: object
       properties:
