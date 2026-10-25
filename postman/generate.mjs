@@ -429,6 +429,8 @@ wsItems[5].description += '\n\n수동 기권: GAME_FORFEIT {gameId,actionId}만 
     + '서버이벤트GameParticipantLeft EXPLICIT_LEAVE와최종GameFinished는기존DB정산연결계약이며승인응답이정산완료는아님. '
     + '종료·다른사유탈락은GAME_FORFEIT_GAME_FINISHED/NOT_ACTIVE,관전자·다른경기·미복구는GAME_RECOVERY_REQUIRED. '
     + '늦은오목시간패우선,다리pendingForfeit경계와원카드손패제외유지. 기권취소명령없음·좌석은기존정산후대기정책. '
+    + '승인유실후새접속권으로FINISHED복구→보존테이블의원래CHANNEL_JOIN→같은기권재확인(duplicate:true). 다른채널TABLE_BUSY. '
+    + 'PENDING은다음판차단,저장조회/커밋알림SETTLED후전원다시준비. 과거기권/종료/정산은새경기에미적용. '
     + '로컬구현·검증완료/미배포,메모리중복영수증이며재시작·다중서버보장별도.';
 const onecardGuide = '원카드(ONE_CARD)는2~4명·54장·7장배분·서버랜덤선공이며 local의 ontop.games.onecard.enabled=true로 선택 활성화합니다. '
     + '2026-10-22확정: 기권손패는이번경기에서제외(REMOVE)하며뽑기덱환원/셔플없음. 다음판은새덱,별도정책설정불필요. '

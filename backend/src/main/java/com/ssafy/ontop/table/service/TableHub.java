@@ -640,7 +640,9 @@ public class TableHub {
 
     private void joinChannel(Member member, Request request) {
         String channelId = request.payload().get("channelId").textValue();
-        if (seating.containsKey(member.userId()) && !channels.isInChannel(member.userId(), channelId)) {
+        // 정산 대기 좌석을 보존한 재접속자는 원래 테이블 채널로 돌아올 수 있다.
+        if (seating.containsKey(member.userId()) && !channels.isInChannel(member.userId(), channelId)
+                && !channelId.equals(tableChannels.get(seating.get(member.userId())))) {
             fail(request, "TABLE_BUSY", "먼저 테이블에서 퇴장해주세요.");
         }
         WorldChannelRegistry.Change change = channels.join(member.userId(), channelId);
