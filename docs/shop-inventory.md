@@ -4,10 +4,30 @@
 
 ## 공통
 
-- local 프로필. 4개 API 모두 Access JWT·활성 계정 필수. 인증은 ShopAccessFilter→기존 AccessJwtService/계정 조회다. userId·접속권·세션 값으로 우회하지 않는다.
+- local/dev 프로필에서 등록한다(prod/production 혼합 제외). 4개 API 모두 Access JWT·활성 계정 필수. 인증은 ShopAccessFilter→기존 AccessJwtService/계정 조회다. userId·접속권·세션 값으로 우회하지 않는다.
 - JSON 응답, Cache-Control: no-store. 허용된 AUTH_ALLOWED_ORIGINS만 CORS, OPTIONS는 인증 없이204. 요청은 GET/POST/PATCH, Authorization/Content-Type/Idempotency-Key만 프리플라이트 허용.
 - 숫자 ID는 양의 정수, 수량도 양의 int. 금액·소유자·장착 부위 추가 입력, 문자열 숫자·소수·잘못된 JSON은400 INVALID_REQUEST.
-- 기본값은 비활성: local,db + ontop.shop.enabled=true와 아래 스키마가 필요하다. 미설정503 SHOP_NOT_CONFIGURED, DB 장애503 SHOP_UNAVAILABLE. 빈 목록/구매 성공으로 위장하지 않는다.
+- 기본값은 비활성: local,db 또는 dev,db + ontop.shop.enabled=true와 아래 스키마가 필요하다. dev 환경변수는 SHOP_ENABLED=true다. 미설정503 SHOP_NOT_CONFIGURED, DB 장애503 SHOP_UNAVAILABLE. 빈 목록/구매 성공으로 위장하지 않는다.
+
+## dev 실행 준비
+
+1. 기존 상점 V100의 적용 여부와 팀 Flyway 버전 순서를 먼저 확인한다. 이미 V110/V111 이후인 DB에
+   db/shop을 추가하는 절차는 DB 담당과 조율하며 repair/outOfOrder/기존 SQL 수정·초기화를 임의로 실행하지 않는다.
+2. 기존 SPRING_FLYWAY_LOCATIONS의 공통·미니게임 등 경로를 유지하고 classpath:db/shop을 명시적으로 추가한다.
+   상점 설정만 켠다고 해당 경로가 자동 추가되지는 않는다. 새 마이그레이션 파일은 만들지 않았다.
+3. dev,db에 SHOP_ENABLED=true를 주입한다. local은 기존 ONTOP_SHOP_ENABLED=true 또는
+   ontop.shop.enabled=true를 사용한다. 상품·가격·외형 에셋은 실제 팀 데이터로 준비하며 데모 값을 넣지 않는다.
+4. 실제 회원으로 상품 조회 → 구매 → 같은 키 재확인 → 보유 조회 → 장착 → 같은 채널 WORLD_STATE.equipment를 확인한다.
+
+Postman의 baseUrl은 API 주소다. 예제의 Origin={{baseUrl}}는 dev에서 허용된 프론트 주소와 다를 수 있다.
+AUTH_ALLOWED_ORIGINS에 등록된 실제 프론트 Origin으로 바꾸거나, 비브라우저 테스트에서는 Origin 헤더를 제외한다.
+브라우저 프론트는 실제 페이지 Origin을 보내며 서버 허용 목록은 이번 작업에서 바꾸지 않았다.
+
+ShopDevHttpTests는 dev의 인증·미설정503·구매/장착 CORS를, ShopRuntimeProfileTests는 기본 비활성·운영 제외를 검사한다.
+ShopDevMySqlTests는 dev,db의 실제 JWT/접속권·HTTP·JPA·새 격리 MySQL·RawWS로 구매 재시도·예약금 보호·
+기보유 의상 거절·보유 조회·장착·다른 회원 장착 거절·같은 채널 전파·재접속 복구를 확인한다.
+물리 시간은 fixture이며 실제 OAuth 제공자·프론트 렌더링·공유 DB 적용·경기 예약/정산·원격 배포 검증은 아니다.
+별도 DB의 TEST_SHOP_DEV_DB_URL(ontop_shop_test_dev_*), TEST_SHOP_DB_USERNAME/PASSWORD가 필요하다.
 
 ## SHOP-01 · GET /api/v1/shop/items
 

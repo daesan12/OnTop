@@ -128,8 +128,10 @@ paths:
       - Shop
       summary: 아이템 구매
       description: "지갑을 잠그고 잔액 차감·보유량·거래 원장·멱등 영수증을 한 트랜잭션으로 저장합니다. 의상 중복 구매는 REJECT\
-        \ 정책입니다. Idempotency-Key가 필요합니다. local 프로필 전용. 실제 서비스는 local,db 및 ontop.shop.enabled=true,\
-        \ 별도 상점 스키마와 회원 지갑이 필요합니다. 공통 V1~V4만으로 상점 스키마가 생성되지 않으며 운영 프로필 전환은 미완료입니다."
+        \ 정책입니다. Idempotency-Key가 필요합니다. local/dev 프로필에서 등록됩니다(운영 혼합 제외). 실제 서비스는\
+        \ db 및 ontop.shop.enabled=true(dev: SHOP_ENABLED=true), 별도 상점 스키마와 회원 지갑이\
+        \ 필요합니다. 기존 V100 적용 이력·순서를 확인한 뒤 Flyway locations에 db/shop을 명시적으로 추가합니다. 기\
+        본 비활성·실제 배포는 별도입니다."
       operationId: purchase
       parameters:
       - name: Idempotency-Key
@@ -1523,9 +1525,10 @@ paths:
       tags:
       - Shop
       summary: 내 의상 장착
-      description: "보유한 의상을 같은 슬롯의 기존 장착과 교체합니다. 커밋 후 의상 변경 이벤트를 발행합니다. local 프로필\
-        \ 전용. 실제 서비스는 local,db 및 ontop.shop.enabled=true, 별도 상점 스키마와 회원 지갑이 필요합니다\
-        . 공통 V1~V4만으로 상점 스키마가 생성되지 않으며 운영 프로필 전환은 미완료입니다."
+      description: "보유한 의상을 같은 슬롯의 기존 장착과 교체합니다. 커밋 후 의상 변경 이벤트를 발행합니다. local/dev\
+        \ 프로필에서 등록됩니다(운영 혼합 제외). 실제 서비스는 db 및 ontop.shop.enabled=true(dev: SHOP_ENABLED=true),\
+        \ 별도 상점 스키마와 회원 지갑이 필요합니다. 기존 V100 적용 이력·순서를 확인한 뒤 Flyway locations에 db/shop을\
+        \ 명시적으로 추가합니다. 기본 비활성·실제 배포는 별도입니다."
       operationId: equip
       requestBody:
         content:
@@ -1916,9 +1919,10 @@ paths:
       tags:
       - Shop
       summary: 내 보유 아이템
-      description: "인증된 본인 계정의 수량이 양수인 보유 아이템을 조회합니다. local 프로필 전용. 실제 서비스는 local,db\
-        \ 및 ontop.shop.enabled=true, 별도 상점 스키마와 회원 지갑이 필요합니다. 공통 V1~V4만으로 상점 스키마가\
-        \ 생성되지 않으며 운영 프로필 전환은 미완료입니다."
+      description: "인증된 본인 계정의 수량이 양수인 보유 아이템을 조회합니다. local/dev 프로필에서 등록됩니다(운영 혼합\
+        \ 제외). 실제 서비스는 db 및 ontop.shop.enabled=true(dev: SHOP_ENABLED=true), 별도 상점\
+        \ 스키마와 회원 지갑이 필요합니다. 기존 V100 적용 이력·순서를 확인한 뒤 Flyway locations에 db/shop을 명시\
+        적으로 추가합니다. 기본 비활성·실제 배포는 별도입니다."
       operationId: inventory
       responses:
         "200":
@@ -2114,8 +2118,10 @@ paths:
       tags:
       - Shop
       summary: 판매 아이템 목록
-      description: "판매 중인 실제 Item 목록을 조회합니다. local 프로필 전용. 실제 서비스는 local,db 및 ontop.shop.enabled=true,\
-        \ 별도 상점 스키마와 회원 지갑이 필요합니다. 공통 V1~V4만으로 상점 스키마가 생성되지 않으며 운영 프로필 전환은 미완료입니다."
+      description: "판매 중인 실제 Item 목록을 조회합니다. local/dev 프로필에서 등록됩니다(운영 혼합 제외). 실제 서\
+        비스는 db 및 ontop.shop.enabled=true(dev: SHOP_ENABLED=true), 별도 상점 스키마와 회원 지갑\
+        이 필요합니다. 기존 V100 적용 이력·순서를 확인한 뒤 Flyway locations에 db/shop을 명시적으로 추가합니다. 기\
+        본 비활성·실제 배포는 별도입니다."
       operationId: catalog
       responses:
         "200":

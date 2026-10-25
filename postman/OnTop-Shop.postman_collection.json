@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "OnTop Shop",
-    "description": "SHOP-01/02 · INVENTORY-01/02. 13목록→14구매→15동일키 재요청→16보유→17장착. 18은 같은키 충돌 검사. local,db + ontop.shop.enabled=true + 공통/상점 스키마가 필요합니다. 보유 의상 재구매는 서버에서 거절하고 소비형은 수량을 누적합니다. 테스트 계정의 개인 로컬 Access JWT만 사용하고 공유하지 마세요. 기본 DB에 스키마를 자동 적용하지 않았습니다. 실제 DB 초기화·공통 재화 통합·3D 외형 계약은 별도 확인합니다.\n\n2026-10-22: 상점 저장 처리를 JPA 엔티티·JPQL로 전환했습니다. 기존 6개 요청·응답·중복 구매 방지·롤백 계약은 그대로이며 예제 수정 없이 사용할 수 있습니다.\n\n2026-10-22 의상 동기화: local,db + ontop.shop.enabled=true. WS07의 인증 사용자 두 명이 같은 채널에 CHANNEL_JOIN 후 본인이 HTTP17로 장착하면 WORLD_STATE.payload.avatars[].equipment가 갱신됩니다. 다른 채널에는 전파하지 않습니다. 새 티켓→재접속→CHANNEL_JOIN 후 최신 장착을 복구합니다. 공개 필드는 itemId/itemCode/equipSlot/imageKey, 최대5개·부위당 하나이며 null은 미조회/사용 불가로 기존 외형 유지, []는 장착 없음입니다. 이동 tick은 캐시를 쓰고 조회 실패는 기존 외형을 유지합니다. 실제 3D 에셋 매핑·렌더링 연동은 별도 협의입니다. 예시: {\"requestId\":null,\"type\":\"WORLD_STATE\",\"payload\":{\"channelId\":\"channel-1\",\"version\":4,\"avatars\":[{\"userId\":\"101\",\"position\":{\"lastInputSeq\":0,\"x\":-2.025,\"y\":0.84,\"z\":34,\"yaw\":0,\"moving\":false,\"running\":false,\"swimming\":false},\"equipment\":[{\"itemId\":1,\"itemCode\":\"RED_TOP\",\"equipSlot\":\"TOP\",\"imageKey\":\"demo-red-top\"}]}],\"mapVersion\":\"544bc6fa3890c77e8de0ec91d27f93981b4d23a477918963757e4762294ba8d0\"}}",
+    "description": "SHOP-01/02 · INVENTORY-01/02. 13목록→14구매→15동일키 재요청→16보유→17장착. 18은 같은키 충돌 검사. local,db 또는 dev,db + ontop.shop.enabled=true(dev: SHOP_ENABLED=true) + 공통/상점 스키마가 필요합니다. dev는 기본 비활성이며 기존 V100 적용 이력·버전 순서 확인 후 기존 Flyway locations에 db/shop을 명시적으로 추가합니다. 공유 DB/SQL/이력은 자동 변경하지 않습니다. 실제 배포 후 개인 환경 baseUrl=https://dev-api.on-top.world와 해당 서버 Access JWT를 사용합니다. 기존 예제 Origin={{baseUrl}}는 개발 API 호스트가 되어403일 수 있으므로 AUTH_ALLOWED_ORIGINS에 등록된 실제 프론트 주소로 바꾸거나 비브라우저 Postman에서는 Origin 헤더를 제외하세요. 보유 의상 재구매는 서버에서 거절하고 소비형은 수량을 누적합니다. 테스트 계정의 개인 로컬 Access JWT만 사용하고 공유하지 마세요. 기본 DB에 스키마를 자동 적용하지 않았습니다. 실제 DB 초기화·공통 재화 통합·3D 외형 계약은 별도 확인합니다.\n\n2026-10-22: 상점 저장 처리를 JPA 엔티티·JPQL로 전환했습니다. 기존 6개 요청·응답·중복 구매 방지·롤백 계약은 그대로이며 예제 수정 없이 사용할 수 있습니다.\n\n2026-10-22 의상 동기화: local,db 또는 dev,db + ontop.shop.enabled=true(dev: SHOP_ENABLED=true). WS07의 인증 사용자 두 명이 같은 채널에 CHANNEL_JOIN 후 본인이 HTTP17로 장착하면 WORLD_STATE.payload.avatars[].equipment가 갱신됩니다. 다른 채널에는 전파하지 않습니다. 새 티켓→재접속→CHANNEL_JOIN 후 최신 장착을 복구합니다. 공개 필드는 itemId/itemCode/equipSlot/imageKey, 최대5개·부위당 하나이며 null은 미조회/사용 불가로 기존 외형 유지, []는 장착 없음입니다. 이동 tick은 캐시를 쓰고 조회 실패는 기존 외형을 유지합니다. 실제 3D 에셋 매핑·렌더링 연동은 별도 협의입니다. 예시: {\"requestId\":null,\"type\":\"WORLD_STATE\",\"payload\":{\"channelId\":\"channel-1\",\"version\":4,\"avatars\":[{\"userId\":\"101\",\"position\":{\"lastInputSeq\":0,\"x\":-2.025,\"y\":0.84,\"z\":34,\"yaw\":0,\"moving\":false,\"running\":false,\"swimming\":false},\"equipment\":[{\"itemId\":1,\"itemCode\":\"RED_TOP\",\"equipSlot\":\"TOP\",\"imageKey\":\"demo-red-top\"}]}],\"mapVersion\":\"544bc6fa3890c77e8de0ec91d27f93981b4d23a477918963757e4762294ba8d0\"}}",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -10,7 +10,7 @@
       "request": {
         "method": "GET",
         "url": "{{baseUrl}}/api/v1/shop/items",
-        "description": "SHOP-01: local,db + ontop.shop.enabled=true·공통 지갑/상점 스키마가 필요합니다. 판매 상품을 조회하며 첫 itemId를 개인 환경에 저장합니다.",
+        "description": "SHOP-01: local,db 또는 dev,db + ontop.shop.enabled=true(dev: SHOP_ENABLED=true)·공통 지갑/상점 스키마가 필요합니다. dev 사용 시 예제 Origin 헤더를 AUTH_ALLOWED_ORIGINS에 등록된 프론트 주소로 바꾸거나 비브라우저 테스트에서는 제외하세요. 판매 상품을 조회하며 첫 itemId를 개인 환경에 저장합니다.",
         "auth": {
           "type": "noauth"
         },

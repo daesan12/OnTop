@@ -14,7 +14,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Repository;
 
 @Repository
-@Profile("local & db")
+@Profile("(local | dev) & db & !prod & !production")
 @ConditionalOnProperty(name = "ontop.shop.enabled", havingValue = "true")
 public class ShopRepository {
     private final EntityManager entities;

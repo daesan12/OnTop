@@ -97,9 +97,10 @@ public class OpenApiSchemaCustomizer implements OperationCustomizer {
             operation.getResponses().get("503").setContent(json(new ComposedSchema()
                     .addAnyOfItem(new Schema<>().$ref("#/components/schemas/AuthErrorResponse"))
                     .addAnyOfItem(new Schema<>().$ref("#/components/schemas/ErrorResponse"))));
-            operation.setDescription(operation.getDescription() + " local 프로필 전용. 실제 서비스는 local,db 및 "
-                    + "ontop.shop.enabled=true, 별도 상점 스키마와 회원 지갑이 필요합니다. 공통 V1~V4만으로 "
-                    + "상점 스키마가 생성되지 않으며 운영 프로필 전환은 미완료입니다.");
+            operation.setDescription(operation.getDescription() + " local/dev 프로필에서 등록됩니다(운영 혼합 제외). "
+                    + "실제 서비스는 db 및 ontop.shop.enabled=true(dev: SHOP_ENABLED=true), "
+                    + "별도 상점 스키마와 회원 지갑이 필요합니다. 기존 V100 적용 이력·순서를 확인한 뒤 "
+                    + "Flyway locations에 db/shop을 명시적으로 추가합니다. 기본 비활성·실제 배포는 별도입니다.");
             if (handler.getMethod().getName().equals("purchase")) {
                 body(operation, new ObjectSchema().addProperty("itemId", positiveLong())
                         .addProperty("quantity", new IntegerSchema().minimum(BigDecimal.ONE)
