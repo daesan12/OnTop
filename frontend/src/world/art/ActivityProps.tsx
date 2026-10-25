@@ -1,10 +1,10 @@
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { CanvasTexture, SRGBColorSpace } from 'three'
 import { MINI_PROPS } from '../../config'
 import { PropModel } from './PropModel'
 import { vrBoothArt } from './activityPropGeometry'
-import { ImportedProp } from './ImportedProp'
+import { CodeFishBreadCart } from './CodeFishBreadCart'
 import { useSession } from '../../network/worldClient'
 /** Original readable screen graphic; it is signage, not a playable VR screen. */
 function ExperiencePanel({
@@ -105,15 +105,7 @@ export function FishBreadCart() {
       position={[cart.x, 0, cart.z]}
       userData={{ assetId: 'user/repaired-fish-cart' }}
     >
-      {requested && (
-        <Suspense fallback={null}>
-          <ImportedProp
-            url="/art/props/fish-bread-cart.glb"
-            prefix="cart"
-            distance={22}
-          />
-        </Suspense>
-      )}
+      {requested && <CodeFishBreadCart />}
     </group>
   )
 }
