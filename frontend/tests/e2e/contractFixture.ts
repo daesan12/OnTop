@@ -21,6 +21,8 @@ export async function fixture(
     bindings?: boolean
     players?: number
     omok?: boolean
+    position?: { x: number; y: number; z: number; yaw: number }
+    manualMovement?: boolean
   } = {},
 ) {
   let tickets = 0,
@@ -45,6 +47,7 @@ export async function fixture(
     running: false,
     swimming: false,
     lastInputSeq: 0,
+    ...options.position,
   }
   let seated = false,
     rejectChat = false
@@ -318,10 +321,12 @@ export async function fixture(
       }
       if (type === 'WORLD_MOVE') {
         Object.assign(position, {
-          x: position.x + Number(payload.dx) * 0.1,
-          z: position.z + Number(payload.dz) * 0.1,
-          moving: !!(payload.dx || payload.dz),
-          running: payload.run,
+          ...(!options.manualMovement ? {
+            x: position.x + Number(payload.dx) * 0.1,
+            z: position.z + Number(payload.dz) * 0.1,
+            moving: !!(payload.dx || payload.dz),
+            running: payload.run,
+          } : {}),
           lastInputSeq: payload.seq,
         })
         world(ws, requestId)
