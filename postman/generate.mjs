@@ -108,6 +108,7 @@ const loginTables = http('12 로그인 사용자 테이블 조회·ID 저장', '
     'TABLE-01: local,db + ontop.websocket.authenticated=true와 실제 로그인 Access JWT가 필요합니다. '
     + 'HTTP11에서 선택한 채널을 개인 channelIdA로 설정하고 이 응답의 tableIdA로 WS07에서 착석합니다. '
     + '채널 입장·착석·게임 선택·준비·퇴장/heartbeat 뒤 재조회하면 공개 요약을 확인합니다. 조회는 예약이 아닙니다. '
+    + 'tables[].gameId는 확정 PLAYING 경기만 문자열이며 대기·리허설·미확정·종료·정산은null입니다. 선택한 테이블 ID를 추측하지 말고 gameId를 GAME_WATCH에 사용하세요. '
     + '401 미인증/만료/비활성,403 출처거절,503 인증/계정 장애. 인증 후400 채널 누락·404 없는 채널. '
     + '기본 개발 모드는03/04이며 실제 DB 차감/정산 성공 검증과 구분합니다. 토큰을 공유하지 마세요.',
     saveTable('tableIdA') + `
@@ -115,11 +116,17 @@ pm.test('공개 요약과 캐시 금지', () => {
     pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store');
     pm.response.json().tables.forEach(table => {
         pm.expect(table).to.have.all.keys('tableId', 'capacity', 'minimumPlayers', 'occupiedSeats',
-            'availableSeats', 'readyCount', 'allReady', 'status', 'joinable', 'gameCode', 'targetScore');
+            'availableSeats', 'readyCount', 'allReady', 'status', 'joinable', 'gameCode', 'targetScore', 'gameId');
+        if (table.status !== 'PLAYING') pm.expect(table.gameId).to.eql(null);
+        else pm.expect(table.gameId).to.be.a('string').and.not.empty;
         pm.expect(table.availableSeats).to.eql(table.capacity - table.occupiedSeats);
         pm.expect(table.joinable).to.eql(table.status === 'WAITING' && table.availableSeats > 0);
     });
-});`, tableBefore('tableIdA'));
+});
+if (pm.response.code === 200) {
+    const selected = pm.response.json().tables.find(table => table.tableId === pm.environment.get('tableIdA'));
+    pm.environment.set('gameId', selected && typeof selected.gameId === 'string' ? selected.gameId : '');
+}`, tableBefore('tableIdA'));
 loginTables.headers = [{ key: 'Authorization', value: 'Bearer {{accessToken}}' },
     { key: 'Origin', value: '{{baseUrl}}' }];
 httpItems.push(loginTables);
@@ -325,6 +332,8 @@ const wsItems = [
     wsRequest('03 관전자 C — 공개 대기 상태 보기',
         '광장 A 입장·서버 스폰 확인 후 TABLE_WATCH를 보냅니다. 서버 테이블 좌표가 설정되어 있고 중심 20m 이내여야 합니다. 미설정/범위 밖은 TABLE_OUT_OF_RANGE입니다. TABLE_WATCH_STATE를 받으며 좌석·준비 인원은 늘지 않습니다. '
         + 'x/z는 1단위=1m인 서버 판정 위치입니다. 방향 입력을 반복해 실제 테이블 중심에 접근합니다. 거리 초과 이동 시 TABLE_WATCH_LEFT로 종료하고 다시 가까워져도 자동 재구독하지 않습니다. '
+        + 'TABLE_WATCH_STATE.payload.gameId는 확정 PLAYING만 문자열이고 그 외null입니다. 시작·종료 때 version이 증가합니다. '
+        + '이 값을 개인 환경 gameId에 복사하거나 HTTP12로 받아 GAME_WATCH를 별도 요청하세요. null/새ID면 GAME_UNWATCH 후 새ID로 관전합니다. '
         + '실제 경기 관전 권한이나 원카드 손패 구독이 아닙니다. 착석 성공 시 구독은 자동 종료됩니다.',
         [joinA(), locate(), message('02 테이블 보기 → TABLE_WATCH_STATE', 'TABLE_WATCH', { tableId: '{{tableIdA}}' }),
             message('03 보기 종료 → TABLE_WATCH_LEFT', 'TABLE_UNWATCH'),
@@ -396,7 +405,13 @@ const wsItems = [
             message('24 다리 믿기 — 본인 RESPONDING·최신 버전', 'GAME_ACTION_SEND',
                   { gameId: '{{gameId}}', actionId: 'bridge-trust-1', expectedVersion: 0, input: { kind: 'trust' } }),
             message('25 다리 다우트 — 본인 RESPONDING·최신 버전', 'GAME_ACTION_SEND',
-                  { gameId: '{{gameId}}', actionId: 'bridge-doubt-1', expectedVersion: 0, input: { kind: 'doubt' } })])
+                  { gameId: '{{gameId}}', actionId: 'bridge-doubt-1', expectedVersion: 0, input: { kind: 'doubt' } }),
+            message('26 본인 경기 수동 기권 — 승인 뒤 취소 불가·소켓 유지', 'GAME_FORFEIT',
+                  { gameId: '{{gameId}}', actionId: 'manual-forfeit-1' }),
+            message('27 같은 기권 재확인 — duplicate:true·이벤트 재발행 없음', 'GAME_FORFEIT',
+                  { gameId: '{{gameId}}', actionId: 'manual-forfeit-1' }),
+            message('28 기권 사용자 위조 거절 — INVALID_PAYLOAD', 'GAME_FORFEIT',
+                  { gameId: '{{gameId}}', actionId: 'manual-forfeit-forged', userId: 'other-user' })])
 ];
 const farkleGuide = '주사위(DICE)는 local의 ontop.games.farkle.enabled=true로 선택 활성화하며 서버 내부 참가 확정 후 생성한 경기에서 실행합니다. '
     + '12는 최초 굴림,13은 재굴림,14는Bank,15는12의 동일행동 재확인입니다. 13/14는 최신 GAME_STATE.version과 현재 dice의 held=false 득점 ID로 수정하세요. 서로 순차 실행하는 고정 시나리오가 아닙니다. '
@@ -407,6 +422,14 @@ const farkleGuide = '주사위(DICE)는 local의 ontop.games.farkle.enabled=true
     + 'publicState:gameCode=DICE,status,players,scores,targetScore,turnTimeLimitMs=30000,turnUserId,turnDeadline,turnScore,dice[{id,value,held}],stage(AWAITING_ROLL/SELECTING/FINISHED),rollId,round,hotDice,lastEvent,winnerUserId,endReason,endedAt. '
     + 'privateState={},새차례첫굴림전dice=[]. BANK/BUST는바로다음차례상태를전송하며 프론트가rollId/lastEvent로연출합니다. 종료는TARGET_REACHED/RECONNECT_EXPIRED이며DB정산확정과구분합니다. ';
 wsItems[5].description += '\n\n' + farkleGuide;
+wsItems[5].description += '\n\n수동 기권: GAME_FORFEIT {gameId,actionId}만 허용하며 본인 차례/expectedVersion 불필요. '
+    + 'GAME_FORFEIT_RESULT는 {gameId,actionId,version,duplicate}. 동일 경기·참가자는 한번만 확정하고 재전송/재클릭은duplicate:true와최초version. '
+    + '소켓·로그인·채널을유지하며30초유예없이기권. 본인에게GAME_CONNECTION_STATE PENDING→FINISHED/ELIMINATED, '
+    + '참가자/허용관전자에게GAME_STATE. 응답과상태순서보장없음. 2인은상대승리,3~4인은본인탈락후계속. '
+    + '서버이벤트GameParticipantLeft EXPLICIT_LEAVE와최종GameFinished는기존DB정산연결계약이며승인응답이정산완료는아님. '
+    + '종료·다른사유탈락은GAME_FORFEIT_GAME_FINISHED/NOT_ACTIVE,관전자·다른경기·미복구는GAME_RECOVERY_REQUIRED. '
+    + '늦은오목시간패우선,다리pendingForfeit경계와원카드손패제외유지. 기권취소명령없음·좌석은기존정산후대기정책. '
+    + '로컬구현·검증완료/미배포,메모리중복영수증이며재시작·다중서버보장별도.';
 const onecardGuide = '원카드(ONE_CARD)는2~4명·54장·7장배분·서버랜덤선공이며 local의 ontop.games.onecard.enabled=true로 선택 활성화합니다. '
     + '2026-10-22확정: 기권손패는이번경기에서제외(REMOVE)하며뽑기덱환원/셔플없음. 다음판은새덱,별도정책설정불필요. '
     + '16~21은독립예제입니다. gameId/expectedVersion은실제경기·최신버전,cardId는본인privateState.hand,targetUserId는공개players.userId로수정합니다. '
@@ -448,6 +471,37 @@ wsItems.push({ ...wsRequest('07 로그인 사용자 — 1회용 접속권',
 const guide = '현재 코드의 local 통신 검증용. 서버는 local,visual-test로 실행하고 OnTop Local 환경을 선택하세요. '
     + '인증 시작 연결부와 엔진은 선택 활성화하며 실제 DB 차감·정산 통합 검증은 별도입니다. HTTP 테이블 조회로 ID 저장 후 WebSocket을 연결합니다. '
     + '웹에서 저장한 컬렉션은 동일 계정·워크스페이스 앱에서 사용하며 로컬 테스트는 Desktop App에서 실행하세요.';
+const rankingDescription = 'RANK-01 · GET /api/v1/rankings?limit=20 (1~100). 기존 Access JWT와 db 프로필이 필요합니다. '
+    + '예약금을 포함한 전체 balance 내림차순, 동점 RANK(1,1,3)·userId 오름차순. 최대 limit명이며 TOP 밖 본인도 myRank로 반환합니다. '
+    + '탈퇴·지갑 미생성 회원 제외, 본인 지갑 미생성 시 myRank=null. updatedAt은 조회 시각, 모든 응답 no-store. '
+    + '신규 SQL·지급·예약·지갑 생성 없음. 로컬 구현과 실제 개발 서버 배포는 별개입니다. baseUrl과 accessToken은 개인 환경에만 설정하세요.';
+const rankingSuccess = http('30 보유 엽전 랭킹·본인 순위', '/api/v1/rankings?limit=20', 200,
+    rankingDescription, `pm.test('랭킹 응답·최대 인원·정렬', () => {
+    const body = pm.response.json();
+    pm.expect(body).to.have.all.keys('items', 'myRank', 'updatedAt');
+    pm.expect(body.items).to.be.an('array');
+    pm.expect(body.items.length).to.be.at.most(20);
+    pm.expect(Number.isNaN(Date.parse(body.updatedAt))).to.eql(false);
+    body.items.forEach((item, index) => {
+        pm.expect(item).to.have.all.keys('rank', 'userId', 'nickname', 'coinBalance');
+        pm.expect(item.userId).to.be.a('string');
+        pm.expect(item.rank).to.be.at.least(1);
+        if (index > 0) {
+            const previous = body.items[index - 1];
+            pm.expect(previous.coinBalance).to.be.at.least(item.coinBalance);
+            if (previous.coinBalance === item.coinBalance) pm.expect(item.rank).to.eql(previous.rank);
+        }
+    });
+    pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store');
+});`);
+const rankingInvalid = http('31 랭킹 limit 범위 오류', '/api/v1/rankings?limit=101', 400,
+    rankingDescription, codeTest('INVALID_LIMIT'));
+const rankingAnonymous = http('32 랭킹 미인증 거부', '/api/v1/rankings', 401,
+    'Authorization 없이 호출해 기존 REST 인증 거부를 확인합니다.', codeTest('AUTH_AUTHENTICATION_REQUIRED'));
+for (const request of [rankingSuccess, rankingInvalid]) {
+    request.headers = [{ key: 'Authorization', value: 'Bearer {{accessToken}}' }];
+}
+httpItems.push(rankingSuccess, rankingInvalid, rankingAnonymous);
 const httpV3 = { name: 'OnTop HTTP', $kind: 'collection', description: guide, items: httpItems };
 const wsGuide = '# 근거리 채팅·관전 테스트 (20m)\n\n'
     + [0, 1, 2, 5].map(index => `## ${String(index + 1).padStart(2, '0')} 연결\n${wsItems[index].description
@@ -505,6 +559,7 @@ function yaml(value, indent = 0) {
         + (nested(item) ? '\n' + yaml(item, indent + 2) : ' ' + JSON.stringify(item))).join('\n');
 }
 const outputs = new Map([
+    ['OnTop-Ranking.postman_collection.json', JSON.stringify({info:{...httpV21.info,name:'OnTop Ranking',description:rankingDescription},item:httpV21.item.slice(-3)},null,2)+'\n'],
     ['OnTop-Minigame.postman_collection.json', JSON.stringify({info:{...httpV21.info,name:'OnTop Minigame',description:'붕어빵 v2: 23시작화면조회→19시작→60초 플레이→21입력 검증·보상. 20본인판조회,22포기는 별도 새 판에서 확인. 15점당1냥·KST 하루100냥·랭킹 제외·탭 이동 시간 진행. 기존 API 경로 유지. docs/minigame-api.md.'},item:httpV21.item.slice(18,23)},null,2)+'\n'],
     ['OnTop-Shop.postman_collection.json', JSON.stringify({info: {...httpV21.info, name: 'OnTop Shop',
         description: 'SHOP-01/02 · INVENTORY-01/02. 13목록→14구매→15동일키 재요청→16보유→17장착. 18은 같은키 충돌 검사. local,db 또는 dev,db + ontop.shop.enabled=true(dev: SHOP_ENABLED=true) + 공통/상점 스키마가 필요합니다. dev는 기본 비활성이며 기존 V100 적용 이력·버전 순서 확인 후 기존 Flyway locations에 db/shop을 명시적으로 추가합니다. 공유 DB/SQL/이력은 자동 변경하지 않습니다. 실제 배포 후 개인 환경 baseUrl=https://dev-api.on-top.world와 해당 서버 Access JWT를 사용합니다. 기존 예제 Origin={{baseUrl}}는 개발 API 호스트가 되어403일 수 있으므로 AUTH_ALLOWED_ORIGINS에 등록된 실제 프론트 주소로 바꾸거나 비브라우저 Postman에서는 Origin 헤더를 제외하세요. 보유 의상 재구매는 서버에서 거절하고 소비형은 수량을 누적합니다. 테스트 계정의 개인 로컬 Access JWT만 사용하고 공유하지 마세요. 기본 DB에 스키마를 자동 적용하지 않았습니다. 실제 DB 초기화·공통 재화 통합·3D 외형 계약은 별도 확인합니다.\n\n2026-10-22: 상점 저장 처리를 JPA 엔티티·JPQL로 전환했습니다. 기존 6개 요청·응답·중복 구매 방지·롤백 계약은 그대로이며 예제 수정 없이 사용할 수 있습니다.' + appearanceGuide},
