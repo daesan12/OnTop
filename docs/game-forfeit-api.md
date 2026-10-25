@@ -83,3 +83,9 @@ GameParticipantLeft.leaveReason=EXPLICIT_LEAVE를 최초 한 번 발행한다. �
 TableGameIdFlowTests는 실제 JWT·일회용 접속권·HTTP/RawWS로 기권→SETTLING→결과 PENDING→
 SETTLED→같은 테이블 다음 판을 확인한다. 커밋 알림·알림 유실 후 결과 조회·기권 승인 유실 후 재접속의
 3경로를 검사한다. 예약·결과 저장·정산은 대역이며 기존 계정 조회도 fixture다. 신규 SQL과 DB 지급 검증은 없다.
+
+MultiplayerForfeitFlowTests는 원카드·거짓말다리 각각 3인/4인의 중도 기권 → ELIMINATED 복귀 →
+남은 참가자 경기 유지 → 최종 종료 → 전체 최초 참가자 결과 조회 → 전원 재준비·다음 판을 검증한다.
+부분 참가자만 있는 SETTLED로 다음 판을 열지 않고, 원래 채널 복귀·다른 채널 차단·관전자 비공개 정보 제외·
+중복 기권/과거 이벤트 차단도 확인한다. 새 원카드 판은 기권자에게도 새 손패 7장을 배분하며 다음 판 실제 입력까지 확인한다.
+이 검증은 실제 JWT/접속권/HTTP/RawWS·규칙 엔진과 계정·예약/결과 저장 대역을 연결한다. FE 화면·실제 DB 지급 검증은 아니다.
