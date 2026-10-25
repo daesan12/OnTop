@@ -8,6 +8,24 @@
 
 자동으로 임시 로컬 서버와 시나리오별 사용자 두세 명을 띄우고 아래 과정을 확인한다. 종료하면 테스트 서버와 연결도 정리한다. 이미 실행 중인 서버는 사용하지 않는다.
 
+### 소리함·익명 메모 실제 DB 흐름
+
+기본 `flowTest`와 별도로 실행한다. `ParkMessageFlowMySqlTests`는 실제 dev,db 서버·JWT·접속권·
+Raw WebSocket·JPA를 사용해 미입장/거리/높이 거절, 공개 익명 목록과 비공개 의견 분리,
+단절·복귀 후 동일 요청의 중복 저장 방지를 검사한다. 서버의 단절 정리가 끝나야 다음 검사를 시작한다.
+간격 제한의 고정 시간 판정은 기존 단위/HTTP 검사에 두어 느린 환경에서도 이 흐름이 시간에 따라 바뀌지 않게 한다.
+
+현재 터미널에 `TEST_PARK_MESSAGES_DB_URL`, `TEST_PARK_MESSAGES_DB_USERNAME`,
+`TEST_PARK_MESSAGES_DB_PASSWORD`를 설정한다. URL은 loopback MySQL의 새
+`ontop_park_messages_test_...` 스키마만 허용한다. 기존 V1~V6/V110/V111/V120/V121을 적용하며
+검사마다 이 전용 DB의 소리함·메모 자료를 초기화하고 합성 회원을 준비한다. 새 마이그레이션은 없다.
+
+```powershell
+.\gradlew.bat mysqlTest --tests '*ParkMessageFlowMySqlTests'
+```
+
+물리 시간·서버 위치와 두 번째 채널은 fixture다. 실제 이동 경로·FE 3D 화면·개발 서버 적용은 별도다.
+
 ### 광장부터 테이블 준비까지
 
 1. 인증 대역의 두 사용자 연결 → 서로 다른 채널 입장
