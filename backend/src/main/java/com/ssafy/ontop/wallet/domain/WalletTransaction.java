@@ -67,6 +67,20 @@ public class WalletTransaction {
         return "signup:" + userId;
     }
 
+    public static WalletTransaction gameReserve(long walletId, long gameSessionId, long userId, Instant now) {
+        if (walletId <= 0 || gameSessionId <= 0 || userId <= 0) {
+            throw new IllegalArgumentException("저장된 지갑과 경기 및 회원이 필요합니다.");
+        }
+        WalletTransaction transaction = new WalletTransaction();
+        transaction.walletId = walletId;
+        transaction.gameSessionId = gameSessionId;
+        transaction.transactionType = "GAME_RESERVE";
+        transaction.reservedDelta = 1;
+        transaction.idempotencyKey = "game:" + gameSessionId + ":reserve:" + userId;
+        transaction.createdAt = Objects.requireNonNull(now).truncatedTo(ChronoUnit.MILLIS);
+        return transaction;
+    }
+
     public static WalletTransaction signupBonus(long walletId, long userId, Instant now) {
         if (walletId <= 0) {
             throw new IllegalArgumentException("저장된 지갑이 필요합니다.");
