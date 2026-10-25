@@ -1,4 +1,6 @@
 import { socialAuthorizeUrl, type SocialProvider } from '../auth/socialLogin'
+import naverLogo from '../assets/naver-logo.png'
+import ssafyLogo from '../assets/ssafy-logo.png'
 
 function startSocialLogin(provider: SocialProvider) {
   window.location.assign(socialAuthorizeUrl(provider, window.location.origin))
@@ -12,12 +14,20 @@ export function LoginPage() {
 
         <div className="login-actions">
           <button className="entry-button entry-button--naver" type="button" onClick={() => startSocialLogin('naver')}>
-            <span className="naver-mark" aria-hidden="true">N</span>
+            <span className="entry-provider-logo entry-provider-logo--naver" aria-hidden="true">
+              <span className="entry-provider-artwork">
+                <img src={naverLogo} alt="" />
+              </span>
+            </span>
             <span>네이버로 계속하기</span>
           </button>
 
           <button className="entry-button entry-button--ssafy" type="button" onClick={() => startSocialLogin('ssafy')}>
-            <span className="ssafy-mark" aria-hidden="true"><span>SSAFY</span><span>CODING</span><span>TEST</span></span>
+            <span className="entry-provider-logo entry-provider-logo--ssafy" aria-hidden="true">
+              <span className="entry-provider-artwork">
+                <img src={ssafyLogo} alt="" />
+              </span>
+            </span>
             <span>SSAFY로 계속하기</span>
           </button>
 
