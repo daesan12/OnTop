@@ -60,6 +60,7 @@
 | 서버 → 클라이언트 | WORLD_CHAT_MESSAGE | 승인된 일반 텍스트 채팅 |
 | 클라이언트 → 서버 | WORLD_EMOTE_SEND | 본인과 같은 채널 참가자에게 WORLD_EMOTE_EVENT |
 | 서버 → 클라이언트 | WORLD_EMOTE_EVENT | 승인된 감정표현 코드 |
+| 서버 → 클라이언트 | WORLD_EMOTE_CANCELLED | 활동 시작으로 원본 표현 ID 취소, 사용 간격 유지 |
 
 CHANNEL_JOIN 성공·다른 사용자 입퇴장·종료 때는 WORLD_STATE도 알립니다. 입장 시 서버 스폰 위치가 생성되며 채널 인원 버전과 위치 버전은 따로 관리합니다.
 

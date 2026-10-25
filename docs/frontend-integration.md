@@ -1,5 +1,28 @@
 # 두 계정 로컬 연동 테스트
 
+## 읽기 전용 연결 사전 점검
+
+`backend/tools/check-frontend-connection.mjs`는 프론트 Origin에서 서버에 연결하기 위한 기본 조건을
+한 번에 확인하는 도구다. Node 내장 fetch를 사용하며 Node24에서 검증했다. 저장소 루트에서 실행한다.
+
+```powershell
+node backend/tools/check-frontend-connection.mjs --base-url https://dev-api.on-top.world --origin https://dev.on-top.world
+```
+
+- GET 헬스체크, 채널·테이블·랭킹의 무인증 응답, 해당 GET 및 접속권 POST의 CORS preflight 총8개를 확인한다.
+- 실제 전송 메서드는 GET/OPTIONS뿐이다. 토큰·쿠키를 받거나 보내지 않고 DB/서버 설정·데이터를 수정하지 않는다.
+- `--json`으로 같은 결과를 JSON으로 출력한다. 성공 exit0, 기본 조건 실패 exit1, 입력 오류 exit2다.
+- CORS는 상태 코드뿐 아니라 요청 Origin·메서드·Authorization 허용까지 대조한다.
+  preflight뿐 아니라 실제 GET 인증 응답도 프론트 Origin을 허용해야 통과한다. 리다이렉트를 따라가지 않는다.
+- Actuator의 application/vnd.spring-boot.actuator.v3+json도 읽고 HTTP200·status=UP를 함께 확인한다.
+- **401과 OPTIONS 성공은 해당 API의 등록·활성화 증거가 아니다.** 없는 경로도 인증 필터에서401이 나올 수 있다.
+  로그인·실제 WebSocket 연결·채널 입장·상점/경기/보상의 DB 동작은 아래 두 계정 절차로 별도 검증한다.
+- 응답 본문/인증 오류 원문은 출력하지 않는다. 주소에 계정·경로·쿼리·해시가 있으면 전송 전에 거절한다.
+
+도구 검증: `node --test backend/tools/check-frontend-connection.test.mjs`.
+로컬 HTTP 서버로 정상 응답·잘못된 CORS·접속권 POST 미허용·vendor JSON·503/HTML/리다이렉트·
+민감정보 미출력을 확인한다. 네트워크가 제한된 환경의 연결 실패는 실제 서버 오류와 구분한다.
+
 ## 개발 서버 공원 진입
 
 2026-10-23 인프라 안내 기준 개발 BE는 `https://dev-api.on-top.world`, 운영 BE는
