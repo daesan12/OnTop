@@ -92,6 +92,7 @@ button { font: inherit; }
 .entry-button:hover { filter: brightness(1.07); }
 .entry-button:active { transform: translateY(2px); }
 .entry-button:focus-visible { outline: 3px solid #173b24; outline-offset: 3px; }
+.entry-button:disabled { cursor: not-allowed; filter: grayscale(.4); opacity: .7; transform: none; }
 
 .entry-button--naver {
   top: 48.39%;
