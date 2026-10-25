@@ -1,6 +1,7 @@
 # 광장 WebSocket · 채널·이동·채팅
 
 시설 이용·반납·망원경 방향·점유 복구는 [시설 점유 계약](world-facility-api.md)을 사용한다.
+따라가기 시작·자동 이동·종료·관계 조회는 [따라가기 계약](world-follow-api.md)을 사용한다.
 
 기존 Raw WebSocket `/ws/tables` 연결을 재사용하며 별도 `/ws/world` 연결은 만들지 않는다. 인증은 기본 필수이고 비인증 개발 사용자는 명시적 local 환경에서만 허용한다. 비local의 WebSocket 기반 등록·Origin 검증·프로필 제한은 [현행 인증 계약](websocket-authentication.md#실행-조건)을 따른다. 기존 중복 접속 차단·heartbeat·연결별 송신 순서는 유지하며 상점 외형 조회 Gateway의 local·db 조건과 구분한다.
 

@@ -240,6 +240,17 @@ public class WorldChannelRegistry implements ChannelPresence {
 
     /** Fixed simulation time, bounded catch-up. Client input frequency cannot add simulation steps. */
     public synchronized List<WorldState> advance(java.util.Set<String> seated) {
+        return advance(seated, List.of());
+    }
+
+    public synchronized List<WorldState> advance(java.util.Set<String> seated,
+            List<WorldFollowService.State> following) {
+        Map<String, Map<String, String>> targets = new HashMap<>();
+        for (var state : following) {
+            Map<String, String> links = new HashMap<>();
+            state.links().forEach(link -> links.put(link.followerId(), link.targetId()));
+            targets.put(state.channelId(), links);
+        }
         long now = nanoTime.getAsLong();
         int steps = (int) Math.min(3, Math.max(0, (now - lastStep) / WorldPhysics.STEP_NANOS));
         if (steps == 0) {
@@ -251,7 +262,7 @@ public class WorldChannelRegistry implements ChannelPresence {
                 if (room.physics != null) {
                     var frozen = new java.util.HashSet<>(seated);
                     frozen.addAll(room.held);
-                    room.physics.step(tick, frozen);
+                    room.physics.step(tick, frozen, targets.getOrDefault(room.definition.channelId(), Map.of()));
                 }
             }
         }

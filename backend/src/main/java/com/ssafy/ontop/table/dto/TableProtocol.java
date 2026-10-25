@@ -56,6 +56,14 @@ public final class TableProtocol {
             case "WORLD_CHAT_SEND" -> fields(payload, Set.of("text")) && validChatText(payload.get("text"));
             case "WORLD_EMOTE_SEND" -> fields(payload, Set.of("emoteCode")) && validEmoteCode(payload.get("emoteCode"));
             case "WORLD_MOVE" -> validMove(payload);
+            case "WORLD_FOLLOW_CHECK" -> fields(payload, Set.of());
+            case "WORLD_FOLLOW_START" -> fields(payload, Set.of("targetId"))
+                    && payload.path("targetId").isTextual()
+                    && payload.path("targetId").asText().matches("[A-Za-z0-9_-]{1,80}");
+            case "WORLD_FOLLOW_STOP" -> fields(payload, Set.of("followId"))
+                    && payload.path("followId").isTextual()
+                    && payload.path("followId").asText().matches(
+                            "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}");
             case "WORLD_FACILITY_CHECK" -> fields(payload, Set.of());
             case "WORLD_FACILITY_CATALOG" -> fields(payload, Set.of())
                     || fields(payload, Set.of("offset")) && payload.path("offset").isIntegralNumber()
