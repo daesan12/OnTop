@@ -6,10 +6,10 @@ import { clearRoamingInput, inputState, panelOwnsKeys } from '../../world/inputO
 import { useBenchState } from '../interactions/benchState'
 import { useFitnessState } from '../fitness/state'
 import { useTelescopeState } from '../telescopes/state'
-import type { NotesContext } from './contracts'
+import { NotesServiceError, type NotesContext } from './contracts'
 import { notesService } from './service'
 import { notesSignal, resetNotesState, useNotesState } from './state'
-import { canReachNotes, NOTES_TIMEOUT_MS, parseNotes, parseNoteText } from './validation'
+import { canReachNotes, compareNotes, NOTES_POLL_MS, NOTES_TIMEOUT_MS, parseNotes, parseNoteText } from './validation'
 
 function context(): NotesContext | null {
   const s = useSession.getState(), a = avatars.get(s.sessionId), position = authoritativePose(s.sessionId)
@@ -62,7 +62,11 @@ async function request<T>(kind: 'read' | 'submit', job: (scope: NotesContext, si
       const message = timeout ? kind === 'read' ? '메모 조회 응답 시간이 초과됐습니다. 다시 불러와주세요.'
         : '응답 시간이 초과되어 게시 여부를 확인하지 못했습니다. 목록을 확인한 뒤 같은 메모로 재시도해주세요.'
         : error instanceof Error ? error.message : '메모 요청에 실패했습니다.'
-      useNotesState.setState(kind === 'read' ? { readError: message } : { error: message })
+      const deadline = error instanceof NotesServiceError && error.nextAllowedAt !== undefined ? error.nextAllowedAt : 0
+      useNotesState.setState(kind === 'read'
+        ? { readError: message, nextReadAt: Math.max(useNotesState.getState().nextReadAt, deadline) }
+        : { error: message, nextAllowedAt: Math.max(useNotesState.getState().nextAllowedAt, deadline),
+          retryBlocked: error instanceof NotesServiceError && ['NOTE_REMOVED', 'NOTES_REQUEST_EXPIRED'].includes(error.code) })
     }
     return false
   } finally {
@@ -77,35 +81,48 @@ export const refreshNotes = () => request('read', (scope, signal) => notesServic
 })
 export async function submitNote() {
   const state = useNotesState.getState(), text = parseNoteText(state.draft)
-  if (!state.open || state.pending || state.loading || !context()) return false
+  if (!state.open || state.pending || state.loading || state.retryBlocked || !context()) return false
   if (!text) { useNotesState.setState({ error: '메모를 1~300자로 적어주세요.' }); return false }
   if (Date.now() < state.nextAllowedAt) { useNotesState.setState({ error: '잠시 후 새 메모를 붙여주세요.' }); return false }
-  const operationId = state.operationId && state.submittedText === text ? state.operationId : crypto.randomUUID()
+  const operationId = state.operationId && state.submittedText === text ? state.operationId : Date.now() + '_' + crypto.randomUUID()
   useNotesState.setState({ operationId, submittedText: text })
   return request('submit', (scope, signal) => notesService.submit(scope, { text, operationId }, signal), receipt => {
     const [note] = parseNotes([receipt.note])
     if (!note || note.text !== text || !Number.isFinite(receipt.nextAllowedAt) || receipt.nextAllowedAt < note.createdAt)
       throw new Error('게시 결과를 확인하지 못했습니다. 목록을 확인한 뒤 다시 시도해주세요.')
     useNotesState.setState(s => ({ draft: '', operationId: '', submittedText: '', nextAllowedAt: receipt.nextAllowedAt,
-      notes: [note, ...s.notes.filter(n => n.id !== note.id)].sort((a, b) => b.createdAt - a.createdAt).slice(0, NOTES_BOX.capacity),
-      loaded: true, notice: '개발 목업에 메모를 붙였어요. 현재 페이지에서만 보이며 실제 서버에 저장되지 않습니다.' }))
+      retryBlocked: false, notes: [note, ...s.notes.filter(n => n.id !== note.id)].sort(compareNotes).slice(0, NOTES_BOX.capacity),
+      loaded: true, notice: notesService.mode === 'mock'
+        ? '개발 목업에 메모를 붙였어요. 현재 페이지에서만 보이며 실제 서버에 저장되지 않습니다.' : '익명 메모를 붙였어요. 고맙습니다!' }))
   })
 }
-/** One subscription per open visit, with a throttled refresh; reset/close cancels it. */
+let stopWatcher: (() => void) | undefined
+/** One non-overlapping poll per open visit; reset/close cancels the request and timer. */
 export function watchNotes() {
+  stopWatcher?.()
   let timer: ReturnType<typeof setTimeout> | undefined
-  const changed = () => {
+  const signal = notesSignal()
+  let stopped = false
+  const changed = (delay = NOTES_POLL_MS) => {
+    if (stopped || signal.aborted) return
     clearTimeout(timer)
-    timer = setTimeout(() => {
+    timer = setTimeout(async () => {
+      if (stopped || signal.aborted) return
       const s = useNotesState.getState()
       if (!s.open) return
-      if (s.pending || s.loading) { changed(); return }
-      void refreshNotes()
-    }, Math.max(1000, useNotesState.getState().nextReadAt - Date.now()))
+      if (!context()) { resetNotesState(true); return }
+      if (!s.pending && !s.loading) await refreshNotes()
+      if (notesService.mode === 'server') changed()
+      else if (s.pending || s.loading) changed(1000)
+    }, Math.max(delay, useNotesState.getState().nextReadAt - Date.now()))
   }
-  const unsubscribe = notesService.subscribe(changed)
-  const signal = notesSignal()
-  const stop = () => { clearTimeout(timer); unsubscribe(); signal.removeEventListener('abort', stop) }
+  const unsubscribe = notesService.subscribe(() => changed(1000))
+  const stop = () => {
+    stopped = true; clearTimeout(timer); unsubscribe(); signal.removeEventListener('abort', stop)
+    if (stopWatcher === stop) stopWatcher = undefined
+  }
+  stopWatcher = stop
   signal.addEventListener('abort', stop, { once: true })
+  if (notesService.mode === 'server') changed()
   return stop
 }

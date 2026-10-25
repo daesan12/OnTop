@@ -11,7 +11,7 @@ import { inputState, roamingInput } from '../../src/world/inputOwnership'
 import { interactionAim } from '../../src/features/interactions/interactionAim'
 import { getParkInteraction } from '../../src/features/interactions/parkInteraction'
 import { useTelescopeState } from '../../src/features/telescopes/state'
-import type { NoteReceipt } from '../../src/features/notes/contracts'
+import { NotesServiceError, type NoteReceipt } from '../../src/features/notes/contracts'
 
 vi.mock('../../src/features/notes/service', async () => {
   const { MockNotesService } = await import('../../src/features/notes/mock/MockNotesService')
@@ -37,7 +37,7 @@ beforeEach(() => {
   emit('CHANNEL_STATE', { channelId: 'a', name: '공원', version: 1, currentUsers: 2, capacity: 4, userIds: ['101', '102'] })
   world()
 })
-afterEach(() => { vi.restoreAllMocks(); resetWorld(); roamingInput.ready = false; vi.useRealTimers() })
+afterEach(() => { vi.restoreAllMocks(); resetWorld(); Object.assign(notesService, { mode: 'mock' }); roamingInput.ready = false; vi.useRealTimers() })
 
 describe('M08 anonymous notes, permissions and request lifetime', () => {
   it('validates 1~300 raw/normalized characters with NFC, controls and newlines', () => {
@@ -213,5 +213,48 @@ describe('M08 anonymous notes, permissions and request lifetime', () => {
     expect(read.mock.calls[0]![1].aborted).toBe(true)
     expect(await refreshNotes()).toBe(true)
     expect(useNotesState.getState()).toMatchObject({ loaded: true, notes: [], draft: body })
+  })
+  it('generates a timestamped operation only for a new intent, respecting write cooldown and terminal retry errors', async () => {
+    await compose()
+    const deadline = Date.now() + 15000
+    const send = vi.spyOn(notesService, 'submit').mockRejectedValueOnce(new NotesServiceError('NOTES_WRITE_COOLDOWN', '잠시 후', deadline))
+      .mockRejectedValueOnce(new NotesServiceError('NOTE_REMOVED', '삭제되었습니다'))
+    expect(await submitNote()).toBe(false)
+    const key = useNotesState.getState().operationId
+    expect(key).toMatch(/^\d{13}_[A-Za-z0-9_-]{16,64}$/)
+    expect(useNotesState.getState().nextAllowedAt).toBe(deadline)
+    expect(await submitNote()).toBe(false); expect(send).toHaveBeenCalledOnce()
+    await vi.advanceTimersByTimeAsync(15000)
+    expect(await submitNote()).toBe(false)
+    expect(useNotesState.getState()).toMatchObject({ retryBlocked: true, operationId: key, draft: body })
+    expect(await submitNote()).toBe(false); expect(send).toHaveBeenCalledTimes(2)
+    closeNotes(); await compose()
+    expect(useNotesState.getState().retryBlocked).toBe(true)
+    editNoteDraft('새로운 마음 한 장'); expect(useNotesState.getState()).toMatchObject({ retryBlocked: false, operationId: '' })
+  })
+  it('polls every two seconds without overlapping requests and cancels all work on close', async () => {
+    Object.assign(notesService, { mode: 'server' })
+    let complete!: (rows: ReturnType<typeof parseNotes>) => void
+    const read = vi.spyOn(notesService, 'read').mockResolvedValueOnce([]).mockImplementationOnce(() => new Promise(resolve => { complete = resolve })).mockResolvedValue([])
+    expect(openNotes()).toBe(true); const stop = watchNotes()
+    await vi.advanceTimersByTimeAsync(1999); expect(read).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(1); expect(read).toHaveBeenCalledTimes(2)
+    await vi.advanceTimersByTimeAsync(6000); expect(read).toHaveBeenCalledTimes(2)
+    complete([receipt().note]); await vi.advanceTimersByTimeAsync(1)
+    expect(useNotesState.getState().notes).toHaveLength(1)
+    closeNotes(); await vi.advanceTimersByTimeAsync(8000); expect(read).toHaveBeenCalledTimes(2); stop()
+  })
+  it('honors read cooldown without erasing old notes and replaces duplicate watchers', async () => {
+    Object.assign(notesService, { mode: 'server' })
+    const row = receipt().note, deadline = Date.now() + 7000
+    const read = vi.spyOn(notesService, 'read').mockResolvedValueOnce([row])
+      .mockRejectedValueOnce(new NotesServiceError('NOTES_READ_COOLDOWN', '조회 간격', deadline)).mockResolvedValue([row])
+    expect(openNotes()).toBe(true); const oldStop = watchNotes(); const stop = watchNotes(); oldStop()
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(read).toHaveBeenCalledTimes(2)
+    expect(useNotesState.getState()).toMatchObject({ notes: [row], nextReadAt: deadline, readError: '조회 간격' })
+    await vi.advanceTimersByTimeAsync(4999); expect(read).toHaveBeenCalledTimes(2)
+    await vi.advanceTimersByTimeAsync(1); expect(read).toHaveBeenCalledTimes(3)
+    resetWorld('reconnecting'); await vi.advanceTimersByTimeAsync(8000); expect(read).toHaveBeenCalledTimes(3); stop()
   })
 })
