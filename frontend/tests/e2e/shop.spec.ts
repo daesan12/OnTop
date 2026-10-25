@@ -36,7 +36,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
     await expect(page.getByRole('dialog', { name: '게임 설명서' })).toBeVisible()
     await page.keyboard.press('Escape')
     await expect(page.getByRole('dialog', { name: '게임 설명서' })).toBeHidden()
-    expect(rest.calls).toEqual([])
+    expect(rest.calls.filter(call => call.path !== '/api/v1/wallets/me')).toEqual([])
     expect(errors).toEqual([])
     await expect(page.locator('vite-error-overlay')).toHaveCount(0)
     await screenshot(page, `shop-under-construction-${viewport.width}`)

@@ -73,7 +73,7 @@ test('departure, re-entry and a fresh-ticket reconnect obtain new public profile
   await expect.poll(() => server.tickets).toBe(2)
   await expect(name).toHaveText('재입장이름')
   await expect(page.locator('.park-account__nickname')).toHaveText('공원 산책자')
-  await expect(page.locator('.park-account__balance')).toHaveText('—냥')
+  await expect(page.getByLabel('보유 엽전', { exact: true })).toHaveText('100냥')
   expect(server.maxActive).toBe(1)
   expect(await page.locator('vite-error-overlay').count()).toBe(0)
   expect(errors).toEqual([])

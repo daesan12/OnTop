@@ -1,5 +1,7 @@
 import { create } from 'zustand'
-import { NETWORK, TABLES, tableSeats, type CharacterId } from '../config'
+import { NETWORK, OVERHEAD, TABLES, tableSeats, type CharacterId } from '../config'
+import { CHAT } from '../features/chat/settings'
+import { filterChat } from '../features/chat/filterChat'
 import {
   channelState,
   worldState,
@@ -30,6 +32,8 @@ import { publicMatchService } from '../features/tableLobby/publicMatch'
 import { resetFacilities } from '../features/facilities/state'
 import type { FacilityLease } from '../features/facilities/protocol'
 import { sameEquipment, type PublicEquipment } from './equipment'
+import { resetFollow } from '../features/follow/state'
+import { resetBenchSpectator } from '../features/interactions/benchSpectator'
 
 export interface Pose {
   x: number
@@ -146,6 +150,8 @@ let channelVersion = -1,
 const chatIds = new Set<string>()
 const emoteTimeline = new EmoteTimeline()
 export function resetWorld(status: Session['status'] = 'idle', error = '') {
+  resetFollow()
+  resetBenchSpectator()
   resetFacilities()
   resetNotesState(status !== 'idle')
   resetFeedbackState(status !== 'idle')
@@ -165,6 +171,8 @@ export function resetWorld(status: Session['status'] = 'idle', error = '') {
   useSession.setState({ ...initial(), status, error })
 }
 export function clearChannel(keepFeedbackDraft = false, keepNotesDraft = false) {
+  resetFollow()
+  resetBenchSpectator()
   const { sessionId, profiles } = useSession.getState()
   resetFacilities()
   resetNotesState(keepNotesDraft)
@@ -522,11 +530,11 @@ export function receive(message: Envelope) {
       const chat = {
         id: p.messageId,
         userId: p.userId,
-        text: p.text,
+        text: filterChat(p.text),
         sentAt: p.sentAt,
       }
       chatIds.add(chat.id)
-      const messages = [...state.messages, chat].slice(-200)
+      const messages = [...state.messages, chat].slice(-CHAT.historyLimit)
       if (chatIds.size > 400) {
         chatIds.clear()
         messages.forEach((m) => chatIds.add(m.id))
@@ -535,7 +543,7 @@ export function receive(message: Envelope) {
         messages,
         bubbles: {
           ...state.bubbles,
-          [chat.userId]: { ...chat, expiresAt: performance.now() + 10_000 },
+          [chat.userId]: { ...chat, expiresAt: performance.now() + OVERHEAD.bubbleDurationMs },
         },
       })
       break

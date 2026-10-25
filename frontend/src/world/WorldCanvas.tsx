@@ -15,6 +15,7 @@ import { NightLighting } from './NightLighting'
 import { CameraRig } from './CameraRig'
 
 import { Avatars } from './Avatars'
+import { FollowRopes } from '../features/follow/FollowRopes'
 import { AvatarOverlays, type OverlayTargets } from './AvatarOverlays'
 import { PerformanceProbe } from '../performance/PerformanceProbe'
 import { AdaptiveResolution } from '../performance/AdaptiveResolution'
@@ -143,6 +144,7 @@ export const WorldCanvas = memo(function WorldCanvas({
           <SceneReady onReady={onReady} />
         </Suspense>
         <Avatars overlayTargets={overlayTargets} />
+        <FollowRopes />
         <BungeoppangGrill />
 
         <ParkPigeons quality={quality} />

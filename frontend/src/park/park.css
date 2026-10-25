@@ -118,22 +118,23 @@
   width: 430px;
   transform: scale(var(--park-ui-scale));
   transform-origin: bottom left;
+  color: #fffdf2;
+  text-shadow: 0 1px 3px #101d17, 0 0 5px #101d17, 0 1px 1px #101d17;
 }
 
 .park-chat__messages {
   display: flex;
   flex-direction: column;
   height: 270px;
-  padding: 29px 29px 25px;
+  padding: 12px 0;
   border-radius: 15px;
-  background: rgba(32, 29, 24, 0.87);
+  background: transparent;
 }
 
 .park-chat__messages h1 {
   flex: 0 0 auto;
   margin: 0;
-  padding-bottom: 9px;
-  border-bottom: 1px solid rgba(234, 229, 211, 0.18);
+  padding-bottom: 0;
   font-size: 20px;
   font-weight: 300;
   line-height: 1.4;
@@ -147,13 +148,20 @@
   gap: 10px;
   min-height: 0;
   overflow-y: auto;
-  scrollbar-width: none;
+  scrollbar-width: thin;
+  scrollbar-color: #e2eadc88 transparent;
 }
 
-.park-chat__list::-webkit-scrollbar { display: none; }
+.park-chat__heading { display:flex; align-items:center; justify-content:space-between; gap:12px; padding-bottom:9px; }
+.park-chat__heading button { padding:4px 6px; border:1px solid #e2eadc44; border-radius:5px; background:#13251b55; color:#e2eadc; font:inherit; font-size:13px; text-shadow:inherit; cursor:pointer; }
+.park-chat[data-expanded="false"] .park-chat__messages { height:auto; }
+.park-chat[data-expanded="false"] .park-chat__list { flex:none; max-height:100px; }
+.park-chat__history-hint { margin-top:8px; color:#e2eadc; font-size:12px; }
+.park-chat__notice { margin:0; font-size:13px; color:#ffe3a1; }
+.park-chat button:focus-visible { outline:2px solid #d5efb3; outline-offset:3px; }
 
 .park-chat__message { display: flex; flex: 0 0 auto; gap: 14px; margin: 0; font-size: 18px; line-height: 1.35; white-space: nowrap; }
-.park-chat__message:first-child { margin-top: auto; }
+.park-chat__message:first-child { margin-top: 0; }
 .park-chat__author { flex: 0 0 130px; overflow: hidden; color: #e4b541; text-overflow: ellipsis; }
 .park-chat__author--own { color: #f2d77d; }
 .park-chat__message > span:last-child { min-width: 0; overflow-wrap: anywhere; white-space: normal; }
@@ -170,14 +178,14 @@
 
 .park-chat__composer--closed {
   justify-content: space-between;
-  padding: 0 15px 0 30px;
+  padding: 0;
   color: #e5e0d0;
-  background: rgba(32, 29, 24, 0.9);
+  background: transparent;
   cursor: pointer;
   text-align: left;
 }
 
-.park-chat__composer--closed:hover { background: rgba(46, 42, 33, 0.96); }
+.park-chat__composer--closed:hover { color: #fff; }
 .park-chat__composer--closed kbd {
   padding: 8px 12px;
   border-radius: 10px;
@@ -187,7 +195,7 @@
   font-size: 14px;
 }
 
-.park-chat__composer--open { padding: 0 14px 0 29px; background: rgba(242, 241, 226, 0.94); }
+.park-chat__composer--open { padding: 0 14px; background: #13251b66; border:1px solid #e2eadc66; }
 .park-chat__composer--open input {
   flex: 1;
   min-width: 0;
@@ -195,11 +203,11 @@
   padding: 0;
   border: 0;
   outline: 0;
-  color: #333126;
+  color: #fffdf2;
   background: transparent;
   font: inherit;
 }
-.park-chat__composer--open input::placeholder { color: #9c9b8e; opacity: 1; }
+.park-chat__composer--open input::placeholder { color: #e2eadc; opacity: 1; }
 .park-chat__composer--open:focus-within { outline: 2px solid #e0d7b8; outline-offset: 2px; }
 .park-chat__composer--open button {
   display: grid;
@@ -241,6 +249,15 @@
 .auth-loading { display: grid; min-height: 100dvh; place-items: center; color: #f3efe3; background: #27372b; }
 
 .facility-status { position: absolute; left: 20px; top: 150px; max-width: min(340px, calc(100% - 40px)); z-index: 12; }
+@media (min-width:901px) and (max-width:1200px) {
+  .park-chat { width:340px; bottom:calc(var(--park-edge) + 60px); transform:none; }
+  .park-chat__messages { height:min(300px, 38vh); }
+  .park-chat__messages h1 { font-size:16px; }
+  .park-chat__message { gap:9px; font-size:14px; }
+  .park-chat__author { flex-basis:92px; }
+  .park-chat__composer { height:42px; font-size:14px; }
+  .park-chat__composer--closed kbd { padding:5px 9px; font-size:12px; }
+}
 @media (max-width: 700px) {
   .facility-status { top: 185px; }
 }

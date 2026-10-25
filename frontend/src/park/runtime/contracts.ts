@@ -32,5 +32,6 @@ export interface ParkRuntimePort {
   actOneCard(input: import('../../game/onecard/protocol').OneCardInput): Promise<boolean>
   actBridge(input: import('../../game/bridge/protocol').BridgeInput): Promise<boolean>
   watchGame(gameId: string): Promise<boolean>
+  watchBench(anchorId: string): Promise<boolean>
   unwatchGame(): Promise<boolean>
 }

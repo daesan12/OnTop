@@ -18,7 +18,7 @@ test('park shares one socket for chat, input and server-confirmed table seats', 
   await expect(page.locator('.park-account__nickname')).toHaveText(
     '공원 산책자',
   )
-  await expect(page.locator('.park-account__balance')).toHaveText('—냥')
+  await expect(page.locator('.park-account__balance')).toHaveText('100냥')
   expect(server.connections).toBe(1)
   expect(server.tickets).toBe(1)
   await page.keyboard.press('Enter')

@@ -12,6 +12,7 @@ import { findFitness } from '../fitness/anchors'
 import { useTelescopeState } from '../telescopes/state'
 import { fitnessService } from '../fitness/service'
 import { telescopeService } from '../telescopes/service'
+import { BenchSpectatorControls } from './BenchSpectatorControls'
 
 export function ParkInteractionHint() {
   const { benchId, fitnessId, status } = useSession(useShallow(s => ({ benchId: s.benchId, fitnessId: s.fitnessId, status: s.status })))
@@ -41,6 +42,7 @@ export function ParkInteractionHint() {
       <small>{fitnessService.mode === 'mock' ? '목업 이용은 현재 탭의 표시만 변경합니다.' : '서버가 점유와 운동 시작 시각을 동기화합니다.'}</small>
     </> : benchId ? <>
       <strong>벤치 이용 중{benchService.mode === 'mock' ? ' · 목업' : ''}</strong>
+      <BenchSpectatorControls />
       <button type="button" aria-label="벤치에서 일어나기" disabled={pending || status !== 'connected'}
         onClick={event => { void standBench(); event.currentTarget.blur() }}>일어나기 · WASD / 방향키</button>
       <small>{benchService.mode === 'mock' ? '목업 착석은 현재 탭의 표시만 변경합니다.' : '서버가 좌석 점유를 동기화합니다.'}</small>

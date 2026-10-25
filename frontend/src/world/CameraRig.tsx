@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { PerspectiveCamera, Quaternion, Vector3 } from 'three'
 import { bungeoppangView } from '../features/bungeoppang/bungeoppangView'
-import { CAMERA, CHARACTER, GOMOKU, TABLES, TELESCOPE, TELESCOPES, telescopeFov, groundHeight, tableScale } from '../config'
+import { CAMERA, CHARACTER, GOMOKU, TABLES, TELESCOPE, TELESCOPES, telescopeFov, groundHeight, tableScale, tableSeats } from '../config'
 import { telescopeView } from '../features/telescopeView'
 import { interactionAim } from '../features/interactions/interactionAim'
 import { useGame } from '../game/store'
@@ -21,6 +21,7 @@ import { useFitnessState } from '../features/fitness/state'
 import { useTelescopeState } from '../features/telescopes/state'
 import { useFeedbackState } from '../features/feedback/state'
 import { useNotesState } from '../features/notes/state'
+import { benchBoardLook, benchLook, benchTable, benchViewScope, spectatorClearHeight, useBenchSpectator } from '../features/interactions/benchSpectator'
 
 export function CameraRig() {
   const { gl, camera: mountedCamera } = useThree()
@@ -156,11 +157,13 @@ export function CameraRig() {
     }
     const pose = state.pose,
       seated = !!(avatar.tableId || avatar.benchId) && avatar.seatIndex >= 0
-    if (avatar.benchId && state.bench !== avatar.benchId) {
-      state.savedView = { ...viewControls }
-      viewControls.yaw = pose.yaw + Math.PI
-      viewControls.pitch = 0
-      state.bench = avatar.benchId
+    const benchScope = benchViewScope(session), benchAnchor = benchTable(avatar.benchId)
+    if (avatar.benchId && state.bench !== benchScope) {
+      if (!state.bench) state.savedView = { ...viewControls }
+      if (benchAnchor) Object.assign(viewControls, benchBoardLook(avatar.current,
+        [benchAnchor.position[0], benchAnchor.position[1] + GOMOKU.boardY, benchAnchor.position[2]]))
+      else { viewControls.yaw = avatar.current.yaw + Math.PI; viewControls.pitch = 0 }
+      state.bench = benchScope
     } else if (!avatar.benchId && state.bench) {
       Object.assign(viewControls, state.savedView)
       state.bench = ''
@@ -171,7 +174,10 @@ export function CameraRig() {
     const looking = !!scope && useTableLobby.getState().lookScope === scope
     const watchedAnchor = game?.role === 'SPECTATOR' && session.watchedTableId
       ? TABLES.find(t => t.id === session.bindings.find(b => b.channelId === session.roomId && b.tableId === session.watchedTableId)?.anchorId) : undefined
-    const spectatorBoard = !!watchedAnchor && useTableLobby.getState().spectatorView === 'board'
+    const benchView = useBenchSpectator.getState()
+    const closeView = game?.role === 'SPECTATOR' ? useTableLobby.getState().spectatorView === 'board' ? 'board' : 'participants' : benchView.view
+    const closeAnchor = benchView.scope === benchScope && benchView.view !== 'seated' ? benchAnchor : undefined
+    const spectatorBoard = closeAnchor ? closeView === 'board' : !!watchedAnchor && useTableLobby.getState().spectatorView === 'board'
     const firstPerson = roamingFirstPerson(avatar, !!useGame.getState().watchedGameId)
     const boardFocus =
       !looking && seated && !!avatar.tableId &&
@@ -188,7 +194,7 @@ export function CameraRig() {
       1 - Math.exp(-CAMERA.followSpeed * Math.min(delta, 0.1)),
     )
     if (boardFocus || spectatorBoard || diceFocus) {
-      const anchor = watchedAnchor ?? TABLES.find((t) => t.id === avatar.tableId)!
+      const anchor = closeAnchor ?? watchedAnchor ?? TABLES.find((t) => t.id === avatar.tableId)!
       state.look.set(
         anchor.position[0],
         anchor.position[1] + GOMOKU.boardY,
@@ -196,9 +202,15 @@ export function CameraRig() {
       )
       state.desired.set(
         state.look.x,
-        state.look.y + (diceFocus || (spectatorBoard && game?.dice) ? 3.2 : 2.6) * tableScale(anchor),
+        Math.min(state.look.y + (diceFocus || (spectatorBoard && game?.dice) ? 3.2 : 2.6) * tableScale(anchor), spectatorClearHeight(anchor.pavilionId)),
         state.look.z + 0.001,
       )
+    } else if (closeAnchor) {
+      const radius = 2.75 + Math.max(...tableSeats(closeAnchor).map(s => Math.hypot(s.x, s.z)))
+      state.look.set(closeAnchor.position[0], closeAnchor.position[1] + 1.2, closeAnchor.position[2])
+      state.desired.set(state.look.x + Math.sin(benchLook.yaw) * radius,
+        Math.min(closeAnchor.position[1] + 3.1, spectatorClearHeight(closeAnchor.pavilionId)),
+        state.look.z + Math.cos(benchLook.yaw) * radius)
     } else if (watchedAnchor) {
       state.look.set(watchedAnchor.position[0], watchedAnchor.position[1] + 1, watchedAnchor.position[2])
       state.desired.set(state.look.x + 4 * tableScale(watchedAnchor), state.look.y + 3 * tableScale(watchedAnchor), state.look.z + 4 * tableScale(watchedAnchor))
@@ -260,7 +272,7 @@ export function CameraRig() {
     interactionAim.dx = state.direction.x
     interactionAim.dy = state.direction.y
     interactionAim.dz = state.direction.z
-    omokCamera.anchorId = boardFocus ? avatar.tableId : spectatorBoard ? watchedAnchor!.id : ''
+    omokCamera.anchorId = boardFocus ? avatar.tableId : spectatorBoard ? (closeAnchor ?? watchedAnchor)!.id : ''
     omokCamera.ready =
       !!(boardFocus || spectatorBoard) && camera.position.distanceTo(state.desired) < 0.005
     if (camera instanceof PerspectiveCamera && state.bungeoppangFov === null) {

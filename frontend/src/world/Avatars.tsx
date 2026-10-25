@@ -13,6 +13,7 @@ import { bungeoppangView } from '../features/bungeoppang/bungeoppangView'
 import { emptyEquipment } from '../network/equipment'
 import { roamingFirstPerson } from './roamingCamera'
 import { useGame } from '../game/store'
+import { openAvatarMenu } from '../features/follow/FollowMenu'
 
 import {
   AvatarOverlayPositions,
@@ -98,6 +99,11 @@ function Avatar({
       ref={root}
       name={`avatar-${id}`}
       dispose={null}
+      onContextMenu={event => {
+        if (id === useSession.getState().sessionId) return
+        event.stopPropagation(); event.nativeEvent.preventDefault()
+        openAvatarMenu({ id, x: event.clientX, y: event.clientY })
+      }}
       // Approved public appearance reaches the renderer. No guessed asset or material
       // substitution: product-specific models/textures have not been supplied yet.
       userData={{ character: variant, equipment, equipmentAssetsPending: equipment.length > 0 }}

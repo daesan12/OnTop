@@ -13,7 +13,6 @@ import type { PublicEquipment } from '../../src/network/equipment'
 import developmentBindings from '../../public/park-bindings.dev.json' with { type: 'json' }
 
 // Contract fixtures intercept HTTP/RawWS only in tests. No production fake-auth or socket bypass.
-const anchor = TABLES[0]!
 export const tableId = 'fixture-server-table'
 const artifacts =
   process.env.QA_ARTIFACT_DIR ?? path.join(os.tmpdir(), 'ontop-fe-qa')
@@ -38,8 +37,11 @@ export async function fixture(
     emoteBindings?: boolean | 'development'
     publicProfiles?: Record<string, { nickname?: string | null; characterGender?: 'MALE' | 'FEMALE' | null }>
     position?: { x: number; y: number; z: number; yaw: number }
+    anchorId?: string
+    publicSpectator?: boolean
   } = {},
 ) {
+  const anchor = TABLES.find(t => t.id === options.anchorId) ?? TABLES[0]!
   let tickets = 0,
     connections = 0,
     active = 0,
@@ -65,7 +67,7 @@ export async function fixture(
     ...options.position,
   }
   let emoteResponse: 'approve' | 'reject' | 'hold' = 'approve'
-  let emoteCounter = 0
+  let emoteCounter = 0, chatCounter = 0
   let lastEmote: { eventId: string; channelId: string; userId: string; emoteCode: string; sentAt: string } | undefined
   let emoteRequestId = ''
   let remotePosition: Partial<typeof position> = {}
@@ -84,7 +86,11 @@ export async function fixture(
     finished = false,
     holdState = false,
     forbid = false
-  const gameId = options.bridge ? 'fixture-confirmed-bridge' : options.onecard ? 'fixture-confirmed-onecard' : options.dice ? 'fixture-confirmed-dice' : 'fixture-confirmed-omok'
+  let gameId = options.bridge ? 'fixture-confirmed-bridge' : options.onecard ? 'fixture-confirmed-onecard' : options.dice ? 'fixture-confirmed-dice' : 'fixture-confirmed-omok'
+  let publicGameId: string | null = options.publicSpectator ? gameId : null
+  let watchingGameId = '', holdGameWatch = false
+  const heldGameWatches: { requestId: string; gameId: string }[] = []
+  if (options.publicSpectator) gameCode = options.bridge ? 'LIAR_BRIDGE' : options.onecard ? 'ONE_CARD' : options.dice ? 'DICE' : 'OMOK'
   let bridgeState = makeBridge(options.bridge), bridgeSecret: SecretDie | null = null
   const bridgeReplies: { input: object; patch: Partial<Bridge>; secret: SecretDie | null }[] = []
   const initialHand: Card[] = ['4', '7', 'K', 'Q', 'J', '2', 'A'].map(rank => ({ id: `hearts-${rank}`, suit: 'hearts', rank }))
@@ -146,12 +152,12 @@ export async function fixture(
       },
       requestId,
     )
-  const game = (ws: WebSocketRoute, requestId: string | null = null, role = watchingGame ? 'SPECTATOR' : 'PLAYER') =>
+  const game = (ws: WebSocketRoute, requestId: string | null = null, role = watchingGame ? 'SPECTATOR' : 'PLAYER', displayedId = gameId) =>
     emit(
       ws,
       'GAME_STATE',
       {
-        gameId,
+        gameId: displayedId,
         version: gameVersion,
         role,
         publicState: options.bridge ? bridgeState : options.onecard ? cardState : options.dice ? diceState : omok(),
@@ -219,6 +225,7 @@ export async function fixture(
         json: { userId: Number(options.ownUserId ?? '101'), nickname: '공원 산책자', characterGender: 'MALE' },
       })
     }
+    if (url.pathname === '/api/v1/wallets/me') return route.fulfill({ json: { balance: 100, reservedBalance: 0, availableBalance: 100 } })
     if (url.pathname === '/api/v1/channels')
       return route.fulfill({
         json: {
@@ -249,6 +256,7 @@ export async function fixture(
               joinable: !seated,
               gameCode: null,
               targetScore,
+              ...(options.publicSpectator ? { gameId: publicGameId } : {}),
             },
           ],
         },
@@ -293,7 +301,7 @@ export async function fixture(
         },
       }),
     )
-  const table = (ws: WebSocketRoute, type: string, requestId: string | null) =>
+  const table = (ws: WebSocketRoute, type: string, requestId: string | null, patch: object = {}) =>
     ws.send(
       JSON.stringify({
         requestId,
@@ -311,6 +319,8 @@ export async function fixture(
           selectorUserId: selectorOverride ?? (seated ? '101' : '102'),
           gameCode,
           targetScore,
+          ...(options.publicSpectator ? { gameId: publicGameId } : {}),
+          ...patch,
         },
       }),
     )
@@ -418,11 +428,16 @@ export async function fixture(
         if (watchMode === 'reject') emit(ws, 'ERROR', { code: 'TABLE_OUT_OF_RANGE', message: '테이블 관전 범위를 확인해주세요.' }, requestId)
         if (watchMode === 'normal') table(ws, 'TABLE_WATCH_STATE', requestId)
       }
-      if (options.m09 && type === 'GAME_WATCH') {
+      if ((options.m09 || options.publicSpectator) && type === 'GAME_WATCH') {
         if (rejectGameWatch) emit(ws, 'ERROR', { code: 'GAME_STATE_ACCESS_DENIED', message: '경기 관전 권한이 없습니다.' }, requestId)
-        else { watchingGame = true; game(ws, requestId, 'SPECTATOR') }
+        else if (holdGameWatch) { heldGameWatches.push({ requestId, gameId: String(payload.gameId) }); watchingGameId = String(payload.gameId) }
+        else { watchingGame = true; watchingGameId = String(payload.gameId); game(ws, requestId, 'SPECTATOR', watchingGameId) }
       }
-      if (options.m09 && type === 'GAME_UNWATCH') { watchingGame = false; emit(ws, 'GAME_WATCH_LEFT', { gameId }, requestId) }
+      if ((options.m09 || options.publicSpectator) && type === 'GAME_UNWATCH') {
+        const previousId = watchingGameId || gameId; watchingGame = false; watchingGameId = ''
+        for (const pending of heldGameWatches) emit(ws, 'ERROR', { code: 'GAME_WATCH_CANCELLED', message: '관전 취소' }, pending.requestId)
+        emit(ws, 'GAME_WATCH_LEFT', { gameId: previousId }, requestId)
+      }
       if (type === 'TABLE_UNWATCH')
         ws.send(
           JSON.stringify({
@@ -554,6 +569,17 @@ export async function fixture(
     },
     resendGame: (role = 'PLAYER') => game(sockets.at(-1)!, null, role),
     rejectGameWatch: (value: boolean) => { rejectGameWatch = value },
+    holdGameWatch: (value: boolean) => { holdGameWatch = value },
+    lateGameWatch: () => { for (const pending of heldGameWatches.splice(0)) game(sockets.at(-1)!, pending.requestId, 'SPECTATOR', pending.gameId) },
+    publicMatch: (id: string | null) => {
+      publicGameId = id
+      if (id) { gameId = id; gameVersion = 0; finished = false }
+      table(sockets.at(-1)!, 'TABLE_WATCH_STATE', null)
+    },
+    stalePublicMatch: (id: string | null) => table(sockets.at(-1)!, 'TABLE_WATCH_STATE', null, { version: 0, gameId: id }),
+    latePublicGame: (id: string) => game(sockets.at(-1)!, null, 'SPECTATOR', id),
+    publicMoveForRefresh: () => { board[7]![7] = 1; lastMove = { x: 7, y: 7, stone: 'BLACK' }; turn = '102'; gameVersion++ },
+    revokeWatch: () => { watchingGame = false; emit(sockets.at(-1)!, 'ERROR', { code: 'GAME_STATE_ACCESS_DENIED', message: '관전 권한 회수' }) },
     watchMode: (mode: typeof watchMode) => { watchMode = mode },
     replyWatch: () => table(sockets.at(-1)!, 'TABLE_WATCH_STATE', watchRequestId),
     host: (id: string) => { selectorOverride = id; table(sockets.at(-1)!, 'TABLE_STATE', null) },
@@ -652,7 +678,7 @@ export async function fixture(
       publicProfiles[userId] = profile; world(sockets.at(-1)!)
     },
     chatFrom: (userId: string, text: string) => emit(sockets.at(-1)!, 'WORLD_CHAT_MESSAGE', {
-      channelId: 'fixture-channel', userId, text, messageId: `fixture-chat-${version}`, sentAt: new Date().toISOString(),
+      channelId: 'fixture-channel', userId, text, messageId: `fixture-chat-${++chatCounter}`, sentAt: new Date().toISOString(),
     }),
     emoteResponse: (response: typeof emoteResponse) => { emoteResponse = response },
     completeEmote: () => { if (lastEmote) emit(sockets.at(-1)!, 'WORLD_EMOTE_EVENT', lastEmote, emoteRequestId) },

@@ -20,6 +20,7 @@ import { installMouseLook, mouseLookReturn } from './mouseLook'
 import { canControlRoamingCamera } from './roamingCamera'
 import { toggleCameraPerspective, useCameraPerspective, viewControls } from './cameraPerspective'
 import { cancelMouseLookReturn, resetCameraReturn } from './cameraReturn'
+import { benchViewScope, turnBenchLook, useBenchSpectator } from '../features/interactions/benchSpectator'
 export { inputState, setChatInputOpen, textInputOwnsKeys } from './inputOwnership'
 export { viewControls } from './cameraPerspective'
 export function nearestTable(): string | null {
@@ -44,6 +45,8 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
   canvas.tabIndex = -1
   let drag = false,
     seatDragging = '',
+    benchDragging = '',
+    benchExitKey = false,
     jump = false,
     hadMovement = false
   const intent: MovementIntent = { dx: 0, dz: 0, run: false, jump: false }
@@ -60,6 +63,8 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     keys.clear()
     drag = jump = hadMovement = false
     seatDragging = ''
+    benchDragging = ''
+    benchExitKey = false
     parkRuntime.move(0, 0, false)
   }
   const rotate = (x: number, y: number) => {
@@ -84,11 +89,21 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
   const focus = (event: FocusEvent) => {
     if (event.target === canvas) return
     mouseLook.release()
-    if (hadMovement || keys.size || jump || drag || seatDragging) stop()
+    if (hadMovement || keys.size || jump || drag || seatDragging || benchDragging) stop()
   }
   const down = (event: KeyboardEvent) => {
     if (event.defaultPrevented) return
     const session = useSession.getState(), table = session.tableStates[session.tableId]
+    // A bench watcher must be able to stand even while GAME_WATCH blocks roaming.
+    if (session.benchId && movement.has(event.code) && !event.code.startsWith('Shift') && !event.repeat
+      && !event.isComposing && !event.ctrlKey && !event.altKey && !event.metaKey && session.status === 'connected'
+      && !document.hidden && !panelOwnsKeys() && !textInputOwnsKeys(document.activeElement)) {
+      event.preventDefault()
+      if (useBenchState.getState().pending) { keys.add(event.code); return }
+      stop(); keys.add(event.code); benchExitKey = true
+      void standBench().then(ok => { if (!ok) { benchExitKey = false; keys.clear() } })
+      return
+    }
     // TABLE_LEAVE is distinct from resign. A delayed movement key can never become a forfeit.
     if (!event.repeat && !event.isComposing && !event.ctrlKey && !event.altKey && !event.metaKey
       && session.status === 'connected' && !session.pending && !document.hidden && session.mapCompatible
@@ -150,6 +165,11 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
   const pointerDown = (event: PointerEvent) => {
     if (mouseLook.locked()) return
     const session = useSession.getState(), scope = seatScope(session)
+    const benchScope = benchViewScope(session), benchView = useBenchSpectator.getState()
+    if (event.button === 2 && benchScope && benchView.scope === benchScope && benchView.view === 'participants'
+      && !panelOwnsKeys() && !textInputOwnsKeys(document.activeElement)) {
+      event.preventDefault(); benchDragging = benchScope; canvas.focus({ preventScroll: true }); return
+    }
     if (event.button === 2 && scope && session.status === 'connected'
       && !Object.values(inputState).some(Boolean) && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName ?? '')) {
       event.preventDefault()
@@ -164,6 +184,12 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
   }
   const pointerMove = (event: PointerEvent) => {
     if (mouseLook.locked()) return
+    if (benchDragging) {
+      const benchView = useBenchSpectator.getState()
+      if (benchDragging !== benchViewScope(useSession.getState()) || benchView.scope !== benchDragging
+        || benchView.view !== 'participants' || panelOwnsKeys()) { benchDragging = ''; return }
+      turnBenchLook(event.movementX); return
+    }
     if (seatDragging) {
       const session = useSession.getState()
       if (seatDragging !== seatScope(session) || session.status !== 'connected' || Object.values(inputState).some(Boolean)) {
@@ -186,8 +212,9 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
   const pointerUp = () => {
     drag = false
     seatDragging = ''
+    benchDragging = ''
   }
-  const contextMenu = (event: Event) => { if (useSession.getState().tableId) event.preventDefault() }
+  const contextMenu = (event: Event) => { if (useSession.getState().tableId || useSession.getState().benchId) event.preventDefault() }
   const wheel = (event: WheelEvent) => {
     if (blocked() || useSession.getState().benchId) return
     event.preventDefault()
@@ -208,9 +235,12 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     if (!canControlRoamingCamera()) mouseLook.release()
     else if (mouseLookReturn.requested) mouseLook.resume()
     if (blocked()) {
+      if (benchExitKey && useSession.getState().benchId && useSession.getState().status === 'connected'
+        && !document.hidden && !panelOwnsKeys() && !textInputOwnsKeys(document.activeElement)) return
       if (hadMovement || keys.size || jump) stop()
       return
     }
+    if (!useSession.getState().benchId) benchExitKey = false
     if (useSession.getState().benchId || useSession.getState().fitnessId || useSession.getState().telescopeId
       || useBenchState.getState().pending || useFitnessState.getState().pending || useTelescopeState.getState().pending) return
     const forward =
