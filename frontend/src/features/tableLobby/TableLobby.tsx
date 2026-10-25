@@ -17,7 +17,7 @@ export function TableLobby() {
   const s = useSession(useShallow(s => ({
     own: s.sessionId, channel: s.roomId, focused: s.focusedAnchorId, seated: s.tableId,
     tables: s.tables, states: s.tableStates, bindings: s.bindings, pending: s.pending,
-    connected: s.status === 'connected', profiles: s.profiles,
+    connected: s.status === 'connected', profiles: s.profiles, bench: s.benchId,
   })))
   const game = useGame(s => s.game), start = useGame(s => s.start), busy = useGame(tableBusy)
   const lastResult = useGame(s => s.lastResult)
@@ -64,7 +64,8 @@ export function TableLobby() {
         <button onClick={resetSeatedLook}>정면 보기</button>
         <small>마우스 오른쪽 드래그로 주변을 둘러볼 수 있어요.</small>
       </> : <>
-        <button disabled={s.pending || !s.connected || busy || !!s.seated || summary?.joinable === false} onClick={() => void runtime.joinTable()}>앉기</button>
+        <button disabled={s.pending || !s.connected || busy || !!s.seated || !!s.bench || summary?.joinable === false} onClick={() => void runtime.joinTable()}>앉기</button>
+        {s.bench && <p>벤치 관전 중입니다. 참가하려면 먼저 벤치에서 일어나주세요.</p>}
         {summary?.joinable === false && <p>진행·정산 중이거나 빈자리가 없는 테이블입니다.</p>}
         <button disabled={!canWatch || s.pending} onClick={() => ref && void runtime.watchGame(ref.gameId)}>경기 관전</button>
         {!ref && <p className="table-lobby-note">진행 중인 경기 관전은 아직 준비 중입니다.</p>}

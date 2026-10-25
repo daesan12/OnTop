@@ -29,6 +29,7 @@ import { useBungeoppang } from '../features/bungeoppang/store'
 import { ShopLauncher, ShopPanel } from '../features/shop/ShopPanel'
 import { AdvertisementLink } from '../features/advertisements/AdvertisementLink'
 import { CameraControls } from '../features/camera/CameraControls'
+import { FollowMenu } from '../features/follow/FollowMenu'
 
 const shortcuts = [
   { key: 'WASD', action: '이동' },
@@ -194,6 +195,7 @@ function ParkContent({ onExit, exitError }: ParkProps) {
       <ShopPanel />
       <AdvertisementLink />
       <CameraControls />
+      <FollowMenu />
       <BungeoppangHud />
       <ParkMap />
       <ParkNavigation />

@@ -30,6 +30,8 @@ import { publicMatchService } from '../features/tableLobby/publicMatch'
 import { resetFacilities } from '../features/facilities/state'
 import type { FacilityLease } from '../features/facilities/protocol'
 import { sameEquipment, type PublicEquipment } from './equipment'
+import { resetFollow } from '../features/follow/state'
+import { resetBenchSpectator } from '../features/interactions/benchSpectator'
 
 export interface Pose {
   x: number
@@ -146,6 +148,8 @@ let channelVersion = -1,
 const chatIds = new Set<string>()
 const emoteTimeline = new EmoteTimeline()
 export function resetWorld(status: Session['status'] = 'idle', error = '') {
+  resetFollow()
+  resetBenchSpectator()
   resetFacilities()
   resetNotesState(status !== 'idle')
   resetFeedbackState(status !== 'idle')
@@ -165,6 +169,8 @@ export function resetWorld(status: Session['status'] = 'idle', error = '') {
   useSession.setState({ ...initial(), status, error })
 }
 export function clearChannel(keepFeedbackDraft = false, keepNotesDraft = false) {
+  resetFollow()
+  resetBenchSpectator()
   const { sessionId, profiles } = useSession.getState()
   resetFacilities()
   resetNotesState(keepNotesDraft)

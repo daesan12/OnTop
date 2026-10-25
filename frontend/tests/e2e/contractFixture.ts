@@ -13,7 +13,6 @@ import type { PublicEquipment } from '../../src/network/equipment'
 import developmentBindings from '../../public/park-bindings.dev.json' with { type: 'json' }
 
 // Contract fixtures intercept HTTP/RawWS only in tests. No production fake-auth or socket bypass.
-const anchor = TABLES[0]!
 export const tableId = 'fixture-server-table'
 const artifacts =
   process.env.QA_ARTIFACT_DIR ?? path.join(os.tmpdir(), 'ontop-fe-qa')
@@ -38,8 +37,10 @@ export async function fixture(
     emoteBindings?: boolean | 'development'
     publicProfiles?: Record<string, { nickname?: string | null; characterGender?: 'MALE' | 'FEMALE' | null }>
     position?: { x: number; y: number; z: number; yaw: number }
+    anchorId?: string
   } = {},
 ) {
+  const anchor = TABLES.find(t => t.id === options.anchorId) ?? TABLES[0]!
   let tickets = 0,
     connections = 0,
     active = 0,

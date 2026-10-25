@@ -9,6 +9,9 @@ import { facilityMovementBlocked, serverFacilities } from '../../features/facili
 import { RestError } from '../../network/restError'
 import { inputState } from '../../world/inputOwnership'
 import { rememberRoamingView } from '../../world/cameraReturn'
+import { benchTable } from '../../features/interactions/benchSpectator'
+import { useBenchState } from '../../features/interactions/benchState'
+import { useFacilityState } from '../../features/facilities/state'
 import {
   channel,
   record,
@@ -498,10 +501,13 @@ export class ParkRuntime implements ParkRuntimePort {
     }
   }
   inspectTable = (anchorId: string) => {
-    if (facilityMovementBlocked(useSession.getState().sessionId)) return
+    const own = useSession.getState(), facilities = useFacilityState.getState()
+    const benchRead = own.status === 'connected' && own.mapCompatible && benchTable(own.benchId)?.id === anchorId
+      && !useBenchState.getState().pending && !facilities.pending && !facilities.awaitingWorld && !facilities.uncertain
+    if (facilityMovementBlocked(own.sessionId) && !benchRead) return
     if (inputState.minigameOpen) return
     if (this.actionBusy || useSession.getState().pending) return
-    if (benchBusy(useSession.getState().sessionId) || fitnessBusy(useSession.getState().sessionId) || telescopeBusy(useSession.getState().sessionId)) return
+    if (benchBusy(own.sessionId) && !benchRead || fitnessBusy(own.sessionId) || telescopeBusy(own.sessionId)) return
     rememberRoamingView(useSession.getState().sessionId, useSession.getState().roomId)
     useSession.setState({ focusedAnchorId: anchorId })
     const s = useSession.getState(),

@@ -14,3 +14,13 @@
 @media (max-width: 600px) {
   .park-page:has(.park-interaction[data-fitness-id]) .emotes { top: 140px; bottom: auto; }
 }
+.bench-spectator, .bench-spectator > [role="group"] { display:flex; flex-wrap:wrap; gap:8px; }
+.bench-spectator { flex-direction:column; }
+.bench-spectator button[aria-pressed="true"] { border-color:#dfd2b0; background:#51614a; }
+.park-page .park-interaction:has(.bench-spectator button[aria-pressed="true"]) { left:auto; right:var(--park-edge); bottom:var(--park-edge); transform:none; width:max-content; max-width:calc(100vw - 280px); flex-direction:row; flex-wrap:wrap; padding:12px 16px; }
+.park-interaction:has(.bench-spectator button[aria-pressed="true"]) > :is(strong,small) { display:none; }
+.park-interaction:has(.bench-spectator button[aria-pressed="true"]) .bench-spectator { flex-direction:row; align-items:center; }
+.park-page:has(.bench-spectator button[aria-pressed="true"]) .park-shortcuts { visibility:hidden; }
+.bench-spectator-help summary { cursor:pointer; padding:9px 6px; font-size:14px; }
+.bench-spectator-help summary:focus-visible { outline:2px solid #e8d4a4; outline-offset:2px; }
+.bench-spectator-help > div { position:absolute; right:0; bottom:calc(100% + 10px); width:300px; max-width:calc(100vw - 32px); box-sizing:border-box; display:grid; gap:12px; padding:16px; border:1px solid #b9c5a65c; border-radius:12px; background:#202c23f5; }
