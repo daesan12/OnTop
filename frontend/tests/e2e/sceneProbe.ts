@@ -161,6 +161,44 @@ export function adCameraProbe() {
     remoteVisible: scene.getObjectByName('avatar-102')?.visible,
     active: document.pointerLockElement === document.querySelector('canvas') }
 }
+export function avatarMenuPoint(id: string) {
+  const { scene, camera, gl } = root(), avatar = scene.getObjectByName('avatar-' + id)!
+  const p = avatar.getWorldPosition(new Vector3()), worldX = p.x
+  p.y += CHARACTER.height * .55; p.project(camera)
+  const box = gl.domElement.getBoundingClientRect()
+  return { x: box.left + (p.x + 1) * box.width / 2, y: box.top + (1 - p.y) * box.height / 2, worldX }
+}
+export function projectWorldPoint(position: readonly number[]) {
+  const { camera, gl } = root(), p = new Vector3(position[0], position[1], position[2]).project(camera)
+  const box = gl.domElement.getBoundingClientRect()
+  return { x: box.left + (p.x + 1) * box.width / 2, y: box.top + (1 - p.y) * box.height / 2 }
+}
+const followResources = { geometry: 0, material: 0 }
+const followDraw = { calls: 0, triangles: 0 }
+export function measureFollowDraw() {
+  const { scene, gl } = root(), mesh = scene.getObjectByName('follow-ropes') as Mesh
+  let calls = 0, triangles = 0
+  mesh.onBeforeRender = () => { calls = gl.info.render.calls; triangles = gl.info.render.triangles }
+  mesh.onAfterRender = () => { followDraw.calls = gl.info.render.calls - calls; followDraw.triangles = gl.info.render.triangles - triangles }
+}
+export function watchFollowResources() {
+  followResources.geometry = followResources.material = 0
+  const mesh = root().scene.getObjectByName('follow-ropes') as Mesh
+  mesh.geometry.addEventListener('dispose', () => followResources.geometry++)
+  const material = Array.isArray(mesh.material) ? mesh.material[0]! : mesh.material
+  material.addEventListener('dispose', () => followResources.material++)
+}
+export const followResourceProbe = () => ({ ...followResources })
+export function followRenderProbe() {
+  const { scene, gl } = root(), mesh = scene.getObjectByName('follow-ropes') as Mesh
+  const position = mesh.geometry.getAttribute('position')
+  const material = (Array.isArray(mesh.material) ? mesh.material[0]! : mesh.material) as import('three').MeshBasicMaterial
+  return { vertices: mesh.geometry.drawRange.count, capacity: position.count,
+    ownDraw: { ...followDraw }, textured: !!material.map,
+    finite: Array.from(position.array).every(Number.isFinite),
+    calls: gl.info.render.calls, triangles: gl.info.render.triangles,
+    geometries: gl.info.memory.geometries, textures: gl.info.memory.textures }
+}
 /** A fixture-approved pose in front of a real poster, then an actual browser raycast click. */
 export function advertisementTarget() {
   const { scene } = root()

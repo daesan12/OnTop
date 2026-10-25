@@ -17,7 +17,7 @@ export function TableLobby() {
   const s = useSession(useShallow(s => ({
     own: s.sessionId, channel: s.roomId, focused: s.focusedAnchorId, seated: s.tableId,
     tables: s.tables, states: s.tableStates, bindings: s.bindings, pending: s.pending,
-    connected: s.status === 'connected', profiles: s.profiles,
+    connected: s.status === 'connected', profiles: s.profiles, bench: s.benchId,
   })))
   const game = useGame(s => s.game), start = useGame(s => s.start), busy = useGame(tableBusy)
   const lastResult = useGame(s => s.lastResult)
@@ -26,13 +26,13 @@ export function TableLobby() {
     const table = s.states[s.seated]
     return !!table && canLeaveByMovement(table, s.own, game)
   })
-  const query = useTableLobby(useShallow(s => ({ tableId: s.tableId, status: s.status, error: s.error })))
+  const query = useTableLobby(useShallow(s => ({ tableId: s.tableId, status: s.status, error: s.error, panelOpen: s.panelOpen })))
   const [, setRefreshReference] = useState(0)
   const tableId = s.seated || bindAnchor(s.bindings, s.channel, s.focused, s.tables.map(t => t.tableId))
   const table = tableId ? s.states[tableId] : undefined
   const summary = s.tables.find(t => t.tableId === tableId)
   const ownTable = s.seated === tableId && !!tableId
-  if (!s.focused || game) return null
+  if (!s.focused || !query.panelOpen || game) return null
   const ref = tableId ? publicMatchService.find({ channelId: s.channel, tableId }) : null
   const canWatch = !!ref && ref.tableId === tableId && ref.channelId === s.channel
     && !s.seated && !busy && s.connected
@@ -64,10 +64,11 @@ export function TableLobby() {
         <button onClick={resetSeatedLook}>정면 보기</button>
         <small>마우스 오른쪽 드래그로 주변을 둘러볼 수 있어요.</small>
       </> : <>
-        <button disabled={s.pending || !s.connected || busy || !!s.seated || summary?.joinable === false} onClick={() => void runtime.joinTable()}>앉기</button>
+        <button disabled={s.pending || !s.connected || busy || !!s.seated || !!s.bench || summary?.joinable === false} onClick={() => void runtime.joinTable()}>앉기</button>
+        {s.bench && <p>벤치 관전 중입니다. 참가하려면 먼저 벤치에서 일어나주세요.</p>}
         {summary?.joinable === false && <p>진행·정산 중이거나 빈자리가 없는 테이블입니다.</p>}
         <button disabled={!canWatch || s.pending} onClick={() => ref && void runtime.watchGame(ref.gameId)}>경기 관전</button>
-        {!ref && <p className="table-lobby-note">진행 중인 경기 관전은 아직 준비 중입니다.</p>}
+        {!ref && <p className="table-lobby-note">현재 확정된 진행 경기가 없습니다. 서버의 시작 확정을 기다려주세요.</p>}
         {import.meta.env.DEV && import.meta.env.MODE === 'facility-preview' && publicMatchService.mode === 'mock' && <>
           <p className="table-preview-label">공개 경기 참조만 목업 · 관전 승인과 공개 판은 기존 WS를 사용합니다.</p>
           <button onClick={() => setRefreshReference(n => n + 1)}>미리보기 경기 참조 확인</button>

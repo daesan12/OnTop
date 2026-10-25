@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import { AuthCallbackPage } from './auth/AuthCallbackPage'
 import { clearAuthSession, getAuthSession, logout, restoreAuthSession } from './auth/authFlow'
 import { LoginPage } from './login/LoginPage'
 import { OnboardingPage } from './onboarding/OnboardingPage'
 import { ParkPage } from './park/ParkPage'
 
-type Page = 'checking' | 'login' | 'callback' | 'onboarding' | 'park'
+const AdminFeedbackPage = lazy(() => import('./features/feedback/AdminFeedbackPage').then(m => ({ default: m.AdminFeedbackPage })))
+type Page = 'checking' | 'login' | 'callback' | 'onboarding' | 'park' | 'admin-feedback'
 
 export default function App() {
   const [page, setPage] = useState<Page>(() =>
@@ -36,8 +37,9 @@ export default function App() {
     restoreAuthSession().then((authenticated) => {
       if (!active) return
       if (authenticated) {
-        window.history.replaceState(null, '', '/park')
-        setPage('park')
+        const admin = window.location.pathname === '/admin/feedback'
+        window.history.replaceState(null, '', admin ? '/admin/feedback' : '/park')
+        setPage(admin ? 'admin-feedback' : 'park')
       } else {
         if (window.location.pathname !== '/') window.history.replaceState(null, '', '/')
         setPage('login')
@@ -81,6 +83,11 @@ export default function App() {
   }
   if (page === 'park' && getAuthSession()?.status === 'AUTHENTICATED') {
     return <ParkPage onExit={onExit} exitError={exitError} onAuthEnded={onReturnToLogin} />
+  }
+  if (page === 'admin-feedback' && getAuthSession()?.status === 'AUTHENTICATED') {
+    return <Suspense fallback={<main className="auth-loading" role="status">관리자 화면 준비 중…</main>}>
+      <AdminFeedbackPage onReturn={onAuthenticated} onAuthEnded={onReturnToLogin} />
+    </Suspense>
   }
   if (page === 'checking') return <main className="auth-loading" role="status">로그인 상태 확인 중…</main>
   return <LoginPage />

@@ -1,0 +1,23 @@
+.admin-feedback-page { min-height:100dvh; box-sizing:border-box; padding:40px max(24px, calc((100vw - 1000px) / 2)); background:#f3efdf; color:#253e34; font-family:system-ui,sans-serif; }
+.admin-feedback-header { padding:0 0 26px; }
+.admin-feedback-header a { display:block; width:fit-content; margin-bottom:32px; color:#385748; }
+.admin-feedback-header small { color:#6b715e; }
+.admin-feedback-header h1 { margin:8px 0 12px; font-size:32px; }
+.admin-feedback-header h1:focus { outline:none; }
+.admin-feedback-header p { margin:0; line-height:1.6; }
+.admin-feedback-content { background:#fffef8; padding:28px; border:1px solid #d3d5c4; border-radius:16px; }
+.admin-feedback-toolbar, .admin-feedback-entries article header, .admin-feedback-pagination { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:16px; }
+.admin-feedback-toolbar h2 { margin:0; font-size:20px; }
+.admin-feedback-page button { padding:10px 14px; border:1px solid #a9b6a1; border-radius:8px; background:#edf1e5; color:inherit; font:inherit; cursor:pointer; }
+.admin-feedback-page button:disabled { opacity:.45; cursor:default; }
+.admin-feedback-page :is(button,a):focus-visible { outline:3px solid #647e4e; outline-offset:3px; }
+.admin-feedback-count { margin:24px 0 12px; color:#66705e; font-size:14px; }
+.admin-feedback-entries { display:grid; gap:16px; }
+.admin-feedback-entries article { padding:20px; border:1px solid #dde0d2; border-radius:10px; }
+.admin-feedback-entries time, .admin-feedback-entries small { color:#66705e; font-size:13px; }
+.admin-feedback-entries small { display:block; margin-top:10px; }
+.admin-feedback-entries article p { white-space:pre-wrap; overflow-wrap:anywhere; line-height:1.75; margin:16px 0 0; }
+.admin-feedback-pagination { justify-content:center; margin-top:28px; }
+.admin-feedback-error { padding:16px; margin-top:20px; border:1px solid #d2b79c; border-radius:10px; background:#fff4e8; }
+.admin-feedback-empty { padding:40px 0; text-align:center; }
+@media(max-width:900px) { .admin-feedback-page { padding:24px; } .admin-feedback-content { padding:20px; } }

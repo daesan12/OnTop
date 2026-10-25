@@ -47,6 +47,7 @@ export interface TableSummary {
   joinable: boolean
   gameCode: string | null
   status: string
+  gameId?: string | null
 }
 export interface TableState {
   tableId: string
@@ -58,7 +59,10 @@ export interface TableState {
   selectorUserId: string | null
   gameCode: string | null
   targetScore: number | null
+  gameId?: string | null
 }
+// Older servers omit the field. Missing never grants a watch; malformed IDs are rejected.
+const publicGameId = (v: unknown) => v == null || typeof v === 'string' && !!v.trim() && v.length <= 120
 export const record = (x: unknown): x is Record<string, unknown> =>
   !!x && typeof x === 'object' && !Array.isArray(x)
 export const integer = (x: unknown): x is number =>
@@ -163,10 +167,10 @@ export function tableSummary(value: unknown): TableSummary {
     value.occupiedSeats + value.availableSeats !== value.capacity ||
     typeof value.joinable !== 'boolean' ||
     !(value.gameCode === null || text(value.gameCode)) ||
-    !text(value.status)
+    !text(value.status) || !publicGameId(value.gameId)
   )
     throw new Error('테이블 목록 형식이 올바르지 않습니다.')
-  return value as unknown as TableSummary
+  return { ...value, gameId: value.gameId ?? null } as unknown as TableSummary
 }
 export function tableState(value: Record<string, unknown>): TableState {
   if (
@@ -186,7 +190,7 @@ export function tableState(value: Record<string, unknown>): TableState {
         typeof s.ready === 'boolean' &&
         (s.userId !== null || s.ready === false),
     ) ||
-    typeof value.allReady !== 'boolean' ||
+    typeof value.allReady !== 'boolean' || !publicGameId(value.gameId) ||
     !(value.selectorUserId === null || text(value.selectorUserId)) ||
     !(value.gameCode === null || text(value.gameCode)) ||
     !(
@@ -205,5 +209,6 @@ export function tableState(value: Record<string, unknown>): TableState {
   return {
     ...value,
     targetScore: value.targetScore ?? null,
+    gameId: value.gameId ?? null,
   } as unknown as TableState
 }

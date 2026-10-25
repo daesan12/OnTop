@@ -27,6 +27,7 @@ import { useBungeoppang } from '../features/bungeoppang/store'
 import { ShopLauncher, ShopPanel } from '../features/shop/ShopPanel'
 import { AdvertisementLink } from '../features/advertisements/AdvertisementLink'
 import { CameraControls } from '../features/camera/CameraControls'
+import { FollowMenu } from '../features/follow/FollowMenu'
 import { ParkChat } from '../features/chat/ParkChat'
 import { WalletBalance } from '../features/wallet/WalletBalance'
 
@@ -115,6 +116,7 @@ function ParkContent({ onExit, exitError }: ParkProps) {
       <ShopPanel />
       <AdvertisementLink />
       <CameraControls />
+      <FollowMenu />
       <BungeoppangHud />
       <ParkMap />
       <ParkNavigation />
