@@ -16,7 +16,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.transaction.PlatformTransactionManager;
 
 @Configuration
-@Profile("local & db")
+@Profile("(local | dev) & db & !prod & !production")
 @ConditionalOnProperty(name = "ontop.shop.enabled", havingValue = "true")
 @EntityScan(basePackageClasses = {Item.class, UserItem.class, ShopPurchase.class})
 public class ShopConfiguration {

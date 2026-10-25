@@ -21,6 +21,17 @@ local 전용 게임 시작·정산 대역은 활성화하지 않는다. 게임 �
 
 ## 주소와 실행
 
+### 상점·보유·의상 장착 활성화
+
+SHOP-01/02·INVENTORY-01/02는 local/dev에서 등록한다. dev,db의 SHOP_ENABLED는 기본 false다.
+기존 V100 적용 이력·Flyway 버전 순서를 확인한 뒤 기존 locations에 classpath:db/shop을 추가하고 활성화한다.
+공유 DB가 이미 V110/V111 이상이면 낮은 V100 적용 절차를 DB 담당과 먼저 조율한다.
+이 작업에서 Flyway 경로/이력·데이터를 자동 변경하지 않는다. 코드 등록과 실제 dev 배포/상품 준비는 구분한다.
+활성화 후 구매 → 본인 보유 → 의상 장착 → 같은 채널 equipment 반영·재접속 복구를 확인한다.
+HTTP/WS 필드는 기존 계약과 같으며 실제 3D 에셋·렌더링은 FE 검수 대상이다. 상세는 [상점 안내](shop-inventory.md).
+Postman 예제의 Origin={{baseUrl}}는 허용된 실제 프론트 주소로 바꾸거나 비브라우저 테스트에서 제외한다.
+API 호스트를 프론트 Origin과 같은 값으로 가정하지 않는다.
+
 ### 경기 시작·엔진·복구·결과 활성화
 
 경기 연결부와 네 엔진 설정은 `local`/`dev`에서 등록할 수 있다(`prod`/`production` 혼합 시 제외).

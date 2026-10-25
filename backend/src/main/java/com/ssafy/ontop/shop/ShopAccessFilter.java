@@ -22,7 +22,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 @Component
-@Profile("local")
+@Profile("(local | dev) & !prod & !production")
 @Order(-101)
 public class ShopAccessFilter extends OncePerRequestFilter {
     private static final Set<String> PATHS = Set.of("/api/v1/shop/items", "/api/v1/shop/purchases",
