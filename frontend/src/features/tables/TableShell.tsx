@@ -6,7 +6,7 @@ import { Instances, type Part } from '../../world/art/Instances'
 
 import { SurfaceMaterial } from '../../world/art/SurfaceMaterial'
 import { BeveledBox } from '../../world/art/BeveledBox'
-import { WoodTable } from './WoodTable'
+import { PavilionWoodTable } from './PavilionWoodTable'
 import { StonePicnicTable } from './StonePicnicTable'
 import { MainPavilionTable } from './MainPavilionTable'
 import { OmokBoard } from '../../game/OmokBoard'
@@ -53,7 +53,7 @@ export function TableShell({ anchor }: { anchor: TableAnchor }) {
       ) : mainPavilion ? (
         <MainPavilionTable />
       ) : anchor.pavilionId ? (
-        <WoodTable seatCount={4} />
+        <PavilionWoodTable />
       ) : (
         <>
           <Instances

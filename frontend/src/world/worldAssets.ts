@@ -20,7 +20,5 @@ export function preloadWorldAssets() {
     useLoader.preload(TextureLoader, surfaceMapUrls[kind])
   for (const url of [leafMapUrl, parkAdvertisementUrl])
     useLoader.preload(TextureLoader, url)
-  useLoader.preload(ParkAssetLoader, woodTableUrl)
-  useLoader.preload(ParkAssetLoader, mailboxUrl)
   useLoader.preload(ParkAssetLoader, characterUrls)
 }
