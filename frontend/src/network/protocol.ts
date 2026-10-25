@@ -29,7 +29,12 @@ export interface WorldState {
   channelId: string
   version: number
   mapVersion: string
-  avatars: { userId: string; position: Position }[]
+  avatars: {
+    userId: string
+    position: Position
+    nickname?: string | null
+    characterGender?: 'MALE' | 'FEMALE' | null
+  }[]
 }
 export interface TableSummary {
   tableId: string
@@ -133,7 +138,9 @@ export function worldState(value: Record<string, unknown>): WorldState {
     !text(value.mapVersion) ||
     !Array.isArray(value.avatars) ||
     !value.avatars.every(
-      (a) => record(a) && text(a.userId) && position(a.position),
+      (a) => record(a) && text(a.userId) && position(a.position)
+        && (a.nickname == null || (typeof a.nickname === 'string' && !!a.nickname.trim()))
+        && (a.characterGender == null || a.characterGender === 'MALE' || a.characterGender === 'FEMALE'),
     )
   )
     throw new Error('월드 상태 형식이 올바르지 않습니다.')

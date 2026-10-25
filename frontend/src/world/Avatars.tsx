@@ -31,7 +31,7 @@ function Avatar({
   rigs: Map<string, AvatarAnchors>
 }) {
   const sources = useLoader(ParkAssetLoader, characterUrls)
-  const variant = avatars.get(id)?.character ?? 'man'
+  const variant = useSession(state => state.profiles[id]?.character ?? 'man')
   const model = useMemo(
     () => createCharacterRig(sources[variant === 'girl' ? 1 : 0]!),
     [sources, variant],
