@@ -21,6 +21,18 @@ local 전용 게임 시작·정산 대역은 활성화하지 않는다. 게임 �
 
 ## 주소와 실행
 
+### 경기 시작·엔진·복구·결과 활성화
+
+경기 연결부와 네 엔진 설정은 `local`/`dev`에서 등록할 수 있다(`prod`/`production` 혼합 시 제외).
+dev에서는 `GAME_START_ENABLED=true`와 사용할 엔진의 `GAME_OMOK_ENABLED`, `GAME_FARKLE_ENABLED`,
+`GAME_ONECARD_ENABLED`, `GAME_BRIDGE_ENABLED`를 명시적으로 켠다. 기본값은 모두 false다.
+실제 DB `GameStartGateway`가 없으면 시작 옵션을 켠 서버는 기동하지 않는다.
+실제 `GameResultGateway`와 정산 커밋 알림도 연결해야 저장 결과 조회·다음 판 전환이 완성된다.
+인증 설정·메시지 필드는 유지하며 local 시연용 예약 대역은 dev에 등록하지 않는다.
+소스 등록 범위 변경이며 실제 개발 서버 활성화·DB 정산 검증·배포 완료를 뜻하지 않는다.
+dev 단독 프로필의 JWT/접속권·착석·준비·예약 확정·엔진·복귀·결과 알림 테스트는
+`DevCommittedStartFlowTests`이며 회원 조회/예약/결과 저장은 테스트 대역이다.
+
 ### 소리함·익명 메모 활성화 전 확인
 
 두 API는 dev 기본 비활성이다. **V112·V120·V121 적용 순서를 팀과 맞춘 뒤에만** 실제 공유 DB에 적용한다.

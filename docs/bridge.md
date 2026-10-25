@@ -53,7 +53,7 @@ resolution은 {turnId,declarerUserId,declaredNumber,challenged,startedAt,operati
 
 ## 활성화·검증 경계
 
-local에서 `ontop.games.bridge.enabled=true`로선택활성화한다. 실제인증·참가/차감확정후서버내부 `BridgeEngine.create(gameId,tableId,players)`만사용한다. 기본off,임의생성/인증우회외부API없음. 공유라우터가경기ID/참가자/테이블의교차중복을막는다.
+local/dev에서 `ontop.games.bridge.enabled=true`로 선택 활성화한다(prod/production 혼합 시 제외). dev 환경변수는 `GAME_BRIDGE_ENABLED=true`이며 실제 시작에는 [예약 Gateway 연결](committed-game-start.md#켜는-조건)도 필요하다. 실제 인증·참가/예약 확정 후 서버 내부 `BridgeEngine.create(gameId,tableId,players)`만 사용한다. 기본 off, 임의 생성/인증 우회 외부 API 없음. 공유 라우터가 경기 ID/참가자/테이블의 교차 중복을 막는다.
 
 BridgeGameFinished는판정완료알림이며DB정산/지급확정이아니다. 메모리상태로재시작/다중서버복구없음. 기존프론트타입의Colyseus·접속표시·별도phaseVersion필드를그대로구현한것이아니며현재RawWS계약을따른다. 접속유예는기존공통연결부가관리한다.
 

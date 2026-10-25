@@ -14,7 +14,7 @@ import org.springframework.stereotype.Component;
 
 /** 서버 종료 판정과 저장 결과 전송을 잇는다. 승패·정산 금액을 다시 계산하지 않는다. */
 @Component
-@Profile("local")
+@Profile("(local | dev) & !prod & !production")
 public class GameFinishedResultListener {
     private final GameResultService results;
     private final Optional<TableHub> tables;

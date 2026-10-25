@@ -51,7 +51,7 @@ GAME_CONNECTION_STATE의복구state는 `{publicState,privateState}`다. 본인�
 
 ## 활성화·정산 경계
 
-local의 `ontop.games.onecard.enabled=true`로 선택 활성화한다. 기권 손패는 정식 OneCardConfiguration이 REMOVE로 고정한다. 별도 forfeit-hand-policy 설정은 필요하지 않으며 제품 정책 선택에 사용하지 않는다. 기본 local은 엔진 꺼짐을 유지한다. 내부 도메인에 남은 RECYCLE 분기는 대안 알고리즘 검사 용도이며 정식 서버 설정으로 활성화하지 않는다.
+local/dev의 `ontop.games.onecard.enabled=true`로 선택 활성화한다(prod/production 혼합 시 제외). dev 환경변수는 `GAME_ONECARD_ENABLED=true`이며 실제 시작에는 [예약 Gateway 연결](committed-game-start.md#켜는-조건)도 필요하다. 기권 손패는 정식 OneCardConfiguration이 REMOVE로 고정한다. 별도 forfeit-hand-policy 설정은 필요하지 않으며 제품 정책 선택에 사용하지 않는다. 기본값은 엔진 꺼짐을 유지한다. 내부 도메인에 남은 RECYCLE 분기는 대안 알고리즘 검사 용도이며 정식 서버 설정으로 활성화하지 않는다.
 
 실제참가/차감커밋을확인한서버만 `OneCardEngine.create(gameId,tableId,List<Long> players)`를호출한다. 외부임의생성/인증우회API없음. 공유GameEngineRouter가다른게임과의중복경기를막는다. OneCardGameFinished는승패판정,DB정산/지급완료가아니다. 메모리기록이며서버재시작/다중서버영속성은별도다.
 
