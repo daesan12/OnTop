@@ -52,4 +52,17 @@ describe('M14 existing REST adapter', () => {
     expect(request.mock.calls[0]![0]).toBe('/api/v1/wallets/me')
     await expect(service.balance()).rejects.toMatchObject({ code: 'INVALID_RESPONSE' })
   })
+  it('distinguishes an uninitialized wallet from zero and never creates a wallet while reading', async () => {
+    const request = vi.fn().mockRejectedValueOnce(new RestError(409, 'WALLET_NOT_READY', 'error'))
+      .mockRejectedValueOnce(new RestError(503, 'WALLET_UNAVAILABLE', 'error'))
+      .mockResolvedValueOnce({ balance: 0, reservedBalance: 0, availableBalance: 0 })
+    const service = createBungeoppangService(request)
+    await expect(service.balance()).rejects.toMatchObject({ code: 'WALLET_NOT_READY', retryable: false,
+      message: expect.stringContaining('지갑 초기화') })
+    await expect(service.balance()).rejects.toMatchObject({ code: 'WALLET_UNAVAILABLE', retryable: true })
+    expect(await service.balance()).toBe(0)
+    for (const [path, init] of request.mock.calls) {
+      expect(path).toBe('/api/v1/wallets/me'); expect(init.method).toBeUndefined(); expect(init.body).toBeUndefined()
+    }
+  })
 })

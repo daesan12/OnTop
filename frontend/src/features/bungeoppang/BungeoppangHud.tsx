@@ -18,6 +18,7 @@ import {
   quitBungeoppang,
   resetBungeoppang,
   refreshBungeoppangStatus,
+  refreshBungeoppangWallet,
   setBungeoppangHelp,
   setBungeoppangTool,
   startBungeoppang,
@@ -340,6 +341,7 @@ function StartPanel() {
   const statusError = useBungeoppang((s) => s.statusError);
   const starting = useBungeoppang((s) => s.starting);
   const startError = useBungeoppang((s) => s.startError);
+  const walletError = useBungeoppang((s) => s.walletError);
   const capped = !!status && status.todayEarned >= status.dailyCap;
   return (
     <section className="bung-panel bung-start" aria-label="붕어빵 굽기 시작">
@@ -356,6 +358,7 @@ function StartPanel() {
         <p className="bung-cap">오늘 장사는 끝! 게임은 계속할 수 있어요</p>
       )}
       {statusError && <p className="bung-error" role="alert">{statusError} <button onClick={() => void refreshBungeoppangStatus()}>상태 다시 확인</button></p>}
+      {walletError && <p className="bung-error" aria-live="polite">{walletError} <button onClick={() => void refreshBungeoppangWallet()}>잔액 다시 확인</button></p>}
       <button
         type="button"
         className="bung-primary"
@@ -498,7 +501,7 @@ function ResultPanel() {
           </p>
         )}
         {startError && <p className="bung-error">{startError}</p>}
-        {walletError && <p className="bung-error">{walletError}</p>}
+        {walletError && <p className="bung-error" aria-live="polite">{walletError} <button onClick={() => void refreshBungeoppangWallet()}>잔액 다시 확인</button></p>}
         <footer>
           <span>{result ? '서버 정산 완료' : '서버 결과 확인 중'}</span>
           <span className="bung-row">

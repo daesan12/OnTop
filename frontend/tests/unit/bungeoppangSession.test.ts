@@ -7,9 +7,10 @@ vi.mock('../../src/features/bungeoppang/service', async importOriginal => ({
 import { canOpenBungeoppang } from '../../src/features/bungeoppang/access'
 import { bungeoppangService as service, BungeoppangServiceError } from '../../src/features/bungeoppang/service'
 import { advanceBungeoppangTime, escapeBungeoppang, leaveBungeoppang, openBungeoppang, pressBungeoppangSlot,
-  quitBungeoppang, resetBungeoppang, setBungeoppangHelp, startBungeoppang, submitBungeoppang, useBungeoppang } from '../../src/features/bungeoppang/store'
+  quitBungeoppang, resetBungeoppang, refreshBungeoppangStatus, refreshBungeoppangWallet, setBungeoppangHelp, startBungeoppang, submitBungeoppang, useBungeoppang } from '../../src/features/bungeoppang/store'
 import { inputState } from '../../src/world/inputOwnership'
 import { bungeoppangClock } from '../../src/features/bungeoppang/bungeoppangView'
+import { useSession } from '../../src/network/worldClient'
 
 const game = { gameId: '901', startedAt: '2026-10-24T01:00:00Z', heats: Array(64).fill(100), rulesVersion: 'v2', isFirstGame: true }
 const result = { score: 0, made: 0, golden: 0, failed: 0, wasted: 0, maxCombo: 0, coinsCalculated: 0, coinsGranted: 0, todayEarned: 0, dailyCap: 100, capReached: false }
@@ -80,4 +81,29 @@ it('isolates late result and status replies from another visit', async () => {
   resetBungeoppang(); await enter(); finish({ ...result, score: 100, coinsGranted: 6 })
   await Promise.resolve(); expect(useBungeoppang.getState().result).toBeNull()
   expect(useBungeoppang.getState().gameId).toBe('')
+})
+it('rechecks the wallet with status retry and shows the initialization error without inventing a balance', async () => {
+  useSession.setState({ sessionId: '101', account: { nickname: 'test', balance: null } })
+  vi.mocked(service.balance).mockRejectedValueOnce(new BungeoppangServiceError('WALLET_NOT_READY', '지갑 초기화가 필요합니다.'))
+  await enter()
+  expect(useBungeoppang.getState().walletError).toContain('지갑 초기화')
+  expect(useSession.getState().account?.balance).toBeNull()
+  await refreshBungeoppangStatus(); await Promise.resolve()
+  expect(useBungeoppang.getState().walletError).toBeNull()
+  expect(useSession.getState().account?.balance).toBe(100)
+  expect(service.balance).toHaveBeenCalledTimes(2)
+})
+it('retries only the balance after settlement and ignores an older in-flight wallet response', async () => {
+  useSession.setState({ sessionId: '101', account: { nickname: 'test', balance: 100 } })
+  await enter(); await startBungeoppang()
+  let old!: (value: number) => void
+  vi.mocked(service.balance).mockReturnValueOnce(new Promise(resolve => { old = resolve }))
+    .mockResolvedValueOnce(105)
+  const pending = refreshBungeoppangWallet()
+  await refreshBungeoppangWallet()
+  old(100); await pending
+  expect(useSession.getState().account?.balance).toBe(105)
+  expect(service.submitResult).not.toHaveBeenCalled()
+  resetBungeoppang(); await refreshBungeoppangWallet()
+  expect(service.balance).toHaveBeenCalledTimes(3)
 })

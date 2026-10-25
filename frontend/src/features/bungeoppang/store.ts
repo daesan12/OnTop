@@ -125,6 +125,7 @@ function popup(slot: number | null, text: string, tone: PopupTone) {
 let tipTimer = 0;
 // Async responses belong to one visit and one game, including after reconnect.
 let visit = 0;
+let walletRequest = 0;
 let startKey = '';
 let submission: BungeoppangSubmit | null = null;
 let loopTimer: ReturnType<typeof setInterval> | undefined;
@@ -136,19 +137,27 @@ export function setBungeoppangHelp(open: boolean) {
 }
 async function refreshWallet(currentVisit: number) {
   const owner = useSession.getState().sessionId;
+  const request = ++walletRequest;
   try {
     const balance = await service.balance();
-    if (visit !== currentVisit || useSession.getState().sessionId !== owner) return;
+    if (visit !== currentVisit || useSession.getState().sessionId !== owner || request !== walletRequest) return;
     const account = useSession.getState().account;
     if (account) useSession.setState({ account: { ...account, balance } });
     set({ walletError: null });
-  } catch {
-    if (visit === currentVisit) set({ walletError: '지갑 잔액을 새로 확인하지 못했어요. 지급 결과는 아래 서버 확정값을 확인해 주세요.' });
+  } catch (error) {
+    if (visit === currentVisit && request === walletRequest) set({ walletError:
+      error instanceof BungeoppangServiceError && error.code === 'WALLET_NOT_READY' ? error.message
+        : '지갑 잔액을 새로 확인하지 못했어요. 잔액을 다시 확인해 주세요. 지급 여부는 서버 확정 결과를 확인해 주세요.' });
   }
+}
+export async function refreshBungeoppangWallet() {
+  if (get().phase === 'idle' || get().phase === 'leaving') return;
+  await refreshWallet(visit);
 }
 export async function refreshBungeoppangStatus() {
   const currentVisit = visit;
   set({ statusError: null });
+  void refreshWallet(currentVisit);
   try {
     const status = await service.getStatus();
     if (visit === currentVisit) set({ status, seenTips: status.seenTips, firstGame: status.isFirstGame });
@@ -177,7 +186,7 @@ const crossed = Array.from({ length: R.slots }, () => ({
 // ---------- 진입과 나가기 ----------
 export function openBungeoppang() {
   if (get().phase !== "idle" || !canOpenBungeoppang()) return;
-  const currentVisit = ++visit;
+  ++visit;
   set({ phase: "entering", ...initial(), status: null, seenTips: [] });
   inputState.minigameOpen = true;
   clearHeldInput();
@@ -188,7 +197,6 @@ export function openBungeoppang() {
   if (document.pointerLockElement) void document.exitPointerLock();
   (document.activeElement as HTMLElement | null)?.blur?.();
   void refreshBungeoppangStatus();
-  void refreshWallet(currentVisit);
   transitionTimer = setTimeout(() => {
     if (get().phase === "entering") set({ phase: "start" });
   }, R.cameraTransitionMs);
