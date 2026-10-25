@@ -89,6 +89,29 @@ JPA EntityManager·JPQL 저장소를 사용한다. 지갑 PESSIMISTIC_WRITE(MySQ
 
 ## 실행·검증 화면
 
+### 구매·붕어빵 보상 동시 처리
+
+`ShopRewardConcurrencyMySqlTests`는 dev,db의 실제 JWT/HTTP/JPA/MySQL로 두 API를 함께 검사한다.
+`TEST_WALLET_FLOW=true`, `TEST_WALLET_FLOW_DB_URL`, `TEST_WALLET_FLOW_DB_USERNAME`,
+`TEST_WALLET_FLOW_DB_PASSWORD`를 설정하고 아래 명령을 실행한다.
+
+```powershell
+.\gradlew.bat mysqlTest --tests com.ssafy.ontop.minigame.ShopRewardConcurrencyMySqlTests
+```
+
+URL은 새 loopback `ontop_wallet_flow_test_*` 스키마만 허용한다. 기존 V1~V6/V100/V110/V111을 적용하며
+신규 Flyway 파일·공유 DB 변경은 없다. 테스트 계정에는 해당 스키마의 ALTER와
+`performance_schema.data_lock_waits`/`data_locks` 조회 권한이 필요하다.
+
+- 구매 먼저·보상 먼저: 첫 요청이 지갑 행 잠금을 보유한 상태에서 두 번째 요청의 실제 DB 잠금 대기를 확인한다.
+- 구매 실패: 테스트 회원의 구매 원장만 임시 CHECK로 거절한다. 구매 전체 롤백 뒤 대기 중 보상은 커밋되며,
+  CHECK 제거 후 같은 구매 키 재시도가 한 번 성공한다. CHECK는 실패 경로에서도 finally로 제거한다.
+- 양쪽 성공 뒤 구매/보상 재확인 8개를 함께 보내도 최초 응답을 재사용한다.
+  시작 잔액100 - 구매10 + 보상5 = 최종95, 예약금30 유지, 영수증/보유1개·수량1·원장2건을 검사한다.
+
+실패 주입·잠금 뒤 일시 대기·새 테스트 세션 시각만 검증에서 제어한다. 실제 구매·보상 판정과 트랜잭션은
+제품 구현이며 외부 OAuth 제공자·프론트 UI·경기 DB 예약/정산·원격 배포·처리량 성능 검증과 구분한다.
+
 Java21 Wrapper mysqlTest --tests '*ShopMySqlTests': 별도 MySQL8.4에서 실제 JWT/HTTP/SQL·중복8요청·동시 잔액·롤백·예약금·장착·커밋 후 알림을 검사한다. ShopHttpTests는 인증·불허 출처·잘못된 본문/키를 검사한다. 기존 users/auth MySQL suite와 다른 DB를 사용한다.
 
 WorldAppearanceMySqlTests는 장착·광장·테이블을 연결해 확인한다. 실제 JWT/접속권·HTTP 장착·Raw WebSocket으로 이동 입력 수락→착석/전원 준비→착석 중 의상 교체(테이블 상태 유지)→heartbeat 단절→새 티켓/채널 입장·최신 의상 복구→재착석·재준비를 검증한다. 대기 좌석은 단절 시 정리되며 외형 복구가 자동 착석/준비를 뜻하지 않는다. 물리는 시간 고정 fixture이며 경기 DB 차감·정산·실제3D 렌더링 검증과 구분한다. 실행·확인 범위는 [통합 검사](flow-test.md#실제-db-의상테이블-통합-검증)를 따른다.
