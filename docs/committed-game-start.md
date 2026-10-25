@@ -2,6 +2,27 @@
 
 전원 준비 → 참가/판돈 예약 확정 요청 → 실제 엔진 생성 → 시작·복구 상태 전달을 연결한다. 기준은 OnTop v0.4의 참가자별 기본 판돈1엽전과 2026-10-23 사용자 확정인 시작 시 예약·종료 시 차감/지급이다. **A 연결부 구현이며 실제 DB 예약·차감·원장·정산 구현/검증과 구분한다.**
 
+## 최신 dev 연동 점검 · 2026-10-25
+
+기준 dev `7e42f48`. 기존 로컬 작업을 보존해 충돌 없이 반영했다. 현재 소스의 DB 구현 등록과
+실제 송금 검증 범위는 아래와 같이 구분한다. 테스트 대역의 RESERVED/SETTLED를 DB 처리 완료로 쓰지 않는다.
+
+| 경계 | 현재 코드와 연결 조건 |
+| --- | --- |
+| 시작 예약 | 실제 DB `GameStartGateway` 구현은 dev에 미등록. 같은 startAttemptId에 참가자·좌석·순서가 같은 결과를 반환하고, 전원 예약 커밋 후에만 RESERVED |
+| 종료 저장·정산 | 공통 GameParticipantLeft/GameFinished의 eventId로 중복 반영 방지. 게임별 종료 이벤트와 공통 이벤트 양쪽에서 이중 정산하지 않음 |
+| 결과 조회·알림 | 실제 DB `GameResultGateway` 구현은 dev에 미등록. 본인 종료 결과만 조회하며 조회로 정산하지 않음. 경기 전체 정산 커밋 후 본인별 GameResultCommitted, PENDING보다 증가한 version 필요 |
+| 개발 서버 등록 | CommittedGameStartService·GameReconnectService·GameResultService·종료 연결 리스너 및 네 엔진 설정은 local 전용. DB Gateway 추가와 별개로 dev 등록 범위를 맞춰야 함 |
+
+개발 서버를 local 혼합 프로필로 우회 실행하지 않는다. DB 구현·활성화가 반영된 버전에서
+실제 지갑 balance/reserved_balance·원장·경기/참가자 기록의 원자성을 확인하고, PENDING 동안 SETTLING,
+SETTLED 뒤 좌석 유지·준비 해제·다음 판 새 시도까지 검증한다. 이번 점검은 DB 예약/정산·배포를 실행하지 않았다.
+
+해당 버전에서 기존 시작/결과 계약·실제 WS 흐름 55개(CommittedStartFlowTests 15개 포함)를 재실행해
+통과했다. 예약 확정 전 미시작·응답 유실 후 같은 시도 조회·금액 불일치·30초 복귀 경계,
+실제 엔진 시간패 → PENDING → SETTLED → 다음 판·과거 알림 거절을 확인했다.
+회원 조회·DB 예약/결과 저장은 기존 테스트 대역이다. 실제 DB 잔액·원장 원자성 통과로 확대하지 않는다.
+
 ## 켜는 조건
 
 - `local` + `ontop.websocket.authenticated=true` + `ontop.game-start.enabled=true`.

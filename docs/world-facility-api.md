@@ -93,14 +93,16 @@
 운동기구 점유, 망원경 방향·타인 변경 거절을 확인했다. 프로필/시설 통신 시나리오 4개와
 Java 통합 흐름 1개가 통과했으며, 기존 BE 회귀 16개·FE 회귀 44개도 통과했다.
 
-**공통 소켓 검증과 실제 시설 화면 연결은 다르다.** 현재 FE의 빌드 모드에서 bench/fitness/telescope
+**공통 소켓 검증과 실제 시설 화면 연결은 다르다.** 최초 점검 `e7dca36`의 FE 빌드 모드에서 bench/fitness/telescope
 서비스는 `unavailable`이며, `worldClient.receive`는 `WORLD_FACILITY_STATE`를 상태에 적용하지 않는다.
 `ParkRuntime`도 입장 시 CHECK를 보내지 않는 것을 실제 송신 기록으로 확인했다. 로컬 개발 벤치 목업
 성공을 서버 점유 성공으로 취급하지 않는다. 팀원 FE 코드·기존 API·인증 코드는 변경하지 않았다.
 
-FE 연결 지점: 시설 서비스 포트에서 위 명령을 기존 공통 소켓에 매핑하고, 입장/재접속 후 CHECK,
-leaseId/version/startedAt/pose/exit와 ISO 시각→밀리초 변환을 상태 계층에 적용해야 한다.
-프론트 포트의 `pose`/`exit` 표현과 기존 컨트롤러를 유지하되 승인 전에는 목업 성공을 반환하지 않는다.
+후속 dev `7e42f48`에는 팀원의 FacilityClient·시설 서버 포트가 반영됐다. 기존 연동 검증을 보강해
+실제 ParkRuntime의 목록 준비·입장 CHECK·벤치 이용 → session/avatars 표시 상태 → 반납을 확인했다.
+세 서비스의 mode는 server이며, 운동기구/망원경은 기존 SharedSocket 실제 통신 검증을 재통과했다.
+3D 클릭·모션 검수와 브라우저 쿠키/CORS·원격 배포는 여전히 별도다. 상대 공개 프로필 표시는 미반영이다.
+이전 미연결 진단은 위 최초 버전의 관찰이며 현재 시설 서비스 상태로 해석하지 않는다.
 
 재현은 backend 폴더에서 아래와 같이 실행한다. Node24·기존 프론트 의존성과 **새 전용 MySQL DB**가
 필요하다. DB가 비어 있지 않으면 거절하며 기존 데이터를 초기화하지 않는다. 신규 Flyway SQL은 없다.

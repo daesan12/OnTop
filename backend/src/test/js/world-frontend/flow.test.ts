@@ -8,6 +8,7 @@ import { type Envelope } from '../../../../../frontend/src/network/protocol'
 import { benchService } from '../../../../../frontend/src/features/interactions/benchService'
 import { fitnessService } from '../../../../../frontend/src/features/fitness/service'
 import { telescopeService } from '../../../../../frontend/src/features/telescopes/service'
+import { useFacilityState } from '../../../../../frontend/src/features/facilities/state'
 
 // Select the built-app branch before importing facility services, rather than Vitest's DEV default.
 vi.hoisted(() => {
@@ -119,9 +120,17 @@ if (process.env.TEST_WORLD_PHASE === 'profile-bench') {
       serverCharacterGender: 'FEMALE',
       frontendDisplayMatched: display?.nickname === '검증회원202' && display?.character === 'girl',
       frontendNickname: display?.nickname, frontendCharacter: display?.character,
-      facilityCheckSentOnJoin: sent.includes('WORLD_FACILITY_CHECK'),
     })
-    // No assertion of UI completion: the diagnostic intentionally exposes missing FE application.
+    await vi.waitFor(() => expect(useFacilityState.getState().ready).toBe(true), { timeout: 5000 })
+    const lease = await runtime.useFacility('bench-0', 0, new AbortController().signal)
+    expect(useSession.getState().benchId).toBe('bench-0')
+    expect(avatars.get('101')?.benchId).toBe('bench-0')
+    diagnostic('facility-runtime', { catalogReady: true, frontendBenchApplied: true,
+      facilityCheckSentOnJoin: sent.includes('WORLD_FACILITY_CHECK'),
+      services: { bench: benchService.mode, fitness: fitnessService.mode, telescope: telescopeService.mode } })
+    await runtime.releaseFacility(lease.leaseId, new AbortController().signal)
+    expect(useSession.getState().benchId).toBe('')
+    // Profile reception remains diagnostic; facility application above is asserted through real ParkRuntime.
   })
 
   it('uses actual FE SharedSocket for bench occupancy, conflict, release and reconnect', async () => {
@@ -142,7 +151,7 @@ if (process.env.TEST_WORLD_PHASE === 'profile-bench') {
     await vi.waitFor(() => expect(observer.messages.some(m => m.type === 'WORLD_FACILITY_STATE' && leases(m).some(l => l.leaseId === firstLease))).toBe(true))
     await expect(request(observer.client, 'WORLD_FACILITY_USE', { facilityId: 'bench-0', seatIndex: 0 })).rejects.toMatchObject({ code: 'FACILITY_OCCUPIED' })
     expect(leases(await request(observer.client, 'WORLD_FACILITY_USE', { facilityId: 'bench-0', seatIndex: 1 }))).toHaveLength(2)
-    diagnostic('facility-ui', { serverOccupancyReceived: true, frontendBenchApplied: useSession.getState().benchId === 'bench-0',
+    diagnostic('shared-socket-facility', { serverOccupancyReceived: true,
       developmentMode: import.meta.env.DEV,
       services: { bench: benchService.mode, fitness: fitnessService.mode, telescope: telescopeService.mode } })
     await request(owner.client, 'WORLD_FACILITY_RELEASE', { leaseId: firstLease })
