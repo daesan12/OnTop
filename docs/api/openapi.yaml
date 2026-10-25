@@ -9,6 +9,8 @@ servers:
 tags:
 - name: WALLET
   description: 인증된 본인의 지갑 조회
+- name: Ranking
+  description: 보유 엽전 랭킹
 paths:
   /api/v1/users/onboarding:
     post:
@@ -2183,6 +2185,83 @@ paths:
                 - $ref: "#/components/schemas/ErrorResponse"
       security:
       - AccessJwt: []
+  /api/v1/rankings:
+    get:
+      tags:
+      - Ranking
+      summary: 보유 엽전 랭킹
+      description: "활성 회원의 전체 balance(예약 포함) 내림차순. 동점 순위는 1,1,3이며 표시 순서는 userId 오름\
+        차순입니다. 상위 limit명과 인증된 본인 순위를 같은 DB 조회로 반환합니다. 탈퇴 회원·지갑 없는 회원은 제외하고 본인 지갑이\
+        \ 없으면 myRank=null입니다. updatedAt은 조회 시각입니다. 지갑 생성·지급·차감·예약을 수행하지 않습니다."
+      operationId: rankings
+      parameters:
+      - name: limit
+        in: query
+        description: "기본 20, 1~100"
+        required: false
+        schema:
+          maximum: 100
+          minimum: 1
+          type: integer
+          default: 20
+      responses:
+        "200":
+          description: "성공 (Cache-Control: no-store)"
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RankingResponse"
+        "400":
+          description: INVALID_LIMIT
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "401":
+          description: 기존 Access JWT·활성 회원·sid 검증 실패
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "403":
+          description: 기존 Origin·권한 정책에 따른 거부
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "503":
+          description: RANKING_UNAVAILABLE 또는 인증 DB 조회 불가
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+      security:
+      - AccessJwt: []
   /api/v1/minigames/sessions/{sessionId}:
     get:
       tags:
@@ -3124,6 +3203,42 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ItemResponse"
+    RankingItem:
+      type: object
+      properties:
+        rank:
+          type: integer
+          format: int64
+        userId:
+          type: string
+        nickname:
+          type: string
+        coinBalance:
+          type: integer
+          format: int64
+    RankingMyRank:
+      type: object
+      properties:
+        rank:
+          type: integer
+          format: int64
+        coinBalance:
+          type: integer
+          format: int64
+      description: 본인 지갑이 없으면 null
+      nullable: true
+    RankingResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/RankingItem"
+        myRank:
+          $ref: "#/components/schemas/RankingMyRank"
+        updatedAt:
+          type: string
+          format: date-time
     BungeoppangStatusResponse:
       type: object
       properties:

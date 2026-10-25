@@ -448,6 +448,37 @@ wsItems.push({ ...wsRequest('07 로그인 사용자 — 1회용 접속권',
 const guide = '현재 코드의 local 통신 검증용. 서버는 local,visual-test로 실행하고 OnTop Local 환경을 선택하세요. '
     + '인증 시작 연결부와 엔진은 선택 활성화하며 실제 DB 차감·정산 통합 검증은 별도입니다. HTTP 테이블 조회로 ID 저장 후 WebSocket을 연결합니다. '
     + '웹에서 저장한 컬렉션은 동일 계정·워크스페이스 앱에서 사용하며 로컬 테스트는 Desktop App에서 실행하세요.';
+const rankingDescription = 'RANK-01 · GET /api/v1/rankings?limit=20 (1~100). 기존 Access JWT와 db 프로필이 필요합니다. '
+    + '예약금을 포함한 전체 balance 내림차순, 동점 RANK(1,1,3)·userId 오름차순. 최대 limit명이며 TOP 밖 본인도 myRank로 반환합니다. '
+    + '탈퇴·지갑 미생성 회원 제외, 본인 지갑 미생성 시 myRank=null. updatedAt은 조회 시각, 모든 응답 no-store. '
+    + '신규 SQL·지급·예약·지갑 생성 없음. 로컬 구현과 실제 개발 서버 배포는 별개입니다. baseUrl과 accessToken은 개인 환경에만 설정하세요.';
+const rankingSuccess = http('30 보유 엽전 랭킹·본인 순위', '/api/v1/rankings?limit=20', 200,
+    rankingDescription, `pm.test('랭킹 응답·최대 인원·정렬', () => {
+    const body = pm.response.json();
+    pm.expect(body).to.have.all.keys('items', 'myRank', 'updatedAt');
+    pm.expect(body.items).to.be.an('array');
+    pm.expect(body.items.length).to.be.at.most(20);
+    pm.expect(Number.isNaN(Date.parse(body.updatedAt))).to.eql(false);
+    body.items.forEach((item, index) => {
+        pm.expect(item).to.have.all.keys('rank', 'userId', 'nickname', 'coinBalance');
+        pm.expect(item.userId).to.be.a('string');
+        pm.expect(item.rank).to.be.at.least(1);
+        if (index > 0) {
+            const previous = body.items[index - 1];
+            pm.expect(previous.coinBalance).to.be.at.least(item.coinBalance);
+            if (previous.coinBalance === item.coinBalance) pm.expect(item.rank).to.eql(previous.rank);
+        }
+    });
+    pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store');
+});`);
+const rankingInvalid = http('31 랭킹 limit 범위 오류', '/api/v1/rankings?limit=101', 400,
+    rankingDescription, codeTest('INVALID_LIMIT'));
+const rankingAnonymous = http('32 랭킹 미인증 거부', '/api/v1/rankings', 401,
+    'Authorization 없이 호출해 기존 REST 인증 거부를 확인합니다.', codeTest('AUTH_AUTHENTICATION_REQUIRED'));
+for (const request of [rankingSuccess, rankingInvalid]) {
+    request.headers = [{ key: 'Authorization', value: 'Bearer {{accessToken}}' }];
+}
+httpItems.push(rankingSuccess, rankingInvalid, rankingAnonymous);
 const httpV3 = { name: 'OnTop HTTP', $kind: 'collection', description: guide, items: httpItems };
 const wsGuide = '# 근거리 채팅·관전 테스트 (20m)\n\n'
     + [0, 1, 2, 5].map(index => `## ${String(index + 1).padStart(2, '0')} 연결\n${wsItems[index].description
@@ -505,6 +536,7 @@ function yaml(value, indent = 0) {
         + (nested(item) ? '\n' + yaml(item, indent + 2) : ' ' + JSON.stringify(item))).join('\n');
 }
 const outputs = new Map([
+    ['OnTop-Ranking.postman_collection.json', JSON.stringify({info:{...httpV21.info,name:'OnTop Ranking',description:rankingDescription},item:httpV21.item.slice(-3)},null,2)+'\n'],
     ['OnTop-Minigame.postman_collection.json', JSON.stringify({info:{...httpV21.info,name:'OnTop Minigame',description:'붕어빵 v2: 23시작화면조회→19시작→60초 플레이→21입력 검증·보상. 20본인판조회,22포기는 별도 새 판에서 확인. 15점당1냥·KST 하루100냥·랭킹 제외·탭 이동 시간 진행. 기존 API 경로 유지. docs/minigame-api.md.'},item:httpV21.item.slice(18,23)},null,2)+'\n'],
     ['OnTop-Shop.postman_collection.json', JSON.stringify({info: {...httpV21.info, name: 'OnTop Shop',
         description: 'SHOP-01/02 · INVENTORY-01/02. 13목록→14구매→15동일키 재요청→16보유→17장착. 18은 같은키 충돌 검사. local,db 또는 dev,db + ontop.shop.enabled=true(dev: SHOP_ENABLED=true) + 공통/상점 스키마가 필요합니다. dev는 기본 비활성이며 기존 V100 적용 이력·버전 순서 확인 후 기존 Flyway locations에 db/shop을 명시적으로 추가합니다. 공유 DB/SQL/이력은 자동 변경하지 않습니다. 실제 배포 후 개인 환경 baseUrl=https://dev-api.on-top.world와 해당 서버 Access JWT를 사용합니다. 기존 예제 Origin={{baseUrl}}는 개발 API 호스트가 되어403일 수 있으므로 AUTH_ALLOWED_ORIGINS에 등록된 실제 프론트 주소로 바꾸거나 비브라우저 Postman에서는 Origin 헤더를 제외하세요. 보유 의상 재구매는 서버에서 거절하고 소비형은 수량을 누적합니다. 테스트 계정의 개인 로컬 Access JWT만 사용하고 공유하지 마세요. 기본 DB에 스키마를 자동 적용하지 않았습니다. 실제 DB 초기화·공통 재화 통합·3D 외형 계약은 별도 확인합니다.\n\n2026-10-22: 상점 저장 처리를 JPA 엔티티·JPQL로 전환했습니다. 기존 6개 요청·응답·중복 구매 방지·롤백 계약은 그대로이며 예제 수정 없이 사용할 수 있습니다.' + appearanceGuide},

@@ -1,0 +1,107 @@
+{
+  "info": {
+    "name": "OnTop Ranking",
+    "description": "RANK-01 · GET /api/v1/rankings?limit=20 (1~100). 기존 Access JWT와 db 프로필이 필요합니다. 예약금을 포함한 전체 balance 내림차순, 동점 RANK(1,1,3)·userId 오름차순. 최대 limit명이며 TOP 밖 본인도 myRank로 반환합니다. 탈퇴·지갑 미생성 회원 제외, 본인 지갑 미생성 시 myRank=null. updatedAt은 조회 시각, 모든 응답 no-store. 신규 SQL·지급·예약·지갑 생성 없음. 로컬 구현과 실제 개발 서버 배포는 별개입니다. baseUrl과 accessToken은 개인 환경에만 설정하세요.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "30 보유 엽전 랭킹·본인 순위",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/v1/rankings?limit=20",
+        "description": "RANK-01 · GET /api/v1/rankings?limit=20 (1~100). 기존 Access JWT와 db 프로필이 필요합니다. 예약금을 포함한 전체 balance 내림차순, 동점 RANK(1,1,3)·userId 오름차순. 최대 limit명이며 TOP 밖 본인도 myRank로 반환합니다. 탈퇴·지갑 미생성 회원 제외, 본인 지갑 미생성 시 myRank=null. updatedAt은 조회 시각, 모든 응답 no-store. 신규 SQL·지급·예약·지갑 생성 없음. 로컬 구현과 실제 개발 서버 배포는 별개입니다. baseUrl과 accessToken은 개인 환경에만 설정하세요.",
+        "auth": {
+          "type": "noauth"
+        },
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ]
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('랭킹 응답·최대 인원·정렬', () => {",
+              "    const body = pm.response.json();",
+              "    pm.expect(body).to.have.all.keys('items', 'myRank', 'updatedAt');",
+              "    pm.expect(body.items).to.be.an('array');",
+              "    pm.expect(body.items.length).to.be.at.most(20);",
+              "    pm.expect(Number.isNaN(Date.parse(body.updatedAt))).to.eql(false);",
+              "    body.items.forEach((item, index) => {",
+              "        pm.expect(item).to.have.all.keys('rank', 'userId', 'nickname', 'coinBalance');",
+              "        pm.expect(item.userId).to.be.a('string');",
+              "        pm.expect(item.rank).to.be.at.least(1);",
+              "        if (index > 0) {",
+              "            const previous = body.items[index - 1];",
+              "            pm.expect(previous.coinBalance).to.be.at.least(item.coinBalance);",
+              "            if (previous.coinBalance === item.coinBalance) pm.expect(item.rank).to.eql(previous.rank);",
+              "        }",
+              "    });",
+              "    pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "31 랭킹 limit 범위 오류",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/v1/rankings?limit=101",
+        "description": "RANK-01 · GET /api/v1/rankings?limit=20 (1~100). 기존 Access JWT와 db 프로필이 필요합니다. 예약금을 포함한 전체 balance 내림차순, 동점 RANK(1,1,3)·userId 오름차순. 최대 limit명이며 TOP 밖 본인도 myRank로 반환합니다. 탈퇴·지갑 미생성 회원 제외, 본인 지갑 미생성 시 myRank=null. updatedAt은 조회 시각, 모든 응답 no-store. 신규 SQL·지급·예약·지갑 생성 없음. 로컬 구현과 실제 개발 서버 배포는 별개입니다. baseUrl과 accessToken은 개인 환경에만 설정하세요.",
+        "auth": {
+          "type": "noauth"
+        },
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ]
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+              "pm.test('INVALID_LIMIT', () => pm.expect(pm.response.json().code).to.eql('INVALID_LIMIT'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "32 랭킹 미인증 거부",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/v1/rankings",
+        "description": "Authorization 없이 호출해 기존 REST 인증 거부를 확인합니다.",
+        "auth": {
+          "type": "noauth"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 401', () => pm.response.to.have.status(401));",
+              "pm.test('AUTH_AUTHENTICATION_REQUIRED', () => pm.expect(pm.response.json().code).to.eql('AUTH_AUTHENTICATION_REQUIRED'));"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
