@@ -10,6 +10,9 @@ async function loaded(page: Page) {
   await page.goto('/park'); await expect(page).toHaveTitle('OnTop')
   await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90000 })
   await expect(page.getByLabel('공원 기본 화면')).toBeVisible(); await page.locator('canvas').focus()
+  // Drag only turns the view once the park session can be controlled.
+  await expect.poll(() => page.evaluate(async () =>
+    (await import('/src/world/roamingCamera.ts' as string)).canControlRoamingCamera())).toBe(true)
 }
 async function openManual(page: Page) {
   await page.keyboard.press('F1'); await expect(manual(page)).toHaveAttribute('data-phase', 'open')

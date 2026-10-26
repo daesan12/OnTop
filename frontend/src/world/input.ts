@@ -73,11 +73,18 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     viewControls.yaw -= x * 0.004 * scale
     viewControls.pitch = Math.max(-0.2, Math.min(1.1, viewControls.pitch + y * 0.003 * scale))
   }
-  // On a bench the seated view uses the park controls, the spectator view its own yaw,
-  // and the top-down board view stays fixed.
+  // Shared by drag and mouse look; zoom slows the aim and the server sync keeps its own interval.
+  const turnTelescope = (x: number, y: number) => {
+    if (useTelescopeState.getState().pending) return
+    const rate = telescopeTurnRate()
+    Object.assign(telescopeView, normalizeTelescopeAim(telescopeView.yaw - x * rate, telescopeView.pitch - y * rate))
+  }
+  // Fitness keeps the park orbit. On a bench the seated view uses the park controls,
+  // the spectator view its own yaw, and the top-down board view stays fixed.
   const look = (x: number, y: number) => {
     const owner = lookOwner()
-    if (owner === 'park') { rotate(x, y); return }
+    if (owner === 'park' || owner === 'fitness') { rotate(x, y); return }
+    if (owner === 'telescope') { turnTelescope(x, y); return }
     if (owner !== 'bench') return
     const benchView = useBenchSpectator.getState()
     if (benchView.scope !== benchViewScope(useSession.getState()) || benchView.view === 'seated') rotate(x, y)
@@ -85,11 +92,15 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
   }
   const mouseLook = installMouseLook(canvas, () => lookOwner() !== null, look, stop, cancelMouseLookReturn)
   const clear = () => { mouseLook.release(); stop() }
-  // Sitting on a bench clears movement keys but keeps mouse look; every other caller releases it.
+  // Entering a bench, telescope or fitness station clears movement keys but keeps mouse look;
+  // callers that open a panel or minigame release it, as does any clear while simply roaming.
+  // Controllers clear input just before marking their request pending, so decide after they finish.
   const clearInput = () => {
-    const owner = lookOwner()
-    if (owner !== 'bench' && owner !== 'hold') mouseLook.release()
     stop()
+    queueMicrotask(() => {
+      const owner = lookOwner()
+      if (owner === null || owner === 'park') mouseLook.release()
+    })
   }
   const abandonMouseLook = () => { cancelMouseLookReturn(); clear() }
   const changePerspective = () => {
@@ -219,10 +230,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     }
     if (!drag || blocked()) return
     if (useSession.getState().telescopeId) {
-      if (useTelescopeState.getState().pending) return
-      const sensitivity = telescopeTurnRate()
-      Object.assign(telescopeView, normalizeTelescopeAim(telescopeView.yaw - event.movementX * sensitivity,
-        telescopeView.pitch - event.movementY * sensitivity))
+      turnTelescope(event.movementX, event.movementY)
       return
     }
     rotate(event.movementX, event.movementY)
