@@ -75,12 +75,14 @@ describe('avatar pose transitions and resource ownership', () => {
         const figure = new Group(), hips = new Vector3()
         figure.add(rig.root)
         const a = avatar({ swimming: true, moving: true })
+        const handSamples: number[] = []
         let min = Infinity, max = -Infinity, kickMin = Infinity, kickMax = -Infinity
         for (let i = 0; i < fps * 4; i++) {
           motion.apply(a, 0, 1 / fps, pose, figure)
           figure.updateMatrixWorld(true)
           if (i < fps) continue
           const hand = rig.bones.hand_L.getWorldPosition(new Vector3())
+          handSamples.push(hand.z)
           min = Math.min(min, hand.z); max = Math.max(max, hand.z)
           kickMin = Math.min(kickMin, rig.bones.upperLeg_L.rotation.x)
           kickMax = Math.max(kickMax, rig.bones.upperLeg_L.rotation.x)
@@ -90,6 +92,10 @@ describe('avatar pose transitions and resource ownership', () => {
         }
         expect(figure.rotation.x).toBeCloseTo(1.3, 3)
         expect(max - min).toBeGreaterThan(0.4)
+        const middle = (min + max) / 2
+        const crossings = handSamples.filter((z, i) => i > 0 && (z - middle) * (handSamples[i - 1]! - middle) < 0).length
+        expect(crossings).toBeGreaterThanOrEqual(5)
+        expect(rig.bones.lowerArm_L.rotation.x).toBeLessThan(-0.15)
         expect(kickMax - kickMin).toBeGreaterThan(0.35)
         for (let i = 0; i < fps; i++) motion.apply({ ...a, moving: false }, 0, 1 / fps, pose, figure)
         expect(figure.rotation.x).toBeLessThan(0.2)

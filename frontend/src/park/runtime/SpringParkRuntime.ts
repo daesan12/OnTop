@@ -528,6 +528,10 @@ export class ParkRuntime implements ParkRuntimePort {
     if (!stoppedIntent(intent)) cancelAvatarEmote(useSession.getState().sessionId)
     this.movement.enqueue(intent, this.movementScope())
   }
+  stopMovement = () => {
+    this.movement.clear(false)
+    this.move(0, 0, false)
+  }
   sendEmote = async (id: EmoteId): Promise<boolean> => {
     const reason = emoteUnavailable(id)
     if (reason || !this.active || !this.socket.connected) {
@@ -538,7 +542,7 @@ export class ParkRuntime implements ParkRuntimePort {
     const epoch = state.epoch, scope = this.movementScope(), source = emoteSource(id)
     const current = () => useEmoteState.getState().epoch === epoch && this.movementScope() === scope && this.active
     useEmoteState.setState({ pending: true, requestId: '', requested: id, cancelled: false, error: '', notice: '' })
-    this.move(0, 0, false)
+    this.stopMovement()
     try {
       if (source === 'server') {
         const response = await this.socket.request('WORLD_EMOTE_SEND', { emoteCode: state.bindings[id]! }, ['WORLD_EMOTE_EVENT'],
@@ -669,7 +673,7 @@ export class ParkRuntime implements ParkRuntimePort {
       )
       if (!tableId)
         throw new Error('서버 테이블과 공원 배치 연결이 필요합니다.')
-      this.move(0, 0, false)
+      this.stopMovement()
       await this.socket.request('TABLE_JOIN', { tableId }, ['TABLE_STATE'])
       // Only TABLE_STATE assigns a seat. Never send a userId, seatNumber or final position.
     })
