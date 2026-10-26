@@ -44,14 +44,10 @@ class WorldMapRecoveryTests {
             JsonNode selected = first.request("GAME_SELECT", Map.of("gameCode", "DICE", "targetScore", 2000,
                     "betAmountPerPlayer", 1));
             assertThat(selected.path("type").asText()).isEqualTo("TABLE_STATE");
-            second.await(message -> message.path("type").asText().equals("TABLE_STATE")
-                    && message.at("/payload/version").asLong() == selected.at("/payload/version").asLong());
-            JsonNode firstReady = first.request("READY_SET", Map.of("ready", true));
-            assertThat(firstReady.path("type").asText()).isEqualTo("TABLE_STATE");
-            JsonNode secondReady = second.request("READY_SET", Map.of("ready", true));
-            assertThat(secondReady.path("type").asText()).isEqualTo("TABLE_STATE");
-            engine.activate(secondReady.path("payload"));
+            ready(first);
+            engine.activate(ready(second).path("payload"));
             engine.loads.clear();
+            // 단절 처리가 끝날 때까지 TestClock은 고정되어 서버의 disconnectedAt과 같은 시각이다.
             var originalDeadline = clock.instant().plusSeconds(30);
             first.stopPong();
             assertThat(first.awaitClose()).isEqualTo(1001);
@@ -87,6 +83,19 @@ class WorldMapRecoveryTests {
         ScenarioClient client = new ScenarioClient(port, login);
         client.await(message -> message.path("type").asText().equals("CONNECTED"));
         return client;
+    }
+
+    private JsonNode ready(ScenarioClient client) throws Exception {
+        // 같은 테이블 재조회는 좌석/준비/version을 바꾸지 않으며 최신 TABLE_STATE를 응답한다.
+        JsonNode response = client.request("TABLE_JOIN", Map.of("tableId", "table-1"));
+        assertThat(response.path("type").asText()).isEqualTo("TABLE_STATE");
+        JsonNode observed = response.path("payload");
+        JsonNode reply = client.request("READY_SET", Map.of("ready", true,
+                "betAmountPerPlayer", observed.path("betAmountPerPlayer").longValue(),
+                "expectedVersion", observed.path("version").longValue()));
+        assertThat(reply.path("type").asText()).as("READY_SET 오류 코드=%s", reply.at("/payload/code").asText())
+                .isEqualTo("TABLE_STATE");
+        return reply;
     }
 
     private void confirm(ScenarioClient client) throws Exception {

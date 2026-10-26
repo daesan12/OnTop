@@ -40,6 +40,7 @@ import com.ssafy.ontop.world.config.WorldEmoteProperties;
 import com.ssafy.ontop.world.config.WorldProximityProperties;
 import com.ssafy.ontop.world.domain.ChatText;
 import com.ssafy.ontop.world.domain.EmoteCode;
+import com.ssafy.ontop.world.map.PreparedParkMap;
 import com.ssafy.ontop.world.service.WorldAppearanceGateway;
 import com.ssafy.ontop.world.service.WorldChannelRegistry;
 import com.ssafy.ontop.world.service.WorldChatService;
@@ -117,7 +118,8 @@ public class TableHub {
     private final WorldChatService chat;
     private final WorldEmoteService emotes;
     private final WorldProximity proximity;
-    private final WorldFacilityService facilities = new WorldFacilityService();
+    private final WorldFacilityService facilities;
+    private final PreparedParkMap preparedPark;
     private final WorldFollowService follows = new WorldFollowService();
     private final ExecutorService startWorkers = Executors.newVirtualThreadPerTaskExecutor();
     private final ScheduledExecutorService heartbeatTimer = Executors.newSingleThreadScheduledExecutor(
@@ -271,10 +273,28 @@ public class TableHub {
             WorldChannelRegistry channels, WorldChatService chat, WorldEmoteService emotes,
             Optional<GameStateGateway> gameStates, Optional<GameActionGateway> gameActions,
             Optional<GameResultService> gameResults, WorldProximity proximity, WorldMapCompatibility maps) {
+        this(mapper, gateway, startRehearsal, reconnect, heartbeatInterval, heartbeatTimeout, channels, chat,
+                emotes, gameStates, gameActions, gameResults, proximity, maps, null);
+    }
+
+    /** 별도 테스트 구성에서만 새 맵을 주입한다. 기존 Spring 생성자는 기본 맵을 유지한다. */
+    public TableHub(ObjectMapper mapper, Optional<GameStartGateway> gateway, boolean startRehearsal,
+            Optional<GameReconnectService> reconnect, Duration heartbeatInterval, Duration heartbeatTimeout,
+            WorldChannelRegistry channels, WorldChatService chat, WorldEmoteService emotes,
+            Optional<GameStateGateway> gameStates, Optional<GameActionGateway> gameActions,
+            Optional<GameResultService> gameResults, WorldProximity proximity, WorldMapCompatibility maps,
+            PreparedParkMap preparedPark) {
         if (startRehearsal && gateway.isEmpty()) {
             throw new IllegalArgumentException("시작 연동 검증 대역이 필요합니다.");
         }
         this.gateway = gateway;
+        this.preparedPark = preparedPark;
+        this.facilities = preparedPark == null ? new WorldFacilityService()
+                : new WorldFacilityService(preparedPark.facilities(), java.time.Clock.systemUTC(), System::nanoTime);
+        if (preparedPark != null && (!channels.mapMetadata().equals(preparedPark.metadata())
+                || !maps.metadata().equals(preparedPark.metadata()))) {
+            throw new IllegalArgumentException("채널·시설·연결 응답은 같은 맵을 사용해야 합니다.");
+        }
         this.maps = maps;
         this.gameStates = gameStates;
         this.gameActions = gameActions;
@@ -284,12 +304,22 @@ public class TableHub {
         this.channels = channels;
         this.chat = chat;
         this.emotes = emotes;
-        this.proximity = proximity;
+        this.proximity = preparedPark == null ? proximity : new WorldProximity(channels, preparedPark.proximity());
         for (ConnectionCloseReason reason : ConnectionCloseReason.values()) {
             closedByReason.put(reason, new LongAdder());
         }
         channelIds = Set.copyOf(channels.snapshot().keySet());
-        if (channelIds.isEmpty()) {
+        if (preparedPark != null) {
+            Set<String> preparedChannels = preparedPark.bindings().stream().map(PreparedParkMap.Binding::channelId)
+                    .collect(java.util.stream.Collectors.toSet());
+            if (!preparedChannels.equals(channelIds)) {
+                throw new IllegalArgumentException("테이블 매핑과 서버 채널이 다릅니다.");
+            }
+            for (var binding : preparedPark.bindings()) {
+                rooms.put(binding.tableId(), new TableRoom(binding.tableId()));
+                tableChannels.put(binding.tableId(), binding.channelId());
+            }
+        } else if (channelIds.isEmpty()) {
             rooms.put("table-1", new TableRoom("table-1"));
             rooms.put("table-2", new TableRoom("table-2"));
         } else {
@@ -988,7 +1018,10 @@ public class TableHub {
             throw new com.ssafy.ontop.feedback.service.FeedbackException(409, "FEEDBACK_ACTIVITY_CONFLICT",
                     "테이블·시설 이용과 수영을 종료해주세요.");
         }
-        if (Math.hypot(position.x() - x, position.z() - z) > 2.6 || Math.abs(position.y() - y) > 0.7) {
+        boolean reachable = preparedPark == null
+                ? Math.hypot(position.x() - x, position.z() - z) <= 2.6 && Math.abs(position.y() - y) <= 0.7
+                : preparedPark.feedback().contains(position.x(), position.y(), position.z());
+        if (!reachable) {
             throw new com.ssafy.ontop.feedback.service.FeedbackException(403, "FEEDBACK_OUT_OF_RANGE",
                     "소리함 가까이 같은 높이에서 작성해주세요.");
         }
@@ -1006,7 +1039,10 @@ public class TableHub {
             throw new com.ssafy.ontop.notes.service.NoteException(409, "NOTES_ACTIVITY_CONFLICT",
                     "테이블·시설 이용과 수영을 종료해주세요.");
         }
-        if (Math.hypot(position.x() - x, position.z() - z) > 2.6 || Math.abs(position.y() - y) >= 0.7) {
+        boolean reachable = preparedPark == null
+                ? Math.hypot(position.x() - x, position.z() - z) <= 2.6 && Math.abs(position.y() - y) < 0.7
+                : preparedPark.notes().contains(position.x(), position.y(), position.z());
+        if (!reachable) {
             throw new com.ssafy.ontop.notes.service.NoteException(403, "NOTES_OUT_OF_RANGE",
                     "익명 메모함 가까이 같은 높이에서 작성해주세요.");
         }
