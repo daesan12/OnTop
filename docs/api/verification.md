@@ -1,5 +1,8 @@
 # USER-03 + Swagger MR 전 검증 기록
 
+> 아래는 2026-10-22 당시 검증 기록이다. operation 수와 미구현 표시는 당시 기준으로 보존한다.
+> 현재 API 목록·프로필·Story 174 계약은 [현재 안내](README.md), [WebSocket](websocket.md)을 따른다.
+
 검증일: 2026-10-22. 브랜치: `feat/S15P31B105-122-user-withdrawal` 유지.
 Swagger 작업 시작 시 작업 트리는 깨끗했으며 기존 USER-03 커밋을 보존했다.
 이 기록의 테스트 수는 task별 실행 건수다. flowTest는 일부 시나리오를 다시 실행하므로 고유 테스트 수로 합산하지 않는다.
@@ -125,3 +128,68 @@ USER-03 실제 HTTP·WebSocket 4403/롤백/경합, 광장/게임/상점과 관�
 운영 HTTPS/프록시·Origin·쿠키/SameSite 및 실제 외부 OAuth는 수동 검증이 남는다.
 상점/광장/게임의 운영 프로필·스키마 준비, 7일 경과 재가입·영구 삭제, 즉시 기권/정산 연동은 후속 작업이다.
 현재 브랜치를 유지했고 커밋·Push·MR 생성은 실행하지 않았다.
+
+## 2026-10-26 전체 명세 정합성 보완 검증
+
+작업 기준: feat/S15P31B105-171-game-wallet, HEAD bde4bce, 시작 작업 트리 깨끗함.
+아래는 문서 보완의 선택 검증이며 위 2026-10-22 전체 회귀 기록과 구분한다.
+
+| 검증 | 통과 | 실패 | 건너뜀 |
+|---|---:|---:|---:|
+| 최종 exportOpenApi (반복 실행 각각) | 12 | 0 | 0 |
+| 문서·관련 HTTP/Controller·GAME_RESULT 선택 회귀 (30개 클래스) | 359 | 0 | 0 |
+| 탈퇴 설명 보완 후 문서·탈퇴 HTTP 재검증 (8개 클래스) | 37 | 0 | 0 |
+
+37건과 export는 앞선 선택 회귀와 중복되므로 고유 테스트 수로 합산하지 않는다.
+최초 customizer의 raw Schema 제네릭 컴파일 오류를 수정한 뒤 위 최종 실행을 통과했다.
+전체 BE/FE 회귀·전체 E2E·MySQL 테스트·실제 OAuth·공용 DEV 호출은 실행하지 않았다.
+
+실행 명령 (backend, Java 21):
+
+```powershell
+.\gradlew.bat --no-daemon exportOpenApi --console=plain
+# 같은 export를 다시 실행하고 SHA-256이 완전히 동일함을 확인
+.\gradlew.bat --no-daemon exportOpenApi --console=plain
+.\gradlew.bat --no-daemon test --tests 'com.ssafy.ontop.api.*' --tests 'com.ssafy.ontop.minigame.MinigameOpenApiTests' --tests 'com.ssafy.ontop.minigame.MinigameHttpTests' --tests 'com.ssafy.ontop.minigame.MinigameDevHttpTests' --tests 'com.ssafy.ontop.feedback.FeedbackHttpTests' --tests 'com.ssafy.ontop.notes.NotesHttpTests' --tests 'com.ssafy.ontop.shop.ShopHttpTests' --tests 'com.ssafy.ontop.shop.ShopDevHttpTests' --tests 'com.ssafy.ontop.auth.controller.*' --tests 'com.ssafy.ontop.user.controller.*' --tests 'com.ssafy.ontop.game.result.GameResultViewTests' --console=plain
+.\gradlew.bat --no-daemon test --tests 'com.ssafy.ontop.api.*' --tests 'com.ssafy.ontop.user.controller.UserWithdrawalHttpTests' --console=plain
+git diff --check
+```
+
+확인 결과:
+
+- REST 25개 경로·29개 operation. HEAD의 정적 명세와 경로/메서드 집합 동일.
+- 기존 응답 상태 정의 삭제 없음. 누락된 200 및 보안 오류 정의 19개를 추가했으며 런타임 상태를 바꾸지 않았다.
+- 생성 스키마 43개. YAML 중복 키 없음, 모호한 ErrorResponse 이름 없음, 내부 참조 및 Swagger parser 오류/경고 없음.
+- Feedback 오류, Notes/관리자 Feedback GET 200, 조건부 null/필드 required, 전체 일치 패턴 검증.
+- Feedback/Notes의 UTF-16·정규화 길이는 설명과 x- 확장으로 표시. 일반 Unicode minLength로 과도하게 제한하지 않음.
+- Minigame seenTips의 잘못된 항목 무시 및 GET 만료 세션 갱신은 기존 구현 그대로 문서화.
+- TableProtocol 실제 요청 28종을 중앙 WS 문서와 비교하는 테스트 2건 통과.
+- B·READY_SET expectedVersion, INVALID/null·반환, 서버 내부 ACK/outbox, 현재 boot 복구와 미지원 범위 정리.
+- Controller/DTO는 Swagger 어노테이션 변경뿐이다. 별도 문서 customizer는 JSON 직렬화·입력 검증에 관여하지 않는다.
+- DB·Flyway·배포 설정·FE 코드 변경, Git 동기화·커밋·Push·MR 생성 없음.
+
+이번 변경 파일 (프로젝트 루트 기준, 19개):
+
+- backend/src/main/java/com/ssafy/ontop/api/OpenApiSchemaCustomizer.java
+- backend/src/main/java/com/ssafy/ontop/api/OpenApiResponseSchemaCustomizer.java (신규)
+- backend/src/main/java/com/ssafy/ontop/feedback/controller/FeedbackController.java
+- backend/src/main/java/com/ssafy/ontop/minigame/config/MinigameOpenApiCustomizer.java
+- backend/src/main/java/com/ssafy/ontop/minigame/controller/MinigameController.java
+- backend/src/main/java/com/ssafy/ontop/notes/controller/NotesController.java
+- backend/src/main/java/com/ssafy/ontop/ranking/controller/RankingController.java
+- backend/src/main/java/com/ssafy/ontop/shop/ShopController.java
+- backend/src/main/java/com/ssafy/ontop/user/controller/UserWithdrawalController.java
+- backend/src/main/java/com/ssafy/ontop/user/dto/UserNicknameUpdateRequest.java
+- backend/src/main/java/com/ssafy/ontop/user/dto/UserOnboardingRequest.java
+- backend/src/test/java/com/ssafy/ontop/api/OpenApiHttpTestSupport.java
+- backend/src/test/java/com/ssafy/ontop/api/WebSocketDocumentationTests.java (신규)
+- docs/api/README.md
+- docs/api/openapi.yaml (export 생성)
+- docs/api/verification.md
+- docs/api/websocket.md
+- docs/game-result-api.md
+- docs/websocket-api.md
+
+남은 운영 인수 조건: 실제 배포의 프로필/기능 플래그, Origin/쿠키/프록시를 별도로 확인한다.
+클라이언트 수신 ACK·다중 노드 전달·다른 boot의 미완료 경기 자동 INVALID 반환은 지원하지 않는다.
+문서 작업에서 이 기능을 활성화하거나 새로운 API를 만들지 않았다.

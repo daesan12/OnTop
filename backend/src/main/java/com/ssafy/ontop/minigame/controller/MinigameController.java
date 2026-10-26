@@ -190,6 +190,7 @@ public class MinigameController {
         return failure(new MinigameException(503, "MINIGAME_UNAVAILABLE", "미니게임을 처리할 수 없습니다."));
     }
 
+    @Schema(name = "MinigameErrorResponse")
     public record ErrorResponse(String code, String message, Object details, String detail, Integer index) {
     }
 }

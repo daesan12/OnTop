@@ -61,7 +61,7 @@ public class NotesController {
             mediaType = "application/json", schema = @Schema(implementation = NoteSubmissionRequest.class),
             examples = @ExampleObject(value = "{\"operationId\":\"1761436800000_0123456789abcdef\",\"channelId\":\"channel-1\",\"text\":\"공원을 개선해주세요\"}")))
     @ApiResponse(responseCode = "201", description = "저장된 메모 또는 동일 요청의 기존 결과",
-            content = @Content(schema = @Schema(implementation = NoteReceiptResponse.class)))
+            content = @Content(mediaType = "application/json", schema = @Schema(implementation = NoteReceiptResponse.class)))
     @ApiResponse(responseCode = "409", description = "IDEMPOTENCY_CONFLICT / NOT_IN_CHANNEL / NOTES_ACTIVITY_CONFLICT",
             content = @Content(schema = @Schema(implementation = NotesController.ErrorResponse.class)))
     @ApiResponse(responseCode = "429", description = "NOTES_WRITE_COOLDOWN / NOTES_READ_COOLDOWN, nextAllowedAt 포함",
@@ -96,6 +96,8 @@ public class NotesController {
 
     @GetMapping("/api/v1/notes")
     @Operation(summary = "전망대 익명 메모 조회", description = "인증·서버 근접/활동 검사. 창을 연 동안2초마다 재조회하고 이탈·단절 시 중지.")
+    @ApiResponse(responseCode = "200", description = "최신 메모 목록. 없으면 notes 빈 배열",
+            content = @Content(mediaType = "application/json", schema = @Schema(implementation = NoteListResponse.class)))
     @ApiResponse(responseCode = "409", description = "NOT_IN_CHANNEL / NOTES_ACTIVITY_CONFLICT",
             content = @Content(schema = @Schema(implementation = NotesController.ErrorResponse.class)))
     @ApiResponse(responseCode = "429", description = "NOTES_READ_COOLDOWN, nextAllowedAt 포함",
