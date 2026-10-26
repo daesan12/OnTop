@@ -1,5 +1,21 @@
 # 태블릿 아트 제작 기록
 
+## 주사위 썸네일 수정 (2026-10-26)
+
+- `public/art/tablet/dice-v2.webp`: 일반 주사위 5개의 눈금 배치와 면 조합을 수정. 한 면은 1~6개 점의 표준 배치이며 마주 보는 면은 1/6, 2/5, 3/4이다.
+- `public/art/tablet/bridge-v2.webp`: 거짓말 다리의 특수 주사위는 `1·2·3·4·X·X`. 이미지에 보이는 면은 위 X / 앞 2 / 오른쪽 4이며, 보이지 않는 면의 구성은 1 / 3 / X로 지정했다. 이 파일은 썸네일이며 3D 주사위 모델은 아니다.
+- 두 이미지 모두 기존 atlas를 참조해 built-in Image Gen으로 생성 후 sharp로 폭 1,000px WebP 최적화. 게임 목록과 선택 게임 미리보기에만 적용한다.
+
+### 일반 주사위 — 최종 프롬프트
+
+> Use case: precise-object-edit. Create a corrected standalone landscape 2:1 game thumbnail based on the BOTTOM-LEFT quadrant of the provided reference atlas. Keep its warm wooden tabletop, brown leather dice cup on its side at the left, ivory dice, softly blurred Korean park pavilion and greenery, warm sunlight, tasteful stylized 3D material finish. Output ONLY this single thumbnail, no atlas, UI, text or borders.
+> Replace malformed dice with exactly FIVE clean physically plausible standard six-sided dice, separated enough that every visible face is readable, comfortable margins around all objects. Every face is planar, square, with gently rounded edges and black circular recessed pips. Conventional pip layouts only: 1=center, 2=diagonal opposite corners, 3=diagonal corners plus center, 4=four corners, 5=four corners plus center, 6=two straight columns of three. Never show seven pips, random scattered dots, duplicate values on adjacent faces, pips crossing edges or mismatched face perspective. Opposite pairs on each die are 1/6, 2/5, 3/4, so no opposite pair may share a visible edge. Use these exact triples of visible TOP / FRONT / RIGHT face values for the five dice respectively: 1/2/3, 2/3/1, 3/1/2, 4/5/6, 5/6/4. Align the pips clearly within each face in perspective. Five solid cubes, no deformation, no floating objects, no hands.
+
+### 거짓말 다리 주사위 — 최종 프롬프트
+
+> Use case: precise-object-edit. Create a corrected standalone landscape 2:1 game thumbnail based closely on the BOTTOM-RIGHT quadrant of the reference atlas. Keep the small arched wooden board-game bridge with rope rails and red, blue, green and yellow wooden pawn pieces, warm wood tabletop, softly blurred Korean park pavilion and greenery, sunny stylized 3D materials. Output ONLY this single thumbnail, not an atlas, no UI or title.
+> Change the die to a SPECIAL SIX-SIDED LIAR BRIDGE DIE. Its six faces are exactly the labels 1, 2, 3, 4, X, X: four faces with one Arabic numeral each and two faces with a single capital X each. It has NO dot pips and NO number 5 or 6. Place ONE chunky ivory cube on the tabletop in the right foreground beside the bridge, with exactly THREE visible faces: TOP has a single black X, FRONT has a single black 2, RIGHT has a single black 4. Each label is clean, large, centered and aligned with its own planar face in perspective. Remaining hidden faces are 1, 3, X, preserving exactly the set 1,2,3,4,X,X. No labels crossing edges, no floating markings, no warped geometry. Keep the bridge, pawns and complete die comfortably inside frame with generous margins, matching the reference mood and composition.
+
 ## 원카드 수정 — 최종 프롬프트 (2026-10-26)
 
 > Create ONE corrected One Card game thumbnail, based closely on the TOP-RIGHT thumbnail of the provided reference atlas. Output a single landscape illustration, aspect ratio 2:1, no atlas or collage. Keep the warm wooden tabletop, softly blurred green park background, cream playing cards fanned to the left and a neat red-backed deck on the right, gentle painterly 3D-render style and warm sunlight matching the reference.

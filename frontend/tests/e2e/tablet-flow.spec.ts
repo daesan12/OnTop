@@ -65,6 +65,7 @@ for (const variant of [
   const tablet = await openTable(page), calls = await bindManualPort(page, server)
   await tablet.getByRole('button', { name: variant.name, exact: false }).first().click()
   if (variant.game === 'ONE_CARD') await screenshot(page, 'tablet-onecard-selection-v2')
+  if (variant.game === 'DICE' || variant.game === 'LIAR_BRIDGE') await screenshot(page, `tablet-${variant.game.toLowerCase()}-selection-v2`)
   if (variant.count > 2) await tablet.getByRole('button', { name: `${variant.count}인`, exact: true }).click()
   if (variant.game === 'DICE') await tablet.getByLabel('주사위 목표 점수').selectOption('4000')
   await tablet.getByLabel('1인 참가비').fill('20')
