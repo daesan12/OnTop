@@ -9,7 +9,7 @@ import { bungeoppangService as service, BungeoppangServiceError } from '../../sr
 import { advanceBungeoppangTime, escapeBungeoppang, leaveBungeoppang, openBungeoppang, pressBungeoppangSlot,
   quitBungeoppang, resetBungeoppang, refreshBungeoppangStatus, refreshBungeoppangWallet, setBungeoppangHelp, startBungeoppang, submitBungeoppang, useBungeoppang } from '../../src/features/bungeoppang/store'
 import { inputState } from '../../src/world/inputOwnership'
-import { bungeoppangClock } from '../../src/features/bungeoppang/bungeoppangView'
+import { bungeoppangClock, bungeoppangView } from '../../src/features/bungeoppang/bungeoppangView'
 import { useSession } from '../../src/network/worldClient'
 
 const game = { gameId: '901', startedAt: '2026-10-24T01:00:00Z', heats: Array(64).fill(100), rulesVersion: 'v2', isFirstGame: true }
@@ -67,11 +67,25 @@ it('retains the cooking screen on rejected abandon, then exits only after approv
   await enter(); await startBungeoppang(); escapeBungeoppang()
   vi.mocked(service.abandon).mockRejectedValueOnce(new Error('unavailable'))
   await quitBungeoppang(); expect(useBungeoppang.getState()).toMatchObject({ phase: 'countdown', confirmExit: true, abandonError: 'unavailable' })
-  await quitBungeoppang(); expect(useBungeoppang.getState().phase).toBe('leaving')
+  await quitBungeoppang(); expect(useBungeoppang.getState().phase).toBe('idle')
+  expect(inputState.minigameOpen).toBe(false)
+  expect(bungeoppangView.returningUntil).toBeGreaterThan(performance.now())
   setBungeoppangHelp(true); expect(inputState.manualOpen).toBe(false)
   await vi.advanceTimersByTimeAsync(800); expect(useBungeoppang.getState().phase).toBe('idle')
   expect(inputState.minigameOpen).toBe(false)
   setBungeoppangHelp(true); expect(inputState.manualOpen).toBe(false)
+})
+it('restores controls immediately and a previous exit cannot close a reopened visit', async () => {
+  await enter()
+  leaveBungeoppang()
+  expect(useBungeoppang.getState().phase).toBe('idle')
+  expect(inputState.minigameOpen).toBe(false)
+  openBungeoppang()
+  await vi.advanceTimersByTimeAsync(800)
+  expect(useBungeoppang.getState().phase).toBe('start')
+  expect(inputState.minigameOpen).toBe(true)
+  resetBungeoppang()
+  expect(bungeoppangView.returningUntil).toBe(0)
 })
 it('isolates late result and status replies from another visit', async () => {
   await enter(); await startBungeoppang()

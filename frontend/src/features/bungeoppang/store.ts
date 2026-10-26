@@ -213,19 +213,17 @@ export function leaveBungeoppang() {
   cancelAnimationFrame(raf);
   clearInterval(loopTimer);
   if (get().helpOpen) resetManual();
-  set({ phase: "leaving", confirmExit: false, tip: null });
   view.active = false;
-  view.returningUntil = performance.now() + R.cameraTransitionMs;
-  transitionTimer = setTimeout(() => {
-    if (get().phase !== "leaving") return;
-    set({ phase: "idle", ...initial() });
-    inputState.minigameOpen = false;
-    clearHeldInput();
-  }, R.cameraTransitionMs);
+  view.returningUntil = performance.now() + R.cameraReturnMs;
+  // Camera easing is visual only. Restore the HUD and controls in this turn,
+  // after the server has acknowledged abandon when a round is active.
+  inputState.minigameOpen = false;
+  clearHeldInput();
+  set({ phase: "idle", ...initial() });
 }
 /** 연결이 끊기는 등 화면을 바로 정리해야 할 때. */
 export function resetBungeoppang() {
-  if (get().phase === 'idle') return;
+  if (get().phase === 'idle' && !view.active && !view.returningUntil) return;
   ++visit;
   clearTimeout(transitionTimer);
   clearTimeout(tipTimer);

@@ -30,4 +30,5 @@ export const BUNGEOPPANG = {
   countdownMs: 3_500,
   endingMs: 1_100,
   cameraTransitionMs: 800,
+  cameraReturnMs: 240,
 } as const;

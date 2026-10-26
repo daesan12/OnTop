@@ -109,8 +109,10 @@ test('M14 original six-slot controls, actual 60s, same-key/result retries, serve
   await expect(page.getByRole('alertdialog')).toContainText('잠시 사용할 수 없어요')
   await page.getByRole('button', { name: '그만두기', exact: true }).click()
   await expect(page.locator('.bung-root')).toHaveCount(0)
-  const after = await page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).sceneProbe())
-  expect(after.ownVisible).toBe(true); expect(before.ownVisible).toBe(true)
+  // Controls return immediately; the avatar remains hidden only during the
+  // independent camera return so the camera does not pass through its head.
+  await expect.poll(async () => (await page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).sceneProbe())).ownVisible).toBe(true)
+  expect(before.ownVisible).toBe(true)
   await expect(page.getByLabel('조작 방법')).toBeVisible()
   await page.locator('canvas').focus(); await page.keyboard.down('KeyS')
   await expect.poll(() => server.sent.some(m => m.type === 'WORLD_MOVE' && Number(m.payload.dz) > 0)).toBe(true)

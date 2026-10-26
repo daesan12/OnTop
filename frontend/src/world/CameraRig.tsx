@@ -149,7 +149,7 @@ export function CameraRig() {
       return
     }
     if (state.bungeoppangFov !== null && camera instanceof PerspectiveCamera) {
-      camera.fov += (state.bungeoppangFov - camera.fov) * (1 - Math.exp(-7 * delta))
+      camera.fov += (state.bungeoppangFov - camera.fov) * (1 - Math.exp(-24 * delta))
       if (performance.now() >= bungeoppangView.returningUntil) {
         camera.fov = state.bungeoppangFov; state.bungeoppangFov = null
       }
@@ -325,14 +325,14 @@ export function CameraRig() {
       if (smoothingDice) state.diceTransition = ownDice || !omokSettled
     } else {
       if (firstPerson && performance.now() >= bungeoppangView.returningUntil) camera.position.copy(state.desired)
-      else camera.position.lerp(state.desired, 1 - Math.exp(-12 * Math.min(delta, 0.1)))
+      else camera.position.lerp(state.desired, 1 - Math.exp(-(performance.now() < bungeoppangView.returningUntil ? 24 : 12) * Math.min(delta, 0.1)))
     }
     if (!firstPerson && !seated && !watchedAnchor) constrainRoamingCamera(camera.position)
     if (!smoothingBoard) {
       if (performance.now() < bungeoppangView.returningUntil) {
         state.rotation.copy(camera.quaternion)
         camera.lookAt(state.look); state.targetRotation.copy(camera.quaternion)
-        camera.quaternion.slerpQuaternions(state.rotation, state.targetRotation, 1 - Math.exp(-7 * delta))
+        camera.quaternion.slerpQuaternions(state.rotation, state.targetRotation, 1 - Math.exp(-24 * delta))
       } else camera.lookAt(state.look)
     }
     diceCamera.ready = diceFocus ? omokSettled : !!(spectatorBoard && game?.dice) && camera.position.distanceTo(state.desired) < .005
