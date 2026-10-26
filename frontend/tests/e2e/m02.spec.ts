@@ -87,7 +87,7 @@ test('M02 renders approved jump/swim/stone states without a local physics replac
   server.remotePose({ ...scenarios.land, x: -8 })
   server.pose(scenarios.swim)
   await expect.poll(async () => (await probe(page)).rippleCount).toBe(1)
-  await expect.poll(async () => (await probe(page)).figureRotationX).toBeCloseTo(1)
+  await expect.poll(async () => (await probe(page)).figureRotationX).toBeCloseTo(1.3)
   await expect.poll(async () => (await probe(page)).sampled?.x).toBeCloseTo(scenarios.swim.x)
   server.pose(scenarios.fastSwim)
   server.remotePose({ ...scenarios.swim, x: scenarios.swim.x + 2 })

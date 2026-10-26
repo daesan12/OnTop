@@ -242,12 +242,23 @@ export const WORLD_COLLIDERS: readonly BoxCollider[] = [
       movementHeight: 2.5,
     })),
   ),
+  // These stone seats are rendered by TableShell too, not only pavilion chairs.
+  ...TABLES.filter((t) => !t.pavilionId && !t.picnicId).flatMap((t) =>
+    tableSeats(t).map((seat, i) => ({
+      id: `${t.id}-stone-seat-${i}`,
+      center: [t.position[0] + seat.x, t.position[1] + 0.28, t.position[2] + seat.z] as Vec3,
+      half: (i < 2 ? [1.05, 0.28, 0.26] : [0.26, 0.28, 0.425]) as Vec3,
+      camera: true,
+      movementHeight: 2.5,
+    })),
+  ),
   ...TABLES.filter((t) => t.picnicId).flatMap((t) =>
     PICNIC_TABLE_SEATS.map((seat, i) => ({
       id: `${t.id}-stool-${i}`,
       center: [t.position[0] + seat.x, 0.28, t.position[2] + seat.z] as Vec3,
       half: [0.325, 0.28, 0.325] as Vec3,
       camera: true,
+      movementHeight: 2.5,
     })),
   ),
   ...REFERENCE_PROP_COLLIDERS,

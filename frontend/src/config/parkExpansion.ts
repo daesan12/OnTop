@@ -68,13 +68,20 @@ export const EXPANSION_COLLIDERS: readonly BoxCollider[] = [
       }
     }),
   ),
-  {
-    id: 'fountain-basin',
-    center: [FOUNTAIN.x, 0.7 - FOUNTAIN.plazaDepth, FOUNTAIN.z],
-    half: [5, 0.7, 5],
-    camera: true,
-    movementHeight: 4,
-  },
+  // Conservative circular footprint of the 5.4m stone base. Thin strips remove
+  // the old square's invisible corners; the server map must be rebaked in sync.
+  ...Array.from({ length: 48 }, (_, i): BoxCollider => {
+    const radius = 5.4, step = radius * 2 / 48
+    const low = -radius + i * step, high = low + step
+    const nearest = Math.max(0, Math.abs((low + high) / 2) - step / 2)
+    return {
+      id: `fountain-basin-${i}`,
+      center: [FOUNTAIN.x, 0.7 - FOUNTAIN.plazaDepth, FOUNTAIN.z + (low + high) / 2],
+      half: [Math.sqrt(radius * radius - nearest * nearest), 0.7, step / 2],
+      camera: true,
+      movementHeight: 4,
+    }
+  }),
   ...STEPPING_STONES.map((s, i) => ({
     id: 'stepping-stone-' + i,
     center: [s.x, (s.top + s.bottom) / 2, s.z] as Vec3,

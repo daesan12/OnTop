@@ -67,7 +67,16 @@ function ParkContent({ onExit, exitError, onAuthEnded }: ParkProps) {
   }, [])
 
   return (
-    <main className="park-page" aria-label="공원 기본 화면" data-bungeoppang={bungeoppang} style={{
+    <main className="park-page" aria-label="공원 기본 화면" data-bungeoppang={bungeoppang}
+      onContextMenu={event => {
+        // Keep text editing menus and in-game avatar menus usable.
+        if (event.target instanceof Element && event.target.closest('input, textarea, [contenteditable="true"]')) return
+        event.preventDefault()
+      }}
+      onDragStart={event => {
+        if (event.target instanceof Element && event.target.closest('img, canvas')) event.preventDefault()
+      }}
+      style={{
       '--park-ui-scale': hudScale,
       '--park-edge': `${20 * hudScale}px`,
     } as CSSProperties}>
