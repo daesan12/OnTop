@@ -24,6 +24,7 @@ import {
 } from "./manualState";
 import type { ManualGameId } from "./types";
 import ManualContents from "./ManualContents";
+import { NewspaperCover } from "./NewspaperCover";
 import "./manual.css";
 
 // F1 must remain available after a deployment or a temporary network failure.
@@ -175,7 +176,7 @@ export function ManualHost({
         className="game-manual"
         data-phase={phase}
         tabIndex={-1}
-        aria-labelledby="manual-title"
+        aria-label="게임 설명서"
         aria-describedby="manual-pause-note"
         onCancel={(event) => {
           event.preventDefault();
@@ -217,22 +218,21 @@ export function ManualHost({
         }}
       >
         <div className="manual-paper" aria-hidden="true" />
-        <div className="manual-roll manual-roll-left" aria-hidden="true">
-          <i />
-        </div>
-        <div className="manual-roll manual-roll-right" aria-hidden="true">
-          <i />
+        {/* The folded left page swings open over the crease, then hands off to the real sheet. */}
+        <div className="manual-fold" aria-hidden="true">
+          <div className="manual-fold-face manual-fold-inside" />
+          <div className="manual-fold-face manual-fold-cover">
+            <NewspaperCover />
+          </div>
         </div>
         <div className="manual-sheet-content" inert={phase !== "open"}>
           <header className="manual-header">
-            <div className="manual-book-mark">
-              <BookIcon />
-            </div>
-            <div>
-              <span className="manual-eyebrow">온탑 · 함께 노는 법</span>
-              <h2 id="manual-title">게임 설명서</h2>
-              <p>처음이어도 괜찮아요. 한 장씩 알아봐요.</p>
-            </div>
+            <p className="manual-issue">제 1호 · 게임 설명서 특집</p>
+            <h2 className="manual-masthead">
+              <span className="manual-seal" aria-hidden="true">탑</span>
+              OnTop
+            </h2>
+            <p className="manual-tagline">처음이어도 괜찮아요. 한 장씩 알아봐요.</p>
             <button
               ref={closeButton}
               className="manual-close"
