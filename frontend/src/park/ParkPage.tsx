@@ -21,7 +21,8 @@ import { ParkMap } from '../features/navigation/ParkMap'
 import { ParkNavigation } from '../features/navigation/NavigationHud'
 import { BungeoppangHud } from '../features/bungeoppang/BungeoppangHud'
 import { useBungeoppang } from '../features/bungeoppang/store'
-import { ShopLauncher, ShopPanel } from '../features/shop/ShopPanel'
+import { ShopPanel } from '../features/shop/ShopPanel'
+import { WardrobeLauncher, WardrobeScreen } from '../features/wardrobe/WardrobeScreen'
 import { AdvertisementLink } from '../features/advertisements/AdvertisementLink'
 import { CameraControls } from '../features/camera/CameraControls'
 import { FollowMenu } from '../features/follow/FollowMenu'
@@ -77,7 +78,7 @@ function ParkContent({ onExit, exitError, onAuthEnded }: ParkProps) {
           <ChannelMenu />
           {/* 빠른 메뉴: each feature keeps its own launcher, placed into a slot by CSS. */}
           <div className="park-quick-dock" aria-hidden="true" />
-          <div className="park-dock-wardrobe"><ShopLauncher /></div>
+          <div className="park-dock-wardrobe"><WardrobeLauncher /></div>
           <LocationChip />
         </div>
         <div inert={bungeoppang}>
@@ -103,6 +104,7 @@ function ParkContent({ onExit, exitError, onAuthEnded }: ParkProps) {
         <FeedbackPanel />
         <AnonymousNotes />
         <ShopPanel />
+        <WardrobeScreen />
         <AdvertisementLink />
         <CameraControls />
         <FollowMenu />

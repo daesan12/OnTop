@@ -6,18 +6,11 @@ import { closeShop, equipShopItem, purchaseShopItem, refreshShop, resetShop,
   selectShopItem, setShopQuantity, useShop } from './controller'
 import type { ShopItem } from './contracts'
 import './shop.css'
-import wardrobeIcon from '../parkMenus/icons/dock-wardrobe.svg'
 
 const slotNames = { HAIR: '머리', FACE: '얼굴', TOP: '상의', BOTTOM: '하의', SHOES: '신발' }
 const money = (value: number) => `${value.toLocaleString('ko-KR')}냥`
 const category = (item: ShopItem) => item.equipSlot ? slotNames[item.equipSlot] : item.itemType === 'EQUIPMENT' ? '의상' : '소비 아이템'
 
-export function ShopLauncher() {
-  return <button className="park-shop-launcher park-exit" type="button" disabled
-    aria-label="상점 · 옷장 (공사중)" title="상점은 공사중입니다. 추후 오픈 예정입니다.">
-    <img src={wardrobeIcon} alt="" /><span>옷장</span>
-  </button>
-}
 export function ShopPanel() {
   const s = useShop(), panel = useRef<HTMLDialogElement>(null), previousFocus = useRef<HTMLElement | null>(null)
   const approved = useSession(state => state.equipment[state.sessionId] ?? emptyEquipment)
