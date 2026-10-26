@@ -16,6 +16,26 @@ class TableProtocolTests {
     private final TableProtocol protocol = new TableProtocol(new ObjectMapper());
 
     @ParameterizedTest
+    @ValueSource(strings = {"{}", "{\"targetId\":null}", "{\"targetId\":202}",
+            "{\"targetId\":\" \"}", "{\"targetId\":\"202\",\"userId\":\"101\"}",
+            "{\"targetId\":\"202\",\"x\":1}"})
+    void 따라가기_대상과_신원위조_필드를_검사한다(String payload) {
+        var error = catchThrowableOfType(RequestException.class, () -> protocol.parse(
+                "{\"requestId\":\"follow\",\"type\":\"WORLD_FOLLOW_START\",\"payload\":" + payload + "}"));
+        assertThat(error.code()).isEqualTo("INVALID_PAYLOAD");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"{}", "{\"followId\":null}", "{\"followId\":1}",
+            "{\"followId\":\"not-uuid\"}",
+            "{\"followId\":\"11111111-1111-4111-8111-111111111111\",\"targetId\":\"202\"}"})
+    void 따라가기_종료에는_정확한_관계_ID만_허용한다(String payload) {
+        var error = catchThrowableOfType(RequestException.class, () -> protocol.parse(
+                "{\"requestId\":\"follow\",\"type\":\"WORLD_FOLLOW_STOP\",\"payload\":" + payload + "}"));
+        assertThat(error.code()).isEqualTo("INVALID_PAYLOAD");
+    }
+
+    @ParameterizedTest
     @ValueSource(strings = {"{}", "{\"gameId\":\"g\"}", "{\"gameId\":\"g\",\"actionId\":null}",
             "{\"gameId\":1,\"actionId\":\"a\"}", "{\"gameId\":\"g\",\"actionId\":\" \"}",
             "{\"gameId\":\"g\",\"actionId\":\"a\",\"userId\":202}",
