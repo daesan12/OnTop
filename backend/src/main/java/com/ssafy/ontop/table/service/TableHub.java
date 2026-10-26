@@ -41,6 +41,7 @@ import com.ssafy.ontop.world.config.WorldProximityProperties;
 import com.ssafy.ontop.world.domain.ChatText;
 import com.ssafy.ontop.world.domain.EmoteCode;
 import com.ssafy.ontop.world.map.PreparedParkMap;
+import com.ssafy.ontop.world.map.WorldMapRuntime;
 import com.ssafy.ontop.world.service.WorldAppearanceGateway;
 import com.ssafy.ontop.world.service.WorldChannelRegistry;
 import com.ssafy.ontop.world.service.WorldChatService;
@@ -265,6 +266,18 @@ public class TableHub {
     }
 
     @Autowired
+    public TableHub(WorldMapRuntime runtime, ObjectMapper mapper, Optional<GameStartGateway> gateway,
+            @Value("${ontop.start-rehearsal.enabled:false}") boolean startRehearsal,
+            Optional<GameReconnectService> reconnect,
+            @Value("${ontop.websocket.heartbeat.interval:10s}") Duration heartbeatInterval,
+            @Value("${ontop.websocket.heartbeat.timeout:10s}") Duration heartbeatTimeout,
+            WorldChannelRegistry channels, WorldChatService chat, WorldEmoteService emotes,
+            Optional<GameStateGateway> gameStates, Optional<GameActionGateway> gameActions,
+            Optional<GameResultService> gameResults, WorldProximity proximity, WorldMapCompatibility maps) {
+        this(mapper, gateway, startRehearsal, reconnect, heartbeatInterval, heartbeatTimeout, channels, chat,
+                emotes, gameStates, gameActions, gameResults, proximity, maps, runtime.prepared().orElse(null));
+    }
+
     public TableHub(ObjectMapper mapper, Optional<GameStartGateway> gateway,
             @Value("${ontop.start-rehearsal.enabled:false}") boolean startRehearsal,
             Optional<GameReconnectService> reconnect,
@@ -277,7 +290,7 @@ public class TableHub {
                 emotes, gameStates, gameActions, gameResults, proximity, maps, null);
     }
 
-    /** 별도 테스트 구성에서만 새 맵을 주입한다. 기존 Spring 생성자는 기본 맵을 유지한다. */
+    /** 선택한 생성 맵을 한 묶음으로 주입한다. 기본 legacy 구성은 기존 맵을 유지한다. */
     public TableHub(ObjectMapper mapper, Optional<GameStartGateway> gateway, boolean startRehearsal,
             Optional<GameReconnectService> reconnect, Duration heartbeatInterval, Duration heartbeatTimeout,
             WorldChannelRegistry channels, WorldChatService chat, WorldEmoteService emotes,

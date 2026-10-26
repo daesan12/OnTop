@@ -5,6 +5,7 @@ import com.ssafy.ontop.world.config.WorldChannelProperties.Channel;
 import com.ssafy.ontop.world.movement.MoveInput;
 import com.ssafy.ontop.world.movement.ParkScene;
 import com.ssafy.ontop.world.movement.WorldPhysics;
+import com.ssafy.ontop.world.map.WorldMapRuntime;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -33,10 +34,16 @@ public class WorldChannelRegistry implements ChannelPresence {
         this(properties, Duration.ofMillis(50));
     }
 
-    @Autowired
     public WorldChannelRegistry(WorldChannelProperties properties,
             @Value("${ontop.world.movement.minimum-interval:50ms}") Duration minimumInterval) {
         this(properties, minimumInterval, System::nanoTime);
+    }
+
+    @Autowired
+    public WorldChannelRegistry(WorldChannelProperties properties,
+            @Value("${ontop.world.movement.minimum-interval:50ms}") Duration minimumInterval,
+            WorldMapRuntime runtime) {
+        this(properties, minimumInterval, System::nanoTime, runtime.scene());
     }
 
     public WorldChannelRegistry(WorldChannelProperties properties, Duration minimumInterval, LongSupplier nanoTime) {
