@@ -108,6 +108,11 @@ Node의 브라우저 API 어댑터·유실 응답 주입을 구분하고 실제3
 
 ## 결과 확인
 
+붕어빵의 실제 FE 플레이 상태→HTTP/RawWS→MySQL 전체 검사는
+[실제60초 연동 명령과 범위](minigame-api.md#실제-프론트-플레이-상태60초-연동-검증)를 따른다.
+`BungeoppangFrontendFlowMySqlTests`는 mysql 태그·TEST_BUNGEOPPANG_FLOW=true 전용이며
+일반 flowTest에 추가하지 않는다. 게임 시각/DB 시작 시각을 조정하는 기존 서비스 검사와 구분한다.
+
 | 위치 | 내용 |
 | --- | --- |
 | 터미널 | 단계별 PASS / SIMULATED / 실패한 검사 |
