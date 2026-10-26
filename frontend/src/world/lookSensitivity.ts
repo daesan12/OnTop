@@ -1,7 +1,9 @@
 import { create } from 'zustand'
 
-/** Personal look speed in percent. 100% is each view's own default rate. */
+/** Personal look speed in percent. 100% turns every view at 80% of its first fixed rate. */
 export const LOOK_SENSITIVITY = { min: 1, max: 200, step: 1, initial: 100 } as const
+// Players found the original fixed rates too fast; one shared default keeps all views alike.
+const DEFAULT_SCALE = 0.8
 // v1 stored a raw multiplier; percentages use a new key so an old 0.8 is never read as 0.8%.
 const storageKey = 'ontap-look-sensitivity-v2'
 
@@ -23,8 +25,8 @@ function savedSensitivity() {
 
 export const useLookSensitivity = create<{ sensitivity: number }>(() => ({ sensitivity: savedSensitivity() }))
 
-/** Multiplier for a view's default rate. */
-export const lookScale = () => useLookSensitivity.getState().sensitivity / 100
+/** Multiplier for a view's original fixed rate. */
+export const lookScale = () => useLookSensitivity.getState().sensitivity / 100 * DEFAULT_SCALE
 
 export function setLookSensitivity(percent: number) {
   const sensitivity = clampLookSensitivity(percent)

@@ -25,15 +25,15 @@ it('keeps a whole percentage between 1% and 200%', async () => {
   expect(lookSensitivityLabel(100)).toBe('100%')
 })
 
-it('turns the percentage into a multiplier of each view default', async () => {
+it('turns 100% into 80% of the original rate for every view', async () => {
   vi.stubGlobal('localStorage', storage())
   const module = await load()
   expect(module.useLookSensitivity.getState().sensitivity).toBe(100)
-  expect(module.lookScale()).toBe(1)
+  expect(module.lookScale()).toBeCloseTo(0.8)
   module.setLookSensitivity(50)
-  expect(module.lookScale()).toBeCloseTo(0.5)
+  expect(module.lookScale()).toBeCloseTo(0.4)
   module.setLookSensitivity(200)
-  expect(module.lookScale()).toBeCloseTo(2)
+  expect(module.lookScale()).toBeCloseTo(1.6)
 })
 
 it('scales seated, bench and telescope turning by the same setting', async () => {
@@ -49,9 +49,9 @@ it('scales seated, bench and telescope turning by the same setting', async () =>
     return { seated: lobby.seatedLook.yaw, bench: bench.benchLook.yaw, telescope: telescope.telescopeTurnRate() }
   }
   const normal = turns()
-  expect(normal.seated).toBeCloseTo(-50 * 0.004)
-  expect(normal.bench).toBeCloseTo(-50 * 0.004)
-  expect(normal.telescope).toBeCloseTo(0.003 / 2)
+  expect(normal.seated).toBeCloseTo(-50 * 0.004 * 0.8)
+  expect(normal.bench).toBeCloseTo(-50 * 0.004 * 0.8)
+  expect(normal.telescope).toBeCloseTo(0.003 / 2 * 0.8)
   setLookSensitivity(50)
   const half = turns()
   expect(half.seated).toBeCloseTo(normal.seated / 2)
@@ -82,5 +82,5 @@ it('still applies for this session when storage is blocked', async () => {
   const module = await load()
   expect(module.useLookSensitivity.getState().sensitivity).toBe(100)
   module.setLookSensitivity(150)
-  expect(module.lookScale()).toBeCloseTo(1.5)
+  expect(module.lookScale()).toBeCloseTo(1.2)
 })
