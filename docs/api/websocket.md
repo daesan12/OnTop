@@ -1,5 +1,8 @@
 # OnTop WebSocket 연결 및 메시지 계약
 
+맵 식별 정보: [CONNECTED / WORLD_MAP_CONFIRM / WORLD_MAP_STATE](../world-map-api.md).
+WORLD_MAP_REQUIRE_MATCH=true에서는 확인 전 입장·경기 복구를 보류한다. 기본 false는 기존 FE 호환이다.
+
 따라가기: [WORLD_FOLLOW_START / STOP / CHECK / STATE](../world-follow-api.md).
 서버가 매 틱 이동을 판정하고 기존 WORLD_STATE로 좌표를 전송한다.
 

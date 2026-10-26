@@ -27,6 +27,7 @@ export interface ParkRuntimePort {
   checkRecovery(): Promise<boolean>
   checkGame(): Promise<boolean>
   checkResult(): Promise<boolean>
+  forfeitGame(gameId: string, retry?: boolean): Promise<boolean>
   placeOmok(x: number, y: number): Promise<boolean>
   actDice(kind: 'roll' | 'bank', selectedIds: readonly number[]): Promise<boolean>
   actOneCard(input: import('../../game/onecard/protocol').OneCardInput): Promise<boolean>

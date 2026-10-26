@@ -62,7 +62,7 @@ export function FarklePanel() {
       {recoveryBlocked() && <p>경기 복구 확인 중 · 입력을 잠시 멈췄습니다.</p>}
       {s.error && <p role="alert">{s.error}</p>}
       </div>
-      {d.status === 'FINISHED' && <p>종료 사유: {d.endReason === 'TARGET_REACHED' ? '목표 점수 도달' : d.endReason === 'RECONNECT_EXPIRED' ? '재접속 유예 만료' : d.endReason}</p>}
+      {d.status === 'FINISHED' && <p>종료 사유: {d.endReason === 'TARGET_REACHED' ? '목표 점수 도달' : d.endReason === 'RECONNECT_EXPIRED' ? '재접속 유예 만료' : d.endReason === 'EXPLICIT_LEAVE' ? '수동 기권' : d.endReason}</p>}
       {!spectator && d.status === 'FINISHED' && <p>{s.result ? s.result.settlementStatus === 'SETTLED' ? `정산 완료 · 내 엽전 증감 ${s.result.myCoinDelta}` : '정산 대기 중' : '결과·정산 확인 전입니다.'}</p>}
       <div className="farkle-tools"><SeatedLookButton /><button onClick={() => openManual('farkle')}>게임 설명</button><button onClick={toggleScoreSheet}>T 점수표</button>
         {!spectator && <button aria-pressed={ui.boardView} onClick={() => { cancelCup(); useDiceUI.setState({ boardView: !ui.boardView }) }}>{ui.boardView ? '착석 시점' : '주사위 판 보기'}</button>}
@@ -74,8 +74,8 @@ export function FarklePanel() {
         <button aria-pressed={spectatorView === 'board'} onClick={() => useTableLobby.setState({ spectatorView: 'board' })}>공개 판 보기</button>
         <button aria-pressed={spectatorView === 'table'} onClick={() => useTableLobby.setState({ spectatorView: 'table' })}>테이블 둘러보기</button>
       </div>}
-      {!spectator && d.status === 'PLAYING' && <OmokSurrender key={`${session.sessionId}:${g.gameId}`} context={{ userId: session.sessionId, gameId: g.gameId, version: g.version }}
-        disabled={session.pending || !ready} />}
+      {!spectator && <OmokSurrender key={`${session.sessionId}:${g.gameId}`} context={{ userId: session.sessionId, gameId: g.gameId, version: g.version }}
+        disabled={session.pending} />}
       </div>
     </section>
     {ui.scoreOpen && <section className="park-runtime-panel farkle-rules" role="dialog" aria-label="주사위 점수표" aria-modal="true"

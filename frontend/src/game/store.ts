@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { record, integer, type Envelope } from '../network/protocol'
+import { forfeitBlocksInput } from './forfeit'
 import {
   id,
   parseGame,
@@ -72,6 +73,7 @@ export function canPlace(
     !['STARTING', 'CONFIRMED', 'SETTLING'].includes(s.start?.phase ?? '') &&
     !s.pending &&
     !s.uncertain &&
+    !forfeitBlocksInput(g.gameId) &&
     g.version >= s.awaitingVersion &&
     g.omok.status === 'PLAYING' &&
     g.omok.turnUserId === ownId &&
@@ -251,7 +253,7 @@ export function receiveGame(m: Envelope, ownId: string, tableId: string) {
 export function canPlayDice(ownId: string, now = Date.now()) {
   const s = useGame.getState(), g = s.game
   return !!g?.dice && g.role === 'PLAYER' && g.gameId === s.permittedGameId && s.recovery === 'RESTORED'
-    && !['STARTING', 'CONFIRMED', 'SETTLING'].includes(s.start?.phase ?? '') && !s.pending && !s.uncertain
+    && !['STARTING', 'CONFIRMED', 'SETTLING'].includes(s.start?.phase ?? '') && !s.pending && !s.uncertain && !forfeitBlocksInput(g.gameId)
     && g.version >= s.awaitingVersion && g.dice.status === 'PLAYING' && g.dice.turnUserId === ownId
     && Date.parse(g.dice.turnDeadline!) > now
 }

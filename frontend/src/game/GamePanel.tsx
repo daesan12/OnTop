@@ -9,6 +9,7 @@ import './prototypeTable.css'
 import { useParkRuntime } from '../park/runtime/ParkRuntime'
 import { useSession } from '../network/worldClient'
 import { gameState } from './protocol'
+import { FinishedForfeitStatus } from './OmokSurrender'
 
 export function GamePanel() {
   const runtime = useParkRuntime(), pending = useSession(s => s.pending), connected = useSession(s => s.status === 'connected')
@@ -34,6 +35,7 @@ export function GamePanel() {
     <h2>{gathering.gameName} · 경기 결과</h2><p role="status">{gathering.headline}</p>
     <ol>{gathering.rows.map(row => <li key={row.seat}>{row.nickname} · {row.label}{row.score && ` · ${row.score}`}</li>)}</ol>
     <p>{gathering.settlement}</p><p>좌석은 유지됩니다. 서버가 대기실을 연 뒤 다시 준비하면 새 판을 시작합니다.</p>
+    <FinishedForfeitStatus />
     <button disabled={pending || !connected} onClick={() => void runtime.checkResult()}>정산 결과 확인</button>
   </section>
   return bridge ? <BridgePanel /> : card ? <OneCardPanel /> : dice ? <FarklePanel /> : <OmokPanel />
