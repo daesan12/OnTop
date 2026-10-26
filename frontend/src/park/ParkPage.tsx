@@ -81,7 +81,9 @@ function ParkContent({ onExit, exitError, onAuthEnded }: ParkProps) {
         <div className="park-dock-wardrobe"><ShopLauncher /></div>
         <LocationChip />
 
-        <ParkChat key={`${session.sessionId}:${session.roomId}`} />
+        <div className="park-roaming-ui" hidden={bungeoppang} inert={bungeoppang}>
+          <ParkChat key={`${session.sessionId}:${session.roomId}`} />
+        </div>
 
         <aside className="park-shortcuts" aria-label="조작 방법">
           {shortcuts.map(({ key, action }) => (
@@ -89,21 +91,23 @@ function ParkContent({ onExit, exitError, onAuthEnded }: ParkProps) {
           ))}
         </aside>
       </div>
-      <ParkTools quality={quality} onQuality={changeQuality}/>
-      <ParkInteractionHint />
-      <FacilityStatus />
-      <EmoteWheel />
-      <TelescopePanel />
-      <FeedbackPanel />
-      <AnonymousNotes />
-      <ShopPanel />
-      <AdvertisementLink />
-      <CameraControls />
-      <FollowMenu />
+      <div className="park-roaming-ui" hidden={bungeoppang} inert={bungeoppang}>
+        <ParkTools quality={quality} onQuality={changeQuality}/>
+        <ParkInteractionHint />
+        <FacilityStatus />
+        <EmoteWheel />
+        <TelescopePanel />
+        <FeedbackPanel />
+        <AnonymousNotes />
+        <ShopPanel />
+        <AdvertisementLink />
+        <CameraControls />
+        <FollowMenu />
+        <ParkMap />
+        <ParkNavigation />
+      </div>
       <BungeoppangHud />
-      <ParkMap />
-      <ParkNavigation />
-      <ManualHost worldActions={<ManualWorldActions quality={quality} onQuality={changeQuality} onExit={onExit} />} />
+      <ManualHost worldActions={bungeoppang ? undefined : <ManualWorldActions quality={quality} onQuality={changeQuality} onExit={onExit} />} />
     </main>
   )
 }

@@ -125,7 +125,10 @@ export function CameraRig() {
       state.omokTransition = false
       if (camera instanceof PerspectiveCamera) {
         state.bungeoppangFov ??= camera.fov
-        camera.fov += (bungeoppangView.fov - camera.fov) * (1 - Math.exp(-6 * delta))
+        // Keep all three mould columns in view on narrow screens too.
+        const fov = 2 * Math.atan(Math.tan(bungeoppangView.fov * Math.PI / 360)
+          * Math.max(1, 1.4 / camera.aspect)) * 180 / Math.PI
+        camera.fov += (fov - camera.fov) * (1 - Math.exp(-6 * delta))
         camera.updateProjectionMatrix()
       }
       state.desired.set(...bungeoppangView.position)
