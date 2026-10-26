@@ -64,7 +64,9 @@ for (const count of [3, 4] as const) test(`M13 ${count}-player sequential judge,
   b.players.forEach(p => p.pawns.forEach(pawn => { if (pawn.status !== 'REMOVED_SCORED') { pawn.status = 'FALLEN'; pawn.position = 0; pawn.goalSlot = null } }))
   server.bridgeSnapshot({ players: b.players, status: 'FINISHED', stage: 'FINISHED', turnUserId: null, responderUserId: null, turnDeadline: null, winnerUserIds: winners, endReason: 'NO_RUNNABLE_PAWNS', endedAt: new Date().toISOString() })
   await expect(p).toContainText('공동 승리'); await p.getByRole('button', { name: '정산 결과 확인' }).click(); await expect(p).toContainText('정산 대기 중')
-  server.settle(); await expect(p).toContainText('정산 완료 · 내 엽전 증감 1')
+  // 최초 참가자 전원이 WIN인 서버 결과는 예약만 해제되어 순증감이 0이다.
+  server.settle(); await expect(p).toContainText('정산 완료 · 내 엽전 증감 0')
+  await expect(p).toContainText('공동 승리')
   if (count === 4) { await page.setViewportSize({ width: 1000, height: 700 }); await expect(p).toBeInViewport(); await screenshot(page, 'm13-narrow') }
   server.nextRound(); await page.getByRole('button', { name: '다음 판 준비', exact: true }).click(); await expect(p).toHaveCount(0)
   await expect.poll(() => page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).bridgeResourceProbe())).toEqual({ instances: 4, shared: 0 })

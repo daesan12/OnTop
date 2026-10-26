@@ -4,7 +4,7 @@ import path from 'node:path'
 import fs from 'node:fs/promises'
 import { TABLES } from '../../src/config'
 import { EXPECTED_MAP_VERSION } from '../../src/config/mapVersion'
-import type { Farkle } from '../../src/game/protocol'
+import type { Farkle, Result } from '../../src/game/protocol'
 import type { OneCard, Hand, Card } from '../../src/game/onecard/protocol'
 import { bridgeState as makeBridge } from '../fixtures/bridge'
 import type { Bridge, SecretDie } from '../../src/game/bridge/protocol'
@@ -183,26 +183,40 @@ export async function fixture(
     }, requestId)
   let resultVersion = 1,
     settled = false
+  let resultStatus: Result['status'] = 'FINISHED', resultReason = 'NORMAL', resultBet = 1
+  let invalidVerdicts = false
+  const resultEndedAt = new Date().toISOString()
+  // Scripted single-winner, all-winner and draw results only; never a production payout calculator.
+  const resultPayload = (): Result => {
+    const ids = Array.from({ length: options.onecard ?? options.bridge ?? 2 }, (_, i) => String(101 + i))
+    const state = options.bridge ? bridgeState : options.onecard ? cardState : options.dice ? diceState : omok()
+    const winnerIds = options.forfeit && forfeitVersion >= 0 ? ['102']
+      : options.bridge ? bridgeState.winnerUserIds : options.onecard ? cardState.winnerUserIds
+      : (options.dice ? diceState.winnerUserId : winner) ? [options.dice ? diceState.winnerUserId! : winner!] : []
+    const allWin = winnerIds.length === ids.length
+    if (winnerIds.length > 1 && !allWin) throw new Error('부분 공동 승리에는 명시적인 서버 정산 fixture가 필요합니다.')
+    const own = options.ownUserId ?? '101'
+    const coinDelta = allWin || !winnerIds.length ? 0 : winnerIds.includes(own) ? resultBet * (ids.length - 1) : -resultBet
+    return {
+    version: resultVersion, gameSessionId: gameId,
+    gameCode: options.bridge ? 'LIAR_BRIDGE' : options.onecard ? 'ONE_CARD' : options.dice ? 'DICE' : 'OMOK',
+    status: resultStatus, endReason: resultStatus === 'INVALID' ? resultReason : state.endReason ?? resultReason,
+    settlementStatus: settled ? 'SETTLED' : 'PENDING',
+    betAmountPerPlayer: resultBet,
+    participants: ids.map(userId => ({
+      userId, result: resultStatus === 'INVALID' ? invalidVerdicts ? 'FORFEIT' : null
+        : options.forfeit && forfeitVersion >= 0 && userId === '101' ? 'FORFEIT'
+        : !winnerIds.length ? 'DRAW' : winnerIds.includes(userId) ? 'WIN' : 'LOSE',
+    })),
+    myCoinDelta: !settled ? null : resultStatus === 'INVALID' ? 0 : coinDelta,
+    endedAt: resultEndedAt,
+    }
+  }
   const result = (ws: WebSocketRoute, requestId: string | null = null) =>
     emit(
       ws,
       'GAME_RESULT',
-      {
-        version: resultVersion,
-        gameSessionId: gameId,
-        gameCode: options.bridge ? 'LIAR_BRIDGE' : options.onecard ? 'ONE_CARD' : options.dice ? 'DICE' : 'OMOK',
-        status: 'FINISHED',
-        endReason: 'NORMAL',
-        settlementStatus: settled ? 'SETTLED' : 'PENDING',
-        betAmountPerPlayer: 1,
-        participants: options.forfeit && forfeitVersion >= 0 ? Array.from({ length: options.onecard ?? options.bridge ?? 2 }, (_, i) =>
-          ({ userId: String(101 + i), result: i === 0 ? 'FORFEIT' : i === 1 ? 'WIN' : 'LOSE' })) : [
-          { userId: '101', result: 'WIN' },
-          { userId: '102', result: 'LOSE' },
-        ],
-        myCoinDelta: settled ? options.forfeit && forfeitVersion >= 0 ? -1 : 1 : null,
-        endedAt: new Date().toISOString(),
-      },
+      resultPayload(),
       requestId,
     )
   await page.route('**/api/v1/**', async (route) => {
@@ -541,7 +555,10 @@ export async function fixture(
         else if (forfeitMode === 'reject') emit(ws, 'ERROR', { code: forfeitCode, message: '기권 요청 거절' }, requestId)
         else if (forfeitMode !== 'drop') approveForfeit(entry)
       }
-      if (options.omok && type === 'GAME_RESULT_CHECK') result(ws, requestId)
+      if (options.omok && type === 'GAME_RESULT_CHECK') {
+        if (payload.gameSessionId === gameId) result(ws, requestId)
+        else emit(ws, 'ERROR', { code: 'GAME_RESULT_ACCESS_DENIED', message: '본인 경기 결과만 확인할 수 있습니다.' }, requestId)
+      }
       if (options.omok && type === 'GAME_ACTION_SEND') {
         if (dropAction) return
         if (nextActionError) {
@@ -642,6 +659,8 @@ export async function fixture(
     host: (id: string) => { selectorOverride = id; table(sockets.at(-1)!, 'TABLE_STATE', null) },
     confirmStart: () => {
       started = true
+      resultBet = betAmountPerPlayer ?? 1
+      resultStatus = 'FINISHED'; resultReason = 'NORMAL'; resultVersion = 1; settled = false
       gameDeadline = new Date(Date.now() + 30_000).toISOString()
       if (options.dice) diceState = { ...diceState, turnDeadline: gameDeadline }
       if (options.onecard) cardState = { ...cardState, turnDeadline: gameDeadline }
@@ -686,6 +705,12 @@ export async function fixture(
       resultVersion++
       result(sockets.at(-1)!)
     },
+    storeInvalidResult: (settlementStatus: Result['settlementStatus'] = 'PENDING', forfeitVerdicts = false) => {
+      resultStatus = 'INVALID'; resultReason = forfeitVerdicts ? 'ABORTED_NO_PLAYERS' : 'ENGINE_LOST'
+      invalidVerdicts = forfeitVerdicts; settled = settlementStatus === 'SETTLED'; resultVersion = settled ? 2 : 1
+      return resultPayload()
+    },
+    notifyResult: (payload: Result) => emit(sockets.at(-1)!, 'GAME_RESULT', payload),
     nextRound: () => {
       if (options.forfeit) {
         gameId += '-next'; gameVersion = 0; forfeitVersion = -1; finished = false; recoveryStatus = 'RESTORED'

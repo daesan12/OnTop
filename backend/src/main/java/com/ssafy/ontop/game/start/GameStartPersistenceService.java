@@ -18,7 +18,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
@@ -37,21 +37,26 @@ public class GameStartPersistenceService {
     private final WalletTransactionRepository ledger;
     private final Clock clock;
     private final String instanceId;
-    private final UUID bootId = UUID.randomUUID();
+    private final UUID bootId;
 
     public GameStartPersistenceService(GameSessionRepository sessions, GameParticipantRepository participants,
             UserRepository users, WalletRepository wallets, WalletTransactionRepository ledger,
-            @Qualifier("oauthClock") Clock clock, @Value("${GAME_INSTANCE_ID:single-instance}") String instanceId) {
-        if (instanceId == null || !instanceId.matches("[A-Za-z0-9_-]{1,64}")) {
-            throw new IllegalArgumentException("경기 실행 인스턴스 설정을 확인하세요.");
-        }
+            Clock clock, String instanceId) {
+        this(sessions, participants, users, wallets, ledger, clock, new GameRuntimeIdentity(instanceId));
+    }
+
+    @Autowired
+    public GameStartPersistenceService(GameSessionRepository sessions, GameParticipantRepository participants,
+            UserRepository users, WalletRepository wallets, WalletTransactionRepository ledger,
+            @Qualifier("oauthClock") Clock clock, GameRuntimeIdentity identity) {
         this.sessions = sessions;
         this.participants = participants;
         this.users = users;
         this.wallets = wallets;
         this.ledger = ledger;
         this.clock = clock;
-        this.instanceId = instanceId;
+        this.instanceId = identity.instanceId();
+        this.bootId = identity.bootId();
     }
 
     // 호출자가 이미 트랜잭션 안에 있어도, 이 프록시가 커밋을 완료한 다음에만 Gateway로 결과가 돌아간다.
@@ -138,6 +143,10 @@ public class GameStartPersistenceService {
     }
 
     private GameStartResult result(GameSession session) {
+        if (session.status() == GameSession.Status.FINISHED || session.status() == GameSession.Status.INVALID
+                || session.settlementStatus() == GameSession.SettlementStatus.SETTLED) {
+            return GameStartResult.rejected(session.startAttemptId(), "GAME_ALREADY_TERMINATED");
+        }
         if (session.status() == GameSession.Status.REJECTED) {
             return GameStartResult.rejected(session.startAttemptId(), session.rejectionCode());
         }
