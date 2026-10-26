@@ -1,5 +1,7 @@
 # 수영·월드 시간·이동 끊김 FE 수정
 
+최신 dev 재검토: `bde4bce`를 `19616ea`에서 충돌 없이 병합했다. 병합 후 단위 57개 파일/561개, 타입 검사·빌드·이관 경계, 브라우저 M02/M03/월드 시계 6개가 통과했다. **현재 BE 전달과 다음 작업은 [최신 통합 요청 문서](handoff/BE_요청사항_최신dev_반영_2026-10-26.md)를 따른다.** 아래는 최초 수정과 당시 검증의 상세 기록이다. 개발 서버 배포·실제 BE 연결 최신 버전 재검수는 수행하지 않았다.
+
 - 작업일: 2026-10-26, FE 브랜치 `fix/frontend-motion-clock`.
 - 기준: 작업 시작 시점의 로컬 dev 체크아웃 `13fc1ff`. 기존 작업을 보존하려고 `OnTop/frontend-motion-clock`에 별도 Git worktree를 만들었다.
 - 비교 원본: `C:/Users/SSAFY/Desktop/topgoal/apps/web/src/world/Avatars.tsx`, `network/worldClient.ts`, `packages/shared-config/src/index.ts`.
