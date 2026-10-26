@@ -6,7 +6,7 @@ import { PropModel } from '../world/art/PropModel'
 import { GardenFoliageMaterial,crownGeometry } from '../world/art/ReferenceGarden'
 import { SurfaceMaterial } from '../world/art/SurfaceMaterial'
 import { PERIMETER_TREE_SITES } from './sceneGeometry'
-import { PLAZA_REST_GARDENS,PLAZA_BINS,VR_EDGE_TREE_SITES } from './layout'
+import { DRAFT_PARK,SETTINGS,PLAZA_REST_GARDENS,PLAZA_BINS,VR_EDGE_TREE_SITES } from './layout'
 
 const wood=new PropBuilder([12,8]),shrubs:Part[]=[],crowns:Part[]=[],leaves:Part[]=[],vrCrowns:Part[]=[]
 const rand=seeded(261026)
@@ -78,7 +78,8 @@ for(const [i,p] of VR_EDGE_TREE_SITES.entries()){
 }
 const furnitureArt=wood.finish()
 // Pave the full south wall apron; the original avenue is slightly above this single surface.
-const south=new Shape();south.moveTo(-90,-84);south.absarc(-84,-84,6,Math.PI,Math.PI*1.5,false);south.lineTo(84,-90);south.absarc(84,-84,6,Math.PI*1.5,Math.PI*2,false);south.lineTo(82.25,-82);south.lineTo(-82.25,-82);south.closePath()
+const south=new Shape(),half=DRAFT_PARK.half,radius=SETTINGS.park.wallCornerRadius,corner=half-radius;
+south.moveTo(-half,-corner);south.absarc(-corner,-corner,radius,Math.PI,Math.PI*1.5,false);south.lineTo(corner,-half);south.absarc(corner,-corner,radius,Math.PI*1.5,Math.PI*2,false);south.lineTo(half-7.75,-half+8);south.lineTo(-half+7.75,-half+8);south.closePath()
 export const gatePromenadeGeometry=new ShapeGeometry(south,48);gatePromenadeGeometry.rotateX(-Math.PI/2);gatePromenadeGeometry.translate(0,.12,0)
 const grates=new PropBuilder()
 for(const p of PERIMETER_TREE_SITES.filter(p=>p.z>86)){

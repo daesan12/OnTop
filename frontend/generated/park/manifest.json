@@ -1,0 +1,148 @@
+{
+  "artifacts": [
+    {
+      "bytes": 230088,
+      "path": "generated/park/server-map.json",
+      "sha256": "aa1f0a42aae9bf11a70b420c4625b79bf6f4d41ad669ef3e2d797af8b11a3135"
+    },
+    {
+      "bytes": 329,
+      "path": "src/map/park/generated/mapVersion.ts",
+      "sha256": "2bd4aaf9d29e94fdb4b5a4572faf433b5e2fcb6b863cb676cdeec0c69c73828e"
+    }
+  ],
+  "counts": {
+    "facilities": 13,
+    "localSeats": 64,
+    "obstacles": 487,
+    "paths": 54,
+    "pavilions": 9,
+    "tables": 16
+  },
+  "format": "ontop.park-map-manifest",
+  "hashAlgorithm": "sha256",
+  "hashes": {
+    "dataHash": "471c1dd7432ed7d8531d1b81daeac0857b8bfdb1134f48cac1fbff850c038c02",
+    "sourceHash": "b118106709154aed325956db7b65ed889228015d02001fb1ca5e0efd7985bad2"
+  },
+  "mapId": "park",
+  "mapVersion": "85482b9696940654222142c28943cad01ccf714ffda78d22a43ba770be41d8a6",
+  "schemaVersion": 1,
+  "sources": [
+    {
+      "path": "src/config/avatar.ts",
+      "sha256": "091f116b15a46c2aef7b9d9bc51dc7c582de458d9a19b35c3ae152872863a1c1"
+    },
+    {
+      "path": "src/config/denseTrees.ts",
+      "sha256": "233550b6fbc99303889c5130b1b563e1104d794632016998bc39024d8d43fd18"
+    },
+    {
+      "path": "src/config/existingTrees.ts",
+      "sha256": "d62827c5c29162f4074e5395a18ea8b5969c48adf68e487e5372a4e2f6e3a161"
+    },
+    {
+      "path": "src/config/fitness.ts",
+      "sha256": "e55b3a0347cfad4c4292901bf9dce737135239c1945359e0f859175bdefaddc6"
+    },
+    {
+      "path": "src/config/gardenAdditions.ts",
+      "sha256": "b3eebe43aaceae03c54e648d11cdac2792291315422df910c6e97aa2930c3d66"
+    },
+    {
+      "path": "src/config/lakeCrossings.ts",
+      "sha256": "b417b36864223222f756f19c8dc7869f8fd10d431bd6c7517d47c33f22321bd6"
+    },
+    {
+      "path": "src/config/lakeRocks.ts",
+      "sha256": "d5140e2fb11fad78435e7540e295f71dc5b0f56e8f1d05fd2947a97c4000b25a"
+    },
+    {
+      "path": "src/config/notes.ts",
+      "sha256": "b6fef6de816e9ce03200c965e962385f9eb3a3b4b19e7045506c48e5911f5d78"
+    },
+    {
+      "path": "src/config/pagoda.ts",
+      "sha256": "0d2643780d712e5f2d69a0e3e7adc848542dc4070dfaee5566cb4fe42abb3bfd"
+    },
+    {
+      "path": "src/config/parkAdvertising.ts",
+      "sha256": "3c87aa2e7536246a5babaed15d29f3ec30b71834fbf000756f13b9b9846bdc12"
+    },
+    {
+      "path": "src/config/parkExpansion.ts",
+      "sha256": "900ce40201c19d98c466dc224b8e6862bc2cbf2d94546af17815c8cb36d53097"
+    },
+    {
+      "path": "src/config/parkLandforms.ts",
+      "sha256": "960408419272e8a49f48ca54a5da564f96dc46635d5debf7da033f74d1b9b682"
+    },
+    {
+      "path": "src/config/parkLayout.ts",
+      "sha256": "cca6286631d40c3b579fd196d6f5d412ccbbac6ad51112b32b92ce5616b302ce"
+    },
+    {
+      "path": "src/config/parkPaths.ts",
+      "sha256": "6b1f11c8a039aeeaf6a6330cd619f0e794c798c722a7fe48705b2209c5987b54"
+    },
+    {
+      "path": "src/config/parkPlan.ts",
+      "sha256": "07284161ff39fd96bfed682bbcd969407b2429d5ca11b52cd2356c1a3dd13010"
+    },
+    {
+      "path": "src/config/parkProps.ts",
+      "sha256": "4a93b560fbb6a851be2947b2b19b43f06a3fd6416dcc3693fb354301d0da5538"
+    },
+    {
+      "path": "src/config/plazaGarden.ts",
+      "sha256": "87f175982cdaf47bc076dc99b0e86538b7a223136c5ea657d8f0854711ff1afa"
+    },
+    {
+      "path": "src/config/table-seats.ts",
+      "sha256": "e95b1516e050b2e3a84675645cd6294d7462509f1c2aba254d865805ac873337"
+    },
+    {
+      "path": "src/config/telescopes.ts",
+      "sha256": "f7a1cf883f2033895c9cea01f8873038c6b6e176cf1d71e0d9e5ef22ed1a278d"
+    },
+    {
+      "path": "src/config/world.ts",
+      "sha256": "97d43b76b3663e03554deb3113887dadb07e847baee697cf8e7bc1b96e956e11"
+    },
+    {
+      "path": "src/map/geometry.ts",
+      "sha256": "68a682b51162abdb0a474760eae0df7c26075b08d20930a9f01e979abaf8f2f4"
+    },
+    {
+      "path": "src/map/park/collision.ts",
+      "sha256": "abdf6d097352327a29cfa19d565fc96988efbe68de9a78043846c6e992ad91e9"
+    },
+    {
+      "path": "src/map/park/definition.ts",
+      "sha256": "54e3780ea8ec5aa1bfa07a7ae50ea7208e092543a93f7b8f6e8fb642fcd5483d"
+    },
+    {
+      "path": "src/map/park/index.ts",
+      "sha256": "86ea47fe7b5e3b4472e9f74719374663e481e6c8c187f85317dbdbf2cd13cd02"
+    },
+    {
+      "path": "src/map/park/lake.ts",
+      "sha256": "6b3544dfda8ae89b798d8c7f677f3e3e7b354197d7d2e2f5f31660a772070a4e"
+    },
+    {
+      "path": "src/map/park/resolve.ts",
+      "sha256": "166cb3e154e84824901cd89ecd6f53ed6f5283422cd9131cac74ba9a64515834"
+    },
+    {
+      "path": "src/map/park/validate.ts",
+      "sha256": "c7a4e1a51709dabbaacc7d2fd5cc4f99e5aa6743b59b242958557c00f1bc1627"
+    }
+  ],
+  "validation": {
+    "backendIntegration": "pending",
+    "definition": "passed",
+    "ids": "preserved",
+    "liveServiceVersion": "unchanged",
+    "spawn": "walkable"
+  }
+}

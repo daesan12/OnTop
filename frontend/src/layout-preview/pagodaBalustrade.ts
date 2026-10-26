@@ -1,6 +1,6 @@
 import { BoxGeometry,Matrix4,Vector3 } from 'three'
 import { PropBuilder } from '../world/art/propGeometry'
-import { CENTRAL_RAIL_RUNS,STAIR_RAIL_RUNS,SITES } from './layout'
+import { CENTRAL_RAIL_RUNS,STAIR_RAIL_RUNS,SETTINGS,SITES } from './layout'
 
 export function stairRailFrame(dx:number,dz:number,rise:number){
   const along=new Vector3(dx,-rise,dz).normalize(),across=new Vector3(dz,0,-dx).normalize(),up=new Vector3().crossVectors(along,across).normalize()
@@ -41,15 +41,15 @@ for(const run of STAIR_RAIL_RUNS) {
   for(const [offset,width,h] of [[1.08,.46,.19],[.94,.32,.1]] as const)
     stone.add('stone',new BoxGeometry(width,h,Math.hypot(length,floor)).applyMatrix4(stairRailFrame(dx,dz,floor)),'#c9c4b5',[x,floor/2+offset,z])
   // Ten stepped foundations fill the space under each baluster and bond to the stair tread.
-  for(let n=0;n<10;n++) {
-    const r=13.2+n*.4,t=(r-13)/length,px=run.from[0]+dx*t,pz=run.from[1]+dz*t,h=(10-n)*.18
+  for(let n=0;n<SETTINGS.pagoda.steps;n++) {
+    const r=SETTINGS.pagoda.terraceHalf+SETTINGS.pagoda.tread/2+n*SETTINGS.pagoda.tread,t=(r-SETTINGS.pagoda.terraceHalf)/length,px=run.from[0]+dx*t,pz=run.from[1]+dz*t,h=(SETTINGS.pagoda.steps-n)*SETTINGS.pagoda.riser
     stone.box('stone','#bcb7a8',[px,h+.09,pz],[Math.abs(dx)>.1?.42:.48,.18,Math.abs(dz)>.1?.42:.48])
   }
   for(let i=1;i<=6;i++) {
     const t=i/6,px=run.from[0]+dx*t,pz=run.from[1]+dz*t,y=floor*(1-t)
     if(i===6){stairSupportSites.push({x:px,z:pz,bottom:0});stone.box('stone','#bbb7a9',[px,y+.65,pz],[.44,1.3,.44]);stone.box('stone','#d0cabb',[px,y+1.3,pz],[.56,.16,.56]);stone.ball('stone','#bcb7a8',[px,y+1.48,pz],[.2,.19,.2])}
     else {
-      const step=Math.max(0,Math.min(floor,Math.ceil((17-(13+length*t))/.4)*.18)),height=y+1.03-step
+      const step=Math.max(0,Math.min(floor,Math.ceil((SETTINGS.pagoda.terraceHalf+SETTINGS.pagoda.steps*SETTINGS.pagoda.tread-(SETTINGS.pagoda.terraceHalf+length*t))/SETTINGS.pagoda.tread)*SETTINGS.pagoda.riser)),height=y+1.03-step
       stairSupportSites.push({x:px,z:pz,bottom:step})
       stone.box('stone','#bab5a6',[px,step+.06,pz],[.4,.12,.4])
       stone.lathe('stone','#c5c0b1',[px,step+.12,pz],[[.2,0],[.2,.12],[.13,.22],[.11,.4],[.2,.49],[.2,.59],[.12,.7],[.14,.82],[.2,.9]].map(([r,h])=>[r!,h!*(height-.12)/.9]))

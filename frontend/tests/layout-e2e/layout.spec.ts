@@ -3,6 +3,8 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import os from 'node:os'
 import type { layoutProbe } from './layoutProbe'
+import { PARK_MAP_VERSION } from '../../src/map/park/generated/mapVersion'
+import serverMap from '../../generated/park/server-map.json' with {type:'json'}
 const artifacts=process.env.QA_ARTIFACT_DIR??path.join(os.tmpdir(),'ontop-layout-qa')
 test('180m reference layout retains IDs/models, reviews day/night/plan and confines walking without BE',async({page})=>{
   const errors:string[]=[],consoleErrors:string[]=[],requests:string[]=[],sockets:string[]=[],failedResources:string[]=[]
@@ -18,7 +20,11 @@ test('180m reference layout retains IDs/models, reviews day/night/plan and confi
   await expect(page.getByRole('heading',{name:'온탑 공원 180m 배치 시안'})).toBeVisible({timeout:30000})
   await expect(page.getByText('배치 준비 완료',{exact:true})).toBeVisible({timeout:90000})
   const probe=():Promise<ReturnType<typeof layoutProbe>>=>page.evaluate(async()=> (await import('/tests/layout-e2e/layoutProbe.ts' as string)).layoutProbe())
+  expect(PARK_MAP_VERSION).toBe(serverMap.mapVersion)
+  await expect(page.getByTestId('preview-map-version')).toHaveAttribute('title',serverMap.mapVersion)
+  await expect(page.getByRole('main')).toHaveAttribute('data-map-version',serverMap.mapVersion)
   const state=await probe()
+  expect(state.common).toMatchObject({samePark:true,sameTables:true,sameLayout:true,schemaVersion:1});expect(state.common.obstacleCount).toBeGreaterThan(200)
   expect(state.park.size).toBe(180);expect(state.park.backgroundSize).toBe(316)
   expect(state.background).toBe(false);expect(state.pavilions).toHaveLength(9);expect(state.pavilions.every(p=>p.exists)).toBe(true)
   expect(state.landscape.every(part=>part.exists)).toBe(true)

@@ -26,7 +26,7 @@ pnpm dev:layout
 
 ## 배치 원본과 유지한 모델
 
-`src/layout-preview/layout.ts`가 시안 배치 원본이다. 미터, Y-up, 북쪽은 -Z이며 내부 경계는 X/Z ±90이다.
+`src/map/park/definition.ts`가 시안 배치 원본이다. `src/layout-preview/layout.ts`와 `lakeLayout.ts`는 공통 결과를 재노출하는 호환 어댑터다. 미터, Y-up, 북쪽은 -Z이며 내부 경계는 X/Z ±90이다.
 도면 번호 01~27은 설명용 번호다. 기존 네트워크/시설 ID로 대체하지 않는다.
 
 일반 정자 P1~P8과 중앙 P0를 유지하며, 테이블 `table-1`~`table-16`의 ID와 좌석 앵커 데이터를 그대로 보존한다.
@@ -201,3 +201,8 @@ Browser plugin not available: 저장소의 Playwright/Edge로 자동 검증한�
 - 광장 가로등은 가장자리 우선 배치 후 건물/화단/통로와 겹치는 후보를 제외한다. 응모부스/상점/포토부스의 출입부는 별도 모델 조명을 둔다.
 
 추가 검증은 사방 난간 단면의 수평 유지, 실제 남쪽 담장 바닥의 포장 교차, 회색 돌기둥 제거, 확대된 분수의 렌더 바닥/이동 높이 일치, 새 수목/화단 충돌, 역할별 건물 존재와 크기, VR 원형 인레이 제거를 확인한다. 브라우저 결과에는 building-13/14/15와 확대된 분수/정문/휴게 화단을 포함한다.
+
+
+공통 설정 분리와 다음 자동화 단계는 [PARK_COMMON_SETTINGS.md](./PARK_COMMON_SETTINGS.md)를 참고한다.
+
+서버 전달 JSON과 미리보기 버전 자동 생성: [PARK_GENERATION.md](./PARK_GENERATION.md).

@@ -4,3 +4,6 @@ dist/
 *.tsbuildinfo
 .vercel
 .env*
+
+# Local map generator coordination (outputs are committed separately)
+.park-map-cache/

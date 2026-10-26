@@ -1,3 +1,4 @@
+import { PARK_MAP_VERSION } from '../map/park/generated/mapVersion'
 import { Suspense,useRef,useState,useCallback,Component,type ReactNode } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { ACESFilmicToneMapping,PCFShadowMap } from 'three'
@@ -28,9 +29,9 @@ export default function LayoutPreview(){
       <div className="layout-stats"><div><b>180 × 180</b><span>공원 내부 · m</span></div><div><b>01—27</b><span>배치도 시설 번호</span></div></div>
       <div className="layout-list-heading">시설 둘러보기 <span>{MARKERS.length}</span></div>
       <nav className="layout-sites">{MARKERS.map(m=><button key={m.id} aria-pressed={selected?.id===m.id} onClick={()=>setSelected(m)}><span>{m.no}</span><strong>{m.label}</strong><i>↗</i></button>)}</nav>
-      <div className="layout-sidebar-foot"><span className="layout-dot"/> FE 배치 검토용 · 서버 연결 없음</div>
+      <div className="layout-sidebar-foot"><span className="layout-dot"/> FE 배치 검토용 · 서버 연결 없음<code className="layout-map-version" data-testid="preview-map-version" title={PARK_MAP_VERSION}>MAP {PARK_MAP_VERSION.slice(0,12)}</code></div>
     </aside>
-    <main className="layout-stage" aria-label="180m 공원 배치 미리보기">
+    <main className="layout-stage" data-map-version={PARK_MAP_VERSION} aria-label="180m 공원 배치 미리보기">
       <SceneBoundary><Canvas shadows={{type:PCFShadowMap}} dpr={[1,1.5]} camera={{position:[-145,170,205],fov:43,near:.1,far:1400}} gl={{antialias:true,toneMapping:ACESFilmicToneMapping}}>
         <PreviewLight night={night}/>
         <Suspense fallback={null}><PreviewWorld/><PreviewCamera view={view} focus={selected} labels={labels} markerElements={markerElements} indicators={indicators} onReady={onReady} resetEpoch={resetEpoch}/></Suspense>

@@ -6,12 +6,12 @@ import { useEffect, useRef, type RefObject } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { MathUtils,PerspectiveCamera, Vector3 } from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
-import { canWalk,walkHeight,MARKERS,KIOSKS,type SiteMarker } from './layout'
+import { DRAFT_PARK,canWalk,walkHeight,MARKERS,KIOSKS,type SiteMarker } from './layout'
 import { DRAFT_LAKE,swimmingAt } from './lakeLayout'
 import { SWIMMING } from '../config/parkLandforms'
 
 export type PreviewView='overview'|'plan'|'walk'|'skyline'|'jump'|'course'
-export const previewMotion={x:0,z:82,yaw:0,pitch:0,vx:0,vz:0,ready:false,frames:0,swimming:false,mode:'overview' as PreviewView}
+export const previewMotion={x:DRAFT_PARK.spawn[0],z:DRAFT_PARK.spawn[1],yaw:0,pitch:0,vx:0,vz:0,ready:false,frames:0,swimming:false,mode:'overview' as PreviewView}
 const projected=new Vector3()
 const origin=new Vector3(),north=new Vector3(),east=new Vector3()
 const labelHeight=(m:SiteMarker)=>m.no==='03'?31:m.no==='08'?23:m.no==='01'?16:m.no==='02'?10:4
@@ -33,7 +33,7 @@ export function PreviewCamera({view,focus,labels,markerElements,indicators,onRea
     if(view==='jump') {
       jumpSession.x=JUMP_START.x;jumpSession.z=JUMP_START.z;jumpSession.y=0;jumpSession.vy=0;jumpSession.pad=null;jumpSession.grounded=true;jumpSession.yaw=0;jumpSession.pitch=.04;jumpSession.active=false;jumpSession.result=null;jumpSession.bufferUntil=-1e6
     } else if(view==='walk') {
-      previewMotion.x=0;previewMotion.z=82;previewMotion.yaw=0;previewMotion.pitch=-.03
+      previewMotion.x=DRAFT_PARK.spawn[0];previewMotion.z=DRAFT_PARK.spawn[1];previewMotion.yaw=0;previewMotion.pitch=-.03
     } else {
       const orbit=new OrbitControls(camera,gl.domElement);controls.current=orbit
       orbit.enableRotate=view!=='plan';orbit.enablePan=view!=='plan';

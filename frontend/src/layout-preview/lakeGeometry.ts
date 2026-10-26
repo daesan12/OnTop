@@ -1,3 +1,4 @@
+import { SETTINGS } from './layout'
 import { BufferGeometry,ExtrudeGeometry,Float32BufferAttribute,IcosahedronGeometry,Shape,ShapeGeometry } from 'three'
 import { PropBuilder } from '../world/art/propGeometry'
 import type { Part } from '../world/art/Instances'
@@ -77,7 +78,7 @@ rockGeometry.computeVertexNormals()
 const plants=new PropBuilder([7,5]),leaf=new Shape()
 leaf.moveTo(0,0);leaf.absarc(0,0,1,.18,Math.PI*2-.18,false);leaf.lineTo(0,0)
 let pad=0
-for(const [cx,cz] of [[55,-49],[71,-5],[58,19]])for(let i=0;i<15;i++) {
+for(const [cx,cz] of SETTINGS.lake.lotusOffsets.map(([x,z])=>[DRAFT_LAKE.x+x,DRAFT_LAKE.z+z]))for(let i=0;i<15;i++) {
   const a=i*2.39996,r=Math.sqrt(i)*.8,x=cx!+Math.cos(a)*r,z=cz!+Math.sin(a)*r
   if(lakeRadius(x,z)>.91||CROSSINGS.some(c=>Math.abs(z-c.z)<c.halfWidth+2))continue
   plants.add('paint',new ShapeGeometry(leaf,12),i%2?'#678351':'#7c995c',[x,.08,z],[.42+i%3*.09,.42+i%3*.09,1],[-Math.PI/2,0,a]);pad++
@@ -89,7 +90,7 @@ for(const [cx,cz] of [[55,-49],[71,-5],[58,19]])for(let i=0;i<15;i++) {
     plants.ball('gold','#e2bb70',[x,.25,z],[.07,.065,.07])
   }
 }
-for(const [cx,cz] of [[50,-49],[75,14],[69,-51],[48,5]])for(let i=0;i<12;i++) {
+for(const [cx,cz] of SETTINGS.lake.reedOffsets.map(([x,z])=>[DRAFT_LAKE.x+x,DRAFT_LAKE.z+z]))for(let i=0;i<12;i++) {
   const x=cx!+Math.sin(i*2.4)*1.6,z=cz!+Math.cos(i*1.7)*1.7,h=.6+(i%4)*.17
   if(lakeRadius(x,z)>.98||CROSSINGS.some(c=>Math.abs(z-c.z)<c.halfWidth+2))continue
   plants.cylinder('paint','#68805b',[x,h/2-.12,z],.025,.04,h)

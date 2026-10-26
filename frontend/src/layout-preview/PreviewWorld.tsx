@@ -26,7 +26,7 @@ import { LakeFish } from '../world/art/LakeFish'
 import { vrBoothArt } from '../world/art/activityPropGeometry'
 import { ParkLamps } from '../world/art/ParkFurniture'
 import { ENVIRONMENT, MINI_PROPS, MAILBOX, GARDEN_PAGODA,VR_PAGODA,LAKE } from '../config'
-import { DRAFT_PAVILIONS,DRAFT_TABLES,DRAFT_FITNESS_AREA,DRAFT_FITNESS_STATIONS,DRAFT_TOWER_BENCHES,DRAFT_FOUNTAIN,PLAZA_REST_BENCHES,PLAZA_BEDS,PLAZA_BENCHES,DRAFT_LAMPS,MAIN_GATE,VR_YAW,SITES,MARKERS,ORIGINAL_SITES } from './layout'
+import { DRAFT_PARK,SETTINGS,DRAFT_PAVILIONS,DRAFT_TABLES,DRAFT_FITNESS_AREA,DRAFT_FITNESS_STATIONS,DRAFT_TOWER_BENCHES,DRAFT_FOUNTAIN,PLAZA_REST_BENCHES,PLAZA_BEDS,PLAZA_BENCHES,DRAFT_LAMPS,MAIN_GATE,VR_YAW,SITES,MARKERS,ORIGINAL_SITES } from './layout'
 import { lawn,gardenArt,pavilionStairsArt,cityArt,detailArt,trunks,crowns,flowers,shrubs,lakeBank,shoreTrunks,shoreCrowns } from './sceneGeometry'
 import { pathPaving,pathCurbs,fenceArt,plazaArt } from './landscapeGeometry'
 import { aquaticArt,crossingArt,lakeBed,lakeRocks,rockGeometry,shoreFenceArt } from './lakeGeometry'
@@ -73,9 +73,9 @@ export function PreviewLight({night}:{night:boolean}) {
 
 export const PreviewWorld=memo(function PreviewWorld(){
   // The original table models are rendered without live game/network event handlers.
-  return <group name="park-180-layout-draft">
+  return <group name="park-layout-draft">
     <group name="background-only" userData={{walkable:false}}><PropModel art={cityArt} name="layout-background"/>
-      <PlannedCity parkSize={180} exteriorOnly entranceWidth={MAIN_GATE.boundaryOpening} cornerRadius={6}/>
+      <PlannedCity parkSize={DRAFT_PARK.size} exteriorOnly entranceWidth={MAIN_GATE.boundaryOpening} cornerRadius={SETTINGS.park.wallCornerRadius}/>
     </group>
     <mesh geometry={lawn} dispose={null} receiveShadow><SurfaceMaterial kind="grass" mapping="box" color="#a8bc87" meters={3} strength={.12} detail={.35} side={DoubleSide}/></mesh>
     <PropModel art={gardenArt} name="layout-grounds"/>
@@ -96,7 +96,7 @@ export const PreviewWorld=memo(function PreviewWorld(){
     {DRAFT_PAVILIONS.map(p=><PavilionSlot key={p.id} p={p}/>)}
     <MainPavilionRefinements/>
     {DRAFT_TABLES.map(t=><TableShell key={t.id} anchor={t} onInspect={inspectPreviewTable}/>)}
-    <group position={[SITES.pagoda.x,1.8,SITES.pagoda.z-GARDEN_PAGODA.z]}><StonePagoda anchor={GARDEN_PAGODA} decorations={false}/></group>
+    <group position={[SITES.pagoda.x,SITES.pagoda.floor,SITES.pagoda.z-GARDEN_PAGODA.z]}><StonePagoda anchor={GARDEN_PAGODA} decorations={false}/></group>
     <group position={[SITES.vr.x,0,SITES.vr.z]} rotation={[0,VR_YAW,0]}>
       <group position={[-MINI_PROPS[1].x,0,-MINI_PROPS[1].z]}><VrHanokBooth/></group>
       <PropSign position={[0,3.55,3.8]} width={3.4} height={.65} draw={zoneSigns.vr}/>
@@ -114,19 +114,19 @@ export const PreviewWorld=memo(function PreviewWorld(){
     <group name="layout-enlarged-fountain" position={[SITES.fountain.x,0,SITES.fountain.z]} scale={[DRAFT_FOUNTAIN.scale,1,DRAFT_FOUNTAIN.scale]}><group position={[-ORIGINAL_SITES.fountain.x,0,-ORIGINAL_SITES.fountain.z]}><ParkFountain quality="high" jetHeightScale={DRAFT_FOUNTAIN.jetHeightScale}/></group></group>
     <group position={[SITES.tower.x-ORIGINAL_SITES.tower.x,0,SITES.tower.z-ORIGINAL_SITES.tower.z]}><ObservationTower/></group>
     {DRAFT_TOWER_BENCHES.map(b=><ReferenceBench key={b.id} name={b.id} position={[b.x,b.y,b.z]} yaw={b.yaw}/>)}
-    <group name="lake-district"><Water position={[62,SITES.lake.surfaceY,-14]} radius={[18,43]}/>
+    <group name="lake-district"><Water position={[SITES.lake.x,SITES.lake.surfaceY,SITES.lake.z]} radius={[SITES.lake.rx,SITES.lake.rz]}/>
       <mesh name="layout-lake-bed" geometry={lakeBed} dispose={null} receiveShadow><SurfaceMaterial kind="stone" mapping="box" color="#7b8b6d" side={DoubleSide}/></mesh>
       <Instances parts={lakeBank} shadow={false}><cylinderGeometry args={[1,1,1,6]}/></Instances>
       <PropModel art={shoreFenceArt} name="layout-shore-fence"/>
       <PropModel art={crossingArt} name="layout-lake-crossings"/>
       <PropModel art={aquaticArt} name="layout-lotus-and-reeds"/>
       <group name="layout-lake-rocks"><Instances parts={lakeRocks} material={<SurfaceMaterial kind="stone" mapping="box" strength={.3} detail={.45}/>} ><primitive object={rockGeometry} attach="geometry" dispose={null}/></Instances></group>
-      <group name="layout-transformed-fish" position={[62-LAKE.x*18/LAKE.radiusX,0,-14-LAKE.z*43/LAKE.radiusZ]} scale={[18/LAKE.radiusX,1,43/LAKE.radiusZ]}><LakeFish quality="high"/></group>
+      <group name="layout-transformed-fish" position={[SITES.lake.x-LAKE.x*SITES.lake.rx/LAKE.radiusX,0,SITES.lake.z-LAKE.z*SITES.lake.rz/LAKE.radiusZ]} scale={[SITES.lake.rx/LAKE.radiusX,1,SITES.lake.rz/LAKE.radiusZ]}><LakeFish quality="high"/></group>
       <group name="layout-shore-trees" userData={{plannedSpecies:'willow'}}>
         <Instances parts={shoreTrunks}><cylinderGeometry args={[1,1.15,1,7]}/></Instances>
         <Instances parts={shoreCrowns} shadow={false}><icosahedronGeometry args={[1,1]}/></Instances>
       </group>
-      {[42,82].map(x=><PropSign key={x} position={[x,1.3,-18.5]} width={1.6} height={.6} draw={zoneSigns.swim}/>)}
+      {SETTINGS.lake.swimEntryOffsets.map(offset=><PropSign key={offset} position={[SITES.lake.x+offset,1.3,SITES.lake.z-4.5]} width={1.6} height={.6} draw={zoneSigns.swim}/>)}
       <PreviewSwimmingRipples/>
     </group>
     <group name="fish-bread" position={[SITES.cart.x,0,SITES.cart.z]}><CodeFishBreadCart/></group>

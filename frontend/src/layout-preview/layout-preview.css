@@ -7,3 +7,5 @@
 @media(max-width:720px){.jump-tools{left:12px;top:72px;max-width:92%}.jump-tools button{font-size:9px;padding:6px}.jump-tools small{font-size:8px}.jump-wallet{top:130px;right:12px;width:135px;padding:12px}.jump-challenge{top:130px;left:12px;width:125px;padding:12px}.jump-challenge h2{font-size:18px}.jump-challenge>b{font-size:25px}.jump-wallet strong{font-size:11px}.jump-stage-strip{overflow-x:auto;left:12px;right:12px;max-width:none;transform:none;bottom:130px}.jump-stage-strip>div{min-width:61px;padding:6px}.jump-banner{top:260px;font-size:15px;white-space:normal;width:90%}.jump-review{left:12px;top:140px;width:230px;max-height:calc(100% - 250px)}.jump-start-hint{font-size:11px;width:90%;bottom:140px}.jump-result{min-width:260px;padding:15px}.jump-navigation{bottom:185px;white-space:nowrap;font-size:9px}.jump-tools~.layout-compass{display:none}}
 
 @media(max-width:440px){.layout-toolbar .layout-view-tabs{overflow-x:auto;scrollbar-width:none}.layout-view-tabs button{flex-shrink:0}}
+
+.layout-sidebar-foot{flex-wrap:wrap}.layout-map-version{flex-basis:100%;padding-left:13px;font-size:9px;color:#647b60;letter-spacing:.3px}

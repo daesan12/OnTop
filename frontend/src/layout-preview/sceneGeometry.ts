@@ -2,11 +2,11 @@ import { roundedSquare,insideRoundedSquare } from '../world/art/roundedOutline'
 import { ExtrudeGeometry,Path, Shape, ShapeGeometry } from 'three'
 import { PropBuilder } from '../world/art/propGeometry'
 import { beam, seeded, type Part } from '../world/art/Instances'
-import { DRAFT_PARK, DRAFT_PAVILIONS,DRAFT_STAIRS,PAVILION_COURT,DRAFT_FITNESS_AREA,DRAFT_FOUNTAIN,VR_COURT, DRAFT_BOXES, FENCE_BLOCKERS, LIFE_PLAZA, SITES, KIOSKS, DRAFT_LAMPS, onPath } from './layout'
-import { FISHING_LANDINGS,shoreAccess } from './lakeLayout'
+import { DRAFT_PARK,SETTINGS, DRAFT_PAVILIONS,DRAFT_STAIRS,PAVILION_COURT,DRAFT_FITNESS_AREA,DRAFT_FOUNTAIN,VR_COURT, DRAFT_BOXES, FENCE_BLOCKERS, LIFE_PLAZA, SITES, KIOSKS, DRAFT_LAMPS, onPath } from './layout'
+import { FISHING_DECKS,FISHING_LANDINGS,shoreAccess } from './lakeLayout'
 
 // All geometry and instances are static and shared. No per-frame construction.
-const shape=new Shape();roundedSquare(90,6,24).forEach(([x,z],i)=>i?shape.lineTo(x,-z):shape.moveTo(x,-z));shape.closePath()
+const shape=new Shape();roundedSquare(DRAFT_PARK.half,SETTINGS.park.wallCornerRadius,24).forEach(([x,z],i)=>i?shape.lineTo(x,-z):shape.moveTo(x,-z));shape.closePath()
 for(const [x,z,rx,rz] of [[SITES.lake.x,SITES.lake.z,SITES.lake.rx,SITES.lake.rz],[SITES.fountain.x,SITES.fountain.z,DRAFT_FOUNTAIN.plazaRadius,DRAFT_FOUNTAIN.plazaRadius]]) {
   const hole=new Path();hole.absellipse(x!,-z!,rx!,rz!,0,Math.PI*2,true,0);shape.holes.push(hole)
 }
@@ -26,11 +26,11 @@ for(const p of DRAFT_STAIRS)for(const side of [-1,1])for(let i=0;i<p.count;i++) 
   stairs.box('stone','#c5baa0',[p.x,h/2,p.z+side*(p.join+(p.count-i-.5)*p.tread)],[3.6,h,p.tread+.035])
 }
 export const pavilionStairsArt=stairs.finish()
-b.box('stone','#b9b6a6',[0,.9,-40],[26,1.8,26])
-for(const side of [-1,1])for(let step=0;step<10;step++) {
-  const h=(step+1)*.18,offset=16.8-step*.4
-  b.box('stone','#d4cebc',[side*offset,h/2,-40],[.42,h,6])
-  b.box('stone','#d4cebc',[0,h/2,-40+side*offset],[6,h,.42])
+b.box('stone','#b9b6a6',[SITES.pagoda.x,SITES.pagoda.floor/2,SITES.pagoda.z],[SETTINGS.pagoda.terraceHalf*2,SITES.pagoda.floor,SETTINGS.pagoda.terraceHalf*2])
+for(const side of [-1,1])for(let step=0;step<SETTINGS.pagoda.steps;step++) {
+  const h=(step+1)*SETTINGS.pagoda.riser,offset=SETTINGS.pagoda.terraceHalf+SETTINGS.pagoda.steps*SETTINGS.pagoda.tread-SETTINGS.pagoda.tread/2-step*SETTINGS.pagoda.tread
+  b.box('stone','#d4cebc',[SITES.pagoda.x+side*offset,h/2,SITES.pagoda.z],[SETTINGS.pagoda.tread+.02,h,SETTINGS.pagoda.stairHalfWidth*2])
+  b.box('stone','#d4cebc',[SITES.pagoda.x,h/2,SITES.pagoda.z+side*offset],[SETTINGS.pagoda.stairHalfWidth*2,h,SETTINGS.pagoda.tread+.02])
 }
 // Uniform apron shared by the two east-facing houses and the original pagoda.
 b.box('stone','#c8c0ad',[VR_COURT.x,.05,VR_COURT.z],[VR_COURT.width,.1,VR_COURT.depth])
@@ -46,10 +46,10 @@ for(let z=-79;z<=79;z+=3.15)for(let x=-79;x<=79;x+=3.15)candidates.push([x+(rand
 function reserved(x:number,z:number) {
   if(onPath(x,z,1.4)||DRAFT_LAMPS.some(p=>Math.hypot(x-p[0],z-p[2])<2))return true
   if(Math.abs(x)<LIFE_PLAZA.width/2+.8&&Math.abs(z-LIFE_PLAZA.z)<LIFE_PLAZA.depth/2+.8)return true
-  if(Math.abs(x)<18&&z<-23&&z>-59)return true
+  if(Math.abs(x-SITES.pagoda.x)<18&&z<SITES.pagoda.z+17&&z>SITES.pagoda.z-19)return true
   if(DRAFT_PAVILIONS.some(p=>Math.abs(x-p.x)<(p.id==='P0'?15:PAVILION_COURT.width/2+1.5)&&Math.abs(z-p.z)<(p.id==='P0'?18:PAVILION_COURT.depth/2+1.5)))return true
-  if(Math.hypot((x-62)/21,(z+14)/46)<1)return true
-  if(Math.hypot(x-SITES.fountain.x,z-SITES.fountain.z)<DRAFT_FOUNTAIN.plazaRadius+2||Math.hypot(x-62,z-56)<12)return true
+  if(Math.hypot((x-SITES.lake.x)/(SITES.lake.rx+3),(z-SITES.lake.z)/(SITES.lake.rz+3))<1)return true
+  if(Math.hypot(x-SITES.fountain.x,z-SITES.fountain.z)<DRAFT_FOUNTAIN.plazaRadius+2||Math.hypot(x-SITES.tower.x,z-SITES.tower.z)<12)return true
   if(Math.abs(x-VR_COURT.x)<VR_COURT.width/2+2&&Math.abs(z-VR_COURT.z)<VR_COURT.depth/2+2)return true
   if(Math.hypot((x-SITES.fitness.x)/(DRAFT_FITNESS_AREA.rx+3),(z-SITES.fitness.z)/(DRAFT_FITNESS_AREA.rz+3))<1)return true
   // Woodland follows the reference: trees remain inside the reserve, clear only routes and pockets.
@@ -89,7 +89,7 @@ for(let i=0;i<wallTrees.length;i++) {
 export const shoreTrunks:Part[]=[],shoreCrowns:Part[]=[]
 export const SHORE_TREE_SITES:Array<{id:string;x:number;z:number}>=[]
 for(let i=0;i<74;i++) {
-  const a=i*Math.PI*2/74,x=62+Math.cos(a)*20.1,z=-14+Math.sin(a)*46
+  const a=i*Math.PI*2/74,x=SITES.lake.x+Math.cos(a)*(SITES.lake.rx+2.1),z=SITES.lake.z+Math.sin(a)*(SITES.lake.rz+3)
   if(shoreAccess(x,z)||onPath(x,z,.05)||Math.abs(x-25)<9&&Math.abs(z-38)<8)continue
   SHORE_TREE_SITES.push({id:`shore-tree-${i}`,x,z})
   const h=5.5+random()*1.8
@@ -116,7 +116,7 @@ export const cityArt=city.finish()
 
 // Review furniture, docks and service footprints. Existing principal models are reused separately.
 const extra=new PropBuilder([8,6])
-for(const deck of [{x:49,z:-43,w:8,d:6,wood:true},{x:79,z:-43,w:6,d:6,wood:false}]) {
+for(const deck of FISHING_DECKS) {
   extra.box(deck.wood?'wood':'stone',deck.wood?'#917249':'#b8b4a6',[deck.x,.15,deck.z],[deck.w,.3,deck.d])
   const n=Math.round(deck.w/.25)
   for(let i=0;i<n;i++)extra.box(deck.wood?'wood':'stone',deck.wood?(i%3?'#b59668':'#a88b5f'):(i%3?'#cec9b8':'#bfbcae'),[deck.x-deck.w/2+(i+.5)*deck.w/n,.31,deck.z],[deck.w/n-.014,.02,deck.d-.12])
@@ -141,7 +141,7 @@ for(const deck of [{x:49,z:-43,w:8,d:6,wood:true},{x:79,z:-43,w:6,d:6,wood:false
 }
 for(const p of FISHING_LANDINGS) {
   const profile=new Shape();profile.moveTo(p.x0,0);profile.lineTo(p.x1,0);profile.lineTo(p.x1,p.y1);profile.lineTo(p.x0,p.y0);profile.closePath()
-  extra.add('stone',new ExtrudeGeometry(profile,{depth:3.2,bevelEnabled:false}),'#c5bea9',[0,0,-44.6])
+  extra.add('stone',new ExtrudeGeometry(profile,{depth:3.2,bevelEnabled:false}),'#c5bea9',[0,0,p.z-1.6])
 }
 // Forest rest seats, simple benches facing the paths.
 for(const [x,z] of [[-73,80],[52,-73],[74,73]]) {
@@ -153,7 +153,7 @@ export const detailArt=extra.finish()
 const lakeBank:Part[]=[]
 for(let i=0;i<120;i++) {
   const a=i*Math.PI/60,c=(i+1)*Math.PI/60
-  if(shoreAccess(62+Math.cos(a)*18.3,-14+Math.sin(a)*43.3))continue
-  lakeBank.push(beam([62+Math.cos(a)*18.3,.13,-14+Math.sin(a)*43.3],[62+Math.cos(c)*18.3,.13,-14+Math.sin(c)*43.3],.28,'#b5b29e'))
+  if(shoreAccess(SITES.lake.x+Math.cos(a)*(SITES.lake.rx+.3),SITES.lake.z+Math.sin(a)*(SITES.lake.rz+.3)))continue
+  lakeBank.push(beam([SITES.lake.x+Math.cos(a)*(SITES.lake.rx+.3),.13,SITES.lake.z+Math.sin(a)*(SITES.lake.rz+.3)],[SITES.lake.x+Math.cos(c)*(SITES.lake.rx+.3),.13,SITES.lake.z+Math.sin(c)*(SITES.lake.rz+.3)],.28,'#b5b29e'))
 }
 export {lakeBank}

@@ -1,3 +1,4 @@
+import { PARK_DATA,PARK_LAYOUT } from '../../src/map/park'
 import { _roots } from '@react-three/fiber'
 import { Box3,Triangle,Color,Vector3,PerspectiveCamera,Raycaster,type Mesh,type MeshStandardMaterial,type InstancedMesh } from 'three'
 import { DRAFT_FOUNTAIN,KIOSKS,VR_EDGE_TREE_SITES,DRAFT_LAMPS,DRAFT_PAVILIONS,DRAFT_TABLES,DRAFT_PARK,DRAFT_JUMP_PADS,DRAFT_FITNESS_STATIONS,DRAFT_TOWER_BENCHES,SITES } from '../../src/layout-preview/layout'
@@ -34,8 +35,8 @@ export function layoutProbe(){
     ray.set(new Vector3(p.x,5,p.z),new Vector3(0,-1,0));return ray.intersectObject(backdrop,true).length>0
   })
   const vrForward=scene.getObjectByName('vr-experience-hall')?.getWorldDirection(new Vector3()).toArray()
-  return {park:DRAFT_PARK,motion:{...previewMotion},camera:state.camera.position.toArray(),
-    alignment:{rotation:scene.getObjectByName('park-180-layout-draft')!.rotation.toArray().slice(0,3),centre:new Vector3(0,0,0).project(state.camera).toArray(),north:new Vector3(0,0,-20).project(state.camera).toArray(),east:new Vector3(20,0,0).project(state.camera).toArray()},
+  return {common:{samePark:PARK_DATA.world.size===DRAFT_PARK.size,sameTables:PARK_DATA.tables===DRAFT_TABLES,sameLayout:PARK_LAYOUT.SITES===SITES,obstacleCount:PARK_DATA.collision.obstacles.length,schemaVersion:PARK_DATA.metadata.schemaVersion},park:DRAFT_PARK,motion:{...previewMotion},camera:state.camera.position.toArray(),
+    alignment:{rotation:scene.getObjectByName('park-layout-draft')!.rotation.toArray().slice(0,3),centre:new Vector3(0,0,0).project(state.camera).toArray(),north:new Vector3(0,0,-20).project(state.camera).toArray(),east:new Vector3(20,0,0).project(state.camera).toArray()},
     fieldOfView:state.camera instanceof PerspectiveCamera?state.camera.fov:0,
     pavilions:DRAFT_PAVILIONS.map(p=>({id:p.id,exists:!!scene.getObjectByName('pavilion-'+p.id)})),
     tables:DRAFT_TABLES.map(t=>({id:t.id,position:world(t.id),expected:[...t.position],codeFurniture:!!scene.getObjectByName(t.id)?.getObjectByName('pavilion-wood-table')})),

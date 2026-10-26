@@ -12,7 +12,7 @@
     "dev:layout": "vite --mode layout-preview --host 127.0.0.1 --port 5201 --strictPort",
     "dev:facilities": "vite --mode facility-preview",
     "dev:frontend-test": "vite --mode frontend-test --host localhost --port 5173 --strictPort",
-    "build": "node scripts/publish-rulebooks.mjs && tsc --noEmit && vite build",
+    "build": "node scripts/generate-park-map.mjs && node scripts/publish-rulebooks.mjs && tsc --noEmit && vite build",
     "rulebooks:publish": "node scripts/publish-rulebooks.mjs",
     "assets:rulebooks": "node scripts/prepare-rulebook-art.mjs",
     "typecheck": "tsc --noEmit",
@@ -22,7 +22,9 @@
     "test:e2e:facilities": "playwright test --config playwright.facilities.config.ts",
     "typecheck:tests": "tsc --project tsconfig.tests.json --noEmit",
     "check:migration": "node scripts/check-migration-boundary.mjs",
-    "assets:chair": "node scripts/prepare-wood-chair.mjs"
+    "assets:chair": "node scripts/prepare-wood-chair.mjs",
+    "map:generate": "node scripts/generate-park-map.mjs",
+    "map:check": "node scripts/generate-park-map.mjs --check"
   },
   "dependencies": {
     "@react-three/fiber": "9.8.1",
