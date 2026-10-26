@@ -41,6 +41,8 @@ for (const girl of [false, true]) test(`confirmed multiplayer loss reaches both 
   server.bridgeSnapshot(finished())
   await expect.poll(async () => (await probe(page)).reaction?.kind).toBe('head-clutch')
   await expect.poll(async () => (await probe(page)).headPitch).toBeGreaterThan(.15)
+  // Seating and the upper-body overlay settle independently in the real rig.
+  await expect.poll(async () => (await probe(page)).leg).toBeCloseTo(-Math.PI / 2, 2)
   const pose = await probe(page)
   expect(pose.visible).toBe(true); expect(pose.character).toBe(girl ? 'girl' : 'man')
   expect(pose.leg).toBeCloseTo(-Math.PI / 2, 2)
