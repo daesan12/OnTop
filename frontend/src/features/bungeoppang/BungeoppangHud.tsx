@@ -22,11 +22,11 @@ import {
   setBungeoppangHelp,
   setBungeoppangTool,
   startBungeoppang,
-  submitBungeoppang,
   useBungeoppang,
   type BungPopup,
 } from "./store";
 import "./bungeoppang.css";
+import { BungeoppangResult } from './BungeoppangResult';
 
 const R = BUNGEOPPANG;
 const SLOT_CODES = ["KeyQ", "KeyW", "KeyE", "KeyA", "KeyS", "KeyD"];
@@ -64,7 +64,7 @@ export function BungeoppangHud() {
       {phase === "start" && <StartPanel />}
       {phase === "countdown" && <Countdown />}
       {phase === "ending" && <div className="bung-big-text">끝!</div>}
-      {phase === "result" && <ResultPanel />}
+      {phase === "result" && <BungeoppangResult />}
       <ExitConfirm />
       {phase !== 'leaving' && <button className="bung-help-button" onClick={() => setBungeoppangHelp(true)}>F1 조작 안내</button>}
     </div>
@@ -426,101 +426,6 @@ function ExitConfirm() {
             계속하기
           </button>
         </div>
-      </section>
-    </div>
-  );
-}
-
-function ResultPanel() {
-  const grill = useBungeoppang((s) => s.grill);
-  const result = useBungeoppang((s) => s.result);
-  const submitting = useBungeoppang((s) => s.submitting);
-  const submitError = useBungeoppang((s) => s.submitError);
-  const status = useBungeoppang((s) => s.status);
-  const starting = useBungeoppang((s) => s.starting);
-  const startError = useBungeoppang((s) => s.startError);
-  const walletError = useBungeoppang(s => s.walletError);
-  if (!grill) return null;
-  const summary = result ?? grill;
-  const items: [string, number | string][] = [
-    ["만든 개수", summary.made],
-    ["양면 황금", summary.golden],
-    ["0점", summary.failed],
-    ["버린 개수", summary.wasted],
-    ["최고 콤보", summary.maxCombo],
-    ["엽전 환산", `${R.pointsPerCoin}점당 1냥`],
-  ];
-  const today = result?.todayEarned ?? status?.todayEarned;
-  return (
-    <div className="bung-dim">
-      <section className="bung-panel bung-result" aria-label="결과">
-        <header>
-          <h2>오늘의 장사</h2>
-          <span>
-            {result ? '서버 확정 점수' : '미리보기 점수'} <b>{result?.score ?? grill.score}</b>
-          </span>
-        </header>
-        <div className="bung-grid">
-          {items.map(([label, value]) => (
-            <div key={label}>
-              <small>{label}</small>
-              <b>{value}</b>
-            </div>
-          ))}
-        </div>
-        <div className="bung-coins">
-          <span>
-            받은 엽전{" "}
-            <b>
-              {result
-                ? `${result.coinsGranted}냥`
-                : submitError
-                  ? "-"
-                  : "정산 중…"}
-            </b>
-          </span>
-          <span>
-            오늘 번 엽전 <b>{today ?? "…"}</b> / {R.dailyCoinCap}냥
-          </span>
-        </div>
-        {result?.capReached && (
-          <p className="bung-cap">오늘 장사는 끝! 게임은 계속할 수 있어요</p>
-        )}
-        {submitError && (
-          <p className="bung-error" role="alert">
-            {submitError.message}{" "}
-            {submitError.retryable && !submitting && (
-              <button
-                type="button"
-                className="bung-link"
-                onClick={() => void submitBungeoppang()}
-              >
-                다시 시도
-              </button>
-            )}
-          </p>
-        )}
-        {startError && <p className="bung-error">{startError}</p>}
-        {walletError && <p className="bung-error" aria-live="polite">{walletError} <button onClick={() => void refreshBungeoppangWallet()}>잔액 다시 확인</button></p>}
-        <footer>
-          <span>{result ? '서버 정산 완료' : '서버 결과 확인 중'}</span>
-          <span className="bung-row">
-            <button type="button" onClick={escapeBungeoppang}>
-              나가기
-            </button>
-            <button
-              type="button"
-              className="bung-primary"
-              disabled={starting || submitting || (!result && submitError?.retryable !== false)}
-              onClick={(e) => {
-                e.currentTarget.blur();
-                void startBungeoppang();
-              }}
-            >
-              {starting ? "준비 중…" : "다시 하기"}
-            </button>
-          </span>
-        </footer>
       </section>
     </div>
   );

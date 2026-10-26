@@ -19,6 +19,7 @@ async function start(page: Page, kind: Kind = 'OMOK', count: 2 | 3 | 4 = 2) {
   await page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).inspectTable())
   await page.getByRole('button', { name: '앉기', exact: true }).click()
   const selection = { OMOK: '오목 선택', DICE: '주사위 한 판 선택', ONE_CARD: '원카드 선택', LIAR_BRIDGE: '거짓말 다리 건너기 선택' }
+  await page.getByLabel('1인 참가비').fill('1')
   await page.getByRole('button', { name: selection[kind], exact: true }).click()
   await page.getByRole('button', { name: '준비', exact: true }).click(); server.confirmStart()
   const panel = page.getByRole('region', { name: labels[kind], exact: true })

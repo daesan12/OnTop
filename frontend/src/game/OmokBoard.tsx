@@ -13,6 +13,7 @@ import { useSession } from '../network/worldClient'
 import { canPlace, useGame } from './store'
 import { parkRuntime } from '../park/runtime/runtime'
 import { omokCamera } from './cameraState'
+import { TABLET_ENABLED } from '../features/tableLobby/tabletFeature'
 import { omokCell, stonePoint, OMOK_SIZE, OMOK_SPACING as spacing, OMOK_HALF as half } from './omokPresentation'
 import { GomokuAssets, stoneGeometry, blackStoneMaterial as blackMaterial, whiteStoneMaterial as whiteMaterial } from './omok/GomokuAssets'
 import { FocusWood } from './omok/BoardWood'
@@ -50,6 +51,7 @@ export function OmokBoard({ anchor }: { anchor: TableAnchor }) {
     (start?.tableId === binding.tableId || session.tableId === binding.tableId ||
       (game.role === 'SPECTATOR' && session.watchedTableId === binding.tableId))
   if (!selected && !relevant) return null
+  if (TABLET_ENABLED && !relevant) return null
   return <OmokSurface anchor={anchor} game={relevant ? game : null} />
 }
 function OmokSurface({

@@ -41,6 +41,7 @@ export async function fixture(
     anchorId?: string
     publicSpectator?: boolean
     forfeit?: boolean
+    manualLobby?: boolean
   } = {},
 ) {
   const anchor = TABLES.find(t => t.id === options.anchorId) ?? TABLES[0]!
@@ -79,6 +80,7 @@ export async function fixture(
   let watchingGame = false
   let watchMode: 'normal' | 'reject' | 'hold' = 'normal', watchRequestId = '', selectorOverride: string | undefined, targetScore: number | null = null
   let betAmountPerPlayer: number | null = options.publicSpectator ? 1 : null
+  let tabletCount = 2, tabletOthersReady = false
   let seated = false,
     rejectChat = false
   let gameCode: string | null = null,
@@ -318,13 +320,13 @@ export async function fixture(
         payload: {
           tableId,
           version: ++version,
-          capacity: options.m09 && !['OMOK', 'DICE'].includes(gameCode ?? '') ? 4 : 2,
+          capacity: options.manualLobby ? tabletCount : options.m09 && !['OMOK', 'DICE'].includes(gameCode ?? '') ? 4 : 2,
           minimumPlayers: 2,
-          seats: Array.from({ length: options.m09 && !['OMOK', 'DICE'].includes(gameCode ?? '') ? 4 : 2 }, (_, i) => ({
-            seatNumber: i + 1, userId: i === 0 ? seated ? '101' : null : i === 1 ? '102' : null,
-            ready: i === 0 ? ready : i === 1 && options.omok ? ready : false,
+          seats: Array.from({ length: options.manualLobby ? tabletCount : options.m09 && !['OMOK', 'DICE'].includes(gameCode ?? '') ? 4 : 2 }, (_, i) => ({
+            seatNumber: i + 1, userId: i === 0 ? seated ? '101' : null : options.manualLobby ? String(101 + i) : i === 1 ? '102' : null,
+            ready: i === 0 ? ready : options.manualLobby ? tabletOthersReady : i === 1 && options.omok ? ready : false,
           })),
-          allReady: ready,
+          allReady: ready && (!options.manualLobby || tabletOthersReady),
           selectorUserId: selectorOverride ?? (seated ? '101' : '102'),
           gameCode,
           targetScore,
@@ -529,7 +531,7 @@ export async function fixture(
       if (options.omok && type === 'READY_SET') {
         ready = payload.ready
         table(ws, 'TABLE_STATE', requestId)
-        if (ready) start(ws, 'STARTING')
+        if (ready && !options.manualLobby) start(ws, 'STARTING')
       }
       if (options.omok && type === 'GAME_START_CHECK')
         start(ws, started ? 'PLAYING' : 'STARTING', requestId)
@@ -640,6 +642,12 @@ export async function fixture(
     watchMode: (mode: typeof watchMode) => { watchMode = mode },
     replyWatch: () => table(sockets.at(-1)!, 'TABLE_WATCH_STATE', watchRequestId),
     host: (id: string) => { selectorOverride = id; table(sockets.at(-1)!, 'TABLE_STATE', null) },
+    configureTablet: (selection: { gameCode: string; playerCount: number; betAmountPerPlayer: number; targetScore?: number }) => {
+      gameCode = selection.gameCode; tabletCount = selection.playerCount; betAmountPerPlayer = selection.betAmountPerPlayer
+      targetScore = selection.targetScore ?? null; ready = false; tabletOthersReady = false
+      table(sockets.at(-1)!, 'TABLE_STATE', null); start(sockets.at(-1)!, 'WAITING')
+    },
+    readyTabletOthers: (value: boolean) => { tabletOthersReady = value; table(sockets.at(-1)!, 'TABLE_STATE', null) },
     confirmStart: () => {
       started = true
       gameDeadline = new Date(Date.now() + 30_000).toISOString()

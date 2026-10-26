@@ -1,4 +1,6 @@
 import { TableGathering } from '../features/tableLobby/TableGathering'
+import { TableTablet3D } from '../features/tableLobby/TableTablet3D'
+import { TABLET_ENABLED } from '../features/tableLobby/tabletFeature'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { memo, Suspense, useEffect, useMemo, useState } from 'react'
 import { ACESFilmicToneMapping } from 'three'
@@ -146,11 +148,12 @@ export const WorldCanvas = memo(function WorldCanvas({
         </Suspense>
         <Avatars overlayTargets={overlayTargets} />
         <FollowRopes />
-        <TableGathering />
+        {!TABLET_ENABLED && <TableGathering />}
         <BungeoppangGrill />
 
         <ParkPigeons quality={quality} />
         <CameraRig />
+        {TABLET_ENABLED && <TableTablet3D />}
         <PerformanceProbe />
         <AdaptiveResolution ceiling={dpr} />
       </Canvas>

@@ -1,4 +1,5 @@
 import { TABLE_SEATS } from '../../config'
+import { useMemo } from 'react'
 import { Instances, yawPart, type Part } from './Instances'
 import { BeveledBox } from './BeveledBox'
 import { SurfaceMaterial } from './SurfaceMaterial'
@@ -89,10 +90,11 @@ function Seating({ parts }: { parts: typeof chairs }) {
     </>
   )
 }
-export function MainTableChairs() {
+export function MainTableChairs({ seatCount = 4 }: { seatCount?: number }) {
+  const visible = useMemo(() => ({ wood: chairs.wood.slice(0, chairs.wood.length / 4 * seatCount), brass: chairs.brass.slice(0, chairs.brass.length / 4 * seatCount) }), [seatCount])
   return (
     <group name="main-table-timber-chairs">
-      <Seating parts={chairs} />
+      <Seating parts={visible} />
     </group>
   )
 }
