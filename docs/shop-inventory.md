@@ -1,5 +1,23 @@
 # 상점·인벤토리 API
 
+## 실제 프론트 모듈 연결 검증
+
+`shop/ShopFrontendMySqlTests`는 변경하지 않은 FE `Shop controller/service`·`ParkRuntime`·
+`SharedSocket`을 실제 회원 인증·HTTP·Raw WebSocket·JPA·격리 MySQL과 연결한다.
+상품 목록→응답이 유실된 구매의 동일 키 재확인→소비형 수량 누적→과거 영수증의 현재 잔액 보호→
+보유 의상 재구매/예약금 침범 거절→동일 부위 교체·같은 채널 공개 외형 전파→새 티켓 재접속을 검사한다.
+완료 후 독립 SQL로 구매 영수증/원장3건·잔액60/예약10·소비형 수량2·TOP 하나·타회원 잔액 불변을 확인한다.
+상품·금액은 검증 자료이며 실제 판매 정책을 확정하는 값이 아니다.
+
+응답 유실은 실제 서버 구매 응답200을 받은 뒤 Node fetch 어댑터에서 본문만 버려 재현한다.
+HTTP/DB/상점 저장 결과는 대역이 아니며, 브라우저 window·쿠키·sessionStorage·Origin 전달만 Node에 맞춘다.
+실제 브라우저 CORS·3D 에셋/상점 진입 UI·원격 배포 성공과 구분한다.
+현재 FE 상점 진입의 공사 중 표시는 변경하지 않는다. 테스트는 기존 controller를 직접 호출한다.
+
+실행 조건은 [흐름 검사](flow-test.md#실제-프론트-상점-연결-검증)를 따른다.
+기존 회원/상품이 있는 DB는 검사 전에 거절하며 삭제·초기화·신규 Flyway SQL을 사용하지 않는다.
+팀원 경기 DB 예약·정산 처리는 이 검증에 연결하거나 수정하지 않는다. 기존 API 필드는 유지한다.
+
 2026-10-22 사용자 승인: SHOP-01/02·INVENTORY-01/02 구현. [현행 API](https://app.notion.com/p/API-062161842b868239a9ef81452674b90c), [OnTop ERD](https://www.erdcloud.com/d/fb3woEfx3FLMCny9H)의 items/user_items/wallets/wallet_transactions 컬럼을 대조했다. 비어 있던 상세 요청·응답을 아래 현재 코드 계약으로 채운다. 실제 판매 상품·가격을 예제 값으로 확정하지 않는다.
 
 ## 공통
