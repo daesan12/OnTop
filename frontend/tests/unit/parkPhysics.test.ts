@@ -2,6 +2,9 @@ import {describe,it,expect} from 'vitest'
 import {PARK_DATA,PARK_LAYOUT,PARK_DEFINITION,resolveParkLayout} from '../../src/map/park'
 import {TELESCOPES} from '../../src/config/telescopes'
 import {TOWER_SITE} from '../../src/config/parkPlan'
+import {OBSERVATION_TOWER} from '../../src/config/parkLayout'
+import {NOTES_BOX} from '../../src/config/notes'
+import {canReachNotes} from '../../src/features/notes/validation'
 
 describe('park server physics and interaction contract',()=>{
   it('keeps the server solids independent of every preview movement clearance',()=>{
@@ -82,5 +85,54 @@ describe('park server physics and interaction contract',()=>{
   it('rejects invalid terrain sampling rather than silently changing grid spacing',()=>{
     const d=structuredClone(PARK_DEFINITION);d.physics.terrainStep=7
     expect(()=>resolveParkLayout(d)).toThrow(/terrainStep/)
+  })
+  it('exports the anonymous notes reach origin on the new tower separately from the sound mailbox',()=>{
+    const notes=PARK_DATA.interactions.notes
+    expect(notes.position).toEqual([PARK_DEFINITION.sites.tower.x-1.5,OBSERVATION_TOWER.height+.12,PARK_DEFINITION.sites.tower.z-1.5])
+    expect(notes.radius).toBe(NOTES_BOX.interactionRadius)
+    expect(notes.heightTolerance).toBe(.7)
+    expect(notes.heightReference).toBe('legacy-avatar-origin')
+    expect(notes.radiusComparison).toBe('less-than-or-equal');expect(notes.heightComparison).toBe('strict-less-than')
+    expect(notes.reachPosition[1]).toBeCloseTo(notes.position[1]+.8)
+    expect(notes.position).not.toEqual(PARK_DATA.interactions.mailbox.position)
+    // Translate exported reach samples back to the existing service fixture and compare actual FE admission.
+    const reachable=(distance:number,height:number)=>canReachNotes({x:NOTES_BOX.x+distance,y:notes.reachPosition[1]+height,z:NOTES_BOX.z,yaw:0})
+    expect(reachable(notes.radius-.01,0)).toBe(true);expect(reachable(notes.radius+.01,0)).toBe(false)
+    expect(reachable(0,.69)).toBe(true);expect(reachable(0,.71)).toBe(false)
+    const d=structuredClone(PARK_DEFINITION);d.sites.tower.x-=3;d.sites.tower.z+=2
+    const moved=resolveParkLayout(d).data.interactions.notes
+    expect(moved.id).toBe(notes.id);expect(moved.position[0]).toBeCloseTo(notes.position[0]-3)
+    expect(moved.reachPosition[2]).toBeCloseTo(notes.reachPosition[2]+2)
+  })
+  it('exports tower movement parameters consistent with the spiral mesh and moved site',()=>{
+    const t=PARK_DATA.physics.tower,mesh=PARK_DATA.physics.meshes.find(m=>m.id==='tower-ramp')!
+    expect(t).toMatchObject({x:62,z:56,inner:5,outer:8,height:18,turns:3,surfaceOffset:.12,topY:18.12})
+    for(const n of [0,90,180,270,360]) {
+      const k=n*6,angle=n/t.segments*Math.PI*2*t.turns
+      expect(mesh.vertices[k]).toBeCloseTo(t.x+Math.cos(angle)*t.inner)
+      expect(mesh.vertices[k+1]).toBeCloseTo(t.surfaceOffset+n/t.segments*t.height)
+      expect(mesh.vertices[k+2]).toBeCloseTo(t.z+Math.sin(angle)*t.inner)
+    }
+    const d=structuredClone(PARK_DEFINITION);d.sites.tower.x-=3;d.sites.tower.z+=2
+    expect(resolveParkLayout(d).data.physics.tower).toEqual({...t,x:59,z:58})
+  })
+  it('exports every stepping stone with exact uninflated hull bounds and translates with its lake',()=>{
+    const p=PARK_DATA.physics,stones=p.steppingStones
+    expect(stones).toHaveLength(p.hulls.filter(h=>h.id.startsWith('layout-stone-bridge-stone-')).length)
+    expect(stones.length).toBeGreaterThan(10)
+    for(const s of stones) {
+      const hull=p.hulls.find(h=>h.id===s.id)!
+      const x=hull.vertices.filter((_,n)=>n%3===0),y=hull.vertices.filter((_,n)=>n%3===1),z=hull.vertices.filter((_,n)=>n%3===2)
+      expect(s.top).toBe(Math.max(...y));expect(s.bottom).toBe(Math.min(...y));expect(s.height).toBeCloseTo(.62)
+      expect(s.x-s.width/2).toBeCloseTo(Math.min(...x));expect(s.x+s.width/2).toBeCloseTo(Math.max(...x))
+      expect(s.z-s.depth/2).toBeCloseTo(Math.min(...z));expect(s.z+s.depth/2).toBeCloseTo(Math.max(...z))
+    }
+    const d=structuredClone(PARK_DEFINITION);d.lake.x+=2;d.lake.z-=3
+    const moved=resolveParkLayout(d).data.physics.steppingStones
+    expect(moved.map(s=>s.id)).toEqual(stones.map(s=>s.id))
+    for(const [n,s] of moved.entries()) {
+      expect(s.x-stones[n]!.x).toBeCloseTo(2);expect(s.z-stones[n]!.z).toBeCloseTo(-3)
+      expect(s.top).toBe(stones[n]!.top);expect(s.width).toBeCloseTo(stones[n]!.width)
+    }
   })
 })

@@ -31,6 +31,8 @@ const semantics={
   seatSpace:'table-local',tableYaw:0,
   heightPriority:['crossing','fishing-deck','lake-floor','pavilion-and-stairs','pagoda-and-stairs','fountain','ground-zero'],
   interactionPose:'legacy-service-avatar-origin-ground-plus-0.8',spawnOrigin:'capsule-center',
+  notesReach:{position:'model-base',reachPosition:'legacy-avatar-origin',radius:'xz-less-than-or-equal',height:'absolute-y-difference-strict-less-than'},
+  movementAssist:{tower:'world-position-and-spiral-parameters',steppingStones:'world-axis-aligned-uninflated-hull-bounds;auxiliary-only'},
   spectatorRadius:'omitted-unused-legacy-metadata;server-policy-20m',
   excluded:['camera-collision','jump-course-3d-landing','decorative-foliage','visual-micro-detail'],
 } as const

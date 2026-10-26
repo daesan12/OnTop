@@ -10,6 +10,8 @@
 
 FE 보강 데이터는 `e88561a`로 커밋·푸시된 **schemaVersion 2**입니다. schemaVersion 1 JSON과 혼용하지 않습니다. 후속 통합 시도 `515a689`는 `11ccdf7`로 취소했으며, 이 문서는 유지된 FE 생성 데이터의 규격을 설명합니다. 실제 연결 요청과 최신 계약 방향은 [PARK_BACKEND_REQUEST.md](PARK_BACKEND_REQUEST.md)를 우선합니다.
 
+BE 추가 요청의 실제 필드·수치와 채팅 회신은 [PARK_BACKEND_CONFIRMATION.md](PARK_BACKEND_CONFIRMATION.md)에 정리했습니다. 테이블 16개는 모두 게임용이며 기존 park-bindings.json 형식을 공통 사용합니다. data.interactions.notes, data.physics.tower/steppingStones를 추가했습니다. Java·CI 직접 수정은 없습니다.
+
 ## 1. 원본과 갱신
 
 공통 배치: `frontend/src/map/park/definition.ts`

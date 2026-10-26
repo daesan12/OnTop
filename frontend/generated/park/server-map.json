@@ -11553,6 +11553,24 @@
         ],
         "radius": 2.6
       },
+      "notes": {
+        "heightComparison": "strict-less-than",
+        "heightReference": "legacy-avatar-origin",
+        "heightTolerance": 0.7,
+        "id": "anonymous-notes",
+        "position": [
+          60.5,
+          18.12,
+          54.5
+        ],
+        "radius": 2.6,
+        "radiusComparison": "less-than-or-equal",
+        "reachPosition": [
+          60.5,
+          18.92,
+          54.5
+        ]
+      },
       "tableSeats": [
         {
           "localSeats": [
@@ -127236,6 +127254,248 @@
         ],
         "yaw": 3.141592653589793
       },
+      "steppingStones": [
+        {
+          "bottom": -0.3,
+          "depth": 2.6999100493015753,
+          "height": 0.62,
+          "id": "layout-stone-bridge-stone-0",
+          "top": 0.32,
+          "width": 1.3663472972719646,
+          "x": 44.92319100730049,
+          "z": -25.9002716227905
+        },
+        {
+          "bottom": -0.3,
+          "depth": 2.5662833739708866,
+          "height": 0.62,
+          "id": "layout-stone-bridge-stone-1",
+          "top": 0.32,
+          "width": 1.4663205900214678,
+          "x": 46.44602842261724,
+          "z": -26.043263216266823
+        },
+        {
+          "bottom": -0.3,
+          "depth": 2.573456849293933,
+          "height": 0.62,
+          "id": "layout-stone-bridge-stone-2",
+          "top": 0.32,
+          "width": 1.3924680615767855,
+          "x": 47.81606361546021,
+          "z": -26.086060173064052
+        },
+        {
+          "bottom": -0.3,
+          "depth": 2.685258652351031,
+          "height": 0.62,
+          "id": "layout-stone-bridge-stone-3",
+          "top": 0.32,
+          "width": 1.322186316497863,
+          "x": 49.38250446967562,
+          "z": -25.80470766349419
+        },
+        {
+          "bottom": -0.3,
+          "depth": 2.536022983660075,
+          "height": 0.62,
+          "id": "layout-stone-bridge-stone-4",
+          "top": 0.32,
+          "width": 1.442022480275071,
+          "x": 50.90307800394917,
+          "z": -26.184108296363547
+        },
+        {
+          "bottom": -0.3,
+          "depth": 2.627338262565395,
+          "height": 0.62,
+          "id": "layout-stone-bridge-stone-5",
+          "top": 0.32,
+          "width": 1.4437926245681894,
+          "x": 52.272046992882046,
+          "z": -25.92643449977569
+        },
+        {
+          "bottom": -0.3,
+          "depth": 2.6430694402524715,
+          "height": 0.62,
+          "id": "layout-stone-bridge-stone-6",
+          "top": 0.32,
+          "width": 1.3331147936388064,
+          "x": 53.842433639723154,
+          "z": -25.951378560415407
+        },
+        {
+          "bottom": -0.3,
+          "depth": 2.538775528036929,
+          "height": 0.62,
+          "id": "layout-stone-bridge-stone-7",
+          "top": 0.32,
+          "width": 1.3872004952719408,
+          "x": 55.35910363500407,
+          "z": -26.082072318972386
+        },
+        {
+          "bottom": -0.3,
+          "depth": 2.665103740047474,
+          "height": 0.62,
+          "id": "layout-stone-bridge-stone-8",
+          "top": 0.32,
+          "width": 1.4462633069699677,
+          "x": 56.730316467764716,
+          "z": -25.96659828631097
+        },
+        {
+          "bottom": -0.3,
+          "depth": 2.5896326752946592,
+          "height": 0.62,
+          "id": "layout-stone-bridge-stone-9",
+          "top": 0.32,
+          "width": 1.3857025598924864,
+          "x": 58.30293258970791,
+          "z": -25.98095397949302
+        },
+        {
+          "bottom": -0.3,
+          "depth": 2.5727521721561573,
+          "height": 0.62,
+          "id": "layout-stone-bridge-stone-10",
+          "top": 0.32,
+          "width": 1.3705155005918357,
+          "x": 59.81645490185333,
+          "z": -25.993640159616756
+        },
+        {
+          "bottom": -0.3,
+          "depth": 2.672843617354758,
+          "height": 0.62,
+          "id": "layout-stone-bridge-stone-11",
+          "top": 0.32,
+          "width": 1.396224098591901,
+          "x": 61.19107838649346,
+          "z": -26.101490586529977
+        },
+        {
+          "bottom": -0.3,
+          "depth": 2.545407001415569,
+          "height": 0.62,
+          "id": "layout-stone-bridge-stone-12",
+          "top": 0.32,
+          "width": 1.4146971822112064,
+          "x": 62.763176229928646,
+          "z": -25.826198829231647
+        },
+        {
+          "bottom": -0.3,
+          "depth": 2.6246588498231347,
+          "height": 0.62,
+          "id": "layout-stone-bridge-stone-13",
+          "top": 0.32,
+          "width": 1.4131992444438453,
+          "x": 64.27576287178894,
+          "z": -26.143699126995454
+        },
+        {
+          "bottom": -0.3,
+          "depth": 2.6477109034368738,
+          "height": 0.62,
+          "id": "layout-stone-bridge-stone-14",
+          "top": 0.32,
+          "width": 1.35532058975231,
+          "x": 65.65144732761101,
+          "z": -25.990271050780517
+        },
+        {
+          "bottom": -0.3,
+          "depth": 2.527478839873922,
+          "height": 0.62,
+          "id": "layout-stone-bridge-stone-15",
+          "top": 0.32,
+          "width": 1.3841968431681835,
+          "x": 67.2225692825633,
+          "z": -25.87762416703003
+        },
+        {
+          "bottom": -0.3,
+          "depth": 2.674610497193637,
+          "height": 0.62,
+          "id": "layout-stone-bridge-stone-16",
+          "top": 0.32,
+          "width": 1.4626096136681213,
+          "x": 68.73522420040474,
+          "z": -26.165304846908846
+        },
+        {
+          "bottom": -0.3,
+          "depth": 2.598970751745391,
+          "height": 0.62,
+          "id": "layout-stone-bridge-stone-17",
+          "top": 0.32,
+          "width": 1.37379065045846,
+          "x": 70.10902862356912,
+          "z": -25.904158289037383
+        },
+        {
+          "bottom": -0.3,
+          "depth": 2.543253827980685,
+          "height": 0.62,
+          "id": "layout-stone-bridge-stone-18",
+          "top": 0.32,
+          "width": 1.3323235420979245,
+          "x": 71.6815703733642,
+          "z": -26.010991967326976
+        },
+        {
+          "bottom": -0.3,
+          "depth": 2.7034654505934483,
+          "height": 0.62,
+          "id": "layout-stone-bridge-stone-19",
+          "top": 0.32,
+          "width": 1.4577000778094344,
+          "x": 73.19289515737398,
+          "z": -26.010849482228796
+        },
+        {
+          "bottom": -0.3,
+          "depth": 2.5445856200744927,
+          "height": 0.62,
+          "id": "layout-stone-bridge-stone-20",
+          "top": 0.32,
+          "width": 1.4279965886670283,
+          "x": 74.56491656929003,
+          "z": -26.05202762568357
+        },
+        {
+          "bottom": -0.3,
+          "depth": 2.587709615983634,
+          "height": 0.62,
+          "id": "layout-stone-bridge-stone-21",
+          "top": 0.32,
+          "width": 1.3238097197652081,
+          "x": 76.14120103150498,
+          "z": -25.895812191367444
+        },
+        {
+          "bottom": -0.3,
+          "depth": 2.699874655543848,
+          "height": 0.62,
+          "id": "layout-stone-bridge-stone-22",
+          "top": 0.32,
+          "width": 1.4049799856673388,
+          "x": 77.64907737432824,
+          "z": -26.06901029590528
+        },
+        {
+          "bottom": -0.3,
+          "depth": 2.5045947674006754,
+          "height": 0.62,
+          "id": "layout-stone-bridge-stone-23",
+          "top": 0.32,
+          "width": 1.449874285154067,
+          "x": 79.02235239728216,
+          "z": -26.060977953552104
+        }
+      ],
       "terrain": {
         "columns": 91,
         "halfSize": 90,
@@ -127243,6 +127503,19 @@
         "rows": 91,
         "step": 2,
         "triangleOrder": "a-c-b,b-c-d"
+      },
+      "tower": {
+        "height": 18,
+        "inner": 5,
+        "jumpSpeed": 7.8,
+        "outer": 8,
+        "railHeight": 1.4,
+        "segments": 360,
+        "surfaceOffset": 0.12,
+        "topY": 18.12,
+        "turns": 3,
+        "x": 62,
+        "z": 56
       },
       "units": "m",
       "upAxis": "Y"
@@ -127962,11 +128235,11 @@
   "format": "ontop.park-map",
   "hashAlgorithm": "sha256",
   "hashes": {
-    "dataHash": "e77fb2f2243820b5efdaf9fe80f700a0c1bf0cd6e540a55de82183f1f97a8444",
-    "sourceHash": "5164a691cd77e258e3d82edb01a002748140eefb78fdb0672be0ce1d346c5b92"
+    "dataHash": "4a626c4e965be186fd9f766b1820ee7b4533985774c6efe293425f526720d81f",
+    "sourceHash": "36e67dc06361498bafe04ac64275c39f5b1a16b08bc8b416f122c08c4d6fd236"
   },
   "mapId": "park",
-  "mapVersion": "66f7e3feb023a3bf54df0902d68326238207fb11261e5917e2fa3fb0e7c5fe44",
+  "mapVersion": "5ce3cff53136eaa3be6a9fe3048d49f611403c1ceff41d2c8f266e26cc6ac840",
   "schemaVersion": 2,
   "semantics": {
     "additionalPlayerInflation": "server-capsule-only",
@@ -127990,6 +128263,16 @@
       "ground-zero"
     ],
     "interactionPose": "legacy-service-avatar-origin-ground-plus-0.8",
+    "movementAssist": {
+      "steppingStones": "world-axis-aligned-uninflated-hull-bounds;auxiliary-only",
+      "tower": "world-position-and-spiral-parameters"
+    },
+    "notesReach": {
+      "height": "absolute-y-difference-strict-less-than",
+      "position": "model-base",
+      "radius": "xz-less-than-or-equal",
+      "reachPosition": "legacy-avatar-origin"
+    },
     "physics": {
       "boxHalf": "half-extents",
       "boxYaw": "radians-about-Y",

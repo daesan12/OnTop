@@ -6,6 +6,12 @@ export function validatePhysics(p:ReturnType<typeof buildPhysics>) {
   for(const m of [...p.meshes,...p.hulls])if(m.vertices.length%3||m.vertices.length<9||!m.vertices.every(Number.isFinite))throw new Error(`${m.id}: invalid vertices`)
   for(const m of p.meshes)if(!m.indices.length||m.indices.length%3||!m.indices.every(n=>Number.isInteger(n)&&n>=0&&n<m.vertices.length/3))throw new Error(`${m.id}: invalid triangle indices`)
   if(!p.spawn.position.every(Number.isFinite))throw new Error('invalid physical spawn')
+  const t=p.tower
+  if(![t.x,t.z,t.inner,t.outer,t.height,t.turns,t.surfaceOffset,t.topY,t.jumpSpeed].every(Number.isFinite)
+    ||t.inner<=0||t.outer<=t.inner||t.height<=0||t.turns<=0)throw new Error('invalid tower movement metadata')
+  assertUniqueIds('stepping stones',p.steppingStones)
+  for(const s of p.steppingStones)if(![s.x,s.z,s.width,s.depth,s.top,s.bottom,s.height].every(Number.isFinite)
+    ||s.width<=0||s.depth<=0||s.top<=s.bottom||!p.hulls.some(h=>h.id===s.id))throw new Error(`${s.id}: invalid stepping stone metadata`)
 }
 export function assertUniqueIds(label:string,items:readonly {id:string}[]) {
   const seen=new Set<string>()

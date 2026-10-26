@@ -1,14 +1,14 @@
 {
   "artifacts": [
     {
-      "bytes": 2491226,
+      "bytes": 2499280,
       "path": "generated/park/server-map.json",
-      "sha256": "6ff31fb2a98032e6263bc479ba6ea9d36862c08917eb845efad797aa82f95d58"
+      "sha256": "63811d2835f3fbbdb26f8de5720dc9503ce92ca8db559149e5410cfdab67ecf5"
     },
     {
       "bytes": 329,
       "path": "src/map/park/generated/mapVersion.ts",
-      "sha256": "4a7aa98f3fe531fdeebcd0b7ebbc82512cece02f8bab5c98f84e62e1fcadf6e7"
+      "sha256": "d1ad497138c1c790e086c43aaf7c792de767a5193bd715d398a8506891c7cad3"
     }
   ],
   "counts": {
@@ -28,11 +28,11 @@
   "format": "ontop.park-map-manifest",
   "hashAlgorithm": "sha256",
   "hashes": {
-    "dataHash": "e77fb2f2243820b5efdaf9fe80f700a0c1bf0cd6e540a55de82183f1f97a8444",
-    "sourceHash": "5164a691cd77e258e3d82edb01a002748140eefb78fdb0672be0ce1d346c5b92"
+    "dataHash": "4a626c4e965be186fd9f766b1820ee7b4533985774c6efe293425f526720d81f",
+    "sourceHash": "36e67dc06361498bafe04ac64275c39f5b1a16b08bc8b416f122c08c4d6fd236"
   },
   "mapId": "park",
-  "mapVersion": "66f7e3feb023a3bf54df0902d68326238207fb11261e5917e2fa3fb0e7c5fe44",
+  "mapVersion": "5ce3cff53136eaa3be6a9fe3048d49f611403c1ceff41d2c8f266e26cc6ac840",
   "schemaVersion": 2,
   "sources": [
     {
@@ -157,7 +157,7 @@
     },
     {
       "path": "src/map/park/interactionData.ts",
-      "sha256": "5750a3aefaddb992e89c0dea47322f4b3d18d6d13eea64bc29ffb0a027dba3f7"
+      "sha256": "bd2d615978e14694cf952bdee7383d78cc4658f920b407cd8b6e6d85c85e473f"
     },
     {
       "path": "src/map/park/lake.ts",
@@ -165,7 +165,7 @@
     },
     {
       "path": "src/map/park/physics.ts",
-      "sha256": "1bffccf6408a1e2d52dde8f5fce211877701fc2499eaad2c4142b72f7aaa66a3"
+      "sha256": "38c74fd21db6d0cefa0de595b3f5dc042a918f82c3be2398e67b5f932577e908"
     },
     {
       "path": "src/map/park/resolve.ts",
@@ -173,7 +173,7 @@
     },
     {
       "path": "src/map/park/validate.ts",
-      "sha256": "5dc948d7a23fe5bf0a8ca4b7fc45980d24b5458b781bb138447b773912b0a138"
+      "sha256": "d2991a21b3d19acee3014487841612f9ac39a39152f25a51c847ba3c3adbeac2"
     }
   ],
   "validation": {

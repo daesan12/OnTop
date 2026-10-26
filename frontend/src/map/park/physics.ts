@@ -166,7 +166,18 @@ export function buildPhysics(i:Input) {
     const dx=sx-b.center[0],dz=sz-b.center[2],x=dx*Math.cos(b.yaw)-dz*Math.sin(b.yaw),z=dx*Math.sin(b.yaw)+dz*Math.cos(b.yaw)
     if(Math.abs(x)<=b.half[0]&&Math.abs(z)<=b.half[2])spawnGround=Math.max(spawnGround,b.center[1]+b.half[1])
   }
+  // Auxiliary climbing bounds come from the exact exported hulls, without player inflation.
+  const stoneCrossings=i.lake.CROSSINGS.filter(c=>c.kind==='stone')
+  const steppingStones=hulls.filter(h=>stoneCrossings.some(c=>h.id.startsWith(c.id+'-stone-'))).map(h=>{
+    const xs:number[]=[],ys:number[]=[],zs:number[]=[]
+    for(let n=0;n<h.vertices.length;n+=3){xs.push(h.vertices[n]!);ys.push(h.vertices[n+1]!);zs.push(h.vertices[n+2]!)}
+    const minX=Math.min(...xs),maxX=Math.max(...xs),minZ=Math.min(...zs),maxZ=Math.max(...zs),bottom=Math.min(...ys),top=Math.max(...ys)
+    return {id:h.id,x:(minX+maxX)/2,z:(minZ+maxZ)/2,width:maxX-minX,depth:maxZ-minZ,bottom,top,height:top-bottom}
+  })
+  const surfaceOffset=towerPoint(0,OBSERVATION_TOWER.inner)[1]
+  const tower={...OBSERVATION_TOWER,x:d.sites.tower.x,z:d.sites.tower.z,surfaceOffset,topY:OBSERVATION_TOWER.height+surfaceOffset}
   return {units:'m',upAxis:'Y',coordinateSpace:'world',playerInflation:0,collisionMargin:0,
+    tower,steppingStones,
     character:{radius:MOVEMENT.radius,halfHeight:MOVEMENT.halfHeight,offset:MOVEMENT.offset},
     terrain:{meshId:'terrain',halfSize:half,step,columns:side,rows:side,triangleOrder:'a-c-b,b-c-d'},
     spawn:{position:[sx,spawnGround+centerOffset,sz] as Point3,yaw:Math.PI,origin:'capsule-center',groundClearance:d.physics.spawnClearance},

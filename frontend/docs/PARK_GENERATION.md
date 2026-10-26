@@ -77,6 +77,10 @@ BE 개발자가 이어서 연결할 부분:
 
 현재 `/park`는 이전 맵이므로 새 생성 버전으로 표시하지 않는다. 취소 후 유지한 FE 계약 코드는 아직 이전 `payload.map` 제안이며 최신 dev와의 연동 완료 상태가 아니다. BE 계약 확인 후 FE에서 `WORLD_MAP_CONFIRM`·`WORLD_MAP_STATE`·`payload.serverMap`을 연결하고, 실제 서비스 장면·시설·내비게이션과 생성 identity를 함께 전환한다. Java·공용 CI·배포 변경은 담당자에게 요청한다.
 
+## 추가 보조 데이터
+
+BE 요청에 따라 `data.interactions.notes`(익명 메모함 이용 위치·높이 기준), `data.physics.tower`(전망대 나선 구조), `data.physics.steppingStones`(기존 hull에서 계산한 무확장 보조 경계)를 생성한다. 기존 형상과 서비스 맵 전환 상태는 유지한다. 상세 규격과 park-bindings.json 사용 합의는 [PARK_BACKEND_CONFIRMATION.md](PARK_BACKEND_CONFIRMATION.md)를 따른다.
+
 ## 검증
 
 - `parkMapGeneration.test.ts`: 동일 입력/키 순서 재현성, 위치/계산 소스 변경 시 버전 변경, JSON/FE/manifest 일치, 체크섬, 비정상 JSON 거부, 읽기 전용 검사, 생성 잠금·작업 오류 복구.
