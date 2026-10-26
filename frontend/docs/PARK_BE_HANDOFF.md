@@ -8,7 +8,7 @@
 - `frontend/generated/park/manifest.json`: 동일 맵 버전, 파일 체크섬, 입력 소스와 개수
 - `frontend/docs/PARK_GENERATION.md`: 생성·검사 방법과 해석 규칙
 
-이번 수정은 이전 전달 커밋 `bb1ff1b` 이후의 **schemaVersion 2**입니다. 이전 커밋의 schemaVersion 1 JSON과 혼용하지 않습니다. 아직 이번 수정의 커밋·푸시는 진행하지 않았습니다. 전달 시 수정 소스와 생성물 전체를 같은 커밋으로 공유합니다.
+FE 보강 데이터는 `e88561a`로 커밋·푸시된 **schemaVersion 2**입니다. schemaVersion 1 JSON과 혼용하지 않습니다. 후속 통합 시도 `515a689`는 `11ccdf7`로 취소했으며, 이 문서는 유지된 FE 생성 데이터의 규격을 설명합니다. 실제 연결 요청과 최신 계약 방향은 [PARK_BACKEND_REQUEST.md](PARK_BACKEND_REQUEST.md)를 우선합니다.
 
 ## 1. 원본과 갱신
 
@@ -21,7 +21,7 @@ pnpm map:generate
 pnpm map:check
 ```
 
-동일 입력에서는 동일 JSON과 SHA-256 맵 버전이 생성됩니다. 미리보기 설정 저장·FE 빌드에도 연결되어 있습니다. 생성 파일을 직접 수정하거나 BE 리소스에 수동 좌표를 중복 입력하지 않습니다. 서버가 실행 중인 데이터를 자동으로 재로딩하는 기능은 BE 담당 범위입니다.
+동일 입력에서는 동일 JSON과 SHA-256 맵 버전이 생성됩니다. 미리보기 설정 저장·FE 빌드에도 연결되어 있습니다. 생성 파일을 직접 수정하거나 BE 리소스에 수동 좌표를 중복 입력하지 않습니다. 실행 중 서버 핫 리로드는 이번 요청 범위가 아닙니다. BE에서 생성물 포함·빌드·배포·재시작 경로를 연결해 주셔야 합니다.
 
 ## 2. 좌표와 테이블
 
@@ -77,37 +77,25 @@ pnpm map:check
 
 현재 기본값은 약 `[0,0.84,82]`이며 Y는 지면/보행 바닥 높이 + radius(0.3) + halfHeight(0.48) + offset(0.02) + groundClearance(0.04)입니다. 지형 높이를 포함한 값이므로 서버에서 캐릭터 반높이를 다시 더하지 않습니다. 채널별 여러 스폰 슬롯 배치/중복 방지는 기존 BE 정책에 맞게 연결·검증 부탁드립니다. 물속 스폰은 생성 검증에서 거부합니다.
 
-## 6. 버전 전달과 불일치
+## 6. 버전 전달과 불일치 — 최신 dev 기준 요청
 
-BE 제안대로 `CONNECTED.payload.map`에 **실제로 로딩한 데이터의** 다음 세 값을 전달합니다.
+최신 dev `08360a1`의 `docs/world-map-api.md`에 맞춰 **WORLD_MAP_CONFIRM → WORLD_MAP_STATE** 절차를 유지하는 방향입니다. 이전 CHANNEL_JOIN/GAME_RECONNECT_CHECK의 payload.map 추가 제안과 오류 payload.map 제안은 철회했습니다.
 
-```json
-{"mapId":"park","schemaVersion":2,"mapVersion":"<64자리 SHA-256>"}
-```
+1. BE는 CONNECTED.payload.map에 실제 로딩한 생성 JSON의 최상위 mapId/schemaVersion/mapVersion을 보냅니다. 새 JSON의 schemaVersion은 2입니다.
+2. FE는 자신의 번들 identity로 WORLD_MAP_CONFIRM을 보내고 WORLD_MAP_STATE의 verified: true를 확인한 뒤 입장·복구를 진행하도록 연동할 예정입니다.
+3. CHANNEL_JOIN은 기존 {channelId}, GAME_RECONNECT_CHECK는 기존 요청 형식을 유지합니다.
+4. 오류는 최신 dev의 MAP_VERSION_MISMATCH/MAP_VERSION_REQUIRED와 payload.serverMap을 사용합니다. 확인 전 자동 복구와 관련 상태 전달도 차단합니다.
+5. FE는 새로고침·수동 재접속을 안내하고 늦은 응답으로 불일치 상태를 해제하지 않습니다. 재접속마다 다시 검사합니다.
 
-FE 입장·복구 요청은 동일 구조를 `payload.map`에 담도록 구현했습니다.
+**현재 FE 코드 상태:** 취소 후 보존한 e88561a의 mapContract.ts는 아직 이전 payload.map 제안을 구현한 상태입니다. 이 문서의 최신 dev 프로토콜 연동이 완료된 상태가 아니며 FE에서 별도로 수정해야 합니다. 현재 /park는 이전 서비스 맵이고 생성 schemaVersion 2 identity를 사용하지 않습니다. 생성 버전만 먼저 서비스에 주입하지 않습니다.
 
-```json
-{"type":"CHANNEL_JOIN","payload":{"channelId":"...","map":{"mapId":"park","schemaVersion":2,"mapVersion":"<FE에 포함된 버전>"}}}
-```
-
-`GAME_RECONNECT_CHECK` 요청에도 같은 `map`을 넣습니다. 소켓 재접속 시 CONNECTED를 다시 확인하고 CHANNEL_JOIN부터 진행합니다. BE는 입장 및 상태 복구 **이전**에 비교합니다. 핸드셰이크 이전에 자동 복구되는 경로가 있다면 그 경로도 BE에서 차단·검증해야 합니다.
-
-불일치 오류의 서버 맵 정보 위치도 아래처럼 `payload.map`으로 통일하는 것을 제안하며, FE는 이 형식을 처리하도록 구현했습니다. **요청/오류의 map 필드 위치와 schemaVersion 2는 최종 확인 부탁드립니다.**
-
-```json
-{"type":"ERROR","requestId":"<원 요청 ID>","payload":{"code":"MAP_VERSION_MISMATCH","message":"맵 버전이 다릅니다.","map":{"mapId":"park","schemaVersion":2,"mapVersion":"<서버 로딩 버전>"}}}
-```
-
-FE는 불일치 시 입장·이동·시설 이용을 멈추고 기존 상태를 정리한 뒤, 페이지 새로고침과 수동 재접속 버튼을 제공합니다. 같은 오래된 번들로 자동 재시도하지 않습니다. 뒤늦은 상태 응답으로 불일치 상태를 해제하지 않습니다.
-
-**단계적 적용:** 현재 `/park`는 이전 서비스 맵입니다. CONNECTED에 map이 오면 기존 서비스 identity의 세 필드와 비교한 뒤 그 identity를 요청에 넣습니다. map이 없는 기존 서버에는 **기존 요청 형식을 유지해 map 필드를 보내지 않습니다**. 기존 Java TableProtocol이 추가 필드를 거부하기 때문입니다. 새로운 schemaVersion 2 identity를 지정한 런타임은 map 누락도 거부합니다. 서비스 맵 전환 때 생성된 세 상수를 런타임에 지정하고 `requireMapMetadata:true`로 통일해야 합니다. 버전 상수만 새 것으로 바꾸고 기존 맵을 표시하면 안 됩니다. BE는 CONNECTED.map 제공과 함께 CHANNEL_JOIN/GAME_RECONNECT_CHECK의 필드 검증도 map을 허용하도록 연결해야 합니다.
+메시지 예시·역할·추가 필드 요청·CI 연결과 전환 조건은 [PARK_BACKEND_REQUEST.md](PARK_BACKEND_REQUEST.md)에 정리했습니다.
 
 ## 7. 다음 연결과 검증
 
-1. BE에서 schemaVersion 2 물리 데이터·시설 데이터·요청/오류 필드 위치 검토.
+1. BE에서 schemaVersion 2 물리·시설 데이터와 추가 필드를 검토하고 최신 dev 버전 확인 계약·ID 매핑 전달 방식을 확정.
 2. FE 실제 서비스 장면·좌석/시설 앵커·내비게이션을 새 공통 설정으로 전환하고 생성 버전을 연결. 현재 서비스 시설 화이트리스트도 신규 시설 카탈로그에 맞춰 전환.
-3. BE에서 JSON 어댑터, 기존 tableId 매핑, 시설 카탈로그, 스폰/수영, CONNECTED 및 입장·복구 버전 비교 연결.
+3. BE에서 JSON 어댑터, 기존 tableId 매핑, 시설 카탈로그, 스폰/수영과 최신 WORLD_MAP_CONFIRM 경로에 실제 생성 identity 연결. CI·빌드는 해당 담당자에게 요청.
 4. 같은 JSON·manifest로 계단/다리/전망대·좁은 통로·수영·좌석·퇴장·스폰과 새로고침/재접속/구버전 접속을 통합 검증한 뒤 함께 배포.
 
 이번 FE 검증은 생성 데이터와 네트워크 계약 테스트입니다. **실제 Java 물리 엔진에서의 통행·착지 결과까지 검증한 것은 아니며, 통합 검증이 배포 전 필수입니다.**

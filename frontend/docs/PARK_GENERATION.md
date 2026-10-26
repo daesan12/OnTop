@@ -69,13 +69,13 @@ BE 개발자가 이어서 연결할 부분:
 2. `data.tables`의 화면 `id`를 기존 DB tableId에 매핑해 `position`을 적용한다. 좌석은 테이블 기준 `seatAnchors`이며 순서/인덱스를 유지한다.
 3. **`data.physics.boxes/meshes/hulls`**를 기존 Java 3D 충돌 로더에 연결한다. 좌표는 월드 좌표, boxes.half는 반치수다. 캐릭터 반경/이동 여유 폭/margin은 생성 데이터에 더하지 않았다. 서버의 기존 캡슐과 margin 처리는 BE에서 담당한다.
 4. `data.interactions.benches/fitness/telescopes`의 ID·이용/퇴장 Pose, `data.physics.spawn`의 캡슐 중심 좌표, `data.surfaces.lake`의 수영 파라미터를 연결한다.
-5. 서버 실제 로딩 identity를 `CONNECTED.payload.map`으로 보낸다. FE는 입장/복구 요청에 `payload.map`을 넣으며 `MAP_VERSION_MISMATCH` 오류와 새로고침·재접속 안내를 처리한다. 요청/오류 map 위치와 schemaVersion 2의 최종 합의는 BE 연결 전에 확인한다.
+5. 서버 실제 로딩 identity를 `CONNECTED.payload.map`으로 보낸다. 최신 dev의 `WORLD_MAP_CONFIRM` → `WORLD_MAP_STATE` 절차와 오류 `payload.serverMap`을 유지하는 방향으로 요청한다. FE의 이전 입장/복구 payload.map 제안은 철회했으며 클라이언트는 별도 전환이 필요하다. [PARK_BACKEND_REQUEST.md](PARK_BACKEND_REQUEST.md)를 기준으로 담당자에게 연결을 요청한다.
 
 `semantics`는 해석 규칙의 일부다. **`data.collision`은 기존 미리보기용 2D 영역**으로 여유 폭이 이미 반영되어 있으므로 서버 물리에 사용하지 않는다. `data.physics`만 서버용 무확장 3D 프록시다. 지형 첫 메시는 정규 격자이며 다리/바닥/계단은 별도 형상이다. 시각 모델 전체를 삼각형으로 추출한 정밀 메시가 아니며, 산포 식재/미세 장식/카메라/점프 게임 판정은 제외한다.
 
 테이블 좌석은 로컬 좌표다. 시설 use/exit는 `{x,y,z,yaw}` 월드 Pose이고 기존 서비스의 +0.8m 원점 관례를 유지한다. 스폰은 별도로 캡슐 중심 기준이다. `spectatorRadius`는 생성물에서 제거했으며 서버 관전 거리 20m를 유지한다. 형식·범위·네트워크 전환 조건 전체는 [PARK_BE_HANDOFF.md](./PARK_BE_HANDOFF.md)를 기준으로 한다.
 
-현재 `/park`는 이전 맵이므로 새 생성 버전으로 표시하지 않는다. 기존 서버의 map 누락은 전환 전 호환 경로로 처리하며 요청에 map을 추가하지 않는다(기존 Java의 엄격한 필드 검증 유지). CONNECTED.map이 제공되면 세 필드를 비교하고 요청에 map을 보낸다. schemaVersion 2 identity를 사용하는 새 런타임에서는 map 누락도 거부한다. 실제 서비스 장면·시설 카탈로그·내비게이션 전환과 생성 identity 주입은 BE 준비 후 함께 진행한다.
+현재 `/park`는 이전 맵이므로 새 생성 버전으로 표시하지 않는다. 취소 후 유지한 FE 계약 코드는 아직 이전 `payload.map` 제안이며 최신 dev와의 연동 완료 상태가 아니다. BE 계약 확인 후 FE에서 `WORLD_MAP_CONFIRM`·`WORLD_MAP_STATE`·`payload.serverMap`을 연결하고, 실제 서비스 장면·시설·내비게이션과 생성 identity를 함께 전환한다. Java·공용 CI·배포 변경은 담당자에게 요청한다.
 
 ## 검증
 
