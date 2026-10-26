@@ -1,6 +1,6 @@
 # 분수·돌 의자 충돌 수정 BE 요청
 
-최종 갱신: 2026-10-26 KST. 원격 확인 기준: `origin/dev` **`bde4bce`**, 기존 원격 FE 브랜치 `a1403c7`. 최신 dev를 FE 브랜치에 병합했으며 Git 충돌은 없었습니다. 기존 FE 이동/시간 수정 `94ccc61`도 포함되어 있습니다.
+최종 갱신: 2026-10-26 KST. 원격 확인 기준: `origin/dev` **`2310dae`**, 기존 FE 구현 커밋 `a1403c7`. 최신 dev를 FE 브랜치에 병합했으며 Git 충돌은 없었습니다. 기존 FE 이동/시간 수정 `94ccc61`도 포함되어 있습니다.
 FE 작업 폴더: `frontend-feedback-assets`, 브랜치: `fix/frontend-feedback-assets`.
 
 ## 전달 요약
@@ -23,7 +23,7 @@ FE 작업 폴더: `frontend-feedback-assets`, 브랜치: `fix/frontend-feedback-
 
 ## 최신 dev에서 직접 확인한 근거
 
-- 이 FE 브랜치의 기존 최종 커밋 `a1403c7`은 `dev bde4bce`의 조상이 아니므로 아직 dev에 포함되지 않았습니다. 이 문서 갱신에서도 dev를 직접 머지/배포하지 않습니다.
+- 이 FE 브랜치의 기존 구현 커밋 `a1403c7`은 `dev 2310dae`의 조상이 아니므로 아직 dev에 포함되지 않았습니다. 이 문서 갱신에서도 dev를 직접 머지/배포하지 않습니다.
 - `backend/src/main/resources/world/park.json`에 기존 `fountain-basin` 1개가 남아 있습니다. 중심 `[-56, 0.9, -45]`, **이미 이동 벽 높이를 적용한** 반폭 `[5,2,5]`입니다. FE의 48분할 원형 제안은 BE 리소스에 아직 없습니다.
 - 같은 리소스에서 `table-1`~`table-4`의 `stone-seat-*` 충돌 개수는 **0개**입니다. 피크닉 `stool-*`은 여전히 반높이 `0.28m`입니다.
 - FE `EXPECTED_MAP_VERSION`과 legacy 리소스 지문은 모두 `544bc6fa3890c77e8de0ec91d27f93981b4d23a477918963757e4762294ba8d0`입니다.
@@ -78,6 +78,8 @@ FE 준비 파일: `frontend/src/config/world.ts`, `WORLD_COLLIDERS`.
 - 푸시 전 `fix/frontend-motion-clock`(`94ccc61`)도 이 브랜치에 병합했습니다. 충돌한 `avatarMotion.ts`와 관련 단위 테스트는 이번 자유형/제자리 수영 구현을 유지하고, 기존의 이동 입력·KST 시간 수정은 함께 보존했습니다. 새 수영 테스트에서도 반복 스트로크와 팔꿈치 굽힘을 검사하며, 기존 고정 몸 기울기 `1`, 높이 `0.45` 단언은 새 동작으로 대체했습니다. 원래 브랜치와 작업 폴더는 변경하지 않았습니다.
 
 최신 dev `bde4bce` 통합 후 최종 검증:
+
+최종 원격 확인 중 dev에 `eb18ece`(BE API·명세 정합) 및 병합 커밋 `2310dae`가 추가되어 이 기준까지 통합했습니다. 추가분에 FE·월드 충돌 리소스 변경이 없어 아래 FE 검증 결과가 적용됩니다. Git 병합 충돌 및 최신 dev 대비 BE·인프라 추가 수정은 없습니다.
 
 - 전체 FE 단위 **565개 / 58개 파일 통과**. FE/테스트 TypeScript 검사, Vite 빌드, `check-migration-boundary.mjs` 통과.
 - 브라우저 **13개 시나리오 통과**: 이번 피드백 4개, 감정표현 5종 승인/거절·미연결 경계 3개, 이동 입력·점프/수영 표시 3개, 옷장 2개, KST 공통 시간 1개. 최초 실행에서 12개가 통과했고, 옛 '미연결' 표시 기대값이 남아 실패한 1개는 보완 후 재실행하여 통과했습니다.
