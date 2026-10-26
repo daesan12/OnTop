@@ -25,6 +25,7 @@ public class WorldChannelRegistry implements ChannelPresence {
     private final Map<String, String> membership = new HashMap<>();
     private final long minimumMoveNanos;
     private final LongSupplier nanoTime;
+    private final java.util.function.Supplier<ParkScene> scene;
     private long lastStep;
     private long lastPatch;
 
@@ -39,15 +40,26 @@ public class WorldChannelRegistry implements ChannelPresence {
     }
 
     public WorldChannelRegistry(WorldChannelProperties properties, Duration minimumInterval, LongSupplier nanoTime) {
+        this(properties, minimumInterval, nanoTime, ParkScene::load);
+    }
+
+    public WorldChannelRegistry(WorldChannelProperties properties, Duration minimumInterval, LongSupplier nanoTime,
+            ParkScene scene) {
+        this(properties, minimumInterval, nanoTime, () -> java.util.Objects.requireNonNull(scene));
+    }
+
+    private WorldChannelRegistry(WorldChannelProperties properties, Duration minimumInterval, LongSupplier nanoTime,
+            java.util.function.Supplier<ParkScene> scene) {
         if (minimumInterval == null || minimumInterval.isNegative() || minimumInterval.isZero()
                 || minimumInterval.compareTo(Duration.ofSeconds(60)) > 0) {
             throw new IllegalArgumentException("이동 전송 간격은 0 초과 60초 이하여야 합니다.");
         }
         minimumMoveNanos = minimumInterval.toNanos();
         this.nanoTime = nanoTime;
+        this.scene = java.util.Objects.requireNonNull(scene);
         lastStep = lastPatch = nanoTime.getAsLong();
         for (Channel channel : properties.channels()) {
-            rooms.put(channel.channelId(), new Room(channel));
+            rooms.put(channel.channelId(), new Room(channel, scene));
         }
     }
 
@@ -67,7 +79,7 @@ public class WorldChannelRegistry implements ChannelPresence {
             throw new ChannelException("CHANNEL_FULL", "채널의 빈자리가 없습니다.");
         }
         if (room.physics == null) {
-            room.physics = new WorldPhysics();
+            room.physics = new WorldPhysics(scene.get());
         }
         room.physics.add(userId);
         room.users.add(userId);
@@ -388,6 +400,7 @@ public class WorldChannelRegistry implements ChannelPresence {
     }
 
     private static final class Room {
+        private final java.util.function.Supplier<ParkScene> scene;
 
         private final Channel definition;
         private final LinkedHashSet<String> users = new LinkedHashSet<>();
@@ -400,8 +413,9 @@ public class WorldChannelRegistry implements ChannelPresence {
         private WorldPhysics physics;
         private boolean dirty;
 
-        private Room(Channel definition) {
+        private Room(Channel definition, java.util.function.Supplier<ParkScene> scene) {
             this.definition = definition;
+            this.scene = scene;
         }
 
         private State state() {
@@ -414,7 +428,11 @@ public class WorldChannelRegistry implements ChannelPresence {
                     .map(user -> new Avatar(user, positions.containsKey(user) ? positions.get(user).position() : null,
                             equipment.get(user), profiles.containsKey(user) ? profiles.get(user).nickname() : null,
                             profiles.containsKey(user) ? profiles.get(user).characterGender() : null))
-                    .toList(), ParkScene.load().version());
+                    .toList(), scene.get().version());
         }
+    }
+
+    public com.ssafy.ontop.world.dto.WorldMapMetadata mapMetadata() {
+        return scene.get().metadata();
     }
 }

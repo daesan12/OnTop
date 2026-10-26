@@ -41,9 +41,9 @@ class WorldMapRecoveryTests {
             second.state("LOBBY");
             first.request("TABLE_JOIN", Map.of("tableId", "table-1"));
             second.request("TABLE_JOIN", Map.of("tableId", "table-1"));
-            first.request("GAME_SELECT", Map.of("gameCode", "DICE", "targetScore", 2000));
-            first.request("READY_SET", Map.of("ready", true));
-            engine.activate(second.request("READY_SET", Map.of("ready", true)).path("payload"));
+            first.request("GAME_SELECT", Map.of("gameCode", "DICE", "targetScore", 2000, "betAmountPerPlayer", 1));
+            ready(first);
+            engine.activate(ready(second).path("payload"));
             engine.loads.clear();
             first.stopPong();
             assertThat(first.awaitClose()).isEqualTo(1001);
@@ -77,6 +77,13 @@ class WorldMapRecoveryTests {
         ScenarioClient client = new ScenarioClient(port, login);
         client.await(message -> message.path("type").asText().equals("CONNECTED"));
         return client;
+    }
+
+    private JsonNode ready(ScenarioClient client) throws Exception {
+        JsonNode observed = client.request("TABLE_JOIN", Map.of("tableId", "table-1")).path("payload");
+        return client.request("READY_SET", Map.of("ready", true,
+                "betAmountPerPlayer", observed.path("betAmountPerPlayer").longValue(),
+                "expectedVersion", observed.path("version").longValue()));
     }
 
     private void confirm(ScenarioClient client) throws Exception {
