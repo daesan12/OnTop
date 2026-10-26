@@ -3,7 +3,6 @@ import { createBirds,type Point,type Visitor } from '../world/pigeons/pigeonSimu
 import { canWalk,LIFE_PLAZA,walkHeight } from './layout'
 import { swimmingAt } from './lakeLayout'
 import { previewMotion } from './PreviewCamera'
-import { avatars } from '../network/worldClient'
 import { trunks,shoreTrunks } from './sceneGeometry'
 
 const trees=[...trunks,...shoreTrunks]
@@ -37,11 +36,5 @@ const habitat:PigeonHabitat={
     return visitors
   },
 }
-/** Original mesh, animation and behavior, using the shared terrain and active scene visitors. */
-const liveVisitors:Visitor[]=[]
-const liveHabitat:PigeonHabitat={...habitat,visitors:()=>{
-  liveVisitors.length=0
-  for(const a of avatars.values())if(a.connected&&!a.swimming)liveVisitors.push({x:a.current.x,y:a.current.y,z:a.current.z,vx:(a.current.x-a.previous.x)/.12,vz:(a.current.z-a.previous.z)/.12})
-  return liveVisitors
-}}
-export function PreviewPigeons({live=false}:{live?:boolean}={}){return <ParkPigeons quality="high" habitat={live?liveHabitat:habitat}/>}
+/** Original mesh, animation and behavior, with preview-only terrain/visitor inputs. */
+export function PreviewPigeons(){return <ParkPigeons quality="high" habitat={habitat}/>}

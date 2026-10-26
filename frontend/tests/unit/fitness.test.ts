@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { FITNESS_STATIONS } from '../../src/park/mapConfig'
+import { FITNESS_STATIONS } from '../../src/config'
 import { canReachFitness, fitnessAnchors } from '../../src/features/fitness/anchors'
 import { MockFitnessService } from '../../src/features/fitness/mock/MockFitnessService'
 import { enterFitness, leaveFitness } from '../../src/features/fitness/controller'

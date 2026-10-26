@@ -38,10 +38,6 @@ public class WorldProximity {
         }
         Position user = channels.positionOf(userId);
         WorldProximityProperties.Point table = properties.tables().get(tableId);
-        if(com.ssafy.ontop.world.movement.GeneratedParkMap.enabled()) {
-            var generated=com.ssafy.ontop.world.movement.GeneratedParkMap.current().serverTable(tableChannel,tableId);
-            if(generated!=null) table=new WorldProximityProperties.Point(generated.path("position").get(0).asDouble(),generated.path("position").get(2).asDouble());
-        }
         return user != null && table != null
                 && within(user.x(), user.z(), table.x(), table.z(), properties.watchRadius());
     }

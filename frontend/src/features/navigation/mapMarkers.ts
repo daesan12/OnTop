@@ -1,4 +1,4 @@
-import { WORLD } from '../../park/mapConfig'
+import { WORLD } from '../../config/world'
 type Point = { x: number; z: number }
 /** Keep original approved coordinates in the tether; offset only the drawn marker.
  * Places people clear of destination buttons, the viewer and earlier people.

@@ -1,4 +1,4 @@
-import { NOTES_BOX } from '../../park/mapConfig'
+import { NOTES_BOX } from '../../config/notes'
 import { tableBusy } from '../../game/store'
 import { avatars, authoritativePose, useSession } from '../../network/worldClient'
 import { parkRuntime } from '../../park/runtime/runtime'

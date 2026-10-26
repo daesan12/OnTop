@@ -1,5 +1,5 @@
 import { BUNGEOPPANG } from "./config";
-import { MINI_PROPS } from "../../park/mapConfig";
+import { MINI_PROPS } from "../../config";
 
 /**
  * 붕어빵 카트 위의 개인 철판 배치. 카트 GLB(scripts/repair-cart-prop.py)의 여섯 홈 좌표를

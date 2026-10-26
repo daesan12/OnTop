@@ -1,4 +1,4 @@
-import { TABLES } from '../park/mapConfig'
+import { TABLES } from '../config'
 import { record } from './protocol'
 
 export interface TableBinding {
@@ -6,7 +6,7 @@ export interface TableBinding {
   tableId: string
   anchorId: string
 }
-/** Explicit server/deployment bindings. Never infer placement from UUIDs or list order. */
+/** Deployment input, not a server DTO. Never infer placement from UUIDs or list order. */
 export function parseBindings(value: unknown): TableBinding[] {
   if (!Array.isArray(value))
     throw new Error('테이블 배치 설정은 배열이어야 합니다.')

@@ -1,4 +1,4 @@
-import { groundHeight } from '../park/mapConfig'
+import { groundHeight } from '../config'
 
 /** Terrain floor at the rendered orbit position. Scenery still fades without changing zoom. */
 export function constrainRoamingCamera(

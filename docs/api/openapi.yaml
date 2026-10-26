@@ -3165,12 +3165,6 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/TableSummaryResponse"
-        bindings:
-          type: array
-          items:
-            type: object
-            additionalProperties:
-              type: string
     TableSummaryResponse:
       type: object
       properties:

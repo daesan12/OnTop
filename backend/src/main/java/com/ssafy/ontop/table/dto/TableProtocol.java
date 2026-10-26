@@ -50,7 +50,7 @@ public final class TableProtocol {
             throw new RequestException(requestId, "UNSUPPORTED_MESSAGE_TYPE", "지원하지 않는 메시지입니다.");
         }
         boolean valid = switch (type) {
-            case "CHANNEL_JOIN" -> (fields(payload, Set.of("channelId")) || fields(payload, Set.of("channelId","map"))) && payload.get("channelId").isTextual()
+            case "CHANNEL_JOIN" -> fields(payload, Set.of("channelId")) && payload.get("channelId").isTextual()
                     && !payload.get("channelId").textValue().isBlank();
             case "CHANNEL_LEAVE" -> fields(payload, Set.of());
             case "WORLD_CHAT_SEND" -> fields(payload, Set.of("text")) && validChatText(payload.get("text"));
@@ -78,7 +78,7 @@ public final class TableProtocol {
             case "GAME_SELECT" -> validGameSelection(payload);
             case "TABLE_LEAVE", "TABLE_UNWATCH" -> fields(payload, Set.of());
             case "GAME_START_CHECK" -> fields(payload, Set.of());
-            case "GAME_RECONNECT_CHECK" -> fields(payload, Set.of()) || fields(payload, Set.of("map"));
+            case "GAME_RECONNECT_CHECK" -> fields(payload, Set.of());
             case "GAME_RESULT_CHECK" -> fields(payload, Set.of("gameSessionId"))
                     && payload.get("gameSessionId").isTextual()
                     && !payload.get("gameSessionId").textValue().isBlank()

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { MAILBOX } from '../../src/park/mapConfig'
+import { MAILBOX } from '../../src/config'
 import { closeFeedback, openFeedback, submitFeedback } from '../../src/features/feedback/controller'
 import { MockFeedbackService } from '../../src/features/feedback/mock/MockFeedbackService'
 import { feedbackService } from '../../src/features/feedback/service'

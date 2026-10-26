@@ -1,4 +1,4 @@
-import { FITNESS, FITNESS_STATIONS } from '../../park/mapConfig'
+import { FITNESS, FITNESS_STATIONS } from '../../config'
 import type { Pose } from '../../network/worldClient'
 import { facilityInRange } from '../facilities/state'
 

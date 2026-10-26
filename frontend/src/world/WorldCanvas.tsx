@@ -7,9 +7,10 @@ import {
   effectiveDpr,
   type QualityPreset as QualityLevel,
 } from '../config'
-import { PreviewWorld } from '../layout-preview/PreviewWorld'
+import { PlaceholderWorld } from './PlaceholderWorld'
 import { ParkSun } from './ParkSun'
 import { EnvironmentScene } from './EnvironmentScene'
+import { ParkPigeons } from './pigeons/ParkPigeons'
 import { NightLighting } from './NightLighting'
 import { CameraRig } from './CameraRig'
 
@@ -19,7 +20,6 @@ import { PerformanceProbe } from '../performance/PerformanceProbe'
 import { AdaptiveResolution } from '../performance/AdaptiveResolution'
 import { preloadWorldAssets } from './worldAssets'
 import { BungeoppangGrill } from '../features/bungeoppang/BungeoppangGrill'
-import { LIVE_MAP_IDENTITY } from '../network/mapContract'
 
 preloadWorldAssets()
 
@@ -139,12 +139,13 @@ export const WorldCanvas = memo(function WorldCanvas({
         <ParkSun quality={quality} />
         <NightLighting quality={quality} />
         <Suspense fallback={null}>
-          <group name="park-service-map" userData={{...LIVE_MAP_IDENTITY}}><PreviewWorld live/></group>
+          <PlaceholderWorld quality={quality} />
           <SceneReady onReady={onReady} />
         </Suspense>
         <Avatars overlayTargets={overlayTargets} />
         <BungeoppangGrill />
 
+        <ParkPigeons quality={quality} />
         <CameraRig />
         <PerformanceProbe />
         <AdaptiveResolution ceiling={dpr} />

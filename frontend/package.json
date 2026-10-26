@@ -24,8 +24,7 @@
     "check:migration": "node scripts/check-migration-boundary.mjs",
     "assets:chair": "node scripts/prepare-wood-chair.mjs",
     "map:generate": "node scripts/generate-park-map.mjs",
-    "map:check": "node scripts/generate-park-map.mjs --check",
-    "map:verify-flow": "node scripts/verify-park-flow.mjs"
+    "map:check": "node scripts/generate-park-map.mjs --check"
   },
   "dependencies": {
     "@react-three/fiber": "9.8.1",

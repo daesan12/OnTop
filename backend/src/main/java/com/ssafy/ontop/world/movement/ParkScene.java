@@ -33,7 +33,7 @@ public final class ParkScene {
                     if (input == null) {
                         throw new IOException("Missing park collision map");
                     }
-                    instance = new ParkScene(GeneratedParkMap.enabled()?GeneratedParkMap.current().physicsData():new ObjectMapper().readTree(input));
+                    instance = new ParkScene(new ObjectMapper().readTree(input));
                 }
             } catch (IOException exception) {
                 throw new IllegalStateException("공원 충돌 맵을 읽을 수 없습니다.", exception);

@@ -13,10 +13,6 @@ public record FeedbackProperties(Set<Long> administratorIds, Double x, Double y,
         x = x == null ? -10.8 : x;
         y = y == null ? 0.8 : y;
         z = z == null ? 14.5 : z;
-        if(com.ssafy.ontop.world.movement.GeneratedParkMap.enabled()) {
-            var p=com.ssafy.ontop.world.movement.GeneratedParkMap.current().data().path("interactions").path("mailbox").path("position");
-            x=p.get(0).asDouble();y=p.get(1).asDouble()+.8;z=p.get(2).asDouble();
-        }
         if (!Double.isFinite(x) || !Double.isFinite(y) || !Double.isFinite(z)) {
             throw new IllegalArgumentException("소리함 위치는 유한한 좌표여야 합니다.");
         }

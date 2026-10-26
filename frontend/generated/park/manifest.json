@@ -1,14 +1,14 @@
 {
   "artifacts": [
     {
-      "bytes": 2492148,
+      "bytes": 2491226,
       "path": "generated/park/server-map.json",
-      "sha256": "15f5471170924a7d7bce201101e96b00f2972748a769b875b4d7c792773fc8bd"
+      "sha256": "6ff31fb2a98032e6263bc479ba6ea9d36862c08917eb845efad797aa82f95d58"
     },
     {
-      "bytes": 307,
+      "bytes": 329,
       "path": "src/map/park/generated/mapVersion.ts",
-      "sha256": "0ddc91161ef8f61af4c19bc62e535d11b4f0b61d8e868da63356b3ee5d765bff"
+      "sha256": "4a7aa98f3fe531fdeebcd0b7ebbc82512cece02f8bab5c98f84e62e1fcadf6e7"
     }
   ],
   "counts": {
@@ -28,11 +28,11 @@
   "format": "ontop.park-map-manifest",
   "hashAlgorithm": "sha256",
   "hashes": {
-    "dataHash": "bf9f58b0cbcd85f2781403b57be28d08d44496a92fb3f98a25076c67690d122f",
-    "sourceHash": "21629697bb201fdfdf3209c1c4de57cd0ed2ca829a31635dcbed5537163e03ed"
+    "dataHash": "e77fb2f2243820b5efdaf9fe80f700a0c1bf0cd6e540a55de82183f1f97a8444",
+    "sourceHash": "5164a691cd77e258e3d82edb01a002748140eefb78fdb0672be0ce1d346c5b92"
   },
   "mapId": "park",
-  "mapVersion": "a02ce148f922762eebf2d8107570587062a2d54ac590eb011615a2b4137ae92b",
+  "mapVersion": "66f7e3feb023a3bf54df0902d68326238207fb11261e5917e2fa3fb0e7c5fe44",
   "schemaVersion": 2,
   "sources": [
     {
@@ -149,7 +149,7 @@
     },
     {
       "path": "src/map/park/definition.ts",
-      "sha256": "1072c6665e99b13c5c32e95202897931bc207711f38e909f330e485ee19e4947"
+      "sha256": "53e3102e17a7520ddbb4cd0ed86391cdd3e9d72165b617798d059b84daf919da"
     },
     {
       "path": "src/map/park/index.ts",
@@ -165,11 +165,11 @@
     },
     {
       "path": "src/map/park/physics.ts",
-      "sha256": "614afd58f128e73e1c6f9c403e4ceebc1722ff18532765ca916dd04e845e2c7f"
+      "sha256": "1bffccf6408a1e2d52dde8f5fce211877701fc2499eaad2c4142b72f7aaa66a3"
     },
     {
       "path": "src/map/park/resolve.ts",
-      "sha256": "c966884f2d435592b7296408f8f267abba1c26c79b1dda7a3d77c4e2a671542f"
+      "sha256": "d4570a9358119cc100437e388d3099b6a0078abdc68cf606a418676d9d6f4b19"
     },
     {
       "path": "src/map/park/validate.ts",
@@ -177,10 +177,10 @@
     }
   ],
   "validation": {
-    "backendIntegration": "requires-same-artifact-deployment",
+    "backendIntegration": "pending",
     "definition": "passed",
     "ids": "preserved",
-    "liveServiceVersion": "generated",
+    "liveServiceVersion": "unchanged",
     "spawn": "walkable"
   }
 }

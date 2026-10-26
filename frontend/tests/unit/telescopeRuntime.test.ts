@@ -1,4 +1,3 @@
-import { LIVE_MAP_IDENTITY } from '../../src/network/mapContract'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearAuthSession, restoreAuthSession } from '../../src/auth/authFlow'
 import type { SocketLike } from '../../src/network/socketClient'
@@ -7,7 +6,7 @@ import { ParkRuntime } from '../../src/park/runtime/runtime'
 import { EXPECTED_MAP_VERSION } from '../../src/config/mapVersion'
 
 import { useTelescopeState } from '../../src/features/telescopes/state'
-import { TELESCOPES } from '../../src/park/mapConfig'
+import { TELESCOPES } from '../../src/config'
 import { telescopeAnchors } from '../../src/features/telescopes/anchors'
 
 const sockets: MovementSocket[] = []
@@ -23,7 +22,7 @@ class MovementSocket implements SocketLike {
     queueMicrotask(() => {
       this.readyState = 1
       this.onopen?.(new Event('open'))
-      this.emit('CONNECTED', { userId: '101', map:LIVE_MAP_IDENTITY })
+      this.emit('CONNECTED', { userId: '101' })
     })
   }
   emit(type: string, payload: object, requestId: string | null = null) {

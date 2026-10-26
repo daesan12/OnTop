@@ -1,4 +1,3 @@
-import { LIVE_MAP_IDENTITY } from '../../src/network/mapContract'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { clearAuthSession, restoreAuthSession } from '../../src/auth/authFlow'
 import type { SocketLike } from '../../src/network/socketClient'
@@ -15,7 +14,7 @@ class ContractSocket implements SocketLike {
   onmessage: SocketLike['onmessage'] = null; onerror: SocketLike['onerror'] = null
   mode: 'success' | 'error' | 'hold' = 'success'
   requests: { requestId: string; type: string; payload: Record<string, unknown> }[] = []
-  constructor() { socket = this; queueMicrotask(() => { this.readyState = 1; this.onopen?.(new Event('open')); this.emit('CONNECTED', { userId: '101', map:LIVE_MAP_IDENTITY }) }) }
+  constructor() { socket = this; queueMicrotask(() => { this.readyState = 1; this.onopen?.(new Event('open')); this.emit('CONNECTED', { userId: '101' }) }) }
   emit(type: string, payload: object, requestId: string | null = null) { this.onmessage?.({ data: JSON.stringify({ type, payload, requestId }) } as MessageEvent) }
   send(data: string) {
     const r = JSON.parse(data); this.requests.push(r)

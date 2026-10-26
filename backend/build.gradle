@@ -46,57 +46,11 @@ dependencies {
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
-// Historical regression/demo tasks keep their fixed map fixtures. parkMapTest always loads the service artifact.
-tasks.withType(Test).configureEach {
-    if (name != 'parkMapTest') systemProperty 'ontop.map.legacyFixture', 'true'
-}
 tasks.named('test') {
     useJUnitPlatform {
         excludeTags 'mysql'
-        excludeTags 'park-map'
     }
 }
-
-def parkSource = file('../frontend/generated/park')
-tasks.register('verifyParkMap') {
-    inputs.dir parkSource
-    inputs.dir file('../frontend/src/map')
-    inputs.dir file('../frontend/src/config')
-    doLast {
-        def parser = new groovy.json.JsonSlurper()
-        def mapFile = new File(parkSource, 'server-map.json')
-        def manifestFile = new File(parkSource, 'manifest.json')
-        if (!mapFile.isFile() || !manifestFile.isFile()) throw new GradleException('Run frontend pnpm map:generate first')
-        def manifest = parser.parse(manifestFile)
-        def map = parser.parse(mapFile)
-        def sha = { byte[] bytes -> java.security.MessageDigest.getInstance('SHA-256').digest(bytes).encodeHex().toString() }
-        def entry = manifest.artifacts.find { it.path == 'generated/park/server-map.json' }
-        if (map.schemaVersion != 2 || map.mapId != 'park' || !entry || sha(mapFile.bytes) != entry.sha256 || mapFile.length() != entry.bytes
-            || map.format != 'ontop.park-map' || manifest.format != 'ontop.park-map-manifest' || !manifest.sources
-            || manifest.mapVersion != map.mapVersion || manifest.schemaVersion != map.schemaVersion || manifest.mapId != map.mapId)
-            throw new GradleException('Park JSON/manifest mismatch')
-        manifest.sources.each { source ->
-            if (!(source.path ==~ /src\/(map|config)\/.+\.ts/) || source.path.contains('..')) throw new GradleException('Invalid map source path')
-            def input = file('../frontend/' + source.path)
-            if (!input.isFile() || sha(input.getText('UTF-8').replace('\r\n','\n').replace('\r','\n').getBytes('UTF-8')) != source.sha256)
-                throw new GradleException('Stale map data: ' + source.path)
-        }
-    }
-}
-tasks.named('processResources') {
-    dependsOn 'verifyParkMap'
-    from(parkSource) { include 'server-map.json', 'manifest.json'; into 'world/generated/park' }
-}
-tasks.register('parkMapTest', Test) {
-    description = 'Generated park contract, native Java physics and real WebSocket integration'
-    group = 'verification'
-    testClassesDirs = sourceSets.test.output.classesDirs
-    classpath = sourceSets.test.runtimeClasspath
-    useJUnitPlatform { includeTags 'park-map' }
-    outputs.upToDateWhen { false }
-    testLogging { events 'passed', 'failed', 'skipped'; exceptionFormat = 'short' }
-}
-tasks.named('check') { dependsOn 'parkMapTest' }
 
 tasks.register('mysqlTest', Test) {
     description = '별도 MySQL 8.4 DB에서 V1/V2·제약조건·JPA 매핑·인증 상태와 교환 검증'

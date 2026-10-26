@@ -101,23 +101,11 @@ APP_ENV_FILE="$scratch_env" docker compose --env-file infra/app/dev.deploy.env.e
             }
         }
 
-        stage('Shared park data check') {
-            when { expression { env.BACKEND_CHANGED == '1' || env.FRONTEND_CHANGED == '1' } }
-            steps {
-                dir('frontend') {
-                    sh '''#!/usr/bin/env bash
-set -euo pipefail
-pnpm install --frozen-lockfile
-pnpm run map:check
-'''
-                }
-            }
-        }
         stage('Backend tests') {
             when { expression { env.BACKEND_CHANGED == '1' } }
             steps {
                 dir('backend') {
-                    sh './gradlew --no-daemon test parkMapTest'
+                    sh './gradlew --no-daemon test'
                 }
             }
         }
@@ -157,7 +145,7 @@ DOCKER_CONFIG=$(mktemp -d)
 trap 'rm -rf -- "$DOCKER_CONFIG"' EXIT
 image="$IMAGE_REPOSITORY:sha-$SOURCE_SHA"
 printf '%s' "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USER" --password-stdin >/dev/null
-docker build --platform linux/amd64 --file backend/Dockerfile --tag "$image" .
+docker build --platform linux/amd64 --tag "$image" backend
 docker push "$image"
 '''
                 }

@@ -13,7 +13,7 @@ import {
   TABLES,
   smoothRange,
   type QualityPreset,
-} from '../park/mapConfig'
+} from '../config'
 import { environmentFrame as frame } from './environmentState'
 import { Instances, type Part } from './art/Instances'
 import { TraditionalPavilionLanterns } from './art/TraditionalPavilionLanterns'

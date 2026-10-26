@@ -16,11 +16,6 @@ class ChangeClassificationTests(unittest.TestCase):
         flags = classify(["backend/Dockerfile", "frontend/vercel.json"])
         self.assertEqual((flags["BACKEND_CHANGED"], flags["FRONTEND_CHANGED"]), (1, 1))
 
-    def test_shared_park_change_rebuilds_both_apps(self):
-        for path in ("frontend/src/map/park/definition.ts", "frontend/src/config/fitness.ts", "frontend/generated/park/server-map.json"):
-            flags = classify([path])
-            self.assertEqual((flags["BACKEND_CHANGED"], flags["FRONTEND_CHANGED"]), (1, 1))
-
     def test_docs_only(self):
         flags = classify(["README.md", "docs/auth.md"])
         self.assertFalse(any(flags.values()))

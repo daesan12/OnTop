@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { LAKE, WORLD, MOVEMENT, FOUNTAIN, MINI_PROPS, BRIDGE, MAILBOX } from '../../src/park/mapConfig'
+import { LAKE, WORLD, MOVEMENT, FOUNTAIN, MINI_PROPS } from '../../src/config'
 import { EXPECTED_MAP_VERSION } from '../../src/config/mapVersion'
 import { PARK_DESTINATIONS, findParkRoute, isNavigationWalkable, navigationSegmentClear, navigationHeight } from '../../src/features/navigation/parkNavigation'
 import { useNavigation, selectDestination, cancelNavigation, openParkMap, closeParkMap } from '../../src/features/navigation/navigationState'
@@ -17,8 +17,8 @@ it('rejects water, bounds, non-finite inputs and tower shortcuts without a fabri
   expect(isNavigationWalkable({x:56,z:50})).toBe(false)
 })
 it('walks across the wooden bridge instead of swimming and can leave the raised pavilion on its stairs',()=>{
-  const crossing=findParkRoute({x:BRIDGE.startX-1,z:BRIDGE.z},{x:BRIDGE.endX+1,z:BRIDGE.z})
-  expect(crossing?.some(p=>p.x>50&&p.x<60&&Math.abs(p.z-BRIDGE.z)<1.5)).toBe(true)
+  const crossing=findParkRoute({x:40,z:20},{x:74,z:20})
+  expect(crossing?.some(p=>p.x>50&&p.x<60&&Math.abs(p.z-20)<1.5)).toBe(true)
   expect(findParkRoute({x:0,z:10},{x:0,z:34})).not.toBeNull()
   expect(navigationHeight({x:0,z:10})).toBe(2)
 })
@@ -27,14 +27,14 @@ it('anchors routes and destinations to snapshots instead of the mutable avatar r
   const path=findParkRoute(pose,target)!
   pose.x=50; expect(path[0]).toEqual({x:0,z:34})
   selectDestination(target,'101','channel-1'); target.x=500
-  expect(useNavigation.getState()).toMatchObject({owner:'101',channel:'channel-1',target:{x:MAILBOX.x,z:MAILBOX.z+1.5},status:'planning'})
+  expect(useNavigation.getState()).toMatchObject({owner:'101',channel:'channel-1',target:{x:-10.8,z:16},status:'planning'})
   cancelNavigation(); expect(useNavigation.getState()).toMatchObject({owner:'',channel:'',target:null,path:[],status:'idle'})
 })
 it('reuses the approved map fingerprint, metres and movement parameters without writing a new physics contract',()=>{
-  const baked=JSON.parse(readFileSync('generated/park/server-map.json','utf8'))
-  expect(baked.mapVersion).toBe(EXPECTED_MAP_VERSION)
-  expect(baked.data.physics.units).toBe('m'); expect(baked.data.physics.upAxis).toBe('Y')
-  for(const [key,value] of Object.entries(MOVEMENT))expect(baked.data.physics.movement[key]).toBe(value)
+  const baked=JSON.parse(readFileSync('../backend/src/main/resources/world/park.json','utf8'))
+  expect(baked.sourceSha256).toBe(EXPECTED_MAP_VERSION)
+  expect(baked.units).toBe('m'); expect(baked.upAxis).toBe('Y')
+  for(const [key,value] of Object.entries(MOVEMENT))expect(baked.movement[key]).toBe(value)
   expect(PARK_DESTINATIONS.fountain).toEqual({x:FOUNTAIN.x,z:FOUNTAIN.z+FOUNTAIN.plazaRadius+1})
   expect(PARK_DESTINATIONS.mini).toEqual({x:MINI_PROPS[0].x,z:MINI_PROPS[0].z+3})
 })

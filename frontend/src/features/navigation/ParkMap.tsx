@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { WORLD, PARK_SIZE, PARK_ZONES, NETWORK } from '../../park/mapConfig'
+import { WORLD, PARK_SIZE, PARK_ZONES, NETWORK } from '../../config'
 import { avatars, useSession } from '../../network/worldClient'
 import { inputState } from '../../world/inputOwnership'
 import { ParkMapBackground } from './ParkMapBackground'

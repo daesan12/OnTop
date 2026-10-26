@@ -7,7 +7,7 @@ describe('common park definition',()=>{
   it('can be resolved without a DOM and serialized for the next generator step',()=>{
     expect(typeof document).toBe('undefined')
     const json=JSON.parse(JSON.stringify(PARK_DATA))
-    expect(json.metadata).toMatchObject({schemaVersion:2,mapId:'park',stage:'service',north:'-Z',up:'Y',unit:'metre'})
+    expect(json.metadata).toMatchObject({schemaVersion:2,mapId:'park',stage:'preview',north:'-Z',up:'Y',unit:'metre'})
     expect(json.collision.obstacles.length).toBeGreaterThan(200)
     expect(new Set(json.collision.obstacles.map((o:{kind:string})=>o.kind))).toEqual(new Set(['box','circle','segment','annular-sector']))
     for(const [x,z] of [[0,82],[10,35],[-29,35],[62,-14],[89,0]])expect(isWalkable(json.collision,x!,z!)).toBe(PARK_LAYOUT.canWalk(x!,z!))

@@ -460,7 +460,6 @@ export class ParkRuntime implements ParkRuntimePort {
       if (!record(body) || !Array.isArray(body.tables))
         throw new Error('테이블 목록을 확인할 수 없습니다.')
       useSession.setState({ tables: body.tables.map(tableSummary) })
-      if(body.bindings!==undefined)useSession.setState({bindings:parseBindings(body.bindings)})
     })
   sendChat = (value: string) =>
     this.action(async () => {

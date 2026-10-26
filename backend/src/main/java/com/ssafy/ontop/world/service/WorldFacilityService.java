@@ -158,24 +158,6 @@ public final class WorldFacilityService {
     }
 
     private static Catalog load() {
-        if (com.ssafy.ontop.world.movement.GeneratedParkMap.enabled()) {
-            var map=com.ssafy.ontop.world.movement.GeneratedParkMap.current();
-            var defs=new java.util.ArrayList<Definition>();
-            var mapper=new ObjectMapper();
-            for (String group:List.of("benches","fitness","telescopes")) for (var f:map.data().path("interactions").path(group)) {
-                var p=f.path("position");
-                Pose center=new Pose(p.get(0).asDouble(),p.get(1).asDouble()+.8,p.get(2).asDouble(),f.path("yaw").asDouble());
-                var seats=new java.util.ArrayList<Pose>();
-                try {
-                    if (group.equals("benches")) for(var s:f.path("seats"))seats.add(mapper.treeToValue(s.path("use"),Pose.class));
-                    else seats.add(mapper.treeToValue(f.path("use"),Pose.class));
-                    var exit=group.equals("benches")?f.path("seats").get(0).path("exit"):f.path("exit");
-                    defs.add(new Definition(f.path("id").asText(),f.path("kind").asText(),center,f.path("radius").asDouble(),f.path("heightTolerance").asDouble(),List.copyOf(seats),mapper.treeToValue(exit,Pose.class)));
-                } catch (IOException e) { throw new IllegalStateException("Invalid generated facility",e); }
-            }
-            var t=map.data().path("physics").path("telescope");
-            return new Catalog(map.version(),map.version(),t.path("aimIntervalMs").asLong(),t.path("minPitch").asDouble(),t.path("maxPitch").asDouble(),t.path("initialPitch").asDouble(),List.copyOf(defs),List.of("jump-course"));
-        }
         try (var input = WorldFacilityService.class.getResourceAsStream("/world/facilities.json")) {
             if (input == null) {
                 throw new IOException("Missing facility catalog");
