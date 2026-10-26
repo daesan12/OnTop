@@ -66,8 +66,7 @@ function Avatar({
     const seated = avatar.seatIndex >= 0
     const own = id === useSession.getState().sessionId
     // Hide only this client's own model; other clients retain the full avatar.
-    const cookingHidden = (own && (bungeoppangView.active || performance.now() < bungeoppangView.returningUntil))
-      || (bungeoppangView.active && Math.hypot(pose.x - bungeoppangView.standX, pose.z - bungeoppangView.standZ) < bungeoppangView.hideOthersRadius)
+    const cookingHidden = own && (bungeoppangView.active || performance.now() < bungeoppangView.returningUntil)
     root.current.visible = !cookingHidden && !(own && (((avatar.tableId && seated && !gatheringCameraActive() || avatar.benchId && seated) || avatar.telescopeId)
       || roamingFirstPerson(avatar, !!useGame.getState().watchedGameId)))
     root.current.position.set(
