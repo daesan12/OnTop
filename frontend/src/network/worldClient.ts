@@ -1,5 +1,7 @@
 import { create } from 'zustand'
-import { NETWORK, TABLES, tableSeats, type CharacterId } from '../config'
+import { NETWORK, OVERHEAD, TABLES, tableSeats, type CharacterId } from '../config'
+import { CHAT } from '../features/chat/settings'
+import { filterChat } from '../features/chat/filterChat'
 import {
   channelState,
   worldState,
@@ -16,7 +18,7 @@ import { resetGame } from '../game/store'
 import { resetBenchState, useBenchState } from '../features/interactions/benchState'
 import { clearRoamingInput } from '../world/inputOwnership'
 import { samePose, sampleMovement } from '../world/movementPresentation'
-import { EmoteTimeline, parseEmoteEvent, type EmoteEvent } from '../features/emotes/timeline'
+import { EmoteTimeline, parseEmoteEvent, parseEmoteCancellation, type EmoteEvent } from '../features/emotes/timeline'
 import { resetEmotes, useEmoteState } from '../features/emotes/state'
 import { findEmote, type EmoteId } from '../features/emotes/catalog'
 import { releaseFitnessUser, resetFitnessState, useFitnessState } from '../features/fitness/state'
@@ -31,6 +33,8 @@ import { publicMatchService } from '../features/tableLobby/publicMatch'
 import { resetFacilities } from '../features/facilities/state'
 import type { FacilityLease } from '../features/facilities/protocol'
 import { sameEquipment, type PublicEquipment } from './equipment'
+import { resetFollow } from '../features/follow/state'
+import { resetBenchSpectator } from '../features/interactions/benchSpectator'
 
 export interface Pose {
   x: number
@@ -151,6 +155,8 @@ let channelVersion = -1,
 const chatIds = new Set<string>()
 const emoteTimeline = new EmoteTimeline()
 export function resetWorld(status: Session['status'] = 'idle', error = '') {
+  resetFollow()
+  resetBenchSpectator()
   resetFacilities()
   resetNotesState(status !== 'idle')
   resetFeedbackState(status !== 'idle')
@@ -170,6 +176,8 @@ export function resetWorld(status: Session['status'] = 'idle', error = '') {
   useSession.setState({ ...initial(), status, error })
 }
 export function clearChannel(keepFeedbackDraft = false, keepNotesDraft = false) {
+  resetFollow()
+  resetBenchSpectator()
   const { sessionId, profiles } = useSession.getState()
   resetFacilities()
   resetNotesState(keepNotesDraft)
@@ -219,16 +227,19 @@ export function sampleAvatar(
 }
 export const estimatedServerTime = () => Date.now() // Only for events carrying server ISO timestamps; world day clock is separate.
 export function cancelAvatarEmote(userId: string) {
+  emoteTimeline.cancel(userId, estimatedServerTime())
+  stopAvatarEmote(userId)
+}
+function stopAvatarEmote(userId: string) {
   const avatar = avatars.get(userId)
   if (avatar) { avatar.emote = ''; avatar.emoteAt = 0 }
-  emoteTimeline.cancel(userId, estimatedServerTime())
   if (userId === useSession.getState().sessionId && useEmoteState.getState().pending)
     useEmoteState.setState({ cancelled: true, notice: '이동이나 이용 상태 변경으로 감정표현이 취소되었습니다.' })
 }
 export function presentEmote(event: EmoteEvent, motion: EmoteId, source: 'server' | 'mock') {
   const state = useSession.getState(), avatar = avatars.get(event.userId)
   if (state.status !== 'connected' || event.channelId !== state.roomId || !state.mapCompatible
-    || !avatar?.connected || avatar.moving || avatar.swimming || avatar.fitnessId || avatar.telescopeId) return false
+    || !avatar?.connected || avatar.moving || avatar.swimming || avatar.seatIndex >= 0 || avatar.fitnessId || avatar.telescopeId) return false
   const playback = emoteTimeline.accept(event, motion, estimatedServerTime())
   if (!playback) return false
   avatar.emote = playback.motion
@@ -527,11 +538,11 @@ export function receive(message: Envelope, expectedMapVersion: string = EXPECTED
       const chat = {
         id: p.messageId,
         userId: p.userId,
-        text: p.text,
+        text: filterChat(p.text),
         sentAt: p.sentAt,
       }
       chatIds.add(chat.id)
-      const messages = [...state.messages, chat].slice(-200)
+      const messages = [...state.messages, chat].slice(-CHAT.historyLimit)
       if (chatIds.size > 400) {
         chatIds.clear()
         messages.forEach((m) => chatIds.add(m.id))
@@ -540,9 +551,15 @@ export function receive(message: Envelope, expectedMapVersion: string = EXPECTED
         messages,
         bubbles: {
           ...state.bubbles,
-          [chat.userId]: { ...chat, expiresAt: performance.now() + 10_000 },
+          [chat.userId]: { ...chat, expiresAt: performance.now() + OVERHEAD.bubbleDurationMs },
         },
       })
+      break
+    }
+    case 'WORLD_EMOTE_CANCELLED': {
+      if (state.status !== 'connected' || !state.mapCompatible || p.channelId !== state.roomId) return
+      const cancellation = parseEmoteCancellation(p)
+      if (emoteTimeline.cancelEvent(cancellation, estimatedServerTime())) stopAvatarEmote(cancellation.userId)
       break
     }
     case 'WORLD_EMOTE_EVENT': {

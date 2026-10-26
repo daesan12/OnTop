@@ -8,6 +8,33 @@ class WorldPhysicsTests {
     private long tick;
 
     @Test
+    void 점프_입력이_만료돼도_착지_전까지는_감정표현을_막는다() {
+        try (var physics = new WorldPhysics()) {
+            physics.add("a");
+            for (int i = 0; i < 30; i++) {
+                physics.step(++tick * WorldPhysics.STEP_NANOS, java.util.Set.of());
+            }
+            double standingY = physics.snapshot("a").y();
+            long jumpedAt = ++tick * WorldPhysics.STEP_NANOS;
+            physics.input("a", new MoveInput(1, 0, 0, false, true), jumpedAt);
+            for (int i = 0; i < 10; i++) {
+                physics.step(tick++ * WorldPhysics.STEP_NANOS, java.util.Set.of());
+            }
+            long now = tick * WorldPhysics.STEP_NANOS;
+
+            assertThat(now - jumpedAt).isGreaterThan(250_000_000L);
+            assertThat(physics.snapshot("a").y()).isGreaterThan(standingY + .3);
+            assertThat(physics.hasMovementActivity("a", now)).isTrue();
+
+            for (int i = 0; i < 60; i++) {
+                physics.step(++tick * WorldPhysics.STEP_NANOS, java.util.Set.of());
+            }
+            assertThat(physics.snapshot("a").y()).isCloseTo(standingY, org.assertj.core.data.Offset.offset(.05));
+            assertThat(physics.hasMovementActivity("a", tick * WorldPhysics.STEP_NANOS)).isFalse();
+        }
+    }
+
+    @Test
     void 큰채널도_검증된_스폰영역을_순환한다() {
         var scene = ParkScene.load();
         assertThat(scene.spawn(136)).isEqualTo(scene.spawn(8));

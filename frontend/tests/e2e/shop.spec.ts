@@ -16,7 +16,7 @@ async function choose(page: Page, name = '검증 상의 가') {
   await expect(dialog(page).getByRole('region', { name: '구매 내용 확인' })).toBeVisible()
 }
 for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
-  test(`shop is under construction and cannot be opened at ${viewport.width}px`, async ({ page }) => {
+  test(`shop has no HUD entry and the dock 옷장 is enabled at ${viewport.width}px`, async ({ page }) => {
     await page.setViewportSize(viewport)
     const errors: string[] = []
     page.on('pageerror', error => errors.push(error.message))
@@ -25,18 +25,17 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
     await page.goto('/park')
     await expect(page).toHaveTitle('OnTop')
     await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90000 })
-    const button = page.getByRole('button', { name: '상점 · 옷장 (공사중)', exact: true })
+    // The dock 옷장 now opens the wardrobe (wardrobe.spec.ts); the shop still has no entry point.
+    const button = page.getByRole('button', { name: '옷장', exact: true })
     await expect(button).toBeVisible()
-    await expect(button).toBeDisabled()
-    const box = await button.boundingBox()
-    await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2)
+    await expect(button).toBeEnabled()
     await expect(dialog(page)).toBeHidden()
-    await expect(page.getByRole('button', { name: '나가기', exact: true })).toBeEnabled()
+    await expect(page.getByRole('button', { name: '내 메뉴', exact: true })).toBeEnabled()
     await page.keyboard.press('F1')
     await expect(page.getByRole('dialog', { name: '게임 설명서' })).toBeVisible()
     await page.keyboard.press('Escape')
     await expect(page.getByRole('dialog', { name: '게임 설명서' })).toBeHidden()
-    expect(rest.calls).toEqual([])
+    expect(rest.calls.filter(call => call.path !== '/api/v1/wallets/me')).toEqual([])
     expect(errors).toEqual([])
     await expect(page.locator('vite-error-overlay')).toHaveCount(0)
     await screenshot(page, `shop-under-construction-${viewport.width}`)
@@ -175,7 +174,7 @@ test('an explicit account exit clears unfinished private purchase state and neve
   await expect(dialog(page).getByRole('button', { name: '같은 구매 다시 확인', exact: true })).toBeEnabled()
   expect(await page.evaluate(() => sessionStorage.getItem('ontop.shop.pending.v1:101'))).not.toBeNull()
   await dialog(page).getByRole('button', { name: '상점 닫기' }).click()
-  await page.getByRole('button', { name: '나가기', exact: true }).click()
+  await page.getByRole('button', { name: '내 메뉴', exact: true }).click(); await page.getByRole('menuitem', { name: '로그아웃' }).click(); await page.getByRole('dialog', { name: '로그아웃 확인' }).getByRole('button', { name: '로그아웃', exact: true }).click()
   await expect(page.getByRole('button', { name: 'SSAFY로 계속하기', exact: true })).toBeVisible()
   expect(await page.evaluate(() => sessionStorage.getItem('ontop.shop.pending.v1:101'))).toBeNull()
   expect(rest.calls.filter(call => call.method === 'POST')).toHaveLength(1)

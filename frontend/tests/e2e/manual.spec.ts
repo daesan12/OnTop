@@ -120,7 +120,7 @@ for(const [code,title,options] of [
 ] as const) test('M15 contextual F1 preserves participant state and BE command flow: '+code,async({page})=>{
   const server=await fixture(page,{...options,omok:true,m09:true}); await loaded(page)
   await page.keyboard.press('KeyE'); await page.getByRole('button',{name:'앉기',exact:true}).click()
-  await page.getByRole('button',{name:title+' 선택',exact:true}).click()
+  await page.getByLabel('1인 참가비').fill('1'); await page.getByRole('button',{name:title+' 선택',exact:true}).click()
   await page.keyboard.press('F1'); await opened(page)
   await expect(manual(page).getByRole('heading',{name:title,exact:true,level:3})).toBeVisible()
   await close(page)
@@ -156,7 +156,7 @@ test('M15 missing illustration offers bundled detail rules and F1 closes both mo
 test('M15 F1 leaves the existing dice score sheet owned and Esc closes only the front modal',async({page})=>{
   const server=await fixture(page,{omok:true,dice:true,m09:true}); await loaded(page)
   await page.keyboard.press('KeyE'); await page.getByRole('button',{name:'앉기',exact:true}).click()
-  await page.getByRole('button',{name:'주사위 한 판 선택',exact:true}).click()
+  await page.getByLabel('1인 참가비').fill('1'); await page.getByRole('button',{name:'주사위 한 판 선택',exact:true}).click()
   await page.getByRole('button',{name:'준비',exact:true}).click(); server.confirmStart()
   await expect(page.getByRole('region',{name:'주사위 경기',exact:true})).toBeVisible()
   await page.getByRole('button',{name:'T 점수표',exact:true}).click()

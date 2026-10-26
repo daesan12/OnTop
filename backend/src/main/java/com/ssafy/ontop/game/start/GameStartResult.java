@@ -12,7 +12,8 @@ public record GameStartResult(UUID startAttemptId, Outcome outcome, String gameS
 
     public static GameStartResult reserved(GameStartCommand command, String gameSessionId) {
         return new GameStartResult(command.startAttemptId(), Outcome.RESERVED, gameSessionId,
-                command.participants(), 1, command.participants().size(), null);
+                command.participants(), command.betAmountPerPlayer(),
+                Math.multiplyExact(command.betAmountPerPlayer(), command.participants().size()), null);
     }
 
     public static GameStartResult rejected(UUID attemptId, String code) {
@@ -34,7 +35,8 @@ public record GameStartResult(UUID startAttemptId, Outcome outcome, String gameS
     public boolean isReservationCommitted(GameStartCommand command) {
         return command.startAttemptId().equals(startAttemptId) && outcome == Outcome.RESERVED
                 && gameSessionId != null && !gameSessionId.isBlank() && gameSessionId.length() <= 120
-                && command.participants().equals(participants) && reservedAmountPerPlayer == 1
-                && totalReservedAmount == command.participants().size();
+                && command.participants().equals(participants)
+                && reservedAmountPerPlayer == command.betAmountPerPlayer()
+                && totalReservedAmount == Math.multiplyExact(command.betAmountPerPlayer(), command.participants().size());
     }
 }

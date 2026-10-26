@@ -40,11 +40,14 @@ import com.ssafy.ontop.world.config.WorldEmoteProperties;
 import com.ssafy.ontop.world.config.WorldProximityProperties;
 import com.ssafy.ontop.world.domain.ChatText;
 import com.ssafy.ontop.world.domain.EmoteCode;
+import com.ssafy.ontop.world.map.PreparedParkMap;
 import com.ssafy.ontop.world.service.WorldAppearanceGateway;
 import com.ssafy.ontop.world.service.WorldChannelRegistry;
 import com.ssafy.ontop.world.service.WorldChatService;
 import com.ssafy.ontop.world.service.WorldEmoteService;
 import com.ssafy.ontop.world.service.WorldFacilityService;
+import com.ssafy.ontop.world.service.WorldFollowService;
+import com.ssafy.ontop.world.service.WorldMapCompatibility;
 import com.ssafy.ontop.world.service.WorldProfileGateway;
 import com.ssafy.ontop.world.service.WorldProximity;
 import jakarta.annotation.PreDestroy;
@@ -87,6 +90,9 @@ public class TableHub {
     private final Map<String, String> tableChannels = new HashMap<>();
     private final Set<String> channelIds;
     private final Map<String, Member> members = new HashMap<>();
+    private final WorldMapCompatibility maps;
+    private final Set<String> mapVerifiedSessions = new HashSet<>();
+    private final Map<String, PendingMapConnection> pendingMapConnections = new HashMap<>();
     private final Map<String, AppearancePush> appearancePushes = new HashMap<>();
     private Optional<WorldAppearanceGateway> appearances = Optional.empty();
     private Optional<WorldProfileGateway> profiles = Optional.empty();
@@ -112,7 +118,9 @@ public class TableHub {
     private final WorldChatService chat;
     private final WorldEmoteService emotes;
     private final WorldProximity proximity;
-    private final WorldFacilityService facilities = new WorldFacilityService();
+    private final WorldFacilityService facilities;
+    private final PreparedParkMap preparedPark;
+    private final WorldFollowService follows = new WorldFollowService();
     private final ExecutorService startWorkers = Executors.newVirtualThreadPerTaskExecutor();
     private final ScheduledExecutorService heartbeatTimer = Executors.newSingleThreadScheduledExecutor(
             Thread.ofPlatform().daemon(true).name("table-heartbeat").factory());
@@ -244,7 +252,6 @@ public class TableHub {
                 new WorldProximity(channels, new WorldProximityProperties(null, null, null)));
     }
 
-    @Autowired
     public TableHub(ObjectMapper mapper, Optional<GameStartGateway> gateway,
             @Value("${ontop.start-rehearsal.enabled:false}") boolean startRehearsal,
             Optional<GameReconnectService> reconnect,
@@ -253,10 +260,42 @@ public class TableHub {
             WorldChannelRegistry channels, WorldChatService chat, WorldEmoteService emotes,
             Optional<GameStateGateway> gameStates, Optional<GameActionGateway> gameActions,
             Optional<GameResultService> gameResults, WorldProximity proximity) {
+        this(mapper, gateway, startRehearsal, reconnect, heartbeatInterval, heartbeatTimeout, channels, chat,
+                emotes, gameStates, gameActions, gameResults, proximity, new WorldMapCompatibility(false));
+    }
+
+    @Autowired
+    public TableHub(ObjectMapper mapper, Optional<GameStartGateway> gateway,
+            @Value("${ontop.start-rehearsal.enabled:false}") boolean startRehearsal,
+            Optional<GameReconnectService> reconnect,
+            @Value("${ontop.websocket.heartbeat.interval:10s}") Duration heartbeatInterval,
+            @Value("${ontop.websocket.heartbeat.timeout:10s}") Duration heartbeatTimeout,
+            WorldChannelRegistry channels, WorldChatService chat, WorldEmoteService emotes,
+            Optional<GameStateGateway> gameStates, Optional<GameActionGateway> gameActions,
+            Optional<GameResultService> gameResults, WorldProximity proximity, WorldMapCompatibility maps) {
+        this(mapper, gateway, startRehearsal, reconnect, heartbeatInterval, heartbeatTimeout, channels, chat,
+                emotes, gameStates, gameActions, gameResults, proximity, maps, null);
+    }
+
+    /** 별도 테스트 구성에서만 새 맵을 주입한다. 기존 Spring 생성자는 기본 맵을 유지한다. */
+    public TableHub(ObjectMapper mapper, Optional<GameStartGateway> gateway, boolean startRehearsal,
+            Optional<GameReconnectService> reconnect, Duration heartbeatInterval, Duration heartbeatTimeout,
+            WorldChannelRegistry channels, WorldChatService chat, WorldEmoteService emotes,
+            Optional<GameStateGateway> gameStates, Optional<GameActionGateway> gameActions,
+            Optional<GameResultService> gameResults, WorldProximity proximity, WorldMapCompatibility maps,
+            PreparedParkMap preparedPark) {
         if (startRehearsal && gateway.isEmpty()) {
             throw new IllegalArgumentException("시작 연동 검증 대역이 필요합니다.");
         }
         this.gateway = gateway;
+        this.preparedPark = preparedPark;
+        this.facilities = preparedPark == null ? new WorldFacilityService()
+                : new WorldFacilityService(preparedPark.facilities(), java.time.Clock.systemUTC(), System::nanoTime);
+        if (preparedPark != null && (!channels.mapMetadata().equals(preparedPark.metadata())
+                || !maps.metadata().equals(preparedPark.metadata()))) {
+            throw new IllegalArgumentException("채널·시설·연결 응답은 같은 맵을 사용해야 합니다.");
+        }
+        this.maps = maps;
         this.gameStates = gameStates;
         this.gameActions = gameActions;
         this.startRehearsal = startRehearsal;
@@ -265,12 +304,22 @@ public class TableHub {
         this.channels = channels;
         this.chat = chat;
         this.emotes = emotes;
-        this.proximity = proximity;
+        this.proximity = preparedPark == null ? proximity : new WorldProximity(channels, preparedPark.proximity());
         for (ConnectionCloseReason reason : ConnectionCloseReason.values()) {
             closedByReason.put(reason, new LongAdder());
         }
         channelIds = Set.copyOf(channels.snapshot().keySet());
-        if (channelIds.isEmpty()) {
+        if (preparedPark != null) {
+            Set<String> preparedChannels = preparedPark.bindings().stream().map(PreparedParkMap.Binding::channelId)
+                    .collect(java.util.stream.Collectors.toSet());
+            if (!preparedChannels.equals(channelIds)) {
+                throw new IllegalArgumentException("테이블 매핑과 서버 채널이 다릅니다.");
+            }
+            for (var binding : preparedPark.bindings()) {
+                rooms.put(binding.tableId(), new TableRoom(binding.tableId()));
+                tableChannels.put(binding.tableId(), binding.channelId());
+            }
+        } else if (channelIds.isEmpty()) {
             rooms.put("table-1", new TableRoom("table-1"));
             rooms.put("table-2", new TableRoom("table-2"));
         } else {
@@ -309,7 +358,16 @@ public class TableHub {
             return false;
         }
         Member member = register(session, userId, user.userId());
-        gameResults.ifPresent(service -> service.connected(session.getId(), user.userId(), delivery -> {
+        if (maps.requiresMatch()) {
+            pendingMapConnections.put(session.getId(), new PendingMapConnection(user.sessionId(), reservedStart));
+        } else {
+            activateConnection(member, session.getId(), user.sessionId(), reservedStart);
+        }
+        return true;
+    }
+
+    private void activateConnection(Member member, String sessionId, String loginSessionId, boolean reservedStart) {
+        gameResults.ifPresent(service -> service.connected(sessionId, member.accountId(), delivery -> {
             if (delivery.errorCode() != null) {
                 member.peer().offer(protocol.error(delivery.requestId(), delivery.errorCode(),
                         "경기 결과를 확인할 수 없습니다."));
@@ -317,19 +375,19 @@ public class TableHub {
                 member.peer().offer(protocol.encode(delivery.requestId(), "GAME_RESULT", delivery.result()));
             }
         }));
-        reconnect.ifPresent(service -> service.connected(user.userId(), session.getId(), user.sessionId(),
+        reconnect.ifPresent(service -> service.connected(member.accountId(), sessionId, loginSessionId,
                 (requestId, view) -> member.peer().offer(protocol.encode(requestId, "GAME_CONNECTION_STATE", view))));
-        if (reservedStart) { replyStartState(member, seating.get(userId), null); }
-        return true;
+        if (reservedStart) { replyStartState(member, seating.get(member.userId()), null); }
     }
 
     private Member register(WebSocketSession session, String userId, Long accountId) {
         TablePeer peer = new TablePeer(session, () -> disconnect(session.getId()),
                 new WebSocketHeartbeat(heartbeatInterval, heartbeatTimeout, System::nanoTime), this::textSent);
-        Member member = new Member(userId, peer, accountId);
+        Member member = new Member(userId, peer, accountId, session.getId());
         members.put(session.getId(), member);
         acceptedConnections++;
-        peer.offer(protocol.encode(null, "CONNECTED", Map.of("userId", userId)));
+        peer.offer(protocol.encode(null, "CONNECTED", Map.of("userId", userId, "map", maps.metadata(),
+                "mapVerificationRequired", maps.requiresMatch())));
         if (startRehearsal || committedStarts.isPresent()) {
             peer.offer(protocol.encode(null, "GAME_START_STATE", TableStartAttempt.View.waiting(null, 0, null,
                     committedStarts.isEmpty())));
@@ -337,6 +395,29 @@ public class TableHub {
         peer.start();
         recordBehavior(BehaviorEventType.WS_CONNECTED, accountId, builder -> builder);
         return member;
+    }
+
+    private void confirmMap(String sessionId, Member member, Request request) {
+        if (!maps.matches(request.payload())) {
+            replyMapError(member, request, "MAP_VERSION_MISMATCH", "맵을 새로고침한 뒤 다시 연결해주세요.");
+            return;
+        }
+        mapVerifiedSessions.add(sessionId);
+        member.peer().offer(protocol.encode(request.requestId(), "WORLD_MAP_STATE",
+                Map.of("map", maps.metadata(), "verified", true)));
+        PendingMapConnection pending = pendingMapConnections.remove(sessionId);
+        if (pending != null) {
+            activateConnection(member, sessionId, pending.loginSessionId(), pending.reservedStart());
+        }
+    }
+
+    private void replyMapError(Member member, Request request, String code, String message) {
+        member.peer().offer(protocol.encode(request.requestId(), "ERROR",
+                Map.of("code", code, "message", message, "serverMap", maps.metadata())));
+    }
+
+    private boolean isMapReady(Member member) {
+        return !maps.requiresMatch() || mapVerifiedSessions.contains(member.sessionId());
     }
 
     public synchronized void pong(String sessionId, ByteBuffer payload) {
@@ -381,7 +462,7 @@ public class TableHub {
             int available = snapshot.capacity() - occupied;
             return new TableSummaryResponse(tableId, snapshot.capacity(), snapshot.minimumPlayers(), occupied,
                     available, ready, snapshot.allReady(), status, available > 0 && status.equals("WAITING"),
-                    snapshot.gameCode(), snapshot.targetScore(), publicGameId(tableId));
+                    snapshot.gameCode(), snapshot.targetScore(), snapshot.betAmountPerPlayer(), publicGameId(tableId));
         }).toList());
     }
 
@@ -395,6 +476,14 @@ public class TableHub {
         try {
             Request request = protocol.parse(text);
             requestId = request.requestId();
+            if (request.type().equals("WORLD_MAP_CONFIRM")) {
+                confirmMap(sessionId, member, request);
+                return;
+            }
+            if (maps.requiresMatch() && !mapVerifiedSessions.contains(sessionId)) {
+                replyMapError(member, request, "MAP_VERSION_REQUIRED", "먼저 맵 버전을 확인해주세요.");
+                return;
+            }
             if (request.type().equals("GAME_RESULT_CHECK")) {
                 if (member.accountId() == null) {
                     fail(request, "GAME_RESULT_AUTH_REQUIRED", "인증된 사용자만 결과를 확인할 수 있습니다.");
@@ -444,6 +533,7 @@ public class TableHub {
                 case "WORLD_MOVE" -> moveWorld(member, request);
                 case "WORLD_CHAT_SEND" -> sendChat(member, request);
                 case "WORLD_EMOTE_SEND" -> sendEmote(member, request);
+                case "WORLD_FOLLOW_START", "WORLD_FOLLOW_STOP", "WORLD_FOLLOW_CHECK" -> follow(member, request);
                 case "WORLD_FACILITY_CATALOG", "WORLD_FACILITY_CHECK", "WORLD_FACILITY_USE",
                         "WORLD_FACILITY_RELEASE", "WORLD_FACILITY_AIM" -> facility(member, request);
                 case "TABLE_JOIN" -> join(member, request);
@@ -455,6 +545,8 @@ public class TableHub {
                 case "GAME_START_CHECK" -> checkStart(member, request);
                 default -> throw new IllegalStateException("검증되지 않은 메시지");
             }
+        } catch (WorldFollowService.FollowException exception) {
+            member.peer().offer(protocol.error(requestId, exception.code(), exception.getMessage()));
         } catch (WorldFacilityService.FacilityException exception) {
             member.peer().offer(protocol.error(requestId, exception.code(), exception.getMessage()));
         } catch (WorldEmoteService.EmoteException exception) {
@@ -484,6 +576,8 @@ public class TableHub {
             return;
         }
         closeMember(member, reason);
+        mapVerifiedSessions.remove(sessionId);
+        pendingMapConnections.remove(sessionId);
         recordBehavior(BehaviorEventType.WS_DISCONNECTED, member.accountId(),
                 builder -> builder.prop("reason", member.peer().closeReason().name()));
         gameResults.ifPresent(service -> service.disconnected(sessionId));
@@ -491,7 +585,9 @@ public class TableHub {
         statePushes.remove(sessionId);
         actionRequests.remove(sessionId);
         watching.remove(member.userId());
+        endFollows(member.userId());
         chat.disconnected(member.userId());
+        cancelEmote(member.userId(), "DISCONNECTED");
         emotes.disconnected(member.userId());
         appearancePushes.remove(member.userId());
         profileMemberships.remove(member);
@@ -551,8 +647,11 @@ public class TableHub {
             gameResults.ifPresent(service -> service.disconnected(sessionId));
         });
         members.clear();
+        mapVerifiedSessions.clear();
+        pendingMapConnections.clear();
         channels.clear();
         facilities.clear();
+        follows.clear();
         chat.clear();
         emotes.clear();
         seating.clear();
@@ -634,6 +733,8 @@ public class TableHub {
         clearGameWatch(member);
         publish(room, member, request.requestId());
         replyStartState(member, tableId, null);
+        cancelEmote(member.userId(), "ACTIVITY_STARTED");
+        endFollows(member.userId());
         recordBehavior(BehaviorEventType.TABLE_JOINED, member.accountId(),
                 builder -> builder.tableId(tableId).channelId(tableChannels.get(tableId)));
     }
@@ -809,6 +910,8 @@ public class TableHub {
         boolean wasUsingFacility = facilities.current(member.userId()) != null;
         facilities.release(member.userId());
         WorldChannelRegistry.State state = channels.leave(member.userId());
+        endFollows(member.userId());
+        cancelEmote(member.userId(), "CHANNEL_LEFT");
         if (wasUsingFacility) {
             publishFacilities(state.channelId(), null, null);
         }
@@ -830,7 +933,16 @@ public class TableHub {
             return;
         }
         try {
-            for (var state : channels.advance(Set.copyOf(seating.keySet()))) {
+            var worlds = channels.advance(Set.copyOf(seating.keySet()), follows.activeStates());
+            for (var following : follows.activeStates()) {
+                pruneFollows(channels.worldState(following.channelId()));
+            }
+            for (var state : worlds) {
+                for (var avatar : state.avatars()) {
+                    if (avatar.position().moving() || avatar.position().swimming()) {
+                        cancelEmote(avatar.userId(), "MOVEMENT");
+                    }
+                }
                 publishWorld(state, null, null);
                 recordPositions(state, null);
                 for (Member member : java.util.List.copyOf(members.values())) {
@@ -853,13 +965,18 @@ public class TableHub {
             fail(request, "TABLE_BUSY", "먼저 테이블에서 퇴장해주세요.");
         }
         var payload = request.payload();
+        var input = com.ssafy.ontop.world.movement.MoveInput.parse(payload);
         WorldChannelRegistry.WorldChange change = channels.input(member.userId(),
-                com.ssafy.ontop.world.movement.MoveInput.parse(payload));
+                input);
         if (change.changed()) {
             member.peer().offer(protocol.encode(request.requestId(), "WORLD_STATE", change.state()));
             refreshWatchRange(member);
         } else {
             member.peer().offer(protocol.encode(request.requestId(), "WORLD_STATE", change.state()));
+        }
+        if (change.changed() && (input.dx() != 0 || input.dz() != 0 || input.jump())) {
+            follows.stopFollowing(member.userId()).forEach(state -> publishFollow(state, null, null));
+            cancelEmote(member.userId(), "MOVEMENT");
         }
     }
 
@@ -901,7 +1018,10 @@ public class TableHub {
             throw new com.ssafy.ontop.feedback.service.FeedbackException(409, "FEEDBACK_ACTIVITY_CONFLICT",
                     "테이블·시설 이용과 수영을 종료해주세요.");
         }
-        if (Math.hypot(position.x() - x, position.z() - z) > 2.6 || Math.abs(position.y() - y) > 0.7) {
+        boolean reachable = preparedPark == null
+                ? Math.hypot(position.x() - x, position.z() - z) <= 2.6 && Math.abs(position.y() - y) <= 0.7
+                : preparedPark.feedback().contains(position.x(), position.y(), position.z());
+        if (!reachable) {
             throw new com.ssafy.ontop.feedback.service.FeedbackException(403, "FEEDBACK_OUT_OF_RANGE",
                     "소리함 가까이 같은 높이에서 작성해주세요.");
         }
@@ -919,7 +1039,10 @@ public class TableHub {
             throw new com.ssafy.ontop.notes.service.NoteException(409, "NOTES_ACTIVITY_CONFLICT",
                     "테이블·시설 이용과 수영을 종료해주세요.");
         }
-        if (Math.hypot(position.x() - x, position.z() - z) > 2.6 || Math.abs(position.y() - y) >= 0.7) {
+        boolean reachable = preparedPark == null
+                ? Math.hypot(position.x() - x, position.z() - z) <= 2.6 && Math.abs(position.y() - y) < 0.7
+                : preparedPark.notes().contains(position.x(), position.y(), position.z());
+        if (!reachable) {
             throw new com.ssafy.ontop.notes.service.NoteException(403, "NOTES_OUT_OF_RANGE",
                     "익명 메모함 가까이 같은 높이에서 작성해주세요.");
         }
@@ -963,6 +1086,8 @@ public class TableHub {
                 clearGameWatch(member);
                 publishFacilities(channel, member, request.requestId());
                 publishWorld(channels.worldState(channel), null, null);
+                cancelEmote(member.userId(), "ACTIVITY_STARTED");
+                endFollows(member.userId());
             }
             case "WORLD_FACILITY_RELEASE" -> {
                 var lease = facilities.requireOwner(member.userId(), payload.path("leaseId").asText());
@@ -999,10 +1124,103 @@ public class TableHub {
         }
     }
 
+    private void follow(Member member, Request request) {
+        String channel = channels.channelOf(member.userId());
+        if (channel == null) {
+            fail(request, "NOT_IN_CHANNEL", "먼저 채널에 입장해주세요.");
+        }
+        pruneFollows(channels.worldState(channel));
+        long before = follows.state(channel).version();
+        WorldFollowService.State state;
+        switch (request.type()) {
+            case "WORLD_FOLLOW_CHECK" -> {
+                member.peer().offer(protocol.encode(request.requestId(), "WORLD_FOLLOW_STATE", follows.state(channel)));
+                return;
+            }
+            case "WORLD_FOLLOW_START" -> {
+                String targetId = request.payload().path("targetId").asText();
+                if (!channels.isInChannel(targetId, channel)) {
+                    fail(request, "FOLLOW_TARGET_UNAVAILABLE", "같은 채널의 연결된 사용자를 선택해주세요.");
+                }
+                if (!canFollow(member.userId()) || !canFollow(targetId)) {
+                    fail(request, "FOLLOW_ACTIVITY_CONFLICT", "수영·시설·경기 이용을 마친 뒤 사용해주세요.");
+                }
+                state = follows.start(channel, member.userId(), targetId,
+                        channels.positionOf(member.userId()), channels.positionOf(targetId));
+                if (state.version() != before) {
+                    channels.stopMovement(member.userId());
+                }
+            }
+            case "WORLD_FOLLOW_STOP" -> state = follows.stop(channel, member.userId(),
+                    request.payload().path("followId").asText());
+            default -> throw new IllegalStateException("검증되지 않은 따라가기 명령");
+        }
+        if (state.version() == before) {
+            member.peer().offer(protocol.encode(request.requestId(), "WORLD_FOLLOW_STATE", state));
+        } else {
+            if (request.type().equals("WORLD_FOLLOW_STOP")) {
+                channels.stopMovement(member.userId());
+            }
+            publishFollow(state, member, request.requestId());
+            if (request.type().equals("WORLD_FOLLOW_START")) {
+                cancelEmote(member.userId(), "ACTIVITY_STARTED");
+            }
+        }
+    }
+
+    private boolean canFollow(String userId) {
+        var position = channels.positionOf(userId);
+        return position != null && !position.swimming() && !seating.containsKey(userId)
+                && facilities.current(userId) == null;
+    }
+
+    private void pruneFollows(WorldChannelRegistry.WorldState world) {
+        var previous = follows.state(world.channelId());
+        if (previous.links().isEmpty()) {
+            return;
+        }
+        Map<String, WorldChannelRegistry.Position> positions = world.avatars().stream()
+                .collect(Collectors.toMap(WorldChannelRegistry.Avatar::userId, WorldChannelRegistry.Avatar::position));
+        Set<String> unavailable = positions.keySet().stream().filter(user -> !canFollow(user))
+                .collect(Collectors.toSet());
+        var state = follows.prune(world.channelId(), positions, unavailable);
+        if (state.version() != previous.version()) {
+            Set<String> retained = state.links().stream().map(WorldFollowService.Link::followerId)
+                    .collect(Collectors.toSet());
+            previous.links().stream().filter(link -> !retained.contains(link.followerId()))
+                    .forEach(link -> channels.stopMovement(link.followerId()));
+            publishFollow(state, null, null);
+        }
+    }
+
+    private void endFollows(String userId) {
+        var affected = follows.activeStates().stream().flatMap(state -> state.links().stream())
+                .filter(link -> link.followerId().equals(userId) || link.targetId().equals(userId)).toList();
+        follows.removeUser(userId).forEach(state -> publishFollow(state, null, null));
+        affected.forEach(link -> channels.stopMovement(link.followerId()));
+    }
+
+    private void publishFollow(WorldFollowService.State state, Member actor, String requestId) {
+        for (Member target : members.values()) {
+            if (channels.isInChannel(target.userId(), state.channelId())) {
+                target.peer().offer(protocol.encode(target == actor ? requestId : null, "WORLD_FOLLOW_STATE", state));
+            }
+        }
+    }
+
     private void sendEmote(Member member, Request request) {
         String channelId = channels.channelOf(member.userId());
         if (channelId == null) {
             fail(request, "NOT_IN_CHANNEL", "먼저 채널에 입장해주세요.");
+        }
+        var position = channels.positionOf(member.userId());
+        if (position == null) {
+            fail(request, "WORLD_POSITION_REQUIRED", "광장 위치를 확인해주세요.");
+        }
+        if (seating.containsKey(member.userId()) || facilities.current(member.userId()) != null
+                || position.moving() || position.running() || position.swimming()
+                || channels.hasMovementActivity(member.userId())) {
+            fail(request, "EMOTE_ACTIVITY_CONFLICT", "이동·수영·테이블·시설 이용을 마친 뒤 사용해주세요.");
         }
         WorldEmoteService.Event event = emotes.create(channelId, member.userId(),
                 new EmoteCode(request.payload().get("emoteCode").textValue()));
@@ -1015,6 +1233,19 @@ public class TableHub {
         }
         recordBehavior(BehaviorEventType.EMOTE_SENT, member.accountId(),
                 builder -> builder.channelId(channelId).prop("emoteCode", event.emoteCode()));
+    }
+
+    private void cancelEmote(String userId, String reason) {
+        WorldEmoteService.Cancellation event = emotes.cancel(userId, reason);
+        if (event == null) {
+            return;
+        }
+        String notification = protocol.encode(null, "WORLD_EMOTE_CANCELLED", event);
+        for (Member target : members.values()) {
+            if (channels.isInChannel(target.userId(), event.channelId())) {
+                target.peer().offer(notification);
+            }
+        }
     }
 
     private void publishWorld(WorldChannelRegistry.WorldState state, Member actor, String requestId) {
@@ -1038,10 +1269,18 @@ public class TableHub {
     private void ready(Member member, Request request) {
         TableRoom room = seatedRoom(member, request);
         ensureWaiting(room.snapshot().tableId(), request);
-        if (request.payload().get("ready").booleanValue() && room.snapshot().gameCode() == null) {
+        if (request.payload().get("ready").booleanValue()
+                && (room.snapshot().gameCode() == null || room.snapshot().betAmountPerPlayer() == null)) {
             fail(request, "GAME_NOT_SELECTED", "먼저 게임을 선택해주세요.");
         }
         boolean ready = request.payload().get("ready").booleanValue();
+        // receive의 같은 Hub 모니터 안에서 동의 검증과 준비 변경을 원자적으로 수행한다.
+        if (ready && !room.matchesReadyBet(request.payload().get("betAmountPerPlayer").longValue())) {
+            fail(request, "GAME_BET_CHANGED", "참가비가 변경되었습니다. 현재 금액을 확인해주세요.");
+        }
+        if (ready && !room.acceptsReadyVersion(request.payload().get("expectedVersion").longValue())) {
+            fail(request, "GAME_SETTINGS_CHANGED", "테이블 설정이 변경되었습니다. 현재 상태를 확인해주세요.");
+        }
         if (room.setReady(member.userId(), ready)) {
             publish(room, member, request.requestId());
             recordBehavior(BehaviorEventType.TABLE_READY_SET, member.accountId(),
@@ -1071,12 +1310,17 @@ public class TableHub {
         if (game == TableGame.DICE && targetScore == null) {
             fail(request, "GAME_OPTIONS_REQUIRED", "주사위 목표 2000/4000/6000점 중 하나를 선택해주세요.");
         }
-        if (room.selectGame(game, targetScore)) {
+        long amount = request.payload().get("betAmountPerPlayer").longValue();
+        try { com.ssafy.ontop.game.domain.GameAmounts.validate(amount, game.maximumPlayers()); }
+        catch (IllegalArgumentException exception) {
+            fail(request, "GAME_INVALID_BET", "참가비가 지원 범위를 벗어났습니다.");
+        }
+        if (room.selectGame(game, targetScore, amount)) {
             starts.remove(tableId);
             publish(room, member, request.requestId());
             publishStart(tableId);
             recordBehavior(BehaviorEventType.GAME_SELECTED, member.accountId(), builder -> builder.tableId(tableId)
-                    .prop("gameCode", game.name()).prop("targetScore", targetScore));
+                    .prop("gameCode", game.name()).prop("targetScore", targetScore).prop("betAmountPerPlayer", amount));
         } else {
             replyState(member, request, room);
         }
@@ -1154,6 +1398,9 @@ public class TableHub {
     private void publish(TableRoom room, Member actor, String requestId) {
         TableRoom.Snapshot snapshot = publicSnapshot(room);
         for (Member target : members.values()) {
+            if (!isMapReady(target)) {
+                continue;
+            }
             if (snapshot.tableId().equals(seating.get(target.userId()))) {
                 target.peer().offer(protocol.encode(target == actor ? requestId : null, "TABLE_STATE", snapshot));
             } else if (snapshot.tableId().equals(watching.get(target.userId()))) {
@@ -1195,7 +1442,8 @@ public class TableHub {
         GameStartCommand command = new GameStartCommand(UUID.randomUUID(), snapshot.tableId(), snapshot.version(),
                 snapshot.gameCode(), snapshot.seats().stream()
                         .filter(seat -> seat.userId() != null)
-                        .map(seat -> new Participant(seat.userId(), seat.seatNumber())).toList(), snapshot.targetScore());
+                        .map(seat -> new Participant(seat.userId(), seat.seatNumber())).toList(), snapshot.targetScore(),
+                snapshot.betAmountPerPlayer());
         TableStartAttempt attempt = new TableStartAttempt(command);
         starts.put(snapshot.tableId(), attempt);
         if (committedStarts.isPresent()) {
@@ -1311,13 +1559,13 @@ public class TableHub {
     }
 
     private Set<String> connectedUsers() {
-        return members.values().stream().map(Member::userId).collect(Collectors.toSet());
+        return members.values().stream().filter(this::isMapReady).map(Member::userId).collect(Collectors.toSet());
     }
 
     private void publishStart(String tableId) {
         startRevisions.merge(tableId, 1L, Long::sum);
         for (Member target : members.values()) {
-            if (tableId.equals(seating.get(target.userId()))) {
+            if (isMapReady(target) && tableId.equals(seating.get(target.userId()))) {
                 replyStartState(target, tableId, null);
             }
         }
@@ -1352,7 +1600,7 @@ public class TableHub {
             if ((!attempt.starting() && !attempt.phase().equals("PLAYING") && !attempt.phase().equals("SETTLING"))
                     || !attempt.starting() && !result.gameSessionId().equals(attempt.view(0, false).gameSessionId())
                     || !result.gameCode().equals(attempt.command().gameCode())
-                    || result.betAmountPerPlayer() != 1) { continue; }
+                    || result.betAmountPerPlayer() != attempt.command().betAmountPerPlayer()) { continue; }
             Set<String> expected = attempt.command().participants().stream().map(Participant::userId)
                     .collect(Collectors.toSet());
             Set<String> actual = result.participants().stream().map(GameResultView.Participant::userId)
@@ -1789,7 +2037,10 @@ public class TableHub {
     private record ProfileTarget(Member member, String channel) {
     }
 
-    private record Member(String userId, TablePeer peer, Long accountId) {
+    private record Member(String userId, TablePeer peer, Long accountId, String sessionId) {
+    }
+
+    private record PendingMapConnection(String loginSessionId, boolean reservedStart) {
     }
 
     private static final class AppearancePush {

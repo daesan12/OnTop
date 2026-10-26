@@ -55,6 +55,8 @@ class GameCommunicationFlowTests {
             first.state("RESTORED");
             second.state("RESTORED");
             spectator.state("LOBBY");
+            assertThat(first.request("WORLD_EMOTE_SEND", Map.of("emoteCode", "WAVE"))
+                    .at("/payload/code").asText()).isEqualTo("GAME_RECOVERY_REQUIRED");
             spectator.assertNoMessageDuring(GameCommunicationFlowTests::privateOrActionResult, () -> {
                 assertState(spectator.request("GAME_WATCH", Map.of("gameId", "flow-game")), 505, 8);
                 assertAction(first, "first", 8);

@@ -18,7 +18,7 @@ test('park shares one socket for chat, input and server-confirmed table seats', 
   await expect(page.locator('.park-account__nickname')).toHaveText(
     '공원 산책자',
   )
-  await expect(page.locator('.park-account__balance')).toHaveText('—냥')
+  await expect(page.locator('.park-account__balance')).toHaveText('100냥')
   expect(server.connections).toBe(1)
   expect(server.tickets).toBe(1)
   await page.keyboard.press('Enter')
@@ -64,7 +64,7 @@ test('park shares one socket for chat, input and server-confirmed table seats', 
   expect(server.maxActive).toBe(1)
   expect(server.connections).toBe(1)
   await screenshot(page, 'park-roaming')
-  await page.getByRole('button', { name: '나가기', exact: true }).click()
+  await page.getByRole('button', { name: '내 메뉴', exact: true }).click(); await page.getByRole('menuitem', { name: '로그아웃' }).click(); await page.getByRole('dialog', { name: '로그아웃 확인' }).getByRole('button', { name: '로그아웃', exact: true }).click()
   await expect(page.getByRole('main', { name: '로그인' }))
     .toBeVisible()
     .catch(async () => {
@@ -191,7 +191,7 @@ test('table pointer picking, seated visibility, LOD and quality controls', async
     .toEqual({ seated: true, own: false, remote: true })
   await page.getByRole('button', { name: '일어나기' }).click()
   await page.getByRole('button', { name: '테이블 정보 닫기' }).click()
-  await page.getByRole('button', { name: '그래픽 · 성능', exact: true }).click()
+  await page.getByRole('button', { name: '내 메뉴', exact: true }).click(); await page.getByRole('menuitem', { name: /설정/ }).click()
   await page.getByLabel('그래픽 품질').selectOption('high')
   await expect(page.getByLabel('그래픽 품질')).toHaveValue('high')
   await page.evaluate(async () => {

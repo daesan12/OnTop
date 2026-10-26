@@ -1,3 +1,4 @@
+import { TableGathering } from '../features/tableLobby/TableGathering'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { memo, Suspense, useEffect, useMemo, useState } from 'react'
 import { ACESFilmicToneMapping } from 'three'
@@ -15,6 +16,7 @@ import { NightLighting } from './NightLighting'
 import { CameraRig } from './CameraRig'
 
 import { Avatars } from './Avatars'
+import { FollowRopes } from '../features/follow/FollowRopes'
 import { AvatarOverlays, type OverlayTargets } from './AvatarOverlays'
 import { PerformanceProbe } from '../performance/PerformanceProbe'
 import { AdaptiveResolution } from '../performance/AdaptiveResolution'
@@ -143,6 +145,8 @@ export const WorldCanvas = memo(function WorldCanvas({
           <SceneReady onReady={onReady} />
         </Suspense>
         <Avatars overlayTargets={overlayTargets} />
+        <FollowRopes />
+        <TableGathering />
         <BungeoppangGrill />
 
         <ParkPigeons quality={quality} />

@@ -78,7 +78,7 @@ class WorldEmoteHubTests {
     }
 
     @Test
-    void 미입장은_거절하고_대기_착석은_허용하며_채널_이동으로_간격을_초기화하지_않는다() throws Exception {
+    void 미입장과_대기_착석은_거절하고_채널_이동으로_간격을_초기화하지_않는다() throws Exception {
         Peer user = peer();
         assertThat(user.request("WORLD_EMOTE_SEND", Map.of("emoteCode", "WAVE"))
                 .path("payload").path("code").asText()).isEqualTo("NOT_IN_CHANNEL");
@@ -86,10 +86,12 @@ class WorldEmoteHubTests {
         registry.move(user.userId, new WorldChannelRegistry.Position(0, 0, 0, 0, 0));
         user.request("TABLE_JOIN", Map.of("tableId", hub.listTables("one").tables().getFirst().tableId()));
         assertThat(user.request("WORLD_EMOTE_SEND", Map.of("emoteCode", "WAVE"))
-                .path("type").asText()).isEqualTo("WORLD_EMOTE_EVENT");
+                .path("payload").path("code").asText()).isEqualTo("EMOTE_ACTIVITY_CONFLICT");
         assertThat(user.request("WORLD_CHAT_SEND", Map.of("text", "표현과 별도 간격"))
                 .path("type").asText()).isEqualTo("WORLD_CHAT_MESSAGE");
         user.request("TABLE_LEAVE", Map.of());
+        assertThat(user.request("WORLD_EMOTE_SEND", Map.of("emoteCode", "WAVE"))
+                .path("type").asText()).isEqualTo("WORLD_EMOTE_EVENT");
         user.request("CHANNEL_LEAVE", Map.of());
         user.join("two");
         assertThat(user.request("WORLD_EMOTE_SEND", Map.of("emoteCode", "WAVE"))
@@ -128,10 +130,14 @@ class WorldEmoteHubTests {
         private JsonNode request(String type, Object payload) throws Exception {
             String requestId = UUID.randomUUID().toString();
             hub.receive(id, mapper.writeValueAsString(Map.of("requestId", requestId, "type", type, "payload", payload)));
-            JsonNode response = messages.poll(5, TimeUnit.SECONDS);
-            assertThat(response).isNotNull();
-            assertThat(response.path("requestId").asText()).isEqualTo(requestId);
-            return response;
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+            while (true) {
+                JsonNode response = messages.poll(Math.max(0, deadline - System.nanoTime()), TimeUnit.NANOSECONDS);
+                assertThat(response).isNotNull();
+                if (response.path("requestId").asText().equals(requestId)) {
+                    return response;
+                }
+            }
         }
 
         private JsonNode next(String type) throws Exception {

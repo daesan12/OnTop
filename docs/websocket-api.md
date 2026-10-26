@@ -12,6 +12,10 @@
 
 ## API 목록
 
+따라가기 4종: [시작·종료·조회·관계 상태](world-follow-api.md).
+기존 소켓에서 WORLD_FOLLOW_START/STOP/CHECK 요청과 WORLD_FOLLOW_STATE 응답·알림을 사용한다.
+서버 물리 이동까지 구현하며 실제 FE 연결·배포는 별도 확인한다.
+
 추가 연결부: [경기 통신 상세 7종](websocket-api/09-game-communication.md)에 상태 조회·자동 갱신·입력·관전 요청과 응답을 정리하고 기존 Notion 목록에 반영했습니다. 오목·주사위·원카드·거짓말 다리 엔진과 연결해 검증했습니다. 실제 로그인·참가 차감·DB 정산·운영 적용은 별도 범위입니다.
 
 | 도메인 | 진행상황 | 방식 | 방향 | 기능 | 메시지 타입 | URL |
@@ -60,6 +64,7 @@
 | 서버 → 클라이언트 | WORLD_CHAT_MESSAGE | 승인된 일반 텍스트 채팅 |
 | 클라이언트 → 서버 | WORLD_EMOTE_SEND | 본인과 같은 채널 참가자에게 WORLD_EMOTE_EVENT |
 | 서버 → 클라이언트 | WORLD_EMOTE_EVENT | 승인된 감정표현 코드 |
+| 서버 → 클라이언트 | WORLD_EMOTE_CANCELLED | 활동 시작으로 원본 표현 ID 취소, 사용 간격 유지 |
 
 CHANNEL_JOIN 성공·다른 사용자 입퇴장·종료 때는 WORLD_STATE도 알립니다. 입장 시 서버 스폰 위치가 생성되며 채널 인원 버전과 위치 버전은 따로 관리합니다.
 

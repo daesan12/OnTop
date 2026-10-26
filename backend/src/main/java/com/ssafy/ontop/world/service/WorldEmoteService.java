@@ -24,6 +24,7 @@ public class WorldEmoteService {
     private final Clock clock;
     private final LongSupplier nanoTime;
     private final Map<String, Sent> lastSent = new HashMap<>();
+    private final Map<String, Event> lastEvents = new HashMap<>();
 
     @Autowired
     public WorldEmoteService(WorldEmoteProperties properties,
@@ -55,18 +56,35 @@ public class WorldEmoteService {
         long interval = Math.max(minimumIntervalNanos,
                 cooldowns.getOrDefault(code.value(), Duration.ZERO).toNanos());
         lastSent.put(userId, new Sent(now, interval));
+        lastEvents.put(userId, event);
         return event;
+    }
+
+    /** 취소는 마지막 승인 표현에만 적용하며 기존 재사용 대기 시간은 유지한다. */
+    public synchronized Cancellation cancel(String userId, String reason) {
+        Event event = lastEvents.remove(userId);
+        if (event == null) {
+            return null;
+        }
+        return new Cancellation(UUID.randomUUID().toString(), event.eventId(), event.channelId(), userId,
+                reason, clock.instant().toString());
     }
 
     public synchronized void disconnected(String userId) {
         lastSent.remove(userId);
+        lastEvents.remove(userId);
     }
 
     public synchronized void clear() {
         lastSent.clear();
+        lastEvents.clear();
     }
 
     public record Event(String eventId, String channelId, String userId, String emoteCode, String sentAt) {
+    }
+
+    public record Cancellation(String eventId, String emoteEventId, String channelId, String userId,
+            String reason, String sentAt) {
     }
 
     private record Sent(long at, long interval) {

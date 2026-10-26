@@ -7,13 +7,14 @@ import { ParkRuntime } from '../../src/park/runtime/SpringParkRuntime'
 
 const table = { tableId: 'server-table', version: 1, capacity: 2, minimumPlayers: 2,
   seats: [{ seatNumber: 1, userId: null, ready: false }, { seatNumber: 2, userId: '102', ready: false }],
-  allReady: false, selectorUserId: '102', gameCode: null, targetScore: null }
+  allReady: false, selectorUserId: '102', gameCode: null, targetScore: null, betAmountPerPlayer: null }
 let socket: ContractSocket, runtime: ParkRuntime
 class ContractSocket implements SocketLike {
   readyState = 0; onopen: SocketLike['onopen'] = null; onclose: SocketLike['onclose'] = null
   onmessage: SocketLike['onmessage'] = null; onerror: SocketLike['onerror'] = null
   mode: 'success' | 'error' | 'hold' = 'success'
   requests: { requestId: string; type: string; payload: Record<string, unknown> }[] = []
+  lastTable: object = table
   constructor() { socket = this; queueMicrotask(() => { this.readyState = 1; this.onopen?.(new Event('open')); this.emit('CONNECTED', { userId: '101' }) }) }
   emit(type: string, payload: object, requestId: string | null = null) { this.onmessage?.({ data: JSON.stringify({ type, payload, requestId }) } as MessageEvent) }
   send(data: string) {
@@ -23,7 +24,15 @@ class ContractSocket implements SocketLike {
       if (r.type === 'TABLE_WATCH' && this.mode === 'success') this.emit('TABLE_WATCH_STATE', table, r.requestId)
       if (r.type === 'TABLE_WATCH' && this.mode === 'error') this.emit('ERROR', { code: 'TABLE_OUT_OF_RANGE', message: '관전 범위 오류' }, r.requestId)
       if (r.type === 'TABLE_UNWATCH') this.emit('TABLE_WATCH_LEFT', { tableId: table.tableId }, r.requestId)
-      if (r.type === 'GAME_SELECT') this.emit('TABLE_STATE', { ...table, version: 5, seats: table.seats.map((s, i) => ({ ...s, userId: i === 0 ? '101' : '102' })), selectorUserId: '101', gameCode: r.payload.gameCode, targetScore: r.payload.targetScore ?? null }, r.requestId)
+      if (r.type === 'GAME_SELECT') {
+        this.lastTable = { ...table, version: 5, seats: table.seats.map((s, i) => ({ ...s, userId: i === 0 ? '101' : '102' })), selectorUserId: '101', gameCode: r.payload.gameCode, targetScore: r.payload.targetScore ?? null, betAmountPerPlayer: r.payload.betAmountPerPlayer }
+        this.emit('TABLE_STATE', this.lastTable, r.requestId)
+      }
+      if (r.type === 'READY_SET') {
+        this.lastTable = { ...this.lastTable, version: r.payload.ready ? 6 : 7,
+          seats: table.seats.map((s, i) => ({ ...s, userId: i === 0 ? '101' : '102', ready: i === 0 && r.payload.ready })) }
+        this.emit('TABLE_STATE', this.lastTable, r.requestId)
+      }
     })
   }
   close(code = 1000) { this.readyState = 3; queueMicrotask(() => this.onclose?.({ code } as CloseEvent)) }
@@ -67,15 +76,25 @@ it('a successful late query after closing is discarded and its subscription rele
 })
 it('only server selector can select a game; forwards target without adding table/user authority', async () => {
   useSession.setState({ tableId: table.tableId, tableStates: { [table.tableId]: table } })
-  expect(await runtime.selectGame('DICE', 4000)).toBe(false)
+  expect(await runtime.selectGame('DICE', 5, 4000)).toBe(false)
   useSession.setState({ tableStates: { [table.tableId]: { ...table, selectorUserId: '101' } } })
-  expect(await runtime.selectGame('DICE', 3000)).toBe(false)
-  expect(await runtime.selectGame('DICE', 4000)).toBe(true)
-  expect(socket.requests.find(r => r.type === 'GAME_SELECT')?.payload).toEqual({ gameCode: 'DICE', targetScore: 4000 })
+  expect(await runtime.selectGame('DICE', 5, 3000)).toBe(false)
+  expect(await runtime.selectGame('DICE', 5, 4000)).toBe(true)
+  expect(socket.requests.find(r => r.type === 'GAME_SELECT')?.payload).toEqual({ gameCode: 'DICE', targetScore: 4000, betAmountPerPlayer: 5 })
 })
 it('ordinary mode never guesses a public game ID or sends GAME_WATCH', async () => {
   expect(await runtime.watchGame('guess')).toBe(false)
   expect(socket.requests.some(r => r.type === 'GAME_WATCH')).toBe(false)
+})
+it('ready confirms the displayed server fee and version; cancellation keeps its original contract', async () => {
+  useSession.setState({ tableId: table.tableId, tableStates: { [table.tableId]: { ...table, selectorUserId: '101' } } })
+  expect(await runtime.setReady(true)).toBe(false)
+  expect(socket.requests.some(r => r.type === 'READY_SET')).toBe(false)
+  expect(await runtime.selectGame('DICE', 5, 4000)).toBe(true)
+  expect(await runtime.setReady(true)).toBe(true)
+  expect(socket.requests.filter(r => r.type === 'READY_SET').at(-1)?.payload).toEqual({ ready: true, betAmountPerPlayer: 5, expectedVersion: 5 })
+  expect(await runtime.setReady(false)).toBe(true)
+  expect(socket.requests.filter(r => r.type === 'READY_SET').at(-1)?.payload).toEqual({ ready: false })
 })
 it('timeout ends pending state and a late approval cannot create a public table view', async () => {
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })

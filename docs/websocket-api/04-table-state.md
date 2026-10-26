@@ -41,6 +41,7 @@
     "selectorUserId": "dev-7cc07e8b-8460-4a78-8897-5e9acd875d91",
     "gameCode": "DICE",
     "targetScore": 4000,
+    "betAmountPerPlayer": 5,
     "gameId": null
   }
 }
@@ -82,3 +83,7 @@
 ---
 
 [공통 규격](00-common.md) · [API 목록](../websocket-api.md)
+
+## 참가비 필드 추가
+
+`betAmountPerPlayer`: selector가 확정한 1인 참가비(양의 안전 정수), 게임 미선택/빈 테이블은 null. 금액 변경 시 전원 준비를 해제하고 version을 증가시킨다. 선택권 승계와 종료 후 대기 복귀는 확정 금액을 유지한다. 참가자는 이 값을 확인하고 준비한다. 상세: [가변 참가비·정산](../game-settlement.md).

@@ -9,11 +9,11 @@ import type { OneCard, Hand, Card } from '../../src/game/onecard/protocol'
 import { bridgeState as makeBridge } from '../fixtures/bridge'
 import type { Bridge, SecretDie } from '../../src/game/bridge/protocol'
 import { facilityFixture } from './facilityFixture'
+import { followFixture } from './followFixture'
 import type { PublicEquipment } from '../../src/network/equipment'
 import developmentBindings from '../../public/park-bindings.dev.json' with { type: 'json' }
 
 // Contract fixtures intercept HTTP/RawWS only in tests. No production fake-auth or socket bypass.
-const anchor = TABLES[0]!
 export const tableId = 'fixture-server-table'
 const artifacts =
   process.env.QA_ARTIFACT_DIR ?? path.join(os.tmpdir(), 'ontop-fe-qa')
@@ -39,8 +39,12 @@ export async function fixture(
     emoteBindings?: boolean | 'development'
     publicProfiles?: Record<string, { nickname?: string | null; characterGender?: 'MALE' | 'FEMALE' | null }>
     position?: { x: number; y: number; z: number; yaw: number }
+    anchorId?: string
+    publicSpectator?: boolean
+    forfeit?: boolean
   } = {},
 ) {
+  const anchor = TABLES.find(t => t.id === options.anchorId) ?? TABLES[0]!
   let tickets = 0,
     connections = 0,
     active = 0,
@@ -66,7 +70,7 @@ export async function fixture(
     ...options.position,
   }
   let emoteResponse: 'approve' | 'reject' | 'hold' = 'approve'
-  let emoteCounter = 0
+  let emoteCounter = 0, chatCounter = 0
   let lastEmote: { eventId: string; channelId: string; userId: string; emoteCode: string; sentAt: string } | undefined
   let emoteRequestId = ''
   let remotePosition: Partial<typeof position> = {}
@@ -75,6 +79,7 @@ export async function fixture(
   let rejectGameWatch = false
   let watchingGame = false
   let watchMode: 'normal' | 'reject' | 'hold' = 'normal', watchRequestId = '', selectorOverride: string | undefined, targetScore: number | null = null
+  let betAmountPerPlayer: number | null = options.publicSpectator ? 1 : null
   let seated = false,
     rejectChat = false
   let gameCode: string | null = null,
@@ -85,7 +90,11 @@ export async function fixture(
     finished = false,
     holdState = false,
     forbid = false
-  const gameId = options.bridge ? 'fixture-confirmed-bridge' : options.onecard ? 'fixture-confirmed-onecard' : options.dice ? 'fixture-confirmed-dice' : 'fixture-confirmed-omok'
+  let gameId = options.bridge ? 'fixture-confirmed-bridge' : options.onecard ? 'fixture-confirmed-onecard' : options.dice ? 'fixture-confirmed-dice' : 'fixture-confirmed-omok'
+  let publicGameId: string | null = options.publicSpectator ? gameId : null
+  let watchingGameId = '', holdGameWatch = false
+  const heldGameWatches: { requestId: string; gameId: string }[] = []
+  if (options.publicSpectator) gameCode = options.bridge ? 'LIAR_BRIDGE' : options.onecard ? 'ONE_CARD' : options.dice ? 'DICE' : 'OMOK'
   let bridgeState = makeBridge(options.bridge), bridgeSecret: SecretDie | null = null
   const bridgeReplies: { input: object; patch: Partial<Bridge>; secret: SecretDie | null }[] = []
   const initialHand: Card[] = ['4', '7', 'K', 'Q', 'J', '2', 'A'].map(rank => ({ id: `hearts-${rank}`, suit: 'hearts', rank }))
@@ -101,6 +110,10 @@ export async function fixture(
   const diceReplies: { input: object; patch: Partial<Farkle> }[] = []
   let gameDeadline = new Date(Date.now() + 30_000).toISOString()
   let nextActionError: { code: string; message: string } | null = null
+  let forfeitMode: 'approve' | 'hold' | 'drop' | 'reject' | 'malformed' | 'lost-after-apply' | 'receipt-only' = 'approve'
+  let forfeitOrder: 'receipt-first' | 'state-first' = 'state-first', forfeitCode = 'GAME_FORFEIT_NOT_CONFIGURED'
+  let forfeitVersion = -1, forfeitApplications = 0, recoveryStatus = 'RESTORED', pendingBridgeForfeit = false
+  const heldForfeits: { ws: WebSocketRoute; requestId: string; payload: { gameId: string; actionId: string } }[] = []
   let dropAction = false
   let finishReason = 'TURN_TIMEOUT', winner: string | null = '101'
   const board: number[][] = Array.from({ length: 15 }, () => Array(15).fill(0))
@@ -147,12 +160,12 @@ export async function fixture(
       },
       requestId,
     )
-  const game = (ws: WebSocketRoute, requestId: string | null = null, role = watchingGame ? 'SPECTATOR' : 'PLAYER') =>
+  const game = (ws: WebSocketRoute, requestId: string | null = null, role = watchingGame ? 'SPECTATOR' : 'PLAYER', displayedId = gameId) =>
     emit(
       ws,
       'GAME_STATE',
       {
-        gameId,
+        gameId: displayedId,
         version: gameVersion,
         role,
         publicState: options.bridge ? bridgeState : options.onecard ? cardState : options.dice ? diceState : omok(),
@@ -160,15 +173,15 @@ export async function fixture(
       },
       requestId,
     )
-  const recovery = (ws: WebSocketRoute) =>
+  const recovery = (ws: WebSocketRoute, requestId: string | null = null) =>
     emit(ws, 'GAME_CONNECTION_STATE', {
-      status: 'RESTORED',
+      status: options.forfeit ? recoveryStatus : 'RESTORED',
       gameId,
       version: gameVersion,
       state: options.bridge ? { publicState: bridgeState, privateState: bridgeSecret ?? {} } : options.onecard ? { publicState: cardState, privateState: cardHand } : options.dice ? diceState : omok(),
       reconnectUntil: null,
       code: null,
-    })
+    }, requestId)
   let resultVersion = 1,
     settled = false
   const result = (ws: WebSocketRoute, requestId: string | null = null) =>
@@ -183,11 +196,12 @@ export async function fixture(
         endReason: 'NORMAL',
         settlementStatus: settled ? 'SETTLED' : 'PENDING',
         betAmountPerPlayer: 1,
-        participants: [
+        participants: options.forfeit && forfeitVersion >= 0 ? Array.from({ length: options.onecard ?? options.bridge ?? 2 }, (_, i) =>
+          ({ userId: String(101 + i), result: i === 0 ? 'FORFEIT' : i === 1 ? 'WIN' : 'LOSE' })) : [
           { userId: '101', result: 'WIN' },
           { userId: '102', result: 'LOSE' },
         ],
-        myCoinDelta: settled ? 1 : null,
+        myCoinDelta: settled ? options.forfeit && forfeitVersion >= 0 ? -1 : 1 : null,
         endedAt: new Date().toISOString(),
       },
       requestId,
@@ -220,6 +234,7 @@ export async function fixture(
         json: { userId: Number(options.ownUserId ?? '101'), nickname: '공원 산책자', characterGender: 'MALE' },
       })
     }
+    if (url.pathname === '/api/v1/wallets/me') return route.fulfill({ json: { balance: 100, reservedBalance: 0, availableBalance: 100 } })
     if (url.pathname === '/api/v1/channels')
       return route.fulfill({
         json: {
@@ -250,6 +265,8 @@ export async function fixture(
               joinable: !seated,
               gameCode: null,
               targetScore,
+              betAmountPerPlayer,
+              ...(options.publicSpectator ? { gameId: publicGameId } : {}),
             },
           ],
         },
@@ -294,7 +311,7 @@ export async function fixture(
         },
       }),
     )
-  const table = (ws: WebSocketRoute, type: string, requestId: string | null) =>
+  const table = (ws: WebSocketRoute, type: string, requestId: string | null, patch: object = {}) =>
     ws.send(
       JSON.stringify({
         requestId,
@@ -312,6 +329,9 @@ export async function fixture(
           selectorUserId: selectorOverride ?? (seated ? '101' : '102'),
           gameCode,
           targetScore,
+          betAmountPerPlayer,
+          ...(options.publicSpectator ? { gameId: publicGameId } : {}),
+          ...patch,
         },
       }),
     )
@@ -320,6 +340,40 @@ export async function fixture(
     world: () => world(sockets.at(-1)!), position, userId: options.ownUserId ?? '101',
     remotePosition: pose => { remotePosition = pose },
   })
+  // Explicit public/private test snapshots for the BE contract, not a local game engine.
+  const scriptedForfeitState = () => {
+    if (forfeitVersion >= 0) return
+    forfeitApplications++; gameVersion++; forfeitVersion = gameVersion
+    finished = !(options.onecard && options.onecard > 2 || options.bridge && options.bridge > 2 || pendingBridgeForfeit)
+    finishReason = 'EXPLICIT_LEAVE'; winner = '102'; recoveryStatus = finished ? 'FINISHED' : 'ELIMINATED'
+    if (options.dice) diceState = { ...diceState, status: 'FINISHED', stage: 'FINISHED', turnUserId: null, turnDeadline: null,
+      winnerUserId: '102', endReason: 'EXPLICIT_LEAVE', endedAt: new Date().toISOString() }
+    if (options.onecard) {
+      cardHand = { userId: '101', hand: [], playableCardIds: [], canDraw: false }
+      cardState = { ...cardState, players: cardState.players.map(p => p.userId === '101' ? { ...p, active: false, cardCount: 0 } : p),
+        turnUserId: finished ? null : '102', ...(finished ? { status: 'FINISHED', stage: 'FINISHED', turnDeadline: null,
+          winnerUserIds: ['102'], endReason: 'LAST_PLAYER_STANDING', endedAt: new Date().toISOString() } : {}) }
+    }
+    if (options.bridge) {
+      bridgeSecret = null
+      bridgeState = { ...bridgeState, players: bridgeState.players.map(p => p.userId !== '101' ? p : pendingBridgeForfeit
+        ? { ...p, pendingForfeit: true } : { ...p, forfeited: true, pawns: p.pawns.map(pawn => ({ ...pawn, status: 'FORFEITED' })) }),
+        lastEvent: 'PLAYER_LEFT', ...(pendingBridgeForfeit ? { stage: 'RESPONDING', declaration: 2, responderUserId: '102', responseOrder: ['102'] }
+          : { turnUserId: finished ? null : '102', ...(finished ? { status: 'FINISHED', stage: 'FINISHED', turnDeadline: null,
+            winnerUserIds: ['102'], endReason: 'LAST_PLAYER_STANDING', endedAt: new Date().toISOString() } : {}) }) }
+    }
+  }
+  const approveForfeit = (entry: typeof heldForfeits[number], mode = forfeitMode) => {
+    const duplicate = forfeitVersion >= 0
+    scriptedForfeitState()
+    const state = () => { recovery(entry.ws); game(entry.ws); if (finished) start(entry.ws, 'SETTLING') }
+    const receipt = () => emit(entry.ws, 'GAME_FORFEIT_RESULT', { gameId: mode === 'malformed' ? 'foreign-game' : entry.payload.gameId,
+      actionId: entry.payload.actionId, version: forfeitVersion, duplicate }, entry.requestId)
+    if (mode === 'lost-after-apply') { state(); return }
+    if (mode === 'receipt-only') { receipt(); return }
+    if (forfeitOrder === 'state-first') { state(); receipt() } else { receipt(); state() }
+  }
+  const follow = followFixture((type, payload, id = null) => emit(sockets.at(-1)!, type, payload, id), options.ownUserId ?? '101')
   await page.routeWebSocket('**/ws/tables?**', (ws) => {
     connections++
     active++
@@ -332,7 +386,8 @@ export async function fixture(
         payload: { userId: options.ownUserId ?? '101', ...(options.connectedMap?{map:options.connectedMap}:{}) },
       }),
     )
-    if (options.omok)
+    if (options.forfeit && started) recovery(ws)
+    else if (options.omok)
       emit(ws, 'GAME_CONNECTION_STATE', {
         status: 'LOBBY',
         gameId: null,
@@ -346,12 +401,14 @@ export async function fixture(
       facilities.disconnect()
       // This route fully mocks the server: acknowledge the client's close handshake too.
       ws.close({code,reason})
+      follow.disconnect()
     })
     ws.onMessage((data) => {
       const message = JSON.parse(String(data))
       sent.push(message)
       const { requestId, type, payload } = message
       if (facilities.handle(type, payload, requestId)) return
+      if (follow.handle(type, payload, requestId)) return
       if (type === 'CHANNEL_JOIN') {
         ws.send(
           JSON.stringify({
@@ -370,8 +427,10 @@ export async function fixture(
           }),
         )
         world(ws)
+        if (options.forfeit && started) { table(ws, 'TABLE_STATE', null); start(ws, finished ? 'SETTLING' : 'PLAYING') }
       }
       if (type === 'WORLD_MOVE') {
+        if (payload.dx || payload.dz || payload.jump) follow.release()
         Object.assign(position, {
           ...(!options.manualMovement ? {
             x: position.x + Number(payload.dx) * 0.1,
@@ -421,11 +480,16 @@ export async function fixture(
         if (watchMode === 'reject') emit(ws, 'ERROR', { code: 'TABLE_OUT_OF_RANGE', message: '테이블 관전 범위를 확인해주세요.' }, requestId)
         if (watchMode === 'normal') table(ws, 'TABLE_WATCH_STATE', requestId)
       }
-      if (options.m09 && type === 'GAME_WATCH') {
+      if ((options.m09 || options.publicSpectator) && type === 'GAME_WATCH') {
         if (rejectGameWatch) emit(ws, 'ERROR', { code: 'GAME_STATE_ACCESS_DENIED', message: '경기 관전 권한이 없습니다.' }, requestId)
-        else { watchingGame = true; game(ws, requestId, 'SPECTATOR') }
+        else if (holdGameWatch) { heldGameWatches.push({ requestId, gameId: String(payload.gameId) }); watchingGameId = String(payload.gameId) }
+        else { watchingGame = true; watchingGameId = String(payload.gameId); game(ws, requestId, 'SPECTATOR', watchingGameId) }
       }
-      if (options.m09 && type === 'GAME_UNWATCH') { watchingGame = false; emit(ws, 'GAME_WATCH_LEFT', { gameId }, requestId) }
+      if ((options.m09 || options.publicSpectator) && type === 'GAME_UNWATCH') {
+        const previousId = watchingGameId || gameId; watchingGame = false; watchingGameId = ''
+        for (const pending of heldGameWatches) emit(ws, 'ERROR', { code: 'GAME_WATCH_CANCELLED', message: '관전 취소' }, pending.requestId)
+        emit(ws, 'GAME_WATCH_LEFT', { gameId: previousId }, requestId)
+      }
       if (type === 'TABLE_UNWATCH')
         ws.send(
           JSON.stringify({
@@ -459,6 +523,7 @@ export async function fixture(
       if (options.omok && type === 'GAME_SELECT') {
         gameCode = String(payload.gameCode)
         targetScore = payload.targetScore ?? null
+        betAmountPerPlayer = payload.betAmountPerPlayer
         if (options.dice && gameCode === 'DICE') diceState = { ...diceState, targetScore: targetScore ?? 4000 }
         ready = false
         table(ws, 'TABLE_STATE', requestId)
@@ -472,7 +537,13 @@ export async function fixture(
       if (options.omok && type === 'GAME_START_CHECK')
         start(ws, started ? 'PLAYING' : 'STARTING', requestId)
       if (options.omok && type === 'GAME_STATE_CHECK') game(ws, requestId)
-      if (options.omok && type === 'GAME_RECONNECT_CHECK') recovery(ws)
+      if (options.omok && type === 'GAME_RECONNECT_CHECK') recovery(ws, requestId)
+      if (options.forfeit && type === 'GAME_FORFEIT') {
+        const entry = { ws, requestId, payload }
+        if (forfeitMode === 'hold') heldForfeits.push(entry)
+        else if (forfeitMode === 'reject') emit(ws, 'ERROR', { code: forfeitCode, message: '기권 요청 거절' }, requestId)
+        else if (forfeitMode !== 'drop') approveForfeit(entry)
+      }
       if (options.omok && type === 'GAME_RESULT_CHECK') result(ws, requestId)
       if (options.omok && type === 'GAME_ACTION_SEND') {
         if (dropAction) return
@@ -542,6 +613,7 @@ export async function fixture(
       for (const ws of sockets) world(ws)
     },
     facilities,
+    follow,
     bridgeReply: (input: object, patch: Partial<Bridge>, secret: SecretDie | null = null) => bridgeReplies.push({ input, patch, secret }),
     bridgeSnapshot: (patch: Partial<Bridge>, secret: SecretDie | null = null, role = 'PLAYER') => { bridgeState = { ...bridgeState, ...patch }; bridgeSecret = secret; gameVersion++; game(sockets.at(-1)!, null, role) },
     bridgeState: () => structuredClone(bridgeState),
@@ -558,6 +630,17 @@ export async function fixture(
     },
     resendGame: (role = 'PLAYER') => game(sockets.at(-1)!, null, role),
     rejectGameWatch: (value: boolean) => { rejectGameWatch = value },
+    holdGameWatch: (value: boolean) => { holdGameWatch = value },
+    lateGameWatch: () => { for (const pending of heldGameWatches.splice(0)) game(sockets.at(-1)!, pending.requestId, 'SPECTATOR', pending.gameId) },
+    publicMatch: (id: string | null) => {
+      publicGameId = id
+      if (id) { gameId = id; gameVersion = 0; finished = false }
+      table(sockets.at(-1)!, 'TABLE_WATCH_STATE', null)
+    },
+    stalePublicMatch: (id: string | null) => table(sockets.at(-1)!, 'TABLE_WATCH_STATE', null, { version: 0, gameId: id }),
+    latePublicGame: (id: string) => game(sockets.at(-1)!, null, 'SPECTATOR', id),
+    publicMoveForRefresh: () => { board[7]![7] = 1; lastMove = { x: 7, y: 7, stone: 'BLACK' }; turn = '102'; gameVersion++ },
+    revokeWatch: () => { watchingGame = false; emit(sockets.at(-1)!, 'ERROR', { code: 'GAME_STATE_ACCESS_DENIED', message: '관전 권한 회수' }) },
     watchMode: (mode: typeof watchMode) => { watchMode = mode },
     replyWatch: () => table(sockets.at(-1)!, 'TABLE_WATCH_STATE', watchRequestId),
     host: (id: string) => { selectorOverride = id; table(sockets.at(-1)!, 'TABLE_STATE', null) },
@@ -608,11 +691,26 @@ export async function fixture(
       result(sockets.at(-1)!)
     },
     nextRound: () => {
+      if (options.forfeit) {
+        gameId += '-next'; gameVersion = 0; forfeitVersion = -1; finished = false; recoveryStatus = 'RESTORED'
+        turn = '101'; forfeitMode = 'approve'; bridgeState = makeBridge(options.bridge)
+        diceState = { ...diceState, status: 'PLAYING', stage: 'AWAITING_ROLL', turnUserId: '101', turnDeadline: new Date(Date.now() + 30000).toISOString(), winnerUserId: null, endedAt: null, endReason: null }
+        cardHand = { userId: '101', hand: initialHand, playableCardIds: initialHand.map(c => c.id), canDraw: true }
+        cardState = { ...cardState, status: 'PLAYING', stage: 'PLAYING', players: cardState.players.map(p => ({ ...p, active: true, cardCount: 7 })),
+          turnUserId: '101', turnDeadline: new Date(Date.now() + 30000).toISOString(), winnerUserIds: [], endReason: null, endedAt: null }
+      }
       started = false
       ready = false
       table(sockets.at(-1)!, 'TABLE_STATE', null)
       start(sockets.at(-1)!, 'WAITING')
     },
+    forfeitMode: (mode: typeof forfeitMode, code = 'GAME_FORFEIT_NOT_CONFIGURED') => { forfeitMode = mode; forfeitCode = code },
+    forfeitOrder: (order: typeof forfeitOrder) => { forfeitOrder = order },
+    completeForfeit: () => { for (const entry of heldForfeits.splice(0)) approveForfeit(entry, 'approve') },
+    forfeitPendingBridge: () => { pendingBridgeForfeit = true },
+    lateForfeitError: (requestId: string) => emit(sockets.at(-1)!, 'ERROR', { code: 'GAME_RECOVERY_REQUIRED', message: '이전 기권 오류' }, requestId),
+    lateForfeitReceipt: (gameId: string, actionId: string) => emit(sockets.at(-1)!, 'GAME_FORFEIT_RESULT', { gameId, actionId, version: 1, duplicate: true }),
+    get forfeitApplications() { return forfeitApplications },
     // Synthetic public render workload only; does not test Renju legality or a real game result.
     renderBoard: (count: number) => {
       started = true
@@ -656,12 +754,13 @@ export async function fixture(
       publicProfiles[userId] = profile; world(sockets.at(-1)!)
     },
     chatFrom: (userId: string, text: string) => emit(sockets.at(-1)!, 'WORLD_CHAT_MESSAGE', {
-      channelId: 'fixture-channel', userId, text, messageId: `fixture-chat-${version}`, sentAt: new Date().toISOString(),
+      channelId: 'fixture-channel', userId, text, messageId: `fixture-chat-${++chatCounter}`, sentAt: new Date().toISOString(),
     }),
     emoteResponse: (response: typeof emoteResponse) => { emoteResponse = response },
     completeEmote: () => { if (lastEmote) emit(sockets.at(-1)!, 'WORLD_EMOTE_EVENT', lastEmote, emoteRequestId) },
     lastEmote: () => lastEmote,
     emote: (event: NonNullable<typeof lastEmote>) => emit(sockets.at(-1)!, 'WORLD_EMOTE_EVENT', event),
+    cancelEmote: (event: object) => emit(sockets.at(-1)!, 'WORLD_EMOTE_CANCELLED', event),
 
     players: (count: number) => { options.players = count; world(sockets.at(-1)!) },
     pose: (patch: Partial<typeof position>) => { Object.assign(position, patch); world(sockets.at(-1)!) },

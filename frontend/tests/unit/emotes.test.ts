@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { emoteSector, emoteSlots, parseEmoteBindings } from '../../src/features/emotes/catalog'
-import { EmoteTimeline, parseEmoteEvent } from '../../src/features/emotes/timeline'
+import { EmoteTimeline, parseEmoteEvent, parseEmoteCancellation } from '../../src/features/emotes/timeline'
+import { emoteUnavailable } from '../../src/features/emotes/availability'
 import { useEmoteState } from '../../src/features/emotes/state'
 import { avatars, cancelAvatarEmote, receive, resetWorld, useSession } from '../../src/network/worldClient'
 import { EXPECTED_MAP_VERSION } from '../../src/config/mapVersion'
@@ -103,5 +104,53 @@ describe('emote catalog and server-time playback', () => {
     emit('WORLD_EMOTE_EVENT', event({ eventId: 'late-after-removal', userId: '101', sentAt: new Date().toISOString() }), 'removed')
     expect(avatars.get('101')!.emote).toBe('')
     expect(useEmoteState.getState().readyAt).toBeGreaterThan(Date.now())
+  })
+
+  it.each(['MOVEMENT', 'ACTIVITY_STARTED', 'CHANNEL_LEFT', 'DISCONNECTED'])('cancels the matching server event for %s while retaining cooldown', reason => {
+    const e = event({ eventId: `own-cancel-${reason}`, userId: '101', sentAt: new Date().toISOString() })
+    useEmoteState.setState({ pending: true, requestId: 'mine', requested: 'EMOTE_WAVE' })
+    emit('WORLD_EMOTE_EVENT', e, 'mine')
+    const cooldown = useEmoteState.getState().readyAt
+    const cancellation = { eventId: `cancel-${reason}`, emoteEventId: e.eventId, channelId: 'a', userId: '101', reason, sentAt: e.sentAt }
+    emit('WORLD_EMOTE_CANCELLED', { ...cancellation, emoteEventId: 'different' })
+    emit('WORLD_EMOTE_CANCELLED', { ...cancellation, channelId: 'other' })
+    emit('WORLD_EMOTE_CANCELLED', { ...cancellation, userId: '102' })
+    expect(avatars.get('101')!.emote).toBe('EMOTE_WAVE')
+    emit('WORLD_EMOTE_CANCELLED', cancellation); emit('WORLD_EMOTE_CANCELLED', cancellation)
+    expect(avatars.get('101')!.emote).toBe('')
+    expect(useEmoteState.getState()).toMatchObject({ readyAt: cooldown, cancelled: true })
+  })
+
+  it('ignores cancellation of an old/expired event and accepts a fresh event after cancellation despite network delay', () => {
+    const timeline = new EmoteTimeline(), old = parseEmoteEvent(event({ eventId: 'old' }))
+    const newer = { ...old, eventId: 'new', sentAt: new Date(now - 100).toISOString() }
+    const cancellation = parseEmoteCancellation({ eventId: 'cancel-new', emoteEventId: 'new', channelId: 'a', userId: '102', reason: 'MOVEMENT', sentAt: new Date(now).toISOString() })
+    timeline.accept(old, 'EMOTE_WAVE', now); timeline.accept(newer, 'EMOTE_CLAP', now)
+    expect(timeline.cancelEvent({ ...cancellation, emoteEventId: 'old' }, now)).toBe(false)
+    expect(timeline.cancelEvent(cancellation, now)).toBe(true)
+    expect(timeline.cancelEvent(cancellation, now)).toBe(false)
+    expect(timeline.accept({ ...newer, eventId: 'next', sentAt: new Date(now - 50).toISOString() }, 'EMOTE_WAVE', now)).not.toBeNull()
+    expect(timeline.cancelEvent({ ...cancellation, eventId: 'late', emoteEventId: 'next' }, now + 10_000)).toBe(false)
+    expect(() => parseEmoteCancellation({ ...cancellation, reason: 'UNKNOWN' })).toThrow()
+    expect(() => parseEmoteCancellation({ ...cancellation, sentAt: 'invalid' })).toThrow()
+  })
+
+  it('does not cut off a newer remote animation when the previous cancellation arrives late', () => {
+    const time = Date.now(), first = event({ eventId: 'remote-old', sentAt: new Date(time - 500).toISOString() })
+    emit('WORLD_EMOTE_EVENT', first)
+    emit('WORLD_EMOTE_CANCELLED', { eventId: 'remote-stop', emoteEventId: first.eventId, channelId: 'a', userId: '102', reason: 'MOVEMENT', sentAt: new Date(time - 300).toISOString() })
+    expect(avatars.get('102')!.emote).toBe('')
+    emit('WORLD_EMOTE_EVENT', event({ eventId: 'remote-next', sentAt: new Date(time - 100).toISOString() }))
+    expect(avatars.get('102')!.emote).toBe('EMOTE_WAVE')
+    emit('WORLD_EMOTE_CANCELLED', { eventId: 'remote-late', emoteEventId: first.eventId, channelId: 'a', userId: '102', reason: 'MOVEMENT', sentAt: new Date(time).toISOString() })
+    expect(avatars.get('102')!.emote).toBe('EMOTE_WAVE')
+  })
+
+  it('blocks seated emotes and ignores delayed approvals while seated', () => {
+    avatars.get('101')!.seatIndex = 0; useEmoteState.setState({ readyAt: 0 })
+    expect(emoteUnavailable('EMOTE_WAVE')).toContain('시설')
+    avatars.get('102')!.seatIndex = 0
+    emit('WORLD_EMOTE_EVENT', event({ eventId: 'seated-delayed', sentAt: new Date().toISOString() }))
+    expect(avatars.get('102')!.emote).toBe('')
   })
 })

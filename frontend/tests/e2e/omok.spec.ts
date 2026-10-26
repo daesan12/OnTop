@@ -26,24 +26,26 @@ for (const viewport of [
       await page.locator('canvas').click({ position: { x: 80, y: 300 } })
       await page.keyboard.press('KeyE')
       await page.getByRole('button', { name: '앉기', exact: true }).click()
-      await page.getByRole('button', { name: '오목 선택', exact: true }).click()
+      await page.getByLabel('1인 참가비').fill('1'); await page.getByRole('button', { name: '오목 선택', exact: true }).click()
       expect(
         server.sent.find((m) => m.type === 'GAME_SELECT')?.payload,
       ).toEqual({
         gameCode: 'OMOK',
+        betAmountPerPlayer: 1,
       })
       await page.getByRole('button', { name: '준비', exact: true }).click()
       await expect(
         page.getByText('서버가 참가·시작을 확인하고 있습니다.'),
       ).toBeVisible()
-      expect(server.sent.find((m) => m.type === 'READY_SET')?.payload).toEqual({
-        ready: true,
-      })
+      const ready = server.sent.find((m) => m.type === 'READY_SET')?.payload
+      expect(ready).toEqual({ ready: true, betAmountPerPlayer: 1, expectedVersion: expect.any(Number) })
+      expect(Number.isSafeInteger(ready?.expectedVersion)).toBe(true)
       await expect(
         page.getByRole('group', { name: '오목판', exact: true }),
       ).toHaveCount(0)
       server.confirmStart()
-      const panel = page.getByRole('region', { name: '오목 경기', exact: true })
+      const panel = page.locator('[aria-label="오목 경기"], .gathering-hud[data-phase="finished"]')
+      await panel.getByText('키보드로 오목판 조작', { exact: true }).click()
       const cell = panel.getByRole('button', {
         name: '8행 8열 빈칸',
         exact: true,
@@ -147,17 +149,18 @@ for (const viewport of [
       await expect(panel).toContainText('승리')
       await expect(
         panel.getByRole('button', { name: '8행 10열 빈칸', exact: true }),
-      ).toBeDisabled()
+      ).toHaveCount(0)
       await panel.getByRole('button', { name: '정산 결과 확인' }).click()
       await expect(panel).toContainText('정산 대기 중')
       server.settle()
       await expect(panel).toContainText('정산 완료 · 내 엽전 증감 1')
-      await expect(page.locator('.park-account__balance')).toHaveText('—냥')
+      await expect(page.getByLabel('보유 엽전', { exact: true })).toHaveText('100냥')
       await screenshot(
         page,
         'omok-settlement' + (viewport.width === 1920 ? '' : '-1280'),
       )
       server.nextRound()
+      await page.getByRole('button', { name: '다음 판 준비', exact: true }).click()
       await expect(
         page.getByRole('button', { name: '준비', exact: true }),
       ).toBeEnabled()

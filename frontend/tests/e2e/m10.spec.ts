@@ -8,7 +8,7 @@ test('M10 missing manual surrender is preview-only, cancellable and leaves exist
   await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90_000 })
   await page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).inspectTable())
   await page.getByRole('button', { name: '앉기', exact: true }).click()
-  await page.getByRole('button', { name: '오목 선택', exact: true }).click()
+  await page.getByLabel('1인 참가비').fill('1'); await page.getByRole('button', { name: '오목 선택', exact: true }).click()
   await page.getByRole('button', { name: '준비', exact: true }).click()
   server.confirmStart()
   const panel = page.getByRole('region', { name: '오목 경기', exact: true })

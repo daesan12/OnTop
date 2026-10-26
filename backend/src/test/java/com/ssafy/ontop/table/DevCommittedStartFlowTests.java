@@ -82,7 +82,7 @@ class DevCommittedStartFlowTests {
                 assertThat(client.request("TABLE_JOIN", Map.of("tableId", tableId)).path("type").asText())
                         .isEqualTo("TABLE_STATE");
             }
-            first.request("GAME_SELECT", Map.of("gameCode", "OMOK"));
+            first.request("GAME_SELECT", Map.of("betAmountPerPlayer", 1, "gameCode", "OMOK"));
             first.request("READY_SET", Map.of("ready", true));
             second.request("READY_SET", Map.of("ready", true));
             assertThat(reservation.entered.await(5, TimeUnit.SECONDS)).isTrue();

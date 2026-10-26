@@ -67,6 +67,50 @@ public class WalletTransaction {
         return "signup:" + userId;
     }
 
+    public static WalletTransaction gameReserve(long walletId, long gameSessionId, long userId, Instant now) {
+        return gameReserve(walletId, gameSessionId, userId, 1, now);
+    }
+
+    public static WalletTransaction gameReserve(long walletId, long gameSessionId, long userId, long amount, Instant now) {
+        if (walletId <= 0 || gameSessionId <= 0 || userId <= 0 || amount <= 0) {
+            throw new IllegalArgumentException("저장된 지갑과 경기 및 회원이 필요합니다.");
+        }
+        WalletTransaction transaction = new WalletTransaction();
+        transaction.walletId = walletId;
+        transaction.gameSessionId = gameSessionId;
+        transaction.transactionType = "GAME_RESERVE";
+        transaction.reservedDelta = amount;
+        transaction.idempotencyKey = "game:" + gameSessionId + ":reserve:" + userId;
+        transaction.createdAt = Objects.requireNonNull(now).truncatedTo(ChronoUnit.MILLIS);
+        return transaction;
+    }
+
+    public static WalletTransaction gameClose(long walletId, long gameId, long userId, long amount,
+            long potDelta, boolean release, Instant now) {
+        if (amount <= 0 || release && potDelta != 0) { throw new IllegalArgumentException("정산 내역을 확인하세요."); }
+        return gameEntry(walletId, gameId, userId, release ? "GAME_RELEASE" : "GAME_SETTLEMENT",
+                potDelta, -amount, "close", now);
+    }
+
+    public static WalletTransaction gameTieBonus(long walletId, long gameId, long userId, long bonus, Instant now) {
+        if (bonus <= 0) { throw new IllegalArgumentException("보너스를 확인하세요."); }
+        return gameEntry(walletId, gameId, userId, "GAME_TIE_BONUS", bonus, 0, "bonus", now);
+    }
+
+    private static WalletTransaction gameEntry(long walletId, long gameId, long userId, String type,
+            long balanceDelta, long reservedDelta, String operation, Instant now) {
+        if (walletId <= 0 || gameId <= 0 || userId <= 0) { throw new IllegalArgumentException("경기 원장을 확인하세요."); }
+        WalletTransaction entry = new WalletTransaction();
+        entry.walletId = walletId;
+        entry.gameSessionId = gameId;
+        entry.transactionType = type;
+        entry.balanceDelta = balanceDelta;
+        entry.reservedDelta = reservedDelta;
+        entry.idempotencyKey = "game:" + gameId + ":" + operation + ":" + userId;
+        entry.createdAt = Objects.requireNonNull(now).truncatedTo(ChronoUnit.MILLIS);
+        return entry;
+    }
+
     public static WalletTransaction signupBonus(long walletId, long userId, Instant now) {
         if (walletId <= 0) {
             throw new IllegalArgumentException("저장된 지갑이 필요합니다.");

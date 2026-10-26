@@ -33,6 +33,22 @@ function channel() {
 }
 beforeEach(() => resetWorld())
 describe('server snapshots and visibility', () => {
+  it('keeps 100 approved masked messages and one ten-second bubble without accepting a duplicate or foreign channel', () => {
+    channel()
+    const before = performance.now()
+    for (let i = 0; i < 105; i++) emit('WORLD_CHAT_MESSAGE', {
+      messageId: 'chat-' + i, channelId: 'a', userId: '102', text: '씨.발 ' + i, sentAt: '2026-10-25T00:00:00Z',
+    })
+    emit('WORLD_CHAT_MESSAGE', { messageId: 'chat-104', channelId: 'a', userId: '102', text: 'duplicate', sentAt: '2026-10-25T00:00:00Z' })
+    emit('WORLD_CHAT_MESSAGE', { messageId: 'foreign', channelId: 'b', userId: '102', text: 'foreign', sentAt: '2026-10-25T00:00:00Z' })
+    const state = useSession.getState()
+    expect(state.messages).toHaveLength(100)
+    expect(state.messages[0]?.id).toBe('chat-5')
+    expect(state.messages.at(-1)?.text).toBe('** 104')
+    expect(state.bubbles['102']?.text).toBe('** 104')
+    expect(state.bubbles['102']?.expiresAt).toBeGreaterThanOrEqual(before + 10_000)
+    expect(state.bubbles['102']?.expiresAt).toBeLessThanOrEqual(performance.now() + 10_000)
+  })
   it('applies channel snapshots and ignores lower versions', () => {
     channel()
     emit('CHANNEL_STATE', {

@@ -10,14 +10,17 @@ export const TABLE_GAMES = [
 ] as const
 export type TableGameCode = typeof TABLE_GAMES[number]['code']
 export const TARGET_SCORES = [2000, 4000, 6000] as const
-export function gameSelection(code: TableGameCode, targetScore?: number) {
+export function gameSelection(code: TableGameCode, betAmountPerPlayer: number, targetScore?: number) {
+  if (!Number.isSafeInteger(betAmountPerPlayer) || betAmountPerPlayer <= 0) throw new Error('참가비를 양의 정수로 입력해주세요.')
   if (!TABLE_GAMES.some(g => g.code === code)) throw new Error('지원하는 게임을 선택해주세요.')
+  const maxPlayers = TABLE_GAMES.find(g => g.code === code)!.capacity
+  if (!Number.isSafeInteger(betAmountPerPlayer * maxPlayers)) throw new Error('전체 판돈이 지원 범위를 초과합니다.')
   if (code === 'DICE') {
     if (!TARGET_SCORES.some(score => score === targetScore)) throw new Error('목표 점수를 선택해주세요.')
-    return { gameCode: code, targetScore }
+    return { gameCode: code, targetScore, betAmountPerPlayer }
   }
   if (targetScore !== undefined) throw new Error('이 게임은 목표 점수를 사용하지 않습니다.')
-  return { gameCode: code }
+  return { gameCode: code, betAmountPerPlayer }
 }
 export function lobbyStatus(table: TableState, ownId: string, busy: boolean) {
   const mine = table.seats.find(s => s.userId === ownId)
@@ -25,7 +28,8 @@ export function lobbyStatus(table: TableState, ownId: string, busy: boolean) {
   return {
     mine, count, host: table.selectorUserId === ownId,
     canLeaveByMovement: !!mine && !mine.ready && !busy,
-    canReady: !!mine && !busy && TABLE_GAMES.some(g => g.code === table.gameCode && g.playable),
+    canReady: !!mine && !busy && table.betAmountPerPlayer != null && table.betAmountPerPlayer > 0
+      && TABLE_GAMES.some(g => g.code === table.gameCode && g.playable),
     message: count < table.minimumPlayers
       ? `최소 ${table.minimumPlayers}명 필요 · 현재 ${count}명`
       : table.allReady ? '전원 준비 완료 · 서버 시작 상태 대기' : '참가자 모두 준비하면 서버가 시작을 확인합니다.',

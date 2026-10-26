@@ -311,7 +311,7 @@ function TipBubble() {
     tip.slot === null
       ? { left: window.innerWidth / 2, top: window.innerHeight * 0.3 }
       : {
-          left: slotScreen[tip.slot]!.x,
+          left: `clamp(170px, ${slotScreen[tip.slot]!.x}px, calc(100vw - 170px))`,
           top:
             slotScreen[tip.slot]!.y - slotScreen[tip.slot]!.width * 0.42 - 26,
         };

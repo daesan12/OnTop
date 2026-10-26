@@ -24,6 +24,9 @@ springdoc:
 
 ontop:
   world:
+    map:
+      # FE 맵 확인 요청 연결 후 활성화한다. 현재 충돌 맵 교체와는 별개다.
+      require-match: ${WORLD_MAP_REQUIRE_MATCH:false}
     emote:
       cooldowns:
         WAVE: 5s

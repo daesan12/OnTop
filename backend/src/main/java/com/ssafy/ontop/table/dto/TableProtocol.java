@@ -50,12 +50,28 @@ public final class TableProtocol {
             throw new RequestException(requestId, "UNSUPPORTED_MESSAGE_TYPE", "지원하지 않는 메시지입니다.");
         }
         boolean valid = switch (type) {
+            case "WORLD_MAP_CONFIRM" -> fields(payload, Set.of("mapId", "schemaVersion", "mapVersion"))
+                    && payload.path("mapId").isTextual()
+                    && payload.path("mapId").asText().matches("[A-Za-z0-9_-]{1,80}")
+                    && payload.path("schemaVersion").isIntegralNumber()
+                    && payload.path("schemaVersion").canConvertToInt()
+                    && payload.path("schemaVersion").asInt() > 0
+                    && payload.path("mapVersion").isTextual()
+                    && payload.path("mapVersion").asText().matches("[a-f0-9]{64}");
             case "CHANNEL_JOIN" -> fields(payload, Set.of("channelId")) && payload.get("channelId").isTextual()
                     && !payload.get("channelId").textValue().isBlank();
             case "CHANNEL_LEAVE" -> fields(payload, Set.of());
             case "WORLD_CHAT_SEND" -> fields(payload, Set.of("text")) && validChatText(payload.get("text"));
             case "WORLD_EMOTE_SEND" -> fields(payload, Set.of("emoteCode")) && validEmoteCode(payload.get("emoteCode"));
             case "WORLD_MOVE" -> validMove(payload);
+            case "WORLD_FOLLOW_CHECK" -> fields(payload, Set.of());
+            case "WORLD_FOLLOW_START" -> fields(payload, Set.of("targetId"))
+                    && payload.path("targetId").isTextual()
+                    && payload.path("targetId").asText().matches("[A-Za-z0-9_-]{1,80}");
+            case "WORLD_FOLLOW_STOP" -> fields(payload, Set.of("followId"))
+                    && payload.path("followId").isTextual()
+                    && payload.path("followId").asText().matches(
+                            "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}");
             case "WORLD_FACILITY_CHECK" -> fields(payload, Set.of());
             case "WORLD_FACILITY_CATALOG" -> fields(payload, Set.of())
                     || fields(payload, Set.of("offset")) && payload.path("offset").isIntegralNumber()
@@ -74,7 +90,7 @@ public final class TableProtocol {
                     && payload.path("pitch").isNumber() && Double.isFinite(payload.path("pitch").asDouble());
             case "TABLE_JOIN", "TABLE_WATCH" -> fields(payload, Set.of("tableId")) && payload.get("tableId").isTextual()
                     && !payload.get("tableId").textValue().isBlank();
-            case "READY_SET" -> fields(payload, Set.of("ready")) && payload.get("ready").isBoolean();
+            case "READY_SET" -> validReady(payload);
             case "GAME_SELECT" -> validGameSelection(payload);
             case "TABLE_LEAVE", "TABLE_UNWATCH" -> fields(payload, Set.of());
             case "GAME_START_CHECK" -> fields(payload, Set.of());
@@ -133,10 +149,26 @@ public final class TableProtocol {
         }
     }
 
+    private boolean validReady(JsonNode payload) {
+        if (!payload.path("ready").isBoolean()) { return false; }
+        if (!payload.path("ready").booleanValue()) { return fields(payload, Set.of("ready")); }
+        return fields(payload, Set.of("ready", "betAmountPerPlayer", "expectedVersion"))
+                && payload.path("betAmountPerPlayer").isIntegralNumber()
+                && payload.path("betAmountPerPlayer").canConvertToLong()
+                && payload.path("betAmountPerPlayer").longValue() > 0
+                && payload.path("expectedVersion").isIntegralNumber()
+                && payload.path("expectedVersion").canConvertToLong()
+                && payload.path("expectedVersion").longValue() >= 0
+                && payload.path("expectedVersion").longValue() <= 9_007_199_254_740_991L;
+    }
+
     private boolean validGameSelection(JsonNode payload) {
+        if (!payload.path("betAmountPerPlayer").isIntegralNumber()
+                || !payload.path("betAmountPerPlayer").canConvertToLong()
+                || payload.path("betAmountPerPlayer").longValue() <= 0) { return false; }
         if (!payload.path("gameCode").isTextual() || payload.path("gameCode").textValue().isBlank()) { return false; }
-        if (!payload.has("targetScore")) { return fields(payload, Set.of("gameCode")); }
-        return fields(payload, Set.of("gameCode", "targetScore")) && payload.path("gameCode").asText().equals("DICE")
+        if (!payload.has("targetScore")) { return fields(payload, Set.of("gameCode", "betAmountPerPlayer")); }
+        return fields(payload, Set.of("gameCode", "targetScore", "betAmountPerPlayer")) && payload.path("gameCode").asText().equals("DICE")
                 && payload.path("targetScore").isIntegralNumber() && payload.path("targetScore").canConvertToInt()
                 && Set.of(2000, 4000, 6000).contains(payload.path("targetScore").intValue());
     }

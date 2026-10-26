@@ -1,3 +1,4 @@
+import { gatheringCameraActive } from '../features/tableLobby/gathering'
 import { useLayoutEffect, useMemo, useRef } from 'react'
 import { useFrame, useLoader } from '@react-three/fiber'
 import { Group, Vector3 } from 'three'
@@ -13,6 +14,7 @@ import { bungeoppangView } from '../features/bungeoppang/bungeoppangView'
 import { emptyEquipment } from '../network/equipment'
 import { roamingFirstPerson } from './roamingCamera'
 import { useGame } from '../game/store'
+import { openAvatarMenu } from '../features/follow/FollowMenu'
 
 import {
   AvatarOverlayPositions,
@@ -66,7 +68,7 @@ function Avatar({
     // Hide only this client's own model; other clients retain the full avatar.
     const cookingHidden = (own && (bungeoppangView.active || performance.now() < bungeoppangView.returningUntil))
       || (bungeoppangView.active && Math.hypot(pose.x - bungeoppangView.standX, pose.z - bungeoppangView.standZ) < bungeoppangView.hideOthersRadius)
-    root.current.visible = !cookingHidden && !(own && (((avatar.tableId || avatar.benchId) && seated || avatar.telescopeId)
+    root.current.visible = !cookingHidden && !(own && (((avatar.tableId && seated && !gatheringCameraActive() || avatar.benchId && seated) || avatar.telescopeId)
       || roamingFirstPerson(avatar, !!useGame.getState().watchedGameId)))
     root.current.position.set(
       pose.x,
@@ -98,6 +100,11 @@ function Avatar({
       ref={root}
       name={`avatar-${id}`}
       dispose={null}
+      onContextMenu={event => {
+        if (id === useSession.getState().sessionId) return
+        event.stopPropagation(); event.nativeEvent.preventDefault()
+        openAvatarMenu({ id, x: event.clientX, y: event.clientY })
+      }}
       // Approved public appearance reaches the renderer. No guessed asset or material
       // substitution: product-specific models/textures have not been supplied yet.
       userData={{ character: variant, equipment, equipmentAssetsPending: equipment.length > 0 }}
