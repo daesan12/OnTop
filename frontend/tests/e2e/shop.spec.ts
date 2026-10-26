@@ -16,7 +16,7 @@ async function choose(page: Page, name = '검증 상의 가') {
   await expect(dialog(page).getByRole('region', { name: '구매 내용 확인' })).toBeVisible()
 }
 for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
-  test(`shop is under construction and cannot be opened at ${viewport.width}px`, async ({ page }) => {
+  test(`shop has no HUD entry and the dock 옷장 is enabled at ${viewport.width}px`, async ({ page }) => {
     await page.setViewportSize(viewport)
     const errors: string[] = []
     page.on('pageerror', error => errors.push(error.message))
@@ -25,11 +25,10 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
     await page.goto('/park')
     await expect(page).toHaveTitle('OnTop')
     await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90000 })
-    const button = page.getByRole('button', { name: '상점 · 옷장 (공사중)', exact: true })
+    // The dock 옷장 now opens the wardrobe (wardrobe.spec.ts); the shop still has no entry point.
+    const button = page.getByRole('button', { name: '옷장', exact: true })
     await expect(button).toBeVisible()
-    await expect(button).toBeDisabled()
-    const box = await button.boundingBox()
-    await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2)
+    await expect(button).toBeEnabled()
     await expect(dialog(page)).toBeHidden()
     await expect(page.getByRole('button', { name: '내 메뉴', exact: true })).toBeEnabled()
     await page.keyboard.press('F1')
