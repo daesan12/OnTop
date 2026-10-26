@@ -143,7 +143,7 @@ paths:
         schema:
           maxLength: 64
           minLength: 1
-          pattern: "[A-Za-z0-9_-]{1,64}"
+          pattern: "^[A-Za-z0-9_-]{1,64}$"
           type: string
       requestBody:
         content:
@@ -187,7 +187,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ShopErrorResponse"
         "401":
           description: 기존 REST 인증/인가/설정 오류
           headers:
@@ -198,7 +198,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AuthErrorResponse"
+                anyOf:
+                - $ref: "#/components/schemas/AuthErrorResponse"
+                - $ref: "#/components/schemas/ShopErrorResponse"
         "403":
           description: 기존 REST 인증/인가/설정 오류
           headers:
@@ -209,7 +211,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AuthErrorResponse"
+                anyOf:
+                - $ref: "#/components/schemas/AuthErrorResponse"
+                - $ref: "#/components/schemas/ShopErrorResponse"
         "404":
           description: ITEM_NOT_FOUND 또는 OWNED_ITEM_NOT_FOUND
           headers:
@@ -220,7 +224,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ShopErrorResponse"
         "409":
           description: WALLET_NOT_READY / ITEM_ALREADY_OWNED / IDEMPOTENCY_CONFLICT
             / INSUFFICIENT_BALANCE / ITEM_NOT_EQUIPPABLE
@@ -232,7 +236,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ShopErrorResponse"
         "500":
           description: 기존 REST 인증/인가/설정 오류
           headers:
@@ -256,7 +260,7 @@ paths:
               schema:
                 anyOf:
                 - $ref: "#/components/schemas/AuthErrorResponse"
-                - $ref: "#/components/schemas/ErrorResponse"
+                - $ref: "#/components/schemas/ShopErrorResponse"
       security:
       - AccessJwt: []
   /api/v1/notes:
@@ -269,10 +273,23 @@ paths:
       parameters:
       - name: channelId
         in: query
+        description: "공백이 아닌 현재 채널 ID, 최대 64 UTF-16 단위"
         required: true
         schema:
           type: string
+          x-utf16-max-length: 64
       responses:
+        "200":
+          description: 최신 메모 목록. 없으면 notes 빈 배열
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NoteListResponse"
         "409":
           description: NOT_IN_CHANNEL / NOTES_ACTIVITY_CONFLICT
           headers:
@@ -281,7 +298,7 @@ paths:
               schema:
                 type: string
           content:
-            '*/*':
+            application/json:
               schema:
                 $ref: "#/components/schemas/NotesErrorResponse"
         "429":
@@ -292,7 +309,7 @@ paths:
               schema:
                 type: string
           content:
-            '*/*':
+            application/json:
               schema:
                 $ref: "#/components/schemas/NotesErrorResponse"
         "400":
@@ -303,7 +320,7 @@ paths:
               schema:
                 type: string
           content:
-            '*/*':
+            application/json:
               schema:
                 $ref: "#/components/schemas/NotesErrorResponse"
         "401":
@@ -314,9 +331,11 @@ paths:
               schema:
                 type: string
           content:
-            '*/*':
+            application/json:
               schema:
-                $ref: "#/components/schemas/NotesErrorResponse"
+                anyOf:
+                - $ref: "#/components/schemas/AuthErrorResponse"
+                - $ref: "#/components/schemas/NotesErrorResponse"
         "403":
           description: NOTES_OUT_OF_RANGE
           headers:
@@ -325,9 +344,11 @@ paths:
               schema:
                 type: string
           content:
-            '*/*':
+            application/json:
               schema:
-                $ref: "#/components/schemas/NotesErrorResponse"
+                anyOf:
+                - $ref: "#/components/schemas/AuthErrorResponse"
+                - $ref: "#/components/schemas/NotesErrorResponse"
         "503":
           description: NOTES_NOT_CONFIGURED / NOTES_UNAVAILABLE
           headers:
@@ -336,9 +357,22 @@ paths:
               schema:
                 type: string
           content:
-            '*/*':
+            application/json:
               schema:
-                $ref: "#/components/schemas/NotesErrorResponse"
+                anyOf:
+                - $ref: "#/components/schemas/AuthErrorResponse"
+                - $ref: "#/components/schemas/NotesErrorResponse"
+        "500":
+          description: AUTH_TOKEN_CONFIGURATION_ERROR
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
       security:
       - AccessJwt: []
     post:
@@ -351,11 +385,28 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/NoteSubmissionRequest"
-            example:
-              operationId: 1761436800000_0123456789abcdef
-              channelId: channel-1
-              text: 공원을 개선해주세요
+              required:
+              - operationId
+              - channelId
+              - text
+              type: object
+              properties:
+                operationId:
+                  pattern: "^[0-9]{13}_[A-Za-z0-9_-]{16,64}$"
+                  type: string
+                channelId:
+                  minLength: 1
+                  type: string
+                  description: "Java isBlank=false, 최대 64 UTF-16 단위. 서버의 현재 채널·위치·\
+                    활동도 검사합니다."
+                  x-utf16-max-length: 64
+                text:
+                  type: string
+                  description: 원문 UTF-16 300단위 이하. NFC → 제어/Cf 문자 제거 → JS trim 후 1~300
+                    UTF-16 단위. 코드포인트 길이인 minLength와 다릅니다.
+                  x-utf16-max-length: 300
+                  x-normalized-utf16-min-length: 1
+              additionalProperties: false
         required: true
       responses:
         "201":
@@ -366,7 +417,7 @@ paths:
               schema:
                 type: string
           content:
-            '*/*':
+            application/json:
               schema:
                 $ref: "#/components/schemas/NoteReceiptResponse"
         "409":
@@ -377,7 +428,7 @@ paths:
               schema:
                 type: string
           content:
-            '*/*':
+            application/json:
               schema:
                 $ref: "#/components/schemas/NotesErrorResponse"
         "429":
@@ -389,7 +440,7 @@ paths:
               schema:
                 type: string
           content:
-            '*/*':
+            application/json:
               schema:
                 $ref: "#/components/schemas/NotesErrorResponse"
         "410":
@@ -400,7 +451,7 @@ paths:
               schema:
                 type: string
           content:
-            '*/*':
+            application/json:
               schema:
                 $ref: "#/components/schemas/NotesErrorResponse"
         "400":
@@ -411,7 +462,7 @@ paths:
               schema:
                 type: string
           content:
-            '*/*':
+            application/json:
               schema:
                 $ref: "#/components/schemas/NotesErrorResponse"
         "401":
@@ -422,9 +473,11 @@ paths:
               schema:
                 type: string
           content:
-            '*/*':
+            application/json:
               schema:
-                $ref: "#/components/schemas/NotesErrorResponse"
+                anyOf:
+                - $ref: "#/components/schemas/AuthErrorResponse"
+                - $ref: "#/components/schemas/NotesErrorResponse"
         "403":
           description: NOTES_OUT_OF_RANGE
           headers:
@@ -433,9 +486,11 @@ paths:
               schema:
                 type: string
           content:
-            '*/*':
+            application/json:
               schema:
-                $ref: "#/components/schemas/NotesErrorResponse"
+                anyOf:
+                - $ref: "#/components/schemas/AuthErrorResponse"
+                - $ref: "#/components/schemas/NotesErrorResponse"
         "503":
           description: NOTES_NOT_CONFIGURED / NOTES_UNAVAILABLE
           headers:
@@ -444,9 +499,22 @@ paths:
               schema:
                 type: string
           content:
-            '*/*':
+            application/json:
               schema:
-                $ref: "#/components/schemas/NotesErrorResponse"
+                anyOf:
+                - $ref: "#/components/schemas/AuthErrorResponse"
+                - $ref: "#/components/schemas/NotesErrorResponse"
+        "500":
+          description: AUTH_TOKEN_CONFIGURATION_ERROR
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
       security:
       - AccessJwt: []
   /api/v1/minigames/sessions:
@@ -457,7 +525,8 @@ paths:
       description: "한국 날짜 기준 오늘 보상·첫 판·확인한 안내를 조회합니다. local,db + ontop.minigames.enabled=true\
         \ 또는 dev,db에서 사용합니다. dev는 기본 활성화하며 공통 스키마에 V110/V111을 추가합니다. prod/production에\
         서는 비활성화합니다. v2 입력 기록을 서버가 재생합니다. 60초, 15점당 1냥, KST 하루 100냥. 탭 이동 중에도 시간은 흐\
-        르며 랭킹은 제외합니다. score·rewardAmount·userId를 본문에 넣지 않습니다."
+        르며 랭킹은 제외합니다. score·rewardAmount·userId를 본문에 넣지 않습니다. 상태 GET도 지갑 잠금과 만료 세션\
+        \ INVALID 갱신을 수행할 수 있습니다. 읽기 전용 트랜잭션이 아닙니다."
       operationId: status
       responses:
         "400":
@@ -470,7 +539,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/MinigameErrorResponse"
         "401":
           description: 인증된 활성 회원 필요
           headers:
@@ -481,7 +550,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AuthErrorResponse"
+                anyOf:
+                - $ref: "#/components/schemas/AuthErrorResponse"
+                - $ref: "#/components/schemas/MinigameErrorResponse"
         "503":
           description: MINIGAME_NOT_CONFIGURED / MINIGAME_UNAVAILABLE 또는 인증 DB 장애
           headers:
@@ -492,7 +563,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                anyOf:
+                - $ref: "#/components/schemas/AuthErrorResponse"
+                - $ref: "#/components/schemas/MinigameErrorResponse"
         "200":
           description: 오늘 보상과 안내 상태
           headers:
@@ -504,6 +577,30 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/BungeoppangStatusResponse"
+        "403":
+          description: Origin 또는 ROLE_MEMBER 접근 거절
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                anyOf:
+                - $ref: "#/components/schemas/AuthErrorResponse"
+                - $ref: "#/components/schemas/MinigameErrorResponse"
+        "500":
+          description: AUTH_TOKEN_CONFIGURATION_ERROR
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
       security:
       - AccessJwt: []
     post:
@@ -513,7 +610,8 @@ paths:
       description: "같은 회원·Idempotency-Key는 최초 세션 생성 응답을 반환합니다. local,db + ontop.minigames.enabled=true\
         \ 또는 dev,db에서 사용합니다. dev는 기본 활성화하며 공통 스키마에 V110/V111을 추가합니다. prod/production에\
         서는 비활성화합니다. v2 입력 기록을 서버가 재생합니다. 60초, 15점당 1냥, KST 하루 100냥. 탭 이동 중에도 시간은 흐\
-        르며 랭킹은 제외합니다. score·rewardAmount·userId를 본문에 넣지 않습니다."
+        르며 랭킹은 제외합니다. score·rewardAmount·userId를 본문에 넣지 않습니다. 상태 GET도 지갑 잠금과 만료 세션\
+        \ INVALID 갱신을 수행할 수 있습니다. 읽기 전용 트랜잭션이 아닙니다."
       operationId: start
       parameters:
       - name: Idempotency-Key
@@ -522,7 +620,7 @@ paths:
         schema:
           maxLength: 64
           minLength: 1
-          pattern: "[A-Za-z0-9_-]{1,64}"
+          pattern: "^[A-Za-z0-9_-]{1,64}$"
           type: string
       requestBody:
         content:
@@ -558,9 +656,9 @@ paths:
               schema:
                 type: string
           content:
-            '*/*':
+            application/json:
               schema:
-                type: object
+                $ref: "#/components/schemas/MinigameErrorResponse"
         "400":
           description: INVALID_REQUEST / UNSUPPORTED_MINIGAME
           headers:
@@ -571,7 +669,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/MinigameErrorResponse"
         "401":
           description: 인증된 활성 회원 필요
           headers:
@@ -582,7 +680,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AuthErrorResponse"
+                anyOf:
+                - $ref: "#/components/schemas/AuthErrorResponse"
+                - $ref: "#/components/schemas/MinigameErrorResponse"
         "503":
           description: MINIGAME_NOT_CONFIGURED / MINIGAME_UNAVAILABLE 또는 인증 DB 장애
           headers:
@@ -593,7 +693,33 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                anyOf:
+                - $ref: "#/components/schemas/AuthErrorResponse"
+                - $ref: "#/components/schemas/MinigameErrorResponse"
+        "403":
+          description: Origin 또는 ROLE_MEMBER 접근 거절
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                anyOf:
+                - $ref: "#/components/schemas/AuthErrorResponse"
+                - $ref: "#/components/schemas/MinigameErrorResponse"
+        "500":
+          description: AUTH_TOKEN_CONFIGURATION_ERROR
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
       security:
       - AccessJwt: []
   /api/v1/minigames/sessions/{sessionId}/complete:
@@ -604,13 +730,16 @@ paths:
       description: "서버 검증 결과만 사용하며 중복 지급하지 않습니다. local,db + ontop.minigames.enabled=true\
         \ 또는 dev,db에서 사용합니다. dev는 기본 활성화하며 공통 스키마에 V110/V111을 추가합니다. prod/production에\
         서는 비활성화합니다. v2 입력 기록을 서버가 재생합니다. 60초, 15점당 1냥, KST 하루 100냥. 탭 이동 중에도 시간은 흐\
-        르며 랭킹은 제외합니다. score·rewardAmount·userId를 본문에 넣지 않습니다."
+        르며 랭킹은 제외합니다. score·rewardAmount·userId를 본문에 넣지 않습니다. 상태 GET도 지갑 잠금과 만료 세션\
+        \ INVALID 갱신을 수행할 수 있습니다. 읽기 전용 트랜잭션이 아닙니다."
       operationId: complete
       parameters:
       - name: sessionId
         in: path
+        description: 본인 세션의 양의 BIGINT ID (최대 9223372036854775807)
         required: true
         schema:
+          pattern: "^[1-9][0-9]{0,18}$"
           type: string
       requestBody:
         content:
@@ -651,9 +780,11 @@ paths:
                 seenTips:
                   maxItems: 5
                   type: array
-                  items:
-                    type: string
+                  description: 선택 배열. 문자열 START/POUR/GOLD/BURNT/RUSH만 기억하고 그 외 값은
+                    무시합니다.
+                  items: {}
                 clientScore:
+                  maximum: 2147483647
                   minimum: 0
                   type: integer
                   format: int32
@@ -679,9 +810,9 @@ paths:
               schema:
                 type: string
           content:
-            '*/*':
+            application/json:
               schema:
-                type: object
+                $ref: "#/components/schemas/MinigameErrorResponse"
         "409":
           description: RULES_VERSION_MISMATCH / 종료 상태 충돌
           headers:
@@ -690,9 +821,9 @@ paths:
               schema:
                 type: string
           content:
-            '*/*':
+            application/json:
               schema:
-                type: object
+                $ref: "#/components/schemas/MinigameErrorResponse"
         "422":
           description: LOG_INVALID / TOO_EARLY
           headers:
@@ -701,9 +832,9 @@ paths:
               schema:
                 type: string
           content:
-            '*/*':
+            application/json:
               schema:
-                type: object
+                $ref: "#/components/schemas/MinigameErrorResponse"
         "400":
           description: INVALID_REQUEST / UNSUPPORTED_MINIGAME
           headers:
@@ -714,7 +845,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/MinigameErrorResponse"
         "401":
           description: 인증된 활성 회원 필요
           headers:
@@ -725,7 +856,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AuthErrorResponse"
+                anyOf:
+                - $ref: "#/components/schemas/AuthErrorResponse"
+                - $ref: "#/components/schemas/MinigameErrorResponse"
         "503":
           description: MINIGAME_NOT_CONFIGURED / MINIGAME_UNAVAILABLE 또는 인증 DB 장애
           headers:
@@ -736,7 +869,33 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                anyOf:
+                - $ref: "#/components/schemas/AuthErrorResponse"
+                - $ref: "#/components/schemas/MinigameErrorResponse"
+        "403":
+          description: Origin 또는 ROLE_MEMBER 접근 거절
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                anyOf:
+                - $ref: "#/components/schemas/AuthErrorResponse"
+                - $ref: "#/components/schemas/MinigameErrorResponse"
+        "500":
+          description: AUTH_TOKEN_CONFIGURATION_ERROR
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
       security:
       - AccessJwt: []
   /api/v1/minigames/sessions/{sessionId}/abandon:
@@ -747,13 +906,16 @@ paths:
       description: "지급 없이 포기하며 같은 포기 요청은 기존 결과를 반환합니다. local,db + ontop.minigames.enabled=true\
         \ 또는 dev,db에서 사용합니다. dev는 기본 활성화하며 공통 스키마에 V110/V111을 추가합니다. prod/production에\
         서는 비활성화합니다. v2 입력 기록을 서버가 재생합니다. 60초, 15점당 1냥, KST 하루 100냥. 탭 이동 중에도 시간은 흐\
-        르며 랭킹은 제외합니다. score·rewardAmount·userId를 본문에 넣지 않습니다."
+        르며 랭킹은 제외합니다. score·rewardAmount·userId를 본문에 넣지 않습니다. 상태 GET도 지갑 잠금과 만료 세션\
+        \ INVALID 갱신을 수행할 수 있습니다. 읽기 전용 트랜잭션이 아닙니다."
       operationId: abandon
       parameters:
       - name: sessionId
         in: path
+        description: 본인 세션의 양의 BIGINT ID (최대 9223372036854775807)
         required: true
         schema:
+          pattern: "^[1-9][0-9]{0,18}$"
           type: string
       requestBody:
         content:
@@ -782,9 +944,9 @@ paths:
               schema:
                 type: string
           content:
-            '*/*':
+            application/json:
               schema:
-                type: object
+                $ref: "#/components/schemas/MinigameErrorResponse"
         "409":
           description: MINIGAME_ALREADY_COMPLETED / 종료 상태 충돌
           headers:
@@ -793,9 +955,9 @@ paths:
               schema:
                 type: string
           content:
-            '*/*':
+            application/json:
               schema:
-                type: object
+                $ref: "#/components/schemas/MinigameErrorResponse"
         "400":
           description: INVALID_REQUEST / UNSUPPORTED_MINIGAME
           headers:
@@ -806,7 +968,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/MinigameErrorResponse"
         "401":
           description: 인증된 활성 회원 필요
           headers:
@@ -817,7 +979,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AuthErrorResponse"
+                anyOf:
+                - $ref: "#/components/schemas/AuthErrorResponse"
+                - $ref: "#/components/schemas/MinigameErrorResponse"
         "503":
           description: MINIGAME_NOT_CONFIGURED / MINIGAME_UNAVAILABLE 또는 인증 DB 장애
           headers:
@@ -828,7 +992,33 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                anyOf:
+                - $ref: "#/components/schemas/AuthErrorResponse"
+                - $ref: "#/components/schemas/MinigameErrorResponse"
+        "403":
+          description: Origin 또는 ROLE_MEMBER 접근 거절
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                anyOf:
+                - $ref: "#/components/schemas/AuthErrorResponse"
+                - $ref: "#/components/schemas/MinigameErrorResponse"
+        "500":
+          description: AUTH_TOKEN_CONFIGURATION_ERROR
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
       security:
       - AccessJwt: []
   /api/v1/feedback:
@@ -842,11 +1032,28 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/SubmissionRequest"
-            example:
-              operationId: feedback-1
-              channelId: channel-1
-              text: 공원을 개선해주세요
+              required:
+              - operationId
+              - channelId
+              - text
+              type: object
+              properties:
+                operationId:
+                  pattern: "^[A-Za-z0-9_-]{1,64}$"
+                  type: string
+                channelId:
+                  minLength: 1
+                  type: string
+                  description: "Java isBlank=false, 최대 64 UTF-16 단위. 서버의 현재 채널·위치·\
+                    활동도 검사합니다."
+                  x-utf16-max-length: 64
+                text:
+                  type: string
+                  description: 원문 UTF-16 600단위 이하. NFC → 제어/Cf 문자 제거 → JS trim 후 5~600
+                    UTF-16 단위. 코드포인트 길이인 minLength와 다릅니다.
+                  x-utf16-max-length: 600
+                  x-normalized-utf16-min-length: 5
+              additionalProperties: false
         required: true
       responses:
         "201":
@@ -857,7 +1064,7 @@ paths:
               schema:
                 type: string
           content:
-            '*/*':
+            application/json:
               schema:
                 $ref: "#/components/schemas/FeedbackReceiptResponse"
         "409":
@@ -868,9 +1075,9 @@ paths:
               schema:
                 type: string
           content:
-            '*/*':
+            application/json:
               schema:
-                $ref: "#/components/schemas/FeedbackReceiptResponse"
+                $ref: "#/components/schemas/FeedbackErrorResponse"
         "429":
           description: "FEEDBACK_COOLDOWN, nextAllowedAt 포함"
           headers:
@@ -879,9 +1086,9 @@ paths:
               schema:
                 type: string
           content:
-            '*/*':
+            application/json:
               schema:
-                $ref: "#/components/schemas/FeedbackReceiptResponse"
+                $ref: "#/components/schemas/FeedbackErrorResponse"
         "400":
           description: INVALID_REQUEST / FEEDBACK_TEXT_INVALID
           headers:
@@ -890,9 +1097,9 @@ paths:
               schema:
                 type: string
           content:
-            '*/*':
+            application/json:
               schema:
-                $ref: "#/components/schemas/FeedbackReceiptResponse"
+                $ref: "#/components/schemas/FeedbackErrorResponse"
         "401":
           description: 활성 회원 인증 필요
           headers:
@@ -901,9 +1108,11 @@ paths:
               schema:
                 type: string
           content:
-            '*/*':
+            application/json:
               schema:
-                $ref: "#/components/schemas/FeedbackReceiptResponse"
+                anyOf:
+                - $ref: "#/components/schemas/AuthErrorResponse"
+                - $ref: "#/components/schemas/FeedbackErrorResponse"
         "403":
           description: FEEDBACK_OUT_OF_RANGE / FEEDBACK_ADMIN_REQUIRED
           headers:
@@ -912,9 +1121,11 @@ paths:
               schema:
                 type: string
           content:
-            '*/*':
+            application/json:
               schema:
-                $ref: "#/components/schemas/FeedbackReceiptResponse"
+                anyOf:
+                - $ref: "#/components/schemas/AuthErrorResponse"
+                - $ref: "#/components/schemas/FeedbackErrorResponse"
         "503":
           description: FEEDBACK_NOT_CONFIGURED / FEEDBACK_UNAVAILABLE
           headers:
@@ -923,9 +1134,22 @@ paths:
               schema:
                 type: string
           content:
-            '*/*':
+            application/json:
               schema:
-                $ref: "#/components/schemas/FeedbackReceiptResponse"
+                anyOf:
+                - $ref: "#/components/schemas/AuthErrorResponse"
+                - $ref: "#/components/schemas/FeedbackErrorResponse"
+        "500":
+          description: AUTH_TOKEN_CONFIGURATION_ERROR
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
       security:
       - AccessJwt: []
   /api/v1/auth/websocket-ticket:
@@ -1218,7 +1442,7 @@ paths:
                 exchangeCode:
                   maxLength: 43
                   minLength: 43
-                  pattern: "[A-Za-z0-9_-]{43}"
+                  pattern: "^[A-Za-z0-9_-]{43}$"
                   type: string
               additionalProperties: false
         required: true
@@ -1369,8 +1593,9 @@ paths:
       - User
       summary: 회원 탈퇴
       description: "회원 행을 잠그고 deleted_at 기록 및 모든 Refresh 계열 폐기를 한 DB 트랜잭션에서 수행합니다\
-        . 커밋 후 모든 WebSocket을 4403으로 종료합니다. 회원/관련 기록의 영구 삭제, 즉시 기권/정산은 수행하지 않습니다. 기\
-        존 OAuth는 7일 이내 복구하며 7일 초과 재가입은 보류합니다. 이미 탈퇴한 회원의 JWT는 401입니다."
+        . 커밋 후 모든 WebSocket을 4403으로 종료합니다. 게임 연결부가 등록돼 있으면 MEMBER_DEACTIVATED로 즉시\
+        \ 이탈을 요청하며, 경기 전체 종료·지갑 정산 완료와는 구분합니다. 회원/관련 기록을 영구 삭제하지 않습니다. 기존 OAuth는 7일\
+        \ 이내 복구하며 7일 초과 재가입은 보류합니다. 이미 탈퇴한 회원의 JWT는 401입니다."
       operationId: withdraw
       responses:
         "204":
@@ -1568,7 +1793,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ShopErrorResponse"
         "401":
           description: 기존 REST 인증/인가/설정 오류
           headers:
@@ -1579,7 +1804,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AuthErrorResponse"
+                anyOf:
+                - $ref: "#/components/schemas/AuthErrorResponse"
+                - $ref: "#/components/schemas/ShopErrorResponse"
         "403":
           description: 기존 REST 인증/인가/설정 오류
           headers:
@@ -1590,7 +1817,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AuthErrorResponse"
+                anyOf:
+                - $ref: "#/components/schemas/AuthErrorResponse"
+                - $ref: "#/components/schemas/ShopErrorResponse"
         "404":
           description: ITEM_NOT_FOUND 또는 OWNED_ITEM_NOT_FOUND
           headers:
@@ -1601,7 +1830,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ShopErrorResponse"
         "409":
           description: WALLET_NOT_READY / ITEM_ALREADY_OWNED / IDEMPOTENCY_CONFLICT
             / INSUFFICIENT_BALANCE / ITEM_NOT_EQUIPPABLE
@@ -1613,7 +1842,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ShopErrorResponse"
         "500":
           description: 기존 REST 인증/인가/설정 오류
           headers:
@@ -1637,7 +1866,7 @@ paths:
               schema:
                 anyOf:
                 - $ref: "#/components/schemas/AuthErrorResponse"
-                - $ref: "#/components/schemas/ErrorResponse"
+                - $ref: "#/components/schemas/ShopErrorResponse"
       security:
       - AccessJwt: []
   /api/v1/wallets/me:
@@ -1842,7 +2071,7 @@ paths:
         schema:
           maxLength: 8
           minLength: 2
-          pattern: "[가-힣A-Za-z0-9]{2,8}"
+          pattern: "^[가-힣A-Za-z0-9]{2,8}$"
           type: string
           example: 온탑고수
       responses:
@@ -1948,7 +2177,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AuthErrorResponse"
+                anyOf:
+                - $ref: "#/components/schemas/AuthErrorResponse"
+                - $ref: "#/components/schemas/ShopErrorResponse"
         "403":
           description: 기존 REST 인증/인가/설정 오류
           headers:
@@ -1959,7 +2190,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AuthErrorResponse"
+                anyOf:
+                - $ref: "#/components/schemas/AuthErrorResponse"
+                - $ref: "#/components/schemas/ShopErrorResponse"
         "500":
           description: 기존 REST 인증/인가/설정 오류
           headers:
@@ -1983,7 +2216,7 @@ paths:
               schema:
                 anyOf:
                 - $ref: "#/components/schemas/AuthErrorResponse"
-                - $ref: "#/components/schemas/ErrorResponse"
+                - $ref: "#/components/schemas/ShopErrorResponse"
       security:
       - AccessJwt: []
   /api/v1/tables:
@@ -2113,6 +2346,26 @@ paths:
                       type: string
                     details:
                       nullable: true
+        "500":
+          description: AUTH_TOKEN_CONFIGURATION_ERROR
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                anyOf:
+                - $ref: "#/components/schemas/AuthErrorResponse"
+                - type: object
+                  properties:
+                    code:
+                      type: string
+                    message:
+                      type: string
+                    details:
+                      nullable: true
       security:
       - AccessJwt: []
   /api/v1/shop/items:
@@ -2147,7 +2400,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AuthErrorResponse"
+                anyOf:
+                - $ref: "#/components/schemas/AuthErrorResponse"
+                - $ref: "#/components/schemas/ShopErrorResponse"
         "403":
           description: 기존 REST 인증/인가/설정 오류
           headers:
@@ -2158,7 +2413,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AuthErrorResponse"
+                anyOf:
+                - $ref: "#/components/schemas/AuthErrorResponse"
+                - $ref: "#/components/schemas/ShopErrorResponse"
         "500":
           description: 기존 REST 인증/인가/설정 오류
           headers:
@@ -2182,7 +2439,7 @@ paths:
               schema:
                 anyOf:
                 - $ref: "#/components/schemas/AuthErrorResponse"
-                - $ref: "#/components/schemas/ErrorResponse"
+                - $ref: "#/components/schemas/ShopErrorResponse"
       security:
       - AccessJwt: []
   /api/v1/rankings:
@@ -2213,7 +2470,7 @@ paths:
               schema:
                 type: string
           content:
-            '*/*':
+            application/json:
               schema:
                 $ref: "#/components/schemas/RankingResponse"
         "400":
@@ -2224,7 +2481,7 @@ paths:
               schema:
                 type: string
           content:
-            '*/*':
+            application/json:
               schema:
                 $ref: "#/components/schemas/AuthErrorResponse"
         "401":
@@ -2235,7 +2492,7 @@ paths:
               schema:
                 type: string
           content:
-            '*/*':
+            application/json:
               schema:
                 $ref: "#/components/schemas/AuthErrorResponse"
         "403":
@@ -2246,7 +2503,7 @@ paths:
               schema:
                 type: string
           content:
-            '*/*':
+            application/json:
               schema:
                 $ref: "#/components/schemas/AuthErrorResponse"
         "503":
@@ -2257,7 +2514,18 @@ paths:
               schema:
                 type: string
           content:
-            '*/*':
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "500":
+          description: AUTH_TOKEN_CONFIGURATION_ERROR
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
               schema:
                 $ref: "#/components/schemas/AuthErrorResponse"
       security:
@@ -2270,13 +2538,16 @@ paths:
       description: "local,db + ontop.minigames.enabled=true 또는 dev,db에서 사용합니다. dev는\
         \ 기본 활성화하며 공통 스키마에 V110/V111을 추가합니다. prod/production에서는 비활성화합니다. v2 입력 기록을\
         \ 서버가 재생합니다. 60초, 15점당 1냥, KST 하루 100냥. 탭 이동 중에도 시간은 흐르며 랭킹은 제외합니다. score·\
-        rewardAmount·userId를 본문에 넣지 않습니다."
+        rewardAmount·userId를 본문에 넣지 않습니다. 상태 GET도 지갑 잠금과 만료 세션 INVALID 갱신을 수행할 수 있\
+        습니다. 읽기 전용 트랜잭션이 아닙니다."
       operationId: load
       parameters:
       - name: sessionId
         in: path
+        description: 본인 세션의 양의 BIGINT ID (최대 9223372036854775807)
         required: true
         schema:
+          pattern: "^[1-9][0-9]{0,18}$"
           type: string
       responses:
         "200":
@@ -2298,9 +2569,9 @@ paths:
               schema:
                 type: string
           content:
-            '*/*':
+            application/json:
               schema:
-                type: object
+                $ref: "#/components/schemas/MinigameErrorResponse"
         "400":
           description: INVALID_REQUEST / UNSUPPORTED_MINIGAME
           headers:
@@ -2311,7 +2582,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/MinigameErrorResponse"
         "401":
           description: 인증된 활성 회원 필요
           headers:
@@ -2322,7 +2593,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AuthErrorResponse"
+                anyOf:
+                - $ref: "#/components/schemas/AuthErrorResponse"
+                - $ref: "#/components/schemas/MinigameErrorResponse"
         "503":
           description: MINIGAME_NOT_CONFIGURED / MINIGAME_UNAVAILABLE 또는 인증 DB 장애
           headers:
@@ -2333,7 +2606,33 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                anyOf:
+                - $ref: "#/components/schemas/AuthErrorResponse"
+                - $ref: "#/components/schemas/MinigameErrorResponse"
+        "403":
+          description: Origin 또는 ROLE_MEMBER 접근 거절
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                anyOf:
+                - $ref: "#/components/schemas/AuthErrorResponse"
+                - $ref: "#/components/schemas/MinigameErrorResponse"
+        "500":
+          description: AUTH_TOKEN_CONFIGURATION_ERROR
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
       security:
       - AccessJwt: []
   /api/v1/channels:
@@ -2398,6 +2697,26 @@ paths:
                       nullable: true
         "503":
           description: SERVICE_UNAVAILABLE 또는 REST 회원 조회 장애
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                anyOf:
+                - $ref: "#/components/schemas/AuthErrorResponse"
+                - type: object
+                  properties:
+                    code:
+                      type: string
+                    message:
+                      type: string
+                    details:
+                      nullable: true
+        "500":
+          description: AUTH_TOKEN_CONFIGURATION_ERROR
           headers:
             Cache-Control:
               description: no-store
@@ -2610,14 +2929,18 @@ paths:
       parameters:
       - name: cursor
         in: query
+        description: 생략/빈 문자열 또는 양의 BIGINT ID. 해당 ID 미만 조회
         required: false
         schema:
+          pattern: "^(?:|[1-9][0-9]{0,18})$"
           type: string
           default: ""
       - name: limit
         in: query
+        description: "기본 20, 십진수 1~50"
         required: false
         schema:
+          pattern: "^(?:[1-9]|[1-4][0-9]|50)$"
           type: string
           default: "20"
       responses:
@@ -2629,9 +2952,9 @@ paths:
               schema:
                 type: string
           content:
-            '*/*':
+            application/json:
               schema:
-                $ref: "#/components/schemas/FeedbackListResponse"
+                $ref: "#/components/schemas/FeedbackErrorResponse"
         "401":
           description: 활성 회원 인증 필요
           headers:
@@ -2640,9 +2963,11 @@ paths:
               schema:
                 type: string
           content:
-            '*/*':
+            application/json:
               schema:
-                $ref: "#/components/schemas/FeedbackListResponse"
+                anyOf:
+                - $ref: "#/components/schemas/AuthErrorResponse"
+                - $ref: "#/components/schemas/FeedbackErrorResponse"
         "403":
           description: FEEDBACK_OUT_OF_RANGE / FEEDBACK_ADMIN_REQUIRED
           headers:
@@ -2651,9 +2976,11 @@ paths:
               schema:
                 type: string
           content:
-            '*/*':
+            application/json:
               schema:
-                $ref: "#/components/schemas/FeedbackListResponse"
+                anyOf:
+                - $ref: "#/components/schemas/AuthErrorResponse"
+                - $ref: "#/components/schemas/FeedbackErrorResponse"
         "503":
           description: FEEDBACK_NOT_CONFIGURED / FEEDBACK_UNAVAILABLE
           headers:
@@ -2662,9 +2989,33 @@ paths:
               schema:
                 type: string
           content:
-            '*/*':
+            application/json:
+              schema:
+                anyOf:
+                - $ref: "#/components/schemas/AuthErrorResponse"
+                - $ref: "#/components/schemas/FeedbackErrorResponse"
+        "200":
+          description: 접수 목록. 마지막 페이지의 nextCursor는 null
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
               schema:
                 $ref: "#/components/schemas/FeedbackListResponse"
+        "500":
+          description: AUTH_TOKEN_CONFIGURATION_ERROR
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
       security:
       - AccessJwt: []
 components:
@@ -2678,7 +3029,7 @@ components:
         nickname:
           maxLength: 8
           minLength: 2
-          pattern: "[가-힣A-Za-z0-9]{2,8}"
+          pattern: "^[가-힣A-Za-z0-9]{2,8}$"
           type: string
           example: 미지
         characterGender:
@@ -2726,6 +3077,14 @@ components:
         message:
           type: string
     PurchaseResponse:
+      required:
+      - balanceAfter
+      - itemId
+      - purchaseId
+      - quantity
+      - totalPrice
+      - unitPrice
+      - userItemId
       type: object
       properties:
         purchaseId:
@@ -2748,7 +3107,11 @@ components:
         userItemId:
           type: integer
           format: int64
-    ErrorResponse:
+    ShopErrorResponse:
+      required:
+      - code
+      - details
+      - message
       type: object
       properties:
         code:
@@ -2757,21 +3120,11 @@ components:
           type: string
         details:
           type: object
-        detail:
-          type: string
-        index:
-          type: integer
-          format: int32
-    NoteSubmissionRequest:
-      type: object
-      properties:
-        operationId:
-          type: string
-        channelId:
-          type: string
-        text:
-          type: string
+          nullable: true
     NoteReceiptResponse:
+      required:
+      - nextAllowedAt
+      - note
       type: object
       properties:
         note:
@@ -2780,6 +3133,10 @@ components:
           type: string
           format: date-time
     NoteResponse:
+      required:
+      - createdAt
+      - id
+      - text
       type: object
       properties:
         id:
@@ -2790,6 +3147,10 @@ components:
           type: string
           format: date-time
     NotesErrorResponse:
+      required:
+      - code
+      - message
+      - nextAllowedAt
       type: object
       properties:
         code:
@@ -2799,7 +3160,16 @@ components:
         nextAllowedAt:
           type: string
           format: date-time
+          nullable: true
     MinigameStartResponse:
+      required:
+      - heats
+      - isFirstGame
+      - minigameSessionId
+      - minigameType
+      - rulesVersion
+      - startedAt
+      - status
       type: object
       properties:
         minigameSessionId:
@@ -2820,7 +3190,46 @@ components:
             format: int32
         isFirstGame:
           type: boolean
+    MinigameErrorResponse:
+      required:
+      - code
+      - detail
+      - details
+      - index
+      - message
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+          nullable: true
+        detail:
+          type: string
+          nullable: true
+        index:
+          type: integer
+          format: int32
+          nullable: true
     MinigameCompleteResponse:
+      required:
+      - capReached
+      - coinsCalculated
+      - coinsGranted
+      - dailyCap
+      - failed
+      - golden
+      - made
+      - maxCombo
+      - minigameSessionId
+      - rewardAmount
+      - score
+      - status
+      - todayEarned
+      - verifiedCompletedCount
+      - wasted
       type: object
       properties:
         minigameSessionId:
@@ -2866,6 +3275,10 @@ components:
         capReached:
           type: boolean
     MinigameAbandonResponse:
+      required:
+      - minigameSessionId
+      - rewardAmount
+      - status
       type: object
       properties:
         minigameSessionId:
@@ -2875,16 +3288,11 @@ components:
         rewardAmount:
           type: integer
           format: int64
-    SubmissionRequest:
-      type: object
-      properties:
-        operationId:
-          type: string
-        channelId:
-          type: string
-        text:
-          type: string
     FeedbackReceiptResponse:
+      required:
+      - acceptedAt
+      - nextAllowedAt
+      - receiptId
       type: object
       properties:
         receiptId:
@@ -2895,7 +3303,25 @@ components:
         nextAllowedAt:
           type: string
           format: date-time
+    FeedbackErrorResponse:
+      required:
+      - code
+      - message
+      - nextAllowedAt
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        nextAllowedAt:
+          type: string
+          format: date-time
+          nullable: true
     Ticket:
+      required:
+      - expiresIn
+      - ticket
       type: object
       properties:
         ticket:
@@ -2971,7 +3397,7 @@ components:
         nickname:
           maxLength: 8
           minLength: 2
-          pattern: "[가-힣A-Za-z0-9]{2,8}"
+          pattern: "^[가-힣A-Za-z0-9]{2,8}$"
           type: string
           example: 온탑고수
       additionalProperties: false
@@ -2997,6 +3423,8 @@ components:
           - MALE
           - FEMALE
     EquipmentResponse:
+      required:
+      - equipment
       type: object
       properties:
         equipment:
@@ -3004,6 +3432,14 @@ components:
           items:
             $ref: "#/components/schemas/OwnedItemResponse"
     ItemResponse:
+      required:
+      - equipSlot
+      - imageKey
+      - itemCode
+      - itemId
+      - itemType
+      - name
+      - price
       type: object
       properties:
         itemId:
@@ -3020,6 +3456,7 @@ components:
           - CONSUMABLE
         equipSlot:
           type: string
+          nullable: true
           enum:
           - HAIR
           - FACE
@@ -3032,6 +3469,11 @@ components:
         imageKey:
           type: string
     OwnedItemResponse:
+      required:
+      - equipped
+      - item
+      - quantity
+      - userItemId
       type: object
       properties:
         userItemId:
@@ -3152,6 +3594,8 @@ components:
         available:
           type: boolean
     InventoryResponse:
+      required:
+      - items
       type: object
       properties:
         items:
@@ -3159,6 +3603,8 @@ components:
           items:
             $ref: "#/components/schemas/OwnedItemResponse"
     TableListResponse:
+      required:
+      - tables
       type: object
       properties:
         tables:
@@ -3166,6 +3612,20 @@ components:
           items:
             $ref: "#/components/schemas/TableSummaryResponse"
     TableSummaryResponse:
+      required:
+      - allReady
+      - availableSeats
+      - betAmountPerPlayer
+      - capacity
+      - gameCode
+      - gameId
+      - joinable
+      - minimumPlayers
+      - occupiedSeats
+      - readyCount
+      - status
+      - tableId
+      - targetScore
       type: object
       properties:
         tableId:
@@ -3193,9 +3653,11 @@ components:
           type: boolean
         gameCode:
           type: string
+          nullable: true
         targetScore:
           type: integer
           format: int32
+          nullable: true
         betAmountPerPlayer:
           type: integer
           description: 선택자가 확정한 1인 참가비. 미선택/빈 테이블은 null
@@ -3206,6 +3668,8 @@ components:
           description: PLAYING인 확정 경기의 공개 gameId. 나머지 상태는 null
           nullable: true
     ItemListResponse:
+      required:
+      - items
       type: object
       properties:
         items:
@@ -3213,6 +3677,11 @@ components:
           items:
             $ref: "#/components/schemas/ItemResponse"
     RankingItem:
+      required:
+      - coinBalance
+      - nickname
+      - rank
+      - userId
       type: object
       properties:
         rank:
@@ -3226,6 +3695,9 @@ components:
           type: integer
           format: int64
     RankingMyRank:
+      required:
+      - coinBalance
+      - rank
       type: object
       properties:
         rank:
@@ -3237,6 +3709,10 @@ components:
       description: 본인 지갑이 없으면 null
       nullable: true
     RankingResponse:
+      required:
+      - items
+      - myRank
+      - updatedAt
       type: object
       properties:
         items:
@@ -3248,7 +3724,22 @@ components:
         updatedAt:
           type: string
           format: date-time
+    NoteListResponse:
+      required:
+      - notes
+      type: object
+      properties:
+        notes:
+          type: array
+          items:
+            $ref: "#/components/schemas/NoteResponse"
     BungeoppangStatusResponse:
+      required:
+      - dailyCap
+      - isFirstGame
+      - rulesVersion
+      - seenTips
+      - todayEarned
       type: object
       properties:
         todayEarned:
@@ -3266,6 +3757,13 @@ components:
         rulesVersion:
           type: string
     MinigameStatusResponse:
+      required:
+      - endedAt
+      - minigameSessionId
+      - rewardAmount
+      - score
+      - startedAt
+      - status
       type: object
       properties:
         minigameSessionId:
@@ -3275,6 +3773,7 @@ components:
         score:
           type: integer
           format: int64
+          nullable: true
         rewardAmount:
           type: integer
           format: int64
@@ -3284,7 +3783,10 @@ components:
         endedAt:
           type: string
           format: date-time
+          nullable: true
     ChannelListResponse:
+      required:
+      - items
       type: object
       properties:
         items:
@@ -3292,6 +3794,12 @@ components:
           items:
             $ref: "#/components/schemas/ChannelResponse"
     ChannelResponse:
+      required:
+      - capacity
+      - channelId
+      - currentUsers
+      - joinable
+      - name
       type: object
       properties:
         channelId:
@@ -3318,6 +3826,12 @@ components:
           type: integer
           format: int64
     Entry:
+      required:
+      - acceptedAt
+      - authorUserId
+      - channelId
+      - receiptId
+      - text
       type: object
       properties:
         receiptId:
@@ -3325,6 +3839,7 @@ components:
         authorUserId:
           type: integer
           format: int64
+          nullable: true
         channelId:
           type: string
         text:
@@ -3333,6 +3848,9 @@ components:
           type: string
           format: date-time
     FeedbackListResponse:
+      required:
+      - items
+      - nextCursor
       type: object
       properties:
         items:
@@ -3341,6 +3859,7 @@ components:
             $ref: "#/components/schemas/Entry"
         nextCursor:
           type: string
+          nullable: true
   securitySchemes:
     AccessJwt:
       type: http

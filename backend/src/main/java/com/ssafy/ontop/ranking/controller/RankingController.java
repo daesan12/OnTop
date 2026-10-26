@@ -36,7 +36,8 @@ public class RankingController {
                     + "탈퇴 회원·지갑 없는 회원은 제외하고 본인 지갑이 없으면 myRank=null입니다. "
                     + "updatedAt은 조회 시각입니다. 지갑 생성·지급·차감·예약을 수행하지 않습니다.")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "성공 (Cache-Control: no-store)"),
+        @ApiResponse(responseCode = "200", description = "성공 (Cache-Control: no-store)",
+                content = @Content(mediaType = "application/json", schema = @Schema(implementation = RankingResponse.class))),
         @ApiResponse(responseCode = "400", description = "INVALID_LIMIT",
                 content = @Content(schema = @Schema(implementation = AuthErrorResponse.class))),
         @ApiResponse(responseCode = "401", description = "기존 Access JWT·활성 회원·sid 검증 실패",

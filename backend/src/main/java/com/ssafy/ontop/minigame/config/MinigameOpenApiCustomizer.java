@@ -7,6 +7,7 @@ import io.swagger.v3.oas.models.media.Content;
 import io.swagger.v3.oas.models.media.IntegerSchema;
 import io.swagger.v3.oas.models.media.ObjectSchema;
 import io.swagger.v3.oas.models.media.StringSchema;
+import io.swagger.v3.oas.models.media.Schema;
 import io.swagger.v3.oas.models.parameters.Parameter;
 import io.swagger.v3.oas.models.parameters.RequestBody;
 import java.util.List;
@@ -32,7 +33,7 @@ public class MinigameOpenApiCustomizer implements OperationCustomizer {
                 schema.addProperty("minigameType", new StringSchema()._enum(List.of("BUNGEOPPANG")));
                 schema.required(List.of("minigameType"));
                 operation.addParametersItem(new Parameter().in("header").name("Idempotency-Key").required(true)
-                        .schema(new StringSchema().pattern("[A-Za-z0-9_-]{1,64}").minLength(1).maxLength(64)));
+                        .schema(new StringSchema().pattern("^[A-Za-z0-9_-]{1,64}$").minLength(1).maxLength(64)));
             }
             if (method.equals("complete")) {
                 ObjectSchema entry = new ObjectSchema();
@@ -42,18 +43,27 @@ public class MinigameOpenApiCustomizer implements OperationCustomizer {
                 entry.addProperty("t", new IntegerSchema().minimum(java.math.BigDecimal.ZERO).maximum(java.math.BigDecimal.valueOf(60000)));
                 entry.required(List.of("slot", "action", "t"));
                 schema.addProperty("log", new ArraySchema().items(entry).maxItems(1200));
-                schema.addProperty("seenTips", new ArraySchema().items(new StringSchema()).maxItems(5));
-                schema.addProperty("clientScore", new IntegerSchema().minimum(java.math.BigDecimal.ZERO));
+                schema.addProperty("seenTips", new ArraySchema().items(new Schema<>()).maxItems(5)
+                        .description("선택 배열. 문자열 START/POUR/GOLD/BURNT/RUSH만 기억하고 그 외 값은 무시합니다."));
+                schema.addProperty("clientScore", new IntegerSchema().minimum(java.math.BigDecimal.ZERO)
+                        .maximum(java.math.BigDecimal.valueOf(Integer.MAX_VALUE)));
                 schema.required(List.of("log"));
             }
             operation.setRequestBody(new RequestBody().required(true).content(new Content()
                     .addMediaType("application/json", new io.swagger.v3.oas.models.media.MediaType().schema(schema))));
         }
+        if (operation.getParameters() != null) {
+            operation.getParameters().stream().filter(p -> p.getName().equals("sessionId")).forEach(p -> {
+                p.getSchema().setPattern("^[1-9][0-9]{0,18}$");
+                p.setDescription("본인 세션의 양의 BIGINT ID (최대 9223372036854775807)");
+            });
+        }
         operation.setDescription((operation.getDescription() == null ? "" : operation.getDescription() + " ")
                 + "local,db + ontop.minigames.enabled=true 또는 dev,db에서 사용합니다. dev는 기본 활성화하며 "
                 + "공통 스키마에 V110/V111을 추가합니다. prod/production에서는 비활성화합니다. "
                 + "v2 입력 기록을 서버가 재생합니다. 60초, 15점당 1냥, KST 하루 100냥. "
-                + "탭 이동 중에도 시간은 흐르며 랭킹은 제외합니다. score·rewardAmount·userId를 본문에 넣지 않습니다.");
+                + "탭 이동 중에도 시간은 흐르며 랭킹은 제외합니다. score·rewardAmount·userId를 본문에 넣지 않습니다. "
+                + "상태 GET도 지갑 잠금과 만료 세션 INVALID 갱신을 수행할 수 있습니다. 읽기 전용 트랜잭션이 아닙니다.");
         return operation;
     }
 }
