@@ -78,6 +78,7 @@ export async function fixture(
   let rejectGameWatch = false
   let watchingGame = false
   let watchMode: 'normal' | 'reject' | 'hold' = 'normal', watchRequestId = '', selectorOverride: string | undefined, targetScore: number | null = null
+  let betAmountPerPlayer: number | null = options.publicSpectator ? 1 : null
   let seated = false,
     rejectChat = false
   let gameCode: string | null = null,
@@ -263,6 +264,7 @@ export async function fixture(
               joinable: !seated,
               gameCode: null,
               targetScore,
+              betAmountPerPlayer,
               ...(options.publicSpectator ? { gameId: publicGameId } : {}),
             },
           ],
@@ -326,6 +328,7 @@ export async function fixture(
           selectorUserId: selectorOverride ?? (seated ? '101' : '102'),
           gameCode,
           targetScore,
+          betAmountPerPlayer,
           ...(options.publicSpectator ? { gameId: publicGameId } : {}),
           ...patch,
         },
@@ -517,6 +520,7 @@ export async function fixture(
       if (options.omok && type === 'GAME_SELECT') {
         gameCode = String(payload.gameCode)
         targetScore = payload.targetScore ?? null
+        betAmountPerPlayer = payload.betAmountPerPlayer
         if (options.dice && gameCode === 'DICE') diceState = { ...diceState, targetScore: targetScore ?? 4000 }
         ready = false
         table(ws, 'TABLE_STATE', requestId)

@@ -9,7 +9,7 @@ async function start(page: Page, count: 2 | 3 | 4 = 2) {
   await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90000 })
   await page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).inspectTable())
   await page.getByRole('button', { name: '앉기', exact: true }).click()
-  await page.getByRole('button', { name: '원카드 선택', exact: true }).click()
+  await page.getByLabel('1인 참가비').fill('1'); await page.getByRole('button', { name: '원카드 선택', exact: true }).click()
   await page.getByRole('button', { name: '준비', exact: true }).click(); server.confirmStart()
   await expect(panel(page)).toContainText('내 차례'); await expect(panel(page).getByLabel('나만 볼 수 있는 카드').getByRole('button')).toHaveCount(7)
   return server

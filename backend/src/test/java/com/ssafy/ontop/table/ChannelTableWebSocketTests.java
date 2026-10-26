@@ -80,7 +80,7 @@ class ChannelTableWebSocketTests {
             seat(second, "channel-1", one);
             seat(other, "channel-2", two);
             seat(fourth, "channel-2", two);
-            first.request("GAME_SELECT", Map.of("gameCode", "DICE", "targetScore", 4000));
+            first.request("GAME_SELECT", Map.of("betAmountPerPlayer", 1, "gameCode", "DICE", "targetScore", 4000));
             first.request("READY_SET", Map.of("ready", true));
             second.request("READY_SET", Map.of("ready", true));
             JsonNode firstStart = confirmed(first);
@@ -91,7 +91,7 @@ class ChannelTableWebSocketTests {
             assertThat(untouched.path("readyCount").asInt()).isZero();
             assertThat(untouched.path("status").asText()).isEqualTo("WAITING");
 
-            other.request("GAME_SELECT", Map.of("gameCode", "OMOK"));
+            other.request("GAME_SELECT", Map.of("betAmountPerPlayer", 1, "gameCode", "OMOK"));
             other.request("READY_SET", Map.of("ready", true));
             fourth.request("READY_SET", Map.of("ready", true));
             JsonNode otherStart = confirmed(other);

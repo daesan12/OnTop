@@ -163,3 +163,7 @@ MySQL 명령에는 격리 DB만 가리키는 TEST_DB_URL/USERNAME/PASSWORD 및 T
 예약·해제·정산 서비스는 이 조회에 포함하지 않는다. 게임 담당자와 거래 유형, 증감 부호,
 멱등키, 참조 ID, 잔액/원장 원자성 및 지갑 잠금 순서를 합의한 뒤 기존 공통 원장에 기록해야 한다.
 기록되지 않은 balanceAfter를 이력 조회에서 역산하지 않는다.
+
+## GAME Story 173 원장
+
+기존 GAME_RESERVE의 예약 증감은 확정 참가비 +B다. 정상 종료는 GAME_SETTLEMENT(원래 판돈 몫-B, 예약 -B), 공동 승리의 서버 추가분은 GAME_TIE_BONUS(추가분, 예약0), 무승부는 GAME_RELEASE(잔액0, 예약 -B)로 기록한다. balanceDelta를 이미 보너스 포함 순증감으로 기록한 뒤 보너스를 다시 더하지 않는다. 상세 계산·멱등 키는 [정산 계약](game-settlement.md)을 따른다. 기존 컬럼·조회 API 필드는 유지한다. 무효 반환은 Story 174 범위다.

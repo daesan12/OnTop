@@ -10,7 +10,7 @@ async function start(page: Page, count: 2 | 3 | 4 = 2) {
   await page.goto('/park'); await expect(page).toHaveTitle(/온탑|OnTop/i)
   await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90000 })
   await page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).inspectTable())
-  await page.getByRole('button', { name: '앉기', exact: true }).click(); await page.getByRole('button', { name: '거짓말 다리 건너기 선택', exact: true }).click()
+  await page.getByRole('button', { name: '앉기', exact: true }).click(); await page.getByLabel('1인 참가비').fill('1'); await page.getByRole('button', { name: '거짓말 다리 건너기 선택', exact: true }).click()
   await page.getByRole('button', { name: '준비', exact: true }).click(); server.confirmStart()
   await expect(panel(page).getByRole('button', { name: '비밀 주사위 굴리기', exact: true })).toBeEnabled()
   await expect.poll(async () => (await probe(page)).count).toBe(count * 7)

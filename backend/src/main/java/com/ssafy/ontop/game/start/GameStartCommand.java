@@ -5,10 +5,16 @@ import java.util.Objects;
 import java.util.UUID;
 
 public record GameStartCommand(UUID startAttemptId, String tableId, long tableVersion, String gameCode,
-        List<Participant> participants, Integer targetScore) {
+        List<Participant> participants, Integer targetScore, long betAmountPerPlayer) {
 
     public GameStartCommand(UUID attempt, String table, long version, String code, List<Participant> players) {
-        this(attempt, table, version, code, players, null);
+        this(attempt, table, version, code, players, null, 1);
+    }
+
+    // 기존 서버 내부 호출/로컬 픽스처 호환. 공개 GAME_SELECT에는 금액이 반드시 필요하다.
+    public GameStartCommand(UUID attempt, String table, long version, String code, List<Participant> players,
+            Integer targetScore) {
+        this(attempt, table, version, code, players, targetScore, 1);
     }
 
     public GameStartCommand {
@@ -18,6 +24,7 @@ public record GameStartCommand(UUID startAttemptId, String tableId, long tableVe
             throw new IllegalArgumentException("주사위 목표를 확인해주세요.");
         }
         participants = List.copyOf(participants);
+        com.ssafy.ontop.game.domain.GameAmounts.validate(betAmountPerPlayer, participants.size());
         if (tableId == null || tableId.isBlank() || tableVersion < 0 || gameCode == null || gameCode.isBlank()
                 || participants.size() < 2 || participants.size() > 4
                 || participants.stream().map(Participant::userId).distinct().count() != participants.size()

@@ -18,6 +18,7 @@ test('unready movement exit works without optional GAME_START_STATE, while ready
   for (const selected of [false, true]) {
     await lobby(page).getByRole('button', { name: '앉기', exact: true }).click()
     if (selected) {
+      await lobby(page).getByLabel('1인 참가비', { exact: true }).fill('1')
       await lobby(page).getByRole('button', { name: '오목 선택', exact: true }).click()
       await lobby(page).getByRole('button', { name: '준비', exact: true }).click()
       await expect(lobby(page)).toContainText('준비·경기·정산 중 이동키로 퇴장하지 않습니다.')
@@ -56,7 +57,9 @@ test('M09 lobby uses server host, four seats and exact game/target commands; pre
   await expect(lobby(page)).toContainText('현재 확정된 진행 경기가 없습니다.')
   await lobby(page).getByRole('button', { name: '앉기', exact: true }).click()
   await expect(lobby(page).getByRole('listitem')).toHaveCount(4)
-  await expect(lobby(page)).toContainText('방장 · 게임과 목표')
+  await expect(lobby(page)).toContainText('선택 담당자 · 게임과 참가비')
+  const betAmountPerPlayer = 5
+  await lobby(page).getByLabel('1인 참가비', { exact: true }).fill(String(betAmountPerPlayer))
   await lobby(page).getByRole('button', { name: '원카드 선택', exact: true }).click()
   await expect(lobby(page).getByRole('listitem')).toHaveCount(4)
   await expect(lobby(page).getByRole('button', { name: '준비', exact: true })).toBeEnabled()
@@ -65,14 +68,25 @@ test('M09 lobby uses server host, four seats and exact game/target commands; pre
   await lobby(page).getByLabel('주사위 목표 점수').selectOption('4000')
   await lobby(page).getByRole('button', { name: '주사위 한 판 선택', exact: true }).click()
   await expect(lobby(page).getByRole('listitem')).toHaveCount(2)
-  expect(server.sent.filter(m => m.type === 'GAME_SELECT').at(-1)?.payload).toEqual({ gameCode: 'DICE', targetScore: 4000 })
+  expect(server.sent.filter(m => m.type === 'GAME_SELECT').at(-1)?.payload).toEqual({ gameCode: 'DICE', targetScore: 4000, betAmountPerPlayer })
+  await expect(lobby(page).getByLabel('1인 참가비', { exact: true })).toHaveValue('5')
   await lobby(page).getByLabel('주사위 목표 점수').selectOption('6000')
-  await expect.poll(() => server.sent.filter(m => m.type === 'GAME_SELECT').at(-1)?.payload).toEqual({ gameCode: 'DICE', targetScore: 6000 })
+  await expect.poll(() => server.sent.filter(m => m.type === 'GAME_SELECT').at(-1)?.payload).toEqual({ gameCode: 'DICE', targetScore: 6000, betAmountPerPlayer })
+  await expect(lobby(page).getByLabel('1인 참가비', { exact: true })).toHaveValue('5')
+  await expect(lobby(page)).toContainText('확정 참가비: 5 코인 / 1인')
   server.host('102')
   await expect(lobby(page).getByRole('button', { name: '오목 선택', exact: true })).toBeDisabled()
+  await expect(lobby(page).getByLabel('1인 참가비', { exact: true })).toBeDisabled()
   server.host('101')
   await lobby(page).getByRole('button', { name: '오목 선택', exact: true }).click()
   await expect(lobby(page).getByRole('button', { name: '준비', exact: true })).toBeEnabled()
+  await expect.poll(() => server.sent.filter(m => m.type === 'GAME_SELECT').map(m => m.payload)).toEqual([
+    { gameCode: 'ONE_CARD', betAmountPerPlayer },
+    { gameCode: 'LIAR_BRIDGE', betAmountPerPlayer },
+    { gameCode: 'DICE', targetScore: 4000, betAmountPerPlayer },
+    { gameCode: 'DICE', targetScore: 6000, betAmountPerPlayer },
+    { gameCode: 'OMOK', betAmountPerPlayer },
+  ])
   await screenshot(page, 'm09-lobby')
   await page.setViewportSize({ width: 1000, height: 700 })
   await expect(lobby(page)).toBeInViewport()
@@ -106,6 +120,7 @@ test('M09 finished round keeps seats, settlement is server-owned; next-round con
   const server = await fixture(page, { omok: true, m09: true })
   await load(page)
   await lobby(page).getByRole('button', { name: '앉기', exact: true }).click()
+  await lobby(page).getByLabel('1인 참가비', { exact: true }).fill('1')
   await lobby(page).getByRole('button', { name: '오목 선택', exact: true }).click()
   await page.getByRole('button', { name: '준비', exact: true }).click()
   server.confirmStart(); server.finishGame()
@@ -119,7 +134,11 @@ test('M09 finished round keeps seats, settlement is server-owned; next-round con
   await expect(board.getByRole('button', { name: '자리에서 일어나기', exact: true })).toBeEnabled()
   const before = server.sent.length
   await board.getByRole('button', { name: '다음 판 준비', exact: true }).click()
+  // 현재 구현은 결과를 닫으면 2D 로비로 전환한다. 게임 설정 재진입은 필요하지 않다.
   await expect(lobby(page)).toBeVisible()
+  await expect(board).toHaveCount(0)
+  await expect(lobby(page).getByRole('button', { name: '준비', exact: true })).toBeEnabled()
+  await expect(lobby(page).getByLabel('1인 참가비', { exact: true })).toHaveValue('1')
   await expect(lobby(page).getByRole('region', { name: '지난 판 결과' })).toHaveCount(0)
   expect(server.sent.slice(before).some(m => /START|READY|RESIGN|REMATCH/.test(m.type))).toBe(false)
   await screenshot(page, 'm09-next-round')

@@ -85,7 +85,8 @@ public class GameStartPersistenceService {
                 return reject(session, "MEMBER_ALREADY_IN_GAME");
             }
             Wallet wallet = entry.getValue();
-            if (wallet.balance() < wallet.reserved() || wallet.balance() - wallet.reserved() < 1) {
+            if (wallet.balance() < wallet.reserved()
+                    || wallet.balance() - wallet.reserved() < request.command().betAmountPerPlayer()) {
                 return reject(session, "INSUFFICIENT_BALANCE");
             }
         }
@@ -96,10 +97,12 @@ public class GameStartPersistenceService {
         for (int index = 0; index < request.userIds().size(); index++) {
             long userId = request.userIds().get(index);
             int seat = request.command().participants().get(index).seatNumber();
-            participants.saveAndFlush(new GameParticipant(session.id(), userId, seat, index));
+            participants.saveAndFlush(new GameParticipant(session.id(), userId, seat, index,
+                    request.command().betAmountPerPlayer()));
             Wallet wallet = locked.get(userId);
-            wallet.reserveGameEntry(now);
-            ledger.saveAndFlush(WalletTransaction.gameReserve(wallet.id(), session.id(), userId, now));
+            wallet.reserveGameEntry(request.command().betAmountPerPlayer(), now);
+            ledger.saveAndFlush(WalletTransaction.gameReserve(wallet.id(), session.id(), userId,
+                    request.command().betAmountPerPlayer(), now));
         }
         return GameStartResult.reserved(request.command(), GameIdCodec.format(session.id()));
     }
@@ -145,7 +148,7 @@ public class GameStartPersistenceService {
                 .stream().map(player -> new GameStartCommand.Participant(
                         Long.toString(player.userId()), player.seatNumber())).toList();
         GameStartCommand original = new GameStartCommand(session.startAttemptId(), session.tableId(),
-                session.tableVersion(), session.gameCode(), players, session.targetScore());
+                session.tableVersion(), session.gameCode(), players, session.targetScore(), session.betAmountPerPlayer());
         return GameStartResult.reserved(original, GameIdCodec.format(session.id()));
     }
 

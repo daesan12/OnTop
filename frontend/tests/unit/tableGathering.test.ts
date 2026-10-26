@@ -8,7 +8,7 @@ import { resetWorld, useSession } from '../../src/network/worldClient'
 import { resetTableLobby, seatScope, useTableLobby } from '../../src/features/tableLobby/state'
 
 const table: TableState = { tableId: 't', version: 1, capacity: 4, minimumPlayers: 2, allReady: false,
-  gameCode: 'ONE_CARD', targetScore: null, selectorUserId: 'a', seats: ['a', 'b', 'c', 'd'].map((userId, i) => ({ userId, seatNumber: i + 1, ready: i === 1 })) }
+  gameCode: 'ONE_CARD', targetScore: null, betAmountPerPlayer: 1, selectorUserId: 'a', seats: ['a', 'b', 'c', 'd'].map((userId, i) => ({ userId, seatNumber: i + 1, ready: i === 1 })) }
 const start: StartState = { tableId: 't', revision: 1, phase: 'WAITING', startAttemptId: null, gameCode: 'ONE_CARD', gameSessionId: null, code: null, simulation: false }
 const result: Result = { gameSessionId: 'g', version: 1, gameCode: 'ONE_CARD', status: 'FINISHED', settlementStatus: 'PENDING', myCoinDelta: null,
   participants: [{ userId: 'a', result: 'WIN' }, { userId: 'b', result: 'LOSE' }, { userId: 'c', result: 'FORFEIT' }, { userId: 'd', result: 'LOSE' }] }

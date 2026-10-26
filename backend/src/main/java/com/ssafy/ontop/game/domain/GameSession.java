@@ -98,8 +98,8 @@ public class GameSession {
         session.gameCode = command.gameCode();
         session.targetScore = command.targetScore();
         session.participantCount = (short) command.participants().size();
-        session.betAmountPerPlayer = 1;
-        session.totalPot = session.participantCount;
+        session.betAmountPerPlayer = command.betAmountPerPlayer();
+        session.totalPot = Math.multiplyExact(session.betAmountPerPlayer, session.participantCount);
         session.status = Status.PREPARING;
         session.settlementPolicyVersion = 1;
         session.ownerInstanceId = instanceId;
@@ -136,6 +136,44 @@ public class GameSession {
     public Integer targetScore() { return targetScore; }
     public Status status() { return status; }
     public String rejectionCode() { return rejectionCode; }
+    public long betAmountPerPlayer() { return betAmountPerPlayer; }
+    public long totalPot() { return totalPot; }
+    public int participantCount() { return participantCount; }
+    public SettlementStatus settlementStatus() { return settlementStatus; }
+    public String endReason() { return endReason; }
+    public Instant endedAt() { return endedAt; }
+    public Instant reservedAt() { return reservedAt; }
+    public long resultVersion() { return resultVersion; }
+    public boolean hasFinish() { return finishEventId != null; }
+
+    public boolean matchesFinish(String eventId, byte[] hash) {
+        return java.util.Objects.equals(finishEventId, eventId) && Arrays.equals(finishPayloadHash, hash);
+    }
+
+    public void recordFinish(String eventId, byte[] hash, long engineVersion, String reason, Instant endedAt) {
+        if (hasFinish() || status != Status.RESERVED && status != Status.RUNNING
+                || reservedAt == null || endedAt.isBefore(reservedAt)) {
+            throw new IllegalStateException("경기 종료 상태를 확인하세요.");
+        }
+        finishEventId = eventId;
+        finishPayloadHash = hash.clone();
+        engineFinishVersion = engineVersion;
+        endReason = reason;
+        this.endedAt = endedAt;
+        status = Status.FINISHED;
+        resultVersion = 1;
+    }
+
+    public void settle(long bonus, long payoutPerWinner, Instant now) {
+        if (status != Status.FINISHED || settlementStatus != SettlementStatus.PENDING) {
+            throw new IllegalStateException("경기 정산 상태를 확인하세요.");
+        }
+        tieBonusAmount = bonus;
+        this.payoutPerWinner = payoutPerWinner;
+        settlementStatus = SettlementStatus.SETTLED;
+        settledAt = now;
+        resultVersion = Math.addExact(resultVersion, 1);
+    }
 
     public enum Status { PREPARING, REJECTED, RESERVED, RUNNING, FINISHED, INVALID }
     public enum SettlementStatus { PENDING, SETTLED }

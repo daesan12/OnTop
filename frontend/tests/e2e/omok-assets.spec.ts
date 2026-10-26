@@ -26,7 +26,7 @@ test('OMOK asset measurement in a populated park', async ({
   const samples = []
   for (const kind of ['no-board', 'empty', '75-stones'] as const) {
     if (kind === 'empty')
-      await page.getByRole('button', { name: '오목 선택', exact: true }).click()
+      await page.getByLabel('1인 참가비').fill('1'); await page.getByRole('button', { name: '오목 선택', exact: true }).click()
     if (kind === '75-stones') server.renderBoard(75)
     for (const [light, phase] of [
       ['day', 0.6],

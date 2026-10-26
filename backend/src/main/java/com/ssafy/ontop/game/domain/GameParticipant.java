@@ -54,16 +54,43 @@ public class GameParticipant {
     }
 
     public GameParticipant(long gameSessionId, long userId, int seatNumber, int participantOrder) {
+        this(gameSessionId, userId, seatNumber, participantOrder, 1);
+    }
+
+    public GameParticipant(long gameSessionId, long userId, int seatNumber, int participantOrder, long amount) {
+        if (amount <= 0) { throw new IllegalArgumentException("예약액을 확인하세요."); }
         this.gameSessionId = gameSessionId;
         this.userId = userId;
         this.seatNumber = (short) seatNumber;
         this.participantOrder = (short) participantOrder;
         participantStatus = Status.ACTIVE;
-        reservedAmount = 1;
+        reservedAmount = amount;
     }
 
     public long userId() { return userId; }
     public int seatNumber() { return seatNumber; }
+    public GameFinished.Result result() { return result; }
+    public long reservedAmount() { return reservedAmount; }
+    public Long coinDelta() { return coinDelta; }
+    public Instant reservationReleasedAt() { return reservationReleasedAt; }
+
+    public void recordFinish(GameFinished.Participant outcome) {
+        if (outcome.userId() != userId || reservationReleasedAt != null || result != null) {
+            throw new IllegalStateException("경기 참가 결과를 확인하세요.");
+        }
+        result = outcome.result();
+        leaveReason = outcome.leaveReason();
+        leftAt = outcome.leftAt() == null ? null : outcome.leftAt().truncatedTo(java.time.temporal.ChronoUnit.MILLIS);
+        participantStatus = Status.FINISHED;
+    }
+
+    public void closeReservation(long delta, Instant now) {
+        if (result == null || reservationReleasedAt != null || coinDelta != null) {
+            throw new IllegalStateException("참가비 정산 상태를 확인하세요.");
+        }
+        coinDelta = delta;
+        reservationReleasedAt = now;
+    }
 
     public enum Status { ACTIVE, LEFT, FINISHED }
 }
