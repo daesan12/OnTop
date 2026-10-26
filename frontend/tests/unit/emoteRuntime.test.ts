@@ -30,6 +30,7 @@ class ContractSocket implements SocketLike {
   send(data: string) {
     const request = JSON.parse(data)
     this.requests.push(request)
+    if (request.type === 'WORLD_FOLLOW_CHECK') queueMicrotask(() => this.emit('WORLD_FOLLOW_STATE', { channelId: 'channel-1', version: 0, links: [] }, request.requestId))
     if (request.type === 'CHANNEL_JOIN') queueMicrotask(() => this.emit('CHANNEL_STATE', {
       channelId: 'channel-1', name: '공원', version: 1, currentUsers: 1, capacity: 4, userIds: ['101'],
     }, request.requestId))

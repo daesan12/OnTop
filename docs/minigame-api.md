@@ -235,3 +235,30 @@ $env:TEST_MINIGAME_DB_PASSWORD = '<test-db-password>'
 
 기본 백엔드 테스트에는 포함되지 않는다. `TEST_MINIGAME_FRONTEND=true`를 지정한 MySQL 검증에서만
 실행하고, Vitest는 기존 `frontend/node_modules`를 재사용한다. API 경로·요청·응답 계약 변경은 없다.
+
+## 실제 프론트 플레이 상태·60초 연동 검증
+
+`BungeoppangFrontendFlowMySqlTests`는 기존 FE의 `store`·규칙·service·ParkRuntime/SharedSocket을
+수정하지 않고 dev,db의 회원 인증·접속권·HTTP·Raw WebSocket·JPA·격리 MySQL에 연결한다.
+시작 응답 유실 후 같은 키 재확인 → 실제 입력으로 양면 황금7개/86점 → 미완성 반죽1개 남김 →
+탭 숨김 중에도 실제60초 진행 → 완료 응답 유실/동일 기록 재확인 →5냥 지급 → 잔액 응답 유실 후
+지갑만 재조회 → 새 판 포기 → 새 접속권 복귀 후 일일 보상/잔액 복구를 확인한다.
+미완성은 점수 제외이고 `wasted`는 명시적 DISCARD 횟수이므로 이 흐름에서는0이다.
+
+브라우저 API·숨김 상태·응답 유실은 Node 어댑터다. 위치는 가게 앞의 신뢰된 서버 fixture로 고정하며
+물리 시간만 동결한다. **게임/서버 시계와 DB 시작 시각은 바꾸지 않고 실제60초를 기다린다.**
+실제 브라우저의 백그라운드 타이머 제한·3D 렌더링·걸어서 접근·외부 OAuth 제공자·개발 서버 배포는
+별도 검수다. 포기/복귀 뒤 신규 지급이 없고 최종 지갑105/예약10·완료1·포기1·보상원장1을 Java에서
+독립 SQL로 대조한다. 테스트 보존 회원의 지갑은 바뀌지 않아야 한다.
+
+```powershell
+$env:TEST_BUNGEOPPANG_FLOW = 'true'
+$env:TEST_BUNGEOPPANG_FLOW_DB_URL = 'jdbc:mysql://127.0.0.1:<port>/ontop_minigame_test_flow_<unique>?serverTimezone=UTC'
+$env:TEST_MINIGAME_DB_USERNAME = '<test-db-user>'
+$env:TEST_MINIGAME_DB_PASSWORD = '<test-db-password>'
+# backend에서 실행. Node24와 기존 frontend 의존성이 필요하다.
+.\gradlew.bat mysqlTest --tests '*BungeoppangFrontendFlowMySqlTests'
+```
+
+빈 loopback 전용 DB만 허용하며 기존 데이터 삭제/초기화·신규 Flyway·제품/팀원 소스 변경은 없다.
+인증값은 자식 프로세스 환경으로만 전달하고 진단에는 성공 여부·점수·지급액만 남긴다.

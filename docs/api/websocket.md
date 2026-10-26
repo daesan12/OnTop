@@ -1,5 +1,11 @@
 # OnTop WebSocket 연결 및 메시지 계약
 
+맵 식별 정보: [CONNECTED / WORLD_MAP_CONFIRM / WORLD_MAP_STATE](../world-map-api.md).
+WORLD_MAP_REQUIRE_MATCH=true에서는 확인 전 입장·경기 복구를 보류한다. 기본 false는 기존 FE 호환이다.
+
+따라가기: [WORLD_FOLLOW_START / STOP / CHECK / STATE](../world-follow-api.md).
+서버가 매 틱 이동을 판정하고 기존 WORLD_STATE로 좌표를 전송한다.
+
 수동 기권은 [GAME_FORFEIT / GAME_FORFEIT_RESULT](../game-forfeit-api.md)를 사용한다.
 현재 인증 참가자만 요청하며 소켓은 유지한다. 기권 승인과 DB 정산 완료는 구분한다.
 

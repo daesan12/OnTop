@@ -70,7 +70,7 @@ test('pavilion bench faces the board, close participant/board views use camera o
   await expect.poll(async () => (await probe(page)).controls).toEqual(original)
 })
 
-test('ordinary dev exposes the remote menu but sends no invented follow request and closes for F1', async ({ page }) => {
+test('ordinary dev exposes approved follow controls and closes the remote menu for F1', async ({ page }) => {
   const server = await fixture(page, { manualMovement: true }); await loaded(page)
   // The 이웃 메뉴 launcher is gone; the menu opens the way an avatar right-click opens it.
   await page.evaluate(async () => {
@@ -79,14 +79,14 @@ test('ordinary dev exposes the remote menu but sends no invented follow request 
     const state = useSession.getState()
     openAvatarMenu({ id: state.ids.find((id: string) => id !== state.sessionId), x: 600, y: 300 })
   })
-  const menu = page.getByRole('menu').filter({ hasText: '따라가기 서버 연결' }); await expect(menu).toBeVisible()
-  await expect(menu.getByRole('menuitem', { name: '따라가기', exact: true })).toBeDisabled()
+  const menu = page.getByRole('menu').filter({ hasText: '서버 승인 후 따라가요' }); await expect(menu).toBeVisible()
+  await expect(menu.getByRole('menuitem', { name: '따라가기', exact: true })).toBeEnabled()
   const count = server.sent.filter(m => m.type === 'WORLD_MOVE' && m.payload.dx).length
   await page.keyboard.press('KeyW'); expect(server.sent.filter(m => m.type === 'WORLD_MOVE' && m.payload.dx)).toHaveLength(count)
   await screenshot(page, 'follow-server-boundary')
   await page.keyboard.press('F1'); await expect(page.getByRole('dialog', { name: '게임 설명서', exact: true })).toHaveAttribute('data-phase', 'open')
   await expect(page.getByRole('menu')).toHaveCount(0)
-  expect(server.sent.some(m => /FOLLOW/i.test(m.type))).toBe(false)
+  expect(server.sent.filter(m => /FOLLOW/i.test(m.type)).map(m => m.type)).toEqual(['WORLD_FOLLOW_CHECK'])
 })
 
 test('administrator uses existing JWT read API, safely renders text and pages without opening a world socket', async ({ page }) => {

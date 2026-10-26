@@ -85,7 +85,33 @@ heartbeat 단절·29초 복귀 → 시간패 → 정산 대기·준비 거절 �
 
 두 실제 소켓 검사에서 좌표 주입 거절 → 방향 입력 → 같은 채널 자동 위치 수신·다른 채널 격리 → 과거 순번 무시 → 250ms 입력 만료 → 착석 중 이동 거절 → heartbeat 정리 → 재입장 새 스폰·seq0을 확인한다. 지도 벽·테이블·팔각정 계단·전망대·점프·수영/징검다리의 상세 물리 회귀는 일반 `test/build`의 `WorldPhysicsTests`에서 검사한다.
 
+## 실제 프론트 상점 연결 검증
+
+기존 FE 상점 controller/service와 실제 Spring·인증·소켓·JPA/MySQL을 이어서 검사한다.
+기존 데이터가 없는 새 loopback 검증 DB가 필요하고, 사용자/상품이 있으면 거절한다.
+기존 공통·상점 마이그레이션만 새 검증 DB에 적용하며 기존 DB나 SQL을 수정하지 않는다.
+
+backend 폴더에서 개인 환경변수를 지정한 뒤 실행한다. 비밀값은 공유 파일에 저장하지 않는다.
+
+```powershell
+$env:TEST_SHOP_FRONTEND = 'true'
+$env:TEST_SHOP_FRONTEND_DB_URL = 'jdbc:mysql://127.0.0.1:<port>/ontop_shop_test_frontend_<unique>?serverTimezone=UTC'
+$env:TEST_SHOP_DB_USERNAME = '<test-db-user>'
+$env:TEST_SHOP_DB_PASSWORD = '<test-db-password>'
+.\gradlew.bat mysqlTest --tests '*ShopFrontendMySqlTests'
+```
+
+Node24·설치된 저장소 frontend 의존성이 필요하다. Java가 인증값을 자식 프로세스 환경에만 전달한다.
+`backend/src/test/js/shop-frontend/flow.test.ts`의 실제 FE 구매 재확인/과거 잔액 보호·장착·재접속과
+Java의 독립 SQL 잔액/원장 검사를 함께 통과해야 성공이다. 시간·위치 고정 대역은 사용하지 않는다.
+Node의 브라우저 API 어댑터·유실 응답 주입을 구분하고 실제3D UI/운영 적용·경기 정산 검증으로 확대하지 않는다.
+
 ## 결과 확인
+
+붕어빵의 실제 FE 플레이 상태→HTTP/RawWS→MySQL 전체 검사는
+[실제60초 연동 명령과 범위](minigame-api.md#실제-프론트-플레이-상태60초-연동-검증)를 따른다.
+`BungeoppangFrontendFlowMySqlTests`는 mysql 태그·TEST_BUNGEOPPANG_FLOW=true 전용이며
+일반 flowTest에 추가하지 않는다. 게임 시각/DB 시작 시각을 조정하는 기존 서비스 검사와 구분한다.
 
 | 위치 | 내용 |
 | --- | --- |

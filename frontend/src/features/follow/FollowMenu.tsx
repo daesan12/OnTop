@@ -5,7 +5,7 @@ import { clearRoamingInput, inputState } from '../../world/inputOwnership'
 import { canControlRoamingCamera } from '../../world/roamingCamera'
 import { followAvailability, requestFollow } from './controller'
 import { followService } from './service'
-import { resetFollow, sameFollowScope, useFollow } from './state'
+import { sameFollowScope, useFollow } from './state'
 import './follow.css'
 
 export interface AvatarMenuRequest { id: string; x: number; y: number }
@@ -27,7 +27,7 @@ export function FollowMenu() {
     window.addEventListener('ontop-avatar-menu', show)
     return () => window.removeEventListener('ontop-avatar-menu', show)
   }, [])
-  useEffect(() => { resetFollow(); setMenu(null); return resetFollow }, [session.sessionId, session.roomId, session.status])
+  useEffect(() => { setMenu(null) }, [session.sessionId, session.roomId, session.status])
   useEffect(() => {
     if (!isOpen) return
     previousFocus.current = document.activeElement as HTMLElement | null
@@ -63,15 +63,17 @@ export function FollowMenu() {
         }
       }}>
       <strong>{nickname(menu.id)}</strong>
-      <button type="button" role="menuitem" disabled={!!reason || state.pending || followService.mode === 'unavailable'}
+      <button type="button" role="menuitem" disabled={!!reason || state.pending || followService.mode === 'unavailable' || followService.mode === 'server' && (!state.ready || state.checking)}
         onClick={() => { void requestFollow(menu.id); close() }}>따라가기</button>
-      <small>{reason || (followService.mode === 'unavailable' ? '따라가기 서버 연결이 준비 중이에요.' : followService.mode === 'preview' ? '개발 미리보기 · 실제 자동 이동은 하지 않아요.' : '서버 승인 후 따라가요.')}</small>
+      <small>{reason || (followService.mode === 'unavailable' ? '따라가기 서버 연결이 준비 중이에요.' : followService.mode === 'preview' ? '개발 미리보기 · 실제 자동 이동은 하지 않아요.' : !state.ready || state.checking ? '따라가기 상태를 확인하고 있어요.' : '서버 승인 후 따라가요.')}</small>
       <button type="button" role="menuitem" onClick={close}>닫기</button>
     </div>}
     {target && <aside className="follow-status" aria-label="따라가기 상태"><span>{nickname(target)} 따라가는 중</span>
       {followService.mode === 'preview' && <small>개발 미리보기 · 관계·줄 표시만 확인 / 실제 자동 이동 없음</small>}
-      <button type="button" disabled={state.pending || followService.mode === 'unavailable'} onClick={() => void requestFollow(null)}>따라가기 종료</button></aside>}
+      <button type="button" disabled={state.pending || followService.mode === 'unavailable' || followService.mode === 'server' && (!state.ready || state.checking)} onClick={() => void requestFollow(null)}>따라가기 종료</button></aside>}
     {state.error && <aside className="follow-status follow-error" role="alert">{state.error}
+      {followService.mode === 'server' && <button type="button" disabled={state.pending || state.checking}
+        onClick={() => { void followService.check?.().catch(() => {}) }}>따라가기 상태 재조회</button>}
       <button type="button" onClick={() => useFollow.setState({ error: '' })}>닫기</button></aside>}
   </>
 }

@@ -1,9 +1,10 @@
 import { create } from 'zustand'
 
 export interface FollowScope { userId: string; channelId: string }
-export interface FollowLink { followerId: string; targetId: string }
+export interface FollowLink { followId?: string; followerId: string; targetId: string }
 export const sameFollowScope = (a: FollowScope | null, b: FollowScope) => a?.userId === b.userId && a.channelId === b.channelId
-const initial = () => ({ scope: null as FollowScope | null, links: [] as readonly FollowLink[], pending: false, error: '', epoch: 0 })
+const initial = () => ({ scope: null as FollowScope | null, links: [] as readonly FollowLink[], pending: false, error: '', epoch: 0,
+  version: -1, ready: false, checking: false })
 export const useFollow = create(initial)
 let lifetime = new AbortController()
 export const followSignal = () => lifetime.signal

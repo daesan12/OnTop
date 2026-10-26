@@ -189,6 +189,7 @@ class WalletTransactionsMySqlTests {
     void 참조ID와_밀리초_시각은_추가엔티티_조회없이_그대로_반환한다() throws Exception {
         User user = initialized();
         long walletId = wallets.findByUserId(user.getId()).orElseThrow().id();
+        com.ssafy.ontop.game.TestGameSessions.reference(jdbc, 88);
         jdbc.update("""
                 INSERT INTO wallet_transactions(wallet_id,transaction_type,balance_delta,reserved_delta,
                 item_id,game_session_id,minigame_session_id,idempotency_key,created_at)
