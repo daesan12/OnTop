@@ -38,10 +38,14 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "FEEDBACK")
 @SecurityRequirement(name = "AccessJwt")
 @ApiResponses({
-    @ApiResponse(responseCode = "400", description = "INVALID_REQUEST / FEEDBACK_TEXT_INVALID"),
-    @ApiResponse(responseCode = "401", description = "활성 회원 인증 필요"),
-    @ApiResponse(responseCode = "403", description = "FEEDBACK_OUT_OF_RANGE / FEEDBACK_ADMIN_REQUIRED"),
-    @ApiResponse(responseCode = "503", description = "FEEDBACK_NOT_CONFIGURED / FEEDBACK_UNAVAILABLE")
+    @ApiResponse(responseCode = "400", description = "INVALID_REQUEST / FEEDBACK_TEXT_INVALID",
+            content = @Content(schema = @Schema(implementation = FeedbackController.ErrorResponse.class))),
+    @ApiResponse(responseCode = "401", description = "활성 회원 인증 필요",
+            content = @Content(schema = @Schema(implementation = FeedbackController.ErrorResponse.class))),
+    @ApiResponse(responseCode = "403", description = "FEEDBACK_OUT_OF_RANGE / FEEDBACK_ADMIN_REQUIRED",
+            content = @Content(schema = @Schema(implementation = FeedbackController.ErrorResponse.class))),
+    @ApiResponse(responseCode = "503", description = "FEEDBACK_NOT_CONFIGURED / FEEDBACK_UNAVAILABLE",
+            content = @Content(schema = @Schema(implementation = FeedbackController.ErrorResponse.class)))
 })
 public class FeedbackController {
     private final ObjectProvider<FeedbackService> services;
@@ -56,9 +60,11 @@ public class FeedbackController {
             mediaType = "application/json", schema = @Schema(implementation = SubmissionRequest.class),
             examples = @ExampleObject(value = "{\"operationId\":\"feedback-1\",\"channelId\":\"channel-1\",\"text\":\"공원을 개선해주세요\"}")))
     @ApiResponse(responseCode = "201", description = "접수 또는 동일 요청의 기존 영수증",
-            content = @Content(schema = @Schema(implementation = FeedbackReceiptResponse.class)))
-    @ApiResponse(responseCode = "409", description = "IDEMPOTENCY_CONFLICT / NOT_IN_CHANNEL / FEEDBACK_ACTIVITY_CONFLICT")
-    @ApiResponse(responseCode = "429", description = "FEEDBACK_COOLDOWN, nextAllowedAt 포함")
+            content = @Content(mediaType = "application/json", schema = @Schema(implementation = FeedbackReceiptResponse.class)))
+    @ApiResponse(responseCode = "409", description = "IDEMPOTENCY_CONFLICT / NOT_IN_CHANNEL / FEEDBACK_ACTIVITY_CONFLICT",
+            content = @Content(schema = @Schema(implementation = FeedbackController.ErrorResponse.class)))
+    @ApiResponse(responseCode = "429", description = "FEEDBACK_COOLDOWN, nextAllowedAt 포함",
+            content = @Content(schema = @Schema(implementation = FeedbackController.ErrorResponse.class)))
     public ResponseEntity<FeedbackReceiptResponse> submit(Principal principal, @RequestBody JsonNode body) {
         long userId = account(principal);
         if (!body.isObject() || body.size() != 3 || !body.hasNonNull("operationId")
@@ -87,6 +93,8 @@ public class FeedbackController {
 
     @GetMapping("/api/v1/admin/feedback")
     @Operation(summary = "관리자 소리함 조회", description = "서버 관리자 회원 ID 목록에 등록된 활성 회원만 조회합니다.")
+    @ApiResponse(responseCode = "200", description = "접수 목록. 마지막 페이지의 nextCursor는 null",
+            content = @Content(mediaType = "application/json", schema = @Schema(implementation = FeedbackListResponse.class)))
     public ResponseEntity<FeedbackListResponse> list(Principal principal,
             @RequestParam(defaultValue = "") String cursor, @RequestParam(defaultValue = "20") String limit) {
         long userId = account(principal);
@@ -152,6 +160,7 @@ public class FeedbackController {
         return failure(new FeedbackException(503, "FEEDBACK_UNAVAILABLE", "의견을 처리하지 못했습니다. 같은 키로 재시도해주세요."));
     }
 
+    @Schema(name = "FeedbackErrorResponse")
     public record ErrorResponse(String code, String message, Instant nextAllowedAt) {
     }
 
