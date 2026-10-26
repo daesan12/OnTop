@@ -145,6 +145,21 @@ public class TableHub {
         behaviorLog.record(() -> details.apply(BehaviorEvent.builder(type, Instant.now()).userId(accountId)).build());
     }
 
+    // 실제 점유가 생기거나 풀린 뒤에만 호출한다. 시작·종료는 leaseId로 짝을 맞춘다.
+    private void recordFacility(Long accountId, WorldFacilityService.Lease lease, String endReason) {
+        recordBehavior(endReason == null ? BehaviorEventType.FACILITY_USED : BehaviorEventType.FACILITY_RELEASED,
+                accountId, builder -> {
+                    builder.channelId(lease.channelId()).prop("leaseId", lease.leaseId())
+                            .prop("facilityId", lease.facilityId()).prop("kind", lease.kind())
+                            .prop("seatIndex", lease.seatIndex());
+                    if (endReason != null) {
+                        builder.prop("endReason", endReason).prop("durationMs",
+                                Math.max(0, Duration.between(lease.startedAt(), Instant.now()).toMillis()));
+                    }
+                    return builder;
+                });
+    }
+
     // 물리 계산이 끝난 위치를 큐에 넣기만 한다. DB 접근·대기가 없어 tick을 막지 않는다. 착석 중에는 남기지 않는다.
     private void recordPositions(WorldChannelRegistry.WorldState state, Set<String> onlyUsers) {
         long now = System.nanoTime();
@@ -498,11 +513,13 @@ public class TableHub {
         profileMemberships.remove(member);
         positionSampler.forget(member.userId());
         String facilityChannel = channels.channelOf(member.userId());
-        boolean wasUsingFacility = facilities.current(member.userId()) != null;
+        // disconnected()가 내부에서 release()를 부르므로 해제 전 점유를 한 번만 읽어 종료를 한 번만 기록한다.
+        var facilityLease = facilities.current(member.userId());
         facilities.disconnected(member.userId());
         WorldChannelRegistry.State channelState = channels.disconnect(member.userId());
-        if (wasUsingFacility) {
+        if (facilityLease != null) {
             publishFacilities(facilityChannel, null, null);
+            recordFacility(member.accountId(), facilityLease, "DISCONNECTED");
         }
         if (channelState != null) {
             publishChannel(channelState, null, null);
@@ -808,11 +825,13 @@ public class TableHub {
         if (seating.containsKey(member.userId())) {
             fail(request, "TABLE_BUSY", "먼저 테이블에서 퇴장해주세요.");
         }
-        boolean wasUsingFacility = facilities.current(member.userId()) != null;
-        facilities.release(member.userId());
+        var facilityLease = facilities.release(member.userId());
+        if (facilityLease != null) {
+            recordFacility(member.accountId(), facilityLease, "CHANNEL_LEFT");
+        }
         WorldChannelRegistry.State state = channels.leave(member.userId());
         cancelEmote(member.userId(), "CHANNEL_LEFT");
-        if (wasUsingFacility) {
+        if (facilityLease != null) {
             publishFacilities(state.channelId(), null, null);
         }
         profileMemberships.remove(member);
@@ -976,6 +995,8 @@ public class TableHub {
                 publishFacilities(channel, member, request.requestId());
                 publishWorld(channels.worldState(channel), null, null);
                 cancelEmote(member.userId(), "ACTIVITY_STARTED");
+                // 같은 요청 재전송은 위에서 점유 버전이 그대로라 반환되므로 새 이용으로 기록되지 않는다.
+                recordFacility(member.accountId(), lease, null);
             }
             case "WORLD_FACILITY_RELEASE" -> {
                 var lease = facilities.requireOwner(member.userId(), payload.path("leaseId").asText());
@@ -984,9 +1005,13 @@ public class TableHub {
                     fail(request, "FACILITY_EXIT_BLOCKED", "하차 위치가 막혀 있습니다. 잠시 후 다시 시도해주세요.");
                 }
                 channels.releaseFacility(member.userId(), exit);
-                facilities.release(member.userId());
+                var released = facilities.release(member.userId());
                 publishFacilities(channel, member, request.requestId());
                 publishWorld(channels.worldState(channel), null, null);
+                // 하차 위치가 막히면 위에서 실패하므로 종료로 기록하지 않는다.
+                if (released != null) {
+                    recordFacility(member.accountId(), released, "RELEASED");
+                }
             }
             case "WORLD_FACILITY_AIM" -> {
                 long before = facilities.state(channel).version();

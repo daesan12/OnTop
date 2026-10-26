@@ -12,6 +12,8 @@ public enum BehaviorEventType {
     CHANNEL_LEFT,
     CHAT_SENT,
     EMOTE_SENT,
+    FACILITY_USED,
+    FACILITY_RELEASED,
     TABLE_JOINED,
     TABLE_LEFT,
     TABLE_READY_SET,

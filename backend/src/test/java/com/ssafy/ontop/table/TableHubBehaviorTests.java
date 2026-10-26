@@ -44,7 +44,8 @@ import static org.mockito.Mockito.when;
 
 class TableHubBehaviorTests {
 
-    private final ObjectMapper mapper = new ObjectMapper();
+    // 시설 상태의 시각(Instant)을 운영 Spring 설정처럼 직렬화한다.
+    private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
     private final WorldChannelRegistry registry = new WorldChannelRegistry(new WorldChannelProperties(List.of(
             new Channel("one", "하나", 3))), Duration.ofNanos(1), () -> 0L);
     private final TableHub hub = new TableHub(mapper, Optional.empty(), false, Optional.empty(),
@@ -117,6 +118,59 @@ class TableHubBehaviorTests {
     }
 
     @Test
+    void 시설_이용은_실제_점유와_해제만_한번씩_기록한다() throws Exception {
+        hub.configureBehaviorLog(log);
+        Peer user = peer(101);
+        user.join("one");
+        user.locate(-9, .8, 34.75);
+        Map<String, Object> use = Map.of("facilityId", "bench-0", "seatIndex", 0);
+
+        assertThat(user.request("WORLD_FACILITY_USE", use, "use-1").path("type").asText())
+                .isEqualTo("WORLD_FACILITY_STATE");
+        user.request("WORLD_FACILITY_USE", use, "use-1");
+        assertThat(user.request("WORLD_FACILITY_RELEASE", Map.of("leaseId", "other")).path("payload").path("code")
+                .asText()).isEqualTo("FACILITY_LEASE_MISMATCH");
+        BehaviorEvent used = log.find(BehaviorEventType.FACILITY_USED);
+        String leaseId = (String) used.props().get("leaseId");
+        assertThat(user.request("WORLD_FACILITY_RELEASE", Map.of("leaseId", leaseId)).path("type").asText())
+                .isEqualTo("WORLD_FACILITY_STATE");
+
+        assertThat(log.types()).filteredOn(type -> type.name().startsWith("FACILITY_"))
+                .containsExactly(BehaviorEventType.FACILITY_USED, BehaviorEventType.FACILITY_RELEASED);
+        assertThat(used.userId()).isEqualTo(101L);
+        assertThat(used.channelId()).isEqualTo("one");
+        assertThat(used.props()).containsOnlyKeys("leaseId", "facilityId", "kind", "seatIndex")
+                .containsEntry("facilityId", "bench-0")
+                .containsEntry("kind", "BENCH")
+                .containsEntry("seatIndex", 0);
+        BehaviorEvent released = log.find(BehaviorEventType.FACILITY_RELEASED);
+        assertThat(released.channelId()).isEqualTo("one");
+        assertThat(released.props()).containsEntry("leaseId", leaseId)
+                .containsEntry("facilityId", "bench-0")
+                .containsEntry("endReason", "RELEASED");
+        assertThat((Long) released.props().get("durationMs")).isNotNegative();
+    }
+
+    @Test
+    void 채널_퇴장과_끊김으로_풀린_시설은_종료를_한번만_기록한다() throws Exception {
+        hub.configureBehaviorLog(log);
+        Peer leaving = peer(101);
+        leaving.join("one");
+        leaving.locate(-9, .8, 34.75);
+        leaving.request("WORLD_FACILITY_USE", Map.of("facilityId", "bench-0", "seatIndex", 0));
+        leaving.request("CHANNEL_LEAVE", Map.of());
+        Peer dropped = peer(102);
+        dropped.join("one");
+        dropped.locate(-9, .8, 34.75);
+        dropped.request("WORLD_FACILITY_USE", Map.of("facilityId", "bench-0", "seatIndex", 1));
+        hub.disconnect(dropped.id, ConnectionCloseReason.SOCKET_CLOSED);
+
+        assertThat(log.events.stream().filter(event -> event.type() == BehaviorEventType.FACILITY_RELEASED)
+                .map(event -> List.of(event.userId(), event.props().get("endReason"), event.props().get("seatIndex"))))
+                .containsExactly(List.of(101L, "CHANNEL_LEFT", 0), List.of(102L, "DISCONNECTED", 1));
+    }
+
+    @Test
     void 로그_큐가_가득_차도_요청은_정상_처리된다() throws Exception {
         BufferedBehaviorLog full = new BufferedBehaviorLog((events, positions) -> { },
                 new BehaviorLogProperties(true, 1, 1, Duration.ofSeconds(1), Duration.ofSeconds(1)));
@@ -177,8 +231,16 @@ class TableHubBehaviorTests {
             next("WORLD_STATE");
         }
 
+        private void locate(double x, double y, double z) {
+            long sequence = registry.positionOf(userId).sequence() + 1;
+            registry.move(userId, new WorldChannelRegistry.Position(sequence, x, y, z, 0));
+        }
+
         private JsonNode request(String type, Object payload) throws Exception {
-            String requestId = UUID.randomUUID().toString();
+            return request(type, payload, UUID.randomUUID().toString());
+        }
+
+        private JsonNode request(String type, Object payload, String requestId) throws Exception {
             hub.receive(id, mapper.writeValueAsString(Map.of("requestId", requestId, "type", type, "payload", payload)));
             while (true) {
                 JsonNode response = messages.poll(5, TimeUnit.SECONDS);
