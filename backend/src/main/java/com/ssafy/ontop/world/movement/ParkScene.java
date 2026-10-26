@@ -2,6 +2,7 @@ package com.ssafy.ontop.world.movement;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ssafy.ontop.world.dto.WorldMapMetadata;
 import com.jme3.bullet.collision.shapes.BoxCollisionShape;
 import com.jme3.bullet.collision.shapes.CollisionShape;
 import com.jme3.bullet.collision.shapes.HullCollisionShape;
@@ -103,6 +104,12 @@ public final class ParkScene {
 
     public String version() {
         return data.path("sourceSha256").asText();
+    }
+
+    public WorldMapMetadata metadata() {
+        // 기존 /world/park.json 형식은 mapId 없이 park 맵으로 배포되어 왔다.
+        return new WorldMapMetadata(data.path("mapId").asText("park"),
+                data.path("schemaVersion").asInt(), version());
     }
 
     public Vector3f spawn(int slot) {

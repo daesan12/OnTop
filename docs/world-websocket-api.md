@@ -1,5 +1,8 @@
 # 광장 WebSocket · 채널·이동·채팅
 
+연결 시 실제 로딩한 맵 정보와 입장 전 확인은 [맵 버전 계약](world-map-api.md)을 사용한다.
+버전 검사 활성화 시 WORLD_MAP_CONFIRM 성공 후 기존 CHANNEL_JOIN을 보낸다.
+
 시설 이용·반납·망원경 방향·점유 복구는 [시설 점유 계약](world-facility-api.md)을 사용한다.
 따라가기 시작·자동 이동·종료·관계 조회는 [따라가기 계약](world-follow-api.md)을 사용한다.
 
