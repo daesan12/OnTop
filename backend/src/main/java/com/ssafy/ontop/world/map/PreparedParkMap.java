@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ssafy.ontop.table.domain.TableRoom;
 import com.ssafy.ontop.world.config.WorldProximityProperties;
 import com.ssafy.ontop.world.dto.WorldMapMetadata;
+import com.ssafy.ontop.world.movement.ParkScene;
 import com.ssafy.ontop.world.service.WorldFacilityService.Catalog;
 import com.ssafy.ontop.world.service.WorldFacilityService.Definition;
 import com.ssafy.ontop.world.service.WorldFacilityService.Pose;
@@ -79,6 +80,11 @@ public final class PreparedParkMap {
     public Catalog facilities() { return facilities; }
     public Reach notes() { return notes; }
     public Reach feedback() { return feedback; }
+
+    /** 명시적으로 호출한 테스트 장면만 생성하며 ParkScene.load()의 기본 장면을 교체하지 않는다. */
+    public ParkScene createScene() {
+        return ParkScene.fromPreparedData(collisionData, metadata);
+    }
 
     /** 반환한 좌석은 독립된 검증/향후 구성용이다. 현재 TableHub의 rooms를 변경하지 않는다. */
     public Map<String, TableRoom> createRooms() {

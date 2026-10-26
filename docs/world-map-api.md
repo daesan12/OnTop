@@ -142,14 +142,15 @@ Spring 빈·시작 훅·리소스 선택 설정에는 연결하지 않았다. �
 ## 180m 공원 테이블·좌표 조립 준비
 
 FE `5c171c6`의 추가 데이터를 기준으로 `PreparedParkMap.load(mapFile, manifestFile, channelIds)`를
-추가했다. 앞선 체크섬 검사를 통과한 파일로 다음 자료를 **독립된 객체로만** 조립한다.
-기존 `TableHub`·`ParkScene`·실행 설정에는 연결하지 않았으며, 현재 서버의 테이블 개수와 맵은 그대로다.
+추가했다. 앞선 체크섬 검사를 통과한 파일로 다음 자료를 조립한다.
+기본 Spring 구성과 실행 설정은 유지하며, 명시적으로 주입하는 별도 테스트 구성에서만 새 맵을 사용한다.
 
 | 제공 자료 | 연결 내용 |
 | --- | --- |
 | bindings / createRooms() | 채널별 table-1~16 앵커와 독립 TableRoom 16개. 기존 게임 선택·준비 모델 재사용 |
 | proximity() | 같은 서버 ID에 새 앵커의 X/Z 연결. 기존 채팅·관전 반경 20m 유지 |
 | collisionData() | 기존 Java 물리 입력 형식으로 지형·충돌·스폰·호수·전망대·디딤돌 변환 |
+| createScene() | 위 입력과 원래 schema2 식별 정보로 별도 네이티브 ParkScene 생성. 기본 장면 교체 없음 |
 | facilities() | 새 시설 ID·이용/하차 자세·높이·반경과 같은 mapVersion. 기존 망원경 속도/각도 설정 유지 |
 | notes() / feedback() | 익명 메모함·소리함 접근 기준. REST 저장/보존 정책과 별개 |
 
@@ -183,7 +184,15 @@ FE `5c171c6`의 추가 데이터를 기준으로 `PreparedParkMap.load(mapFile, 
 기본 단위 검사는 PreparedParkMapTests다. `TEST_GENERATED_MAP_DIR`을 최신 전달본과 기존 환경별
 park-bindings 두 파일이 있는 폴더로 지정하면 PreparedParkMapHandoffTests가 실제 데이터·문서 매핑
 일치·관전 20m·기존 맵 유지를 검사하고 build/park-prepared/ 아래에 전달 파일을 생성한다.
-이 단계는 네이티브 새 물리 장면·실제 WebSocket 16개 등록/착석·REST 새 이용 좌표를 검증한 것이 아니다.
+추가 승인한 테스트 연결은 다음 순서다.
 
-후속 연결 범위는 기존 실행 코드의 명시적 장면 주입, TableHub의 16개 등록과 시설/근거리/메모 접근
-설정 주입, 실제 로딩 장면의 schema2 버전 전송이다. 실행 맵 자동 선택·기본값 변경·배포는 포함하지 않았다.
+1. `park.createScene()`으로 별도 장면 생성 → WorldChannelRegistry의 명시적 장면 생성자에 전달.
+2. WorldMapCompatibility에 같은 `park.metadata()`를 전달. CONNECTED·WORLD_STATE·시설 버전을 일치시킨다.
+3. TableHub의 마지막 인수에 `park`를 전달하면 채널별 16개 등록·시설 카탈로그·20m 관전 좌표·메모함
+   접근 기준을 함께 연결한다. 채널 목록이나 맵 식별 정보가 다르면 서버 시작 전에 실패한다.
+
+PreparedParkSocketTests는 랜덤 포트의 별도 서버에서 실제 네이티브 장면·WebSocket으로 schema2 확인,
+16번 테이블 착석·게임 선택·준비, 시설 이용/반납을 검사한다. 고정 회원 fixture와 서버 위치 fixture를 사용한다.
+메모/소리함 검사는 실제 Hub 접근 판정까지이며 REST 저장·실제 로그인·DB 검사가 아니다.
+단위 네이티브 이동은 단순 지형 fixture에서 검증한다. 실제 새 공원의 벽·수영·전망대·디딤돌 주행 검수와
+FE 3D 공동 검수·CI·배포는 후속이다. 실행 맵 자동 선택·기본값 변경·신규 실행 프로필은 추가하지 않았다.

@@ -4,6 +4,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ssafy.ontop.table.domain.TableGame;
+import com.ssafy.ontop.world.movement.MoveInput;
+import com.ssafy.ontop.world.movement.ParkScene;
+import com.ssafy.ontop.world.movement.WorldPhysics;
 import com.ssafy.ontop.world.service.WorldFacilityService;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -22,6 +25,30 @@ class PreparedParkMapTests {
 
     @TempDir
     Path directory;
+
+    @Test
+    void 별도_네이티브_장면의_스폰과_이동을_검사해도_기본장면은_바뀌지_않는다() throws Exception {
+        var original = ParkScene.load().metadata();
+        var park = load(fixture(), Set.of("channel-1"));
+        try (var physics = new WorldPhysics(park.createScene())) {
+            physics.add("101");
+            assertThat(physics.snapshot("101").z()).isEqualTo(82);
+            assertThat(physics.snapshot("101").yaw()).isCloseTo(3.14, org.assertj.core.data.Offset.offset(0.001));
+            long tick = 0;
+            for (int i = 0; i < 30; i++) {
+                physics.step(++tick * WorldPhysics.STEP_NANOS, Set.of());
+            }
+            double before = physics.snapshot("101").x();
+            for (int i = 0; i < 30; i++) {
+                long now = ++tick * WorldPhysics.STEP_NANOS;
+                physics.input("101", new MoveInput(i + 1, 1, 0, false, false), now);
+                physics.step(now, Set.of());
+            }
+            assertThat(physics.snapshot("101").x() - before)
+                    .isCloseTo(6.25, org.assertj.core.data.Offset.offset(0.1));
+        }
+        assertThat(ParkScene.load().metadata()).isEqualTo(original);
+    }
 
     @Test
     void 채널마다_16개_테이블을_조립하고_기존_ID를_유지한다() throws Exception {
