@@ -192,10 +192,12 @@ export function watchOmokResources() {
 }
 export const omokResourceProbe = () => ({ ...omokResources })
 export function farkleProbe() {
-  const { scene } = root()
+  const { scene, camera } = root()
   const dice: { id: string; face: number; held: boolean; quaternion: number[] }[] = []
   scene.traverse(o => { if (o.name.startsWith('farkle-die-')) dice.push({ id: o.name, face: o.userData.face, held: o.userData.held, quaternion: o.quaternion.toArray() }) })
-  return { dice, cameraReady: diceCamera.ready, cup: useDiceUI.getState().cup, selected: useDiceUI.getState().selectedIds }
+  return { dice, cameraReady: diceCamera.ready, cup: useDiceUI.getState().cup, selected: useDiceUI.getState().selectedIds,
+    camera: camera.position.toArray(), direction: camera.getWorldDirection(new Vector3()).toArray(),
+    fov: (camera as import('three').PerspectiveCamera).fov }
 }
 export function pointForFarkleCup() {
   const { scene, camera, gl } = root()

@@ -20,9 +20,10 @@ export function GamePanel() {
   const card = useGame(s => !!s.game?.onecard || (s.start?.gameCode === 'ONE_CARD' && ['PLAYING', 'SETTLING'].includes(s.start.phase)))
   const bridge = useGame(s => !!s.game?.bridge || (s.start?.gameCode === 'LIAR_BRIDGE' && ['PLAYING', 'SETTLING'].includes(s.start.phase)))
   if (spectatorResult) {
+    if (spectatorResult.dice) return <FarklePanel />
     const winners = spectatorResult.onecard?.winnerUserIds ?? spectatorResult.bridge?.winnerUserIds
-      ?? [spectatorResult.omok?.winnerUserId ?? spectatorResult.dice?.winnerUserId].filter((id): id is string => !!id)
-    const label = spectatorResult.bridge ? '다리 경기' : spectatorResult.onecard ? '원카드 경기' : spectatorResult.dice ? '주사위 경기' : '오목 경기'
+      ?? [spectatorResult.omok?.winnerUserId].filter((id): id is string => !!id)
+    const label = spectatorResult.bridge ? '다리 경기' : spectatorResult.onecard ? '원카드 경기' : '오목 경기'
     return <section className="park-runtime-panel prototype-result-detail" role="region" aria-label={label}>
       <h2>관전 경기 결과</h2><p role="status">{winners.length ? `${winners.map(id => profiles[id]?.nickname ?? '참가자').join(' · ')} ${winners.length > 1 ? '공동 승리' : '승리'}` : '무승부 · 경기 종료'}</p>
       <p>공개 결과입니다. 관전자에게 개인 손패와 정산 정보는 제공하지 않습니다.</p>

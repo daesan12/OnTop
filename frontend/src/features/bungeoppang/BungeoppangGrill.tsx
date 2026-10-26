@@ -6,11 +6,9 @@ import {
   ExtrudeGeometry,
   Group,
   InstancedMesh,
-  Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
   Object3D,
-  Shape,
   ShapeGeometry,
   SphereGeometry,
   Sphere,
@@ -18,11 +16,11 @@ import {
   Vector3,
 } from "three";
 import { BUNGEOPPANG } from "./config";
+import { createFishCartShape as fishShape } from '../../world/art/fishCartShape';
 import { cookLevel, judge } from "./rules";
 import {
   BUNG_GRILL,
   bungeoppangClock,
-  bungeoppangView,
   slotFx,
   slotOverlayEls,
   slotScreen,
@@ -34,33 +32,6 @@ import {
 } from "./store";
 
 const R = BUNGEOPPANG;
-// 카트 홈과 같은 붕어 윤곽(머리 -x, 꼬리 +x). scripts/repair-cart-prop.py와 같은 점이다.
-const OUTLINE = [
-  [-0.52, 0],
-  [-0.48, -0.19],
-  [-0.32, -0.3],
-  [-0.08, -0.32],
-  [0.14, -0.25],
-  [0.3, -0.12],
-  [0.49, -0.29],
-  [0.43, 0],
-  [0.49, 0.29],
-  [0.3, 0.12],
-  [0.14, 0.25],
-  [-0.08, 0.32],
-  [-0.32, 0.3],
-  [-0.48, 0.19],
-] as const;
-function fishShape(length: number) {
-  const shape = new Shape();
-  OUTLINE.forEach(([x, y], i) =>
-    i
-      ? shape.lineTo(x * length, y * length)
-      : shape.moveTo(x * length, y * length),
-  );
-  shape.closePath();
-  return shape;
-}
 /** 익힘 색: 연한 베이지 → 노릇 → 황금 → 진한 갈색(너무 익음) → 탐(100에서 바로 바뀜). */
 const STOPS: [number, Color][] = [
   [0, new Color("#f2e3c0")],
@@ -91,7 +62,7 @@ const GAUGE: Record<string, string> = {
   BURNT: "#e24b4a",
 };
 
-/** 내 화면에만 보이는 개인 철판. 조리대 시점일 때만 그린다. */
+/** 카트의 실제 철판 위에 내 반죽·붕어빵과 조리 효과만 표시한다. */
 export function BungeoppangGrill() {
   const phase = useBungeoppang((s) => s.phase);
   if (phase === "idle") return null;
@@ -102,7 +73,7 @@ function GrillMeshes() {
   const { camera, gl } = useThree();
   const L = BUNG_GRILL.breadLength;
   const geometries = useMemo(() => {
-    const bread = new ExtrudeGeometry(fishShape(L), {
+    const bread = new ExtrudeGeometry(fishShape(BUNG_GRILL.mouldScale * .92), {
       depth: 0.035,
       bevelEnabled: true,
       bevelThickness: 0.014,
@@ -111,12 +82,12 @@ function GrillMeshes() {
       curveSegments: 4,
     });
     bread.rotateX(-Math.PI / 2);
-    const batter = new ExtrudeGeometry(fishShape(L * 0.96), {
+    const batter = new ExtrudeGeometry(fishShape(BUNG_GRILL.mouldScale * .92), {
       depth: 0.012,
       bevelEnabled: false,
     });
     batter.rotateX(-Math.PI / 2);
-    const cavity = new ShapeGeometry(fishShape(L * 1.06));
+    const cavity = new ShapeGeometry(fishShape(BUNG_GRILL.mouldScale));
     cavity.rotateX(-Math.PI / 2);
     return {
       bread,
@@ -124,29 +95,10 @@ function GrillMeshes() {
       cavity,
       bean: new SphereGeometry(0.045, 10, 6),
       hit: new BoxGeometry(L * 1.12, 0.14, L * 0.82),
-      plate: new BoxGeometry(BUNG_GRILL.plate.width, BUNG_GRILL.plate.thickness, BUNG_GRILL.plate.depth),
     };
   }, [L]);
   const materials = useMemo(
     () => ({
-      // 저녁·밤에도 판과 홈이 구별되도록 약한 자체 발광을 둔다.
-      plate: new MeshStandardMaterial({
-        color: "#5c544d",
-        emissive: "#1b1815",
-        metalness: 0.3,
-        roughness: 0.55,
-      }),
-      rim: new MeshStandardMaterial({
-        color: "#8a7f75",
-        emissive: "#24201c",
-        metalness: 0.25,
-        roughness: 0.5,
-      }),
-      cavity: new MeshStandardMaterial({
-        color: "#1f1b18",
-        metalness: 0.2,
-        roughness: 0.8,
-      }),
       bread: new MeshStandardMaterial({ color: "#ffffff", roughness: 0.78 }),
       batter: new MeshStandardMaterial({ color: BATTER, roughness: 0.9 }),
       bean: new MeshStandardMaterial({ color: "#5a2a1e", roughness: 0.7 }),
@@ -170,23 +122,8 @@ function GrillMeshes() {
   const hoverRings = useRef<InstancedMesh>(null);
   const goldenRings = useRef<InstancedMesh>(null);
   const groups = useRef<(Group | null)[]>([]);
-  const rims = useRef<InstancedMesh>(null);
-  const cavities = useRef<InstancedMesh>(null);
-  const staticScratch = useMemo(() => new Object3D(), []);
-  const staticOffsets = useRef(new Float32Array(R.slots));
-  const setStaticSlot = (i: number, x: number, z: number) => {
-    staticScratch.position.set(x, BUNG_GRILL.top + 0.001, z);
-    staticScratch.scale.set(1.1, 1, 1.18);
-    staticScratch.updateMatrix();
-    rims.current!.setMatrixAt(i, staticScratch.matrix);
-    staticScratch.position.y = BUNG_GRILL.top + 0.002;
-    staticScratch.scale.set(1, 1, 1);
-    staticScratch.updateMatrix();
-    cavities.current!.setMatrixAt(i, staticScratch.matrix);
-  };
   useLayoutEffect(() => {
-    BUNG_GRILL.slots.forEach(([x, z], i) => setStaticSlot(i, x, z));
-    const batches = [rims.current!, cavities.current!, breads.current!, batters.current!, beans.current!, hoverRings.current!, goldenRings.current!];
+    const batches = [breads.current!, batters.current!, beans.current!, hoverRings.current!, goldenRings.current!];
     for (const mesh of batches) {
       mesh.instanceMatrix.setUsage(DynamicDrawUsage);
       mesh.instanceMatrix.needsUpdate = true;
@@ -197,34 +134,6 @@ function GrillMeshes() {
     breads.current!.setColorAt(0, STOPS[0]![1]);
     return () => { batches.forEach(mesh => mesh.dispose()); };
   }, []);
-  // 카트 앞 간판이 45° 시점을 가린다. 굽는 동안 내 화면에서만 숨기고 나갈 때 되돌린다.
-  const scene = useThree((state) => state.scene);
-  useEffect(() => {
-    const hidden = new Map<Mesh, boolean>();
-    const hide = () => {
-      scene.getObjectByName("fish-bread")?.traverse((object) => {
-        const mesh = object as Mesh;
-        const name = (mesh.material as { name?: string } | undefined)?.name;
-        if (
-          mesh.isMesh &&
-          mesh.visible &&
-          name &&
-          bungeoppangView.hiddenCartMaterials.includes(name)
-        ) {
-          mesh.visible = false;
-          hidden.set(mesh, true);
-        }
-      });
-    };
-    hide();
-    // The cart streams by distance. Keep checking until its LODs have loaded,
-    // including slow connections, rather than relying on a single timeout.
-    const timer = setInterval(hide, 250);
-    return () => {
-      clearInterval(timer);
-      hidden.forEach((visible, mesh) => (mesh.visible = visible));
-    };
-  }, [scene]);
   const scratch = useMemo(
     () => ({ v: new Vector3(), w: new Vector3(), color: new Color(), object: new Object3D() }),
     [],
@@ -254,12 +163,6 @@ function GrillMeshes() {
       const shake = now - fx.shakeAt;
       const offset = shake < 250 ? Math.sin(shake / 18) * 0.012 : 0;
       if (group) group.position.x = x + offset;
-      if (Math.abs(staticOffsets.current[i]! - offset) > 0.000001) {
-        setStaticSlot(i, x + offset, z);
-        staticOffsets.current[i] = offset;
-        rims.current!.instanceMatrix.needsUpdate = true;
-        cavities.current!.instanceMatrix.needsUpdate = true;
-      }
       const cooking =
         showGame && (slot?.phase === "front" || slot?.phase === "back");
       const level = cooking
@@ -337,8 +240,6 @@ function GrillMeshes() {
     else if (event.button === 0) pressBungeoppangSlot(i);
     else if (event.button === 2) discardBungeoppangSlot(i);
   };
-  const [cx, , cz] = BUNG_GRILL.center;
-  const { thickness } = BUNG_GRILL.plate;
   return (
     <group name="bungeoppang-personal-grill" dispose={null}>
       <instancedMesh ref={breads} args={[geometries.bread, materials.bread, R.slots]} visible={false} />
@@ -346,21 +247,6 @@ function GrillMeshes() {
       <instancedMesh ref={beans} args={[geometries.bean, materials.bean, R.slots]} visible={false} />
       <instancedMesh ref={hoverRings} args={[geometries.cavity, materials.hover, R.slots]} visible={false} />
       <instancedMesh ref={goldenRings} args={[geometries.cavity, materials.golden, R.slots]} visible={false} />
-      <instancedMesh
-        ref={rims}
-        args={[geometries.cavity, materials.rim, R.slots]}
-      />
-      <instancedMesh
-        ref={cavities}
-        args={[geometries.cavity, materials.cavity, R.slots]}
-      />
-      <mesh
-        position={[cx, BUNG_GRILL.top - thickness / 2, cz]}
-        material={materials.plate}
-        castShadow={false}
-        receiveShadow
-        geometry={geometries.plate}
-      />
       {BUNG_GRILL.slots.map(([x, z], i) => (
         <group
           key={i}
