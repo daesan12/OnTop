@@ -15,3 +15,12 @@
 .park-page .farkle-rules table { width: 100%; border-collapse: collapse; }
 .park-page .farkle-rules td, .park-page .farkle-rules th { padding: 8px; border-bottom: 1px solid #d1b87b55; text-align: left; }
 @media(max-width: 600px) { .park-page .farkle-panel { width: calc(100vw - 2 * var(--park-edge)); max-height: calc(100dvh - 230px); } }
+/* Reuse prototypeTable.css's original HUD, above the existing bench controls. */
+.park-page .farkle-spectator { top:auto; width:min(340px,calc(100vw - 2 * var(--park-edge))); box-sizing:border-box; }
+.farkle-spectator-note { font-size:12px; }
+.park-page .farkle-spectator p { margin:8px 0; }
+.farkle-spectator-dice>span { font-family:Arial,sans-serif; }
+.farkle-spectator-views { display:flex; flex-wrap:wrap; gap:6px; }
+.park-page .farkle-spectator button { color:#253e32; background:#eee5d5; border:1px solid #c3ad88; border-radius:6px; }
+.park-page .farkle-spectator button[aria-pressed=true] { background:#dbe5d6; border-color:#526d47; }
+@media(max-width:1100px) { .park-page .farkle-spectator { padding:12px; } }
