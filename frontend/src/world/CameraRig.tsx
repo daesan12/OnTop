@@ -1,7 +1,7 @@
 import { gatheringCameraActive } from '../features/tableLobby/gathering'
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
-import { PerspectiveCamera, Quaternion, Vector3 } from 'three'
+import { Matrix4, PerspectiveCamera, Quaternion, Vector3 } from 'three'
 import { bungeoppangView } from '../features/bungeoppang/bungeoppangView'
 import { CAMERA, CHARACTER, GOMOKU, TABLES, TELESCOPE, TELESCOPES, telescopeFov, groundHeight, tableScale, tableSeats } from '../config'
 import { telescopeView } from '../features/telescopeView'
@@ -23,9 +23,10 @@ import { useTelescopeState } from '../features/telescopes/state'
 import { useFeedbackState } from '../features/feedback/state'
 import { useNotesState } from '../features/notes/state'
 import { benchBoardLook, benchLook, benchTable, benchViewScope, spectatorClearHeight, useBenchSpectator } from '../features/interactions/benchSpectator'
+import { advanceOmokCamera, OMOK_FOCUS_LAYER, omokTopDownHeight } from './omokCamera'
 
 export function CameraRig() {
-  const { gl, camera: mountedCamera } = useThree()
+  const { gl, camera: mountedCamera, raycaster } = useThree()
   const state = useMemo(
     () => ({
       focus: new Vector3(),
@@ -42,6 +43,7 @@ export function CameraRig() {
       seatScope: '',
       bungeoppangFov: null as number | null,
       rotation: new Quaternion(), targetRotation: new Quaternion(),
+      targetUp: new Vector3(0, 1, 0), lookMatrix: new Matrix4(), omokTransition: false,
     }),
     [],
   )
@@ -62,15 +64,20 @@ export function CameraRig() {
       }
       omokCamera.ready = false
       omokCamera.anchorId = ''
+      mountedCamera.layers.set(0)
+      raycaster.layers.set(0)
       resetSeatedLook()
       if (state.bungeoppangFov !== null && mountedCamera instanceof PerspectiveCamera) {
         mountedCamera.fov = state.bungeoppangFov; mountedCamera.updateProjectionMatrix()
       }
     },
-    [occlusion, state, mountedCamera],
+    [occlusion, state, mountedCamera, raycaster],
   )
   useFrame(({ camera, scene }, delta) => {
     diceCamera.ready = false
+    omokCamera.ready = false
+    camera.layers.set(0)
+    raycaster.layers.set(0)
     scan.current += delta
     if (scan.current >= 0.5) {
       const park = scene.getObjectByName('placeholder-park')
@@ -101,6 +108,7 @@ export function CameraRig() {
       }
       state.telescope = ''
       state.owner = ''
+      state.omokTransition = false
     }
     if (!avatar) {
       interactionAim.ready = false
@@ -110,9 +118,11 @@ export function CameraRig() {
       camera.position.set(110, 115, 138)
       camera.lookAt(0, 4, 0)
       state.owner = ''
+      state.omokTransition = false
       return
     }
     if (bungeoppangView.active) {
+      state.omokTransition = false
       if (camera instanceof PerspectiveCamera) {
         state.bungeoppangFov ??= camera.fov
         camera.fov += (bungeoppangView.fov - camera.fov) * (1 - Math.exp(-6 * delta))
@@ -140,6 +150,7 @@ export function CameraRig() {
     }
     sampleAvatar(avatar, performance.now(), state.pose)
     if (telescope) {
+      state.omokTransition = false
       const { yaw, pitch } = telescopeView
       camera.position.set(telescope.position[0], telescope.position[1] + TELESCOPE.eyeHeight, telescope.position[2])
       state.look.set(camera.position.x + Math.sin(yaw) * Math.cos(pitch), camera.position.y + Math.sin(pitch),
@@ -184,6 +195,15 @@ export function CameraRig() {
       !looking && seated && !!avatar.tableId &&
       game?.omok?.status === 'PLAYING' &&
       (game.role === 'SPECTATOR' || game.omok.turnUserId === session.sessionId)
+    const ownOmok = seated && !!avatar.tableId && (session.tableStates[session.tableId]?.gameCode === 'OMOK'
+      || game?.role === 'PLAYER' && !!game.omok)
+    const gathering = gatheringCameraActive()
+    const focusedOmok = boardFocus && ownOmok && !gathering
+    if (focusedOmok) {
+      camera.layers.set(OMOK_FOCUS_LAYER)
+      raycaster.layers.set(OMOK_FOCUS_LAYER)
+    }
+    state.targetUp.set(0, 1, 0)
     const diceFocus = !looking && seated && !!avatar.tableId && !!game?.dice && game.role === 'PLAYER' && useDiceUI.getState().boardView
     state.look.set(pose.x, pose.y + CAMERA.focusHeight - 0.8, pose.z)
     if (state.owner !== session.sessionId) {
@@ -194,7 +214,7 @@ export function CameraRig() {
       state.look,
       1 - Math.exp(-CAMERA.followSpeed * Math.min(delta, 0.1)),
     )
-    if (gatheringCameraActive()) {
+    if (gathering) {
       const anchor = TABLES.find(t => t.id === avatar.tableId)
       if (anchor) {
         const seat = tableSeats(anchor)[session.seatIndex] ?? tableSeats(anchor)[0]!
@@ -204,6 +224,12 @@ export function CameraRig() {
         state.desired.set(anchor.position[0] + Math.sin(yaw) * radius,
           Math.min(anchor.position[1] + 2.8, spectatorClearHeight(anchor.pavilionId)), anchor.position[2] + Math.cos(yaw) * radius)
       }
+    } else if (focusedOmok && camera instanceof PerspectiveCamera) {
+      const anchor = TABLES.find(t => t.id === avatar.tableId)!
+      state.look.set(anchor.position[0], anchor.position[1] + GOMOKU.boardY + .017, anchor.position[2])
+      state.desired.copy(state.look)
+      state.desired.y += omokTopDownHeight(camera.aspect, tableScale(anchor))
+      state.targetUp.set(0, 0, avatar.seatIndex === 0 ? -1 : 1)
     } else if (boardFocus || spectatorBoard || diceFocus) {
       const anchor = closeAnchor ?? watchedAnchor ?? TABLES.find((t) => t.id === avatar.tableId)!
       state.look.set(
@@ -269,14 +295,27 @@ export function CameraRig() {
       )
       state.look.copy(state.focus)
     }
-    if (firstPerson && performance.now() >= bungeoppangView.returningUntil) camera.position.copy(state.desired)
-    else camera.position.lerp(state.desired, 1 - Math.exp(-12 * Math.min(delta, 0.1)))
+    const targetFov = gathering ? ownOmok ? 60 : CAMERA.fov : boardFocus || spectatorBoard || diceFocus ? GOMOKU.topDownFov : seated ? GOMOKU.seatedFov : CAMERA.fov
+    const smoothingOmok = ownOmok || state.omokTransition
+    let omokSettled = false
+    if (smoothingOmok) {
+      // A stable up vector preserves each seat's orientation at exactly 90 degrees.
+      state.lookMatrix.lookAt(state.desired, state.look, state.targetUp)
+      state.targetRotation.setFromRotationMatrix(state.lookMatrix)
+      omokSettled = advanceOmokCamera(camera, state.desired, state.targetRotation, targetFov, delta)
+      state.omokTransition = ownOmok || !omokSettled
+    } else {
+      if (firstPerson && performance.now() >= bungeoppangView.returningUntil) camera.position.copy(state.desired)
+      else camera.position.lerp(state.desired, 1 - Math.exp(-12 * Math.min(delta, 0.1)))
+    }
     if (!firstPerson && !seated && !watchedAnchor) constrainRoamingCamera(camera.position)
-    if (performance.now() < bungeoppangView.returningUntil) {
-      state.rotation.copy(camera.quaternion)
-      camera.lookAt(state.look); state.targetRotation.copy(camera.quaternion)
-      camera.quaternion.slerpQuaternions(state.rotation, state.targetRotation, 1 - Math.exp(-7 * delta))
-    } else camera.lookAt(state.look)
+    if (!smoothingOmok) {
+      if (performance.now() < bungeoppangView.returningUntil) {
+        state.rotation.copy(camera.quaternion)
+        camera.lookAt(state.look); state.targetRotation.copy(camera.quaternion)
+        camera.quaternion.slerpQuaternions(state.rotation, state.targetRotation, 1 - Math.exp(-7 * delta))
+      } else camera.lookAt(state.look)
+    }
     diceCamera.ready = !!(diceFocus || (spectatorBoard && game?.dice)) && camera.position.distanceTo(state.desired) < .005
     camera.getWorldDirection(state.direction)
     interactionAim.ready = true
@@ -288,9 +327,9 @@ export function CameraRig() {
     interactionAim.dz = state.direction.z
     omokCamera.anchorId = boardFocus ? avatar.tableId : spectatorBoard ? (closeAnchor ?? watchedAnchor)!.id : ''
     omokCamera.ready =
-      !!(boardFocus || spectatorBoard) && camera.position.distanceTo(state.desired) < 0.005
-    if (camera instanceof PerspectiveCamera && state.bungeoppangFov === null) {
-      const fov = gatheringCameraActive() ? CAMERA.fov : boardFocus || spectatorBoard || diceFocus ? GOMOKU.topDownFov : seated ? 76 : CAMERA.fov
+      focusedOmok ? omokSettled : !!(boardFocus || spectatorBoard) && camera.position.distanceTo(state.desired) < 0.005
+    if (!smoothingOmok && camera instanceof PerspectiveCamera && state.bungeoppangFov === null) {
+      const fov = targetFov
       if (Math.abs(camera.fov - fov) > 0.01) {
         camera.fov = fov
         camera.updateProjectionMatrix()

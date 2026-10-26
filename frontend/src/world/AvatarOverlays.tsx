@@ -4,6 +4,7 @@ import { Vector3, type Object3D } from 'three'
 import { OVERHEAD } from '../config'
 import { avatars, useSession } from '../network/worldClient'
 import { useGathering } from '../features/tableLobby/gathering'
+import { OMOK_FOCUS_LAYER } from './omokCamera'
 
 export interface AvatarAnchors {
   root: Object3D
@@ -99,7 +100,7 @@ export function AvatarOverlayPositions({
     const maxDistance = session.telescopeId
       ? OVERHEAD.telescopeMaxDistance
       : OVERHEAD.maxDistance
-    const topdown = false
+    const topdown = camera.layers.mask === 1 << OMOK_FOCUS_LAYER
     camera.updateMatrixWorld()
     for (const [id, element] of targets) {
       const avatar = avatars.get(id)

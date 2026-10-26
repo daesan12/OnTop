@@ -78,6 +78,37 @@ export async function measureGathering(visible: boolean) {
     renderer: gl.getContext().getParameter(gl.getContext().RENDERER), buffer: gl.getDrawingBufferSize(new Vector2()).toArray() }
 }
 export const omokCameraReady = () => omokCamera.ready
+export function omokCameraProbe() {
+  const { scene, camera, gl, raycaster } = root()
+  const anchorId = useSession.getState().focusedAnchorId
+  const board = scene.getObjectByName('omok-board-' + anchorId)!
+  const rect = gl.domElement.getBoundingClientRect()
+  const half = GOMOKU.boardOuterSpan / 2
+  const corners = [[-half, -half], [half, -half], [half, half], [-half, half]].map(([x, z]) => {
+    const p = board.localToWorld(new Vector3(x, .017, z)).project(camera)
+    return [(p.x + 1) * rect.width / 2, (1 - p.y) * rect.height / 2]
+  })
+  const backdrop = scene.getObjectByName('omok-focus-surface-' + anchorId) as Mesh | undefined
+  return { ready: omokCamera.ready, position: camera.position.toArray(), quaternion: camera.quaternion.toArray(),
+    fov: (camera as import('three').PerspectiveCamera).fov, corners, viewport: [rect.width, rect.height],
+    direction: camera.getWorldDirection(new Vector3()).toArray(), layers: camera.layers.mask,
+    rayLayers: raycaster.layers.mask, backdrop: !!backdrop?.visible,
+    backdropTriangles: backdrop ? (backdrop.geometry.index?.count ?? 0) / 3 : 0,
+    overheads: [...document.querySelectorAll<HTMLElement>('.avatar-overlays > *')].filter(e => e.style.visibility !== 'hidden').length }
+}
+let omokTrace: { fov: number; position: number[]; quaternion: number[]; ready: boolean }[] = []
+let tracingOmok = false
+export function startOmokCameraTrace() {
+  omokTrace = []; tracingOmok = true
+  const sample = () => {
+    if (!tracingOmok) return
+    const { camera } = root()
+    omokTrace.push({ fov: (camera as import('three').PerspectiveCamera).fov, position: camera.position.toArray(), quaternion: camera.quaternion.toArray(), ready: omokCamera.ready })
+    if (omokTrace.length < 240) requestAnimationFrame(sample)
+  }
+  requestAnimationFrame(sample)
+}
+export function finishOmokCameraTrace() { tracingOmok = false; return omokTrace }
 export function pointForOmok(x: number, y: number) {
   const { scene, camera, gl } = root()
   const object = scene.getObjectByName(
