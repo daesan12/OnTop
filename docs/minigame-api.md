@@ -1,7 +1,7 @@
-# 붕어빵 미니게임 API · v2 / v4 Story 1
+# 붕어빵 미니게임 API · v2 / v4 Story 1·2
 
 기준: 2026-10-23 수신한 `붕어빵_뒤집기_최종기획.md`, BE·FE 작업명세와 사용자 확정 사항.
-이 문서는 기존 MINI-01~04 v2 계약과 명시적으로 선택하는 v4 Story 1 계약을 함께 설명한다.
+이 문서는 기존 MINI-01~04 v2 계약과 명시적으로 선택하는 v4 Story 1·2 계약을 함께 설명한다.
 랭킹은 제외하고 탭 이동 중에도 시간은 흐른다.
 가게 위치·캐릭터 배치는 미정이며 이 REST 흐름을 막지 않는다.
 
@@ -15,6 +15,8 @@
   `bungeoppang_records`, 안내 이력 `bungeoppang_profiles`와 일일 보상 조회 인덱스를 추가한다.
 - V124는 v4 판별 규칙·서버 시간·checkpoint 원점과 현재 주문을 보관하는
   `bungeoppang_v4_rounds`, `bungeoppang_v4_orders`를 추가한다. 기존 V110/V111을 수정하지 않는다.
+- V125는 승인된 행동 prefix와 checkpoint를 보관하는 `bungeoppang_v4_progress`, 동일 납품 요청의
+  성공·거부 결론을 재생하는 `bungeoppang_v4_receipts`를 추가한다. 납품에서는 Wallet과 원장을 변경하지 않는다.
 - 공통 `Wallet`, `WalletTransaction`을 사용한다. 거래 종류 `MINIGAME_REWARD`, 참조 `minigame_session_id`,
   키 `minigame-reward:{id}`를 유지하며 별도 지갑을 만들지 않는다.
 - 지갑 → 세션 잠금 순서. 같은 회원의 시작/완료/포기/상점 구매가 같은 지갑 잠금을 사용한다.
@@ -29,7 +31,7 @@
   임의로 추가하지 않는다. 미니게임 경로의 OPTIONS만 `Authorization, Content-Type, Idempotency-Key`를
   허용하며 실제 GET/POST 회원 인증은 기존 공통 인증을 그대로 거친다.
 - `dev,db`의 Flyway는 `db/migration` + `db/minigame`을 읽는다. 기존 공통 테이블은 보존하고
-  V110/V111/V124의 미니게임 테이블·인덱스만 추가한다. `ddl-auto=validate`와 Flyway 검증을 유지한다.
+  V110/V111/V124/V125의 미니게임 테이블·인덱스만 추가한다. `ddl-auto=validate`와 Flyway 검증을 유지한다.
   `clean`/`repair`/`out-of-order`나 기존 스키마 초기화는 사용하지 않는다.
 - 기존 공통 마이그레이션 V1~V6가 먼저 적용된 DB를 기준으로 한다. 이미 고번호 V100/V110 등을
   적용했지만 V5/V6가 없는 별도 DB는 먼저 이력을 확인해야 한다. 이 MR은 그런 DB를 임의 복구하지 않는다.
@@ -147,10 +149,29 @@ v4로 다시 계산하지 않는다. v2/v4를 합쳐 회원당 활성 판은 최
 ```
 
 `GET /api/v1/minigames/sessions/{id}`는 DB에 저장된 버전에 따라 v2 또는 v4 응답을 반환한다.
-v4의 기본 응답에는 `serverNow`, `timing`, 초기 `checkpoint`, 발급된 첫 주문이 포함된다.
-`acceptedLog`는 빈 배열이고 `result`와 `deliveryLookup`은 `null`이다. Story 1에서 원본이 필요한 클라이언트는
+v4의 기본 응답에는 `serverNow`, `timing`, 최신 `checkpoint`, 현재까지 발급된 주문이 포함된다.
+`result`와 `deliveryLookup`은 기본적으로 `null`이다. Story 1 원본이 필요한 클라이언트는
 `?includeSource=true`로 저장된 `rules`, `heats`, `issuedAt`, `isFirstGame`을 함께 조회할 수 있다.
+Story 2 복구에는 `?includeProgress=true`를 사용하며 서버가 승인한 `acceptedLog`를 함께 반환한다.
+`?deliveryKey=<Idempotency-Key>`를 함께 주면 해당 키의 영속 납품 결론을 `deliveryLookup`으로 조회한다.
 타인 판과 없는 판은 같은 404다.
+
+### v4 납품 승인과 checkpoint 복구
+
+`POST /api/v1/minigames/sessions/{id}/deliveries`
+
+- `Authorization`, `Content-Type: application/json`, `Idempotency-Key`가 필수다.
+- 본문은 최대 256KiB이고 압축 본문, 중복 JSON 키, 정의되지 않은 필드, 잘못된 행동별 필드를 거절한다.
+- `actions`는 현재 checkpoint 다음부터 이번 `DELIVER`까지의 연속 prefix이며 마지막 행동은 헤더 키와 같은
+  `deliveryKey`를 가진 `DELIVER`여야 한다. `throughSeq`, `prefixHash`, `orderId`도 서버 원본과 일치해야 한다.
+- 같은 키·같은 본문은 최초 성공 또는 명시적 거부 응답을 DB에서 그대로 재생한다. 같은 키·다른 본문은
+  `409 IDEMPOTENCY_KEY_CONFLICT`, 같은 주문의 다른 성공 키는 `409 ORDER_ALREADY_DELIVERED`다.
+- 성공 시 승인 prefix와 checkpoint를 원자적으로 저장하고 현재 주문을 완료한 뒤 다음 주문 하나만 발급한다.
+  다음 주문·영수증은 재시도에서 다시 추첨하거나 생성하지 않는다.
+- 명시적 규칙 거부는 승인 상태를 바꾸지 않고 거부 영수증만 저장한다. FE는 같은 요청의 네트워크 유실이면
+  같은 키·같은 본문을 재시도하고, 명시적 거부이면 GET 복구 결과로 checkpoint를 교체한 뒤 유효 후속 로그를 재생한다.
+- 납품 승인에서는 점수 checkpoint만 확정하며 코인 지급, Wallet 잔액 변경, 거래 원장 생성은 하지 않는다.
+  v4 최종 완료·일일 상한·Wallet 지급은 Story 3이다.
 
 ### v4 순수 규칙과 Story 경계
 
@@ -161,7 +182,7 @@ v4의 기본 응답에는 `serverNow`, `timing`, 초기 `checkpoint`, 발급된 
 - 실패 빵은 제거한다. 정상 빵은 쟁반에 보관하고 실제 납품 때만 점수가 증가한다.
 - 특수 재료 납품 보너스는 빵별 50% 내림이다. 미납품 빵은 최종 점수에 포함하지 않는다.
 - Story 1의 순수 재계산기는 위 규칙과 다음 주문 생성 기반을 제공한다.
-- **납품 승인 API, 영속 납품 영수증, checkpoint 진행·복구, 최종 v4 정산·코인 지급은 Story 2·3이며 아직 외부에 제공하지 않는다.**
+- **납품 승인 API, 영속 성공·거부 영수증, checkpoint 진행·복구는 Story 2로 제공한다. 최종 v4 정산·코인 지급은 Story 3이며 아직 제공하지 않는다.**
 
 ## 기존 v2 계약
 

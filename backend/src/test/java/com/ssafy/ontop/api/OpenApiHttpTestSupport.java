@@ -100,6 +100,7 @@ abstract class OpenApiHttpTestSupport {
         if (environment.acceptsProfiles(Profiles.of("(local | dev) & !prod & !production"))) {
             expected.addAll(Set.of("POST /api/v1/minigames/sessions", "GET /api/v1/minigames/sessions",
                     "GET /api/v1/minigames/sessions/{sessionId}",
+                    "POST /api/v1/minigames/sessions/{sessionId}/deliveries",
                     "POST /api/v1/minigames/sessions/{sessionId}/complete",
                     "POST /api/v1/minigames/sessions/{sessionId}/abandon"));
             if (environment.getProperty("ontop.notes.enabled", Boolean.class, false)) {

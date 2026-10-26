@@ -3,6 +3,8 @@ package com.ssafy.ontop.minigame.repository;
 import com.ssafy.ontop.minigame.domain.BungeoppangProfile;
 import com.ssafy.ontop.minigame.domain.BungeoppangRecord;
 import com.ssafy.ontop.minigame.domain.BungeoppangV4Order;
+import com.ssafy.ontop.minigame.domain.BungeoppangV4Progress;
+import com.ssafy.ontop.minigame.domain.BungeoppangV4Receipt;
 import com.ssafy.ontop.minigame.domain.BungeoppangV4Round;
 import com.ssafy.ontop.minigame.domain.MinigameSession;
 import com.ssafy.ontop.minigame.domain.MinigameStartRequest;
@@ -72,6 +74,29 @@ public class MinigameRepository {
         return entities.createQuery("select o from BungeoppangV4Order o where o.sessionId = :session"
                 + " order by o.orderIndex", BungeoppangV4Order.class)
                 .setParameter("session", sessionId).getResultList();
+    }
+
+    public Optional<BungeoppangV4Progress> v4Progress(long sessionId, boolean lock) {
+        var query = entities.createQuery("select p from BungeoppangV4Progress p where p.sessionId = :session",
+                BungeoppangV4Progress.class).setParameter("session", sessionId);
+        if (lock) { query.setLockMode(LockModeType.PESSIMISTIC_WRITE); }
+        var rows = query.getResultList();
+        if (lock) { rows.forEach(progress -> entities.refresh(progress, LockModeType.PESSIMISTIC_WRITE)); }
+        return rows.stream().findFirst();
+    }
+
+    public Optional<BungeoppangV4Receipt> v4Receipt(long sessionId, String operation, String key) {
+        return entities.createQuery("select r from BungeoppangV4Receipt r where r.sessionId = :session"
+                        + " and r.operation = :operation and r.requestKey = :key", BungeoppangV4Receipt.class)
+                .setParameter("session", sessionId).setParameter("operation", operation)
+                .setParameter("key", key).getResultList().stream().findFirst();
+    }
+
+    public Optional<BungeoppangV4Receipt> acceptedV4Delivery(long sessionId, long orderId) {
+        return entities.createQuery("select r from BungeoppangV4Receipt r where r.sessionId = :session"
+                        + " and r.operation = 'DELIVERY' and r.acceptedOrderId = :order", BungeoppangV4Receipt.class)
+                .setParameter("session", sessionId).setParameter("order", orderId)
+                .getResultList().stream().findFirst();
     }
 
     public BungeoppangProfile profile(long userId) {

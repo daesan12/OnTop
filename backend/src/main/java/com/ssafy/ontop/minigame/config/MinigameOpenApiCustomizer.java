@@ -2,6 +2,7 @@ package com.ssafy.ontop.minigame.config;
 
 import com.ssafy.ontop.minigame.controller.MinigameController;
 import com.ssafy.ontop.minigame.dto.BungeoppangV4Responses;
+import com.ssafy.ontop.minigame.dto.BungeoppangV4DeliveryDtos;
 import io.swagger.v3.core.converter.ModelConverters;
 import io.swagger.v3.oas.models.Operation;
 import io.swagger.v3.oas.models.OpenAPI;
@@ -60,6 +61,34 @@ public class MinigameOpenApiCustomizer implements OperationCustomizer, OpenApiCu
                         .maximum(java.math.BigDecimal.valueOf(Integer.MAX_VALUE)));
                 schema.required(List.of("log"));
             }
+            if (method.equals("deliver")) {
+                ObjectSchema entry = new ObjectSchema();
+                entry.additionalProperties(false);
+                entry.addProperty("seq", new IntegerSchema().minimum(java.math.BigDecimal.ONE));
+                entry.addProperty("action", new StringSchema()._enum(List.of(
+                        "POUR", "FILL", "TURN", "DISCARD", "TRAY_DISCARD", "DELIVER")));
+                entry.addProperty("t", new IntegerSchema().minimum(java.math.BigDecimal.ZERO)
+                        .maximum(java.math.BigDecimal.valueOf(59_999)));
+                entry.addProperty("slot", new IntegerSchema().minimum(java.math.BigDecimal.ZERO)
+                        .maximum(java.math.BigDecimal.valueOf(5)).nullable(true));
+                entry.addProperty("filling", new StringSchema()
+                        ._enum(List.of("bean", "custard", "pizza", "chocolate")).nullable(true));
+                entry.addProperty("breadId", new IntegerSchema().format("int64")
+                        .minimum(java.math.BigDecimal.ONE).nullable(true));
+                entry.addProperty("orderId", new StringSchema().pattern("^[1-9][0-9]{0,18}$").nullable(true));
+                entry.addProperty("deliveryKey", new StringSchema().pattern("^[A-Za-z0-9_-]{1,64}$")
+                        .nullable(true));
+                entry.required(List.of("seq", "action", "t"));
+                schema.addProperty("rulesVersion", new StringSchema()._enum(List.of("v4")));
+                schema.addProperty("throughSeq", new IntegerSchema().minimum(java.math.BigDecimal.ONE)
+                        .maximum(java.math.BigDecimal.valueOf(1_200)));
+                schema.addProperty("prefixHash", new StringSchema().pattern("^[0-9a-f]{64}$"));
+                schema.addProperty("log", new ArraySchema().items(entry).minItems(1).maxItems(1_200));
+                schema.required(List.of("rulesVersion", "throughSeq", "prefixHash", "log"));
+                operation.addParametersItem(new Parameter().in("header").name("Idempotency-Key").required(true)
+                        .schema(new StringSchema().pattern("^[A-Za-z0-9_-]{1,64}$").minLength(1).maxLength(64)));
+                responseSchema(operation, "200", new Schema<>().$ref("#/components/schemas/BungeoppangV4DeliveryResponse"));
+            }
             operation.setRequestBody(new RequestBody().required(true).content(new Content()
                     .addMediaType("application/json", new io.swagger.v3.oas.models.media.MediaType().schema(schema))));
         }
@@ -72,6 +101,11 @@ public class MinigameOpenApiCustomizer implements OperationCustomizer, OpenApiCu
         if (method.equals("load")) {
             addQueryParameter(operation, "includeSource", false, new BooleanSchema()._default(false),
                     "v4 세션에서 규칙·불 원본·발급 시각을 포함합니다. v2 응답에는 영향을 주지 않습니다.");
+            addQueryParameter(operation, "includeProgress", false, new BooleanSchema()._default(false),
+                    "종결된 v4 세션에서도 마지막 checkpoint·승인 로그·발급 주문 이력을 포함합니다.");
+            addQueryParameter(operation, "deliveryKey", false,
+                    new StringSchema().pattern("^[A-Za-z0-9_-]{1,64}$").minLength(1).maxLength(64),
+                    "v4 납품 영수증 결과를 조회합니다. 미처리·처리 중이면 UNKNOWN입니다.");
             responseSchema(operation, "200", oneOf("MinigameStatusResponse", "BungeoppangV4SessionResponse"));
         }
         if (operation.getParameters() != null) {
@@ -82,9 +116,9 @@ public class MinigameOpenApiCustomizer implements OperationCustomizer, OpenApiCu
         }
         operation.setDescription((operation.getDescription() == null ? "" : operation.getDescription() + " ")
                 + "local,db + ontop.minigames.enabled=true 또는 dev,db에서 사용합니다. dev는 기본 활성화하며 "
-                + "공통 스키마에 V110/V111과 v4 초기화용 V124를 추가합니다. prod/production에서는 비활성화합니다. "
-                + "버전 생략은 기존 v2이고 v4는 명시적으로 선택합니다. v4 Story 1은 규칙·시간·불 원본·첫 주문 발급과 "
-                + "순수 재계산까지만 제공하며 납품 승인·checkpoint 진행·정산은 후속 Story입니다. "
+                + "공통 스키마에 V110/V111, v4 초기화 V124, 납품 영수증 V125를 추가합니다. prod/production에서는 비활성화합니다. "
+                + "버전 생략은 기존 v2이고 v4는 명시적으로 선택합니다. v4 Story 2는 납품 승인·checkpoint·다음 주문과 "
+                + "영속 영수증 복구까지 제공하며 최종 완료 검증과 Wallet 지급은 후속 Story입니다. "
                 + "v2는 60초, 15점당 1냥, KST 하루 100냥 계약을 유지합니다. "
                 + "탭 이동 중에도 시간은 흐르며 랭킹은 제외합니다. score·rewardAmount·userId를 본문에 넣지 않습니다. "
                 + "상태 GET도 지갑 잠금과 만료 세션 INVALID 갱신을 수행할 수 있습니다. 읽기 전용 트랜잭션이 아닙니다.");
@@ -96,19 +130,27 @@ public class MinigameOpenApiCustomizer implements OperationCustomizer, OpenApiCu
         for (Class<?> type : List.of(BungeoppangV4Responses.FillingCounts.class,
                 BungeoppangV4Responses.Order.class, BungeoppangV4Responses.Timing.class,
                 BungeoppangV4Responses.Rules.class, BungeoppangV4Responses.Slot.class,
-                BungeoppangV4Responses.Stats.class, BungeoppangV4Responses.Checkpoint.class,
+                BungeoppangV4Responses.Stats.class, BungeoppangV4Responses.TrayBread.class,
+                BungeoppangV4Responses.Checkpoint.class,
                 BungeoppangV4Responses.StartResponse.class, BungeoppangV4Responses.LobbyResponse.class,
-                BungeoppangV4Responses.SessionResponse.class)) {
+                BungeoppangV4Responses.SessionResponse.class, BungeoppangV4DeliveryDtos.Action.class,
+                BungeoppangV4DeliveryDtos.Request.class, BungeoppangV4DeliveryDtos.Response.class,
+                BungeoppangV4DeliveryDtos.Lookup.class, BungeoppangV4DeliveryDtos.Recovery.class,
+                BungeoppangV4DeliveryDtos.ErrorResponse.class)) {
             ModelConverters.getInstance().readAll(type).forEach(api.getComponents()::addSchemas);
         }
 
         var schemas = api.getComponents().getSchemas();
         for (String name : List.of("BungeoppangV4FillingCounts", "BungeoppangV4Order",
                 "BungeoppangV4Timing", "BungeoppangV4Rules", "BungeoppangV4CheckpointSlot",
-                "BungeoppangV4CheckpointStats", "BungeoppangV4Checkpoint", "BungeoppangV4StartResponse",
-                "BungeoppangV4LobbyResponse")) {
+                "BungeoppangV4CheckpointStats", "BungeoppangV4CheckpointBread", "BungeoppangV4Checkpoint",
+                "BungeoppangV4StartResponse", "BungeoppangV4LobbyResponse",
+                "BungeoppangV4DeliveryRequest", "BungeoppangV4DeliveryResponse",
+                "BungeoppangV4DeliveryLookup", "BungeoppangV4Recovery", "BungeoppangV4ErrorResponse")) {
             requireAll(schemas.get(name));
         }
+        Schema<?> action = schemas.get("BungeoppangV4Action");
+        if (action != null) { action.setRequired(List.of("seq", "action", "t")); }
         Schema<?> session = schemas.get("BungeoppangV4SessionResponse");
         if (session != null && session.getProperties() != null) {
             var required = new ArrayList<>(session.getProperties().keySet());
@@ -117,6 +159,9 @@ public class MinigameOpenApiCustomizer implements OperationCustomizer, OpenApiCu
         }
         nullable(schemas, "BungeoppangV4CheckpointSlot", "filling", "lastAt");
         nullable(schemas, "BungeoppangV4Checkpoint", "lastAt", "currentOrder");
+        nullable(schemas, "BungeoppangV4Action", "slot", "filling", "breadId", "orderId", "deliveryKey");
+        nullable(schemas, "BungeoppangV4DeliveryLookup", "httpStatus", "response");
+        nullable(schemas, "BungeoppangV4ErrorResponse", "details", "detail", "index", "recovery", "retryAfterMs");
         nullable(schemas, "BungeoppangV4LobbyResponse", "activeSessionId");
         nullable(schemas, "BungeoppangV4SessionResponse", "score", "endedAt", "endReason", "checkpoint",
                 "result", "deliveryLookup");
