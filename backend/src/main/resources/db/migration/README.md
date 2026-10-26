@@ -23,7 +23,10 @@ V4__create_wallets.sql은 공통 wallets/wallet_transactions와 잔액 CHECK·FK
 기존 fixture DB는 초기화하지 않고 새 격리 DB에서 검증한다. 상세 절차는 docs/wallet-initialization.md를 따른다.
 S15P31B105-140의 `V5__create_behavior_events.sql`, `V6__create_world_position_samples.sql`은 행동 로그 테이블을 추가한다.
 회원 FK 없이 분석용 기록만 저장하며 설계와 유실 기준은 docs/behavior-log.md를 따른다.
-GameSessions 등 미구현 도메인은 이후 별도 migration으로 추가한다.
+GAME Story 1의 `V112__create_game_sessions_and_participants.sql`은 경기·참가자와 Wallet 경기 FK를 추가한다.
+선택적 Minigame V111을 포함한 전체 버전 순서를 확인해 V112를 사용한다.
+기존 고버전 DB의 누락 V5/V6와 선택 모듈 추가는 별도 편입 검토 대상이며 자동 repair/out-of-order를 켜지 않는다.
+격리 신규 DB 적용 및 시작 예약 계약, 후속 정산/복구 범위는 docs/game-start-persistence.md를 따른다.
 
 users의 collation·시각·탈퇴 데이터 보존 및 실제 MySQL 테스트는
 저장소 루트의 `docs/users-schema.md`를 따른다.
