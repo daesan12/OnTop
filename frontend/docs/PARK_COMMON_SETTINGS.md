@@ -81,3 +81,7 @@ import { PARK_DATA, resolveParkLayout } from './src/map/park'
 
 실행: `pnpm map:check`, `pnpm typecheck`, `pnpm typecheck:tests`, `pnpm test`, `pnpm build`, `pnpm exec playwright test --config playwright.layout.config.ts`.
 Browser plugin not available: 기존 Playwright + Edge 구성으로 렌더링과 조작을 검증한다.
+
+## FE 서비스 연결
+
+새 배치는 `pnpm dev:park`로 `/park`에서도 실행한다. 기본 개발/빌드는 현재 BE 서버에 맞춰 기존 맵을 유지한다. 버전 승인·테이블 매핑·실제 서버 공동 검증의 범위는 [PARK_FE_INTEGRATION.md](PARK_FE_INTEGRATION.md)를 참고한다.

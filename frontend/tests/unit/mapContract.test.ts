@@ -7,8 +7,11 @@ describe('map admission contract',()=>{
     const gate=new MapAdmission(generated,true)
     expect(()=>gate.request({channelId:'c'})).toThrow()
     expect(gate.connected(generated)).toBe(true)
-    expect(gate.request({channelId:'c'})).toEqual({channelId:'c',map:generated})
-    expect(gate.request()).toEqual({map:generated})
+    expect(gate.allowed).toBe(false)
+    expect(()=>gate.request()).toThrow()
+    expect(gate.confirmed(generated,true)).toBe(true)
+    expect(gate.request({channelId:'c'})).toEqual({channelId:'c'})
+    expect(gate.request()).toEqual({})
   })
   it.each([{...generated,mapId:'other'},{...generated,schemaVersion:1},{...generated,mapVersion:'a'.repeat(64)},undefined,null,{...generated,mapVersion:'oops'}])('blocks mismatched or missing metadata: %j',server=>{
     const gate=new MapAdmission(generated,true)

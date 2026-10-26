@@ -1,4 +1,4 @@
-import { TELESCOPE, TELESCOPES } from '../config'
+import { TELESCOPE, TELESCOPES } from '../park/mapConfig'
 
 // Immediate local aiming; server replication animates only the other users' props.
 // CameraRig reads this object without rerendering React on mouse movement.

@@ -1,6 +1,6 @@
 import { integer, record } from '../../network/protocol'
 import type { Pose } from '../../network/worldClient'
-import { EXPECTED_MAP_VERSION } from '../../config/mapVersion'
+import { EXPECTED_MAP_VERSION } from '../../park/mapConfig'
 
 export type FacilityKind = 'BENCH' | 'FITNESS' | 'TELESCOPE'
 export interface FacilityDefinition {

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { NETWORK, OVERHEAD, TABLES, tableSeats, type CharacterId } from '../config'
+import { NETWORK, OVERHEAD, TABLES, tableSeats, type CharacterId } from '../park/mapConfig'
 import { CHAT } from '../features/chat/settings'
 import { filterChat } from '../features/chat/filterChat'
 import {
@@ -12,7 +12,7 @@ import {
   type TableState,
 } from './protocol'
 import type { TableBinding } from './tableBindings'
-import { EXPECTED_MAP_VERSION } from '../config/mapVersion'
+import { EXPECTED_MAP_VERSION } from '../park/mapConfig'
 import type { MapIdentity } from './mapContract'
 import { resetGame } from '../game/store'
 import { resetBenchState, useBenchState } from '../features/interactions/benchState'
@@ -98,7 +98,7 @@ export interface Session {
   bindings: TableBinding[]
   mapCompatible: boolean
   mapVersion: string
-  mapContractStatus: 'pending' | 'legacy' | 'verified' | 'mismatch'
+  mapContractStatus: 'pending' | 'confirming' | 'legacy' | 'verified' | 'mismatch'
   serverMap: MapIdentity | null
   // Facility display IDs come from explicit development leases, never guessed wire fields.
   telescopeId: string

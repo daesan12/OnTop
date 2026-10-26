@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { NOTES_BOX } from '../../config/notes'
+import { NOTES_BOX } from '../../park/mapConfig'
 import { closeNotes, refreshNotes, submitNote, watchNotes } from './controller'
 import { notesService } from './service'
 import { editNoteDraft, useNotesState } from './state'

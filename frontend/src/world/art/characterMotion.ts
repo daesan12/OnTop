@@ -1,10 +1,12 @@
+import { GENERATED_PARK_ENABLED } from '../../park/mapSelection'
+import { PARK_LAYOUT } from '../../map/park'
 import {
   FOUNTAIN,
   GAME_COURT,
   GARDEN_PAGODA,
   groundHeight,
   isOnParkWalkway,
-} from '../../config'
+} from '../../park/mapConfig'
 
 export function createGait() {
   return {
@@ -57,6 +59,11 @@ export function sampleGait(
  * jumps already carry their own height, so never add paving height to those. */
 export function pavingLift(x: number, z: number, actorFoot: number) {
   const ground = groundHeight(x, z)
+  if(GENERATED_PARK_ENABLED) {
+    const plaza=PARK_LAYOUT.LIFE_PLAZA
+    const tile=Math.abs(x)<plaza.width/2&&Math.abs(z-plaza.z)<plaza.depth/2?.14:isOnParkWalkway(x,z)?.085:0
+    return Math.max(0,Math.min(.16,ground+tile-actorFoot))
+  }
   let height = 0
   if (Math.hypot(x - FOUNTAIN.x, z - FOUNTAIN.z) < FOUNTAIN.plazaRadius)
     height = 0.035

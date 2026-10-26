@@ -4,7 +4,7 @@ import path from 'node:path'
 import type { Plugin } from 'vite'
 import { generationQueue } from './map/generation-queue.ts'
 
-/** Only the independent 180m preview watches/regenerates map artifacts. */
+/** Explicit new-map development modes regenerate scene data and identity together. */
 export function parkMapGenerationPlugin():Plugin {
   let active=false,root='',sources=new Set<string>()
   const relative=(file:string)=>path.relative(root,file).replaceAll('\\','/')
@@ -21,7 +21,7 @@ export function parkMapGenerationPlugin():Plugin {
   })
   return {
     name:'park-map-generation',apply:'serve',
-    configResolved(config){active=config.mode==='layout-preview';root=config.root},
+    configResolved(config){active=['layout-preview','park-integration'].includes(config.mode);root=config.root},
     async configureServer(server){
       if(!active)return
       server.watcher.add(await run())

@@ -1,3 +1,7 @@
+import { lazy } from 'react'
+import { GENERATED_PARK_ENABLED } from '../park/mapSelection'
+import { LIVE_MAP_IDENTITY } from '../network/mapContract'
+const GeneratedParkWorld=lazy(()=>import('../layout-preview/PreviewWorld').then(m=>({default:m.PreviewWorld})))
 import { TableGathering } from '../features/tableLobby/TableGathering'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { memo, Suspense, useEffect, useMemo, useState } from 'react'
@@ -141,7 +145,7 @@ export const WorldCanvas = memo(function WorldCanvas({
         <ParkSun quality={quality} />
         <NightLighting quality={quality} />
         <Suspense fallback={null}>
-          <PlaceholderWorld quality={quality} />
+          {GENERATED_PARK_ENABLED?<group name="park-service-map" userData={{...LIVE_MAP_IDENTITY}}><GeneratedParkWorld live/></group>:<PlaceholderWorld quality={quality} />}
           <SceneReady onReady={onReady} />
         </Suspense>
         <Avatars overlayTargets={overlayTargets} />
@@ -149,7 +153,7 @@ export const WorldCanvas = memo(function WorldCanvas({
         <TableGathering />
         <BungeoppangGrill />
 
-        <ParkPigeons quality={quality} />
+        {!GENERATED_PARK_ENABLED&&<ParkPigeons quality={quality} />}
         <CameraRig />
         <PerformanceProbe />
         <AdaptiveResolution ceiling={dpr} />

@@ -2,7 +2,8 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { parkMapGenerationPlugin } from './scripts/park-map-vite-plugin.ts'
 
-export default defineConfig({
+export default defineConfig(({mode})=>({
+  define:mode==='park-integration'?{'import.meta.env.VITE_PARK_MAP':JSON.stringify('generated')}:undefined,
   plugins: [react(),parkMapGenerationPlugin()],
   server: {
     proxy: {
@@ -13,4 +14,4 @@ export default defineConfig({
       },
     },
   },
-})
+}))

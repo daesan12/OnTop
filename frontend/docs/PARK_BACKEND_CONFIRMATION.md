@@ -12,7 +12,7 @@
 4. 테이블 매핑은 **기존 `park-bindings.json` 형식을 공통 사용**하는 것으로 맞추겠습니다. 신규 테이블 목록을 채널별 `channelId/tableId/anchorId`로 전달 부탁드립니다. 테이블 응답 API에 bindings를 추가하자는 이전 제안은 철회합니다.
 5. Java 판정·서버 ID·`WORLD_MAP_CONFIRM` 방식은 유지하고, CI·배포는 말씀하신 담당 범위로 진행 부탁드립니다. 실제 맵 전환은 양쪽 연동·검증 후 함께 진행하겠습니다.
 
-새 JSON과 manifest를 같은 세트로 전달하겠습니다. FE `/park` 전환과 최신 버전 확인 클라이언트 연동은 아직 대기 상태입니다.
+새 JSON과 manifest를 같은 세트로 전달합니다. 후속 FE 작업에서 새 맵 `/park`를 명시적 `park-integration` 모드로 연결하고 최신 버전 확인·BE 전달 16개 매핑을 반영했습니다. 기본 서비스 전환과 실제 BE 공동 검증은 테스트 서버 준비 후 진행합니다. [FE 연결 안내](PARK_FE_INTEGRATION.md)를 참고해 주세요.
 
 ## 전달 데이터
 

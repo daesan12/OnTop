@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { BENCH_PAVILIONS, TABLES, CHARACTER, PAVILION_LANTERN, PARK_PAVILIONS } from '../../config'
+import { BENCH_PAVILIONS, TABLES, CHARACTER, PAVILION_LANTERN, PARK_PAVILIONS } from '../../park/mapConfig'
 import type { Pose, Session } from '../../network/worldClient'
 import { useBenchState } from './benchState'
 

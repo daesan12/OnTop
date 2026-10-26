@@ -1,3 +1,4 @@
+import { avatars } from '../network/worldClient'
 import { ParkPigeons,type PigeonHabitat } from '../world/pigeons/ParkPigeons'
 import { createBirds,type Point,type Visitor } from '../world/pigeons/pigeonSimulation'
 import { canWalk,LIFE_PLAZA,walkHeight } from './layout'
@@ -37,4 +38,10 @@ const habitat:PigeonHabitat={
   },
 }
 /** Original mesh, animation and behavior, with preview-only terrain/visitor inputs. */
-export function PreviewPigeons(){return <ParkPigeons quality="high" habitat={habitat}/>}
+const liveVisitors:Visitor[]=[]
+const liveHabitat:PigeonHabitat={...habitat,visitors:()=>{
+ liveVisitors.length=0
+ for(const a of avatars.values())if(a.connected&&!a.swimming)liveVisitors.push({x:a.current.x,y:a.current.y,z:a.current.z,vx:(a.current.x-a.previous.x)/.12,vz:(a.current.z-a.previous.z)/.12})
+ return liveVisitors
+}}
+export function PreviewPigeons({live=false}:{live?:boolean}={}){return <ParkPigeons quality="high" habitat={live?liveHabitat:habitat}/>}

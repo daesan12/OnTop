@@ -1,6 +1,6 @@
 # 180m 공원 JSON·맵 버전 생성
 
-공통 설정에서 서버 전달용 JSON과 FE 미리보기 버전을 함께 생성한다. Java/DB/실제 서비스 맵과 `src/config/mapVersion.ts`는 변경하지 않는다. 아직 서버 연결 전인 180m 미리보기용 데이터이며, 실행 중인 BE 좌표를 자동으로 갱신하는 기능은 아니다.
+공통 설정에서 서버 전달용 JSON과 FE 버전을 함께 생성한다. 새 맵의 `/park` 연결은 명시적인 `park-integration` 모드로 제공하며, 기본 서비스 모드와 `src/config/mapVersion.ts`는 기존 맵을 유지한다. 실행 중인 BE 좌표를 자동 갱신하지 않으며 Java·CI·배포는 담당자가 연결한다. [FE 연결·실행 안내](PARK_FE_INTEGRATION.md)를 참고한다.
 
 ## 실행
 
@@ -38,11 +38,11 @@ pnpm build         # 빌드 앞에서 자동 생성
 
 ## 개발 중 자동 갱신
 
-`park-map-vite-plugin.ts`는 **layout-preview 모드에서만** 동작한다. 시작 시 생성하고, manifest에 기록된 공통 설정/참조 메타데이터 파일이 바뀌면 작업을 순서대로 실행한다. 결과를 갱신한 뒤 화면 전체를 새로고침하므로 정적 지형 배치와 표시 버전을 함께 읽는다. 미리보기 왼쪽 아래에 버전 앞 12자리를 표시하고, 전체 값은 해당 요소의 title과 main의 `data-map-version`에 둔다.
+`park-map-vite-plugin.ts`는 **layout-preview·park-integration 모드에서** 동작한다. 시작 시 생성하고, manifest에 기록된 공통 설정/참조 메타데이터 파일이 바뀌면 작업을 순서대로 실행한다. 결과를 갱신한 뒤 화면 전체를 새로고침하므로 정적 지형 배치와 표시 버전을 함께 읽는다. 미리보기 왼쪽 아래에 버전 앞 12자리를 표시하고, 전체 값은 해당 요소의 title과 main의 `data-map-version`에 둔다.
 
 유효하지 않은 좌표/중복 ID 등으로 생성이 실패하면 마지막 정상 JSON/버전을 유지하고 개발 오류를 표시한다. 설정을 고치고 저장하면 다음 작업에서 복구한다. 수동 생성과 개발 감시 작업은 frontend의 `.park-map-cache/generation.lock`으로 쓰기 순서를 조정한다. 이 캐시 디렉터리는 Git에서 제외한다.
 
-일반 서비스 개발 모드에는 이 감시 동작을 적용하지 않는다. FE 실제 서비스가 아직 이전 맵을 쓰므로 `EXPECTED_MAP_VERSION`을 새 값으로 바꾸지 않는다. 향후 서비스 전환 시 새 배치와 서버 로딩을 같이 적용한 뒤 새 버전 상수를 사용해야 한다.
+일반 서비스 개발 모드에는 이 감시 동작을 적용하지 않는다. 새 맵 모드의 배치·상호작용·identity는 `src/park/mapConfig.ts`로 함께 선택한다. 기본 서비스 빌드는 기존 맵을 유지하며 실제 기본값 전환은 BE 테스트 서버 공동 검증 후 조율한다.
 
 ## 서버 JSON 형식과 BE 연결 사항
 
@@ -69,13 +69,13 @@ BE 개발자가 이어서 연결할 부분:
 2. `data.tables`의 화면 `id`를 기존 DB tableId에 매핑해 `position`을 적용한다. 좌석은 테이블 기준 `seatAnchors`이며 순서/인덱스를 유지한다.
 3. **`data.physics.boxes/meshes/hulls`**를 기존 Java 3D 충돌 로더에 연결한다. 좌표는 월드 좌표, boxes.half는 반치수다. 캐릭터 반경/이동 여유 폭/margin은 생성 데이터에 더하지 않았다. 서버의 기존 캡슐과 margin 처리는 BE에서 담당한다.
 4. `data.interactions.benches/fitness/telescopes`의 ID·이용/퇴장 Pose, `data.physics.spawn`의 캡슐 중심 좌표, `data.surfaces.lake`의 수영 파라미터를 연결한다.
-5. 서버 실제 로딩 identity를 `CONNECTED.payload.map`으로 보낸다. 최신 dev의 `WORLD_MAP_CONFIRM` → `WORLD_MAP_STATE` 절차와 오류 `payload.serverMap`을 유지하는 방향으로 요청한다. FE의 이전 입장/복구 payload.map 제안은 철회했으며 클라이언트는 별도 전환이 필요하다. [PARK_BACKEND_REQUEST.md](PARK_BACKEND_REQUEST.md)를 기준으로 담당자에게 연결을 요청한다.
+5. 서버 실제 로딩 identity를 `CONNECTED.payload.map`으로 보낸다. 최신 dev의 `WORLD_MAP_CONFIRM` → `WORLD_MAP_STATE` 절차와 오류 `payload.serverMap`을 유지하는 방향으로 요청한다. FE는 이 확인 절차를 구현했으며 입장/복구 payload에 map을 추가하지 않는다. [PARK_BACKEND_REQUEST.md](PARK_BACKEND_REQUEST.md)를 기준으로 담당자에게 연결을 요청한다.
 
 `semantics`는 해석 규칙의 일부다. **`data.collision`은 기존 미리보기용 2D 영역**으로 여유 폭이 이미 반영되어 있으므로 서버 물리에 사용하지 않는다. `data.physics`만 서버용 무확장 3D 프록시다. 지형 첫 메시는 정규 격자이며 다리/바닥/계단은 별도 형상이다. 시각 모델 전체를 삼각형으로 추출한 정밀 메시가 아니며, 산포 식재/미세 장식/카메라/점프 게임 판정은 제외한다.
 
 테이블 좌석은 로컬 좌표다. 시설 use/exit는 `{x,y,z,yaw}` 월드 Pose이고 기존 서비스의 +0.8m 원점 관례를 유지한다. 스폰은 별도로 캡슐 중심 기준이다. `spectatorRadius`는 생성물에서 제거했으며 서버 관전 거리 20m를 유지한다. 형식·범위·네트워크 전환 조건 전체는 [PARK_BE_HANDOFF.md](./PARK_BE_HANDOFF.md)를 기준으로 한다.
 
-현재 `/park`는 이전 맵이므로 새 생성 버전으로 표시하지 않는다. 취소 후 유지한 FE 계약 코드는 아직 이전 `payload.map` 제안이며 최신 dev와의 연동 완료 상태가 아니다. BE 계약 확인 후 FE에서 `WORLD_MAP_CONFIRM`·`WORLD_MAP_STATE`·`payload.serverMap`을 연결하고, 실제 서비스 장면·시설·내비게이션과 생성 identity를 함께 전환한다. Java·공용 CI·배포 변경은 담당자에게 요청한다.
+기본 `/park`는 기존 맵을 유지한다. `pnpm dev:park`/`pnpm build:park`에서는 새 장면·시설·내비게이션·생성 identity와 `WORLD_MAP_CONFIRM`·`WORLD_MAP_STATE`·`payload.serverMap`을 함께 사용한다. FE 계약 fixture 검증과 실제 BE 통합 검증은 구분한다. 현재 새 맵 BE 접속 서버 주소가 없어 공동 검증은 대기 중이다. Java·공용 CI·배포 변경은 담당자 범위다.
 
 ## 추가 보조 데이터
 
@@ -86,5 +86,5 @@ BE 요청에 따라 `data.interactions.notes`(익명 메모함 이용 위치·�
 - `parkMapGeneration.test.ts`: 동일 입력/키 순서 재현성, 위치/계산 소스 변경 시 버전 변경, JSON/FE/manifest 일치, 체크섬, 비정상 JSON 거부, 읽기 전용 검사, 생성 잠금·작업 오류 복구.
 - `parkMapWatcher.test.ts`: 임시 프로젝트에서 실제 설정 저장 → 버전/좌표 갱신 → 잘못된 설정 저장 시 정상 결과 보존 → 수정 후 복구, CRLF/프로젝트 경로 차이, CLI 검사 실패/복구와 종료 코드.
 - `parkPhysics.test.ts`: 2D 여유 폭 변경과 3D 원본 형상 독립성, 정규 격자/삼각형 방향/인덱스, 수면 아래 지형, 4방향 계단, 시설 이동·ID·퇴장 방향·캡슐 중심 스폰.
-- `mapContract.test.ts`, `mapAdmissionRuntime.test.ts`: 실제 소켓 경로의 CONNECTED 비교, 입장/복구 identity 전송, 오류 차단, 늦은 스냅샷 무시, 재접속 시 재검사. `map-contract.spec.ts`는 안내·버튼을 브라우저에서 검증한다.
+- `mapContract.test.ts`, `mapAdmissionRuntime.test.ts`: 실제 소켓 경로의 CONNECTED 비교, 확인 요청 identity 전송과 승인 전 입장/복구 차단, 오류 차단, 늦은 스냅샷 무시, 재접속 시 재검사. `map-contract.spec.ts`는 안내·버튼을 브라우저에서 검증한다.
 - 배치 브라우저 검사에서 표시 버전과 서버 JSON 버전의 일치, 기존 산책/수영/점프/모델 동작을 확인한다. Browser plugin not available: 기존 Playwright/Edge로 검증한다.

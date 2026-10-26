@@ -23,7 +23,8 @@ test('a different CONNECTED map blocks entry and offers refresh and deliberate r
 test('an entry accepted under a matching map sends identity and stops after server rejection',async({page})=>{
   const server=await fixture(page,{connectedMap:{...LIVE_MAP_IDENTITY}})
   await page.goto('/park')
-  await expect.poll(()=>server.sent.find(r=>r.type==='CHANNEL_JOIN')?.payload.map,{timeout:90000}).toEqual(LIVE_MAP_IDENTITY)
+  await expect.poll(()=>server.sent.find(r=>r.type==='WORLD_MAP_CONFIRM')?.payload,{timeout:90000}).toEqual(LIVE_MAP_IDENTITY)
+  await expect.poll(()=>server.sent.find(r=>r.type==='CHANNEL_JOIN')?.payload).toEqual({channelId:'fixture-channel'})
   server.mapMismatch({...LIVE_MAP_IDENTITY,mapVersion:'b'.repeat(64)})
   await expect(page.locator('.park-runtime-status')).toContainText('새로고침')
   const before=server.sent.filter(r=>r.type==='WORLD_MOVE').length

@@ -1,6 +1,6 @@
 # 공원 맵 생성 데이터 · BE 연결 계약 (schemaVersion 2)
 
-현재 브랜치 `feat/park-180-layout-preview`의 FE 생성 도구를 BE 피드백에 맞춰 보강했습니다. **Java/DB/서버 리소스는 수정하지 않았으며 실제 `/park`는 기존 맵을 유지합니다.** 새 데이터 규격 검토 후 FE 서비스 맵과 BE 로딩을 함께 전환합니다.
+현재 브랜치 `feat/park-180-layout-preview`의 FE 생성 도구를 BE 피드백에 맞춰 보강했습니다. **Java/DB/서버 리소스는 수정하지 않았으며 기본 `/park`는 기존 맵을 유지하며 새 맵은 `park-integration` 모드로 연결했습니다.** 새 데이터 규격 검토 후 FE 서비스 맵과 BE 로딩을 함께 전환합니다.
 
 ## 전달 파일
 
@@ -84,19 +84,19 @@ pnpm map:check
 최신 dev `08360a1`의 `docs/world-map-api.md`에 맞춰 **WORLD_MAP_CONFIRM → WORLD_MAP_STATE** 절차를 유지하는 방향입니다. 이전 CHANNEL_JOIN/GAME_RECONNECT_CHECK의 payload.map 추가 제안과 오류 payload.map 제안은 철회했습니다.
 
 1. BE는 CONNECTED.payload.map에 실제 로딩한 생성 JSON의 최상위 mapId/schemaVersion/mapVersion을 보냅니다. 새 JSON의 schemaVersion은 2입니다.
-2. FE는 자신의 번들 identity로 WORLD_MAP_CONFIRM을 보내고 WORLD_MAP_STATE의 verified: true를 확인한 뒤 입장·복구를 진행하도록 연동할 예정입니다.
+2. FE는 자신의 번들 identity로 WORLD_MAP_CONFIRM을 보내고 WORLD_MAP_STATE의 verified: true를 확인한 뒤 입장·복구를 진행하도록 연동했습니다.
 3. CHANNEL_JOIN은 기존 {channelId}, GAME_RECONNECT_CHECK는 기존 요청 형식을 유지합니다.
 4. 오류는 최신 dev의 MAP_VERSION_MISMATCH/MAP_VERSION_REQUIRED와 payload.serverMap을 사용합니다. 확인 전 자동 복구와 관련 상태 전달도 차단합니다.
 5. FE는 새로고침·수동 재접속을 안내하고 늦은 응답으로 불일치 상태를 해제하지 않습니다. 재접속마다 다시 검사합니다.
 
-**현재 FE 코드 상태:** 취소 후 보존한 e88561a의 mapContract.ts는 아직 이전 payload.map 제안을 구현한 상태입니다. 이 문서의 최신 dev 프로토콜 연동이 완료된 상태가 아니며 FE에서 별도로 수정해야 합니다. 현재 /park는 이전 서비스 맵이고 생성 schemaVersion 2 identity를 사용하지 않습니다. 생성 버전만 먼저 서비스에 주입하지 않습니다.
+**현재 FE 코드 상태:** 최신 dev의 WORLD_MAP_CONFIRM 승인 절차를 구현했습니다. `park-integration` 모드에서 생성 schemaVersion 2 identity와 새 장면·앵커·내비게이션을 함께 사용하며 기본 모드는 기존 맵을 유지합니다. BE 전달 매핑 16개/채널을 연결했습니다. 실제 접속 서버가 아직 없어 Java 물리 공동 검증은 대기 중입니다. [FE 실행·검증 안내](PARK_FE_INTEGRATION.md)를 참고해 주세요.
 
 메시지 예시·역할·추가 필드 요청·CI 연결과 전환 조건은 [PARK_BACKEND_REQUEST.md](PARK_BACKEND_REQUEST.md)에 정리했습니다.
 
 ## 7. 다음 연결과 검증
 
 1. BE에서 schemaVersion 2 물리·시설 데이터와 추가 필드를 검토하고 최신 dev 버전 확인 계약·ID 매핑 전달 방식을 확정.
-2. FE 실제 서비스 장면·좌석/시설 앵커·내비게이션을 새 공통 설정으로 전환하고 생성 버전을 연결. 현재 서비스 시설 화이트리스트도 신규 시설 카탈로그에 맞춰 전환.
+2. FE 새 맵 모드에서 장면·좌석/시설 앵커·내비게이션·버전·시설 카탈로그 연결을 완료. 기본 서비스 전환은 공동 검증 후 진행.
 3. BE에서 JSON 어댑터, 기존 tableId 매핑, 시설 카탈로그, 스폰/수영과 최신 WORLD_MAP_CONFIRM 경로에 실제 생성 identity 연결. CI·빌드는 해당 담당자에게 요청.
 4. 같은 JSON·manifest로 계단/다리/전망대·좁은 통로·수영·좌석·퇴장·스폰과 새로고침/재접속/구버전 접속을 통합 검증한 뒤 함께 배포.
 

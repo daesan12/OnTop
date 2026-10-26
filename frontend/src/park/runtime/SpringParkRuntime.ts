@@ -77,6 +77,8 @@ export class ParkRuntime implements ParkRuntimePort {
   constructor(options: {map?:MapIdentity;requireMapMetadata?:boolean} = {}) {
     this.mapAdmission=new MapAdmission(options.map,options.requireMapMetadata)
   }
+  private mapConfirmationId = ''
+  private beforeMap: Envelope[] = []
   private active = false
   private generation = 0
   private inputSequence = 0
@@ -281,6 +283,8 @@ export class ParkRuntime implements ParkRuntimePort {
   }
   private async boot() {
     this.mapAdmission.reset()
+    this.mapConfirmationId=''
+    this.beforeMap=[]
     interruptForfeit()
     this.follow.reset()
     this.resetSpectator()
@@ -387,13 +391,30 @@ export class ParkRuntime implements ParkRuntimePort {
   }
   private message(message: Envelope) {
     if (!this.active) return
-    if(message.type==='ERROR'&&message.payload.code==='MAP_VERSION_MISMATCH') {
-      this.rejectMap(message.payload.map)
+    if(message.type==='ERROR'&&['MAP_VERSION_MISMATCH','MAP_VERSION_REQUIRED'].includes(String(message.payload.code))) {
+      this.rejectMap(message.payload.serverMap)
       return
     }
     if(this.mapAdmission.status==='mismatch')return
+    if(message.type==='WORLD_MAP_STATE') {
+      if(this.mapAdmission.status!=='confirming'||message.requestId!==this.mapConfirmationId)return
+      if(!this.mapAdmission.confirmed(message.payload.map,message.payload.verified)){this.rejectMap(message.payload.map);return}
+      useSession.setState({status:'connected',mapContractStatus:'verified',serverMap:this.mapAdmission.serverMap})
+      const queued=this.beforeMap;this.beforeMap=[]
+      this.enterPreferredChannel()
+      for(const pending of queued)this.message(pending)
+      return
+    }
+    if(message.type!=='CONNECTED'&&!this.mapAdmission.allowed) {
+      if(this.mapAdmission.status==='confirming'&&/^(GAME_|TABLE_)/.test(message.type)) {
+        if(this.beforeMap.length>=64){this.rejectMap(this.mapAdmission.serverMap);return}
+        this.beforeMap.push(message)
+      }
+      return
+    }
     if(message.type==='CONNECTED') {
       clearTimeout(this.timer)
+      if(message.payload.map===undefined&&message.payload.mapVerificationRequired===true){this.rejectMap(undefined);return}
       if(!this.mapAdmission.connected(message.payload.map)){this.rejectMap(message.payload.map);return}
       useSession.setState({mapContractStatus:this.mapAdmission.status,serverMap:this.mapAdmission.serverMap})
     }
@@ -467,15 +488,31 @@ export class ParkRuntime implements ParkRuntimePort {
         { nickname: profile.nickname, balance: null },
       )
       this.inputSequence = 0
-      const channels = useSession.getState().channels
-      const selected =
-        channels.find((c) => c.channelId === this.preferredChannel) ??
-        (channels.length === 1 ? channels[0] : undefined)
-      if (selected) void this.selectChannel(selected.channelId)
+      if(this.mapAdmission.status==='confirming') {
+        useSession.setState({status:'joining'})
+        void this.confirmMap()
+      } else this.enterPreferredChannel()
+    }
+  }
+  private enterPreferredChannel() {
+    const channels=useSession.getState().channels
+    const selected=channels.find(c=>c.channelId===this.preferredChannel)??(channels.length===1?channels[0]:undefined)
+    if(selected&&this.mapAdmission.allowed)void this.selectChannel(selected.channelId)
+  }
+  private async confirmMap() {
+    const generation=this.generation
+    try {
+      await this.socket.request('WORLD_MAP_CONFIRM',{...this.mapAdmission.expected},['WORLD_MAP_STATE'],id=>{this.mapConfirmationId=id})
+    } catch {
+      if(this.active&&generation===this.generation&&this.mapAdmission.status!=='mismatch')this.rejectMap(this.mapAdmission.serverMap)
     }
   }
   private rejectMap(serverMap:unknown) {
     this.mapAdmission.reject(serverMap)
+    this.beforeMap=[]
+    interruptForfeit()
+    this.follow.reset()
+    this.resetSpectator()
     ++this.generation
     this.bootAbort?.abort()
     clearTimeout(this.timer)
@@ -488,7 +525,7 @@ export class ParkRuntime implements ParkRuntimePort {
   }
   private async action(job: () => Promise<unknown>) {
     if (!this.active || this.actionBusy) return false
-    if(this.mapAdmission.status==='mismatch')return false
+    if(!this.mapAdmission.allowed)return false
     this.actionBusy = true
     useSession.setState({ pending: true, error: '' })
     const generation = this.generation

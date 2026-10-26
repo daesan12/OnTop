@@ -1,5 +1,5 @@
-import { BENCHES, FITNESS_STATIONS, TELESCOPES } from '../config'
-import { EXPECTED_MAP_VERSION } from '../config/mapVersion'
+import { BENCH_IDS, FITNESS_STATIONS, TELESCOPES } from '../park/mapConfig'
+import { EXPECTED_MAP_VERSION } from '../park/mapConfig'
 import { clearRoamingInput } from '../world/inputOwnership'
 import { parseFacilityCatalogPage, parseFacilitySnapshot, type FacilityLease, type FacilityKind } from '../features/facilities/protocol'
 import { resetFacilities, useFacilityState } from '../features/facilities/state'
@@ -14,7 +14,7 @@ interface Dependencies {
   blockMovement(): void
 }
 const expectedKinds = new Map<string, FacilityKind>([
-  ...BENCHES.map((_, i) => [`bench-${i}`, 'BENCH'] as const),
+  ...BENCH_IDS.map(id => [id, 'BENCH'] as const),
   ...FITNESS_STATIONS.map(s => [s.id, 'FITNESS'] as const),
   ...TELESCOPES.map(t => [t.id, 'TELESCOPE'] as const),
 ])

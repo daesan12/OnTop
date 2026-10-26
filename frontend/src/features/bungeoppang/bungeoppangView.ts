@@ -1,5 +1,5 @@
 import { BUNGEOPPANG } from "./config";
-import { MINI_PROPS } from "../../config";
+import { MINI_PROPS } from '../../park/mapConfig';
 import { FISH_CART_GRILL } from '../../config/fishCart';
 
 /** 현재 코드 기반 카트의 여섯 홈과 일치하는 개인 조리 표시. */

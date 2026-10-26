@@ -1,0 +1,49 @@
+import {afterAll,expect,it,vi} from 'vitest'
+import {readFileSync} from 'node:fs'
+vi.stubEnv('VITE_PARK_MAP','generated')
+vi.resetModules()
+const map=await import('../../src/park/mapConfig')
+const {PARK_DATA,PARK_LAYOUT}=await import('../../src/map/park')
+const {LIVE_MAP_IDENTITY}=await import('../../src/network/mapContract')
+const {PARK_MAP_VERSION}=await import('../../src/map/park/generated/mapVersion')
+const {benchAnchors}=await import('../../src/features/interactions/benchAnchors')
+const {parseBindings,bindAnchor}=await import('../../src/network/tableBindings')
+const {PARK_DESTINATIONS,findParkRoute,navigationSegmentClear}=await import('../../src/features/navigation/parkNavigation')
+afterAll(()=>vi.unstubAllEnvs())
+
+it('selects the same generated scene placements and identity used by the server handoff',()=>{
+  expect(LIVE_MAP_IDENTITY).toEqual({mapId:'park',schemaVersion:2,mapVersion:PARK_MAP_VERSION})
+  expect(map.WORLD.halfSize).toBe(90);expect(map.PARK_SIZE).toBe(180)
+  expect(map.TABLES).toEqual(PARK_LAYOUT.DRAFT_TABLES)
+  expect(map.MAILBOX).toMatchObject(PARK_LAYOUT.SITES.mailbox)
+  expect([map.NOTES_BOX.x,map.NOTES_BOX.y,map.NOTES_BOX.z]).toEqual(PARK_DATA.interactions.notes.position)
+  expect(benchAnchors.map(b=>b.id)).toEqual(PARK_DATA.interactions.benches.map(b=>b.id))
+  for(const b of benchAnchors)expect(b.seats).toEqual(PARK_DATA.interactions.benches.find(x=>x.id===b.id)!.seats.map(s=>s.use))
+  for(const t of map.TELESCOPES) {
+    const expected=PARK_DATA.interactions.telescopes.find(x=>x.id===t.id)!.exit
+    expect(map.telescopeLanding(t,true)).toEqual([expected.x,expected.y,expected.z])
+  }
+})
+it('uses the BE-provided mappings for all 16 anchors without altering current service bindings',()=>{
+  const received=JSON.parse(readFileSync('public/park-bindings.generated.frontend-test.json','utf8'))
+  const canonical=JSON.parse(readFileSync('../docs/integration/park-180/park-bindings.frontend-test.json','utf8'))
+  expect(received).toEqual(canonical)
+  const bindings=parseBindings(received.bindings)
+  for(const channel of ['channel-1','channel-2']) {
+    const ids=bindings.filter(b=>b.channelId===channel).map(b=>b.tableId)
+    expect(ids).toHaveLength(16)
+    for(const table of map.TABLES)expect(bindAnchor(bindings,channel,table.id,ids)).toBeTruthy()
+  }
+  expect(JSON.parse(readFileSync('public/park-bindings.frontend-test.json','utf8')).bindings).toHaveLength(4)
+})
+it.each(Object.entries(PARK_DESTINATIONS))('finds a collision-clear approach from the new spawn to %s',(_id,destination)=>{
+  const path=findParkRoute({x:PARK_DATA.world.spawn[0],z:PARK_DATA.world.spawn[1]},destination)
+  expect(path).not.toBeNull()
+  for(let n=1;n<path!.length;n++)expect(navigationSegmentClear(path![n-1]!,path![n]!)).toBe(true)
+})
+it('allows navigation across both generated lake crossings',()=>{
+  for(const c of PARK_LAYOUT.lake.CROSSINGS) {
+    const path=findParkRoute({x:c.startX-1,z:c.z},{x:c.endX+1,z:c.z})
+    expect(path,c.id).not.toBeNull()
+  }
+})

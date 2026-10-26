@@ -407,6 +407,10 @@ export async function fixture(
       const message = JSON.parse(String(data))
       sent.push(message)
       const { requestId, type, payload } = message
+      if(type==='WORLD_MAP_CONFIRM') {
+        emit(ws,'WORLD_MAP_STATE',{map:options.connectedMap,verified:true},requestId)
+        return
+      }
       if (facilities.handle(type, payload, requestId)) return
       if (follow.handle(type, payload, requestId)) return
       if (type === 'CHANNEL_JOIN') {
@@ -606,7 +610,7 @@ export async function fixture(
     })
   })
   return {
-    mapMismatch: (map:{mapId:string;schemaVersion:number;mapVersion:string}) => emit(sockets.at(-1)!, 'ERROR', {code:'MAP_VERSION_MISMATCH',map,message:'맵 버전이 다릅니다.'}),
+    mapMismatch: (map:{mapId:string;schemaVersion:number;mapVersion:string}) => emit(sockets.at(-1)!, 'ERROR', {code:'MAP_VERSION_MISMATCH',serverMap:map,message:'맵 버전이 다릅니다.'}),
     sent,
     equipment: (userId: string, equipment: PublicEquipment[] | null) => {
       publicEquipment[userId] = equipment

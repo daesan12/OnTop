@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame, type ThreeEvent } from '@react-three/fiber'
 import { BoxGeometry, CanvasTexture, Group, LinearFilter, MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry, SRGBColorSpace } from 'three'
-import { TABLES, tableScale } from '../../config'
+import { TABLES, tableScale } from '../../park/mapConfig'
 import { panelOwnsKeys } from '../../world/inputOwnership'
 import { useSession } from '../../network/worldClient'
 import { useGathering, getGathering } from './gathering'
