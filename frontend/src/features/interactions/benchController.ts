@@ -17,7 +17,7 @@ export async function sitBench(benchId: string, seat: BenchSeat): Promise<boolea
   if (session.status !== 'connected' || !session.mapCompatible || !avatar || state.pending || session.pending || useFitnessState.getState().pending || useTelescopeState.getState().pending) return false
   if (session.tableId || avatar.seatIndex >= 0 || avatar.fitnessId || avatar.telescopeId || tableBusy()) return false
   rememberRoamingView(session.sessionId, session.roomId)
-  parkRuntime.move(0, 0, false)
+  parkRuntime.stopMovement()
   useBenchState.setState({ pending: true, error: '' })
   clearInput()
   const signal = benchSignal(), epoch = state.epoch

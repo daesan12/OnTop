@@ -45,6 +45,28 @@ describe('avatar pose transitions and resource ownership', () => {
   })
 
   for (const name of ['man', 'girl'] as const) {
+    it(`${name}: restores the prototype's moving swim stroke and bent elbows at 30/60fps`, async () => {
+      for (const fps of [30, 60]) {
+        const rig = createCharacterRig(await characterSource(name))
+        const motion = createAvatarMotion(rig), figure = new Group()
+        const swimming = avatar({ swimming: true, moving: true })
+        // Start from walking, as at the lake shore, then observe three seconds
+        // of steady swimming. The regression ran only ~one stroke in this time.
+        for (let i = 0; i < fps; i++) motion.apply(avatar({ moving: true }), 0, 1 / fps, pose, figure)
+        let crossings = 0, previous = 0
+        for (let i = 0; i < fps * 3; i++) {
+          motion.apply(swimming, 0, 1 / fps, pose, figure)
+          const difference = rig.bones.upperArm_L.rotation.x - rig.bones.upperArm_R.rotation.x
+          if (i > fps / 2 && difference * previous < 0) crossings++
+          previous = difference
+        }
+        expect(crossings).toBeGreaterThanOrEqual(6)
+        expect(rig.bones.lowerArm_L.rotation.x).toBeLessThan(-0.15)
+        expect(figure.rotation.x).toBe(1)
+        expect(figure.position.y).toBe(0.45)
+        rig.dispose()
+      }
+    })
     it(`${name}: fits machine grips and seated hip height without changing model scale`, async () => {
       const rig = createCharacterRig(await characterSource(name)), motion = createAvatarMotion(rig)
       const base = new Group(), figure = new Group(), target = new Vector3(), hand = new Vector3()

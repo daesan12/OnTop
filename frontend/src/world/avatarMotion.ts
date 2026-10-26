@@ -57,7 +57,8 @@ export function createAvatarMotion(model: Rig) {
       const kind = avatarPoseKind(avatar)
       const seated = kind === 'seated'
       const age = avatarEmoteAge(avatar, now)
-      const moving = avatar.connected && avatar.moving && kind === 'ground' &&
+      // The prototype drives the swim stroke AND the knees/elbows with locomotion.
+      const moving = avatar.connected && avatar.moving && (kind === 'ground' || kind === 'swimming') &&
         !(avatar.emote === 'EMOTE_CLAP' && age !== null)
       const dt = Math.max(0, Math.min(delta, 0.1)), alpha = 1 - Math.exp(-dt * 10)
       move += ((moving ? 1 : 0) - move) * alpha

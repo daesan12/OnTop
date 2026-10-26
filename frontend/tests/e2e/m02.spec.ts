@@ -14,6 +14,43 @@ async function loaded(page: Page) {
   await page.locator('canvas').focus()
 }
 
+test('M02 queues Space synchronously before the polling tick and ignores repeats or owned input', async ({ page }) => {
+  const server = await fixture(page, { manualMovement: true })
+  await loaded(page)
+  const result = await page.evaluate(async () => {
+    const { parkRuntime } = await import('/src/park/runtime/runtime.ts' as string)
+    const { setChatInputOpen } = await import('/src/world/inputOwnership.ts' as string)
+    const original = parkRuntime.move
+    const calls: unknown[][] = []
+    parkRuntime.move = (...args: unknown[]) => { calls.push(args); original(...args) }
+    const key = (type: string, code: string, repeat = false) =>
+      window.dispatchEvent(new KeyboardEvent(type, { code, repeat, cancelable: true }))
+    try {
+      // No timer can run between these synchronous events and the assertions.
+      key('keydown', 'KeyW')
+      key('keydown', 'Space')
+      const immediate = calls.map(args => [...args])
+      key('keydown', 'Space', true)
+      const afterRepeat = calls.length
+      key('keyup', 'Space')
+      key('keyup', 'KeyW')
+      setChatInputOpen(true)
+      key('keydown', 'Space')
+      const afterChat = calls.length
+      setChatInputOpen(false)
+      return { immediate, afterRepeat, afterChat }
+    } finally { parkRuntime.move = original; setChatInputOpen(false) }
+  })
+  expect(result.immediate).toHaveLength(1)
+  expect(result.immediate[0]).toEqual([0, -1, false, true])
+  expect(result.afterRepeat).toBe(1)
+  // Opening chat sends a separate stop, with Space still blocked.
+  expect(result.afterChat).toBe(2)
+  expect(server.sent.filter(m => m.type === 'WORLD_MOVE' && m.payload.jump).length).toBeLessThanOrEqual(1)
+  expect(await page.locator('vite-error-overlay').count()).toBe(0)
+  await screenshot(page, 'm02-jump-input')
+})
+
 test('M02 preserves the movement protocol, one-shot Space and stopping across blur/reconnect', async ({ page }) => {
   const errors: string[] = [], consoleErrors: string[] = []
   page.on('pageerror', error => errors.push(error.message))
