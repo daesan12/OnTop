@@ -5,10 +5,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ssafy.ontop.auth.domain.LoginOutcome;
 import com.ssafy.ontop.auth.domain.OAuthProvider;
 import com.ssafy.ontop.auth.service.AuthExchangePersistenceService;
+import com.ssafy.ontop.minigame.domain.BungeoppangV4Order;
+import com.ssafy.ontop.minigame.domain.BungeoppangV4Round;
 import com.ssafy.ontop.minigame.dto.MinigameStartResponse;
+import com.ssafy.ontop.minigame.dto.BungeoppangV4Responses;
 import com.ssafy.ontop.minigame.service.MinigameException;
 import com.ssafy.ontop.minigame.service.MinigameService;
 import com.ssafy.ontop.shop.service.ShopService;
+import jakarta.persistence.EntityManagerFactory;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -20,6 +24,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -44,6 +49,8 @@ class MinigameMySqlTests {
     @Autowired MinigameService minigames;
     @Autowired ShopService shop;
     @Autowired AuthExchangePersistenceService issuer;
+    @Autowired Flyway flyway;
+    @Autowired EntityManagerFactory entities;
     @LocalServerPort int port;
     private final ObjectMapper mapper = new ObjectMapper();
     private final HttpClient http = HttpClient.newHttpClient();
@@ -64,7 +71,8 @@ class MinigameMySqlTests {
     void setup() {
         tokens.clear();
         jdbc.execute("DROP TRIGGER IF EXISTS minigame_test_fail_ledger");
-        for (String table : List.of("bungeoppang_records", "bungeoppang_profiles", "minigame_start_requests",
+        for (String table : List.of("bungeoppang_v4_orders", "bungeoppang_v4_rounds",
+                "bungeoppang_records", "bungeoppang_profiles", "minigame_start_requests",
                 "wallet_transactions", "minigame_sessions", "shop_purchases", "user_items", "items",
                 "wallets", "refresh_tokens", "users")) {
             jdbc.update("DELETE FROM " + table);
@@ -77,6 +85,118 @@ class MinigameMySqlTests {
             tokens.put(user, issuer.issueExisting(new LoginOutcome(OAuthProvider.NAVER,
                     LoginOutcome.Status.EXISTING_MEMBER, user, null)).accessToken());
         }
+    }
+
+    @Test
+    void V124_신규_DB_적용과_v4_테이블_JPA_validate를_확인한다() {
+        assertThat(flyway.info().applied()).extracting(info -> info.getVersion().getVersion())
+                .contains("110", "111", "124");
+        assertThat(flyway.info().pending()).isEmpty();
+        assertThat(flyway.validateWithResult().validationSuccessful).isTrue();
+        assertThat(flyway.migrate().migrationsExecuted).isZero();
+        assertThat(entities.getProperties()).containsEntry("hibernate.hbm2ddl.auto", "validate");
+        assertThat(entities.getMetamodel().getEntities()).extracting(type -> type.getJavaType().getName())
+                .contains(BungeoppangV4Round.class.getName(), BungeoppangV4Order.class.getName());
+        assertThat(jdbc.queryForList("""
+                SELECT TABLE_NAME FROM information_schema.TABLES
+                WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN ('bungeoppang_v4_rounds','bungeoppang_v4_orders')
+                ORDER BY TABLE_NAME
+                """, String.class)).containsExactly("bungeoppang_v4_orders", "bungeoppang_v4_rounds");
+        assertThat(jdbc.queryForList("""
+                SELECT CONSTRAINT_NAME FROM information_schema.REFERENTIAL_CONSTRAINTS
+                WHERE CONSTRAINT_SCHEMA=DATABASE()
+                  AND TABLE_NAME IN ('bungeoppang_v4_rounds','bungeoppang_v4_orders')
+                """, String.class)).contains("fk_bungeoppang_v4_round_session", "fk_bungeoppang_v4_order_round");
+        assertThat(jdbc.queryForList("""
+                SELECT INDEX_NAME FROM information_schema.STATISTICS
+                WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='bungeoppang_v4_orders'
+                """, String.class)).contains("uk_bungeoppang_v4_order_id", "uk_bungeoppang_v4_order_index");
+    }
+
+    @Test
+    void v4_시작원본과_첫주문을_영속화하고_동일키는_같은응답을_재생한다() throws Exception {
+        String body = "{\"minigameType\":\"BUNGEOPPANG\",\"rulesVersion\":\"v4\"}";
+        var first = request("POST", "", 101, body, "v4-start-one");
+        var replay = request("POST", "", 101, body, "v4-start-one");
+
+        assertThat(first.statusCode()).isEqualTo(201);
+        assertThat(replay.statusCode()).isEqualTo(201);
+        assertThat(replay.body()).isEqualTo(first.body());
+        JsonNode issued = mapper.readTree(first.body());
+        long sessionId = issued.path("minigameSessionId").asLong();
+        assertThat(issued.path("rulesVersion").asText()).isEqualTo("v4");
+        assertThat(issued.path("phase").asText()).isEqualTo("WAITING_START");
+        assertThat(issued.path("heats")).hasSize(512);
+        assertThat(issued.at("/checkpoint/currentOrder/items/bean").asInt()).isEqualTo(2);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM bungeoppang_v4_rounds WHERE minigame_session_id=?",
+                Integer.class, sessionId)).isOne();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM bungeoppang_v4_orders"
+                + " WHERE minigame_session_id=? AND order_id=1 AND order_index=0 AND bean=2",
+                Integer.class, sessionId)).isOne();
+        assertThat(jdbc.queryForObject("SELECT JSON_LENGTH(heats) FROM bungeoppang_records"
+                + " WHERE minigame_session_id=?", Integer.class, sessionId)).isEqualTo(512);
+        assertThat(balance()).isEqualTo(100);
+        assertThat(count("wallet_transactions")).isZero();
+
+        var lobby = request("GET", "?rulesVersion=v4", 101, null, null);
+        assertThat(lobby.statusCode()).isEqualTo(200);
+        assertThat(mapper.readTree(lobby.body()).path("activeSessionId").asLong()).isEqualTo(sessionId);
+        var compact = mapper.readTree(request("GET", "/" + sessionId, 101, null, null).body());
+        assertThat(compact.has("heats")).isFalse();
+        var source = mapper.readTree(request("GET", "/" + sessionId + "?includeSource=true",
+                101, null, null).body());
+        assertThat(source.path("heats")).hasSize(512);
+        assertThat(source.path("issuedOrders")).hasSize(1);
+
+        var conflict = request("POST", "", 101, "{\"minigameType\":\"BUNGEOPPANG\"}",
+                "v4-start-one");
+        assertThat(conflict.statusCode()).isEqualTo(409);
+        assertThat(conflict.body()).contains("IDEMPOTENCY_KEY_CONFLICT");
+    }
+
+    @Test
+    void v4_동시시작은_한세션으로_수렴하고_만료시_원본은_재생성하지_않는다() throws Exception {
+        BungeoppangV4Responses.StartResponse first;
+        BungeoppangV4Responses.StartResponse second;
+        var gate = new CountDownLatch(1);
+        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            var one = executor.submit(() -> {
+                gate.await();
+                return minigames.startV4(101, "BUNGEOPPANG", "same-v4");
+            });
+            var two = executor.submit(() -> {
+                gate.await();
+                return minigames.startV4(101, "BUNGEOPPANG", "same-v4");
+            });
+            gate.countDown();
+            first = one.get(10, TimeUnit.SECONDS);
+            second = two.get(10, TimeUnit.SECONDS);
+        }
+        assertThat(second).isEqualTo(first);
+        long sessionId = Long.parseLong(first.minigameSessionId());
+        assertThat(count("minigame_sessions")).isOne();
+        assertThat(count("bungeoppang_v4_rounds")).isOne();
+        assertThat(count("bungeoppang_v4_orders")).isOne();
+
+        jdbc.update("UPDATE bungeoppang_v4_rounds SET"
+                + " issued_at=TIMESTAMPADD(MINUTE,-10,issued_at),"
+                + " countdown_starts_at=TIMESTAMPADD(MINUTE,-10,countdown_starts_at),"
+                + " play_starts_at=TIMESTAMPADD(MINUTE,-10,play_starts_at),"
+                + " play_ends_at=TIMESTAMPADD(MINUTE,-10,play_ends_at),"
+                + " submit_deadline=TIMESTAMPADD(MINUTE,-10,submit_deadline),"
+                + " expires_at=TIMESTAMPADD(MINUTE,-10,expires_at) WHERE minigame_session_id=?", sessionId);
+        jdbc.update("UPDATE minigame_sessions SET started_at=TIMESTAMPADD(MINUTE,-10,started_at) WHERE id=?",
+                sessionId);
+        var expired = (BungeoppangV4Responses.SessionResponse) minigames.loadSession(101, sessionId, true);
+        assertThat(expired.status()).isEqualTo("INVALID");
+        assertThat(expired.endReason()).isEqualTo("EXPIRED");
+        assertThat(expired.heats()).isEqualTo(first.heats());
+        var replay = minigames.startV4(101, "BUNGEOPPANG", "same-v4");
+        assertThat(replay.minigameSessionId()).isEqualTo(first.minigameSessionId());
+        assertThat(replay.heats()).isEqualTo(first.heats());
+        assertThat(replay.issuedAt()).isEqualTo(expired.issuedAt());
+        assertThat(replay.checkpoint()).isEqualTo(first.checkpoint());
+        assertThat(count("minigame_sessions")).isOne();
     }
 
     @Test
