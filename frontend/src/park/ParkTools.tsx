@@ -31,6 +31,7 @@ export function ParkTools({
       bindings: s.bindings,
       sessionId: s.sessionId,
       pending: s.pending,
+      mapContractStatus: s.mapContractStatus,
     })),
   )
   const [channelOpen, setChannelOpen] = useState(false)
@@ -88,7 +89,10 @@ export function ParkTools({
               ? '공원 서버 연결 중…'
               : '다시 연결하고 있어요…')}
           {state.status === 'error' && (
-            <button onClick={runtime.reconnect}>다시 연결</button>
+            <>
+              {state.mapContractStatus === 'mismatch' && <button onClick={() => window.location.reload()}>페이지 새로고침</button>}
+              <button onClick={runtime.reconnect}>다시 연결</button>
+            </>
           )}
         </div>
       )}

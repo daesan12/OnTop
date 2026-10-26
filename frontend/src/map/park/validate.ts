@@ -1,4 +1,12 @@
 import type { ParkDefinition } from './definition'
+import type { buildPhysics } from './physics'
+export function validatePhysics(p:ReturnType<typeof buildPhysics>) {
+  assertUniqueIds('physical shapes',[...p.boxes,...p.meshes,...p.hulls])
+  for(const b of p.boxes)if(![...b.center,...b.half,b.yaw].every(Number.isFinite)||b.half.some(n=>n<=0))throw new Error(`${b.id}: invalid physical box`)
+  for(const m of [...p.meshes,...p.hulls])if(m.vertices.length%3||m.vertices.length<9||!m.vertices.every(Number.isFinite))throw new Error(`${m.id}: invalid vertices`)
+  for(const m of p.meshes)if(!m.indices.length||m.indices.length%3||!m.indices.every(n=>Number.isInteger(n)&&n>=0&&n<m.vertices.length/3))throw new Error(`${m.id}: invalid triangle indices`)
+  if(!p.spawn.position.every(Number.isFinite))throw new Error('invalid physical spawn')
+}
 export function assertUniqueIds(label:string,items:readonly {id:string}[]) {
   const seen=new Set<string>()
   for(const item of items){if(!item.id||seen.has(item.id))throw new Error(`${label}: duplicate or empty ID ${item.id}`);seen.add(item.id)}
@@ -13,6 +21,10 @@ export function validateParkDefinition(d:ParkDefinition) {
   const positive=(n:number,path:string)=>{if(!(n>0))throw new Error(`${path} must be positive`)}
   const half=d.park.size/2
   positive(d.park.size,'park.size')
+  positive(d.physics.terrainStep,'physics.terrainStep')
+  if(d.physics.terrainStep<.5||Math.abs(d.park.size/d.physics.terrainStep-Math.round(d.park.size/d.physics.terrainStep))>1e-8)throw new Error('terrainStep must divide park.size and be at least 0.5m')
+  if(d.physics.spawnClearance<0)throw new Error('spawnClearance cannot be negative')
+  positive(d.physics.wallThickness,'physics.wallThickness');positive(d.physics.wallHeight,'physics.wallHeight')
   if(d.park.backgroundSize<d.park.size)throw new Error('backgroundSize must cover the park')
   if(d.park.movementInset<0||d.park.movementInset>=half)throw new Error('invalid movementInset')
   for(const [name,n] of Object.entries({wallCornerRadius:d.park.wallCornerRadius,movementCornerRadius:d.park.movementCornerRadius,perimeterCornerRadius:d.park.perimeterCornerRadius}))if(n<0||n>half-d.park.perimeterInset)throw new Error(`invalid ${name}`)

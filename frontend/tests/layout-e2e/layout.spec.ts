@@ -24,7 +24,7 @@ test('180m reference layout retains IDs/models, reviews day/night/plan and confi
   await expect(page.getByTestId('preview-map-version')).toHaveAttribute('title',serverMap.mapVersion)
   await expect(page.getByRole('main')).toHaveAttribute('data-map-version',serverMap.mapVersion)
   const state=await probe()
-  expect(state.common).toMatchObject({samePark:true,sameTables:true,sameLayout:true,schemaVersion:1});expect(state.common.obstacleCount).toBeGreaterThan(200)
+  expect(state.common).toMatchObject({samePark:true,sameTables:true,sameLayout:true,schemaVersion:2});expect(state.common.obstacleCount).toBeGreaterThan(200)
   expect(state.park.size).toBe(180);expect(state.park.backgroundSize).toBe(316)
   expect(state.background).toBe(false);expect(state.pavilions).toHaveLength(9);expect(state.pavilions.every(p=>p.exists)).toBe(true)
   expect(state.landscape.every(part=>part.exists)).toBe(true)

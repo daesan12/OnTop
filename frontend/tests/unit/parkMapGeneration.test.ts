@@ -40,7 +40,9 @@ describe('park map generation',()=>{
       expect(sha256(actual.content)).toBe(file.sha256);expect(Buffer.byteLength(actual.content,'utf8')).toBe(file.bytes)
     }
     expect(result.manifest.counts.tables).toBe(16)
-    expect(server.semantics.additionalPlayerInflation).toBe(false)
+    expect(server.semantics.additionalPlayerInflation).toBe('server-capsule-only')
+    expect(server.semantics.previewCollision.serverPhysics).toBe(false)
+    expect(server.schemaVersion).toBe(2)
     expect(result.manifest.validation.backendIntegration).toBe('pending')
   })
   it.each([NaN,Infinity,()=>0,new Date(),[undefined]])('rejects non-JSON values: %s',value=>{

@@ -35,7 +35,7 @@ export function layoutProbe(){
     ray.set(new Vector3(p.x,5,p.z),new Vector3(0,-1,0));return ray.intersectObject(backdrop,true).length>0
   })
   const vrForward=scene.getObjectByName('vr-experience-hall')?.getWorldDirection(new Vector3()).toArray()
-  return {common:{samePark:PARK_DATA.world.size===DRAFT_PARK.size,sameTables:PARK_DATA.tables===DRAFT_TABLES,sameLayout:PARK_LAYOUT.SITES===SITES,obstacleCount:PARK_DATA.collision.obstacles.length,schemaVersion:PARK_DATA.metadata.schemaVersion},park:DRAFT_PARK,motion:{...previewMotion},camera:state.camera.position.toArray(),
+  return {common:{samePark:PARK_DATA.world.size===DRAFT_PARK.size,sameTables:PARK_DATA.tables.every((t,n)=>t.id===DRAFT_TABLES[n]?.id&&t.position===DRAFT_TABLES[n]?.position&&t.seatAnchors===DRAFT_TABLES[n]?.seatAnchors),sameLayout:PARK_LAYOUT.SITES===SITES,obstacleCount:PARK_DATA.collision.obstacles.length,schemaVersion:PARK_DATA.metadata.schemaVersion},park:DRAFT_PARK,motion:{...previewMotion},camera:state.camera.position.toArray(),
     alignment:{rotation:scene.getObjectByName('park-layout-draft')!.rotation.toArray().slice(0,3),centre:new Vector3(0,0,0).project(state.camera).toArray(),north:new Vector3(0,0,-20).project(state.camera).toArray(),east:new Vector3(20,0,0).project(state.camera).toArray()},
     fieldOfView:state.camera instanceof PerspectiveCamera?state.camera.fov:0,
     pavilions:DRAFT_PAVILIONS.map(p=>({id:p.id,exists:!!scene.getObjectByName('pavilion-'+p.id)})),

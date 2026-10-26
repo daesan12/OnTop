@@ -83,7 +83,9 @@ const routes:readonly MapRoute[] = [
 
 export const PARK_DEFINITION = {
   // Preview schema metadata; this is independent of the live service map version.
-  metadata: { schemaVersion:1, mapId:'park', stage:'preview', unit:'metre', up:'Y', north:'-Z', yawUnit:'radian' },
+  metadata: { schemaVersion:2, mapId:'park', stage:'preview', unit:'metre', up:'Y', north:'-Z', yawUnit:'radian' },
+  // Physical solids never include the preview's character/movement clearance.
+  physics:{terrainStep:2,spawnClearance:.04,wallThickness:.6,wallHeight:2.4},
   park: {size:180,backgroundSize:316,spawn:[0,82] as MapPoint,wallCornerRadius:6,movementInset:1.2,movementCornerRadius:4.8,perimeterInset:6,perimeterCornerRadius:7,perimeterWidth:3.5},
   // Main facility placements, metres in the X/Z ground plane.
   sites,

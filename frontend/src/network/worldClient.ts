@@ -11,6 +11,7 @@ import {
 } from './protocol'
 import type { TableBinding } from './tableBindings'
 import { EXPECTED_MAP_VERSION } from '../config/mapVersion'
+import type { MapIdentity } from './mapContract'
 import { resetGame } from '../game/store'
 import { resetBenchState, useBenchState } from '../features/interactions/benchState'
 import { clearRoamingInput } from '../world/inputOwnership'
@@ -93,6 +94,8 @@ export interface Session {
   bindings: TableBinding[]
   mapCompatible: boolean
   mapVersion: string
+  mapContractStatus: 'pending' | 'legacy' | 'verified' | 'mismatch'
+  serverMap: MapIdentity | null
   // Facility display IDs come from explicit development leases, never guessed wire fields.
   telescopeId: string
   benchId: string
@@ -123,6 +126,8 @@ const initial = (): Session => ({
   bindings: [],
   mapCompatible: false,
   mapVersion: '',
+  mapContractStatus: 'pending',
+  serverMap: null,
   telescopeId: '',
   benchId: '',
   fitnessId: '',
@@ -343,7 +348,7 @@ export function refreshActivityPresentation() {
   if (useNotesState.getState().open && (!own?.connected || own.seatIndex >= 0 || own.fitnessId
     || own.telescopeId || own.swimming || !canReachNotes(authoritativePose(state.sessionId)))) resetNotesState(true)
 }
-export function receive(message: Envelope) {
+export function receive(message: Envelope, expectedMapVersion: string = EXPECTED_MAP_VERSION) {
   const p = message.payload,
     state = useSession.getState()
   switch (message.type) {
@@ -379,7 +384,7 @@ export function receive(message: Envelope) {
       )
         return
       worldVersion = next.version
-      const mapCompatible = next.mapVersion === EXPECTED_MAP_VERSION
+      const mapCompatible = next.mapVersion === expectedMapVersion
       if (!mapCompatible) { resetBenchState(); resetFitnessState(); resetTelescopeState(); resetFeedbackState(true); resetNotesState(true); clearRoamingInput() }
       const ids = next.avatars.map((a) => a.userId),
         now = performance.now()

@@ -17,6 +17,7 @@
 | `vrEdgeTrees`, `vrStoneSets`, `plazaRest*`, `plazaBins` | 기존 충돌 판정에 포함된 추가 수목·가구 |
 | `lake` | 호수 크기·수면·깊이, 호수 기준 다리/데크/진입로/식물 오프셋 |
 | `pagoda`, `collision` | 계단/난간 치수, 기존 이동 여유 폭 |
+| `physics` | 서버 지형 격자 간격, 스폰 지면 여유, 물리 담장 치수 |
 
 `resolveParkLayout(definition)`은 입력을 검사한 뒤 화면용 배치, 테이블, 울타리 선분, 충돌, 이동 높이/수영 판정을 계산한다. `index.ts`는 같은 결과를 한 번 생성한다. 미리보기의 `layout.ts`/`lakeLayout.ts`는 이 결과를 재사용한다. 호수 수면·물고기·물가, 중앙 돌탑 광장/계단, 정문/외곽 담장, 광장 바닥에 남아 있던 주요 좌표 중복도 공통 값으로 연결했다.
 
@@ -46,9 +47,9 @@
 | `segment` | `from/to`, `radius` | 출입구를 비운 울타리·돌 난간·호수/낚시 난간 |
 | `annular-sector` | `x/z`, 안팎 반지름, 시작/끝 각도 | 운동마당 나무 주위 벤치의 네 방향 개구부 |
 
-이 데이터는 기존 미리보기의 **유효 이동 금지 영역**이다. 사각형에는 기존 0.3m 여유 폭을 포함하며 선분의 radius 역시 기존 판정 폭이다. 서버에서 사용할 때 캐릭터 반경을 다시 일괄 더하면 기존과 통행 폭이 달라질 수 있으므로 BE와 명시적으로 맞춰야 한다. 벽/장애물 경계의 `<` 및 원호 끝점 처리도 동일한 기준이 필요하다.
+이 데이터는 기존 미리보기의 **유효 이동 금지 영역**이다. 사각형에는 기존 0.3m 여유 폭을 포함하며 선분의 radius 역시 기존 판정 폭이다. **schemaVersion 2 서버 물리는 이 목록을 읽지 않고 별도의 `data.physics`를 읽는다.** 2D/3D 데이터를 합쳐서 로딩하지 않는다.
 
-`DRAFT_BOXES`와 `FENCE_BLOCKERS`는 식재 제외 범위 등에서도 사용하는 보조 AABB다. 서버 전달 후보는 `data.collision`이며 이 두 배열을 단순 합쳐 충돌로 사용하면 안 된다.
+`DRAFT_BOXES`와 `FENCE_BLOCKERS`는 식재 제외 범위 등에서도 사용하는 보조 AABB다. `physics.ts`는 이를 역산하지 않고 공통 설정과 기존 모델 메타데이터에서 3D 형상을 계산한다. 캐릭터 반경/여유 폭을 포함하지 않은 boxes/meshes/hulls, 높이를 포함한 스폰을 생성한다. `data.physics`의 terrain 메시가 첫 메시이며, 다리/바닥은 별도 형상이다.
 
 바닥 높이는 `walkHeight`, 수영 여부는 `lake.swimmingAt`이 계산한다. 공통 데이터 `surfaces`에는 정자/계단·돌탑/계단·분수·호수·다리/접속부·낚시 데크/접속부의 파라미터를 정리했다. 높이의 적용 우선순위는 다리 → 낚시 데크 → 호수 바닥 → 정자/계단 → 중앙 돌탑/계단 → 분수 → 기본 0이다. JSON에는 실행 함수가 없으므로 Java에서 이 규칙을 그대로 실행하는 연결은 별도 구현 대상이다.
 
@@ -60,14 +61,14 @@
 import { PARK_DATA, resolveParkLayout } from './src/map/park'
 // PARK_DATA 또는 resolveParkLayout(customDefinition).data
 // metadata / world / facilities / pavilions / tables / interactions
-// paths / perimeter / fences / collision / surfaces
+// paths / perimeter / fences / collision / physics / surfaces
 ```
 
-`PARK_DATA`는 화면 객체나 함수를 포함하지 않아 JSON으로 직렬화할 수 있다. 서버용 JSON 생성·FE 미리보기 버전 자동 갱신·생성물 검사 명령까지 연결했다. 출력 경로와 해시 규칙, BE 연결 사항은 [PARK_GENERATION.md](./PARK_GENERATION.md)에 정리했다. 실제 서비스 맵 전환과 서버 버전 불일치 처리는 후속 작업이다.
+`PARK_DATA`는 화면 객체나 함수를 포함하지 않아 JSON으로 직렬화할 수 있다. 서버용 JSON 생성·FE 미리보기 버전 자동 갱신·생성물 검사 명령까지 연결했다. `interactionData.ts`에서 개별 벤치/운동기구/망원경의 이용·퇴장 Pose를 계산한다. 유지되는 벤치·기구·망원경 ID는 기존 값을 유지하고 신규 벤치는 안정적인 배치 ID를 사용한다. `spectatorRadius`는 사용하지 않는 기존 메타데이터여서 생성물에서 제외하며 서버 관전 거리 20m를 유지한다. 출력 경로와 해시 규칙은 [PARK_GENERATION.md](./PARK_GENERATION.md), 서버 계약과 전환 조건은 [PARK_BE_HANDOFF.md](./PARK_BE_HANDOFF.md)에 정리했다.
 
 이어 진행할 작업:
 
-1. BE와 전달 형식, 충돌 여유 폭, 높이/수영 규칙, 좌석 앵커 의미를 합의한다.
+1. 보강한 schemaVersion 2의 3D 형상·지형 메시·시설별 Pose 및 요청/오류 map 필드 위치를 BE와 최종 확인한다.
 2. 생성 도구는 구현했다. `pnpm map:generate`로 JSON/FE 버전을 함께 갱신하고, `pnpm map:check`로 일치 여부를 검사한다.
 3. 실제 서비스 FE가 새 배치를 읽도록 전환하고 FE 버전을 생성 결과와 연결한다.
 4. BE 개발자가 생성 JSON 로딩·기존 테이블 좌표 연결·버전 확인을 Java 쪽에 연결한다.

@@ -51,13 +51,13 @@ pnpm build         # 빌드 앞에서 자동 생성
 ```json
 {
   "format": "ontop.park-map",
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "mapId": "park",
   "mapVersion": "64자리 SHA-256",
   "hashAlgorithm": "sha256",
   "hashes": { "dataHash": "...", "sourceHash": "..." },
   "semantics": { "scope": "park-preview", "authority": "frontend-review-data" },
-  "data": { "metadata": {}, "world": {}, "facilities": [], "pavilions": [], "tables": [], "interactions": {}, "paths": [], "perimeter": {}, "fences": {}, "collision": {}, "surfaces": {} }
+  "data": { "metadata": {}, "world": {}, "facilities": [], "pavilions": [], "tables": [], "interactions": {}, "paths": [], "perimeter": {}, "fences": {}, "collision": {}, "physics": {}, "surfaces": {} }
 }
 ```
 
@@ -65,17 +65,22 @@ pnpm build         # 빌드 앞에서 자동 생성
 
 BE 개발자가 이어서 연결할 부분:
 
-1. `format/schemaVersion/mapId`를 확인하고 서버 JSON을 읽는 어댑터를 연결한다. 현재 schemaVersion은 1이다. manifest와 JSON의 mapVersion이 같고 파일 체크섬이 일치하는 세트를 사용한다.
-2. `data.tables`의 기존 `id`를 DB 테이블과 연결해 `position`을 적용한다. 좌석은 테이블 기준 `seatAnchors`이며 순서/인덱스를 유지한다. 기존 ID를 새로 발급하지 않는다.
-3. `data.collision.boundary/obstacles`와 `data.surfaces`를 기존 Java 이동/충돌/바닥·수영 계산에 연결한다. 단순 AABB 보조 목록을 충돌 전체로 사용하지 않는다. 서버가 필요한 형식으로 읽는 어댑터는 BE 담당이다.
-4. 서버가 실제 로딩한 mapVersion을 접속/상태 응답으로 제공하는 방법과 FE 불일치 처리 정책을 합의한다. 이번 FE 작업에서는 네트워크 프로토콜·접속 차단·서버 판정을 추가하지 않았다.
+1. `format/schemaVersion/mapId`를 확인하고 서버 JSON을 읽는 어댑터를 연결한다. 현재 schemaVersion은 **2**이며 1과 호환되지 않는다. manifest와 JSON의 mapVersion 및 체크섬이 일치하는 세트를 사용한다.
+2. `data.tables`의 화면 `id`를 기존 DB tableId에 매핑해 `position`을 적용한다. 좌석은 테이블 기준 `seatAnchors`이며 순서/인덱스를 유지한다.
+3. **`data.physics.boxes/meshes/hulls`**를 기존 Java 3D 충돌 로더에 연결한다. 좌표는 월드 좌표, boxes.half는 반치수다. 캐릭터 반경/이동 여유 폭/margin은 생성 데이터에 더하지 않았다. 서버의 기존 캡슐과 margin 처리는 BE에서 담당한다.
+4. `data.interactions.benches/fitness/telescopes`의 ID·이용/퇴장 Pose, `data.physics.spawn`의 캡슐 중심 좌표, `data.surfaces.lake`의 수영 파라미터를 연결한다.
+5. 서버 실제 로딩 identity를 `CONNECTED.payload.map`으로 보낸다. FE는 입장/복구 요청에 `payload.map`을 넣으며 `MAP_VERSION_MISMATCH` 오류와 새로고침·재접속 안내를 처리한다. 요청/오류 map 위치와 schemaVersion 2의 최종 합의는 BE 연결 전에 확인한다.
 
-`semantics`는 해석 규칙의 일부다. 충돌은 **기존 미리보기의 유효 2D 이동 금지 영역**이며 이미 여유 폭이 반영되어 있다. `additionalPlayerInflation=false`이므로 모든 장애물에 캐릭터 반경을 다시 더하지 않는다. box/segment/circle의 경계는 기존 `<` 판정이고, 원호 벤치는 양 끝이 열린 구간이다. 좌석은 로컬 좌표, 현재 테이블 yaw는 0이다.
+`semantics`는 해석 규칙의 일부다. **`data.collision`은 기존 미리보기용 2D 영역**으로 여유 폭이 이미 반영되어 있으므로 서버 물리에 사용하지 않는다. `data.physics`만 서버용 무확장 3D 프록시다. 지형 첫 메시는 정규 격자이며 다리/바닥/계단은 별도 형상이다. 시각 모델 전체를 삼각형으로 추출한 정밀 메시가 아니며, 산포 식재/미세 장식/카메라/점프 게임 판정은 제외한다.
 
-바닥 파라미터는 Java 코드 자체를 생성한 것이 아니다. 높이 적용 순서는 crossing → fishing-deck → lake-floor → pavilion-and-stairs → pagoda-and-stairs → fountain → ground-zero다. 점프맵의 3D 착지, 카메라 충돌, 기존 미리보기에 충돌이 없는 장식물은 이 JSON의 범위에 포함하지 않는다.
+테이블 좌석은 로컬 좌표다. 시설 use/exit는 `{x,y,z,yaw}` 월드 Pose이고 기존 서비스의 +0.8m 원점 관례를 유지한다. 스폰은 별도로 캡슐 중심 기준이다. `spectatorRadius`는 생성물에서 제거했으며 서버 관전 거리 20m를 유지한다. 형식·범위·네트워크 전환 조건 전체는 [PARK_BE_HANDOFF.md](./PARK_BE_HANDOFF.md)를 기준으로 한다.
+
+현재 `/park`는 이전 맵이므로 새 생성 버전으로 표시하지 않는다. 기존 서버의 map 누락은 전환 전 호환 경로로 처리하며 요청에 map을 추가하지 않는다(기존 Java의 엄격한 필드 검증 유지). CONNECTED.map이 제공되면 세 필드를 비교하고 요청에 map을 보낸다. schemaVersion 2 identity를 사용하는 새 런타임에서는 map 누락도 거부한다. 실제 서비스 장면·시설 카탈로그·내비게이션 전환과 생성 identity 주입은 BE 준비 후 함께 진행한다.
 
 ## 검증
 
 - `parkMapGeneration.test.ts`: 동일 입력/키 순서 재현성, 위치/계산 소스 변경 시 버전 변경, JSON/FE/manifest 일치, 체크섬, 비정상 JSON 거부, 읽기 전용 검사, 생성 잠금·작업 오류 복구.
 - `parkMapWatcher.test.ts`: 임시 프로젝트에서 실제 설정 저장 → 버전/좌표 갱신 → 잘못된 설정 저장 시 정상 결과 보존 → 수정 후 복구, CRLF/프로젝트 경로 차이, CLI 검사 실패/복구와 종료 코드.
+- `parkPhysics.test.ts`: 2D 여유 폭 변경과 3D 원본 형상 독립성, 정규 격자/삼각형 방향/인덱스, 수면 아래 지형, 4방향 계단, 시설 이동·ID·퇴장 방향·캡슐 중심 스폰.
+- `mapContract.test.ts`, `mapAdmissionRuntime.test.ts`: 실제 소켓 경로의 CONNECTED 비교, 입장/복구 identity 전송, 오류 차단, 늦은 스냅샷 무시, 재접속 시 재검사. `map-contract.spec.ts`는 안내·버튼을 브라우저에서 검증한다.
 - 배치 브라우저 검사에서 표시 버전과 서버 JSON 버전의 일치, 기존 산책/수영/점프/모델 동작을 확인한다. Browser plugin not available: 기존 Playwright/Edge로 검증한다.

@@ -1,33 +1,39 @@
 {
   "artifacts": [
     {
-      "bytes": 230088,
+      "bytes": 2491226,
       "path": "generated/park/server-map.json",
-      "sha256": "aa1f0a42aae9bf11a70b420c4625b79bf6f4d41ad669ef3e2d797af8b11a3135"
+      "sha256": "6ff31fb2a98032e6263bc479ba6ea9d36862c08917eb845efad797aa82f95d58"
     },
     {
       "bytes": 329,
       "path": "src/map/park/generated/mapVersion.ts",
-      "sha256": "2bd4aaf9d29e94fdb4b5a4572faf433b5e2fcb6b863cb676cdeec0c69c73828e"
+      "sha256": "4a7aa98f3fe531fdeebcd0b7ebbc82512cece02f8bab5c98f84e62e1fcadf6e7"
     }
   ],
   "counts": {
+    "benches": 74,
     "facilities": 13,
+    "fitness": 12,
     "localSeats": 64,
     "obstacles": 487,
     "paths": 54,
     "pavilions": 9,
-    "tables": 16
+    "physicalBoxes": 2024,
+    "physicalHulls": 34,
+    "physicalMeshes": 8,
+    "tables": 16,
+    "telescopes": 2
   },
   "format": "ontop.park-map-manifest",
   "hashAlgorithm": "sha256",
   "hashes": {
-    "dataHash": "471c1dd7432ed7d8531d1b81daeac0857b8bfdb1134f48cac1fbff850c038c02",
-    "sourceHash": "b118106709154aed325956db7b65ed889228015d02001fb1ca5e0efd7985bad2"
+    "dataHash": "e77fb2f2243820b5efdaf9fe80f700a0c1bf0cd6e540a55de82183f1f97a8444",
+    "sourceHash": "5164a691cd77e258e3d82edb01a002748140eefb78fdb0672be0ce1d346c5b92"
   },
   "mapId": "park",
-  "mapVersion": "85482b9696940654222142c28943cad01ccf714ffda78d22a43ba770be41d8a6",
-  "schemaVersion": 1,
+  "mapVersion": "66f7e3feb023a3bf54df0902d68326238207fb11261e5917e2fa3fb0e7c5fe44",
+  "schemaVersion": 2,
   "sources": [
     {
       "path": "src/config/avatar.ts",
@@ -36,6 +42,14 @@
     {
       "path": "src/config/denseTrees.ts",
       "sha256": "233550b6fbc99303889c5130b1b563e1104d794632016998bc39024d8d43fd18"
+    },
+    {
+      "path": "src/config/emotes.ts",
+      "sha256": "c153fc9c75d80e20654d4e0ba00f0872a34599a2d76d4e0a8e8c1c4ad58de9b9"
+    },
+    {
+      "path": "src/config/environment.ts",
+      "sha256": "b65545463482d94290f81095e6804f41f9a050226df385f32882caf2151d43c5"
     },
     {
       "path": "src/config/existingTrees.ts",
@@ -48,6 +62,14 @@
     {
       "path": "src/config/gardenAdditions.ts",
       "sha256": "b3eebe43aaceae03c54e648d11cdac2792291315422df910c6e97aa2930c3d66"
+    },
+    {
+      "path": "src/config/gomoku.ts",
+      "sha256": "c8b30f1645f27207944ec4ab56384c86a7c5567ba2cc4a259695f0b5fbe57a4b"
+    },
+    {
+      "path": "src/config/index.ts",
+      "sha256": "115375d3a6c1fae898f3b2239ff369c9e3e918016e4824e8c574ec9c6911d18f"
     },
     {
       "path": "src/config/lakeCrossings.ts",
@@ -98,6 +120,14 @@
       "sha256": "87f175982cdaf47bc076dc99b0e86538b7a223136c5ea657d8f0854711ff1afa"
     },
     {
+      "path": "src/config/quality.ts",
+      "sha256": "3792332dd6b5b9df9bb0895462028bf8b8a18c493dca201c87f966e33d7e21d3"
+    },
+    {
+      "path": "src/config/staticStructures.ts",
+      "sha256": "88b24ed809f98f19a143b25ac63451a27b2cb10cba2dd733975df0ea75a6a468"
+    },
+    {
       "path": "src/config/table-seats.ts",
       "sha256": "e95b1516e050b2e3a84675645cd6294d7462509f1c2aba254d865805ac873337"
     },
@@ -119,23 +149,31 @@
     },
     {
       "path": "src/map/park/definition.ts",
-      "sha256": "54e3780ea8ec5aa1bfa07a7ae50ea7208e092543a93f7b8f6e8fb642fcd5483d"
+      "sha256": "53e3102e17a7520ddbb4cd0ed86391cdd3e9d72165b617798d059b84daf919da"
     },
     {
       "path": "src/map/park/index.ts",
       "sha256": "86ea47fe7b5e3b4472e9f74719374663e481e6c8c187f85317dbdbf2cd13cd02"
     },
     {
+      "path": "src/map/park/interactionData.ts",
+      "sha256": "5750a3aefaddb992e89c0dea47322f4b3d18d6d13eea64bc29ffb0a027dba3f7"
+    },
+    {
       "path": "src/map/park/lake.ts",
       "sha256": "6b3544dfda8ae89b798d8c7f677f3e3e7b354197d7d2e2f5f31660a772070a4e"
     },
     {
+      "path": "src/map/park/physics.ts",
+      "sha256": "1bffccf6408a1e2d52dde8f5fce211877701fc2499eaad2c4142b72f7aaa66a3"
+    },
+    {
       "path": "src/map/park/resolve.ts",
-      "sha256": "166cb3e154e84824901cd89ecd6f53ed6f5283422cd9131cac74ba9a64515834"
+      "sha256": "d4570a9358119cc100437e388d3099b6a0078abdc68cf606a418676d9d6f4b19"
     },
     {
       "path": "src/map/park/validate.ts",
-      "sha256": "c7a4e1a51709dabbaacc7d2fd5cc4f99e5aa6743b59b242958557c00f1bc1627"
+      "sha256": "5dc948d7a23fe5bf0a8ca4b7fc45980d24b5458b781bb138447b773912b0a138"
     }
   ],
   "validation": {

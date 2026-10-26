@@ -24,6 +24,7 @@ export async function screenshot(page: Page, name: string) {
 export async function fixture(
   page: Page,
   options: {
+    connectedMap?: {mapId:string;schemaVersion:number;mapVersion:string}
     mapVersion?: string
     bindings?: boolean
     players?: number
@@ -328,7 +329,7 @@ export async function fixture(
       JSON.stringify({
         requestId: null,
         type: 'CONNECTED',
-        payload: { userId: options.ownUserId ?? '101' },
+        payload: { userId: options.ownUserId ?? '101', ...(options.connectedMap?{map:options.connectedMap}:{}) },
       }),
     )
     if (options.omok)
@@ -340,9 +341,11 @@ export async function fixture(
         reconnectUntil: null,
         code: null,
       })
-    ws.onClose(() => {
+    ws.onClose((code,reason) => {
       active--
       facilities.disconnect()
+      // This route fully mocks the server: acknowledge the client's close handshake too.
+      ws.close({code,reason})
     })
     ws.onMessage((data) => {
       const message = JSON.parse(String(data))
@@ -532,6 +535,7 @@ export async function fixture(
     })
   })
   return {
+    mapMismatch: (map:{mapId:string;schemaVersion:number;mapVersion:string}) => emit(sockets.at(-1)!, 'ERROR', {code:'MAP_VERSION_MISMATCH',map,message:'맵 버전이 다릅니다.'}),
     sent,
     equipment: (userId: string, equipment: PublicEquipment[] | null) => {
       publicEquipment[userId] = equipment
