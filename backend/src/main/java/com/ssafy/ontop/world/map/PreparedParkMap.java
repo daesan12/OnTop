@@ -22,7 +22,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
-/** 새 맵의 테이블·좌표·물리 입력을 조립한다. 기존 실행 코드나 Spring 빈에는 연결하지 않는다. */
+/** 새 맵의 테이블·좌표·물리 입력을 조립한다. 런타임 선택과 기본 맵 유지 여부는 WorldMapRuntime이 담당한다. */
 public final class PreparedParkMap {
     private final JsonNode collisionData;
     private final WorldMapMetadata metadata;
@@ -81,7 +81,7 @@ public final class PreparedParkMap {
     public Reach notes() { return notes; }
     public Reach feedback() { return feedback; }
 
-    /** 명시적으로 호출한 테스트 장면만 생성하며 ParkScene.load()의 기본 장면을 교체하지 않는다. */
+    /** 명시적으로 선택한 별도 장면을 생성하며 ParkScene.load()의 기본 장면을 교체하지 않는다. */
     public ParkScene createScene() {
         return ParkScene.fromPreparedData(collisionData, metadata);
     }

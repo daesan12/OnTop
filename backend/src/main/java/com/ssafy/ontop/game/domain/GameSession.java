@@ -144,13 +144,45 @@ public class GameSession {
     public Instant endedAt() { return endedAt; }
     public Instant reservedAt() { return reservedAt; }
     public long resultVersion() { return resultVersion; }
+    public Long engineFinishVersion() { return engineFinishVersion; }
     public boolean hasFinish() { return finishEventId != null; }
+
+    public boolean ownedBy(String instanceId, UUID bootId) {
+        return ownerInstanceId.equals(instanceId) && ownerBootId.equals(bootId);
+    }
+
+    public boolean canActivate() {
+        return (status == Status.RESERVED || status == Status.RUNNING)
+                && settlementStatus == SettlementStatus.PENDING && !hasFinish();
+    }
+
+    public void markStarted(Instant now) {
+        if (!canActivate() || now.isBefore(reservedAt)) {
+            throw new IllegalStateException("경기 활성화 상태를 확인하세요.");
+        }
+        if (status == Status.RESERVED) {
+            status = Status.RUNNING;
+            startedAt = now;
+        }
+    }
 
     public boolean matchesFinish(String eventId, byte[] hash) {
         return java.util.Objects.equals(finishEventId, eventId) && Arrays.equals(finishPayloadHash, hash);
     }
 
     public void recordFinish(String eventId, byte[] hash, long engineVersion, String reason, Instant endedAt) {
+        recordTerminal(eventId, hash, engineVersion, reason, endedAt, Status.FINISHED);
+    }
+
+    public void recordInvalidFinish(String eventId, byte[] hash, long engineVersion, String reason, Instant endedAt) {
+        if (!"ABORTED_NO_PLAYERS".equals(reason)) {
+            throw new IllegalArgumentException("엔진의 무효 종료 사유를 확인하세요.");
+        }
+        recordTerminal(eventId, hash, engineVersion, reason, endedAt, Status.INVALID);
+    }
+
+    private void recordTerminal(String eventId, byte[] hash, long engineVersion, String reason, Instant endedAt,
+            Status terminalStatus) {
         if (hasFinish() || status != Status.RESERVED && status != Status.RUNNING
                 || reservedAt == null || endedAt.isBefore(reservedAt)) {
             throw new IllegalStateException("경기 종료 상태를 확인하세요.");
@@ -160,7 +192,7 @@ public class GameSession {
         engineFinishVersion = engineVersion;
         endReason = reason;
         this.endedAt = endedAt;
-        status = Status.FINISHED;
+        status = terminalStatus;
         resultVersion = 1;
     }
 
@@ -170,6 +202,17 @@ public class GameSession {
         }
         tieBonusAmount = bonus;
         this.payoutPerWinner = payoutPerWinner;
+        settlementStatus = SettlementStatus.SETTLED;
+        settledAt = now;
+        resultVersion = Math.addExact(resultVersion, 1);
+    }
+
+    public void completeInvalidation(Instant now) {
+        if (status != Status.INVALID || settlementStatus != SettlementStatus.PENDING) {
+            throw new IllegalStateException("무효 경기 반환 상태를 확인하세요.");
+        }
+        tieBonusAmount = 0L;
+        payoutPerWinner = 0L;
         settlementStatus = SettlementStatus.SETTLED;
         settledAt = now;
         resultVersion = Math.addExact(resultVersion, 1);
