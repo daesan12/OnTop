@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 
 /** Personal look speed. Each view keeps its own base rate and multiplies it by this value. */
-export const LOOK_SENSITIVITY = { min: 0.1, max: 2, step: 0.05, initial: 0.8 } as const
+export const LOOK_SENSITIVITY = { min: 0.05, max: 2, step: 0.05, initial: 0.8 } as const
 const storageKey = 'ontap-look-sensitivity-v1'
 
 export function clampLookSensitivity(value: number) {

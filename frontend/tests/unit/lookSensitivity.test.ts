@@ -15,12 +15,13 @@ async function load() {
 }
 afterEach(() => { vi.unstubAllGlobals() })
 
-it('keeps the value on a 5% step between 10% and 200%', async () => {
+it('keeps the value on a 5% step between 5% and 200%', async () => {
   const { clampLookSensitivity } = await load()
   expect(clampLookSensitivity(0.72)).toBe(0.7)
   expect(clampLookSensitivity(0.73)).toBe(0.75)
   expect(clampLookSensitivity(0.85)).toBe(0.85)
-  expect(clampLookSensitivity(0)).toBe(0.1)
+  expect(clampLookSensitivity(0.05)).toBe(0.05)
+  expect(clampLookSensitivity(0)).toBe(0.05)
   expect(clampLookSensitivity(9)).toBe(2)
   expect(clampLookSensitivity(Number.NaN)).toBe(0.8)
 })
