@@ -1,7 +1,7 @@
 # 맵 버전 전달·입장 전 확인
 
 담당: 장대산. 서버 연결부·로컬 검증 범위이며 FE 서비스 맵 전환·개발 서버 배포는 별도다.
-현재 `/world/park.json`과 Java 이동·충돌은 유지한다. FE `bb1ff1b`의 미리보기 JSON은 아직 로딩하지 않는다.
+현재 `/world/park.json`과 Java 이동·충돌은 유지한다. FE 미리보기 JSON은 런타임 맵으로 사용하지 않는다.
 
 ## 연결 완료 · CONNECTED
 
@@ -26,7 +26,7 @@
 `map`은 서버 물리 엔진이 로딩한 ParkScene에서 가져온다. 현재 구형 맵의 mapId는 리소스에 대응하는
 `park`, schemaVersion은 JSON의 schemaVersion, mapVersion은 기존 sourceSha256이다.
 WORLD_STATE·시설 카탈로그의 mapVersion과 동일하다. FE 신규 생성 버전으로 기존 서버 버전을 덮어쓰지 않는다.
-새 JSON 로더·manifest 체크섬 검증은 데이터 규격 합의 후 별도로 연결한다.
+새 JSON 로더는 아래 사전 검사 전용이며, 런타임 연결은 데이터 규격 합의 후 별도로 진행한다.
 
 ## 확인 요청 · WORLD_MAP_CONFIRM
 
@@ -110,3 +110,31 @@ true에서는 확인 전 채널·이동·시설·테이블·게임 요청과 경
 FE가 확인 요청을 연결하고 양쪽 실제 맵이 일치하는 것을 검증한 뒤 설정을 켠다.
 새 맵·시설 좌표·버전을 함께 생성/배포하는 작업과 구분하며 현재 자료만으로 서비스 맵을 전환하지 않는다.
 DB 스키마·인증·판돈 예약/정산은 변경하지 않는다.
+
+## 생성 맵 사전 로딩·무결성 검사
+
+`GeneratedParkMapLoader.load(mapFile, manifestFile)`는 명시적으로 전달한 두 로컬 파일을 검사한다.
+Spring 빈·시작 훅·리소스 선택 설정에는 연결하지 않았다. 통과해도 ParkScene·CONNECTED·WORLD_STATE의
+실제 맵 버전과 좌표는 바뀌지 않는다. HTTP/WS API 추가도 없다.
+
+- 맵 format=`ontop.park-map`, manifest format=`ontop.park-map-manifest`, hashAlgorithm=`sha256`.
+- 양쪽 mapId=`park`, schemaVersion=정수 `2`, mapVersion=소문자 16진수 64자리이며 서로 같아야 한다.
+- manifest.artifacts의 `generated/park/server-map.json` 항목이 정확히 하나 있어야 한다.
+  그 항목의 bytes와 sha256을 **줄바꿈까지 포함한 원본 맵 바이트**와 대조한다.
+  mapVersion은 소스 버전, sha256은 생성 파일의 해시이므로 서로 같은 값일 필요가 없다.
+- manifest가 가리키는 다른 파일은 열지 않는다. 전달받은 맵은 최대 16MiB, manifest는 최대 1MiB다.
+  누락 파일·잘못된 JSON·중복 JSON 키·뒤에 추가된 JSON·지원하지 않는 규격·불일치는 실패한다.
+- data.physics의 m/Y/world 좌표계, 사전 반경/여백 0, 캡슐 중심 스폰, 캐릭터 치수,
+  boxes/hulls/meshes의 기본 구조·유한한 수·메시 인덱스 범위를 검사한다. terrain/surface/solid를 보존한다.
+  FE 2D 미리보기용 data.collision을 물리 데이터에 합치지 않는다.
+
+이는 파일끼리의 무결성·기본 구조 검사다. manifest의 출처 인증, 지형의 실제 통행 가능성,
+시설·테이블 ID/좌표 매핑, 새 물리 엔진 실행·서비스 전환 성공을 보장하지 않는다.
+
+일반 단위 검사는 `GeneratedParkMapLoaderTests`다. 실제 전달본 검사는 실행 전에
+`TEST_GENERATED_MAP_DIR`을 server-map.json·manifest.json이 함께 있는 로컬 폴더로 지정하고
+`gradlew test --tests '*GeneratedParkMap*' --rerun-tasks`로 실행한다. 경로가 없으면 전달본 검사는 스킵된다.
+해당 검사는 전달본 검증 전후 기존 ParkScene의 식별 정보가 그대로인지도 확인한다.
+
+2026-10-26 FE `6bd9567` 전달본은 사전 검사를 통과했다. 런타임 리소스에는 복사하지 않았다.
+테이블 매핑·시설 이용 위치·기존 이동 파라미터 보완 후 실제 맵 전환은 별도로 검증해야 한다.
