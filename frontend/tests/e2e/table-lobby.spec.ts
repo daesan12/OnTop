@@ -19,7 +19,6 @@ test('unready movement exit works without optional GAME_START_STATE, while ready
     await lobby(page).getByRole('button', { name: '앉기', exact: true }).click()
     if (selected) {
       await lobby(page).getByRole('button', { name: '오목 선택', exact: true }).click()
-      await page.getByRole('button', { name: '게임 설정', exact: true }).click()
       await lobby(page).getByRole('button', { name: '준비', exact: true }).click()
       await expect(lobby(page)).toContainText('준비·경기·정산 중 이동키로 퇴장하지 않습니다.')
       await lobby(page).getByRole('button', { name: '테이블 정보 닫기' }).click()
@@ -59,7 +58,6 @@ test('M09 lobby uses server host, four seats and exact game/target commands; pre
   await expect(lobby(page).getByRole('listitem')).toHaveCount(4)
   await expect(lobby(page)).toContainText('방장 · 게임과 목표')
   await lobby(page).getByRole('button', { name: '원카드 선택', exact: true }).click()
-  await page.getByRole('button', { name: '게임 설정', exact: true }).click()
   await expect(lobby(page).getByRole('listitem')).toHaveCount(4)
   await expect(lobby(page).getByRole('button', { name: '준비', exact: true })).toBeEnabled()
   await lobby(page).getByRole('button', { name: '거짓말 다리 건너기 선택', exact: true }).click()
@@ -121,7 +119,7 @@ test('M09 finished round keeps seats, settlement is server-owned; next-round con
   await expect(board.getByRole('button', { name: '자리에서 일어나기', exact: true })).toBeEnabled()
   const before = server.sent.length
   await board.getByRole('button', { name: '다음 판 준비', exact: true }).click()
-  await board.getByRole('button', { name: '게임 설정', exact: true }).click()
+  await expect(lobby(page)).toBeVisible()
   await expect(lobby(page).getByRole('region', { name: '지난 판 결과' })).toHaveCount(0)
   expect(server.sent.slice(before).some(m => /START|READY|RESIGN|REMATCH/.test(m.type))).toBe(false)
   await screenshot(page, 'm09-next-round')

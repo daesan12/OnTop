@@ -6,6 +6,7 @@ import { openManual } from '../manual/manualState'
 import { GAME_MANUAL, type GatheringModel } from './gatheringModel'
 import { getGathering, returnToWaiting } from './gathering'
 import { resetSeatedLook, seatScope, useTableLobby } from './state'
+import { FinishedForfeitStatus } from '../../game/OmokSurrender'
 import './gathering.css'
 
 export function TableGatheringHud({ model }: { model: GatheringModel }) {
@@ -31,6 +32,7 @@ export function TableGatheringHud({ model }: { model: GatheringModel }) {
     <div className="gathering-actions">
       <p className="gathering-social-hint">관전자와 함께 한 판 <span>Enter · 훈수와 응원</span></p>
       {model.finished && <p className="settlement-note">{model.reason} · {model.settlement}</p>}
+      {model.finished && <FinishedForfeitStatus />}
       <div className="button-row">
         <button className="primary" disabled={disabled || (!model.finished && (busy || !model.playable))} onClick={primary}>
           {model.finished ? model.canReturn ? '다음 판 준비' : '정산 결과 확인' : model.own?.ready ? '준비 취소' : '준비'}</button>

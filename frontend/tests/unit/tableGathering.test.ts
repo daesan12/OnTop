@@ -41,9 +41,10 @@ it('maps the real canvas UV buttons and ignores non-button regions', () => {
   expect(gatheringHit(246 / 1024, 1 - 572 / 640)).toBe('settings')
   expect(gatheringHit(.5, .8)).toBeNull(); expect(gatheringHit(-1, 2)).toBeNull()
 })
-it('only the approved own seat opens a gathering; manual look and leave restore the camera', () => {
+it('preparation stays in the table panel; only an approved own result opens the gathering camera', () => {
   useSession.setState({ sessionId: 'a', tableId: 't', seatIndex: 0, status: 'connected', tableStates: { t: table } })
-  useGame.setState({ start }); expect(getGathering()).not.toBeNull(); expect(gatheringCameraActive()).toBe(true)
+  useGame.setState({ start }); expect(getGathering()).toBeNull(); expect(gatheringCameraActive()).toBe(false)
+  useGame.setState({ lastResult: result }); expect(getGathering()?.finished).toBe(true); expect(gatheringCameraActive()).toBe(true)
   useTableLobby.setState({ lookScope: seatScope(useSession.getState()) }); expect(gatheringCameraActive()).toBe(false)
   useSession.setState({ tableId: '' }); expect(getGathering()).toBeNull(); expect(gatheringCameraActive()).toBe(false)
 })
