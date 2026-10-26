@@ -43,7 +43,8 @@ for (const viewport of [
         page.getByRole('group', { name: '오목판', exact: true }),
       ).toHaveCount(0)
       server.confirmStart()
-      const panel = page.getByRole('region', { name: '오목 경기', exact: true })
+      const panel = page.locator('[aria-label="오목 경기"], .gathering-hud[data-phase="finished"]')
+      await panel.getByText('키보드로 오목판 조작', { exact: true }).click()
       const cell = panel.getByRole('button', {
         name: '8행 8열 빈칸',
         exact: true,
@@ -147,7 +148,7 @@ for (const viewport of [
       await expect(panel).toContainText('승리')
       await expect(
         panel.getByRole('button', { name: '8행 10열 빈칸', exact: true }),
-      ).toBeDisabled()
+      ).toHaveCount(0)
       await panel.getByRole('button', { name: '정산 결과 확인' }).click()
       await expect(panel).toContainText('정산 대기 중')
       server.settle()
@@ -158,6 +159,7 @@ for (const viewport of [
         'omok-settlement' + (viewport.width === 1920 ? '' : '-1280'),
       )
       server.nextRound()
+      await page.getByRole('button', { name: '다음 판 준비', exact: true }).click()
       await expect(
         page.getByRole('button', { name: '준비', exact: true }),
       ).toBeEnabled()

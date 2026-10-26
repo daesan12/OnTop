@@ -4,11 +4,13 @@ import { create } from 'zustand'
 const initial = () => ({
   epoch: 0, tableId: '', requestId: '', status: 'idle' as 'idle' | 'loading' | 'ready' | 'error', error: '',
   spectatorView: 'board' as 'board' | 'table', lookScope: '',
-  panelOpen: false, spectatorRequested: false,
+  gatheringDetails: '', panelOpen: false, spectatorRequested: false,
   spectatorStatus: 'idle' as 'idle' | 'waiting' | 'starting' | 'watching' | 'switching' | 'error', spectatorError: '',
 })
 export const useTableLobby = create(initial)
 export const seatedLook = { yaw: 0 }
+// Original prototype framing: clears the tabletop and the raised bridge board.
+export const SEATED_LOOK = { eyeHeight: 1.95, targetHeight: 1.85 } as const
 export function resetTableLobby() {
   seatedLook.yaw = 0
   useTableLobby.setState({ ...initial(), epoch: useTableLobby.getState().epoch + 1 }, true)
