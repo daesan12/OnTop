@@ -4,6 +4,9 @@ import { useSession } from '../../network/worldClient'
 import { useParkRuntime } from '../../park/runtime/ParkRuntime'
 import { inputState, setChatInputOpen } from '../../world/inputOwnership'
 import { CHAT } from './settings'
+import chatIcon from '../parkMenus/icons/chat-bubble.svg'
+import sendIcon from '../parkMenus/icons/chat-send.svg'
+import expandIcon from '../parkMenus/icons/chevron-channel.svg'
 
 const textControl = (target: EventTarget | null) => target instanceof HTMLElement
   && !!target.closest('input,textarea,select,button,a,[contenteditable="true"],[role="button"]')
@@ -14,6 +17,7 @@ export function ParkChat() {
   const runtime = useParkRuntime()
   const session = useSession(useShallow(s => ({ messages: s.messages, profiles: s.profiles,
     own: s.sessionId, channel: s.roomId, pending: s.pending, connected: s.status === 'connected' })))
+  const channelName = useSession(s => s.roomId ? s.channelName : '')
   const [open, setOpen] = useState(false), [history, setHistory] = useState(false)
   const [previewUntil, setPreviewUntil] = useState(0), [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false), [notice, setNotice] = useState('')
@@ -78,13 +82,15 @@ export function ParkChat() {
 
   return <section className="park-chat" aria-label="주변 채팅" data-expanded={expanded} data-history={history}>
     <div className="park-chat__messages">
-      <div className="park-chat__heading"><h1>주변 채팅</h1>
-        <button type="button" aria-label="채팅 기록 보기" aria-expanded={history} aria-keyshortcuts="Z" onClick={toggleHistory}>
-          <kbd>Z</kbd> {history ? '기록 접기' : '기록 보기'}
+      <div className="park-chat__heading"><h1><img src={chatIcon} alt="" />주변 채팅<span className="park-chat__radius">반경 {CHAT.radiusMeters}m</span></h1>
+        <button type="button" aria-label="채팅 기록 보기" aria-expanded={history} aria-keyshortcuts="Z" onClick={toggleHistory}
+          title={history ? 'Z · 기록 접기' : 'Z · 기록 보기'}>
+          <img src={expandIcon} alt="" /><span className="visually-hidden">Z {history ? '기록 접기' : '기록 보기'}</span>
         </button>
       </div>
       <div className="park-chat__list" ref={log} role="log" aria-live="polite" aria-relevant="additions"
         onScroll={event => { const el = event.currentTarget; followLatest.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24 }}>
+        {channelName && (expanded || !messages.length) && <p className="park-chat__system">{channelName} 채널에 입장했어요</p>}
         {messages.map(message => <p className="park-chat__message" key={message.id}>
           <span className={'park-chat__author' + (message.userId === session.own ? ' park-chat__author--own' : '')}>
             {session.profiles[message.userId]?.nickname ?? (message.userId === session.own ? '나' : '산책자 ' + message.userId.slice(-6))}
@@ -100,10 +106,11 @@ export function ParkChat() {
         onKeyDown={event => {
           if (event.key === 'Enter' && (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229)) event.preventDefault()
         }} placeholder="메시지를 입력하세요" maxLength={400} autoComplete="off" />
-      <button type="submit" aria-label="메시지 보내기" disabled={sending || session.pending || !session.channel || !session.connected}>↗</button>
       <button type="button" aria-label="채팅 입력창 닫기" onClick={() => close()}>×</button>
-    </form> : <button className="park-chat__composer park-chat__composer--closed" type="button" onClick={openInput} aria-label="채팅 입력창 열기">
-      <span>채팅 입력창 열기</span><kbd>Enter</kbd>
+      <button type="submit" aria-label="메시지 보내기" disabled={sending || session.pending || !session.channel || !session.connected}><img src={sendIcon} alt="" /></button>
+    </form> : <button className="park-chat__composer park-chat__composer--closed" type="button" onClick={openInput} aria-label="채팅 입력창 열기"
+      aria-keyshortcuts="Enter">
+      <span>메시지를 입력하세요</span><span className="park-chat__send-icon"><img src={sendIcon} alt="" /></span>
     </button>}
   </section>
 }

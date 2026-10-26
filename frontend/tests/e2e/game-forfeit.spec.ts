@@ -172,8 +172,13 @@ test('forfeiting and leaving retains roaming follow and server emote cancellatio
   await page.getByRole('dialog', { name: '테이블 정보', exact: true }).getByRole('button', { name: '일어나기', exact: true }).click()
   await expect(result(page)).toHaveCount(0)
   await page.getByRole('button', { name: '테이블 정보 닫기', exact: true }).click()
-  await page.getByRole('button', { name: '이웃 메뉴 열기', exact: true }).click()
-  await page.getByRole('menu', { name: '주변 이용자', exact: true }).getByRole('menuitem').first().click()
+  // The 이웃 메뉴 launcher is gone; open the menu the way an avatar right-click does.
+  await page.evaluate(async () => {
+    const { openAvatarMenu } = await import('/src/features/follow/FollowMenu.tsx' as string)
+    const { useSession } = await import('/src/network/worldClient.ts' as string)
+    const state = useSession.getState()
+    openAvatarMenu({ id: state.ids.find((id: string) => id !== state.sessionId), x: 600, y: 300 })
+  })
   await page.getByRole('menuitem', { name: '따라가기', exact: true }).click()
   await expect(page.getByRole('complementary', { name: '따라가기 상태', exact: true })).toBeVisible()
   await page.getByRole('button', { name: '따라가기 종료', exact: true }).click()

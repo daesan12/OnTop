@@ -1,0 +1,371 @@
+/* Park channel/profile menus and their dialogs — Figma 01 공원 (채널 선택 · 프로필 메뉴 · 확인 창 · 내 정보). */
+.park-page button.park-location {
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.park-location__name { display: block; }
+.park-location .park-chevron,
+.park-account__summary .park-chevron { transition: transform 150ms; }
+.park-location[aria-expanded='true'] .park-chevron,
+.park-account__trigger[aria-expanded='true'] .park-chevron { transform: rotate(180deg); }
+/* The retry stays for wallet errors but shows as an icon only, as in the design's profile bar. */
+.park-account .park-wallet { gap: 4px; margin-left: 0; }
+.park-account .park-wallet__refresh { font-size: 0; }
+.park-account .park-wallet__refresh > span { font-size: 16px; opacity: 0.7; }
+/* An open dropdown stays above the neighbour/follow buttons beside the HUD corners. */
+.park-page .park-account:has(> .park-menu-dropdown),
+.park-channel-menu .park-menu-dropdown { z-index: 30; }
+
+.park-account__trigger {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  color: inherit;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.park-menu-dropdown {
+  position: absolute;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 320px;
+  padding: 8px;
+  border: 1px solid rgba(247, 241, 229, 0.14);
+  border-radius: 18px;
+  color: #f7f1e5;
+  background: var(--hud-glass-strong);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  backdrop-filter: var(--hud-blur);
+  pointer-events: auto;
+  white-space: nowrap;
+}
+.park-menu-dropdown hr {
+  width: 100%;
+  height: 1px;
+  margin: 0;
+  border: 0;
+  background: rgba(247, 241, 229, 0.12);
+}
+.park-menu-dropdown button {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  border: 0;
+  border-radius: 12px;
+  color: inherit;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.park-menu-dropdown button:hover:not(:disabled),
+.park-menu-dropdown button:focus-visible,
+.park-menu-dropdown button[aria-current] { background: rgba(247, 241, 229, 0.08); }
+.park-menu-dropdown button:focus-visible { outline: 2px solid #e8b451; outline-offset: -2px; }
+
+/* Channel dropdown sits 10 design px under the chip and scales with the HUD. */
+.park-channel-dropdown {
+  top: calc(var(--park-edge) + 96px * var(--park-ui-scale));
+  left: var(--park-edge);
+  padding: 12px 8px 10px;
+  transform: scale(var(--park-ui-scale));
+  transform-origin: top left;
+}
+.park-channel-dropdown__title {
+  padding: 0 0 4px 12px;
+  color: rgba(247, 241, 229, 0.7);
+  font-size: 15px;
+  font-weight: 700;
+}
+.park-channel-option { gap: 10px; padding: 11px 12px; }
+.park-channel-option > img { width: 8px; height: 8px; }
+.park-channel-option__name { flex: 1; min-width: 0; font-size: 17px; font-weight: 700; }
+.park-channel-option__count { color: rgba(247, 241, 229, 0.8); font-size: 14px; font-weight: 500; }
+.park-menu-dropdown .park-channel-option:disabled { cursor: default; }
+.park-channel-option:disabled:not([aria-current]) .park-channel-option__name,
+.park-channel-option:disabled:not([aria-current]) .park-channel-option__count { color: rgba(247, 241, 229, 0.45); }
+.park-menu-badge {
+  padding: 2px 8px 3px;
+  border-radius: 999px;
+  color: rgba(247, 241, 229, 0.7);
+  background: rgba(247, 241, 229, 0.15);
+  font-size: 12px;
+  font-weight: 500;
+}
+.park-menu-badge--current { color: #292620; background: #e8b451; }
+.park-channel-dropdown__note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 10px 0 0 12px;
+  border-top: 1px solid rgba(247, 241, 229, 0.12);
+  color: rgba(247, 241, 229, 0.6);
+  font-size: 13px;
+  font-weight: 500;
+}
+.park-channel-dropdown__note img { width: 14px; height: 14px; }
+/* Bungeoppang and the table stage hide the channel chip; an open dropdown goes with it. */
+.park-page[data-bungeoppang='true'] .park-channel-dropdown,
+.park-page:has(.gathering-hud, .prototype-game) .park-channel-dropdown { display: none; }
+
+/* Profile dropdown hangs under the account bar inside the scaled .park-account. */
+.park-account-dropdown { top: 72px; right: 0; }.park-account-dropdown__header { display: flex; align-items: center; gap: 14px; padding: 12px 12px 14px; }
+.park-account-dropdown__header b { display: block; font-size: 19px; font-weight: 700; }
+.park-account-dropdown__header small,
+.park-profile-summary__balance {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 5px;
+  color: rgba(247, 241, 229, 0.85);
+  font-size: 14px;
+  font-weight: 500;
+}
+.park-account-dropdown__header small img,
+.park-profile-summary__balance img { width: 18px; height: 18px; object-fit: contain; }
+.park-account-dropdown__header small i,
+.park-profile-summary__balance i { color: #e8b451; font-style: normal; }
+.park-menu-avatar {
+  position: relative;
+  flex: 0 0 56px;
+  width: 56px;
+  height: 56px;
+  overflow: hidden;
+  border: 2px solid #e8b451;
+  border-radius: 50%;
+  background: #f5ebd1;
+}
+.park-menu-avatar img { position: absolute; top: 5px; left: 3px; width: 47.6px; height: auto; }
+.park-menu-avatar--large { flex-basis: 64px; width: 64px; height: 64px; border-color: #b18328; }
+.park-menu-avatar--large img { top: 6px; left: 3.9px; width: 54.4px; }
+.park-menu-item { gap: 14px; padding: 11px 14px; }
+.park-menu-item > img { width: 20px; height: 20px; object-fit: contain; }
+.park-menu-item b { display: block; font-size: 16px; font-weight: 500; }
+.park-menu-item small { display: block; margin-top: 2px; color: rgba(247, 241, 229, 0.55); font-size: 12px; font-weight: 500; }
+.park-menu-item--danger { opacity: 0.75; }
+.park-menu-item--danger b { color: #f08570; }
+
+/* Light dialogs (확인 창 · 내 정보). */
+.park-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(20, 18, 12, 0.45);
+  font-family: 'BusanDandiMyeongjo', serif;
+}
+.park-menu-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: min(460px, 100%);
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+  padding: 32px 32px 28px;
+  border: 1px solid rgba(201, 190, 158, 0.55);
+  border-radius: 24px;
+  color: #2e4033;
+  background: #fffdf8;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.3);
+}
+.park-menu-dialog h2 { margin: 0; font-size: 22px; font-weight: 700; }
+.park-menu-dialog p { margin: 0; color: #53604f; font-size: 15px; font-weight: 500; line-height: 1.5; }
+.park-confirm-dialog__header { display: flex; align-items: center; gap: 14px; }
+.park-confirm-dialog__icon {
+  display: grid;
+  flex: 0 0 44px;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: #f4eede;
+}
+.park-confirm-dialog__icon img { width: 18.5px; height: auto; }
+.park-confirm-dialog__icon--danger { background: #fdeee9; }
+.park-confirm-dialog__icon--danger img { width: 20.3px; }
+.park-confirm-dialog__icon--done { border-radius: 22px; background: #e4f0e6; }
+.park-confirm-dialog__icon--done img { width: 22px; }
+.park-confirm-dialog--center { width: min(440px, 100%); align-items: center; padding-top: 36px; text-align: center; }
+
+.park-menu-actions { display: flex; gap: 12px; width: 100%; }
+.park-menu-actions--end { justify-content: flex-end; }
+.park-menu-button {
+  flex: 1;
+  padding: 13px 24px 14px;
+  border: 1.5px solid #c9be9e;
+  border-radius: 14px;
+  color: #2e4033;
+  background: #fffdf8;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.park-menu-actions--end .park-menu-button { flex: 0 0 120px; }
+.park-menu-button--primary { border-color: #2e4033; color: #fff9ea; background: #2e4033; }
+.park-menu-button--danger { border-color: #a44631; color: #fff9ea; background: #a44631; }
+.park-menu-button--wide { flex: none; width: 100%; }
+.park-menu-button:disabled { border-color: #daddcf; color: #626957; background: #daddcf; cursor: default; }
+.park-menu-button:focus-visible,
+.park-menu-icon-button:focus-visible,
+.park-nickname__field button:focus-visible,
+.park-withdraw-agree input:focus-visible { outline: 3px solid #b18328; outline-offset: 2px; }
+.park-menu-error { color: #a44631 !important; font-size: 14px !important; }
+
+.park-withdraw-notes {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: rgba(244, 238, 222, 0.7);
+  list-style: none;
+  font-size: 14px;
+  font-weight: 500;
+}
+.park-withdraw-notes li { display: flex; gap: 8px; }
+.park-withdraw-notes li::before { content: '·'; color: #53604f; font-size: 15px; font-weight: 700; }
+.park-withdraw-agree { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 500; cursor: pointer; }
+.park-withdraw-agree input {
+  display: grid;
+  place-items: center;
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  border: 1.5px solid rgba(46, 64, 51, 0.35);
+  border-radius: 6px;
+  background: #fffdf8;
+  appearance: none;
+  cursor: pointer;
+}
+.park-withdraw-agree input:checked { border-color: #2e4033; background: #2e4033; }
+.park-withdraw-agree input:checked::after {
+  content: '';
+  width: 6px;
+  height: 11px;
+  margin-top: -2px;
+  border: solid #fff9ea;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.park-profile-dialog { gap: 24px; width: min(640px, 100%); padding: 36px 40px 32px; border-radius: 28px; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3); }
+.park-profile-dialog__header { display: flex; align-items: center; justify-content: space-between; }
+.park-profile-dialog__header h2 { font-size: 28px; }
+.park-menu-icon-button {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1.5px solid #c9be9e;
+  border-radius: 12px;
+  background: none;
+  cursor: pointer;
+}
+.park-menu-icon-button img { width: 13.8px; height: 13.8px; }
+.park-profile-summary { display: flex; align-items: center; gap: 16px; padding: 16px 18px; border-radius: 18px; background: rgba(244, 238, 222, 0.6); }
+.park-profile-summary__info { flex: 1; min-width: 0; }
+.park-profile-summary__info b { display: block; font-size: 20px; font-weight: 700; }
+.park-profile-summary__info small { display: block; margin-top: 4px; color: #53604f; font-size: 14px; font-weight: 500; }
+.park-profile-summary__balance { margin: 0; padding: 7px 14px 8px 12px; border-radius: 999px; color: #2e4033; background: #fffdf8; font-size: 15px; }
+.park-profile-summary__balance i { color: #b18328; font-size: 13px; }
+.park-nickname { display: grid; gap: 10px; }
+.park-nickname__label { display: flex; align-items: baseline; justify-content: space-between; }
+.park-nickname__label label { font-size: 19px; font-weight: 700; }
+.park-nickname__label span { color: rgba(83, 96, 79, 0.8); font-size: 13px; font-weight: 500; }
+.park-nickname__field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 8px 8px 20px;
+  border: 1.5px solid rgba(201, 190, 158, 0.9);
+  border-radius: 16px;
+  background: #faf6ec;
+}
+.park-nickname__field[data-error] { border-color: #a44631; background: #fff4f0; }
+.park-nickname__field:focus-within:not([data-error]) { border-color: #2e4033; }
+.park-nickname__field input {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  color: #2e4033;
+  background: none;
+  font: inherit;
+  font-size: 17px;
+  font-weight: 500;
+}
+.park-nickname__field button {
+  padding: 12px 18px;
+  border: 0;
+  border-radius: 12px;
+  color: #fff9ea;
+  background: #2e4033;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.park-nickname__field button:disabled { color: #626957; background: #daddcf; cursor: default; }
+.park-menu-dialog .park-nickname__help { display: flex; align-items: center; gap: 6px; font-size: 13px; white-space: pre-wrap; }
+.park-menu-dialog .park-nickname__help[data-tone='error'] { color: #a44631; }
+.park-menu-dialog .park-nickname__help[data-tone='ok'] { color: #2f6b47; }
+.park-nickname__help img { width: 15px; height: 15px; }
+.park-profile-character {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  border: 1px solid rgba(201, 190, 158, 0.5);
+  border-radius: 14px;
+}
+.park-profile-character > span { display: flex; align-items: baseline; gap: 10px; color: #53604f; font-size: 15px; font-weight: 500; }
+.park-profile-character b { color: #2e4033; font-size: 17px; font-weight: 700; }
+.park-profile-character small { display: flex; align-items: center; gap: 6px; color: #53604f; font-size: 13px; font-weight: 500; }
+.park-profile-character small img { width: 12.5px; height: auto; }
+.park-nickname-change {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  padding: 16px 20px;
+  border-radius: 16px;
+  background: rgba(244, 238, 222, 0.7);
+  font-size: 16px;
+  font-weight: 500;
+}
+.park-nickname-change span { color: rgba(83, 96, 79, 0.8); }
+.park-nickname-change img { width: 16px; height: 16px; }
+.park-nickname-change b { font-size: 18px; font-weight: 700; }
+
+@media (max-width: 900px) {
+  .park-channel-dropdown { top: calc(16px + 77px); left: 16px; transform: scale(0.8); }
+  .park-account-dropdown { top: 62px; }
+  .park-profile-dialog { padding: 28px 22px 24px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .park-location .park-chevron,
+  .park-account__summary .park-chevron { transition: none; }
+}
