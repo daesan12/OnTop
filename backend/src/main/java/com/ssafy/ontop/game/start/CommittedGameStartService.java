@@ -23,26 +23,38 @@ public class CommittedGameStartService {
     private final Optional<OneCardEngine> onecard;
     private final Optional<BridgeEngine> bridge;
     private final Optional<FarkleEngine> dice;
+    private final Optional<GameActivationPersistenceService> activations;
 
     public CommittedGameStartService(GameStartGateway gateway, Optional<OmokEngine> omok,
             Optional<OneCardEngine> onecard, Optional<BridgeEngine> bridge, boolean authenticated, boolean rehearsal) {
         this(gateway, omok, onecard, bridge, Optional.empty(), authenticated, rehearsal);
     }
 
+    public CommittedGameStartService(GameStartGateway gateway, Optional<OmokEngine> omok,
+            Optional<OneCardEngine> onecard, Optional<BridgeEngine> bridge,
+            Optional<FarkleEngine> dice, boolean authenticated, boolean rehearsal) {
+        this(gateway, omok, onecard, bridge, dice, Optional.empty(), authenticated, rehearsal);
+    }
+
     @Autowired
     public CommittedGameStartService(GameStartGateway gateway, Optional<OmokEngine> omok,
             Optional<OneCardEngine> onecard, Optional<BridgeEngine> bridge,
             Optional<FarkleEngine> dice,
+            Optional<GameActivationPersistenceService> activations,
             @Value("${ontop.websocket.authenticated:false}") boolean authenticated,
             @Value("${ontop.start-rehearsal.enabled:false}") boolean rehearsal) {
         if (!authenticated || rehearsal || gateway instanceof LocalGameStartGateway) {
             throw new IllegalArgumentException("인증 사용자와 실제 시작 Gateway를 연결해주세요.");
+        }
+        if (gateway instanceof JpaGameStartGateway && activations.isEmpty()) {
+            throw new IllegalArgumentException("DB 경기에는 실행 주체 검증이 필요합니다.");
         }
         this.gateway = gateway;
         this.omok = omok;
         this.onecard = onecard;
         this.bridge = bridge;
         this.dice = dice;
+        this.activations = activations;
     }
 
     public GameStartResult start(GameStartCommand command) {
@@ -75,7 +87,11 @@ public class CommittedGameStartService {
 
     private GameStartResult activate(GameStartCommand command, GameStartResult result) {
         if (result != null && result.isReservationCommitted(command)) {
+            if (activations.isPresent() && !activations.get().authorize(command, result.gameSessionId())) {
+                return GameStartResult.rejected(command.startAttemptId(), "GAME_ALREADY_TERMINATED");
+            }
             List<Long> players = players(command);
+            // 엔진 create의 tick/종료 콜백은 별도 DB 트랜잭션을 사용할 수 있어 경기 행 잠금을 보유하지 않는다.
             switch (command.gameCode()) {
                 case "OMOK" -> omok.orElseThrow().create(result.gameSessionId(), command.tableId(),
                         players.get(0), players.get(1));
@@ -85,6 +101,7 @@ public class CommittedGameStartService {
                         command.targetScore());
                 default -> throw new IllegalStateException("경기 실행 설정을 확인해주세요.");
             }
+            activations.ifPresent(service -> service.started(command, result.gameSessionId()));
         }
         return result;
     }

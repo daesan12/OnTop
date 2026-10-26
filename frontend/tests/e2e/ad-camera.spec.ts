@@ -11,6 +11,8 @@ const advertisement = (page: Page) => page.getByRole('dialog', { name: '광고 �
 const probe = (page: Page) => page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).adCameraProbe())
 async function loaded(page: Page) {
   await page.goto('/park'); await expect(page).toHaveTitle('OnTop')
+  // hidden은 아직 마운트되지 않은 로딩 문구에도 참이다. 먼저 공원 화면이 실제로 열렸는지 확인한다.
+  await expect(page.getByLabel('공원 기본 화면')).toBeVisible()
   await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90000 })
   await expect(page.locator('canvas')).toBeVisible(); await page.locator('canvas').focus()
   await expect.poll(() => page.evaluate(async () => (await import('/src/world/roamingCamera.ts' as string)).canControlRoamingCamera())).toBe(true)

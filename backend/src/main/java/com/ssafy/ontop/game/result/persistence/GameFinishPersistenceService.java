@@ -52,13 +52,18 @@ public class GameFinishPersistenceService {
                     || p.reservedAmount() != game.betAmountPerPlayer())) {
             throw new IllegalArgumentException("최초 참가자와 예약 금액을 확인하세요.");
         }
-        // 수신 단계에서도 계산 가능성을 확인한다. 승자 없는 전원 이탈은 Story 174의 무효 경로다.
-        GameSettlementCalculation.calculate(game.betAmountPerPlayer(), players.stream()
-                .map(p -> outcomes.get(p.userId()).result()).toList());
-        game.recordFinish(event.eventId(), hash, event.version(), event.endReason(), VerifiedGameFinish.millis(event.endedAt()));
+        if (VerifiedGameFinish.invalid(event)) {
+            game.recordInvalidFinish(event.eventId(), hash, event.version(), event.endReason(),
+                    VerifiedGameFinish.millis(event.endedAt()));
+        } else {
+            GameSettlementCalculation.calculate(game.betAmountPerPlayer(), players.stream()
+                    .map(p -> outcomes.get(p.userId()).result()).toList());
+            game.recordFinish(event.eventId(), hash, event.version(), event.endReason(),
+                    VerifiedGameFinish.millis(event.endedAt()));
+        }
         players.forEach(p -> p.recordFinish(outcomes.get(p.userId())));
         sessions.flush();
-        events.publishEvent(new GameResultsReady(players.stream()
+        events.publishEvent(new GameResultsReady(game.tableId(), players.stream()
                 .map(p -> StoredGameResult.forMember(game, players, p)).toList()));
         return id;
     }
