@@ -1,7 +1,7 @@
 import { beforeEach, expect, it } from 'vitest'
 import type { TableState } from '../../src/network/protocol'
 import type { Result, StartState } from '../../src/game/protocol'
-import { gatheringHit, gatheringModel } from '../../src/features/tableLobby/gatheringModel'
+import { gatheringModel } from '../../src/features/tableLobby/gatheringModel'
 import { gatheringCameraActive, getGathering, returnToWaiting } from '../../src/features/tableLobby/gathering'
 import { resetGame, useGame } from '../../src/game/store'
 import { resetWorld, useSession } from '../../src/network/worldClient'
@@ -35,11 +35,6 @@ it('requires both authoritative WAITING and SETTLED before returning to preparat
   expect(model({ ...result, settlementStatus: 'SETTLED' }, { ...start, phase: 'SETTLING' }).canReturn).toBe(false)
   expect(model({ ...result, settlementStatus: 'SETTLED' }, { ...start, simulation: true }).canReturn).toBe(false)
   expect(model({ ...result, settlementStatus: 'SETTLED' }, { ...start, tableId: 'other' }).canReturn).toBe(false)
-})
-it('maps the real canvas UV buttons and ignores non-button regions', () => {
-  expect(gatheringHit(726 / 1024, 1 - 572 / 640)).toBe('primary')
-  expect(gatheringHit(246 / 1024, 1 - 572 / 640)).toBe('settings')
-  expect(gatheringHit(.5, .8)).toBeNull(); expect(gatheringHit(-1, 2)).toBeNull()
 })
 it('preparation stays in the table panel; only an approved own result opens the gathering camera', () => {
   useSession.setState({ sessionId: 'a', tableId: 't', seatIndex: 0, status: 'connected', tableStates: { t: table } })

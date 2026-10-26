@@ -5,7 +5,7 @@ import { useGame } from '../../game/store'
 import { useTableLobby, seatScope } from './state'
 import { gatheringModel } from './gatheringModel'
 
-/** Keep the shared 3D presentation for results; preparation uses the table panel. */
+/** Results use the edge HUD and shared camera; preparation uses the table panel. */
 export function getGathering() {
   const s = useSession.getState(), g = useGame.getState(), t = s.tableStates[s.tableId]
   if (!s.tableId || !t?.seats.some(seat => seat.userId === s.sessionId) || g.watchedGameId) return null

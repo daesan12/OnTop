@@ -3,18 +3,7 @@ import { gameState, type Game, type Result, type StartState } from '../../game/p
 import { TABLE_GAMES } from './model'
 import { omokEndReason } from '../../game/omokPresentation'
 
-export const GATHERING = { textureWidth: 1024, textureHeight: 640, width: 1.65, height: 1.03125, nearbyRadius: 8 } as const
-export const GATHERING_BUTTONS = {
-  primary: { x: 474, y: 534, width: 504, height: 76 },
-  settings: { x: 46, y: 534, width: 400, height: 76 },
-} as const
 export const GAME_MANUAL = { OMOK: 'gomoku', DICE: 'farkle', ONE_CARD: 'onecard', LIAR_BRIDGE: 'bridge' } as const
-export function gatheringHit(u: number, v: number) {
-  const x = u * GATHERING.textureWidth, y = (1 - v) * GATHERING.textureHeight
-  for (const [action, r] of Object.entries(GATHERING_BUTTONS))
-    if (x >= r.x && x <= r.x + r.width && y >= r.y && y <= r.y + r.height) return action as keyof typeof GATHERING_BUTTONS
-  return null
-}
 
 interface Context {
   table: TableState; ownId: string; game: Game | null; result: Result | null

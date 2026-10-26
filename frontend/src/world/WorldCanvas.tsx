@@ -1,4 +1,3 @@
-import { TableGathering } from '../features/tableLobby/TableGathering'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { memo, Suspense, useEffect, useMemo, useState } from 'react'
 import { ACESFilmicToneMapping } from 'three'
@@ -146,7 +145,6 @@ export const WorldCanvas = memo(function WorldCanvas({
         </Suspense>
         <Avatars overlayTargets={overlayTargets} />
         <FollowRopes />
-        <TableGathering />
         <BungeoppangGrill />
 
         <ParkPigeons quality={quality} />

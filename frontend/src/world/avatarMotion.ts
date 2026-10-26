@@ -12,6 +12,8 @@ import type { createCharacterRig } from './art/CharacterRig'
 import { createGait, pavingLift, sampleGait } from './art/characterMotion'
 import { sampleCharacterEmote } from './art/characterEmotes'
 import { createFitnessGrip } from './art/fitnessGrip'
+import { sampleDefeatMotion } from './art/defeatMotion'
+import type { DefeatReaction } from '../game/presentation/defeat'
 
 type Avatar = Pick<AvatarSnapshot,
   'connected' | 'moving' | 'running' | 'swimming' | 'seatIndex' |
@@ -53,7 +55,7 @@ export function createAvatarMotion(model: Rig) {
   const grip = createFitnessGrip(), hipFit = new Vector3()
   let phase = 0, move = 0, run = 0
   return {
-    apply(avatar: Avatar, now: number, delta: number, pose: Pose, figure: Group) {
+    apply(avatar: Avatar, now: number, delta: number, pose: Pose, figure: Group, reaction?: DefeatReaction | null) {
       const kind = avatarPoseKind(avatar)
       const seated = kind === 'seated'
       const age = avatarEmoteAge(avatar, now)
@@ -124,6 +126,7 @@ export function createAvatarMotion(model: Rig) {
         if (avatar.emote === 'EMOTE_FART') figure.rotation.x = Math.sin(Math.PI * age / NETWORK.emoteDurationMs) * 0.12
         sampleCharacterEmote(avatar.emote, age, model)
       }
+      if (reaction && avatar.connected && seated && !avatar.moving) sampleDefeatMotion(reaction.kind, now - reaction.at, model)
       model.apply(delta)
       if (kind === 'ground' || kind === 'telescope') {
         figure.position.y = pavingLift(pose.x, pose.z, pose.y - 0.8) + model.groundShift() + 0.003
