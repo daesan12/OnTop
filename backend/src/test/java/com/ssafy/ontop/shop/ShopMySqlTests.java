@@ -77,7 +77,8 @@ class ShopMySqlTests {
     void setup() {
         accessTokens.clear();
         jdbc.execute("DROP TRIGGER IF EXISTS shop_test_fail_ledger");
-        for (String table : List.of("shop_purchases", "wallet_transactions", "user_items", "wallets",
+        for (String table : List.of("shop_purchases", "wallet_transactions", "game_participants", "game_sessions",
+                "user_items", "wallets",
                 "items", "refresh_tokens", "users")) {
             jdbc.update("DELETE FROM " + table);
         }
@@ -141,6 +142,7 @@ class ShopMySqlTests {
         });
         long gameId = 3_000_000_001L;
         long minigameId = 4_000_000_001L;
+        com.ssafy.ontop.game.TestGameSessions.reference(jdbc, gameId);
         jdbc.update("""
                 INSERT INTO wallet_transactions(wallet_id, game_session_id, transaction_type,
                     balance_delta, reserved_delta, idempotency_key)

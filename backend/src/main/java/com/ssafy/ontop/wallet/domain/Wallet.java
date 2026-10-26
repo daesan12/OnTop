@@ -47,6 +47,14 @@ public class Wallet {
         updatedAt = Instant.now();
     }
 
+    public void reserveGameEntry(Instant now) {
+        if (reserved < 0 || balance < reserved || balance - reserved < 1) {
+            throw new IllegalStateException("참가비를 예약할 수 없습니다.");
+        }
+        reserved = Math.addExact(reserved, 1);
+        updatedAt = Objects.requireNonNull(now).truncatedTo(ChronoUnit.MILLIS);
+    }
+
     public void creditReward(long amount) {
         if (amount < 0 || reserved < 0 || balance < reserved) {
             throw new IllegalArgumentException("보상 금액과 지갑 상태를 확인하세요.");

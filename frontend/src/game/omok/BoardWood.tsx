@@ -11,3 +11,9 @@ export function BoardWood() {
     />
   );
 }
+
+/** Original focus backdrop; reuses the park's cached wood maps. */
+export function FocusWood() {
+  return <SurfaceMaterial kind="wood" mapping="box" meters={1.5}
+    color="#7b5b40" strength={0.25} />;
+}

@@ -16,8 +16,8 @@ beforeEach(() => {
     position: { x: i * 4, y: .8, z: 0, yaw: 0, moving: false, running: false, swimming: false, lastInputSeq: 0 } })) })
 })
 afterEach(() => { resetWorld(); resetFollow() })
-it('keeps release follow unavailable until a real BE contract is installed', async () => {
-  expect(followService.mode).toBe('unavailable')
+it('requires a connected shared server adapter in normal mode', async () => {
+  expect(followService.mode).toBe('server')
   expect(await requestFollow('102')).toBe(false)
   expect(useFollow.getState().links).toEqual([])
   expect(useFollow.getState().error).toContain('서버 연결')

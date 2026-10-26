@@ -12,6 +12,7 @@ import {
   Box3,
   Mesh,
   Vector3,
+  Vector2,
   Texture,
   type BufferAttribute,
   type InterleavedBufferAttribute,
@@ -37,7 +38,77 @@ import { groundHeight } from '../../src/config'
 import { parkRuntime } from '../../src/park/runtime/runtime'
 import { useDiceUI, diceCamera } from '../../src/game/farkle/controls'
 export const inspectTable = () => parkRuntime.inspectTable('table-1')
+const gatheringDisposed = { geometry: 0, material: 0, texture: 0 }
+const gatheringResources = new WeakSet<object>()
+export function gatheringProbe(action?: 'primary' | 'settings') {
+  const { scene, camera, gl } = root(), console = scene.getObjectByName('table-gathering'), face = console?.getObjectByName('gathering-face') as Mesh | undefined
+  let triangles = 0, meshes = 0
+  console?.traverse(o => {
+    if (!(o instanceof Mesh)) return
+    meshes++; triangles += (o.geometry.index?.count ?? o.geometry.attributes.position!.count) / 3
+    for (const resource of [o.geometry, ...[o.material].flat(), ...[o.material].flat().flatMap(m => 'map' in m && m.map instanceof Texture ? [m.map] : [])]) {
+      if (gatheringResources.has(resource)) continue
+      gatheringResources.add(resource)
+      resource.addEventListener('dispose', () => { if (resource instanceof Texture) gatheringDisposed.texture++; else if ('isBufferGeometry' in resource) gatheringDisposed.geometry++; else gatheringDisposed.material++ })
+    }
+  })
+  let point: { x: number; y: number } | null = null
+  if (face && action) {
+    const x = action === 'primary' ? 726 : 246, y = 572
+    const v = face.localToWorld(new Vector3((x / 1024 - .5) * 1.65, (.5 - y / 640) * 1.03125, .001)).project(camera)
+    const rect = gl.domElement.getBoundingClientRect(); point = { x: (v.x + 1) * rect.width / 2, y: (1 - v.y) * rect.height / 2 }
+  }
+  return { present: !!console, meshes, triangles, point, disposed: { ...gatheringDisposed }, ownVisible: scene.getObjectByName('avatar-' + useSession.getState().sessionId)?.visible, camera: camera.position.toArray() }
+}
+export async function measureGathering(visible: boolean) {
+  const { scene, gl } = root(), group = scene.getObjectByName('table-gathering')!
+  const meshes: Mesh[] = []; group.traverse(o => { if (o instanceof Mesh) meshes.push(o) })
+  meshes.forEach(m => { m.visible = visible })
+  const frames: number[] = [], calls: number[] = [], triangles: number[] = []
+  let previous = performance.now()
+  for (let i = 0; i < 240; i++) {
+    await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
+    const now = performance.now()
+    if (i >= 60) { frames.push(now - previous); calls.push(gl.info.render.calls); triangles.push(gl.info.render.triangles) }
+    previous = now
+  }
+  const sorted = [...frames].sort((a, b) => a - b)
+  return { visible, samples: frames.length, frameMs: frames.reduce((a, b) => a + b, 0) / frames.length,
+    p95: sorted[Math.floor(sorted.length * .95)], calls: calls.at(-1), triangles: triangles.at(-1),
+    renderer: gl.getContext().getParameter(gl.getContext().RENDERER), buffer: gl.getDrawingBufferSize(new Vector2()).toArray() }
+}
 export const omokCameraReady = () => omokCamera.ready
+export function omokCameraProbe() {
+  const { scene, camera, gl, raycaster } = root()
+  const anchorId = useSession.getState().focusedAnchorId
+  const board = scene.getObjectByName('omok-board-' + anchorId)!
+  const rect = gl.domElement.getBoundingClientRect()
+  const half = GOMOKU.boardOuterSpan / 2
+  const corners = [[-half, -half], [half, -half], [half, half], [-half, half]].map(([x, z]) => {
+    const p = board.localToWorld(new Vector3(x, .017, z)).project(camera)
+    return [(p.x + 1) * rect.width / 2, (1 - p.y) * rect.height / 2]
+  })
+  const backdrop = scene.getObjectByName('omok-focus-surface-' + anchorId) as Mesh | undefined
+  return { ready: omokCamera.ready, position: camera.position.toArray(), quaternion: camera.quaternion.toArray(),
+    fov: (camera as import('three').PerspectiveCamera).fov, corners, viewport: [rect.width, rect.height],
+    direction: camera.getWorldDirection(new Vector3()).toArray(), layers: camera.layers.mask,
+    rayLayers: raycaster.layers.mask, backdrop: !!backdrop?.visible,
+    backdropTriangles: backdrop ? (backdrop.geometry.index?.count ?? 0) / 3 : 0,
+    overheads: [...document.querySelectorAll<HTMLElement>('.avatar-overlays > *')].filter(e => e.style.visibility !== 'hidden').length }
+}
+let omokTrace: { fov: number; position: number[]; quaternion: number[]; ready: boolean }[] = []
+let tracingOmok = false
+export function startOmokCameraTrace() {
+  omokTrace = []; tracingOmok = true
+  const sample = () => {
+    if (!tracingOmok) return
+    const { camera } = root()
+    omokTrace.push({ fov: (camera as import('three').PerspectiveCamera).fov, position: camera.position.toArray(), quaternion: camera.quaternion.toArray(), ready: omokCamera.ready })
+    if (omokTrace.length < 240) requestAnimationFrame(sample)
+  }
+  requestAnimationFrame(sample)
+}
+export function finishOmokCameraTrace() { tracingOmok = false; return omokTrace }
 export function pointForOmok(x: number, y: number) {
   const { scene, camera, gl } = root()
   const object = scene.getObjectByName(

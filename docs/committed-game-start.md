@@ -25,19 +25,31 @@ SETTLED 뒤 좌석 유지·준비 해제·다음 판 새 시도까지 검증한�
 
 ## 켜는 조건
 
-- `local` 또는 `dev` + `ontop.websocket.authenticated=true` + `ontop.game-start.enabled=true`. `prod`/`production`과 혼합하면 등록하지 않는다.
-- B가 구현한 `GameStartGateway` Bean이 필수다. 현재 저장소에는 실제 DB Gateway가 없으므로 이 옵션을 켜면 의존성 누락으로 시작에 실패한다. 기본값은 false다.
+- `local` 또는 `dev` + `ontop.websocket.authenticated=true` + `ontop.game-start.enabled=true`. `prod`/`production`과 혼합하면 연결부를 등록하지 않는다.
+- B의 실제 DB Gateway는 `JpaGameStartGateway`이며 `db`와 `ontop.game-start.enabled=true` 조건에서 등록된다. V112가 적용된 DB가 필요하다. 기본값은 false다. [경기 시작 영속화 계약](game-start-persistence.md)을 따른다. 종료 정산/자동 반환은 후속 Story이므로 실제 DB에서 임의 활성화하지 않는다.
 - `ontop.start-rehearsal.enabled=true`와 동시 사용하거나 LocalGameStartGateway를 실제 시작에 사용할 수 없다.
 - 사용할 게임 엔진을 별도로 활성화한다. 오목은 `ontop.games.omok.enabled=true`. 원카드/거짓말 다리는 해당 엔진을 활성화해야 한다. 원카드 기권 손패는 사용자 확정에 따라 REMOVE(이번 경기에서 제외)로 고정하며 별도 정책 설정은 필요하지 않다.
 - 주사위는 `ontop.games.farkle.enabled=true`와 첫 착석자가 선택한 targetScore(2000/4000/6000)가 필요하다. GAME_SELECT → 테이블 스냅샷 → 고정 GameStartCommand → 같은 경기 ID의 FarkleEngine.create로 전달한다. 미선택 목표·미설정 엔진은 예약 요청 전에 거절한다.
 
 실제 서버 설정이나 배포 옵션은 이번 작업에서 변경하지 않는다. 테스트 전용 ReservationDouble은 실제 지갑·잔액·DB 트랜잭션이 아니다.
 
-dev는 `GAME_START_ENABLED`와 사용할 엔진의 `GAME_OMOK_ENABLED` / `GAME_FARKLE_ENABLED` /
-`GAME_ONECARD_ENABLED` / `GAME_BRIDGE_ENABLED`를 각각 true로 설정한다(모두 기본 false).
-`.env.example`은 키 목록이며 Spring이 파일을 자동으로 읽는 설정은 아니다. 실행 환경에 변수를 주입해야 한다.
-DB 예약 Gateway 없이 시작만 켜면 기동에 실패하며 local 시연용 Gateway를 dev에 등록하지 않는다.
-정산 결과 저장 Gateway는 별도 연결해야 실제 저장 결과를 조회하고 SETTLING을 해제할 수 있다.
+dev에서 실제 경기 시작 기능을 사용하려면 `GAME_START_ENABLED`와 사용할 엔진의
+`GAME_OMOK_ENABLED` / `GAME_FARKLE_ENABLED` /
+`GAME_ONECARD_ENABLED` / `GAME_BRIDGE_ENABLED`를 각각 true로 설정해야 한다
+(모두 기본 false).
+
+`.env.example`은 키 목록이며 Spring이 파일을 자동으로 읽는 설정은 아니다.
+실행 환경에 변수를 주입해야 한다.
+
+실제 DB 예약 Gateway인 `JpaGameStartGateway`가 추가되었으며,
+`db` 프로필과 `ontop.game-start.enabled=true` 조건에서 등록된다.
+V112 마이그레이션이 적용된 DB가 필요하다.
+
+종료 정산 및 예약 해제는 후속 Story에서 구현할 예정이므로,
+공용 dev에서는 실제 DB 코인 예약 기능을 활성화하지 않는다.
+
+정산 결과 저장 Gateway는 별도 연결해야 실제 저장 결과를 조회하고
+SETTLING을 해제할 수 있다.
 
 `DevCommittedStartFlowTests`는 local을 섞지 않은 dev의 실제 channel-1·조회된 tableId로
 JWT/접속권 → 착석·준비 → 예약 확정 대기 → 엔진 착수 → heartbeat 단절·29초 복귀 → 시간패 →
