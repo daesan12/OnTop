@@ -23,7 +23,6 @@ import {
 import { bindAnchor, parseBindings } from '../../network/tableBindings'
 import { setDisplayProfiles } from '../../network/profileBridge'
 import { canPlace, canPlayDice, receiveGame, tableBusy, useGame } from '../../game/store'
-import { gameState } from '../../game/protocol'
 import { canStartForfeit, canRetryForfeit, definiteForfeitRejection, forfeitError, interruptForfeit, parseForfeitResult, resetForfeit, useForfeit } from '../../game/forfeit'
 import { validDiceAction } from '../../game/farkle/scoring'
 import { canActOneCard } from '../../game/onecard/actions'
@@ -732,15 +731,17 @@ export class ParkRuntime implements ParkRuntimePort {
   checkResult = () =>
     this.action(async () => {
       const s = useGame.getState()
+      const own = useSession.getState(), gameId = s.permittedGameId || s.completedGameId
       if (
-        !s.permittedGameId ||
-        s.game?.role !== 'PLAYER' ||
-        gameState(s.game).status !== 'FINISHED'
+        !gameId || !own.sessionId || !own.tableId ||
+        !own.tableStates[own.tableId]?.seats.some(seat => seat.userId === own.sessionId) ||
+        s.watchedGameId || s.game?.role === 'SPECTATOR' ||
+        (s.start?.tableId && s.start.tableId !== own.tableId)
       )
         throw new Error('본인이 참가한 종료 경기만 확인할 수 있습니다.')
       await this.socket.request(
         'GAME_RESULT_CHECK',
-        { gameSessionId: s.permittedGameId },
+        { gameSessionId: gameId },
         ['GAME_RESULT'],
       )
     })

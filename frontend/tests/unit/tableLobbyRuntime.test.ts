@@ -4,11 +4,16 @@ import type { SocketLike } from '../../src/network/socketClient'
 import { resetWorld, useSession } from '../../src/network/worldClient'
 import { useTableLobby } from '../../src/features/tableLobby/state'
 import { ParkRuntime } from '../../src/park/runtime/SpringParkRuntime'
+import { useGame } from '../../src/game/store'
+import { bridgeState } from '../fixtures/bridge'
 
 const table = { tableId: 'server-table', version: 1, capacity: 2, minimumPlayers: 2,
   seats: [{ seatNumber: 1, userId: null, ready: false }, { seatNumber: 2, userId: '102', ready: false }],
   allReady: false, selectorUserId: '102', gameCode: null, targetScore: null, betAmountPerPlayer: null }
 let socket: ContractSocket, runtime: ParkRuntime
+const storedResult = { version: 2, gameSessionId: '7', gameCode: 'OMOK', status: 'INVALID', endReason: 'ENGINE_LOST',
+  settlementStatus: 'SETTLED', betAmountPerPlayer: 5, myCoinDelta: 0, endedAt: '2026-10-26T00:00:00Z',
+  participants: [{ userId: '101', result: null }, { userId: '102', result: null }] }
 class ContractSocket implements SocketLike {
   readyState = 0; onopen: SocketLike['onopen'] = null; onclose: SocketLike['onclose'] = null
   onmessage: SocketLike['onmessage'] = null; onerror: SocketLike['onerror'] = null
@@ -24,6 +29,7 @@ class ContractSocket implements SocketLike {
       if (r.type === 'TABLE_WATCH' && this.mode === 'success') this.emit('TABLE_WATCH_STATE', table, r.requestId)
       if (r.type === 'TABLE_WATCH' && this.mode === 'error') this.emit('ERROR', { code: 'TABLE_OUT_OF_RANGE', message: '관전 범위 오류' }, r.requestId)
       if (r.type === 'TABLE_UNWATCH') this.emit('TABLE_WATCH_LEFT', { tableId: table.tableId }, r.requestId)
+      if (r.type === 'GAME_RESULT_CHECK') this.emit('GAME_RESULT', storedResult, r.requestId)
       if (r.type === 'GAME_SELECT') {
         this.lastTable = { ...table, version: 5, seats: table.seats.map((s, i) => ({ ...s, userId: i === 0 ? '101' : '102' })), selectorUserId: '101', gameCode: r.payload.gameCode, targetScore: r.payload.targetScore ?? null, betAmountPerPlayer: r.payload.betAmountPerPlayer }
         this.emit('TABLE_STATE', this.lastTable, r.requestId)
@@ -106,4 +112,39 @@ it('timeout ends pending state and a late approval cannot create a public table 
   expect(useSession.getState().pending).toBe(false)
   socket.emit('TABLE_WATCH_STATE', table, r.requestId)
   expect(useSession.getState().tableStates).toEqual({})
+})
+function participant() {
+  useSession.setState({ tableId: table.tableId, seatIndex: 0, tableStates: { [table.tableId]: { ...table,
+    seats: [{ seatNumber: 1, userId: '101', ready: false }, { seatNumber: 2, userId: '102', ready: false }] } } })
+  useGame.setState({ start: { tableId: table.tableId, revision: 1, phase: 'SETTLING', startAttemptId: 'attempt',
+    gameCode: 'OMOK', gameSessionId: '7', code: null, simulation: false }, permittedGameId: '7' })
+}
+it('queries its server-granted current game without an engine and consumes the normal response path', async () => {
+  participant()
+  expect(useGame.getState().game).toBeNull()
+  expect(await runtime.checkResult()).toBe(true)
+  expect(socket.requests.filter(r => r.type === 'GAME_RESULT_CHECK').at(-1)?.payload).toEqual({ gameSessionId: '7' })
+  expect(useGame.getState().lastResult).toEqual(storedResult)
+  socket.emit('GAME_RESULT', { ...storedResult, version: 1, settlementStatus: 'PENDING', myCoinDelta: null })
+  expect(useGame.getState().lastResult).toEqual(storedResult)
+})
+it('queries its completed game after WAITING cleared the engine and receives a duplicate safely', async () => {
+  participant()
+  socket.emit('GAME_START_STATE', { ...useGame.getState().start, revision: 2, phase: 'WAITING', startAttemptId: null, gameSessionId: null })
+  expect(useGame.getState().permittedGameId).toBe('')
+  expect(await runtime.checkResult()).toBe(true)
+  expect(await runtime.checkResult()).toBe(true)
+  expect(useGame.getState().lastResult).toEqual(storedResult)
+  expect(useGame.getState().game).toBeNull()
+})
+it('cannot query an ungranted result, spectator game or a game from another table', async () => {
+  participant(); useGame.setState({ permittedGameId: '', lastResult: { ...storedResult, status: 'INVALID', settlementStatus: 'SETTLED' } })
+  expect(await runtime.checkResult()).toBe(false)
+  participant(); useGame.setState({ watchedGameId: 'spectator-game' })
+  expect(await runtime.checkResult()).toBe(false)
+  useGame.setState({ watchedGameId: '', game: { gameId: 'spectator-game', version: 0, role: 'SPECTATOR', bridge: bridgeState(), secret: null } })
+  expect(await runtime.checkResult()).toBe(false)
+  useGame.setState({ game: null, start: { ...useGame.getState().start!, tableId: 'other-table' } })
+  expect(await runtime.checkResult()).toBe(false)
+  expect(socket.requests.some(r => r.type === 'GAME_RESULT_CHECK')).toBe(false)
 })

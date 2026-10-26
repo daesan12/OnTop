@@ -1571,7 +1571,19 @@ public class TableHub {
         }
     }
 
-    /** 실제 엔진 종료만 테이블을 정산 대기로 전환한다. 과거 경기 알림은 무시한다. */
+    /** 대기 중인 확정 라운드의 불변 스냅샷만 제공한다. DB 호출은 Hub 잠금 밖에서 수행한다. */
+    public synchronized Map<String, String> pendingResultRounds() {
+        Map<String, String> snapshot = new HashMap<>();
+        starts.forEach((tableId, attempt) -> {
+            if (attempt.phase().equals("PLAYING") || attempt.phase().equals("SETTLING")) {
+                String gameId = attempt.view(0, false).gameSessionId();
+                if (gameId != null) { snapshot.put(tableId, gameId); }
+            }
+        });
+        return Map.copyOf(snapshot);
+    }
+
+    /** 엔진 또는 DB의 종결을 테이블에 반영한다. 과거 경기 알림은 무시한다. */
     public synchronized void roundEnded(String tableId, String gameId) {
         if (stopped || committedStarts.isEmpty()) { return; }
         TableStartAttempt attempt = starts.get(tableId);

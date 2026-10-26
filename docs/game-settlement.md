@@ -118,7 +118,8 @@ reserved만 B 증가시키며 GAME_RESERVE에 reserved_delta=B를 기록한다.
 
 같은 eventId/내용은 중복 성공, 다른 내용은 거절한다. 정산 실패에도 확정된 판정은 PENDING으로 남는다.
 재시도는 같은 경기·같은 종료 내용으로 수행하며 새 지급 키를 만들지 않는다.
-GameParticipantLeft의 별도 소비자는 아직 없다. GameFinished에 포함된 최종 이탈 정보만 저장한다.
+Story 174의 독립 이탈 수신기와 최종 판정의 일치 검증은 [복구 구현 상태](game-recovery.md)를 따른다.
+이탈만으로 예약을 해제하지 않으며 최종 판정 수신 전에는 결과를 확정하지 않는다.
 
 ### 판정 수신·정산 실패 로그
 
@@ -131,8 +132,9 @@ stage=SETTLE로 ERROR 기록한 뒤 **동일 예외를 다시 전파**한다. AC
 gameId는 정규 양수 BIGINT, eventId는 해당 gameId:finished만 출력하며 잘못된 원문은 INVALID다.
 SQL 원인이 없으면 sqlState=NONE/sqlErrorCode=0, 비정상 SQLState 형식은 UNKNOWN이다.
 사용자 식별자·참가자 목록·이벤트 payload·SQL/예외 메시지·stack trace는 출력하지 않는다.
-예외 원인은 타입과 DB 오류 코드로 구분한다. 이 로그 보완은 엔진의 기존 소비자 예외 처리나
-이벤트 동기 실행을 바꾸지 않으며, ACK/재전달/SETTLING 복구는 Story 174에 남긴다.
+예외 원인은 타입과 DB 오류 코드로 구분한다. Story 174에서는 GameEventDelivery가 엔진 이벤트를
+비동기로 인계하고 ACK/재전달하며, 같은 단계별 로그를 유지한다.
+현재 전달·복구 계약은 [Story 174 구현 상태](game-recovery.md)를 따른다.
 
 현재 정상 종료 코드:
 
@@ -144,7 +146,8 @@ SQL 원인이 없으면 sqlState=NONE/sqlErrorCode=0, 비정상 SQLState 형식�
 | LIAR_BRIDGE | THREE_GOALS, LAST_PLAYER_STANDING, GOAL_SLOTS_EXHAUSTED, NO_RUNNABLE_PAWNS |
 
 BOARD_FULL만 전원 DRAW이며 예약 해제한다. STALEMATE와 다리 동점은 공동 WIN이다.
-ABORTED_NO_PLAYERS/전원 FORFEIT는 정상 정산하지 않으며 Story 174의 무효 정책/반환 경로에 남긴다.
+Story 174에서 ABORTED_NO_PLAYERS/전원 FORFEIT는 INVALID로 수신하고 예약만 반환한다.
+엔진 판정 없는 INVALID의 참가자 result=null 계약과 FE 반영 대기는 [복구 구현 상태](game-recovery.md)를 따른다.
 알 수 없는 사유·상충 결과를 임의 승리/무승부/환불로 바꾸지 않는다.
 
 ## 정산·원장
@@ -188,26 +191,30 @@ JpaGameResultGateway.load는 REQUIRES_NEW/readOnly/REPEATABLE_READ로 결과와 
 기존 GAME_RESULT_CHECK {gameSessionId} → GAME_RESULT 계약을 유지한다.
 PENDING의 myCoinDelta는 null, SETTLED는 본인 확정 순증감이다.
 수신 커밋 뒤 version1/PENDING, 정산 커밋 뒤 version2/SETTLED의 GameResultCommitted를
-회원별로 발행한다. 내부 GameResultsReady를 AFTER_COMMIT 리스너가 전환하므로 롤백 시 알리지 않는다.
+회원별로 발행한다. Story 174에서는 내부 GameResultsReady를 같은 트랜잭션에서 V123 outbox에 저장한다.
+별도 전달기가 커밋된 행만 읽으므로 롤백 시 알리지 않는다.
 알림 I/O 실패는 이미 커밋된 DB 결과를 되돌리거나 추가 지급하지 않는다.
 TableHub는 경기·게임·참가자 집합과 시작 시 고정한 B를 대조해 SETTLING→WAITING으로 전환한다.
 
 ## 마이그레이션·배포
 
-V122__support_game_bets_and_explicit_leave.sql만 추가한다. V1~V121은 수정하지 않는다.
+Story 173은 V122__support_game_bets_and_explicit_leave.sql을 추가했다. V1~V121은 수정하지 않는다.
 V112의 두 1코인 CHECK를 양수/전체 판돈 관계로 확장하고 EXPLICIT_LEAVE 누락을 보완한다.
 기존 B=1 데이터와 원장은 그대로 유지한다. 새 테이블·Wallet 컬럼은 필요하지 않다.
 
 기존 Flyway locations/기능 플래그는 변경하지 않았다. V122는 현재 로컬 최고 V121 다음 번호이며
 병합 전 진행 중인 다른 MR과 버전 예약을 확인해야 한다. 공용 DB 적용·repair·outOfOrder는 실행하지 않는다.
 특히 선택한 locations에 낮은 미적용 버전이 있으면 배포 전 별도 승인된 경로를 확인해야 한다.
+Story 174는 팀 예약 확인 후 V123 outbox/이탈 수신 metadata를 추가한다. 기존 V112/V122는 수정하지 않는다.
 
-## Story 174에 남은 제한
+## Story 174 이후에도 남은 제한
 
-- 이탈 이벤트 자체의 영속화, 무효 반환, 재시작 복구, 활성화 승인/취소·재활성화 방지.
-- 엔진→DB 수신 ACK/보존/재전달, PENDING 정산 자동 재시도, 결과 outbox.
-- 메모리 이벤트의 최초 전달이나 커밋 알림이 유실될 수 있다. 결과 조회는 지급을 반복하지 않는다.
-- 현재 시작 결과 조회가 종결 상태도 RESERVED로 재구성하는 제한을 Story 174에서 해결해야 한다.
+- 다른 boot의 RESERVED/RUNNING 자동 무효화·반환은 실행 소유권 확인 전 구현·활성화하지 않는다.
+- 이탈 영속화, 무효 반환, 프로세스 내 ACK/재전달, 확정 PENDING 재시도와 outbox는 구현했다.
+- 최초 DB 커밋 전 프로세스 자체가 종료되면 미ACK 메모리 이벤트는 유실될 수 있다.
+  결과 조회와 알림 재전달은 지급을 반복하지 않는다.
+- 종결 시작 결과의 RESERVED 재구성 차단과 현재 boot의 활성화 확인은 Story 174에서 보완했다.
+  분산 소유권 보호와 자동 엔진 유실 반환은 아직 연결하지 않았다. 진행 상태는 [복구 구현 상태](game-recovery.md)를 따른다.
 - 플래그 기본값을 유지한다. 이 기능만으로 장애 복구까지 준비된 운영 게임이라고 판단하지 않는다.
 
 ## 검증
@@ -271,7 +278,8 @@ git diff --check
 리스너 6건 + 수신 서비스 6건 + 커밋 알림 1건, 총 13건 통과/실패 0/건너뜀 0.
 수신 실패 시 정산 미호출, 두 단계의 커밋 예외 전파, 정산 실패 시 자동 재시도 없음,
 구조화 필드/기본 콘솔 메시지, 예외 메시지·회원 식별자·전체 payload 로그 제외를 확인했다.
-완료 알림의 기존 AFTER_COMMIT 구조와 계산 공식은 변경하지 않았다.
+이 Story 173 검증 시점에는 AFTER_COMMIT 구조와 계산 공식을 변경하지 않았다.
+이후 Story 174는 동일 계산을 유지하면서 완료 알림을 영속 outbox로 전환했다.
 이번 보완에서는 MySQL/FE/전체 회귀를 다시 실행하지 않았다. 앞 절의 MySQL 결과는 이전 검증 이력이다.
 
 ```powershell

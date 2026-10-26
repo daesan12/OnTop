@@ -56,6 +56,7 @@ import static org.mockito.Mockito.doReturn;
 @Import(GameStartMySqlTests.ProbeConfiguration.class)
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "spring.profiles.active=local,db", "ontop.game-start.enabled=true", "ontop.games.omok.enabled=true",
+        "ontop.game-recovery.background-enabled=false",
         "ontop.shop.enabled=true", "ontop.minigames.enabled=true",
         "spring.flyway.locations=classpath:db/migration,classpath:db/shop,classpath:db/minigame",
         "spring.datasource.hikari.maximum-pool-size=12"
@@ -96,7 +97,7 @@ class GameStartMySqlTests {
     void 신규_DB에_기본과_선택적_마이그레이션을_적용하고_JPA_validate와_재실행을_검증한다() {
         assertThat(jdbc.queryForObject("SELECT VERSION()", String.class)).startsWith("8.4.");
         assertThat(flyway.info().applied()).extracting(info -> info.getVersion().getVersion())
-                .containsExactly("1", "2", "3", "4", "5", "6", "100", "110", "111", "112", "122");
+                .containsExactly("1", "2", "3", "4", "5", "6", "100", "110", "111", "112", "122", "123");
         assertThat(flyway.info().pending()).isEmpty();
         assertThat(flyway.validateWithResult().validationSuccessful).isTrue();
         assertThat(flyway.migrate().migrationsExecuted).isZero();
