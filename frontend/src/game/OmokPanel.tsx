@@ -1,10 +1,12 @@
+import { SeatedLookButton } from '../features/tableLobby/SeatedLookButton'
+import { openManual } from '../features/manual/manualState'
 import { useEffect, useState } from 'react'
 import { useGame, canPlace, tableBusy, recoveryBlocked } from './store'
 import { useSession } from '../network/worldClient'
 import { useParkRuntime } from '../park/runtime/ParkRuntime'
 import { TABLE_GAMES, TARGET_SCORES, lobbyStatus } from '../features/tableLobby/model'
 import { useTableLobby } from '../features/tableLobby/state'
-import { lastMoveText, omokEndReason, omokOutcome } from './omokPresentation'
+import { lastMoveText, omokOutcome } from './omokPresentation'
 import { OmokSurrender } from './OmokSurrender'
 import './game.css'
 
@@ -86,6 +88,7 @@ export function OmokPanel() {
   const [now, setNow] = useState(Date.now)
   useEffect(() => {
     if (!s.game?.omok?.turnDeadline) return
+    setNow(Date.now())
     const timer = setInterval(() => setNow(Date.now()), 250)
     return () => clearInterval(timer)
   }, [s.game?.omok?.turnDeadline])
@@ -97,37 +100,16 @@ export function OmokPanel() {
       : null
   const o = g?.omok,
     myTurn = g?.role === 'PLAYER' && o?.turnUserId === own
-  return (
-    <section className="park-runtime-panel omok-panel" aria-label="오목 경기">
-      <strong>{g?.role === 'SPECTATOR' ? '오목 관전' : '오목'}</strong>
-      {s.error && <p role="alert">{s.error}</p>}
-      {recoveryBlocked() && <p>경기 복구 확인 중 · 입력을 잠시 멈췄습니다.</p>}
-      {o && (
-        <>
-          <p aria-live="polite">
-            {o.status === 'FINISHED'
-              ? omokOutcome(o, own, g.role === 'SPECTATOR')
-              : myTurn
-                ? '내 차례'
-                : g.role === 'SPECTATOR'
-                  ? o.turnUserId === o.blackUserId ? '흑 차례' : '백 차례'
-                : '상대 차례'}{' '}
-            · {o.moveCount}수
-          </p>
-          {remaining !== null && (
-            <p>남은 시간 약 {remaining}초 · 최종 마감은 서버가 판정합니다.</p>
-          )}
-          {remaining === 0 && <p role="status">착수 시간이 끝났습니다. 서버의 종료 판정을 기다리고 있습니다.</p>}
-          <p className="omok-last-move-text">{lastMoveText(o.lastMove)}</p>
-          {s.pending && <p role="status">착수 요청 중 · 서버 확인을 기다리고 있습니다.</p>}
-          <p>
-            {g.role === 'SPECTATOR'
-              ? '관전자는 돌을 놓을 수 없습니다.'
-              : own === o.blackUserId
-                ? '내 돌: 흑'
-                : '내 돌: 백'}
-          </p>
-          <div
+  if (!g || !o) return <section className="park-runtime-panel omok-panel" aria-label="오목 경기"><p role="status">경기 복구 확인 중 · 입력을 잠시 멈췄습니다.</p>{s.error && <p role="alert">{s.error}</p>}<button disabled={pending || !connected} onClick={() => void runtime.checkRecovery()}>경기 복구 다시 확인</button></section>
+  return <section className="prototype-game gomoku-focus-hud omok-panel" aria-label="오목 경기">
+    <header className="focus-table-label">{g.role === 'SPECTATOR' ? '오목 관전' : '오목 한 판'}<span>15×15 렌주 · 한 수 30초</span></header>
+    <div className="focus-turn" role="status"><i className={`stone-chip ${own === o.blackUserId ? 'black' : 'white'}`} /><div>
+      <small>{g.role === 'SPECTATOR' ? '관전 중' : own === o.blackUserId ? '내 돌: 흑' : '내 돌: 백'}</small>
+      <b>{o.status === 'FINISHED' ? omokOutcome(o, own, g.role === 'SPECTATOR') : myTurn ? '내 차례' : g.role === 'SPECTATOR' ? o.turnUserId === o.blackUserId ? '흑 차례' : '백 차례' : '상대 차례'}</b>
+      {remaining !== null && <small>남은 시간 약 {remaining}초</small>}</div></div>
+    <div className="focus-record"><span>{o.moveCount}수</span><span className="omok-last-move-text">{lastMoveText(o.lastMove)}</span></div>
+    <p className="focus-hint">{s.pending ? '착수 요청 중 · 서버 확인을 기다리고 있습니다.' : myTurn ? '빈 교차점을 클릭해 돌을 놓으세요' : '상대의 착수를 기다리고 있어요'}<small>Enter · 채팅</small></p>
+    <details className="omok-keyboard"><summary>키보드로 오목판 조작</summary><div
             role="group"
             aria-label="오목판"
             className="omok-accessible-board"
@@ -147,71 +129,19 @@ export function OmokPanel() {
                 </button>
               )),
             )}
-          </div>
-          <small>
-            15×15 렌주 · 흑 33/44/장목 금수 · 한 수 30초. 금수·승패는 서버
-            판정입니다.
-          </small>
-          {o.status === 'FINISHED' && <p>종료 사유: {omokEndReason(o.endReason)}</p>}
-          {g.role === 'PLAYER' && (s.result ? (
-            <p>
-              {s.result.settlementStatus === 'SETTLED'
-                ? `정산 완료 · 내 엽전 증감 ${s.result.myCoinDelta}`
-                : '정산 대기 중'}
-            </p>
-          ) : (
-            o.status === 'FINISHED' && <p>결과·정산 확인 전입니다.</p>
-          ))}
-          {s.uncertain && (
-            <p>
-              착수 반영 여부를 확인해야 합니다. 같은 수를 자동 재전송하지
-              않습니다.
-            </p>
-          )}
-          {g.version < s.awaitingVersion && (
-            <p>착수 확인 수신 · 최신 판을 기다리고 있습니다.</p>
-          )}
-          {g.role === 'SPECTATOR' && <div role="group" aria-label="관전 시점" className="table-spectator-controls">
-            <button aria-pressed={spectatorView === 'board'} onClick={() => useTableLobby.setState({ spectatorView: 'board' })}>공개 판 보기</button>
-            <button aria-pressed={spectatorView === 'table'} onClick={() => useTableLobby.setState({ spectatorView: 'table' })}>테이블 둘러보기</button>
-          </div>}
-          <div className="omok-actions">
-            <button
-              disabled={pending || !connected}
-              onClick={() => void runtime.checkGame()}
-            >
-              최신 판 확인
-            </button>
-            {g.role === 'PLAYER' && o.status === 'FINISHED' && (
-              <button
-                disabled={pending || !connected}
-                onClick={() => void runtime.checkResult()}
-              >
-                정산 결과 확인
-              </button>
-            )}
-            {g.role === 'SPECTATOR' && (
-              <button
-                disabled={pending}
-                onClick={() => void runtime.unwatchGame()}
-              >
-                관전 종료
-              </button>
-            )}
-          </div>
-          {g.role === 'PLAYER' && <OmokSurrender key={`${own}:${g.gameId}`}
-            context={{ userId: own, gameId: g.gameId, version: g.version }}
-            disabled={pending || !connected || recoveryBlocked() || s.uncertain} />}
-        </>
-      )}
-      {recoveryBlocked() && (
-        <button
-          disabled={pending || !connected}
-          onClick={() => void runtime.checkRecovery()}
-        >
-          경기 복구 다시 확인
-        </button>
-      )}
-    </section>
-  )
+          </div></details>
+    <div className="focus-actions"><SeatedLookButton />
+      <button onClick={() => openManual('gomoku')}>게임 설명</button>
+      <button disabled={pending || !connected} onClick={() => void runtime.checkGame()}>최신 판 확인</button>
+      {recoveryBlocked() && <button disabled={pending || !connected} onClick={() => void runtime.checkRecovery()}>경기 복구 다시 확인</button>}
+      {g.role === 'SPECTATOR' ? <><div role="group" aria-label="관전 시점"><button aria-pressed={spectatorView === 'board'} onClick={() => useTableLobby.setState({ spectatorView: 'board' })}>공개 판 보기</button><button aria-pressed={spectatorView === 'table'} onClick={() => useTableLobby.setState({ spectatorView: 'table' })}>테이블 둘러보기</button></div><button disabled={pending} onClick={() => void runtime.unwatchGame()}>관전 종료</button><small>관전자는 돌을 놓을 수 없습니다.</small></>
+        : <OmokSurrender key={`${own}:${g.gameId}`} context={{ userId: own, gameId: g.gameId, version: g.version }} disabled={pending || !connected || recoveryBlocked() || s.uncertain} />}
+    </div>
+    <div className="focus-error">
+      {remaining === 0 && <p role="status">착수 시간이 끝났습니다. 서버의 종료 판정을 기다리고 있습니다.</p>}
+      {s.uncertain && <p>착수 반영 여부를 확인해야 합니다. 같은 수를 자동 재전송하지 않습니다.</p>}
+      {g.version < s.awaitingVersion && <p>착수 확인 수신 · 최신 판을 기다리고 있습니다.</p>}
+      {recoveryBlocked() && <p>경기 복구 확인 중 · 입력을 잠시 멈췄습니다.</p>}{s.error && <p role="alert">{s.error}</p>}
+    </div>
+  </section>
 }

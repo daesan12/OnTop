@@ -9,6 +9,7 @@ import type { OneCard, Hand, Card } from '../../src/game/onecard/protocol'
 import { bridgeState as makeBridge } from '../fixtures/bridge'
 import type { Bridge, SecretDie } from '../../src/game/bridge/protocol'
 import { facilityFixture } from './facilityFixture'
+import { followFixture } from './followFixture'
 import type { PublicEquipment } from '../../src/network/equipment'
 import developmentBindings from '../../public/park-bindings.dev.json' with { type: 'json' }
 
@@ -368,6 +369,7 @@ export async function fixture(
     if (mode === 'receipt-only') { receipt(); return }
     if (forfeitOrder === 'state-first') { state(); receipt() } else { receipt(); state() }
   }
+  const follow = followFixture((type, payload, id = null) => emit(sockets.at(-1)!, type, payload, id), options.ownUserId ?? '101')
   await page.routeWebSocket('**/ws/tables?**', (ws) => {
     connections++
     active++
@@ -393,12 +395,14 @@ export async function fixture(
     ws.onClose(() => {
       active--
       facilities.disconnect()
+      follow.disconnect()
     })
     ws.onMessage((data) => {
       const message = JSON.parse(String(data))
       sent.push(message)
       const { requestId, type, payload } = message
       if (facilities.handle(type, payload, requestId)) return
+      if (follow.handle(type, payload, requestId)) return
       if (type === 'CHANNEL_JOIN') {
         ws.send(
           JSON.stringify({
@@ -420,6 +424,7 @@ export async function fixture(
         if (options.forfeit && started) { table(ws, 'TABLE_STATE', null); start(ws, finished ? 'SETTLING' : 'PLAYING') }
       }
       if (type === 'WORLD_MOVE') {
+        if (payload.dx || payload.dz || payload.jump) follow.release()
         Object.assign(position, {
           ...(!options.manualMovement ? {
             x: position.x + Number(payload.dx) * 0.1,
@@ -600,6 +605,7 @@ export async function fixture(
       for (const ws of sockets) world(ws)
     },
     facilities,
+    follow,
     bridgeReply: (input: object, patch: Partial<Bridge>, secret: SecretDie | null = null) => bridgeReplies.push({ input, patch, secret }),
     bridgeSnapshot: (patch: Partial<Bridge>, secret: SecretDie | null = null, role = 'PLAYER') => { bridgeState = { ...bridgeState, ...patch }; bridgeSecret = secret; gameVersion++; game(sockets.at(-1)!, null, role) },
     bridgeState: () => structuredClone(bridgeState),
@@ -746,6 +752,7 @@ export async function fixture(
     completeEmote: () => { if (lastEmote) emit(sockets.at(-1)!, 'WORLD_EMOTE_EVENT', lastEmote, emoteRequestId) },
     lastEmote: () => lastEmote,
     emote: (event: NonNullable<typeof lastEmote>) => emit(sockets.at(-1)!, 'WORLD_EMOTE_EVENT', event),
+    cancelEmote: (event: object) => emit(sockets.at(-1)!, 'WORLD_EMOTE_CANCELLED', event),
 
     players: (count: number) => { options.players = count; world(sockets.at(-1)!) },
     pose: (patch: Partial<typeof position>) => { Object.assign(position, patch); world(sockets.at(-1)!) },

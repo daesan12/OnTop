@@ -45,6 +45,7 @@ import com.ssafy.ontop.world.service.WorldChannelRegistry;
 import com.ssafy.ontop.world.service.WorldChatService;
 import com.ssafy.ontop.world.service.WorldEmoteService;
 import com.ssafy.ontop.world.service.WorldFacilityService;
+import com.ssafy.ontop.world.service.WorldFollowService;
 import com.ssafy.ontop.world.service.WorldProfileGateway;
 import com.ssafy.ontop.world.service.WorldProximity;
 import jakarta.annotation.PreDestroy;
@@ -113,6 +114,7 @@ public class TableHub {
     private final WorldEmoteService emotes;
     private final WorldProximity proximity;
     private final WorldFacilityService facilities = new WorldFacilityService();
+    private final WorldFollowService follows = new WorldFollowService();
     private final ExecutorService startWorkers = Executors.newVirtualThreadPerTaskExecutor();
     private final ScheduledExecutorService heartbeatTimer = Executors.newSingleThreadScheduledExecutor(
             Thread.ofPlatform().daemon(true).name("table-heartbeat").factory());
@@ -444,6 +446,7 @@ public class TableHub {
                 case "WORLD_MOVE" -> moveWorld(member, request);
                 case "WORLD_CHAT_SEND" -> sendChat(member, request);
                 case "WORLD_EMOTE_SEND" -> sendEmote(member, request);
+                case "WORLD_FOLLOW_START", "WORLD_FOLLOW_STOP", "WORLD_FOLLOW_CHECK" -> follow(member, request);
                 case "WORLD_FACILITY_CATALOG", "WORLD_FACILITY_CHECK", "WORLD_FACILITY_USE",
                         "WORLD_FACILITY_RELEASE", "WORLD_FACILITY_AIM" -> facility(member, request);
                 case "TABLE_JOIN" -> join(member, request);
@@ -455,6 +458,8 @@ public class TableHub {
                 case "GAME_START_CHECK" -> checkStart(member, request);
                 default -> throw new IllegalStateException("검증되지 않은 메시지");
             }
+        } catch (WorldFollowService.FollowException exception) {
+            member.peer().offer(protocol.error(requestId, exception.code(), exception.getMessage()));
         } catch (WorldFacilityService.FacilityException exception) {
             member.peer().offer(protocol.error(requestId, exception.code(), exception.getMessage()));
         } catch (WorldEmoteService.EmoteException exception) {
@@ -491,7 +496,9 @@ public class TableHub {
         statePushes.remove(sessionId);
         actionRequests.remove(sessionId);
         watching.remove(member.userId());
+        endFollows(member.userId());
         chat.disconnected(member.userId());
+        cancelEmote(member.userId(), "DISCONNECTED");
         emotes.disconnected(member.userId());
         appearancePushes.remove(member.userId());
         profileMemberships.remove(member);
@@ -553,6 +560,7 @@ public class TableHub {
         members.clear();
         channels.clear();
         facilities.clear();
+        follows.clear();
         chat.clear();
         emotes.clear();
         seating.clear();
@@ -634,6 +642,8 @@ public class TableHub {
         clearGameWatch(member);
         publish(room, member, request.requestId());
         replyStartState(member, tableId, null);
+        cancelEmote(member.userId(), "ACTIVITY_STARTED");
+        endFollows(member.userId());
         recordBehavior(BehaviorEventType.TABLE_JOINED, member.accountId(),
                 builder -> builder.tableId(tableId).channelId(tableChannels.get(tableId)));
     }
@@ -809,6 +819,8 @@ public class TableHub {
         boolean wasUsingFacility = facilities.current(member.userId()) != null;
         facilities.release(member.userId());
         WorldChannelRegistry.State state = channels.leave(member.userId());
+        endFollows(member.userId());
+        cancelEmote(member.userId(), "CHANNEL_LEFT");
         if (wasUsingFacility) {
             publishFacilities(state.channelId(), null, null);
         }
@@ -830,7 +842,16 @@ public class TableHub {
             return;
         }
         try {
-            for (var state : channels.advance(Set.copyOf(seating.keySet()))) {
+            var worlds = channels.advance(Set.copyOf(seating.keySet()), follows.activeStates());
+            for (var following : follows.activeStates()) {
+                pruneFollows(channels.worldState(following.channelId()));
+            }
+            for (var state : worlds) {
+                for (var avatar : state.avatars()) {
+                    if (avatar.position().moving() || avatar.position().swimming()) {
+                        cancelEmote(avatar.userId(), "MOVEMENT");
+                    }
+                }
                 publishWorld(state, null, null);
                 recordPositions(state, null);
                 for (Member member : java.util.List.copyOf(members.values())) {
@@ -853,13 +874,18 @@ public class TableHub {
             fail(request, "TABLE_BUSY", "먼저 테이블에서 퇴장해주세요.");
         }
         var payload = request.payload();
+        var input = com.ssafy.ontop.world.movement.MoveInput.parse(payload);
         WorldChannelRegistry.WorldChange change = channels.input(member.userId(),
-                com.ssafy.ontop.world.movement.MoveInput.parse(payload));
+                input);
         if (change.changed()) {
             member.peer().offer(protocol.encode(request.requestId(), "WORLD_STATE", change.state()));
             refreshWatchRange(member);
         } else {
             member.peer().offer(protocol.encode(request.requestId(), "WORLD_STATE", change.state()));
+        }
+        if (change.changed() && (input.dx() != 0 || input.dz() != 0 || input.jump())) {
+            follows.stopFollowing(member.userId()).forEach(state -> publishFollow(state, null, null));
+            cancelEmote(member.userId(), "MOVEMENT");
         }
     }
 
@@ -963,6 +989,8 @@ public class TableHub {
                 clearGameWatch(member);
                 publishFacilities(channel, member, request.requestId());
                 publishWorld(channels.worldState(channel), null, null);
+                cancelEmote(member.userId(), "ACTIVITY_STARTED");
+                endFollows(member.userId());
             }
             case "WORLD_FACILITY_RELEASE" -> {
                 var lease = facilities.requireOwner(member.userId(), payload.path("leaseId").asText());
@@ -999,10 +1027,103 @@ public class TableHub {
         }
     }
 
+    private void follow(Member member, Request request) {
+        String channel = channels.channelOf(member.userId());
+        if (channel == null) {
+            fail(request, "NOT_IN_CHANNEL", "먼저 채널에 입장해주세요.");
+        }
+        pruneFollows(channels.worldState(channel));
+        long before = follows.state(channel).version();
+        WorldFollowService.State state;
+        switch (request.type()) {
+            case "WORLD_FOLLOW_CHECK" -> {
+                member.peer().offer(protocol.encode(request.requestId(), "WORLD_FOLLOW_STATE", follows.state(channel)));
+                return;
+            }
+            case "WORLD_FOLLOW_START" -> {
+                String targetId = request.payload().path("targetId").asText();
+                if (!channels.isInChannel(targetId, channel)) {
+                    fail(request, "FOLLOW_TARGET_UNAVAILABLE", "같은 채널의 연결된 사용자를 선택해주세요.");
+                }
+                if (!canFollow(member.userId()) || !canFollow(targetId)) {
+                    fail(request, "FOLLOW_ACTIVITY_CONFLICT", "수영·시설·경기 이용을 마친 뒤 사용해주세요.");
+                }
+                state = follows.start(channel, member.userId(), targetId,
+                        channels.positionOf(member.userId()), channels.positionOf(targetId));
+                if (state.version() != before) {
+                    channels.stopMovement(member.userId());
+                }
+            }
+            case "WORLD_FOLLOW_STOP" -> state = follows.stop(channel, member.userId(),
+                    request.payload().path("followId").asText());
+            default -> throw new IllegalStateException("검증되지 않은 따라가기 명령");
+        }
+        if (state.version() == before) {
+            member.peer().offer(protocol.encode(request.requestId(), "WORLD_FOLLOW_STATE", state));
+        } else {
+            if (request.type().equals("WORLD_FOLLOW_STOP")) {
+                channels.stopMovement(member.userId());
+            }
+            publishFollow(state, member, request.requestId());
+            if (request.type().equals("WORLD_FOLLOW_START")) {
+                cancelEmote(member.userId(), "ACTIVITY_STARTED");
+            }
+        }
+    }
+
+    private boolean canFollow(String userId) {
+        var position = channels.positionOf(userId);
+        return position != null && !position.swimming() && !seating.containsKey(userId)
+                && facilities.current(userId) == null;
+    }
+
+    private void pruneFollows(WorldChannelRegistry.WorldState world) {
+        var previous = follows.state(world.channelId());
+        if (previous.links().isEmpty()) {
+            return;
+        }
+        Map<String, WorldChannelRegistry.Position> positions = world.avatars().stream()
+                .collect(Collectors.toMap(WorldChannelRegistry.Avatar::userId, WorldChannelRegistry.Avatar::position));
+        Set<String> unavailable = positions.keySet().stream().filter(user -> !canFollow(user))
+                .collect(Collectors.toSet());
+        var state = follows.prune(world.channelId(), positions, unavailable);
+        if (state.version() != previous.version()) {
+            Set<String> retained = state.links().stream().map(WorldFollowService.Link::followerId)
+                    .collect(Collectors.toSet());
+            previous.links().stream().filter(link -> !retained.contains(link.followerId()))
+                    .forEach(link -> channels.stopMovement(link.followerId()));
+            publishFollow(state, null, null);
+        }
+    }
+
+    private void endFollows(String userId) {
+        var affected = follows.activeStates().stream().flatMap(state -> state.links().stream())
+                .filter(link -> link.followerId().equals(userId) || link.targetId().equals(userId)).toList();
+        follows.removeUser(userId).forEach(state -> publishFollow(state, null, null));
+        affected.forEach(link -> channels.stopMovement(link.followerId()));
+    }
+
+    private void publishFollow(WorldFollowService.State state, Member actor, String requestId) {
+        for (Member target : members.values()) {
+            if (channels.isInChannel(target.userId(), state.channelId())) {
+                target.peer().offer(protocol.encode(target == actor ? requestId : null, "WORLD_FOLLOW_STATE", state));
+            }
+        }
+    }
+
     private void sendEmote(Member member, Request request) {
         String channelId = channels.channelOf(member.userId());
         if (channelId == null) {
             fail(request, "NOT_IN_CHANNEL", "먼저 채널에 입장해주세요.");
+        }
+        var position = channels.positionOf(member.userId());
+        if (position == null) {
+            fail(request, "WORLD_POSITION_REQUIRED", "광장 위치를 확인해주세요.");
+        }
+        if (seating.containsKey(member.userId()) || facilities.current(member.userId()) != null
+                || position.moving() || position.running() || position.swimming()
+                || channels.hasMovementActivity(member.userId())) {
+            fail(request, "EMOTE_ACTIVITY_CONFLICT", "이동·수영·테이블·시설 이용을 마친 뒤 사용해주세요.");
         }
         WorldEmoteService.Event event = emotes.create(channelId, member.userId(),
                 new EmoteCode(request.payload().get("emoteCode").textValue()));
@@ -1015,6 +1136,19 @@ public class TableHub {
         }
         recordBehavior(BehaviorEventType.EMOTE_SENT, member.accountId(),
                 builder -> builder.channelId(channelId).prop("emoteCode", event.emoteCode()));
+    }
+
+    private void cancelEmote(String userId, String reason) {
+        WorldEmoteService.Cancellation event = emotes.cancel(userId, reason);
+        if (event == null) {
+            return;
+        }
+        String notification = protocol.encode(null, "WORLD_EMOTE_CANCELLED", event);
+        for (Member target : members.values()) {
+            if (channels.isInChannel(target.userId(), event.channelId())) {
+                target.peer().offer(notification);
+            }
+        }
     }
 
     private void publishWorld(WorldChannelRegistry.WorldState state, Member actor, String requestId) {

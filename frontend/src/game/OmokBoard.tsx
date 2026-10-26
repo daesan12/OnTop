@@ -15,6 +15,9 @@ import { parkRuntime } from '../park/runtime/runtime'
 import { omokCamera } from './cameraState'
 import { omokCell, stonePoint, OMOK_SIZE, OMOK_SPACING as spacing, OMOK_HALF as half } from './omokPresentation'
 import { GomokuAssets, stoneGeometry, blackStoneMaterial as blackMaterial, whiteStoneMaterial as whiteMaterial } from './omok/GomokuAssets'
+import { FocusWood } from './omok/BoardWood'
+import { OMOK_FOCUS_LAYER } from '../world/omokCamera'
+import { seatScope, useTableLobby } from '../features/tableLobby/state'
 
 const noRaycast = () => {} // Three line threshold is too wide for 9cm grid cells; pick the board surface.
 const blackPreview = blackMaterial.clone(), whitePreview = whiteMaterial.clone()
@@ -66,6 +69,16 @@ function OmokSurface({
   const canvas = useThree(s => s.gl.domElement)
   const ownsCursor = useRef(false)
   const connected = useSession(s => s.status === 'connected'), pending = useSession(s => s.pending)
+  const ownId = useSession(s => s.sessionId), scope = useSession(seatScope)
+  const lookScope = useTableLobby(s => s.lookScope)
+  const focused = !!scope && lookScope !== scope && game?.role === 'PLAYER'
+    && game.omok.status === 'PLAYING' && game.omok.turnUserId === ownId
+  useLayoutEffect(() => {
+    root.current?.traverse(object => {
+      if (focused) object.layers.enable(OMOK_FOCUS_LAYER)
+      else object.layers.disable(OMOK_FOCUS_LAYER)
+    })
+  }, [focused, game])
   useLayoutEffect(() => {
     const instances = [black.current!, white.current!]
     return () => instances.forEach(mesh => mesh.dispose())
@@ -124,6 +137,13 @@ function OmokSurface({
     white.current.computeBoundingSphere()
   }, [board])
   return (
+    <>
+    {/* Original local presentation backdrop: roofs cannot obstruct a resized top view. */}
+    <mesh name={'omok-focus-surface-' + anchor.id} visible={focused} layers-mask={1 << OMOK_FOCUS_LAYER}
+      position={[0, GOMOKU.boardY - .06, 0]} rotation={[-Math.PI / 2, 0, 0]} raycast={noRaycast}>
+      <planeGeometry args={[14, 14]} />
+      <FocusWood />
+    </mesh>
     <group
       ref={root}
       position={[0, GOMOKU.boardY, 0]}
@@ -209,5 +229,6 @@ function OmokSurface({
         </mesh>
       </group>
     </group>
+    </>
   )
 }

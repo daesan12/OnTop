@@ -8,6 +8,13 @@ import { gameState } from './protocol'
 import { useSession } from '../network/worldClient'
 import { useParkRuntime } from '../park/runtime/ParkRuntime'
 
+/** Keep receipt recovery available after the current game moves into the shared result screen. */
+export function FinishedForfeitStatus() {
+  const game = useGame(s => s.game), ownId = useSession(s => s.sessionId)
+  if (!game || game.role !== 'PLAYER' || gameState(game).status !== 'FINISHED') return null
+  return <OmokSurrender key={`${ownId}:${game.gameId}`} context={{ userId: ownId, gameId: game.gameId, version: game.version }} disabled />
+}
+
 export function OmokSurrender({ context, disabled }: { context: SurrenderContext; disabled: boolean }) {
   const [confirm, setConfirm] = useState(false)
   const [completed, setCompleted] = useState(false)

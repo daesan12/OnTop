@@ -1,5 +1,8 @@
 # OnTop WebSocket 연결 및 메시지 계약
 
+따라가기: [WORLD_FOLLOW_START / STOP / CHECK / STATE](../world-follow-api.md).
+서버가 매 틱 이동을 판정하고 기존 WORLD_STATE로 좌표를 전송한다.
+
 수동 기권은 [GAME_FORFEIT / GAME_FORFEIT_RESULT](../game-forfeit-api.md)를 사용한다.
 현재 인증 참가자만 요청하며 소켓은 유지한다. 기권 승인과 DB 정산 완료는 구분한다.
 
@@ -87,7 +90,7 @@ HTTPS 환경은 `https` REST와 `wss://…/ws/tables`를 사용한다.
 | 연결 | HTTP Upgrade 후 자동 | CONNECTED (`payload.userId`는 서버 식별) |
 | 광장 | CHANNEL_JOIN / CHANNEL_LEAVE | CHANNEL_STATE / CHANNEL_LEFT / WORLD_STATE |
 | 이동 | WORLD_MOVE | WORLD_STATE |
-| 채팅·감정 | WORLD_CHAT_SEND / WORLD_EMOTE_SEND | WORLD_CHAT_MESSAGE / WORLD_EMOTE_EVENT |
+| 채팅·감정 | WORLD_CHAT_SEND / WORLD_EMOTE_SEND | WORLD_CHAT_MESSAGE / WORLD_EMOTE_EVENT / WORLD_EMOTE_CANCELLED |
 | 착석·준비 | TABLE_JOIN / TABLE_LEAVE / READY_SET / GAME_SELECT | TABLE_STATE / TABLE_LEFT |
 | 대기 테이블 보기 | TABLE_WATCH / TABLE_UNWATCH | TABLE_WATCH_STATE / TABLE_WATCH_LEFT |
 | 시작 확인 | GAME_START_CHECK | GAME_START_STATE (시작 연결부 활성 시만 요청 허용) |

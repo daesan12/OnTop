@@ -45,6 +45,8 @@ import { mockEmote } from '../../features/emotes/mock/MockEmoteService'
 import { gameSelection, type TableGameCode } from '../../features/tableLobby/model'
 import { publicMatchService } from '../../features/tableLobby/publicMatch'
 import { PublicGameWatcher } from '../../features/tableLobby/PublicGameWatcher'
+import { FollowClient } from '../../features/follow/serverClient'
+import { bindFollowService, followService } from '../../features/follow/service'
 import { useTableLobby, resetSeatedLook } from '../../features/tableLobby/state'
 import {
   avatars,
@@ -161,6 +163,14 @@ export class ParkRuntime implements ParkRuntimePort {
     blockMovement: () => this.movement.clear(false),
   })
   checkFacilities = (reloadCatalog = false) => this.facilities.refresh(reloadCatalog)
+  private follow = new FollowClient({
+    scope: () => {
+      const s = useSession.getState()
+      return { generation: this.generation, userId: s.sessionId, channelId: s.roomId,
+        connected: this.active && this.socket.connected && s.status === 'connected' }
+    },
+    request: (type, payload, expected, onId) => this.socket.request(type, payload, expected, onId),
+  })
   useFacility = (id: string, seat: number, signal: AbortSignal) => {
     const session = useSession.getState()
     rememberRoamingView(session.sessionId, session.roomId)
@@ -183,6 +193,7 @@ export class ParkRuntime implements ParkRuntimePort {
   private authEnded() {
     this.forfeitRequests.clear()
     resetForfeit()
+    this.follow.reset()
     this.resetSpectator()
     this.facilities.reset()
     resetNotesState()
@@ -255,11 +266,13 @@ export class ParkRuntime implements ParkRuntimePort {
   start() {
     if (this.active) return
     this.active = true
+    bindFollowService(this.follow)
     this.retryCount = 0
     void this.boot()
   }
   private async boot() {
     interruptForfeit()
+    this.follow.reset()
     this.resetSpectator()
     this.facilities.reset()
     this.facilityMapInvalid = false
@@ -307,6 +320,7 @@ export class ParkRuntime implements ParkRuntimePort {
   async stop() {
     this.forfeitRequests.clear()
     resetForfeit()
+    this.follow.reset()
     this.resetSpectator()
     this.facilities.reset()
     this.movement.clear()
@@ -321,6 +335,7 @@ export class ParkRuntime implements ParkRuntimePort {
   }
   private closed(code: number) {
     interruptForfeit()
+    this.follow.reset()
     this.resetSpectator()
     this.facilities.reset()
     this.movement.clear()
@@ -361,6 +376,8 @@ export class ParkRuntime implements ParkRuntimePort {
     if (!this.active) return
     if (message.type === 'ERROR' && message.requestId && this.forfeitRequests.has(message.requestId)
       && this.forfeitRequests.get(message.requestId) !== JSON.stringify([useSession.getState().sessionId, useGame.getState().permittedGameId])) return
+    if (this.follow.ownsError(message)) return
+    if (message.type === 'WORLD_FOLLOW_STATE') { if (followService.mode === 'server') this.follow.accept(message); return }
     if (message.type === 'ERROR' && message.requestId && this.obsoleteGameWatchRequests.has(message.requestId)) return
     if (message.type === 'GAME_STATE' && message.payload.role === 'SPECTATOR'
       && (!this.spectator.accepts(message.payload.gameId) || message.requestId !== null && message.requestId !== this.gameWatchRequestId
@@ -457,6 +474,7 @@ export class ParkRuntime implements ParkRuntimePort {
         throw new Error('경기 진행·복구·정산 중에는 채널을 바꿀 수 없습니다.')
       if (state.tableId) throw new Error('먼저 테이블에서 일어나주세요.')
       if (state.roomId === channelId) return
+      this.follow.reset()
       this.facilities.reset()
       this.facilityMapInvalid = false
       this.movement.clear()
@@ -475,6 +493,7 @@ export class ParkRuntime implements ParkRuntimePort {
       ])
       this.preferredChannel = channelId
       this.retryCount = 0
+      if (followService.mode === 'server') void this.follow.begin().catch(() => {})
       // Initial world messages keep their existing order. Facilities explicitly query after CHANNEL_JOIN.
       if (serverFacilities) void this.facilities.begin().catch(() => {})
       const body = await this.getJSON(

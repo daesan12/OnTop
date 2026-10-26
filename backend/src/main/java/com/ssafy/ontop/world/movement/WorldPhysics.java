@@ -126,6 +126,19 @@ public final class WorldPhysics implements AutoCloseable {
         return call(() -> inputNow(id, input, now));
     }
 
+    /** 물리 tick 전 입력과 입력 만료 뒤의 공중 상태도 활동 중으로 판정한다. */
+    public boolean hasMovementActivity(String id, long now) {
+        return call(() -> {
+            Actor actor = actors.get(id);
+            return actor != null && (actor.airborne || actor.jumpQueued || (inputActive(actor, now)
+                    && (actor.input.dx() != 0 || actor.input.dz() != 0 || actor.input.jump())));
+        });
+    }
+
+    private static boolean inputActive(Actor actor, long now) {
+        return actor.input != null && now >= actor.receivedAt && now - actor.receivedAt <= 250_000_000L;
+    }
+
     private boolean inputNow(String id, MoveInput input, long now) {
         Actor actor = actors.get(id);
         if (input.seq() <= actor.seq) {
@@ -159,14 +172,18 @@ public final class WorldPhysics implements AutoCloseable {
     }
 
     public void step(long now, java.util.Set<String> seated) {
+        step(now, seated, java.util.Map.of());
+    }
+
+    public void step(long now, java.util.Set<String> seated, java.util.Map<String, String> following) {
         call(
                 () -> {
-                    stepNow(now, seated);
+                    stepNow(now, seated, following);
                     return null;
                 });
     }
 
-    private void stepNow(long now, java.util.Set<String> seated) {
+    private void stepNow(long now, java.util.Set<String> seated, java.util.Map<String, String> following) {
         for (var entry : actors.entrySet()) {
             Actor a = entry.getValue();
             if (seated.contains(entry.getKey())) {
@@ -182,8 +199,13 @@ public final class WorldPhysics implements AutoCloseable {
                 a.seated = false;
                 space.addCollisionObject(a.body);
             }
-            boolean active =
-                    a.input != null && now >= a.receivedAt && now - a.receivedAt <= 250_000_000L;
+            MoveInput input = a.input;
+            boolean active = inputActive(a, now);
+            if (following.containsKey(entry.getKey())) {
+                String targetId = following.get(entry.getKey());
+                input = followInput(a, seated.contains(targetId) ? null : actors.get(targetId));
+                active = true;
+            }
             Vector3f position = a.body.getPhysicsLocation(null);
             a.swimming = swimming(position);
             float speed =
@@ -191,10 +213,10 @@ public final class WorldPhysics implements AutoCloseable {
                             ? (float)
                                     scene.data
                                             .path("swimming")
-                                            .path(active && a.input.run() ? "fastSpeed" : "speed")
+                                            .path(active && input.run() ? "fastSpeed" : "speed")
                                             .asDouble()
-                            : number(active && a.input.run() ? "runSpeed" : "walkSpeed");
-            double dx = active ? a.input.dx() : 0, dz = active ? a.input.dz() : 0;
+                            : number(active && input.run() ? "runSpeed" : "walkSpeed");
+            double dx = active ? input.dx() : 0, dz = active ? input.dz() : 0;
             a.body.setWalkDirection(
                     new Vector3f((float) dx * speed * DT, 0, (float) dz * speed * DT));
             if (active && a.jumpQueued && a.swimming && (dx != 0 || dz != 0)) {
@@ -258,7 +280,7 @@ public final class WorldPhysics implements AutoCloseable {
                 a.yaw = Math.atan2(dx, dz);
             }
             a.moving = active && (dx != 0 || dz != 0);
-            a.running = active && a.input.run();
+            a.running = active && input.run();
         }
         space.update(DT, 0);
         for (Actor a : actors.values()) {
@@ -293,7 +315,24 @@ public final class WorldPhysics implements AutoCloseable {
                     a.lastSafe.set(x, position.y, z);
                 }
             }
+            a.airborne = !a.seated && !a.body.onGround();
         }
+    }
+
+    /** 서버 몸체의 현재 좌표로 매 tick 생성하며 클라이언트 입력 순번은 변경하지 않는다. */
+    private MoveInput followInput(Actor follower, Actor target) {
+        if (target != null && !target.seated) {
+            Vector3f own = follower.body.getPhysicsLocation(null);
+            Vector3f other = target.body.getPhysicsLocation(null);
+            double dx = other.x - own.x;
+            double dz = other.z - own.z;
+            double distance = Math.hypot(dx, dz);
+            // Bullet 좌표는 float다. 2.2m의 표현 오차(수 µm)로 경계에서 한 걸음 더 나가지 않는다.
+            if (distance > 2.2 + 0.00001 && distance <= 24 && Math.abs(other.y - own.y) <= 3.5) {
+                return new MoveInput(1, dx / distance, dz / distance, distance > 5, false);
+            }
+        }
+        return new MoveInput(1, 0, 0, false, false);
     }
 
     private boolean swimming(Vector3f p) {
@@ -365,6 +404,7 @@ public final class WorldPhysics implements AutoCloseable {
             actor.body.setLinearVelocity(Vector3f.ZERO);
             actor.yaw = yaw;
             actor.swimming = false;
+            actor.airborne = false;
             return null;
         });
     }
@@ -433,7 +473,7 @@ public final class WorldPhysics implements AutoCloseable {
         long seq;
         long receivedAt;
         double yaw = Math.PI;
-        boolean moving, running, swimming, jumpQueued, seated;
+        boolean moving, running, swimming, jumpQueued, seated, airborne;
         double climbTargetY;
 
         Actor(PhysicsCharacter body, int slot, Vector3f spawn) {

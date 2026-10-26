@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test'
 import { fixture, screenshot } from './contractFixture'
 import type { Card, Hand, OneCard } from '../../src/game/onecard/protocol'
-const panel = (p: Page) => p.getByRole('region', { name: '원카드 경기', exact: true })
+const panel = (p: Page) => p.locator('[aria-label="원카드 경기"], .gathering-hud[data-phase="finished"], [aria-label="경기 결과 상세"]')
 const card = (rank: string, suit: Card['suit'] = 'hearts'): Card => ({ id: suit ? `${suit}-${rank}` : rank, rank, suit })
 async function start(page: Page, count: 2 | 3 | 4 = 2) {
   const server = await fixture(page, { omok: true, m09: true, onecard: count, players: count })
@@ -49,7 +49,7 @@ test('M12 2-player atomic hands, card/suit/K/draw/attack commands, result and ne
   server.cardSnapshot(end, accepted); await expect(p).toContainText('손패를 모두 비웠습니다.')
   await p.getByRole('button', { name: '정산 결과 확인' }).click(); await expect(p).toContainText('정산 대기 중')
   server.settle(); await expect(p).toContainText('정산 완료 · 내 엽전 증감 1')
-  server.nextRound(); await expect(p).toHaveCount(0); await expect(page.getByRole('button', { name: '준비', exact: true })).toBeEnabled()
+  server.nextRound(); await page.getByRole('button', { name: '다음 판 준비', exact: true }).click(); await expect(p).toHaveCount(0); await expect(page.getByRole('button', { name: '준비', exact: true })).toBeEnabled()
   for (const m of server.sent.filter(m => m.type === 'GAME_ACTION_SEND')) expect(Object.keys(m.payload).sort()).toEqual(['actionId', 'expectedVersion', 'gameId', 'input'])
   expect(server.sent.filter(m => m.type === 'GAME_ACTION_SEND')).toHaveLength(5); expect(errors).toEqual([])
   await expect(page.locator('vite-error-overlay')).toHaveCount(0)
@@ -76,7 +76,7 @@ for (const count of [3, 4] as const) test(`M12 ${count}-player declaration/repor
   server.cardSnapshot({ turnDeadline: new Date(Date.now() - 100).toISOString() })
   await expect(p).toContainText('시간 만료'); await expect(handButtons(page).first()).toBeDisabled()
   await expect(p.getByRole('button', { name: '한 장 뽑고 넘기기' })).toBeDisabled()
-  if (count === 4) { await page.setViewportSize({ width: 390, height: 844 }); await screenshot(page, 'm12-narrow') }
+  if (count === 4) { await page.setViewportSize({ width: 1000, height: 700 }); await screenshot(page, 'm12-narrow') }
   expect(server.sent.filter(m => m.type === 'GAME_ACTION_SEND').map(m => m.payload.input)).toEqual([{ kind: 'catch-one', targetUserId: '102' }, { kind: 'declare-one' }])
 })
 test('M12 stale rejection freezes inputs, latest refresh recovers, malformed foreign hand is never rendered', async ({ page }) => {

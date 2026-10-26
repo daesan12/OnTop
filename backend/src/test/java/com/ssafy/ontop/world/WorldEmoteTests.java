@@ -79,6 +79,32 @@ class WorldEmoteTests {
     }
 
     @Test
+    void 취소는_마지막_승인_ID만_한번_알리고_재사용_간격은_유지한다() {
+        var first = service.create("one", "user", new EmoteCode("WAVE"));
+        var cancelled = service.cancel("user", "MOVEMENT");
+
+        assertThat(cancelled.emoteEventId()).isEqualTo(first.eventId());
+        assertThat(cancelled.eventId()).isNotEqualTo(first.eventId());
+        assertThat(cancelled.channelId()).isEqualTo("one");
+        assertThat(cancelled.userId()).isEqualTo("user");
+        assertThat(cancelled.reason()).isEqualTo("MOVEMENT");
+        assertThat(cancelled.sentAt()).isEqualTo(first.sentAt());
+        assertThat(service.cancel("user", "ACTIVITY_STARTED")).isNull();
+        assertThatThrownBy(() -> service.create("one", "user", new EmoteCode("CLAP")))
+                .isInstanceOf(WorldEmoteService.EmoteException.class)
+                .extracting("code").isEqualTo("EMOTE_TOO_FREQUENT");
+
+        nanos.set(1_000_000_000);
+        var next = service.create("two", "user", new EmoteCode("CLAP"));
+        assertThat(service.cancel("user", "CHANNEL_LEFT").emoteEventId()).isEqualTo(next.eventId());
+        service.create("one", "other", new EmoteCode("WAVE"));
+        service.disconnected("other");
+        assertThat(service.cancel("other", "DISCONNECTED")).isNull();
+        service.clear();
+        assertThat(service.cancel("user", "MOVEMENT")).isNull();
+    }
+
+    @Test
     void 잘못된_전송_간격은_실행_전에_거절한다() {
         for (Duration duration : new Duration[] {null, Duration.ZERO, Duration.ofNanos(-1), Duration.ofSeconds(61)}) {
             assertThatThrownBy(() -> new WorldEmoteService(new WorldEmoteProperties(null), duration))

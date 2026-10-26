@@ -14,7 +14,8 @@ const variables = {
     gameId: 'replace-with-real-game-id',
     minigameSessionId: '', minigameRequestKey: '', minigameHeats: '', minigameLog: '', minigameStartedAt: '',
     accessToken: '', websocketTicket: '', shopItemId: '', userItemId: '', purchaseRequestKey: '', purchaseId: '',
-    facilityLeaseId: '', feedbackOperationId: '', feedbackReceiptId: '', noteOperationId: '', noteId: ''
+    facilityLeaseId: '', feedbackOperationId: '', feedbackReceiptId: '', noteOperationId: '', noteId: '',
+    followTargetId: '', followId: ''
 };
 
 const statusTest = status => `pm.test('HTTP ${status}', () => pm.response.to.have.status(${status}));`;
@@ -521,21 +522,42 @@ const publicProfileGuide = '\n\n2026-10-24 공개 프로필: db 프로필의 인
     + '최초 미조회·DB 없는 사용자에는 null이며 기존 표시를 지우지 않습니다. 접속 중 회원은 5초마다 일괄 조회하므로 '
     + 'HTTP PATCH /api/v1/users/me로 닉네임 변경 후 다음 조회 완료 때 같은 채널에 반영됩니다. 재접속은 새 티켓→CHANNEL_JOIN. '
     + '다른 채널 미노출·클라이언트 프로필 주입 거절·조회 장애 시 기존 값 유지를 확인하세요. 기존 equipment/위치 계약은 유지합니다. '
-    + '감정표현 5종은 WAVE/CLAP/APPLAUSE_REQUEST/TSK/FART, 손 인사/박수 5초·나머지 1.8초의 FE 간격을 적용합니다. 직전 성공 표현 기준으로 다른 표현도 대기하며 상태별 허용/취소는 별도 확인입니다. '
+    + '감정표현 5종은 WAVE/CLAP/APPLAUSE_REQUEST/TSK/FART, 손 인사/박수 5초·나머지 1.8초입니다. 가만히 서 있을 때만 허용하며 이동·점프 중 공중 상태·수영·테이블(대기 포함)·시설 중은 EMOTE_ACTIVITY_CONFLICT, 기존 경기 복구 게이트는 GAME_RECOVERY_REQUIRED입니다. '
+    + '승인 후 새 이동/점프·착석·시설 이용은 WORLD_EMOTE_CANCELLED(requestId=null)를 같은 채널에 전송합니다. payload는 eventId/emoteEventId/channelId/userId/reason/sentAt이며 reason은 MOVEMENT/ACTIVITY_STARTED/CHANNEL_LEFT/DISCONNECTED입니다. '
+    + '프론트는 현재 채널/사용자/재생 원본 eventId와 emoteEventId가 일치할 때만 취소하며 중복·늦은 취소·이미 끝난 표현은 무시합니다. 취소/채널 이동으로 사용 간격은 초기화되지 않습니다. 새 REST나 클라이언트 취소 요청은 없으며 취소 알림 수신은 FE 연결이 필요합니다. '
     + 'FE park-bindings.emotes 매핑·3D 렌더링·배포 확인은 별도입니다.';
 wsItems[6].description += appearanceGuide + publicProfileGuide;
 const facilityGuide = '\n\n## 시설 이용·점유 동기화 (2026-10-25)\n\n'
     + 'CHANNEL_JOIN 후 시설01 CATALOG(10개씩 nextOffset, -1종료)→시설02 CHECK(입장·재접속 필수)→시설03/04 USE→시설05 AIM(망원경만)→시설06 RELEASE. '
     + '벤치80개×2석, 운동기구12대·망원경2대×1명. 같은 채널 WORLD_FACILITY_STATE.occupancies 전체 상태와 version을 사용합니다. '
     + '본인 leaseId를 로컬 facilityLeaseId 변수에 복사하거나05/06 JSON에 직접 넣으세요. 이전 이용 ID·다른 사용자 ID는 거절합니다. '
-    + '2026-10-25 사용자 확정: 서버 승인 위치 기준 벤치/기구3m·망원경2m, 높이+0.8m±0.7m, 단절 즉시 해제 후 재접속 재이용. 100ms/pitch범위는 현재 FE 설정이며 시설 감정표현 허용/취소는 협의 목록에 남아 있습니다. '
+    + '2026-10-25 사용자 확정: 서버 승인 위치 기준 벤치/기구3m·망원경2m, 높이+0.8m±0.7m, 단절 즉시 해제 후 재접속 재이용. 100ms/pitch범위는 현재 FE 설정입니다. 시설 이용 중 일반 감정표현은 금지하며 이용 승인 시 기존 표현을 취소합니다. '
     + '이용 중 이동/점프/테이블 착석은 FACILITY_BUSY. 하차 승인 후 WORLD_STATE 위치에서 이동합니다. '
     + '망원경 yaw[-π,π],pitch[-1.35,1.15],seq1~4294967295,100ms 간격. 과거seq는 본인 ACK만, 확대/FOV는FE. '
     + '단절/채널퇴장 즉시 해제, 재접속 CHECK 후 재이용하며 경기30초유예는 그대로입니다. '
     + '위치 주입 API는 없습니다. Postman에서 원거리 USE 오류는 정상이며 성공 검수는 실제 이동 후 요청하세요. '
     + '단일 JVM 메모리 점유, 다중 서버·실제 FE 모션·운영 적용은 별도 검수입니다. docs/world-facility-api.md.';
+const followGuide = '\n\n## 서버 따라가기\n\n'
+    + '같은 채널의 두 계정이 CHANNEL_JOIN→WORLD_FOLLOW_CHECK 후 대상 WORLD_STATE.payload.avatars[].userId를 followTargetId에 넣고 START합니다. '
+    + '서버 START/STOP/CHECK 응답·변경 방송은 WORLD_FOLLOW_STATE(channelId/version/links[])입니다. '
+    + '본인 followerId의 followId를 followId 변수에 복사하고 STOP하세요. 상태는 전체 목록이며 낮은 버전은 무시합니다. '
+    + '시작 XZ≤12m/높이≤2m, ≤2.2m 대기·>2.2~5m 걷기6.25m/s·>5m 달리기9m/s. '
+    + '거리>24m/높이>3.5m·단절/퇴장·양쪽 착석/시설/수영은 해제합니다. '
+    + '승인된 직접 이동/점프는 본인 관계만 해제, 정지 heartbeat는 유지합니다. 장애물은 기존 충돌을 적용하며 우회/자동점프/시간해제는 없습니다. '
+    + '자동 입력은 lastInputSeq를 소비하지 않고 좌표는 기존 WORLD_STATE로 수신합니다. '
+    + '서버는 관계를 재접속 시 복구하지 않으므로 캐시를 비우고 CHECK하세요. 늦은 STOP의 다른followId는 FOLLOW_LINK_MISMATCH. '
+    + '동일 대상 반복 START는 현 상태 ACK, 대상 변경은 새 ID이며 자기자신/순환/범위 밖은 거절합니다. '
+    + 'START를 무조건 재전송하지 말고 CHECK로 확인하세요. docs/world-follow-api.md. FE 3D 연결·배포는 별도입니다.';
+wsItems[6].description += followGuide;
+wsItems[6].messages.push(
+    message('따라가기 01 입장·재접속 관계 조회 → WORLD_FOLLOW_STATE', 'WORLD_FOLLOW_CHECK', {}),
+    message('따라가기 02 시작 → WORLD_FOLLOW_STATE (12m·높이2m)', 'WORLD_FOLLOW_START',
+        { targetId: '{{followTargetId}}' }),
+    message('따라가기 03 종료 → WORLD_FOLLOW_STATE (본인 최신 ID)', 'WORLD_FOLLOW_STOP',
+        { followId: '{{followId}}' })
+);
 const wsV3 = { name: 'OnTop WebSocket', $kind: 'collection', description: wsGuide + appearanceGuide + publicProfileGuide
-        + facilityGuide,
+        + facilityGuide + followGuide,
     items: wsItems };
 const httpV21 = {
     info: { name: httpV3.name, description: guide, schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json' },
