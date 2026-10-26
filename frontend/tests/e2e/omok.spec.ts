@@ -26,19 +26,20 @@ for (const viewport of [
       await page.locator('canvas').click({ position: { x: 80, y: 300 } })
       await page.keyboard.press('KeyE')
       await page.getByRole('button', { name: '앉기', exact: true }).click()
-      await page.getByRole('button', { name: '오목 선택', exact: true }).click()
+      await page.getByLabel('1인 참가비').fill('1'); await page.getByRole('button', { name: '오목 선택', exact: true }).click()
       expect(
         server.sent.find((m) => m.type === 'GAME_SELECT')?.payload,
       ).toEqual({
         gameCode: 'OMOK',
+        betAmountPerPlayer: 1,
       })
       await page.getByRole('button', { name: '준비', exact: true }).click()
       await expect(
         page.getByText('서버가 참가·시작을 확인하고 있습니다.'),
       ).toBeVisible()
-      expect(server.sent.find((m) => m.type === 'READY_SET')?.payload).toEqual({
-        ready: true,
-      })
+      const ready = server.sent.find((m) => m.type === 'READY_SET')?.payload
+      expect(ready).toEqual({ ready: true, betAmountPerPlayer: 1, expectedVersion: expect.any(Number) })
+      expect(Number.isSafeInteger(ready?.expectedVersion)).toBe(true)
       await expect(
         page.getByRole('group', { name: '오목판', exact: true }),
       ).toHaveCount(0)

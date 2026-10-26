@@ -1,15 +1,19 @@
 # 경기 시작 영속화 및 참가비 예약 · GAME Story 1
 
+2026-10-26 후속: [가변 참가비·정상 종료 정산](game-settlement.md)이 현재 계약이다.
+selector가 GAME_SELECT로 확정한 B를 예약한다. V122가 기존 1코인 CHECK를 확장하며 V112는 보존한다.
+아래 Story 1 당시 검증 이력은 과거 결과로 유지한다.
+
 ## 범위와 실행 조건
 
 `GameStartGateway`의 실제 DB 구현은 `JpaGameStartGateway`다.
 `db` 프로필과 `ontop.game-start.enabled=true`를 함께 사용해야 등록된다.
 기존 local rehearsal의 문자열 경기 ID와 `LocalGameStartGateway`는 변경하지 않는다.
-실제 엔진 연결은 기존 `CommittedGameStartService`의 local 조건과 게임별 활성화 설정을 따른다.
+실제 엔진 연결은 기존 `CommittedGameStartService`의 local/dev 조건(prod/production 제외)과 게임별 활성화 설정을 따른다.
 기본값이나 dev의 게임 활성화 설정은 이번 작업에서 바꾸지 않는다.
 
-이번 Story는 **예약 커밋**까지만 구현한다. 종료 정산, 예약 반환, 엔진 생성 확인,
-종료 이벤트 재전달, 재시작 복구는 Story 2·3이다. 따라서 현재 예약은 자동 해제되지 않는다.
+Story 1은 **예약 커밋** 경계다. Story 173에서 정상 종료 정산·예약 해제를 연결했다.
+무효 반환, 엔진 생성 확인, 종료 이벤트 재전달, 재시작 복구는 Story 174에 남아 있다.
 실사용 DB에서 임의로 게임 시작 옵션을 켜거나 예약 행을 수동 삭제하지 않는다.
 
 ## 저장 모델
@@ -19,7 +23,7 @@
   종료 이벤트 ID/hash/version과 결과 version, 정산 정책/보너스 필드,
   실행 instance/boot ID, 생성·예약·시작·종료·정산 시각.
 - `game_participants`: 최초 회원·좌석·참가 순서, 상태/결과/이탈 정보,
-  최초 예약액 1, 최종 순증감, 예약 해제 시각.
+  최초 예약액 B, 최종 순증감, 예약 해제 시각.
 - User·경기 FK와 경기 내 회원/좌석/참가 순서 UNIQUE를 적용한다.
 - nullable 생성 컬럼 `active_user_id`의 UNIQUE는 예약 해제 전까지 다른 경기 참가를 막는다.
   중도 이탈 상태가 되어도 예약 해제 전에는 제한을 유지한다.
@@ -64,9 +68,9 @@ lease/fencing 및 엔진 활성화 승인 계약은 Story 3에서 추가해야 �
 2. 시도 UNIQUE 확보.
 3. 회원 ID 오름차순 User 공유 잠금, 활성 상태 확인.
 4. 같은 순서의 Wallet 쓰기 잠금. 지갑이 없으면 생성하지 않음.
-5. 활성 테이블/참가 중복 및 `balance - reserved >= 1` 확인.
-6. 경기 RESERVED, 최초 참가자와 각 Wallet의 예약액 +1 저장.
-7. 회원별 `GAME_RESERVE(balanceDelta=0, reservedDelta=1)` 저장.
+5. 활성 테이블/참가 중복 및 `balance - reserved >= B` 확인.
+6. 경기 RESERVED, 최초 참가자와 각 Wallet의 예약액 +B 저장.
+7. 회원별 `GAME_RESERVE(balanceDelta=0, reservedDelta=B)` 저장.
 8. 전체 커밋.
 
 원장 키는 `game:<gameId>:reserve:<userId>`이며 기존 글로벌 UNIQUE를 사용한다.

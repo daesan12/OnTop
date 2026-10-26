@@ -49,7 +49,7 @@ class GameStartWebSocketTests {
                 player.send("TABLE_JOIN", Map.of("tableId", "table-2"));
                 player.await(message -> message.path("type").asText().equals("TABLE_STATE"));
                 if (index == 0) {
-                    player.send("GAME_SELECT", game.equals("DICE") ? Map.of("gameCode", game, "targetScore", 4000) : Map.of("gameCode", game));
+                    player.send("GAME_SELECT", game.equals("DICE") ? Map.of("betAmountPerPlayer", 1, "gameCode", game, "targetScore", 4000) : Map.of("betAmountPerPlayer", 1, "gameCode", game));
                     player.await(message -> message.path("type").asText().equals("TABLE_STATE")
                             && message.path("payload").path("gameCode").asText().equals(game));
                 }
@@ -84,7 +84,7 @@ class GameStartWebSocketTests {
             second.await(message -> message.path("type").asText().equals("GAME_START_STATE")
                     && message.path("payload").path("phase").asText().equals("WAITING"));
             assertThat(second.phases).contains("WAITING").doesNotContain("STARTING", "CONFIRMED");
-            first.send("GAME_SELECT", Map.of("gameCode", "DICE", "targetScore", 4000));
+            first.send("GAME_SELECT", Map.of("betAmountPerPlayer", 1, "gameCode", "DICE", "targetScore", 4000));
             first.await(message -> message.path("type").asText().equals("TABLE_STATE")
                     && message.path("payload").path("gameCode").asText().equals("DICE"));
             first.send("READY_SET", Map.of("ready", true));
@@ -132,7 +132,7 @@ class GameStartWebSocketTests {
         public CompletionStage<?> onText(WebSocket webSocket, CharSequence data, boolean last) {
             fragments.append(data);
             if (last) {
-                messages.add(fragments.toString());
+                messages.add(ReadyConsent.received(this, fragments.toString()));
                 fragments.setLength(0);
             }
             webSocket.request(1);
@@ -141,7 +141,7 @@ class GameStartWebSocketTests {
 
         private void send(String type, Object payload) throws Exception {
             socket.sendText(mapper.writeValueAsString(Map.of("requestId", UUID.randomUUID().toString(),
-                    "type", type, "payload", payload)), true).join();
+                    "type", type, "payload", ReadyConsent.payload(this, type, payload))), true).join();
         }
 
         private JsonNode confirmed() throws Exception {

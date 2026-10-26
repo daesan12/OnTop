@@ -383,7 +383,7 @@ public class TableHub {
             int available = snapshot.capacity() - occupied;
             return new TableSummaryResponse(tableId, snapshot.capacity(), snapshot.minimumPlayers(), occupied,
                     available, ready, snapshot.allReady(), status, available > 0 && status.equals("WAITING"),
-                    snapshot.gameCode(), snapshot.targetScore(), publicGameId(tableId));
+                    snapshot.gameCode(), snapshot.targetScore(), snapshot.betAmountPerPlayer(), publicGameId(tableId));
         }).toList());
     }
 
@@ -1172,10 +1172,18 @@ public class TableHub {
     private void ready(Member member, Request request) {
         TableRoom room = seatedRoom(member, request);
         ensureWaiting(room.snapshot().tableId(), request);
-        if (request.payload().get("ready").booleanValue() && room.snapshot().gameCode() == null) {
+        if (request.payload().get("ready").booleanValue()
+                && (room.snapshot().gameCode() == null || room.snapshot().betAmountPerPlayer() == null)) {
             fail(request, "GAME_NOT_SELECTED", "먼저 게임을 선택해주세요.");
         }
         boolean ready = request.payload().get("ready").booleanValue();
+        // receive의 같은 Hub 모니터 안에서 동의 검증과 준비 변경을 원자적으로 수행한다.
+        if (ready && !room.matchesReadyBet(request.payload().get("betAmountPerPlayer").longValue())) {
+            fail(request, "GAME_BET_CHANGED", "참가비가 변경되었습니다. 현재 금액을 확인해주세요.");
+        }
+        if (ready && !room.acceptsReadyVersion(request.payload().get("expectedVersion").longValue())) {
+            fail(request, "GAME_SETTINGS_CHANGED", "테이블 설정이 변경되었습니다. 현재 상태를 확인해주세요.");
+        }
         if (room.setReady(member.userId(), ready)) {
             publish(room, member, request.requestId());
             recordBehavior(BehaviorEventType.TABLE_READY_SET, member.accountId(),
@@ -1205,12 +1213,17 @@ public class TableHub {
         if (game == TableGame.DICE && targetScore == null) {
             fail(request, "GAME_OPTIONS_REQUIRED", "주사위 목표 2000/4000/6000점 중 하나를 선택해주세요.");
         }
-        if (room.selectGame(game, targetScore)) {
+        long amount = request.payload().get("betAmountPerPlayer").longValue();
+        try { com.ssafy.ontop.game.domain.GameAmounts.validate(amount, game.maximumPlayers()); }
+        catch (IllegalArgumentException exception) {
+            fail(request, "GAME_INVALID_BET", "참가비가 지원 범위를 벗어났습니다.");
+        }
+        if (room.selectGame(game, targetScore, amount)) {
             starts.remove(tableId);
             publish(room, member, request.requestId());
             publishStart(tableId);
             recordBehavior(BehaviorEventType.GAME_SELECTED, member.accountId(), builder -> builder.tableId(tableId)
-                    .prop("gameCode", game.name()).prop("targetScore", targetScore));
+                    .prop("gameCode", game.name()).prop("targetScore", targetScore).prop("betAmountPerPlayer", amount));
         } else {
             replyState(member, request, room);
         }
@@ -1329,7 +1342,8 @@ public class TableHub {
         GameStartCommand command = new GameStartCommand(UUID.randomUUID(), snapshot.tableId(), snapshot.version(),
                 snapshot.gameCode(), snapshot.seats().stream()
                         .filter(seat -> seat.userId() != null)
-                        .map(seat -> new Participant(seat.userId(), seat.seatNumber())).toList(), snapshot.targetScore());
+                        .map(seat -> new Participant(seat.userId(), seat.seatNumber())).toList(), snapshot.targetScore(),
+                snapshot.betAmountPerPlayer());
         TableStartAttempt attempt = new TableStartAttempt(command);
         starts.put(snapshot.tableId(), attempt);
         if (committedStarts.isPresent()) {
@@ -1486,7 +1500,7 @@ public class TableHub {
             if ((!attempt.starting() && !attempt.phase().equals("PLAYING") && !attempt.phase().equals("SETTLING"))
                     || !attempt.starting() && !result.gameSessionId().equals(attempt.view(0, false).gameSessionId())
                     || !result.gameCode().equals(attempt.command().gameCode())
-                    || result.betAmountPerPlayer() != 1) { continue; }
+                    || result.betAmountPerPlayer() != attempt.command().betAmountPerPlayer()) { continue; }
             Set<String> expected = attempt.command().participants().stream().map(Participant::userId)
                     .collect(Collectors.toSet());
             Set<String> actual = result.participants().stream().map(GameResultView.Participant::userId)

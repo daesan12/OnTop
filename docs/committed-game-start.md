@@ -1,6 +1,6 @@
 # 인증 사용자 경기 시작 연결
 
-전원 준비 → 참가/판돈 예약 확정 요청 → 실제 엔진 생성 → 시작·복구 상태 전달을 연결한다. 기준은 OnTop v0.4의 참가자별 기본 판돈1엽전과 2026-10-23 사용자 확정인 시작 시 예약·종료 시 차감/지급이다. **A 연결부 구현이며 실제 DB 예약·차감·원장·정산 구현/검증과 구분한다.**
+전원 준비 → 참가/판돈 예약 확정 요청 → 실제 엔진 생성 → 시작·복구 상태 전달을 연결한다. 현재 참가비는 GAME_SELECT에서 selector가 확정한 양수 금액이며, 2026-10-23 사용자 확정인 시작 시 예약·종료 시 차감/지급이다. **A 연결부 구현이며 실제 DB 예약·차감·원장·정산 구현/검증과 구분한다.**
 
 ## dev 실행 조건 정리 · 2026-10-25
 
@@ -63,7 +63,7 @@ PENDING → SETTLED → 준비 해제·다음 판을 검사한다. 회원 조회
 3. 첫 착석자가 GAME_SELECT, 2명 이상 현재 참가자 모두 READY_SET(true). 카운트다운 없음.
 4. 서버가 참가자/좌석/게임과 시작 시도 UUID를 한 번 고정하고 STARTING을 전송한다. 이때 퇴장·준비/게임 변경은 TABLE_BUSY다.
 5. Hub 잠금 밖에서 CommittedGameStartService가 엔진/계정 ID를 확인한 뒤 B의 startGame을 한 번 호출한다. 클라이언트는 참가자·예약액·경기 ID를 지정하지 않는다.
-6. B는 전원 참가 기록·1인1엽전 예약·예약 이력을 원자적으로 커밋한 경우에만 RESERVED를 반환한다. 시작 시 balance는 즉시 차감하지 않고 예약분을 다른 구매·경기에 사용할 수 없게 한다. A는 동일 시도·참가자/좌석·reservedAmountPerPlayer=1·totalReservedAmount=참가자수·경기 ID를 검사한다.
+6. B는 전원 참가 기록·참가비 B 예약·예약 이력을 원자적으로 커밋한 경우에만 RESERVED를 반환한다. 시작 시 balance는 즉시 차감하지 않고 예약분을 다른 구매·경기에 사용할 수 없게 한다. A는 동일 시도·참가자/좌석·reservedAmountPerPlayer=B·totalReservedAmount=B×참가자수·경기 ID를 검사한다.
 7. 검사된 성공 뒤 해당 경기 ID로 엔진을 생성한다. 첫 좌석부터 엔진 참가자 순서로 전달하며 오목은 흑/백이다. 실제 경기 엔진의 create는 같은 경기/참가자에 멱등적이다.
 8. GAME_START_STATE(PLAYING, simulation=false)를 같은 테이블 참가자에게 전송하고 기존 GAME_CONNECTION_STATE로 본인 최신 상태·조작권을 연결한다. 공개/개인 상태와 입력 메시지는 기존 계약을 사용한다.
 
@@ -100,7 +100,7 @@ GAME_START_CHECK/GAME_START_STATE의 필드와 방향은 유지한다. 개발용
 
 실제 엔진 종료 → 좌석 유지·전원 준비 false → GAME_START_STATE.phase=SETTLING 및 HTTP status=SETTLING(joinable=false) → 경기 전체 SETTLED 확인 → WAITING → 다시 전원 준비 → 새 startAttemptId/확정 gameSessionId로 새 경기다. 카운트다운이나 자동 재시작은 없다. 정산 대기 중 게임 선택·준비·퇴장은 TABLE_BUSY로 보호한다.
 
-SETTLED는 경기 전체 정산 트랜잭션의 커밋 상태이며 참가자별 알림 수신 완료 횟수가 아니다. 일치하는 확정 경기 ID·게임 코드·최초 참가자 집합·판돈1과 본인 참가를 검사한다. PENDING·타 경기·잘못된 참가자 결과로 다음 판을 열지 않는다. GameResultCommitted 또는 GameResultGateway에서 검증해 읽은 GameResultLoaded로 확인하며, 이벤트 유실 시 기존 GAME_RESULT_CHECK로 재조회한다. 저장되지 않은 상태·읽기 실패에는 그대로 대기한다. DB 저장·지급은 이 연결부가 호출하지 않는다.
+SETTLED는 경기 전체 정산 트랜잭션의 커밋 상태이며 참가자별 알림 수신 완료 횟수가 아니다. 일치하는 확정 경기 ID·게임 코드·최초 참가자 집합·시작 시 확정 참가비 B와 본인 참가를 검사한다. PENDING·타 경기·잘못된 참가자 결과로 다음 판을 열지 않는다. GameResultCommitted 또는 GameResultGateway에서 검증해 읽은 GameResultLoaded로 확인하며, 이벤트 유실 시 기존 GAME_RESULT_CHECK로 재조회한다. 저장되지 않은 상태·읽기 실패에는 그대로 대기한다. DB 저장·지급은 이 연결부가 호출하지 않는다.
 
 시작 성공을 Hub에 반영하기 전에 엔진이 종료될 수 있으므로 조기 종료/정산 알림을 해당 시도에 보존하고, 확정 경기 ID가 같은 경우만 재적용한다. 이전 경기의 늦은 알림은 새 경기를 해제하지 않는다. 정산 후 접속 중인 좌석·선택 게임·주사위 목표는 유지하고 준비는 해제한다. 끊긴 사용자의 예약 좌석은 대기 전환 시 기존 정책대로 정리하며, 새로 접속하면 종료 결과를 조회하고 다시 착석한다. 메모리 상태이므로 재시작/다중 서버 복구 보장은 별도다.
 
@@ -116,4 +116,4 @@ CommittedStartFlowTests는 실제 JWT/HTTP/RawWS/오목 엔진으로 확정 전 
 - `isReservationCommitted`를 통과한 결과만 실제 엔진 생성 및 PLAYING 전환에 사용한다. PENDING·예약액0·일부 참가자/금액 불일치는 게임 시작으로 취급하지 않는다.
 - `findStartResult`는 같은 시도의 저장된 예약 결과 조회이며 신규 예약·차감·지급을 실행하지 않는다. 응답 유실·엔진 생성 실패도 같은 예약과 경기 ID를 재사용한다.
 - 실제 잔액 검증·지갑 잠금·예약 저장·중복 방지·정산은 B 담당이다. A는 경기 종료 시 예약을 해제하거나 돈을 계산하지 않는다. B가 종료 정산에서 예약 해제·차감·승자 지급을 한 트랜잭션으로 확정한 뒤 기존 GameResultCommitted/조회로 SETTLED를 전달한다. PENDING 동안은 SETTLING을 유지한다.
-- 추가 베팅·무승부/서버 장애 정산 정책은 이번 변경으로 확정하지 않는다. 기본 판돈은 계속 1엽전이다.
+- 추가 베팅·무승부/서버 장애 정산 정책은 이번 변경으로 확정하지 않는다. 참가비는 selector가 확정한 양수 B이며 현행 [정산 계약](game-settlement.md)을 따른다.

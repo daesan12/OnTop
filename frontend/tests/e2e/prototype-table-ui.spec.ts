@@ -17,7 +17,7 @@ for (const code of ['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE'] as const) test(`p
   const server = await fixture(page, { omok: true, m09: true, dice: code === 'DICE', onecard: code === 'ONE_CARD' ? 4 : undefined, bridge: code === 'LIAR_BRIDGE' ? 4 : undefined, players: 8 })
   await load(page)
   const title = { OMOK: '오목', DICE: '주사위 한 판', ONE_CARD: '원카드', LIAR_BRIDGE: '거짓말 다리 건너기' }[code]
-  await page.getByRole('button', { name: title + ' 선택', exact: true }).click()
+  await page.getByLabel('1인 참가비').fill('1'); await page.getByRole('button', { name: title + ' 선택', exact: true }).click()
   await expect(together(page)).toContainText('함께 한 판')
   await expect.poll(async () => (await probe(page)).ownVisible).toBe(true)
   expect(await probe(page)).toMatchObject({ meshes: 2, triangles: 14 })
@@ -69,7 +69,7 @@ for (const code of ['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE'] as const) test(`p
 
 test('3D ready/settings buttons use the same server request and keep original scope', async ({ page }) => {
   const server = await fixture(page, { omok: true, m09: true }); await load(page)
-  await page.getByRole('button', { name: '오목 선택', exact: true }).click()
+  await page.getByLabel('1인 참가비').fill('1'); await page.getByRole('button', { name: '오목 선택', exact: true }).click()
   await expect(together(page)).toBeVisible()
   await expect.poll(async () => (await probe(page)).present).toBe(true)
   await page.waitForTimeout(1500)
@@ -104,7 +104,7 @@ test('pavilion gathering preserves the real park, has bounded render cost and re
   const anchor = TABLES.find(t => t.pavilionId === 'P1')!
   const server = await fixture(page, { omok: true, m09: true, onecard: 4, players: 12, anchorId: anchor.id })
   await load(page, anchor.id)
-  await page.getByRole('button', { name: '원카드 선택', exact: true }).click()
+  await page.getByLabel('1인 참가비').fill('1'); await page.getByRole('button', { name: '원카드 선택', exact: true }).click()
   await expect(together(page)).toBeVisible(); await page.waitForTimeout(1500)
   const before = await probe(page); expect(before.ownVisible).toBe(true)
   const samples = []

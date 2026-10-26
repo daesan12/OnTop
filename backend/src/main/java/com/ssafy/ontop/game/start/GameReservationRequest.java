@@ -31,6 +31,7 @@ public final class GameReservationRequest {
             throw new IllegalArgumentException("영속 경기 시작 요청을 확인하세요.");
         }
         List<Long> users = command.participants().stream().map(player -> GameIdCodec.parse(player.userId())).toList();
+        com.ssafy.ontop.game.domain.GameAmounts.validate(command.betAmountPerPlayer(), game.maximumPlayers());
         return new GameReservationRequest(command, users, fingerprint(command, users));
     }
 
@@ -38,7 +39,9 @@ public final class GameReservationRequest {
         try {
             ByteArrayOutputStream bytes = new ByteArrayOutputStream();
             try (DataOutputStream output = new DataOutputStream(bytes)) {
-                output.writeInt(1); // 직렬화 규격 버전. JSON 키 순서나 구분자 충돌에 의존하지 않는다.
+                // B=1은 이미 저장된 Story 1 fingerprint를 보존한다. 다른 금액은 규격 2로 구분한다.
+                output.writeInt(command.betAmountPerPlayer() == 1 ? 1 : 2);
+                if (command.betAmountPerPlayer() != 1) { output.writeLong(command.betAmountPerPlayer()); }
                 output.writeUTF(command.tableId());
                 output.writeLong(command.tableVersion());
                 output.writeUTF(command.gameCode());

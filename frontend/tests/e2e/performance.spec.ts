@@ -91,7 +91,7 @@ test('M15 graphics controls preserve table participation, active match and map g
   await page.getByRole('button', { name: '그래픽 · 성능', exact: true }).click(); await expect(guide).toBeVisible()
   await page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).inspectTable())
   const lobby = page.getByRole('dialog', { name: '테이블 정보', exact: true })
-  await lobby.getByRole('button', { name: '앉기', exact: true }).click(); await lobby.getByRole('button', { name: '오목 선택', exact: true }).click(); await lobby.getByRole('button', { name: '준비', exact: true }).click(); server.confirmStart()
+  await lobby.getByRole('button', { name: '앉기', exact: true }).click(); await lobby.getByLabel('1인 참가비').fill('1'); await lobby.getByRole('button', { name: '오목 선택', exact: true }).click(); await lobby.getByRole('button', { name: '준비', exact: true }).click(); server.confirmStart()
   await expect(page.getByRole('region', { name: '오목 경기', exact: true })).toBeVisible()
   const commands = server.sent.filter(m => /TABLE_LEAVE|GAME_ACTION|READY_SET/.test(m.type)).length
   await book(page); await manual(page).getByLabel('그래픽 품질').selectOption('low')

@@ -82,7 +82,7 @@ public final class TableProtocol {
                     && payload.path("pitch").isNumber() && Double.isFinite(payload.path("pitch").asDouble());
             case "TABLE_JOIN", "TABLE_WATCH" -> fields(payload, Set.of("tableId")) && payload.get("tableId").isTextual()
                     && !payload.get("tableId").textValue().isBlank();
-            case "READY_SET" -> fields(payload, Set.of("ready")) && payload.get("ready").isBoolean();
+            case "READY_SET" -> validReady(payload);
             case "GAME_SELECT" -> validGameSelection(payload);
             case "TABLE_LEAVE", "TABLE_UNWATCH" -> fields(payload, Set.of());
             case "GAME_START_CHECK" -> fields(payload, Set.of());
@@ -141,10 +141,26 @@ public final class TableProtocol {
         }
     }
 
+    private boolean validReady(JsonNode payload) {
+        if (!payload.path("ready").isBoolean()) { return false; }
+        if (!payload.path("ready").booleanValue()) { return fields(payload, Set.of("ready")); }
+        return fields(payload, Set.of("ready", "betAmountPerPlayer", "expectedVersion"))
+                && payload.path("betAmountPerPlayer").isIntegralNumber()
+                && payload.path("betAmountPerPlayer").canConvertToLong()
+                && payload.path("betAmountPerPlayer").longValue() > 0
+                && payload.path("expectedVersion").isIntegralNumber()
+                && payload.path("expectedVersion").canConvertToLong()
+                && payload.path("expectedVersion").longValue() >= 0
+                && payload.path("expectedVersion").longValue() <= 9_007_199_254_740_991L;
+    }
+
     private boolean validGameSelection(JsonNode payload) {
+        if (!payload.path("betAmountPerPlayer").isIntegralNumber()
+                || !payload.path("betAmountPerPlayer").canConvertToLong()
+                || payload.path("betAmountPerPlayer").longValue() <= 0) { return false; }
         if (!payload.path("gameCode").isTextual() || payload.path("gameCode").textValue().isBlank()) { return false; }
-        if (!payload.has("targetScore")) { return fields(payload, Set.of("gameCode")); }
-        return fields(payload, Set.of("gameCode", "targetScore")) && payload.path("gameCode").asText().equals("DICE")
+        if (!payload.has("targetScore")) { return fields(payload, Set.of("gameCode", "betAmountPerPlayer")); }
+        return fields(payload, Set.of("gameCode", "targetScore", "betAmountPerPlayer")) && payload.path("gameCode").asText().equals("DICE")
                 && payload.path("targetScore").isIntegralNumber() && payload.path("targetScore").canConvertToInt()
                 && Set.of(2000, 4000, 6000).contains(payload.path("targetScore").intValue());
     }

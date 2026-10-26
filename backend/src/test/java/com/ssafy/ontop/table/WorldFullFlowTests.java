@@ -92,10 +92,10 @@ class WorldFullFlowTests {
             second.await(message -> isType(message, "TABLE_WATCH_STATE")
                     && message.path("payload").path("seats").findValuesAsText("userId").contains("101"));
             assertThat(table().path("occupiedSeats").asInt()).isEqualTo(1);
-            assertThat(payload(second, "READY_SET", Map.of("ready", true), "ERROR").path("code").asText())
+            assertThat(payload(second, "READY_SET", Map.of("ready", true, "betAmountPerPlayer", 1, "expectedVersion", 0), "ERROR").path("code").asText())
                     .isEqualTo("NOT_SEATED");
             payload(second, "TABLE_JOIN", Map.of("tableId", tableId), "TABLE_STATE");
-            payload(first, "GAME_SELECT", Map.of("gameCode", "DICE", "targetScore", 4000), "TABLE_STATE");
+            payload(first, "GAME_SELECT", Map.of("betAmountPerPlayer", 1, "gameCode", "DICE", "targetScore", 4000), "TABLE_STATE");
             assertThat(payload(first, "READY_SET", Map.of("ready", true), "TABLE_STATE")
                     .path("allReady").asBoolean()).isFalse();
             JsonNode ready = payload(second, "READY_SET", Map.of("ready", true), "TABLE_STATE");

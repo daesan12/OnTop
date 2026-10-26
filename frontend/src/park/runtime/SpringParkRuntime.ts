@@ -646,8 +646,8 @@ export class ParkRuntime implements ParkRuntimePort {
         throw new Error('경기 진행·복구·정산 중에는 일어날 수 없습니다.')
       await this.socket.request('TABLE_LEAVE', {}, ['TABLE_LEFT'])
     })
-  selectOmok = () => this.selectGame('OMOK')
-  selectGame = (code: TableGameCode, targetScore?: number) =>
+  selectOmok = () => this.selectGame('OMOK', useSession.getState().tableStates[useSession.getState().tableId]?.betAmountPerPlayer ?? NaN)
+  selectGame = (code: TableGameCode, betAmountPerPlayer: number, targetScore?: number) =>
     this.action(async () => {
       const s = useSession.getState(),
         table = s.tableStates[s.tableId]
@@ -655,7 +655,7 @@ export class ParkRuntime implements ParkRuntimePort {
         throw new Error(
           '대기 중인 테이블의 게임 선택 담당자만 선택할 수 있습니다.',
         )
-      const payload = gameSelection(code, targetScore)
+      const payload = gameSelection(code, betAmountPerPlayer, targetScore)
       await this.socket.request('GAME_SELECT', payload, [
         'TABLE_STATE',
       ])
@@ -665,7 +665,11 @@ export class ParkRuntime implements ParkRuntimePort {
       const s = useSession.getState()
       if (tableBusy() || !['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE'].includes(s.tableStates[s.tableId]?.gameCode ?? ''))
         throw new Error('플레이 가능한 게임을 선택한 대기 테이블에서 준비해주세요.')
-      await this.socket.request('READY_SET', { ready }, ['TABLE_STATE'])
+      const table = s.tableStates[s.tableId]
+      if (ready && (table.betAmountPerPlayer == null || table.betAmountPerPlayer <= 0)) throw new Error('확정 참가비를 먼저 확인해주세요.')
+      await this.socket.request('READY_SET', ready
+        ? { ready, betAmountPerPlayer: table.betAmountPerPlayer, expectedVersion: table.version }
+        : { ready }, ['TABLE_STATE'])
     })
   checkStart = () =>
     this.action(() =>

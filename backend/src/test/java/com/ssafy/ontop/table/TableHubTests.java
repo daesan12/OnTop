@@ -45,7 +45,7 @@ class TableHubTests {
         Peer second = peer();
         owner.send("TABLE_JOIN", Map.of("tableId", "table-1"));
         owner.next();
-        owner.send("GAME_SELECT", game == TableGame.DICE ? Map.of("gameCode", game.name(), "targetScore", 4000) : Map.of("gameCode", game.name()));
+        owner.send("GAME_SELECT", game == TableGame.DICE ? Map.of("betAmountPerPlayer", 1, "gameCode", game.name(), "targetScore", 4000) : Map.of("betAmountPerPlayer", 1, "gameCode", game.name()));
         owner.next();
         for (int count = 1; count < game.maximumPlayers() - 1; count++) {
             Peer filler = peer();
@@ -177,7 +177,7 @@ class TableHubTests {
     }
 
     private void selectGame(Peer first, Peer second) throws Exception {
-        first.send("GAME_SELECT", Map.of("gameCode", "OMOK"));
+        first.send("GAME_SELECT", Map.of("betAmountPerPlayer", 1, "gameCode", "OMOK"));
         first.next();
         second.next();
     }
@@ -203,7 +203,7 @@ class TableHubTests {
                 peer.blocked.countDown();
                 peer.release.await();
             }
-            peer.messages.add(((TextMessage) invocation.getArgument(0)).getPayload());
+            peer.messages.add(ReadyConsent.received(peer, ((TextMessage) invocation.getArgument(0)).getPayload()));
             return null;
         }).when(session).sendMessage(any(TextMessage.class));
         hub.connect(session);
@@ -222,7 +222,7 @@ class TableHubTests {
 
         private void send(String type, Object payload) throws Exception {
             hub.receive(id, mapper.writeValueAsString(Map.of("requestId", UUID.randomUUID().toString(),
-                    "type", type, "payload", payload)));
+                    "type", type, "payload", ReadyConsent.payload(this, type, payload))));
         }
 
         private JsonNode next() throws Exception {

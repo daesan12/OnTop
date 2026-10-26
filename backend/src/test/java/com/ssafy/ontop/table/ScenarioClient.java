@@ -88,7 +88,7 @@ final class ScenarioClient implements AutoCloseable {
 
     String sendRequest(String type, Object payload) throws Exception {
         String id = UUID.randomUUID().toString();
-        send(1, MAPPER.writeValueAsBytes(Map.of("type", type, "requestId", id, "payload", payload)));
+        send(1, MAPPER.writeValueAsBytes(Map.of("type", type, "requestId", id, "payload", ReadyConsent.payload(this, type, payload))));
         return id;
     }
 
@@ -162,7 +162,7 @@ final class ScenarioClient implements AutoCloseable {
                 byte[] payload = new byte[length];
                 input.readFully(payload);
                 if (opcode == 1) {
-                    JsonNode message = MAPPER.readTree(payload);
+                    JsonNode message = ReadyConsent.received(this, MAPPER.readTree(payload));
                     assertThat(forbidden.test(message)).as("동작 중 수신 금지 메시지: %s", message).isFalse();
                     assertThat(messages.offer(message)).as("시나리오 수신 큐 초과").isTrue();
                 } else if (opcode == 9 && replyToPing) {
