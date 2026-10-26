@@ -138,3 +138,52 @@ Spring 빈·시작 훅·리소스 선택 설정에는 연결하지 않았다. �
 
 2026-10-26 FE `6bd9567` 전달본은 사전 검사를 통과했다. 런타임 리소스에는 복사하지 않았다.
 테이블 매핑·시설 이용 위치·기존 이동 파라미터 보완 후 실제 맵 전환은 별도로 검증해야 한다.
+
+## 180m 공원 테이블·좌표 조립 준비
+
+FE `5c171c6`의 추가 데이터를 기준으로 `PreparedParkMap.load(mapFile, manifestFile, channelIds)`를
+추가했다. 앞선 체크섬 검사를 통과한 파일로 다음 자료를 **독립된 객체로만** 조립한다.
+기존 `TableHub`·`ParkScene`·실행 설정에는 연결하지 않았으며, 현재 서버의 테이블 개수와 맵은 그대로다.
+
+| 제공 자료 | 연결 내용 |
+| --- | --- |
+| bindings / createRooms() | 채널별 table-1~16 앵커와 독립 TableRoom 16개. 기존 게임 선택·준비 모델 재사용 |
+| proximity() | 같은 서버 ID에 새 앵커의 X/Z 연결. 기존 채팅·관전 반경 20m 유지 |
+| collisionData() | 기존 Java 물리 입력 형식으로 지형·충돌·스폰·호수·전망대·디딤돌 변환 |
+| facilities() | 새 시설 ID·이용/하차 자세·높이·반경과 같은 mapVersion. 기존 망원경 속도/각도 설정 유지 |
+| notes() / feedback() | 익명 메모함·소리함 접근 기준. REST 저장/보존 정책과 별개 |
+
+서버 ID는 기존 `UUID.nameUUIDFromBytes(UTF-8(channelId + NUL + "table-" + 번호))` 규칙을 유지한다.
+처음 두 테이블 ID를 바꾸지 않고 3~16번을 같은 방식으로 확정했다. ID는 좌표·맵 버전·목록 정렬에 의존하지 않는다.
+앵커 누락·중복·기존 매핑 충돌은 실패하며 목록 순서로 추측하지 않는다.
+
+프론트 전달 파일:
+
+- [개발 channel-1 · 16개](integration/park-180/park-bindings.dev.json)
+- [로컬 연동 channel-1/2 · 총 32개](integration/park-180/park-bindings.frontend-test.json)
+
+두 파일은 기존 `{ "bindings": [{ "channelId", "tableId", "anchorId" }] }` 형식과 원본의 추가 필드를 유지한다.
+각 파일은 해당 환경 채널의 전체 매핑이다. **현재 서버에 16개가 등록/배포된 것은 아니므로 FE 실행 파일에
+먼저 덮어쓰지 않는다.** 운영 채널은 실제 목록이 확정된 뒤 같은 규칙으로 따로 생성한다.
+
+변환 세부 사항:
+
+- 원본 schema2 메타데이터는 `metadata()`로 별도 유지한다. collisionData의 schema1은 기존 Java가 읽을
+  내부 물리 입력 형식이다. 이를 CONNECTED의 schemaVersion으로 쓰거나 현재 리소스에 복사하지 않는다.
+- 새 좌표·형상은 생성 JSON에서 읽고 기존 Java 이동 속도·중력·단차·수영 속도는 유지한다.
+  캐릭터 치수가 다르면 실패한다. 지형 격자·정점·삼각형 순서를 검사하고 지형을 첫 메시로 정렬한다.
+- physics의 3D boxes/meshes/hulls만 사용한다. 2D collision을 합치지 않는다.
+  디딤돌 보조 정보는 원래 hull의 경계와 대조해 복사하며 충돌체를 더 만들지 않는다.
+- 벤치·운동기구·망원경의 position은 바닥 기준이므로 접근 중심에 기존 아바타 높이 0.8m를 한 번 더한다.
+  use/exit는 이미 아바타 좌표이므로 그대로 사용한다. 벤치별 하차 좌표가 좌석마다 다르면 현재 모델로
+  조용히 버리지 않고 실패한다.
+- 메모함 reachPosition에는 보정이 이미 있어 그대로 사용한다. 수평 거리 <= radius, 높이 차 < tolerance다.
+  소리함 mailbox.position은 바닥 기준이므로 0.8m를 한 번 보정하며 기존 높이 경계 포함 정책을 유지한다.
+
+기본 단위 검사는 PreparedParkMapTests다. `TEST_GENERATED_MAP_DIR`을 최신 전달본과 기존 환경별
+park-bindings 두 파일이 있는 폴더로 지정하면 PreparedParkMapHandoffTests가 실제 데이터·문서 매핑
+일치·관전 20m·기존 맵 유지를 검사하고 build/park-prepared/ 아래에 전달 파일을 생성한다.
+이 단계는 네이티브 새 물리 장면·실제 WebSocket 16개 등록/착석·REST 새 이용 좌표를 검증한 것이 아니다.
+
+후속 연결 범위는 기존 실행 코드의 명시적 장면 주입, TableHub의 16개 등록과 시설/근거리/메모 접근
+설정 주입, 실제 로딩 장면의 schema2 버전 전송이다. 실행 맵 자동 선택·기본값 변경·배포는 포함하지 않았다.
