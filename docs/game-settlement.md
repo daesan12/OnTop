@@ -147,7 +147,7 @@ SQL 원인이 없으면 sqlState=NONE/sqlErrorCode=0, 비정상 SQLState 형식�
 
 BOARD_FULL만 전원 DRAW이며 예약 해제한다. STALEMATE와 다리 동점은 공동 WIN이다.
 Story 174에서 ABORTED_NO_PLAYERS/전원 FORFEIT는 INVALID로 수신하고 예약만 반환한다.
-엔진 판정 없는 INVALID의 참가자 result=null 계약과 FE 반영 대기는 [복구 구현 상태](game-recovery.md)를 따른다.
+엔진 판정 없는 INVALID의 참가자 result=null 계약과 FE 반영 상태는 [복구 구현 상태](game-recovery.md)를 따른다.
 알 수 없는 사유·상충 결과를 임의 승리/무승부/환불로 바꾸지 않는다.
 
 ## 정산·원장

@@ -186,21 +186,32 @@ export async function fixture(
   let resultStatus: Result['status'] = 'FINISHED', resultReason = 'NORMAL', resultBet = 1
   let invalidVerdicts = false
   const resultEndedAt = new Date().toISOString()
-  // Explicit synthetic server results, not frontend settlement logic.
-  const resultPayload = (): Result => ({
+  // Scripted single-winner, all-winner and draw results only; never a production payout calculator.
+  const resultPayload = (): Result => {
+    const ids = Array.from({ length: options.onecard ?? options.bridge ?? 2 }, (_, i) => String(101 + i))
+    const state = options.bridge ? bridgeState : options.onecard ? cardState : options.dice ? diceState : omok()
+    const winnerIds = options.forfeit && forfeitVersion >= 0 ? ['102']
+      : options.bridge ? bridgeState.winnerUserIds : options.onecard ? cardState.winnerUserIds
+      : (options.dice ? diceState.winnerUserId : winner) ? [options.dice ? diceState.winnerUserId! : winner!] : []
+    const allWin = winnerIds.length === ids.length
+    if (winnerIds.length > 1 && !allWin) throw new Error('부분 공동 승리에는 명시적인 서버 정산 fixture가 필요합니다.')
+    const own = options.ownUserId ?? '101'
+    const coinDelta = allWin || !winnerIds.length ? 0 : winnerIds.includes(own) ? resultBet * (ids.length - 1) : -resultBet
+    return {
     version: resultVersion, gameSessionId: gameId,
     gameCode: options.bridge ? 'LIAR_BRIDGE' : options.onecard ? 'ONE_CARD' : options.dice ? 'DICE' : 'OMOK',
-    status: resultStatus, endReason: resultReason, settlementStatus: settled ? 'SETTLED' : 'PENDING',
+    status: resultStatus, endReason: resultStatus === 'INVALID' ? resultReason : state.endReason ?? resultReason,
+    settlementStatus: settled ? 'SETTLED' : 'PENDING',
     betAmountPerPlayer: resultBet,
-    participants: Array.from({ length: options.onecard ?? options.bridge ?? 2 }, (_, i) => ({
-      userId: String(101 + i), result: resultStatus === 'INVALID' ? invalidVerdicts ? 'FORFEIT' : null
-        : options.forfeit && forfeitVersion >= 0 ? i === 0 ? 'FORFEIT' : i === 1 ? 'WIN' : 'LOSE'
-        : i === 0 ? 'WIN' : 'LOSE',
+    participants: ids.map(userId => ({
+      userId, result: resultStatus === 'INVALID' ? invalidVerdicts ? 'FORFEIT' : null
+        : options.forfeit && forfeitVersion >= 0 && userId === '101' ? 'FORFEIT'
+        : !winnerIds.length ? 'DRAW' : winnerIds.includes(userId) ? 'WIN' : 'LOSE',
     })),
-    myCoinDelta: !settled ? null : resultStatus === 'INVALID' ? 0
-      : options.forfeit && forfeitVersion >= 0 ? -resultBet : resultBet * ((options.onecard ?? options.bridge ?? 2) - 1),
+    myCoinDelta: !settled ? null : resultStatus === 'INVALID' ? 0 : coinDelta,
     endedAt: resultEndedAt,
-  })
+    }
+  }
   const result = (ws: WebSocketRoute, requestId: string | null = null) =>
     emit(
       ws,
