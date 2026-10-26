@@ -1,6 +1,6 @@
 # 👀 착석 없이 테이블 상태 보기
 
-`local/dev`의 기존 `/ws/tables`를 사용하는 **공개 테이블 상태 구독**이다. 확정 경기의 공개 gameId를 제공하지만 경기 상태·손패·주사위·판돈 정보는 제공하지 않는다. 경기 관전은 별도 GAME_WATCH를 요청한다. 개발 화면 `/dev/tables`에서 **테이블 보기/보기 종료**로 구독·해지한다. 선택·준비는 착석자만 사용한다.
+`local/dev`의 기존 `/ws/tables`를 사용하는 **공개 테이블 상태 구독**이다. 확정 경기의 공개 gameId를 제공하지만 경기 상태·손패·주사위·개별 지갑 정보는 제공하지 않는다. 확정 1인 참가비는 공개 대기 스냅샷에 포함한다. 경기 관전은 별도 GAME_WATCH를 요청한다. 개발 화면 `/dev/tables`에서 **테이블 보기/보기 종료**로 구독·해지한다. 선택·준비는 착석자만 사용한다.
 
 ## 요청과 응답
 
@@ -41,6 +41,7 @@
     "selectorUserId": "dev-example",
     "gameCode": "OMOK",
     "targetScore": null,
+    "betAmountPerPlayer": null,
     "gameId": null
   }
 }

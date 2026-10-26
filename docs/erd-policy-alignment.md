@@ -29,3 +29,7 @@ Notion은 `user_id`, `coin_balance`, `reserved_coin_balance`, `profile_image_url
 사용자가 시작 초안 공유 완료를 알렸다. 공유 완료를 모든 항목의 합의 완료로 표시하지 않는다. [기존 초안](game-start-contract-draft.md)의 시작 시 재화 처리·AI 대행 가정과 ERD 예약 정책은 정식 연결 전 대조가 필요하다. DB 스키마와 무관한 전원 준비 후 시작 경계를 OnTop 기준으로 수정했다.
 
 후속으로 [첫 착석자의 게임 선택](websocket-api/07-game-select.md)을 local에 연결했다. 선택 코드는 실제 DB 게임 ID가 아니며, 선택자 이탈 시 남은 참가자에게 권한을 넘기는 규칙은 2026-10-19 사용자 확인으로 보완했다. 게임별 2~4인 착석·전원 준비를 연결했고 게임별 세부 설정·실제 경기는 미구현이다.
+
+## 2026-10-26 참가비 확정
+
+기존 selector가 GAME_SELECT에서 양수 betAmountPerPlayer를 게임과 함께 설정한다. 서버 시작 스냅샷을 DB에 고정하여 예약·정산에 사용한다. 기존 표의 검증용 1코인 가정은 [가변 참가비 계약](game-settlement.md)으로 대체한다. 별도 방장/테이블 생성 API는 추가하지 않는다.

@@ -15,7 +15,10 @@ public final class TableRoom {
     private final LinkedHashSet<String> arrivalOrder = new LinkedHashSet<>();
     private TableGame game;
     private Integer targetScore;
+    private Long betAmountPerPlayer;
     private long version;
+    // 별도 카운터가 아니라 기존 TABLE_STATE.version 중 마지막 준비 초기화 시점이다.
+    private long readyResetVersion;
 
     public TableRoom(String tableId) {
         this.tableId = tableId;
@@ -39,6 +42,7 @@ public final class TableRoom {
         if (arrivalOrder.isEmpty()) {
             game = null;
             targetScore = null;
+            betAmountPerPlayer = null;
         }
         membershipChanged();
     }
@@ -52,10 +56,16 @@ public final class TableRoom {
     }
 
     public boolean selectGame(TableGame selected, Integer target) {
+        return selectGame(selected, target, 1);
+    }
+
+    public boolean selectGame(TableGame selected, Integer target, long amount) {
+        com.ssafy.ontop.game.domain.GameAmounts.validate(amount, selected.maximumPlayers());
         if (target != null && (selected != TableGame.DICE || !Set.of(2000, 4000, 6000).contains(target))) {
             throw new IllegalArgumentException("주사위 목표를 확인해주세요.");
         }
-        if (game == selected && java.util.Objects.equals(targetScore, target)) {
+        if (game == selected && java.util.Objects.equals(targetScore, target)
+                && java.util.Objects.equals(betAmountPerPlayer, amount)) {
             return false;
         }
         if (arrivalOrder.size() > selected.maximumPlayers()) {
@@ -71,6 +81,7 @@ public final class TableRoom {
         }
         game = selected;
         targetScore = target;
+        betAmountPerPlayer = amount;
         membershipChanged();
         return true;
     }
@@ -85,6 +96,15 @@ public final class TableRoom {
         return true;
     }
 
+    public boolean matchesReadyBet(long amount) {
+        return betAmountPerPlayer != null && betAmountPerPlayer == amount;
+    }
+
+    public boolean acceptsReadyVersion(long observedVersion) {
+        // 다른 참가자의 준비/일반 공개 상태 변화는 동의를 무효화하지 않는다.
+        return observedVersion >= readyResetVersion && observedVersion <= version;
+    }
+
     public Snapshot snapshot() {
         return snapshot(null);
     }
@@ -96,11 +116,11 @@ public final class TableRoom {
             seats.add(new Seat(index + 1, users[index], ready[index]));
         }
         int minimum = game == null ? 2 : game.minimumPlayers();
-        boolean allReady = game != null && arrivalOrder.size() >= minimum
+        boolean allReady = game != null && betAmountPerPlayer != null && arrivalOrder.size() >= minimum
                 && seats.stream().filter(seat -> seat.userId() != null).allMatch(Seat::ready);
         return new Snapshot(tableId, version, capacity(), minimum, List.copyOf(seats), allReady,
                 arrivalOrder.isEmpty() ? null : arrivalOrder.getFirst(), game == null ? null : game.name(),
-                targetScore, gameId);
+                targetScore, betAmountPerPlayer, gameId);
     }
 
     private int capacity() {
@@ -117,6 +137,7 @@ public final class TableRoom {
         if (arrivalOrder.isEmpty()) {
             game = null;
             targetScore = null;
+            betAmountPerPlayer = null;
         }
         membershipChanged();
     }
@@ -133,6 +154,7 @@ public final class TableRoom {
     private void membershipChanged() {
         Arrays.fill(ready, false);
         version++;
+        readyResetVersion = version;
     }
 
     public void resetReady() { membershipChanged(); }
@@ -146,6 +168,7 @@ public final class TableRoom {
 
     public record Snapshot(String tableId, long version, int capacity, int minimumPlayers,
             List<Seat> seats, boolean allReady, String selectorUserId, String gameCode, Integer targetScore,
+            Long betAmountPerPlayer,
             String gameId) {
     }
 }

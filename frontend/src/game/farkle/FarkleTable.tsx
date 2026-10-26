@@ -9,6 +9,7 @@ import type { DiceGame, Farkle } from '../protocol'
 import { cupMotion, useDiceUI, diceCamera, canRollDice, diceCanAct, diceScope, cancelCup, rollDice, selectedDice, toggleDie } from './controls'
 import { CupDrag } from './cupDrag'
 import { ShakeTracker } from './shake'
+import { diceSound, unlockDiceSound } from './sound'
 
 import { BoneDie, LeatherCup, OakTray, farkleArt } from './art/FarkleProps'
 import { DIE_REST_Y, FARKLE_VISUAL } from './presentation'
@@ -39,7 +40,7 @@ function Die({ die, game, pour }: { die: Farkle['dice'][number]; game: DiceGame;
     <mesh ref={shadow} geometry={art.contactPlane} material={art.contact} raycast={noRaycast} dispose={null} />
     <group ref={root} scale={FARKLE_VISUAL.dieScale} name={`farkle-die-${die.id}`} userData={{ face: die.value, held: die.held }} onClick={e => {
       e.stopPropagation(); const current = useGame.getState().game
-      if (current?.gameId === game.gameId && current.version === game.version) toggleDie(die.id)
+      if (diceCamera.ready && current?.gameId === game.gameId && current.version === game.version) toggleDie(die.id)
     }}><BoneDie id={die.id} /></group>
     <mesh ref={selectedRing} geometry={ring} material={selectionMaterial} rotation={[-Math.PI / 2, 0, 0]} scale={FARKLE_VISUAL.dieScale} raycast={noRaycast} dispose={null} />
   </group>
@@ -54,7 +55,8 @@ export function FarkleTable({ anchor }: { anchor: TableAnchor }) {
   return <FarkleSurface anchor={anchor} game={relevant ? g : null} />
 }
 function FarkleSurface({ anchor, game }: { anchor: TableAnchor; game: DiceGame | null }) {
-  const root = useRef<Group>(null), cup = useRef<Group>(null), drag = useRef<{ scope: string; id: number; shake: ShakeTracker; projector: CupDrag } | null>(null)
+  const root = useRef<Group>(null), cup = useRef<Group>(null), drag = useRef<{ scope: string; id: number; shake: ShakeTracker; projector: CupDrag; x: number; y: number } | null>(null)
+  const soundFrame = useRef({ animationAt: 0, bump: -1 })
   const { gl, camera } = useThree()
   const own = useSession(s => s.sessionId), sign = game?.dice.players.indexOf(own) === 1 ? -1 : 1
   const active = !!game && game.role === 'PLAYER'
@@ -78,6 +80,8 @@ function FarkleSurface({ anchor, game }: { anchor: TableAnchor; game: DiceGame |
       if (!diceCanAct() || current.scope !== diceScope()) { cancelCup(); return }
       const point = current.projector.move(e.clientX, e.clientY, gl.domElement.getBoundingClientRect())
       cupMotion.x = point.x; cupMotion.z = point.z
+      diceSound(Math.hypot(e.clientX - current.x, e.clientY - current.y) / 20)
+      current.x = e.clientX; current.y = e.clientY
       if (current.shake.move(e.clientX, e.clientY) && useDiceUI.getState().cup !== 'ready') useDiceUI.setState({ cup: 'ready' })
     }
     const up = (e: PointerEvent) => {
@@ -98,6 +102,12 @@ function FarkleSurface({ anchor, game }: { anchor: TableAnchor; game: DiceGame |
     if (active && ui.cup !== 'idle' && !diceCanAct()) cancelCup()
     const held = active && ui.cup !== 'idle'
     const progress = game?.dice && ui.animationAt ? Math.min(1, Math.max(0, (performance.now() - ui.animationAt) / 900)) : 1
+    if (game && progress < 1) {
+      const bump = Math.floor((performance.now() - ui.animationAt) / 210)
+      if (soundFrame.current.animationAt !== ui.animationAt || soundFrame.current.bump !== bump) {
+        soundFrame.current = { animationAt: ui.animationAt, bump }; diceSound(1 - progress)
+      }
+    }
     if (!held && progress < 1) sampleCupPour(pour, progress, cup.current.position, cup.current.quaternion)
     else { cup.current.position.set(held ? cupMotion.x : .91, held ? 1.36 : FARKLE_VISUAL.cupRestY, held ? cupMotion.z : sign * .4)
       cup.current.rotation.set(0, 0, held ? Math.sin(performance.now() / 80) * .08 : 0) }
@@ -106,14 +116,15 @@ function FarkleSurface({ anchor, game }: { anchor: TableAnchor; game: DiceGame |
     <OakTray />
     <group ref={cup} name={`farkle-cup-${anchor.id}`} onPointerDown={e => {
       if (e.button !== 0 || !active || !canRollDice() || useDiceUI.getState().cup !== 'idle'
-        || (useDiceUI.getState().boardView && !diceCamera.ready) || !root.current) return
+        || !diceCamera.ready || !root.current) return
       e.stopPropagation(); e.nativeEvent.preventDefault()
       const position = new Vector3(.91, 1.36, sign * .4)
       const height = root.current.localToWorld(position.clone()).y
       const projector = new CupDrag(camera, root.current, height)
       if (!projector.begin(e.clientX, e.clientY, gl.domElement.getBoundingClientRect(), position)) return
       gl.domElement.setPointerCapture(e.pointerId)
-      drag.current = { id: e.pointerId, scope: diceScope(), shake: new ShakeTracker(e.clientX, e.clientY), projector }
+      unlockDiceSound()
+      drag.current = { id: e.pointerId, scope: diceScope(), shake: new ShakeTracker(e.clientX, e.clientY), projector, x: e.clientX, y: e.clientY }
       cupMotion.x = .91; cupMotion.z = sign * .4; useDiceUI.setState({ cup: 'holding' }); gl.domElement.style.cursor = 'grabbing'
     }}><LeatherCup /></group>
     {game?.dice.dice.map(die => <Die key={die.id} die={die} game={game} pour={pour} />)}

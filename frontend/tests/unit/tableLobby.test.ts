@@ -9,7 +9,7 @@ import type { TableState } from '../../src/network/protocol'
 const table: TableState = { tableId: 'table', version: 4, capacity: 4, minimumPlayers: 2,
   seats: [{ seatNumber: 1, userId: '102', ready: false }, { seatNumber: 2, userId: '101', ready: false },
     { seatNumber: 3, userId: null, ready: false }, { seatNumber: 4, userId: null, ready: false }],
-  selectorUserId: '101', gameCode: 'OMOK', targetScore: null, allReady: false }
+  selectorUserId: '101', gameCode: 'OMOK', targetScore: null, betAmountPerPlayer: 5, allReady: false }
 const start = (phase: 'WAITING' | 'PLAYING' | 'SETTLING', revision: number, gameId: string | null = 'game') => ({
   tableId: 'table', revision, phase, startAttemptId: phase === 'WAITING' ? null : 'attempt',
   gameCode: 'OMOK', gameSessionId: gameId, code: null, simulation: false,
@@ -45,12 +45,19 @@ describe('M09 lobby authority and completed round presentation', () => {
     expect(lobbyStatus({ ...table, seats: table.seats.map(s => ({ ...s, ready: !!s.userId })) }, '101', false).canLeaveByMovement).toBe(false)
   })
   it('uses existing exact GAME_SELECT options, never preview IDs or omitted dice options', () => {
-    expect(gameSelection('OMOK')).toEqual({ gameCode: 'OMOK' })
-    expect(gameSelection('DICE', 4000)).toEqual({ gameCode: 'DICE', targetScore: 4000 })
-    expect(gameSelection('ONE_CARD')).toEqual({ gameCode: 'ONE_CARD' })
-    expect(() => gameSelection('DICE')).toThrow()
-    expect(() => gameSelection('DICE', 3000)).toThrow()
-    expect(() => gameSelection('OMOK', 2000)).toThrow()
+    expect(gameSelection('OMOK', 5)).toEqual({ gameCode: 'OMOK', betAmountPerPlayer: 5 })
+    expect(gameSelection('DICE', 5, 4000)).toEqual({ gameCode: 'DICE', targetScore: 4000, betAmountPerPlayer: 5 })
+    expect(gameSelection('ONE_CARD', 5)).toEqual({ gameCode: 'ONE_CARD', betAmountPerPlayer: 5 })
+    expect(() => gameSelection('DICE', 5)).toThrow()
+    expect(() => gameSelection('DICE', 5, 3000)).toThrow()
+    expect(() => gameSelection('OMOK', 5, 2000)).toThrow()
+  })
+  it('rejects invalid bets before sending and requires a confirmed bet before ready', () => {
+    for (const bet of [0, -1, 1.5, NaN, Number.MAX_SAFE_INTEGER])
+      expect(() => gameSelection('ONE_CARD', bet)).toThrow()
+    expect(gameSelection('ONE_CARD', Math.floor(Number.MAX_SAFE_INTEGER / 4)).betAmountPerPlayer)
+      .toBe(Math.floor(Number.MAX_SAFE_INTEGER / 4))
+    expect(lobbyStatus({ ...table, betAmountPerPlayer: null }, '101', false).canReady).toBe(false)
   })
   it('requires actual server WAITING before next-round presentation can be dismissed', () => {
     expect(waitingForRound(start('SETTLING', 1), 'table')).toBe(false)

@@ -24,7 +24,11 @@
 .bung-root .bung-help-button { position: absolute; right: 22px; bottom: 22px; }
 .park-page[data-bungeoppang="true"] .park-location,
 .park-page[data-bungeoppang="true"] .park-shortcuts,
-.park-page[data-bungeoppang="true"] .park-runtime-tools { visibility: hidden; }
+.park-page[data-bungeoppang="true"] .park-account-actions,
+.park-page[data-bungeoppang="true"] .park-exit-error,
+.park-page[data-bungeoppang="true"] .manual-launcher,
+.park-page[data-bungeoppang="true"] .avatar-overlays,
+.park-roaming-ui[hidden] { display: none; }
 .bung-root .bung-primary {
   background: #8a5a35;
   border-color: #8a5a35;
@@ -424,7 +428,16 @@
   border-radius: 8px;
   padding: 5px 10px;
   font-size: 13px;
-  white-space: nowrap;
+  max-width: min(320px, calc(100vw - 24px));
+  box-sizing: border-box;
+  white-space: normal;
+}
+@media (max-width: 600px) {
+  .bung-score { top: 88px; white-space: nowrap; }
+  .bung-banner { top: 138px; font-size: 14px; white-space: nowrap; }
+  .bung-tools { bottom: 72px; width: max-content; max-width: calc(100vw - 32px); }
+  .bung-tools-label { display: none; }
+  .bung-tools button { white-space: nowrap; }
 }
 @media (prefers-reduced-motion: reduce) {
   .bung-edge[data-state="warn"],

@@ -55,7 +55,7 @@ export function WalletBalance() {
     : '잔액을 확인하지 못했어요. 잠시 후 다시 조회해주세요.'
   return <span className="park-wallet" aria-busy={loading}>
     <span className="park-account__balance" data-unknown={balance === null} aria-label="보유 엽전" aria-live="polite">
-      {balance === null ? unknown : `${balance.toLocaleString('ko-KR')}냥`}
+      {balance === null ? unknown : <>{balance.toLocaleString('ko-KR')}<i className="park-wallet__unit">냥</i></>}
     </span>
     <button className="park-wallet__refresh" type="button" disabled={!connected || loading}
       aria-label="공원 잔액 다시 확인" title={loading ? '잔액 확인 중' : '잔액 다시 확인'} onClick={() => void refresh()}>

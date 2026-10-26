@@ -1,6 +1,6 @@
 # 경기 종료·정산 결과 전송 연결부
 
-OnTop v0.4의 서버 결과 판정과 기존 [GAME-03 결과 조회](https://app.notion.com/p/3ff161842b8680709b63cf6e8d1efc2b)의 필드를 따른다. local/dev 인증 연결에서 등록된다(prod/production 혼합 시 제외). 실제 Access JWT·1회용 접속권 및 4종 규칙 엔진은 연결했다. 결과 저장 Gateway·정산 계산·원장·DB는 별도 담당이다. 아래 두 WS 메시지의 기존 필드는 유지하며, 실제 DB 연동을 포함한 상태는 진행 중이다. 기존 REST 담당 구현이나 정산 정책을 바꾸지 않는다.
+OnTop v0.4의 서버 결과 판정과 기존 [GAME-03 결과 조회](https://app.notion.com/p/3ff161842b8680709b63cf6e8d1efc2b)의 필드를 따른다. local/dev 인증 연결에서 등록된다(prod/production 혼합 시 제외). 실제 Access JWT·1회용 접속권 및 4종 규칙 엔진은 연결했다. 결과 저장 Gateway·정산 계산·원장·DB는 별도 담당이다. 아래 두 WS 메시지의 기존 필드는 유지하며, db 프로필·game-start 활성 시 JpaGameResultGateway와 정상 종료 정산을 연결한다. 무효 반환·재시작 복구는 Story 174다. 기존 REST 담당 구현이나 정산 정책을 바꾸지 않는다.
 
 ## 공통 경기 종료·이탈 이벤트 · 2026-10-23
 
@@ -45,7 +45,7 @@ OnTop v0.4의 서버 결과 판정과 기존 [GAME-03 결과 조회](https://app
     "gameSessionId": "701",
     "gameCode": "DICE",
     "status": "FINISHED",
-    "endReason": "NORMAL",
+    "endReason": "TURN_TIMEOUT",
     "settlementStatus": "PENDING",
     "betAmountPerPlayer": 1,
     "participants": [
@@ -99,7 +99,7 @@ SETTLED 알림은 위 형식에서 version을 증가시키고 settlementStatus�
 5. 연결 종료 시 기록을 제거한다. 오프라인 알림은 저장하지 않으며, 재접속한 프론트는 알고 있는 경기 ID로 GAME_RESULT_CHECK 또는 팀원의 결과 REST를 재조회한다. 접속 자체로 과거 결과를 자동 방송하지 않는다.
 6. 읽기 호출은 잠금 밖에서 수행한다. 명시 조회는 연결당 하나, 종료 자동 조회는 연결·경기당 하나만 동시에 실행한다. 명시 조회 중 더 최신 알림을 받으면 낮은 조회 결과는 GAME_RESULT_STALE로 끝내며, 자동 조회의 같은/과거 결과는 조용히 생략한다. 종료된 연결의 늦은 결과는 새 연결로 넘기지 않는다. Gateway의 외부 호출에는 자체 제한 시간이 필요하다.
 
-개인 결과 JSON과 테이블 수명 관리는 구분한다. 2026-10-22 사용자 확정으로 실제 엔진 종료 때 준비를 전원 해제하고 좌석을 유지한 SETTLING으로 전환한다. 현재 경기·게임 코드·최초 참가자 집합·판돈1이 일치하는 경기 전체 SETTLED를 커밋 알림 또는 저장 조회(GameResultLoaded)로 확인하면 WAITING으로 돌아간다. 접속 중 좌석·선택 게임·목표는 유지하고, 미접속 예약 좌석은 기존 대기 정책대로 정리한다. 다시 전원 준비해야 새 경기를 시작한다. PENDING·실패·타 경기·잘못된 참가자 결과로 대기를 풀지 않는다. 결과 조회가 지급을 실행하지 않는 계약은 그대로다. 실제 엔진은 FINISHED/ELIMINATED와 공개 종료 상태를 기존 복구/관전 경로로 전달한다.
+개인 결과 JSON과 테이블 수명 관리는 구분한다. 2026-10-22 사용자 확정으로 실제 엔진 종료 때 준비를 전원 해제하고 좌석을 유지한 SETTLING으로 전환한다. 현재 경기·게임 코드·최초 참가자 집합·시작 시 고정한 참가비 B가 일치하는 경기 전체 SETTLED를 커밋 알림 또는 저장 조회(GameResultLoaded)로 확인하면 WAITING으로 돌아간다. 접속 중 좌석·선택 게임·목표는 유지하고, 미접속 예약 좌석은 기존 대기 정책대로 정리한다. 다시 전원 준비해야 새 경기를 시작한다. PENDING·실패·타 경기·잘못된 참가자 결과로 대기를 풀지 않는다. 결과 조회가 지급을 실행하지 않는 계약은 그대로다. 실제 엔진은 FINISHED/ELIMINATED와 공개 종료 상태를 기존 복구/관전 경로로 전달한다.
 
 클라이언트의 승리 신고·정산 실행·금액 지정 메시지는 추가하지 않는다. 이벤트를 재수신하거나 결과를 반복 조회해도 지급 처리를 호출하지 않는다. 메모리 알림은 프로세스 재시작·다중 서버·전달 보장을 제공하지 않는다.
 
@@ -119,3 +119,7 @@ SETTLED 알림은 위 형식에서 version을 증가시키고 settlementStatus�
 | GAME_RESULT_STALE | 이미 전달한 결과보다 낮은 버전. 최신 알림을 유지하고 필요시 다시 조회 |
 
 검증은 GameResultTests·GameFinishedResultTests·GameResultWebSocketTests와 CommittedStartFlowTests로 수행한다. 마지막 흐름은 실제 JWT·접속권·소켓·오목 30초 시간패 → 본인 자동 결과 → 커밋 알림 → heartbeat 단절·FINISHED 복귀·저장 결과 재조회를 포함한다. 계정 조회와 시작 차감/결과 저장·정산은 테스트 대역이며 실제 DB 저장·지급 성공을 뜻하지 않는다.
+
+## Story 173 DB 연결
+
+정상 종료 수신/정산·PENDING/SETTLED 조회 구현은 [가변 참가비·정산](game-settlement.md)을 따른다. 정산 금액은 GameFinished나 클라이언트가 아니라 DB에 확정된 B를 사용한다. GAME_RESULT JSON 필드는 유지하며 참가비와 지급액은 안전 정수로 검증한다. ABORTED_NO_PLAYERS의 무효 반환은 아직 구현하지 않았다.

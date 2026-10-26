@@ -8,7 +8,11 @@ import com.ssafy.ontop.table.service.TableHub;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.HashMap;
 import java.util.UUID;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -19,10 +23,13 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.socket.WebSocketSession;
+import org.springframework.web.socket.TextMessage;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.ArgumentMatchers.any;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = "spring.profiles.active=local")
@@ -48,6 +55,7 @@ class TableQueryTests {
     private ObjectMapper mapper;
 
     private final List<String> sessions = new ArrayList<>();
+    private final Map<String, BlockingQueue<JsonNode>> received = new HashMap<>();
 
     @AfterEach
     void disconnect() {
@@ -69,9 +77,10 @@ class TableQueryTests {
         for (JsonNode table : tables) {
             assertThat(table.properties()).extracting(Map.Entry::getKey).containsExactlyInAnyOrder(
                     "tableId", "capacity", "minimumPlayers", "occupiedSeats", "availableSeats", "readyCount",
-                    "allReady", "status", "joinable", "gameCode", "targetScore", "gameId");
+                    "allReady", "status", "joinable", "gameCode", "targetScore", "betAmountPerPlayer", "gameId");
             assertThat(table.path("gameCode").isNull()).isTrue();
             assertThat(table.path("gameId").isNull()).isTrue();
+            assertThat(table.path("betAmountPerPlayer").isNull()).isTrue();
             assertThat(table.path("occupiedSeats").asInt()).isZero();
             assertThat(table.path("availableSeats").asInt()).isEqualTo(4);
             assertThat(table.path("readyCount").asInt()).isZero();
@@ -86,7 +95,7 @@ class TableQueryTests {
         String first = connect();
         String second = connect();
         send(first, "TABLE_JOIN", Map.of("tableId", "table-1"));
-        send(first, "GAME_SELECT", Map.of("gameCode", "OMOK"));
+        send(first, "GAME_SELECT", Map.of("betAmountPerPlayer", 1, "gameCode", "OMOK"));
         send(first, "READY_SET", Map.of("ready", true));
         assertSummary(1, 1, true, false);
         send(second, "TABLE_JOIN", Map.of("tableId", "table-1"));
@@ -123,17 +132,32 @@ class TableQueryTests {
         assertThat(table.path("status").asText()).isEqualTo("WAITING");
     }
 
-    private String connect() {
+    private String connect() throws Exception {
         String id = UUID.randomUUID().toString();
+        BlockingQueue<JsonNode> messages = new LinkedBlockingQueue<>();
+        received.put(id, messages);
         WebSocketSession session = mock(WebSocketSession.class);
         when(session.getId()).thenReturn(id);
+        doAnswer(call -> {
+            messages.add(ReadyConsent.received(id, mapper.readTree(((TextMessage) call.getArgument(0)).getPayload())));
+            return null;
+        }).when(session).sendMessage(any(TextMessage.class));
         hub.connect(session);
         sessions.add(id);
         return id;
     }
 
     private void send(String session, String type, Object payload) throws Exception {
+        // 실제 수신한 최신 상태로 동의한다. 다른 참가자 착석 알림을 기다리지 않는 테스트 경합을 피한다.
+        if (type.equals("READY_SET") && Boolean.TRUE.equals(((Map<?, ?>) payload).get("ready"))) {
+            send(session, "TABLE_JOIN", Map.of("tableId", "table-1"));
+        }
+        String requestId = UUID.randomUUID().toString();
         hub.receive(session, mapper.writeValueAsString(Map.of(
-                "requestId", UUID.randomUUID().toString(), "type", type, "payload", payload)));
+                "requestId", requestId, "type", type, "payload", ReadyConsent.payload(session, type, payload))));
+        JsonNode reply;
+        do { reply = received.get(session).poll(5, TimeUnit.SECONDS); assertThat(reply).isNotNull(); }
+        while (!reply.path("requestId").asText().equals(requestId));
+        assertThat(reply.path("type").asText()).isNotEqualTo("ERROR");
     }
 }

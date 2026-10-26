@@ -17,7 +17,7 @@ import { resetGame } from '../game/store'
 import { resetBenchState, useBenchState } from '../features/interactions/benchState'
 import { clearRoamingInput } from '../world/inputOwnership'
 import { samePose, sampleMovement } from '../world/movementPresentation'
-import { EmoteTimeline, parseEmoteEvent, type EmoteEvent } from '../features/emotes/timeline'
+import { EmoteTimeline, parseEmoteEvent, parseEmoteCancellation, type EmoteEvent } from '../features/emotes/timeline'
 import { resetEmotes, useEmoteState } from '../features/emotes/state'
 import { findEmote, type EmoteId } from '../features/emotes/catalog'
 import { releaseFitnessUser, resetFitnessState, useFitnessState } from '../features/fitness/state'
@@ -222,16 +222,19 @@ export function sampleAvatar(
 }
 export const estimatedServerTime = () => Date.now() // Only for events carrying server ISO timestamps; world day clock is separate.
 export function cancelAvatarEmote(userId: string) {
+  emoteTimeline.cancel(userId, estimatedServerTime())
+  stopAvatarEmote(userId)
+}
+function stopAvatarEmote(userId: string) {
   const avatar = avatars.get(userId)
   if (avatar) { avatar.emote = ''; avatar.emoteAt = 0 }
-  emoteTimeline.cancel(userId, estimatedServerTime())
   if (userId === useSession.getState().sessionId && useEmoteState.getState().pending)
     useEmoteState.setState({ cancelled: true, notice: '이동이나 이용 상태 변경으로 감정표현이 취소되었습니다.' })
 }
 export function presentEmote(event: EmoteEvent, motion: EmoteId, source: 'server' | 'mock') {
   const state = useSession.getState(), avatar = avatars.get(event.userId)
   if (state.status !== 'connected' || event.channelId !== state.roomId || !state.mapCompatible
-    || !avatar?.connected || avatar.moving || avatar.swimming || avatar.fitnessId || avatar.telescopeId) return false
+    || !avatar?.connected || avatar.moving || avatar.swimming || avatar.seatIndex >= 0 || avatar.fitnessId || avatar.telescopeId) return false
   const playback = emoteTimeline.accept(event, motion, estimatedServerTime())
   if (!playback) return false
   avatar.emote = playback.motion
@@ -546,6 +549,12 @@ export function receive(message: Envelope) {
           [chat.userId]: { ...chat, expiresAt: performance.now() + OVERHEAD.bubbleDurationMs },
         },
       })
+      break
+    }
+    case 'WORLD_EMOTE_CANCELLED': {
+      if (state.status !== 'connected' || !state.mapCompatible || p.channelId !== state.roomId) return
+      const cancellation = parseEmoteCancellation(p)
+      if (emoteTimeline.cancelEvent(cancellation, estimatedServerTime())) stopAvatarEmote(cancellation.userId)
       break
     }
     case 'WORLD_EMOTE_EVENT': {

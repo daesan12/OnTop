@@ -2,8 +2,11 @@ import { expect, test, type Page } from '@playwright/test'
 import { fixture, screenshot } from './contractFixture'
 import { facilityCatalog } from '../fixtures/facilityCatalog'
 
-const cameraButton = (page: Page) => page.getByRole('button', { name: '1인칭 시점', exact: true })
-const mouseButton = (page: Page) => page.getByRole('button', { name: '마우스 룩', exact: true })
+// Camera buttons are gone from the HUD; V and a Ctrl tap drive the same state, read here.
+const cameraState = (page: Page) => page.evaluate(async () => ({
+  first: (await import('/src/world/cameraPerspective.ts' as string)).useCameraPerspective.getState().perspective === 'first-person',
+  mouse: (await import('/src/world/mouseLook.ts' as string)).useMouseLook.getState().active as boolean,
+}))
 const advertisement = (page: Page) => page.getByRole('dialog', { name: '광고 페이지로 이동합니다' })
 const probe = (page: Page) => page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).adCameraProbe())
 async function loaded(page: Page) {
@@ -26,7 +29,7 @@ test.afterEach(async ({ page }) => {
 test('real poster click opens an accessible confirmation; only explicit confirmation opens the original link', async ({ page, context }) => {
   const server = await fixture(page, { players: 2, manualMovement: true }); await loaded(page)
   await page.keyboard.press('KeyV')
-  await expect(cameraButton(page)).toHaveAttribute('aria-pressed', 'true')
+  await expect.poll(async () => String((await cameraState(page)).first)).toBe('true')
   const position = await page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).advertisementTarget())
   server.pose(position)
   await expect.poll(async () => Math.abs((await probe(page)).camera[0]! - position.x)).toBeLessThan(.01)
@@ -44,7 +47,7 @@ test('real poster click opens an accessible confirmation; only explicit confirma
   // Space activates the focused native Cancel button, so keep it out of this ownership check.
   await page.keyboard.press('KeyW'); await page.keyboard.press('KeyV'); await page.keyboard.press('KeyM'); await page.keyboard.press('KeyG')
   expect(server.sent.filter(m => m.type === 'WORLD_MOVE' && (m.payload.dx || m.payload.dz || m.payload.jump))).toHaveLength(moves)
-  await expect(cameraButton(page)).toHaveAttribute('aria-pressed', 'true')
+  await expect.poll(async () => String((await cameraState(page)).first)).toBe('true')
   await screenshot(page, 'ad-camera-advertisement')
   await page.keyboard.press('Escape'); await expect(advertisement(page)).toHaveCount(0)
   expect(context.pages()).toHaveLength(1)
@@ -59,9 +62,9 @@ test('real poster click opens an accessible confirmation; only explicit confirma
 
 test('V and the camera button use the replicated eye, preserve orbit distance, and hide only the local avatar', async ({ page }) => {
   const server = await fixture(page, { players: 2, manualMovement: true, position: { x: 0, y: .8, z: 34, yaw: 0 } }); await loaded(page)
-  await expect(cameraButton(page)).toHaveAttribute('aria-pressed', 'false')
+  await expect.poll(async () => String((await cameraState(page)).first)).toBe('false')
   const before = await probe(page)
-  await page.keyboard.press('KeyV'); await expect(cameraButton(page)).toHaveAttribute('aria-pressed', 'true')
+  await page.keyboard.press('KeyV'); await expect.poll(async () => String((await cameraState(page)).first)).toBe('true')
   await expect.poll(async () => (await probe(page)).ownVisible).toBe(false)
   expect((await probe(page)).remoteVisible).toBe(true)
   server.pose({ x: 2, y: 1.1, z: 35 })
@@ -70,7 +73,7 @@ test('V and the camera button use the replicated eye, preserve orbit distance, a
   await page.mouse.move(700, 250); await page.mouse.wheel(0, 500)
   expect((await probe(page)).controls.distance).toBe(before.controls.distance)
   await screenshot(page, 'ad-camera-first-person')
-  await cameraButton(page).click(); await expect(cameraButton(page)).toHaveAttribute('aria-pressed', 'false')
+  await page.keyboard.press('KeyV'); await expect.poll(async () => String((await cameraState(page)).first)).toBe('false')
   await expect.poll(async () => (await probe(page)).ownVisible).toBe(true)
   expect((await probe(page)).controls.distance).toBe(before.controls.distance)
   await screenshot(page, 'ad-camera-third-person')
@@ -80,37 +83,37 @@ test('V and the camera button use the replicated eye, preserve orbit distance, a
 
 test('native Ctrl mouse look rotates once, releases for map/help/chat/blur, and keeps Ctrl shortcuts intact', async ({ page }) => {
   await fixture(page, { manualMovement: true }); await loaded(page)
-  await page.keyboard.press('Control+c'); await expect(mouseButton(page)).toHaveAttribute('aria-pressed', 'false')
+  await page.keyboard.press('Control+c'); await expect.poll(async () => String((await cameraState(page)).mouse)).toBe('false')
   const start = await probe(page)
   await page.keyboard.press('Control')
-  await expect(mouseButton(page)).toHaveAttribute('aria-pressed', 'true')
+  await expect.poll(async () => String((await cameraState(page)).mouse)).toBe('true')
   await page.mouse.move(700, 350); await page.mouse.move(740, 370)
   await expect.poll(async () => (await probe(page)).controls.yaw).not.toBe(start.controls.yaw)
   await page.keyboard.press('KeyM'); await expect(page.getByRole('dialog', { name: '공원 지도창', exact: true })).toBeVisible()
   await expect.poll(async () => (await probe(page)).active).toBe(false)
-  await page.keyboard.press('Escape'); await expect(mouseButton(page)).toHaveAttribute('aria-pressed', 'false')
+  await page.keyboard.press('Escape'); await expect.poll(async () => String((await cameraState(page)).mouse)).toBe('false')
   // Use actual user clicks for every reacquisition. Native Esc may impose a browser cooldown.
-  await mouseButton(page).click(); await expect(mouseButton(page)).toHaveAttribute('aria-pressed', 'true')
+  await page.keyboard.press('Control'); await expect.poll(async () => String((await cameraState(page)).mouse)).toBe('true')
   await page.keyboard.press('F1'); await expect(page.getByRole('dialog', { name: '게임 설명서', exact: true })).toHaveAttribute('data-phase', 'open')
   await expect.poll(async () => (await probe(page)).active).toBe(false)
   await page.keyboard.press('Escape'); await expect(page.getByRole('dialog', { name: '게임 설명서', exact: true })).toHaveCount(0)
-  await mouseButton(page).click(); await expect(mouseButton(page)).toHaveAttribute('aria-pressed', 'true')
+  await page.keyboard.press('Control'); await expect.poll(async () => String((await cameraState(page)).mouse)).toBe('true')
   await page.keyboard.press('Enter'); await expect(page.getByLabel('주변 채팅 메시지')).toBeFocused()
   await expect.poll(async () => (await probe(page)).active).toBe(false)
-  await page.keyboard.press('KeyV'); await expect(cameraButton(page)).toHaveAttribute('aria-pressed', 'false')
+  await page.keyboard.press('KeyV'); await expect.poll(async () => String((await cameraState(page)).first)).toBe('false')
   await page.keyboard.press('Escape'); await page.locator('canvas').focus()
-  await mouseButton(page).click(); await expect(mouseButton(page)).toHaveAttribute('aria-pressed', 'true')
+  await page.keyboard.press('Control'); await expect.poll(async () => String((await cameraState(page)).mouse)).toBe('true')
   await page.evaluate(() => window.dispatchEvent(new Event('blur')))
   await expect.poll(async () => (await probe(page)).active).toBe(false)
-  await expect(mouseButton(page)).toHaveAttribute('aria-pressed', 'false')
+  await expect.poll(async () => String((await cameraState(page)).mouse)).toBe('false')
 })
 
 test('pointer lock failure leaves drag controls usable and never reports a fake lock', async ({ page }) => {
   await fixture(page); await loaded(page)
   await page.locator('canvas').evaluate(canvas => { canvas.requestPointerLock = () => Promise.reject(new Error('test rejection')) })
-  await mouseButton(page).click()
+  await page.keyboard.press('Control')
   await expect(page.getByText(/마우스 시점을 고정하지 못했어요/)).toBeVisible()
-  await expect(mouseButton(page)).toHaveAttribute('aria-pressed', 'false')
+  await expect.poll(async () => String((await cameraState(page)).mouse)).toBe('false')
   const before = (await probe(page)).controls.yaw
   await page.mouse.move(700, 300); await page.mouse.down(); await page.mouse.move(760, 300); await page.mouse.up()
   expect((await probe(page)).controls.yaw).not.toBe(before)
@@ -118,33 +121,33 @@ test('pointer lock failure leaves drag controls usable and never reports a fake 
 
 test('table camera overrides the roaming choice; exit restores the original first person and one socket', async ({ page }) => {
   const server = await fixture(page, { players: 2 }); await loaded(page)
-  await page.keyboard.press('KeyV'); await expect(cameraButton(page)).toHaveAttribute('aria-pressed', 'true')
-  await mouseButton(page).click(); await expect(mouseButton(page)).toHaveAttribute('aria-pressed', 'true')
+  await page.keyboard.press('KeyV'); await expect.poll(async () => String((await cameraState(page)).first)).toBe('true')
+  await page.keyboard.press('Control'); await expect.poll(async () => String((await cameraState(page)).mouse)).toBe('true')
   await page.keyboard.press('KeyE'); await expect(page.getByRole('dialog', { name: '테이블 정보' })).toBeVisible()
   await page.getByRole('button', { name: '앉기', exact: true }).click()
   await expect(page.getByRole('button', { name: '일어나기', exact: true })).toBeVisible()
-  await expect(cameraButton(page)).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '1인칭 시점', exact: true })).toHaveCount(0)
   await page.keyboard.press('KeyV')
   await page.getByRole('button', { name: '일어나기', exact: true }).click()
   await page.getByRole('button', { name: '테이블 정보 닫기' }).click()
-  await expect(cameraButton(page)).toHaveAttribute('aria-pressed', 'true')
+  await expect.poll(async () => String((await cameraState(page)).first)).toBe('true')
   await expect.poll(async () => (await probe(page)).ownVisible).toBe(false)
-  await expect(mouseButton(page)).toHaveAttribute('aria-pressed', 'true')
+  await expect.poll(async () => String((await cameraState(page)).mouse)).toBe('true')
   expect(server.connections).toBe(1)
 })
 
 test('telescope ownership releases mouse look, blocks V, and restores the previous roaming preference', async ({ page }) => {
   const d = facilityCatalog.facilities.find(d => d.kind === 'TELESCOPE')!
   const server = await fixture(page, { manualMovement: true, position: d.seats[0]! }); await loaded(page)
-  await page.keyboard.press('KeyV'); await mouseButton(page).click(); await expect(mouseButton(page)).toHaveAttribute('aria-pressed', 'true')
+  await page.keyboard.press('KeyV'); await page.keyboard.press('Control'); await expect.poll(async () => String((await cameraState(page)).mouse)).toBe('true')
   await page.evaluate(async id => (await import('/src/park/runtime/runtime.ts' as string)).parkRuntime.useFacility(id, 0, new AbortController().signal), d.facilityId)
   await expect(page.getByRole('complementary', { name: '전망 망원경', exact: true })).toBeVisible()
   await expect.poll(async () => (await probe(page)).active).toBe(false)
-  await expect(cameraButton(page)).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '1인칭 시점', exact: true })).toHaveCount(0)
   await page.keyboard.press('KeyV'); await page.keyboard.press('Escape')
   await expect(page.getByRole('complementary', { name: '전망 망원경', exact: true })).toHaveCount(0)
-  await expect(cameraButton(page)).toHaveAttribute('aria-pressed', 'true')
-  await expect(mouseButton(page)).toHaveAttribute('aria-pressed', 'true')
+  await expect.poll(async () => String((await cameraState(page)).first)).toBe('true')
+  await expect.poll(async () => String((await cameraState(page)).mouse)).toBe('true')
   expect(server.sent.filter(m => m.type === 'WORLD_FACILITY_RELEASE')).toHaveLength(1)
 })
 
@@ -166,7 +169,7 @@ test('advertisement input ownership yields to F1 and clears on disconnection', a
 
 test('camera controls remain reachable on a small PC viewport and the ad fits a narrow window', async ({ page }) => {
   await page.setViewportSize({ width: 1000, height: 700 }); await fixture(page); await loaded(page)
-  await cameraButton(page).click(); await expect(cameraButton(page)).toHaveAttribute('aria-pressed', 'true')
+  await page.keyboard.press('KeyV'); await expect.poll(async () => String((await cameraState(page)).first)).toBe('true')
   await screenshot(page, 'ad-camera-small-pc')
   await page.setViewportSize({ width: 390, height: 844 })
   await page.locator('canvas').focus(); await page.evaluate(() => window.dispatchEvent(new Event('ontap-open-pickus')))
