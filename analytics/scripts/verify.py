@@ -76,6 +76,14 @@ EXPECTED: dict[str, list[dict[str, str]]] = {
         {"zone_id": "path", "visitors": "1", "moving_samples": "3", "stops": "1"},
         {"zone_id": "lake", "visitors": "1", "moving_samples": "0", "stops": "1"},
     ],
+    "16_facility_usage.sql": [
+        {"kind": "BENCH", "facility_id": "bench-0", "uses": "2", "users": "2", "avg_minutes": "7.8",
+         "disconnected_ends": "1", "unended": "0"},
+        {"kind": "TELESCOPE", "facility_id": "telescope-1", "uses": "1", "users": "1", "avg_minutes": "1.0",
+         "disconnected_ends": "0", "unended": "0"},
+        {"kind": "FITNESS", "facility_id": "walker-1", "uses": "1", "users": "1", "avg_minutes": "NULL",
+         "disconnected_ends": "0", "unended": "1"},
+    ],
 }
 
 
