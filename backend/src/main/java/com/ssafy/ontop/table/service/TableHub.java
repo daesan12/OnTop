@@ -46,6 +46,7 @@ import com.ssafy.ontop.world.service.WorldChatService;
 import com.ssafy.ontop.world.service.WorldEmoteService;
 import com.ssafy.ontop.world.service.WorldFacilityService;
 import com.ssafy.ontop.world.service.WorldFollowService;
+import com.ssafy.ontop.world.service.WorldMapCompatibility;
 import com.ssafy.ontop.world.service.WorldProfileGateway;
 import com.ssafy.ontop.world.service.WorldProximity;
 import jakarta.annotation.PreDestroy;
@@ -88,6 +89,9 @@ public class TableHub {
     private final Map<String, String> tableChannels = new HashMap<>();
     private final Set<String> channelIds;
     private final Map<String, Member> members = new HashMap<>();
+    private final WorldMapCompatibility maps;
+    private final Set<String> mapVerifiedSessions = new HashSet<>();
+    private final Map<String, PendingMapConnection> pendingMapConnections = new HashMap<>();
     private final Map<String, AppearancePush> appearancePushes = new HashMap<>();
     private Optional<WorldAppearanceGateway> appearances = Optional.empty();
     private Optional<WorldProfileGateway> profiles = Optional.empty();
@@ -246,7 +250,6 @@ public class TableHub {
                 new WorldProximity(channels, new WorldProximityProperties(null, null, null)));
     }
 
-    @Autowired
     public TableHub(ObjectMapper mapper, Optional<GameStartGateway> gateway,
             @Value("${ontop.start-rehearsal.enabled:false}") boolean startRehearsal,
             Optional<GameReconnectService> reconnect,
@@ -255,10 +258,24 @@ public class TableHub {
             WorldChannelRegistry channels, WorldChatService chat, WorldEmoteService emotes,
             Optional<GameStateGateway> gameStates, Optional<GameActionGateway> gameActions,
             Optional<GameResultService> gameResults, WorldProximity proximity) {
+        this(mapper, gateway, startRehearsal, reconnect, heartbeatInterval, heartbeatTimeout, channels, chat,
+                emotes, gameStates, gameActions, gameResults, proximity, new WorldMapCompatibility(false));
+    }
+
+    @Autowired
+    public TableHub(ObjectMapper mapper, Optional<GameStartGateway> gateway,
+            @Value("${ontop.start-rehearsal.enabled:false}") boolean startRehearsal,
+            Optional<GameReconnectService> reconnect,
+            @Value("${ontop.websocket.heartbeat.interval:10s}") Duration heartbeatInterval,
+            @Value("${ontop.websocket.heartbeat.timeout:10s}") Duration heartbeatTimeout,
+            WorldChannelRegistry channels, WorldChatService chat, WorldEmoteService emotes,
+            Optional<GameStateGateway> gameStates, Optional<GameActionGateway> gameActions,
+            Optional<GameResultService> gameResults, WorldProximity proximity, WorldMapCompatibility maps) {
         if (startRehearsal && gateway.isEmpty()) {
             throw new IllegalArgumentException("시작 연동 검증 대역이 필요합니다.");
         }
         this.gateway = gateway;
+        this.maps = maps;
         this.gameStates = gameStates;
         this.gameActions = gameActions;
         this.startRehearsal = startRehearsal;
@@ -311,7 +328,16 @@ public class TableHub {
             return false;
         }
         Member member = register(session, userId, user.userId());
-        gameResults.ifPresent(service -> service.connected(session.getId(), user.userId(), delivery -> {
+        if (maps.requiresMatch()) {
+            pendingMapConnections.put(session.getId(), new PendingMapConnection(user.sessionId(), reservedStart));
+        } else {
+            activateConnection(member, session.getId(), user.sessionId(), reservedStart);
+        }
+        return true;
+    }
+
+    private void activateConnection(Member member, String sessionId, String loginSessionId, boolean reservedStart) {
+        gameResults.ifPresent(service -> service.connected(sessionId, member.accountId(), delivery -> {
             if (delivery.errorCode() != null) {
                 member.peer().offer(protocol.error(delivery.requestId(), delivery.errorCode(),
                         "경기 결과를 확인할 수 없습니다."));
@@ -319,19 +345,19 @@ public class TableHub {
                 member.peer().offer(protocol.encode(delivery.requestId(), "GAME_RESULT", delivery.result()));
             }
         }));
-        reconnect.ifPresent(service -> service.connected(user.userId(), session.getId(), user.sessionId(),
+        reconnect.ifPresent(service -> service.connected(member.accountId(), sessionId, loginSessionId,
                 (requestId, view) -> member.peer().offer(protocol.encode(requestId, "GAME_CONNECTION_STATE", view))));
-        if (reservedStart) { replyStartState(member, seating.get(userId), null); }
-        return true;
+        if (reservedStart) { replyStartState(member, seating.get(member.userId()), null); }
     }
 
     private Member register(WebSocketSession session, String userId, Long accountId) {
         TablePeer peer = new TablePeer(session, () -> disconnect(session.getId()),
                 new WebSocketHeartbeat(heartbeatInterval, heartbeatTimeout, System::nanoTime), this::textSent);
-        Member member = new Member(userId, peer, accountId);
+        Member member = new Member(userId, peer, accountId, session.getId());
         members.put(session.getId(), member);
         acceptedConnections++;
-        peer.offer(protocol.encode(null, "CONNECTED", Map.of("userId", userId)));
+        peer.offer(protocol.encode(null, "CONNECTED", Map.of("userId", userId, "map", maps.metadata(),
+                "mapVerificationRequired", maps.requiresMatch())));
         if (startRehearsal || committedStarts.isPresent()) {
             peer.offer(protocol.encode(null, "GAME_START_STATE", TableStartAttempt.View.waiting(null, 0, null,
                     committedStarts.isEmpty())));
@@ -339,6 +365,29 @@ public class TableHub {
         peer.start();
         recordBehavior(BehaviorEventType.WS_CONNECTED, accountId, builder -> builder);
         return member;
+    }
+
+    private void confirmMap(String sessionId, Member member, Request request) {
+        if (!maps.matches(request.payload())) {
+            replyMapError(member, request, "MAP_VERSION_MISMATCH", "맵을 새로고침한 뒤 다시 연결해주세요.");
+            return;
+        }
+        mapVerifiedSessions.add(sessionId);
+        member.peer().offer(protocol.encode(request.requestId(), "WORLD_MAP_STATE",
+                Map.of("map", maps.metadata(), "verified", true)));
+        PendingMapConnection pending = pendingMapConnections.remove(sessionId);
+        if (pending != null) {
+            activateConnection(member, sessionId, pending.loginSessionId(), pending.reservedStart());
+        }
+    }
+
+    private void replyMapError(Member member, Request request, String code, String message) {
+        member.peer().offer(protocol.encode(request.requestId(), "ERROR",
+                Map.of("code", code, "message", message, "serverMap", maps.metadata())));
+    }
+
+    private boolean isMapReady(Member member) {
+        return !maps.requiresMatch() || mapVerifiedSessions.contains(member.sessionId());
     }
 
     public synchronized void pong(String sessionId, ByteBuffer payload) {
@@ -397,6 +446,14 @@ public class TableHub {
         try {
             Request request = protocol.parse(text);
             requestId = request.requestId();
+            if (request.type().equals("WORLD_MAP_CONFIRM")) {
+                confirmMap(sessionId, member, request);
+                return;
+            }
+            if (maps.requiresMatch() && !mapVerifiedSessions.contains(sessionId)) {
+                replyMapError(member, request, "MAP_VERSION_REQUIRED", "먼저 맵 버전을 확인해주세요.");
+                return;
+            }
             if (request.type().equals("GAME_RESULT_CHECK")) {
                 if (member.accountId() == null) {
                     fail(request, "GAME_RESULT_AUTH_REQUIRED", "인증된 사용자만 결과를 확인할 수 있습니다.");
@@ -489,6 +546,8 @@ public class TableHub {
             return;
         }
         closeMember(member, reason);
+        mapVerifiedSessions.remove(sessionId);
+        pendingMapConnections.remove(sessionId);
         recordBehavior(BehaviorEventType.WS_DISCONNECTED, member.accountId(),
                 builder -> builder.prop("reason", member.peer().closeReason().name()));
         gameResults.ifPresent(service -> service.disconnected(sessionId));
@@ -558,6 +617,8 @@ public class TableHub {
             gameResults.ifPresent(service -> service.disconnected(sessionId));
         });
         members.clear();
+        mapVerifiedSessions.clear();
+        pendingMapConnections.clear();
         channels.clear();
         facilities.clear();
         follows.clear();
@@ -1288,6 +1349,9 @@ public class TableHub {
     private void publish(TableRoom room, Member actor, String requestId) {
         TableRoom.Snapshot snapshot = publicSnapshot(room);
         for (Member target : members.values()) {
+            if (!isMapReady(target)) {
+                continue;
+            }
             if (snapshot.tableId().equals(seating.get(target.userId()))) {
                 target.peer().offer(protocol.encode(target == actor ? requestId : null, "TABLE_STATE", snapshot));
             } else if (snapshot.tableId().equals(watching.get(target.userId()))) {
@@ -1445,13 +1509,13 @@ public class TableHub {
     }
 
     private Set<String> connectedUsers() {
-        return members.values().stream().map(Member::userId).collect(Collectors.toSet());
+        return members.values().stream().filter(this::isMapReady).map(Member::userId).collect(Collectors.toSet());
     }
 
     private void publishStart(String tableId) {
         startRevisions.merge(tableId, 1L, Long::sum);
         for (Member target : members.values()) {
-            if (tableId.equals(seating.get(target.userId()))) {
+            if (isMapReady(target) && tableId.equals(seating.get(target.userId()))) {
                 replyStartState(target, tableId, null);
             }
         }
@@ -1923,7 +1987,10 @@ public class TableHub {
     private record ProfileTarget(Member member, String channel) {
     }
 
-    private record Member(String userId, TablePeer peer, Long accountId) {
+    private record Member(String userId, TablePeer peer, Long accountId, String sessionId) {
+    }
+
+    private record PendingMapConnection(String loginSessionId, boolean reservedStart) {
     }
 
     private static final class AppearancePush {

@@ -50,6 +50,14 @@ public final class TableProtocol {
             throw new RequestException(requestId, "UNSUPPORTED_MESSAGE_TYPE", "지원하지 않는 메시지입니다.");
         }
         boolean valid = switch (type) {
+            case "WORLD_MAP_CONFIRM" -> fields(payload, Set.of("mapId", "schemaVersion", "mapVersion"))
+                    && payload.path("mapId").isTextual()
+                    && payload.path("mapId").asText().matches("[A-Za-z0-9_-]{1,80}")
+                    && payload.path("schemaVersion").isIntegralNumber()
+                    && payload.path("schemaVersion").canConvertToInt()
+                    && payload.path("schemaVersion").asInt() > 0
+                    && payload.path("mapVersion").isTextual()
+                    && payload.path("mapVersion").asText().matches("[a-f0-9]{64}");
             case "CHANNEL_JOIN" -> fields(payload, Set.of("channelId")) && payload.get("channelId").isTextual()
                     && !payload.get("channelId").textValue().isBlank();
             case "CHANNEL_LEAVE" -> fields(payload, Set.of());
