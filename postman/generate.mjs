@@ -15,7 +15,8 @@ const variables = {
     minigameSessionId: '', minigameRequestKey: '', minigameHeats: '', minigameLog: '', minigameStartedAt: '',
     accessToken: '', websocketTicket: '', shopItemId: '', userItemId: '', purchaseRequestKey: '', purchaseId: '',
     facilityLeaseId: '', feedbackOperationId: '', feedbackReceiptId: '', noteOperationId: '', noteId: '',
-    followTargetId: '', followId: ''
+    followTargetId: '', followId: '',
+    mapId: 'park', mapVersion: 'replace-with-your-frontend-map-version'
 };
 
 const statusTest = status => `pm.test('HTTP ${status}', () => pm.response.to.have.status(${status}));`;
@@ -556,8 +557,16 @@ wsItems[6].messages.push(
     message('따라가기 03 종료 → WORLD_FOLLOW_STATE (본인 최신 ID)', 'WORLD_FOLLOW_STOP',
         { followId: '{{followId}}' })
 );
+const mapGuide = '\n\n## 맵 버전 확인\n'
+    + 'CONNECTED.payload.map은 실제 로딩 맵이며 mapVerificationRequired=true면 확인 전 입장·경기 복구가 보류됩니다. '
+    + '환경 mapId/mapVersion에는 FE가 사용하는 맵 값을 설정하세요. schemaVersion은 현재 정수1입니다. 서버 값을 맹목적으로 복사하지 마세요. '
+    + 'WORLD_MAP_CONFIRM 성공 WORLD_MAP_STATE 후 기존 입장/복구 진행, MAP_VERSION_MISMATCH/REQUIRED는 serverMap으로 안내합니다. '
+    + '새 연결마다 재확인하며 30초 경기 복구 기한은 연장되지 않습니다. 현재 기본 false, FE 새 맵 적용·배포는 별도. docs/world-map-api.md.';
+wsItems[6].description += mapGuide;
+wsItems[6].messages.push(message('맵 01 FE 맵 버전 확인 → WORLD_MAP_STATE', 'WORLD_MAP_CONFIRM',
+    { mapId: '{{mapId}}', schemaVersion: 1, mapVersion: '{{mapVersion}}' }));
 const wsV3 = { name: 'OnTop WebSocket', $kind: 'collection', description: wsGuide + appearanceGuide + publicProfileGuide
-        + facilityGuide + followGuide,
+        + facilityGuide + followGuide + mapGuide,
     items: wsItems };
 const httpV21 = {
     info: { name: httpV3.name, description: guide, schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json' },
