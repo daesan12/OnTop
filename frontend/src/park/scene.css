@@ -27,9 +27,6 @@
   display: block;
   margin-top: 12px;
 }
-.park-page .park-location[role='button'] {
-  cursor: pointer;
-}
 .park-page .avatar-overlays {
   position: absolute;
   inset: 0;
@@ -106,13 +103,6 @@
 .park-page .park-runtime-tools .park-runtime-panel {
   margin-top: 8px;
   min-width: 270px;
-}
-.park-page .park-channel-picker {
-  position: absolute;
-  top: calc(var(--park-edge) + 110px);
-  left: var(--park-edge);
-  z-index: 5;
-  min-width: 235px;
 }
 .park-page .park-table-panel {
   position: absolute;

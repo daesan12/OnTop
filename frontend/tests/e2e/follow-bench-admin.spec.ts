@@ -3,6 +3,12 @@ import { fixture, screenshot } from './contractFixture'
 import { facilityCatalog } from '../fixtures/facilityCatalog'
 import { benchTable } from '../../src/features/interactions/benchSpectator'
 
+// Camera buttons are gone from the HUD; V and a Ctrl tap drive the same state, read here.
+const cameraState = (page: Page) => page.evaluate(async () => ({
+  first: (await import('/src/world/cameraPerspective.ts' as string)).useCameraPerspective.getState().perspective === 'first-person',
+  mouse: (await import('/src/world/mouseLook.ts' as string)).useMouseLook.getState().active as boolean,
+}))
+
 const probe = (page: Page) => page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).adCameraProbe())
 async function loaded(page: Page) {
   await page.goto('/park'); await expect(page).toHaveTitle('OnTop')
@@ -60,15 +66,19 @@ test('pavilion bench faces the board, close participant/board views use camera o
   await lobby.getByRole('button', { name: '테이블 정보 닫기' }).click()
   await page.getByRole('button', { name: '벤치에서 일어나기', exact: true }).click()
   await expect(page.getByRole('group', { name: '벤치 관전', exact: true })).toHaveCount(0)
-  await expect(page.getByRole('button', { name: '1인칭 시점', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await expect.poll(async () => String((await cameraState(page)).first)).toBe('true')
   await expect.poll(async () => (await probe(page)).controls).toEqual(original)
 })
 
 test('ordinary dev exposes the remote menu but sends no invented follow request and closes for F1', async ({ page }) => {
   const server = await fixture(page, { manualMovement: true }); await loaded(page)
-  await page.getByRole('button', { name: '이웃 메뉴 열기', exact: true }).click()
-  const list = page.getByRole('menu', { name: '주변 이용자', exact: true }); await expect(list).toBeVisible()
-  await list.getByRole('menuitem').first().click()
+  // The 이웃 메뉴 launcher is gone; the menu opens the way an avatar right-click opens it.
+  await page.evaluate(async () => {
+    const { openAvatarMenu } = await import('/src/features/follow/FollowMenu.tsx' as string)
+    const { useSession } = await import('/src/network/worldClient.ts' as string)
+    const state = useSession.getState()
+    openAvatarMenu({ id: state.ids.find((id: string) => id !== state.sessionId), x: 600, y: 300 })
+  })
   const menu = page.getByRole('menu').filter({ hasText: '따라가기 서버 연결' }); await expect(menu).toBeVisible()
   await expect(menu.getByRole('menuitem', { name: '따라가기', exact: true })).toBeDisabled()
   const count = server.sent.filter(m => m.type === 'WORLD_MOVE' && m.payload.dx).length

@@ -232,7 +232,8 @@ export class ParkRuntime implements ParkRuntimePort {
         record(body) && typeof body.nextAllowedAt === 'string' ? body.nextAllowedAt : undefined,
       )
     }
-    return response.json()
+    // DELETE /api/v1/users/me answers 204 without a body.
+    return response.status === 204 ? null : response.json()
   }
   requestJSON = async (path: string, init: RequestInit = {}) => {
     const notesRead = /^\/api\/v1\/notes\?channelId=[^&#?]+$/.test(path) && (init.method ?? 'GET') === 'GET'
@@ -241,7 +242,9 @@ export class ParkRuntime implements ParkRuntimePort {
     const shopRequest = (method === 'GET' && (path === '/api/v1/shop/items' || path === '/api/v1/users/me/items'))
       || (method === 'POST' && path === '/api/v1/shop/purchases')
       || (method === 'PATCH' && path === '/api/v1/users/me/equipment')
-    if (!this.active || (!notesRead && !notesWrite && !shopRequest
+    const profileRequest = ((method === 'PATCH' || method === 'DELETE') && path === '/api/v1/users/me')
+      || (method === 'GET' && /^\/api\/v1\/users\/nickname-availability\?nickname=[^&#]+$/.test(path))
+    if (!this.active || (!notesRead && !notesWrite && !shopRequest && !profileRequest
       && !/^\/api\/v1\/(?:minigames\/sessions(?:\/\d+(?:\/(?:complete|abandon))?)?|wallets\/me|feedback)$/.test(path))
       || (path === '/api/v1/feedback' && init.method !== 'POST'))
       throw new Error('현재 공원에서 사용할 수 없는 요청입니다.')

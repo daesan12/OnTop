@@ -7,6 +7,7 @@ import { placeMapMarkers } from './mapMarkers'
 import { PARK_DESTINATIONS, type Destination } from './parkNavigation'
 import { useNavigation, cancelNavigation, useParkMap, openParkMap, closeParkMap, selectDestination } from './navigationState'
 import './navigation.css'
+import mapIcon from '../parkMenus/icons/dock-map.svg'
 
 const zoneName = (zone: typeof PARK_ZONES[number]) => zone.id === 'vr' ? 'VR 구역 · 주변' : zone.name
 function canOpen() {
@@ -70,7 +71,7 @@ export function ParkMap() {
   }, [open])
   return <aside className="park-map" aria-label="공원 안내 지도">
     <button ref={launcher} className="park-quick-button" aria-label="공원 지도" aria-keyshortcuts="M" aria-controls="park-map-panel" aria-expanded={open} disabled={status !== 'connected'} onClick={() => { if (open) closeParkMap(); else if (canOpen()) openParkMap() }}>
-      <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"><path d="m3 5 6-2 6 2 6-2v16l-6 2-6-2-6 2V5Z" /><path d="M9 3v16M15 5v16" /></svg><span>지도</span><kbd>M</kbd>
+      <img src={mapIcon} alt="" /><span>지도</span><kbd>M</kbd>
     </button>
     <dialog ref={panel} id="park-map-panel" className="park-map-panel" aria-label="공원 지도창" onCancel={event => { event.preventDefault(); closeParkMap() }} onClose={() => { if (!panel.current?.open) closeParkMap() }} onKeyDown={event=>{
       event.stopPropagation()
