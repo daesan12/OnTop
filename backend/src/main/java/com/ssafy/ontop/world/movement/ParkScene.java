@@ -49,7 +49,7 @@ public final class ParkScene {
                 data.path("schemaVersion").asInt(), data.path("sourceSha256").asText()));
     }
 
-    /** 테스트에서 명시적으로 만든 장면이며 기본 instance를 교체하지 않는다. */
+    /** 명시적으로 선택한 별도 장면이며 기본 instance를 교체하지 않는다. */
     public static ParkScene fromPreparedData(JsonNode data, WorldMapMetadata metadata) {
         load();
         return new ParkScene(data.deepCopy(), metadata);
