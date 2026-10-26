@@ -90,7 +90,12 @@ export function installMouseLook(canvas: HTMLCanvasElement, canLock: () => boole
   window.addEventListener('keyup', keyup)
   window.addEventListener('pointerdown', pointerdown)
   window.addEventListener('ontap-toggle-mouse-look', toggle)
-  return { locked, release, resume: toggle, dispose() {
+  // A return request after a visit must never switch off a lock that is still held.
+  const resume = () => {
+    if (locked() || pending) { mouseLookReturn.requested = false; return }
+    toggle()
+  }
+  return { locked, release, resume, dispose() {
     disposed = true
     release()
     mouseLookReturn.requested = false

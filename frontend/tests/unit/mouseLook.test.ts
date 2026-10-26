@@ -88,6 +88,14 @@ it('resets the jump guard every time the lock starts again', () => {
   expect(move.mock.calls).toEqual([[8, 0]])
 })
 
+it('treats a return request as done when the lock is still held', () => {
+  win.dispatchEvent(new Event('ontap-toggle-mouse-look')); acquire()
+  controls.resume()
+  expect(useMouseLook.getState().active).toBe(true)
+  expect(doc.exitPointerLock).not.toHaveBeenCalled()
+  expect(canvas.requestPointerLock).toHaveBeenCalledTimes(1)
+})
+
 it('releases on invalid ownership and removes handlers on teardown', () => {
   win.dispatchEvent(new Event('ontap-toggle-mouse-look')); acquire()
   canLock = false

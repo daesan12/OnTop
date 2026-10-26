@@ -16,6 +16,22 @@ export function canControlRoamingCamera() {
     && !panelOwnsKeys() && !textInputOwnsKeys(document.activeElement)
 }
 
+/**
+ * Who may own pointer lock right now. Bench sitting keeps mouse look (S15P31B105-217);
+ * 'hold' covers the sit/stand request so the lock survives the round trip without turning.
+ * Tables, fitness, telescopes, minigames and any panel or text input still release it.
+ */
+export function lookOwner(): 'park' | 'bench' | 'hold' | null {
+  if (canControlRoamingCamera()) return 'park'
+  const s = useSession.getState(), avatar = avatars.get(s.sessionId), bench = useBenchState.getState()
+  if (s.status !== 'connected' || !s.mapCompatible || !avatar?.connected || s.pending
+    || s.tableId || s.fitnessId || s.telescopeId || tableBusy() || document.hidden
+    || useFitnessState.getState().pending || useTelescopeState.getState().pending
+    || panelOwnsKeys() || textInputOwnsKeys(document.activeElement)) return null
+  if (bench.pending) return 'hold'
+  return s.benchId || bench.placements[s.sessionId] ? 'bench' : null
+}
+
 /** A modal pauses controls without changing the chosen view. Facilities own their cameras. */
 export function roamingFirstPerson(avatar: { tableId: string; benchId: string; fitnessId: string; telescopeId: string }, watching: boolean) {
   return !watching && !avatar.tableId && !avatar.benchId && !avatar.fitnessId && !avatar.telescopeId

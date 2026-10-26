@@ -18,7 +18,7 @@ import { canLeaveByMovement } from '../features/tableLobby/model'
 import { seatScope, turnSeatedLook } from '../features/tableLobby/state'
 import { installMouseLook, mouseLookReturn } from './mouseLook'
 import { lookScale } from './lookSensitivity'
-import { canControlRoamingCamera } from './roamingCamera'
+import { canControlRoamingCamera, lookOwner } from './roamingCamera'
 import { toggleCameraPerspective, useCameraPerspective, viewControls } from './cameraPerspective'
 import { cancelMouseLookReturn, resetCameraReturn } from './cameraReturn'
 import { benchViewScope, turnBenchLook, useBenchSpectator } from '../features/interactions/benchSpectator'
@@ -74,8 +74,24 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     viewControls.yaw -= x * 0.0032 * scale
     viewControls.pitch = Math.max(-0.2, Math.min(1.1, viewControls.pitch + y * 0.0024 * scale))
   }
-  const mouseLook = installMouseLook(canvas, canControlRoamingCamera, rotate, stop, cancelMouseLookReturn)
+  // On a bench the seated view uses the park controls, the spectator view its own yaw,
+  // and the top-down board view stays fixed.
+  const look = (x: number, y: number) => {
+    const owner = lookOwner()
+    if (owner === 'park') { rotate(x, y); return }
+    if (owner !== 'bench') return
+    const benchView = useBenchSpectator.getState()
+    if (benchView.scope !== benchViewScope(useSession.getState()) || benchView.view === 'seated') rotate(x, y)
+    else if (benchView.view === 'participants') turnBenchLook(x)
+  }
+  const mouseLook = installMouseLook(canvas, () => lookOwner() !== null, look, stop, cancelMouseLookReturn)
   const clear = () => { mouseLook.release(); stop() }
+  // Sitting on a bench clears movement keys but keeps mouse look; every other caller releases it.
+  const clearInput = () => {
+    const owner = lookOwner()
+    if (owner !== 'bench' && owner !== 'hold') mouseLook.release()
+    stop()
+  }
   const abandonMouseLook = () => { cancelMouseLookReturn(); clear() }
   const changePerspective = () => {
     if (!canControlRoamingCamera()) return
@@ -84,7 +100,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     canvas.focus({ preventScroll: true })
   }
   const unsubscribe = useSession.subscribe((next, previous) => {
-    if (!canControlRoamingCamera() || next.roomId !== previous.roomId || next.sessionId !== previous.sessionId) {
+    if (lookOwner() === null || next.roomId !== previous.roomId || next.sessionId !== previous.sessionId) {
       mouseLook.release()
     }
     if (next.roomId !== previous.roomId || next.sessionId !== previous.sessionId) { resetCameraReturn(); stop() }
@@ -235,8 +251,9 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     )
   }
   const interval = setInterval(() => {
-    if (!canControlRoamingCamera()) mouseLook.release()
-    else if (mouseLookReturn.requested) mouseLook.resume()
+    const owner = lookOwner()
+    if (owner === null) mouseLook.release()
+    else if (owner === 'park' && mouseLookReturn.requested) mouseLook.resume()
     if (blocked()) {
       if (benchExitKey && useSession.getState().benchId && useSession.getState().status === 'connected'
         && !document.hidden && !panelOwnsKeys() && !textInputOwnsKeys(document.activeElement)) return
@@ -271,7 +288,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
   window.addEventListener('keydown', down)
   window.addEventListener('keyup', up)
   window.addEventListener('blur', abandonMouseLook)
-  window.addEventListener('ontop-clear-input', clear)
+  window.addEventListener('ontop-clear-input', clearInput)
   window.addEventListener('ontop-toggle-camera-perspective', changePerspective)
   document.addEventListener('visibilitychange', abandonMouseLook)
   document.addEventListener('focusin', focus)
@@ -292,7 +309,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     window.removeEventListener('keydown', down)
     window.removeEventListener('keyup', up)
     window.removeEventListener('blur', abandonMouseLook)
-    window.removeEventListener('ontop-clear-input', clear)
+    window.removeEventListener('ontop-clear-input', clearInput)
     window.removeEventListener('ontop-toggle-camera-perspective', changePerspective)
     document.removeEventListener('visibilitychange', abandonMouseLook)
     document.removeEventListener('focusin', focus)
