@@ -78,12 +78,22 @@ class GameFinishPersistenceServiceTests {
         assertThat(players.get(1).result()).isEqualTo(GameFinished.Result.FORFEIT);
     }
 
-    @Test void 무효와_승자없는전원기권은_Story174로_남긴다() {
+    @Test void 전원이탈은_INVALID_PENDING으로_판정을_보존한다() {
+        var command = new GameStartCommand(UUID.randomUUID(), "table", 1, "LIAR_BRIDGE", List.of(
+                new GameStartCommand.Participant("11", 1), new GameStartCommand.Participant("22", 2)), null, 5);
+        game = GameSession.prepare(command, new byte[32], "test", UUID.randomUUID(), began);
+        ReflectionTestUtils.setField(game, "id", 7L);
+        game.reserve(began);
+        when(sessions.findForUpdateById(7)).thenReturn(Optional.of(game));
         var aborted = new GameFinished("7:finished", "7", "table", "LIAR_BRIDGE", 9, List.of(
                 new GameFinished.Participant(11, GameFinished.Result.FORFEIT, GameDepartureReason.LOGOUT, ended),
                 new GameFinished.Participant(22, GameFinished.Result.FORFEIT, GameDepartureReason.LOGOUT, ended)), "ABORTED_NO_PLAYERS", ended);
-        assertThatThrownBy(() -> service.accept(aborted)).isInstanceOf(IllegalArgumentException.class);
-        assertThat(game.status()).isEqualTo(GameSession.Status.RESERVED);
+        assertThat(service.accept(aborted)).isEqualTo(7);
+        assertThat(game.status()).isEqualTo(GameSession.Status.INVALID);
+        assertThat(game.settlementStatus()).isEqualTo(GameSession.SettlementStatus.PENDING);
+        assertThat(players).allSatisfy(p -> assertThat(p.result()).isEqualTo(GameFinished.Result.FORFEIT));
+        service.accept(aborted);
+        verify(events, times(1)).publishEvent(any(GameResultsReady.class));
     }
 
     @Test void 무승부는_승자없는정상종료로_저장한다() {

@@ -14,8 +14,7 @@ import { TableGatheringHud } from './TableGatheringHud'
 import { gameState } from '../../game/protocol'
 import { TabletLobby } from './TabletLobby'
 import { TABLET_ENABLED } from './tabletFeature'
-
-const resultNames: Record<string, string> = { WIN: '승리', LOSE: '패배', DRAW: '무승부', FORFEIT: '기권', ELIMINATED: '탈락', INVALID: '무효' }
+import { participantResultLabel, resultSettlement } from './gatheringModel'
 
 export function TableLobby() {
   const runtime = useParkRuntime()
@@ -64,11 +63,11 @@ export function TableLobby() {
         <span>{seat.userId && seat.userId === table.selectorUserId ? '방장 · ' : ''}{seat.userId ? seat.ready ? '준비' : '대기' : '비어 있음'}</span>
       </li>)}</ol>}
       {lastResult && ownTable && <section aria-label="지난 판 결과" className="table-round-result">
-        <strong>지난 판 결과</strong>
-        <p>{lastResult.participants.map(p => `${p.userId === s.own ? '나' : s.profiles[p.userId]?.nickname ?? '상대'}: ${resultNames[p.result] ?? '결과 확인 필요'}`).join(' · ')}</p>
-        <p>{lastResult.settlementStatus === 'SETTLED' ? `정산 완료 · 내 엽전 증감 ${lastResult.myCoinDelta}` : '정산 확인 대기'}</p>
+        <strong>지난 판 결과{lastResult.status === 'INVALID' && ' · 무효 경기'}</strong>
+        <p>{lastResult.participants.map(p => `${p.userId === s.own ? '나' : s.profiles[p.userId]?.nickname ?? '상대'}: ${participantResultLabel(lastResult.status, p.result)}`).join(' · ')}</p>
+        <p>{resultSettlement(lastResult)}</p>
         <p>좌석은 유지됩니다. 서버가 대기실을 연 뒤 다시 준비하면 새 판을 시작합니다.</p>
-        <button disabled={s.pending || !s.connected || !waitingForRound(start, tableId)} onClick={() => useGame.setState({ lastResult: null, dismissedResult: { gameId: lastResult.gameSessionId, version: lastResult.version } })}>
+        <button disabled={s.pending || !s.connected || lastResult.settlementStatus !== 'SETTLED' || !waitingForRound(start, tableId)} onClick={() => useGame.setState({ lastResult: null, dismissedResult: { gameId: lastResult.gameSessionId, version: lastResult.version } })}>
           {table?.selectorUserId === s.own ? '다음 판 준비' : '대기실로 돌아가기'}</button>
       </section>}
       {ownTable ? <>
