@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber'
 import { Vector3, type Object3D } from 'three'
 import { OVERHEAD } from '../config'
 import { avatars, useSession } from '../network/worldClient'
+import { useGathering } from '../features/tableLobby/gathering'
 
 export interface AvatarAnchors {
   root: Object3D
@@ -28,6 +29,7 @@ const AvatarOverlay = memo(function AvatarOverlay({
   const own = useSession((state) => state.sessionId === id)
   const nickname = useSession(state => state.profiles[id]?.nickname
     ?? (state.sessionId === id ? '나' : '산책자 ' + id.slice(-6)))
+  const gathering = useGathering(), participant = gathering?.rows.find(row => row.playerId === id)
   const [expiredId, setExpiredId] = useState('')
   const elementRef = useRef<HTMLDivElement | null>(null)
   useEffect(() => {
@@ -64,6 +66,7 @@ const AvatarOverlay = memo(function AvatarOverlay({
     >
       {speaking && <div className="avatar-speech">{bubble.text}</div>}
       <div className="avatar-nickname">{nickname}</div>
+      {participant && <div className={`gathering-role${participant.ready ? ' is-ready' : ''}`} style={{ display: 'block' }}>{participant.label}</div>}
     </div>
   )
 })

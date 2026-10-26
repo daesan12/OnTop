@@ -1,3 +1,4 @@
+import { gatheringCameraActive } from '../features/tableLobby/gathering'
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { PerspectiveCamera, Quaternion, Vector3 } from 'three'
@@ -11,7 +12,7 @@ import { avatars, sampleAvatar, useSession } from '../network/worldClient'
 import { cameraOcclusion, CameraOcclusionFader } from './cameraOcclusion'
 import { installRoamingInput, viewControls } from './input'
 import { constrainRoamingCamera } from './cameraCollision'
-import { seatScope, seatedLook, resetSeatedLook, useTableLobby } from '../features/tableLobby/state'
+import { seatScope, seatedLook, resetSeatedLook, useTableLobby, SEATED_LOOK } from '../features/tableLobby/state'
 import { useDiceUI, diceCamera } from '../game/farkle/controls'
 import { roamingFirstPerson } from './roamingCamera'
 import { rememberRoamingView, restoreRoamingView } from './cameraReturn'
@@ -193,7 +194,17 @@ export function CameraRig() {
       state.look,
       1 - Math.exp(-CAMERA.followSpeed * Math.min(delta, 0.1)),
     )
-    if (boardFocus || spectatorBoard || diceFocus) {
+    if (gatheringCameraActive()) {
+      const anchor = TABLES.find(t => t.id === avatar.tableId)
+      if (anchor) {
+        const seat = tableSeats(anchor)[session.seatIndex] ?? tableSeats(anchor)[0]!
+        const yaw = Math.atan2(seat.x, seat.z) + Math.PI / 4
+        const radius = 2.7 + Math.hypot(seat.x, seat.z)
+        state.look.set(anchor.position[0], anchor.position[1] + 1.35, anchor.position[2])
+        state.desired.set(anchor.position[0] + Math.sin(yaw) * radius,
+          Math.min(anchor.position[1] + 2.8, spectatorClearHeight(anchor.pavilionId)), anchor.position[2] + Math.cos(yaw) * radius)
+      }
+    } else if (boardFocus || spectatorBoard || diceFocus) {
       const anchor = closeAnchor ?? watchedAnchor ?? TABLES.find((t) => t.id === avatar.tableId)!
       state.look.set(
         anchor.position[0],
@@ -224,15 +235,18 @@ export function CameraRig() {
       )
     } else if (seated) {
       const anchor = TABLES.find((t) => t.id === avatar.tableId)
-      state.desired.set(pose.x, pose.y + 0.55, pose.z)
+      const seat = anchor ? tableSeats(anchor)[session.seatIndex] : undefined
+      state.desired.set(anchor && seat ? anchor.position[0] + seat.x : pose.x,
+        anchor ? anchor.position[1] + SEATED_LOOK.eyeHeight : pose.y + 0.55,
+        anchor && seat ? anchor.position[2] + seat.z : pose.z)
       state.look.set(
         anchor?.position[0] ?? pose.x,
-        (anchor?.position[1] ?? pose.y) + 1.05,
+        anchor ? anchor.position[1] + SEATED_LOOK.targetHeight : pose.y + 1.05,
         anchor?.position[2] ?? pose.z - 1,
       )
       if (looking) {
-        const yaw = Math.atan2(state.look.x - pose.x, state.look.z - pose.z) + seatedLook.yaw
-        state.look.set(pose.x + Math.sin(yaw) * 4, state.desired.y - 0.05, pose.z + Math.cos(yaw) * 4)
+        const yaw = Math.atan2(state.look.x - state.desired.x, state.look.z - state.desired.z) + seatedLook.yaw
+        state.look.set(state.desired.x + Math.sin(yaw) * 4, state.look.y, state.desired.z + Math.cos(yaw) * 4)
       }
     } else if (firstPerson) {
       // Use the replicated capsule position without orbit lag or head bob.
@@ -276,7 +290,7 @@ export function CameraRig() {
     omokCamera.ready =
       !!(boardFocus || spectatorBoard) && camera.position.distanceTo(state.desired) < 0.005
     if (camera instanceof PerspectiveCamera && state.bungeoppangFov === null) {
-      const fov = boardFocus || spectatorBoard || diceFocus ? GOMOKU.topDownFov : seated ? 76 : CAMERA.fov
+      const fov = gatheringCameraActive() ? CAMERA.fov : boardFocus || spectatorBoard || diceFocus ? GOMOKU.topDownFov : seated ? 76 : CAMERA.fov
       if (Math.abs(camera.fov - fov) > 0.01) {
         camera.fov = fov
         camera.updateProjectionMatrix()
