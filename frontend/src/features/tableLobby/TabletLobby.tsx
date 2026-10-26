@@ -8,6 +8,7 @@ import { GAME_MANUAL } from './gatheringModel'
 import { TABLE_GAMES, TARGET_SCORES, type TableGameCode } from './model'
 import { manualStartAllowed, preparationContext, readyWouldAutoStart, usePreparationPort } from './tabletModel'
 import { tabletProjection } from './tabletProjection'
+import { HostStartButton, HostStartWaitStatus } from './HostStartWaitControls'
 import './tablet.css'
 const TabletPortrait = lazy(() => import('./TabletPortrait').then(module => ({ default: module.TabletPortrait })))
 
@@ -135,11 +136,11 @@ function TabletSession({ tableId }: { tableId: string }) {
             onChange={e => setConfirmedBet(e.target.checked ? confirmation : '')} /> 참가 금액을 확인했어요</label>
           {host && <button className="tablet-edit" disabled={busy} onClick={() => { setConfirmedBet(''); setStep('select') }}>게임·판돈 변경</button>}
         </div>
-        <div className="tablet-waiting-status" aria-live="polite">{g.start?.phase === 'STARTING' || g.start?.phase === 'CONFIRMED' ? '서버가 참가·시작을 확인하고 있습니다.'
-          : table.allReady ? '모두 준비했어요. 방장의 시작을 기다려요.' : `${occupied}명 착석 · ${table.seats.filter(s => s.userId && s.ready).length}명 준비 완료`}</div>
+        <HostStartWaitStatus table={table} selectedCount={approvedCount ?? null} fallback={g.start?.phase === 'STARTING' || g.start?.phase === 'CONFIRMED' ? '서버가 참가·시작을 확인하고 있습니다.'
+          : table.allReady ? '모두 준비했어요. 방장의 시작을 기다려요.' : `${occupied}명 착석 · ${table.seats.filter(s => s.userId && s.ready).length}명 준비 완료`} />
         {!port && <p className="tablet-contract-note">방장 수동 시작 연결 준비 중{finalReadyBlocked ? ' · 자동 시작을 막기 위해 마지막 준비를 잠시 기다려주세요.' : ''}</p>}
         <footer className="tablet-ready-actions"><button disabled={busy || !mine} onClick={() => void runtime.leaveTable()}>일어나기</button>
-          {host ? <button className="tablet-primary" disabled={!startEnabled} onClick={() => port && void command(() => port.start(preparationContext(table)))}>게임 시작</button>
+          {host ? <HostStartButton table={table} selectedCount={approvedCount ?? null} disabled={!startEnabled} onStart={() => port && void command(() => port.start(preparationContext(table)))} />
             : <span className="tablet-host-wait">방장이 게임을 시작해요</span>}
           <button disabled={busy || !mine || !table.gameCode || !table.betAmountPerPlayer || (!mine.ready && (confirmedBet !== confirmation || !port))}
             onClick={() => void command(() => runtime.setReady(!mine?.ready))}>{mine?.ready ? '준비 취소' : '준비 완료'}</button>

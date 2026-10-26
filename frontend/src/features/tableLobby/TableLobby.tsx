@@ -15,8 +15,12 @@ import { gameState } from '../../game/protocol'
 import { TabletLobby } from './TabletLobby'
 import { TABLET_ENABLED } from './tabletFeature'
 import { participantResultLabel, resultSettlement } from './gatheringModel'
+import { HostStartWaitNotice } from './HostStartWaitControls'
 
 export function TableLobby() {
+  return <>{TABLET_ENABLED && <HostStartWaitNotice />}<TableLobbyContent /></>
+}
+function TableLobbyContent() {
   const runtime = useParkRuntime()
   const gathering = useGathering(), details = useTableLobby(s => s.gatheringDetails)
   const s = useSession(useShallow(s => ({

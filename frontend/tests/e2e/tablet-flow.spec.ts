@@ -79,6 +79,14 @@ for (const variant of [
   server.readyTabletOthers(true)
   await expect(tablet.getByRole('button', { name: '게임 시작', exact: true })).toBeEnabled()
   await expect(tablet.getByRole('checkbox')).toBeChecked()
+  if (variant.count === 4) {
+    await publishHostWait(page, 120, 1, true)
+    await expect(tablet.getByRole('timer')).toBeVisible()
+    const paper = await tablet.locator('.tablet-paper').boundingBox()
+    const start = await tablet.getByRole('button', { name: '게임 시작', exact: true }).boundingBox()
+    expect(start!.y + start!.height).toBeLessThanOrEqual(paper!.y + paper!.height)
+    await screenshot(page, 'tablet-host-wait-four-players')
+  }
   await screenshot(page, `tablet-ready-${variant.game}-${variant.count}`)
   expect(calls[0]?.selection).toMatchObject({ gameCode: variant.game, playerCount: variant.count, betAmountPerPlayer: 20 })
   if (variant.game === 'DICE') expect(calls[0]?.selection).toMatchObject({ targetScore: 4000 })
@@ -93,6 +101,93 @@ for (const variant of [
   await page.waitForTimeout(500)
   await screenshot(page, `tablet-playing-${variant.game}`)
   expect(errors).toEqual([])
+})
+
+async function publishHostWait(page: Page, seconds: number | null, revision: number, bind = false) {
+  return page.evaluate(async ({ seconds, revision, bind }) => {
+    const { bindHostStartWait } = await import('/src/features/tableLobby/hostStartWait.ts' as string)
+    const s = (await import('/src/network/worldClient.ts' as string)).useSession.getState()
+    const t = s.tableStates[s.tableId]
+    if (bind) (window as any).hostWaitFeed = bindHostStartWait({ userId: s.sessionId, channelId: s.roomId, tableId: s.tableId })
+    // Deliberately different from the browser clock. Only the server-relative duration matters.
+    const serverNow = 1900000000000
+    return (window as any).hostWaitFeed.update({ revision, tableVersion: t.version, hostUserId: t.selectorUserId,
+      serverNow, expiresAt: seconds === null ? null : serverNow + seconds * 1000 })
+  }, { seconds, revision, bind })
+}
+async function readyHostWait(page: Page) {
+  const server = await fixture(page, { omok: true, manualLobby: true, publicProfiles: {
+    '101': { nickname: '나' }, '102': { nickname: '솔바람' } } })
+  const tablet = await openTable(page); const calls = await bindManualPort(page, server)
+  await tablet.getByLabel('1인 참가비').fill('20'); await tablet.getByRole('button', { name: '선택하고 준비하기' }).click()
+  await tablet.getByRole('checkbox').check(); await tablet.getByRole('button', { name: '준비 완료', exact: true }).click()
+  server.readyTabletOthers(true); await expect(tablet.getByRole('button', { name: '게임 시작', exact: true })).toBeEnabled()
+  return { server, tablet, calls }
+}
+test('host start countdown follows server time, cancels on readiness and never evicts locally at zero', async ({ page }) => {
+  const errors: string[] = []; page.on('pageerror', e => errors.push(e.message))
+  const { server, tablet, calls } = await readyHostWait(page)
+  const timer = tablet.getByRole('timer', { name: '방장 게임 시작 남은 시간' })
+  await expect(timer).toHaveCount(0)
+  await publishHostWait(page, 120, 1, true); await expect(timer).toHaveText('2:00')
+  await screenshot(page, 'tablet-host-wait-two-minutes')
+  await publishHostWait(page, 29, 2); await expect(timer).toHaveText(/0:2[89]/)
+  await expect(page.locator('.host-start-wait')).toHaveAttribute('data-urgent', 'true')
+  expect(await publishHostWait(page, 120, 1)).toBe(false)
+  server.readyTabletOthers(false); await expect(timer).toHaveCount(0)
+  server.readyTabletOthers(true)
+  await expect(tablet.getByRole('button', { name: '게임 시작', exact: true })).toBeEnabled()
+  await publishHostWait(page, 0, 3); await expect(timer).toHaveText('0:00')
+  await expect(tablet.getByRole('button', { name: '게임 시작', exact: true })).toBeDisabled()
+  await expect(tablet).toContainText('서버 처리를 확인하고 있어요')
+  await page.waitForTimeout(700)
+  expect(server.sent.some(m => m.type === 'TABLE_LEAVE')).toBe(false)
+  expect(calls.filter(c => c.kind === 'start')).toHaveLength(0)
+  expect(await page.evaluate(async () => (await import('/src/network/worldClient.ts' as string)).useSession.getState().tableId)).not.toBe('')
+  await screenshot(page, 'tablet-host-wait-expired')
+  // An early receipt cannot fabricate an own departure, even when the local timer is zero.
+  const receipt = { eventId: 'host-timeout-1', revision: 4, tableVersion: 1, previousHostUserId: '101', nextHostUserId: '102' }
+  await page.evaluate(receipt => (window as any).hostWaitFeed.timeout(receipt), receipt)
+  await expect(page.getByLabel('방장 대기시간 처리 안내')).toHaveCount(0)
+  server.timeoutTabletHost('101', '102')
+  const notice = page.getByLabel('방장 대기시간 처리 안내')
+  await expect(notice).toContainText('대기시간이 지나 테이블에서 일어났어요')
+  await expect(tablet).toHaveCount(0)
+  await screenshot(page, 'tablet-host-timeout-removed')
+  await notice.getByRole('button', { name: '방장 대기시간 안내 닫기' }).click()
+  expect(await page.evaluate(receipt => (window as any).hostWaitFeed.timeout(receipt), receipt)).toBe(false)
+  await expect(notice).toHaveCount(0)
+  expect(errors).toEqual([])
+})
+test('remaining player sees server-approved host succession and can still use the mobile controls', async ({ page }) => {
+  const { server, tablet, calls } = await readyHostWait(page)
+  server.host('102'); await expect(tablet).toContainText('솔바람 · 방장')
+  await publishHostWait(page, 25, 1, true)
+  await expect(tablet.getByRole('timer')).toBeVisible()
+  await expect(tablet).toContainText('방장의 시작을 기다리고 있어요')
+  const version = server.timeoutTabletHost('102', '101')
+  await page.evaluate(receipt => (window as any).hostWaitFeed.timeout(receipt), {
+    eventId: 'host-timeout-2', revision: 2, tableVersion: version, previousHostUserId: '102', nextHostUserId: '101' })
+  const notice = page.getByLabel('방장 대기시간 처리 안내')
+  await expect(notice).toContainText('새 방장이 되었어요')
+  await expect(tablet.getByRole('timer')).toHaveCount(0)
+  await expect(tablet.getByRole('button', { name: '게임 시작', exact: true })).toBeDisabled()
+  expect(calls.filter(c => c.kind === 'start')).toHaveLength(0)
+  await expect(tablet.getByRole('button', { name: '준비 완료', exact: true })).toBeDisabled()
+  await notice.getByRole('button', { name: '방장 대기시간 안내 닫기' }).click()
+  // Restore approved participants to exercise the compact countdown at phone width.
+  server.configureTablet({ gameCode: 'OMOK', playerCount: 2, betAmountPerPlayer: 20 })
+  await tablet.getByRole('checkbox').check(); await tablet.getByRole('button', { name: '준비 완료', exact: true }).click()
+  server.readyTabletOthers(true); await publishHostWait(page, 120, 3)
+  await page.setViewportSize({ width: 390, height: 844 })
+  await tablet.getByRole('timer').scrollIntoViewIfNeeded()
+  await expect(tablet.getByRole('timer')).toBeInViewport()
+  await screenshot(page, 'tablet-host-wait-mobile')
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  await tablet.getByRole('button', { name: '게임 시작', exact: true }).click()
+  await expect(tablet).toHaveCount(0)
+  await expect(page.getByRole('timer', { name: '방장 게임 시작 남은 시간' })).toHaveCount(0)
+  expect(calls.filter(c => c.kind === 'start')).toHaveLength(1)
 })
 
 test('result popup preserves pending settlement, server host and next-round permission', async ({ page }) => {

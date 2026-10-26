@@ -665,6 +665,20 @@ export async function fixture(
       table(sockets.at(-1)!, 'TABLE_STATE', null); start(sockets.at(-1)!, 'WAITING')
     },
     readyTabletOthers: (value: boolean) => { tabletOthersReady = value; table(sockets.at(-1)!, 'TABLE_STATE', null) },
+    timeoutTabletHost: (previousHost: string, nextHost: string | null) => {
+      if (!options.manualLobby) throw new Error('수동 로비 계약 fixture에서만 사용합니다.')
+      ready = false; tabletOthersReady = false; selectorOverride = nextHost ?? undefined
+      if (previousHost === '101') {
+        seated = false
+        emit(sockets.at(-1)!, 'TABLE_LEFT', { tableId })
+        world(sockets.at(-1)!)
+      } else table(sockets.at(-1)!, 'TABLE_STATE', null, {
+        selectorUserId: nextHost,
+        seats: Array.from({ length: tabletCount }, (_, i) => ({ seatNumber: i + 1,
+          userId: String(101 + i) === previousHost ? null : String(101 + i), ready: false })),
+      })
+      return version
+    },
     confirmStart: () => {
       started = true
       resultBet = betAmountPerPlayer ?? 1

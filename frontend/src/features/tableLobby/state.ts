@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { resetHostStartWait } from './hostStartWait'
 
 /** Presentation only; these fields never confer a seat, game grant or result. */
 const initial = () => ({
@@ -12,6 +13,7 @@ export const seatedLook = { yaw: 0 }
 // Original prototype framing: clears the tabletop and the raised bridge board.
 export const SEATED_LOOK = { eyeHeight: 1.95, targetHeight: 1.85 } as const
 export function resetTableLobby() {
+  resetHostStartWait()
   seatedLook.yaw = 0
   useTableLobby.setState({ ...initial(), epoch: useTableLobby.getState().epoch + 1 }, true)
 }
