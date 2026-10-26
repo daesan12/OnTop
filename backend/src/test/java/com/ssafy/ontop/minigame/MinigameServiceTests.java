@@ -6,6 +6,7 @@ import com.ssafy.ontop.minigame.domain.MinigameSession;
 import com.ssafy.ontop.minigame.repository.MinigameRepository;
 import com.ssafy.ontop.minigame.service.MinigameException;
 import com.ssafy.ontop.minigame.service.MinigameService;
+import com.ssafy.ontop.minigame.dto.MinigameStatusResponse;
 import com.ssafy.ontop.wallet.domain.Wallet;
 import com.ssafy.ontop.wallet.domain.WalletTransaction;
 import java.time.Clock;
@@ -125,5 +126,18 @@ class MinigameServiceTests {
         assertThatThrownBy(() -> service.complete(101, 901, BungeoppangFixtures.body("{\"log\":[]}")))
                 .isInstanceOfSatisfying(MinigameException.class,
                         e -> assertThat(e.code()).isEqualTo("RULES_VERSION_MISMATCH"));
+    }
+
+    @Test
+    void V111이전_v2_세션은_replay_record가_없어도_기존_상태를_조회한다() {
+        when(repository.record(901)).thenReturn(Optional.empty());
+
+        Object response = service.loadSession(101, 901, false);
+
+        assertThat(response).isInstanceOfSatisfying(MinigameStatusResponse.class, status -> {
+            assertThat(status.minigameSessionId()).isEqualTo("901");
+            assertThat(status.status()).isEqualTo("PLAYING");
+            assertThat(status.startedAt()).isEqualTo(now.minusSeconds(65));
+        });
     }
 }

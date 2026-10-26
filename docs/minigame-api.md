@@ -1,7 +1,8 @@
-# 붕어빵 미니게임 API · v2
+# 붕어빵 미니게임 API · v2 / v4 Story 1
 
 기준: 2026-10-23 수신한 `붕어빵_뒤집기_최종기획.md`, BE·FE 작업명세와 사용자 확정 사항.
-이 문서는 기존 MINI-01~04 경로를 유지한 구현 계약이다. 랭킹은 제외하고 탭 이동 중에도 시간은 흐른다.
+이 문서는 기존 MINI-01~04 v2 계약과 명시적으로 선택하는 v4 Story 1 계약을 함께 설명한다.
+랭킹은 제외하고 탭 이동 중에도 시간은 흐른다.
 가게 위치·캐릭터 배치는 미정이며 이 REST 흐름을 막지 않는다.
 
 ## 실행과 저장
@@ -12,6 +13,8 @@
 - Flyway locations: `classpath:db/migration,classpath:db/minigame`. 상점도 쓰면 `classpath:db/shop` 추가.
 - V110 기존 공통 세션/시작 영수증 유지. V111은 붕어빵 전용 입력·불 세기·최초 결과를 보관하는
   `bungeoppang_records`, 안내 이력 `bungeoppang_profiles`와 일일 보상 조회 인덱스를 추가한다.
+- V124는 v4 판별 규칙·서버 시간·checkpoint 원점과 현재 주문을 보관하는
+  `bungeoppang_v4_rounds`, `bungeoppang_v4_orders`를 추가한다. 기존 V110/V111을 수정하지 않는다.
 - 공통 `Wallet`, `WalletTransaction`을 사용한다. 거래 종류 `MINIGAME_REWARD`, 참조 `minigame_session_id`,
   키 `minigame-reward:{id}`를 유지하며 별도 지갑을 만들지 않는다.
 - 지갑 → 세션 잠금 순서. 같은 회원의 시작/완료/포기/상점 구매가 같은 지갑 잠금을 사용한다.
@@ -26,14 +29,143 @@
   임의로 추가하지 않는다. 미니게임 경로의 OPTIONS만 `Authorization, Content-Type, Idempotency-Key`를
   허용하며 실제 GET/POST 회원 인증은 기존 공통 인증을 그대로 거친다.
 - `dev,db`의 Flyway는 `db/migration` + `db/minigame`을 읽는다. 기존 공통 테이블은 보존하고
-  V110/V111의 미니게임 테이블·인덱스만 추가한다. `ddl-auto=validate`와 Flyway 검증을 유지한다.
+  V110/V111/V124의 미니게임 테이블·인덱스만 추가한다. `ddl-auto=validate`와 Flyway 검증을 유지한다.
   `clean`/`repair`/`out-of-order`나 기존 스키마 초기화는 사용하지 않는다.
 - 기존 공통 마이그레이션 V1~V6가 먼저 적용된 DB를 기준으로 한다. 이미 고번호 V100/V110 등을
   적용했지만 V5/V6가 없는 별도 DB는 먼저 이력을 확인해야 한다. 이 MR은 그런 DB를 임의 복구하지 않는다.
 - 이미 지갑이 있는 정상 회원으로 시작·조회·완료를 연동한다. 기존 회원의 지갑 생성은 별도 관리 작업이다.
 - 이 설정은 MR 병합 후 개발 이미지 재빌드·배포 때 적용된다. MR 생성/로컬 검증만으로 원격 반영을 뜻하지 않는다.
 
-## MINI-01 · 시작
+## v4 Story 1 · 규칙과 판 초기화
+
+v4는 요청에서 `rulesVersion: "v4"`를 명시한 경우에만 사용한다. 필드를 생략하거나 `v2`를 보내면
+아래의 기존 v2 계약을 그대로 사용한다. 저장된 규칙 버전으로 이후 조회·검증기를 선택하며 기존 v2 판을
+v4로 다시 계산하지 않는다. v2/v4를 합쳐 회원당 활성 판은 최대 1개다.
+
+### v4 판 시작
+
+`POST /api/v1/minigames/sessions`
+
+```json
+{
+  "minigameType": "BUNGEOPPANG",
+  "rulesVersion": "v4"
+}
+```
+
+기존과 같은 `Idempotency-Key`가 필요하다. 같은 회원·키·버전은 최초 응답과 난수·주문·시간 원점을
+그대로 재생한다. 같은 키를 v2와 v4로 바꾸어 사용하면 `409 IDEMPOTENCY_KEY_CONFLICT`다.
+
+성공 HTTP 201의 축약 예시:
+
+```json
+{
+  "minigameSessionId": "901",
+  "minigameType": "BUNGEOPPANG",
+  "status": "PLAYING",
+  "phase": "WAITING_START",
+  "rulesVersion": "v4",
+  "configVersion": "v4-20261027.1",
+  "issuedAt": "2026-10-27T00:00:00Z",
+  "startedAt": "2026-10-27T00:00:04.500Z",
+  "timing": {
+    "countdownStartsAt": "2026-10-27T00:00:01Z",
+    "playStartsAt": "2026-10-27T00:00:04.500Z",
+    "playEndsAt": "2026-10-27T00:01:04.500Z",
+    "submitDeadline": "2026-10-27T00:01:19.500Z",
+    "expiresAt": "2026-10-27T00:01:29.500Z"
+  },
+  "rules": {
+    "slots": 6,
+    "durationMs": 60000,
+    "countdownMs": 3500,
+    "sideMs": 8000,
+    "rushSideMs": 6000,
+    "rushFromMs": 40000,
+    "heatMin": 85,
+    "heatMax": 115,
+    "heatListLength": 512,
+    "trayCapacity": 4,
+    "maxOrderItems": 4,
+    "specialOrderChancePercent": 20,
+    "specialBonusPercent": 50,
+    "firstOrder": {"bean": 2, "custard": 0, "pizza": 0, "chocolate": 0},
+    "okFrom": 50,
+    "goldenFrom": 70,
+    "goldenTo": 90,
+    "burntFrom": 100,
+    "okPoint": 2,
+    "goldenPoint": 5,
+    "pointsPerCoin": 15,
+    "dailyCoinCap": 100,
+    "minGapMs": 50,
+    "sameSlotGapMs": 300,
+    "maxLogEntries": 1200
+  },
+  "heats": [100, 85, 115],
+  "isFirstGame": true,
+  "checkpoint": {
+    "revision": 0,
+    "throughSeq": 0,
+    "prefixHash": "<server-hash>",
+    "heatCursor": 0,
+    "lastAt": null,
+    "slots": [],
+    "tray": [],
+    "stats": {"score": 0, "made": 0, "served": 0, "bonusScore": 0},
+    "currentOrder": {
+      "orderId": "1",
+      "orderIndex": 0,
+      "items": {"bean": 2, "custard": 0, "pizza": 0, "chocolate": 0}
+    }
+  }
+}
+```
+
+예시는 `heats`, `slots`, `stats`를 줄였다. 실제 시작 응답은 서버가 저장한 85~115 정수 불 512개,
+6개 빈 철판 칸, 전체 통계 필드를 반환한다. 첫 주문은 팥 2개다. 미래 주문 목록과 난수 seed는 노출하지 않는다.
+
+서버는 발급 시각 `T0`를 고정하고 준비 1000ms, 카운트다운 3500ms, 플레이 60000ms,
+제출 유예 15000ms, drain 10000ms를 적용한다. 유효 행동 상대 시각은 `0..59999`다.
+재시도·탭 비활성·단절은 저장된 시각을 연장하거나 다시 시작하지 않는다.
+
+### v4 시작 화면과 판 조회
+
+`GET /api/v1/minigames/sessions?rulesVersion=v4`는 HTTP 200으로 다음 계약을 반환한다.
+
+```json
+{
+  "rulesVersion": "v4",
+  "serverNow": "2026-10-27T00:00:00.200Z",
+  "todayEarned": 5,
+  "dailyCap": 100,
+  "isFirstGame": false,
+  "seenTips": ["GOLD", "START"],
+  "activeSessionId": "901",
+  "supportedRulesVersions": ["v2", "v4"]
+}
+```
+
+`GET /api/v1/minigames/sessions/{id}`는 DB에 저장된 버전에 따라 v2 또는 v4 응답을 반환한다.
+v4의 기본 응답에는 `serverNow`, `timing`, 초기 `checkpoint`, 발급된 첫 주문이 포함된다.
+`acceptedLog`는 빈 배열이고 `result`와 `deliveryLookup`은 `null`이다. Story 1에서 원본이 필요한 클라이언트는
+`?includeSource=true`로 저장된 `rules`, `heats`, `issuedAt`, `isFirstGame`을 함께 조회할 수 있다.
+타인 판과 없는 판은 같은 404다.
+
+### v4 순수 규칙과 Story 경계
+
+- 팥·슈크림·피자·초코 4종, 철판 6칸, 쟁반 최대 4개, 종류별 FIFO를 사용한다.
+- 성공한 FILL마다 불 하나를 소비하며 같은 빵 양면에 같은 불을 사용한다. 폐기해도 불을 복원하지 않는다.
+- 한 면은 기본 8000ms이고 40000ms부터 6000ms다. 서버와 FE가 같은 정수 계산·내림 순서를 사용한다.
+- 품질은 RAW/GOOD/PERFECT/BURNT다. 콤보 3~5는 1.2배, 6 이상은 1.5배이며 빵별로 내림한다.
+- 실패 빵은 제거한다. 정상 빵은 쟁반에 보관하고 실제 납품 때만 점수가 증가한다.
+- 특수 재료 납품 보너스는 빵별 50% 내림이다. 미납품 빵은 최종 점수에 포함하지 않는다.
+- Story 1의 순수 재계산기는 위 규칙과 다음 주문 생성 기반을 제공한다.
+- **납품 승인 API, 영속 납품 영수증, checkpoint 진행·복구, 최종 v4 정산·코인 지급은 Story 2·3이며 아직 외부에 제공하지 않는다.**
+
+## 기존 v2 계약
+
+### MINI-01 · 시작
 
 `POST /api/v1/minigames/sessions`
 
@@ -66,7 +198,7 @@
 시작 제한 기본값은 명세의 예시인 60초당 10회이며 `ontop.minigames.starts-per-minute`로 조정한다.
 같은 키 재시도는 제한 횟수를 추가 소비하지 않는다. 시작 시 잔액 차감/지급은 없다.
 
-## MINI-02 · 조회
+### MINI-02 · 조회
 
 ### 시작 화면
 
@@ -105,7 +237,7 @@
 시작 후 10분 이상 지난 진행 판은 조회·완료·다음 시작에서 INVALID로 정리한다.
 타인 판과 없는 판은 동일한 404다.
 
-## MINI-03 · 완료·보상 확정
+### MINI-03 · 완료·보상 확정
 
 `POST /api/v1/minigames/sessions/{minigameSessionId}/complete`
 
@@ -176,7 +308,7 @@
 거부된 입력과 첫 사유도 저장한다. 같은 판을 고친 로그로 재제출해도 처음 422가 반환된다.
 이 검증은 규칙 위반을 걸러내며, 완벽하게 조작한 유효 로그·매크로까지 판별하는 보장은 아니다.
 
-## MINI-04 · 포기
+### MINI-04 · 포기
 
 `POST /api/v1/minigames/sessions/{minigameSessionId}/abandon`, 본문 `{}`.
 기존처럼 HTTP 200 `{ "minigameSessionId": "901", "status": "ABANDONED", "rewardAmount": 0 }`.
@@ -185,11 +317,13 @@
 ## 오류·검증 경계
 
 400 INVALID_REQUEST / UNSUPPORTED_MINIGAME, 401 인증 실패, 404 MINIGAME_NOT_FOUND,
-409 RULES_VERSION_MISMATCH / MINIGAME_ALREADY_* / GAME_NOT_ACTIVE,
+409 IDEMPOTENCY_KEY_CONFLICT / RULES_VERSION_MISMATCH / MINIGAME_ALREADY_* / GAME_NOT_ACTIVE,
 422 TOO_EARLY / LOG_INVALID, 429 TOO_MANY_STARTS,
 503 MINIGAME_NOT_CONFIGURED / MINIGAME_UNAVAILABLE.
 
-V111 이전 판은 불 세기가 없어 RULES_VERSION_MISMATCH이며 새 판이 필요하다.
+V111 이전 v2 판도 기존 상태 조회는 유지한다. 다만 재계산 원본이 없으므로 완료 제출은
+RULES_VERSION_MISMATCH이며 새 판이 필요하다.
+v4 Story 1 판에 기존 v2 완료 본문을 제출해도 RULES_VERSION_MISMATCH이며 납품·지급을 실행하지 않는다.
 실제 프론트 연동·가게 배치·서버 배포와 API/격리 MySQL 검증은 별개다. 랭킹 API는 추가하지 않는다.
 
 ## 확인한 검증 · 2026-10-23

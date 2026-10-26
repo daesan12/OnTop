@@ -44,8 +44,10 @@ class MinigameDevMySqlTests {
         }
         String user = System.getenv("TEST_MINIGAME_DB_USERNAME");
         String password = System.getenv("TEST_MINIGAME_DB_PASSWORD");
-        // 공통 DB와 기존 회원/잔액이 있는 상태에서 앱이 V110/V111만 추가하는지 확인한다.
-        Flyway.configure().dataSource(url, user, password).locations("classpath:db/migration").load().migrate();
+        // V1~V6 공통 이력과 기존 회원/잔액이 있는 상태에서 현재 dev locations가 후속 버전을
+        // 버전 순서대로 편입하는지 확인한다. V110/V111보다 높은 공통 버전을 먼저 적용하지 않는다.
+        Flyway.configure().dataSource(url, user, password).locations("classpath:db/migration")
+                .target("6").load().migrate();
         try (var connection = DriverManager.getConnection(url, user, password); var statement = connection.createStatement()) {
             statement.executeUpdate("INSERT INTO users(id,login_provider,provider_user_id,nickname,character_gender,"
                     + "created_at,updated_at) VALUES (909,'NAVER','dev-mini-preserve','보존회원','MALE',CURRENT_TIMESTAMP(3),CURRENT_TIMESTAMP(3))");
@@ -63,8 +65,13 @@ class MinigameDevMySqlTests {
                 .isEqualTo("classpath:db/migration,classpath:db/minigame");
         assertThat(jdbc.queryForObject("SELECT nickname FROM users WHERE id=909", String.class)).isEqualTo("보존회원");
         assertThat(jdbc.queryForObject("SELECT balance FROM wallets WHERE user_id=909", Long.class)).isEqualTo(123);
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE version IN ('110','111') AND success=1",
-                Integer.class)).isEqualTo(2);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE version IN ('110','111','124') AND success=1",
+                Integer.class)).isEqualTo(3);
+        assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*) FROM information_schema.tables
+                WHERE table_schema=DATABASE()
+                  AND table_name IN ('bungeoppang_v4_rounds','bungeoppang_v4_orders')
+                """, Integer.class)).isEqualTo(2);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='items'",
                 Integer.class)).isZero();
         jdbc.update("INSERT INTO users(id,login_provider,provider_user_id,nickname,character_gender,created_at,updated_at)"
