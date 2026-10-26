@@ -23,7 +23,7 @@
 .tablet-game-list .tablet-game-card { padding: 9px 10px 8px; text-align: left; border-radius: 16px; background: #fff7e4b3; border: 1px solid #b8a780; min-width: 0; }
 .tablet-game-card[data-selected='true'] { background: #e1eccb; border: 3px solid #1f5037; padding: 7px 8px 6px; box-shadow: inset 0 0 0 3px #fffae7; }
 .tablet-game-art { background-image: url('/art/tablet/games.webp'); background-size: 200% 200%; background-position: 0 0; border-radius: 10px; aspect-ratio: 2 / 1; width: 100%; }
-.tablet-game-art[data-game='ONE_CARD'] { background-position: 100% 0; }
+.tablet-game-art[data-game='ONE_CARD'] { background-image: url('/art/tablet/onecard-v2.webp'); background-size: cover; background-position: center; }
 .tablet-game-art[data-game='DICE'] { background-position: 0 100%; }
 .tablet-game-art[data-game='LIAR_BRIDGE'] { background-position: 100% 100%; }
 .tablet-game-card > span { display: flex; align-items: center; justify-content: space-between; gap: 4px; padding: 11px 5px 2px; }
