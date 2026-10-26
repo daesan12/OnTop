@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { useLoader } from '@react-three/fiber'
 import { leafMapUrl } from '../worldAssets'
 import {
@@ -111,7 +112,8 @@ export function GardenFoliageMaterial() {
   )
 }
 
-function gardenArt() {
+type FlowerBed={x:number;z:number;width:number;depth:number}
+function gardenArt(beds:readonly FlowerBed[]=ARRIVAL_FLOWER_BEDS,withLake=true) {
   // Continue the original RNG after the removed tree details (36,504 draws).
   // This preserves every flower-bed and waterside decoration transform.
   const rand = seeded(4124619156)
@@ -124,7 +126,7 @@ function gardenArt() {
     reeds: Part[] = [],
     seedHeads: Part[] = [],
     waterFlowers: Part[] = []
-  for (const bed of ARRIVAL_FLOWER_BEDS) {
+  for (const bed of beds) {
     soil.push({
       p: [bed.x, 0.055, bed.z],
       s: [bed.width, 0.1, bed.depth],
@@ -173,7 +175,7 @@ function gardenArt() {
     }
   }
   // Shallow coves; keep the bridge, stepping stones and swimming entrances clear.
-  for (const a of [-1.05, -0.68, 0.35, 1.05, 2.05, 2.6, 3.7, 4.2]) {
+  for (const a of (withLake?[-1.05, -0.68, 0.35, 1.05, 2.05, 2.6, 3.7, 4.2]:[])) {
     const x = LAKE.x + Math.cos(a) * (LAKE.radiusX - 1.8),
       z = LAKE.z + Math.sin(a) * (LAKE.radiusZ - 2.4)
     for (let i = 0; i < 8; i++) {
@@ -324,4 +326,15 @@ export function ReferenceGarden({ quality }: { quality: QualityPreset }) {
       </group>
     </group>
   )
+}
+
+/** Reposition the live park's stone-edged beds, leaf clusters and five-petal flowers. */
+export function ReferenceFlowerBeds({beds}:{beds:readonly FlowerBed[]}) {
+  const bedsArt=useMemo(()=>gardenArt(beds,false),[beds])
+  return <group name="layout-original-flower-beds" userData={{assetId:'original/reference-garden-03-04'}}>
+    <Instances parts={bedsArt.stone} shadow={false} material={<SurfaceMaterial kind="stone" mapping="box" strength={.2}/>}><boxGeometry/></Instances>
+    <Instances parts={bedsArt.soil} shadow={false}><boxGeometry/></Instances>
+    <Instances parts={bedsArt.shrubs} shadow={false} material={<GardenFoliageMaterial/>}><primitive object={crownGeometry} attach="geometry" dispose={null}/></Instances>
+    <Instances parts={bedsArt.flowers} shadow={false} material={<meshStandardMaterial roughness={1} side={2}/>}><primitive object={flowerGeometry} attach="geometry" dispose={null}/></Instances>
+  </group>
 }

@@ -47,7 +47,7 @@ distantRoof.setAttribute(
 )
 distantRoof.computeVertexNormals()
 
-function PavilionSlot({ p }: { p: (typeof PARK_PAVILIONS)[number] }) {
+export function PavilionSlot({ p }: { p: { id: string; x: number; z: number; floor: number; ground: number; scale: number } }) {
   const near = useRef<Group>(null),
     far = useRef<Group>(null)
   const localY = p.floor - 0.72 * p.scale
@@ -254,6 +254,16 @@ export function PlannedLandmarks({ quality }: { quality: QualityPreset }) {
       {PARK_PAVILIONS.map((p) => (
         <PavilionSlot key={p.id} p={p} />
       ))}
+      <ObservationTower />
+      <ParkFountain quality={quality} />
+      <ParkActivities />
+    </group>
+  )
+}
+
+/** Shared tower art; callers may translate the entire existing model for layout review. */
+export function ObservationTower() {
+  return (
       <group name="spiral-observation-tower">
         <mesh
           name="tower-walkway-floor"
@@ -307,8 +317,5 @@ export function PlannedLandmarks({ quality }: { quality: QualityPreset }) {
           </mesh>
         </group>
       </group>
-      <ParkFountain quality={quality} />
-      <ParkActivities />
-    </group>
   )
 }

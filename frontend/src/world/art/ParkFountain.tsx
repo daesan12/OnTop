@@ -4,7 +4,7 @@ import { FountainEffects } from './FountainEffects'
 import { Water } from './WaterGarden'
 import { FountainRefinements } from './LandmarkRefinements'
 import { PlazaGarden } from './PlazaGarden'
-export function ParkFountain({ quality }: { quality: QualityPreset }) {
+export function ParkFountain({ quality,jetHeightScale=1 }: { quality: QualityPreset;jetHeightScale?:number }) {
   return (
     <group>
       <PlazaGarden />
@@ -53,7 +53,7 @@ export function ParkFountain({ quality }: { quality: QualityPreset }) {
           />
         </mesh>
         <Water position={[0, 0.63, 0]} radius={[4.8, 4.8]} />
-        <FountainEffects quality={quality} />
+        <group name="fountain-jet-height" position={[0,.64*(1-jetHeightScale),0]} scale={[1,jetHeightScale,1]}><FountainEffects quality={quality} /></group>
       </group>
     </group>
   )

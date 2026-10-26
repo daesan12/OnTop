@@ -10,6 +10,7 @@ import {
   PIGEON_SITES,
   stepBird,
   type Visitor,
+  type Bird,type BirdEnvironment,type Point,
 } from './pigeonSimulation'
 import {
   pigeonGeometry,
@@ -28,12 +29,18 @@ const parts = [
   'shadow',
 ] as const
 /** Local ambient wildlife reacts to replicated movement of every nearby visitor. */
-export function ParkPigeons({ quality }: { quality: QualityPreset }) {
+export interface PigeonHabitat {
+  sites:readonly (readonly Point[])[]
+  spawn:(flock:number)=>Bird[]
+  environment:BirdEnvironment
+  visitors:()=>readonly Visitor[]
+}
+export function ParkPigeons({ quality,habitat }: { quality: QualityPreset;habitat?:PigeonHabitat }) {
   const meshes = useRef<(InstancedMesh | null)[]>([])
   const batches = useRef<CompactInstances[]>([])
   const state = useMemo(
     () => ({
-      birds: PIGEON_SITES.flatMap((_, i) => createBirds(i)),
+      birds: (habitat?.sites??PIGEON_SITES).flatMap((_, i) => habitat?habitat.spawn(i):createBirds(i)),
       visitors: Array.from(
         { length: 16 },
         () => ({ x: 0, y: 0, z: 0, vx: 0, vz: 0 }) as Visitor,
@@ -49,7 +56,7 @@ export function ParkPigeons({ quality }: { quality: QualityPreset }) {
         new Color('#e3e0db'),
       ],
     }),
-    [],
+    [habitat],
   )
   useLayoutEffect(() => {
     batches.current = meshes.current.map((mesh) => new CompactInstances(mesh!))
@@ -60,7 +67,8 @@ export function ParkPigeons({ quality }: { quality: QualityPreset }) {
     state.active.length = 0
     const now = performance.now()
     let n = 0
-    for (const a of avatars.values()) {
+    if(habitat)state.active.push(...habitat.visitors())
+    else for (const a of avatars.values()) {
       if (n >= state.visitors.length) break
       if (!a.connected) continue
       const dx = a.current.x - a.previous.x,
@@ -91,7 +99,8 @@ export function ParkPigeons({ quality }: { quality: QualityPreset }) {
         b,
         dt,
         state.active,
-        PIGEON_SITES[Math.floor(i / PIGEON.countPerFlock)],
+        (habitat?.sites??PIGEON_SITES)[Math.floor(i / PIGEON.countPerFlock)],
+        habitat?.environment,
       )
       const flight = b.mode === 'fly',
         walking = b.mode === 'walk',
@@ -138,7 +147,7 @@ export function ParkPigeons({ quality }: { quality: QualityPreset }) {
         part.updateMatrix()
         state.matrix.multiplyMatrices(state.root.matrix, part.matrix)
         if (k === 7) {
-          part.position.set(b.x, groundHeight(b.x, b.z) + 0.079, b.z)
+          part.position.set(b.x, (habitat?.environment.groundHeight??groundHeight)(b.x, b.z) + 0.079, b.z)
           part.rotation.set(-Math.PI / 2, 0, -b.yaw)
           part.scale.set(0.24, 0.36, 1)
           part.updateMatrix()

@@ -1,6 +1,7 @@
 import { useLayoutEffect, useMemo, useRef } from 'react'
 import { LOD, type Group } from 'three'
 import { extend } from '@react-three/fiber'
+import { RoundedBoundaryCorners } from './RoundedBoundaryCorners'
 import { WORLD } from '../../config'
 import { Instances, type Part } from './Instances'
 import { SurfaceMaterial } from './SurfaceMaterial'
@@ -13,24 +14,18 @@ const near = createWallRoof(),
   corner = createWallCorner()
 const white = '#ffffff'
 const WallLOD = extend(LOD)
-const corners: Part[] = [-1, 1].flatMap((x) =>
-  [-1, 1].map(
-    (z) =>
-      ({
-        p: [x * WORLD.halfSize, 0, z * WORLD.halfSize],
-        s: [1, 1, 1],
-        c: white,
-      }) as Part,
-  ),
-)
-const cornerPiers = corners.map((p) => ({
-  ...p,
-  p: [p.p[0], 0.95, p.p[2]] as [number, number, number],
-  s: [0.91, 1.9, 0.91] as [number, number, number],
-}))
-const sections = Array.from({ length: 4 }, (_, side) =>
-  Array.from({ length: 8 }, (_, i) => ({ side, i })),
-).flat()
+export function boundarySections(halfSize:number,entranceWidth=0,cornerRadius=0) {
+  const limit=halfSize-(cornerRadius||.45),span=limit*2/8
+  return Array.from({length:4},(_,side)=>Array.from({length:8},(_,i)=>{
+    let start=-limit+i*span,end=start+span
+    // South entrance only; other sides retain the original continuous wall.
+    if(side===2&&entranceWidth>0) {
+      if(start<0)end=Math.min(end,-entranceWidth/2)
+      else start=Math.max(start,entranceWidth/2)
+    }
+    return {side,i,halfSize,span:end-start,x:(start+end)/2}
+  })).flat().filter(s=>s.span>0)
+}
 
 function Roof({ detailed, parts }: { detailed: boolean; parts: Part[] }) {
   const model = detailed ? near : far
@@ -66,13 +61,10 @@ function Roof({ detailed, parts }: { detailed: boolean; parts: Part[] }) {
   )
 }
 
-function WallSection({ side, i }: { side: number; i: number }) {
+function WallSection({ side, halfSize,span,x }: { side: number;halfSize:number;span:number;x:number }) {
   const lod = useRef<LOD>(null),
     detail = useRef<Group>(null),
     simple = useRef<Group>(null)
-  // Leave 45cm at each end, beneath the raised corner cap, for a clean hip joint.
-  const span = (WORLD.halfSize * 2 - 0.9) / 8,
-    x = -WORLD.halfSize + 0.45 + (i + 0.5) * span
   const parts = useMemo<Part[]>(
     () =>
       Array.from({ length: 5 }, (_, n) => ({
@@ -94,9 +86,9 @@ function WallSection({ side, i }: { side: number; i: number }) {
   return (
     <group
       position={[
-        Math.cos(yaw) * x - Math.sin(yaw) * WORLD.halfSize,
+        Math.cos(yaw) * x - Math.sin(yaw) * halfSize,
         0,
-        -Math.sin(yaw) * x - Math.cos(yaw) * WORLD.halfSize,
+        -Math.sin(yaw) * x - Math.cos(yaw) * halfSize,
       ]}
       rotation={[0, yaw, 0]}
     >
@@ -143,7 +135,11 @@ function WallSection({ side, i }: { side: number; i: number }) {
   )
 }
 
-export function ParkBoundary() {
+export function ParkBoundary({halfSize=WORLD.halfSize,entranceWidth=0,cornerRadius=0}:{cornerRadius?:number;halfSize?:number;entranceWidth?:number}={}) {
+  const {corners,cornerPiers,sections}=useMemo(()=>{
+    const corners:Part[]=[-1,1].flatMap(x=>[-1,1].map(z=>({p:[x*halfSize,0,z*halfSize] as [number,number,number],s:[1,1,1] as [number,number,number],c:white})))
+    return {corners,cornerPiers:corners.map(p=>({...p,p:[p.p[0],.95,p.p[2]] as [number,number,number],s:[.91,1.9,.91] as [number,number,number]})),sections:boundarySections(halfSize,entranceWidth,cornerRadius)}
+  },[halfSize,entranceWidth,cornerRadius])
   return (
     <group
       name="reference-tiled-boundary"
@@ -155,6 +151,7 @@ export function ParkBoundary() {
       {sections.map((s) => (
         <WallSection key={`${s.side}-${s.i}`} {...s} />
       ))}
+      {cornerRadius>0?<RoundedBoundaryCorners half={halfSize} radius={cornerRadius}/>:<>
       <Instances
         parts={cornerPiers}
         shadow={false}
@@ -179,6 +176,7 @@ export function ParkBoundary() {
       <Instances parts={corners} shadow={false} material={<MaksaeMaterial />}>
         <primitive object={corner.ends} attach="geometry" dispose={null} />
       </Instances>
+      </>}
     </group>
   )
 }

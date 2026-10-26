@@ -4,7 +4,7 @@ import type { MeshStandardMaterial } from 'three'
 import { environmentFrame } from '../environmentState'
 
 /** Lightweight sky / skyline approximation; no extra reflection cameras or render targets. */
-export function UrbanMaterial({ kind }: { kind: 'glass' | 'asphalt' }) {
+export function UrbanMaterial({ kind,color='#ffffff' }: { kind: 'glass' | 'asphalt';color?:string }) {
   const night = useMemo(() => ({ value: 0 }), [])
   useFrame(() => {
     night.value = environmentFrame.night
@@ -62,7 +62,7 @@ export function UrbanMaterial({ kind }: { kind: 'glass' | 'asphalt' }) {
   )
   return (
     <meshStandardMaterial
-      color="#ffffff"
+      color={color}
       roughness={kind === 'glass' ? 0.25 : 0.96}
       metalness={kind === 'glass' ? 0.4 : 0}
       onBeforeCompile={compile}

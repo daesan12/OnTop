@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { outdoorReflectionMap } from './art/ornamentTextures'
-import { ENVIRONMENT } from '../config'
+import { ENVIRONMENT,sampleDay } from '../config'
 import {
   BackSide,
   Color,
@@ -49,7 +49,7 @@ void main(){
  #include <colorspace_fragment>
 }`
 
-export function EnvironmentScene() {
+export function EnvironmentScene({fixedTime}:{fixedTime?:number}={}) {
   const scene = useThree((state) => state.scene)
   useEffect(() => {
     const previous = scene.environment
@@ -96,7 +96,8 @@ export function EnvironmentScene() {
   )
   useEffect(() => () => material.dispose(), [material])
   useFrame(({ camera, scene }) => {
-    updateEnvironmentFrame(performance.now())
+    if(fixedTime===undefined)updateEnvironmentFrame(performance.now())
+    else Object.assign(frame,sampleDay(fixedTime),{serverTime:fixedTime,seconds:performance.now()/1000})
     const u = material.uniforms
     u.topColor.value.copy(values.nightTop).lerp(values.dayTop, frame.daylight)
     u.horizonColor.value

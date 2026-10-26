@@ -140,22 +140,24 @@ function Walker({ station }: { station: (typeof FITNESS_STATIONS)[number] }) {
     </group>
   )
 }
-export function FitnessGarden() {
+export function FitnessGarden({area=FITNESS_AREA,stations=FITNESS_STATIONS,floorShape='box',showPads=true,floorColor='#687161'}:{
+  area?:{x:number;z:number;width:number;depth:number};stations?:typeof FITNESS_STATIONS;floorShape?:'box'|'circle'|'ellipse';showPads?:boolean;floorColor?:string
+}={}) {
   return (
     <group name="fitness-garden">
-      <FitnessPads />
-      <mesh position={[FITNESS_AREA.x, 0.03, FITNESS_AREA.z]} receiveShadow>
-        <boxGeometry args={[FITNESS_AREA.width, 0.05, FITNESS_AREA.depth]} />
+      {showPads&&<FitnessPads stations={stations}/>}
+      <mesh name="fitness-zone-floor" position={[area.x,floorShape!=='box'?.05:.03, area.z]} scale={[1,1,floorShape==='ellipse'?area.depth/area.width:1]} receiveShadow>
+        {floorShape!=='box'?<cylinderGeometry args={[area.width/2,area.width/2,.1,128]}/>:<boxGeometry args={[area.width, 0.05, area.depth]} />}
         <SurfaceMaterial
           kind="stone"
           mapping="box"
           meters={0.7}
-          color="#687161"
+          color={floorColor}
           strength={0.15}
         />
       </mesh>
 
-      {FITNESS_STATIONS.map((station) =>
+      {stations.map((station) =>
         station.kind === 'walker' ? (
           <Walker key={station.id} station={station} />
         ) : station.kind === 'elliptical' ? (

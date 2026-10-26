@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { OutdoorMetal } from './OutdoorMetal'
 import { ReferenceBenchFrames } from './ReferenceBenchFrames'
 import { BENCHES, BENCH_YAWS, BENCH_PAVILIONS, LAMPS } from '../../config'
@@ -7,7 +8,7 @@ import { BeveledBox } from './BeveledBox'
 import { NightMaterial } from '../NightLighting'
 import { PavilionInterior } from './PavilionInterior'
 
-function furniture() {
+function furniture(lamps: readonly (readonly [number, number, number])[] = LAMPS, includeBenches = true) {
   const boxes: Part[] = [],
     wood: Part[] = [],
     stone: Part[] = [],
@@ -15,7 +16,7 @@ function furniture() {
     poles: Part[] = [],
     caps: Part[] = [],
     glass: Part[] = []
-  for (const [index, [x, y, z]] of BENCHES.entries()) {
+  for (const [index, [x, y, z]] of (includeBenches ? BENCHES : []).entries()) {
     if (BENCH_PAVILIONS[index]) continue
     const collections = [boxes, wood, fasteners]
     const offsets = collections.map((parts) => parts.length)
@@ -52,7 +53,7 @@ function furniture() {
       }),
     )
   }
-  for (const [x, y, z] of LAMPS) {
+  for (const [x, y, z] of lamps) {
     const metal = '#283233',
       gold = '#a58a53'
     poles.push({ p: [x, y + 1.82, z], s: [0.075, 3.64, 0.075], c: metal })
@@ -176,4 +177,16 @@ export function ParkFurniture() {
       </Instances>
     </group>
   )
+}
+
+/** The same fluted cast-iron lamp, lantern frame and warm glass used in the live park. */
+export function ParkLamps({placements}:{placements:readonly (readonly [number,number,number])[]}) {
+  const lamps=useMemo(()=>furniture(placements,false),[placements])
+  return <group name="layout-original-park-lamps">
+    <Instances parts={lamps.stone} material={<SurfaceMaterial kind="stone" mapping="box"/>}><BeveledBox/></Instances>
+    <Instances parts={lamps.boxes} material={<OutdoorMetal/>}><boxGeometry/></Instances>
+    <Instances parts={lamps.poles} material={<OutdoorMetal/>}><cylinderGeometry args={[1,1,1,8]}/></Instances>
+    <Instances parts={lamps.caps}><coneGeometry args={[1,1,4]}/></Instances>
+    <Instances parts={lamps.glass} shadow={false} material={<NightMaterial/>}><boxGeometry/></Instances>
+  </group>
 }

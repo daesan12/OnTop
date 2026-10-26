@@ -15,7 +15,9 @@ import { OneCardBoard } from '../../game/onecard/OneCardBoard'
 import { BridgeBoard } from '../../game/bridge/BridgeBoard'
 
 /** Stable game/seat anchors survive replacement of the visual table subtree. */
-export function TableShell({ anchor }: { anchor: TableAnchor }) {
+export function TableShell({ anchor, onInspect = parkRuntime.inspectTable }: {
+  anchor: TableAnchor; onInspect?: (id: string) => void
+}) {
   const fourSeats = true
   const mainPavilion = anchor.pavilionId === 'P0'
   const parts = useMemo(() => {
@@ -45,7 +47,7 @@ export function TableShell({ anchor }: { anchor: TableAnchor }) {
       userData={{ assetId: anchor.assetId }}
       onClick={(event) => {
         event.stopPropagation()
-        parkRuntime.inspectTable(anchor.id)
+        onInspect(anchor.id)
       }}
     >
       {anchor.picnicId ? (

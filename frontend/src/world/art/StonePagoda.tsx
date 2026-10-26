@@ -341,8 +341,9 @@ function stoneAsset(scale: number) {
 }
 
 export function StonePagoda({
-  anchor,
+  anchor, decorations = true,
 }: {
+  decorations?: boolean
   anchor: { id: string; x: number; z: number; scale: number }
 }) {
   return (
@@ -363,7 +364,7 @@ export function StonePagoda({
         height: 20 * anchor.scale,
       }}
     >
-      {anchor.id === 'garden-pagoda' && <PagodaRefinements />}
+      {decorations && anchor.id === 'garden-pagoda' && <PagodaRefinements />}
       <mesh
         name="pagoda-stone-asset"
         geometry={stoneAsset(anchor.scale)}
