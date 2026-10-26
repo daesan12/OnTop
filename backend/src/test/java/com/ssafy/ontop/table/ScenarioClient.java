@@ -9,6 +9,8 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -93,8 +95,18 @@ final class ScenarioClient implements AutoCloseable {
     }
 
     JsonNode state(String status) throws Exception {
-        return await(message -> message.path("type").asText().equals("GAME_CONNECTION_STATE")
-                && message.path("payload").path("status").asText().equals(status)).path("payload");
+        List<String> observed = new ArrayList<>();
+        try {
+            return await(message -> {
+                if (!message.path("type").asText().equals("GAME_CONNECTION_STATE")) { return false; }
+                String actual = message.path("payload").path("status").asText();
+                observed.add(actual);
+                return actual.equals(status);
+            }).path("payload");
+        } catch (AssertionError exception) {
+            // 토큰/사용자 payload 없이 누락된 상태와 실제 Close Code를 진단한다.
+            throw new AssertionError("기대 복구 상태=" + status + ", 수신 상태=" + observed + ", Close Code=" + closes.peek(), exception);
+        }
     }
 
     JsonNode await(Predicate<JsonNode> predicate) throws Exception {
