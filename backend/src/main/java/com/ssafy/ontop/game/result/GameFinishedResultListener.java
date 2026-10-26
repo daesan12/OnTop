@@ -52,4 +52,10 @@ public class GameFinishedResultListener {
         tables.ifPresent(hub -> hub.roundEnded(event.tableId(), event.gameId()));
         results.finished(event.gameId(), event.players());
     }
+
+    @EventListener
+    public void stored(StoredGameRoundEnded event) {
+        // 엔진의 일회성 종료 통지가 유실되어도 DB 종결 정보로 SETTLING 진입을 복구한다.
+        tables.ifPresent(hub -> hub.roundEnded(event.tableId(), event.result().gameSessionId()));
+    }
 }

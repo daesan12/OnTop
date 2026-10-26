@@ -19,6 +19,7 @@ async function start(p: Page, own: '101' | '102' = '101', anchor = TABLES[0]!) {
   await p.evaluate(async id => (await import('/src/park/runtime/runtime.ts' as string)).parkRuntime.inspectTable(id), anchor.id)
   await p.getByRole('button', { name: '앉기', exact: true }).click()
   if (own !== '101') server.host(own)
+  await p.getByLabel('1인 참가비', { exact: true }).fill('1')
   await p.getByRole('button', { name: '주사위 한 판 선택', exact: true }).click()
   await p.getByRole('button', { name: '준비', exact: true }).click(); server.confirmStart()
   if (own !== '101') server.diceSnapshot({ turnUserId: own })
