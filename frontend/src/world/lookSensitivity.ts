@@ -1,8 +1,7 @@
 import { create } from 'zustand'
 
-/** Personal look speed in percent. 100% is the park default, which turns at 80% of the original fixed rate. */
+/** Personal look speed in percent. 100% is each view's own default rate. */
 export const LOOK_SENSITIVITY = { min: 1, max: 200, step: 1, initial: 100 } as const
-const DEFAULT_SCALE = 0.8
 // v1 stored a raw multiplier; percentages use a new key so an old 0.8 is never read as 0.8%.
 const storageKey = 'ontap-look-sensitivity-v2'
 
@@ -24,8 +23,8 @@ function savedSensitivity() {
 
 export const useLookSensitivity = create<{ sensitivity: number }>(() => ({ sensitivity: savedSensitivity() }))
 
-/** Multiplier for a view's original rate. */
-export const lookScale = () => useLookSensitivity.getState().sensitivity / 100 * DEFAULT_SCALE
+/** Multiplier for a view's default rate. */
+export const lookScale = () => useLookSensitivity.getState().sensitivity / 100
 
 export function setLookSensitivity(percent: number) {
   const sensitivity = clampLookSensitivity(percent)

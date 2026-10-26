@@ -25,15 +25,38 @@ it('keeps a whole percentage between 1% and 200%', async () => {
   expect(lookSensitivityLabel(100)).toBe('100%')
 })
 
-it('treats the default 100% as 80% of the original turning rate', async () => {
+it('turns the percentage into a multiplier of each view default', async () => {
   vi.stubGlobal('localStorage', storage())
   const module = await load()
   expect(module.useLookSensitivity.getState().sensitivity).toBe(100)
-  expect(module.lookScale()).toBeCloseTo(0.8)
+  expect(module.lookScale()).toBe(1)
   module.setLookSensitivity(50)
-  expect(module.lookScale()).toBeCloseTo(0.4)
+  expect(module.lookScale()).toBeCloseTo(0.5)
   module.setLookSensitivity(200)
-  expect(module.lookScale()).toBeCloseTo(1.6)
+  expect(module.lookScale()).toBeCloseTo(2)
+})
+
+it('scales seated, bench and telescope turning by the same setting', async () => {
+  vi.stubGlobal('localStorage', storage())
+  const { setLookSensitivity } = await load()
+  const lobby = await import('../../src/features/tableLobby/state')
+  const bench = await import('../../src/features/interactions/benchSpectator')
+  const telescope = await import('../../src/features/telescopeView')
+  const turns = () => {
+    lobby.resetSeatedLook(); lobby.turnSeatedLook('seat', 0); lobby.turnSeatedLook('seat', 50)
+    bench.benchLook.yaw = 0; bench.turnBenchLook(50)
+    telescope.telescopeView.zoom = 4
+    return { seated: lobby.seatedLook.yaw, bench: bench.benchLook.yaw, telescope: telescope.telescopeTurnRate() }
+  }
+  const normal = turns()
+  expect(normal.seated).toBeCloseTo(-50 * 0.004)
+  expect(normal.bench).toBeCloseTo(-50 * 0.004)
+  expect(normal.telescope).toBeCloseTo(0.003 / 2)
+  setLookSensitivity(50)
+  const half = turns()
+  expect(half.seated).toBeCloseTo(normal.seated / 2)
+  expect(half.bench).toBeCloseTo(normal.bench / 2)
+  expect(half.telescope).toBeCloseTo(normal.telescope / 2)
 })
 
 it('saves a change and restores it on the next visit', async () => {
@@ -59,5 +82,5 @@ it('still applies for this session when storage is blocked', async () => {
   const module = await load()
   expect(module.useLookSensitivity.getState().sensitivity).toBe(100)
   module.setLookSensitivity(150)
-  expect(module.lookScale()).toBeCloseTo(1.2)
+  expect(module.lookScale()).toBeCloseTo(1.5)
 })

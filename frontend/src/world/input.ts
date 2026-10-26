@@ -10,7 +10,7 @@ import { leaveFitness } from '../features/fitness/controller'
 import { aimTelescope, leaveTelescope } from '../features/telescopes/controller'
 import { useTelescopeState } from '../features/telescopes/state'
 import { normalizeTelescopeAim } from '../features/telescopes/anchors'
-import { telescopeView, zoomTelescope } from '../features/telescopeView'
+import { telescopeTurnRate, telescopeView, zoomTelescope } from '../features/telescopeView'
 import { inputState, panelOwnsKeys, roamingInput, textInputOwnsKeys } from './inputOwnership'
 import { cameraRelativeMove, MOVEMENT_INPUT_INTERVAL_MS, type MovementIntent } from '../network/movementInput'
 import { useGame } from '../game/store'
@@ -68,10 +68,11 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     benchExitKey = false
     parkRuntime.move(0, 0, false)
   }
+  // Park default is 80% of the first fixed rate (0.004/0.003), which players found too fast.
   const rotate = (x: number, y: number) => {
     const scale = lookScale()
-    viewControls.yaw -= x * 0.004 * scale
-    viewControls.pitch = Math.max(-0.2, Math.min(1.1, viewControls.pitch + y * 0.003 * scale))
+    viewControls.yaw -= x * 0.0032 * scale
+    viewControls.pitch = Math.max(-0.2, Math.min(1.1, viewControls.pitch + y * 0.0024 * scale))
   }
   const mouseLook = installMouseLook(canvas, canControlRoamingCamera, rotate, stop, cancelMouseLookReturn)
   const clear = () => { mouseLook.release(); stop() }
@@ -204,7 +205,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     if (!drag || blocked()) return
     if (useSession.getState().telescopeId) {
       if (useTelescopeState.getState().pending) return
-      const sensitivity = 0.003 / Math.sqrt(telescopeView.zoom)
+      const sensitivity = telescopeTurnRate()
       Object.assign(telescopeView, normalizeTelescopeAim(telescopeView.yaw - event.movementX * sensitivity,
         telescopeView.pitch - event.movementY * sensitivity))
       return

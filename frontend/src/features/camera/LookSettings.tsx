@@ -25,7 +25,7 @@ export function LookSettings({ disabled }: { disabled: boolean }) {
   }
   return <>
     <button ref={button} type="button" className="park-quick-button" aria-controls="park-look-settings"
-      aria-expanded={open} disabled={disabled} title="마우스룩과 드래그로 시점을 돌리는 빠르기"
+      aria-expanded={open} disabled={disabled} title="마우스로 시점을 돌리는 빠르기"
       onClick={() => setOpen(value => !value)}>
       <span>감도 {lookSensitivityLabel(sensitivity)}</span>
     </button>
@@ -47,7 +47,7 @@ export function LookSettings({ disabled }: { disabled: boolean }) {
           }} />
         <span aria-hidden="true">%</span>
       </div>
-      <p>{LOOK_SENSITIVITY.min}~{LOOK_SENSITIVITY.max}% 사이에서 고르고, 마우스룩(Ctrl)과 드래그 모두에 적용돼요. 이 브라우저에 저장돼요.</p>
+      <p>{LOOK_SENSITIVITY.min}~{LOOK_SENSITIVITY.max}% 사이에서 골라요. 공원 시점(마우스룩·드래그), 테이블·벤치에서 둘러보기, 망원경에 함께 적용되고 이 브라우저에 저장돼요.</p>
       <button type="button" disabled={sensitivity === LOOK_SENSITIVITY.initial}
         onClick={() => { setDraft(null); setLookSensitivity(LOOK_SENSITIVITY.initial) }}>
         기본값({lookSensitivityLabel(LOOK_SENSITIVITY.initial)})
