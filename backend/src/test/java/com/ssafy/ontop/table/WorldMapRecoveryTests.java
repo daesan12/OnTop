@@ -41,10 +41,14 @@ class WorldMapRecoveryTests {
             second.state("LOBBY");
             first.request("TABLE_JOIN", Map.of("tableId", "table-1"));
             second.request("TABLE_JOIN", Map.of("tableId", "table-1"));
-            first.request("GAME_SELECT", Map.of("gameCode", "DICE", "targetScore", 2000, "betAmountPerPlayer", 1));
+            JsonNode selected = first.request("GAME_SELECT", Map.of("gameCode", "DICE", "targetScore", 2000,
+                    "betAmountPerPlayer", 1));
+            assertThat(selected.path("type").asText()).isEqualTo("TABLE_STATE");
             ready(first);
             engine.activate(ready(second).path("payload"));
             engine.loads.clear();
+            // 단절 처리가 끝날 때까지 TestClock은 고정되어 서버의 disconnectedAt과 같은 시각이다.
+            var originalDeadline = clock.instant().plusSeconds(30);
             first.stopPong();
             assertThat(first.awaitClose()).isEqualTo(1001);
             assertThat(engine.loads.poll(5, TimeUnit.SECONDS)).isEqualTo(101L);
@@ -63,7 +67,9 @@ class WorldMapRecoveryTests {
                     assertThat(engine.expirations).isEmpty();
                 } else {
                     assertThat(state.path("state").isNull()).isTrue();
-                    assertThat(engine.expirations.poll(5, TimeUnit.SECONDS)).isNotNull();
+                    var expiration = engine.expirations.poll(5, TimeUnit.SECONDS);
+                    assertThat(expiration).isNotNull();
+                    assertThat(expiration.deadline()).isEqualTo(originalDeadline);
                 }
                 engine.loads.clear();
                 confirm(returned);
@@ -80,10 +86,16 @@ class WorldMapRecoveryTests {
     }
 
     private JsonNode ready(ScenarioClient client) throws Exception {
-        JsonNode observed = client.request("TABLE_JOIN", Map.of("tableId", "table-1")).path("payload");
-        return client.request("READY_SET", Map.of("ready", true,
+        // 같은 테이블 재조회는 좌석/준비/version을 바꾸지 않으며 최신 TABLE_STATE를 응답한다.
+        JsonNode response = client.request("TABLE_JOIN", Map.of("tableId", "table-1"));
+        assertThat(response.path("type").asText()).isEqualTo("TABLE_STATE");
+        JsonNode observed = response.path("payload");
+        JsonNode reply = client.request("READY_SET", Map.of("ready", true,
                 "betAmountPerPlayer", observed.path("betAmountPerPlayer").longValue(),
                 "expectedVersion", observed.path("version").longValue()));
+        assertThat(reply.path("type").asText()).as("READY_SET 오류 코드=%s", reply.at("/payload/code").asText())
+                .isEqualTo("TABLE_STATE");
+        return reply;
     }
 
     private void confirm(ScenarioClient client) throws Exception {
