@@ -169,7 +169,7 @@ test('forfeiting and leaving retains roaming follow and server emote cancellatio
   await expect(result(page)).toContainText('기권 요청이 확인됐어요')
   server.settle(); server.nextRound()
   await result(page).getByRole('button', { name: '다음 판 준비', exact: true }).click()
-  await result(page).getByRole('button', { name: '자리에서 일어나기', exact: true }).click()
+  await page.getByRole('dialog', { name: '테이블 정보', exact: true }).getByRole('button', { name: '일어나기', exact: true }).click()
   await expect(result(page)).toHaveCount(0)
   await page.getByRole('button', { name: '테이블 정보 닫기', exact: true }).click()
   await page.getByRole('button', { name: '이웃 메뉴 열기', exact: true }).click()
