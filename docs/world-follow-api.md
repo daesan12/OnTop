@@ -122,3 +122,24 @@
 인증·채널 격리·활동 전환, `WorldFollowPhysicsTests`는 실제 Bullet 속도·충돌·정지를 검사한다.
 `WorldFollowMovementTests`는 Hub→Registry→Bullet 전체 흐름을 검사하며 전송 어댑터·시계·초기 배치는 테스트 대역이다.
 실제 FE 3D 화면·운영 배포 확인은 포함하지 않는다. 여러 JVM 사이 관계 공유는 구현하지 않는다.
+
+### 실제 FE 통신 모듈과 서버 연결 검사
+
+Node 24와 `frontend`의 설치된 의존성이 있으면 `backend`에서 다음 검사를 실행한다.
+별도 DB나 운영 서버 없이 임시 루프백 서버를 사용한다.
+
+```powershell
+$env:TEST_WORLD_SOCIAL_FRONTEND = 'true'
+.\gradlew.bat test --tests '*WorldSocialFrontendFlowTests'
+Remove-Item Env:TEST_WORLD_SOCIAL_FRONTEND
+```
+
+`WorldSocialFrontendFlowTests`는 실제 JWT·접속권 HTTP·Raw WebSocket 응답을
+FE `SharedSocket`·`FollowClient`·`worldClient`에 전달한다. 시작 승인/관계 UUID,
+방향0 유지/직접 이동 해제, 수동 종료, 대상 착석/단절 해제, 다른 채널 격리,
+새 접속권 재연결 후 CHECK와 관계 미복구를 검사한다. 감정표현 취소의 원본 이벤트 ID,
+쿨다운 유지, 취소된 승인 중복 미재생, 대기 테이블/벤치의 사용 제한도 함께 검사한다.
+
+회원 조회와 초기 위치·물리 시간은 테스트 대역이며 FE 연결 범위는 Node의 통신/상태 모듈이다.
+`ParkRuntime` 전체 연결, 실제 브라우저 쿠키/Origin·3D 모션·프레임별 물리 이동·개발 서버 배포 검증은 아니다.
+환경변수 없이 실행한 일반 테스트에서 이 선택적 검사는 실행되지 않는다.
