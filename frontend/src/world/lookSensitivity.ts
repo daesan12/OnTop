@@ -1,17 +1,17 @@
 import { create } from 'zustand'
 
-/** Personal look speed. Each view keeps its own base rate and multiplies it by this value. */
-export const LOOK_SENSITIVITY = { min: 0.01, max: 2, step: 0.01, initial: 0.8 } as const
-const storageKey = 'ontap-look-sensitivity-v1'
+/** Personal look speed in percent. 100% is the park default, which turns at 80% of the original fixed rate. */
+export const LOOK_SENSITIVITY = { min: 1, max: 200, step: 1, initial: 100 } as const
+const DEFAULT_SCALE = 0.8
+// v1 stored a raw multiplier; percentages use a new key so an old 0.8 is never read as 0.8%.
+const storageKey = 'ontap-look-sensitivity-v2'
 
-export function clampLookSensitivity(value: number) {
-  if (!Number.isFinite(value)) return LOOK_SENSITIVITY.initial
-  const stepped = Math.round(value * 100) / 100
-  return Math.min(LOOK_SENSITIVITY.max, Math.max(LOOK_SENSITIVITY.min, stepped))
+export function clampLookSensitivity(percent: number) {
+  if (!Number.isFinite(percent)) return LOOK_SENSITIVITY.initial
+  return Math.min(LOOK_SENSITIVITY.max, Math.max(LOOK_SENSITIVITY.min, Math.round(percent)))
 }
 
-/** Shown to players as a percentage; 100% is the original fixed speed. */
-export const lookSensitivityLabel = (value: number) => `${Math.round(value * 100)}%`
+export const lookSensitivityLabel = (percent: number) => `${percent}%`
 
 function savedSensitivity() {
   try {
@@ -23,10 +23,12 @@ function savedSensitivity() {
 }
 
 export const useLookSensitivity = create<{ sensitivity: number }>(() => ({ sensitivity: savedSensitivity() }))
-export const lookSensitivity = () => useLookSensitivity.getState().sensitivity
 
-export function setLookSensitivity(value: number) {
-  const sensitivity = clampLookSensitivity(value)
+/** Multiplier for a view's original rate. */
+export const lookScale = () => useLookSensitivity.getState().sensitivity / 100 * DEFAULT_SCALE
+
+export function setLookSensitivity(percent: number) {
+  const sensitivity = clampLookSensitivity(percent)
   useLookSensitivity.setState({ sensitivity })
   try {
     localStorage.setItem(storageKey, String(sensitivity))

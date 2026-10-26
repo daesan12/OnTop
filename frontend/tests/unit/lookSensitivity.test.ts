@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest'
 
-const key = 'ontap-look-sensitivity-v1'
+const key = 'ontap-look-sensitivity-v2'
 function storage(initial: Record<string, string> = {}) {
   const values = new Map(Object.entries(initial))
   return {
@@ -15,43 +15,40 @@ async function load() {
 }
 afterEach(() => { vi.unstubAllGlobals() })
 
-it('keeps the value on a 1% step between 1% and 200%', async () => {
-  const { clampLookSensitivity } = await load()
-  expect(clampLookSensitivity(0.724)).toBe(0.72)
-  expect(clampLookSensitivity(0.73)).toBe(0.73)
-  expect(clampLookSensitivity(0.07)).toBe(0.07)
-  expect(clampLookSensitivity(0.01)).toBe(0.01)
-  expect(clampLookSensitivity(0)).toBe(0.01)
-  expect(clampLookSensitivity(9)).toBe(2)
-  expect(clampLookSensitivity(Number.NaN)).toBe(0.8)
+it('keeps a whole percentage between 1% and 200%', async () => {
+  const { clampLookSensitivity, lookSensitivityLabel } = await load()
+  expect(clampLookSensitivity(72.4)).toBe(72)
+  expect(clampLookSensitivity(7)).toBe(7)
+  expect(clampLookSensitivity(0)).toBe(1)
+  expect(clampLookSensitivity(999)).toBe(200)
+  expect(clampLookSensitivity(Number.NaN)).toBe(100)
+  expect(lookSensitivityLabel(100)).toBe('100%')
 })
 
-it('shows the value as a percentage of the original speed', async () => {
-  const { lookSensitivityLabel } = await load()
-  expect(lookSensitivityLabel(0.01)).toBe('1%')
-  expect(lookSensitivityLabel(0.8)).toBe('80%')
-  expect(lookSensitivityLabel(0.73)).toBe('73%')
-  expect(lookSensitivityLabel(2)).toBe('200%')
+it('treats the default 100% as 80% of the original turning rate', async () => {
+  vi.stubGlobal('localStorage', storage())
+  const module = await load()
+  expect(module.useLookSensitivity.getState().sensitivity).toBe(100)
+  expect(module.lookScale()).toBeCloseTo(0.8)
+  module.setLookSensitivity(50)
+  expect(module.lookScale()).toBeCloseTo(0.4)
+  module.setLookSensitivity(200)
+  expect(module.lookScale()).toBeCloseTo(1.6)
 })
 
-it('starts at 80%, saves a change and restores it on the next visit', async () => {
+it('saves a change and restores it on the next visit', async () => {
   const saved = storage()
   vi.stubGlobal('localStorage', saved)
-  const first = await load()
-  expect(first.lookSensitivity()).toBe(0.8)
-  first.setLookSensitivity(0.6)
-  expect(first.lookSensitivity()).toBe(0.6)
-  expect(saved.values.get(key)).toBe('0.6')
-
-  const next = await load()
-  expect(next.lookSensitivity()).toBe(0.6)
+  ;(await load()).setLookSensitivity(60)
+  expect(saved.values.get(key)).toBe('60')
+  expect((await load()).useLookSensitivity.getState().sensitivity).toBe(60)
 })
 
-it('ignores a damaged saved value', async () => {
-  vi.stubGlobal('localStorage', storage({ [key]: 'fast' }))
-  expect((await load()).lookSensitivity()).toBe(0.8)
-  vi.stubGlobal('localStorage', storage({ [key]: '7' }))
-  expect((await load()).lookSensitivity()).toBe(2)
+it('ignores damaged values and the old multiplier key', async () => {
+  vi.stubGlobal('localStorage', storage({ [key]: 'fast', 'ontap-look-sensitivity-v1': '0.5' }))
+  expect((await load()).useLookSensitivity.getState().sensitivity).toBe(100)
+  vi.stubGlobal('localStorage', storage({ [key]: '700' }))
+  expect((await load()).useLookSensitivity.getState().sensitivity).toBe(200)
 })
 
 it('still applies for this session when storage is blocked', async () => {
@@ -60,7 +57,7 @@ it('still applies for this session when storage is blocked', async () => {
     setItem: () => { throw new Error('blocked') },
   })
   const module = await load()
-  expect(module.lookSensitivity()).toBe(0.8)
-  module.setLookSensitivity(1.5)
-  expect(module.lookSensitivity()).toBe(1.5)
+  expect(module.useLookSensitivity.getState().sensitivity).toBe(100)
+  module.setLookSensitivity(150)
+  expect(module.lookScale()).toBeCloseTo(1.2)
 })

@@ -17,7 +17,7 @@ import { useGame } from '../game/store'
 import { canLeaveByMovement } from '../features/tableLobby/model'
 import { seatScope, turnSeatedLook } from '../features/tableLobby/state'
 import { installMouseLook, mouseLookReturn } from './mouseLook'
-import { lookSensitivity } from './lookSensitivity'
+import { lookScale } from './lookSensitivity'
 import { canControlRoamingCamera } from './roamingCamera'
 import { toggleCameraPerspective, useCameraPerspective, viewControls } from './cameraPerspective'
 import { cancelMouseLookReturn, resetCameraReturn } from './cameraReturn'
@@ -69,7 +69,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     parkRuntime.move(0, 0, false)
   }
   const rotate = (x: number, y: number) => {
-    const scale = lookSensitivity()
+    const scale = lookScale()
     viewControls.yaw -= x * 0.004 * scale
     viewControls.pitch = Math.max(-0.2, Math.min(1.1, viewControls.pitch + y * 0.003 * scale))
   }

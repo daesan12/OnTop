@@ -22,13 +22,14 @@ test('S15P31B105-208 mouse sensitivity scales the park view and persists', async
   const errors: string[] = []; page.on('pageerror', e => errors.push(e.message))
   await fixture(page, { players: 2, position: { x: 0, y: .8, z: 34, yaw: Math.PI } }); await loaded(page)
 
-  await expect(lookButton(page)).toHaveText('감도 80%')
+  // 100% is the park default, which turns at 80% of the original fixed rate.
+  await expect(lookButton(page)).toHaveText('감도 100%')
   expect(await dragTurn(page)).toBeCloseTo(200 * 0.004 * 0.8, 2)
 
   await lookButton(page).click()
   await expect(lookPanel(page)).toBeVisible()
   const percent = lookPanel(page).getByLabel('감도 퍼센트')
-  await lookPanel(page).getByLabel('시점 회전 빠르기').fill('0.4')
+  await lookPanel(page).getByLabel('시점 회전 빠르기').fill('40')
   await expect(percent).toHaveValue('40')
   await expect(lookButton(page)).toHaveText('감도 40%')
 
@@ -45,12 +46,12 @@ test('S15P31B105-208 mouse sensitivity scales the park view and persists', async
   await expect(lookPanel(page)).toHaveCount(0)
 
   await page.locator('canvas').focus()
-  expect(await dragTurn(page)).toBeCloseTo(200 * 0.004 * 0.07, 3)
+  expect(await dragTurn(page)).toBeCloseTo(200 * 0.004 * 0.8 * 0.07, 3)
 
   await loaded(page)
   await expect(lookButton(page)).toHaveText('감도 7%')
   await lookButton(page).click()
-  await lookPanel(page).getByRole('button', { name: '기본값(80%)', exact: true }).click()
-  await expect(lookPanel(page).getByLabel('감도 퍼센트')).toHaveValue('80')
+  await lookPanel(page).getByRole('button', { name: '기본값(100%)', exact: true }).click()
+  await expect(lookPanel(page).getByLabel('감도 퍼센트')).toHaveValue('100')
   expect(errors).toEqual([])
 })
