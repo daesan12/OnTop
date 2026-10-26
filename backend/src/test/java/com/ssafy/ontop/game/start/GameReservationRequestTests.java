@@ -62,6 +62,20 @@ class GameReservationRequestTests {
         assertThatThrownBy(() -> GameIdCodec.format(0)).isInstanceOf(IllegalArgumentException.class);
     }
 
+    @Test
+    void 기존1코인_직렬화해시를_보존하고_다른금액을_구분한다() throws Exception {
+        var original = command("table", 1, "OMOK", null, "10", "20");
+        var bytes = new java.io.ByteArrayOutputStream();
+        try (var out = new java.io.DataOutputStream(bytes)) {
+            out.writeInt(1); out.writeUTF("table"); out.writeLong(1); out.writeUTF("OMOK"); out.writeInt(0);
+            out.writeInt(2); out.writeLong(10); out.writeInt(1); out.writeLong(20); out.writeInt(2);
+        }
+        byte[] legacy = java.security.MessageDigest.getInstance("SHA-256").digest(bytes.toByteArray());
+        assertThat(GameReservationRequest.from(original).fingerprint()).isEqualTo(legacy);
+        var changed = new GameStartCommand(original.startAttemptId(), "table", 1, "OMOK", original.participants(), null, 5);
+        assertThat(GameReservationRequest.from(changed).fingerprint()).isNotEqualTo(legacy);
+    }
+
     private GameStartCommand command(String table, long version, String game, Integer target, String... users) {
         List<GameStartCommand.Participant> players = java.util.stream.IntStream.range(0, users.length)
                 .mapToObj(index -> new GameStartCommand.Participant(users[index], index + 1)).toList();

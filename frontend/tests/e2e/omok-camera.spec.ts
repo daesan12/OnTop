@@ -16,7 +16,7 @@ for (const own of ['101', '102'] as const) test(`original omok camera: seat ${ow
   await page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).inspectTable())
   await page.getByRole('button', { name: '앉기', exact: true }).click()
   if (own === '102') server.host(own)
-  await page.getByRole('button', { name: '오목 선택', exact: true }).click()
+  await page.getByLabel('1인 참가비').fill('1'); await page.getByRole('button', { name: '오목 선택', exact: true }).click()
   await page.getByRole('button', { name: '준비', exact: true }).click()
   server.confirmStart(); server.turnTo(own)
   const panel = page.getByRole('region', { name: '오목 경기', exact: true })

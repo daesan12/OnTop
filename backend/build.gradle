@@ -65,6 +65,8 @@ tasks.register('mysqlTest', Test) {
     // 전체 MySQL 회귀에서 캐시된 컨텍스트마다 Hikari 풀이 남아 연결 한도를 소진하지 않게 한다.
     // 개별 테스트의 풀 크기·동시성은 유지하고, 오래된 테스트 컨텍스트와 유휴 풀만 닫는다.
     systemProperty 'spring.test.context.cache.maxSize', '8'
+    // 격리 outbox 재시작 테스트의 별도 JVM에 동일한 테스트 classpath를 전달한다.
+    systemProperty 'ontop.test.runtime-classpath', sourceSets.test.runtimeClasspath.asPath
     outputs.upToDateWhen { false }
     outputs.cacheIf { false }
     testLogging {

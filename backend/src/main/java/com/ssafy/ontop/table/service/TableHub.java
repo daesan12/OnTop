@@ -40,6 +40,8 @@ import com.ssafy.ontop.world.config.WorldEmoteProperties;
 import com.ssafy.ontop.world.config.WorldProximityProperties;
 import com.ssafy.ontop.world.domain.ChatText;
 import com.ssafy.ontop.world.domain.EmoteCode;
+import com.ssafy.ontop.world.map.PreparedParkMap;
+import com.ssafy.ontop.world.map.WorldMapRuntime;
 import com.ssafy.ontop.world.service.WorldAppearanceGateway;
 import com.ssafy.ontop.world.service.WorldChannelRegistry;
 import com.ssafy.ontop.world.service.WorldChatService;
@@ -117,7 +119,8 @@ public class TableHub {
     private final WorldChatService chat;
     private final WorldEmoteService emotes;
     private final WorldProximity proximity;
-    private final WorldFacilityService facilities = new WorldFacilityService();
+    private final WorldFacilityService facilities;
+    private final PreparedParkMap preparedPark;
     private final WorldFollowService follows = new WorldFollowService();
     private final ExecutorService startWorkers = Executors.newVirtualThreadPerTaskExecutor();
     private final ScheduledExecutorService heartbeatTimer = Executors.newSingleThreadScheduledExecutor(
@@ -263,6 +266,18 @@ public class TableHub {
     }
 
     @Autowired
+    public TableHub(WorldMapRuntime runtime, ObjectMapper mapper, Optional<GameStartGateway> gateway,
+            @Value("${ontop.start-rehearsal.enabled:false}") boolean startRehearsal,
+            Optional<GameReconnectService> reconnect,
+            @Value("${ontop.websocket.heartbeat.interval:10s}") Duration heartbeatInterval,
+            @Value("${ontop.websocket.heartbeat.timeout:10s}") Duration heartbeatTimeout,
+            WorldChannelRegistry channels, WorldChatService chat, WorldEmoteService emotes,
+            Optional<GameStateGateway> gameStates, Optional<GameActionGateway> gameActions,
+            Optional<GameResultService> gameResults, WorldProximity proximity, WorldMapCompatibility maps) {
+        this(mapper, gateway, startRehearsal, reconnect, heartbeatInterval, heartbeatTimeout, channels, chat,
+                emotes, gameStates, gameActions, gameResults, proximity, maps, runtime.prepared().orElse(null));
+    }
+
     public TableHub(ObjectMapper mapper, Optional<GameStartGateway> gateway,
             @Value("${ontop.start-rehearsal.enabled:false}") boolean startRehearsal,
             Optional<GameReconnectService> reconnect,
@@ -271,10 +286,28 @@ public class TableHub {
             WorldChannelRegistry channels, WorldChatService chat, WorldEmoteService emotes,
             Optional<GameStateGateway> gameStates, Optional<GameActionGateway> gameActions,
             Optional<GameResultService> gameResults, WorldProximity proximity, WorldMapCompatibility maps) {
+        this(mapper, gateway, startRehearsal, reconnect, heartbeatInterval, heartbeatTimeout, channels, chat,
+                emotes, gameStates, gameActions, gameResults, proximity, maps, null);
+    }
+
+    /** 선택한 생성 맵을 한 묶음으로 주입한다. 기본 legacy 구성은 기존 맵을 유지한다. */
+    public TableHub(ObjectMapper mapper, Optional<GameStartGateway> gateway, boolean startRehearsal,
+            Optional<GameReconnectService> reconnect, Duration heartbeatInterval, Duration heartbeatTimeout,
+            WorldChannelRegistry channels, WorldChatService chat, WorldEmoteService emotes,
+            Optional<GameStateGateway> gameStates, Optional<GameActionGateway> gameActions,
+            Optional<GameResultService> gameResults, WorldProximity proximity, WorldMapCompatibility maps,
+            PreparedParkMap preparedPark) {
         if (startRehearsal && gateway.isEmpty()) {
             throw new IllegalArgumentException("시작 연동 검증 대역이 필요합니다.");
         }
         this.gateway = gateway;
+        this.preparedPark = preparedPark;
+        this.facilities = preparedPark == null ? new WorldFacilityService()
+                : new WorldFacilityService(preparedPark.facilities(), java.time.Clock.systemUTC(), System::nanoTime);
+        if (preparedPark != null && (!channels.mapMetadata().equals(preparedPark.metadata())
+                || !maps.metadata().equals(preparedPark.metadata()))) {
+            throw new IllegalArgumentException("채널·시설·연결 응답은 같은 맵을 사용해야 합니다.");
+        }
         this.maps = maps;
         this.gameStates = gameStates;
         this.gameActions = gameActions;
@@ -284,12 +317,22 @@ public class TableHub {
         this.channels = channels;
         this.chat = chat;
         this.emotes = emotes;
-        this.proximity = proximity;
+        this.proximity = preparedPark == null ? proximity : new WorldProximity(channels, preparedPark.proximity());
         for (ConnectionCloseReason reason : ConnectionCloseReason.values()) {
             closedByReason.put(reason, new LongAdder());
         }
         channelIds = Set.copyOf(channels.snapshot().keySet());
-        if (channelIds.isEmpty()) {
+        if (preparedPark != null) {
+            Set<String> preparedChannels = preparedPark.bindings().stream().map(PreparedParkMap.Binding::channelId)
+                    .collect(java.util.stream.Collectors.toSet());
+            if (!preparedChannels.equals(channelIds)) {
+                throw new IllegalArgumentException("테이블 매핑과 서버 채널이 다릅니다.");
+            }
+            for (var binding : preparedPark.bindings()) {
+                rooms.put(binding.tableId(), new TableRoom(binding.tableId()));
+                tableChannels.put(binding.tableId(), binding.channelId());
+            }
+        } else if (channelIds.isEmpty()) {
             rooms.put("table-1", new TableRoom("table-1"));
             rooms.put("table-2", new TableRoom("table-2"));
         } else {
@@ -432,7 +475,7 @@ public class TableHub {
             int available = snapshot.capacity() - occupied;
             return new TableSummaryResponse(tableId, snapshot.capacity(), snapshot.minimumPlayers(), occupied,
                     available, ready, snapshot.allReady(), status, available > 0 && status.equals("WAITING"),
-                    snapshot.gameCode(), snapshot.targetScore(), publicGameId(tableId));
+                    snapshot.gameCode(), snapshot.targetScore(), snapshot.betAmountPerPlayer(), publicGameId(tableId));
         }).toList());
     }
 
@@ -988,7 +1031,10 @@ public class TableHub {
             throw new com.ssafy.ontop.feedback.service.FeedbackException(409, "FEEDBACK_ACTIVITY_CONFLICT",
                     "테이블·시설 이용과 수영을 종료해주세요.");
         }
-        if (Math.hypot(position.x() - x, position.z() - z) > 2.6 || Math.abs(position.y() - y) > 0.7) {
+        boolean reachable = preparedPark == null
+                ? Math.hypot(position.x() - x, position.z() - z) <= 2.6 && Math.abs(position.y() - y) <= 0.7
+                : preparedPark.feedback().contains(position.x(), position.y(), position.z());
+        if (!reachable) {
             throw new com.ssafy.ontop.feedback.service.FeedbackException(403, "FEEDBACK_OUT_OF_RANGE",
                     "소리함 가까이 같은 높이에서 작성해주세요.");
         }
@@ -1006,7 +1052,10 @@ public class TableHub {
             throw new com.ssafy.ontop.notes.service.NoteException(409, "NOTES_ACTIVITY_CONFLICT",
                     "테이블·시설 이용과 수영을 종료해주세요.");
         }
-        if (Math.hypot(position.x() - x, position.z() - z) > 2.6 || Math.abs(position.y() - y) >= 0.7) {
+        boolean reachable = preparedPark == null
+                ? Math.hypot(position.x() - x, position.z() - z) <= 2.6 && Math.abs(position.y() - y) < 0.7
+                : preparedPark.notes().contains(position.x(), position.y(), position.z());
+        if (!reachable) {
             throw new com.ssafy.ontop.notes.service.NoteException(403, "NOTES_OUT_OF_RANGE",
                     "익명 메모함 가까이 같은 높이에서 작성해주세요.");
         }
@@ -1233,10 +1282,18 @@ public class TableHub {
     private void ready(Member member, Request request) {
         TableRoom room = seatedRoom(member, request);
         ensureWaiting(room.snapshot().tableId(), request);
-        if (request.payload().get("ready").booleanValue() && room.snapshot().gameCode() == null) {
+        if (request.payload().get("ready").booleanValue()
+                && (room.snapshot().gameCode() == null || room.snapshot().betAmountPerPlayer() == null)) {
             fail(request, "GAME_NOT_SELECTED", "먼저 게임을 선택해주세요.");
         }
         boolean ready = request.payload().get("ready").booleanValue();
+        // receive의 같은 Hub 모니터 안에서 동의 검증과 준비 변경을 원자적으로 수행한다.
+        if (ready && !room.matchesReadyBet(request.payload().get("betAmountPerPlayer").longValue())) {
+            fail(request, "GAME_BET_CHANGED", "참가비가 변경되었습니다. 현재 금액을 확인해주세요.");
+        }
+        if (ready && !room.acceptsReadyVersion(request.payload().get("expectedVersion").longValue())) {
+            fail(request, "GAME_SETTINGS_CHANGED", "테이블 설정이 변경되었습니다. 현재 상태를 확인해주세요.");
+        }
         if (room.setReady(member.userId(), ready)) {
             publish(room, member, request.requestId());
             recordBehavior(BehaviorEventType.TABLE_READY_SET, member.accountId(),
@@ -1266,12 +1323,17 @@ public class TableHub {
         if (game == TableGame.DICE && targetScore == null) {
             fail(request, "GAME_OPTIONS_REQUIRED", "주사위 목표 2000/4000/6000점 중 하나를 선택해주세요.");
         }
-        if (room.selectGame(game, targetScore)) {
+        long amount = request.payload().get("betAmountPerPlayer").longValue();
+        try { com.ssafy.ontop.game.domain.GameAmounts.validate(amount, game.maximumPlayers()); }
+        catch (IllegalArgumentException exception) {
+            fail(request, "GAME_INVALID_BET", "참가비가 지원 범위를 벗어났습니다.");
+        }
+        if (room.selectGame(game, targetScore, amount)) {
             starts.remove(tableId);
             publish(room, member, request.requestId());
             publishStart(tableId);
             recordBehavior(BehaviorEventType.GAME_SELECTED, member.accountId(), builder -> builder.tableId(tableId)
-                    .prop("gameCode", game.name()).prop("targetScore", targetScore));
+                    .prop("gameCode", game.name()).prop("targetScore", targetScore).prop("betAmountPerPlayer", amount));
         } else {
             replyState(member, request, room);
         }
@@ -1393,7 +1455,8 @@ public class TableHub {
         GameStartCommand command = new GameStartCommand(UUID.randomUUID(), snapshot.tableId(), snapshot.version(),
                 snapshot.gameCode(), snapshot.seats().stream()
                         .filter(seat -> seat.userId() != null)
-                        .map(seat -> new Participant(seat.userId(), seat.seatNumber())).toList(), snapshot.targetScore());
+                        .map(seat -> new Participant(seat.userId(), seat.seatNumber())).toList(), snapshot.targetScore(),
+                snapshot.betAmountPerPlayer());
         TableStartAttempt attempt = new TableStartAttempt(command);
         starts.put(snapshot.tableId(), attempt);
         if (committedStarts.isPresent()) {
@@ -1521,7 +1584,19 @@ public class TableHub {
         }
     }
 
-    /** 실제 엔진 종료만 테이블을 정산 대기로 전환한다. 과거 경기 알림은 무시한다. */
+    /** 대기 중인 확정 라운드의 불변 스냅샷만 제공한다. DB 호출은 Hub 잠금 밖에서 수행한다. */
+    public synchronized Map<String, String> pendingResultRounds() {
+        Map<String, String> snapshot = new HashMap<>();
+        starts.forEach((tableId, attempt) -> {
+            if (attempt.phase().equals("PLAYING") || attempt.phase().equals("SETTLING")) {
+                String gameId = attempt.view(0, false).gameSessionId();
+                if (gameId != null) { snapshot.put(tableId, gameId); }
+            }
+        });
+        return Map.copyOf(snapshot);
+    }
+
+    /** 엔진 또는 DB의 종결을 테이블에 반영한다. 과거 경기 알림은 무시한다. */
     public synchronized void roundEnded(String tableId, String gameId) {
         if (stopped || committedStarts.isEmpty()) { return; }
         TableStartAttempt attempt = starts.get(tableId);
@@ -1550,7 +1625,7 @@ public class TableHub {
             if ((!attempt.starting() && !attempt.phase().equals("PLAYING") && !attempt.phase().equals("SETTLING"))
                     || !attempt.starting() && !result.gameSessionId().equals(attempt.view(0, false).gameSessionId())
                     || !result.gameCode().equals(attempt.command().gameCode())
-                    || result.betAmountPerPlayer() != 1) { continue; }
+                    || result.betAmountPerPlayer() != attempt.command().betAmountPerPlayer()) { continue; }
             Set<String> expected = attempt.command().participants().stream().map(Participant::userId)
                     .collect(Collectors.toSet());
             Set<String> actual = result.participants().stream().map(GameResultView.Participant::userId)

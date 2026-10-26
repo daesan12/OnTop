@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { avatars, useSession } from '../../network/worldClient'
-import { clearRoamingInput, inputState, panelOwnsKeys } from '../../world/inputOwnership'
+import { clearRoamingInput, inputState } from '../../world/inputOwnership'
 import { canControlRoamingCamera } from '../../world/roamingCamera'
 import { followAvailability, requestFollow } from './controller'
 import { followService } from './service'
@@ -14,29 +14,29 @@ export function openAvatarMenu(detail: AvatarMenuRequest) {
     window.dispatchEvent(new CustomEvent('ontop-avatar-menu', { detail }))
 }
 export function FollowMenu() {
-  const session = useSession(useShallow(s => ({ sessionId: s.sessionId, roomId: s.roomId, status: s.status,
-    ids: s.ids, profiles: s.profiles, tableId: s.tableId, benchId: s.benchId, fitnessId: s.fitnessId, telescopeId: s.telescopeId })))
+  const session = useSession(useShallow(s => ({ sessionId: s.sessionId, roomId: s.roomId, status: s.status, profiles: s.profiles })))
   const state = useFollow()
-  const [menu, setMenu] = useState<AvatarMenuRequest | null>(null), [nearby, setNearby] = useState(false)
+  // Opened by right-clicking an avatar; the HUD has no separate 이웃 메뉴 launcher.
+  const [menu, setMenu] = useState<AvatarMenuRequest | null>(null)
   const element = useRef<HTMLDivElement>(null), previousFocus = useRef<HTMLElement | null>(null)
-  const isOpen = !!menu || nearby
+  const isOpen = !!menu
   const target = sameFollowScope(state.scope, { userId: session.sessionId, channelId: session.roomId })
     ? state.links.find(link => link.followerId === session.sessionId)?.targetId : undefined
   useEffect(() => {
-    const show = (event: Event) => { setNearby(false); setMenu((event as CustomEvent<AvatarMenuRequest>).detail) }
+    const show = (event: Event) => setMenu((event as CustomEvent<AvatarMenuRequest>).detail)
     window.addEventListener('ontop-avatar-menu', show)
     return () => window.removeEventListener('ontop-avatar-menu', show)
   }, [])
-  useEffect(() => { setMenu(null); setNearby(false) }, [session.sessionId, session.roomId, session.status])
+  useEffect(() => { setMenu(null) }, [session.sessionId, session.roomId, session.status])
   useEffect(() => {
     if (!isOpen) return
     previousFocus.current = document.activeElement as HTMLElement | null
     inputState.followMenuOpen = true; clearRoamingInput()
     element.current?.querySelector<HTMLElement>('button:not(:disabled)')?.focus()
-    const outside = (event: PointerEvent) => { if (!element.current?.contains(event.target as Node)) { setMenu(null); setNearby(false) } }
+    const outside = (event: PointerEvent) => { if (!element.current?.contains(event.target as Node)) setMenu(null) }
     const timer = setInterval(() => {
       if (inputState.manualOpen || inputState.mapOpen || inputState.feedbackOpen || inputState.notesOpen
-        || session.status !== 'connected' || menu && !avatars.get(menu.id)?.connected) { setMenu(null); setNearby(false) }
+        || session.status !== 'connected' || menu && !avatars.get(menu.id)?.connected) setMenu(null)
     }, 200)
     window.addEventListener('pointerdown', outside)
     return () => {
@@ -46,16 +46,12 @@ export function FollowMenu() {
         (previousFocus.current?.isConnected ? previousFocus.current : document.querySelector<HTMLCanvasElement>('canvas'))?.focus({ preventScroll: true })
     }
   }, [isOpen, menu, session.status])
-  const close = () => { setMenu(null); setNearby(false) }
+  const close = () => setMenu(null)
   const nickname = (id: string) => session.profiles[id]?.nickname ?? '산책자 ' + id.slice(-6)
-  const candidates = session.ids.filter(id => id !== session.sessionId && !followAvailability(id))
   const reason = menu ? followAvailability(menu.id) : ''
   return <>
-    {session.status === 'connected' && !session.tableId && !session.benchId && !session.fitnessId && !session.telescopeId && <button
-      type="button" className="follow-launcher" aria-expanded={isOpen} aria-label="이웃 메뉴 열기"
-      onClick={() => { if (!panelOwnsKeys() || isOpen) { setMenu(null); setNearby(!nearby) } }}>이웃 메뉴</button>}
-    {isOpen && <div ref={element} className="follow-menu" role="menu" aria-label={menu ? `${nickname(menu.id)} 메뉴` : '주변 이용자'}
-      style={menu ? { left: Math.max(8, Math.min(innerWidth - 288, menu.x)), top: Math.max(8, Math.min(innerHeight - 260, menu.y)) } : undefined}
+    {menu && <div ref={element} className="follow-menu" role="menu" aria-label={`${nickname(menu.id)} 메뉴`}
+      style={{ left: Math.max(8, Math.min(innerWidth - 288, menu.x)), top: Math.max(8, Math.min(innerHeight - 260, menu.y)) }}
       onKeyDown={event => {
         if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229 || event.code === 'F1') return
         event.stopPropagation()
@@ -66,13 +62,10 @@ export function FollowMenu() {
           event.preventDefault(); controls[(index + (event.key === 'ArrowDown' ? 1 : controls.length - 1)) % controls.length]?.focus()
         }
       }}>
-      <strong>{menu ? nickname(menu.id) : '가까운 이웃'}</strong>
-      {menu ? <>
-        <button type="button" role="menuitem" disabled={!!reason || state.pending || followService.mode === 'unavailable' || followService.mode === 'server' && (!state.ready || state.checking)}
-          onClick={() => { void requestFollow(menu.id); close() }}>따라가기</button>
-        <small>{reason || (followService.mode === 'unavailable' ? '따라가기 서버 연결이 준비 중이에요.' : followService.mode === 'preview' ? '개발 미리보기 · 실제 자동 이동은 하지 않아요.' : !state.ready || state.checking ? '따라가기 상태를 확인하고 있어요.' : '서버 승인 후 따라가요.')}</small>
-      </> : candidates.length ? candidates.map(id => <button key={id} type="button" role="menuitem"
-        onClick={() => { setNearby(false); setMenu({ id, x: innerWidth - 304, y: 180 }) }}>{nickname(id)}</button>) : <small>가까이 산책 중인 이웃이 없어요.</small>}
+      <strong>{nickname(menu.id)}</strong>
+      <button type="button" role="menuitem" disabled={!!reason || state.pending || followService.mode === 'unavailable' || followService.mode === 'server' && (!state.ready || state.checking)}
+        onClick={() => { void requestFollow(menu.id); close() }}>따라가기</button>
+      <small>{reason || (followService.mode === 'unavailable' ? '따라가기 서버 연결이 준비 중이에요.' : followService.mode === 'preview' ? '개발 미리보기 · 실제 자동 이동은 하지 않아요.' : !state.ready || state.checking ? '따라가기 상태를 확인하고 있어요.' : '서버 승인 후 따라가요.')}</small>
       <button type="button" role="menuitem" onClick={close}>닫기</button>
     </div>}
     {target && <aside className="follow-status" aria-label="따라가기 상태"><span>{nickname(target)} 따라가는 중</span>

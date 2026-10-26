@@ -56,6 +56,7 @@ import static org.mockito.Mockito.doReturn;
 @Import(GameStartMySqlTests.ProbeConfiguration.class)
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "spring.profiles.active=local,db", "ontop.game-start.enabled=true", "ontop.games.omok.enabled=true",
+        "ontop.game-recovery.background-enabled=false",
         "ontop.shop.enabled=true", "ontop.minigames.enabled=true",
         "spring.flyway.locations=classpath:db/migration,classpath:db/shop,classpath:db/minigame",
         "spring.datasource.hikari.maximum-pool-size=12"
@@ -96,7 +97,7 @@ class GameStartMySqlTests {
     void 신규_DB에_기본과_선택적_마이그레이션을_적용하고_JPA_validate와_재실행을_검증한다() {
         assertThat(jdbc.queryForObject("SELECT VERSION()", String.class)).startsWith("8.4.");
         assertThat(flyway.info().applied()).extracting(info -> info.getVersion().getVersion())
-                .containsExactly("1", "2", "3", "4", "5", "6", "100", "110", "111", "112");
+                .containsExactly("1", "2", "3", "4", "5", "6", "100", "110", "111", "112", "122", "123");
         assertThat(flyway.info().pending()).isEmpty();
         assertThat(flyway.validateWithResult().validationSuccessful).isTrue();
         assertThat(flyway.migrate().migrationsExecuted).isZero();
@@ -445,6 +446,73 @@ class GameStartMySqlTests {
                 Long.MAX_VALUE, id)).isInstanceOf(DataIntegrityViolationException.class);
         assertThatThrownBy(() -> jdbc.update("UPDATE wallet_transactions SET game_session_id=? WHERE game_session_id=?",
                 Long.MAX_VALUE, id)).isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void 가변참가비를_저장하고_같은시도의_금액변조를_거절한다() {
+        var original = command("OMOK", member(), member());
+        var command = new GameStartCommand(original.startAttemptId(), original.tableId(), original.tableVersion(),
+                original.gameCode(), original.participants(), null, 30);
+        var reserved = gateway.startGame(command);
+        assertReserved(command, reserved);
+        assertThat(reserved.reservedAmountPerPlayer()).isEqualTo(30);
+        assertThat(reserved.totalReservedAmount()).isEqualTo(60);
+        assertThat(gateway.findStartResult(command.startAttemptId())).isEqualTo(reserved);
+        for (var player : command.participants()) {
+            var wallet = wallets.findByUserId(Long.parseLong(player.userId())).orElseThrow();
+            assertThat(wallet.balance()).isEqualTo(100);
+            assertThat(wallet.reserved()).isEqualTo(30);
+        }
+        var changed = new GameStartCommand(command.startAttemptId(), command.tableId(), command.tableVersion(),
+                command.gameCode(), command.participants(), null, 40);
+        assertThat(gateway.startGame(changed).outcome()).isEqualTo(GameStartResult.Outcome.CONFLICT);
+        assertThat(jdbc.queryForObject("SELECT SUM(reserved_delta) FROM wallet_transactions WHERE game_session_id=?",
+                Long.class, Long.parseLong(reserved.gameSessionId()))).isEqualTo(60);
+    }
+
+    @Test
+    void 가변참가비의_잔액부족은_전원예약을_거절한다() {
+        var original = command("OMOK", member(), member());
+        var command = new GameStartCommand(original.startAttemptId(), original.tableId(), 1, "OMOK", original.participants(), null, 101);
+        assertThat(gateway.startGame(command).code()).isEqualTo("INSUFFICIENT_BALANCE");
+        assertNoReservation(command, command.participants().stream().mapToLong(p -> Long.parseLong(p.userId())).toArray());
+    }
+
+    @Test
+    void 같은시도의_다른참가비_경합도_한번만_예약한다() throws Exception {
+        var base = command("OMOK", member(), member());
+        var first = new GameStartCommand(base.startAttemptId(), base.tableId(), 1, "OMOK", base.participants(), null, 30);
+        var second = new GameStartCommand(base.startAttemptId(), base.tableId(), 1, "OMOK", base.participants(), null, 40);
+        List<GameStartResult> output = parallel(List.of(() -> gateway.startGame(first), () -> gateway.startGame(second)));
+        assertThat(output).extracting(GameStartResult::outcome)
+                .containsExactlyInAnyOrder(GameStartResult.Outcome.RESERVED, GameStartResult.Outcome.CONFLICT);
+        var stored = gateway.findStartResult(base.startAttemptId());
+        assertThat(jdbc.queryForObject("SELECT SUM(reserved_delta) FROM wallet_transactions WHERE game_session_id=?",
+                Long.class, Long.parseLong(stored.gameSessionId()))).isEqualTo(stored.totalReservedAmount());
+    }
+
+    @Test
+    void 현재두명이어도_네명게임의_최대인원_범위를_예약전에_확인한다() {
+        var base = command("ONE_CARD", member(), member());
+        var tooLarge = new GameStartCommand(base.startAttemptId(), base.tableId(), 1, "ONE_CARD", base.participants(), null,
+                com.ssafy.ontop.game.domain.GameAmounts.MAX_SAFE_INTEGER / 4 + 1);
+        assertThatThrownBy(() -> gateway.startGame(tooLarge)).isInstanceOf(IllegalArgumentException.class);
+        assertThat(sessions.findByStartAttemptId(base.startAttemptId())).isEmpty();
+    }
+
+    @Test
+    void 가변예약과_구매가_경합해도_예약금액을_초과사용하지않는다() throws Exception {
+        long owner = member();
+        var base = command("OMOK", owner, member());
+        var command = new GameStartCommand(base.startAttemptId(), base.tableId(), 1, "OMOK", base.participants(), null, 60);
+        long product = item(60);
+        var outcome = parallel(List.<Callable<String>>of(
+                () -> gateway.startGame(command).outcome().name(),
+                () -> { try { shop.purchase(owner, product, 1, UUID.randomUUID().toString()); return "PURCHASED"; }
+                    catch (ShopException error) { return "PURCHASE_REJECTED"; } }));
+        assertThat(outcome).isIn(List.of("RESERVED", "PURCHASE_REJECTED"), List.of("REJECTED", "PURCHASED"));
+        var wallet = wallets.findByUserId(owner).orElseThrow();
+        assertThat(wallet.balance()).isGreaterThanOrEqualTo(wallet.reserved());
     }
 
     private User user() {

@@ -9,7 +9,7 @@ async function loaded(page: Page) {
   await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90000 })
   await expect(page.getByLabel('공원 기본 화면')).toBeVisible(); await page.locator('canvas').focus()
 }
-async function open(page: Page) { await page.getByRole('button', { name: '그래픽 · 성능', exact: true }).click(); await expect(panel(page)).toBeVisible() }
+async function open(page: Page) { await page.getByRole('button', { name: '내 메뉴', exact: true }).click(); await page.getByRole('menuitem', { name: /설정/ }).click(); await expect(panel(page)).toBeVisible() }
 async function book(page: Page) { await page.keyboard.press('F1'); await expect(manual(page)).toHaveAttribute('data-phase', 'open') }
 
 test('M15 quality controls apply real preset budgets, show live diagnostics, and retain the renderer/socket', async ({ page }) => {
@@ -36,7 +36,7 @@ test('M15 quality controls apply real preset budgets, show live diagnostics, and
   expect(server.tickets).toBe(tickets); expect(server.connections).toBe(1); expect(server.active).toBe(1)
   expect(server.sent.slice(sent).some(m => /TABLE_JOIN|TABLE_LEAVE|GAME_ACTION|EMOTE|CHAT|QUALITY|PERFORMANCE/.test(m.type))).toBe(false)
   await panel(page).getByRole('button', { name: '그래픽 설정 닫기', exact: true }).click(); await expect(panel(page)).toHaveCount(0)
-  await expect(page.getByRole('button', { name: '그래픽 · 성능', exact: true })).toBeFocused()
+  await expect(page.getByRole('button', { name: '내 메뉴', exact: true })).toBeFocused()
   expect((await probe(page)).camera).toBe(before.camera)
   await expect(page.locator('vite-error-overlay')).toHaveCount(0); expect(errors).toEqual([])
 })
@@ -44,7 +44,7 @@ test('M15 quality controls apply real preset budgets, show live diagnostics, and
 test('M15 original F1 utilities share quality, show approved population, protect game/chat input and preserve logout', async ({ page }) => {
   const server = await fixture(page, { players: 8, position: { x: 0, y: .8, z: 34, yaw: Math.PI } }); await loaded(page)
   await open(page); await panel(page).getByLabel('그래픽 품질').selectOption('medium')
-  await page.getByRole('button', { name: '그래픽 · 성능', exact: true }).click()
+  await page.getByRole('button', { name: '그래픽 설정 닫기', exact: true }).click()
   await page.getByRole('button', { name: '채팅 입력창 열기', exact: true }).click()
   const chat = page.getByRole('textbox', { name: '주변 채팅 메시지' }); await chat.fill('작성 중인 메시지')
   await book(page); const settings = manual(page).getByRole('region', { name: '공원 설정', exact: true })
@@ -60,7 +60,7 @@ test('M15 original F1 utilities share quality, show approved population, protect
   await screenshot(page, 'm15-performance-manual')
   await page.keyboard.press('Escape'); await expect(manual(page)).toHaveCount(0); await expect(chat).toHaveValue('작성 중인 메시지'); await expect(chat).toBeFocused()
   await open(page); await expect(panel(page).getByLabel('그래픽 품질')).toHaveValue('high')
-  await page.getByRole('button', { name: '그래픽 · 성능', exact: true }).click(); await book(page)
+  await page.getByRole('button', { name: '그래픽 설정 닫기', exact: true }).click(); await book(page)
   const logout = page.waitForRequest(r => r.url().endsWith('/api/v1/auth/logout') && r.method() === 'POST')
   await manual(page).getByRole('button', { name: '나가기', exact: true }).click(); await logout
   await expect(page).toHaveURL(/\/$/); await expect(page.locator('.login-page')).toBeVisible(); await expect(page.locator('canvas')).toHaveCount(0)
@@ -88,10 +88,10 @@ test('M15 graphics controls preserve table participation, active match and map g
   await map.getByRole('button', { name: '소리함 길 안내', exact: true }).click(); await expect(map.locator('.navigation-map-route')).toHaveCount(1); await page.keyboard.press('Escape')
   const guide = page.getByRole('region', { name: '내 길 안내', exact: true }); await expect(guide).toBeVisible()
   await open(page); await expect(guide).toHaveCount(0); await panel(page).getByLabel('그래픽 품질').selectOption('medium')
-  await page.getByRole('button', { name: '그래픽 · 성능', exact: true }).click(); await expect(guide).toBeVisible()
+  await page.getByRole('button', { name: '그래픽 설정 닫기', exact: true }).click(); await expect(guide).toBeVisible()
   await page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).inspectTable())
   const lobby = page.getByRole('dialog', { name: '테이블 정보', exact: true })
-  await lobby.getByRole('button', { name: '앉기', exact: true }).click(); await lobby.getByRole('button', { name: '오목 선택', exact: true }).click(); await lobby.getByRole('button', { name: '준비', exact: true }).click(); server.confirmStart()
+  await lobby.getByRole('button', { name: '앉기', exact: true }).click(); await lobby.getByLabel('1인 참가비').fill('1'); await lobby.getByRole('button', { name: '오목 선택', exact: true }).click(); await lobby.getByRole('button', { name: '준비', exact: true }).click(); server.confirmStart()
   await expect(page.getByRole('region', { name: '오목 경기', exact: true })).toBeVisible()
   const commands = server.sent.filter(m => /TABLE_LEAVE|GAME_ACTION|READY_SET/.test(m.type)).length
   await book(page); await manual(page).getByLabel('그래픽 품질').selectOption('low')

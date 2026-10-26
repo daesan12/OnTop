@@ -49,7 +49,7 @@ class TableWebSocketTests {
         try (Client first = connect(); Client second = connect(); Client third = connect()) {
             assertThat(first.userId).startsWith("dev-").isNotEqualTo(second.userId);
             JsonNode joined = first.request("TABLE_JOIN", Map.of("tableId", "table-1"));
-            long version = first.request("GAME_SELECT", Map.of("gameCode", "OMOK"))
+            long version = first.request("GAME_SELECT", Map.of("betAmountPerPlayer", 1, "gameCode", "OMOK"))
                     .path("payload").path("version").asLong();
             assertThat(joined.path("payload").path("seats").get(0).path("userId").asText())
                     .isEqualTo(first.userId);
@@ -112,7 +112,7 @@ class TableWebSocketTests {
         try (Client client = connect()) {
             client.socket.sendText(text, true).join();
             assertCode(client.next(), code);
-            assertCode(client.request("READY_SET", Map.of("ready", true)), "NOT_SEATED");
+        assertCode(client.request("READY_SET", Map.of("ready", true, "betAmountPerPlayer", 1, "expectedVersion", 0)), "NOT_SEATED");
         }
     }
 
@@ -180,7 +180,7 @@ class TableWebSocketTests {
         public CompletionStage<?> onText(WebSocket webSocket, CharSequence data, boolean last) {
             fragments.append(data);
             if (last) {
-                messages.add(fragments.toString());
+                messages.add(ReadyConsent.received(this, fragments.toString()));
                 fragments.setLength(0);
             }
             webSocket.request(1);
@@ -189,7 +189,7 @@ class TableWebSocketTests {
 
         private JsonNode request(String type, Object payload) throws Exception {
             String id = UUID.randomUUID().toString();
-            socket.sendText(mapper.writeValueAsString(Map.of("requestId", id, "type", type, "payload", payload)),
+            socket.sendText(mapper.writeValueAsString(Map.of("requestId", id, "type", type, "payload", ReadyConsent.payload(this, type, payload))),
                     true).join();
             JsonNode response = next();
             assertThat(response.path("requestId").asText()).isEqualTo(id);

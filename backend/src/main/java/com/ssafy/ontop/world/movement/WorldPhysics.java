@@ -15,6 +15,7 @@ public final class WorldPhysics implements AutoCloseable {
     public static final long STEP_NANOS = 1_000_000_000L / 30;
     private static final float DT = 1f / 30;
     private ParkScene scene;
+    private final java.util.function.Supplier<ParkScene> sceneSource;
     private PhysicsSpace space;
     private final Map<String, Actor> actors = new HashMap<>();
     private JsonNode movement;
@@ -49,6 +50,15 @@ public final class WorldPhysics implements AutoCloseable {
     }
 
     public WorldPhysics() {
+        this(ParkScene::load);
+    }
+
+    public WorldPhysics(ParkScene scene) {
+        this(() -> java.util.Objects.requireNonNull(scene));
+    }
+
+    private WorldPhysics(java.util.function.Supplier<ParkScene> sceneSource) {
+        this.sceneSource = sceneSource;
         try {
             call(
                     () -> {
@@ -62,7 +72,7 @@ public final class WorldPhysics implements AutoCloseable {
     }
 
     private void initialize() {
-        scene = ParkScene.load();
+        scene = sceneSource.get();
         movement = scene.data.path("movement");
         space = new PhysicsSpace(PhysicsSpace.BroadphaseType.DBVT);
         space.setAccuracy(DT);
@@ -101,6 +111,7 @@ public final class WorldPhysics implements AutoCloseable {
         body.setPhysicsLocation(scene.spawn(slot));
         space.addCollisionObject(body);
         actors.put(id, new Actor(body, slot, scene.spawn(slot)));
+        actors.get(id).yaw = scene.spawnYaw();
     }
 
     private boolean occupied(int slot) {
@@ -354,7 +365,8 @@ public final class WorldPhysics implements AutoCloseable {
         if (radius > t.path("outer").asDouble() + .08) {
             return false;
         }
-        if (Math.abs(foot - t.path("height").asDouble() - .12) < .25) {
+        double offset = t.path("surfaceOffset").asDouble(.12);
+        if (Math.abs(foot - t.path("topY").asDouble(t.path("height").asDouble() + offset)) < .25) {
             return true;
         }
         if (radius < t.path("inner").asDouble() - .08) {
@@ -365,7 +377,7 @@ public final class WorldPhysics implements AutoCloseable {
                                 + Math.PI * 2)
                         % (Math.PI * 2);
         double rise = t.path("height").asDouble() / t.path("turns").asDouble();
-        double base = .12 + angle / (Math.PI * 2) * rise;
+        double base = offset + angle / (Math.PI * 2) * rise;
         long turn = Math.round((foot - base) / rise);
         return turn >= 0
                 && turn < t.path("turns").asInt()

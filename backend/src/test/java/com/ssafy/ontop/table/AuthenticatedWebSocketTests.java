@@ -78,11 +78,11 @@ class AuthenticatedWebSocketTests {
             JsonNode state = second.request("TABLE_JOIN", Map.of("tableId", "table-1")).path("payload");
             assertThat(state.path("seats").get(0).path("userId").asText()).isEqualTo("101");
             assertThat(state.path("seats").get(1).path("userId").asText()).isEqualTo("202");
-            JsonNode forged = second.request("GAME_SELECT", Map.of("gameCode", "OMOK", "userId", "101"));
+            JsonNode forged = second.request("GAME_SELECT", Map.of("betAmountPerPlayer", 1, "gameCode", "OMOK", "userId", "101"));
             assertThat(forged.path("payload").path("code").asText()).isEqualTo("INVALID_PAYLOAD");
-            assertThat(second.request("GAME_SELECT", Map.of("gameCode", "OMOK"))
+            assertThat(second.request("GAME_SELECT", Map.of("betAmountPerPlayer", 1, "gameCode", "OMOK"))
                     .path("payload").path("code").asText()).isEqualTo("NOT_GAME_SELECTOR");
-            first.request("GAME_SELECT", Map.of("gameCode", "OMOK"));
+            first.request("GAME_SELECT", Map.of("betAmountPerPlayer", 1, "gameCode", "OMOK"));
             first.request("READY_SET", Map.of("ready", true));
             assertThat(second.request("READY_SET", Map.of("ready", true)).path("payload")
                     .path("allReady").asBoolean()).isTrue();
@@ -178,7 +178,7 @@ class AuthenticatedWebSocketTests {
         public CompletionStage<?> onText(WebSocket webSocket, CharSequence text, boolean last) {
             fragments.append(text);
             if (last) {
-                messages.add(fragments.toString());
+                messages.add(ReadyConsent.received(this, fragments.toString()));
                 fragments.setLength(0);
             }
             webSocket.request(1);
@@ -188,7 +188,7 @@ class AuthenticatedWebSocketTests {
         private JsonNode request(String type, Object payload) throws Exception {
             String requestId = UUID.randomUUID().toString();
             socket.sendText(mapper.writeValueAsString(Map.of("requestId", requestId,
-                    "type", type, "payload", payload)), true).join();
+                    "type", type, "payload", ReadyConsent.payload(this, type, payload))), true).join();
             return await(message -> message.path("requestId").asText().equals(requestId));
         }
 

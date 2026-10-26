@@ -19,28 +19,37 @@ export function GameControls({ tableId }: { tableId: string }) {
   const start = useGame((s) => s.start),
     recovery = useGame((s) => s.recovery)
   const [target, setTarget] = useState(2000)
+  const [betInput, setBetInput] = useState('')
+  useEffect(() => { setBetInput(table?.betAmountPerPlayer == null ? '' : String(table.betAmountPerPlayer)) }, [tableId, table?.betAmountPerPlayer])
   if (seated !== tableId || !table) return null
   const busy = tableBusy(),
     mine = table.seats.find((s) => s.userId === own)
   const lobby = lobbyStatus(table, own, busy)
+  const bet = Number(betInput), validBet = Number.isSafeInteger(bet) && bet > 0
   return (
     <div className="omok-lobby">
       <strong>
         게임 ·{' '}
         {TABLE_GAMES.find(g => g.code === table.gameCode)?.name ?? table.gameCode ?? '선택 전'}
       </strong>
-      <p>{lobby.host ? '방장 · 게임과 목표를 선택할 수 있어요.' : '방장이 게임을 선택합니다.'}</p>
+      <p>{lobby.host ? '선택 담당자 · 게임과 참가비를 설정할 수 있어요.' : '선택 담당자가 게임과 참가비를 설정합니다.'}</p>
+      <p>확정 참가비: {table.betAmountPerPlayer == null ? '미설정' : `${table.betAmountPerPlayer.toLocaleString()} 코인 / 1인`}</p>
+      <label>1인 참가비 <input aria-label="1인 참가비" type="number" min="1" step="1" value={betInput}
+        disabled={pending || busy || !lobby.host} onChange={event => setBetInput(event.target.value)} /></label>
+      <button disabled={pending || busy || !lobby.host || !validBet || !table.gameCode || bet === table.betAmountPerPlayer}
+        onClick={() => void runtime.selectGame(table.gameCode as typeof TABLE_GAMES[number]['code'], bet,
+          table.gameCode === 'DICE' ? table.targetScore ?? target : undefined)}>참가비 적용</button>
       <div className="table-game-options" role="group" aria-label="게임 선택">
         {TABLE_GAMES.map(game => <button key={game.code}
-          disabled={pending || busy || !lobby.host || table.gameCode === game.code}
+          disabled={pending || busy || !lobby.host || !validBet || table.gameCode === game.code}
           aria-pressed={table.gameCode === game.code}
-          onClick={() => void runtime.selectGame(game.code, game.code === 'DICE' ? target : undefined)}>
+          onClick={() => void runtime.selectGame(game.code, bet, game.code === 'DICE' ? target : undefined)}>
           {game.name} 선택
         </button>)}
       </div>
       <label>주사위 목표 점수 <select aria-label="주사위 목표 점수" value={table.gameCode === 'DICE' ? table.targetScore ?? target : target}
         disabled={pending || busy || !lobby.host}
-        onChange={event => { const score = Number(event.target.value); setTarget(score); if (table.gameCode === 'DICE') void runtime.selectGame('DICE', score) }}>
+        onChange={event => { const score = Number(event.target.value); setTarget(score); if (table.gameCode === 'DICE' && validBet) void runtime.selectGame('DICE', bet, score) }}>
         {TARGET_SCORES.map(score => <option key={score} value={score}>{score}점</option>)}
       </select></label>
       {table.gameCode && !TABLE_GAMES.some(g => g.code === table.gameCode && g.playable) && <p>이 게임의 플레이 화면은 준비 중입니다. 현재는 대기실 설정만 변경할 수 있습니다.</p>}

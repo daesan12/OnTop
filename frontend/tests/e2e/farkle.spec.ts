@@ -9,7 +9,7 @@ async function start(page: Page) {
   await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90_000 })
   await page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).inspectTable())
   await page.getByRole('button', { name: '앉기', exact: true }).click()
-  await page.getByRole('button', { name: '주사위 한 판 선택', exact: true }).click()
+  await page.getByLabel('1인 참가비').fill('1'); await page.getByRole('button', { name: '주사위 한 판 선택', exact: true }).click()
   await page.getByRole('button', { name: '준비', exact: true }).click()
   server.confirmStart()
   await expect(panel(page)).toContainText('내 차례')
@@ -46,7 +46,7 @@ test('M11 uses exact roll/held selection/Hot Dice/Bank commands, public eyes, se
   await roll(page).click()
   await expect(panel(page)).toContainText('HOT DICE')
   await expect(die(page, 0)).toBeEnabled()
-  await panel(page).getByRole('button', { name: '주사위 판 보기', exact: true }).click()
+  await panel(page).getByRole('button', { name: '판 시점 고정', exact: true }).click()
   await expect.poll(async () => (await probe(page)).cameraReady).toBe(true)
   const render = await probe(page)
   expect(render.dice.map((d: { face: number }) => d.face)).toEqual([1, 2, 3, 4, 5, 6])
@@ -78,7 +78,7 @@ test('M11 uses exact roll/held selection/Hot Dice/Bank commands, public eyes, se
 
 test('M11 cup requires a real shake/release, cancels on Esc/blur, and shortcuts respect text/score sheet', async ({ page }) => {
   const server = await start(page)
-  await panel(page).getByRole('button', { name: '주사위 판 보기', exact: true }).click()
+  await panel(page).getByRole('button', { name: '판 시점 고정', exact: true }).click()
   await expect.poll(async () => (await probe(page)).cameraReady).toBe(true)
   const cup = () => page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).pointForFarkleCup())
   let p = await cup(); await page.mouse.move(p.x, p.y); await page.mouse.down()

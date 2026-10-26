@@ -128,3 +128,14 @@ participants/myCoinDelta/endedAt이며 PENDING의 myCoinDelta는 null이다. 응
 세부 필드와 선택적4종 엔진 계약은 기존 [경기 통신](../websocket-api/09-game-communication.md),
 [경기 입력](../game-action-api.md), [결과](../game-result-api.md), [광장](../world-websocket-api.md)를 따른다.
 게스트 인증, 로그아웃/탈퇴의 즉시 기권·지갑 정산, 다중 인스턴스 접속권/연결 추적·서버 재시작 복구는 후속 영역이다.
+
+## GAME_SELECT 참가비 계약 (Story 172 보완/173)
+
+GAME_SELECT payload는 `{gameCode, betAmountPerPlayer, targetScore?}`다. 참가비는 필수 양의 안전 정수이며 DICE만 targetScore가 필요하다. TABLE_STATE/TABLE_WATCH_STATE와 테이블 목록에 nullable betAmountPerPlayer가 추가된다. selector만 WAITING에서 변경할 수 있으며 변경 시 전원 준비를 초기화한다. 게임 시작 이후에는 수정할 수 없고 종료 정산은 DB 확정 금액을 사용한다. 상세: [가변 참가비·정산](../game-settlement.md).
+
+READY_SET의 true는 `{ready:true, betAmountPerPlayer, expectedVersion}`이다. 사용자가 확인한
+TABLE_STATE의 금액과 version을 전달한다. false는 기존 `{ready:false}`를 유지한다.
+누락/형식 오류 INVALID_PAYLOAD, 현재 금액 불일치 GAME_BET_CHANGED, 준비 초기화 이전/미래 버전
+GAME_SETTINGS_CHANGED는 상태를 변경하지 않는다. 금액이 다시 같아지는 ABA도 기존 version으로 거절한다.
+다른 참가자의 단순 준비 변경은 동의를 무효화하지 않는다. FE는 오류 후 새 금액을 확인받아야 한다.
+상세: [준비·취소](../websocket-api/03-ready-set.md).

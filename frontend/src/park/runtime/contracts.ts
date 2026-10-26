@@ -22,7 +22,7 @@ export interface ParkRuntimePort {
   joinTable(): Promise<boolean>
   leaveTable(): Promise<boolean>
   selectOmok(): Promise<boolean>
-  selectGame(code: import('../../features/tableLobby/model').TableGameCode, targetScore?: number): Promise<boolean>
+  selectGame(code: import('../../features/tableLobby/model').TableGameCode, betAmountPerPlayer: number, targetScore?: number): Promise<boolean>
   setReady(ready: boolean): Promise<boolean>
   checkStart(): Promise<boolean>
   checkRecovery(): Promise<boolean>

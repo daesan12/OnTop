@@ -6,11 +6,13 @@ import com.ssafy.ontop.game.omok.service.OmokEngine;
 import com.ssafy.ontop.game.onecard.service.OneCardEngine;
 import com.ssafy.ontop.game.result.GameFinished;
 import com.ssafy.ontop.game.result.GameParticipantLeft;
+import com.ssafy.ontop.table.service.TableHub;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -37,6 +39,7 @@ class ManualForfeitFlowTests {
     @Autowired private OmokEngine omok;
     @Autowired private OneCardEngine onecard;
     @Autowired private Collector collector;
+    @Autowired private TableHub hub;
 
     @Test
     void 실제소켓_기권승인_종료상태_중복응답_연결유지_복귀차단을확인한다() throws Exception {
@@ -70,6 +73,7 @@ class ManualForfeitFlowTests {
                             "events", collector.events.stream().filter(event -> event instanceof GameFinished
                                     || event instanceof GameParticipantLeft).toList())));
         }
+        awaitServerDisconnect();
         try (var returned = connect("ssafy", "FINISHED")) {
             assertThat(returned.request("GAME_ACTION_SEND", Map.of("gameId", "manual", "actionId", "revive",
                     "expectedVersion", 1, "input", Map.of("x", 0, "y", 0)))
@@ -105,6 +109,16 @@ class ManualForfeitFlowTests {
         var client = new ScenarioClient(port, login);
         client.state(status);
         return client;
+    }
+
+    private void awaitServerDisconnect() throws InterruptedException {
+        // 클라이언트 close()/reader 종료는 서버의 afterConnectionClosed 완료를 보장하지 않는다.
+        // 기존 연결이 남아 있는 동안 새 연결을 거절하는 중복 접속 정책은 유지한다.
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (hub.metricsSnapshot().activeConnections() != 0 && System.nanoTime() < deadline) {
+            Thread.sleep(10);
+        }
+        assertThat(hub.metricsSnapshot().activeConnections()).as("이전 연결의 서버 정리 완료").isZero();
     }
 
     @TestConfiguration(proxyBeanMethods = false)

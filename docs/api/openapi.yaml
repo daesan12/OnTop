@@ -3196,6 +3196,11 @@ components:
         targetScore:
           type: integer
           format: int32
+        betAmountPerPlayer:
+          type: integer
+          description: 선택자가 확정한 1인 참가비. 미선택/빈 테이블은 null
+          format: int64
+          nullable: true
         gameId:
           type: string
           description: PLAYING인 확정 경기의 공개 gameId. 나머지 상태는 null

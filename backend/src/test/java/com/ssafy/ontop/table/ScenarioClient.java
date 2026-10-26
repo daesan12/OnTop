@@ -9,6 +9,8 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -88,13 +90,23 @@ final class ScenarioClient implements AutoCloseable {
 
     String sendRequest(String type, Object payload) throws Exception {
         String id = UUID.randomUUID().toString();
-        send(1, MAPPER.writeValueAsBytes(Map.of("type", type, "requestId", id, "payload", payload)));
+        send(1, MAPPER.writeValueAsBytes(Map.of("type", type, "requestId", id, "payload", ReadyConsent.payload(this, type, payload))));
         return id;
     }
 
     JsonNode state(String status) throws Exception {
-        return await(message -> message.path("type").asText().equals("GAME_CONNECTION_STATE")
-                && message.path("payload").path("status").asText().equals(status)).path("payload");
+        List<String> observed = new ArrayList<>();
+        try {
+            return await(message -> {
+                if (!message.path("type").asText().equals("GAME_CONNECTION_STATE")) { return false; }
+                String actual = message.path("payload").path("status").asText();
+                observed.add(actual);
+                return actual.equals(status);
+            }).path("payload");
+        } catch (AssertionError exception) {
+            // 토큰/사용자 payload 없이 누락된 상태와 실제 Close Code를 진단한다.
+            throw new AssertionError("기대 복구 상태=" + status + ", 수신 상태=" + observed + ", Close Code=" + closes.peek(), exception);
+        }
     }
 
     JsonNode await(Predicate<JsonNode> predicate) throws Exception {
@@ -162,7 +174,7 @@ final class ScenarioClient implements AutoCloseable {
                 byte[] payload = new byte[length];
                 input.readFully(payload);
                 if (opcode == 1) {
-                    JsonNode message = MAPPER.readTree(payload);
+                    JsonNode message = ReadyConsent.received(this, MAPPER.readTree(payload));
                     assertThat(forbidden.test(message)).as("동작 중 수신 금지 메시지: %s", message).isFalse();
                     assertThat(messages.offer(message)).as("시나리오 수신 큐 초과").isTrue();
                 } else if (opcode == 9 && replyToPing) {

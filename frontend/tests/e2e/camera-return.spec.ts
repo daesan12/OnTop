@@ -6,8 +6,11 @@ import { feedbackFixture } from './feedbackFixture'
 import { notesFixture } from './notesFixture'
 import { MAILBOX, NOTES_BOX } from '../../src/config'
 
-const mode = (page: Page) => page.getByRole('button', { name: '1인칭 시점', exact: true })
-const mouse = (page: Page) => page.getByRole('button', { name: '마우스 룩', exact: true })
+// Camera buttons are gone from the HUD; V and a Ctrl tap drive the same state, read here.
+const cameraState = (page: Page) => page.evaluate(async () => ({
+  first: (await import('/src/world/cameraPerspective.ts' as string)).useCameraPerspective.getState().perspective === 'first-person',
+  mouse: (await import('/src/world/mouseLook.ts' as string)).useMouseLook.getState().active as boolean,
+}))
 const probe = (page: Page) => page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).adCameraProbe())
 const own = (page: Page) => page.evaluate(async () => {
   const { useFacilityState } = await import('/src/features/facilities/state.ts' as string)
@@ -22,7 +25,7 @@ async function loaded(page: Page, first = true) {
   await expect.poll(() => page.evaluate(async () => (await import('/src/world/roamingCamera.ts' as string)).canControlRoamingCamera())).toBe(true)
   await page.evaluate(async () => { (await import('/tests/e2e/sceneProbe.ts' as string)).orbit(.8, .37, 8.4) })
   if (first) await page.keyboard.press('KeyV')
-  await expect(mode(page)).toHaveAttribute('aria-pressed', String(first))
+  await expect.poll(async () => String((await cameraState(page)).first)).toBe(String(first))
 }
 const errors = new WeakMap<Page, string[]>()
 test.beforeEach(({ page }) => {
@@ -40,7 +43,7 @@ for (const first of [true, false]) test(`exercise returns to original ${first ? 
   const server = await fixture(page, { manualMovement: true, position: d.exit })
   await loaded(page, first)
   const before = (await probe(page)).controls
-  await mouse(page).click(); await expect(mouse(page)).toHaveAttribute('aria-pressed', 'true')
+  await page.keyboard.press('Control'); await expect.poll(async () => String((await cameraState(page)).mouse)).toBe('true')
   await page.evaluate(async id => { await (await import('/src/features/fitness/controller.ts' as string)).enterFitness(id) }, d.facilityId)
   await expect.poll(async () => (await own(page)).lease?.facilityId).toBe(d.facilityId)
   await expect.poll(async () => (await own(page)).pending).toBe(false)
@@ -58,9 +61,9 @@ for (const first of [true, false]) test(`exercise returns to original ${first ? 
   expect((await probe(page)).controls).not.toEqual(before)
   server.facilities.flushWorld()
   await expect.poll(async () => (await own(page)).pending).toBe(false)
-  await expect(mode(page)).toHaveAttribute('aria-pressed', String(first))
+  await expect.poll(async () => String((await cameraState(page)).first)).toBe(String(first))
   await expect.poll(async () => (await probe(page)).controls).toEqual(before)
-  await expect(mouse(page)).toHaveAttribute('aria-pressed', 'true')
+  await expect.poll(async () => String((await cameraState(page)).mouse)).toBe('true')
   await expect.poll(async () => (await probe(page)).ownVisible).toBe(!first)
   await screenshot(page, first ? 'camera-return-exercise-first' : 'camera-return-exercise-third')
   expect(server.sent.some(m => /CAMERA|PERSPECTIVE/.test(m.type))).toBe(false)
@@ -75,7 +78,7 @@ test('bench and table-specific cameras preserve the earlier orbit instead of ove
   await expect(page.getByRole('button', { name: '벤치에서 일어나기', exact: true })).toBeVisible()
   await page.mouse.move(650, 250); await page.mouse.down(); await page.mouse.move(720, 270); await page.mouse.up()
   await page.getByRole('button', { name: '벤치에서 일어나기', exact: true }).click()
-  await expect(mode(page)).toHaveAttribute('aria-pressed', 'true')
+  await expect.poll(async () => String((await cameraState(page)).first)).toBe('true')
   await expect.poll(async () => (await probe(page)).controls).toEqual(before)
 })
 
@@ -83,20 +86,20 @@ test('window loss cancels mouse re-lock while retaining first-person and orbit r
   const d = facilityCatalog.facilities.find(d => d.kind === 'FITNESS')!
   await fixture(page, { manualMovement: true, position: d.exit }); await loaded(page)
   const before = (await probe(page)).controls
-  await mouse(page).click(); await expect(mouse(page)).toHaveAttribute('aria-pressed', 'true')
+  await page.keyboard.press('Control'); await expect.poll(async () => String((await cameraState(page)).mouse)).toBe('true')
   await page.evaluate(async id => { await (await import('/src/features/fitness/controller.ts' as string)).enterFitness(id) }, d.facilityId)
   await expect.poll(async () => (await own(page)).pending).toBe(false)
   await page.evaluate(() => window.dispatchEvent(new Event('blur')))
   await page.getByRole('button', { name: '운동기구에서 내려오기', exact: true }).click()
-  await expect(mode(page)).toHaveAttribute('aria-pressed', 'true')
+  await expect.poll(async () => String((await cameraState(page)).first)).toBe('true')
   await expect.poll(async () => (await probe(page)).controls).toEqual(before)
-  await expect(mouse(page)).toHaveAttribute('aria-pressed', 'false')
+  await expect.poll(async () => String((await cameraState(page)).mouse)).toBe('false')
 })
 
 test('browser rejection of automatic mouse return is a one-shot failure with a working explicit retry', async ({ page }) => {
   const d = facilityCatalog.facilities.find(d => d.kind === 'FITNESS')!
   await fixture(page, { manualMovement: true, position: d.exit }); await loaded(page)
-  await mouse(page).click(); await expect(mouse(page)).toHaveAttribute('aria-pressed', 'true')
+  await page.keyboard.press('Control'); await expect.poll(async () => String((await cameraState(page)).mouse)).toBe('true')
   await page.evaluate(async id => { await (await import('/src/features/fitness/controller.ts' as string)).enterFitness(id) }, d.facilityId)
   await expect.poll(async () => (await own(page)).pending).toBe(false)
   await page.locator('canvas').evaluate(canvas => {
@@ -104,25 +107,25 @@ test('browser rejection of automatic mouse return is a one-shot failure with a w
     canvas.requestPointerLock = () => { canvas.dataset.returnRequests = String(Number(canvas.dataset.returnRequests) + 1); return Promise.reject(new Error('test return rejection')) }
   })
   await page.getByRole('button', { name: '운동기구에서 내려오기', exact: true }).click()
-  await expect(mode(page)).toHaveAttribute('aria-pressed', 'true')
+  await expect.poll(async () => String((await cameraState(page)).first)).toBe('true')
   await expect(page.getByText(/마우스 시점을 고정하지 못했어요/)).toBeVisible()
   await page.waitForTimeout(250)
   await expect(page.locator('canvas')).toHaveAttribute('data-return-requests', '1')
   await page.locator('canvas').evaluate(canvas => Reflect.deleteProperty(canvas, 'requestPointerLock'))
-  await mouse(page).click(); await expect(mouse(page)).toHaveAttribute('aria-pressed', 'true')
+  await page.keyboard.press('Control'); await expect.poll(async () => String((await cameraState(page)).mouse)).toBe('true')
 })
 
 test('bungeoppang temporary camera returns to the original first-person view and mouse lock', async ({ page }) => {
   await bungeoppangFixture(page); await loaded(page)
   const before = (await probe(page)).controls
-  await mouse(page).click(); await expect(mouse(page)).toHaveAttribute('aria-pressed', 'true')
+  await page.keyboard.press('Control'); await expect.poll(async () => String((await cameraState(page)).mouse)).toBe('true')
   await page.evaluate(async () => (await import('/src/features/bungeoppang/store.ts' as string)).openBungeoppang())
   await expect(page.getByRole('region', { name: '붕어빵 굽기 시작' })).toBeVisible()
   await expect.poll(async () => (await probe(page)).active).toBe(false)
   await page.getByRole('button', { name: 'ESC 나가기', exact: true }).click()
-  await expect(mode(page)).toHaveAttribute('aria-pressed', 'true')
+  await expect.poll(async () => String((await cameraState(page)).first)).toBe('true')
   await expect.poll(async () => (await probe(page)).controls).toEqual(before)
-  await expect(mouse(page)).toHaveAttribute('aria-pressed', 'true')
+  await expect.poll(async () => String((await cameraState(page)).mouse)).toBe('true')
 })
 
 for (const kind of ['feedback', 'notes'] as const) for (const first of [true, false]) {
@@ -138,7 +141,7 @@ for (const kind of ['feedback', 'notes'] as const) for (const first of [true, fa
     const before = (await probe(page)).controls
     const panel = page.getByRole('dialog', { name: kind === 'feedback' ? '온탑 소리함' : '전망대 익명 메모', exact: true })
     const selected = () => page.evaluate(async () => (await import('/src/features/interactions/parkInteraction.ts' as string)).getParkInteraction()?.kind)
-    await mouse(page).click(); await expect(mouse(page)).toHaveAttribute('aria-pressed', 'true')
+    await page.keyboard.press('Control'); await expect.poll(async () => String((await cameraState(page)).mouse)).toBe('true')
     await expect.poll(selected).toBe(kind)
     await page.keyboard.press('KeyE')
     await expect(panel).toBeVisible()
@@ -150,21 +153,21 @@ for (const kind of ['feedback', 'notes'] as const) for (const first of [true, fa
     expect((await probe(page)).active).toBe(false)
     await page.keyboard.press('Escape'); await expect(manual).toHaveCount(0)
     await expect(panel.getByRole('textbox')).toHaveValue('이용을 마칠 때까지 보관할 내용')
-    await expect(mouse(page)).toHaveAttribute('aria-pressed', 'false')
+    await expect.poll(async () => String((await cameraState(page)).mouse)).toBe('false')
     await page.keyboard.press('Escape'); await expect(panel).toHaveCount(0)
-    await expect(mode(page)).toHaveAttribute('aria-pressed', String(first))
+    await expect.poll(async () => String((await cameraState(page)).first)).toBe(String(first))
     await expect.poll(async () => (await probe(page)).controls).toEqual(before)
-    await expect(mouse(page)).toHaveAttribute('aria-pressed', 'true')
+    await expect.poll(async () => String((await cameraState(page)).mouse)).toBe('true')
 
     // A second visit started without mouse look must leave it off on close.
-    await page.keyboard.press('Control'); await expect(mouse(page)).toHaveAttribute('aria-pressed', 'false')
+    await page.keyboard.press('Control'); await expect.poll(async () => String((await cameraState(page)).mouse)).toBe('false')
     await expect.poll(selected).toBe(kind)
     await page.keyboard.press('KeyE'); await expect(panel).toBeVisible()
     await panel.getByRole('button', { name: kind === 'feedback' ? '소리함 닫기' : '익명 메모 닫기', exact: true }).click()
     await expect(panel).toHaveCount(0)
-    await expect(mode(page)).toHaveAttribute('aria-pressed', String(first))
+    await expect.poll(async () => String((await cameraState(page)).first)).toBe(String(first))
     await expect.poll(async () => (await probe(page)).controls).toEqual(before)
-    await expect(mouse(page)).toHaveAttribute('aria-pressed', 'false')
+    await expect.poll(async () => String((await cameraState(page)).mouse)).toBe('false')
     expect(server.sent.some(m => /CAMERA|PERSPECTIVE/.test(m.type))).toBe(false)
   })
 }

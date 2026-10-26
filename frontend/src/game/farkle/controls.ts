@@ -4,6 +4,7 @@ import { useSession } from '../../network/worldClient'
 import { inputState, clearRoamingInput } from '../../world/inputOwnership'
 import { parkRuntime } from '../../park/runtime/runtime'
 import { eligibleDice, validDiceAction } from './scoring'
+import { disposeDiceSound, unlockDiceSound } from './sound'
 
 const initial = () => ({ scope: '', selectedIds: [] as number[], cup: 'idle' as 'idle' | 'holding' | 'ready', scoreOpen: false,
   animationAt: 0, animationUntil: 0, boardView: false })
@@ -39,6 +40,7 @@ export function canRollDice() {
 }
 export function rollDice() {
   if (!canRollDice() || useDiceUI.getState().cup !== 'idle') return false
+  unlockDiceSound()
   void parkRuntime.actDice('roll', [...selectedDice()]); return true
 }
 export function bankDice() {
@@ -61,7 +63,8 @@ export function toggleScoreSheet() {
   useDiceUI.setState({ scoreOpen })
   if (scoreOpen) clearRoamingInput()
 }
-export function installDiceControls() {
+/** Public animation state is shared, while spectators never install player key handlers. */
+export function installDicePresentation() {
   syncDiceUI()
   const unsubGame = useGame.subscribe((s, old) => {
     const next = s.game, prev = old.game
@@ -71,10 +74,14 @@ export function installDiceControls() {
     syncDiceUI(animate)
     if (s.pending || s.uncertain || s.recovery !== 'RESTORED') cancelCup()
   })
-  const cancel = () => cancelCup()
   const unsubSession = useSession.subscribe((s, old) => {
     if (s.status !== 'connected' || s.sessionId !== old.sessionId || s.roomId !== old.roomId) resetDiceUI()
   })
+  return () => { unsubGame(); unsubSession(); resetDiceUI(); disposeDiceSound() }
+}
+export function installDiceControls() {
+  const disposePresentation = installDicePresentation()
+  const cancel = () => cancelCup()
   const down = (e: KeyboardEvent) => {
     if (!useGame.getState().game?.dice || inputState.manualOpen) return
     if (e.code === 'Escape' && (useDiceUI.getState().cup !== 'idle' || useDiceUI.getState().scoreOpen)) {
@@ -95,7 +102,7 @@ export function installDiceControls() {
   window.addEventListener('ontop-manual-open', cancel); window.addEventListener('keydown', down, true); window.addEventListener('blur', cancel)
   document.addEventListener('visibilitychange', cancel)
   return () => {
-    unsubGame(); unsubSession(); window.removeEventListener('ontop-manual-open', cancel); window.removeEventListener('keydown', down, true); window.removeEventListener('blur', cancel)
-    document.removeEventListener('visibilitychange', cancel); resetDiceUI()
+    disposePresentation(); window.removeEventListener('ontop-manual-open', cancel); window.removeEventListener('keydown', down, true); window.removeEventListener('blur', cancel)
+    document.removeEventListener('visibilitychange', cancel)
   }
 }

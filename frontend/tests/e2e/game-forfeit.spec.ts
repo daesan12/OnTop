@@ -19,6 +19,7 @@ async function start(page: Page, kind: Kind = 'OMOK', count: 2 | 3 | 4 = 2) {
   await page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).inspectTable())
   await page.getByRole('button', { name: '앉기', exact: true }).click()
   const selection = { OMOK: '오목 선택', DICE: '주사위 한 판 선택', ONE_CARD: '원카드 선택', LIAR_BRIDGE: '거짓말 다리 건너기 선택' }
+  await page.getByLabel('1인 참가비', { exact: true }).fill('1')
   await page.getByRole('button', { name: selection[kind], exact: true }).click()
   await page.getByRole('button', { name: '준비', exact: true }).click(); server.confirmStart()
   const panel = page.getByRole('region', { name: labels[kind], exact: true })
@@ -172,8 +173,13 @@ test('forfeiting and leaving retains roaming follow and server emote cancellatio
   await page.getByRole('dialog', { name: '테이블 정보', exact: true }).getByRole('button', { name: '일어나기', exact: true }).click()
   await expect(result(page)).toHaveCount(0)
   await page.getByRole('button', { name: '테이블 정보 닫기', exact: true }).click()
-  await page.getByRole('button', { name: '이웃 메뉴 열기', exact: true }).click()
-  await page.getByRole('menu', { name: '주변 이용자', exact: true }).getByRole('menuitem').first().click()
+  // The 이웃 메뉴 launcher is gone; open the menu the way an avatar right-click does.
+  await page.evaluate(async () => {
+    const { openAvatarMenu } = await import('/src/features/follow/FollowMenu.tsx' as string)
+    const { useSession } = await import('/src/network/worldClient.ts' as string)
+    const state = useSession.getState()
+    openAvatarMenu({ id: state.ids.find((id: string) => id !== state.sessionId), x: 600, y: 300 })
+  })
   await page.getByRole('menuitem', { name: '따라가기', exact: true }).click()
   await expect(page.getByRole('complementary', { name: '따라가기 상태', exact: true })).toBeVisible()
   await page.getByRole('button', { name: '따라가기 종료', exact: true }).click()
