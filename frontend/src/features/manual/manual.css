@@ -877,6 +877,27 @@
   background: #f8f3e5;
   font: inherit;
 }
+/* Sits right after the graphics label, which takes the free space with margin-left: auto. */
+.manual-look-control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.manual-look-control input[type="range"] {
+  width: 96px;
+  accent-color: #25483b;
+}
+.manual-look-control input[type="number"] {
+  width: 4.2em;
+  padding: 4px 6px;
+  border: 1px solid #c3b58f;
+  border-radius: 5px;
+  color: #25483b;
+  background: #f8f3e5;
+  font: inherit;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
 /* The paper is revealed at its final size; text is never scaled horizontally. */
 .game-manual {
   width: min(1280px, calc(100vw - 64px));
@@ -2028,7 +2049,8 @@ body:has(.game-manual[open]) {
   border-bottom-color: #3b3a3155;
 }
 .manual-world-actions select,
-.manual-world-actions button {
+.manual-world-actions button,
+.manual-look-control input[type="number"] {
   border-color: var(--rule);
   border-radius: 2px;
   background: transparent;
