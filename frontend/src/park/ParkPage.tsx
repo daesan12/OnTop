@@ -73,13 +73,16 @@ function ParkContent({ onExit, exitError, onAuthEnded }: ParkProps) {
     } as CSSProperties}>
       <ParkScene quality={quality} />
       <div className="park-hud">
-        <ChannelMenu />
-
-        <AccountMenu quality={quality} exitError={exitError} onExit={onExit} onWithdrawn={onAuthEnded} />
-        {/* 빠른 메뉴: the frame only; each feature keeps its own launcher, placed into a slot by CSS. */}
-        <div className="park-quick-dock" aria-hidden="true" />
-        <div className="park-dock-wardrobe"><ShopLauncher /></div>
-        <LocationChip />
+        <div className="park-roaming-ui" hidden={bungeoppang} inert={bungeoppang}>
+          <ChannelMenu />
+          {/* 빠른 메뉴: each feature keeps its own launcher, placed into a slot by CSS. */}
+          <div className="park-quick-dock" aria-hidden="true" />
+          <div className="park-dock-wardrobe"><ShopLauncher /></div>
+          <LocationChip />
+        </div>
+        <div inert={bungeoppang}>
+          <AccountMenu quality={quality} exitError={exitError} onExit={onExit} onWithdrawn={onAuthEnded} />
+        </div>
 
         <div className="park-roaming-ui" hidden={bungeoppang} inert={bungeoppang}>
           <ParkChat key={`${session.sessionId}:${session.roomId}`} />
