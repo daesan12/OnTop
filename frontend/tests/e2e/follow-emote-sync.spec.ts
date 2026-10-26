@@ -15,8 +15,13 @@ async function choose(page: Page, rightClick = false) {
     const point = await page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).avatarMenuPoint('102'))
     await page.mouse.click(point.x, point.y, { button: 'right' })
   } else {
-    await page.getByRole('button', { name: '이웃 메뉴 열기', exact: true }).click()
-    await page.getByRole('menu', { name: '주변 이용자', exact: true }).getByRole('menuitem').first().click()
+    // The 이웃 메뉴 launcher is gone; open the menu the way an avatar right-click does.
+    await page.evaluate(async () => {
+      const { openAvatarMenu } = await import('/src/features/follow/FollowMenu.tsx' as string)
+      const { useSession } = await import('/src/network/worldClient.ts' as string)
+      const state = useSession.getState()
+      openAvatarMenu({ id: state.ids.find((id: string) => id !== state.sessionId), x: 600, y: 300 })
+    })
   }
   await page.getByRole('menuitem', { name: '따라가기', exact: true }).click()
 }

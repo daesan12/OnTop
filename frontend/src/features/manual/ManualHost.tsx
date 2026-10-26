@@ -167,7 +167,7 @@ export function ManualHost({
           onClick={openContextManual}
         >
           <BookIcon />
-          <span>게임 설명서</span>
+          <span><span className="visually-hidden">게임 </span>설명서</span>
           <kbd>F1</kbd>
         </button>
       )}

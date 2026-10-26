@@ -10,14 +10,20 @@ export function GraphicsSettings({ quality, onQuality }: {
   onQuality: (value: QualityPreset) => void
 }) {
   const [open, setOpen] = useState(false)
-  const button = useRef<HTMLButtonElement>(null)
-  return <>
-    <button ref={button} aria-controls="park-graphics-settings" aria-expanded={open} onClick={() => setOpen(value => !value)}>그래픽 · 성능</button>
-    {open && <GraphicsReport quality={quality} onQuality={onQuality} onClose={() => {
-      setOpen(false)
-      button.current?.focus({ preventScroll: true })
-    }} />}
-  </>
+  const opener = useRef<HTMLElement | null>(null)
+  useEffect(() => {
+    // Opened from the profile menu's 설정 item; focus returns to whatever opened it.
+    const show = () => {
+      opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+      setOpen(true)
+    }
+    window.addEventListener('ontop-open-graphics-settings', show)
+    return () => window.removeEventListener('ontop-open-graphics-settings', show)
+  }, [])
+  return open ? <GraphicsReport quality={quality} onQuality={onQuality} onClose={() => {
+    setOpen(false)
+    if (opener.current?.isConnected) opener.current.focus({ preventScroll: true })
+  }} /> : null
 }
 
 function GraphicsReport({ quality, onQuality, onClose }: {
