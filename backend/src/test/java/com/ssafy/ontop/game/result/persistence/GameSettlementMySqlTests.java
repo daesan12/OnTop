@@ -88,7 +88,7 @@ class GameSettlementMySqlTests {
 
     @Test void 신규_DB에서_최신_마이그레이션과_JPA_validate와_재실행을_확인한다() {
         assertThat(flyway.info().applied()).extracting(m -> m.getVersion().getVersion())
-                .endsWith("112", "122", "123", "124");
+                .endsWith("112", "122", "123", "124", "125");
         assertThat(flyway.validateWithResult().validationSuccessful).isTrue();
         assertThat(flyway.migrate().migrationsExecuted).isZero();
         assertThat(jdbc.queryForObject("SELECT VERSION()", String.class)).startsWith("8.4.");

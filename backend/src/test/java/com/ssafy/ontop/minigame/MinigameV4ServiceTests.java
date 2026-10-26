@@ -3,10 +3,14 @@ package com.ssafy.ontop.minigame;
 import com.ssafy.ontop.minigame.domain.BungeoppangProfile;
 import com.ssafy.ontop.minigame.domain.BungeoppangRecord;
 import com.ssafy.ontop.minigame.domain.BungeoppangV4Order;
+import com.ssafy.ontop.minigame.domain.BungeoppangV4Progress;
+import com.ssafy.ontop.minigame.domain.BungeoppangV4Receipt;
 import com.ssafy.ontop.minigame.domain.BungeoppangV4Round;
 import com.ssafy.ontop.minigame.domain.MinigameSession;
 import com.ssafy.ontop.minigame.domain.MinigameStartRequest;
 import com.ssafy.ontop.minigame.dto.BungeoppangV4Responses;
+import com.ssafy.ontop.minigame.dto.BungeoppangV4DeliveryDtos;
+import com.ssafy.ontop.minigame.service.BungeoppangV4DeliveryContract;
 import com.ssafy.ontop.minigame.repository.MinigameRepository;
 import com.ssafy.ontop.minigame.service.BungeoppangV4Spec;
 import com.ssafy.ontop.minigame.service.MinigameException;
@@ -52,6 +56,8 @@ class MinigameV4ServiceTests {
     private final Map<Long, BungeoppangRecord> records = new HashMap<>();
     private final Map<Long, BungeoppangV4Round> rounds = new HashMap<>();
     private final Map<Long, List<BungeoppangV4Order>> orders = new HashMap<>();
+    private final Map<Long, BungeoppangV4Progress> progresses = new HashMap<>();
+    private final Map<String, BungeoppangV4Receipt> receipts = new HashMap<>();
     private final AtomicReference<MinigameStartRequest> receipt = new AtomicReference<>();
     private final AtomicLong nextSessionId = new AtomicLong(902);
 
@@ -78,6 +84,15 @@ class MinigameV4ServiceTests {
                 .thenAnswer(invocation -> Optional.ofNullable(rounds.get(invocation.getArgument(0))));
         when(repository.v4Orders(anyLong()))
                 .thenAnswer(invocation -> orders.getOrDefault(invocation.getArgument(0), List.of()));
+        when(repository.v4Progress(anyLong(), anyBoolean()))
+                .thenAnswer(invocation -> Optional.ofNullable(progresses.get(invocation.getArgument(0))));
+        when(repository.v4Receipt(anyLong(), any(), any()))
+                .thenAnswer(invocation -> Optional.ofNullable(receipts.get(invocation.getArgument(0) + ":"
+                        + invocation.getArgument(1) + ":" + invocation.getArgument(2))));
+        when(repository.acceptedV4Delivery(anyLong(), anyLong())).thenAnswer(invocation -> receipts.values().stream()
+                .filter(value -> value.sessionId() == (long) invocation.getArgument(0)
+                        && value.acceptedOrderId() != null
+                        && value.acceptedOrderId() == (long) invocation.getArgument(1)).findFirst());
         doAnswer(invocation -> {
             Object entity = invocation.getArgument(0);
             if (entity instanceof MinigameSession session) {
@@ -91,6 +106,10 @@ class MinigameV4ServiceTests {
                 rounds.put(round.sessionId(), round);
             } else if (entity instanceof BungeoppangV4Order order) {
                 orders.computeIfAbsent(order.sessionId(), ignored -> new ArrayList<>()).add(order);
+            } else if (entity instanceof BungeoppangV4Progress progress) {
+                progresses.put(progress.sessionId(), progress);
+            } else if (entity instanceof BungeoppangV4Receipt delivery) {
+                receipts.put(delivery.sessionId() + ":" + delivery.operation() + ":" + delivery.requestKey(), delivery);
             } else if (entity instanceof MinigameStartRequest request) {
                 receipt.set(request);
             }
@@ -255,6 +274,79 @@ class MinigameV4ServiceTests {
         assertThat(response.status()).isEqualTo("ABANDONED");
         assertThat(response.endReason()).isEqualTo("USER_ABANDONED");
         assertThat(response.checkpoint()).isNull();
+    }
+
+    @Test
+    void v4_납품은_승인prefix_다음주문_checkpoint_영수증을_한번만_저장한다() {
+        AdjustableClock adjustableClock = new AdjustableClock(NOW);
+        service = new MinigameService(repository, manager, adjustableClock);
+        var started = service.startV4(USER_ID, "BUNGEOPPANG", "v4-start");
+        long id = Long.parseLong(started.minigameSessionId());
+        ReflectionTestUtils.setField(records.get(id), "heats", "[" + "100,".repeat(511) + "100]");
+        adjustableClock.set(NOW.plusSeconds(31));
+        var request = delivery(id, "delivery-one");
+
+        var first = service.deliver(USER_ID, id, "delivery-one", request);
+        var replay = service.deliver(USER_ID, id, "delivery-one", request);
+
+        assertThat(replay).isEqualTo(first);
+        assertThat(first).satisfies(response -> {
+            assertThat(response.scoreDelta()).isEqualTo(20);
+            assertThat(response.bonusDelta()).isZero();
+            assertThat(response.consumedBreadIds()).containsExactly(1L, 2L);
+            assertThat(response.checkpoint().revision()).isOne();
+            assertThat(response.checkpoint().throughSeq()).isEqualTo(9);
+            assertThat(response.checkpoint().stats().score()).isEqualTo(20);
+            assertThat(response.nextOrder().orderIndex()).isOne();
+        });
+        assertThat(orders.get(id)).hasSize(2);
+        assertThat(receipts).hasSize(1);
+        assertThat(progresses.get(id).acceptedLogJson()).contains("DELIVER", "delivery-one");
+        assertThat(wallet.balance()).isEqualTo(100);
+        assertThat(wallet.reserved()).isEqualTo(10);
+        verify(repository, never()).persist(any(com.ssafy.ontop.wallet.domain.WalletTransaction.class));
+    }
+
+    @Test
+    void v4_납품_거부는_상태를_바꾸지_않고_같은키로_최초거부를_재생한다() {
+        AdjustableClock adjustableClock = new AdjustableClock(NOW);
+        service = new MinigameService(repository, manager, adjustableClock);
+        var started = service.startV4(USER_ID, "BUNGEOPPANG", "v4-start");
+        long id = Long.parseLong(started.minigameSessionId());
+        adjustableClock.set(NOW.plusSeconds(10));
+        var actions = List.of(new BungeoppangV4DeliveryDtos.Action(1, "DELIVER", 1000,
+                null, null, null, "1", "not-ready"));
+        var request = new BungeoppangV4DeliveryDtos.Request("v4", 1,
+                BungeoppangV4DeliveryContract.prefixHash(id, BungeoppangV4Spec.CONFIG_VERSION, actions), actions);
+
+        for (int i = 0; i < 2; i++) {
+            assertThatThrownBy(() -> service.deliver(USER_ID, id, "not-ready", request))
+                    .isInstanceOfSatisfying(com.ssafy.ontop.minigame.service.StoredMinigameResponseException.class,
+                            error -> {
+                                assertThat(error.status()).isEqualTo(422);
+                                assertThat(error.body().code()).isEqualTo("DELIVERY_REJECTED");
+                                assertThat(error.body().detail()).isEqualTo("ORDER_NOT_READY");
+                            });
+        }
+        assertThat(rounds.get(id).approvedThroughSeq()).isZero();
+        assertThat(orders.get(id)).hasSize(1);
+        assertThat(receipts).hasSize(1);
+    }
+
+    private BungeoppangV4DeliveryDtos.Request delivery(long sessionId, String key) {
+        var actions = List.of(
+                new BungeoppangV4DeliveryDtos.Action(1, "POUR", 0, 0, null, null, null, null),
+                new BungeoppangV4DeliveryDtos.Action(2, "FILL", 300, 0, "bean", null, null, null),
+                new BungeoppangV4DeliveryDtos.Action(3, "TURN", 6700, 0, null, null, null, null),
+                new BungeoppangV4DeliveryDtos.Action(4, "TURN", 13100, 0, null, null, null, null),
+                new BungeoppangV4DeliveryDtos.Action(5, "POUR", 13200, 1, null, null, null, null),
+                new BungeoppangV4DeliveryDtos.Action(6, "FILL", 13500, 1, "bean", null, null, null),
+                new BungeoppangV4DeliveryDtos.Action(7, "TURN", 19900, 1, null, null, null, null),
+                new BungeoppangV4DeliveryDtos.Action(8, "TURN", 26300, 1, null, null, null, null),
+                new BungeoppangV4DeliveryDtos.Action(9, "DELIVER", 26400, null, null, null, "1", key));
+        return new BungeoppangV4DeliveryDtos.Request("v4", actions.size(),
+                BungeoppangV4DeliveryContract.prefixHash(sessionId, BungeoppangV4Spec.CONFIG_VERSION, actions),
+                actions);
     }
 
     private static final class AdjustableClock extends Clock {

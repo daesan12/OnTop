@@ -5,6 +5,7 @@ import com.ssafy.ontop.auth.service.AccessJwtService;
 import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser;
 import com.ssafy.ontop.auth.websocket.WebSocketAccountLookup;
 import com.ssafy.ontop.minigame.dto.BungeoppangV4Responses;
+import com.ssafy.ontop.minigame.dto.BungeoppangV4DeliveryDtos;
 import com.ssafy.ontop.minigame.dto.MinigameStatusResponse;
 import com.ssafy.ontop.minigame.service.BungeoppangV4Spec;
 import com.ssafy.ontop.minigame.service.MinigameService;
@@ -50,7 +51,7 @@ class MinigameHttpTests {
 
     @Test
     void 네API는미인증요청을거절한다() throws Exception {
-        for (String path : new String[]{"", "/901", "/901/complete", "/901/abandon"}) {
+        for (String path : new String[]{"", "/901", "/901/complete", "/901/abandon", "/901/deliveries"}) {
             assertThat(request(path, path.equals("/901") ? null : "{}", null, null).statusCode()).isEqualTo(401);
         }
         verifyNoInteractions(minigames);
@@ -78,7 +79,7 @@ class MinigameHttpTests {
 
     @Test
     void 상태조회는JWT본인ID를사용하고캐시하지않는다() throws Exception {
-        when(minigames.loadSession(101, 901, false)).thenReturn(new MinigameStatusResponse("901", "PLAYING", null, 0,
+        when(minigames.loadSession(101, 901, false, false, null)).thenReturn(new MinigameStatusResponse("901", "PLAYING", null, 0,
                 Instant.parse("2026-10-23T00:00:00Z"), null));
         var result = request("/901", null, jwt.issue(101, TestLoginSessions.ID), null);
         assertThat(result.statusCode()).isEqualTo(200);
@@ -135,7 +136,7 @@ class MinigameHttpTests {
         var lobby = new BungeoppangV4Responses.LobbyResponse("v4", Instant.parse("2026-10-27T00:00:00Z"),
                 0, 100, true, List.of(), "901", List.of("v2", "v4"));
         when(minigames.statusV4(101)).thenReturn(lobby);
-        when(minigames.loadSession(101, 901, true)).thenReturn(new MinigameStatusResponse("901", "PLAYING",
+        when(minigames.loadSession(101, 901, true, false, null)).thenReturn(new MinigameStatusResponse("901", "PLAYING",
                 null, 0, Instant.parse("2026-10-27T00:00:00Z"), null));
 
         var status = request("?rulesVersion=v4", null, token, null);
@@ -146,9 +147,44 @@ class MinigameHttpTests {
                 "\"supportedRulesVersions\":[\"v2\",\"v4\"]");
         assertThat(source.statusCode()).isEqualTo(200);
         verify(minigames).statusV4(101);
-        verify(minigames).loadSession(101, 901, true);
+        verify(minigames).loadSession(101, 901, true, false, null);
         assertThat(request("?rulesVersion=v4&extra=true", null, token, null).statusCode()).isEqualTo(400);
         assertThat(request("/901?includeSource=1", null, token, null).statusCode()).isEqualTo(400);
+    }
+
+    @Test
+    void v4_납품은_엄격한_본문과_단일키를_서비스에_전달하고_복구query를_허용한다() throws Exception {
+        String token = jwt.issue(101, TestLoginSessions.ID);
+        var action = new BungeoppangV4DeliveryDtos.Action(1, "DELIVER", 1000,
+                null, null, null, "1", "delivery-1");
+        var delivery = new BungeoppangV4DeliveryDtos.Request("v4", 1, "0".repeat(64), List.of(action));
+        var response = new BungeoppangV4DeliveryDtos.Response("901", "delivery-1", "1", true,
+                Instant.parse("2026-10-27T00:00:10Z"), 1, "0".repeat(64), List.of(1L), 20, 0,
+                BungeoppangV4Spec.firstOrder(), BungeoppangV4Spec.initialCheckpoint(901));
+        when(minigames.deliver(101, 901, "delivery-1", delivery)).thenReturn(response);
+
+        String body = "{\"rulesVersion\":\"v4\",\"throughSeq\":1,\"prefixHash\":\"" + "0".repeat(64)
+                + "\",\"log\":[{\"seq\":1,\"action\":\"DELIVER\",\"t\":1000,"
+                + "\"orderId\":\"1\",\"deliveryKey\":\"delivery-1\"}]}";
+        var accepted = request("/901/deliveries", body, token, "delivery-1");
+
+        assertThat(accepted.statusCode()).isEqualTo(200);
+        assertThat(accepted.body()).contains("\"accepted\":true", "\"deliveryKey\":\"delivery-1\"");
+        verify(minigames).deliver(101, 901, "delivery-1", delivery);
+        assertThat(request("/901/deliveries", body.replace("}]}", ",\"score\":1}]}"), token,
+                "delivery-2").statusCode()).isEqualTo(400);
+        String duplicate = body.replaceFirst("\\{\\\"rulesVersion\\\":\\\"v4\\\"",
+                "{\\\"rulesVersion\\\":\\\"v4\\\",\\\"rulesVersion\\\":\\\"v4\\\"");
+        assertThat(request("/901/deliveries", duplicate, token, "delivery-2").statusCode()).isEqualTo(400);
+        assertThat(request("/901/deliveries", " ".repeat(256 * 1024 + 1), token,
+                "delivery-2").statusCode()).isEqualTo(413);
+
+        when(minigames.loadSession(101, 901, false, true, "delivery-1"))
+                .thenReturn(new MinigameStatusResponse("901", "PLAYING", null, 0,
+                        Instant.parse("2026-10-27T00:00:00Z"), null));
+        assertThat(request("/901?includeProgress=true&deliveryKey=delivery-1", null, token, null).statusCode())
+                .isEqualTo(200);
+        verify(minigames).loadSession(101, 901, false, true, "delivery-1");
     }
 
     @Test

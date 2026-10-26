@@ -76,6 +76,16 @@ public class BungeoppangV4Round {
     public String checkpointJson() { return checkpointJson; }
     public String terminalReason() { return terminalReason; }
 
+    public void approve(int throughSeq, String prefixHash, String checkpointJson) {
+        if (terminalReason != null || throughSeq <= approvedThroughSeq) {
+            throw new IllegalStateException("종료되었거나 이전인 승인 경계입니다.");
+        }
+        revision = Math.addExact(revision, 1);
+        approvedThroughSeq = throughSeq;
+        approvedPrefixHash = prefixHash;
+        this.checkpointJson = checkpointJson;
+    }
+
     public void terminate(String reason) {
         if (terminalReason == null) {
             terminalReason = reason;

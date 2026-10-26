@@ -65,8 +65,8 @@ class MinigameDevMySqlTests {
                 .isEqualTo("classpath:db/migration,classpath:db/minigame");
         assertThat(jdbc.queryForObject("SELECT nickname FROM users WHERE id=909", String.class)).isEqualTo("보존회원");
         assertThat(jdbc.queryForObject("SELECT balance FROM wallets WHERE user_id=909", Long.class)).isEqualTo(123);
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE version IN ('110','111','124') AND success=1",
-                Integer.class)).isEqualTo(3);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE version IN ('110','111','124','125') AND success=1",
+                Integer.class)).isEqualTo(4);
         assertThat(jdbc.queryForObject("""
                 SELECT COUNT(*) FROM information_schema.tables
                 WHERE table_schema=DATABASE()

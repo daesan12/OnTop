@@ -68,7 +68,14 @@ class MinigameOpenApiTests {
                     .isTrue();
             assertThat(schemas.at("/BungeoppangV4SessionResponse/properties/checkpoint/allOf/0/$ref").asText())
                     .endsWith("/BungeoppangV4Checkpoint");
-            assertThat(paths.has("/api/v1/minigames/sessions/{sessionId}/deliveries")).isFalse();
+            assertThat(paths.has("/api/v1/minigames/sessions/{sessionId}/deliveries")).isTrue();
+            var delivery = paths.path("/api/v1/minigames/sessions/{sessionId}/deliveries").path("post");
+            assertThat(delivery.at("/requestBody/content/application~1json/schema/additionalProperties")
+                    .asBoolean(true)).isFalse();
+            assertThat(delivery.at("/requestBody/content/application~1json/schema/properties/log/maxItems").asInt())
+                    .isEqualTo(1200);
+            assertThat(delivery.at("/responses/200/content/application~1json/schema/$ref").asText())
+                    .endsWith("/BungeoppangV4DeliveryResponse");
             var complete = paths.path("/api/v1/minigames/sessions/{sessionId}/complete").path("post");
             assertThat(complete.at("/responses/422/description").asText()).contains("LOG_INVALID", "TOO_EARLY");
             assertThat(complete.at("/requestBody/content/application~1json/schema/additionalProperties")
@@ -76,7 +83,7 @@ class MinigameOpenApiTests {
             assertThat(complete.at("/requestBody/content/application~1json/schema/properties/log/maxItems").asInt())
                     .isEqualTo(1200);
             assertThat(complete.path("description").asText())
-                    .contains("local,db", "dev,db", "v2", "v4", "V124", "후속 Story", "100냥")
+                    .contains("local,db", "dev,db", "v2", "v4", "V124", "V125", "후속 Story", "100냥")
                     .doesNotContain("local 전용");
             assertThat(paths.path("/api/v1/minigames/sessions").has("get")).isTrue();
         }

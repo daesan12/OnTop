@@ -43,9 +43,13 @@ public final class BungeoppangV4Responses {
             int customersServed, int specialServed, long bonusScore) {
     }
 
+    @Schema(name = "BungeoppangV4CheckpointBread")
+    public record TrayBread(long breadId, String filling, int front, int back, int points) {
+    }
+
     @Schema(name = "BungeoppangV4Checkpoint")
     public record Checkpoint(long revision, int throughSeq, String prefixHash, int heatCursor,
-            Integer lastAt, List<Slot> slots, List<Object> tray, Stats stats, Order currentOrder) {
+            Integer lastAt, List<Slot> slots, List<TrayBread> tray, Stats stats, Order currentOrder) {
     }
 
     @Schema(name = "BungeoppangV4StartResponse")

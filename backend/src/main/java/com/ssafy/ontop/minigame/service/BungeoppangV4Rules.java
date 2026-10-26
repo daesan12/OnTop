@@ -68,10 +68,14 @@ public final class BungeoppangV4Rules {
     public record Bread(long breadId, Filling filling, int front, int back, int points) {
     }
 
+    public record SlotState(int slot, String phase, int since, int heat, Filling filling,
+            int front, Integer lastAt) {
+    }
+
     public record Result(long score, int made, int successfulMade, int golden, int failed, int wasted,
             int grillDiscarded, int trayDiscarded, int combo, int maxCombo, int served,
             int customersServed, int specialServed, long bonusScore, int heatCursor,
-            List<Bread> tray, Order currentOrder) {
+            List<SlotState> slots, List<Bread> tray, Order currentOrder, Integer lastAt) {
     }
 
     private enum Phase { EMPTY, BATTER, FRONT, BACK }
@@ -247,10 +251,18 @@ public final class BungeoppangV4Rules {
             previous = entry.t();
         }
         Order current = orderCursor < orders.size() ? orders.get(orderCursor) : null;
+        List<SlotState> slotStates = new ArrayList<>(slots.length);
+        for (int i = 0; i < slots.length; i++) {
+            Slot slot = slots[i];
+            slotStates.add(new SlotState(i, slot.phase.name().toLowerCase(Locale.ROOT), slot.since,
+                    slot.heat, slot.filling, slot.front, slot.lastAt));
+        }
         return new Result(score, made, successfulMade, golden, failed,
                 grillDiscarded + trayDiscarded, grillDiscarded, trayDiscarded, combo, maxCombo,
                 served, customersServed, specialServed, bonusScore, heatCursor,
-                Collections.unmodifiableList(new ArrayList<>(tray)), current);
+                Collections.unmodifiableList(slotStates),
+                Collections.unmodifiableList(new ArrayList<>(tray)), current,
+                log.isEmpty() ? null : log.getLast().t());
     }
 
     public Order nextOrder(int orderIndex, RandomGenerator random) {
