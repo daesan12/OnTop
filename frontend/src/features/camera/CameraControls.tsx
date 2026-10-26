@@ -3,6 +3,7 @@ import { useGame } from '../../game/store'
 import { useBungeoppang } from '../bungeoppang/store'
 import { toggleMouseLook, useMouseLook } from '../../world/mouseLook'
 import { useCameraPerspective } from '../../world/cameraPerspective'
+import { LookSettings } from './LookSettings'
 import './camera.css'
 
 export function CameraControls() {
@@ -25,5 +26,6 @@ export function CameraControls() {
       onClick={event => { event.currentTarget.blur(); toggleMouseLook() }}>
       <span>{active ? '마우스 룩 켜짐' : '마우스 룩'}</span><kbd>Ctrl</kbd>
     </button>
+    <LookSettings disabled={disabled} />
   </aside>
 }

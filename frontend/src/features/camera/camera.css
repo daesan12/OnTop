@@ -3,4 +3,13 @@
 .park-camera-controls button:focus-visible { outline:2px solid #e8d4a4; outline-offset:3px; }
 .park-camera-controls button:disabled { opacity:.55; cursor:default; }
 .park-camera-message { position:absolute; right:0; bottom:48px; width:280px; max-width:calc(100vw - 32px); margin:0; padding:10px 14px; border:1px solid #b9c7b0; border-radius:10px; background:#f6f0dc; color:#294d40; font-size:13px; line-height:1.6; }
+.park-look-settings { position:absolute; right:0; bottom:48px; width:280px; max-width:calc(100vw - 32px); display:grid; gap:9px; padding:12px 14px; border:1px solid #b9c7b0; border-radius:10px; background:#f6f0dc; color:#294d40; font-size:13px; }
+.park-look-settings header, .park-look-settings label { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.park-look-settings header button { padding:0 6px; border:0; background:none; color:inherit; font-size:20px; cursor:pointer; }
+.park-look-settings input { flex:1; accent-color:#294c3d; }
+.park-look-settings output { min-width:3.2em; text-align:right; font-variant-numeric:tabular-nums; font-weight:700; }
+.park-look-settings p { margin:0; color:#6c705e; font-size:11px; line-height:1.6; }
+.park-look-settings > button { padding:7px; border:1px solid #557b68; border-radius:6px; background:#294c3d; color:#fff9e7; cursor:pointer; }
+.park-look-settings > button:disabled { opacity:.55; cursor:default; }
+.park-look-settings :is(button, input):focus-visible { outline:2px solid #976b35; outline-offset:2px; }
 @media(max-width:900px) { .park-camera-controls { right:16px; bottom:420px; } }
