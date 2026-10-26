@@ -41,10 +41,18 @@ class WorldMapRecoveryTests {
             second.state("LOBBY");
             first.request("TABLE_JOIN", Map.of("tableId", "table-1"));
             second.request("TABLE_JOIN", Map.of("tableId", "table-1"));
-            first.request("GAME_SELECT", Map.of("gameCode", "DICE", "targetScore", 2000));
-            first.request("READY_SET", Map.of("ready", true));
-            engine.activate(second.request("READY_SET", Map.of("ready", true)).path("payload"));
+            JsonNode selected = first.request("GAME_SELECT", Map.of("gameCode", "DICE", "targetScore", 2000,
+                    "betAmountPerPlayer", 1));
+            assertThat(selected.path("type").asText()).isEqualTo("TABLE_STATE");
+            second.await(message -> message.path("type").asText().equals("TABLE_STATE")
+                    && message.at("/payload/version").asLong() == selected.at("/payload/version").asLong());
+            JsonNode firstReady = first.request("READY_SET", Map.of("ready", true));
+            assertThat(firstReady.path("type").asText()).isEqualTo("TABLE_STATE");
+            JsonNode secondReady = second.request("READY_SET", Map.of("ready", true));
+            assertThat(secondReady.path("type").asText()).isEqualTo("TABLE_STATE");
+            engine.activate(secondReady.path("payload"));
             engine.loads.clear();
+            var originalDeadline = clock.instant().plusSeconds(30);
             first.stopPong();
             assertThat(first.awaitClose()).isEqualTo(1001);
             assertThat(engine.loads.poll(5, TimeUnit.SECONDS)).isEqualTo(101L);
@@ -63,7 +71,9 @@ class WorldMapRecoveryTests {
                     assertThat(engine.expirations).isEmpty();
                 } else {
                     assertThat(state.path("state").isNull()).isTrue();
-                    assertThat(engine.expirations.poll(5, TimeUnit.SECONDS)).isNotNull();
+                    var expiration = engine.expirations.poll(5, TimeUnit.SECONDS);
+                    assertThat(expiration).isNotNull();
+                    assertThat(expiration.deadline()).isEqualTo(originalDeadline);
                 }
                 engine.loads.clear();
                 confirm(returned);
