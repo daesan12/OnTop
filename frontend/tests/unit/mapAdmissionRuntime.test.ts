@@ -47,7 +47,7 @@ describe('map identity on the actual Spring socket path',()=>{
     await runtime!.checkRecovery()
     expect(socket.requests.find(r=>r.type==='GAME_RECONNECT_CHECK')!.payload).toEqual({map:LIVE_MAP_IDENTITY})
   })
-  it.each([undefined,{...LIVE_MAP_IDENTITY,mapVersion:'f'.repeat(64)},{...LIVE_MAP_IDENTITY,schemaVersion:2}])('stops before entry when CONNECTED metadata is missing or differs: %j',async map=>{
+  it.each([undefined,{...LIVE_MAP_IDENTITY,mapVersion:'f'.repeat(64)},{...LIVE_MAP_IDENTITY,schemaVersion:3}])('stops before entry when CONNECTED metadata is missing or differs: %j',async map=>{
     connectedMap=map;await start()
     expect(useSession.getState()).toMatchObject({status:'error',mapCompatible:false,mapContractStatus:'mismatch',roomId:''})
     expect(useSession.getState().error).toContain('새로고침')

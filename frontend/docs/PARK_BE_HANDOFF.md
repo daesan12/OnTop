@@ -1,6 +1,6 @@
 # 공원 맵 생성 데이터 · BE 연결 계약 (schemaVersion 2)
 
-현재 브랜치 `feat/park-180-layout-preview`의 FE 생성 도구를 BE 피드백에 맞춰 보강했습니다. **Java/DB/서버 리소스는 수정하지 않았으며 실제 `/park`는 기존 맵을 유지합니다.** 새 데이터 규격 검토 후 FE 서비스 맵과 BE 로딩을 함께 전환합니다.
+현재 브랜치 `feat/park-180-layout-preview`에서 schemaVersion 2 생성 데이터의 Java 로딩·좌표·시설·버전 검사와 FE `/park` 전환을 함께 구현했습니다. 실제 배포는 같은 생성물을 포함한 FE·BE를 함께 적용해야 합니다.
 
 ## 전달 파일
 
@@ -8,7 +8,7 @@
 - `frontend/generated/park/manifest.json`: 동일 맵 버전, 파일 체크섬, 입력 소스와 개수
 - `frontend/docs/PARK_GENERATION.md`: 생성·검사 방법과 해석 규칙
 
-이번 수정은 이전 전달 커밋 `bb1ff1b` 이후의 **schemaVersion 2**입니다. 이전 커밋의 schemaVersion 1 JSON과 혼용하지 않습니다. 아직 이번 수정의 커밋·푸시는 진행하지 않았습니다. 전달 시 수정 소스와 생성물 전체를 같은 커밋으로 공유합니다.
+최신 보강 작업은 `e88561a`로 커밋·푸시했습니다. 후속 통합 변경도 같은 브랜치에서 관리합니다. schemaVersion 1 생성물과 혼용하지 않습니다.
 
 ## 1. 원본과 갱신
 
@@ -21,7 +21,7 @@ pnpm map:generate
 pnpm map:check
 ```
 
-동일 입력에서는 동일 JSON과 SHA-256 맵 버전이 생성됩니다. 미리보기 설정 저장·FE 빌드에도 연결되어 있습니다. 생성 파일을 직접 수정하거나 BE 리소스에 수동 좌표를 중복 입력하지 않습니다. 서버가 실행 중인 데이터를 자동으로 재로딩하는 기능은 BE 담당 범위입니다.
+동일 입력에서는 동일 JSON과 SHA-256 맵 버전이 생성됩니다. 미리보기 설정 저장·FE 빌드에도 연결되어 있습니다. 생성 파일을 직접 수정하거나 BE 리소스에 수동 좌표를 중복 입력하지 않습니다. 실행 중 서버 핫 리로드는 제공하지 않습니다. 서버 JSON은 빌드 시 JAR에 포함되므로 변경 후 재빌드·재시작합니다.
 
 ## 2. 좌표와 테이블
 
@@ -50,7 +50,7 @@ pnpm map:check
 
 - 모든 vertices는 **월드 좌표**이고 indices는 0부터 시작하는 정점 인덱스입니다. 메시/hull에 시설 위치를 다시 더하면 안 됩니다.
 - 박스 `half`는 전체 크기가 아닌 반치수입니다. yaw는 박스 원점에 한 번만 적용합니다.
-- 기존 Java의 BoxCollisionShape / MeshCollisionShape / HullCollisionShape로 읽는 어댑터는 BE에서 연결합니다. 기존 캐릭터 캡슐 및 서버 margin 처리는 BE에서 유지·검토하며 **추가 이동 여유 폭을 중복 적용하지 않습니다.**
+- `GeneratedParkMap`과 `ParkScene`이 기존 Java BoxCollisionShape / MeshCollisionShape / HullCollisionShape 로더에 연결합니다. 기존 캐릭터 캡슐과 0.02m shape margin을 유지하며 **추가 이동 여유 폭을 중복 적용하지 않습니다.**
 - `role`은 분류 정보입니다. 지면/바닥도 물리 충돌체로 로딩해야 합니다. `solid`만 필터링하면 바닥이 사라집니다.
 - 정자 바닥·계단·기둥·난간, 중앙 돌탑·사방 계단·난간, 호수 다리/디딤돌/낚시 데크, 전망대 나선 경사로·정상 바닥·난간과 주요 시설 프록시를 포함합니다.
 - 첫 지형 메시에는 호수 바닥과 분수의 낮은 지형을 포함합니다. 다리·데크·계단은 별도 형상이라 호수 전체를 덮는 수평 바닥을 추가하면 안 됩니다.
@@ -75,7 +75,7 @@ pnpm map:check
 
 서버에서는 2D `data.world.spawn` 대신 `data.physics.spawn.position:[x,y,z]`를 사용합니다. `origin`은 `capsule-center`입니다.
 
-현재 기본값은 약 `[0,0.84,82]`이며 Y는 지면/보행 바닥 높이 + radius(0.3) + halfHeight(0.48) + offset(0.02) + groundClearance(0.04)입니다. 지형 높이를 포함한 값이므로 서버에서 캐릭터 반높이를 다시 더하지 않습니다. 채널별 여러 스폰 슬롯 배치/중복 방지는 기존 BE 정책에 맞게 연결·검증 부탁드립니다. 물속 스폰은 생성 검증에서 거부합니다.
+현재 기본값은 약 `[0,0.84,82]`이며 Y는 지면/보행 바닥 높이 + radius(0.3) + halfHeight(0.48) + offset(0.02) + groundClearance(0.04)입니다. 지형 높이를 포함한 값이므로 서버에서 캐릭터 반높이를 다시 더하지 않습니다. 채널별 여러 스폰 슬롯 배치는 기존 Java 정책을 유지해 중심 주변에 연결했습니다. 물속 스폰은 생성 검증에서 거부합니다.
 
 ## 6. 버전 전달과 불일치
 
@@ -91,9 +91,9 @@ FE 입장·복구 요청은 동일 구조를 `payload.map`에 담도록 구현�
 {"type":"CHANNEL_JOIN","payload":{"channelId":"...","map":{"mapId":"park","schemaVersion":2,"mapVersion":"<FE에 포함된 버전>"}}}
 ```
 
-`GAME_RECONNECT_CHECK` 요청에도 같은 `map`을 넣습니다. 소켓 재접속 시 CONNECTED를 다시 확인하고 CHANNEL_JOIN부터 진행합니다. BE는 입장 및 상태 복구 **이전**에 비교합니다. 핸드셰이크 이전에 자동 복구되는 경로가 있다면 그 경로도 BE에서 차단·검증해야 합니다.
+`GAME_RECONNECT_CHECK` 요청에도 같은 `map`을 넣습니다. 소켓 재접속 시 CONNECTED를 다시 확인하고 CHANNEL_JOIN부터 진행합니다. BE는 입장 및 상태 복구 **이전**에 비교합니다. `TableHub`는 일치 확인 전 게임 재접속 자동 복구를 보류합니다. 맵 확인 전 요청도 차단합니다.
 
-불일치 오류의 서버 맵 정보 위치도 아래처럼 `payload.map`으로 통일하는 것을 제안하며, FE는 이 형식을 처리하도록 구현했습니다. **요청/오류의 map 필드 위치와 schemaVersion 2는 최종 확인 부탁드립니다.**
+불일치 오류의 서버 맵 정보도 `payload.map`입니다. Java 응답과 FE 처리를 이 형식으로 연결했습니다.
 
 ```json
 {"type":"ERROR","requestId":"<원 요청 ID>","payload":{"code":"MAP_VERSION_MISMATCH","message":"맵 버전이 다릅니다.","map":{"mapId":"park","schemaVersion":2,"mapVersion":"<서버 로딩 버전>"}}}
@@ -101,13 +101,17 @@ FE 입장·복구 요청은 동일 구조를 `payload.map`에 담도록 구현�
 
 FE는 불일치 시 입장·이동·시설 이용을 멈추고 기존 상태를 정리한 뒤, 페이지 새로고침과 수동 재접속 버튼을 제공합니다. 같은 오래된 번들로 자동 재시도하지 않습니다. 뒤늦은 상태 응답으로 불일치 상태를 해제하지 않습니다.
 
-**단계적 적용:** 현재 `/park`는 이전 서비스 맵입니다. CONNECTED에 map이 오면 기존 서비스 identity의 세 필드와 비교한 뒤 그 identity를 요청에 넣습니다. map이 없는 기존 서버에는 **기존 요청 형식을 유지해 map 필드를 보내지 않습니다**. 기존 Java TableProtocol이 추가 필드를 거부하기 때문입니다. 새로운 schemaVersion 2 identity를 지정한 런타임은 map 누락도 거부합니다. 서비스 맵 전환 때 생성된 세 상수를 런타임에 지정하고 `requireMapMetadata:true`로 통일해야 합니다. 버전 상수만 새 것으로 바꾸고 기존 맵을 표시하면 안 됩니다. BE는 CONNECTED.map 제공과 함께 CHANNEL_JOIN/GAME_RECONNECT_CHECK의 필드 검증도 map을 허용하도록 연결해야 합니다.
+현재 `/park`는 생성 identity를 사용하며 map 누락도 거부합니다. 기존 서버와 새 FE 또는 새 서버와 기존 FE를 혼용하면 입장할 수 없습니다. FE는 `src/park/mapConfig.ts`로 새 위치·시설 카탈로그·미니맵·길찾기를 사용하고, 서비스 장면은 확정 미리보기의 코드 모델을 재사용합니다.
 
-## 7. 다음 연결과 검증
+## 7. 연결된 구현과 남은 배포 확인
 
-1. BE에서 schemaVersion 2 물리 데이터·시설 데이터·요청/오류 필드 위치 검토.
-2. FE 실제 서비스 장면·좌석/시설 앵커·내비게이션을 새 공통 설정으로 전환하고 생성 버전을 연결. 현재 서비스 시설 화이트리스트도 신규 시설 카탈로그에 맞춰 전환.
-3. BE에서 JSON 어댑터, 기존 tableId 매핑, 시설 카탈로그, 스폰/수영, CONNECTED 및 입장·복구 버전 비교 연결.
-4. 같은 JSON·manifest로 계단/다리/전망대·좁은 통로·수영·좌석·퇴장·스폰과 새로고침/재접속/구버전 접속을 통합 검증한 뒤 함께 배포.
+- Java 로딩: GeneratedParkMap → ParkScene/WorldPhysics. 2D collision은 읽지 않습니다. 수영의 디딤돌 오르기 보조 정보도 생성 hull 경계에서 연결합니다.
+- 테이블: 기존 채널명과 anchorId의 UUID 생성 규칙을 유지합니다. 기존 table-1/2 서버 ID를 유지하고 16개 앵커를 등록합니다. GET /api/v1/tables의 bindings에 {channelId,tableId,anchorId}를 보내 FE가 명시적으로 연결합니다. DB에 임의 좌표나 새 ID를 기록하지 않습니다.
+- 좌석: TABLE_JOIN 시 로컬 앵커에 고정하고 TABLE_LEAVE 시 이전 위치로 복귀합니다. 관전 거리는 WorldProximity의 기존 20m 정책을 유지합니다.
+- 시설: WorldFacilityService는 생성 ID와 use/exit를 읽습니다. 우체통·소리함의 서비스 위치도 생성 데이터로 연결합니다.
+- 빌드: Gradle verifyParkMap/processResources와 Jenkins의 공통 데이터 검사·양쪽 빌드 분류, Docker 루트 컨텍스트를 연결했습니다.
+- 검증: parkMapTest는 실제 Java 충돌·좌석·관전 거리·버전 차단·스폰/수영을 검사합니다. map:verify-flow는 원본과 테이블·장애물 임시 이동 양쪽에서 실제 FE 브라우저까지 확인하고 배치를 복원합니다.
 
-이번 FE 검증은 생성 데이터와 네트워크 계약 테스트입니다. **실제 Java 물리 엔진에서의 통행·착지 결과까지 검증한 것은 아니며, 통합 검증이 배포 전 필수입니다.**
+배포 전에는 같은 커밋의 FE·BE를 적용하고 실제 인증·실채널에서도 시설 이용/퇴장, 계단·다리·전망대, 좁은 통로와 다중 사용자 재접속을 확인합니다. 로컬 테스트는 주요 경로 검증이며 모든 모델 표면의 전수 검사나 운영 배포 완료를 뜻하지 않습니다. Docker 이미지 빌드와 원격 Jenkins 실행·배포는 별도 환경에서 확인해야 합니다.
+
+재현 명령과 테스트 fixture 구분은 [PARK_GENERATION.md](PARK_GENERATION.md)를 참고합니다.

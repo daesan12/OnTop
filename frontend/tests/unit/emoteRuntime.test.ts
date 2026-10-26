@@ -1,3 +1,4 @@
+import { LIVE_MAP_IDENTITY } from '../../src/network/mapContract'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearAuthSession, restoreAuthSession } from '../../src/auth/authFlow'
 import type { SocketLike } from '../../src/network/socketClient'
@@ -21,7 +22,7 @@ class ContractSocket implements SocketLike {
     queueMicrotask(() => {
       this.readyState = 1
       this.onopen?.(new Event('open'))
-      this.emit('CONNECTED', { userId: '101' })
+      this.emit('CONNECTED', { userId: '101', map:LIVE_MAP_IDENTITY })
     })
   }
   emit(type: string, payload: object, requestId: string | null = null) {

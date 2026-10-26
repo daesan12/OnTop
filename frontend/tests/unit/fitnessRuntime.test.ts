@@ -1,3 +1,4 @@
+import { LIVE_MAP_IDENTITY } from '../../src/network/mapContract'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearAuthSession, restoreAuthSession } from '../../src/auth/authFlow'
 import type { SocketLike } from '../../src/network/socketClient'
@@ -6,7 +7,7 @@ import { ParkRuntime } from '../../src/park/runtime/runtime'
 import { EXPECTED_MAP_VERSION } from '../../src/config/mapVersion'
 
 import { useFitnessState } from '../../src/features/fitness/state'
-import { FITNESS_STATIONS } from '../../src/config'
+import { FITNESS_STATIONS } from '../../src/park/mapConfig'
 import { fitnessAnchors } from '../../src/features/fitness/anchors'
 
 const sockets: MovementSocket[] = []
@@ -22,7 +23,7 @@ class MovementSocket implements SocketLike {
     queueMicrotask(() => {
       this.readyState = 1
       this.onopen?.(new Event('open'))
-      this.emit('CONNECTED', { userId: '101' })
+      this.emit('CONNECTED', { userId: '101', map:LIVE_MAP_IDENTITY })
     })
   }
   emit(type: string, payload: object, requestId: string | null = null) {

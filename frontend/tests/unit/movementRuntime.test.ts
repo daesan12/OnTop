@@ -1,3 +1,4 @@
+import { LIVE_MAP_IDENTITY } from '../../src/network/mapContract'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearAuthSession, restoreAuthSession } from '../../src/auth/authFlow'
 import type { SocketLike } from '../../src/network/socketClient'
@@ -20,7 +21,7 @@ class MovementSocket implements SocketLike {
     queueMicrotask(() => {
       this.readyState = 1
       this.onopen?.(new Event('open'))
-      this.emit('CONNECTED', { userId: '101' })
+      this.emit('CONNECTED', { userId: '101', map:LIVE_MAP_IDENTITY })
     })
   }
   emit(type: string, payload: object, requestId: string | null = null) {
@@ -198,6 +199,7 @@ describe('M02 real runtime delivery through the existing SharedSocket', () => {
       await vi.advanceTimersByTimeAsync(120)
       expect(moves()).toHaveLength(1)
       runtime.move(1, 0, false)
+      if(boundary==='map mismatch'){expect(moves()).toHaveLength(1);return}
       expect(moves()[1]!.payload).toEqual({ seq: 2, dx: 1, dz: 0, run: false, jump: false })
     },
   )

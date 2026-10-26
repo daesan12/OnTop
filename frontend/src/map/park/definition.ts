@@ -1,4 +1,4 @@
-/** Authoring source for the accepted FE preview. No service/Java map is changed. */
+/** Shared authoring source for the service map, preview and generated Java resources. */
 export type MapPoint = readonly [number,number]
 export type MapRoute = {id:string;points:readonly MapPoint[];width:number}
 const sites = {
@@ -82,8 +82,8 @@ const routes:readonly MapRoute[] = [
 ] as const
 
 export const PARK_DEFINITION = {
-  // Preview schema metadata; this is independent of the live service map version.
-  metadata: { schemaVersion:2, mapId:'park', stage:'preview', unit:'metre', up:'Y', north:'-Z', yawUnit:'radian' },
+  // The service and preview use the same generated identity.
+  metadata: { schemaVersion:2, mapId:'park', stage:'service', unit:'metre', up:'Y', north:'-Z', yawUnit:'radian' },
   // Physical solids never include the preview's character/movement clearance.
   physics:{terrainStep:2,spawnClearance:.04,wallThickness:.6,wallHeight:2.4},
   park: {size:180,backgroundSize:316,spawn:[0,82] as MapPoint,wallCornerRadius:6,movementInset:1.2,movementCornerRadius:4.8,perimeterInset:6,perimeterCornerRadius:7,perimeterWidth:3.5},

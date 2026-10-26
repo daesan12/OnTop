@@ -61,7 +61,8 @@ class TableQueryTests {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getHeaders().getCacheControl()).isEqualTo("no-store");
         assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().properties()).extracting(Map.Entry::getKey).containsExactly("tables");
+        assertThat(response.getBody().properties()).extracting(Map.Entry::getKey).containsExactly("tables", "bindings");
+        assertThat(response.getBody().path("bindings")).isEmpty(); // Unscoped legacy fixtures have no channel mapping.
         JsonNode tables = response.getBody().path("tables");
         assertThat(tables).hasSize(2);
         assertThat(tables.get(0).path("tableId").asText()).isEqualTo("table-1");

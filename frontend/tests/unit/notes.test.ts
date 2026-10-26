@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { NOTES_BOX } from '../../src/config/notes'
+import { NOTES_BOX } from '../../src/park/mapConfig'
 import { EXPECTED_MAP_VERSION } from '../../src/config/mapVersion'
 import { closeNotes, openNotes, refreshNotes, submitNote, watchNotes } from '../../src/features/notes/controller'
 import { MockNotesService } from '../../src/features/notes/mock/MockNotesService'

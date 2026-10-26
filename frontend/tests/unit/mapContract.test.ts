@@ -17,11 +17,11 @@ describe('map admission contract',()=>{
     gate.reset();expect(gate.connected(generated)).toBe(true)
   })
   it('preserves legacy service rollout without ever labelling its scene with the preview version',()=>{
-    const gate=new MapAdmission()
+    const gate=new MapAdmission({mapId:'park',schemaVersion:1,mapVersion:'0'.repeat(64)})
     expect(gate.connected(undefined)).toBe(true);expect(gate.status).toBe('legacy')
     expect(gate.request()).toEqual({})
     expect(gate.request({channelId:'c'})).toEqual({channelId:'c'})
-    expect(gate.expected).toEqual(LIVE_MAP_IDENTITY)
+    expect(gate.expected).not.toEqual(LIVE_MAP_IDENTITY)
     expect(gate.expected.mapVersion).not.toBe(PARK_MAP_VERSION)
     gate.reset();expect(gate.connected(generated)).toBe(false)
   })

@@ -71,8 +71,8 @@ export function PreviewLight({night}:{night:boolean}) {
   </>
 }
 
-export const PreviewWorld=memo(function PreviewWorld(){
-  // The original table models are rendered without live game/network event handlers.
+export const PreviewWorld=memo(function PreviewWorld({live=false}:{live?:boolean}={}){
+  // The review entry is isolated; the service enables the existing table interactions.
   return <group name="park-layout-draft">
     <group name="background-only" userData={{walkable:false}}><PropModel art={cityArt} name="layout-background"/>
       <PlannedCity parkSize={DRAFT_PARK.size} exteriorOnly entranceWidth={MAIN_GATE.boundaryOpening} cornerRadius={SETTINGS.park.wallCornerRadius}/>
@@ -95,7 +95,7 @@ export const PreviewWorld=memo(function PreviewWorld(){
     <PavilionInterior placements={DRAFT_PAVILIONS}/>
     {DRAFT_PAVILIONS.map(p=><PavilionSlot key={p.id} p={p}/>)}
     <MainPavilionRefinements/>
-    {DRAFT_TABLES.map(t=><TableShell key={t.id} anchor={t} onInspect={inspectPreviewTable}/>)}
+    {DRAFT_TABLES.map(t=><TableShell key={t.id} anchor={t} onInspect={live?undefined:inspectPreviewTable}/>)}
     <group position={[SITES.pagoda.x,SITES.pagoda.floor,SITES.pagoda.z-GARDEN_PAGODA.z]}><StonePagoda anchor={GARDEN_PAGODA} decorations={false}/></group>
     <group position={[SITES.vr.x,0,SITES.vr.z]} rotation={[0,VR_YAW,0]}>
       <group position={[-MINI_PROPS[1].x,0,-MINI_PROPS[1].z]}><VrHanokBooth/></group>
@@ -106,7 +106,7 @@ export const PreviewWorld=memo(function PreviewWorld(){
       <PropSign position={[0,3.55,3.8]} width={3.4} height={.65} draw={zoneSigns.folk}/>
     </group>
     <StonePagoda anchor={{...VR_PAGODA,x:SITES.vrPagoda.x,z:SITES.vrPagoda.z}}/>
-    <PreviewJumpCourse/>
+    {!live&&<PreviewJumpCourse/>}
     <PropModel art={pagodaBalustradeArt} name="layout-central-pagoda-stone-balustrade"/>
     <FitnessGarden area={DRAFT_FITNESS_AREA} stations={DRAFT_FITNESS_STATIONS} floorShape="ellipse" showPads={false} floorColor="#c8c0ad"/>
     <PropModel art={fitnessRestArt} name="layout-fitness-tree-and-ring-bench"/>
@@ -127,12 +127,12 @@ export const PreviewWorld=memo(function PreviewWorld(){
         <Instances parts={shoreCrowns} shadow={false}><icosahedronGeometry args={[1,1]}/></Instances>
       </group>
       {SETTINGS.lake.swimEntryOffsets.map(offset=><PropSign key={offset} position={[SITES.lake.x+offset,1.3,SITES.lake.z-4.5]} width={1.6} height={.6} draw={zoneSigns.swim}/>)}
-      <PreviewSwimmingRipples/>
+      {!live&&<PreviewSwimmingRipples/>}
     </group>
     <group name="fish-bread" position={[SITES.cart.x,0,SITES.cart.z]}><CodeFishBreadCart/></group>
     <group position={[SITES.mailbox.x-MAILBOX.x,0,SITES.mailbox.z-MAILBOX.z]}><TraditionalMailbox/></group>
     <PlazaBuilding kind="shop"/><PlazaBuilding kind="drink"/><PlazaBuilding kind="photo"/><DraftAds/>
-    <PreviewPigeons/>
+    <PreviewPigeons live={live}/>
     <Instances parts={trunks} shadow={false}><cylinderGeometry args={[1,1.2,1,7]}/></Instances>
     <Instances parts={crowns} shadow={false}><icosahedronGeometry args={[1,1]}/></Instances>
     <Instances parts={shrubs} shadow={false}><icosahedronGeometry args={[1,1]}/></Instances>

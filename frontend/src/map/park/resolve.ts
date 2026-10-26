@@ -10,6 +10,7 @@ import { buildCollision,isWalkable } from './collision'
 import { validateParkDefinition,assertUniqueIds,validatePhysics } from './validate'
 import { buildInteractionData } from './interactionData'
 import { buildPhysics } from './physics'
+import { NOTES_BOX } from '../../config/notes'
 
 export type SiteMarker = { no: string; id: string; label: string; x: number; z: number; note: string }
 export type ParkPoint = readonly [number,number]
@@ -274,7 +275,7 @@ const data={
   metadata:definition.metadata,
   world:{...DRAFT_PARK,boundary:COLLISION.boundary,wallCornerRadius:definition.park.wallCornerRadius},
   facilities,pavilions:DRAFT_PAVILIONS,tables:DRAFT_TABLES.map(({spectatorRadius:_unused,...t})=>t),
-  interactions:{...facilityInteractions,mailbox:{id:'feedback-mailbox',position:[SITES.mailbox.x,0,SITES.mailbox.z],radius:MAILBOX.interactionRadius},tableSeats:DRAFT_TABLES.map(t=>({tableId:t.id,position:t.position,localSeats:t.seatAnchors}))},
+  interactions:{...facilityInteractions,notes:{id:'anonymous-notes',position:[NOTES_BOX.x-TOWER_SITE.x+SITES.tower.x,NOTES_BOX.y,NOTES_BOX.z-TOWER_SITE.z+SITES.tower.z],radius:NOTES_BOX.interactionRadius},mailbox:{id:'feedback-mailbox',position:[SITES.mailbox.x,0,SITES.mailbox.z],radius:MAILBOX.interactionRadius},tableSeats:DRAFT_TABLES.map(t=>({tableId:t.id,position:t.position,localSeats:t.seatAnchors}))},
   paths:PATHS,perimeter:{points:PERIMETER,width:definition.park.perimeterWidth},
   fences:{courts:FENCE_COURTS,roundCourts:ROUND_COURTS,runs:FENCE_RUNS,centralRails:CENTRAL_RAIL_RUNS,stairRails:STAIR_RAIL_RUNS},
   collision:COLLISION,physics,

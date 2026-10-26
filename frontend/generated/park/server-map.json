@@ -11553,6 +11553,15 @@
         ],
         "radius": 2.6
       },
+      "notes": {
+        "id": "anonymous-notes",
+        "position": [
+          60.5,
+          18.12,
+          54.5
+        ],
+        "radius": 2.6
+      },
       "tableSeats": [
         {
           "localSeats": [
@@ -12090,7 +12099,7 @@
       "mapId": "park",
       "north": "-Z",
       "schemaVersion": 2,
-      "stage": "preview",
+      "stage": "service",
       "unit": "metre",
       "up": "Y",
       "yawUnit": "radian"
@@ -127225,6 +127234,17 @@
           ]
         }
       ],
+      "movement": {
+        "gravity": -18,
+        "halfHeight": 0.48,
+        "jumpSpeed": 6.2,
+        "maxFallSpeed": -20,
+        "offset": 0.02,
+        "radius": 0.3,
+        "runSpeed": 9,
+        "stepHeight": 0.22,
+        "walkSpeed": 6.25
+      },
       "playerInflation": 0,
       "spawn": {
         "groundClearance": 0.04,
@@ -127236,6 +127256,18 @@
         ],
         "yaw": 3.141592653589793
       },
+      "swimming": {
+        "depthThreshold": 0.95,
+        "fastSpeed": 6.25,
+        "floatOffset": -0.12,
+        "speed": 4
+      },
+      "telescope": {
+        "aimIntervalMs": 100,
+        "initialPitch": -0.18,
+        "maxPitch": 1.15,
+        "minPitch": -1.35
+      },
       "terrain": {
         "columns": 91,
         "halfSize": 90,
@@ -127243,6 +127275,17 @@
         "rows": 91,
         "step": 2,
         "triangleOrder": "a-c-b,b-c-d"
+      },
+      "tower": {
+        "height": 18,
+        "inner": 5,
+        "jumpSpeed": 7.8,
+        "outer": 8,
+        "railHeight": 1.4,
+        "segments": 360,
+        "turns": 3,
+        "x": 62,
+        "z": 56
       },
       "units": "m",
       "upAxis": "Y"
@@ -127962,16 +128005,16 @@
   "format": "ontop.park-map",
   "hashAlgorithm": "sha256",
   "hashes": {
-    "dataHash": "e77fb2f2243820b5efdaf9fe80f700a0c1bf0cd6e540a55de82183f1f97a8444",
-    "sourceHash": "5164a691cd77e258e3d82edb01a002748140eefb78fdb0672be0ce1d346c5b92"
+    "dataHash": "bf9f58b0cbcd85f2781403b57be28d08d44496a92fb3f98a25076c67690d122f",
+    "sourceHash": "21629697bb201fdfdf3209c1c4de57cd0ed2ca829a31635dcbed5537163e03ed"
   },
   "mapId": "park",
-  "mapVersion": "66f7e3feb023a3bf54df0902d68326238207fb11261e5917e2fa3fb0e7c5fe44",
+  "mapVersion": "a02ce148f922762eebf2d8107570587062a2d54ac590eb011615a2b4137ae92b",
   "schemaVersion": 2,
   "semantics": {
     "additionalPlayerInflation": "server-capsule-only",
     "annularSectorBoundary": "open",
-    "authority": "frontend-review-data",
+    "authority": "shared-generated-data",
     "boxAndSegmentBoundary": "strict-less-than",
     "collision": "data.physics-uninflated-3d",
     "excluded": [
@@ -128005,7 +128048,7 @@
       "path": "data.collision",
       "serverPhysics": false
     },
-    "scope": "park-preview",
+    "scope": "park-service",
     "seatSpace": "table-local",
     "spawnOrigin": "capsule-center",
     "spectatorRadius": "omitted-unused-legacy-metadata;server-policy-20m",

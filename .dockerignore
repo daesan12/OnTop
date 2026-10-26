@@ -1,0 +1,12 @@
+.git
+**/node_modules
+**/build
+**/dist
+**/.gradle
+**/.park-map-cache
+**/test-results
+**/playwright-report
+**/.env*
+.codex
+.agents
+.aws

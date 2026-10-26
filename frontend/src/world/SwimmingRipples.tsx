@@ -1,7 +1,7 @@
 import { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { DynamicDrawUsage, Object3D, type InstancedMesh } from 'three'
-import { LAKE, NETWORK } from '../config'
+import { LAKE, NETWORK } from '../park/mapConfig'
 import { avatars } from '../network/worldClient'
 import { sampleSwimmingPose } from './movementPresentation'
 

@@ -43,7 +43,7 @@ describe('park map generation',()=>{
     expect(server.semantics.additionalPlayerInflation).toBe('server-capsule-only')
     expect(server.semantics.previewCollision.serverPhysics).toBe(false)
     expect(server.schemaVersion).toBe(2)
-    expect(result.manifest.validation.backendIntegration).toBe('pending')
+    expect(result.manifest.validation.backendIntegration).toBe('requires-same-artifact-deployment')
   })
   it.each([NaN,Infinity,()=>0,new Date(),[undefined]])('rejects non-JSON values: %s',value=>{
     expect(()=>canonicalJson(value)).toThrow()

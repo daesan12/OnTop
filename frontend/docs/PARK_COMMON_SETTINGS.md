@@ -1,6 +1,6 @@
 # 180m 공원 공통 설정
 
-이번 단계는 확정된 FE 미리보기의 배치·충돌 원본을 정리한 것이다. 미리보기의 외형, 시설/테이블 ID, 좌석 앵커와 이동 결과를 유지한다. Java, DB, 실제 `/park` 서비스 맵, 기존 서비스 `EXPECTED_MAP_VERSION`은 변경하지 않는다.
+공통 설정은 확정 미리보기와 실제 FE `/park`, 생성 Java 리소스가 함께 사용합니다. 배치 변경은 같은 소스에서 화면·물리 형상·시설 Pose·맵 버전을 갱신합니다. 빌드·재시작 후 서버에 반영되며 실행 중 핫 리로드는 제공하지 않습니다.
 
 ## 수정할 파일과 데이터 흐름
 
@@ -51,7 +51,7 @@
 
 `DRAFT_BOXES`와 `FENCE_BLOCKERS`는 식재 제외 범위 등에서도 사용하는 보조 AABB다. `physics.ts`는 이를 역산하지 않고 공통 설정과 기존 모델 메타데이터에서 3D 형상을 계산한다. 캐릭터 반경/여유 폭을 포함하지 않은 boxes/meshes/hulls, 높이를 포함한 스폰을 생성한다. `data.physics`의 terrain 메시가 첫 메시이며, 다리/바닥은 별도 형상이다.
 
-바닥 높이는 `walkHeight`, 수영 여부는 `lake.swimmingAt`이 계산한다. 공통 데이터 `surfaces`에는 정자/계단·돌탑/계단·분수·호수·다리/접속부·낚시 데크/접속부의 파라미터를 정리했다. 높이의 적용 우선순위는 다리 → 낚시 데크 → 호수 바닥 → 정자/계단 → 중앙 돌탑/계단 → 분수 → 기본 0이다. JSON에는 실행 함수가 없으므로 Java에서 이 규칙을 그대로 실행하는 연결은 별도 구현 대상이다.
+바닥 높이는 `walkHeight`, 수영 여부는 `lake.swimmingAt`이 계산한다. 공통 데이터 `surfaces`에는 정자/계단·돌탑/계단·분수·호수·다리/접속부·낚시 데크/접속부의 파라미터를 정리했다. 높이의 적용 우선순위는 다리 → 낚시 데크 → 호수 바닥 → 정자/계단 → 중앙 돌탑/계단 → 분수 → 기본 0이다. Java는 JSON의 지형 메시와 별도 바닥 형상을 기존 물리 엔진으로 읽는다.
 
 현재 충돌의 정확도를 확대하지는 않았다. 일반 산포 수목, 일부 벤치·정자의 기둥·장식물 등은 기존 미리보기와 마찬가지로 별도 이동 충돌이 없거나 단순 범위만 사용한다. 카메라 충돌·점프 발판의 3D 착지 충돌도 이 2D 목록과 별도다. 전체 점프 코스/연출은 `layout-preview/jumpCourse.ts` 등에서 관리하며, 자동화의 서버 판정 범위는 추후 합의한다.
 
@@ -66,12 +66,7 @@ import { PARK_DATA, resolveParkLayout } from './src/map/park'
 
 `PARK_DATA`는 화면 객체나 함수를 포함하지 않아 JSON으로 직렬화할 수 있다. 서버용 JSON 생성·FE 미리보기 버전 자동 갱신·생성물 검사 명령까지 연결했다. `interactionData.ts`에서 개별 벤치/운동기구/망원경의 이용·퇴장 Pose를 계산한다. 유지되는 벤치·기구·망원경 ID는 기존 값을 유지하고 신규 벤치는 안정적인 배치 ID를 사용한다. `spectatorRadius`는 사용하지 않는 기존 메타데이터여서 생성물에서 제외하며 서버 관전 거리 20m를 유지한다. 출력 경로와 해시 규칙은 [PARK_GENERATION.md](./PARK_GENERATION.md), 서버 계약과 전환 조건은 [PARK_BE_HANDOFF.md](./PARK_BE_HANDOFF.md)에 정리했다.
 
-이어 진행할 작업:
-
-1. 보강한 schemaVersion 2의 3D 형상·지형 메시·시설별 Pose 및 요청/오류 map 필드 위치를 BE와 최종 확인한다.
-2. 생성 도구는 구현했다. `pnpm map:generate`로 JSON/FE 버전을 함께 갱신하고, `pnpm map:check`로 일치 여부를 검사한다.
-3. 실제 서비스 FE가 새 배치를 읽도록 전환하고 FE 버전을 생성 결과와 연결한다.
-4. BE 개발자가 생성 JSON 로딩·기존 테이블 좌표 연결·버전 확인을 Java 쪽에 연결한다.
+서비스 연결은 `src/park/mapConfig.ts`, 버전 계약은 `src/network/mapContract.ts`, Java 로딩은 `GeneratedParkMap`과 `ParkScene`을 사용한다. 연결 규격과 통합 검증은 [PARK_BE_HANDOFF.md](PARK_BE_HANDOFF.md) 및 [PARK_GENERATION.md](PARK_GENERATION.md)를 따른다.
 
 ## 검증
 

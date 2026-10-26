@@ -21,6 +21,8 @@ def classify(paths: list[str]) -> dict[str, int]:
             result["BACKEND_CHANGED"] = 1
         elif normalized.startswith("frontend/"):
             result["FRONTEND_CHANGED"] = 1
+            if normalized.startswith(("frontend/src/map/", "frontend/src/config/", "frontend/generated/park/")):
+                result["BACKEND_CHANGED"] = 1
         elif normalized == "Jenkinsfile" or normalized.startswith("infra/ci/"):
             result["CI_CONFIG_CHANGED"] = 1
             result["MANUAL_REVIEW"] = 1

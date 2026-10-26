@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { CAMERA, TELESCOPE, TELESCOPES, telescopeFov } from '../../src/config'
+import { CAMERA, TELESCOPE, TELESCOPES, telescopeFov } from '../../src/park/mapConfig'
 import { canReachTelescope, normalizeTelescopeAim, telescopeAnchors } from '../../src/features/telescopes/anchors'
 import { aimTelescope, enterTelescope, leaveTelescope } from '../../src/features/telescopes/controller'
 import { MockTelescopeService } from '../../src/features/telescopes/mock/MockTelescopeService'

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { NETWORK, TABLES, tableSeats, type CharacterId } from '../config'
+import { NETWORK, TABLES, tableSeats, type CharacterId } from '../park/mapConfig'
 import {
   channelState,
   worldState,

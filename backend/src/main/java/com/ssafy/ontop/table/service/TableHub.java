@@ -47,6 +47,7 @@ import com.ssafy.ontop.world.service.WorldEmoteService;
 import com.ssafy.ontop.world.service.WorldFacilityService;
 import com.ssafy.ontop.world.service.WorldProfileGateway;
 import com.ssafy.ontop.world.service.WorldProximity;
+import com.ssafy.ontop.world.movement.GeneratedParkMap;
 import jakarta.annotation.PreDestroy;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -79,6 +80,9 @@ import org.springframework.web.socket.WebSocketSession;
 @Service
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 public class TableHub {
+    private final Set<String> mapApproved = new java.util.HashSet<>();
+    private final Map<String,Runnable> pendingMapRecovery = new HashMap<>();
+    private final Map<String,WorldFacilityService.Pose> tableReturns = new HashMap<>();
 
     private static final Logger log = LoggerFactory.getLogger(TableHub.class);
 
@@ -276,7 +280,7 @@ public class TableHub {
         } else {
             // tableId는 채널 사이에서도 유일하다. 시작 연동과 보존 좌석도 같은 키로 격리한다.
             for (String channelId : channelIds) {
-                for (int number = 1; number <= 2; number++) {
+                for (int number = 1; number <= (GeneratedParkMap.enabled()?GeneratedParkMap.current().data().path("tables").size():2); number++) {
                     String tableId = "table-" + UUID.nameUUIDFromBytes(
                             (channelId + "\0table-" + number).getBytes(StandardCharsets.UTF_8));
                     rooms.put(tableId, new TableRoom(tableId));
@@ -317,9 +321,12 @@ public class TableHub {
                 member.peer().offer(protocol.encode(delivery.requestId(), "GAME_RESULT", delivery.result()));
             }
         }));
-        reconnect.ifPresent(service -> service.connected(user.userId(), session.getId(), user.sessionId(),
-                (requestId, view) -> member.peer().offer(protocol.encode(requestId, "GAME_CONNECTION_STATE", view))));
-        if (reservedStart) { replyStartState(member, seating.get(userId), null); }
+        Runnable restore=()->{
+            reconnect.ifPresent(service -> service.connected(user.userId(), session.getId(), user.sessionId(),
+                    (requestId, view) -> member.peer().offer(protocol.encode(requestId, "GAME_CONNECTION_STATE", view))));
+            if (reservedStart) { replyStartState(member, seating.get(userId), null); }
+        };
+        if(GeneratedParkMap.enabled()) pendingMapRecovery.put(session.getId(),restore); else restore.run();
         return true;
     }
 
@@ -329,7 +336,7 @@ public class TableHub {
         Member member = new Member(userId, peer, accountId);
         members.put(session.getId(), member);
         acceptedConnections++;
-        peer.offer(protocol.encode(null, "CONNECTED", Map.of("userId", userId)));
+        peer.offer(protocol.encode(null, "CONNECTED", GeneratedParkMap.enabled()?Map.of("userId", userId,"map",GeneratedParkMap.current().identity()):Map.of("userId",userId)));
         if (startRehearsal || committedStarts.isPresent()) {
             peer.offer(protocol.encode(null, "GAME_START_STATE", TableStartAttempt.View.waiting(null, 0, null,
                     committedStarts.isEmpty())));
@@ -368,7 +375,7 @@ public class TableHub {
         if (channelId != null && !channelIds.contains(channelId)) {
             throw new TableScopeException("CHANNEL_NOT_FOUND", "등록되지 않은 채널입니다.");
         }
-        return new TableListResponse(rooms.keySet().stream()
+        var response = new TableListResponse(rooms.keySet().stream()
                 .filter(id -> channelId == null || channelId.equals(tableChannels.get(id)))
                 .sorted().map(tableId -> {
             TableRoom.Snapshot snapshot = rooms.get(tableId).snapshot();
@@ -383,6 +390,13 @@ public class TableHub {
                     available, ready, snapshot.allReady(), status, available > 0 && status.equals("WAITING"),
                     snapshot.gameCode(), snapshot.targetScore(), publicGameId(tableId));
         }).toList());
+        if(!GeneratedParkMap.enabled()||channelId==null)return response;
+        var bindings=new ArrayList<Map<String,String>>();
+        for(var t:GeneratedParkMap.current().data().path("tables")) {
+            String anchor=t.path("id").asText(),id=GeneratedParkMap.serverTableId(channelId,anchor);
+            if(rooms.containsKey(id))bindings.add(Map.of("channelId",channelId,"tableId",id,"anchorId",anchor));
+        }
+        return new TableListResponse(response.tables(),bindings);
     }
 
     public synchronized void receive(String sessionId, String text) {
@@ -395,6 +409,18 @@ public class TableHub {
         try {
             Request request = protocol.parse(text);
             requestId = request.requestId();
+            if(GeneratedParkMap.enabled()) {
+                boolean negotiation=request.type().equals("CHANNEL_JOIN")||request.type().equals("GAME_RECONNECT_CHECK");
+                if(negotiation&&!GeneratedParkMap.current().matches(request.payload().path("map")) || !negotiation&&!mapApproved.contains(sessionId)) {
+                    mapApproved.remove(sessionId);channels.stopMovement(member.userId());
+                    member.peer().offer(protocol.encode(requestId,"ERROR",Map.of("code","MAP_VERSION_MISMATCH","message","맵 버전이 다릅니다. 새로고침 후 다시 연결해주세요.","map",GeneratedParkMap.current().identity())));
+                    return;
+                }
+                if(negotiation) {
+                    mapApproved.add(sessionId);
+                    Runnable restore=pendingMapRecovery.remove(sessionId);if(restore!=null)restore.run();
+                }
+            }
             if (request.type().equals("GAME_RESULT_CHECK")) {
                 if (member.accountId() == null) {
                     fail(request, "GAME_RESULT_AUTH_REQUIRED", "인증된 사용자만 결과를 확인할 수 있습니다.");
@@ -479,10 +505,12 @@ public class TableHub {
     }
 
     public synchronized void disconnect(String sessionId, ConnectionCloseReason reason) {
+        mapApproved.remove(sessionId);pendingMapRecovery.remove(sessionId);
         Member member = members.remove(sessionId);
         if (member == null) {
             return;
         }
+        tableReturns.remove(member.userId());
         closeMember(member, reason);
         recordBehavior(BehaviorEventType.WS_DISCONNECTED, member.accountId(),
                 builder -> builder.prop("reason", member.peer().closeReason().name()));
@@ -630,6 +658,7 @@ public class TableHub {
         }
         seating.put(member.userId(), tableId);
         channels.stopMovement(member.userId());
+        holdTablePose(member,tableId);
         clearWatch(member, null);
         clearGameWatch(member);
         publish(room, member, request.requestId());
@@ -646,6 +675,7 @@ public class TableHub {
             fail(request, "TABLE_BUSY", "먼저 테이블에서 퇴장해주세요.");
         }
         WorldChannelRegistry.Change change = channels.join(member.userId(), channelId);
+        if(seating.containsKey(member.userId()))holdTablePose(member,seating.get(member.userId()));
         if (change.changed()) {
             publishChannel(change.state(), member, request.requestId());
             WorldChannelRegistry.WorldState world = channels.worldState(channelId);
@@ -1087,10 +1117,24 @@ public class TableHub {
         ensureWaiting(room.snapshot().tableId(), request);
         String tableId = seating.remove(member.userId());
         room.leave(member.userId());
+        var returnPose=tableReturns.remove(member.userId());
+        if(returnPose!=null&&channels.channelOf(member.userId())!=null)channels.releaseFacility(member.userId(),returnPose);
         member.peer().offer(protocol.encode(request.requestId(), "TABLE_LEFT", Map.of("tableId", tableId)));
         publish(room, null, null);
         recordBehavior(BehaviorEventType.TABLE_LEFT, member.accountId(), builder -> builder.tableId(tableId)
                 .channelId(tableChannels.get(tableId)).prop("byDisconnect", false));
+    }
+
+    private void holdTablePose(Member member,String tableId) {
+        if(!GeneratedParkMap.enabled()||channels.channelOf(member.userId())==null)return;
+        var t=GeneratedParkMap.current().serverTable(tableChannels.get(tableId),tableId);
+        if(t==null)return;
+        var seat=rooms.get(tableId).snapshot().seats().stream().filter(s->member.userId().equals(s.userId())).findFirst().orElse(null);
+        if(seat==null)return;
+        var previous=channels.positionOf(member.userId());
+        tableReturns.putIfAbsent(member.userId(),new WorldFacilityService.Pose(previous.x(),previous.y(),previous.z(),previous.yaw()));
+        var local=t.path("seatAnchors").get(seat.seatNumber()-1);var p=t.path("position");
+        channels.holdFacility(member.userId(),new WorldFacilityService.Pose(p.get(0).asDouble()+local.get(0).asDouble(),p.get(1).asDouble()+.8,p.get(2).asDouble()+local.get(2).asDouble(),Math.atan2(-local.get(0).asDouble(),-local.get(2).asDouble())));
     }
 
     private TableRoom seatedRoom(Member member, Request request) {

@@ -1,4 +1,6 @@
 import { MOVEMENT } from '../../config'
+import { SWIMMING } from '../../config/parkLandforms'
+import { TELESCOPE } from '../../config/telescopes'
 import { createTowerRamp,createTowerDeck,towerPoint,OBSERVATION_TOWER,TOWER_DECK_RAIL_SEGMENTS } from '../../config/parkLayout'
 import { PAVILION_CLOSED_SIDES,PAVILION_TIMBER,TOWER_SITE,MAILBOX,MINI_PROPS } from '../../config/parkPlan'
 import { GARDEN_PAGODA,PAGODA_COLLIDERS } from '../../config/pagoda'
@@ -167,6 +169,9 @@ export function buildPhysics(i:Input) {
     if(Math.abs(x)<=b.half[0]&&Math.abs(z)<=b.half[2])spawnGround=Math.max(spawnGround,b.center[1]+b.half[1])
   }
   return {units:'m',upAxis:'Y',coordinateSpace:'world',playerInflation:0,collisionMargin:0,
+    movement:{...MOVEMENT},swimming:{...SWIMMING,depthThreshold:d.lake.swimmingThreshold},
+    tower:{...OBSERVATION_TOWER,x:d.sites.tower.x,z:d.sites.tower.z},
+    telescope:{aimIntervalMs:TELESCOPE.aimIntervalMs,minPitch:TELESCOPE.minPitch,maxPitch:TELESCOPE.maxPitch,initialPitch:TELESCOPE.initialPitch},
     character:{radius:MOVEMENT.radius,halfHeight:MOVEMENT.halfHeight,offset:MOVEMENT.offset},
     terrain:{meshId:'terrain',halfSize:half,step,columns:side,rows:side,triangleOrder:'a-c-b,b-c-d'},
     spawn:{position:[sx,spawnGround+centerOffset,sz] as Point3,yaw:Math.PI,origin:'capsule-center',groundClearance:d.physics.spawnClearance},

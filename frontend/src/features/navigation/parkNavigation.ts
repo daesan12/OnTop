@@ -4,13 +4,13 @@ import {
   MOVEMENT,
   PARK_PAVILIONS,
   OBSERVATION_TOWER,
-  groundHeight,
+  serviceWalkHeight,
   lakeRadiusAt,
-  BRIDGE,
+  isOnLakeCrossing, BRIDGE,
   isOnParkWalkway,
   PARK_ZONES, FITNESS_AREA, VR_ZONE, FOUNTAIN, MAILBOX, MINI_PROPS, LAKE, GARDEN_PAGODA,
   pavilionStairJoin,
-} from "../../config";
+} from "../../park/mapConfig";
 
 export type NavPoint = { x: number; z: number };
 export type Destination = NavPoint & { name: string };
@@ -78,26 +78,7 @@ function inside(
   );
 }
 export function navigationHeight(p: NavPoint): number {
-  let height = groundHeight(p.x, p.z);
-  for (const pavilion of PARK_PAVILIONS) {
-    const dx = Math.abs(p.x - pavilion.x),
-      dz = Math.abs(p.z - pavilion.z);
-    if (
-      Math.max(dx, dz, (dx + dz) / Math.SQRT2) <
-      4.5 * pavilion.scale * Math.cos(Math.PI / 8)
-    )
-      height = Math.max(height, pavilion.floor);
-  }
-  for (const box of nearby(p)) {
-    if (
-      (box.id.includes("-step-") ||
-        box.id.startsWith("bridge-deck-") ||
-        box.id === "vr-apron") &&
-      inside(p, box, 0)
-    )
-      height = Math.max(height, box.center[1] + box.half[1]);
-  }
-  return height;
+  return serviceWalkHeight(p.x,p.z);
 }
 export function isNavigationWalkable(p: NavPoint): boolean {
   if (
@@ -109,10 +90,7 @@ export function isNavigationWalkable(p: NavPoint): boolean {
   // Multi-storey tower ramps cannot be represented safely by a single ground plane.
   if (navDistance(p, OBSERVATION_TOWER) < OBSERVATION_TOWER.outer + 0.5)
     return false;
-  const bridge =
-    p.x >= BRIDGE.startX &&
-    p.x <= BRIDGE.endX &&
-    Math.abs(p.z - BRIDGE.z) < BRIDGE.halfWidth - clearance;
+  const bridge = isOnLakeCrossing(p.x,p.z);
   if (lakeRadiusAt(p.x, p.z) < 1.01 && !bridge) return false;
   const floor = navigationHeight(p);
   return !nearby(p).some((box) => {

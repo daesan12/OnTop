@@ -1,4 +1,4 @@
-import { MINI_PROPS } from '../../config'
+import { MINI_PROPS } from '../../park/mapConfig'
 import { avatars, useSession } from '../../network/worldClient'
 import { tableBusy, useGame } from '../../game/store'
 import { inputState } from '../../world/inputOwnership'

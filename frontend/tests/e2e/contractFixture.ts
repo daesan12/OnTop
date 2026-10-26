@@ -4,6 +4,7 @@ import path from 'node:path'
 import fs from 'node:fs/promises'
 import { TABLES } from '../../src/config'
 import { EXPECTED_MAP_VERSION } from '../../src/config/mapVersion'
+import { LIVE_MAP_IDENTITY } from '../../src/network/mapContract'
 import type { Farkle } from '../../src/game/protocol'
 import type { OneCard, Hand, Card } from '../../src/game/onecard/protocol'
 import { bridgeState as makeBridge } from '../fixtures/bridge'
@@ -329,7 +330,7 @@ export async function fixture(
       JSON.stringify({
         requestId: null,
         type: 'CONNECTED',
-        payload: { userId: options.ownUserId ?? '101', ...(options.connectedMap?{map:options.connectedMap}:{}) },
+        payload: { userId: options.ownUserId ?? '101', map:options.connectedMap??LIVE_MAP_IDENTITY },
       }),
     )
     if (options.omok)

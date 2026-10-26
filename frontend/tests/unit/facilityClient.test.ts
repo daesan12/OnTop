@@ -51,7 +51,7 @@ function harness() {
 }
 afterEach(() => { resetFacilities(); vi.useRealTimers() })
 
-it('accepts a full 174-seat wire snapshot without raising limits for existing messages', () => {
+it('accepts a full generated-seat wire snapshot without raising limits for existing messages', () => {
   let userId = 100
   const occupancies = facilityCatalog.facilities.flatMap(d => d.seats.map((pose, seatIndex) => ({
     leaseId: `1cc2849b-1556-41c7-b44e-${String(++userId).padStart(12, '0')}`, userId: String(userId),
@@ -61,18 +61,18 @@ it('accepts a full 174-seat wire snapshot without raising limits for existing me
   const encoded = JSON.stringify({ type: 'WORLD_FACILITY_STATE', requestId: null,
     payload: { channelId: 'channel-1', version: 174, mapVersion: EXPECTED_MAP_VERSION, occupancies } })
   expect(encoded.length).toBeGreaterThan(65_536)
-  expect(parseFacilitySnapshot(parseEnvelope(encoded).payload).occupancies).toHaveLength(174)
+  expect(parseFacilitySnapshot(parseEnvelope(encoded).payload).occupancies).toHaveLength(facilityCatalog.facilities.reduce((n,d)=>n+d.seats.length,0))
   expect(() => parseEnvelope(encoded.replace('WORLD_FACILITY_STATE', 'WORLD_STATE'))).toThrow()
   expect(() => parseEnvelope(JSON.stringify({ type: 'WORLD_FACILITY_STATE', requestId: null, payload: { padding: 'x'.repeat(262_144) } }))).toThrow()
 })
 
 it('loads every real catalog page before CHECK and sends only the documented fields', async () => {
   const h = harness(); await h.client.begin()
-  expect(Object.keys(useFacilityState.getState().catalog)).toHaveLength(94)
-  expect(h.sent.map(s => s.type)).toEqual([...Array(10).fill('WORLD_FACILITY_CATALOG'), 'WORLD_FACILITY_CHECK'])
-  expect(h.sent.slice(0, 10).map(s => s.payload)).toEqual([{}, ...Array.from({ length: 9 }, (_, i) => ({ offset: (i + 1) * 10 }))])
-  const lease = await h.client.use('bench-0', 1, h.signal)
-  expect(h.sent.at(-1)?.payload).toEqual({ facilityId: 'bench-0', seatIndex: 1 })
+  expect(Object.keys(useFacilityState.getState().catalog)).toHaveLength(facilityCatalog.facilities.length)
+  expect(h.sent.map(s => s.type)).toEqual([...Array(Math.ceil(facilityCatalog.facilities.length/10)).fill('WORLD_FACILITY_CATALOG'), 'WORLD_FACILITY_CHECK'])
+  expect(h.sent.slice(0, Math.ceil(facilityCatalog.facilities.length/10)).map(s => s.payload)).toEqual([{}, ...Array.from({ length: Math.ceil(facilityCatalog.facilities.length/10)-1 }, (_, i) => ({ offset: (i + 1) * 10 }))])
+  const lease = await h.client.use('bench-20', 1, h.signal)
+  expect(h.sent.at(-1)?.payload).toEqual({ facilityId: 'bench-20', seatIndex: 1 })
   expect(lease.startedAt).toBe('2026-10-25T00:00:00Z')
   await h.client.release(lease.leaseId, h.signal)
   expect(h.sent.at(-1)?.payload).toEqual({ leaseId: lease.leaseId })
@@ -90,7 +90,7 @@ it('routes facility errors away from global chat/table errors even after the old
 
 it('does not finish release or permit movement until the following authoritative WORLD_STATE', async () => {
   const h = harness(); await h.client.begin()
-  const lease = await h.client.use('bench-0', 0, h.signal)
+  const lease = await h.client.use('bench-20', 0, h.signal)
   h.omitWorld()
   let finished = false
   const release = h.client.release(lease.leaseId, h.signal).then(() => { finished = true })
@@ -104,7 +104,7 @@ it('does not finish release or permit movement until the following authoritative
 })
 
 it('keeps the current lease on EXIT_BLOCKED and permits an explicit retry', async () => {
-  const h = harness(); await h.client.begin(); const lease = await h.client.use('bench-0', 0, h.signal)
+  const h = harness(); await h.client.begin(); const lease = await h.client.use('bench-20', 0, h.signal)
   h.reject('FACILITY_EXIT_BLOCKED')
   await expect(h.client.release(lease.leaseId, h.signal)).rejects.toMatchObject({ code: 'FACILITY_EXIT_BLOCKED' })
   expect(useFacilityState.getState().occupancies['101']?.leaseId).toBe(lease.leaseId)
@@ -115,7 +115,7 @@ it('keeps the current lease on EXIT_BLOCKED and permits an explicit retry', asyn
 
 it('rechecks rejected competing USE and never creates a local lease or replays the request', async () => {
   const h = harness(); await h.client.begin(); h.reject('FACILITY_OCCUPIED')
-  await expect(h.client.use('bench-0', 0, h.signal)).rejects.toMatchObject({ code: 'FACILITY_OCCUPIED' })
+  await expect(h.client.use('bench-20', 0, h.signal)).rejects.toMatchObject({ code: 'FACILITY_OCCUPIED' })
   expect(h.sent.at(-1)?.type).toBe('WORLD_FACILITY_CHECK')
   expect(h.sent.filter(s => s.type === 'WORLD_FACILITY_USE')).toHaveLength(1)
   expect(useFacilityState.getState().occupancies).toEqual({})
@@ -124,14 +124,14 @@ it('rechecks rejected competing USE and never creates a local lease or replays t
 
 it('reconciles a timed-out USE without inventing success or losing the actual server lease', async () => {
   const h = harness(); await h.client.begin(); h.timeoutUse()
-  await expect(h.client.use('bench-0', 0, h.signal)).rejects.toThrow('초과')
+  await expect(h.client.use('bench-20', 0, h.signal)).rejects.toThrow('초과')
   expect(h.sent.at(-1)?.type).toBe('WORLD_FACILITY_CHECK')
-  expect(useFacilityState.getState().occupancies['101']?.facilityId).toBe('bench-0')
+  expect(useFacilityState.getState().occupancies['101']?.facilityId).toBe('bench-20')
   expect(facilityMovementBlocked('101')).toBe(true)
 })
 
 it('reconciles a lost release reply and remains locked if the approved position was also lost', async () => {
-  const h = harness(); await h.client.begin(); const lease = await h.client.use('bench-0', 0, h.signal)
+  const h = harness(); await h.client.begin(); const lease = await h.client.use('bench-20', 0, h.signal)
   h.timeoutRelease(); h.omitWorld()
   await expect(h.client.release(lease.leaseId, h.signal)).rejects.toThrow('초과')
   expect(useFacilityState.getState().occupancies).toEqual({})
@@ -140,7 +140,7 @@ it('reconciles a lost release reply and remains locked if the approved position 
 })
 
 it('applies full occupancy broadcasts, ignores stale versions, foreign channels and unknown response ids', async () => {
-  const h = harness(); await h.client.begin(); const own = await h.client.use('bench-0', 0, h.signal)
+  const h = harness(); await h.client.begin(); const own = await h.client.use('bench-20', 0, h.signal)
   const remote = { ...own, leaseId: 'remote', userId: '102', seatIndex: 1 }
   h.remote([own, remote], 10)
   expect(Object.keys(useFacilityState.getState().occupancies)).toEqual(['101', '102'])
@@ -150,7 +150,7 @@ it('applies full occupancy broadcasts, ignores stale versions, foreign channels 
 })
 
 it('clears ownership on reconnect and re-queries instead of replaying USE', async () => {
-  const h = harness(); await h.client.begin(); await h.client.use('bench-0', 0, h.signal)
+  const h = harness(); await h.client.begin(); await h.client.use('bench-20', 0, h.signal)
   h.client.reset(); h.scope({ generation: 2 }); h.remote([])
   const before = h.sent.length; await h.client.begin()
   expect(h.sent.slice(before).some(s => s.type === 'WORLD_FACILITY_USE')).toBe(false)
@@ -186,7 +186,7 @@ it('normalizes telescope directions, enforces the catalog interval, increments s
 })
 
 it('fails closed on a mismatched map, duplicate seats or malformed server timestamps', async () => {
-  const h = harness(); await h.client.begin(); const own = await h.client.use('bench-0', 0, h.signal)
+  const h = harness(); await h.client.begin(); const own = await h.client.use('bench-20', 0, h.signal)
   const payload = h.snapshot().payload
   for (const changes of [{ mapVersion: 'different' }, { occupancies: [own, { ...own, userId: '102', leaseId: 'second' }] },
     { occupancies: [{ ...own, startedAt: 'invalid' }] }]) expect(() => parseFacilitySnapshot({ ...payload, ...changes })).toThrow()

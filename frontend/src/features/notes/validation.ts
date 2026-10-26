@@ -1,4 +1,4 @@
-import { NOTES_BOX, parseAnonymousNote, type AnonymousNote } from '../../config/notes'
+import { NOTES_BOX, parseAnonymousNote, type AnonymousNote } from '../../park/mapConfig'
 import type { Pose } from '../../network/worldClient'
 
 export const NOTES_TIMEOUT_MS = 10_000
