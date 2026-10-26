@@ -21,6 +21,10 @@
 - 1일차: 101 완료 2판(보상 60+40으로 일일 한도 100 도달), 102 포기 1판·완료 1판, 103 기한 초과 1판
 - 105: 1일차 23:59에 시작해 2일차 00:02에 완료(시작일과 보상일이 다름)
 - 2일차: 103 완료 1판, 101 진행 중 1판
+
+소리함(feedback_messages, 기능 테이블. 본문은 쿼리가 읽지 않으므로 고정 문구만 넣는다)
+- 1일차: 101이 one에 2건, 102가 two에 1건, 탈퇴로 회원 번호가 지워진 1건(one)
+- 103: 1일차 UTC 15:30(한국 2일차 00:30)에 two에 1건
 """
 
 import json
@@ -144,6 +148,17 @@ def feature_sql() -> str:
             "INSERT INTO minigame_sessions (user_id, minigame_type, status, score, reward_amount, started_at, "
             f"ended_at) VALUES ({user_id}, 'BUNGEOPPANG', '{status}', {sql_value(score)}, {reward}, "
             f"'{timestamp(started)}', {sql_value(ended and timestamp(ended))});"
+        )
+    for user_id, channel, created in [
+        (101, "one", "2026-10-27 01:40:00"),
+        (101, "one", "2026-10-27 02:00:00"),
+        (102, "two", "2026-10-27 03:00:00"),
+        (None, "one", "2026-10-27 04:00:00"),
+        (103, "two", "2026-10-27 15:30:00"),
+    ]:
+        lines.append(
+            "INSERT INTO feedback_messages (user_id, channel_id, body, created_at) VALUES "
+            f"({sql_value(user_id)}, '{channel}', 'seed', '{timestamp(created)}');"
         )
     return "\n".join(lines) + "\n"
 

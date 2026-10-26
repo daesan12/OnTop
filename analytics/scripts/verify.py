@@ -1,6 +1,6 @@
 """가짜 데이터(seed.py)로 analytics/queries의 결과가 손으로 계산한 정답과 같은지 확인한다.
 
-빈 검증 DB를 만들고 백엔드의 실제 마이그레이션(회원 V1, 행동 로그 V5·V6, 붕어빵 V110)을 적용하므로
+빈 검증 DB를 만들고 백엔드의 실제 마이그레이션(회원 V1, 행동 로그 V5·V6, 붕어빵 V110, 소리함 V120)을 적용하므로
 테이블 구조가 바뀌면 이 검증이 먼저 깨진다.
 
     python analytics/scripts/verify.py --container <MySQL 8.4 컨테이너 이름>
@@ -20,6 +20,7 @@ MIGRATIONS = [
     ROOT / "backend/src/main/resources/db/migration/V5__create_behavior_events.sql",
     ROOT / "backend/src/main/resources/db/migration/V6__create_world_position_samples.sql",
     ROOT / "backend/src/main/resources/db/minigame/V110__create_minigame_sessions.sql",
+    ROOT / "backend/src/main/resources/db/feedback/V120__create_feedback_messages.sql",
 ]
 DATABASE = "analytics_verify"
 
@@ -91,6 +92,14 @@ EXPECTED: dict[str, list[dict[str, str]]] = {
          "rewards": "130", "avg_reward_per_completer": "65.0"},
         {"kst_date": "2026-10-28", "completers": "2", "cap_reached_users": "0", "cap_reached_pct": "0.0",
          "rewards": "65", "avg_reward_per_completer": "32.5"},
+    ],
+    "14_feedback_daily.sql": [
+        {"kst_date": "2026-10-27", "submissions": "4", "submitters": "2", "withdrawn_submissions": "1"},
+        {"kst_date": "2026-10-28", "submissions": "1", "submitters": "1", "withdrawn_submissions": "0"},
+    ],
+    "15_feedback_channels.sql": [
+        {"channel_id": "one", "submissions": "3", "submitters": "1"},
+        {"channel_id": "two", "submissions": "2", "submitters": "2"},
     ],
 }
 
