@@ -10,7 +10,7 @@ import expandIcon from '../parkMenus/icons/chevron-channel.svg'
 
 const textControl = (target: EventTarget | null) => target instanceof HTMLElement
   && !!target.closest('input,textarea,select,button,a,[contenteditable="true"],[role="button"]')
-const anotherPanel = () => Object.entries(inputState).some(([key, value]) => value && key !== 'chatOpen' && key !== 'minigameOpen')
+const anotherPanel = () => Object.entries(inputState).some(([key, value]) => value && key !== 'chatOpen')
   || !!document.querySelector('dialog[open],[role="dialog"]')
 
 export function ParkChat() {

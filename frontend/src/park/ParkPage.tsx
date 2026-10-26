@@ -73,15 +73,20 @@ function ParkContent({ onExit, exitError, onAuthEnded }: ParkProps) {
     } as CSSProperties}>
       <ParkScene quality={quality} />
       <div className="park-hud">
-        <ChannelMenu />
+        <div className="park-roaming-ui" hidden={bungeoppang} inert={bungeoppang}>
+          <ChannelMenu />
+          {/* 빠른 메뉴: each feature keeps its own launcher, placed into a slot by CSS. */}
+          <div className="park-quick-dock" aria-hidden="true" />
+          <div className="park-dock-wardrobe"><ShopLauncher /></div>
+          <LocationChip />
+        </div>
+        <div inert={bungeoppang}>
+          <AccountMenu quality={quality} exitError={exitError} onExit={onExit} onWithdrawn={onAuthEnded} />
+        </div>
 
-        <AccountMenu quality={quality} exitError={exitError} onExit={onExit} onWithdrawn={onAuthEnded} />
-        {/* 빠른 메뉴: the frame only; each feature keeps its own launcher, placed into a slot by CSS. */}
-        <div className="park-quick-dock" aria-hidden="true" />
-        <div className="park-dock-wardrobe"><ShopLauncher /></div>
-        <LocationChip />
-
-        <ParkChat key={`${session.sessionId}:${session.roomId}`} />
+        <div className="park-roaming-ui" hidden={bungeoppang} inert={bungeoppang}>
+          <ParkChat key={`${session.sessionId}:${session.roomId}`} />
+        </div>
 
         <aside className="park-shortcuts" aria-label="조작 방법">
           {shortcuts.map(({ key, action }) => (
@@ -89,21 +94,23 @@ function ParkContent({ onExit, exitError, onAuthEnded }: ParkProps) {
           ))}
         </aside>
       </div>
-      <ParkTools quality={quality} onQuality={changeQuality}/>
-      <ParkInteractionHint />
-      <FacilityStatus />
-      <EmoteWheel />
-      <TelescopePanel />
-      <FeedbackPanel />
-      <AnonymousNotes />
-      <ShopPanel />
-      <AdvertisementLink />
-      <CameraControls />
-      <FollowMenu />
+      <div className="park-roaming-ui" hidden={bungeoppang} inert={bungeoppang}>
+        <ParkTools quality={quality} onQuality={changeQuality}/>
+        <ParkInteractionHint />
+        <FacilityStatus />
+        <EmoteWheel />
+        <TelescopePanel />
+        <FeedbackPanel />
+        <AnonymousNotes />
+        <ShopPanel />
+        <AdvertisementLink />
+        <CameraControls />
+        <FollowMenu />
+        <ParkMap />
+        <ParkNavigation />
+      </div>
       <BungeoppangHud />
-      <ParkMap />
-      <ParkNavigation />
-      <ManualHost worldActions={<ManualWorldActions quality={quality} onQuality={changeQuality} onExit={onExit} />} />
+      <ManualHost worldActions={bungeoppang ? undefined : <ManualWorldActions quality={quality} onQuality={changeQuality} onExit={onExit} />} />
     </main>
   )
 }

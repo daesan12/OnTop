@@ -1,19 +1,12 @@
 import { BufferGeometry, ExtrudeGeometry, Float32BufferAttribute, Path, Shape } from 'three'
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
 import { PropBuilder, type PropFinish, type XYZ } from './propGeometry'
+import { FISH_CART_GRILL } from '../../config/fishCart'
+import { createFishCartShape as fish } from './fishCartShape'
 
 const cream = '#eddfbc', red = '#963f3a', iron = '#30332f', brass = '#b49a63'
 function rounded(b: PropBuilder, k: PropFinish, color: string, p: XYZ, s: XYZ, r = 0.015) {
   b.add(k, new RoundedBoxGeometry(...s, 2, r), color, p)
-}
-function fish() {
-  const s = new Shape()
-  s.moveTo(-0.12, 0.025); s.lineTo(-0.21, 0.085); s.lineTo(-0.19, 0)
-  s.lineTo(-0.21, -0.085); s.lineTo(-0.12, -0.025)
-  s.bezierCurveTo(-0.07, -0.10, 0.11, -0.10, 0.17, -0.025)
-  s.quadraticCurveTo(0.21, 0, 0.17, 0.025)
-  s.bezierCurveTo(0.11, 0.10, -0.07, 0.10, -0.12, 0.025)
-  s.closePath(); return s
 }
 function canopy(b: PropBuilder, detailed: boolean) {
   const strips = 10, segments = detailed ? 24 : 8
@@ -44,21 +37,23 @@ function canopy(b: PropBuilder, detailed: boolean) {
 }
 
 function griddle(b: PropBuilder, detailed: boolean) {
-  rounded(b, 'metal', '#888f88', [-0.66, 1.12, 0.03], [1.31, 0.08, 0.83], 0.025)
-  rounded(b, 'stone', '#171b1b', [-0.66, 1.166, 0.03], [1.23, 0.012, 0.74], 0.012)
+  const layout = FISH_CART_GRILL, [cx, cy, cz] = layout.center
+  rounded(b, 'metal', '#888f88', [cx, cy - .05, cz], [1.31, 0.08, 0.83], 0.025)
+  rounded(b, 'stone', '#171b1b', [cx, cy - .004, cz], [1.23, 0.012, 0.74], 0.012)
   if (detailed) {
     const plate = new Shape()
-    plate.moveTo(-0.6, -0.35); plate.lineTo(0.6, -0.35); plate.lineTo(0.6, 0.35); plate.lineTo(-0.6, 0.35); plate.closePath()
-    for (const x of [-0.40, 0, 0.40]) for (const z of [-0.175, 0.175]) {
-      const points = fish().getPoints(16).map(p => { p.multiplyScalar(0.79); p.x += x; p.y += z; return p })
+    const w = layout.width / 2, d = layout.depth / 2
+    plate.moveTo(-w, -d); plate.lineTo(w, -d); plate.lineTo(w, d); plate.lineTo(-w, d); plate.closePath()
+    for (const x of layout.columns) for (const z of layout.rows) {
+      const points = fish(layout.mouldScale).getPoints(16).map(p => { p.x += x; p.y -= z; return p })
       const hole = new Path(points); plate.holes.push(hole)
     }
-    b.add('metal', new ExtrudeGeometry(plate, { depth: 0.045, bevelEnabled: true, bevelSize: 0.004,
-      bevelThickness: 0.004, bevelSegments: 1, curveSegments: 12 }), '#444a43', [-0.66, 1.17, 0.03], [1, 1, 1], [-Math.PI / 2, 0, 0])
+    b.add('metal', new ExtrudeGeometry(plate, { depth: layout.thickness, bevelEnabled: true, bevelSize: 0.004,
+      bevelThickness: 0.004, bevelSegments: 1, curveSegments: 12 }), '#444a43', [cx, cy, cz], [1, 1, 1], [-Math.PI / 2, 0, 0])
     for (const x of [-1.21, -0.11]) {
       b.curve('metal', '#c3c5b9', [[x, 1.16, 0.39], [x, 1.23, 0.49], [x + 0.07, 1.23, 0.49]], 0.019, 12)
     }
-  } else rounded(b, 'metal', '#444a43', [-0.66, 1.19, 0.03], [1.2, 0.04, 0.7])
+  } else rounded(b, 'metal', '#444a43', [cx, cy + .02, cz], [layout.width, 0.04, layout.depth])
   for (const x of [-0.99, -0.66, -0.33]) {
     b.cylinder('metal', '#5f665f', [x, 0.99, 0.82], 0.052, 0.052, 0.035, [Math.PI / 2, 0, 0], 20)
     b.box('gold', brass, [x, 1.016, 0.842], [0.008, 0.025, 0.005])
@@ -142,13 +137,19 @@ function build(detailed: boolean) {
   } else {
     for (const x of [0.65, 1.1]) bread(b, x, -0.05, false, 0)
   }
-  canopy(b, detailed)
-  rounded(b, 'wood', '#654934', [0, 2.43, 1.05], [2.22, 0.35, 0.07], 0.018)
   b.box('glow', '#ffdf9a', [0.94, 1.746, -0.08], [0.82, 0.015, 0.045])
-  b.box('glow', '#ffdf9a', [0, 2.73, 0.56], [2.55, 0.018, 0.035])
   return b.finish()
 }
 export const fishCartArt = { near: build(true), far: build(false) }
+// Keep overhead parts out of the body batches so the local cooking camera can see the grill.
+function buildCanopy(detailed: boolean) {
+  const b = new PropBuilder([16, 10])
+  canopy(b, detailed)
+  rounded(b, 'wood', '#654934', [0, 2.43, 1.05], [2.22, 0.35, 0.07], 0.018)
+  b.box('glow', '#ffdf9a', [0, 2.73, 0.56], [2.55, 0.018, 0.035])
+  return b.finish()
+}
+export const fishCartCanopyArt = { near: buildCanopy(true), far: buildCanopy(false) }
 const glass = new PropBuilder()
 glass.box('tile', '#ffffff', [0.94, 1.48, 0.26], [1.02, 0.56, 0.006])
 glass.box('tile', '#ffffff', [0.94, 1.48, -0.42], [1.02, 0.56, 0.006])
