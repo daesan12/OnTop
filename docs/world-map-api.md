@@ -193,6 +193,7 @@ park-bindings 두 파일이 있는 폴더로 지정하면 PreparedParkMapHandoff
 
 PreparedParkSocketTests는 랜덤 포트의 별도 서버에서 실제 네이티브 장면·WebSocket으로 schema2 확인,
 16번 테이블 착석·게임 선택·준비, 시설 이용/반납을 검사한다. 고정 회원 fixture와 서버 위치 fixture를 사용한다.
+준비 요청은 최신 dev의 동의 규칙에 맞춰 각 클라이언트가 직접 받은 테이블 금액·버전을 전송한다.
 메모/소리함 검사는 실제 Hub 접근 판정까지이며 REST 저장·실제 로그인·DB 검사가 아니다.
 단위 네이티브 이동은 단순 지형 fixture에서도 검증한다. PreparedParkMovementTests는 실제 FE 전달본의
 외벽/테이블 영역, 호수 수영, 대표 디딤돌, 전망대 입구의 나선 경사로를 별도 장면에서 검사한다.

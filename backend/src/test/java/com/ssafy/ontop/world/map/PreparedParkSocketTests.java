@@ -85,11 +85,12 @@ class PreparedParkSocketTests {
             String table = PreparedParkMap.serverTableId("channel-1", 16);
             assertThat(first.request("TABLE_JOIN", Map.of("tableId", table)).path("type").asText())
                     .isEqualTo("TABLE_STATE");
-            assertThat(first.request("GAME_SELECT", Map.of("gameCode", "OMOK")).path("type").asText())
+            assertThat(first.request("GAME_SELECT", Map.of("gameCode", "OMOK", "betAmountPerPlayer", 1))
+                    .path("type").asText())
                     .isEqualTo("TABLE_STATE");
             second.request("TABLE_JOIN", Map.of("tableId", table));
-            first.request("READY_SET", Map.of("ready", true));
-            assertThat(second.request("READY_SET", Map.of("ready", true))
+            first.ready(table);
+            assertThat(second.ready(table)
                     .path("payload").path("allReady").asBoolean()).isTrue();
             assertThat(hub.listTables("channel-2").tables()).allMatch(item -> item.occupiedSeats() == 0);
             assertThat(channels.worldState("channel-1").mapVersion()).isEqualTo(park.metadata().mapVersion());
@@ -160,6 +161,14 @@ class PreparedParkSocketTests {
         void confirm() throws Exception {
             assertThat(request("WORLD_MAP_CONFIRM", park.metadata()).path("type").asText())
                     .isEqualTo("WORLD_MAP_STATE");
+        }
+
+        JsonNode ready(String tableId) throws Exception {
+            // 각 클라이언트가 직접 받은 최신 공개 상태의 금액·버전에 동의한다.
+            JsonNode observed = request("TABLE_JOIN", Map.of("tableId", tableId)).path("payload");
+            return request("READY_SET", Map.of("ready", true,
+                    "betAmountPerPlayer", observed.path("betAmountPerPlayer").longValue(),
+                    "expectedVersion", observed.path("version").longValue()));
         }
 
         JsonNode await(String requestId) throws Exception {
