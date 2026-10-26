@@ -31,7 +31,7 @@ for (const code of ['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE'] as const) test(`2
   await expect.poll(async () => (await probe(page)).present).toBe(false)
   const panel = page.locator('.prototype-game')
   await expect(panel).toBeVisible(); await expect(panel).toContainText('차례')
-  if (code !== 'OMOK') await expect.poll(async () => Math.abs((await probe(page)).camera[1]! - TABLES[0]!.position[1] - 1.95)).toBeLessThan(.01)
+  if (code !== 'OMOK') await expect.poll(async () => Math.abs((await probe(page)).camera[1]! - TABLES[0]!.position[1] - (code === 'DICE' ? 3.15 : 1.95))).toBeLessThan(.01)
   expect(await panel.evaluate(e => getComputedStyle(e).pointerEvents)).toBe('none')
   if (code === 'OMOK') {
     await expect(panel.getByRole('group', { name: '오목판' })).toBeHidden()
@@ -96,7 +96,7 @@ for (const code of ['ONE_CARD', 'DICE', 'LIAR_BRIDGE'] as const) for (const size
   await screenshot(page, `prototype-waiting-${size.width}`)
   await lobby(page).getByRole('button', { name: '준비', exact: true }).click(); server.confirmStart()
   const panel = page.locator('.prototype-game')
-  await expect.poll(async () => Math.abs((await probe(page)).camera[1]! - TABLES[0]!.position[1] - 1.95)).toBeLessThan(.01)
+  await expect.poll(async () => Math.abs((await probe(page)).camera[1]! - TABLES[0]!.position[1] - (code === 'DICE' ? 3.15 : 1.95))).toBeLessThan(.01)
   await expect(panel.getByRole('button', { name: ({ ONE_CARD: '한 장 뽑고 넘기기', DICE: 'R 굴리기', LIAR_BRIDGE: '비밀 주사위 굴리기' })[code], exact: true })).toBeInViewport()
   await expect(page.getByRole('button', { name: '채팅 입력창 열기', exact: true })).toBeInViewport()
   await page.getByRole('button', { name: '채팅 입력창 열기', exact: true }).click()
