@@ -15,20 +15,28 @@ async function load() {
 }
 afterEach(() => { vi.unstubAllGlobals() })
 
-it('keeps the value on a 0.1 step inside the allowed range', async () => {
+it('keeps the value on a 5% step between 10% and 200%', async () => {
   const { clampLookSensitivity } = await load()
-  expect(clampLookSensitivity(0.74)).toBe(0.7)
-  expect(clampLookSensitivity(0.75)).toBe(0.8)
-  expect(clampLookSensitivity(0.05)).toBe(0.2)
+  expect(clampLookSensitivity(0.72)).toBe(0.7)
+  expect(clampLookSensitivity(0.73)).toBe(0.75)
+  expect(clampLookSensitivity(0.85)).toBe(0.85)
+  expect(clampLookSensitivity(0)).toBe(0.1)
   expect(clampLookSensitivity(9)).toBe(2)
-  expect(clampLookSensitivity(Number.NaN)).toBe(1)
+  expect(clampLookSensitivity(Number.NaN)).toBe(0.8)
 })
 
-it('saves a change and restores it on the next visit', async () => {
+it('shows the value as a percentage of the original speed', async () => {
+  const { lookSensitivityLabel } = await load()
+  expect(lookSensitivityLabel(0.8)).toBe('80%')
+  expect(lookSensitivityLabel(0.85)).toBe('85%')
+  expect(lookSensitivityLabel(2)).toBe('200%')
+})
+
+it('starts at 80%, saves a change and restores it on the next visit', async () => {
   const saved = storage()
   vi.stubGlobal('localStorage', saved)
   const first = await load()
-  expect(first.lookSensitivity()).toBe(1)
+  expect(first.lookSensitivity()).toBe(0.8)
   first.setLookSensitivity(0.6)
   expect(first.lookSensitivity()).toBe(0.6)
   expect(saved.values.get(key)).toBe('0.6')
@@ -39,7 +47,7 @@ it('saves a change and restores it on the next visit', async () => {
 
 it('ignores a damaged saved value', async () => {
   vi.stubGlobal('localStorage', storage({ [key]: 'fast' }))
-  expect((await load()).lookSensitivity()).toBe(1)
+  expect((await load()).lookSensitivity()).toBe(0.8)
   vi.stubGlobal('localStorage', storage({ [key]: '7' }))
   expect((await load()).lookSensitivity()).toBe(2)
 })
@@ -50,7 +58,7 @@ it('still applies for this session when storage is blocked', async () => {
     setItem: () => { throw new Error('blocked') },
   })
   const module = await load()
-  expect(module.lookSensitivity()).toBe(1)
+  expect(module.lookSensitivity()).toBe(0.8)
   module.setLookSensitivity(1.5)
   expect(module.lookSensitivity()).toBe(1.5)
 })

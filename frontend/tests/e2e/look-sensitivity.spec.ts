@@ -2,6 +2,8 @@ import { expect, test, type Page } from '@playwright/test'
 import { fixture, screenshot } from './contractFixture'
 
 const lookPanel = (page: Page) => page.getByRole('region', { name: '마우스 감도', exact: true })
+const lookButton = (page: Page) => page.getByRole('complementary', { name: '공원 카메라 조작', exact: true })
+  .getByRole('button', { name: /^감도/ })
 const yaw = (page: Page) => page.evaluate(async () =>
   (await import('/src/world/cameraPerspective.ts' as string)).viewControls.yaw as number)
 async function loaded(page: Page) {
@@ -16,33 +18,29 @@ async function dragTurn(page: Page) {
   return before - await yaw(page)
 }
 
-const lookButton = (page: Page) => page.getByRole('complementary', { name: '공원 카메라 조작', exact: true })
-  .getByRole('button', { name: /^감도/ })
-
 test('S15P31B105-208 mouse sensitivity scales the park view and persists', async ({ page }) => {
   const errors: string[] = []; page.on('pageerror', e => errors.push(e.message))
   await fixture(page, { players: 2, position: { x: 0, y: .8, z: 34, yaw: Math.PI } }); await loaded(page)
 
-  const normal = await dragTurn(page)
-  expect(normal).toBeCloseTo(200 * 0.004, 2)
+  await expect(lookButton(page)).toHaveText('감도 80%')
+  expect(await dragTurn(page)).toBeCloseTo(200 * 0.004 * 0.8, 2)
 
-  await expect(lookButton(page)).toHaveText('감도 1.0')
   await lookButton(page).click()
   await expect(lookPanel(page)).toBeVisible()
-  await lookPanel(page).getByLabel('시점 회전 배율').fill('0.5')
-  await expect(lookPanel(page).locator('output')).toHaveText('0.5배')
-  await expect(lookButton(page)).toHaveText('감도 0.5')
+  await lookPanel(page).getByLabel('시점 회전 빠르기').fill('0.4')
+  await expect(lookPanel(page).locator('output')).toHaveText('40%')
+  await expect(lookButton(page)).toHaveText('감도 40%')
   await screenshot(page, 'look-sensitivity-panel')
   await lookPanel(page).getByRole('button', { name: '마우스 감도 닫기', exact: true }).click()
   await expect(lookPanel(page)).toHaveCount(0)
 
   await page.locator('canvas').focus()
-  expect(await dragTurn(page)).toBeCloseTo(normal * 0.5, 2)
+  expect(await dragTurn(page)).toBeCloseTo(200 * 0.004 * 0.4, 2)
 
   await loaded(page)
-  await expect(lookButton(page)).toHaveText('감도 0.5')
+  await expect(lookButton(page)).toHaveText('감도 40%')
   await lookButton(page).click()
-  await lookPanel(page).getByRole('button', { name: '기본값(1.0배)', exact: true }).click()
-  await expect(lookPanel(page).locator('output')).toHaveText('1.0배')
+  await lookPanel(page).getByRole('button', { name: '기본값(80%)', exact: true }).click()
+  await expect(lookPanel(page).locator('output')).toHaveText('80%')
   expect(errors).toEqual([])
 })
