@@ -27,7 +27,7 @@
 .park-page .onecard-game-hud.onecard-panel .onecard-public :is(.onecard-watermark,.onecard-corner-bottom) { display:none; }
 .park-page .onecard-game-hud.onecard-panel .onecard-actions-panel { position:absolute; inset:auto 0 20px; width:min(1060px,calc(100% - 40px)); max-height:none; margin:0 auto; padding:0; border:0; background:transparent; box-shadow:none; display:flex; flex-direction:column; align-items:center; gap:8px; pointer-events:none; }
 .park-page .onecard-game-hud.onecard-panel .onecard-actions-panel>:is(p,small) { background:#172c29ed; border-radius:6px; padding:5px 10px; font-size:11px; text-align:center; }
-.park-page .onecard-game-hud.onecard-panel .onecard-hand { --card-width:124px; --fan-step:min(calc(var(--card-width) - 12px),calc((min(1060px,100vw - 40px) - var(--card-width) - 32px)/max(1,var(--fan-count) - 1))); position:relative; display:flex; justify-content:center; flex-shrink:0; align-items:flex-start; width:100%; height:230px; box-sizing:border-box; padding:27px 0 25px; pointer-events:none; isolation:isolate; }
+.park-page .onecard-game-hud.onecard-panel .onecard-hand { --hand-rise:clamp(36px,6dvh,64px); --card-width:124px; --fan-step:min(calc(var(--card-width) - 12px),calc((min(1060px,100vw - 40px) - var(--card-width) - 32px)/max(1,var(--fan-count) - 1))); position:relative; display:flex; justify-content:center; flex-shrink:0; align-items:flex-start; width:100%; height:calc(230px + var(--hand-rise)); box-sizing:border-box; padding:27px 0 25px; pointer-events:none; isolation:isolate; }
 .park-page .onecard-game-hud.onecard-panel .onecard-hand-card { width:var(--card-width); flex-shrink:0; margin-left:calc(var(--fan-step) - var(--card-width)); transform:translateY(var(--fan-lift)) rotate(var(--fan-angle)); transform-origin:50% 110%; z-index:calc(var(--fan-index) + 1); background:transparent; border:0; box-shadow:none; pointer-events:auto; perspective:800px; transition:transform .18s ease; }
 .park-page .onecard-game-hud.onecard-panel .onecard-hand-card:first-child { margin-left:0; }
 .park-page .onecard-game-hud.onecard-panel .onecard-hand-card:disabled { opacity:1; cursor:default; }
@@ -79,7 +79,7 @@
  .park-page .onecard-game-hud.onecard-panel .mini-tools .onecard-actions { gap:4px; }
  .park-page .onecard-game-hud.onecard-panel .onecard-public { top:92px; padding:7px 10px; }
  .park-page .onecard-game-hud.onecard-panel .mini-feedback { top:176px; }
- .park-page .onecard-game-hud.onecard-panel .onecard-hand { --card-width:100px; height:198px; padding-top:25px; }
+ .park-page .onecard-game-hud.onecard-panel .onecard-hand { --hand-rise:36px; --card-width:100px; height:calc(198px + var(--hand-rise)); padding-top:25px; }
  .park-page .onecard-game-hud.onecard-panel .onecard-hand-card { height:156px; }
  .park-page .onecard-game-hud.onecard-panel .onecard-symbol { font-size:36px; }
  .park-page .onecard-game-hud.onecard-panel .onecard-corner { font-size:20px; left:5px; }
@@ -97,7 +97,7 @@
  .park-page .onecard-game-hud.onecard-panel .mini-status small { font-size:10px; }
 }
 @media(max-height:740px) and (min-width:801px) {
- .park-page .onecard-game-hud.onecard-panel .onecard-hand { height:204px; padding-top:20px; }
+ .park-page .onecard-game-hud.onecard-panel .onecard-hand { height:calc(204px + var(--hand-rise)); padding-top:20px; }
  .park-page .onecard-game-hud.onecard-panel .onecard-hand-card { height:164px; }
  .park-page .onecard-game-hud.onecard-panel .mini-status { bottom:292px; }
 }
