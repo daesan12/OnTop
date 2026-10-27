@@ -1,23 +1,46 @@
 package com.ssafy.ontop.table;
 
-import static org.assertj.core.api.Assertions.*;
-import static org.mockito.Mockito.*;
-import static org.mockito.ArgumentMatchers.any;
-
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser;
-import com.ssafy.ontop.game.start.*;
-import com.ssafy.ontop.game.result.*;
+import com.ssafy.ontop.game.result.GameResultCommitted;
+import com.ssafy.ontop.game.result.GameResultView;
+import com.ssafy.ontop.game.start.CommittedGameStartService;
+import com.ssafy.ontop.game.start.GameStartCommand;
+import com.ssafy.ontop.game.start.GameStartResult;
 import com.ssafy.ontop.table.service.TableHub;
 import com.ssafy.ontop.table.websocket.ConnectionCloseReason;
 import com.ssafy.ontop.world.service.WorldClock;
-import java.time.*;
-import java.util.*;
-import java.util.concurrent.*;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.junit.jupiter.api.*;
-import org.springframework.web.socket.*;
+import java.util.function.Predicate;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.web.socket.TextMessage;
+import org.springframework.web.socket.WebSocketSession;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 // 실제 Hub/직렬화/비동기 송신 검증. 인증과 DB 예약 경계는 대역이며 DB 성공 검증이 아니다.
 class TabletStartFlowTests {
@@ -137,11 +160,50 @@ class TabletStartFlowTests {
         Peer a=peer(101),b=peer(202);prepare(a,b);clock.advance(119);
         long version=a.request("TABLE_JOIN",Map.of("tableId","table-1")).path("payload").path("version").asLong();
         a.request("TABLE_START",Map.of("actionId","edge","expectedVersion",version));
+        // 시작 알림이 조회 응답보다 먼저 도착하는 CI 실행 순서를 고정한다.
+        assertThat(a.playingDelivered.await(5, TimeUnit.SECONDS)).isTrue();
         clock.advance(1);
-        a.request("TABLE_HOST_WAIT_CHECK",Map.of());
+        var wait = a.request("TABLE_HOST_WAIT_CHECK", Map.of()).path("payload");
+        assertThat(wait.path("cancelReason").asText()).isEqualTo("START_APPROVED");
+        assertThat(wait.path("expiresAt").isNull()).isTrue();
         assertThat(hub.listTables().tables().getFirst().occupiedSeats()).isEqualTo(2);
         a.awaitType("GAME_START_STATE",m->m.path("payload").path("phase").asText().equals("PLAYING"));
         assertThat(reservations).hasValue(1);
+    }
+
+    @Test
+    void 만료조회_응답뒤_예약이_완료돼도_시작알림과_좌석을_유지한다() throws Exception {
+        var reservationEntered = new CountDownLatch(1);
+        var releaseReservation = new CountDownLatch(1);
+        doAnswer(call -> {
+            reservations.incrementAndGet();
+            reservationEntered.countDown();
+            if (!releaseReservation.await(5, TimeUnit.SECONDS)) {
+                throw new AssertionError("예약 결과 해제 신호가 도착하지 않았습니다.");
+            }
+            return GameStartResult.reserved(call.getArgument(0), "tablet-game");
+        }).when(starts).start(any());
+        Peer a = peer(101);
+        Peer b = peer(202);
+        prepare(a, b);
+        clock.advance(119);
+        long version = a.request("TABLE_JOIN", Map.of("tableId", "table-1"))
+                .path("payload").path("version").asLong();
+        try {
+            a.request("TABLE_START", Map.of("actionId", "delayed", "expectedVersion", version));
+            assertThat(reservationEntered.await(5, TimeUnit.SECONDS)).isTrue();
+            clock.advance(1);
+            var wait = a.request("TABLE_HOST_WAIT_CHECK", Map.of()).path("payload");
+            assertThat(wait.path("cancelReason").asText()).isEqualTo("START_APPROVED");
+            assertThat(wait.path("expiresAt").isNull()).isTrue();
+            assertThat(hub.listTables().tables().getFirst().occupiedSeats()).isEqualTo(2);
+            releaseReservation.countDown();
+            a.awaitType("GAME_START_STATE", message ->
+                    message.path("payload").path("phase").asText().equals("PLAYING"));
+            assertThat(reservations).hasValue(1);
+        } finally {
+            releaseReservation.countDown();
+        }
     }
 
     @Test void 예약거절은_전원준비를_해제하고_새시작요청만_새예약을한다() throws Exception {
@@ -150,8 +212,11 @@ class TabletStartFlowTests {
         Peer a=peer(101),b=peer(202);prepare(a,b);
         long version=a.request("TABLE_JOIN",Map.of("tableId","table-1")).path("payload").path("version").asLong();
         var payload=Map.of("actionId","reject","expectedVersion",version);
-        a.request("TABLE_START",payload);
-        a.awaitType("GAME_START_STATE",m->m.path("payload").path("phase").asText().equals("WAITING"));
+        String attemptId = a.request("TABLE_START", payload).path("payload").path("startAttemptId").asText();
+        assertThat(attemptId).isNotBlank();
+        a.awaitType("GAME_START_STATE", message ->
+                message.path("payload").path("phase").asText().equals("WAITING")
+                        && message.path("payload").path("startAttemptId").asText().equals(attemptId));
         a.request("TABLE_START",payload);
         assertThat(reservations).hasValue(1);
         assertThat(hub.listTables().tables().getFirst().readyCount()).isZero();
@@ -177,16 +242,40 @@ class TabletStartFlowTests {
         a.request("READY_SET",Map.of("ready",true)); b.request("READY_SET",Map.of("ready",true));
     }
     Peer peer(long user) throws Exception {
-        var socket=mock(WebSocketSession.class); String id=UUID.randomUUID().toString();
-        when(socket.getId()).thenReturn(id); when(socket.isOpen()).thenReturn(true);
-        var queue=new LinkedBlockingQueue<JsonNode>();
-        doAnswer(call -> { if(call.getArgument(0) instanceof TextMessage text) {queue.add(mapper.readTree(text.getPayload()));} return null; }).when(socket).sendMessage(any());
-        assertThat(hub.connectAuthenticated(socket,new VerifiedWebSocketUser(user,VerifiedWebSocketUser.Provider.NAVER,"00000000-0000-0000-0000-000000000001"))).isTrue();
-        return new Peer(id,queue);
+        var socket = mock(WebSocketSession.class);
+        String id = UUID.randomUUID().toString();
+        when(socket.getId()).thenReturn(id);
+        when(socket.isOpen()).thenReturn(true);
+        var queue = new LinkedBlockingQueue<JsonNode>();
+        var playingDelivered = new CountDownLatch(1);
+        doAnswer(call -> {
+            if (call.getArgument(0) instanceof TextMessage text) {
+                JsonNode message = mapper.readTree(text.getPayload());
+                queue.add(message);
+                if (message.path("type").asText().equals("GAME_START_STATE")
+                        && message.path("payload").path("phase").asText().equals("PLAYING")) {
+                    playingDelivered.countDown();
+                }
+            }
+            return null;
+        }).when(socket).sendMessage(any());
+        var userIdentity = new VerifiedWebSocketUser(user, VerifiedWebSocketUser.Provider.NAVER,
+                "00000000-0000-0000-0000-000000000001");
+        assertThat(hub.connectAuthenticated(socket, userIdentity)).isTrue();
+        return new Peer(id, queue, playingDelivered);
     }
+
     class Peer {
-        final String id; final BlockingQueue<JsonNode> messages;
-        Peer(String id,BlockingQueue<JsonNode> messages){this.id=id;this.messages=messages;}
+        final String id;
+        final BlockingQueue<JsonNode> messages;
+        final CountDownLatch playingDelivered;
+        final Deque<JsonNode> deferredMessages = new ArrayDeque<>();
+
+        Peer(String id, BlockingQueue<JsonNode> messages, CountDownLatch playingDelivered) {
+            this.id = id;
+            this.messages = messages;
+            this.playingDelivered = playingDelivered;
+        }
         JsonNode request(String type,Map<String,?> payload) throws Exception {
             if (type.equals("READY_SET") && Boolean.TRUE.equals(payload.get("ready"))) {
                 var state=request("TABLE_JOIN",Map.of("tableId","table-1")).path("payload");
@@ -196,10 +285,31 @@ class TabletStartFlowTests {
             hub.receive(id,mapper.writeValueAsString(Map.of("requestId",request,"type",type,"payload",payload)));
             return awaitType(null,m -> m.path("requestId").asText().equals(request));
         }
-        JsonNode awaitType(String type,java.util.function.Predicate<JsonNode> condition) throws Exception {
-            long end=System.nanoTime()+TimeUnit.SECONDS.toNanos(5);
-            while(System.nanoTime()<end){var m=messages.poll(100,TimeUnit.MILLISECONDS); if(m!=null && (type==null || type.equals(m.path("type").asText())) && condition.test(m))return m;}
-            throw new AssertionError("missing message "+type);
+        JsonNode awaitType(String type, Predicate<JsonNode> condition) throws Exception {
+            Predicate<JsonNode> matches = message ->
+                    (type == null || type.equals(message.path("type").asText())) && condition.test(message);
+            var deferred = deferredMessages.iterator();
+            while (deferred.hasNext()) {
+                JsonNode message = deferred.next();
+                if (matches.test(message)) {
+                    deferred.remove();
+                    return message;
+                }
+            }
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+            long remaining;
+            while ((remaining = deadline - System.nanoTime()) > 0) {
+                JsonNode message = messages.poll(remaining, TimeUnit.NANOSECONDS);
+                if (message == null) {
+                    break;
+                }
+                if (matches.test(message)) {
+                    return message;
+                }
+                // 다른 요청의 응답이나 방송은 다음 검증까지 도착 순서대로 보존한다.
+                deferredMessages.addLast(message);
+            }
+            throw new AssertionError("missing message " + type);
         }
     }
     static class MutableClock extends Clock {
