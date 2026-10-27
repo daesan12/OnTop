@@ -2,10 +2,10 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { AdminFeedbackError, loadAdminFeedback, type AdminFeedbackPage as FeedbackPage } from './adminService'
 import './adminFeedback.css'
 
-export function AdminFeedbackPage({ onReturn, onAuthEnded }: { onReturn: () => void; onAuthEnded: () => void }) {
+export function AdminFeedbackPage({ onAuthEnded }: { onAuthEnded: () => void }) {
   const [page, setPage] = useState<FeedbackPage | null>(null), [trail, setTrail] = useState([''])
   const [loading, setLoading] = useState(false), [error, setError] = useState('')
-  const request = useRef<AbortController | null>(null), heading = useRef<HTMLHeadingElement>(null)
+  const request = useRef<AbortController | null>(null)
   const load = useCallback(async (nextTrail: string[]) => {
     request.current?.abort()
     const abort = request.current = new AbortController()
@@ -21,18 +21,11 @@ export function AdminFeedbackPage({ onReturn, onAuthEnded }: { onReturn: () => v
   }, [onAuthEnded])
   useEffect(() => {
     let active = true
-    heading.current?.focus()
     // StrictMode's discarded mount must not issue an extra private read.
     queueMicrotask(() => { if (active) void load(['']) })
     return () => { active = false; request.current?.abort() }
   }, [load])
-  return <main className="admin-feedback-page">
-    <header className="admin-feedback-header">
-      <a href="/park" onClick={event => { event.preventDefault(); onReturn() }}>← 공원으로 돌아가기</a>
-      <small>온탑 · 관리자 전용</small><h1 ref={heading} tabIndex={-1}>소리함 의견 조회</h1>
-      <p>이용자가 비공개로 남긴 의견입니다. 서버에서 조회 권한을 확인합니다.</p>
-    </header>
-    <section className="admin-feedback-content" aria-label="접수된 의견" aria-busy={loading}>
+  return <section className="admin-feedback-content" aria-label="접수된 의견" aria-busy={loading}>
       <div className="admin-feedback-toolbar"><h2>접수 내역</h2>
         <button type="button" disabled={loading} onClick={() => void load([''])}>최신 의견 새로고침</button></div>
       {loading && <p role="status">의견을 확인하고 있어요…</p>}
@@ -51,6 +44,5 @@ export function AdminFeedbackPage({ onReturn, onAuthEnded }: { onReturn: () => v
         <button type="button" disabled={loading || trail.length < 2} onClick={() => void load(trail.slice(0, -1))}>이전 페이지</button>
         <button type="button" disabled={loading || !page?.nextCursor} onClick={() => page?.nextCursor && void load([...trail, page.nextCursor])}>다음 페이지</button>
       </nav>
-    </section>
-  </main>
+  </section>
 }

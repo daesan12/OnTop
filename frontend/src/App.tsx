@@ -6,8 +6,8 @@ import { OnboardingPage } from './onboarding/OnboardingPage'
 import { ParkPage } from './park/ParkPage'
 import { preloadWorldAssets } from './world/worldAssets'
 
-const AdminFeedbackPage = lazy(() => import('./features/feedback/AdminFeedbackPage').then(m => ({ default: m.AdminFeedbackPage })))
-type Page = 'checking' | 'login' | 'callback' | 'onboarding' | 'park' | 'admin-feedback'
+const AdminShell = lazy(() => import('./features/admin/AdminShell').then(m => ({ default: m.AdminShell })))
+type Page = 'checking' | 'login' | 'callback' | 'onboarding' | 'park' | 'admin' | 'admin-feedback'
 
 export default function App() {
   const [page, setPage] = useState<Page>(() =>
@@ -47,9 +47,10 @@ export default function App() {
     restoreAuthSession().then((authenticated) => {
       if (!active) return
       if (authenticated) {
-        const admin = window.location.pathname === '/admin/feedback'
-        window.history.replaceState(null, '', admin ? '/admin/feedback' : '/park')
-        setPage(admin ? 'admin-feedback' : 'park')
+        const path = window.location.pathname
+        const next = path === '/admin/feedback' ? 'admin-feedback' : path === '/admin' ? 'admin' : 'park'
+        window.history.replaceState(null, '', next === 'admin-feedback' ? '/admin/feedback' : next === 'admin' ? '/admin' : '/park')
+        setPage(next)
       } else {
         if (window.location.pathname !== '/') window.history.replaceState(null, '', '/')
         setPage('login')
@@ -61,6 +62,11 @@ export default function App() {
   const onAuthenticated = useCallback(() => {
     window.history.replaceState(null, '', '/park')
     setPage('park')
+  }, [])
+
+  const onAdminNavigate = useCallback((section: 'home' | 'feedback') => {
+    window.history.pushState(null, '', section === 'home' ? '/admin' : '/admin/feedback')
+    setPage(section === 'home' ? 'admin' : 'admin-feedback')
   }, [])
 
   const onOnboardingRequired = useCallback(() => {
@@ -94,9 +100,10 @@ export default function App() {
   if (page === 'park' && getAuthSession()?.status === 'AUTHENTICATED') {
     return <ParkPage onExit={onExit} exitError={exitError} onAuthEnded={onReturnToLogin} />
   }
-  if (page === 'admin-feedback' && getAuthSession()?.status === 'AUTHENTICATED') {
+  if ((page === 'admin' || page === 'admin-feedback') && getAuthSession()?.status === 'AUTHENTICATED') {
     return <Suspense fallback={<main className="auth-loading" role="status">관리자 화면 준비 중…</main>}>
-      <AdminFeedbackPage onReturn={onAuthenticated} onAuthEnded={onReturnToLogin} />
+      <AdminShell section={page === 'admin' ? 'home' : 'feedback'} onNavigate={onAdminNavigate}
+        onReturn={onAuthenticated} onAuthEnded={onReturnToLogin} />
     </Suspense>
   }
   if (page === 'checking') return <main className="auth-loading" role="status">로그인 상태 확인 중…</main>

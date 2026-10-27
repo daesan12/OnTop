@@ -14,7 +14,9 @@ import {
   type BungeoppangGame,
   type BungeoppangService,
   type BungeoppangSubmit,
+  type BungeoppangTimeSync,
 } from './service';
+import type { RoundTiming } from './serverTime';
 
 type RequestJson = (path: string, init?: RequestInit) => Promise<unknown>;
 type WireAction = {
@@ -52,6 +54,7 @@ interface SessionSource {
   accepted: WireAction[];
   orders: WireOrder[];
   acceptedLocalCount: number;
+  timing: RoundTiming;
 }
 
 const sessions = new Map<string, SessionSource>();
@@ -72,6 +75,15 @@ const messages: Record<string, string> = {
   GAME_NOT_ACTIVE: '이미 종료됐거나 제출 기한이 지난 판이에요.',
   MINIGAME_UNAVAILABLE: '미니게임 서버를 잠시 사용할 수 없어요.',
 };
+
+function toTiming(value: unknown): RoundTiming {
+  const fields = ['countdownStartsAt', 'playStartsAt', 'playEndsAt', 'submitDeadline', 'expiresAt'] as const;
+  if (!record(value) || !fields.every(name => instant(value[name]))) return fail();
+  const times = fields.map(name => Date.parse(value[name] as string));
+  if (times.some((time, index) => index > 0 && time <= times[index - 1]!)
+    || times[1]! - times[0]! !== 3500 || times[2]! - times[1]! !== 60000) return fail();
+  return Object.fromEntries(fields.map(name => [name, value[name]])) as unknown as RoundTiming;
+}
 
 function toRules(value: unknown): Readonly<BungeoppangRules & { rulesVersion: 'v4' }> {
   if (!record(value)) return fail();
@@ -310,9 +322,7 @@ export function createBungeoppangV4Service(requestJSON: RequestJson): Bungeoppan
       if (!record(p) || !id(p.minigameSessionId) || p.minigameType !== 'BUNGEOPPANG' || p.status !== 'PLAYING'
         || p.rulesVersion !== 'v4' || typeof p.configVersion !== 'string' || !instant(p.startedAt)
         || !record(p.timing) || !Array.isArray(p.heats) || typeof p.isFirstGame !== 'boolean') return fail();
-      const timing = p.timing;
-      if (!['countdownStartsAt', 'playStartsAt', 'playEndsAt', 'submitDeadline', 'expiresAt']
-        .every(name => instant(timing[name]))) return fail();
+      const timing = toTiming(p.timing);
       const rules = toRules(p.rules);
       if (p.heats.length !== rules.heatListLength || !p.heats.every(value => whole(value)
         && Number(value) >= rules.heatMin && Number(value) <= rules.heatMax)) return fail();
@@ -320,14 +330,38 @@ export function createBungeoppangV4Service(requestJSON: RequestJson): Bungeoppan
       if (!checkpoint.currentOrder) return fail();
       const order = checkpoint.currentOrder;
       const source: SessionSource = { configVersion: p.configVersion, rules, heats: [...p.heats] as number[],
-        checkpoint, accepted: [], orders: [order], acceptedLocalCount: 0 };
+        checkpoint, accepted: [], orders: [order], acceptedLocalCount: 0, timing };
       sessions.set(p.minigameSessionId, source);
+      // A replayed POST receipt may be old. Only a fresh GET supplies a clock/status observation.
+      const timeSync = await service.syncTimeV4!(p.minigameSessionId);
       return { gameId: p.minigameSessionId, startedAt: p.startedAt, rulesVersion: 'v4', heats: [...source.heats],
-        isFirstGame: p.isFirstGame, v4: { configVersion: source.configVersion, order, rules, timing: {
-          countdownStartsAt: timing.countdownStartsAt as string, playStartsAt: timing.playStartsAt as string,
-          playEndsAt: timing.playEndsAt as string, submitDeadline: timing.submitDeadline as string,
-          expiresAt: timing.expiresAt as string,
-        }, checkpoint } } satisfies BungeoppangGame;
+        isFirstGame: p.isFirstGame, v4: { configVersion: source.configVersion, order, rules,
+          timing, timeSync, checkpoint } } satisfies BungeoppangGame;
+    },
+    async syncTimeV4(gameId): Promise<BungeoppangTimeSync> {
+      const source = sessions.get(gameId);
+      if (!source) return fail();
+      // Bound resampling: a slow connection must not create another round or extend this one.
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const sentAt = performance.now();
+        const p = await request(sessionPath(gameId));
+        const receivedAt = performance.now();
+        if (!record(p) || p.minigameSessionId !== gameId || p.rulesVersion !== 'v4'
+          || p.configVersion !== source.configVersion || !instant(p.serverNow)
+          || !['PLAYING', 'COMPLETED', 'ABANDONED', 'INVALID'].includes(String(p.status))) return fail();
+        const timing = toTiming(p.timing);
+        if (Object.keys(source.timing).some(name => timing[name as keyof RoundTiming]
+          !== source.timing[name as keyof RoundTiming])) return fail();
+        const sample = { serverNowMs: Date.parse(p.serverNow), receivedAt, rttMs: receivedAt - sentAt };
+        const status = p.status as BungeoppangTimeSync['status'];
+        if (status !== 'PLAYING' || sample.rttMs <= 1000) {
+          const result = status === 'COMPLETED' ? completeResult(p.result, gameId) : undefined;
+          if (status !== 'PLAYING') sessions.delete(gameId);
+          return { timing, sample, status, ...(result ? { result } : {}) };
+        }
+      }
+      throw new BungeoppangServiceError('TIME_SYNC_SLOW',
+        '연결 지연으로 시간을 확인하지 못했어요. 같은 판의 시간을 다시 확인해 주세요.', true);
     },
     async nextOrder(input) {
       const source = sessions.get(input.gameId);

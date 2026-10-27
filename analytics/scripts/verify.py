@@ -109,6 +109,18 @@ EXPECTED: dict[str, list[dict[str, str]]] = {
         {"kind": "FITNESS", "facility_id": "walker-1", "uses": "1", "users": "1", "avg_minutes": "NULL",
          "disconnected_ends": "0", "unended": "1"},
     ],
+    "17_dashboard_funnel_daily.sql": [
+        {"kst_date": "2026-10-27", "onboarded": "4", "channel_joined": "3", "table_joined": "3",
+         "game_started": "2", "game_completed": "1"},
+    ],
+    "18_dashboard_game_daily.sql": [
+        {"kst_date": "2026-10-27", "game_code": "OMOK", "games_started": "1", "games_ended": "1",
+         "games_completed": "1", "forfeits": "1", "participants": "2", "duration_seconds": "600",
+         "timed_games": "1"},
+        {"kst_date": "2026-10-28", "game_code": "DICE", "games_started": "1", "games_ended": "1",
+         "games_completed": "1", "forfeits": "0", "participants": "2", "duration_seconds": "300",
+         "timed_games": "1"},
+    ],
 }
 
 

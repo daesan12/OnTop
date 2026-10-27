@@ -470,3 +470,20 @@
     animation: none;
   }
 }
+.bung-time-sync {
+  position: absolute;
+  z-index: 12;
+  top: 104px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100% - 24px);
+  box-sizing: border-box;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: #fff8e9;
+  color: #4d3827;
+  text-align: center;
+  pointer-events: auto;
+}
+.bung-time-sync button { margin-left: 8px; }

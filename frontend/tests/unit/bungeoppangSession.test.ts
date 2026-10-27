@@ -2,13 +2,13 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 vi.mock('../../src/features/bungeoppang/access', () => ({ canOpenBungeoppang: vi.fn(() => true) }))
 vi.mock('../../src/features/bungeoppang/service', async importOriginal => ({
   ...await importOriginal<typeof import('../../src/features/bungeoppang/service')>(),
-  bungeoppangService: { getStatus: vi.fn(), startGame: vi.fn(), submitResult: vi.fn(), abandon: vi.fn(), balance: vi.fn(), nextOrder: vi.fn(), recoverV4: vi.fn() },
+  bungeoppangService: { getStatus: vi.fn(), startGame: vi.fn(), submitResult: vi.fn(), abandon: vi.fn(), balance: vi.fn(), nextOrder: vi.fn(), recoverV4: vi.fn(), syncTimeV4: vi.fn() },
 }))
 import { canOpenBungeoppang } from '../../src/features/bungeoppang/access'
-import { bungeoppangService as service, BungeoppangServiceError } from '../../src/features/bungeoppang/service'
+import { bungeoppangService as service, BungeoppangServiceError, type BungeoppangTimeSync } from '../../src/features/bungeoppang/service'
 import { advanceBungeoppangTime, escapeBungeoppang, leaveBungeoppang, openBungeoppang, pressBungeoppangSlot,
   deliverBungeoppangOrder, discardBungeoppangTray, discardBungeoppangSlot, requestBungeoppangOrder, isV4Grill, setBungeoppangTool,
-  quitBungeoppang, resetBungeoppang, refreshBungeoppangStatus, refreshBungeoppangWallet, setBungeoppangHelp, startBungeoppang, submitBungeoppang, useBungeoppang } from '../../src/features/bungeoppang/store'
+  quitBungeoppang, resetBungeoppang, refreshBungeoppangStatus, refreshBungeoppangWallet, setBungeoppangHelp, startBungeoppang, submitBungeoppang, syncBungeoppangTime, useBungeoppang } from '../../src/features/bungeoppang/store'
 import { inputState } from '../../src/world/inputOwnership'
 import { bungeoppangClock, bungeoppangView } from '../../src/features/bungeoppang/bungeoppangView'
 import { useSession } from '../../src/network/worldClient'
@@ -19,8 +19,13 @@ const game = { gameId: '901', startedAt: '2026-10-24T01:00:00Z', heats: Array(64
 const result = { score: 0, made: 0, golden: 0, failed: 0, wasted: 0, maxCombo: 0, coinsCalculated: 0, coinsGranted: 0, todayEarned: 0, dailyCap: 100, capReached: false }
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date', 'performance'] })
-  vi.stubGlobal('window', { dispatchEvent: vi.fn(), setTimeout, innerWidth: 1280, innerHeight: 720 })
-  vi.stubGlobal('document', { activeElement: null, hidden: false, pointerLockElement: null })
+  const docEvents = new EventTarget(), windowEvents = new EventTarget();
+  vi.stubGlobal('window', { dispatchEvent: vi.fn(event => windowEvents.dispatchEvent(event)), setTimeout,
+    addEventListener: windowEvents.addEventListener.bind(windowEvents),
+    removeEventListener: windowEvents.removeEventListener.bind(windowEvents), innerWidth: 1280, innerHeight: 720 })
+  vi.stubGlobal('document', { activeElement: null, hidden: false, pointerLockElement: null,
+    addEventListener: docEvents.addEventListener.bind(docEvents), removeEventListener: docEvents.removeEventListener.bind(docEvents),
+    dispatchEvent: docEvents.dispatchEvent.bind(docEvents) })
   vi.stubGlobal('requestAnimationFrame', vi.fn().mockReturnValue(1)); vi.stubGlobal('cancelAnimationFrame', vi.fn())
   vi.mocked(canOpenBungeoppang).mockReturnValue(true)
   vi.mocked(service.getStatus).mockResolvedValue({ todayEarned: 0, dailyCap: 100, isFirstGame: true, seenTips: [], rulesVersion: 'v2' })
@@ -29,6 +34,98 @@ beforeEach(() => {
 })
 afterEach(() => { resetBungeoppang(); vi.useRealTimers(); vi.unstubAllGlobals(); vi.clearAllMocks() })
 const enter = async () => { openBungeoppang(); await vi.advanceTimersByTimeAsync(800) }
+const epoch = Date.parse('2026-10-27T00:00:00Z');
+const timing = { countdownStartsAt: new Date(epoch + 1000).toISOString(), playStartsAt: new Date(epoch + 4500).toISOString(),
+  playEndsAt: new Date(epoch + 64500).toISOString(), submitDeadline: new Date(epoch + 79500).toISOString(),
+  expiresAt: new Date(epoch + 89500).toISOString() };
+const observation = (elapsed: number): BungeoppangTimeSync => ({ timing, status: 'PLAYING',
+  sample: { receivedAt: performance.now(), serverNowMs: epoch + elapsed, rttMs: 0 } });
+async function enterTimed(elapsed = 0, terminal?: BungeoppangTimeSync['status']) {
+  await enter();
+  const timeSync = observation(elapsed);
+  if (terminal) { timeSync.status = terminal; if (terminal === 'COMPLETED') timeSync.result = result; }
+  vi.mocked(service.startGame).mockResolvedValueOnce({ ...game, rulesVersion: 'v4',
+    v4: { order: { items: { bean: 2, custard: 0, pizza: 0, chocolate: 0 } },
+      rules: { ...V4 }, timing, timeSync } });
+  await startBungeoppang();
+}
+it('uses server time for preparation and countdown regardless of PC calendar skew', async () => {
+  vi.setSystemTime(epoch + 3_600_000);
+  await enterTimed();
+  expect(bungeoppangClock.preparing).toBe(true);
+  await vi.advanceTimersByTimeAsync(1000);
+  expect(bungeoppangClock.preparing).toBe(false);
+  expect(useBungeoppang.getState().phase).toBe('countdown');
+  await vi.advanceTimersByTimeAsync(3500);
+  expect(useBungeoppang.getState().phase).toBe('play');
+  pressBungeoppangSlot(0);
+  expect(useBungeoppang.getState().grill!.log[0]!.t).toBe(0);
+});
+it('a delayed start joins the remaining round and never grants a new 60 seconds', async () => {
+  await enterTimed(12_500);
+  expect(useBungeoppang.getState().phase).toBe('play');
+  expect(bungeoppangClock.t).toBe(8000);
+  await vi.advanceTimersByTimeAsync(52_000);
+  expect(service.submitResult).toHaveBeenCalledTimes(1);
+  expect(bungeoppangClock.t).toBe(60000);
+});
+it('restores an already completed start receipt without replay, abandon or another payout request', async () => {
+  await enterTimed(70_000, 'COMPLETED');
+  expect(useBungeoppang.getState()).toMatchObject({ phase: 'result', result });
+  expect(service.submitResult).not.toHaveBeenCalled();
+  expect(service.abandon).not.toHaveBeenCalled();
+});
+it('does not play an abandoned or expired start receipt', async () => {
+  await enterTimed(90_000, 'INVALID');
+  expect(useBungeoppang.getState()).toMatchObject({ phase: 'start', grill: null });
+  expect(useBungeoppang.getState().startError).toContain('만료');
+  expect(service.submitResult).not.toHaveBeenCalled();
+});
+it('resyncs on tab return without rewriting prior actions and blocks input until the corrected gap', async () => {
+  await enterTimed(4500);
+  pressBungeoppangSlot(0);
+  await vi.advanceTimersByTimeAsync(400);
+  setBungeoppangTool('bean'); pressBungeoppangSlot(0);
+  const log = structuredClone(useBungeoppang.getState().grill!.log);
+  vi.mocked(service.syncTimeV4!).mockResolvedValueOnce(observation(4500));
+  document.dispatchEvent(new Event('visibilitychange'));
+  expect(useBungeoppang.getState().timeSyncPending).toBe(true);
+  await Promise.resolve(); await Promise.resolve();
+  expect(useBungeoppang.getState().timeSyncPending).toBe(false);
+  expect(useBungeoppang.getState().grill!.log).toEqual(log);
+  pressBungeoppangSlot(0);
+  expect(useBungeoppang.getState().grill!.log).toHaveLength(2);
+  await vi.advanceTimersByTimeAsync(800);
+  pressBungeoppangSlot(0);
+  expect(useBungeoppang.getState().grill!.log).toHaveLength(3);
+});
+it('closes input at the deadline during a pending resync and settles once its fresh time is known', async () => {
+  await enterTimed(4500);
+  let finish!: (reply: BungeoppangTimeSync) => void;
+  vi.mocked(service.syncTimeV4!).mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
+  const pending = syncBungeoppangTime();
+  pressBungeoppangSlot(0);
+  expect(useBungeoppang.getState().grill!.log).toHaveLength(0);
+  await vi.advanceTimersByTimeAsync(62_000);
+  expect(useBungeoppang.getState().phase).toBe('result');
+  expect(service.submitResult).not.toHaveBeenCalled();
+  finish(observation(66_500)); await pending;
+  expect(service.submitResult).toHaveBeenCalledTimes(1);
+});
+it('retains a failed clock check for retry and ignores a clock reply from a previous visit', async () => {
+  await enterTimed(4500);
+  vi.mocked(service.syncTimeV4!).mockRejectedValueOnce(new Error('offline'));
+  await syncBungeoppangTime();
+  pressBungeoppangSlot(0);
+  expect(useBungeoppang.getState().grill!.log).toHaveLength(0);
+  expect(useBungeoppang.getState().timeSyncError).toBe('offline');
+  let finish!: (reply: BungeoppangTimeSync) => void;
+  vi.mocked(service.syncTimeV4!).mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
+  const pending = syncBungeoppangTime();
+  resetBungeoppang(); await enter();
+  finish(observation(20_000)); await pending;
+  expect(useBungeoppang.getState()).toMatchObject({ phase: 'start', gameId: '', timeSyncPending: false, timeSyncError: null });
+});
 it('does not enter when existing facilities, a match or current world ownership forbid it', () => {
   vi.mocked(canOpenBungeoppang).mockReturnValue(false); openBungeoppang()
   expect(useBungeoppang.getState().phase).toBe('idle'); expect(service.getStatus).not.toHaveBeenCalled()

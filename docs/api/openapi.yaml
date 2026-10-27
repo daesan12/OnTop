@@ -3498,6 +3498,59 @@ paths:
                 $ref: "#/components/schemas/AuthErrorResponse"
       security:
       - AccessJwt: []
+  /api/v1/admin/analytics/summary:
+    get:
+      tags:
+      - ADMIN
+      summary: 백업 기준 일별·게임별 관리자 집계
+      operationId: summary
+      responses:
+        "200":
+          description: 익명 집계와 백업 기준·생성 시각
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AnalyticsSnapshot"
+        "401":
+          description: 로그인 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "403":
+          description: 관리자 조회 권한 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "503":
+          description: 게시된 집계 파일 없음 또는 손상
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+      security:
+      - AccessJwt: []
 components:
   schemas:
     UserOnboardingRequest:
@@ -4603,6 +4656,93 @@ components:
         nextCursor:
           type: string
           nullable: true
+    AnalyticsSnapshot:
+      type: object
+      properties:
+        schemaVersion:
+          type: integer
+          format: int32
+        dataAsOf:
+          type: string
+        generatedAt:
+          type: string
+        daily:
+          type: array
+          items:
+            $ref: "#/components/schemas/Daily"
+        funnel:
+          type: array
+          items:
+            $ref: "#/components/schemas/Funnel"
+        games:
+          type: array
+          items:
+            $ref: "#/components/schemas/Game"
+    Daily:
+      type: object
+      properties:
+        date:
+          type: string
+        activeUsers:
+          type: integer
+          format: int64
+        newUsers:
+          type: integer
+          format: int64
+        connections:
+          type: integer
+          format: int64
+        players:
+          type: integer
+          format: int64
+    Funnel:
+      type: object
+      properties:
+        date:
+          type: string
+        onboarded:
+          type: integer
+          format: int64
+        channelJoined:
+          type: integer
+          format: int64
+        tableJoined:
+          type: integer
+          format: int64
+        gameStarted:
+          type: integer
+          format: int64
+        gameCompleted:
+          type: integer
+          format: int64
+    Game:
+      type: object
+      properties:
+        date:
+          type: string
+        gameCode:
+          type: string
+        started:
+          type: integer
+          format: int64
+        ended:
+          type: integer
+          format: int64
+        completed:
+          type: integer
+          format: int64
+        forfeits:
+          type: integer
+          format: int64
+        participants:
+          type: integer
+          format: int64
+        durationSeconds:
+          type: integer
+          format: int64
+        timedGames:
+          type: integer
+          format: int64
     BungeoppangV4Timing:
       required:
       - countdownStartsAt

@@ -5,6 +5,7 @@ import { BUNGEOPPANG_V4 } from './config';
 import * as v4 from './rulesV4';
 import type { BungFeedback, FeedbackPoint } from './presentation';
 import { slotScreen } from './bungeoppangView';
+import { roundClockAnchor } from './serverTime';
 import {
   actionFor,
   applyAction,
@@ -69,6 +70,8 @@ interface BungState {
   rules: Readonly<v4.BungeoppangRules>;
   orderPending: boolean;
   orderError: string | null;
+  timeSyncPending: boolean;
+  timeSyncError: string | null;
   gameId: string;
   status: BungeoppangStatus | null;
   statusError: string | null;
@@ -98,6 +101,8 @@ const initial = (): Omit<BungState, "phase" | "status" | "seenTips"> => ({
   rules: BUNGEOPPANG_V4,
   orderPending: false,
   orderError: null,
+  timeSyncPending: false,
+  timeSyncError: null,
   gameId: "",
   statusError: null,
   starting: false,
@@ -145,6 +150,7 @@ let visit = 0;
 let walletRequest = 0;
 let startKey = '';
 let submission: BungeoppangSubmit | null = null;
+let timedGameId = '';
 let loopTimer: ReturnType<typeof setInterval> | undefined;
 let transitionTimer: ReturnType<typeof setTimeout>;
 export function setBungeoppangHelp(open: boolean) {
@@ -230,6 +236,8 @@ export function leaveBungeoppang() {
   clearTimeout(tipTimer);
   cancelAnimationFrame(raf);
   clearInterval(loopTimer);
+  removeClockListeners();
+  timedGameId = '';
   if (get().helpOpen) resetManual();
   view.active = false;
   view.returningUntil = performance.now() + R.cameraReturnMs;
@@ -247,6 +255,8 @@ export function resetBungeoppang() {
   clearTimeout(tipTimer);
   cancelAnimationFrame(raf);
   clearInterval(loopTimer);
+  removeClockListeners();
+  timedGameId = '';
   if (get().helpOpen) resetManual();
   startKey = '';
   submission = null;
@@ -278,6 +288,10 @@ export async function startBungeoppang() {
         "게임이 업데이트됐어요. 새로고침해 주세요.",
       );
     if (get().phase !== "start" && get().phase !== "result") return;
+    const sync = game.v4?.timeSync;
+    if (game.v4?.timing && !sync) throw new BungeoppangServiceError('INVALID_RESPONSE', '서버 시간을 확인하지 못했어요.', true);
+    if (sync && sync.status !== 'PLAYING' && sync.status !== 'COMPLETED')
+      throw new BungeoppangServiceError('GAME_NOT_ACTIVE', '이미 종료되거나 만료된 판이에요. 새 판을 시작해 주세요.');
     startKey = '';
     submission = null;
     orderSubmission = null;
@@ -290,24 +304,28 @@ export async function startBungeoppang() {
         pourAt: -1e9,
         fillAt: -1e9,
       });
-    const playDelay = game.v4?.timing
-      ? Math.max(0, Date.parse(game.v4.timing.playStartsAt) - Date.now())
-      : R.countdownMs;
+    timedGameId = sync?.status === 'PLAYING' ? game.gameId : '';
+    const now = performance.now();
+    const anchor = sync ? roundClockAnchor(sync.timing, sync.sample)
+      : { playAt: now + R.countdownMs, countdownAt: now };
     Object.assign(clock, {
-      t: 0,
-      frameAt: performance.now(),
-      countdown: playDelay,
+      ...anchor,
+      t: Math.min(R.durationMs, Math.max(0, now - anchor.playAt)),
+      frameAt: now,
+      countdown: Math.max(0, anchor.playAt - now),
+      preparing: now < anchor.countdownAt,
       ending: 0,
-      playAt: performance.now() + playDelay,
     });
     set({
-      phase: "countdown",
+      phase: sync?.status === 'COMPLETED' ? 'result' : 'countdown',
       starting: false,
       gameId: game.gameId,
       grill: game.v4 ? v4.createGrill(game.heats, game.v4.order, game.v4.rules) : createGrill(game.heats, R),
       rules: Object.freeze({ ...(game.v4?.rules ?? BUNGEOPPANG_V4) }),
       orderPending: false,
       orderError: null,
+      timeSyncPending: false,
+      timeSyncError: null,
       tool: "batter",
       toolRevision: 0,
       feedback: [],
@@ -316,12 +334,12 @@ export async function startBungeoppang() {
       newTips: [],
       popups: [],
       tip: null,
-      result: null,
+      result: sync?.result ?? null,
       submitError: null,
     });
     (document.activeElement as HTMLElement | null)?.blur?.();
-    tip("START");
-    startLoop();
+    if (sync?.result) { acceptServerResult(sync.result); void refreshWallet(currentVisit); }
+    else { tip("START"); startLoop(); advanceBungeoppangTime(); }
   } catch (error) {
     if (visit !== currentVisit) return;
     set({
@@ -338,6 +356,7 @@ const canAct = () => {
   const s = get();
   return (
     s.phase === "play" &&
+    !s.timeSyncPending && !s.timeSyncError &&
     !s.confirmExit &&
     !s.abandonPending && !document.hidden &&
     !inputState.manualOpen &&
@@ -437,6 +456,10 @@ export async function requestBungeoppangOrder() {
       return;
     }
     try {
+      if (error.code === 'TIME_AHEAD') {
+        await syncBungeoppangTime();
+        if (visit !== currentVisit || get().gameId !== s.gameId || get().phase !== 'play') return;
+      }
       const latest = get();
       const suffix = isV4Grill(latest.grill) && orderSubmission
         ? latest.grill.log.slice(orderSubmission.log.length).filter(entry => entry.action !== 'DELIVER')
@@ -566,7 +589,8 @@ export async function quitBungeoppang() {
 // ---------- 결과 제출 ----------
 export async function submitBungeoppang() {
   const s = get();
-  if (!s.grill || s.submitting || s.abandonPending || s.result || !['ending', 'result'].includes(s.phase)) return;
+  if (!s.grill || s.submitting || s.abandonPending || s.result || s.timeSyncPending || s.timeSyncError
+    || !['ending', 'result'].includes(s.phase)) return;
   const currentVisit = visit;
   set({ submitting: true, submitError: null });
   try {
@@ -581,17 +605,7 @@ export async function submitBungeoppang() {
     };
     const result = await service.submitResult(submission);
     if (visit !== currentVisit || get().gameId !== s.gameId) return;
-    set((state) => ({
-      result,
-      submitting: false,
-      seenTips: [...new Set([...state.seenTips, ...state.newTips])],
-      firstGame: false,
-      status: state.status && {
-        ...state.status,
-        todayEarned: result.todayEarned,
-        isFirstGame: false,
-      },
-    }));
+    acceptServerResult(result);
     orderSubmission = null;
     void refreshWallet(currentVisit);
   } catch (error) {
@@ -607,6 +621,56 @@ export async function submitBungeoppang() {
     });
   }
 }
+function acceptServerResult(result: BungeoppangSubmitResult) {
+  set((state) => ({
+    result,
+    submitting: false,
+    submitError: null,
+    seenTips: [...new Set([...state.seenTips, ...state.newTips])],
+    firstGame: false,
+    status: state.status && {
+      ...state.status,
+      todayEarned: result.todayEarned,
+      isFirstGame: false,
+    },
+  }));
+}
+
+/** Re-anchor time only: keep every previously recorded action and in-flight delivery prefix intact. */
+export async function syncBungeoppangTime() {
+  const s = get(), currentVisit = visit;
+  if (!timedGameId || timedGameId !== s.gameId || !service.syncTimeV4 || s.timeSyncPending || s.result
+    || !['countdown', 'play', 'ending', 'result'].includes(s.phase)) return;
+  set({ timeSyncPending: true, timeSyncError: null });
+  try {
+    const reply = await service.syncTimeV4(s.gameId);
+    if (visit !== currentVisit || get().gameId !== s.gameId || get().result) return;
+    Object.assign(clock, roundClockAnchor(reply.timing, reply.sample));
+    if (reply.status !== 'PLAYING') { timedGameId = ''; removeClockListeners(); }
+    if (reply.status === 'COMPLETED' && reply.result) {
+      acceptServerResult(reply.result);
+      set({ phase: 'result', orderPending: false, orderError: null, confirmExit: false });
+      orderSubmission = null;
+      void refreshWallet(currentVisit);
+    } else if (reply.status !== 'PLAYING') {
+      set({ phase: 'result', confirmExit: false, orderPending: false, orderError: null,
+        submitError: { retryable: false, message: '이미 종료되거나 만료된 판이에요. 새 판을 시작해 주세요.' } });
+    } else if (get().phase === 'result') { set({ phase: 'ending' }); startLoop(); }
+  } catch (error) {
+    if (visit === currentVisit && get().gameId === s.gameId && !get().result)
+      set({ timeSyncError: error instanceof Error ? error.message : '서버 시간을 다시 확인해 주세요.' });
+  } finally {
+    if (visit === currentVisit && get().gameId === s.gameId) {
+      set({ timeSyncPending: false });
+      advanceBungeoppangTime();
+    }
+  }
+}
+function onClockResume() { if (!document.hidden) void syncBungeoppangTime(); }
+function removeClockListeners() {
+  document.removeEventListener?.('visibilitychange', onClockResume);
+  window.removeEventListener?.('online', onClockResume);
+}
 
 // ---------- 엔진 루프 ----------
 let raf = 0;
@@ -616,6 +680,11 @@ function startLoop() {
   clock.frameAt = performance.now();
   raf = requestAnimationFrame(tick);
   loopTimer = setInterval(() => advanceBungeoppangTime(), 100);
+  removeClockListeners();
+  if (timedGameId) {
+    document.addEventListener?.('visibilitychange', onClockResume);
+    window.addEventListener?.('online', onClockResume);
+  }
 }
 function tick(now: number) {
   advanceBungeoppangTime(now);
@@ -626,6 +695,7 @@ export function advanceBungeoppangTime(now = performance.now()) {
   clock.frameAt = now;
   if (s.phase === "countdown") {
     clock.countdown = Math.max(0, clock.playAt - now);
+    clock.preparing = now < clock.countdownAt;
     if (clock.countdown <= 0) {
       set({ phase: "play" });
     }
@@ -643,6 +713,9 @@ export function advanceBungeoppangTime(now = performance.now()) {
   if (get().phase === "ending") {
     clock.ending = Math.max(0, clock.playAt + R.durationMs + R.endingMs - now);
     if (clock.ending <= 0) set({ phase: "result" });
+    const current = get();
+    if (now >= clock.playAt + R.durationMs && !current.result && !current.submitError)
+      void submitBungeoppang();
   }
   if (!['countdown', 'play', 'ending'].includes(get().phase)) clearInterval(loopTimer);
 }
