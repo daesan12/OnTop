@@ -4179,6 +4179,9 @@ components:
       - minimumPlayers
       - occupiedSeats
       - readyCount
+      - selectedPlayers
+      - selectorUserId
+      - startMode
       - status
       - tableId
       - targetScore
@@ -4223,6 +4226,21 @@ components:
           type: string
           description: PLAYING인 확정 경기의 공개 gameId. 나머지 상태는 null
           nullable: true
+        selectorUserId:
+          type: string
+          description: 현재 방장. 빈 테이블은 null
+          nullable: true
+        selectedPlayers:
+          type: integer
+          description: MANUAL의 선택 정원. AUTO는 null
+          format: int32
+          nullable: true
+        startMode:
+          type: string
+          description: 기존 자동 시작 또는 새 태블릿 수동 시작
+          enum:
+          - AUTO
+          - MANUAL
     ItemListResponse:
       required:
       - items

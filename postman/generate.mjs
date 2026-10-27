@@ -15,7 +15,7 @@ const variables = {
     minigameSessionId: '', minigameRequestKey: '', minigameHeats: '', minigameLog: '', minigameStartedAt: '',
     accessToken: '', websocketTicket: '', shopItemId: '', userItemId: '', purchaseRequestKey: '', purchaseId: '',
     facilityLeaseId: '', feedbackOperationId: '', feedbackReceiptId: '', noteOperationId: '', noteId: '',
-    followTargetId: '', followId: '',
+    followTargetId: '', followId: '', tableVersion: 0, startActionId: 'replace-on-new-start-keep-on-retry',
     mapId: 'park', mapVersion: 'replace-with-your-frontend-map-version'
 };
 
@@ -257,7 +257,7 @@ noteRead.headers=[{key:'Authorization',value:'Bearer {{accessToken}}'}];httpItem
 
 const message = (name, type, payload = {}) => ({
     name, $kind: 'websocket-message', contentType: 'json',
-    content: JSON.stringify({ requestId: '{{$guid}}', type, payload }, null, 2)
+    content: JSON.stringify({ requestId: '{{$guid}}', type, payload }, null, 2).replace(/\"\{\{tableVersion\}\}\"/g, '{{tableVersion}}')
 });
 const movementGuide = 'WORLD_MOVE는 {seq,dx,dz,run,jump?} 입력만 허용합니다. seq1~4294967295, dx/dz 각[-1,1] 대각선 정규화, run필수 boolean/jump선택. 서버30Hz·변화100ms동기화·입력50ms·250ms만료. 걷기6.25/달리기9/점프6.2/중력-18/단차0.22. 채널 입장 시 서버 스폰(캡슐 중심), lastInputSeq는 수락순번, mapVersion 대조. 기존 sequence/x/y/z/yaw 주입은 INVALID_PAYLOAD. 재접속30초·채팅/관전20m 유지. ';
 const joinA = () => message('01 광장 A 입장 → CHANNEL_STATE + WORLD_STATE', 'CHANNEL_JOIN', { channelId: '{{channelIdA}}' });
@@ -567,6 +567,27 @@ const mapGuide = '\n\n## 맵 버전 확인\n'
 wsItems[6].description += mapGuide;
 wsItems[6].messages.push(message('맵 01 FE 맵 버전 확인 → WORLD_MAP_STATE', 'WORLD_MAP_CONFIRM',
     { mapId: '{{mapId}}', schemaVersion: 1, mapVersion: '{{mapVersion}}' }));
+const tabletGuide = '\n\n## 새 태블릿 MANUAL 모드 (2026-10-27, 로컬 구현·미배포)\n'
+    + '방장 TABLE_CONFIGURE로 게임/정확한 정원/목표/판돈/expectedVersion을 확정한 뒤 전원이 READY_SET하고 방장만 TABLE_START합니다. '
+    + 'TABLE_STATE에서 실제 version을 tableVersion에 복사하세요. 기존 GAME_SELECT AUTO와 구분하며 MANUAL에서는 GAME_SELECT를 거절합니다. '
+    + '전원 준비 후120초 TABLE_HOST_WAIT_STATE(serverNow/expiresAt/epoch/revision/tableVersion/hostUserId/cancelReason), 취소/설정·인원 변경은 새 준비 필요. '
+    + 'TABLE_HOST_TIMEOUT은 방장만 테이블 퇴장·남은 착석자 중 추첨·전원준비 해제, 같은 소켓은 유지합니다. '
+    + '시작 actionId는 같은 요청 재확인에 유지하고 실패 뒤 새 전원준비/새 actionId로 요청합니다. '
+    + 'MANUAL 대기석은 일반 끊김30초 동일 로그인 세션 복귀에 기존 기한 유지, 맵 미확인으로 유예 연장 불가. '
+    + '전체 정산 확정 뒤 승자/남은 공동승자·무승부 중 추첨, 부재/무효는 남은 전체 중 추첨. DB 예약·정산은 기존 경계 유지. docs/tablet-lobby-api.md. '
+    + '\n\n## 서버 낮밤 시각\nCONNECTED.payload.time 또는 WORLD_TIME_CHECK→WORLD_TIME_STATE의 serverNow/cycleEpochMs=1767193200000/cycleDurationMs=1800000/timeZone=Asia/Seoul 사용. '
+    + '맵 확인 전 시간 조회 가능하지만 입장 권한은 부여하지 않습니다. 재접속·탭복귀 재조회하며 +9시간 중복 가산 금지. docs/world-time-diagnostics-api.md.';
+wsItems[6].description += tabletGuide;
+wsItems[6].messages.push(
+    message('태블릿 01 방장 게임·정원·판돈 확정 → TABLE_STATE', 'TABLE_CONFIGURE',
+        {gameCode:'DICE',targetScore:4000,selectedPlayers:2,betAmountPerPlayer:5,expectedVersion:'{{tableVersion}}'}),
+    message('태블릿 02 준비 — 최신 설정 동의', 'READY_SET',
+        {ready:true,betAmountPerPlayer:5,expectedVersion:'{{tableVersion}}'}),
+    message('태블릿 03 방장 시작 — 같은 actionId 재확인', 'TABLE_START',
+        {actionId:'{{startActionId}}',expectedVersion:'{{tableVersion}}'}),
+    message('태블릿 04 시작 대기 기한 재조회', 'TABLE_HOST_WAIT_CHECK', {}),
+    message('시간 01 서버 현재 시각·낮밤 기준 재조회', 'WORLD_TIME_CHECK', {})
+);
 const reactionGuide = '\n\n## 기권·패배 공개 연출 (서버 수신 전용)\n'
     + 'WORLD_GAME_REACTION은 새 송신 요청이 아닙니다. 실제 경기 시작 후 기권/패배가 확정되면 '
     + '같은 채널 참가자와 테이블 중심20m 이내 사용자(비구독자 포함)가 수신합니다. '
@@ -580,7 +601,7 @@ const reactionGuide = '\n\n## 기권·패배 공개 연출 (서버 수신 전용
     } }) + '\n명세 docs/world-game-reaction-api.md. 코드/로컬검증이며 실제 배포·FE3D 연결은 별도입니다.';
 wsItems[6].description += reactionGuide;
 const wsV3 = { name: 'OnTop WebSocket', $kind: 'collection', description: wsGuide + appearanceGuide + publicProfileGuide
-        + facilityGuide + followGuide + mapGuide + reactionGuide,
+        + facilityGuide + followGuide + mapGuide + tabletGuide + reactionGuide,
     items: wsItems };
 const httpV21 = {
     info: { name: httpV3.name, description: guide, schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json' },
