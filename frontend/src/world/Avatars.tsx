@@ -10,7 +10,8 @@ import { SwimmingRipples } from './SwimmingRipples'
 import { AvatarPoseCadence } from '../performance/avatarPoseCadence'
 import { CHARACTER } from '../config'
 import { FartCloud } from './art/FartCloud'
-import { bungeoppangView } from '../features/bungeoppang/bungeoppangView'
+import { bungeoppangReturnOpacity } from '../features/bungeoppang/bungeoppangView'
+import { createAvatarOpacity } from './avatarOpacity'
 import { emptyEquipment } from '../network/equipment'
 import { roamingFirstPerson } from './roamingCamera'
 import { useGame } from '../game/store'
@@ -50,6 +51,8 @@ function Avatar({
   const worldPosition = useMemo(() => new Vector3(), [])
   const motion = useMemo(() => createAvatarMotion(model), [model])
   const cadence = useMemo(() => new AvatarPoseCadence(), [])
+  const appearance = useMemo(() => createAvatarOpacity(model.root), [model])
+  const reducedMotion = useMemo(() => window.matchMedia('(prefers-reduced-motion: reduce)'), [])
   useLayoutEffect(() => {
     rigs.set(id, {
       root: root.current!,
@@ -57,19 +60,23 @@ function Avatar({
     })
     return () => {
       rigs.delete(id)
+      appearance.dispose()
       model.dispose()
     }
-  }, [id, rigs, model])
+  }, [id, rigs, model, appearance])
   useFrame(({ camera }, delta) => {
     const avatar = avatars.get(id)
     if (!avatar || !root.current || !figure.current) return
-    sampleAvatar(avatar, performance.now(), pose)
+    const frameAt = performance.now()
+    sampleAvatar(avatar, frameAt, pose)
     const seated = avatar.seatIndex >= 0
     const own = id === useSession.getState().sessionId
     // Hide only this client's own model; other clients retain the full avatar.
-    const cookingHidden = own && (bungeoppangView.active || performance.now() < bungeoppangView.returningUntil)
-    root.current.visible = !cookingHidden && !(own && (((avatar.tableId && seated && !gatheringCameraActive() || avatar.benchId && seated) || avatar.telescopeId)
+    const opacity = own ? bungeoppangReturnOpacity(frameAt, reducedMotion.matches) : 1
+    root.current.visible = opacity > 0 && !(own && (((avatar.tableId && seated && !gatheringCameraActive() || avatar.benchId && seated) || avatar.telescopeId)
       || roamingFirstPerson(avatar, !!useGame.getState().watchedGameId)))
+    appearance.set(root.current.visible ? opacity : 1)
+    root.current.userData.appearanceOpacity = root.current.visible ? opacity : 0
     root.current.position.set(
       pose.x,
       pose.y - 0.8 + (seated ? avatarSeatSurface(avatar.benchId) + model.seatedHipLift - model.hipHeight : 0),
