@@ -1,7 +1,7 @@
 import { useState, useSyncExternalStore, type CSSProperties } from 'react'
 import type { Card } from './protocol'
 import { CardFace } from './CardFace'
-import { cardLabel, cardEffect, redCard } from './presentation'
+import { cardLabel, cardEffect, cardDescription, redCard } from './presentation'
 import { fanPose, HAND_PAGE_SIZE } from './uiState'
 
 interface Props {
@@ -16,7 +16,7 @@ const subscribeScreen = (notify: () => void) => {
 }
 export function FanHand({ cards, playableIds, flippedIds, selectedId, canPlay, select, restore }: Props) {
   const compact = useSyncExternalStore(subscribeScreen, smallScreen, () => false)
-  const pageSize = compact ? 5 : HAND_PAGE_SIZE
+  const pageSize = compact ? 3 : HAND_PAGE_SIZE
   const [page, setPage] = useState(0), pages = Math.max(1, Math.ceil(cards.length / pageSize))
   const current = Math.min(page, pages - 1), visible = cards.slice(current * pageSize, (current + 1) * pageSize)
   return <>
@@ -34,6 +34,7 @@ export function FanHand({ cards, playableIds, flippedIds, selectedId, canPlay, s
           style={{ '--fan-angle': `${pose.angle}deg`, '--fan-lift': `${pose.lift}px`, '--fan-index': index } as CSSProperties}
           data-flipped={flipped} data-playable={!flipped && playable} aria-pressed={!flipped && selectedId === card.id}
           aria-label={flipped ? '뒤집힌 카드 · 모든 손패 복구' : [cardLabel(card), cardEffect(card)].filter(Boolean).join(' · ')}
+          aria-description={flipped ? undefined : cardDescription(card) || undefined}
           disabled={!flipped && !canPlay(card.id)} onClick={() => flipped ? restore() : select(card.id)}>
           <span className="onecard-card-rotator">
             <span className="onecard-card-front">{!flipped && <CardFace card={card} />}</span>

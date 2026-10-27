@@ -82,7 +82,8 @@ test('four seated players and a separate observer: flip crosses windows and rest
     await expect.poll(async () => (await probe(page)).players.map(p => p.seat)).toEqual([0, 1, 2, 3])
     await expect.poll(async () => (await probe(observerPage)).players.map(p => p.seat)).toEqual([0, 1, 2, 3])
     for (const p of [page, observerPage]) {
-      await expect.poll(async () => (await probe(p)).players.every(player => player.visible && player.table === anchor.id)).toBe(true)
+      await expect.poll(async () => (await probe(p)).players.every(player => player.table === anchor.id
+        && player.visible === (p === observerPage || player.id !== '101'))).toBe(true)
       await expect(p.locator('vite-error-overlay')).toHaveCount(0)
     }
     for (const id of ['102', '103', '104'] as const) {
@@ -90,6 +91,7 @@ test('four seated players and a separate observer: flip crosses windows and rest
       await expect(page.locator(`.avatar-overhead[data-player-id="${id}"] .avatar-nickname`)).toHaveText(profiles[id].nickname)
     }
     await panel(page).getByRole('button', { name: '하트 J · 다음 차례 건너뛰기', exact: true }).click()
+    await expect(panel(page).getByRole('button', { name: '하트 J · 다음 차례 건너뛰기', exact: true }).locator('.onecard-description')).toHaveText('다음 사람 차례를 넘겨요')
     await expect(panel(page).getByRole('button', { name: '하트 J 내기', exact: true })).toBeEnabled()
     await shot(page, 'onecard-4p-play')
     const prank = panel(observerPage).getByRole('button', { name: '도윤 손패 뒤집기', exact: true })

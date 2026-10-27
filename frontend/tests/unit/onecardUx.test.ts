@@ -1,6 +1,6 @@
 import { beforeEach, expect, it, vi } from 'vitest'
 import { TABLES, tableSeats } from '../../src/config'
-import { oneCardCameraPose, oneCardShoulderActive } from '../../src/game/onecard/camera'
+import { oneCardCameraPose, oneCardPlayerViewActive } from '../../src/game/onecard/camera'
 import { fanPose, flipCandidates, handScope } from '../../src/game/onecard/uiState'
 import { OneCardPrankEvents, useOneCardPranks, type PrankScope } from '../../src/game/onecard/prankEvents'
 import type { Envelope } from '../../src/network/protocol'
@@ -116,7 +116,7 @@ it('automatically restores when every remaining card is selected', async () => {
   expect(request).toHaveBeenCalledTimes(1)
   await Promise.resolve()
 })
-it('builds a symmetric fan and a consistent shoulder pose for every table and seat', () => {
+it('builds a symmetric fan and a seat-centered first-person pose for every table and seat', () => {
   expect(fanPose(0, 1)).toEqual({ angle: 0, lift: 0 })
   expect(fanPose(0, 7).angle).toBe(-fanPose(6, 7).angle)
   for (const anchor of TABLES) for (let seatIndex = 0; seatIndex < 4; seatIndex++) {
@@ -125,6 +125,8 @@ it('builds a symmetric fan and a consistent shoulder pose for every table and se
     expect((position[0] - anchor.position[0]) * seat.x + (position[2] - anchor.position[2]) * seat.z)
       .toBeGreaterThan(seat.x ** 2 + seat.z ** 2)
     expect(target[0]).toBe(anchor.position[0]); expect(target[2]).toBe(anchor.position[2])
+    // No lateral shoulder offset: the camera faces the center from the seat's radial line.
+    expect((position[0] - anchor.position[0]) * seat.z - (position[2] - anchor.position[2]) * seat.x).toBeCloseTo(0)
   }
-  expect(oneCardShoulderActive(null)).toBe(false)
+  expect(oneCardPlayerViewActive(null)).toBe(false)
 })

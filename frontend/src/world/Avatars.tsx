@@ -1,5 +1,4 @@
 import { gatheringCameraActive } from '../features/tableLobby/gathering'
-import { oneCardShoulderActive } from '../game/onecard/camera'
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { useFrame, useLoader } from '@react-three/fiber'
 import { Group, Vector3 } from 'three'
@@ -74,7 +73,7 @@ function Avatar({
     const own = id === useSession.getState().sessionId
     // Hide only this client's own model; other clients retain the full avatar.
     const opacity = own ? bungeoppangReturnOpacity(frameAt, reducedMotion.matches) : 1
-    root.current.visible = opacity > 0 && !(own && (((avatar.tableId && seated && !gatheringCameraActive() && !oneCardShoulderActive(useGame.getState().game) || avatar.benchId && seated) || avatar.telescopeId)
+    root.current.visible = opacity > 0 && !(own && (((avatar.tableId && seated && !gatheringCameraActive() || avatar.benchId && seated) || avatar.telescopeId)
       || roamingFirstPerson(avatar, !!useGame.getState().watchedGameId)))
     appearance.set(root.current.visible ? opacity : 1)
     root.current.userData.appearanceOpacity = root.current.visible ? opacity : 0

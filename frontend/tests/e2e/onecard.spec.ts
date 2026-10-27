@@ -49,8 +49,8 @@ test('M12 2-player atomic hands, card/suit/K/draw/attack commands, result and ne
   server.cardSnapshot({ turnUserId: '101', attackTotal: 7, topCard: card('joker-color', null), lastAttack: card('joker-color', null) }, drawn)
   const accepted = { ...drawn, hand: [...drawn.hand, ...['2', '3', '4', '5', '6', '7', '8'].map(rank => card(rank, 'spades'))] }
   server.cardReply({ kind: 'accept-attack' }, { attackTotal: 0, lastAttack: null, turnUserId: '102', players: server.cardState().players.map(p => p.userId === '101' ? { ...p, cardCount: 13 } : p) }, accepted)
-  await p.getByRole('button', { name: '공격 받기 · +7장', exact: true }).click(); await expect(handButtons(page)).toHaveCount(10)
-  await p.getByRole('button', { name: '다음 손패', exact: true }).click(); await expect(handButtons(page)).toHaveCount(3)
+  await p.getByRole('button', { name: '공격 받기 · +7장', exact: true }).click(); await expect(handButtons(page)).toHaveCount(8)
+  await p.getByRole('button', { name: '다음 손패', exact: true }).click(); await expect(handButtons(page)).toHaveCount(5)
   await p.getByRole('button', { name: '이전 손패', exact: true }).click()
   await p.getByRole('button', { name: '원카드 규칙', exact: true }).click(); await expect(p).toContainText('3초 만료만으로 벌칙을 받지 않습니다.')
   await screenshot(page, 'm12-player')

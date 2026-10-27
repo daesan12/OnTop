@@ -2,7 +2,7 @@ import { beforeEach, expect, it } from 'vitest'
 import { parseGame } from '../../src/game/protocol'
 import { parseOneCard, parseHand, type Card, type OneCard, type Hand } from '../../src/game/onecard/protocol'
 import { canActOneCard } from '../../src/game/onecard/actions'
-import { cardLabel, cardEffect } from '../../src/game/onecard/presentation'
+import { cardLabel, cardEffect, cardDescription } from '../../src/game/onecard/presentation'
 import { receiveGame, resetGame, useGame } from '../../src/game/store'
 
 const card = (rank = '4', suit: Card['suit'] = 'hearts'): Card => ({ id: suit ? `${suit}-${rank}` : rank, suit, rank })
@@ -85,4 +85,6 @@ it('presents card effects without implementing random draws or game authority', 
   expect(cardLabel(card('joker-color', null))).toBe('컬러 조커')
   expect(cardEffect(card('A', 'spades'))).toBe('+5 공격')
   expect(cardEffect(card('K'))).toBe('한 장 더 내기')
+  expect(cardDescription(card('K'))).toBe('한 번 더 내거나 뽑아요')
+  expect(cardDescription(card('4'))).toBe('')
 })

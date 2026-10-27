@@ -29,7 +29,7 @@ async function shot(page: Page, name: string) {
   await fs.mkdir(directory, { recursive: true })
   await page.screenshot({ path: path.join(directory, `${name}.png`), animations: 'disabled' })
 }
-test('shoulder scene, legal cards, protected selection, one-click restore and strategic draw', async ({ page }) => {
+test('first-person scene, legal cards, protected selection, one-click restore and strategic draw', async ({ page }) => {
   const errors: string[] = []; page.on('pageerror', e => errors.push(e.message))
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
   const server = await start(page), p = panel(page)
@@ -59,14 +59,16 @@ test('shoulder scene, legal cards, protected selection, one-click restore and st
   await expect(p.getByLabel('나만 볼 수 있는 카드').getByRole('button')).toHaveCount(8)
   expect(server.sent.filter(message => message.type === 'GAME_ACTION_SEND').map(message => message.payload.input)).toEqual([{ kind: 'draw' }])
   const scene = await page.evaluate(async () => (await import('/tests/e2e/onecardSceneProbe.ts' as string)).oneCardSceneProbe())
-  expect(scene.ownVisible).toBe(true); expect(scene.fov).toBe(54); expect(scene.topCard).toBe(true)
+  expect(scene.ownVisible).toBe(false); expect(scene.fov).toBe(68); expect(scene.topCard).toBe(true)
   await shot(page, 'onecard-desktop')
   await page.setViewportSize({ width: 1536, height: 1024 }); await shot(page, 'onecard-concept-size')
   await page.setViewportSize({ width: 1280, height: 720 }); await shot(page, 'onecard-1280')
   await page.setViewportSize({ width: 390, height: 844 })
-  await expect(p.getByLabel('나만 볼 수 있는 카드').getByRole('button')).toHaveCount(5)
+  await expect(p.getByLabel('나만 볼 수 있는 카드').getByRole('button')).toHaveCount(3)
   await p.getByRole('button', { name: '다음 손패', exact: true }).click()
   await expect(p.getByLabel('나만 볼 수 있는 카드').getByRole('button')).toHaveCount(3)
+  await p.getByRole('button', { name: '다음 손패', exact: true }).click()
+  await expect(p.getByLabel('나만 볼 수 있는 카드').getByRole('button')).toHaveCount(2)
   await shot(page, 'onecard-mobile')
   const bounds = await p.getByRole('button', { name: '한 장 뽑고 넘기기', exact: true }).boundingBox()
   expect(bounds!.x).toBeGreaterThanOrEqual(0); expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(390)

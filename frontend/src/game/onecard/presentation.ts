@@ -18,3 +18,17 @@ export function cardEffect(c: Card) {
     default: return ''
   }
 }
+/** Short explanations for the 2D hand; ordinary cards intentionally have no copy. */
+export function cardDescription(c: Card) {
+  switch (c.rank) {
+    case '2': return '공격을 2장 늘려요'
+    case 'A': return `공격을 ${c.suit === 'spades' ? 5 : 3}장 늘려요`
+    case 'joker-black': case 'joker-color': return '공격 뒤 무늬를 골라요'
+    case '3': return '같은 무늬의 2 공격을 막아요'
+    case '7': return '다음에 낼 무늬를 골라요'
+    case 'J': return '다음 사람 차례를 넘겨요'
+    case 'Q': return '차례가 반대로 돌아요'
+    case 'K': return '한 번 더 내거나 뽑아요'
+    default: return ''
+  }
+}

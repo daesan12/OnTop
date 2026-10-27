@@ -39,7 +39,7 @@ function PublicCard({ card, surfaceY }: { card: Card; surfaceY: number }) {
     root.current.position.y = surfaceY + Math.sin(t * Math.PI) * .09
     root.current.position.z = (1 - t) * .26; root.current.rotation.y = (1 - t) * -.28
   })
-  return <group ref={root} name="onecard-public-top" position={[.23, surfaceY, 0]} userData={{ cardId: card.id }} dispose={null}>
+  return <group ref={root} name="onecard-public-top" position={[.23, surfaceY, 0]} scale={[.8, 1, .8]} userData={{ cardId: card.id }} dispose={null}>
     <mesh geometry={slab} material={paper} scale={[.3, .006, .43]} />
     <mesh geometry={face} material={material} position={[0, .004, 0]} rotation={[-Math.PI / 2, 0, 0]} />
   </group>
@@ -55,7 +55,7 @@ function CardBacks({ players, surfaceY }: { players: OneCard['players']; surface
       for (let n = 0; n < count; n++) {
         const offset = (n - (count - 1) / 2) * .045
         transform.position.set(Math.sin(angle) * distance + Math.cos(angle) * offset, surfaceY + n * .003, Math.cos(angle) * distance - Math.sin(angle) * offset)
-        transform.rotation.set(0, angle, 0); transform.scale.set(.12, .002, .18); transform.updateMatrix()
+        transform.rotation.set(0, angle, 0); transform.scale.set(.096, .002, .144); transform.updateMatrix()
         instances.setMatrixAt(index++, transform.matrix)
       }
     })
@@ -76,9 +76,9 @@ export function OneCardBoard({ anchor }: { anchor: TableAnchor }) {
   return <group name="onecard-table" dispose={null}>
     {!mainPavilion && <group name="onecard-felt-mat"><mesh geometry={matBase} material={wood} position={[0, 1.075, 0]} />
       <mesh geometry={feltPlane} material={felt} position={[0, 1.088, 0]} rotation={[-Math.PI / 2, 0, 0]} /></group>}
-    {drawCount > 0 && <group name={o ? 'onecard-draw-deck' : 'onecard-preparation-prop'}><mesh geometry={slab} material={paper} position={[-.28, deckY, 0]} scale={[.3, height, .43]} />
-      <mesh geometry={deckBack} material={blue} position={[-.28, deckY + height / 2 + .006, 0]} rotation={[-Math.PI / 2, 0, 0]} />
-      <mesh geometry={deckMark} material={gold} position={[-.28, deckY + height / 2 + .007, 0]} rotation={[-Math.PI / 2, 0, Math.PI / 4]} /></group>}
+    {drawCount > 0 && <group name={o ? 'onecard-draw-deck' : 'onecard-preparation-prop'} position={[-.28, 0, 0]} scale={[.8, 1, .8]}><mesh geometry={slab} material={paper} position={[0, deckY, 0]} scale={[.3, height, .43]} />
+      <mesh geometry={deckBack} material={blue} position={[0, deckY + height / 2 + .006, 0]} rotation={[-Math.PI / 2, 0, 0]} />
+      <mesh geometry={deckMark} material={gold} position={[0, deckY + height / 2 + .007, 0]} rotation={[-Math.PI / 2, 0, Math.PI / 4]} /></group>}
     {o && <><PublicCard card={o.topCard} surfaceY={mainPavilion ? 1.078 : 1.112} /><CardBacks players={o.players} surfaceY={mainPavilion ? 1.077 : 1.107} /></>}
   </group>
 }

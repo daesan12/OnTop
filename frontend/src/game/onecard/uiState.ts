@@ -6,8 +6,8 @@ export const handScope = (userId: string, roomId: string, gameId: string, versio
 export function flipCandidates(ids: readonly string[], protectedId: string, count = 2) {
   return ids.filter(id => id !== protectedId).slice(0, Math.max(0, Math.min(2, count)))
 }
-export const HAND_PAGE_SIZE = 10
+export const HAND_PAGE_SIZE = 8
 export function fanPose(index: number, count: number) {
   const center = (count - 1) / 2, offset = index - center
-  return { angle: count <= 1 ? 0 : offset * Math.min(5, 32 / Math.max(1, count - 1)), lift: Math.abs(offset) ** 2 * 1.7 }
+  return { angle: count <= 1 ? 0 : offset * Math.min(3, 14 / Math.max(1, count - 1)), lift: Math.abs(offset) ** 2 * .8 }
 }

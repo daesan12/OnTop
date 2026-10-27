@@ -1,5 +1,5 @@
 import { gatheringCameraActive } from '../features/tableLobby/gathering'
-import { oneCardShoulderActive, oneCardCameraPose, ONECARD_CAMERA } from '../game/onecard/camera'
+import { oneCardPlayerViewActive, oneCardCameraPose, ONECARD_CAMERA } from '../game/onecard/camera'
 import { tabletLobbyActive } from '../features/tableLobby/tabletModel'
 import { TABLET } from '../features/tableLobby/tabletProjection'
 import { renderedTableAnchors } from '../features/tableLobby/tabletAnchors'
@@ -281,10 +281,10 @@ export function CameraRig() {
         state.desired.set(anchor.position[0] + Math.sin(yaw) * radius,
           Math.min(anchor.position[1] + 2.8, spectatorClearHeight(anchor.pavilionId)), anchor.position[2] + Math.cos(yaw) * radius)
       }
-    } else if (seated && avatar.tableId && oneCardShoulderActive(game)) {
+    } else if (seated && avatar.tableId && oneCardPlayerViewActive(game)) {
       const anchor = TABLES.find(t => t.id === avatar.tableId)
       if (anchor) {
-        const pose = oneCardCameraPose(anchor, session.seatIndex, camera instanceof PerspectiveCamera ? camera.aspect : 16 / 9)
+        const pose = oneCardCameraPose(anchor, session.seatIndex)
         state.desired.set(...pose.position)
         state.look.set(...pose.target)
       }
@@ -397,7 +397,7 @@ export function CameraRig() {
       )
       state.look.copy(center)
     }
-    const targetFov = tablet ? 43 : gathering ? ownOmok ? 60 : CAMERA.fov : seated && oneCardShoulderActive(game) ? ONECARD_CAMERA.fov : diceFocus ? DICE_CAMERA.fov : boardFocus || spectatorBoard ? GOMOKU.topDownFov : seated ? GOMOKU.seatedFov : CAMERA.fov
+    const targetFov = tablet ? 43 : gathering ? ownOmok ? 60 : CAMERA.fov : seated && oneCardPlayerViewActive(game) ? ONECARD_CAMERA.fov : diceFocus ? DICE_CAMERA.fov : boardFocus || spectatorBoard ? GOMOKU.topDownFov : seated ? GOMOKU.seatedFov : CAMERA.fov
     const smoothingOmok = ownOmok || state.omokTransition
     const smoothingDice = ownDice || state.diceTransition
     const smoothingBoard = smoothingOmok || smoothingDice
