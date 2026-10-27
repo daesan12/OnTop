@@ -84,6 +84,43 @@ export function createCharacterRig(source: GLTF) {
     const index = mesh.morphTargetDictionary?.seatedCloth
     return index === undefined ? [] : [{ mesh, index }]
   })
+  // The pelvis joint is inside the body, not on the seat-contact surface.
+  // Calibrate once against the shipped skin + seated clothing morph, per rig.
+  const seatedHipLift = (() => {
+    for (const side of ['L', 'R'] as const) {
+      bones[`upperLeg_${side}`].rotation.x = -Math.PI / 2
+      bones[`lowerLeg_${side}`].rotation.x = Math.PI / 2
+    }
+    for (const { mesh, index } of seatedCloth) mesh.morphTargetInfluences![index] = 1
+    root.updateMatrixWorld(true)
+    skeleton.update()
+    const point = new Vector3(), hip = bones.hips.position.y
+    let bottom = Infinity
+    for (const mesh of meshes) {
+      if (!mesh.name.startsWith('near-')) continue
+      const p = mesh.geometry.getAttribute('position')
+      const weights = mesh.geometry.getAttribute('skinWeight'), indices = mesh.geometry.getAttribute('skinIndex')
+      for (let i = 0; i < p.count; i++) {
+        if (p.getY(i) < hip - 0.2 || p.getY(i) > hip + 0.1) continue
+        let support = 0
+        for (let j = 0; j < 4; j++) {
+          const name = skeleton.bones[indices.getComponent(i, j)]!.name
+          if (name === 'hips' || name === 'spine') support += weights.getComponent(i, j)
+        }
+        if (support < 0.65) continue
+        mesh.getVertexPosition(i, point)
+        bottom = Math.min(bottom, point.y)
+      }
+    }
+    for (const side of ['L', 'R'] as const) {
+      bones[`upperLeg_${side}`].rotation.x = 0
+      bones[`lowerLeg_${side}`].rotation.x = 0
+    }
+    for (const { mesh, index } of seatedCloth) mesh.morphTargetInfluences![index] = 0
+    root.updateMatrixWorld(true)
+    skeleton.update()
+    return Number.isFinite(bottom) ? Math.max(0, Math.min(0.25, hip - bottom)) + 0.008 : 0
+  })()
   const shoes =
     meshes.find((mesh) => mesh.name === 'near-shoes-socks') ??
     meshes.find((mesh) => mesh.name === 'near-body')!
@@ -252,6 +289,7 @@ export function createCharacterRig(source: GLTF) {
     root,
     bones,
     hipHeight: bones.hips.position.y,
+    seatedHipLift,
     socialArmScale: fittedGestures ? 0.85 : 1,
     reset() {
       rotations.fill(0)

@@ -1,3 +1,3 @@
-/** Approved baked world source fingerprint at the dev base. */
+/** Approved legacy collision map from docs/integration/collision-feedback/contract.md. */
 export const EXPECTED_MAP_VERSION =
-  '544bc6fa3890c77e8de0ec91d27f93981b4d23a477918963757e4762294ba8d0'
+  'ae833248d2dd356c6603af72b2b865f9051a866e9cfa7d2b9c9abe890579944d'

@@ -7,18 +7,21 @@ import {
 
 export const environmentClock = new EnvironmentClock()
 export const environmentConfig: WorldEnvironmentConfig = { ...ENVIRONMENT }
-// Visual-only local timeline until the team supplies a world-clock contract.
-const visualStart = performance.now()
+// A shared Korean midnight epoch keeps late joins/reloads in the same day phase. Anchor to
+// the monotonic clock so changing the device clock during play cannot jump time.
+// Device clock skew still needs an authoritative server clock contract.
+// Unix milliseconds identify an instant in every time zone; never add 9h here.
+const visualStart = performance.now(), visualEpoch = Date.now()
 // Mutable rendering state is sampled once each frame, never stored in React state.
 export const environmentFrame = {
-  ...sampleDay(ENVIRONMENT.epochMs + ENVIRONMENT.dayDurationMs * 0.6),
-  serverTime: ENVIRONMENT.epochMs,
+  ...sampleDay(visualEpoch),
+  serverTime: visualEpoch,
   seconds: 0,
 }
 export function updateEnvironmentFrame(now: number) {
   const serverTime = environmentClock.ready
     ? environmentClock.now(now)
-    : ENVIRONMENT.epochMs + ENVIRONMENT.dayDurationMs * 0.6 + now - visualStart
+    : visualEpoch + now - visualStart
   Object.assign(environmentFrame, sampleDay(serverTime, environmentConfig), {
     serverTime,
     seconds: (serverTime - ENVIRONMENT.epochMs) / 1000,
