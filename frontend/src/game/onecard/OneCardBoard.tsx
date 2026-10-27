@@ -65,17 +65,20 @@ function CardBacks({ players, surfaceY }: { players: OneCard['players']; surface
 }
 export function OneCardBoard({ anchor }: { anchor: TableAnchor }) {
   // Deliberately subscribe to public data only. No private hand reaches the scene or shared textures.
-  const o = useGame(s => s.game?.onecard), role = useGame(s => s.game?.role), session = useSession(useShallow(s => ({ bindings: s.bindings, roomId: s.roomId, tableId: s.tableId, watchedTableId: s.watchedTableId })))
+  const state = useGame(useShallow(s => ({ onecard: s.game?.onecard, role: s.game?.role }))), session = useSession(useShallow(s => ({ bindings: s.bindings, roomId: s.roomId, tableId: s.tableId, watchedTableId: s.watchedTableId, tableStates: s.tableStates })))
   const binding = session.bindings.find(b => b.channelId === session.roomId && b.anchorId === anchor.id)
-  if (!o || !binding || (role === 'PLAYER' ? session.tableId : session.watchedTableId) !== binding.tableId) return null
-  const height = Math.max(.012, o.drawCount * .001)
+  const relevant = state?.onecard && !!binding && (state.role === 'PLAYER' ? session.tableId : session.watchedTableId) === binding.tableId
+  const selected = !!binding && session.tableStates[binding.tableId]?.gameCode === 'ONE_CARD'
+  if (!relevant && !selected) return null
+  const o = relevant ? state.onecard : null
+  const drawCount = o?.drawCount ?? 1, height = Math.max(.012, drawCount * .001)
   const mainPavilion = anchor.pavilionId === 'P0', deckY = mainPavilion ? 1.064 + height / 2 : 1.112
   return <group name="onecard-table" dispose={null}>
     {!mainPavilion && <group name="onecard-felt-mat"><mesh geometry={matBase} material={wood} position={[0, 1.075, 0]} />
       <mesh geometry={feltPlane} material={felt} position={[0, 1.088, 0]} rotation={[-Math.PI / 2, 0, 0]} /></group>}
-    {o.drawCount > 0 && <group name="onecard-draw-deck"><mesh geometry={slab} material={paper} position={[-.28, deckY, 0]} scale={[.3, height, .43]} />
+    {drawCount > 0 && <group name={o ? 'onecard-draw-deck' : 'onecard-preparation-prop'}><mesh geometry={slab} material={paper} position={[-.28, deckY, 0]} scale={[.3, height, .43]} />
       <mesh geometry={deckBack} material={blue} position={[-.28, deckY + height / 2 + .006, 0]} rotation={[-Math.PI / 2, 0, 0]} />
       <mesh geometry={deckMark} material={gold} position={[-.28, deckY + height / 2 + .007, 0]} rotation={[-Math.PI / 2, 0, Math.PI / 4]} /></group>}
-    <PublicCard card={o.topCard} surfaceY={mainPavilion ? 1.078 : 1.112} /><CardBacks players={o.players} surfaceY={mainPavilion ? 1.077 : 1.107} />
+    {o && <><PublicCard card={o.topCard} surfaceY={mainPavilion ? 1.078 : 1.112} /><CardBacks players={o.players} surfaceY={mainPavilion ? 1.077 : 1.107} /></>}
   </group>
 }

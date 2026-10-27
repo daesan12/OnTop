@@ -7,7 +7,14 @@ async function start(page: Page, count: 2 | 3 | 4 = 2) {
   const server = await fixture(page, { omok: true, m09: true, onecard: count, players: count })
   await page.goto('/park'); await expect(page).toHaveTitle(/온탑|OnTop/i)
   await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90000 })
-  await page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).inspectTable())
+  await expect.poll(() => page.evaluate(async () => {
+    const s = (await import('/src/network/worldClient.ts' as string)).useSession.getState()
+    return s.status === 'connected' && s.bindings.length > 0
+  })).toBe(true)
+  await expect(async () => {
+    await page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).inspectTable())
+    await expect(page.getByRole('button', { name: '앉기', exact: true })).toBeVisible({ timeout: 1500 })
+  }).toPass({ timeout: 15000 })
   await page.getByRole('button', { name: '앉기', exact: true }).click()
   await page.getByLabel('1인 참가비').fill('1'); await page.getByRole('button', { name: '원카드 선택', exact: true }).click()
   await page.getByRole('button', { name: '준비', exact: true }).click(); server.confirmStart()
@@ -42,7 +49,9 @@ test('M12 2-player atomic hands, card/suit/K/draw/attack commands, result and ne
   server.cardSnapshot({ turnUserId: '101', attackTotal: 7, topCard: card('joker-color', null), lastAttack: card('joker-color', null) }, drawn)
   const accepted = { ...drawn, hand: [...drawn.hand, ...['2', '3', '4', '5', '6', '7', '8'].map(rank => card(rank, 'spades'))] }
   server.cardReply({ kind: 'accept-attack' }, { attackTotal: 0, lastAttack: null, turnUserId: '102', players: server.cardState().players.map(p => p.userId === '101' ? { ...p, cardCount: 13 } : p) }, accepted)
-  await p.getByRole('button', { name: '공격 받기 · +7장', exact: true }).click(); await expect(handButtons(page)).toHaveCount(13)
+  await p.getByRole('button', { name: '공격 받기 · +7장', exact: true }).click(); await expect(handButtons(page)).toHaveCount(10)
+  await p.getByRole('button', { name: '다음 손패', exact: true }).click(); await expect(handButtons(page)).toHaveCount(3)
+  await p.getByRole('button', { name: '이전 손패', exact: true }).click()
   await p.getByRole('button', { name: '원카드 규칙', exact: true }).click(); await expect(p).toContainText('3초 만료만으로 벌칙을 받지 않습니다.')
   await screenshot(page, 'm12-player')
   const end = { status: 'FINISHED' as const, stage: 'FINISHED' as const, turnUserId: null, turnDeadline: null, winnerUserIds: ['102'], endReason: 'EMPTY_HAND', endedAt: new Date().toISOString() }

@@ -10,6 +10,7 @@ import { bridgeState as makeBridge } from '../fixtures/bridge'
 import type { Bridge, SecretDie } from '../../src/game/bridge/protocol'
 import { facilityFixture } from './facilityFixture'
 import { followFixture } from './followFixture'
+import { onecardPrankFixture } from './onecardPrankFixture'
 import type { PublicEquipment } from '../../src/network/equipment'
 import type { GameReactionEvent } from '../../src/game/presentation/defeat'
 import developmentBindings from '../../public/park-bindings.dev.json' with { type: 'json' }
@@ -31,6 +32,7 @@ export async function fixture(
     omok?: boolean
     dice?: boolean
     onecard?: 2 | 3 | 4
+    onecardPranks?: boolean
     bridge?: 2 | 3 | 4
     m09?: boolean
     startEvents?: boolean
@@ -117,6 +119,8 @@ export async function fixture(
     attackTotal: 0, lastAttack: null, turnCount: 1, winnerUserIds: [], endReason: null, endedAt: null }
   let cardHand: Hand = { userId: options.ownUserId ?? '101', hand: initialHand, playableCardIds: initialHand.map(c => c.id), canDraw: true }
   const cardReplies: { input: object; patch: Partial<OneCard>; hand: Hand }[] = []
+  const cardPranks = onecardPrankFixture({ gameId: () => gameId, state: () => cardState,
+    emit: (type, payload, requestId) => emit(sockets.at(-1)!, type, payload, requestId ?? null) })
   let diceState: Farkle = { gameCode: 'DICE', status: 'PLAYING', players: ['101', '102'], scores: [0, 0], targetScore: 4000,
     turnTimeLimitMs: 30000, turnUserId: '101', turnDeadline: new Date(Date.now() + 30000).toISOString(), turnScore: 0, dice: [],
     stage: 'AWAITING_ROLL', rollId: 0, round: 1, hotDice: false, lastEvent: 'START', winnerUserId: null, endReason: null, endedAt: null }
@@ -443,6 +447,7 @@ export async function fixture(
       const message = JSON.parse(String(data))
       sent.push(message)
       const { requestId, type, payload } = message
+      if (options.onecardPranks && cardPranks.handle(type, payload, requestId)) return
       if (options.spectatorEvents && ['GAME_SPECTATOR_CHAT_SEND', 'OMOK_SPECTATOR_PING_SEND'].includes(type)) {
         if (!watchingGame || seated || finished) {
           emit(ws, 'ERROR', { code:'GAME_SPECTATOR_ACCESS_DENIED', message:'관전 권한을 확인해주세요.' }, requestId); return
@@ -695,6 +700,7 @@ export async function fixture(
   })
   return {
     sent,
+    cardPranks,
     rejectNextMove: () => { rejectNextMovement = true },
     reaction: (patch: Partial<GameReactionEvent> = {}) => {
       const remainingBefore = patch.remainingBefore ?? options.bridge ?? options.onecard ?? 2

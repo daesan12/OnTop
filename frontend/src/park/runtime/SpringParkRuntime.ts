@@ -5,6 +5,8 @@ import {
 } from '../../auth/authFlow'
 import { SharedSocket, ServerError } from '../../network/socketClient'
 import { OmokSpectatorEvents } from '../../game/omok/spectatorEvents'
+import { OneCardPrankEvents, ONECARD_PRANKS_ENABLED } from '../../game/onecard/prankEvents'
+import { handScope, useOneCardUI } from '../../game/onecard/uiState'
 import { WorldTimeClient } from '../../network/worldTimeClient'
 import { EXPECTED_MAP } from '../../config/mapVersion'
 import { FacilityClient } from '../../network/facilityClient'
@@ -140,6 +142,7 @@ export class ParkRuntime implements ParkRuntimePort {
     stop: async () => { await this.socket.request('GAME_UNWATCH', {}, ['GAME_WATCH_LEFT']) },
     hide: () => {
       this.omokEvents.reset()
+      this.oneCardPranks.reset()
       if (this.gameWatchRequestId) this.obsoleteGameWatchRequests.add(this.gameWatchRequestId)
       for (const id of this.spectatorChecks.keys()) this.obsoleteGameWatchRequests.add(id)
       this.spectatorChecks.clear()
@@ -167,9 +170,31 @@ export class ParkRuntime implements ParkRuntimePort {
     request: (type, payload, expected, onId) => this.socket.request(type, payload, expected, onId),
   })
   sendSpectatorChat = (text: string) => this.omokEvents.send('chat', text)
+  private oneCardPranks = new OneCardPrankEvents({
+    enabled: ONECARD_PRANKS_ENABLED,
+    scope: () => {
+      const s = useSession.getState(), state = useGame.getState(), game = state.game
+      if (!this.active || !this.socket.connected || s.status !== 'connected' || !s.mapCompatible || !s.roomId
+        || !game?.onecard || game.onecard.status !== 'PLAYING' || state.lastResult) return null
+      if (game.role === 'PLAYER' && (state.permittedGameId !== game.gameId
+        || !game.onecard.players.some(p => p.userId === s.sessionId && p.active))) return null
+      if (game.role === 'SPECTATOR' && (!this.spectator.accepts(game.gameId) || state.watchedGameId !== game.gameId)) return null
+      const ui = useOneCardUI.getState()
+      return { key: JSON.stringify([this.generation, s.sessionId, s.roomId, game.gameId, game.role,
+        game.role === 'SPECTATOR' ? this.gameWatchRequestId : '']), gameId: game.gameId, ownId: s.sessionId,
+        role: game.role, turnCount: game.onecard.turnCount, turnUserId: game.onecard.turnUserId,
+        canSend: game.role === 'SPECTATOR' && !s.tableId && game.onecard.stage === 'PLAYING' && getAuthSession()?.status === 'AUTHENTICATED',
+        canRestore: game.role === 'PLAYER', handIds: game.hand?.hand.map(c => c.id) ?? [],
+        protectedId: ui.scope === handScope(s.sessionId, s.roomId, game.gameId, game.version) ? ui.selectedId : '' }
+    },
+    request: (type, payload, expected, onId) => this.socket.request(type, payload, expected, onId),
+  })
+  flipOneCardHand = (targetUserId: string) => this.oneCardPranks.flip(targetUserId)
+  restoreOneCardHand = () => this.oneCardPranks.restore()
   pingOmok = (x: number, y: number) => this.omokEvents.send('ping', { x, y })
   private resetSpectator() {
     this.omokEvents.reset()
+    this.oneCardPranks.reset()
     this.spectatorIntent = null; this.spectator.reset(); this.gameWatchRequestId = ''
     this.spectatorChecks.clear()
     this.obsoleteGameWatchRequests.clear(); this.tableClosing = null
@@ -425,6 +450,7 @@ export class ParkRuntime implements ParkRuntimePort {
   }
   private message(message: Envelope) {
     if (!this.active) return
+    if (this.oneCardPranks.accept(message)) return
     if (this.omokEvents.accept(message)) return
     if (this.worldTime.ownsError(message) || message.type === 'WORLD_TIME_STATE') return
     if (message.type === 'ERROR' && message.requestId && this.forfeitRequests.has(message.requestId)
@@ -462,6 +488,7 @@ export class ParkRuntime implements ParkRuntimePort {
     try {
       receiveGame(message, session.sessionId, session.tableId)
       this.omokEvents.sync()
+      this.oneCardPranks.sync()
     } catch (error) {
       useGame.setState({
         uncertain: true,

@@ -7,80 +7,96 @@ import { useParkRuntime } from '../../park/runtime/ParkRuntime'
 import { useTableLobby } from '../../features/tableLobby/state'
 import { OmokSurrender } from '../OmokSurrender'
 import { canActOneCard } from './actions'
-import { cardEffect, cardLabel, redCard, SUITS, SUIT_GLYPH, SUIT_NAME } from './presentation'
-import type { Card, OneCardInput } from './protocol'
+import { cardLabel, redCard, SUITS, SUIT_GLYPH, SUIT_NAME } from './presentation'
+import type { OneCardInput } from './protocol'
+import { CardFace } from './CardFace'
+import { FanHand } from './FanHand'
+import { handScope, useOneCardUI } from './uiState'
+import { useOneCardPranks } from './prankEvents'
 import './onecard.css'
 
-function CardFace({ card }: { card: Card }) {
-  return <><span className="onecard-rank">{card.suit ? card.rank : 'JOKER'}</span><strong className="onecard-symbol">{card.suit ? SUIT_GLYPH[card.suit] : '✦'}</strong><small>{cardEffect(card)}</small></>
-}
 export function OneCardPanel() {
   const s = useGame(), session = useSession(useShallow(s => ({ sessionId: s.sessionId, roomId: s.roomId, profiles: s.profiles, status: s.status, pending: s.pending }))), runtime = useParkRuntime()
   const view = useTableLobby(s => s.spectatorView)
-  const [now, setNow] = useState(Date.now), [selection, setSelection] = useState({ scope: '', id: '' }), [rules, setRules] = useState(false)
+  const [now, setNow] = useState(Date.now), [rules, setRules] = useState(false)
+  const selection = useOneCardUI(), prank = useOneCardPranks()
+  useEffect(() => () => { useOneCardUI.setState({ scope: '', selectedId: '' }) }, [])
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 100); return () => clearInterval(timer) }, [])
   const g = s.game?.onecard ? s.game : null
   if (!g) return <section className="park-runtime-panel onecard-panel" aria-label="원카드 경기"><strong>원카드</strong>
     <p role="status">공개 판과 본인 손패를 확인하고 있습니다.</p>{s.error && <p role="alert">{s.error}</p>}
     <button disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkRecovery()}>경기 복구 다시 확인</button></section>
   const o = g.onecard, spectator = g.role === 'SPECTATOR', ownId = session.sessionId
-  const scope = `${ownId}/${session.roomId}/${g.gameId}/${g.version}`
+  const scope = handScope(ownId, session.roomId, g.gameId, g.version)
   const fresh = !spectator && g.hand?.userId === ownId && session.status === 'connected' && !recoveryBlocked() && !s.uncertain && g.version >= s.awaitingVersion
-  const hand = fresh ? g.hand : null, selected = selection.scope === scope ? hand?.hand.find(c => c.id === selection.id) : undefined
+  const hand = fresh ? g.hand : null, selected = selection.scope === scope ? hand?.hand.find(c => c.id === selection.selectedId) : undefined
   const can = (input: OneCardInput) => session.status === 'connected' && !session.pending && canActOneCard(ownId, input, now)
-  const send = (input: OneCardInput) => { if (can(input)) { setSelection({ scope: '', id: '' }); void runtime.actOneCard(input) } }
+  const send = (input: OneCardInput) => { if (can(input)) void runtime.actOneCard(input) }
+  const restore = () => { void runtime.restoreOneCardHand?.() }
   const name = (id: string) => id === ownId ? '나' : session.profiles[id]?.nickname ?? `참가자 ${o.players.findIndex(p => p.userId === id) + 1}`
   const remaining = o.turnDeadline ? Math.max(0, Math.ceil((Date.parse(o.turnDeadline) - now) / 1000)) : null
   const windowLeft = (until: string | null) => until ? Math.max(0, Math.ceil((Date.parse(until) - now) / 1000)) : 0
   const own = o.players.find(p => p.userId === ownId), finished = o.status === 'FINISHED'
-  return <section className="prototype-game minigame-hud onecard-panel" aria-label="원카드 경기" data-stage={o.stage}>
-    <header className="mini-heading"><small>온탑 · 한 장의 승부</small><h2>{spectator ? '원카드 관전' : '원카드'}</h2><p>같은 무늬나 숫자 · 손패를 먼저 비우세요</p></header>
-    <div className="mini-scoreboard onecard-players" aria-label="원카드 참가자">{o.players.map(p => <div key={p.userId} className={p.userId === o.turnUserId ? 'active' : ''}>
-      <b>{name(p.userId)}{!p.active ? ' · 기권' : ''}</b><span>{p.cardCount}장</span>
-      <small>{({ none: '남은 손패', pending: '원카드 선언 대기', declared: '원카드 선언!', caught: '미선언 벌칙', expired: '선언 시간 종료' })[p.oneCardStatus]}</small>
-      {p.oneCardStatus === 'pending' && !finished && <small>반응 시간 약 {windowLeft(p.oneCardUntil)}초</small>}
-      {!spectator && p.userId !== ownId && p.oneCardStatus === 'pending' && !finished && <button
-        disabled={!can({ kind: 'catch-one', targetUserId: p.userId })} onClick={() => send({ kind: 'catch-one', targetUserId: p.userId })}>{name(p.userId)} 미선언 신고</button>}
-    </div>)}</div>
-    <div className="mini-status"><p role="status">{finished ? `${o.winnerUserIds.map(name).join(' · ')} ${o.winnerUserIds.length > 1 ? '공동 승리' : '승리'}`
-      : o.stage === 'CHOOSE_SUIT' ? `${name(o.turnUserId!)} · 다음 무늬를 선택하세요`
-      : `${o.turnUserId === ownId && !spectator ? '내 차례' : name(o.turnUserId!) + ' 차례'}${o.extraAction ? ' · K 추가 행동' : ''}`}</p>
+  const turnStatus = <div className="mini-status"><p role="status">{finished ? `${o.winnerUserIds.map(name).join(' · ')} ${o.winnerUserIds.length > 1 ? '공동 승리' : '승리'}`
+    : o.stage === 'CHOOSE_SUIT' ? `${name(o.turnUserId!)} · 다음 무늬를 선택하세요`
+    : `${o.turnUserId === ownId && !spectator ? '내 차례' : name(o.turnUserId!) + ' 차례'}${o.extraAction ? ' · K 추가 행동' : ''}`}</p>
     <small>{o.direction === 1 ? '↻ 시계 방향' : '↺ 반시계 방향'} · 덱 {o.drawCount}장 · {o.turnCount}번째 차례</small>
     {remaining !== null && <small>이번 차례 남은 시간 약 {remaining}초 · K·무늬 선택으로 연장되지 않습니다.</small>}
     {remaining === 0 && <p>시간 만료 · 서버의 다음 상태를 기다리고 있습니다.</p>}
-    </div>
+  </div>
+  return <section className="minigame-hud onecard-panel onecard-game-hud" aria-label="원카드 경기" data-stage={o.stage} data-role={g.role}>
+    <header className="mini-heading"><h2>{spectator ? '원카드 관전' : '원카드'}</h2><p>같은 무늬나 숫자 · 손패를 먼저 비우세요</p></header>
+    <div className="onecard-roster" aria-label="원카드 참가자">{o.players.map(p => <div key={p.userId} className={p.userId === o.turnUserId ? 'active' : ''}>
+      <b>{name(p.userId)}{!p.active ? ' · 기권' : ''}</b><span>{p.cardCount}장</span>
+      <small>{({ none: '남은 손패', pending: '원카드 선언 대기', declared: '원카드 선언!', caught: '미선언 벌칙', expired: '선언 시간 종료' })[p.oneCardStatus]}</small>
+      {p.oneCardStatus === 'pending' && !finished && <small>반응 시간 약 {windowLeft(p.oneCardUntil)}초</small>}
+    </div>)}</div>
+    {(spectator || finished) && turnStatus}
     <div className="onecard-public" aria-label="바닥 카드와 공격 정보">
       <div className={`onecard-card ${redCard(o.topCard) ? 'red' : ''}`} aria-label={`바닥 카드 ${cardLabel(o.topCard)}`}><CardFace card={o.topCard} /></div>
       <div><p>현재 무늬: {SUIT_GLYPH[o.activeSuit]} {SUIT_NAME[o.activeSuit]}</p>
         {o.attackTotal > 0 && <b>누적 공격 +{o.attackTotal}장</b>}{o.lastAttack && <small>마지막 공격: {cardLabel(o.lastAttack)}</small>}</div>
     </div>
     {!spectator && !finished && <section className="mini-actions onecard-actions-panel">
+      {turnStatus}
       {o.stage === 'CHOOSE_SUIT' && o.turnUserId === ownId && <div className="onecard-actions" role="group" aria-label="무늬 선택">{SUITS.map(suit => <button key={suit}
         disabled={!can({ kind: 'select-suit', suit })} onClick={() => send({ kind: 'select-suit', suit })}>{SUIT_NAME[suit]} 선택 {SUIT_GLYPH[suit]}</button>)}</div>}
-      <b>나의 손패 {hand?.hand.length ?? '—'}장</b>
+      <div className="onecard-hand-heading"><b>나의 손패 {hand?.hand.length ?? '—'}장</b>
+        <span aria-live="polite">{prank.flippedIds.length > 0 ? '카드가 뒤집혔어요 · 한 번에 정리할 수 있어요'
+          : o.turnUserId !== ownId ? '다른 참가자의 차례를 기다리고 있어요' : '강조된 카드를 선택해 내세요'}</span></div>
       {!fresh && <p>최신 공개 판과 본인 손패를 함께 확인 중입니다. 이전 패로 행동할 수 없습니다.</p>}
       {own?.active === false && <p>기권 처리되어 이번 경기에서 더 이상 행동할 수 없습니다.</p>}
-      <div className="onecard-hand" aria-label="나만 볼 수 있는 카드">{hand?.hand.map(card => <button key={card.id}
-        className={`onecard-card ${redCard(card) ? 'red' : ''}`} aria-label={`${cardLabel(card)} · ${cardEffect(card)}`}
-        aria-pressed={selected?.id === card.id} disabled={!can({ kind: 'play', cardId: card.id })}
-        onClick={() => setSelection({ scope, id: selected?.id === card.id ? '' : card.id })}><CardFace card={card} /></button>)}</div>
-      <div className="onecard-actions"><button disabled={!selected || !can({ kind: 'play', cardId: selected.id })}
+      <FanHand cards={hand?.hand ?? []} playableIds={hand?.playableCardIds ?? []} flippedIds={prank.flippedIds} selectedId={selected?.id}
+        canPlay={id => can({ kind: 'play', cardId: id })} restore={restore}
+        select={id => useOneCardUI.setState({ scope, selectedId: selected?.id === id ? '' : id })} />
+      <div className="onecard-actions onecard-primary-actions"><button className="onecard-submit" disabled={!selected || !can({ kind: 'play', cardId: selected.id })}
         onClick={() => { if (selected) send({ kind: 'play', cardId: selected.id }) }}>{selected ? `${cardLabel(selected)} 내기` : '카드를 선택하세요'}</button>
         {o.attackTotal > 0 ? <button disabled={!can({ kind: 'accept-attack' })} onClick={() => send({ kind: 'accept-attack' })}>공격 받기 · +{o.attackTotal}장</button>
           : <button disabled={!can({ kind: 'draw' })} onClick={() => send({ kind: 'draw' })}>한 장 뽑고 넘기기</button>}
-        {own?.oneCardStatus === 'pending' && <button disabled={!can({ kind: 'declare-one' })} onClick={() => send({ kind: 'declare-one' })}>원카드! · {windowLeft(own.oneCardUntil)}초</button>}</div>
+        <button disabled={!prank.flippedIds.length} onClick={restore}>손패 정리{prank.flippedIds.length ? ` · ${prank.flippedIds.length}장 복구` : ''}</button>
+        {own?.oneCardStatus === 'pending' && <button disabled={!can({ kind: 'declare-one' })} onClick={() => send({ kind: 'declare-one' })}>원카드! · {windowLeft(own.oneCardUntil)}초</button>}
+        {o.players.filter(p => p.userId !== ownId && p.oneCardStatus === 'pending').map(p => <button key={p.userId}
+          disabled={!can({ kind: 'catch-one', targetUserId: p.userId })} onClick={() => send({ kind: 'catch-one', targetUserId: p.userId })}>{name(p.userId)} 미선언 신고</button>)}
+      </div>
       <small>낼 카드가 있어도 한 장을 뽑고 차례를 넘길 수 있어요. 뽑은 카드는 같은 차례에 낼 수 없습니다.</small>
     </section>}
-    {spectator && <section className="mini-actions"><h3>관전 중</h3><p>관전자는 공개 카드와 장수만 볼 수 있습니다. 개인 손패·행동·개인 정산은 제공하지 않습니다.</p></section>}
+    {spectator && <section className="mini-actions onecard-spectator"><h3>관전 중</h3><p>관전자는 공개 카드와 장수만 볼 수 있습니다.</p>
+      {prank.enabled ? <><button disabled={prank.pending || !o.turnUserId || !!prank.effect
+        || prank.usedTurn === `${o.turnUserId}/${o.turnCount}` || (prank.immune[o.turnUserId ?? ''] ?? 0) > performance.now() || o.stage !== 'PLAYING'}
+        onClick={() => { if (o.turnUserId) void runtime.flipOneCardHand?.(o.turnUserId) }}>{name(o.turnUserId!)} 손패 뒤집기</button>
+        <small>최대 2장 · 대상의 한 차례에 한 번 · 선택·제출 카드는 보호됩니다.</small></>
+        : <small>손패 뒤집기는 서버 연동 후 사용할 수 있습니다.</small>}
+    </section>}
     <div className="mini-feedback">{s.pending && <p>요청 중 · 서버 판정 확인 중입니다.</p>}
     {g.version < s.awaitingVersion && <p>처리 확인 수신 · 최신 판과 손패를 기다리고 있습니다.</p>}
     {s.uncertain && <p>반영 여부를 확인해주세요. 카드를 자동으로 재전송하지 않습니다.</p>}
     {recoveryBlocked() && <p>경기 복구 확인 중 · 입력을 잠시 멈췄습니다.</p>}
     {s.error && <p role="alert">{s.error}</p>}
+    {prank.error && <p role="alert">{prank.error}</p>}
     </div>
     {finished && <p>종료 사유: {({ EMPTY_HAND: '손패를 모두 비웠습니다.', STALEMATE: '카드 교착 · 최소 손패로 승자를 결정했습니다.', PLAYER_LEFT: '다른 참가자가 떠나 경기가 끝났습니다.' })[o.endReason!] ?? o.endReason}</p>}
     {!spectator && finished && <p>{s.result ? s.result.settlementStatus === 'SETTLED' ? `정산 완료 · 내 엽전 증감 ${s.result.myCoinDelta}` : '정산 대기 중' : '결과·정산 확인 전입니다.'}</p>}
-    <div className="mini-tools"><SeatedLookButton /><div className="onecard-actions"><button onClick={() => setRules(!rules)} aria-expanded={rules}>원카드 규칙</button>
+    <div className="mini-tools">{spectator && <SeatedLookButton />}<div className="onecard-actions"><button onClick={() => setRules(!rules)} aria-expanded={rules}>원카드 규칙</button>
       <button disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkGame()}>최신 원카드 확인</button>
       {recoveryBlocked() && <button disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkRecovery()}>경기 복구 다시 확인</button>}
       {!spectator && finished && <button disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkResult()}>정산 결과 확인</button>}
