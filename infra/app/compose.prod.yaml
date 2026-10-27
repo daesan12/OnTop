@@ -13,6 +13,13 @@ services:
       DB_PASSWORD_FILE: /run/secrets/db_password
     secrets:
       - db_password
+    volumes:
+      - type: bind
+        source: /etc/ontop/prod-app/analytics
+        target: /run/ontop/analytics
+        read_only: true
+        bind:
+          create_host_path: true
     read_only: true
     tmpfs:
       - /tmp

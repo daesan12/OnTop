@@ -7,6 +7,8 @@ import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import com.ssafy.ontop.auth.service.AccessJwtService;
+import com.ssafy.ontop.admin.analytics.AnalyticsSnapshot;
+import com.ssafy.ontop.admin.analytics.AnalyticsSnapshotStore;
 import com.ssafy.ontop.user.domain.LoginProvider;
 import java.security.SecureRandom;
 import java.time.Instant;
@@ -74,6 +76,8 @@ class RestSecurityTests {
     private AccessJwtService jwt;
     @MockitoBean
     private ActiveMemberLookup members;
+    @MockitoBean
+    private AnalyticsSnapshotStore analyticsSnapshots;
     @Autowired
     private RequestMappingHandlerMapping requestMappingHandlerMapping;
 
@@ -198,6 +202,25 @@ class RestSecurityTests {
     }
 
     @Test
+    void 관리자_집계는_조회_권한이_있는_회원에게만_반환한다() throws Exception {
+        var summary = new AnalyticsSnapshot(1, "2026-10-27T00:00:00Z", "2026-10-27T01:00:00Z",
+                List.of(new AnalyticsSnapshot.Daily("2026-10-27", 3, 1, 4, 2)), List.of(), List.of());
+        when(analyticsSnapshots.read()).thenReturn(summary);
+
+        mvc.perform(get("/api/v1/admin/analytics/summary")).andExpect(status().isUnauthorized());
+        mvc.perform(authAs(44, get("/api/v1/admin/analytics/summary"))).andExpect(status().isForbidden());
+        mvc.perform(auth(get("/api/v1/admin/analytics/summary"))).andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(jsonPath("$.daily[0].activeUsers").value(3))
+                .andExpect(jsonPath("$.dataAsOf").value("2026-10-27T00:00:00Z"));
+
+        when(analyticsSnapshots.read()).thenThrow(new AnalyticsSnapshotStore.SnapshotUnavailableException());
+        mvc.perform(auth(get("/api/v1/admin/analytics/summary"))).andExpect(status().isServiceUnavailable())
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(jsonPath("$.code").value("ANALYTICS_SNAPSHOT_UNAVAILABLE"));
+    }
+
+    @Test
     void 허용하지_않은_관리자_경로와_HTTP_메서드는_관리자도_접근할_수_없다() throws Exception {
         mvc.perform(auth(get("/api/v1/admin/unknown"))).andExpect(status().isForbidden());
         mvc.perform(auth(post("/api/v1/admin/feedback"))).andExpect(status().isForbidden());
@@ -279,7 +302,7 @@ class RestSecurityTests {
                 "GET /api/v1/users/nickname-availability",
                 "PATCH /api/v1/users/me",
                 "DELETE /api/v1/users/me",
-                "GET /api/v1/admin/me",
+                "GET /api/v1/admin/me", "GET /api/v1/admin/analytics/summary",
                 "GET /api/v1/wallets/me", "GET /api/v1/wallets/me/transactions",
                 "GET /api/v1/rankings",
                 "GET /api/v1/channels",

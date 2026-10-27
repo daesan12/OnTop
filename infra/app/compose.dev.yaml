@@ -52,6 +52,13 @@ services:
       DB_PASSWORD_FILE: /run/secrets/mysql_app_password
     secrets:
       - mysql_app_password
+    volumes:
+      - type: bind
+        source: /etc/ontop/dev-app/analytics
+        target: /run/ontop/analytics
+        read_only: true
+        bind:
+          create_host_path: true
     read_only: true
     tmpfs:
       - /tmp
