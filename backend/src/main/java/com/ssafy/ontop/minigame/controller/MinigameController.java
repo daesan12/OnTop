@@ -6,8 +6,11 @@ import com.ssafy.ontop.minigame.dto.MinigameAbandonResponse;
 import com.ssafy.ontop.minigame.dto.MinigameCompleteResponse;
 import com.ssafy.ontop.minigame.dto.MinigameStartResponse;
 import com.ssafy.ontop.minigame.dto.MinigameStatusResponse;
+import com.ssafy.ontop.minigame.dto.BungeoppangV4DeliveryDtos;
+import com.ssafy.ontop.minigame.service.BungeoppangV4DeliveryContract;
 import com.ssafy.ontop.minigame.service.MinigameException;
 import com.ssafy.ontop.minigame.service.MinigameService;
+import com.ssafy.ontop.minigame.service.StoredMinigameResponseException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -16,6 +19,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
+import java.io.IOException;
 import java.security.Principal;
 import java.util.Collections;
 import java.util.Set;
@@ -23,6 +27,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Profile;
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.CacheControl;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -31,6 +36,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -57,21 +63,30 @@ public class MinigameController {
     @Operation(summary = "붕어빵 세션 시작", description = "같은 회원·Idempotency-Key는 최초 세션 생성 응답을 반환합니다.")
     @ApiResponse(responseCode = "201", description = "생성 또는 같은 키의 최초 생성 응답",
             content = @Content(mediaType = "application/json", schema = @Schema(implementation = MinigameStartResponse.class)))
+    @ApiResponse(responseCode = "409", description = "IDEMPOTENCY_KEY_CONFLICT / RULES_VERSION_MISMATCH")
     @ApiResponse(responseCode = "429", description = "TOO_MANY_STARTS")
     public ResponseEntity<?> start(Principal principal, @RequestBody JsonNode body, HttpServletRequest request) {
         long userId = account(principal);
-        if (!body.isObject() || body.size() != 1 || !body.path("minigameType").isTextual()) {
+        if (!body.isObject() || body.size() < 1 || body.size() > 2 || !body.path("minigameType").isTextual()) {
             throw invalid();
         }
+        body.fieldNames().forEachRemaining(field -> {
+            if (!Set.of("minigameType", "rulesVersion").contains(field)) { throw invalid(); }
+        });
         if (!body.path("minigameType").textValue().equals("BUNGEOPPANG")) {
             throw new MinigameException(400, "UNSUPPORTED_MINIGAME", "지원하지 않는 미니게임입니다.");
         }
+        String rulesVersion = body.has("rulesVersion") ? body.path("rulesVersion").textValue() : "v2";
+        if (rulesVersion == null || rulesVersion.isBlank()) { throw invalid(); }
+        requireKnownVersion(rulesVersion);
         var keys = Collections.list(request.getHeaders("Idempotency-Key"));
         if (keys.size() != 1 || !keys.getFirst().matches("[A-Za-z0-9_-]{1,64}")) {
             throw invalid();
         }
         return ResponseEntity.status(201).cacheControl(CacheControl.noStore())
-                .body(service().start(userId, body.path("minigameType").textValue(), keys.getFirst()));
+                .body(rulesVersion.equals("v4")
+                        ? service().startV4(userId, body.path("minigameType").textValue(), keys.getFirst())
+                        : service().start(userId, body.path("minigameType").textValue(), keys.getFirst()));
     }
 
     @GetMapping("/{sessionId}")
@@ -79,16 +94,72 @@ public class MinigameController {
     @ApiResponse(responseCode = "200", description = "본인 세션",
             content = @Content(mediaType = "application/json", schema = @Schema(implementation = MinigameStatusResponse.class)))
     @ApiResponse(responseCode = "404", description = "MINIGAME_NOT_FOUND")
-    public ResponseEntity<?> load(Principal principal, @PathVariable String sessionId) {
-        return ok(service().load(account(principal), sessionId(sessionId)));
+    public ResponseEntity<?> load(Principal principal, @PathVariable String sessionId,
+            @RequestParam(required = false) String includeSource,
+            @RequestParam(required = false) String includeProgress,
+            @RequestParam(required = false) String deliveryKey, HttpServletRequest request) {
+        requireOnlyQueries(request, Set.of("includeSource", "includeProgress", "deliveryKey"));
+        boolean source = optionalBoolean(includeSource);
+        boolean progress = optionalBoolean(includeProgress);
+        if (deliveryKey != null && !deliveryKey.matches("[A-Za-z0-9_-]{1,64}")) { throw invalid(); }
+        return ok(service().loadSession(account(principal), sessionId(sessionId), source, progress, deliveryKey));
     }
 
     @GetMapping
     @Operation(summary = "붕어빵 시작 화면 상태 조회", description = "한국 날짜 기준 오늘 보상·첫 판·확인한 안내를 조회합니다.")
     @ApiResponse(responseCode = "200", description = "오늘 보상과 안내 상태",
             content = @Content(mediaType = "application/json", schema = @Schema(implementation = com.ssafy.ontop.minigame.dto.BungeoppangStatusResponse.class)))
-    public ResponseEntity<?> status(Principal principal) {
-        return ok(service().status(account(principal)));
+    @ApiResponse(responseCode = "409", description = "RULES_VERSION_MISMATCH")
+    public ResponseEntity<?> status(Principal principal,
+            @RequestParam(required = false) String rulesVersion, HttpServletRequest request) {
+        requireOnlyQueries(request, Set.of("rulesVersion"));
+        String selected = rulesVersion == null ? "v2" : rulesVersion;
+        if (selected.isBlank()) { throw invalid(); }
+        requireKnownVersion(selected);
+        return ok(selected.equals("v4") ? service().statusV4(account(principal))
+                : service().status(account(principal)));
+    }
+
+    @PostMapping("/{sessionId}/deliveries")
+    @Operation(summary = "붕어빵 v4 납품 승인", description = "승인 prefix·FIFO 재고·현재 주문을 검증하고 영속 영수증과 다음 주문을 원자적으로 저장합니다.")
+    @ApiResponse(responseCode = "200", description = "최초 승인 또는 같은 키·본문의 최초 응답 재생",
+            content = @Content(mediaType = "application/json",
+                    schema = @Schema(implementation = BungeoppangV4DeliveryDtos.Response.class)))
+    @ApiResponse(responseCode = "404", description = "MINIGAME_NOT_FOUND")
+    @ApiResponse(responseCode = "409", description = "키·prefix·주문·규칙·상태 충돌")
+    @ApiResponse(responseCode = "413", description = "REQUEST_TOO_LARGE")
+    @ApiResponse(responseCode = "415", description = "UNSUPPORTED_MEDIA_TYPE")
+    @ApiResponse(responseCode = "422", description = "납품 규칙 거부 / TIME_AHEAD",
+            content = @Content(mediaType = "application/json",
+                    schema = @Schema(implementation = BungeoppangV4DeliveryDtos.ErrorResponse.class)))
+    public ResponseEntity<?> deliver(Principal principal, @PathVariable String sessionId,
+            HttpServletRequest request) {
+        long contentLength = request.getContentLengthLong();
+        if (contentLength > BungeoppangV4DeliveryContract.MAX_BODY_BYTES) {
+            throw new MinigameException(413, "REQUEST_TOO_LARGE", "납품 요청 본문이 너무 큽니다.");
+        }
+        String encoding = request.getHeader("Content-Encoding");
+        if (encoding != null && !encoding.isBlank() && !encoding.equalsIgnoreCase("identity")) {
+            throw new MinigameException(415, "UNSUPPORTED_MEDIA_TYPE", "압축된 납품 요청은 지원하지 않습니다.");
+        }
+        try {
+            if (request.getContentType() == null || !MediaType.APPLICATION_JSON
+                    .isCompatibleWith(MediaType.parseMediaType(request.getContentType()))) {
+                throw new MinigameException(415, "UNSUPPORTED_MEDIA_TYPE", "JSON 납품 요청만 지원합니다.");
+            }
+        } catch (org.springframework.http.InvalidMediaTypeException exception) {
+            throw new MinigameException(415, "UNSUPPORTED_MEDIA_TYPE", "JSON 납품 요청만 지원합니다.");
+        }
+        var keys = Collections.list(request.getHeaders("Idempotency-Key"));
+        if (keys.size() != 1 || !keys.getFirst().matches("[A-Za-z0-9_-]{1,64}")) { throw invalid(); }
+        byte[] bytes;
+        try { bytes = request.getInputStream().readNBytes(BungeoppangV4DeliveryContract.MAX_BODY_BYTES + 1); }
+        catch (IOException exception) { throw invalid(); }
+        if (bytes.length > BungeoppangV4DeliveryContract.MAX_BODY_BYTES) {
+            throw new MinigameException(413, "REQUEST_TOO_LARGE", "납품 요청 본문이 너무 큽니다.");
+        }
+        BungeoppangV4DeliveryDtos.Request delivery = BungeoppangV4DeliveryContract.parse(bytes);
+        return ok(service().deliver(account(principal), sessionId(sessionId), keys.getFirst(), delivery));
     }
 
     @PostMapping("/{sessionId}/complete")
@@ -166,6 +237,24 @@ public class MinigameController {
         }
     }
 
+    private void requireKnownVersion(String version) {
+        if (version.equals("v2") || version.equals("v4")) { return; }
+        if (!version.matches("v[1-9][0-9]{0,8}")) { throw invalid(); }
+        throw new MinigameException(409, "RULES_VERSION_MISMATCH", "지원하지 않는 규칙 버전입니다.");
+    }
+
+    private boolean optionalBoolean(String value) {
+        if (value == null || value.equals("false")) { return false; }
+        if (value.equals("true")) { return true; }
+        throw invalid();
+    }
+
+    private void requireOnlyQueries(HttpServletRequest request, Set<String> allowed) {
+        request.getParameterMap().forEach((name, values) -> {
+            if (!allowed.contains(name) || values.length != 1) { throw invalid(); }
+        });
+    }
+
     private MinigameException invalid() {
         return new MinigameException(400, "INVALID_REQUEST", "요청 필드와 값을 확인하세요.");
     }
@@ -176,6 +265,9 @@ public class MinigameController {
 
     @ExceptionHandler(MinigameException.class)
     ResponseEntity<?> failure(MinigameException exception) {
+        if (exception instanceof StoredMinigameResponseException stored) {
+            return ResponseEntity.status(exception.status()).cacheControl(CacheControl.noStore()).body(stored.body());
+        }
         return ResponseEntity.status(exception.status()).cacheControl(CacheControl.noStore())
                 .body(new ErrorResponse(exception.code(), exception.getMessage(), null, exception.detail(), exception.index()));
     }
@@ -190,6 +282,7 @@ public class MinigameController {
         return failure(new MinigameException(503, "MINIGAME_UNAVAILABLE", "미니게임을 처리할 수 없습니다."));
     }
 
+    @Schema(name = "MinigameErrorResponse")
     public record ErrorResponse(String code, String message, Object details, String detail, Integer index) {
     }
 }

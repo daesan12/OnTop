@@ -8,6 +8,14 @@ import java.util.List;
 public record GameSettlementCalculation(long bonus, long payoutPerWinner, boolean release, List<Award> awards) {
     public GameSettlementCalculation { awards = List.copyOf(awards); }
 
+    public static GameSettlementCalculation refund(int participantCount) {
+        if (participantCount < 2 || participantCount > 4) {
+            throw new IllegalArgumentException("반환 참가자 수를 확인하세요.");
+        }
+        return new GameSettlementCalculation(0, 0, true,
+                java.util.Collections.nCopies(participantCount, new Award(0, 0)));
+    }
+
     public static GameSettlementCalculation calculate(long bet, List<Result> results) {
         if (bet <= 0 || results.size() < 2 || results.size() > 4 || results.stream().anyMatch(java.util.Objects::isNull)) {
             throw new IllegalArgumentException("정산 참가자와 금액을 확인하세요.");

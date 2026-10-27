@@ -23,6 +23,7 @@ public final class ParkScene {
     private static ParkScene instance;
     final JsonNode data;
     final List<Shape> shapes;
+    private final WorldMapMetadata metadata;
 
     public static synchronized ParkScene load() {
         if (instance == null) {
@@ -44,7 +45,19 @@ public final class ParkScene {
     }
 
     private ParkScene(JsonNode data) {
+        this(data, new WorldMapMetadata(data.path("mapId").asText("park"),
+                data.path("schemaVersion").asInt(), data.path("sourceSha256").asText()));
+    }
+
+    /** 명시적으로 선택한 별도 장면이며 기본 instance를 교체하지 않는다. */
+    public static ParkScene fromPreparedData(JsonNode data, WorldMapMetadata metadata) {
+        load();
+        return new ParkScene(data.deepCopy(), metadata);
+    }
+
+    private ParkScene(JsonNode data, WorldMapMetadata metadata) {
         this.data = data;
+        this.metadata = metadata;
         if (data.path("schemaVersion").asInt() != 1
                 || !data.path("units").asText().equals("m")
                 || !data.path("upAxis").asText().equals("Y")) {
@@ -103,13 +116,15 @@ public final class ParkScene {
     }
 
     public String version() {
-        return data.path("sourceSha256").asText();
+        return metadata.mapVersion();
     }
 
     public WorldMapMetadata metadata() {
-        // 기존 /world/park.json 형식은 mapId 없이 park 맵으로 배포되어 왔다.
-        return new WorldMapMetadata(data.path("mapId").asText("park"),
-                data.path("schemaVersion").asInt(), version());
+        return metadata;
+    }
+
+    public float spawnYaw() {
+        return (float) data.path("spawn").path("yaw").asDouble();
     }
 
     public Vector3f spawn(int slot) {

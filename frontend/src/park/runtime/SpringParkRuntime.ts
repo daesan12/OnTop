@@ -23,7 +23,6 @@ import {
 import { bindAnchor, parseBindings } from '../../network/tableBindings'
 import { setDisplayProfiles } from '../../network/profileBridge'
 import { canPlace, canPlayDice, receiveGame, tableBusy, useGame } from '../../game/store'
-import { gameState } from '../../game/protocol'
 import { canStartForfeit, canRetryForfeit, definiteForfeitRejection, forfeitError, interruptForfeit, parseForfeitResult, resetForfeit, useForfeit } from '../../game/forfeit'
 import { validDiceAction } from '../../game/farkle/scoring'
 import { canActOneCard } from '../../game/onecard/actions'
@@ -259,8 +258,9 @@ export class ParkRuntime implements ParkRuntimePort {
       || (method === 'PATCH' && path === '/api/v1/users/me/equipment')
     const profileRequest = ((method === 'PATCH' || method === 'DELETE') && path === '/api/v1/users/me')
       || (method === 'GET' && /^\/api\/v1\/users\/nickname-availability\?nickname=[^&#]+$/.test(path))
+    const minigameRequest = /^\/api\/v1\/minigames\/sessions(?:\?rulesVersion=v4|\/\d+(?:\?(?:(?:includeSource|includeProgress)=true|deliveryKey=[A-Za-z0-9_-]{1,64})(?:&(?:(?:includeSource|includeProgress)=true|deliveryKey=[A-Za-z0-9_-]{1,64}))*|\/(?:complete|abandon|deliveries))?)?$/.test(path)
     if (!this.active || (!notesRead && !notesWrite && !shopRequest && !profileRequest
-      && !/^\/api\/v1\/(?:minigames\/sessions(?:\/\d+(?:\/(?:complete|abandon))?)?|wallets\/me|feedback)$/.test(path))
+      && !minigameRequest && !/^\/api\/v1\/(?:wallets\/me|feedback)$/.test(path))
       || (path === '/api/v1/feedback' && init.method !== 'POST'))
       throw new Error('현재 공원에서 사용할 수 없는 요청입니다.')
     const signals = [this.bootAbort?.signal, init.signal].filter((s): s is AbortSignal => !!s)
@@ -732,15 +732,17 @@ export class ParkRuntime implements ParkRuntimePort {
   checkResult = () =>
     this.action(async () => {
       const s = useGame.getState()
+      const own = useSession.getState(), gameId = s.permittedGameId || s.completedGameId
       if (
-        !s.permittedGameId ||
-        s.game?.role !== 'PLAYER' ||
-        gameState(s.game).status !== 'FINISHED'
+        !gameId || !own.sessionId || !own.tableId ||
+        !own.tableStates[own.tableId]?.seats.some(seat => seat.userId === own.sessionId) ||
+        s.watchedGameId || s.game?.role === 'SPECTATOR' ||
+        (s.start?.tableId && s.start.tableId !== own.tableId)
       )
         throw new Error('본인이 참가한 종료 경기만 확인할 수 있습니다.')
       await this.socket.request(
         'GAME_RESULT_CHECK',
-        { gameSessionId: s.permittedGameId },
+        { gameSessionId: gameId },
         ['GAME_RESULT'],
       )
     })
