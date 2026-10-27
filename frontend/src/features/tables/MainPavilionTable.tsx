@@ -109,7 +109,7 @@ function clothTexture() {
   texture.needsUpdate = true
   return texture
 }
-export function MainPavilionTable() {
+export function MainPavilionTable({ seatCount = 4 }: { seatCount?: number }) {
   const cloth = useMemo(clothTexture, [])
   useEffect(() => () => cloth.dispose(), [cloth])
   return (
@@ -175,7 +175,7 @@ export function MainPavilionTable() {
           roughness={0.72}
         />
       </mesh>
-      <MainTableChairs />
+      <MainTableChairs seatCount={seatCount} />
     </group>
   )
 }

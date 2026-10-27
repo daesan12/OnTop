@@ -49,6 +49,8 @@ import { PublicGameWatcher } from '../../features/tableLobby/PublicGameWatcher'
 import { FollowClient } from '../../features/follow/serverClient'
 import { bindFollowService, followService } from '../../features/follow/service'
 import { useTableLobby, resetSeatedLook } from '../../features/tableLobby/state'
+import { TabletLobbyClient } from '../../features/tableLobby/TabletLobbyClient'
+import { TABLET_ENABLED } from '../../features/tableLobby/tabletFeature'
 import {
   avatars,
   cancelAvatarEmote,
@@ -120,6 +122,8 @@ export class ParkRuntime implements ParkRuntimePort {
     closed: (code) => this.closed(code),
     error: (message) => this.report(message),
   })
+  private tablet = new TabletLobbyClient({ connected: () => this.active && this.socket.connected,
+    request: (type, payload, expected) => this.socket.request(type, payload, expected), action: job => this.action(job) })
   private worldTime = new WorldTimeClient({
     request: (type, payload, expected, onId) => this.socket.request(type, payload, expected, onId),
   })
@@ -199,6 +203,7 @@ export class ParkRuntime implements ParkRuntimePort {
       })
   }
   private authEnded() {
+    this.tablet.end()
     this.mapReady = false
     this.worldTime.reset()
     this.forfeitRequests.clear()
@@ -280,11 +285,13 @@ export class ParkRuntime implements ParkRuntimePort {
   start() {
     if (this.active) return
     this.active = true
+    if (TABLET_ENABLED) this.tablet.begin()
     bindFollowService(this.follow)
     this.retryCount = 0
     void this.boot()
   }
   private async boot() {
+    if (TABLET_ENABLED) this.tablet.reset(true)
     this.mapReady = false
     this.worldTime.reset()
     interruptForfeit()
@@ -336,6 +343,7 @@ export class ParkRuntime implements ParkRuntimePort {
     }
   }
   async stop() {
+    this.tablet.end()
     this.mapReady = false
     this.worldTime.reset()
     this.forfeitRequests.clear()
@@ -354,6 +362,7 @@ export class ParkRuntime implements ParkRuntimePort {
     await closing
   }
   private closed(code: number) {
+    if (TABLET_ENABLED) this.tablet.reset(true)
     this.mapReady = false
     this.worldTime.reset()
     interruptForfeit()
@@ -438,6 +447,7 @@ export class ParkRuntime implements ParkRuntimePort {
       })
       throw error
     }
+    if (TABLET_ENABLED) this.tablet.accept(message)
     if ((message.type === 'ERROR' && message.requestId === null || message.type === 'GAME_WATCH_LEFT' && message.requestId === null)
       && this.spectatorIntent && !useGame.getState().watchedGameId && useTableLobby.getState().spectatorStatus === 'watching')
       this.spectator.revoked('경기 관전 권한이 종료됐어요. 다시 연결해주세요.')

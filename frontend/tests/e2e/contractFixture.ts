@@ -42,6 +42,8 @@ export async function fixture(
     anchorId?: string
     publicSpectator?: boolean
     forfeit?: boolean
+    manualLobby?: boolean
+    tabletServer?: boolean
     serverTimeOffsetMs?: number
     mapVerificationRequired?: boolean
     rejectMapConfirmation?: boolean
@@ -84,7 +86,9 @@ export async function fixture(
   let rejectGameWatch = false
   let watchingGame = false
   let watchMode: 'normal' | 'reject' | 'hold' = 'normal', watchRequestId = '', selectorOverride: string | undefined, targetScore: number | null = null
+  let tabletManual = false, tabletStartHold = false, waitRevision = 0, waitExpiresAt: number | null = null
   let betAmountPerPlayer: number | null = options.publicSpectator ? 1 : null
+  let tabletCount = 2, tabletOthersReady = false
   let seated = false,
     rejectChat = false
   let gameCode: string | null = null,
@@ -339,13 +343,15 @@ export async function fixture(
         payload: {
           tableId,
           version: ++version,
-          capacity: options.m09 && !['OMOK', 'DICE'].includes(gameCode ?? '') ? 4 : 2,
+          capacity: options.manualLobby ? tabletCount : options.m09 && !['OMOK', 'DICE'].includes(gameCode ?? '') ? 4 : 2,
           minimumPlayers: 2,
-          seats: Array.from({ length: options.m09 && !['OMOK', 'DICE'].includes(gameCode ?? '') ? 4 : 2 }, (_, i) => ({
-            seatNumber: i + 1, userId: i === 0 ? seated ? '101' : null : i === 1 ? '102' : null,
-            ready: i === 0 ? ready : i === 1 && options.omok ? ready : false,
+          seats: Array.from({ length: options.manualLobby ? tabletCount : options.m09 && !['OMOK', 'DICE'].includes(gameCode ?? '') ? 4 : 2 }, (_, i) => ({
+            seatNumber: i + 1, userId: i === 0 ? seated ? '101' : null : options.manualLobby ? String(101 + i) : i === 1 ? '102' : null,
+            ready: i === 0 ? ready : options.manualLobby ? tabletOthersReady : i === 1 && options.omok ? ready : false,
           })),
-          allReady: ready,
+          allReady: ready && (!options.manualLobby || tabletOthersReady),
+          selectedPlayers: tabletManual ? tabletCount : null,
+          startMode: tabletManual ? 'MANUAL' : 'AUTO',
           selectorUserId: selectorOverride ?? (seated ? '101' : '102'),
           gameCode,
           targetScore,
@@ -561,6 +567,28 @@ export async function fixture(
         )
         world(ws)
       }
+      if (type === 'TABLE_CONFIGURE') {
+        if (!options.tabletServer) emit(ws, 'ERROR', { code: 'UNSUPPORTED_MESSAGE', message: '태블릿 설정 연결이 준비되지 않았습니다.' }, requestId)
+        else {
+          gameCode = String(payload.gameCode); tabletCount = Number(payload.selectedPlayers); targetScore = payload.targetScore ?? null
+          betAmountPerPlayer = Number(payload.betAmountPerPlayer); tabletManual = true; ready = false; tabletOthersReady = false
+          if (options.dice && gameCode === 'DICE') diceState = { ...diceState, targetScore: targetScore ?? 4000 }
+          waitExpiresAt = null; waitRevision++
+          table(ws, 'TABLE_STATE', requestId); start(ws, 'WAITING')
+        }
+      }
+      if (type === 'TABLE_HOST_WAIT_CHECK') emit(ws, 'TABLE_HOST_WAIT_STATE', {
+        tableId, epoch: 'fixture-tablet-server', revision: waitRevision, tableVersion: version,
+        hostUserId: selectorOverride ?? '101', serverNow: Date.now(), expiresAt: waitExpiresAt,
+        cancelReason: waitExpiresAt === null ? 'NOT_READY' : null,
+      }, requestId)
+      if (type === 'TABLE_START' && options.tabletServer && !tabletStartHold) {
+        started = true; waitExpiresAt = null; waitRevision++
+        resultBet = betAmountPerPlayer ?? 1; resultStatus = 'FINISHED'; resultReason = 'NORMAL'; resultVersion = 1; settled = false
+        gameDeadline = new Date(Date.now() + 30000).toISOString()
+        if (options.onecard) cardState = { ...cardState, turnDeadline: gameDeadline }
+        start(ws, 'PLAYING', requestId); game(ws); recovery(ws)
+      }
       if (options.omok && type === 'GAME_SELECT') {
         gameCode = String(payload.gameCode)
         targetScore = payload.targetScore ?? null
@@ -573,10 +601,10 @@ export async function fixture(
       if (options.omok && type === 'READY_SET') {
         ready = payload.ready
         table(ws, 'TABLE_STATE', requestId)
-        if (ready) start(ws, 'STARTING')
+        if (ready && !options.manualLobby) start(ws, 'STARTING')
       }
       if (options.omok && type === 'GAME_START_CHECK')
-        start(ws, started ? 'PLAYING' : 'STARTING', requestId)
+        start(ws, started ? 'PLAYING' : options.tabletServer ? 'WAITING' : 'STARTING', requestId)
       if (options.omok && type === 'GAME_STATE_CHECK') game(ws, requestId)
       if (options.omok && type === 'GAME_RECONNECT_CHECK') recovery(ws, requestId)
       if (options.forfeit && type === 'GAME_FORFEIT') {
@@ -699,6 +727,40 @@ export async function fixture(
     watchMode: (mode: typeof watchMode) => { watchMode = mode },
     replyWatch: () => table(sockets.at(-1)!, 'TABLE_WATCH_STATE', watchRequestId),
     host: (id: string) => { selectorOverride = id; table(sockets.at(-1)!, 'TABLE_STATE', null) },
+    configureTablet: (selection: { gameCode: string; playerCount: number; betAmountPerPlayer: number; targetScore?: number }) => {
+      tabletManual = true
+      gameCode = selection.gameCode; tabletCount = selection.playerCount; betAmountPerPlayer = selection.betAmountPerPlayer
+      targetScore = selection.targetScore ?? null; ready = false; tabletOthersReady = false
+      table(sockets.at(-1)!, 'TABLE_STATE', null); start(sockets.at(-1)!, 'WAITING')
+    },
+    readyTabletOthers: (value: boolean) => { tabletOthersReady = value; table(sockets.at(-1)!, 'TABLE_STATE', null) },
+    holdTabletStart: (hold: boolean) => { tabletStartHold = hold },
+    publishTabletWait: (seconds: number | null) => {
+      waitExpiresAt = seconds === null ? null : Date.now() + seconds * 1000; waitRevision++
+      emit(sockets.at(-1)!, 'TABLE_HOST_WAIT_STATE', { tableId, epoch: 'fixture-tablet-server', revision: waitRevision,
+        tableVersion: version, hostUserId: selectorOverride ?? '101', serverNow: Date.now(), expiresAt: waitExpiresAt,
+        cancelReason: waitExpiresAt === null ? 'NOT_READY' : null })
+    },
+    timeoutTabletHost: (previousHost: string, nextHost: string | null) => {
+      if (!options.manualLobby) throw new Error('수동 로비 계약 fixture에서만 사용합니다.')
+      ready = false; tabletOthersReady = false; selectorOverride = nextHost ?? undefined
+      if (previousHost === '101') {
+        seated = false
+        emit(sockets.at(-1)!, 'TABLE_LEFT', { tableId, reason: 'HOST_START_TIMEOUT' })
+        world(sockets.at(-1)!)
+      } else table(sockets.at(-1)!, 'TABLE_STATE', null, {
+        selectorUserId: nextHost,
+        seats: Array.from({ length: tabletCount }, (_, i) => ({ seatNumber: i + 1,
+          userId: String(101 + i) === previousHost ? null : String(101 + i), ready: false })),
+      })
+      return version
+    },
+    notifyTabletTimeout: (previousHost: string, nextHost: string | null) => {
+      waitRevision++
+      emit(sockets.at(-1)!, 'TABLE_HOST_TIMEOUT', { tableId, epoch: 'fixture-tablet-server', eventId: `fixture-timeout-${waitRevision}`,
+        revision: waitRevision, tableVersion: version, previousHostUserId: previousHost, nextHostUserId: nextHost,
+        reason: 'HOST_START_TIMEOUT', serverNow: Date.now() })
+    },
     confirmStart: () => {
       started = true
       resultBet = betAmountPerPlayer ?? 1

@@ -43,7 +43,7 @@ export function gatheringModel({ table, ownId, game, result, start, nickname }: 
   const endReason = result?.endReason ?? publicState?.endReason
   const settled = result?.settlementStatus === 'SETTLED'
   return {
-    finished, tableId: table.tableId, gameCode: code, playable: TABLE_GAMES.some(g => g.code === code && g.playable),
+    finished, invalid, tableId: table.tableId, gameCode: code, playable: TABLE_GAMES.some(g => g.code === code && g.playable),
     scope: `${table.tableId}/${game?.gameId ?? result?.gameSessionId ?? 'lobby'}/${finished ? 'result' : start?.phase ?? 'WAITING'}`,
     title: finished ? '경기 결과' : '함께 한 판', gameName: TABLE_GAMES.find(g => g.code === code)?.name ?? '게임을 선택해 주세요',
     headline: !finished ? `준비 ${table.seats.filter(s => s.userId && s.ready).length} / ${table.seats.filter(s => s.userId).length}명`

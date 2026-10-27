@@ -1,4 +1,8 @@
 import { gatheringCameraActive } from '../features/tableLobby/gathering'
+import { tabletLobbyActive } from '../features/tableLobby/tabletModel'
+import { TABLET } from '../features/tableLobby/tabletProjection'
+import { renderedTableAnchors } from '../features/tableLobby/tabletAnchors'
+import { TABLET_ENABLED } from '../features/tableLobby/tabletFeature'
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { Matrix4, PerspectiveCamera, Quaternion, Raycaster, SkinnedMesh, Vector3, type Object3D } from 'three'
@@ -237,7 +241,7 @@ export function CameraRig() {
       (game.role === 'SPECTATOR' || game.omok.turnUserId === session.sessionId)
     const ownOmok = seated && !!avatar.tableId && (session.tableStates[session.tableId]?.gameCode === 'OMOK'
       || game?.role === 'PLAYER' && !!game.omok)
-    const gathering = gatheringCameraActive()
+    const gathering = !TABLET_ENABLED && gatheringCameraActive()
     const focusedOmok = boardFocus && ownOmok && !gathering
     if (focusedOmok) {
       camera.layers.set(OMOK_FOCUS_LAYER)
@@ -255,7 +259,20 @@ export function CameraRig() {
       state.look,
       1 - Math.exp(-CAMERA.followSpeed * Math.min(delta, 0.1)),
     )
-    if (gathering) {
+    const tablet = tabletLobbyActive()
+    if (tablet) {
+      const anchor = renderedTableAnchors.get(avatar.tableId) ?? TABLES.find(t => t.id === avatar.tableId)
+      if (anchor) {
+        const seat = tableSeats(anchor)[session.seatIndex] ?? tableSeats(anchor)[0]!
+        const yaw = Math.atan2(seat.x, seat.z), scale = tableScale(anchor)
+        const aspect = camera instanceof PerspectiveCamera ? camera.aspect : 1.6
+        const distance = 1.65 * scale * Math.max(1, 1.6 / aspect)
+        const centerY = anchor.position[1] + 1.06 + (TABLET.y - 1.06) * scale
+        state.look.set(anchor.position[0], centerY, anchor.position[2])
+        state.desired.set(anchor.position[0] + Math.sin(yaw) * distance,
+          centerY + .19 * scale, anchor.position[2] + Math.cos(yaw) * distance)
+      }
+    } else if (gathering) {
       const anchor = TABLES.find(t => t.id === avatar.tableId)
       if (anchor) {
         const seat = tableSeats(anchor)[session.seatIndex] ?? tableSeats(anchor)[0]!
@@ -374,7 +391,7 @@ export function CameraRig() {
       )
       state.look.copy(center)
     }
-    const targetFov = gathering ? ownOmok ? 60 : CAMERA.fov : diceFocus ? DICE_CAMERA.fov : boardFocus || spectatorBoard ? GOMOKU.topDownFov : seated ? GOMOKU.seatedFov : CAMERA.fov
+    const targetFov = tablet ? 43 : gathering ? ownOmok ? 60 : CAMERA.fov : diceFocus ? DICE_CAMERA.fov : boardFocus || spectatorBoard ? GOMOKU.topDownFov : seated ? GOMOKU.seatedFov : CAMERA.fov
     const smoothingOmok = ownOmok || state.omokTransition
     const smoothingDice = ownDice || state.diceTransition
     const smoothingBoard = smoothingOmok || smoothingDice

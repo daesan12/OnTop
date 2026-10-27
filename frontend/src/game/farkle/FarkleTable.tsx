@@ -14,6 +14,7 @@ import { diceSound, unlockDiceSound } from './sound'
 import { BoneDie, LeatherCup, OakTray, farkleArt } from './art/FarkleProps'
 import { DIE_REST_Y, FARKLE_VISUAL } from './presentation'
 import { createCupPour, sampleCupPour, sampleDiePour, dieFlightProgress, POUR, type CupPour } from './pour'
+import { TABLET_ENABLED } from '../../features/tableLobby/tabletFeature'
 
 // Matches the original six-face bone atlas, with opposite faces summing to seven.
 const normals = [new Vector3(0, 1, 0), new Vector3(0, 0, 1), new Vector3(1, 0, 0), new Vector3(-1, 0, 0), new Vector3(0, 0, -1), new Vector3(0, -1, 0)]
@@ -52,6 +53,7 @@ export function FarkleTable({ anchor }: { anchor: TableAnchor }) {
   const relevant = !!binding && !!g && (session.tableId === binding.tableId || (g.role === 'SPECTATOR' && session.watchedTableId === binding.tableId))
   const selected = !!binding && session.tableStates[binding.tableId]?.gameCode === 'DICE'
   if (!relevant && !selected) return null
+  if (TABLET_ENABLED && !relevant) return null
   return <FarkleSurface anchor={anchor} game={relevant ? g : null} />
 }
 function FarkleSurface({ anchor, game }: { anchor: TableAnchor; game: DiceGame | null }) {

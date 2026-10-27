@@ -13,11 +13,15 @@ import { OmokBoard } from '../../game/OmokBoard'
 import { FarkleTable } from '../../game/farkle/FarkleTable'
 import { OneCardBoard } from '../../game/onecard/OneCardBoard'
 import { BridgeBoard } from '../../game/bridge/BridgeBoard'
+import { usePresentedChairCount } from '../tableLobby/useTablePresentation'
 
 /** Stable game/seat anchors survive replacement of the visual table subtree. */
-export function TableShell({ anchor }: { anchor: TableAnchor }) {
+export function TableShell({ anchor, onInspect = parkRuntime.inspectTable }: {
+  anchor: TableAnchor; onInspect?: (id: string) => void
+}) {
   const fourSeats = true
   const mainPavilion = anchor.pavilionId === 'P0'
+  const seatCount = usePresentedChairCount(anchor)
   const parts = useMemo(() => {
     const stone: Part[] = [
       { p: [0, 0.99, 0], s: [2.1, 0.14, 1.6], c: '#c7c6b9' },
@@ -31,12 +35,12 @@ export function TableShell({ anchor }: { anchor: TableAnchor }) {
         supports.push({ p: [x, 0.2, z], s: [0.28, 0.4, 0.43], c: '#545e57' })
     }
     if (fourSeats)
-      for (const { x, z } of TABLE_SEATS.slice(2)) {
+      for (const { x, z } of TABLE_SEATS.slice(2, seatCount)) {
         stone.push({ p: [x, 0.48, z], s: [0.52, 0.16, 0.85], c: '#c3c3b7' })
         supports.push({ p: [x, 0.2, z], s: [0.32, 0.4, 0.6], c: '#545e57' })
       }
     return { stone, supports }
-  }, [fourSeats])
+  }, [fourSeats, seatCount])
   return (
     <group
       scale={[tableScale(anchor), 1, tableScale(anchor)]}
@@ -45,15 +49,15 @@ export function TableShell({ anchor }: { anchor: TableAnchor }) {
       userData={{ assetId: anchor.assetId }}
       onClick={(event) => {
         event.stopPropagation()
-        parkRuntime.inspectTable(anchor.id)
+        onInspect(anchor.id)
       }}
     >
       {anchor.picnicId ? (
-        <StonePicnicTable />
+        <StonePicnicTable seatCount={seatCount} />
       ) : mainPavilion ? (
-        <MainPavilionTable />
+        <MainPavilionTable seatCount={seatCount} />
       ) : anchor.pavilionId ? (
-        <PavilionWoodTable />
+        <PavilionWoodTable seatCount={seatCount} />
       ) : (
         <>
           <Instances

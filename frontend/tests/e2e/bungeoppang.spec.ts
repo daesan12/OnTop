@@ -83,17 +83,17 @@ test('M14 original six-slot controls, actual 60s, same-key/result retries, serve
     if (!captured && s.t > 9000) { await screenshot(page, 'm14-original-six-slot-cooking'); captured = true }
     await page.waitForTimeout(100)
   }
-  await expect(page.getByRole('region', { name: '결과', exact: true })).toBeVisible({ timeout: 6000 })
-  await expect(page.getByRole('button', { name: '다시 시도', exact: true })).toBeVisible()
-  await expect(page.getByRole('button', { name: '다시 하기', exact: true })).toBeDisabled()
+  await expect(page.getByRole('dialog', { name: '붕어빵 결과', exact: true })).toBeVisible({ timeout: 6000 })
+  await expect(page.getByRole('button', { name: '같은 결과 다시 확인', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: '다시 도전', exact: true })).toBeDisabled()
   server.failWallet('WALLET_UNAVAILABLE')
-  await page.getByRole('button', { name: '다시 시도', exact: true }).click()
-  await expect(page.getByRole('region', { name: '결과', exact: true })).toContainText('서버 정산 완료')
+  await page.getByRole('button', { name: '같은 결과 다시 확인', exact: true }).click()
+  await expect(page.getByRole('dialog', { name: '붕어빵 결과', exact: true })).toContainText('서버 정산 완료')
   const completed = server.requests.filter(r => r.path.endsWith('/complete'))
   expect(completed).toHaveLength(2); expect(completed[0]).toEqual(completed[1])
   const result = (await state(page)).result!
   expect(result.made).toBe(4); expect(result.score).toBeGreaterThan(0)
-  await expect(page.getByRole('region', { name: '결과', exact: true })).toContainText('지갑 잔액을 새로 확인하지 못했어요')
+  await expect(page.getByRole('dialog', { name: '붕어빵 결과', exact: true })).toContainText('지갑 잔액을 새로 확인하지 못했어요')
   await expect(page.getByLabel('내 정보')).toContainText('100냥')
   const walletReads = server.walletReads
   server.failWallet(null)
@@ -105,7 +105,7 @@ test('M14 original six-slot controls, actual 60s, same-key/result retries, serve
   await screenshot(page, 'm14-server-result')
   const moving = server.sent.filter(m => m.type === 'WORLD_MOVE' && (m.payload.dx || m.payload.dz || m.payload.jump))
   expect(moving).toHaveLength(0)
-  await page.getByRole('button', { name: '다시 하기', exact: true }).click()
+  await page.getByRole('button', { name: '다시 도전', exact: true }).click()
   await expect(page.locator('.bung-root')).toHaveAttribute('data-phase', 'countdown')
   const next = server.requests.filter(r => r.method === 'POST' && r.path.endsWith('/sessions')).at(-1)!
   expect(next.key).not.toBe(starts[0]!.key)
