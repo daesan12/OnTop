@@ -6,6 +6,8 @@ BE의 확정 명세 [tablet-lobby-api.md](../../docs/tablet-lobby-api.md)를 반
 
 기존 기본 dev/build는 AUTO UI를 유지하고, `dev:tablet`/`build:tablet`은 실제 BE 수동 시작 어댑터가 연결된 새 UI다. 현재 브랜치는 코드·WS fixture 검증이며 배포된 BE/실제 DB를 사용한 다중 계정 공동 검수 완료를 의미하지 않는다.
 
+새로 요청할 BE 구현은 없다. 공동 검수에서는 선택 정원/주사위 목표/판돈 공유, 전원 준비 후 수동 시작, 준비 취소 시 타이머 취소, 서버 120초 만료와 기존 방장 좌석 해제/새 방장 방송, 재접속 시 기존 만료 시각 복원, 정산 완료 후 승자·무승부 방장 승계를 실제 계정으로 함께 확인하면 된다. 현재 통합 기준과 FE 검증 결과는 [TABLET_LOBBY_HANDOFF.md](./TABLET_LOBBY_HANDOFF.md)의 10/27 절을 참고한다.
+
 **아래 내용은 10/26 당시 요청·미연결 상태의 기록이다. 현재 메시지와 정책의 기준은 위 확정 명세다.** 서버 재시작 시 대기석/타이머는 비우고, MANUAL 대기석의 일반 재접속은 서버의 30초 유예와 기존 절대 만료 시각을 따른다. 결과 승계 예외는 BE가 확정한 WIN/DRAW 후보 및 INVALID/승자 부재 시 남은 인원 추첨 정책을 사용한다.
 
 2026-10-26 KST · 확인 기준: dev `bde4bce` · FE 브랜치 `feat/frontend-tablet-lobby`
