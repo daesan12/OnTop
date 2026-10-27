@@ -112,6 +112,15 @@ FE가 확인 요청을 연결하고 양쪽 실제 맵이 일치하는 것을 검
 새 맵·시설 좌표·버전을 함께 생성/배포하는 작업과 구분하며 현재 자료만으로 서비스 맵을 전환하지 않는다.
 DB 스키마·인증·판돈 예약/정산은 변경하지 않는다.
 
+2026-10-26 `dev` 0b0f275의 FE와 대조한 전환 조건:
+
+- `SpringParkRuntime`은 CONNECTED 후 CHANNEL_JOIN을 요청하며 WORLD_MAP_CONFIRM은 아직 전송하지 않는다.
+  현재 FE와 연결하는 서버는 require-match=false를 유지한다. true를 먼저 켜면 MAP_VERSION_REQUIRED로 입장이 거절된다.
+- FE `config/mapVersion.ts`는 기존 schema1 맵 버전을 사용한다. 새 공원 코드·환경별 테이블 매핑·
+  WORLD_MAP_CONFIRM → WORLD_MAP_STATE 확인을 FE에 함께 반영하고 재접속마다 다시 확인해야 한다.
+- 기존 맵의 실제 FE SharedSocket/FollowClient/worldClient 연동 통과는 새 맵의 ParkRuntime/3D 공동 검수와 다르다.
+  generated 선택은 require-match=true가 필수이므로 위 FE 연결 전에는 활성화하지 않는다.
+
 ## 생성 맵 사전 로딩·무결성 검사
 
 `GeneratedParkMapLoader.load(mapFile, manifestFile)`는 명시적으로 전달한 두 로컬 파일을 검사한다.

@@ -17,6 +17,7 @@ import { CameraRig } from './CameraRig'
 
 import { Avatars } from './Avatars'
 import { FollowRopes } from '../features/follow/FollowRopes'
+import { RouteArrows } from '../features/navigation/RouteArrows'
 import { AvatarOverlays, type OverlayTargets } from './AvatarOverlays'
 import { PerformanceProbe } from '../performance/PerformanceProbe'
 import { AdaptiveResolution } from '../performance/AdaptiveResolution'
@@ -146,6 +147,7 @@ export const WorldCanvas = memo(function WorldCanvas({
         </Suspense>
         <Avatars overlayTargets={overlayTargets} />
         <FollowRopes />
+        <RouteArrows />
         <TableGathering />
         <BungeoppangGrill />
 

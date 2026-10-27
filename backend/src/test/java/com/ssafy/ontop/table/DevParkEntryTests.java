@@ -56,7 +56,7 @@ class DevParkEntryTests {
             String channel = items.get(0).path("channelId").asText();
             var tables = get(http, "/api/v1/tables?channelId=" + channel, true);
             assertThat(tables.statusCode()).isEqualTo(200);
-            assertThat(mapper.readTree(tables.body()).path("tables")).hasSize(2);
+            assertThat(mapper.readTree(tables.body()).path("tables")).hasSize(16);
 
             var ticket = http.send(request("/api/v1/auth/websocket-ticket", true)
                     .POST(HttpRequest.BodyPublishers.noBody()).build(), HttpResponse.BodyHandlers.ofString());

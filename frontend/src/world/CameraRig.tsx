@@ -1,7 +1,7 @@
 import { gatheringCameraActive } from '../features/tableLobby/gathering'
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
-import { Matrix4, PerspectiveCamera, Quaternion, Vector3 } from 'three'
+import { Matrix4, PerspectiveCamera, Quaternion, Raycaster, SkinnedMesh, Vector3, type Object3D } from 'three'
 import { bungeoppangView } from '../features/bungeoppang/bungeoppangView'
 import { CAMERA, CHARACTER, GOMOKU, TABLES, TELESCOPE, TELESCOPES, telescopeFov, groundHeight, tableScale, tableSeats } from '../config'
 import { telescopeView } from '../features/telescopeView'
@@ -25,6 +25,35 @@ import { useFeedbackState } from '../features/feedback/state'
 import { useNotesState } from '../features/notes/state'
 import { benchBoardLook, benchLook, benchTable, benchViewScope, spectatorClearHeight, useBenchSpectator } from '../features/interactions/benchSpectator'
 import { advanceOmokCamera, OMOK_FOCUS_LAYER, omokTopDownHeight } from './omokCamera'
+import { wardrobeView } from '../features/wardrobe/view'
+
+/** Whole-figure framing used by the wardrobe zoom (the avatar plus a little headroom). */
+const WARDROBE_FRAME = { height: CHARACTER.height * 1.08, minDistance: 1.4, maxDistance: 5 }
+const turnToward = (from: number, to: number, t: number) => from + (Math.atan2(Math.sin(to - from), Math.cos(to - from))) * t
+const sightline = new Raycaster(), sightFrom = new Vector3(), sightTo = new Vector3()
+/** Front first, then gradually round the avatar: the first angle whose camera sees feet, waist and head unblocked
+ * (a stone table or a tree right in front would otherwise fill the zoomed view). */
+function clearWardrobeYaw(scene: Object3D, feet: Vector3, facing: number, camera: (yaw: number, out: Vector3) => Vector3) {
+  for (const step of [0, 1, -1, 2, -2, 3, -3, 4]) {
+    const yaw = facing + step * Math.PI / 4
+    camera(yaw, sightTo)
+    const blocked = [0.2, 0.7, 1.2].some(height => {
+      sightFrom.set(feet.x, feet.y + height * CHARACTER.height / 1.4, feet.z)
+      const length = sightFrom.distanceTo(sightTo)
+      sightline.set(sightFrom, sightTo.clone().sub(sightFrom).normalize())
+      sightline.far = length
+      return sightline.intersectObjects(scene.children, true).some(hit => hit.object.visible && !(hit.object instanceof SkinnedMesh))
+    })
+    if (!blocked) return yaw
+  }
+  return facing
+}
+/** Camera distance at which the whole figure fills the wardrobe stage. */
+function wardrobeFrame(camera: PerspectiveCamera) {
+  const tan = Math.tan(camera.fov * Math.PI / 360)
+  return { tan, close: Math.min(WARDROBE_FRAME.maxDistance, Math.max(WARDROBE_FRAME.minDistance,
+    WARDROBE_FRAME.height / (2 * tan * wardrobeView.fill))) }
+}
 
 export function CameraRig() {
   const { gl, camera: mountedCamera, raycaster } = useThree()
@@ -45,6 +74,7 @@ export function CameraRig() {
       bungeoppangFov: null as number | null,
       rotation: new Quaternion(), targetRotation: new Quaternion(),
       targetUp: new Vector3(0, 1, 0), lookMatrix: new Matrix4(), omokTransition: false, diceTransition: false,
+      center: new Vector3(), pan: new Vector3(), feet: new Vector3(),
     }),
     [],
   )
@@ -80,6 +110,8 @@ export function CameraRig() {
     camera.layers.set(0)
     raycaster.layers.set(0)
     scan.current += delta
+    wardrobeView.blend += (Number(wardrobeView.active) - wardrobeView.blend) * (1 - Math.exp(-5 * Math.min(delta, 0.1)))
+    if (Math.abs(Number(wardrobeView.active) - wardrobeView.blend) < 0.001) wardrobeView.blend = Number(wardrobeView.active)
     if (scan.current >= 0.5) {
       const park = scene.getObjectByName('placeholder-park')
       if (park) occlusion.refresh(park)
@@ -149,7 +181,7 @@ export function CameraRig() {
       return
     }
     if (state.bungeoppangFov !== null && camera instanceof PerspectiveCamera) {
-      camera.fov += (state.bungeoppangFov - camera.fov) * (1 - Math.exp(-7 * delta))
+      camera.fov += (state.bungeoppangFov - camera.fov) * (1 - Math.exp(-24 * delta))
       if (performance.now() >= bungeoppangView.returningUntil) {
         camera.fov = state.bungeoppangFov; state.bungeoppangFov = null
       }
@@ -299,17 +331,48 @@ export function CameraRig() {
         state.desired.z - Math.cos(viewControls.yaw) * Math.cos(viewControls.pitch),
       )
     } else {
-      const horizontal = viewControls.distance * Math.cos(viewControls.pitch)
+      if (wardrobeView.chooseClearView && wardrobeView.active && camera instanceof PerspectiveCamera) {
+        wardrobeView.chooseClearView = false
+        wardrobeView.aim ??= { yaw: viewControls.yaw, pitch: viewControls.pitch }
+        const { tan, close } = wardrobeFrame(camera), pitch = wardrobeView.aim.pitch
+        const feet = state.feet.set(pose.x, pose.y - 0.8, pose.z)
+        const side = -wardrobeView.x * close * tan * camera.aspect, lift = -wardrobeView.y * close * tan
+        wardrobeView.aim.yaw = clearWardrobeYaw(scene, feet, wardrobeView.aim.yaw, (yaw, out) => out.set(
+          feet.x + Math.cos(yaw) * side + Math.sin(yaw) * Math.cos(pitch) * close,
+          feet.y + CHARACTER.height / 2 + lift + Math.sin(pitch) * close,
+          feet.z - Math.sin(yaw) * side + Math.cos(yaw) * Math.cos(pitch) * close))
+      }
+      const aim = wardrobeView.aim
+      if (aim) {
+        const t = 1 - Math.exp(-6 * Math.min(delta, 0.1))
+        viewControls.yaw = turnToward(viewControls.yaw, aim.yaw, t)
+        viewControls.pitch += (aim.pitch - viewControls.pitch) * t
+        if (Math.abs(Math.sin(aim.yaw - viewControls.yaw)) < 0.002 && Math.abs(aim.pitch - viewControls.pitch) < 0.002) wardrobeView.aim = null
+      }
+      const center = state.center.copy(state.focus)
+      let distance = viewControls.distance
+      const w = wardrobeView.blend
+      if (w > 0 && camera instanceof PerspectiveCamera) {
+        // Zoom until the whole figure fills the stage, then slide it beside the wardrobe panel.
+        const { tan, close } = wardrobeFrame(camera)
+        distance += (close - distance) * w
+        center.y += (pose.y - 0.8 + CHARACTER.height / 2 - center.y) * w
+        const halfHeight = distance * tan, halfWidth = halfHeight * camera.aspect
+        state.pan.set(Math.cos(viewControls.yaw), 0, -Math.sin(viewControls.yaw)).multiplyScalar(-wardrobeView.x * halfWidth * w)
+        state.pan.y = -wardrobeView.y * halfHeight * w
+        center.add(state.pan)
+      }
+      const horizontal = distance * Math.cos(viewControls.pitch)
       state.desired.set(
-        state.focus.x + Math.sin(viewControls.yaw) * horizontal,
-        state.focus.y + viewControls.distance * Math.sin(viewControls.pitch),
-        state.focus.z + Math.cos(viewControls.yaw) * horizontal,
+        center.x + Math.sin(viewControls.yaw) * horizontal,
+        center.y + distance * Math.sin(viewControls.pitch),
+        center.z + Math.cos(viewControls.yaw) * horizontal,
       )
       state.desired.y = Math.max(
         state.desired.y,
         groundHeight(state.desired.x, state.desired.z) + 0.3,
       )
-      state.look.copy(state.focus)
+      state.look.copy(center)
     }
     const targetFov = gathering ? ownOmok ? 60 : CAMERA.fov : diceFocus ? DICE_CAMERA.fov : boardFocus || spectatorBoard ? GOMOKU.topDownFov : seated ? GOMOKU.seatedFov : CAMERA.fov
     const smoothingOmok = ownOmok || state.omokTransition
@@ -325,14 +388,14 @@ export function CameraRig() {
       if (smoothingDice) state.diceTransition = ownDice || !omokSettled
     } else {
       if (firstPerson && performance.now() >= bungeoppangView.returningUntil) camera.position.copy(state.desired)
-      else camera.position.lerp(state.desired, 1 - Math.exp(-12 * Math.min(delta, 0.1)))
+      else camera.position.lerp(state.desired, 1 - Math.exp(-(performance.now() < bungeoppangView.returningUntil ? 24 : 12) * Math.min(delta, 0.1)))
     }
     if (!firstPerson && !seated && !watchedAnchor) constrainRoamingCamera(camera.position)
     if (!smoothingBoard) {
       if (performance.now() < bungeoppangView.returningUntil) {
         state.rotation.copy(camera.quaternion)
         camera.lookAt(state.look); state.targetRotation.copy(camera.quaternion)
-        camera.quaternion.slerpQuaternions(state.rotation, state.targetRotation, 1 - Math.exp(-7 * delta))
+        camera.quaternion.slerpQuaternions(state.rotation, state.targetRotation, 1 - Math.exp(-24 * delta))
       } else camera.lookAt(state.look)
     }
     diceCamera.ready = diceFocus ? omokSettled : !!(spectatorBoard && game?.dice) && camera.position.distanceTo(state.desired) < .005

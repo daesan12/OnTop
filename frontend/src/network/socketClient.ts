@@ -18,7 +18,7 @@ export class ServerError extends Error {
   }
 }
 interface Dependencies {
-  ticket(signal: AbortSignal): Promise<string>
+  ticket(signal: AbortSignal): Promise<string | { ticket: string; expiresIn: number }>
   socket(ticket: string): SocketLike
   message(message: Envelope): void
   closed(code: number): void
@@ -45,7 +45,7 @@ export class SharedSocket {
   get connected() {
     return this.socket?.readyState === 1
   }
-  connect(): Promise<void> {
+  connect(ready: Promise<unknown> = Promise.resolve()): Promise<void> {
     if (this.opening) return this.opening
     if (this.connected) return Promise.resolve()
     const generation = ++this.generation
@@ -54,9 +54,23 @@ export class SharedSocket {
       await this.closing
       if (generation !== this.generation)
         throw new Error('연결 요청이 취소되었습니다.')
-      const ticket = await this.deps.ticket(abort.signal)
+      // Fetch the single-use ticket alongside park configuration. Do not open
+      // the socket (or receive CONNECTED) until its profile/bindings are ready.
+      const requestedAt = performance.now()
+      const [prepared] = await Promise.all([
+        this.deps.ticket(abort.signal),
+        ready,
+      ])
       if (generation !== this.generation || abort.signal.aborted)
         throw new Error('연결 요청이 취소되었습니다.')
+      let grant = prepared
+      if (typeof grant !== 'string'
+        && performance.now() - requestedAt >= Math.max(0, grant.expiresIn * 1000 - 1000)) {
+        grant = await this.deps.ticket(abort.signal)
+      }
+      if (generation !== this.generation || abort.signal.aborted)
+        throw new Error('연결 요청이 취소되었습니다.')
+      const ticket = typeof grant === 'string' ? grant : grant.ticket
       await new Promise<void>((resolve, reject) => {
         const socket = this.deps.socket(ticket)
         this.socket = socket

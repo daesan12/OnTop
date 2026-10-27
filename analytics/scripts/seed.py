@@ -16,6 +16,17 @@
 8일차(KST 2026-11-03)
 - 101: 접속 10분
 위치: 101이 스폰 후 남쪽으로 이동하다 (5, 10) 근처에서 2초 동안 막힌 뒤 멈춤, 102는 호수 가운데에서 스폰
+시설: 1일차 101·102가 bench-0 두 좌석 이용(101은 5분 뒤 하차, 102는 10분 30초 뒤 연결 끊김),
+     103은 walker-1 이용 후 종료 기록 없음, 2일차 101이 telescope-1을 1분 이용
+
+붕어빵(minigame_sessions, 행동 로그가 아닌 기능 테이블)
+- 1일차: 101 완료 2판(보상 60+40으로 일일 한도 100 도달), 102 포기 1판·완료 1판, 103 기한 초과 1판
+- 105: 1일차 23:59에 시작해 2일차 00:02에 완료(시작일과 보상일이 다름)
+- 2일차: 103 완료 1판, 101 진행 중 1판
+
+소리함(feedback_messages, 기능 테이블. 본문은 쿼리가 읽지 않으므로 고정 문구만 넣는다)
+- 1일차: 101이 one에 2건, 102가 two에 1건, 탈퇴로 회원 번호가 지워진 1건(one)
+- 103: 1일차 UTC 15:30(한국 2일차 00:30)에 two에 1건
 """
 
 import json
@@ -33,6 +44,13 @@ def build_seed() -> str:
     def event(at: str, event_type: str, user_id: int | None, *, channel: str | None = None,
               table: str | None = None, game: str | None = None, **props) -> None:
         events.append((at, event_type, user_id, channel, table, game, props))
+
+    def facility(at: str, user_id: int, lease_id: str, facility_id: str, kind: str, seat: int,
+                 end_reason: str | None = None, duration_ms: int | None = None) -> None:
+        props = dict(leaseId=lease_id, facilityId=facility_id, kind=kind, seatIndex=seat)
+        if end_reason:
+            props.update(endReason=end_reason, durationMs=duration_ms)
+        event(at, "FACILITY_RELEASED" if end_reason else "FACILITY_USED", user_id, channel="one", **props)
 
     def position(at: str, user_id: int, x: float, z: float, moving: bool) -> None:
         positions.append((at, user_id, x, z, moving))
@@ -79,6 +97,11 @@ def build_seed() -> str:
     event("2026-10-27 03:00:00", "WS_CONNECTED", 104)
     event("2026-10-27 03:01:00", "WS_DISCONNECTED", 104, reason="SOCKET_CLOSED")
     event("2026-10-27 03:30:00", "WS_CONNECTED", None)
+    facility("2026-10-27 01:10:00", 101, "lease-1", "bench-0", "BENCH", 0)
+    facility("2026-10-27 01:10:30", 102, "lease-2", "bench-0", "BENCH", 1)
+    facility("2026-10-27 01:15:00", 101, "lease-1", "bench-0", "BENCH", 0, "RELEASED", 300_000)
+    facility("2026-10-27 01:21:00", 102, "lease-2", "bench-0", "BENCH", 1, "DISCONNECTED", 630_000)
+    facility("2026-10-27 02:05:00", 103, "lease-3", "walker-1", "FITNESS", 0)
 
     # 2일차
     event("2026-10-28 00:59:00", "WS_CONNECTED", 105)
@@ -86,6 +109,8 @@ def build_seed() -> str:
     event("2026-10-28 00:59:59", "AUTH_LOGIN", 101, provider="SSAFY")
     event("2026-10-28 01:00:00", "WS_CONNECTED", 101)
     event("2026-10-28 01:00:05", "CHANNEL_JOINED", 101, channel="one", currentUsers=2)
+    facility("2026-10-28 01:00:10", 101, "lease-4", "telescope-1", "TELESCOPE", 0)
+    facility("2026-10-28 01:01:10", 101, "lease-4", "telescope-1", "TELESCOPE", 0, "RELEASED", 60_000)
     event("2026-10-28 01:01:00", "TABLE_JOINED", 105, table="t1", channel="one")
     event("2026-10-28 01:02:00", "TABLE_JOINED", 101, table="t1", channel="one")
     for user_id in (101, 105):
@@ -111,7 +136,47 @@ def build_seed() -> str:
     position("2026-10-27 01:00:16.500", 101, 5.2, 10, False)
     position("2026-10-27 01:01:05", 102, 56, -12, False)
 
-    return to_sql(events, positions)
+    return to_sql(events, positions) + feature_sql()
+
+
+def feature_sql() -> str:
+    """행동 로그 밖의 기능 테이블. 외래 키 때문에 회원을 먼저 넣는다."""
+    lines = []
+    for user_id, provider, gender in [(101, "SSAFY", "MALE"), (102, "NAVER", "FEMALE"), (103, "SSAFY", "FEMALE"),
+                                      (104, "NAVER", "MALE"), (105, "SSAFY", "MALE")]:
+        lines.append(
+            "INSERT INTO users (id, login_provider, provider_user_id, nickname, character_gender, created_at, "
+            f"updated_at) VALUES ({user_id}, '{provider}', 'p{user_id}', 'u{user_id}', '{gender}', "
+            "'2026-10-27 00:00:00.000', '2026-10-27 00:00:00.000');"
+        )
+    # (회원, 상태, 점수, 보상, 시작, 종료)
+    for user_id, status, score, reward, started, ended in [
+        (101, "COMPLETED", 40, 60, "2026-10-27 01:20:00", "2026-10-27 01:23:00"),
+        (101, "COMPLETED", 50, 40, "2026-10-27 01:24:00", "2026-10-27 01:27:00"),
+        (102, "ABANDONED", None, 0, "2026-10-27 01:25:00", "2026-10-27 01:26:00"),
+        (102, "COMPLETED", 20, 30, "2026-10-27 01:30:00", "2026-10-27 01:34:00"),
+        (103, "INVALID", None, 0, "2026-10-27 02:05:00", "2026-10-27 02:15:00"),
+        (105, "COMPLETED", 30, 50, "2026-10-27 14:59:00", "2026-10-27 15:02:00"),
+        (103, "COMPLETED", 10, 15, "2026-10-28 05:01:00", "2026-10-28 05:03:00"),
+        (101, "PLAYING", None, 0, "2026-10-28 01:03:00", None),
+    ]:
+        lines.append(
+            "INSERT INTO minigame_sessions (user_id, minigame_type, status, score, reward_amount, started_at, "
+            f"ended_at) VALUES ({user_id}, 'BUNGEOPPANG', '{status}', {sql_value(score)}, {reward}, "
+            f"'{timestamp(started)}', {sql_value(ended and timestamp(ended))});"
+        )
+    for user_id, channel, created in [
+        (101, "one", "2026-10-27 01:40:00"),
+        (101, "one", "2026-10-27 02:00:00"),
+        (102, "two", "2026-10-27 03:00:00"),
+        (None, "one", "2026-10-27 04:00:00"),
+        (103, "two", "2026-10-27 15:30:00"),
+    ]:
+        lines.append(
+            "INSERT INTO feedback_messages (user_id, channel_id, body, created_at) VALUES "
+            f"({sql_value(user_id)}, '{channel}', 'seed', '{timestamp(created)}');"
+        )
+    return "\n".join(lines) + "\n"
 
 
 def to_sql(events: list[tuple], positions: list[tuple]) -> str:

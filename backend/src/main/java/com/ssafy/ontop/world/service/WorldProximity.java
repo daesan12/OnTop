@@ -21,7 +21,7 @@ public class WorldProximity {
 
     @Autowired
     public WorldProximity(WorldChannelRegistry channels, WorldProximityProperties properties, WorldMapRuntime runtime) {
-        this(channels, runtime.prepared().map(park -> park.proximity()).orElse(properties));
+        this(channels, runtime.proximity(properties));
     }
 
     public boolean hasPosition(String userId) {
