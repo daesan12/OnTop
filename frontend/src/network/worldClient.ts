@@ -81,6 +81,7 @@ export interface DisplayProfile {
 export interface Session {
   status: 'idle' | 'joining' | 'connected' | 'reconnecting' | 'error'
   error: string
+  movementNotice: { message: string; sequence: number } | null
   sessionId: string
   roomId: string
   channelName: string
@@ -111,6 +112,7 @@ export interface Session {
 const initial = (): Session => ({
   status: 'idle',
   error: '',
+  movementNotice: null,
   sessionId: '',
   roomId: '',
   channelName: '',
@@ -153,7 +155,25 @@ let channelVersion = -1,
 const chatIds = new Set<string>()
 const emoteTimeline = new EmoteTimeline()
 const eventClock = new EnvironmentClock()
+let movementNoticeTimer: ReturnType<typeof setTimeout> | undefined
+export function clearMovementNotice(ackSequence = Infinity) {
+  const notice = useSession.getState().movementNotice
+  // An old acknowledgement cannot dismiss a more recent rejection.
+  if (notice && ackSequence <= notice.sequence) return
+  clearTimeout(movementNoticeTimer)
+  movementNoticeTimer = undefined
+  if (notice) useSession.setState({ movementNotice: null })
+}
+export function showMovementNotice(message: string, sequence: number) {
+  clearTimeout(movementNoticeTimer)
+  const notice = { message, sequence }
+  useSession.setState({ movementNotice: notice })
+  movementNoticeTimer = setTimeout(() => {
+    if (useSession.getState().movementNotice === notice) clearMovementNotice()
+  }, 3000)
+}
 export function resetWorld(status: Session['status'] = 'idle', error = '') {
+  clearMovementNotice()
   eventClock.reset()
   defeatTimeline.clear()
   resetFollow()
@@ -177,6 +197,7 @@ export function resetWorld(status: Session['status'] = 'idle', error = '') {
   useSession.setState({ ...initial(), status, error })
 }
 export function clearChannel(keepFeedbackDraft = false, keepNotesDraft = false) {
+  clearMovementNotice()
   defeatTimeline.clear()
   resetFollow()
   resetBenchSpectator()
@@ -637,6 +658,8 @@ export function receive(message: Envelope) {
     }
     case 'ERROR':
       if (message.requestId && message.requestId === useEmoteState.getState().requestId) break
+      // Movement requests own this transient notice, including its sequence and expiry.
+      if (p.code === 'MOVE_TOO_FREQUENT') break
       if (typeof p.message === 'string')
         useSession.setState({ error: p.message })
       break

@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AdminFeedbackPage } from '../feedback/AdminFeedbackPage'
 import { AdminAccessError, loadAdminAccess, type AdminAccess } from './adminAccess'
+import { AdminAnalyticsPage } from './AdminAnalyticsPage'
 import '../feedback/adminFeedback.css'
 import './adminShell.css'
 
-type Section = 'home' | 'feedback'
+type Section = 'home' | 'feedback' | 'analytics'
 type AccessState = { status: 'loading' } | { status: 'ready'; access: AdminAccess }
   | { status: 'forbidden' } | { status: 'unavailable'; message: string }
 
@@ -44,9 +45,12 @@ export function AdminShell({ section, onNavigate, onReturn, onAuthEnded }: {
     <header className="admin-feedback-header">
       <a href="/park" onClick={event => { event.preventDefault(); onReturn() }}>← 공원으로 돌아가기</a>
       <small>온탑 · 관리자 전용</small>
-      <h1 ref={heading} tabIndex={-1}>{section === 'home' ? '관리자 페이지' : '소리함 의견 조회'}</h1>
+      <h1 ref={heading} tabIndex={-1}>{section === 'home' ? '관리자 페이지'
+        : section === 'feedback' ? '소리함 의견 조회' : '일별·게임별 분석'}</h1>
       {state.status === 'ready' && <p>{section === 'home'
-        ? '관리자 기능을 선택해주세요.' : '이용자가 비공개로 남긴 의견입니다. 서버에서 조회 권한을 확인합니다.'}</p>}
+        ? '관리자 기능을 선택해주세요.' : section === 'feedback'
+          ? '이용자가 비공개로 남긴 의견입니다. 서버에서 조회 권한을 확인합니다.'
+          : '행동 로그를 백업 기준으로 집계한 결과입니다. 서버에서 조회 권한을 확인합니다.'}</p>}
     </header>
     {state.status === 'loading' && <p role="status">관리자 권한을 확인하고 있어요…</p>}
     {state.status === 'forbidden' && <section className="admin-feedback-content" role="alert">
@@ -62,14 +66,20 @@ export function AdminShell({ section, onNavigate, onReturn, onAuthEnded }: {
           onClick={event => { event.preventDefault(); onNavigate('home') }}>관리자 홈</a>
         <a href="/admin/feedback" aria-current={section === 'feedback' ? 'page' : undefined}
           onClick={event => { event.preventDefault(); onNavigate('feedback') }}>소리함</a>
+        <a href="/admin/analytics" aria-current={section === 'analytics' ? 'page' : undefined}
+          onClick={event => { event.preventDefault(); onNavigate('analytics') }}>이용 분석</a>
       </nav>
       {section === 'home' ? <section className="admin-feedback-content admin-shell-home" aria-label="관리자 기능">
         <h2>관리자 기능</h2>
         <a href="/admin/feedback" onClick={event => { event.preventDefault(); onNavigate('feedback') }}>
           <strong>소리함 의견</strong><span>이용자가 남긴 비공개 의견을 확인합니다.</span>
         </a>
-        <p>엽전 지급과 분석 대시보드는 준비 중입니다.</p>
-      </section> : <AdminFeedbackPage onAuthEnded={onAuthEnded} />}
+        <a href="/admin/analytics" onClick={event => { event.preventDefault(); onNavigate('analytics') }}>
+          <strong>이용 분석</strong><span>일별 이용 흐름과 게임별 집계를 확인합니다.</span>
+        </a>
+        <p>엽전 지급은 준비 중입니다.</p>
+      </section> : section === 'feedback' ? <AdminFeedbackPage onAuthEnded={onAuthEnded} />
+        : <AdminAnalyticsPage onAuthEnded={onAuthEnded} />}
     </>}
   </main>
 }
