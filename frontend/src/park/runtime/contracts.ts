@@ -19,7 +19,7 @@ export interface ParkRuntimePort {
   stopMovement(): void
   inspectTable(anchorId: string): void
   closeTable(): void
-  joinTable(): Promise<boolean>
+  joinTable(anchorId?: string): Promise<boolean>
   leaveTable(): Promise<boolean>
   selectOmok(): Promise<boolean>
   selectGame(code: import('../../features/tableLobby/model').TableGameCode, betAmountPerPlayer: number, targetScore?: number): Promise<boolean>

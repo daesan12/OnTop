@@ -9,7 +9,7 @@ import { EXPECTED_MAP } from '../../config/mapVersion'
 import { FacilityClient } from '../../network/facilityClient'
 import { facilityMovementBlocked, serverFacilities } from '../../features/facilities/state'
 import { RestError } from '../../network/restError'
-import { inputState } from '../../world/inputOwnership'
+import { clearRoamingInput, inputState } from '../../world/inputOwnership'
 import { rememberRoamingView } from '../../world/cameraReturn'
 import { benchTable, benchViewScope } from '../../features/interactions/benchSpectator'
 import { useBenchState } from '../../features/interactions/benchState'
@@ -51,6 +51,7 @@ import { bindFollowService, followService } from '../../features/follow/service'
 import { useTableLobby, resetSeatedLook } from '../../features/tableLobby/state'
 import { TabletLobbyClient } from '../../features/tableLobby/TabletLobbyClient'
 import { TABLET_ENABLED } from '../../features/tableLobby/tabletFeature'
+import { canReachTable } from '../../features/tableLobby/tableReach'
 import {
   avatars,
   cancelAvatarEmote,
@@ -636,6 +637,7 @@ export class ParkRuntime implements ParkRuntimePort {
       && !facilityMovementBlocked(s.sessionId)
       && !tableBusy() && !s.tableId && (!useGame.getState().watchedGameId || stoppedIntent(intent))
       && (!inputState.minigameOpen || stoppedIntent(intent))
+      && (!useTableLobby.getState().joiningAnchorId || stoppedIntent(intent))
       && (!(benchBusy(s.sessionId) || fitnessBusy(s.sessionId) || telescopeBusy(s.sessionId)) || stoppedIntent(intent)) && this.socket.connected
   }
   private async sendMovement(intent: MovementIntent, scope: string) {
@@ -717,8 +719,9 @@ export class ParkRuntime implements ParkRuntimePort {
     })
     return ok && current() && useTableLobby.getState().status === 'ready'
   }
-  joinTable = () =>
+  joinTable = (anchorId?: string) =>
     this.action(async () => {
+      const joinGeneration = this.generation
       if (facilityMovementBlocked(useSession.getState().sessionId)) throw new Error('먼저 시설 이용·승인 위치 확인을 마쳐주세요.')
       if (inputState.minigameOpen) throw new Error('먼저 미니게임을 마쳐주세요.')
       if (benchBusy(useSession.getState().sessionId)) throw new Error('먼저 벤치에서 일어나주세요.')
@@ -731,14 +734,35 @@ export class ParkRuntime implements ParkRuntimePort {
       const tableId = bindAnchor(
         s.bindings,
         s.roomId,
-        s.focusedAnchorId,
+        anchorId ?? s.focusedAnchorId,
         s.tables.map((t) => t.tableId),
       )
       if (!tableId)
         throw new Error('서버 테이블과 공원 배치 연결이 필요합니다.')
+      if (s.tableId === tableId) return
+      if (s.tableId) throw new Error('먼저 현재 테이블에서 일어나주세요.')
+      if (anchorId !== undefined) {
+        if (!canReachTable(avatars.get(s.sessionId)?.current, anchorId)) throw new Error('테이블 의자 가까이에서 앉기를 눌러주세요.')
+        rememberRoamingView(s.sessionId, s.roomId)
+        useTableLobby.setState({ panelOpen: false, joiningAnchorId: anchorId })
+        useSession.setState({ focusedAnchorId: '' })
+        clearRoamingInput()
+      }
       this.stopMovement()
-      await this.socket.request('TABLE_JOIN', { tableId }, ['TABLE_STATE'])
-      // Only TABLE_STATE assigns a seat. Never send a userId, seatNumber or final position.
+      try {
+        if (this.tableClosing && !await this.tableClosing) throw new Error('이전 테이블 구독 종료를 먼저 확인해주세요.')
+        await this.socket.request('TABLE_JOIN', { tableId }, ['TABLE_STATE'])
+        // Only TABLE_STATE assigns a seat. Never send a userId, seatNumber or final position.
+        const current = useSession.getState()
+        if (this.generation !== joinGeneration || current.sessionId !== s.sessionId || current.roomId !== s.roomId || current.tableId !== tableId
+          || !current.tableStates[tableId]?.seats.some(seat => seat.userId === current.sessionId))
+          throw new Error('서버의 착석 상태를 확인하지 못했습니다. 테이블 상태를 다시 확인해주세요.')
+      } finally {
+        if (this.generation === joinGeneration && anchorId !== undefined && useTableLobby.getState().joiningAnchorId === anchorId) {
+          useTableLobby.setState({ joiningAnchorId: '' })
+          clearRoamingInput()
+        }
+      }
     })
   leaveTable = () =>
     this.action(async () => {
