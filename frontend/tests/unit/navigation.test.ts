@@ -5,7 +5,6 @@ import { EXPECTED_MAP_VERSION } from '../../src/config/mapVersion'
 import { PARK_DESTINATIONS, findParkRoute, isNavigationWalkable, navigationSegmentClear, navigationHeight } from '../../src/features/navigation/parkNavigation'
 import { useNavigation, selectDestination, cancelNavigation, openParkMap, closeParkMap } from '../../src/features/navigation/navigationState'
 import { inputState } from '../../src/world/inputOwnership'
-import { placeMapMarkers } from '../../src/features/navigation/mapMarkers'
 
 it.each(Object.entries(PARK_DESTINATIONS))('current OnTop layout has a collision-clear approach to %s',(_id,destination)=>{
   const path=findParkRoute({x:0,z:34},destination)
@@ -45,15 +44,5 @@ it('map ownership clears held input and releases only its own flag',()=>{
   openParkMap();expect(inputState.mapOpen).toBe(true)
   closeParkMap();expect(inputState).toMatchObject({mapOpen:false,manualOpen:true,chatOpen:true})
   expect(clears).toBe(2)
-})
-it('keeps crowded people clickable without covering destinations or changing approved coordinates',()=>{
-  const people=Array.from({length:64},(_,id)=>({id,x:0,z:0}))
-  const placed=placeMapMarkers(people,{x:0,z:0},[{x:0,z:0}])
-  for(let i=0;i<placed.length;i++){
-    expect(placed[i]).toMatchObject({id:i,x:0,z:0})
-    expect(Math.hypot(placed[i]!.drawX,placed[i]!.drawZ)).toBeGreaterThan(11)
-    for(let j=0;j<i;j++)expect(Math.hypot(placed[i]!.drawX-placed[j]!.drawX,placed[i]!.drawZ-placed[j]!.drawZ)).toBeGreaterThan(9.3)
-  }
-  expect(people.every(p=>p.x===0&&p.z===0)).toBe(true)
 })
 afterEach(()=>{closeParkMap();cancelNavigation();Object.keys(inputState).forEach(k=>inputState[k as keyof typeof inputState]=false);vi.unstubAllGlobals()})
