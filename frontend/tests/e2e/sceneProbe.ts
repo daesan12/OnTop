@@ -779,3 +779,7 @@ export function tablePresentationProbe() {
     ownTable: useSession.getState().tableId, camera: camera.position.toArray(), omokCamera: { ...omokCamera },
     publicMatchMode: publicMatchService.mode }
 }
+export function routeArrowsProbe() {
+  const arrows = root().scene.getObjectByName('navigation-route-arrows') as InstancedMesh | undefined
+  return arrows ? arrows.count : -1
+}
