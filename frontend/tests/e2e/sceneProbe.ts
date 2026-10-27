@@ -771,3 +771,22 @@ export function routeArrowsProbe() {
   const arrows = root().scene.getObjectByName('navigation-route-arrows') as InstancedMesh | undefined
   return arrows ? arrows.count : -1
 }
+
+export async function swimDirectionProbe() {
+  const scene = root().scene, angles = new Map<string, number>(), travel: Record<string, number> = {}
+  for (let frame = 0; frame < 45; frame++) {
+    await new Promise(requestAnimationFrame)
+    for (const id of ['101', '102']) for (const side of ['L', 'R']) {
+      const model = scene.getObjectByName('avatar-' + id)!
+      const hand = model.getObjectByName('hand_' + side)!.getWorldPosition(new Vector3())
+      const shoulder = model.getObjectByName('upperArm_' + side)!.getWorldPosition(new Vector3())
+      // Remove avatar yaw; the signed Y/Z orbit measures forward/backward arm travel.
+      hand.sub(shoulder).applyAxisAngle(new Vector3(0, 1, 0), -model.rotation.y)
+      const key = `${id}-${side}`, angle = Math.atan2(hand.z, hand.y), previous = angles.get(key)
+      travel[key] ??= 0
+      if (previous !== undefined) travel[key] += Math.atan2(Math.sin(angle - previous), Math.cos(angle - previous))
+      angles.set(key, angle)
+    }
+  }
+  return travel
+}
