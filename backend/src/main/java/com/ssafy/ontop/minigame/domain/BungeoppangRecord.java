@@ -30,8 +30,15 @@ public class BungeoppangRecord {
     protected BungeoppangRecord() { }
 
     public BungeoppangRecord(long sessionId, String heats, boolean firstGame) {
+        this(sessionId, "v2", heats, firstGame);
+    }
+
+    public BungeoppangRecord(long sessionId, String rulesVersion, String heats, boolean firstGame) {
         this.sessionId = sessionId;
-        this.rulesVersion = "v2";
+        if (!"v2".equals(rulesVersion) && !"v4".equals(rulesVersion)) {
+            throw new IllegalArgumentException("지원하지 않는 붕어빵 규칙 버전입니다.");
+        }
+        this.rulesVersion = rulesVersion;
         this.heats = heats;
         this.firstGame = firstGame;
     }

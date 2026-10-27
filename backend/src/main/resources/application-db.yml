@@ -25,5 +25,5 @@ spring:
     activate:
       on-profile: "dev & db & !prod & !production"
   flyway:
-    # 공통 V1~V6 다음에 미니게임 V110/V111만 추가한다. 기존 테이블은 초기화하지 않는다.
+    # 공통 migration과 미니게임 V110/V111/V124/V125/V126을 함께 검증·적용한다. 기존 테이블은 초기화하지 않는다.
     locations: classpath:db/migration,classpath:db/minigame

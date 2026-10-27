@@ -16,7 +16,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.transaction.PlatformTransactionManager;
 
 @Configuration(proxyBeanMethods = false)
-@Profile("(local | dev) & db & !prod & !production")
+@Profile("db")
 @ConditionalOnProperty(name = "ontop.feedback.enabled", havingValue = "true")
 @EnableConfigurationProperties(FeedbackProperties.class)
 @EntityScan(basePackageClasses = FeedbackMessage.class)

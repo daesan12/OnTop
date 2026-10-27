@@ -5,6 +5,7 @@
 
 시설 이용·반납·망원경 방향·점유 복구는 [시설 점유 계약](world-facility-api.md)을 사용한다.
 따라가기 시작·자동 이동·종료·관계 조회는 [따라가기 계약](world-follow-api.md)을 사용한다.
+기권·패배의 참가자/주변 공개 연출은 [WORLD_GAME_REACTION 계약](world-game-reaction-api.md)을 사용한다.
 
 기존 Raw WebSocket `/ws/tables` 연결을 재사용하며 별도 `/ws/world` 연결은 만들지 않는다. 인증은 기본 필수이고 비인증 개발 사용자는 명시적 local 환경에서만 허용한다. 비local의 WebSocket 기반 등록·Origin 검증·프로필 제한은 [현행 인증 계약](websocket-authentication.md#실행-조건)을 따른다. 기존 중복 접속 차단·heartbeat·연결별 송신 순서는 유지하며 상점 외형 조회 Gateway의 local·db 조건과 구분한다.
 
@@ -297,7 +298,7 @@
   알림은 마지막 승인 표현을 식별하며 모션 길이/자연 종료는 기존 FE catalog를 유지한다.
 - 취소해도 직전 성공 표현의 사용 간격은 유지한다. 취소→재요청/채널 이동으로 간격을 초기화하지 않는다.
 - FE 기존 이동/시설 상태 기반 취소는 유지한다. 추가 알림 수신 연결은 FE 후속이며 서버 테스트 통과를 3D 연동 완료로 보지 않는다.
-- 악수는 규칙/UI 미정으로 제외한다. 판 엎기는 FE의 기존 2.8초 앉은 상체 연출을 유지하며 새 서버 명령을 추가하지 않는다. 최종1대1 이스터에그는 향후 정책이다.
+- 악수는 규칙/UI 미정으로 제외한다. 기권·패배 확정 직전 잔여2명이면 판 엎기(2.8초), 나머지는 머리 감싸기(3.6초)다. 클라이언트 명령은 추가하지 않고 [WORLD_GAME_REACTION](world-game-reaction-api.md) 서버 알림으로 전달한다.
 
 검증: WorldEmoteTests(설정/입력·간격 경계/정리), WorldEmoteHubTests(수신 대상·착석/채널 이동·채팅 간격 분리), WorldEmoteWebSocketTests(서버 인증 대역·위조·추가 접속 차단·heartbeat 후 새 연결), TableProtocolTests. 개발 화면 /dev/tables의 감정표현 영역에서 등록 코드를 선택·전송하고 최근 수신 20건을 확인한다. WAVE/CLAP 아이콘은 검증용이다. 채널 변경·끊김은 수신 기록을 비우고 채널 이동 중 전송 대기 시간은 유지한다. 실제 3D·운영·부하 검증을 뜻하지 않는다. 저장소 계약은 Notion과 자동 동기화되지 않는다.
 

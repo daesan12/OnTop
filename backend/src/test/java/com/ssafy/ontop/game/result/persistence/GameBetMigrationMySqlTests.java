@@ -13,7 +13,7 @@ import static org.assertj.core.api.Assertions.*;
 /** 승인한 빈 격리 DB에서 한 번 실행한다. 기존 DB/이력을 초기화하거나 repair하지 않는다. */
 @Tag("mysql")
 class GameBetMigrationMySqlTests {
-    @Test void V112의_1코인_예약과_checksum을_보존하며_V122로_업그레이드한다() throws Exception {
+    @Test void V112의_1코인_예약과_checksum을_보존하며_최신_마이그레이션으로_업그레이드한다() throws Exception {
         String url = System.getenv("TEST_GAME_DB_URL");
         if (url == null || !url.matches("jdbc:mysql://127\\.0\\.0\\.1:[0-9]+/ontop_game_test_story173_[A-Za-z0-9_]+(?:\\?.*)?")) {
             throw new IllegalStateException("승인한 빈 격리 DB만 사용합니다.");
@@ -41,8 +41,8 @@ class GameBetMigrationMySqlTests {
                     + "SELECT w.id,g.id,'GAME_RESERVE',0,1,CONCAT('game:',g.id,':reserve:',w.user_id) FROM wallets w CROSS JOIN game_sessions g");
             var current = Flyway.configure().dataSource(url, user, password).locations(locations)
                     .baselineOnMigrate(false).outOfOrder(false).load();
-            assertThat(current.migrate().migrationsExecuted).isEqualTo(1);
-            assertThat(history(statement)).containsAllEntriesOf(previous).containsKey("122");
+            assertThat(current.migrate().migrationsExecuted).isEqualTo(5);
+            assertThat(history(statement)).containsAllEntriesOf(previous).containsKeys("122", "123", "124", "125", "126");
             assertThat(current.validateWithResult().validationSuccessful).isTrue();
             assertThat(current.migrate().migrationsExecuted).isZero();
             try (var rs = statement.executeQuery("SELECT COUNT(*) FROM wallets WHERE balance=100 AND reserved_balance=1")) {

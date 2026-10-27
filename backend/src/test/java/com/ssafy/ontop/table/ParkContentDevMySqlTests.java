@@ -56,11 +56,11 @@ class ParkContentDevMySqlTests {
         registry.add("spring.datasource.password", () -> System.getenv("TEST_PARK_CONTENT_DB_PASSWORD"));
         // Exercise the actual application-dev.yml placeholders, not direct ontop.* overrides.
         registry.add("FEEDBACK_ENABLED", () -> "true");
-        registry.add("FEEDBACK_ADMINISTRATOR_IDS", () -> "101");
+        registry.add("ADMIN_READ_IDS", () -> "101");
         registry.add("NOTES_ENABLED", () -> "true");
         registry.add("NOTES_PRIVACY_SECRET", () -> "synthetic-content-note-privacy-key-only");
         registry.add("spring.flyway.locations", () -> "classpath:db/migration,classpath:db/minigame,"
-                + "classpath:db/feedback,classpath:db/notes");
+                + "classpath:db/notes");
     }
 
     @Test
@@ -70,7 +70,7 @@ class ParkContentDevMySqlTests {
         }
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM users", Integer.class)).isZero();
         assertThat(jdbc.queryForList("SELECT version FROM flyway_schema_history WHERE success=1", String.class))
-                .contains("110", "111", "120", "121");
+                .contains("110", "111", "121", "127");
         for (long id : new long[]{101, 202, 909}) {
             jdbc.update("INSERT INTO users(id,login_provider,provider_user_id,nickname,character_gender,created_at,updated_at)"
                     + " VALUES(?,'NAVER',?,?,'MALE',CURRENT_TIMESTAMP(3),CURRENT_TIMESTAMP(3))",

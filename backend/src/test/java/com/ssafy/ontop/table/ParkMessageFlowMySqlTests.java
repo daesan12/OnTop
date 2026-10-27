@@ -36,12 +36,12 @@ import static org.awaitility.Awaitility.await;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "spring.profiles.active=dev,db", "ontop.notes.enabled=true", "ontop.feedback.enabled=true",
         "ontop.notes.privacy-secret=synthetic-park-messages-key-32-bytes-only",
-        "ontop.feedback.administrator-ids=909",
+        "ontop.admin.read-ids=909", "ontop.feedback.administrator-ids=909",
         "ontop.world.channels[0].channel-id=channel-1", "ontop.world.channels[0].name=검증 공원1",
         "ontop.world.channels[0].capacity=40",
         "ontop.world.channels[1].channel-id=channel-2", "ontop.world.channels[1].name=검증 공원2",
         "ontop.world.channels[1].capacity=40",
-        "spring.flyway.locations=classpath:db/migration,classpath:db/minigame,classpath:db/feedback,classpath:db/notes",
+        "spring.flyway.locations=classpath:db/migration,classpath:db/minigame,classpath:db/notes",
         "ontop.auth.allowed-origins=https://dev.on-top.world",
         "ontop.auth.jwt-secret-base64=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
 })
