@@ -11,7 +11,7 @@ Deploy layout/emote edits with a new frontend build. Replacing a public JSON
 after a build does not replace the packaged configuration. The public files stay
 available for integration checks and are the single source for both copies.
 
-`scripts/parkGeometryPlugin.ts` builds 27 static prop batches in Node using the
+`scripts/parkGeometryPlugin.ts` builds 33 static prop/surface batches in Node using the
 existing procedural sources. Named `PropBuilder` instances capture their result
 before callers apply later transforms. The artifact preserves original Float32
 bits, attribute seams, triangle/index order and bounds. Meshopt index sequence
@@ -19,13 +19,23 @@ encoding preserves order; no geometry quantization or simplification is used.
 The compressed artifact is generated on each production build and is not checked
 into Git. Browser decoding uses the existing shipped Meshopt decoder.
 
-During authentication, the browser loads that content-hashed artifact and
-module-preloads the scene in parallel. The scene evaluates after the geometry is
-installed, so named builders skip primitive creation and vertex welding. Source
+During authentication, the browser loads that content-hashed artifact at low
+network priority and module-preloads the scene in parallel. A cached artifact
+gets a 150ms head start; entry never waits longer for this optional cache.
+When geometry is ready, named builders skip primitive creation and vertex welding. Source
 loops still run, preserving their non-geometry side effects. A failed, corrupt or
-timed-out (2s) artifact falls back to the original procedural source. Development
+slow artifact falls back to the original procedural source. The download may
+continue for up to 10s to warm the next visit, but late geometry is not installed
+after procedural construction has begun. Development
 mode also uses the procedural source. Performance marks `park-geometry-ready`
-and `park-geometry-fallback` distinguish these paths during measurement.
+and `park-geometry-fallback` distinguish these paths during measurement;
+`park-geometry-deferred` records the startup budget and `park-geometry-cached`
+records a late download retained for the next visit.
+
+Pavilion roofs/timber also preserve per-part raycast ranges in the artifact.
+Restoration rebuilds the same spatial hierarchy, retaining openings and exact
+triangle tests. Identical encoded attribute streams are stored once and decoded
+into independent arrays, so later prop transforms cannot affect another batch.
 
 Add only deterministic static builders to the build catalog. Keys must be unique
 and include parameters such as LOD. Dynamic/component-owned geometry keeps its

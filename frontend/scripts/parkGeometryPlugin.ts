@@ -34,8 +34,11 @@ export function parkGeometryPlugin(): Plugin {
           'art/activityPropGeometry.ts', 'art/fishCartGeometry.ts', 'art/mailboxGeometry.ts',
           'art/LandmarkRefinements.tsx', 'art/ReferenceBenchFrames.tsx',
           'art/ReferenceStreetProps.tsx', 'art/FitnessStyle.tsx', 'art/TelescopeModel.tsx',
-          'art/TraditionalPavilionLanterns.tsx', 'pigeons/pigeonGeometry.ts',
-        ]) await server.ssrLoadModule(`/src/world/${module}`)
+          'art/TraditionalPavilionLanterns.tsx', 'pigeons/pigeonGeometry.ts', 'art/Pavilion.tsx',
+        ]) {
+          const source = await server.ssrLoadModule(`/src/world/${module}`)
+          source.prebuildStaticSurfaces?.()
+        }
         if (!props.size) throw new Error('No static park props were built')
         await MeshoptEncoder.ready
         const encoded = codec.encodeBakedProps(props, (bytes: Uint8Array, count: number, stride: number, mode: string) =>

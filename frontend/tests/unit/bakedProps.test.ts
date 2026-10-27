@@ -65,3 +65,16 @@ it('retains 32-bit index buffers alongside 16-bit props in the same artifact', a
   expect(art.wood!.getAttribute('position').array).toEqual(large.getAttribute('position').array)
   for (const geometry of [large, small, art.wood!, art.stone!]) geometry.dispose()
 })
+
+it('decodes shared compressed streams into independent mutable geometry arrays', async () => {
+  const source = new BoxGeometry()
+  await MeshoptEncoder.ready
+  const bytes = encodeBakedProps(new Map([['shared-streams', { wood: source, stone: source }]]), (input, count, stride, mode) =>
+    mode === 'INDICES' ? MeshoptEncoder.encodeIndexSequence(input, count, stride)
+      : MeshoptEncoder.encodeVertexBufferLevel(input, count, stride, 3))
+  const art = (await decodeBakedProps(bytes.buffer as ArrayBuffer)).get('shared-streams')!
+  art.wood!.translate(0, 10, 0)
+  expect(art.stone!.getAttribute('position').array).toEqual(source.getAttribute('position').array)
+  expect(art.wood!.getAttribute('position').array).not.toEqual(art.stone!.getAttribute('position').array)
+  for (const geometry of [source, art.wood!, art.stone!]) geometry.dispose()
+})

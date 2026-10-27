@@ -5,6 +5,8 @@ import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js'
 export type PropArt = Partial<Record<PropFinish, BufferGeometry>>
 const available = new Map<string, PropArt>()
 let captured: Map<string, PropArt> | undefined
+let proceduralStarted = false
+export const hasProceduralProps = () => proceduralStarted
 
 /** Build tooling captures a snapshot before callers adjust a finished prop. */
 export function capturePropBuilds() {
@@ -19,6 +21,7 @@ export function recordPropBuild(key: string | undefined, art: PropArt) {
 export function takeBakedProp(key: string | undefined) {
   if (!key) return undefined
   const art = available.get(key)
+  if (!art) proceduralStarted = true
   available.delete(key)
   return art
 }
@@ -40,7 +43,7 @@ const align = (n: number) => Math.ceil(n / 4) * 4
 
 /** Lossless Float32 attributes and original index order; no mesh quantization. */
 export function encodeBakedProps(props: Map<string, PropArt>, encode?: (bytes: Uint8Array, count: number, stride: number, mode: 'ATTRIBUTES' | 'INDICES') => Uint8Array) {
-  const chunks: { offset: number; bytes: Uint8Array }[] = []
+  const chunks: { offset: number; bytes: Uint8Array; signature: string }[] = []
   let length = 0
   const attribute = (value: BufferAttribute, mode: 'ATTRIBUTES' | 'INDICES' = 'ATTRIBUTES'): ArrayDescription => {
     const array = value.array
@@ -49,7 +52,14 @@ export function encodeBakedProps(props: Map<string, PropArt>, encode?: (bytes: U
     const offset = align(length)
     const source = new Uint8Array(array.buffer, array.byteOffset, array.byteLength)
     const bytes = encode ? encode(source, value.count, value.itemSize * array.BYTES_PER_ELEMENT, mode) : source
-    chunks.push({ offset, bytes })
+    const signature = `${mode}:${type}:${value.itemSize}:${array.length}`
+    // Encoded streams decode into independent arrays. Share identical streams
+    // (e.g. pavilion positions/indices across UV scales), not mutable geometry.
+    const prior = encode && chunks.find(chunk => chunk.signature === signature && chunk.bytes.length === bytes.length
+      && chunk.bytes.every((value, i) => value === bytes[i]))
+    if (prior) return { offset: prior.offset, length: array.length, type, itemSize: value.itemSize,
+      normalized: value.normalized, encodedLength: bytes.length, mode }
+    chunks.push({ offset, bytes, signature })
     length = offset + bytes.length
     return { offset, length: array.length, type, itemSize: value.itemSize, normalized: value.normalized,
       ...(encode ? { encodedLength: bytes.length, mode } : {}) }
@@ -110,8 +120,10 @@ export async function decodeBakedProps(buffer: ArrayBuffer) {
     })) as PropArt]))
 }
 
-export async function installBakedProps(buffer: ArrayBuffer) {
+export async function installBakedProps(buffer: ArrayBuffer, beforeProceduralOnly = false) {
   // Publish only after the whole file has decoded successfully.
   const props = await decodeBakedProps(buffer)
+  if (beforeProceduralOnly && proceduralStarted) return false
   for (const [key, art] of props) available.set(key, art)
+  return true
 }
