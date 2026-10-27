@@ -44,3 +44,7 @@
 ---
 
 [공통 규격](00-common.md) · [API 목록](../websocket-api.md)
+
+## 공통 서버 시각 (2026-10-27)
+
+payload.time에 serverNow/cycleEpochMs/cycleDurationMs/timeZone을 추가한다. WORLD_TIME_CHECK로 같은 형식 WORLD_TIME_STATE를 재조회한다. 상세 [시각·진단 계약](../world-time-diagnostics-api.md). MANUAL 대기석30초 동일 로그인 세션 복귀는 기존 기한을 유지하며 [태블릿 계약](../tablet-lobby-api.md)을 따른다. AUTO 대기석과 경기 복구 정책은 구분한다.

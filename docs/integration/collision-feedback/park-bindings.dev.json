@@ -1,0 +1,21 @@
+{
+  "emotes": [
+    { "motion": "EMOTE_WAVE", "code": "WAVE" },
+    { "motion": "EMOTE_CLAP", "code": "CLAP" },
+    { "motion": "EMOTE_APPLAUSE_REQUEST", "code": "APPLAUSE_REQUEST" },
+    { "motion": "EMOTE_TSK", "code": "TSK" },
+    { "motion": "EMOTE_FART", "code": "FART" }
+  ],
+  "bindings": [
+    {
+      "channelId": "channel-1",
+      "tableId": "table-6fcc18fe-a301-3142-a69f-f3f67d026d62",
+      "anchorId": "table-1"
+    },
+    {
+      "channelId": "channel-1",
+      "tableId": "table-69d1811f-c44e-32d4-bf72-1f4ebe5fb0dd",
+      "anchorId": "table-2"
+    }
+  ]
+}
