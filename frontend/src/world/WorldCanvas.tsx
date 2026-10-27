@@ -1,4 +1,3 @@
-import { TableGathering } from '../features/tableLobby/TableGathering'
 import { TableTablet3D } from '../features/tableLobby/TableTablet3D'
 import { TABLET_ENABLED } from '../features/tableLobby/tabletFeature'
 import { Canvas, useFrame } from '@react-three/fiber'
@@ -150,7 +149,6 @@ export const WorldCanvas = memo(function WorldCanvas({
         <Avatars overlayTargets={overlayTargets} />
         <FollowRopes />
         <RouteArrows />
-        {!TABLET_ENABLED && <TableGathering />}
         <BungeoppangGrill />
 
         <ParkPigeons quality={quality} />
