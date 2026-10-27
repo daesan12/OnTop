@@ -63,6 +63,53 @@ async function connect(s: ReturnType<typeof setup>) {
 }
 afterEach(() => vi.useRealTimers())
 describe('one shared account socket', () => {
+  it('refreshes a prefetched ticket near expiry after slow preparation', async () => {
+    vi.useFakeTimers()
+    let ready!: () => void
+    const socket = new FakeSocket()
+    const ticket = vi.fn().mockResolvedValueOnce({ ticket: 'old', expiresIn: 30 })
+      .mockResolvedValueOnce({ ticket: 'fresh', expiresIn: 30 })
+    const factory = vi.fn(() => socket)
+    const client = new SharedSocket({ ticket, socket: factory, message: vi.fn(), closed: vi.fn(), error: vi.fn() })
+    const opening = client.connect(new Promise<void>(resolve => { ready = resolve }))
+    await vi.advanceTimersByTimeAsync(30000)
+    ready()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(factory).toHaveBeenCalledWith('fresh')
+    expect(ticket).toHaveBeenCalledTimes(2)
+    socket.open()
+    await opening
+    await client.disconnect()
+  })
+  it('fetches the ticket during preparation but waits for validated configuration before opening', async () => {
+    const s = setup()
+    let ready!: () => void
+    const opening = s.client.connect(new Promise<void>(resolve => { ready = resolve }))
+    await vi.waitFor(() => expect(s.ticket).toHaveBeenCalledTimes(1))
+    expect(s.sockets).toHaveLength(0)
+    ready()
+    await vi.waitFor(() => expect(s.sockets).toHaveLength(1))
+    s.sockets[0]!.open()
+    await opening
+    await s.client.disconnect()
+  })
+  it('does not open a socket if configuration validation fails', async () => {
+    const s = setup()
+    await expect(s.client.connect(Promise.reject(new Error('invalid bindings')))).rejects.toThrow('invalid bindings')
+    expect(s.sockets).toHaveLength(0)
+    await s.client.disconnect()
+  })
+  it('does not open a cancelled connection after preparation completes', async () => {
+    const s = setup()
+    let ready!: () => void
+    const opening = s.client.connect(new Promise<void>(resolve => { ready = resolve }))
+    const rejected = expect(opening).rejects.toThrow('취소')
+    await vi.waitFor(() => expect(s.ticket).toHaveBeenCalledTimes(1))
+    await s.client.disconnect()
+    ready()
+    await rejected
+    expect(s.sockets).toHaveLength(0)
+  })
   it('deduplicates concurrent connection attempts', async () => {
     const s = setup()
     const a = s.client.connect(),
