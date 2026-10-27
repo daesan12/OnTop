@@ -27,6 +27,8 @@ import { AdvertisementLink } from '../features/advertisements/AdvertisementLink'
 import { CameraControls } from '../features/camera/CameraControls'
 import { FollowMenu } from '../features/follow/FollowMenu'
 import { ParkChat } from '../features/chat/ParkChat'
+import { useGame } from '../game/store'
+import { OmokFeedback, SpectatorChat } from '../game/omok/OmokFeedback'
 import { ChannelMenu } from '../features/parkMenus/ChannelMenu'
 import { AccountMenu } from '../features/parkMenus/AccountMenu'
 import { LocationChip } from '../features/parkMenus/LocationChip'
@@ -53,6 +55,8 @@ export function ParkPage(props: ParkProps) {
 }
 function ParkContent({ onExit, exitError, onAuthEnded }: ParkProps) {
   const bungeoppang = useBungeoppang(s => s.phase !== 'idle')
+  const omokFocus = useGame(s => s.game?.role === 'PLAYER' && s.game.omok?.status === 'PLAYING' && !s.lastResult)
+  const omokWatching = useGame(s => s.game?.role === 'SPECTATOR' && s.game.omok?.status === 'PLAYING')
   const session = useSession(useShallow(s=>({ sessionId:s.sessionId,roomId:s.roomId })))
   const [quality,setQuality] = useState<QualityPreset>('low')
   const changeQuality = useCallback((value: QualityPreset) => {
@@ -68,7 +72,7 @@ function ParkContent({ onExit, exitError, onAuthEnded }: ParkProps) {
   }, [])
 
   return (
-    <main className="park-page" aria-label="공원 기본 화면" data-bungeoppang={bungeoppang}
+    <main className="park-page" aria-label="공원 기본 화면" data-bungeoppang={bungeoppang} data-omok-focus={omokFocus}
       onContextMenu={event => {
         // Keep text editing menus and in-game avatar menus usable.
         if (event.target instanceof Element && event.target.closest('input, textarea, [contenteditable="true"]')) return
@@ -83,29 +87,30 @@ function ParkContent({ onExit, exitError, onAuthEnded }: ParkProps) {
     } as CSSProperties}>
       <ParkScene quality={quality} />
       <div className="park-hud">
-        <div className="park-roaming-ui" hidden={bungeoppang} inert={bungeoppang}>
+        {!omokFocus && <div className="park-roaming-ui" hidden={bungeoppang} inert={bungeoppang}>
           <ChannelMenu />
           {/* 빠른 메뉴: each feature keeps its own launcher, placed into a slot by CSS. */}
           <div className="park-quick-dock" aria-hidden="true" />
           <div className="park-dock-wardrobe"><WardrobeLauncher /></div>
           <LocationChip />
-        </div>
-        <div inert={bungeoppang}>
+        </div>}
+        {!omokFocus && <div inert={bungeoppang}>
           <AccountMenu quality={quality} exitError={exitError} onExit={onExit} onWithdrawn={onAuthEnded} />
-        </div>
+        </div>}
 
         <div className="park-roaming-ui" hidden={bungeoppang} inert={bungeoppang}>
-          <ParkChat key={`${session.sessionId}:${session.roomId}`} />
+          {!omokFocus && (omokWatching ? <SpectatorChat /> : <ParkChat key={`${session.sessionId}:${session.roomId}`} />)}
         </div>
 
-        <aside className="park-shortcuts" aria-label="조작 방법">
+        {!omokFocus && <aside className="park-shortcuts" aria-label="조작 방법">
           {shortcuts.map(({ key, action }) => (
             <div className="park-shortcuts__item" key={key}><kbd>{key}</kbd><span>{action}</span></div>
           ))}
-        </aside>
+        </aside>}
       </div>
       <div className="park-roaming-ui" hidden={bungeoppang} inert={bungeoppang}>
         <ParkTools quality={quality} onQuality={changeQuality}/>
+        {!omokFocus && <>
         <ParkInteractionHint />
         <FacilityStatus />
         <EmoteWheel />
@@ -119,9 +124,11 @@ function ParkContent({ onExit, exitError, onAuthEnded }: ParkProps) {
         <FollowMenu />
         <ParkMap />
         <ParkNavigation />
+        </>}
       </div>
       <BungeoppangHud />
-      <ManualHost worldActions={bungeoppang ? undefined : <ManualWorldActions quality={quality} onQuality={changeQuality} />} />
+      <OmokFeedback />
+      <ManualHost showLauncher={!omokFocus} worldActions={bungeoppang || omokFocus ? undefined : <ManualWorldActions quality={quality} onQuality={changeQuality} />} />
     </main>
   )
 }

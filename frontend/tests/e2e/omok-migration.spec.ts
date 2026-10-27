@@ -6,7 +6,10 @@ async function start(page: Page, ownUserId: '101' | '102' = '101') {
   await page.goto('/park')
   await expect(page).toHaveTitle(/온탑|OnTop/i)
   await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90_000 })
-  await page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).inspectTable())
+  await expect(async () => {
+    await page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).inspectTable())
+    await expect(page.getByRole('button', { name: '앉기', exact: true })).toBeVisible({ timeout: 1500 })
+  }).toPass({ timeout: 15000 })
   await page.getByRole('button', { name: '앉기', exact: true }).click()
   if (ownUserId === '101') {
     await page.getByLabel('1인 참가비').fill('1'); await page.getByRole('button', { name: '오목 선택', exact: true }).click()
@@ -54,7 +57,7 @@ test('M10 3D hover, same-intersection left click and last move share server auth
 
 test('M10 white player, stale rejection, timeout, recovery and draw retain the confirmed board', async ({ page }) => {
   const { server, panel } = await start(page, '102')
-  await expect(panel).toContainText('내 돌: 백')
+  await expect(panel.locator('.omok-match-header')).toContainText('나 · 백돌')
   const cell = panel.getByRole('button', { name: '1행 15열 빈칸', exact: true })
   server.rejectNextAction('GAME_ACTION_STALE_VERSION', '최신 판을 확인해주세요.')
   await cell.click()
