@@ -50,29 +50,47 @@ test('tablet powers on and never falls back to legacy auto-start after an unsupp
   expect(errors).toEqual([])
 })
 
-test('real tablet adapter sends the published configure/start contract and displays server host time', async ({ page }) => {
+for (const variant of [
+  { game: 'OMOK', name: '오목', count: 2, panel: '오목 경기', options: {} },
+  { game: 'DICE', name: '주사위 한 판', count: 2, panel: '주사위 경기', options: { dice: true } },
+  { game: 'ONE_CARD', name: '원카드', count: 3, panel: '원카드 경기', options: { onecard: 3 as const } },
+  { game: 'LIAR_BRIDGE', name: '거짓말 다리 건너기', count: 4, panel: '다리 경기', options: { bridge: 4 as const } },
+]) test(`real tablet adapter: ${variant.game} configure, cancel ready and explicit start`, async ({ page }) => {
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message))
-  const server = await fixture(page, { omok: true, onecard: 3, players: 3, manualLobby: true, tabletServer: true })
+  const server = await fixture(page, { omok: true, ...variant.options, players: variant.count, manualLobby: true, tabletServer: true })
   const tablet = await openTable(page)
-  await tablet.getByRole('button', { name: '원카드', exact: false }).first().click()
-  await tablet.getByRole('button', { name: '3인', exact: true }).click()
+  await tablet.getByRole('button', { name: variant.name, exact: false }).first().click()
+  await tablet.getByRole('button', { name: `${variant.count}인`, exact: true }).click()
+  if (variant.game === 'DICE') await tablet.getByLabel('주사위 목표 점수').selectOption('6000')
   await tablet.getByLabel('1인 참가비').fill('7'); await tablet.getByRole('button', { name: '선택하고 준비하기' }).click()
   await expect(tablet).toContainText('함께 시작할까요?')
-  expect(server.sent.find(m => m.type === 'TABLE_CONFIGURE')?.payload).toMatchObject({ gameCode: 'ONE_CARD', selectedPlayers: 3, betAmountPerPlayer: 7 })
+  expect(server.sent.find(m => m.type === 'TABLE_CONFIGURE')?.payload).toMatchObject({ gameCode: variant.game, selectedPlayers: variant.count, betAmountPerPlayer: 7,
+    ...(variant.game === 'DICE' ? { targetScore: 6000 } : {}) })
   expect(server.sent.find(m => m.type === 'TABLE_CONFIGURE')?.payload.expectedVersion).toEqual(expect.any(Number))
   await tablet.getByRole('checkbox').check(); await tablet.getByRole('button', { name: '준비 완료', exact: true }).click()
   server.readyTabletOthers(true); server.publishTabletWait(120)
   await expect(tablet.getByRole('timer')).toHaveText('2:00')
   await expect(tablet.getByRole('button', { name: '게임 시작', exact: true })).toBeEnabled()
   expect(server.sent.some(m => m.type === 'TABLE_HOST_WAIT_CHECK')).toBe(true)
+  await tablet.getByRole('button', { name: '준비 취소', exact: true }).click()
+  server.publishTabletWait(null)
+  await expect(tablet.getByRole('timer')).toHaveCount(0)
+  await expect(tablet.getByRole('button', { name: '게임 시작', exact: true })).toBeDisabled()
+  expect(server.sent.filter(m => m.type === 'READY_SET').map(m => m.payload.ready)).toEqual([true, false])
+  await tablet.getByRole('button', { name: '준비 완료', exact: true }).click()
+  server.publishTabletWait(120)
+  await expect(tablet.getByRole('timer')).toHaveText('2:00')
   expect(server.sent.some(m => m.type === 'GAME_SELECT' || m.type === 'TABLE_START')).toBe(false)
-  await screenshot(page, 'tablet-real-server-contract-ready')
+  await screenshot(page, `tablet-real-server-contract-ready-${variant.game}`)
   await tablet.getByRole('button', { name: '게임 시작', exact: true }).click()
   await expect(tablet).toHaveCount(0)
-  await expect(page.getByRole('region', { name: '원카드 경기', exact: true })).toBeVisible()
+  await expect(page.getByRole('region', { name: variant.panel, exact: true })).toBeVisible()
+  if (variant.game === 'DICE') await expect(page.getByRole('region', { name: variant.panel, exact: true })).toContainText('6,000')
   const start = server.sent.filter(m => m.type === 'TABLE_START'); expect(start).toHaveLength(1)
   expect(Object.keys(start[0]!.payload).sort()).toEqual(['actionId', 'expectedVersion'])
   expect(start[0]!.payload.actionId).toMatch(/^[\w-]{1,64}$/)
+  await expect(page).toHaveURL(/\/park$/)
+  await expect(page.locator('vite-error-overlay')).toHaveCount(0)
   expect(errors).toEqual([])
 })
 
