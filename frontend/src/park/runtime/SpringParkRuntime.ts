@@ -54,6 +54,8 @@ import {
   cancelAvatarEmote,
   presentEmote,
   clearChannel,
+  clearMovementNotice,
+  showMovementNotice,
   receive,
   applyFacilityOccupancies,
   resetWorld,
@@ -628,16 +630,20 @@ export class ParkRuntime implements ParkRuntimePort {
   }
   private async sendMovement(intent: MovementIntent, scope: string) {
     if (scope !== this.movementScope() || !this.canSendMovement(intent)) return
+    const sequence = ++this.inputSequence
     try {
       await this.socket.request('WORLD_MOVE', {
-        seq: ++this.inputSequence,
+        seq: sequence,
         ...intent,
       }, ['WORLD_STATE'])
+      if (scope === this.movementScope() && this.active) clearMovementNotice(sequence)
     } catch (error) {
       if (scope !== this.movementScope() || !this.active) return
       // A rejected or timed-out input is never replayed; fresh key input may resume.
       this.movement.clear(false)
-      this.report(error)
+      if (error instanceof ServerError && error.code === 'MOVE_TOO_FREQUENT')
+        showMovementNotice(error.message, sequence)
+      else this.report(error)
     }
   }
   inspectTable = (anchorId: string) => {
