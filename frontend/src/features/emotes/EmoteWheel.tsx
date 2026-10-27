@@ -6,6 +6,7 @@ import { emoteSlots as slots, emoteSector as sector, type Emote } from './catalo
 import { emoteSource, emoteUnavailable } from './availability'
 import { useEmoteState } from './state'
 import './emotes.css'
+import emoteIcon from '../parkMenus/icons/dock-emote.svg'
 
 const available = (choice: Emote) => !emoteUnavailable(choice.id)
 type Wheel = { x: number; y: number; selected: number; mode: "hold" | "click"; scale: number };
@@ -282,7 +283,7 @@ export function EmoteWheel() {
             open("click");
           }}
         >
-          <Icon kind="tsk" />
+          <img src={emoteIcon} alt="" />
           <span>감정표현</span>
           <kbd>G</kbd>
         </button>

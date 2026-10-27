@@ -155,7 +155,7 @@ class TableGameIdFlowTests {
                 assertThat(summary().path("gameId").isNull()).isTrue();
                 assertThat(summary().path("occupiedSeats").asInt()).isEqualTo(2);
                 assertThat(summary().path("readyCount").asInt()).isZero();
-                assertThat(player.request("READY_SET", Map.of("ready", true))
+                assertThat(player.request("READY_SET", Map.of("ready", true, "betAmountPerPlayer", 1, "expectedVersion", 0))
                         .at("/payload/code").asText()).isEqualTo("TABLE_BUSY");
                 var pending = forfeitResult(202, gameId, GameResultView.SettlementStatus.PENDING);
                 results.saved.put(202L, pending);
@@ -179,9 +179,11 @@ class TableGameIdFlowTests {
                 player.await(message -> message.path("type").asText().equals("GAME_START_STATE")
                         && message.at("/payload/phase").asText().equals("WAITING"));
                 assertThat(summary().path("status").asText()).isEqualTo("WAITING");
+                first.request("TABLE_JOIN", Map.of("tableId", TABLE));
                 first.request("READY_SET", Map.of("ready", true));
                 assertThat(reservation.starts).hasValue(1);
                 assertThat(summary().path("readyCount").asInt()).isEqualTo(1);
+                player.request("TABLE_JOIN", Map.of("tableId", TABLE));
                 player.request("READY_SET", Map.of("ready", true));
                 var next = publicState(viewer, "committed-test-game-2");
                 first.state("RESTORED");
@@ -347,7 +349,7 @@ class TableGameIdFlowTests {
     private void prepare(ScenarioClient first, ScenarioClient second) throws Exception {
         first.request("TABLE_JOIN", Map.of("tableId", TABLE));
         second.request("TABLE_JOIN", Map.of("tableId", TABLE));
-        first.request("GAME_SELECT", Map.of("gameCode", "OMOK"));
+        first.request("GAME_SELECT", Map.of("betAmountPerPlayer", 1, "gameCode", "OMOK"));
         first.request("READY_SET", Map.of("ready", true));
         second.request("READY_SET", Map.of("ready", true));
     }

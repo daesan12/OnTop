@@ -19,7 +19,7 @@ export const lastMoveText = (move: Omok['lastMove']) => move
 const reasons: Record<string, string> = {
   FIVE_IN_ROW: '오목 완성', BOARD_FULL: '빈 교차점 없음', TURN_TIMEOUT: '착수 시간 초과',
   RECONNECT_EXPIRED: '재접속 유예 만료', DISCONNECT_TIMEOUT: '접속 종료 유예 만료',
-  FORFEIT: '기권', VOLUNTARY_LEAVE: '참가자 퇴장',
+  FORFEIT: '기권', EXPLICIT_LEAVE: '수동 기권', VOLUNTARY_LEAVE: '참가자 퇴장',
 }
 export const omokEndReason = (reason: string | null) =>
   reason ? reasons[reason] ?? reason : '서버 결과 확인 중'

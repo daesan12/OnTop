@@ -45,7 +45,7 @@ describe('explicit server table identities', () => {
           occupiedSeats: 1,
           availableSeats: 1,
           joinable: true,
-          gameCode: null,
+          gameCode: null, betAmountPerPlayer: null,
           status: 'WAITING',
         },
       ],
@@ -61,7 +61,7 @@ describe('explicit server table identities', () => {
       ],
       allReady: false,
       selectorUserId: '102',
-      gameCode: null,
+      gameCode: null, betAmountPerPlayer: null,
       targetScore: null,
     }
     receive({ type: 'TABLE_WATCH_STATE', requestId: null, payload })

@@ -49,7 +49,7 @@ class GameStartWebSocketTests {
                 player.send("TABLE_JOIN", Map.of("tableId", "table-2"));
                 player.await(message -> message.path("type").asText().equals("TABLE_STATE"));
                 if (index == 0) {
-                    player.send("GAME_SELECT", game.equals("DICE") ? Map.of("gameCode", game, "targetScore", 4000) : Map.of("gameCode", game));
+                    player.send("GAME_SELECT", game.equals("DICE") ? Map.of("betAmountPerPlayer", 1, "gameCode", game, "targetScore", 4000) : Map.of("betAmountPerPlayer", 1, "gameCode", game));
                     player.await(message -> message.path("type").asText().equals("TABLE_STATE")
                             && message.path("payload").path("gameCode").asText().equals(game));
                 }
@@ -57,9 +57,7 @@ class GameStartWebSocketTests {
             for (int index = 0; index < count; index++) {
                 int seat = index;
                 Client player = players.get(index);
-                player.send("READY_SET", Map.of("ready", true));
-                player.await(message -> message.path("type").asText().equals("TABLE_STATE")
-                        && message.path("payload").path("seats").get(seat).path("ready").asBoolean());
+                player.ready("table-2", seat);
             }
             JsonNode result = players.getFirst().confirmed().path("payload");
             assertThat(result.path("gameCode").asText()).isEqualTo(game);
@@ -84,14 +82,12 @@ class GameStartWebSocketTests {
             second.await(message -> message.path("type").asText().equals("GAME_START_STATE")
                     && message.path("payload").path("phase").asText().equals("WAITING"));
             assertThat(second.phases).contains("WAITING").doesNotContain("STARTING", "CONFIRMED");
-            first.send("GAME_SELECT", Map.of("gameCode", "DICE", "targetScore", 4000));
+            first.send("GAME_SELECT", Map.of("betAmountPerPlayer", 1, "gameCode", "DICE", "targetScore", 4000));
             first.await(message -> message.path("type").asText().equals("TABLE_STATE")
                     && message.path("payload").path("gameCode").asText().equals("DICE"));
-            first.send("READY_SET", Map.of("ready", true));
-            first.await(message -> message.path("type").asText().equals("TABLE_STATE")
-                    && message.path("payload").path("seats").get(0).path("ready").asBoolean());
+            first.ready("table-1", 0);
             assertThat(first.phases).doesNotContain("STARTING", "CONFIRMED");
-            second.send("READY_SET", Map.of("ready", true));
+            second.ready("table-1", 1);
             JsonNode firstResult = first.confirmed();
             JsonNode secondResult = second.confirmed();
 
@@ -132,16 +128,36 @@ class GameStartWebSocketTests {
         public CompletionStage<?> onText(WebSocket webSocket, CharSequence data, boolean last) {
             fragments.append(data);
             if (last) {
-                messages.add(fragments.toString());
+                messages.add(ReadyConsent.received(this, fragments.toString()));
                 fragments.setLength(0);
             }
             webSocket.request(1);
             return null;
         }
 
-        private void send(String type, Object payload) throws Exception {
-            socket.sendText(mapper.writeValueAsString(Map.of("requestId", UUID.randomUUID().toString(),
-                    "type", type, "payload", payload)), true).join();
+        private String send(String type, Object payload) throws Exception {
+            String requestId = UUID.randomUUID().toString();
+            socket.sendText(mapper.writeValueAsString(Map.of("requestId", requestId,
+                    "type", type, "payload", ReadyConsent.payload(this, type, payload))), true).join();
+            return requestId;
+        }
+
+        private JsonNode request(String type, Object payload) throws Exception {
+            String requestId = send(type, payload);
+            return await(message -> message.path("requestId").asText().equals(requestId));
+        }
+
+        private void ready(String tableId, int seat) throws Exception {
+            // 마지막 참가자 착석 이후의 TABLE_STATE를 이 클라이언트가 실제 수신했음을 보장한다.
+            JsonNode confirmed = request("TABLE_JOIN", Map.of("tableId", tableId));
+            assertThat(confirmed.path("type").asText()).isEqualTo("TABLE_STATE");
+            JsonNode state = confirmed.path("payload");
+            JsonNode reply = request("READY_SET", Map.of("ready", true,
+                    "betAmountPerPlayer", state.path("betAmountPerPlayer").longValue(),
+                    "expectedVersion", state.path("version").longValue()));
+            assertThat(reply.path("type").asText()).as("READY_SET 오류 코드=%s", reply.at("/payload/code").asText())
+                    .isEqualTo("TABLE_STATE");
+            assertThat(reply.path("payload").path("seats").get(seat).path("ready").asBoolean()).isTrue();
         }
 
         private JsonNode confirmed() throws Exception {

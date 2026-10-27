@@ -187,7 +187,7 @@ class WorldAppearanceMySqlTests {
             assertThat(wearer.request("TABLE_JOIN", Map.of("tableId", tableId)).path("type").asText())
                     .isEqualTo("TABLE_STATE");
             partner.request("TABLE_JOIN", Map.of("tableId", tableId));
-            wearer.request("GAME_SELECT", Map.of("gameCode", "OMOK"));
+            wearer.request("GAME_SELECT", Map.of("betAmountPerPlayer", 1, "gameCode", "OMOK"));
             wearer.request("READY_SET", Map.of("ready", true));
             assertThat(partner.request("READY_SET", Map.of("ready", true))
                     .path("payload").path("allReady").asBoolean()).isTrue();

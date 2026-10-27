@@ -3,8 +3,9 @@ import { inputState } from "../../world/inputOwnership";
 import type { ManualPage } from "./types";
 
 export type ManualPhase = "closed" | "opening" | "open" | "closing";
-export const MANUAL_OPEN_MS = 1000;
-export const MANUAL_CLOSE_MS = 500;
+// Long enough to read the folded front page before it opens and after it closes.
+export const MANUAL_OPEN_MS = 1300;
+export const MANUAL_CLOSE_MS = 800;
 export const MANUAL_REDUCED_MS = 120;
 export const useManual = create<{
   open: boolean;

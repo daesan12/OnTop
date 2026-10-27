@@ -22,6 +22,11 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Query("select u from User u where u.id = :id")
     Optional<User> findForAuthenticationById(@Param("id") Long id);
 
+    // 회원 상태를 변경하지 않는 예약 경계. Wallet을 먼저 잠그는 구매의 FK 공유 잠금과 호환한다.
+    @Lock(LockModeType.PESSIMISTIC_READ)
+    @Query("select u from User u where u.id = :id")
+    Optional<User> findForGameReservationById(@Param("id") Long id);
+
     Optional<User> findByLoginProviderAndProviderUserId(LoginProvider loginProvider, String providerUserId);
 
     boolean existsByNickname(String nickname);

@@ -158,8 +158,9 @@ class GameReconnectTests {
     void 만료_오류후_재확인은_같은_요청ID를_쓰고_경기를_새로_만들지않는다() throws Exception {
         connect("first").await("RESTORED");
         service.disconnected(101, "first");
-        clock.advance(30);
+        // 실제 타이머도 같은 Clock을 읽는다. 만료 시각 전에 오류를 주입해 정상 만료와의 경합을 막는다.
         engine.failExpiry = true;
+        clock.advance(30);
         Inbox after = connect("after");
         after.await("UNAVAILABLE");
         GraceExpiration failed = engine.commands.poll(5, TimeUnit.SECONDS);

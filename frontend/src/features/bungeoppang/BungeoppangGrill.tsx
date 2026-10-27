@@ -6,11 +6,9 @@ import {
   ExtrudeGeometry,
   Group,
   InstancedMesh,
-  Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
   Object3D,
-  Shape,
   ShapeGeometry,
   SphereGeometry,
   Sphere,
@@ -18,11 +16,14 @@ import {
   Vector3,
 } from "three";
 import { BUNGEOPPANG } from "./config";
+import { createFishCartShape as fishShape } from '../../world/art/fishCartShape';
 import { cookLevel, judge } from "./rules";
+import { heatLook, INGREDIENT_LOOK } from './presentation';
+import { BREAD_TOOLS } from './rulesV4';
+import { environmentFrame } from '../../world/environmentState';
 import {
   BUNG_GRILL,
   bungeoppangClock,
-  bungeoppangView,
   slotFx,
   slotOverlayEls,
   slotScreen,
@@ -34,33 +35,6 @@ import {
 } from "./store";
 
 const R = BUNGEOPPANG;
-// 카트 홈과 같은 붕어 윤곽(머리 -x, 꼬리 +x). scripts/repair-cart-prop.py와 같은 점이다.
-const OUTLINE = [
-  [-0.52, 0],
-  [-0.48, -0.19],
-  [-0.32, -0.3],
-  [-0.08, -0.32],
-  [0.14, -0.25],
-  [0.3, -0.12],
-  [0.49, -0.29],
-  [0.43, 0],
-  [0.49, 0.29],
-  [0.3, 0.12],
-  [0.14, 0.25],
-  [-0.08, 0.32],
-  [-0.32, 0.3],
-  [-0.48, 0.19],
-] as const;
-function fishShape(length: number) {
-  const shape = new Shape();
-  OUTLINE.forEach(([x, y], i) =>
-    i
-      ? shape.lineTo(x * length, y * length)
-      : shape.moveTo(x * length, y * length),
-  );
-  shape.closePath();
-  return shape;
-}
 /** 익힘 색: 연한 베이지 → 노릇 → 황금 → 진한 갈색(너무 익음) → 탐(100에서 바로 바뀜). */
 const STOPS: [number, Color][] = [
   [0, new Color("#f2e3c0")],
@@ -71,6 +45,17 @@ const STOPS: [number, Color][] = [
 ];
 const BURNT = new Color("#32200f");
 const BATTER = new Color("#f4ead2");
+const FILLING_COLORS = Object.fromEntries(BREAD_TOOLS.map(tool => [tool, new Color(INGREDIENT_LOOK[tool].color)]));
+/** Keep gameplay colors legible at night without adding a light to the shared world. */
+function cookingMaterial(color: Color | string, roughness: number) {
+  const material = new MeshStandardMaterial({ color, roughness, emissive: '#ffffff', emissiveIntensity: 0 });
+  material.onBeforeCompile = shader => {
+    shader.fragmentShader = shader.fragmentShader.replace('#include <emissivemap_fragment>',
+      '#include <emissivemap_fragment>\n totalEmissiveRadiance *= diffuseColor.rgb;');
+  };
+  material.customProgramCacheKey = () => 'bungeoppang-readable-cooking-v1';
+  return material;
+}
 export function cookColor(level: number, target: Color) {
   if (level >= R.burntFrom) return target.copy(BURNT);
   const l = Math.max(0, level);
@@ -91,7 +76,7 @@ const GAUGE: Record<string, string> = {
   BURNT: "#e24b4a",
 };
 
-/** 내 화면에만 보이는 개인 철판. 조리대 시점일 때만 그린다. */
+/** 카트의 실제 철판 위에 내 반죽·붕어빵과 조리 효과만 표시한다. */
 export function BungeoppangGrill() {
   const phase = useBungeoppang((s) => s.phase);
   if (phase === "idle") return null;
@@ -102,7 +87,7 @@ function GrillMeshes() {
   const { camera, gl } = useThree();
   const L = BUNG_GRILL.breadLength;
   const geometries = useMemo(() => {
-    const bread = new ExtrudeGeometry(fishShape(L), {
+    const bread = new ExtrudeGeometry(fishShape(BUNG_GRILL.mouldScale * .92), {
       depth: 0.035,
       bevelEnabled: true,
       bevelThickness: 0.014,
@@ -111,12 +96,12 @@ function GrillMeshes() {
       curveSegments: 4,
     });
     bread.rotateX(-Math.PI / 2);
-    const batter = new ExtrudeGeometry(fishShape(L * 0.96), {
+    const batter = new ExtrudeGeometry(fishShape(BUNG_GRILL.mouldScale * .92), {
       depth: 0.012,
       bevelEnabled: false,
     });
     batter.rotateX(-Math.PI / 2);
-    const cavity = new ShapeGeometry(fishShape(L * 1.06));
+    const cavity = new ShapeGeometry(fishShape(BUNG_GRILL.mouldScale));
     cavity.rotateX(-Math.PI / 2);
     return {
       bread,
@@ -124,32 +109,13 @@ function GrillMeshes() {
       cavity,
       bean: new SphereGeometry(0.045, 10, 6),
       hit: new BoxGeometry(L * 1.12, 0.14, L * 0.82),
-      plate: new BoxGeometry(BUNG_GRILL.plate.width, BUNG_GRILL.plate.thickness, BUNG_GRILL.plate.depth),
     };
   }, [L]);
   const materials = useMemo(
     () => ({
-      // 저녁·밤에도 판과 홈이 구별되도록 약한 자체 발광을 둔다.
-      plate: new MeshStandardMaterial({
-        color: "#5c544d",
-        emissive: "#1b1815",
-        metalness: 0.3,
-        roughness: 0.55,
-      }),
-      rim: new MeshStandardMaterial({
-        color: "#8a7f75",
-        emissive: "#24201c",
-        metalness: 0.25,
-        roughness: 0.5,
-      }),
-      cavity: new MeshStandardMaterial({
-        color: "#1f1b18",
-        metalness: 0.2,
-        roughness: 0.8,
-      }),
-      bread: new MeshStandardMaterial({ color: "#ffffff", roughness: 0.78 }),
-      batter: new MeshStandardMaterial({ color: BATTER, roughness: 0.9 }),
-      bean: new MeshStandardMaterial({ color: "#5a2a1e", roughness: 0.7 }),
+      bread: cookingMaterial('#ffffff', .78),
+      batter: cookingMaterial(BATTER, .9),
+      bean: cookingMaterial('#ffffff', .7),
       hover: new MeshBasicMaterial({ color: "#fffaf0", transparent: true, opacity: 0.5, depthWrite: false }),
       golden: new MeshBasicMaterial({ color: "#ef9f27", transparent: true, opacity: 0.85, depthWrite: false }),
       // 그리지 않지만 레이캐스트는 받는 클릭 상자(그리기 호출 없음).
@@ -170,23 +136,9 @@ function GrillMeshes() {
   const hoverRings = useRef<InstancedMesh>(null);
   const goldenRings = useRef<InstancedMesh>(null);
   const groups = useRef<(Group | null)[]>([]);
-  const rims = useRef<InstancedMesh>(null);
-  const cavities = useRef<InstancedMesh>(null);
-  const staticScratch = useMemo(() => new Object3D(), []);
-  const staticOffsets = useRef(new Float32Array(R.slots));
-  const setStaticSlot = (i: number, x: number, z: number) => {
-    staticScratch.position.set(x, BUNG_GRILL.top + 0.001, z);
-    staticScratch.scale.set(1.1, 1, 1.18);
-    staticScratch.updateMatrix();
-    rims.current!.setMatrixAt(i, staticScratch.matrix);
-    staticScratch.position.y = BUNG_GRILL.top + 0.002;
-    staticScratch.scale.set(1, 1, 1);
-    staticScratch.updateMatrix();
-    cavities.current!.setMatrixAt(i, staticScratch.matrix);
-  };
+  const previousFillings = useRef<string[]>([]);
   useLayoutEffect(() => {
-    BUNG_GRILL.slots.forEach(([x, z], i) => setStaticSlot(i, x, z));
-    const batches = [rims.current!, cavities.current!, breads.current!, batters.current!, beans.current!, hoverRings.current!, goldenRings.current!];
+    const batches = [breads.current!, batters.current!, beans.current!, hoverRings.current!, goldenRings.current!];
     for (const mesh of batches) {
       mesh.instanceMatrix.setUsage(DynamicDrawUsage);
       mesh.instanceMatrix.needsUpdate = true;
@@ -195,36 +147,9 @@ function GrillMeshes() {
       mesh.boundingSphere = new Sphere(new Vector3(...BUNG_GRILL.center), 2.2);
     }
     breads.current!.setColorAt(0, STOPS[0]![1]);
+    for (let i = 0; i < R.slots; i++) beans.current!.setColorAt(i, FILLING_COLORS.bean!);
     return () => { batches.forEach(mesh => mesh.dispose()); };
   }, []);
-  // 카트 앞 간판이 45° 시점을 가린다. 굽는 동안 내 화면에서만 숨기고 나갈 때 되돌린다.
-  const scene = useThree((state) => state.scene);
-  useEffect(() => {
-    const hidden = new Map<Mesh, boolean>();
-    const hide = () => {
-      scene.getObjectByName("fish-bread")?.traverse((object) => {
-        const mesh = object as Mesh;
-        const name = (mesh.material as { name?: string } | undefined)?.name;
-        if (
-          mesh.isMesh &&
-          mesh.visible &&
-          name &&
-          bungeoppangView.hiddenCartMaterials.includes(name)
-        ) {
-          mesh.visible = false;
-          hidden.set(mesh, true);
-        }
-      });
-    };
-    hide();
-    // The cart streams by distance. Keep checking until its LODs have loaded,
-    // including slow connections, rather than relying on a single timeout.
-    const timer = setInterval(hide, 250);
-    return () => {
-      clearInterval(timer);
-      hidden.forEach((visible, mesh) => (mesh.visible = visible));
-    };
-  }, [scene]);
   const scratch = useMemo(
     () => ({ v: new Vector3(), w: new Vector3(), color: new Color(), object: new Object3D() }),
     [],
@@ -233,7 +158,12 @@ function GrillMeshes() {
   useFrame(() => {
     const s = useBungeoppang.getState();
     const grill = s.grill;
+    const rules = grill && 'rulesVersion' in grill ? s.rules : R;
     const now = performance.now();
+    const nightFloor = .24 * (1 - environmentFrame.daylight);
+    materials.bread.emissiveIntensity = nightFloor;
+    materials.batter.emissiveIntensity = nightFloor;
+    materials.bean.emissiveIntensity = nightFloor;
     const showGame =
       s.phase === "countdown" || s.phase === "play" || s.phase === "ending";
     const rect = gl.domElement.getBoundingClientRect();
@@ -254,16 +184,10 @@ function GrillMeshes() {
       const shake = now - fx.shakeAt;
       const offset = shake < 250 ? Math.sin(shake / 18) * 0.012 : 0;
       if (group) group.position.x = x + offset;
-      if (Math.abs(staticOffsets.current[i]! - offset) > 0.000001) {
-        setStaticSlot(i, x + offset, z);
-        staticOffsets.current[i] = offset;
-        rims.current!.instanceMatrix.needsUpdate = true;
-        cavities.current!.instanceMatrix.needsUpdate = true;
-      }
       const cooking =
         showGame && (slot?.phase === "front" || slot?.phase === "back");
       const level = cooking
-        ? cookLevel(slot!.since, bungeoppangClock.t, slot!.heat, R)
+        ? cookLevel(slot!.since, bungeoppangClock.t, slot!.heat, rules)
         : 0;
       const breadVisible = !!cooking || (showGame && now - fx.takeAt < 260);
       const flip = (now - fx.flipAt) / 280, take = (now - fx.takeAt) / 260;
@@ -284,8 +208,14 @@ function GrillMeshes() {
       instance(batters.current!, i, x + offset, BUNG_GRILL.top + .002, z, batterVisible ? .35 + .65 * pour : 0);
       visible.batter ||= batterVisible;
       const fill = (now - fx.fillAt) / 1200;
-      const beanVisible = !!cooking && slot!.phase === "front" && fill >= 0 && fill < 1;
+      const beanVisible = !!cooking && slot!.phase === "front" && fill >= 0;
       instance(beans.current!, i, x + offset, BUNG_GRILL.top + .03, z, beanVisible ? Math.min(1, fill * 6) : 0);
+      const filling = slot && 'filling' in slot && slot.filling ? slot.filling : 'bean';
+      if (previousFillings.current[i] !== filling) {
+        beans.current!.setColorAt(i, FILLING_COLORS[filling]!);
+        beans.current!.instanceColor!.needsUpdate = true;
+        previousFillings.current[i] = filling;
+      }
       visible.bean ||= beanVisible;
       const golden = s.firstGame && cooking && level >= R.goldenFrom && level <= R.goldenTo;
       const goldVisible = s.phase === "play" && !!golden;
@@ -308,12 +238,30 @@ function GrillMeshes() {
         el.style.transform = `translate(${sx.toFixed(1)}px, ${sy.toFixed(1)}px)`;
         el.style.setProperty("--slot-width", `${width.toFixed(0)}px`);
         el.dataset.cooking = cooking ? "true" : "false";
+        if (cooking) {
+          const heat = heatLook(slot!.heat, bungeoppangClock.t, rules);
+          const badge = el.querySelector<HTMLElement>('.bung-heat');
+          if (badge) {
+            badge.dataset.rush = String(heat.rush);
+            const speed = badge.querySelector('.bung-heat-speed');
+            const text = `${heat.rush ? '몰림 · ' : ''}굽기 ×${heat.speed.toFixed(2)}`;
+            if (speed && speed.textContent !== text) speed.textContent = text;
+          }
+          const readout = el.querySelector<HTMLElement>('.bung-cook-readout');
+          const quality = judge(level, rules);
+          const text = `${slot!.phase === 'front' ? '앞면' : '뒷면'} · ${quality === 'RAW' ? '설익음' : quality === 'PERFECT' ? '황금! 지금 눌러요' : quality === 'BURNT' ? '탔어요 · 폐기' : level > rules.goldenTo ? '곧 타요!' : '알맞음'} ${level}%`;
+          if (readout && readout.textContent !== text) { readout.textContent = text; readout.dataset.quality = quality; }
+        }
         const gauge = el.querySelector<HTMLElement>(".bung-gauge-fill");
         if (gauge) {
           const j = judge(level, R);
           gauge.style.width = `${Math.min(100, level)}%`;
           gauge.style.background =
             GAUGE[j === "GOOD" && level > R.goldenTo ? "OVER" : j]!;
+          if (cooking && gauge.getAttribute('aria-valuenow') !== String(Math.min(100, level))) {
+            gauge.setAttribute('aria-valuenow', String(Math.min(100, level)));
+            gauge.setAttribute('aria-valuetext', `${slot!.phase === 'front' ? '앞면' : '뒷면'} 익힘 ${level}%`);
+          }
         }
         el.dataset.steam = !cooking
           ? "none"
@@ -337,30 +285,13 @@ function GrillMeshes() {
     else if (event.button === 0) pressBungeoppangSlot(i);
     else if (event.button === 2) discardBungeoppangSlot(i);
   };
-  const [cx, , cz] = BUNG_GRILL.center;
-  const { thickness } = BUNG_GRILL.plate;
   return (
     <group name="bungeoppang-personal-grill" dispose={null}>
       <instancedMesh ref={breads} args={[geometries.bread, materials.bread, R.slots]} visible={false} />
       <instancedMesh ref={batters} args={[geometries.batter, materials.batter, R.slots]} visible={false} />
-      <instancedMesh ref={beans} args={[geometries.bean, materials.bean, R.slots]} visible={false} />
+      <instancedMesh name="bungeoppang-fillings" ref={beans} args={[geometries.bean, materials.bean, R.slots]} visible={false} />
       <instancedMesh ref={hoverRings} args={[geometries.cavity, materials.hover, R.slots]} visible={false} />
       <instancedMesh ref={goldenRings} args={[geometries.cavity, materials.golden, R.slots]} visible={false} />
-      <instancedMesh
-        ref={rims}
-        args={[geometries.cavity, materials.rim, R.slots]}
-      />
-      <instancedMesh
-        ref={cavities}
-        args={[geometries.cavity, materials.cavity, R.slots]}
-      />
-      <mesh
-        position={[cx, BUNG_GRILL.top - thickness / 2, cz]}
-        material={materials.plate}
-        castShadow={false}
-        receiveShadow
-        geometry={geometries.plate}
-      />
       {BUNG_GRILL.slots.map(([x, z], i) => (
         <group
           key={i}

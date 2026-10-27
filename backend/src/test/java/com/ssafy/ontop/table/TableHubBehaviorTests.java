@@ -96,7 +96,7 @@ class TableHubBehaviorTests {
 
         user.request("TABLE_JOIN", Map.of("tableId", tableId));
         user.drain();
-        user.request("GAME_SELECT", Map.of("gameCode", "OMOK"));
+        user.request("GAME_SELECT", Map.of("betAmountPerPlayer", 1, "gameCode", "OMOK"));
         user.drain();
         user.request("READY_SET", Map.of("ready", true));
         user.drain();
@@ -136,7 +136,7 @@ class TableHubBehaviorTests {
         when(session.getId()).thenReturn(peer.id);
         doAnswer(invocation -> {
             if (invocation.getArgument(0) instanceof TextMessage text) {
-                peer.messages.add(mapper.readTree(text.getPayload()));
+                peer.messages.add(ReadyConsent.received(peer, mapper.readTree(text.getPayload())));
             }
             return null;
         }).when(session).sendMessage(any());
@@ -179,7 +179,7 @@ class TableHubBehaviorTests {
 
         private JsonNode request(String type, Object payload) throws Exception {
             String requestId = UUID.randomUUID().toString();
-            hub.receive(id, mapper.writeValueAsString(Map.of("requestId", requestId, "type", type, "payload", payload)));
+            hub.receive(id, mapper.writeValueAsString(Map.of("requestId", requestId, "type", type, "payload", ReadyConsent.payload(this, type, payload))));
             while (true) {
                 JsonNode response = messages.poll(5, TimeUnit.SECONDS);
                 assertThat(response).isNotNull();

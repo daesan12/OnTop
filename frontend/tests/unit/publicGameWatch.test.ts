@@ -67,7 +67,7 @@ it('discarded connections cannot publish late status or suppress the next owner'
   pending.reject(new Error('old connection')); expect(await first).toBe(false); expect(s.status).not.toHaveBeenCalled()
   expect(await s.watcher.set({ ...a, scope: 'new-owner/channel' })).toBe(true)
 })
-const table = { tableId: 't', version: 3, capacity: 2, minimumPlayers: 2, seats: [{ seatNumber: 1, userId: '101', ready: false }, { seatNumber: 2, userId: '102', ready: false }], allReady: false, selectorUserId: '101', gameCode: 'OMOK', targetScore: null }
+const table = { tableId: 't', version: 3, capacity: 2, minimumPlayers: 2, seats: [{ seatNumber: 1, userId: '101', ready: false }, { seatNumber: 2, userId: '102', ready: false }], allReady: false, selectorUserId: '101', gameCode: 'OMOK', targetScore: null, betAmountPerPlayer: 1 }
 it('preserves approved table and list IDs, while missing/null are not playable references', () => {
   expect(tableState(table).gameId).toBeNull(); expect(tableState({ ...table, gameId: null }).gameId).toBeNull()
   expect(tableState({ ...table, gameId: a.gameId }).gameId).toBe(a.gameId)

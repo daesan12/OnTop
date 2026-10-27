@@ -1,9 +1,10 @@
 import { useGame } from '../store'
+import { forfeitBlocksInput } from '../forfeit'
 import type { BridgeInput } from './protocol'
 export function canActBridge(ownId: string, input: BridgeInput, now = Date.now()) {
   const s = useGame.getState(), g = s.game
   if (!g?.bridge || g.role !== 'PLAYER' || g.gameId !== s.permittedGameId || s.recovery !== 'RESTORED'
-    || ['STARTING', 'CONFIRMED', 'SETTLING'].includes(s.start?.phase ?? '') || s.pending || s.uncertain || g.version < s.awaitingVersion) return false
+    || ['STARTING', 'CONFIRMED', 'SETTLING'].includes(s.start?.phase ?? '') || s.pending || s.uncertain || forfeitBlocksInput(g.gameId) || g.version < s.awaitingVersion) return false
   const b = g.bridge, own = b.players.find(p => p.userId === ownId)
   if (!own || own.forfeited || own.pendingForfeit || b.status !== 'PLAYING' || !b.turnDeadline || now >= Date.parse(b.turnDeadline)) return false
   if (input.kind === 'roll') return Object.keys(input).length === 1 && b.stage === 'AWAITING_ROLL' && b.turnUserId === ownId

@@ -29,7 +29,7 @@ public class UserWithdrawalController {
         this.service = service;
     }
 
-    @Operation(summary = "회원 탈퇴", description = "회원 행을 잠그고 deleted_at 기록 및 모든 Refresh 계열 폐기를 한 DB 트랜잭션에서 수행합니다. 커밋 후 모든 WebSocket을 4403으로 종료합니다. 회원/관련 기록의 영구 삭제, 즉시 기권/정산은 수행하지 않습니다. 기존 OAuth는 7일 이내 복구하며 7일 초과 재가입은 보류합니다. 이미 탈퇴한 회원의 JWT는 401입니다.",
+    @Operation(summary = "회원 탈퇴", description = "회원 행을 잠그고 deleted_at 기록 및 모든 Refresh 계열 폐기를 한 DB 트랜잭션에서 수행합니다. 커밋 후 모든 WebSocket을 4403으로 종료합니다. 게임 연결부가 등록돼 있으면 MEMBER_DEACTIVATED로 즉시 이탈을 요청하며, 경기 전체 종료·지갑 정산 완료와는 구분합니다. 회원/관련 기록을 영구 삭제하지 않습니다. 기존 OAuth는 7일 이내 복구하며 7일 초과 재가입은 보류합니다. 이미 탈퇴한 회원의 JWT는 401입니다.",
             security = {@SecurityRequirement(name = "AccessJwt")})
     @ApiResponses({
         @ApiResponse(responseCode = "204", description = "성공. 응답 본문 없음", content = @Content),

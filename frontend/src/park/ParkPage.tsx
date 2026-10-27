@@ -1,11 +1,8 @@
 import { useCallback, useEffect, useState, type CSSProperties } from 'react'
-import coinImage from '../assets/yeopjeon-icon.png'
-import leafImage from '../assets/park-leaf.png'
-import peopleImage from '../assets/park-people.png'
-import avatarImage from '../assets/park-avatar.png'
 import { ParkScene } from './ParkScene'
 import './park.css'
 import './scene.css'
+import '../features/parkMenus/hud.css'
 import { useShallow } from 'zustand/react/shallow'
 import { useSession } from '../network/worldClient'
 import { ParkRuntimeProvider } from './runtime/ParkRuntime'
@@ -24,19 +21,25 @@ import { ParkMap } from '../features/navigation/ParkMap'
 import { ParkNavigation } from '../features/navigation/NavigationHud'
 import { BungeoppangHud } from '../features/bungeoppang/BungeoppangHud'
 import { useBungeoppang } from '../features/bungeoppang/store'
-import { ShopLauncher, ShopPanel } from '../features/shop/ShopPanel'
+import { ShopPanel } from '../features/shop/ShopPanel'
+import { WardrobeLauncher, WardrobeScreen } from '../features/wardrobe/WardrobeScreen'
 import { AdvertisementLink } from '../features/advertisements/AdvertisementLink'
 import { CameraControls } from '../features/camera/CameraControls'
 import { FollowMenu } from '../features/follow/FollowMenu'
 import { ParkChat } from '../features/chat/ParkChat'
-import { WalletBalance } from '../features/wallet/WalletBalance'
+import { ChannelMenu } from '../features/parkMenus/ChannelMenu'
+import { AccountMenu } from '../features/parkMenus/AccountMenu'
+import { LocationChip } from '../features/parkMenus/LocationChip'
 
 const shortcuts = [
   { key: 'WASD', action: '이동' },
   { key: 'Shift', action: '달리기' },
   { key: 'Space', action: '점프' },
-  { key: 'M', action: '지도' },
-  { key: 'G', action: '감정표현' },
+  { key: 'E', action: '상호작용' },
+  { key: 'Enter', action: '채팅' },
+  // The camera buttons were removed; their shortcuts are listed here instead.
+  { key: 'V', action: '3인칭' },
+  { key: 'Ctrl', action: '마우스 룩' },
 ]
 
 function getHudScale(): number {
@@ -48,15 +51,14 @@ type ParkProps = { onExit: () => void; exitError: string; onAuthEnded: () => voi
 export function ParkPage(props: ParkProps) {
   return <ParkRuntimeProvider onAuthEnded={props.onAuthEnded}><ParkContent {...props}/></ParkRuntimeProvider>
 }
-function ParkContent({ onExit, exitError }: ParkProps) {
+function ParkContent({ onExit, exitError, onAuthEnded }: ParkProps) {
   const bungeoppang = useBungeoppang(s => s.phase !== 'idle')
-  const session = useSession(useShallow(s=>({ channelName:s.channelName,playerCount:s.playerCount,capacity:s.capacity,sessionId:s.sessionId,roomId:s.roomId,account:s.account })))
+  const session = useSession(useShallow(s=>({ sessionId:s.sessionId,roomId:s.roomId })))
   const [quality,setQuality] = useState<QualityPreset>('low')
   const changeQuality = useCallback((value: QualityPreset) => {
     setQuality(value)
     resetMetrics()
   }, [])
-  const parkView = { name:session.channelName || '채널 선택', players:session.playerCount, capacity:session.capacity, nickname:session.account?.nickname ?? '정보 미연동' }
   const [hudScale, setHudScale] = useState(getHudScale)
 
   useEffect(() => {
@@ -68,37 +70,24 @@ function ParkContent({ onExit, exitError }: ParkProps) {
   return (
     <main className="park-page" aria-label="공원 기본 화면" data-bungeoppang={bungeoppang} style={{
       '--park-ui-scale': hudScale,
-      '--park-edge': `${30 * hudScale}px`,
-      '--park-shortcuts-half-width': `${390 * hudScale}px`,
+      '--park-edge': `${20 * hudScale}px`,
     } as CSSProperties}>
       <ParkScene quality={quality} />
       <div className="park-hud">
-        <section className="park-location" aria-label="현재 공원과 접속 인원" role="button" tabIndex={0} aria-haspopup="true" onClick={()=>window.dispatchEvent(new Event('ontop-toggle-channels'))} onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();window.dispatchEvent(new Event('ontop-toggle-channels'))}}}>
-          <img className="park-location__leaf" src={leafImage} alt="" />
-          <div className="park-location__details">
-            <div className="park-location__name">{parkView.name}</div>
-            <div className="park-location__population">
-              <img src={peopleImage} alt="" />
-              <span>{parkView.players} / {parkView.capacity}</span>
-            </div>
-          </div>
-          <span className="park-chevron" aria-hidden="true" />
-        </section>
-
-        <div className="park-account">
-          <div className="park-account__summary" aria-label="내 정보">
-            <img className="park-account__coin" src={coinImage} alt="엽전" />
-            <WalletBalance />
-            <span className="park-account__separator" aria-hidden="true" />
-            <span className="park-account__nickname">{parkView.nickname}</span>
-            <span className="park-account__avatar"><img src={avatarImage} alt="내 캐릭터" /></span>
-            <span className="park-chevron" aria-hidden="true" />
-          </div>
-          <div className="park-account-actions"><ShopLauncher /><button className="park-exit" type="button" onClick={onExit}>나가기</button></div>
-          {exitError && <p className="park-exit-error" role="alert">{exitError}</p>}
+        <div className="park-roaming-ui" hidden={bungeoppang} inert={bungeoppang}>
+          <ChannelMenu />
+          {/* 빠른 메뉴: each feature keeps its own launcher, placed into a slot by CSS. */}
+          <div className="park-quick-dock" aria-hidden="true" />
+          <div className="park-dock-wardrobe"><WardrobeLauncher /></div>
+          <LocationChip />
+        </div>
+        <div inert={bungeoppang}>
+          <AccountMenu quality={quality} exitError={exitError} onExit={onExit} onWithdrawn={onAuthEnded} />
         </div>
 
-        <ParkChat key={`${session.sessionId}:${session.roomId}`} />
+        <div className="park-roaming-ui" hidden={bungeoppang} inert={bungeoppang}>
+          <ParkChat key={`${session.sessionId}:${session.roomId}`} />
+        </div>
 
         <aside className="park-shortcuts" aria-label="조작 방법">
           {shortcuts.map(({ key, action }) => (
@@ -106,21 +95,24 @@ function ParkContent({ onExit, exitError }: ParkProps) {
           ))}
         </aside>
       </div>
-      <ParkTools quality={quality} onQuality={changeQuality}/>
-      <ParkInteractionHint />
-      <FacilityStatus />
-      <EmoteWheel />
-      <TelescopePanel />
-      <FeedbackPanel />
-      <AnonymousNotes />
-      <ShopPanel />
-      <AdvertisementLink />
-      <CameraControls />
-      <FollowMenu />
+      <div className="park-roaming-ui" hidden={bungeoppang} inert={bungeoppang}>
+        <ParkTools quality={quality} onQuality={changeQuality}/>
+        <ParkInteractionHint />
+        <FacilityStatus />
+        <EmoteWheel />
+        <TelescopePanel />
+        <FeedbackPanel />
+        <AnonymousNotes />
+        <ShopPanel />
+        <WardrobeScreen />
+        <AdvertisementLink />
+        <CameraControls />
+        <FollowMenu />
+        <ParkMap />
+        <ParkNavigation />
+      </div>
       <BungeoppangHud />
-      <ParkMap />
-      <ParkNavigation />
-      <ManualHost worldActions={<ManualWorldActions quality={quality} onQuality={changeQuality} onExit={onExit} />} />
+      <ManualHost worldActions={bungeoppang ? undefined : <ManualWorldActions quality={quality} onQuality={changeQuality} onExit={onExit} />} />
     </main>
   )
 }

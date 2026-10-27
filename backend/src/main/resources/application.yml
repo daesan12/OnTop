@@ -24,6 +24,13 @@ springdoc:
 
 ontop:
   world:
+    map:
+      # generated는 외부 파일과 FE 공동 검증 후에만 명시적으로 선택한다.
+      source: ${WORLD_MAP_SOURCE:legacy}
+      json-path: ${WORLD_MAP_JSON_PATH:}
+      manifest-path: ${WORLD_MAP_MANIFEST_PATH:}
+      # FE 맵 확인 요청 연결 후 활성화한다. 현재 충돌 맵 교체와는 별개다.
+      require-match: ${WORLD_MAP_REQUIRE_MATCH:false}
     emote:
       cooldowns:
         WAVE: 5s

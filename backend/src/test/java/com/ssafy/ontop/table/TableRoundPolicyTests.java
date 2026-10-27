@@ -42,7 +42,7 @@ class TableRoundPolicyTests {
     @Test void 다른게임에는주사위옵션을붙일수없다() throws Exception {
         var mapper = new ObjectMapper();
         assertThatThrownBy(() -> new TableProtocol(mapper).parse(mapper.writeValueAsString(Map.of("requestId", "a",
-                "type", "GAME_SELECT", "payload", Map.of("gameCode", "OMOK", "targetScore", 4000)))))
+                "type", "GAME_SELECT", "payload", Map.of("betAmountPerPlayer", 1, "gameCode", "OMOK", "targetScore", 4000)))))
                 .isInstanceOf(TableProtocol.RequestException.class);
     }
 

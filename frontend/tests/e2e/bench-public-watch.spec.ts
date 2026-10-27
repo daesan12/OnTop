@@ -3,6 +3,12 @@ import { fixture, screenshot } from './contractFixture'
 import { facilityCatalog } from '../fixtures/facilityCatalog'
 import { benchTable } from '../../src/features/interactions/benchSpectator'
 
+// Camera buttons are gone from the HUD; V and a Ctrl tap drive the same state, read here.
+const cameraState = (page: Page) => page.evaluate(async () => ({
+  first: (await import('/src/world/cameraPerspective.ts' as string)).useCameraPerspective.getState().perspective === 'first-person',
+  mouse: (await import('/src/world/mouseLook.ts' as string)).useMouseLook.getState().active as boolean,
+}))
+
 const bench = facilityCatalog.facilities.find(d => d.kind === 'BENCH' && benchTable(d.facilityId)?.pavilionId === 'P1')!
 const anchor = benchTable(bench.facilityId)!
 const connection = (page: Page) => page.locator('.bench-watch-status')
@@ -31,6 +37,7 @@ for (const kind of ['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE'] as const) {
     await loaded(page); await page.keyboard.press('KeyV')
     await sitAndWatch(page); await expect(connection(page)).toHaveText('공개 경기 관전 중')
     const current = await game(page); expect(current?.role).toBe('SPECTATOR')
+    await expect(page.getByRole('button', { name: '기권', exact: true })).toHaveCount(0)
     if (kind === 'ONE_CARD') expect(current?.hand).toBeNull()
     if (kind === 'LIAR_BRIDGE') expect(current?.secret).toBeNull()
     const targetId = current!.gameId
@@ -80,8 +87,8 @@ for (const kind of ['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE'] as const) {
     await expect.poll(() => game(page)).toBeNull()
     await expect.poll(() => server.sent.some(m => m.type === 'WORLD_MOVE' && (m.payload.dx || m.payload.dz))).toBe(true)
     await page.keyboard.up('KeyW')
-    await expect(page.getByRole('button', { name: '1인칭 시점', exact: true })).toHaveAttribute('aria-pressed', 'true')
-    expect(server.sent.some(m => ['TABLE_JOIN', 'GAME_ACTION_SEND', 'GAME_RESULT_CHECK'].includes(m.type))).toBe(false)
+    await expect.poll(async () => String((await cameraState(page)).first)).toBe('true')
+    expect(server.sent.some(m => ['TABLE_JOIN', 'GAME_ACTION_SEND', 'GAME_RESULT_CHECK', 'GAME_FORFEIT'].includes(m.type))).toBe(false)
   })
 }
 

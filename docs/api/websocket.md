@@ -1,5 +1,11 @@
 # OnTop WebSocket 연결 및 메시지 계약
 
+맵 식별 정보: [CONNECTED / WORLD_MAP_CONFIRM / WORLD_MAP_STATE](../world-map-api.md).
+WORLD_MAP_REQUIRE_MATCH=true에서는 확인 전 입장·경기 복구를 보류한다. 기본 false는 기존 FE 호환이다.
+
+따라가기: [WORLD_FOLLOW_START / STOP / CHECK / STATE](../world-follow-api.md).
+서버가 매 틱 이동을 판정하고 기존 WORLD_STATE로 좌표를 전송한다.
+
 수동 기권은 [GAME_FORFEIT / GAME_FORFEIT_RESULT](../game-forfeit-api.md)를 사용한다.
 현재 인증 참가자만 요청하며 소켓은 유지한다. 기권 승인과 DB 정산 완료는 구분한다.
 
@@ -65,8 +71,9 @@ HTTPS 환경은 `https` REST와 `wss://…/ws/tables`를 사용한다.
 로그인 계열이 달라도 동일 회원의 WebSocket 중복 연결은 기존 한 연결 제한을 유지한다.
 네트워크 단절은 heartbeat/전송 실패 등 **서버가 감지한 시각부터** 기존 경기 재접속 30초를 적용한다.
 새 연결에는 새 접속권과 유효한 sid가 필요하며, 턴/마감은 초기화하지 않는다.
-로그아웃/탈퇴 close reason은 네트워크와 구분하지만 기존 경기 단절 연결부에 30초 유예가 생길 수 있다.
-즉시 기권·정산은 이번 인증 연동으로 완성되지 않았다. 상세는 [경기 재접속](../game-reconnect.md).
+LOGOUT·MEMBER_DEACTIVATED는 게임에 즉시 이탈 사유로 전달한다. 일반 단절과 Refresh 재사용 탐지의
+AUTH_SESSION_REVOKED는 30초 유예다. 즉시 이탈은 경기 전체 종료·정산 완료와 같지 않으며,
+다인전은 남은 참가자로 계속할 수 있다. 상세는 [경기 재접속](../game-reconnect.md).
 
 ## 공통 프레임
 
@@ -85,15 +92,19 @@ HTTPS 환경은 `https` REST와 `wss://…/ws/tables`를 사용한다.
 | 범위 | 클라이언트 type | 서버 응답/알림 |
 | --- | --- | --- |
 | 연결 | HTTP Upgrade 후 자동 | CONNECTED (`payload.userId`는 서버 식별) |
+| 맵 확인 | WORLD_MAP_CONFIRM | WORLD_MAP_STATE |
 | 광장 | CHANNEL_JOIN / CHANNEL_LEAVE | CHANNEL_STATE / CHANNEL_LEFT / WORLD_STATE |
 | 이동 | WORLD_MOVE | WORLD_STATE |
 | 채팅·감정 | WORLD_CHAT_SEND / WORLD_EMOTE_SEND | WORLD_CHAT_MESSAGE / WORLD_EMOTE_EVENT / WORLD_EMOTE_CANCELLED |
+| 따라가기 | WORLD_FOLLOW_CHECK / WORLD_FOLLOW_START / WORLD_FOLLOW_STOP | WORLD_FOLLOW_STATE ([상세](../world-follow-api.md)) |
+| 시설 | WORLD_FACILITY_CHECK / WORLD_FACILITY_CATALOG / WORLD_FACILITY_USE / WORLD_FACILITY_RELEASE / WORLD_FACILITY_AIM | [시설 계약](../world-facility-api.md)의 상태·목록·이용 응답 |
 | 착석·준비 | TABLE_JOIN / TABLE_LEAVE / READY_SET / GAME_SELECT | TABLE_STATE / TABLE_LEFT |
 | 대기 테이블 보기 | TABLE_WATCH / TABLE_UNWATCH | TABLE_WATCH_STATE / TABLE_WATCH_LEFT |
 | 시작 확인 | GAME_START_CHECK | GAME_START_STATE (시작 연결부 활성 시만 요청 허용) |
 | 경기 복구 | GAME_RECONNECT_CHECK | GAME_CONNECTION_STATE |
 | 경기 상태·관전 | GAME_STATE_CHECK / GAME_WATCH / GAME_UNWATCH | GAME_STATE / GAME_WATCH_LEFT |
 | 경기 입력 | GAME_ACTION_SEND | GAME_ACTION_RESULT (개별 GAME_STATE 갱신과 구분) |
+| 수동 기권 | GAME_FORFEIT | GAME_FORFEIT_RESULT |
 | 경기 결과 | GAME_RESULT_CHECK | GAME_RESULT |
 | 오류 | 잘못된 메시지/권한/연동 미준비 | ERROR |
 
@@ -121,4 +132,29 @@ participants/myCoinDelta/endedAt이며 PENDING의 myCoinDelta는 null이다. 응
 
 세부 필드와 선택적4종 엔진 계약은 기존 [경기 통신](../websocket-api/09-game-communication.md),
 [경기 입력](../game-action-api.md), [결과](../game-result-api.md), [광장](../world-websocket-api.md)를 따른다.
-게스트 인증, 로그아웃/탈퇴의 즉시 기권·지갑 정산, 다중 인스턴스 접속권/연결 추적·서버 재시작 복구는 후속 영역이다.
+위 표는 실제 클라이언트 요청 28종이다. ERROR와 CONNECTED는 요청 타입이 아니다.
+게스트 인증, 다중 인스턴스 접속권/연결 추적 및 다른 boot의 미완료 경기 자동 반환은 미지원이다.
+
+## Story 174 결과·전달·복구
+
+- FINISHED는 참가자 result 필수, INVALID는 판정 없는 참가자의 result=null 허용.
+- INVALID/PENDING은 myCoinDelta=null, INVALID/SETTLED는 0. DB 확정 B 예약만 해제하고 balance 유지.
+- 이탈 이벤트를 영속화하며 최종 판정 전에는 참가비 예약을 유지한다.
+- GameEventDelivery의 현재 프로세스 메모리 보관 → 비동기 DB 수신 커밋 ACK → 정산/반환 재시도.
+  최초 DB ACK 전 프로세스 종료의 유실은 해결하지 않는다.
+- 정산·반환과 같은 트랜잭션의 영속 outbox → 서버 내부 결과 알림 재시도.
+  클라이언트 수신 ACK·다중 노드 전달·오프라인 사용자별 수신함은 지원하지 않는다.
+- 같은 경기/version 중복·역순 알림은 최신 결과를 유지한다. GAME_RESULT_CHECK는 같은 저장 결과를 읽으며 지급하지 않는다.
+- 현재 boot의 SETTLING은 신뢰된 DB 종결 결과로 복구한다. 다른 boot의 미완료 경기 자동 INVALID/반환은 미구현이다.
+- 자세한 nullable/필드 규칙: [결과](../game-result-api.md), [Story 174 구현과 한계](../game-recovery.md).
+
+## GAME_SELECT 참가비 계약 (Story 172 보완/173)
+
+GAME_SELECT payload는 `{gameCode, betAmountPerPlayer, targetScore?}`다. 참가비는 필수 양의 안전 정수이며 DICE만 targetScore가 필요하다. TABLE_STATE/TABLE_WATCH_STATE와 테이블 목록에 nullable betAmountPerPlayer가 추가된다. selector만 WAITING에서 변경할 수 있으며 변경 시 전원 준비를 초기화한다. 게임 시작 이후에는 수정할 수 없고 종료 정산은 DB 확정 금액을 사용한다. 상세: [가변 참가비·정산](../game-settlement.md).
+
+READY_SET의 true는 `{ready:true, betAmountPerPlayer, expectedVersion}`이다. 사용자가 확인한
+TABLE_STATE의 금액과 version을 전달한다. false는 기존 `{ready:false}`를 유지한다.
+누락/형식 오류 INVALID_PAYLOAD, 현재 금액 불일치 GAME_BET_CHANGED, 준비 초기화 이전/미래 버전
+GAME_SETTINGS_CHANGED는 상태를 변경하지 않는다. 금액이 다시 같아지는 ABA도 기존 version으로 거절한다.
+다른 참가자의 단순 준비 변경은 동의를 무효화하지 않는다. FE는 오류 후 새 금액을 확인받아야 한다.
+상세: [준비·취소](../websocket-api/03-ready-set.md).

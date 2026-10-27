@@ -121,7 +121,7 @@ class WorldChannelHubTests {
         second.request("TABLE_JOIN", Map.of("tableId", table("channel-1")));
         first.next();
         other.request("TABLE_JOIN", Map.of("tableId", table("channel-2")));
-        first.request("GAME_SELECT", Map.of("gameCode", "DICE", "targetScore", 4000));
+        first.request("GAME_SELECT", Map.of("betAmountPerPlayer", 1, "gameCode", "DICE", "targetScore", 4000));
         second.next();
         first.request("READY_SET", Map.of("ready", true));
         second.next();
@@ -151,7 +151,7 @@ class WorldChannelHubTests {
         first.next();
         String tableId = table("channel-1");
         owner.request("TABLE_JOIN", Map.of("tableId", tableId));
-        owner.request("GAME_SELECT", Map.of("gameCode", "DICE", "targetScore", 4000));
+        owner.request("GAME_SELECT", Map.of("betAmountPerPlayer", 1, "gameCode", "DICE", "targetScore", 4000));
         CountDownLatch gate = new CountDownLatch(1);
         try (var workers = Executors.newVirtualThreadPerTaskExecutor()) {
             var one = workers.submit(() -> { gate.await(); return first.request("TABLE_JOIN", Map.of("tableId", tableId)); });
@@ -180,7 +180,7 @@ class WorldChannelHubTests {
                 JsonNode value = mapper.readTree(text.getPayload());
                 // 위치 알림은 WorldMovementHubTests에서 검증하고 여기서는 기존 채널·테이블 계약만 읽는다.
                 if (!value.path("type").asText().equals("WORLD_STATE")) {
-                    peer.messages.add(value);
+                    peer.messages.add(ReadyConsent.received(peer, value));
                 }
             }
             return null;
@@ -202,7 +202,7 @@ class WorldChannelHubTests {
         private JsonNode request(String type, Object payload) throws Exception {
             String requestId = UUID.randomUUID().toString();
             hub.receive(id, mapper.writeValueAsString(Map.of("requestId", requestId, "type", type,
-                    "payload", payload)));
+                    "payload", ReadyConsent.payload(this, type, payload))));
             JsonNode response = next();
             assertThat(response.path("requestId").asText()).isEqualTo(requestId);
             return response;
