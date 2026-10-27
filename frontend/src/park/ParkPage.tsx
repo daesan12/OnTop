@@ -121,7 +121,7 @@ function ParkContent({ onExit, exitError, onAuthEnded }: ParkProps) {
         <ParkNavigation />
       </div>
       <BungeoppangHud />
-      <ManualHost worldActions={bungeoppang ? undefined : <ManualWorldActions quality={quality} onQuality={changeQuality} onExit={onExit} />} />
+      <ManualHost worldActions={bungeoppang ? undefined : <ManualWorldActions quality={quality} onQuality={changeQuality} />} />
     </main>
   )
 }
