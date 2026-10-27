@@ -103,7 +103,7 @@ function Avatar({
     if (marker.current) {
       marker.current.position.copy(worldPosition)
       marker.current.position.y += 0.16
-    }
+    }
   }, -1)
   return (
     <group

@@ -144,7 +144,7 @@ export function createAvatarMotion(model: Rig) {
         if (avatar.emote === 'EMOTE_FART') figure.rotation.x = Math.sin(Math.PI * age / NETWORK.emoteDurationMs) * 0.12
         sampleCharacterEmote(avatar.emote, age, model)
       }
-      if (reaction && avatar.connected && seated && !avatar.moving) sampleDefeatMotion(reaction.kind, now - reaction.at, model)
+      if (reaction && avatar.connected && (kind === 'ground' || seated) && !avatar.moving) sampleDefeatMotion(reaction.kind, now - reaction.at, model)
       model.apply(delta)
       if (kind === 'ground' || kind === 'telescope') {
         figure.position.y = pavingLift(pose.x, pose.z, pose.y - 0.8) + model.groundShift() + 0.003

@@ -1,93 +1,58 @@
 import { describe, expect, it } from 'vitest'
 import { Group, Vector3 } from 'three'
-import { bridgeState } from '../fixtures/bridge'
 import { characterSource } from '../fixtures/characterRig'
-import { DefeatTimeline, remainingPlayers, type DefeatReaction } from '../../src/game/presentation/defeat'
-import type { BridgeGame, DiceGame, OneCardGame } from '../../src/game/protocol'
+import { DefeatTimeline, parseGameReaction, type DefeatReaction } from '../../src/game/presentation/defeat'
 import { createCharacterRig } from '../../src/world/art/CharacterRig'
 import { createAvatarMotion } from '../../src/world/avatarMotion'
 import { sampleDefeatMotion } from '../../src/world/art/defeatMotion'
 import type { AvatarSnapshot } from '../../src/network/worldClient'
 
-const now = Date.parse('2026-10-26T08:00:00Z')
-const bridge = (count: 2 | 3 | 4 = 4): BridgeGame => ({ gameId: 'g', version: 1, role: 'PLAYER', bridge: bridgeState(count), secret: null })
-const eliminated = (g: BridgeGame, ids: string[]): BridgeGame => ({ ...g, version: g.version + 1,
-  bridge: { ...g.bridge, players: g.bridge.players.map(p => ids.includes(p.userId) ? { ...p, forfeited: true } : p) } })
-const finish = (g: BridgeGame, winners: string[]): BridgeGame => ({ ...g, version: g.version + 1,
-  bridge: { ...g.bridge, status: 'FINISHED', stage: 'FINISHED', endedAt: new Date(now).toISOString(), winnerUserIds: winners } })
+const now = Date.parse('2026-10-27T08:00:00Z')
+const event = (patch: Record<string, unknown> = {}) => parseGameReaction({ eventId: 'g:reaction:101',
+  gameId: 'g', tableId: 'table', channelId: 'channel', gameCode: 'LIAR_BRIDGE', version: 7,
+  userId: '101', kind: 'FORFEIT', remainingBefore: 3, motion: 'head-clutch', durationMs: 3600,
+  occurredAt: new Date(now - 500).toISOString(), ...patch })
+const position = { x: 1, y: .8, z: 2 }
 
-describe('server-confirmed defeat transitions', () => {
-  it.each([3, 4] as const)('uses head-clutch for a confirmed forfeit with %i remaining participants', count => {
-    const t = new DefeatTimeline(), before = bridge(count)
-    t.observe(before, eliminated(before, ['101']), now)
-    expect(t.playing.get('101')?.kind).toBe('head-clutch')
-    expect(t.playing.size).toBe(1)
-  })
-  it('uses table-flip after a four-player game has genuinely narrowed to two', () => {
-    const t = new DefeatTimeline(), before = eliminated(bridge(), ['103', '104'])
-    expect(remainingPlayers(before)).toEqual(['101', '102'])
-    t.observe(before, eliminated(before, ['101']), now)
-    expect(t.playing.get('101')?.kind).toBe('table-flip')
-    t.clear(); t.observe(before, finish(before, ['102']), now)
-    expect([...t.playing.keys()]).toEqual(['101'])
-    expect(t.playing.get('101')?.kind).toBe('table-flip')
-  })
-  it('counts pending bridge forfeits once and never counts individual pawns', () => {
-    const t = new DefeatTimeline(), before = bridge()
-    const pending: BridgeGame = { ...before, version: 2, bridge: { ...before.bridge,
-      players: before.bridge.players.map(p => p.userId === '101' ? { ...p, pendingForfeit: true } : p) } }
-    t.observe(before, pending, now)
-    const reaction = t.playing.get('101')
-    expect(reaction?.kind).toBe('head-clutch')
-    const after = eliminated(pending, ['101']); t.observe(pending, after, now + 500)
-    expect(t.playing.get('101')).toBe(reaction)
-    expect(remainingPlayers(pending)).toHaveLength(3)
-  })
-  it('animates only new losers at a multiplayer finish, excluding winners and earlier forfeits', () => {
-    const t = new DefeatTimeline(), before = eliminated(bridge(), ['104'])
-    t.observe(before, finish(before, ['102', '103']), now)
-    expect([...t.playing.keys()]).toEqual(['101'])
-    expect(t.playing.get('101')?.kind).toBe('head-clutch')
-  })
-  it('does not turn a draw or a game with no winner into a defeat', () => {
-    const t = new DefeatTimeline(), before = bridge()
-    t.observe(before, finish(before, []), now)
-    expect(t.playing.size).toBe(0)
-  })
-  it('ignores initial/recovered terminal states, duplicates, stale versions and foreign participants', () => {
-    const t = new DefeatTimeline(), before = bridge(), after = finish(before, ['102'])
-    t.observe(null, after, now); expect(t.playing.size).toBe(0)
-    t.observe(before, { ...after, version: before.version }, now); expect(t.playing.size).toBe(0)
-    t.observe(before, { ...after, version: before.version + 2 }, now); expect(t.playing.size).toBe(0)
-    t.observe(before, { ...after, gameId: 'other' }, now); expect(t.playing.size).toBe(0)
-    t.observe(before, { ...after, bridge: { ...after.bridge, players: after.bridge.players.slice(1) } }, now); expect(t.playing.size).toBe(0)
-    t.observe(before, after, now); const reaction = t.playing.get('101')
-    t.observe(before, after, now + 100); t.observe(after, { ...after, version: 10 }, now + 200)
-    expect(t.playing.get('101')).toBe(reaction)
-    t.stop('101'); t.observe(before, after, now + 300); expect(t.playing.has('101')).toBe(false)
-    t.clear(); t.observe(before, after, now); expect(t.playing.has('101')).toBe(true)
-  })
-  it('does not replay old results or invalid future timestamps', () => {
-    const t = new DefeatTimeline(), before = bridge(), after = finish(before, ['102'])
-    t.observe(before, after, now + 3600); expect(t.playing.size).toBe(0)
-    t.clear(); t.observe(before, after, now - 6000); expect(t.playing.size).toBe(0)
-  })
-  it('uses the same confirmed public transition for an authorized spectator', () => {
-    const t = new DefeatTimeline(), before = { ...bridge(), role: 'SPECTATOR' as const }
-    t.observe(before, finish(before, ['102']), now)
-    expect(t.playing.size).toBe(3)
-  })
-  it('handles ONE_CARD active flags and DICE final winners without private state', () => {
+describe('server-confirmed reaction events', () => {
+  it.each([1, 2, 3, 4])('validates the authoritative motion for %i remaining participants', remainingBefore => {
+    const motion = remainingBefore === 2 ? 'table-flip' : 'head-clutch'
+    const e = event({ remainingBefore, motion, durationMs: motion === 'table-flip' ? 2800 : 3600 })
     const t = new DefeatTimeline()
-    const cards = { gameId: 'cards', version: 1, role: 'SPECTATOR', hand: null, onecard: {
-      status: 'PLAYING', players: ['101', '102', '103'].map(userId => ({ userId, active: true })) } } as OneCardGame
-    const next = { ...cards, version: 2, onecard: { ...cards.onecard,
-      players: cards.onecard.players.map(p => p.userId === '101' ? { ...p, active: false } : p) } }
-    t.observe(cards, next, now); expect(t.playing.get('101')?.kind).toBe('head-clutch')
-    const dice = { gameId: 'dice', version: 1, role: 'PLAYER', dice: { status: 'PLAYING', players: ['101', '102'] } } as DiceGame
-    t.observe(dice, { ...dice, version: 2, dice: { ...dice.dice, status: 'FINISHED', winnerUserId: '102', endedAt: new Date(now).toISOString() } }, now)
-    expect(t.playing.get('101')?.kind).toBe('table-flip')
-    t.observe(null, null, now); expect(t.playing.size).toBe(0)
+    expect(t.accept(e, 'table-1', position, now)).toMatchObject({ kind: motion, at: now - 500, key: e.eventId })
+  })
+  it('rejects malformed identifiers, enums, time, counts, versions and inconsistent motion/duration', () => {
+    for (const patch of [{ eventId: '' }, { userId: 101 }, { tableId: ' ' }, { gameCode: 'OTHER' }, { kind: 'WIN' },
+      { version: -1 }, { version: 1.5 }, { remainingBefore: 0 }, { remainingBefore: 5 },
+      { remainingBefore: 2 }, { durationMs: 2800 }, { occurredAt: 'bad' }, { occurredAt: '2026-10-27' }])
+      expect(() => event(patch)).toThrow()
+    expect(event({ hand: ['private'], balance: 99 })).not.toHaveProperty('hand')
+    expect(event({ hand: ['private'], balance: 99 })).not.toHaveProperty('balance')
+  })
+  it('deduplicates both event ID and game/user even after stop or reconnect without restarting its clock', () => {
+    const t = new DefeatTimeline(), e = event()
+    const first = t.accept(e, 'table-1', position, now)
+    expect(t.accept(e, 'table-1', position, now + 100)).toBeNull()
+    expect(t.accept({ ...e, eventId: 'alias' }, 'table-1', position, now + 100)).toBeNull()
+    expect(t.playing.get('101')).toBe(first)
+    t.stop('101'); expect(t.accept(e, 'table-1', position, now + 200)).toBeNull()
+    t.clear(); expect(t.accept(e, 'table-1', position, now + 300)).toBeNull()
+  })
+  it('keeps server time, expires a delayed event rather than starting a fresh clip and rejects future/older events', () => {
+    const t = new DefeatTimeline(), e = event()
+    expect(t.accept(e, 'table-1', position, now + 3100)).toBeNull()
+    expect(t.accept(e, 'table-1', position, now - 6000)).toBeNull()
+    expect(t.accept(e, 'table-1', position, now)?.at).toBe(now - 500)
+    expect(t.accept(event({ eventId: 'old', gameId: 'older', occurredAt: new Date(now - 600).toISOString() }), 'table-1', position, now)).toBeNull()
+    expect(t.accept(event({ eventId: 'next', gameId: 'next', occurredAt: new Date(now).toISOString() }), 'table-1', position, now)).not.toBeNull()
+    t.stopGame('g'); expect(t.playing.size).toBe(1)
+    t.stopGame('next'); expect(t.playing.size).toBe(0)
+  })
+  it('bounds replay memory while allowing later distinct games', () => {
+    const t = new DefeatTimeline()
+    for (let i = 0; i < 2050; i++) t.accept(event({ eventId: 'e' + i, gameId: 'g' + i }), 'table-1', position, now)
+    expect(t.accept(event({ eventId: 'overflow', gameId: 'overflow' }), 'table-1', position, now)).toBeNull()
+    expect(t.accept(event({ eventId: 'later', gameId: 'later', occurredAt: new Date(now + 11000).toISOString() }), 'table-1', position, now + 11000)).not.toBeNull()
   })
 })
 
@@ -99,7 +64,8 @@ for (const name of ['man', 'girl'] as const) it(`${name}: actual rig reaches bot
     moving: false, running: false, swimming: false, connected: true, emote: '', emoteAt: 0,
     tableId: 'table-1', seatIndex: 0, benchId: '', fitnessId: '', fitnessStartedAt: 0,
     telescopeId: '', telescopeYaw: 0, telescopePitch: 0, followTargetId: '' }
-  const reaction: DefeatReaction = { key: 'g/101', gameId: 'g', userId: '101', kind: 'head-clutch', at: 0 }
+  const reaction: DefeatReaction = { key: 'g/101', gameId: 'g', userId: '101', kind: 'head-clutch', at: 0,
+    tableId: 'table', channelId: 'channel', anchorId: 'table-1', position: { x: 0, y: .8, z: 0 } }
   const step = (time: number, value: DefeatReaction | null = reaction) => {
     motion.apply(avatar, time, 1 / 60, pose, figure, value); rig.root.updateMatrixWorld(true)
   }
@@ -118,5 +84,12 @@ for (const name of ['man', 'girl'] as const) it(`${name}: actual rig reaches bot
   expect(sampleDefeatMotion('head-clutch', -1, rig)).toBe(false)
   expect(sampleDefeatMotion('head-clutch', 3600, rig)).toBe(false)
   expect(figure.position.toArray()).toEqual([0, 0, 0])
+  // Non-subscribers have a public world pose but no seat metadata: overlay only.
+  const publicAvatar = { ...avatar, seatIndex: -1, tableId: '' }
+  for (let i = 0; i < 90; i++) motion.apply(publicAvatar, i * 1000 / 60, 1 / 60, pose, figure, reaction)
+  rig.root.updateMatrixWorld(true)
+  expect(rig.bones.head.rotation.x).toBeGreaterThan(.1)
+  expect(Math.abs(rig.bones.upperLeg_L.rotation.x)).toBeLessThan(.01)
+  expect(publicAvatar.tableId).toBe(''); expect(publicAvatar.seatIndex).toBe(-1)
   rig.dispose()
 })
