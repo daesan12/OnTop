@@ -57,7 +57,7 @@ test('four seated players and a separate observer: flip crosses windows and rest
   await page.getByRole('button', { name: '준비', exact: true }).click(); player.confirmStart()
   await expect(panel(page).getByRole('timer', { name: '차례 남은 시간' })).toBeVisible()
 
-  const observerContext = await browser.newContext({ viewport: { width: 1920, height: 1080 } })
+  const observerContext = await browser.newContext({ viewport: { width: 1280, height: 800 } })
   try {
     const observerPage = await observerContext.newPage()
     watchErrors(observerPage)
@@ -105,12 +105,18 @@ test('four seated players and a separate observer: flip crosses windows and rest
     await shot(page, 'onecard-4p-play')
     const prank = panel(observerPage).getByRole('button', { name: '도윤 손패 뒤집기', exact: true })
     await expect(prank).toBeEnabled()
+    const spectatorBounds = await observerPage.locator('.onecard-spectator').boundingBox()
+    const exitBounds = await panel(observerPage).getByRole('button', { name: '관전 종료', exact: true }).boundingBox()
+    const benchBounds = await observerPage.getByRole('group', { name: '벤치 관전', exact: true }).boundingBox()
+    expect(spectatorBounds!.y + spectatorBounds!.height).toBeLessThan(exitBounds!.y)
+    expect(exitBounds!.y + exitBounds!.height).toBeLessThan(benchBounds!.y)
     await shot(observerPage, 'onecard-4p-observer-ready')
     if (process.env.ONECARD_INTERACTIVE_PREVIEW === 'true') {
       // Opt-in local review only: keep the actual FE and shared mock room alive for manual interaction.
-      // A fixed clock leaves time to inspect the UI without a fixture turn expiring during review.
-      const reviewTime = new Date()
-      await page.clock.setFixedTime(reviewTime); await observerPage.clock.setFixedTime(reviewTime)
+      // Freeze only wall time: installing fake performance time after Three.Clock starts can invalidate camera deltas.
+      const reviewTime = Date.now()
+      await page.evaluate(now => { Date.now = () => now }, reviewTime)
+      await observerPage.evaluate(now => { Date.now = () => now }, reviewTime)
       await page.setViewportSize({ width: 1280, height: 800 }); await observerPage.setViewportSize({ width: 1280, height: 800 })
       await page.evaluate(() => { document.title = '원카드 플레이어 · 도윤' })
       await observerPage.evaluate(() => { document.title = '원카드 관전자 · 구경꾼' })
@@ -118,6 +124,7 @@ test('four seated players and a separate observer: flip crosses windows and rest
         await reviewPage.bringToFront()
         // A background WebGL canvas resized above must paint before its review capture.
         await reviewPage.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))))
+        await expect.poll(async () => (await probe(reviewPage)).position.every(Number.isFinite)).toBe(true)
         await shot(reviewPage, name)
       }
       console.log('ONECARD_PREVIEW_READY: 관전자에서 도윤 손패 뒤집기 → 플레이어에서 손패 정리. 두 창을 닫으면 시연이 종료됩니다.')
@@ -143,7 +150,7 @@ test('four seated players and a separate observer: flip crosses windows and rest
     expect(player.sent.filter(m => m.type === 'ONECARD_HAND_RESTORE_SEND')).toHaveLength(1)
     expect([...observer.sent, ...player.sent].filter(m => m.type === 'GAME_ACTION_SEND')).toHaveLength(0)
     // Review windows must survive ordinary game buttons without pretending to run a server game engine.
-    await page.clock.setFixedTime(new Date())
+    await page.evaluate(now => { Date.now = () => now }, Date.now())
     for (let attempt = 0; attempt < 2; attempt++) {
       await panel(page).getByRole('button', { name: '하트 J 내기', exact: true }).click()
       await expect(panel(page).getByRole('alert')).toHaveText('관전자 상호작용 시연입니다. 손패 뒤집기와 손패 정리를 확인해 주세요.')
