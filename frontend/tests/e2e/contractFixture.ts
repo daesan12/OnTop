@@ -93,6 +93,8 @@ export async function fixture(
   let tableJoinMode: 'approve' | 'hold' | 'reject' = 'approve'
   let tableJoinError = { code: 'TABLE_FULL', message: '빈 좌석이 없습니다.' }
   const heldTableJoins: { ws: WebSocketRoute; requestId: string }[] = []
+  let holdTableLeave = false
+  const heldTableLeaves: { ws: WebSocketRoute; requestId: string }[] = []
   let seated = false,
     rejectChat = false
   let gameCode: string | null = null,
@@ -370,6 +372,11 @@ export async function fixture(
     emit(ws, 'TABLE_WATCH_LEFT', { tableId })
     table(ws, 'TABLE_STATE', requestId)
   }
+  const approveTableLeave = (ws: WebSocketRoute, requestId: string) => {
+    seated = false
+    emit(ws, 'TABLE_LEFT', { tableId }, requestId)
+    world(ws)
+  }
   const facilities = facilityFixture({
     emit: (type, payload, id = null) => emit(sockets.at(-1)!, type, payload, id),
     world: () => world(sockets.at(-1)!), position, userId: options.ownUserId ?? '101',
@@ -573,15 +580,8 @@ export async function fixture(
         else approveTableJoin(ws, requestId)
       }
       if (type === 'TABLE_LEAVE') {
-        seated = false
-        ws.send(
-          JSON.stringify({
-            requestId,
-            type: 'TABLE_LEFT',
-            payload: { tableId },
-          }),
-        )
-        world(ws)
+        if (holdTableLeave) heldTableLeaves.push({ ws, requestId })
+        else approveTableLeave(ws, requestId)
       }
       if (type === 'TABLE_CONFIGURE') {
         if (!options.tabletServer) emit(ws, 'ERROR', { code: 'UNSUPPORTED_MESSAGE', message: '태블릿 설정 연결이 준비되지 않았습니다.' }, requestId)
@@ -762,6 +762,8 @@ export async function fixture(
       tableJoinMode = mode; tableJoinError = { code, message }
     },
     approveTableJoins: () => { for (const request of heldTableJoins.splice(0)) approveTableJoin(request.ws, request.requestId) },
+    holdTableLeave: (hold: boolean) => { holdTableLeave = hold },
+    approveTableLeaves: () => { for (const request of heldTableLeaves.splice(0)) approveTableLeave(request.ws, request.requestId) },
     publishTabletWait: (seconds: number | null) => {
       waitExpiresAt = seconds === null ? null : Date.now() + seconds * 1000; waitRevision++
       emit(sockets.at(-1)!, 'TABLE_HOST_WAIT_STATE', { tableId, epoch: 'fixture-tablet-server', revision: waitRevision,
