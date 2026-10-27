@@ -45,7 +45,7 @@ test('M12 2-player atomic hands, card/suit/K/draw/attack commands, result and ne
   const drawn = { ...afterK, hand: [...afterK.hand, card('8', 'clubs')], playableCardIds: [], canDraw: false }
   server.cardReply({ kind: 'draw' }, { extraAction: false, turnUserId: '102', players: server.cardState().players.map(p => p.userId === '101' ? { ...p, cardCount: 6 } : p) }, drawn)
   await p.getByRole('button', { name: '한 장 뽑고 넘기기', exact: true }).click(); await expect(handButtons(page)).toHaveCount(6)
-  await expect(p.getByRole('button', { name: '클로버 8 · 일반 카드', exact: true })).toBeDisabled()
+  await expect(p.getByRole('button', { name: '클로버 8', exact: true })).toBeDisabled()
   server.cardSnapshot({ turnUserId: '101', attackTotal: 7, topCard: card('joker-color', null), lastAttack: card('joker-color', null) }, drawn)
   const accepted = { ...drawn, hand: [...drawn.hand, ...['2', '3', '4', '5', '6', '7', '8'].map(rank => card(rank, 'spades'))] }
   server.cardReply({ kind: 'accept-attack' }, { attackTotal: 0, lastAttack: null, turnUserId: '102', players: server.cardState().players.map(p => p.userId === '101' ? { ...p, cardCount: 13 } : p) }, accepted)

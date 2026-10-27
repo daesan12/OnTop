@@ -33,10 +33,10 @@ export function FanHand({ cards, playableIds, flippedIds, selectedId, canPlay, s
         return <button key={card.id} className={`onecard-card onecard-hand-card ${redCard(card) && !flipped ? 'red' : ''}`}
           style={{ '--fan-angle': `${pose.angle}deg`, '--fan-lift': `${pose.lift}px`, '--fan-index': index } as CSSProperties}
           data-flipped={flipped} data-playable={!flipped && playable} aria-pressed={!flipped && selectedId === card.id}
-          aria-label={flipped ? '뒤집힌 카드 · 모든 손패 복구' : `${cardLabel(card)} · ${cardEffect(card)}`}
+          aria-label={flipped ? '뒤집힌 카드 · 모든 손패 복구' : [cardLabel(card), cardEffect(card)].filter(Boolean).join(' · ')}
           disabled={!flipped && !canPlay(card.id)} onClick={() => flipped ? restore() : select(card.id)}>
           <span className="onecard-card-rotator">
-            <span className="onecard-card-front">{!flipped && <><CardFace card={card} />{playable && <em>낼 수 있어요</em>}</>}</span>
+            <span className="onecard-card-front">{!flipped && <CardFace card={card} />}</span>
             <span className="onecard-card-back" aria-hidden="true"><span>✦</span></span>
           </span>
         </button>
