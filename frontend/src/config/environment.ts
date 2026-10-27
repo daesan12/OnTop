@@ -85,7 +85,7 @@ export class EnvironmentClock {
     this.sampleAt = 0
   }
   sync(serverMs: number, monotonicMs: number, rttMs?: number) {
-    if (!Number.isFinite(serverMs) || serverMs <= 0) return
+    if (!Number.isFinite(serverMs) || serverMs <= 0) return false
     const firstMeasured = rttMs !== undefined && !this.measured
     const betterMeasured = rttMs !== undefined && rttMs < this.bestRtt * 0.5
     if (rttMs !== undefined) {
@@ -93,7 +93,7 @@ export class EnvironmentClock {
       // Prefer a recent low-RTT observation, but relearn changed routes after 30 seconds.
       const expired = monotonicMs - this.sampleAt > 30_000
       if (this.measured && !expired && rttMs > Math.max(250, this.bestRtt * 3))
-        return
+        return false
       this.bestRtt = expired ? rttMs : Math.min(this.bestRtt, rttMs)
       this.measured = true
       this.sampleAt = monotonicMs
@@ -109,6 +109,7 @@ export class EnvironmentClock {
         : predicted + (target - predicted) * 0.12
     this.at = monotonicMs
     this.ready = true
+    return true
   }
   now(monotonicMs: number) {
     this.last = Math.max(this.last, this.anchor + monotonicMs - this.at)
