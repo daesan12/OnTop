@@ -23,6 +23,7 @@ FE는 null/교체 때 GAME_UNWATCH 후 현재 ID로 GAME_WATCH를 요청한다. 
 | 수동 기권 승인·중복 확인 | GAME_FORFEIT_RESULT | 서버 → 클라이언트 |
 
 수동 기권의 요청·성공·오류·멱등성·기존 종료/정산 경계는 [기권 계약](../game-forfeit-api.md)을 따른다.
+승인된 오목 관전자의 채팅·핑(GAME_SPECTATOR_CHAT_SEND·OMOK_SPECTATOR_PING_SEND)은 [관전자 채팅·핑 계약](10-game-spectator-events.md)을 따른다.
 
 ## 경기 상태 조회 · GAME_STATE_CHECK
 
