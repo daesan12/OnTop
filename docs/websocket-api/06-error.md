@@ -63,6 +63,7 @@
 - 내부 스택 트레이스·인증정보는 보내지 않습니다.
 - `INTERNAL_ERROR`처럼 처리 여부가 불확실하면 무조건 자동 재전송하지 않습니다. 기본 dev 재연결은 새 사용자이며 대기 좌석은 정리됩니다. 인증 계정은 `GAME_RECONNECT_CHECK`와 `GAME_CONNECTION_STATE`로 경기 복구 상태를 확인합니다.
 - 핸드셰이크의 HTTP 401·503과 중복 연결의 close 1008은 `ERROR` JSON이 아닙니다.
+- 오목 관전 채팅·핑의 `GAME_SPECTATOR_*`·`OMOK_SPECTATOR_*` 오류 10종과 검증 순서는 [관전자 채팅·핑 계약](10-game-spectator-events.md#검증-순서와-오류-코드)을 따릅니다.
 
 ---
 
