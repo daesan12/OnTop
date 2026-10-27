@@ -137,7 +137,7 @@ test('an authorized public observer sees the confirmed loss and unwatch clears i
 for (const distance of [6, 20, 20.01]) test(`public non-subscriber at ${distance}m receives only the current server reaction without GAME_WATCH or seat`, async ({ page }) => {
   if (distance === 6) await page.setViewportSize({ width: 1280, height: 720 })
   const anchor = distance === 6 ? TABLES.find(t => t.pavilionId === 'P1')! : TABLES[0]!
-  const server = await fixture(page, { bridge: 3, manualMovement: true, serverClockOffsetMs: 600000, anchorId: anchor.id,
+  const server = await fixture(page, { bridge: 3, manualMovement: true, serverTimeOffsetMs: 600000, anchorId: anchor.id,
     position: { x: anchor.position[0], y: anchor.position[1] + .8, z: anchor.position[2] + distance, yaw: Math.PI } })
   await page.goto('/park'); await expect(page).toHaveTitle('OnTop')
   await expect(page.getByLabel('공원 기본 화면')).toBeVisible()
