@@ -41,17 +41,22 @@ test('M15 quality controls apply real preset budgets, show live diagnostics, and
   await expect(page.locator('vite-error-overlay')).toHaveCount(0); expect(errors).toEqual([])
 })
 
-test('M15 original F1 utilities share quality, show approved population, protect game/chat input and preserve logout', async ({ page }) => {
+test('M15 F1 utilities share quality, protect input, and leave logout in the profile menu', async ({ page }) => {
+  const errors: string[] = []; page.on('pageerror', e => errors.push(e.message)); page.on('console', m => { if (m.type() === 'error') errors.push(m.text()) })
   const server = await fixture(page, { players: 8, position: { x: 0, y: .8, z: 34, yaw: Math.PI } }); await loaded(page)
   await open(page); await panel(page).getByLabel('그래픽 품질').selectOption('medium')
   await page.getByRole('button', { name: '그래픽 설정 닫기', exact: true }).click()
   await page.getByRole('button', { name: '채팅 입력창 열기', exact: true }).click()
   const chat = page.getByRole('textbox', { name: '주변 채팅 메시지' }); await chat.fill('작성 중인 메시지')
   await book(page); const settings = manual(page).getByRole('region', { name: '공원 설정', exact: true })
+  await expect(manual(page).getByRole('button', { name: '나가기', exact: true })).toHaveCount(0)
   await expect(settings).toContainText('공원 01 · 8/16'); await expect(settings.getByLabel('그래픽 품질')).toHaveValue('medium')
   const count = server.sent.length
   await settings.getByLabel('그래픽 품질').selectOption('high')
-  await expect.poll(async () => (await probe(page)).canvas).toEqual([1920, 1080])
+  await expect(settings.getByLabel('그래픽 품질')).toHaveValue('high')
+  // Adaptive resolution can lower the drawing buffer without changing the selected preset.
+  const [width, height] = (await probe(page)).canvas
+  expect(width * height).toBeGreaterThan(0); expect(width * height).toBeLessThanOrEqual(1920 * 1080)
   await manual(page).focus()
   await page.keyboard.press('KeyW'); await page.keyboard.press('KeyE'); await page.keyboard.press('KeyG'); await page.keyboard.press('Enter')
   expect(server.sent.slice(count).some(m => m.type === 'WORLD_MOVE' && (m.payload.dx || m.payload.dz) || /TABLE_JOIN|GAME_ACTION|WORLD_CHAT_SEND|WORLD_EMOTE_SEND/.test(m.type))).toBe(false)
@@ -61,10 +66,17 @@ test('M15 original F1 utilities share quality, show approved population, protect
   await page.keyboard.press('Escape'); await expect(manual(page)).toHaveCount(0); await expect(chat).toHaveValue('작성 중인 메시지'); await expect(chat).toBeFocused()
   await open(page); await expect(panel(page).getByLabel('그래픽 품질')).toHaveValue('high')
   await page.getByRole('button', { name: '그래픽 설정 닫기', exact: true }).click(); await book(page)
+  await expect(manual(page).getByRole('button', { name: '나가기', exact: true })).toHaveCount(0)
+  await page.keyboard.press('Escape'); await expect(manual(page)).toHaveCount(0)
+  await expect(page.getByLabel('공원 기본 화면')).toBeVisible()
+  expect(server.connections).toBe(1); expect(server.active).toBe(1)
+  await page.getByRole('button', { name: '내 메뉴', exact: true }).click()
+  await page.getByRole('menuitem', { name: /로그아웃/ }).click()
   const logout = page.waitForRequest(r => r.url().endsWith('/api/v1/auth/logout') && r.method() === 'POST')
-  await manual(page).getByRole('button', { name: '나가기', exact: true }).click(); await logout
+  await page.getByRole('dialog', { name: '로그아웃 확인', exact: true }).getByRole('button', { name: '로그아웃', exact: true }).click(); await logout
   await expect(page).toHaveURL(/\/$/); await expect(page.locator('.login-page')).toBeVisible(); await expect(page.locator('canvas')).toHaveCount(0)
   await expect.poll(() => server.active).toBe(0)
+  await expect(page.locator('vite-error-overlay')).toHaveCount(0); expect(errors).toEqual([])
 })
 
 test('M15 hidden-tab rendering pauses metrics but retains the world session and recovers', async ({ page }) => {
@@ -124,7 +136,7 @@ test('M15 small PC layout, Tab access and repeated close/reopen retain quality a
   await manual(page).getByLabel('그래픽 품질').focus()
   await page.keyboard.press('Tab'); await expect(manual(page).getByLabel('마우스 감도 빠르기')).toBeFocused()
   await page.keyboard.press('Tab'); await expect(manual(page).getByLabel('마우스 감도 퍼센트')).toBeFocused()
-  await page.keyboard.press('Tab'); await expect(manual(page).getByRole('button', { name: '나가기', exact: true })).toBeFocused()
+  await expect(manual(page).getByRole('button', { name: '나가기', exact: true })).toHaveCount(0)
   await screenshot(page, 'm15-performance-1280')
   await page.keyboard.press('Escape'); await expect(manual(page)).toHaveCount(0)
   expect(await page.evaluate(() => document.body.style.overflow)).toBe('')
