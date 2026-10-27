@@ -92,7 +92,7 @@ test('v4 order and tray at PC viewports, input ownership, real 60-second result 
   await expect(page.locator('.bung-root')).toHaveAttribute('data-phase', 'result', { timeout: 70000 });
   expect(Date.now() - started).toBeGreaterThanOrEqual(59000);
   await expect(page.getByRole('alertdialog')).toBeHidden();
-  await expect(page.getByRole('region', { name: '결과', exact: true })).toContainText('예상 납품 점수');
+  await expect(page.getByRole('region', { name: '결과', exact: true })).toContainText('승인된 납품 점수');
   await screenshot(page, 'bungeoppang-v4-result');
   expect((await state(page)).result!.coinsGranted).toBe(0);
   expect(minigameRequests).toEqual([]); expect(errors).toEqual([]);

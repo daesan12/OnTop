@@ -44,6 +44,9 @@ export const BREAD_NAMES: Record<BreadTool, string> = {
 };
 export type FillingCounts = Record<BreadFilling, number>;
 export interface BreadOrder {
+  /** Server identities are absent only in the explicit local preview. */
+  orderId?: string;
+  orderIndex?: number;
   items: FillingCounts;
 }
 export const emptyFillingCounts = (): FillingCounts => ({
@@ -285,7 +288,7 @@ export function applyAction(
     !Number.isInteger(slot) ||
     !Number.isInteger(t) ||
     t < 0 ||
-    t > rules.durationMs ||
+    t >= rules.durationMs ||
     !["POUR", "FILL", "TURN", "DISCARD", "DELIVER", "TRAY_DISCARD"].includes(
       action,
     ) ||

@@ -292,12 +292,15 @@ export async function startBungeoppang() {
         pourAt: -1e9,
         fillAt: -1e9,
       });
+    const playDelay = game.v4?.timing
+      ? Math.max(0, Date.parse(game.v4.timing.playStartsAt) - Date.now())
+      : R.countdownMs;
     Object.assign(clock, {
       t: 0,
       frameAt: performance.now(),
-      countdown: R.countdownMs,
+      countdown: playDelay,
       ending: 0,
-      playAt: performance.now() + R.countdownMs,
+      playAt: performance.now() + playDelay,
     });
     set({
       phase: "countdown",
@@ -417,6 +420,7 @@ export async function requestBungeoppangOrder() {
   const currentVisit = visit, index = s.grill.orderIndex;
   orderSubmission = s.orderError && orderSubmission?.gameId === s.gameId ? orderSubmission : {
     gameId: s.gameId, log: s.grill.log.map(e => ({ ...e })), clientScore: s.grill.score, seenTips: [...s.newTips],
+    deliveryKey: crypto.randomUUID(),
   };
   set({ orderPending: true, orderError: null });
   try {
@@ -426,8 +430,33 @@ export async function requestBungeoppangOrder() {
     set({ grill: v4.supplyOrder(current.grill, reply.index, reply.order, current.rules), orderPending: false });
     orderSubmission = null;
   } catch (error) {
-    if (visit === currentVisit && get().gameId === s.gameId && get().phase === 'play')
+    if (visit !== currentVisit || get().gameId !== s.gameId || get().phase !== 'play') return;
+    const explicit = error instanceof BungeoppangServiceError && !error.retryable
+      && ['DELIVERY_REJECTED', 'PREFIX_MISMATCH', 'STALE_ORDER', 'ORDER_ALREADY_DELIVERED', 'TIME_AHEAD']
+        .includes(error.code);
+    if (!explicit || !service.recoverV4) {
       set({ orderPending: false, orderError: error instanceof Error ? error.message : '다음 주문을 받지 못했어요.' });
+      return;
+    }
+    try {
+      const latest = get();
+      const suffix = isV4Grill(latest.grill) && orderSubmission
+        ? latest.grill.log.slice(orderSubmission.log.length).filter(entry => entry.action !== 'DELIVER')
+        : [];
+      const recovery = await service.recoverV4(s.gameId);
+      if (visit !== currentVisit || get().gameId !== s.gameId || get().phase !== 'play') return;
+      let recovered = recovery.grill;
+      for (const entry of suffix) {
+        try { recovered = v4.applyAction(recovered, entry, get().rules).state; }
+        catch { /* Keep only still-legal local intent after the authoritative checkpoint. */ }
+      }
+      orderSubmission = null;
+      set({ grill: recovered, orderPending: false, orderError: null });
+      popup(null, '서버 진행 상태로 복구했어요. 현재 주문을 다시 확인해 주세요.', 'PLAIN');
+    } catch (recoveryError) {
+      set({ orderPending: false, orderError: recoveryError instanceof Error
+        ? recoveryError.message : '진행 상태를 복구하지 못했어요. 다시 시도해 주세요.' });
+    }
   }
 }
 function elementPoint(selector: string, fallback: FeedbackPoint): FeedbackPoint {
@@ -548,6 +577,9 @@ export async function submitBungeoppang() {
       log: s.grill.log.map(entry => ({ ...entry })),
       seenTips: [...s.newTips],
       clientScore: s.grill.score,
+      completeKey: crypto.randomUUID(),
+      ...(orderSubmission?.gameId === s.gameId && orderSubmission.deliveryKey
+        ? { deliveryKey: orderSubmission.deliveryKey } : {}),
     };
     const result = await service.submitResult(submission);
     if (visit !== currentVisit || get().gameId !== s.gameId) return;
@@ -562,6 +594,7 @@ export async function submitBungeoppang() {
         isFirstGame: false,
       },
     }));
+    orderSubmission = null;
     void refreshWallet(currentVisit);
   } catch (error) {
     if (visit !== currentVisit || get().gameId !== s.gameId) return;

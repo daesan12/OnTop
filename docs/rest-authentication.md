@@ -56,7 +56,9 @@ HttpSecurity를 요구하지 않으며, 실제 Servlet 서버에서는 프로필
 | GET `/api/v1/channels` | **Access JWT + 활성 회원** | local/dev에서 등록. 개발 배포는 dev,db 사용 |
 | GET `/api/v1/tables` | **Access JWT + 활성 회원** | local/dev에서 등록. 채널 설정 시 channelId 필요 |
 | POST `/api/v1/minigames/sessions` | **Access JWT + 활성 회원** | local 전용. Idempotency-Key 필수, 미니게임 서비스는 별도 활성화 |
+| GET `/api/v1/minigames/sessions` | **Access JWT + 활성 회원** | 본인 오늘 획득·규칙 버전 상태 조회 |
 | GET `/api/v1/minigames/sessions/{sessionId}` | **Access JWT + 활성 회원** | 본인 세션만 조회 |
+| POST `/api/v1/minigames/sessions/{sessionId}/deliveries` | **Access JWT + 활성 회원** | v4 납품 승인. Idempotency-Key 필수, 엄격한 JSON 본문·256KB 제한, 본인 진행 판만 |
 | POST `/api/v1/minigames/sessions/{sessionId}/complete`, `/abandon` | **Access JWT + 활성 회원** | 엄격한 빈 JSON 본문. 서버 검증 없는 완료/지급 차단 |
 | GET `/dev/tables` | 공개 개발 페이지 | local에서만 등록됨 |
 | GET `/dev/world-config` | 공개 개발 설정 | local에서만 등록됨. 기존 WebSocket 인증 모드에서는 404 |

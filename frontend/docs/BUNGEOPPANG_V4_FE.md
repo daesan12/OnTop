@@ -1,5 +1,31 @@
 # 붕어빵 v4 FE 구현 및 BE 연결 경계
 
+## 2026-10-27 최신 dev 통합 안내
+
+`origin/dev`의 `6fd1c20`을 FE 작업 브랜치에 병합했다. 아래 2026-10-26 내용은 당시 구현·검증 기록이며,
+기본 실행이 v2이고 v4 연결이 계약 대기라는 설명은 이 통합 이후의 상태를 나타내지 않는다.
+
+- 최신 dev에는 BE v4 규칙·판 발급·납품 영수증/checkpoint·최종 검증·멱등 지급과 FE REST 어댑터가 포함돼 있다.
+- 기본 `pnpm dev`와 프로덕션 빌드는 v4 REST 어댑터를 사용한다. v2 서비스 구현은 호환성 검증용으로 유지한다.
+- `pnpm dev:bungeoppang`은 기존 로컬 미리보기이며 실제 지갑에 지급하지 않는다. 서버 오류 시 미리보기로 전환하지 않는다.
+- 기존 손님·재료·불·쟁반·폐기 연출을 유지하고, 최신 dev의 모바일 배치와 실제 지급/일일 한도 표시를 반영했다.
+- 현재 계약과 환경 조건은 [FE·BE v4 계약](../../docs/minigame-bungeoppang-v4-contract.md)을 따른다.
+- 이 Git 통합은 개발 서버 배포·공용 DB migration 실행·실제 계정 지급 확인을 의미하지 않는다.
+
+실서버 연결 전 확인할 차이도 있다. 현재 `store.ts`의 시작 대기는 `playStartsAt - Date.now()`로 계산한다.
+계약 §3.2의 시작 직후 GET·`serverNow`/RTT 기반 시계 동기화가 구현됐다는 뜻은 아니다.
+클라이언트 시계 차이·늦은 시작 응답·이미 종료된 시작 영수증 복구는 후속 FE 통합 작업에서 보완·검증해야 한다.
+
+통합 후 검증: `pnpm typecheck:tests`, 전체 단위 테스트 59파일/604개, `pnpm build` 통과.
+Edge 브라우저는 v4 미리보기 4개와 기본 v4 HTTP 계약 fixture 흐름 3개가 통과했다.
+Browser plugin not available이므로 기존 Playwright를 사용했다. 로컬 소켓 제한으로 일반 실행을 중단하고
+권한이 허용된 실행으로 재검증했다. PC 1280×720·1440×900·1920×1080과 기존 모바일 오류 화면을 확인했다.
+페이지 제목·화면 렌더링·조작·오류 화면 부재·pageerror 검사를 통과했으며 기존 Three.Clock/셰이더 경고와 큰 청크 경고는 유지된다.
+스냅샷은 프로젝트 밖 Codex visualizations의 `bungeoppang-latest-git/`, `bungeoppang-latest-git-http/`에 있다.
+실제 BE/격리 DB E2E는 이번 통합에서 실행하지 않았다. HTTP fixture의 결과 화면은 실제 지급 증거가 아니다.
+
+이하 내용은 2026-10-26 시점 기록이다.
+
 2026-10-26. 기준: 전달받은 GAME_PLAN/FE 작업명세/BE 작업명세 v4.
 적용 대상은 OnTop 실제 FE이며, 시작점은 최신 카트 가림 수정이 포함된 dev `84afdb3`다.
 푸시 전 최신 `origin/dev`의 `0b0f275`를 충돌 없이 fast-forward로 반영했다.

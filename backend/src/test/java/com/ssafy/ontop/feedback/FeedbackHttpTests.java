@@ -30,7 +30,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
-        "spring.profiles.active=local", "ontop.feedback.enabled=true",
+        "spring.profiles.active=local", "ontop.feedback.enabled=true", "ontop.admin.read-ids=101",
         "ontop.auth.jwt-secret-base64=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
 })
 @Import(com.ssafy.ontop.auth.websocket.MemberAuthenticationFixture.class)

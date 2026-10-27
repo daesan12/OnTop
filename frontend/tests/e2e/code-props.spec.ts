@@ -50,7 +50,7 @@ for (const kind of ['mailbox', 'cart'] as const) {
     // This asset test is independent of optional feedback UI/service work.
     if (kind === 'cart') {
       await expect(page.getByRole('button', { name: /붕어빵.*구매|구매하기/ })).toHaveCount(0)
-      expect(state.signs).toHaveLength(3)
+      expect([...state.signs].sort()).toEqual(['prop-sign-cartMenu', 'prop-sign-cartName'])
     }
     await page.setViewportSize({ width: 1280, height: 720 })
     await page.waitForTimeout(500)

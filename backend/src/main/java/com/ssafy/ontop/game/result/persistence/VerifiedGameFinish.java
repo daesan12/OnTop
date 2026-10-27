@@ -19,7 +19,8 @@ final class VerifiedGameFinish {
             "OMOK", Set.of("FIVE_IN_ROW", "BOARD_FULL", "TURN_TIMEOUT", "RECONNECT_EXPIRED", "LOGOUT", "MEMBER_DEACTIVATED", "EXPLICIT_LEAVE"),
             "DICE", Set.of("TARGET_REACHED", "RECONNECT_EXPIRED", "LOGOUT", "MEMBER_DEACTIVATED", "EXPLICIT_LEAVE"),
             "ONE_CARD", Set.of("EMPTY_HAND", "STALEMATE", "PLAYER_LEFT"),
-            "LIAR_BRIDGE", Set.of("THREE_GOALS", "LAST_PLAYER_STANDING", "GOAL_SLOTS_EXHAUSTED", "NO_RUNNABLE_PAWNS"));
+            "LIAR_BRIDGE", Set.of("THREE_GOALS", "LAST_PLAYER_STANDING", "GOAL_SLOTS_EXHAUSTED",
+                    "NO_RUNNABLE_PAWNS", "ABORTED_NO_PLAYERS"));
 
     private VerifiedGameFinish() { }
 
@@ -43,7 +44,11 @@ final class VerifiedGameFinish {
             }
         }
         long winners = event.participants().stream().filter(p -> p.result() == GameFinished.Result.WIN).count();
-        if (event.endReason().equals("BOARD_FULL")) {
+        if (invalid(event)) {
+            if (event.participants().stream().anyMatch(p -> p.result() != GameFinished.Result.FORFEIT)) {
+                throw new IllegalArgumentException("전원 이탈 판정을 확인하세요.");
+            }
+        } else if (event.endReason().equals("BOARD_FULL")) {
             if (event.participants().stream().anyMatch(p -> p.result() != GameFinished.Result.DRAW)) {
                 throw new IllegalArgumentException("무승부 판정을 확인하세요.");
             }
@@ -54,6 +59,10 @@ final class VerifiedGameFinish {
             throw new IllegalArgumentException("승자 판정을 확인하세요.");
         }
         return id;
+    }
+
+    static boolean invalid(GameFinished event) {
+        return "ABORTED_NO_PLAYERS".equals(event.endReason());
     }
 
     static Instant millis(Instant value) { return value.truncatedTo(ChronoUnit.MILLIS); }

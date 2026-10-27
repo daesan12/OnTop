@@ -34,7 +34,8 @@ public class JpaGameResultGateway implements GameResultGateway {
         catch (IllegalArgumentException exception) { return Optional.empty(); }
         if (userId <= 0) { return Optional.empty(); }
         var found = sessions.findById(id);
-        if (found.isEmpty() || found.get().status() != GameSession.Status.FINISHED) { return Optional.empty(); }
+        if (found.isEmpty() || found.get().status() != GameSession.Status.FINISHED
+                && found.get().status() != GameSession.Status.INVALID) { return Optional.empty(); }
         var game = found.get();
         var players = participants.findByGameSessionIdOrderByParticipantOrder(id);
         return players.stream().filter(p -> p.userId() == userId).findFirst()

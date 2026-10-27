@@ -70,6 +70,24 @@ class GameResultTests {
     }
 
     @Test
+    void 전송실패한_연결은_같은버전_재전달을_받고_성공연결은_중복을_생략한다() {
+        create(Optional.empty());
+        var calls = new java.util.concurrent.atomic.AtomicInteger();
+        service.connected("retry", 101, output -> {
+            if (calls.incrementAndGet() == 1) {
+                throw new IllegalStateException("fixture transport failure");
+            }
+        });
+        var event = new GameResultCommitted(result(101, "701", 2, SettlementStatus.SETTLED));
+
+        assertThatThrownBy(() -> service.committed(event)).isInstanceOf(IllegalStateException.class);
+        service.committed(event);
+
+        assertThat(calls).hasValue(2);
+        assertThat(first).hasSize(1);
+    }
+
+    @Test
     void 명시조회는_같은버전도_요청아이디와_함께_다시보낸다() throws Exception {
         create(Optional.of((user, game) -> Optional.of(result(user, game, 2, SettlementStatus.SETTLED))));
         service.check("first", "query1", "701");

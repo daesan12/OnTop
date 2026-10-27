@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 vi.mock('../../src/features/bungeoppang/access', () => ({ canOpenBungeoppang: vi.fn(() => true) }))
 vi.mock('../../src/features/bungeoppang/service', async importOriginal => ({
   ...await importOriginal<typeof import('../../src/features/bungeoppang/service')>(),
-  bungeoppangService: { getStatus: vi.fn(), startGame: vi.fn(), submitResult: vi.fn(), abandon: vi.fn(), balance: vi.fn(), nextOrder: vi.fn() },
+  bungeoppangService: { getStatus: vi.fn(), startGame: vi.fn(), submitResult: vi.fn(), abandon: vi.fn(), balance: vi.fn(), nextOrder: vi.fn(), recoverV4: vi.fn() },
 }))
 import { canOpenBungeoppang } from '../../src/features/bungeoppang/access'
 import { bungeoppangService as service, BungeoppangServiceError } from '../../src/features/bungeoppang/service'
@@ -13,6 +13,7 @@ import { inputState } from '../../src/world/inputOwnership'
 import { bungeoppangClock } from '../../src/features/bungeoppang/bungeoppangView'
 import { useSession } from '../../src/network/worldClient'
 import { BUNGEOPPANG_V4 as V4 } from '../../src/features/bungeoppang/config'
+import { createGrill as createV4Grill } from '../../src/features/bungeoppang/rulesV4'
 
 const game = { gameId: '901', startedAt: '2026-10-24T01:00:00Z', heats: Array(64).fill(100), rulesVersion: 'v2', isFirstGame: true }
 const result = { score: 0, made: 0, golden: 0, failed: 0, wasted: 0, maxCombo: 0, coinsCalculated: 0, coinsGranted: 0, todayEarned: 0, dailyCap: 100, capReached: false }
@@ -145,6 +146,22 @@ it('v4 retry uses the exact delivery prefix after additional cooking and supplie
   expect(grill).toMatchObject({ orderIndex: 1, order: firstOrder, score: 20 });
   expect(grill.slots[2]!.phase).toBe('batter');
 });
+it('v4 distinguishes an explicit rejection, restores the checkpoint and replays legal post-request cooking', async () => {
+  await enterV4();
+  let reject!: (reason: Error) => void;
+  vi.mocked(service.nextOrder!).mockReturnValueOnce(new Promise((_, fail) => { reject = fail }));
+  const recovered = createV4Grill(Array(V4.heatListLength).fill(100), { ...firstOrder, orderId: '1', orderIndex: 0 }, V4);
+  vi.mocked(service.recoverV4!).mockResolvedValue({ grill: recovered, checkpoint: {} as never });
+  deliverBungeoppangOrder();
+  await vi.advanceTimersByTimeAsync(100); pressBungeoppangSlot(2);
+  reject(new BungeoppangServiceError('DELIVERY_REJECTED', 'rejected', false, 422));
+  await Promise.resolve(); await Promise.resolve();
+  expect(service.recoverV4).toHaveBeenCalledWith('901');
+  expect(useBungeoppang.getState()).toMatchObject({ orderPending: false, orderError: null });
+  const grill = useBungeoppang.getState().grill!;
+  expect(grill).toMatchObject({ score: 0, orderIndex: 0, order: firstOrder });
+  expect(grill.slots[2]!.phase).toBe('batter');
+});
 it('v4 blocked controls consume no heat, help/confirm time still ends, and settlement retries keep one log', async () => {
   await enterV4();
   setBungeoppangHelp(true); setBungeoppangTool('chocolate'); pressBungeoppangSlot(0); deliverBungeoppangOrder();
@@ -154,8 +171,20 @@ it('v4 blocked controls consume no heat, help/confirm time still ends, and settl
   await vi.advanceTimersByTimeAsync(62000);
   expect(useBungeoppang.getState()).toMatchObject({ phase: 'result', confirmExit: false });
   const request = vi.mocked(service.submitResult).mock.calls[0]![0];
+  expect(request.completeKey).toMatch(/^[0-9a-f-]{36}$/);
   await submitBungeoppang();
   expect(vi.mocked(service.submitResult).mock.calls[1]![0]).toBe(request);
+});
+it('v4 final submission preserves the unresolved last delivery key after the 60 second boundary', async () => {
+  await enterV4();
+  vi.mocked(service.nextOrder!).mockReturnValueOnce(new Promise(() => {}));
+  deliverBungeoppangOrder();
+  const delivery = vi.mocked(service.nextOrder!).mock.calls[0]![0];
+  await vi.advanceTimersByTimeAsync(62_000);
+  const complete = vi.mocked(service.submitResult).mock.calls[0]![0];
+  expect(complete.deliveryKey).toBe(delivery.deliveryKey);
+  expect(complete.completeKey).toMatch(/^[0-9a-f-]{36}$/);
+  expect(complete.log).toEqual(delivery.log);
 });
 it('closes play at 60 seconds even while abandon is pending, then settles only after that request fails', async () => {
   await enterV4(); escapeBungeoppang();

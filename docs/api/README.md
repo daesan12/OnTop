@@ -76,11 +76,27 @@ application.yml은 기본 enabled=false, `(local | dev) & !prod & !production`�
 | Shop | POST /api/v1/shop/purchases | Access JWT + Idempotency-Key | 200 |
 | Shop | GET /api/v1/users/me/items | Access JWT | 200 |
 | Shop | PATCH /api/v1/users/me/equipment | Access JWT | 200 |
+| Ranking | GET /api/v1/rankings | Access JWT | 200 |
+| Minigame | POST /api/v1/minigames/sessions | Access JWT + Idempotency-Key | 201 |
+| Minigame | GET /api/v1/minigames/sessions | Access JWT | 200 |
+| Minigame | GET /api/v1/minigames/sessions/{sessionId} | Access JWT·본인 세션 | 200 |
+| Minigame | POST /api/v1/minigames/sessions/{sessionId}/complete | Access JWT·본인 세션 | 200 |
+| Minigame | POST /api/v1/minigames/sessions/{sessionId}/abandon | Access JWT·본인 세션 | 200 |
+| Feedback | POST /api/v1/feedback | Access JWT·위치/활동 검사 | 201 |
+| Feedback | GET /api/v1/admin/feedback | Access JWT·서버 관리자 ID 목록 | 200 |
+| Notes | POST /api/v1/notes | Access JWT·위치/활동 검사 | 201 |
+| Notes | GET /api/v1/notes | Access JWT·위치/활동 검사 | 200 |
 
-**local은 19개 operation, dev는 Auth/User/WALLET 13개 operation**이다. 현재 Channel/Table/Shop Controller는 local 전용이다.
+**정적 export는 25개 경로·29개 operation**이다. OpenApiLocalTests가 Feedback/Notes를 켜고 생성한다.
+local/dev는 회원 WebSocket 인증 기본값에서 각각 25개이며, Feedback와 Notes의 enabled=true가 각각
+2개씩 추가된다. 두 기능을 모두 켠 문서 테스트는 local/dev 모두 29개다.
+WebSocket 인증을 local에서 명시적으로 끄면 Ticket API 1개가 제외된다.
+Channel/Table/Shop/Minigame/Feedback/Notes는 `(local | dev) & !prod & !production` 조건이다.
+Feedback/Notes는 Controller 등록도 기능 플래그를 요구한다. 그 외 Controller가 보여도
+DB와 서비스 Bean이 없으면 기능 호출은 503일 수 있다. prod 혼합에서는 문서 자체를 공개하지 않는다.
 ChannelQueryService는 설정 채널과 현재 presence를, TableHub는 실제 테이블 상태를 조회한다.
 ShopService/ShopRepository는 실제 지갑 잠금·구매 원장/멱등 영수증·보유/장착 트랜잭션을 구현한다.
-상점 서비스는 추가로 `local,db`, `ontop.shop.enabled=true`, 별도 상점 스키마와 지갑이 필요하다.
+상점 서비스는 추가로 local/dev와 db, `ontop.shop.enabled=true`, 별도 상점 스키마와 지갑이 필요하다.
 기본 V1~V4는 공통 Wallet까지 포함하지만 상점 테이블은 만들지 않는다. 상점 구성/지갑이 없으면
 SHOP_NOT_CONFIGURED(503) 또는 WALLET_NOT_READY(409)다. 온보딩 최초100코인·기존 회원 초기화는
 [공통 지갑 문서](../wallet-initialization.md)를 따른다.
@@ -94,9 +110,20 @@ SHOP_NOT_CONFIGURED(503) 또는 WALLET_NOT_READY(409)다. 온보딩 최초100코
 - Wallet [잔액 조회](../wallet-balance.md)와 [거래 내역 조회](../wallet-transactions.md)를 구현했다. Wallet 생성 전용 REST 및
   기획서상의 추가 상점/게임 REST는 추가하지 않았다.
   온보딩 내부의 지갑 생성·가입 보너스는 기존 온보딩 operation 설명에 반영한다.
-- 현재 Controller를 따라 조사한 19개에 Stub/TODO/고정 임시 응답 API는 없었다.
-  local 제한과 선택적 서비스 미등록 상태는 운영 미완료 조건으로 명시한다.
-- 경기 시작 차감·영속 정산 및 즉시 기권의 전체 연동은 REST 문서화로 완료되었다고 판단하지 않는다.
+- 현재 29개는 실제 Controller 매핑이며 등록 조건·선택적 서비스 미등록과 기능 완료 여부를 구분한다.
+- 경기 예약·정산·INVALID 반환은 내부 이벤트/Raw WebSocket 계약이다. REST 생성·승리 신고·정산 API를 만들지 않았다.
+  현재 boot의 종결 복구와 다른 boot의 미완료 경기 자동 반환을 구분한다. 후자는 미구현이다.
+
+### 문서 스키마 해석
+
+- 응답 required는 JSON 필드의 존재, nullable은 그 필드의 null 허용이다. 둘은 독립적이다.
+- Shop/Minigame/Feedback/Notes 오류는 도메인별 스키마를 사용한다. 인증 필터 오류는 AuthErrorResponse이며
+  동일 상태에서 둘 다 가능한 경우 anyOf로 표시한다. 런타임 오류 응답을 통합하지 않았다.
+- Feedback/Notes는 원문과 정규화 후 UTF-16 길이를 검사한다. OpenAPI minLength/maxLength의
+  Unicode 코드포인트와 다르므로 x-utf16-max-length, x-normalized-utf16-min-length 및 설명을 사용한다.
+  NFC·제어/Cf 제거·JS trim 이후 검증은 서버가 최종 판단한다. 이 확장은 SDK의 자동 검증을 보장하지 않는다.
+- Minigame seenTips는 최대 5개 배열이며 유효한 문자열 키만 기억하고 나머지 값은 무시한다.
+  상태 GET의 만료 세션 갱신도 기존 동작이다. 문서 작업에서 검증/트랜잭션을 변경하지 않았다.
 
 ## 인증 수단과 Swagger 사용
 
@@ -149,7 +176,7 @@ DELETE는 Soft Delete + 모든 Refresh 계열 폐기를 한 트랜잭션에서 �
 
 Auth/User/Security 오류는 `{code,message}`다. 닉네임 중복은 `USER_NICKNAME_ALREADY_EXISTS`(409),
 잘못된 닉네임은 `USER_INVALID_NICKNAME`(400), 탈퇴 DB 실패는 `USER_WITHDRAWAL_UNAVAILABLE`(503)이다.
-기존 local Channel/Table/Shop Controller 오류에는 `details:null`이 추가되므로 해당 스키마를 구분했다.
+기존 Channel/Table/Shop 오류에는 `details:null`이 추가되며, Minigame·Feedback·Notes의 추가 오류 필드도 각각 구분한다.
 각 operation에 실제 DTO·허용 요청 필드·성공/오류 상태·주요 code·Cache-Control/Set-Cookie/Location을 기술한다.
 토큰/쿠키·회원 상태에 따른 응답은 캐시하지 않는다.
 
@@ -170,7 +197,8 @@ OpenAPI YAML과 JSON을 파싱해 트리를 비교하므로 객체 키 순서/�
 서버 `/`로 환경별 랜덤 포트 차이를 제거하고, `$ref` 연결·정확한 endpoint 목록·DTO와 인증 스키마·민감 필드를 검사한다.
 공식 swagger-parser로 스키마 오류/경고가 없는지도 확인한다. test 전용 parser의 javax Swagger core는 제외하여
 실제 springdoc Jakarta core와 중복되지 않게 했다. 기본 test는 파일이 없거나 드리프트가 있으면 실패한다.
-dev에는 local 전용 endpoint가 없으므로 정적 파일은 local 결과를 기준으로 비교하고 dev에는 별도 정확한 목록 검사를 한다.
+정적 파일은 local export 기준으로 비교한다. dev도 같은 기능 플래그 조건의 29개 매핑을 별도로 검사하며,
+local 전용 개발 화면 2개는 두 환경의 REST OpenAPI 범위에 포함하지 않는다.
 
 ## 수동 검증과 배포 확인
 

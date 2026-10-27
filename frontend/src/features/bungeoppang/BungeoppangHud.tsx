@@ -392,16 +392,17 @@ function TipBubble() {
 }
 
 function Steps() {
+  const v4 = useBungeoppang(s => s.status?.rulesVersion === 'v4');
   return (
     <ol className="bung-steps">
       <li>
         반죽 <kbd>Space</kbd>
       </li>
       <li>
-        {bungeoppangV4Preview ? '소 선택' : '팥'} <kbd>{bungeoppangV4Preview ? '1~4' : '1'}</kbd>
+        {v4 ? '소 선택' : '팥'} <kbd>{v4 ? '1~4' : '1'}</kbd>
       </li>
       <li>뒤집기</li>
-      <li>{bungeoppangV4Preview ? '쟁반 → R 전달' : '꺼내기'}</li>
+      <li>{v4 ? '쟁반 → R 전달' : '꺼내기'}</li>
     </ol>
   );
 }
@@ -416,7 +417,7 @@ function StartPanel() {
     <section className="bung-panel bung-start" aria-label="붕어빵 굽기 시작">
       <h2>붕어빵 굽기</h2>
       <Steps />
-      {bungeoppangV4Preview && <p>빵마다 랜덤 불! 주문은 한 손님 최대 4개 · 쟁반 4자리 · 60초 동안 전달해요.</p>}
+      {status?.rulesVersion === 'v4' && <p>빵마다 랜덤 불! 주문은 한 손님 최대 4개 · 쟁반 4자리 · 60초 동안 전달해요.</p>}
       <p className="bung-keys-line">
         칸은 클릭 또는 Q W E A S D · 재료는 휠로도 바꿔요
       </p>
@@ -521,13 +522,16 @@ function ResultPanel() {
     ["엽전 환산", `${R.pointsPerCoin}점당 1냥`],
   ];
   const today = result?.todayEarned ?? status?.todayEarned;
+  const v4 = isV4Grill(grill);
+  // 개발 미리보기는 서버 정산이 없으므로 확정·지급 문구 대신 환산 예상만 보여준다.
+  const preview = v4 && bungeoppangV4Preview;
   return (
     <div className="bung-dim">
       <section className="bung-panel bung-result" aria-label="결과">
         <header>
           <h2>오늘의 장사</h2>
           <span>
-            {bungeoppangV4Preview ? '예상 납품 점수' : result ? '서버 확정 점수' : '미리보기 점수'} <b>{result?.score ?? grill.score}</b>
+            {preview ? '승인된 납품 점수' : result ? '서버 확정 점수' : v4 ? '승인 대기 납품 점수' : '미리보기 점수'} <b>{result?.score ?? grill.score}</b>
           </span>
         </header>
         <div className="bung-grid">
@@ -545,10 +549,10 @@ function ResultPanel() {
         </div>
         <div className="bung-coins">
           <span>
-            {bungeoppangV4Preview ? '실제 지급 없음 · 환산 예상' : '받은 엽전'}{" "}
+            {preview ? '미리보기 · 환산 예상' : result ? '받은 엽전' : v4 ? '환산 예상' : '받은 엽전'}{" "}
             <b>
               {result
-                ? `${bungeoppangV4Preview ? result.coinsCalculated : result.coinsGranted}냥`
+                ? `${preview ? result.coinsCalculated : result.coinsGranted}냥`
                 : submitError
                   ? "-"
                   : "정산 중…"}
@@ -560,6 +564,9 @@ function ResultPanel() {
         </div>
         {result?.capReached && (
           <p className="bung-cap">오늘 장사는 끝! 게임은 계속할 수 있어요</p>
+        )}
+        {!preview && result && result.coinsGranted < result.coinsCalculated && (
+          <p className="bung-cap">환산 {result.coinsCalculated}냥 중 오늘 한도를 적용해 {result.coinsGranted}냥을 받았어요.</p>
         )}
         {submitError && (
           <p className="bung-error" role="alert">
@@ -578,7 +585,7 @@ function ResultPanel() {
         {startError && <p className="bung-error">{startError}</p>}
         {walletError && <p className="bung-error" aria-live="polite">{walletError} <button onClick={() => void refreshBungeoppangWallet()}>잔액 다시 확인</button></p>}
         <footer>
-          <span>{bungeoppangV4Preview ? '개발 미리보기 · 지갑 미반영' : result ? '서버 정산 완료' : '서버 결과 확인 중'}</span>
+          <span>{preview ? '미리보기 · 실제 엽전 지급 없음' : result ? '서버 정산 완료' : '서버 결과 확인 중'}</span>
           <span className="bung-row">
             <button type="button" onClick={escapeBungeoppang}>
               나가기
