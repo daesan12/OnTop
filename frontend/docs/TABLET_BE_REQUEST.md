@@ -1,4 +1,12 @@
-# BE 전달: 태블릿 게임 준비 흐름 연결 요청
+# 태블릿 BE 요청 기록 및 연결 상태
+
+## 2026-10-27 연결 상태
+
+BE의 확정 명세 [tablet-lobby-api.md](../../docs/tablet-lobby-api.md)를 반영했다. `TabletLobbyClient`가 운영 RawWS 연결에서 TABLE_CONFIGURE/TABLE_START/TABLE_HOST_WAIT_CHECK와 시간 상태/만료 알림을 처리한다. startMode=MANUAL/selectedPlayers를 검증하며 AUTO 테이블에서 준비=true로 자동 시작하지 않도록 새 태블릿 준비를 차단한다. 시작 응답 유실 시 같은 actionId를 보존하고 명시적인 GAME_START_CHECK로 확인하며 자동 재전송하지 않는다. 테이블 epoch·revision·tableVersion·사용자/채널을 비교해 과거 시간 상태를 적용하지 않는다.
+
+기존 기본 dev/build는 AUTO UI를 유지하고, `dev:tablet`/`build:tablet`은 실제 BE 수동 시작 어댑터가 연결된 새 UI다. 현재 브랜치는 코드·WS fixture 검증이며 배포된 BE/실제 DB를 사용한 다중 계정 공동 검수 완료를 의미하지 않는다.
+
+**아래 내용은 10/26 당시 요청·미연결 상태의 기록이다. 현재 메시지와 정책의 기준은 위 확정 명세다.** 서버 재시작 시 대기석/타이머는 비우고, MANUAL 대기석의 일반 재접속은 서버의 30초 유예와 기존 절대 만료 시각을 따른다. 결과 승계 예외는 BE가 확정한 WIN/DRAW 후보 및 INVALID/승자 부재 시 남은 인원 추첨 정책을 사용한다.
 
 2026-10-26 KST · 확인 기준: dev `bde4bce` · FE 브랜치 `feat/frontend-tablet-lobby`
 

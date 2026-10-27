@@ -1,5 +1,15 @@
 # 테이블 태블릿 · 경기/미니게임 결과 FE 인계
 
+## 2026-10-27 BE 통합
+
+- 확정 명세 `docs/tablet-lobby-api.md`에 맞춰 `TabletLobbyClient`를 실제 Spring runtime에 바인딩했다. TABLE_CONFIGURE에 정확한 정원/게임/목표/판돈/버전을 보내고, 준비 뒤 TABLE_START(actionId, expectedVersion)로 명시적으로 시작한다. 기본 AUTO UI는 유지한다.
+- TABLE_HOST_WAIT_STATE/시간 초과 확정 알림을 인증 사용자·채널·테이블·epoch·revision·tableVersion에 맞춰 처리한다. 탭 복귀/재접속에는 조회한다. 동일 revision의 시간 조회도 새 serverNow로 동기화하되 절대 만료 시각을 바꾸지 않는다. TIMER=0만으로 퇴장/승계를 만들지 않는다.
+- TABLE_START 응답 유실은 별도 확인 상태로 표시한다. 동일 시도의 actionId를 보존하고 GAME_START_CHECK를 명시적으로 요청한다. 서버가 확정한 시작 상태 이후에만 게임 화면을 표시하며 자동 재전송하지 않는다.
+- 최신 dev의 붕어빵 v4 주문/납품/최종 정산/지갑 재조회/일일 상한을 유지하며 한지 결과 팝업에 연결했다. preview는 환산 예상과 실제 지급 없음 문구를 유지한다. 최신 길 안내, 마우스 감도, 16개 테이블, 관전자 BE 이벤트 코드를 보존했다.
+- 통합 충돌 3곳은 붕어빵 HUD, 테이블 상태 초기화 import, WorldCanvas다. 최신 구현을 유지하면서 팝업·대기 상태 초기화·태블릿 표시 분기만 결합했다. 원래 작업 폴더의 미커밋 기획 문서는 건드리지 않고 별도 `frontend-tablet-integration` worktree에서 진행했다.
+
+아래 10/26 인계·검증 기록은 당시 상태다. 현재 운영 어댑터 연결 여부는 이 절과 확정 BE 명세를 따른다. 새 태블릿은 여전히 명시적 tablet 모드로 제공하며, 실제 배포 BE/DB의 다중 계정 공동 검수는 별도다.
+
 2026-10-26 KST. 최신 통합 기준 `origin/dev` bde4bce. FE 전용 브랜치 `feat/frontend-tablet-lobby`.
 
 ## 최신 dev 통합 및 BE 요청 요약

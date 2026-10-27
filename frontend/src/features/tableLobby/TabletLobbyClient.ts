@@ -63,11 +63,11 @@ export class TabletLobbyClient {
     const s = useSession.getState()
     if (!this.deps.connected() || s.status !== 'connected' || !s.tableId || !s.tableStates[s.tableId]?.seats.some(seat => seat.userId === s.sessionId)) return false
     const key = this.currentScope()
-    if (this.scope !== key || !useHostStartWait.getState().scope) {
+    if (this.scope !== key || !useHostStartWait.getState().scope || this.timeoutLeft) {
       this.feed?.dispose(); this.scope = key; this.tableId = s.tableId; this.epoch = ''; this.retired.clear(); this.timeoutLeft = false
       this.feed = bindHostStartWait({ userId: s.sessionId, channelId: s.roomId, tableId: s.tableId })
       if (this.attempt && this.attempt.scope !== key) this.attempt = null
-      if (this.attempt) useTabletStartStatus.setState({ tableId: s.tableId, uncertain: true })
+      useTabletStartStatus.setState(this.attempt ? { tableId: s.tableId, uncertain: true } : { tableId: '', uncertain: false })
       void this.checkWait()
     }
     return true
@@ -88,7 +88,9 @@ export class TabletLobbyClient {
     const s = useSession.getState()
     if (!this.deps.connected() || s.status !== 'connected' || !s.roomId) { this.reset(true); return }
     if (message.type === 'TABLE_LEFT') {
-      if (message.payload.tableId === this.tableId && message.payload.reason === 'HOST_START_TIMEOUT') this.timeoutLeft = true
+      if (message.payload.tableId === this.tableId && message.payload.reason === 'HOST_START_TIMEOUT') {
+        this.timeoutLeft = true; this.attempt = null; useTabletStartStatus.setState({ tableId: '', uncertain: false })
+      }
       else this.reset()
       return
     }
@@ -110,6 +112,10 @@ export class TabletLobbyClient {
       if (message.payload.phase === 'WAITING' && this.attempt.resolved) this.attempt = null
       else if (message.payload.phase !== 'WAITING') this.attempt.resolved = true
       useTabletStartStatus.setState({ tableId: '', uncertain: false })
+    }
+    if (message.type === 'GAME_START_STATE' && message.payload.tableId === this.tableId && message.payload.phase !== 'WAITING') {
+      const receipt = useHostStartWait.getState().receipt
+      if (receipt) useHostStartWait.setState({ dismissedEventId: receipt.eventId })
     }
   }
   private visible = () => { if (document.visibilityState === 'visible') void this.checkWait() }
@@ -156,7 +162,7 @@ export class TabletLobbyClient {
       } catch (error) {
         if (this.attempt === attempt) {
           if (attempt.resolved) return
-          if (error instanceof ServerError) this.attempt = null
+          if (error instanceof ServerError) { this.attempt = null; useTabletStartStatus.setState({ tableId: '', uncertain: false }) }
           else useTabletStartStatus.setState({ tableId: context.tableId, uncertain: true })
         }
         throw error

@@ -405,7 +405,6 @@ export class ParkRuntime implements ParkRuntimePort {
         (message.requestId !== null && message.requestId !== this.tableWatchRequestId)) return
     }
     receive(message)
-    if (TABLET_ENABLED) this.tablet.accept(message)
     if (serverFacilities) {
       if (message.type === 'WORLD_FACILITY_STATE') this.facilities.accept(message)
       if (message.type === 'WORLD_STATE') {
@@ -431,6 +430,7 @@ export class ParkRuntime implements ParkRuntimePort {
       })
       throw error
     }
+    if (TABLET_ENABLED) this.tablet.accept(message)
     if ((message.type === 'ERROR' && message.requestId === null || message.type === 'GAME_WATCH_LEFT' && message.requestId === null)
       && this.spectatorIntent && !useGame.getState().watchedGameId && useTableLobby.getState().spectatorStatus === 'watching')
       this.spectator.revoked('경기 관전 권한이 종료됐어요. 다시 연결해주세요.')
