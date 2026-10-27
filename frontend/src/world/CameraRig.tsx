@@ -125,7 +125,7 @@ export function CameraRig() {
       avatar = avatars.get(session.sessionId)
     const facilities = useFacilityState.getState()
     const temporaryView = !!(avatar?.tableId || avatar?.benchId || avatar?.fitnessId || avatar?.telescopeId
-      || session.tableId || session.focusedAnchorId || useGame.getState().watchedGameId || bungeoppangView.active
+      || session.tableId || session.focusedAnchorId || useTableLobby.getState().joiningAnchorId || useGame.getState().watchedGameId || bungeoppangView.active
       || useFeedbackState.getState().open || useNotesState.getState().open)
     if (temporaryView) rememberRoamingView(session.sessionId, session.roomId)
     restoreRoamingView(session.sessionId, session.roomId, temporaryView || session.status !== 'connected'

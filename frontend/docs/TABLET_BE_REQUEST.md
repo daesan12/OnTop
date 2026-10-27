@@ -2,6 +2,8 @@
 
 ## 2026-10-27 연결 상태
 
+직접 착석 진입은 FE에서 기존 TABLE_JOIN `{tableId}`를 정보창 없이 호출하도록 연결했다. 서버 승인 전 좌석/태블릿을 만들지 않으며 입장 거절과 좌석 배정은 기존 BE를 따른다. 이 진입 변경에 따른 추가 BE 작업은 없다.
+
 통합 작업은 기존 `feat/frontend-tablet-lobby`에도 반영했다. 실서버 다중 계정 검수는 사용자가 직접 진행하며, 순서와 기대 결과는 [TABLET_SERVER_CHECKLIST.md](./TABLET_SERVER_CHECKLIST.md)를 따른다.
 
 BE의 확정 명세 [tablet-lobby-api.md](../../docs/tablet-lobby-api.md)를 반영했다. `TabletLobbyClient`가 운영 RawWS 연결에서 TABLE_CONFIGURE/TABLE_START/TABLE_HOST_WAIT_CHECK와 시간 상태/만료 알림을 처리한다. startMode=MANUAL/selectedPlayers를 검증하며 AUTO 테이블에서 준비=true로 자동 시작하지 않도록 새 태블릿 준비를 차단한다. 시작 응답 유실 시 같은 actionId를 보존하고 명시적인 GAME_START_CHECK로 확인하며 자동 재전송하지 않는다. 테이블 epoch·revision·tableVersion·사용자/채널을 비교해 과거 시간 상태를 적용하지 않는다.
