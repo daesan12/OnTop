@@ -19,12 +19,15 @@ export interface BungeoppangGame {
 }
 export interface BungeoppangSubmit {
   gameId: string; log: (GrillLogEntry | V4Log)[]; seenTips: string[]; clientScore: number
-  deliveryKey?: string
+  deliveryKey?: string; completeKey?: string
 }
 export interface BungeoppangSubmitResult {
   score: number; made: number; golden: number; failed: number; wasted: number; maxCombo: number
   coinsCalculated: number; coinsGranted: number; todayEarned: number; dailyCap: number; capReached: boolean
-  served?: number; customersServed?: number; specialServed?: number; bonusScore?: number
+  successfulMade?: number; served?: number; customersServed?: number; specialServed?: number; bonusScore?: number
+  grillDiscarded?: number; trayDiscarded?: number; undeliveredCount?: number; unfinishedGrillCount?: number
+  rewardDate?: string; settledAt?: string; finalThroughSeq?: number; finalPrefixHash?: string
+  rulesVersion?: string; configVersion?: string
 }
 export class BungeoppangServiceError extends Error {
   constructor(readonly code: string, message: string, readonly retryable = false, readonly status = 0) { super(message) }
@@ -44,7 +47,8 @@ const tips = ['START', 'POUR', 'GOLD', 'BURNT', 'RUSH']
 const whole = (n: unknown): n is number => Number.isSafeInteger(n) && Number(n) >= 0
 const validId = (id: unknown): id is string => typeof id === 'string' && /^[1-9]\d{0,18}$/.test(id)
 const invalid = (): never => { throw new BungeoppangServiceError('INVALID_RESPONSE', '서버 응답을 확인하지 못했어요. 같은 요청으로 다시 확인해 주세요.', true) }
-const messages: Record<string, string> = {
+/** Shared MINI-01~04 error copy. The v4 adapter falls back to it for codes it does not override. */
+export const messages: Record<string, string> = {
   RULES_VERSION_MISMATCH: '게임 규칙이 변경됐어요. 새로고침 후 새 판을 시작해 주세요.',
   LOG_INVALID: '서버가 조리 기록을 승인하지 않았어요. 이번 판은 지급되지 않습니다.',
   TOO_EARLY: '서버의 완료 가능 시간을 기다린 뒤 같은 기록으로 다시 확인해 주세요.',

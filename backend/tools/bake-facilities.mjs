@@ -5,8 +5,14 @@ import { stripTypeScriptTypes } from 'node:module';
 import { SourceTextModule, createContext } from 'node:vm';
 import { createHash } from 'node:crypto';
 
-const config = resolve(import.meta.dirname, '../../frontend/src/config');
-const map = JSON.parse(await readFile(new URL('../src/main/resources/world/park.json', import.meta.url)));
+const option = (name, fallback) => {
+  const at = process.argv.indexOf(name);
+  if (at < 0) return fallback;
+  if (!process.argv[at + 1]) throw Error(`Missing ${name} value`);
+  return resolve(process.argv[at + 1]);
+};
+const config = option('--config', resolve(import.meta.dirname, '../../frontend/src/config'));
+const map = JSON.parse(await readFile(option('--map', new URL('../src/main/resources/world/park.json', import.meta.url))));
 const modules = new Map(), context = createContext({});
 async function load(file) {
   if (relative(config, file).startsWith('..')) throw Error('Config import escapes root');
@@ -58,7 +64,7 @@ const result = { mapVersion: map.sourceSha256, configSha256: sourceSha256.digest
   aimIntervalMs: c.TELESCOPE.aimIntervalMs, minPitch: c.TELESCOPE.minPitch,
   maxPitch: c.TELESCOPE.maxPitch, initialPitch: c.TELESCOPE.initialPitch, facilities, excluded };
 const output = JSON.stringify(result, null, 2) + '\n';
-const url = new URL('../src/main/resources/world/facilities.json', import.meta.url);
+const url = option('--output', new URL('../src/main/resources/world/facilities.json', import.meta.url));
 if (process.argv.includes('--check')) {
   if (await readFile(url, 'utf8') !== output) throw Error('Facility catalog is stale');
 } else await writeFile(url, output);

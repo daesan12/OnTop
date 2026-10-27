@@ -13,6 +13,7 @@ import com.ssafy.ontop.game.action.GameActionResult;
 import com.ssafy.ontop.game.action.GameForfeitCommand;
 import com.ssafy.ontop.game.action.GameForfeitResult;
 import com.ssafy.ontop.game.reconnect.GameReconnectService;
+import com.ssafy.ontop.game.result.GameDefeatConfirmed;
 import com.ssafy.ontop.game.result.GameResultService;
 import com.ssafy.ontop.game.result.GameResultCommitted;
 import com.ssafy.ontop.game.result.GameResultView;
@@ -40,6 +41,7 @@ import com.ssafy.ontop.world.config.WorldEmoteProperties;
 import com.ssafy.ontop.world.config.WorldProximityProperties;
 import com.ssafy.ontop.world.domain.ChatText;
 import com.ssafy.ontop.world.domain.EmoteCode;
+import com.ssafy.ontop.world.dto.WorldGameReaction;
 import com.ssafy.ontop.world.map.PreparedParkMap;
 import com.ssafy.ontop.world.map.WorldMapRuntime;
 import com.ssafy.ontop.world.service.WorldAppearanceGateway;
@@ -122,6 +124,19 @@ public class TableHub {
     private final WorldFacilityService facilities;
     private final PreparedParkMap preparedPark;
     private final WorldFollowService follows = new WorldFollowService();
+    private final Map<String, ReactionRound> reactionRounds = new HashMap<>();
+    private com.ssafy.ontop.world.service.WorldClock worldClock = new com.ssafy.ontop.world.service.WorldClock();
+    private final Map<String, WaitingReconnect> waitingReconnects = new HashMap<>();
+    private final Map<String, Long> connectionStarted = new HashMap<>();
+    private final Map<String, String> loginSessions = new HashMap<>();
+    private record WaitingReconnect(String tableId, java.time.Instant expiresAt, String loginSessionId) {}
+    private final Map<String, ManualStartReceipt> manualStartReceipts = new HashMap<>();
+    private final Map<String, GameResultView> settledHostResults = new HashMap<>();
+
+    private record ManualStartReceipt(String userId, String actionId, long expectedVersion, TableStartAttempt attempt) {}
+
+    @Autowired(required = false)
+    public void configureWorldClock(com.ssafy.ontop.world.service.WorldClock clock) { worldClock = clock; }
     private final ExecutorService startWorkers = Executors.newVirtualThreadPerTaskExecutor();
     private final ScheduledExecutorService heartbeatTimer = Executors.newSingleThreadScheduledExecutor(
             Thread.ofPlatform().daemon(true).name("table-heartbeat").factory());
@@ -369,6 +384,7 @@ public class TableHub {
         heartbeatTimer.scheduleWithFixedDelay(this::checkHeartbeats, 100, 100, TimeUnit.MILLISECONDS);
         heartbeatTimer.scheduleWithFixedDelay(this::advanceWorld, 33, 33, TimeUnit.MILLISECONDS);
         heartbeatTimer.scheduleWithFixedDelay(this::pollProfiles, 5, 5, TimeUnit.SECONDS);
+        heartbeatTimer.scheduleWithFixedDelay(this::checkHostWaits, 100, 100, TimeUnit.MILLISECONDS);
     }
 
     public synchronized void connect(WebSocketSession session) {
@@ -378,14 +394,18 @@ public class TableHub {
 
     public synchronized boolean connectAuthenticated(WebSocketSession session, VerifiedWebSocketUser user) {
         String userId = Long.toString(user.userId());
+        expireWaitingReconnects();
+        WaitingReconnect lease = waitingReconnects.get(userId);
+        boolean reservedLobby = lease != null && java.util.Objects.equals(lease.loginSessionId(), user.sessionId());
         // 사용자 확정: 기존 연결이 살아 있으면 새 연결만 거절한다.
         boolean reservedStart = committedStarts.isPresent() && seating.containsKey(userId)
                 && starts.containsKey(seating.get(userId)) && starts.get(seating.get(userId)).frozen();
-        if (seating.containsKey(userId) && !reservedStart
+        if (seating.containsKey(userId) && !reservedStart && !reservedLobby
                 || members.values().stream().anyMatch(member -> member.userId().equals(userId))) {
             return false;
         }
         Member member = register(session, userId, user.userId());
+        loginSessions.put(session.getId(), user.sessionId());
         if (maps.requiresMatch()) {
             pendingMapConnections.put(session.getId(), new PendingMapConnection(user.sessionId(), reservedStart));
         } else {
@@ -395,6 +415,16 @@ public class TableHub {
     }
 
     private void activateConnection(Member member, String sessionId, String loginSessionId, boolean reservedStart) {
+        expireWaitingReconnects();
+        WaitingReconnect lease = waitingReconnects.get(member.userId());
+        if (lease != null && java.util.Objects.equals(lease.loginSessionId(), loginSessionId)) {
+            waitingReconnects.remove(member.userId());
+            String tableId = seating.get(member.userId());
+            if (tableId != null) {
+                member.peer().offer(protocol.encode(null, "TABLE_STATE", publicSnapshot(rooms.get(tableId))));
+                replyHostWait(member, rooms.get(tableId), null);
+            }
+        }
         gameResults.ifPresent(service -> service.connected(sessionId, member.accountId(), delivery -> {
             if (delivery.errorCode() != null) {
                 member.peer().offer(protocol.error(delivery.requestId(), delivery.errorCode(),
@@ -413,9 +443,10 @@ public class TableHub {
                 new WebSocketHeartbeat(heartbeatInterval, heartbeatTimeout, System::nanoTime), this::textSent);
         Member member = new Member(userId, peer, accountId, session.getId());
         members.put(session.getId(), member);
+        connectionStarted.put(session.getId(), System.nanoTime());
         acceptedConnections++;
         peer.offer(protocol.encode(null, "CONNECTED", Map.of("userId", userId, "map", maps.metadata(),
-                "mapVerificationRequired", maps.requiresMatch())));
+                "mapVerificationRequired", maps.requiresMatch(), "time", worldClock.sample())));
         if (startRehearsal || committedStarts.isPresent()) {
             peer.offer(protocol.encode(null, "GAME_START_STATE", TableStartAttempt.View.waiting(null, 0, null,
                     committedStarts.isEmpty())));
@@ -490,7 +521,7 @@ public class TableHub {
             int available = snapshot.capacity() - occupied;
             return new TableSummaryResponse(tableId, snapshot.capacity(), snapshot.minimumPlayers(), occupied,
                     available, ready, snapshot.allReady(), status, available > 0 && status.equals("WAITING"),
-                    snapshot.gameCode(), snapshot.targetScore(), snapshot.betAmountPerPlayer(), publicGameId(tableId));
+                    snapshot.gameCode(), snapshot.targetScore(), snapshot.betAmountPerPlayer(), publicGameId(tableId), snapshot.selectorUserId(), snapshot.selectedPlayers(), snapshot.startMode());
         }).toList());
     }
 
@@ -504,6 +535,10 @@ public class TableHub {
         try {
             Request request = protocol.parse(text);
             requestId = request.requestId();
+            if (request.type().equals("WORLD_TIME_CHECK")) {
+                member.peer().offer(protocol.encode(requestId, "WORLD_TIME_STATE", worldClock.sample()));
+                return;
+            }
             if (request.type().equals("WORLD_MAP_CONFIRM")) {
                 confirmMap(sessionId, member, request);
                 return;
@@ -512,6 +547,8 @@ public class TableHub {
                 replyMapError(member, request, "MAP_VERSION_REQUIRED", "먼저 맵 버전을 확인해주세요.");
                 return;
             }
+            expireWaitingReconnects();
+            rooms.values().forEach(this::checkHostTimeout);
             if (request.type().equals("GAME_RESULT_CHECK")) {
                 if (member.accountId() == null) {
                     fail(request, "GAME_RESULT_AUTH_REQUIRED", "인증된 사용자만 결과를 확인할 수 있습니다.");
@@ -550,6 +587,12 @@ public class TableHub {
                 checkStart(member, request);
                 return;
             }
+            if (request.type().equals("TABLE_HOST_WAIT_CHECK")) {
+                TableRoom room = seatedRoom(member, request);
+                checkHostTimeout(room);
+                replyHostWait(member, room, request.requestId());
+                return;
+            }
             if (member.accountId() != null && reconnect.isPresent()
                     && !reconnect.get().canUseLobby(member.accountId(), sessionId)) {
                 fail(request, "GAME_RECOVERY_REQUIRED", "현재 경기 복구 상태를 먼저 확인해주세요.");
@@ -569,6 +612,8 @@ public class TableHub {
                 case "TABLE_UNWATCH" -> unwatch(member, request);
                 case "READY_SET" -> ready(member, request);
                 case "GAME_SELECT" -> selectGame(member, request);
+                case "TABLE_CONFIGURE" -> configureTable(member, request);
+                case "TABLE_START" -> startTable(member, request);
                 case "TABLE_LEAVE" -> leave(member, request);
                 case "GAME_START_CHECK" -> checkStart(member, request);
                 default -> throw new IllegalStateException("검증되지 않은 메시지");
@@ -604,6 +649,8 @@ public class TableHub {
             return;
         }
         closeMember(member, reason);
+        String loginSessionId = loginSessions.remove(sessionId);
+        connectionStarted.remove(sessionId);
         mapVerifiedSessions.remove(sessionId);
         pendingMapConnections.remove(sessionId);
         recordBehavior(BehaviorEventType.WS_DISCONNECTED, member.accountId(),
@@ -657,6 +704,16 @@ public class TableHub {
                 }
                 return;
             }
+            TableRoom waitingRoom = rooms.get(tableId);
+            boolean networkClose = switch (reason) {
+                case SOCKET_CLOSED, TRANSPORT_ERROR, HEARTBEAT_TIMEOUT, SEND_ERROR, SEND_QUEUE_FULL -> true;
+                default -> false;
+            };
+            if (member.accountId() != null && networkClose && waitingRoom.manualStart()) {
+                waitingReconnects.putIfAbsent(member.userId(), new WaitingReconnect(tableId, tableNow().plusSeconds(30), loginSessionId));
+                return;
+            }
+            waitingReconnects.remove(member.userId());
             seating.remove(member.userId());
             TableRoom room = rooms.get(tableId);
             room.leave(member.userId());
@@ -668,6 +725,9 @@ public class TableHub {
 
     @PreDestroy
     public synchronized void shutdown() {
+        waitingReconnects.clear();
+        loginSessions.clear();
+        connectionStarted.clear();
         appearancePushes.clear();
         profileMemberships.clear();
         stopped = true;
@@ -691,6 +751,7 @@ public class TableHub {
         stateLoads.clear();
         actionRequests.clear();
         starts.clear();
+        reactionRounds.clear();
         startWorkers.shutdownNow();
     }
 
@@ -776,7 +837,12 @@ public class TableHub {
                 && !channelId.equals(tableChannels.get(seating.get(member.userId())))) {
             fail(request, "TABLE_BUSY", "먼저 테이블에서 퇴장해주세요.");
         }
+        long joinStarted = System.nanoTime();
         WorldChannelRegistry.Change change = channels.join(member.userId(), channelId);
+        Long connectedAt = connectionStarted.remove(member.sessionId());
+        log.debug("공원 입장 서버 준비 joinMs={} connectedToJoinMs={} map={}",
+                (System.nanoTime() - joinStarted) / 1_000_000.0,
+                connectedAt == null ? null : (System.nanoTime() - connectedAt) / 1_000_000.0, maps.metadata().mapVersion());
         if (change.changed()) {
             publishChannel(change.state(), member, request.requestId());
             WorldChannelRegistry.WorldState world = channels.worldState(channelId);
@@ -1323,7 +1389,7 @@ public class TableHub {
             publish(room, member, request.requestId());
             recordBehavior(BehaviorEventType.TABLE_READY_SET, member.accountId(),
                     builder -> builder.tableId(room.snapshot().tableId()).prop("ready", ready));
-            beginStartIfReady(room);
+            if (!room.manualStart()) { beginStartIfReady(room); }
         } else {
             replyState(member, request, room);
         }
@@ -1331,6 +1397,7 @@ public class TableHub {
 
     private void selectGame(Member member, Request request) {
         TableRoom room = seatedRoom(member, request);
+        if (room.manualStart()) { fail(request, "TABLE_CONFIGURATION_REQUIRED", "태블릿 설정 명령을 사용해주세요."); }
         String tableId = room.snapshot().tableId();
         ensureWaiting(tableId, request);
         if (!room.isSelector(member.userId())) {
@@ -1368,6 +1435,7 @@ public class TableHub {
         TableRoom room = seatedRoom(member, request);
         ensureWaiting(room.snapshot().tableId(), request);
         String tableId = seating.remove(member.userId());
+        waitingReconnects.remove(member.userId());
         room.leave(member.userId());
         member.peer().offer(protocol.encode(request.requestId(), "TABLE_LEFT", Map.of("tableId", tableId)));
         publish(room, null, null);
@@ -1385,6 +1453,119 @@ public class TableHub {
 
     private void replyState(Member member, Request request, TableRoom room) {
         member.peer().offer(protocol.encode(request.requestId(), "TABLE_STATE", publicSnapshot(room)));
+        if (room.manualStart()) { replyHostWait(member, room, null); }
+    }
+
+    private java.time.Instant tableNow() { return java.time.Instant.ofEpochMilli(worldClock.sample().serverNow()); }
+
+    private void configureTable(Member member, Request request) {
+        TableRoom room = seatedRoom(member, request);
+        String tableId = room.snapshot().tableId();
+        ensureWaiting(tableId, request);
+        if (!room.isSelector(member.userId())) { fail(request, "NOT_GAME_SELECTOR", "방장만 설정할 수 있습니다."); }
+        if (room.snapshot().version() != request.payload().path("expectedVersion").asLong()) {
+            fail(request, "GAME_SETTINGS_CHANGED", "최신 테이블 상태를 확인해주세요.");
+        }
+        TableGame game = TableGame.find(request.payload().path("gameCode").asText());
+        if (game == null) { fail(request, "UNSUPPORTED_GAME", "지원하지 않는 게임입니다."); }
+        Integer target = request.payload().has("targetScore") ? request.payload().path("targetScore").asInt() : null;
+        if (game == TableGame.DICE && target == null) { fail(request, "GAME_OPTIONS_REQUIRED", "목표 점수를 선택해주세요."); }
+        try {
+            if (room.configure(game, target, request.payload().path("betAmountPerPlayer").asLong(),
+                    request.payload().path("selectedPlayers").asInt())) {
+                starts.remove(tableId);
+                publish(room, member, request.requestId());
+                publishStart(tableId);
+            } else { replyState(member, request, room); }
+        } catch (IllegalArgumentException invalid) { fail(request, "GAME_CONFIGURATION_INVALID", "정원·목표·판돈을 확인해주세요."); }
+    }
+
+    private void startTable(Member member, Request request) {
+        TableRoom room = seatedRoom(member, request);
+        String tableId = room.snapshot().tableId();
+        String actionId = request.payload().path("actionId").asText();
+        long expected = request.payload().path("expectedVersion").asLong();
+        ManualStartReceipt prior = manualStartReceipts.get(tableId);
+        if (prior != null && prior.actionId().equals(actionId)) {
+            if (!prior.userId().equals(member.userId()) || prior.expectedVersion() != expected) {
+                fail(request, "START_ACTION_CONFLICT", "같은 요청 ID의 내용이 다릅니다.");
+            }
+            if (starts.get(tableId) != prior.attempt()) { fail(request, "START_ACTION_EXPIRED", "이전 시작 요청입니다."); }
+            replyStartState(member, tableId, request.requestId());
+            return;
+        }
+        ensureWaiting(tableId, request);
+        if (checkHostTimeout(room)) { fail(request, "HOST_START_TIMEOUT", "방장 시작 제한 시간이 만료됐습니다."); }
+        if (!room.manualStart()) { fail(request, "TABLE_CONFIGURATION_REQUIRED", "먼저 태블릿 설정을 확정해주세요."); }
+        if (!room.isSelector(member.userId())) { fail(request, "NOT_GAME_SELECTOR", "방장만 시작할 수 있습니다."); }
+        if (room.snapshot().version() != expected) { fail(request, "GAME_SETTINGS_CHANGED", "최신 테이블 상태를 확인해주세요."); }
+        if (!room.snapshot().allReady()) { fail(request, "TABLE_NOT_READY", "선택 정원 전원이 준비해야 합니다."); }
+        if (!startRehearsal && committedStarts.isEmpty()) { fail(request, "START_NOT_CONFIGURED", "경기 시작 연결이 필요합니다."); }
+        room.cancelWait("START_APPROVED");
+        beginStartIfReady(room);
+        manualStartReceipts.put(tableId, new ManualStartReceipt(member.userId(), actionId, expected, starts.get(tableId)));
+        publishHostWait(room);
+        replyStartState(member, tableId, request.requestId());
+    }
+
+    private void replyHostWait(Member member, TableRoom room, String requestId) {
+        member.peer().offer(protocol.encode(requestId, "TABLE_HOST_WAIT_STATE", room.hostWait(tableNow())));
+    }
+
+    private void publishHostWait(TableRoom room) {
+        if (!room.manualStart()) { return; }
+        String tableId = room.snapshot().tableId();
+        String message = protocol.encode(null, "TABLE_HOST_WAIT_STATE", room.hostWait(tableNow()));
+        for (Member target : members.values()) {
+            if (isMapReady(target) && (tableId.equals(seating.get(target.userId()))
+                    || tableId.equals(watching.get(target.userId())) && canWatchTable(target, tableId))) {
+                target.peer().offer(message);
+            }
+        }
+    }
+
+    /** 준비·시작·만료는 같은 Hub 잠금에서 확정하고 오래된 예약 작업은 보관하지 않는다. */
+    private synchronized void checkHostWaits() {
+        if (stopped) { return; }
+        try { expireWaitingReconnects(); rooms.values().forEach(this::checkHostTimeout); }
+        catch (RuntimeException failure) { log.error("방장 시작 대기 확인 실패", failure); }
+    }
+
+    private void expireWaitingReconnects() {
+        var expired = waitingReconnects.entrySet().stream()
+                .filter(entry -> !tableNow().isBefore(entry.getValue().expiresAt())).map(Map.Entry::getKey).toList();
+        for (String userId : expired) {
+            WaitingReconnect lease = waitingReconnects.remove(userId);
+            String tableId = seating.get(userId);
+            if (lease == null || !lease.tableId().equals(tableId)) { continue; }
+            TableStartAttempt start = starts.get(tableId);
+            if (start != null && start.frozen()) { continue; }
+            seating.remove(userId);
+            TableRoom room = rooms.get(tableId);
+            room.leave(userId);
+            publish(room, null, null);
+        }
+    }
+
+    private boolean checkHostTimeout(TableRoom room) {
+        String tableId = room.snapshot().tableId();
+        TableStartAttempt attempt = starts.get(tableId);
+        if (attempt != null && attempt.frozen()) { return false; }
+        TableRoom.HostTimeout event = room.expireWait(tableNow());
+        if (event == null) { return false; }
+        seating.remove(event.previousHostUserId(), tableId);
+        waitingReconnects.remove(event.previousHostUserId());
+        Member oldHost = members.values().stream().filter(m -> m.userId().equals(event.previousHostUserId())).findFirst().orElse(null);
+        if (oldHost != null) { oldHost.peer().offer(protocol.encode(null, "TABLE_LEFT", Map.of("tableId", tableId, "reason", event.reason()))); }
+        publish(room, null, null);
+        String notice = protocol.encode(null, "TABLE_HOST_TIMEOUT", event);
+        for (Member target : members.values()) {
+            if (isMapReady(target) && (target == oldHost || tableId.equals(seating.get(target.userId()))
+                    || tableId.equals(watching.get(target.userId())) && canWatchTable(target, tableId))) {
+                target.peer().offer(notice);
+            }
+        }
+        return true;
     }
 
     private void watch(Member member, Request request) {
@@ -1414,6 +1595,7 @@ public class TableHub {
         }
         watching.put(member.userId(), tableId);
         member.peer().offer(protocol.encode(request.requestId(), "TABLE_WATCH_STATE", publicSnapshot(room)));
+        if (room.manualStart()) { replyHostWait(member, room, null); }
         if (current == null) {
             recordBehavior(BehaviorEventType.TABLE_WATCHED, member.accountId(), builder -> builder.tableId(tableId));
         }
@@ -1434,6 +1616,8 @@ public class TableHub {
     }
 
     private void publish(TableRoom room, Member actor, String requestId) {
+        TableStartAttempt start = starts.get(room.snapshot().tableId());
+        room.refreshWait(tableNow(), start == null || !start.frozen());
         TableRoom.Snapshot snapshot = publicSnapshot(room);
         for (Member target : members.values()) {
             if (!isMapReady(target)) {
@@ -1449,6 +1633,7 @@ public class TableHub {
                 }
             }
         }
+        publishHostWait(room);
     }
 
     private TableRoom.Snapshot publicSnapshot(TableRoom room) {
@@ -1657,6 +1842,7 @@ public class TableHub {
                     .collect(Collectors.toSet());
             if (!expected.equals(actual) || !expected.contains(Long.toString(result.userId()))) { continue; }
             // 경기 전체 SETTLED를 확인한다. 알림이 먼저 와도 엔진 종료 전에는 다음 판을 열지 않는다.
+            settledHostResults.put(entry.getKey(), result);
             attempt.markSettled(result.gameSessionId());
             releaseSettledRound(entry.getKey(), attempt);
         }
@@ -1672,6 +1858,13 @@ public class TableHub {
         Set<String> connected = connectedUsers();
         TableRoom room = rooms.get(tableId);
         room.returnToWaiting(connected);
+        GameResultView result = settledHostResults.remove(tableId);
+        if (room.manualStart()) {
+            Set<String> preferred = result == null || result.status() == GameResultView.Status.INVALID ? Set.of()
+                    : result.participants().stream().filter(player -> "WIN".equals(player.result()) || "DRAW".equals(player.result()))
+                            .map(GameResultView.Participant::userId).collect(Collectors.toSet());
+            room.chooseHost(preferred);
+        }
         seating.entrySet().removeIf(entry -> entry.getValue().equals(tableId) && !connected.contains(entry.getKey()));
         publish(room, null, null);
         publishStart(tableId);
@@ -1795,6 +1988,33 @@ public class TableHub {
                 push.member.peer().offer(protocol.error(push.initialRequestId, code, "경기 관전 요청이 종료되었습니다."));
             } else {
                 push.member.peer().offer(protocol.encode(null, "GAME_WATCH_LEFT", Map.of("gameId", push.gameId)));
+            }
+        }
+    }
+
+    @EventListener
+    public synchronized void gameDefeatConfirmed(GameDefeatConfirmed event) {
+        if (stopped) { return; }
+        String channelId = tableChannels.get(event.tableId());
+        TableStartAttempt attempt = starts.get(event.tableId());
+        if (channelId == null || attempt == null
+                || !event.gameId().equals(attempt.view(0, false).gameSessionId())
+                || !event.gameCode().equals(attempt.command().gameCode())) { return; }
+        Set<String> players = attempt.command().participants().stream().map(GameStartCommand.Participant::userId)
+                .collect(Collectors.toSet());
+        if (!players.contains(Long.toString(event.userId()))) { return; }
+        ReactionRound round = reactionRounds.get(event.tableId());
+        if (round == null || !round.gameId().equals(event.gameId())) {
+            round = new ReactionRound(event.gameId(), new HashSet<>());
+            reactionRounds.put(event.tableId(), round);
+        }
+        // 한 테이블의 현재 경기, 참가자별 한 건만 보존한다. 새 경기의 사건이 오면 교체한다.
+        if (!round.users().add(event.userId())) { return; }
+        String notification = protocol.encode(null, "WORLD_GAME_REACTION", WorldGameReaction.from(event, channelId));
+        for (Member target : members.values()) {
+            if (isMapReady(target) && channelId.equals(channels.channelOf(target.userId()))
+                    && (players.contains(target.userId()) || canWatchTable(target, event.tableId()))) {
+                target.peer().offer(notification);
             }
         }
     }
@@ -2086,6 +2306,8 @@ public class TableHub {
 
     private record ProfileTarget(Member member, String channel) {
     }
+
+    private record ReactionRound(String gameId, Set<Long> users) { }
 
     private record Member(String userId, TablePeer peer, Long accountId, String sessionId) {
     }

@@ -523,13 +523,15 @@ function ResultPanel() {
   ];
   const today = result?.todayEarned ?? status?.todayEarned;
   const v4 = isV4Grill(grill);
+  // 개발 미리보기는 서버 정산이 없으므로 확정·지급 문구 대신 환산 예상만 보여준다.
+  const preview = v4 && bungeoppangV4Preview;
   return (
     <div className="bung-dim">
       <section className="bung-panel bung-result" aria-label="결과">
         <header>
           <h2>오늘의 장사</h2>
           <span>
-            {v4 ? '승인된 납품 점수' : result ? '서버 확정 점수' : '미리보기 점수'} <b>{result?.score ?? grill.score}</b>
+            {preview ? '승인된 납품 점수' : result ? '서버 확정 점수' : v4 ? '승인 대기 납품 점수' : '미리보기 점수'} <b>{result?.score ?? grill.score}</b>
           </span>
         </header>
         <div className="bung-grid">
@@ -547,10 +549,10 @@ function ResultPanel() {
         </div>
         <div className="bung-coins">
           <span>
-            {v4 ? '최종 지급 전 · 환산 예상' : '받은 엽전'}{" "}
+            {preview ? '미리보기 · 환산 예상' : result ? '받은 엽전' : v4 ? '환산 예상' : '받은 엽전'}{" "}
             <b>
               {result
-                ? `${v4 ? result.coinsCalculated : result.coinsGranted}냥`
+                ? `${preview ? result.coinsCalculated : result.coinsGranted}냥`
                 : submitError
                   ? "-"
                   : "정산 중…"}
@@ -562,6 +564,9 @@ function ResultPanel() {
         </div>
         {result?.capReached && (
           <p className="bung-cap">오늘 장사는 끝! 게임은 계속할 수 있어요</p>
+        )}
+        {!preview && result && result.coinsGranted < result.coinsCalculated && (
+          <p className="bung-cap">환산 {result.coinsCalculated}냥 중 오늘 한도를 적용해 {result.coinsGranted}냥을 받았어요.</p>
         )}
         {submitError && (
           <p className="bung-error" role="alert">
@@ -580,7 +585,7 @@ function ResultPanel() {
         {startError && <p className="bung-error">{startError}</p>}
         {walletError && <p className="bung-error" aria-live="polite">{walletError} <button onClick={() => void refreshBungeoppangWallet()}>잔액 다시 확인</button></p>}
         <footer>
-          <span>{v4 ? '납품 승인 완료 · 최종 지급은 아직 미연동' : result ? '서버 정산 완료' : '서버 결과 확인 중'}</span>
+          <span>{preview ? '미리보기 · 실제 엽전 지급 없음' : result ? '서버 정산 완료' : '서버 결과 확인 중'}</span>
           <span className="bung-row">
             <button type="button" onClick={escapeBungeoppang}>
               나가기

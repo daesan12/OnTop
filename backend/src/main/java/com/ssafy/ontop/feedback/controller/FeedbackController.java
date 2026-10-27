@@ -19,7 +19,6 @@ import java.time.Instant;
 import java.util.Set;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.context.annotation.Profile;
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
@@ -33,7 +32,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@Profile("(local | dev) & !prod & !production")
 @ConditionalOnProperty(name = "ontop.feedback.enabled", havingValue = "true")
 @Tag(name = "FEEDBACK")
 @SecurityRequirement(name = "AccessJwt")

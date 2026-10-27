@@ -167,22 +167,27 @@ public class MinigameController {
     @ApiResponse(responseCode = "200", description = "완료 또는 기존 완료 결과",
             content = @Content(mediaType = "application/json", schema = @Schema(implementation = MinigameCompleteResponse.class)))
     @ApiResponse(responseCode = "404", description = "MINIGAME_NOT_FOUND")
-    @ApiResponse(responseCode = "409", description = "RULES_VERSION_MISMATCH / 종료 상태 충돌")
-    @ApiResponse(responseCode = "422", description = "LOG_INVALID / TOO_EARLY")
-    public ResponseEntity<?> complete(Principal principal, @PathVariable String sessionId, @RequestBody JsonNode body) {
+    @ApiResponse(responseCode = "409", description = "RULES_VERSION_MISMATCH / 종료 상태 충돌 / v4 IDEMPOTENCY_KEY_CONFLICT · "
+            + "FINAL_RESULT_CONFLICT · PREFIX_MISMATCH · GAME_NOT_ACTIVE(제출 기한 경과)")
+    @ApiResponse(responseCode = "413", description = "REQUEST_TOO_LARGE")
+    @ApiResponse(responseCode = "415", description = "UNSUPPORTED_MEDIA_TYPE")
+    @ApiResponse(responseCode = "422", description = "LOG_INVALID / TOO_EARLY / 마지막 미승인 납품의 저장된 거부 응답")
+    public ResponseEntity<?> complete(Principal principal, @PathVariable String sessionId,
+            HttpServletRequest request) {
         long userId = account(principal);
-        if (!body.isObject() || !body.has("log")) { throw invalid(); }
-        body.fieldNames().forEachRemaining(field -> {
-            if (!Set.of("log", "seenTips", "clientScore").contains(field)) { throw invalid(); }
-        });
-        if (body.has("seenTips") && (!body.path("seenTips").isArray() || body.path("seenTips").size() > 5)) {
+        JsonNode body = strictBody(request, "완료");
+        if (body == null || !body.isObject()) { throw invalid(); }
+        if (!body.has("rulesVersion")) {
+            if (!body.has("log")) { throw invalid(); }
+            body.fieldNames().forEachRemaining(field -> {
+                if (!Set.of("log", "seenTips", "clientScore").contains(field)) { throw invalid(); }
+            });
+        }
+        var keys = Collections.list(request.getHeaders("Idempotency-Key"));
+        if (keys.size() > 1 || keys.size() == 1 && !keys.getFirst().matches("[A-Za-z0-9_-]{1,64}")) {
             throw invalid();
         }
-        if (body.has("clientScore") && (!body.path("clientScore").isIntegralNumber()
-                || !body.path("clientScore").canConvertToInt() || body.path("clientScore").intValue() < 0)) {
-            throw invalid();
-        }
-        return ok(service().complete(userId, sessionId(sessionId), body));
+        return ok(service().complete(userId, sessionId(sessionId), keys.isEmpty() ? null : keys.getFirst(), body));
     }
 
     @PostMapping("/{sessionId}/abandon")
@@ -253,6 +258,32 @@ public class MinigameController {
         request.getParameterMap().forEach((name, values) -> {
             if (!allowed.contains(name) || values.length != 1) { throw invalid(); }
         });
+    }
+
+    private JsonNode strictBody(HttpServletRequest request, String operation) {
+        long contentLength = request.getContentLengthLong();
+        if (contentLength > BungeoppangV4DeliveryContract.MAX_BODY_BYTES) {
+            throw new MinigameException(413, "REQUEST_TOO_LARGE", operation + " 요청 본문이 너무 큽니다.");
+        }
+        String encoding = request.getHeader("Content-Encoding");
+        if (encoding != null && !encoding.isBlank() && !encoding.equalsIgnoreCase("identity")) {
+            throw new MinigameException(415, "UNSUPPORTED_MEDIA_TYPE", "압축된 " + operation + " 요청은 지원하지 않습니다.");
+        }
+        try {
+            if (request.getContentType() == null || !MediaType.APPLICATION_JSON
+                    .isCompatibleWith(MediaType.parseMediaType(request.getContentType()))) {
+                throw new MinigameException(415, "UNSUPPORTED_MEDIA_TYPE", "JSON " + operation + " 요청만 지원합니다.");
+            }
+        } catch (org.springframework.http.InvalidMediaTypeException exception) {
+            throw new MinigameException(415, "UNSUPPORTED_MEDIA_TYPE", "JSON " + operation + " 요청만 지원합니다.");
+        }
+        byte[] bytes;
+        try { bytes = request.getInputStream().readNBytes(BungeoppangV4DeliveryContract.MAX_BODY_BYTES + 1); }
+        catch (IOException exception) { throw invalid(); }
+        if (bytes.length > BungeoppangV4DeliveryContract.MAX_BODY_BYTES) {
+            throw new MinigameException(413, "REQUEST_TOO_LARGE", operation + " 요청 본문이 너무 큽니다.");
+        }
+        return BungeoppangV4DeliveryContract.parseJson(bytes);
     }
 
     private MinigameException invalid() {

@@ -43,8 +43,9 @@ import static org.mockito.Mockito.doThrow;
 
 @Tag("mysql")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
-        "spring.profiles.active=dev,db", "ontop.feedback.enabled=true", "ontop.feedback.administrator-ids=101",
-        "spring.flyway.locations=classpath:db/migration,classpath:db/minigame,classpath:db/feedback",
+        "spring.profiles.active=dev,db", "ontop.feedback.enabled=true",
+        "ontop.admin.read-ids=101", "ontop.feedback.administrator-ids=101",
+        "spring.flyway.locations=classpath:db/migration,classpath:db/minigame",
         "ontop.auth.allowed-origins=https://dev.on-top.world",
         "ontop.auth.jwt-secret-base64=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
 })

@@ -66,3 +66,7 @@ true는 세 필드만, false는 `{"ready":false}`만 허용합니다. 요청 필
 ---
 
 [공통 규격](00-common.md) · [API 목록](../websocket-api.md)
+
+## 새 태블릿 MANUAL 모드
+
+TABLE_CONFIGURE로 MANUAL을 선택하면 선택 정원 전원 준비가 필요하다. 전원 준비만으로 시작하지 않고 방장 TABLE_START를 기다리며 120초 대기 상태를 별도 전송한다. AUTO는 기존 동작 유지. [태블릿 상세](../tablet-lobby-api.md).
