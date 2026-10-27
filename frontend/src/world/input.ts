@@ -79,6 +79,28 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     const rate = telescopeTurnRate()
     Object.assign(telescopeView, normalizeTelescopeAim(telescopeView.yaw - x * rate, telescopeView.pitch - y * rate))
   }
+  // Held keys turn the telescope every frame at the mouse rate of this many pixels per second,
+  // only while mouse look is off; the server still only hears the aim on its own interval.
+  const telescopeAimKeys = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'])
+  const TELESCOPE_KEY_PX_PER_SECOND = 450
+  let telescopeFrame = 0, telescopeLast = 0
+  const telescopeKeyStep = (now: number) => {
+    const dt = Math.min(0.1, Math.max(0, now - telescopeLast) / 1000)
+    telescopeLast = now
+    const x = Number(keys.has('KeyD') || keys.has('ArrowRight')) - Number(keys.has('KeyA') || keys.has('ArrowLeft'))
+    const y = Number(keys.has('KeyS') || keys.has('ArrowDown')) - Number(keys.has('KeyW') || keys.has('ArrowUp'))
+    if (!useSession.getState().telescopeId || blocked() || mouseLook.locked() || (!x && !y)) {
+      telescopeFrame = 0
+      return
+    }
+    turnTelescope(x * TELESCOPE_KEY_PX_PER_SECOND * dt, y * TELESCOPE_KEY_PX_PER_SECOND * dt)
+    telescopeFrame = requestAnimationFrame(telescopeKeyStep)
+  }
+  const startTelescopeKeys = () => {
+    if (telescopeFrame) return
+    telescopeLast = performance.now()
+    telescopeFrame = requestAnimationFrame(telescopeKeyStep)
+  }
   // Fitness keeps the park orbit. On a bench the seated view uses the park controls,
   // the spectator view its own yaw, and the top-down board view stays fixed.
   const look = (x: number, y: number) => {
@@ -162,7 +184,11 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
       if ((event.code === 'KeyE' || event.code === 'Escape') && !event.repeat) {
         event.preventDefault()
         void leaveTelescope()
+        return
       }
+      // Without mouse look, WASD and arrows aim like the mouse (S15P31B105-216); with mouse look
+      // the mouse alone aims. Shift and Space stay inert here.
+      if (telescopeAimKeys.has(event.code) && !mouseLook.locked()) { keys.add(event.code); startTelescopeKeys() }
       return
     }
     if (movement.has(event.code)) {
@@ -309,6 +335,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     roamingInput.ready = false
     clearInterval(interval)
     clearInterval(aiming)
+    if (telescopeFrame) cancelAnimationFrame(telescopeFrame)
     unsubscribe()
     mouseLook.dispose()
     resetCameraReturn()
