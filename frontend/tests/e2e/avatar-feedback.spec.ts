@@ -81,4 +81,3 @@ test('moving cancels a wave and a different emote can be selected immediately af
   expect(errors).toEqual([])
   await expect(page.locator('vite-error-overlay')).toHaveCount(0)
 })
-
