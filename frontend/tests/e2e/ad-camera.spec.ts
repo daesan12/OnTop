@@ -138,15 +138,17 @@ test('table camera overrides the roaming choice; exit restores the original firs
   expect(server.connections).toBe(1)
 })
 
-test('telescope ownership releases mouse look, blocks V, and restores the previous roaming preference', async ({ page }) => {
+// The telescope keeps mouse look (S15P31B105-217); Esc would also drop the lock, so it is left with E.
+test('telescope ownership keeps mouse look, blocks V, and restores the previous roaming preference', async ({ page }) => {
   const d = facilityCatalog.facilities.find(d => d.kind === 'TELESCOPE')!
   const server = await fixture(page, { manualMovement: true, position: d.seats[0]! }); await loaded(page)
   await page.keyboard.press('KeyV'); await page.keyboard.press('Control'); await expect.poll(async () => String((await cameraState(page)).mouse)).toBe('true')
   await page.evaluate(async id => (await import('/src/park/runtime/runtime.ts' as string)).parkRuntime.useFacility(id, 0, new AbortController().signal), d.facilityId)
   await expect(page.getByRole('complementary', { name: '전망 망원경', exact: true })).toBeVisible()
-  await expect.poll(async () => (await probe(page)).active).toBe(false)
+  await page.waitForTimeout(300)
+  expect((await probe(page)).active).toBe(true)
   await expect(page.getByRole('button', { name: '1인칭 시점', exact: true })).toHaveCount(0)
-  await page.keyboard.press('KeyV'); await page.keyboard.press('Escape')
+  await page.keyboard.press('KeyV'); await page.keyboard.press('KeyE')
   await expect(page.getByRole('complementary', { name: '전망 망원경', exact: true })).toHaveCount(0)
   await expect.poll(async () => String((await cameraState(page)).first)).toBe('true')
   await expect.poll(async () => String((await cameraState(page)).mouse)).toBe('true')
