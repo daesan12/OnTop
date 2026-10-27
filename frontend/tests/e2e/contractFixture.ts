@@ -47,6 +47,7 @@ export async function fixture(
     serverTimeOffsetMs?: number
     mapVerificationRequired?: boolean
     rejectMapConfirmation?: boolean
+    spectatorEvents?: boolean
   } = {},
 ) {
   const anchor = TABLES.find(t => t.id === options.anchorId) ?? TABLES[0]!
@@ -434,6 +435,19 @@ export async function fixture(
       const message = JSON.parse(String(data))
       sent.push(message)
       const { requestId, type, payload } = message
+      if (options.spectatorEvents && ['GAME_SPECTATOR_CHAT_SEND', 'OMOK_SPECTATOR_PING_SEND'].includes(type)) {
+        if (!watchingGame || seated || finished) {
+          emit(ws, 'ERROR', { code:'GAME_SPECTATOR_ACCESS_DENIED', message:'관전 권한을 확인해주세요.' }, requestId); return
+        }
+        const ping = type === 'OMOK_SPECTATOR_PING_SEND', now = Date.now()
+        if (ping && payload.basedOnVersion !== gameVersion) {
+          emit(ws,'ERROR',{ code:'OMOK_SPECTATOR_PING_STALE_VERSION',message:'최신 판에서 다시 추천해주세요.' },requestId); return
+        }
+        emit(ws, ping ? 'OMOK_SPECTATOR_PING' : 'GAME_SPECTATOR_CHAT_MESSAGE', {
+          ...payload, senderUserId:options.ownUserId ?? '101', sentAt:now, serverNow:now, expiresAt:now+(ping?2000:3000),
+        },requestId)
+        return
+      }
       if (type === 'WORLD_TIME_CHECK') {
         emit(ws, 'WORLD_TIME_STATE', serverTime(), requestId)
         return
@@ -689,6 +703,13 @@ export async function fixture(
         occurredAt: new Date(serverTime().serverNow).toISOString(), ...patch }
       emit(sockets.at(-1)!, 'WORLD_GAME_REACTION', event)
       return event
+    },
+    spectatorEvent: (kind: 'chat' | 'ping', patch: Record<string, unknown> = {}) => {
+      const now = Date.now(), ping = kind === 'ping'
+      emit(sockets.at(-1)!, ping ? 'OMOK_SPECTATOR_PING' : 'GAME_SPECTATOR_CHAT_MESSAGE', {
+        gameId, eventId:crypto.randomUUID(), senderUserId:'505', sentAt:now, serverNow:now, expiresAt:now+(ping?2000:3000),
+        ...(ping ? { basedOnVersion:gameVersion,x:7,y:7 } : { text:'여기를 막아봐요!' }), ...patch,
+      })
     },
     equipment: (userId: string, equipment: PublicEquipment[] | null) => {
       publicEquipment[userId] = equipment

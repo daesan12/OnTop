@@ -224,7 +224,7 @@ export function CameraRig() {
       Object.assign(viewControls, state.savedView)
       state.bench = ''
     }
-    const game = useGame.getState().game
+    const gameSession = useGame.getState(), game = gameSession.game
     const scope = seatScope(session)
     if (state.seatScope !== scope) { resetSeatedLook(); state.seatScope = scope }
     const looking = !!scope && useTableLobby.getState().lookScope === scope
@@ -235,10 +235,8 @@ export function CameraRig() {
     const closeAnchor = benchView.scope === benchScope && benchView.view !== 'seated' ? benchAnchor : undefined
     const spectatorBoard = closeAnchor ? closeView === 'board' : !!watchedAnchor && useTableLobby.getState().spectatorView === 'board'
     const firstPerson = roamingFirstPerson(avatar, !!useGame.getState().watchedGameId)
-    const boardFocus =
-      !looking && seated && !!avatar.tableId &&
-      game?.omok?.status === 'PLAYING' &&
-      (game.role === 'SPECTATOR' || game.omok.turnUserId === session.sessionId)
+    const boardFocus = seated && !!avatar.tableId && game?.role === 'PLAYER'
+      && game.omok?.status === 'PLAYING' && !gameSession.lastResult
     const ownOmok = seated && !!avatar.tableId && (session.tableStates[session.tableId]?.gameCode === 'OMOK'
       || game?.role === 'PLAYER' && !!game.omok)
     const gathering = !TABLET_ENABLED && gatheringCameraActive()
@@ -286,7 +284,7 @@ export function CameraRig() {
       const anchor = TABLES.find(t => t.id === avatar.tableId)!
       state.look.set(anchor.position[0], anchor.position[1] + GOMOKU.boardY + .017, anchor.position[2])
       state.desired.copy(state.look)
-      state.desired.y += omokTopDownHeight(camera.aspect, tableScale(anchor))
+      state.desired.y += omokTopDownHeight(camera.aspect, tableScale(anchor), gl.domElement.clientHeight)
       state.targetUp.set(0, 0, avatar.seatIndex === 0 ? -1 : 1)
     } else if (diceFocus) {
       const anchor = TABLES.find(t => t.id === avatar.tableId)!
