@@ -4,6 +4,8 @@ import {
   restoreAuthSession,
 } from '../../auth/authFlow'
 import { SharedSocket, ServerError } from '../../network/socketClient'
+import { WorldTimeClient } from '../../network/worldTimeClient'
+import { EXPECTED_MAP } from '../../config/mapVersion'
 import { FacilityClient } from '../../network/facilityClient'
 import { facilityMovementBlocked, serverFacilities } from '../../features/facilities/state'
 import { RestError } from '../../network/restError'
@@ -74,6 +76,7 @@ type AuthEnded = () => void
 /** One instance per app, including StrictMode's mount → cleanup → mount probe. */
 export class ParkRuntime implements ParkRuntimePort {
   private active = false
+  private mapReady = false
   private generation = 0
   private inputSequence = 0
   private retryCount = 0
@@ -119,6 +122,9 @@ export class ParkRuntime implements ParkRuntimePort {
   })
   private tablet = new TabletLobbyClient({ connected: () => this.active && this.socket.connected,
     request: (type, payload, expected) => this.socket.request(type, payload, expected), action: job => this.action(job) })
+  private worldTime = new WorldTimeClient({
+    request: (type, payload, expected, onId) => this.socket.request(type, payload, expected, onId),
+  })
   private spectator = new PublicGameWatcher({
     start: async target => {
       this.movement.clear(false)
@@ -196,6 +202,8 @@ export class ParkRuntime implements ParkRuntimePort {
   }
   private authEnded() {
     this.tablet.end()
+    this.mapReady = false
+    this.worldTime.reset()
     this.forfeitRequests.clear()
     resetForfeit()
     this.follow.reset()
@@ -282,6 +290,8 @@ export class ParkRuntime implements ParkRuntimePort {
   }
   private async boot() {
     if (TABLET_ENABLED) this.tablet.reset(true)
+    this.mapReady = false
+    this.worldTime.reset()
     interruptForfeit()
     this.follow.reset()
     this.resetSpectator()
@@ -332,6 +342,8 @@ export class ParkRuntime implements ParkRuntimePort {
   }
   async stop() {
     this.tablet.end()
+    this.mapReady = false
+    this.worldTime.reset()
     this.forfeitRequests.clear()
     resetForfeit()
     this.follow.reset()
@@ -349,6 +361,8 @@ export class ParkRuntime implements ParkRuntimePort {
   }
   private closed(code: number) {
     if (TABLET_ENABLED) this.tablet.reset(true)
+    this.mapReady = false
+    this.worldTime.reset()
     interruptForfeit()
     this.follow.reset()
     this.resetSpectator()
@@ -389,6 +403,7 @@ export class ParkRuntime implements ParkRuntimePort {
   }
   private message(message: Envelope) {
     if (!this.active) return
+    if (this.worldTime.ownsError(message) || message.type === 'WORLD_TIME_STATE') return
     if (message.type === 'ERROR' && message.requestId && this.forfeitRequests.has(message.requestId)
       && this.forfeitRequests.get(message.requestId) !== JSON.stringify([useSession.getState().sessionId, useGame.getState().permittedGameId])) return
     if (this.follow.ownsError(message)) return
@@ -444,6 +459,7 @@ export class ParkRuntime implements ParkRuntimePort {
         this.authEnded()
         return
       }
+      this.worldTime.begin(message.payload.time)
       setDisplayProfiles(
         {
           [profile.userId]: {
@@ -458,7 +474,34 @@ export class ParkRuntime implements ParkRuntimePort {
       const selected =
         channels.find((c) => c.channelId === this.preferredChannel) ??
         (channels.length === 1 ? channels[0] : undefined)
-      if (selected) void this.selectChannel(selected.channelId)
+      void this.confirmConnectedMap(message.payload, selected?.channelId)
+    }
+  }
+  private async confirmConnectedMap(payload: Record<string, unknown>, channelId?: string) {
+    const generation = this.generation
+    const current = () => this.active && generation === this.generation && this.socket.connected
+    const matches = (value: unknown) => record(value) && value.mapId === EXPECTED_MAP.mapId
+      && value.schemaVersion === EXPECTED_MAP.schemaVersion && value.mapVersion === EXPECTED_MAP.mapVersion
+    this.mapReady = false
+    try {
+      // Legacy servers without metadata remain gated by the approved WORLD_STATE version.
+      if (payload.map !== undefined || payload.mapVerificationRequired === true) {
+        if (!matches(payload.map)) throw new Error('서버와 공원 맵 버전이 다릅니다. 같은 버전으로 배포됐는지 확인해주세요.')
+        if (payload.mapVerificationRequired === true) {
+          const result = await this.socket.request('WORLD_MAP_CONFIRM', { ...EXPECTED_MAP }, ['WORLD_MAP_STATE'])
+          if (!current()) return
+          if (result.payload.verified !== true || !matches(result.payload.map))
+            throw new Error('서버 맵 버전 확인이 승인되지 않았습니다.')
+        }
+      }
+      if (!current()) return
+      this.mapReady = true
+      if (channelId) void this.selectChannel(channelId)
+    } catch (error) {
+      if (!current()) return
+      this.movement.clear(false)
+      useSession.setState({ mapCompatible: false })
+      this.report(error)
     }
   }
   private async action(job: () => Promise<unknown>) {
@@ -481,6 +524,7 @@ export class ParkRuntime implements ParkRuntimePort {
   }
   selectChannel = (channelId: string) =>
     this.action(async () => {
+      if (!this.mapReady) throw new Error('서버 맵 버전 확인을 먼저 완료해주세요.')
       const state = useSession.getState()
       if (inputState.minigameOpen) throw new Error('먼저 미니게임을 마쳐주세요.')
       if (benchBusy(state.sessionId)) throw new Error('먼저 벤치에서 일어나주세요.')
