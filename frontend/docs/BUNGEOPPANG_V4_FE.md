@@ -12,9 +12,9 @@
 - 현재 계약과 환경 조건은 [FE·BE v4 계약](../../docs/minigame-bungeoppang-v4-contract.md)을 따른다.
 - 이 Git 통합은 개발 서버 배포·공용 DB migration 실행·실제 계정 지급 확인을 의미하지 않는다.
 
-실서버 연결 전 확인할 차이도 있다. 현재 `store.ts`의 시작 대기는 `playStartsAt - Date.now()`로 계산한다.
-계약 §3.2의 시작 직후 GET·`serverNow`/RTT 기반 시계 동기화가 구현됐다는 뜻은 아니다.
-클라이언트 시계 차이·늦은 시작 응답·이미 종료된 시작 영수증 복구는 후속 FE 통합 작업에서 보완·검증해야 한다.
+통합 직후에는 `store.ts`의 시작 대기를 `playStartsAt - Date.now()`로 계산하는 차이가 있었다.
+이후 시작 직후 GET·`serverNow`/RTT·단조 시계 기반 동기화와 탭 복귀/오래된 영수증 처리를 보완했다.
+현재 구현과 실제 DEV 사전 조회/재개 절차는 [서버 시각 동기화 인계](BUNGEOPPANG_V4_SERVER_TIME.md)를 따른다.
 
 통합 후 검증: `pnpm typecheck:tests`, 전체 단위 테스트 59파일/604개, `pnpm build` 통과.
 Edge 브라우저는 v4 미리보기 4개와 기본 v4 HTTP 계약 fixture 흐름 3개가 통과했다.

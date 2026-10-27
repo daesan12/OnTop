@@ -38,6 +38,8 @@ export const bungeoppangClock = {
   countdown: 0,
   ending: 0,
   playAt: 0,
+  countdownAt: 0,
+  preparing: false,
 };
 export function gameNow() {
   return Math.min(

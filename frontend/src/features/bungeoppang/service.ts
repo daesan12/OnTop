@@ -7,6 +7,7 @@ import type { BreadOrder, BungeoppangRules, GrillLogEntry as V4Log } from './rul
 import { bungeoppangV4Preview } from './config'
 import { createV4PreviewService } from './serviceV4Preview'
 import { createBungeoppangV4Service, type V4Checkpoint } from './serviceV4'
+import type { RoundTiming, ServerTimeSample } from './serverTime'
 
 export interface BungeoppangStatus {
   todayEarned: number; dailyCap: number; isFirstGame: boolean; seenTips: string[]; rulesVersion: string
@@ -14,7 +15,8 @@ export interface BungeoppangStatus {
 export interface BungeoppangGame {
   gameId: string; startedAt: string; rulesVersion: string; heats: number[]; isFirstGame: boolean
   v4?: { configVersion?: string; order: BreadOrder; rules: Readonly<BungeoppangRules & { rulesVersion: 'v4' }>
-    timing?: { countdownStartsAt: string; playStartsAt: string; playEndsAt: string; submitDeadline: string; expiresAt: string }
+    timing?: RoundTiming
+    timeSync?: BungeoppangTimeSync
     checkpoint?: V4Checkpoint }
 }
 export interface BungeoppangSubmit {
@@ -29,6 +31,12 @@ export interface BungeoppangSubmitResult {
   rewardDate?: string; settledAt?: string; finalThroughSeq?: number; finalPrefixHash?: string
   rulesVersion?: string; configVersion?: string
 }
+export interface BungeoppangTimeSync {
+  timing: RoundTiming
+  sample: ServerTimeSample
+  status: 'PLAYING' | 'COMPLETED' | 'ABANDONED' | 'INVALID'
+  result?: BungeoppangSubmitResult
+}
 export class BungeoppangServiceError extends Error {
   constructor(readonly code: string, message: string, readonly retryable = false, readonly status = 0) { super(message) }
 }
@@ -42,6 +50,7 @@ export interface BungeoppangService {
   /** FE internal port. Implement its transport only after the v4 BE contract is approved. */
   nextOrder?(request: BungeoppangSubmit): Promise<{ index: number; order: BreadOrder; checkpoint?: V4Checkpoint }>
   recoverV4?(gameId: string): Promise<{ grill: import('./rulesV4').GrillState; checkpoint: V4Checkpoint }>
+  syncTimeV4?(gameId: string): Promise<BungeoppangTimeSync>
 }
 const tips = ['START', 'POUR', 'GOLD', 'BURNT', 'RUSH']
 const whole = (n: unknown): n is number => Number.isSafeInteger(n) && Number(n) >= 0

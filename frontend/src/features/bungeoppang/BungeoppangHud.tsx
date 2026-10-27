@@ -32,6 +32,7 @@ import {
   deliverBungeoppangOrder,
   discardBungeoppangTray,
   requestBungeoppangOrder,
+  syncBungeoppangTime,
   type BungPopup,
 } from "./store";
 import "./bungeoppang.css";
@@ -69,6 +70,7 @@ export function BungeoppangHud() {
       {playing && <PlayHud />}
       {playing && <OrderTray />}
       {playing && <SlotOverlays />}
+      <TimeSyncStatus />
       <Popups />
       <FeedbackFlights />
       <TipBubble />
@@ -81,6 +83,16 @@ export function BungeoppangHud() {
       {phase !== 'leaving' && <button className="bung-help-button" onClick={() => setBungeoppangHelp(true)}>F1 조작 안내</button>}
     </div>
   );
+}
+
+function TimeSyncStatus() {
+  const pending = useBungeoppang(s => s.timeSyncPending);
+  const error = useBungeoppang(s => s.timeSyncError);
+  if (!pending && !error) return null;
+  return <div className="bung-time-sync" role="status">
+    {pending ? '게임 시간을 확인하고 있어요…' : error}
+    {!pending && error && <button type="button" onClick={() => void syncBungeoppangTime()}>시간 다시 확인</button>}
+  </div>;
 }
 
 function useMinigameInput(active: boolean) {
@@ -459,7 +471,7 @@ function StartPanel() {
 function Countdown() {
   useTick(100);
   const c = clock.countdown;
-  const text = c > 2500 ? "3" : c > 1500 ? "2" : c > 500 ? "1" : "시작!";
+  const text = clock.preparing ? '준비 중…' : c > 2500 ? "3" : c > 1500 ? "2" : c > 500 ? "1" : "시작!";
   return (
     <div className="bung-big-text" aria-live="assertive">
       {text}
