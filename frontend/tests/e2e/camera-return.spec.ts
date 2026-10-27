@@ -98,6 +98,39 @@ test('window loss cancels mouse re-lock while retaining first-person and orbit r
 })
 
 // Bungeoppang still releases the lock (fixed view), so it exercises the automatic return path.
+test('bungeoppang return fades the third-person avatar and nickname without delaying park controls', async ({ page }) => {
+  await bungeoppangFixture(page); await loaded(page, false)
+  await page.evaluate(async () => (await import('/src/features/bungeoppang/store.ts' as string)).openBungeoppang())
+  await expect(page.getByRole('region', { name: '붕어빵 굽기 시작' })).toBeVisible()
+  await page.evaluate(async () => {
+    const { bungeoppangAppearanceProbe } = await import('/tests/e2e/sceneProbe.ts' as string)
+    const samples: { opacity: number; materials: number[]; visible: boolean | undefined; peers: { opacity: number }[] }[] = []
+    Reflect.set(window, '__bungAppearanceSamples', samples)
+    const sample = () => {
+      samples.push(bungeoppangAppearanceProbe())
+      if (samples.length < 180 && (!samples.some(s => s.opacity > 0 && s.opacity < 1 && s.visible)
+        || samples.at(-1)!.opacity < 1)) requestAnimationFrame(sample)
+    }
+    requestAnimationFrame(sample)
+  })
+  await page.getByRole('button', { name: 'ESC 나가기', exact: true }).click()
+  await expect(page.locator('.bung-root')).toHaveCount(0)
+  const state = await page.evaluate(async () => ({
+    input: (await import('/src/world/inputOwnership.ts' as string)).inputState.minigameOpen,
+    phase: (await import('/src/features/bungeoppang/store.ts' as string)).useBungeoppang.getState().phase,
+  }))
+  expect(state).toEqual({ input: false, phase: 'idle' })
+  await expect.poll(() => page.evaluate(() => {
+    const samples = Reflect.get(window, '__bungAppearanceSamples') as { opacity: number; materials: number[]; visible?: boolean; peers: { opacity: number }[] }[]
+    return samples.some(s => s.visible && s.opacity > 0 && s.opacity < 1 && s.materials.some(opacity => opacity > 0 && opacity < 1))
+      && samples.at(-1)?.opacity === 1 && samples.every(s => s.peers.every(peer => peer.opacity === 1))
+  })).toBe(true)
+  await expect(page.locator('.avatar-overhead-own')).toHaveCSS('opacity', '1')
+  await screenshot(page, 'bungeoppang-return-faded-in')
+  await page.keyboard.press('KeyW')
+  await expect.poll(async () => (await probe(page)).ownVisible).toBe(true)
+})
+
 test('browser rejection of automatic mouse return is a one-shot failure with a working explicit retry', async ({ page }) => {
   await bungeoppangFixture(page); await loaded(page)
   await page.keyboard.press('Control'); await expect.poll(async () => String((await cameraState(page)).mouse)).toBe('true')
@@ -128,6 +161,7 @@ test('bungeoppang temporary camera returns to the original first-person view and
   await expect.poll(async () => String((await cameraState(page)).first)).toBe('true')
   await expect.poll(async () => (await probe(page)).controls).toEqual(before)
   await expect.poll(async () => String((await cameraState(page)).mouse)).toBe('true')
+  await expect.poll(async () => (await probe(page)).ownVisible).toBe(false)
 })
 
 for (const kind of ['feedback', 'notes'] as const) for (const first of [true, false]) {

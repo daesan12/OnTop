@@ -8,6 +8,20 @@ export function equipmentProbe() {
   }) }
 }
 import { _roots } from '@react-three/fiber'
+export function bungeoppangAppearanceProbe() {
+  const session = useSession.getState()
+  const own = root().scene.getObjectByName('avatar-' + session.sessionId)
+  const opacity: number[] = []
+  own?.traverse(object => {
+    if (!(object instanceof Mesh) || !object.visible) return
+    for (const material of Array.isArray(object.material) ? object.material : [object.material]) opacity.push(material.opacity)
+  })
+  return { visible: own?.visible, opacity: own?.userData.appearanceOpacity ?? 1,
+    materials: opacity, peers: session.ids.filter(id => id !== session.sessionId).map(id => {
+      const peer = root().scene.getObjectByName('avatar-' + id)
+      return { visible: peer?.visible, opacity: peer?.userData.appearanceOpacity ?? 1 }
+    }) }
+}
 import {
   Box3,
   Mesh,
