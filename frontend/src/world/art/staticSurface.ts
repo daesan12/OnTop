@@ -16,6 +16,7 @@ import {
 } from 'three/addons/utils/BufferGeometryUtils.js'
 import { weldStaticVertices } from './weldStaticVertices'
 import type { Part, XYZ } from './Instances'
+import { recordPropBuild, takeBakedProp } from './bakedProps'
 
 export interface SurfaceBatch {
   geometry: BufferGeometry
@@ -65,7 +66,17 @@ function branch(ranges: Range[]): Branch {
 export function mergeSurfaceParts(
   batches: readonly SurfaceBatch[],
   assetScale: XYZ = [1, 1, 1],
+  cacheKey?: string,
 ) {
+  const baked = takeBakedProp(cacheKey)?.stone
+  if (baked && Array.isArray(baked.userData.ontopSurfaceRanges)) {
+    const ranges = baked.userData.ontopSurfaceRanges as { min: number[]; max: number[]; start: number; count: number }[]
+    trees.set(baked, branch(ranges.map(range => ({
+      bounds: new Box3(new Vector3().fromArray(range.min), new Vector3().fromArray(range.max)),
+      start: range.start, count: range.count,
+    }))))
+    return baked
+  }
   const pieces: BufferGeometry[] = [],
     ranges: Range[] = []
   const object = new Object3D(),
@@ -139,6 +150,12 @@ export function mergeSurfaceParts(
   geometry.computeBoundingBox()
   geometry.computeBoundingSphere()
   trees.set(geometry, branch(ranges))
+  if (cacheKey) {
+    geometry.userData.ontopSurfaceRanges = ranges.map(range => ({
+      min: range.bounds.min.toArray(), max: range.bounds.max.toArray(), start: range.start, count: range.count,
+    }))
+    recordPropBuild(cacheKey, { stone: geometry })
+  }
   return geometry
 }
 
