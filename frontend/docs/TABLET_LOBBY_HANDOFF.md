@@ -1,5 +1,15 @@
 # 테이블 태블릿 · 경기/미니게임 결과 FE 인계
 
+## 기본 착석 화면 활성화 정정 (2026-10-27)
+
+이전 머지는 `TABLET_ENABLED`를 별도 tablet 모드/true 환경변수로 제한해 일반 실행과 production에서 태블릿 및 서버 어댑터가 꺼져 있었다. 착석하면 바로 태블릿이 나와야 한다는 요구를 기본 실행에 적용하지 못한 FE 활성화 누락이다.
+
+- 일반 `pnpm dev`/`pnpm build`/실서버 FE 검수 모드는 태블릿을 기본 활성화한다. 기능 표시와 `TabletLobbyClient` 바인딩이 같은 조건을 사용하므로 둘을 함께 활성화한다. `VITE_TABLET_LOBBY=false`를 명시한 환경만 기존 AUTO UI를 유지한다.
+- 시설/붕어빵 에셋 미리보기는 기존 화면을 보존하며 true를 명시하면 태블릿을 선택할 수 있다. 기존 `dev:tablet`/`build:tablet` 명령도 유지한다.
+- 별도 모드 없이 동작하는 `playwright.tablet-default.config.ts`와 `test:e2e:tablet:default`를 추가한다. 기존 AUTO 테스트 서버는 false를 명시해 호환 시나리오를 계속 검증한다. BE/DB/인프라 코드는 변경하지 않는다.
+- 검증: FE/테스트 TypeScript, 단위 75파일/754개, 기본·tablet 빌드, migration boundary 통과. 일반 Vite 개발 서버(`--mode tablet` 없이, true 플래그 없이)에서 착석/4종 게임/준비 취소/120초/결과/모바일 시나리오 18개, false를 명시한 AUTO 호환 5개가 통과했다. Playwright/Edge의 `/park`에서 앱 내용·오류 오버레이·페이지 오류·스크린샷·조작을 확인했다. 실제 BE/DB 다중 계정 검수는 사용자 진행 범위로 유지한다.
+- 아래 기록의 '기본 실행은 AUTO', 'tablet 모드에서만 제공' 설명은 이 정정 이전 상태다. 현재 실행 방법은 README와 실제 서버 검수 체크리스트를 따른다.
+
 ## 기존 태블릿 브랜치 반영 (2026-10-27)
 
 - `feat/frontend-tablet-lobby`에 앞서 검증한 통합 브랜치의 서버 어댑터·120초 제한시간·결과 팝업을 반영했다. `dev`로 머지하는 작업은 수행하지 않는다.

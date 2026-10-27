@@ -7,7 +7,7 @@ import { TABLET_ENABLED } from './tabletFeature'
 
 export interface PreparationContext { userId: string; channelId: string; tableId: string; expectedVersion: number }
 export interface PreparationSelection { gameCode: TableGameCode; playerCount: number; betAmountPerPlayer: number; targetScore?: number }
-/** FE extension port, bound by TabletLobbyClient to the confirmed BE contract in tablet mode.
+/** FE extension port, bound by TabletLobbyClient whenever the seated tablet UI is enabled.
  * A manual-start adapter must ensure READY_SET never starts a match automatically. */
 export interface TablePreparationPort {
   manualStart: true

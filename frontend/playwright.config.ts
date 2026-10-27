@@ -17,8 +17,11 @@ export default defineConfig({
     trace: 'off',
   },
   webServer: {
+    // Existing AUTO compatibility scenarios; normal default-on seating is covered
+    // separately by playwright.tablet-default.config.ts without --mode tablet.
+    env: { VITE_TABLET_LOBBY: 'false' },
     command: 'pnpm dev --host 127.0.0.1 --port 5197 --strictPort',
     url: 'http://127.0.0.1:5197',
-    reuseExistingServer: true,
+    reuseExistingServer: false,
   },
 })
