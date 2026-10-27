@@ -30,7 +30,9 @@ async function wardrobeRoutes(page: Page, options: { owned?: OwnedItem[]; disabl
 }
 async function loaded(page: Page) {
   await page.goto('/park')
+  await expect(page).toHaveTitle('OnTop')
   await expect(page.getByRole('main', { name: '공원 기본 화면' })).toBeVisible()
+  await expect(page.getByLabel('3D 공원').locator('canvas')).toBeVisible({ timeout: 90000 })
   await expect.poll(() => page.evaluate(async () => {
     const { useSession } = await import('/src/network/worldClient.ts' as string)
     return useSession.getState().status === 'connected' && !!useSession.getState().roomId

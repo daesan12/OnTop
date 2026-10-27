@@ -1,11 +1,13 @@
 import { create } from 'zustand'
-import { NETWORK, OVERHEAD, TABLES, tableSeats, type CharacterId } from '../config'
+import { EnvironmentClock, NETWORK, OVERHEAD, TABLES, tableScale, tableSeats, type CharacterId } from '../config'
 import { CHAT } from '../features/chat/settings'
 import { filterChat } from '../features/chat/filterChat'
 import {
   channelState,
   worldState,
   tableState,
+  record,
+  integer,
   type Envelope,
   type Channel,
   type TableSummary,
@@ -34,6 +36,7 @@ import type { FacilityLease } from '../features/facilities/protocol'
 import { sameEquipment, type PublicEquipment } from './equipment'
 import { resetFollow } from '../features/follow/state'
 import { resetBenchSpectator } from '../features/interactions/benchSpectator'
+import { defeatTimeline, parseGameReaction } from '../game/presentation/defeat'
 
 export interface Pose {
   x: number
@@ -149,7 +152,10 @@ let channelVersion = -1,
   worldVersion = -1
 const chatIds = new Set<string>()
 const emoteTimeline = new EmoteTimeline()
+const eventClock = new EnvironmentClock()
 export function resetWorld(status: Session['status'] = 'idle', error = '') {
+  eventClock.reset()
+  defeatTimeline.clear()
   resetFollow()
   resetBenchSpectator()
   resetFacilities()
@@ -171,6 +177,7 @@ export function resetWorld(status: Session['status'] = 'idle', error = '') {
   useSession.setState({ ...initial(), status, error })
 }
 export function clearChannel(keepFeedbackDraft = false, keepNotesDraft = false) {
+  defeatTimeline.clear()
   resetFollow()
   resetBenchSpectator()
   const { sessionId, profiles } = useSession.getState()
@@ -220,7 +227,8 @@ export function sampleAvatar(
 ): Pose {
   return sampleMovement(avatar, now, NETWORK.interpolationMs, target)
 }
-export const estimatedServerTime = () => Date.now() // Only for events carrying server ISO timestamps; world day clock is separate.
+// UTC event time advances on a monotonic clock after CONNECTED; world day rendering is separate.
+export const estimatedServerTime = () => eventClock.ready ? eventClock.now(performance.now()) : Date.now()
 export function cancelAvatarEmote(userId: string) {
   emoteTimeline.cancel(userId, estimatedServerTime())
   stopAvatarEmote(userId)
@@ -363,6 +371,8 @@ export function receive(message: Envelope) {
         throw new Error('사용자 연결 상태를 확인할 수 없습니다.')
       if (useFeedbackState.getState().ownerId && useFeedbackState.getState().ownerId !== p.userId) resetFeedbackState()
       if (useNotesState.getState().ownerId && useNotesState.getState().ownerId !== p.userId) resetNotesState()
+      if (record(p.time) && integer(p.time.serverNow) && p.time.serverNow > 0)
+        eventClock.sync(p.time.serverNow, performance.now())
       useSession.setState({ status: 'connected', sessionId: p.userId })
       break
     case 'CHANNEL_STATE': {
@@ -391,7 +401,7 @@ export function receive(message: Envelope) {
         return
       worldVersion = next.version
       const mapCompatible = next.mapVersion === EXPECTED_MAP_VERSION
-      if (!mapCompatible) { resetBenchState(); resetFitnessState(); resetTelescopeState(); resetFeedbackState(true); resetNotesState(true); clearRoamingInput() }
+      if (!mapCompatible) { defeatTimeline.clear(); resetBenchState(); resetFitnessState(); resetTelescopeState(); resetFeedbackState(true); resetNotesState(true); clearRoamingInput() }
       const ids = next.avatars.map((a) => a.userId),
         now = performance.now()
       // Preserve the last approved values while the server's async profile read is pending.
@@ -445,6 +455,7 @@ export function receive(message: Envelope) {
           avatars.delete(id)
           worldPoses.delete(id)
           emoteTimeline.forget(id)
+          defeatTimeline.forget(id)
         }
       for (const { userId, position } of next.avatars) {
         worldPoses.set(userId, {
@@ -549,6 +560,23 @@ export function receive(message: Envelope) {
           [chat.userId]: { ...chat, expiresAt: performance.now() + OVERHEAD.bubbleDurationMs },
         },
       })
+      break
+    }
+    case 'WORLD_GAME_REACTION': {
+      if (message.requestId !== null || state.status !== 'connected' || !state.mapCompatible || p.channelId !== state.roomId) return
+      const event = parseGameReaction(p)
+      if (!state.tables.some(t => t.tableId === event.tableId)) return
+      const binding = state.bindings.find(b => b.channelId === event.channelId && b.tableId === event.tableId)
+      const anchor = TABLES.find(t => t.id === binding?.anchorId), avatar = avatars.get(event.userId)
+      const target = authoritativePose(event.userId), own = authoritativePose(state.sessionId)
+      if (!anchor || !avatar?.connected || !target || !own || avatar.moving || avatar.swimming
+        || avatar.fitnessId || avatar.telescopeId || avatar.benchId
+        || !!avatar.tableId && avatar.tableId !== anchor.id) return
+      // The server grants recipients. This local check protects stale channel/mapping data;
+      // it never subscribes to the game or grants a seat to a nearby observer.
+      if (state.tableId !== event.tableId && Math.hypot(own.x - anchor.position[0], own.z - anchor.position[2]) > 20) return
+      if (!avatar.tableId && Math.hypot(target.x - anchor.position[0], target.z - anchor.position[2]) > 3.5 * tableScale(anchor)) return
+      defeatTimeline.accept(event, anchor.id, target, estimatedServerTime())
       break
     }
     case 'WORLD_EMOTE_CANCELLED': {

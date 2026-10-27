@@ -163,7 +163,7 @@
 .park-page:has(.gathering-hud, .prototype-game) .park-shortcuts { display:none; }
 .park-page:has(.gathering-hud) .follow-launcher { display:none; }
 .park-page .gathering-caption { top:24px; max-width:min(420px,43vw); }
-.park-page .gathering-actions { bottom:20px; right:22px; z-index:5; max-height:36vh; overflow:auto; }
+.park-page .gathering-actions { bottom:20px; right:calc(var(--park-edge) + 96px * var(--park-ui-scale)); z-index:5; max-height:36vh; overflow:auto; }
 .gathering-actions .button-row { display:flex; }
 .park-page .gathering-actions p { margin:0 0 8px; }
 .gathering-actions .gathering-error { color:#ffc2ac; }
@@ -171,3 +171,7 @@
 .park-page .gathering-actions .settlement-note { color:#d8cfaa; font-size:12px; }
 .park-page:has(.gathering-hud) .camera-controls { bottom:180px; }
 @media(max-height:760px) { .park-page .gathering-actions { max-height:32vh; } }
+@media (min-width:901px) and (max-width:1200px) {
+  /* The park chat is 440px wide without scaling at these widths. */
+  .park-page .gathering-actions { max-width:calc(100vw - 440px - 96px * var(--park-ui-scale) - 3 * var(--park-edge)); }
+}
