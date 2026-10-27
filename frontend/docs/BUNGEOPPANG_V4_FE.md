@@ -1,5 +1,21 @@
 # 붕어빵 v4 FE 구현 및 BE 연결 경계
 
+## 2026-10-27 dev MR 준비 검증
+
+최신 `origin/dev`의 `083a9317da74976b3ebb5a18d61c3cb05b1d0ebb`를 기능 브랜치에 충돌 없이 병합했다.
+MR 생성 직전 다시 fetch해 동일한 dev가 기능 브랜치의 조상임을 확인했다.
+최신 이동/시설 소유권 처리와 다른 플레이어 아바타 변경을 유지한다.
+
+- 타입 검사, FE 전체 단위 테스트 65파일/656개, 프로덕션 빌드 통과.
+- 일반 v4 HTTP/시각 브라우저 5개, v4 미리보기/연출 브라우저 4개 통과.
+- 일반 실행 설명서도 네 재료·쟁반·R 납품·서버 지급 규칙으로 맞추고 F1 브라우저 흐름에서 확인했다.
+- Browser plugin not available로 기존 Edge/Playwright를 사용했다. 기존 큰 청크/Three.Clock/셰이더 경고는 유지된다.
+- 실제 DEV 2판 지급·중복 지급 검증은 [별도 결과](BUNGEOPPANG_V4_DEV_VERIFICATION.md)에 시점과 범위를 기록했다.
+  최신 dev 통합 후에는 HTTP fixture 브라우저를 재검증했으며 실제 계정에 추가 보상을 만들지 않았다.
+
+MR 대상 차이에는 FE 시간 보정·설명서·아바타 표시·테스트·인계 문서가 포함된다. 신규 BE/API/DB 변경은 없다.
+스냅샷은 프로젝트 밖 Codex visualizations의 `bungeoppang-mr-http/`, `bungeoppang-mr-preview/`에 있다.
+
 ## 2026-10-27 최신 dev 통합 안내
 
 `origin/dev`의 `6fd1c20`을 FE 작업 브랜치에 병합했다. 아래 2026-10-26 내용은 당시 구현·검증 기록이며,
