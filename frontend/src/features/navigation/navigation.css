@@ -34,41 +34,166 @@
   color: #e4d8b8;
   font: 10px inherit;
 }
+
+/* 공원 지도 — the same light dialog tone as 내 정보 · 확인 창 (parkMenus.css). */
 .park-map-panel {
-  position: absolute;
-  right: 0;
-  bottom: 50px;
+  --map-ink: #2e4033;
+  --map-muted: #53604f;
+  --map-line: rgba(201, 190, 158, 0.55);
+  --map-tint: #f4eede;
+  --map-route: #06bfc1;
+  position: fixed;
+  inset: 0;
   z-index: 13;
-  width: 300px;
-  max-width: calc(100vw - 36px);
-  max-height: calc(100dvh - 88px);
+  width: min(1000px, calc(100vw - 32px));
+  max-width: none;
+  max-height: calc(100dvh - 32px);
+  margin: auto;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 13px;
-  border: 1px solid #d8d1bc;
-  border-radius: 14px;
-  background: #f3f1e5f5;
-  color: #25483b;
-  box-shadow: 0 8px 30px #122c3833;
+  padding: 26px 28px 20px;
+  border: 1px solid var(--map-line);
+  border-radius: 24px;
+  color: var(--map-ink);
+  background: #fffdf8;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.3);
+  font-family: 'BusanDandiMyeongjo', serif;
+  color-scheme: light;
   pointer-events: auto;
 }
-.park-map-heading {
+.park-map-panel::backdrop { background: rgba(20, 18, 12, 0.45); }
+.park-map-panel h2, .park-map-panel h3, .park-map-panel p, .park-map-panel figure { margin: 0; }
+.park-map-panel button { font: inherit; cursor: pointer; }
+.park-map-panel button:disabled { cursor: default; }
+.park-map-panel [role="button"]:focus-visible,
+.park-map-panel button:focus-visible { outline: 3px solid #b18328; outline-offset: 2px; }
+
+.park-map-heading { display: flex; align-items: center; gap: 14px; }
+.park-map-heading__icon {
+  display: grid;
+  flex: 0 0 44px;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: var(--map-tint);
+}
+.park-map-heading__icon img { width: 22px; height: 22px; filter: brightness(0.25) sepia(0.4) hue-rotate(70deg); }
+.park-map-heading > div { flex: 1; min-width: 0; }
+.park-map-heading h2 { font-size: 22px; font-weight: 700; }
+.park-map-heading p { margin-top: 4px; color: var(--map-muted); font-size: 14px; font-weight: 500; }
+.park-map-close {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1.5px solid #c9be9e;
+  border-radius: 12px;
+  color: var(--map-ink);
+  background: #fffdf8;
+  font-size: 22px !important;
+  line-height: 1;
+}
+.park-map-close:hover { background: var(--map-tint); }
+.park-map-alert { margin-top: 14px !important; padding: 10px 14px; border-radius: 12px; color: #a44631; background: #fdeee9; font-size: 14px; }
+
+.park-map-body { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 22px; margin-top: 18px; }
+.park-map-figure {
+  position: relative;
+  align-self: start;
+  padding: 12px;
+  border: 1px solid var(--map-line);
+  border-radius: 18px;
+  background: var(--map-tint);
+}
+.park-map-figure > svg { display: block; width: 100%; max-height: calc(100dvh - 250px); border-radius: 12px; }
+.park-map-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; }
+.park-map-legend { display: flex; flex-wrap: wrap; gap: 8px; color: var(--map-ink); font-size: 15px; font-weight: 500; }
+.park-map-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px 6px 10px;
+  border-radius: 999px;
+  background: rgba(255, 253, 248, 0.85);
+  box-shadow: 0 1px 3px rgba(46, 64, 51, 0.12);
+}
+.park-map-legend i { width: 14px; height: 14px; border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 0 1px rgba(46, 64, 51, 0.25); }
+.park-map-legend i[data-kind='me'] { background: #267cef; }
+.park-map-legend i[data-kind='player'] { background: #efb84f; }
+.park-map-legend i[data-kind='target'] { background: var(--map-route); }
+.park-map-compass { flex: none; width: 50px; height: 50px; filter: drop-shadow(0 1px 2px rgba(46, 64, 51, 0.2)); }
+.park-map-compass__ring { fill: #fffdf8; stroke: var(--map-ink); stroke-width: 1.5; }
+.park-map-compass__north { fill: #a44631; }
+.park-map-compass__south { fill: #c9be9e; }
+.park-map-compass__label { fill: var(--map-ink); font-size: 10px; font-weight: 700; }
+
+.park-map-zone circle { fill: var(--map-ink); stroke: #fffdf8; stroke-width: 1; transition: fill 120ms; }
+.park-map-zone text { fill: #fff9ea; font-weight: 700; pointer-events: none; }
+.park-map-zone:hover circle { fill: #4a6450; }
+.park-map-zone[data-selected='true'] circle { fill: #e8b451; stroke: var(--map-ink); stroke-width: 1.4; }
+.park-map-zone[data-selected='true'] text { fill: var(--map-ink); }
+.park-map-panel [aria-label="현재 내 위치"] { pointer-events: none; }
+
+.park-map-side { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.park-map-route {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 2px 12px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  color: #fff9ea;
+  background: var(--map-ink);
+}
+.park-map-route small { grid-column: 1; color: #bcd6c4; font-size: 12px; font-weight: 500; }
+.park-map-route b { grid-column: 1; overflow: hidden; font-size: 16px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.park-map-route button {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  padding: 8px 12px;
+  border: 1px solid rgba(255, 249, 234, 0.5);
+  border-radius: 12px;
+  color: #fff9ea;
+  background: transparent;
+  font-size: 13px;
+}
+.park-map-side h3 { font-size: 15px; font-weight: 700; }
+.map-destinations { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
+.map-destination {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 10px;
+  min-height: 40px;
+  padding: 6px 12px 6px 6px;
+  border: 1.5px solid var(--map-line);
+  border-radius: 12px;
+  color: var(--map-ink);
+  background: #fffdf8;
+  font-size: 14px !important;
+  font-weight: 500;
+  text-align: left;
 }
-.park-map-heading strong {
-  font-size: 14px;
+.map-destination span {
+  display: grid;
+  flex: 0 0 26px;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  color: #fff9ea;
+  background: var(--map-ink);
+  font-size: 12px;
+  font-weight: 700;
 }
-.park-map-heading button {
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  font-size: 20px;
-  background: transparent;
-  border-color: transparent;
-}
+.map-destination:hover:not(:disabled) { border-color: #c9be9e; background: var(--map-tint); }
+.map-destination[aria-pressed='true'] { border-color: var(--map-ink); background: #edf3ea; }
+.map-destination[aria-pressed='true'] span { color: var(--map-ink); background: #e8b451; }
+.map-destination:disabled { color: #8a917f; }
+.park-map-hover { min-height: 20px; color: var(--map-muted); font-size: 13px; }
+.park-map-note { margin-top: 14px !important; padding-top: 12px; border-top: 1px solid var(--map-line); color: var(--map-muted); font-size: 13px; font-weight: 500; line-height: 1.6; }
 
+/* 길 안내 — the HUD glass of the location chip and channel/profile cards (parkMenus/hud.css). */
 .park-navigation {
   position: absolute;
   top: 22px;
@@ -80,82 +205,83 @@
   gap: 14px;
   width: max-content;
   max-width: min(540px, calc(100vw - 40px));
-  padding: 13px 15px;
-  border: 1px solid #86b5a16b;
-  border-radius: 16px;
-  background: #15372eef;
-  color: #fff9e7;
-  box-shadow: 0 8px 28px #0003;
+  padding: 12px 14px 12px 12px;
+  border: 1px solid rgba(247, 241, 229, 0.14);
+  border-radius: 20px;
+  background: var(--hud-glass-strong, rgba(41, 38, 32, 0.72));
+  color: #f7f1e5;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  backdrop-filter: var(--hud-blur, blur(14px) saturate(1.2));
   pointer-events: none;
+}
+.park-navigation > div { display: flex; flex-direction: column; justify-content: center; gap: 3px; min-width: 0; }
+.park-navigation small {
+  color: rgba(247, 241, 229, 0.7);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
 }
 .park-navigation strong {
   display: block;
-  margin: 3px 0;
-  font-size: 15px;
-}
-.park-navigation small {
-  color: #b9d7c8;
-  font-size: 11px;
+  overflow: hidden;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .park-navigation p {
   margin: 0;
-  font-size: 12px;
   max-width: 340px;
+  color: rgba(247, 241, 229, 0.85);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.3;
 }
 .park-navigation button {
-  pointer-events: auto;
-  align-self: flex-start;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font-size: 23px;
-  cursor: pointer;
-  padding: 0 5px;
-}
-.navigation-compass {
-  width: 46px;
-  height: 46px;
-  flex: 0 0 46px;
   display: grid;
+  flex: none;
   place-items: center;
-  border-radius: 50%;
-  background: #ffffff13;
-  color: #f4d98f;
-  font-size: 30px;
-}
-.navigation-compass svg {
   width: 32px;
   height: 32px;
-}
-.map-destination {
-  text-align: left;
-  border: 1px solid #557b6850;
-  border-radius: 5px;
-  background: #ffffff55;
-  color: #244738;
-  padding: 5px;
+  padding: 0;
+  border: 1px solid rgba(247, 241, 229, 0.2);
+  border-radius: 50%;
+  color: inherit;
+  background: rgba(247, 241, 229, 0.08);
+  font-size: 18px;
+  line-height: 1;
   cursor: pointer;
-  font: inherit;
+  pointer-events: auto;
 }
-.map-destination:hover,
-.map-destination:focus-visible {
-  background: #c6eee0;
-  outline: 2px solid #287e70;
+.park-navigation button:hover { background: rgba(247, 241, 229, 0.18); }
+.navigation-compass {
+  display: grid;
+  flex: 0 0 48px;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  color: #e8b451;
+  background: rgba(247, 241, 229, 0.1);
+  font-size: 26px;
+  line-height: 1;
+}
+.navigation-compass svg {
+  width: 30px;
+  height: 30px;
 }
 .park-map { position:absolute; top:var(--park-edge, 30px); left:calc(50% - 180px); z-index:12; }
-.park-map-panel { position:fixed; inset:105px var(--park-edge,30px) auto auto; width:370px; max-width:calc(100vw - 32px); max-height:calc(100dvh - 145px); margin:0; font-family:inherit; color-scheme:light; }
-.park-map-panel::backdrop { background:#10251b20; }
-.park-map-heading { position:sticky; top:-13px; background:#f3f1e5; z-index:1; padding:4px 0; }
-.park-map-panel svg { width:100%; display:block; }
-.park-map-panel [role="button"]:focus-visible, .park-map-panel button:focus-visible { outline:2px solid #287e70; outline-offset:2px; }
-.park-map-note, .park-map-hover { font-size:12px; line-height:1.65; margin:6px 0; }
-.park-map-hover { min-height:20px; }
-.map-destinations { display:grid; grid-template-columns:1fr 1fr; gap:5px 8px; font-size:12px; }
 .park-navigation { top:calc(var(--park-edge,30px) + 82px); max-width:min(480px,calc(100vw - 40px)); }
 .park-page:has(.park-runtime-tools [aria-label="그래픽과 성능"]) .park-navigation { display:none; }
-.park-map-panel [aria-label="현재 내 위치"] { pointer-events:none; }
 @media(max-width:900px) {
   .park-map { top:134px; left:50%; transform:translateX(-50%); }
-  .park-map-panel { inset:182px 16px auto auto; max-height:calc(100dvh - 205px); }
+  .park-map-panel { padding: 20px 16px 16px; }
+  .park-map-body { grid-template-columns: minmax(0, 1fr); }
+  .park-map-figure > svg { max-height: 56vh; }
+  .map-destinations { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .park-navigation { top:184px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .park-map-zone circle { transition: none; }
 }
