@@ -124,6 +124,15 @@ public final class TableProtocol {
                     && payload.path("gameId").asText().length() <= 120
                     && payload.path("actionId").isTextual() && !payload.path("actionId").asText().isBlank()
                     && payload.path("actionId").asText().length() <= 64;
+            case "GAME_SPECTATOR_CHAT_SEND" -> fields(payload, Set.of("gameId", "eventId", "text"))
+                    && validGameId(payload) && validEventId(payload) && validChatText(payload.get("text"));
+            case "OMOK_SPECTATOR_PING_SEND" -> fields(payload, Set.of("gameId", "eventId", "basedOnVersion", "x", "y"))
+                    && validGameId(payload) && validEventId(payload)
+                    && payload.path("basedOnVersion").isIntegralNumber()
+                    && payload.path("basedOnVersion").canConvertToLong()
+                    && payload.path("basedOnVersion").longValue() >= 0
+                    && payload.path("basedOnVersion").longValue() <= 9_007_199_254_740_991L
+                    && omokPoint(payload.path("x")) && omokPoint(payload.path("y"));
             case "GAME_STATE_CHECK", "GAME_WATCH" -> fields(payload, Set.of("gameId"))
                     && payload.get("gameId").isTextual()
                     && !payload.get("gameId").textValue().isBlank()
@@ -142,6 +151,22 @@ public final class TableProtocol {
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException("서버 메시지 직렬화 실패", exception);
         }
+    }
+
+    private boolean validGameId(JsonNode payload) {
+        return payload.path("gameId").isTextual() && !payload.path("gameId").textValue().isBlank()
+                && payload.path("gameId").textValue().length() <= 120;
+    }
+
+    // 클라이언트 발급 UUID. 기존 followId와 같은 소문자 정규 형식만 받는다.
+    private boolean validEventId(JsonNode payload) {
+        return payload.path("eventId").isTextual() && payload.path("eventId").textValue().matches(
+                "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}");
+    }
+
+    // 오목판 교차점(x=열, y=행). 7.0 같은 실수 표기와 문자열은 받지 않는다.
+    private boolean omokPoint(JsonNode value) {
+        return value.isIntegralNumber() && value.canConvertToInt() && value.intValue() >= 0 && value.intValue() <= 14;
     }
 
     private boolean validLease(JsonNode payload) {

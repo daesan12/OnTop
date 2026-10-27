@@ -41,6 +41,8 @@ final class ScenarioClient implements AutoCloseable {
     private volatile Throwable failure;
     private volatile Predicate<JsonNode> forbidden = message -> false;
     private volatile JsonNode tableState;
+    // 관전 채팅·핑. await()가 다른 메시지를 버려도 남겨 여러 수신자의 도착 여부를 비파괴로 확인한다.
+    private final List<JsonNode> spectatorEvents = new java.util.concurrent.CopyOnWriteArrayList<>();
 
     ScenarioClient(int port, String login) throws Exception {
         this(port, login, null);
@@ -141,6 +143,26 @@ final class ScenarioClient implements AutoCloseable {
         }
     }
 
+    JsonNode awaitSpectatorEvent(String eventId) throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (System.nanoTime() < deadline) {
+            List<JsonNode> received = spectatorEvents(eventId);
+            if (!received.isEmpty()) {
+                return received.getFirst();
+            }
+            if (failure != null) {
+                throw new AssertionError("시나리오 소켓 수신 실패", failure);
+            }
+            Thread.sleep(10);
+        }
+        throw new AssertionError("5초 안에 관전 이벤트를 받지 못함: " + eventId);
+    }
+
+    List<JsonNode> spectatorEvents(String eventId) {
+        return spectatorEvents.stream().filter(message -> message.at("/payload/eventId").asText().equals(eventId))
+                .toList();
+    }
+
     JsonNode await(Predicate<JsonNode> predicate) throws Exception {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
         while (System.nanoTime() < deadline) {
@@ -210,6 +232,9 @@ final class ScenarioClient implements AutoCloseable {
                     String type = message.path("type").asText();
                     if (type.equals("TABLE_STATE")) { tableState = message.path("payload"); }
                     if (type.equals("TABLE_LEFT")) { tableState = null; }
+                    if (type.equals("GAME_SPECTATOR_CHAT_MESSAGE") || type.equals("OMOK_SPECTATOR_PING")) {
+                        spectatorEvents.add(message);
+                    }
                     assertThat(forbidden.test(message)).as("동작 중 수신 금지 메시지: %s", message).isFalse();
                     assertThat(messages.offer(message)).as("시나리오 수신 큐 초과").isTrue();
                 } else if (opcode == 9 && replyToPing) {
