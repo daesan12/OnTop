@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createBungeoppangV4Service, resetBungeoppangV4Sessions } from '../../src/features/bungeoppang/serviceV4';
 import type { BungeoppangSubmit } from '../../src/features/bungeoppang/service';
+import { RestError } from '../../src/network/restError';
 
 const items = (bean = 0, custard = 0, pizza = 0, chocolate = 0) => ({ bean, custard, pizza, chocolate });
 const rules = { slots: 6, durationMs: 60000, countdownMs: 3500, sideMs: 8000, rushSideMs: 6000,
@@ -69,6 +70,18 @@ describe('Bungeoppang v4 production REST adapter', () => {
       ...Array(6).fill({}),
       { seq: 9, action: 'DELIVER', orderId: '1', deliveryKey: 'delivery-901-1' },
     ]);
+  });
+
+  it('keeps the shared status and wallet guidance for v4 error codes', async () => {
+    const request = vi.fn()
+      .mockRejectedValueOnce(new RestError(503, 'MINIGAME_NOT_CONFIGURED', '서버 요청에 실패했습니다. (503)'))
+      .mockRejectedValueOnce(new RestError(409, 'WALLET_NOT_READY', '서버 요청에 실패했습니다. (409)'));
+    const service = createBungeoppangV4Service(request);
+
+    await expect(service.getStatus()).rejects.toMatchObject({ code: 'MINIGAME_NOT_CONFIGURED', retryable: true,
+      message: '붕어빵 서버 설정이 아직 준비되지 않았어요.' });
+    await expect(service.balance()).rejects.toMatchObject({ code: 'WALLET_NOT_READY', retryable: false,
+      message: expect.stringContaining('운영 담당자의 지갑 초기화가 필요합니다') });
   });
 
   it('retries an uncertain delivery with the exact key and body', async () => {

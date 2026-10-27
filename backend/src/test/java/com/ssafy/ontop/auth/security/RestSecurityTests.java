@@ -259,6 +259,7 @@ class RestSecurityTests {
                 "GET /api/v1/users/me/items", "PATCH /api/v1/users/me/equipment",
                 "POST /api/v1/minigames/sessions", "GET /api/v1/minigames/sessions",
                 "GET /api/v1/minigames/sessions/{sessionId}",
+                "POST /api/v1/minigames/sessions/{sessionId}/deliveries",
                 "POST /api/v1/minigames/sessions/{sessionId}/complete",
                 "POST /api/v1/minigames/sessions/{sessionId}/abandon");
     }

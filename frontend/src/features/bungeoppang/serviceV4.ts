@@ -10,6 +10,7 @@ import {
 } from './rulesV4';
 import {
   BungeoppangServiceError,
+  messages as sharedMessages,
   type BungeoppangGame,
   type BungeoppangService,
   type BungeoppangSubmit,
@@ -282,8 +283,9 @@ export function createBungeoppangV4Service(requestJSON: RequestJson): Bungeoppan
     try { return await requestJSON(url, { ...init, signal: controller.signal }); }
     catch (error) {
       if (error instanceof BungeoppangServiceError) throw error;
+      // 공통 안내는 호출 시점에 읽어 service.ts와의 순환 import 초기화 순서에 의존하지 않는다.
       if (error instanceof RestError) throw new BungeoppangServiceError(error.code,
-        messages[error.code] ?? (error.status === 401 || error.status === 403 ? '로그인을 다시 확인해 주세요.' : error.message),
+        messages[error.code] ?? sharedMessages[error.code] ?? (error.status === 401 || error.status === 403 ? '로그인을 다시 확인해 주세요.' : error.message),
         retryable(error.status, error.code), error.status);
       throw new BungeoppangServiceError('NETWORK_ERROR', '서버 응답을 받지 못했어요. 같은 요청으로 다시 시도해 주세요.', true);
     } finally { clearTimeout(timer); }
