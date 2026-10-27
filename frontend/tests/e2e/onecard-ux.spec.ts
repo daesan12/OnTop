@@ -21,7 +21,7 @@ async function start(page: Page) {
   await page.getByLabel('1인 참가비').fill('1')
   await page.getByRole('button', { name: '원카드 선택', exact: true }).click()
   await page.getByRole('button', { name: '준비', exact: true }).click(); server.confirmStart()
-  await expect(panel(page)).toContainText('내 차례')
+  await expect(panel(page).getByRole('timer', { name: '차례 남은 시간' })).toBeVisible()
   return server
 }
 async function shot(page: Page, name: string) {
@@ -36,6 +36,13 @@ test('first-person scene, legal cards, protected selection, one-click restore an
   await expect(page).toHaveTitle(/온탑|OnTop/i)
   await expect(p.locator('[data-playable=true]')).toHaveCount(7)
   await expect(p.getByText('낼 수 있어요', { exact: true })).toHaveCount(0)
+  await expect(p.locator('.mini-heading,.onecard-hand-heading')).toHaveCount(0)
+  await expect(p).not.toContainText('강조된 카드를 선택해 내세요')
+  await expect(p).not.toContainText('시계 방향')
+  await expect(p).not.toContainText('낼 카드가 있어도')
+  const four = p.getByRole('button', { name: '하트 4', exact: true })
+  await expect(four.locator('.onecard-corner-bottom span').first()).toHaveText('4')
+  expect(await four.locator('.onecard-corner-bottom').evaluate(node => getComputedStyle(node).transform)).toBe('matrix(-1, 0, 0, -1, 0, 0)')
   await expect(p.getByRole('button', { name: '하트 4', exact: true }).locator('.onecard-effect')).toHaveCount(0)
   await expect(p.getByRole('button', { name: '하트 K · 한 장 더 내기', exact: true }).locator('.onecard-effect')).toHaveText('한 장 더 내기')
   await p.getByRole('button', { name: '하트 K · 한 장 더 내기', exact: true }).click()
@@ -89,7 +96,7 @@ test('an approved spectator sends only a prank event and never receives a privat
   expect(await page.evaluate(async id => (await import('/src/features/interactions/benchController.ts' as string)).sitBench(id, 0), bench.facilityId)).toBe(true)
   await page.getByRole('button', { name: '가까이 관전', exact: true }).click()
   const p = panel(page)
-  await expect(p).toContainText('원카드 관전')
+  await expect(p.getByRole('button', { name: '관전 종료', exact: true })).toBeVisible()
   const prank = p.getByRole('button', { name: /손패 뒤집기$/ })
   await expect(prank).toBeEnabled(); await prank.click(); await expect(prank).toBeDisabled()
   expect(server.sent.filter(m => m.type === 'ONECARD_HAND_FLIP_SEND')).toHaveLength(1)

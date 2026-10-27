@@ -1,16 +1,16 @@
-import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { useShallow } from 'zustand/react/shallow'
-import { BoxGeometry, MeshStandardMaterial, Object3D, PlaneGeometry, type Group, type InstancedMesh } from 'three'
-import { TABLE_SEATS, type TableAnchor } from '../../config'
+import { BoxGeometry, MeshStandardMaterial, PlaneGeometry, type Group } from 'three'
+import { type TableAnchor } from '../../config'
 import { useSession } from '../../network/worldClient'
 import { useGame } from '../store'
-import type { Card, OneCard } from './protocol'
+import type { Card } from './protocol'
 import { createBackTexture, createFaceTexture, createFeltTexture } from './artwork'
 
 // Original generic artwork, generated locally. Only the approved public top card gets a texture.
 const face = new PlaneGeometry(.3, .43), slab = new BoxGeometry(1, 1, 1)
-const paper = new MeshStandardMaterial({ color: '#eee4cc', roughness: .9 }), back = new MeshStandardMaterial({ color: '#335f6d', roughness: .9 })
+const paper = new MeshStandardMaterial({ color: '#eee4cc', roughness: .9 })
 const matBase = new BoxGeometry(1.85, .022, 1.34), feltPlane = new PlaneGeometry(1.79, 1.28)
 const deckBack = new PlaneGeometry(.3, .43)
 const wood = new MeshStandardMaterial({ color: '#bfa16a', metalness: .25, roughness: .55 })
@@ -39,25 +39,6 @@ function PublicCard({ card, surfaceY }: { card: Card; surfaceY: number }) {
     <mesh geometry={face} material={material} position={[0, .004, 0]} rotation={[-Math.PI / 2, 0, 0]} />
   </group>
 }
-function CardBacks({ players, surfaceY }: { players: OneCard['players']; surfaceY: number }) {
-  const mesh = useRef<InstancedMesh>(null)
-  useLayoutEffect(() => { const instances = mesh.current!; return () => instances.dispose() }, [])
-  useLayoutEffect(() => {
-    const instances = mesh.current!, transform = new Object3D(); let index = 0
-    players.forEach((p, i) => {
-      if (!p.active) return
-      const count = Math.min(p.cardCount, 12), seat = TABLE_SEATS[i]!, angle = Math.atan2(seat.x, seat.z), distance = i < 2 ? .51 : .73
-      for (let n = 0; n < count; n++) {
-        const offset = (n - (count - 1) / 2) * .045
-        transform.position.set(Math.sin(angle) * distance + Math.cos(angle) * offset, surfaceY + n * .003, Math.cos(angle) * distance - Math.sin(angle) * offset)
-        transform.rotation.set(0, angle, 0); transform.scale.set(.096, .002, .144); transform.updateMatrix()
-        instances.setMatrixAt(index++, transform.matrix)
-      }
-    })
-    instances.count = index; instances.instanceMatrix.needsUpdate = true; instances.computeBoundingSphere()
-  }, [players, surfaceY])
-  return <instancedMesh ref={mesh} name="onecard-public-card-backs" args={[slab, back, 48]} dispose={null} />
-}
 export function OneCardBoard({ anchor }: { anchor: TableAnchor }) {
   // Deliberately subscribe to public data only. No private hand reaches the scene or shared textures.
   const state = useGame(useShallow(s => ({ onecard: s.game?.onecard, role: s.game?.role }))), session = useSession(useShallow(s => ({ bindings: s.bindings, roomId: s.roomId, tableId: s.tableId, watchedTableId: s.watchedTableId, tableStates: s.tableStates })))
@@ -77,6 +58,6 @@ export function OneCardBoard({ anchor }: { anchor: TableAnchor }) {
     </group>
     {drawCount > 0 && <group name={o ? 'onecard-draw-deck' : 'onecard-preparation-prop'} position={[-.28, 0, 0]} scale={[.8, 1, .8]}><mesh geometry={slab} material={paper} position={[0, deckY, 0]} scale={[.3, height, .43]} />
       <mesh geometry={deckBack} material={art.back} position={[0, deckY + height / 2 + .006, 0]} rotation={[-Math.PI / 2, 0, 0]} /></group>}
-    {o && <><PublicCard card={o.topCard} surfaceY={mainPavilion ? 1.078 : 1.112} /><CardBacks players={o.players} surfaceY={mainPavilion ? 1.077 : 1.107} /></>}
+    {o && <PublicCard card={o.topCard} surfaceY={mainPavilion ? 1.078 : 1.112} />}
   </group>
 }

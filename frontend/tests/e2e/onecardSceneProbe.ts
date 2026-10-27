@@ -8,5 +8,6 @@ export function oneCardSceneProbe() {
     fov: (state.camera as PerspectiveCamera).fov, position: state.camera.position.toArray(),
     topCard: !!state.scene.getObjectByName('onecard-public-top'),
     players: ['101', '102', '103', '104'].map(id => ({ id, seat: avatars.get(id)?.seatIndex,
-      table: avatars.get(id)?.tableId, visible: state.scene.getObjectByName('avatar-' + id)?.visible })) }
+      table: avatars.get(id)?.tableId, visible: state.scene.getObjectByName('avatar-' + id)?.visible,
+      heldCount: state.scene.getObjectByName('onecard-held-hand-' + id)?.userData.cardCount ?? 0 })) }
 }

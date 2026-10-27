@@ -37,33 +37,24 @@ export function OneCardPanel() {
   const remaining = o.turnDeadline ? Math.max(0, Math.ceil((Date.parse(o.turnDeadline) - now) / 1000)) : null
   const windowLeft = (until: string | null) => until ? Math.max(0, Math.ceil((Date.parse(until) - now) / 1000)) : 0
   const own = o.players.find(p => p.userId === ownId), finished = o.status === 'FINISHED'
-  const turnStatus = <div className="mini-status"><p role="status">{finished ? `${o.winnerUserIds.map(name).join(' · ')} ${o.winnerUserIds.length > 1 ? '공동 승리' : '승리'}`
-    : o.stage === 'CHOOSE_SUIT' ? `${name(o.turnUserId!)} · 다음 무늬를 선택하세요`
-    : `${o.turnUserId === ownId && !spectator ? '내 차례' : name(o.turnUserId!) + ' 차례'}${o.extraAction ? ' · K 추가 행동' : ''}`}</p>
-    <small>{o.direction === 1 ? '↻ 시계 방향' : '↺ 반시계 방향'} · 덱 {o.drawCount}장 · {o.turnCount}번째 차례</small>
-    {remaining !== null && <small>이번 차례 남은 시간 약 {remaining}초 · K·무늬 선택으로 연장되지 않습니다.</small>}
-    {remaining === 0 && <p>시간 만료 · 서버의 다음 상태를 기다리고 있습니다.</p>}
-  </div>
   return <section className="minigame-hud onecard-panel onecard-game-hud" aria-label="원카드 경기" data-stage={o.stage} data-role={g.role}>
-    <header className="mini-heading"><h2>{spectator ? '원카드 관전' : '원카드'}</h2><p>같은 무늬나 숫자 · 손패를 먼저 비우세요</p></header>
+    {finished ? <div className="mini-status"><p role="status">{o.winnerUserIds.map(name).join(' · ')} {o.winnerUserIds.length > 1 ? '공동 승리' : '승리'}</p></div>
+      : remaining !== null && <div className="onecard-turn-timer" role="timer" aria-label="차례 남은 시간" data-urgent={remaining <= 5}>
+        <span>남은 시간</span><strong>{remaining}<small>초</small></strong>
+      </div>}
     <div className="onecard-roster" aria-label="원카드 참가자">{o.players.map(p => <div key={p.userId} className={p.userId === o.turnUserId ? 'active' : ''}>
       <b>{name(p.userId)}{!p.active ? ' · 기권' : ''}</b><span>{p.cardCount}장</span>
       <small>{({ none: '남은 손패', pending: '원카드 선언 대기', declared: '원카드 선언!', caught: '미선언 벌칙', expired: '선언 시간 종료' })[p.oneCardStatus]}</small>
       {p.oneCardStatus === 'pending' && !finished && <small>반응 시간 약 {windowLeft(p.oneCardUntil)}초</small>}
     </div>)}</div>
-    {(spectator || finished) && turnStatus}
     <div className="onecard-public" aria-label="바닥 카드와 공격 정보">
       <div className={`onecard-card ${redCard(o.topCard) ? 'red' : ''}`} aria-label={`바닥 카드 ${cardLabel(o.topCard)}`}><CardFace card={o.topCard} /></div>
       <div><p>현재 무늬: {SUIT_GLYPH[o.activeSuit]} {SUIT_NAME[o.activeSuit]}</p>
         {o.attackTotal > 0 && <b>누적 공격 +{o.attackTotal}장</b>}{o.lastAttack && <small>마지막 공격: {cardLabel(o.lastAttack)}</small>}</div>
     </div>
     {!spectator && !finished && <section className="mini-actions onecard-actions-panel">
-      {turnStatus}
       {o.stage === 'CHOOSE_SUIT' && o.turnUserId === ownId && <div className="onecard-actions" role="group" aria-label="무늬 선택">{SUITS.map(suit => <button key={suit}
         disabled={!can({ kind: 'select-suit', suit })} onClick={() => send({ kind: 'select-suit', suit })}>{SUIT_NAME[suit]} 선택 {SUIT_GLYPH[suit]}</button>)}</div>}
-      <div className="onecard-hand-heading"><b>나의 손패 {hand?.hand.length ?? '—'}장</b>
-        <span aria-live="polite">{prank.flippedIds.length > 0 ? '카드가 뒤집혔어요 · 한 번에 정리할 수 있어요'
-          : o.turnUserId !== ownId ? '다른 참가자의 차례를 기다리고 있어요' : '강조된 카드를 선택해 내세요'}</span></div>
       {!fresh && <p>최신 공개 판과 본인 손패를 함께 확인 중입니다. 이전 패로 행동할 수 없습니다.</p>}
       {own?.active === false && <p>기권 처리되어 이번 경기에서 더 이상 행동할 수 없습니다.</p>}
       <FanHand cards={hand?.hand ?? []} playableIds={hand?.playableCardIds ?? []} flippedIds={prank.flippedIds} selectedId={selected?.id}
@@ -78,7 +69,6 @@ export function OneCardPanel() {
         {o.players.filter(p => p.userId !== ownId && p.oneCardStatus === 'pending').map(p => <button key={p.userId}
           disabled={!can({ kind: 'catch-one', targetUserId: p.userId })} onClick={() => send({ kind: 'catch-one', targetUserId: p.userId })}>{name(p.userId)} 미선언 신고</button>)}
       </div>
-      <small>낼 카드가 있어도 한 장을 뽑고 차례를 넘길 수 있어요. 뽑은 카드는 같은 차례에 낼 수 없습니다.</small>
     </section>}
     {spectator && <section className="mini-actions onecard-spectator"><h3>관전 중</h3><p>관전자는 공개 카드와 장수만 볼 수 있습니다.</p>
       {prank.enabled ? <><button disabled={prank.pending || !o.turnUserId || !!prank.effect

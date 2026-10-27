@@ -55,7 +55,7 @@ test('four seated players and a separate observer: flip crosses windows and rest
   await page.getByLabel('1인 참가비').fill('1')
   await page.getByRole('button', { name: '원카드 선택', exact: true }).click()
   await page.getByRole('button', { name: '준비', exact: true }).click(); player.confirmStart()
-  await expect(panel(page)).toContainText('내 차례')
+  await expect(panel(page).getByRole('timer', { name: '차례 남은 시간' })).toBeVisible()
 
   const observerContext = await browser.newContext({ viewport: { width: 1920, height: 1080 } })
   try {
@@ -68,7 +68,7 @@ test('four seated players and a separate observer: flip crosses windows and rest
     await expect.poll(() => observerPage.evaluate(async () => (await import('/src/features/facilities/state.ts' as string)).useFacilityState.getState().ready)).toBe(true)
     expect(await observerPage.evaluate(async id => (await import('/src/features/interactions/benchController.ts' as string)).sitBench(id, 0), bench.facilityId)).toBe(true)
     await observerPage.getByRole('button', { name: '가까이 관전', exact: true }).click()
-    await expect(panel(observerPage)).toContainText('원카드 관전')
+    await expect(panel(observerPage).getByRole('button', { name: '관전 종료', exact: true })).toBeVisible()
 
     const card = (suit: Card['suit'], rank: string): Card => ({ id: `${suit}-${rank}`, suit, rank })
     const hand: Hand = { userId: '101', hand: [card('hearts', '4'), card('spades', '7'), card('diamonds', 'K'),
@@ -90,6 +90,8 @@ test('four seated players and a separate observer: flip crosses windows and rest
       await expect(page.locator(`.avatar-overhead[data-player-id="${id}"]`)).toBeVisible()
       await expect(page.locator(`.avatar-overhead[data-player-id="${id}"] .avatar-nickname`)).toHaveText(profiles[id].nickname)
     }
+    await expect.poll(async () => (await probe(page)).players.map(p => p.heldCount)).toEqual([7, 5, 4, 3])
+    await expect.poll(async () => (await probe(observerPage)).players.every(p => p.heldCount > 0)).toBe(true)
     await panel(page).getByRole('button', { name: '하트 J · 다음 차례 건너뛰기', exact: true }).click()
     await expect(panel(page).getByRole('button', { name: '하트 J · 다음 차례 건너뛰기', exact: true }).locator('.onecard-effect')).toHaveText('다음 차례 건너뛰기')
     await expect(panel(page).locator('.onecard-description')).toHaveCount(0)

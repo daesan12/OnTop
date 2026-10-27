@@ -18,7 +18,7 @@ async function start(page: Page, count: 2 | 3 | 4 = 2) {
   await page.getByRole('button', { name: '앉기', exact: true }).click()
   await page.getByLabel('1인 참가비').fill('1'); await page.getByRole('button', { name: '원카드 선택', exact: true }).click()
   await page.getByRole('button', { name: '준비', exact: true }).click(); server.confirmStart()
-  await expect(panel(page)).toContainText('내 차례'); await expect(panel(page).getByLabel('나만 볼 수 있는 카드').getByRole('button')).toHaveCount(7)
+  await expect(panel(page).getByRole('timer', { name: '차례 남은 시간' })).toBeVisible(); await expect(panel(page).getByLabel('나만 볼 수 있는 카드').getByRole('button')).toHaveCount(7)
   return server
 }
 const handButtons = (page: Page) => panel(page).getByLabel('나만 볼 수 있는 카드').getByRole('button')
@@ -41,7 +41,7 @@ test('M12 2-player atomic hands, card/suit/K/draw/attack commands, result and ne
   const afterK: Hand = { ...after7, hand: after7.hand.filter(c => c.rank !== 'K'), playableCardIds: ['hearts-4'], canDraw: true }
   server.cardReply({ kind: 'play', cardId: 'hearts-K' }, { topCard: card('K'), extraAction: true, players: server.cardState().players.map(p => p.userId === '101' ? { ...p, cardCount: 5 } : p) }, afterK)
   await p.getByRole('button', { name: '하트 K · 한 장 더 내기', exact: true }).click(); await p.getByRole('button', { name: '하트 K 내기', exact: true }).click()
-  await expect(p).toContainText('K 추가 행동'); expect((await state(page))!.onecard!.turnDeadline).toBe(originalDeadline)
+  await expect(p.getByRole('button', { name: '하트 4', exact: true })).toBeEnabled(); expect((await state(page))!.onecard!.extraAction).toBe(true); expect((await state(page))!.onecard!.turnDeadline).toBe(originalDeadline)
   const drawn = { ...afterK, hand: [...afterK.hand, card('8', 'clubs')], playableCardIds: [], canDraw: false }
   server.cardReply({ kind: 'draw' }, { extraAction: false, turnUserId: '102', players: server.cardState().players.map(p => p.userId === '101' ? { ...p, cardCount: 6 } : p) }, drawn)
   await p.getByRole('button', { name: '한 장 뽑고 넘기기', exact: true }).click(); await expect(handButtons(page)).toHaveCount(6)
@@ -84,7 +84,7 @@ for (const count of [3, 4] as const) test(`M12 ${count}-player declaration/repor
   server.recoveryPending(); await expect(handButtons(page)).toHaveCount(0)
   server.restoreGame(); await expect(handButtons(page)).toHaveCount(1)
   server.cardSnapshot({ turnDeadline: new Date(Date.now() - 100).toISOString() })
-  await expect(p).toContainText('시간 만료'); await expect(handButtons(page).first()).toBeDisabled()
+  await expect(p.getByRole('timer', { name: '차례 남은 시간' })).toContainText('0초'); await expect(handButtons(page).first()).toBeDisabled()
   await expect(p.getByRole('button', { name: '한 장 뽑고 넘기기' })).toBeDisabled()
   if (count === 4) { await page.setViewportSize({ width: 1000, height: 700 }); await screenshot(page, 'm12-narrow') }
   expect(server.sent.filter(m => m.type === 'GAME_ACTION_SEND').map(m => m.payload.input)).toEqual([{ kind: 'catch-one', targetUserId: '102' }, { kind: 'declare-one' }])
