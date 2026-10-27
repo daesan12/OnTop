@@ -42,6 +42,7 @@ import com.ssafy.ontop.world.config.WorldProximityProperties;
 import com.ssafy.ontop.world.domain.ChatText;
 import com.ssafy.ontop.world.domain.EmoteCode;
 import com.ssafy.ontop.world.dto.WorldGameReaction;
+import com.ssafy.ontop.world.map.LegacyParkTables;
 import com.ssafy.ontop.world.map.PreparedParkMap;
 import com.ssafy.ontop.world.map.WorldMapRuntime;
 import com.ssafy.ontop.world.service.WorldAppearanceGateway;
@@ -290,7 +291,10 @@ public class TableHub {
             Optional<GameStateGateway> gameStates, Optional<GameActionGateway> gameActions,
             Optional<GameResultService> gameResults, WorldProximity proximity, WorldMapCompatibility maps) {
         this(mapper, gateway, startRehearsal, reconnect, heartbeatInterval, heartbeatTimeout, channels, chat,
-                emotes, gameStates, gameActions, gameResults, proximity, maps, runtime.prepared().orElse(null));
+                emotes, gameStates, gameActions, gameResults, proximity, maps, runtime.prepared().orElse(null),
+                runtime.legacyTables().orElse(null));
+        // 실제 서버에서는 연동 비활성 상태도 조회해 FE에 원인을 알릴 수 있다.
+        protocol.enableStartQueries();
     }
 
     public TableHub(ObjectMapper mapper, Optional<GameStartGateway> gateway,
@@ -312,6 +316,16 @@ public class TableHub {
             Optional<GameStateGateway> gameStates, Optional<GameActionGateway> gameActions,
             Optional<GameResultService> gameResults, WorldProximity proximity, WorldMapCompatibility maps,
             PreparedParkMap preparedPark) {
+        this(mapper, gateway, startRehearsal, reconnect, heartbeatInterval, heartbeatTimeout, channels, chat,
+                emotes, gameStates, gameActions, gameResults, proximity, maps, preparedPark, null);
+    }
+
+    private TableHub(ObjectMapper mapper, Optional<GameStartGateway> gateway, boolean startRehearsal,
+            Optional<GameReconnectService> reconnect, Duration heartbeatInterval, Duration heartbeatTimeout,
+            WorldChannelRegistry channels, WorldChatService chat, WorldEmoteService emotes,
+            Optional<GameStateGateway> gameStates, Optional<GameActionGateway> gameActions,
+            Optional<GameResultService> gameResults, WorldProximity proximity, WorldMapCompatibility maps,
+            PreparedParkMap preparedPark, LegacyParkTables legacyTables) {
         if (startRehearsal && gateway.isEmpty()) {
             throw new IllegalArgumentException("시작 연동 검증 대역이 필요합니다.");
         }
@@ -346,6 +360,16 @@ public class TableHub {
             for (var binding : preparedPark.bindings()) {
                 rooms.put(binding.tableId(), new TableRoom(binding.tableId()));
                 tableChannels.put(binding.tableId(), binding.channelId());
+            }
+        } else if (legacyTables != null && !channelIds.isEmpty()) {
+            Set<String> registeredChannels = legacyTables.entries().stream()
+                    .map(LegacyParkTables.Entry::channelId).collect(Collectors.toSet());
+            if (!registeredChannels.equals(channelIds)) {
+                throw new IllegalArgumentException("현재 맵의 테이블 매핑과 서버 채널이 다릅니다.");
+            }
+            for (var table : legacyTables.entries()) {
+                rooms.put(table.tableId(), new TableRoom(table.tableId()));
+                tableChannels.put(table.tableId(), table.channelId());
             }
         } else if (channelIds.isEmpty()) {
             rooms.put("table-1", new TableRoom("table-1"));
@@ -1635,6 +1659,9 @@ public class TableHub {
     private void beginStartIfReady(TableRoom room) {
         TableRoom.Snapshot snapshot = room.snapshot();
         if ((!startRehearsal && committedStarts.isEmpty()) || !snapshot.allReady()) {
+            if (snapshot.allReady() && !startRehearsal && committedStarts.isEmpty()) {
+                log.warn("경기 시작 연결 비활성 table={} game={}", snapshot.tableId(), snapshot.gameCode());
+            }
             return;
         }
         GameStartCommand command = new GameStartCommand(UUID.randomUUID(), snapshot.tableId(), snapshot.version(),
@@ -1670,6 +1697,9 @@ public class TableHub {
 
     private void checkStart(Member member, Request request) {
         String tableId = seatedRoom(member, request).snapshot().tableId();
+        if (!startRehearsal && committedStarts.isEmpty()) {
+            fail(request, "START_NOT_CONFIGURED", "경기 시작 연결이 비활성 상태입니다.");
+        }
         TableStartAttempt attempt = starts.get(tableId);
         if (attempt == null) {
             fail(request, "START_NOT_REQUESTED", "아직 시작 연동 요청이 없습니다.");
