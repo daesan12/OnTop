@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef } from 'react'
-import leafImage from '../../assets/park-leaf.png'
-import coinImage from '../../assets/yeopjeon-icon.png'
+import leafImage from '../../assets/entry/park-leaf.webp'
+import coinImage from '../../assets/entry/yeopjeon-icon.webp'
 import { equipSlots, type EquipSlot } from '../../network/equipment'
 import { useSession } from '../../network/worldClient'
 import type { OwnedItem } from '../shop/contracts'

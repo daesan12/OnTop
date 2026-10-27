@@ -1,6 +1,6 @@
 import { TableTablet3D } from '../features/tableLobby/TableTablet3D'
 import { TABLET_ENABLED } from '../features/tableLobby/tabletFeature'
-import { Canvas, useFrame } from '@react-three/fiber'
+import { useFrame } from '@react-three/fiber'
 import { memo, Suspense, useEffect, useMemo, useState } from 'react'
 import { ACESFilmicToneMapping } from 'three'
 import {
@@ -22,8 +22,10 @@ import { RouteArrows } from '../features/navigation/RouteArrows'
 import { AvatarOverlays, type OverlayTargets } from './AvatarOverlays'
 import { PerformanceProbe } from '../performance/PerformanceProbe'
 import { AdaptiveResolution } from '../performance/AdaptiveResolution'
-import { preloadWorldAssets } from './worldAssets'
+import { Canvas, preloadWorldAssets } from './worldAssets'
 import { BungeoppangGrill } from '../features/bungeoppang/BungeoppangGrill'
+import { prepareScene } from './prepareScene'
+import { warmParkGeometry } from '../park/loadParkGeometry'
 
 preloadWorldAssets()
 
@@ -49,7 +51,10 @@ function SceneReady({ onReady }: { onReady: () => void }) {
       // original materials together with KHR_parallel_shader_compile where
       // supported, before a draw would synchronously wait on each program.
       // Keep shader error reporting enabled, including in production.
-      void gl.compileAsync(scene, camera).then(
+      // Scene modules and critical textures are available now. A cold optional
+      // geometry file can warm the next visit without competing with those loads.
+      warmParkGeometry()
+      void prepareScene(gl, scene, camera, () => !startup.disposed).then(
         () => {
           if (!startup.disposed) startup.phase = 'ready'
         },
@@ -65,6 +70,7 @@ function SceneReady({ onReady }: { onReady: () => void }) {
     // are pending. Geometry, resolution, shadows and subsequent frames are unchanged.
     gl.render(scene, camera)
     if (startup.phase === 'ready') {
+      performance.mark('park-scene-presented')
       startup.phase = 'presented'
       onReady()
     }
