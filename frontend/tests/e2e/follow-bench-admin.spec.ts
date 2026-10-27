@@ -92,6 +92,7 @@ test('ordinary dev exposes approved follow controls and closes the remote menu f
 test('administrator uses existing JWT read API, safely renders text and pages without opening a world socket', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 })
   const server = await fixture(page); const calls: string[] = []
+  await page.route('**/api/v1/admin/me', route => route.fulfill({ json: { canRead: true, canGrant: false } }))
   const item = (id: number) => ({ receiptId: String(id), authorUserId: id === 300 ? null : 202, channelId: 'fixture-channel',
     text: id === 300 ? '<img src=x onerror="alert(1)">\n두 번째 줄' : '공원을 더 편하게 만들어주세요.', acceptedAt: '2026-10-25T00:00:00Z' })
   await page.route('**/api/v1/admin/feedback?*', route => {
@@ -120,6 +121,7 @@ test('administrator uses existing JWT read API, safely renders text and pages wi
 
 test('403 administrator denial preserves login; unavailable or empty results never masquerade as each other', async ({ page }) => {
   const server = await fixture(page); let mode = 403
+  await page.route('**/api/v1/admin/me', route => route.fulfill({ json: { canRead: true, canGrant: false } }))
   await page.route('**/api/v1/admin/feedback?*', route => route.fulfill(mode === 200 ? { json: { items: [], nextCursor: null } }
     : { status: mode, json: { code: mode === 403 ? 'FEEDBACK_ADMIN_REQUIRED' : 'FEEDBACK_NOT_CONFIGURED' } }))
   await page.goto('/admin/feedback'); await expect(page.getByRole('alert')).toContainText('조회 권한이 없어요')
@@ -133,6 +135,7 @@ test('403 administrator denial preserves login; unavailable or empty results nev
 
 test('administrator revalidates 401 and discards a late page after returning to the park', async ({ page }) => {
   const server = await fixture(page); let count = 0, held: Route | undefined
+  await page.route('**/api/v1/admin/me', route => route.fulfill({ json: { canRead: true, canGrant: false } }))
   await page.route('**/api/v1/admin/feedback?*', route => {
     count++
     if (count === 1) return route.fulfill({ status: 401, json: { code: 'AUTH_INVALID_ACCESS_TOKEN' } })
@@ -146,4 +149,30 @@ test('administrator revalidates 401 and discards a late page after returning to 
   await held!.fulfill({ json: { items: [], nextCursor: null } }).catch(() => {})
   await expect(page.getByRole('heading', { name: '소리함 의견 조회', exact: true })).toHaveCount(0)
   expect(server.connections).toBeLessThanOrEqual(1)
+})
+
+test('the administrator home stays at a direct URL and opens the feedback list for a verified reader', async ({ page }) => {
+  const server = await fixture(page)
+  await page.route('**/api/v1/admin/me', route => route.fulfill({ json: { canRead: true, canGrant: false } }))
+  await page.route('**/api/v1/admin/feedback?*', route => route.fulfill({ json: { items: [], nextCursor: null } }))
+  await page.goto('/admin')
+  await expect(page).toHaveURL(/\/admin$/)
+  await expect(page.getByRole('heading', { name: '관리자 페이지' })).toBeVisible()
+  await page.getByRole('link', { name: /소리함 의견/ }).click()
+  await expect(page).toHaveURL(/\/admin\/feedback$/)
+  await expect(page.getByText('접수된 의견이 없습니다.')).toBeVisible()
+  expect(server.connections).toBe(0)
+})
+
+test('a direct administrator URL distinguishes permission denial from a network error', async ({ page }) => {
+  await fixture(page)
+  let status = 403
+  await page.route('**/api/v1/admin/me', route => route.fulfill({ status, json: { code: 'ADMIN_READ_REQUIRED' } }))
+  await page.goto('/admin')
+  await expect(page.getByRole('heading', { name: '접근 권한이 없습니다' })).toBeVisible()
+  await expect(page.getByRole('link', { name: /소리함/ })).toHaveCount(0)
+  status = 503
+  await page.reload()
+  await expect(page.getByRole('heading', { name: '권한을 확인하지 못했습니다' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '다시 시도' })).toBeVisible()
 })
