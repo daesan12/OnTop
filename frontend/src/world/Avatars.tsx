@@ -3,7 +3,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { useFrame, useLoader } from '@react-three/fiber'
 import { Group, Vector3 } from 'three'
 import { ParkAssetLoader } from './art/assetLoader'
-import { characterUrls, createCharacterRig } from './art/CharacterRig'
+import { characterUrls, createCharacterRig } from './worldAssets'
 import { avatarPoseActive, avatarPoseKey, avatarSeatSurface, createAvatarMotion } from './avatarMotion'
 import { SwimmingRipples } from './SwimmingRipples'
 

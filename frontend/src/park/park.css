@@ -18,7 +18,7 @@
 }
 
 .park-scene {
-  background: url('../assets/park-overview.png') center / cover no-repeat;
+  background: url('../assets/entry/park-overview.webp') center / cover no-repeat;
 }
 
 .park-scene::after {

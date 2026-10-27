@@ -5,7 +5,7 @@ import {
   IcosahedronGeometry,
 } from 'three'
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
-import { PAGODA_TIERS, GARDEN_PAGODA } from '../../config'
+import { PAGODA_TIERS, GARDEN_PAGODA, PAGODA_ANCHORS } from '../../config'
 import { type Part, type XYZ } from './Instances'
 import { PagodaRefinements } from './LandmarkRefinements'
 import { SurfaceMaterial } from './SurfaceMaterial'
@@ -334,10 +334,16 @@ function stoneAsset(scale: number) {
         scale,
         scale * GARDEN_PAGODA.widthScale,
       ],
+      `pagoda-stone-${scale}`,
     )
     stoneAssets.set(scale, geometry)
   }
   return geometry
+}
+
+/** Build tooling captures exact stone surfaces and their raycast ranges. */
+export function prebuildStaticSurfaces() {
+  for (const scale of new Set(PAGODA_ANCHORS.map(anchor => anchor.scale))) stoneAsset(scale)
 }
 
 export function StonePagoda({
