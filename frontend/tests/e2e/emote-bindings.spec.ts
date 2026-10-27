@@ -80,7 +80,7 @@ test('deployed development mapping sends all five codes, waits for approval and 
   await observer.close()
 })
 
-test('mobile dev wheel has five server options; a rejected new code never plays a mock and movement cancels approved playback', async ({ page }) => {
+test('mobile dev wheel has five server options; rejects stay visible and fart continues through movement', async ({ page }) => {
   const errors: string[] = []
   page.on('pageerror', e => errors.push(e.message))
   await page.setViewportSize({ width: 390, height: 844 })
@@ -107,7 +107,10 @@ test('mobile dev wheel has five server options; a rejected new code never plays 
   const cooldown = (await probe(page)).readyAt
   await page.locator('canvas').focus()
   await page.keyboard.down('KeyW')
-  await expect.poll(async () => (await probe(page)).avatars[0]!.emote).toBe('')
+  await expect.poll(() => server.sent.some(m => m.type === 'WORLD_MOVE' && (m.payload.dx || m.payload.dz))).toBe(true)
+  expect((await probe(page)).avatars[0]!.emote).toBe('EMOTE_FART')
+  server.pose({ moving: true })
+  expect((await probe(page)).avatars[0]!.emote).toBe('EMOTE_FART')
   await page.keyboard.up('KeyW')
   expect((await probe(page)).readyAt).toBe(cooldown)
   expect(server.sent.filter(m => m.type === 'WORLD_EMOTE_SEND').map(m => m.payload)).toEqual([{ emoteCode: 'APPLAUSE_REQUEST' }, { emoteCode: 'FART' }])

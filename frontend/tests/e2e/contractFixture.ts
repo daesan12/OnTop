@@ -84,6 +84,7 @@ export async function fixture(
   let remotePosition: Partial<typeof position> = {}
   const publicProfiles = { ...options.publicProfiles }
   const publicEquipment: Record<string, PublicEquipment[] | null> = {}
+  const publicSeats: Record<string, { tableId: string; seatNumber: number } | null> = {}
   let rejectGameWatch = false
   let watchingGame = false
   let watchMode: 'normal' | 'reject' | 'hold' = 'normal', watchRequestId = '', selectorOverride: string | undefined, targetScore: number | null = null
@@ -323,6 +324,7 @@ export async function fixture(
             userId: String(101 + i),
             ...publicProfiles[String(101 + i)],
             equipment: publicEquipment[String(101 + i)] ?? null,
+            ...(String(101 + i) in publicSeats ? { tableSeat: publicSeats[String(101 + i)] } : {}),
             position:
               i === 0
                 ? position
@@ -912,5 +914,8 @@ export async function fixture(
     serverTimeOffset: (ms: number) => { options.serverTimeOffsetMs = ms },
     pose: (patch: Partial<typeof position>) => { Object.assign(position, patch); world(sockets.at(-1)!) },
     remotePose: (patch: Partial<typeof position>) => { remotePosition = { ...remotePosition, ...patch }; world(sockets.at(-1)!) },
+    tableSeat: (userId: string, seat: { tableId: string; seatNumber: number } | null) => {
+      publicSeats[userId] = seat; world(sockets.at(-1)!)
+    },
   }
 }

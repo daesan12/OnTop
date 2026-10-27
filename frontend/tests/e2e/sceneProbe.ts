@@ -531,6 +531,14 @@ export function emoteProbe() {
       cloudVisible: scene.getObjectByName('fart-' + id)?.visible,
     })) }
 }
+export function publicSeatProbe(id: string) {
+  const avatar = avatars.get(id), model = root().scene.getObjectByName('avatar-' + id)
+  return { seatIndex: avatar?.seatIndex, tableId: avatar?.tableId, visible: model?.visible,
+    thigh: model?.getObjectByName('upperLeg_L')?.rotation.x,
+    knee: model?.getObjectByName('lowerLeg_L')?.rotation.x,
+    position: model?.position.toArray(), ownTable: useSession.getState().tableId,
+    watchedTable: useSession.getState().watchedTableId }
+}
 export function fixtureInputFlag(flag: 'manualOpen' | 'mapOpen' | 'minigameOpen', open: boolean) { inputState[flag] = open }
 
 import { PULLDOWN_LIFT, AVATAR, createFitnessMotion, sampleFitnessMotion } from '../../src/config'
