@@ -1,7 +1,7 @@
 # 붕어빵 v4 FE·BE REST API 계약과 구현 상태
 
 - 작성일: 2026-10-27 (Asia/Seoul)
-- 상태: **사용자 확정 정책을 유지하며 Story 1(규칙·판·현재 주문 발급)과 Story 2(납품 승인·영수증·checkpoint 복구)를 구현한 계약 문서. Story 3 최종 정산은 미구현이다.**
+- 상태: **사용자 확정 정책을 유지하며 Story 1(규칙·판·현재 주문 발급), Story 2(납품 승인·영수증·checkpoint 복구), Story 3(최종 검증·멱등 Wallet 정산·FE 결과 복구)를 구현한 계약 문서.**
 - Story 1 구현 브랜치: feat/S15P31B105-224-minigame (원격 fetch 없이 로컬 저장소 기준)
 - 최초 조사 BE: feat/S15P31B105-171-game-wallet / eb18ece
 - 조사 FE: 로컬 origin/feat/frontend-bungeoppang-v4 / f67024956e93e57840941b2d7098add2af3a3caf
@@ -97,7 +97,7 @@ FE 고정 자료:
 | v4 시작/로비/본인 판 조회 | **Story 1 구현** | 기존 REST 경로 확장, 새 공개 경로 없음 |
 | 납품 승인·다음 주문 발급·영속 영수증 | **Story 2 구현** | 동일 키·동일 본문 성공/거부 재생, 다음 주문 단일 발급 |
 | checkpoint 진행·거부 복구 | **Story 2 구현** | 승인 prefix 저장, GET includeProgress/deliveryKey 복구 |
-| 마지막 납품·완료·Wallet 정산 | **Story 3 미구현** | v4에 기존 v2 완료/지급을 적용하지 않음 |
+| 마지막 납품·완료·Wallet 정산 | **Story 3 구현** | v4 전용 전체 로그 검증·V126·완료 영수증·Wallet 원자 지급 |
 
 표의 “구현”은 현재 작업 트리의 범위를 뜻한다. 관련 자동 테스트·Flyway/JPA 검증 결과와
 커밋 여부는 각 Story 완료 보고를 기준으로 하며, 이 표가 DEV 배포 완료를 뜻하지 않는다.
@@ -111,7 +111,7 @@ FE 고정 자료:
 | POST | /api/v1/minigames/sessions | 시작·v4 미래 시각 확정 | Story 1 |
 | GET | /api/v1/minigames/sessions | 기본 v2, ?rulesVersion=v4 선택 | Story 1 |
 | GET | /api/v1/minigames/sessions/{id} | 저장 버전 기준 상태·복구·결과 | Story 1의 초기 상태·원본 조회 |
-| POST | /api/v1/minigames/sessions/{id}/complete | 버전별 최종 검증·정산 | v2만 현행, v4는 Story 3 |
+| POST | /api/v1/minigames/sessions/{id}/complete | 버전별 최종 검증·정산 | v2 기존 계약 + v4 Story 3 |
 | POST | /api/v1/minigames/sessions/{id}/abandon | 무보상 포기 | 기존 경로 유지 |
 | POST | /api/v1/minigames/sessions/{id}/deliveries | 납품 승인·다음 주문 | **Story 2 구현** |
 
@@ -1867,7 +1867,7 @@ POST /api/v1/minigames/sessions/902/complete, **Idempotency-Key 없이**:
 ### 11.2 추가 영속 구조
 
 Story 1은 판 원점과 발급 주문에 필요한 두 테이블을 V124와 JPA로 구현했다.
-Story 2는 승인 로그와 영속 납품 영수증을 V125와 JPA로 구현했다. 최종 정산 필드는 Story 3 범위다.
+Story 2는 승인 로그와 영속 납품 영수증을 V125와 JPA로 구현했다. Story 3은 V126으로 최종 요청 hash·seq/hash·정산 시각·KST 귀속일을 보존한다.
 
 | 구조 | 최소 필드·제약 | 상태 |
 | --- | --- | --- |
@@ -1875,6 +1875,7 @@ Story 2는 승인 로그와 영속 납품 영수증을 V125와 JPA로 구현했�
 | bungeoppang_v4_orders | (session_id,order_id) UNIQUE, order_index UNIQUE per session, 네 수량, issued_at, 합1..4 CHECK | **V124 구현** |
 | bungeoppang_v4_receipts | session_id, operation, key, request_hash, 대상order_id, accepted_order_id nullable, 판정·HTTP상태·response_json, 승인seq/hash, 시각 | **V125 Story 2 구현** |
 | bungeoppang_v4_progress | session_id PK/FK, 승인 원본 로그 JSON | **V125 Story 2 구현** |
+| bungeoppang_v4_rounds 최종 정산 필드 | final_request_hash, final_through_seq/hash, settled_at, reward_date all-or-none | **V126 Story 3 구현** |
 
 - accepted_order_id는 성공 DELIVERY만 채운다. REJECTED/COMPLETE는NULL이므로 정정 시도·완료 영수증과 충돌하지 않는다.
 - start 요청의 의미 본문 비교는 기존 key→session→저장 type/version으로 가능하다. 신규 fingerprint 컬럼은 다른 필드가 늘어날 때 추가 검토한다.
@@ -1915,12 +1916,13 @@ delivery에서는 Wallet balance/reserved를 바꾸지 않는다. Wallet 잠금�
 | backend/src/main/java/com/ssafy/ontop/minigame/repository/MinigameRepository.java | v4 원점·주문 조회와 기존 잠금 순서 | Story 1 |
 | backend/src/main/java/com/ssafy/ontop/minigame/domain/BungeoppangV4*.java | round/order 엔티티 | Story 1 |
 | backend/src/main/java/com/ssafy/ontop/minigame/dto/BungeoppangV4Responses.java | 시작·로비·판 조회 DTO | Story 1 |
-| prefix canonicalizer·납품 DTO·서비스 | 승인·거부·복구 | Story 2 구현, 최종 정산은 Story 3 |
+| prefix canonicalizer·납품/완료 DTO·서비스 | 승인·거부·복구·최종 검증·멱등 정산 | Story 2·3 구현 |
 | backend/src/main/java/com/ssafy/ontop/minigame/config/MinigamePreflightFilter.java | deliveries OPTIONS | Story 2 구현, 기존 Origin 유지 |
 | backend/src/main/java/com/ssafy/ontop/minigame/config/MinigameOpenApiCustomizer.java | 버전별 oneOf·nullable·Story 경계 | Story 1 |
 | 미니게임 전용 입력 제한 경계 | 256KiB·중복 JSON 키·미지원 압축 거절 | Story 2 구현 |
 | backend/src/main/resources/db/minigame/V124__create_bungeoppang_v4_rounds_and_orders.sql | Story 1 추가 구조 | Story 1 |
 | backend/src/main/resources/db/minigame/V125__create_bungeoppang_v4_delivery_receipts.sql | 진행 원본·영속 납품 영수증 | Story 2 |
+| backend/src/main/resources/db/minigame/V126__persist_bungeoppang_v4_final_settlement.sql | 최종 의미 요청·정산 시각·KST 귀속일 | Story 3 |
 | 관련 테스트·docs/minigame-api.md | 실제 Story 1·2 계약 대조 | Story 1·2 |
 
 현재 Wallet/원장 모델은 지급에 충분하므로 별도 경제 테이블·원장 유형·Reward API를 중복 추가하지 않는다.
@@ -2086,7 +2088,7 @@ v2를 보존하면서 v4 원본과 서버 시간으로 플레이를 시작한다
 - [x] 현재 FE 화면·연출 유지, 연출용 API 추가 없음
 
 체크는 계약 반영 표시다. Story 1은 시작 원점·규칙/설정·불 길이·첫 주문·순수 FIFO 계산을,
-Story 2는 납품 재시도·영수증·checkpoint 복구를 구현했다. 마지막 납품을 포함한 최종 정산·지급은 Story 3다.
+Story 2는 납품 재시도·영수증·checkpoint 복구를 구현했다. Story 3은 마지막 납품을 포함한 최종 정산·지급과 FE 결과/Wallet 복구를 구현했다.
 
 ### 15.2 구현 단계의 관련 검증
 
@@ -2109,4 +2111,4 @@ Story 2는 납품 재시도·영수증·checkpoint 복구를 구현했다. 마�
 - v2와 v4는 저장 버전으로 분리한다. v4 규칙/설정·시간·영수증·checkpoint는 DB 원본이다.
 - FE 예상 반영과 기존 UI를 유지하며 서버 원점·안정ID·ACK/복구·최종 경합 연결만 보완한다.
 - 납품은 코인을 만들지 않는다. 성공한 최종 정산과 기록·지급만 같은 DB 트랜잭션으로 확정한다.
-- 남은 구현은 Story 3의 마지막 미승인 납품 검증, 최종 결과 확정, Wallet 지급과 결과 재조회다. 기술 수치는 본 문서 기본안을 유지한다.
+- Story 3 구현은 마지막 미승인 납품 검증, 최종 결과 확정, Wallet 지급과 결과 재조회를 제공한다. 운영 DEV 적용과 공용 DB migration 실행은 이 문서의 완료 범위가 아니다.

@@ -19,12 +19,15 @@ export interface BungeoppangGame {
 }
 export interface BungeoppangSubmit {
   gameId: string; log: (GrillLogEntry | V4Log)[]; seenTips: string[]; clientScore: number
-  deliveryKey?: string
+  deliveryKey?: string; completeKey?: string
 }
 export interface BungeoppangSubmitResult {
   score: number; made: number; golden: number; failed: number; wasted: number; maxCombo: number
   coinsCalculated: number; coinsGranted: number; todayEarned: number; dailyCap: number; capReached: boolean
-  served?: number; customersServed?: number; specialServed?: number; bonusScore?: number
+  successfulMade?: number; served?: number; customersServed?: number; specialServed?: number; bonusScore?: number
+  grillDiscarded?: number; trayDiscarded?: number; undeliveredCount?: number; unfinishedGrillCount?: number
+  rewardDate?: string; settledAt?: string; finalThroughSeq?: number; finalPrefixHash?: string
+  rulesVersion?: string; configVersion?: string
 }
 export class BungeoppangServiceError extends Error {
   constructor(readonly code: string, message: string, readonly retryable = false, readonly status = 0) { super(message) }

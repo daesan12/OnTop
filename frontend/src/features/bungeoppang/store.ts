@@ -577,6 +577,9 @@ export async function submitBungeoppang() {
       log: s.grill.log.map(entry => ({ ...entry })),
       seenTips: [...s.newTips],
       clientScore: s.grill.score,
+      completeKey: crypto.randomUUID(),
+      ...(orderSubmission?.gameId === s.gameId && orderSubmission.deliveryKey
+        ? { deliveryKey: orderSubmission.deliveryKey } : {}),
     };
     const result = await service.submitResult(submission);
     if (visit !== currentVisit || get().gameId !== s.gameId) return;
@@ -591,6 +594,7 @@ export async function submitBungeoppang() {
         isFirstGame: false,
       },
     }));
+    orderSubmission = null;
     void refreshWallet(currentVisit);
   } catch (error) {
     if (visit !== currentVisit || get().gameId !== s.gameId) return;

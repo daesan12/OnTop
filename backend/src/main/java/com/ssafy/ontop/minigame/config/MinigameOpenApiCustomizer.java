@@ -3,6 +3,7 @@ package com.ssafy.ontop.minigame.config;
 import com.ssafy.ontop.minigame.controller.MinigameController;
 import com.ssafy.ontop.minigame.dto.BungeoppangV4Responses;
 import com.ssafy.ontop.minigame.dto.BungeoppangV4DeliveryDtos;
+import com.ssafy.ontop.minigame.dto.BungeoppangV4CompleteDtos;
 import io.swagger.v3.core.converter.ModelConverters;
 import io.swagger.v3.oas.models.Operation;
 import io.swagger.v3.oas.models.OpenAPI;
@@ -36,7 +37,7 @@ public class MinigameOpenApiCustomizer implements OperationCustomizer, OpenApiCu
         }
         String method = handler.getMethod().getName();
         if (!method.equals("load") && !method.equals("status")) {
-            ObjectSchema schema = new ObjectSchema();
+            Schema<?> schema = new ObjectSchema();
             schema.additionalProperties(false);
             if (method.equals("start")) {
                 schema.addProperty("minigameType", new StringSchema()._enum(List.of("BUNGEOPPANG")));
@@ -48,18 +49,37 @@ public class MinigameOpenApiCustomizer implements OperationCustomizer, OpenApiCu
                 responseSchema(operation, "201", oneOf("MinigameStartResponse", "BungeoppangV4StartResponse"));
             }
             if (method.equals("complete")) {
+                ObjectSchema v2 = (ObjectSchema) schema;
                 ObjectSchema entry = new ObjectSchema();
                 entry.additionalProperties(false);
                 entry.addProperty("slot", new IntegerSchema().minimum(java.math.BigDecimal.ZERO).maximum(java.math.BigDecimal.valueOf(5)));
                 entry.addProperty("action", new StringSchema()._enum(List.of("POUR", "FILL", "TURN", "DISCARD")));
                 entry.addProperty("t", new IntegerSchema().minimum(java.math.BigDecimal.ZERO).maximum(java.math.BigDecimal.valueOf(60000)));
                 entry.required(List.of("slot", "action", "t"));
-                schema.addProperty("log", new ArraySchema().items(entry).maxItems(1200));
-                schema.addProperty("seenTips", new ArraySchema().items(new Schema<>()).maxItems(5)
+                v2.addProperty("log", new ArraySchema().items(entry).maxItems(1200));
+                v2.addProperty("seenTips", new ArraySchema().items(new Schema<>()).maxItems(5)
                         .description("선택 배열. 문자열 START/POUR/GOLD/BURNT/RUSH만 기억하고 그 외 값은 무시합니다."));
-                schema.addProperty("clientScore", new IntegerSchema().minimum(java.math.BigDecimal.ZERO)
+                v2.addProperty("clientScore", new IntegerSchema().minimum(java.math.BigDecimal.ZERO)
                         .maximum(java.math.BigDecimal.valueOf(Integer.MAX_VALUE)));
-                schema.required(List.of("log"));
+                v2.required(List.of("log"));
+
+                ObjectSchema v4 = new ObjectSchema();
+                v4.additionalProperties(false);
+                v4.addProperty("rulesVersion", new StringSchema()._enum(List.of("v4")));
+                v4.addProperty("throughSeq", new IntegerSchema().minimum(java.math.BigDecimal.ZERO)
+                        .maximum(java.math.BigDecimal.valueOf(1_200)));
+                v4.addProperty("prefixHash", new StringSchema().pattern("^[0-9a-f]{64}$"));
+                v4.addProperty("log", new ArraySchema().items(v4Action()).maxItems(1_200));
+                v4.addProperty("seenTips", new ArraySchema().items(new StringSchema()).maxItems(5));
+                v4.addProperty("clientScore", new IntegerSchema().format("int64")
+                        .minimum(java.math.BigDecimal.ZERO));
+                v4.required(List.of("rulesVersion", "throughSeq", "prefixHash", "log"));
+                schema = new ComposedSchema().addOneOfItem(v2).addOneOfItem(v4);
+                operation.addParametersItem(new Parameter().in("header").name("Idempotency-Key").required(false)
+                        .description("v4 완료에는 필수이며 v2 완료에는 사용하지 않습니다.")
+                        .schema(new StringSchema().pattern("^[A-Za-z0-9_-]{1,64}$").minLength(1).maxLength(64)));
+                responseSchema(operation, "200", oneOf("MinigameCompleteResponse",
+                        "BungeoppangV4CompleteResponse"));
             }
             if (method.equals("deliver")) {
                 ObjectSchema entry = new ObjectSchema();
@@ -116,9 +136,9 @@ public class MinigameOpenApiCustomizer implements OperationCustomizer, OpenApiCu
         }
         operation.setDescription((operation.getDescription() == null ? "" : operation.getDescription() + " ")
                 + "local,db + ontop.minigames.enabled=true 또는 dev,db에서 사용합니다. dev는 기본 활성화하며 "
-                + "공통 스키마에 V110/V111, v4 초기화 V124, 납품 영수증 V125를 추가합니다. prod/production에서는 비활성화합니다. "
-                + "버전 생략은 기존 v2이고 v4는 명시적으로 선택합니다. v4 Story 2는 납품 승인·checkpoint·다음 주문과 "
-                + "영속 영수증 복구까지 제공하며 최종 완료 검증과 Wallet 지급은 후속 Story입니다. "
+                + "공통 스키마에 V110/V111, v4 초기화 V124, 납품 영수증 V125, 최종 정산 V126을 추가합니다. prod/production에서는 비활성화합니다. "
+                + "버전 생략은 기존 v2이고 v4는 명시적으로 선택합니다. v4는 납품 승인·checkpoint·다음 주문, "
+                + "마지막 미승인 납품 검증, 영속 멱등 완료와 Wallet 일일 한도 지급을 제공합니다. "
                 + "v2는 60초, 15점당 1냥, KST 하루 100냥 계약을 유지합니다. "
                 + "탭 이동 중에도 시간은 흐르며 랭킹은 제외합니다. score·rewardAmount·userId를 본문에 넣지 않습니다. "
                 + "상태 GET도 지갑 잠금과 만료 세션 INVALID 갱신을 수행할 수 있습니다. 읽기 전용 트랜잭션이 아닙니다.");
@@ -136,7 +156,8 @@ public class MinigameOpenApiCustomizer implements OperationCustomizer, OpenApiCu
                 BungeoppangV4Responses.SessionResponse.class, BungeoppangV4DeliveryDtos.Action.class,
                 BungeoppangV4DeliveryDtos.Request.class, BungeoppangV4DeliveryDtos.Response.class,
                 BungeoppangV4DeliveryDtos.Lookup.class, BungeoppangV4DeliveryDtos.Recovery.class,
-                BungeoppangV4DeliveryDtos.ErrorResponse.class)) {
+                BungeoppangV4DeliveryDtos.ErrorResponse.class, BungeoppangV4CompleteDtos.Request.class,
+                BungeoppangV4CompleteDtos.Response.class)) {
             ModelConverters.getInstance().readAll(type).forEach(api.getComponents()::addSchemas);
         }
 
@@ -146,7 +167,8 @@ public class MinigameOpenApiCustomizer implements OperationCustomizer, OpenApiCu
                 "BungeoppangV4CheckpointStats", "BungeoppangV4CheckpointBread", "BungeoppangV4Checkpoint",
                 "BungeoppangV4StartResponse", "BungeoppangV4LobbyResponse",
                 "BungeoppangV4DeliveryRequest", "BungeoppangV4DeliveryResponse",
-                "BungeoppangV4DeliveryLookup", "BungeoppangV4Recovery", "BungeoppangV4ErrorResponse")) {
+                "BungeoppangV4DeliveryLookup", "BungeoppangV4Recovery", "BungeoppangV4ErrorResponse",
+                "BungeoppangV4CompleteResponse")) {
             requireAll(schemas.get(name));
         }
         Schema<?> action = schemas.get("BungeoppangV4Action");
@@ -215,6 +237,26 @@ public class MinigameOpenApiCustomizer implements OperationCustomizer, OpenApiCu
             schema.addOneOfItem(new Schema<>().$ref("#/components/schemas/" + name));
         }
         return schema;
+    }
+
+    private ObjectSchema v4Action() {
+        ObjectSchema entry = new ObjectSchema();
+        entry.additionalProperties(false);
+        entry.addProperty("seq", new IntegerSchema().minimum(java.math.BigDecimal.ONE));
+        entry.addProperty("action", new StringSchema()._enum(List.of(
+                "POUR", "FILL", "TURN", "DISCARD", "TRAY_DISCARD", "DELIVER")));
+        entry.addProperty("t", new IntegerSchema().minimum(java.math.BigDecimal.ZERO)
+                .maximum(java.math.BigDecimal.valueOf(59_999)));
+        entry.addProperty("slot", new IntegerSchema().minimum(java.math.BigDecimal.ZERO)
+                .maximum(java.math.BigDecimal.valueOf(5)).nullable(true));
+        entry.addProperty("filling", new StringSchema()
+                ._enum(List.of("bean", "custard", "pizza", "chocolate")).nullable(true));
+        entry.addProperty("breadId", new IntegerSchema().format("int64")
+                .minimum(java.math.BigDecimal.ONE).nullable(true));
+        entry.addProperty("orderId", new StringSchema().pattern("^[1-9][0-9]{0,18}$").nullable(true));
+        entry.addProperty("deliveryKey", new StringSchema().pattern("^[A-Za-z0-9_-]{1,64}$").nullable(true));
+        entry.required(List.of("seq", "action", "t"));
+        return entry;
     }
 
     private void addQueryParameter(Operation operation, String name, boolean required, Schema<?> schema,
