@@ -65,7 +65,7 @@ function blossom(b: PropBuilder, p: XYZ, radius: number, color: string) {
   )
 }
 
-const fountain = new PropBuilder()
+const fountain = new PropBuilder([12, 8], 'fountain-refinements')
 // Each paving tile follows the existing bowl's collision terrain. The outer
 // rings express the reference's concentric courses without creating false steps.
 for (let row = 0; row < 12; row++) {
@@ -118,8 +118,8 @@ for (let i = 0; i < 64; i++) {
     [0, -a - Math.PI / 2, 0],
   )
 }
-const flowerNear = new PropBuilder(),
-  flowerFar = new PropBuilder([6, 4])
+const flowerNear = new PropBuilder([12, 8], 'fountain-flowers-near'),
+  flowerFar = new PropBuilder([6, 4], 'fountain-flowers-far')
 for (const [index, g] of FOUNTAIN_GARDENS.entries()) {
   const point = (dx: number, dy: number, dz: number): XYZ => [
     g.x + dx * Math.cos(g.yaw) + dz * Math.sin(g.yaw),
@@ -158,7 +158,7 @@ export function FountainRefinements() {
   )
 }
 
-const pagoda = new PropBuilder()
+const pagoda = new PropBuilder([12, 8], 'pagoda-refinements')
 for (let face = 0; face < 4; face++) {
   const a = (face * Math.PI) / 2
   for (let i = -3; i <= 3; i++) {
@@ -190,7 +190,7 @@ export function PagodaRefinements() {
 }
 
 const main = PARK_PAVILIONS[0]
-const ornament = new PropBuilder()
+const ornament = new PropBuilder([12, 8], 'pavilion-ornaments')
 for (let side = 0; side < 8; side++) {
   const p = PILLARS[side]!,
     n = PILLARS[(side + 1) % 8]!
@@ -218,7 +218,7 @@ for (let side = 0; side < 8; side++) {
   ornament.cylinder('gold', '#bc9b5d', [p[0], 0.28, p[2]], 0.218, 0.218, 0.055)
 }
 const mainArt = ornament.finish()
-const base = new PropBuilder()
+const base = new PropBuilder([12, 8], 'pavilion-base')
 const radius = 4.5 * main.scale * Math.cos(Math.PI / 8) + 0.025
 for (let side = 0; side < 8; side++) {
   if (side === 2 || side === 6) continue

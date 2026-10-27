@@ -1,8 +1,10 @@
+import { loadParkGeometry } from './loadParkGeometry'
+
 let pending: Promise<typeof import('../world/WorldCanvas')> | undefined
 
 /** Share the authentication prefetch with the scene's lazy import. */
 export function loadWorldCanvas() {
-  return pending ??= import('../world/WorldCanvas').catch(error => {
+  return pending ??= loadParkGeometry().then(() => import('../world/WorldCanvas')).catch(error => {
     pending = undefined
     throw error
   })

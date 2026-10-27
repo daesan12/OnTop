@@ -54,9 +54,9 @@ export function TelescopeReflectionLighting() {
   return null
 }
 const materials = { metal, gold, paint: rubber }
-const base = new PropBuilder(),
-  yoke = new PropBuilder(),
-  head = new PropBuilder()
+const base = new PropBuilder([12, 8], 'telescope-base'),
+  yoke = new PropBuilder([12, 8], 'telescope-yoke'),
+  head = new PropBuilder([12, 8], 'telescope-head')
 const floor = TELESCOPE.platformHeight
 // Grounded pedestal; extend only the shaft, keeping the foot and optics proportions.
 base.cylinder(
