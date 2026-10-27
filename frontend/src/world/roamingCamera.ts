@@ -6,6 +6,7 @@ import { useTelescopeState } from '../features/telescopes/state'
 import { facilityMovementBlocked, useFacilityState } from '../features/facilities/state'
 import { panelOwnsKeys, textInputOwnsKeys } from './inputOwnership'
 import { useCameraPerspective } from './cameraPerspective'
+import { wardrobeView } from '../features/wardrobe/view'
 
 export function canControlRoamingCamera() {
   const s = useSession.getState(), avatar = avatars.get(s.sessionId)
@@ -40,8 +41,9 @@ export function lookOwner(): LookOwner | null {
   return s.benchId || bench.placements[s.sessionId] ? 'bench' : null
 }
 
-/** A modal pauses controls without changing the chosen view. Facilities own their cameras. */
+/** A modal pauses controls without changing the chosen view. Facilities own their cameras;
+ * the wardrobe shows the own avatar, so it borrows the third-person view while open. */
 export function roamingFirstPerson(avatar: { tableId: string; benchId: string; fitnessId: string; telescopeId: string }, watching: boolean) {
   return !watching && !avatar.tableId && !avatar.benchId && !avatar.fitnessId && !avatar.telescopeId
-    && useCameraPerspective.getState().perspective === 'first-person'
+    && !wardrobeView.active && useCameraPerspective.getState().perspective === 'first-person'
 }

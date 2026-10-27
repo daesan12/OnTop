@@ -779,6 +779,14 @@ export function tablePresentationProbe() {
     ownTable: useSession.getState().tableId, camera: camera.position.toArray(), omokCamera: { ...omokCamera },
     publicMatchMode: publicMatchService.mode }
 }
+export function wardrobeCameraProbe() {
+  const { scene, camera } = root(), own = scene.getObjectByName('avatar-' + useSession.getState().sessionId)
+  if (!own) return null
+  const body = own.getWorldPosition(new Vector3()).add(new Vector3(0, CHARACTER.height / 2, 0))
+  const screen = body.clone().project(camera)
+  return { distance: camera.position.distanceTo(body), screen: [screen.x, screen.y], visible: own.visible, yaw: viewControls.yaw, pitch: viewControls.pitch }
+}
+
 export function routeArrowsProbe() {
   const arrows = root().scene.getObjectByName('navigation-route-arrows') as InstancedMesh | undefined
   return arrows ? arrows.count : -1
