@@ -7,6 +7,8 @@ import com.ssafy.ontop.game.result.GameDepartureReason;
 import com.ssafy.ontop.game.result.GameFinished;
 import com.ssafy.ontop.game.result.GameResultCommitted;
 import com.ssafy.ontop.game.result.GameResultView;
+import com.ssafy.ontop.game.result.GameParticipantLeft;
+import com.ssafy.ontop.game.start.CommittedGameStartService;
 import com.ssafy.ontop.game.start.GameStartCommand;
 import com.ssafy.ontop.game.start.JpaGameStartGateway;
 import com.ssafy.ontop.user.domain.User;
@@ -50,6 +52,7 @@ import static org.mockito.Mockito.doAnswer;
 @RecordApplicationEvents
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "spring.profiles.active=local,db", "ontop.game-start.enabled=true", "ontop.games.omok.enabled=true",
+        "ontop.game-recovery.background-enabled=false",
         "ontop.shop.enabled=true", "ontop.minigames.enabled=true",
         "spring.flyway.locations=classpath:db/migration,classpath:db/shop,classpath:db/minigame",
         "spring.datasource.hikari.maximum-pool-size=12"
@@ -58,6 +61,9 @@ class GameSettlementMySqlTests {
     @Autowired private JpaGameStartGateway starts;
     @Autowired private GameFinishPersistenceService finishes;
     @Autowired private GameSettlementPersistenceService settlements;
+    @Autowired private GameTerminalRetryService terminalRetries;
+    @Autowired private GameEventDelivery delivery;
+    @Autowired private GameResultNotifications resultNotifications;
     @Autowired private GameFinishedPersistenceListener listener;
     @Autowired private JpaGameResultGateway results;
     @Autowired private UserRepository users;
@@ -66,21 +72,23 @@ class GameSettlementMySqlTests {
     @Autowired private ApplicationEvents notifications;
     @Autowired private ApplicationEventPublisher publisher;
     @Autowired private OmokEngine omok;
+    @Autowired private CommittedGameStartService committedStarts;
     @Autowired private Flyway flyway;
     @MockitoSpyBean private PlatformTransactionManager transactions;
 
     @DynamicPropertySource static void isolated(DynamicPropertyRegistry registry) {
         String url = System.getenv("TEST_GAME_DB_URL");
-        if (url == null || !url.matches("jdbc:mysql://127\\.0\\.0\\.1:[0-9]+/ontop_game_test_story173_[A-Za-z0-9_]+(?:\\?.*)?")) {
-            throw new IllegalStateException("정산 검증은 승인한 신규 Story 173 격리 DB에서만 실행합니다.");
+        if (url == null || !url.matches("jdbc:mysql://127\\.0\\.0\\.1:[0-9]+/ontop_game_test_story(?:173|174)_[A-Za-z0-9_]+(?:\\?.*)?")) {
+            throw new IllegalStateException("정산 검증은 승인한 신규 Story 173/174 격리 DB에서만 실행합니다.");
         }
         registry.add("spring.datasource.url", () -> url);
         registry.add("spring.datasource.username", () -> System.getenv("TEST_GAME_DB_USERNAME"));
         registry.add("spring.datasource.password", () -> System.getenv("TEST_GAME_DB_PASSWORD"));
     }
 
-    @Test void 신규_DB에서_V122와_JPA_validate와_재실행을_확인한다() {
-        assertThat(flyway.info().applied()).extracting(m -> m.getVersion().getVersion()).endsWith("112", "122");
+    @Test void 신규_DB에서_최신_마이그레이션과_JPA_validate와_재실행을_확인한다() {
+        assertThat(flyway.info().applied()).extracting(m -> m.getVersion().getVersion())
+                .endsWith("112", "122", "123", "124", "125");
         assertThat(flyway.validateWithResult().validationSuccessful).isTrue();
         assertThat(flyway.migrate().migrationsExecuted).isZero();
         assertThat(jdbc.queryForObject("SELECT VERSION()", String.class)).startsWith("8.4.");
@@ -219,6 +227,7 @@ class GameSettlementMySqlTests {
         var game = reserve("OMOK", 9, 2);
         omok.create(game.id(), game.command().tableId(), game.users()[0], game.users()[1]);
         omok.forfeit(new GameForfeitCommand(game.users()[0], game.id(), UUID.randomUUID().toString()));
+        delivery.drain(100);
         assertSettled(game, new long[]{-9, 9}, 0);
         assertThat(jdbc.queryForObject("SELECT leave_reason FROM game_participants WHERE game_session_id=? AND user_id=?",
                 String.class, Long.parseLong(game.id()), game.users()[0])).isEqualTo("EXPLICIT_LEAVE");
@@ -227,6 +236,7 @@ class GameSettlementMySqlTests {
     @Test void 이벤트_발행을_통한_정산과_커밋후알림을_연결한다() {
         var game = reserve("OMOK", 5, 2);
         publisher.publishEvent(finish(game, 1));
+        delivery.drain(100);
         assertSettled(game, new long[]{5, -5}, 0);
         assertThat(committed(game, GameResultView.SettlementStatus.PENDING)).isEqualTo(2);
         assertThat(committed(game, GameResultView.SettlementStatus.SETTLED)).isEqualTo(2);
@@ -247,6 +257,172 @@ class GameSettlementMySqlTests {
         long before = ledgerCount(game);
         assertThat(results.load(game.users()[0], game.id()).orElseThrow().myCoinDelta()).isNull();
         assertThat(ledgerCount(game)).isEqualTo(before);
+    }
+
+    @Test void 이탈은_별도커밋하되_최종판정까지_예약을_유지한다() {
+        var game = reserve("ONE_CARD", 7, 3);
+        var leftAt = Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MILLIS);
+        var event = new GameParticipantLeft(game.id() + ":left:" + game.users()[0], game.id(),
+                game.command().tableId(), "ONE_CARD", 8, game.users()[0], GameDepartureReason.LOGOUT, leftAt);
+        publisher.publishEvent(event);
+        publisher.publishEvent(event);
+        delivery.drain(100);
+        assertReserved(game);
+        assertThat(ledgerCount(game)).isEqualTo(3);
+        assertThat(jdbc.queryForObject("SELECT participant_status FROM game_participants WHERE game_session_id=? AND user_id=?",
+                String.class, Long.parseLong(game.id()), game.users()[0])).isEqualTo("LEFT");
+        assertThat(jdbc.queryForObject("SELECT result FROM game_participants WHERE game_session_id=? AND user_id=?",
+                String.class, Long.parseLong(game.id()), game.users()[0])).isNull();
+        listener.finished(new GameFinished(game.id() + ":finished", game.id(), game.command().tableId(), "ONE_CARD", 10,
+                List.of(new GameFinished.Participant(game.users()[0], GameFinished.Result.FORFEIT, GameDepartureReason.LOGOUT, leftAt),
+                        new GameFinished.Participant(game.users()[1], GameFinished.Result.WIN, null, null),
+                        new GameFinished.Participant(game.users()[2], GameFinished.Result.LOSE, null, null)),
+                "PLAYER_LEFT", Instant.now()));
+        assertSettled(game, new long[]{-7, 14, -7}, 0);
+    }
+
+    @Test void 전원이탈_무효반환의_동시중복도_잔액과_원장을_중복반영하지않는다() throws Exception {
+        var game = reserve("LIAR_BRIDGE", 5, 3);
+        var event = aborted(game);
+        parallel(IntStream.range(0, 8).mapToObj(i -> (Callable<Void>) () -> {
+            listener.finished(event); return null;
+        }).toList());
+        assertSettled(game, new long[]{0, 0, 0}, 0);
+        assertThat(ledgerCount(game)).isEqualTo(6);
+        assertThat(results.load(game.users()[0], game.id()).orElseThrow().status()).isEqualTo(GameResultView.Status.INVALID);
+        assertThat(starts.findStartResult(game.command().startAttemptId()).code()).isEqualTo("GAME_ALREADY_TERMINATED");
+    }
+
+    @Test void 반환_원장실패는_전원롤백하며_INVALID_PENDING은_재시도할수있다() {
+        var game = reserve("LIAR_BRIDGE", 9, 3);
+        String failure = trigger(game, "GAME_RELEASE");
+        try {
+            assertThatThrownBy(() -> listener.finished(aborted(game))).isInstanceOf(RuntimeException.class);
+        } finally {
+            jdbc.execute("DROP TRIGGER `" + failure + "`");
+        }
+        assertPendingUnchanged(game);
+        assertThat(results.load(game.users()[0], game.id()).orElseThrow().status()).isEqualTo(GameResultView.Status.INVALID);
+        assertThat(committed(game, GameResultView.SettlementStatus.SETTLED)).isZero();
+        settlements.settle(Long.parseLong(game.id()));
+        assertSettled(game, new long[]{0, 0, 0}, 0);
+    }
+
+    @Test void 상충하는_정상종료와_무효종료의_경합은_한판정만_커밋한다() throws Exception {
+        var game = reserve("LIAR_BRIDGE", 5, 3);
+        var at = Instant.now();
+        var normal = new GameFinished(game.id() + ":finished", game.id(), game.command().tableId(), "LIAR_BRIDGE", 10,
+                List.of(new GameFinished.Participant(game.users()[0], GameFinished.Result.WIN, null, null),
+                        new GameFinished.Participant(game.users()[1], GameFinished.Result.FORFEIT, GameDepartureReason.LOGOUT, at),
+                        new GameFinished.Participant(game.users()[2], GameFinished.Result.FORFEIT, GameDepartureReason.LOGOUT, at)),
+                "LAST_PLAYER_STANDING", at);
+        var outcomes = parallel(List.of(normal, aborted(game)).stream().map(event -> (Callable<String>) () -> {
+            try {
+                listener.finished(event);
+                return "COMMITTED";
+            } catch (IllegalStateException conflict) {
+                assertThat(conflict).hasMessage("이미 저장된 경기 판정과 다릅니다.");
+                return "CONFLICT";
+            }
+        }).toList());
+        assertThat(outcomes).containsExactlyInAnyOrder("COMMITTED", "CONFLICT");
+        var result = results.load(game.users()[0], game.id()).orElseThrow();
+        assertSettled(game, result.status() == GameResultView.Status.INVALID
+                ? new long[]{0, 0, 0} : new long[]{10, -5, -5}, 0);
+        assertThat(ledgerCount(game)).isEqualTo(6);
+        assertThat(jdbc.queryForObject("SELECT COUNT(DISTINCT transaction_type) FROM wallet_transactions "
+                + "WHERE game_session_id=? AND transaction_type IN ('GAME_RELEASE','GAME_SETTLEMENT')",
+                Integer.class, Long.parseLong(game.id()))).isEqualTo(1);
+    }
+
+    @Test void 판정없는_INVALID_행도_null결과를_유지하며_예약만_반환한다() {
+        var game = reserve("OMOK", 9, 2);
+        // 승인된 격리 DB의 합성 fixture다. 실제 다른 boot를 무효화하는 기능은 연결하지 않는다.
+        jdbc.update("UPDATE game_sessions SET status='INVALID',end_reason='ENGINE_LOST',ended_at=UTC_TIMESTAMP(3),"
+                + "result_version=1 WHERE id=?", Long.parseLong(game.id()));
+        assertThat(results.load(game.users()[0], game.id()).orElseThrow().participants())
+                .allSatisfy(p -> assertThat(p.result()).isNull());
+        settlements.settle(Long.parseLong(game.id()));
+        assertSettled(game, new long[]{0, 0}, 0);
+        assertThat(results.load(game.users()[0], game.id()).orElseThrow().participants())
+                .allSatisfy(p -> assertThat(p.result()).isNull());
+    }
+
+    @Test void 종결재시도는_PENDING만_정산반환하고_RESERVED는_유지한다() {
+        var reserved = reserve("OMOK", 4, 2);
+        var normal = reserve("OMOK", 6, 2);
+        var invalid = reserve("LIAR_BRIDGE", 8, 3);
+        finishes.accept(finish(normal, 1));
+        finishes.accept(aborted(invalid));
+
+        var batch = terminalRetries.retryPending(Long.parseLong(reserved.id()) - 1, 100);
+
+        assertThat(batch.completed()).isEqualTo(2);
+        assertThat(batch.failed()).isZero();
+        assertThat(batch.nextAfterId()).isEqualTo(Long.parseLong(invalid.id()));
+        assertSettled(normal, new long[]{6, -6}, 0);
+        assertSettled(invalid, new long[]{0, 0, 0}, 0);
+        assertReserved(reserved);
+        assertThat(jdbc.queryForObject("SELECT status FROM game_sessions WHERE id=?", String.class,
+                Long.parseLong(reserved.id()))).isEqualTo("RESERVED");
+        long before = ledgerCount(normal) + ledgerCount(invalid);
+        var empty = terminalRetries.retryPending(batch.nextAfterId(), 100);
+        assertThat(empty.completed()).isZero();
+        assertThat(empty.failed()).isZero();
+        assertThat(empty.nextAfterId()).isZero();
+        assertThat(ledgerCount(normal) + ledgerCount(invalid)).isEqualTo(before);
+    }
+
+    @Test void 이탈기록_DB실패는_상태와예약을_유지하고_동일이벤트를_재시도한다() {
+        var game = reserve("ONE_CARD", 7, 3);
+        var event = new GameParticipantLeft(game.id() + ":left:" + game.users()[0], game.id(),
+                game.command().tableId(), "ONE_CARD", 8, game.users()[0], GameDepartureReason.LOGOUT, Instant.now());
+        String failure = "game174_fail_" + UUID.randomUUID().toString().replace("-", "");
+        jdbc.execute("CREATE TRIGGER `" + failure + "` BEFORE UPDATE ON game_participants FOR EACH ROW BEGIN "
+                + "IF NEW.game_session_id=" + Long.parseLong(game.id()) + " AND NEW.participant_status='LEFT' THEN "
+                + "SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='fixture departure rollback'; END IF; END");
+        try {
+            var receipt = delivery.submit(event).toCompletableFuture();
+            assertThat(delivery.drain(100)).isZero();
+            assertThat(receipt.isDone()).isFalse();
+        } finally {
+            jdbc.execute("DROP TRIGGER `" + failure + "`");
+        }
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM game_participants WHERE game_session_id=? "
+                + "AND participant_status='ACTIVE' AND left_at IS NULL AND leave_reason IS NULL",
+                Integer.class, Long.parseLong(game.id()))).isEqualTo(3);
+        assertReserved(game);
+        assertThat(ledgerCount(game)).isEqualTo(3);
+        publisher.publishEvent(event);
+        // DB 오류 후에는 일정 시간 뒤 같은 불변 이벤트를 재수신한다.
+        org.awaitility.Awaitility.await().atMost(java.time.Duration.ofSeconds(3)).untilAsserted(() -> {
+            delivery.drain(100);
+            assertThat(delivery.pendingCount()).isZero();
+        });
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM game_participants WHERE game_session_id=? "
+                + "AND participant_status='LEFT'", Integer.class, Long.parseLong(game.id()))).isEqualTo(1);
+        assertReserved(game);
+        assertThat(ledgerCount(game)).isEqualTo(3);
+    }
+
+    @Test void 실제엔진_활성화후_RUNNING을_기록하고_종결조회는_재활성화하지않는다() {
+        var game = reserve("OMOK", 5, 2);
+        assertThat(committedStarts.find(game.command()).isReservationCommitted(game.command())).isTrue();
+        assertThat(jdbc.queryForObject("SELECT status FROM game_sessions WHERE id=?", String.class,
+                Long.parseLong(game.id()))).isEqualTo("RUNNING");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM game_sessions WHERE id=? AND started_at IS NOT NULL",
+                Integer.class, Long.parseLong(game.id()))).isEqualTo(1);
+        listener.finished(finish(game, 1));
+        assertThat(committedStarts.find(game.command()).code()).isEqualTo("GAME_ALREADY_TERMINATED");
+        assertSettled(game, new long[]{5, -5}, 0);
+    }
+
+    private GameFinished aborted(Fixture game) {
+        var at = Instant.now();
+        return new GameFinished(game.id() + ":finished", game.id(), game.command().tableId(), "LIAR_BRIDGE", 10,
+                java.util.Arrays.stream(game.users()).mapToObj(id -> new GameFinished.Participant(id,
+                        GameFinished.Result.FORFEIT, GameDepartureReason.LOGOUT, at)).toList(),
+                "ABORTED_NO_PLAYERS", at);
     }
 
     private Fixture reserve(String code, long bet, int count) {
@@ -319,6 +495,7 @@ class GameSettlementMySqlTests {
     }
 
     private long committed(Fixture game, GameResultView.SettlementStatus status) {
+        resultNotifications.dispatchOnce(100);
         return notifications.stream(GameResultCommitted.class).filter(e -> e.result().gameSessionId().equals(game.id())
                 && e.result().settlementStatus() == status).count();
     }

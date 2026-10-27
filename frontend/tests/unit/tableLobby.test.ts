@@ -14,7 +14,7 @@ const start = (phase: 'WAITING' | 'PLAYING' | 'SETTLING', revision: number, game
   tableId: 'table', revision, phase, startAttemptId: phase === 'WAITING' ? null : 'attempt',
   gameCode: 'OMOK', gameSessionId: gameId, code: null, simulation: false,
 })
-const result = { version: 2, gameSessionId: 'game', gameCode: 'OMOK', status: 'FINISHED', settlementStatus: 'SETTLED',
+const result = { version: 2, gameSessionId: 'game', gameCode: 'OMOK', status: 'FINISHED', endReason: 'TURN_TIMEOUT', settlementStatus: 'SETTLED',
   betAmountPerPlayer: 1, participants: [{ userId: '101', result: 'WIN' }, { userId: '102', result: 'LOSE' }],
   myCoinDelta: 1, endedAt: '2026-10-24T01:00:00Z' }
 const send = (type: string, payload: Record<string, unknown>) => receiveGame({ type, payload, requestId: null }, '101', 'table')
@@ -87,6 +87,24 @@ describe('M09 lobby authority and completed round presentation', () => {
     expect(useGame.getState().lastResult).toBeNull()
     send('TABLE_LEFT', { tableId: 'table' })
     send('GAME_RESULT', result)
+    expect(useGame.getState().lastResult).toBeNull()
+  })
+  it('keeps nullable INVALID results monotonic across WAITING, duplicate query/push and dismissal', () => {
+    const pending = { ...result, version: 1, status: 'INVALID', endReason: 'ENGINE_LOST', betAmountPerPlayer: 9,
+      settlementStatus: 'PENDING', myCoinDelta: null, participants: result.participants.map(p => ({ ...p, result: null })) }
+    const settled = { ...pending, version: 2, settlementStatus: 'SETTLED', myCoinDelta: 0 }
+    send('GAME_START_STATE', start('SETTLING', 1))
+    send('GAME_START_STATE', start('WAITING', 2, null))
+    send('GAME_RESULT', pending)
+    expect(useGame.getState()).toMatchObject({ completedGameId: 'game', game: null, lastResult: pending })
+    receiveGame({ type: 'GAME_RESULT', requestId: 'query', payload: settled }, '101', 'table')
+    send('GAME_RESULT', pending); send('GAME_RESULT', settled)
+    expect(useGame.getState().lastResult).toEqual(settled)
+    useGame.setState({ lastResult: null, dismissedResult: { gameId: 'game', version: 2 } })
+    send('GAME_RESULT', settled); send('GAME_RESULT', pending)
+    expect(useGame.getState().lastResult).toBeNull()
+    send('GAME_START_STATE', start('PLAYING', 3, 'new-game'))
+    send('GAME_RESULT', { ...settled, version: 100 })
     expect(useGame.getState().lastResult).toBeNull()
   })
   it('keeps look yaw local, clamps it and scopes it to user/table/seat', () => {

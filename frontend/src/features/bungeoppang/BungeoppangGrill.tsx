@@ -18,6 +18,9 @@ import {
 import { BUNGEOPPANG } from "./config";
 import { createFishCartShape as fishShape } from '../../world/art/fishCartShape';
 import { cookLevel, judge } from "./rules";
+import { heatLook, INGREDIENT_LOOK } from './presentation';
+import { BREAD_TOOLS } from './rulesV4';
+import { environmentFrame } from '../../world/environmentState';
 import {
   BUNG_GRILL,
   bungeoppangClock,
@@ -42,6 +45,17 @@ const STOPS: [number, Color][] = [
 ];
 const BURNT = new Color("#32200f");
 const BATTER = new Color("#f4ead2");
+const FILLING_COLORS = Object.fromEntries(BREAD_TOOLS.map(tool => [tool, new Color(INGREDIENT_LOOK[tool].color)]));
+/** Keep gameplay colors legible at night without adding a light to the shared world. */
+function cookingMaterial(color: Color | string, roughness: number) {
+  const material = new MeshStandardMaterial({ color, roughness, emissive: '#ffffff', emissiveIntensity: 0 });
+  material.onBeforeCompile = shader => {
+    shader.fragmentShader = shader.fragmentShader.replace('#include <emissivemap_fragment>',
+      '#include <emissivemap_fragment>\n totalEmissiveRadiance *= diffuseColor.rgb;');
+  };
+  material.customProgramCacheKey = () => 'bungeoppang-readable-cooking-v1';
+  return material;
+}
 export function cookColor(level: number, target: Color) {
   if (level >= R.burntFrom) return target.copy(BURNT);
   const l = Math.max(0, level);
@@ -99,9 +113,9 @@ function GrillMeshes() {
   }, [L]);
   const materials = useMemo(
     () => ({
-      bread: new MeshStandardMaterial({ color: "#ffffff", roughness: 0.78 }),
-      batter: new MeshStandardMaterial({ color: BATTER, roughness: 0.9 }),
-      bean: new MeshStandardMaterial({ color: "#5a2a1e", roughness: 0.7 }),
+      bread: cookingMaterial('#ffffff', .78),
+      batter: cookingMaterial(BATTER, .9),
+      bean: cookingMaterial('#ffffff', .7),
       hover: new MeshBasicMaterial({ color: "#fffaf0", transparent: true, opacity: 0.5, depthWrite: false }),
       golden: new MeshBasicMaterial({ color: "#ef9f27", transparent: true, opacity: 0.85, depthWrite: false }),
       // 그리지 않지만 레이캐스트는 받는 클릭 상자(그리기 호출 없음).
@@ -122,6 +136,7 @@ function GrillMeshes() {
   const hoverRings = useRef<InstancedMesh>(null);
   const goldenRings = useRef<InstancedMesh>(null);
   const groups = useRef<(Group | null)[]>([]);
+  const previousFillings = useRef<string[]>([]);
   useLayoutEffect(() => {
     const batches = [breads.current!, batters.current!, beans.current!, hoverRings.current!, goldenRings.current!];
     for (const mesh of batches) {
@@ -132,6 +147,7 @@ function GrillMeshes() {
       mesh.boundingSphere = new Sphere(new Vector3(...BUNG_GRILL.center), 2.2);
     }
     breads.current!.setColorAt(0, STOPS[0]![1]);
+    for (let i = 0; i < R.slots; i++) beans.current!.setColorAt(i, FILLING_COLORS.bean!);
     return () => { batches.forEach(mesh => mesh.dispose()); };
   }, []);
   const scratch = useMemo(
@@ -142,7 +158,12 @@ function GrillMeshes() {
   useFrame(() => {
     const s = useBungeoppang.getState();
     const grill = s.grill;
+    const rules = grill && 'rulesVersion' in grill ? s.rules : R;
     const now = performance.now();
+    const nightFloor = .24 * (1 - environmentFrame.daylight);
+    materials.bread.emissiveIntensity = nightFloor;
+    materials.batter.emissiveIntensity = nightFloor;
+    materials.bean.emissiveIntensity = nightFloor;
     const showGame =
       s.phase === "countdown" || s.phase === "play" || s.phase === "ending";
     const rect = gl.domElement.getBoundingClientRect();
@@ -166,7 +187,7 @@ function GrillMeshes() {
       const cooking =
         showGame && (slot?.phase === "front" || slot?.phase === "back");
       const level = cooking
-        ? cookLevel(slot!.since, bungeoppangClock.t, slot!.heat, R)
+        ? cookLevel(slot!.since, bungeoppangClock.t, slot!.heat, rules)
         : 0;
       const breadVisible = !!cooking || (showGame && now - fx.takeAt < 260);
       const flip = (now - fx.flipAt) / 280, take = (now - fx.takeAt) / 260;
@@ -187,8 +208,14 @@ function GrillMeshes() {
       instance(batters.current!, i, x + offset, BUNG_GRILL.top + .002, z, batterVisible ? .35 + .65 * pour : 0);
       visible.batter ||= batterVisible;
       const fill = (now - fx.fillAt) / 1200;
-      const beanVisible = !!cooking && slot!.phase === "front" && fill >= 0 && fill < 1;
+      const beanVisible = !!cooking && slot!.phase === "front" && fill >= 0;
       instance(beans.current!, i, x + offset, BUNG_GRILL.top + .03, z, beanVisible ? Math.min(1, fill * 6) : 0);
+      const filling = slot && 'filling' in slot && slot.filling ? slot.filling : 'bean';
+      if (previousFillings.current[i] !== filling) {
+        beans.current!.setColorAt(i, FILLING_COLORS[filling]!);
+        beans.current!.instanceColor!.needsUpdate = true;
+        previousFillings.current[i] = filling;
+      }
       visible.bean ||= beanVisible;
       const golden = s.firstGame && cooking && level >= R.goldenFrom && level <= R.goldenTo;
       const goldVisible = s.phase === "play" && !!golden;
@@ -211,12 +238,30 @@ function GrillMeshes() {
         el.style.transform = `translate(${sx.toFixed(1)}px, ${sy.toFixed(1)}px)`;
         el.style.setProperty("--slot-width", `${width.toFixed(0)}px`);
         el.dataset.cooking = cooking ? "true" : "false";
+        if (cooking) {
+          const heat = heatLook(slot!.heat, bungeoppangClock.t, rules);
+          const badge = el.querySelector<HTMLElement>('.bung-heat');
+          if (badge) {
+            badge.dataset.rush = String(heat.rush);
+            const speed = badge.querySelector('.bung-heat-speed');
+            const text = `${heat.rush ? '몰림 · ' : ''}굽기 ×${heat.speed.toFixed(2)}`;
+            if (speed && speed.textContent !== text) speed.textContent = text;
+          }
+          const readout = el.querySelector<HTMLElement>('.bung-cook-readout');
+          const quality = judge(level, rules);
+          const text = `${slot!.phase === 'front' ? '앞면' : '뒷면'} · ${quality === 'RAW' ? '설익음' : quality === 'PERFECT' ? '황금! 지금 눌러요' : quality === 'BURNT' ? '탔어요 · 폐기' : level > rules.goldenTo ? '곧 타요!' : '알맞음'} ${level}%`;
+          if (readout && readout.textContent !== text) { readout.textContent = text; readout.dataset.quality = quality; }
+        }
         const gauge = el.querySelector<HTMLElement>(".bung-gauge-fill");
         if (gauge) {
           const j = judge(level, R);
           gauge.style.width = `${Math.min(100, level)}%`;
           gauge.style.background =
             GAUGE[j === "GOOD" && level > R.goldenTo ? "OVER" : j]!;
+          if (cooking && gauge.getAttribute('aria-valuenow') !== String(Math.min(100, level))) {
+            gauge.setAttribute('aria-valuenow', String(Math.min(100, level)));
+            gauge.setAttribute('aria-valuetext', `${slot!.phase === 'front' ? '앞면' : '뒷면'} 익힘 ${level}%`);
+          }
         }
         el.dataset.steam = !cooking
           ? "none"
@@ -244,7 +289,7 @@ function GrillMeshes() {
     <group name="bungeoppang-personal-grill" dispose={null}>
       <instancedMesh ref={breads} args={[geometries.bread, materials.bread, R.slots]} visible={false} />
       <instancedMesh ref={batters} args={[geometries.batter, materials.batter, R.slots]} visible={false} />
-      <instancedMesh ref={beans} args={[geometries.bean, materials.bean, R.slots]} visible={false} />
+      <instancedMesh name="bungeoppang-fillings" ref={beans} args={[geometries.bean, materials.bean, R.slots]} visible={false} />
       <instancedMesh ref={hoverRings} args={[geometries.cavity, materials.hover, R.slots]} visible={false} />
       <instancedMesh ref={goldenRings} args={[geometries.cavity, materials.golden, R.slots]} visible={false} />
       {BUNG_GRILL.slots.map(([x, z], i) => (

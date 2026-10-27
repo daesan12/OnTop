@@ -48,7 +48,8 @@ test('M12 2-player atomic hands, card/suit/K/draw/attack commands, result and ne
   const end = { status: 'FINISHED' as const, stage: 'FINISHED' as const, turnUserId: null, turnDeadline: null, winnerUserIds: ['102'], endReason: 'EMPTY_HAND', endedAt: new Date().toISOString() }
   server.cardSnapshot(end, accepted); await expect(p).toContainText('손패를 모두 비웠습니다.')
   await p.getByRole('button', { name: '정산 결과 확인' }).click(); await expect(p).toContainText('정산 대기 중')
-  server.settle(); await expect(p).toContainText('정산 완료 · 내 엽전 증감 1')
+  // 서버 승자는 102이며 본인 101의 확정 참가비 1코인은 차감된다.
+  server.settle(); await expect(p).toContainText('정산 완료 · 내 엽전 증감 -1')
   server.nextRound(); await page.getByRole('button', { name: '다음 판 준비', exact: true }).click(); await expect(p).toHaveCount(0); await expect(page.getByRole('button', { name: '준비', exact: true })).toBeEnabled()
   for (const m of server.sent.filter(m => m.type === 'GAME_ACTION_SEND')) expect(Object.keys(m.payload).sort()).toEqual(['actionId', 'expectedVersion', 'gameId', 'input'])
   expect(server.sent.filter(m => m.type === 'GAME_ACTION_SEND')).toHaveLength(5); expect(errors).toEqual([])

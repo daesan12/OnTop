@@ -100,6 +100,7 @@ abstract class OpenApiHttpTestSupport {
         if (environment.acceptsProfiles(Profiles.of("(local | dev) & !prod & !production"))) {
             expected.addAll(Set.of("POST /api/v1/minigames/sessions", "GET /api/v1/minigames/sessions",
                     "GET /api/v1/minigames/sessions/{sessionId}",
+                    "POST /api/v1/minigames/sessions/{sessionId}/deliveries",
                     "POST /api/v1/minigames/sessions/{sessionId}/complete",
                     "POST /api/v1/minigames/sessions/{sessionId}/abandon"));
             if (environment.getProperty("ontop.notes.enabled", Boolean.class, false)) {
@@ -186,7 +187,7 @@ abstract class OpenApiHttpTestSupport {
         JsonNode nickname = schemas.at("/UserNicknameUpdateRequest/properties/nickname");
         assertThat(nickname.path("minLength").asInt()).isEqualTo(2);
         assertThat(nickname.path("maxLength").asInt()).isEqualTo(8);
-        assertThat(nickname.path("pattern").asText()).isEqualTo("[가-힣A-Za-z0-9]{2,8}");
+        assertThat(nickname.path("pattern").asText()).isEqualTo("^[가-힣A-Za-z0-9]{2,8}$");
         assertThat(schemas.at("/UserNicknameUpdateRequest/additionalProperties").asBoolean(true)).isFalse();
         assertThat(schemas.at("/UserOnboardingRequest/properties/characterGender/enum").toString())
                 .isEqualTo("[\"MALE\",\"FEMALE\"]");
@@ -196,7 +197,7 @@ abstract class OpenApiHttpTestSupport {
         assertThat(api.at("/paths/~1api~1v1~1users~1me/patch/requestBody/content/application~1json/schema/$ref")
                 .asText()).isEqualTo("#/components/schemas/UserNicknameUpdateRequest");
         assertThat(api.at("/paths/~1api~1v1~1auth~1exchange/post/requestBody/content/application~1json/schema"
-                + "/properties/exchangeCode/pattern").asText()).isEqualTo("[A-Za-z0-9_-]{43}");
+                + "/properties/exchangeCode/pattern").asText()).isEqualTo("^[A-Za-z0-9_-]{43}$");
         assertThat(schemas.at("/AuthExchangeResponse/oneOf").size()).isEqualTo(2);
         assertThat(api.at("/paths/~1api~1v1~1users~1onboarding/post/responses").has("201")).isTrue();
         assertThat(api.at("/paths/~1api~1v1~1users~1me/delete/responses").has("204")).isTrue();
@@ -245,6 +246,82 @@ abstract class OpenApiHttpTestSupport {
             assertThat(operation.path("responses").size()).isGreaterThan(0);
             assertThat(operation.has("requestId")).isFalse();
         }));
+    }
+
+    @Test
+    void 도메인_오류와_누락된_성공응답을_실제_DTO로_구분한다() throws Exception {
+        var api = json();
+        for (String controllerPath : Set.of("/api/v1/notes", "/api/v1/admin/feedback")) {
+            if (!api.path("paths").has(controllerPath)) { continue; }
+            var success = api.path("paths").path(controllerPath).path("get").path("responses").path("200");
+            assertThat(success.at("/content/application~1json/schema/$ref").asText()).endsWith(
+                    controllerPath.endsWith("notes") ? "/NoteListResponse" : "/FeedbackListResponse");
+        }
+        if (api.path("paths").has("/api/v1/feedback")) {
+            for (String code : Set.of("400", "409", "429")) {
+                assertThat(api.path("paths").path("/api/v1/feedback").path("post")
+                        .path("responses").path(code).at("/content/application~1json/schema/$ref").asText())
+                        .isEqualTo("#/components/schemas/FeedbackErrorResponse");
+            }
+            assertThat(api.at("/components/schemas/FeedbackErrorResponse/properties").size()).isEqualTo(3);
+        }
+        assertThat(api.at("/components/schemas").has("ErrorResponse")).isFalse();
+        assertThat(api.at("/components/schemas/ShopErrorResponse/properties").size()).isEqualTo(3);
+        assertThat(api.at("/components/schemas/MinigameErrorResponse/properties").size()).isEqualTo(5);
+        api.path("paths").forEach(path -> path.forEach(operation -> {
+            Set<String> statuses = new HashSet<>();
+            operation.path("responses").fieldNames().forEachRemaining(statuses::add);
+            assertThat(statuses).anyMatch(status -> status.startsWith("2") || status.equals("302"));
+        }));
+    }
+
+    @Test
+    void nullable도_필드가_존재하며_응답_required와_null허용을_분리한다() throws Exception {
+        var schemas = json().at("/components/schemas");
+        for (String field : Set.of("TableSummaryResponse.gameCode", "TableSummaryResponse.targetScore",
+                "ItemResponse.equipSlot", "MinigameStatusResponse.score", "MinigameStatusResponse.endedAt",
+                "FeedbackListResponse.nextCursor", "NotesErrorResponse.nextAllowedAt",
+                "FeedbackErrorResponse.nextAllowedAt", "MinigameErrorResponse.index")) {
+            var parts = field.split("\\.");
+            if (!schemas.has(parts[0])) { continue; }
+            var schema = schemas.path(parts[0]);
+            assertThat(schema.path("properties").path(parts[1]).path("nullable").asBoolean()).isTrue();
+            assertThat(schema.path("required")).anyMatch(value -> value.asText().equals(parts[1]));
+        }
+        for (String name : Set.of("ItemResponse", "MinigameStatusResponse", "TableSummaryResponse",
+                "NoteListResponse", "FeedbackListResponse", "RankingResponse", "Ticket")) {
+            var schema = schemas.path(name);
+            if (!schema.isMissingNode()) {
+                assertThat(schema.path("required").size()).isEqualTo(schema.path("properties").size());
+            }
+        }
+    }
+
+    @Test
+    void 엄격한_요청과_UTF16_정규화_및_전체일치_패턴을_문서화한다() throws Exception {
+        var api = json();
+        for (String domain : Set.of("feedback", "notes")) {
+            var operation = api.path("paths").path("/api/v1/" + domain).path("post");
+            if (operation.isMissingNode()) { continue; }
+            var body = operation.at("/requestBody/content/application~1json/schema");
+            assertThat(body.path("additionalProperties").asBoolean(true)).isFalse();
+            assertThat(body.path("required").size()).isEqualTo(3);
+            assertThat(body.at("/properties/text/x-utf16-max-length").asInt()).isEqualTo(domain.equals("notes") ? 300 : 600);
+            assertThat(body.at("/properties/text/x-normalized-utf16-min-length").asInt()).isEqualTo(domain.equals("notes") ? 1 : 5);
+            assertThat(body.at("/properties/text").has("minLength")).isFalse();
+            assertThat(body.at("/properties/operationId/pattern").asText()).startsWith("^").endsWith("$");
+        }
+        var nickname = api.at("/components/schemas/UserNicknameUpdateRequest/properties/nickname/pattern").asText();
+        assertThat(java.util.regex.Pattern.compile(nickname).matcher("미지!").find()).isFalse();
+        for (String path : Set.of("/api/v1/shop/purchases", "/api/v1/minigames/sessions")) {
+            api.path("paths").path(path).path("post").path("parameters").forEach(parameter -> {
+                if (parameter.path("name").asText().equals("Idempotency-Key")) {
+                    assertThat(parameter.at("/schema/pattern").asText()).isEqualTo("^[A-Za-z0-9_-]{1,64}$");
+                }
+            });
+        }
+        assertThat(api.at("/paths/~1api~1v1~1minigames~1sessions~1{sessionId}~1complete/post/requestBody"
+                + "/content/application~1json/schema/properties/seenTips/items").has("type")).isFalse();
     }
 
     void references(JsonNode current, JsonNode root) {
