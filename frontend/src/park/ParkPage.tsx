@@ -21,8 +21,8 @@ import { ParkMap } from '../features/navigation/ParkMap'
 import { ParkNavigation } from '../features/navigation/NavigationHud'
 import { BungeoppangHud } from '../features/bungeoppang/BungeoppangHud'
 import { useBungeoppang } from '../features/bungeoppang/store'
-import { ShopPanel } from '../features/shop/ShopPanel'
-import { WardrobeLauncher, WardrobeScreen } from '../features/wardrobe/WardrobeScreen'
+import { ShopHost } from '../features/shop/ShopHost'
+import { WardrobeLauncher, WardrobeHost } from '../features/wardrobe/WardrobeHost'
 import { AdvertisementLink } from '../features/advertisements/AdvertisementLink'
 import { CameraControls } from '../features/camera/CameraControls'
 import { FollowMenu } from '../features/follow/FollowMenu'
@@ -117,8 +117,8 @@ function ParkContent({ onExit, exitError, onAuthEnded }: ParkProps) {
         <TelescopePanel />
         <FeedbackPanel />
         <AnonymousNotes />
-        <ShopPanel />
-        <WardrobeScreen />
+        <ShopHost />
+        <WardrobeHost />
         <AdvertisementLink />
         <CameraControls />
         <FollowMenu />

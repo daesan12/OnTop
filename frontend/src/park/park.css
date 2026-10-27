@@ -260,6 +260,9 @@
 .park-hud button:focus-visible { outline: 2px solid #f6e9ae; outline-offset: 3px; }
 
 .auth-loading { display: grid; min-height: 100dvh; place-items: center; color: #f3efe3; background: #27372b; }
+.park-deferred-content { position: fixed; top: 24px; left: 50%; transform: translateX(-50%); z-index: 80; width: min(420px, calc(100vw - 32px)); box-sizing: border-box; padding: 16px; border: 1px solid #e0d8bd; border-radius: 12px; color: #f3efe3; background: #27372b; box-shadow: 0 8px 30px #0005; }
+.park-deferred-content p { margin: 0 0 12px; }
+.park-deferred-content button { margin-right: 8px; padding: 6px 12px; font: inherit; cursor: pointer; }
 
 .facility-status { position: absolute; left: 20px; top: 150px; max-width: min(340px, calc(100% - 40px)); z-index: 12; }
 @media (min-width:901px) and (max-width:1200px) {
