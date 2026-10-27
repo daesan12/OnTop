@@ -7,6 +7,10 @@ import {
 
 export const environmentClock = new EnvironmentClock()
 export const environmentConfig: WorldEnvironmentConfig = { ...ENVIRONMENT }
+export function resetEnvironmentTime() {
+  environmentClock.reset()
+  Object.assign(environmentConfig, ENVIRONMENT)
+}
 // A shared Korean midnight epoch keeps late joins/reloads in the same day phase. Anchor to
 // the monotonic clock so changing the device clock during play cannot jump time.
 // Device clock skew still needs an authoritative server clock contract.
@@ -24,6 +28,6 @@ export function updateEnvironmentFrame(now: number) {
     : visualEpoch + now - visualStart
   Object.assign(environmentFrame, sampleDay(serverTime, environmentConfig), {
     serverTime,
-    seconds: (serverTime - ENVIRONMENT.epochMs) / 1000,
+    seconds: (serverTime - environmentConfig.epochMs) / 1000,
   })
 }

@@ -43,6 +43,9 @@ export async function fixture(
     forfeit?: boolean
     manualLobby?: boolean
     tabletServer?: boolean
+    serverTimeOffsetMs?: number
+    mapVerificationRequired?: boolean
+    rejectMapConfirmation?: boolean
   } = {},
 ) {
   const anchor = TABLES.find(t => t.id === options.anchorId) ?? TABLES[0]!
@@ -59,6 +62,8 @@ export async function fixture(
       requestId: string
     }[] = [],
     sockets: WebSocketRoute[] = []
+  const serverTime = () => ({ serverNow: Date.now() + (options.serverTimeOffsetMs ?? 0),
+    cycleEpochMs: 1767193200000, cycleDurationMs: 1800000, timeZone: 'Asia/Seoul' })
   const position = {
     x: anchor.position[0],
     y: anchor.position[1] + 0.8,
@@ -394,6 +399,8 @@ export async function fixture(
   }
   const follow = followFixture((type, payload, id = null) => emit(sockets.at(-1)!, type, payload, id), options.ownUserId ?? '101')
   await page.routeWebSocket('**/ws/tables?**', (ws) => {
+    let mapVerified = false
+    const map = { mapId: 'park', schemaVersion: 1, mapVersion: options.mapVersion ?? EXPECTED_MAP_VERSION }
     connections++
     active++
     maxActive = Math.max(maxActive, active)
@@ -402,7 +409,8 @@ export async function fixture(
       JSON.stringify({
         requestId: null,
         type: 'CONNECTED',
-        payload: { userId: options.ownUserId ?? '101' },
+        payload: { userId: options.ownUserId ?? '101', time: serverTime(), map,
+          mapVerificationRequired: options.mapVerificationRequired ?? false },
       }),
     )
     if (options.forfeit && started) recovery(ws)
@@ -424,6 +432,21 @@ export async function fixture(
       const message = JSON.parse(String(data))
       sent.push(message)
       const { requestId, type, payload } = message
+      if (type === 'WORLD_TIME_CHECK') {
+        emit(ws, 'WORLD_TIME_STATE', serverTime(), requestId)
+        return
+      }
+      if (type === 'WORLD_MAP_CONFIRM') {
+        mapVerified = !options.rejectMapConfirmation && payload.mapId === map.mapId
+          && payload.schemaVersion === map.schemaVersion && payload.mapVersion === map.mapVersion
+        if (mapVerified) emit(ws, 'WORLD_MAP_STATE', { map, verified: true }, requestId)
+        else emit(ws, 'ERROR', { code: 'MAP_VERSION_MISMATCH', message: '서버 맵 버전을 확인해주세요.' }, requestId)
+        return
+      }
+      if (options.mapVerificationRequired && !mapVerified) {
+        emit(ws, 'ERROR', { code: 'MAP_VERSION_REQUIRED', message: '서버 맵 버전 확인이 필요합니다.' }, requestId)
+        return
+      }
       if (facilities.handle(type, payload, requestId)) return
       if (follow.handle(type, payload, requestId)) return
       if (type === 'CHANNEL_JOIN') {
@@ -845,6 +868,7 @@ export async function fixture(
     cancelEmote: (event: object) => emit(sockets.at(-1)!, 'WORLD_EMOTE_CANCELLED', event),
 
     players: (count: number) => { options.players = count; world(sockets.at(-1)!) },
+    serverTimeOffset: (ms: number) => { options.serverTimeOffsetMs = ms },
     pose: (patch: Partial<typeof position>) => { Object.assign(position, patch); world(sockets.at(-1)!) },
     remotePose: (patch: Partial<typeof position>) => { remotePosition = { ...remotePosition, ...patch }; world(sockets.at(-1)!) },
   }

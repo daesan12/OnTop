@@ -33,10 +33,11 @@ test('M03 renders both shipped rigs through approved movement and isolated actio
     const p = await import('/tests/e2e/sceneProbe.ts' as string)
     for (const id of ['101', '102']) p.fixtureCharacterPose(id, { swimming: true })
   })
-  await expect.poll(async () => (await probe(page)).avatars.every(a => a.figureX === 1)).toBe(true)
+  // Latest dev treads water upright at rest; full crawl tilt is only for movement.
+  await expect.poll(async () => (await probe(page)).avatars.every(a => Math.abs(a.figureX! - .18) < .001)).toBe(true)
   for (let index = 0; index < FITNESS_STATIONS.length; index++) {
     await page.evaluate(async index => (await import('/tests/e2e/sceneProbe.ts' as string)).fixtureExercise(index), index)
-    await expect.poll(async () => (await probe(page)).avatars.every(a => Number.isFinite(a.arm?.[0]) && a.figureX !== 1)).toBe(true)
+    await expect.poll(async () => (await probe(page)).avatars.every(a => Number.isFinite(a.arm?.[0]) && a.figureX !== .18)).toBe(true)
   }
   await screenshot(page, 'm03-exercise-poses')
   await page.evaluate(async () => {

@@ -68,8 +68,7 @@ export const EXPANSION_COLLIDERS: readonly BoxCollider[] = [
       }
     }),
   ),
-  // Conservative circular footprint of the 5.4m stone base. Thin strips remove
-  // the old square's invisible corners; the server map must be rebaked in sync.
+  // Match the circular stone base and the BE collision-feedback bake (a1403c7).
   ...Array.from({ length: 48 }, (_, i): BoxCollider => {
     const radius = 5.4, step = radius * 2 / 48
     const low = -radius + i * step, high = low + step
