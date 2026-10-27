@@ -129,6 +129,6 @@ test('four fillings render on unobstructed clickable slots and other avatars rem
   await screenshot(page, 'bungeoppang-v4-four-fillings');
   await page.keyboard.press('Escape'); await page.getByRole('button', { name: '그만두기', exact: true }).click();
   await expect(page.locator('.bung-root')).toBeHidden();
-  const restored = await page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).sceneProbe());
-  expect(restored.ownVisible).toBe(true);
+  // Controls unlock immediately; the avatar becomes visible after the independent camera return.
+  await expect.poll(async () => (await page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).sceneProbe())).ownVisible).toBe(true);
 });
