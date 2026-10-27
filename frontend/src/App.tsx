@@ -4,6 +4,7 @@ import { clearAuthSession, getAuthSession, logout, restoreAuthSession } from './
 import { LoginPage } from './login/LoginPage'
 import { OnboardingPage } from './onboarding/OnboardingPage'
 import { ParkPage } from './park/ParkPage'
+import { preloadWorldAssets } from './world/worldAssets'
 
 const AdminFeedbackPage = lazy(() => import('./features/feedback/AdminFeedbackPage').then(m => ({ default: m.AdminFeedbackPage })))
 type Page = 'checking' | 'login' | 'callback' | 'onboarding' | 'park' | 'admin-feedback'
@@ -13,6 +14,15 @@ export default function App() {
     window.location.pathname === '/auth/callback' ? 'callback' : 'checking',
   )
   const [exitError, setExitError] = useState('')
+
+  useEffect(() => {
+    if (page === 'callback' || page === 'onboarding'
+      || page === 'checking' && window.location.pathname === '/park') {
+      // Start textures/characters before constructing the procedural world, so
+      // the first scene render need not suspend and repeat expensive setup.
+      preloadWorldAssets()
+    }
+  }, [page])
 
   useEffect(() => {
     // A history-restored login page can retain stale React state after OAuth.

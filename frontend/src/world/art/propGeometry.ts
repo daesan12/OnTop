@@ -16,8 +16,8 @@ import {
 } from 'three'
 import {
   mergeGeometries,
-  mergeVertices,
 } from 'three/addons/utils/BufferGeometryUtils.js'
+import { weldStaticVertices } from './weldStaticVertices'
 export type XYZ = [number, number, number]
 export type PropFinish =
   'wood' | 'metal' | 'gold' | 'stone' | 'paint' | 'tile' | 'glow'
@@ -57,7 +57,11 @@ export class PropBuilder {
       )
     const c = new Color(color),
       colors = new Float32Array(count * 3)
-    for (let i = 0; i < count; i++) colors.set([c.r, c.g, c.b], i * 3)
+    for (let i = 0; i < count; i++) {
+      colors[i * 3] = c.r
+      colors[i * 3 + 1] = c.g
+      colors[i * 3 + 2] = c.b
+    }
     flat.setAttribute('color', new Float32BufferAttribute(colors, 3))
     this.parts[kind].push(flat)
   }
@@ -133,7 +137,7 @@ export class PropBuilder {
         const flat = mergeGeometries(parts)!
         // Keep UV, normal and tint seams, but share identical vertices so the
         // GPU vertex cache can reuse work across the original triangles.
-        const g = mergeVertices(flat, 1e-6)
+        const g = weldStaticVertices(flat, 1e-6)
         flat.dispose()
         parts.forEach((p) => p.dispose())
         g.computeBoundingSphere()

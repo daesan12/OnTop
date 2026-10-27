@@ -98,9 +98,10 @@ export class ParkRuntime implements ParkRuntimePort {
         method: 'POST',
         signal,
       })
-      if (!record(body) || typeof body.ticket !== 'string' || !body.ticket)
+      if (!record(body) || typeof body.ticket !== 'string' || !body.ticket
+        || typeof body.expiresIn !== 'number' || !Number.isFinite(body.expiresIn) || body.expiresIn <= 0)
         throw new Error('접속권 응답을 확인할 수 없습니다.')
-      return body.ticket
+      return { ticket: body.ticket, expiresIn: body.expiresIn }
     },
     socket: (ticket) => {
       const url = new URL('/ws/tables', window.location.href)
@@ -289,7 +290,7 @@ export class ParkRuntime implements ParkRuntimePort {
     try {
       await this.socket.disconnect()
       if (!this.active || generation !== this.generation) return
-      const [body, config, profile] = await Promise.all([
+      const ready = Promise.all([
         this.getJSON('/api/v1/channels', { signal: abort.signal }),
         fetch(parkBindingsUrl(), {
           signal: abort.signal,
@@ -301,21 +302,23 @@ export class ParkRuntime implements ParkRuntimePort {
         this.getJSON('/api/v1/users/me', { signal: abort.signal }).then(
           userProfile,
         ),
-      ])
-      if (!this.active || generation !== this.generation) return
-      if (!record(body) || !Array.isArray(body.items) || !record(config))
-        throw new Error('공원 설정 응답을 확인할 수 없습니다.')
-      const channels = body.items.map(channel),
-        bindings = parseBindings(config.bindings)
-      useSession.setState({ channels, bindings })
-      useEmoteState.setState({ bindings: config.emotes === undefined && import.meta.env.DEV && import.meta.env.MODE === 'facility-preview'
-        ? { ...previewEmoteBindings } : parseEmoteBindings(config.emotes) })
-      this.ownProfile = profile
-      if (!channels.length)
-        this.report('서버에 등록된 채널이 없습니다. 채널 설정을 확인해주세요.')
-      await this.socket.connect()
+      ]).then(([body, config, profile]) => {
+        if (!this.active || generation !== this.generation || abort.signal.aborted) return
+        if (!record(body) || !Array.isArray(body.items) || !record(config))
+          throw new Error('공원 설정 응답을 확인할 수 없습니다.')
+        const channels = body.items.map(channel),
+          bindings = parseBindings(config.bindings)
+        useSession.setState({ channels, bindings })
+        useEmoteState.setState({ bindings: config.emotes === undefined && import.meta.env.DEV && import.meta.env.MODE === 'facility-preview'
+          ? { ...previewEmoteBindings } : parseEmoteBindings(config.emotes) })
+        this.ownProfile = profile
+        if (!channels.length)
+          this.report('서버에 등록된 채널이 없습니다. 채널 설정을 확인해주세요.')
+      })
+      await this.socket.connect(ready)
     } catch (error) {
       if (!this.active || generation !== this.generation) return
+      abort.abort()
       useSession.setState({ status: 'error' })
       this.report(error)
     }
@@ -528,6 +531,10 @@ export class ParkRuntime implements ParkRuntimePort {
     if (!stoppedIntent(intent)) cancelAvatarEmote(useSession.getState().sessionId)
     this.movement.enqueue(intent, this.movementScope())
   }
+  stopMovement = () => {
+    this.movement.clear(false)
+    this.move(0, 0, false)
+  }
   sendEmote = async (id: EmoteId): Promise<boolean> => {
     const reason = emoteUnavailable(id)
     if (reason || !this.active || !this.socket.connected) {
@@ -538,7 +545,7 @@ export class ParkRuntime implements ParkRuntimePort {
     const epoch = state.epoch, scope = this.movementScope(), source = emoteSource(id)
     const current = () => useEmoteState.getState().epoch === epoch && this.movementScope() === scope && this.active
     useEmoteState.setState({ pending: true, requestId: '', requested: id, cancelled: false, error: '', notice: '' })
-    this.move(0, 0, false)
+    this.stopMovement()
     try {
       if (source === 'server') {
         const response = await this.socket.request('WORLD_EMOTE_SEND', { emoteCode: state.bindings[id]! }, ['WORLD_EMOTE_EVENT'],
@@ -669,7 +676,7 @@ export class ParkRuntime implements ParkRuntimePort {
       )
       if (!tableId)
         throw new Error('서버 테이블과 공원 배치 연결이 필요합니다.')
-      this.move(0, 0, false)
+      this.stopMovement()
       await this.socket.request('TABLE_JOIN', { tableId }, ['TABLE_STATE'])
       // Only TABLE_STATE assigns a seat. Never send a userId, seatNumber or final position.
     })
