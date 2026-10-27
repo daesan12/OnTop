@@ -129,6 +129,63 @@ async function bindManualPort(page: Page, server: Awaited<ReturnType<typeof fixt
   return calls
 }
 
+for (const viewport of [{ width: 1920, height: 1080 }, { width: 1366, height: 768 }])
+test(`tablet game selection keeps its screen and controls in place at ${viewport.width}`, async ({ page }) => {
+  await page.setViewportSize(viewport)
+  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message))
+  const server = await fixture(page, { omok: true, manualLobby: true, tabletServer: true })
+  const tablet = await openTable(page)
+  const layout = () => tablet.evaluate(node => {
+    const rect = (element: Element | null) => {
+      const box = element?.getBoundingClientRect()
+      return box && { x: box.x, y: box.y, width: box.width, height: box.height }
+    }
+    return { screen: rect(node), title: rect(node.querySelector('.tablet-title')), list: rect(node.querySelector('.tablet-game-list')),
+      detail: rect(node.querySelector('.tablet-selection-detail')), start: rect(node.querySelector('.tablet-primary')), bet: rect(node.querySelector('.tablet-bet-input')),
+      paperScroll: node.querySelector('.tablet-paper')?.scrollTop, documentScroll: document.scrollingElement?.scrollTop }
+  })
+  await page.waitForTimeout(1000)
+  const before = await layout()
+  await screenshot(page, `tablet-layout-selection-${viewport.width}`)
+  for (const name of ['주사위 한 판', '원카드', '거짓말 다리 건너기', '오목', '주사위 한 판']) {
+    await tablet.getByRole('button', { name, exact: false }).first().click()
+    await expect(tablet.getByLabel('주사위 목표 점수')).toHaveCount(name === '주사위 한 판' ? 1 : 0)
+    const after = await layout()
+    for (const key of ['screen', 'title', 'list', 'detail', 'start', 'bet'] as const) {
+      for (const axis of ['x', 'y', 'width', 'height'] as const)
+        expect(Math.abs(after[key]![axis] - before[key]![axis]), `${name}: ${key}.${axis}`).toBeLessThan(1)
+    }
+    expect(after.paperScroll).toBe(0); expect(after.documentScroll).toBe(0)
+    expect(after.start!.y + after.start!.height).toBeLessThan(after.screen!.y + after.screen!.height)
+  }
+  await tablet.getByLabel('주사위 목표 점수').selectOption('6000')
+  await tablet.getByLabel('1인 참가비').fill('20')
+  await expect(tablet.getByRole('button', { name: '선택하고 준비하기' })).toBeInViewport()
+  await screenshot(page, `tablet-layout-dice-${viewport.width}`)
+  await tablet.getByRole('button', { name: '선택하고 준비하기' }).click()
+  await expect(tablet).toContainText('함께 시작할까요?')
+  expect(server.sent.find(message => message.type === 'TABLE_CONFIGURE')?.payload).toMatchObject({ gameCode: 'DICE', targetScore: 6000, betAmountPerPlayer: 20 })
+  await expect(page.locator('vite-error-overlay')).toHaveCount(0); expect(errors).toEqual([])
+})
+
+test('narrow tablet dice selection keeps its frame fixed and all settings reachable', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message))
+  const server = await fixture(page, { omok: true, manualLobby: true, tabletServer: true })
+  const tablet = await openTable(page), before = await tablet.boundingBox()
+  await tablet.getByRole('button', { name: '주사위 한 판', exact: false }).first().click()
+  expect(await tablet.boundingBox()).toEqual(before)
+  await tablet.getByLabel('주사위 목표 점수').selectOption('4000')
+  await tablet.getByLabel('1인 참가비').fill('7')
+  await tablet.getByRole('button', { name: '선택하고 준비하기' }).scrollIntoViewIfNeeded()
+  await screenshot(page, 'tablet-layout-dice-mobile')
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth && document.scrollingElement?.scrollTop === 0)).toBe(true)
+  await tablet.getByRole('button', { name: '선택하고 준비하기' }).click()
+  await expect(tablet).toContainText('함께 시작할까요?')
+  expect(server.sent.find(message => message.type === 'TABLE_CONFIGURE')?.payload).toMatchObject({ gameCode: 'DICE', targetScore: 4000, betAmountPerPlayer: 7 })
+  await expect(page.locator('vite-error-overlay')).toHaveCount(0); expect(errors).toEqual([])
+})
+
 test('tablet powers on and never falls back to legacy auto-start after an unsupported configure', async ({ page }) => {
   const errors: string[] = []
   page.on('pageerror', e => errors.push(e.message))

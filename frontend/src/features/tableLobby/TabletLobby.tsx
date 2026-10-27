@@ -113,8 +113,8 @@ function TabletSession({ tableId }: { tableId: string }) {
           <GameArt code={code} />
           <fieldset disabled={!host || busy}><legend>참가 인원</legend><div className="tablet-counts">{[2, 3, 4].filter(n => n <= max).map(n => <button key={n}
             aria-pressed={count === n} onClick={() => setCount(n)}>{n}인</button>)}</div></fieldset>
-          {code === 'DICE' && <label className="tablet-score">목표 점수<select aria-label="주사위 목표 점수" disabled={!host || busy} value={target} onChange={e => setTarget(Number(e.target.value))}>
-            {TARGET_SCORES.map(score => <option key={score} value={score}>{score.toLocaleString()}점</option>)}</select></label>}
+          <div className="tablet-score-slot">{code === 'DICE' && <label className="tablet-score">목표 점수<select aria-label="주사위 목표 점수" disabled={!host || busy} value={target} onChange={e => setTarget(Number(e.target.value))}>
+            {TARGET_SCORES.map(score => <option key={score} value={score}>{score.toLocaleString()}점</option>)}</select></label>}</div>
           <label className="tablet-bet-input">1인 참가 판돈<input aria-label="1인 참가비" inputMode="numeric" type="text" maxLength={15} value={bet} disabled={!host || busy}
             placeholder="금액 입력" onChange={e => setBet(e.target.value)} /><span>냥</span></label>
           {!countSupported && <p className="tablet-contract-note" role="status">{count}인 정원 선택은 서버 연결 준비 중입니다.</p>}
