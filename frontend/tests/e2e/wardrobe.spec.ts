@@ -30,11 +30,14 @@ async function wardrobeRoutes(page: Page, options: { owned?: OwnedItem[]; disabl
 }
 async function loaded(page: Page) {
   await page.goto('/park')
-  await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90000 })
+  await expect(page.getByRole('main', { name: '공원 기본 화면' })).toBeVisible()
   await expect.poll(() => page.evaluate(async () => {
     const { useSession } = await import('/src/network/worldClient.ts' as string)
     return useSession.getState().status === 'connected' && !!useSession.getState().roomId
   })).toBe(true)
+  // Hidden also matches an absent element before React mounts. Wait for the park
+  // and connection first so this observes scene presentation, not initial absence.
+  await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90000 })
 }
 const wardrobe = (page: Page) => page.getByRole('region', { name: '마이룸 옷장' })
 const cameraProbe = (page: Page) => page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).wardrobeCameraProbe()).catch(() => null) as
