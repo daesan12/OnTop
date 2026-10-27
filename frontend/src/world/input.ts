@@ -11,7 +11,7 @@ import { aimTelescope, leaveTelescope } from '../features/telescopes/controller'
 import { useTelescopeState } from '../features/telescopes/state'
 import { normalizeTelescopeAim } from '../features/telescopes/anchors'
 import { telescopeView, zoomTelescope } from '../features/telescopeView'
-import { inputState, panelOwnsKeys, roamingInput, textInputOwnsKeys } from './inputOwnership'
+import { inputState, panelOwnsKeys, panelOwnsMovement, roamingInput, textInputOwnsKeys } from './inputOwnership'
 import { cameraRelativeMove, MOVEMENT_INPUT_INTERVAL_MS, type MovementIntent } from '../network/movementInput'
 import { useGame } from '../game/store'
 import { canLeaveByMovement } from '../features/tableLobby/model'
@@ -54,7 +54,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     document.hidden ||
     useSession.getState().status !== 'connected' ||
     !avatars.has(useSession.getState().sessionId) ||
-    panelOwnsKeys() ||
+    panelOwnsMovement() ||
     textInputOwnsKeys(document.activeElement) ||
     !useSession.getState().mapCompatible ||
     !!useGame.getState().watchedGameId ||
@@ -153,7 +153,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
       if (!useSession.getState().benchId && !useSession.getState().fitnessId
         && !useBenchState.getState().pending && !useFitnessState.getState().pending && !useTelescopeState.getState().pending) jump = true
     }
-    if (event.code === 'KeyE' && !event.repeat) {
+    if (event.code === 'KeyE' && !event.repeat && !inputState.wardrobeOpen) {
       if (interactWithPark()) {
         event.preventDefault()
         canvas.focus({ preventScroll: true })
@@ -177,7 +177,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
       canvas.focus({ preventScroll: true })
       return
     }
-    if (event.button === 0 && !panelOwnsKeys()) {
+    if (event.button === 0 && !panelOwnsMovement()) {
       drag = true
       canvas.focus({ preventScroll: true })
     }
