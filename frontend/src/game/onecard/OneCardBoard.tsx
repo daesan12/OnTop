@@ -1,35 +1,30 @@
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { useShallow } from 'zustand/react/shallow'
-import { BoxGeometry, CanvasTexture, MeshStandardMaterial, Object3D, PlaneGeometry, SRGBColorSpace, type Group, type InstancedMesh } from 'three'
+import { BoxGeometry, MeshStandardMaterial, Object3D, PlaneGeometry, type Group, type InstancedMesh } from 'three'
 import { TABLE_SEATS, type TableAnchor } from '../../config'
 import { useSession } from '../../network/worldClient'
 import { useGame } from '../store'
 import type { Card, OneCard } from './protocol'
-import { redCard, SUIT_GLYPH } from './presentation'
+import { createBackTexture, createFaceTexture, createFeltTexture } from './artwork'
 
 // Original generic artwork, generated locally. Only the approved public top card gets a texture.
 const face = new PlaneGeometry(.3, .43), slab = new BoxGeometry(1, 1, 1)
 const paper = new MeshStandardMaterial({ color: '#eee4cc', roughness: .9 }), back = new MeshStandardMaterial({ color: '#335f6d', roughness: .9 })
 const matBase = new BoxGeometry(1.85, .022, 1.34), feltPlane = new PlaneGeometry(1.79, 1.28)
-const deckBack = new PlaneGeometry(.275, .403), deckMark = new PlaneGeometry(.1, .1)
-const wood = new MeshStandardMaterial({ color: '#a28b57', roughness: .9 }), felt = new MeshStandardMaterial({ color: '#28534e', roughness: 1 })
-const blue = new MeshStandardMaterial({ color: '#346a79', roughness: .9 }), gold = new MeshStandardMaterial({ color: '#c7b577', roughness: .9 })
-function faceTexture(card: Card) {
-  const canvas = document.createElement('canvas'); canvas.width = 256; canvas.height = 384
-  const ctx = canvas.getContext('2d')!
-  ctx.fillStyle = '#f7f0da'; ctx.fillRect(0, 0, 256, 384)
-  ctx.strokeStyle = '#d1c3a2'; ctx.lineWidth = 5; ctx.strokeRect(8, 8, 240, 368)
-  ctx.fillStyle = redCard(card) ? '#ae393b' : '#243737'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-  ctx.font = `bold ${card.suit ? 48 : 27}px Georgia,serif`; ctx.fillText(card.suit ? card.rank : 'JOKER', 128, 55)
-  ctx.fillText(card.suit ? card.rank : 'JOKER', 128, 326)
-  ctx.font = '116px Georgia,serif'; ctx.fillText(card.suit ? SUIT_GLYPH[card.suit] : '✦', 128, 184)
-  const texture = new CanvasTexture(canvas); texture.colorSpace = SRGBColorSpace
-  return texture
+const deckBack = new PlaneGeometry(.3, .43)
+const wood = new MeshStandardMaterial({ color: '#bfa16a', metalness: .25, roughness: .55 })
+// Module-owned artwork is allocated only when a One Card table is shown and reused on remount.
+let sharedArtwork: { felt: MeshStandardMaterial; back: MeshStandardMaterial } | undefined
+function tableArtwork() {
+  return sharedArtwork ??= {
+    felt: new MeshStandardMaterial({ map: createFeltTexture(), roughness: 1 }),
+    back: new MeshStandardMaterial({ map: createBackTexture(), roughness: .8 }),
+  }
 }
 function PublicCard({ card, surfaceY }: { card: Card; surfaceY: number }) {
   const root = useRef<Group>(null), progress = useRef(1)
-  const texture = useMemo(() => faceTexture(card), [card.id, card.rank, card.suit])
+  const texture = useMemo(() => createFaceTexture(card), [card.id, card.rank, card.suit])
   const material = useMemo(() => new MeshStandardMaterial({ map: texture, roughness: .9 }), [texture])
   useEffect(() => { progress.current = 0; return () => { material.dispose(); texture.dispose() } }, [texture, material])
   useFrame((_, delta) => {
@@ -73,12 +68,15 @@ export function OneCardBoard({ anchor }: { anchor: TableAnchor }) {
   const o = relevant ? state.onecard : null
   const drawCount = o?.drawCount ?? 1, height = Math.max(.012, drawCount * .001)
   const mainPavilion = anchor.pavilionId === 'P0', deckY = mainPavilion ? 1.064 + height / 2 : 1.112
+  const art = tableArtwork()
   return <group name="onecard-table" dispose={null}>
-    {!mainPavilion && <group name="onecard-felt-mat"><mesh geometry={matBase} material={wood} position={[0, 1.075, 0]} />
-      <mesh geometry={feltPlane} material={felt} position={[0, 1.088, 0]} rotation={[-Math.PI / 2, 0, 0]} /></group>}
+    <group name="onecard-felt-mat">
+      {!mainPavilion && <mesh geometry={matBase} material={wood} position={[0, 1.075, 0]} />}
+      <mesh geometry={feltPlane} material={art.felt} position={[0, mainPavilion ? 1.07 : 1.088, 0]}
+        scale={mainPavilion ? [.91, .89, 1] : 1} rotation={[-Math.PI / 2, 0, 0]} />
+    </group>
     {drawCount > 0 && <group name={o ? 'onecard-draw-deck' : 'onecard-preparation-prop'} position={[-.28, 0, 0]} scale={[.8, 1, .8]}><mesh geometry={slab} material={paper} position={[0, deckY, 0]} scale={[.3, height, .43]} />
-      <mesh geometry={deckBack} material={blue} position={[0, deckY + height / 2 + .006, 0]} rotation={[-Math.PI / 2, 0, 0]} />
-      <mesh geometry={deckMark} material={gold} position={[0, deckY + height / 2 + .007, 0]} rotation={[-Math.PI / 2, 0, Math.PI / 4]} /></group>}
+      <mesh geometry={deckBack} material={art.back} position={[0, deckY + height / 2 + .006, 0]} rotation={[-Math.PI / 2, 0, 0]} /></group>}
     {o && <><PublicCard card={o.topCard} surfaceY={mainPavilion ? 1.078 : 1.112} /><CardBacks players={o.players} surfaceY={mainPavilion ? 1.077 : 1.107} /></>}
   </group>
 }
