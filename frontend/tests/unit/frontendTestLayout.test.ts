@@ -2,9 +2,16 @@ import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'
 import { parseBindings, bindAnchor } from '../../src/network/tableBindings'
 import { TABLES } from '../../src/config'
-import { parkBindingsUrl } from '../../src/park/runtime/deployment'
+import { packagedParkBindings, parkBindingsUrl } from '../../src/park/runtime/deployment'
 
 describe('team frontend-test deployment isolation', () => {
+  it('packages the exact deployed layout without requiring a startup HTTP request', () => {
+    for (const host of ['dev.on-top.world', 'www.on-top.world', 'localhost', 'dev.on-top.world.example.com']) {
+      const file = host === 'dev.on-top.world' ? 'park-bindings.dev.json' : 'park-bindings.json'
+      expect(packagedParkBindings(false, host)).toEqual(JSON.parse(fs.readFileSync(`public/${file}`, 'utf8')))
+    }
+    expect(packagedParkBindings(true, 'dev.on-top.world')).toBeUndefined()
+  })
   it('keeps the team local IDs out of default and production mappings', () => {
     const defaults = JSON.parse(
       fs.readFileSync('public/park-bindings.json', 'utf8'),
@@ -54,16 +61,16 @@ describe('team frontend-test deployment isolation', () => {
   it('resolves the reported development server IDs independently of response order', () => {
     const config = JSON.parse(fs.readFileSync('public/park-bindings.dev.json', 'utf8'))
     const bindings = parseBindings(config.bindings)
-    // The authenticated development response supplied on 2026-10-23 lists table-2 first.
-    const serverIds = [
-      'table-69d1811f-c44e-32d4-bf72-1f4ebe5fb0dd',
-      'table-6fcc18fe-a301-3142-a69f-f3f67d026d62',
-    ]
-    expect(bindings).toHaveLength(2)
-    expect(bindAnchor(bindings, 'channel-1', 'table-1', serverIds)).toBe(serverIds[1])
-    expect(bindAnchor(bindings, 'channel-1', 'table-2', serverIds)).toBe(serverIds[0])
-    expect(bindAnchor(bindings, 'channel-1', 'table-3', serverIds)).toBeNull()
+    const supplied = JSON.parse(fs.readFileSync('../docs/integration/legacy-tables/bindings.dev.json', 'utf8'))
+    expect(config.bindings).toEqual(supplied.bindings)
+    expect(bindings).toHaveLength(16)
+    expect(new Set(bindings.map((b) => b.tableId)).size).toBe(16)
+    expect(new Set(bindings.map((b) => b.anchorId))).toEqual(new Set(TABLES.map((t) => t.id)))
+    const serverIds = bindings.map((b) => b.tableId).reverse()
+    for (const binding of bindings) {
+      expect(bindAnchor(bindings, 'channel-1', binding.anchorId, serverIds)).toBe(binding.tableId)
+      expect(bindAnchor(bindings, 'channel-1', binding.anchorId, serverIds.filter((id) => id !== binding.tableId))).toBeNull()
+    }
     expect(bindAnchor(bindings, 'channel-2', 'table-1', serverIds)).toBeNull()
-    expect(bindAnchor(bindings, 'channel-1', 'table-1', [serverIds[0]!])).toBeNull()
   })
 })

@@ -6,7 +6,7 @@ import {
   ConeGeometry,
   BoxGeometry,
 } from 'three'
-import { PILLARS, PAVILION, PAVILION_STEPS } from '../../config'
+import { PILLARS, PAVILION, PAVILION_STEPS, PARK_PAVILIONS } from '../../config'
 import { beam, Instances, type Part, type XYZ } from './Instances'
 import { SurfaceMaterial } from './SurfaceMaterial'
 import { BeveledBox } from './BeveledBox'
@@ -207,7 +207,7 @@ const roofAssets = [false, true].map((main) => {
     },
     { geometry: ribs, parts: main ? mainTiles : art.tiles, strength: 0.12 },
     { geometry: ends, parts: art.tileEnds, strength: 0.18 },
-  ])
+  ], [1, 1, 1], `pavilion-roof-${main}`)
   ribs.dispose()
   ends.dispose()
   return geometry
@@ -226,7 +226,7 @@ const finial = mergeSurfaceParts([
     parts: [{ p: [0, 6.83, -3], s: [1, 1, 1], c: '#697773' }],
     strength: 0,
   },
-])
+], [1, 1, 1], 'pavilion-finial')
 finialSphere.dispose()
 finialCone.dispose()
 const ceiling = new CylinderGeometry(3.8, 3.8, 0.28, 8)
@@ -258,10 +258,16 @@ function timberAsset(scale: number) {
         },
       ],
       [scale, scale, scale],
+      `pavilion-timber-${scale}`,
     )
     timberAssets.set(scale, geometry)
   }
   return geometry
+}
+
+/** Called by the Node build catalog; browser components retain lazy ownership. */
+export function prebuildStaticSurfaces() {
+  for (const scale of new Set([1, ...PARK_PAVILIONS.map(p => p.scale)])) timberAsset(scale)
 }
 
 export function Pavilion({

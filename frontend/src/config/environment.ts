@@ -1,7 +1,9 @@
 /** Art-direction proposals, not settled gameplay rules. All clocks use milliseconds. */
 export const ENVIRONMENT = {
+  timeZone: 'Asia/Seoul',
   dayDurationMs: 30 * 60_000,
-  epochMs: Date.UTC(2026, 0, 1),
+  // One shared Korean midnight, independent of the browser's local time zone.
+  epochMs: Date.parse('2026-01-01T00:00:00+09:00'),
   adDurationMs: 10_000,
   adFadeMs: 900,
   palette: {
@@ -18,6 +20,7 @@ export const ENVIRONMENT_QUALITY = {
   high: { lights: 7, fish: 28, droplets: 440, effectDistance: 110 },
 } as const
 export interface WorldEnvironmentConfig {
+  timeZone: 'Asia/Seoul'
   epochMs: number
   dayDurationMs: number
 }
@@ -82,7 +85,7 @@ export class EnvironmentClock {
     this.sampleAt = 0
   }
   sync(serverMs: number, monotonicMs: number, rttMs?: number) {
-    if (!Number.isFinite(serverMs) || serverMs <= 0) return
+    if (!Number.isFinite(serverMs) || serverMs <= 0) return false
     const firstMeasured = rttMs !== undefined && !this.measured
     const betterMeasured = rttMs !== undefined && rttMs < this.bestRtt * 0.5
     if (rttMs !== undefined) {
@@ -90,7 +93,7 @@ export class EnvironmentClock {
       // Prefer a recent low-RTT observation, but relearn changed routes after 30 seconds.
       const expired = monotonicMs - this.sampleAt > 30_000
       if (this.measured && !expired && rttMs > Math.max(250, this.bestRtt * 3))
-        return
+        return false
       this.bestRtt = expired ? rttMs : Math.min(this.bestRtt, rttMs)
       this.measured = true
       this.sampleAt = monotonicMs
@@ -106,6 +109,7 @@ export class EnvironmentClock {
         : predicted + (target - predicted) * 0.12
     this.at = monotonicMs
     this.ready = true
+    return true
   }
   now(monotonicMs: number) {
     this.last = Math.max(this.last, this.anchor + monotonicMs - this.at)

@@ -2,6 +2,8 @@ import { Vector3, type Group } from 'three'
 import type { AvatarSnapshot, Pose } from '../network/worldClient'
 import {
   AVATAR,
+  BENCH_PAVILIONS,
+  CHARACTER,
   FITNESS_STATIONS,
   NETWORK,
   characterGestureDuration,
@@ -12,6 +14,8 @@ import type { createCharacterRig } from './art/CharacterRig'
 import { createGait, pavingLift, sampleGait } from './art/characterMotion'
 import { sampleCharacterEmote } from './art/characterEmotes'
 import { createFitnessGrip } from './art/fitnessGrip'
+import { sampleDefeatMotion } from './art/defeatMotion'
+import type { DefeatReaction } from '../game/presentation/defeat'
 
 type Avatar = Pick<AvatarSnapshot,
   'connected' | 'moving' | 'running' | 'swimming' | 'seatIndex' |
@@ -22,6 +26,12 @@ type Rig = ReturnType<typeof createCharacterRig>
 const stations = new Map(FITNESS_STATIONS.map(station => [station.id, station]))
 const defaultDurationEmotes = new Set(['EMOTE_TSK', 'EMOTE_APPLAUSE_REQUEST', 'EMOTE_FART'])
 const supportedHipPoses = new Set(['rower', 'situp', 'inversion', 'legpress', 'pulldown'])
+const slattedBenches = new Set(BENCH_PAVILIONS.flatMap((pavilion, i) => pavilion ? [] : [`bench-${i}`]))
+
+/** ParkFurniture's slats top out at .58m; stone and pavilion seats at .56m. */
+export function avatarSeatSurface(benchId: string) {
+  return slattedBenches.has(benchId) ? 0.58 : CHARACTER.seatedHipHeight
+}
 
 /** Presentation precedence only. Occupancy/permissions come from the adapter. */
 export function avatarPoseKind(avatar: Avatar) {
@@ -51,13 +61,13 @@ export function avatarPoseKey(a: Avatar) {
 export function createAvatarMotion(model: Rig) {
   const fitness = createFitnessMotion(), gait = createGait()
   const grip = createFitnessGrip(), hipFit = new Vector3()
-  let phase = 0, move = 0, run = 0
+  let phase = 0, swimPhase = 0, move = 0, run = 0
   return {
-    apply(avatar: Avatar, now: number, delta: number, pose: Pose, figure: Group) {
+    apply(avatar: Avatar, now: number, delta: number, pose: Pose, figure: Group, reaction?: DefeatReaction | null) {
       const kind = avatarPoseKind(avatar)
       const seated = kind === 'seated'
       const age = avatarEmoteAge(avatar, now)
-      const moving = avatar.connected && avatar.moving && kind === 'ground' &&
+      const moving = avatar.connected && avatar.moving && (kind === 'ground' || kind === 'swimming') &&
         !(avatar.emote === 'EMOTE_CLAP' && age !== null)
       const dt = Math.max(0, Math.min(delta, 0.1)), alpha = 1 - Math.exp(-dt * 10)
       move += ((moving ? 1 : 0) - move) * alpha
@@ -88,17 +98,28 @@ export function createAvatarMotion(model: Rig) {
         set('lowerArm_R', -0.5)
         set('head', -avatar.telescopePitch * 0.4)
       } else if (kind === 'swimming') {
-        set('foot_L')
-        set('foot_R')
-        if (avatar.connected) phase += dt * (avatar.moving ? 2 : 1.5)
-        const stroke = Math.sin(phase)
-        figure.position.y = 0.45
-        figure.rotation.x = 1
-        set('upperArm_L', -1.4 + stroke * 0.65, 0, -0.35)
-        set('upperArm_R', -1.4 - stroke * 0.65, 0, 0.35)
-        set('upperLeg_L', 0.15 + stroke * 0.22)
-        set('upperLeg_R', 0.15 - stroke * 0.22)
-        set('head', -0.45)
+        // A dedicated crawl cycle must keep running without ground locomotion.
+        // Moving: alternating full strokes + flutter kick. Stopped: tread water.
+        if (avatar.connected) swimPhase = (swimPhase + dt * (2.8 + 4 * move + 1.5 * run)) % (Math.PI * 2)
+        const stroke = Math.sin(swimPhase), kick = Math.sin(swimPhase * 2)
+        const tilt = 0.18 + 1.12 * move
+        figure.rotation.set(tilt, 0, Math.cos(swimPhase) * 0.07 * move)
+        // Rotate around the pelvis, not the soles: no forward orbit or floating bob.
+        hipFit.set(0, model.hipHeight, 0).applyEuler(figure.rotation)
+        figure.position.set(-hipFit.x, 0.56 + 0.24 * move - hipFit.y, -hipFit.z)
+        for (const side of ['L', 'R'] as const) {
+          const sign = side === 'L' ? 1 : -1
+          const armPhase = swimPhase + (side === 'L' ? 0 : Math.PI)
+          // Positive X brings the arm forward over the shoulder on this rig.
+          set(`upperArm_${side}`, avatar.moving ? armPhase : -0.55 + stroke * 0.2,
+            0, -sign * (0.65 * (1 - move) + 0.15 * move))
+          set(`lowerArm_${side}`, -0.35 - Math.max(0, Math.sin(armPhase)) * 0.95)
+          set(`upperLeg_${side}`, 0.12 + sign * kick * (0.1 + 0.14 * move))
+          set(`lowerLeg_${side}`, 0.18 + Math.max(0, -sign * kick) * 0.3)
+          set(`foot_${side}`, -0.18)
+          model.handPose(side, 'cup')
+        }
+        set('head', -0.12 - 0.95 * move)
       } else if (kind === 'fitness') {
         set('foot_L')
         set('foot_R')
@@ -124,6 +145,7 @@ export function createAvatarMotion(model: Rig) {
         if (avatar.emote === 'EMOTE_FART') figure.rotation.x = Math.sin(Math.PI * age / NETWORK.emoteDurationMs) * 0.12
         sampleCharacterEmote(avatar.emote, age, model)
       }
+      if (reaction && avatar.connected && (kind === 'ground' || seated) && !avatar.moving) sampleDefeatMotion(reaction.kind, now - reaction.at, model)
       model.apply(delta)
       if (kind === 'ground' || kind === 'telescope') {
         figure.position.y = pavingLift(pose.x, pose.z, pose.y - 0.8) + model.groundShift() + 0.003

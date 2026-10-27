@@ -137,13 +137,22 @@ public class GameResultService {
             return;
         }
         GameResultView result = event.result();
+        RuntimeException failure = null;
         for (Slot slot : connections.values()) {
             if (slot.userId != result.userId()
                     || result.version() <= slot.versions.getOrDefault(result.gameSessionId(), -1L)) {
                 continue;
             }
-            remember(slot, result);
-            slot.output.accept(new Delivery(null, result, null));
+            try {
+                slot.output.accept(new Delivery(null, result, null));
+                // 전송 인계에 실패한 연결의 version을 앞당기면 outbox 재전달이 차단된다.
+                remember(slot, result);
+            } catch (RuntimeException exception) {
+                failure = exception;
+            }
+        }
+        if (failure != null) {
+            throw failure;
         }
     }
 

@@ -3,7 +3,6 @@ import { WORLD, PARK_SIZE, PARK_ZONES, NETWORK } from '../../park/mapConfig'
 import { avatars, useSession } from '../../network/worldClient'
 import { inputState } from '../../world/inputOwnership'
 import { ParkMapBackground } from './ParkMapBackground'
-import { placeMapMarkers } from './mapMarkers'
 import { PARK_DESTINATIONS, type Destination } from './parkNavigation'
 import { useNavigation, cancelNavigation, useParkMap, openParkMap, closeParkMap, selectDestination } from './navigationState'
 import './navigation.css'
@@ -26,6 +25,7 @@ export function ParkMap() {
     if (s.status === 'connected' && s.mapCompatible) selectDestination(target, s.sessionId, s.roomId)
   }
   const chooseZone = (zone: typeof PARK_ZONES[number]) => choose({ ...PARK_DESTINATIONS[zone.id]!, name: zoneName(zone) + ' · 입구/주변' })
+  const selectedZone = destination ? PARK_ZONES.find(zone => PARK_DESTINATIONS[zone.id]?.x === destination.x && PARK_DESTINATIONS[zone.id]?.z === destination.z)?.id : undefined
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.repeat || event.isComposing || event.keyCode === 229 || event.ctrlKey || event.metaKey || event.altKey) return
@@ -82,9 +82,14 @@ export function ParkMap() {
       else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus()}
     }}>
       {open && <>
-        <div className="park-map-heading"><strong>공원 지도</strong><button aria-label="지도 닫기" onClick={closeParkMap}>×</button></div>
-        <p className="park-map-note">북쪽 ↑ · 장소나 지도 위 지점을 눌러 길 안내</p>
-        {!compatible && <p role="alert">현재 서버의 맵 버전을 확인하지 못해 길 안내를 사용할 수 없어요.</p>}
+        <header className="park-map-heading">
+          <span className="park-map-heading__icon" aria-hidden="true"><img src={mapIcon} alt="" /></span>
+          <div><h2>공원 지도</h2><p>장소나 지도 위 지점을 누르면 가는 길을 바닥에 표시해요</p></div>
+          <button className="park-map-close" aria-label="지도 닫기" onClick={closeParkMap}>×</button>
+        </header>
+        {!compatible && <p className="park-map-alert" role="alert">현재 서버의 맵 버전을 확인하지 못해 길 안내를 사용할 수 없어요.</p>}
+        <div className="park-map-body">
+        <figure className="park-map-figure">
         <svg viewBox={`${-WORLD.halfSize - 10} ${-WORLD.halfSize - 10} ${PARK_SIZE + 20} ${PARK_SIZE + 20}`} role="group" aria-label="공원 구역과 현재 위치" onClick={event => {
           const matrix = event.currentTarget.getScreenCTM(); if (!matrix) return
           const point = new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix.inverse())
@@ -92,23 +97,39 @@ export function ParkMap() {
         }}>
           <ParkMapBackground />
           {path.length > 1 && <polyline className="navigation-map-route" points={path.map(p => `${p.x},${p.z}`).join(' ')} fill="none" stroke="#06bfc1" strokeWidth={2} strokeLinejoin="round" pointerEvents="none" />}
-          {destination && <circle cx={destination.x} cy={destination.z} r={4} fill="#06bfc1" stroke="#fff" strokeWidth={1.5} pointerEvents="none" />}
-          {PARK_ZONES.map((zone,index) => <g key={zone.id} role="button" tabIndex={compatible ? 0 : -1} aria-disabled={!compatible} aria-label={`${zoneName(zone)} 길 안내`} style={{cursor:compatible?'pointer':'default'}} onClick={event=>{event.stopPropagation();chooseZone(zone)}} onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();event.stopPropagation();chooseZone(zone)}}}>
-            <circle cx={zone.x} cy={zone.z} r={5.5} fill="#294d40" /><text x={zone.x} y={zone.z+2.2} textAnchor="middle" fill="#fff9e1" fontSize={6.5}>{index+1}</text>
+          {destination && <circle cx={destination.x} cy={destination.z} r={3.2} fill="#06bfc1" stroke="#fff" strokeWidth={1.2} pointerEvents="none" />}
+          {/* Everyone else at their live position (no offset or tether), drawn under the zone buttons so those stay clickable. */}
+          {players.map(player=><g key={player.id} role="img" aria-label={`${player.nickname} 위치`} tabIndex={0} onClick={event=>event.stopPropagation()} onMouseEnter={()=>setHovered(player.id)} onMouseLeave={()=>setHovered('')} onFocus={()=>setHovered(player.id)} onBlur={()=>setHovered('')}>
+            <circle cx={player.x} cy={player.z} r={3.2} fill="#efb84f" stroke="#fff9e7" strokeWidth={1.2}/><title>{player.nickname}</title>
           </g>)}
-          {position && <circle aria-label="현재 내 위치" cx={position.x} cy={position.z} r={3} fill="#267cef" stroke="white" strokeWidth={2} />}
-          {placeMapMarkers(players,position,PARK_ZONES).map(player=>{
-            const x=player.drawX,z=player.drawZ,offset=x!==player.x||z!==player.z
-            return <g key={player.id}>
-              {offset&&<line x1={player.x} y1={player.z} x2={x} y2={z} stroke="#896e3f" strokeWidth={0.7} pointerEvents="none"/>}
-              <g role="img" aria-label={`${player.nickname} 위치`} tabIndex={0} onClick={event=>event.stopPropagation()} onMouseEnter={()=>setHovered(player.id)} onMouseLeave={()=>setHovered('')} onFocus={()=>setHovered(player.id)} onBlur={()=>setHovered('')}>
-                <circle cx={x} cy={z} r={4.3} fill="#efb84f" stroke="#fff9e7" strokeWidth={1.5}/><title>{player.nickname}</title>
-              </g>
-            </g>
-          })}
+          {PARK_ZONES.map((zone,index) => <g key={zone.id} className="park-map-zone" data-selected={zone.id===selectedZone} role="button" tabIndex={compatible ? 0 : -1} aria-disabled={!compatible} aria-label={`${zoneName(zone)} 길 안내`} style={{cursor:compatible?'pointer':'default'}} onClick={event=>{event.stopPropagation();chooseZone(zone)}} onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();event.stopPropagation();chooseZone(zone)}}}>
+            <circle cx={zone.x} cy={zone.z} r={4.2} /><text x={zone.x} y={zone.z+1.75} textAnchor="middle" fontSize={5}>{index+1}</text>
+          </g>)}
+          {position && <circle aria-label="현재 내 위치" cx={position.x} cy={position.z} r={2.6} fill="#267cef" stroke="white" strokeWidth={1.6} />}
         </svg>
+        {/* Legend and compass share the strip under the map, so neither covers it. */}
+        <figcaption className="park-map-footer">
+          <span className="park-map-legend"><span><i data-kind="me" />내 위치</span><span><i data-kind="player" />다른 이용자</span><span><i data-kind="target" />목적지</span></span>
+          <svg className="park-map-compass" viewBox="0 0 48 48" role="img" aria-label="북쪽이 지도 위쪽">
+            <circle cx="24" cy="24" r="21" className="park-map-compass__ring" />
+            <path d="M24 17 28.5 27 19.5 27Z" className="park-map-compass__north" />
+            <path d="M24 40 28.5 27 19.5 27Z" className="park-map-compass__south" />
+            <text x="24" y="14" textAnchor="middle" className="park-map-compass__label">N</text>
+          </svg>
+        </figcaption>
+        </figure>
+        <div className="park-map-side">
+          {destination && <section className="park-map-route" aria-label="안내 중인 목적지">
+            <small>길 안내 중</small><b>{destination.name}</b>
+            <button type="button" onClick={cancelNavigation}>안내 취소</button>
+          </section>}
+          <h3>장소 바로가기</h3>
+          <div className="map-destinations">{PARK_ZONES.map((zone,index)=><button key={zone.id} className="map-destination" aria-label={`${index+1}. ${zoneName(zone)}`} aria-pressed={zone.id===selectedZone} disabled={!compatible} onClick={()=>chooseZone(zone)}>
+            <span aria-hidden="true">{index+1}</span>{zoneName(zone)}
+          </button>)}</div>
         <p className="park-map-hover" role="status">{hovered?`${players.find(p=>p.id===hovered)?.nickname??'이용자'} · 현재 위치`:'\u00a0'}</p>
-        <div className="map-destinations">{PARK_ZONES.map((zone,index)=><button key={zone.id} className="map-destination" disabled={!compatible} onClick={()=>chooseZone(zone)}>{index+1}. {zoneName(zone)}</button>)}</div>
+        </div>
+        </div>
         <p className="park-map-note">M / Esc로 닫고 직접 이동해요. 전망대는 지상 입구까지, 장애물 지점은 통행 가능한 주변 약 3m까지 안내해요.</p>
       </>}
     </dialog>

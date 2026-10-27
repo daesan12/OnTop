@@ -147,6 +147,8 @@ export function AvatarOverlayPositions({
         }
       }
       const visibility = visible ? 'visible' : 'hidden'
+      const opacity = String(rig?.root.userData.appearanceOpacity ?? 1)
+      if (element.style.opacity !== opacity) element.style.opacity = opacity
       if (!visible) avatarScreenPositions.delete(id)
       if (element.style.visibility !== visibility)
         element.style.visibility = visibility

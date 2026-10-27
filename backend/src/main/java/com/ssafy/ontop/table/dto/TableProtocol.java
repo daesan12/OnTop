@@ -50,6 +50,7 @@ public final class TableProtocol {
             throw new RequestException(requestId, "UNSUPPORTED_MESSAGE_TYPE", "지원하지 않는 메시지입니다.");
         }
         boolean valid = switch (type) {
+            case "WORLD_TIME_CHECK" -> fields(payload, Set.of());
             case "WORLD_MAP_CONFIRM" -> fields(payload, Set.of("mapId", "schemaVersion", "mapVersion"))
                     && payload.path("mapId").isTextual()
                     && payload.path("mapId").asText().matches("[A-Za-z0-9_-]{1,80}")
@@ -92,6 +93,14 @@ public final class TableProtocol {
                     && !payload.get("tableId").textValue().isBlank();
             case "READY_SET" -> validReady(payload);
             case "GAME_SELECT" -> validGameSelection(payload);
+            case "TABLE_CONFIGURE" -> validTableConfiguration(payload);
+            case "TABLE_HOST_WAIT_CHECK" -> fields(payload, Set.of());
+            case "TABLE_START" -> fields(payload, Set.of("actionId", "expectedVersion"))
+                    && payload.path("actionId").isTextual() && !payload.path("actionId").asText().isBlank()
+                    && payload.path("actionId").asText().length() <= 64
+                    && payload.path("expectedVersion").isIntegralNumber() && payload.path("expectedVersion").canConvertToLong()
+                    && payload.path("expectedVersion").asLong() >= 0
+                    && payload.path("expectedVersion").asLong() <= 9_007_199_254_740_991L;
             case "TABLE_LEAVE", "TABLE_UNWATCH" -> fields(payload, Set.of());
             case "GAME_START_CHECK" -> fields(payload, Set.of());
             case "GAME_RECONNECT_CHECK" -> fields(payload, Set.of());
@@ -115,6 +124,15 @@ public final class TableProtocol {
                     && payload.path("gameId").asText().length() <= 120
                     && payload.path("actionId").isTextual() && !payload.path("actionId").asText().isBlank()
                     && payload.path("actionId").asText().length() <= 64;
+            case "GAME_SPECTATOR_CHAT_SEND" -> fields(payload, Set.of("gameId", "eventId", "text"))
+                    && validGameId(payload) && validEventId(payload) && validChatText(payload.get("text"));
+            case "OMOK_SPECTATOR_PING_SEND" -> fields(payload, Set.of("gameId", "eventId", "basedOnVersion", "x", "y"))
+                    && validGameId(payload) && validEventId(payload)
+                    && payload.path("basedOnVersion").isIntegralNumber()
+                    && payload.path("basedOnVersion").canConvertToLong()
+                    && payload.path("basedOnVersion").longValue() >= 0
+                    && payload.path("basedOnVersion").longValue() <= 9_007_199_254_740_991L
+                    && omokPoint(payload.path("x")) && omokPoint(payload.path("y"));
             case "GAME_STATE_CHECK", "GAME_WATCH" -> fields(payload, Set.of("gameId"))
                     && payload.get("gameId").isTextual()
                     && !payload.get("gameId").textValue().isBlank()
@@ -133,6 +151,22 @@ public final class TableProtocol {
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException("서버 메시지 직렬화 실패", exception);
         }
+    }
+
+    private boolean validGameId(JsonNode payload) {
+        return payload.path("gameId").isTextual() && !payload.path("gameId").textValue().isBlank()
+                && payload.path("gameId").textValue().length() <= 120;
+    }
+
+    // 클라이언트 발급 UUID. 기존 followId와 같은 소문자 정규 형식만 받는다.
+    private boolean validEventId(JsonNode payload) {
+        return payload.path("eventId").isTextual() && payload.path("eventId").textValue().matches(
+                "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}");
+    }
+
+    // 오목판 교차점(x=열, y=행). 7.0 같은 실수 표기와 문자열은 받지 않는다.
+    private boolean omokPoint(JsonNode value) {
+        return value.isIntegralNumber() && value.canConvertToInt() && value.intValue() >= 0 && value.intValue() <= 14;
     }
 
     private boolean validLease(JsonNode payload) {
@@ -171,6 +205,22 @@ public final class TableProtocol {
         return fields(payload, Set.of("gameCode", "targetScore", "betAmountPerPlayer")) && payload.path("gameCode").asText().equals("DICE")
                 && payload.path("targetScore").isIntegralNumber() && payload.path("targetScore").canConvertToInt()
                 && Set.of(2000, 4000, 6000).contains(payload.path("targetScore").intValue());
+    }
+
+    private boolean validTableConfiguration(JsonNode payload) {
+        Set<String> keys = payload.has("targetScore")
+                ? Set.of("gameCode", "selectedPlayers", "betAmountPerPlayer", "expectedVersion", "targetScore")
+                : Set.of("gameCode", "selectedPlayers", "betAmountPerPlayer", "expectedVersion");
+        if (!fields(payload, keys) || !payload.path("selectedPlayers").isIntegralNumber()
+                || !payload.path("selectedPlayers").canConvertToInt()
+                || payload.path("selectedPlayers").asInt() < 2 || payload.path("selectedPlayers").asInt() > 4
+                || !payload.path("expectedVersion").isIntegralNumber() || !payload.path("expectedVersion").canConvertToLong()
+                || payload.path("expectedVersion").asLong() < 0 || payload.path("expectedVersion").asLong() > 9_007_199_254_740_991L) {
+            return false;
+        }
+        var selection = payload.deepCopy();
+        ((com.fasterxml.jackson.databind.node.ObjectNode) selection).remove(java.util.List.of("selectedPlayers", "expectedVersion"));
+        return validGameSelection(selection);
     }
 
     public String error(String requestId, String code, String message) {

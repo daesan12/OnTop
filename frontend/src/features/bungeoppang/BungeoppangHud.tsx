@@ -1,6 +1,9 @@
 import { useEffect, useState, type CSSProperties } from "react";
-import { BUNGEOPPANG } from "./config";
+import { BUNGEOPPANG, bungeoppangV4Preview } from "./config";
+import { BREAD_NAMES, BREAD_TOOLS, BREAD_FILLINGS, orderReady, trayCounts, orderSize, type BreadTool } from './rulesV4';
 import type { GrillSlot } from "./rules";
+import { heatLook } from './presentation';
+import { BreadToken, CustomerScene, FeedbackFlights, ToolFeedback, TrashBin, ingredientStyle } from './BungeoppangFeedback';
 import { inputState } from "../../world/inputOwnership";
 import { useSession } from "../../network/worldClient";
 import {
@@ -22,11 +25,18 @@ import {
   setBungeoppangHelp,
   setBungeoppangTool,
   startBungeoppang,
-  submitBungeoppang,
   useBungeoppang,
+  isV4Grill,
+  cycleBungeoppangTool,
+  deliverBungeoppangOrder,
+  discardBungeoppangTray,
+  requestBungeoppangOrder,
+  syncBungeoppangTime,
   type BungPopup,
 } from "./store";
 import "./bungeoppang.css";
+import "./bungeoppangFeedback.css";
+import { BungeoppangResult } from './BungeoppangResult';
 
 const R = BUNGEOPPANG;
 const SLOT_CODES = ["KeyQ", "KeyW", "KeyE", "KeyA", "KeyS", "KeyD"];
@@ -58,17 +68,31 @@ export function BungeoppangHud() {
   return (
     <div className="bung-root" data-phase={phase} aria-label="붕어빵 굽기">
       {playing && <PlayHud />}
+      {playing && <OrderTray />}
       {playing && <SlotOverlays />}
+      <TimeSyncStatus />
       <Popups />
+      <FeedbackFlights />
       <TipBubble />
       {phase === "start" && <StartPanel />}
       {phase === "countdown" && <Countdown />}
       {phase === "ending" && <div className="bung-big-text">끝!</div>}
-      {phase === "result" && <ResultPanel />}
+      {phase === "result" && <BungeoppangResult />}
       <ExitConfirm />
+      {bungeoppangV4Preview && <div className="bung-preview-note">v4 개발 미리보기 · 실제 엽전 지급 없음</div>}
       {phase !== 'leaving' && <button className="bung-help-button" onClick={() => setBungeoppangHelp(true)}>F1 조작 안내</button>}
     </div>
   );
+}
+
+function TimeSyncStatus() {
+  const pending = useBungeoppang(s => s.timeSyncPending);
+  const error = useBungeoppang(s => s.timeSyncError);
+  if (!pending && !error) return null;
+  return <div className="bung-time-sync" role="status">
+    {pending ? '게임 시간을 확인하고 있어요…' : error}
+    {!pending && error && <button type="button" onClick={() => void syncBungeoppangTime()}>시간 다시 확인</button>}
+  </div>;
 }
 
 function useMinigameInput(active: boolean) {
@@ -76,9 +100,12 @@ function useMinigameInput(active: boolean) {
     if (!active) return;
     let wheelSum = 0,
       wheelLock = 0;
+    let composing = false;
+    const compositionStart = () => { composing = true; wheelSum = 0; };
+    const compositionEnd = () => { composing = false; };
     const keydown = (event: KeyboardEvent) => {
       if (
-        typing() ||
+        typing() || composing ||
         event.isComposing ||
         event.keyCode === 229 ||
         event.ctrlKey ||
@@ -104,9 +131,15 @@ function useMinigameInput(active: boolean) {
         if (!event.repeat) setBungeoppangTool("batter");
         return;
       }
-      if (event.code === "Digit1" || event.code === "Numpad1") {
+      const digit = /^(?:Digit|Numpad)([1-4])$/.exec(event.code);
+      if (digit) {
         consume();
-        setBungeoppangTool("bean");
+        if (!event.repeat) setBungeoppangTool(BREAD_FILLINGS[Number(digit[1]) - 1]!);
+        return;
+      }
+      if (event.code === 'KeyR' && isV4Grill(useBungeoppang.getState().grill)) {
+        consume();
+        if (!event.repeat) deliverBungeoppangOrder();
         return;
       }
       const slot = SLOT_CODES.indexOf(event.code);
@@ -127,26 +160,31 @@ function useMinigameInput(active: boolean) {
       if (
         inputState.manualOpen ||
         inputState.chatOpen ||
-        typing() ||
-        document.querySelector('dialog[open], [role="dialog"]')
+        typing() || composing || useBungeoppang.getState().confirmExit ||
+        document.querySelector('dialog[open], [role="dialog"], [role="alertdialog"]')
       )
         return;
       // 게임 중 휠은 카메라 줌·화면 스크롤 대신 재료 바꾸기다.
       event.preventDefault();
+      event.stopImmediatePropagation();
       if (useBungeoppang.getState().phase !== "play") return;
       const now = performance.now();
       if (now < wheelLock) return;
       wheelSum += event.deltaY;
       if (Math.abs(wheelSum) >= 40) {
-        setBungeoppangTool(wheelSum > 0 ? "bean" : "batter");
+        cycleBungeoppangTool(wheelSum);
         wheelSum = 0;
         wheelLock = now + 150;
       }
     };
     window.addEventListener("keydown", keydown, true);
+    window.addEventListener('compositionstart', compositionStart, true);
+    window.addEventListener('compositionend', compositionEnd, true);
     window.addEventListener("wheel", wheel, { capture: true, passive: false });
     return () => {
       window.removeEventListener("keydown", keydown, true);
+      window.removeEventListener('compositionstart', compositionStart, true);
+      window.removeEventListener('compositionend', compositionEnd, true);
       window.removeEventListener("wheel", wheel, true);
     };
   }, [active]);
@@ -167,6 +205,7 @@ function PlayHud() {
   const score = useBungeoppang((s) => s.grill?.score ?? 0);
   const combo = useBungeoppang((s) => s.grill?.combo ?? 0);
   const tool = useBungeoppang((s) => s.tool);
+  const v4 = useBungeoppang((s) => isV4Grill(s.grill));
   const t = clock.t;
   const warn = phase === "play" && t >= R.rushWarnFromMs && t < R.rushFromMs;
   const rush = phase !== "countdown" && t >= R.rushFromMs;
@@ -207,33 +246,64 @@ function PlayHud() {
       )}
       <div className="bung-tools" aria-label="손에 든 재료">
         <span className="bung-tools-label">손에 든 재료</span>
-        <button
-          type="button"
-          data-active={tool === "batter"}
-          onClick={() => setBungeoppangTool("batter")}
-          tabIndex={-1}
-        >
-          반죽 <kbd>Space</kbd>
-        </button>
-        <button
-          type="button"
-          data-active={tool === "bean"}
-          onClick={() => setBungeoppangTool("bean")}
-          tabIndex={-1}
-        >
-          팥 <kbd>1</kbd>
-        </button>
+        {(v4 ? BREAD_TOOLS : ['batter', 'bean'] as const).map((item, i) => <button
+          key={item} type="button" data-active={tool === item} aria-pressed={tool === item} style={ingredientStyle(item)}
+          onClick={() => setBungeoppangTool(item)} tabIndex={-1}>
+          <i className="bung-ingredient-dot" aria-hidden="true" />{BREAD_NAMES[item]} <kbd>{i === 0 ? 'Space' : i}</kbd>
+        </button>)}
         <span className="bung-tools-label">휠 위·아래로도 바꿔요</span>
       </div>
+      {v4 && <ToolFeedback />}
     </>
   );
 }
 
-function actionLabel(slot: GrillSlot, tool: "batter" | "bean") {
+function OrderTray() {
+  const grill = useBungeoppang(s => s.grill);
+  const phase = useBungeoppang(s => s.phase);
+  const pending = useBungeoppang(s => s.orderPending);
+  const error = useBungeoppang(s => s.orderError);
+  const blocked = useBungeoppang(s => s.confirmExit || s.helpOpen || s.abandonPending);
+  const rules = useBungeoppang(s => s.rules);
+  if (!isV4Grill(grill)) return null;
+  const order = grill.order, counts = trayCounts(grill);
+  const ready = orderReady(grill), active = phase === 'play' && !blocked;
+  return <>
+    <section className="bung-customer bung-panel" aria-label="손님 주문" data-customer={grill.orderIndex + 1}>
+      <h2>{grill.orderIndex + 1}번 손님</h2>
+      <CustomerScene index={grill.orderIndex} hasOrder={!!order} ready={ready} pending={pending} />
+      {order ? <>
+        <p>총 {orderSize(order)}개 부탁해요!</p>
+        <ul>{BREAD_FILLINGS.filter(f => order.items[f] > 0).map(f => <li key={f} data-ready={counts[f] >= order.items[f]}>
+          <span style={ingredientStyle(f)}><i className="bung-ingredient-dot" aria-hidden="true" />{BREAD_NAMES[f]} {order.items[f]}개</span><small>준비 {Math.min(counts[f], order.items[f])}/{order.items[f]}</small>
+          {(f === 'pizza' || f === 'chocolate') && <small>납품 보너스 +{rules.specialBonusPercent}%</small>}
+        </li>)}</ul>
+      </> : <p role="status">{pending ? '다음 손님 주문을 받는 중…' : '다음 주문 대기'}</p>}
+      {error && <p className="bung-error" role="alert">{error} <button disabled={!active || pending} onClick={() => void requestBungeoppangOrder()}>주문 다시 받기</button></p>}
+      <button className="bung-primary" disabled={!active || !ready || pending || !!error} onClick={deliverBungeoppangOrder}>주문 전달하기 <kbd>R</kbd></button>
+      <p>{ready ? '쟁반에서 주문 수량만 전달해요' : '종류와 수량을 모두 맞춰요'}</p>
+    </section>
+    <section className="bung-tray bung-panel" aria-label="완성품 쟁반" data-count={grill.tray.length}>
+      <h2>완성품 쟁반 <small>{grill.tray.length}/{rules.trayCapacity}</small></h2>
+      <ol>{Array.from({ length: rules.trayCapacity }, (_, i) => {
+        const bread = grill.tray[i];
+        return <li key={bread?.id ?? `empty-${i}`} data-filling={bread?.filling ?? 'empty'} data-tray-bread-id={bread?.id} style={bread ? ingredientStyle(bread.filling) : undefined}>{bread ? <>
+          <BreadToken tool={bread.filling} />
+          <span>{BREAD_NAMES[bread.filling]}<small>{bread.points}점 보관</small></span>
+          <button aria-label={`쟁반 ${i + 1} ${BREAD_NAMES[bread.filling]} 버리기`} disabled={!active} onClick={() => discardBungeoppangTray(i)}>버리기</button>
+        </> : <span><small>{i + 1}</small>빈 자리</span>}</li>;
+      })}</ol>
+      <p>{grill.tray.length === rules.trayCapacity ? '가득 찼어요. 전달하거나 버려요.' : '미리 구워도 좋아요. 전달해야 득점!'}</p>
+      <TrashBin />
+    </section>
+  </>;
+}
+
+function actionLabel(slot: GrillSlot, tool: BreadTool) {
   if (slot.phase === "empty")
     return tool === "batter" ? ["반죽 붓기", true] : ["반죽부터", false];
   if (slot.phase === "batter")
-    return tool === "bean" ? ["팥 넣기", true] : ["팥으로 바꾸기", false];
+    return tool !== "batter" ? [`${BREAD_NAMES[tool]} 넣기`, true] : ["소로 바꾸기", false];
   return slot.phase === "front" ? ["뒤집기", true] : ["꺼내기 (뒷면)", true];
 }
 function SlotOverlays() {
@@ -243,23 +313,33 @@ function SlotOverlays() {
   const firstGame = useBungeoppang((s) => s.firstGame);
   const phase = useBungeoppang((s) => s.phase);
   const confirmExit = useBungeoppang((s) => s.confirmExit);
+  const rules = useBungeoppang(s => s.rules);
   if (!slots) return null;
   return (
     <>
       {slots.map((slot, i) => {
+        const heat = heatLook(slot.heat, clock.t, rules);
         const [label, ok] = actionLabel(slot, tool);
         const showLabel =
-          phase === "play" && !confirmExit && (hover === i || firstGame);
+          phase === "play" && !confirmExit && (hover === i || (firstGame && i === 0 && slot.phase === 'empty'));
         return (
           <div
             key={i}
             className="bung-slot"
+            data-row={i < 3 ? 'back' : 'front'}
             ref={(el) => {
               slotOverlayEls[i] = el;
             }}
           >
             <span className="bung-slot-key">{R.slotKeys[i]}</span>
-            {showLabel && (
+            {'filling' in slot && slot.filling && <>
+              <span className="bung-slot-filling" style={ingredientStyle(slot.filling)}><i className="bung-ingredient-dot" aria-hidden="true" />{BREAD_NAMES[slot.filling]}{hover === i && <em> · {slot.phase === 'front' ? '뒤집기' : '꺼내기'}</em>}</span>
+              <span className="bung-heat" data-heat={heat.band} data-rush={heat.rush}>
+                <span className="bung-flames" aria-hidden="true">{[1, 2, 3].map(n => <i key={n} data-lit={n <= heat.flames} />)}</span>
+                <b>{heat.label} {slot.heat}%</b><small className="bung-heat-speed">굽기 ×{heat.speed.toFixed(2)}</small>
+              </span>
+            </>}
+            {showLabel && !('filling' in slot && slot.filling) && (
               <span className="bung-slot-label" data-ok={ok}>
                 {label}
               </span>
@@ -269,9 +349,10 @@ function SlotOverlays() {
               <i />
               <i />
             </span>
-            <span className="bung-gauge" aria-hidden="true">
+            <span className="bung-gauge" role="progressbar" aria-label={`${R.slotKeys[i]} 현재 면 익힘`} aria-valuemin={0} aria-valuemax={100}>
               <span className="bung-gauge-fill" />
             </span>
+            <span className="bung-cook-readout" />
           </div>
         );
       })}
@@ -323,16 +404,17 @@ function TipBubble() {
 }
 
 function Steps() {
+  const v4 = useBungeoppang(s => s.status?.rulesVersion === 'v4');
   return (
     <ol className="bung-steps">
       <li>
         반죽 <kbd>Space</kbd>
       </li>
       <li>
-        팥 <kbd>1</kbd>
+        {v4 ? '소 선택' : '팥'} <kbd>{v4 ? '1~4' : '1'}</kbd>
       </li>
       <li>뒤집기</li>
-      <li>꺼내기</li>
+      <li>{v4 ? '쟁반 → R 전달' : '꺼내기'}</li>
     </ol>
   );
 }
@@ -347,6 +429,7 @@ function StartPanel() {
     <section className="bung-panel bung-start" aria-label="붕어빵 굽기 시작">
       <h2>붕어빵 굽기</h2>
       <Steps />
+      {status?.rulesVersion === 'v4' && <p>빵마다 랜덤 불! 주문은 한 손님 최대 4개 · 쟁반 4자리 · 60초 동안 전달해요.</p>}
       <p className="bung-keys-line">
         칸은 클릭 또는 Q W E A S D · 재료는 휠로도 바꿔요
       </p>
@@ -388,7 +471,7 @@ function StartPanel() {
 function Countdown() {
   useTick(100);
   const c = clock.countdown;
-  const text = c > 2500 ? "3" : c > 1500 ? "2" : c > 500 ? "1" : "시작!";
+  const text = clock.preparing ? '준비 중…' : c > 2500 ? "3" : c > 1500 ? "2" : c > 500 ? "1" : "시작!";
   return (
     <div className="bung-big-text" aria-live="assertive">
       {text}
@@ -426,101 +509,6 @@ function ExitConfirm() {
             계속하기
           </button>
         </div>
-      </section>
-    </div>
-  );
-}
-
-function ResultPanel() {
-  const grill = useBungeoppang((s) => s.grill);
-  const result = useBungeoppang((s) => s.result);
-  const submitting = useBungeoppang((s) => s.submitting);
-  const submitError = useBungeoppang((s) => s.submitError);
-  const status = useBungeoppang((s) => s.status);
-  const starting = useBungeoppang((s) => s.starting);
-  const startError = useBungeoppang((s) => s.startError);
-  const walletError = useBungeoppang(s => s.walletError);
-  if (!grill) return null;
-  const summary = result ?? grill;
-  const items: [string, number | string][] = [
-    ["만든 개수", summary.made],
-    ["양면 황금", summary.golden],
-    ["0점", summary.failed],
-    ["버린 개수", summary.wasted],
-    ["최고 콤보", summary.maxCombo],
-    ["엽전 환산", `${R.pointsPerCoin}점당 1냥`],
-  ];
-  const today = result?.todayEarned ?? status?.todayEarned;
-  return (
-    <div className="bung-dim">
-      <section className="bung-panel bung-result" aria-label="결과">
-        <header>
-          <h2>오늘의 장사</h2>
-          <span>
-            {result ? '서버 확정 점수' : '미리보기 점수'} <b>{result?.score ?? grill.score}</b>
-          </span>
-        </header>
-        <div className="bung-grid">
-          {items.map(([label, value]) => (
-            <div key={label}>
-              <small>{label}</small>
-              <b>{value}</b>
-            </div>
-          ))}
-        </div>
-        <div className="bung-coins">
-          <span>
-            받은 엽전{" "}
-            <b>
-              {result
-                ? `${result.coinsGranted}냥`
-                : submitError
-                  ? "-"
-                  : "정산 중…"}
-            </b>
-          </span>
-          <span>
-            오늘 번 엽전 <b>{today ?? "…"}</b> / {R.dailyCoinCap}냥
-          </span>
-        </div>
-        {result?.capReached && (
-          <p className="bung-cap">오늘 장사는 끝! 게임은 계속할 수 있어요</p>
-        )}
-        {submitError && (
-          <p className="bung-error" role="alert">
-            {submitError.message}{" "}
-            {submitError.retryable && !submitting && (
-              <button
-                type="button"
-                className="bung-link"
-                onClick={() => void submitBungeoppang()}
-              >
-                다시 시도
-              </button>
-            )}
-          </p>
-        )}
-        {startError && <p className="bung-error">{startError}</p>}
-        {walletError && <p className="bung-error" aria-live="polite">{walletError} <button onClick={() => void refreshBungeoppangWallet()}>잔액 다시 확인</button></p>}
-        <footer>
-          <span>{result ? '서버 정산 완료' : '서버 결과 확인 중'}</span>
-          <span className="bung-row">
-            <button type="button" onClick={escapeBungeoppang}>
-              나가기
-            </button>
-            <button
-              type="button"
-              className="bung-primary"
-              disabled={starting || submitting || (!result && submitError?.retryable !== false)}
-              onClick={(e) => {
-                e.currentTarget.blur();
-                void startBungeoppang();
-              }}
-            >
-              {starting ? "준비 중…" : "다시 하기"}
-            </button>
-          </span>
-        </footer>
       </section>
     </div>
   );

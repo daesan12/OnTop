@@ -5,6 +5,7 @@ import com.ssafy.ontop.world.config.WorldChannelProperties.Channel;
 import com.ssafy.ontop.world.movement.MoveInput;
 import com.ssafy.ontop.world.movement.ParkScene;
 import com.ssafy.ontop.world.movement.WorldPhysics;
+import com.ssafy.ontop.world.map.WorldMapRuntime;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -20,6 +21,11 @@ import org.springframework.stereotype.Service;
 @Service
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 public class WorldChannelRegistry implements ChannelPresence {
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(WorldChannelRegistry.class);
+    private long physicsTick;
+    private TickTiming lastTiming = new TickTiming(0, 0, 0, 0, 0);
+    public record TickTiming(long tick, long schedulerLagNanos, int steps, long processingNanos, int worldPatches) {}
+    public synchronized TickTiming lastTickTiming() { return lastTiming; }
 
     private final Map<String, Room> rooms = new LinkedHashMap<>();
     private final Map<String, String> membership = new HashMap<>();
@@ -33,10 +39,16 @@ public class WorldChannelRegistry implements ChannelPresence {
         this(properties, Duration.ofMillis(50));
     }
 
-    @Autowired
     public WorldChannelRegistry(WorldChannelProperties properties,
             @Value("${ontop.world.movement.minimum-interval:50ms}") Duration minimumInterval) {
         this(properties, minimumInterval, System::nanoTime);
+    }
+
+    @Autowired
+    public WorldChannelRegistry(WorldChannelProperties properties,
+            @Value("${ontop.world.movement.minimum-interval:50ms}") Duration minimumInterval,
+            WorldMapRuntime runtime) {
+        this(properties, minimumInterval, System::nanoTime, runtime.scene());
     }
 
     public WorldChannelRegistry(WorldChannelProperties properties, Duration minimumInterval, LongSupplier nanoTime) {
@@ -78,10 +90,11 @@ public class WorldChannelRegistry implements ChannelPresence {
         if (room.users.size() >= room.definition.capacity()) {
             throw new ChannelException("CHANNEL_FULL", "채널의 빈자리가 없습니다.");
         }
-        if (room.physics == null) {
-            room.physics = new WorldPhysics(scene.get());
-        }
+        long started = System.nanoTime();
+        boolean cold = room.physics == null;
+        if (cold) { room.physics = new WorldPhysics(scene.get()); }
         room.physics.add(userId);
+        log.debug("공원 진입 물리 준비 cold={} elapsedMs={}", cold, (System.nanoTime() - started) / 1_000_000.0);
         room.users.add(userId);
         room.positions.put(userId, new Movement(position(room.physics.snapshot(userId)), Long.MIN_VALUE));
         membership.put(userId, channelId);
@@ -268,7 +281,10 @@ public class WorldChannelRegistry implements ChannelPresence {
         if (steps == 0) {
             return List.of();
         }
+        long processingStarted = System.nanoTime();
+        long schedulerLag = Math.max(0, now - lastStep - WorldPhysics.STEP_NANOS);
         for (int i = 0; i < steps; i++) {
+            physicsTick++;
             long tick = now - (steps - i - 1) * WorldPhysics.STEP_NANOS;
             for (Room room : rooms.values()) {
                 if (room.physics != null) {
@@ -304,6 +320,11 @@ public class WorldChannelRegistry implements ChannelPresence {
         }
         if (now - lastPatch >= 100_000_000L) {
             lastPatch = now;
+        }
+        lastTiming = new TickTiming(physicsTick, schedulerLag, steps, System.nanoTime() - processingStarted, changes.size());
+        if (!changes.isEmpty()) {
+            log.debug("공원 물리/방송 준비 tick={} steps={} schedulerLagMs={} processingMs={} patches={}",
+                    physicsTick, steps, schedulerLag / 1_000_000.0, lastTiming.processingNanos() / 1_000_000.0, changes.size());
         }
         return List.copyOf(changes);
     }

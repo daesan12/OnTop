@@ -55,7 +55,7 @@ class LoginTableFlowTests {
     void 로그인조회부터_채널격리_착석준비_무응답정리까지_목록에반영한다() throws Exception {
         var before = list("channel-1");
         String tableId = before.get(0).path("tableId").asText();
-        assertThat(before.size()).isEqualTo(2);
+        assertThat(before.size()).isEqualTo(16);
         assertThat(tableId).startsWith("table-");
         assertThat(list("channel-1")).isEqualTo(before); // 읽기로 좌석/버전이 변하지 않는다.
         assertThat(list("channel-2").get(0).path("tableId").asText()).isNotEqualTo(tableId);

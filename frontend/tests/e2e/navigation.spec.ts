@@ -6,6 +6,7 @@ const map=(page:Page)=>page.getByRole('dialog',{name:'공원 지도창',exact:tr
 const guide=(page:Page)=>page.getByRole('region',{name:'내 길 안내',exact:true})
 async function loaded(page:Page){await page.goto('/park');await expect(page).toHaveTitle('OnTop');await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({timeout:90000});await page.locator('canvas').focus()}
 async function select(page:Page,name:string,status='guiding'){await page.keyboard.press('KeyM');await expect(map(page)).toBeVisible();await map(page).getByRole('button',{name:new RegExp(name+' 길 안내$')}).click();if(status==='guiding')await expect(map(page).locator('.navigation-map-route')).toHaveCount(1);await page.keyboard.press('KeyM');await expect(map(page)).toHaveCount(0);await expect(guide(page)).toHaveAttribute('data-status',status)}
+const arrows=(page:Page)=>page.evaluate(async()=>(await import('/tests/e2e/sceneProbe.ts' as string)).routeArrowsProbe() as number)
 const nav=(page:Page)=>page.evaluate(async()=>{const s=(await import('/src/features/navigation/navigationState.ts' as string)).useNavigation.getState();return {...s}})
 
 test('M15 original map, authoritative positions, zone/list selection and cancellation never send movement/game/navigation actions',async({page})=>{
@@ -16,7 +17,7 @@ test('M15 original map, authoritative positions, zone/list selection and cancell
   await expect(map(page).getByLabel('현재 내 위치')).toHaveAttribute('cx','0')
   await expect(map(page).getByLabel('현재 내 위치')).toHaveAttribute('cy','34')
   await expect(map(page).getByRole('img',{name:/위치$/})).toHaveCount(7)
-  await map(page).getByRole('img',{name:/산책자 102 위치/}).click();expect((await nav(page)).target).toBeNull()
+  await map(page).getByRole('img',{name:/산책자 102 위치/}).focus();await expect(map(page).getByRole('status').filter({hasText:'산책자 102 · 현재 위치'})).toBeVisible();expect((await nav(page)).target).toBeNull()
   await map(page).getByRole('button',{name:'소리함 길 안내',exact:true}).focus();await page.keyboard.press('Enter')
   await expect(map(page).locator('.navigation-map-route')).toHaveCount(1)
   expect((await nav(page)).target).toMatchObject({x:-10.8,z:16,name:'소리함 · 입구/주변'})
@@ -27,9 +28,12 @@ test('M15 original map, authoritative positions, zone/list selection and cancell
   await page.getByRole('button',{name:'지도 닫기',exact:true}).click();await expect(map(page)).toHaveCount(0)
   await expect(page.getByRole('button',{name:'공원 지도',exact:true})).toBeFocused()
   await expect(guide(page)).toHaveAttribute('data-status','guiding');await expect(guide(page)).toContainText('직접 이동')
+  // The route is painted on the ground ahead of the avatar while guiding, and cleared with the guidance.
+  await expect.poll(()=>arrows(page)).toBeGreaterThan(0)
   await screenshot(page,'m15-navigation-hud')
   await guide(page).getByRole('button',{name:'길 안내 취소'}).click();await expect(guide(page)).toHaveCount(0)
   expect((await nav(page)).path).toEqual([])
+  await expect.poll(()=>arrows(page)).toBe(0)
   expect(server.sent.some(m=>/NAVIGATION|MAP|TELEPORT/.test(m.type))).toBe(false)
   await expect(page.locator('vite-error-overlay')).toHaveCount(0);expect(errors).toEqual([])
 })

@@ -1,10 +1,12 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { parkMapGenerationPlugin } from './scripts/park-map-vite-plugin.ts'
+import { parkGeometryPlugin } from './scripts/parkGeometryPlugin.ts'
+import { parkBindingsPlugin } from './scripts/parkBindingsPlugin.ts'
 
 export default defineConfig(({mode})=>({
   define:mode==='park-integration'?{'import.meta.env.VITE_PARK_MAP':JSON.stringify('generated')}:undefined,
-  plugins: [react(),parkMapGenerationPlugin()],
+  plugins: [react(),parkMapGenerationPlugin(),parkGeometryPlugin(),parkBindingsPlugin()],
   server: {
     proxy: {
       '/ws/tables': { target: process.env.API_PROXY_TARGET ?? 'http://127.0.0.1:8080', ws: true },

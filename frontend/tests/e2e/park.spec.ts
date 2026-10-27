@@ -24,12 +24,13 @@ test('park shares one socket for chat, input and server-confirmed table seats', 
   await page.keyboard.press('Enter')
   const input = page.getByLabel('주변 채팅 메시지')
   await expect(input).toBeFocused()
-  const before = server.sent.filter((m) => m.type === 'WORLD_MOVE').length
+  const before = server.sent.length
   await input.fill('한글 👋 <b>그대로</b>')
   await page.waitForTimeout(150)
-  expect(server.sent.filter((m) => m.type === 'WORLD_MOVE')).toHaveLength(
-    before,
-  )
+  // Focus changes may flush a rate-limited stop. Chat must suppress movement
+  // and jumps, while still allowing the server to receive that final stop.
+  for (const message of server.sent.slice(before).filter(m => m.type === 'WORLD_MOVE'))
+    expect(message.payload).toMatchObject({ dx: 0, dz: 0, run: false, jump: false })
   await input.press('Enter')
   await expect(page.locator('.park-chat__message')).toHaveCount(1)
   await expect(page.locator('.park-chat__message')).toContainText(

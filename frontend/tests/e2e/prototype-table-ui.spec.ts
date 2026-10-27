@@ -1,12 +1,10 @@
 import { expect, test, type Page } from '@playwright/test'
 import { fixture, screenshot } from './contractFixture'
 import { TABLES } from '../../src/config'
-import fs from 'node:fs/promises'
-import path from 'node:path'
 
 const together = (p: Page) => p.getByRole('region', { name: '테이블 함께 보기', exact: true })
 const lobby = (p: Page) => p.getByRole('dialog', { name: '테이블 정보', exact: true })
-const probe = (p: Page, action?: 'primary' | 'settings') => p.evaluate(async a => (await import('/tests/e2e/sceneProbe.ts' as string)).gatheringProbe(a), action)
+const probe = (p: Page) => p.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).gatheringProbe())
 
 type ContractServer = Awaited<ReturnType<typeof fixture>>
 const names = { OMOK: '오목', DICE: '주사위 한 판', ONE_CARD: '원카드', LIAR_BRIDGE: '거짓말 다리 건너기' } as const
@@ -86,8 +84,7 @@ for (const code of ['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE'] as const) test(`2
   else if (code === 'DICE') server.diceSnapshot({ status: 'FINISHED', stage: 'FINISHED', turnUserId: null, turnDeadline: null, winnerUserId: '101', endReason: 'TARGET_REACHED', endedAt: new Date().toISOString() })
   else server.finishGame()
   await expect(together(page)).toContainText('경기 결과')
-  await expect.poll(async () => (await probe(page)).present).toBe(true)
-  expect(await probe(page)).toMatchObject({ meshes: 2, triangles: 14 })
+  await expect.poll(async () => (await probe(page)).present).toBe(false)
   await expect(together(page)).toContainText('승리')
   await expect(together(page).getByRole('button', { name: '다음 판 준비', exact: true })).toHaveCount(0)
   await together(page).getByRole('button', { name: '정산 결과 확인' }).click()
@@ -102,12 +99,44 @@ for (const code of ['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE'] as const) test(`2
   await together(page).getByRole('button', { name: '다음 판 준비' }).click()
   await expect(lobby(page).getByRole('button', { name: '준비', exact: true })).toBeEnabled()
   await expect.poll(async () => (await probe(page)).present).toBe(false)
-  expect((await probe(page)).disposed).toEqual({ geometry: 2, material: 2, texture: 1 })
   expect(server.sent.slice(before).some(m => /READY|START|LEAVE|FORFEIT/.test(m.type))).toBe(false)
   await lobby(page).getByRole('button', { name: '일어나기', exact: true }).click()
   await expect(together(page)).toHaveCount(0)
   expect(server.maxActive).toBe(1); expect(errors).toEqual([])
   await expect(page.locator('vite-error-overlay')).toHaveCount(0)
+})
+
+test('INVALID server result overrides a PLAYING engine; query after WAITING survives late and duplicate notifications', async ({ page }) => {
+  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message))
+  const server = await fixture(page, { omok: true, m09: true })
+  await load(page); await selectGame(page, server, 'OMOK', 7); await setReady(page, server, true)
+  server.confirmStart()
+  await expect(page.locator('.prototype-game')).toBeVisible()
+  const pending = server.storeInvalidResult()
+  server.notifyResult(pending)
+  await expect(together(page)).toContainText('무효 경기')
+  await expect(together(page)).toContainText('판정 없음')
+  await expect(together(page)).toContainText('참가비 7 코인 예약금 반환 대기')
+  await expect(together(page)).not.toContainText('무승부')
+  await expect(together(page)).not.toContainText('승리')
+  await expect.poll(async () => (await probe(page)).present).toBe(false)
+  expect(await page.evaluate(async () => (await import('/src/world/gameReactions.ts' as string)).reactionFor('101'))).toBeNull()
+  const settled = server.storeInvalidResult('SETTLED')
+  server.nextRound() // DB is settled, but the SETTLED notification has not reached this browser.
+  await expect.poll(() => page.evaluate(async () => (await import('/src/game/store.ts' as string)).useGame.getState().game)).toBeNull()
+  await together(page).getByRole('button', { name: '정산 결과 확인', exact: true }).click()
+  await expect(together(page)).toContainText('예약 해제 완료 · 참가비 7 코인 · 잔액 변화 0')
+  expect(server.sent.filter(m => m.type === 'GAME_RESULT_CHECK').at(-1)?.payload).toEqual({ gameSessionId: settled.gameSessionId })
+  server.notifyResult(pending); server.notifyResult(settled); server.notifyResult(settled)
+  await expect(together(page)).toContainText('예약 해제 완료')
+  await expect(together(page)).not.toContainText('예약금 반환 대기')
+  await together(page).getByRole('button', { name: '다음 판 준비', exact: true }).click()
+  server.notifyResult(settled)
+  await expect(lobby(page)).toBeVisible(); await expect(together(page)).toHaveCount(0)
+  await expect(lobby(page).getByRole('region', { name: '지난 판 결과', exact: true })).toHaveCount(0)
+  await expect(lobby(page).getByLabel('1인 참가비', { exact: true })).toHaveValue('7')
+  await expect.poll(async () => (await probe(page)).present).toBe(false)
+  expect(errors).toEqual([])
 })
 
 test('2D preparation keeps ready/cancel and host controls on the existing server connection', async ({ page }) => {
@@ -150,9 +179,10 @@ for (const code of ['ONE_CARD', 'DICE', 'LIAR_BRIDGE'] as const) for (const size
   await screenshot(page, `prototype-${code}-${size.width}`)
 })
 
-test('pavilion preparation uses the panel while the 3D result preserves its controls and restores roaming', async ({ page }) => {
+for (const size of [{ width: 1280, height: 720 }, { width: 1000, height: 700 }]) test(`pavilion results keep the table clear and edge HUD controls reachable at ${size.width}×${size.height}`, async ({ page }) => {
   test.setTimeout(120_000)
-  await page.setViewportSize({ width: 1280, height: 720 })
+  const errors: string[] = []; page.on('pageerror', e => errors.push(e.message)); page.on('console', m => { if (m.type() === 'error') errors.push(m.text()) })
+  await page.setViewportSize(size)
   const anchor = TABLES.find(t => t.pavilionId === 'P1')!
   const server = await fixture(page, { omok: true, m09: true, onecard: 4, players: 12, anchorId: anchor.id })
   await load(page, anchor.id)
@@ -162,14 +192,18 @@ test('pavilion preparation uses the panel while the 3D result preserves its cont
   await setReady(page, server, true); server.confirmStart()
   server.cardSnapshot({ status: 'FINISHED', stage: 'FINISHED', turnUserId: null, turnDeadline: null, winnerUserIds: ['101'], endReason: 'EMPTY_HAND', endedAt: new Date().toISOString() })
   await expect(together(page)).toBeVisible()
-  await expect.poll(async () => (await probe(page)).present).toBe(true)
+  await expect.poll(async () => (await probe(page)).present).toBe(false)
   await page.waitForTimeout(1500)
   const before = await probe(page); expect(before.ownVisible).toBe(true)
-  const samples = []
-  for (const visible of [false, true, false, true]) samples.push(await page.evaluate(async value => (await import('/tests/e2e/sceneProbe.ts' as string)).measureGathering(value), visible))
-  if (process.env.QA_ARTIFACT_DIR) await fs.writeFile(path.join(process.env.QA_ARTIFACT_DIR, 'gathering-render-cost.json'), JSON.stringify({ viewport: page.viewportSize(), samples }, null, 2))
-  await screenshot(page, 'prototype-pavilion-result')
-  const settings = (await probe(page, 'settings')).point!; await page.mouse.click(settings.x, settings.y)
+  const actions = await page.locator('.gathering-actions').boundingBox(), dock = await page.locator('.park-quick-dock').boundingBox()
+  expect(actions!.x + actions!.width).toBeLessThan(dock!.x)
+  const chat = await page.locator('.park-chat').boundingBox()
+  expect(chat!.x + chat!.width).toBeLessThan(actions!.x)
+  await screenshot(page, `prototype-pavilion-result-${size.width}`)
+  await page.getByRole('button', { name: '채팅 입력창 열기', exact: true }).click()
+  await expect(page.locator('.park-chat input')).toBeFocused()
+  await page.keyboard.press('Escape')
+  await together(page).getByRole('button', { name: '결과 자세히', exact: true }).click()
   await expect(page.getByRole('region', { name: '경기 결과 상세', exact: true })).toBeVisible()
   await page.getByRole('button', { name: '테이블 함께 보기', exact: true }).click()
   await together(page).getByRole('button', { name: '주변 둘러보기' }).click()
@@ -180,4 +214,5 @@ test('pavilion preparation uses the panel while the 3D result preserves its cont
   await together(page).getByRole('button', { name: '자리에서 일어나기' }).click()
   await expect.poll(async () => (await probe(page)).present).toBe(false)
   expect(server.sent.some(m => /FORFEIT|RESIGN|REMATCH/.test(m.type))).toBe(false)
+  expect(errors).toEqual([]); await expect(page.locator('vite-error-overlay')).toHaveCount(0)
 })

@@ -63,9 +63,12 @@ export interface Result {
   gameSessionId: string
   gameCode: string
   status: 'FINISHED' | 'INVALID'
+  endReason: string
   settlementStatus: 'PENDING' | 'SETTLED'
+  betAmountPerPlayer: number
   myCoinDelta: number | null
-  participants: { userId: string; result: string }[]
+  participants: { userId: string; result: string | null }[]
+  endedAt: string
 }
 export const id = (v: unknown): v is string =>
   typeof v === 'string' && !!v.trim() && v.length <= 120
@@ -221,6 +224,7 @@ export function parseResult(p: Record<string, unknown>, ownId: string): Result {
     !integer(p.version) ||
     !['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE'].includes(String(p.gameCode)) ||
     !['FINISHED', 'INVALID'].includes(String(p.status)) ||
+    typeof p.endReason !== 'string' || !/^[A-Z][A-Z0-9_]{0,31}$/.test(p.endReason) ||
     !['PENDING', 'SETTLED'].includes(String(p.settlementStatus)) ||
     !integer(p.betAmountPerPlayer) ||
     p.betAmountPerPlayer < 1 ||
@@ -228,13 +232,15 @@ export function parseResult(p: Record<string, unknown>, ownId: string): Result {
     !Array.isArray(p.participants) ||
     p.participants.length < 2 ||
     p.participants.length > 4 ||
-    !p.participants.every((v) => record(v) && id(v.userId) && id(v.result)) ||
+    !p.participants.every((v) => record(v) && id(v.userId)
+      && (id(v.result) || (p.status === 'INVALID' && v.result === null))) ||
     new Set(p.participants.map((v) => v.userId)).size !==
       p.participants.length ||
     !p.participants.some((v) => v.userId === ownId) ||
     (p.settlementStatus === 'PENDING'
       ? p.myCoinDelta !== null
-      : !Number.isSafeInteger(p.myCoinDelta))
+      : !Number.isSafeInteger(p.myCoinDelta)) ||
+    (p.status === 'INVALID' && p.settlementStatus === 'SETTLED' && p.myCoinDelta !== 0)
   )
     throw new Error('경기 정산 결과 형식이 올바르지 않습니다.')
   return {
@@ -242,11 +248,14 @@ export function parseResult(p: Record<string, unknown>, ownId: string): Result {
     gameSessionId: p.gameSessionId,
     gameCode: String(p.gameCode),
     status: p.status as Result['status'],
+    endReason: p.endReason,
     settlementStatus: p.settlementStatus as Result['settlementStatus'],
+    betAmountPerPlayer: p.betAmountPerPlayer,
     myCoinDelta: p.myCoinDelta as number | null,
+    endedAt: p.endedAt,
     participants: p.participants.map((v) => ({
       userId: String(v.userId),
-      result: String(v.result),
+      result: v.result === null ? null : String(v.result),
     })),
   }
 }

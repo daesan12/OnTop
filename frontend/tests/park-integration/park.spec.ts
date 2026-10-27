@@ -4,6 +4,7 @@ import path from 'node:path'
 import os from 'node:os'
 import {parkFixture,identity} from './fixture'
 import {PARK_DATA} from '../../src/map/park'
+import {TABLES,tableSeats} from '../../src/park/mapConfig'
 const state=(page:Page)=>page.evaluate(async()=>(await import('/tests/park-integration/probe.ts' as string)).probe())
 async function shot(page:Page,name:string){const dir=process.env.QA_ARTIFACT_DIR??path.join(os.tmpdir(),'ontop-park-qa');await fs.mkdir(dir,{recursive:true});await page.screenshot({path:path.join(dir,name+'.png')})}
 
@@ -11,7 +12,7 @@ test('generated park waits for approval, renders 16 mapped tables, and supports 
  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message))
  const server=await parkFixture(page,{holdConfirmation:true})
  await page.goto('/park');await expect(page).toHaveTitle('OnTop')
- await expect.poll(()=>server.requests[0]?.type).toBe('WORLD_MAP_CONFIRM')
+ await expect.poll(()=>server.requests.find(r=>r.type==='WORLD_MAP_CONFIRM')?.type).toBe('WORLD_MAP_CONFIRM')
  expect(server.requests.some(r=>r.type==='CHANNEL_JOIN')).toBe(false)
  server.approve()
  await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({timeout:90000})
@@ -35,14 +36,15 @@ test('generated park waits for approval, renders 16 mapped tables, and supports 
  await expect.poll(async()=>(await state(page)).pose!.z).toBeLessThan(before-1)
  await page.keyboard.up('KeyW')
  const t=PARK_DATA.tables.find(t=>t.id==='table-16')!
- server.place({x:t.position[0],y:t.position[1]+.8,z:t.position[2]+3})
+ const seat=tableSeats(TABLES.find(t=>t.id==='table-16')!)[0]!
+ server.place({x:t.position[0]+seat.x,y:t.position[1]+.8,z:t.position[2]+seat.z+.6})
  await page.evaluate(async()=>(await import('/tests/park-integration/probe.ts' as string)).inspect('table-16'))
- const lobby=page.getByRole('dialog',{name:'테이블 정보',exact:true})
- await expect(lobby).toBeVisible();await lobby.getByRole('button',{name:'앉기',exact:true}).click()
+ const lobby=page.getByRole('dialog',{name:'게임 태블릿',exact:true})
+ await expect(lobby).toBeVisible()
  await expect.poll(async()=>(await state(page)).session.tableId).not.toBe('')
  await lobby.getByRole('button',{name:'일어나기',exact:true}).click()
  await expect.poll(async()=>(await state(page)).session.tableId).toBe('')
- await lobby.getByRole('button',{name:'테이블 정보 닫기'}).click()
+ await expect(lobby).toBeHidden()
  const bench=PARK_DATA.interactions.benches[0]!
  server.place({x:bench.position[0],y:bench.position[1]+.8,z:bench.position[2]})
  const hint=page.getByRole('complementary',{name:'가까운 상호작용'})

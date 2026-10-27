@@ -5,6 +5,8 @@ vi.resetModules()
 const map=await import('../../src/park/mapConfig')
 const {PARK_DATA,PARK_LAYOUT}=await import('../../src/map/park')
 const {LIVE_MAP_IDENTITY}=await import('../../src/network/mapContract')
+const {canReachTable}=await import('../../src/features/tableLobby/tableReach')
+const {packagedParkBindings}=await import('../../src/park/runtime/deployment')
 const {PARK_MAP_VERSION}=await import('../../src/map/park/generated/mapVersion')
 const {benchAnchors}=await import('../../src/features/interactions/benchAnchors')
 const {parseBindings,bindAnchor}=await import('../../src/network/tableBindings')
@@ -46,4 +48,11 @@ it('allows navigation across both generated lake crossings',()=>{
     const path=findParkRoute({x:c.startX-1,z:c.z},{x:c.endX+1,z:c.z})
     expect(path,c.id).not.toBeNull()
   }
+})
+
+it('uses generated anchors for the new tablet and keeps legacy packaged bindings out of generated builds',()=>{
+  expect(packagedParkBindings(false,'dev.on-top.world')).toBeUndefined()
+  const table=map.TABLES.find(t=>t.id==='table-16')!
+  expect(canReachTable({x:table.position[0],y:table.position[1]+.8,z:table.position[2]},table.id)).toBe(true)
+  expect(canReachTable({x:0,y:.8,z:0},table.id)).toBe(false)
 })

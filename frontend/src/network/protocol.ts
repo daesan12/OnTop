@@ -49,6 +49,8 @@ export interface TableSummary {
   betAmountPerPlayer: number | null
   status: string
   gameId?: string | null
+  selectedPlayers?: number | null
+  startMode?: 'AUTO' | 'MANUAL'
 }
 export interface TableState {
   tableId: string
@@ -62,6 +64,8 @@ export interface TableState {
   targetScore: number | null
   betAmountPerPlayer: number | null
   gameId?: string | null
+  selectedPlayers?: number | null
+  startMode?: 'AUTO' | 'MANUAL'
 }
 // Older servers omit the field. Missing never grants a watch; malformed IDs are rejected.
 const publicGameId = (v: unknown) => v == null || typeof v === 'string' && !!v.trim() && v.length <= 120
@@ -89,6 +93,12 @@ export function userProfile(value: unknown) {
 }
 const text = (x: unknown): x is string => typeof x === 'string' && x.length > 0
 const publicBet = (x: unknown) => x == null || integer(x) && Number(x) > 0
+function validTableMode(value: Record<string, unknown>) {
+  return (value.startMode === undefined || value.startMode === 'AUTO' || value.startMode === 'MANUAL')
+    && (value.startMode === 'MANUAL'
+      ? integer(value.selectedPlayers) && value.selectedPlayers >= 2 && value.selectedPlayers <= 4 && value.selectedPlayers === value.capacity
+      : value.selectedPlayers == null)
+}
 export function parseEnvelope(data: unknown): Envelope {
   // A full 174-seat facility snapshot exceeds 64 KiB; other message limits stay unchanged.
   if (typeof data !== 'string' || data.length > 262_144)
@@ -170,7 +180,7 @@ export function tableSummary(value: unknown): TableSummary {
     value.occupiedSeats + value.availableSeats !== value.capacity ||
     typeof value.joinable !== 'boolean' ||
     !(value.gameCode === null || text(value.gameCode)) ||
-    !text(value.status) || !publicGameId(value.gameId) || !publicBet(value.betAmountPerPlayer)
+    !text(value.status) || !publicGameId(value.gameId) || !publicBet(value.betAmountPerPlayer) || !validTableMode(value)
   )
     throw new Error('테이블 목록 형식이 올바르지 않습니다.')
   return { ...value, gameId: value.gameId ?? null, betAmountPerPlayer: value.betAmountPerPlayer ?? null } as unknown as TableSummary
@@ -193,7 +203,7 @@ export function tableState(value: Record<string, unknown>): TableState {
         typeof s.ready === 'boolean' &&
         (s.userId !== null || s.ready === false),
     ) ||
-    typeof value.allReady !== 'boolean' || !publicGameId(value.gameId) || !publicBet(value.betAmountPerPlayer) ||
+    typeof value.allReady !== 'boolean' || !publicGameId(value.gameId) || !publicBet(value.betAmountPerPlayer) || !validTableMode(value) ||
     !(value.selectorUserId === null || text(value.selectorUserId)) ||
     !(value.gameCode === null || text(value.gameCode)) ||
     !(

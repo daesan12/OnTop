@@ -1,7 +1,6 @@
-import { FITNESS, FITNESS_STATIONS, GOMOKU, TABLES, TELESCOPES, TELESCOPE, MAILBOX, tableScale } from '../../park/mapConfig'
+import { FITNESS, FITNESS_STATIONS, TABLES, TELESCOPES, TELESCOPE, MAILBOX } from '../../park/mapConfig'
 import { avatars, useSession } from '../../network/worldClient'
 import { tableBusy, useGame } from '../../game/store'
-import { parkRuntime } from '../../park/runtime/runtime'
 import { panelOwnsKeys, roamingInput } from '../../world/inputOwnership'
 import { benchAnchors, canReachBench } from './benchAnchors'
 import { facilityAvailable, facilityMovementBlocked, useFacilityState } from '../facilities/state'
@@ -25,6 +24,9 @@ import { openNotes } from '../notes/controller'
 import { canReachBungeoppang } from '../bungeoppang/access'
 import { openBungeoppang } from '../bungeoppang/store'
 import { MINI_PROPS } from '../../park/mapConfig'
+import { TABLET_ENABLED } from '../tableLobby/tabletFeature'
+import { interactWithTable } from '../tableLobby/tableInteraction'
+import { canReachTable } from '../tableLobby/tableReach'
 
 export interface ParkInteraction {
   kind: 'bench' | 'table' | 'fitness' | 'telescope' | 'feedback' | 'notes' | 'bungeoppang'
@@ -94,9 +96,8 @@ export function getParkInteraction(): ParkInteraction | null {
   }
   for (const table of TABLES) {
     const distance = Math.hypot(p.current.x - table.position[0], p.current.z - table.position[2])
-    if (distance > GOMOKU.interactionRadius * tableScale(table)
-      || Math.abs(p.current.y - table.position[1] - 0.8) > 0.7) continue
-    choices.push({ kind: 'table', id: table.id, label: '테이블 정보 보기', occupied: false, available: true,
+    if (!canReachTable(p.current, table.id)) continue
+    choices.push({ kind: 'table', id: table.id, label: TABLET_ENABLED ? '테이블에 앉기' : '테이블 정보 보기', occupied: false, available: true,
       distance, score: interactionScore(distance, { x: table.position[0], y: table.position[1] + 0.65, z: table.position[2] }) })
   }
   return choices.filter(c => Number.isFinite(c.score)).sort((a, b) => a.score - b.score || a.distance - b.distance
@@ -106,7 +107,7 @@ export function interactWithPark(): boolean {
   const target = getParkInteraction()
   if (!target) return false
   if (target.kind === 'bungeoppang') openBungeoppang()
-  else if (target.kind === 'table') parkRuntime.inspectTable(target.id)
+  else if (target.kind === 'table') interactWithTable(target.id)
   else if (target.kind === 'notes') openNotes()
   else if (target.kind === 'feedback') openFeedback()
   else if (target.kind === 'telescope' && target.available && !target.occupied) void enterTelescope(target.id)

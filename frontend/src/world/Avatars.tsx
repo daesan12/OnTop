@@ -1,20 +1,22 @@
 import { gatheringCameraActive } from '../features/tableLobby/gathering'
-import { useLayoutEffect, useMemo, useRef } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { useFrame, useLoader } from '@react-three/fiber'
 import { Group, Vector3 } from 'three'
 import { ParkAssetLoader } from './art/assetLoader'
-import { characterUrls, createCharacterRig } from './art/CharacterRig'
-import { avatarPoseActive, avatarPoseKey, createAvatarMotion } from './avatarMotion'
+import { characterUrls, createCharacterRig } from './worldAssets'
+import { avatarPoseActive, avatarPoseKey, avatarSeatSurface, createAvatarMotion } from './avatarMotion'
 import { SwimmingRipples } from './SwimmingRipples'
 
 import { AvatarPoseCadence } from '../performance/avatarPoseCadence'
 import { CHARACTER } from '../config'
 import { FartCloud } from './art/FartCloud'
-import { bungeoppangView } from '../features/bungeoppang/bungeoppangView'
+import { bungeoppangReturnOpacity } from '../features/bungeoppang/bungeoppangView'
+import { createAvatarOpacity } from './avatarOpacity'
 import { emptyEquipment } from '../network/equipment'
 import { roamingFirstPerson } from './roamingCamera'
 import { useGame } from '../game/store'
 import { openAvatarMenu } from '../features/follow/FollowMenu'
+import { gameReaction, installGameReactions } from './gameReactions'
 
 import {
   AvatarOverlayPositions,
@@ -49,6 +51,8 @@ function Avatar({
   const worldPosition = useMemo(() => new Vector3(), [])
   const motion = useMemo(() => createAvatarMotion(model), [model])
   const cadence = useMemo(() => new AvatarPoseCadence(), [])
+  const appearance = useMemo(() => createAvatarOpacity(model.root), [model])
+  const reducedMotion = useMemo(() => window.matchMedia('(prefers-reduced-motion: reduce)'), [])
   useLayoutEffect(() => {
     rigs.set(id, {
       root: root.current!,
@@ -56,23 +60,26 @@ function Avatar({
     })
     return () => {
       rigs.delete(id)
+      appearance.dispose()
       model.dispose()
     }
-  }, [id, rigs, model])
+  }, [id, rigs, model, appearance])
   useFrame(({ camera }, delta) => {
     const avatar = avatars.get(id)
     if (!avatar || !root.current || !figure.current) return
-    sampleAvatar(avatar, performance.now(), pose)
+    const frameAt = performance.now()
+    sampleAvatar(avatar, frameAt, pose)
     const seated = avatar.seatIndex >= 0
     const own = id === useSession.getState().sessionId
     // Hide only this client's own model; other clients retain the full avatar.
-    const cookingHidden = (own && (bungeoppangView.active || performance.now() < bungeoppangView.returningUntil))
-      || (bungeoppangView.active && Math.hypot(pose.x - bungeoppangView.standX, pose.z - bungeoppangView.standZ) < bungeoppangView.hideOthersRadius)
-    root.current.visible = !cookingHidden && !(own && (((avatar.tableId && seated && !gatheringCameraActive() || avatar.benchId && seated) || avatar.telescopeId)
+    const opacity = own ? bungeoppangReturnOpacity(frameAt, reducedMotion.matches) : 1
+    root.current.visible = opacity > 0 && !(own && (((avatar.tableId && seated && !gatheringCameraActive() || avatar.benchId && seated) || avatar.telescopeId)
       || roamingFirstPerson(avatar, !!useGame.getState().watchedGameId)))
+    appearance.set(root.current.visible ? opacity : 1)
+    root.current.userData.appearanceOpacity = root.current.visible ? opacity : 0
     root.current.position.set(
       pose.x,
-      pose.y - 0.8 + (seated ? CHARACTER.seatedHipHeight - model.hipHeight : 0),
+      pose.y - 0.8 + (seated ? avatarSeatSurface(avatar.benchId) + model.seatedHipLift - model.hipHeight : 0),
       pose.z,
     )
     root.current.rotation.y = pose.yaw
@@ -82,7 +89,8 @@ function Avatar({
     )
     model.lod(distance)
     const now = estimatedServerTime()
-    const active = avatarPoseActive(avatar, now)
+    const reaction = gameReaction(id, avatar, now)
+    const active = !!reaction || avatarPoseActive(avatar, now)
     // Keep the authoritative position interpolation above at display cadence.
     // State changes (seat, action, reconnect) must never wait for the next pose tick.
     const poseDelta = cadence.advance(
@@ -90,10 +98,18 @@ function Avatar({
       distance,
       own,
       active,
-      avatarPoseKey(avatar),
+      `${avatarPoseKey(avatar)}|${reaction?.key ?? ''}`,
     )
     if (!poseDelta) return
-    motion.apply(avatar, now, poseDelta, pose, figure.current)
+    motion.apply(avatar, now, poseDelta, pose, figure.current, reaction)
+    // Follow the posed head when swimming; a tilted standing-height marker
+    // otherwise puts the nickname in front of the swimmer's face/water.
+    model.bones.head.getWorldPosition(worldPosition)
+    root.current.worldToLocal(worldPosition)
+    if (marker.current) {
+      marker.current.position.copy(worldPosition)
+      marker.current.position.y += 0.16
+    }
   }, -1)
   return (
     <group
@@ -112,8 +128,8 @@ function Avatar({
       <FartCloud id={id} />
       <group ref={figure} name={`figure-${id}`}>
         <primitive object={model.root} dispose={null} />
-        <group ref={marker} position={[0, CHARACTER.height - 0.5, 0]} />
       </group>
+      <group ref={marker} position={[0, CHARACTER.height - 0.5, 0]} />
     </group>
   )
 }
@@ -124,6 +140,7 @@ export function Avatars({
 }) {
   const ids = useSession((state) => state.ids)
   const rigs = useMemo(() => new Map<string, AvatarAnchors>(), [])
+  useEffect(installGameReactions, [])
   return (
     <group name="visitors">
       {ids.map((id) => (

@@ -14,11 +14,14 @@ export interface ParkRuntimePort {
   aimFacility(leaseId: string, aim: { yaw: number; pitch: number }, signal: AbortSignal): Promise<{ yaw: number; pitch: number }>
   selectChannel(channelId: string): Promise<boolean>
   sendChat(text: string): Promise<boolean>
+  sendSpectatorChat(text: string): Promise<boolean>
+  pingOmok(x: number, y: number): Promise<boolean>
   sendEmote(id: import('../../features/emotes/catalog').EmoteId): Promise<boolean>
   move(dx: number, dz: number, run: boolean, jump?: boolean): void
+  stopMovement(): void
   inspectTable(anchorId: string): void
   closeTable(): void
-  joinTable(): Promise<boolean>
+  joinTable(anchorId?: string): Promise<boolean>
   leaveTable(): Promise<boolean>
   selectOmok(): Promise<boolean>
   selectGame(code: import('../../features/tableLobby/model').TableGameCode, betAmountPerPlayer: number, targetScore?: number): Promise<boolean>

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearAuthSession, restoreAuthSession } from '../../src/auth/authFlow'
 import type { SocketLike } from '../../src/network/socketClient'
-import { resetWorld, useSession } from '../../src/network/worldClient'
+import { clearChannel, resetWorld, useSession } from '../../src/network/worldClient'
 import { ParkRuntime } from '../../src/park/runtime/runtime'
 import { EXPECTED_MAP_VERSION } from '../../src/config/mapVersion'
 import { inputState } from '../../src/world/inputOwnership'
@@ -129,35 +129,114 @@ describe('M14 authenticated REST and movement ownership boundary', () => {
 })
 
 describe('M02 real runtime delivery through the existing SharedSocket', () => {
-  it('does not pipeline movement during delayed replies or release it on unrelated world broadcasts', async () => {
+  const movementMessage = '이동 입력 전송 간격을 확인해주세요.'
+  function rejectMove(index: number) {
+    socket.emit('ERROR', { code: 'MOVE_TOO_FREQUENT', message: movementMessage }, moves()[index]!.requestId)
+  }
+  it('expires movement rate notices three seconds after the latest rejection', async () => {
     socket.holdMoves = true
     runtime.move(0, -1, false)
-    runtime.move(1, 0, true, true)
-    await vi.advanceTimersByTimeAsync(180)
-    world()
-    await vi.advanceTimersByTimeAsync(60)
-    expect(moves()).toHaveLength(1)
-    socket.replyMove(moves()[0]!)
-    await vi.advanceTimersByTimeAsync(59)
-    expect(moves()).toHaveLength(1)
+    rejectMove(0)
+    await vi.advanceTimersByTimeAsync(2999)
+    expect(useSession.getState().movementNotice?.message).toBe(movementMessage)
+    expect(useSession.getState().error).toBe('')
+    runtime.move(1, 0, false)
+    rejectMove(1)
+    await vi.advanceTimersByTimeAsync(2999)
+    expect(useSession.getState().movementNotice?.message).toBe(movementMessage)
     await vi.advanceTimersByTimeAsync(1)
-    expect(moves()[1]!.payload).toEqual({ seq: 2, dx: 1, dz: 0, run: true, jump: true })
-    runtime.move(0, 0, false)
-    socket.replyMove(moves()[1]!)
-    await vi.advanceTimersByTimeAsync(60)
-    expect(moves()[2]!.payload).toEqual({ seq: 3, dx: 0, dz: 0, run: false, jump: false })
+    expect(useSession.getState().movementNotice).toBeNull()
+    expect(moves()).toHaveLength(2)
   })
-  it.each(['rejection', 'timeout'])('discards queued jumps on movement %s, reports it and accepts fresh input', async mode => {
+  it('dismisses a notice on a newer movement reply, but not a broadcast or old reply', async () => {
+    socket.holdMoves = true
+    runtime.move(0, -1, false)
+    await vi.advanceTimersByTimeAsync(60)
+    runtime.move(1, 0, false)
+    rejectMove(1)
+    await vi.advanceTimersByTimeAsync(0)
+    world()
+    socket.replyMove(moves()[0]!)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(useSession.getState().movementNotice?.message).toBe(movementMessage)
+    await vi.advanceTimersByTimeAsync(60)
+    runtime.move(0, 0, false)
+    socket.replyMove(moves()[2]!)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(useSession.getState().movementNotice).toBeNull()
+  })
+  it.each(['expiry', 'success'])('preserves other server errors on notice %s', async mode => {
+    socket.holdMoves = true
+    runtime.move(0, -1, false)
+    rejectMove(0)
+    await vi.advanceTimersByTimeAsync(60)
+    socket.emit('ERROR', { code: 'OTHER_ERROR', message: '다른 작업 오류' })
+    if (mode === 'success') {
+      runtime.move(0, 0, false)
+      socket.replyMove(moves()[1]!)
+      await vi.advanceTimersByTimeAsync(0)
+    } else await vi.advanceTimersByTimeAsync(3000)
+    expect(useSession.getState().movementNotice).toBeNull()
+    expect(useSession.getState().error).toBe('다른 작업 오류')
+  })
+  it.each(['channel', 'stop'])('clears the notice and its timer on %s exit', async boundary => {
+    socket.holdMoves = true
+    runtime.move(0, -1, false)
+    rejectMove(0)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(useSession.getState().movementNotice).not.toBeNull()
+    if (boundary === 'channel') clearChannel()
+    else await runtime.stop()
+    expect(useSession.getState().movementNotice).toBeNull()
+    const timers = vi.getTimerCount()
+    await vi.advanceTimersByTimeAsync(3000)
+    expect(vi.getTimerCount()).toBe(timers)
+  })
+  it('sends queued Space once after a direction release, but cancels it on an explicit activity stop', async () => {
+    socket.holdMoves = true
+    runtime.move(0, -1, false)
+    await vi.advanceTimersByTimeAsync(10)
+    runtime.move(0, -1, false, true)
+    runtime.move(0, 0, false)
+    await vi.advanceTimersByTimeAsync(50)
+    expect(moves()[1]!.payload).toEqual({ seq: 2, dx: 0, dz: 0, run: false, jump: true })
+    runtime.move(0, 0, false, true)
+    runtime.stopMovement()
+    await vi.advanceTimersByTimeAsync(59)
+    expect(moves()).toHaveLength(2)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(moves()[2]!.payload).toEqual({ seq: 3, dx: 0, dz: 0, run: false, jump: false })
+    await vi.advanceTimersByTimeAsync(600)
+    expect(moves()).toHaveLength(3)
+  })
+  it('keeps the 250ms input lease alive while replies are delayed and sends stop promptly', async () => {
+    socket.holdMoves = true
+    for (let i = 0; i < 10; i++) {
+      runtime.move(0, -1, false)
+      await vi.advanceTimersByTimeAsync(60)
+      if (i === 3) world()
+    }
+    expect(moves()).toHaveLength(10)
+    expect(moves().map(m => m.payload.seq)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+    runtime.move(0, 0, false)
+    expect(moves()[10]!.payload).toEqual({ seq: 11, dx: 0, dz: 0, run: false, jump: false })
+    socket.replyMove(moves()[0]!)
+    await vi.advanceTimersByTimeAsync(120)
+    expect(moves()).toHaveLength(11)
+  })
+  it.each(['rejection', 'timeout'])('reports movement %s without replaying a delivered jump', async mode => {
     socket.holdMoves = true
     runtime.move(0, -1, false)
     runtime.move(1, 0, false, true)
     if (mode === 'rejection') socket.emit('ERROR', { code: 'MOVE_TOO_FREQUENT', message: '이동 간격 오류' }, moves()[0]!.requestId)
-    else await vi.advanceTimersByTimeAsync(8000)
+    else await vi.advanceTimersByTimeAsync(8100)
     await vi.advanceTimersByTimeAsync(120)
-    expect(moves()).toHaveLength(1)
-    expect(useSession.getState().error).toContain(mode === 'rejection' ? '이동 간격 오류' : '응답 시간이 초과')
+    const delivered = mode === 'rejection' ? 1 : 2
+    expect(moves()).toHaveLength(delivered)
+    expect(mode === 'rejection' ? useSession.getState().movementNotice?.message : useSession.getState().error)
+      .toContain(mode === 'rejection' ? '이동 간격 오류' : '응답 시간이 초과')
     runtime.move(1, 0, false)
-    expect(moves()[1]!.payload).toEqual({ seq: 2, dx: 1, dz: 0, run: false, jump: false })
+    expect(moves()[delivered]!.payload).toEqual({ seq: delivered + 1, dx: 1, dz: 0, run: false, jump: false })
   })
   it('sends normalized intent with only existing fields and increases seq on actual delivery', async () => {
     runtime.move(NaN, 0, false)

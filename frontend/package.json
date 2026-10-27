@@ -12,6 +12,7 @@
     "dev:park": "vite --mode park-integration --host localhost --port 5202 --strictPort",
     "build:park": "node scripts/generate-park-map.mjs && node scripts/publish-rulebooks.mjs && tsc --noEmit && vite build --mode park-integration --outDir dist-park",
     "dev:layout": "vite --mode layout-preview --host 127.0.0.1 --port 5201 --strictPort",
+    "dev:bungeoppang": "vite --mode bungeoppang-preview",
     "dev:facilities": "vite --mode facility-preview",
     "dev:frontend-test": "vite --mode frontend-test --host localhost --port 5173 --strictPort",
     "build": "node scripts/generate-park-map.mjs && node scripts/publish-rulebooks.mjs && tsc --noEmit && vite build",
@@ -19,6 +20,10 @@
     "assets:rulebooks": "node scripts/prepare-rulebook-art.mjs",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",
+    "dev:tablet": "vite --mode tablet --host localhost --port 5203 --strictPort",
+    "build:tablet": "node scripts/publish-rulebooks.mjs && tsc --noEmit && vite build --mode tablet --outDir dist-tablet",
+    "test:e2e:tablet": "playwright test --config playwright.tablet.config.ts",
+    "test:e2e:tablet:default": "playwright test --config playwright.tablet-default.config.ts",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "test:e2e:park": "playwright test --config playwright.park.config.ts",
@@ -27,7 +32,8 @@
     "check:migration": "node scripts/check-migration-boundary.mjs",
     "assets:chair": "node scripts/prepare-wood-chair.mjs",
     "map:generate": "node scripts/generate-park-map.mjs",
-    "map:check": "node scripts/generate-park-map.mjs --check"
+    "map:check": "node scripts/generate-park-map.mjs --check",
+    "assets:entry": "node scripts/prepare-entry-images.mjs"
   },
   "dependencies": {
     "@react-three/fiber": "9.8.1",

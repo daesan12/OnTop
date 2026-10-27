@@ -123,7 +123,11 @@ class GameSelectionTests {
         first.request("GAME_SELECT", Map.of("betAmountPerPlayer", 1, "gameCode", "ONE_CARD"));
         second.request("TABLE_JOIN", Map.of("tableId", "table-1"));
         third.request("TABLE_JOIN", Map.of("tableId", "table-1"));
-        JsonNode before = first.request("READY_SET", Map.of("ready", true)).path("payload");
+        JsonNode current = first.request("TABLE_JOIN", Map.of("tableId", "table-1")).path("payload");
+        JsonNode ready = first.request("READY_SET", Map.of("ready", true, "betAmountPerPlayer", 1,
+                "expectedVersion", current.path("version").asLong()));
+        assertThat(ready.path("type").asText()).isEqualTo("TABLE_STATE");
+        JsonNode before = ready.path("payload");
         assertCode(first.request("GAME_SELECT", Map.of("betAmountPerPlayer", 1, "gameCode", "OMOK")), "GAME_PLAYER_LIMIT");
         assertCode(first.request("GAME_SELECT", Map.of("betAmountPerPlayer", 1, "gameCode", "DICE", "targetScore", 4000)), "GAME_PLAYER_LIMIT");
         JsonNode after = first.request("TABLE_JOIN", Map.of("tableId", "table-1")).path("payload");

@@ -32,7 +32,7 @@ beforeEach(()=>{
     if(url==='/api/v1/channels')return json({items:[{channelId:'c',name:'공원',currentUsers:0,capacity:4,joinable:true}]})
     if(url==='/park-bindings.json')return json({bindings:[]})
     if(url==='/api/v1/users/me')return json({userId:101,nickname:'회원',characterGender:'MALE'})
-    if(url==='/api/v1/auth/websocket-ticket')return json({ticket:'fixture'})
+    if(url==='/api/v1/auth/websocket-ticket')return json({ticket:'fixture',expiresIn:30})
     if(url.startsWith('/api/v1/tables?'))return json({tables:[]})
     throw new Error('unexpected '+url)
   }))
@@ -84,8 +84,8 @@ describe('map identity on the actual Spring socket path',()=>{
   it('does not enter, move or recover until a matching confirmation request is approved',async()=>{
     holdConfirmation=true
     await restoreAuthSession(true);runtime=new ParkRuntime({requireMapMetadata:true});runtime.start()
-    await vi.waitFor(()=>expect(sockets[0]?.requests[0]?.type).toBe('WORLD_MAP_CONFIRM'))
-    const socket=sockets[0]!,confirmation=socket.requests[0]!
+    await vi.waitFor(()=>expect(sockets[0]?.requests.find(r=>r.type==='WORLD_MAP_CONFIRM')?.type).toBe('WORLD_MAP_CONFIRM'))
+    const socket=sockets[0]!,confirmation=socket.requests.find(r=>r.type==='WORLD_MAP_CONFIRM')!
     expect(useSession.getState()).toMatchObject({status:'joining',roomId:'',mapContractStatus:'confirming'})
     expect(await runtime.selectChannel('c')).toBe(false);expect(await runtime.checkRecovery()).toBe(false)
     world(socket);expect(avatars.size).toBe(0)
@@ -98,9 +98,9 @@ describe('map identity on the actual Spring socket path',()=>{
   it('rejects an unverified acknowledgement even when its identity matches',async()=>{
     holdConfirmation=true
     await restoreAuthSession(true);runtime=new ParkRuntime({requireMapMetadata:true});runtime.start()
-    await vi.waitFor(()=>expect(sockets[0]?.requests[0]?.type).toBe('WORLD_MAP_CONFIRM'))
+    await vi.waitFor(()=>expect(sockets[0]?.requests.find(r=>r.type==='WORLD_MAP_CONFIRM')?.type).toBe('WORLD_MAP_CONFIRM'))
     const socket=sockets[0]!
-    socket.emit('WORLD_MAP_STATE',{map:connectedMap,verified:false},socket.requests[0]!.requestId)
+    socket.emit('WORLD_MAP_STATE',{map:connectedMap,verified:false},socket.requests.find(r=>r.type==='WORLD_MAP_CONFIRM')!.requestId)
     expect(useSession.getState().mapContractStatus).toBe('mismatch')
     expect(socket.requests.filter(r=>r.type==='CHANNEL_JOIN')).toHaveLength(0)
   })

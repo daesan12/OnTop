@@ -4,13 +4,14 @@ import path from 'node:path'
 import fs from 'node:fs/promises'
 import { TABLES } from '../../src/config'
 import { EXPECTED_MAP_VERSION } from '../../src/config/mapVersion'
-import type { Farkle } from '../../src/game/protocol'
+import type { Farkle, Result } from '../../src/game/protocol'
 import type { OneCard, Hand, Card } from '../../src/game/onecard/protocol'
 import { bridgeState as makeBridge } from '../fixtures/bridge'
 import type { Bridge, SecretDie } from '../../src/game/bridge/protocol'
 import { facilityFixture } from './facilityFixture'
 import { followFixture } from './followFixture'
 import type { PublicEquipment } from '../../src/network/equipment'
+import type { GameReactionEvent } from '../../src/game/presentation/defeat'
 import developmentBindings from '../../public/park-bindings.dev.json' with { type: 'json' }
 
 // Contract fixtures intercept HTTP/RawWS only in tests. No production fake-auth or socket bypass.
@@ -42,6 +43,12 @@ export async function fixture(
     anchorId?: string
     publicSpectator?: boolean
     forfeit?: boolean
+    manualLobby?: boolean
+    tabletServer?: boolean
+    serverTimeOffsetMs?: number
+    mapVerificationRequired?: boolean
+    rejectMapConfirmation?: boolean
+    spectatorEvents?: boolean
   } = {},
 ) {
   const anchor = TABLES.find(t => t.id === options.anchorId) ?? TABLES[0]!
@@ -58,6 +65,8 @@ export async function fixture(
       requestId: string
     }[] = [],
     sockets: WebSocketRoute[] = []
+  const serverTime = () => ({ serverNow: Date.now() + (options.serverTimeOffsetMs ?? 0),
+    cycleEpochMs: 1767193200000, cycleDurationMs: 1800000, timeZone: 'Asia/Seoul' })
   const position = {
     x: anchor.position[0],
     y: anchor.position[1] + 0.8,
@@ -79,7 +88,14 @@ export async function fixture(
   let rejectGameWatch = false
   let watchingGame = false
   let watchMode: 'normal' | 'reject' | 'hold' = 'normal', watchRequestId = '', selectorOverride: string | undefined, targetScore: number | null = null
+  let tabletManual = false, tabletStartHold = false, waitRevision = 0, waitExpiresAt: number | null = null
   let betAmountPerPlayer: number | null = options.publicSpectator ? 1 : null
+  let tabletCount = 2, tabletOthersReady = false
+  let tableJoinMode: 'approve' | 'hold' | 'reject' = 'approve'
+  let tableJoinError = { code: 'TABLE_FULL', message: '빈 좌석이 없습니다.' }
+  const heldTableJoins: { ws: WebSocketRoute; requestId: string }[] = []
+  let holdTableLeave = false
+  const heldTableLeaves: { ws: WebSocketRoute; requestId: string }[] = []
   let seated = false,
     rejectChat = false
   let gameCode: string | null = null,
@@ -110,6 +126,7 @@ export async function fixture(
   const diceReplies: { input: object; patch: Partial<Farkle> }[] = []
   let gameDeadline = new Date(Date.now() + 30_000).toISOString()
   let nextActionError: { code: string; message: string } | null = null
+  let rejectNextMovement = false
   let forfeitMode: 'approve' | 'hold' | 'drop' | 'reject' | 'malformed' | 'lost-after-apply' | 'receipt-only' = 'approve'
   let forfeitOrder: 'receipt-first' | 'state-first' = 'state-first', forfeitCode = 'GAME_FORFEIT_NOT_CONFIGURED'
   let forfeitVersion = -1, forfeitApplications = 0, recoveryStatus = 'RESTORED', pendingBridgeForfeit = false
@@ -184,26 +201,40 @@ export async function fixture(
     }, requestId)
   let resultVersion = 1,
     settled = false
+  let resultStatus: Result['status'] = 'FINISHED', resultReason = 'NORMAL', resultBet = 1
+  let invalidVerdicts = false
+  const resultEndedAt = new Date().toISOString()
+  // Scripted single-winner, all-winner and draw results only; never a production payout calculator.
+  const resultPayload = (): Result => {
+    const ids = Array.from({ length: options.onecard ?? options.bridge ?? 2 }, (_, i) => String(101 + i))
+    const state = options.bridge ? bridgeState : options.onecard ? cardState : options.dice ? diceState : omok()
+    const winnerIds = options.forfeit && forfeitVersion >= 0 ? ['102']
+      : options.bridge ? bridgeState.winnerUserIds : options.onecard ? cardState.winnerUserIds
+      : (options.dice ? diceState.winnerUserId : winner) ? [options.dice ? diceState.winnerUserId! : winner!] : []
+    const allWin = winnerIds.length === ids.length
+    if (winnerIds.length > 1 && !allWin) throw new Error('부분 공동 승리에는 명시적인 서버 정산 fixture가 필요합니다.')
+    const own = options.ownUserId ?? '101'
+    const coinDelta = allWin || !winnerIds.length ? 0 : winnerIds.includes(own) ? resultBet * (ids.length - 1) : -resultBet
+    return {
+    version: resultVersion, gameSessionId: gameId,
+    gameCode: options.bridge ? 'LIAR_BRIDGE' : options.onecard ? 'ONE_CARD' : options.dice ? 'DICE' : 'OMOK',
+    status: resultStatus, endReason: resultStatus === 'INVALID' ? resultReason : state.endReason ?? resultReason,
+    settlementStatus: settled ? 'SETTLED' : 'PENDING',
+    betAmountPerPlayer: resultBet,
+    participants: ids.map(userId => ({
+      userId, result: resultStatus === 'INVALID' ? invalidVerdicts ? 'FORFEIT' : null
+        : options.forfeit && forfeitVersion >= 0 && userId === '101' ? 'FORFEIT'
+        : !winnerIds.length ? 'DRAW' : winnerIds.includes(userId) ? 'WIN' : 'LOSE',
+    })),
+    myCoinDelta: !settled ? null : resultStatus === 'INVALID' ? 0 : coinDelta,
+    endedAt: resultEndedAt,
+    }
+  }
   const result = (ws: WebSocketRoute, requestId: string | null = null) =>
     emit(
       ws,
       'GAME_RESULT',
-      {
-        version: resultVersion,
-        gameSessionId: gameId,
-        gameCode: options.bridge ? 'LIAR_BRIDGE' : options.onecard ? 'ONE_CARD' : options.dice ? 'DICE' : 'OMOK',
-        status: 'FINISHED',
-        endReason: 'NORMAL',
-        settlementStatus: settled ? 'SETTLED' : 'PENDING',
-        betAmountPerPlayer: 1,
-        participants: options.forfeit && forfeitVersion >= 0 ? Array.from({ length: options.onecard ?? options.bridge ?? 2 }, (_, i) =>
-          ({ userId: String(101 + i), result: i === 0 ? 'FORFEIT' : i === 1 ? 'WIN' : 'LOSE' })) : [
-          { userId: '101', result: 'WIN' },
-          { userId: '102', result: 'LOSE' },
-        ],
-        myCoinDelta: settled ? options.forfeit && forfeitVersion >= 0 ? -1 : 1 : null,
-        endedAt: new Date().toISOString(),
-      },
+      resultPayload(),
       requestId,
     )
   await page.route('**/api/v1/**', async (route) => {
@@ -319,13 +350,15 @@ export async function fixture(
         payload: {
           tableId,
           version: ++version,
-          capacity: options.m09 && !['OMOK', 'DICE'].includes(gameCode ?? '') ? 4 : 2,
+          capacity: options.manualLobby ? tabletCount : options.m09 && !['OMOK', 'DICE'].includes(gameCode ?? '') ? 4 : 2,
           minimumPlayers: 2,
-          seats: Array.from({ length: options.m09 && !['OMOK', 'DICE'].includes(gameCode ?? '') ? 4 : 2 }, (_, i) => ({
-            seatNumber: i + 1, userId: i === 0 ? seated ? '101' : null : i === 1 ? '102' : null,
-            ready: i === 0 ? ready : i === 1 && options.omok ? ready : false,
+          seats: Array.from({ length: options.manualLobby ? tabletCount : options.m09 && !['OMOK', 'DICE'].includes(gameCode ?? '') ? 4 : 2 }, (_, i) => ({
+            seatNumber: i + 1, userId: i === 0 ? seated ? '101' : null : options.manualLobby ? String(101 + i) : i === 1 ? '102' : null,
+            ready: i === 0 ? ready : options.manualLobby ? tabletOthersReady : i === 1 && options.omok ? ready : false,
           })),
-          allReady: ready,
+          allReady: ready && (!options.manualLobby || tabletOthersReady),
+          selectedPlayers: tabletManual ? tabletCount : null,
+          startMode: tabletManual ? 'MANUAL' : 'AUTO',
           selectorUserId: selectorOverride ?? (seated ? '101' : '102'),
           gameCode,
           targetScore,
@@ -335,6 +368,16 @@ export async function fixture(
         },
       }),
     )
+  const approveTableJoin = (ws: WebSocketRoute, requestId: string) => {
+    seated = true
+    emit(ws, 'TABLE_WATCH_LEFT', { tableId })
+    table(ws, 'TABLE_STATE', requestId)
+  }
+  const approveTableLeave = (ws: WebSocketRoute, requestId: string) => {
+    seated = false
+    emit(ws, 'TABLE_LEFT', { tableId }, requestId)
+    world(ws)
+  }
   const facilities = facilityFixture({
     emit: (type, payload, id = null) => emit(sockets.at(-1)!, type, payload, id),
     world: () => world(sockets.at(-1)!), position, userId: options.ownUserId ?? '101',
@@ -375,6 +418,8 @@ export async function fixture(
   }
   const follow = followFixture((type, payload, id = null) => emit(sockets.at(-1)!, type, payload, id), options.ownUserId ?? '101')
   await page.routeWebSocket('**/ws/tables?**', (ws) => {
+    let mapVerified = false
+    const map = options.connectedMap ?? { mapId: 'park', schemaVersion: 1, mapVersion: options.mapVersion ?? EXPECTED_MAP_VERSION }
     connections++
     active++
     maxActive = Math.max(maxActive, active)
@@ -383,7 +428,8 @@ export async function fixture(
       JSON.stringify({
         requestId: null,
         type: 'CONNECTED',
-        payload: { userId: options.ownUserId ?? '101', ...(options.connectedMap?{map:options.connectedMap}:{}) },
+        payload: { userId: options.ownUserId ?? '101', time: serverTime(), map,
+          mapVerificationRequired: options.mapVerificationRequired ?? false },
       }),
     )
     if (options.forfeit && started) recovery(ws)
@@ -407,8 +453,32 @@ export async function fixture(
       const message = JSON.parse(String(data))
       sent.push(message)
       const { requestId, type, payload } = message
-      if(type==='WORLD_MAP_CONFIRM') {
-        emit(ws,'WORLD_MAP_STATE',{map:options.connectedMap,verified:true},requestId)
+      if (options.spectatorEvents && ['GAME_SPECTATOR_CHAT_SEND', 'OMOK_SPECTATOR_PING_SEND'].includes(type)) {
+        if (!watchingGame || seated || finished) {
+          emit(ws, 'ERROR', { code:'GAME_SPECTATOR_ACCESS_DENIED', message:'관전 권한을 확인해주세요.' }, requestId); return
+        }
+        const ping = type === 'OMOK_SPECTATOR_PING_SEND', now = Date.now()
+        if (ping && payload.basedOnVersion !== gameVersion) {
+          emit(ws,'ERROR',{ code:'OMOK_SPECTATOR_PING_STALE_VERSION',message:'최신 판에서 다시 추천해주세요.' },requestId); return
+        }
+        emit(ws, ping ? 'OMOK_SPECTATOR_PING' : 'GAME_SPECTATOR_CHAT_MESSAGE', {
+          ...payload, senderUserId:options.ownUserId ?? '101', sentAt:now, serverNow:now, expiresAt:now+(ping?2000:3000),
+        },requestId)
+        return
+      }
+      if (type === 'WORLD_TIME_CHECK') {
+        emit(ws, 'WORLD_TIME_STATE', serverTime(), requestId)
+        return
+      }
+      if (type === 'WORLD_MAP_CONFIRM') {
+        mapVerified = !options.rejectMapConfirmation && payload.mapId === map.mapId
+          && payload.schemaVersion === map.schemaVersion && payload.mapVersion === map.mapVersion
+        if (mapVerified) emit(ws, 'WORLD_MAP_STATE', { map, verified: true }, requestId)
+        else emit(ws, 'ERROR', { code: 'MAP_VERSION_MISMATCH', message: '서버 맵 버전을 확인해주세요.' }, requestId)
+        return
+      }
+      if (options.mapVerificationRequired && !mapVerified) {
+        emit(ws, 'ERROR', { code: 'MAP_VERSION_REQUIRED', message: '서버 맵 버전 확인이 필요합니다.' }, requestId)
         return
       }
       if (facilities.handle(type, payload, requestId)) return
@@ -434,6 +504,11 @@ export async function fixture(
         if (options.forfeit && started) { table(ws, 'TABLE_STATE', null); start(ws, finished ? 'SETTLING' : 'PLAYING') }
       }
       if (type === 'WORLD_MOVE') {
+        if (rejectNextMovement) {
+          rejectNextMovement = false
+          emit(ws, 'ERROR', { code: 'MOVE_TOO_FREQUENT', message: '이동 입력 전송 간격을 확인해주세요.' }, requestId)
+          return
+        }
         if (payload.dx || payload.dz || payload.jump) follow.release()
         Object.assign(position, {
           ...(!options.manualMovement ? {
@@ -503,26 +578,35 @@ export async function fixture(
           }),
         )
       if (type === 'TABLE_JOIN') {
-        seated = true
-        ws.send(
-          JSON.stringify({
-            requestId: null,
-            type: 'TABLE_WATCH_LEFT',
-            payload: { tableId },
-          }),
-        )
-        table(ws, 'TABLE_STATE', requestId)
+        if (tableJoinMode === 'reject') emit(ws, 'ERROR', tableJoinError, requestId)
+        else if (tableJoinMode === 'hold') heldTableJoins.push({ ws, requestId })
+        else approveTableJoin(ws, requestId)
       }
       if (type === 'TABLE_LEAVE') {
-        seated = false
-        ws.send(
-          JSON.stringify({
-            requestId,
-            type: 'TABLE_LEFT',
-            payload: { tableId },
-          }),
-        )
-        world(ws)
+        if (holdTableLeave) heldTableLeaves.push({ ws, requestId })
+        else approveTableLeave(ws, requestId)
+      }
+      if (type === 'TABLE_CONFIGURE') {
+        if (!options.tabletServer) emit(ws, 'ERROR', { code: 'UNSUPPORTED_MESSAGE', message: '태블릿 설정 연결이 준비되지 않았습니다.' }, requestId)
+        else {
+          gameCode = String(payload.gameCode); tabletCount = Number(payload.selectedPlayers); targetScore = payload.targetScore ?? null
+          betAmountPerPlayer = Number(payload.betAmountPerPlayer); tabletManual = true; ready = false; tabletOthersReady = false
+          if (options.dice && gameCode === 'DICE') diceState = { ...diceState, targetScore: targetScore ?? 4000 }
+          waitExpiresAt = null; waitRevision++
+          table(ws, 'TABLE_STATE', requestId); start(ws, 'WAITING')
+        }
+      }
+      if (type === 'TABLE_HOST_WAIT_CHECK') emit(ws, 'TABLE_HOST_WAIT_STATE', {
+        tableId, epoch: 'fixture-tablet-server', revision: waitRevision, tableVersion: version,
+        hostUserId: selectorOverride ?? '101', serverNow: Date.now(), expiresAt: waitExpiresAt,
+        cancelReason: waitExpiresAt === null ? 'NOT_READY' : null,
+      }, requestId)
+      if (type === 'TABLE_START' && options.tabletServer && !tabletStartHold) {
+        started = true; waitExpiresAt = null; waitRevision++
+        resultBet = betAmountPerPlayer ?? 1; resultStatus = 'FINISHED'; resultReason = 'NORMAL'; resultVersion = 1; settled = false
+        gameDeadline = new Date(Date.now() + 30000).toISOString()
+        if (options.onecard) cardState = { ...cardState, turnDeadline: gameDeadline }
+        start(ws, 'PLAYING', requestId); game(ws); recovery(ws)
       }
       if (options.omok && type === 'GAME_SELECT') {
         gameCode = String(payload.gameCode)
@@ -536,10 +620,10 @@ export async function fixture(
       if (options.omok && type === 'READY_SET') {
         ready = payload.ready
         table(ws, 'TABLE_STATE', requestId)
-        if (ready) start(ws, 'STARTING')
+        if (ready && !options.manualLobby) start(ws, 'STARTING')
       }
       if (options.omok && type === 'GAME_START_CHECK')
-        start(ws, started ? 'PLAYING' : 'STARTING', requestId)
+        start(ws, started ? 'PLAYING' : options.tabletServer ? 'WAITING' : 'STARTING', requestId)
       if (options.omok && type === 'GAME_STATE_CHECK') game(ws, requestId)
       if (options.omok && type === 'GAME_RECONNECT_CHECK') recovery(ws, requestId)
       if (options.forfeit && type === 'GAME_FORFEIT') {
@@ -548,7 +632,10 @@ export async function fixture(
         else if (forfeitMode === 'reject') emit(ws, 'ERROR', { code: forfeitCode, message: '기권 요청 거절' }, requestId)
         else if (forfeitMode !== 'drop') approveForfeit(entry)
       }
-      if (options.omok && type === 'GAME_RESULT_CHECK') result(ws, requestId)
+      if (options.omok && type === 'GAME_RESULT_CHECK') {
+        if (payload.gameSessionId === gameId) result(ws, requestId)
+        else emit(ws, 'ERROR', { code: 'GAME_RESULT_ACCESS_DENIED', message: '본인 경기 결과만 확인할 수 있습니다.' }, requestId)
+      }
       if (options.omok && type === 'GAME_ACTION_SEND') {
         if (dropAction) return
         if (nextActionError) {
@@ -612,6 +699,25 @@ export async function fixture(
   return {
     mapMismatch: (map:{mapId:string;schemaVersion:number;mapVersion:string}) => emit(sockets.at(-1)!, 'ERROR', {code:'MAP_VERSION_MISMATCH',serverMap:map,message:'맵 버전이 다릅니다.'}),
     sent,
+    rejectNextMove: () => { rejectNextMovement = true },
+    reaction: (patch: Partial<GameReactionEvent> = {}) => {
+      const remainingBefore = patch.remainingBefore ?? options.bridge ?? options.onecard ?? 2
+      const motion = remainingBefore === 2 ? 'table-flip' : 'head-clutch'
+      const event: GameReactionEvent = { eventId: `${patch.gameId ?? gameId}:reaction:${patch.userId ?? '101'}`,
+        gameId, tableId, channelId: 'fixture-channel', gameCode: options.bridge ? 'LIAR_BRIDGE' : options.onecard ? 'ONE_CARD' : options.dice ? 'DICE' : 'OMOK',
+        version: gameVersion, userId: '101', kind: 'DEFEAT', remainingBefore, motion,
+        durationMs: motion === 'table-flip' ? 2800 : 3600,
+        occurredAt: new Date(serverTime().serverNow).toISOString(), ...patch }
+      emit(sockets.at(-1)!, 'WORLD_GAME_REACTION', event)
+      return event
+    },
+    spectatorEvent: (kind: 'chat' | 'ping', patch: Record<string, unknown> = {}) => {
+      const now = Date.now(), ping = kind === 'ping'
+      emit(sockets.at(-1)!, ping ? 'OMOK_SPECTATOR_PING' : 'GAME_SPECTATOR_CHAT_MESSAGE', {
+        gameId, eventId:crypto.randomUUID(), senderUserId:'505', sentAt:now, serverNow:now, expiresAt:now+(ping?2000:3000),
+        ...(ping ? { basedOnVersion:gameVersion,x:7,y:7 } : { text:'여기를 막아봐요!' }), ...patch,
+      })
+    },
     equipment: (userId: string, equipment: PublicEquipment[] | null) => {
       publicEquipment[userId] = equipment
       for (const ws of sockets) world(ws)
@@ -648,8 +754,50 @@ export async function fixture(
     watchMode: (mode: typeof watchMode) => { watchMode = mode },
     replyWatch: () => table(sockets.at(-1)!, 'TABLE_WATCH_STATE', watchRequestId),
     host: (id: string) => { selectorOverride = id; table(sockets.at(-1)!, 'TABLE_STATE', null) },
+    configureTablet: (selection: { gameCode: string; playerCount: number; betAmountPerPlayer: number; targetScore?: number }) => {
+      tabletManual = true
+      gameCode = selection.gameCode; tabletCount = selection.playerCount; betAmountPerPlayer = selection.betAmountPerPlayer
+      targetScore = selection.targetScore ?? null; ready = false; tabletOthersReady = false
+      table(sockets.at(-1)!, 'TABLE_STATE', null); start(sockets.at(-1)!, 'WAITING')
+    },
+    readyTabletOthers: (value: boolean) => { tabletOthersReady = value; table(sockets.at(-1)!, 'TABLE_STATE', null) },
+    holdTabletStart: (hold: boolean) => { tabletStartHold = hold },
+    tableJoinMode: (mode: typeof tableJoinMode, code = 'TABLE_FULL', message = '빈 좌석이 없습니다.') => {
+      tableJoinMode = mode; tableJoinError = { code, message }
+    },
+    approveTableJoins: () => { for (const request of heldTableJoins.splice(0)) approveTableJoin(request.ws, request.requestId) },
+    holdTableLeave: (hold: boolean) => { holdTableLeave = hold },
+    approveTableLeaves: () => { for (const request of heldTableLeaves.splice(0)) approveTableLeave(request.ws, request.requestId) },
+    publishTabletWait: (seconds: number | null) => {
+      waitExpiresAt = seconds === null ? null : Date.now() + seconds * 1000; waitRevision++
+      emit(sockets.at(-1)!, 'TABLE_HOST_WAIT_STATE', { tableId, epoch: 'fixture-tablet-server', revision: waitRevision,
+        tableVersion: version, hostUserId: selectorOverride ?? '101', serverNow: Date.now(), expiresAt: waitExpiresAt,
+        cancelReason: waitExpiresAt === null ? 'NOT_READY' : null })
+    },
+    timeoutTabletHost: (previousHost: string, nextHost: string | null) => {
+      if (!options.manualLobby) throw new Error('수동 로비 계약 fixture에서만 사용합니다.')
+      ready = false; tabletOthersReady = false; selectorOverride = nextHost ?? undefined
+      if (previousHost === '101') {
+        seated = false
+        emit(sockets.at(-1)!, 'TABLE_LEFT', { tableId, reason: 'HOST_START_TIMEOUT' })
+        world(sockets.at(-1)!)
+      } else table(sockets.at(-1)!, 'TABLE_STATE', null, {
+        selectorUserId: nextHost,
+        seats: Array.from({ length: tabletCount }, (_, i) => ({ seatNumber: i + 1,
+          userId: String(101 + i) === previousHost ? null : String(101 + i), ready: false })),
+      })
+      return version
+    },
+    notifyTabletTimeout: (previousHost: string, nextHost: string | null) => {
+      waitRevision++
+      emit(sockets.at(-1)!, 'TABLE_HOST_TIMEOUT', { tableId, epoch: 'fixture-tablet-server', eventId: `fixture-timeout-${waitRevision}`,
+        revision: waitRevision, tableVersion: version, previousHostUserId: previousHost, nextHostUserId: nextHost,
+        reason: 'HOST_START_TIMEOUT', serverNow: Date.now() })
+    },
     confirmStart: () => {
       started = true
+      resultBet = betAmountPerPlayer ?? 1
+      resultStatus = 'FINISHED'; resultReason = 'NORMAL'; resultVersion = 1; settled = false
       gameDeadline = new Date(Date.now() + 30_000).toISOString()
       if (options.dice) diceState = { ...diceState, turnDeadline: gameDeadline }
       if (options.onecard) cardState = { ...cardState, turnDeadline: gameDeadline }
@@ -694,6 +842,12 @@ export async function fixture(
       resultVersion++
       result(sockets.at(-1)!)
     },
+    storeInvalidResult: (settlementStatus: Result['settlementStatus'] = 'PENDING', forfeitVerdicts = false) => {
+      resultStatus = 'INVALID'; resultReason = forfeitVerdicts ? 'ABORTED_NO_PLAYERS' : 'ENGINE_LOST'
+      invalidVerdicts = forfeitVerdicts; settled = settlementStatus === 'SETTLED'; resultVersion = settled ? 2 : 1
+      return resultPayload()
+    },
+    notifyResult: (payload: Result) => emit(sockets.at(-1)!, 'GAME_RESULT', payload),
     nextRound: () => {
       if (options.forfeit) {
         gameId += '-next'; gameVersion = 0; forfeitVersion = -1; finished = false; recoveryStatus = 'RESTORED'
@@ -767,6 +921,7 @@ export async function fixture(
     cancelEmote: (event: object) => emit(sockets.at(-1)!, 'WORLD_EMOTE_CANCELLED', event),
 
     players: (count: number) => { options.players = count; world(sockets.at(-1)!) },
+    serverTimeOffset: (ms: number) => { options.serverTimeOffsetMs = ms },
     pose: (patch: Partial<typeof position>) => { Object.assign(position, patch); world(sockets.at(-1)!) },
     remotePose: (patch: Partial<typeof position>) => { remotePosition = { ...remotePosition, ...patch }; world(sockets.at(-1)!) },
   }

@@ -4,15 +4,27 @@ import { clearAuthSession, getAuthSession, logout, restoreAuthSession } from './
 import { LoginPage } from './login/LoginPage'
 import { OnboardingPage } from './onboarding/OnboardingPage'
 import { ParkPage } from './park/ParkPage'
+import { preloadWorldAssets } from './world/worldAssets'
+import { preloadWorldCanvas } from './park/loadWorldCanvas'
 
-const AdminFeedbackPage = lazy(() => import('./features/feedback/AdminFeedbackPage').then(m => ({ default: m.AdminFeedbackPage })))
-type Page = 'checking' | 'login' | 'callback' | 'onboarding' | 'park' | 'admin-feedback'
+const AdminShell = lazy(() => import('./features/admin/AdminShell').then(m => ({ default: m.AdminShell })))
+type Page = 'checking' | 'login' | 'callback' | 'onboarding' | 'park' | 'admin' | 'admin-feedback' | 'admin-analytics'
 
 export default function App() {
   const [page, setPage] = useState<Page>(() =>
     window.location.pathname === '/auth/callback' ? 'callback' : 'checking',
   )
   const [exitError, setExitError] = useState('')
+
+  useEffect(() => {
+    if (page === 'callback' || page === 'onboarding'
+      || page === 'checking' && window.location.pathname === '/park') {
+      // Start textures/characters before constructing the procedural world, so
+      // the first scene render need not suspend and repeat expensive setup.
+      preloadWorldAssets()
+      preloadWorldCanvas()
+    }
+  }, [page])
 
   useEffect(() => {
     // A history-restored login page can retain stale React state after OAuth.
@@ -37,9 +49,12 @@ export default function App() {
     restoreAuthSession().then((authenticated) => {
       if (!active) return
       if (authenticated) {
-        const admin = window.location.pathname === '/admin/feedback'
-        window.history.replaceState(null, '', admin ? '/admin/feedback' : '/park')
-        setPage(admin ? 'admin-feedback' : 'park')
+        const path = window.location.pathname
+        const next = path === '/admin/feedback' ? 'admin-feedback'
+          : path === '/admin/analytics' ? 'admin-analytics' : path === '/admin' ? 'admin' : 'park'
+        window.history.replaceState(null, '', next === 'admin-feedback' ? '/admin/feedback'
+          : next === 'admin-analytics' ? '/admin/analytics' : next === 'admin' ? '/admin' : '/park')
+        setPage(next)
       } else {
         if (window.location.pathname !== '/') window.history.replaceState(null, '', '/')
         setPage('login')
@@ -51,6 +66,12 @@ export default function App() {
   const onAuthenticated = useCallback(() => {
     window.history.replaceState(null, '', '/park')
     setPage('park')
+  }, [])
+
+  const onAdminNavigate = useCallback((section: 'home' | 'feedback' | 'analytics') => {
+    const path = section === 'home' ? '/admin' : section === 'feedback' ? '/admin/feedback' : '/admin/analytics'
+    window.history.pushState(null, '', path)
+    setPage(section === 'home' ? 'admin' : section === 'feedback' ? 'admin-feedback' : 'admin-analytics')
   }, [])
 
   const onOnboardingRequired = useCallback(() => {
@@ -84,9 +105,10 @@ export default function App() {
   if (page === 'park' && getAuthSession()?.status === 'AUTHENTICATED') {
     return <ParkPage onExit={onExit} exitError={exitError} onAuthEnded={onReturnToLogin} />
   }
-  if (page === 'admin-feedback' && getAuthSession()?.status === 'AUTHENTICATED') {
+  if ((page === 'admin' || page === 'admin-feedback' || page === 'admin-analytics') && getAuthSession()?.status === 'AUTHENTICATED') {
     return <Suspense fallback={<main className="auth-loading" role="status">관리자 화면 준비 중…</main>}>
-      <AdminFeedbackPage onReturn={onAuthenticated} onAuthEnded={onReturnToLogin} />
+      <AdminShell section={page === 'admin' ? 'home' : page === 'admin-feedback' ? 'feedback' : 'analytics'} onNavigate={onAdminNavigate}
+        onReturn={onAuthenticated} onAuthEnded={onReturnToLogin} />
     </Suspense>
   }
   if (page === 'checking') return <main className="auth-loading" role="status">로그인 상태 확인 중…</main>

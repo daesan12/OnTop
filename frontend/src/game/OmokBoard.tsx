@@ -17,7 +17,10 @@ import { omokCell, stonePoint, OMOK_SIZE, OMOK_SPACING as spacing, OMOK_HALF as 
 import { GomokuAssets, stoneGeometry, blackStoneMaterial as blackMaterial, whiteStoneMaterial as whiteMaterial } from './omok/GomokuAssets'
 import { FocusWood } from './omok/BoardWood'
 import { OMOK_FOCUS_LAYER } from '../world/omokCamera'
-import { seatScope, useTableLobby } from '../features/tableLobby/state'
+import { seatScope } from '../features/tableLobby/state'
+import { useOmokEvents } from './omok/spectatorEvents'
+import { OmokPings } from './omok/OmokFeedback'
+import { panelOwnsKeys } from '../world/inputOwnership'
 
 const noRaycast = () => {} // Three line threshold is too wide for 9cm grid cells; pick the board surface.
 const blackPreview = blackMaterial.clone(), whitePreview = whiteMaterial.clone()
@@ -69,10 +72,9 @@ function OmokSurface({
   const canvas = useThree(s => s.gl.domElement)
   const ownsCursor = useRef(false)
   const connected = useSession(s => s.status === 'connected'), pending = useSession(s => s.pending)
-  const ownId = useSession(s => s.sessionId), scope = useSession(seatScope)
-  const lookScope = useTableLobby(s => s.lookScope)
-  const focused = !!scope && lookScope !== scope && game?.role === 'PLAYER'
-    && game.omok.status === 'PLAYING' && game.omok.turnUserId === ownId
+  const scope = useSession(seatScope)
+  const focused = !!scope && game?.role === 'PLAYER'
+    && game.omok.status === 'PLAYING'
   useLayoutEffect(() => {
     root.current?.traverse(object => {
       if (focused) object.layers.enable(OMOK_FOCUS_LAYER)
@@ -99,9 +101,12 @@ function OmokSurface({
   }
   const playable = (x: number, y: number) => {
     const session = useSession.getState()
-    return relevant && session.status === 'connected' && !session.pending && omokCamera.ready
+    return !panelOwnsKeys() && relevant && session.status === 'connected' && !session.pending && omokCamera.ready
       && omokCamera.anchorId === anchor.id && canPlace(session.sessionId, x, y)
   }
+  const pingable = () => relevant && game?.role === 'SPECTATOR' && game.omok.status === 'PLAYING'
+    && useSession.getState().status === 'connected' && useOmokEvents.getState().canSend && !panelOwnsKeys()
+    && omokCamera.ready && omokCamera.anchorId === anchor.id
   const grid = useMemo(() => {
     const vertices: number[] = []
     for (let i = 0; i < OMOK_SIZE; i++) {
@@ -151,7 +156,7 @@ function OmokSurface({
       onPointerDown={(event) => {
         const g = useGame.getState().game, point = cell(event)
         press.current =
-          event.button === 0 && point && g && playable(point.x, point.y)
+          event.button === 0 && point && g && (playable(point.x, point.y) || pingable())
             ? { gameId: g.gameId, version: g.version, ...point }
             : null
       }}
@@ -162,7 +167,10 @@ function OmokSurface({
           hover.current.visible = true
           canvas.style.cursor = 'pointer'
           ownsCursor.current = true
-        } else clearHover()
+        } else {
+          clearHover()
+          if (point && pingable()) { canvas.style.cursor = 'pointer'; ownsCursor.current = true }
+        }
       }}
       onPointerOut={clearHover}
       onClick={(event) => {
@@ -183,13 +191,15 @@ function OmokSurface({
         )
           return
         const point = cell(event)
-        if (point && point.x === down.x && point.y === down.y && playable(point.x, point.y)) {
+        if (point && point.x === down.x && point.y === down.y && (playable(point.x, point.y) || pingable())) {
           clearHover()
-          void parkRuntime.placeOmok(point.x, point.y)
+          if (g.role === 'SPECTATOR') void parkRuntime.pingOmok(point.x, point.y)
+          else void parkRuntime.placeOmok(point.x, point.y)
         }
       }}
     >
       <GomokuAssets />
+      {game && <OmokPings gameId={game.gameId} focused={focused} />}
       {/* Decorations never pick cells; keep the approved grid's original local coordinates. */}
       <mesh name="omok-pick-surface" position={[0, 0.0005, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[1.4, 1.4]} />

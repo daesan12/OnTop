@@ -185,6 +185,7 @@ public class ShopController {
         return shopError(new ShopException(503, "SHOP_UNAVAILABLE", "상점을 확인할 수 없습니다."));
     }
 
+    @Schema(name = "ShopErrorResponse")
     public record ErrorResponse(String code, String message, Object details) { }
 }
 

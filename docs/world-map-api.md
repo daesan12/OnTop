@@ -1,7 +1,8 @@
 # 맵 버전 전달·입장 전 확인
 
 담당: 장대산. 서버 연결부·로컬 검증 범위이며 FE 서비스 맵 전환·개발 서버 배포는 별도다.
-현재 `/world/park.json`과 Java 이동·충돌은 유지한다. FE 미리보기 JSON은 런타임 맵으로 사용하지 않는다.
+기본값은 기존 `/world/park.json`이다. 생성 맵은 아래 실행 설정을 명시한 별도 서버에서 선택할 수 있다.
+현재 실행 서버의 맵 전환·배포는 수행하지 않았으며 기존 Java 이동·충돌 판정은 유지한다.
 
 ## 연결 완료 · CONNECTED
 
@@ -26,7 +27,7 @@
 `map`은 서버 물리 엔진이 로딩한 ParkScene에서 가져온다. 현재 구형 맵의 mapId는 리소스에 대응하는
 `park`, schemaVersion은 JSON의 schemaVersion, mapVersion은 기존 sourceSha256이다.
 WORLD_STATE·시설 카탈로그의 mapVersion과 동일하다. FE 신규 생성 버전으로 기존 서버 버전을 덮어쓰지 않는다.
-새 JSON 로더는 아래 사전 검사 전용이며, 런타임 연결은 데이터 규격 합의 후 별도로 진행한다.
+생성 맵을 명시 선택한 서버에서는 같은 형식으로 선택된 schema2 식별 정보를 전달한다.
 
 ## 확인 요청 · WORLD_MAP_CONFIRM
 
@@ -102,7 +103,7 @@ mapVersion은 소문자 16진수 64자리다. 누락·타입 오류·추가 필�
 ## 활성화와 후속 연결
 
 `ontop.world.map.require-match` / `WORLD_MAP_REQUIRE_MATCH` 기본값은 false다.
-현재 FE가 확인 요청을 보내지 않으므로 기본값에서 기존 접속·자동 복구 흐름을 유지한다.
+기존 FE 연결을 위해 기본값에서는 기존 접속·자동 복구 흐름을 유지한다.
 false여도 메타데이터와 확인 메시지를 제공하고 명시적인 불일치 확인 요청은 거절한다.
 true에서는 확인 전 채널·이동·시설·테이블·게임 요청과 경기 복구/결과 구독 연결을 보류한다.
 새로 접속한 미확인 세션에는 기존 보존 좌석의 테이블·시작 상태도 방송하지 않는다.
@@ -111,11 +112,20 @@ FE가 확인 요청을 연결하고 양쪽 실제 맵이 일치하는 것을 검
 새 맵·시설 좌표·버전을 함께 생성/배포하는 작업과 구분하며 현재 자료만으로 서비스 맵을 전환하지 않는다.
 DB 스키마·인증·판돈 예약/정산은 변경하지 않는다.
 
+2026-10-26 `dev` 0b0f275의 FE와 대조한 전환 조건:
+
+- `SpringParkRuntime`은 CONNECTED 후 CHANNEL_JOIN을 요청하며 WORLD_MAP_CONFIRM은 아직 전송하지 않는다.
+  현재 FE와 연결하는 서버는 require-match=false를 유지한다. true를 먼저 켜면 MAP_VERSION_REQUIRED로 입장이 거절된다.
+- FE `config/mapVersion.ts`는 기존 schema1 맵 버전을 사용한다. 새 공원 코드·환경별 테이블 매핑·
+  WORLD_MAP_CONFIRM → WORLD_MAP_STATE 확인을 FE에 함께 반영하고 재접속마다 다시 확인해야 한다.
+- 기존 맵의 실제 FE SharedSocket/FollowClient/worldClient 연동 통과는 새 맵의 ParkRuntime/3D 공동 검수와 다르다.
+  generated 선택은 require-match=true가 필수이므로 위 FE 연결 전에는 활성화하지 않는다.
+
 ## 생성 맵 사전 로딩·무결성 검사
 
 `GeneratedParkMapLoader.load(mapFile, manifestFile)`는 명시적으로 전달한 두 로컬 파일을 검사한다.
-Spring 빈·시작 훅·리소스 선택 설정에는 연결하지 않았다. 통과해도 ParkScene·CONNECTED·WORLD_STATE의
-실제 맵 버전과 좌표는 바뀌지 않는다. HTTP/WS API 추가도 없다.
+로더만 호출하면 런타임 맵은 바뀌지 않는다. 아래 실행 선택은 WorldMapRuntime이 로더·조립 결과를
+실제 빈에 연결하는 별도 경로다. HTTP/WS API 추가는 없다.
 
 - 맵 format=`ontop.park-map`, manifest format=`ontop.park-map-manifest`, hashAlgorithm=`sha256`.
 - 양쪽 mapId=`park`, schemaVersion=정수 `2`, mapVersion=소문자 16진수 64자리이며 서로 같아야 한다.
@@ -143,7 +153,7 @@ Spring 빈·시작 훅·리소스 선택 설정에는 연결하지 않았다. �
 
 FE `5c171c6`의 추가 데이터를 기준으로 `PreparedParkMap.load(mapFile, manifestFile, channelIds)`를
 추가했다. 앞선 체크섬 검사를 통과한 파일로 다음 자료를 조립한다.
-기본 Spring 구성과 실행 설정은 유지하며, 명시적으로 주입하는 별도 테스트 구성에서만 새 맵을 사용한다.
+기본값은 기존 맵을 유지한다. 명시적 테스트 주입 또는 아래 실행 설정으로 새 맵을 연결할 수 있다.
 
 | 제공 자료 | 연결 내용 |
 | --- | --- |
@@ -198,5 +208,35 @@ PreparedParkSocketTests는 랜덤 포트의 별도 서버에서 실제 네이티
 단위 네이티브 이동은 단순 지형 fixture에서도 검증한다. PreparedParkMovementTests는 실제 FE 전달본의
 외벽/테이블 영역, 호수 수영, 대표 디딤돌, 전망대 입구의 나선 경사로를 별도 장면에서 검사한다.
 좌표는 생성 데이터에서 읽고 시작 위치만 서버 fixture로 배치한다. 전체 장애물·24개 돌·전망대 정상까지
-모두 검수한 것은 아니다. FE 3D 공동 검수·CI·배포는 후속이다. 실행 맵 자동 선택·기본값 변경·서비스용
-신규 실행 프로필은 추가하지 않았다.
+모두 검수한 것은 아니다. FE 3D 공동 검수·CI·배포는 후속이다. 기본값 변경·서비스용 신규 실행 프로필은 없다.
+
+## 실행 시 생성 맵 선택
+
+`WorldChannelConfiguration`이 하나의 `WorldMapRuntime`을 만든다. Registry/물리 장면, 맵 버전 확인,
+TableHub의 테이블·시설·메모함, WorldProximity의 관전 좌표가 같은 선택 결과를 사용한다.
+기본값 `WORLD_MAP_SOURCE=legacy`에서는 기존 맵·채널당 테이블 2개를 유지한다.
+JSON 경로만 설정해도 자동 전환되지 않는다.
+
+새 맵을 선택하는 별도 실행에는 아래 네 값이 모두 필요하다. `.env.example`은 legacy 기본값을 유지한다.
+
+```dotenv
+WORLD_MAP_SOURCE=generated
+WORLD_MAP_JSON_PATH=/opt/ontop/maps/server-map.json
+WORLD_MAP_MANIFEST_PATH=/opt/ontop/maps/manifest.json
+WORLD_MAP_REQUIRE_MATCH=true
+```
+
+- 경로는 서버가 읽을 수 있는 일반 파일 경로다. 절대 경로를 권장하며 상대 경로는 실행 디렉터리 기준이다.
+  URL/classpath 주소가 아니며 파일을 내려받거나 FE 생성물을 JAR에 자동 포함하지 않는다.
+- 두 파일은 같은 FE 생성 세트여야 한다. 채널 설정도 필요하며 각 채널에 기존 규칙으로 16개 테이블을 만든다.
+  기존 서버 ID·[환경별 매핑](integration/park-180/park-bindings.dev.json)은 유지한다.
+- 알 수 없는 source, 누락 경로/채널, require-match=false, 파일·체크섬·맵/좌표 규격 오류는 시작 실패다.
+  실패 시 구형 맵으로 조용히 되돌아가지 않는다.
+- 선택은 서버 시작 시 한 번 수행한다. 파일 변경만으로 실행 중인 물리 장면이 바뀌지 않는다.
+  실제 전환에는 FE 버전 확인 연결·공동 검수 후 파일 제공/환경변수 설정과 서버 재시작·재배포가 필요하다.
+  CI·Compose·배포 설정은 이번 변경에 포함하지 않았다.
+
+WorldMapRuntimeConfigurationTests는 기본값/경로만 설정/잘못된 설정을 검사한다.
+`TEST_GENERATED_MAP_DIR`을 지정한 GeneratedWorldMapRuntimeTests는 실제 전달본 선택과 변조 파일 거절을,
+WorldMapSelectionWebSocketTests는 실제 앱의 랜덤 포트에서 버전 확인·16번 착석·게임 선택·전원 준비를 검사한다.
+회원 인증은 fixture이며 DB 저장·FE 3D 화면·실제 실행 서버 전환 검증은 아니다.

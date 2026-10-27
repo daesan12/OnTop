@@ -18,7 +18,7 @@ export const fitnessRubber = (
   <meshStandardMaterial roughness={0.72} metalness={0.05} />
 )
 
-const pad = new PropBuilder()
+const pad = new PropBuilder([12, 8], 'fitness-pad')
 for (let x = 0; x < 4; x++)
   for (let z = 0; z < 4; z++) {
     pad.box(

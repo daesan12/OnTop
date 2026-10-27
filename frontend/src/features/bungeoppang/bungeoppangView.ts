@@ -27,11 +27,17 @@ export const bungeoppangView = {
   position: [cart.x + cx, layout.surfaceY + 1.2, cart.z + cz + 1.12] as [number, number, number],
   target: [cart.x + cx, layout.surfaceY, cart.z + cz] as [number, number, number],
   fov: 40,
-  /** 내가 굽는 동안 가린다: 가게 앞 다른 캐릭터(반경 m). */
-  hideOthersRadius: 2.6,
   standX: cart.x,
   standZ: cart.z + cart.depth / 2 + 1,
 };
+
+/** Reveal only after the camera has cleared the local avatar; controls are already live. */
+export function bungeoppangReturnOpacity(now: number, reducedMotion = false) {
+  if (bungeoppangView.active || now < bungeoppangView.returningUntil) return 0;
+  if (!bungeoppangView.returningUntil || reducedMotion) return 1;
+  const t = Math.min(1, Math.max(0, (now - bungeoppangView.returningUntil) / 320));
+  return t * t * (3 - 2 * t);
+}
 
 /** Monotonic wall time: hidden tabs and help do not pause the server's 60-second round. */
 export const bungeoppangClock = {
@@ -40,6 +46,8 @@ export const bungeoppangClock = {
   countdown: 0,
   ending: 0,
   playAt: 0,
+  countdownAt: 0,
+  preparing: false,
 };
 export function gameNow() {
   return Math.min(

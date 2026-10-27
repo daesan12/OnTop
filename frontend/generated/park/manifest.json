@@ -3,12 +3,12 @@
     {
       "bytes": 2499280,
       "path": "generated/park/server-map.json",
-      "sha256": "63811d2835f3fbbdb26f8de5720dc9503ce92ca8db559149e5410cfdab67ecf5"
+      "sha256": "f091a95b3c873d0fd0206b98ec54337c596768b26b82e503233c5cfc4403f344"
     },
     {
       "bytes": 329,
       "path": "src/map/park/generated/mapVersion.ts",
-      "sha256": "d1ad497138c1c790e086c43aaf7c792de767a5193bd715d398a8506891c7cad3"
+      "sha256": "0c378be874187a2537e5461aad4ba55023ccc9c271ea8d799220ec568d56b372"
     }
   ],
   "counts": {
@@ -29,10 +29,10 @@
   "hashAlgorithm": "sha256",
   "hashes": {
     "dataHash": "4a626c4e965be186fd9f766b1820ee7b4533985774c6efe293425f526720d81f",
-    "sourceHash": "36e67dc06361498bafe04ac64275c39f5b1a16b08bc8b416f122c08c4d6fd236"
+    "sourceHash": "99f75e309aa8043106af7601c65f69968cdb89b8416f55fea494a6ca449b492a"
   },
   "mapId": "park",
-  "mapVersion": "5ce3cff53136eaa3be6a9fe3048d49f611403c1ceff41d2c8f266e26cc6ac840",
+  "mapVersion": "2857774aae694b3b091f80d9e0b67d23133e0582f78098ff706f8933ad5bcf0a",
   "schemaVersion": 2,
   "sources": [
     {
@@ -49,7 +49,7 @@
     },
     {
       "path": "src/config/environment.ts",
-      "sha256": "b65545463482d94290f81095e6804f41f9a050226df385f32882caf2151d43c5"
+      "sha256": "c12d7eb2270036ba061ece18a4bdca40a2e43c17505305a803f577aef92e02b9"
     },
     {
       "path": "src/config/existingTrees.ts",
@@ -93,7 +93,7 @@
     },
     {
       "path": "src/config/parkExpansion.ts",
-      "sha256": "900ce40201c19d98c466dc224b8e6862bc2cbf2d94546af17815c8cb36d53097"
+      "sha256": "ac575097bf069a524a5af37a525c152ad71dc2bd0b7acd73c7d5351f8adec08f"
     },
     {
       "path": "src/config/parkLandforms.ts",
@@ -137,7 +137,7 @@
     },
     {
       "path": "src/config/world.ts",
-      "sha256": "97d43b76b3663e03554deb3113887dadb07e847baee697cf8e7bc1b96e956e11"
+      "sha256": "514d1c22d5d95fa54abf3674ea84a0978fe22f938937aef4d33a82ed6b15877c"
     },
     {
       "path": "src/map/geometry.ts",

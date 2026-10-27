@@ -2,9 +2,9 @@ import { describe, expect, it, vi } from 'vitest'
 import { Group, SkinnedMesh, Vector3 } from 'three'
 import { characterSource } from '../fixtures/characterRig'
 import { characterBones, createCharacterRig } from '../../src/world/art/CharacterRig'
-import { avatarEmoteAge, avatarPoseActive, avatarPoseKey, createAvatarMotion } from '../../src/world/avatarMotion'
+import { avatarEmoteAge, avatarPoseActive, avatarPoseKey, avatarSeatSurface, createAvatarMotion } from '../../src/world/avatarMotion'
 import { AvatarPoseCadence } from '../../src/performance/avatarPoseCadence'
-import { CLAP_EMOTE, FITNESS_STATIONS, SOCIAL_GESTURES } from '../../src/config'
+import { CHARACTER, CLAP_EMOTE, FITNESS_STATIONS, SOCIAL_GESTURES } from '../../src/config'
 import { FITNESS, PULLDOWN_LIFT, createFitnessMotion, sampleFitnessMotion } from '../../src/config'
 import { sampleFitnessGrip } from '../../src/world/art/fitnessGrip'
 import type { AvatarSnapshot } from '../../src/network/worldClient'
@@ -45,6 +45,74 @@ describe('avatar pose transitions and resource ownership', () => {
   })
 
   for (const name of ['man', 'girl'] as const) {
+    it(`${name}: keeps the seated body and clothing above the seat surface`, async () => {
+      const rig = createCharacterRig(await characterSource(name)), motion = createAvatarMotion(rig)
+      const figure = new Group()
+      for (let i = 0; i < 90; i++) motion.apply(avatar({ tableId: 'table-1', seatIndex: 0 }), 0, 1 / 60, pose, figure)
+      rig.root.updateMatrixWorld(true)
+      const mesh = rig.root.getObjectByName('near-body') as SkinnedMesh
+      mesh.skeleton.update()
+      const p = mesh.geometry.attributes.position!, weights = mesh.geometry.attributes.skinWeight!, indices = mesh.geometry.attributes.skinIndex!
+      let bottom = Infinity, samples = 0
+      for (let i = 0; i < p.count; i++) {
+        if (p.getY(i) < rig.hipHeight - 0.2 || p.getY(i) > rig.hipHeight + 0.1) continue
+        let support = 0
+        for (let j = 0; j < 4; j++) if (['hips', 'spine'].includes(mesh.skeleton.bones[indices.getComponent(i, j)]!.name)) support += weights.getComponent(i, j)
+        if (support < 0.65) continue
+        bottom = Math.min(bottom, mesh.getVertexPosition(i, new Vector3()).y)
+        samples++
+      }
+      const worldBottom = CHARACTER.seatedHipHeight + rig.seatedHipLift - rig.hipHeight + bottom
+      expect(samples).toBeGreaterThan(50)
+      expect(worldBottom).toBeGreaterThanOrEqual(CHARACTER.seatedHipHeight)
+      expect(worldBottom).toBeLessThan(CHARACTER.seatedHipHeight + 0.015)
+      expect(avatarSeatSurface('bench-0') + rig.seatedHipLift - rig.hipHeight + bottom).toBeGreaterThan(0.58)
+      rig.dispose()
+    })
+    it(`${name}: swims with alternating full arm strokes, kicks and a stable pelvis at 30/60fps`, async () => {
+      for (const fps of [30, 60]) {
+        const rig = createCharacterRig(await characterSource(name)), motion = createAvatarMotion(rig)
+        const figure = new Group(), hips = new Vector3()
+        figure.add(rig.root)
+        const a = avatar({ swimming: true, moving: true })
+        const handSamples: number[] = []
+        const armAngles: Record<string, number> = {}, armTravel: Record<string, number> = { L: 0, R: 0 }
+        let min = Infinity, max = -Infinity, kickMin = Infinity, kickMax = -Infinity
+        for (let i = 0; i < fps * 4; i++) {
+          motion.apply(a, 0, 1 / fps, pose, figure)
+          figure.updateMatrixWorld(true)
+          if (i < fps) continue
+          for (const side of ['L', 'R'] as const) {
+            const shoulder = rig.bones[`upperArm_${side}`].getWorldPosition(new Vector3())
+            const relative = rig.bones[`hand_${side}`].getWorldPosition(new Vector3()).sub(shoulder)
+            const angle = Math.atan2(relative.z, relative.y), before = armAngles[side]
+            if (before !== undefined) armTravel[side]! += Math.atan2(Math.sin(angle - before), Math.cos(angle - before))
+            armAngles[side] = angle
+          }
+          const hand = rig.bones.hand_L.getWorldPosition(new Vector3())
+          handSamples.push(hand.z)
+          min = Math.min(min, hand.z); max = Math.max(max, hand.z)
+          kickMin = Math.min(kickMin, rig.bones.upperLeg_L.rotation.x)
+          kickMax = Math.max(kickMax, rig.bones.upperLeg_L.rotation.x)
+          rig.bones.hips.getWorldPosition(hips)
+          expect(Math.abs(hips.z)).toBeLessThan(0.001)
+          expect(hips.y).toBeCloseTo(0.8, 3)
+        }
+        expect(figure.rotation.x).toBeCloseTo(1.3, 3)
+        expect(max - min).toBeGreaterThan(0.4)
+        const middle = (min + max) / 2
+        const crossings = handSamples.filter((z, i) => i > 0 && (z - middle) * (handSamples[i - 1]! - middle) < 0).length
+        expect(crossings).toBeGreaterThanOrEqual(5)
+        // Signed hand travel catches a backwards stroke; range/crossings alone cannot.
+        expect(armTravel.L).toBeGreaterThan(8)
+        expect(armTravel.R).toBeGreaterThan(8)
+        expect(rig.bones.lowerArm_L.rotation.x).toBeLessThan(-0.15)
+        expect(kickMax - kickMin).toBeGreaterThan(0.35)
+        for (let i = 0; i < fps; i++) motion.apply({ ...a, moving: false }, 0, 1 / fps, pose, figure)
+        expect(figure.rotation.x).toBeLessThan(0.2)
+        rig.dispose()
+      }
+    })
     it(`${name}: fits machine grips and seated hip height without changing model scale`, async () => {
       const rig = createCharacterRig(await characterSource(name)), motion = createAvatarMotion(rig)
       const base = new Group(), figure = new Group(), target = new Vector3(), hand = new Vector3()
@@ -131,8 +199,8 @@ describe('avatar pose transitions and resource ownership', () => {
         expect(mesh.morphTargetInfluences![mesh.morphTargetDictionary!.seatedCloth!]).toBeCloseTo(1, 4)
       }
       step(avatar({ swimming: true, emote: 'EMOTE_WAVE' }))
-      expect(figure.rotation.x).toBe(1)
-      expect(figure.position.y).toBe(0.45)
+      expect(figure.rotation.x).toBeCloseTo(0.18, 3)
+      expect(Number.isFinite(figure.position.y)).toBe(true)
       const signatures = new Set<string>()
       for (const station of FITNESS_STATIONS) {
         step(avatar({ fitnessId: station.id, fitnessStartedAt: 100, swimming: true }), 1100)

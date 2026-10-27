@@ -28,6 +28,7 @@ public class OpenApiSchemaCustomizer implements OperationCustomizer {
     @Override
     public Operation customize(Operation operation, HandlerMethod handler) {
         String controller = handler.getBeanType().getSimpleName();
+        domainErrors(operation, controller);
         operation.getResponses().forEach((code, response) -> {
             response.addHeaderObject("Cache-Control", new Header().schema(new StringSchema())
                     .description("no-store"));
@@ -56,13 +57,13 @@ public class OpenApiSchemaCustomizer implements OperationCustomizer {
         }
         if (controller.equals("AuthExchangeController")) {
             body(operation, new ObjectSchema().addProperty("exchangeCode",
-                    new StringSchema().pattern("[A-Za-z0-9_-]{43}").minLength(43).maxLength(43))
+                    new StringSchema().pattern("^[A-Za-z0-9_-]{43}$").minLength(43).maxLength(43))
                     .required(List.of("exchangeCode")).additionalProperties(false));
         }
         if (controller.equals("NicknameAvailabilityController")) {
             operation.getParameters().stream().filter(p -> "nickname".equals(p.getName())).forEach(p -> {
                 p.setRequired(true);
-                p.setSchema(new StringSchema().minLength(2).maxLength(8).pattern("[가-힣A-Za-z0-9]{2,8}")
+                p.setSchema(new StringSchema().minLength(2).maxLength(8).pattern("^[가-힣A-Za-z0-9]{2,8}$")
                         .example("온탑고수"));
             });
         }
@@ -90,13 +91,6 @@ public class OpenApiSchemaCustomizer implements OperationCustomizer {
             });
         }
         if (controller.equals("ShopController")) {
-            for (String code : List.of("401", "403", "500")) {
-                operation.getResponses().get(code).setContent(json(new Schema<>()
-                        .$ref("#/components/schemas/AuthErrorResponse")));
-            }
-            operation.getResponses().get("503").setContent(json(new ComposedSchema()
-                    .addAnyOfItem(new Schema<>().$ref("#/components/schemas/AuthErrorResponse"))
-                    .addAnyOfItem(new Schema<>().$ref("#/components/schemas/ErrorResponse"))));
             operation.setDescription(operation.getDescription() + " local/dev 프로필에서 등록됩니다(운영 혼합 제외). "
                     + "실제 서비스는 db 및 ontop.shop.enabled=true(dev: SHOP_ENABLED=true), "
                     + "별도 상점 스키마와 회원 지갑이 필요합니다. 기존 V100 적용 이력·순서를 확인한 뒤 "
@@ -107,14 +101,75 @@ public class OpenApiSchemaCustomizer implements OperationCustomizer {
                                 .maximum(BigDecimal.valueOf(Integer.MAX_VALUE)))
                         .required(List.of("itemId", "quantity")).additionalProperties(false));
                 operation.addParametersItem(new Parameter().in("header").name("Idempotency-Key").required(true)
-                        .schema(new StringSchema().pattern("[A-Za-z0-9_-]{1,64}").minLength(1).maxLength(64))
+                        .schema(new StringSchema().pattern("^[A-Za-z0-9_-]{1,64}$").minLength(1).maxLength(64))
                         .description("같은 회원·키·구매 내용은 기존 영수증 반환, 같은 키의 다른 내용은 409"));
             } else if (handler.getMethod().getName().equals("equip")) {
                 body(operation, new ObjectSchema().addProperty("userItemId", positiveLong())
                         .required(List.of("userItemId")).additionalProperties(false));
             }
         }
+        if (controller.equals("FeedbackController") || controller.equals("NotesController")) {
+            boolean notes = controller.equals("NotesController");
+            if (handler.getMethod().getName().equals("submit")) {
+                StringSchema text = new StringSchema();
+                text.setDescription("원문 UTF-16 " + (notes ? 300 : 600)
+                        + "단위 이하. NFC → 제어/Cf 문자 제거 → JS trim 후 "
+                        + (notes ? "1~300" : "5~600") + " UTF-16 단위. 코드포인트 길이인 minLength와 다릅니다.");
+                text.addExtension("x-utf16-max-length", notes ? 300 : 600);
+                text.addExtension("x-normalized-utf16-min-length", notes ? 1 : 5);
+                StringSchema channel = new StringSchema();
+                channel.setMinLength(1);
+                channel.setDescription("Java isBlank=false, 최대 64 UTF-16 단위. 서버의 현재 채널·위치·활동도 검사합니다.");
+                channel.addExtension("x-utf16-max-length", 64);
+                body(operation, new ObjectSchema().addProperty("operationId", new StringSchema().pattern(notes
+                                ? "^[0-9]{13}_[A-Za-z0-9_-]{16,64}$" : "^[A-Za-z0-9_-]{1,64}$"))
+                        .addProperty("channelId", channel).addProperty("text", text)
+                        .required(List.of("operationId", "channelId", "text")).additionalProperties(false));
+            } else if (notes) {
+                operation.getParameters().stream().filter(p -> "channelId".equals(p.getName())).forEach(p -> {
+                    p.setRequired(true);
+                    p.getSchema().addExtension("x-utf16-max-length", 64);
+                    p.setDescription("공백이 아닌 현재 채널 ID, 최대 64 UTF-16 단위");
+                });
+            } else {
+                operation.getParameters().forEach(p -> {
+                    if (p.getName().equals("cursor")) {
+                        p.setDescription("생략/빈 문자열 또는 양의 BIGINT ID. 해당 ID 미만 조회");
+                        p.getSchema().setPattern("^(?:|[1-9][0-9]{0,18})$");
+                    } else if (p.getName().equals("limit")) {
+                        p.setDescription("기본 20, 십진수 1~50");
+                        p.getSchema().setPattern("^(?:[1-9]|[1-4][0-9]|50)$");
+                    }
+                });
+            }
+        }
         return operation;
+    }
+
+    private void domainErrors(Operation operation, String controller) {
+        String schema = switch (controller) {
+            case "ShopController" -> "ShopErrorResponse";
+            case "MinigameController" -> "MinigameErrorResponse";
+            case "FeedbackController" -> "FeedbackErrorResponse";
+            case "NotesController" -> "NotesErrorResponse";
+            default -> null;
+        };
+        if (schema == null && !List.of("RankingController", "ChannelQueryController", "TableQueryController")
+                .contains(controller)) { return; }
+        operation.getResponses().putIfAbsent("403", new io.swagger.v3.oas.models.responses.ApiResponse()
+                .description("Origin 또는 ROLE_MEMBER 접근 거절"));
+        operation.getResponses().putIfAbsent("500", new io.swagger.v3.oas.models.responses.ApiResponse()
+                .description("AUTH_TOKEN_CONFIGURATION_ERROR"));
+        operation.getResponses().forEach((code, response) -> {
+            if (Integer.parseInt(code) < 400) { return; }
+            Schema<?> auth = new Schema<>().$ref("#/components/schemas/AuthErrorResponse");
+            Schema<?> content = schema == null || code.equals("500") ? auth
+                    : new Schema<>().$ref("#/components/schemas/" + schema);
+            if (schema != null && List.of("401", "403", "503").contains(code)) {
+                content = new ComposedSchema().addAnyOfItem(auth).addAnyOfItem(content);
+            }
+            response.setContent(json(content));
+        });
     }
 
     private Schema<?> positiveLong() {

@@ -13,9 +13,10 @@ import {
 } from 'three'
 import {
   mergeGeometries,
-  mergeVertices,
 } from 'three/addons/utils/BufferGeometryUtils.js'
+import { weldStaticVertices } from './weldStaticVertices'
 import type { Part, XYZ } from './Instances'
+import { recordPropBuild, takeBakedProp } from './bakedProps'
 
 export interface SurfaceBatch {
   geometry: BufferGeometry
@@ -65,7 +66,17 @@ function branch(ranges: Range[]): Branch {
 export function mergeSurfaceParts(
   batches: readonly SurfaceBatch[],
   assetScale: XYZ = [1, 1, 1],
+  cacheKey?: string,
 ) {
+  const baked = takeBakedProp(cacheKey)?.stone
+  if (baked && Array.isArray(baked.userData.ontopSurfaceRanges)) {
+    const ranges = baked.userData.ontopSurfaceRanges as { min: number[]; max: number[]; start: number; count: number }[]
+    trees.set(baked, branch(ranges.map(range => ({
+      bounds: new Box3(new Vector3().fromArray(range.min), new Vector3().fromArray(range.max)),
+      start: range.start, count: range.count,
+    }))))
+    return baked
+  }
   const pieces: BufferGeometry[] = [],
     ranges: Range[] = []
   const object = new Object3D(),
@@ -107,9 +118,11 @@ export function mergeSurfaceParts(
           u = u / (batch.meters ?? 1.5) + part.p[0] * 0.173
           v = v / (batch.meters ?? 1.5) + part.p[2] * 0.173
         }
-        uv.set([u, v], i * 2)
+        uv[i * 2] = u
+        uv[i * 2 + 1] = v
         color.toArray(colors, i * 3)
-        finish.set([batch.strength, batch.detail ?? 1], i * 2)
+        finish[i * 2] = batch.strength
+        finish[i * 2 + 1] = batch.detail ?? 1
       }
       g.setAttribute('uv', new Float32BufferAttribute(uv, 2))
       g.setAttribute('color', new Float32BufferAttribute(colors, 3))
@@ -132,11 +145,17 @@ export function mergeSurfaceParts(
   // Recover the GPU vertex cache after baking. Attribute-aware deduplication
   // retains UV/normal/tint/finish seams. Index order is unchanged, so each
   // original triangle range remains valid for the raycast hierarchy.
-  const geometry = mergeVertices(flat, 1e-6)
+  const geometry = weldStaticVertices(flat, 1e-6)
   flat.dispose()
   geometry.computeBoundingBox()
   geometry.computeBoundingSphere()
   trees.set(geometry, branch(ranges))
+  if (cacheKey) {
+    geometry.userData.ontopSurfaceRanges = ranges.map(range => ({
+      min: range.bounds.min.toArray(), max: range.bounds.max.toArray(), start: range.start, count: range.count,
+    }))
+    recordPropBuild(cacheKey, { stone: geometry })
+  }
   return geometry
 }
 

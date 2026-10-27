@@ -3,7 +3,7 @@ import { PropBuilder } from './propGeometry'
 import { Instances, type Part } from './Instances'
 import { PropModel } from './PropModel'
 function frame(back: boolean) {
-  const b = new PropBuilder(),
+  const b = new PropBuilder([12, 8], `bench-frame-${back}`),
     c = '#283333'
   for (const x of [-1.17, 1.17]) {
     for (const side of [-1, 1])

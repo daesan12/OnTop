@@ -44,8 +44,11 @@ public class GameSettlementPersistenceService {
         GameSession game = sessions.findForUpdateById(gameId)
                 .orElseThrow(() -> new IllegalArgumentException("확정된 경기가 없습니다."));
         if (game.settlementStatus() == GameSession.SettlementStatus.SETTLED) { return; }
-        if (game.status() != GameSession.Status.FINISHED || !game.hasFinish()) {
-            throw new IllegalStateException("저장된 정상 종료 결과가 필요합니다.");
+        boolean invalid = game.status() == GameSession.Status.INVALID;
+        if (game.settlementStatus() != GameSession.SettlementStatus.PENDING || game.endedAt() == null
+                || game.endReason() == null
+                || !invalid && (game.status() != GameSession.Status.FINISHED || !game.hasFinish())) {
+            throw new IllegalStateException("저장된 종료 결과가 필요합니다.");
         }
         var players = participants.findByGameSessionIdOrderByParticipantOrder(gameId);
         if (players.size() != game.participantCount() || game.totalPot() != Math.multiplyExact(game.betAmountPerPlayer(), players.size())
@@ -53,8 +56,9 @@ public class GameSettlementPersistenceService {
                     || p.reservationReleasedAt() != null || p.coinDelta() != null)) {
             throw new IllegalStateException("경기 예약 상태가 일치하지 않습니다.");
         }
-        var calculation = GameSettlementCalculation.calculate(game.betAmountPerPlayer(),
-                players.stream().map(GameParticipant::result).toList());
+        var calculation = invalid ? GameSettlementCalculation.refund(players.size())
+                : GameSettlementCalculation.calculate(game.betAmountPerPlayer(),
+                    players.stream().map(GameParticipant::result).toList());
         Map<Long, Wallet> locked = new HashMap<>();
         for (var player : players.stream().sorted(Comparator.comparingLong(GameParticipant::userId)).toList()) {
             // 탈퇴한 참가자의 원래 지갑도 정산한다. 새 지갑/가입 보너스를 생성하지 않는다.
@@ -73,14 +77,22 @@ public class GameSettlementPersistenceService {
             if (award.bonus() > 0) {
                 ledger.save(WalletTransaction.gameTieBonus(wallet.id(), gameId, player.userId(), award.bonus(), now));
             }
-            player.closeReservation(award.netDelta(), now);
+            if (invalid) {
+                player.releaseInvalidReservation(now);
+            } else {
+                player.closeReservation(award.netDelta(), now);
+            }
             sum = Math.addExact(sum, award.netDelta());
         }
         if (sum != calculation.bonus()) { throw new IllegalStateException("정산 합계가 일치하지 않습니다."); }
-        game.settle(calculation.bonus(), calculation.payoutPerWinner(), now);
+        if (invalid) {
+            game.completeInvalidation(now);
+        } else {
+            game.settle(calculation.bonus(), calculation.payoutPerWinner(), now);
+        }
         ledger.flush();
         sessions.flush();
-        events.publishEvent(new GameResultsReady(players.stream()
+        events.publishEvent(new GameResultsReady(game.tableId(), players.stream()
                 .map(p -> StoredGameResult.forMember(game, players, p)).toList()));
     }
 }

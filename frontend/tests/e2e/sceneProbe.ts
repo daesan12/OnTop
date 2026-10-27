@@ -8,11 +8,24 @@ export function equipmentProbe() {
   }) }
 }
 import { _roots } from '@react-three/fiber'
+export function bungeoppangAppearanceProbe() {
+  const session = useSession.getState()
+  const own = root().scene.getObjectByName('avatar-' + session.sessionId)
+  const opacity: number[] = []
+  own?.traverse(object => {
+    if (!(object instanceof Mesh) || !object.visible) return
+    for (const material of Array.isArray(object.material) ? object.material : [object.material]) opacity.push(material.opacity)
+  })
+  return { visible: own?.visible, opacity: own?.userData.appearanceOpacity ?? 1,
+    materials: opacity, peers: session.ids.filter(id => id !== session.sessionId).map(id => {
+      const peer = root().scene.getObjectByName('avatar-' + id)
+      return { visible: peer?.visible, opacity: peer?.userData.appearanceOpacity ?? 1 }
+    }) }
+}
 import {
   Box3,
   Mesh,
   Vector3,
-  Vector2,
   Texture,
   type BufferAttribute,
   type InterleavedBufferAttribute,
@@ -38,44 +51,11 @@ import { groundHeight } from '../../src/config'
 import { parkRuntime } from '../../src/park/runtime/runtime'
 import { useDiceUI, diceCamera } from '../../src/game/farkle/controls'
 export const inspectTable = () => parkRuntime.inspectTable('table-1')
-const gatheringDisposed = { geometry: 0, material: 0, texture: 0 }
-const gatheringResources = new WeakSet<object>()
-export function gatheringProbe(action?: 'primary' | 'settings') {
-  const { scene, camera, gl } = root(), console = scene.getObjectByName('table-gathering'), face = console?.getObjectByName('gathering-face') as Mesh | undefined
-  let triangles = 0, meshes = 0
-  console?.traverse(o => {
-    if (!(o instanceof Mesh)) return
-    meshes++; triangles += (o.geometry.index?.count ?? o.geometry.attributes.position!.count) / 3
-    for (const resource of [o.geometry, ...[o.material].flat(), ...[o.material].flat().flatMap(m => 'map' in m && m.map instanceof Texture ? [m.map] : [])]) {
-      if (gatheringResources.has(resource)) continue
-      gatheringResources.add(resource)
-      resource.addEventListener('dispose', () => { if (resource instanceof Texture) gatheringDisposed.texture++; else if ('isBufferGeometry' in resource) gatheringDisposed.geometry++; else gatheringDisposed.material++ })
-    }
-  })
-  let point: { x: number; y: number } | null = null
-  if (face && action) {
-    const x = action === 'primary' ? 726 : 246, y = 572
-    const v = face.localToWorld(new Vector3((x / 1024 - .5) * 1.65, (.5 - y / 640) * 1.03125, .001)).project(camera)
-    const rect = gl.domElement.getBoundingClientRect(); point = { x: (v.x + 1) * rect.width / 2, y: (1 - v.y) * rect.height / 2 }
-  }
-  return { present: !!console, meshes, triangles, point, disposed: { ...gatheringDisposed }, ownVisible: scene.getObjectByName('avatar-' + useSession.getState().sessionId)?.visible, camera: camera.position.toArray() }
-}
-export async function measureGathering(visible: boolean) {
-  const { scene, gl } = root(), group = scene.getObjectByName('table-gathering')!
-  const meshes: Mesh[] = []; group.traverse(o => { if (o instanceof Mesh) meshes.push(o) })
-  meshes.forEach(m => { m.visible = visible })
-  const frames: number[] = [], calls: number[] = [], triangles: number[] = []
-  let previous = performance.now()
-  for (let i = 0; i < 240; i++) {
-    await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
-    const now = performance.now()
-    if (i >= 60) { frames.push(now - previous); calls.push(gl.info.render.calls); triangles.push(gl.info.render.triangles) }
-    previous = now
-  }
-  const sorted = [...frames].sort((a, b) => a - b)
-  return { visible, samples: frames.length, frameMs: frames.reduce((a, b) => a + b, 0) / frames.length,
-    p95: sorted[Math.floor(sorted.length * .95)], calls: calls.at(-1), triangles: triangles.at(-1),
-    renderer: gl.getContext().getParameter(gl.getContext().RENDERER), buffer: gl.getDrawingBufferSize(new Vector2()).toArray() }
+export function gatheringProbe() {
+  const { scene, camera } = root()
+  return { present: !!scene.getObjectByName('table-gathering'),
+    ownVisible: scene.getObjectByName('avatar-' + useSession.getState().sessionId)?.visible,
+    camera: camera.position.toArray() }
 }
 export const omokCameraReady = () => omokCamera.ready
 export function omokCameraProbe() {
@@ -778,4 +758,35 @@ export function tablePresentationProbe() {
   return { query: useTableLobby.getState(), yaw: seatedLook.yaw, seatIndex: useSession.getState().seatIndex,
     ownTable: useSession.getState().tableId, camera: camera.position.toArray(), omokCamera: { ...omokCamera },
     publicMatchMode: publicMatchService.mode }
+}
+export function wardrobeCameraProbe() {
+  const { scene, camera } = root(), own = scene.getObjectByName('avatar-' + useSession.getState().sessionId)
+  if (!own) return null
+  const body = own.getWorldPosition(new Vector3()).add(new Vector3(0, CHARACTER.height / 2, 0))
+  const screen = body.clone().project(camera)
+  return { distance: camera.position.distanceTo(body), screen: [screen.x, screen.y], visible: own.visible, yaw: viewControls.yaw, pitch: viewControls.pitch }
+}
+
+export function routeArrowsProbe() {
+  const arrows = root().scene.getObjectByName('navigation-route-arrows') as InstancedMesh | undefined
+  return arrows ? arrows.count : -1
+}
+
+export async function swimDirectionProbe() {
+  const scene = root().scene, angles = new Map<string, number>(), travel: Record<string, number> = {}
+  for (let frame = 0; frame < 45; frame++) {
+    await new Promise(requestAnimationFrame)
+    for (const id of ['101', '102']) for (const side of ['L', 'R']) {
+      const model = scene.getObjectByName('avatar-' + id)!
+      const hand = model.getObjectByName('hand_' + side)!.getWorldPosition(new Vector3())
+      const shoulder = model.getObjectByName('upperArm_' + side)!.getWorldPosition(new Vector3())
+      // Remove avatar yaw; the signed Y/Z orbit measures forward/backward arm travel.
+      hand.sub(shoulder).applyAxisAngle(new Vector3(0, 1, 0), -model.rotation.y)
+      const key = `${id}-${side}`, angle = Math.atan2(hand.z, hand.y), previous = angles.get(key)
+      travel[key] ??= 0
+      if (previous !== undefined) travel[key] += Math.atan2(Math.sin(angle - previous), Math.cos(angle - previous))
+      angles.set(key, angle)
+    }
+  }
+  return travel
 }

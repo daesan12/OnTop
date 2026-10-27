@@ -2,6 +2,7 @@ package com.ssafy.ontop.world.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ssafy.ontop.world.dto.WorldMapMetadata;
+import com.ssafy.ontop.world.map.WorldMapRuntime;
 import com.ssafy.ontop.world.movement.ParkScene;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -14,9 +15,14 @@ public final class WorldMapCompatibility {
     private final boolean requireMatch;
     private final WorldMapMetadata metadata;
 
-    @Autowired
     public WorldMapCompatibility(@Value("${ontop.world.map.require-match:false}") boolean requireMatch) {
         this(requireMatch, ParkScene.load().metadata());
+    }
+
+    @Autowired
+    public WorldMapCompatibility(@Value("${ontop.world.map.require-match:false}") boolean requireMatch,
+            WorldMapRuntime runtime) {
+        this(requireMatch, runtime.scene().metadata());
     }
 
     public WorldMapCompatibility(boolean requireMatch, WorldMapMetadata metadata) {

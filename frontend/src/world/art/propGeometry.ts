@@ -16,16 +16,19 @@ import {
 } from 'three'
 import {
   mergeGeometries,
-  mergeVertices,
 } from 'three/addons/utils/BufferGeometryUtils.js'
+import { weldStaticVertices } from './weldStaticVertices'
+import { recordPropBuild, takeBakedProp } from './bakedProps'
 export type XYZ = [number, number, number]
 export type PropFinish =
   'wood' | 'metal' | 'gold' | 'stone' | 'paint' | 'tile' | 'glow'
 /** Build static, vertex-coloured material batches; dispose construction geometry immediately. */
 export class PropBuilder {
+  private readonly baked: ReturnType<typeof takeBakedProp>
   constructor(
     private readonly sphereSegments: readonly [number, number] = [12, 8],
-  ) {}
+    private readonly cacheKey?: string,
+  ) { this.baked = takeBakedProp(cacheKey) }
   parts: Record<PropFinish, BufferGeometry[]> = {
     wood: [],
     metal: [],
@@ -43,6 +46,7 @@ export class PropBuilder {
     s: XYZ = [1, 1, 1],
     r: XYZ = [0, 0, 0],
   ) {
+    if (this.baked) { g.dispose(); return }
     const flat = g.index ? g.toNonIndexed() : g.clone()
     g.dispose()
     const matrix = new Matrix4().makeRotationFromEuler(new Euler(...r))
@@ -57,14 +61,20 @@ export class PropBuilder {
       )
     const c = new Color(color),
       colors = new Float32Array(count * 3)
-    for (let i = 0; i < count; i++) colors.set([c.r, c.g, c.b], i * 3)
+    for (let i = 0; i < count; i++) {
+      colors[i * 3] = c.r
+      colors[i * 3 + 1] = c.g
+      colors[i * 3 + 2] = c.b
+    }
     flat.setAttribute('color', new Float32BufferAttribute(colors, 3))
     this.parts[kind].push(flat)
   }
   box(k: PropFinish, c: string, p: XYZ, s: XYZ, r: XYZ = [0, 0, 0]) {
+    if (this.baked) return
     this.add(k, new BoxGeometry(1, 1, 1), c, p, s, r)
   }
   ball(k: PropFinish, c: string, p: XYZ, s: XYZ) {
+    if (this.baked) return
     this.add(k, new SphereGeometry(1, ...this.sphereSegments), c, p, s)
   }
   cylinder(
@@ -77,6 +87,7 @@ export class PropBuilder {
     r: XYZ = [0, 0, 0],
     segments = 12,
   ) {
+    if (this.baked) return
     this.add(
       k,
       new CylinderGeometry(top, bottom, h, segments),
@@ -94,6 +105,7 @@ export class PropBuilder {
     tube: number,
     r: XYZ = [0, 0, 0],
   ) {
+    if (this.baked) return
     this.add(k, new TorusGeometry(radius, tube, 5, 24), c, p, [1, 1, 1], r)
   }
   curve(
@@ -103,6 +115,7 @@ export class PropBuilder {
     radius: number,
     segments = 18,
   ) {
+    if (this.baked) return
     this.add(
       k,
       new TubeGeometry(
@@ -116,6 +129,7 @@ export class PropBuilder {
     )
   }
   lathe(k: PropFinish, c: string, p: XYZ, profile: [number, number][]) {
+    if (this.baked) return
     this.add(
       k,
       new LatheGeometry(
@@ -127,19 +141,22 @@ export class PropBuilder {
     )
   }
   finish() {
-    return Object.fromEntries(
+    if (this.baked) return this.baked
+    const art = Object.fromEntries(
       Object.entries(this.parts).flatMap(([key, parts]) => {
         if (!parts.length) return []
         const flat = mergeGeometries(parts)!
         // Keep UV, normal and tint seams, but share identical vertices so the
         // GPU vertex cache can reuse work across the original triangles.
-        const g = mergeVertices(flat, 1e-6)
+        const g = weldStaticVertices(flat, 1e-6)
         flat.dispose()
         parts.forEach((p) => p.dispose())
         g.computeBoundingSphere()
         return [[key, g]]
       }),
     ) as Partial<Record<PropFinish, BufferGeometry>>
+    recordPropBuild(this.cacheKey, art)
+    return art
   }
 }
 /** Four swept hip-roof faces, curved tile rolls and raised corner ridges. */

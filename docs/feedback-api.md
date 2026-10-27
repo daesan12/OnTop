@@ -95,18 +95,25 @@ nextAllowedAt는 해당 없는 기능 오류에서 null. 공통 인증·Origin �
 - JPA FeedbackMessage → feedback_messages. 회원 잠금 → 기존 요청 → 위치·간격 → 저장·커밋.
   회원 DB 잠금으로 여러 요청을 직렬화하고 UNIQUE(user_id,request_key)로 중복을 추가 차단한다.
   DB 쓰기는 TableHub 잠금 밖이다. 인증·User 구현은 변경하지 않았다.
-- 신규 V120__create_feedback_messages.sql은 별도 db/feedback 경로. 작성 전에 번호·목적을 알렸다.
-  기존 V1~V6/V100/V110/V111·팀원 작업V112는 수정하지 않는다. V112 등 순서 조율 후 실제 DB에 적용한다.
-  outOfOrder·repair·기존 SQL 수정을 자동 실행하지 않는다.
+- 공용 DEV DB는 V126까지, 운영 DB는 V3까지 적용되고 둘 다 feedback_messages가 없는 것을
+  2026-10-27 읽기 전용 조회로 확인했다. 새 V127__create_feedback_messages.sql을 공통
+  db/migration 경로에 추가했다. 기존 V120은 별도 db/feedback 경로에 남아 있지만
+  공유 DB의 Flyway locations에 추가하지 않는다. 두 버전을 함께 적용하면 같은 테이블을
+  중복 생성하므로 금지한다. 기존 적용 SQL·이력은 수정하지 않으며 repair·outOfOrder로 우회하지 않는다.
 
 ## 실행·연동
 
-local,db 또는 dev,db 전용. prod/production에는 기능이 등록되지 않는다.
-팀 마이그레이션 순서 조율 전에는 dev 기본 비활성(경로 미등록), 자동 마이그레이션 목록도 유지한다.
+DB 프로필에서 DEV·운영 모두 기능을 등록할 수 있다. `FEEDBACK_ENABLED`의 기본값은 false다.
+V127은 기능 플래그와 무관하게 공통 db/migration 경로에서 자동 적용된다. 기능을 켜기 전
+마이그레이션 성공과 관리자 ID 목록을 확인한다.
 
-- local: ONTOP_FEEDBACK_ENABLED=true. dev: FEEDBACK_ENABLED=true.
-- 기존 SPRING_FLYWAY_LOCATIONS 목록을 보존하면서 classpath:db/feedback 추가.
-- 관리자: ontop.feedback.administrator-ids=101,202. dev 환경변수 FEEDBACK_ADMINISTRATOR_IDS=101,202.
+- local,db / dev,db / 운영 db: `FEEDBACK_ENABLED=true`. 실제 서버에서는 저장소 밖
+  `app.env`에 둔다.
+- DEV는 기존 db/migration,db/minigame 경로를 유지한다. 운영은 db/migration을 사용한다.
+  `classpath:db/feedback`을 추가하지 않는다.
+- 관리자: `ADMIN_READ_IDS=101,202`를 서버에 설정한다. 기존
+  `FEEDBACK_ADMINISTRATOR_IDS`는 전환용 대체값이다. 조회·지급 권한 구분은
+  [관리자 접근 정책](admin-access.md)을 따른다.
 - 맵 변경 시 ontop.feedback.x/y/z를 실제 맵에 맞춘다. 맵 자동 생성 연동은 별도다.
 - Postman OnTop Feedback의 접수·동일 키 복구·관리자 조회 사용(HTTP 원본24~26에도 포함). 기존 회원 로그인 계약 유지.
 

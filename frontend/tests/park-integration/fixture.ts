@@ -25,7 +25,7 @@ export async function parkFixture(page:Page,options:{holdConfirmation?:boolean;s
   const table=(id:string,requestId:string|null,type='TABLE_STATE')=>emit(type,{tableId:id,version:++version,capacity:4,minimumPlayers:2,seats:Array.from({length:4},(_,n)=>({seatNumber:n+1,userId:n===0&&seated===id?'101':null,ready:false})),allReady:false,selectorUserId:seated?'101':null,gameCode:null,targetScore:null,betAmountPerPlayer:null,gameId:null},requestId)
   await page.route('**/api/v1/**',async route=>{
     const url=new URL(route.request().url()),p=url.pathname
-    const body=p==='/api/v1/auth/refresh'?{accessToken:'park-fixture'}:p==='/api/v1/users/me'?{userId:101,nickname:'새 맵 검증',characterGender:'MALE'}:p==='/api/v1/auth/websocket-ticket'?{ticket:'park-fixture'}:p==='/api/v1/channels'?{items:[{channelId:'channel-1',name:'새 공원 검증',capacity:16,currentUsers:1,joinable:true}]}:p==='/api/v1/tables'?{tables:bindings.map(b=>({tableId:b.tableId,capacity:4,minimumPlayers:2,occupiedSeats:0,availableSeats:4,readyCount:0,allReady:false,status:'WAITING',joinable:true,gameCode:null,targetScore:null,betAmountPerPlayer:null,gameId:null}))}:p==='/api/v1/wallets/me'?{balance:100,reservedBalance:0,availableBalance:100}:p==='/api/v1/notes'?{notes:[]}:null
+    const body=p==='/api/v1/auth/refresh'?{accessToken:'park-fixture'}:p==='/api/v1/users/me'?{userId:101,nickname:'새 맵 검증',characterGender:'MALE'}:p==='/api/v1/auth/websocket-ticket'?{ticket:'park-fixture',expiresIn:30}:p==='/api/v1/channels'?{items:[{channelId:'channel-1',name:'새 공원 검증',capacity:16,currentUsers:1,joinable:true}]}:p==='/api/v1/tables'?{tables:bindings.map(b=>({tableId:b.tableId,capacity:4,minimumPlayers:2,occupiedSeats:0,availableSeats:4,readyCount:0,allReady:false,status:'WAITING',joinable:true,gameCode:null,targetScore:null,betAmountPerPlayer:null,gameId:null}))}:p==='/api/v1/wallets/me'?{balance:100,reservedBalance:0,availableBalance:100}:p==='/api/v1/notes'?{notes:[]}:null
     await route.fulfill(body?{json:body}:{status:404,json:{message:'Not part of this fixture'}})
   })
   await page.routeWebSocket('**/ws/tables?**',ws=>{
@@ -35,6 +35,7 @@ export async function parkFixture(page:Page,options:{holdConfirmation?:boolean;s
     ws.onClose((code,reason)=>{clearInterval(tick);ws.close({code,reason})})
     ws.onMessage(raw=>{
       const r=JSON.parse(String(raw));requests.push(r)
+      if(r.type==='WORLD_TIME_CHECK')emit('WORLD_TIME_STATE',{serverNow:Date.now(),cycleEpochMs:0,cycleDurationMs:1200000,timeZone:'Asia/Seoul'},r.requestId)
       if(r.type==='WORLD_MAP_CONFIRM'){confirmationId=r.requestId;if(!options.holdConfirmation)emit('WORLD_MAP_STATE',{map:options.serverMap??identity,verified:true},r.requestId)}
       if(r.type==='CHANNEL_JOIN'){emit('CHANNEL_STATE',{channelId:'channel-1',name:'새 공원 검증',version:++channelVersion,capacity:16,currentUsers:1,userIds:['101']},r.requestId);world()}
       if(r.type==='WORLD_FOLLOW_CHECK')emit('WORLD_FOLLOW_STATE',{channelId:'channel-1',version:0,links:[]},r.requestId)

@@ -10,14 +10,15 @@ import { leaveFitness } from '../features/fitness/controller'
 import { aimTelescope, leaveTelescope } from '../features/telescopes/controller'
 import { useTelescopeState } from '../features/telescopes/state'
 import { normalizeTelescopeAim } from '../features/telescopes/anchors'
-import { telescopeView, zoomTelescope } from '../features/telescopeView'
-import { inputState, panelOwnsKeys, roamingInput, textInputOwnsKeys } from './inputOwnership'
+import { telescopeTurnRate, telescopeView, zoomTelescope } from '../features/telescopeView'
+import { inputState, panelOwnsKeys, panelOwnsMovement, roamingInput, textInputOwnsKeys } from './inputOwnership'
 import { cameraRelativeMove, MOVEMENT_INPUT_INTERVAL_MS, type MovementIntent } from '../network/movementInput'
 import { useGame } from '../game/store'
 import { canLeaveByMovement } from '../features/tableLobby/model'
 import { seatScope, turnSeatedLook } from '../features/tableLobby/state'
 import { installMouseLook, mouseLookReturn } from './mouseLook'
-import { canControlRoamingCamera } from './roamingCamera'
+import { lookScale } from './lookSensitivity'
+import { canControlRoamingCamera, lookOwner } from './roamingCamera'
 import { toggleCameraPerspective, useCameraPerspective, viewControls } from './cameraPerspective'
 import { cancelMouseLookReturn, resetCameraReturn } from './cameraReturn'
 import { benchViewScope, turnBenchLook, useBenchSpectator } from '../features/interactions/benchSpectator'
@@ -54,7 +55,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     document.hidden ||
     useSession.getState().status !== 'connected' ||
     !avatars.has(useSession.getState().sessionId) ||
-    panelOwnsKeys() ||
+    panelOwnsMovement() ||
     textInputOwnsKeys(document.activeElement) ||
     !useSession.getState().mapCompatible ||
     !!useGame.getState().watchedGameId ||
@@ -65,14 +66,80 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     seatDragging = ''
     benchDragging = ''
     benchExitKey = false
-    parkRuntime.move(0, 0, false)
+    parkRuntime.stopMovement()
+  }
+  const sendIntent = (jumpNow = false) => {
+    const forward = Number(keys.has('KeyW') || keys.has('ArrowUp')) - Number(keys.has('KeyS') || keys.has('ArrowDown'))
+    const side = Number(keys.has('KeyD') || keys.has('ArrowRight')) - Number(keys.has('KeyA') || keys.has('ArrowLeft'))
+    cameraRelativeMove(forward, side, viewControls.yaw,
+      keys.has('ShiftLeft') || keys.has('ShiftRight'), jumpNow, intent)
+    if (intent.dx || intent.dz || jumpNow || hadMovement)
+      parkRuntime.move(intent.dx, intent.dz, intent.run, intent.jump)
+    hadMovement = !!(intent.dx || intent.dz)
   }
   const rotate = (x: number, y: number) => {
-    viewControls.yaw -= x * 0.004
-    viewControls.pitch = Math.max(-0.2, Math.min(1.1, viewControls.pitch + y * 0.003))
+    const scale = lookScale()
+    viewControls.yaw -= x * 0.004 * scale
+    viewControls.pitch = Math.max(-0.2, Math.min(1.1, viewControls.pitch + y * 0.003 * scale))
   }
-  const mouseLook = installMouseLook(canvas, canControlRoamingCamera, rotate, stop, cancelMouseLookReturn)
+  // Shared by drag and mouse look; zoom slows the aim and the server sync keeps its own interval.
+  const turnTelescope = (x: number, y: number) => {
+    if (useTelescopeState.getState().pending) return
+    const rate = telescopeTurnRate()
+    Object.assign(telescopeView, normalizeTelescopeAim(telescopeView.yaw - x * rate, telescopeView.pitch - y * rate))
+  }
+  // Held keys turn the telescope every frame at the mouse rate of this many pixels per second,
+  // only while mouse look is off; the server still only hears the aim on its own interval.
+  const telescopeAimKeys = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'])
+  const TELESCOPE_KEY_PX_PER_SECOND = 450
+  let telescopeFrame = 0, telescopeLast = 0
+  // The frame timestamp can precede the key press, so time the step with performance.now()
+  // to let a slow first frame still turn by the time that passed.
+  const telescopeKeyStep = () => {
+    const now = performance.now()
+    const dt = Math.min(0.1, Math.max(0, now - telescopeLast) / 1000)
+    telescopeLast = now
+    const x = Number(keys.has('KeyD') || keys.has('ArrowRight')) - Number(keys.has('KeyA') || keys.has('ArrowLeft'))
+    const y = Number(keys.has('KeyS') || keys.has('ArrowDown')) - Number(keys.has('KeyW') || keys.has('ArrowUp'))
+    if (!useSession.getState().telescopeId || blocked() || mouseLook.locked() || (!x && !y)) {
+      telescopeFrame = 0
+      return
+    }
+    turnTelescope(x * TELESCOPE_KEY_PX_PER_SECOND * dt, y * TELESCOPE_KEY_PX_PER_SECOND * dt)
+    telescopeFrame = requestAnimationFrame(telescopeKeyStep)
+  }
+  const startTelescopeKeys = () => {
+    if (telescopeFrame) return
+    telescopeLast = performance.now()
+    telescopeFrame = requestAnimationFrame(telescopeKeyStep)
+  }
+  // Fitness keeps the park orbit. On a bench the seated view uses the park controls,
+  // the spectator view its own yaw, and the top-down board view stays fixed.
+  const look = (x: number, y: number) => {
+    const owner = lookOwner()
+    if (owner === 'park' || owner === 'fitness') { rotate(x, y); return }
+    if (owner === 'telescope') { turnTelescope(x, y); return }
+    if (owner !== 'bench') return
+    const benchView = useBenchSpectator.getState()
+    if (benchView.scope !== benchViewScope(useSession.getState()) || benchView.view === 'seated') rotate(x, y)
+    else if (benchView.view === 'participants') turnBenchLook(x)
+  }
+  const mouseLook = installMouseLook(canvas, () => lookOwner() !== null, look, stop, cancelMouseLookReturn)
   const clear = () => { mouseLook.release(); stop() }
+  // Entering a bench, telescope or fitness station clears movement keys but keeps mouse look;
+  // callers that open a panel or minigame release it, as does any clear while simply roaming.
+  // Controllers clear input just before marking their request pending, so decide after they finish.
+  // The map, emote wheel and manual only borrow the cursor: closing them returns to mouse look.
+  const clearInput = () => {
+    const wasLocked = mouseLook.locked()
+    stop()
+    queueMicrotask(() => {
+      const owner = lookOwner()
+      if (owner !== null && owner !== 'park') return
+      mouseLook.release()
+      if (wasLocked && (inputState.mapOpen || inputState.emoteWheelOpen || inputState.manualOpen)) mouseLookReturn.requested = true
+    })
+  }
   const abandonMouseLook = () => { cancelMouseLookReturn(); clear() }
   const changePerspective = () => {
     if (!canControlRoamingCamera()) return
@@ -81,7 +148,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     canvas.focus({ preventScroll: true })
   }
   const unsubscribe = useSession.subscribe((next, previous) => {
-    if (!canControlRoamingCamera() || next.roomId !== previous.roomId || next.sessionId !== previous.sessionId) {
+    if (lookOwner() === null || next.roomId !== previous.roomId || next.sessionId !== previous.sessionId) {
       mouseLook.release()
     }
     if (next.roomId !== previous.roomId || next.sessionId !== previous.sessionId) { resetCameraReturn(); stop() }
@@ -89,7 +156,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
   const focus = (event: FocusEvent) => {
     if (event.target === canvas) return
     mouseLook.release()
-    if (hadMovement || keys.size || jump || drag || seatDragging || benchDragging) stop()
+    stop()
   }
   const down = (event: KeyboardEvent) => {
     if (event.defaultPrevented) return
@@ -133,7 +200,11 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
       if ((event.code === 'KeyE' || event.code === 'Escape') && !event.repeat) {
         event.preventDefault()
         void leaveTelescope()
+        return
       }
+      // Without mouse look, WASD and arrows aim like the mouse (S15P31B105-216); with mouse look
+      // the mouse alone aims. Shift and Space stay inert here.
+      if (telescopeAimKeys.has(event.code) && !mouseLook.locked()) { keys.add(event.code); startTelescopeKeys() }
       return
     }
     if (movement.has(event.code)) {
@@ -151,9 +222,14 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     if (event.code === 'Space' && !event.repeat) {
       event.preventDefault()
       if (!useSession.getState().benchId && !useSession.getState().fitnessId
-        && !useBenchState.getState().pending && !useFitnessState.getState().pending && !useTelescopeState.getState().pending) jump = true
+        && !useBenchState.getState().pending && !useFitnessState.getState().pending && !useTelescopeState.getState().pending) {
+        // Queue the edge now, rather than waiting for the roaming polling tick.
+        // The transport still enforces its minimum interval and sends it only once.
+        jump = true
+        sendIntent(true)
+      }
     }
-    if (event.code === 'KeyE' && !event.repeat) {
+    if (event.code === 'KeyE' && !event.repeat && !inputState.wardrobeOpen) {
       if (interactWithPark()) {
         event.preventDefault()
         canvas.focus({ preventScroll: true })
@@ -177,7 +253,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
       canvas.focus({ preventScroll: true })
       return
     }
-    if (event.button === 0 && !panelOwnsKeys()) {
+    if (event.button === 0 && !panelOwnsMovement()) {
       drag = true
       canvas.focus({ preventScroll: true })
     }
@@ -201,10 +277,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     }
     if (!drag || blocked()) return
     if (useSession.getState().telescopeId) {
-      if (useTelescopeState.getState().pending) return
-      const sensitivity = 0.003 / Math.sqrt(telescopeView.zoom)
-      Object.assign(telescopeView, normalizeTelescopeAim(telescopeView.yaw - event.movementX * sensitivity,
-        telescopeView.pitch - event.movementY * sensitivity))
+      turnTelescope(event.movementX, event.movementY)
       return
     }
     rotate(event.movementX, event.movementY)
@@ -232,8 +305,9 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     )
   }
   const interval = setInterval(() => {
-    if (!canControlRoamingCamera()) mouseLook.release()
-    else if (mouseLookReturn.requested) mouseLook.resume()
+    const owner = lookOwner()
+    if (owner === null) mouseLook.release()
+    else if (owner !== 'hold' && mouseLookReturn.requested) mouseLook.resume()
     if (blocked()) {
       if (benchExitKey && useSession.getState().benchId && useSession.getState().status === 'connected'
         && !document.hidden && !panelOwnsKeys() && !textInputOwnsKeys(document.activeElement)) return
@@ -243,23 +317,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     if (!useSession.getState().benchId) benchExitKey = false
     if (useSession.getState().benchId || useSession.getState().fitnessId || useSession.getState().telescopeId
       || useBenchState.getState().pending || useFitnessState.getState().pending || useTelescopeState.getState().pending) return
-    const forward =
-      Number(keys.has('KeyW') || keys.has('ArrowUp')) -
-      Number(keys.has('KeyS') || keys.has('ArrowDown'))
-    const side =
-      Number(keys.has('KeyD') || keys.has('ArrowRight')) -
-      Number(keys.has('KeyA') || keys.has('ArrowLeft'))
-    cameraRelativeMove(forward, side, viewControls.yaw,
-      keys.has('ShiftLeft') || keys.has('ShiftRight'), jump, intent)
-    const { dx, dz } = intent
-    if (dx || dz || jump || hadMovement)
-      parkRuntime.move(
-        dx,
-        dz,
-        intent.run,
-        intent.jump,
-      )
-    hadMovement = !!(dx || dz)
+    sendIntent()
     jump = false
   }, MOVEMENT_INPUT_INTERVAL_MS)
   const aiming = setInterval(() => {
@@ -268,7 +326,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
   window.addEventListener('keydown', down)
   window.addEventListener('keyup', up)
   window.addEventListener('blur', abandonMouseLook)
-  window.addEventListener('ontop-clear-input', clear)
+  window.addEventListener('ontop-clear-input', clearInput)
   window.addEventListener('ontop-toggle-camera-perspective', changePerspective)
   document.addEventListener('visibilitychange', abandonMouseLook)
   document.addEventListener('focusin', focus)
@@ -282,6 +340,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     roamingInput.ready = false
     clearInterval(interval)
     clearInterval(aiming)
+    if (telescopeFrame) cancelAnimationFrame(telescopeFrame)
     unsubscribe()
     mouseLook.dispose()
     resetCameraReturn()
@@ -289,7 +348,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     window.removeEventListener('keydown', down)
     window.removeEventListener('keyup', up)
     window.removeEventListener('blur', abandonMouseLook)
-    window.removeEventListener('ontop-clear-input', clear)
+    window.removeEventListener('ontop-clear-input', clearInput)
     window.removeEventListener('ontop-toggle-camera-perspective', changePerspective)
     document.removeEventListener('visibilitychange', abandonMouseLook)
     document.removeEventListener('focusin', focus)

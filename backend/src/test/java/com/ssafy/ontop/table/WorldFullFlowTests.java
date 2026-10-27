@@ -156,7 +156,7 @@ class WorldFullFlowTests {
             assertThat(response.statusCode()).isEqualTo(200);
             assertThat(response.headers().firstValue("Cache-Control")).contains("no-store");
             JsonNode tables = new ObjectMapper().readTree(response.body()).path("tables");
-            assertThat(tables).hasSize(2);
+            assertThat(tables).hasSize(16);
             return tables.get(0);
         }
     }

@@ -128236,10 +128236,10 @@
   "hashAlgorithm": "sha256",
   "hashes": {
     "dataHash": "4a626c4e965be186fd9f766b1820ee7b4533985774c6efe293425f526720d81f",
-    "sourceHash": "36e67dc06361498bafe04ac64275c39f5b1a16b08bc8b416f122c08c4d6fd236"
+    "sourceHash": "99f75e309aa8043106af7601c65f69968cdb89b8416f55fea494a6ca449b492a"
   },
   "mapId": "park",
-  "mapVersion": "5ce3cff53136eaa3be6a9fe3048d49f611403c1ceff41d2c8f266e26cc6ac840",
+  "mapVersion": "2857774aae694b3b091f80d9e0b67d23133e0582f78098ff706f8933ad5bcf0a",
   "schemaVersion": 2,
   "semantics": {
     "additionalPlayerInflation": "server-capsule-only",

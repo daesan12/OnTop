@@ -25,6 +25,8 @@ test('deployed development mapping sends all five codes, waits for approval and 
     p.on('console', m => { if (m.type() === 'error') consoleErrors.push(m.text()) })
   }
   watch(page)
+  // 앱을 로드하기 전에 같은 브라우저 context의 Date를 설정한다. 타이머와 RAF는 실제로 진행한다.
+  await page.clock.setFixedTime(new Date())
   const a = await fixture(page, { emoteBindings: 'development', manualMovement: true, position: { x: 0, y: 0.8, z: 34, yaw: 0 } })
   await loaded(page)
   const observer = await context.newPage()
@@ -35,21 +37,27 @@ test('deployed development mapping sends all five codes, waits for approval and 
   for (const choice of choices) {
     await page.getByRole('button', { name: '감정표현 열기' }).click()
     for (const option of choices)
-      await expect(wheel(page).getByRole('button', { name: option.label, exact: true })).toContainText('서버')
+      await expect(wheel(page).getByRole('button', { name: option.label, exact: true })).not.toContainText('서버')
     await expect(wheel(page).getByRole('button', { name: choice.label, exact: true })).toBeEnabled({ timeout: 8000 })
     const before = (await probe(page)).avatars[0]!
     await wheel(page).getByRole('button', { name: choice.label, exact: true }).click()
     await expect.poll(async () => (await probe(page)).pending).toBe(true)
     expect((await probe(page)).avatars[0]!.at).toBe(before.at)
     expect(a.sent.filter(m => m.type === 'WORLD_EMOTE_SEND').at(-1)!.payload).toEqual({ emoteCode: choice.code })
-    a.completeEmote()
     const event = a.lastEmote()!
+    // Date만 고정해 실제 렌더/타이머는 진행시키되, 느린 GPU에서도 쿨다운과 동작의 같은 시점을 검사한다.
+    await page.clock.setFixedTime(new Date(Date.parse(event.sentAt) + 700))
+    a.completeEmote()
     b.emote(event)
+    const cooldown = Date.parse(event.sentAt) + choice.cooldown
+    await expect.poll(async () => (await probe(page)).readyAt).toBe(cooldown)
+    await page.getByRole('button', { name: '감정표현 열기' }).click()
+    await expect(wheel(page).getByRole('button', { name: choice.motion === 'EMOTE_WAVE' ? '박수' : '손 인사', exact: true })).toBeDisabled()
+    await page.keyboard.press('Escape')
     for (const client of [page, observer]) {
       await expect.poll(async () => (await probe(client)).avatars[0]!.emote).toBe(choice.motion)
       expect((await probe(client)).avatars[0]!.at).toBe(Date.parse(event.sentAt))
     }
-    const cooldown = Date.parse(event.sentAt) + choice.cooldown
     expect((await probe(page)).readyAt).toBe(cooldown)
     if (choice.motion === 'EMOTE_FART') {
       await expect.poll(async () => (await probe(page)).avatars[0]!.cloudVisible).toBe(true)
@@ -61,9 +69,8 @@ test('deployed development mapping sends all five codes, waits for approval and 
       }).toBeGreaterThan(0.15)
     }
     await screenshot(page, 'm04-server-' + choice.code)
-    await page.getByRole('button', { name: '감정표현 열기' }).click()
-    await expect(wheel(page).getByRole('button', { name: choice.motion === 'EMOTE_WAVE' ? '박수' : '손 인사', exact: true })).toBeDisabled()
-    await page.keyboard.press('Escape')
+    // 다음 선택은 같은 서버 timestamp 기준의 실제 정책상 쿨다운이 지난 뒤 허용한다.
+    await page.clock.setFixedTime(new Date(cooldown))
   }
   expect(a.sent.filter(m => m.type === 'WORLD_EMOTE_SEND').map(m => m.payload.emoteCode)).toEqual(choices.map(c => c.code))
   expect(b.sent.some(m => m.type === 'WORLD_EMOTE_SEND')).toBe(false)
@@ -83,7 +90,7 @@ test('mobile dev wheel has five server options; a rejected new code never plays 
   await page.getByRole('button', { name: '감정표현 열기' }).click()
   for (const choice of choices) {
     await expect(wheel(page).getByRole('button', { name: choice.label, exact: true })).toBeEnabled()
-    await expect(wheel(page).getByRole('button', { name: choice.label, exact: true })).toContainText('서버')
+    await expect(wheel(page).getByRole('button', { name: choice.label, exact: true })).not.toContainText('서버')
   }
   const box = await wheel(page).boundingBox()
   expect(box!.x).toBeGreaterThanOrEqual(0)
@@ -114,7 +121,7 @@ test('normal mode without deployment mappings keeps all five unavailable without
   for (const choice of choices) {
     const button = wheel(page).getByRole('button', { name: choice.label, exact: true })
     await expect(button).toBeDisabled()
-    await expect(button).toContainText('미연결')
+    await expect(button).not.toContainText('미연결')
   }
   expect(server.sent.some(m => m.type === 'WORLD_EMOTE_SEND')).toBe(false)
 })

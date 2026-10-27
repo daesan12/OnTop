@@ -1,5 +1,11 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "headers": [
+    {
+      "source": "/assets/:path*",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
+    }
+  ],
   "rewrites": [
     {
       "source": "/api/:path*",
@@ -13,6 +19,9 @@
     },
     { "source": "/auth/callback", "destination": "/index.html" },
     { "source": "/onboarding", "destination": "/index.html" },
-    { "source": "/park", "destination": "/index.html" }
+    { "source": "/park", "destination": "/index.html" },
+    { "source": "/admin", "destination": "/index.html" },
+    { "source": "/admin/feedback", "destination": "/index.html" },
+    { "source": "/admin/analytics", "destination": "/index.html" }
   ]
 }
