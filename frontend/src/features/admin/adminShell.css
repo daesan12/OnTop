@@ -1,9 +1,9 @@
-.admin-shell-nav { display:flex; gap:10px; margin:0 0 20px; }
+.admin-shell-nav { display:flex; flex-wrap:wrap; gap:10px; margin:0 0 20px; }
 .admin-shell-nav a, .admin-shell-home a { color:#253e34; text-decoration:none; }
 .admin-shell-nav a { padding:10px 16px; border:1px solid #b9c4b3; border-radius:8px; background:#fffef8; }
 .admin-shell-nav a[aria-current='page'] { border-color:#647e4e; background:#e4ecd9; font-weight:700; }
 .admin-shell a:focus-visible { outline:3px solid #647e4e; outline-offset:3px; }
 .admin-shell-home h2 { margin:0 0 20px; font-size:20px; }
-.admin-shell-home > a { display:grid; gap:8px; padding:20px; border:1px solid #d3d5c4; border-radius:10px; }
+.admin-shell-home > a { display:grid; gap:8px; margin-bottom:12px; padding:20px; border:1px solid #d3d5c4; border-radius:10px; }
 .admin-shell-home > a:hover { background:#edf1e5; }
 .admin-shell-home > p { margin:24px 0 0; color:#66705e; }

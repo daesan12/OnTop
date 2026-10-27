@@ -164,6 +164,49 @@ test('the administrator home stays at a direct URL and opens the feedback list f
   expect(server.connections).toBe(0)
 })
 
+test('administrator analytics distinguishes an unpublished snapshot and filters the displayed period', async ({ page }) => {
+  const server = await fixture(page)
+  const today = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  const yesterday = new Date(Date.parse(`${today}T00:00:00Z`) - 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  let published = false
+  await page.route('**/api/v1/admin/me', route => route.fulfill({ json: { canRead: true, canGrant: false } }))
+  await page.route('**/api/v1/admin/analytics/summary', route => {
+    expect(route.request().method()).toBe('GET')
+    expect(route.request().headers().authorization).toBe('Bearer fixture-access')
+    if (!published) return route.fulfill({ status: 503, json: { code: 'ANALYTICS_SNAPSHOT_UNAVAILABLE' } })
+    return route.fulfill({ json: {
+      schemaVersion: 1, dataAsOf: new Date().toISOString().replace(/\.[0-9]{3}Z$/, 'Z'),
+      generatedAt: new Date().toISOString().replace(/\.[0-9]{3}Z$/, 'Z'),
+      daily: [
+        { date: yesterday, activeUsers: 4, newUsers: 2, connections: 5, players: 1 },
+        { date: today, activeUsers: 3, newUsers: 1, connections: 6, players: 2 },
+      ],
+      funnel: [{ date: yesterday, onboarded: 2, channelJoined: 1, tableJoined: 1, gameStarted: 1, gameCompleted: 1 }],
+      games: [{ date: yesterday, gameCode: 'OMOK', started: 2, ended: 1, completed: 1,
+        forfeits: 1, participants: 2, durationSeconds: 600, timedGames: 1 }],
+    } })
+  })
+
+  await page.goto('/admin/analytics')
+  await expect(page.getByRole('heading', { name: '일별·게임별 분석' })).toBeVisible()
+  await expect(page.getByRole('alert')).toContainText('집계 파일이 아직 게시되지 않았습니다')
+  published = true
+  await page.getByRole('button', { name: '다시 조회' }).click()
+  await expect(page.getByText('데이터 기준')).toBeVisible()
+  await expect(page.getByRole('table', { name: '한국 날짜별 이용 지표' })).toContainText(today)
+  await expect(page.locator('.admin-analytics-cards')).toContainText('3')
+  await screenshot(page, 'admin-analytics-dashboard')
+  await page.getByLabel('시작일').fill(today)
+  await page.getByLabel('종료일').fill(today)
+  await expect(page.locator('.admin-analytics-cards article').first()).toContainText('1')
+  await expect(page.getByRole('table', { name: '한국 날짜별 이용 지표' })).not.toContainText(yesterday)
+  await expect(page.getByText('이 기간의 게임 기록이 없습니다.')).toBeVisible()
+  await page.setViewportSize({ width: 390, height: 844 })
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+  await screenshot(page, 'admin-analytics-mobile')
+  expect(server.connections).toBe(0)
+})
+
 test('a direct administrator URL distinguishes permission denial from a network error', async ({ page }) => {
   await fixture(page)
   let status = 403

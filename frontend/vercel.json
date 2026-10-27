@@ -15,6 +15,7 @@
     { "source": "/onboarding", "destination": "/index.html" },
     { "source": "/park", "destination": "/index.html" },
     { "source": "/admin", "destination": "/index.html" },
-    { "source": "/admin/feedback", "destination": "/index.html" }
+    { "source": "/admin/feedback", "destination": "/index.html" },
+    { "source": "/admin/analytics", "destination": "/index.html" }
   ]
 }
