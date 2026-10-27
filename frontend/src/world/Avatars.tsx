@@ -1,5 +1,5 @@
 import { gatheringCameraActive } from '../features/tableLobby/gathering'
-import { useLayoutEffect, useMemo, useRef } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { useFrame, useLoader } from '@react-three/fiber'
 import { Group, Vector3 } from 'three'
 import { ParkAssetLoader } from './art/assetLoader'
@@ -15,6 +15,7 @@ import { emptyEquipment } from '../network/equipment'
 import { roamingFirstPerson } from './roamingCamera'
 import { useGame } from '../game/store'
 import { openAvatarMenu } from '../features/follow/FollowMenu'
+import { gameReaction, installGameReactions } from './gameReactions'
 
 import {
   AvatarOverlayPositions,
@@ -81,7 +82,8 @@ function Avatar({
     )
     model.lod(distance)
     const now = estimatedServerTime()
-    const active = avatarPoseActive(avatar, now)
+    const reaction = gameReaction(id, avatar, now)
+    const active = !!reaction || avatarPoseActive(avatar, now)
     // Keep the authoritative position interpolation above at display cadence.
     // State changes (seat, action, reconnect) must never wait for the next pose tick.
     const poseDelta = cadence.advance(
@@ -89,10 +91,10 @@ function Avatar({
       distance,
       own,
       active,
-      avatarPoseKey(avatar),
+      `${avatarPoseKey(avatar)}|${reaction?.key ?? ''}`,
     )
     if (!poseDelta) return
-    motion.apply(avatar, now, poseDelta, pose, figure.current)
+    motion.apply(avatar, now, poseDelta, pose, figure.current, reaction)
     // Follow the posed head when swimming; a tilted standing-height marker
     // otherwise puts the nickname in front of the swimmer's face/water.
     model.bones.head.getWorldPosition(worldPosition)
@@ -131,6 +133,7 @@ export function Avatars({
 }) {
   const ids = useSession((state) => state.ids)
   const rigs = useMemo(() => new Map<string, AvatarAnchors>(), [])
+  useEffect(installGameReactions, [])
   return (
     <group name="visitors">
       {ids.map((id) => (

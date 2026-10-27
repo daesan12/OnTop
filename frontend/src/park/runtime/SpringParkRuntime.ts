@@ -56,6 +56,8 @@ import {
   cancelAvatarEmote,
   presentEmote,
   clearChannel,
+  clearMovementNotice,
+  showMovementNotice,
   receive,
   applyFacilityOccupancies,
   resetWorld,
@@ -420,7 +422,6 @@ export class ParkRuntime implements ParkRuntimePort {
         (message.requestId !== null && message.requestId !== this.tableWatchRequestId)) return
     }
     receive(message)
-    if (TABLET_ENABLED) this.tablet.accept(message)
     if (serverFacilities) {
       if (message.type === 'WORLD_FACILITY_STATE') this.facilities.accept(message)
       if (message.type === 'WORLD_STATE') {
@@ -446,6 +447,7 @@ export class ParkRuntime implements ParkRuntimePort {
       })
       throw error
     }
+    if (TABLET_ENABLED) this.tablet.accept(message)
     if ((message.type === 'ERROR' && message.requestId === null || message.type === 'GAME_WATCH_LEFT' && message.requestId === null)
       && this.spectatorIntent && !useGame.getState().watchedGameId && useTableLobby.getState().spectatorStatus === 'watching')
       this.spectator.revoked('경기 관전 권한이 종료됐어요. 다시 연결해주세요.')
@@ -638,16 +640,20 @@ export class ParkRuntime implements ParkRuntimePort {
   }
   private async sendMovement(intent: MovementIntent, scope: string) {
     if (scope !== this.movementScope() || !this.canSendMovement(intent)) return
+    const sequence = ++this.inputSequence
     try {
       await this.socket.request('WORLD_MOVE', {
-        seq: ++this.inputSequence,
+        seq: sequence,
         ...intent,
       }, ['WORLD_STATE'])
+      if (scope === this.movementScope() && this.active) clearMovementNotice(sequence)
     } catch (error) {
       if (scope !== this.movementScope() || !this.active) return
       // A rejected or timed-out input is never replayed; fresh key input may resume.
       this.movement.clear(false)
-      this.report(error)
+      if (error instanceof ServerError && error.code === 'MOVE_TOO_FREQUENT')
+        showMovementNotice(error.message, sequence)
+      else this.report(error)
     }
   }
   inspectTable = (anchorId: string) => {

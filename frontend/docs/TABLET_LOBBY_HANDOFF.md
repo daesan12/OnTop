@@ -1,5 +1,23 @@
 # 테이블 태블릿 · 경기/미니게임 결과 FE 인계
 
+## 2026-10-27 BE 통합
+
+- 확정 명세 `docs/tablet-lobby-api.md`에 맞춰 `TabletLobbyClient`를 실제 Spring runtime에 바인딩했다. TABLE_CONFIGURE에 정확한 정원/게임/목표/판돈/버전을 보내고, 준비 뒤 TABLE_START(actionId, expectedVersion)로 명시적으로 시작한다. 기본 AUTO UI는 유지한다.
+- TABLE_HOST_WAIT_STATE/시간 초과 확정 알림을 인증 사용자·채널·테이블·epoch·revision·tableVersion에 맞춰 처리한다. 탭 복귀/재접속에는 조회한다. 동일 revision의 시간 조회도 새 serverNow로 동기화하되 절대 만료 시각을 바꾸지 않는다. TIMER=0만으로 퇴장/승계를 만들지 않는다.
+- TABLE_START 응답 유실은 별도 확인 상태로 표시한다. 동일 시도의 actionId를 보존하고 GAME_START_CHECK를 명시적으로 요청한다. 서버가 확정한 시작 상태 이후에만 게임 화면을 표시하며 자동 재전송하지 않는다.
+- 최신 dev의 붕어빵 v4 주문/납품/최종 정산/지갑 재조회/일일 상한을 유지하며 한지 결과 팝업에 연결했다. preview는 환산 예상과 실제 지급 없음 문구를 유지한다. 길 안내·마우스 감도·16개 테이블·관전자 BE 이벤트·서버 월드 시간·맵 확인·패배 연출·관리자 분석·이동 빈도 알림 정리도 보존했다.
+- 붕어빵 HUD, 테이블 상태 초기화, WorldCanvas, Spring runtime, WS fixture, 테이블 결과 HUD의 충돌은 최신 구현을 유지하면서 새 어댑터·팝업·태블릿 표시 분기를 결합했다. 최신 dev에서 제거한 기존 3D 준비/결과판은 복원하지 않았으며 기본 모드의 기존 2D HUD를 유지한다. 원래 작업 폴더의 미커밋 기획 문서는 건드리지 않고 별도 `frontend-tablet-integration` worktree에서 진행했다.
+
+### 통합 검증 (2026-10-27)
+
+- 통합 기준 `origin/dev` `af1b025`, 브랜치 `feat/frontend-tablet-integration`. BE 소스는 해당 dev와 동일하고, 수정한 썸네일 세 개도 기존 커밋 그대로 유지했다.
+- FE/테스트 TypeScript 검사, 단위 73파일/740개, 기본·태블릿 production build, migration boundary 통과.
+- 태블릿 브라우저 15개 통과. 최종 dev 추가 반영 후 실제 어댑터의 설정/시작·TABLE_LEFT 이후 시간 초과 알림·시작 응답 유실 재조회 3개를 재검증했다.
+- 기본 모드 붕어빵/기권/테이블 로비 23개, 붕어빵 v4 preview 2개, 월드 시간/맵/로비 10개 통과. 최신 패배 연출/기존 4종 게임 HUD 관련 8개와 관리자 분석/이동 알림 2개도 확인했다. 묶음 간 중복 시나리오가 있어 합산 수치가 아니다.
+- Browser 플러그인 부재로 기존 Playwright/Edge와 WS fixture를 사용했다. 기존 Three.Clock/셰이더 정밀도/큰 번들 경고는 유지된다. 배포 BE/실제 DB의 다중 계정·동시 시작·120초 서버 만료·무승부 추첨 검수는 별도다.
+
+아래 10/26 인계·검증 기록은 당시 상태다. 현재 운영 어댑터 연결 여부는 이 절과 확정 BE 명세를 따른다. 새 태블릿은 여전히 명시적 tablet 모드로 제공하며, 실제 배포 BE/DB의 다중 계정 공동 검수는 별도다.
+
 2026-10-26 KST. 최신 통합 기준 `origin/dev` bde4bce. FE 전용 브랜치 `feat/frontend-tablet-lobby`.
 
 ## 최신 dev 통합 및 BE 요청 요약

@@ -1,4 +1,3 @@
-import { useEffect } from 'react'
 import { useSession } from '../../network/worldClient'
 import { useGame, tableBusy } from '../../game/store'
 import { useParkRuntime } from '../../park/runtime/ParkRuntime'
@@ -21,10 +20,6 @@ export function LegacyTableGatheringHud({ model }: { model: GatheringModel }) {
     if (current.finished) { if (current.canReturn) returnToWaiting(); else void runtime.checkResult() }
     else if (!busy && current.playable) void runtime.setReady(!current.own?.ready)
   }
-  useEffect(() => {
-    window.addEventListener('ontop-gathering-primary', primary)
-    return () => window.removeEventListener('ontop-gathering-primary', primary)
-  })
   const manual = GAME_MANUAL[model.gameCode as keyof typeof GAME_MANUAL]
   return <aside className="gathering-hud" role="region" aria-label="테이블 함께 보기" data-phase={model.finished ? 'finished' : 'waiting'} data-camera-mode={looking ? 'seated' : 'gathering'}>
     <header className="gathering-caption"><span>{anchor ? `TABLE ${anchor.replace('table-', '').padStart(2, '0')} · ` : ''}{model.gameName}</span><h2>{model.title}</h2><p role="status">{model.headline}</p></header>
