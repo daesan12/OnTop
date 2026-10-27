@@ -65,7 +65,16 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     seatDragging = ''
     benchDragging = ''
     benchExitKey = false
-    parkRuntime.move(0, 0, false)
+    parkRuntime.stopMovement()
+  }
+  const sendIntent = (jumpNow = false) => {
+    const forward = Number(keys.has('KeyW') || keys.has('ArrowUp')) - Number(keys.has('KeyS') || keys.has('ArrowDown'))
+    const side = Number(keys.has('KeyD') || keys.has('ArrowRight')) - Number(keys.has('KeyA') || keys.has('ArrowLeft'))
+    cameraRelativeMove(forward, side, viewControls.yaw,
+      keys.has('ShiftLeft') || keys.has('ShiftRight'), jumpNow, intent)
+    if (intent.dx || intent.dz || jumpNow || hadMovement)
+      parkRuntime.move(intent.dx, intent.dz, intent.run, intent.jump)
+    hadMovement = !!(intent.dx || intent.dz)
   }
   const rotate = (x: number, y: number) => {
     viewControls.yaw -= x * 0.004
@@ -89,7 +98,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
   const focus = (event: FocusEvent) => {
     if (event.target === canvas) return
     mouseLook.release()
-    if (hadMovement || keys.size || jump || drag || seatDragging || benchDragging) stop()
+    stop()
   }
   const down = (event: KeyboardEvent) => {
     if (event.defaultPrevented) return
@@ -151,7 +160,12 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     if (event.code === 'Space' && !event.repeat) {
       event.preventDefault()
       if (!useSession.getState().benchId && !useSession.getState().fitnessId
-        && !useBenchState.getState().pending && !useFitnessState.getState().pending && !useTelescopeState.getState().pending) jump = true
+        && !useBenchState.getState().pending && !useFitnessState.getState().pending && !useTelescopeState.getState().pending) {
+        // Queue the edge now, rather than waiting for the roaming polling tick.
+        // The transport still enforces its minimum interval and sends it only once.
+        jump = true
+        sendIntent(true)
+      }
     }
     if (event.code === 'KeyE' && !event.repeat && !inputState.wardrobeOpen) {
       if (interactWithPark()) {
@@ -243,23 +257,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     if (!useSession.getState().benchId) benchExitKey = false
     if (useSession.getState().benchId || useSession.getState().fitnessId || useSession.getState().telescopeId
       || useBenchState.getState().pending || useFitnessState.getState().pending || useTelescopeState.getState().pending) return
-    const forward =
-      Number(keys.has('KeyW') || keys.has('ArrowUp')) -
-      Number(keys.has('KeyS') || keys.has('ArrowDown'))
-    const side =
-      Number(keys.has('KeyD') || keys.has('ArrowRight')) -
-      Number(keys.has('KeyA') || keys.has('ArrowLeft'))
-    cameraRelativeMove(forward, side, viewControls.yaw,
-      keys.has('ShiftLeft') || keys.has('ShiftRight'), jump, intent)
-    const { dx, dz } = intent
-    if (dx || dz || jump || hadMovement)
-      parkRuntime.move(
-        dx,
-        dz,
-        intent.run,
-        intent.jump,
-      )
-    hadMovement = !!(dx || dz)
+    sendIntent()
     jump = false
   }, MOVEMENT_INPUT_INTERVAL_MS)
   const aiming = setInterval(() => {

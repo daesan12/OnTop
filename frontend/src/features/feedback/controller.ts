@@ -23,7 +23,7 @@ export function openFeedback(): boolean {
   const session = useSession.getState(), state = useFeedbackState.getState()
   if (state.ownerId !== session.sessionId || state.channelId !== session.roomId) resetFeedbackState()
   rememberRoamingView(session.sessionId, session.roomId)
-  parkRuntime.move(0, 0, false)
+  parkRuntime.stopMovement()
   clearRoamingInput()
   inputState.feedbackOpen = true
   useFeedbackState.setState({ open: true, ownerId: session.sessionId, channelId: session.roomId, notice: '' })

@@ -15,7 +15,7 @@ export async function enterFitness(stationId: string): Promise<boolean> {
     || useBenchState.getState().pending || useTelescopeState.getState().pending || session.tableId || avatar.seatIndex >= 0 || avatar.fitnessId
     || avatar.telescopeId || avatar.swimming || tableBusy() || panelOwnsKeys() || !canReachFitness(avatar.current, stationId)) return false
   rememberRoamingView(session.sessionId, session.roomId)
-  parkRuntime.move(0, 0, false)
+  parkRuntime.stopMovement()
   clearRoamingInput()
   useFitnessState.setState({ pending: true, operation: 'enter', error: '' })
   const signal = fitnessSignal(session.sessionId), epoch = state.epoch

@@ -117,3 +117,5 @@ v1.6 · 2026-10-21 · 코드 기준10307a4. 기존 Notion WebSocket 목록의 37
 v1.7 · 2026-10-21 · [로그인 접속권](websocket-authentication.md): POST /api/v1/auth/websocket-ticket → /ws/tables?ticket=으로 연결합니다. 30초1회용·Access만료상한·DB계정확인·동일출처를 적용하고 기존 JSON 필드를 유지합니다. 외부OAuth/실제DB 접속 검증과 구분합니다.
 
 2026-10-23 판돈 처리 기준: 전원 준비 → STARTING → DB 담당의 전원 판돈 예약 커밋 확인 → PLAYING. 시작 시 즉시 차감하지 않으며 종료 정산에서 예약 해제·차감·승자 지급을 확정한다. GAME_START_CHECK/STATE JSON은 유지하고 재조회는 신규 예약을 요청하지 않는다. 실제 DB 구현/검증은 별도이며 상세는 [예약 시작 계약](committed-game-start.md)을 따른다.
+
+태블릿 확장: [TABLE_CONFIGURE / TABLE_START / TABLE_HOST_WAIT_CHECK·STATE / TABLE_HOST_TIMEOUT](tablet-lobby-api.md). 공통 시각: [WORLD_TIME_CHECK / WORLD_TIME_STATE](world-time-diagnostics-api.md). 기존 AUTO 호환·로컬 구현/미배포와 구분한다.

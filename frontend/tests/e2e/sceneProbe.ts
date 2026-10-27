@@ -786,3 +786,8 @@ export function wardrobeCameraProbe() {
   const screen = body.clone().project(camera)
   return { distance: camera.position.distanceTo(body), screen: [screen.x, screen.y], visible: own.visible, yaw: viewControls.yaw, pitch: viewControls.pitch }
 }
+
+export function routeArrowsProbe() {
+  const arrows = root().scene.getObjectByName('navigation-route-arrows') as InstancedMesh | undefined
+  return arrows ? arrows.count : -1
+}

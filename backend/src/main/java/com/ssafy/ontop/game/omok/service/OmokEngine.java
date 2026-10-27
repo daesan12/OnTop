@@ -152,7 +152,7 @@ public final class OmokEngine implements GameEngine {
             } else {
                 match.forfeit(command.userId(), now, "EXPLICIT_LEAVE");
                 lifecycle.left(command.gameId(), before.tableId(), "OMOK", match.snapshot().version(),
-                        command.userId(), GameDepartureReason.EXPLICIT_LEAVE, now, notices);
+                        command.userId(), GameDepartureReason.EXPLICIT_LEAVE, now, 2, notices);
                 collect(before, match.snapshot(), notices);
                 result = forfeits.accepted(command, match.snapshot().version());
             }
@@ -180,7 +180,7 @@ public final class OmokEngine implements GameEngine {
                     ? "RECONNECT_EXPIRED" : command.reason().name());
             if (before.endedAt() == null && game.snapshot().endedAt() != null) {
                 lifecycle.left(command.gameId(), before.tableId(), "OMOK", game.snapshot().version(),
-                        command.userId(), command.reason(), command.deadline(), notices);
+                        command.userId(), command.reason(), command.deadline(), 2, notices);
             }
             collect(before, game.snapshot(), notices);
         }
@@ -209,7 +209,7 @@ public final class OmokEngine implements GameEngine {
                 notices.add(lifecycle.finished(after.gameId(), after.tableId(), "OMOK", after.version(),
                         List.of(after.blackUserId(), after.whiteUserId()),
                         after.winnerUserId() == null ? List.of() : List.of(after.winnerUserId()),
-                        after.endReason(), after.endedAt()));
+                        after.endReason(), after.endedAt(), notices));
             }
         }
     }
