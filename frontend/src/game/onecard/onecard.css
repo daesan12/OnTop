@@ -133,7 +133,7 @@
 /* A bench's legacy side-panel limits must not crop the fullscreen onecard HUD. */
 .park-page:has(.bench-spectator button[aria-pressed]) .onecard-game-hud.onecard-panel { inset:0; max-height:none; }
 .park-page .onecard-game-hud.onecard-panel[data-role=SPECTATOR]>.mini-status { top:116px; bottom:auto; }
-.park-page .onecard-game-hud.onecard-panel .onecard-spectator { bottom:100px; right:auto; }
+.park-page .onecard-game-hud.onecard-panel .onecard-spectator { bottom:140px; right:auto; }
 
 /* Larger reading anchors, with the table and characters kept clear between them. */
 .park-page .onecard-game-hud.onecard-panel .onecard-turn-timer { min-width:104px; padding:13px 20px; gap:5px; border-radius:15px; background:linear-gradient(145deg,#244c42f5,#12382ff2); box-shadow:inset 0 0 0 3px #fff9dc08,0 6px 18px #10251c22; }

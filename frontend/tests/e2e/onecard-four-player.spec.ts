@@ -45,7 +45,7 @@ test('four seated players and a separate observer: flip crosses windows and rest
   }
   watchErrors(page)
   const player = await fixture(page, { omok: true, m09: true, onecard: 4, players: 4, onecardPranks: true,
-    onecardPreview: { observer: false, room }, publicProfiles: profiles, anchorId: anchor.id })
+    onecardPreview: { observer: false, room, interactionReview: true }, publicProfiles: profiles, anchorId: anchor.id })
   await load(page)
   await expect(async () => {
     await page.evaluate(async id => (await import('/src/park/runtime/runtime.ts' as string)).parkRuntime.inspectTable(id), anchor.id)
@@ -62,7 +62,7 @@ test('four seated players and a separate observer: flip crosses windows and rest
     const observerPage = await observerContext.newPage()
     watchErrors(observerPage)
     const observer = await fixture(observerPage, { omok: true, onecard: 4, players: 5, onecardPranks: true,
-      onecardPreview: { observer: true, room }, publicSpectator: true, publicProfiles: profiles,
+      onecardPreview: { observer: true, room, interactionReview: true }, publicSpectator: true, publicProfiles: profiles,
       manualMovement: true, position: bench.center, anchorId: anchor.id })
     await load(observerPage)
     await expect.poll(() => observerPage.evaluate(async () => (await import('/src/features/facilities/state.ts' as string)).useFacilityState.getState().ready)).toBe(true)
@@ -106,6 +106,24 @@ test('four seated players and a separate observer: flip crosses windows and rest
     const prank = panel(observerPage).getByRole('button', { name: '도윤 손패 뒤집기', exact: true })
     await expect(prank).toBeEnabled()
     await shot(observerPage, 'onecard-4p-observer-ready')
+    if (process.env.ONECARD_INTERACTIVE_PREVIEW === 'true') {
+      // Opt-in local review only: keep the actual FE and shared mock room alive for manual interaction.
+      // A fixed clock leaves time to inspect the UI without a fixture turn expiring during review.
+      const reviewTime = new Date()
+      await page.clock.setFixedTime(reviewTime); await observerPage.clock.setFixedTime(reviewTime)
+      await page.setViewportSize({ width: 1280, height: 800 }); await observerPage.setViewportSize({ width: 1280, height: 800 })
+      await page.evaluate(() => { document.title = '원카드 플레이어 · 도윤' })
+      await observerPage.evaluate(() => { document.title = '원카드 관전자 · 구경꾼' })
+      for (const [reviewPage, name] of [[page, 'onecard-manual-player-ready'], [observerPage, 'onecard-manual-observer-ready']] as const) {
+        await reviewPage.bringToFront()
+        // A background WebGL canvas resized above must paint before its review capture.
+        await reviewPage.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))))
+        await shot(reviewPage, name)
+      }
+      console.log('ONECARD_PREVIEW_READY: 관전자에서 도윤 손패 뒤집기 → 플레이어에서 손패 정리. 두 창을 닫으면 시연이 종료됩니다.')
+      await Promise.all([page.waitForEvent('close', { timeout: 0 }), observerPage.waitForEvent('close', { timeout: 0 })])
+      return
+    }
     await prank.click()
     await expect(panel(page).locator('[data-flipped=true]')).toHaveCount(2)
     await expect(panel(page).getByRole('button', { name: '하트 J 내기', exact: true })).toBeEnabled()
@@ -117,12 +135,21 @@ test('four seated players and a separate observer: flip crosses windows and rest
     await shot(page, 'onecard-4p-player-flipped')
     await panel(page).getByRole('button', { name: '손패 정리 · 2장 복구', exact: true }).click()
     await expect(panel(page).locator('[data-flipped=true]')).toHaveCount(0)
+    await expect.poll(() => panel(page).locator('.onecard-card-rotator').evaluateAll(cards => cards.every(card => getComputedStyle(card).transform === 'none'))).toBe(true)
     await expect(panel(observerPage).getByText('복구 완료 · 이번 차례의 장난은 사용했어요', { exact: true })).toBeVisible()
     await expect(prank).toBeDisabled()
     await shot(page, 'onecard-4p-player-restored')
     expect(observer.sent.filter(m => m.type === 'ONECARD_HAND_FLIP_SEND')).toHaveLength(1)
     expect(player.sent.filter(m => m.type === 'ONECARD_HAND_RESTORE_SEND')).toHaveLength(1)
     expect([...observer.sent, ...player.sent].filter(m => m.type === 'GAME_ACTION_SEND')).toHaveLength(0)
+    // Review windows must survive ordinary game buttons without pretending to run a server game engine.
+    await page.clock.setFixedTime(new Date())
+    for (let attempt = 0; attempt < 2; attempt++) {
+      await panel(page).getByRole('button', { name: '하트 J 내기', exact: true }).click()
+      await expect(panel(page).getByRole('alert')).toHaveText('관전자 상호작용 시연입니다. 손패 뒤집기와 손패 정리를 확인해 주세요.')
+      await expect(panel(page).getByRole('button', { name: '하트 J 내기', exact: true })).toBeEnabled()
+    }
+    expect(await page.evaluate(async () => (await import('/src/game/store.ts' as string)).useGame.getState().uncertain)).toBe(false)
     expect(errors).toEqual([])
   } finally { await observerContext.close() }
 })

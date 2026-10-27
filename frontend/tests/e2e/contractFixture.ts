@@ -33,7 +33,7 @@ export async function fixture(
     dice?: boolean
     onecard?: 2 | 3 | 4
     onecardPranks?: boolean
-    onecardPreview?: { observer: boolean; room: OneCardPrankRoom }
+    onecardPreview?: { observer: boolean; room: OneCardPrankRoom; interactionReview?: boolean }
     bridge?: 2 | 3 | 4
     m09?: boolean
     startEvents?: boolean
@@ -658,6 +658,11 @@ export async function fixture(
         }
         if (options.onecard) {
           const reply = cardReplies.shift()
+          if (!reply && options.onecardPreview?.interactionReview) {
+            emit(ws, 'ERROR', { code: 'GAME_ACTION_INVALID_ACTION',
+              message: '관전자 상호작용 시연입니다. 손패 뒤집기와 손패 정리를 확인해 주세요.' }, requestId)
+            return
+          }
           expect(reply, 'Explicitly script each approved one-card response').toBeTruthy()
           expect(payload.input).toEqual(reply!.input)
           cardState = { ...cardState, ...reply!.patch }; cardHand = reply!.hand; gameVersion++
