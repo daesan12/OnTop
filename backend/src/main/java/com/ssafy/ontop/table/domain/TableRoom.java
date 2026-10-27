@@ -19,6 +19,12 @@ public final class TableRoom {
     private long version;
     // 별도 카운터가 아니라 기존 TABLE_STATE.version 중 마지막 준비 초기화 시점이다.
     private long readyResetVersion;
+    private String selectorUserId;
+    private Integer selectedPlayers;
+    private final String waitEpoch = java.util.UUID.randomUUID().toString();
+    private long waitRevision;
+    private java.time.Instant waitExpiresAt;
+    private String waitReason = "NOT_READY";
 
     public TableRoom(String tableId) {
         this.tableId = tableId;
@@ -29,6 +35,7 @@ public final class TableRoom {
             if (users[index] == null) {
                 users[index] = userId;
                 arrivalOrder.add(userId);
+                if (selectorUserId == null) { selectorUserId = userId; }
                 membershipChanged();
                 return true;
             }
@@ -39,16 +46,18 @@ public final class TableRoom {
     public void leave(String userId) {
         users[indexOf(userId)] = null;
         arrivalOrder.remove(userId);
+        if (userId.equals(selectorUserId)) { selectorUserId = arrivalOrder.isEmpty() ? null : arrivalOrder.getFirst(); }
         if (arrivalOrder.isEmpty()) {
             game = null;
             targetScore = null;
             betAmountPerPlayer = null;
+            selectedPlayers = null;
         }
         membershipChanged();
     }
 
     public boolean isSelector(String userId) {
-        return !arrivalOrder.isEmpty() && arrivalOrder.getFirst().equals(userId);
+        return userId.equals(selectorUserId);
     }
 
     public boolean selectGame(TableGame selected) {
@@ -86,6 +95,67 @@ public final class TableRoom {
         return true;
     }
 
+    /** 새 태블릿만 명시적으로 수동 시작 계약을 선택한다. 기존 GAME_SELECT 자동 시작은 유지한다. */
+    public boolean configure(TableGame selected, Integer target, long amount, int players) {
+        if (players < selected.minimumPlayers() || players > selected.maximumPlayers()
+                || arrivalOrder.size() > players) {
+            throw new IllegalArgumentException("선택 정원과 현재 참가 인원을 확인해주세요.");
+        }
+        boolean changed = game != selected || !java.util.Objects.equals(targetScore, target)
+                || !java.util.Objects.equals(betAmountPerPlayer, amount)
+                || !java.util.Objects.equals(selectedPlayers, players);
+        if (!changed) { return false; }
+        selectGame(selected, target, amount);
+        Arrays.fill(users, null);
+        int index = 0;
+        for (String user : arrivalOrder) { users[index++] = user; }
+        selectedPlayers = players;
+        membershipChanged();
+        return true;
+    }
+
+    public boolean manualStart() { return selectedPlayers != null; }
+
+    public void refreshWait(java.time.Instant now, boolean waiting) {
+        if (!manualStart() || !waiting || !snapshot().allReady()) {
+            if (waitExpiresAt != null) { cancelWait("NOT_READY"); }
+        } else if (waitExpiresAt == null) {
+            waitExpiresAt = now.plusSeconds(120);
+            waitReason = null;
+            waitRevision++;
+        }
+    }
+
+    public void cancelWait(String reason) {
+        if (waitExpiresAt != null || !java.util.Objects.equals(waitReason, reason)) { waitRevision++; }
+        waitExpiresAt = null;
+        waitReason = reason;
+    }
+
+    public HostWait hostWait(java.time.Instant now) {
+        return new HostWait(tableId, waitEpoch, waitRevision, version, selectorUserId, now.toEpochMilli(),
+                waitExpiresAt == null ? null : waitExpiresAt.toEpochMilli(), waitReason);
+    }
+
+    public HostTimeout expireWait(java.time.Instant now) {
+        if (waitExpiresAt == null || now.isBefore(waitExpiresAt) || !snapshot().allReady()) { return null; }
+        String eventId = waitEpoch + ":" + waitRevision;
+        String previous = selectorUserId;
+        leave(previous);
+        chooseHost(Set.of());
+        cancelWait("HOST_START_TIMEOUT");
+        return new HostTimeout(eventId, tableId, waitEpoch, waitRevision, version, previous, selectorUserId,
+                "HOST_START_TIMEOUT", now.toEpochMilli());
+    }
+
+    public void chooseHost(Set<String> preferred) {
+        List<String> eligible = arrivalOrder.stream().filter(preferred::contains).toList();
+        if (eligible.isEmpty()) { eligible = List.copyOf(arrivalOrder); }
+        selectorUserId = eligible.isEmpty() ? null
+                : eligible.get(java.util.concurrent.ThreadLocalRandom.current().nextInt(eligible.size()));
+        membershipChanged();
+    }
+
     public boolean setReady(String userId, boolean value) {
         int index = indexOf(userId);
         if (ready[index] == value) {
@@ -117,14 +187,15 @@ public final class TableRoom {
         }
         int minimum = game == null ? 2 : game.minimumPlayers();
         boolean allReady = game != null && betAmountPerPlayer != null && arrivalOrder.size() >= minimum
+                && (selectedPlayers == null || arrivalOrder.size() == selectedPlayers)
                 && seats.stream().filter(seat -> seat.userId() != null).allMatch(Seat::ready);
         return new Snapshot(tableId, version, capacity(), minimum, List.copyOf(seats), allReady,
-                arrivalOrder.isEmpty() ? null : arrivalOrder.getFirst(), game == null ? null : game.name(),
-                targetScore, betAmountPerPlayer, gameId);
+                selectorUserId, game == null ? null : game.name(),
+                targetScore, betAmountPerPlayer, gameId, selectedPlayers, manualStart() ? "MANUAL" : "AUTO");
     }
 
     private int capacity() {
-        return game == null ? users.length : game.maximumPlayers();
+        return selectedPlayers != null ? selectedPlayers : game == null ? users.length : game.maximumPlayers();
     }
 
     public void returnToWaiting(Set<String> connectedUsers) {
@@ -134,10 +205,12 @@ public final class TableRoom {
             }
         }
         arrivalOrder.retainAll(connectedUsers);
+        if (!arrivalOrder.contains(selectorUserId)) { selectorUserId = arrivalOrder.isEmpty() ? null : arrivalOrder.getFirst(); }
         if (arrivalOrder.isEmpty()) {
             game = null;
             targetScore = null;
             betAmountPerPlayer = null;
+            selectedPlayers = null;
         }
         membershipChanged();
     }
@@ -152,6 +225,7 @@ public final class TableRoom {
     }
 
     private void membershipChanged() {
+        cancelWait("SETTINGS_OR_MEMBERSHIP_CHANGED");
         Arrays.fill(ready, false);
         version++;
         readyResetVersion = version;
@@ -169,6 +243,12 @@ public final class TableRoom {
     public record Snapshot(String tableId, long version, int capacity, int minimumPlayers,
             List<Seat> seats, boolean allReady, String selectorUserId, String gameCode, Integer targetScore,
             Long betAmountPerPlayer,
-            String gameId) {
+            String gameId, Integer selectedPlayers, String startMode) {
     }
+
+    public record HostWait(String tableId, String epoch, long revision, long tableVersion, String hostUserId,
+            long serverNow, Long expiresAt, String cancelReason) {}
+
+    public record HostTimeout(String eventId, String tableId, String epoch, long revision, long tableVersion,
+            String previousHostUserId, String nextHostUserId, String reason, long serverNow) {}
 }

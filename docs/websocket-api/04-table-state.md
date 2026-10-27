@@ -87,3 +87,7 @@
 ## 참가비 필드 추가
 
 `betAmountPerPlayer`: selector가 확정한 1인 참가비(양의 안전 정수), 게임 미선택/빈 테이블은 null. 금액 변경 시 전원 준비를 해제하고 version을 증가시킨다. 선택권 승계와 종료 후 대기 복귀는 확정 금액을 유지한다. 참가자는 이 값을 확인하고 준비한다. 상세: [가변 참가비·정산](../game-settlement.md).
+
+## 태블릿 확장 (2026-10-27)
+
+selectedPlayers: 정수 또는 null(AUTO), startMode: AUTO/MANUAL. MANUAL의 capacity는 선택 정원, allReady는 그 정원이 모두 착석·준비해야 true다. selectorUserId는 현재 방장이며 정산 후 승자/추첨 승계가 가능해 항상 최초 착석자와 같지는 않다. TABLE_HOST_WAIT_STATE/타임아웃은 별도 메시지. [태블릿 상세](../tablet-lobby-api.md).

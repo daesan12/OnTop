@@ -171,8 +171,20 @@ it('v4 blocked controls consume no heat, help/confirm time still ends, and settl
   await vi.advanceTimersByTimeAsync(62000);
   expect(useBungeoppang.getState()).toMatchObject({ phase: 'result', confirmExit: false });
   const request = vi.mocked(service.submitResult).mock.calls[0]![0];
+  expect(request.completeKey).toMatch(/^[0-9a-f-]{36}$/);
   await submitBungeoppang();
   expect(vi.mocked(service.submitResult).mock.calls[1]![0]).toBe(request);
+});
+it('v4 final submission preserves the unresolved last delivery key after the 60 second boundary', async () => {
+  await enterV4();
+  vi.mocked(service.nextOrder!).mockReturnValueOnce(new Promise(() => {}));
+  deliverBungeoppangOrder();
+  const delivery = vi.mocked(service.nextOrder!).mock.calls[0]![0];
+  await vi.advanceTimersByTimeAsync(62_000);
+  const complete = vi.mocked(service.submitResult).mock.calls[0]![0];
+  expect(complete.deliveryKey).toBe(delivery.deliveryKey);
+  expect(complete.completeKey).toMatch(/^[0-9a-f-]{36}$/);
+  expect(complete.log).toEqual(delivery.log);
 });
 it('closes play at 60 seconds even while abandon is pending, then settles only after that request fails', async () => {
   await enterV4(); escapeBungeoppang();

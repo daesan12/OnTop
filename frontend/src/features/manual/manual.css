@@ -17,7 +17,7 @@
   cursor: pointer;
 }
 
-.current-rule-art { background: #f7f3e8; color: #203f33; padding: 28px; border-radius: 12px; min-width: 0; text-align: left; }
+.current-rule-art { background: #efeee8; color: #203f33; padding: 28px; border-radius: 12px; min-width: 0; text-align: left; }
 .current-rule-art > header { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
 .current-rule-art header h4 { font-size: clamp(28px, 3vw, 52px); margin: 0; }
 .current-rule-art header p { color: #a37942; font-size: 22px; font-weight: 750; margin: 8px 0; }
@@ -900,6 +900,12 @@
 }
 /* The paper is revealed at its final size; text is never scaled horizontally. */
 .game-manual {
+  /* Recycled newsprint: near-neutral grey (L* 81, b* ~1.5 at ISO 54% brightness) lifted to L* 84–91 for on-screen text. */
+  --newsprint: #dfded9;
+  --newsprint-light: #e5e4e0;
+  --newsprint-edge: #d1d0cb;
+  /* Coarse mottle, fine grain, short fibres and dark specks, as recycled groundwood paper shows. */
+  --newsprint-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='320'%3E%3Cfilter id='m' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.012' numOctaves='2' seed='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.3 0 0 0 0 0.3 0 0 0 0 0.3 0.2 0 0 0 -0.07'/%3E%3C/filter%3E%3Cfilter id='g' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' seed='5' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.22 0 0 0 0 0.22 0 0 0 0 0.22 0.4 0 0 0 -0.11'/%3E%3C/filter%3E%3Cfilter id='s' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='1' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.18 0 0 0 0 0.18 0 0 0 0 0.18 3 0 0 0 -1.4'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='discrete' tableValues='0 0 0 0 0 0 0.55'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Cfilter id='f' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.025 0.45' numOctaves='2' seed='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.3 0 0 0 0 0.3 0 0 0 0 0.3 3 0 0 0 -1.4'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='discrete' tableValues='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.14'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Cfilter id='h' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.45 0.025' numOctaves='2' seed='11' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.3 0 0 0 0 0.3 0 0 0 0 0.3 3 0 0 0 -1.4'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='discrete' tableValues='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.14'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23m)'/%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3Crect width='100%25' height='100%25' filter='url(%23f)'/%3E%3Crect width='100%25' height='100%25' filter='url(%23h)'/%3E%3Crect width='100%25' height='100%25' filter='url(%23s)'/%3E%3C/svg%3E");
   width: min(1280px, calc(100vw - 64px));
   height: min(840px, calc(100dvh - 64px));
   background: transparent;
@@ -923,21 +929,11 @@ body:has(.game-manual[open]) {
   inset: 18px 16px;
   border-radius: 3px;
   background:
-    /* The centre crease stays faintly visible after the sheet is opened. */
-    linear-gradient(
-      90deg,
-      transparent calc(50% - 28px),
-      #8d76501c calc(50% - 3px),
-      #fffaf055 50%,
-      #8d765014 calc(50% + 4px),
-      transparent calc(50% + 32px)
-    ),
-    repeating-linear-gradient(18deg, #8a744d07 0 1px, transparent 1px 5px),
-    repeating-linear-gradient(97deg, #6f5d3c06 0 1px, transparent 1px 7px),
-    radial-gradient(130% 95% at 50% 42%, #f7f1e2 58%, #eadcc0);
+    var(--newsprint-grain),
+    radial-gradient(130% 95% at 50% 42%, var(--newsprint-light) 30%, var(--newsprint) 62%, var(--newsprint-edge));
   box-shadow:
-    inset 0 0 30px #9d834f30,
-    0 2px 0 #d6c8a8,
+    inset 0 0 30px #6e6b6330,
+    0 2px 0 #c9c7c0,
     0 22px 50px #080e185c;
   pointer-events: none;
 }
@@ -953,7 +949,7 @@ body:has(.game-manual[open]) {
   background: transparent;
 }
 .manual-nav {
-  background: linear-gradient(#fcf8ecb3, #e8ddc666);
+  background: linear-gradient(#f3f2ecb3, #dcdad366);
   min-height: 0;
   overflow-y: auto;
 }
@@ -961,7 +957,7 @@ body:has(.game-manual[open]) {
   flex-shrink: 0;
 }
 .manual-footer {
-  background: #dbccae60;
+  background: #cfcdc560;
 }
 .game-manual {
   perspective: 2400px;
@@ -984,11 +980,13 @@ body:has(.game-manual[open]) {
   inset: 0;
   backface-visibility: hidden;
   opacity: 0;
-  box-shadow: inset 0 0 24px #9d834f30;
+  box-shadow: inset 0 0 24px #6e6b6330;
 }
 .manual-fold-inside {
   border-radius: 3px 0 0 3px;
-  background: linear-gradient(90deg, #eadcc0, #f7f1e2 28%, #f3ead7 96%, #d9c9a6);
+  background:
+    var(--newsprint-grain),
+    linear-gradient(90deg, var(--newsprint-edge), var(--newsprint-light) 28%, var(--newsprint) 96%, var(--newsprint-edge));
 }
 /* Faint printed columns so the swinging page reads as newsprint, not a blank card. */
 .manual-fold-inside::before {
@@ -1006,8 +1004,8 @@ body:has(.game-manual[open]) {
   border-radius: 0 3px 3px 0;
   transform: rotateY(180deg);
   background:
-    repeating-linear-gradient(18deg, #8a744d07 0 1px, transparent 1px 5px),
-    linear-gradient(90deg, #d9c9a6, #f3ead7 4%, #f7f1e2 72%, #eadcc0);
+    var(--newsprint-grain),
+    linear-gradient(90deg, var(--newsprint-edge), var(--newsprint) 4%, var(--newsprint-light) 72%, var(--newsprint-edge));
 }
 .manual-fold-face::after {
   content: "";
@@ -1437,7 +1435,7 @@ body:has(.game-manual[open]) {
 }
 .game-manual .manual-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 7px 14px #493c2520;
+  box-shadow: 0 7px 14px #3a383320;
 }
 .manual-card .manual-art {
   transition: transform 180ms;
@@ -1580,7 +1578,7 @@ body:has(.game-manual[open]) {
   font-weight: 700;
 }
 .rulebook-mode button[aria-pressed="true"] {
-  color: #fff8e8;
+  color: #f5f4ef;
   background: #294c3d;
 }
 .rulebook-page-heading,
@@ -1609,10 +1607,10 @@ body:has(.game-manual[open]) {
 }
 .rulebook-illustration {
   position: relative;
-  border: 1px solid #ded4bc;
+  border: 1px solid #d3d1ca;
   border-radius: 10px;
   overflow: hidden;
-  background: #faf7ee;
+  background: #f2f1ec;
   min-height: 180px;
 }
 .rulebook-illustration > p {
@@ -1620,7 +1618,7 @@ body:has(.game-manual[open]) {
   inset: 15px auto auto 15px;
   padding: 8px 12px;
   border-radius: 6px;
-  background: #fff8e8;
+  background: #f5f4ef;
   font-size: 13px;
 }
 .rulebook-illustration img {
@@ -1668,7 +1666,7 @@ body:has(.game-manual[open]) {
   padding: 12px 15px;
   margin-top: 16px !important;
   border-left: 3px solid #ac854c;
-  background: #eee8d9;
+  background: #e4e2db;
   font-size: 13px;
   line-height: 1.8;
   word-break: keep-all;
@@ -1717,7 +1715,7 @@ body:has(.game-manual[open]) {
   margin: 18px 0 0;
   padding: 13px 18px;
   border-left: 3px solid #a9854c;
-  background: #f0eadb;
+  background: #e6e4dd;
   border-radius: 0 7px 7px 0;
 }
 .rulebook-lightbox {
@@ -1729,10 +1727,10 @@ body:has(.game-manual[open]) {
   max-height: none;
   padding: 20px 24px;
   margin: auto;
-  border: 1px solid #cfc3a9;
+  border: 1px solid #c6c4bd;
   border-radius: 16px;
   color: #233f35;
-  background: #f7f3e8;
+  background: #efeee8;
   overflow: hidden;
   box-shadow: 0 20px 100px #0b1e2c70;
 }
@@ -1757,7 +1755,7 @@ body:has(.game-manual[open]) {
 .rulebook-lightbox-header > button {
   padding: 10px 15px;
   background: #294c3d;
-  color: #fff8e8;
+  color: #f5f4ef;
   border-radius: 8px;
   font-size: 13px;
 }
@@ -1786,9 +1784,9 @@ body:has(.game-manual[open]) {
   overflow: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
-  border: 1px solid #d8d0bb;
+  border: 1px solid #cfcdc6;
   border-radius: 8px;
-  background: #f9f6ed;
+  background: #f1f0eb;
 }
 .rulebook-illustration.is-enlarged {
   border: 0;
@@ -1830,7 +1828,7 @@ body:has(.game-manual[open]) {
   color: var(--ink);
 }
 .game-manual .manual-close:hover {
-  background: #e6dcc4;
+  background: #dddbd4;
 }
 .manual-nav {
   padding: 0 14px 0 0;
@@ -1844,7 +1842,7 @@ body:has(.game-manual[open]) {
   border-bottom: 1px solid #3b3a3126;
 }
 .manual-nav button:hover {
-  background: #ebe2cc;
+  background: #e0ded7;
 }
 .manual-nav button[aria-current] {
   background: var(--news-green);
@@ -1856,7 +1854,7 @@ body:has(.game-manual[open]) {
 .manual-search {
   border-color: var(--rule);
   border-radius: 2px;
-  background: #fffcf3;
+  background: #f6f5f0;
 }
 .manual-categories {
   gap: 6px;
@@ -1875,7 +1873,7 @@ body:has(.game-manual[open]) {
   box-shadow: none;
 }
 .manual-categories button:not([aria-pressed="true"]):hover {
-  background: #e8dfc8;
+  background: #dfddd6;
 }
 .manual-catalog-title {
   flex-direction: column;
@@ -1914,7 +1912,7 @@ body:has(.game-manual[open]) {
 .game-manual .manual-card:hover {
   transform: none;
   box-shadow: none;
-  background: #eee5cf;
+  background: #e3e1da;
 }
 .manual-card > .manual-art {
   width: min(44%, 240px);
@@ -1941,7 +1939,7 @@ body:has(.game-manual[open]) {
   border: 2px solid var(--news-red);
   border-radius: 3px;
   color: var(--news-red);
-  background: #f7f1e2e6;
+  background: #eeece6e6;
   transform: rotate(-6deg);
 }
 .game-manual .manual-first-card,
@@ -1951,7 +1949,7 @@ body:has(.game-manual[open]) {
   background: transparent;
 }
 .manual-first-card:hover {
-  background: #eee5cf;
+  background: #e3e1da;
 }
 .manual-empty button {
   border-radius: 2px;
@@ -1989,7 +1987,7 @@ body:has(.game-manual[open]) {
 .manual-summary {
   border-left-color: var(--news-green);
   border-radius: 0;
-  background: #ece3cc;
+  background: #e1dfd8;
 }
 .manual-chapters button,
 .manual-end button,
@@ -2004,7 +2002,7 @@ body:has(.game-manual[open]) {
 }
 .manual-chapters button:hover,
 .manual-end button:hover {
-  background: #e8dfc8;
+  background: #dfddd6;
 }
 .manual-section {
   border-bottom-color: #3b3a3133;
@@ -2029,10 +2027,10 @@ body:has(.game-manual[open]) {
 }
 .game-manual thead th {
   color: var(--ink);
-  background: #e4dbc3;
+  background: #d9d7d0;
 }
 .game-manual tbody th {
-  background: #efe7d3;
+  background: #e4e2db;
 }
 .rulebook-mode {
   border-color: var(--rule);

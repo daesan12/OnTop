@@ -158,3 +158,12 @@ TABLE_STATE의 금액과 version을 전달한다. false는 기존 `{ready:false}
 GAME_SETTINGS_CHANGED는 상태를 변경하지 않는다. 금액이 다시 같아지는 ABA도 기존 version으로 거절한다.
 다른 참가자의 단순 준비 변경은 동의를 무효화하지 않는다. FE는 오류 후 새 금액을 확인받아야 한다.
 상세: [준비·취소](../websocket-api/03-ready-set.md).
+
+## 2026-10-27 태블릿·공통 시각 확장 (로컬 구현·미배포)
+
+- TABLE_CONFIGURE: 방장 게임·정원·목표·판돈을 최신 expectedVersion으로 확정, TABLE_STATE 수신.
+- TABLE_START: 전원 준비 후 방장만 actionId/expectedVersion으로 수동 시작, 기존 GAME_START_STATE/예약 경계 사용.
+- TABLE_HOST_WAIT_CHECK: 현재 본인 대기기한 읽기. TABLE_HOST_WAIT_STATE와 TABLE_HOST_TIMEOUT으로 서버120초 만료·취소·승계를 전달한다.
+- WORLD_TIME_CHECK: 빈 payload로 고정 낮밤 기준과 서버현재시각을 WORLD_TIME_STATE로 읽는다. CONNECTED.payload.time에도 추가한다.
+
+기존 GAME_SELECT AUTO 호환을 유지하며 TABLE_CONFIGURE의 MANUAL 테이블만 수동 시작을 사용한다. 상세 필드·오류·동일 로그인 세션30초 대기석 복귀는 [태블릿](../tablet-lobby-api.md), [공통 시각·진단](../world-time-diagnostics-api.md)을 따른다.
