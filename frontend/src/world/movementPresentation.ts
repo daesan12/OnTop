@@ -5,7 +5,8 @@ export function sampleMovement(
   sample: Pick<AvatarSnapshot, 'previous' | 'current' | 'at'>,
   now: number, interpolationMs: number, target: Pose,
 ): Pose {
-  // Interpolation only: hold the last approved endpoint instead of extrapolating physics.
+  // Input replies and broadcasts can carry distinct poses milliseconds apart.
+  // Ease from the visible pose over the render interval; never extrapolate.
   const t = Math.min(1, Math.max(0, (now - sample.at) / interpolationMs))
   target.x = sample.previous.x + (sample.current.x - sample.previous.x) * t
   target.y = sample.previous.y + (sample.current.y - sample.previous.y) * t
