@@ -44,6 +44,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
@@ -60,7 +61,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = {"spring.profiles.active=local", "ontop.oauth.ssafy.client-id=fixture-ssafy",
-        "ontop.oauth.naver.client-id=fixture-naver"})
+        "ontop.oauth.naver.client-id=fixture-naver", "ontop.admin.read-ids=42,43", "ontop.admin.grant-ids=43"})
 @AutoConfigureMockMvc(print = MockMvcPrint.NONE)
 @Import(RestSecurityTests.ProbeConfiguration.class)
 @org.springframework.test.context.TestPropertySource(properties = "ontop.websocket.authenticated=false")
@@ -175,6 +176,33 @@ class RestSecurityTests {
                 .andExpect(header().string("Cache-Control", "no-store"));
     }
 
+    @Test
+    void 관리자_권한은_서버_회원_ID에서_결정하며_조회와_지급을_분리한다() throws Exception {
+        mvc.perform(get("/api/v1/admin/me")).andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("AUTH_AUTHENTICATION_REQUIRED"));
+        mvc.perform(authAs(44, get("/api/v1/admin/me"))).andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("AUTH_ACCESS_DENIED"));
+
+        mvc.perform(auth(get("/api/v1/admin/me"))).andExpect(status().isOk())
+                .andExpect(jsonPath("$.canRead").value(true))
+                .andExpect(jsonPath("$.canGrant").value(false))
+                .andExpect(header().string("Cache-Control", "no-store"));
+        mvc.perform(auth(post("/api/v1/admin/wallet-grants/probe"))).andExpect(status().isForbidden());
+
+        mvc.perform(authAs(43, get("/api/v1/admin/me"))).andExpect(status().isOk())
+                .andExpect(jsonPath("$.canRead").value(true))
+                .andExpect(jsonPath("$.canGrant").value(true));
+        mvc.perform(authAs(43, post("/api/v1/admin/wallet-grants/probe")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.allowed").value(true));
+        mvc.perform(authAs(44, get("/api/v1/channels"))).andExpect(status().isOk());
+    }
+
+    @Test
+    void 허용하지_않은_관리자_경로와_HTTP_메서드는_관리자도_접근할_수_없다() throws Exception {
+        mvc.perform(auth(get("/api/v1/admin/unknown"))).andExpect(status().isForbidden());
+        mvc.perform(auth(post("/api/v1/admin/feedback"))).andExpect(status().isForbidden());
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"/actuator/health", "/dev/tables", "/dev/world-config"})
     void 공개_기존_GET는_임의_Authorization을_Access로_해석하지_않는다(String path) throws Exception {
@@ -251,6 +279,7 @@ class RestSecurityTests {
                 "GET /api/v1/users/nickname-availability",
                 "PATCH /api/v1/users/me",
                 "DELETE /api/v1/users/me",
+                "GET /api/v1/admin/me",
                 "GET /api/v1/wallets/me", "GET /api/v1/wallets/me/transactions",
                 "GET /api/v1/rankings",
                 "GET /api/v1/channels",
@@ -259,12 +288,17 @@ class RestSecurityTests {
                 "GET /api/v1/users/me/items", "PATCH /api/v1/users/me/equipment",
                 "POST /api/v1/minigames/sessions", "GET /api/v1/minigames/sessions",
                 "GET /api/v1/minigames/sessions/{sessionId}",
+                "POST /api/v1/minigames/sessions/{sessionId}/deliveries",
                 "POST /api/v1/minigames/sessions/{sessionId}/complete",
                 "POST /api/v1/minigames/sessions/{sessionId}/abandon");
     }
 
     private MockHttpServletRequestBuilder auth(MockHttpServletRequestBuilder request) {
-        return request.header("Authorization", "Bearer " + jwt.issue(42, TestLoginSessions.ID));
+        return authAs(42, request);
+    }
+
+    private MockHttpServletRequestBuilder authAs(long userId, MockHttpServletRequestBuilder request) {
+        return request.header("Authorization", "Bearer " + jwt.issue(userId, TestLoginSessions.ID));
     }
 
     private String altered(String defect) throws Exception {
@@ -309,6 +343,11 @@ class RestSecurityTests {
         Map<String, Object> principal(@AuthenticationPrincipal AuthenticatedUser user, Authentication authentication) {
             return Map.of("userId", user.userId(), "name", authentication.getName(),
                     "authenticated", authentication.isAuthenticated(), "credentialsAbsent", authentication.getCredentials() == null);
+        }
+
+        @PostMapping("/api/v1/admin/wallet-grants/probe")
+        Map<String, Object> grantProbe() {
+            return Map.of("allowed", true);
         }
     }
 }

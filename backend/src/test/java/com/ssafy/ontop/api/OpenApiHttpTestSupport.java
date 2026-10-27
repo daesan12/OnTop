@@ -86,7 +86,7 @@ abstract class OpenApiHttpTestSupport {
                 "POST /api/v1/auth/exchange", "POST /api/v1/auth/refresh", "POST /api/v1/auth/logout",
                 "POST /api/v1/auth/websocket-ticket", "GET /api/v1/users/me", "PATCH /api/v1/users/me",
                 "DELETE /api/v1/users/me", "GET /api/v1/users/nickname-availability",
-                "POST /api/v1/users/onboarding", "GET /api/v1/wallets/me",
+                "POST /api/v1/users/onboarding", "GET /api/v1/admin/me", "GET /api/v1/wallets/me",
                 "GET /api/v1/wallets/me/transactions", "GET /api/v1/rankings"));
         if (environment.acceptsProfiles(Profiles.of("(local | dev) & !prod & !production"))) {
             expected.addAll(Set.of("GET /api/v1/channels", "GET /api/v1/tables"));
@@ -100,6 +100,7 @@ abstract class OpenApiHttpTestSupport {
         if (environment.acceptsProfiles(Profiles.of("(local | dev) & !prod & !production"))) {
             expected.addAll(Set.of("POST /api/v1/minigames/sessions", "GET /api/v1/minigames/sessions",
                     "GET /api/v1/minigames/sessions/{sessionId}",
+                    "POST /api/v1/minigames/sessions/{sessionId}/deliveries",
                     "POST /api/v1/minigames/sessions/{sessionId}/complete",
                     "POST /api/v1/minigames/sessions/{sessionId}/abandon"));
             if (environment.getProperty("ontop.notes.enabled", Boolean.class, false)) {

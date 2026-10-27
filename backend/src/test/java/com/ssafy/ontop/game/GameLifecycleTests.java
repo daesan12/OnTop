@@ -12,6 +12,7 @@ import com.ssafy.ontop.game.onecard.service.OneCardEngine;
 import com.ssafy.ontop.game.reconnect.GameRecoveryGateway.Action;
 import com.ssafy.ontop.game.reconnect.GameRecoveryGateway.GraceExpiration;
 import com.ssafy.ontop.game.result.GameDepartureReason;
+import com.ssafy.ontop.game.result.GameDefeatConfirmed;
 import com.ssafy.ontop.game.result.GameFinished;
 import com.ssafy.ontop.game.result.GameParticipantLeft;
 import java.time.Clock;
@@ -46,6 +47,11 @@ class GameLifecycleTests {
         engine.load(202);
         var left = departures();
         assertThat(left).hasSize(1);
+        assertThat(reactions()).singleElement().satisfies(event -> {
+            assertThat(event.remainingBefore()).isEqualTo(2);
+            assertThat(event.userId()).isEqualTo(101);
+            assertThat(event.kind()).isEqualTo(GameDefeatConfirmed.Kind.FORFEIT);
+        });
         assertThat(left.getFirst().leaveReason()).isEqualTo(GameDepartureReason.LOGOUT);
         GameFinished finished = finished();
         assertThat(finished.gameCode()).isEqualTo(code);
@@ -70,6 +76,9 @@ class GameLifecycleTests {
         }
         GameFinished finished = finished();
         assertThat(finished.participants()).hasSize(count);
+        assertThat(reactions()).extracting(GameDefeatConfirmed::remainingBefore)
+                .containsExactlyElementsOf(java.util.stream.IntStream.iterate(count, n -> n - 1)
+                        .limit(count - 1).boxed().toList());
         assertThat(finished.participants().getFirst().leaveReason()).isEqualTo(GameDepartureReason.MEMBER_DEACTIVATED);
         assertThat(finished.participants().getLast().result()).isEqualTo(GameFinished.Result.WIN);
         assertThat(finished.participants().stream().filter(p -> p.result() == GameFinished.Result.FORFEIT))
@@ -83,6 +92,10 @@ class GameLifecycleTests {
         assertThat(finished().endReason()).isEqualTo("TURN_TIMEOUT");
         assertThat(departures()).isEmpty();
         assertThat(finished().participants().getFirst().result()).isEqualTo(GameFinished.Result.LOSE);
+        assertThat(reactions()).singleElement().satisfies(event -> {
+            assertThat(event.kind()).isEqualTo(GameDefeatConfirmed.Kind.DEFEAT);
+            assertThat(event.remainingBefore()).isEqualTo(2);
+        });
     }
 
     @Test
@@ -95,6 +108,10 @@ class GameLifecycleTests {
         assertThat(snapshot.phase().name()).isEqualTo("ELIMINATED");
         assertThat(snapshot.state().path("publicState").path("stage").asText()).isEqualTo("DECLARING");
         assertThat(events.stream().filter(GameFinished.class::isInstance)).isEmpty();
+        assertThat(reactions()).singleElement().satisfies(event -> {
+            assertThat(event.userId()).isEqualTo(101);
+            assertThat(event.remainingBefore()).isEqualTo(3);
+        });
     }
 
     private GameEngine create(String code, List<Long> players, Instant start) {
@@ -137,6 +154,11 @@ class GameLifecycleTests {
 
     private List<GameParticipantLeft> departures() {
         return events.stream().filter(GameParticipantLeft.class::isInstance).map(GameParticipantLeft.class::cast).toList();
+    }
+
+    private List<GameDefeatConfirmed> reactions() {
+        return events.stream().filter(GameDefeatConfirmed.class::isInstance)
+                .map(GameDefeatConfirmed.class::cast).toList();
     }
 
     private GameFinished finished() {

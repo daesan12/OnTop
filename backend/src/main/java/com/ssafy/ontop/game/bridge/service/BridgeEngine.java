@@ -146,7 +146,7 @@ public final class BridgeEngine implements GameEngine {
             } else {
                 match.forfeit(command.userId(), now);
                 lifecycle.left(command.gameId(), before.tableId(), "LIAR_BRIDGE", match.snapshot().version(),
-                        command.userId(), GameDepartureReason.EXPLICIT_LEAVE, now, notices);
+                        command.userId(), GameDepartureReason.EXPLICIT_LEAVE, now, before.players().size(), notices);
                 collect(before, match.snapshot(), notices);
                 result = forfeits.accepted(command, match.snapshot().version());
             }
@@ -171,7 +171,7 @@ public final class BridgeEngine implements GameEngine {
             match.forfeit(command.userId(), command.deadline());
             if (wasActive && !match.isActive(command.userId())) {
                 lifecycle.left(command.gameId(), before.tableId(), "LIAR_BRIDGE", match.snapshot().version(),
-                        command.userId(), command.reason(), command.deadline(), notices);
+                        command.userId(), command.reason(), command.deadline(), before.players().size(), notices);
             }
             collect(before, match.snapshot(), notices);
         }
@@ -198,7 +198,7 @@ public final class BridgeEngine implements GameEngine {
             notices.add(new BridgeGameFinished(after.gameId(), after.tableId(), after.version(), after.players(),
                     after.winnerUserIds(), after.endReason(), after.endedAt()));
             notices.add(lifecycle.finished(after.gameId(), after.tableId(), "LIAR_BRIDGE", after.version(), after.players(),
-                    after.winnerUserIds(), after.endReason(), after.endedAt()));
+                    after.winnerUserIds(), after.endReason(), after.endedAt(), notices));
         }
     }
 

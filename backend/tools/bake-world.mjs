@@ -1,4 +1,4 @@
-// Node 24+, node --experimental-vm-modules tools/bake-world.mjs <handoff directory>
+// Node 24+, node --experimental-vm-modules tools/bake-world.mjs <handoff directory> [--output file]
 // The reference TypeScript only runs in a VM without process, filesystem or network APIs.
 import { readFile, writeFile } from 'node:fs/promises';
 import { resolve, dirname, relative } from 'node:path';
@@ -7,6 +7,10 @@ import { stripTypeScriptTypes } from 'node:module';
 import { SourceTextModule, createContext } from 'node:vm';
 
 const root = resolve(process.argv[2]);
+const outputAt = process.argv.indexOf('--output');
+if (outputAt >= 0 && !process.argv[outputAt + 1]) throw Error('Missing --output file');
+const output = outputAt < 0 ? new URL('../src/main/resources/world/park.json', import.meta.url)
+  : resolve(process.argv[outputAt + 1]);
 const config = resolve(root, 'packages/shared-config/src');
 const manifest = JSON.parse(await readFile(resolve(root, 'manifest.json'), 'utf8'));
 const digest = data => createHash('sha256').update(data).digest('hex');
@@ -40,7 +44,9 @@ const boxes = c.WORLD_COLLIDERS.filter(b => !c.staticStructureBatch(b.id)).map(b
 const scene = {
   schemaVersion: 1, sourceSha256: digest(await readFile(resolve(root, 'manifest.json'))),
   units: 'm', upAxis: 'Y', movement: c.MOVEMENT,
-  referenceNetwork: { simulationHz: c.NETWORK.simulationHz, patchMs: c.NETWORK.patchMs, staleInputMs: c.NETWORK.staleInputMs },
+  // Current FE configs leave server cadence to the BE. These match WorldPhysics/Registry defaults.
+  referenceNetwork: { simulationHz: c.NETWORK.simulationHz ?? 30, patchMs: c.NETWORK.patchMs ?? 100,
+    staleInputMs: c.NETWORK.staleInputMs ?? 250 },
   world: c.WORLD, spawn: { first: c.spawnPosition(0), columns: 4, spacing: 1.35 },
   lake: c.LAKE, swimming: c.SWIMMING, tower: c.OBSERVATION_TOWER,
   steppingStones: c.STEPPING_STONES, tables: c.TABLES,
@@ -59,5 +65,5 @@ const scene = {
 };
 const json = JSON.stringify(scene);
 if (json.includes('null')) throw Error('Unexpected non-finite or missing scene data');
-await writeFile(new URL('../src/main/resources/world/park.json', import.meta.url), json + '\n');
+await writeFile(output, json + '\n');
 console.log(JSON.stringify({ boxes: boxes.length, meshes: scene.meshes.map(m => ({ id: m.id, triangles: m.indices.length / 3 })), hulls: scene.hulls.length, sourceFiles: modules.size }));

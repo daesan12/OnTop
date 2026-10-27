@@ -17,7 +17,7 @@ Raw WebSocket·JPA를 사용해 미입장/거리/높이 거절, 공개 익명 �
 
 현재 터미널에 `TEST_PARK_MESSAGES_DB_URL`, `TEST_PARK_MESSAGES_DB_USERNAME`,
 `TEST_PARK_MESSAGES_DB_PASSWORD`를 설정한다. URL은 loopback MySQL의 새
-`ontop_park_messages_test_...` 스키마만 허용한다. 기존 V1~V6/V110/V111/V120/V121을 적용하며
+`ontop_park_messages_test_...` 스키마만 허용한다. V1~V6/V110/V111/V121/V127을 적용하며
 검사마다 이 전용 DB의 소리함·메모 자료를 초기화하고 합성 회원을 준비한다. 새 마이그레이션은 없다.
 
 ```powershell
