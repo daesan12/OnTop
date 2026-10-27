@@ -110,7 +110,8 @@ export function createAvatarMotion(model: Rig) {
         for (const side of ['L', 'R'] as const) {
           const sign = side === 'L' ? 1 : -1
           const armPhase = swimPhase + (side === 'L' ? 0 : Math.PI)
-          set(`upperArm_${side}`, avatar.moving ? -armPhase : -0.55 + stroke * 0.2,
+          // Positive X brings the arm forward over the shoulder on this rig.
+          set(`upperArm_${side}`, avatar.moving ? armPhase : -0.55 + stroke * 0.2,
             0, -sign * (0.65 * (1 - move) + 0.15 * move))
           set(`lowerArm_${side}`, -0.35 - Math.max(0, Math.sin(armPhase)) * 0.95)
           set(`upperLeg_${side}`, 0.12 + sign * kick * (0.1 + 0.14 * move))
