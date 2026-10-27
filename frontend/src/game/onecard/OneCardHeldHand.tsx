@@ -1,11 +1,11 @@
-import { useMemo, useRef } from 'react'
+import { useLayoutEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { DoubleSide, MeshStandardMaterial, PlaneGeometry, Vector3, type Group } from 'three'
+import { DoubleSide, MeshStandardMaterial, Object3D, PlaneGeometry, Vector3, type Group, type InstancedMesh } from 'three'
 import type { createCharacterRig } from '../../world/art/CharacterRig'
 import { useGame } from '../store'
 import { avatars } from '../../network/worldClient'
 import { createBackTexture } from './artwork'
-import { oneCardHeldCount } from './heldHand'
+import { heldCardPose, oneCardHeldCount } from './heldHand'
 
 const cardPlane = new PlaneGeometry(.17, .23)
 let sharedBack: MeshStandardMaterial | undefined
@@ -14,16 +14,25 @@ const backMaterial = () => sharedBack ??= new MeshStandardMaterial({ map: create
 /** Avatar-local prop: both sides use generic backs, never an opponent's private cards. */
 export function OneCardHeldHand({ userId, model }: { userId: string; model: ReturnType<typeof createCharacterRig> }) {
   const root = useRef<Group>(null)
+  const mesh = useRef<InstancedMesh>(null)
   const points = useMemo(() => ({ left: new Vector3(), right: new Vector3() }), [])
+  const transform = useMemo(() => new Object3D(), [])
   const count = useGame(s => {
     const o = s.game?.onecard, p = o?.players.find(p => p.userId === userId)
     return o?.status === 'PLAYING' && p?.active ? p.cardCount : 0
   })
-  const visibleCount = Math.min(count, 10)
-  const cards = useMemo(() => Array.from({ length: visibleCount }, (_, i) => {
-    const offset = i - (visibleCount - 1) / 2
-    return { x: offset * Math.min(.045, .3 / Math.max(1, visibleCount - 1)), y: -.003 * offset ** 2, angle: -offset * .09 }
-  }), [visibleCount])
+  const hasCards = count > 0
+  useLayoutEffect(() => { const instance = mesh.current; return () => instance?.dispose() }, [hasCards])
+  useLayoutEffect(() => {
+    const instance = mesh.current
+    if (!instance) return
+    for (let i = 0; i < count; i++) {
+      const card = heldCardPose(i, count)
+      transform.position.set(card.x, card.y, card.z); transform.rotation.set(0, 0, card.angle); transform.updateMatrix()
+      instance.setMatrixAt(i, transform.matrix)
+    }
+    instance.count = count; instance.instanceMatrix.needsUpdate = true; instance.computeBoundingSphere()
+  }, [count, transform])
   useFrame(() => {
     const avatar = avatars.get(userId)
     if (!root.current) return
@@ -37,8 +46,7 @@ export function OneCardHeldHand({ userId, model }: { userId: string; model: Retu
   })
   if (!count) return null
   return <group ref={root} name={`onecard-held-hand-${userId}`} rotation={[.35, 0, 0]}
-    userData={{ cardCount: count, displayedCount: visibleCount }} dispose={null}>
-    {cards.map((card, i) => <mesh key={i} geometry={cardPlane} material={backMaterial()} position={[card.x, card.y, i * .002]}
-      rotation={[0, 0, card.angle]} />)}
+    userData={{ cardCount: count, displayedCount: count }} dispose={null}>
+    <instancedMesh ref={mesh} name={`onecard-held-cards-${userId}`} args={[cardPlane, backMaterial(), 54]} dispose={null} />
   </group>
 }

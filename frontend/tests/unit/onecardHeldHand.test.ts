@@ -2,7 +2,7 @@ import { expect, it } from 'vitest'
 import { Group, Vector3 } from 'three'
 import { createCharacterRig } from '../../src/world/art/CharacterRig'
 import { createAvatarMotion } from '../../src/world/avatarMotion'
-import { oneCardHoldingPose } from '../../src/game/onecard/heldHand'
+import { heldCardPose, oneCardHoldingPose } from '../../src/game/onecard/heldHand'
 import { characterSource } from '../fixtures/characterRig'
 
 for (const variant of ['man', 'girl'] as const) it(`${variant}: holds cards below the face and releases the pose outside One Card`, async () => {
@@ -23,4 +23,14 @@ for (const variant of ['man', 'girl'] as const) it(`${variant}: holds cards belo
   for (let n = 0; n < 90; n++) motion.apply(avatar, 10000, 1 / 60, pose, figure)
   expect(rig.bones.hand_L.getWorldPosition(new Vector3()).y).toBeLessThan(hands[0]!.y - .1)
   rig.dispose()
+})
+
+it.each([1, 7, 17, 54])('%i cards stay within a handheld fan without a count cap or quadratic drop', count => {
+  const poses = Array.from({ length: count }, (_, i) => heldCardPose(i, count))
+  expect(new Set(poses.map(p => p.z)).size).toBe(count)
+  for (const pose of poses) {
+    expect(Math.abs(pose.x)).toBeLessThanOrEqual(.15)
+    expect(pose.y).toBeGreaterThanOrEqual(-.025)
+    expect(Math.abs(pose.angle)).toBeLessThanOrEqual(.34)
+  }
 })

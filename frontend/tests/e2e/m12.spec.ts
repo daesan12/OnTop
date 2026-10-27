@@ -13,7 +13,6 @@ test('M12 spectator receives only public cards/counts; existing preview referenc
   expect(await page.evaluate(async () => (await import('/src/game/store.ts' as string)).useGame.getState().game?.hand)).toBeNull()
   await expect.poll(() => page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).onecardProbe().backs)).toBe(28)
   await screenshot(page, 'm12-spectator')
-  await p.getByRole('button', { name: '최신 원카드 확인' }).click()
   await p.getByRole('button', { name: '테이블 둘러보기' }).click(); await p.getByRole('button', { name: '공개 판 보기' }).click()
   await p.getByRole('button', { name: '관전 종료' }).click(); await expect(p).toHaveCount(0)
   expect(server.sent.some(m => m.type === 'GAME_ACTION_SEND' || m.type === 'GAME_RESULT_CHECK')).toBe(false)

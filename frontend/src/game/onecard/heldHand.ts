@@ -20,3 +20,9 @@ export function oneCardHoldingPose(model: ReturnType<typeof createCharacterRig>)
     model.handPose(side, 'cup')
   }
 }
+
+/** Keep the whole fan within the hands, even with all 54 cards; no display-count cap. */
+export function heldCardPose(index: number, count: number) {
+  const center = (count - 1) / 2, unit = center > 0 ? (index - center) / center : 0
+  return { x: unit * Math.min(.15, center * .045), y: -.025 * unit ** 2, angle: -unit * .34, z: index * .0008 }
+}

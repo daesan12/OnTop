@@ -52,7 +52,7 @@ test('M12 2-player atomic hands, card/suit/K/draw/attack commands, result and ne
   await p.getByRole('button', { name: '공격 받기 · +7장', exact: true }).click(); await expect(handButtons(page)).toHaveCount(8)
   await p.getByRole('button', { name: '다음 손패', exact: true }).click(); await expect(handButtons(page)).toHaveCount(5)
   await p.getByRole('button', { name: '이전 손패', exact: true }).click()
-  await p.getByRole('button', { name: '원카드 규칙', exact: true }).click(); await expect(p).toContainText('3초 만료만으로 벌칙을 받지 않습니다.')
+  await expect(p.getByRole('button', { name: '원카드 규칙', exact: true })).toHaveCount(0)
   await screenshot(page, 'm12-player')
   const end = { status: 'FINISHED' as const, stage: 'FINISHED' as const, turnUserId: null, turnDeadline: null, winnerUserIds: ['102'], endReason: 'EMPTY_HAND', endedAt: new Date().toISOString() }
   server.cardSnapshot(end, accepted); await expect(p).toContainText('손패를 모두 비웠습니다.')

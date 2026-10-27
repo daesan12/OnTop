@@ -5,7 +5,7 @@ import { useGame, recoveryBlocked } from '../store'
 import { useSession } from '../../network/worldClient'
 import { useParkRuntime } from '../../park/runtime/ParkRuntime'
 import { useTableLobby } from '../../features/tableLobby/state'
-import { OmokSurrender } from '../OmokSurrender'
+import { OneCardForfeitDialog } from './OneCardForfeitDialog'
 import { canActOneCard } from './actions'
 import { cardLabel, redCard, SUITS, SUIT_GLYPH, SUIT_NAME } from './presentation'
 import type { OneCardInput } from './protocol'
@@ -18,7 +18,7 @@ import './onecard.css'
 export function OneCardPanel() {
   const s = useGame(), session = useSession(useShallow(s => ({ sessionId: s.sessionId, roomId: s.roomId, profiles: s.profiles, status: s.status, pending: s.pending }))), runtime = useParkRuntime()
   const view = useTableLobby(s => s.spectatorView)
-  const [now, setNow] = useState(Date.now), [rules, setRules] = useState(false)
+  const [now, setNow] = useState(Date.now)
   const selection = useOneCardUI(), prank = useOneCardPranks()
   useEffect(() => () => { useOneCardUI.setState({ scope: '', selectedId: '' }) }, [])
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 100); return () => clearInterval(timer) }, [])
@@ -90,18 +90,15 @@ export function OneCardPanel() {
     </div>
     {finished && <p>종료 사유: {({ EMPTY_HAND: '손패를 모두 비웠습니다.', STALEMATE: '카드 교착 · 최소 손패로 승자를 결정했습니다.', PLAYER_LEFT: '다른 참가자가 떠나 경기가 끝났습니다.' })[o.endReason!] ?? o.endReason}</p>}
     {!spectator && finished && <p>{s.result ? s.result.settlementStatus === 'SETTLED' ? `정산 완료 · 내 엽전 증감 ${s.result.myCoinDelta}` : '정산 대기 중' : '결과·정산 확인 전입니다.'}</p>}
-    <div className="mini-tools">{spectator && <SeatedLookButton />}<div className="onecard-actions"><button onClick={() => setRules(!rules)} aria-expanded={rules}>원카드 규칙</button>
-      <button disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkGame()}>최신 원카드 확인</button>
+    {(spectator || finished || recoveryBlocked() || s.uncertain || !!s.error) && <div className="onecard-recovery-controls">{spectator && <SeatedLookButton />}<div className="onecard-actions">
+      {(s.uncertain || !!s.error || recoveryBlocked()) && <button disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkGame()}>최신 원카드 확인</button>}
       {recoveryBlocked() && <button disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkRecovery()}>경기 복구 다시 확인</button>}
       {!spectator && finished && <button disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkResult()}>정산 결과 확인</button>}
       {spectator && <button disabled={session.pending} onClick={() => void runtime.unwatchGame()}>관전 종료</button>}
     </div>
-    {rules && <div className="mini-help onecard-rules"><p>2 +2 / A +3 / ♠A +5 / 흑백 조커 +5 / 컬러 조커 +7. 3은 마지막 2와 같은 무늬일 때 공격을 막습니다.</p>
-      <p>7·조커 무늬 선택 / J 건너뛰기 / Q 역전(2인은 본인 새 차례) / K 추가 행동. 마지막 카드는 특수 효과 전에 즉시 승리합니다.</p>
-      <p>차례 전체 30초, 한 장이 되면 선언·신고 3초. 먼저 승인된 반응만 유효하며 3초 만료만으로 벌칙을 받지 않습니다. 셔플·카드 효과·벌칙·승자는 서버가 결정합니다.</p></div>}
     {spectator && <div className="onecard-actions" role="group" aria-label="관전 시점"><button aria-pressed={view === 'board'} onClick={() => useTableLobby.setState({ spectatorView: 'board' })}>공개 판 보기</button>
       <button aria-pressed={view === 'table'} onClick={() => useTableLobby.setState({ spectatorView: 'table' })}>테이블 둘러보기</button></div>}
-    {!spectator && <OmokSurrender key={`${ownId}:${g.gameId}`} context={{ userId: ownId, gameId: g.gameId, version: g.version }} disabled={session.pending || !fresh} />}
-    </div>
+    </div>}
+    {!spectator && <OneCardForfeitDialog key={`${ownId}:${g.gameId}`} gameId={g.gameId} disabled={session.pending || !fresh} />}
   </section>
 }

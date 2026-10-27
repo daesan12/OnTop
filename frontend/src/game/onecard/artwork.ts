@@ -24,18 +24,27 @@ export function createFeltTexture() {
     ctx.strokeStyle = '#c5ad70'; ctx.lineWidth = 3
     ctx.beginPath(); ctx.roundRect(23, 23, 1490, 978, 28); ctx.stroke()
     ctx.lineWidth = 1.5; ctx.beginPath(); ctx.roundRect(35, 35, 1466, 954, 23); ctx.stroke()
+    ctx.save(); ctx.strokeStyle = '#cfbd8855'; ctx.lineWidth = 1; ctx.setLineDash([4, 7])
+    ctx.beginPath(); ctx.roundRect(47, 47, 1442, 930, 18); ctx.stroke(); ctx.restore()
     ctx.fillStyle = '#c5ad70'
     for (const x of [60, 1476]) for (const y of [60, 964]) {
       diamond(ctx, x, y, 13); ctx.strokeRect(x - 20, y - 20, 40, 40)
+      ctx.save(); ctx.translate(x, y); ctx.scale(x < 768 ? 1 : -1, y < 512 ? 1 : -1)
+      ctx.beginPath(); ctx.moveTo(27, -8); ctx.bezierCurveTo(65, -8, 40, 18, 68, 18); ctx.stroke()
+      ctx.beginPath(); ctx.moveTo(-8, 27); ctx.bezierCurveTo(-8, 65, 18, 40, 18, 68); ctx.stroke(); ctx.restore()
     }
-    ctx.save(); ctx.globalAlpha = .19; ctx.strokeStyle = '#d6c28a'; ctx.lineWidth = 3
+    ctx.save(); ctx.globalAlpha = .16; ctx.strokeStyle = '#d6c28a'; ctx.lineWidth = 3
     for (const radius of [192, 206]) { ctx.beginPath(); ctx.arc(768, 512, radius, 0, Math.PI * 2); ctx.stroke() }
     ctx.fillStyle = '#d6c28a'; ctx.font = '100px Georgia,serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
     for (const [symbol, x, y] of [['♠', 768, 416], ['♥', 674, 512], ['♣', 862, 512], ['♦', 768, 608]] as const) ctx.fillText(symbol, x, y)
     ctx.restore()
     // The existing deck/discard centers are preserved; outlines simply frame them.
     ctx.strokeStyle = '#c5ad7080'; ctx.lineWidth = 2
-    for (const x of [536, 960]) { ctx.beginPath(); ctx.roundRect(x - 115, 351, 230, 322, 18); ctx.stroke() }
+    for (const x of [536, 960]) {
+      ctx.fillStyle = '#082d271c'; ctx.beginPath(); ctx.roundRect(x - 115, 351, 230, 322, 18); ctx.fill(); ctx.stroke()
+      ctx.save(); ctx.strokeStyle = '#c5ad703d'; ctx.lineWidth = 1
+      ctx.beginPath(); ctx.roundRect(x - 123, 343, 246, 338, 24); ctx.stroke(); ctx.restore()
+    }
   })
 }
 export function createBackTexture() {
@@ -56,10 +65,13 @@ export function createBackTexture() {
 }
 export function createFaceTexture(card: Card) {
   return artwork(256, 384, ctx => {
-    ctx.fillStyle = '#fbf5e7'; ctx.fillRect(0, 0, 256, 384)
+    const paper = ctx.createLinearGradient(0, 0, 256, 384)
+    paper.addColorStop(0, '#fffdf5'); paper.addColorStop(.65, '#fbf5e7'); paper.addColorStop(1, '#eadbbb')
+    ctx.fillStyle = paper; ctx.fillRect(0, 0, 256, 384)
     ctx.strokeStyle = '#d6bd81'; ctx.lineWidth = 2
     ctx.beginPath(); ctx.roundRect(10, 10, 236, 364, 12); ctx.stroke()
     ctx.lineWidth = 1; ctx.beginPath(); ctx.roundRect(16, 16, 224, 352, 9); ctx.stroke()
+    ctx.save(); ctx.strokeStyle = '#d6bd8138'; ctx.beginPath(); ctx.ellipse(128, 192, 81, 106, 0, 0, Math.PI * 2); ctx.stroke(); ctx.restore()
     const symbol = card.suit ? SUIT_GLYPH[card.suit] : '✦', rank = card.suit ? card.rank : 'JOKER'
     ctx.fillStyle = redCard(card) ? '#b23c4c' : '#214a46'
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'

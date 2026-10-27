@@ -92,6 +92,12 @@ test('four seated players and a separate observer: flip crosses windows and rest
     }
     await expect.poll(async () => (await probe(page)).players.map(p => p.heldCount)).toEqual([7, 5, 4, 3])
     await expect.poll(async () => (await probe(observerPage)).players.every(p => p.heldCount > 0)).toBe(true)
+    for (const remoteCount of [17, 1, 5]) {
+      const next = { ...snapshot, drawCount: 39 - remoteCount, players: snapshot.players.map((p, i) => i === 1 ? { ...p, cardCount: remoteCount } : p) }
+      player.cardSnapshot(next, hand); observer.cardSnapshot(next, hand, 'SPECTATOR')
+      for (const p of [page, observerPage]) await expect.poll(async () => (await probe(p)).players.map(p => p.displayedCount)).toEqual([7, remoteCount, 4, 3])
+      if (remoteCount === 17) await shot(page, 'onecard-4p-17-cards')
+    }
     await panel(page).getByRole('button', { name: '하트 J · 다음 차례 건너뛰기', exact: true }).click()
     await expect(panel(page).getByRole('button', { name: '하트 J · 다음 차례 건너뛰기', exact: true }).locator('.onecard-effect')).toHaveText('다음 차례 건너뛰기')
     await expect(panel(page).locator('.onecard-description')).toHaveCount(0)
