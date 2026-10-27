@@ -71,7 +71,7 @@ function bread(b: PropBuilder, x: number, z: number, detailed: boolean, index: n
   b.curve('paint', '#a86f38', [[x - 0.13, 1.269, z - 0.044], [x - 0.105, 1.269, z], [x - 0.13, 1.269, z + 0.044]], 0.003, 8)
 }
 function build(detailed: boolean) {
-  const b = new PropBuilder([16, 10])
+  const b = new PropBuilder([16, 10], `fish-cart-${detailed}`)
   // Axles, steel chassis and four independently readable rubber wheels.
   rounded(b, 'metal', iron, [0, 0.36, 0], [2.97, 0.12, 1.36], 0.025)
   for (const x of [-1.16, 1.16]) {
@@ -143,14 +143,14 @@ function build(detailed: boolean) {
 export const fishCartArt = { near: build(true), far: build(false) }
 // Keep overhead parts out of the body batches so the local cooking camera can see the grill.
 function buildCanopy(detailed: boolean) {
-  const b = new PropBuilder([16, 10])
+  const b = new PropBuilder([16, 10], `fish-cart-canopy-${detailed}`)
   canopy(b, detailed)
   rounded(b, 'wood', '#654934', [0, 2.43, 1.05], [2.22, 0.35, 0.07], 0.018)
   b.box('glow', '#ffdf9a', [0, 2.73, 0.56], [2.55, 0.018, 0.035])
   return b.finish()
 }
 export const fishCartCanopyArt = { near: buildCanopy(true), far: buildCanopy(false) }
-const glass = new PropBuilder()
+const glass = new PropBuilder([12, 8], 'fish-cart-glass')
 glass.box('tile', '#ffffff', [0.94, 1.48, 0.26], [1.02, 0.56, 0.006])
 glass.box('tile', '#ffffff', [0.94, 1.48, -0.42], [1.02, 0.56, 0.006])
 for (const x of [0.42, 1.46]) glass.box('tile', '#ffffff', [x, 1.48, -0.08], [0.006, 0.56, 0.65])

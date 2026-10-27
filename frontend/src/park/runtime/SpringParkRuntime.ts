@@ -32,7 +32,7 @@ import { canActOneCard } from '../../game/onecard/actions'
 import type { OneCardInput } from '../../game/onecard/protocol'
 import { canActBridge } from '../../game/bridge/actions'
 import type { BridgeInput } from '../../game/bridge/protocol'
-import { parkBindingsUrl } from './deployment'
+import { loadParkBindings } from './deployment'
 import type { ParkRuntimePort } from './contracts'
 import { benchBusy } from '../../features/interactions/benchState'
 import { fitnessBusy } from '../../features/fitness/state'
@@ -331,13 +331,7 @@ export class ParkRuntime implements ParkRuntimePort {
       if (!this.active || generation !== this.generation) return
       const ready = Promise.all([
         this.getJSON('/api/v1/channels', { signal: abort.signal }),
-        fetch(parkBindingsUrl(), {
-          signal: abort.signal,
-          cache: 'no-store',
-        }).then((r) => {
-          if (!r.ok) throw new Error('공원 배치 설정 파일을 읽을 수 없습니다.')
-          return r.json() as Promise<unknown>
-        }),
+        loadParkBindings(abort.signal),
         this.getJSON('/api/v1/users/me', { signal: abort.signal }).then(
           userProfile,
         ),
