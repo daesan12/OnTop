@@ -56,6 +56,10 @@ DB 없는 [시작 검증](game-start-rehearsal.md)과 [인증 경기 시작](com
 | 경기 | 완료·4종 엔진 로컬 검증 | WS | 클라이언트 → 서버 | [경기 관전 시작](websocket-api/09-game-communication.md) | GAME_WATCH | /ws/tables |
 | 경기 | 완료·4종 엔진 로컬 검증 | WS | 클라이언트 → 서버 | [경기 관전 종료](websocket-api/09-game-communication.md) | GAME_UNWATCH | /ws/tables |
 | 경기 | 완료·4종 엔진 로컬 검증 | WS | 서버 → 클라이언트 | [경기 관전 종료 알림](websocket-api/09-game-communication.md) | GAME_WATCH_LEFT | /ws/tables |
+| 경기 관전 | 로컬 검증·FE 공동 검수 전 | WS | 클라이언트 → 서버 | [오목 관전 채팅 보내기](websocket-api/10-game-spectator-events.md) | GAME_SPECTATOR_CHAT_SEND | /ws/tables |
+| 경기 관전 | 로컬 검증·FE 공동 검수 전 | WS | 서버 → 클라이언트 | [오목 관전 채팅 승인·전달](websocket-api/10-game-spectator-events.md) | GAME_SPECTATOR_CHAT_MESSAGE | /ws/tables |
+| 경기 관전 | 로컬 검증·FE 공동 검수 전 | WS | 클라이언트 → 서버 | [오목 관전 핑 보내기](websocket-api/10-game-spectator-events.md) | OMOK_SPECTATOR_PING_SEND | /ws/tables |
+| 경기 관전 | 로컬 검증·FE 공동 검수 전 | WS | 서버 → 클라이언트 | [오목 관전 핑 승인·전달](websocket-api/10-game-spectator-events.md) | OMOK_SPECTATOR_PING | /ws/tables |
 | 경기 결과 | DB 결과 조회 구현·조건부 등록 | WS | 클라이언트 → 서버 | [본인 종료 결과 재조회](game-result-api.md) | GAME_RESULT_CHECK | /ws/tables |
 | 경기 결과 | 정산/INVALID 반환·outbox 구현 | WS | 서버 → 클라이언트 | [본인 결과·정산 상태](game-result-api.md) | GAME_RESULT | /ws/tables |
 
