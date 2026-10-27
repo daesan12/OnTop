@@ -50,3 +50,13 @@
 남은 검수: BE 계약 확정·실서버 동시 관전자 한도·재접속 면역 동기화, 다중 계정 공동 검수. 네 좌석 수식은 검증했으나 실제 여러 사용자/모든 공원 테이블의 그래픽 검수는 별도다.
 
 실행: 작업 폴더 `frontend`에서 `node node_modules/@playwright/test/cli.js test --config playwright.onecard.config.ts`. 로컬 pnpm의 의존성 자동 설치 검사 때문에 직접 Node 진입점을 사용했다. 개발은 같은 폴더에서 `node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 5212 --strictPort`로 실행할 수 있다.
+
+## 4인 화면과 관전자 개입 추가 검수
+
+사용자 요청에 따라 `onecard-four-player.spec.ts`를 추가했다. P1 정자의 네 좌석에 도윤(7장)·민지(5장)·준(4장)·하늘(3장)을 배치하고, 별도 브라우저 컨텍스트의 구경꾼(505)이 벤치에 앉아 동일 경기를 관전한다. 네 참가자의 실제 렌더 모델·좌석 번호·머리 위 닉네임을 확인한다. 플레이어 1명과 관전자 1명의 두 창을 조작하며, 나머지 세 참가자의 경기·월드 상태는 모의 서버가 제공한다.
+
+공유 모의 이벤트 중계를 통해 관전자 버튼 클릭 → 플레이어 창의 비선택 카드 2장 뒤집힘 → 선택한 하트 J 및 제출 가능 상태 유지 → 손패 정리 한 번 → 양쪽 창에 복구 반영을 검증했다. 관전자는 private hand=null을 유지하며 같은 차례에 재사용할 수 없다. 관전 UI에는 요청 중·개입 적용·복구 완료를 구분하는 상태 문구를 추가했다.
+
+1920×1080에서 플레이·관전자 개입 전/후·플레이어 뒤집힘/복구 화면을 캡처하고 `view_image`로 직접 확인했다. Browser 플러그인이 없어 기존 Playwright/Edge 경로를 사용했다. 이 검수는 신규 BE 장난 계약의 실제 서버 배포나 실제 다섯 계정의 공동 접속 검증을 의미하지 않는다.
+
+재현: `node node_modules/@playwright/test/cli.js test --config playwright.onecard.config.ts onecard-four-player.spec.ts`. 기본 장난 비활성 설정은 유지하며 테스트 서버에서만 `VITE_ONECARD_PRANKS=true`를 적용한다.

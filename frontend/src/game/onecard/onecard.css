@@ -54,6 +54,7 @@
 .park-page .onecard-game-hud.onecard-panel .mini-feedback p { background:#172c29f2; padding:8px 12px; border-radius:6px; font-size:12px; }
 .park-page .onecard-game-hud.onecard-panel .onecard-spectator { position:absolute; bottom:25px; left:50%; transform:translateX(-50%); width:min(500px,85vw); text-align:center; }
 .park-page .onecard-game-hud.onecard-panel .onecard-spectator small { display:block; margin-top:8px; }
+.park-page .onecard-game-hud.onecard-panel .onecard-prank-status { color:#c7e7c7; font-size:13px; line-height:1.5; }
 .onecard-overhead { display:flex; justify-content:center; align-items:center; gap:7px; margin-top:3px; padding:4px 9px; border-radius:6px; color:#e1e8d9; background:#172c29e8; font-size:11px; }
 .onecard-overhead b { color:#edce76; font-size:14px; }
 .onecard-overhead.is-current { box-shadow:0 0 0 1px #edce76; }

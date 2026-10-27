@@ -84,6 +84,10 @@ export function OneCardPanel() {
       {prank.enabled ? <><button disabled={prank.pending || !o.turnUserId || !!prank.effect
         || prank.usedTurn === `${o.turnUserId}/${o.turnCount}` || (prank.immune[o.turnUserId ?? ''] ?? 0) > performance.now() || o.stage !== 'PLAYING'}
         onClick={() => { if (o.turnUserId) void runtime.flipOneCardHand?.(o.turnUserId) }}>{name(o.turnUserId!)} 손패 뒤집기</button>
+        <p className="onecard-prank-status" role="status">{prank.pending ? '장난 요청을 확인하고 있어요'
+          : prank.effect ? `${name(prank.effect.targetUserId)}의 카드 ${prank.effect.count}장이 뒤집혔어요`
+          : prank.usedTurn === `${o.turnUserId}/${o.turnCount}` ? '복구 완료 · 이번 차례의 장난은 사용했어요'
+          : '현재 차례의 플레이어에게 장난을 걸 수 있어요'}</p>
         <small>최대 2장 · 대상의 한 차례에 한 번 · 선택·제출 카드는 보호됩니다.</small></>
         : <small>손패 뒤집기는 서버 연동 후 사용할 수 있습니다.</small>}
     </section>}
