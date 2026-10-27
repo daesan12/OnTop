@@ -7,7 +7,7 @@ import { ParkPage } from './park/ParkPage'
 import { preloadWorldAssets } from './world/worldAssets'
 
 const AdminShell = lazy(() => import('./features/admin/AdminShell').then(m => ({ default: m.AdminShell })))
-type Page = 'checking' | 'login' | 'callback' | 'onboarding' | 'park' | 'admin' | 'admin-feedback'
+type Page = 'checking' | 'login' | 'callback' | 'onboarding' | 'park' | 'admin' | 'admin-feedback' | 'admin-analytics'
 
 export default function App() {
   const [page, setPage] = useState<Page>(() =>
@@ -48,8 +48,10 @@ export default function App() {
       if (!active) return
       if (authenticated) {
         const path = window.location.pathname
-        const next = path === '/admin/feedback' ? 'admin-feedback' : path === '/admin' ? 'admin' : 'park'
-        window.history.replaceState(null, '', next === 'admin-feedback' ? '/admin/feedback' : next === 'admin' ? '/admin' : '/park')
+        const next = path === '/admin/feedback' ? 'admin-feedback'
+          : path === '/admin/analytics' ? 'admin-analytics' : path === '/admin' ? 'admin' : 'park'
+        window.history.replaceState(null, '', next === 'admin-feedback' ? '/admin/feedback'
+          : next === 'admin-analytics' ? '/admin/analytics' : next === 'admin' ? '/admin' : '/park')
         setPage(next)
       } else {
         if (window.location.pathname !== '/') window.history.replaceState(null, '', '/')
@@ -64,9 +66,10 @@ export default function App() {
     setPage('park')
   }, [])
 
-  const onAdminNavigate = useCallback((section: 'home' | 'feedback') => {
-    window.history.pushState(null, '', section === 'home' ? '/admin' : '/admin/feedback')
-    setPage(section === 'home' ? 'admin' : 'admin-feedback')
+  const onAdminNavigate = useCallback((section: 'home' | 'feedback' | 'analytics') => {
+    const path = section === 'home' ? '/admin' : section === 'feedback' ? '/admin/feedback' : '/admin/analytics'
+    window.history.pushState(null, '', path)
+    setPage(section === 'home' ? 'admin' : section === 'feedback' ? 'admin-feedback' : 'admin-analytics')
   }, [])
 
   const onOnboardingRequired = useCallback(() => {
@@ -100,9 +103,9 @@ export default function App() {
   if (page === 'park' && getAuthSession()?.status === 'AUTHENTICATED') {
     return <ParkPage onExit={onExit} exitError={exitError} onAuthEnded={onReturnToLogin} />
   }
-  if ((page === 'admin' || page === 'admin-feedback') && getAuthSession()?.status === 'AUTHENTICATED') {
+  if ((page === 'admin' || page === 'admin-feedback' || page === 'admin-analytics') && getAuthSession()?.status === 'AUTHENTICATED') {
     return <Suspense fallback={<main className="auth-loading" role="status">관리자 화면 준비 중…</main>}>
-      <AdminShell section={page === 'admin' ? 'home' : 'feedback'} onNavigate={onAdminNavigate}
+      <AdminShell section={page === 'admin' ? 'home' : page === 'admin-feedback' ? 'feedback' : 'analytics'} onNavigate={onAdminNavigate}
         onReturn={onAuthenticated} onAuthEnded={onReturnToLogin} />
     </Suspense>
   }
