@@ -586,6 +586,7 @@ export async function fixture(
         else {
           gameCode = String(payload.gameCode); tabletCount = Number(payload.selectedPlayers); targetScore = payload.targetScore ?? null
           betAmountPerPlayer = Number(payload.betAmountPerPlayer); tabletManual = true; ready = false; tabletOthersReady = false
+          if (options.dice && gameCode === 'DICE') diceState = { ...diceState, targetScore: targetScore ?? 4000 }
           waitExpiresAt = null; waitRevision++
           table(ws, 'TABLE_STATE', requestId); start(ws, 'WAITING')
         }

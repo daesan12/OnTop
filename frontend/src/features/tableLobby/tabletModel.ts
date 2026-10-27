@@ -7,7 +7,7 @@ import { TABLET_ENABLED } from './tabletFeature'
 
 export interface PreparationContext { userId: string; channelId: string; tableId: string; expectedVersion: number }
 export interface PreparationSelection { gameCode: TableGameCode; playerCount: number; betAmountPerPlayer: number; targetScore?: number }
-/** FE extension port. No guessed WS message is sent. Bind only after the BE contract is agreed.
+/** FE extension port, bound by TabletLobbyClient to the confirmed BE contract in tablet mode.
  * A manual-start adapter must ensure READY_SET never starts a match automatically. */
 export interface TablePreparationPort {
   manualStart: true

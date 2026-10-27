@@ -24,7 +24,7 @@ const version = (n: number) => Number.isSafeInteger(n) && n >= 0
 const identifier = (s: string) => typeof s === 'string' && !!s.trim() && s.length <= 120
 
 /** Bind per authenticated table visit; dispose/rebind on disconnect or scope change.
- * Only a future server adapter calls these methods. No local kick or host selection exists. */
+ * The server adapter supplies these snapshots. No local kick or host selection exists. */
 export function bindHostStartWait(scope: HostWaitScope) {
   if (![scope.userId, scope.channelId, scope.tableId].every(identifier)) throw new Error('잘못된 테이블 대기 범위입니다.')
   const token = {}
