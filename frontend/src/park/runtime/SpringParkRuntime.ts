@@ -4,6 +4,7 @@ import {
   restoreAuthSession,
 } from '../../auth/authFlow'
 import { SharedSocket, ServerError } from '../../network/socketClient'
+import { OmokSpectatorEvents } from '../../game/omok/spectatorEvents'
 import { WorldTimeClient } from '../../network/worldTimeClient'
 import { EXPECTED_MAP } from '../../config/mapVersion'
 import { FacilityClient } from '../../network/facilityClient'
@@ -137,6 +138,7 @@ export class ParkRuntime implements ParkRuntimePort {
     },
     stop: async () => { await this.socket.request('GAME_UNWATCH', {}, ['GAME_WATCH_LEFT']) },
     hide: () => {
+      this.omokEvents.reset()
       if (this.gameWatchRequestId) this.obsoleteGameWatchRequests.add(this.gameWatchRequestId)
       for (const id of this.spectatorChecks.keys()) this.obsoleteGameWatchRequests.add(id)
       this.spectatorChecks.clear()
@@ -149,7 +151,24 @@ export class ParkRuntime implements ParkRuntimePort {
       spectatorError: error,
     }),
   })
+  private omokEvents = new OmokSpectatorEvents({
+    scope: () => {
+      const s = useSession.getState(), g = useGame.getState()
+      if (!this.active || !this.socket.connected || s.status !== 'connected' || !s.mapCompatible || !s.roomId
+        || !g.game?.omok || g.game.omok.status !== 'PLAYING' || g.lastResult) return null
+      const game = g.game
+      if (game.role === 'PLAYER' && (g.recovery !== 'RESTORED' || g.permittedGameId !== game.gameId)) return null
+      if (game.role === 'SPECTATOR' && (!this.spectator.accepts(game.gameId) || g.watchedGameId !== game.gameId)) return null
+      return { key: JSON.stringify([this.generation, s.sessionId, s.roomId, game.gameId, game.role,
+        game.role === 'SPECTATOR' ? this.gameWatchRequestId : '']), gameId: game.gameId, version: game.version,
+        role: game.role, canSend: game.role === 'SPECTATOR' && !s.tableId && getAuthSession()?.status === 'AUTHENTICATED' }
+    },
+    request: (type, payload, expected, onId) => this.socket.request(type, payload, expected, onId),
+  })
+  sendSpectatorChat = (text: string) => this.omokEvents.send('chat', text)
+  pingOmok = (x: number, y: number) => this.omokEvents.send('ping', { x, y })
   private resetSpectator() {
+    this.omokEvents.reset()
     this.spectatorIntent = null; this.spectator.reset(); this.gameWatchRequestId = ''
     this.spectatorChecks.clear()
     this.obsoleteGameWatchRequests.clear(); this.tableClosing = null
@@ -405,6 +424,7 @@ export class ParkRuntime implements ParkRuntimePort {
   }
   private message(message: Envelope) {
     if (!this.active) return
+    if (this.omokEvents.accept(message)) return
     if (this.worldTime.ownsError(message) || message.type === 'WORLD_TIME_STATE') return
     if (message.type === 'ERROR' && message.requestId && this.forfeitRequests.has(message.requestId)
       && this.forfeitRequests.get(message.requestId) !== JSON.stringify([useSession.getState().sessionId, useGame.getState().permittedGameId])) return
@@ -440,6 +460,7 @@ export class ParkRuntime implements ParkRuntimePort {
     const session = useSession.getState()
     try {
       receiveGame(message, session.sessionId, session.tableId)
+      this.omokEvents.sync()
     } catch (error) {
       useGame.setState({
         uncertain: true,
