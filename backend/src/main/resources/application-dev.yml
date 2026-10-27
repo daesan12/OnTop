@@ -22,7 +22,7 @@ ontop:
   feedback:
     # 신규 마이그레이션은 팀 버전 순서 조율 후 명시적으로 활성화한다.
     enabled: ${FEEDBACK_ENABLED:false}
-    administrator-ids: ${FEEDBACK_ADMINISTRATOR_IDS:}
+    administrator-ids: ${ADMIN_READ_IDS:${FEEDBACK_ADMINISTRATOR_IDS:}}
   minigames:
     enabled: true
   world:

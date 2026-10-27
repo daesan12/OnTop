@@ -106,7 +106,7 @@ local,db 또는 dev,db 전용. prod/production에는 기능이 등록되지 않�
 
 - local: ONTOP_FEEDBACK_ENABLED=true. dev: FEEDBACK_ENABLED=true.
 - 기존 SPRING_FLYWAY_LOCATIONS 목록을 보존하면서 classpath:db/feedback 추가.
-- 관리자: ontop.feedback.administrator-ids=101,202. dev 환경변수 FEEDBACK_ADMINISTRATOR_IDS=101,202.
+- 관리자: `ADMIN_READ_IDS=101,202`를 서버에 설정한다. DEV는 기존 `FEEDBACK_ADMINISTRATOR_IDS`도 대체 설정으로 받는다. 조회·지급 권한 구분은 [관리자 접근 정책](admin-access.md)을 따른다.
 - 맵 변경 시 ontop.feedback.x/y/z를 실제 맵에 맞춘다. 맵 자동 생성 연동은 별도다.
 - Postman OnTop Feedback의 접수·동일 키 복구·관리자 조회 사용(HTTP 원본24~26에도 포함). 기존 회원 로그인 계약 유지.
 

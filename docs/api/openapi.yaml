@@ -3357,6 +3357,48 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AuthErrorResponse"
+  /api/v1/admin/me:
+    get:
+      tags:
+      - ADMIN
+      summary: 현재 관리자 권한 조회
+      operationId: me_2
+      responses:
+        "200":
+          description: 조회 권한 및 지급 권한 반환
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AdminAccessResponse"
+        "401":
+          description: 활성 회원 Access JWT 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "403":
+          description: 관리자 조회 권한 없음
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+      security:
+      - AccessJwt: []
   /api/v1/admin/feedback:
     get:
       tags:
@@ -4501,6 +4543,13 @@ components:
         expiresIn:
           type: integer
           format: int64
+    AdminAccessResponse:
+      type: object
+      properties:
+        canRead:
+          type: boolean
+        canGrant:
+          type: boolean
     Entry:
       required:
       - acceptedAt

@@ -23,6 +23,10 @@ springdoc:
   paths-to-match: /api/v1/**
 
 ontop:
+  admin:
+    # 서버에서 확정한 내부 회원 ID만 관리자 권한을 얻는다. 지급 ID는 조회 ID에도 포함해야 한다.
+    read-ids: ${ADMIN_READ_IDS:${FEEDBACK_ADMINISTRATOR_IDS:}}
+    grant-ids: ${ADMIN_GRANT_IDS:}
   world:
     map:
       # generated는 외부 파일과 FE 공동 검증 후에만 명시적으로 선택한다.
