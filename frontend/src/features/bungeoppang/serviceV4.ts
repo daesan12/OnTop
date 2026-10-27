@@ -10,6 +10,7 @@ import {
 } from './rulesV4';
 import {
   BungeoppangServiceError,
+  messages as sharedMessages,
   type BungeoppangGame,
   type BungeoppangService,
   type BungeoppangSubmit,
@@ -213,6 +214,63 @@ function wirePrefix(source: SessionSource, input: BungeoppangSubmit): Promise<{ 
   return prefixHash(input.gameId, source.configVersion, actions).then(hash => ({ actions, hash }));
 }
 
+async function wireCompletion(source: SessionSource, input: BungeoppangSubmit) {
+  const suffix = input.log.slice(source.acceptedLocalCount);
+  let state = grillFromCheckpoint(source);
+  const actions = [...source.accepted];
+  let pendingDeliveries = 0;
+  suffix.forEach(raw => {
+    if (!('slot' in raw) || !['POUR', 'FILL', 'TURN', 'DISCARD', 'TRAY_DISCARD', 'DELIVER'].includes(raw.action)) fail();
+    const entry = raw as GrillLogEntry;
+    const seq = actions.length + 1;
+    let action: WireAction;
+    if (entry.action === 'TRAY_DISCARD') {
+      const bread = state.tray[entry.slot];
+      if (!bread) fail();
+      action = { seq, action: entry.action, t: entry.t, breadId: bread.id };
+    } else if (entry.action === 'DELIVER') {
+      pendingDeliveries += 1;
+      if (pendingDeliveries > 1 || !input.deliveryKey || !keyPattern.test(input.deliveryKey)) fail();
+      const orderId = source.orders.find(value => value.orderIndex === state.orderIndex)?.orderId;
+      if (!orderId) fail();
+      action = { seq, action: entry.action, t: entry.t, orderId, deliveryKey: input.deliveryKey };
+    } else action = { seq, action: entry.action, t: entry.t, slot: entry.slot,
+      ...(entry.action === 'FILL' ? { filling: entry.filling } : {}) };
+    actions.push(action);
+    state = applyAction(state, entry, source.rules).state;
+  });
+  return { actions, hash: await prefixHash(input.gameId, source.configVersion, actions) };
+}
+
+function completeResult(value: unknown, gameId: string) {
+  if (!record(value) || value.minigameSessionId !== gameId || value.status !== 'COMPLETED'
+    || value.rulesVersion !== 'v4' || typeof value.configVersion !== 'string') return fail();
+  const integers = ['verifiedCompletedCount', 'rewardAmount', 'score', 'made', 'golden', 'failed', 'wasted',
+    'maxCombo', 'coinsCalculated', 'coinsGranted', 'todayEarned', 'dailyCap', 'successfulMade', 'served',
+    'customersServed', 'specialServed', 'bonusScore', 'grillDiscarded', 'trayDiscarded', 'undeliveredCount',
+    'unfinishedGrillCount', 'finalThroughSeq'] as const;
+  if (!integers.every(name => whole(value[name])) || typeof value.capReached !== 'boolean'
+    || typeof value.rewardDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value.rewardDate)
+    || !instant(value.settledAt) || typeof value.finalPrefixHash !== 'string'
+    || !/^[0-9a-f]{64}$/.test(value.finalPrefixHash)
+    || value.rewardAmount !== value.coinsGranted || value.verifiedCompletedCount !== value.made
+    || Number(value.coinsGranted) > Number(value.coinsCalculated)
+    || Number(value.todayEarned) > Number(value.dailyCap)) return fail();
+  return {
+    score: Number(value.score), made: Number(value.made), golden: Number(value.golden),
+    failed: Number(value.failed), wasted: Number(value.wasted), maxCombo: Number(value.maxCombo),
+    coinsCalculated: Number(value.coinsCalculated), coinsGranted: Number(value.coinsGranted),
+    todayEarned: Number(value.todayEarned), dailyCap: Number(value.dailyCap), capReached: value.capReached,
+    successfulMade: Number(value.successfulMade), served: Number(value.served),
+    customersServed: Number(value.customersServed), specialServed: Number(value.specialServed),
+    bonusScore: Number(value.bonusScore), grillDiscarded: Number(value.grillDiscarded),
+    trayDiscarded: Number(value.trayDiscarded), undeliveredCount: Number(value.undeliveredCount),
+    unfinishedGrillCount: Number(value.unfinishedGrillCount), rewardDate: value.rewardDate,
+    settledAt: value.settledAt as string, finalThroughSeq: Number(value.finalThroughSeq),
+    finalPrefixHash: value.finalPrefixHash, rulesVersion: 'v4', configVersion: value.configVersion,
+  };
+}
+
 function retryable(status: number, code: string) {
   return status >= 500 || status === 429 || code === 'TOO_EARLY';
 }
@@ -225,8 +283,9 @@ export function createBungeoppangV4Service(requestJSON: RequestJson): Bungeoppan
     try { return await requestJSON(url, { ...init, signal: controller.signal }); }
     catch (error) {
       if (error instanceof BungeoppangServiceError) throw error;
+      // 공통 안내는 호출 시점에 읽어 service.ts와의 순환 import 초기화 순서에 의존하지 않는다.
       if (error instanceof RestError) throw new BungeoppangServiceError(error.code,
-        messages[error.code] ?? (error.status === 401 || error.status === 403 ? '로그인을 다시 확인해 주세요.' : error.message),
+        messages[error.code] ?? sharedMessages[error.code] ?? (error.status === 401 || error.status === 403 ? '로그인을 다시 확인해 주세요.' : error.message),
         retryable(error.status, error.code), error.status);
       throw new BungeoppangServiceError('NETWORK_ERROR', '서버 응답을 받지 못했어요. 같은 요청으로 다시 시도해 주세요.', true);
     } finally { clearTimeout(timer); }
@@ -303,9 +362,29 @@ export function createBungeoppangV4Service(requestJSON: RequestJson): Bungeoppan
       source.checkpoint = checkpoint; source.acceptedLocalCount = accepted.length;
       return { grill: grillFromCheckpoint(source), checkpoint };
     },
-    async submitResult() {
-      throw new BungeoppangServiceError('MINIGAME_V4_SETTLEMENT_PENDING',
-        '최종 검증과 실제 엽전 지급은 다음 단계에서 연결됩니다.', false, 409);
+    async submitResult(input) {
+      const source = sessions.get(input.gameId);
+      if (!source || !input.completeKey || !keyPattern.test(input.completeKey)) return fail();
+      const { actions, hash } = await wireCompletion(source, input);
+      const body = { rulesVersion: 'v4', throughSeq: actions.length, prefixHash: hash, log: actions,
+        seenTips: input.seenTips, clientScore: input.clientScore };
+      try {
+        const result = completeResult(await request(`${sessionPath(input.gameId)}/complete`,
+          post(body, input.completeKey)), input.gameId);
+        sessions.delete(input.gameId);
+        return result;
+      } catch (error) {
+        if (!(error instanceof BungeoppangServiceError) || !error.retryable) throw error;
+        try {
+          const loaded = await request(`${sessionPath(input.gameId)}?includeProgress=true`);
+          if (record(loaded) && loaded.status === 'COMPLETED') {
+            const result = completeResult(loaded.result, input.gameId);
+            sessions.delete(input.gameId);
+            return result;
+          }
+        } catch { /* Preserve the original ambiguous completion failure for an identical retry. */ }
+        throw error;
+      }
     },
     async abandon(gameId) {
       const p = await request(`${sessionPath(gameId)}/abandon`, post({}));
