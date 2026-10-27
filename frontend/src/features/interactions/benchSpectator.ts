@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { BENCH_PAVILIONS, TABLES, CHARACTER, PAVILION_LANTERN, PARK_PAVILIONS } from '../../config'
 import type { Pose, Session } from '../../network/worldClient'
 import { useBenchState } from './benchState'
+import { lookScale } from '../../world/lookSensitivity'
 
 export function benchTable(benchId: string) {
   if (!/^bench-\d+$/.test(benchId)) return undefined
@@ -16,7 +17,7 @@ export const benchLook = { yaw: Math.PI / 4 }
 export function resetBenchSpectator() { benchLook.yaw = Math.PI / 4; useBenchSpectator.setState({ scope: '', view: 'seated' }) }
 export function turnBenchLook(movementX: number) {
   if (!Number.isFinite(movementX)) return
-  const yaw = benchLook.yaw - movementX * .004
+  const yaw = benchLook.yaw - movementX * .004 * lookScale()
   benchLook.yaw = Math.atan2(Math.sin(yaw), Math.cos(yaw))
 }
 /** Camera alone faces the board. Never rotate the replicated avatar or change its lease. */
