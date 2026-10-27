@@ -14,6 +14,7 @@ export interface TablePreparationPort {
   selectedPlayers(table: TableState): number | null
   configure(context: PreparationContext, selection: PreparationSelection): Promise<boolean>
   start(context: PreparationContext): Promise<boolean>
+  recoverStart?(context: PreparationContext): Promise<boolean>
 }
 export const usePreparationPort = create<{ port: TablePreparationPort | null }>(() => ({ port: null }))
 export function bindTablePreparation(port: TablePreparationPort) {

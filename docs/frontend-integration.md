@@ -37,6 +37,9 @@ Compose 변경은 현재 Jenkins 분류에서 `MANUAL_REVIEW=1`이므로 자동 
 새 접속권으로 WSS 연결 및 `CHANNEL_JOIN` 성공을 확인한다. 비밀키·DB 데이터는 변경하지 않는다.
 
 개발 설정의 채널은 `channel-1`(개발 공원, 정원 40)이다. 테이블 ID는 조회 응답을 사용한다.
+현재 맵 전체16개 연결 코드는 [현재 맵 테이블 연결](legacy-table-integration.md)과
+[개발 대응표](integration/legacy-tables/bindings.dev.md)를 따른다. 기존2개 ID와 mapVersion은 유지한다.
+Spring 실행에서 시작 연결 비활성은 `GAME_START_CHECK`의 `START_NOT_CONFIGURED`로 구분한다.
 개발 조회 API는 공통 REST 인증·CORS 정책을 유지한다. `/dev/tables`, `/dev/world-config`,
 local 전용 게임 시작·정산 대역은 활성화하지 않는다. 게임 엔진·판돈 예약/정산의 실제 배포와
 프론트의 공원 테이블 모델 매핑은 별도 확인이 필요하며, 공원 입장 복구만으로 완료로 보지 않는다.
@@ -69,13 +72,15 @@ dev 단독 프로필의 JWT/접속권·착석·준비·예약 확정·엔진·�
 
 ### 소리함·익명 메모 활성화 전 확인
 
-두 API는 dev 기본 비활성이다. **V112·V120·V121 적용 순서를 팀과 맞춘 뒤에만** 실제 공유 DB에 적용한다.
+두 API는 dev 기본 비활성이다. 소리함은 공통 경로 V127로 이전해 적용 순서를 조율했다.
+익명 메모 V121은 별도 경로이므로 활성화 전에 적용 순서를 다시 확인한다.
 기존 Flyway locations/이력/데이터를 보존하며 repair·outOfOrder·초기화를 자동 실행하지 않는다.
 
-- dev,db: `FEEDBACK_ENABLED=true`, `FEEDBACK_ADMINISTRATOR_IDS=<관리자 회원 ID 목록>`.
+- dev,db: `FEEDBACK_ENABLED=true`, `ADMIN_READ_IDS=<관리자 내부 회원 ID 목록>`.
 - dev,db: `NOTES_ENABLED=true`, `NOTES_PRIVACY_SECRET=<32자 이상 전용 비밀키>`.
-- 기존 `SPRING_FLYWAY_LOCATIONS` 목록에 `classpath:db/feedback`, `classpath:db/notes`를 추가한다.
-  공통·미니게임·상점·경기 등 기존 활성 경로를 두 경로로 덮어쓰지 않는다.
+- 소리함에 `classpath:db/feedback`을 추가하지 않는다. 익명 메모 활성화 때만 기존
+  `SPRING_FLYWAY_LOCATIONS` 목록에 `classpath:db/notes`를 추가한다.
+  공통·미니게임·상점·경기 등 기존 활성 경로를 덮어쓰지 않는다.
 - 일반 `.env`는 자동 로딩되지 않는다. 실행 환경변수에 지정한다. 아래 로컬 실행기는 별도 허용 목록의
   `.env.frontend-test`를 사용하므로 이 옵션을 그 파일에 임의 추가하면 거절된다.
 - 프론트는 현재 두 서비스가 `unavailable`이다. REST 포트 연결과 ISO 시각→ms 변환이 필요하다.

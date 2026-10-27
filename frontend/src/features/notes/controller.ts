@@ -25,7 +25,7 @@ export function openNotes(): boolean {
   const state = useNotesState.getState()
   if (state.ownerId !== scope.userId || state.channelId !== scope.channelId) resetNotesState()
   rememberRoamingView(scope.userId, scope.channelId)
-  parkRuntime.move(0, 0, false)
+  parkRuntime.stopMovement()
   clearRoamingInput()
   inputState.notesOpen = true
   useNotesState.setState({ open: true, ownerId: scope.userId, channelId: scope.channelId, notice: '' })

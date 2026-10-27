@@ -9,7 +9,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 @Schema(additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
 public record UserOnboardingRequest(
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
-                minLength = 2, maxLength = 8, pattern = "[가-힣A-Za-z0-9]{2,8}", example = "미지") String nickname,
+                minLength = 2, maxLength = 8, pattern = "^[가-힣A-Za-z0-9]{2,8}$", example = "미지") String nickname,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
                 example = "FEMALE") CharacterGender characterGender) {
 

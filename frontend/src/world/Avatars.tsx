@@ -4,7 +4,7 @@ import { useFrame, useLoader } from '@react-three/fiber'
 import { Group, Vector3 } from 'three'
 import { ParkAssetLoader } from './art/assetLoader'
 import { characterUrls, createCharacterRig } from './art/CharacterRig'
-import { avatarPoseActive, avatarPoseKey, createAvatarMotion } from './avatarMotion'
+import { avatarPoseActive, avatarPoseKey, avatarSeatSurface, createAvatarMotion } from './avatarMotion'
 import { SwimmingRipples } from './SwimmingRipples'
 
 import { AvatarPoseCadence } from '../performance/avatarPoseCadence'
@@ -66,13 +66,12 @@ function Avatar({
     const seated = avatar.seatIndex >= 0
     const own = id === useSession.getState().sessionId
     // Hide only this client's own model; other clients retain the full avatar.
-    const cookingHidden = (own && (bungeoppangView.active || performance.now() < bungeoppangView.returningUntil))
-      || (bungeoppangView.active && Math.hypot(pose.x - bungeoppangView.standX, pose.z - bungeoppangView.standZ) < bungeoppangView.hideOthersRadius)
+    const cookingHidden = own && (bungeoppangView.active || performance.now() < bungeoppangView.returningUntil)
     root.current.visible = !cookingHidden && !(own && (((avatar.tableId && seated && !gatheringCameraActive() || avatar.benchId && seated) || avatar.telescopeId)
       || roamingFirstPerson(avatar, !!useGame.getState().watchedGameId)))
     root.current.position.set(
       pose.x,
-      pose.y - 0.8 + (seated ? CHARACTER.seatedHipHeight - model.hipHeight : 0),
+      pose.y - 0.8 + (seated ? avatarSeatSurface(avatar.benchId) + model.seatedHipLift - model.hipHeight : 0),
       pose.z,
     )
     root.current.rotation.y = pose.yaw
@@ -94,6 +93,14 @@ function Avatar({
     )
     if (!poseDelta) return
     motion.apply(avatar, now, poseDelta, pose, figure.current)
+    // Follow the posed head when swimming; a tilted standing-height marker
+    // otherwise puts the nickname in front of the swimmer's face/water.
+    model.bones.head.getWorldPosition(worldPosition)
+    root.current.worldToLocal(worldPosition)
+    if (marker.current) {
+      marker.current.position.copy(worldPosition)
+      marker.current.position.y += 0.16
+    }
   }, -1)
   return (
     <group
@@ -112,8 +119,8 @@ function Avatar({
       <FartCloud id={id} />
       <group ref={figure} name={`figure-${id}`}>
         <primitive object={model.root} dispose={null} />
-        <group ref={marker} position={[0, CHARACTER.height - 0.5, 0]} />
       </group>
+      <group ref={marker} position={[0, CHARACTER.height - 0.5, 0]} />
     </group>
   )
 }

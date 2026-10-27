@@ -1,6 +1,10 @@
 # 경기 종료·정산 결과 전송 연결부
 
-OnTop v0.4의 서버 결과 판정과 기존 [GAME-03 결과 조회](https://app.notion.com/p/3ff161842b8680709b63cf6e8d1efc2b)의 필드를 따른다. local/dev 인증 연결에서 등록된다(prod/production 혼합 시 제외). 실제 Access JWT·1회용 접속권 및 4종 규칙 엔진은 연결했다. 결과 저장 Gateway·정산 계산·원장·DB는 별도 담당이다. 아래 두 WS 메시지의 기존 필드는 유지하며, db 프로필·game-start 활성 시 JpaGameResultGateway와 정상 종료 정산을 연결한다. 무효 반환·재시작 복구는 Story 174다. 기존 REST 담당 구현이나 정산 정책을 바꾸지 않는다.
+현재 구현은 Story 172·173·174를 포함한다. local/dev 인증 연결에서 등록되며(prod/production 혼합 제외),
+db 프로필과 game-start 활성 조건에서 실제 결과 저장·정산·INVALID 반환 Gateway를 연결한다.
+아래 두 WS 메시지의 JSON 형식은 유지한다. 기능 등록 조건과 실제 배포 활성화는 구분하며,
+다른 boot의 미완료 경기를 자동 INVALID/반환하는 복구는 구현·활성화하지 않았다.
+금액 정책은 [가변 참가비·정산](game-settlement.md), 전달·복구 범위는 [Story 174](game-recovery.md)를 따른다.
 
 ## 공통 경기 종료·이탈 이벤트 · 2026-10-23
 
@@ -14,7 +18,7 @@ OnTop v0.4의 서버 결과 판정과 기존 [GAME-03 결과 조회](https://app
 
 `gameCode`는 OMOK/DICE/ONE_CARD/LIAR_BRIDGE. `leaveReason`은 LOGOUT/MEMBER_DEACTIVATED/DISCONNECT_TIMEOUT/EXPLICIT_LEAVE이며, 일반 패배나 턴 시간패는 이탈 사유가 없고 LOSE다. 이탈자는 FORFEIT, 그 외 엔진의 승자 목록은 WIN, 나머지는 LOSE, 승자 없는 무승부는 DRAW다. 말 제거가 보류된 다리 기권도 입력 자격 상실 시 이탈 이벤트를 내보낸다. 이 이벤트는 말 제거 완료를 뜻하지 않는다.
 
-중복 종료/이탈 요청은 추가 판정을 만들지 않는다. 소비자는 `gameId:finished` / `gameId:left:userId` 형태의 eventId를 중복 방지 키로 사용한다. 한 변경에서 이탈 이벤트가 최종 종료 이벤트보다 먼저 발행되며, 이전 이탈 사유·시각은 최종 결과에도 유지된다. 엔진 잠금 안에서 판정을 확정하고 잠금 밖에서 이벤트를 발행한다. 알림은 메모리 기반이며 재시작/리스너 실패 후 영속 재전달은 보장하지 않는다.
+중복 종료/이탈 요청은 추가 판정을 만들지 않는다. 소비자는 `gameId:finished` / `gameId:left:userId` 형태의 eventId와 내용 검증으로 중복을 막는다. 엔진 잠금 안에서 판정을 확정하고 잠금 밖에서 발행한다. GameEventDelivery가 현재 프로세스의 불변 이벤트를 보관하고 별도 worker에서 DB 수신을 재시도한다. DB 수신 커밋이 ACK이며 정산 완료와 다르다. 최초 DB ACK 전 프로세스 종료의 이벤트 유실은 해결하지 않는다. 이탈 이벤트와 최종 판정의 역순 수신은 영속 metadata와 경기 행 잠금으로 처리한다.
 
 이벤트는 금액·지갑 정보·정산 완료 상태를 포함하지 않는다. DB 담당은 자신의 트랜잭션에서 참가자/결과를 저장하고 예약금 정산을 수행한 뒤, 기존 `GameResultCommitted`로 확정된 결과를 전달한다. 이탈 직후 경기 전체를 정산하거나 통신부에서 금액을 계산하지 않는다. ERD의 leave_reason이 EXPLICIT_LEAVE/DISCONNECT_TIMEOUT만 허용한다면 LOGOUT/MEMBER_DEACTIVATED를 EXPLICIT_LEAVE로 매핑하는 저장 계약을 DB 담당과 확인한다.
 
@@ -67,22 +71,26 @@ OnTop v0.4의 서버 결과 판정과 기존 [GAME-03 결과 조회](https://app
 | 필드 | 규칙 |
 | --- | --- |
 | version | 경기별 결과 통신 버전, 0~9007199254740991 정수. 정산 상태만 바뀌어도 증가 |
-| gameSessionId | 기존 결과 REST의 경기 ID, 1~120자. 경기 상태 메시지의 gameId와 같은 서버 경기 식별자 |
+| gameSessionId | 1~120자 String. DB Gateway 경계에서는 BIGINT ID의 십진수 문자열이며 엔진 gameId와 동일. DB 없는 로컬 fixture의 문자열 ID와 구분 |
 | gameCode / endReason | 서버가 판정한 코드. 대문자 시작 영문·숫자·밑줄 1~32자. 예시가 모든 게임의 최종 코드 목록은 아님 |
 | status | FINISHED / INVALID. 아직 진행 중인 경기는 이 종료 결과 메시지로 보내지 않음 |
 | settlementStatus | PENDING / SETTLED. 경기 종료와 실제 정산 완료를 구분 |
 | betAmountPerPlayer | 명세의 참가자별 판돈, 1~9007199254740991 정수. 통신부가 계산하지 않음 |
-| participants | 최초 참가자 2~4명의 userId 문자열·서버 판정 result 코드. 중복 ID 없음, 본인 포함. 손패·타인 지갑·개별 증감액 없음 |
+| participants | 최초 참가자 2~4명, 본인 포함·중복 ID 없음. FINISHED는 result 필수. INVALID는 엔진 판정이 없는 참가자에 한해 result=null 허용하며 기존 판정이 있으면 보존. null을 승패·무승부로 추정하지 않음 |
 | myCoinDelta | PENDING은 null. SETTLED는 본인의 확정 순증감 정수(음수 가능). INVALID의 확정값은0. 지급 총액이나 지갑 잔액이 아님 |
 | endedAt | 서버가 확정한 경기 종료 시각(UTC) |
 
 SETTLED 알림은 위 형식에서 version을 증가시키고 settlementStatus를 SETTLED, myCoinDelta를 원장에 확정된 본인 순증감으로 보낸다. 통신부는 금액을 이동하거나 무승부·무효·장애의 예외 정산 규칙을 만들지 않는다.
 
+INVALID/PENDING의 myCoinDelta는 null, INVALID/SETTLED는 0이다. GAME_RELEASE 원장으로
+DB 확정 참가비 B의 예약을 해제하고 balance는 유지한다. 반환 안내의 B는 현재 테이블 설정이 아니라
+해당 GAME_RESULT.betAmountPerPlayer를 사용한다. ABORTED_NO_PLAYERS도 이 INVALID 경로를 사용한다.
+
 ## 규칙 엔진 종료부터 결과 수신까지
 
 1. 오목·주사위·원카드·거짓말 다리의 실제 종료 이벤트를 `GameFinishedResultListener`가 받는다. 기존 `GameStateChanged`는 참가자·관전자에게 공개 종료 상태를 전달하고, 종료 이벤트는 결과 저장 담당의 입력으로 사용할 수 있다. 종료 판정 자체가 DB 커밋 성공을 뜻하지 않는다.
 2. 연결부는 현재 접속한 최초 참가자만 `GameResultGateway.load(userId, gameId)`로 비동기 1회 조회한다. 저장된 본인 결과가 있으면 `requestId=null`인 `GAME_RESULT`를 보낸다. 관전자·타인은 조회하거나 방송하지 않는다.
-3. 아직 저장되지 않았거나 읽기가 실패하면 자동 결과·자동 오류를 보내지 않는다. 가짜 PENDING/SETTLED나 증감액을 만들지 않는다. 이후 저장/정산 담당이 커밋 후 발행하는 `GameResultCommitted`로 수신하거나 프론트가 `GAME_RESULT_CHECK`로 다시 읽는다. 주기적인 DB 폴링은 없다.
+3. 아직 저장되지 않았거나 읽기가 실패하면 가짜 결과를 만들지 않는다. DB 수신 후 FINISHED/PENDING·INVALID/PENDING은 종결 재시도 worker가 정산/반환한다. 정산·반환과 같은 트랜잭션에 outbox를 저장하고 커밋 후 GameResultNotifications가 재전달한다. 프론트는 GAME_RESULT_CHECK로 같은 저장 결과를 다시 읽는다. 조회나 알림 재시도가 Wallet 지급을 다시 실행하지 않는다.
 4. 자동 조회 중 같은 경기의 중복 종료는 추가 조회하지 않는다. 커밋 알림이 먼저 도착했다면 늦은 자동 조회의 같은/과거 버전은 버린다. 연결이 바뀌면 이전 조회 응답을 새 연결로 넘기지 않는다.
 5. 결과 통신 version은 엔진의 착수 version과 별개다. 정산만 변경돼도 저장 결과의 version을 올려야 한다. 오프라인 복귀는 본인 경기 ID로 명시 재조회한다.
 
@@ -92,16 +100,19 @@ SETTLED 알림은 위 형식에서 version을 증가시키고 settlementStatus�
 중도 탈락만으로 전체 경기 정산을 요청하지 않으며 최종 GameFinished는 기존 단일 경로로 받는다.
 기권 승인은 DB 정산 완료가 아니다. 결과 조회·커밋 후 알림 계약과 금액 계산은 변경하지 않는다.
 
-1. 결과 저장 또는 정산 **커밋 성공 뒤** 본인별 `GameResultView`를 생성하고 `ApplicationEventPublisher.publishEvent(new GameResultCommitted(view))`를 발행한다. 이벤트는 클라이언트 요청이 아니며 userId는 내부 수신자 확인용이다.
+1. 판정 수신(PENDING) 또는 정산/반환(SETTLED)과 **같은 DB 트랜잭션**에서 본인별 결과 스냅샷의 outbox를 저장한다. 커밋 후 GameResultNotifications가 StoredGameRoundEnded와 GameResultCommitted를 발행하고 전달 상태를 기록한다. outbox 기록 실패는 원래 DB 트랜잭션도 롤백한다. userId는 내부 수신자 확인용이며 클라이언트가 발행하는 이벤트가 아니다.
 2. `GameResultService`가 같은 내부 계정의 현재 인증 연결에만 requestId=null의 GAME_RESULT를 보낸다. 채널·테이블·관전자에게 방송하지 않는다. JSON에는 내부 userId를 제외한다.
 3. 결과의 userId와 myCoinDelta를 같은 사용자 기준으로 생성하는 것은 결과 담당의 책임이다. 연결부는 수신자의 참가 목록 포함, PENDING/null·SETTLED/확정값, 결과 조회의 사용자·경기 일치를 검사한다. 승패·원장 검증이나 중복 지급 방지는 결과 담당의 트랜잭션 책임이다.
 4. 연결 중 최근64경기의 전달 버전만 보관해 중복/과거 자동 알림을 생략한다. 그보다 오래된 경기·새 연결에는 중복 억제 기록이 없으므로 프론트도 경기별 version을 비교한다. 같은 버전에 다른 결과를 만들지 않는다. 명시적 조회는 같은 버전도 응답한다.
-5. 연결 종료 시 기록을 제거한다. 오프라인 알림은 저장하지 않으며, 재접속한 프론트는 알고 있는 경기 ID로 GAME_RESULT_CHECK 또는 팀원의 결과 REST를 재조회한다. 접속 자체로 과거 결과를 자동 방송하지 않는다.
+5. 연결 종료 시 연결별 전달 버전 기록을 제거한다. outbox는 서버 내부 발행 재시도를 영속화하지만 클라이언트 수신 ACK나 오프라인 사용자별 수신함은 제공하지 않는다. 재접속한 프론트는 알고 있는 경기 ID로 GAME_RESULT_CHECK를 사용한다. 별도 결과 REST·알 수 없는 과거 경기 자동 발견 API는 없다.
 6. 읽기 호출은 잠금 밖에서 수행한다. 명시 조회는 연결당 하나, 종료 자동 조회는 연결·경기당 하나만 동시에 실행한다. 명시 조회 중 더 최신 알림을 받으면 낮은 조회 결과는 GAME_RESULT_STALE로 끝내며, 자동 조회의 같은/과거 결과는 조용히 생략한다. 종료된 연결의 늦은 결과는 새 연결로 넘기지 않는다. Gateway의 외부 호출에는 자체 제한 시간이 필요하다.
 
 개인 결과 JSON과 테이블 수명 관리는 구분한다. 2026-10-22 사용자 확정으로 실제 엔진 종료 때 준비를 전원 해제하고 좌석을 유지한 SETTLING으로 전환한다. 현재 경기·게임 코드·최초 참가자 집합·시작 시 고정한 참가비 B가 일치하는 경기 전체 SETTLED를 커밋 알림 또는 저장 조회(GameResultLoaded)로 확인하면 WAITING으로 돌아간다. 접속 중 좌석·선택 게임·목표는 유지하고, 미접속 예약 좌석은 기존 대기 정책대로 정리한다. 다시 전원 준비해야 새 경기를 시작한다. PENDING·실패·타 경기·잘못된 참가자 결과로 대기를 풀지 않는다. 결과 조회가 지급을 실행하지 않는 계약은 그대로다. 실제 엔진은 FINISHED/ELIMINATED와 공개 종료 상태를 기존 복구/관전 경로로 전달한다.
 
-클라이언트의 승리 신고·정산 실행·금액 지정 메시지는 추가하지 않는다. 이벤트를 재수신하거나 결과를 반복 조회해도 지급 처리를 호출하지 않는다. 메모리 알림은 프로세스 재시작·다중 서버·전달 보장을 제공하지 않는다.
+클라이언트의 승리 신고·정산 실행·금액 지정·수신 ACK 메시지는 없다. 반복 조회/알림은 지급을 호출하지 않는다.
+현재 boot의 라운드는 GameTableRecovery가 신뢰된 DB 종결 결과와 table/game/B/참가자 집합을 대조해
+SETTLING 고착을 복구한다. outbox는 적어도 한 번 서버 발행하며 같은 경기/version 중복은 수신자가 억제한다.
+다중 노드 WebSocket 메시지 전달과 클라이언트 수신 완료 보장은 지원하지 않는다.
 
 ## 오류
 
@@ -122,4 +133,5 @@ SETTLED 알림은 위 형식에서 version을 증가시키고 settlementStatus�
 
 ## Story 173 DB 연결
 
-정상 종료 수신/정산·PENDING/SETTLED 조회 구현은 [가변 참가비·정산](game-settlement.md)을 따른다. 정산 금액은 GameFinished나 클라이언트가 아니라 DB에 확정된 B를 사용한다. GAME_RESULT JSON 필드는 유지하며 참가비와 지급액은 안전 정수로 검증한다. ABORTED_NO_PLAYERS의 무효 반환은 아직 구현하지 않았다.
+정상 종료 정산은 [가변 참가비·정산](game-settlement.md), 이탈 영속화·INVALID 반환·재전달은
+[Story 174](game-recovery.md)를 따른다. 금액은 DB 확정 B를 사용하며 JSON 안전 정수 제한을 유지한다.

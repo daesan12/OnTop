@@ -49,6 +49,34 @@ sudo docker compose --env-file /etc/ontop/dev-app/deploy.env -f infra/app/compos
 
 첫 줄이 `true`, 다음 출력에서 V5·V6가 각각 `success=1`인지 확인한다. 로그인·채널 입장 후 같은 DB 검증을 반복해 `behavior_events`의 이벤트 건수가 증가하는지 본다. 위치 샘플은 해당 기능을 실제로 사용한 뒤 확인한다. 운영에서도 승인 이미지로 승격한 후 PROD-DB의 MySQL 컨테이너에 같은 스크립트를 `ontop` 인수로 실행한다. `false`로 되돌릴 때도 앱 컨테이너를 재생성해야 하며 기존 테이블과 데이터는 남는다. `ontop.behavior.dropped` 지표는 현재 외부 Actuator에 노출하지 않는다. 필요하면 인증된 내부 관측 경로를 별도 설계한다.
 
+## 소리함 DB·기능 활성화 (S15P31B105-230)
+
+2026-10-27 읽기 전용 확인 시 DEV DB는 V126, 운영 DB는 V3까지 적용됐고
+양쪽 모두 `feedback_messages`가 없었다. 공통 `db/migration/V127__create_feedback_messages.sql`은
+다음 승인 백엔드 이미지의 Flyway 실행 때 적용된다. 별도 `db/feedback/V120` 경로는
+Flyway locations에 추가하지 않는다. 배포 직전 최신 버전과 팀의 새 마이그레이션을 다시 확인한다.
+
+`FEEDBACK_ENABLED`의 기본값은 false다. 먼저 새 이미지를 배포해 V127 적용·앱 헬스를 확인한 뒤
+서버의 `/etc/ontop/{dev-app,prod-app}/app.env`에 `ADMIN_READ_IDS=<관리자 내부 회원 ID>`와
+`FEEDBACK_ENABLED=true`를 설정하고 앱 컨테이너를 재생성한다. `ADMIN_READ_IDS`가 비어 있으면
+관리자 조회가 거절된다. 실제 ID는 저장소나 명령 로그에 적지 않는다.
+운영은 자동 배포 대상이 아니므로 승인 이미지의 수동 승격 때 같은 순서로 진행한다.
+
+```bash
+# DEV-CI: 새 이미지 배포 후
+cd /opt/ontop
+sudo docker compose --env-file /etc/ontop/dev-app/deploy.env -f infra/app/compose.dev.yaml exec -T mysql sh -s -- ontop_dev < infra/app/verify-feedback-db.sh
+# app.env 수정 후 앱 컨테이너만 재생성한다. docker compose restart는 env_file 변경을 읽지 않는다.
+sudo docker compose --env-file /etc/ontop/dev-app/deploy.env -f infra/app/compose.dev.yaml up -d --no-deps --force-recreate app
+```
+
+검증 출력에서 V127의 `success=1`과 `feedback_table_count=1`을 확인한다.
+회원이 공원 소리함에서 의견을 제출한 뒤 `feedback_message_count`가 1 증가하고,
+지정 관리자의 `GET /api/v1/admin/feedback`은 목록을 반환해야 한다.
+일반 회원은 403, 미로그인은 401이어야 한다. 운영에서도 DB 서버의
+MySQL 컨테이너에서 같은 스크립트를 `ontop` 인수로 실행한다.
+실제 접수에는 서버에 등록된 공원 채널과 WebSocket 입장이 필요하다.
+
 ## 저장소 파일과 비밀정보
 
 | 서버 | Compose | 루트 소유 설정 파일 | DB 비밀번호 파일 |

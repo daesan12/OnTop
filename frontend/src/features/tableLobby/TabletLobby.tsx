@@ -9,6 +9,7 @@ import { TABLE_GAMES, TARGET_SCORES, type TableGameCode } from './model'
 import { manualStartAllowed, preparationContext, readyWouldAutoStart, usePreparationPort } from './tabletModel'
 import { tabletProjection } from './tabletProjection'
 import { HostStartButton, HostStartWaitStatus } from './HostStartWaitControls'
+import { useTabletStartStatus } from './TabletLobbyClient'
 import './tablet.css'
 const TabletPortrait = lazy(() => import('./TabletPortrait').then(module => ({ default: module.TabletPortrait })))
 
@@ -32,6 +33,7 @@ function TabletSession({ tableId }: { tableId: string }) {
   const g = useGame(useShallow(g => ({ start: g.start, pending: g.pending, busy: tableBusy(g), game: g.game,
     error: g.error, recovery: g.recovery, uncertain: g.uncertain })))
   const table = s.table
+  const startUncertain = useTabletStartStatus(state => state.uncertain && state.tableId === tableId)
   const [step, setStep] = useState<'select' | 'ready'>(table?.gameCode ? 'ready' : 'select')
   const [code, setCode] = useState<TableGameCode>(TABLE_GAMES.find(game => game.code === table?.gameCode)?.code ?? 'OMOK')
   const [count, setCount] = useState(2), [target, setTarget] = useState(table?.targetScore ?? 2000)
@@ -78,7 +80,7 @@ function TabletSession({ tableId }: { tableId: string }) {
   const canConfigure = host && validBet && countSupported && count >= occupied
   const confirmation = signature
   const finalReadyBlocked = !port && !mine?.ready && readyWouldAutoStart(table, s.own)
-  const startEnabled = !!port && manualStartAllowed(table, s.own, approvedCount ?? null) && !busy
+  const startEnabled = !!port && manualStartAllowed(table, s.own, approvedCount ?? null) && !busy && !startUncertain
   const seats = table.seats.slice(0, Math.max(2, approvedCount ?? table.capacity))
   const game = TABLE_GAMES.find(game => game.code === table.gameCode)
   return <section ref={element} tabIndex={-1} className="table-tablet" role={active ? 'dialog' : undefined}
@@ -139,14 +141,17 @@ function TabletSession({ tableId }: { tableId: string }) {
         <HostStartWaitStatus table={table} selectedCount={approvedCount ?? null} fallback={g.start?.phase === 'STARTING' || g.start?.phase === 'CONFIRMED' ? '서버가 참가·시작을 확인하고 있습니다.'
           : table.allReady ? '모두 준비했어요. 방장의 시작을 기다려요.' : `${occupied}명 착석 · ${table.seats.filter(s => s.userId && s.ready).length}명 준비 완료`} />
         {!port && <p className="tablet-contract-note">방장 수동 시작 연결 준비 중{finalReadyBlocked ? ' · 자동 시작을 막기 위해 마지막 준비를 잠시 기다려주세요.' : ''}</p>}
+        {port && approvedCount == null && <p className="tablet-contract-note">방장이 게임·인원·판돈을 확정한 뒤 준비할 수 있어요.</p>}
         <footer className="tablet-ready-actions"><button disabled={busy || !mine} onClick={() => void runtime.leaveTable()}>일어나기</button>
           {host ? <HostStartButton table={table} selectedCount={approvedCount ?? null} disabled={!startEnabled} onStart={() => port && void command(() => port.start(preparationContext(table)))} />
             : <span className="tablet-host-wait">방장이 게임을 시작해요</span>}
-          <button disabled={busy || !mine || !table.gameCode || !table.betAmountPerPlayer || (!mine.ready && (confirmedBet !== confirmation || !port))}
+          <button disabled={busy || !mine || !table.gameCode || !table.betAmountPerPlayer || (!mine.ready && (confirmedBet !== confirmation || !port || approvedCount == null))}
             onClick={() => void command(() => runtime.setReady(!mine?.ready))}>{mine?.ready ? '준비 취소' : '준비 완료'}</button>
         </footer>
       </div>}
       <div className="tablet-footer-status" aria-live="polite">{(error || g.error || s.sessionError) && <p role="alert">{error || g.error || s.sessionError}</p>}
+        {startUncertain && port?.recoverStart && <p role="status">시작 요청 응답을 확인하고 있어요. 새 요청을 보내기 전에 상태를 확인해주세요.
+          <button disabled={s.pending || working || !s.connected} onClick={() => void command(() => port.recoverStart!(preparationContext(table)))}>시작 요청 상태 확인</button></p>}
         {step === 'select' && <button disabled={busy} onClick={() => table.gameCode ? setStep('ready') : void runtime.leaveTable()}>{table.gameCode ? '돌아가기' : '일어나기'}</button>}
         {['STARTING', 'CONFIRMED'].includes(g.start?.phase ?? '') && <button disabled={s.pending || working || !s.connected} onClick={() => void runtime.checkStart()}>시작 상태 다시 확인</button>}
         {['PENDING', 'EXPIRED', 'UNAVAILABLE'].includes(g.recovery) && <button disabled={s.pending || working || !s.connected} onClick={() => void runtime.checkRecovery()}>경기 복구 다시 확인</button>}

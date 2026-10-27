@@ -37,7 +37,7 @@ test('deployed development mapping sends all five codes, waits for approval and 
   for (const choice of choices) {
     await page.getByRole('button', { name: '감정표현 열기' }).click()
     for (const option of choices)
-      await expect(wheel(page).getByRole('button', { name: option.label, exact: true })).toContainText('서버')
+      await expect(wheel(page).getByRole('button', { name: option.label, exact: true })).not.toContainText('서버')
     await expect(wheel(page).getByRole('button', { name: choice.label, exact: true })).toBeEnabled({ timeout: 8000 })
     const before = (await probe(page)).avatars[0]!
     await wheel(page).getByRole('button', { name: choice.label, exact: true }).click()
@@ -90,7 +90,7 @@ test('mobile dev wheel has five server options; a rejected new code never plays 
   await page.getByRole('button', { name: '감정표현 열기' }).click()
   for (const choice of choices) {
     await expect(wheel(page).getByRole('button', { name: choice.label, exact: true })).toBeEnabled()
-    await expect(wheel(page).getByRole('button', { name: choice.label, exact: true })).toContainText('서버')
+    await expect(wheel(page).getByRole('button', { name: choice.label, exact: true })).not.toContainText('서버')
   }
   const box = await wheel(page).boundingBox()
   expect(box!.x).toBeGreaterThanOrEqual(0)
@@ -121,7 +121,7 @@ test('normal mode without deployment mappings keeps all five unavailable without
   for (const choice of choices) {
     const button = wheel(page).getByRole('button', { name: choice.label, exact: true })
     await expect(button).toBeDisabled()
-    await expect(button).toContainText('미연결')
+    await expect(button).not.toContainText('미연결')
   }
   expect(server.sent.some(m => m.type === 'WORLD_EMOTE_SEND')).toBe(false)
 })

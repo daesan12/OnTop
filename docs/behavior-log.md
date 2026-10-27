@@ -57,6 +57,14 @@
 | `CHANNEL_LEFT` | `TableHub.leaveChannel` 성공, `disconnect` 정리 | `byDisconnect` | 1 | 구현 |
 | `CHAT_SENT` | `TableHub.sendChat` 성공 | `length`(코드포인트), `recipients` | 1 | 구현 |
 | `EMOTE_SENT` | `TableHub.sendEmote` 성공 | `emoteCode` | 1 | 구현 |
+| `FACILITY_USED` | `TableHub` `WORLD_FACILITY_USE`로 실제 점유가 생긴 뒤 | `leaseId`, `facilityId`, `kind`(`BENCH`/`FITNESS`/`TELESCOPE`), `seatIndex`(0부터) | 1 | 구현 |
+| `FACILITY_RELEASED` | 직접 하차(`WORLD_FACILITY_RELEASE`) 성공, 채널 퇴장, 연결 종료로 점유가 풀린 뒤 | 위 값 + `endReason`(`RELEASED`/`CHANNEL_LEFT`/`DISCONNECTED`), `durationMs` | 1 | 구현 |
+
+시설 이용(S15P31B105-206)은 시설 담당과 협의해 다음을 지킨다.
+- 같은 요청 재전송은 점유 버전이 바뀌지 않으므로 새 이용으로 기록하지 않는다.
+- `disconnected()`가 내부에서 `release()`를 부르므로 해제 전 점유를 한 번만 읽어 종료를 한 번만 기록한다.
+- 하차 위치가 막혀 실패하면 점유가 유지되므로 종료로 기록하지 않는다. 망원경 조준(`WORLD_FACILITY_AIM`)은 연속 입력이라 기록하지 않는다.
+- 서버 종료로 점유가 사라지면 종료 이벤트가 없다. 분석에서 종료가 없는 시작은 이용 시간에서 뺀다.
 
 ### 위치 좌표
 

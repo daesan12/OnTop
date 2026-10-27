@@ -9,6 +9,7 @@
   },
   "scripts": {
     "dev": "vite",
+    "dev:bungeoppang": "vite --mode bungeoppang-preview",
     "dev:facilities": "vite --mode facility-preview",
     "dev:frontend-test": "vite --mode frontend-test --host localhost --port 5173 --strictPort",
     "build": "node scripts/publish-rulebooks.mjs && tsc --noEmit && vite build",

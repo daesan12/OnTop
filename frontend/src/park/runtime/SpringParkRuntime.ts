@@ -47,6 +47,8 @@ import { PublicGameWatcher } from '../../features/tableLobby/PublicGameWatcher'
 import { FollowClient } from '../../features/follow/serverClient'
 import { bindFollowService, followService } from '../../features/follow/service'
 import { useTableLobby, resetSeatedLook } from '../../features/tableLobby/state'
+import { TabletLobbyClient } from '../../features/tableLobby/TabletLobbyClient'
+import { TABLET_ENABLED } from '../../features/tableLobby/tabletFeature'
 import {
   avatars,
   cancelAvatarEmote,
@@ -98,9 +100,10 @@ export class ParkRuntime implements ParkRuntimePort {
         method: 'POST',
         signal,
       })
-      if (!record(body) || typeof body.ticket !== 'string' || !body.ticket)
+      if (!record(body) || typeof body.ticket !== 'string' || !body.ticket
+        || typeof body.expiresIn !== 'number' || !Number.isFinite(body.expiresIn) || body.expiresIn <= 0)
         throw new Error('접속권 응답을 확인할 수 없습니다.')
-      return body.ticket
+      return { ticket: body.ticket, expiresIn: body.expiresIn }
     },
     socket: (ticket) => {
       const url = new URL('/ws/tables', window.location.href)
@@ -114,6 +117,8 @@ export class ParkRuntime implements ParkRuntimePort {
     closed: (code) => this.closed(code),
     error: (message) => this.report(message),
   })
+  private tablet = new TabletLobbyClient({ connected: () => this.active && this.socket.connected,
+    request: (type, payload, expected) => this.socket.request(type, payload, expected), action: job => this.action(job) })
   private spectator = new PublicGameWatcher({
     start: async target => {
       this.movement.clear(false)
@@ -190,6 +195,7 @@ export class ParkRuntime implements ParkRuntimePort {
       })
   }
   private authEnded() {
+    this.tablet.end()
     this.forfeitRequests.clear()
     resetForfeit()
     this.follow.reset()
@@ -258,8 +264,9 @@ export class ParkRuntime implements ParkRuntimePort {
       || (method === 'PATCH' && path === '/api/v1/users/me/equipment')
     const profileRequest = ((method === 'PATCH' || method === 'DELETE') && path === '/api/v1/users/me')
       || (method === 'GET' && /^\/api\/v1\/users\/nickname-availability\?nickname=[^&#]+$/.test(path))
+    const minigameRequest = /^\/api\/v1\/minigames\/sessions(?:\?rulesVersion=v4|\/\d+(?:\?(?:(?:includeSource|includeProgress)=true|deliveryKey=[A-Za-z0-9_-]{1,64})(?:&(?:(?:includeSource|includeProgress)=true|deliveryKey=[A-Za-z0-9_-]{1,64}))*|\/(?:complete|abandon|deliveries))?)?$/.test(path)
     if (!this.active || (!notesRead && !notesWrite && !shopRequest && !profileRequest
-      && !/^\/api\/v1\/(?:minigames\/sessions(?:\/\d+(?:\/(?:complete|abandon))?)?|wallets\/me|feedback)$/.test(path))
+      && !minigameRequest && !/^\/api\/v1\/(?:wallets\/me|feedback)$/.test(path))
       || (path === '/api/v1/feedback' && init.method !== 'POST'))
       throw new Error('현재 공원에서 사용할 수 없는 요청입니다.')
     const signals = [this.bootAbort?.signal, init.signal].filter((s): s is AbortSignal => !!s)
@@ -268,11 +275,13 @@ export class ParkRuntime implements ParkRuntimePort {
   start() {
     if (this.active) return
     this.active = true
+    if (TABLET_ENABLED) this.tablet.begin()
     bindFollowService(this.follow)
     this.retryCount = 0
     void this.boot()
   }
   private async boot() {
+    if (TABLET_ENABLED) this.tablet.reset(true)
     interruptForfeit()
     this.follow.reset()
     this.resetSpectator()
@@ -288,7 +297,7 @@ export class ParkRuntime implements ParkRuntimePort {
     try {
       await this.socket.disconnect()
       if (!this.active || generation !== this.generation) return
-      const [body, config, profile] = await Promise.all([
+      const ready = Promise.all([
         this.getJSON('/api/v1/channels', { signal: abort.signal }),
         fetch(parkBindingsUrl(), {
           signal: abort.signal,
@@ -300,26 +309,29 @@ export class ParkRuntime implements ParkRuntimePort {
         this.getJSON('/api/v1/users/me', { signal: abort.signal }).then(
           userProfile,
         ),
-      ])
-      if (!this.active || generation !== this.generation) return
-      if (!record(body) || !Array.isArray(body.items) || !record(config))
-        throw new Error('공원 설정 응답을 확인할 수 없습니다.')
-      const channels = body.items.map(channel),
-        bindings = parseBindings(config.bindings)
-      useSession.setState({ channels, bindings })
-      useEmoteState.setState({ bindings: config.emotes === undefined && import.meta.env.DEV && import.meta.env.MODE === 'facility-preview'
-        ? { ...previewEmoteBindings } : parseEmoteBindings(config.emotes) })
-      this.ownProfile = profile
-      if (!channels.length)
-        this.report('서버에 등록된 채널이 없습니다. 채널 설정을 확인해주세요.')
-      await this.socket.connect()
+      ]).then(([body, config, profile]) => {
+        if (!this.active || generation !== this.generation || abort.signal.aborted) return
+        if (!record(body) || !Array.isArray(body.items) || !record(config))
+          throw new Error('공원 설정 응답을 확인할 수 없습니다.')
+        const channels = body.items.map(channel),
+          bindings = parseBindings(config.bindings)
+        useSession.setState({ channels, bindings })
+        useEmoteState.setState({ bindings: config.emotes === undefined && import.meta.env.DEV && import.meta.env.MODE === 'facility-preview'
+          ? { ...previewEmoteBindings } : parseEmoteBindings(config.emotes) })
+        this.ownProfile = profile
+        if (!channels.length)
+          this.report('서버에 등록된 채널이 없습니다. 채널 설정을 확인해주세요.')
+      })
+      await this.socket.connect(ready)
     } catch (error) {
       if (!this.active || generation !== this.generation) return
+      abort.abort()
       useSession.setState({ status: 'error' })
       this.report(error)
     }
   }
   async stop() {
+    this.tablet.end()
     this.forfeitRequests.clear()
     resetForfeit()
     this.follow.reset()
@@ -336,6 +348,7 @@ export class ParkRuntime implements ParkRuntimePort {
     await closing
   }
   private closed(code: number) {
+    if (TABLET_ENABLED) this.tablet.reset(true)
     interruptForfeit()
     this.follow.reset()
     this.resetSpectator()
@@ -392,6 +405,7 @@ export class ParkRuntime implements ParkRuntimePort {
         (message.requestId !== null && message.requestId !== this.tableWatchRequestId)) return
     }
     receive(message)
+    if (TABLET_ENABLED) this.tablet.accept(message)
     if (serverFacilities) {
       if (message.type === 'WORLD_FACILITY_STATE') this.facilities.accept(message)
       if (message.type === 'WORLD_STATE') {
@@ -527,6 +541,10 @@ export class ParkRuntime implements ParkRuntimePort {
     if (!stoppedIntent(intent)) cancelAvatarEmote(useSession.getState().sessionId)
     this.movement.enqueue(intent, this.movementScope())
   }
+  stopMovement = () => {
+    this.movement.clear(false)
+    this.move(0, 0, false)
+  }
   sendEmote = async (id: EmoteId): Promise<boolean> => {
     const reason = emoteUnavailable(id)
     if (reason || !this.active || !this.socket.connected) {
@@ -537,7 +555,7 @@ export class ParkRuntime implements ParkRuntimePort {
     const epoch = state.epoch, scope = this.movementScope(), source = emoteSource(id)
     const current = () => useEmoteState.getState().epoch === epoch && this.movementScope() === scope && this.active
     useEmoteState.setState({ pending: true, requestId: '', requested: id, cancelled: false, error: '', notice: '' })
-    this.move(0, 0, false)
+    this.stopMovement()
     try {
       if (source === 'server') {
         const response = await this.socket.request('WORLD_EMOTE_SEND', { emoteCode: state.bindings[id]! }, ['WORLD_EMOTE_EVENT'],
@@ -668,7 +686,7 @@ export class ParkRuntime implements ParkRuntimePort {
       )
       if (!tableId)
         throw new Error('서버 테이블과 공원 배치 연결이 필요합니다.')
-      this.move(0, 0, false)
+      this.stopMovement()
       await this.socket.request('TABLE_JOIN', { tableId }, ['TABLE_STATE'])
       // Only TABLE_STATE assigns a seat. Never send a userId, seatNumber or final position.
     })

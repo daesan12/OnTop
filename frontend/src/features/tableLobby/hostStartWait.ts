@@ -5,7 +5,7 @@ export const HOST_START_WAIT_SECONDS = 120
 export interface HostWaitScope { userId: string; channelId: string; tableId: string }
 /** FE adapter input, not a proposed wire message. Times are server Unix milliseconds. */
 export interface HostWaitSnapshot {
-  revision: number; tableVersion: number; hostUserId: string
+  revision: number; tableVersion: number; hostUserId: string | null
   serverNow: number; expiresAt: number | null
 }
 export interface HostTimeoutReceipt {
@@ -33,10 +33,13 @@ export function bindHostStartWait(scope: HostWaitScope) {
     update(snapshot: HostWaitSnapshot) {
       const current = useHostStartWait.getState()
       if (current.token !== token || !version(snapshot.revision) || !version(snapshot.tableVersion)
-        || !identifier(snapshot.hostUserId) || !version(snapshot.serverNow)
+        || !(identifier(snapshot.hostUserId!) || snapshot.hostUserId === null && snapshot.expiresAt === null) || !version(snapshot.serverNow)
         || (snapshot.expiresAt !== null && !version(snapshot.expiresAt))
         || (current.receipt && snapshot.revision < current.receipt.revision)
-        || (current.snapshot && snapshot.revision <= current.snapshot.revision)) return false
+        || (current.snapshot && (snapshot.revision < current.snapshot.revision || snapshot.tableVersion < current.snapshot.tableVersion
+          || snapshot.revision === current.snapshot.revision && (snapshot.hostUserId !== current.snapshot.hostUserId
+            || snapshot.expiresAt !== current.snapshot.expiresAt || snapshot.serverNow < current.snapshot.serverNow
+            || snapshot.tableVersion === current.snapshot.tableVersion && snapshot.serverNow === current.snapshot.serverNow)))) return false
       useHostStartWait.setState({ snapshot: { ...snapshot, observedAt: performance.now() } })
       return true
     },

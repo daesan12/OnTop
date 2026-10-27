@@ -1,10 +1,16 @@
 import { create } from 'zustand'
 import type { EquipSlot } from '../../network/equipment'
-import { useSession } from '../../network/worldClient'
+import { avatars, useSession } from '../../network/worldClient'
 import { parkRuntime } from '../../park/runtime/runtime'
+import { viewControls } from '../../world/cameraPerspective'
 import { clearRoamingInput, inputState, panelOwnsKeys } from '../../world/inputOwnership'
 import type { OwnedItem } from '../shop/contracts'
 import { createShopService, ShopError } from '../shop/service'
+import { wardrobeView } from './view'
+
+/** Slightly above eye level, so the zoomed figure is seen almost straight on. */
+const WARDROBE_PITCH = 0.16
+let savedView: { yaw: number; pitch: number } | null = null
 
 export type WardrobeFilter = 'ALL' | EquipSlot
 export const slotLabels: Record<EquipSlot, string> = { HAIR: '머리', FACE: '얼굴', TOP: '상의', BOTTOM: '하의', SHOES: '신발' }
@@ -33,8 +39,15 @@ export function openWardrobe() {
   const s = useSession.getState()
   if (useWardrobe.getState().open || !ownerPresent(s.sessionId) || panelOwnsKeys()) return
   if (useWardrobe.getState().owner !== s.sessionId) useWardrobe.setState(initial(), true)
+  // Other shortcuts stay closed; walking and turning the view keep working (panelOwnsMovement).
   inputState.wardrobeOpen = true
   clearRoamingInput()
+  // Turn the park camera round to the front of the own avatar; the camera rig does the zoom.
+  savedView = { yaw: viewControls.yaw, pitch: viewControls.pitch }
+  const facing = avatars.get(s.sessionId)?.current.yaw
+  wardrobeView.active = true
+  wardrobeView.aim = { yaw: facing ?? viewControls.yaw, pitch: WARDROBE_PITCH }
+  wardrobeView.chooseClearView = true
   useWardrobe.setState({ open: true, owner: s.sessionId, previewId: 0, equipError: '', notice: '' })
   void refreshWardrobe()
 }
@@ -44,7 +57,17 @@ export function closeWardrobe() {
   const wasOpen = useWardrobe.getState().open
   useWardrobe.setState({ open: false, loading: false, equipping: 0, previewId: 0 })
   inputState.wardrobeOpen = false
-  if (wasOpen) clearRoamingInput()
+  wardrobeView.active = false
+  wardrobeView.chooseClearView = false
+  if (!wasOpen) return
+  wardrobeView.aim = savedView
+  savedView = null
+  clearRoamingInput()
+}
+/** The ‹ › buttons turn the view round the avatar like a drag does. */
+export function turnWardrobeView(by: number) {
+  const from = wardrobeView.aim ?? viewControls
+  wardrobeView.aim = { yaw: from.yaw + by, pitch: from.pitch }
 }
 export function resetWardrobe() {
   closeWardrobe()

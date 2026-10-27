@@ -17,7 +17,8 @@ const state = (page: Page) => page.evaluate(async () => {
   const { useBungeoppang } = await import('/src/features/bungeoppang/store.ts' as string)
   const { bungeoppangClock: clock } = await import('/src/features/bungeoppang/bungeoppangView.ts' as string)
   const s = useBungeoppang.getState()
-  return { phase: s.phase, tool: s.tool, t: clock.t, log: s.grill?.log ?? [], slots: s.grill?.slots, score: s.grill?.score, result: s.result }
+  return { phase: s.phase, tool: s.tool, t: clock.t, log: s.grill?.log ?? [], slots: s.grill?.slots, score: s.grill?.score, result: s.result,
+    tray: s.grill?.tray?.length ?? 0, order: !!s.grill?.order, orderPending: s.orderPending }
 })
 
 test('M14 original six-slot controls, actual 60s, same-key/result retries, server reward and abandon restore the park', async ({ page }) => {
@@ -50,6 +51,8 @@ test('M14 original six-slot controls, actual 60s, same-key/result retries, serve
   await page.keyboard.press('F1')
   await expect(page.getByRole('dialog', { name: '게임 설명서', exact: true })).toBeVisible()
   await expect(page.getByRole('heading', {name: '붕어빵 굽기', exact: true})).toBeVisible()
+  await expect(page.getByRole('dialog', { name: '게임 설명서', exact: true })).toContainText('재료 선택 → 조리 → 쟁반 → 전달')
+  await expect(page.getByRole('dialog', { name: '게임 설명서', exact: true })).toContainText('R / 전달 버튼')
   await expect(page.locator('.game-manual')).toHaveAttribute('data-phase', 'open')
   const help = await state(page)
   await page.keyboard.press('KeyQ'); await page.waitForTimeout(400)
@@ -75,6 +78,8 @@ test('M14 original six-slot controls, actual 60s, same-key/result retries, serve
       const level = Math.floor(((split - slot.since) * 6000 + (s.t - split) * 8000) * slot.heat / (8000 * 6000))
       if (level >= 76) { await page.keyboard.press(keys[i]!); await page.waitForTimeout(70) }
     }
+    // v4 scores only delivered bread: hand each two-bean order over once the tray can fill it.
+    if (s.tray >= 2 && s.order && !s.orderPending) { await page.keyboard.press('KeyR'); await page.waitForTimeout(70) }
     if (!captured && s.t > 9000) { await screenshot(page, 'm14-original-six-slot-cooking'); captured = true }
     await page.waitForTimeout(100)
   }
@@ -109,8 +114,10 @@ test('M14 original six-slot controls, actual 60s, same-key/result retries, serve
   await expect(page.getByRole('alertdialog')).toContainText('잠시 사용할 수 없어요')
   await page.getByRole('button', { name: '그만두기', exact: true }).click()
   await expect(page.locator('.bung-root')).toHaveCount(0)
-  const after = await page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).sceneProbe())
-  expect(after.ownVisible).toBe(true); expect(before.ownVisible).toBe(true)
+  // Controls return immediately; the avatar remains hidden only during the
+  // independent camera return so the camera does not pass through its head.
+  await expect.poll(async () => (await page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).sceneProbe())).ownVisible).toBe(true)
+  expect(before.ownVisible).toBe(true)
   await expect(page.getByLabel('조작 방법')).toBeVisible()
   await page.locator('canvas').focus(); await page.keyboard.down('KeyS')
   await expect.poll(() => server.sent.some(m => m.type === 'WORLD_MOVE' && Number(m.payload.dz) > 0)).toBe(true)

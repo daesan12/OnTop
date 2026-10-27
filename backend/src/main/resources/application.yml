@@ -23,6 +23,17 @@ springdoc:
   paths-to-match: /api/v1/**
 
 ontop:
+  admin:
+    # 서버에서 확정한 내부 회원 ID만 관리자 권한을 얻는다. 지급 ID는 조회 ID에도 포함해야 한다.
+    read-ids: ${ADMIN_READ_IDS:${FEEDBACK_ADMINISTRATOR_IDS:}}
+    grant-ids: ${ADMIN_GRANT_IDS:}
+  analytics:
+    # 백업 복원본에서 만든 집계 파일만 읽는다. 원본 행동 로그에 접근하지 않는다.
+    snapshot-path: ${ANALYTICS_SNAPSHOT_PATH:/run/ontop/analytics/admin-summary.json}
+  feedback:
+    # DB 마이그레이션은 기능 플래그와 별개로 적용한다. API와 서비스만 명시적으로 켠다.
+    enabled: ${FEEDBACK_ENABLED:false}
+    administrator-ids: ${ADMIN_READ_IDS:${FEEDBACK_ADMINISTRATOR_IDS:}}
   world:
     map:
       # generated는 외부 파일과 FE 공동 검증 후에만 명시적으로 선택한다.
