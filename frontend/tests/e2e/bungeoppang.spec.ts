@@ -17,7 +17,8 @@ const state = (page: Page) => page.evaluate(async () => {
   const { useBungeoppang } = await import('/src/features/bungeoppang/store.ts' as string)
   const { bungeoppangClock: clock } = await import('/src/features/bungeoppang/bungeoppangView.ts' as string)
   const s = useBungeoppang.getState()
-  return { phase: s.phase, tool: s.tool, t: clock.t, log: s.grill?.log ?? [], slots: s.grill?.slots, score: s.grill?.score, result: s.result }
+  return { phase: s.phase, tool: s.tool, t: clock.t, log: s.grill?.log ?? [], slots: s.grill?.slots, score: s.grill?.score, result: s.result,
+    tray: s.grill?.tray?.length ?? 0, order: !!s.grill?.order, orderPending: s.orderPending }
 })
 
 test('M14 original six-slot controls, actual 60s, same-key/result retries, server reward and abandon restore the park', async ({ page }) => {
@@ -75,6 +76,8 @@ test('M14 original six-slot controls, actual 60s, same-key/result retries, serve
       const level = Math.floor(((split - slot.since) * 6000 + (s.t - split) * 8000) * slot.heat / (8000 * 6000))
       if (level >= 76) { await page.keyboard.press(keys[i]!); await page.waitForTimeout(70) }
     }
+    // v4 scores only delivered bread: hand each two-bean order over once the tray can fill it.
+    if (s.tray >= 2 && s.order && !s.orderPending) { await page.keyboard.press('KeyR'); await page.waitForTimeout(70) }
     if (!captured && s.t > 9000) { await screenshot(page, 'm14-original-six-slot-cooking'); captured = true }
     await page.waitForTimeout(100)
   }

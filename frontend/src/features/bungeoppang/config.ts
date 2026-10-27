@@ -32,3 +32,19 @@ export const BUNGEOPPANG = {
   cameraTransitionMs: 800,
   cameraReturnMs: 240,
 } as const;
+
+/** FE v4 defaults. These preview limits are not a production server contract. */
+export const BUNGEOPPANG_V4 = {
+  ...BUNGEOPPANG,
+  rulesVersion: 'v4',
+  trayCapacity: 4,
+  maxOrderItems: 4,
+  orderListLength: 64,
+  heatListLength: 400,
+  specialOrderChance: 0.2,
+  specialBonusPercent: 50,
+  firstOrder: { bean: 2, custard: 0, pizza: 0, chocolate: 0 },
+} as const;
+
+// Deliberate development mode only; never enable a mock after an API error.
+export const bungeoppangV4Preview = import.meta.env?.DEV === true && import.meta.env.MODE === 'bungeoppang-preview';

@@ -12,6 +12,8 @@ import java.util.Map;
 
 /** All calls belong to the registry lock. Channels have separate collision worlds. */
 public final class WorldPhysics implements AutoCloseable {
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(WorldPhysics.class);
+    private long physicsTick;
     public static final long STEP_NANOS = 1_000_000_000L / 30;
     private static final float DT = 1f / 30;
     private ParkScene scene;
@@ -158,7 +160,12 @@ public final class WorldPhysics implements AutoCloseable {
         actor.seq = input.seq();
         actor.input = input;
         actor.receivedAt = now;
-        actor.jumpQueued |= input.jump() && (actor.body.onGround() || actor.swimming);
+        boolean canJump = actor.body.onGround() || actor.swimming;
+        actor.jumpQueued |= input.jump() && canJump;
+        if (input.jump()) {
+            log.debug("공원 점프 입력 seq={} tick={} decision={} grounded={} swimming={} map={}",
+                    input.seq(), physicsTick, canJump ? "QUEUED" : "NOT_GROUNDED", actor.body.onGround(), actor.swimming, scene.version());
+        }
         return true;
     }
 
@@ -195,6 +202,7 @@ public final class WorldPhysics implements AutoCloseable {
     }
 
     private void stepNow(long now, java.util.Set<String> seated, java.util.Map<String, String> following) {
+        physicsTick++;
         for (var entry : actors.entrySet()) {
             Actor a = entry.getValue();
             if (seated.contains(entry.getKey())) {
@@ -212,6 +220,10 @@ public final class WorldPhysics implements AutoCloseable {
             }
             MoveInput input = a.input;
             boolean active = inputActive(a, now);
+            if (!active && !following.containsKey(entry.getKey()) && (a.moving || a.running)) {
+                log.debug("공원 이동 정지 seq={} tick={} reason=INPUT_EXPIRED ageMs={} map={}",
+                        a.seq, physicsTick, (now - a.receivedAt) / 1_000_000, scene.version());
+            }
             if (following.containsKey(entry.getKey())) {
                 String targetId = following.get(entry.getKey());
                 input = followInput(a, seated.contains(targetId) ? null : actors.get(targetId));
@@ -295,6 +307,7 @@ public final class WorldPhysics implements AutoCloseable {
         }
         space.update(DT, 0);
         for (Actor a : actors.values()) {
+            if (a.seated) { continue; }
             Vector3f position = a.body.getPhysicsLocation(null);
             float limit =
                     (float)
@@ -305,17 +318,15 @@ public final class WorldPhysics implements AutoCloseable {
                                                     .asDouble())
                             - number("radius")
                             - number("offset");
-            if (!Vector3f.isValidVector(position)
-                    || position.y
-                            < scene.groundHeight(position.x, position.z)
-                                    + number("halfHeight")
-                                    + number("radius")
-                                    - .35) {
-                a.body.warp(a.lastSafe);
-                a.body.setLinearVelocity(Vector3f.ZERO);
-                a.input = null;
-                a.moving = false;
-                a.running = false;
+            if (!Vector3f.isValidVector(position)) {
+                recover(a, position, validatedFallback(a, limit), "INVALID_POSITION", now);
+            } else if (position.y < scene.groundHeight(position.x, position.z)
+                    + number("halfHeight") + number("radius") - .35) {
+                float x = Math.max(-limit, Math.min(limit, position.x));
+                float z = Math.max(-limit, Math.min(limit, position.z));
+                Vector3f support = localGroundSupport(x, z);
+                recover(a, position, support == null ? validatedFallback(a, limit) : support,
+                        support == null ? "NO_LOCAL_SUPPORT" : "TERRAIN_PENETRATION", now);
             } else {
                 float x = Math.max(-limit, Math.min(limit, position.x));
                 float z = Math.max(-limit, Math.min(limit, position.z));
@@ -329,6 +340,54 @@ public final class WorldPhysics implements AutoCloseable {
             a.airborne = !a.seated && !a.body.onGround();
         }
     }
+
+    // 지형 높이는 탐색 범위만 정한다. 실제 충돌 지지면과 캡슐 여유를 확인한 위치로 복구한다.
+    private Vector3f localGroundSupport(float x, float z) {
+        float ground = (float) scene.groundHeight(x, z);
+        Vector3f from = new Vector3f(x, ground + 2, z), to = new Vector3f(x, ground - 2, z);
+        return space.rayTest(from, to).stream()
+                .filter(hit -> hit.getCollisionObject().getCollisionGroup() == 2)
+                .sorted(java.util.Comparator.comparingDouble(com.jme3.bullet.collision.PhysicsRayTestResult::getHitFraction))
+                .map(hit -> new Vector3f(x, from.y - 4 * hit.getHitFraction()
+                        + number("halfHeight") + number("radius") + .04f, z))
+                .filter(p -> canStand(p.x, p.y, p.z)).findFirst().orElse(null);
+    }
+
+    private Vector3f validatedFallback(Actor actor, float limit) {
+        Vector3f safe = actor.lastSafe;
+        if (Vector3f.isValidVector(safe) && Math.abs(safe.x) <= limit && Math.abs(safe.z) <= limit
+                && canStand(safe.x, safe.y, safe.z)) { return safe.clone(); }
+        for (int i = 0; i < 16; i++) {
+            Vector3f spawn = scene.spawn(actor.slot + i);
+            if (canStand(spawn.x, spawn.y, spawn.z)) { return spawn; }
+        }
+        throw new IllegalStateException("충돌이 없는 공원 복구 위치를 찾을 수 없습니다.");
+    }
+
+    private void recover(Actor actor, Vector3f from, Vector3f target, String reason, long now) {
+        actor.recovery = new Recovery(reason, physicsTick, actor.seq, now, from.x, from.y, from.z,
+                target.x, target.y, target.z, actor.lastSafe.x, actor.lastSafe.y, actor.lastSafe.z,
+                Vector3f.isValidVector(from) ? scene.groundHeight(from.x, from.z) : Double.NaN, actor.body.onGround(), actor.swimming,
+                actor.body.getLinearVelocity(null).y);
+        log.warn("공원 위치 복구 reason={} tick={} seq={} map={}", reason, physicsTick, actor.seq, scene.version());
+        log.debug("공원 위치 복구 상세 {}", actor.recovery);
+        actor.body.warp(target);
+        actor.body.setLinearVelocity(Vector3f.ZERO);
+        actor.lastSafe.set(target);
+        actor.input = null;
+        actor.jumpQueued = false;
+        actor.climbTargetY = 0;
+        actor.moving = actor.running = false;
+        actor.swimming = swimming(target);
+    }
+
+    /** 서버 진단 전용. 사용자별 마지막 복구 한 건만 메모리에 유지하며 WS에는 노출하지 않는다. */
+    public Recovery lastRecovery(String id) { return call(() -> actors.get(id).recovery); }
+
+    public record Recovery(String reason, long tick, long seq, long simulationNanos,
+            double fromX, double fromY, double fromZ, double toX, double toY, double toZ,
+            double previousSafeX, double previousSafeY, double previousSafeZ, double terrainHeight,
+            boolean grounded, boolean swimming, double verticalVelocity) {}
 
     /** 서버 몸체의 현재 좌표로 매 tick 생성하며 클라이언트 입력 순번은 변경하지 않는다. */
     private MoveInput followInput(Actor follower, Actor target) {
@@ -487,6 +546,7 @@ public final class WorldPhysics implements AutoCloseable {
         double yaw = Math.PI;
         boolean moving, running, swimming, jumpQueued, seated, airborne;
         double climbTargetY;
+        Recovery recovery;
 
         Actor(PhysicsCharacter body, int slot, Vector3f spawn) {
             this.body = body;

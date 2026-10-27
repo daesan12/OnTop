@@ -140,7 +140,7 @@ public final class FarkleEngine implements GameEngine {
             } else {
                 match.forfeit(command.userId(), now, "EXPLICIT_LEAVE");
                 lifecycle.left(command.gameId(), before.tableId(), "DICE", match.snapshot().version(),
-                        command.userId(), GameDepartureReason.EXPLICIT_LEAVE, now, notices);
+                        command.userId(), GameDepartureReason.EXPLICIT_LEAVE, now, before.players().size(), notices);
                 collect(before, match.snapshot(), notices);
                 result = forfeits.accepted(command, match.snapshot().version());
             }
@@ -165,7 +165,7 @@ public final class FarkleEngine implements GameEngine {
                     ? "RECONNECT_EXPIRED" : command.reason().name());
             if (before.endedAt() == null && match.snapshot().endedAt() != null) {
                 lifecycle.left(command.gameId(), before.tableId(), "DICE", match.snapshot().version(),
-                        command.userId(), command.reason(), command.deadline(), notices);
+                        command.userId(), command.reason(), command.deadline(), before.players().size(), notices);
             }
             collect(before, match.snapshot(), notices);
         }
@@ -193,7 +193,7 @@ public final class FarkleEngine implements GameEngine {
                     after.scores(), after.winnerUserId(), after.endReason(), after.endedAt()));
             notices.add(lifecycle.finished(after.gameId(), after.tableId(), "DICE", after.version(), after.players(),
                     after.winnerUserId() == null ? List.of() : List.of(after.winnerUserId()),
-                    after.endReason(), after.endedAt()));
+                    after.endReason(), after.endedAt(), notices));
         }
     }
 

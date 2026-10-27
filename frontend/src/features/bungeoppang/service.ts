@@ -3,36 +3,52 @@ import { BUNGEOPPANG as R } from './config'
 import { parkRuntime } from '../../park/runtime/runtime'
 import { RestError } from '../../network/restError'
 import { record } from '../../network/protocol'
+import type { BreadOrder, BungeoppangRules, GrillLogEntry as V4Log } from './rulesV4'
+import { bungeoppangV4Preview } from './config'
+import { createV4PreviewService } from './serviceV4Preview'
+import { createBungeoppangV4Service, type V4Checkpoint } from './serviceV4'
 
 export interface BungeoppangStatus {
   todayEarned: number; dailyCap: number; isFirstGame: boolean; seenTips: string[]; rulesVersion: string
 }
 export interface BungeoppangGame {
   gameId: string; startedAt: string; rulesVersion: string; heats: number[]; isFirstGame: boolean
+  v4?: { configVersion?: string; order: BreadOrder; rules: Readonly<BungeoppangRules & { rulesVersion: 'v4' }>
+    timing?: { countdownStartsAt: string; playStartsAt: string; playEndsAt: string; submitDeadline: string; expiresAt: string }
+    checkpoint?: V4Checkpoint }
 }
 export interface BungeoppangSubmit {
-  gameId: string; log: GrillLogEntry[]; seenTips: string[]; clientScore: number
+  gameId: string; log: (GrillLogEntry | V4Log)[]; seenTips: string[]; clientScore: number
+  deliveryKey?: string; completeKey?: string
 }
 export interface BungeoppangSubmitResult {
   score: number; made: number; golden: number; failed: number; wasted: number; maxCombo: number
   coinsCalculated: number; coinsGranted: number; todayEarned: number; dailyCap: number; capReached: boolean
+  successfulMade?: number; served?: number; customersServed?: number; specialServed?: number; bonusScore?: number
+  grillDiscarded?: number; trayDiscarded?: number; undeliveredCount?: number; unfinishedGrillCount?: number
+  rewardDate?: string; settledAt?: string; finalThroughSeq?: number; finalPrefixHash?: string
+  rulesVersion?: string; configVersion?: string
 }
 export class BungeoppangServiceError extends Error {
-  constructor(readonly code: string, message: string, readonly retryable = false) { super(message) }
+  constructor(readonly code: string, message: string, readonly retryable = false, readonly status = 0) { super(message) }
 }
 export interface BungeoppangService {
-  readonly mock: false
+  readonly mock: boolean
   getStatus(): Promise<BungeoppangStatus>
   startGame(key: string): Promise<BungeoppangGame>
   submitResult(request: BungeoppangSubmit): Promise<BungeoppangSubmitResult>
   abandon(gameId: string): Promise<void>
   balance(): Promise<number>
+  /** FE internal port. Implement its transport only after the v4 BE contract is approved. */
+  nextOrder?(request: BungeoppangSubmit): Promise<{ index: number; order: BreadOrder; checkpoint?: V4Checkpoint }>
+  recoverV4?(gameId: string): Promise<{ grill: import('./rulesV4').GrillState; checkpoint: V4Checkpoint }>
 }
 const tips = ['START', 'POUR', 'GOLD', 'BURNT', 'RUSH']
 const whole = (n: unknown): n is number => Number.isSafeInteger(n) && Number(n) >= 0
 const validId = (id: unknown): id is string => typeof id === 'string' && /^[1-9]\d{0,18}$/.test(id)
 const invalid = (): never => { throw new BungeoppangServiceError('INVALID_RESPONSE', '서버 응답을 확인하지 못했어요. 같은 요청으로 다시 확인해 주세요.', true) }
-const messages: Record<string, string> = {
+/** Shared MINI-01~04 error copy. The v4 adapter falls back to it for codes it does not override. */
+export const messages: Record<string, string> = {
   RULES_VERSION_MISMATCH: '게임 규칙이 변경됐어요. 새로고침 후 새 판을 시작해 주세요.',
   LOG_INVALID: '서버가 조리 기록을 승인하지 않았어요. 이번 판은 지급되지 않습니다.',
   TOO_EARLY: '서버의 완료 가능 시간을 기다린 뒤 같은 기록으로 다시 확인해 주세요.',
@@ -90,6 +106,9 @@ export function createBungeoppangService(requestJSON: (path: string, init?: Requ
       return { gameId: p.minigameSessionId, startedAt: p.startedAt, rulesVersion: R.rulesVersion, heats: [...p.heats] as number[], isFirstGame: p.isFirstGame }
     },
     async submitResult(input) {
+      // Never send v4 records to the existing v2 completion API.
+      if (input.log.some(e => !['POUR', 'FILL', 'TURN', 'DISCARD'].includes(e.action) || 'filling' in e || 'order' in e))
+        throw new BungeoppangServiceError('RULES_VERSION_MISMATCH', messages.RULES_VERSION_MISMATCH!)
       const p = await request(sessionPath(input.gameId) + '/complete', post({ log: input.log, seenTips: input.seenTips, clientScore: input.clientScore }))
       const fields = ['score', 'made', 'golden', 'failed', 'wasted', 'maxCombo', 'coinsCalculated', 'coinsGranted', 'todayEarned'] as const
       if (!record(p) || p.minigameSessionId !== input.gameId || p.status !== 'COMPLETED'
@@ -110,4 +129,6 @@ export function createBungeoppangService(requestJSON: (path: string, init?: Requ
     },
   }
 }
-export const bungeoppangService = createBungeoppangService((path, init) => parkRuntime.requestJSON(path, init))
+export const bungeoppangService: BungeoppangService = bungeoppangV4Preview
+  ? createV4PreviewService()
+  : createBungeoppangV4Service((path, init) => parkRuntime.requestJSON(path, init))

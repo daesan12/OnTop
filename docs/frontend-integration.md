@@ -69,13 +69,15 @@ dev 단독 프로필의 JWT/접속권·착석·준비·예약 확정·엔진·�
 
 ### 소리함·익명 메모 활성화 전 확인
 
-두 API는 dev 기본 비활성이다. **V112·V120·V121 적용 순서를 팀과 맞춘 뒤에만** 실제 공유 DB에 적용한다.
+두 API는 dev 기본 비활성이다. 소리함은 공통 경로 V127로 이전해 적용 순서를 조율했다.
+익명 메모 V121은 별도 경로이므로 활성화 전에 적용 순서를 다시 확인한다.
 기존 Flyway locations/이력/데이터를 보존하며 repair·outOfOrder·초기화를 자동 실행하지 않는다.
 
-- dev,db: `FEEDBACK_ENABLED=true`, `FEEDBACK_ADMINISTRATOR_IDS=<관리자 회원 ID 목록>`.
+- dev,db: `FEEDBACK_ENABLED=true`, `ADMIN_READ_IDS=<관리자 내부 회원 ID 목록>`.
 - dev,db: `NOTES_ENABLED=true`, `NOTES_PRIVACY_SECRET=<32자 이상 전용 비밀키>`.
-- 기존 `SPRING_FLYWAY_LOCATIONS` 목록에 `classpath:db/feedback`, `classpath:db/notes`를 추가한다.
-  공통·미니게임·상점·경기 등 기존 활성 경로를 두 경로로 덮어쓰지 않는다.
+- 소리함에 `classpath:db/feedback`을 추가하지 않는다. 익명 메모 활성화 때만 기존
+  `SPRING_FLYWAY_LOCATIONS` 목록에 `classpath:db/notes`를 추가한다.
+  공통·미니게임·상점·경기 등 기존 활성 경로를 덮어쓰지 않는다.
 - 일반 `.env`는 자동 로딩되지 않는다. 실행 환경변수에 지정한다. 아래 로컬 실행기는 별도 허용 목록의
   `.env.frontend-test`를 사용하므로 이 옵션을 그 파일에 임의 추가하면 거절된다.
 - 프론트는 현재 두 서비스가 `unavailable`이다. REST 포트 연결과 ISO 시각→ms 변환이 필요하다.

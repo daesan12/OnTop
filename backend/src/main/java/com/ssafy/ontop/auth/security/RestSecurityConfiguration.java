@@ -1,17 +1,21 @@
 package com.ssafy.ontop.auth.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ssafy.ontop.admin.security.AdminAccessPolicy;
 import com.ssafy.ontop.auth.service.AuthExchangeOriginPolicy;
 import jakarta.servlet.DispatcherType;
+import java.util.ArrayList;
 import java.util.List;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
@@ -58,20 +62,33 @@ public class RestSecurityConfiguration {
     @Order(2)
     SecurityFilterChain protectedRestChain(HttpSecurity http, AccessJwtDecoder decoder,
             AccessAuthenticationService authentication, AuthExchangeOriginPolicy origins, ObjectMapper mapper,
-            RestSecurityErrorHandler errors) throws Exception {
+            RestSecurityErrorHandler errors, AdminAccessPolicy adminAccess) throws Exception {
         common(http, errors);
         http.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .securityContext(context -> context.securityContextRepository(new NullSecurityContextRepository()))
                 .addFilterBefore(new RestCorsFilter(origins, mapper, errors), BearerTokenAuthenticationFilter.class)
                 .authorizeHttpRequests(authorize -> authorize.requestMatchers("/actuator/**").denyAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/admin/me", "/api/v1/admin/feedback",
+                                "/api/v1/admin/analytics/**").hasRole("ADMIN_READ")
+                        .requestMatchers("/api/v1/admin/wallet-grants", "/api/v1/admin/wallet-grants/**")
+                                .hasRole("ADMIN_GRANT")
+                        .requestMatchers("/api/v1/admin/**").denyAll()
                         .anyRequest().hasRole("MEMBER"))
                 .oauth2ResourceServer(resource -> resource.bearerTokenResolver(new StrictBearerTokenResolver())
                         .authenticationEntryPoint(errors).accessDeniedHandler(errors)
                         .jwt(jwt -> jwt.decoder(decoder).jwtAuthenticationConverter(verified -> {
                             AuthenticatedUser user = authentication.requireActive(
                                     Long.parseLong(verified.getSubject()), verified.getClaimAsString("sid"));
+                            List<GrantedAuthority> authorities = new ArrayList<>();
+                            authorities.add(new SimpleGrantedAuthority("ROLE_MEMBER"));
+                            if (adminAccess.canRead(user.userId())) {
+                                authorities.add(new SimpleGrantedAuthority("ROLE_ADMIN_READ"));
+                            }
+                            if (adminAccess.canGrant(user.userId())) {
+                                authorities.add(new SimpleGrantedAuthority("ROLE_ADMIN_GRANT"));
+                            }
                             var result = UsernamePasswordAuthenticationToken.authenticated(user, null,
-                                    List.of(new SimpleGrantedAuthority("ROLE_MEMBER")));
+                                    authorities);
                             // 접속권은 이 요청에서 검증된 회원/만료 정보를 재사용한다. 원문 JWT는 보관하지 않는다.
                             result.setDetails(new AccessAuthenticationService.AuthenticatedAccess(
                                     user, verified.getExpiresAt()));

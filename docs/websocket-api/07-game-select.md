@@ -60,3 +60,7 @@
 ## 가변 참가비 · Story 172 보완/173
 
 `betAmountPerPlayer`는 필수 양의 정수다. 누락·0·음수·소수·문자열은 INVALID_PAYLOAD, 게임 최대 인원 기준 안전 정수 범위를 넘으면 GAME_INVALID_BET다. 실패는 상태를 변경하지 않는다. TABLE_STATE/TABLE_WATCH_STATE/테이블 HTTP 목록의 같은 필드로 확정 금액을 확인한 뒤 준비한다. 서버는 시작 스냅샷을 고정하고 DB 저장 금액으로만 정산한다. 기존 금액 없는 FE 요청은 변경이 필요하다. 상세는 [정산 계약](../game-settlement.md)을 따른다.
+
+## 새 태블릿 전환
+
+TABLE_CONFIGURE로 MANUAL을 선택한 테이블은 GAME_SELECT 대신 설정·방장 수동 시작을 사용한다. 기존 AUTO 흐름과 구분하며 [태블릿 계약](../tablet-lobby-api.md)을 따른다.
