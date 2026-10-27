@@ -1,7 +1,7 @@
-# 붕어빵 미니게임 API · v2 / v4 Story 1·2
+# 붕어빵 미니게임 API · v2 / v4 Story 1·2·3
 
 기준: 2026-10-23 수신한 `붕어빵_뒤집기_최종기획.md`, BE·FE 작업명세와 사용자 확정 사항.
-이 문서는 기존 MINI-01~04 v2 계약과 명시적으로 선택하는 v4 Story 1·2 계약을 함께 설명한다.
+이 문서는 기존 MINI-01~04 v2 계약과 명시적으로 선택하는 v4 Story 1·2·3 계약을 함께 설명한다.
 랭킹은 제외하고 탭 이동 중에도 시간은 흐른다.
 가게 위치·캐릭터 배치는 미정이며 이 REST 흐름을 막지 않는다.
 
@@ -17,6 +17,8 @@
   `bungeoppang_v4_rounds`, `bungeoppang_v4_orders`를 추가한다. 기존 V110/V111을 수정하지 않는다.
 - V125는 승인된 행동 prefix와 checkpoint를 보관하는 `bungeoppang_v4_progress`, 동일 납품 요청의
   성공·거부 결론을 재생하는 `bungeoppang_v4_receipts`를 추가한다. 납품에서는 Wallet과 원장을 변경하지 않는다.
+- V126은 v4 판에 최종 의미 요청 hash·최종 seq/hash·정산 시각·KST 보상 귀속일을 고정한다.
+  상세 결과/제출은 기존 `bungeoppang_records`, 완료 멱등 응답은 V125 영수증을 재사용한다.
 - 공통 `Wallet`, `WalletTransaction`을 사용한다. 거래 종류 `MINIGAME_REWARD`, 참조 `minigame_session_id`,
   키 `minigame-reward:{id}`를 유지하며 별도 지갑을 만들지 않는다.
 - 지갑 → 세션 잠금 순서. 같은 회원의 시작/완료/포기/상점 구매가 같은 지갑 잠금을 사용한다.
@@ -31,7 +33,7 @@
   임의로 추가하지 않는다. 미니게임 경로의 OPTIONS만 `Authorization, Content-Type, Idempotency-Key`를
   허용하며 실제 GET/POST 회원 인증은 기존 공통 인증을 그대로 거친다.
 - `dev,db`의 Flyway는 `db/migration` + `db/minigame`을 읽는다. 기존 공통 테이블은 보존하고
-  V110/V111/V124/V125의 미니게임 테이블·인덱스만 추가한다. `ddl-auto=validate`와 Flyway 검증을 유지한다.
+  V110/V111/V124/V125/V126의 미니게임 테이블·인덱스만 추가한다. `ddl-auto=validate`와 Flyway 검증을 유지한다.
   `clean`/`repair`/`out-of-order`나 기존 스키마 초기화는 사용하지 않는다.
 - 기존 공통 마이그레이션 V1~V6가 먼저 적용된 DB를 기준으로 한다. 이미 고번호 V100/V110 등을
   적용했지만 V5/V6가 없는 별도 DB는 먼저 이력을 확인해야 한다. 이 MR은 그런 DB를 임의 복구하지 않는다.
@@ -182,7 +184,65 @@ Story 2 복구에는 `?includeProgress=true`를 사용하며 서버가 승인한
 - 실패 빵은 제거한다. 정상 빵은 쟁반에 보관하고 실제 납품 때만 점수가 증가한다.
 - 특수 재료 납품 보너스는 빵별 50% 내림이다. 미납품 빵은 최종 점수에 포함하지 않는다.
 - Story 1의 순수 재계산기는 위 규칙과 다음 주문 생성 기반을 제공한다.
-- **납품 승인 API, 영속 성공·거부 영수증, checkpoint 진행·복구는 Story 2로 제공한다. 최종 v4 정산·코인 지급은 Story 3이며 아직 제공하지 않는다.**
+- **납품 승인 API, 영속 성공·거부 영수증, checkpoint 진행·복구는 Story 2, 최종 검증·멱등 정산·Wallet 지급은 Story 3으로 제공한다.**
+
+### v4 최종 검증·보상 확정
+
+`POST /api/v1/minigames/sessions/{id}/complete`
+
+- v4는 `Idempotency-Key`가 필수다(누락·형식 오류는 `400 INVALID_REQUEST`, prefixHash 불일치는
+  `400 LOG_HASH_MISMATCH`). 같은 키·같은 의미 본문은 최초 200을 재생하고 같은 키·다른 본문은
+  `409 IDEMPOTENCY_KEY_CONFLICT`다. 다른 키라도 이미 확정된 같은 본문이면 기존 결과를 반환하며,
+  다른 최종 본문은 `409 FINAL_RESULT_CONFLICT`다. v2 완료의 키 없는 기존 계약은 유지한다.
+- 본문은 `rulesVersion=v4`, 전체 `throughSeq`, `prefixHash`, 최초부터 고정한 `log`, 선택 `seenTips`,
+  참고용 `clientScore`다. 서버는 저장한 규칙·불·주문·승인 prefix로 전체 기록을 다시 계산하며 clientScore를
+  점수나 지급 근거로 사용하지 않는다.
+- 최초 수신은 `playEndsAt` 이상 `submitDeadline` 이하만 허용한다. 행동 시각은 0..59999ms이고,
+  잠금 대기는 요청 수신 시각을 늦추지 않는다. 이른 요청은 `422 TOO_EARLY`로 판을 소비하지 않는다.
+  `submitDeadline` 이후 수신은 `409 GAME_NOT_ACTIVE`이며, drain 중에는 판을 바꾸지 않아 기한 내 수신 후
+  잠금을 기다린 완료가 이길 수 있다. `expiresAt` 이후에만 `INVALID`(SUBMISSION_EXPIRED/EXPIRED) 무보상으로 확정한다.
+- 승인되지 않은 마지막 DELIVER 한 건은 원래 deliveryKey로 재검증한다. 합법이면 납품 영수증·다음 주문·완료를
+  같은 트랜잭션에 저장한다. 그 뒤 suffix가 불법이면 새 납품 승인까지 전부 롤백한다.
+- 보상은 `floor(score/15)`, v2/v4 합산 KST 일일 100냥 잔여 한도 안에서 지급한다. 양수 지급만
+  `MINIGAME_REWARD` 원장 한 건을 만들며 0냥도 검증된 판은 COMPLETED다. reserved_balance는 바꾸지 않는다.
+- 완료 응답에는 기존 v2 공통 필드와 successfulMade/served/customersServed/specialServed/bonusScore,
+  폐기·미납품·미완성 수, rewardDate/settledAt/finalThroughSeq/finalPrefixHash/configVersion이 포함된다.
+- 완료 후 GET은 `result`에 같은 상세 결과를 반환한다. 기본 terminal 조회는 checkpoint=null,
+  acceptedLog=[], issuedOrders=[]이며 `includeProgress=true`일 때만 마지막 진행 원본을 포함한다.
+
+### v4 실제 BE 연동 Playwright
+
+`frontend/tests/bungeoppang-backend-e2e/final-settlement.spec.ts`는 공원·인증만 계약 fixture로 두고
+미니게임·지갑 HTTP를 격리 DB에 연결한 테스트 BE로 보낸다. 실제 FE 화면에서 팥 2개를 구워
+59.6초 이후 납품하고 응답 전에 60초를 닫는다.
+
+- 납품 요청이 BE에 닿기 전 complete 선행: complete가 원래 deliveryKey로 납품을 승인하고, 늦게 보낸 같은
+  납품은 원래 영수증만 재생하며 결과 화면을 덮지 않는다.
+- 납품 선행·ACK 지연과 complete 응답 유실: FE가 같은 판을 GET으로 복구하고 지급은 판마다 한 번이다.
+- 지갑 잔액은 실제 Wallet API로 대조한다. 브라우저 Origin은 인증 경계 범위라 테스트 프록시가
+  `Content-Type`·`Idempotency-Key`·테스트 토큰만 전달한다.
+
+새 전용 DB로 `dev,db` BE를 띄우고 해당 DB에만 테스트 회원·지갑·로그인 세션을 만든 뒤 그 회원의
+Access 토큰을 환경변수로 넘긴다. 공용 DEV·기존 개발 DB 주소는 사용하지 않는다.
+
+```powershell
+$env:ONTOP_E2E_API_BASE = 'http://127.0.0.1:<isolated-be-port>'
+$env:ONTOP_E2E_ACCESS_TOKEN = '<isolated-db-member-access-token>'
+# frontend에서 실행. 환경변수가 없으면 건너뛴다.
+pnpm exec playwright test --config playwright.bungeoppang-backend.config.ts
+```
+
+### Story 3 확인한 검증 · 2026-10-27
+
+Story 3 전용 MySQL 8.4 컨테이너의 새 DB에서만 실행했다. 공용 DEV·기존 개발 DB는 사용하지 않았다.
+
+- BE 미니게임 단위·HTTP·OpenAPI 114건, `MinigameMySqlTests` 24건(완료/포기·완료/만료 경합, 원장 실패 롤백,
+  불법 suffix 롤백 포함), 관련 MySQL 회귀(dev 보존 1·경기 정산 27·경기 시작 30·V112 업그레이드 1) 통과.
+- 신규 DB에 V1~V126 적용 후 `dev,db` 기동과 JPA validate 통과. V124/V125는 변경하지 않았다.
+- FE 타입 검사 2종, Vitest 603건, 프로덕션 빌드, v4 미리보기 Playwright 4건 통과.
+- 실제 BE 연동 Playwright 1건 통과: 판마다 DELIVER t≈59.6초가 승인되고 COMPLETED 1건·보상 원장 1건·
+  납품/완료 영수증 각 1건이며 지갑 증가는 지급 합계와 같았다.
+- 3D 실제 OAuth 로그인·공용 DEV 배포·운영 부하는 이 검증 범위가 아니다.
 
 ## 기존 v2 계약
 

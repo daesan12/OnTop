@@ -78,12 +78,16 @@ class MinigameOpenApiTests {
                     .endsWith("/BungeoppangV4DeliveryResponse");
             var complete = paths.path("/api/v1/minigames/sessions/{sessionId}/complete").path("post");
             assertThat(complete.at("/responses/422/description").asText()).contains("LOG_INVALID", "TOO_EARLY");
-            assertThat(complete.at("/requestBody/content/application~1json/schema/additionalProperties")
-                    .asBoolean(true)).isFalse();
-            assertThat(complete.at("/requestBody/content/application~1json/schema/properties/log/maxItems").asInt())
-                    .isEqualTo(1200);
+            var completeSchemas = complete.at("/requestBody/content/application~1json/schema/oneOf");
+            assertThat(completeSchemas).hasSize(2);
+            assertThat(completeSchemas.get(0).path("additionalProperties").asBoolean(true)).isFalse();
+            assertThat(completeSchemas.get(1).path("additionalProperties").asBoolean(true)).isFalse();
+            assertThat(completeSchemas.get(1).at("/properties/log/maxItems").asInt()).isEqualTo(1200);
+            assertThat(complete.at("/responses/200/content/application~1json/schema/oneOf/1/$ref").asText())
+                    .endsWith("/BungeoppangV4CompleteResponse");
+            assertThat(complete.path("parameters").toString()).contains("Idempotency-Key", "v4 완료에는 필수");
             assertThat(complete.path("description").asText())
-                    .contains("local,db", "dev,db", "v2", "v4", "V124", "V125", "후속 Story", "100냥")
+                    .contains("local,db", "dev,db", "v2", "v4", "V124", "V125", "V126", "100냥")
                     .doesNotContain("local 전용");
             assertThat(paths.path("/api/v1/minigames/sessions").has("get")).isTrue();
         }

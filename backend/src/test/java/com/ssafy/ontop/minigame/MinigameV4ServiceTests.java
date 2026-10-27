@@ -1,5 +1,7 @@
 package com.ssafy.ontop.minigame;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ssafy.ontop.minigame.domain.BungeoppangProfile;
 import com.ssafy.ontop.minigame.domain.BungeoppangRecord;
 import com.ssafy.ontop.minigame.domain.BungeoppangV4Order;
@@ -10,12 +12,14 @@ import com.ssafy.ontop.minigame.domain.MinigameSession;
 import com.ssafy.ontop.minigame.domain.MinigameStartRequest;
 import com.ssafy.ontop.minigame.dto.BungeoppangV4Responses;
 import com.ssafy.ontop.minigame.dto.BungeoppangV4DeliveryDtos;
+import com.ssafy.ontop.minigame.dto.BungeoppangV4CompleteDtos;
 import com.ssafy.ontop.minigame.service.BungeoppangV4DeliveryContract;
 import com.ssafy.ontop.minigame.repository.MinigameRepository;
 import com.ssafy.ontop.minigame.service.BungeoppangV4Spec;
 import com.ssafy.ontop.minigame.service.MinigameException;
 import com.ssafy.ontop.minigame.service.MinigameService;
 import com.ssafy.ontop.wallet.domain.Wallet;
+import com.ssafy.ontop.wallet.domain.WalletTransaction;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -25,6 +29,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
@@ -48,6 +53,7 @@ import static org.mockito.Mockito.when;
 class MinigameV4ServiceTests {
     private static final long USER_ID = 101;
     private static final Instant NOW = Instant.parse("2026-10-27T00:00:00.123Z");
+    private static final ObjectMapper JSON = new ObjectMapper();
 
     private final MinigameRepository repository = mock(MinigameRepository.class);
     private final PlatformTransactionManager manager = mock(PlatformTransactionManager.class);
@@ -247,15 +253,15 @@ class MinigameV4ServiceTests {
     }
 
     @Test
-    void v4는_Story1에서_v2_완료로_재해석하거나_보상을_지급하지_않는다() {
+    void v4_완료는_전용_멱등키와_계약을_요구하고_v2로_재해석하지_않는다() {
         BungeoppangV4Responses.StartResponse created =
                 service.startV4(USER_ID, "BUNGEOPPANG", "v4-start");
         long id = Long.parseLong(created.minigameSessionId());
 
         assertThatThrownBy(() -> service.complete(USER_ID, id, BungeoppangFixtures.body("{\"log\":[]}")))
                 .isInstanceOfSatisfying(MinigameException.class, error -> {
-                    assertThat(error.status()).isEqualTo(409);
-                    assertThat(error.code()).isEqualTo("RULES_VERSION_MISMATCH");
+                    assertThat(error.status()).isEqualTo(400);
+                    assertThat(error.code()).isEqualTo("INVALID_REQUEST");
                 });
         assertThat(wallet.balance()).isEqualTo(100);
         assertThat(wallet.reserved()).isEqualTo(10);
@@ -331,6 +337,196 @@ class MinigameV4ServiceTests {
         assertThat(rounds.get(id).approvedThroughSeq()).isZero();
         assertThat(orders.get(id)).hasSize(1);
         assertThat(receipts).hasSize(1);
+        adjustableClock.set(NOW.plusSeconds(65));
+        assertThatThrownBy(() -> service.complete(USER_ID, id, "complete-one",
+                completeBody(id, actions, 0)))
+                .isInstanceOfSatisfying(com.ssafy.ontop.minigame.service.StoredMinigameResponseException.class,
+                        error -> assertThat(error.body().code()).isEqualTo("DELIVERY_REJECTED"));
+        assertThat(sessions.get(id).status()).isEqualTo("PLAYING");
+        assertThat(wallet.balance()).isEqualTo(100);
+    }
+
+    @Test
+    void v4_완료는_서버점수로_한번만_정산하고_같은본문을_재생한다() {
+        AdjustableClock clock = new AdjustableClock(NOW);
+        service = new MinigameService(repository, manager, clock);
+        var started = service.startV4(USER_ID, "BUNGEOPPANG", "v4-start");
+        long id = Long.parseLong(started.minigameSessionId());
+        ReflectionTestUtils.setField(records.get(id), "heats", "[" + "100,".repeat(511) + "100]");
+        clock.set(NOW.plusSeconds(31));
+        var delivery = delivery(id, "delivery-one");
+        service.deliver(USER_ID, id, "delivery-one", delivery);
+        JsonNode body = completeBody(id, delivery.log(), 999_999L);
+        clock.set(NOW.plusSeconds(65));
+
+        var first = (BungeoppangV4CompleteDtos.Response) service.complete(USER_ID, id, "complete-one", body);
+        clock.set(NOW.plusSeconds(65 + 86_400));
+        var sameKey = service.complete(USER_ID, id, "complete-one", body);
+        var anotherKey = service.complete(USER_ID, id, "complete-two", body);
+
+        assertThat(sameKey).isEqualTo(first);
+        assertThat(anotherKey).isEqualTo(first);
+        assertThat(first).satisfies(response -> {
+            assertThat(response.score()).isEqualTo(20);
+            assertThat(response.served()).isEqualTo(2);
+            assertThat(response.coinsCalculated()).isOne();
+            assertThat(response.coinsGranted()).isOne();
+            assertThat(response.rewardAmount()).isOne();
+            assertThat(response.rewardDate()).isEqualTo(java.time.LocalDate.of(2026, 10, 27));
+            assertThat(response.finalThroughSeq()).isEqualTo(9);
+        });
+        assertThat(wallet.balance()).isEqualTo(101);
+        assertThat(wallet.reserved()).isEqualTo(10);
+        assertThat(sessions.get(id).status()).isEqualTo("COMPLETED");
+        assertThat(rounds.get(id).terminalReason()).isEqualTo("VERIFIED");
+        assertThat(((BungeoppangV4Responses.SessionResponse) service.loadSession(USER_ID, id, false)).result())
+                .isEqualTo(first);
+
+        JsonNode changed = completeBody(id, delivery.log(), 1L);
+        assertThatThrownBy(() -> service.complete(USER_ID, id, "complete-one", changed))
+                .isInstanceOfSatisfying(MinigameException.class, error -> {
+                    assertThat(error.status()).isEqualTo(409);
+                    assertThat(error.code()).isEqualTo("IDEMPOTENCY_KEY_CONFLICT");
+                });
+    }
+
+    @Test
+    void v4_완료가_먼저_온_마지막_납품을_같은_트랜잭션에서_승인한다() {
+        AdjustableClock clock = new AdjustableClock(NOW);
+        service = new MinigameService(repository, manager, clock);
+        var started = service.startV4(USER_ID, "BUNGEOPPANG", "v4-start");
+        long id = Long.parseLong(started.minigameSessionId());
+        ReflectionTestUtils.setField(records.get(id), "heats", "[" + "100,".repeat(511) + "100]");
+        var pending = delivery(id, "delivery-lost");
+        clock.set(NOW.plusSeconds(65));
+
+        var result = (BungeoppangV4CompleteDtos.Response) service.complete(USER_ID, id, "complete-one",
+                completeBody(id, pending.log(), 20L));
+
+        assertThat(result).extracting(BungeoppangV4CompleteDtos.Response::score,
+                BungeoppangV4CompleteDtos.Response::coinsGranted).containsExactly(20L, 1L);
+        assertThat(orders.get(id)).hasSize(2);
+        assertThat(receipts).containsKeys(id + ":DELIVERY:delivery-lost", id + ":COMPLETE:complete-one");
+        assertThat(progresses.get(id).acceptedLogJson()).contains("delivery-lost");
+    }
+
+    @Test
+    void v4_너무_이른_완료는_상태를_소비하지_않고_종료후_재시도된다() {
+        AdjustableClock clock = new AdjustableClock(NOW);
+        service = new MinigameService(repository, manager, clock);
+        var started = service.startV4(USER_ID, "BUNGEOPPANG", "v4-start");
+        long id = Long.parseLong(started.minigameSessionId());
+        JsonNode body = completeBody(id, List.of(), 0L);
+
+        clock.set(NOW.plusSeconds(64));
+        assertThatThrownBy(() -> service.complete(USER_ID, id, "complete-one", body))
+                .isInstanceOfSatisfying(MinigameException.class, error -> {
+                    assertThat(error.status()).isEqualTo(422);
+                    assertThat(error.code()).isEqualTo("TOO_EARLY");
+                });
+        assertThat(sessions.get(id).status()).isEqualTo("PLAYING");
+        assertThat(receipts).isEmpty();
+
+        clock.set(NOW.plusSeconds(65));
+        assertThat(service.complete(USER_ID, id, "complete-one", body))
+                .isInstanceOf(BungeoppangV4CompleteDtos.Response.class);
+        assertThat(sessions.get(id).status()).isEqualTo("COMPLETED");
+    }
+
+    @Test
+    void v4_drain중_늦은완료는_판을_바꾸지_않고_expiresAt_이후에만_무보상_만료한다() {
+        AdjustableClock clock = new AdjustableClock(NOW);
+        service = new MinigameService(repository, manager, clock);
+        var started = service.startV4(USER_ID, "BUNGEOPPANG", "v4-start");
+        long id = Long.parseLong(started.minigameSessionId());
+        BungeoppangV4Round round = rounds.get(id);
+        JsonNode body = completeBody(id, List.of(), 0L);
+
+        clock.set(round.submitDeadline().plusMillis(1));
+        assertThatThrownBy(() -> service.complete(USER_ID, id, "complete-late", body))
+                .isInstanceOfSatisfying(MinigameException.class, error -> {
+                    assertThat(error.status()).isEqualTo(409);
+                    assertThat(error.code()).isEqualTo("GAME_NOT_ACTIVE");
+                });
+        assertThat(sessions.get(id).status()).isEqualTo("PLAYING");
+        assertThat(round.terminalReason()).isNull();
+
+        clock.set(round.expiresAt());
+        assertThatThrownBy(() -> service.complete(USER_ID, id, "complete-late", body))
+                .isInstanceOf(MinigameException.class);
+        assertThat(sessions.get(id).status()).isEqualTo("INVALID");
+        assertThat(round.terminalReason()).isEqualTo("SUBMISSION_EXPIRED");
+        assertThat(wallet.balance()).isEqualTo(100);
+        assertThat(receipts).isEmpty();
+    }
+
+    @Test
+    void v4_기한내_수신후_잠금을_기다린_완료는_drain중_늦은요청보다_늦게_처리돼도_정산된다() {
+        AdjustableClock clock = new AdjustableClock(NOW);
+        service = new MinigameService(repository, manager, clock);
+        var started = service.startV4(USER_ID, "BUNGEOPPANG", "v4-start");
+        long id = Long.parseLong(started.minigameSessionId());
+        BungeoppangV4Round round = rounds.get(id);
+        JsonNode body = completeBody(id, List.of(), 0L);
+        AtomicBoolean waiting = new AtomicBoolean(true);
+        // 기한 내 수신한 완료가 잠금을 기다리는 동안 drain 중 도착한 다른 완료가 먼저 잠금을 얻는다.
+        when(manager.getTransaction(any())).thenAnswer(invocation -> {
+            if (waiting.getAndSet(false)) {
+                clock.set(round.submitDeadline().plusSeconds(5));
+                assertThatThrownBy(() -> service.complete(USER_ID, id, "complete-late", body))
+                        .isInstanceOfSatisfying(MinigameException.class,
+                                error -> assertThat(error.code()).isEqualTo("GAME_NOT_ACTIVE"));
+            }
+            return new SimpleTransactionStatus();
+        });
+        clock.set(round.submitDeadline());
+
+        assertThat(service.complete(USER_ID, id, "complete-in-time", body))
+                .isInstanceOf(BungeoppangV4CompleteDtos.Response.class);
+        assertThat(sessions.get(id).status()).isEqualTo("COMPLETED");
+        assertThat(round.terminalReason()).isEqualTo("VERIFIED");
+        assertThat(receipts).containsOnlyKeys(id + ":COMPLETE:complete-in-time");
+    }
+
+    @Test
+    void v4_보상은_정산시각_KST날짜의_v2v4_합산_잔여한도만_지급한다() {
+        when(repository.earned(USER_ID, Instant.parse("2026-10-26T15:00:00Z"), Instant.parse("2026-10-27T15:00:00Z")))
+                .thenReturn(99L);
+
+        var result = settleAt(Instant.parse("2026-10-27T14:58:50Z"), Instant.parse("2026-10-27T14:59:59.999Z"));
+
+        assertThat(result.rewardDate()).isEqualTo(java.time.LocalDate.of(2026, 10, 27));
+        assertThat(result).extracting(BungeoppangV4CompleteDtos.Response::coinsCalculated,
+                BungeoppangV4CompleteDtos.Response::coinsGranted, BungeoppangV4CompleteDtos.Response::todayEarned,
+                BungeoppangV4CompleteDtos.Response::capReached).containsExactly(1L, 1L, 100L, true);
+        assertThat(wallet.balance()).isEqualTo(101);
+        verify(repository).persist(any(WalletTransaction.class));
+    }
+
+    @Test
+    void v4_KST자정_이후_정산은_다음날로_귀속하고_한도소진이면_0냥으로_완료한다() {
+        when(repository.earned(USER_ID, Instant.parse("2026-10-27T15:00:00Z"), Instant.parse("2026-10-28T15:00:00Z")))
+                .thenReturn(100L);
+
+        var result = settleAt(Instant.parse("2026-10-27T14:59:00Z"), Instant.parse("2026-10-27T15:00:05Z"));
+
+        assertThat(result.status()).isEqualTo("COMPLETED");
+        assertThat(result.rewardDate()).isEqualTo(java.time.LocalDate.of(2026, 10, 28));
+        assertThat(result).extracting(BungeoppangV4CompleteDtos.Response::coinsCalculated,
+                BungeoppangV4CompleteDtos.Response::coinsGranted, BungeoppangV4CompleteDtos.Response::todayEarned,
+                BungeoppangV4CompleteDtos.Response::capReached).containsExactly(1L, 0L, 100L, true);
+        assertThat(wallet.balance()).isEqualTo(100);
+        verify(repository, never()).persist(any(WalletTransaction.class));
+    }
+
+    private BungeoppangV4CompleteDtos.Response settleAt(Instant issuedAt, Instant settledAt) {
+        AdjustableClock clock = new AdjustableClock(issuedAt);
+        service = new MinigameService(repository, manager, clock);
+        long id = Long.parseLong(service.startV4(USER_ID, "BUNGEOPPANG", "v4-start").minigameSessionId());
+        ReflectionTestUtils.setField(records.get(id), "heats", "[" + "100,".repeat(511) + "100]");
+        clock.set(settledAt);
+        return (BungeoppangV4CompleteDtos.Response) service.complete(USER_ID, id, "complete-one",
+                completeBody(id, delivery(id, "delivery-one").log(), 20L));
     }
 
     private BungeoppangV4DeliveryDtos.Request delivery(long sessionId, String key) {
@@ -347,6 +543,27 @@ class MinigameV4ServiceTests {
         return new BungeoppangV4DeliveryDtos.Request("v4", actions.size(),
                 BungeoppangV4DeliveryContract.prefixHash(sessionId, BungeoppangV4Spec.CONFIG_VERSION, actions),
                 actions);
+    }
+
+    private JsonNode completeBody(long sessionId, List<BungeoppangV4DeliveryDtos.Action> actions,
+            long clientScore) {
+        var body = JSON.createObjectNode();
+        body.put("rulesVersion", "v4");
+        body.put("throughSeq", actions.size());
+        body.put("prefixHash", BungeoppangV4DeliveryContract.prefixHash(
+                sessionId, BungeoppangV4Spec.CONFIG_VERSION, actions));
+        var log = body.putArray("log");
+        actions.forEach(action -> {
+            var node = log.addObject().put("seq", action.seq()).put("action", action.action()).put("t", action.t());
+            if (action.slot() != null) { node.put("slot", action.slot()); }
+            if (action.filling() != null) { node.put("filling", action.filling()); }
+            if (action.breadId() != null) { node.put("breadId", action.breadId()); }
+            if (action.orderId() != null) { node.put("orderId", action.orderId()); }
+            if (action.deliveryKey() != null) { node.put("deliveryKey", action.deliveryKey()); }
+        });
+        body.putArray("seenTips").add("START");
+        body.put("clientScore", clientScore);
+        return body;
     }
 
     private static final class AdjustableClock extends Clock {

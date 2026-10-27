@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.ssafy.ontop.minigame.dto.BungeoppangV4DeliveryDtos;
+import com.ssafy.ontop.minigame.dto.BungeoppangV4CompleteDtos;
 import java.nio.charset.StandardCharsets;
 import java.io.IOException;
 import java.security.MessageDigest;
@@ -19,6 +20,8 @@ import java.util.Set;
 public final class BungeoppangV4DeliveryContract {
     public static final int MAX_BODY_BYTES = 256 * 1024;
     private static final Set<String> ROOT_FIELDS = Set.of("rulesVersion", "throughSeq", "prefixHash", "log");
+    private static final Set<String> COMPLETE_FIELDS = Set.of(
+            "rulesVersion", "throughSeq", "prefixHash", "log", "seenTips", "clientScore");
     private static final Set<String> COMMON_FIELDS = Set.of("seq", "action", "t");
     private static final ObjectMapper JSON = JsonMapper.builder()
             .enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION).build();
@@ -27,7 +30,11 @@ public final class BungeoppangV4DeliveryContract {
     }
 
     public static BungeoppangV4DeliveryDtos.Request parse(byte[] body) {
-        try { return parse(JSON.readTree(body)); }
+        return parse(parseJson(body));
+    }
+
+    public static JsonNode parseJson(byte[] body) {
+        try { return JSON.readTree(body); }
         catch (IOException exception) { throw invalid(); }
     }
 
@@ -53,8 +60,46 @@ public final class BungeoppangV4DeliveryContract {
         return new BungeoppangV4DeliveryDtos.Request(version, throughSeq, prefixHash, List.copyOf(actions));
     }
 
+    public static BungeoppangV4CompleteDtos.Request parseComplete(JsonNode body) {
+        if (body == null || !body.isObject() || !only(body, COMPLETE_FIELDS)
+                || !body.path("rulesVersion").isTextual()
+                || !body.path("throughSeq").isIntegralNumber() || !body.path("throughSeq").canConvertToInt()
+                || !body.path("prefixHash").isTextual() || !body.path("log").isArray()
+                || body.has("seenTips") && !body.path("seenTips").isArray()
+                || body.has("clientScore") && (!body.path("clientScore").isIntegralNumber()
+                        || !body.path("clientScore").canConvertToLong())) {
+            throw invalid();
+        }
+        String version = body.path("rulesVersion").textValue();
+        int throughSeq = body.path("throughSeq").intValue();
+        String prefixHash = body.path("prefixHash").textValue();
+        if (!BungeoppangV4Spec.RULES_VERSION.equals(version) || throughSeq < 0
+                || !prefixHash.matches("[0-9a-f]{64}") || body.path("log").size() != throughSeq
+                || throughSeq > BungeoppangV4Spec.rules().maxLogEntries()) {
+            throw invalid();
+        }
+        List<BungeoppangV4DeliveryDtos.Action> actions = new ArrayList<>(throughSeq);
+        for (int i = 0; i < throughSeq; i++) { actions.add(parseAction(body.path("log").get(i), i)); }
+        List<String> tips = new ArrayList<>();
+        if (body.has("seenTips")) {
+            if (body.path("seenTips").size() > 5) { throw invalid(); }
+            body.path("seenTips").forEach(tip -> {
+                if (!tip.isTextual()) { throw invalid(); }
+                tips.add(tip.textValue());
+            });
+        }
+        Long clientScore = body.has("clientScore") ? body.path("clientScore").longValue() : null;
+        if (clientScore != null && clientScore < 0) { throw invalid(); }
+        return new BungeoppangV4CompleteDtos.Request(version, throughSeq, prefixHash,
+                List.copyOf(actions), List.copyOf(tips), clientScore);
+    }
+
     public static List<BungeoppangV4Rules.Action> domainActions(BungeoppangV4DeliveryDtos.Request request) {
-        return request.log().stream().map(action -> new BungeoppangV4Rules.Action(action.seq(), action.action(),
+        return domainActions(request.log());
+    }
+
+    public static List<BungeoppangV4Rules.Action> domainActions(List<BungeoppangV4DeliveryDtos.Action> actions) {
+        return actions.stream().map(action -> new BungeoppangV4Rules.Action(action.seq(), action.action(),
                 action.t(), action.slot(), filling(action.filling()), action.breadId(), action.orderId(),
                 action.deliveryKey())).toList();
     }
@@ -79,13 +124,23 @@ public final class BungeoppangV4DeliveryContract {
     }
 
     public static String requestHash(long sessionId, BungeoppangV4DeliveryDtos.Request request) {
-        List<Object[]> tuples = request.log().stream().map(action -> new Object[]{action.seq(), action.action(),
-                action.t(), action.slot(), action.filling(), action.breadId(), action.orderId(),
-                action.deliveryKey()}).toList();
+        List<Object[]> tuples = tuples(request.log());
         Object[] identity = {"DELIVERY", Long.toString(sessionId), request.rulesVersion(),
                 request.throughSeq(), request.prefixHash(), tuples};
         try { return HexFormat.of().formatHex(digest(JSON.writeValueAsBytes(identity))); }
         catch (JsonProcessingException exception) { throw new IllegalStateException("요청 해시 생성 오류", exception); }
+    }
+
+    public static String completeRequestHash(long sessionId, BungeoppangV4CompleteDtos.Request request) {
+        Object[] identity = {"COMPLETE", Long.toString(sessionId), request.rulesVersion(), request.throughSeq(),
+                request.prefixHash(), tuples(request.log()), request.seenTips(), request.clientScore()};
+        try { return HexFormat.of().formatHex(digest(JSON.writeValueAsBytes(identity))); }
+        catch (JsonProcessingException exception) { throw new IllegalStateException("요청 해시 생성 오류", exception); }
+    }
+
+    private static List<Object[]> tuples(List<BungeoppangV4DeliveryDtos.Action> actions) {
+        return actions.stream().map(action -> new Object[]{action.seq(), action.action(), action.t(),
+                action.slot(), action.filling(), action.breadId(), action.orderId(), action.deliveryKey()}).toList();
     }
 
     private static BungeoppangV4DeliveryDtos.Action parseAction(JsonNode node, int index) {

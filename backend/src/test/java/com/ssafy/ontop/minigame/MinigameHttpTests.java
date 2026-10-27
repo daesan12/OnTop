@@ -6,6 +6,8 @@ import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser;
 import com.ssafy.ontop.auth.websocket.WebSocketAccountLookup;
 import com.ssafy.ontop.minigame.dto.BungeoppangV4Responses;
 import com.ssafy.ontop.minigame.dto.BungeoppangV4DeliveryDtos;
+import com.ssafy.ontop.minigame.dto.BungeoppangV4CompleteDtos;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.ssafy.ontop.minigame.dto.MinigameStatusResponse;
 import com.ssafy.ontop.minigame.service.BungeoppangV4Spec;
 import com.ssafy.ontop.minigame.service.MinigameService;
@@ -14,6 +16,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,6 +33,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "spring.profiles.active=local",
@@ -185,6 +190,32 @@ class MinigameHttpTests {
         assertThat(request("/901?includeProgress=true&deliveryKey=delivery-1", null, token, null).statusCode())
                 .isEqualTo(200);
         verify(minigames).loadSession(101, 901, false, true, "delivery-1");
+    }
+
+    @Test
+    void v4_완료는_멱등키와_최종prefix를_전달하고_상세정산을_반환한다() throws Exception {
+        String token = jwt.issue(101, TestLoginSessions.ID);
+        var response = new BungeoppangV4CompleteDtos.Response("901", "COMPLETED", "v4",
+                BungeoppangV4Spec.CONFIG_VERSION, 2, 1, 20, 2, 2, 0, 0, 2,
+                1, 1, 1, 100, false, 2, 2, 1, 0, 0, 0, 0, 0, 0,
+                LocalDate.of(2026, 10, 27), Instant.parse("2026-10-27T00:01:05Z"), 0, "0".repeat(64));
+        when(minigames.complete(eq(101L), eq(901L), eq("complete-1"), any(JsonNode.class)))
+                .thenReturn(response);
+        String body = "{\"rulesVersion\":\"v4\",\"throughSeq\":0,\"prefixHash\":\""
+                + "0".repeat(64) + "\",\"log\":[],\"seenTips\":[],\"clientScore\":999}";
+
+        var result = request("/901/complete", body, token, "complete-1");
+
+        assertThat(result.statusCode()).isEqualTo(200);
+        assertThat(result.headers().firstValue("Cache-Control").orElseThrow()).contains("no-store");
+        assertThat(result.body()).contains("\"rulesVersion\":\"v4\"", "\"coinsGranted\":1",
+                "\"rewardDate\":\"2026-10-27\"", "\"finalPrefixHash\":\"" + "0".repeat(64) + "\"");
+        verify(minigames).complete(eq(101L), eq(901L), eq("complete-1"), any(JsonNode.class));
+        assertThat(request("/901/complete", body.replaceFirst("\\{\\\"rulesVersion\\\":\\\"v4\\\"",
+                "{\\\"rulesVersion\\\":\\\"v4\\\",\\\"rulesVersion\\\":\\\"v4\\\""),
+                token, "complete-2").statusCode()).isEqualTo(400);
+        assertThat(request("/901/complete", " ".repeat(256 * 1024 + 1), token,
+                "complete-2").statusCode()).isEqualTo(413);
     }
 
     @Test
