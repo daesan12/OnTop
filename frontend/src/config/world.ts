@@ -242,7 +242,7 @@ export const WORLD_COLLIDERS: readonly BoxCollider[] = [
       movementHeight: 2.5,
     })),
   ),
-  // These stone seats are rendered by TableShell too, not only pavilion chairs.
+  // Outdoor stone seats are rendered too; use the server bake's movement walls.
   ...TABLES.filter((t) => !t.pavilionId && !t.picnicId).flatMap((t) =>
     tableSeats(t).map((seat, i) => ({
       id: `${t.id}-stone-seat-${i}`,
