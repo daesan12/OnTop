@@ -117,11 +117,15 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
   // Entering a bench, telescope or fitness station clears movement keys but keeps mouse look;
   // callers that open a panel or minigame release it, as does any clear while simply roaming.
   // Controllers clear input just before marking their request pending, so decide after they finish.
+  // The map, emote wheel and manual only borrow the cursor: closing them returns to mouse look.
   const clearInput = () => {
+    const wasLocked = mouseLook.locked()
     stop()
     queueMicrotask(() => {
       const owner = lookOwner()
-      if (owner === null || owner === 'park') mouseLook.release()
+      if (owner !== null && owner !== 'park') return
+      mouseLook.release()
+      if (wasLocked && (inputState.mapOpen || inputState.emoteWheelOpen || inputState.manualOpen)) mouseLookReturn.requested = true
     })
   }
   const abandonMouseLook = () => { cancelMouseLookReturn(); clear() }
@@ -286,7 +290,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
   const interval = setInterval(() => {
     const owner = lookOwner()
     if (owner === null) mouseLook.release()
-    else if (owner === 'park' && mouseLookReturn.requested) mouseLook.resume()
+    else if (owner !== 'hold' && mouseLookReturn.requested) mouseLook.resume()
     if (blocked()) {
       if (benchExitKey && useSession.getState().benchId && useSession.getState().status === 'connected'
         && !document.hidden && !panelOwnsKeys() && !textInputOwnsKeys(document.activeElement)) return
