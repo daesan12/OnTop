@@ -3,30 +3,42 @@ import { BUNGEOPPANG as R } from './config'
 import { parkRuntime } from '../../park/runtime/runtime'
 import { RestError } from '../../network/restError'
 import { record } from '../../network/protocol'
+import type { BreadOrder, BungeoppangRules, GrillLogEntry as V4Log } from './rulesV4'
+import { bungeoppangV4Preview } from './config'
+import { createV4PreviewService } from './serviceV4Preview'
+import { createBungeoppangV4Service, type V4Checkpoint } from './serviceV4'
 
 export interface BungeoppangStatus {
   todayEarned: number; dailyCap: number; isFirstGame: boolean; seenTips: string[]; rulesVersion: string
 }
 export interface BungeoppangGame {
   gameId: string; startedAt: string; rulesVersion: string; heats: number[]; isFirstGame: boolean
+  v4?: { configVersion?: string; order: BreadOrder; rules: Readonly<BungeoppangRules & { rulesVersion: 'v4' }>
+    timing?: { countdownStartsAt: string; playStartsAt: string; playEndsAt: string; submitDeadline: string; expiresAt: string }
+    checkpoint?: V4Checkpoint }
 }
 export interface BungeoppangSubmit {
-  gameId: string; log: GrillLogEntry[]; seenTips: string[]; clientScore: number
+  gameId: string; log: (GrillLogEntry | V4Log)[]; seenTips: string[]; clientScore: number
+  deliveryKey?: string
 }
 export interface BungeoppangSubmitResult {
   score: number; made: number; golden: number; failed: number; wasted: number; maxCombo: number
   coinsCalculated: number; coinsGranted: number; todayEarned: number; dailyCap: number; capReached: boolean
+  served?: number; customersServed?: number; specialServed?: number; bonusScore?: number
 }
 export class BungeoppangServiceError extends Error {
-  constructor(readonly code: string, message: string, readonly retryable = false) { super(message) }
+  constructor(readonly code: string, message: string, readonly retryable = false, readonly status = 0) { super(message) }
 }
 export interface BungeoppangService {
-  readonly mock: false
+  readonly mock: boolean
   getStatus(): Promise<BungeoppangStatus>
   startGame(key: string): Promise<BungeoppangGame>
   submitResult(request: BungeoppangSubmit): Promise<BungeoppangSubmitResult>
   abandon(gameId: string): Promise<void>
   balance(): Promise<number>
+  /** FE internal port. Implement its transport only after the v4 BE contract is approved. */
+  nextOrder?(request: BungeoppangSubmit): Promise<{ index: number; order: BreadOrder; checkpoint?: V4Checkpoint }>
+  recoverV4?(gameId: string): Promise<{ grill: import('./rulesV4').GrillState; checkpoint: V4Checkpoint }>
 }
 const tips = ['START', 'POUR', 'GOLD', 'BURNT', 'RUSH']
 const whole = (n: unknown): n is number => Number.isSafeInteger(n) && Number(n) >= 0
@@ -90,6 +102,9 @@ export function createBungeoppangService(requestJSON: (path: string, init?: Requ
       return { gameId: p.minigameSessionId, startedAt: p.startedAt, rulesVersion: R.rulesVersion, heats: [...p.heats] as number[], isFirstGame: p.isFirstGame }
     },
     async submitResult(input) {
+      // Never send v4 records to the existing v2 completion API.
+      if (input.log.some(e => !['POUR', 'FILL', 'TURN', 'DISCARD'].includes(e.action) || 'filling' in e || 'order' in e))
+        throw new BungeoppangServiceError('RULES_VERSION_MISMATCH', messages.RULES_VERSION_MISMATCH!)
       const p = await request(sessionPath(input.gameId) + '/complete', post({ log: input.log, seenTips: input.seenTips, clientScore: input.clientScore }))
       const fields = ['score', 'made', 'golden', 'failed', 'wasted', 'maxCombo', 'coinsCalculated', 'coinsGranted', 'todayEarned'] as const
       if (!record(p) || p.minigameSessionId !== input.gameId || p.status !== 'COMPLETED'
@@ -110,4 +125,6 @@ export function createBungeoppangService(requestJSON: (path: string, init?: Requ
     },
   }
 }
-export const bungeoppangService = createBungeoppangService((path, init) => parkRuntime.requestJSON(path, init))
+export const bungeoppangService: BungeoppangService = bungeoppangV4Preview
+  ? createV4PreviewService()
+  : createBungeoppangV4Service((path, init) => parkRuntime.requestJSON(path, init))

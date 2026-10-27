@@ -1,6 +1,6 @@
 import { createMockSurrenderService } from './mock/MockSurrenderService'
 
-// FE preview port, not a proposed WS/REST contract. No current public manual-resign command.
+// Preview-only port. Production GAME_FORFEIT uses the shared ParkRuntime transport.
 export interface SurrenderContext { gameId: string; userId: string; version: number }
 export interface SurrenderPreview { previewOnly: true; outcome: 'FORFEIT'; gameId: string }
 export interface SurrenderService {

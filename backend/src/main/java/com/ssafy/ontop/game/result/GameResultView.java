@@ -27,6 +27,7 @@ public record GameResultView(@JsonIgnore long userId, long version, String gameS
         if (participants.size() < 2 || participants.size() > 4
                 || participants.stream().anyMatch(participant -> !ids.add(participant.userId()))
                 || !ids.contains(Long.toString(userId))
+                || status == Status.FINISHED && participants.stream().anyMatch(p -> p.result() == null)
                 || settlementStatus == SettlementStatus.PENDING && myCoinDelta != null
                 || settlementStatus == SettlementStatus.SETTLED && myCoinDelta == null
                 || myCoinDelta != null && (myCoinDelta < -MAX_NUMBER || myCoinDelta > MAX_NUMBER)
@@ -45,7 +46,7 @@ public record GameResultView(@JsonIgnore long userId, long version, String gameS
 
     public record Participant(String userId, String result) {
         public Participant {
-            if (userId == null || !userId.matches("[1-9][0-9]{0,18}") || !token(result)) {
+            if (userId == null || !userId.matches("[1-9][0-9]{0,18}") || result != null && !token(result)) {
                 throw new IllegalArgumentException("참가 결과 형식을 확인해주세요.");
             }
         }

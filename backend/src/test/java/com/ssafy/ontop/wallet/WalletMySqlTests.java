@@ -73,16 +73,17 @@ class WalletMySqlTests {
     }
 
     @Test
-    void 상점없이_V6와_지갑엔티티와_FK와_조회인덱스가_등록된다() {
+    void 상점없이_V112와_지갑엔티티와_FK와_조회인덱스가_등록된다() {
         assertThat(jdbc.queryForObject("SELECT VERSION()", String.class)).startsWith("8.4.");
         assertThat(entities.getMetamodel().getEntities()).extracting(type -> type.getJavaType().getName())
                 .contains(Wallet.class.getName(), WalletTransaction.class.getName());
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("6");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("112");
         assertThat(flyway.migrate().migrationsExecuted).isZero();
         assertThat(jdbc.queryForList("""
                 SELECT CONSTRAINT_NAME FROM information_schema.REFERENTIAL_CONSTRAINTS
                 WHERE CONSTRAINT_SCHEMA=DATABASE() AND TABLE_NAME IN ('wallets','wallet_transactions')
-                """, String.class)).containsExactlyInAnyOrder("fk_wallets_user", "fk_wallet_transactions_wallet");
+                """, String.class)).containsExactlyInAnyOrder("fk_wallets_user", "fk_wallet_transactions_wallet",
+                        "fk_wallet_transactions_game_session");
         assertThat(jdbc.queryForObject("""
                 SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE()
                 AND TABLE_NAME='wallet_transactions' AND INDEX_NAME='ix_wallet_transactions_wallet_id'

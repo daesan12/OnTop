@@ -1,9 +1,11 @@
 package com.ssafy.ontop.world.service;
 
 import com.ssafy.ontop.world.config.WorldProximityProperties;
+import com.ssafy.ontop.world.map.WorldMapRuntime;
 import com.ssafy.ontop.world.service.WorldChannelRegistry.Position;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 
 @Service
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
@@ -15,6 +17,11 @@ public class WorldProximity {
     public WorldProximity(WorldChannelRegistry channels, WorldProximityProperties properties) {
         this.channels = channels;
         this.properties = properties;
+    }
+
+    @Autowired
+    public WorldProximity(WorldChannelRegistry channels, WorldProximityProperties properties, WorldMapRuntime runtime) {
+        this(channels, runtime.prepared().map(park -> park.proximity()).orElse(properties));
     }
 
     public boolean hasPosition(String userId) {

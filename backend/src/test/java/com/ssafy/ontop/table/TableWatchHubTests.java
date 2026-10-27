@@ -65,20 +65,21 @@ class TableWatchHubTests {
         first.request("TABLE_JOIN", Map.of("tableId", table));
         assertThat(viewer.nextWatch().path("payload").path("seats").get(0).path("userId").asText())
                 .isEqualTo(first.userId);
-        first.request("GAME_SELECT", Map.of("gameCode", "OMOK"));
+        first.request("GAME_SELECT", Map.of("betAmountPerPlayer", 1, "gameCode", "OMOK"));
         assertThat(viewer.nextWatch().path("payload").path("gameCode").asText()).isEqualTo("OMOK");
         second.request("TABLE_JOIN", Map.of("tableId", table));
         viewer.nextWatch();
-        first.request("READY_SET", Map.of("ready", true));
+        first.request("TABLE_JOIN", Map.of("tableId", table));
+        assertThat(first.request("READY_SET", Map.of("ready", true)).path("type").asText()).isEqualTo("TABLE_STATE");
         viewer.nextWatch();
         second.request("READY_SET", Map.of("ready", true));
         JsonNode ready = viewer.nextWatch().path("payload");
         assertThat(ready.path("allReady").asBoolean()).isTrue();
         assertThat(ready.path("seats").size()).isEqualTo(2);
         assertThat(ready.has("gameSessionId")).isFalse();
-        assertThat(viewer.request("READY_SET", Map.of("ready", true)).path("payload").path("code").asText())
+        assertThat(viewer.request("READY_SET", Map.of("ready", true, "betAmountPerPlayer", 1, "expectedVersion", 0)).path("payload").path("code").asText())
                 .isEqualTo("NOT_SEATED");
-        assertThat(viewer.request("GAME_SELECT", Map.of("gameCode", "DICE", "targetScore", 4000))
+        assertThat(viewer.request("GAME_SELECT", Map.of("betAmountPerPlayer", 1, "gameCode", "DICE", "targetScore", 4000))
                 .path("payload").path("code").asText()).isEqualTo("NOT_SEATED");
     }
 
@@ -124,7 +125,7 @@ class TableWatchHubTests {
         assertThat(viewer.seen.stream().filter(m -> m.path("type").asText().equals("TABLE_WATCH_LEFT")))
                 .hasSize(2);
         viewer.join("two");
-        player.request("GAME_SELECT", Map.of("gameCode", "OMOK"));
+        player.request("GAME_SELECT", Map.of("betAmountPerPlayer", 1, "gameCode", "OMOK"));
         viewer.noWatch();
         assertCode(viewer.request("TABLE_UNWATCH", Map.of()), "NOT_WATCHING");
     }
@@ -157,10 +158,11 @@ class TableWatchHubTests {
         viewer.join("one");
         String table = table("one", 0);
         first.request("TABLE_JOIN", Map.of("tableId", table));
-        first.request("GAME_SELECT", Map.of("gameCode", "OMOK"));
+        first.request("GAME_SELECT", Map.of("betAmountPerPlayer", 1, "gameCode", "OMOK"));
         second.request("TABLE_JOIN", Map.of("tableId", table));
         viewer.request("TABLE_WATCH", Map.of("tableId", table));
         assertCode(viewer.request("TABLE_JOIN", Map.of("tableId", table)), "TABLE_FULL");
+        first.request("TABLE_JOIN", Map.of("tableId", table));
         first.request("READY_SET", Map.of("ready", true));
         assertThat(viewer.nextWatch().path("payload").path("seats").get(0).path("ready").asBoolean()).isTrue();
         second.request("TABLE_LEAVE", Map.of());
@@ -181,7 +183,7 @@ class TableWatchHubTests {
         remaining.request("TABLE_WATCH", Map.of("tableId", table));
         hub.disconnect(viewer.id);
         hub.disconnect(viewer.id);
-        player.request("GAME_SELECT", Map.of("gameCode", "OMOK"));
+        player.request("GAME_SELECT", Map.of("betAmountPerPlayer", 1, "gameCode", "OMOK"));
         assertThat(remaining.nextWatch().path("payload").path("gameCode").asText()).isEqualTo("OMOK");
         viewer.noWatch();
         assertThat(hub.listTables("one").tables().getFirst().occupiedSeats()).isEqualTo(1);
@@ -210,10 +212,11 @@ class TableWatchHubTests {
         viewer.request("TABLE_WATCH", Map.of("tableId", "table-1"));
         viewer.seen.clear();
         first.request("TABLE_JOIN", Map.of("tableId", "table-1"));
-        first.request("GAME_SELECT", Map.of("gameCode", "OMOK"));
+        first.request("GAME_SELECT", Map.of("betAmountPerPlayer", 1, "gameCode", "OMOK"));
         second.request("TABLE_JOIN", Map.of("tableId", "table-1"));
-        first.request("READY_SET", Map.of("ready", true));
-        second.request("READY_SET", Map.of("ready", true));
+        first.request("TABLE_JOIN", Map.of("tableId", "table-1"));
+        assertThat(first.request("READY_SET", Map.of("ready", true)).path("type").asText()).isEqualTo("TABLE_STATE");
+        assertThat(second.request("READY_SET", Map.of("ready", true)).path("type").asText()).isEqualTo("TABLE_STATE");
         JsonNode start;
         do {
             start = first.next("GAME_START_STATE");
@@ -254,7 +257,7 @@ class TableWatchHubTests {
         when(session.getId()).thenReturn(peer.id);
         doAnswer(invocation -> {
             if (invocation.getArgument(0) instanceof TextMessage text) {
-                peer.messages.add(mapper.readTree(text.getPayload()));
+                peer.messages.add(ReadyConsent.received(peer, mapper.readTree(text.getPayload())));
             }
             return null;
         }).when(session).sendMessage(any());
@@ -277,7 +280,7 @@ class TableWatchHubTests {
 
         private JsonNode request(String type, Object payload) throws Exception {
             String requestId = UUID.randomUUID().toString();
-            hub.receive(id, mapper.writeValueAsString(Map.of("requestId", requestId, "type", type, "payload", payload)));
+            hub.receive(id, mapper.writeValueAsString(Map.of("requestId", requestId, "type", type, "payload", ReadyConsent.payload(this, type, payload))));
             return await("requestId", requestId);
         }
 

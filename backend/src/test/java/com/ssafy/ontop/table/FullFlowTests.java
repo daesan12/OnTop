@@ -64,7 +64,7 @@ class FullFlowTests {
                     .contains("101", "202");
             pass("두 명 같은 테이블 착석");
 
-            assertThat(first.request("GAME_SELECT", Map.of("gameCode", "DICE", "targetScore", 4000))
+            assertThat(first.request("GAME_SELECT", Map.of("betAmountPerPlayer", 1, "gameCode", "DICE", "targetScore", 4000))
                     .path("payload").path("gameCode").asText()).isEqualTo("DICE");
             second.await(message -> message.path("type").asText().equals("TABLE_STATE")
                     && message.path("payload").path("gameCode").asText().equals("DICE"));

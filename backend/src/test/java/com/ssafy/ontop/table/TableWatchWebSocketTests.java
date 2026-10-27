@@ -46,7 +46,7 @@ class TableWatchWebSocketTests {
             JsonNode publicState = viewer.await(message -> message.path("type").asText().equals("TABLE_WATCH_STATE"));
             assertThat(publicState.path("requestId").isNull()).isTrue();
             assertThat(publicState.path("payload").path("seats").get(0).path("userId").asText()).isEqualTo("101");
-            player.request("GAME_SELECT", Map.of("gameCode", "OMOK"));
+            player.request("GAME_SELECT", Map.of("betAmountPerPlayer", 1, "gameCode", "OMOK"));
             assertThat(viewer.await(message -> message.path("type").asText().equals("TABLE_WATCH_STATE"))
                     .path("payload").path("gameCode").asText()).isEqualTo("OMOK");
             viewer.request("CHANNEL_LEAVE", Map.of());

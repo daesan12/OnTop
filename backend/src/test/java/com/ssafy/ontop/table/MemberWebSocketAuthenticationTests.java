@@ -90,7 +90,7 @@ class MemberWebSocketAuthenticationTests {
             }
             assertThat(first.request("TABLE_JOIN", Map.of("tableId", table))
                     .path("payload").path("tableId").asText()).isEqualTo(table);
-            assertThat(first.request("GAME_SELECT", Map.of("gameCode", "OMOK", "userId", "202"))
+            assertThat(first.request("GAME_SELECT", Map.of("betAmountPerPlayer", 1, "gameCode", "OMOK", "userId", "202"))
                     .path("payload").path("code").asText()).isEqualTo("INVALID_PAYLOAD");
         }
     }

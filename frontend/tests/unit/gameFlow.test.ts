@@ -6,7 +6,7 @@ import {
   tableBusy,
   useGame,
 } from '../../src/game/store'
-import { parseGame, parseOmok } from '../../src/game/protocol'
+import { parseGame, parseOmok, parseResult } from '../../src/game/protocol'
 import type { Envelope } from '../../src/network/protocol'
 
 const deadline = '2099-01-01T00:00:30Z'
@@ -52,6 +52,42 @@ function snapshot(version: number, state = omok(), role = 'PLAYER') {
   }
 }
 beforeEach(resetGame)
+
+const invalidResult = () => ({
+  version: 1, gameSessionId: 'game-real', gameCode: 'OMOK', status: 'INVALID',
+  endReason: 'ENGINE_LOST', settlementStatus: 'PENDING', betAmountPerPlayer: 7,
+  participants: [{ userId: '101', result: null }, { userId: '102', result: null }],
+  myCoinDelta: null, endedAt: '2026-10-26T00:00:00Z',
+})
+describe('stored terminal result contract', () => {
+  it('preserves nullable INVALID outcomes and the server fee, reason and result version', () => {
+    const payload = invalidResult()
+    expect(parseResult(payload, '101')).toEqual(payload)
+    const settled = { ...payload, version: 2, settlementStatus: 'SETTLED', myCoinDelta: 0 }
+    expect(parseResult(settled, '101')).toEqual(settled)
+    expect(parseResult(settled, '101').participants[0]?.result).toBeNull()
+  })
+  it('requires a verdict for FINISHED and keeps INVALID forfeit verdicts without fabricating nulls', () => {
+    expect(() => parseResult({ ...invalidResult(), status: 'FINISHED' }, '101')).toThrow()
+    const aborted = { ...invalidResult(), endReason: 'ABORTED_NO_PLAYERS',
+      participants: [{ userId: '101', result: 'FORFEIT' }, { userId: '102', result: 'FORFEIT' }] }
+    expect(parseResult(aborted, '101').participants).toEqual(aborted.participants)
+  })
+  it.each([
+    { settlementStatus: 'PENDING', myCoinDelta: 0 },
+    { settlementStatus: 'SETTLED', myCoinDelta: null },
+    { settlementStatus: 'SETTLED', myCoinDelta: 7 },
+    { betAmountPerPlayer: 0 }, { betAmountPerPlayer: Number.MAX_SAFE_INTEGER + 1 },
+    { endReason: null },
+    { participants: [{ userId: '101' }, { userId: '102', result: null }] },
+  ])('rejects an inconsistent stored result: %j', patch => {
+    expect(() => parseResult({ ...invalidResult(), ...patch }, '101')).toThrow()
+  })
+  it('still rejects a result without the recipient or with duplicate participants', () => {
+    expect(() => parseResult(invalidResult(), '103')).toThrow()
+    expect(() => parseResult({ ...invalidResult(), participants: [{ userId: '101', result: null }, { userId: '101', result: null }] }, '101')).toThrow()
+  })
+})
 describe('server-authoritative OMOK slice', () => {
   it('blocks input during settlement even if the final board arrives later', () => {
     restore()

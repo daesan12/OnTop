@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { bindAnchor } from '../../network/tableBindings'
 import { useSession } from '../../network/worldClient'
@@ -9,17 +9,22 @@ import { TABLE_GAMES, canLeaveByMovement, waitingForRound } from './model'
 import { publicMatchService } from './publicMatch'
 import { resetSeatedLook, useTableLobby } from './state'
 import './tableLobby.css'
-
-const resultNames: Record<string, string> = { WIN: '승리', LOSE: '패배', DRAW: '무승부', FORFEIT: '기권', ELIMINATED: '탈락', INVALID: '무효' }
+import { useGathering } from './gathering'
+import { TableGatheringHud } from './TableGatheringHud'
+import { gameState } from '../../game/protocol'
+import { participantResultLabel, resultSettlement } from './gatheringModel'
 
 export function TableLobby() {
   const runtime = useParkRuntime()
+  const gathering = useGathering(), details = useTableLobby(s => s.gatheringDetails)
   const s = useSession(useShallow(s => ({
     own: s.sessionId, channel: s.roomId, focused: s.focusedAnchorId, seated: s.tableId,
     tables: s.tables, states: s.tableStates, bindings: s.bindings, pending: s.pending,
     connected: s.status === 'connected', profiles: s.profiles, bench: s.benchId,
   })))
   const game = useGame(s => s.game), start = useGame(s => s.start), busy = useGame(tableBusy)
+  const roundStatus = game && gameState(game).status
+  useEffect(resetSeatedLook, [game?.gameId, roundStatus, start?.phase])
   const lastResult = useGame(s => s.lastResult)
   const gameError = useGame(s => s.error)
   const movementExit = useGame(game => {
@@ -32,13 +37,18 @@ export function TableLobby() {
   const table = tableId ? s.states[tableId] : undefined
   const summary = s.tables.find(t => t.tableId === tableId)
   const ownTable = s.seated === tableId && !!tableId
+  if (gathering && details !== gathering.scope && (gathering.gameCode || gathering.finished)) return <TableGatheringHud model={gathering} />
   if (!s.focused || !query.panelOpen || game) return null
   const ref = tableId ? publicMatchService.find({ channelId: s.channel, tableId }) : null
   const canWatch = !!ref && ref.tableId === tableId && ref.channelId === s.channel
     && !s.seated && !busy && s.connected
   return <section role="dialog" aria-label="테이블 정보" className="park-runtime-panel park-table-panel table-lobby">
     <div className="table-lobby-heading"><strong>테이블 · {s.focused || s.bindings.find(b => b.tableId === tableId)?.anchorId}</strong>
-      <button aria-label="테이블 정보 닫기" onClick={runtime.closeTable}>닫기</button></div>
+      <div className="table-heading-actions">{ownTable && <button disabled={s.pending || busy || !s.connected} onClick={() => void runtime.leaveTable()}>일어나기</button>}
+        <button aria-label="테이블 정보 닫기" onClick={runtime.closeTable}>닫기</button></div></div>
+    {gathering && <button className="gathering-settings-return" onClick={() => useTableLobby.setState({ gatheringDetails: '' })}>테이블 함께 보기</button>}
+    <div className="prototype-table-heading"><h2>{TABLE_GAMES.find(g => g.code === table?.gameCode)?.name ?? '어떤 한 판 할까요?'}</h2><span aria-hidden="true">{table?.gameCode === 'DICE' ? '⚄' : table?.gameCode === 'ONE_CARD' ? '♠' : table?.gameCode === 'LIAR_BRIDGE' ? '橋' : '五目'}</span></div>
+    <p className="table-lobby-note">{table?.gameCode === 'OMOK' ? '15×15 렌주 · 흑 금수 · 한 수 30초' : table?.gameCode === 'DICE' ? '주사위 6개 · R 굴리기 · Q Bank · 차례 전체 30초' : table?.gameCode === 'ONE_CARD' ? '2~4인 · 손패 7장 · 원카드 선언 · 차례 전체 30초' : table?.gameCode === 'LIAR_BRIDGE' ? '2~4인 · 비밀 주사위와 다우트 · 말 3개 골인' : '자리에 앉아 함께할 게임을 선택하세요.'}</p>
     {!tableId ? <p>서버 테이블과 공원 배치 연결이 필요합니다.</p> : <>
       {gameError && <p role="alert">{gameError}</p>}
       <p className="table-lobby-role">{ownTable ? '참가자' : '공개 대기 상태 보기'} · {table ? `${table.seats.filter(s => s.userId).length}/${table.capacity}석` : `${summary?.occupiedSeats ?? '—'}/${summary?.capacity ?? '—'}석`}</p>
@@ -50,16 +60,15 @@ export function TableLobby() {
         <span>{seat.userId && seat.userId === table.selectorUserId ? '방장 · ' : ''}{seat.userId ? seat.ready ? '준비' : '대기' : '비어 있음'}</span>
       </li>)}</ol>}
       {lastResult && ownTable && <section aria-label="지난 판 결과" className="table-round-result">
-        <strong>지난 판 결과</strong>
-        <p>{lastResult.participants.map(p => `${p.userId === s.own ? '나' : s.profiles[p.userId]?.nickname ?? '상대'}: ${resultNames[p.result] ?? '결과 확인 필요'}`).join(' · ')}</p>
-        <p>{lastResult.settlementStatus === 'SETTLED' ? `정산 완료 · 내 엽전 증감 ${lastResult.myCoinDelta}` : '정산 확인 대기'}</p>
+        <strong>지난 판 결과{lastResult.status === 'INVALID' && ' · 무효 경기'}</strong>
+        <p>{lastResult.participants.map(p => `${p.userId === s.own ? '나' : s.profiles[p.userId]?.nickname ?? '상대'}: ${participantResultLabel(lastResult.status, p.result)}`).join(' · ')}</p>
+        <p>{resultSettlement(lastResult)}</p>
         <p>좌석은 유지됩니다. 서버가 대기실을 연 뒤 다시 준비하면 새 판을 시작합니다.</p>
-        <button disabled={s.pending || !s.connected || !waitingForRound(start, tableId)} onClick={() => useGame.setState({ lastResult: null, dismissedResult: { gameId: lastResult.gameSessionId, version: lastResult.version } })}>
+        <button disabled={s.pending || !s.connected || lastResult.settlementStatus !== 'SETTLED' || !waitingForRound(start, tableId)} onClick={() => useGame.setState({ lastResult: null, dismissedResult: { gameId: lastResult.gameSessionId, version: lastResult.version } })}>
           {table?.selectorUserId === s.own ? '다음 판 준비' : '대기실로 돌아가기'}</button>
       </section>}
       {ownTable ? <>
         <GameControls tableId={tableId} />
-        <button disabled={s.pending || busy || !s.connected} onClick={() => void runtime.leaveTable()}>일어나기</button>
         <p className="table-lobby-note">{movementExit ? '미준비 대기 중에는 창을 닫고 이동키로 일어날 수 있어요.' : '준비·경기·정산 중 이동키로 퇴장하지 않습니다.'}</p>
         <button onClick={resetSeatedLook}>정면 보기</button>
         <small>마우스 오른쪽 드래그로 주변을 둘러볼 수 있어요.</small>

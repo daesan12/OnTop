@@ -189,10 +189,10 @@ describe('M02 real runtime delivery through the existing SharedSocket', () => {
         world()
       } else {
         useSession.setState({ tables: [{ tableId: 't', capacity: 2, occupiedSeats: 1, availableSeats: 1,
-          joinable: true, gameCode: null, status: 'WAITING' }] })
+          joinable: true, gameCode: null, betAmountPerPlayer: null, status: 'WAITING' }] })
         socket.emit('TABLE_STATE', { tableId: 't', version: 1, capacity: 2, minimumPlayers: 2,
           seats: [{ seatNumber: 1, userId: '101', ready: false }, { seatNumber: 2, userId: null, ready: false }],
-          allReady: false, selectorUserId: '101', gameCode: null, targetScore: null })
+          allReady: false, selectorUserId: '101', gameCode: null, betAmountPerPlayer: null, targetScore: null })
         socket.emit('TABLE_LEFT', { tableId: 't' })
       }
       await vi.advanceTimersByTimeAsync(120)

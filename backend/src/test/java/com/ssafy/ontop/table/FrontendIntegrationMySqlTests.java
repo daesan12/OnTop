@@ -93,7 +93,7 @@ class FrontendIntegrationMySqlTests {
 
             one.request("TABLE_JOIN", Map.of("tableId", tableId));
             two.request("TABLE_JOIN", Map.of("tableId", tableId));
-            one.request("GAME_SELECT", Map.of("gameCode", "OMOK"));
+            one.request("GAME_SELECT", Map.of("betAmountPerPlayer", 1, "gameCode", "OMOK"));
             one.request("READY_SET", Map.of("ready", true));
             assertThat(two.request("READY_SET", Map.of("ready", true))
                     .path("payload").path("allReady").asBoolean()).isTrue();

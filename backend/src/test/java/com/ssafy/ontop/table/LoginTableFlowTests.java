@@ -65,7 +65,7 @@ class LoginTableFlowTests {
             assertThat(second.request("TABLE_JOIN", Map.of("tableId", tableId))
                     .path("payload").path("code").asText()).isEqualTo("TABLE_CHANNEL_MISMATCH");
             first.request("TABLE_JOIN", Map.of("tableId", tableId));
-            first.request("GAME_SELECT", Map.of("gameCode", "OMOK"));
+            first.request("GAME_SELECT", Map.of("betAmountPerPlayer", 1, "gameCode", "OMOK"));
             first.request("READY_SET", Map.of("ready", true));
             assertThat(list("channel-1").get(0).path("occupiedSeats").asInt()).isEqualTo(1);
             second.request("CHANNEL_LEAVE", Map.of());

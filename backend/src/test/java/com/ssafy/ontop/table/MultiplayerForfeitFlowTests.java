@@ -97,10 +97,14 @@ class MultiplayerForfeitFlowTests {
                 assertThat(player.request("TABLE_JOIN", Map.of("tableId", TABLE)).path("type").asText())
                         .isEqualTo("TABLE_STATE");
                 if (player == players.getFirst()) {
-                    player.request("GAME_SELECT", Map.of("gameCode", code));
+                    player.request("GAME_SELECT", Map.of("betAmountPerPlayer", 1, "gameCode", code));
                 }
             }
-            for (var player : players) { player.request("READY_SET", Map.of("ready", true)); }
+            for (var player : players) {
+                // 최종 착석 이후 수신한 상태로 참가비/버전을 확인한다.
+                assertThat(player.request("TABLE_JOIN", Map.of("tableId", TABLE)).path("type").asText()).isEqualTo("TABLE_STATE");
+                assertThat(player.request("READY_SET", Map.of("ready", true)).path("type").asText()).isEqualTo("TABLE_STATE");
+            }
             reservation.release.countDown();
             var started = tableState(viewer, GAME);
             for (var player : players) { player.state("RESTORED"); }
@@ -163,7 +167,7 @@ class MultiplayerForfeitFlowTests {
                     .hasSize(count - 1);
             assertThat(finished.participants().stream().filter(p -> p.result() == GameFinished.Result.WIN)
                     .map(GameFinished.Participant::userId)).containsExactly(101L);
-            assertThat(returned.request("READY_SET", Map.of("ready", true))
+            assertThat(returned.request("READY_SET", Map.of("ready", true, "betAmountPerPlayer", 1, "expectedVersion", 0))
                     .at("/payload/code").asText()).isEqualTo("TABLE_BUSY");
 
             // 저장/정산은 대역이다. 전체 최초 참가자와 맞지 않는 SETTLED는 다음 판을 열 수 없다.
@@ -181,9 +185,11 @@ class MultiplayerForfeitFlowTests {
                     && message.at("/payload/phase").asText().equals("WAITING"));
             assertThat(summary().path("status").asText()).isEqualTo("WAITING");
             for (int index = 0; index < count - 1; index++) {
+                players.get(index).request("TABLE_JOIN", Map.of("tableId", TABLE));
                 players.get(index).request("READY_SET", Map.of("ready", true));
             }
             assertThat(reservation.reservations).hasValue(1);
+            players.getLast().request("TABLE_JOIN", Map.of("tableId", TABLE));
             players.getLast().request("READY_SET", Map.of("ready", true));
             var next = tableState(viewer, GAME + "-2");
             for (var player : players) { player.state("RESTORED"); }

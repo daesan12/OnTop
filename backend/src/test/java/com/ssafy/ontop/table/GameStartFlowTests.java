@@ -40,18 +40,19 @@ class GameStartFlowTests {
     void 다인게임은_현재_참가자_전원_준비시_빈좌석을_제외하고_한번_시작한다(String game, int count)
             throws Exception {
         Peer first = seated();
-        first.request("GAME_SELECT", game.equals("DICE") ? Map.of("gameCode", game, "targetScore", 4000) : Map.of("gameCode", game));
+        first.request("GAME_SELECT", game.equals("DICE") ? Map.of("betAmountPerPlayer", 1, "gameCode", game, "targetScore", 4000) : Map.of("betAmountPerPlayer", 1, "gameCode", game));
         List<Peer> players = new java.util.ArrayList<>();
         players.add(first);
         for (int index = 1; index < count; index++) {
             players.add(seated());
         }
+        confirmCurrentTable(players.toArray(Peer[]::new));
         for (int index = 0; index < count - 1; index++) {
-            players.get(index).request("READY_SET", Map.of("ready", true));
+            assertReady(players.get(index));
         }
         assertThat(gateway.starts.get()).isZero();
         assertThat(hub.listTables().tables().getFirst().allReady()).isFalse();
-        players.getLast().request("READY_SET", Map.of("ready", true));
+        assertReady(players.getLast());
         for (Peer player : players) {
             assertThat(player.phase("CONFIRMED").path("payload").path("gameCode").asText()).isEqualTo(game);
         }
@@ -77,8 +78,7 @@ class GameStartFlowTests {
     void 전원_준비하면_한_번_요청하고_검증_성공을_알린다() throws Exception {
         Peer first = seated();
         Peer second = seated();
-        first.request("READY_SET", Map.of("ready", true));
-        second.request("READY_SET", Map.of("ready", true));
+        prepare(first, second);
         JsonNode firstResult = first.phase("CONFIRMED");
         JsonNode secondResult = second.phase("CONFIRMED");
 
@@ -93,7 +93,7 @@ class GameStartFlowTests {
         assertThat(hub.listTables().tables().getFirst().joinable()).isFalse();
         assertThat(first.request("TABLE_LEAVE", Map.of()).path("payload").path("code").asText())
                 .isEqualTo("TABLE_BUSY");
-        assertThat(first.request("GAME_SELECT", Map.of("gameCode", "DICE", "targetScore", 4000)).path("payload").path("code").asText())
+        assertThat(first.request("GAME_SELECT", Map.of("betAmountPerPlayer", 1, "gameCode", "DICE", "targetScore", 4000)).path("payload").path("code").asText())
                 .isEqualTo("TABLE_BUSY");
     }
 
@@ -113,7 +113,7 @@ class GameStartFlowTests {
         assertThat(rejected.toString()).doesNotContain("PRIVATE_BALANCE_REASON");
         assertThat(state.path("seats").get(0).path("ready").asBoolean()).isFalse();
         assertThat(state.path("seats").get(1).path("ready").asBoolean()).isFalse();
-        first.request("GAME_SELECT", Map.of("gameCode", "DICE", "targetScore", 4000));
+        first.request("GAME_SELECT", Map.of("betAmountPerPlayer", 1, "gameCode", "DICE", "targetScore", 4000));
         JsonNode changed = first.phase("WAITING").path("payload");
         assertThat(changed.path("gameCode").asText()).isEqualTo("DICE");
         assertThat(changed.path("startAttemptId").isNull()).isTrue();
@@ -135,7 +135,7 @@ class GameStartFlowTests {
 
         assertThat(first.request("READY_SET", Map.of("ready", true)).path("payload").path("code").asText())
                 .isEqualTo("TABLE_BUSY");
-        assertThat(first.request("GAME_SELECT", Map.of("gameCode", "DICE", "targetScore", 4000)).path("payload").path("code").asText())
+        assertThat(first.request("GAME_SELECT", Map.of("betAmountPerPlayer", 1, "gameCode", "DICE", "targetScore", 4000)).path("payload").path("code").asText())
                 .isEqualTo("TABLE_BUSY");
         assertThat(gateway.command.gameCode()).isEqualTo("OMOK");
         first.request("GAME_START_CHECK", Map.of());
@@ -252,8 +252,23 @@ class GameStartFlowTests {
     }
 
     private void prepare(Peer first, Peer second) throws Exception {
-        first.request("READY_SET", Map.of("ready", true));
-        second.request("READY_SET", Map.of("ready", true));
+        confirmCurrentTable(first, second);
+        assertReady(first);
+        assertReady(second);
+    }
+
+    private void confirmCurrentTable(Peer... players) throws Exception {
+        // 다른 참가자의 착석/설정 변경 알림이 아직 송신 큐에 있어도 실제 최신 상태를 수신한 뒤 동의한다.
+        for (Peer player : players) {
+            assertThat(player.request("TABLE_JOIN", Map.of("tableId", "table-1")).path("type").asText())
+                    .isEqualTo("TABLE_STATE");
+        }
+    }
+
+    private void assertReady(Peer player) throws Exception {
+        JsonNode reply = player.request("READY_SET", Map.of("ready", true));
+        assertThat(reply.path("type").asText()).as("READY_SET 오류 코드=%s", reply.at("/payload/code").asText())
+                .isEqualTo("TABLE_STATE");
     }
 
     @Test
@@ -278,6 +293,7 @@ class GameStartFlowTests {
     void 두_준비_요청이_겹쳐도_시작은_한_번만_요청한다() throws Exception {
         Peer first = seated();
         Peer second = seated();
+        confirmCurrentTable(first, second);
         CountDownLatch start = new CountDownLatch(1);
 
         try (var workers = Executors.newVirtualThreadPerTaskExecutor()) {
@@ -293,6 +309,21 @@ class GameStartFlowTests {
             assertThat(firstReady.get(5, TimeUnit.SECONDS).path("type").asText()).isEqualTo("TABLE_STATE");
             assertThat(secondReady.get(5, TimeUnit.SECONDS).path("type").asText()).isEqualTo("TABLE_STATE");
         }
+        first.phase("CONFIRMED");
+        assertThat(gateway.starts.get()).isEqualTo(1);
+    }
+
+    @Test
+    void 착석변경전_준비버전은_거절하고_최신상태_확인후에만_시작한다() throws Exception {
+        Peer first = seated();
+        long observed = first.request("TABLE_JOIN", Map.of("tableId", "table-1")).at("/payload/version").asLong();
+        Peer second = seated();
+        JsonNode rejected = first.request("READY_SET", Map.of("ready", true,
+                "betAmountPerPlayer", 1, "expectedVersion", observed));
+        assertThat(rejected.at("/payload/code").asText()).isEqualTo("GAME_SETTINGS_CHANGED");
+        assertThat(gateway.starts.get()).isZero();
+        assertThat(hub.listTables().tables().getFirst().readyCount()).isZero();
+        prepare(first, second);
         first.phase("CONFIRMED");
         assertThat(gateway.starts.get()).isEqualTo(1);
     }
@@ -363,7 +394,7 @@ class GameStartFlowTests {
         Peer peer = peer();
         JsonNode state = peer.request("TABLE_JOIN", Map.of("tableId", "table-1")).path("payload");
         if (state.path("gameCode").isNull()) {
-            peer.request("GAME_SELECT", Map.of("gameCode", "OMOK"));
+            peer.request("GAME_SELECT", Map.of("betAmountPerPlayer", 1, "gameCode", "OMOK"));
         }
         return peer;
     }
@@ -373,7 +404,7 @@ class GameStartFlowTests {
         WebSocketSession session = mock(WebSocketSession.class);
         when(session.getId()).thenReturn(peer.id);
         doAnswer(invocation -> {
-            peer.messages.add(((TextMessage) invocation.getArgument(0)).getPayload());
+            peer.messages.add(ReadyConsent.received(peer, ((TextMessage) invocation.getArgument(0)).getPayload()));
             return null;
         }).when(session).sendMessage(any(TextMessage.class));
         hub.connect(session);
@@ -401,7 +432,7 @@ class GameStartFlowTests {
         private JsonNode request(String type, Object payload) throws Exception {
             String requestId = UUID.randomUUID().toString();
             hub.receive(id, mapper.writeValueAsString(Map.of(
-                    "requestId", requestId, "type", type, "payload", payload)));
+                    "requestId", requestId, "type", type, "payload", ReadyConsent.payload(this, type, payload))));
             return await(message -> message.path("requestId").asText().equals(requestId));
         }
 

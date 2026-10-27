@@ -23,7 +23,7 @@ import {
 import { bindAnchor, parseBindings } from '../../network/tableBindings'
 import { setDisplayProfiles } from '../../network/profileBridge'
 import { canPlace, canPlayDice, receiveGame, tableBusy, useGame } from '../../game/store'
-import { gameState } from '../../game/protocol'
+import { canStartForfeit, canRetryForfeit, definiteForfeitRejection, forfeitError, interruptForfeit, parseForfeitResult, resetForfeit, useForfeit } from '../../game/forfeit'
 import { validDiceAction } from '../../game/farkle/scoring'
 import { canActOneCard } from '../../game/onecard/actions'
 import type { OneCardInput } from '../../game/onecard/protocol'
@@ -44,6 +44,8 @@ import { mockEmote } from '../../features/emotes/mock/MockEmoteService'
 import { gameSelection, type TableGameCode } from '../../features/tableLobby/model'
 import { publicMatchService } from '../../features/tableLobby/publicMatch'
 import { PublicGameWatcher } from '../../features/tableLobby/PublicGameWatcher'
+import { FollowClient } from '../../features/follow/serverClient'
+import { bindFollowService, followService } from '../../features/follow/service'
 import { useTableLobby, resetSeatedLook } from '../../features/tableLobby/state'
 import {
   avatars,
@@ -88,6 +90,7 @@ export class ParkRuntime implements ParkRuntimePort {
   private spectatorChecks = new Map<string, string>()
   private obsoleteGameWatchRequests = new Set<string>()
   private tableClosing: Promise<boolean> | null = null
+  private forfeitRequests = new Map<string, string>()
   private movement = new MovementInputBuffer((intent, scope) => this.sendMovement(intent, scope))
   private socket = new SharedSocket({
     ticket: async (signal) => {
@@ -159,6 +162,14 @@ export class ParkRuntime implements ParkRuntimePort {
     blockMovement: () => this.movement.clear(false),
   })
   checkFacilities = (reloadCatalog = false) => this.facilities.refresh(reloadCatalog)
+  private follow = new FollowClient({
+    scope: () => {
+      const s = useSession.getState()
+      return { generation: this.generation, userId: s.sessionId, channelId: s.roomId,
+        connected: this.active && this.socket.connected && s.status === 'connected' }
+    },
+    request: (type, payload, expected, onId) => this.socket.request(type, payload, expected, onId),
+  })
   useFacility = (id: string, seat: number, signal: AbortSignal) => {
     const session = useSession.getState()
     rememberRoamingView(session.sessionId, session.roomId)
@@ -179,6 +190,9 @@ export class ParkRuntime implements ParkRuntimePort {
       })
   }
   private authEnded() {
+    this.forfeitRequests.clear()
+    resetForfeit()
+    this.follow.reset()
     this.resetSpectator()
     this.facilities.reset()
     resetNotesState()
@@ -232,7 +246,8 @@ export class ParkRuntime implements ParkRuntimePort {
         record(body) && typeof body.nextAllowedAt === 'string' ? body.nextAllowedAt : undefined,
       )
     }
-    return response.json()
+    // DELETE /api/v1/users/me answers 204 without a body.
+    return response.status === 204 ? null : response.json()
   }
   requestJSON = async (path: string, init: RequestInit = {}) => {
     const notesRead = /^\/api\/v1\/notes\?channelId=[^&#?]+$/.test(path) && (init.method ?? 'GET') === 'GET'
@@ -241,8 +256,11 @@ export class ParkRuntime implements ParkRuntimePort {
     const shopRequest = (method === 'GET' && (path === '/api/v1/shop/items' || path === '/api/v1/users/me/items'))
       || (method === 'POST' && path === '/api/v1/shop/purchases')
       || (method === 'PATCH' && path === '/api/v1/users/me/equipment')
-    if (!this.active || (!notesRead && !notesWrite && !shopRequest
-      && !/^\/api\/v1\/(?:minigames\/sessions(?:\/\d+(?:\/(?:complete|abandon))?)?|wallets\/me|feedback)$/.test(path))
+    const profileRequest = ((method === 'PATCH' || method === 'DELETE') && path === '/api/v1/users/me')
+      || (method === 'GET' && /^\/api\/v1\/users\/nickname-availability\?nickname=[^&#]+$/.test(path))
+    const minigameRequest = /^\/api\/v1\/minigames\/sessions(?:\?rulesVersion=v4|\/\d+(?:\?(?:(?:includeSource|includeProgress)=true|deliveryKey=[A-Za-z0-9_-]{1,64})(?:&(?:(?:includeSource|includeProgress)=true|deliveryKey=[A-Za-z0-9_-]{1,64}))*|\/(?:complete|abandon|deliveries))?)?$/.test(path)
+    if (!this.active || (!notesRead && !notesWrite && !shopRequest && !profileRequest
+      && !minigameRequest && !/^\/api\/v1\/(?:wallets\/me|feedback)$/.test(path))
       || (path === '/api/v1/feedback' && init.method !== 'POST'))
       throw new Error('현재 공원에서 사용할 수 없는 요청입니다.')
     const signals = [this.bootAbort?.signal, init.signal].filter((s): s is AbortSignal => !!s)
@@ -251,10 +269,13 @@ export class ParkRuntime implements ParkRuntimePort {
   start() {
     if (this.active) return
     this.active = true
+    bindFollowService(this.follow)
     this.retryCount = 0
     void this.boot()
   }
   private async boot() {
+    interruptForfeit()
+    this.follow.reset()
     this.resetSpectator()
     this.facilities.reset()
     this.facilityMapInvalid = false
@@ -300,6 +321,9 @@ export class ParkRuntime implements ParkRuntimePort {
     }
   }
   async stop() {
+    this.forfeitRequests.clear()
+    resetForfeit()
+    this.follow.reset()
     this.resetSpectator()
     this.facilities.reset()
     this.movement.clear()
@@ -313,6 +337,8 @@ export class ParkRuntime implements ParkRuntimePort {
     await closing
   }
   private closed(code: number) {
+    interruptForfeit()
+    this.follow.reset()
     this.resetSpectator()
     this.facilities.reset()
     this.movement.clear()
@@ -351,6 +377,10 @@ export class ParkRuntime implements ParkRuntimePort {
   }
   private message(message: Envelope) {
     if (!this.active) return
+    if (message.type === 'ERROR' && message.requestId && this.forfeitRequests.has(message.requestId)
+      && this.forfeitRequests.get(message.requestId) !== JSON.stringify([useSession.getState().sessionId, useGame.getState().permittedGameId])) return
+    if (this.follow.ownsError(message)) return
+    if (message.type === 'WORLD_FOLLOW_STATE') { if (followService.mode === 'server') this.follow.accept(message); return }
     if (message.type === 'ERROR' && message.requestId && this.obsoleteGameWatchRequests.has(message.requestId)) return
     if (message.type === 'GAME_STATE' && message.payload.role === 'SPECTATOR'
       && (!this.spectator.accepts(message.payload.gameId) || message.requestId !== null && message.requestId !== this.gameWatchRequestId
@@ -395,6 +425,7 @@ export class ParkRuntime implements ParkRuntimePort {
     if (!session.roomId || !session.mapCompatible || session.tableId || useGame.getState().watchedGameId || tableBusy() || !avatars.has(session.sessionId))
       this.movement.clear(false)
     if (message.type === 'CONNECTED') {
+      if (useForfeit.getState().attempt?.userId !== message.payload.userId) resetForfeit()
       const profile = this.ownProfile
       if (!profile || profile.userId !== message.payload.userId) {
         this.authEnded()
@@ -446,6 +477,7 @@ export class ParkRuntime implements ParkRuntimePort {
         throw new Error('경기 진행·복구·정산 중에는 채널을 바꿀 수 없습니다.')
       if (state.tableId) throw new Error('먼저 테이블에서 일어나주세요.')
       if (state.roomId === channelId) return
+      this.follow.reset()
       this.facilities.reset()
       this.facilityMapInvalid = false
       this.movement.clear()
@@ -464,6 +496,7 @@ export class ParkRuntime implements ParkRuntimePort {
       ])
       this.preferredChannel = channelId
       this.retryCount = 0
+      if (followService.mode === 'server') void this.follow.begin().catch(() => {})
       // Initial world messages keep their existing order. Facilities explicitly query after CHANNEL_JOIN.
       if (serverFacilities) void this.facilities.begin().catch(() => {})
       const body = await this.getJSON(
@@ -646,8 +679,8 @@ export class ParkRuntime implements ParkRuntimePort {
         throw new Error('경기 진행·복구·정산 중에는 일어날 수 없습니다.')
       await this.socket.request('TABLE_LEAVE', {}, ['TABLE_LEFT'])
     })
-  selectOmok = () => this.selectGame('OMOK')
-  selectGame = (code: TableGameCode, targetScore?: number) =>
+  selectOmok = () => this.selectGame('OMOK', useSession.getState().tableStates[useSession.getState().tableId]?.betAmountPerPlayer ?? NaN)
+  selectGame = (code: TableGameCode, betAmountPerPlayer: number, targetScore?: number) =>
     this.action(async () => {
       const s = useSession.getState(),
         table = s.tableStates[s.tableId]
@@ -655,7 +688,7 @@ export class ParkRuntime implements ParkRuntimePort {
         throw new Error(
           '대기 중인 테이블의 게임 선택 담당자만 선택할 수 있습니다.',
         )
-      const payload = gameSelection(code, targetScore)
+      const payload = gameSelection(code, betAmountPerPlayer, targetScore)
       await this.socket.request('GAME_SELECT', payload, [
         'TABLE_STATE',
       ])
@@ -665,7 +698,11 @@ export class ParkRuntime implements ParkRuntimePort {
       const s = useSession.getState()
       if (tableBusy() || !['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE'].includes(s.tableStates[s.tableId]?.gameCode ?? ''))
         throw new Error('플레이 가능한 게임을 선택한 대기 테이블에서 준비해주세요.')
-      await this.socket.request('READY_SET', { ready }, ['TABLE_STATE'])
+      const table = s.tableStates[s.tableId]
+      if (ready && (table.betAmountPerPlayer == null || table.betAmountPerPlayer <= 0)) throw new Error('확정 참가비를 먼저 확인해주세요.')
+      await this.socket.request('READY_SET', ready
+        ? { ready, betAmountPerPlayer: table.betAmountPerPlayer, expectedVersion: table.version }
+        : { ready }, ['TABLE_STATE'])
     })
   checkStart = () =>
     this.action(() =>
@@ -695,18 +732,52 @@ export class ParkRuntime implements ParkRuntimePort {
   checkResult = () =>
     this.action(async () => {
       const s = useGame.getState()
+      const own = useSession.getState(), gameId = s.permittedGameId || s.completedGameId
       if (
-        !s.permittedGameId ||
-        s.game?.role !== 'PLAYER' ||
-        gameState(s.game).status !== 'FINISHED'
+        !gameId || !own.sessionId || !own.tableId ||
+        !own.tableStates[own.tableId]?.seats.some(seat => seat.userId === own.sessionId) ||
+        s.watchedGameId || s.game?.role === 'SPECTATOR' ||
+        (s.start?.tableId && s.start.tableId !== own.tableId)
       )
         throw new Error('본인이 참가한 종료 경기만 확인할 수 있습니다.')
       await this.socket.request(
         'GAME_RESULT_CHECK',
-        { gameSessionId: s.permittedGameId },
+        { gameSessionId: gameId },
         ['GAME_RESULT'],
       )
     })
+  forfeitGame = (gameId: string, retry = false) => this.action(async () => {
+    const own = useSession.getState(), state = useGame.getState()
+    if (own.status !== 'connected' || own.sessionId === '' || state.permittedGameId !== gameId
+      || !(retry ? canRetryForfeit(own.sessionId, state) : canStartForfeit(own.sessionId, state)))
+      throw new Error('현재 본인의 경기와 복구 상태를 확인해주세요.')
+    const previous = useForfeit.getState().attempt
+    const attempt = { userId: own.sessionId, gameId,
+      actionId: previous?.userId === own.sessionId && previous.gameId === gameId ? previous.actionId : crypto.randomUUID(),
+      status: 'pending' as const, error: '' }
+    const generation = this.generation
+    useForfeit.setState({ attempt }); useGame.setState({ pending: true, error: '' })
+    const current = () => this.active && generation === this.generation && useSession.getState().sessionId === attempt.userId
+      && useGame.getState().permittedGameId === gameId && useForfeit.getState().attempt === attempt
+    try {
+      const reply = await this.socket.request('GAME_FORFEIT', { gameId, actionId: attempt.actionId }, ['GAME_FORFEIT_RESULT'], id => {
+        this.forfeitRequests.set(id, JSON.stringify([own.sessionId, gameId]))
+        if (this.forfeitRequests.size > 64) this.forfeitRequests.delete(this.forfeitRequests.keys().next().value!)
+      })
+      if (!current()) return
+      const receipt = parseForfeitResult(reply.payload, attempt)
+      useForfeit.setState({ attempt: { ...attempt, status: 'approved' } })
+      useGame.setState(s => ({ awaitingVersion: Math.max(s.awaitingVersion, receipt.version) }))
+    } catch (cause) {
+      if (current()) {
+        const code = cause instanceof ServerError ? cause.code : ''
+        useForfeit.setState({ attempt: { ...attempt, status: definiteForfeitRejection(code) ? 'rejected' : 'uncertain', error: forfeitError(code) } })
+        throw cause
+      }
+    } finally {
+      if (generation === this.generation && useGame.getState().permittedGameId === gameId) useGame.setState({ pending: false })
+    }
+  })
   placeOmok = (x: number, y: number) =>
     this.action(async () => {
       const own = useSession.getState(),

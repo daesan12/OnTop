@@ -86,7 +86,7 @@ class RestAuthenticationMySqlTests {
         assertThat(users.count()).isEqualTo(before);
         assertThat(users.findById(user.getId()).orElseThrow().getUpdatedAt()).isEqualTo(user.getUpdatedAt());
         assertThat(flyway.info().applied()).extracting(info -> info.getVersion().getVersion())
-                .containsExactly("1", "2", "3", "4", "5", "6");
+                .containsExactly("1", "2", "3", "4", "5", "6", "112", "122");
         assertThat(flyway.info().pending()).isEmpty();
     }
 

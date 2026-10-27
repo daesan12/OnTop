@@ -32,7 +32,7 @@ export async function requestFollow(targetId: string | null, service: FollowServ
     if (!current()) return false
     const ownLink = links.find(link => link.followerId === scope.userId)
     if (targetId ? ownLink?.targetId !== targetId : !!ownLink) throw new Error('따라가기 승인 상태를 확인하지 못했어요.')
-    if (!acceptFollowState(scope, links)) throw new Error('따라가기 응답을 확인하지 못했어요.')
+    if (service.mode !== 'server' && !acceptFollowState(scope, links)) throw new Error('따라가기 응답을 확인하지 못했어요.')
     return true
   } catch (cause) {
     if (current()) useFollow.setState({ error: cause instanceof Error ? cause.message : '따라가기 요청을 확인하지 못했어요.' })

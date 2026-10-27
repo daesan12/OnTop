@@ -1,0 +1,19 @@
+{
+  "description": "Pure rule fixture only. Not a production API schema; times are integer relative milliseconds.",
+  "rulesVersion": "v4",
+  "heats": [100, 100],
+  "orders": [{ "items": { "bean": 2, "custard": 0, "pizza": 0, "chocolate": 0 } }],
+  "log": [
+    { "slot": 0, "action": "POUR", "t": 0 },
+    { "slot": 0, "action": "FILL", "t": 300, "filling": "bean" },
+    { "slot": 0, "action": "TURN", "t": 6700 },
+    { "slot": 0, "action": "TURN", "t": 13100 },
+    { "slot": 1, "action": "POUR", "t": 13200 },
+    { "slot": 1, "action": "FILL", "t": 13500, "filling": "bean" },
+    { "slot": 1, "action": "TURN", "t": 19900 },
+    { "slot": 1, "action": "TURN", "t": 26300 },
+    { "slot": -1, "action": "DELIVER", "t": 26400, "order": 0 }
+  ],
+  "expected": { "score": 20, "made": 2, "golden": 2, "failed": 0, "wasted": 0, "maxCombo": 2, "coins": 1, "served": 2, "customersServed": 1, "specialServed": 0, "bonusScore": 0 },
+  "expectedState": { "fills": 2, "orderIndex": 1, "order": null, "tray": [], "combo": 2 }
+}
