@@ -11,6 +11,7 @@ import type { Bridge, SecretDie } from '../../src/game/bridge/protocol'
 import { facilityFixture } from './facilityFixture'
 import { followFixture } from './followFixture'
 import type { PublicEquipment } from '../../src/network/equipment'
+import type { GameReactionEvent } from '../../src/game/presentation/defeat'
 import developmentBindings from '../../public/park-bindings.dev.json' with { type: 'json' }
 
 // Contract fixtures intercept HTTP/RawWS only in tests. No production fake-auth or socket bypass.
@@ -651,6 +652,17 @@ export async function fixture(
   return {
     sent,
     rejectNextMove: () => { rejectNextMovement = true },
+    reaction: (patch: Partial<GameReactionEvent> = {}) => {
+      const remainingBefore = patch.remainingBefore ?? options.bridge ?? options.onecard ?? 2
+      const motion = remainingBefore === 2 ? 'table-flip' : 'head-clutch'
+      const event: GameReactionEvent = { eventId: `${patch.gameId ?? gameId}:reaction:${patch.userId ?? '101'}`,
+        gameId, tableId, channelId: 'fixture-channel', gameCode: options.bridge ? 'LIAR_BRIDGE' : options.onecard ? 'ONE_CARD' : options.dice ? 'DICE' : 'OMOK',
+        version: gameVersion, userId: '101', kind: 'DEFEAT', remainingBefore, motion,
+        durationMs: motion === 'table-flip' ? 2800 : 3600,
+        occurredAt: new Date(serverTime().serverNow).toISOString(), ...patch }
+      emit(sockets.at(-1)!, 'WORLD_GAME_REACTION', event)
+      return event
+    },
     equipment: (userId: string, equipment: PublicEquipment[] | null) => {
       publicEquipment[userId] = equipment
       for (const ws of sockets) world(ws)
