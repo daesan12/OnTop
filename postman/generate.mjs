@@ -570,6 +570,7 @@ wsItems[6].messages.push(message('맵 01 FE 맵 버전 확인 → WORLD_MAP_STAT
 const tabletGuide = '\n\n## 현재 맵 전체16개 테이블 (2026-10-27, 로컬 구현·미배포)\n'
     + 'channel-1의 GET /api/v1/tables 결과16개와 docs/integration/legacy-tables/bindings.dev.json의 bindings를 교차 확인합니다. '
     + '기존두ID·맵버전은 유지하고 채널마다 별도 방입니다. 실제 Spring 서버의 GAME_START_CHECK는 시작 연결이 꺼져 있으면 START_NOT_CONFIGURED를 반환합니다. '
+    + 'Spring AUTO의 전원 준비 직후 시작 연결이 없으면 같은 테이블 인증 참가자에게 ERROR(requestId=null,START_NOT_CONFIGURED)를 알립니다. 준비 성공과 별개이며 예약·경기는 생성하지 않습니다. 이 추가 알림은 로컬 수정·배포 전입니다. '
     + '테이블 등록만으로 DB 예약/정산·엔진을 활성화하지 않습니다. docs/legacy-table-integration.md. '
     + '\n\n## 새 태블릿 MANUAL 모드 (2026-10-27, 로컬 구현·미배포)\n'
     + '방장 TABLE_CONFIGURE로 게임/정확한 정원/목표/판돈/expectedVersion을 확정한 뒤 전원이 READY_SET하고 방장만 TABLE_START합니다. '
@@ -592,6 +593,14 @@ wsItems[6].messages.push(
     message('태블릿 04 시작 대기 기한 재조회', 'TABLE_HOST_WAIT_CHECK', {}),
     message('시간 01 서버 현재 시각·낮밤 기준 재조회', 'WORLD_TIME_CHECK', {})
 );
+wsItems[6].messages.push({
+    name: '수신 예시 · START_NOT_CONFIGURED — 서버 알림·직접 전송 금지·배포 전',
+    $kind: 'websocket-message', contentType: 'json',
+    content: JSON.stringify({ requestId: null, type: 'ERROR', payload: {
+        code: 'START_NOT_CONFIGURED',
+        message: '경기 시작 기능이 비활성 상태입니다. 서버의 시작·게임 설정을 확인해주세요.'
+    } }, null, 2)
+});
 const reactionGuide = '\n\n## 기권·패배 공개 연출 (서버 수신 전용)\n'
     + 'WORLD_GAME_REACTION은 새 송신 요청이 아닙니다. 실제 경기 시작 후 기권/패배가 확정되면 '
     + '같은 채널 참가자와 테이블 중심20m 이내 사용자(비구독자 포함)가 수신합니다. '

@@ -111,6 +111,7 @@ public class TableHub {
     private final Map<String, Long> startRevisions = new HashMap<>();
     private final Optional<GameStartGateway> gateway;
     private final boolean startRehearsal;
+    private boolean startDiagnosticsEnabled;
     private Optional<CommittedGameStartService> committedStarts = Optional.empty();
     private final Optional<GameStateGateway> gameStates;
     private final Set<String> stateQueries = new HashSet<>();
@@ -316,6 +317,7 @@ public class TableHub {
                 runtime.legacyTables().orElse(null));
         // 실제 서버에서는 연동 비활성 상태도 조회해 FE에 원인을 알릴 수 있다.
         protocol.enableStartQueries();
+        startDiagnosticsEnabled = true;
     }
 
     public TableHub(ObjectMapper mapper, Optional<GameStartGateway> gateway,
@@ -1699,6 +1701,17 @@ public class TableHub {
         if ((!startRehearsal && committedStarts.isEmpty()) || !snapshot.allReady()) {
             if (snapshot.allReady() && !startRehearsal && committedStarts.isEmpty()) {
                 log.warn("경기 시작 연결 비활성 table={} game={}", snapshot.tableId(), snapshot.gameCode());
+                // 직접 생성하는 착석 전용 PoC의 메시지 계약은 유지한다.
+                if (startDiagnosticsEnabled) {
+                    String notice = protocol.error(null, "START_NOT_CONFIGURED",
+                            "경기 시작 기능이 비활성 상태입니다. 서버의 시작·게임 설정을 확인해주세요.");
+                    for (Member target : members.values()) {
+                        if (target.accountId() != null && isMapReady(target)
+                                && snapshot.tableId().equals(seating.get(target.userId()))) {
+                            target.peer().offer(notice);
+                        }
+                    }
+                }
             }
             return;
         }
