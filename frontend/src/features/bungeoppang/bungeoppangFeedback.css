@@ -90,3 +90,28 @@
   .bung-tool-change, .bung-trash-lid, .bung-flames i, .bung-root .bung-tray li { animation: none !important; }
   .bung-customer-depart, .bung-flight { display: none; }
 }
+/* Phones (<=600px): the 210px side panels would cover the grill, so the order sits above it and the tray
+   below it as full-width strips. Same content and motion; only spacing shrinks. PC rules above are untouched. */
+@media (max-width: 600px) {
+  .bung-root .bung-customer, .bung-root .bung-tray { left: 12px; right: 12px; width: auto; box-sizing: border-box; padding: 8px 10px; font-size: 12px; line-height: 1.35; }
+  .bung-root .bung-panel.bung-customer h2, .bung-root .bung-panel.bung-tray h2 { margin: 0; font-size: 14px; }
+  .bung-root .bung-panel.bung-customer p, .bung-root .bung-panel.bung-tray p { margin: 2px 0; font-size: 11px; }
+  .bung-root .bung-customer { top: 132px; display: grid; grid-template-columns: minmax(0, 44%) minmax(0, 1fr); column-gap: 10px; align-items: start; }
+  .bung-root .bung-customer > * { grid-column: 2; }
+  .bung-root .bung-customer > .bung-customer-scene { grid-column: 1; grid-row: 1 / span 6; height: 84px; margin: 0; }
+  .bung-root .bung-customer-figure { height: 72px; width: 49px; }
+  .bung-root .bung-customer-arrive > span, .bung-root .bung-customer-depart > span { max-width: 88px; font-size: 10px; padding: 4px 5px; }
+  .bung-root .bung-customer ul { display: flex; flex-wrap: wrap; gap: 4px; margin: 3px 0; }
+  .bung-root .bung-customer li { flex: 1 1 100%; margin: 0; padding: 3px 6px; }
+  .bung-root .bung-customer > button { padding: 4px 8px; }
+  .bung-root .bung-tray { top: auto; bottom: 124px; display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "title trash" "slots slots" "hint hint"; align-items: center; }
+  .bung-root .bung-tray h2 { grid-area: title; }
+  .bung-root .bung-tray ol { grid-area: slots; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; padding: 4px; margin: 4px 0 0; }
+  .bung-root .bung-tray li { min-height: 58px; padding: 3px 2px; }
+  .bung-root .bung-tray li .bung-bread-token { width: 44px; height: 25px; margin: 0 auto; }
+  .bung-root .bung-tray li > button { margin-top: 2px; }
+  .bung-root .bung-tray > p { grid-area: hint; }
+  .bung-root .bung-tray .bung-trash { grid-area: trash; gap: 4px; margin: 0; padding: 0; border: 0; }
+  .bung-root .bung-tray .bung-trash-icon { width: 22px; height: 24px; }
+  .bung-root .bung-tray .bung-trash small { display: none; }
+}

@@ -41,8 +41,8 @@ class GameBetMigrationMySqlTests {
                     + "SELECT w.id,g.id,'GAME_RESERVE',0,1,CONCAT('game:',g.id,':reserve:',w.user_id) FROM wallets w CROSS JOIN game_sessions g");
             var current = Flyway.configure().dataSource(url, user, password).locations(locations)
                     .baselineOnMigrate(false).outOfOrder(false).load();
-            assertThat(current.migrate().migrationsExecuted).isEqualTo(3);
-            assertThat(history(statement)).containsAllEntriesOf(previous).containsKeys("122", "123", "124", "125");
+            assertThat(current.migrate().migrationsExecuted).isEqualTo(5);
+            assertThat(history(statement)).containsAllEntriesOf(previous).containsKeys("122", "123", "124", "125", "126");
             assertThat(current.validateWithResult().validationSuccessful).isTrue();
             assertThat(current.migrate().migrationsExecuted).isZero();
             try (var rs = statement.executeQuery("SELECT COUNT(*) FROM wallets WHERE balance=100 AND reserved_balance=1")) {

@@ -70,3 +70,46 @@ for (const viewport of [{ width: 1920, height: 1080 }, { width: 1000, height: 70
     expect(errors).toEqual([])
   })
 }
+
+// Phones (<=600px) stack the order above and the tray below the grill; a real touch must reach every slot.
+test.describe('phone touch layout', () => {
+  test.use({ hasTouch: true })
+  for (const viewport of [{ width: 390, height: 844 }, { width: 600, height: 800 }]) {
+    test(`order and tray stay readable and leave all six slots tappable at ${viewport.width}px`, async ({ page }) => {
+      await page.setViewportSize(viewport)
+      await bungeoppangFixture(page)
+      await page.goto('/park')
+      await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90000 })
+      await expect(page.getByRole('button', { name: 'E 붕어빵 굽기', exact: true })).toBeVisible({ timeout: 90000 })
+      await page.locator('canvas').focus(); await page.keyboard.press('KeyE')
+      await page.getByRole('button', { name: '시작', exact: true }).click()
+      await expect(page.locator('.bung-root')).toHaveAttribute('data-phase', 'play', { timeout: 12000 })
+      const customer = page.getByRole('region', { name: '손님 주문' }), tray = page.getByRole('region', { name: '완성품 쟁반' })
+      await expect(customer).toContainText('팥 2개')
+      await expect(customer.getByRole('button', { name: /주문 전달하기/ })).toBeVisible()
+      await expect(tray.locator('li')).toHaveCount(4)
+      for (const panel of [customer, tray]) {
+        const box = (await panel.boundingBox())!
+        expect(box.x).toBeGreaterThanOrEqual(0); expect(box.y).toBeGreaterThanOrEqual(0)
+        expect(box.x + box.width).toBeLessThanOrEqual(viewport.width); expect(box.y + box.height).toBeLessThanOrEqual(viewport.height)
+      }
+      // Each slot centre and a ring around it must hit the canvas, not a HUD panel.
+      const { points, covered } = await page.evaluate(async () => {
+        const { slotScreen } = await import('/src/features/bungeoppang/bungeoppangView.ts' as string)
+        const points = slotScreen.map((p: { x: number; y: number }) => ({ x: p.x, y: p.y }))
+        const covered = points.flatMap((p: { x: number; y: number }, slot: number) =>
+          [[0, 0], [-24, 0], [24, 0], [0, -20], [0, 20]].flatMap(([dx, dy]) => {
+            const hit = document.elementFromPoint(p.x + dx!, p.y + dy!)
+            return hit?.tagName === 'CANVAS' ? [] : [`${slot}:${dx},${dy}:${hit?.closest('[aria-label]')?.getAttribute('aria-label') ?? hit?.tagName}`]
+          }))
+        return { points, covered }
+      })
+      expect(covered).toEqual([])
+      for (const point of points) { await page.touchscreen.tap(point.x, point.y); await page.waitForTimeout(80) }
+      await expect.poll(() => page.evaluate(async () => (await import('/src/features/bungeoppang/store.ts' as string))
+        .useBungeoppang.getState().grill?.log.map((entry: { action: string; slot: number }) => `${entry.action}:${entry.slot}`)))
+        .toEqual([0, 1, 2, 3, 4, 5].map(slot => `POUR:${slot}`))
+      await screenshot(page, `bungeoppang-v4-touch-${viewport.width}`)
+    })
+  }
+})

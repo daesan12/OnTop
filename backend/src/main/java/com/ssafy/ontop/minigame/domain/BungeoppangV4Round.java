@@ -5,6 +5,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.time.LocalDate;
 
 /** A v4 round's immutable rule source and mutable approved checkpoint boundary. */
 @Entity
@@ -39,6 +40,16 @@ public class BungeoppangV4Round {
     private String checkpointJson;
     @Column(name = "terminal_reason", length = 32)
     private String terminalReason;
+    @Column(name = "final_request_hash", length = 64, columnDefinition = "CHAR(64)")
+    private String finalRequestHash;
+    @Column(name = "final_through_seq")
+    private Integer finalThroughSeq;
+    @Column(name = "final_prefix_hash", length = 64, columnDefinition = "CHAR(64)")
+    private String finalPrefixHash;
+    @Column(name = "settled_at", columnDefinition = "TIMESTAMP(3)")
+    private Instant settledAt;
+    @Column(name = "reward_date")
+    private LocalDate rewardDate;
 
     protected BungeoppangV4Round() {
     }
@@ -75,6 +86,11 @@ public class BungeoppangV4Round {
     public String approvedPrefixHash() { return approvedPrefixHash; }
     public String checkpointJson() { return checkpointJson; }
     public String terminalReason() { return terminalReason; }
+    public String finalRequestHash() { return finalRequestHash; }
+    public Integer finalThroughSeq() { return finalThroughSeq; }
+    public String finalPrefixHash() { return finalPrefixHash; }
+    public Instant settledAt() { return settledAt; }
+    public LocalDate rewardDate() { return rewardDate; }
 
     public void approve(int throughSeq, String prefixHash, String checkpointJson) {
         if (terminalReason != null || throughSeq <= approvedThroughSeq) {
@@ -90,5 +106,18 @@ public class BungeoppangV4Round {
         if (terminalReason == null) {
             terminalReason = reason;
         }
+    }
+
+    public void settle(String requestHash, int throughSeq, String prefixHash, Instant settledAt,
+            LocalDate rewardDate) {
+        if (terminalReason != null || finalRequestHash != null || throughSeq < approvedThroughSeq) {
+            throw new IllegalStateException("이미 종료되었거나 승인 경계보다 이전인 최종 결과입니다.");
+        }
+        finalRequestHash = requestHash;
+        finalThroughSeq = throughSeq;
+        finalPrefixHash = prefixHash;
+        this.settledAt = settledAt;
+        this.rewardDate = rewardDate;
+        terminalReason = "VERIFIED";
     }
 }
