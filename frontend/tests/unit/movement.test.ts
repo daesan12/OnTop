@@ -185,7 +185,7 @@ describe('M02 approved movement presentation', () => {
     expect(repeated.previous).toEqual(original.previous)
     const target = { ...pose }
     sampleAvatar(repeated, original.at + NETWORK.interpolationMs, target)
-    expect(target.x).toBe(1)
+    expect(target.x).toBeCloseTo(1, 12)
     expect(sampleSwimmingPose(repeated, repeated.at, 120, target)).toBeNull()
     snapshot(4, 1, true)
     expect(sampleSwimmingPose(avatars.get('101')!, repeated.at, 120, target)).not.toBeNull()

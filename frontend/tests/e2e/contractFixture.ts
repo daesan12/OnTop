@@ -115,6 +115,7 @@ export async function fixture(
   const diceReplies: { input: object; patch: Partial<Farkle> }[] = []
   let gameDeadline = new Date(Date.now() + 30_000).toISOString()
   let nextActionError: { code: string; message: string } | null = null
+  let rejectNextMovement = false
   let forfeitMode: 'approve' | 'hold' | 'drop' | 'reject' | 'malformed' | 'lost-after-apply' | 'receipt-only' = 'approve'
   let forfeitOrder: 'receipt-first' | 'state-first' = 'state-first', forfeitCode = 'GAME_FORFEIT_NOT_CONFIGURED'
   let forfeitVersion = -1, forfeitApplications = 0, recoveryStatus = 'RESTORED', pendingBridgeForfeit = false
@@ -465,6 +466,11 @@ export async function fixture(
         if (options.forfeit && started) { table(ws, 'TABLE_STATE', null); start(ws, finished ? 'SETTLING' : 'PLAYING') }
       }
       if (type === 'WORLD_MOVE') {
+        if (rejectNextMovement) {
+          rejectNextMovement = false
+          emit(ws, 'ERROR', { code: 'MOVE_TOO_FREQUENT', message: '이동 입력 전송 간격을 확인해주세요.' }, requestId)
+          return
+        }
         if (payload.dx || payload.dz || payload.jump) follow.release()
         Object.assign(position, {
           ...(!options.manualMovement ? {
@@ -645,6 +651,7 @@ export async function fixture(
   })
   return {
     sent,
+    rejectNextMove: () => { rejectNextMovement = true },
     reaction: (patch: Partial<GameReactionEvent> = {}) => {
       const remainingBefore = patch.remainingBefore ?? options.bridge ?? options.onecard ?? 2
       const motion = remainingBefore === 2 ? 'table-flip' : 'head-clutch'

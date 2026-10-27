@@ -14,6 +14,38 @@ async function loaded(page: Page) {
   await page.locator('canvas').focus()
 }
 
+test('M02 transient movement rate notice expires and clears on successful movement', async ({ page }) => {
+  const errors: string[] = [], consoleErrors: string[] = []
+  page.on('pageerror', error => errors.push(error.message))
+  page.on('console', message => { if (message.type() === 'error') consoleErrors.push(message.text()) })
+  const server = await fixture(page, { manualMovement: true, position: { x: -10, y: 0.8, z: 21, yaw: 0 } })
+  await loaded(page)
+  const notice = page.locator('.park-runtime-status')
+  const rejectMove = async () => {
+    server.rejectNextMove()
+    await page.evaluate(async () => {
+      const { parkRuntime } = await import('/src/park/runtime/runtime.ts' as string)
+      parkRuntime.move(1, 0, false)
+    })
+    await expect(notice).toHaveText('이동 입력 전송 간격을 확인해주세요.')
+  }
+  await rejectMove()
+  await screenshot(page, 'm02-movement-notice-visible')
+  await expect(notice).toBeHidden({ timeout: 4500 })
+  await screenshot(page, 'm02-movement-notice-expired')
+  await rejectMove()
+  const count = server.sent.filter(message => message.type === 'WORLD_MOVE').length
+  await page.keyboard.down('KeyW')
+  await expect.poll(() => server.sent.filter(message => message.type === 'WORLD_MOVE').length).toBeGreaterThan(count)
+  await expect(notice).toBeHidden({ timeout: 2000 })
+  await page.keyboard.up('KeyW')
+  await screenshot(page, 'm02-movement-notice-recovered')
+  expect(await page.locator('canvas').count()).toBeGreaterThan(0)
+  expect(await page.locator('vite-error-overlay').count()).toBe(0)
+  expect(errors).toEqual([])
+  expect(consoleErrors).toEqual([])
+})
+
 test('M02 queues Space synchronously before the polling tick and ignores repeats or owned input', async ({ page }) => {
   const server = await fixture(page, { manualMovement: true })
   await loaded(page)
