@@ -19,7 +19,7 @@ export async function enterTelescope(id: string): Promise<boolean> {
     || session.tableId || avatar.seatIndex >= 0 || avatar.fitnessId || avatar.telescopeId || avatar.swimming
     || !canReachTelescope(avatar.current, id)) return false
   rememberRoamingView(session.sessionId, session.roomId)
-  parkRuntime.move(0, 0, false)
+  parkRuntime.stopMovement()
   clearRoamingInput()
   useTelescopeState.setState({ pending: true, operation: 'enter', error: '' })
   const signal = telescopeSignal(session.sessionId), epoch = state.epoch

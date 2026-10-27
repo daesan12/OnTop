@@ -22,16 +22,15 @@ export function normalizedMove(dx: number, dz: number, run: boolean, jump: boole
 }
 
 /** Coalesce quick changes without violating the existing input cadence.
- * Async delivery waits for the server reply, then spaces the next input from that reply.
- * This prevents delayed packets from arriving as a burst, even when local sends were spaced.
- * A stop cancels an unsent jump; reset never replays input into a new connection.
+ * Space sends by the local monotonic clock, independently of acknowledgement RTT.
+ * Waiting for each reply can exceed the server's 250ms input lease and stop walking.
+ * Ordinary direction updates retain one queued jump; clear(false) explicitly
+ * cancels it on focus/activity changes without bypassing the send cadence.
  */
 export class MovementInputBuffer {
   private lastSent = -Infinity
   private pending: { intent: MovementIntent; scope: string } | undefined
   private timer: ReturnType<typeof setTimeout> | undefined
-  private inFlight = false
-  private delivery = 0
   constructor(
     private readonly send: (intent: MovementIntent, scope: string) => void | Promise<void>,
     private readonly now = () => performance.now(),
@@ -39,12 +38,12 @@ export class MovementInputBuffer {
   enqueue(intent: MovementIntent, scope: string) {
     const previous = this.pending
     this.pending = { scope, intent: { ...intent,
-      jump: !stoppedIntent(intent) && (intent.jump || (previous?.scope === scope && previous.intent.jump) || false) } }
-    if (this.timer === undefined && !this.inFlight) this.flush()
+      jump: intent.jump || (previous?.scope === scope && previous.intent.jump) || false } }
+    if (this.timer === undefined) this.flush()
   }
   private flush() {
     this.timer = undefined
-    if (!this.pending || this.inFlight) return
+    if (!this.pending) return
     // Timers may fire before a fractional delay has fully elapsed. Recheck the clock.
     const delay = MOVEMENT_INPUT_INTERVAL_MS - (this.now() - this.lastSent)
     if (delay > 0) {
@@ -55,25 +54,15 @@ export class MovementInputBuffer {
     this.pending = undefined
     this.lastSent = this.now()
     const response = this.send(next.intent, next.scope)
-    if (response) {
-      const delivery = ++this.delivery
-      this.inFlight = true
-      const complete = () => {
-        if (delivery !== this.delivery) return
-        this.inFlight = false
-        this.lastSent = this.now()
-        this.flush()
-      }
-      void response.then(complete, complete)
-    }
+    // Errors belong to the transport/runtime. A late completion cannot flush input
+    // queued by a new connection or change its cadence.
+    if (response) void response.catch(() => {})
   }
   clear(resetCadence = true) {
     clearTimeout(this.timer)
     this.timer = undefined
     this.pending = undefined
     if (resetCadence) {
-      ++this.delivery
-      this.inFlight = false
       this.lastSent = -Infinity
     }
   }

@@ -3,7 +3,7 @@ import { estimatedServerTime, useSession } from '../../network/worldClient'
 import { parkRuntime } from '../../park/runtime/runtime'
 import { clearRoamingInput, inputState, panelOwnsKeys } from '../../world/inputOwnership'
 import { emoteSlots as slots, emoteSector as sector, type Emote } from './catalog'
-import { emoteSource, emoteUnavailable } from './availability'
+import { emoteUnavailable } from './availability'
 import { useEmoteState } from './state'
 import './emotes.css'
 import emoteIcon from '../parkMenus/icons/dock-emote.svg'
@@ -115,7 +115,7 @@ export function EmoteWheel() {
     )
       return;
     const pointer = mode === "hold" ? lastPointer.current : null;
-    const scale = Math.min(1, (innerWidth - 24) / 448, (innerHeight - 80) / 448);
+    const scale = Math.min(0.8, (innerWidth - 24) / 448, (innerHeight - 80) / 448);
     const margin = (radius + 24) * scale;
     const x = Math.max(
       margin,
@@ -362,7 +362,6 @@ export function EmoteWheel() {
                 >
                   <Icon kind={slot.icon} />
                   <span>{slot.label}</span>
-                  <small>{emoteSource(slot.id) === "mock" ? "목업" : emoteSource(slot.id) === "server" ? "서버" : "미연결"}</small>
                 </button>
               ) : (
                 <span
