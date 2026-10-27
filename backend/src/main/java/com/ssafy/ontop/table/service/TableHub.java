@@ -13,6 +13,7 @@ import com.ssafy.ontop.game.action.GameActionResult;
 import com.ssafy.ontop.game.action.GameForfeitCommand;
 import com.ssafy.ontop.game.action.GameForfeitResult;
 import com.ssafy.ontop.game.reconnect.GameReconnectService;
+import com.ssafy.ontop.game.result.GameDefeatConfirmed;
 import com.ssafy.ontop.game.result.GameResultService;
 import com.ssafy.ontop.game.result.GameResultCommitted;
 import com.ssafy.ontop.game.result.GameResultView;
@@ -40,6 +41,7 @@ import com.ssafy.ontop.world.config.WorldEmoteProperties;
 import com.ssafy.ontop.world.config.WorldProximityProperties;
 import com.ssafy.ontop.world.domain.ChatText;
 import com.ssafy.ontop.world.domain.EmoteCode;
+import com.ssafy.ontop.world.dto.WorldGameReaction;
 import com.ssafy.ontop.world.map.PreparedParkMap;
 import com.ssafy.ontop.world.map.WorldMapRuntime;
 import com.ssafy.ontop.world.service.WorldAppearanceGateway;
@@ -122,6 +124,7 @@ public class TableHub {
     private final WorldFacilityService facilities;
     private final PreparedParkMap preparedPark;
     private final WorldFollowService follows = new WorldFollowService();
+    private final Map<String, ReactionRound> reactionRounds = new HashMap<>();
     private final ExecutorService startWorkers = Executors.newVirtualThreadPerTaskExecutor();
     private final ScheduledExecutorService heartbeatTimer = Executors.newSingleThreadScheduledExecutor(
             Thread.ofPlatform().daemon(true).name("table-heartbeat").factory());
@@ -674,6 +677,7 @@ public class TableHub {
         stateLoads.clear();
         actionRequests.clear();
         starts.clear();
+        reactionRounds.clear();
         startWorkers.shutdownNow();
     }
 
@@ -1763,6 +1767,33 @@ public class TableHub {
     }
 
     @EventListener
+    public synchronized void gameDefeatConfirmed(GameDefeatConfirmed event) {
+        if (stopped) { return; }
+        String channelId = tableChannels.get(event.tableId());
+        TableStartAttempt attempt = starts.get(event.tableId());
+        if (channelId == null || attempt == null
+                || !event.gameId().equals(attempt.view(0, false).gameSessionId())
+                || !event.gameCode().equals(attempt.command().gameCode())) { return; }
+        Set<String> players = attempt.command().participants().stream().map(GameStartCommand.Participant::userId)
+                .collect(Collectors.toSet());
+        if (!players.contains(Long.toString(event.userId()))) { return; }
+        ReactionRound round = reactionRounds.get(event.tableId());
+        if (round == null || !round.gameId().equals(event.gameId())) {
+            round = new ReactionRound(event.gameId(), new HashSet<>());
+            reactionRounds.put(event.tableId(), round);
+        }
+        // 한 테이블의 현재 경기, 참가자별 한 건만 보존한다. 새 경기의 사건이 오면 교체한다.
+        if (!round.users().add(event.userId())) { return; }
+        String notification = protocol.encode(null, "WORLD_GAME_REACTION", WorldGameReaction.from(event, channelId));
+        for (Member target : members.values()) {
+            if (isMapReady(target) && channelId.equals(channels.channelOf(target.userId()))
+                    && (players.contains(target.userId()) || canWatchTable(target, event.tableId()))) {
+                target.peer().offer(notification);
+            }
+        }
+    }
+
+    @EventListener
     public synchronized void gameStateChanged(GameStateChanged change) {
         if (stopped || gameStates.isEmpty()) {
             return;
@@ -2049,6 +2080,8 @@ public class TableHub {
 
     private record ProfileTarget(Member member, String channel) {
     }
+
+    private record ReactionRound(String gameId, Set<Long> users) { }
 
     private record Member(String userId, TablePeer peer, Long accountId, String sessionId) {
     }

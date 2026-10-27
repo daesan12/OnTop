@@ -561,12 +561,26 @@ const mapGuide = '\n\n## 맵 버전 확인\n'
     + 'CONNECTED.payload.map은 실제 로딩 맵이며 mapVerificationRequired=true면 확인 전 입장·경기 복구가 보류됩니다. '
     + '환경 mapId/mapVersion에는 FE가 사용하는 맵 값을 설정하세요. schemaVersion은 현재 정수1입니다. 서버 값을 맹목적으로 복사하지 마세요. '
     + 'WORLD_MAP_CONFIRM 성공 WORLD_MAP_STATE 후 기존 입장/복구 진행, MAP_VERSION_MISMATCH/REQUIRED는 serverMap으로 안내합니다. '
-    + '새 연결마다 재확인하며 30초 경기 복구 기한은 연장되지 않습니다. 현재 기본 false, FE 새 맵 적용·배포는 별도. docs/world-map-api.md.';
+    + '새 연결마다 재확인하며 30초 경기 복구 기한은 연장되지 않습니다. 현재 기본 false, FE 새 맵 적용·배포는 별도. docs/world-map-api.md. '
+    + '분수·의자 충돌 보정 로컬 legacy mapVersion=ae833248d2dd356c6603af72b2b865f9051a866e9cfa7d2b9c9abe890579944d(schema1). '
+    + '기존 서버 배포 버전과 구분하고 FE EXPECTED_MAP_VERSION을 함께 맞춘 후 사용하세요. 기존 ID/이용 좌표/바인딩 유지, docs/integration/collision-feedback/contract.md.';
 wsItems[6].description += mapGuide;
 wsItems[6].messages.push(message('맵 01 FE 맵 버전 확인 → WORLD_MAP_STATE', 'WORLD_MAP_CONFIRM',
     { mapId: '{{mapId}}', schemaVersion: 1, mapVersion: '{{mapVersion}}' }));
+const reactionGuide = '\n\n## 기권·패배 공개 연출 (서버 수신 전용)\n'
+    + 'WORLD_GAME_REACTION은 새 송신 요청이 아닙니다. 실제 경기 시작 후 기권/패배가 확정되면 '
+    + '같은 채널 참가자와 테이블 중심20m 이내 사용자(비구독자 포함)가 수신합니다. '
+    + 'eventId와(gameId,userId)로 기존 GAME_STATE 추론과 중복을 막고, 재접속에 과거 모션을 재생하지 않습니다. '
+    + '직전2명은 table-flip/2800ms, 나머지는 head-clutch/3600ms입니다. '
+    + '다리 pendingForfeit 최초 확정만 알리며 손패/정산 정보는 없습니다. '
+    + '예시: ' + JSON.stringify({ requestId: null, type: 'WORLD_GAME_REACTION', payload: {
+        eventId: 'game-1:reaction:202', gameId: 'game-1', tableId: '{{tableIdA}}', channelId: '{{channelIdA}}',
+        gameCode: 'ONE_CARD', version: 7, userId: '202', kind: 'FORFEIT', remainingBefore: 3,
+        motion: 'head-clutch', durationMs: 3600, occurredAt: '2026-10-26T09:00:00Z',
+    } }) + '\n명세 docs/world-game-reaction-api.md. 코드/로컬검증이며 실제 배포·FE3D 연결은 별도입니다.';
+wsItems[6].description += reactionGuide;
 const wsV3 = { name: 'OnTop WebSocket', $kind: 'collection', description: wsGuide + appearanceGuide + publicProfileGuide
-        + facilityGuide + followGuide + mapGuide,
+        + facilityGuide + followGuide + mapGuide + reactionGuide,
     items: wsItems };
 const httpV21 = {
     info: { name: httpV3.name, description: guide, schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json' },
