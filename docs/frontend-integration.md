@@ -37,6 +37,9 @@ Compose 변경은 현재 Jenkins 분류에서 `MANUAL_REVIEW=1`이므로 자동 
 새 접속권으로 WSS 연결 및 `CHANNEL_JOIN` 성공을 확인한다. 비밀키·DB 데이터는 변경하지 않는다.
 
 개발 설정의 채널은 `channel-1`(개발 공원, 정원 40)이다. 테이블 ID는 조회 응답을 사용한다.
+현재 맵 전체16개 연결 코드는 [현재 맵 테이블 연결](legacy-table-integration.md)과
+[개발 대응표](integration/legacy-tables/bindings.dev.md)를 따른다. 기존2개 ID와 mapVersion은 유지한다.
+Spring 실행에서 시작 연결 비활성은 `GAME_START_CHECK`의 `START_NOT_CONFIGURED`로 구분한다.
 개발 조회 API는 공통 REST 인증·CORS 정책을 유지한다. `/dev/tables`, `/dev/world-config`,
 local 전용 게임 시작·정산 대역은 활성화하지 않는다. 게임 엔진·판돈 예약/정산의 실제 배포와
 프론트의 공원 테이블 모델 매핑은 별도 확인이 필요하며, 공원 입장 복구만으로 완료로 보지 않는다.

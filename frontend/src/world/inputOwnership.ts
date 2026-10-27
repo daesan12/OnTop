@@ -9,8 +9,11 @@ export function clearRoamingInput() {
   if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function')
     window.dispatchEvent(new Event('ontop-clear-input'))
 }
-export const panelOwnsKeys = () => Object.values(inputState).some(Boolean)
-  || (typeof document !== 'undefined' && !!document.querySelector('dialog[open], [role="dialog"]'))
+const dialogOpen = () => typeof document !== 'undefined' && !!document.querySelector('dialog[open], [role="dialog"]')
+export const panelOwnsKeys = () => Object.values(inputState).some(Boolean) || dialogOpen()
+/** The wardrobe keeps other shortcuts closed but lets the avatar walk and the view turn behind it. */
+export const panelOwnsMovement = () =>
+  Object.entries(inputState).some(([panel, open]) => open && panel !== 'wardrobeOpen') || dialogOpen()
 export function textInputOwnsKeys(target: EventTarget | null) {
   return target instanceof HTMLElement && !!target.closest(
     'input,textarea,select,button,a,[contenteditable="true"],[role="dialog"],dialog[open]',

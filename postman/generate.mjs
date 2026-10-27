@@ -567,7 +567,11 @@ const mapGuide = '\n\n## 맵 버전 확인\n'
 wsItems[6].description += mapGuide;
 wsItems[6].messages.push(message('맵 01 FE 맵 버전 확인 → WORLD_MAP_STATE', 'WORLD_MAP_CONFIRM',
     { mapId: '{{mapId}}', schemaVersion: 1, mapVersion: '{{mapVersion}}' }));
-const tabletGuide = '\n\n## 새 태블릿 MANUAL 모드 (2026-10-27, 로컬 구현·미배포)\n'
+const tabletGuide = '\n\n## 현재 맵 전체16개 테이블 (2026-10-27, 로컬 구현·미배포)\n'
+    + 'channel-1의 GET /api/v1/tables 결과16개와 docs/integration/legacy-tables/bindings.dev.json의 bindings를 교차 확인합니다. '
+    + '기존두ID·맵버전은 유지하고 채널마다 별도 방입니다. 실제 Spring 서버의 GAME_START_CHECK는 시작 연결이 꺼져 있으면 START_NOT_CONFIGURED를 반환합니다. '
+    + '테이블 등록만으로 DB 예약/정산·엔진을 활성화하지 않습니다. docs/legacy-table-integration.md. '
+    + '\n\n## 새 태블릿 MANUAL 모드 (2026-10-27, 로컬 구현·미배포)\n'
     + '방장 TABLE_CONFIGURE로 게임/정확한 정원/목표/판돈/expectedVersion을 확정한 뒤 전원이 READY_SET하고 방장만 TABLE_START합니다. '
     + 'TABLE_STATE에서 실제 version을 tableVersion에 복사하세요. 기존 GAME_SELECT AUTO와 구분하며 MANUAL에서는 GAME_SELECT를 거절합니다. '
     + '전원 준비 후120초 TABLE_HOST_WAIT_STATE(serverNow/expiresAt/epoch/revision/tableVersion/hostUserId/cancelReason), 취소/설정·인원 변경은 새 준비 필요. '

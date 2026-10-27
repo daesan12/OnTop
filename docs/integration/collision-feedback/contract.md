@@ -3,6 +3,9 @@
 기준: `fix/frontend-feedback-assets`의 `a1403c7fec82b520ee9713c6963e25f418e77ff8`.
 기존 legacy 맵의 충돌 보정이다. 180m 생성 맵 활성화와 별개이며 서버 재시작·배포는 수행하지 않았다.
 
+2026-10-27 전체16개 연결의 현행 대응표는 [현재 맵 테이블 연결](../../legacy-table-integration.md)과
+[개발16개 매핑](../legacy-tables/bindings.dev.json)을 사용한다. 아래2개 매핑은 충돌 보정 당시 기록이다.
+
 ## 생성 결과
 
 | 항목 | 값 |

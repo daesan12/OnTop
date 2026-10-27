@@ -21,7 +21,9 @@
 | `/api/v1/admin/wallet-grants`, `/api/v1/admin/wallet-grants/**` | 지급 (후속 구현 예정) |
 | 그 밖의 `/api/v1/admin/**` | 거절 |
 
-`GET /api/v1/admin/me`는 `{ "canRead": true, "canGrant": false }` 형식으로 현재 권한을 반환하며 캐시하지 않는다. 미로그인은 401, 권한이 없는 회원은 403이다. 프론트엔드의 메뉴 숨김은 편의를 위한 처리이며 서버 권한 검사를 대신하지 않는다.
+`GET /api/v1/admin/me`는 `{ "canRead": true, "canGrant": false }` 형식으로 현재 권한을 반환하며 캐시하지 않는다. 미로그인은 401, 권한이 없는 회원은 403이다. 프론트엔드의 화면 접근 처리는 서버 권한 검사를 대신하지 않는다.
+
+관리자 화면은 로그인 후 `/admin` 주소로 직접 연다. 공원 UI에는 관리자 진입 메뉴를 두지 않는다. 화면도 `/api/v1/admin/me`로 권한을 확인한 뒤 소리함 목록을 표시하며, 일반 회원에게는 권한 없음 화면을 보여준다. `/admin/feedback` 주소로 직접 들어와도 같은 권한 확인을 거친다.
 
 소리함 테이블은 공통 Flyway V127로 적용되지만 API는 `FEEDBACK_ENABLED`가 true일 때만 등록된다.
 관리자 권한 설정만으로 소리함 저장 기능이 켜지지는 않는다.

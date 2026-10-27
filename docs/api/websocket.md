@@ -105,6 +105,7 @@ AUTH_SESSION_REVOKED는 30초 유예다. 즉시 이탈은 경기 전체 종료·
 | 경기 상태·관전 | GAME_STATE_CHECK / GAME_WATCH / GAME_UNWATCH | GAME_STATE / GAME_WATCH_LEFT |
 | 경기 입력 | GAME_ACTION_SEND | GAME_ACTION_RESULT (개별 GAME_STATE 갱신과 구분) |
 | 수동 기권 | GAME_FORFEIT | GAME_FORFEIT_RESULT |
+| 오목 관전 채팅·핑 | GAME_SPECTATOR_CHAT_SEND / OMOK_SPECTATOR_PING_SEND | GAME_SPECTATOR_CHAT_MESSAGE / OMOK_SPECTATOR_PING ([상세](../websocket-api/10-game-spectator-events.md), 승인 관전자만 발신) |
 | 경기 결과 | GAME_RESULT_CHECK | GAME_RESULT |
 | 오류 | 잘못된 메시지/권한/연동 미준비 | ERROR |
 

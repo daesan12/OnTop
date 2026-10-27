@@ -28,6 +28,8 @@ import com.ssafy.ontop.game.state.GameStateView;
 import com.ssafy.ontop.table.domain.TableGame;
 import com.ssafy.ontop.table.domain.TableRoom;
 import com.ssafy.ontop.table.domain.TableStartAttempt;
+import com.ssafy.ontop.table.dto.GameSpectatorChatMessage;
+import com.ssafy.ontop.table.dto.OmokSpectatorPing;
 import com.ssafy.ontop.table.dto.TableListResponse;
 import com.ssafy.ontop.table.dto.TableProtocol;
 import com.ssafy.ontop.table.dto.TableProtocol.Request;
@@ -42,6 +44,7 @@ import com.ssafy.ontop.world.config.WorldProximityProperties;
 import com.ssafy.ontop.world.domain.ChatText;
 import com.ssafy.ontop.world.domain.EmoteCode;
 import com.ssafy.ontop.world.dto.WorldGameReaction;
+import com.ssafy.ontop.world.map.LegacyParkTables;
 import com.ssafy.ontop.world.map.PreparedParkMap;
 import com.ssafy.ontop.world.map.WorldMapRuntime;
 import com.ssafy.ontop.world.service.WorldAppearanceGateway;
@@ -137,6 +140,10 @@ public class TableHub {
 
     @Autowired(required = false)
     public void configureWorldClock(com.ssafy.ontop.world.service.WorldClock clock) { worldClock = clock; }
+    private SpectatorEventPolicy spectatorEvents = new SpectatorEventPolicy();
+
+    @Autowired(required = false)
+    public void configureSpectatorEvents(SpectatorEventPolicy policy) { spectatorEvents = policy; }
     private final ExecutorService startWorkers = Executors.newVirtualThreadPerTaskExecutor();
     private final ScheduledExecutorService heartbeatTimer = Executors.newSingleThreadScheduledExecutor(
             Thread.ofPlatform().daemon(true).name("table-heartbeat").factory());
@@ -167,6 +174,21 @@ public class TableHub {
     // 성공 처리 뒤에만 호출한다. 큐에 넣기만 하고 실패해도 예외를 던지지 않아 Hub 처리에 영향이 없다.
     private void recordBehavior(BehaviorEventType type, Long accountId, UnaryOperator<BehaviorEvent.Builder> details) {
         behaviorLog.record(() -> details.apply(BehaviorEvent.builder(type, Instant.now()).userId(accountId)).build());
+    }
+
+    // 실제 점유가 생기거나 풀린 뒤에만 호출한다. 시작·종료는 leaseId로 짝을 맞춘다.
+    private void recordFacility(Long accountId, WorldFacilityService.Lease lease, String endReason) {
+        recordBehavior(endReason == null ? BehaviorEventType.FACILITY_USED : BehaviorEventType.FACILITY_RELEASED,
+                accountId, builder -> {
+                    builder.channelId(lease.channelId()).prop("leaseId", lease.leaseId())
+                            .prop("facilityId", lease.facilityId()).prop("kind", lease.kind())
+                            .prop("seatIndex", lease.seatIndex());
+                    if (endReason != null) {
+                        builder.prop("endReason", endReason).prop("durationMs",
+                                Math.max(0, Duration.between(lease.startedAt(), Instant.now()).toMillis()));
+                    }
+                    return builder;
+                });
     }
 
     // 물리 계산이 끝난 위치를 큐에 넣기만 한다. DB 접근·대기가 없어 tick을 막지 않는다. 착석 중에는 남기지 않는다.
@@ -290,7 +312,10 @@ public class TableHub {
             Optional<GameStateGateway> gameStates, Optional<GameActionGateway> gameActions,
             Optional<GameResultService> gameResults, WorldProximity proximity, WorldMapCompatibility maps) {
         this(mapper, gateway, startRehearsal, reconnect, heartbeatInterval, heartbeatTimeout, channels, chat,
-                emotes, gameStates, gameActions, gameResults, proximity, maps, runtime.prepared().orElse(null));
+                emotes, gameStates, gameActions, gameResults, proximity, maps, runtime.prepared().orElse(null),
+                runtime.legacyTables().orElse(null));
+        // 실제 서버에서는 연동 비활성 상태도 조회해 FE에 원인을 알릴 수 있다.
+        protocol.enableStartQueries();
     }
 
     public TableHub(ObjectMapper mapper, Optional<GameStartGateway> gateway,
@@ -312,6 +337,16 @@ public class TableHub {
             Optional<GameStateGateway> gameStates, Optional<GameActionGateway> gameActions,
             Optional<GameResultService> gameResults, WorldProximity proximity, WorldMapCompatibility maps,
             PreparedParkMap preparedPark) {
+        this(mapper, gateway, startRehearsal, reconnect, heartbeatInterval, heartbeatTimeout, channels, chat,
+                emotes, gameStates, gameActions, gameResults, proximity, maps, preparedPark, null);
+    }
+
+    private TableHub(ObjectMapper mapper, Optional<GameStartGateway> gateway, boolean startRehearsal,
+            Optional<GameReconnectService> reconnect, Duration heartbeatInterval, Duration heartbeatTimeout,
+            WorldChannelRegistry channels, WorldChatService chat, WorldEmoteService emotes,
+            Optional<GameStateGateway> gameStates, Optional<GameActionGateway> gameActions,
+            Optional<GameResultService> gameResults, WorldProximity proximity, WorldMapCompatibility maps,
+            PreparedParkMap preparedPark, LegacyParkTables legacyTables) {
         if (startRehearsal && gateway.isEmpty()) {
             throw new IllegalArgumentException("시작 연동 검증 대역이 필요합니다.");
         }
@@ -346,6 +381,16 @@ public class TableHub {
             for (var binding : preparedPark.bindings()) {
                 rooms.put(binding.tableId(), new TableRoom(binding.tableId()));
                 tableChannels.put(binding.tableId(), binding.channelId());
+            }
+        } else if (legacyTables != null && !channelIds.isEmpty()) {
+            Set<String> registeredChannels = legacyTables.entries().stream()
+                    .map(LegacyParkTables.Entry::channelId).collect(Collectors.toSet());
+            if (!registeredChannels.equals(channelIds)) {
+                throw new IllegalArgumentException("현재 맵의 테이블 매핑과 서버 채널이 다릅니다.");
+            }
+            for (var table : legacyTables.entries()) {
+                rooms.put(table.tableId(), new TableRoom(table.tableId()));
+                tableChannels.put(table.tableId(), table.channelId());
             }
         } else if (channelIds.isEmpty()) {
             rooms.put("table-1", new TableRoom("table-1"));
@@ -578,6 +623,12 @@ public class TableHub {
                 replyHostWait(member, room, request.requestId());
                 return;
             }
+            // 참가자에게도 로비 복구 오류 대신 관전 권한 오류를 주도록 복구 게이트 앞에서 처리한다.
+            // 관전자의 로비 자격은 canSpectate에서 다시 검사한다.
+            if (request.type().equals("GAME_SPECTATOR_CHAT_SEND") || request.type().equals("OMOK_SPECTATOR_PING_SEND")) {
+                sendSpectatorEvent(sessionId, member, request);
+                return;
+            }
             if (member.accountId() != null && reconnect.isPresent()
                     && !reconnect.get().canUseLobby(member.accountId(), sessionId)) {
                 fail(request, "GAME_RECOVERY_REQUIRED", "현재 경기 복구 상태를 먼저 확인해주세요.");
@@ -653,11 +704,13 @@ public class TableHub {
         profileMemberships.remove(member);
         positionSampler.forget(member.userId());
         String facilityChannel = channels.channelOf(member.userId());
-        boolean wasUsingFacility = facilities.current(member.userId()) != null;
+        // disconnected()가 내부에서 release()를 부르므로 해제 전 점유를 한 번만 읽어 종료를 한 번만 기록한다.
+        var facilityLease = facilities.current(member.userId());
         facilities.disconnected(member.userId());
         WorldChannelRegistry.State channelState = channels.disconnect(member.userId());
-        if (wasUsingFacility) {
+        if (facilityLease != null) {
             publishFacilities(facilityChannel, null, null);
+            recordFacility(member.accountId(), facilityLease, "DISCONNECTED");
         }
         if (channelState != null) {
             publishChannel(channelState, null, null);
@@ -726,6 +779,7 @@ public class TableHub {
         facilities.clear();
         follows.clear();
         chat.clear();
+        spectatorEvents.clear();
         emotes.clear();
         seating.clear();
         watching.clear();
@@ -986,12 +1040,14 @@ public class TableHub {
         if (seating.containsKey(member.userId())) {
             fail(request, "TABLE_BUSY", "먼저 테이블에서 퇴장해주세요.");
         }
-        boolean wasUsingFacility = facilities.current(member.userId()) != null;
-        facilities.release(member.userId());
+        var facilityLease = facilities.release(member.userId());
+        if (facilityLease != null) {
+            recordFacility(member.accountId(), facilityLease, "CHANNEL_LEFT");
+        }
         WorldChannelRegistry.State state = channels.leave(member.userId());
         endFollows(member.userId());
         cancelEmote(member.userId(), "CHANNEL_LEFT");
-        if (wasUsingFacility) {
+        if (facilityLease != null) {
             publishFacilities(state.channelId(), null, null);
         }
         profileMemberships.remove(member);
@@ -1166,6 +1222,8 @@ public class TableHub {
                 publishFacilities(channel, member, request.requestId());
                 publishWorld(channels.worldState(channel), null, null);
                 cancelEmote(member.userId(), "ACTIVITY_STARTED");
+                // 같은 요청 재전송은 위에서 점유 버전이 그대로라 반환되므로 새 이용으로 기록되지 않는다.
+                recordFacility(member.accountId(), lease, null);
                 endFollows(member.userId());
             }
             case "WORLD_FACILITY_RELEASE" -> {
@@ -1175,9 +1233,13 @@ public class TableHub {
                     fail(request, "FACILITY_EXIT_BLOCKED", "하차 위치가 막혀 있습니다. 잠시 후 다시 시도해주세요.");
                 }
                 channels.releaseFacility(member.userId(), exit);
-                facilities.release(member.userId());
+                var released = facilities.release(member.userId());
                 publishFacilities(channel, member, request.requestId());
                 publishWorld(channels.worldState(channel), null, null);
+                // 하차 위치가 막히면 위에서 실패하므로 종료로 기록하지 않는다.
+                if (released != null) {
+                    recordFacility(member.accountId(), released, "RELEASED");
+                }
             }
             case "WORLD_FACILITY_AIM" -> {
                 long before = facilities.state(channel).version();
@@ -1635,6 +1697,9 @@ public class TableHub {
     private void beginStartIfReady(TableRoom room) {
         TableRoom.Snapshot snapshot = room.snapshot();
         if ((!startRehearsal && committedStarts.isEmpty()) || !snapshot.allReady()) {
+            if (snapshot.allReady() && !startRehearsal && committedStarts.isEmpty()) {
+                log.warn("경기 시작 연결 비활성 table={} game={}", snapshot.tableId(), snapshot.gameCode());
+            }
             return;
         }
         GameStartCommand command = new GameStartCommand(UUID.randomUUID(), snapshot.tableId(), snapshot.version(),
@@ -1670,6 +1735,9 @@ public class TableHub {
 
     private void checkStart(Member member, Request request) {
         String tableId = seatedRoom(member, request).snapshot().tableId();
+        if (!startRehearsal && committedStarts.isEmpty()) {
+            fail(request, "START_NOT_CONFIGURED", "경기 시작 연결이 비활성 상태입니다.");
+        }
         TableStartAttempt attempt = starts.get(tableId);
         if (attempt == null) {
             fail(request, "START_NOT_REQUESTED", "아직 시작 연동 요청이 없습니다.");
@@ -2109,6 +2177,12 @@ public class TableHub {
         } else if (view.version() > push.deliveredVersion || push.initialRequestId != null) {
             push.tableId = view.tableId();
             push.deliveredVersion = view.version();
+            // 관전 채팅·핑 판정용. 엔진을 다시 호출하지 않도록 전달한 공개 상태의 일부만 기억한다.
+            var publicState = view.publicState();
+            push.gameCode = publicState.path("gameCode").textValue();
+            push.status = publicState.path("status").textValue();
+            push.players = Set.copyOf(java.util.List.of(publicState.path("blackUserId").asText(),
+                    publicState.path("whiteUserId").asText()));
             push.member.peer().offer(protocol.encode(push.initialRequestId, "GAME_STATE", view));
             push.initialRequestId = null;
         }
@@ -2154,6 +2228,84 @@ public class TableHub {
             if (push.member == member && push.role == GameStateView.Role.SPECTATOR
                     && push.tableId != null && !canWatchTable(member, push.tableId)) {
                 clearGameWatch(member);
+            }
+        }
+    }
+
+    // GAME_WATCH 첫 상태를 받은 뒤에도 같은 경기·채널·20m·로비 자격을 유지하는 관전자만 인정한다.
+    private StatePush approvedSpectator(String sessionId, Member member, String gameId) {
+        StatePush push = statePushes.get(sessionId);
+        return push != null && push.member == member && push.role == GameStateView.Role.SPECTATOR
+                && push.gameId.equals(gameId) && push.initialRequestId == null && push.tableId != null
+                && canSpectate(sessionId, member, push.tableId) ? push : null;
+    }
+
+    /**
+     * 승인 관전자의 오목 채팅·핑을 같은 경기 플레이어와 승인 관전자에게 보낸다(docs/websocket-api/10-game-spectator-events.md).
+     * 엔진을 호출하지 않으며 판·버전·타이머·결과는 바꾸지 않는다. 다른 수신자에게는 비필수 이벤트로만 보낸다.
+     */
+    private void sendSpectatorEvent(String sessionId, Member member, Request request) {
+        boolean ping = request.type().equals("OMOK_SPECTATOR_PING_SEND");
+        var payload = request.payload();
+        if (member.accountId() == null) {
+            fail(request, "GAME_SPECTATOR_AUTH_REQUIRED", "인증된 회원만 관전 채팅·핑을 보낼 수 있습니다.");
+        }
+        if (gameStates.isEmpty() || reconnect.isEmpty()) {
+            fail(request, "GAME_SPECTATOR_NOT_CONFIGURED", "경기 관전 연결이 준비되지 않았습니다.");
+        }
+        String gameId = payload.get("gameId").textValue();
+        StatePush push = approvedSpectator(sessionId, member, gameId);
+        if (push == null || reconnect.get().canControlGame(member.accountId(), sessionId, gameId)) {
+            fail(request, "GAME_SPECTATOR_ACCESS_DENIED", "관전이 승인된 경기에서만 보낼 수 있습니다.");
+        }
+        if (!"OMOK".equals(push.gameCode)) {
+            fail(request, "GAME_SPECTATOR_UNSUPPORTED_GAME", "오목 경기에서만 사용할 수 있습니다.");
+        }
+        if (!"PLAYING".equals(push.status)) {
+            fail(request, "GAME_SPECTATOR_GAME_NOT_PLAYING", "진행 중인 경기에서만 보낼 수 있습니다.");
+        }
+        String eventId = payload.get("eventId").textValue();
+        var kind = ping ? SpectatorEventPolicy.Kind.PING : SpectatorEventPolicy.Kind.CHAT;
+        String text = ping ? null : new ChatText(payload.get("text").textValue()).value();
+        long basedOnVersion = ping ? payload.get("basedOnVersion").longValue() : 0;
+        int x = ping ? payload.get("x").intValue() : 0;
+        int y = ping ? payload.get("y").intValue() : 0;
+        String content = ping ? basedOnVersion + ":" + x + ":" + y : text;
+        String type = ping ? "OMOK_SPECTATOR_PING" : "GAME_SPECTATOR_CHAT_MESSAGE";
+        long now = worldClock.sample().serverNow();
+        SpectatorEventPolicy.Stamp stamp;
+        try {
+            stamp = spectatorEvents.previous(member.accountId(), eventId, kind, gameId, content, now);
+            if (stamp != null) {
+                // 같은 요청의 재전송은 원래 시각 그대로 요청자에게만 다시 확인해 준다. 다시 방송하지 않는다.
+                member.peer().offer(protocol.encode(request.requestId(), type, ping
+                        ? new OmokSpectatorPing(gameId, eventId, member.userId(), basedOnVersion, x, y, stamp, now)
+                        : new GameSpectatorChatMessage(gameId, eventId, member.userId(), text, stamp, now)));
+                return;
+            }
+            // Hub 잠금이 경기 상태 변경 알림과의 경계다. 더 새 버전 알림을 받았으면 아직 전달 전이어도 거절한다.
+            if (ping && (basedOnVersion != push.deliveredVersion || push.requestedVersion > push.deliveredVersion)) {
+                fail(request, "OMOK_SPECTATOR_PING_STALE_VERSION", "최신 판 상태에서 다시 추천해주세요.");
+            }
+            stamp = spectatorEvents.accept(member.accountId(), eventId, kind, gameId, content, now);
+        } catch (SpectatorEventPolicy.Rejected rejected) {
+            throw new RequestException(request.requestId(), rejected.code(), rejected.getMessage());
+        }
+        Object event = ping ? new OmokSpectatorPing(gameId, eventId, member.userId(), basedOnVersion, x, y, stamp, now)
+                : new GameSpectatorChatMessage(gameId, eventId, member.userId(), text, stamp, now);
+        // 요청자 확인은 일반 응답이다. 다른 수신자 전달은 큐가 붐비거나 만료되면 버려질 수 있다.
+        member.peer().offer(protocol.encode(request.requestId(), type, event));
+        String notice = protocol.encode(null, type, event);
+        Duration ttl = Duration.ofMillis(stamp.expiresAt() - now);
+        for (var entry : members.entrySet()) {
+            Member target = entry.getValue();
+            if (target == member || target.accountId() == null) {
+                continue;
+            }
+            boolean player = push.players.contains(target.userId())
+                    && reconnect.get().canControlGame(target.accountId(), entry.getKey(), gameId);
+            if (player || approvedSpectator(entry.getKey(), target, gameId) != null) {
+                target.peer().offerTransient(notice, ttl);
             }
         }
     }
@@ -2312,6 +2464,10 @@ public class TableHub {
         private long deliveredVersion = -1;
         private boolean running;
         private long watchRevision;
+        // 마지막으로 전달한 공개 상태의 게임 종류·진행 상태·참가자 userId.
+        private String gameCode;
+        private String status;
+        private Set<String> players = Set.of();
 
         private StatePush(Member member, String gameId) {
             this(member, gameId, GameStateView.Role.PLAYER, null);

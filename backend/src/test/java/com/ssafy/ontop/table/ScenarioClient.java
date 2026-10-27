@@ -12,10 +12,12 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 
@@ -26,6 +28,9 @@ final class ScenarioClient implements AutoCloseable {
     final String userId;
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
+    // 같은 서버의 열린 클라이언트. 준비 동의 전 다른 참가자가 이미 받은 TABLE_STATE version을 확인한다.
+    private static final Set<ScenarioClient> LIVE = ConcurrentHashMap.newKeySet();
+    private final int port;
     private final Socket socket;
     private final DataInputStream input;
     private final OutputStream output;
@@ -35,6 +40,9 @@ final class ScenarioClient implements AutoCloseable {
     private volatile boolean replyToPing = true;
     private volatile Throwable failure;
     private volatile Predicate<JsonNode> forbidden = message -> false;
+    private volatile JsonNode tableState;
+    // 관전 채팅·핑. await()가 다른 메시지를 버려도 남겨 여러 수신자의 도착 여부를 비파괴로 확인한다.
+    private final List<JsonNode> spectatorEvents = new java.util.concurrent.CopyOnWriteArrayList<>();
 
     ScenarioClient(int port, String login) throws Exception {
         this(port, login, null);
@@ -53,6 +61,7 @@ final class ScenarioClient implements AutoCloseable {
     ScenarioClient(int port, String login, String ticket, String origin, String authority) throws Exception {
         userId = switch (login) { case "naver" -> "101"; case "ssafy" -> "202"; case "spectator" -> "505";
             default -> login; };
+        this.port = port;
         socket = new Socket("127.0.0.1", port);
         input = new DataInputStream(socket.getInputStream());
         output = socket.getOutputStream();
@@ -76,6 +85,7 @@ final class ScenarioClient implements AutoCloseable {
             }
             assertThat(response.toString(StandardCharsets.US_ASCII)).startsWith("HTTP/1.1 101");
             socket.setSoTimeout(0);
+            LIVE.add(this);
             reader = Thread.ofVirtual().name("scenario-reader").start(this::readLoop);
         } catch (Exception | AssertionError exception) {
             socket.close();
@@ -89,9 +99,33 @@ final class ScenarioClient implements AutoCloseable {
     }
 
     String sendRequest(String type, Object payload) throws Exception {
+        if (type.equals("READY_SET")) { awaitLatestTableState(payload); }
         String id = UUID.randomUUID().toString();
         send(1, MAPPER.writeValueAsBytes(Map.of("type", type, "requestId", id, "payload", ReadyConsent.payload(this, type, payload))));
         return id;
+    }
+
+    // ReadyConsent가 참가비/version을 채울 때만, 비동기 송신으로 늦은 같은 테이블의 최신 TABLE_STATE를 기다린다.
+    // 수신 큐를 소비하지 않으므로 먼저 도착한 시작 알림도 보존된다. 명시 값을 보내는 거절 테스트는 그대로 전송한다.
+    private void awaitLatestTableState(Object payload) throws InterruptedException {
+        if (!(payload instanceof Map<?, ?> supplied) || !Boolean.TRUE.equals(supplied.get("ready"))
+                || supplied.containsKey("betAmountPerPlayer") && supplied.containsKey("expectedVersion")) {
+            return;
+        }
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (System.nanoTime() < deadline) {
+            JsonNode own = tableState;
+            if (own == null || own.path("version").asLong() >= latestVersion(own.path("tableId").asText())) {
+                return;
+            }
+            Thread.sleep(10);
+        }
+    }
+
+    private long latestVersion(String tableId) {
+        return LIVE.stream().filter(client -> client.port == port).map(client -> client.tableState)
+                .filter(state -> state != null && state.path("tableId").asText().equals(tableId))
+                .mapToLong(state -> state.path("version").asLong()).max().orElse(0);
     }
 
     JsonNode state(String status) throws Exception {
@@ -107,6 +141,26 @@ final class ScenarioClient implements AutoCloseable {
             // 토큰/사용자 payload 없이 누락된 상태와 실제 Close Code를 진단한다.
             throw new AssertionError("기대 복구 상태=" + status + ", 수신 상태=" + observed + ", Close Code=" + closes.peek(), exception);
         }
+    }
+
+    JsonNode awaitSpectatorEvent(String eventId) throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (System.nanoTime() < deadline) {
+            List<JsonNode> received = spectatorEvents(eventId);
+            if (!received.isEmpty()) {
+                return received.getFirst();
+            }
+            if (failure != null) {
+                throw new AssertionError("시나리오 소켓 수신 실패", failure);
+            }
+            Thread.sleep(10);
+        }
+        throw new AssertionError("5초 안에 관전 이벤트를 받지 못함: " + eventId);
+    }
+
+    List<JsonNode> spectatorEvents(String eventId) {
+        return spectatorEvents.stream().filter(message -> message.at("/payload/eventId").asText().equals(eventId))
+                .toList();
     }
 
     JsonNode await(Predicate<JsonNode> predicate) throws Exception {
@@ -175,6 +229,12 @@ final class ScenarioClient implements AutoCloseable {
                 input.readFully(payload);
                 if (opcode == 1) {
                     JsonNode message = ReadyConsent.received(this, MAPPER.readTree(payload));
+                    String type = message.path("type").asText();
+                    if (type.equals("TABLE_STATE")) { tableState = message.path("payload"); }
+                    if (type.equals("TABLE_LEFT")) { tableState = null; }
+                    if (type.equals("GAME_SPECTATOR_CHAT_MESSAGE") || type.equals("OMOK_SPECTATOR_PING")) {
+                        spectatorEvents.add(message);
+                    }
                     assertThat(forbidden.test(message)).as("동작 중 수신 금지 메시지: %s", message).isFalse();
                     assertThat(messages.offer(message)).as("시나리오 수신 큐 초과").isTrue();
                 } else if (opcode == 9 && replyToPing) {
@@ -191,6 +251,7 @@ final class ScenarioClient implements AutoCloseable {
                 failure = exception;
             }
         } finally {
+            LIVE.remove(this);
             try {
                 socket.close();
             } catch (IOException ignored) {
@@ -218,6 +279,7 @@ final class ScenarioClient implements AutoCloseable {
 
     @Override
     public void close() throws Exception {
+        LIVE.remove(this);
         socket.close();
         reader.join(5000);
         assertThat(reader.isAlive()).as("시나리오 수신자 정리").isFalse();

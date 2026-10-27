@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { parseBindings } from '../../src/network/tableBindings'
 import { TABLES } from '../../src/config'
 import { EXPECTED_MAP_VERSION } from '../../src/config/mapVersion'
 import { avatars, authoritativePose, estimatedServerTime, receive, resetWorld, useSession } from '../../src/network/worldClient'
@@ -7,6 +9,7 @@ import { parseGameReaction } from '../../src/game/presentation/defeat'
 import { useGame } from '../../src/game/store'
 import { bridgeState } from '../fixtures/bridge'
 
+const deployedBindings = parseBindings(JSON.parse(readFileSync('public/park-bindings.dev.json', 'utf8')).bindings)
 const anchor = TABLES[0]!, tableId = 'mapped-table'
 let serial = 0, gameId = '', version = 0
 const position = (x = anchor.position[0], z = anchor.position[2]) => ({
@@ -46,6 +49,32 @@ it.each([20, 20.01])('honors the inclusive 20m public recipient boundary at %im'
   world(position(anchor.position[0] + distance))
   send()
   expect(!!reactionFor('102')).toBe(distance === 20)
+})
+it.each(deployedBindings)('plays the real dev binding $anchorId at 20m and cancels beyond it without a game subscription', binding => {
+  const mapped = TABLES.find(t => t.id === binding.anchorId)!
+  resetWorld()
+  emit('CONNECTED', { userId: '101' })
+  emit('CHANNEL_STATE', { channelId: binding.channelId, name: '공원', version: 1,
+    currentUsers: 2, capacity: 40, userIds: ['101', '102'] })
+  useSession.setState({ bindings: deployedBindings,
+    tables: deployedBindings.map(b => ({ tableId: b.tableId, capacity: 4, occupiedSeats: 3, availableSeats: 1,
+      joinable: false, gameCode: 'LIAR_BRIDGE', status: 'PLAYING', betAmountPerPlayer: 1 })) })
+  const publish = (distance: number) => emit('WORLD_STATE', { channelId: binding.channelId, version: ++version,
+    mapVersion: EXPECTED_MAP_VERSION, avatars: [
+      { userId: '101', position: { ...position(mapped.position[0] + distance, mapped.position[2]), y: mapped.position[1] + .8 } },
+      { userId: '102', position: { ...position(mapped.position[0], mapped.position[2] - 1.8), y: mapped.position[1] + .8 } },
+    ] })
+  publish(20)
+  const notification = event({ channelId: binding.channelId, tableId: binding.tableId })
+  emit('WORLD_GAME_REACTION', notification)
+  expect(gameReaction('102', avatars.get('102')!, estimatedServerTime())).toMatchObject({
+    anchorId: mapped.id, tableId: binding.tableId, kind: 'head-clutch',
+  })
+  expect(useSession.getState().tableId).toBe(''); expect(useSession.getState().watchedTableId).toBe('')
+  expect(useGame.getState().watchedGameId).toBe(''); expect(avatars.get('102')!.seatIndex).toBe(-1)
+  publish(20.01)
+  expect(gameReaction('102', avatars.get('102')!, estimatedServerTime())).toBeNull()
+  emit('WORLD_GAME_REACTION', notification); expect(reactionFor('102')).toBeNull()
 })
 it('does not use the public distance restriction to exclude a confirmed participant', () => {
   world(position(anchor.position[0] + 21))
