@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { lookScale } from '../../world/lookSensitivity'
 
 /** Presentation only; these fields never confer a seat, game grant or result. */
 const initial = () => ({
@@ -25,7 +26,8 @@ export function turnSeatedLook(scope: string, movementX: number) {
     seatedLook.yaw = 0
     useTableLobby.setState({ lookScope: scope })
   }
-  seatedLook.yaw = Math.max(-Math.PI * 0.48, Math.min(Math.PI * 0.48, seatedLook.yaw - movementX * 0.004))
+  seatedLook.yaw = Math.max(-Math.PI * 0.48, Math.min(Math.PI * 0.48,
+    seatedLook.yaw - movementX * 0.004 * lookScale()))
 }
 export const seatScope = (s: { sessionId: string; tableId: string; seatIndex: number }) =>
   s.tableId && s.seatIndex >= 0 ? `${s.sessionId}/${s.tableId}/${s.seatIndex}` : ''

@@ -38,7 +38,9 @@ test.afterEach(async ({ page }) => {
   await expect(page.locator('vite-error-overlay')).toHaveCount(0)
 })
 
-for (const first of [true, false]) test(`exercise returns to original ${first ? 'first' : 'third'} person, orbit and mouse lock only after approved exit position`, async ({ page }) => {
+// Fitness keeps mouse look while exercising (S15P31B105-217), so it is left with the keyboard path.
+const leaveFitness = (page: Page) => page.evaluate(async () => { await (await import('/src/features/fitness/controller.ts' as string)).leaveFitness() })
+for (const first of [true, false]) test(`exercise keeps mouse look and returns to original ${first ? 'first' : 'third'} person and orbit only after approved exit position`, async ({ page }) => {
   const d = facilityCatalog.facilities.find(d => d.kind === 'FITNESS')!
   const server = await fixture(page, { manualMovement: true, position: d.exit })
   await loaded(page, first)
@@ -47,17 +49,16 @@ for (const first of [true, false]) test(`exercise returns to original ${first ? 
   await page.evaluate(async id => { await (await import('/src/features/fitness/controller.ts' as string)).enterFitness(id) }, d.facilityId)
   await expect.poll(async () => (await own(page)).lease?.facilityId).toBe(d.facilityId)
   await expect.poll(async () => (await own(page)).pending).toBe(false)
-  await expect.poll(async () => (await probe(page)).active).toBe(false)
-  await page.mouse.move(650, 250); await page.mouse.down(); await page.mouse.move(710, 275); await page.mouse.up(); await page.mouse.wheel(0, 120)
-  expect((await probe(page)).controls).not.toEqual(before)
-  const leave = page.getByRole('button', { name: '운동기구에서 내려오기', exact: true })
-  server.facilities.blockedExit(true); await leave.click()
+  expect((await cameraState(page)).mouse).toBe(true)
+  await page.mouse.move(650, 250); await page.mouse.move(710, 275, { steps: 5 }); await page.mouse.wheel(0, 120)
+  await expect.poll(async () => (await probe(page)).controls).not.toEqual(before)
+  server.facilities.blockedExit(true); await leaveFitness(page)
   await expect(page.getByLabel('시설 연결 상태')).toContainText('FACILITY_EXIT_BLOCKED')
   expect((await own(page)).lease?.facilityId).toBe(d.facilityId)
-  expect((await probe(page)).active).toBe(false)
-  server.facilities.blockedExit(false); server.facilities.holdWorld(); await leave.click()
+  expect((await cameraState(page)).mouse).toBe(true)
+  server.facilities.blockedExit(false); server.facilities.holdWorld(); await leaveFitness(page)
   await expect.poll(async () => (await own(page)).awaitingWorld).toBe(true)
-  expect((await probe(page)).active).toBe(false)
+  expect((await cameraState(page)).mouse).toBe(true)
   expect((await probe(page)).controls).not.toEqual(before)
   server.facilities.flushWorld()
   await expect.poll(async () => (await own(page)).pending).toBe(false)
@@ -96,17 +97,18 @@ test('window loss cancels mouse re-lock while retaining first-person and orbit r
   await expect.poll(async () => String((await cameraState(page)).mouse)).toBe('false')
 })
 
+// Bungeoppang still releases the lock (fixed view), so it exercises the automatic return path.
 test('browser rejection of automatic mouse return is a one-shot failure with a working explicit retry', async ({ page }) => {
-  const d = facilityCatalog.facilities.find(d => d.kind === 'FITNESS')!
-  await fixture(page, { manualMovement: true, position: d.exit }); await loaded(page)
+  await bungeoppangFixture(page); await loaded(page)
   await page.keyboard.press('Control'); await expect.poll(async () => String((await cameraState(page)).mouse)).toBe('true')
-  await page.evaluate(async id => { await (await import('/src/features/fitness/controller.ts' as string)).enterFitness(id) }, d.facilityId)
-  await expect.poll(async () => (await own(page)).pending).toBe(false)
+  await page.evaluate(async () => (await import('/src/features/bungeoppang/store.ts' as string)).openBungeoppang())
+  await expect(page.getByRole('region', { name: '붕어빵 굽기 시작' })).toBeVisible()
+  await expect.poll(async () => String((await cameraState(page)).mouse)).toBe('false')
   await page.locator('canvas').evaluate(canvas => {
     canvas.dataset.returnRequests = '0'
     canvas.requestPointerLock = () => { canvas.dataset.returnRequests = String(Number(canvas.dataset.returnRequests) + 1); return Promise.reject(new Error('test return rejection')) }
   })
-  await page.getByRole('button', { name: '운동기구에서 내려오기', exact: true }).click()
+  await page.getByRole('button', { name: 'ESC 나가기', exact: true }).click()
   await expect.poll(async () => String((await cameraState(page)).first)).toBe('true')
   await expect(page.getByText(/마우스 시점을 고정하지 못했어요/)).toBeVisible()
   await page.waitForTimeout(250)

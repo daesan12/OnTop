@@ -61,6 +61,41 @@ it('reports permission rejection and retries only on an explicit new action', as
   expect(useMouseLook.getState()).toEqual({ active: true, error: '' })
 })
 
+const moveBy = (movementX: number, movementY = 0) =>
+  doc.dispatchEvent(Object.assign(new Event('mousemove'), { movementX, movementY }))
+
+it('drops a lone huge jump but keeps a real fast swipe after its first step', () => {
+  win.dispatchEvent(new Event('ontap-toggle-mouse-look')); acquire()
+  moveBy(900)
+  moveBy(6, 2)
+  moveBy(-1200, 300)
+  moveBy(-5)
+  expect(move.mock.calls).toEqual([[6, 2], [-5, 0]])
+
+  move.mockClear()
+  moveBy(40); moveBy(250); moveBy(260); moveBy(300); moveBy(120)
+  expect(move.mock.calls.map(([x]) => x)).toEqual([40, 260, 300, 120])
+})
+
+it('resets the jump guard every time the lock starts again', () => {
+  win.dispatchEvent(new Event('ontap-toggle-mouse-look')); acquire()
+  moveBy(150); moveBy(180)
+  doc.pointerLockElement = null; doc.dispatchEvent(new Event('pointerlockchange'))
+  move.mockClear()
+  win.dispatchEvent(new Event('ontap-toggle-mouse-look')); acquire()
+  moveBy(500)
+  moveBy(8)
+  expect(move.mock.calls).toEqual([[8, 0]])
+})
+
+it('treats a return request as done when the lock is still held', () => {
+  win.dispatchEvent(new Event('ontap-toggle-mouse-look')); acquire()
+  controls.resume()
+  expect(useMouseLook.getState().active).toBe(true)
+  expect(doc.exitPointerLock).not.toHaveBeenCalled()
+  expect(canvas.requestPointerLock).toHaveBeenCalledTimes(1)
+})
+
 it('releases on invalid ownership and removes handlers on teardown', () => {
   win.dispatchEvent(new Event('ontap-toggle-mouse-look')); acquire()
   canLock = false

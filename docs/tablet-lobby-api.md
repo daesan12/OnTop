@@ -2,6 +2,9 @@
 
 2026-10-27 사용자 요청 및 `TABLET_BE_REQUEST.md` 기준. 서버 코드·로컬 검증 범위이며 개발 서버 배포/FE 공동 검수는 별도다. DB 스키마·인증·예약/정산 구현은 바꾸지 않는다.
 
+현재 legacy 맵의 채널별 전체16개 등록·좌표 및 시작 연결 비활성 진단은
+[현재 맵 테이블 연결](legacy-table-integration.md)을 함께 따른다. 기존2개 ID와 HTTP/WS 필드는 유지한다.
+
 ## 사용 순서
 
 연결·맵 확인·채널 입장 → TABLE_JOIN → 방장 TABLE_CONFIGURE → 선택 정원 전원 READY_SET → 방장 TABLE_START → 기존 GAME_START_STATE → 게임 → 종료/SETTLED → 좌석 유지·준비 해제·방장 승계.
