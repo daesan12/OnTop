@@ -16,6 +16,7 @@ import com.jme3.util.BufferUtils;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 
 /** Immutable baked shared-config geometry; no TypeScript/Node runtime in the server. */
@@ -122,6 +123,32 @@ public final class ParkScene {
     public WorldMapMetadata metadata() {
         return metadata;
     }
+
+    public List<TableAnchor> tableAnchors() {
+        var anchors = new ArrayList<TableAnchor>();
+        var ids = new HashSet<String>();
+        JsonNode tables = data.path("tables");
+        if (!tables.isArray() || tables.isEmpty()) {
+            throw new IllegalStateException("현재 맵에 테이블 앵커가 없습니다.");
+        }
+        for (JsonNode table : tables) {
+            String id = table.path("id").asText();
+            JsonNode position = table.path("position");
+            if (id.isBlank() || !ids.add(id) || !position.isArray() || position.size() != 3) {
+                throw new IllegalStateException("테이블 앵커 ID·좌표를 확인해주세요.");
+            }
+            for (JsonNode coordinate : position) {
+                if (!coordinate.isNumber() || !Double.isFinite(coordinate.doubleValue())) {
+                    throw new IllegalStateException("테이블 좌표는 유한한 숫자여야 합니다.");
+                }
+            }
+            anchors.add(new TableAnchor(id, position.get(0).doubleValue(), position.get(1).doubleValue(),
+                    position.get(2).doubleValue()));
+        }
+        return List.copyOf(anchors);
+    }
+
+    public record TableAnchor(String anchorId, double x, double y, double z) {}
 
     public float spawnYaw() {
         return (float) data.path("spawn").path("yaw").asDouble();
