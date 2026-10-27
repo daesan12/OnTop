@@ -36,6 +36,30 @@ python analytics/scripts/verify.py --container ontop-analytics-mysql
 
 행동 로그 테이블은 운영 앱이 V5·V6 마이그레이션과 로그 활성화를 마친 뒤의 백업에만 들어 있다.
 
+## 관리자 집계 API (S15P31B105-234)
+
+앞서 수집한 `behavior_events`를 01·17·18번 쿼리로 **격리 복원본에서** 집계한다. 01번은 일별 활성·신규·접속·경기 참여, 17번은 가입일 코호트의 단계별 도달 인원, 18번은 시작일별 게임 수·종료·기권·참가자·경기 시간을 제공한다. 17번은 가입 이후 백업 시점까지 도달 여부를 세므로 과거 가입일 수치도 다음 백업에서 증가할 수 있다. 18번은 행동 로그의 `GAME_STARTED`/`GAME_ENDED`를 사용하는 테이블 게임 집계다. 붕어빵 전용 `minigame_sessions` 지표는 운영 공통 마이그레이션을 적용한 뒤 별도 확장한다.
+
+백업을 위 절차에 따라 SHA-256 확인 후 네트워크가 분리된 MySQL에 복원하고 다음 명령으로 집계 파일을 만든다. DEV에서는 DEV 백업을 격리 복원하여 같은 명령을 실행한다. 환경 간 데이터 파일을 섞지 않는다.
+
+```powershell
+python analytics/scripts/export_admin_snapshot.py --container ontop-analytics-mysql --database ontop_snapshot --backup-name $archive
+```
+
+`$archive`는 실제 복원한 `ontop-dev-YYYYMMDDTHHMMSSZ.sql.gz` 또는 `ontop-prod-YYYYMMDDTHHMMSSZ.sql.gz` 파일 이름이다. 생성된 `analytics/out/admin-summary.json`에는 날짜·게임 코드·집계 수와 `dataAsOf`(백업 시각), `generatedAt`(집계 생성 시각)만 있다. 원본 이벤트, 회원 번호, 위치는 없다. 쿼리나 검증이 실패하면 기존 집계 파일을 교체하지 않는다. 집계 파일도 저장소에 올리지 않는다.
+
+배포 서버에는 **집계 JSON만** 옮긴다. DEV는 `/etc/ontop/dev-app/analytics`, PROD는 `/etc/ontop/prod-app/analytics`에 게시한다. 각 서버에서 관리자 권한으로 다음을 실행한다. `SOURCE_JSON`은 전송해 둔 집계 파일의 절대 경로이고, `TARGET_DIR`은 환경별 위 경로다. 백업 원본은 앱 서버에 전송하지 않는다.
+
+```bash
+sudo install -d -o root -g 10001 -m 0750 "$TARGET_DIR"
+sudo install -o root -g 10001 -m 0640 "$SOURCE_JSON" "$TARGET_DIR/.admin-summary.json.tmp"
+sudo mv -f -- "$TARGET_DIR/.admin-summary.json.tmp" "$TARGET_DIR/admin-summary.json"
+```
+
+Compose는 해당 디렉터리를 앱 컨테이너의 `/run/ontop/analytics`에 읽기 전용으로 연결한다. 새 앱 이미지를 배포하면 `GET /api/v1/admin/analytics/summary`가 현재 게시된 집계 전체를 반환한다. 관리자 조회 권한(`ADMIN_READ_IDS`)이 필요하며, 로그인 전 401·일반 회원 403·파일이 없거나 손상되면 503이다. 응답은 `Cache-Control: no-store`다. 최초 배포 시 집계 파일이 없어도 앱은 정상 기동하며 이 API만 503을 반환한다. 파일을 게시한 뒤에는 앱 재시작 없이 다음 요청부터 새 집계가 보인다. 운영 백업이 매일 KST 03:00에 생성되더라도 위 생성·게시 단계를 실행하지 않으면 화면 데이터는 갱신되지 않는다. 자동 게시 작업은 별도 운영 절차가 필요하다.
+
+API 필드: `daily[]`에는 `date`, `activeUsers`, `newUsers`, `connections`, `players`; `funnel[]`에는 `date`, `onboarded`, `channelJoined`, `tableJoined`, `gameStarted`, `gameCompleted`; `games[]`에는 `date`, `gameCode`, `started`, `ended`, `completed`, `forfeits`, `participants`, `durationSeconds`, `timedGames`가 있다. 기간 선택과 비율 계산은 이후 관리자 화면 작업(S15P31B105-235)에서 이 합산 가능한 정수를 사용한다.
+
 **1. 백업 받기와 체크섬 확인**
 [infra/prod-db/README.md](../infra/prod-db/README.md) 절차대로 최신 `.sql.gz`와 같은 이름의 `.sha256`을 `analytics/data/`에 받는다(Git 제외 경로). 체크섬이 다르면 사용하지 않고 다시 받는다.
 
@@ -96,6 +120,8 @@ if (Test-Path analytics/out) { Remove-Item -Recurse -Force analytics/out }
 | `14_feedback_daily.sql` | 날짜별 소리함 제출 수·제출자 수 | 공지·업데이트 직후 제출이 늘었는지 본다. 내용은 분석하지 않는다 |
 | `15_feedback_channels.sql` | 채널별 소리함 제출 수·제출자 수 | 특정 채널에 제출이 몰리면 그 채널의 문제를 의심한다 |
 | `16_facility_usage.sql` | 시설별 이용 횟수·이용자·평균 이용 시간, 연결 끊김 종료, 종료 기록 없는 이용 | 안 쓰이는 시설은 위치·안내를 점검하고, 연결 끊김 종료가 많으면 자리 비움 점유를 의심한다 |
+| `17_dashboard_funnel_daily.sql` | 가입일 코호트별 채널·착석·경기 단계 도달 인원 | 관리자 화면에서 날짜 범위를 합산해 퍼널을 본다 |
+| `18_dashboard_game_daily.sql` | 경기 시작일별 게임 수·기권·참가자·경기 시간 | 관리자 화면에서 게임별 완주·기권 비율을 본다 |
 
 해석할 때 주의할 점:
 - 회원 번호가 없는 이벤트(local 개발 사용자)는 사용자 지표에서 빠진다. 팀원 테스트 계정은 아직 걸러내지 않는다.
