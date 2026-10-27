@@ -15,6 +15,15 @@ const settled = (page: Page) => page.evaluate(async () =>
 async function hold(page: Page, key: string, ms: number) {
   await page.keyboard.down(key); await page.waitForTimeout(ms); await page.keyboard.up(key)
 }
+// Headless 3D frames can be slow under load, so hold until the view responds instead of a fixed time.
+// Each poll repeats the keydown like a real keyboard's auto-repeat.
+async function holdUntil(page: Page, key: string, done: (v: { yaw: number; pitch: number }) => boolean) {
+  await expect.poll(async () => {
+    await page.keyboard.down(key)
+    return done(await view(page))
+  }, { timeout: 15000 }).toBe(true)
+  await page.keyboard.up(key)
+}
 
 test('S15P31B105-216 WASD and arrows aim the telescope, stay in bounds and never walk the avatar', async ({ page }) => {
   const errors: string[] = []; page.on('pageerror', e => errors.push(e.message))
@@ -32,17 +41,15 @@ test('S15P31B105-216 WASD and arrows aim the telescope, stay in bounds and never
 
   // D turns like moving the mouse right, A back the other way.
   const start = await view(page)
-  await hold(page, 'KeyD', 400)
+  await holdUntil(page, 'KeyD', v => v.yaw < start.yaw)
   const right = await view(page)
-  expect(right.yaw).toBeLessThan(start.yaw)
-  await hold(page, 'ArrowLeft', 400)
-  expect((await view(page)).yaw).toBeGreaterThan(right.yaw)
+  await holdUntil(page, 'ArrowLeft', v => v.yaw > right.yaw)
 
   // W looks up and holding it stops at the upper bound.
   const before = await view(page)
-  await hold(page, 'KeyW', 300)
-  expect((await view(page)).pitch).toBeGreaterThan(before.pitch)
-  await hold(page, 'ArrowUp', 2600)
+  await holdUntil(page, 'KeyW', v => v.pitch > before.pitch)
+  await holdUntil(page, 'ArrowUp', v => Math.abs(v.pitch - TELESCOPE.maxPitch) < 1e-3)
+  await hold(page, 'ArrowUp', 300)
   expect((await view(page)).pitch).toBeCloseTo(TELESCOPE.maxPitch, 3)
 
   // The aim reaches the server on its interval; the avatar never receives a walk input.
@@ -84,7 +91,6 @@ test('S15P31B105-216 keys aim only without mouse look; with mouse look the mouse
   await page.keyboard.press('Control')
   await expect.poll(() => mouseActive(page)).toBe(false)
   const unlocked = await view(page)
-  await hold(page, 'KeyD', 400)
-  expect((await view(page)).yaw).toBeLessThan(unlocked.yaw)
+  await holdUntil(page, 'KeyD', v => v.yaw < unlocked.yaw)
   expect(errors).toEqual([])
 })

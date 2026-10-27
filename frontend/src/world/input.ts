@@ -84,7 +84,10 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
   const telescopeAimKeys = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'])
   const TELESCOPE_KEY_PX_PER_SECOND = 450
   let telescopeFrame = 0, telescopeLast = 0
-  const telescopeKeyStep = (now: number) => {
+  // The frame timestamp can precede the key press, so time the step with performance.now()
+  // to let a slow first frame still turn by the time that passed.
+  const telescopeKeyStep = () => {
+    const now = performance.now()
     const dt = Math.min(0.1, Math.max(0, now - telescopeLast) / 1000)
     telescopeLast = now
     const x = Number(keys.has('KeyD') || keys.has('ArrowRight')) - Number(keys.has('KeyA') || keys.has('ArrowLeft'))
