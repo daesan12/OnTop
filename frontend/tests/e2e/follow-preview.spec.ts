@@ -32,6 +32,7 @@ test('explicit preview exercises real avatar right click, start/stop, one bounde
   await expect(page.getByRole('complementary', { name: '따라가기 상태', exact: true })).toHaveCount(0)
   await expect.poll(async () => page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).followRenderProbe().vertices)).toBe(0)
   await page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).watchFollowResources())
+  await page.route('**/api/v1/admin/me', route => route.fulfill({ json: { canRead: true, canGrant: false } }))
   await page.route('**/api/v1/admin/feedback?*', route => route.fulfill({ json: { items: [], nextCursor: null } }))
   await page.evaluate(() => { history.pushState(null, '', '/admin/feedback'); window.dispatchEvent(new PopStateEvent('popstate')) })
   await expect(page.getByRole('heading', { name: '소리함 의견 조회', exact: true })).toBeVisible()

@@ -1,30 +1,26 @@
-/* 마이룸 옷장 — full-screen over the park, following the supplied mock (light panel, blue accents). */
-dialog.wardrobe {
+/* 마이룸 옷장 — laid over the live park (not a modal): the park camera zooms onto the own avatar in the stage. */
+.wardrobe {
   --wardrobe-blue: #3a8ce6;
   --wardrobe-blue-dark: #2c74c8;
   --wardrobe-ink: #1f2a37;
   --wardrobe-muted: #7d8796;
+  --bubble: clamp(104px, 9.4vw, 150px);
   position: fixed;
   inset: 0;
-  width: 100vw;
-  height: 100dvh;
-  max-width: none;
-  max-height: none;
-  margin: 0;
-  padding: 0;
-  border: 0;
+  z-index: 40;
   overflow: hidden;
   color: #fff;
-  background: transparent;
   font-family: 'BusanDandiMyeongjo', serif;
+  /* Clicks and drags fall through to the park canvas except on the wardrobe's own controls. */
+  pointer-events: none;
 }
-dialog.wardrobe::backdrop { background: rgba(14, 18, 12, 0.18); }
+.wardrobe :is(.wardrobe-title, .wardrobe-top-actions, .wardrobe-panel, .wardrobe-bubble, .wardrobe-stage__controls) { pointer-events: auto; }
 /* The park stays as the backdrop, but its HUD and name tags would sit on top of the wardrobe layout. */
-.park-page:has(dialog.wardrobe[open]) :is(.park-hud, .park-quick-dock, .park-dock-wardrobe, .park-map, .emotes,
+.park-page:has(section.wardrobe) :is(.park-hud, .park-quick-dock, .park-dock-wardrobe, .park-map, .emotes,
   .manual-launcher, .park-location-chip, .park-runtime-tools, .park-interaction, .facility-status,
   .park-camera-controls, .follow-status) { visibility: hidden; }
 /* Name tags set their own per-frame visibility, so the layer is faded instead. */
-.park-page:has(dialog.wardrobe[open]) .avatar-overlays { opacity: 0; }
+.park-page:has(section.wardrobe) .avatar-overlays { opacity: 0; }
 .wardrobe button { font: inherit; cursor: pointer; }
 .wardrobe button:disabled { cursor: default; }
 .wardrobe button:focus-visible,
@@ -79,55 +75,84 @@ dialog.wardrobe::backdrop { background: rgba(14, 18, 12, 0.18); }
   line-height: 1;
 }
 
-.wardrobe-slots {
-  position: absolute;
-  top: 160px;
-  left: 70px;
-  z-index: 1;
-  display: grid;
-  gap: 14px;
-}
-.wardrobe-slots button {
-  display: flex;
-  align-items: center;
-  gap: 18px;
-  padding: 0;
-  border: 0;
-  color: #fff;
-  background: none;
-  text-align: left;
-  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
-}
-.wardrobe-slots__icon {
-  display: grid;
-  place-items: center;
-  width: 100px;
-  height: 96px;
-  border: 2px solid rgba(255, 255, 255, 0.85);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.72);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
-  backdrop-filter: blur(6px);
-}
-.wardrobe-slots__icon img { width: 44px; height: 44px; }
-.wardrobe-slots button[aria-pressed='true'] .wardrobe-slots__icon { border-color: #6ae39b; box-shadow: 0 0 0 3px rgba(106, 227, 155, 0.45); }
-.wardrobe-slots b { display: block; font-size: 24px; font-weight: 700; }
-.wardrobe-slots small { display: block; max-width: 150px; overflow: hidden; margin-top: 2px; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; opacity: 0.9; }
-
+/* The camera centres the avatar in this box (wardrobeView), so the bubbles sit round it. */
 .wardrobe-stage {
   position: absolute;
   top: 120px;
-  bottom: 110px;
-  left: 300px;
+  bottom: 96px;
+  left: 40px;
   right: calc(min(660px, 40vw) + 70px);
+}
+.wardrobe-vines {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.wardrobe-vines path {
+  fill: none;
+  stroke: rgba(214, 245, 196, 0.8);
+  stroke-width: 2;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.25));
+}
+.wardrobe-leaf { position: absolute; width: 26px; height: 26px; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.25)); }
+/* Leaves sit on the ring between the bubbles. */
+.wardrobe-leaf--a { left: 13%; top: 35%; transform: rotate(-30deg); }
+.wardrobe-leaf--b { left: 13%; top: 56%; transform: rotate(150deg) scale(0.85); }
+.wardrobe-leaf--c { left: 86%; top: 44%; transform: rotate(40deg); }
+.wardrobe-leaf--d { left: 66%; top: 74%; transform: rotate(200deg) scale(0.8); }
+.wardrobe-bubbles { position: absolute; inset: 0; }
+.wardrobe-bubbles__side { display: contents; }
+.wardrobe-bubble {
+  position: absolute;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
+  width: var(--bubble);
+  height: var(--bubble);
+  padding: 8px 10px 12px;
+  border: 3px solid rgba(255, 255, 255, 0.95);
+  border-radius: 50%;
+  color: var(--wardrobe-ink);
+  background: rgba(253, 252, 247, 0.94);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
+  transform: translate(-50%, -50%);
+  transition: box-shadow 120ms, border-color 120ms;
 }
-.wardrobe-stage__viewport { position: relative; flex: 1; width: 100%; min-height: 0; cursor: grab; touch-action: none; }
-.wardrobe-stage__viewport:active { cursor: grabbing; }
-.wardrobe-stage__canvas { position: absolute !important; inset: 0; }
-.wardrobe-stage__controls { display: flex; align-items: center; gap: 22px; margin-top: 8px; }
+/* On one ellipse round the avatar (centre 50% 46%, radii 38% 30%): head, face, feet left; top, bottom right. */
+.wardrobe-bubble[data-slot='HAIR'] { left: 21%; top: 27%; }
+.wardrobe-bubble[data-slot='FACE'] { left: 12%; top: 46%; }
+.wardrobe-bubble[data-slot='SHOES'] { left: 21%; top: 65%; }
+.wardrobe-bubble[data-slot='TOP'] { left: 84%; top: 33%; }
+.wardrobe-bubble[data-slot='BOTTOM'] { left: 84%; top: 59%; }
+.wardrobe-bubble:hover { border-color: #d9f2cb; }
+.wardrobe-bubble[aria-pressed='true'] { border-color: #6ae39b; box-shadow: 0 0 0 4px rgba(106, 227, 155, 0.45), 0 10px 24px rgba(0, 0, 0, 0.22); }
+.wardrobe-bubble__art { display: grid; place-items: center; width: 76%; height: 56%; min-height: 0; overflow: hidden; }
+.wardrobe-bubble__art img { width: 100%; height: 100%; object-fit: contain; }
+.wardrobe-bubble b { margin-top: 4px; font-size: clamp(16px, 1.45vw, 21px); font-weight: 700; line-height: 1.1; }
+.wardrobe-bubble small {
+  max-width: 84%;
+  overflow: hidden;
+  margin-top: 2px;
+  color: var(--wardrobe-muted);
+  font-size: 12px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wardrobe-stage__controls {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  transform: translateX(-50%);
+}
 .wardrobe-stage__controls button {
   width: 58px;
   height: 46px;
@@ -150,12 +175,17 @@ dialog.wardrobe::backdrop { background: rgba(14, 18, 12, 0.18); }
   white-space: nowrap;
 }
 .wardrobe-stage__note {
-  margin-top: 10px !important;
+  position: absolute;
+  left: 50%;
+  bottom: 58px;
+  width: max-content;
+  max-width: 100%;
   padding: 6px 14px;
   border-radius: 10px;
   background: rgba(30, 28, 22, 0.55);
   font-size: 14px;
   font-weight: 500;
+  transform: translateX(-50%);
 }
 .wardrobe-hint {
   position: absolute;
@@ -246,7 +276,7 @@ dialog.wardrobe::backdrop { background: rgba(14, 18, 12, 0.18); }
   border-radius: 12px;
   background: #f3efe6;
 }
-.wardrobe-art img { width: 50px; height: 50px; }
+.wardrobe-art img { width: 92%; height: 92%; object-fit: contain; }
 .wardrobe-art[data-slot='HAIR'] { background: #f6ece2; }
 .wardrobe-art[data-slot='FACE'] { background: #eef2e8; }
 .wardrobe-art[data-slot='TOP'] { background: #e9eef8; }
@@ -315,10 +345,7 @@ dialog.wardrobe::backdrop { background: rgba(14, 18, 12, 0.18); }
 
 @media (max-width: 1280px) {
   .wardrobe-title h2 { font-size: 36px; }
-  .wardrobe-slots { left: 40px; top: 140px; gap: 10px; }
-  .wardrobe-slots__icon { width: 78px; height: 74px; }
-  .wardrobe-slots b { font-size: 19px; }
-  .wardrobe-stage { left: 230px; right: calc(min(560px, 46vw) + 50px); }
+  .wardrobe-stage { left: 24px; right: calc(min(560px, 46vw) + 50px); }
   .wardrobe-panel { width: min(560px, 46vw); top: 100px; right: 24px; bottom: 24px; padding: 20px; }
   .wardrobe-panel__header h3 { font-size: 26px; }
   .wardrobe-card { height: 104px; gap: 12px; }
@@ -328,13 +355,21 @@ dialog.wardrobe::backdrop { background: rgba(14, 18, 12, 0.18); }
   .wardrobe-detail__actions { width: 180px; }
 }
 @media (max-width: 860px) {
-  .wardrobe-slots { top: 110px; left: 16px; grid-auto-flow: column; }
-  .wardrobe-slots small { display: none; }
-  .wardrobe-stage { top: 200px; bottom: auto; left: 0; right: 0; height: 30vh; }
+  .wardrobe { --bubble: 76px; }
+  .wardrobe-title { top: 16px; left: 16px; gap: 8px; }
+  .wardrobe-title img { width: 36px; height: 36px; }
+  .wardrobe-title h2 { font-size: 26px; }
+  .wardrobe-title p { display: none; }
+  .wardrobe-top-actions { top: 16px; right: 16px; gap: 10px; }
+  .wardrobe-coin { height: 44px; padding: 0 14px 0 8px; font-size: 17px; }
+  .wardrobe-coin img { width: 26px; height: 26px; }
+  .wardrobe-close { width: 44px; height: 44px; font-size: 28px !important; }
+  .wardrobe-bubble small, .wardrobe-leaf, .wardrobe-stage__note { display: none; }
+  .wardrobe-stage { top: 72px; bottom: calc(52vh + 24px); left: 0; right: 0; }
   .wardrobe-hint { display: none; }
   .wardrobe-panel { top: auto; left: 12px; right: 12px; bottom: 12px; width: auto; height: 52vh; }
   .wardrobe-grid { grid-template-columns: minmax(0, 1fr); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .wardrobe-card { transition: none; }
+  .wardrobe-card, .wardrobe-bubble { transition: none; }
 }

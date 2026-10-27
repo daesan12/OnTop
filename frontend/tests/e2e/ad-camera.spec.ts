@@ -83,7 +83,7 @@ test('V and the camera button use the replicated eye, preserve orbit distance, a
   expect(server.sent.some(m => /CAMERA|PERSPECTIVE/.test(m.type))).toBe(false)
 })
 
-test('native Ctrl mouse look rotates once, releases for map/help/chat/blur, and keeps Ctrl shortcuts intact', async ({ page }) => {
+test('native Ctrl mouse look rotates once, releases for map/help/chat/blur, returns after map/help, and keeps Ctrl shortcuts intact', async ({ page }) => {
   await fixture(page, { manualMovement: true }); await loaded(page)
   await page.keyboard.press('Control+c'); await expect.poll(async () => String((await cameraState(page)).mouse)).toBe('false')
   const start = await probe(page)
@@ -93,13 +93,12 @@ test('native Ctrl mouse look rotates once, releases for map/help/chat/blur, and 
   await expect.poll(async () => (await probe(page)).controls.yaw).not.toBe(start.controls.yaw)
   await page.keyboard.press('KeyM'); await expect(page.getByRole('dialog', { name: '공원 지도창', exact: true })).toBeVisible()
   await expect.poll(async () => (await probe(page)).active).toBe(false)
-  await page.keyboard.press('Escape'); await expect.poll(async () => String((await cameraState(page)).mouse)).toBe('false')
-  // Use actual user clicks for every reacquisition. Native Esc may impose a browser cooldown.
-  await page.keyboard.press('Control'); await expect.poll(async () => String((await cameraState(page)).mouse)).toBe('true')
+  // The map and manual only borrow the cursor; closing them returns to mouse look.
+  await page.keyboard.press('Escape'); await expect.poll(async () => String((await cameraState(page)).mouse)).toBe('true')
   await page.keyboard.press('F1'); await expect(page.getByRole('dialog', { name: '게임 설명서', exact: true })).toHaveAttribute('data-phase', 'open')
   await expect.poll(async () => (await probe(page)).active).toBe(false)
   await page.keyboard.press('Escape'); await expect(page.getByRole('dialog', { name: '게임 설명서', exact: true })).toHaveCount(0)
-  await page.keyboard.press('Control'); await expect.poll(async () => String((await cameraState(page)).mouse)).toBe('true')
+  await expect.poll(async () => String((await cameraState(page)).mouse)).toBe('true')
   await page.keyboard.press('Enter'); await expect(page.getByLabel('주변 채팅 메시지')).toBeFocused()
   await expect.poll(async () => (await probe(page)).active).toBe(false)
   await page.keyboard.press('KeyV'); await expect.poll(async () => String((await cameraState(page)).first)).toBe('false')
@@ -138,15 +137,17 @@ test('table camera overrides the roaming choice; exit restores the original firs
   expect(server.connections).toBe(1)
 })
 
-test('telescope ownership releases mouse look, blocks V, and restores the previous roaming preference', async ({ page }) => {
+// The telescope keeps mouse look (S15P31B105-217); Esc would also drop the lock, so it is left with E.
+test('telescope ownership keeps mouse look, blocks V, and restores the previous roaming preference', async ({ page }) => {
   const d = facilityCatalog.facilities.find(d => d.kind === 'TELESCOPE')!
   const server = await fixture(page, { manualMovement: true, position: d.seats[0]! }); await loaded(page)
   await page.keyboard.press('KeyV'); await page.keyboard.press('Control'); await expect.poll(async () => String((await cameraState(page)).mouse)).toBe('true')
   await page.evaluate(async id => (await import('/src/park/runtime/runtime.ts' as string)).parkRuntime.useFacility(id, 0, new AbortController().signal), d.facilityId)
   await expect(page.getByRole('complementary', { name: '전망 망원경', exact: true })).toBeVisible()
-  await expect.poll(async () => (await probe(page)).active).toBe(false)
+  await page.waitForTimeout(300)
+  expect((await probe(page)).active).toBe(true)
   await expect(page.getByRole('button', { name: '1인칭 시점', exact: true })).toHaveCount(0)
-  await page.keyboard.press('KeyV'); await page.keyboard.press('Escape')
+  await page.keyboard.press('KeyV'); await page.keyboard.press('KeyE')
   await expect(page.getByRole('complementary', { name: '전망 망원경', exact: true })).toHaveCount(0)
   await expect.poll(async () => String((await cameraState(page)).first)).toBe('true')
   await expect.poll(async () => String((await cameraState(page)).mouse)).toBe('true')

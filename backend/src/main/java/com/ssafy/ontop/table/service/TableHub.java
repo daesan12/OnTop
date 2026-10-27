@@ -42,6 +42,7 @@ import com.ssafy.ontop.world.config.WorldProximityProperties;
 import com.ssafy.ontop.world.domain.ChatText;
 import com.ssafy.ontop.world.domain.EmoteCode;
 import com.ssafy.ontop.world.dto.WorldGameReaction;
+import com.ssafy.ontop.world.map.LegacyParkTables;
 import com.ssafy.ontop.world.map.PreparedParkMap;
 import com.ssafy.ontop.world.map.WorldMapRuntime;
 import com.ssafy.ontop.world.service.WorldAppearanceGateway;
@@ -169,6 +170,21 @@ public class TableHub {
         behaviorLog.record(() -> details.apply(BehaviorEvent.builder(type, Instant.now()).userId(accountId)).build());
     }
 
+    // 실제 점유가 생기거나 풀린 뒤에만 호출한다. 시작·종료는 leaseId로 짝을 맞춘다.
+    private void recordFacility(Long accountId, WorldFacilityService.Lease lease, String endReason) {
+        recordBehavior(endReason == null ? BehaviorEventType.FACILITY_USED : BehaviorEventType.FACILITY_RELEASED,
+                accountId, builder -> {
+                    builder.channelId(lease.channelId()).prop("leaseId", lease.leaseId())
+                            .prop("facilityId", lease.facilityId()).prop("kind", lease.kind())
+                            .prop("seatIndex", lease.seatIndex());
+                    if (endReason != null) {
+                        builder.prop("endReason", endReason).prop("durationMs",
+                                Math.max(0, Duration.between(lease.startedAt(), Instant.now()).toMillis()));
+                    }
+                    return builder;
+                });
+    }
+
     // 물리 계산이 끝난 위치를 큐에 넣기만 한다. DB 접근·대기가 없어 tick을 막지 않는다. 착석 중에는 남기지 않는다.
     private void recordPositions(WorldChannelRegistry.WorldState state, Set<String> onlyUsers) {
         long now = System.nanoTime();
@@ -290,7 +306,10 @@ public class TableHub {
             Optional<GameStateGateway> gameStates, Optional<GameActionGateway> gameActions,
             Optional<GameResultService> gameResults, WorldProximity proximity, WorldMapCompatibility maps) {
         this(mapper, gateway, startRehearsal, reconnect, heartbeatInterval, heartbeatTimeout, channels, chat,
-                emotes, gameStates, gameActions, gameResults, proximity, maps, runtime.prepared().orElse(null));
+                emotes, gameStates, gameActions, gameResults, proximity, maps, runtime.prepared().orElse(null),
+                runtime.legacyTables().orElse(null));
+        // 실제 서버에서는 연동 비활성 상태도 조회해 FE에 원인을 알릴 수 있다.
+        protocol.enableStartQueries();
     }
 
     public TableHub(ObjectMapper mapper, Optional<GameStartGateway> gateway,
@@ -312,6 +331,16 @@ public class TableHub {
             Optional<GameStateGateway> gameStates, Optional<GameActionGateway> gameActions,
             Optional<GameResultService> gameResults, WorldProximity proximity, WorldMapCompatibility maps,
             PreparedParkMap preparedPark) {
+        this(mapper, gateway, startRehearsal, reconnect, heartbeatInterval, heartbeatTimeout, channels, chat,
+                emotes, gameStates, gameActions, gameResults, proximity, maps, preparedPark, null);
+    }
+
+    private TableHub(ObjectMapper mapper, Optional<GameStartGateway> gateway, boolean startRehearsal,
+            Optional<GameReconnectService> reconnect, Duration heartbeatInterval, Duration heartbeatTimeout,
+            WorldChannelRegistry channels, WorldChatService chat, WorldEmoteService emotes,
+            Optional<GameStateGateway> gameStates, Optional<GameActionGateway> gameActions,
+            Optional<GameResultService> gameResults, WorldProximity proximity, WorldMapCompatibility maps,
+            PreparedParkMap preparedPark, LegacyParkTables legacyTables) {
         if (startRehearsal && gateway.isEmpty()) {
             throw new IllegalArgumentException("시작 연동 검증 대역이 필요합니다.");
         }
@@ -346,6 +375,16 @@ public class TableHub {
             for (var binding : preparedPark.bindings()) {
                 rooms.put(binding.tableId(), new TableRoom(binding.tableId()));
                 tableChannels.put(binding.tableId(), binding.channelId());
+            }
+        } else if (legacyTables != null && !channelIds.isEmpty()) {
+            Set<String> registeredChannels = legacyTables.entries().stream()
+                    .map(LegacyParkTables.Entry::channelId).collect(Collectors.toSet());
+            if (!registeredChannels.equals(channelIds)) {
+                throw new IllegalArgumentException("현재 맵의 테이블 매핑과 서버 채널이 다릅니다.");
+            }
+            for (var table : legacyTables.entries()) {
+                rooms.put(table.tableId(), new TableRoom(table.tableId()));
+                tableChannels.put(table.tableId(), table.channelId());
             }
         } else if (channelIds.isEmpty()) {
             rooms.put("table-1", new TableRoom("table-1"));
@@ -653,11 +692,13 @@ public class TableHub {
         profileMemberships.remove(member);
         positionSampler.forget(member.userId());
         String facilityChannel = channels.channelOf(member.userId());
-        boolean wasUsingFacility = facilities.current(member.userId()) != null;
+        // disconnected()가 내부에서 release()를 부르므로 해제 전 점유를 한 번만 읽어 종료를 한 번만 기록한다.
+        var facilityLease = facilities.current(member.userId());
         facilities.disconnected(member.userId());
         WorldChannelRegistry.State channelState = channels.disconnect(member.userId());
-        if (wasUsingFacility) {
+        if (facilityLease != null) {
             publishFacilities(facilityChannel, null, null);
+            recordFacility(member.accountId(), facilityLease, "DISCONNECTED");
         }
         if (channelState != null) {
             publishChannel(channelState, null, null);
@@ -986,12 +1027,14 @@ public class TableHub {
         if (seating.containsKey(member.userId())) {
             fail(request, "TABLE_BUSY", "먼저 테이블에서 퇴장해주세요.");
         }
-        boolean wasUsingFacility = facilities.current(member.userId()) != null;
-        facilities.release(member.userId());
+        var facilityLease = facilities.release(member.userId());
+        if (facilityLease != null) {
+            recordFacility(member.accountId(), facilityLease, "CHANNEL_LEFT");
+        }
         WorldChannelRegistry.State state = channels.leave(member.userId());
         endFollows(member.userId());
         cancelEmote(member.userId(), "CHANNEL_LEFT");
-        if (wasUsingFacility) {
+        if (facilityLease != null) {
             publishFacilities(state.channelId(), null, null);
         }
         profileMemberships.remove(member);
@@ -1166,6 +1209,8 @@ public class TableHub {
                 publishFacilities(channel, member, request.requestId());
                 publishWorld(channels.worldState(channel), null, null);
                 cancelEmote(member.userId(), "ACTIVITY_STARTED");
+                // 같은 요청 재전송은 위에서 점유 버전이 그대로라 반환되므로 새 이용으로 기록되지 않는다.
+                recordFacility(member.accountId(), lease, null);
                 endFollows(member.userId());
             }
             case "WORLD_FACILITY_RELEASE" -> {
@@ -1175,9 +1220,13 @@ public class TableHub {
                     fail(request, "FACILITY_EXIT_BLOCKED", "하차 위치가 막혀 있습니다. 잠시 후 다시 시도해주세요.");
                 }
                 channels.releaseFacility(member.userId(), exit);
-                facilities.release(member.userId());
+                var released = facilities.release(member.userId());
                 publishFacilities(channel, member, request.requestId());
                 publishWorld(channels.worldState(channel), null, null);
+                // 하차 위치가 막히면 위에서 실패하므로 종료로 기록하지 않는다.
+                if (released != null) {
+                    recordFacility(member.accountId(), released, "RELEASED");
+                }
             }
             case "WORLD_FACILITY_AIM" -> {
                 long before = facilities.state(channel).version();
@@ -1635,6 +1684,9 @@ public class TableHub {
     private void beginStartIfReady(TableRoom room) {
         TableRoom.Snapshot snapshot = room.snapshot();
         if ((!startRehearsal && committedStarts.isEmpty()) || !snapshot.allReady()) {
+            if (snapshot.allReady() && !startRehearsal && committedStarts.isEmpty()) {
+                log.warn("경기 시작 연결 비활성 table={} game={}", snapshot.tableId(), snapshot.gameCode());
+            }
             return;
         }
         GameStartCommand command = new GameStartCommand(UUID.randomUUID(), snapshot.tableId(), snapshot.version(),
@@ -1670,6 +1722,9 @@ public class TableHub {
 
     private void checkStart(Member member, Request request) {
         String tableId = seatedRoom(member, request).snapshot().tableId();
+        if (!startRehearsal && committedStarts.isEmpty()) {
+            fail(request, "START_NOT_CONFIGURED", "경기 시작 연결이 비활성 상태입니다.");
+        }
         TableStartAttempt attempt = starts.get(tableId);
         if (attempt == null) {
             fail(request, "START_NOT_REQUESTED", "아직 시작 연동 요청이 없습니다.");

@@ -120,7 +120,11 @@ test('M15 small PC layout, Tab access and repeated close/reopen retain quality a
     expect(await timerCount()).toBe(initialTimers)
   }
   await book(page); await expect(manual(page).getByLabel('그래픽 품질')).toHaveValue('medium')
-  await manual(page).getByLabel('그래픽 품질').focus(); await page.keyboard.press('Tab'); await expect(manual(page).getByRole('button', { name: '나가기', exact: true })).toBeFocused()
+  // Mouse sensitivity sits right after graphics quality in the same row (S15P31B105-208).
+  await manual(page).getByLabel('그래픽 품질').focus()
+  await page.keyboard.press('Tab'); await expect(manual(page).getByLabel('마우스 감도 빠르기')).toBeFocused()
+  await page.keyboard.press('Tab'); await expect(manual(page).getByLabel('마우스 감도 퍼센트')).toBeFocused()
+  await page.keyboard.press('Tab'); await expect(manual(page).getByRole('button', { name: '나가기', exact: true })).toBeFocused()
   await screenshot(page, 'm15-performance-1280')
   await page.keyboard.press('Escape'); await expect(manual(page)).toHaveCount(0)
   expect(await page.evaluate(() => document.body.style.overflow)).toBe('')

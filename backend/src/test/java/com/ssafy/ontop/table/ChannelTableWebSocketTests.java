@@ -137,7 +137,7 @@ class ChannelTableWebSocketTests {
         HttpResponse<String> response = query(http, "?channelId=" + channel);
         assertThat(response.statusCode()).isEqualTo(200);
         JsonNode rows = mapper.readTree(response.body()).path("tables");
-        assertThat(rows.size()).isEqualTo(2);
+        assertThat(rows.size()).isEqualTo(16);
         return rows;
     }
 
