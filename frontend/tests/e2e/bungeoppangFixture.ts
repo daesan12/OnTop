@@ -54,6 +54,7 @@ const checkpoint = (game: Game, state: GrillState, log: WireAction[], prefixHash
 export async function bungeoppangFixture(page: Page, players = 4) {
   const world = await fixture(page, { players, manualMovement: true, position: { x: -36, y: .8, z: 16.3, yaw: Math.PI } })
   let earned = 0, nextId = 900, statusFailure = false, loseStart = false, loseComplete = false, rejectAbandon = false
+  let startResponseDelay = 0, loseClockRead = false
   let walletFailure: 'WALLET_NOT_READY' | 'WALLET_UNAVAILABLE' | null = null, walletReads = 0
   const requests: { method: string; path: string; key: string | undefined; body: unknown }[] = []
   const games = new Map<string, Game>()
@@ -95,11 +96,16 @@ export async function bungeoppangFixture(page: Page, players = 4) {
         games.set(id, game)
       }
       if (loseStart) { loseStart = false; return route.abort('failed') }
+      if (startResponseDelay) {
+        const delay = startResponseDelay; startResponseDelay = 0
+        await new Promise(resolve => setTimeout(resolve, delay))
+      }
       return route.fulfill({ status: 201, json: games.get(id)!.start })
     }
     const match = url.pathname.match(/\/sessions\/(\d+)(?:\/(complete|abandon|deliveries))?$/), game = games.get(match?.[1] ?? '')
     if (!game) return route.fulfill({ status: 404, json: { code: 'MINIGAME_NOT_FOUND' } })
     if (!match?.[2]) {
+      if (loseClockRead) { loseClockRead = false; return route.abort('failed') }
       const active = game.status === 'PLAYING', progress = active || url.searchParams.get('includeProgress') === 'true'
       return route.fulfill({ json: { minigameSessionId: game.id, rulesVersion: 'v4', configVersion, status: game.status,
         phase: active ? 'PLAYING' : game.status, score: game.result?.score ?? null, rewardAmount: game.result?.rewardAmount ?? 0,
@@ -162,5 +168,7 @@ export async function bungeoppangFixture(page: Page, players = 4) {
     failStatus: (value: boolean) => { statusFailure = value },
     loseNextStart: () => { loseStart = true }, loseNextComplete: () => { loseComplete = true },
     rejectNextAbandon: () => { rejectAbandon = true },
+    delayNextStartResponse: (ms: number) => { startResponseDelay = ms },
+    loseNextClockRead: () => { loseClockRead = true },
   }
 }

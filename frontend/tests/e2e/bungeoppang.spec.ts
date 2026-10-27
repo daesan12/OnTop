@@ -51,6 +51,8 @@ test('M14 original six-slot controls, actual 60s, same-key/result retries, serve
   await page.keyboard.press('F1')
   await expect(page.getByRole('dialog', { name: '게임 설명서', exact: true })).toBeVisible()
   await expect(page.getByRole('heading', {name: '붕어빵 굽기', exact: true})).toBeVisible()
+  await expect(page.getByRole('dialog', { name: '게임 설명서', exact: true })).toContainText('재료 선택 → 조리 → 쟁반 → 전달')
+  await expect(page.getByRole('dialog', { name: '게임 설명서', exact: true })).toContainText('R / 전달 버튼')
   await expect(page.locator('.game-manual')).toHaveAttribute('data-phase', 'open')
   const help = await state(page)
   await page.keyboard.press('KeyQ'); await page.waitForTimeout(400)

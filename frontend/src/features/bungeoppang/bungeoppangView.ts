@@ -27,8 +27,6 @@ export const bungeoppangView = {
   position: [cart.x + cx, layout.surfaceY + 1.2, cart.z + cz + 1.12] as [number, number, number],
   target: [cart.x + cx, layout.surfaceY, cart.z + cz] as [number, number, number],
   fov: 40,
-  /** 내가 굽는 동안 가린다: 가게 앞 다른 캐릭터(반경 m). */
-  hideOthersRadius: 2.6,
   standX: cart.x,
   standZ: cart.z + cart.depth / 2 + 1,
 };
@@ -40,6 +38,8 @@ export const bungeoppangClock = {
   countdown: 0,
   ending: 0,
   playAt: 0,
+  countdownAt: 0,
+  preparing: false,
 };
 export function gameNow() {
   return Math.min(

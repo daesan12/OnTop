@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createBungeoppangV4Service, resetBungeoppangV4Sessions } from '../../src/features/bungeoppang/serviceV4';
 import type { BungeoppangSubmit } from '../../src/features/bungeoppang/service';
 import { RestError } from '../../src/network/restError';
@@ -47,19 +47,23 @@ const completed = { minigameSessionId: '901', status: 'COMPLETED', rulesVersion:
   customersServed: 0, specialServed: 0, bonusScore: 0, grillDiscarded: 0, trayDiscarded: 0,
   undeliveredCount: 0, unfinishedGrillCount: 0, rewardDate: '2026-10-27',
   settledAt: '2026-10-27T00:01:05Z', finalThroughSeq: 0, finalPrefixHash: initialHash };
+const startedSession = { minigameSessionId: '901', rulesVersion: 'v4', configVersion: start.configVersion,
+  status: 'PLAYING', serverNow: start.issuedAt, timing, result: null };
 
 describe('Bungeoppang v4 production REST adapter', () => {
   beforeEach(() => resetBungeoppangV4Sessions());
+  afterEach(() => vi.restoreAllMocks());
 
   it('selects v4 explicitly and converts a frozen local delivery into the canonical server contract', async () => {
-    const request = vi.fn().mockResolvedValueOnce(start).mockResolvedValueOnce(delivery);
+    const request = vi.fn().mockResolvedValueOnce(start).mockResolvedValueOnce(startedSession).mockResolvedValueOnce(delivery);
     const service = createBungeoppangV4Service(request);
     const game = await service.startGame('start-v4-1');
     expect(game.v4?.order).toEqual(firstOrder);
     expect(JSON.parse(String(request.mock.calls[0]![1].body))).toEqual({ minigameType: 'BUNGEOPPANG', rulesVersion: 'v4' });
     const frozen = { gameId: '901', log: localLog, clientScore: 20, seenTips: [], deliveryKey: 'delivery-901-1' };
     await expect(service.nextOrder!(frozen)).resolves.toMatchObject({ index: 1, order: nextOrder });
-    const call = request.mock.calls[1]!;
+    expect(request.mock.calls[1]![0]).toBe('/api/v1/minigames/sessions/901');
+    const call = request.mock.calls[2]!;
     expect(call[0]).toBe('/api/v1/minigames/sessions/901/deliveries');
     expect(call[1].headers).toMatchObject({ 'Idempotency-Key': 'delivery-901-1' });
     const body = JSON.parse(String(call[1].body));
@@ -85,14 +89,15 @@ describe('Bungeoppang v4 production REST adapter', () => {
   });
 
   it('retries an uncertain delivery with the exact key and body', async () => {
-    const request = vi.fn().mockResolvedValueOnce(start).mockRejectedValueOnce(new Error('lost')).mockResolvedValueOnce(delivery);
+    const request = vi.fn().mockResolvedValueOnce(start).mockResolvedValueOnce(startedSession)
+      .mockRejectedValueOnce(new Error('lost')).mockResolvedValueOnce(delivery);
     const service = createBungeoppangV4Service(request);
     await service.startGame('start-v4-1');
     const frozen = { gameId: '901', log: localLog, clientScore: 20, seenTips: [], deliveryKey: 'delivery-901-1' };
     await expect(service.nextOrder!(frozen)).rejects.toMatchObject({ code: 'NETWORK_ERROR', retryable: true });
     await expect(service.nextOrder!(frozen)).resolves.toMatchObject({ order: nextOrder });
-    expect(request.mock.calls[1]![1].body).toBe(request.mock.calls[2]![1].body);
-    expect(request.mock.calls[1]![1].headers).toEqual(request.mock.calls[2]![1].headers);
+    expect(request.mock.calls[2]![1].body).toBe(request.mock.calls[3]![1].body);
+    expect(request.mock.calls[2]![1].headers).toEqual(request.mock.calls[3]![1].headers);
   });
 
   it('loads the authoritative checkpoint and accepted prefix for explicit rejection recovery', async () => {
@@ -102,16 +107,16 @@ describe('Bungeoppang v4 production REST adapter', () => {
       ...(entry.action === 'DELIVER' ? { orderId: '1', deliveryKey: 'delivery-901-1' } : {}) }));
     const status = { minigameSessionId: '901', rulesVersion: 'v4', status: 'PLAYING', checkpoint: acceptedCheckpoint,
       acceptedLog, issuedOrders: [firstOrder, nextOrder] };
-    const request = vi.fn().mockResolvedValueOnce(start).mockResolvedValueOnce(status);
+    const request = vi.fn().mockResolvedValueOnce(start).mockResolvedValueOnce(startedSession).mockResolvedValueOnce(status);
     const service = createBungeoppangV4Service(request);
     await service.startGame('start-v4-1');
     const recovery = await service.recoverV4!('901');
-    expect(request.mock.calls[1]![0]).toBe('/api/v1/minigames/sessions/901?includeProgress=true');
+    expect(request.mock.calls[2]![0]).toBe('/api/v1/minigames/sessions/901?includeProgress=true');
     expect(recovery.grill).toMatchObject({ score: 20, orderIndex: 1, order: nextOrder, log: { length: 9 } });
   });
 
   it('freezes the final idempotency key and sends the canonical full log contract', async () => {
-    const request = vi.fn().mockResolvedValueOnce(start).mockResolvedValueOnce(completed);
+    const request = vi.fn().mockResolvedValueOnce(start).mockResolvedValueOnce(startedSession).mockResolvedValueOnce(completed);
     const service = createBungeoppangV4Service(request);
     await service.startGame('start-v4-1');
 
@@ -119,7 +124,7 @@ describe('Bungeoppang v4 production REST adapter', () => {
       completeKey: 'complete-901-1' })).resolves.toMatchObject({ score: 0, coinsGranted: 0,
         rewardDate: '2026-10-27', rulesVersion: 'v4' });
 
-    const call = request.mock.calls[1]!;
+    const call = request.mock.calls[2]!;
     expect(call[0]).toBe('/api/v1/minigames/sessions/901/complete');
     expect(call[1].headers).toMatchObject({ 'Idempotency-Key': 'complete-901-1' });
     expect(JSON.parse(String(call[1].body))).toEqual({ rulesVersion: 'v4', throughSeq: 0,
@@ -128,13 +133,56 @@ describe('Bungeoppang v4 production REST adapter', () => {
 
   it('recovers an ambiguous final response from the immutable completed session result', async () => {
     const loaded = { minigameSessionId: '901', status: 'COMPLETED', rulesVersion: 'v4', result: completed };
-    const request = vi.fn().mockResolvedValueOnce(start).mockRejectedValueOnce(new Error('lost'))
+    const request = vi.fn().mockResolvedValueOnce(start).mockResolvedValueOnce(startedSession).mockRejectedValueOnce(new Error('lost'))
       .mockResolvedValueOnce(loaded);
     const service = createBungeoppangV4Service(request);
     await service.startGame('start-v4-1');
 
     await expect(service.submitResult({ gameId: '901', log: [], clientScore: 0, seenTips: [],
       completeKey: 'complete-901-1' })).resolves.toMatchObject({ score: 0, settledAt: completed.settledAt });
-    expect(request.mock.calls[2]![0]).toBe('/api/v1/minigames/sessions/901?includeProgress=true');
+    expect(request.mock.calls[3]![0]).toBe('/api/v1/minigames/sessions/901?includeProgress=true');
+  });
+
+  it('anchors a fresh GET to monotonic RTT even when the PC calendar is wrong', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(Date.parse(start.issuedAt) + 3_600_000);
+    vi.spyOn(performance, 'now').mockReturnValueOnce(100).mockReturnValueOnce(140);
+    const request = vi.fn().mockResolvedValueOnce(start).mockResolvedValueOnce(startedSession);
+    const game = await createBungeoppangV4Service(request).startGame('clock-test');
+    expect(game.v4!.timeSync).toMatchObject({ status: 'PLAYING',
+      sample: { serverNowMs: Date.parse(startedSession.serverNow), receivedAt: 140, rttMs: 40 } });
+    expect(request).toHaveBeenCalledTimes(2);
+  });
+
+  it('resamples a slow GET without changing the round or repeating the start', async () => {
+    vi.spyOn(performance, 'now').mockReturnValueOnce(0).mockReturnValueOnce(1200)
+      .mockReturnValueOnce(1200).mockReturnValueOnce(1400);
+    const request = vi.fn().mockResolvedValueOnce(start).mockResolvedValue(startedSession);
+    const game = await createBungeoppangV4Service(request).startGame('clock-test');
+    expect(game.v4!.timeSync!.sample.rttMs).toBe(200);
+    expect(request.mock.calls.map(call => call[0])).toEqual(['/api/v1/minigames/sessions',
+      '/api/v1/minigames/sessions/901', '/api/v1/minigames/sessions/901']);
+  });
+
+  it('bounds slow-clock retries and keeps the start failure retryable', async () => {
+    let monotonic = 0;
+    vi.spyOn(performance, 'now').mockImplementation(() => monotonic += 1100);
+    const request = vi.fn().mockResolvedValueOnce(start).mockResolvedValue(startedSession);
+    await expect(createBungeoppangV4Service(request).startGame('clock-test'))
+      .rejects.toMatchObject({ code: 'TIME_SYNC_SLOW', retryable: true });
+    expect(request).toHaveBeenCalledTimes(4);
+  });
+
+  it('checks an old start receipt and restores its completed result instead of trusting PLAYING', async () => {
+    const request = vi.fn().mockResolvedValueOnce(start).mockResolvedValueOnce({ ...startedSession,
+      status: 'COMPLETED', serverNow: completed.settledAt, result: completed });
+    const game = await createBungeoppangV4Service(request).startGame('old-start');
+    expect(game.v4!.timeSync).toMatchObject({ status: 'COMPLETED', result: { finalPrefixHash: initialHash } });
+  });
+
+  it('refuses a GET that changes the original round timing', async () => {
+    const request = vi.fn().mockResolvedValueOnce(start).mockResolvedValueOnce({ ...startedSession,
+      timing: { ...timing, expiresAt: '2026-10-27T00:02:00Z' } });
+    await expect(createBungeoppangV4Service(request).startGame('clock-test'))
+      .rejects.toMatchObject({ code: 'INVALID_RESPONSE', retryable: true });
   });
 });
