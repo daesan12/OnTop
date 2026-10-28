@@ -123,6 +123,43 @@ class LegacyParkTableFlowTests {
         });
     }
 
+    @Test
+    void 자동시작_연동이_없으면_전원준비_직후_참가자에게만_비활성을_알린다() {
+        runner().run(context -> {
+            var hub = context.getBean(TableHub.class);
+            Peer first = peer(hub, 101);
+            Peer second = peer(hub, 202);
+            Peer other = peer(hub, 303);
+            for (Peer player : List.of(first, second, other)) {
+                player.request("CHANNEL_JOIN", Map.of("channelId", "channel-1"));
+            }
+            var tables = hub.listTables("channel-1").tables();
+            String tableId = tables.getFirst().tableId();
+            first.request("TABLE_JOIN", Map.of("tableId", tableId));
+            second.request("TABLE_JOIN", Map.of("tableId", tableId));
+            other.request("TABLE_JOIN", Map.of("tableId", tables.get(1).tableId()));
+            first.request("GAME_SELECT", Map.of("gameCode", "OMOK", "betAmountPerPlayer", 5));
+            first.ready(tableId);
+            first.assertNoStartUnavailable();
+            second.assertNoStartUnavailable();
+
+            second.ready(tableId);
+            for (Peer player : List.of(first, second)) {
+                JsonNode notice = player.await(Peer::isStartUnavailable);
+                assertThat(notice.path("requestId").isNull()).isTrue();
+                assertThat(notice.path("payload").path("message").asText()).contains("시작");
+            }
+            other.assertNoStartUnavailable();
+            assertThat(first.state(tableId).path("allReady").asBoolean()).isTrue();
+            assertThat(hub.listTables("channel-1").tables().stream()
+                    .filter(table -> table.tableId().equals(tableId)).findFirst().orElseThrow().status())
+                    .isEqualTo("WAITING");
+            first.request("READY_SET", Map.of("ready", false));
+            first.request("TABLE_LEAVE", Map.of());
+            second.request("TABLE_LEAVE", Map.of());
+        });
+    }
+
     private org.springframework.boot.test.context.runner.WebApplicationContextRunner runner() {
         return WorldMapRuntimeConfigurationTests.runner().withPropertyValues(
                 "ontop.world.channels[0].channel-id=channel-1", "ontop.world.channels[0].name=A",
@@ -175,6 +212,23 @@ class LegacyParkTableFlowTests {
             String requestId = UUID.randomUUID().toString();
             hub.receive(id, mapper.writeValueAsString(Map.of("requestId", requestId, "type", type, "payload", payload)));
             return await(message -> message.path("requestId").asText().equals(requestId));
+        }
+
+        private static boolean isStartUnavailable(JsonNode message) {
+            return message.path("type").asText().equals("ERROR")
+                    && message.path("payload").path("code").asText().equals("START_NOT_CONFIGURED");
+        }
+
+        void assertNoStartUnavailable() throws InterruptedException {
+            assertThat(deferred).noneMatch(Peer::isStartUnavailable);
+            long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(150);
+            long remaining;
+            while ((remaining = deadline - System.nanoTime()) > 0) {
+                JsonNode message = messages.poll(remaining, TimeUnit.NANOSECONDS);
+                if (message == null) { break; }
+                assertThat(isStartUnavailable(message)).isFalse();
+                deferred.addLast(message);
+            }
         }
 
         JsonNode await(Predicate<JsonNode> predicate) throws Exception {

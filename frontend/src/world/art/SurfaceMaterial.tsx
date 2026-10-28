@@ -3,19 +3,19 @@ import { useLoader } from '@react-three/fiber'
 import {
   RepeatWrapping,
   SRGBColorSpace,
-  TextureLoader,
   type MeshStandardMaterial,
   type Side,
   type Texture,
 } from 'three'
 import { surfaceMapUrls, type Surface } from '../worldAssets'
+import { ParkTextureLoader } from './ParkTextureLoader'
 
 export type { Surface } from '../worldAssets'
 const configured = new WeakSet<Texture>()
 
 /** Shared, local CC0 detail maps; no per-instance textures or runtime CDN calls. */
 export function useSurfaceMaps(kind: Surface) {
-  const maps = useLoader(TextureLoader, surfaceMapUrls[kind])
+  const maps = useLoader(ParkTextureLoader, surfaceMapUrls[kind])
   return useMemo(() => {
     maps.forEach((map, i) => {
       if (configured.has(map)) return

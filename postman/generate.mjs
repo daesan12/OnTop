@@ -517,17 +517,47 @@ const wsGuide = '# 근거리 채팅·관전 테스트 (20m)\n\n'
     + `기존 연결 ${wsItems.length}개와 저장 메시지 ${wsItems.reduce((sum, item) => sum + item.messages.length, 0)}개를 사용합니다.`
     + '\n\n2026-10-22: 첫 착석자가 GAME_SELECT의 DICE targetScore를2000/4000/6000 중 선택합니다. 누락 GAME_OPTIONS_REQUIRED, 잘못된 값 INVALID_PAYLOAD이며 목표 변경도 전원 준비를 해제합니다. TABLE_STATE/TABLE_WATCH_STATE/HTTP12 요약에 targetScore가 추가되고 다른 게임은null입니다. '
     + '실제 종료 후 좌석 유지·ready=false·SETTLING, 현재 경기 전체 SETTLED 확인 후 WAITING에서 다시 전원 준비하면 새 시도·경기ID로 시작합니다. 정산 알림 누락은 GAME_RESULT_CHECK 재조회로 복구하며 조회는 지급을 실행하지 않습니다. 실제 DB 잔액·원장·정산·운영 적용은 별도 통합 검증입니다.';
-const appearanceGuide = '\n\n2026-10-22 의상 동기화: local,db 또는 dev,db + ontop.shop.enabled=true(dev: SHOP_ENABLED=true). WS07의 인증 사용자 두 명이 같은 채널에 CHANNEL_JOIN 후 본인이 HTTP17로 장착하면 WORLD_STATE.payload.avatars[].equipment가 갱신됩니다. 다른 채널에는 전파하지 않습니다. 새 티켓→재접속→CHANNEL_JOIN 후 최신 장착을 복구합니다. 공개 필드는 itemId/itemCode/equipSlot/imageKey, 최대5개·부위당 하나이며 null은 미조회/사용 불가로 기존 외형 유지, []는 장착 없음입니다. 이동 tick은 캐시를 쓰고 조회 실패는 기존 외형을 유지합니다. 실제 3D 에셋 매핑·렌더링 연동은 별도 협의입니다. 예시: {"requestId":null,"type":"WORLD_STATE","payload":{"channelId":"channel-1","version":4,"avatars":[{"userId":"101","position":{"lastInputSeq":0,"x":-2.025,"y":0.84,"z":34,"yaw":0,"moving":false,"running":false,"swimming":false},"equipment":[{"itemId":1,"itemCode":"RED_TOP","equipSlot":"TOP","imageKey":"demo-red-top"}]}],"mapVersion":"544bc6fa3890c77e8de0ec91d27f93981b4d23a477918963757e4762294ba8d0"}}';
+const appearanceGuide = '\n\n2026-10-22 의상 동기화: local,db 또는 dev,db + ontop.shop.enabled=true(dev: SHOP_ENABLED=true). WS07의 인증 사용자 두 명이 같은 채널에 CHANNEL_JOIN 후 본인이 HTTP17로 장착하면 WORLD_STATE.payload.avatars[].equipment가 갱신됩니다. 다른 채널에는 전파하지 않습니다. 새 티켓→재접속→CHANNEL_JOIN 후 최신 장착을 복구합니다. 공개 필드는 itemId/itemCode/equipSlot/imageKey, 최대5개·부위당 하나이며 null은 미조회/사용 불가로 기존 외형 유지, []는 장착 없음입니다. 이동 tick은 캐시를 쓰고 조회 실패는 기존 외형을 유지합니다. 실제 3D 에셋 매핑·렌더링 연동은 별도 협의입니다. 예시: {"requestId":null,"type":"WORLD_STATE","payload":{"channelId":"channel-1","version":4,"avatars":[{"userId":"101","tableSeat":null,"position":{"lastInputSeq":0,"x":-2.025,"y":0.84,"z":34,"yaw":0,"moving":false,"running":false,"swimming":false},"equipment":[{"itemId":1,"itemCode":"RED_TOP","equipSlot":"TOP","imageKey":"demo-red-top"}]}],"mapVersion":"544bc6fa3890c77e8de0ec91d27f93981b4d23a477918963757e4762294ba8d0"}}';
 const publicProfileGuide = '\n\n2026-10-24 공개 프로필: db 프로필의 인증 사용자로 채널 입장하면 '
     + 'WORLD_STATE.avatars[].nickname/characterGender가 비동기 갱신됩니다. characterGender는 MALE/FEMALE 캐릭터 외형이며 실제 성별이 아닙니다. '
     + '최초 미조회·DB 없는 사용자에는 null이며 기존 표시를 지우지 않습니다. 접속 중 회원은 5초마다 일괄 조회하므로 '
     + 'HTTP PATCH /api/v1/users/me로 닉네임 변경 후 다음 조회 완료 때 같은 채널에 반영됩니다. 재접속은 새 티켓→CHANNEL_JOIN. '
     + '다른 채널 미노출·클라이언트 프로필 주입 거절·조회 장애 시 기존 값 유지를 확인하세요. 기존 equipment/위치 계약은 유지합니다. '
     + '감정표현 5종은 WAVE/CLAP/APPLAUSE_REQUEST/TSK/FART, 손 인사/박수 5초·나머지 1.8초입니다. 가만히 서 있을 때만 허용하며 이동·점프 중 공중 상태·수영·테이블(대기 포함)·시설 중은 EMOTE_ACTIVITY_CONFLICT, 기존 경기 복구 게이트는 GAME_RECOVERY_REQUIRED입니다. '
-    + '승인 후 새 이동/점프·착석·시설 이용은 WORLD_EMOTE_CANCELLED(requestId=null)를 같은 채널에 전송합니다. payload는 eventId/emoteEventId/channelId/userId/reason/sentAt이며 reason은 MOVEMENT/ACTIVITY_STARTED/CHANNEL_LEFT/DISCONNECTED입니다. '
-    + '프론트는 현재 채널/사용자/재생 원본 eventId와 emoteEventId가 일치할 때만 취소하며 중복·늦은 취소·이미 끝난 표현은 무시합니다. 취소/채널 이동으로 사용 간격은 초기화되지 않습니다. 새 REST나 클라이언트 취소 요청은 없으며 취소 알림 수신은 FE 연결이 필요합니다. '
+    + '승인 후 새 이동/점프·착석·시설 이용은 WORLD_EMOTE_CANCELLED(requestId=null)를 같은 채널에 전송합니다. 이미 시작한 FART는 MOVEMENT만 예외로 유지하며 이동 중 새 표현은 계속 거절합니다. payload는 eventId/emoteEventId/channelId/userId/reason/sentAt이며 reason은 MOVEMENT/ACTIVITY_STARTED/CHANNEL_LEFT/DISCONNECTED입니다. '
+    + '프론트는 현재 채널/사용자/재생 원본 eventId와 emoteEventId가 일치할 때만 취소하며 중복·늦은 취소·이미 끝난 표현은 무시합니다. 재생 중 MOVEMENT/ACTIVITY_STARTED 취소는 이전 쿨다운과 최소 간격을 해제해 정지 후 즉시 새 표현이 가능합니다. 정상 완료·채널 이동은 해제하지 않습니다. 별도 슬라이딩1초 최대5회 승인 제한은 취소로 초기화하지 않으며 초과는 EMOTE_TOO_FREQUENT입니다. 재생 유효기간은 WAVE2600/CLAP4867/나머지1600ms이며 만료 후 취소는 대기를 풀지 않습니다. 새 REST/클라이언트 취소 요청은 없습니다. '
     + 'FE park-bindings.emotes 매핑·3D 렌더링·배포 확인은 별도입니다.';
 wsItems[6].description += appearanceGuide + publicProfileGuide;
+const seatGuide = '\n\n## 공개 테이블 착석 (2026-10-28 · 배포 전)\n'
+    + 'WORLD_STATE.payload.avatars[].tableSeat는 {tableId,seatNumber:1~4} 또는 null이며 항상 포함합니다. '
+    + '같은 채널 일반 사용자도 참가·관전 없이 받습니다. 최초/반복 입장·재접속에는 실제 현재 좌석, '
+    + '착석·퇴장·강제 퇴장·재배치에는 월드 버전 증가와 약100ms 기존 방송을 사용해 좌표가 같아도 갱신합니다. '
+    + '단절 아바타는 제거하고, 기존 유예로 보존된 좌석은 복귀 후 표시합니다. 준비·판돈·손패·참가 권한을 공개하지 않습니다. '
+    + 'FE는 기존 서버 tableId/anchorId 매핑으로 표시하고 본인 버튼 권한은 기존 TABLE_STATE를 사용합니다. '
+    + '로컬 코드 계약이며 FE 보존 브랜치 통합·실제3D·배포 검수는 별도입니다.';
+wsItems[6].description += seatGuide;
+wsItems[6].messages.push({
+    name: '수신 예시 · WORLD_STATE tableSeat — 직접 전송 금지·배포 전',
+    $kind: 'websocket-message', contentType: 'json',
+    content: JSON.stringify({ requestId: null, type: 'WORLD_STATE', payload: {
+        channelId: '{{channelIdA}}', version: 12, mapVersion: '{{mapVersion}}', avatars: [
+            { userId: '101', nickname: '검증자A', characterGender: 'MALE',
+                position: {lastInputSeq:0,x:-2.025,y:0.84,z:34,yaw:0,moving:false,running:false,swimming:false},
+                equipment: null, tableSeat: {tableId:'{{tableIdA}}',seatNumber:1} },
+            { userId: '202', nickname: '검증자B', characterGender: 'FEMALE',
+                position: {lastInputSeq:0,x:-2.025,y:0.84,z:34,yaw:0,moving:false,running:false,swimming:false},
+                equipment: null, tableSeat: null }
+        ]
+    } }, null, 2)
+}, {
+    name: '수신 예시 · WORLD_EMOTE_CANCELLED — 직접 전송 금지·배포 전',
+    $kind: 'websocket-message', contentType: 'json',
+    content: JSON.stringify({ requestId: null, type: 'WORLD_EMOTE_CANCELLED', payload: {
+        eventId:'00000000-0000-4000-8000-000000000002',
+        emoteEventId:'00000000-0000-4000-8000-000000000001', channelId:'{{channelIdA}}', userId:'101',
+        reason:'MOVEMENT', sentAt:'2026-10-28T00:00:00.100Z'
+    } }, null, 2)
+});
 const facilityGuide = '\n\n## 시설 이용·점유 동기화 (2026-10-25)\n\n'
     + 'CHANNEL_JOIN 후 시설01 CATALOG(10개씩 nextOffset, -1종료)→시설02 CHECK(입장·재접속 필수)→시설03/04 USE→시설05 AIM(망원경만)→시설06 RELEASE. '
     + '벤치80개×2석, 운동기구12대·망원경2대×1명. 같은 채널 WORLD_FACILITY_STATE.occupancies 전체 상태와 version을 사용합니다. '
@@ -570,6 +600,7 @@ wsItems[6].messages.push(message('맵 01 FE 맵 버전 확인 → WORLD_MAP_STAT
 const tabletGuide = '\n\n## 현재 맵 전체16개 테이블 (2026-10-27, 로컬 구현·미배포)\n'
     + 'channel-1의 GET /api/v1/tables 결과16개와 docs/integration/legacy-tables/bindings.dev.json의 bindings를 교차 확인합니다. '
     + '기존두ID·맵버전은 유지하고 채널마다 별도 방입니다. 실제 Spring 서버의 GAME_START_CHECK는 시작 연결이 꺼져 있으면 START_NOT_CONFIGURED를 반환합니다. '
+    + 'Spring AUTO의 전원 준비 직후 시작 연결이 없으면 같은 테이블 인증 참가자에게 ERROR(requestId=null,START_NOT_CONFIGURED)를 알립니다. 준비 성공과 별개이며 예약·경기는 생성하지 않습니다. 이 추가 알림은 로컬 수정·배포 전입니다. '
     + '테이블 등록만으로 DB 예약/정산·엔진을 활성화하지 않습니다. docs/legacy-table-integration.md. '
     + '\n\n## 새 태블릿 MANUAL 모드 (2026-10-27, 로컬 구현·미배포)\n'
     + '방장 TABLE_CONFIGURE로 게임/정확한 정원/목표/판돈/expectedVersion을 확정한 뒤 전원이 READY_SET하고 방장만 TABLE_START합니다. '
@@ -592,6 +623,14 @@ wsItems[6].messages.push(
     message('태블릿 04 시작 대기 기한 재조회', 'TABLE_HOST_WAIT_CHECK', {}),
     message('시간 01 서버 현재 시각·낮밤 기준 재조회', 'WORLD_TIME_CHECK', {})
 );
+wsItems[6].messages.push({
+    name: '수신 예시 · START_NOT_CONFIGURED — 서버 알림·직접 전송 금지·배포 전',
+    $kind: 'websocket-message', contentType: 'json',
+    content: JSON.stringify({ requestId: null, type: 'ERROR', payload: {
+        code: 'START_NOT_CONFIGURED',
+        message: '경기 시작 기능이 비활성 상태입니다. 서버의 시작·게임 설정을 확인해주세요.'
+    } }, null, 2)
+});
 const reactionGuide = '\n\n## 기권·패배 공개 연출 (서버 수신 전용)\n'
     + 'WORLD_GAME_REACTION은 새 송신 요청이 아닙니다. 실제 경기 시작 후 기권/패배가 확정되면 '
     + '같은 채널 참가자와 테이블 중심20m 이내 사용자(비구독자 포함)가 수신합니다. '
@@ -604,7 +643,7 @@ const reactionGuide = '\n\n## 기권·패배 공개 연출 (서버 수신 전용
         motion: 'head-clutch', durationMs: 3600, occurredAt: '2026-10-26T09:00:00Z',
     } }) + '\n명세 docs/world-game-reaction-api.md. 코드/로컬검증이며 실제 배포·FE3D 연결은 별도입니다.';
 wsItems[6].description += reactionGuide;
-const wsV3 = { name: 'OnTop WebSocket', $kind: 'collection', description: wsGuide + appearanceGuide + publicProfileGuide
+const wsV3 = { name: 'OnTop WebSocket', $kind: 'collection', description: wsGuide + appearanceGuide + publicProfileGuide + seatGuide
         + facilityGuide + followGuide + mapGuide + tabletGuide + reactionGuide,
     items: wsItems };
 const httpV21 = {

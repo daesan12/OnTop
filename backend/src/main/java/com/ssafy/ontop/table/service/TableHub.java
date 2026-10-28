@@ -111,6 +111,7 @@ public class TableHub {
     private final Map<String, Long> startRevisions = new HashMap<>();
     private final Optional<GameStartGateway> gateway;
     private final boolean startRehearsal;
+    private boolean startDiagnosticsEnabled;
     private Optional<CommittedGameStartService> committedStarts = Optional.empty();
     private final Optional<GameStateGateway> gameStates;
     private final Set<String> stateQueries = new HashSet<>();
@@ -316,6 +317,7 @@ public class TableHub {
                 runtime.legacyTables().orElse(null));
         // 실제 서버에서는 연동 비활성 상태도 조회해 FE에 원인을 알릴 수 있다.
         protocol.enableStartQueries();
+        startDiagnosticsEnabled = true;
     }
 
     public TableHub(ObjectMapper mapper, Optional<GameStartGateway> gateway,
@@ -876,6 +878,7 @@ public class TableHub {
         }
         long joinStarted = System.nanoTime();
         WorldChannelRegistry.Change change = channels.join(member.userId(), channelId);
+        syncWorldTableSeats(channelId);
         Long connectedAt = connectionStarted.remove(member.sessionId());
         log.debug("공원 입장 서버 준비 joinMs={} connectedToJoinMs={} map={}",
                 (System.nanoTime() - joinStarted) / 1_000_000.0,
@@ -1653,6 +1656,7 @@ public class TableHub {
     }
 
     private void publish(TableRoom room, Member actor, String requestId) {
+        syncWorldTableSeats(tableChannels.get(room.snapshot().tableId()));
         TableStartAttempt start = starts.get(room.snapshot().tableId());
         room.refreshWait(tableNow(), start == null || !start.frozen());
         TableRoom.Snapshot snapshot = publicSnapshot(room);
@@ -1671,6 +1675,21 @@ public class TableHub {
             }
         }
         publishHostWait(room);
+    }
+
+    /** 준비·판돈·경기 비공개 정보 없이, 같은 Hub 확정 시점의 실제 좌석만 복사한다. */
+    private void syncWorldTableSeats(String channelId) {
+        if (channelId == null) { return; }
+        Map<String, WorldChannelRegistry.TableSeat> seats = new HashMap<>();
+        for (var entry : rooms.entrySet()) {
+            if (!channelId.equals(tableChannels.get(entry.getKey()))) { continue; }
+            for (var seat : entry.getValue().snapshot().seats()) {
+                if (seat.userId() != null && entry.getKey().equals(seating.get(seat.userId()))) {
+                    seats.put(seat.userId(), new WorldChannelRegistry.TableSeat(entry.getKey(), seat.seatNumber()));
+                }
+            }
+        }
+        channels.tableSeats(channelId, seats);
     }
 
     private TableRoom.Snapshot publicSnapshot(TableRoom room) {
@@ -1699,6 +1718,17 @@ public class TableHub {
         if ((!startRehearsal && committedStarts.isEmpty()) || !snapshot.allReady()) {
             if (snapshot.allReady() && !startRehearsal && committedStarts.isEmpty()) {
                 log.warn("경기 시작 연결 비활성 table={} game={}", snapshot.tableId(), snapshot.gameCode());
+                // 직접 생성하는 착석 전용 PoC의 메시지 계약은 유지한다.
+                if (startDiagnosticsEnabled) {
+                    String notice = protocol.error(null, "START_NOT_CONFIGURED",
+                            "경기 시작 기능이 비활성 상태입니다. 서버의 시작·게임 설정을 확인해주세요.");
+                    for (Member target : members.values()) {
+                        if (target.accountId() != null && isMapReady(target)
+                                && snapshot.tableId().equals(seating.get(target.userId()))) {
+                            target.peer().offer(notice);
+                        }
+                    }
+                }
             }
             return;
         }
