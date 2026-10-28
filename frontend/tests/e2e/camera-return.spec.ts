@@ -76,9 +76,9 @@ test('bench and table-specific cameras preserve the earlier orbit instead of ove
   const before = (await probe(page)).controls
   await page.evaluate(async id => { await (await import('/src/park/runtime/runtime.ts' as string)).parkRuntime.useFacility(id, 0, new AbortController().signal) }, d.facilityId)
   await expect.poll(async () => (await own(page)).pending).toBe(false)
-  await expect(page.getByRole('button', { name: '벤치에서 일어나기', exact: true })).toBeVisible()
+  await expect(page.getByText('벤치 이용 중', { exact: true })).toBeVisible()
   await page.mouse.move(650, 250); await page.mouse.down(); await page.mouse.move(720, 270); await page.mouse.up()
-  await page.getByRole('button', { name: '벤치에서 일어나기', exact: true }).click()
+  await page.locator('canvas').focus(); await page.keyboard.press('KeyW')
   await expect.poll(async () => String((await cameraState(page)).first)).toBe('true')
   await expect.poll(async () => (await probe(page)).controls).toEqual(before)
 })
