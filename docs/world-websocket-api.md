@@ -345,3 +345,24 @@
 추가 검증: WorldEmoteActivityFlowTests는 실제 HTTP 업그레이드/RawWS에서 이동·점프 승인/중복·실패,
 세 시설·테이블 착석의 취소, 다른 채널 차단, 퇴장·단절과 사용 간격 보존을 확인한다.
 인증 회원 조회는 테스트 대역, 위치·시간은 서버 fixture이며 실제 OAuth/3D 화면·공유 DB·배포 검증은 아니다.
+
+### 최신 프론트 수신 코드와 실제 WS 응답 대조
+
+`backend/`에서 Java21·Node24와 설치된 frontend 의존성을 사용해 실행한다.
+
+```powershell
+node tools/check-world-frontend-wire.mjs
+```
+
+이 도구는 `WorldFrontendWireContractTests`를 캐시 없이 실행하고, 이번 실행 ID가 일치하는
+`build/reports/world-frontend-wire.json`만 읽는다. 테스트 실패나 새 응답 누락 시 이전 파일로
+성공을 표시하지 않는다. 테스트 회원 조회만 대체하고 실제 로컬 HTTP 업그레이드·Raw WebSocket·
+서버 물리 갱신·직렬화를 거친 비참가자 수신 응답을 사용한다. 공유 서버·DB에는 접속하지 않는다.
+
+최신 FE의 `protocol.ts`와 `emotes/timeline.ts`를 읽어 WAVE 이동 취소 → 정지 후 CLAP 즉시 승인 →
+착석에 따른 취소와 공개 좌석 → 퇴장 후 명시적 null을 해석한다. 중복 표현·취소 거절도 확인한다.
+독립적인 월드 방송과 취소 알림의 도착 순서는 강제하지 않는다. FE 파일은 변경하지 않는다.
+
+이는 실제 응답 형식·이벤트 식별·FE 해석 코드의 호환성 검수다. 타임라인은 응답에 기록된
+서버 시각으로 검사하므로 실제 네트워크 지연·기기 시계 오차·3D 모션·개발 서버 두 계정 검수는
+포함하지 않는다. FART 이동 유지는 별도의 `WorldEmoteMovementFlowTests`와 FE emoteRuntime 회귀로 확인한다.
