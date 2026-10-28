@@ -1,0 +1,21 @@
+{
+  "description": "v5 FILL heat, cold batter wait, non-first customer delivery, then burned filled bread discard",
+  "heats": [100, 115],
+  "orders": [
+    { "orderId": "1", "customerSlot": 0, "availableAfterSeq": 0, "items": { "bean": 2, "custard": 0, "pizza": 0, "chocolate": 0 } },
+    { "orderId": "2", "customerSlot": 1, "availableAfterSeq": 0, "items": { "bean": 1, "custard": 0, "pizza": 0, "chocolate": 0 } },
+    { "orderId": "3", "customerSlot": 2, "availableAfterSeq": 0, "items": { "bean": 0, "custard": 1, "pizza": 0, "chocolate": 0 } }
+  ],
+  "log": [
+    { "slot": 0, "action": "POUR", "t": 0 },
+    { "slot": 0, "action": "FILL", "t": 2000, "filling": "bean" },
+    { "slot": 0, "action": "TURN", "t": 8400 },
+    { "slot": 0, "action": "TURN", "t": 14800 },
+    { "slot": -1, "action": "DELIVER", "t": 14850, "orderId": "2" },
+    { "slot": 1, "action": "POUR", "t": 14900 },
+    { "slot": 1, "action": "FILL", "t": 15200, "filling": "bean" },
+    { "slot": 1, "action": "DISCARD", "t": 22200 }
+  ],
+  "expected": { "rulesVersion": "v5", "fills": 2, "score": 10, "made": 1, "golden": 1, "failed": 1,
+    "wasted": 1, "combo": 0, "maxCombo": 1, "served": 1, "customersServed": 1, "tray": [] }
+}

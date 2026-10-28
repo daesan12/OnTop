@@ -1,0 +1,311 @@
+{
+  "status": "completed_preview_ready",
+  "scope": "Five additional reference-based customer GLBs; existing boy is excluded",
+  "referenceGenerator": "built-in image_gen",
+  "modelAlias": "tripo-v3.1",
+  "modelWire": "v3.1-20260211",
+  "accountSnapshot": {
+    "balance": 850,
+    "frozen": 0
+  },
+  "estimatedCreditsPerModel": {
+    "texturedImageToModel": 30,
+    "detailedTexture": 10,
+    "detailedGeometry": 20,
+    "total": 60
+  },
+  "estimatedTotalCredits": 300,
+  "estimatedRemainingBalance": 550,
+  "paidSubmissions": 5,
+  "riggingAndAnimationExcluded": true,
+  "noAutomaticPaidRetries": true,
+  "jobs": [
+    {
+      "id": "student-brown-coat",
+      "name": "대학생",
+      "input": "docs/bungeoppang-v5/npc-reference-production/student-brown-coat-reference-v1.png",
+      "promptFile": "docs/bungeoppang-v5/npc-reference-production/student-brown-coat-reference-v1.prompt.txt",
+      "commandAfterConfirmation": "tripo make 'docs/bungeoppang-v5/npc-reference-production/student-brown-coat-reference-v1.png' -p face_limit=40000 -p texture=true -p pbr=true -p texture_quality=detailed -p geometry_quality=detailed --name bungeoppang-student-brown-coat-v1 -o 'docs/bungeoppang-v5/npc-reference-production' --no-open --json --yes",
+      "dryRun": {
+        "dry_run": true,
+        "valid": true,
+        "input": "docs/bungeoppang-v5/npc-reference-production/student-brown-coat-reference-v1.png",
+        "model": "v3.1-20260211",
+        "model_reason": "default high-fidelity → v3.1",
+        "steps": [
+          {
+            "name": "image-to-model",
+            "endpoint": "/v3/generation/image-to-model",
+            "task_type": "image_to_model",
+            "payload": {
+              "input": "<upload:docs/bungeoppang-v5/npc-reference-production/student-brown-coat-reference-v1.png>",
+              "model": "v3.1-20260211",
+              "face_limit": 40000,
+              "texture": true,
+              "pbr": true,
+              "texture_quality": "detailed",
+              "geometry_quality": "detailed"
+            }
+          }
+        ],
+        "pending_uploads": [
+          "docs/bungeoppang-v5/npc-reference-production/student-brown-coat-reference-v1.png"
+        ],
+        "deliverables": [],
+        "candidates": 1,
+        "warnings": [],
+        "errors": [],
+        "cost_notes": [
+          "texture_quality detailed: higher price tier",
+          "geometry detailed (Ultra): extra HD credit"
+        ]
+      },
+      "estimatedCredits": 60,
+      "outputDirectory": "docs/bungeoppang-v5/npc-reference-production/tripo-out/bungeoppang-student-brown-coat-v1-<id8>",
+      "deliverables": [
+        "model.glb",
+        "preview.png",
+        "task.json"
+      ],
+      "runtimeCopy": "frontend/public/art/bungeoppang/customers/student-brown-coat-v1.glb",
+      "result": {
+        "taskId": "b19be13f-03bb-4130-b77c-bfd4a7292668",
+        "status": "success",
+        "attempts": 1,
+        "actualCredits": 60,
+        "actualOutputDirectory": "docs\\bungeoppang-v5\\npc-reference-production\\tripo-out\\bungeoppang-student-brown-coat-v-b19be13f"
+      }
+    },
+    {
+      "id": "worker-earmuffs",
+      "name": "귀마개 직장인",
+      "input": "docs/bungeoppang-v5/npc-reference-production/worker-earmuffs-reference-v1.png",
+      "promptFile": "docs/bungeoppang-v5/npc-reference-production/worker-earmuffs-reference-v1.prompt.txt",
+      "commandAfterConfirmation": "tripo make 'docs/bungeoppang-v5/npc-reference-production/worker-earmuffs-reference-v1.png' -p face_limit=40000 -p texture=true -p pbr=true -p texture_quality=detailed -p geometry_quality=detailed --name bungeoppang-worker-earmuffs-v1 -o 'docs/bungeoppang-v5/npc-reference-production' --no-open --json --yes",
+      "dryRun": {
+        "dry_run": true,
+        "valid": true,
+        "input": "docs/bungeoppang-v5/npc-reference-production/worker-earmuffs-reference-v1.png",
+        "model": "v3.1-20260211",
+        "model_reason": "default high-fidelity → v3.1",
+        "steps": [
+          {
+            "name": "image-to-model",
+            "endpoint": "/v3/generation/image-to-model",
+            "task_type": "image_to_model",
+            "payload": {
+              "input": "<upload:docs/bungeoppang-v5/npc-reference-production/worker-earmuffs-reference-v1.png>",
+              "model": "v3.1-20260211",
+              "face_limit": 40000,
+              "texture": true,
+              "pbr": true,
+              "texture_quality": "detailed",
+              "geometry_quality": "detailed"
+            }
+          }
+        ],
+        "pending_uploads": [
+          "docs/bungeoppang-v5/npc-reference-production/worker-earmuffs-reference-v1.png"
+        ],
+        "deliverables": [],
+        "candidates": 1,
+        "warnings": [],
+        "errors": [],
+        "cost_notes": [
+          "texture_quality detailed: higher price tier",
+          "geometry detailed (Ultra): extra HD credit"
+        ]
+      },
+      "estimatedCredits": 60,
+      "outputDirectory": "docs/bungeoppang-v5/npc-reference-production/tripo-out/bungeoppang-worker-earmuffs-v1-<id8>",
+      "deliverables": [
+        "model.glb",
+        "preview.png",
+        "task.json"
+      ],
+      "runtimeCopy": "frontend/public/art/bungeoppang/customers/worker-earmuffs-v1.glb",
+      "result": {
+        "taskId": "48770dfd-133d-49a7-b2ff-9aff509e4a57",
+        "status": "success",
+        "attempts": 1,
+        "actualCredits": 60,
+        "actualOutputDirectory": "docs\\bungeoppang-v5\\npc-reference-production\\tripo-out\\bungeoppang-worker-earmuffs-v1-48770dfd"
+      }
+    },
+    {
+      "id": "older-flat-cap",
+      "name": "중년 손님",
+      "input": "docs/bungeoppang-v5/npc-reference-production/older-flat-cap-reference-v1.png",
+      "promptFile": "docs/bungeoppang-v5/npc-reference-production/older-flat-cap-reference-v1.prompt.txt",
+      "commandAfterConfirmation": "tripo make 'docs/bungeoppang-v5/npc-reference-production/older-flat-cap-reference-v1.png' -p face_limit=40000 -p texture=true -p pbr=true -p texture_quality=detailed -p geometry_quality=detailed --name bungeoppang-older-flat-cap-v1 -o 'docs/bungeoppang-v5/npc-reference-production' --no-open --json --yes",
+      "dryRun": {
+        "dry_run": true,
+        "valid": true,
+        "input": "docs/bungeoppang-v5/npc-reference-production/older-flat-cap-reference-v1.png",
+        "model": "v3.1-20260211",
+        "model_reason": "default high-fidelity → v3.1",
+        "steps": [
+          {
+            "name": "image-to-model",
+            "endpoint": "/v3/generation/image-to-model",
+            "task_type": "image_to_model",
+            "payload": {
+              "input": "<upload:docs/bungeoppang-v5/npc-reference-production/older-flat-cap-reference-v1.png>",
+              "model": "v3.1-20260211",
+              "face_limit": 40000,
+              "texture": true,
+              "pbr": true,
+              "texture_quality": "detailed",
+              "geometry_quality": "detailed"
+            }
+          }
+        ],
+        "pending_uploads": [
+          "docs/bungeoppang-v5/npc-reference-production/older-flat-cap-reference-v1.png"
+        ],
+        "deliverables": [],
+        "candidates": 1,
+        "warnings": [],
+        "errors": [],
+        "cost_notes": [
+          "texture_quality detailed: higher price tier",
+          "geometry detailed (Ultra): extra HD credit"
+        ]
+      },
+      "estimatedCredits": 60,
+      "outputDirectory": "docs/bungeoppang-v5/npc-reference-production/tripo-out/bungeoppang-older-flat-cap-v1-<id8>",
+      "deliverables": [
+        "model.glb",
+        "preview.png",
+        "task.json"
+      ],
+      "runtimeCopy": "frontend/public/art/bungeoppang/customers/older-flat-cap-v1.glb",
+      "result": {
+        "taskId": "f03c126e-69b7-4355-9f15-f447135b5af4",
+        "status": "success",
+        "attempts": 1,
+        "actualCredits": 60,
+        "actualOutputDirectory": "docs\\bungeoppang-v5\\npc-reference-production\\tripo-out\\bungeoppang-older-flat-cap-v1-f03c126e"
+      }
+    },
+    {
+      "id": "girl-pink-hat",
+      "name": "분홍 모자 아이",
+      "input": "docs/bungeoppang-v5/npc-reference-production/girl-pink-hat-reference-v1.png",
+      "promptFile": "docs/bungeoppang-v5/npc-reference-production/girl-pink-hat-reference-v1.prompt.txt",
+      "commandAfterConfirmation": "tripo make 'docs/bungeoppang-v5/npc-reference-production/girl-pink-hat-reference-v1.png' -p face_limit=40000 -p texture=true -p pbr=true -p texture_quality=detailed -p geometry_quality=detailed --name bungeoppang-girl-pink-hat-v1 -o 'docs/bungeoppang-v5/npc-reference-production' --no-open --json --yes",
+      "dryRun": {
+        "dry_run": true,
+        "valid": true,
+        "input": "docs/bungeoppang-v5/npc-reference-production/girl-pink-hat-reference-v1.png",
+        "model": "v3.1-20260211",
+        "model_reason": "default high-fidelity → v3.1",
+        "steps": [
+          {
+            "name": "image-to-model",
+            "endpoint": "/v3/generation/image-to-model",
+            "task_type": "image_to_model",
+            "payload": {
+              "input": "<upload:docs/bungeoppang-v5/npc-reference-production/girl-pink-hat-reference-v1.png>",
+              "model": "v3.1-20260211",
+              "face_limit": 40000,
+              "texture": true,
+              "pbr": true,
+              "texture_quality": "detailed",
+              "geometry_quality": "detailed"
+            }
+          }
+        ],
+        "pending_uploads": [
+          "docs/bungeoppang-v5/npc-reference-production/girl-pink-hat-reference-v1.png"
+        ],
+        "deliverables": [],
+        "candidates": 1,
+        "warnings": [],
+        "errors": [],
+        "cost_notes": [
+          "texture_quality detailed: higher price tier",
+          "geometry detailed (Ultra): extra HD credit"
+        ]
+      },
+      "estimatedCredits": 60,
+      "outputDirectory": "docs/bungeoppang-v5/npc-reference-production/tripo-out/bungeoppang-girl-pink-hat-v1-<id8>",
+      "deliverables": [
+        "model.glb",
+        "preview.png",
+        "task.json"
+      ],
+      "runtimeCopy": "frontend/public/art/bungeoppang/customers/girl-pink-hat-v1.glb",
+      "result": {
+        "taskId": "d09f37f2-32be-4064-bebf-8f3349979161",
+        "status": "success",
+        "attempts": 1,
+        "actualCredits": 60,
+        "actualOutputDirectory": "docs\\bungeoppang-v5\\npc-reference-production\\tripo-out\\bungeoppang-girl-pink-hat-v1-d09f37f2"
+      }
+    },
+    {
+      "id": "woman-glasses-bun",
+      "name": "안경 쓴 여성",
+      "input": "docs/bungeoppang-v5/npc-reference-production/woman-glasses-bun-reference-v1.png",
+      "promptFile": "docs/bungeoppang-v5/npc-reference-production/woman-glasses-bun-reference-v1.prompt.txt",
+      "commandAfterConfirmation": "tripo make 'docs/bungeoppang-v5/npc-reference-production/woman-glasses-bun-reference-v1.png' -p face_limit=40000 -p texture=true -p pbr=true -p texture_quality=detailed -p geometry_quality=detailed --name bungeoppang-woman-glasses-bun-v1 -o 'docs/bungeoppang-v5/npc-reference-production' --no-open --json --yes",
+      "dryRun": {
+        "dry_run": true,
+        "valid": true,
+        "input": "docs/bungeoppang-v5/npc-reference-production/woman-glasses-bun-reference-v1.png",
+        "model": "v3.1-20260211",
+        "model_reason": "default high-fidelity → v3.1",
+        "steps": [
+          {
+            "name": "image-to-model",
+            "endpoint": "/v3/generation/image-to-model",
+            "task_type": "image_to_model",
+            "payload": {
+              "input": "<upload:docs/bungeoppang-v5/npc-reference-production/woman-glasses-bun-reference-v1.png>",
+              "model": "v3.1-20260211",
+              "face_limit": 40000,
+              "texture": true,
+              "pbr": true,
+              "texture_quality": "detailed",
+              "geometry_quality": "detailed"
+            }
+          }
+        ],
+        "pending_uploads": [
+          "docs/bungeoppang-v5/npc-reference-production/woman-glasses-bun-reference-v1.png"
+        ],
+        "deliverables": [],
+        "candidates": 1,
+        "warnings": [],
+        "errors": [],
+        "cost_notes": [
+          "texture_quality detailed: higher price tier",
+          "geometry detailed (Ultra): extra HD credit"
+        ]
+      },
+      "estimatedCredits": 60,
+      "outputDirectory": "docs/bungeoppang-v5/npc-reference-production/tripo-out/bungeoppang-woman-glasses-bun-v1-<id8>",
+      "deliverables": [
+        "model.glb",
+        "preview.png",
+        "task.json"
+      ],
+      "runtimeCopy": "frontend/public/art/bungeoppang/customers/woman-glasses-bun-v1.glb",
+      "result": {
+        "taskId": "6f9d7137-e4d3-4ba6-9359-5adddef4df63",
+        "status": "success",
+        "attempts": 1,
+        "actualCredits": 60,
+        "actualOutputDirectory": "docs\\bungeoppang-v5\\npc-reference-production\\tripo-out\\bungeoppang-woman-glasses-bun-v1-6f9d7137"
+      }
+    }
+  ],
+  "approvedBatchCredits": 300,
+  "actualTotalCredits": 300.0,
+  "finalBalance": {
+    "balance": 550,
+    "frozen": 0
+  },
+  "sourceReference": "docs/bungeoppang-v5/npc-reference-production/customer-style-reference-v1.png"
+}

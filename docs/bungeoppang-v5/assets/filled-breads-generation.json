@@ -1,0 +1,20 @@
+{
+  "generator": "OpenAI built-in image_gen",
+  "date": "2026-10-28",
+  "asset": "frontend/public/art/bungeoppang/filled-breads-25d.png",
+  "source": "exec-2bf074f4-b42b-40ad-85f9-9c317edb013f.png",
+  "layout": {
+    "columns": 4,
+    "fillings": [
+      "bean",
+      "custard",
+      "pizza",
+      "chocolate"
+    ],
+    "width": 1024,
+    "height": 192,
+    "transparent": true
+  },
+  "preparation": "scripts/prepare-bungeoppang-filling-art.mjs: trim transparent padding and pack equal 256x192 cells; preserve generated artwork.",
+  "prompt": "Use case: stylized-concept game UI food sprite atlas.\nReference image is a STYLE REFERENCE only: use the plump fish-shaped baked bungeoppang style, soft warm light and premium 2.5D game render. Do not reproduce the six cooking states.\nCreate one genuinely transparent PNG with EXACTLY FOUR separate pastries in ONE HORIZONTAL ROW. Each occupies its own equal-width quarter of the canvas, all centered, identical scale and orientation, clean generous transparent gaps. Wide canvas 3:1. No text, no labels, no plates, no ingredient bowls, no extra pastries. All four have the SAME golden-orange cooked crust, stubby tail, very round plump belly, embossed round eye and tiny smiling mouth. Face right, direct top-down view, compact cute silhouette, NOT elongated.\nEach pastry has a LARGE clean cutaway window through the lower-middle belly: show its generous filling plainly, while keeping the fish head, eye, back scales and tail intact. The cutaway must read clearly at tiny UI icon size. No separate floating filling markers; the filling is actually inside the pastry.\nFrom LEFT to RIGHT:\n1 red bean: deep burgundy red bean paste with a few large visible red bean pieces.\n2 custard: smooth glossy warm yellow vanilla custard cream, unmistakably pale yellow.\n3 pizza: bright tomato-red sauce, melted pale cheese and a few chunky pepperoni cubes.\n4 chocolate: rich dark brown glossy chocolate cream with a few chocolate chunks.\nUse larger simplified relief details instead of lots of tiny scales. Golden baked bread texture, gently rounded edges, appetizing and friendly. Soft upper-left lighting and subtle internal shading; no ground shadow, no background, actual alpha transparency. Keep all four identical size, shape, baseline, no overlaps, no borders, no watermark."
+}

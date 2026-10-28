@@ -1,5 +1,5 @@
 import { rulebooks } from './rulebooks';
-import { bungeoppangV4Preview } from '../bungeoppang/config';
+import { bungeoppangV4Preview, bungeoppangV5Enabled, bungeoppangV5Preview } from '../bungeoppang/config';
 import type { GameManual, GuideId, ManualCategory, ManualSection } from './types';
 
 // Current dev contracts: docs/{omok,farkle,onecard,bridge,minigame-api}.md.
@@ -15,6 +15,31 @@ export const gameManuals: GameManual[] = [
     {id:'bread-result',title:'납품해야 득점',paragraphs:['보관 점수는 아직 총점이 아니에요. 주문 전체를 전달하면 주문분만 소비하고 여분은 남아요. 미납품 재고·철판은 종료 점수에 포함하지 않아요.','양면 황금 콤보 3~5는 ×1.2, 6 이상은 ×1.5예요. 피자·초코 납품분에는 초기 설정 50% 추가 점수를 각 빵마다 내림해요.',bungeoppangV4Preview ? '미리보기 엽전은 예상 환산이며 실제 지갑에 반영하지 않아요.' : '60초 후 서버가 기록을 검증해 결과를 확정해요. 15점당 1냥, 한국 날짜 기준 하루 최대 100냥이며 최종 지급은 서버 결과를 따라요. 정산이 지연되면 결과 화면에서 다시 확인해요.']},
   ]},
 ];
+
+if (bungeoppangV5Enabled) {
+  const bread = gameManuals.find(game => game.id === 'fish-bread')!;
+  bread.timing = '조리 3분 · 마지막 30초는 센 불';
+  bread.summary = '반죽 위에 소를 올려 굽고, 2단 쟁반 10개와 눈앞의 손님 세 명을 관리해요.';
+  bread.sections = [
+    { id: 'bread-start', title: '소를 넣으면 불이 켜져요', steps: ['카트 앞 E → 시작 → 카운트다운 뒤 3분 장사를 해요.',
+      '반죽만 부었을 때는 불이 꺼져 있어요. 팥·슈크림·피자·초코를 넣는 순간 서버가 준 불로 익기 시작해요.',
+      '칸 아래 불꽃의 크기와 약불/보통불/센불·백분율을 함께 살펴요. 마지막 30초에는 더 빨리 익어요.'] },
+    { id: 'bread-orders', title: '손님 세 명과 2단 쟁반', steps: ['손님은 나에게만 보이며 최대 세 명이 기다려요. 원하는 손님을 눌러 선택해요.',
+      '각 주문은 총 1~4개예요. 아래 5개·위 5개 쟁반에 보관하고, 선택한 손님에게 R로 전체 주문을 전달해요.',
+      '납품이 확인되면 그 자리에 새 손님이 와요. 여분 빵은 남고, 만들기만 해서는 득점하지 않아요.'] },
+    { id: 'bread-keys', title: '조리와 쓰레기통', table: { headers: ['조작', '하는 일'], rows: [
+      ['Space / 숫자열·숫자패드 1~4 / 휠', '반죽·팥·슈크림·피자·초코 선택'],
+      ['Q W E / A S D · 철판 클릭', '반죽 → 소 → 뒤집기 → 쟁반에 꺼내기'],
+      ['탄 칸 클릭 / 칸 키', '뒤집지 않고 바로 쓰레기통에 버리기'],
+      ['우클릭 / Shift+칸 키', '해당 철판 빵 폐기'],
+      ['폐기할 빵 선택 → 쓰레기통 클릭', '선택한 철판/쟁반 빵 한 개 폐기'],
+      ['손님 선택 → R', '선택한 손님 주문 전체 납품'], ['F1 / Esc', '도움말 / 그만두기 확인'],
+    ] }, paragraphs: ['가득 찬 쟁반에서는 정상 빵을 꺼내지 못하고 계속 익어요. 탄 빵은 쟁반이 꽉 차도 버릴 수 있어요.',
+      '도움말·확인창·연결 대기 중에도 시간은 계속 흐르고 180초에 새 입력을 마쳐요.'] },
+    { id: 'bread-result', title: '납품해야 득점', paragraphs: ['양면 품질·콤보·특수 재료 보너스는 기존 규칙을 유지해요. 폐기·미납품 빵에는 점수가 없어요.',
+      bungeoppangV5Preview ? 'v5 개발 미리보기는 실제 지갑을 변경하거나 엽전을 지급하지 않아요.' : '최종 점수와 엽전은 서버가 확정해요. 15점당 1냥, 한국 날짜 기준 하루 최대 100냥이에요.'] },
+  ];
+}
 
 export const parkGuides: Record<GuideId,{title:string;subtitle:string;sections:ManualSection[]}> = {
   welcome:{title:'처음 오셨나요?',subtitle:'산책하다가, 함께 한 판.',sections:[{id:'first',title:'첫 게임 시작하기',steps:['기존 로그인 화면으로 로그인하고 채널을 선택해요.','WASD·방향키로 테이블에 다가가 E 또는 안내 버튼을 눌러요.','빈자리에 앉고 게임을 선택한 뒤 준비를 눌러요. 서버가 참가·시작을 확정하면 플레이해요.','F1 또는 게임 설명서 버튼으로 규칙을 다시 읽을 수 있어요. 설명서를 열어도 경기 시간은 멈추지 않아요.']}]},

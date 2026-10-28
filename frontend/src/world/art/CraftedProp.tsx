@@ -1,26 +1,28 @@
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
-import { CanvasTexture, DoubleSide, SRGBColorSpace, type BufferGeometry, type Group, type LOD } from 'three'
+import { CanvasTexture, DoubleSide, SRGBColorSpace, type BufferGeometry, type Group, type LOD, type Texture } from 'three'
 import type { PropFinish } from './propGeometry'
 import { SurfaceMaterial } from './SurfaceMaterial'
 import { NightMaterial } from '../NightLighting'
+import { metalGrain } from './ornamentTextures'
 
 export type CraftedArt = Partial<Record<PropFinish, BufferGeometry>>
-function Batches({ art, shadow }: { art: CraftedArt; shadow: boolean }) {
+function Batches({ art, shadow, environment }: { art: CraftedArt; shadow: boolean; environment?: Texture }) {
   return <>{Object.entries(art).map(([finish, geometry]) => <mesh key={finish}
     castShadow={shadow && finish !== 'glow'} receiveShadow>
     <primitive object={geometry} attach="geometry" dispose={null} />
-    {finish === 'wood' ? <SurfaceMaterial kind="wood" mapping="box" vertexColors meters={0.65} strength={0.14} detail={0.32} />
-      : finish === 'paint' ? <meshPhysicalMaterial vertexColors metalness={0.2} roughness={0.32} clearcoat={0.3} clearcoatRoughness={0.26} />
-      : finish === 'metal' ? <meshStandardMaterial vertexColors metalness={0.78} roughness={0.3} />
-      : finish === 'gold' ? <meshStandardMaterial vertexColors metalness={0.7} roughness={0.42} />
+    {finish === 'wood' ? <SurfaceMaterial kind="wood" mapping="box" vertexColors meters={0.65} strength={environment ? .32 : .14} detail={environment ? .8 : .32} />
+      : finish === 'paint' ? <meshPhysicalMaterial vertexColors envMap={environment} envMapIntensity={environment ? .45 : 1} metalness={0.2} roughness={0.32} clearcoat={0.3} clearcoatRoughness={0.26} />
+      : finish === 'metal' ? <meshStandardMaterial vertexColors envMap={environment} envMapIntensity={environment ? .9 : 1} metalness={0.78} roughness={environment ? .43 : .3}
+        roughnessMap={environment ? metalGrain : undefined} bumpMap={environment ? metalGrain : undefined} bumpScale={.0004} />
+      : finish === 'gold' ? <meshStandardMaterial vertexColors envMap={environment} envMapIntensity={environment ? .65 : 1} metalness={0.7} roughness={0.42} />
       : finish === 'glow' ? <NightMaterial vertexColors color="#fff4d8" emission="#ffba67" strength={1.8} />
       : <meshStandardMaterial vertexColors roughness={finish === 'tile' ? 0.92 : 0.83} side={finish === 'tile' ? DoubleSide : undefined} />}
   </mesh>)}</>
 }
 
 /** Static, module-owned geometry; materials are component-owned and disposed on unmount. */
-export function CraftedPropLod({ name, near, far, distance }: {
-  name: string; near: CraftedArt; far: CraftedArt; distance: number
+export function CraftedPropLod({ name, near, far, distance, environment }: {
+  name: string; near: CraftedArt; far: CraftedArt; distance: number; environment?: Texture
 }) {
   const lod = useRef<LOD>(null), detail = useRef<Group>(null), distant = useRef<Group>(null)
   useLayoutEffect(() => {
@@ -30,8 +32,8 @@ export function CraftedPropLod({ name, near, far, distance }: {
     return () => { object.levels.length = 0 }
   }, [distance])
   return <lOD name={name} ref={lod}>
-    <group ref={detail} name={name + '-detail'}><Batches art={near} shadow /></group>
-    <group ref={distant} name={name + '-distant'}><Batches art={far} shadow={false} /></group>
+    <group ref={detail} name={name + '-detail'}><Batches art={near} shadow environment={environment} /></group>
+    <group ref={distant} name={name + '-distant'}><Batches art={far} shadow={false} environment={environment} /></group>
   </lOD>
 }
 
