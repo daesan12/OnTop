@@ -89,8 +89,9 @@ public class GameResultService {
                     || result.version() <= slot.versions.getOrDefault(gameId, -1L)) {
                 return;
             }
-            remember(slot, result);
             slot.output.accept(new Delivery(null, result, null));
+            // 조회 성공만으로 전송 완료로 기록하면 같은 버전의 outbox 재전달이 사라진다.
+            remember(slot, result);
         }
         notifyRead(result);
     }
@@ -116,10 +117,10 @@ public class GameResultService {
             if (error == null && result.version() < slot.versions.getOrDefault(gameId, -1L)) {
                 error = "GAME_RESULT_STALE";
             }
+            slot.output.accept(new Delivery(requestId, error == null ? result : null, error));
             if (error == null) {
                 remember(slot, result);
             }
-            slot.output.accept(new Delivery(requestId, error == null ? result : null, error));
         }
         if (error == null) { notifyRead(result); }
     }
