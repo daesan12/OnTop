@@ -103,7 +103,7 @@ describe('M07 private feedback validation and request lifecycle', () => {
     expect(await submitFeedback()).toBe(false)
     expect(await finish(request)).toBe(true)
     expect(useFeedbackState.getState()).toMatchObject({ pending: false, draft: '', operationId: '' })
-    expect(useFeedbackState.getState().notice).toContain('실제 관리자')
+    expect(useFeedbackState.getState().notice).toBe('의견을 전달했어요. 고맙습니다!')
   })
   it('retains the exact draft and operation on failure, retries the same key and clears it only on acknowledgement', async () => {
     compose()
