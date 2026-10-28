@@ -40,6 +40,18 @@ public final class BungeoppangV5Responses {
             Checkpoint checkpoint) {
     }
 
+    /**
+     * One approved delivery. {@code replacementOrder} is the order issued into the freed customer slot and is
+     * always the same order that appears in {@code checkpoint.activeOrders}. A replayed response is the first
+     * snapshot; the current state is read with GET.
+     */
+    @Schema(name = "BungeoppangV5DeliveryResponse")
+    public record DeliveryResponse(String minigameSessionId, String deliveryKey, String orderId,
+            boolean accepted, Instant acceptedAt, int throughSeq, String prefixHash,
+            List<Long> consumedBreadIds, long scoreDelta, long bonusDelta, Order replacementOrder,
+            Checkpoint checkpoint) {
+    }
+
     @Schema(name = "BungeoppangV5SessionResponse")
     public record SessionResponse(String minigameSessionId, String rulesVersion, String configVersion,
             String status, String phase, Long score, long rewardAmount, Instant endedAt, String endReason,
