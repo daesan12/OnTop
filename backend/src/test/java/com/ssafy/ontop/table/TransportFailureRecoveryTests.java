@@ -86,11 +86,16 @@ class TransportFailureRecoveryTests {
         engine.version = 9;
         clock.advance(seconds);
         Peer returned = connect(101);
-        String status = seconds == 29 ? "RESTORED" : participantCount == 2 ? "FINISHED" : "ELIMINATED";
+        String status = seconds == 29 ? "RESTORED" : participantCount == 2 ? "LOBBY" : "ELIMINATED";
         JsonNode restored = returned.state(status);
-        assertThat(restored.path("state").path("turnDeadline").asText()).isEqualTo("original-deadline");
-        assertThat(restored.path("state").path("hand").asText()).isEqualTo("private-101");
-        assertThat(restored.path("version").asLong()).isEqualTo(seconds == 29 ? 9 : 10);
+        if (status.equals("LOBBY")) {
+            assertThat(restored.path("state").isNull()).isTrue();
+            assertThat(restored.path("gameId").isNull()).isTrue();
+        } else {
+            assertThat(restored.path("state").path("turnDeadline").asText()).isEqualTo("original-deadline");
+            assertThat(restored.path("state").path("hand").asText()).isEqualTo("private-101");
+            assertThat(restored.path("version").asLong()).isEqualTo(seconds == 29 ? 9 : 10);
+        }
         assertThat(recovery.canControlGame(101, returned.id, "game-1")).isEqualTo(seconds == 29);
         if (seconds == 30) {
             GameRecoveryGateway.GraceExpiration command = engine.expirations.poll(5, TimeUnit.SECONDS);
@@ -106,7 +111,13 @@ class TransportFailureRecoveryTests {
         hub.disconnect(broken.id);
         hub.disconnect(broken.id);
         returned.request("GAME_RECONNECT_CHECK", Map.of());
-        assertThat(returned.state(status).path("version").asLong()).isEqualTo(seconds == 29 ? 9 : 10);
+        JsonNode checked = returned.state(status);
+        if (status.equals("LOBBY")) {
+            assertThat(checked.path("state").isNull()).isTrue();
+            assertThat(checked.path("version").isNull()).isTrue();
+        } else {
+            assertThat(checked.path("version").asLong()).isEqualTo(seconds == 29 ? 9 : 10);
+        }
         assertThat(engine.expirations.poll(150, TimeUnit.MILLISECONDS)).isNull();
         assertThat(recovery.canControlGame(202, healthy.id, "game-1")).isTrue();
     }

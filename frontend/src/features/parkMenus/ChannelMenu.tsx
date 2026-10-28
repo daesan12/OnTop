@@ -35,7 +35,10 @@ export function ChannelMenu() {
   }, [shown])
   return <div className="park-channel-menu" ref={root}>
     <button className="park-location" type="button" aria-label="현재 공원과 접속 인원" aria-haspopup="true"
-      aria-expanded={shown} aria-controls="park-channel-dropdown" onClick={() => { if (shown) fold(); else setOpen(true) }}>
+      aria-expanded={shown} aria-controls="park-channel-dropdown" onClick={() => {
+        if (shown) fold()
+        else { setOpen(true); void runtime.refreshChannels() }
+      }}>
       <span className="park-location__icon"><img className="park-location__leaf" src={leafImage} alt="" /></span>
       <span className="park-location__details">
         <span className="park-location__name">{state.name || '채널 선택'}</span>

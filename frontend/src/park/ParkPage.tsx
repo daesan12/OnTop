@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState, type CSSProperties } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 import { ParkScene } from './ParkScene'
+import { ParkBgm } from '../audio/ParkBgm'
 import './park.css'
 import './scene.css'
 import '../features/parkMenus/hud.css'
@@ -16,7 +17,7 @@ import { AnonymousNotes } from '../features/notes/AnonymousNotes'
 import { ManualHost } from '../features/manual/ManualHost'
 import { FacilityStatus } from '../features/facilities/FacilityStatus'
 import { ManualWorldActions } from '../features/manual/ManualWorldActions'
-import { resetMetrics } from '../performance/metrics'
+import { SettingsLauncher } from '../performance/GraphicsSettings'
 import { ParkMap } from '../features/navigation/ParkMap'
 import { ParkNavigation } from '../features/navigation/NavigationHud'
 import { BungeoppangHud } from '../features/bungeoppang/BungeoppangHud'
@@ -58,11 +59,8 @@ function ParkContent({ onExit, exitError, onAuthEnded }: ParkProps) {
   const omokFocus = useGame(s => s.game?.role === 'PLAYER' && s.game.omok?.status === 'PLAYING' && !s.lastResult)
   const omokChat = useGame(s => s.game?.omok?.status === 'PLAYING' && !s.lastResult)
   const session = useSession(useShallow(s=>({ sessionId:s.sessionId,roomId:s.roomId })))
-  const [quality,setQuality] = useState<QualityPreset>('low')
-  const changeQuality = useCallback((value: QualityPreset) => {
-    setQuality(value)
-    resetMetrics()
-  }, [])
+  // Everyone plays on the Low preset; the graphics choice is not offered.
+  const quality: QualityPreset = 'low'
   const [hudScale, setHudScale] = useState(getHudScale)
 
   useEffect(() => {
@@ -86,16 +84,18 @@ function ParkContent({ onExit, exitError, onAuthEnded }: ParkProps) {
       '--park-edge': `${20 * hudScale}px`,
     } as CSSProperties}>
       <ParkScene quality={quality} />
+      <ParkBgm />
       <div className="park-hud">
         {!omokFocus && <div className="park-roaming-ui" hidden={bungeoppang} inert={bungeoppang}>
           <ChannelMenu />
           {/* 빠른 메뉴: each feature keeps its own launcher, placed into a slot by CSS. */}
           <div className="park-quick-dock" aria-hidden="true" />
+          <div className="park-dock-settings"><SettingsLauncher /></div>
           <div className="park-dock-wardrobe"><WardrobeLauncher /></div>
           <LocationChip />
         </div>}
         {!omokFocus && <div inert={bungeoppang}>
-          <AccountMenu quality={quality} exitError={exitError} onExit={onExit} onWithdrawn={onAuthEnded} />
+          <AccountMenu exitError={exitError} onExit={onExit} onWithdrawn={onAuthEnded} />
         </div>}
 
         <div className="park-roaming-ui" hidden={bungeoppang} inert={bungeoppang}>
@@ -109,7 +109,7 @@ function ParkContent({ onExit, exitError, onAuthEnded }: ParkProps) {
         </aside>}
       </div>
       <div className="park-roaming-ui" hidden={bungeoppang} inert={bungeoppang}>
-        <ParkTools quality={quality} onQuality={changeQuality}/>
+        <ParkTools />
         {!omokFocus && <>
         <ParkInteractionHint />
         <FacilityStatus />
@@ -128,7 +128,7 @@ function ParkContent({ onExit, exitError, onAuthEnded }: ParkProps) {
       </div>
       <BungeoppangHud />
       <OmokFeedback />
-      <ManualHost showLauncher={!omokFocus} worldActions={bungeoppang || omokFocus ? undefined : <ManualWorldActions quality={quality} onQuality={changeQuality} />} />
+      <ManualHost showLauncher={!omokFocus} worldActions={bungeoppang || omokFocus ? undefined : <ManualWorldActions />} />
     </main>
   )
 }

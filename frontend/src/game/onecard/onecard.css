@@ -97,7 +97,7 @@
 .park-page:has(.onecard-game-hud) .park-chat__heading h1 { font-size:12px; }
 @media(max-width:800px) {
  .park-page:has(.onecard-game-hud) .park-chat { bottom:auto; top:190px; width:180px; left:12px; transform:scale(.8); transform-origin:top left; }
- .park-page:has(.onecard-game-hud) :is(.park-quick-dock,.park-dock-wardrobe) { visibility:hidden; }
+ .park-page:has(.onecard-game-hud) :is(.park-quick-dock,.park-dock-wardrobe,.park-dock-settings) { visibility:hidden; }
  .park-page .onecard-game-hud.onecard-panel .onecard-actions-panel .mini-status { padding:7px 10px; }
 }
 .park-page .onecard-game-hud.onecard-panel .onecard-primary-actions>button:disabled { opacity:.72; }

@@ -466,10 +466,11 @@ export async function fixture(
       const { requestId, type, payload } = message
       if (options.onecardPranks && cardPranks.handle(type, payload, requestId)) return
       if (options.spectatorEvents && ['GAME_SPECTATOR_CHAT_SEND', 'OMOK_SPECTATOR_PING_SEND'].includes(type)) {
-        if (!watchingGame || seated || finished) {
+        const ping = type === 'OMOK_SPECTATOR_PING_SEND', now = Date.now()
+        const approved = !seated && watchingGame || !ping && seated && started
+        if (!approved || finished || payload.gameId !== gameId) {
           emit(ws, 'ERROR', { code:'GAME_SPECTATOR_ACCESS_DENIED', message:'관전 권한을 확인해주세요.' }, requestId); return
         }
-        const ping = type === 'OMOK_SPECTATOR_PING_SEND', now = Date.now()
         if (ping && payload.basedOnVersion !== gameVersion) {
           emit(ws,'ERROR',{ code:'OMOK_SPECTATOR_PING_STALE_VERSION',message:'최신 판에서 다시 추천해주세요.' },requestId); return
         }

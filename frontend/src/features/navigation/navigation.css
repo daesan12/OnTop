@@ -273,7 +273,7 @@
 }
 .park-map { position:absolute; top:var(--park-edge, 30px); left:calc(50% - 180px); z-index:12; }
 .park-navigation { top:calc(var(--park-edge,30px) + 82px); max-width:min(480px,calc(100vw - 40px)); }
-.park-page:has(.park-runtime-tools [aria-label="그래픽과 성능"]) .park-navigation { display:none; }
+.park-page:has(.park-runtime-tools #park-graphics-settings) .park-navigation { display:none; }
 @media(max-width:900px) {
   .park-map { top:134px; left:50%; transform:translateX(-50%); }
   .park-map-panel { padding: 20px 16px 16px; }

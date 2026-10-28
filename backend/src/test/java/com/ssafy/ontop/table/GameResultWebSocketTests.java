@@ -45,14 +45,14 @@ class GameResultWebSocketTests {
             spectator.assertNoMessageDuring(GameResultWebSocketTests::isResult, () -> {
                 fixture.results.put(101L, GameResultTests.result(101, "701", 1, SettlementStatus.PENDING));
                 events.publishEvent(new GameResultCommitted(fixture.results.get(101L)));
-                assertThat(first.await(GameResultWebSocketTests::isResult).path("payload").path("myCoinDelta").isNull())
+                assertThat(first.request("GAME_RESULT_CHECK", Map.of("gameSessionId", "701")).path("payload").path("myCoinDelta").isNull())
                         .isTrue();
                 for (long user : new long[]{101, 202}) {
                     fixture.results.put(user, GameResultTests.result(user, "701", 2, SettlementStatus.SETTLED));
                     events.publishEvent(new GameResultCommitted(fixture.results.get(user)));
                 }
-                assertDelta(first.await(GameResultWebSocketTests::isResult), 1);
-                assertDelta(second.await(GameResultWebSocketTests::isResult), -1);
+                assertDelta(first.request("GAME_RESULT_CHECK", Map.of("gameSessionId", "701")), 1);
+                assertDelta(second.request("GAME_RESULT_CHECK", Map.of("gameSessionId", "701")), -1);
                 assertThat(spectator.request("GAME_RESULT_CHECK", Map.of("gameSessionId", "701"))
                         .path("payload").path("code").asText()).isEqualTo("GAME_RESULT_ACCESS_DENIED");
                 first.stopPong();

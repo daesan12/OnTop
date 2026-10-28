@@ -13,6 +13,7 @@ export interface ParkRuntimePort {
   releaseFacility(leaseId: string, signal: AbortSignal): Promise<void>
   aimFacility(leaseId: string, aim: { yaw: number; pitch: number }, signal: AbortSignal): Promise<{ yaw: number; pitch: number }>
   selectChannel(channelId: string): Promise<boolean>
+  refreshChannels(): Promise<boolean>
   sendChat(text: string): Promise<boolean>
   sendSpectatorChat(text: string): Promise<boolean>
   pingOmok(x: number, y: number): Promise<boolean>

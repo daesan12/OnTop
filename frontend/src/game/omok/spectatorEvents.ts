@@ -11,7 +11,7 @@ const id = (v: unknown): v is string => typeof v === 'string' && !!v.trim() && v
 export function spectatorText(value: string) {
   const text = value.trim()
   if (!text || [...text].length > 200 || /[\u0000-\u001f\u007f-\u009f\u2028\u2029\uD800-\uDFFF]/u.test(text))
-    throw new Error('관전 채팅은 줄바꿈 없이 1~200자로 입력해주세요.')
+    throw new Error('경기 채팅은 줄바꿈 없이 1~200자로 입력해주세요.')
   return text
 }
 /** Final BE contract: all three times are Unix milliseconds, never ISO strings. */
@@ -104,11 +104,11 @@ export class OmokSpectatorEvents {
     }
     this.publish(); return true
   }
-  canPing() { this.sync(); return !!this.scope?.canSend && !this.blocked && !this.pending.ping && this.now() - this.last.ping >= 1000 }
+  canPing() { this.sync(); return this.scope?.role === 'SPECTATOR' && this.scope.canSend && !this.blocked && !this.pending.ping && this.now() - this.last.ping >= 1000 }
   async send(kind: 'chat' | 'ping', value: string | { x: number; y: number }) {
     this.sync()
     const scope = this.scope
-    if (!scope?.canSend || this.blocked) return false
+    if (!scope?.canSend || this.blocked || (kind === 'ping' && scope.role !== 'SPECTATOR')) return false
     if (this.pending[kind] || this.now() - this.last[kind] < 1000) {
       useOmokEvents.setState({ error: '잠시 후 다시 보내주세요. (1초 간격)' }); return false
     }

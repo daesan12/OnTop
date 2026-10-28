@@ -113,11 +113,11 @@ export function SpectatorChat() {
   return <form className="omok-spectator-chat" onSubmit={event => void send(event)} aria-label={player ? '오목 경기 채팅' : '오목 관전 채팅'}>
     <label htmlFor="omok-spectator-message">{player ? '경기 채팅' : '관전 채팅 · 판을 눌러 위치 추천'}</label>
     <div><input id="omok-spectator-message" ref={input} value={draft} disabled={!canSend} readOnly={sending} aria-keyshortcuts="Enter"
-      placeholder={canSend ? '이 경기 관전자와 플레이어에게 보내기' : player ? '플레이어 채팅은 아직 사용할 수 없어요' : '관전 승인 상태를 확인해주세요'} maxLength={400}
+      placeholder={canSend ? '이 경기 관전자와 플레이어에게 보내기' : player ? '경기 연결 상태를 확인해주세요' : '관전 승인 상태를 확인해주세요'} maxLength={400}
       onFocus={() => setChatInputOpen(true)} onBlur={() => setChatInputOpen(false)}
       onChange={event => { setDraft(event.target.value); setNotice('') }}
       onKeyDown={event => { if (event.key === 'Enter' && (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229)) event.preventDefault() }} />
       <button type="submit" disabled={!canSend || sending || !draft.trim()}>보내기</button></div>
-    <p role="status">{error || notice || (player ? '관전자 메시지는 이 화면에서 볼 수 있어요.' : 'Enter로 입력·전송 · Esc로 입력 종료')}</p>
+    <p role="status">{error || notice || 'Enter로 입력·전송 · Esc로 입력 종료'}</p>
   </form>
 }

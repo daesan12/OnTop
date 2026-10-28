@@ -162,11 +162,12 @@ export class ParkRuntime implements ParkRuntimePort {
       if (!this.active || !this.socket.connected || s.status !== 'connected' || !s.mapCompatible || !s.roomId
         || !g.game?.omok || g.game.omok.status !== 'PLAYING' || g.lastResult) return null
       const game = g.game
-      if (game.role === 'PLAYER' && (g.recovery !== 'RESTORED' || g.permittedGameId !== game.gameId)) return null
+      if (game.role === 'PLAYER' && (!s.tableId || g.recovery !== 'RESTORED' || g.permittedGameId !== game.gameId
+        || ![game.omok!.blackUserId, game.omok!.whiteUserId].includes(s.sessionId))) return null
       if (game.role === 'SPECTATOR' && (!this.spectator.accepts(game.gameId) || g.watchedGameId !== game.gameId)) return null
       return { key: JSON.stringify([this.generation, s.sessionId, s.roomId, game.gameId, game.role,
         game.role === 'SPECTATOR' ? this.gameWatchRequestId : '']), gameId: game.gameId, version: game.version,
-        role: game.role, canSend: game.role === 'SPECTATOR' && !s.tableId && getAuthSession()?.status === 'AUTHENTICATED' }
+        role: game.role, canSend: (game.role === 'PLAYER' || !s.tableId) && getAuthSession()?.status === 'AUTHENTICATED' }
     },
     request: (type, payload, expected, onId) => this.socket.request(type, payload, expected, onId),
   })
@@ -443,6 +444,18 @@ export class ParkRuntime implements ParkRuntimePort {
     this.retryCount = 0
     void this.boot()
   }
+  refreshChannels = async (): Promise<boolean> => {
+    if (!this.active) return false
+    try {
+      const body = await this.getJSON('/api/v1/channels', { signal: this.bootAbort?.signal })
+      if (!record(body) || !Array.isArray(body.items)) throw new Error('채널 목록을 확인할 수 없습니다.')
+      useSession.setState({ channels: body.items.map(channel) })
+      return true
+    } catch (error) {
+      this.report(error)
+      return false
+    }
+  }
   private message(message: Envelope) {
     if (!this.active) return
     if (this.oneCardPranks.accept(message)) return
@@ -595,9 +608,12 @@ export class ParkRuntime implements ParkRuntimePort {
         !state.roomId && notes.ownerId === state.sessionId && notes.channelId === channelId)
       this.inputSequence = 0
       const generation = this.generation
-      await this.socket.request('CHANNEL_JOIN', { channelId }, [
-        'CHANNEL_STATE',
-      ])
+      try {
+        await this.socket.request('CHANNEL_JOIN', { channelId }, ['CHANNEL_STATE'])
+      } catch (error) {
+        await this.refreshChannels()
+        throw error
+      }
       this.preferredChannel = channelId
       this.retryCount = 0
       if (followService.mode === 'server') void this.follow.begin().catch(() => {})
@@ -614,7 +630,14 @@ export class ParkRuntime implements ParkRuntimePort {
         return
       if (!record(body) || !Array.isArray(body.tables))
         throw new Error('테이블 목록을 확인할 수 없습니다.')
-      useSession.setState({ tables: body.tables.map(tableSummary) })
+      const tables = body.tables.map(tableSummary)
+      const liveBindings = body.tables.length && body.tables.every(item => record(item) && typeof item.tableId === 'string'
+        && typeof item.anchorId === 'string')
+        ? parseBindings(body.tables.map(item => ({ channelId, tableId: item.tableId, anchorId: item.anchorId })))
+        : null
+      useSession.setState(current => ({ tables, bindings: liveBindings
+        ? [...current.bindings.filter(binding => binding.channelId !== channelId), ...liveBindings]
+        : current.bindings }))
     })
   sendChat = (value: string) =>
     this.action(async () => {

@@ -1,4 +1,5 @@
 import { socialAuthorizeUrl, type SocialProvider } from '../auth/socialLogin'
+import { useBgmTrack } from '../audio/bgm'
 import naverLogo from '../assets/naver-logo.png'
 import ssafyLogo from '../assets/ssafy-logo.png'
 
@@ -7,6 +8,7 @@ function startSocialLogin(provider: SocialProvider) {
 }
 
 export function LoginPage() {
+  useBgmTrack('title')
   return (
     <main className="login-page">
       <section className="login-panel" aria-labelledby="login-title">

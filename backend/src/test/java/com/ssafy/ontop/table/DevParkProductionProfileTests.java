@@ -23,9 +23,9 @@ class DevParkProductionProfileTests {
     private ActiveMemberLookup members;
 
     @Test
-    void production과_함께_켜면_개발_조회_API를_등록하지_않는다() {
-        assertThat(context.getBeansOfType(TableQueryController.class)).isEmpty();
-        assertThat(context.getBeansOfType(ChannelQueryController.class)).isEmpty();
-        assertThat(context.getBeansOfType(ChannelQueryService.class)).isEmpty();
+    void production에서도_인증된_채널과_테이블_조회_API를_등록한다() {
+        assertThat(context.getBeansOfType(TableQueryController.class)).hasSize(1);
+        assertThat(context.getBeansOfType(ChannelQueryController.class)).hasSize(1);
+        assertThat(context.getBeansOfType(ChannelQueryService.class)).hasSize(1);
     }
 }

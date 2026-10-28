@@ -54,7 +54,7 @@ function vegetation(quality: QualityPreset) {
   })
   {
     const density = Math.round(
-      (quality === 'low' ? 24000 : quality === 'medium' ? 40000 : 64000) *
+      (quality === 'low' ? 4000 : quality === 'medium' ? 6400 : 8000) *
         (PARK_SIZE / 320) ** 2,
     )
     for (
@@ -86,11 +86,11 @@ function vegetation(quality: QualityPreset) {
   return { shrubs, grass, flowers, fallen }
 }
 
-// Four bent, tapered blades per tuft (12 triangles), no transparent overdraw.
+// Two tapered blades per tuft, no transparent overdraw.
 const grassGeometry = (() => {
   const vertices: number[] = [],
     colors: number[] = []
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < 2; i++) {
     const a = i * 2.4,
       c = Math.cos(a),
       s = Math.sin(a)
@@ -138,7 +138,7 @@ export function Vegetation({ quality }: { quality: QualityPreset }) {
           />
         }
       >
-        <icosahedronGeometry args={[1, 1]} />
+        <icosahedronGeometry args={[1, 0]} />
       </SpatialInstances>
       <DetailInstances
         name="detail-grass"
@@ -215,9 +215,10 @@ const contacts: Part[] = [
 /** Cheap analytical contact shade for Low; no extra lights, render targets or textures. */
 export function ContactShade() {
   return (
-    <SpatialInstances
+    <DetailInstances
+      name="park-contact-shade"
+      range={Infinity}
       parts={contacts}
-      shadow={false}
       material={
         <shaderMaterial
           transparent
@@ -228,6 +229,6 @@ export function ContactShade() {
       }
     >
       <planeGeometry />
-    </SpatialInstances>
+    </DetailInstances>
   )
 }
