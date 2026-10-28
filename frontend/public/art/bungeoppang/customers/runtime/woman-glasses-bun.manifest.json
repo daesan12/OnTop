@@ -1,0 +1,85 @@
+{
+  "source": {
+    "file": "../docs/bungeoppang-v5/npc-runtime-production/v3/tripo-out/bung-woman-motion3-v1-ad800fc2/model.glb",
+    "bytes": 8683088,
+    "sha256": "96e53b2a63e5189b831906030fa53ef1f69d4302d9aaab8a9d544fca98156264"
+  },
+  "runtime": {
+    "file": "public/art/bungeoppang/customers/runtime/woman-glasses-bun.glb",
+    "bytes": 1907728,
+    "sha256": "89592ba0415fdfe4e6bcebf8516d27bde6bc1d0819d78316609854017f6a140f"
+  },
+  "meshes": [
+    {
+      "sourceTriangles": 37580,
+      "triangles": 20000,
+      "vertices": 13656,
+      "relativeError": 0.003571154782548547
+    }
+  ],
+  "textures": [
+    {
+      "roles": [
+        "normal"
+      ],
+      "source": [
+        4096,
+        4096
+      ],
+      "size": [
+        1024,
+        1024
+      ],
+      "bytes": 49684
+    },
+    {
+      "roles": [
+        "color"
+      ],
+      "source": [
+        4096,
+        4096
+      ],
+      "size": [
+        2048,
+        2048
+      ],
+      "bytes": 406566
+    },
+    {
+      "roles": [
+        "data"
+      ],
+      "source": [
+        4096,
+        4096
+      ],
+      "size": [
+        512,
+        512
+      ],
+      "bytes": 236546
+    }
+  ],
+  "skins": 1,
+  "animations": [
+    {
+      "name": "idle",
+      "channels": 195
+    },
+    {
+      "name": "walk",
+      "channels": 195
+    }
+  ],
+  "policy": {
+    "targetTriangles": 20000,
+    "errorLimit": 0.004,
+    "color": 2048,
+    "normal": 1024,
+    "data": 512,
+    "meshoptRoundTrip": "attributes exact; triangle winding/topology equivalent",
+    "retainedVertexAttributes": "byte-identical",
+    "sourcePreserved": true
+  }
+}

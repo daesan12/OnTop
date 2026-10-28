@@ -107,6 +107,7 @@ export interface Session {
   fitnessId: string
   profiles: Record<string, DisplayProfile>
   equipment: Record<string, readonly PublicEquipment[]>
+  activities: Record<string, 'BUNGEOPPANG'>
   account: { nickname: string; balance: number | null } | null
 }
 const initial = (): Session => ({
@@ -137,6 +138,7 @@ const initial = (): Session => ({
   fitnessId: '',
   profiles: {},
   equipment: {},
+  activities: {},
   account: null,
 })
 export const useSession = create<Session>(initial)
@@ -239,6 +241,7 @@ export function clearChannel(keepFeedbackDraft = false, keepNotesDraft = false) 
     telescopeId: '',
     profiles: profiles[sessionId] ? { [sessionId]: profiles[sessionId] } : {},
     equipment: {},
+    activities: {},
   })
 }
 export function sampleAvatar(
@@ -429,6 +432,12 @@ export function receive(message: Envelope) {
       // Copy only on profile changes; movement ticks keep the same store references.
       let profiles = state.profiles
       let equipment = state.equipment
+      const nextActivities: Session['activities'] = {}
+      for (const avatar of next.avatars)
+        if (mapCompatible && avatar.activity === 'BUNGEOPPANG') nextActivities[avatar.userId] = avatar.activity
+      const activities = Object.keys(state.activities).length === Object.keys(nextActivities).length
+        && Object.keys(nextActivities).every(id => state.activities[id] === nextActivities[id])
+        ? state.activities : nextActivities
       const present = new Set(ids)
       for (const id of Object.keys(equipment)) {
         if (present.has(id)) continue
@@ -532,6 +541,7 @@ export function receive(message: Envelope) {
         ids: ids.join('\0') === state.ids.join('\0') ? state.ids : ids,
         profiles,
         equipment,
+        activities,
         ...(state.account && profiles[state.sessionId]
           && state.account.nickname !== profiles[state.sessionId]!.nickname
           ? { account: { ...state.account, nickname: profiles[state.sessionId]!.nickname } } : {}),

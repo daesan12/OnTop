@@ -29,6 +29,7 @@ const AvatarOverlay = memo(function AvatarOverlay({
 }) {
   const bubble = useSession((state) => state.bubbles[id])
   const own = useSession((state) => state.sessionId === id)
+  const cooking = useSession(state => state.activities[id] === 'BUNGEOPPANG')
   const nickname = useSession(state => state.profiles[id]?.nickname
     ?? (state.sessionId === id ? '나' : '산책자 ' + id.slice(-6)))
   const gathering = useGathering(), participant = gathering?.rows.find(row => row.playerId === id)
@@ -67,6 +68,7 @@ const AvatarOverlay = memo(function AvatarOverlay({
       data-player-id={id}
     >
       {speaking && <div className="avatar-speech">{bubble.text}</div>}
+      {cooking && <div className="avatar-speech avatar-activity">붕어빵 뒤집는 중</div>}
       <div className="avatar-nickname">{nickname}</div>
       <OneCardOverhead userId={id} />
       {participant && <div className={`gathering-role${participant.ready ? ' is-ready' : ''}`} style={{ display: 'block' }}>{participant.label}</div>}

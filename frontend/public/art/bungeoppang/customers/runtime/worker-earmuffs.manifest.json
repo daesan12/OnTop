@@ -1,0 +1,85 @@
+{
+  "source": {
+    "file": "../docs/bungeoppang-v5/npc-runtime-production/v3/tripo-out/bung-worker-motion3-v1-25872130/model.glb",
+    "bytes": 11024228,
+    "sha256": "30a49434148eacef74351290f65bcf4204163093973e0c13f59ec512a9cf61ce"
+  },
+  "runtime": {
+    "file": "public/art/bungeoppang/customers/runtime/worker-earmuffs.glb",
+    "bytes": 2253000,
+    "sha256": "79086eb01d3fbc2e88b3542a91eab85eaaa2b9ff2319b16f94bea7ef5f5c6824"
+  },
+  "meshes": [
+    {
+      "sourceTriangles": 37537,
+      "triangles": 19999,
+      "vertices": 13208,
+      "relativeError": 0.0039053333457559347
+    }
+  ],
+  "textures": [
+    {
+      "roles": [
+        "normal"
+      ],
+      "source": [
+        4096,
+        4096
+      ],
+      "size": [
+        1024,
+        1024
+      ],
+      "bytes": 83642
+    },
+    {
+      "roles": [
+        "color"
+      ],
+      "source": [
+        4096,
+        4096
+      ],
+      "size": [
+        2048,
+        2048
+      ],
+      "bytes": 750620
+    },
+    {
+      "roles": [
+        "data"
+      ],
+      "source": [
+        4096,
+        4096
+      ],
+      "size": [
+        512,
+        512
+      ],
+      "bytes": 210654
+    }
+  ],
+  "skins": 1,
+  "animations": [
+    {
+      "name": "idle",
+      "channels": 195
+    },
+    {
+      "name": "walk",
+      "channels": 195
+    }
+  ],
+  "policy": {
+    "targetTriangles": 20000,
+    "errorLimit": 0.004,
+    "color": 2048,
+    "normal": 1024,
+    "data": 512,
+    "meshoptRoundTrip": "attributes exact; triangle winding/topology equivalent",
+    "retainedVertexAttributes": "byte-identical",
+    "sourcePreserved": true
+  }
+}

@@ -51,9 +51,10 @@ export class PropBuilder {
     s: XYZ = [1, 1, 1],
     r: XYZ = [0, 0, 0],
     retainSource = false,
+    tintExisting = false,
   ) {
     if (this.baked) { if (!retainSource) g.dispose(); return }
-    const source = lowPolyPrimitive(g)
+    const source = tintExisting ? g : lowPolyPrimitive(g)
     const flat = indexedCopy(source)
     if (source !== g) source.dispose()
     if (!retainSource) g.dispose()
@@ -67,12 +68,13 @@ export class PropBuilder {
         'uv',
         new Float32BufferAttribute(new Float32Array(count * 2), 2),
       )
+    const original = tintExisting ? flat.getAttribute('color') : undefined
     const c = new Color(color),
       colors = new Float32Array(count * 3)
     for (let i = 0; i < count; i++) {
-      colors[i * 3] = c.r
-      colors[i * 3 + 1] = c.g
-      colors[i * 3 + 2] = c.b
+      colors[i * 3] = c.r * (original?.getX(i) ?? 1)
+      colors[i * 3 + 1] = c.g * (original?.getY(i) ?? 1)
+      colors[i * 3 + 2] = c.b * (original?.getZ(i) ?? 1)
     }
     flat.setAttribute('color', new Float32BufferAttribute(colors, 3))
     this.parts[kind].push(flat)

@@ -1,0 +1,68 @@
+[
+  {
+    "id": "boy-red-scarf",
+    "sourceTask": "084ca389-7068-4837-869c-3e7f3fe56e5a",
+    "checkTask": "3b815aae-7983-428e-a22c-2aa5a3493ef8",
+    "status": "success",
+    "credits": 0,
+    "result": {
+      "riggable": true,
+      "rig_type": "biped"
+    }
+  },
+  {
+    "id": "student-brown-coat",
+    "sourceTask": "b19be13f-03bb-4130-b77c-bfd4a7292668",
+    "checkTask": "74fef5ab-0e6d-4d15-9917-1595bd7b9b12",
+    "status": "success",
+    "credits": 0,
+    "result": {
+      "riggable": true,
+      "rig_type": "biped"
+    }
+  },
+  {
+    "id": "worker-earmuffs",
+    "sourceTask": "48770dfd-133d-49a7-b2ff-9aff509e4a57",
+    "checkTask": "e79dabc5-af12-41a2-a7a1-47d518b60399",
+    "status": "success",
+    "credits": 0,
+    "result": {
+      "riggable": true,
+      "rig_type": "biped"
+    }
+  },
+  {
+    "id": "older-flat-cap",
+    "sourceTask": "f03c126e-69b7-4355-9f15-f447135b5af4",
+    "checkTask": "3f5099c3-7251-48f9-89bb-ce7cc38eac69",
+    "status": "success",
+    "credits": 0,
+    "result": {
+      "riggable": true,
+      "rig_type": "biped"
+    }
+  },
+  {
+    "id": "girl-pink-hat",
+    "sourceTask": "d09f37f2-32be-4064-bebf-8f3349979161",
+    "checkTask": "f2890035-13bf-400c-8d8a-013546383ff3",
+    "status": "success",
+    "credits": 0,
+    "result": {
+      "riggable": true,
+      "rig_type": "biped"
+    }
+  },
+  {
+    "id": "woman-glasses-bun",
+    "sourceTask": "6f9d7137-e4d3-4ba6-9359-5adddef4df63",
+    "checkTask": "42d23525-1425-4174-a175-cc57e168dc2e",
+    "status": "success",
+    "credits": 0,
+    "result": {
+      "riggable": true,
+      "rig_type": "biped"
+    }
+  }
+]

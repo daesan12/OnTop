@@ -1,0 +1,350 @@
+{
+  "status": "awaiting_explicit_paid_confirmation",
+  "scope": "Rig six existing approved NPCs and generate idle plus in-place walk; local optimization and game integration follow",
+  "modelAlias": "rig-v2.0",
+  "modelWire": "v2.5-20260210",
+  "new3DGeneration": false,
+  "stepsPerNpc": [
+    {
+      "step": 1,
+      "endpoint": "POST /v3/animations/rig-check",
+      "cost": 0,
+      "notes": "All six original models already passed as riggable biped; make chain rechecks before rig."
+    },
+    {
+      "step": 2,
+      "endpoint": "POST /v3/animations/rig",
+      "payload": {
+        "input": "<source-task>",
+        "rig_type": "biped",
+        "spec": "tripo",
+        "out_format": "glb",
+        "model": "v2.5-20260210"
+      },
+      "cost": 25
+    },
+    {
+      "step": 3,
+      "endpoint": "POST /v3/animations/retarget",
+      "payload": {
+        "input": "<rig-task>",
+        "animations": [
+          "preset:idle",
+          "preset:walk"
+        ],
+        "out_format": "glb",
+        "animate_in_place": true,
+        "bake_animation": true,
+        "export_with_geometry": true
+      },
+      "cost": 20,
+      "command": "tripo anim retarget <rig-task-id> --animation preset:idle preset:walk --out-format glb --animate-in-place --json --no-open --yes -o docs/bungeoppang-v5/npc-runtime-production"
+    }
+  ],
+  "jobs": [
+    {
+      "id": "boy-red-scarf",
+      "name": "활발한 아이",
+      "sourceTask": "084ca389-7068-4837-869c-3e7f3fe56e5a",
+      "sourceGLB": "frontend/public/art/bungeoppang/customers/boy-red-scarf-v1.glb",
+      "rigDryRun": {
+        "dry_run": true,
+        "valid": true,
+        "input": "084ca389-7068-4837-869c-3e7f3fe56e5a",
+        "source_task_id": "084ca389-7068-4837-869c-3e7f3fe56e5a",
+        "steps": [
+          {
+            "name": "rig-check",
+            "endpoint": "/v3/animations/rig-check",
+            "task_type": "animate_prerigcheck",
+            "payload": {
+              "input": "<upstream>"
+            }
+          },
+          {
+            "name": "rig",
+            "endpoint": "/v3/animations/rig",
+            "task_type": "animate_rig",
+            "payload": {
+              "input": "<upstream>",
+              "rig_type": "biped",
+              "spec": "tripo",
+              "out_format": "glb",
+              "model": "v2.5-20260210"
+            }
+          }
+        ],
+        "pending_uploads": [],
+        "deliverables": [],
+        "candidates": 1,
+        "warnings": [
+          "chain legality unverified: upstream task type unknown (no local history for 084ca389-7068-4837-869c-3e7f3fe56e5a); the real run checks it via the API"
+        ],
+        "errors": [],
+        "cost_notes": []
+      },
+      "rigCredits": 25,
+      "animationCredits": {
+        "idle": 10,
+        "walk": 10
+      },
+      "totalCredits": 45
+    },
+    {
+      "id": "student-brown-coat",
+      "name": "대학생",
+      "sourceTask": "b19be13f-03bb-4130-b77c-bfd4a7292668",
+      "sourceGLB": "frontend/public/art/bungeoppang/customers/student-brown-coat-v1.glb",
+      "rigDryRun": {
+        "dry_run": true,
+        "valid": true,
+        "input": "b19be13f-03bb-4130-b77c-bfd4a7292668",
+        "source_task_id": "b19be13f-03bb-4130-b77c-bfd4a7292668",
+        "steps": [
+          {
+            "name": "rig-check",
+            "endpoint": "/v3/animations/rig-check",
+            "task_type": "animate_prerigcheck",
+            "payload": {
+              "input": "<upstream>"
+            }
+          },
+          {
+            "name": "rig",
+            "endpoint": "/v3/animations/rig",
+            "task_type": "animate_rig",
+            "payload": {
+              "input": "<upstream>",
+              "rig_type": "biped",
+              "spec": "tripo",
+              "out_format": "glb",
+              "model": "v2.5-20260210"
+            }
+          }
+        ],
+        "pending_uploads": [],
+        "deliverables": [],
+        "candidates": 1,
+        "warnings": [
+          "chain legality unverified: upstream task type unknown (no local history for b19be13f-03bb-4130-b77c-bfd4a7292668); the real run checks it via the API"
+        ],
+        "errors": [],
+        "cost_notes": []
+      },
+      "rigCredits": 25,
+      "animationCredits": {
+        "idle": 10,
+        "walk": 10
+      },
+      "totalCredits": 45
+    },
+    {
+      "id": "worker-earmuffs",
+      "name": "귀마개 직장인",
+      "sourceTask": "48770dfd-133d-49a7-b2ff-9aff509e4a57",
+      "sourceGLB": "frontend/public/art/bungeoppang/customers/worker-earmuffs-v1.glb",
+      "rigDryRun": {
+        "dry_run": true,
+        "valid": true,
+        "input": "48770dfd-133d-49a7-b2ff-9aff509e4a57",
+        "source_task_id": "48770dfd-133d-49a7-b2ff-9aff509e4a57",
+        "steps": [
+          {
+            "name": "rig-check",
+            "endpoint": "/v3/animations/rig-check",
+            "task_type": "animate_prerigcheck",
+            "payload": {
+              "input": "<upstream>"
+            }
+          },
+          {
+            "name": "rig",
+            "endpoint": "/v3/animations/rig",
+            "task_type": "animate_rig",
+            "payload": {
+              "input": "<upstream>",
+              "rig_type": "biped",
+              "spec": "tripo",
+              "out_format": "glb",
+              "model": "v2.5-20260210"
+            }
+          }
+        ],
+        "pending_uploads": [],
+        "deliverables": [],
+        "candidates": 1,
+        "warnings": [
+          "chain legality unverified: upstream task type unknown (no local history for 48770dfd-133d-49a7-b2ff-9aff509e4a57); the real run checks it via the API"
+        ],
+        "errors": [],
+        "cost_notes": []
+      },
+      "rigCredits": 25,
+      "animationCredits": {
+        "idle": 10,
+        "walk": 10
+      },
+      "totalCredits": 45
+    },
+    {
+      "id": "older-flat-cap",
+      "name": "중년 손님",
+      "sourceTask": "f03c126e-69b7-4355-9f15-f447135b5af4",
+      "sourceGLB": "frontend/public/art/bungeoppang/customers/older-flat-cap-v1.glb",
+      "rigDryRun": {
+        "dry_run": true,
+        "valid": true,
+        "input": "f03c126e-69b7-4355-9f15-f447135b5af4",
+        "source_task_id": "f03c126e-69b7-4355-9f15-f447135b5af4",
+        "steps": [
+          {
+            "name": "rig-check",
+            "endpoint": "/v3/animations/rig-check",
+            "task_type": "animate_prerigcheck",
+            "payload": {
+              "input": "<upstream>"
+            }
+          },
+          {
+            "name": "rig",
+            "endpoint": "/v3/animations/rig",
+            "task_type": "animate_rig",
+            "payload": {
+              "input": "<upstream>",
+              "rig_type": "biped",
+              "spec": "tripo",
+              "out_format": "glb",
+              "model": "v2.5-20260210"
+            }
+          }
+        ],
+        "pending_uploads": [],
+        "deliverables": [],
+        "candidates": 1,
+        "warnings": [
+          "chain legality unverified: upstream task type unknown (no local history for f03c126e-69b7-4355-9f15-f447135b5af4); the real run checks it via the API"
+        ],
+        "errors": [],
+        "cost_notes": []
+      },
+      "rigCredits": 25,
+      "animationCredits": {
+        "idle": 10,
+        "walk": 10
+      },
+      "totalCredits": 45
+    },
+    {
+      "id": "girl-pink-hat",
+      "name": "분홍 모자 아이",
+      "sourceTask": "d09f37f2-32be-4064-bebf-8f3349979161",
+      "sourceGLB": "frontend/public/art/bungeoppang/customers/girl-pink-hat-v1.glb",
+      "rigDryRun": {
+        "dry_run": true,
+        "valid": true,
+        "input": "d09f37f2-32be-4064-bebf-8f3349979161",
+        "source_task_id": "d09f37f2-32be-4064-bebf-8f3349979161",
+        "steps": [
+          {
+            "name": "rig-check",
+            "endpoint": "/v3/animations/rig-check",
+            "task_type": "animate_prerigcheck",
+            "payload": {
+              "input": "<upstream>"
+            }
+          },
+          {
+            "name": "rig",
+            "endpoint": "/v3/animations/rig",
+            "task_type": "animate_rig",
+            "payload": {
+              "input": "<upstream>",
+              "rig_type": "biped",
+              "spec": "tripo",
+              "out_format": "glb",
+              "model": "v2.5-20260210"
+            }
+          }
+        ],
+        "pending_uploads": [],
+        "deliverables": [],
+        "candidates": 1,
+        "warnings": [
+          "chain legality unverified: upstream task type unknown (no local history for d09f37f2-32be-4064-bebf-8f3349979161); the real run checks it via the API"
+        ],
+        "errors": [],
+        "cost_notes": []
+      },
+      "rigCredits": 25,
+      "animationCredits": {
+        "idle": 10,
+        "walk": 10
+      },
+      "totalCredits": 45
+    },
+    {
+      "id": "woman-glasses-bun",
+      "name": "안경 쓴 여성",
+      "sourceTask": "6f9d7137-e4d3-4ba6-9359-5adddef4df63",
+      "sourceGLB": "frontend/public/art/bungeoppang/customers/woman-glasses-bun-v1.glb",
+      "rigDryRun": {
+        "dry_run": true,
+        "valid": true,
+        "input": "6f9d7137-e4d3-4ba6-9359-5adddef4df63",
+        "source_task_id": "6f9d7137-e4d3-4ba6-9359-5adddef4df63",
+        "steps": [
+          {
+            "name": "rig-check",
+            "endpoint": "/v3/animations/rig-check",
+            "task_type": "animate_prerigcheck",
+            "payload": {
+              "input": "<upstream>"
+            }
+          },
+          {
+            "name": "rig",
+            "endpoint": "/v3/animations/rig",
+            "task_type": "animate_rig",
+            "payload": {
+              "input": "<upstream>",
+              "rig_type": "biped",
+              "spec": "tripo",
+              "out_format": "glb",
+              "model": "v2.5-20260210"
+            }
+          }
+        ],
+        "pending_uploads": [],
+        "deliverables": [],
+        "candidates": 1,
+        "warnings": [
+          "chain legality unverified: upstream task type unknown (no local history for 6f9d7137-e4d3-4ba6-9359-5adddef4df63); the real run checks it via the API"
+        ],
+        "errors": [],
+        "cost_notes": []
+      },
+      "rigCredits": 25,
+      "animationCredits": {
+        "idle": 10,
+        "walk": 10
+      },
+      "totalCredits": 45
+    }
+  ],
+  "estimatedTotalCredits": 270,
+  "startingBalance": 550,
+  "estimatedRemainingBalance": 280,
+  "failedStepsRefunded": true,
+  "automaticPaidRetries": 0,
+  "deliverables": [
+    "rigged GLBs",
+    "idle and in-place walk clips",
+    "provider receipts and billing",
+    "locally optimized animated GLBs in frontend/public/art/bungeoppang/customers/runtime/",
+    "game integration with existing order selection and entry/exit behavior"
+  ],
+  "warnings": [
+    "Local history does not identify the original task types. All six source tasks have been verified through free rig-check and server task metadata.",
+    "Native retarget accepts two clips in one request; it is billed 10 credits per clip."
+  ]
+}
