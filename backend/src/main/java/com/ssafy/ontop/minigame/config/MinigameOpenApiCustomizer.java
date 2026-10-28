@@ -122,7 +122,7 @@ public class MinigameOpenApiCustomizer implements OperationCustomizer, OpenApiCu
                 + "v2는 60초, 15점당 1냥, KST 하루 100냥 계약을 유지합니다. "
                 + "탭 이동 중에도 시간은 흐르며 랭킹은 제외합니다. score·rewardAmount·userId를 본문에 넣지 않습니다. "
                 + "상태 GET도 지갑 잠금과 만료 세션 INVALID 갱신을 수행할 수 있습니다. 읽기 전용 트랜잭션이 아닙니다. "
-                + "v5(180초, 활성 손님 3명, 선택 납품·충원, V128)는 " + V5_FLAG);
+                + "v5(180초, 활성 손님 3명, 선택 납품·충원, V128)도 제공하며 " + V5_FLAG);
         return operation;
     }
 
