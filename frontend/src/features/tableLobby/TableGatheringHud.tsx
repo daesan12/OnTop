@@ -8,6 +8,7 @@ import { FinishedForfeitStatus } from '../../game/OmokSurrender'
 import { PaperPopup, ResultTrophy } from './PaperPopup'
 import { TABLET_ENABLED } from './tabletFeature'
 import { LegacyTableGatheringHud } from './LegacyTableGatheringHud'
+import { BoardRewardCoinSource } from '../wallet/RewardCoinFlight'
 
 export function TableGatheringHud({ model }: { model: GatheringModel }) {
   return TABLET_ENABLED ? <TabletResult model={model} /> : <LegacyTableGatheringHud model={model} />
@@ -28,7 +29,7 @@ function TabletResult({ model }: { model: GatheringModel }) {
       <span className="paper-player-name">{row.playerId === own ? '나' : row.nickname}</span><span>{row.score}</span>
       <span className="paper-player-outcome">{row.label}</span>
     </li>)}</ol>
-    <div className="paper-settlement" role="status"><strong>{!model.settled && <i className="paper-pending" aria-hidden="true" />}{model.settled || model.invalid ? model.settlement : '보상 확인 중'}</strong>
+    <div className="paper-settlement" role="status"><strong><BoardRewardCoinSource>{!model.settled && <i className="paper-pending" aria-hidden="true" />}{model.settled || model.invalid ? model.settlement : '보상 확인 중'}</BoardRewardCoinSource></strong>
       <small>{model.invalid ? model.settled ? '서버에서 참가비 예약 해제를 확인했어요' : '서버의 참가비 예약 해제를 기다리고 있어요' : model.settled ? '서버에서 정산한 결과예요' : '확인이 끝나면 엽전에 반영돼요'}</small></div>
     <div className="paper-actions"><button className="paper-primary" disabled={disabled || !model.canReturn} onClick={returnToWaiting}>다음 판 준비</button>
       <button disabled={disabled || busy} onClick={() => void runtime.leaveTable()}>자리에서 일어나기</button>

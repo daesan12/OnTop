@@ -33,6 +33,7 @@ import { useGame } from '../game/store'
 import { OmokFeedback, SpectatorChat } from '../game/omok/OmokFeedback'
 import { ChannelMenu } from '../features/parkMenus/ChannelMenu'
 import { AccountMenu } from '../features/parkMenus/AccountMenu'
+import { RewardCoinFlight } from '../features/wallet/RewardCoinFlight'
 import { LocationChip } from '../features/parkMenus/LocationChip'
 
 const shortcuts = [
@@ -87,6 +88,7 @@ function ParkContent({ onExit, exitError, onAuthEnded }: ParkProps) {
       <ParkScene quality={quality} />
       <ParkBgm />
       <ParkSfx />
+      <RewardCoinFlight />
       <div className="park-hud">
         {!omokFocus && <div className="park-roaming-ui" hidden={bungeoppang} inert={bungeoppang}>
           <ChannelMenu />
