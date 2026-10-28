@@ -103,13 +103,13 @@ test('M15 existing bungeoppang screens pause personal guidance and retain it on 
   await page.getByRole('button',{name:'ESC 나가기',exact:true}).click();await expect(guide(page)).toBeVisible()
 })
 
-test('M15 guidance preserves table entry/exit and never covers existing graphics settings',async({page})=>{
+test('M15 guidance preserves table entry/exit and never covers the settings panel',async({page})=>{
   const server=await fixture(page,{omok:true,m09:true});await loaded(page);await select(page,'소리함')
   const target=(await nav(page)).target
-  await page.getByRole('button', { name: '내 메뉴', exact: true }).click(); await page.getByRole('menuitem', { name: /설정/ }).click()
-  await expect(page.getByRole('region',{name:'그래픽과 성능',exact:true})).toBeVisible()
+  await page.getByRole('button', { name: '설정', exact: true }).click()
+  await expect(page.getByRole('region',{name:'설정',exact:true})).toBeVisible()
   await expect(guide(page)).toHaveCount(0)
-  await page.getByRole('button', { name: '그래픽 설정 닫기', exact: true }).click();await expect(guide(page)).toBeVisible()
+  await page.getByRole('button', { name: '설정 닫기', exact: true }).click();await expect(guide(page)).toBeVisible()
   await page.evaluate(async()=>(await import('/tests/e2e/sceneProbe.ts' as string)).inspectTable())
   const lobby=page.getByRole('dialog',{name:'테이블 정보',exact:true})
   await lobby.getByRole('button',{name:'앉기',exact:true}).click();await expect(guide(page)).toHaveCount(0)

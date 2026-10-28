@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import avatarImage from '../../assets/entry/park-avatar.webp'
 import coinImage from '../../assets/entry/yeopjeon-icon.webp'
-import { QUALITY_PRESETS, type QualityPreset } from '../../config/quality'
 import { useSession } from '../../network/worldClient'
 import { useParkRuntime } from '../../park/runtime/ParkRuntime'
 import { WalletBalance } from '../wallet/WalletBalance'
@@ -10,7 +9,6 @@ import { MenuDialog } from './MenuDialog'
 import { NicknameDoneDialog, ProfileDialog } from './ProfileDialog'
 import { withdraw } from './service'
 import profileIcon from './icons/icon-profile.svg'
-import settingsIcon from './icons/icon-settings.svg'
 import logoutIcon from './icons/icon-logout.svg'
 import withdrawIcon from './icons/icon-withdraw.svg'
 import logoutDialogIcon from './icons/dialog-logout.svg'
@@ -20,9 +18,8 @@ import './parkMenus.css'
 
 type Dialog = null | 'profile' | 'logout' | 'withdraw' | { from: string; to: string }
 
-/** Account pill with the profile menu (내 정보 · 설정 · 로그아웃 · 회원 탈퇴). */
-export function AccountMenu({ quality, exitError, onExit, onWithdrawn }: {
-  quality: QualityPreset
+/** Account pill with the profile menu (내 정보 · 로그아웃 · 회원 탈퇴); 설정 lives in the 빠른 메뉴 dock. */
+export function AccountMenu({ exitError, onExit, onWithdrawn }: {
   exitError: string
   onExit: () => void | Promise<void>
   onWithdrawn: () => void
@@ -69,14 +66,6 @@ export function AccountMenu({ quality, exitError, onExit, onWithdrawn }: {
       <hr />
       <button type="button" role="menuitem" className="park-menu-item" onClick={() => choose('profile')}>
         <img src={profileIcon} alt="" /><span><b>내 정보</b><small>닉네임 변경</small></span>
-      </button>
-      <button type="button" role="menuitem" className="park-menu-item" onClick={() => {
-        setOpen(false)
-        // The menu item unmounts, so the panel returns focus to the menu trigger.
-        trigger.current?.focus({ preventScroll: true })
-        window.dispatchEvent(new Event('ontop-open-graphics-settings'))
-      }}>
-        <img src={settingsIcon} alt="" /><span><b>설정</b><small>그래픽 품질 · {QUALITY_PRESETS[quality].label}</small></span>
       </button>
       <hr />
       <button type="button" role="menuitem" className="park-menu-item" onClick={() => choose('logout')}>

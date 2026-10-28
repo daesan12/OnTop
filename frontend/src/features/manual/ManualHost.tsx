@@ -224,7 +224,11 @@ export function ManualHost({
         </div>
         <div className="manual-sheet-content" inert={phase !== "open"}>
           <header className="manual-header">
-            <p className="manual-issue">제 1호 · 게임 설명서 특집</p>
+            {/* The channel line shares the issue column, so no separate strip sits above the contents. */}
+            <div className="manual-issue-column">
+              <p className="manual-issue">제 1호 · 게임 설명서 특집</p>
+              {worldActions}
+            </div>
             <h2 className="manual-masthead">
               <span className="manual-seal" aria-hidden="true">탑</span>
               OnTop
@@ -240,7 +244,6 @@ export function ManualHost({
               <kbd>Esc</kbd>
             </button>
           </header>
-          {worldActions}
           <ReadingBoundary>
             <OnDemandContent active={open} load={loadContents} label="설명서" onClose={closeManual} className="manual-loading">
               <p>WASD 이동 · Shift 달리기 · Space 점프 · E 상호작용 · Enter 채팅 · F1 설명서</p>
