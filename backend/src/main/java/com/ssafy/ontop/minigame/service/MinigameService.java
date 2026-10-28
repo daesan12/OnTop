@@ -187,8 +187,7 @@ public class MinigameService {
     private void persistV5Source(long sessionId, Instant issuedAt, BungeoppangV4Responses.Timing timing,
             List<Integer> heats) {
         List<BungeoppangV5Rules.Order> opening = openingV5Orders();
-        BungeoppangV5Responses.Checkpoint checkpoint = BungeoppangV5Spec.checkpoint(0, 0,
-                BungeoppangV5Spec.initialPrefixHash(sessionId), v5Rules.replay(List.of(), heats, opening));
+        BungeoppangV5Responses.Checkpoint checkpoint = openingV5Checkpoint(sessionId, heats, opening);
         V5ConfigSnapshot config = new V5ConfigSnapshot(BungeoppangV5Spec.rules(),
                 BungeoppangV5Spec.START_BUFFER_MS, BungeoppangV5Spec.SUBMISSION_GRACE_MS,
                 BungeoppangV5Spec.PROCESSING_DRAIN_MS);
@@ -224,7 +223,7 @@ public class MinigameService {
             return new BungeoppangV5Responses.StartResponse(Long.toString(session.id()), session.minigameType(),
                     "PLAYING", "WAITING_START", V5, round.configVersion(), round.issuedAt(), session.startedAt(),
                     BungeoppangV4Spec.timing(round), v5Config(round).rules(), heats(record), record.firstGame(),
-                    v5Checkpoint(round));
+                    openingV5Checkpoint(session.id(), heats(record)));
         }
         if (!V4.equals(record.rulesVersion())) {
             throw versionMismatch();
@@ -337,9 +336,9 @@ public class MinigameService {
         boolean progress = active || includeProgress;
         List<BungeoppangV4DeliveryDtos.Action> accepted = progress ? acceptedLog(session.id()) : List.of();
         Object lookup = deliveryKey == null ? null : deliveryLookup(session.id(), deliveryKey);
-        // v5 완료 응답 DTO는 V5-3에서 정한다. 그 전까지 저장된 결과를 그대로 읽기만 한다.
+        // v4와 같은 완료 DTO로 읽어 POST 완료와 같은 날짜·시각 표현으로 반환한다.
         Object finalResult = "COMPLETED".equals(session.status()) && record.result() != null
-                ? readTree(record.result()) : null;
+                ? read(record.result(), BungeoppangV4CompleteDtos.Response.class) : null;
         return new BungeoppangV5Responses.SessionResponse(Long.toString(session.id()), V5,
                 round.configVersion(), session.status(), BungeoppangV4Spec.phase(session.status(), current, round),
                 session.score(), session.rewardAmount(), session.endedAt(), active ? null : round.terminalReason(),
@@ -432,7 +431,7 @@ public class MinigameService {
         List<BungeoppangV4DeliveryDtos.Action> accepted = readActions(progress.acceptedLogJson());
 
         try {
-            validateApprovedPrefix(round, accepted, request.log());
+            validateApprovedPrefix(V4, round, accepted, request.log());
             List<BungeoppangV4Order> storedOrders = repository.v4Orders(sessionId);
             if (storedOrders.isEmpty()) { throw new IllegalStateException("발급 주문이 없습니다."); }
             BungeoppangV4Order currentOrder = storedOrders.getLast();
@@ -474,6 +473,120 @@ public class MinigameService {
         }
     }
 
+    /** v5 selected delivery: any active order may be served; the freed customer slot is refilled. */
+    public BungeoppangV5Responses.DeliveryResponse deliverV5(long userId, long sessionId, String key,
+            BungeoppangV4DeliveryDtos.Request request) {
+        if (!deliveryRates.computeIfAbsent(userId, ignored -> new DeliveryBucket()).allow(clock.millis())) {
+            throw error(429, "TOO_MANY_REQUESTS", "납품 요청이 너무 많습니다. 잠시 후 다시 시도하세요.");
+        }
+        Instant receivedAt = now();
+        V5DeliveryDecision decision = transactions.execute(
+                tx -> deliverV5InTransaction(userId, sessionId, key, request, receivedAt));
+        if (decision.error() != null) {
+            throw new StoredMinigameResponseException(decision.status(), decision.error());
+        }
+        return decision.response();
+    }
+
+    /**
+     * Under the wallet and round row locks: replay the first receipt for the same key, otherwise verify the
+     * approved prefix, replay the log before and after the DELIVER, and validate the replacement through a
+     * third replay. Only then persist the replacement order, checkpoint, accepted log and receipt together.
+     */
+    private V5DeliveryDecision deliverV5InTransaction(long userId, long sessionId, String key,
+            BungeoppangV4DeliveryDtos.Request request, Instant receivedAt) {
+        lockWallet(userId);
+        MinigameSession session = requireSession(userId, sessionId, true);
+        BungeoppangRecord record = requireAnyRecord(sessionId);
+        if (!V5.equals(record.rulesVersion()) || !V5.equals(request.rulesVersion())) { throw versionMismatch(); }
+        BungeoppangV4Round round = requireV4Round(sessionId, true);
+        String requestHash = BungeoppangV4DeliveryContract.requestHash(sessionId, request);
+        var stored = repository.v4Receipt(sessionId, "DELIVERY", key);
+        if (stored.isPresent()) { return replayV5Receipt(stored.get(), requestHash); }
+        if (!"PLAYING".equals(session.status()) || round.terminalReason() != null) {
+            throw error(409, "GAME_NOT_ACTIVE", "이미 종료된 미니게임입니다.");
+        }
+        Instant current = now();
+        if (receivedAt.isAfter(round.submitDeadline())) {
+            throw error(409, "GAME_NOT_ACTIVE", "납품 제출 기한이 지났습니다.");
+        }
+        BungeoppangV4DeliveryDtos.Action last = request.log().getLast();
+        if (!"DELIVER".equals(last.action()) || !key.equals(last.deliveryKey())) {
+            throw error(400, "INVALID_REQUEST", "납품 키와 마지막 행동을 확인하세요.");
+        }
+        if (!prefixHash(V5, round, request.log()).equals(request.prefixHash())) {
+            throw new MinigameException(400, "LOG_HASH_MISMATCH", "행동 기록 해시가 일치하지 않습니다.");
+        }
+        long targetOrderId;
+        try { targetOrderId = Long.parseLong(last.orderId()); }
+        catch (NumberFormatException exception) { throw error(400, "INVALID_REQUEST", "주문 ID를 확인하세요."); }
+        if (repository.acceptedV4Delivery(sessionId, targetOrderId).isPresent()) {
+            return V5DeliveryDecision.of(rejectedDelivery(sessionId, key, requestHash, targetOrderId, request, round,
+                    current, new MinigameException(409, "ORDER_ALREADY_DELIVERED", "이미 승인된 주문입니다.")));
+        }
+        BungeoppangV4Progress progress = repository.v4Progress(sessionId, true)
+                .orElseThrow(() -> new IllegalStateException("v5 진행 상태가 없습니다."));
+        List<BungeoppangV4DeliveryDtos.Action> accepted = readActions(progress.acceptedLogJson());
+
+        try {
+            validateApprovedPrefix(V5, round, accepted, request.log());
+            validateActionClock(receivedAt, round, last);
+            List<BungeoppangV5Order> storedOrders = repository.v5Orders(sessionId);
+            List<BungeoppangV5Rules.Order> issued = storedOrders.stream().map(this::v5Order).toList();
+            List<BungeoppangV4Rules.Action> actions = BungeoppangV5DeliveryContract.domainActions(request.log());
+            List<Integer> heats = heats(record);
+            BungeoppangV5Rules.Result before = v5Rules.replay(actions.subList(0, actions.size() - 1), heats, issued);
+            BungeoppangV5Rules.Order target = before.activeOrders().stream()
+                    .filter(order -> order.orderId().equals(last.orderId())).findFirst()
+                    .orElseThrow(() -> new MinigameException(409, "STALE_ORDER", "현재 활성 주문이 아닙니다."));
+            BungeoppangV5Rules.Result delivered = v5Rules.replay(actions, heats, issued);
+
+            long nextOrderId = storedOrders.stream().mapToLong(BungeoppangV5Order::orderId).max().orElse(0) + 1;
+            BungeoppangV4Rules.Order generated = v4Rules.nextOrder(storedOrders.size(), random,
+                    BungeoppangV5Spec.calculationRules());
+            var replacement = new BungeoppangV5Rules.Order(Long.toString(nextOrderId), target.customerSlot(),
+                    request.throughSeq(), generated.items());
+            var withReplacement = new ArrayList<>(issued);
+            withReplacement.add(replacement);
+            // The replacement must activate at this DELIVER in the freed slot; a mismatch is a server fault.
+            BungeoppangV5Rules.Result result = v5Rules.replay(actions, heats, withReplacement);
+
+            var checkpoint = BungeoppangV5Spec.checkpoint(round.revision() + 1, request.throughSeq(),
+                    request.prefixHash(), result);
+            var response = new BungeoppangV5Responses.DeliveryResponse(Long.toString(sessionId), key,
+                    target.orderId(), true, current, request.throughSeq(), request.prefixHash(),
+                    consumedBreadIds(before.tray(), delivered.tray()),
+                    Math.subtractExact(delivered.score(), before.score()),
+                    Math.subtractExact(delivered.bonusScore(), before.bonusScore()),
+                    BungeoppangV5Spec.order(replacement), checkpoint);
+            repository.persist(new BungeoppangV5Order(sessionId, nextOrderId, replacement.customerSlot(),
+                    replacement.availableAfterSeq(), replacement.items().bean(), replacement.items().custard(),
+                    replacement.items().pizza(), replacement.items().chocolate(), current));
+            round.approve(request.throughSeq(), request.prefixHash(), write(checkpoint));
+            progress.replace(write(request.log()));
+            repository.persist(new BungeoppangV4Receipt(sessionId, "DELIVERY", key, requestHash,
+                    targetOrderId, targetOrderId, "ACCEPTED", 200, write(response), request.throughSeq(),
+                    request.prefixHash(), current));
+            repository.flush();
+            return V5DeliveryDecision.success(response);
+        } catch (MinigameException exception) {
+            return V5DeliveryDecision.of(rejectedDelivery(sessionId, key, requestHash, targetOrderId, request,
+                    round, current, exception));
+        }
+    }
+
+    private V5DeliveryDecision replayV5Receipt(BungeoppangV4Receipt receipt, String requestHash) {
+        if (!receipt.requestHash().equals(requestHash)) {
+            throw error(409, "IDEMPOTENCY_KEY_CONFLICT", "같은 중복 방지 키에 다른 요청을 사용할 수 없습니다.");
+        }
+        if ("ACCEPTED".equals(receipt.outcome())) {
+            return V5DeliveryDecision.success(
+                    read(receipt.responseJson(), BungeoppangV5Responses.DeliveryResponse.class));
+        }
+        return new V5DeliveryDecision(null, receipt.httpStatus(),
+                read(receipt.responseJson(), BungeoppangV4DeliveryDtos.ErrorResponse.class));
+    }
+
     public MinigameCompleteResponse complete(long userId, long sessionId, JsonNode submission) {
         return (MinigameCompleteResponse) complete(userId, sessionId, null, submission);
     }
@@ -491,6 +604,9 @@ public class MinigameService {
         BungeoppangRecord record = requireAnyRecord(sessionId);
         if (V4.equals(record.rulesVersion())) {
             return finishV4(userId, session, record, wallet, key, submission, receivedAt);
+        }
+        if (V5.equals(record.rulesVersion())) {
+            return finishV5(userId, session, record, wallet, key, submission, receivedAt);
         }
         if (!V2.equals(record.rulesVersion())) { throw versionMismatch(); }
         validateV2Submission(submission);
@@ -574,7 +690,7 @@ public class MinigameService {
         BungeoppangV4Progress progress = repository.v4Progress(sessionId, true)
                 .orElseThrow(() -> new IllegalStateException("v4 진행 상태가 없습니다."));
         List<BungeoppangV4DeliveryDtos.Action> accepted = readActions(progress.acceptedLogJson());
-        validateFinalPrefix(round, accepted, request.log());
+        validateFinalPrefix(V4, round, accepted, request.log());
 
         List<BungeoppangV4DeliveryDtos.Action> suffix = request.log().subList(accepted.size(), request.log().size());
         List<Integer> pendingDeliveries = new ArrayList<>();
@@ -639,6 +755,108 @@ public class MinigameService {
         return response;
     }
 
+    /**
+     * v5 final settlement with the v4 policy: the final log extends the approved prefix, at most one trailing
+     * unapproved DELIVER is approved in the same transaction, the whole log is replayed with every issued order,
+     * and floor(score / pointsPerCoin) is granted once within the shared KST daily cap.
+     */
+    private Object finishV5(long userId, MinigameSession session, BungeoppangRecord record, Wallet wallet,
+            String key, JsonNode submission, Instant receivedAt) {
+        if (key == null || !key.matches("[A-Za-z0-9_-]{1,64}")) {
+            throw error(400, "INVALID_REQUEST", "완료 중복 방지 키를 확인하세요.");
+        }
+        BungeoppangV4CompleteDtos.Request request = BungeoppangV5DeliveryContract.parseComplete(submission);
+        long sessionId = session.id();
+        BungeoppangV4Round round = requireV4Round(sessionId, true);
+        String requestHash = BungeoppangV4DeliveryContract.completeRequestHash(sessionId, request);
+        var sameKey = repository.v4Receipt(sessionId, "COMPLETE", key);
+        if (sameKey.isPresent()) { return replayCompletion(sameKey.get(), requestHash); }
+        if ("COMPLETED".equals(session.status())) {
+            if (!requestHash.equals(round.finalRequestHash())) {
+                throw error(409, "FINAL_RESULT_CONFLICT", "이미 다른 최종 결과가 확정되었습니다.");
+            }
+            return read(record.result(), BungeoppangV4CompleteDtos.Response.class);
+        }
+        if (!"PLAYING".equals(session.status()) || round.terminalReason() != null) {
+            throw terminalError(session.status());
+        }
+        if (receivedAt.isBefore(round.playEndsAt())) {
+            return error(422, "TOO_EARLY", "플레이 종료 후 같은 요청으로 다시 확인해 주세요.");
+        }
+        if (receivedAt.isAfter(round.submitDeadline())) {
+            Instant current = now();
+            if (!current.isBefore(round.expiresAt())) {
+                invalidate(session, current, "SUBMISSION_EXPIRED");
+                repository.flush();
+            }
+            return error(409, "GAME_NOT_ACTIVE", "최종 제출 기한이 지났습니다.");
+        }
+        if (!prefixHash(V5, round, request.log()).equals(request.prefixHash())) {
+            throw error(400, "LOG_HASH_MISMATCH", "행동 기록 해시가 일치하지 않습니다.");
+        }
+        BungeoppangV4Progress progress = repository.v4Progress(sessionId, true)
+                .orElseThrow(() -> new IllegalStateException("v5 진행 상태가 없습니다."));
+        List<BungeoppangV4DeliveryDtos.Action> accepted = readActions(progress.acceptedLogJson());
+        validateFinalPrefix(V5, round, accepted, request.log());
+
+        List<BungeoppangV4DeliveryDtos.Action> suffix = request.log().subList(accepted.size(), request.log().size());
+        List<Integer> pendingDeliveries = new ArrayList<>();
+        for (int i = 0; i < suffix.size(); i++) {
+            if ("DELIVER".equals(suffix.get(i).action())) { pendingDeliveries.add(accepted.size() + i); }
+        }
+        if (pendingDeliveries.size() > 1) {
+            return new MinigameException(422, "LOG_INVALID", "미승인 납품은 한 건만 제출할 수 있습니다.",
+                    "TOO_MANY_PENDING_DELIVERIES", pendingDeliveries.get(1));
+        }
+        if (pendingDeliveries.size() == 1) {
+            int deliveryIndex = pendingDeliveries.getFirst();
+            BungeoppangV4DeliveryDtos.Action action = request.log().get(deliveryIndex);
+            List<BungeoppangV4DeliveryDtos.Action> deliveryLog = List.copyOf(
+                    request.log().subList(0, deliveryIndex + 1));
+            var deliveryRequest = new BungeoppangV4DeliveryDtos.Request(V5, deliveryLog.size(),
+                    prefixHash(V5, round, deliveryLog), deliveryLog);
+            V5DeliveryDecision decision = deliverV5InTransaction(userId, sessionId, action.deliveryKey(),
+                    deliveryRequest, receivedAt);
+            if (decision.error() != null) {
+                return new StoredMinigameResponseException(decision.status(), decision.error());
+            }
+        }
+
+        // Re-read after a trailing approval so its replacement order takes part in the final replay.
+        List<BungeoppangV5Rules.Order> issued = repository.v5Orders(sessionId).stream().map(this::v5Order).toList();
+        BungeoppangV5Rules.Result result = v5Rules.replay(
+                BungeoppangV5DeliveryContract.domainActions(request.log()), heats(record), issued);
+        BungeoppangV5Responses.Rules rules = v5Config(round).rules();
+        Instant settledAt = now();
+        var rewardDate = settledAt.atZone(SEOUL).toLocalDate();
+        long calculated = Math.floorDiv(result.score(), rules.pointsPerCoin());
+        long today = earned(userId, settledAt);
+        long reward = Math.min(calculated, Math.max(0, BungeoppangRules.DAILY_CAP - today));
+        wallet.creditReward(reward);
+        session.complete(result.score(), reward, settledAt);
+        activityEnded(session);
+        if (reward > 0) {
+            repository.persist(WalletTransaction.minigameReward(wallet.id(), sessionId, reward,
+                    "minigame-reward:" + sessionId));
+        }
+        int unfinished = (int) result.slots().stream().filter(slot -> !"empty".equals(slot.phase())).count();
+        var response = new BungeoppangV4CompleteDtos.Response(Long.toString(sessionId), "COMPLETED", V5,
+                round.configVersion(), result.made(), reward, result.score(), result.made(), result.golden(),
+                result.failed(), result.wasted(), result.maxCombo(), calculated, reward, today + reward,
+                BungeoppangRules.DAILY_CAP, today + reward >= BungeoppangRules.DAILY_CAP,
+                result.successfulMade(), result.served(), result.customersServed(), result.specialServed(),
+                result.bonusScore(), result.grillDiscarded(), result.trayDiscarded(), result.tray().size(),
+                unfinished, rewardDate, settledAt, request.throughSeq(), request.prefixHash());
+        round.settle(requestHash, request.throughSeq(), request.prefixHash(), settledAt, rewardDate);
+        rememberTips(userId, json.valueToTree(request.seenTips()));
+        record.accept(write(request), write(response));
+        repository.persist(new BungeoppangV4Receipt(sessionId, "COMPLETE", key, requestHash,
+                null, null, "ACCEPTED", 200, write(response), request.throughSeq(), request.prefixHash(),
+                settledAt));
+        repository.flush();
+        return response;
+    }
+
     private DeliveryDecision replayReceipt(BungeoppangV4Receipt receipt, String requestHash) {
         if (!receipt.requestHash().equals(requestHash)) {
             throw error(409, "IDEMPOTENCY_KEY_CONFLICT", "같은 중복 방지 키에 다른 요청을 사용할 수 없습니다.");
@@ -680,11 +898,10 @@ public class MinigameService {
         return DeliveryDecision.failure(exception.status(), body);
     }
 
-    private void validateApprovedPrefix(BungeoppangV4Round round,
+    private void validateApprovedPrefix(String version, BungeoppangV4Round round,
             List<BungeoppangV4DeliveryDtos.Action> accepted, List<BungeoppangV4DeliveryDtos.Action> requested) {
         if (accepted.size() != round.approvedThroughSeq()
-                || !BungeoppangV4DeliveryContract.prefixHash(round.sessionId(), round.configVersion(), accepted)
-                        .equals(round.approvedPrefixHash())) {
+                || !prefixHash(version, round, accepted).equals(round.approvedPrefixHash())) {
             throw new IllegalStateException("저장된 승인 prefix가 손상되었습니다.");
         }
         if (requested.size() <= accepted.size()
@@ -693,11 +910,10 @@ public class MinigameService {
         }
     }
 
-    private void validateFinalPrefix(BungeoppangV4Round round,
+    private void validateFinalPrefix(String version, BungeoppangV4Round round,
             List<BungeoppangV4DeliveryDtos.Action> accepted, List<BungeoppangV4DeliveryDtos.Action> requested) {
         if (accepted.size() != round.approvedThroughSeq()
-                || !BungeoppangV4DeliveryContract.prefixHash(round.sessionId(), round.configVersion(), accepted)
-                        .equals(round.approvedPrefixHash())) {
+                || !prefixHash(version, round, accepted).equals(round.approvedPrefixHash())) {
             throw new IllegalStateException("저장된 승인 prefix가 손상되었습니다.");
         }
         if (requested.size() < accepted.size()
@@ -706,10 +922,20 @@ public class MinigameService {
         }
     }
 
+    /** The action tuple is shared; only the hash seed names the rules version. */
+    private String prefixHash(String version, BungeoppangV4Round round,
+            List<BungeoppangV4DeliveryDtos.Action> actions) {
+        return V5.equals(version)
+                ? BungeoppangV5DeliveryContract.prefixHash(round.sessionId(), round.configVersion(), actions)
+                : BungeoppangV4DeliveryContract.prefixHash(round.sessionId(), round.configVersion(), actions);
+    }
+
+    /** The play length comes from the stored round, so v4 keeps 60s and v5 gets 180s. */
     private void validateActionClock(Instant current, BungeoppangV4Round round,
             BungeoppangV4DeliveryDtos.Action last) {
         long elapsed = java.time.Duration.between(round.playStartsAt(), current).toMillis();
-        long allowed = Math.min(BungeoppangV4Spec.DURATION_MS - 1L, Math.max(-1L, elapsed + 250L));
+        long duration = java.time.Duration.between(round.playStartsAt(), round.playEndsAt()).toMillis();
+        long allowed = Math.min(duration - 1L, Math.max(-1L, elapsed + 250L));
         if (last.t() > allowed) {
             throw new MinigameException(422, "TIME_AHEAD", "서버 플레이 시각보다 앞선 행동입니다.",
                     "TIME_AHEAD", requestIndex(last.seq()));
@@ -928,6 +1154,22 @@ public class MinigameService {
         return read(round.checkpointJson(), BungeoppangV5Responses.Checkpoint.class);
     }
 
+    /**
+     * The start response always carries the opening checkpoint (revision 0, throughSeq 0), rebuilt from the
+     * stored heats and opening orders. A start retry after deliveries therefore matches the first response;
+     * the current state is read with GET.
+     */
+    private BungeoppangV5Responses.Checkpoint openingV5Checkpoint(long sessionId, List<Integer> heats) {
+        return openingV5Checkpoint(sessionId, heats, repository.v5Orders(sessionId).stream()
+                .filter(order -> order.availableAfterSeq() == 0).map(this::v5Order).toList());
+    }
+
+    private BungeoppangV5Responses.Checkpoint openingV5Checkpoint(long sessionId, List<Integer> heats,
+            List<BungeoppangV5Rules.Order> opening) {
+        return BungeoppangV5Spec.checkpoint(0, 0, BungeoppangV5Spec.initialPrefixHash(sessionId),
+                v5Rules.replay(List.of(), heats, opening));
+    }
+
     private V5ConfigSnapshot v5Config(BungeoppangV4Round round) {
         return read(round.configJson(), V5ConfigSnapshot.class);
     }
@@ -983,6 +1225,17 @@ public class MinigameService {
 
         static DeliveryDecision failure(int status, BungeoppangV4DeliveryDtos.ErrorResponse error) {
             return new DeliveryDecision(null, status, error);
+        }
+    }
+
+    private record V5DeliveryDecision(BungeoppangV5Responses.DeliveryResponse response, int status,
+            BungeoppangV4DeliveryDtos.ErrorResponse error) {
+        static V5DeliveryDecision success(BungeoppangV5Responses.DeliveryResponse response) {
+            return new V5DeliveryDecision(response, 200, null);
+        }
+
+        static V5DeliveryDecision of(DeliveryDecision rejected) {
+            return new V5DeliveryDecision(null, rejected.status(), rejected.error());
         }
     }
 

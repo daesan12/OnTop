@@ -234,6 +234,53 @@ class MinigameHttpTests {
     }
 
     @Test
+    void v5_납품과_완료는_v5_계약으로_보내고_v5만_1MiB_본문을_허용한다() throws Exception {
+        String token = jwt.issue(101, TestLoginSessions.ID);
+        var action = new BungeoppangV4DeliveryDtos.Action(1, "DELIVER", 1000,
+                null, null, null, "2", "delivery-5");
+        var delivery = new BungeoppangV4DeliveryDtos.Request("v5", 1, "0".repeat(64), List.of(action));
+        var replacement = new BungeoppangV5Responses.Order("4", 1, 1,
+                new BungeoppangV4Responses.FillingCounts(1, 0, 0, 0));
+        var checkpoint = new BungeoppangV5Responses.Checkpoint(1, 1, "0".repeat(64), 0, 1000,
+                BungeoppangV4Spec.initialCheckpoint(901).slots(), List.of(),
+                BungeoppangV4Spec.initialCheckpoint(901).stats(), List.of(replacement));
+        when(minigames.deliverV5(101, 901, "delivery-5", delivery)).thenReturn(
+                new BungeoppangV5Responses.DeliveryResponse("901", "delivery-5", "2", true,
+                        Instant.parse("2026-10-28T00:00:10Z"), 1, "0".repeat(64), List.of(1L), 10, 0,
+                        replacement, checkpoint));
+        String body = "{\"rulesVersion\":\"v5\",\"throughSeq\":1,\"prefixHash\":\"" + "0".repeat(64)
+                + "\",\"log\":[{\"seq\":1,\"action\":\"DELIVER\",\"t\":1000,"
+                + "\"orderId\":\"2\",\"deliveryKey\":\"delivery-5\"}]}";
+
+        var accepted = request("/901/deliveries", body, token, "delivery-5");
+
+        assertThat(accepted.statusCode()).isEqualTo(200);
+        assertThat(accepted.body()).contains("\"accepted\":true", "\"replacementOrder\":{\"orderId\":\"4\"",
+                "\"activeOrders\":[{\"orderId\":\"4\",\"customerSlot\":1,\"availableAfterSeq\":1");
+        verify(minigames).deliverV5(101, 901, "delivery-5", delivery);
+
+        // A v5 body over the v4 256 KiB limit reaches the service; a v4 body of the same size does not.
+        String padding = " ".repeat(300 * 1024);
+        assertThat(request("/901/deliveries", body + padding, token, "delivery-5").statusCode()).isEqualTo(200);
+        assertThat(request("/901/deliveries", body.replace("\"v5\"", "\"v4\"") + padding, token, "delivery-6")
+                .statusCode()).isEqualTo(413);
+        assertThat(request("/901/deliveries", body + " ".repeat(1024 * 1024), token, "delivery-7")
+                .statusCode()).isEqualTo(413);
+
+        when(minigames.complete(eq(101L), eq(901L), eq("complete-5"), any(JsonNode.class))).thenReturn(
+                new BungeoppangV4CompleteDtos.Response("901", "COMPLETED", "v5", BungeoppangV5Spec.CONFIG_VERSION,
+                        2, 1, 20, 2, 2, 0, 0, 2, 1, 1, 1, 100, false, 2, 2, 1, 0, 0, 0, 0, 0, 0,
+                        LocalDate.of(2026, 10, 28), Instant.parse("2026-10-28T00:03:05Z"), 9, "0".repeat(64)));
+        String complete = "{\"rulesVersion\":\"v5\",\"throughSeq\":0,\"prefixHash\":\""
+                + "0".repeat(64) + "\",\"log\":[],\"seenTips\":[],\"clientScore\":0}";
+        var completed = request("/901/complete", complete + padding, token, "complete-5");
+        assertThat(completed.statusCode()).isEqualTo(200);
+        assertThat(completed.body()).contains("\"rulesVersion\":\"v5\"", "\"coinsGranted\":1");
+        assertThat(request("/901/complete", complete.replace("\"v5\"", "\"v4\"") + padding, token,
+                "complete-6").statusCode()).isEqualTo(413);
+    }
+
+    @Test
     void v4_완료는_멱등키와_최종prefix를_전달하고_상세정산을_반환한다() throws Exception {
         String token = jwt.issue(101, TestLoginSessions.ID);
         var response = new BungeoppangV4CompleteDtos.Response("901", "COMPLETED", "v4",

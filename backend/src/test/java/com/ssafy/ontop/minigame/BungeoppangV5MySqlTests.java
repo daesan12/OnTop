@@ -8,8 +8,12 @@ import com.ssafy.ontop.auth.service.AuthExchangePersistenceService;
 import com.ssafy.ontop.minigame.domain.BungeoppangV5Order;
 import com.ssafy.ontop.minigame.dto.BungeoppangV5Responses;
 import com.ssafy.ontop.minigame.service.BungeoppangV5Spec;
+import com.ssafy.ontop.minigame.dto.BungeoppangV4CompleteDtos;
+import com.ssafy.ontop.minigame.dto.BungeoppangV4DeliveryDtos;
+import com.ssafy.ontop.minigame.service.BungeoppangV5DeliveryContract;
 import com.ssafy.ontop.minigame.service.MinigameException;
 import com.ssafy.ontop.minigame.service.MinigameService;
+import com.ssafy.ontop.minigame.service.StoredMinigameResponseException;
 import jakarta.persistence.EntityManagerFactory;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -55,6 +59,8 @@ class BungeoppangV5MySqlTests {
     @Autowired EntityManagerFactory entities;
     @LocalServerPort int port;
     private final ObjectMapper mapper = new ObjectMapper();
+    private final ObjectMapper json = new ObjectMapper()
+            .setSerializationInclusion(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL);
     private final HttpClient http = HttpClient.newHttpClient();
     private final Map<Long, String> tokens = new HashMap<>();
 
@@ -73,6 +79,8 @@ class BungeoppangV5MySqlTests {
     void setup() {
         tokens.clear();
         jdbc.execute("DROP TRIGGER IF EXISTS minigame_test_fail_v5_order");
+        jdbc.execute("DROP TRIGGER IF EXISTS minigame_test_fail_v5_receipt");
+        jdbc.execute("DROP TRIGGER IF EXISTS minigame_test_fail_v5_ledger");
         for (String table : List.of("bungeoppang_v5_orders", "bungeoppang_v4_receipts", "bungeoppang_v4_progress",
                 "bungeoppang_v4_orders", "bungeoppang_v4_rounds", "bungeoppang_records", "bungeoppang_profiles",
                 "minigame_start_requests", "wallet_transactions", "minigame_sessions", "shop_purchases",
@@ -245,6 +253,298 @@ class BungeoppangV5MySqlTests {
         assertThatThrownBy(() -> minigames.deliver(101, sessionId, "late", null))
                 .isInstanceOf(MinigameException.class);
     }
+
+    @Test
+    void HTTP_선택_납품은_충원_주문_checkpoint_영수증을_원자_저장하고_재접속과_완료_정산이_한번만_이뤄진다()
+            throws Exception {
+        long sessionId = readyV5("flow");
+        var request = delivery(sessionId, "2", "deliver-two");
+
+        var first = request("POST", "/" + sessionId + "/deliveries", json.writeValueAsString(request), "deliver-two");
+        var replay = request("POST", "/" + sessionId + "/deliveries", json.writeValueAsString(request), "deliver-two");
+
+        assertThat(first.statusCode()).isEqualTo(200);
+        assertThat(replay.body()).isEqualTo(first.body());
+        JsonNode approved = mapper.readTree(first.body());
+        assertThat(approved.path("consumedBreadIds").toString()).isEqualTo("[1]");
+        assertThat(approved.at("/replacementOrder/orderId").asText()).isEqualTo("4");
+        assertThat(approved.at("/checkpoint/revision").asInt()).isOne();
+        assertThat(jdbc.queryForMap("SELECT customer_slot, available_after_seq FROM bungeoppang_v5_orders"
+                + " WHERE minigame_session_id=? AND order_id=4", sessionId))
+                .containsEntry("customer_slot", 1).containsEntry("available_after_seq", 9);
+        assertThat(count("bungeoppang_v5_orders")).isEqualTo(4);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM bungeoppang_v4_receipts WHERE outcome='ACCEPTED'"
+                + " AND accepted_order_id=2", Integer.class)).isOne();
+        assertThat(jdbc.queryForObject("SELECT revision FROM bungeoppang_v4_rounds WHERE minigame_session_id=?",
+                Long.class, sessionId)).isOne();
+
+        var recovered = mapper.readTree(request("GET", "/" + sessionId + "?includeProgress=true", null, null).body());
+        assertThat(recovered.path("checkpoint")).isEqualTo(approved.path("checkpoint"));
+        assertThat(recovered.path("acceptedLog")).hasSize(9);
+        assertThat(recovered.path("issuedOrders")).hasSize(4);
+
+        shift(sessionId, 150);
+        var complete = completion(sessionId, request.log());
+        var settled = request("POST", "/" + sessionId + "/complete", complete, "done-one");
+        var again = request("POST", "/" + sessionId + "/complete", complete, "done-two");
+        assertThat(settled.statusCode()).isEqualTo(200);
+        assertThat(again.body()).isEqualTo(settled.body());
+        assertThat(mapper.readTree(settled.body()).path("rulesVersion").asText()).isEqualTo("v5");
+        assertThat(mapper.readTree(settled.body()).path("score").asLong()).isEqualTo(10);
+        assertThat(balance()).isEqualTo(100);
+        assertThat(count("wallet_transactions")).isZero();
+        assertThat(jdbc.queryForObject("SELECT status FROM minigame_sessions WHERE id=?", String.class, sessionId))
+                .isEqualTo("COMPLETED");
+        var loaded = mapper.readTree(request("GET", "/" + sessionId, null, null).body());
+        assertThat(loaded.path("result").path("settledAt").isTextual()).isTrue();
+        assertThat(loaded.path("result").path("rewardDate").asText()).matches("\\d{4}-\\d{2}-\\d{2}");
+    }
+
+    @Test
+    void 같은_revision의_다른_동시_납품은_하나만_승인하고_다른_요청은_prefix_충돌로_남는다() throws Exception {
+        long sessionId = readyV5("race");
+        var two = delivery(sessionId, "2", "race-two");
+        var one = delivery(sessionId, "1", "race-one");
+        var gate = new CountDownLatch(1);
+        List<Object> results;
+        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            var first = executor.submit(() -> race(gate, () -> minigames.deliverV5(101, sessionId, "race-two", two)));
+            var second = executor.submit(() -> race(gate, () -> minigames.deliverV5(101, sessionId, "race-one", one)));
+            gate.countDown();
+            results = List.of(first.get(10, TimeUnit.SECONDS), second.get(10, TimeUnit.SECONDS));
+        }
+
+        assertThat(results).filteredOn(BungeoppangV5Responses.DeliveryResponse.class::isInstance).hasSize(1);
+        assertThat(results).filteredOn(String.class::isInstance).containsExactly("PREFIX_MISMATCH");
+        assertThat(count("bungeoppang_v5_orders")).isEqualTo(4);
+        assertThat(jdbc.queryForObject("SELECT revision FROM bungeoppang_v4_rounds WHERE minigame_session_id=?",
+                Long.class, sessionId)).isOne();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM bungeoppang_v4_receipts WHERE outcome='REJECTED'",
+                Integer.class)).isOne();
+    }
+
+    @Test
+    void 같은_키_동시_재전송은_같은_응답과_주문_하나로_수렴한다() throws Exception {
+        long sessionId = readyV5("same");
+        var request = delivery(sessionId, "1", "same-key");
+        var gate = new CountDownLatch(1);
+        List<Object> results;
+        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            var first = executor.submit(() -> race(gate, () -> minigames.deliverV5(101, sessionId, "same-key", request)));
+            var second = executor.submit(() -> race(gate, () -> minigames.deliverV5(101, sessionId, "same-key", request)));
+            gate.countDown();
+            results = List.of(first.get(10, TimeUnit.SECONDS), second.get(10, TimeUnit.SECONDS));
+        }
+
+        assertThat(results.get(0)).isInstanceOf(BungeoppangV5Responses.DeliveryResponse.class)
+                .isEqualTo(results.get(1));
+        assertThat(count("bungeoppang_v5_orders")).isEqualTo(4);
+        assertThat(count("bungeoppang_v4_receipts")).isOne();
+    }
+
+    @Test
+    void 영수증_저장이_실패하면_충원_주문_checkpoint_승인로그를_모두_롤백한다() {
+        long sessionId = readyV5("rollback");
+        var request = delivery(sessionId, "2", "rollback");
+        jdbc.execute("CREATE TRIGGER minigame_test_fail_v5_receipt BEFORE INSERT ON bungeoppang_v4_receipts"
+                + " FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='test v5 receipt failure'");
+        try {
+            assertThatThrownBy(() -> minigames.deliverV5(101, sessionId, "rollback", request))
+                    .isInstanceOf(RuntimeException.class);
+        } finally {
+            jdbc.execute("DROP TRIGGER IF EXISTS minigame_test_fail_v5_receipt");
+        }
+
+        assertThat(count("bungeoppang_v5_orders")).isEqualTo(3);
+        assertThat(count("bungeoppang_v4_receipts")).isZero();
+        assertThat(jdbc.queryForMap("SELECT revision, approved_through_seq FROM bungeoppang_v4_rounds"
+                + " WHERE minigame_session_id=?", sessionId))
+                .containsEntry("revision", 0L).containsEntry("approved_through_seq", 0);
+        assertThat(jdbc.queryForObject("SELECT accepted_log_json FROM bungeoppang_v4_progress"
+                + " WHERE minigame_session_id=?", String.class, sessionId)).isEqualTo("[]");
+
+        assertThat(minigames.deliverV5(101, sessionId, "rollback", request).replacementOrder().orderId())
+                .isEqualTo("4");
+    }
+
+    @Test
+    void 동시_완료는_한번만_지급하고_같은_결과로_수렴한다() throws Exception {
+        long sessionId = readyV5("settle");
+        var request = delivery(sessionId, "1", "settle-one");
+        minigames.deliverV5(101, sessionId, "settle-one", request);
+        shift(sessionId, 150);
+        JsonNode body = mapper.readTree(completion(sessionId, request.log()));
+        var gate = new CountDownLatch(1);
+        List<Object> results;
+        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            var first = executor.submit(() -> race(gate, () -> minigames.complete(101, sessionId, "a", body)));
+            var second = executor.submit(() -> race(gate, () -> minigames.complete(101, sessionId, "b", body)));
+            gate.countDown();
+            results = List.of(first.get(10, TimeUnit.SECONDS), second.get(10, TimeUnit.SECONDS));
+        }
+
+        assertThat(results.get(0)).isInstanceOf(BungeoppangV4CompleteDtos.Response.class).isEqualTo(results.get(1));
+        assertThat(((BungeoppangV4CompleteDtos.Response) results.get(0)).coinsGranted()).isOne();
+        assertThat(balance()).isEqualTo(101);
+        assertThat(count("wallet_transactions")).isOne();
+    }
+
+    @Test
+    void 완료_중_원장_저장이_실패하면_마지막_납품_승인과_충원까지_롤백하고_재시도는_한번만_지급한다() {
+        long sessionId = readyV5("ledger");
+        var log = delivery(sessionId, "1", "last-delivery").log();
+        shift(sessionId, 150);
+        JsonNode body = completionNode(sessionId, log);
+        jdbc.execute("CREATE TRIGGER minigame_test_fail_v5_ledger BEFORE INSERT ON wallet_transactions"
+                + " FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='test v5 ledger failure'");
+        try {
+            assertThatThrownBy(() -> minigames.complete(101, sessionId, "done", body))
+                    .isInstanceOf(RuntimeException.class);
+        } finally {
+            jdbc.execute("DROP TRIGGER IF EXISTS minigame_test_fail_v5_ledger");
+        }
+
+        // The trailing DELIVER, its replacement order and the settlement all rolled back together.
+        assertThat(count("bungeoppang_v5_orders")).isEqualTo(3);
+        assertThat(count("bungeoppang_v4_receipts")).isZero();
+        assertThat(jdbc.queryForMap("SELECT revision, approved_through_seq, terminal_reason, final_request_hash,"
+                + " settled_at FROM bungeoppang_v4_rounds WHERE minigame_session_id=?", sessionId))
+                .containsEntry("revision", 0L).containsEntry("approved_through_seq", 0)
+                .containsEntry("terminal_reason", null).containsEntry("final_request_hash", null)
+                .containsEntry("settled_at", null);
+        assertThat(jdbc.queryForObject("SELECT accepted_log_json FROM bungeoppang_v4_progress"
+                + " WHERE minigame_session_id=?", String.class, sessionId)).isEqualTo("[]");
+        assertThat(jdbc.queryForObject("SELECT JSON_EXTRACT(checkpoint_json, '$.throughSeq')"
+                + " FROM bungeoppang_v4_rounds WHERE minigame_session_id=?", Integer.class, sessionId)).isZero();
+        assertThat(jdbc.queryForMap("SELECT status, reward_amount FROM minigame_sessions WHERE id=?", sessionId))
+                .containsEntry("status", "PLAYING").containsEntry("reward_amount", 0L);
+        assertThat(jdbc.queryForObject("SELECT result_json FROM bungeoppang_records WHERE minigame_session_id=?",
+                String.class, sessionId)).isNull();
+        assertThat(balance()).isEqualTo(100);
+        assertThat(count("wallet_transactions")).isZero();
+
+        var settled = (BungeoppangV4CompleteDtos.Response) minigames.complete(101, sessionId, "done", body);
+        var replayed = minigames.complete(101, sessionId, "done", body);
+
+        assertThat(replayed).isEqualTo(settled);
+        assertThat(settled.score()).isEqualTo(20);
+        assertThat(settled.coinsGranted()).isOne();
+        assertThat(balance()).isEqualTo(101);
+        assertThat(count("wallet_transactions")).isOne();
+        assertThat(count("bungeoppang_v5_orders")).isEqualTo(4);
+        assertThat(jdbc.queryForList("SELECT operation FROM bungeoppang_v4_receipts ORDER BY id", String.class))
+                .containsExactly("DELIVERY", "COMPLETE");
+    }
+
+    @Test
+    void HTTP_완료에_남은_미승인_납품은_승인과_충원_뒤_최종_재계산에_한번만_반영된다() throws Exception {
+        long sessionId = readyV5("pending");
+        var log = delivery(sessionId, "1", "pending-delivery").log();
+        shift(sessionId, 150);
+        String body = completion(sessionId, log);
+
+        var completed = request("POST", "/" + sessionId + "/complete", body, "done-one");
+        var sameKey = request("POST", "/" + sessionId + "/complete", body, "done-one");
+        var otherKey = request("POST", "/" + sessionId + "/complete", body, "done-two");
+
+        assertThat(completed.statusCode()).isEqualTo(200);
+        assertThat(sameKey.body()).isEqualTo(completed.body());
+        assertThat(otherKey.body()).isEqualTo(completed.body());
+        JsonNode result = mapper.readTree(completed.body());
+        assertThat(result.path("score").asLong()).isEqualTo(20);
+        assertThat(result.path("customersServed").asInt()).isOne();
+        assertThat(result.path("coinsGranted").asLong()).isOne();
+        assertThat(result.path("finalThroughSeq").asInt()).isEqualTo(9);
+
+        assertThat(jdbc.queryForMap("SELECT customer_slot, available_after_seq FROM bungeoppang_v5_orders"
+                + " WHERE minigame_session_id=? AND order_id=4", sessionId))
+                .containsEntry("customer_slot", 0).containsEntry("available_after_seq", 9);
+        assertThat(count("bungeoppang_v5_orders")).isEqualTo(4);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM bungeoppang_v4_receipts WHERE operation='DELIVERY'"
+                + " AND outcome='ACCEPTED' AND request_key='pending-delivery' AND accepted_order_id=1",
+                Integer.class)).isOne();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM bungeoppang_v4_receipts WHERE operation='COMPLETE'",
+                Integer.class)).isOne();
+        assertThat(balance()).isEqualTo(101);
+        assertThat(count("wallet_transactions")).isOne();
+
+        var recovered = mapper.readTree(request("GET", "/" + sessionId + "?includeProgress=true", null, null).body());
+        assertThat(recovered.path("status").asText()).isEqualTo("COMPLETED");
+        assertThat(recovered.path("result")).isEqualTo(result);
+        assertThat(recovered.at("/checkpoint/revision").asInt()).isOne();
+        assertThat(recovered.at("/checkpoint/throughSeq").asInt()).isEqualTo(9);
+        assertThat(recovered.at("/checkpoint/activeOrders")).extracting(order -> order.path("orderId").asText())
+                .containsExactly("2", "3", "4");
+        assertThat(recovered.path("acceptedLog")).hasSize(9);
+        assertThat(recovered.path("issuedOrders")).hasSize(4);
+    }
+
+    /** Starts a v5 round with heat 100, known opening items and a play origin 40 seconds in the past. */
+    private long readyV5(String key) {
+        long sessionId = Long.parseLong(minigames.startV5(101, "BUNGEOPPANG", key).minigameSessionId());
+        jdbc.update("UPDATE bungeoppang_records SET heats=? WHERE minigame_session_id=?",
+                "[" + "100,".repeat(2_047) + "100]", sessionId);
+        for (int[] order : new int[][]{{1, 2, 0}, {2, 1, 0}, {3, 0, 1}}) {
+            jdbc.update("UPDATE bungeoppang_v5_orders SET bean=?, custard=?, pizza=0, chocolate=0"
+                    + " WHERE minigame_session_id=? AND order_id=?", order[1], order[2], sessionId, order[0]);
+        }
+        shift(sessionId, 40);
+        return sessionId;
+    }
+
+    private void shift(long sessionId, int seconds) {
+        jdbc.update("UPDATE bungeoppang_v4_rounds SET"
+                + " issued_at=TIMESTAMPADD(SECOND,?,issued_at),"
+                + " countdown_starts_at=TIMESTAMPADD(SECOND,?,countdown_starts_at),"
+                + " play_starts_at=TIMESTAMPADD(SECOND,?,play_starts_at),"
+                + " play_ends_at=TIMESTAMPADD(SECOND,?,play_ends_at),"
+                + " submit_deadline=TIMESTAMPADD(SECOND,?,submit_deadline),"
+                + " expires_at=TIMESTAMPADD(SECOND,?,expires_at) WHERE minigame_session_id=?",
+                -seconds, -seconds, -seconds, -seconds, -seconds, -seconds, sessionId);
+        jdbc.update("UPDATE minigame_sessions SET started_at=TIMESTAMPADD(SECOND,?,started_at) WHERE id=?",
+                -seconds, sessionId);
+    }
+
+    /** Two golden bean breads, then a DELIVER of the chosen order at 26.4 seconds. */
+    private BungeoppangV4DeliveryDtos.Request delivery(long sessionId, String orderId, String key) {
+        var log = List.of(
+                action(1, "POUR", 0, 0, null), action(2, "FILL", 300, 0, "bean"),
+                action(3, "TURN", 6_700, 0, null), action(4, "TURN", 13_100, 0, null),
+                action(5, "POUR", 13_200, 1, null), action(6, "FILL", 13_500, 1, "bean"),
+                action(7, "TURN", 19_900, 1, null), action(8, "TURN", 26_300, 1, null),
+                new BungeoppangV4DeliveryDtos.Action(9, "DELIVER", 26_400, null, null, null, orderId, key));
+        return new BungeoppangV4DeliveryDtos.Request("v5", log.size(),
+                BungeoppangV5DeliveryContract.prefixHash(sessionId, BungeoppangV5Spec.CONFIG_VERSION, log), log);
+    }
+
+    private static BungeoppangV4DeliveryDtos.Action action(int seq, String type, int t, int slot, String filling) {
+        return new BungeoppangV4DeliveryDtos.Action(seq, type, t, slot, filling, null, null, null);
+    }
+
+    private String completion(long sessionId, List<BungeoppangV4DeliveryDtos.Action> log) throws Exception {
+        return mapper.writeValueAsString(completionNode(sessionId, log));
+    }
+
+    private com.fasterxml.jackson.databind.node.ObjectNode completionNode(long sessionId,
+            List<BungeoppangV4DeliveryDtos.Action> log) {
+        var body = mapper.createObjectNode();
+        body.put("rulesVersion", "v5");
+        body.put("throughSeq", log.size());
+        body.put("prefixHash", BungeoppangV5DeliveryContract.prefixHash(sessionId, BungeoppangV5Spec.CONFIG_VERSION, log));
+        body.set("log", json.valueToTree(log));
+        body.putArray("seenTips").add("START");
+        body.put("clientScore", 0);
+        return body;
+    }
+
+    private Object race(CountDownLatch gate, java.util.function.Supplier<Object> action) throws Exception {
+        gate.await();
+        try { return action.get(); }
+        catch (StoredMinigameResponseException exception) { return exception.body().code(); }
+        catch (MinigameException exception) { return exception.code(); }
+    }
+
+    private long balance() { return jdbc.queryForObject("SELECT balance FROM wallets WHERE user_id=101", Long.class); }
 
     private void insertOrder(long sessionId, long orderId, int customerSlot, int availableAfterSeq) {
         jdbc.update("INSERT INTO bungeoppang_v5_orders(minigame_session_id, order_id, customer_slot,"

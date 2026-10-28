@@ -375,17 +375,20 @@ class MinigameV5ServiceTests {
     }
 
     @Test
-    void 납품과_완료는_V5_3_전까지_v5_판에서_규칙_버전_불일치로_막는다() {
+    void v5_판은_v4_납품_경로와_v4_완료_본문을_받지_않는다() {
         long sessionId = Long.parseLong(service.startV5(USER_ID, "BUNGEOPPANG", "v5-start").minigameSessionId());
         var deliver = new BungeoppangV4DeliveryDtos.Request("v5", 1, "0".repeat(64),
                 List.of(new BungeoppangV4DeliveryDtos.Action(1, "DELIVER", 0, null, null, null, "1", "key")));
+        var v4Complete = JSON.createObjectNode().put("rulesVersion", "v4").put("throughSeq", 0)
+                .put("prefixHash", "0".repeat(64));
+        v4Complete.putArray("log");
 
         assertThatThrownBy(() -> service.deliver(USER_ID, sessionId, "key", deliver))
                 .isInstanceOfSatisfying(MinigameException.class,
                         error -> assertThat(error.code()).isEqualTo("RULES_VERSION_MISMATCH"));
-        assertThatThrownBy(() -> service.complete(USER_ID, sessionId, "done", JSON.createObjectNode()))
+        assertThatThrownBy(() -> service.complete(USER_ID, sessionId, "done", v4Complete))
                 .isInstanceOfSatisfying(MinigameException.class,
-                        error -> assertThat(error.code()).isEqualTo("RULES_VERSION_MISMATCH"));
+                        error -> assertThat(error.code()).isEqualTo("INVALID_REQUEST"));
         assertThat(sessions.get(sessionId).status()).isEqualTo("PLAYING");
     }
 
