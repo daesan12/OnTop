@@ -33,10 +33,12 @@ class TableProfileTests {
 
     @Test
     void local_외_환경에는_개발_경로와_리소스가_없다() {
-        for (String path : new String[] {"/dev/tables", "/dev/world-config", "/dev/tables.html", "/api/v1/tables",
-                "/api/v1/channels", "/dev/games", "/dev/games/config", "/dev/games/games.js", "/dev/games/games.css"}) {
+        for (String path : new String[] {"/dev/tables", "/dev/world-config", "/dev/tables.html",
+                "/dev/games", "/dev/games/config", "/dev/games/games.js", "/dev/games/games.css"}) {
             assertThat(http.getForEntity(path, String.class).getStatusCode().value()).isEqualTo(404);
         }
+        assertThat(http.getForEntity("/api/v1/tables", String.class).getStatusCode().value()).isEqualTo(200);
+        assertThat(http.getForEntity("/api/v1/channels", String.class).getStatusCode().value()).isEqualTo(200);
         assertThat(http.getForEntity("/ws/tables", String.class).getStatusCode().value()).isEqualTo(401);
         assertThat(registry.find("ontop.websocket.connections.active").gauge()).isNotNull();
         assertThat(registry.find("ontop.websocket.messages.sent").functionCounter()).isNotNull();
