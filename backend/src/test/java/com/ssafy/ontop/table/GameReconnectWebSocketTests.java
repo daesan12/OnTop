@@ -94,7 +94,8 @@ class GameReconnectWebSocketTests {
                     .isEqualTo(GameRecoveryGateway.Action.FORFEIT);
             engine.phase = Phase.FINISHED;
             returned.request("GAME_RECONNECT_CHECK", Map.of());
-            assertThat(returned.state("FINISHED").path("gameId").asText()).isEqualTo("game-1");
+            // 실제 시작 좌석이 없는 종료 이력은 활성 경기로 재연결하지 않는다.
+            assertThat(returned.state("LOBBY").path("gameId").isNull()).isTrue();
             assertThat(returned.request("TABLE_JOIN", Map.of("tableId", "table-1"))
                     .path("type").asText()).isEqualTo("TABLE_STATE");
         }

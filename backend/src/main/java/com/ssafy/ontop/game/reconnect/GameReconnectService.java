@@ -51,6 +51,11 @@ public class GameReconnectService {
 
     public synchronized void connected(long userId, String sessionId, String loginSessionId,
             BiConsumer<String, View> output) {
+        connected(userId, sessionId, loginSessionId, output, game -> true);
+    }
+
+    public synchronized void connected(long userId, String sessionId, String loginSessionId,
+            BiConsumer<String, View> output, java.util.function.Predicate<String> finishedAllowed) {
         if (gateway.isEmpty() || stopped) {
             return;
         }
@@ -61,9 +66,20 @@ public class GameReconnectService {
         slot.authenticationClosed = false;
         slot.pendingDeparture = null;
         slot.output = output;
+        slot.finishedAllowed = finishedAllowed;
         slot.returnedInTime = slot.deadline != null && clock.instant().isBefore(slot.deadline)
                 && slot.expiration == null;
         slot.loading = false;
+        submitLoad(slot, null);
+    }
+
+    /** 퇴장은 이력을 지우지 않는다. 늦은 이전 조회를 무효화하고 현재 연결의 복구만 다시 판정한다. */
+    public synchronized void tableLeft(long userId, String sessionId) {
+        Slot slot = users.get(userId);
+        if (stopped || gateway.isEmpty() || slot == null || !sessionId.equals(slot.sessionId)) { return; }
+        slot.generation++;
+        slot.loading = false;
+        if (slot.snapshot != null && slot.snapshot.phase() == Phase.FINISHED) { slot.snapshot = null; }
         submitLoad(slot, null);
     }
 
@@ -166,10 +182,11 @@ public class GameReconnectService {
     // 종료·탈락 후에도 동일 경기의 기권 영수증을 재확인할 수 있다. 새 경기에는 적용하지 않는다.
     public synchronized boolean canForfeitGame(long userId, String sessionId, String gameId) {
         Slot slot = users.get(userId);
-        return slot != null && sessionId.equals(slot.sessionId) && slot.snapshot != null
-                && slot.snapshot.gameId().equals(gameId)
-                && (slot.status.equals("RESTORED") || slot.status.equals("FINISHED")
-                        || slot.status.equals("ELIMINATED"));
+        return slot != null && sessionId.equals(slot.sessionId)
+                && (slot.status.equals("LOBBY") && !slot.pendingStart && gameId.equals(slot.finishedReceiptGameId)
+                    || slot.snapshot != null && slot.snapshot.gameId().equals(gameId)
+                        && (slot.status.equals("RESTORED") || slot.status.equals("FINISHED")
+                            || slot.status.equals("ELIMINATED")));
     }
 
     // 기권 전 시작한 느린 조회가 기권 후 참가 자격을 되살리지 못하게 세대를 교체한다.
@@ -282,6 +299,11 @@ public class GameReconnectService {
     }
 
     private void apply(Slot slot, Optional<GameRecoverySnapshot> result, String requestId) {
+        // 종료 이력은 활성 복구와 분리한다. 기존 기권 영수증 재확인 권한은 유지한다.
+        slot.finishedReceiptGameId = result.filter(snapshot -> snapshot.phase() == Phase.FINISHED)
+                .map(GameRecoverySnapshot::gameId).orElse(null);
+        result = result.filter(snapshot -> snapshot.phase() != Phase.FINISHED
+                || slot.finishedAllowed.test(snapshot.gameId()));
         slot.snapshot = result.orElse(null);
         if (slot.snapshot == null) {
             slot.status = "LOBBY";
@@ -375,6 +397,7 @@ public class GameReconnectService {
         private boolean authenticationClosed;
         private GameDepartureReason pendingDeparture;
         private BiConsumer<String, View> output;
+        private java.util.function.Predicate<String> finishedAllowed = game -> true;
         private long generation;
         private boolean loading;
         private boolean returnedInTime;
@@ -384,6 +407,7 @@ public class GameReconnectService {
         private Instant deadline;
         private GameDepartureReason departureReason = GameDepartureReason.DISCONNECT_TIMEOUT;
         private GameRecoverySnapshot snapshot;
+        private String finishedReceiptGameId;
         private GraceExpiration expiration;
         private CompletableFuture<Void> expirationResult;
 
