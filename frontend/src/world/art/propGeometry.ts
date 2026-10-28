@@ -20,6 +20,7 @@ import {
 import { weldStaticVertices } from './weldStaticVertices'
 import { recordPropBuild, takeBakedProp } from './bakedProps'
 import { indexedCopy } from './indexedGeometry'
+import { lowPolyPrimitive } from './lowPolyPrimitive'
 export type XYZ = [number, number, number]
 export type PropFinish =
   'wood' | 'metal' | 'gold' | 'stone' | 'paint' | 'tile' | 'glow'
@@ -52,7 +53,9 @@ export class PropBuilder {
     retainSource = false,
   ) {
     if (this.baked) { if (!retainSource) g.dispose(); return }
-    const flat = indexedCopy(g)
+    const source = lowPolyPrimitive(g)
+    const flat = indexedCopy(source)
+    if (source !== g) source.dispose()
     if (!retainSource) g.dispose()
     const matrix = new Matrix4().makeRotationFromEuler(new Euler(...r))
     matrix.scale(new Vector3(...s))
@@ -80,7 +83,7 @@ export class PropBuilder {
   }
   ball(k: PropFinish, c: string, p: XYZ, s: XYZ) {
     if (this.baked) return
-    this.add(k, this.sphereSource ??= new SphereGeometry(1, ...this.sphereSegments), c, p, s, [0, 0, 0], true)
+    this.add(k, this.sphereSource ??= new SphereGeometry(1, Math.min(8, this.sphereSegments[0]), Math.min(4, this.sphereSegments[1])), c, p, s, [0, 0, 0], true)
   }
   cylinder(
     k: PropFinish,
@@ -95,7 +98,7 @@ export class PropBuilder {
     if (this.baked) return
     this.add(
       k,
-      new CylinderGeometry(top, bottom, h, segments),
+      new CylinderGeometry(top, bottom, h, Math.min(8, segments)),
       c,
       p,
       [1, 1, 1],
@@ -111,7 +114,7 @@ export class PropBuilder {
     r: XYZ = [0, 0, 0],
   ) {
     if (this.baked) return
-    this.add(k, new TorusGeometry(radius, tube, 5, 24), c, p, [1, 1, 1], r)
+    this.add(k, new TorusGeometry(radius, tube, 3, 8), c, p, [1, 1, 1], r)
   }
   curve(
     k: PropFinish,
@@ -125,9 +128,9 @@ export class PropBuilder {
       k,
       new TubeGeometry(
         new CatmullRomCurve3(points.map((p) => new Vector3(...p))),
-        segments,
+        Math.min(6, segments),
         radius,
-        5,
+        3,
         false,
       ),
       c,
@@ -139,7 +142,7 @@ export class PropBuilder {
       k,
       new LatheGeometry(
         profile.map((v) => new Vector2(...v)),
-        24,
+        8,
       ),
       c,
       p,
@@ -198,50 +201,17 @@ export function hipRoof(
   for (let side = 0; side < 4; side++) {
     const positions: number[] = [],
       uv: number[] = []
-    for (let j = 0; j < 10; j++)
-      for (let i = 0; i < 12; i++) {
-        const a = point(side, i / 12, j / 10),
-          c = point(side, (i + 1) / 12, j / 10),
-          d = point(side, i / 12, (j + 1) / 10),
-          e = point(side, (i + 1) / 12, (j + 1) / 10)
-        positions.push(...a, ...c, ...d, ...c, ...e, ...d)
-        uv.push(
-          i / 12,
-          j / 10,
-          i / 12,
-          (j + 1) / 10,
-          (i + 1) / 12,
-          j / 10,
-          (i + 1) / 12,
-          j / 10,
-          i / 12,
-          (j + 1) / 10,
-          (i + 1) / 12,
-          (j + 1) / 10,
-        )
-      }
+    for (let j = 0; j < 3; j++) {
+      const a = point(side, 0, j / 3), c = point(side, 1, j / 3),
+        d = point(side, 0, (j + 1) / 3), e = point(side, 1, (j + 1) / 3)
+      positions.push(...a, ...c, ...d, ...c, ...e, ...d)
+      uv.push(0, j / 3, 1, j / 3, 0, (j + 1) / 3, 1, j / 3, 1, (j + 1) / 3, 0, (j + 1) / 3)
+    }
     const g = new BufferGeometry()
     g.setAttribute('position', new Float32BufferAttribute(positions, 3))
     g.setAttribute('uv', new Float32BufferAttribute(uv, 2))
     g.computeVertexNormals()
     b.add('tile', g, color)
-    const tiles = Math.ceil((side % 2 ? depth : width) / 0.28)
-    for (let i = 0; i <= tiles; i++) {
-      const pts = Array.from({ length: 9 }, (_, j) => {
-        const p = point(side, i / tiles, 0.12 + j * 0.11)
-        p[1] += 0.03
-        return p
-      })
-      b.curve('tile', i % 2 ? color : ridge, pts, red ? 0.035 : 0.055, 12)
-    }
-    for (const t of [0.25, 0.4, 0.55, 0.7, 0.85, 1])
-      b.curve(
-        'tile',
-        ridge,
-        Array.from({ length: 9 }, (_, j) => point(side, j / 8, t)),
-        0.023,
-        10,
-      )
     b.curve(
       'tile',
       ridge,

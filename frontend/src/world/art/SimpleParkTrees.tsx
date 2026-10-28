@@ -3,7 +3,7 @@ import {
   ConeGeometry,
   CylinderGeometry,
   IcosahedronGeometry,
-  MeshStandardMaterial,
+  MeshLambertMaterial,
 } from 'three'
 import { SpatialInstances } from './Instances'
 import { buildParkTreeParts, parkTreePlantings } from './parkTreeParts'
@@ -11,13 +11,13 @@ import { buildParkTreeParts, parkTreePlantings } from './parkTreeParts'
 const { wood, crowns, cones } = buildParkTreeParts(parkTreePlantings)
 // Shared resources stay alive across re-entry. Open branch ends sit inside foliage/wood.
 const trunkGeometry = new CylinderGeometry(0.52, 1, 1, 6, 1, true)
-const roundGeometry = new IcosahedronGeometry(1, 1)
+const roundGeometry = new IcosahedronGeometry(1, 0)
 const coneGeometry = new ConeGeometry(1, 2, 8)
-const material = new MeshStandardMaterial({
-  roughness: 0.94,
-  flatShading: true,
-})
-const batches = [
+const material = new MeshLambertMaterial()
+// Stable indices let CameraOcclusionFader hide just the obstructing tree part.
+// Shared geometry is still divided into static spatial sectors: submitting the
+// entire forest as three draws lost CPU-throttled performance in comparison.
+export const parkTreeBatches = [
   { parts: wood, geometry: trunkGeometry },
   { parts: crowns, geometry: roundGeometry },
   { parts: cones, geometry: coneGeometry },
@@ -32,7 +32,7 @@ export const SimpleParkTrees = memo(function SimpleParkTrees() {
         treeCount: parkTreePlantings.length,
       }}
     >
-      {batches.map(({ parts, geometry }) => (
+      {parkTreeBatches.map(({ parts, geometry }) => (
         <SpatialInstances
           key={geometry.uuid}
           parts={parts}

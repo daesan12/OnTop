@@ -1,7 +1,7 @@
-import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
+import { BoxGeometry } from 'three'
 
-// 108 triangles, reserved for touchable furniture/steps, never every city block.
-const geometry = new RoundedBoxGeometry(1, 1, 1, 1, 0.025)
+// Shared twelve-triangle block for furniture, steps and planting borders.
+const geometry = new BoxGeometry()
 export function BeveledBox() {
   return <primitive object={geometry} attach="geometry" dispose={null} />
 }
