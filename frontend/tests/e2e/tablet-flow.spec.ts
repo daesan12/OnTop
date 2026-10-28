@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { fixture, screenshot } from './contractFixture'
+import { fixture, screenshot, tableId as fixtureTableId } from './contractFixture'
 import type { PreparationContext, PreparationSelection } from '../../src/features/tableLobby/tabletModel'
 import { bungeoppangFixture } from './bungeoppangFixture'
 import { TABLES, tableSeats } from '../../src/config'
@@ -14,6 +14,43 @@ async function approachChair(page: Page) {
   await page.locator('canvas').focus()
   await expect(page.getByRole('button', { name: 'E 테이블에 앉기', exact: true })).toBeVisible({ timeout: 15000 })
 }
+
+test('pavilion chairs follow approved public summaries without joining or watching', async ({ page }) => {
+  const anchor = TABLES.find(table => table.pavilionId === 'P0')!
+  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message))
+  const server = await fixture(page, { anchorId: anchor.id, manualMovement: true,
+    position: { x: anchor.position[0], y: anchor.position[1] + .8, z: anchor.position[2] + 5, yaw: Math.PI } })
+  let approvedCount = 3
+  await page.route(/\/api\/v1\/tables(?:\?|$)/, route => route.fulfill({ json: { tables: [{
+    tableId: fixtureTableId, capacity: approvedCount, occupiedSeats: 1, availableSeats: approvedCount - 1,
+    joinable: true, gameCode: 'ONE_CARD', betAmountPerPlayer: 7, status: 'WAITING', startMode: 'MANUAL', selectedPlayers: approvedCount,
+  }] } }))
+  await page.goto('/park'); await expect(page).toHaveTitle('OnTop')
+  await expect(page.getByLabel('공원 기본 화면')).toBeVisible()
+  await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90000 })
+  const probe = () => page.evaluate(async id => (await import('/tests/e2e/sceneProbe.ts' as string)).pavilionChairProbe(id), anchor.id)
+  await expect.poll(async () => (await probe()).chairCount).toBe(3)
+  const three = await probe()
+  expect(three.counts).toHaveLength(2)
+  const perChair = three.counts.map((count: number) => count / 3)
+  await screenshot(page, 'pavilion-public-three-chairs')
+  for (const count of [4, 2]) {
+    approvedCount = count
+    // Feed a newly approved existing HTTP summary into the display store. This tests
+    // rendering subscriptions, not a proposed live BE broadcast or server physics.
+    await page.evaluate(async () => {
+      const { useSession } = await import('/src/network/worldClient.ts' as string)
+      const { tableSummary } = await import('/src/network/protocol.ts' as string)
+      const body = await (await fetch('/api/v1/tables?channelId=fixture-channel')).json()
+      useSession.setState({ tables: body.tables.map(tableSummary) })
+    })
+    await expect.poll(async () => (await probe()).chairCount).toBe(count)
+    expect((await probe()).counts).toEqual(perChair.map((parts: number) => parts * count))
+  }
+  await screenshot(page, 'pavilion-public-two-chairs')
+  expect(server.sent.some(message => ['TABLE_JOIN', 'TABLE_WATCH', 'GAME_WATCH'].includes(message.type))).toBe(false)
+  await expect(page.locator('vite-error-overlay')).toHaveCount(0); expect(errors).toEqual([])
+})
 
 test('E seating skips table information, waits for server approval, then opens the tablet and starts normally', async ({ page }) => {
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message))
@@ -414,7 +451,7 @@ for (const variant of [
     return useGame.getState().game?.gameId
   })).toMatch(/fixture-confirmed/)
   expect(calls.filter(c => c.kind === 'start')).toHaveLength(1)
-  await expect(page.locator('.prototype-game, .park-runtime-panel').filter({ hasText: /내 차례|본인 차례|차례|주사위/ }).first()).toBeVisible()
+  await expect(page.getByRole('region', { name: variant.game === 'LIAR_BRIDGE' ? '다리 경기' : variant.panel, exact: true })).toBeVisible()
   await page.waitForTimeout(500)
   await screenshot(page, `tablet-playing-${variant.game}`)
   expect(errors).toEqual([])

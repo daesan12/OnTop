@@ -13,6 +13,7 @@ import { followFixture } from './followFixture'
 import { onecardPrankFixture, type OneCardPrankRoom } from './onecardPrankFixture'
 import type { PublicEquipment } from '../../src/network/equipment'
 import type { GameReactionEvent } from '../../src/game/presentation/defeat'
+import type { AvatarActivity } from '../../src/network/avatarActivity'
 import developmentBindings from '../../public/park-bindings.dev.json' with { type: 'json' }
 
 // Contract fixtures intercept HTTP/RawWS only in tests. No production fake-auth or socket bypass.
@@ -92,7 +93,7 @@ export async function fixture(
   const publicProfiles = { ...options.publicProfiles }
   const publicEquipment: Record<string, PublicEquipment[] | null> = {}
   const publicSeats: Record<string, { tableId: string; seatNumber: number } | null> = {}
-  const activities: Record<string, 'BUNGEOPPANG' | null> = {}
+  const activities: Record<string, AvatarActivity | null> = {}
   let rejectGameWatch = false
   let watchingGame = false
   let watchMode: 'normal' | 'reject' | 'hold' = 'normal', watchRequestId = '', selectorOverride: string | undefined, targetScore: number | null = null
@@ -719,7 +720,7 @@ export async function fixture(
   return {
     sent,
     cardPranks,
-    activity: (userId: string, activity: 'BUNGEOPPANG' | null) => {
+    activity: (userId: string, activity: AvatarActivity | null) => {
       activities[userId] = activity
       for (const ws of sockets) world(ws)
     },

@@ -33,7 +33,7 @@ test.afterEach(async ({ page }) => { expect(errors.get(page)).toEqual([]); await
 for (const kind of ['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE'] as const) {
   test(`real public-ID adapter connects ${kind} from a bench without granting a seat, secret or action`, async ({ page }) => {
     const server = await fixture(page, { publicSpectator: true, manualMovement: true, position: bench.center, anchorId: anchor.id,
-      ...(kind === 'DICE' ? { dice: true } : kind === 'ONE_CARD' ? { onecard: 4 as const } : kind === 'LIAR_BRIDGE' ? { bridge: 4 as const } : { omok: true }) })
+      ...(kind === 'DICE' ? { dice: true } : kind === 'ONE_CARD' ? { onecard: 4 as const } : kind === 'LIAR_BRIDGE' ? { bridge: 4 as const } : { omok: true, spectatorEvents: true }) })
     await loaded(page); await page.keyboard.press('KeyV')
     await sitAndWatch(page); await expect(connection(page)).toHaveText('공개 경기 관전 중')
     const current = await game(page); expect(current?.role).toBe('SPECTATOR')
@@ -53,18 +53,23 @@ for (const kind of ['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE'] as const) {
     await expect(page.getByRole('button', { name: '판 자세히 보기', exact: true })).toHaveAttribute('aria-pressed', 'true')
     await expect.poll(() => page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).adCameraProbe().direction[1])).toBeLessThan(-.999)
     if (kind === 'OMOK') {
-      const chat = page.getByRole('region', { name: '주변 채팅', exact: true })
+      // Approved OMOK spectating owns the dedicated match chat, replacing ParkChat.
+      const chat = page.getByRole('form', { name: '오목 관전 채팅', exact: true })
       await expect(page.getByLabel('보유 엽전', { exact: true })).toHaveText('100냥')
-      await page.getByRole('button', { name: '공원 잔액 다시 확인', exact: true }).click()
+      await expect(page.getByRole('button', { name: '공원 잔액 다시 확인', exact: true })).toHaveCount(0)
+      await page.evaluate(() => window.dispatchEvent(new Event('focus')))
       await expect(page.locator('.park-wallet')).toHaveAttribute('aria-busy', 'false')
       await page.locator('canvas').focus(); await page.keyboard.press('Enter')
-      await page.getByRole('textbox', { name: '주변 채팅 메시지', exact: true }).fill('씨.발 관전 중 대화')
-      await page.getByRole('textbox', { name: '주변 채팅 메시지', exact: true }).press('Enter')
-      await expect(chat.locator('.park-chat__message').last()).toContainText('** 관전 중 대화')
-      expect(server.sent.filter(m => m.type === 'WORLD_CHAT_SEND').at(-1)?.payload).toEqual({ text: '** 관전 중 대화' })
-      await page.locator('canvas').focus(); await page.keyboard.press('KeyZ')
-      await expect(chat).toHaveAttribute('data-history', 'true')
-      await page.keyboard.press('KeyZ'); await expect(chat).toHaveAttribute('data-history', 'false')
+      const input = chat.getByRole('textbox')
+      await expect(input).toBeFocused()
+      await input.fill('관전 중 대화'); await input.press('Enter')
+      await expect(chat.getByRole('status')).toHaveText('전달 요청이 승인됐어요.')
+      expect(server.sent.filter(m => m.type === 'GAME_SPECTATOR_CHAT_SEND').at(-1)?.payload).toEqual({
+        gameId: targetId, eventId: expect.any(String), text: '관전 중 대화',
+      })
+      expect(server.sent.some(m => m.type === 'WORLD_CHAT_SEND')).toBe(false)
+      await input.press('Escape')
+      await expect(page.getByRole('region', { name: '주변 채팅', exact: true })).toHaveCount(0)
       await expect(connection(page)).toHaveText('공개 경기 관전 중')
       expect((await game(page))?.gameId).toBe(targetId)
       server.publicMoveForRefresh()
@@ -74,11 +79,17 @@ for (const kind of ['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE'] as const) {
     }
     await page.setViewportSize({ width: 1000, height: 700 })
     const labels = { OMOK: '오목 경기', DICE: '주사위 경기', ONE_CARD: '원카드 경기', LIAR_BRIDGE: '다리 경기' }
+    if (kind === 'ONE_CARD') await screenshot(page, 'bench-onecard-small-pc')
     await expect.poll(async () => {
-      const panel = await page.getByRole('region', { name: labels[kind], exact: true }).boundingBox()
+      const region = page.getByRole('region', { name: labels[kind], exact: true })
+      // The current OneCard HUD spans the viewport; its exit controls must clear the dock.
+      const panel = await (kind === 'ONE_CARD' ? region.locator('.onecard-recovery-controls') : region).boundingBox()
       const dock = await page.getByRole('complementary', { name: '가까운 상호작용', exact: true }).boundingBox()
-      return !!panel && !!dock && panel.y + panel.height <= dock.y
+      return !!panel && !!dock && (panel.y + panel.height <= dock.y || panel.x + panel.width <= dock.x
+        || panel.x >= dock.x + dock.width || panel.y >= dock.y + dock.height)
     }).toBe(true)
+    await page.getByRole('region', { name: labels[kind], exact: true }).getByRole('button', { name: '관전 종료', exact: true }).click({ trial: true })
+    await page.getByRole('button', { name: '벤치에서 일어나기', exact: true }).click({ trial: true })
     if (kind === 'OMOK') await screenshot(page, 'bench-public-small-pc')
     await page.locator('canvas').focus(); await page.keyboard.down('KeyW')
     await expect.poll(async () => page.evaluate(async () => (await import('/src/network/worldClient.ts' as string)).useSession.getState().benchId)).toBe('')

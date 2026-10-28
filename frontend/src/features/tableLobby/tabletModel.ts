@@ -1,4 +1,4 @@
-import type { TableState } from '../../network/protocol'
+import type { TableState, TableSummary } from '../../network/protocol'
 import type { TableGameCode } from './model'
 import { useGame } from '../../game/store'
 import { useSession } from '../../network/worldClient'
@@ -45,4 +45,13 @@ export function approvedChairCount(table: TableState | undefined, selected: numb
   const occupiedLast = table.seats.reduce((max, seat) => seat.userId ? Math.max(max, seat.seatNumber) : max, 0)
   // Never hide an approved occupant even if a stale/malformed selected count arrives.
   return Math.min(4, Math.max(2, occupiedLast, selected ?? (table.gameCode ? table.capacity : 2)))
+}
+
+/** A passerby has a public summary, not a private TABLE_STATE subscription.
+ * Prefer detailed approved seats when available; never expand from a local draft. */
+export function presentedChairCount(table: TableState | undefined, summary: TableSummary | undefined, selected: number | null) {
+  if (table) return approvedChairCount(table, selected ?? (table.startMode === 'MANUAL' ? table.selectedPlayers ?? null : null))
+  if (!summary) return 2
+  const count = summary.startMode === 'MANUAL' ? summary.selectedPlayers : null
+  return Math.min(4, Math.max(2, summary.occupiedSeats, count ?? (summary.gameCode ? summary.capacity : 2)))
 }
