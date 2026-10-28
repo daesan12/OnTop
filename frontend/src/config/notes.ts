@@ -1,4 +1,5 @@
 import { OBSERVATION_TOWER } from './parkLayout'
+import type { NoteTopic } from '../features/notes/topics'
 
 export const NOTES_BOX = {
   x: OBSERVATION_TOWER.x - 1.5,
@@ -13,6 +14,7 @@ export interface AnonymousNote {
   id: string
   text: string
   createdAt: number
+  category?: NoteTopic
 }
 export function parseAnonymousNote(value: unknown): string | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null

@@ -53,5 +53,5 @@ export function createFeedbackService(requestJSON: (path: string, init?: Request
   }
 }
 
-export const feedbackService: FeedbackService = import.meta.env.DEV && import.meta.env.MODE === 'facility-preview'
+export const feedbackService: FeedbackService = import.meta.env.DEV && ['facility-preview', 'feedback-preview'].includes(import.meta.env.MODE)
   ? new MockFeedbackService() : createFeedbackService((path, init) => parkRuntime.requestJSON(path, init))

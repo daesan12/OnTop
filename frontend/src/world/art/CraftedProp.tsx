@@ -4,13 +4,27 @@ import type { PropFinish } from './propGeometry'
 import { SurfaceMaterial } from './SurfaceMaterial'
 import { NightMaterial } from '../NightLighting'
 import { metalGrain } from './ornamentTextures'
+import { heritageTextures } from './heritageTextures'
 
 export type CraftedArt = Partial<Record<PropFinish, BufferGeometry>>
-function Batches({ art, shadow, environment }: { art: CraftedArt; shadow: boolean; environment?: Texture }) {
+function HeritageMaterial({ finish }: { finish: string }) {
+  const textures = useMemo(heritageTextures, [])
+  const wood = finish === 'wood', gold = finish === 'gold' || finish === 'metal'
+  if (finish === 'glow') return <meshStandardMaterial vertexColors emissive="#ffbc65" emissiveIntensity={.65} roughness={.7}/>
+  return <meshStandardMaterial vertexColors map={gold ? undefined : wood ? textures.wood : textures.mineral}
+    bumpMap={gold ? undefined : wood ? textures.wood : textures.mineral} bumpScale={wood ? .0014 : .0008}
+    metalness={gold ? .38 : finish === 'paint' ? .08 : 0} roughness={gold ? .48 : wood ? .72 : .86}
+    side={finish === 'tile' || finish === 'stone' ? DoubleSide : undefined}/>
+}
+function Batches({ art, shadow, environment, heritage, surfaceMaps }: { art: CraftedArt; shadow: boolean; environment?: Texture; heritage?: boolean; surfaceMaps?: Partial<Record<PropFinish, Texture>> }) {
   return <>{Object.entries(art).map(([finish, geometry]) => <mesh key={finish}
     castShadow={shadow && finish !== 'glow'} receiveShadow>
     <primitive object={geometry} attach="geometry" dispose={null} />
-    {finish === 'wood' ? <SurfaceMaterial kind="wood" mapping="box" vertexColors meters={0.65} strength={environment ? .32 : .14} detail={environment ? .8 : .32} />
+    {surfaceMaps?.[finish as PropFinish] ? <meshStandardMaterial vertexColors map={surfaceMaps[finish as PropFinish]}
+      bumpMap={finish === 'wood' ? surfaceMaps.wood : undefined} bumpScale={.001}
+      roughness={.94} side={finish === 'paint' ? DoubleSide : undefined} alphaTest={.35}/>
+      : heritage ? <HeritageMaterial finish={finish}/>
+      : finish === 'wood' ? <SurfaceMaterial kind="wood" mapping="box" vertexColors meters={0.65} strength={environment ? .32 : .14} detail={environment ? .8 : .32} />
       : finish === 'paint' ? <meshPhysicalMaterial vertexColors envMap={environment} envMapIntensity={environment ? .45 : 1} metalness={0.2} roughness={0.32} clearcoat={0.3} clearcoatRoughness={0.26} />
       : finish === 'metal' ? <meshStandardMaterial vertexColors envMap={environment} envMapIntensity={environment ? .9 : 1} metalness={0.78} roughness={environment ? .43 : .3}
         roughnessMap={environment ? metalGrain : undefined} bumpMap={environment ? metalGrain : undefined} bumpScale={.0004} />
@@ -21,8 +35,8 @@ function Batches({ art, shadow, environment }: { art: CraftedArt; shadow: boolea
 }
 
 /** Static, module-owned geometry; materials are component-owned and disposed on unmount. */
-export function CraftedPropLod({ name, near, far, distance, environment }: {
-  name: string; near: CraftedArt; far: CraftedArt; distance: number; environment?: Texture
+export function CraftedPropLod({ name, near, far, distance, environment, heritage, surfaceMaps }: {
+  name: string; near: CraftedArt; far: CraftedArt; distance: number; environment?: Texture; heritage?: boolean; surfaceMaps?: Partial<Record<PropFinish, Texture>>
 }) {
   const lod = useRef<LOD>(null), detail = useRef<Group>(null), distant = useRef<Group>(null)
   useLayoutEffect(() => {
@@ -32,15 +46,15 @@ export function CraftedPropLod({ name, near, far, distance, environment }: {
     return () => { object.levels.length = 0 }
   }, [distance])
   return <lOD name={name} ref={lod}>
-    <group ref={detail} name={name + '-detail'}><Batches art={near} shadow environment={environment} /></group>
-    <group ref={distant} name={name + '-distant'}><Batches art={far} shadow={false} environment={environment} /></group>
+    <group ref={detail} name={name + '-detail'}><Batches art={near} shadow environment={environment} heritage={heritage} surfaceMaps={surfaceMaps} /></group>
+    <group ref={distant} name={name + '-distant'}><Batches art={far} shadow={false} environment={environment} heritage={heritage} surfaceMaps={surfaceMaps} /></group>
   </lOD>
 }
 
 /** Local canvas lettering, no image download or runtime font service. */
-export function PropSign({ width, height, position, draw, rotation = [0, 0, 0] }: {
+export function PropSign({ width, height, position, draw, rotation = [0, 0, 0], transparent = false }: {
   width: number; height: number; position: [number, number, number];
-  rotation?: [number, number, number]; draw: (context: CanvasRenderingContext2D, w: number, h: number) => void
+  rotation?: [number, number, number]; draw: (context: CanvasRenderingContext2D, w: number, h: number) => void; transparent?: boolean
 }) {
   const texture = useMemo(() => {
     const canvas = document.createElement('canvas')
@@ -53,6 +67,6 @@ export function PropSign({ width, height, position, draw, rotation = [0, 0, 0] }
   useEffect(() => () => texture.dispose(), [texture])
   return <mesh name={'prop-sign-' + draw.name} position={position} rotation={rotation}>
     <planeGeometry args={[width, height]} />
-    <meshStandardMaterial map={texture} roughness={0.68} metalness={0.08} />
+    <meshStandardMaterial map={texture} roughness={0.68} metalness={0.08} transparent={transparent} alphaTest={transparent ? .05 : 0} />
   </mesh>
 }

@@ -5,11 +5,12 @@ import { canReachNotes, parseNoteText } from '../validation'
 /** M08_NOTES_MOCK_ONLY: one page, shared anonymous board; no persistence or cross-tab transport. */
 export class MockNotesService implements NotesService {
   readonly mode = 'mock' as const
+  readonly supportsTopics = true
   #notes: AnonymousNote[] = []
   #receipts = new Map<string, NoteReceipt>()
   #nextAllowed = new Map<string, number>()
   #listeners = new Set<() => void>()
-  constructor(private readonly delayMs = 240) {}
+  constructor(private readonly delayMs = 240, seed: AnonymousNote[] = []) { this.#notes = seed.map(note => ({ ...note })) }
   private async ready(context: NotesContext, signal: AbortSignal) {
     await new Promise<void>((resolve, reject) => {
       const abort = () => { clearTimeout(timer); reject(new Error('익명 메모 목업 요청이 취소되었습니다.')) }
@@ -32,12 +33,13 @@ export class MockNotesService implements NotesService {
     // A random intent ID supports retries within this page, without storing an author on a note.
     const previous = this.#receipts.get(submission.operationId)
     if (previous) {
-      if (previous.note.text !== text) throw new Error('같은 요청으로 다른 메모를 보낼 수 없습니다.')
+      if (previous.note.text !== text || (previous.note.category ?? 'free') !== (submission.category ?? 'free'))
+        throw new Error('같은 요청으로 다른 메모를 보낼 수 없습니다.')
       return { note: { ...previous.note }, nextAllowedAt: previous.nextAllowedAt }
     }
     const now = Date.now()
     if (now < (this.#nextAllowed.get(context.userId) ?? 0)) throw new Error('15초 후 새 메모를 붙여주세요.')
-    const note = { id: crypto.randomUUID(), text, createdAt: now }
+    const note = { id: crypto.randomUUID(), text, createdAt: now, ...(submission.category ? { category: submission.category } : {}) }
     const receipt = { note, nextAllowedAt: now + NOTES_BOX.cooldownMs }
     this.#notes = [note, ...this.#notes].slice(0, NOTES_BOX.capacity)
     this.#receipts.set(submission.operationId, receipt)

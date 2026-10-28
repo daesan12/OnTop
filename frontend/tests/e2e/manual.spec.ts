@@ -14,6 +14,7 @@ for (const kind of ['feedback', 'notes'] as const) test('M15 F1 owns Tab/Escape 
     return controller[kind==='feedback'?'openFeedback':'openNotes']()
   },kind)).toBe(true)
   const panel=page.getByRole('dialog',{name:kind==='feedback'?'온탑 소리함':'전망대 익명 메모',exact:true})
+  if (kind === 'notes') await panel.getByRole('button',{name:/메모 작성하기/}).click()
   const draft=panel.getByRole('textbox'); await draft.fill('F1 아래에서 보존할 작성 내용')
   await page.keyboard.press('F1'); await opened(page)
   await page.keyboard.press('Tab'); await expect(manual(page).locator(':focus')).toHaveCount(1)

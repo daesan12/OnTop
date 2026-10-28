@@ -4,6 +4,7 @@ import { parkRuntime } from '../../park/runtime/runtime'
 import { RestError } from '../../network/restError'
 import { record } from '../../network/protocol'
 import { parseNotes, parseNoteText } from './validation'
+import { isNoteTopic } from './topics'
 
 const messages: Record<string, string> = {
   INVALID_REQUEST: '메모 내용과 기기 시각을 확인해주세요. 같은 문제가 계속되면 새로고침해주세요.',
@@ -24,10 +25,11 @@ function note(value: unknown) {
   if (!record(value) || typeof value.id !== 'string' || !/^[1-9]\d*$/.test(value.id)
     || typeof value.text !== 'string' || parseNoteText(value.text) !== value.text || !Number.isFinite(instant(value.createdAt)))
     throw new NotesServiceError('INVALID_RESPONSE', '메모 응답을 확인하지 못했습니다. 원문은 보관됩니다.')
-  return { id: value.id, text: value.text, createdAt: instant(value.createdAt) }
+  return { id: value.id, text: value.text, createdAt: instant(value.createdAt),
+    ...(isNoteTopic(value.category) ? { category: value.category } : {}) }
 }
-/** Existing authenticated REST; polling is owned by the open visit, never by a background subscription. */
-export function createNotesService(requestJSON: (path: string, init?: RequestInit) => Promise<unknown>): NotesService {
+/** Reads occur on open, explicit refresh, or a creation notification; no periodic polling. */
+export function createNotesService(requestJSON: (path: string, init?: RequestInit) => Promise<unknown>, supportsTopics = false): NotesService {
   async function call<T>(path: string, init: RequestInit, parse: (value: unknown) => T): Promise<T> {
     if (init.signal?.aborted) throw new Error('메모 요청이 취소되었습니다.')
     try {
@@ -48,6 +50,7 @@ export function createNotesService(requestJSON: (path: string, init?: RequestIni
   }
   return {
     mode: 'server',
+    supportsTopics,
     async read(context, signal) {
       if (!context.channelId) throw new NotesServiceError('INVALID_REQUEST', messages.INVALID_REQUEST!)
       return await call('/api/v1/notes?channelId=' + encodeURIComponent(context.channelId), { method: 'GET', signal }, value => {
@@ -56,7 +59,7 @@ export function createNotesService(requestJSON: (path: string, init?: RequestIni
         const rows = new Map<string, ReturnType<typeof note>>()
         for (const item of value.notes) {
           const row = note(item), previous = rows.get(row.id)
-          if (previous && (previous.text !== row.text || previous.createdAt !== row.createdAt))
+          if (previous && (previous.text !== row.text || previous.createdAt !== row.createdAt || previous.category !== row.category))
             throw new NotesServiceError('INVALID_RESPONSE', '메모 목록을 확인하지 못했습니다.')
           rows.set(row.id, row)
         }
@@ -68,10 +71,11 @@ export function createNotesService(requestJSON: (path: string, init?: RequestIni
       if (!text || !context.channelId || !/^\d{13}_[A-Za-z0-9_-]{16,64}$/.test(submission.operationId))
         throw new NotesServiceError('INVALID_REQUEST', messages.INVALID_REQUEST!)
       return await call('/api/v1/notes', { method: 'POST', signal, headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ operationId: submission.operationId, channelId: context.channelId, text }) }, value => {
+        body: JSON.stringify({ operationId: submission.operationId, channelId: context.channelId, text,
+          ...(supportsTopics && isNoteTopic(submission.category) ? { category: submission.category } : {}) }) }, value => {
         if (!record(value)) throw new NotesServiceError('INVALID_RESPONSE', '게시 결과를 확인하지 못했습니다. 같은 요청으로 다시 시도해주세요.')
         const row = note(value.note), nextAllowedAt = instant(value.nextAllowedAt)
-        if (row.text !== text || !Number.isFinite(nextAllowedAt) || nextAllowedAt < row.createdAt)
+        if (row.text !== text || (supportsTopics && row.category !== submission.category) || !Number.isFinite(nextAllowedAt) || nextAllowedAt < row.createdAt)
           throw new NotesServiceError('INVALID_RESPONSE', '게시 결과를 확인하지 못했습니다. 같은 요청으로 다시 시도해주세요.')
         return { note: row, nextAllowedAt }
       })
@@ -79,6 +83,6 @@ export function createNotesService(requestJSON: (path: string, init?: RequestIni
     subscribe: () => () => {},
   }
 }
-export const notesService: NotesService = import.meta.env.DEV && import.meta.env.MODE === 'facility-preview'
+export const notesService: NotesService = import.meta.env.DEV && ['facility-preview', 'notes-preview'].includes(import.meta.env.MODE)
   ? new MockNotesService()
-  : createNotesService((path, init) => parkRuntime.requestJSON(path, init))
+  : createNotesService((path, init) => parkRuntime.requestJSON(path, init), import.meta.env.VITE_NOTES_CATEGORIES === 'true')
