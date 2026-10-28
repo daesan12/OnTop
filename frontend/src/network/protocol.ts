@@ -27,6 +27,11 @@ export interface Position {
   running: boolean
   swimming: boolean
 }
+/** Public WORLD_STATE seating contract; seatNumber is 1-based, like TABLE_STATE. */
+export interface PublicTableSeat {
+  tableId: string
+  seatNumber: number
+}
 export interface WorldState {
   channelId: string
   version: number
@@ -37,6 +42,7 @@ export interface WorldState {
     nickname?: string | null
     characterGender?: 'MALE' | 'FEMALE' | null
     equipment?: PublicEquipment[] | null
+    tableSeat?: PublicTableSeat | null
     activity?: 'BUNGEOPPANG' | null
   }[]
 }
@@ -146,6 +152,9 @@ export function channelState(value: Record<string, unknown>): ChannelState {
   return value as unknown as ChannelState
 }
 export function worldState(value: Record<string, unknown>): WorldState {
+  const tableSeat = (s: unknown) => s == null || record(s)
+    && text(s.tableId) && s.tableId.length <= 120
+    && integer(s.seatNumber) && s.seatNumber >= 1 && s.seatNumber <= 4
   const position = (p: unknown) =>
     record(p) &&
     integer(p.lastInputSeq) &&
@@ -163,12 +172,15 @@ export function worldState(value: Record<string, unknown>): WorldState {
         && (a.nickname == null || (typeof a.nickname === 'string' && !!a.nickname.trim()))
         && (a.characterGender == null || a.characterGender === 'MALE' || a.characterGender === 'FEMALE')
         && (a.equipment == null || validPublicEquipment(a.equipment))
+        && tableSeat(a.tableSeat)
         && (a.activity == null || a.activity === 'BUNGEOPPANG'),
     )
   )
     throw new Error('월드 상태 형식이 올바르지 않습니다.')
   if (new Set(value.avatars.map((a) => a.userId)).size !== value.avatars.length)
     throw new Error('중복 아바타 상태입니다.')
+  const seats = value.avatars.flatMap(a => a.tableSeat ? [`${a.tableSeat.tableId}\0${a.tableSeat.seatNumber}`] : [])
+  if (new Set(seats).size !== seats.length) throw new Error('중복 테이블 착석 상태입니다.')
   return value as unknown as WorldState
 }
 export function tableSummary(value: unknown): TableSummary {

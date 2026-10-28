@@ -12,6 +12,7 @@ import {
   type Channel,
   type TableSummary,
   type TableState,
+  type PublicTableSeat,
 } from './protocol'
 import type { TableBinding } from './tableBindings'
 import { EXPECTED_MAP_VERSION } from '../config/mapVersion'
@@ -20,8 +21,8 @@ import { resetBenchState, useBenchState } from '../features/interactions/benchSt
 import { clearRoamingInput } from '../world/inputOwnership'
 import { samePose, sampleMovement } from '../world/movementPresentation'
 import { EmoteTimeline, parseEmoteEvent, parseEmoteCancellation, type EmoteEvent } from '../features/emotes/timeline'
-import { resetEmotes, useEmoteState } from '../features/emotes/state'
-import { findEmote, type EmoteId } from '../features/emotes/catalog'
+import { resetEmotes, retiredEmoteRequest, useEmoteState } from '../features/emotes/state'
+import type { EmoteId } from '../features/emotes/catalog'
 import { releaseFitnessUser, resetFitnessState, useFitnessState } from '../features/fitness/state'
 import { releaseTelescopeUser, resetTelescopeState, useTelescopeState } from '../features/telescopes/state'
 import { resetTelescopeView, telescopeView } from '../features/telescopeView'
@@ -144,6 +145,8 @@ const initial = (): Session => ({
 export const useSession = create<Session>(initial)
 export const avatars = new Map<string, AvatarSnapshot>()
 const worldPoses = new Map<string, Pose>()
+// Public rendering only. Never grants table membership, readiness, or game access.
+const worldTableSeats = new Map<string, PublicTableSeat | null>()
 export const networkStats = {
   rtt: 0,
   snapshotAt: 0,
@@ -194,6 +197,7 @@ export function resetWorld(status: Session['status'] = 'idle', error = '') {
   clearRoamingInput()
   avatars.clear()
   worldPoses.clear()
+  worldTableSeats.clear()
   channelVersion = worldVersion = -1
   chatIds.clear()
   useSession.setState({ ...initial(), status, error })
@@ -218,6 +222,7 @@ export function clearChannel(keepFeedbackDraft = false, keepNotesDraft = false) 
   clearRoamingInput()
   avatars.clear()
   worldPoses.clear()
+  worldTableSeats.clear()
   channelVersion = worldVersion = -1
   chatIds.clear()
   useSession.setState({
@@ -253,21 +258,33 @@ export function sampleAvatar(
 }
 // UTC event time advances on a monotonic clock after CONNECTED; world day rendering is separate.
 export const estimatedServerTime = () => eventClock.ready ? eventClock.now(performance.now()) : Date.now()
-export function cancelAvatarEmote(userId: string) {
-  emoteTimeline.cancel(userId, estimatedServerTime())
-  stopAvatarEmote(userId)
+export function cancelAvatarEmote(userId: string, reason: 'movement' | 'activity' = 'activity') {
+  const state = useEmoteState.getState(), avatar = avatars.get(userId)
+  const pendingOwn = userId === useSession.getState().sessionId && state.pending
+  const motion = pendingOwn ? state.requested : avatar?.emote
+  if (reason === 'movement' && motion === 'EMOTE_FART') return
+  if (!motion) return
+  const active = emoteTimeline.cancel(userId, estimatedServerTime())
+  stopAvatarEmote(userId, active || pendingOwn)
 }
-function stopAvatarEmote(userId: string) {
+function stopAvatarEmote(userId: string, releaseCooldown = true) {
   const avatar = avatars.get(userId)
   if (avatar) { avatar.emote = ''; avatar.emoteAt = 0 }
-  if (userId === useSession.getState().sessionId && useEmoteState.getState().pending)
-    useEmoteState.setState({ cancelled: true, notice: '이동이나 이용 상태 변경으로 감정표현이 취소되었습니다.' })
+  if (releaseCooldown && userId === useSession.getState().sessionId) {
+    // Invalidate the old async request so its ACK/error/finally cannot change a new one.
+    resetEmotes()
+    useEmoteState.setState({ readyAt: 0, cancelled: true,
+      notice: '감정표현이 취소되었습니다. 멈춘 뒤 다른 감정표현을 사용할 수 있어요.' })
+  }
 }
 export function presentEmote(event: EmoteEvent, motion: EmoteId, source: 'server' | 'mock') {
   const state = useSession.getState(), avatar = avatars.get(event.userId)
   if (state.status !== 'connected' || event.channelId !== state.roomId || !state.mapCompatible
-    || !avatar?.connected || avatar.moving || avatar.swimming || avatar.seatIndex >= 0 || avatar.fitnessId || avatar.telescopeId) return false
-  const playback = emoteTimeline.accept(event, motion, estimatedServerTime())
+    || !avatar?.connected || (avatar.moving && motion !== 'EMOTE_FART') || avatar.swimming || avatar.seatIndex >= 0 || avatar.fitnessId || avatar.telescopeId) return false
+  const emoteState = useEmoteState.getState()
+  const confirmedOwn = event.userId === state.sessionId && emoteState.pending
+    && emoteState.requested === motion && !emoteState.cancelled
+  const playback = emoteTimeline.accept(event, motion, estimatedServerTime(), confirmedOwn)
   if (!playback) return false
   avatar.emote = playback.motion
   avatar.emoteAt = playback.at
@@ -317,7 +334,12 @@ export function refreshActivityPresentation() {
     a.seatIndex = -1
     const authoritative = worldPoses.get(id)
     if (authoritative) a.current = { ...authoritative }
-    for (const table of Object.values(state.tableStates)) {
+    // An explicit public null clears a stale watched/participant snapshot for remote users.
+    // Older servers omit tableSeat and retain the existing TABLE_STATE fallback.
+    const publicSeat = id === state.sessionId ? undefined : worldTableSeats.get(id)
+    const tablePlacements = publicSeat === undefined ? Object.values(state.tableStates)
+      : publicSeat ? [{ tableId: publicSeat.tableId, seats: [{ userId: id, seatNumber: publicSeat.seatNumber }] }] : []
+    for (const table of tablePlacements) {
       if (useBenchState.getState().placements[id]?.leaseId || useFitnessState.getState().placements[id]?.leaseId
         || useTelescopeState.getState().placements[id]?.leaseId) break
       const seat = table.seats.find((s) => s.userId === id)
@@ -331,6 +353,7 @@ export function refreshActivityPresentation() {
       a.tableId = anchor.id
       a.seatIndex = seat.seatNumber - 1
       a.moving = a.running = false
+      a.swimming = false
       a.current = {
         x: anchor.position[0] + position.x,
         y: anchor.position[1] + 0.8,
@@ -387,6 +410,7 @@ export function refreshActivityPresentation() {
     || own.telescopeId || own.swimming || !canReachNotes(authoritativePose(state.sessionId)))) resetNotesState(true)
 }
 export function receive(message: Envelope) {
+  if ((message.type === 'ERROR' || message.type === 'WORLD_EMOTE_EVENT') && retiredEmoteRequest(message.requestId)) return
   const p = message.payload,
     state = useSession.getState()
   switch (message.type) {
@@ -484,10 +508,13 @@ export function receive(message: Envelope) {
         if (!ids.includes(id)) {
           avatars.delete(id)
           worldPoses.delete(id)
+          worldTableSeats.delete(id)
           emoteTimeline.forget(id)
           defeatTimeline.forget(id)
         }
-      for (const { userId, position } of next.avatars) {
+      for (const { userId, position, tableSeat } of next.avatars) {
+        if (tableSeat === undefined) worldTableSeats.delete(userId)
+        else worldTableSeats.set(userId, tableSeat)
         worldPoses.set(userId, {
           x: position.x,
           y: position.y,
@@ -531,8 +558,8 @@ export function receive(message: Envelope) {
           telescopePitch: 0,
           followTargetId: '',
         })
-        if ((old?.emote || (userId === state.sessionId && useEmoteState.getState().pending)) &&
-          (position.moving || position.swimming || (old && Math.abs(position.y - old.current.y) > 0.08))) cancelAvatarEmote(userId)
+        if (position.swimming) cancelAvatarEmote(userId)
+        else if (position.moving || (old && Math.abs(position.y - old.current.y) > 0.08)) cancelAvatarEmote(userId, 'movement')
       }
       refreshActivityPresentation()
       networkStats.snapshotAt = now
@@ -626,7 +653,6 @@ export function receive(message: Envelope) {
         if (!emoteState.pending || message.requestId !== emoteState.requestId || motion !== emoteState.requested) return
         const at = Date.parse(event.sentAt)
         if (at > estimatedServerTime() + 5000) return
-        useEmoteState.setState(s => ({ readyAt: Math.max(s.readyAt, at + findEmote(motion)!.cooldownMs) }))
         if (emoteState.cancelled) return
       }
       presentEmote(event, motion, 'server')

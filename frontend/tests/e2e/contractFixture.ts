@@ -91,6 +91,7 @@ export async function fixture(
   let remotePosition: Partial<typeof position> = {}
   const publicProfiles = { ...options.publicProfiles }
   const publicEquipment: Record<string, PublicEquipment[] | null> = {}
+  const publicSeats: Record<string, { tableId: string; seatNumber: number } | null> = {}
   const activities: Record<string, 'BUNGEOPPANG' | null> = {}
   let rejectGameWatch = false
   let watchingGame = false
@@ -342,6 +343,7 @@ export async function fixture(
             userId,
             ...publicProfiles[userId],
             equipment: publicEquipment[userId] ?? null,
+            ...(userId in publicSeats ? { tableSeat: publicSeats[userId] } : {}),
             activity: activities[userId] ?? null,
             position:
               (options.onecardPreview ? userId === ownId : i === 0)
@@ -953,5 +955,8 @@ export async function fixture(
     serverTimeOffset: (ms: number) => { options.serverTimeOffsetMs = ms },
     pose: (patch: Partial<typeof position>) => { Object.assign(position, patch); world(sockets.at(-1)!) },
     remotePose: (patch: Partial<typeof position>) => { remotePosition = { ...remotePosition, ...patch }; world(sockets.at(-1)!) },
+    tableSeat: (userId: string, seat: { tableId: string; seatNumber: number } | null) => {
+      publicSeats[userId] = seat; world(sockets.at(-1)!)
+    },
   }
 }

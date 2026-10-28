@@ -24,7 +24,12 @@ export class EmoteTimeline {
   private cancellations = new Map<string, number>()
   clearChannel() { this.latest.clear(); this.cancelled.clear(); this.playing.clear() }
   forget(userId: string) { this.latest.delete(userId); this.cancelled.delete(userId); this.playing.delete(userId) }
-  cancel(userId: string, now: number) { this.cancelled.set(userId, now); this.playing.delete(userId) }
+  cancel(userId: string, now: number) {
+    const active = now < (this.playing.get(userId)?.until ?? -Infinity)
+    this.cancelled.set(userId, now)
+    this.playing.delete(userId)
+    return active
+  }
   cancelEvent(event: EmoteCancellation, now: number) {
     const playing = this.playing.get(event.userId), at = Date.parse(event.sentAt)
     for (const [id, seenAt] of this.cancellations) if (now - seenAt > 10_000) this.cancellations.delete(id)
@@ -34,11 +39,14 @@ export class EmoteTimeline {
     this.playing.delete(event.userId)
     return true
   }
-  accept(event: EmoteEvent, motion: EmoteId, now: number) {
+  accept(event: EmoteEvent, motion: EmoteId, now: number, confirmedOwnRequest = false) {
     const emote = findEmote(motion), at = Date.parse(event.sentAt)
     if (!emote || !Number.isFinite(at) || at > now + 5000 || now - at >= emote.durationMs
-      || at <= (this.latest.get(event.userId) ?? -Infinity)
-      || at <= (this.cancelled.get(event.userId) ?? -Infinity)
+      // Distinct events can share the same millisecond; WebSocket order breaks that tie.
+      || at < (this.latest.get(event.userId) ?? -Infinity)
+      // An exact new own request ACK is newer than a local interruption even when
+      // clock precision/skew gives it the same or an earlier local timestamp.
+      || (!confirmedOwnRequest && at <= (this.cancelled.get(event.userId) ?? -Infinity))
       || this.seen.has(event.eventId)) return null
     // Longer than the largest authored clip plus permitted future clock skew.
     for (const [id, seenAt] of this.seen) if (now - seenAt > 10_000) this.seen.delete(id)

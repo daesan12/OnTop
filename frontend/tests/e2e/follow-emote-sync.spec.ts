@@ -122,7 +122,7 @@ test('distance release uses the authoritative snapshot, preserves other follower
   expect((await state(page)).links).toEqual([remote])
 })
 
-test('server cancellation clears only the matching animation and leaves its cooldown intact', async ({ page }) => {
+test('server cancellation clears only the matching animation and releases its cooldown', async ({ page }) => {
   const server = await fixture(page, { manualMovement: true, position: { x: 0, y: .8, z: 34, yaw: 0 } }); await loaded(page)
   await page.getByRole('button', { name: '감정표현 열기' }).click()
   await page.getByRole('dialog', { name: '감정표현 선택' }).getByRole('button', { name: '손 인사', exact: true }).click()
@@ -131,12 +131,15 @@ test('server cancellation clears only the matching animation and leaves its cool
     return { own: w.avatars.get('101')!.emote, remote: w.avatars.get('102')!.emote, cooldown: e.useEmoteState.getState().readyAt }
   })
   await expect.poll(async () => (await emote()).own).toBe('EMOTE_WAVE')
-  const cooldown = (await emote()).cooldown, approved = server.lastEmote()!
+  const approved = server.lastEmote()!
   const cancel = { eventId: 'fixture-cancellation', emoteEventId: approved.eventId, channelId: 'fixture-channel', userId: '101', reason: 'ACTIVITY_STARTED', sentAt: new Date().toISOString() }
   server.cancelEmote({ ...cancel, emoteEventId: 'wrong' })
   expect((await emote()).own).toBe('EMOTE_WAVE')
   server.cancelEmote(cancel); await expect.poll(async () => (await emote()).own).toBe('')
-  expect((await emote()).cooldown).toBe(cooldown)
+  expect((await emote()).cooldown).toBe(0)
+  await page.getByRole('button', { name: '감정표현 열기' }).click()
+  await page.getByRole('dialog', { name: '감정표현 선택' }).getByRole('button', { name: '박수', exact: true }).click()
+  await expect.poll(async () => (await emote()).own).toBe('EMOTE_CLAP')
   const first = { ...approved, userId: '102', eventId: 'remote-a', sentAt: new Date().toISOString() }
   server.emote(first); await expect.poll(async () => (await emote()).remote).toBe('EMOTE_WAVE')
   const second = { ...first, eventId: 'remote-b', sentAt: new Date(Date.parse(first.sentAt) + 1).toISOString() }
