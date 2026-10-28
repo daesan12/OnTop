@@ -8,9 +8,11 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.stereotype.Service;
 
 @Service
+@ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 public class ChannelQueryService {
 
     private final List<Channel> channels;
