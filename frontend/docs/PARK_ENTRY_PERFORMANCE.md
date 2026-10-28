@@ -58,6 +58,17 @@ before the first presented draw. Shader diagnostics remain enabled. Video
 textures retain their normal playback lifecycle. Performance marks distinguish
 preparation start, texture readiness, program readiness and first presentation.
 
+The small `bootstrap` entry starts the existing same-origin, no-store refresh
+before importing the React/Three UI. The checking page consumes the same request,
+including an early failure; OAuth callback exchange remains exclusive and logout
+invalidates pending work. Credentials still stay in memory and HttpOnly cookies.
+`ParkTextureLoader` shares preload/consumer caching and decodes original image
+pixels into ImageBitmaps before renderer preparation. Orientation and alpha are
+baked explicitly, dimensions/colour-space settings stay unchanged, and browsers
+without this bitmap path retain the HTML-image fallback. Owned bitmaps close on
+texture disposal. Shader commands are flushed before CPU uploads to begin GPU
+work promptly; all program-variant readiness checks and diagnostics remain active.
+
 `node scripts/prepare-entry-images.mjs` regenerates checked-in entry WebP
 derivatives. Source art stays untouched. HUD pixels match their display budget;
 advertisement derivatives retain aspect ratio and the existing 1920px runtime

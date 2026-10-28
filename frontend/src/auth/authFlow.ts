@@ -14,6 +14,7 @@ let sessionGeneration = 0
 let currentSession: AuthSession | null = null
 let callbackExchange: Promise<AuthSession> | null = null
 let refreshRequest: Promise<boolean> | null = null
+let initialRestore: Promise<boolean> | null = null
 
 export function getAuthSession(): AuthSession | null {
   return currentSession
@@ -24,6 +25,19 @@ export function clearAuthSession(): void {
   currentSession = null
   callbackExchange = null
   refreshRequest = null
+  initialRestore = null
+}
+
+export function preloadAuthSession(): void {
+  initialRestore ??= restoreAuthSession()
+}
+
+/** Reuse even an early failed result once the checking UI mounts. StrictMode's
+ * two effects share it until the next microtask; later rechecks can retry. */
+export function restoreInitialAuthSession(): Promise<boolean> {
+  const request = initialRestore ?? restoreAuthSession()
+  void request.then(() => { if (initialRestore === request) initialRestore = null })
+  return request
 }
 
 export function restoreAuthSession(forceRefresh = false): Promise<boolean> {

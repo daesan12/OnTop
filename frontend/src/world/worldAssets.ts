@@ -1,5 +1,5 @@
 import { useLoader } from '@react-three/fiber'
-import { TextureLoader } from 'three'
+import { ParkTextureLoader } from './art/ParkTextureLoader'
 import { ParkAssetLoader } from './art/assetLoader'
 import { characterUrls } from './art/CharacterRig'
 import parkPoster from '../assets/entry/adv_pickus_4.webp'
@@ -21,8 +21,9 @@ export const surfaceMapUrls = Object.fromEntries(
 ) as Record<Surface, string[]>
 export function preloadWorldAssets() {
   for (const kind of ['wood', 'stone', 'grass'] as const)
-    useLoader.preload(TextureLoader, surfaceMapUrls[kind])
+    useLoader.preload(ParkTextureLoader, surfaceMapUrls[kind])
   for (const url of [leafMapUrl, parkAdvertisementUrl])
-    useLoader.preload(TextureLoader, url)
+    useLoader.preload(ParkTextureLoader, url)
+  useLoader.preload(ParkTextureLoader, '/art/granite-paving.webp')
   useLoader.preload(ParkAssetLoader, characterUrls)
 }
