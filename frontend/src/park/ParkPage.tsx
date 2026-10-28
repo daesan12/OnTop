@@ -1,6 +1,7 @@
 import { useEffect, useState, type CSSProperties } from 'react'
 import { ParkScene } from './ParkScene'
 import { ParkBgm } from '../audio/ParkBgm'
+import { ParkSfx } from '../audio/ParkSfx'
 import './park.css'
 import './scene.css'
 import '../features/parkMenus/hud.css'
@@ -85,6 +86,7 @@ function ParkContent({ onExit, exitError, onAuthEnded }: ParkProps) {
     } as CSSProperties}>
       <ParkScene quality={quality} />
       <ParkBgm />
+      <ParkSfx />
       <div className="park-hud">
         {!omokFocus && <div className="park-roaming-ui" hidden={bungeoppang} inert={bungeoppang}>
           <ChannelMenu />

@@ -56,7 +56,11 @@ export function sampleGait(
 /** Decorative paving sits above the physics terrain. Raised physics floors and
  * jumps already carry their own height, so never add paving height to those. */
 export function pavingLift(x: number, z: number, actorFoot: number) {
-  const ground = groundHeight(x, z)
+  return Math.max(0, Math.min(0.11, groundHeight(x, z) + pavingHeight(x, z) - actorFoot))
+}
+
+/** Height of decorative paving above the terrain; 0 on grass. */
+export function pavingHeight(x: number, z: number) {
   let height = 0
   if (Math.hypot(x - FOUNTAIN.x, z - FOUNTAIN.z) < FOUNTAIN.plazaRadius)
     height = 0.035
@@ -72,5 +76,5 @@ export function pavingLift(x: number, z: number, actorFoot: number) {
     )
   )
     height = Math.max(height, 0.089)
-  return Math.max(0, Math.min(0.11, ground + height - actorFoot))
+  return height
 }

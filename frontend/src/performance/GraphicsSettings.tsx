@@ -68,6 +68,7 @@ function GraphicsReport({ onClose }: { onClose: () => void }) {
     <header><strong>설정</strong><button aria-label="설정 닫기" onClick={onClose}>×</button></header>
     <LookSensitivityControl />
     <BgmVolumeControl />
+    <BgmVolumeControl kind="effects" />
     <p className="performance-hint">O 키로 열고 닫아요.</p>
     <p className="performance-mode" role="status">{collecting ? '프레임 표본 수집 중' : report.renderMode === 'continuous' ? '실시간 측정 · WebGL 2' : '화면 렌더링 일시 정지'}</p>
     <dl className="performance-readings">
