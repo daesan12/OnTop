@@ -57,6 +57,9 @@ class BungeoppangV5MySqlTests {
     @Autowired AuthExchangePersistenceService issuer;
     @Autowired Flyway flyway;
     @Autowired EntityManagerFactory entities;
+    @Autowired com.ssafy.ontop.world.service.WorldChannelRegistry channels;
+    private static final java.nio.file.Path FLOW =
+            java.nio.file.Path.of("..", "frontend", "tests", "fixtures", "bungeoppang-v5-flow.json");
     @LocalServerPort int port;
     private final ObjectMapper mapper = new ObjectMapper();
     private final ObjectMapper json = new ObjectMapper()
@@ -477,6 +480,276 @@ class BungeoppangV5MySqlTests {
                 .containsExactly("2", "3", "4");
         assertThat(recovered.path("acceptedLog")).hasSize(9);
         assertThat(recovered.path("issuedOrders")).hasSize(4);
+    }
+
+    /**
+     * The FE shared round (frontend/tests/fixtures/bungeoppang-v5-flow.json) through the real HTTP API:
+     * three selected deliveries with replacements, a lost response retry, a refresh recovery, a stale revision,
+     * then completion, a lost completion retry and result recovery. The FE test replays the same file.
+     */
+    @Test
+    void FE_공유_한판을_HTTP로_진행하고_재전송_재접속_오래된_revision_완료재시도를_복구한다() throws Exception {
+        JsonNode flow = mapper.readTree(java.nio.file.Files.readString(FLOW));
+        long sessionId = readyV5("shared-flow");
+        List<BungeoppangV4DeliveryDtos.Action> wire = wire(flow);
+        int deliveryIndex = 0;
+        for (JsonNode expected : flow.path("deliveries")) {
+            int throughSeq = expected.path("throughSeq").asInt();
+            List<BungeoppangV4DeliveryDtos.Action> prefix = wire.subList(0, throughSeq);
+            String key = prefix.getLast().deliveryKey();
+            if (deliveryIndex == 1) { shift(sessionId, 10); }
+            String body = json.writeValueAsString(new BungeoppangV4DeliveryDtos.Request("v5", throughSeq,
+                    BungeoppangV5DeliveryContract.prefixHash(sessionId, BungeoppangV5Spec.CONFIG_VERSION, prefix), prefix));
+
+            var response = request("POST", "/" + sessionId + "/deliveries", body, key);
+            assertThat(response.statusCode()).as(response.body()).isEqualTo(200);
+            JsonNode approved = mapper.readTree(response.body());
+            assertThat(approved.path("orderId").asText()).isEqualTo(expected.path("orderId").asText());
+            assertThat(approved.path("consumedBreadIds")).isEqualTo(expected.path("consumedBreadIds"));
+            assertThat(approved.path("scoreDelta").asLong()).isEqualTo(expected.path("scoreDelta").asLong());
+            assertThat(approved.path("bonusDelta").asLong()).isEqualTo(expected.path("bonusDelta").asLong());
+            assertThat(approved.at("/replacementOrder/orderId").asText())
+                    .isEqualTo(expected.path("replacementOrderId").asText());
+            assertThat(approved.at("/checkpoint/revision").asInt()).isEqualTo(deliveryIndex + 1);
+            assertThat(approved.at("/checkpoint/throughSeq").asInt()).isEqualTo(throughSeq);
+            assertThat(approved.at("/checkpoint/stats/score").asLong()).isEqualTo(expected.path("score").asLong());
+            assertThat(approved.at("/checkpoint/tray")).extracting(bread -> bread.path("breadId").asLong())
+                    .containsExactlyElementsOf(longs(expected.path("tray")));
+            assertThat(approved.at("/checkpoint/activeOrders")).extracting(order -> order.path("orderId").asText())
+                    .containsExactlyElementsOf(texts(expected.path("activeOrders")));
+            // Server-drawn replacement items are pinned to the shared file before the next delivery uses them.
+            JsonNode replacement = flow.path("orders").get(Integer.parseInt(expected.path("replacementOrderId").asText()) - 1);
+            assertThat(approved.at("/replacementOrder/customerSlot")).isEqualTo(replacement.path("customerSlot"));
+            assertThat(approved.at("/replacementOrder/availableAfterSeq")).isEqualTo(replacement.path("availableAfterSeq"));
+            pinItems(sessionId, replacement);
+
+            if (deliveryIndex == 0) {
+                // A: the response was lost, so the same key and body are sent again.
+                var retried = request("POST", "/" + sessionId + "/deliveries", body, key);
+                assertThat(retried.body()).isEqualTo(response.body());
+                assertThat(count("bungeoppang_v5_orders")).isEqualTo(4);
+                // B/E: a refresh restores only the approved prefix; unsent local actions are not on the server.
+                var recovered = mapper.readTree(request("GET", "/" + sessionId + "?includeProgress=true", null, null).body());
+                assertThat(recovered.path("acceptedLog")).hasSize(throughSeq);
+                assertThat(recovered.at("/checkpoint/throughSeq").asInt()).isEqualTo(throughSeq);
+                assertThat(recovered.at("/checkpoint/prefixHash").asText()).isEqualTo(approved.path("prefixHash").asText());
+                // A client still on the opening revision is rejected and pointed back to the approved boundary.
+                var staleLog = new java.util.ArrayList<>(wire.subList(0, 8));
+                staleLog.add(new BungeoppangV4DeliveryDtos.Action(9, "DELIVER", 26_400, null, null, null, "1", "stale-key"));
+                var stale = request("POST", "/" + sessionId + "/deliveries", json.writeValueAsString(
+                        new BungeoppangV4DeliveryDtos.Request("v5", 9, BungeoppangV5DeliveryContract.prefixHash(
+                                sessionId, BungeoppangV5Spec.CONFIG_VERSION, staleLog), staleLog)), "stale-key");
+                assertThat(stale.statusCode()).isEqualTo(409);
+                JsonNode staleBody = mapper.readTree(stale.body());
+                assertThat(staleBody.path("code").asText()).isEqualTo("PREFIX_MISMATCH");
+                assertThat(staleBody.at("/recovery/acceptedThroughSeq").asInt()).isEqualTo(throughSeq);
+                assertThat(staleBody.at("/recovery/checkpointRevision").asInt()).isOne();
+            }
+            deliveryIndex++;
+        }
+
+        shift(sessionId, 140);
+        String complete = completion(sessionId, wire);
+        var settled = request("POST", "/" + sessionId + "/complete", complete, "flow-done");
+        assertThat(settled.statusCode()).as(settled.body()).isEqualTo(200);
+        JsonNode result = mapper.readTree(settled.body());
+        JsonNode expected = flow.path("expected");
+        for (String field : List.of("score", "made", "successfulMade", "golden", "failed", "wasted", "grillDiscarded",
+                "trayDiscarded", "maxCombo", "served", "customersServed", "specialServed", "bonusScore",
+                "coinsCalculated")) {
+            assertThat(result.path(field).asLong()).as(field).isEqualTo(expected.path(field).asLong());
+        }
+        assertThat(result.path("coinsGranted").asLong()).isEqualTo(2);
+        assertThat(result.path("finalThroughSeq").asInt()).isEqualTo(wire.size());
+        // C: the completion response was lost; both retries return the stored result without paying again.
+        assertThat(request("POST", "/" + sessionId + "/complete", complete, "flow-done").body()).isEqualTo(settled.body());
+        assertThat(request("POST", "/" + sessionId + "/complete", complete, "flow-done-2").body())
+                .isEqualTo(settled.body());
+        assertThat(balance()).isEqualTo(102);
+        assertThat(count("wallet_transactions")).isOne();
+        var finished = mapper.readTree(request("GET", "/" + sessionId + "?includeProgress=true", null, null).body());
+        assertThat(finished.path("status").asText()).isEqualTo("COMPLETED");
+        assertThat(finished.path("result")).isEqualTo(result);
+        assertThat(finished.at("/checkpoint/activeOrders")).extracting(order -> order.path("orderId").asText())
+                .containsExactlyElementsOf(texts(expected.path("activeOrders")));
+    }
+
+    @Test
+    void D_새_판이_이전_판을_교체해도_월드_이용_상태는_새_판으로_남고_포기하면_해제된다() throws Exception {
+        long first = mapper.readTree(request("POST", "", START, "replace-a").body()).path("minigameSessionId").asLong();
+        long second = mapper.readTree(request("POST", "", START, "replace-b").body()).path("minigameSessionId").asLong();
+
+        var replaced = mapper.readTree(request("GET", "/" + first, null, null).body());
+        assertThat(replaced.path("status").asText()).isEqualTo("ABANDONED");
+        assertThat(replaced.path("endReason").asText()).isEqualTo("SUPERSEDED");
+        assertThat(mapper.readTree(request("GET", "?rulesVersion=v5", null, null).body())
+                .path("activeSessionId").asLong()).isEqualTo(second);
+        // A's end and B's start were both committed; B stays visible when the user enters the world.
+        assertThat(activity()).isEqualTo("BUNGEOPPANG");
+
+        assertThat(request("POST", "/" + second + "/abandon", "{}", null).statusCode()).isEqualTo(200);
+        assertThat(activity()).isNull();
+    }
+
+    /**
+     * Measures a near-maximal valid log per size: the delivery transaction (three replays, receipt, order and
+     * checkpoint writes) through the service, one HTTP round trip, and the pure triple replay without the DB.
+     * Conditions: local isolated MySQL in the same JVM as the app, no warm-up (sizes run 100 → 3600, so the
+     * first sizes include JIT and pool start-up), 3 service runs per size (average and maximum), 1 HTTP run,
+     * 20 replay runs. The 3600 target yields about 3515 valid actions: the 50 ms gap allows 3600 in 180 s,
+     * but while two breads cook only four slots meet the 300 ms same-slot gap. These are not DEV figures;
+     * results go to the test output and only correctness is asserted.
+     */
+    @Test
+    void 성능_로그_길이별_v5_납품_처리_시간을_측정한다() throws Exception {
+        var report = new StringBuilder("v5 delivery timing (ms, local isolated MySQL, no warm-up; service x3, http x1,"
+                + " replay x20): size, actions, bodyBytes, serviceAvg, serviceMax, http, replay3Avg\n");
+        for (int target : new int[]{100, 1_000, 3_000, 3_600}) {
+            double serviceTotal = 0;
+            double serviceMax = 0;
+            int actions = 0;
+            int bytes = 0;
+            for (int run = 0; run < 3; run++) {
+                long sessionId = readyV5("perf-" + target + "-" + run);
+                shift(sessionId, 150);
+                var request = longDelivery(sessionId, target, "perf-" + target + "-" + run);
+                actions = request.throughSeq();
+                bytes = json.writeValueAsBytes(request).length;
+                long started = System.nanoTime();
+                var approved = minigames.deliverV5(101, sessionId, "perf-" + target + "-" + run, request);
+                double elapsed = (System.nanoTime() - started) / 1e6;
+                assertThat(approved.consumedBreadIds()).containsExactly(1L, 2L);
+                serviceTotal += elapsed;
+                serviceMax = Math.max(serviceMax, elapsed);
+            }
+            long sessionId = readyV5("perf-http-" + target);
+            shift(sessionId, 150);
+            var request = longDelivery(sessionId, target, "perf-http-" + target);
+            long started = System.nanoTime();
+            var response = request("POST", "/" + sessionId + "/deliveries", json.writeValueAsString(request),
+                    "perf-http-" + target);
+            double http = (System.nanoTime() - started) / 1e6;
+            assertThat(response.statusCode()).as(response.body()).isEqualTo(200);
+
+            var rules = new com.ssafy.ontop.minigame.service.BungeoppangV5Rules();
+            var domain = BungeoppangV5DeliveryContract.domainActions(request.log());
+            var heats = java.util.Collections.nCopies(2_048, 100);
+            var opening = List.of(
+                    new com.ssafy.ontop.minigame.service.BungeoppangV5Rules.Order("1", 0, 0,
+                            new com.ssafy.ontop.minigame.service.BungeoppangV4Rules.FillingCounts(2, 0, 0, 0)),
+                    new com.ssafy.ontop.minigame.service.BungeoppangV5Rules.Order("2", 1, 0,
+                            new com.ssafy.ontop.minigame.service.BungeoppangV4Rules.FillingCounts(1, 0, 0, 0)),
+                    new com.ssafy.ontop.minigame.service.BungeoppangV5Rules.Order("3", 2, 0,
+                            new com.ssafy.ontop.minigame.service.BungeoppangV4Rules.FillingCounts(0, 1, 0, 0)));
+            double replayTotal = 0;
+            for (int run = 0; run < 20; run++) {
+                long replayStarted = System.nanoTime();
+                rules.replay(domain.subList(0, domain.size() - 1), heats, opening);
+                rules.replay(domain, heats, opening);
+                rules.replay(domain, heats, opening);
+                replayTotal += (System.nanoTime() - replayStarted) / 1e6;
+            }
+            report.append(String.format(java.util.Locale.ROOT, "%d, %d, %d, %.1f, %.1f, %.1f, %.2f%n", target, actions,
+                    bytes, serviceTotal / 3, serviceMax, http, replayTotal / 20));
+        }
+        System.out.print(report);
+    }
+
+    /** Two golden beans on slots 0 and 1, POUR/DISCARD fillers on the other free slots, then DELIVER order 1. */
+    private BungeoppangV4DeliveryDtos.Request longDelivery(long sessionId, int target, String key) {
+        var bread = new java.util.TreeMap<Integer, BungeoppangV4DeliveryDtos.Action>();
+        bread.put(0, action(0, "POUR", 0, 0, null));
+        bread.put(50, action(0, "POUR", 50, 1, null));
+        bread.put(300, action(0, "FILL", 300, 0, "bean"));
+        bread.put(350, action(0, "FILL", 350, 1, "bean"));
+        bread.put(6_700, action(0, "TURN", 6_700, 0, null));
+        bread.put(6_750, action(0, "TURN", 6_750, 1, null));
+        bread.put(13_100, action(0, "TURN", 13_100, 0, null));
+        bread.put(13_150, action(0, "TURN", 13_150, 1, null));
+        int fillers = Math.max(0, target - 1 - bread.size());
+        int[] lastAt = {-1_000, -1_000, -1_000, -1_000, -1_000, -1_000};
+        boolean[] batter = new boolean[6];
+        var log = new java.util.ArrayList<BungeoppangV4DeliveryDtos.Action>();
+        int t = 0;
+        for (; t < 179_900 && (!bread.isEmpty() || fillers > 0); t += 50) {
+            var planned = bread.remove(t);
+            if (planned != null) {
+                log.add(action(log.size() + 1, planned.action(), t, planned.slot(), planned.filling()));
+                lastAt[planned.slot()] = t;
+                continue;
+            }
+            if (fillers == 0) { continue; }
+            int chosen = -1;
+            for (int slot = 0; slot < 6; slot++) {
+                boolean cooking = slot == 0 && t <= 13_100 || slot == 1 && t <= 13_150;
+                if (!cooking && t - lastAt[slot] >= 300 && (chosen < 0 || lastAt[slot] < lastAt[chosen])) { chosen = slot; }
+            }
+            if (chosen < 0) { continue; }
+            log.add(action(log.size() + 1, batter[chosen] ? "DISCARD" : "POUR", t, chosen, null));
+            batter[chosen] = !batter[chosen];
+            lastAt[chosen] = t;
+            fillers--;
+        }
+        log.add(new BungeoppangV4DeliveryDtos.Action(log.size() + 1, "DELIVER", t, null, null, null, "1", key));
+        return new BungeoppangV4DeliveryDtos.Request("v5", log.size(),
+                BungeoppangV5DeliveryContract.prefixHash(sessionId, BungeoppangV5Spec.CONFIG_VERSION, log), List.copyOf(log));
+    }
+
+    /** Mirrors FE serviceV5: seq from position, DELIVER carries its own key, TRAY_DISCARD its bread ID. */
+    private static List<BungeoppangV4DeliveryDtos.Action> wire(JsonNode flow) {
+        var actions = new java.util.ArrayList<BungeoppangV4DeliveryDtos.Action>();
+        for (JsonNode entry : flow.path("log")) {
+            int seq = actions.size() + 1;
+            String type = entry.path("action").asText();
+            int t = entry.path("t").asInt();
+            actions.add(switch (type) {
+                case "DELIVER" -> new BungeoppangV4DeliveryDtos.Action(seq, type, t, null, null, null,
+                        entry.path("orderId").asText(), flow.path("deliveryKeys").path(Integer.toString(seq)).asText());
+                case "TRAY_DISCARD" -> new BungeoppangV4DeliveryDtos.Action(seq, type, t, null, null,
+                        entry.path("breadId").asLong(), null, null);
+                default -> new BungeoppangV4DeliveryDtos.Action(seq, type, t, entry.path("slot").asInt(),
+                        entry.has("filling") ? entry.path("filling").asText() : null, null, null, null);
+            });
+        }
+        return actions;
+    }
+
+    private void pinItems(long sessionId, JsonNode order) {
+        JsonNode items = order.path("items");
+        jdbc.update("UPDATE bungeoppang_v5_orders SET bean=?, custard=?, pizza=?, chocolate=?"
+                + " WHERE minigame_session_id=? AND order_id=?", items.path("bean").asInt(), items.path("custard").asInt(),
+                items.path("pizza").asInt(), items.path("chocolate").asInt(), sessionId,
+                Long.parseLong(order.path("orderId").asText()));
+    }
+
+    /**
+     * Activity is kept per user, so entering any channel shows it. The local profile configures no world
+     * channel, so a private one is added once; the user joins only for this read.
+     */
+    private String activity() {
+        String channelId = "v5-activity-check";
+        if (channels.definitions().stream().noneMatch(channel -> channel.channelId().equals(channelId))) {
+            channels.addChannel(new com.ssafy.ontop.world.config.WorldChannelProperties.Channel(channelId, "검증", 3));
+        }
+        channels.join("101", channelId);
+        try {
+            return channels.worldState(channelId).avatars().stream().filter(avatar -> avatar.userId().equals("101"))
+                    .findFirst().orElseThrow().activity();
+        } finally {
+            channels.disconnect("101");
+        }
+    }
+
+    private static List<Long> longs(JsonNode values) {
+        var result = new java.util.ArrayList<Long>();
+        values.forEach(value -> result.add(value.asLong()));
+        return result;
+    }
+
+    private static List<String> texts(JsonNode values) {
+        var result = new java.util.ArrayList<String>();
+        values.forEach(value -> result.add(value.asText()));
+        return result;
     }
 
     /** Starts a v5 round with heat 100, known opening items and a play origin 40 seconds in the past. */

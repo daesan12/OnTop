@@ -128,7 +128,9 @@ public class MinigameController {
     }
 
     @PostMapping("/{sessionId}/deliveries")
-    @Operation(summary = "붕어빵 v4 납품 승인", description = "승인 prefix·FIFO 재고·현재 주문을 검증하고 영속 영수증과 다음 주문을 원자적으로 저장합니다.")
+    @Operation(summary = "붕어빵 v4·v5 납품 승인", description = "승인 prefix·종류별 FIFO 재고·대상 주문을 검증하고 "
+            + "영속 영수증과 다음 주문을 원자적으로 저장합니다. v4는 현재 주문 한 건, v5는 활성 주문 3건 중 고른 주문을 "
+            + "납품하고 비운 손님 자리에 replacementOrder를 발급합니다. v5 본문은 1 MiB, v4는 256 KiB까지 받습니다.")
     @ApiResponse(responseCode = "200", description = "최초 승인 또는 같은 키·본문의 최초 응답 재생",
             content = @Content(mediaType = "application/json",
                     schema = @Schema(implementation = BungeoppangV4DeliveryDtos.Response.class)))

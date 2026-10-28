@@ -79,3 +79,25 @@
   (v2·v4·v5 공통). 같은 판은 한 번만 지급하고 다른 키의 같은 본문은 같은 결과, 다른 본문은 409 `FINAL_RESULT_CONFLICT`.
 - 응답 형식은 v4 완료 응답과 같고 `rulesVersion`이 `"v5"`다.
 - 완료가 커밋되면 월드의 `activity`(붕어빵 이용 상태)를 해제한다.
+
+## 6. 통합 검증(V5-5)과 활성화 조건 · 2026-10-28
+
+- OpenAPI(`/v3/api-docs`)에 v5를 반영했다: 시작·로비 `rulesVersion` 목록에 `v5`(기능 플래그 설명 포함),
+  납품·완료 요청의 v5 항목(로그 3600건, `t` 최대 179999), `BungeoppangV5StartResponse`·`DeliveryResponse`·
+  `SessionResponse`. v4 스키마(로그 1200건, `t` 최대 59999)는 그대로다.
+- FE·BE 공통 한 판 `frontend/tests/fixtures/bungeoppang-v5-flow.json`(납품 3건·충원 3건·탄 빵 폐기·러시·쟁반 폐기)을
+  FE는 `bungeoppangV5Flow.test.ts`(규칙 replay·실제 어댑터 요청 본문·해시), BE는 `BungeoppangV5MySqlTests`
+  (격리 MySQL·실제 HTTP)로 같은 결과를 확인한다. 응답 유실 재전송, 새로고침 복구(승인된 prefix만 복원),
+  오래된 revision 거절, 완료 응답 유실 재시도, 판 교체 후 이용 상태도 같은 테스트에서 확인한다.
+- 납품 처리 시간은 격리 테스트 환경 측정값이다(운영 목표·DEV 성능이 아님). 같은 테스트가 매 실행마다 표준 출력으로
+  다시 기록한다. 조건: 로컬 격리 MySQL, 워밍업 없음(100건부터 차례로 측정해 앞쪽 수치에 JIT·커넥션 준비가 섞임),
+  크기별 서비스 3회(평균·최대)·HTTP 1회·규칙 replay 20회. 최대 목표 3600건은 유효 로그 약 3515건이다.
+  50ms 간격이면 180초에 3600건이지만 빵 두 개를 굽는 동안 같은 칸 300ms 간격을 지킬 수 있는 칸이 넷뿐이다.
+- 이 테스트들은 BE가 실제로 보낸 응답을 FE 어댑터가 읽는 경로까지는 확인하지 않는다(FE 어댑터 테스트는 FE replay로 만든 응답을 쓴다).
+  DEV 활성화 때 실제 화면에서 확인한다.
+- 실제 활성화는 별도 승인·배포 단계다. 다음을 확인한 뒤 BE `ontop.minigames.bungeoppang-v5-enabled=true`와
+  FE `VITE_BUNGEOPPANG_RULES_VERSION=v5`를 함께 켠다.
+  1. 최신 dev의 Jenkins 테스트 성공
+  2. 대상 DEV DB에 V128 적용(`flyway_schema_history`)
+  3. 활성화할 FE·BE 배포 SHA가 이 계약을 포함
+  4. 실제 브라우저에서 v5 화면(손님 3명·충원·러시·결과·말풍선)과 v4 복귀 확인

@@ -1,0 +1,52 @@
+{
+  "description": "v5 full round: three selected deliveries with replacements, burnt discard, rush bread, tray discard",
+  "heat": 100,
+  "orders": [
+    { "orderId": "1", "customerSlot": 0, "availableAfterSeq": 0, "items": { "bean": 2, "custard": 0, "pizza": 0, "chocolate": 0 } },
+    { "orderId": "2", "customerSlot": 1, "availableAfterSeq": 0, "items": { "bean": 1, "custard": 0, "pizza": 0, "chocolate": 0 } },
+    { "orderId": "3", "customerSlot": 2, "availableAfterSeq": 0, "items": { "bean": 0, "custard": 1, "pizza": 0, "chocolate": 0 } },
+    { "orderId": "4", "customerSlot": 1, "availableAfterSeq": 9, "items": { "bean": 0, "custard": 1, "pizza": 0, "chocolate": 0 } },
+    { "orderId": "5", "customerSlot": 1, "availableAfterSeq": 14, "items": { "bean": 1, "custard": 0, "pizza": 0, "chocolate": 0 } },
+    { "orderId": "6", "customerSlot": 1, "availableAfterSeq": 15, "items": { "bean": 2, "custard": 0, "pizza": 0, "chocolate": 0 } }
+  ],
+  "log": [
+    { "slot": 0, "action": "POUR", "t": 0 },
+    { "slot": 0, "action": "FILL", "t": 300, "filling": "bean" },
+    { "slot": 0, "action": "TURN", "t": 6700 },
+    { "slot": 0, "action": "TURN", "t": 13100 },
+    { "slot": 1, "action": "POUR", "t": 13200 },
+    { "slot": 1, "action": "FILL", "t": 13500, "filling": "bean" },
+    { "slot": 1, "action": "TURN", "t": 19900 },
+    { "slot": 1, "action": "TURN", "t": 26300 },
+    { "slot": -1, "action": "DELIVER", "t": 26400, "orderId": "2" },
+    { "slot": 2, "action": "POUR", "t": 26500 },
+    { "slot": 2, "action": "FILL", "t": 26800, "filling": "custard" },
+    { "slot": 2, "action": "TURN", "t": 33200 },
+    { "slot": 2, "action": "TURN", "t": 39600 },
+    { "slot": -1, "action": "DELIVER", "t": 39700, "orderId": "4" },
+    { "slot": -1, "action": "DELIVER", "t": 39750, "orderId": "5" },
+    { "slot": 3, "action": "POUR", "t": 39800 },
+    { "slot": 3, "action": "FILL", "t": 40100, "filling": "bean" },
+    { "slot": 3, "action": "DISCARD", "t": 48100 },
+    { "slot": 4, "action": "POUR", "t": 150000 },
+    { "slot": 4, "action": "FILL", "t": 150300, "filling": "bean" },
+    { "slot": 4, "action": "TURN", "t": 155100 },
+    { "slot": 4, "action": "TURN", "t": 159900 },
+    { "slot": 0, "action": "TRAY_DISCARD", "t": 160000, "breadId": 4 }
+  ],
+  "deliveryKeys": { "9": "flow-deliver-2", "14": "flow-deliver-4", "15": "flow-deliver-5" },
+  "deliveries": [
+    { "throughSeq": 9, "orderId": "2", "consumedBreadIds": [1], "scoreDelta": 10, "bonusDelta": 0,
+      "replacementOrderId": "4", "activeOrders": ["1", "3", "4"], "tray": [2], "score": 10 },
+    { "throughSeq": 14, "orderId": "4", "consumedBreadIds": [3], "scoreDelta": 12, "bonusDelta": 0,
+      "replacementOrderId": "5", "activeOrders": ["1", "3", "5"], "tray": [2], "score": 22 },
+    { "throughSeq": 15, "orderId": "5", "consumedBreadIds": [2], "scoreDelta": 10, "bonusDelta": 0,
+      "replacementOrderId": "6", "activeOrders": ["1", "3", "6"], "tray": [], "score": 32 }
+  ],
+  "expected": {
+    "score": 32, "made": 4, "successfulMade": 4, "golden": 4, "failed": 1, "wasted": 2,
+    "grillDiscarded": 1, "trayDiscarded": 1, "combo": 0, "maxCombo": 3, "served": 3, "customersServed": 3,
+    "specialServed": 0, "bonusScore": 0, "fills": 5, "tray": [], "activeOrders": ["1", "3", "6"],
+    "coinsCalculated": 2
+  }
+}
