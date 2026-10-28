@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { QualityPreset } from '../config/quality'
+import { BgmVolumeControl } from '../audio/BgmVolumeControl'
 import { QualityControl } from './QualityControl'
 import { resetMetrics, summarizeFrames } from './metrics'
 import './performance.css'
@@ -44,6 +45,7 @@ function GraphicsReport({ quality, onQuality, onClose }: {
   return <section id="park-graphics-settings" className="park-runtime-panel park-graphics-settings" aria-label="그래픽과 성능">
     <header><strong>그래픽과 성능</strong><button aria-label="그래픽 설정 닫기" onClick={onClose}>×</button></header>
     <QualityControl quality={quality} onQuality={onQuality} />
+    <BgmVolumeControl />
     <p className="performance-hint">F1 설명서에서도 품질을 바꿀 수 있어요. 낮은 품질에서도 게임 규칙과 조작은 같아요.</p>
     <p className="performance-mode" role="status">{collecting ? '프레임 표본 수집 중' : report.renderMode === 'continuous' ? '실시간 측정 · WebGL 2' : '화면 렌더링 일시 정지'}</p>
     <dl className="performance-readings">

@@ -1,4 +1,5 @@
 import { useShallow } from 'zustand/react/shallow'
+import { BgmVolumeControl } from '../../audio/BgmVolumeControl'
 import type { QualityPreset } from '../../config/quality'
 import { useSession } from '../../network/worldClient'
 import { QualityControl } from '../../performance/QualityControl'
@@ -17,5 +18,6 @@ export function ManualWorldActions({ quality, onQuality }: {
     <span>현재 채널 <b>{session.name || '채널 선택'}</b> · <b>{session.count}/{session.capacity}</b></span>
     <QualityControl quality={quality} onQuality={onQuality} />
     <LookSensitivityControl />
+    <BgmVolumeControl />
   </section>
 }
