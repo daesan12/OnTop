@@ -138,7 +138,7 @@ test('login and onboarding keep teammate assets and controls', async ({
   await screenshot(page, 'onboarding-preserved')
 })
 
-test('table pointer picking, seated visibility, LOD and quality controls', async ({
+test('table pointer picking, seated visibility and LOD', async ({
   page,
 }) => {
   const errors: string[] = []
@@ -192,9 +192,6 @@ test('table pointer picking, seated visibility, LOD and quality controls', async
     .toEqual({ seated: true, own: false, remote: true })
   await page.getByRole('button', { name: '일어나기' }).click()
   await page.getByRole('button', { name: '테이블 정보 닫기' }).click()
-  await page.getByRole('button', { name: '내 메뉴', exact: true }).click(); await page.getByRole('menuitem', { name: /설정/ }).click()
-  await page.getByLabel('그래픽 품질').selectOption('high')
-  await expect(page.getByLabel('그래픽 품질')).toHaveValue('high')
   await page.evaluate(async () => {
     const q = await import('/tests/e2e/sceneProbe.ts' as string)
     q.orbit(-Math.PI / 2, 0.45, 55)
@@ -219,7 +216,7 @@ test('table pointer picking, seated visibility, LOD and quality controls', async
       }),
     )
     .toBe(true)
-  await screenshot(page, 'park-high-pointer-lod')
+  await screenshot(page, 'park-pointer-lod')
   expect(errors).toEqual([])
 })
 

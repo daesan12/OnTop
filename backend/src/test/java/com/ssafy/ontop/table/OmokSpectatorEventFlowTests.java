@@ -114,6 +114,9 @@ class OmokSpectatorEventFlowTests {
         JsonNode watched = watch(viewerA, GAME);
         watch(viewerB, GAME);
         watch(otherViewer, OTHER_GAME);
+        // 다른 경기의 단발 조회는 현재 관전 구독의 참가자·상태 메타데이터를 바꾸면 안 된다.
+        assertThat(viewerA.request("GAME_STATE_CHECK", Map.of("gameId", OTHER_GAME))
+                .at("/payload/gameId").asText()).isEqualTo(OTHER_GAME);
         var black = watched.at("/payload/publicState/blackUserId").asText().equals(first.userId) ? first : second;
         var white = black == first ? second : first;
         JsonNode before = black.request("GAME_STATE_CHECK", Map.of("gameId", GAME)).at("/payload");
@@ -173,8 +176,8 @@ class OmokSpectatorEventFlowTests {
                 "eventId", otherChat, "text", "옆 경기")).path("type").asText()).isEqualTo("GAME_SPECTATOR_CHAT_MESSAGE");
         otherFirst.awaitSpectatorEvent(otherChat);
         otherSecond.awaitSpectatorEvent(otherChat);
-        // 플레이어·테이블 보기만 한 근처 사용자·다른 채널 사용자는 발신할 수 없다.
-        assertThat(code(black.request("GAME_SPECTATOR_CHAT_SEND", chat(GAME, "플레이어"))))
+        // 플레이어 핑·테이블 보기만 한 근처 사용자·다른 채널 사용자는 발신할 수 없다.
+        assertThat(code(black.request("OMOK_SPECTATOR_PING_SEND", ping(GAME, 0, 7, 7))))
                 .isEqualTo("GAME_SPECTATOR_ACCESS_DENIED");
         assertThat(code(white.request("OMOK_SPECTATOR_PING_SEND", ping(GAME, 0, 7, 7))))
                 .isEqualTo("GAME_SPECTATOR_ACCESS_DENIED");
@@ -225,6 +228,8 @@ class OmokSpectatorEventFlowTests {
                 .isEqualTo("GAME_SPECTATOR_GAME_NOT_PLAYING");
         assertThat(code(viewerB.request("OMOK_SPECTATOR_PING_SEND", ping(GAME, 2, 1, 1))))
                 .isEqualTo("GAME_SPECTATOR_GAME_NOT_PLAYING");
+        assertThat(code(black.request("GAME_SPECTATOR_CHAT_SEND", chat(GAME, "종료 뒤 플레이어"))))
+                .isNotEqualTo("");
         // 종료 알림은 관전 상태 전송과 별도 순서로 끝나므로 기록될 때까지 기다린다.
         for (int attempt = 0; attempt < 100 && lifecycle.finished.isEmpty(); attempt++) { Thread.sleep(50); }
         assertThat(lifecycle.finished).hasSize(1);
@@ -368,6 +373,43 @@ class OmokSpectatorEventFlowTests {
         assertThat(ended.at("/payload/publicState/endedAt").asText()).isEqualTo(deadline);
         assertThat(code(viewer.request("OMOK_SPECTATOR_PING_SEND", ping(GAME, 1, 7, 7))))
                 .isEqualTo("GAME_SPECTATOR_GAME_NOT_PLAYING");
+    }
+
+    @Test
+    void 플레이어는_차례와무관하게_채팅하고_관전자와주고받되_핑과다른경기는_거절한다() throws Exception {
+        var first = connect(101, "one");
+        var second = connect(202, "one");
+        var viewer = connect(505, "one");
+        near(viewer);
+        viewer.request("TABLE_WATCH", Map.of("tableId", TABLE));
+        start(TABLE, first, second, viewer, GAME, true);
+        watch(viewer, GAME);
+        JsonNode before = first.request("GAME_STATE_CHECK", Map.of("gameId", GAME)).path("payload");
+        second.request("GAME_STATE_CHECK", Map.of("gameId", GAME));
+        for (var sender : List.of(first, second)) {
+            String event = UUID.randomUUID().toString();
+            Map<String, Object> payload = Map.of("gameId", GAME, "eventId", event, "text", "플레이어 채팅");
+            JsonNode ack = sender.request("GAME_SPECTATOR_CHAT_SEND", payload);
+            assertThat(ack.path("type").asText()).isEqualTo("GAME_SPECTATOR_CHAT_MESSAGE");
+            assertThat(ack.at("/payload/senderUserId").asText()).isEqualTo(sender.userId);
+            for (var receiver : List.of(first, second, viewer)) {
+                assertThat(receiver.awaitSpectatorEvent(event).path("payload")).isEqualTo(ack.path("payload"));
+            }
+            JsonNode retry = sender.request("GAME_SPECTATOR_CHAT_SEND", payload).path("payload");
+            assertThat(retry.path("eventId")).isEqualTo(ack.at("/payload/eventId"));
+            assertThat(retry.path("sentAt")).isEqualTo(ack.at("/payload/sentAt"));
+            assertThat(retry.path("expiresAt")).isEqualTo(ack.at("/payload/expiresAt"));
+            assertThat(code(sender.request("GAME_SPECTATOR_CHAT_SEND", chat(GAME, "연속"))))
+                    .isEqualTo("GAME_SPECTATOR_CHAT_TOO_FREQUENT");
+            assertThat(code(sender.request("OMOK_SPECTATOR_PING_SEND", ping(GAME, 0, 7, 7))))
+                    .isEqualTo("GAME_SPECTATOR_ACCESS_DENIED");
+            assertThat(code(sender.request("GAME_SPECTATOR_CHAT_SEND", chat(OTHER_GAME, "다른 경기"))))
+                    .isEqualTo("GAME_SPECTATOR_ACCESS_DENIED");
+        }
+        JsonNode after = first.request("GAME_STATE_CHECK", Map.of("gameId", GAME)).path("payload");
+        assertThat(after.path("publicState")).isEqualTo(before.path("publicState"));
+        assertThat(after.path("version")).isEqualTo(before.path("version"));
+        assertThat(reservation.reservations.get()).isEqualTo(1);
     }
 
     private void start(String table, ScenarioClient first, ScenarioClient second, ScenarioClient tableViewer,

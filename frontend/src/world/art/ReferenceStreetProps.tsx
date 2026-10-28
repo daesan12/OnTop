@@ -6,7 +6,7 @@ import { Instances, seeded, type Part } from './Instances'
 const leaves: Part[] = [],
   flowers: Part[] = []
 function scenery() {
-  const b = new PropBuilder(),
+  const b = new PropBuilder([12, 8], 'street-planters'),
     rand = seeded(8421)
   for (const p of STREET_PLANTERS) {
     if (p.kind === 'bowl') {
@@ -69,6 +69,7 @@ function scenery() {
   return b.finish()
 }
 const art = scenery()
+const simpleFlowers = flowers.filter((_, i) => i % 4 === 0)
 export function ReferenceStreetProps() {
   return (
     <group name="reference-street-planters">
@@ -80,8 +81,8 @@ export function ReferenceStreetProps() {
       >
         <primitive object={crownGeometry} attach="geometry" dispose={null} />
       </Instances>
-      <Instances parts={flowers} shadow={false}>
-        <sphereGeometry args={[1, 6, 4]} />
+      <Instances parts={simpleFlowers} shadow={false}>
+        <octahedronGeometry />
       </Instances>
     </group>
   )

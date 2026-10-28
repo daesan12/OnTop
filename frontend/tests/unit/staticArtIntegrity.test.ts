@@ -39,5 +39,8 @@ it('keeps the actual park art vertex/index buffers identical to the original wel
   await import('../../src/world/art/ReferenceStreetProps')
   await import('../../src/world/art/Pavilion')
   expect(checked.batches).toBeGreaterThan(30)
-  expect(checked.vertices).toBeGreaterThan(100000)
+  // All real batches must still be checked, with the simplified art staying
+  // below the former 100k-vertex minimum rather than requiring extra geometry.
+  expect(checked.vertices).toBeGreaterThan(50000)
+  expect(checked.vertices).toBeLessThan(100000)
 }, 20000)

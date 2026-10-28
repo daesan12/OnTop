@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from 
 import maleImage from '../assets/onboarding-character-male.png'
 import femaleImage from '../assets/onboarding-character-female.png'
 import { completeOnboarding, OnboardingError, type CharacterGender } from '../auth/authFlow'
+import { useBgmTrack } from '../audio/bgm'
 import './onboarding.css'
 
 const nicknamePattern = /^[가-힣A-Za-z0-9]{2,8}$/
@@ -14,6 +15,7 @@ export function OnboardingPage({ onComplete, onReturnToLogin }: {
   onComplete: () => void
   onReturnToLogin: () => void
 }) {
+  useBgmTrack('onboarding')
   const [viewport, setViewport] = useState(getViewport)
   const [gender, setGender] = useState<CharacterGender>('MALE')
   const [nickname, setNickname] = useState('')

@@ -23,12 +23,13 @@ import {
   resetManual,
 } from "./manualState";
 import type { ManualGameId } from "./types";
-import ManualContents from "./ManualContents";
+import { OnDemandContent } from "../../park/OnDemandContent";
 import { NewspaperCover } from "./NewspaperCover";
 import "./manual.css";
 
-// F1 must remain available after a deployment or a temporary network failure.
-// Ship this small, local guide with the app instead of fetching a chunk on open.
+const loadContents = () => import("./ManualContents");
+
+// Keep F1, the modal shell and input ownership available while the guide loads.
 class ReadingBoundary extends Component<
   { children: ReactNode },
   { failed: boolean }
@@ -83,10 +84,6 @@ export function ManualHost({
   const [reducedMotion, setReducedMotion] = useState(
     () => window.matchMedia("(prefers-reduced-motion: reduce)").matches,
   );
-  const [hasOpened, setHasOpened] = useState(false);
-  useEffect(() => {
-    if (open) setHasOpened(true);
-  }, [open]);
   const dialog = useRef<HTMLDialogElement>(null);
   const launcher = useRef<HTMLButtonElement>(null);
   const restoreFocus = useRef<HTMLElement | null>(null);
@@ -227,7 +224,11 @@ export function ManualHost({
         </div>
         <div className="manual-sheet-content" inert={phase !== "open"}>
           <header className="manual-header">
-            <p className="manual-issue">제 1호 · 게임 설명서 특집</p>
+            {/* The channel line shares the issue column, so no separate strip sits above the contents. */}
+            <div className="manual-issue-column">
+              <p className="manual-issue">제 1호 · 게임 설명서 특집</p>
+              {worldActions}
+            </div>
             <h2 className="manual-masthead">
               <span className="manual-seal" aria-hidden="true">탑</span>
               OnTop
@@ -243,9 +244,11 @@ export function ManualHost({
               <kbd>Esc</kbd>
             </button>
           </header>
-          {worldActions}
           <ReadingBoundary>
-            {(open || hasOpened) && <ManualContents />}
+            <OnDemandContent active={open} load={loadContents} label="설명서" onClose={closeManual} className="manual-loading">
+              <p>WASD 이동 · Shift 달리기 · Space 점프 · E 상호작용 · Enter 채팅 · F1 설명서</p>
+              <p>Esc 또는 설명서 닫기로 공원에 돌아갈 수 있어요. 경기는 계속 진행돼요.</p>
+            </OnDemandContent>
           </ReadingBoundary>
           <footer className="manual-footer" id="manual-pause-note">
             <span aria-hidden="true">!</span>

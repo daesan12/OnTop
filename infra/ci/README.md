@@ -4,12 +4,12 @@
 
 - `ci.on-top.world`은 DEV-CI의 Nginx에서 HTTPS를 종료한다. 외부에는 `/project/` 웹훅만 전달하며 Jenkins 관리 화면은 SSH 터널의 `http://localhost:8081`로 연다. EC2 인바운드에 8081을 추가하지 않는다.
 - Jenkins LTS는 DEV-CI에 Java 21, 포트 8081, 최대 힙 1 GiB로 설치했다. Node 24.18.0, pnpm 11.25.0, Vercel CLI 65.1.0도 설치했다.
-- `Jenkinsfile`은 `dev` 브랜치의 변경 파일을 분류한다. `backend/` 변경은 Gradle 테스트 → Docker Hub 비공개 이미지 `wooaw/ontop-backend:sha-<전체 커밋 SHA>` → DEV 앱 갱신으로, `frontend/` 변경은 pnpm 테스트·빌드 → 별도 Vercel 프로젝트 `ontop-frontend-dev` 배포로 이어진다. 둘 다 바뀌면 양쪽을 실행한다. 운영 배포는 자동화하지 않는다.
+- `Jenkinsfile`은 `dev` 브랜치의 변경 파일을 분류한다. 테스트는 마지막 테스트 통과 SHA부터, 백엔드와 프론트엔드 배포는 각 서비스의 마지막 배포 성공 SHA부터 변경분을 계산한다. `backend/` 변경은 Gradle 테스트 → Docker Hub 비공개 이미지 `wooaw/ontop-backend:sha-<전체 커밋 SHA>` → DEV 앱 갱신으로, `frontend/` 변경은 pnpm 테스트·빌드 → 별도 Vercel 프로젝트 `ontop-frontend-dev` 배포로 이어진다. 운영 배포는 자동화하지 않는다.
 - `analytics/`의 오프라인 쿼리·스크립트만 바뀐 커밋은 `docs/`처럼 앱 빌드·배포 대상에서 제외한다. 다른 백엔드·프론트 변경이 함께 있으면 해당 앱의 기존 분류 규칙을 그대로 적용한다.
-- 첫 실행에는 이전 성공 SHA가 없어 양쪽 테스트를 실행하고 기준 SHA만 기록한다. 이미 수동으로 올린 DEV 배포를 이 첫 실행이 교체하지 않는다. 이후 성공한 `dev` 빌드의 SHA를 `/var/lib/jenkins/ontop-state/dev.sha`에 기록한다.
+- 기존 단일 기준 SHA(`/var/lib/jenkins/ontop-state/dev.sha`)는 이 변경을 처음 적용할 때 **테스트 기준**의 읽기 전용 대체 값으로만 사용한다. 기존 빌드의 `UNSTABLE` 상태는 설정 검토 완료를 뜻하지 않으므로 설정 검토 기준으로 재사용하지 않는다. 새 기준 파일과 초기 전환 절차는 아래에 정리했다.
 - `infra/app/compose.dev.yaml`의 CI Nginx 설정은 `zz-ci.conf`로 로드한다. 기존 `default.conf`보다 먼저 읽으면 `dev-api`에 CI 인증서가 제공되는 문제가 실제로 발생해 수정했다.
 - 인증서 갱신 훅을 수동 호출해 CI 인증서 복사와 Nginx 재로드를 확인했다. 이후 `ci.on-top.world`은 TLS 검증 성공·루트 403, `dev-api.on-top.world/actuator/health`는 TLS 검증 성공·200을 반환했다.
-- **남은 설정:** 수정된 `Jenkinsfile`을 `dev`에 반영한 뒤 최초 빌드와 GitLab 웹훅을 검증한다. Jenkins 초기 관리자 생성, GitLab Plugin 설치, 세 자격 증명 ID 등록을 확인했다. `ontop-dev` Pipeline 작업의 GitLab 저장소 URL, `gitlab-ontop-read`, `*/dev`, `Jenkinsfile`, lightweight checkout 설정도 확인했다. 첫 수동 빌드는 GitLab 인증과 체크아웃에 성공했으나, `env.GIT_BRANCH`가 비어 있어 브랜치 검증에서 실패했다. 이 수정에서는 `checkout scm` 반환값을 우선 사용하고, 값이 없으면 체크아웃된 SHA와 `origin/dev`를 대조한다. 실패한 빌드는 테스트·배포 전에 중단돼 기준 SHA와 배포 상태를 바꾸지 않았다. 웹훅 트리거는 첫 성공 빌드 전까지 비활성 상태다. 자격 증명 값은 저장소·Jira·채팅에 남기지 않는다.
+- **현재 상태(2026-10-27):** Jenkins 관리자·GitLab Plugin·세 자격 증명 ID·`ontop-dev` Pipeline이 설정됐고, `dev` 푸시 웹훅이 빌드를 시작하는 것을 확인했다. 최초 수동 빌드의 브랜치 판별 오류는 `checkout scm` 반환값과 `origin/dev` 대조로 해결됐다. Story 240의 서비스별 기준 분리는 아직 이 브랜치에만 있으며, 병합 후 아래 전환 절차를 거쳐야 한다. 자격 증명 값은 저장소·Jira·채팅에 남기지 않는다.
 
 ## 1. Jenkins 초기 설정
 
@@ -51,7 +51,7 @@ VERCEL_PROJECT_ID=prj_...
 
 1. Jenkins에서 `New Item → Pipeline`을 만들고 이름을 `ontop-dev`로 지정한다. 처음에는 Build Triggers를 비워 둔다.
 2. Pipeline 정의는 `Pipeline script from SCM`, SCM은 `Git`, Repository URL은 `https://lab.ssafy.com/s15-final/S15P31B105.git`, Credentials는 `gitlab-ontop-read`, Branch Specifier는 `*/dev`, Script Path는 `Jenkinsfile`로 둔다. `Lightweight checkout`을 사용할 수 있으면 켜고 저장한다.
-3. 사용자가 이 Story 브랜치를 GitLab에 푸시·MR·병합한 **뒤**, `Build Now`를 한 번 실행한다. 첫 실행은 전체 테스트와 기준 SHA 기록만 수행한다. GitLab 플러그인 문서상 Pipeline 작업의 브랜치 필터는 저장하고 한 번 실행한 뒤에 표시될 수 있다. 첫 빌드가 실패하면 원인을 고친 뒤 다시 실행한다.
+3. 사용자가 이 Story 브랜치를 GitLab에 푸시·MR·병합한 **뒤**, `Build Now`를 한 번 실행한다. 최초 CI 도입 당시에는 전체 테스트와 기준 SHA 기록만 수행했다. 이번 기준 분리 변경의 첫 실행 절차는 아래의 "Story 240 전환"을 따른다. GitLab 플러그인 문서상 Pipeline 작업의 브랜치 필터는 저장하고 한 번 실행한 뒤에 표시될 수 있다. 빌드가 실패하면 원인을 고친 뒤 다시 실행한다.
 4. 첫 빌드가 완료되면 작업 설정의 Build Triggers에서 `Build when a change is pushed to GitLab`을 선택한다. **Push Events**만 사용하고 `Filter branches by name`의 포함 브랜치를 `dev`로 지정한다. `Advanced → Secret Token → Generate`로 작업별 웹훅 토큰을 생성한다. Jenkins 관리 URL을 `localhost`로 두었으므로 화면에는 `http://localhost:8081/project/ontop-dev`가 보일 수 있다. GitLab에 등록할 때는 `https://ci.on-top.world/project/ontop-dev`를 사용한다.
 5. GitLab 프로젝트 `Settings → Webhooks`에서 위 HTTPS URL과 Secret Token을 등록한다. Push events를 선택하고 SSL 검증은 켜 둔다. Jenkins 작업과 웹훅 모두 `dev` 브랜치만 다룬다.
 6. GitLab 웹훅의 Test Push 이벤트로 HTTP 응답을 확인한다. Test 이벤트가 기본 브랜치 `master`를 사용하면 `dev` 필터 때문에 빌드는 생기지 않을 수 있으므로, 실제 `dev` 병합 이벤트로 Jenkins 빌드 발생도 확인한다. 웹훅 재시도는 같은 커밋에 대한 중복 빌드를 일으킬 수 있으나 파이프라인은 동시 실행을 막고, 동일 이미지 SHA로 DEV 배포를 반복하면 배포 스크립트가 건너뛴다.
@@ -66,7 +66,36 @@ VERCEL_PROJECT_ID=prj_...
 - 이후 `backend/`만 바뀐 `dev` 커밋은 프론트 배포 없이, `frontend/`만 바뀐 커밋은 백엔드 이미지 빌드 없이 진행되는지 Jenkins Stage View와 배포 기록으로 확인한다. 실제 배포 검증 전에는 위 자격 증명과 실행 권한 설정이 필요하다.
 - 백엔드 배포 도중 앱 헬스체크 또는 `https://dev-api.on-top.world/actuator/health`가 실패하면 `/usr/local/sbin/ontop-deploy-dev`가 이전 이미지로 복구한다. 이 스크립트는 `/etc/ontop/dev-app/deploy.env`의 이미지 태그를 바꾸고 `/var/lib/ontop/ci/dev-deployments.tsv`에 성공 기록을 추가한다.
 - Vercel 배포 URL은 Jenkins artifact `frontend/vercel-deployment-url.txt`에 저장한다. 문제가 생기면 Vercel 대시보드에서 `ontop-frontend-dev`의 이전 정상 배포를 Promote하거나 해당 배포 URL로 재배포한다.
-- 운영 서비스·운영 DB·운영 Vercel 프로젝트는 자동 배포 대상이 아니다. CI 또는 개발·운영 인프라 경로 변경은 `MANUAL_REVIEW=1`로 표시하고 배포를 건너뛴다. 테스트를 통과하면 빌드가 `UNSTABLE`로 표시되지만 비교 기준 SHA는 기록해 다음 정상 변경이 계속 처리되게 한다. 인프라 적용은 검토 후 수동으로 진행한다.
+- 운영 서비스·운영 DB·운영 Vercel 프로젝트는 자동 배포 대상이 아니다. CI 또는 개발·운영 인프라 경로 변경은 검토 기준 SHA가 갱신될 때까지 `MANUAL_REVIEW=1`로 표시하고 배포를 건너뛴다. 테스트를 통과하면 빌드가 `UNSTABLE`로 표시되지만 테스트 기준 SHA는 기록한다. 보류된 서비스 배포는 각 배포 기준 SHA에 남아 다음 빌드에서 다시 평가된다.
+
+## Story 240 전환: 테스트와 서비스별 배포 기준 분리
+
+`/var/lib/jenkins/ontop-state/`에 다음 기준 파일을 각각 둔다. 파일은 Jenkins 계정만 쓸 수 있어야 한다.
+
+| 파일 | 기록 시점 | 용도 |
+| --- | --- | --- |
+| `tested.sha` | 필수 검사와 해당 백엔드·프론트엔드 테스트가 모두 통과한 직후 | 다음 빌드에서 실행할 테스트 결정 |
+| `backend-deployed.sha` | DEV 백엔드 배포 스크립트가 성공한 직후 | 이후 누적 백엔드 변경 확인 |
+| `frontend-deployed.sha` | DEV Vercel 배포 명령이 성공한 직후 | 이후 누적 프론트엔드 변경 확인 |
+| `reviewed-config.sha` | 담당자가 누적 CI·인프라 변경을 검토하고 수동 기록 | 설정 변경 후 자동 배포 재개 |
+
+백엔드 배포가 성공하고 프론트엔드 배포가 실패해도 백엔드 SHA만 갱신한다. 다음 빌드는 프론트엔드 미배포 변경을 다시 찾아 배포한다. 테스트 실패 시 `tested.sha`가 전진하지 않아 다음 빌드에서 해당 테스트를 다시 실행한다. 경로 분류와 Compose 검사 등 필수 검사에 실패해도 기준 파일을 갱신하지 않는다. 같은 SHA의 재실행은 서비스별 배포가 이미 끝났으면 배포를 건너뛴다.
+
+처음 적용하는 빌드에는 기존 `dev.sha`를 테스트 기준으로만 읽는다. 기존 파일은 갱신하지 않는다. `reviewed-config.sha`가 없으므로 첫 빌드는 설정 검토 대상으로 표시된다. 백엔드 배포 기준이 없다면 실행 중인 `wooaw/ontop-backend:sha-<전체 SHA>` 이미지의 SHA가 현재 `dev`의 조상인지 확인한 뒤 그 **실제 배포 SHA**를 자동 기록한다. 실행 이미지와 기록된 백엔드 SHA가 서로 다르면 백엔드 자동 배포를 중단한다. 프론트엔드 배포 기준은 Vercel의 실제 배포와 Git SHA를 대조할 수 없어 자동으로 추정하지 않는다. 한 서비스의 기준만 없으면 그 서비스의 자동 배포만 막고, 다른 서비스는 검토가 끝났다면 배포할 수 있다.
+
+1. Story 240 MR을 검토·병합하고 Jenkins 빌드 기록에서 첫 빌드의 검사와 테스트 결과를 본다. 기준이 없는 서비스나 미검토 CI 변경이 있으면 배포 단계가 건너뛰어지고 `UNSTABLE`로 표시되는 것이 정상이다.
+2. Vercel `ontop-frontend-dev`의 **현재 `dev.on-top.world`를 제공하는 배포**가 어떤 Git 전체 SHA의 소스에서 만들어졌는지 빌드 기록과 배포 기록으로 확인한다. 확인할 수 없다면 프론트엔드 기준 SHA를 적지 않는다. 이 경우 검토한 `dev` 커밋을 로컬에 체크아웃해 **개발용 Vercel 프로젝트에만** 한 번 수동 배포한다. 프론트엔드 폴더에서 `vercel link`로 기존 `ontop-frontend-dev` 프로젝트를 선택하고 `.vercel/project.json`의 `projectId`가 서버의 `vercel-dev.env`에 있는 `VERCEL_PROJECT_ID`와 같은지 확인한 뒤 `vercel deploy --prod`를 실행한다. 배포 URL·동작을 확인한 후 **배포에 사용한 커밋 SHA**를 기준으로 기록한다. 운영용 `ontop-frontend` 프로젝트와 혼동하지 않는다.
+3. 확인된 SHA를 Jenkins 서버의 해당 `dev` 작업 공간에서 Jenkins 계정으로 기록한다. 아래 명령의 `<검증한-전체-SHA>`만 교체한다. Git 저장소와 기준 파일에 접근할 수 있는 서버 관리자만 실행한다.
+
+   ```bash
+   cd /var/lib/jenkins/workspace/ontop-dev
+   sudo -u jenkins python3 infra/ci/write_state.py --kind frontend --sha <검증한-전체-SHA> --state-dir /var/lib/jenkins/ontop-state
+   ```
+
+4. 이번 MR의 Jenkinsfile·CI·인프라 변경을 모두 검토하고 적용 필요 항목을 수동 처리한 뒤, 같은 작업 공간에서 `--kind reviewed-config --sha <검토한-dev-전체-SHA>`로 기록한다. 이 SHA는 현재 `dev`의 조상이어야 한다. 그 사이 새 설정 변경이 병합됐다면 그 변경도 검토한 후 SHA를 고른다.
+5. Jenkins `Build Now`로 재실행해 변경 플래그를 확인한다. 마지막 배포 이후 누적된 서비스 변경만 자동 배포한다. 한쪽 기준이 없으면 해당 서비스의 자동 배포만 멈춘다. 기록된 백엔드 SHA와 실행 이미지가 다르면 백엔드 상태를 대조하고 수동으로 바로잡는다. SHA를 현재 `HEAD`로 임의 지정해 미배포 변경을 건너뛰지 않는다.
+
+모든 기준 SHA는 Git 커밋이며 현재 체크아웃의 조상이어야 한다. `write_state.py`가 이를 검사하고 파일을 원자적으로 기록한다. 배포 완료 여부는 Jenkins Stage View와 백엔드 실행 이미지, Vercel 배포 기록에서도 확인한다.
 
 운영 배포는 후속 전환·롤백 Story에서 승인된 이미지를 수동으로 승격한다. 운영 서버에서 다시 빌드하지 않는다. 배포 기록에는 Git 전체 SHA, `wooaw/ontop-backend:sha-<SHA>` 태그, Docker Hub 이미지 digest, 원본 Jenkins 빌드 URL, 실행 시각·담당자, 배포 전후 헬스 결과와 롤백 여부를 남긴다. 현재의 운영 이미지 태그는 `infra/app/README.md`에 기록된 수동 배포 버전이며, 이 CI Story가 운영 앱을 교체하지 않는다.
 

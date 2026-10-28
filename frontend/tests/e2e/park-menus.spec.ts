@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test'
-import { fixture, screenshot } from './contractFixture'
+import { TABLES } from '../../src/config'
+import { fixture, screenshot, tableId } from './contractFixture'
 
 async function loaded(page: Page) {
   await page.goto('/park')
@@ -42,9 +43,11 @@ async function profileRoutes(page: Page, options: { taken?: string[]; patch?: nu
 
 test('channel dropdown shows current and full channels and keeps the seated-table rule', async ({ page }) => {
   await fixture(page)
+  let showSpare = false
   await page.route('**/api/v1/channels', route => route.fulfill({ json: { items: [
     { channelId: 'fixture-channel', name: '공원 01', currentUsers: 2, capacity: 16, joinable: true },
     { channelId: 'full-channel', name: '공원 03', currentUsers: 16, capacity: 16, joinable: false },
+    ...(showSpare ? [{ channelId: 'spare-channel', name: '공원 04', currentUsers: 0, capacity: 16, joinable: true }] : []),
   ] } }))
   await page.goto('/park')
   const dropdown = page.getByRole('region', { name: '채널 선택' })
@@ -52,7 +55,9 @@ test('channel dropdown shows current and full channels and keeps the seated-tabl
   await expect(dropdown).toBeVisible({ timeout: 90000 })
   const chip = page.getByRole('button', { name: '현재 공원과 접속 인원' })
   await chip.click(); await expect(dropdown).toBeHidden(); await expect(chip).toHaveAttribute('aria-expanded', 'false')
+  showSpare = true
   await chip.click(); await expect(dropdown).toBeVisible()
+  await expect(dropdown.getByRole('button', { name: /공원 04/ })).toBeVisible()
   await dropdown.getByRole('button', { name: /공원 01/ }).click()
   await expect(dropdown).toBeHidden()
   await chip.click()
@@ -66,17 +71,32 @@ test('channel dropdown shows current and full channels and keeps the seated-tabl
   await expect(dropdown).toBeHidden()
 })
 
-test('profile menu lists 내 정보 · 설정 · 로그아웃 · 회원 탈퇴 and 설정 opens graphics settings', async ({ page }) => {
+test('table placement uses the live channel response when static bindings are absent', async ({ page }) => {
+  await fixture(page, { bindings: false })
+  await page.route(/\/api\/v1\/tables\?/, route => route.fulfill({ json: { tables: [{
+    tableId, anchorId: TABLES[0]!.id, capacity: 2, minimumPlayers: 2,
+    occupiedSeats: 0, availableSeats: 2, readyCount: 0, allReady: false,
+    status: 'WAITING', joinable: true, gameCode: null, targetScore: null, betAmountPerPlayer: null,
+  }] } }))
+  await loaded(page)
+  await expect.poll(() => page.evaluate(async () => {
+    const { useSession } = await import('/src/network/worldClient.ts' as string)
+    return useSession.getState().bindings
+  })).toEqual([{ channelId: 'fixture-channel', tableId, anchorId: TABLES[0]!.id }])
+})
+
+test('profile menu lists 내 정보 · 로그아웃 · 회원 탈퇴 and the dock 설정 opens settings', async ({ page }) => {
   await fixture(page); await loaded(page)
   await openMenu(page)
   await expect(menu(page)).toContainText('공원 산책자')
   await expect(menu(page)).toContainText('100냥')
-  for (const name of ['내 정보', '설정', '로그아웃', '회원 탈퇴']) await expect(menu(page).getByRole('menuitem', { name: new RegExp(name) })).toBeVisible()
-  await expect(menu(page).getByRole('menuitem', { name: /설정/ })).toContainText('그래픽 품질 · Low')
+  for (const name of ['내 정보', '로그아웃', '회원 탈퇴']) await expect(menu(page).getByRole('menuitem', { name: new RegExp(name) })).toBeVisible()
+  // 설정 moved to the 빠른 메뉴 dock (S15P31B105-256).
+  await expect(menu(page).getByRole('menuitem', { name: /설정/ })).toHaveCount(0)
   await screenshot(page, 'park-menus-profile')
-  await menu(page).getByRole('menuitem', { name: /설정/ }).click()
-  await expect(menu(page)).toBeHidden()
-  await expect(page.getByRole('region', { name: '그래픽과 성능' })).toBeVisible()
+  await page.keyboard.press('Escape'); await expect(menu(page)).toBeHidden()
+  await page.getByRole('button', { name: '설정', exact: true }).click()
+  await expect(page.getByRole('region', { name: '설정', exact: true })).toBeVisible()
 })
 
 test('내 정보 checks availability before saving, shows the result and updates the park name', async ({ page }) => {

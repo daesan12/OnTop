@@ -113,6 +113,19 @@ public final class WorldFollowService {
         rooms.clear();
     }
 
+    public void removeEmptyChannel(String channelId) {
+        Room room = rooms.get(channelId);
+        if (room != null && !room.links.isEmpty()) {
+            throw new IllegalStateException("따라가기 연결이 있는 채널은 정리할 수 없습니다.");
+        }
+        rooms.remove(channelId);
+    }
+
+    public boolean hasLinks(String channelId) {
+        Room room = rooms.get(channelId);
+        return room != null && !room.links.isEmpty();
+    }
+
     private Room room(String channelId) {
         return rooms.computeIfAbsent(channelId, ignored -> new Room());
     }

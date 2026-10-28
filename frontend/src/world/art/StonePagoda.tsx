@@ -4,8 +4,7 @@ import {
   BoxGeometry,
   IcosahedronGeometry,
 } from 'three'
-import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
-import { PAGODA_TIERS, GARDEN_PAGODA } from '../../config'
+import { PAGODA_TIERS, GARDEN_PAGODA, PAGODA_ANCHORS } from '../../config'
 import { type Part, type XYZ } from './Instances'
 import { PagodaRefinements } from './LandmarkRefinements'
 import { SurfaceMaterial } from './SurfaceMaterial'
@@ -65,26 +64,23 @@ function roofGeometry(cross: boolean) {
     ]
   }
   for (let edge = 0; edge < outline.length; edge++) {
-    for (let segment = 0; segment < 4; segment++) {
-      const u = segment / 4,
-        v = (segment + 1) / 4
-      for (let ring = 0; ring < 3; ring++) {
-        const a = point(edge, u, ring),
-          b = point(edge, v, ring)
-        const c = point(edge, u, ring + 1),
-          d = point(edge, v, ring + 1)
-        triangle(a, c, b)
-        triangle(b, c, d)
-      }
-      const a = point(edge, u, 3),
-        b = point(edge, v, 3)
-      const c = point(edge, u, 3, true),
-        d = point(edge, v, 3, true)
+    const u = 0, v = 1
+    for (let ring = 0; ring < 3; ring++) {
+      const a = point(edge, u, ring),
+        b = point(edge, v, ring)
+      const c = point(edge, u, ring + 1),
+        d = point(edge, v, ring + 1)
       triangle(a, c, b)
       triangle(b, c, d)
-      triangle([0, 0, 0], d, c)
-      triangle([0, 1, 0], point(edge, u, 0), point(edge, v, 0))
     }
+    const a = point(edge, u, 3),
+      b = point(edge, v, 3)
+    const c = point(edge, u, 3, true),
+      d = point(edge, v, 3, true)
+    triangle(a, c, b)
+    triangle(b, c, d)
+    triangle([0, 0, 0], d, c)
+    triangle([0, 1, 0], point(edge, u, 0), point(edge, v, 0))
   }
   const geometry = new BufferGeometry()
   geometry.setAttribute('position', new Float32BufferAttribute(vertices, 3))
@@ -118,69 +114,10 @@ function createPagoda() {
   ] as const)
     block([0, y, 0], [width * 1.15, height, width * 1.15], color)
 
-  // Bas-relief panels, with a shallow inset and a small raised floral motif.
-  const panel = (
-    x: number,
-    y: number,
-    z: number,
-    width: number,
-    height: number,
-    yaw: number,
-  ) => {
-    const transform = (dx: number, dy: number, dz: number): XYZ => [
-      x + dx * Math.cos(yaw) + dz * Math.sin(yaw),
-      y + dy,
-      z - dx * Math.sin(yaw) + dz * Math.cos(yaw),
-    ]
-    const part = (
-      dx: number,
-      dy: number,
-      dz: number,
-      sx: number,
-      sy: number,
-      sz: number,
-      c: string,
-    ) =>
-      details.push({
-        p: transform(dx, dy, dz),
-        s: [sx, sy, sz],
-        r: [0, yaw, 0],
-        c,
-      })
-    part(0, 0, 0, width, height, 0.035, '#888b7d')
-    part(0, 0, 0.022, width * 0.82, height * 0.83, 0.03, '#a9a592')
-    for (const side of [-1, 1]) {
-      part(side * width * 0.46, 0, 0.052, width * 0.09, height, 0.08, '#c6c0ad')
-      part(
-        0,
-        side * height * 0.46,
-        0.052,
-        width,
-        height * 0.09,
-        0.08,
-        '#c6c0ad',
-      )
-    }
-    for (let petal = 0; petal < 6; petal++) {
-      const a = (petal * Math.PI) / 3
-      relief.push({
-        p: transform(
-          Math.cos(a) * width * 0.16,
-          Math.sin(a) * height * 0.21,
-          0.065,
-        ),
-        s: [width * 0.1, height * 0.13, 0.045],
-        r: [0, yaw, -a],
-        c: '#c0bba7',
-      })
-    }
-    relief.push({
-      p: transform(0, 0, 0.09),
-      s: [width * 0.1, height * 0.12, 0.07],
-      c: '#cdc7b2',
-    })
+  // A single coloured inset replaces each carved panel and its petal meshes.
+  const panel = (x: number, y: number, z: number, width: number, height: number, yaw: number) => {
+    details.push({ p: [x, y, z], s: [width, height, 0.035], r: [0, yaw, 0], c: '#989c89' })
   }
-
   for (let face = 0; face < 4; face++) {
     const yaw = (face * Math.PI) / 2
     for (let i = -2; i <= 2; i++) {
@@ -304,7 +241,7 @@ function createPagoda() {
 const art = createPagoda()
 const detailGeometry = new BoxGeometry()
 const reliefGeometry = new IcosahedronGeometry(1, 0)
-const masonryGeometry = new RoundedBoxGeometry(1, 1, 1, 1, 0.025)
+const masonryGeometry = new BoxGeometry()
 const stoneAssets = new Map<number, BufferGeometry>()
 function stoneAsset(scale: number) {
   let geometry = stoneAssets.get(scale)
@@ -334,10 +271,16 @@ function stoneAsset(scale: number) {
         scale,
         scale * GARDEN_PAGODA.widthScale,
       ],
+      `pagoda-stone-${scale}`,
     )
     stoneAssets.set(scale, geometry)
   }
   return geometry
+}
+
+/** Build tooling captures exact stone surfaces and their raycast ranges. */
+export function prebuildStaticSurfaces() {
+  for (const scale of new Set(PAGODA_ANCHORS.map(anchor => anchor.scale))) stoneAsset(scale)
 }
 
 export function StonePagoda({

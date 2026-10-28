@@ -16,6 +16,8 @@ import {
 } from 'three/addons/utils/BufferGeometryUtils.js'
 import { weldStaticVertices } from './weldStaticVertices'
 import type { Part, XYZ } from './Instances'
+import { recordPropBuild, takeBakedProp } from './bakedProps'
+import { indexedCopy } from './indexedGeometry'
 
 export interface SurfaceBatch {
   geometry: BufferGeometry
@@ -65,7 +67,17 @@ function branch(ranges: Range[]): Branch {
 export function mergeSurfaceParts(
   batches: readonly SurfaceBatch[],
   assetScale: XYZ = [1, 1, 1],
+  cacheKey?: string,
 ) {
+  const baked = takeBakedProp(cacheKey)?.stone
+  if (baked && Array.isArray(baked.userData.ontopSurfaceRanges)) {
+    const ranges = baked.userData.ontopSurfaceRanges as { min: number[]; max: number[]; start: number; count: number }[]
+    trees.set(baked, branch(ranges.map(range => ({
+      bounds: new Box3(new Vector3().fromArray(range.min), new Vector3().fromArray(range.max)),
+      start: range.start, count: range.count,
+    }))))
+    return baked
+  }
   const pieces: BufferGeometry[] = [],
     ranges: Range[] = []
   const object = new Object3D(),
@@ -73,9 +85,7 @@ export function mergeSurfaceParts(
   let start = 0
   for (const batch of batches) {
     for (const part of batch.parts) {
-      const g = batch.geometry.index
-        ? batch.geometry.toNonIndexed()
-        : batch.geometry.clone()
+      const g = indexedCopy(batch.geometry)
       // Only attributes consumed by this material; no material groups/subdraws.
       for (const name of Object.keys(g.attributes))
         if (!['position', 'normal', 'uv'].includes(name))
@@ -122,8 +132,8 @@ export function mergeSurfaceParts(
       object.updateMatrix()
       g.applyMatrix4(object.matrix)
       g.computeBoundingBox()
-      ranges.push({ bounds: g.boundingBox!.clone(), start, count: p.count })
-      start += p.count
+      ranges.push({ bounds: g.boundingBox!.clone(), start, count: g.index!.count })
+      start += g.index!.count
       pieces.push(g)
     }
   }
@@ -139,6 +149,12 @@ export function mergeSurfaceParts(
   geometry.computeBoundingBox()
   geometry.computeBoundingSphere()
   trees.set(geometry, branch(ranges))
+  if (cacheKey) {
+    geometry.userData.ontopSurfaceRanges = ranges.map(range => ({
+      min: range.bounds.min.toArray(), max: range.bounds.max.toArray(), start: range.start, count: range.count,
+    }))
+    recordPropBuild(cacheKey, { stone: geometry })
+  }
   return geometry
 }
 

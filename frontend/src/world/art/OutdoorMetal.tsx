@@ -1,6 +1,4 @@
-import { metalGrain } from './ornamentTextures'
-
-/** Shared micro-roughness; reflection comes from the scene's outdoor probe. */
+/** Flat painted finishes share the park's texture-free lighting. */
 export function OutdoorMetal({
   finish = 'painted',
   vertexColors = false,
@@ -11,11 +9,9 @@ export function OutdoorMetal({
   return (
     <meshStandardMaterial
       vertexColors={vertexColors}
-      metalness={finish === 'brass' ? 0.78 : finish === 'iron' ? 0.7 : 0.22}
-      roughness={finish === 'brass' ? 0.47 : finish === 'iron' ? 0.65 : 0.6}
-      roughnessMap={metalGrain}
-      bumpMap={metalGrain}
-      bumpScale={0.00035}
+      flatShading
+      metalness={finish === 'brass' ? 0.15 : 0}
+      roughness={1}
     />
   )
 }

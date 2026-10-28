@@ -1,9 +1,11 @@
 import { gatheringCameraActive } from '../features/tableLobby/gathering'
+import { OneCardHeldHand } from '../game/onecard/OneCardHeldHand'
+import { oneCardHeldCount, oneCardHoldingPose } from '../game/onecard/heldHand'
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { useFrame, useLoader } from '@react-three/fiber'
 import { Group, Vector3 } from 'three'
 import { ParkAssetLoader } from './art/assetLoader'
-import { characterUrls, createCharacterRig } from './art/CharacterRig'
+import { characterUrls, createCharacterRig } from './worldAssets'
 import { avatarPoseActive, avatarPoseKey, avatarSeatSurface, createAvatarMotion } from './avatarMotion'
 import { SwimmingRipples } from './SwimmingRipples'
 
@@ -90,6 +92,7 @@ function Avatar({
     model.lod(distance)
     const now = estimatedServerTime()
     const reaction = gameReaction(id, avatar, now)
+    const holdingCards = seated && oneCardHeldCount(id, avatar.tableId) > 0
     const active = !!reaction || avatarPoseActive(avatar, now)
     // Keep the authoritative position interpolation above at display cadence.
     // State changes (seat, action, reconnect) must never wait for the next pose tick.
@@ -98,10 +101,10 @@ function Avatar({
       distance,
       own,
       active,
-      `${avatarPoseKey(avatar)}|${reaction?.key ?? ''}`,
+      `${avatarPoseKey(avatar)}|${reaction?.key ?? ''}|${holdingCards}`,
     )
     if (!poseDelta) return
-    motion.apply(avatar, now, poseDelta, pose, figure.current, reaction)
+    motion.apply(avatar, now, poseDelta, pose, figure.current, reaction, holdingCards ? oneCardHoldingPose : undefined)
     // Follow the posed head when swimming; a tilted standing-height marker
     // otherwise puts the nickname in front of the swimmer's face/water.
     model.bones.head.getWorldPosition(worldPosition)
@@ -128,6 +131,7 @@ function Avatar({
       <FartCloud id={id} />
       <group ref={figure} name={`figure-${id}`}>
         <primitive object={model.root} dispose={null} />
+        <OneCardHeldHand userId={id} model={model} />
       </group>
       <group ref={marker} position={[0, CHARACTER.height - 0.5, 0]} />
     </group>

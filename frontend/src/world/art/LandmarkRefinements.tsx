@@ -1,10 +1,9 @@
-import { BufferGeometry, Float32BufferAttribute, SphereGeometry } from 'three'
+import { SphereGeometry } from 'three'
 import {
   FOUNTAIN,
   FOUNTAIN_GARDENS,
   PARK_PAVILIONS,
   PILLARS,
-  groundHeight,
 } from '../../config'
 import { PropBuilder } from './propGeometry'
 import { PropModel } from './PropModel'
@@ -44,68 +43,13 @@ function lantern(b: PropBuilder, x: number, y: number, z: number, size = 1) {
   b.ball('gold', '#b8a26c', p(1.22), [0.04 * size, 0.07 * size, 0.04 * size])
 }
 function blossom(b: PropBuilder, p: XYZ, radius: number, color: string) {
-  for (let i = 0; i < 5; i++) {
-    const a = (i * Math.PI * 2) / 5
-    b.ball(
-      'paint',
-      color,
-      [
-        p[0] + Math.cos(a) * radius * 0.6,
-        p[1],
-        p[2] + Math.sin(a) * radius * 0.6,
-      ],
-      [radius * 0.55, radius * 0.25, radius * 0.55],
-    )
-  }
-  b.ball(
-    'gold',
-    '#e4b94f',
-    [p[0], p[1] + radius * 0.18, p[2]],
-    [radius * 0.24, radius * 0.2, radius * 0.24],
-  )
+  b.ball('paint', color, p, [radius, radius * 0.4, radius])
 }
 
-const fountain = new PropBuilder()
-// Each paving tile follows the existing bowl's collision terrain. The outer
-// rings express the reference's concentric courses without creating false steps.
-for (let row = 0; row < 12; row++) {
-  const inner = 5.4 + row * 0.69,
-    outer = inner + 0.675
-  for (let i = 0; i < 96; i++) {
-    const a = ((i + 0.012) * Math.PI * 2) / 96,
-      c = ((i + 0.988) * Math.PI * 2) / 96
-    const point = (r: number, angle: number): XYZ => {
-      const x = FOUNTAIN.x + Math.cos(angle) * r,
-        z = FOUNTAIN.z + Math.sin(angle) * r
-      return [x, groundHeight(x, z) + 0.065, z]
-    }
-    const vertices: number[] = []
-    // The bowl crosses terrain-grid diagonals: smaller patches prevent the
-    // decorative paving from cutting through the underlying plaza surface.
-    for (let radial = 0; radial < 4; radial++)
-      for (let angular = 0; angular < 4; angular++) {
-        const r0 = inner + ((outer - inner) * radial) / 4,
-          r1 = inner + ((outer - inner) * (radial + 1)) / 4
-        const a0 = a + ((c - a) * angular) / 4,
-          a1 = a + ((c - a) * (angular + 1)) / 4
-        const p = point(r0, a0),
-          q = point(r0, a1),
-          r = point(r1, a0),
-          s = point(r1, a1)
-        vertices.push(...p, ...q, ...r, ...q, ...s, ...r)
-      }
-    const geometry = new BufferGeometry()
-    geometry.setAttribute('position', new Float32BufferAttribute(vertices, 3))
-    geometry.computeVertexNormals()
-    fountain.add(
-      'stone',
-      geometry,
-      row % 3 === 2 ? '#8a918b' : i % 4 === 0 ? '#c2b79f' : '#ddd2bc',
-    )
-  }
-}
-for (let i = 0; i < 64; i++) {
-  const a = (i * Math.PI * 2) / 64
+const fountain = new PropBuilder([12, 8], 'fountain-refinements')
+// The continuous terrain plaza supplies the entire floor; no overlay tile meshes.
+for (let i = 0; i < 24; i++) {
+  const a = (i * Math.PI * 2) / 24
   fountain.box(
     'stone',
     i % 4 ? '#d9cfbb' : '#bcb5a6',
@@ -118,8 +62,8 @@ for (let i = 0; i < 64; i++) {
     [0, -a - Math.PI / 2, 0],
   )
 }
-const flowerNear = new PropBuilder(),
-  flowerFar = new PropBuilder([6, 4])
+const flowerNear = new PropBuilder([12, 8], 'fountain-flowers-near'),
+  flowerFar = new PropBuilder([6, 4], 'fountain-flowers-far')
 for (const [index, g] of FOUNTAIN_GARDENS.entries()) {
   const point = (dx: number, dy: number, dz: number): XYZ => [
     g.x + dx * Math.cos(g.yaw) + dz * Math.sin(g.yaw),
@@ -158,7 +102,7 @@ export function FountainRefinements() {
   )
 }
 
-const pagoda = new PropBuilder()
+const pagoda = new PropBuilder([12, 8], 'pagoda-refinements')
 for (let face = 0; face < 4; face++) {
   const a = (face * Math.PI) / 2
   for (let i = -3; i <= 3; i++) {
@@ -190,7 +134,7 @@ export function PagodaRefinements() {
 }
 
 const main = PARK_PAVILIONS[0]
-const ornament = new PropBuilder()
+const ornament = new PropBuilder([12, 8], 'pavilion-ornaments')
 for (let side = 0; side < 8; side++) {
   const p = PILLARS[side]!,
     n = PILLARS[(side + 1) % 8]!
@@ -218,7 +162,7 @@ for (let side = 0; side < 8; side++) {
   ornament.cylinder('gold', '#bc9b5d', [p[0], 0.28, p[2]], 0.218, 0.218, 0.055)
 }
 const mainArt = ornament.finish()
-const base = new PropBuilder()
+const base = new PropBuilder([12, 8], 'pavilion-base')
 const radius = 4.5 * main.scale * Math.cos(Math.PI / 8) + 0.025
 for (let side = 0; side < 8; side++) {
   if (side === 2 || side === 6) continue

@@ -5,6 +5,7 @@ import { OVERHEAD } from '../config'
 import { avatars, useSession } from '../network/worldClient'
 import { useGathering } from '../features/tableLobby/gathering'
 import { OMOK_FOCUS_LAYER } from './omokCamera'
+import { OneCardOverhead } from '../game/onecard/OneCardOverhead'
 
 export interface AvatarAnchors {
   root: Object3D
@@ -67,6 +68,7 @@ const AvatarOverlay = memo(function AvatarOverlay({
     >
       {speaking && <div className="avatar-speech">{bubble.text}</div>}
       <div className="avatar-nickname">{nickname}</div>
+      <OneCardOverhead userId={id} />
       {participant && <div className={`gathering-role${participant.ready ? ' is-ready' : ''}`} style={{ display: 'block' }}>{participant.label}</div>}
     </div>
   )

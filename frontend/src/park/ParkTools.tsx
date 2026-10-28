@@ -1,18 +1,12 @@
 import { useShallow } from 'zustand/react/shallow'
-import type { QualityPreset } from '../config'
 import { useSession } from '../network/worldClient'
 import { useParkRuntime } from './runtime/ParkRuntime'
 import { GraphicsSettings } from '../performance/GraphicsSettings'
 import { GamePanel } from '../game/GamePanel'
 import { TableLobby } from '../features/tableLobby/TableLobby'
+import { TABLET_ENABLED } from '../features/tableLobby/tabletFeature'
 
-export function ParkTools({
-  quality,
-  onQuality,
-}: {
-  quality: QualityPreset
-  onQuality: (value: QualityPreset) => void
-}) {
+export function ParkTools() {
   const runtime = useParkRuntime()
   const state = useSession(
     useShallow((s) => ({
@@ -29,11 +23,11 @@ export function ParkTools({
   return (
     <>
       <div className="park-runtime-tools">
-        {state.tableId && !state.focusedAnchorId && <button onClick={() => {
+        {!TABLET_ENABLED && state.tableId && !state.focusedAnchorId && <button onClick={() => {
           const binding = state.bindings.find(b => b.channelId === state.roomId && b.tableId === state.tableId)
           if (binding) runtime.inspectTable(binding.anchorId)
         }}>테이블 로비 열기</button>}
-        <GraphicsSettings quality={quality} onQuality={onQuality} />
+        <GraphicsSettings />
       </div>
       <TableLobby />
       <GamePanel />

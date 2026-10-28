@@ -1,10 +1,11 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import { AuthCallbackPage } from './auth/AuthCallbackPage'
-import { clearAuthSession, getAuthSession, logout, restoreAuthSession } from './auth/authFlow'
+import { clearAuthSession, getAuthSession, logout, restoreInitialAuthSession } from './auth/authFlow'
 import { LoginPage } from './login/LoginPage'
 import { OnboardingPage } from './onboarding/OnboardingPage'
 import { ParkPage } from './park/ParkPage'
 import { preloadWorldAssets } from './world/worldAssets'
+import { preloadWorldCanvas } from './park/loadWorldCanvas'
 
 const AdminShell = lazy(() => import('./features/admin/AdminShell').then(m => ({ default: m.AdminShell })))
 type Page = 'checking' | 'login' | 'callback' | 'onboarding' | 'park' | 'admin' | 'admin-feedback' | 'admin-analytics'
@@ -21,6 +22,7 @@ export default function App() {
       // Start textures/characters before constructing the procedural world, so
       // the first scene render need not suspend and repeat expensive setup.
       preloadWorldAssets()
+      preloadWorldCanvas()
     }
   }, [page])
 
@@ -44,7 +46,7 @@ export default function App() {
   useEffect(() => {
     if (page !== 'checking') return
     let active = true
-    restoreAuthSession().then((authenticated) => {
+    restoreInitialAuthSession().then((authenticated) => {
       if (!active) return
       if (authenticated) {
         const path = window.location.pathname

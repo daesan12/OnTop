@@ -11,8 +11,9 @@ import {
   GAME_COURT,
   GARDEN_PAGODA,
 } from '../../config'
-import { Instances, seeded, type Part } from './Instances'
+import { seeded, type Part } from './Instances'
 import { SurfaceMaterial } from './SurfaceMaterial'
+import { DetailInstances } from './DetailInstances'
 
 const data = createTerrainMesh()
 const terrain = new BufferGeometry()
@@ -211,13 +212,14 @@ export function PlannedGround() {
           depthOffset
         />
       </mesh>
-      <Instances
+      <DetailInstances
+        name="path-curbs"
+        range={Infinity}
         parts={curbs}
-        shadow={false}
         material={<SurfaceMaterial kind="stone" mapping="box" strength={0.2} />}
       >
         <boxGeometry />
-      </Instances>
+      </DetailInstances>
       <mesh
         name="pavilion-stairs-merged"
         geometry={stairs}

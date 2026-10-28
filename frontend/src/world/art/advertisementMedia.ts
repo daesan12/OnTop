@@ -1,5 +1,9 @@
 import { ENVIRONMENT } from '../../config'
 import type { AdvertisementFormat } from './advertisementFormats'
+import pickusLandscape from '../../assets/entry/adv_pickus_1.webp'
+import pickusPortrait from '../../assets/entry/adv_pickus_2.webp'
+import pickusNew from '../../assets/entry/adv_pickus_4.webp'
+import deroPoster from '../../assets/entry/dero-poster.webp'
 
 export interface AdvertisementMedia {
   id: string
@@ -52,16 +56,16 @@ export const ADVERTISEMENTS: readonly AdvertisementMedia[] = [
     title: 'PICKUS',
     subtitle: '사진을 PICK! 그대로 찰칵!',
     color: '#ff510f',
-    imageUrl: '/art/advertisements/adv_pickus_1.webp',
-    portraitImageUrl: '/art/advertisements/adv_pickus_2.webp',
+    imageUrl: pickusLandscape,
+    portraitImageUrl: pickusPortrait,
   },
   {
     id: 'pickus-film',
     title: 'PICKUS',
     subtitle: '좋아하는 구도, 이제 내 사진으로',
     color: '#ff510f',
-    imageUrl: '/art/advertisements/adv_pickus_1.webp',
-    portraitImageUrl: '/art/advertisements/adv_pickus_2.webp',
+    imageUrl: pickusLandscape,
+    portraitImageUrl: pickusPortrait,
     videoUrl: '/art/advertisements/adv_pickus_3.mp4',
     videoDurationSeconds: 10,
     videoFormats: ['vertical', 'portrait', 'poster'],
@@ -71,14 +75,14 @@ export const ADVERTISEMENTS: readonly AdvertisementMedia[] = [
     title: 'PICKUS',
     subtitle: '사진을 PICK! 그대로 찰칵!',
     color: '#ff510f',
-    imageUrl: '/art/advertisements/adv_pickus_4.webp',
+    imageUrl: pickusNew,
   },
   {
     id: 'dero-film',
     title: 'DERO',
     subtitle: '영상 광고',
     color: '#253c3c',
-    imageUrl: '/art/advertisements/dero-poster.jpg',
+    imageUrl: deroPoster,
     videoUrl: '/art/advertisements/adv_dero_1.mp4',
     videoDurationSeconds: 13.7,
   },

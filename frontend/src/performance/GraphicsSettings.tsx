@@ -1,36 +1,59 @@
-import { useEffect, useRef, useState } from 'react'
-import type { QualityPreset } from '../config/quality'
-import { QualityControl } from './QualityControl'
+import { useEffect, useState } from 'react'
+import { create } from 'zustand'
+import { BgmVolumeControl } from '../audio/BgmVolumeControl'
+import { useSession } from '../network/worldClient'
+import { inputState } from '../world/inputOwnership'
+import { LookSensitivityControl } from '../world/LookSensitivityControl'
+import settingsIcon from '../features/parkMenus/icons/icon-settings.svg'
 import { resetMetrics, summarizeFrames } from './metrics'
 import './performance.css'
 
-/** This panel reads the original probe; it never drives the render or network loop. */
-export function GraphicsSettings({ quality, onQuality }: {
-  quality: QualityPreset
-  onQuality: (value: QualityPreset) => void
-}) {
-  const [open, setOpen] = useState(false)
-  const opener = useRef<HTMLElement | null>(null)
-  useEffect(() => {
-    // Opened from the profile menu's 설정 item; focus returns to whatever opened it.
-    const show = () => {
-      opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
-      setOpen(true)
-    }
-    window.addEventListener('ontop-open-graphics-settings', show)
-    return () => window.removeEventListener('ontop-open-graphics-settings', show)
-  }, [])
-  return open ? <GraphicsReport quality={quality} onQuality={onQuality} onClose={() => {
-    setOpen(false)
-    if (opener.current?.isConnected) opener.current.focus({ preventScroll: true })
-  }} /> : null
+const useSettingsPanel = create<{ open: boolean }>(() => ({ open: false }))
+// Focus goes back to whatever opened the panel: the dock button, or the canvas after O.
+let opener: HTMLElement | null = null
+function toggleSettings() {
+  if (useSettingsPanel.getState().open) return closeSettings()
+  opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
+  useSettingsPanel.setState({ open: true })
+}
+function closeSettings() {
+  useSettingsPanel.setState({ open: false })
+  if (opener?.isConnected) opener.focus({ preventScroll: true })
+}
+const canOpen = () => useSession.getState().status === 'connected' && !Object.values(inputState).some(Boolean)
+  && !document.querySelector('dialog[open], [role="dialog"]')
+
+/** 빠른 메뉴 slot; O does the same from anywhere in the park. */
+export function SettingsLauncher() {
+  const open = useSettingsPanel(s => s.open)
+  return <button className="park-settings-launcher" type="button" aria-label="설정" aria-keyshortcuts="O"
+    aria-controls="park-graphics-settings" aria-expanded={open} onClick={() => { if (open || canOpen()) toggleSettings() }}>
+    <img src={settingsIcon} alt="" /><span>설정</span><kbd>O</kbd>
+  </button>
 }
 
-function GraphicsReport({ quality, onQuality, onClose }: {
-  quality: QualityPreset
-  onQuality: (value: QualityPreset) => void
-  onClose: () => void
-}) {
+/** This panel reads the original probe; it never drives the render or network loop. */
+export function GraphicsSettings() {
+  const open = useSettingsPanel(s => s.open)
+  useEffect(() => {
+    const key = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.repeat || event.isComposing || event.keyCode === 229
+        || event.ctrlKey || event.metaKey || event.altKey) return
+      const shown = useSettingsPanel.getState().open, target = event.target
+      // Typing never toggles; Esc still closes from the panel's own sensitivity box.
+      const typing = target instanceof HTMLElement && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))
+      if (typing && !(event.code === 'Escape' && target.closest('#park-graphics-settings'))) return
+      if (!(event.code === 'KeyO' && (shown || canOpen())) && !(event.code === 'Escape' && shown)) return
+      event.preventDefault()
+      toggleSettings()
+    }
+    window.addEventListener('keydown', key)
+    return () => { window.removeEventListener('keydown', key); useSettingsPanel.setState({ open: false }) }
+  }, [])
+  return open ? <GraphicsReport onClose={closeSettings} /> : null
+}
+
+function GraphicsReport({ onClose }: { onClose: () => void }) {
   const [report, setReport] = useState(summarizeFrames)
   useEffect(() => {
     const read = () => setReport({ ...summarizeFrames(), ...(document.hidden ? { renderMode: 'paused' as const } : {}) })
@@ -38,13 +61,14 @@ function GraphicsReport({ quality, onQuality, onClose }: {
     const timer = setInterval(() => { if (!document.hidden) read() }, 1000)
     document.addEventListener('visibilitychange', read)
     return () => { clearInterval(timer); document.removeEventListener('visibilitychange', read) }
-  }, [quality])
+  }, [])
   const collecting = report.renderMode === 'continuous' && report.frames < 2
   const live = report.renderMode === 'continuous' && !collecting
-  return <section id="park-graphics-settings" className="park-runtime-panel park-graphics-settings" aria-label="그래픽과 성능">
-    <header><strong>그래픽과 성능</strong><button aria-label="그래픽 설정 닫기" onClick={onClose}>×</button></header>
-    <QualityControl quality={quality} onQuality={onQuality} />
-    <p className="performance-hint">F1 설명서에서도 품질을 바꿀 수 있어요. 낮은 품질에서도 게임 규칙과 조작은 같아요.</p>
+  return <section id="park-graphics-settings" className="park-runtime-panel park-graphics-settings" aria-label="설정">
+    <header><strong>설정</strong><button aria-label="설정 닫기" onClick={onClose}>×</button></header>
+    <LookSensitivityControl />
+    <BgmVolumeControl />
+    <p className="performance-hint">O 키로 열고 닫아요.</p>
     <p className="performance-mode" role="status">{collecting ? '프레임 표본 수집 중' : report.renderMode === 'continuous' ? '실시간 측정 · WebGL 2' : '화면 렌더링 일시 정지'}</p>
     <dl className="performance-readings">
       <div><dt>FPS</dt><dd data-metric="fps">{live ? report.fps.toFixed(1) : '—'}</dd></div>
@@ -59,7 +83,7 @@ function GraphicsReport({ quality, onQuality, onClose }: {
       <p className="performance-gpu">{report.renderer}</p>
       <p>FPS·프레임 간격은 최근 최대 600프레임 기준이며 1초마다 갱신해요. 프레임 수와 50ms 초과 수는 초기화 이후 누적이에요.</p>
       <p>프레임 간격은 CPU·GPU 실행시간이 아니에요. 형상·텍스처는 개수이며 메모리 사용량이 아니에요. 네트워크 지연은 측정하지 않아요.</p>
-      <p>품질을 바꾸면 표본을 초기화해요. 기존 자동 해상도 조절에 따라 실제 렌더 해상도가 달라질 수 있어요.</p>
+      <p>자동 해상도 조절에 따라 실제 렌더 해상도가 달라질 수 있어요.</p>
     </details>
     <button onClick={() => { resetMetrics(); setReport(summarizeFrames()) }}>측정 초기화</button>
   </section>

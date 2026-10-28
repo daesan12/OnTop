@@ -85,7 +85,8 @@ class OmokFlowTests {
                 assertThat(returned.request("GAME_ACTION_SEND", action("after-end", 9, 5, 5))
                         .path("payload").path("code").asText()).isEqualTo("GAME_ACTION_INVALID_ACTION");
                 returned.sendRequest("GAME_RECONNECT_CHECK", Map.of());
-                returned.state("FINISHED");
+                // 직접 생성한 엔진의 종료 이력은 미착석 연결의 활성 경기로 복구하지 않는다.
+                returned.state("LOBBY");
                 System.out.println("[PASS] heartbeat 단절·같은 경기/턴 마감 복귀 → 흑 5목 승리 → 종료 상태·추가 착수 차단");
             }
         }
