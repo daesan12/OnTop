@@ -1,3 +1,7 @@
+/** Visual-only scale; authoritative collision and interaction remain in NOTES_BOX. */
+export const NOTES_BOARD_SCALE = 2
+export const NOTES_BOARD_LOD_DISTANCE = 16 * NOTES_BOARD_SCALE
+
 /** Authored layout, independent of the list pagination and actual server notes. */
 export const memoSlips = [
   {x:-.335,y:1.145,w:.168,h:.180,a:-.075,text:'오늘도\n잘하고 있어요!',ink:'#625b51',doodle:0},

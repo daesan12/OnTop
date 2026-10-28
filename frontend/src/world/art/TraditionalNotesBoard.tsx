@@ -3,6 +3,7 @@ import { NOTES_BOX } from '../../config/notes'
 import { CraftedPropLod, PropSign } from './CraftedProp'
 import { notesBoardArt, notesBoardTitle, notesInvitation } from './notesBoardGeometry'
 import { createMemoAtlas, createMemoWood } from './notesBoardTextures'
+import { NOTES_BOARD_LOD_DISTANCE, NOTES_BOARD_SCALE } from './notesBoardLayout'
 
 export function TraditionalNotesBoard() {
   const [fontsReady,setFontsReady]=useState(false)
@@ -15,8 +16,8 @@ export function TraditionalNotesBoard() {
   const surfaceMaps=useMemo(()=>({paint:paper,wood}),[paper,wood])
   useEffect(()=>()=>paper.dispose(),[paper])
   useEffect(()=>()=>wood.dispose(),[wood])
-  return <group name="tower-notes-mailbox" position={[NOTES_BOX.x,NOTES_BOX.y,NOTES_BOX.z]}>
-    <CraftedPropLod name="observatory-notes-board" near={notesBoardArt.near} far={notesBoardArt.far} distance={16} heritage surfaceMaps={surfaceMaps}/>
+  return <group name="tower-notes-mailbox" position={[NOTES_BOX.x,NOTES_BOX.y,NOTES_BOX.z]} scale={NOTES_BOARD_SCALE}>
+    <CraftedPropLod name="observatory-notes-board" near={notesBoardArt.near} far={notesBoardArt.far} distance={NOTES_BOARD_LOD_DISTANCE} heritage surfaceMaps={surfaceMaps}/>
     <PropSign key={'title-'+fontsReady} width={.61} height={.125} position={[0,1.344,.247]} draw={notesBoardTitle} transparent/>
     <PropSign key={'invitation-'+fontsReady} width={.185} height={.175} position={[-.493,.550,.305]} draw={notesInvitation} transparent/>
   </group>

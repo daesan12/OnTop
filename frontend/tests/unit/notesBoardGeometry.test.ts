@@ -2,7 +2,7 @@ import { expect, it } from 'vitest'
 import { Box3, Vector3 } from 'three'
 import { notesBoardArt } from '../../src/world/art/notesBoardGeometry'
 
-it('keeps both notes-board LODs within the unchanged summit collider and makes the distant model cheaper', () => {
+it('keeps both notes-board LODs within the authoring envelope and makes the distant model cheaper', () => {
   const counts: number[] = []
   for (const art of [notesBoardArt.near, notesBoardArt.far]) {
     const bounds = new Box3(), point = new Vector3()
