@@ -123,6 +123,24 @@ Node의 브라우저 API 어댑터·유실 응답 주입을 구분하고 실제3
 
 ## 확인 범위
 
+### 실제 경기 정산과 프론트 잔액 계약
+
+현재 FE 의존성 설치와 Java21·MySQL8.4가 준비된 환경에서 `backend/`를 기준으로 실행한다.
+
+```powershell
+# 기존 데이터와 분리한 새 로컬 검증 DB만 지정한다. 공용 DB 주소는 허용하지 않는다.
+$env:TEST_GAME_WALLET_FLOW_DB_URL = 'jdbc:mysql://127.0.0.1:58409/ontop_game_test_ws72_example?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true'
+$env:TEST_GAME_DB_USERNAME = '검증_DB_계정'
+# TEST_GAME_DB_PASSWORD는 기존 안전한 로컬 환경으로 주입한다. 문서/로그에 적지 않는다.
+node tools/check-settlement-wallet-frontend.mjs
+```
+
+DB는 미리 별도 생성하며, 실행 시 저장소의 기존 Flyway SQL만 적용한다. 테이블 전체 초기화·repair·공용 DB 변경은 하지 않는다. 실패한 실행이 미종료 경기를 남겼다면 그 DB를 임의 삭제/수정하지 말고 별도의 검증 DB를 사용한다. URL은 loopback과 `ontop_game_test_ws72_` 접두사를 강제한다.
+
+`GameSettlementWalletFlowMySqlTests`의 정상 승리·기권 시나리오가 실제 엔진→정산→개인 소켓→지갑 조회를 검증한다. 백그라운드 저장/알림 작업은 테스트에서 꺼서 기존 `GameEventDelivery.drain()`과 `GameResultNotifications.dispatchOnce()`로 처리 순서만 제어한다. 인증·예약·정산·잔액 조회는 실제 구현이며 대역이 아니다. 위치 제한 없는 local 테이블 fixture이므로 공원 이동·실계정 3D 화면 검수와 구분한다.
+
+실제 응답은 `backend/build/reports/game-settlement-wallet-flow.json`, DB 테스트 결과는 `backend/build/reports/tests/mysqlTest/`에 생성된다. 실행 ID와 테스트 종료 코드를 확인해 과거 응답을 재사용하지 않는다. FE 소스는 읽기만 하며 결과 파서·중복 억제·잔액 재조회 신호·잔액 응답 파서를 검증한다. React 화면 렌더링이나 개발 서버 적용 확인은 포함하지 않는다.
+
 착석·선택·준비·heartbeat·재접속은 실제 앱과 TCP/WebSocket을 통과한다. heartbeat는 빠른 실행을 위해 200ms 주기·2초 제한이고, 29/30초 유예는 테스트 Clock을 움직여 확인한다. 실제 30초 대기나 네트워크 장애/부하 측정은 아니다.
 
 광장 시나리오도 실제 HTTP/TCP/WebSocket을 사용한다. 두 채널·정원 3명·WAVE/CLAP·채팅/표현 간격 60초는 테스트 설정이다. 기존 광장/경기 흐름은 관전 거리 허용 대역을 사용하고, 위 근거리 왕복 시나리오는 실제20m 거리 서비스를 사용한다. 300ms 미수신 검사는 해당 관찰 구간의 검증이며 영구 미전송이나 성능 수치를 증명하지 않는다. 3D 모션·최종 표현 종류는 확정하지 않는다. 광장 대기 좌석의 끊김 정리와 경기의 30초 복구는 별도 시나리오다.
