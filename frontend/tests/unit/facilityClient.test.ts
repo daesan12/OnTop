@@ -1,7 +1,7 @@
 import { afterEach, expect, it, vi } from 'vitest'
 import { FacilityClient } from '../../src/network/facilityClient'
 import { parseFacilitySnapshot } from '../../src/features/facilities/protocol'
-import { facilityMovementBlocked, resetFacilities, useFacilityState } from '../../src/features/facilities/state'
+import { facilityMovementBlocked, resetFacilities, showFacilityUseNotice, useFacilityState, useFacilityUseNotice } from '../../src/features/facilities/state'
 import type { FacilityLease } from '../../src/features/facilities/protocol'
 import type { Envelope } from '../../src/network/protocol'
 import { parseEnvelope } from '../../src/network/protocol'
@@ -50,6 +50,40 @@ function harness() {
   }
 }
 afterEach(() => { resetFacilities(); vi.useRealTimers() })
+
+it('clears facility interaction guidance only after both the lease and approved-position wait end', () => {
+  useFacilityState.setState({ pending: true })
+  showFacilityUseNotice('101')
+  expect(useFacilityUseNotice.getState().message).not.toBe('')
+  useFacilityState.setState({ pending: false, awaitingWorld: true })
+  expect(useFacilityUseNotice.getState().message).not.toBe('')
+  useFacilityState.setState({ awaitingWorld: false })
+  expect(useFacilityUseNotice.getState().message).toBe('')
+})
+
+it('expires repeated guidance without an older timeout dismissing the latest notice or unlocking movement', () => {
+  vi.useFakeTimers()
+  useFacilityState.setState({ pending: true })
+  showFacilityUseNotice('101')
+  vi.advanceTimersByTime(2500)
+  showFacilityUseNotice('101')
+  vi.advanceTimersByTime(500)
+  expect(useFacilityUseNotice.getState().message).not.toBe('')
+  vi.advanceTimersByTime(2500)
+  expect(useFacilityUseNotice.getState().message).toBe('')
+  expect(facilityMovementBlocked('101')).toBe(true)
+})
+
+it('drops old guidance and its timer on facility scope reset', () => {
+  vi.useFakeTimers()
+  useFacilityState.setState({ uncertain: true })
+  showFacilityUseNotice('101')
+  resetFacilities()
+  expect(useFacilityUseNotice.getState().message).toBe('')
+  expect(vi.getTimerCount()).toBe(0)
+  useFacilityState.setState({ pending: true })
+  expect(useFacilityUseNotice.getState().message).toBe('')
+})
 
 it('accepts a full 174-seat wire snapshot without raising limits for existing messages', () => {
   let userId = 100

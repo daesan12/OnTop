@@ -137,9 +137,12 @@ test('server cancellation clears only the matching animation and releases its co
   expect((await emote()).own).toBe('EMOTE_WAVE')
   server.cancelEmote(cancel); await expect.poll(async () => (await emote()).own).toBe('')
   expect((await emote()).cooldown).toBe(0)
+  await expect(page.locator('.emote-feedback[role="status"]')).toHaveCount(0)
   await page.getByRole('button', { name: '감정표현 열기' }).click()
   await page.getByRole('dialog', { name: '감정표현 선택' }).getByRole('button', { name: '박수', exact: true }).click()
   await expect.poll(async () => (await emote()).own).toBe('EMOTE_CLAP')
+  await expect(page.locator('.emote-feedback[role="status"]')).toHaveCount(0)
+  await screenshot(page, 'emote-switch-without-notice')
   const first = { ...approved, userId: '102', eventId: 'remote-a', sentAt: new Date().toISOString() }
   server.emote(first); await expect.poll(async () => (await emote()).remote).toBe('EMOTE_WAVE')
   const second = { ...first, eventId: 'remote-b', sentAt: new Date(Date.parse(first.sentAt) + 1).toISOString() }

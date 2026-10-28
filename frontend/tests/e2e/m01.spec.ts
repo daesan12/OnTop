@@ -38,7 +38,7 @@ test('M01 bench shares target selection, waits for approval, restores input/came
   // Keyboard and visible button use the same target and the shared facility transport.
   await page.locator('canvas').focus()
   await page.keyboard.press('KeyE')
-  await expect(hint.getByRole('button', { name: '벤치에서 일어나기' })).toBeVisible()
+  await expect(hint.getByText('벤치 이용 중', { exact: true })).toBeVisible()
   await expect(hint).not.toContainText('목업')
   const requestsWhileSeated = server.sent.length
   await page.evaluate(async () => {
@@ -73,12 +73,12 @@ test('M01 bench shares target selection, waits for approval, restores input/came
   await page.getByLabel('주변 채팅 메시지').fill('벤치에서 대화')
   const before = server.sent.filter(m => m.type === 'WORLD_MOVE' && (m.payload.dx || m.payload.dz)).length
   await page.keyboard.press('KeyW')
-  await expect(hint.getByRole('button', { name: '벤치에서 일어나기' })).toBeVisible()
+  await expect(hint.getByText('벤치 이용 중', { exact: true })).toBeVisible()
   expect(server.sent.filter(m => m.type === 'WORLD_MOVE' && (m.payload.dx || m.payload.dz))).toHaveLength(before)
   await page.keyboard.press('Escape')
   await page.locator('canvas').focus()
   await page.keyboard.down('KeyW')
-  await expect(hint.getByRole('button', { name: '벤치에서 일어나기' })).toBeHidden()
+  await expect(hint.getByText('벤치 이용 중', { exact: true })).toBeHidden()
   await expect.poll(() => server.sent.some(m => m.type === 'WORLD_MOVE' && m.payload.dz !== 0)).toBe(true)
   await page.keyboard.up('KeyW')
   await expect.poll(() => page.evaluate(async () => {
@@ -88,7 +88,7 @@ test('M01 bench shares target selection, waits for approval, restores input/came
   await expect(hint).toHaveAttribute('data-target-id', bench.id)
   await screenshot(page, 'm01-bench-nearby')
   await hint.getByRole('button', { name: /벤치에 앉기/ }).click()
-  await expect(hint.getByRole('button', { name: '벤치에서 일어나기' })).toBeVisible()
+  await expect(hint.getByText('벤치 이용 중', { exact: true })).toBeVisible()
   server.close(1012)
   await expect.poll(() => page.evaluate(async () => {
     const probe = await import('/tests/e2e/sceneProbe.ts' as string)

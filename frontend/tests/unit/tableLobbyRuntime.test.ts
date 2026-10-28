@@ -7,6 +7,7 @@ import { useTableLobby } from '../../src/features/tableLobby/state'
 import { ParkRuntime } from '../../src/park/runtime/SpringParkRuntime'
 import { useGame } from '../../src/game/store'
 import { bridgeState } from '../fixtures/bridge'
+import { useFacilityState, useFacilityUseNotice } from '../../src/features/facilities/state'
 
 const table = { tableId: 'server-table', version: 1, capacity: 2, minimumPlayers: 2,
   seats: [{ seatNumber: 1, userId: null, ready: false }, { seatNumber: 2, userId: '102', ready: false }],
@@ -78,6 +79,16 @@ function nearTable() {
     benchId: '', fitnessId: '', fitnessStartedAt: 0, telescopeId: '', telescopeYaw: 0, telescopePitch: 0, followTargetId: '' })
   return TABLES[0]!.id
 }
+it('a facility-blocked table action is temporary guidance and never becomes a persistent session error', async () => {
+  const anchor = nearTable()
+  useFacilityState.setState({ pending: true })
+  expect(await runtime.joinTable(anchor)).toBe(false)
+  expect(useFacilityUseNotice.getState().message).toBe('먼저 시설 이용·승인 위치 확인을 마쳐주세요.')
+  expect(useSession.getState().error).toBe('')
+  expect(socket.requests.some(r => r.type === 'TABLE_JOIN')).toBe(false)
+  useFacilityState.setState({ pending: false })
+  expect(useFacilityUseNotice.getState().message).toBe('')
+})
 it('direct seating does not inspect or assign a seat until the server approves and blocks duplicate requests', async () => {
   const anchor = nearTable(); socket.joinMode = 'hold'
   const request = runtime.joinTable(anchor)

@@ -24,7 +24,6 @@ import { openNotes } from '../notes/controller'
 import { canReachBungeoppang } from '../bungeoppang/access'
 import { openBungeoppang } from '../bungeoppang/store'
 import { MINI_PROPS } from '../../config'
-import { TABLET_ENABLED } from '../tableLobby/tabletFeature'
 import { interactWithTable } from '../tableLobby/tableInteraction'
 import { canReachTable } from '../tableLobby/tableReach'
 
@@ -97,7 +96,7 @@ export function getParkInteraction(): ParkInteraction | null {
   for (const table of TABLES) {
     const distance = Math.hypot(p.current.x - table.position[0], p.current.z - table.position[2])
     if (!canReachTable(p.current, table.id)) continue
-    choices.push({ kind: 'table', id: table.id, label: TABLET_ENABLED ? '테이블에 앉기' : '테이블 정보 보기', occupied: false, available: true,
+    choices.push({ kind: 'table', id: table.id, label: '테이블에 앉기', occupied: false, available: true,
       distance, score: interactionScore(distance, { x: table.position[0], y: table.position[1] + 0.65, z: table.position[2] }) })
   }
   return choices.filter(c => Number.isFinite(c.score)).sort((a, b) => a.score - b.score || a.distance - b.distance

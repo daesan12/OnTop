@@ -5,6 +5,7 @@ import { GraphicsSettings } from '../performance/GraphicsSettings'
 import { GamePanel } from '../game/GamePanel'
 import { TableLobby } from '../features/tableLobby/TableLobby'
 import { TABLET_ENABLED } from '../features/tableLobby/tabletFeature'
+import { useFacilityUseNotice } from '../features/facilities/state'
 
 export function ParkTools() {
   const runtime = useParkRuntime()
@@ -19,7 +20,8 @@ export function ParkTools() {
       bindings: s.bindings,
     })),
   )
-  const error = state.error || state.movementNotice
+  const facilityNotice = useFacilityUseNotice(s => s.message)
+  const error = state.error || facilityNotice || state.movementNotice
   return (
     <>
       <div className="park-runtime-tools">

@@ -27,6 +27,7 @@ export async function screenshot(page: Page, name: string, animations: 'allow' |
 export async function fixture(
   page: Page,
   options: {
+    channelName?: string
     mapVersion?: string
     bindings?: boolean
     players?: number
@@ -287,7 +288,7 @@ export async function fixture(
           items: [
             {
               channelId: 'fixture-channel',
-              name: '공원 01',
+              name: options.channelName ?? '공원 01',
               currentUsers: options.players ?? 2,
               capacity: 16,
               joinable: true,
@@ -508,7 +509,7 @@ export async function fixture(
             type: 'CHANNEL_STATE',
             payload: {
               channelId: 'fixture-channel',
-              name: '공원 01',
+                name: options.channelName ?? '공원 01',
               version: ++channelVersion,
               capacity: 16,
               currentUsers: options.players ?? 2,

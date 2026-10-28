@@ -91,7 +91,7 @@ describe('emote catalog and server-time playback', () => {
     world(2)
     expect(avatars.get('101')!.emote).toBe('EMOTE_WAVE')
     cancelAvatarEmote('101')
-    expect(useEmoteState.getState()).toMatchObject({ readyAt: 0, pending: false })
+    expect(useEmoteState.getState()).toMatchObject({ readyAt: 0, pending: false, notice: '' })
     expect(avatars.get('101')!.emote).toBe('')
     emit('WORLD_EMOTE_EVENT', { ...e, eventId: 'cancelled-approval', sentAt: new Date().toISOString() }, 'mine')
     expect(avatars.get('101')!.emote).toBe('')
@@ -125,7 +125,7 @@ describe('emote catalog and server-time playback', () => {
     expect(avatars.get('101')!.emote).toBe('EMOTE_WAVE')
     emit('WORLD_EMOTE_CANCELLED', cancellation); emit('WORLD_EMOTE_CANCELLED', cancellation)
     expect(avatars.get('101')!.emote).toBe('')
-    expect(useEmoteState.getState()).toMatchObject({ readyAt: 0, pending: false, cancelled: true })
+    expect(useEmoteState.getState()).toMatchObject({ readyAt: 0, pending: false, cancelled: true, notice: '' })
   })
 
   it('keeps own/remote fart playback and its start time through movement, but honors server cancellation', () => {

@@ -111,16 +111,15 @@ for (const rejection of [
   await expect(page.getByRole('dialog', { name: '게임 태블릿', exact: true })).toBeVisible({ timeout: 20000 })
 })
 
-test('public information and spectating remain an explicit secondary choice, without automatically joining', async ({ page }) => {
+test('table entry exposes only seating and never opens public information or spectating', async ({ page }) => {
   const server = await fixture(page, { omok: true, manualLobby: true, tabletServer: true,
     anchorId: directAnchor.id, position: directPosition })
   await approachChair(page)
-  await page.getByRole('button', { name: '테이블 정보·관전', exact: true }).click()
-  const info = page.getByRole('dialog', { name: '테이블 정보', exact: true })
-  await expect(info).toBeVisible()
-  await expect.poll(() => server.sent.filter(message => message.type === 'TABLE_WATCH').length).toBe(1)
+  await expect(page.getByRole('button', { name: '테이블 정보·관전', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('dialog', { name: '테이블 정보', exact: true })).toHaveCount(0)
+  expect(server.sent.some(message => message.type === 'TABLE_WATCH' || message.type === 'GAME_WATCH')).toBe(false)
   expect(server.sent.some(message => message.type === 'TABLE_JOIN')).toBe(false)
-  await info.getByRole('button', { name: '앉기', exact: true }).click()
+  await page.getByRole('button', { name: 'E 테이블에 앉기', exact: true }).click()
   await expect(page.getByRole('dialog', { name: '게임 태블릿', exact: true })).toBeVisible({ timeout: 20000 })
 })
 
@@ -140,11 +139,11 @@ test('the shared table mesh action rejects distant clicks without seating or ope
 async function openTable(page: Page, anchorId = 'table-1') {
   await page.goto('/park')
   await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90000 })
-  await expect(async () => {
-    await page.evaluate(async id => (await import('/src/park/runtime/runtime.ts' as string)).parkRuntime.inspectTable(id), anchorId)
-    await expect(page.getByRole('button', { name: '앉기', exact: true })).toBeVisible({ timeout: 1500 })
-  }).toPass({ timeout: 15000 })
-  await page.getByRole('button', { name: '앉기', exact: true }).click()
+  await expect.poll(() => page.evaluate(async () => {
+    const s = (await import('/src/network/worldClient.ts' as string)).useSession.getState()
+    return s.status === 'connected' && !s.pending && s.tables.length > 0
+  })).toBe(true)
+  await page.evaluate(async id => (await import('/src/park/runtime/runtime.ts' as string)).parkRuntime.joinTable(id), anchorId)
   const tablet = page.getByRole('dialog', { name: '게임 태블릿', exact: true })
   await expect(tablet).toBeVisible({ timeout: 20000 })
   await expect.poll(() => tablet.evaluate(el => Number(getComputedStyle(el).opacity))).toBeGreaterThan(.99)

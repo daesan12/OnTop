@@ -210,11 +210,11 @@ function OmokSurface({
         position={[0, 0.001, 0]}
         raycast={noRaycast}
       >
-        <lineBasicMaterial color="#b99a70" />
+        <lineBasicMaterial color="#49301f" />
       </lineSegments>
       {[3, 7, 11].flatMap(x => [3, 7, 11].map(y => <mesh key={`${x}-${y}`}
         position={[x * spacing - half, 0.002, y * spacing - half]} rotation={[-Math.PI / 2, 0, 0]} raycast={noRaycast}>
-        <circleGeometry args={[0.009, 8]} /><meshBasicMaterial color="#b99a70" />
+        <circleGeometry args={[0.009, 8]} /><meshBasicMaterial color="#49301f" />
       </mesh>))}
       <instancedMesh
         ref={black}

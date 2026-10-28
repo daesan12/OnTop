@@ -242,7 +242,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     if (mouseLook.locked()) return
     const session = useSession.getState(), scope = seatScope(session)
     const benchScope = benchViewScope(session), benchView = useBenchSpectator.getState()
-    if (event.button === 2 && benchScope && benchView.scope === benchScope && benchView.view === 'participants'
+    if (event.button === 0 && benchScope && benchView.scope === benchScope && benchView.view === 'participants'
       && !panelOwnsKeys() && !textInputOwnsKeys(document.activeElement)) {
       event.preventDefault(); benchDragging = benchScope; canvas.focus({ preventScroll: true }); return
     }
