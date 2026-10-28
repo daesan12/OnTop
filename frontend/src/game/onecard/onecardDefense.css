@@ -1,10 +1,10 @@
 .onecard-defense-overlay { position:absolute; inset:0; z-index:80; pointer-events:none; }
 .park-page .onecard-game-hud.onecard-panel .onecard-ghost-hand { position:absolute; top:33%; width:clamp(160px,21vw,310px); height:auto; min-height:0; padding:0; border:0; background:none; box-shadow:none; transform:translateX(-50%) rotate(-12deg); pointer-events:auto; animation:onecard-hand-reach .23s ease-out; }
-.park-page .onecard-game-hud.onecard-panel .onecard-ghost-hand img { display:block; width:100%; opacity:.58; filter:drop-shadow(0 0 4px #fff7de); pointer-events:none; }
+.park-page .onecard-game-hud.onecard-panel .onecard-ghost-hand img { display:block; width:100%; opacity:.22; pointer-events:none; }
 .park-page .onecard-game-hud.onecard-panel .onecard-ghost-hand>span { display:inline-block; padding:6px 10px; margin-top:-10px; border:1px solid #c9c1ac; border-radius:20px; background:#f6f0e5ee; color:#383d35; font:600 12px/1.4 system-ui,sans-serif; transform:rotate(12deg); }
-.park-page .onecard-game-hud.onecard-panel .onecard-ghost-hand:disabled { opacity:1; cursor:default; }
+.park-page .onecard-game-hud.onecard-panel .onecard-ghost-hand:disabled { opacity:1; cursor:default; pointer-events:none; }
 .park-page .onecard-game-hud.onecard-panel .onecard-ghost-hand:enabled { cursor:crosshair; }
-.park-page .onecard-game-hud.onecard-panel .onecard-ghost-hand:enabled:hover img { opacity:.62; }
+.park-page .onecard-game-hud.onecard-panel .onecard-ghost-hand:enabled:hover img { opacity:.28; }
 .park-page .onecard-game-hud.onecard-panel .onecard-ghost-hand:focus-visible { outline:2px solid #f5d37b; outline-offset:4px; border-radius:28px; }
 .onecard-hammer { position:fixed; left:var(--hammer-x,82vw); top:var(--hammer-y,47vh); width:clamp(180px,23vw,340px); transform:translate(-27%,-23%); z-index:3; pointer-events:none; }
 .onecard-hammer img { display:block; width:100%; filter:drop-shadow(0 9px 7px #271c1840); transform-origin:80% 83%; }
