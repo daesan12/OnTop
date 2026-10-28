@@ -1,0 +1,392 @@
+{
+  "approvedCeiling": 295,
+  "currency": "Tripo credits",
+  "previousRig": {
+    "task_id": "a7ec560b-1cee-4357-b78b-4c342abc6384",
+    "charged": 25
+  },
+  "refundedRetarget": {
+    "task_id": "0a88d633-d41d-43f1-a3aa-a2c7fcf72216",
+    "frozen": 20,
+    "refunded": 20,
+    "charged": 0
+  },
+  "currentPipelineCharged": 270,
+  "totalCharged": 295,
+  "verifiedBalance": 255,
+  "verifiedFrozen": 0,
+  "tasks": [
+    {
+      "task_id": "1c3435c2-02e0-4582-88f5-754cf70ed7b9",
+      "type": "animate_retarget",
+      "status": "success",
+      "input": {
+        "animations": [
+          "preset:idle",
+          "preset:walk"
+        ],
+        "out_format": "glb",
+        "animate_in_place": true,
+        "original_model_id": "b6e37d46-9403-4121-bd60-82bc754882fb"
+      },
+      "output_fields": [
+        "model_url"
+      ],
+      "credits_consumed": 20,
+      "created_at": "2026-10-27T18:15:40.400722Z",
+      "completed_at": "2026-10-27T18:15:49.157783Z",
+      "files": [
+        "model.glb"
+      ],
+      "record": "v3/tripo-out/bung-boy-motion3-v1-1c3435c2/task.json"
+    },
+    {
+      "task_id": "b6e37d46-9403-4121-bd60-82bc754882fb",
+      "type": "animate_rig",
+      "status": "success",
+      "input": {
+        "spec": "mixamo",
+        "topology": "biped",
+        "out_format": "glb",
+        "original_model_id": "084ca389-7068-4837-869c-3e7f3fe56e5a"
+      },
+      "output_fields": [
+        "model_url",
+        "rendered_image_url"
+      ],
+      "credits_consumed": 25,
+      "created_at": "2026-10-27T18:12:33.941680Z",
+      "completed_at": "2026-10-27T18:12:43.290830Z",
+      "files": [
+        "model.glb",
+        "rendered_image.webp",
+        "preview.png"
+      ],
+      "record": "v3/tripo-out/bung-boy-rig3-v1-rig-b6e37d46/task.json"
+    },
+    {
+      "task_id": "ed22fb0a-6d2b-42bc-8341-2acfafb359a9",
+      "type": "animate_prerigcheck",
+      "status": "success",
+      "input": {
+        "original_model_id": "084ca389-7068-4837-869c-3e7f3fe56e5a"
+      },
+      "output_fields": [],
+      "credits_consumed": 0,
+      "created_at": "2026-10-27T18:12:30.958024Z",
+      "completed_at": "2026-10-27T18:12:31.508748Z",
+      "files": [],
+      "record": "v3/tripo-out/bung-boy-rig3-v1-rig-check-ed22fb0a/task.json"
+    },
+    {
+      "task_id": "aedbf5c5-d8d9-42e8-aedc-0815274297e3",
+      "type": "animate_retarget",
+      "status": "success",
+      "input": {
+        "animations": [
+          "preset:idle",
+          "preset:walk"
+        ],
+        "out_format": "glb",
+        "animate_in_place": true,
+        "original_model_id": "51e67f6b-5802-4e8c-a0d1-68b8cb7019e9"
+      },
+      "output_fields": [
+        "model_url"
+      ],
+      "credits_consumed": 20,
+      "created_at": "2026-10-27T18:24:27.947429Z",
+      "completed_at": "2026-10-27T18:24:37.029477Z",
+      "files": [
+        "model.glb"
+      ],
+      "record": "v3/tripo-out/bung-girl-motion3-v1-aedbf5c5/task.json"
+    },
+    {
+      "task_id": "51e67f6b-5802-4e8c-a0d1-68b8cb7019e9",
+      "type": "animate_rig",
+      "status": "success",
+      "input": {
+        "spec": "mixamo",
+        "topology": "biped",
+        "out_format": "glb",
+        "original_model_id": "d09f37f2-32be-4064-bebf-8f3349979161"
+      },
+      "output_fields": [
+        "model_url",
+        "rendered_image_url"
+      ],
+      "credits_consumed": 25,
+      "created_at": "2026-10-27T18:21:52.983835Z",
+      "completed_at": "2026-10-27T18:22:01.709515Z",
+      "files": [
+        "model.glb",
+        "rendered_image.webp",
+        "preview.png"
+      ],
+      "record": "v3/tripo-out/bung-girl-rig3-v1-rig-51e67f6b/task.json"
+    },
+    {
+      "task_id": "22868f64-051e-4996-b57b-6548cf985ac3",
+      "type": "animate_prerigcheck",
+      "status": "success",
+      "input": {
+        "original_model_id": "d09f37f2-32be-4064-bebf-8f3349979161"
+      },
+      "output_fields": [],
+      "credits_consumed": 0,
+      "created_at": "2026-10-27T18:21:49.970227Z",
+      "completed_at": "2026-10-27T18:21:50.540127Z",
+      "files": [],
+      "record": "v3/tripo-out/bung-girl-rig3-v1-rig-check-22868f64/task.json"
+    },
+    {
+      "task_id": "68e1313e-f7b9-4986-8420-f59e6a62a1d5",
+      "type": "animate_retarget",
+      "status": "success",
+      "input": {
+        "animations": [
+          "preset:idle",
+          "preset:walk"
+        ],
+        "out_format": "glb",
+        "animate_in_place": true,
+        "original_model_id": "1d008a8b-6880-4e57-b717-d533b1cc0b75"
+      },
+      "output_fields": [
+        "model_url"
+      ],
+      "credits_consumed": 20,
+      "created_at": "2026-10-27T18:24:15.570395Z",
+      "completed_at": "2026-10-27T18:24:20.868231Z",
+      "files": [
+        "model.glb"
+      ],
+      "record": "v3/tripo-out/bung-older-motion3-v1-68e1313e/task.json"
+    },
+    {
+      "task_id": "1d008a8b-6880-4e57-b717-d533b1cc0b75",
+      "type": "animate_rig",
+      "status": "success",
+      "input": {
+        "spec": "mixamo",
+        "topology": "biped",
+        "out_format": "glb",
+        "original_model_id": "f03c126e-69b7-4355-9f15-f447135b5af4"
+      },
+      "output_fields": [
+        "model_url",
+        "rendered_image_url"
+      ],
+      "credits_consumed": 25,
+      "created_at": "2026-10-27T18:21:41.171688Z",
+      "completed_at": "2026-10-27T18:21:53.321882Z",
+      "files": [
+        "model.glb",
+        "rendered_image.webp",
+        "preview.png"
+      ],
+      "record": "v3/tripo-out/bung-older-rig3-v1-rig-1d008a8b/task.json"
+    },
+    {
+      "task_id": "36c6717b-b030-4e6f-9e0d-c417e9a88593",
+      "type": "animate_prerigcheck",
+      "status": "success",
+      "input": {
+        "original_model_id": "f03c126e-69b7-4355-9f15-f447135b5af4"
+      },
+      "output_fields": [],
+      "credits_consumed": 0,
+      "created_at": "2026-10-27T18:21:38.040968Z",
+      "completed_at": "2026-10-27T18:21:38.717088Z",
+      "files": [],
+      "record": "v3/tripo-out/bung-older-rig3-v1-rig-check-36c6717b/task.json"
+    },
+    {
+      "task_id": "dc73f132-5745-4f79-9444-6f9c6aafd395",
+      "type": "animate_retarget",
+      "status": "success",
+      "input": {
+        "animations": [
+          "preset:idle",
+          "preset:walk"
+        ],
+        "out_format": "glb",
+        "animate_in_place": true,
+        "original_model_id": "218686f7-5ee9-4ed4-8275-26955739c923"
+      },
+      "output_fields": [
+        "model_url"
+      ],
+      "credits_consumed": 20,
+      "created_at": "2026-10-27T18:21:13.147016Z",
+      "completed_at": "2026-10-27T18:21:33.023917Z",
+      "files": [
+        "model.glb"
+      ],
+      "record": "v3/tripo-out/bung-student-motion3-v1-dc73f132/task.json"
+    },
+    {
+      "task_id": "218686f7-5ee9-4ed4-8275-26955739c923",
+      "type": "animate_rig",
+      "status": "success",
+      "input": {
+        "spec": "mixamo",
+        "topology": "biped",
+        "out_format": "glb",
+        "original_model_id": "b19be13f-03bb-4130-b77c-bfd4a7292668"
+      },
+      "output_fields": [
+        "model_url",
+        "rendered_image_url"
+      ],
+      "credits_consumed": 25,
+      "created_at": "2026-10-27T18:20:21.734215Z",
+      "completed_at": "2026-10-27T18:20:36.855614Z",
+      "files": [
+        "model.glb",
+        "rendered_image.webp",
+        "preview.png"
+      ],
+      "record": "v3/tripo-out/bung-student-rig3-v1-rig-218686f7/task.json"
+    },
+    {
+      "task_id": "782db532-4a3c-494a-a862-6f15ff4c82f4",
+      "type": "animate_prerigcheck",
+      "status": "success",
+      "input": {
+        "original_model_id": "b19be13f-03bb-4130-b77c-bfd4a7292668"
+      },
+      "output_fields": [],
+      "credits_consumed": 0,
+      "created_at": "2026-10-27T18:20:18.735027Z",
+      "completed_at": "2026-10-27T18:20:19.486953Z",
+      "files": [],
+      "record": "v3/tripo-out/bung-student-rig3-v1-rig-check-782db532/task.json"
+    },
+    {
+      "task_id": "ad800fc2-9c95-44cf-bf64-ac7d2c62245b",
+      "type": "animate_retarget",
+      "status": "success",
+      "input": {
+        "animations": [
+          "preset:idle",
+          "preset:walk"
+        ],
+        "out_format": "glb",
+        "animate_in_place": true,
+        "original_model_id": "9888de2a-6146-438a-8496-4394bee92a59"
+      },
+      "output_fields": [
+        "model_url"
+      ],
+      "credits_consumed": 20,
+      "created_at": "2026-10-27T18:25:32.485453Z",
+      "completed_at": "2026-10-27T18:25:38.795519Z",
+      "files": [
+        "model.glb"
+      ],
+      "record": "v3/tripo-out/bung-woman-motion3-v1-ad800fc2/task.json"
+    },
+    {
+      "task_id": "9888de2a-6146-438a-8496-4394bee92a59",
+      "type": "animate_rig",
+      "status": "success",
+      "input": {
+        "spec": "mixamo",
+        "topology": "biped",
+        "out_format": "glb",
+        "original_model_id": "6f9d7137-e4d3-4ba6-9359-5adddef4df63"
+      },
+      "output_fields": [
+        "model_url",
+        "rendered_image_url"
+      ],
+      "credits_consumed": 25,
+      "created_at": "2026-10-27T18:23:57.743606Z",
+      "completed_at": "2026-10-27T18:24:41.045924Z",
+      "files": [
+        "model.glb",
+        "rendered_image.webp",
+        "preview.png"
+      ],
+      "record": "v3/tripo-out/bung-woman-rig3-v1-rig-9888de2a/task.json"
+    },
+    {
+      "task_id": "fd923e4e-fe7f-4ac2-a1cd-c0a398214f0c",
+      "type": "animate_prerigcheck",
+      "status": "success",
+      "input": {
+        "original_model_id": "6f9d7137-e4d3-4ba6-9359-5adddef4df63"
+      },
+      "output_fields": [],
+      "credits_consumed": 0,
+      "created_at": "2026-10-27T18:23:54.583846Z",
+      "completed_at": "2026-10-27T18:23:55.490101Z",
+      "files": [],
+      "record": "v3/tripo-out/bung-woman-rig3-v1-rig-check-fd923e4e/task.json"
+    },
+    {
+      "task_id": "25872130-4f64-4e47-bfc2-07a06a483b4c",
+      "type": "animate_retarget",
+      "status": "success",
+      "input": {
+        "animations": [
+          "preset:idle",
+          "preset:walk"
+        ],
+        "out_format": "glb",
+        "animate_in_place": true,
+        "original_model_id": "ae2b9d0a-52c9-496c-b76a-488fdb0fa723"
+      },
+      "output_fields": [
+        "model_url"
+      ],
+      "credits_consumed": 20,
+      "created_at": "2026-10-27T18:21:25.723684Z",
+      "completed_at": "2026-10-27T18:21:38.453104Z",
+      "files": [
+        "model.glb"
+      ],
+      "record": "v3/tripo-out/bung-worker-motion3-v1-25872130/task.json"
+    },
+    {
+      "task_id": "ae2b9d0a-52c9-496c-b76a-488fdb0fa723",
+      "type": "animate_rig",
+      "status": "success",
+      "input": {
+        "spec": "mixamo",
+        "topology": "biped",
+        "out_format": "glb",
+        "original_model_id": "48770dfd-133d-49a7-b2ff-9aff509e4a57"
+      },
+      "output_fields": [
+        "model_url",
+        "rendered_image_url"
+      ],
+      "credits_consumed": 25,
+      "created_at": "2026-10-27T18:20:34.385293Z",
+      "completed_at": "2026-10-27T18:20:43.669365Z",
+      "files": [
+        "model.glb",
+        "rendered_image.webp",
+        "preview.png"
+      ],
+      "record": "v3/tripo-out/bung-worker-rig3-v1-rig-ae2b9d0a/task.json"
+    },
+    {
+      "task_id": "cbf59698-1e51-4b83-bf49-9092926b5556",
+      "type": "animate_prerigcheck",
+      "status": "success",
+      "input": {
+        "original_model_id": "48770dfd-133d-49a7-b2ff-9aff509e4a57"
+      },
+      "output_fields": [],
+      "credits_consumed": 0,
+      "created_at": "2026-10-27T18:20:31.247373Z",
+      "completed_at": "2026-10-27T18:20:31.785975Z",
+      "files": [],
+      "record": "v3/tripo-out/bung-worker-rig3-v1-rig-check-cbf59698/task.json"
+    }
+  ]
+}

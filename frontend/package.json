@@ -10,6 +10,8 @@
   "scripts": {
     "dev": "vite",
     "dev:bungeoppang": "vite --mode bungeoppang-preview",
+    "dev:bungeoppang:v5": "vite --mode bungeoppang-v5-preview",
+    "test:e2e:bungeoppang:v5": "playwright test --config playwright.bungeoppang-v5.config.ts",
     "dev:facilities": "vite --mode facility-preview",
     "dev:frontend-test": "vite --mode frontend-test --host localhost --port 5173 --strictPort",
     "build": "node scripts/publish-rulebooks.mjs && tsc --noEmit && vite build",

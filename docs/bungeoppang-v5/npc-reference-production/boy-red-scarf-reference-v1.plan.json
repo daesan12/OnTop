@@ -1,0 +1,58 @@
+{
+  "status": "completed_preview_ready",
+  "sourceReference": "C:/Users/SSAFY/AppData/Local/Temp/codex-clipboard-243b1e52-69dc-4001-ad2f-c39a2eb0b57a.png",
+  "input": "docs/bungeoppang-v5/npc-reference-production/boy-red-scarf-reference-v1.png",
+  "referenceGenerator": "built-in image_gen",
+  "cliVersion": "0.7.0",
+  "modelAlias": "tripo-v3.1",
+  "modelWire": "v3.1-20260211",
+  "steps": [
+    {
+      "endpoint": "POST /v3/generation/image-to-model",
+      "payload": {
+        "face_limit": 40000,
+        "texture": true,
+        "pbr": true,
+        "texture_quality": "detailed",
+        "geometry_quality": "detailed"
+      },
+      "estimatedCredits": {
+        "texturedImageToModel": 30,
+        "detailedTexture": 10,
+        "detailedGeometry": 20,
+        "total": 60
+      }
+    }
+  ],
+  "outputs": "docs/bungeoppang-v5/npc-reference-production/tripo-out/bungeoppang-boy-reference-v1-<id8>/{model.glb,preview.png,task.json}",
+  "expectedFormat": "GLB with PBR materials",
+  "generationCreditsSpent": 60,
+  "dryRun": {
+    "valid": true,
+    "warnings": [],
+    "errors": []
+  },
+  "accountSnapshot": {
+    "balance": 910,
+    "frozen": 0
+  },
+  "notes": [
+    "3D generation completed and original provider preview inspected.",
+    "Loaded actual GLB in the local Three.js preview.",
+    "No game runtime NPC assets replaced.",
+    "Rigging and animation were not submitted.",
+    "Actual cost 60 credits; account balance 850 credits, 0 frozen."
+  ],
+  "result": {
+    "taskId": "084ca389-7068-4837-869c-3e7f3fe56e5a",
+    "actualCredits": 60,
+    "remainingBalance": 850,
+    "modelBytes": 11099972,
+    "triangles": 37709,
+    "vertices": 23152,
+    "textureSize": 4096,
+    "animations": 0,
+    "skins": 0,
+    "runtimeCopy": "frontend/public/art/bungeoppang/customers/boy-red-scarf-v1.glb"
+  }
+}

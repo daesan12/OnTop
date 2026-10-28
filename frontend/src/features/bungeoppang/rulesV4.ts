@@ -89,6 +89,9 @@ export interface GrillLogEntry {
   t: number;
   filling?: BreadFilling;
   order?: number;
+  /** v5 identities; v4 transport never serializes these fields. */
+  orderId?: string;
+  breadId?: number;
 }
 export interface TrayBread {
   id: number;
@@ -99,7 +102,7 @@ export interface TrayBread {
   points: number;
 }
 export interface GrillState {
-  readonly rulesVersion: 'v4';
+  readonly rulesVersion: 'v4' | 'v5';
   slots: GrillSlot[];
   heats: readonly number[];
   order: BreadOrder | null;

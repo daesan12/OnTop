@@ -1,0 +1,33 @@
+{
+  "viewport": [
+    1920,
+    1080
+  ],
+  "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36 Edg/156.0.0.0",
+  "hardwareConcurrency": 22,
+  "gpu": "ANGLE (Intel, Intel(R) Arc(TM) Graphics (0x00007D55) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+  "calls": 105,
+  "triangles": 577363,
+  "frameMs": {
+    "median": 9.299999952316284,
+    "p95": 14.399999856948853
+  },
+  "gpuTiming": "not measured",
+  "geometryBytesEstimate": 48474088,
+  "textureBytesEstimate": 217965482.66666675,
+  "geometries": 271,
+  "textures": 30,
+  "grillBytesEstimate": 158368,
+  "grillGeometries": 5,
+  "grillMaterials": 6,
+  "downloadBytes": 15665572,
+  "playerCount": 4,
+  "quality": "low",
+  "camera": [
+    -36.66,
+    2.321,
+    14.549999999999999
+  ],
+  "daylight": 0.9668726929331231,
+  "night": 0
+}

@@ -1,0 +1,212 @@
+[
+  {
+    "id": "boy-red-scarf",
+    "file": "frontend/public/art/bungeoppang/customers/boy-red-scarf-v1.glb",
+    "sha256": "f746477b5b65f8b24176e9bbee9ebe59902cb6f5b10810b5349a9f709ec239ec",
+    "bytes": 11099972,
+    "triangles": 37709,
+    "vertices": 23152,
+    "meshes": 1,
+    "materials": 1,
+    "images": [
+      {
+        "mimeType": "image/jpeg",
+        "width": 4096,
+        "height": 4096,
+        "embedded": true
+      },
+      {
+        "mimeType": "image/jpeg",
+        "width": 4096,
+        "height": 4096,
+        "embedded": true
+      },
+      {
+        "mimeType": "image/png",
+        "width": 4096,
+        "height": 4096,
+        "embedded": true
+      }
+    ],
+    "skins": 0,
+    "animations": 0,
+    "extensionsRequired": [],
+    "finitePositions": true,
+    "indicesInBounds": true
+  },
+  {
+    "id": "student-brown-coat",
+    "file": "frontend/public/art/bungeoppang/customers/student-brown-coat-v1.glb",
+    "sha256": "460d56c998be8fa73e6f0000e04effa8baa90951b51e44b5662d43f430018e5f",
+    "bytes": 9071972,
+    "triangles": 38830,
+    "vertices": 24896,
+    "meshes": 1,
+    "materials": 1,
+    "images": [
+      {
+        "mimeType": "image/jpeg",
+        "width": 4096,
+        "height": 4096,
+        "embedded": true
+      },
+      {
+        "mimeType": "image/jpeg",
+        "width": 4096,
+        "height": 4096,
+        "embedded": true
+      },
+      {
+        "mimeType": "image/png",
+        "width": 4096,
+        "height": 4096,
+        "embedded": true
+      }
+    ],
+    "skins": 0,
+    "animations": 0,
+    "extensionsRequired": [],
+    "finitePositions": true,
+    "indicesInBounds": true
+  },
+  {
+    "id": "worker-earmuffs",
+    "file": "frontend/public/art/bungeoppang/customers/worker-earmuffs-v1.glb",
+    "sha256": "29d88a048fb1432c6edb809dfd3d8c4e60b76dcf70ac7cac070e6a40b4f034f3",
+    "bytes": 10270188,
+    "triangles": 37537,
+    "vertices": 22731,
+    "meshes": 1,
+    "materials": 1,
+    "images": [
+      {
+        "mimeType": "image/jpeg",
+        "width": 4096,
+        "height": 4096,
+        "embedded": true
+      },
+      {
+        "mimeType": "image/jpeg",
+        "width": 4096,
+        "height": 4096,
+        "embedded": true
+      },
+      {
+        "mimeType": "image/png",
+        "width": 4096,
+        "height": 4096,
+        "embedded": true
+      }
+    ],
+    "skins": 0,
+    "animations": 0,
+    "extensionsRequired": [],
+    "finitePositions": true,
+    "indicesInBounds": true
+  },
+  {
+    "id": "older-flat-cap",
+    "file": "frontend/public/art/bungeoppang/customers/older-flat-cap-v1.glb",
+    "sha256": "ce81c96f9798358b21c2dbdd032d160b0ff73afab80f2865e8479fca833435fa",
+    "bytes": 10301636,
+    "triangles": 38830,
+    "vertices": 22452,
+    "meshes": 1,
+    "materials": 1,
+    "images": [
+      {
+        "mimeType": "image/jpeg",
+        "width": 4096,
+        "height": 4096,
+        "embedded": true
+      },
+      {
+        "mimeType": "image/jpeg",
+        "width": 4096,
+        "height": 4096,
+        "embedded": true
+      },
+      {
+        "mimeType": "image/png",
+        "width": 4096,
+        "height": 4096,
+        "embedded": true
+      }
+    ],
+    "skins": 0,
+    "animations": 0,
+    "extensionsRequired": [],
+    "finitePositions": true,
+    "indicesInBounds": true
+  },
+  {
+    "id": "girl-pink-hat",
+    "file": "frontend/public/art/bungeoppang/customers/girl-pink-hat-v1.glb",
+    "sha256": "889627cb61aec7c7eb87af80f7800696fbd837434f71954e3c66eb6fe6456b4d",
+    "bytes": 12235816,
+    "triangles": 39230,
+    "vertices": 23972,
+    "meshes": 1,
+    "materials": 1,
+    "images": [
+      {
+        "mimeType": "image/jpeg",
+        "width": 4096,
+        "height": 4096,
+        "embedded": true
+      },
+      {
+        "mimeType": "image/jpeg",
+        "width": 4096,
+        "height": 4096,
+        "embedded": true
+      },
+      {
+        "mimeType": "image/png",
+        "width": 4096,
+        "height": 4096,
+        "embedded": true
+      }
+    ],
+    "skins": 0,
+    "animations": 0,
+    "extensionsRequired": [],
+    "finitePositions": true,
+    "indicesInBounds": true
+  },
+  {
+    "id": "woman-glasses-bun",
+    "file": "frontend/public/art/bungeoppang/customers/woman-glasses-bun-v1.glb",
+    "sha256": "d8be03e91932ba0aeb29c5a0271c482d442197f967cb3474fa47144589cdec4d",
+    "bytes": 7918852,
+    "triangles": 37580,
+    "vertices": 23291,
+    "meshes": 1,
+    "materials": 1,
+    "images": [
+      {
+        "mimeType": "image/jpeg",
+        "width": 4096,
+        "height": 4096,
+        "embedded": true
+      },
+      {
+        "mimeType": "image/jpeg",
+        "width": 4096,
+        "height": 4096,
+        "embedded": true
+      },
+      {
+        "mimeType": "image/png",
+        "width": 4096,
+        "height": 4096,
+        "embedded": true
+      }
+    ],
+    "skins": 0,
+    "animations": 0,
+    "extensionsRequired": [],
+    "finitePositions": true,
+    "indicesInBounds": true
+  }
+]

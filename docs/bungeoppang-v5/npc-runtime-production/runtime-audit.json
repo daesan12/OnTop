@@ -1,0 +1,126 @@
+{
+  "assets": [
+    {
+      "id": "boy-red-scarf",
+      "bytes": 2480872,
+      "triangles": 23098,
+      "vertices": 15227,
+      "bones": 65,
+      "animations": [
+        {
+          "name": "idle",
+          "duration": 15.366666793823242,
+          "channels": 195
+        },
+        {
+          "name": "walk",
+          "duration": 2.366666555404663,
+          "channels": 195
+        }
+      ],
+      "validation": "finite attributes; index/joint bounds; normalized skin weights; inverse bind matrices; strictly increasing timelines; valid animation targets"
+    },
+    {
+      "id": "student-brown-coat",
+      "bytes": 2179032,
+      "triangles": 20714,
+      "vertices": 14794,
+      "bones": 65,
+      "animations": [
+        {
+          "name": "idle",
+          "duration": 15.366666793823242,
+          "channels": 195
+        },
+        {
+          "name": "walk",
+          "duration": 2.366666555404663,
+          "channels": 195
+        }
+      ],
+      "validation": "finite attributes; index/joint bounds; normalized skin weights; inverse bind matrices; strictly increasing timelines; valid animation targets"
+    },
+    {
+      "id": "worker-earmuffs",
+      "bytes": 2253000,
+      "triangles": 19999,
+      "vertices": 13208,
+      "bones": 65,
+      "animations": [
+        {
+          "name": "idle",
+          "duration": 15.366666793823242,
+          "channels": 195
+        },
+        {
+          "name": "walk",
+          "duration": 2.366666555404663,
+          "channels": 195
+        }
+      ],
+      "validation": "finite attributes; index/joint bounds; normalized skin weights; inverse bind matrices; strictly increasing timelines; valid animation targets"
+    },
+    {
+      "id": "older-flat-cap",
+      "bytes": 2201384,
+      "triangles": 20246,
+      "vertices": 12509,
+      "bones": 65,
+      "animations": [
+        {
+          "name": "idle",
+          "duration": 15.366666793823242,
+          "channels": 195
+        },
+        {
+          "name": "walk",
+          "duration": 2.366666555404663,
+          "channels": 195
+        }
+      ],
+      "validation": "finite attributes; index/joint bounds; normalized skin weights; inverse bind matrices; strictly increasing timelines; valid animation targets"
+    },
+    {
+      "id": "girl-pink-hat",
+      "bytes": 2490928,
+      "triangles": 22590,
+      "vertices": 14836,
+      "bones": 65,
+      "animations": [
+        {
+          "name": "idle",
+          "duration": 15.366666793823242,
+          "channels": 195
+        },
+        {
+          "name": "walk",
+          "duration": 2.366666555404663,
+          "channels": 195
+        }
+      ],
+      "validation": "finite attributes; index/joint bounds; normalized skin weights; inverse bind matrices; strictly increasing timelines; valid animation targets"
+    },
+    {
+      "id": "woman-glasses-bun",
+      "bytes": 1907728,
+      "triangles": 20000,
+      "vertices": 13656,
+      "bones": 65,
+      "animations": [
+        {
+          "name": "idle",
+          "duration": 15.366666793823242,
+          "channels": 195
+        },
+        {
+          "name": "walk",
+          "duration": 2.366666555404663,
+          "channels": 195
+        }
+      ],
+      "validation": "finite attributes; index/joint bounds; normalized skin weights; inverse bind matrices; strictly increasing timelines; valid animation targets"
+    }
+  ],
+  "bytes": 13512944,
+  "triangles": 126647
+}

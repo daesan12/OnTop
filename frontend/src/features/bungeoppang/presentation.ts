@@ -26,7 +26,10 @@ export interface BungFeedback {
   from: FeedbackPoint;
   breadId?: number;
   guestIndex?: number;
+  guestOrderId?: string;
   points: number;
   message: string;
   burnt?: boolean;
+  fromWorld?: [number, number, number];
+  toWorld?: [number, number, number];
 }

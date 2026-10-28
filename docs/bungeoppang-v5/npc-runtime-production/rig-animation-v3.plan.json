@@ -1,0 +1,319 @@
+{
+  "status": "provider_tasks_complete",
+  "supersedes": "rig-animation-v1.plan.json",
+  "reason": "Installed skill defaults v2.5 for humanoids; current official docs recommend v3.0. v2.5 retarget failed with server error 1004 and its 20 credits were refunded. Old biped skeleton has unsuitable labeling for game animation.",
+  "officialRigDocs": "https://developers.tripo3d.ai/en/docs/animations-rig",
+  "officialMotionDocs": "https://developers.tripo3d.ai/en/docs/animations-retarget",
+  "model": "v3.0-20260909",
+  "spec": "mixamo",
+  "previousPaidTasks": [
+    {
+      "id": "a7ec560b-1cee-4357-b78b-4c342abc6384",
+      "type": "animate_rig",
+      "credits": 25
+    },
+    {
+      "id": "0a88d633-d41d-43f1-a3aa-a2c7fcf72216",
+      "type": "animate_retarget",
+      "status": "failed",
+      "refunded": 20,
+      "charged": 0
+    }
+  ],
+  "jobs": [
+    {
+      "id": "boy-red-scarf",
+      "sourceTask": "084ca389-7068-4837-869c-3e7f3fe56e5a",
+      "rigDryRun": {
+        "dry_run": true,
+        "valid": true,
+        "input": "084ca389-7068-4837-869c-3e7f3fe56e5a",
+        "source_task_id": "084ca389-7068-4837-869c-3e7f3fe56e5a",
+        "steps": [
+          {
+            "name": "rig-check",
+            "endpoint": "/v3/animations/rig-check",
+            "task_type": "animate_prerigcheck",
+            "payload": {
+              "input": "<upstream>"
+            }
+          },
+          {
+            "name": "rig",
+            "endpoint": "/v3/animations/rig",
+            "task_type": "animate_rig",
+            "payload": {
+              "input": "<upstream>",
+              "rig_type": "biped",
+              "spec": "mixamo",
+              "out_format": "glb",
+              "model": "v3.0-20260909"
+            }
+          }
+        ],
+        "pending_uploads": [],
+        "deliverables": [],
+        "candidates": 1,
+        "warnings": [
+          "chain legality unverified: upstream task type unknown (no local history for 084ca389-7068-4837-869c-3e7f3fe56e5a); the real run checks it via the API"
+        ],
+        "errors": [],
+        "cost_notes": []
+      },
+      "rigCredits": 25,
+      "idleCredits": 10,
+      "walkCredits": 10,
+      "total": 45
+    },
+    {
+      "id": "student-brown-coat",
+      "sourceTask": "b19be13f-03bb-4130-b77c-bfd4a7292668",
+      "rigDryRun": {
+        "dry_run": true,
+        "valid": true,
+        "input": "b19be13f-03bb-4130-b77c-bfd4a7292668",
+        "source_task_id": "b19be13f-03bb-4130-b77c-bfd4a7292668",
+        "steps": [
+          {
+            "name": "rig-check",
+            "endpoint": "/v3/animations/rig-check",
+            "task_type": "animate_prerigcheck",
+            "payload": {
+              "input": "<upstream>"
+            }
+          },
+          {
+            "name": "rig",
+            "endpoint": "/v3/animations/rig",
+            "task_type": "animate_rig",
+            "payload": {
+              "input": "<upstream>",
+              "rig_type": "biped",
+              "spec": "mixamo",
+              "out_format": "glb",
+              "model": "v3.0-20260909"
+            }
+          }
+        ],
+        "pending_uploads": [],
+        "deliverables": [],
+        "candidates": 1,
+        "warnings": [
+          "chain legality unverified: upstream task type unknown (no local history for b19be13f-03bb-4130-b77c-bfd4a7292668); the real run checks it via the API"
+        ],
+        "errors": [],
+        "cost_notes": []
+      },
+      "rigCredits": 25,
+      "idleCredits": 10,
+      "walkCredits": 10,
+      "total": 45
+    },
+    {
+      "id": "worker-earmuffs",
+      "sourceTask": "48770dfd-133d-49a7-b2ff-9aff509e4a57",
+      "rigDryRun": {
+        "dry_run": true,
+        "valid": true,
+        "input": "48770dfd-133d-49a7-b2ff-9aff509e4a57",
+        "source_task_id": "48770dfd-133d-49a7-b2ff-9aff509e4a57",
+        "steps": [
+          {
+            "name": "rig-check",
+            "endpoint": "/v3/animations/rig-check",
+            "task_type": "animate_prerigcheck",
+            "payload": {
+              "input": "<upstream>"
+            }
+          },
+          {
+            "name": "rig",
+            "endpoint": "/v3/animations/rig",
+            "task_type": "animate_rig",
+            "payload": {
+              "input": "<upstream>",
+              "rig_type": "biped",
+              "spec": "mixamo",
+              "out_format": "glb",
+              "model": "v3.0-20260909"
+            }
+          }
+        ],
+        "pending_uploads": [],
+        "deliverables": [],
+        "candidates": 1,
+        "warnings": [
+          "chain legality unverified: upstream task type unknown (no local history for 48770dfd-133d-49a7-b2ff-9aff509e4a57); the real run checks it via the API"
+        ],
+        "errors": [],
+        "cost_notes": []
+      },
+      "rigCredits": 25,
+      "idleCredits": 10,
+      "walkCredits": 10,
+      "total": 45
+    },
+    {
+      "id": "older-flat-cap",
+      "sourceTask": "f03c126e-69b7-4355-9f15-f447135b5af4",
+      "rigDryRun": {
+        "dry_run": true,
+        "valid": true,
+        "input": "f03c126e-69b7-4355-9f15-f447135b5af4",
+        "source_task_id": "f03c126e-69b7-4355-9f15-f447135b5af4",
+        "steps": [
+          {
+            "name": "rig-check",
+            "endpoint": "/v3/animations/rig-check",
+            "task_type": "animate_prerigcheck",
+            "payload": {
+              "input": "<upstream>"
+            }
+          },
+          {
+            "name": "rig",
+            "endpoint": "/v3/animations/rig",
+            "task_type": "animate_rig",
+            "payload": {
+              "input": "<upstream>",
+              "rig_type": "biped",
+              "spec": "mixamo",
+              "out_format": "glb",
+              "model": "v3.0-20260909"
+            }
+          }
+        ],
+        "pending_uploads": [],
+        "deliverables": [],
+        "candidates": 1,
+        "warnings": [
+          "chain legality unverified: upstream task type unknown (no local history for f03c126e-69b7-4355-9f15-f447135b5af4); the real run checks it via the API"
+        ],
+        "errors": [],
+        "cost_notes": []
+      },
+      "rigCredits": 25,
+      "idleCredits": 10,
+      "walkCredits": 10,
+      "total": 45
+    },
+    {
+      "id": "girl-pink-hat",
+      "sourceTask": "d09f37f2-32be-4064-bebf-8f3349979161",
+      "rigDryRun": {
+        "dry_run": true,
+        "valid": true,
+        "input": "d09f37f2-32be-4064-bebf-8f3349979161",
+        "source_task_id": "d09f37f2-32be-4064-bebf-8f3349979161",
+        "steps": [
+          {
+            "name": "rig-check",
+            "endpoint": "/v3/animations/rig-check",
+            "task_type": "animate_prerigcheck",
+            "payload": {
+              "input": "<upstream>"
+            }
+          },
+          {
+            "name": "rig",
+            "endpoint": "/v3/animations/rig",
+            "task_type": "animate_rig",
+            "payload": {
+              "input": "<upstream>",
+              "rig_type": "biped",
+              "spec": "mixamo",
+              "out_format": "glb",
+              "model": "v3.0-20260909"
+            }
+          }
+        ],
+        "pending_uploads": [],
+        "deliverables": [],
+        "candidates": 1,
+        "warnings": [
+          "chain legality unverified: upstream task type unknown (no local history for d09f37f2-32be-4064-bebf-8f3349979161); the real run checks it via the API"
+        ],
+        "errors": [],
+        "cost_notes": []
+      },
+      "rigCredits": 25,
+      "idleCredits": 10,
+      "walkCredits": 10,
+      "total": 45
+    },
+    {
+      "id": "woman-glasses-bun",
+      "sourceTask": "6f9d7137-e4d3-4ba6-9359-5adddef4df63",
+      "rigDryRun": {
+        "dry_run": true,
+        "valid": true,
+        "input": "6f9d7137-e4d3-4ba6-9359-5adddef4df63",
+        "source_task_id": "6f9d7137-e4d3-4ba6-9359-5adddef4df63",
+        "steps": [
+          {
+            "name": "rig-check",
+            "endpoint": "/v3/animations/rig-check",
+            "task_type": "animate_prerigcheck",
+            "payload": {
+              "input": "<upstream>"
+            }
+          },
+          {
+            "name": "rig",
+            "endpoint": "/v3/animations/rig",
+            "task_type": "animate_rig",
+            "payload": {
+              "input": "<upstream>",
+              "rig_type": "biped",
+              "spec": "mixamo",
+              "out_format": "glb",
+              "model": "v3.0-20260909"
+            }
+          }
+        ],
+        "pending_uploads": [],
+        "deliverables": [],
+        "candidates": 1,
+        "warnings": [
+          "chain legality unverified: upstream task type unknown (no local history for 6f9d7137-e4d3-4ba6-9359-5adddef4df63); the real run checks it via the API"
+        ],
+        "errors": [],
+        "cost_notes": []
+      },
+      "rigCredits": 25,
+      "idleCredits": 10,
+      "walkCredits": 10,
+      "total": 45
+    }
+  ],
+  "newGenerationCredits": 270,
+  "priorSpent": 25,
+  "revisedTotalCeiling": 295,
+  "originalApprovedCeiling": 270,
+  "extraCeilingRequired": 25,
+  "currentBalance": 525,
+  "expectedFinalBalance": 255,
+  "retarget": {
+    "endpoint": "POST /v3/animations/retarget",
+    "payload": {
+      "input": "<v3-rig-task>",
+      "animations": [
+        "preset:idle",
+        "preset:walk"
+      ],
+      "out_format": "glb",
+      "animate_in_place": true,
+      "export_with_geometry": true
+    },
+    "credits": 20
+  },
+  "deliverables": [
+    "six humanoid Mixamo skeleton GLBs",
+    "idle and walk clips for each",
+    "locally optimized animated GLBs",
+    "integration and QA in the v5 minigame"
+  ],
+  "automaticPaidRetries": 0,
+  "userApprovedCeiling": 295,
+  "actualBilling": "billing.json"
+}

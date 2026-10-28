@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { BoxGeometry, SphereGeometry } from 'three'
+import { BoxGeometry, Color, Float32BufferAttribute, SphereGeometry } from 'three'
 import { PropBuilder } from '../../src/world/art/propGeometry'
 
 it('keeps independent transforms, colors, seams and triangle order when reusing primitive sources', () => {
@@ -23,4 +23,27 @@ it('keeps independent transforms, colors, seams and triangle order when reusing 
     expect(a.boundingSphere).toEqual(e.boundingSphere)
     a.dispose(); e.dispose()
   }
+})
+
+it('keeps custom colored geometry while retaining the dev primitive reuse contract', () => {
+  const builder = new PropBuilder(), source = new SphereGeometry(1, 16, 8)
+  const count = source.getAttribute('position').count
+  source.setAttribute('color', new Float32BufferAttribute(new Float32Array(count * 3).fill(.5), 3))
+  source.scale(1, 1.7, 1)
+  let disposed = 0
+  source.addEventListener('dispose', () => disposed++)
+  builder.add('paint', source, '#808080', [0, 0, 0], [1, 1, 1], [0, 0, 0], true, true)
+  expect(disposed).toBe(0)
+  const retained = builder.parts.paint[0]!, positions = retained.getAttribute('position'), colors = retained.getAttribute('color')
+  expect(positions.count).toBe(count)
+  const tint = new Color('#808080')
+  for (let i = 0; i < colors.count; i++) {
+    expect(colors.getX(i)).toBeCloseTo(.5 * tint.r)
+    expect(colors.getY(i)).toBeCloseTo(.5 * tint.g)
+    expect(colors.getZ(i)).toBeCloseTo(.5 * tint.b)
+  }
+  const art = builder.finish()
+  expect(art.paint!.index).not.toBeNull()
+  art.paint!.dispose(); source.dispose()
+  expect(disposed).toBe(1)
 })

@@ -90,6 +90,7 @@ export async function fixture(
   let remotePosition: Partial<typeof position> = {}
   const publicProfiles = { ...options.publicProfiles }
   const publicEquipment: Record<string, PublicEquipment[] | null> = {}
+  const activities: Record<string, 'BUNGEOPPANG' | null> = {}
   let rejectGameWatch = false
   let watchingGame = false
   let watchMode: 'normal' | 'reject' | 'hold' = 'normal', watchRequestId = '', selectorOverride: string | undefined, targetScore: number | null = null
@@ -337,6 +338,7 @@ export async function fixture(
             userId,
             ...publicProfiles[userId],
             equipment: publicEquipment[userId] ?? null,
+            activity: activities[userId] ?? null,
             position:
               (options.onecardPreview ? userId === ownId : i === 0)
                 ? position
@@ -710,6 +712,10 @@ export async function fixture(
   return {
     sent,
     cardPranks,
+    activity: (userId: string, activity: 'BUNGEOPPANG' | null) => {
+      activities[userId] = activity
+      for (const ws of sockets) world(ws)
+    },
     rejectNextMove: () => { rejectNextMovement = true },
     reaction: (patch: Partial<GameReactionEvent> = {}) => {
       const remainingBefore = patch.remainingBefore ?? options.bridge ?? options.onecard ?? 2

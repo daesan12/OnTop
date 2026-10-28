@@ -4,7 +4,10 @@ import { parkRuntime } from '../../park/runtime/runtime'
 import { RestError } from '../../network/restError'
 import { record } from '../../network/protocol'
 import type { BreadOrder, BungeoppangRules, GrillLogEntry as V4Log } from './rulesV4'
-import { bungeoppangV4Preview } from './config'
+import { bungeoppangV4Preview, bungeoppangV5Preview, bungeoppangV5Enabled } from './config'
+import { createBungeoppangV5Service } from './serviceV5'
+import { createV5PreviewService } from './serviceV5Preview'
+import type { CustomerOrder, GrillState as V5Grill } from './rulesV5'
 import { createV4PreviewService } from './serviceV4Preview'
 import { createBungeoppangV4Service, type V4Checkpoint } from './serviceV4'
 import type { RoundTiming, ServerTimeSample } from './serverTime'
@@ -18,6 +21,8 @@ export interface BungeoppangGame {
     timing?: RoundTiming
     timeSync?: BungeoppangTimeSync
     checkpoint?: V4Checkpoint }
+  v5?: { orders: CustomerOrder[]; rules: Readonly<BungeoppangRules>; grill?: V5Grill;
+    timing?: RoundTiming; timeSync?: BungeoppangTimeSync }
 }
 export interface BungeoppangSubmit {
   gameId: string; log: (GrillLogEntry | V4Log)[]; seenTips: string[]; clientScore: number
@@ -51,6 +56,8 @@ export interface BungeoppangService {
   nextOrder?(request: BungeoppangSubmit): Promise<{ index: number; order: BreadOrder; checkpoint?: V4Checkpoint }>
   recoverV4?(gameId: string): Promise<{ grill: import('./rulesV4').GrillState; checkpoint: V4Checkpoint }>
   syncTimeV4?(gameId: string): Promise<BungeoppangTimeSync>
+  deliverV5?(request: BungeoppangSubmit): Promise<{ grill: V5Grill; revision: number }>
+  recoverV5?(gameId: string): Promise<{ grill: V5Grill; revision: number }>
 }
 const tips = ['START', 'POUR', 'GOLD', 'BURNT', 'RUSH']
 const whole = (n: unknown): n is number => Number.isSafeInteger(n) && Number(n) >= 0
@@ -138,6 +145,7 @@ export function createBungeoppangService(requestJSON: (path: string, init?: Requ
     },
   }
 }
-export const bungeoppangService: BungeoppangService = bungeoppangV4Preview
-  ? createV4PreviewService()
-  : createBungeoppangV4Service((path, init) => parkRuntime.requestJSON(path, init))
+export const bungeoppangService: BungeoppangService = bungeoppangV5Preview ? createV5PreviewService()
+  : bungeoppangV4Preview ? createV4PreviewService()
+    : bungeoppangV5Enabled ? createBungeoppangV5Service((path, init) => parkRuntime.requestJSON(path, init))
+      : createBungeoppangV4Service((path, init) => parkRuntime.requestJSON(path, init))
