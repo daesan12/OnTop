@@ -649,7 +649,7 @@ export class ParkRuntime implements ParkRuntimePort {
   move = (dx: number, dz: number, run: boolean, jump = false) => {
     const intent = normalizedMove(dx, dz, run, jump)
     if (!intent || !this.canSendMovement(intent)) return
-    if (!stoppedIntent(intent)) cancelAvatarEmote(useSession.getState().sessionId)
+    if (!stoppedIntent(intent)) cancelAvatarEmote(useSession.getState().sessionId, 'movement')
     this.movement.enqueue(intent, this.movementScope())
   }
   stopMovement = () => {

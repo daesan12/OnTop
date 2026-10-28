@@ -55,6 +55,15 @@ describe('emote catalog and server-time playback', () => {
     expect(timeline.accept({ ...e, eventId: 'new', sentAt: new Date(now).toISOString() }, 'EMOTE_WAVE', now)).not.toBeNull()
   })
 
+  it('accepts distinct server events sharing one millisecond, while still rejecting duplicate IDs', () => {
+    const timeline = new EmoteTimeline(), first = parseEmoteEvent(event())
+    expect(timeline.accept(first, 'EMOTE_WAVE', now)).not.toBeNull()
+    const second = { ...first, eventId: 'same-ms-new' }
+    expect(timeline.accept(second, 'EMOTE_CLAP', now)).not.toBeNull()
+    expect(timeline.accept(first, 'EMOTE_WAVE', now)).toBeNull()
+    expect(timeline.accept(second, 'EMOTE_CLAP', now)).toBeNull()
+  })
+
   it('maps only configured codes, preserves the event timestamp on a snapshot, and ignores wrong channels/users', () => {
     const e = event({ eventId: 'render-1' })
     emit('WORLD_EMOTE_EVENT', { ...e, channelId: 'b' })
@@ -70,7 +79,7 @@ describe('emote catalog and server-time playback', () => {
     expect(avatars.get('102')!.emote).toBe('')
   })
 
-  it('requires the exact own pending acknowledgement, preserves cooldown after cancel and keeps neutral snapshots harmless', () => {
+  it('requires the exact own acknowledgement, releases cooldown on cancel and ignores delayed approval', () => {
     const e = event({ eventId: 'own-1', userId: '101' })
     emit('WORLD_EMOTE_EVENT', e, 'unknown')
     expect(avatars.get('101')!.emote).toBe('')
@@ -78,16 +87,15 @@ describe('emote catalog and server-time playback', () => {
     emit('WORLD_EMOTE_EVENT', e, 'wrong')
     expect(avatars.get('101')!.emote).toBe('')
     emit('WORLD_EMOTE_EVENT', e, 'mine')
-    const readyAt = useEmoteState.getState().readyAt
     expect(avatars.get('101')!.emote).toBe('EMOTE_WAVE')
     world(2)
     expect(avatars.get('101')!.emote).toBe('EMOTE_WAVE')
     cancelAvatarEmote('101')
-    expect(useEmoteState.getState().readyAt).toBe(readyAt)
+    expect(useEmoteState.getState()).toMatchObject({ readyAt: 0, pending: false })
     expect(avatars.get('101')!.emote).toBe('')
     emit('WORLD_EMOTE_EVENT', { ...e, eventId: 'cancelled-approval', sentAt: new Date().toISOString() }, 'mine')
     expect(avatars.get('101')!.emote).toBe('')
-    expect(useEmoteState.getState().readyAt).toBeGreaterThanOrEqual(readyAt)
+    expect(useEmoteState.getState().readyAt).toBe(0)
     const previousCooldown = useEmoteState.getState().readyAt
     emit('CHANNEL_LEFT', { channelId: 'a' })
     expect(useEmoteState.getState().pending).toBe(false)
@@ -103,14 +111,13 @@ describe('emote catalog and server-time playback', () => {
     world(3)
     emit('WORLD_EMOTE_EVENT', event({ eventId: 'late-after-removal', userId: '101', sentAt: new Date().toISOString() }), 'removed')
     expect(avatars.get('101')!.emote).toBe('')
-    expect(useEmoteState.getState().readyAt).toBeGreaterThan(Date.now())
+    expect(useEmoteState.getState().readyAt).toBe(0)
   })
 
-  it.each(['MOVEMENT', 'ACTIVITY_STARTED', 'CHANNEL_LEFT', 'DISCONNECTED'])('cancels the matching server event for %s while retaining cooldown', reason => {
+  it.each(['MOVEMENT', 'ACTIVITY_STARTED', 'CHANNEL_LEFT', 'DISCONNECTED'])('cancels the matching server event for %s and releases cooldown', reason => {
     const e = event({ eventId: `own-cancel-${reason}`, userId: '101', sentAt: new Date().toISOString() })
     useEmoteState.setState({ pending: true, requestId: 'mine', requested: 'EMOTE_WAVE' })
     emit('WORLD_EMOTE_EVENT', e, 'mine')
-    const cooldown = useEmoteState.getState().readyAt
     const cancellation = { eventId: `cancel-${reason}`, emoteEventId: e.eventId, channelId: 'a', userId: '101', reason, sentAt: e.sentAt }
     emit('WORLD_EMOTE_CANCELLED', { ...cancellation, emoteEventId: 'different' })
     emit('WORLD_EMOTE_CANCELLED', { ...cancellation, channelId: 'other' })
@@ -118,7 +125,35 @@ describe('emote catalog and server-time playback', () => {
     expect(avatars.get('101')!.emote).toBe('EMOTE_WAVE')
     emit('WORLD_EMOTE_CANCELLED', cancellation); emit('WORLD_EMOTE_CANCELLED', cancellation)
     expect(avatars.get('101')!.emote).toBe('')
-    expect(useEmoteState.getState()).toMatchObject({ readyAt: cooldown, cancelled: true })
+    expect(useEmoteState.getState()).toMatchObject({ readyAt: 0, pending: false, cancelled: true })
+  })
+
+  it('keeps own/remote fart playback and its start time through movement, but honors server cancellation', () => {
+    useEmoteState.setState({ bindings: { EMOTE_FART: 'FART' }, pending: true, requestId: 'fart', requested: 'EMOTE_FART' })
+    const e = event({ eventId: 'own-fart', userId: '101', emoteCode: 'FART', sentAt: new Date().toISOString() })
+    emit('WORLD_EMOTE_EVENT', e, 'fart')
+    emit('WORLD_EMOTE_EVENT', { ...e, eventId: 'remote-fart', userId: '102' })
+    cancelAvatarEmote('101', 'movement')
+    world(2, true)
+    for (const id of ['101', '102']) expect(avatars.get(id)).toMatchObject({ emote: 'EMOTE_FART', emoteAt: Date.parse(e.sentAt) })
+    const readyAt = useEmoteState.getState().readyAt
+    expect(readyAt).toBeGreaterThan(Date.now())
+    emit('WORLD_EMOTE_CANCELLED', { eventId: 'server-stop', emoteEventId: e.eventId, channelId: 'a', userId: '101', reason: 'MOVEMENT', sentAt: e.sentAt })
+    expect(avatars.get('101')!.emote).toBe('')
+    expect(useEmoteState.getState().readyAt).toBe(0)
+  })
+
+  it('accepts a delayed fart approval during movement and still stops it on activity changes', () => {
+    // A completed previous clip may still be stored until the next approval.
+    avatars.get('101')!.emote = 'EMOTE_WAVE'
+    avatars.get('101')!.emoteAt = Date.now() - 10_000
+    useEmoteState.setState({ bindings: { EMOTE_FART: 'FART' }, pending: true, requestId: 'fart', requested: 'EMOTE_FART' })
+    world(2, true)
+    expect(useEmoteState.getState().pending).toBe(true)
+    emit('WORLD_EMOTE_EVENT', event({ eventId: 'moving-fart', userId: '101', emoteCode: 'FART', sentAt: new Date().toISOString() }), 'fart')
+    expect(avatars.get('101')!.emote).toBe('EMOTE_FART')
+    cancelAvatarEmote('101')
+    expect(avatars.get('101')!.emote).toBe('')
   })
 
   it('ignores cancellation of an old/expired event and accepts a fresh event after cancellation despite network delay', () => {

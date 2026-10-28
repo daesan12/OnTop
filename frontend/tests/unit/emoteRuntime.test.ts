@@ -118,6 +118,7 @@ describe('M04 emote delivery through the existing Spring transport', () => {
     expect(socket.requests.filter(r => r.type === 'WORLD_EMOTE_SEND')).toHaveLength(1)
   })
   it('sends only the configured emote code and plays once after its own approval; neutral input preserves it', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
     const socket = await movementSession()
     socket.emoteResponse = 'hold'
     const pending = runtime.sendEmote('EMOTE_WAVE')
@@ -129,16 +130,17 @@ describe('M04 emote delivery through the existing Spring transport', () => {
     socket.emit('WORLD_EMOTE_EVENT', event, request.requestId)
     expect(await pending).toBe(true)
     expect(avatars.get('101')!.emote).toBe('EMOTE_WAVE')
-    const at = avatars.get('101')!.emoteAt, readyAt = useEmoteState.getState().readyAt
+    const at = avatars.get('101')!.emoteAt
     socket.emit('WORLD_EMOTE_EVENT', event, request.requestId)
     expect(avatars.get('101')!.emoteAt).toBe(at)
     runtime.move(0, 0, false)
     expect(avatars.get('101')!.emote).toBe('EMOTE_WAVE')
     runtime.move(0, -1, false, true)
     expect(avatars.get('101')!.emote).toBe('')
-    expect(useEmoteState.getState().readyAt).toBe(readyAt)
-    expect(await runtime.sendEmote('EMOTE_WAVE')).toBe(false)
-    expect(socket.requests.filter(r => r.type === 'WORLD_EMOTE_SEND')).toHaveLength(1)
+    expect(useEmoteState.getState().readyAt).toBe(0)
+    socket.emoteResponse = 'success'
+    expect(await runtime.sendEmote('EMOTE_CLAP')).toBe(true)
+    expect(socket.requests.filter(r => r.type === 'WORLD_EMOTE_SEND')).toHaveLength(2)
   })
   it('reports rejection without a mock fallback and allows an explicit retry', async () => {
     const socket = await movementSession()
@@ -150,6 +152,18 @@ describe('M04 emote delivery through the existing Spring transport', () => {
     socket.emoteResponse = 'success'
     expect(await runtime.sendEmote('EMOTE_CLAP')).toBe(true)
     expect(avatars.get('101')!.emote).toBe('EMOTE_CLAP')
+  })
+
+  it('preserves normal-completion cooldown when moving after a wave has already ended', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    await movementSession()
+    expect(await runtime.sendEmote('EMOTE_WAVE')).toBe(true)
+    const readyAt = useEmoteState.getState().readyAt
+    vi.setSystemTime(Date.now() + 3000)
+    runtime.move(0, -1, false)
+    expect(avatars.get('101')!.emote).toBe('')
+    expect(useEmoteState.getState().readyAt).toBe(readyAt)
+    expect(await runtime.sendEmote('EMOTE_CLAP')).toBe(false)
   })
   it('times out safely and ignores a late approval without automatic resend', async () => {
     const socket = await movementSession()
@@ -166,21 +180,48 @@ describe('M04 emote delivery through the existing Spring transport', () => {
     expect(avatars.get('101')!.emote).toBe('')
     expect(socket.requests.filter(r => r.type === 'WORLD_EMOTE_SEND')).toHaveLength(1)
   })
-  it('keeps an approved cooldown when movement cancels an in-flight request and clears pending on disconnect', async () => {
+  it('releases cancelled pending requests immediately and isolates an old ACK/finally from a newer request', async () => {
     const socket = await movementSession()
     socket.emoteResponse = 'hold'
     const request = runtime.sendEmote('EMOTE_WAVE')
     runtime.move(0, -1, false)
+    expect(useEmoteState.getState()).toMatchObject({ readyAt: 0, pending: false })
     const sent = socket.requests.find(r => r.type === 'WORLD_EMOTE_SEND')!
+    const next = runtime.sendEmote('EMOTE_CLAP')
+    const nextId = socket.requests.filter(r => r.type === 'WORLD_EMOTE_SEND').at(-1)!.requestId
     socket.emit('WORLD_EMOTE_EVENT', { eventId: crypto.randomUUID(), channelId: 'channel-1', userId: '101', emoteCode: 'WAVE', sentAt: new Date().toISOString() }, sent.requestId)
     expect(await request).toBe(false)
     expect(avatars.get('101')!.emote).toBe('')
-    expect(useEmoteState.getState().readyAt).toBeGreaterThan(Date.now())
-    useEmoteState.setState({ readyAt: 0 })
-    const next = runtime.sendEmote('EMOTE_CLAP')
+    expect(useEmoteState.getState()).toMatchObject({ readyAt: 0, pending: true, requestId: nextId, requested: 'EMOTE_CLAP' })
     socket.close(1012)
     expect(await next).toBe(false)
     expect(useEmoteState.getState().pending).toBe(false)
     expect(useSession.getState().status).toBe('reconnecting')
+  })
+
+  it('continues an approved fart through movement input without restarting it', async () => {
+    vi.stubGlobal('window', { location: { href: 'https://dev.on-top.world/park', hostname: 'dev.on-top.world' } })
+    const socket = await movementSession(path => path === '/park-bindings.dev.json' ? json(developmentBindings) : undefined)
+    expect(await runtime.sendEmote('EMOTE_FART')).toBe(true)
+    const at = avatars.get('101')!.emoteAt, readyAt = useEmoteState.getState().readyAt
+    runtime.move(0, -1, true, true)
+    expect(avatars.get('101')).toMatchObject({ emote: 'EMOTE_FART', emoteAt: at })
+    expect(useEmoteState.getState().readyAt).toBe(readyAt)
+    expect(socket.requests.filter(r => r.type === 'WORLD_EMOTE_SEND')).toHaveLength(1)
+  })
+
+  it('keeps a retired request rejection out of the new emote and global error state', async () => {
+    const socket = await movementSession()
+    socket.emoteResponse = 'hold'
+    const old = runtime.sendEmote('EMOTE_WAVE')
+    const oldId = socket.requests.filter(r => r.type === 'WORLD_EMOTE_SEND').at(-1)!.requestId
+    runtime.move(0, -1, false)
+    const next = runtime.sendEmote('EMOTE_CLAP')
+    socket.emit('ERROR', { code: 'EMOTE_TOO_FREQUENT', message: 'old request' }, oldId)
+    expect(await old).toBe(false)
+    expect(useSession.getState().error).toBe('')
+    expect(useEmoteState.getState()).toMatchObject({ pending: true, requested: 'EMOTE_CLAP', error: '' })
+    socket.close(1012)
+    expect(await next).toBe(false)
   })
 })
