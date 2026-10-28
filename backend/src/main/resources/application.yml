@@ -35,6 +35,13 @@ ontop:
     enabled: ${FEEDBACK_ENABLED:false}
     administrator-ids: ${ADMIN_READ_IDS:${FEEDBACK_ADMINISTRATOR_IDS:}}
   world:
+    dynamic-channels:
+      # Explicitly enable only after the single-instance deployment is ready. Story 119 sets the measured limit.
+      enabled: ${WORLD_DYNAMIC_CHANNELS_ENABLED:false}
+      capacity: ${WORLD_CHANNEL_CAPACITY:20}
+      spawn-at: ${WORLD_CHANNEL_SPAWN_AT:18}
+      max-channels: ${WORLD_MAX_CHANNELS:2}
+      idle-timeout: ${WORLD_CHANNEL_IDLE_TIMEOUT:5m}
     map:
       # generated는 외부 파일과 FE 공동 검증 후에만 명시적으로 선택한다.
       source: ${WORLD_MAP_SOURCE:legacy}

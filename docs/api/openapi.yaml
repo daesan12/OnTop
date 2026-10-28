@@ -2635,9 +2635,7 @@ paths:
       tags:
       - Table
       summary: 채널 테이블 목록 조회
-      description: local/dev 프로필에서 실제 TableHub의 현재 상태를 조회하며 입장/예약하지 않습니다. channelId
-        누락/불일치 시 기존 400/404 정책을 따릅니다. Access JWT와 활성 회원 검증이 필요합니다. 비인증 개발 데모는 정식 사용
-        대상이 아닙니다.
+      description: 실제 TableHub의 현재 상태와 테이블 맵 앵커를 조회하며 입장/예약하지 않습니다. channelId 누락/불일치 시 기존 400/404 정책을 따릅니다. Access JWT와 활성 회원 검증이 필요합니다.
       operationId: listTables
       parameters:
       - name: channelId
@@ -3078,8 +3076,7 @@ paths:
       tags:
       - Channel
       summary: 채널 목록 조회
-      description: "local/dev 프로필의 실제 채널/현재 인원 조회입니다. 입장/예약하지 않습니다. Access JWT와 활성\
-        \ 회원 검증이 필요합니다. 개발 배포는 dev,db 프로필을 사용합니다."
+      description: 실제 채널/현재 인원 조회입니다. 입장/예약하지 않습니다. Access JWT와 활성 회원 검증이 필요합니다.
       operationId: listChannels
       responses:
         "200":
@@ -4385,6 +4382,7 @@ components:
     TableSummaryResponse:
       required:
       - allReady
+      - anchorId
       - availableSeats
       - betAmountPerPlayer
       - capacity
@@ -4456,6 +4454,10 @@ components:
           enum:
           - AUTO
           - MANUAL
+        anchorId:
+          type: string
+          description: 현재 공원 맵에서 테이블을 배치할 앵커 ID
+          nullable: true
     ItemListResponse:
       required:
       - items
