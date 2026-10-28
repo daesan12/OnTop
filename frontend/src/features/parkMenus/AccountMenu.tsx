@@ -45,7 +45,7 @@ export function AccountMenu({ exitError, onExit, onWithdrawn }: {
 
   return <div className="park-account" ref={root}>
     <div className="park-account__summary" aria-label="내 정보">
-      <img className="park-account__coin" src={coinImage} alt="엽전" />
+      <img className="park-account__coin" data-wallet-coin-target src={coinImage} alt="엽전" />
       <WalletBalance />
       <span className="park-account__separator" aria-hidden="true" />
       <button ref={trigger} type="button" className="park-account__trigger" aria-label="내 메뉴" aria-haspopup="menu"

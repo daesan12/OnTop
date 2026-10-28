@@ -15,6 +15,9 @@ import { BoneDie, LeatherCup, OakTray, farkleArt } from './art/FarkleProps'
 import { DIE_REST_Y, FARKLE_VISUAL } from './presentation'
 import { createCupPour, sampleCupPour, sampleDiePour, dieFlightProgress, POUR, type CupPour } from './pour'
 import { TABLET_ENABLED } from '../../features/tableLobby/tabletFeature'
+import { FarkleHourglass } from './FarkleHourglass'
+import { FarkleScorebook } from './FarkleScorebook'
+import { preloadCraftMaps } from './art/CraftMaterials'
 
 // Matches the original six-face bone atlas, with opposite faces summing to seven.
 const normals = [new Vector3(0, 1, 0), new Vector3(0, 0, 1), new Vector3(1, 0, 0), new Vector3(-1, 0, 0), new Vector3(0, 0, -1), new Vector3(0, -1, 0)]
@@ -52,6 +55,7 @@ export function FarkleTable({ anchor }: { anchor: TableAnchor }) {
   const binding = session.bindings.find(b => b.channelId === session.roomId && b.anchorId === anchor.id)
   const relevant = !!binding && !!g && (session.tableId === binding.tableId || (g.role === 'SPECTATOR' && session.watchedTableId === binding.tableId))
   const selected = !!binding && session.tableStates[binding.tableId]?.gameCode === 'DICE'
+  useEffect(() => { if (selected) preloadCraftMaps() }, [selected])
   if (!relevant && !selected) return null
   if (TABLET_ENABLED && !relevant) return null
   return <FarkleSurface anchor={anchor} game={relevant ? g : null} />
@@ -65,8 +69,8 @@ function FarkleSurface({ anchor, game }: { anchor: TableAnchor; game: DiceGame |
   const released = useRef<{ gameId: string; rollId: number; x: number; y: number; z: number } | null>(null)
   const pour = useMemo(() => {
     const origin = released.current
-    if (origin && origin.gameId === game?.gameId && origin.rollId === game?.dice.rollId) return createCupPour(origin.x, origin.y, origin.z, sign)
-    return createCupPour(.91, FARKLE_VISUAL.cupRestY, sign * .4, sign)
+    if (origin && origin.gameId === game?.gameId && origin.rollId === game?.dice.rollId) return createCupPour(origin.x, origin.y, origin.z, 1)
+    return createCupPour(.91, FARKLE_VISUAL.cupRestY, .4, 1)
   }, [game?.gameId, game?.dice.rollId, sign])
   useEffect(() => {
     if (!active) return
@@ -111,24 +115,28 @@ function FarkleSurface({ anchor, game }: { anchor: TableAnchor; game: DiceGame |
       }
     }
     if (!held && progress < 1) sampleCupPour(pour, progress, cup.current.position, cup.current.quaternion)
-    else { cup.current.position.set(held ? cupMotion.x : .91, held ? 1.36 : FARKLE_VISUAL.cupRestY, held ? cupMotion.z : sign * .4)
+    else { cup.current.position.set(held ? cupMotion.x : .91, held ? 1.36 : FARKLE_VISUAL.cupRestY, held ? cupMotion.z : .4)
       cup.current.rotation.set(0, 0, held ? Math.sin(performance.now() / 80) * .08 : 0) }
   })
-  return <group ref={root} name={`farkle-table-${anchor.id}`}>
+  return <group>
+    {active && game.dice.status === 'PLAYING' && <FarkleScorebook side={sign} active={active} />}
+    <group ref={root} name={`farkle-table-${anchor.id}`} scale={FARKLE_VISUAL.tabletopScale} rotation={[0, sign < 0 ? Math.PI : 0, 0]}
+      position={[FARKLE_VISUAL.tabletopOffsetX * sign, 1.06 * (1 - FARKLE_VISUAL.tabletopScale), 0]}>
     <OakTray />
+    {game?.dice.status === 'PLAYING' && <FarkleHourglass game={game} side={1} />}
     <group ref={cup} name={`farkle-cup-${anchor.id}`} onPointerDown={e => {
       if (e.button !== 0 || !active || !canRollDice() || useDiceUI.getState().cup !== 'idle'
         || !diceCamera.ready || !root.current) return
-      e.stopPropagation(); e.nativeEvent.preventDefault()
-      const position = new Vector3(.91, 1.36, sign * .4)
+      e.stopPropagation()
+      const position = new Vector3(.91, 1.36, .4)
       const height = root.current.localToWorld(position.clone()).y
       const projector = new CupDrag(camera, root.current, height)
       if (!projector.begin(e.clientX, e.clientY, gl.domElement.getBoundingClientRect(), position)) return
       gl.domElement.setPointerCapture(e.pointerId)
       unlockDiceSound()
       drag.current = { id: e.pointerId, scope: diceScope(), shake: new ShakeTracker(e.clientX, e.clientY), projector, x: e.clientX, y: e.clientY }
-      cupMotion.x = .91; cupMotion.z = sign * .4; useDiceUI.setState({ cup: 'holding' }); gl.domElement.style.cursor = 'grabbing'
+      cupMotion.x = .91; cupMotion.z = .4; useDiceUI.setState({ cup: 'holding' }); gl.domElement.style.cursor = 'grabbing'
     }}><LeatherCup /></group>
     {game?.dice.dice.map(die => <Die key={die.id} die={die} game={game} pour={pour} />)}
-  </group>
+  </group></group>
 }

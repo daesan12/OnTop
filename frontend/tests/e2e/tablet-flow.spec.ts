@@ -289,7 +289,15 @@ for (const variant of [
   await page.getByLabel('3D 공원', { exact: true }).locator('canvas').focus(); await page.keyboard.press('Escape')
   await expect(page.getByRole('region', { name: variant.panel, exact: true })).toBeVisible()
   expect(server.sent.some(message => message.type === 'TABLE_LEAVE' || message.type === 'GAME_FORFEIT')).toBe(false)
-  if (variant.game === 'DICE') await expect(page.getByRole('region', { name: variant.panel, exact: true })).toContainText('6,000')
+  if (variant.game === 'DICE') {
+    await expect(page.getByRole('region', { name: variant.panel, exact: true })).toContainText('6,000')
+    await page.locator('canvas').first().focus(); await page.keyboard.press('KeyT')
+    await expect(page.getByRole('dialog', { name: '주사위 점수표', exact: true })).toBeVisible()
+    await expect(page.getByLabel('주변 채팅', { exact: true })).toBeHidden()
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('dialog', { name: '주사위 점수표', exact: true })).toBeHidden()
+    await expect(page.getByLabel('주변 채팅', { exact: true })).toBeVisible()
+  }
   const start = server.sent.filter(m => m.type === 'TABLE_START'); expect(start).toHaveLength(1)
   expect(Object.keys(start[0]!.payload).sort()).toEqual(['actionId', 'expectedVersion'])
   expect(start[0]!.payload.actionId).toMatch(/^[\w-]{1,64}$/)
