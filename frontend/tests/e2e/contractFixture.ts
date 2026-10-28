@@ -64,6 +64,7 @@ export async function fixture(
     version = 0,
     channelVersion = 0,
     loggedIn = true
+  let walletAmount = 100, walletReads = 0
   const sent: {
       type: string
       payload: Record<string, unknown>
@@ -273,7 +274,10 @@ export async function fixture(
           characterGender: options.onecardPreview ? publicProfiles[ownId]?.characterGender ?? 'MALE' : 'MALE' },
       })
     }
-    if (url.pathname === '/api/v1/wallets/me') return route.fulfill({ json: { balance: 100, reservedBalance: 0, availableBalance: 100 } })
+    if (url.pathname === '/api/v1/wallets/me') {
+      walletReads++
+      return route.fulfill({ json: { balance: walletAmount, reservedBalance: 0, availableBalance: walletAmount } })
+    }
     if (url.pathname === '/api/v1/channels')
       return route.fulfill({
         json: {
@@ -864,6 +868,8 @@ export async function fixture(
       return resultPayload()
     },
     notifyResult: (payload: Result) => emit(sockets.at(-1)!, 'GAME_RESULT', payload),
+    setWalletBalance: (value: number) => { walletAmount = value },
+    get walletReads() { return walletReads },
     nextRound: () => {
       if (options.forfeit) {
         gameId += '-next'; gameVersion = 0; forfeitVersion = -1; finished = false; recoveryStatus = 'RESTORED'

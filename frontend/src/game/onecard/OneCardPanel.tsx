@@ -7,7 +7,7 @@ import { useParkRuntime } from '../../park/runtime/ParkRuntime'
 import { useTableLobby } from '../../features/tableLobby/state'
 import { OneCardForfeitDialog } from './OneCardForfeitDialog'
 import { canActOneCard } from './actions'
-import { cardLabel, redCard, SUITS, SUIT_GLYPH, SUIT_NAME } from './presentation'
+import { cardLabel, cardEffect, redCard, SUITS, SUIT_GLYPH, SUIT_NAME } from './presentation'
 import type { OneCardInput } from './protocol'
 import { CardFace } from './CardFace'
 import { FanHand } from './FanHand'
@@ -60,6 +60,10 @@ export function OneCardPanel() {
       <FanHand cards={hand?.hand ?? []} playableIds={hand?.playableCardIds ?? []} flippedIds={prank.flippedIds} selectedId={selected?.id}
         canPlay={id => can({ kind: 'play', cardId: id })} restore={restore}
         select={id => useOneCardUI.setState({ scope, selectedId: selected?.id === id ? '' : id })} />
+      <div className="onecard-selection-info" role="status" aria-label="선택 카드 안내">
+        <strong>{selected ? cardLabel(selected) : o.turnUserId === ownId ? '내 차례' : `${name(o.turnUserId ?? '')}의 차례`}</strong>
+        <span className="onecard-effect">{selected ? cardEffect(selected) || '같은 무늬 또는 숫자로 이어갈 수 있어요' : '같은 무늬 또는 숫자를 골라요'}</span>
+      </div>
       <div className="onecard-actions onecard-primary-actions"><button className="onecard-submit" disabled={!selected || !can({ kind: 'play', cardId: selected.id })}
         onClick={() => { if (selected) send({ kind: 'play', cardId: selected.id }) }}>{selected ? `${cardLabel(selected)} 내기` : '카드를 선택하세요'}</button>
         {o.attackTotal > 0 ? <button disabled={!can({ kind: 'accept-attack' })} onClick={() => send({ kind: 'accept-attack' })}>공격 받기 · +{o.attackTotal}장</button>

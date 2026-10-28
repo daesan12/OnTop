@@ -80,7 +80,7 @@ export function BungeoppangHud() {
       {phase === "result" && <BungeoppangResult />}
       <ExitConfirm />
       {bungeoppangV4Preview && <div className="bung-preview-note">v4 개발 미리보기 · 실제 엽전 지급 없음</div>}
-      {phase !== 'leaving' && <button className="bung-help-button" onClick={() => setBungeoppangHelp(true)}>F1 조작 안내</button>}
+      {phase !== 'leaving' && phase !== 'result' && <button className="bung-help-button" onClick={() => setBungeoppangHelp(true)}>F1 조작 안내</button>}
     </div>
   );
 }

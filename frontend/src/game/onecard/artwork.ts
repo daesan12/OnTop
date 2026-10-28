@@ -1,6 +1,6 @@
-import { CanvasTexture, SRGBColorSpace } from 'three'
+import { CanvasTexture, SRGBColorSpace, TextureLoader } from 'three'
 import type { Card } from './protocol'
-import { redCard, SUIT_GLYPH } from './presentation'
+import { cardArtwork } from './cardArtwork'
 
 // Code-native artwork stays crisp at every table scale and contains public data only.
 function artwork(width: number, height: number, draw: (ctx: CanvasRenderingContext2D) => void) {
@@ -47,40 +47,14 @@ export function createFeltTexture() {
     }
   })
 }
+function vectorTexture(url: string) {
+  const texture = new TextureLoader().load(url)
+  texture.colorSpace = SRGBColorSpace; texture.anisotropy = 4
+  return texture
+}
 export function createBackTexture() {
-  return artwork(256, 384, ctx => {
-    ctx.fillStyle = '#f6eedc'; ctx.fillRect(0, 0, 256, 384)
-    ctx.fillStyle = '#21534e'; ctx.beginPath(); ctx.roundRect(10, 10, 236, 364, 12); ctx.fill()
-    ctx.save(); ctx.beginPath(); ctx.rect(18, 18, 220, 348); ctx.clip()
-    ctx.strokeStyle = '#b6a57555'; ctx.lineWidth = 1
-    for (let n = -384; n < 640; n += 26) {
-      ctx.beginPath(); ctx.moveTo(n, 0); ctx.lineTo(n + 384, 384); ctx.stroke()
-      ctx.beginPath(); ctx.moveTo(n, 0); ctx.lineTo(n - 384, 384); ctx.stroke()
-    }
-    ctx.restore(); ctx.strokeStyle = '#ccb67d'; ctx.lineWidth = 2
-    ctx.beginPath(); ctx.roundRect(20, 20, 216, 344, 8); ctx.stroke()
-    ctx.fillStyle = '#21534e'; ctx.beginPath(); ctx.ellipse(128, 192, 47, 65, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke()
-    ctx.fillStyle = '#d3bc7c'; diamond(ctx, 128, 192, 23)
-  })
+  return vectorTexture('/art/onecard/classic/B-1.svg')
 }
 export function createFaceTexture(card: Card) {
-  return artwork(256, 384, ctx => {
-    const paper = ctx.createLinearGradient(0, 0, 256, 384)
-    paper.addColorStop(0, '#fffdf5'); paper.addColorStop(.65, '#fbf5e7'); paper.addColorStop(1, '#eadbbb')
-    ctx.fillStyle = paper; ctx.fillRect(0, 0, 256, 384)
-    ctx.strokeStyle = '#d6bd81'; ctx.lineWidth = 2
-    ctx.beginPath(); ctx.roundRect(10, 10, 236, 364, 12); ctx.stroke()
-    ctx.lineWidth = 1; ctx.beginPath(); ctx.roundRect(16, 16, 224, 352, 9); ctx.stroke()
-    ctx.save(); ctx.strokeStyle = '#d6bd8138'; ctx.beginPath(); ctx.ellipse(128, 192, 81, 106, 0, 0, Math.PI * 2); ctx.stroke(); ctx.restore()
-    const symbol = card.suit ? SUIT_GLYPH[card.suit] : '✦', rank = card.suit ? card.rank : 'JOKER'
-    ctx.fillStyle = redCard(card) ? '#b23c4c' : '#214a46'
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    ctx.save(); ctx.globalAlpha = .045; ctx.font = '270px Georgia,serif'; ctx.fillText(symbol, 128, 210); ctx.restore()
-    ctx.font = '112px Georgia,serif'; ctx.fillText(symbol, 128, 192)
-    for (const rotated of [false, true]) {
-      ctx.save(); if (rotated) { ctx.translate(256, 384); ctx.rotate(Math.PI) }
-      ctx.font = `bold ${card.suit ? 39 : 18}px Georgia,serif`; ctx.fillText(rank, card.suit ? 38 : 53, 42)
-      ctx.font = '30px Georgia,serif'; ctx.fillText(symbol, 38, 78); ctx.restore()
-    }
-  })
+  return vectorTexture(cardArtwork(card))
 }

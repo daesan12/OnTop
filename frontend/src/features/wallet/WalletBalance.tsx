@@ -3,6 +3,7 @@ import { useSession } from '../../network/worldClient'
 import { RestError } from '../../network/restError'
 import { useParkRuntime } from '../../park/runtime/ParkRuntime'
 import { walletBalance } from './balance'
+import { useWalletSettlement } from './settlementRefresh'
 import './wallet.css'
 
 type BalanceError = 'not-ready' | 'unavailable' | 'failed' | null
@@ -11,6 +12,7 @@ export function WalletBalance() {
   const runtime = useParkRuntime()
   const owner = useSession(s => s.sessionId), connected = useSession(s => s.status === 'connected')
   const balance = useSession(s => s.account?.balance ?? null)
+  const settlement = useWalletSettlement(s => s.owner === owner ? s.revision : 0)
   const [loading, setLoading] = useState(false), [error, setError] = useState<BalanceError>(null)
   const request = useRef({ id: 0, revision: 0, abort: null as AbortController | null })
   useEffect(() => useSession.subscribe((next, previous) => {
@@ -47,7 +49,7 @@ export function WalletBalance() {
     setLoading(false); setError(null)
     if (owner && connected) void refresh()
     return cancel
-  }, [owner, connected, refresh, cancel])
+  }, [owner, connected, settlement, refresh, cancel])
 
   const unknown = loading ? '잔액 조회 중' : error === 'not-ready' ? '지갑 준비 필요' : error ? '잔액 조회 실패' : '잔액 미확인'
   const notice = error === 'not-ready' ? '아직 지갑이 준비되지 않았어요. 운영 담당자 확인 후 다시 조회해주세요.'

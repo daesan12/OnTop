@@ -131,7 +131,7 @@ export function createBungeoppangService(requestJSON: (path: string, init?: Requ
       if (!record(p) || p.minigameSessionId !== id || p.status !== 'ABANDONED' || p.rewardAmount !== 0) return invalid()
     },
     async balance() {
-      const p = await request('/api/v1/wallets/me')
+      const p = await request('/api/v1/wallets/me', { cache: 'no-store' })
       if (!record(p) || !whole(p.balance) || !whole(p.reservedBalance) || !whole(p.availableBalance)
         || p.balance - p.reservedBalance !== p.availableBalance) return invalid()
       return p.balance

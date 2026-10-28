@@ -18,6 +18,7 @@ import { benchTable, benchViewScope } from '../../features/interactions/benchSpe
 import { useBenchState } from '../../features/interactions/benchState'
 import { useFacilityState } from '../../features/facilities/state'
 import { filterChat } from '../../features/chat/filterChat'
+import { receiveWalletSettlement } from '../../features/wallet/settlementRefresh'
 import {
   channel,
   record,
@@ -481,6 +482,7 @@ export class ParkRuntime implements ParkRuntimePort {
     const session = useSession.getState()
     try {
       receiveGame(message, session.sessionId, session.tableId)
+      receiveWalletSettlement(message, session.sessionId)
       this.omokEvents.sync()
       this.oneCardPranks.sync()
     } catch (error) {

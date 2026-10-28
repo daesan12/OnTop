@@ -86,3 +86,29 @@ for (const exit of ['TABLE_LEFT', 'TABLE_STATE'] as const) test(`finished result
   await page.keyboard.press('Escape')
   await screenshot(page, `qa-result-cleared-${exit.toLowerCase()}`)
 })
+
+for (const kind of kinds) test(`${kind}: settled result refreshes the authoritative wallet without reloading`, async ({ page }) => {
+  const server = await prepare(page, kind)
+  await page.getByRole('button', { name: '준비', exact: true }).click(); server.confirmStart()
+  await expect(page.getByRole('region', { name: labels[kind], exact: true })).toBeVisible()
+  server.finishGame()
+  await expect.poll(() => page.evaluate(async () => (await import('/src/game/store.ts' as string)).useGame.getState().start?.phase)).toBe('SETTLING')
+  await expect(page.locator('.park-wallet')).toHaveAttribute('aria-busy', 'false')
+  const reads = server.walletReads
+  // Deliberately different from the result's delta: display the actual server wallet.
+  server.setWalletBalance(347); server.settle()
+  await expect.poll(() => page.evaluate(async () => (await import('/src/network/worldClient.ts' as string)).useSession.getState().account?.balance)).toBe(347)
+  expect(server.walletReads).toBeGreaterThan(reads)
+})
+
+test('a late settlement updates the wallet after leaving without reopening the old game', async ({ page }) => {
+  const server = await prepare(page)
+  await page.getByRole('button', { name: '준비', exact: true }).click(); server.confirmStart()
+  server.finishGame(); server.settle(); server.nextRound()
+  await expect(page.getByRole('region', { name: '테이블 함께 보기', exact: true })).toContainText('정산 완료')
+  await page.getByRole('button', { name: '자리에서 일어나기', exact: true }).click()
+  server.setWalletBalance(523); server.settle()
+  await expect(page.getByLabel('보유 엽전', { exact: true })).toContainText('523')
+  await expect(page.getByRole('region', { name: '오목 경기', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('region', { name: '테이블 함께 보기', exact: true })).toHaveCount(0)
+})

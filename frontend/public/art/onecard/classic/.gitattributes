@@ -1,0 +1,4 @@
+# Preserve the downloaded card bytes and their SHA256 receipt on Windows too.
+*.svg -text
+LICENSE.txt -text
+SHA256.json -text
