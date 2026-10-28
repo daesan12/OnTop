@@ -4,6 +4,7 @@ import { useFrame } from '@react-three/fiber'
 import { Color, Matrix4, Object3D, type InstancedMesh } from 'three'
 import { MOVEMENT, groundHeight, type QualityPreset } from '../../config'
 import { avatars } from '../../network/worldClient'
+import { playSfx } from '../../audio/sfx'
 import {
   createBirds,
   PIGEON,
@@ -27,6 +28,7 @@ const parts = [
   'foot',
   'shadow',
 ] as const
+let lastTakeoff = -Infinity
 /** Local ambient wildlife reacts to replicated movement of every nearby visitor. */
 export function ParkPigeons({ quality }: { quality: QualityPreset }) {
   const meshes = useRef<(InstancedMesh | null)[]>([])
@@ -87,12 +89,18 @@ export function ParkPigeons({ quality }: { quality: QualityPreset }) {
     }
     for (const batch of batches.current) batch.begin()
     state.birds.forEach((b, i) => {
+      const resting = b.mode !== 'fly'
       stepBird(
         b,
         dt,
         state.active,
         PIGEON_SITES[Math.floor(i / PIGEON.countPerFlock)],
       )
+      // One flutter per flock scare, not one per bird.
+      if (resting && b.mode === 'fly' && now - lastTakeoff > 1200) {
+        lastTakeoff = now
+        playSfx('amb-pigeon-takeoff', { x: b.x, y: b.y, z: b.z })
+      }
       const flight = b.mode === 'fly',
         walking = b.mode === 'walk',
         t = state.time + b.phase

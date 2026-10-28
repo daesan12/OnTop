@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>BGM 미리듣기</title>
+    <title>사운드 미리듣기</title>
     <style>
       body { margin: 0; padding: 24px; font-family: system-ui, sans-serif; background: #f8f3e5; color: #25483b; }
       h1 { margin: 0 0 4px; font-size: 22px; }
@@ -16,8 +16,8 @@
     </style>
   </head>
   <body>
-    <h1>BGM 미리듣기 (개발 전용)</h1>
-    <p>공원과 같은 재생 엔진입니다. 곡을 누르면 크로스페이드로 바뀌고, 효과음악은 반복 곡 위에 한 번 재생됩니다. 지금: <output id="now">없음</output></p>
+    <h1>사운드 미리듣기 (개발 전용)</h1>
+    <p>공원과 같은 재생 엔진입니다. 곡을 누르면 크로스페이드로 바뀌고, 결과 효과음악은 반복 곡 위에 한 번 재생됩니다. 효과음은 공원에서 위치에 따라 좌우·거리감이 붙지만 여기서는 가운데에서 들립니다. 지금: <output id="now">없음</output></p>
     <div id="root"></div>
     <script type="module" src="/src/audio/bgmPreview.ts"></script>
   </body>
