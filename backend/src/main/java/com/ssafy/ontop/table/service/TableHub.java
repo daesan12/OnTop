@@ -878,6 +878,7 @@ public class TableHub {
         }
         long joinStarted = System.nanoTime();
         WorldChannelRegistry.Change change = channels.join(member.userId(), channelId);
+        syncWorldTableSeats(channelId);
         Long connectedAt = connectionStarted.remove(member.sessionId());
         log.debug("공원 입장 서버 준비 joinMs={} connectedToJoinMs={} map={}",
                 (System.nanoTime() - joinStarted) / 1_000_000.0,
@@ -1655,6 +1656,7 @@ public class TableHub {
     }
 
     private void publish(TableRoom room, Member actor, String requestId) {
+        syncWorldTableSeats(tableChannels.get(room.snapshot().tableId()));
         TableStartAttempt start = starts.get(room.snapshot().tableId());
         room.refreshWait(tableNow(), start == null || !start.frozen());
         TableRoom.Snapshot snapshot = publicSnapshot(room);
@@ -1673,6 +1675,21 @@ public class TableHub {
             }
         }
         publishHostWait(room);
+    }
+
+    /** 준비·판돈·경기 비공개 정보 없이, 같은 Hub 확정 시점의 실제 좌석만 복사한다. */
+    private void syncWorldTableSeats(String channelId) {
+        if (channelId == null) { return; }
+        Map<String, WorldChannelRegistry.TableSeat> seats = new HashMap<>();
+        for (var entry : rooms.entrySet()) {
+            if (!channelId.equals(tableChannels.get(entry.getKey()))) { continue; }
+            for (var seat : entry.getValue().snapshot().seats()) {
+                if (seat.userId() != null && entry.getKey().equals(seating.get(seat.userId()))) {
+                    seats.put(seat.userId(), new WorldChannelRegistry.TableSeat(entry.getKey(), seat.seatNumber()));
+                }
+            }
+        }
+        channels.tableSeats(channelId, seats);
     }
 
     private TableRoom.Snapshot publicSnapshot(TableRoom room) {
