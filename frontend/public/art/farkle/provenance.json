@@ -1,0 +1,12 @@
+{
+  "createdAt": "2026-10-28",
+  "generator": "OpenAI built-in image_gen",
+  "purpose": "Walnut albedo retained only for the realistic hourglass. Other Farkle props use their previous 3D materials.",
+  "processing": "Original generated PNG converted to WebP quality 90 using the existing sharp dependency. Originals retained in the Codex generated_images library.",
+  "assets": [
+    {
+      "file": "walnut-albedo-v1.webp",
+      "prompt": "A single seamless tileable photographic PBR BASE COLOR texture of premium medium-dark walnut wood, straight fine long grain running vertically, subtle organic grain variations and fine pores, warm tobacco brown and muted dark chocolate streaks, close-up of smooth hand-polished wooden board used in a high quality traditional tabletop game. Flat orthographic overhead scan, fills entire square image edge to edge. Albedo only: absolutely uniform neutral diffuse lighting, no highlights, no directional shadows, no vignette, no perspective, no framing, no writing, no panel seams, no plank divisions, no objects. No dramatic knots or large defects. Real material photographic detail suitable for UV tiling on small crafted wood props."
+    }
+  ]
+}

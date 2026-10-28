@@ -11,10 +11,12 @@ import { useDiceUI, selectedDice, toggleDie, canRollDice, diceCanAct, rollDice, 
 import { eligibleDice, selectionScore } from './scoring'
 import { FarkleSpectatorPanel } from './FarkleSpectatorPanel'
 import { setDiceSound, useDiceSound } from './sound'
+import { DiceFace } from './DiceFace'
+import { FarkleScoreSheet } from './FarkleScoreSheet'
 import './farkle.css'
 
-const events: Record<string, string> = { START: '굴림 대기', ROLL: '득점 주사위를 고르세요', HOT_DICE: 'HOT DICE · 이번 턴 점수를 유지하고 여섯 개를 다시 굴렸어요',
-  BANK: 'BANK · 이전 차례 점수 저장', BUST: 'BUST · 이전 차례의 이번 턴 점수 소멸', TURN_TIMEOUT: '30초 만료 · 다음 차례로 넘어갔어요' }
+const events: Record<string, string> = { START: '주사위를 굴려주세요', ROLL: '득점 주사위를 고르세요', HOT_DICE: 'HOT DICE · 여섯 개를 다시 굴립니다',
+  BANK: '점수를 저장했습니다', BUST: 'BUST · 이번 턴 점수를 잃었습니다', TURN_TIMEOUT: '시간 종료 · 차례 변경' }
 export function FarklePanel() {
   const spectator = useGame(s => !!s.game?.dice && s.game.role === 'SPECTATOR')
   return spectator ? <FarkleSpectatorPanel /> : <FarklePlayerPanel />
@@ -35,30 +37,39 @@ function FarklePlayerPanel() {
   const ready = diceCanAct(), idle = ui.cup === 'idle', remaining = d.turnDeadline ? Math.max(0, Math.ceil((Date.parse(d.turnDeadline) - now) / 1000)) : null
   const name = (id: string) => id === session.sessionId ? '나' : session.profiles[id]?.nickname ?? `참가자 ${d.players.indexOf(id) + 1}`
   return <>
-    <section className="prototype-game farkle-hud farkle-panel" aria-label="주사위 경기" data-stage={d.stage}>
-      <header className="farkle-title"><span>온탑 · 한 번 더, 아니면 여기까지?</span><h2>주사위 한 판</h2><small>FARKLE · 목표 {d.targetScore.toLocaleString()}점 · {d.round}번째 차례</small></header>
+    <section className="prototype-game farkle-hud farkle-panel farkle-player-hud" aria-label="주사위 경기" data-stage={d.stage}>
       <div className="farkle-scoreboard" aria-label="주사위 점수판">{d.players.map((id, i) => <div key={id} className={d.turnUserId === id ? 'active' : ''}>
-        <span>{name(id)}</span><strong>{d.scores[i]!.toLocaleString()}점</strong>
+        <span>{name(id)}{d.turnUserId === id && <small>차례</small>}</span><strong>{d.scores[i]!.toLocaleString()}<small>점</small></strong>
         <progress max={d.targetScore} value={d.scores[i]} aria-label={`${name(id)} 총점`} />
-      </div>)}</div>
-      <div className="farkle-message"><p role="status">{d.status === 'FINISHED' ? d.winnerUserId === session.sessionId ? '승리' : '패배'
-        : `${mine ? '내 차례' : name(d.turnUserId!) + ' 차례'} · ${events[d.lastEvent]}`}</p>
-      {remaining !== null && <small>이번 차례 남은 시간 약 {remaining}초 · 재굴림으로 연장되지 않습니다.</small>}
-      {remaining === 0 && <p>시간 만료 · 서버의 다음 차례를 기다리고 있습니다.</p>}
+      </div>)}<span className="farkle-goal">목표<strong>{d.targetScore.toLocaleString()}</strong></span></div>
+      <div className="farkle-message" data-event={d.lastEvent}>
+        <p role="status">{d.status === 'FINISHED' ? d.winnerUserId === session.sessionId ? '승리' : '패배'
+          : `${mine ? '내 차례' : name(d.turnUserId!) + ' 차례'} · ${remaining === 0 ? '다음 차례를 기다리는 중' : events[d.lastEvent]}`}</p>
+        {remaining !== null && <span className="farkle-clock" data-urgent={remaining <= 5} aria-label={`남은 시간 ${remaining}초`}>{remaining}<small>초</small></span>}
       </div>
-      <section className="farkle-actions"><p>이번 턴 누적: {d.turnScore.toLocaleString()}점 · 선택 예상: {points?.toLocaleString() ?? '—'}점</p>
+      <section className="farkle-actions" aria-label="주사위 조작">
+      <div className="farkle-turn-points"><span>이번 턴<strong>{d.turnScore.toLocaleString()}<small>점</small></strong></span>
+        <span>선택 점수<strong className="farkle-selection-points">{points === null ? '—' : `+${points.toLocaleString()}`}</strong></span>
+        <button className="farkle-rule-button" onClick={toggleScoreSheet} aria-keyshortcuts="T"><kbd>T</kbd> 점수표</button>
+      </div>
+      <div className="farkle-control-row">
       <div className="farkle-dice-list" role="group" aria-label="주사위 선택">{d.dice.map(die => <button key={die.id}
         aria-label={`주사위 ${die.id + 1}: ${die.value}${die.held ? ' 보관' : ''}`} aria-pressed={ids.includes(die.id)}
+        title={`주사위 ${die.id + 1}${die.held ? ' · 보관됨' : ids.includes(die.id) ? ' · 선택 해제' : ' · 선택'}`}
         disabled={!ready || !idle || d.stage !== 'SELECTING' || die.held || !eligible.includes(die.id)} onClick={() => toggleDie(die.id)}>
-        <span>{'⚀⚁⚂⚃⚄⚅'[die.value - 1]}</span><small>{die.held ? '보관' : ids.includes(die.id) ? '선택' : `${die.id + 1}번`}</small>
+        <DiceFace value={die.value} />
       </button>)}</div>
       {d.status === 'PLAYING' && <>
-        <p>{ui.cup === 'ready' ? '놓으면 굴리기 · Esc 취소' : ui.cup === 'holding' ? '컵을 잡은 채 방향을 바꾸며 흔들어 주세요 · Esc 취소'
-          : ids.length && !points ? '선택한 주사위 전체가 득점 조합이어야 합니다.' : '컵을 흔들거나 R 굴리기 · Q Bank · T 점수표'}</p>
-        <div className="button-row"><button disabled={!idle || !canRollDice()} onClick={rollDice}>{d.stage === 'SELECTING' ? 'R 선택 보관 후 재굴림' : 'R 굴리기'}</button>
-          <button disabled={!ready || !idle || points === null || d.stage !== 'SELECTING'} onClick={bankDice}>Q Bank{points ? ` · ${(d.turnScore + points).toLocaleString()}점` : ''}</button>
-          {!idle && <button onClick={cancelCup}>컵 조작 취소</button>}</div>
+        <div className="button-row"><button className="farkle-roll-button" disabled={!idle || !canRollDice()} onClick={rollDice}
+          aria-label={d.stage === 'SELECTING' ? 'R 선택 보관 후 재굴림' : 'R 굴리기'} aria-keyshortcuts="R"><kbd>R</kbd>{d.stage === 'SELECTING' ? '재굴리기' : '굴리기'}</button>
+          <button className="farkle-bank-button" disabled={!ready || !idle || points === null || d.stage !== 'SELECTING'} onClick={bankDice}
+            aria-label={`Q Bank${points ? ` · ${(d.turnScore + points).toLocaleString()}점` : ''}`} aria-keyshortcuts="Q"><span><kbd>Q</kbd> Bank</span>
+            <strong>{(d.turnScore + (points ?? 0)).toLocaleString()}<small>점 저장</small></strong></button></div>
       </>}
+      </div>
+      {d.status === 'PLAYING' && <p className="farkle-action-hint">{ui.cup === 'ready' ? '컵을 놓으면 굴립니다.' : ui.cup === 'holding' ? '컵을 잡은 채 좌우로 흔들어주세요.'
+        : ids.length && !points ? '득점 가능한 조합을 선택해주세요.' : d.stage === 'SELECTING' ? '테이블의 주사위를 눌러 선택하세요.' : '컵을 흔들거나 굴리기를 눌러 시작하세요.'}
+        {!idle && <button onClick={cancelCup}>Esc 취소</button>}</p>}
       </section>
       <div className="mini-feedback farkle-feedback">{s.pending && <p>요청 중 · 서버의 처리 확인을 기다리고 있습니다.</p>}
       {g.version < s.awaitingVersion && <p>처리 확인 수신 · 최신 주사위 상태를 기다리고 있습니다.</p>}
@@ -66,9 +77,11 @@ function FarklePlayerPanel() {
       {recoveryBlocked() && <p>경기 복구 확인 중 · 입력을 잠시 멈췄습니다.</p>}
       {s.error && <p role="alert">{s.error}</p>}
       </div>
-      {d.status === 'FINISHED' && <p>종료 사유: {d.endReason === 'TARGET_REACHED' ? '목표 점수 도달' : d.endReason === 'RECONNECT_EXPIRED' ? '재접속 유예 만료' : d.endReason === 'EXPLICIT_LEAVE' ? '수동 기권' : d.endReason}</p>}
-      {d.status === 'FINISHED' && <p>{s.result ? s.result.settlementStatus === 'SETTLED' ? `정산 완료 · 내 엽전 증감 ${s.result.myCoinDelta}` : '정산 대기 중' : '결과·정산 확인 전입니다.'}</p>}
-      <div className="farkle-tools"><SeatedLookButton /><button onClick={() => openManual('farkle')}>게임 설명</button><button onClick={toggleScoreSheet}>T 점수표</button>
+      {d.status === 'FINISHED' && <div className="farkle-result-note"><p>종료 사유: {d.endReason === 'TARGET_REACHED' ? '목표 점수 도달' : d.endReason === 'RECONNECT_EXPIRED' ? '재접속 유예 만료' : d.endReason === 'EXPLICIT_LEAVE' ? '수동 기권' : d.endReason}</p>
+        <p>{s.result ? s.result.settlementStatus === 'SETTLED' ? `정산 완료 · 내 엽전 증감 ${s.result.myCoinDelta}` : '정산 대기 중' : '결과·정산 확인 전입니다.'}</p></div>}
+      <details className="farkle-settings" onKeyDown={e => { if (e.code === 'Escape') { e.preventDefault(); e.stopPropagation(); e.currentTarget.open = false; e.currentTarget.querySelector('summary')?.focus() } }}>
+      <summary aria-label="게임 설정">게임 설정 <span aria-hidden="true">···</span></summary>
+      <div className="farkle-tools"><SeatedLookButton /><button onClick={() => openManual('farkle')}>게임 설명</button>
         <button aria-pressed={ui.boardView} title="상대 차례에도 주사위 판을 봅니다." onClick={() => { cancelCup(); useDiceUI.setState({ boardView: !ui.boardView }) }}>판 시점 고정</button>
         <button aria-pressed={sound} onClick={() => setDiceSound(!sound)}>소리 {sound ? '켜짐' : '꺼짐'}</button>
         <button disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkGame()}>최신 주사위 확인</button>
@@ -76,17 +89,8 @@ function FarklePlayerPanel() {
         {d.status === 'FINISHED' && <button disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkResult()}>정산 결과 확인</button>}
       <OmokSurrender key={`${session.sessionId}:${g.gameId}`} context={{ userId: session.sessionId, gameId: g.gameId, version: g.version }} disabled={session.pending} />
       </div>
+      </details>
     </section>
-    {ui.scoreOpen && <section className="park-runtime-panel farkle-rules" role="dialog" aria-label="주사위 점수표" aria-modal="true"
-      onKeyDown={e => { if (e.code === 'Tab') { e.preventDefault(); e.currentTarget.querySelector('button')?.focus() } }}>
-      <strong>주사위 점수표</strong><button autoFocus onClick={toggleScoreSheet}>점수표 닫기</button>
-      <table><thead><tr><th>조합</th><th>점수</th></tr></thead><tbody>
-        <tr><td>1 / 5 한 개</td><td>100 / 50</td></tr><tr><td>같은 눈 3개</td><td>1은 1000, 나머지는 눈 × 100</td></tr>
-        <tr><td>같은 눈 4 / 5 / 6개</td><td>3개 점수 × 2 / 4 / 8</td></tr>
-        <tr><td>12345 / 23456 / 123456</td><td>500 / 750 / 1500</td></tr>
-      </tbody></table><p>선택한 모든 주사위가 득점 조합이어야 합니다. 이전에 보관한 주사위와 새 조합을 만들 수 없습니다.</p>
-      <p>6개를 모두 사용하면 HOT DICE. BUST는 이번 턴 점수만 잃으며 Bank로 목표에 도달하면 즉시 승리합니다.</p>
-      <p>이번 차례 전체 30초 · 최종 점수·주사위 눈·차례는 서버가 확정합니다.</p>
-    </section>}
+    <FarkleScoreSheet />
   </>
 }
