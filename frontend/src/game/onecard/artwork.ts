@@ -15,7 +15,7 @@ function diamond(ctx: CanvasRenderingContext2D, x: number, y: number, size: numb
 export function createFeltTexture() {
   return artwork(1536, 1024, ctx => {
     const wash = ctx.createRadialGradient(768, 470, 80, 768, 512, 960)
-    wash.addColorStop(0, '#28645b'); wash.addColorStop(1, '#123d37')
+    wash.addColorStop(0, '#245548'); wash.addColorStop(1, '#102f29')
     ctx.fillStyle = wash; ctx.fillRect(0, 0, 1536, 1024)
     // A deterministic woven pattern, without per-frame work or external texture assets.
     for (let y = 0; y < 1024; y += 3) for (let x = 0; x < 1536; x += 4) {
@@ -33,11 +33,13 @@ export function createFeltTexture() {
       ctx.beginPath(); ctx.moveTo(27, -8); ctx.bezierCurveTo(65, -8, 40, 18, 68, 18); ctx.stroke()
       ctx.beginPath(); ctx.moveTo(-8, 27); ctx.bezierCurveTo(-8, 65, 18, 40, 18, 68); ctx.stroke(); ctx.restore()
     }
-    ctx.save(); ctx.globalAlpha = .16; ctx.strokeStyle = '#d6c28a'; ctx.lineWidth = 3
-    for (const radius of [192, 206]) { ctx.beginPath(); ctx.arc(768, 512, radius, 0, Math.PI * 2); ctx.stroke() }
+    ctx.save(); ctx.globalAlpha = .12; ctx.strokeStyle = '#d6c28a'; ctx.lineWidth = 2
+    for (const radius of [176, 186]) { ctx.beginPath(); ctx.arc(768, 512, radius, 0, Math.PI * 2); ctx.stroke() }
     ctx.fillStyle = '#d6c28a'; ctx.font = '100px Georgia,serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
     for (const [symbol, x, y] of [['♠', 768, 416], ['♥', 674, 512], ['♣', 862, 512], ['♦', 768, 608]] as const) ctx.fillText(symbol, x, y)
     ctx.restore()
+    ctx.save(); ctx.fillStyle = '#cbb98c'; ctx.globalAlpha = .6; ctx.textAlign = 'center'
+    ctx.font = '24px Georgia,serif'; ctx.fillText('O N E   C A R D', 768, 850); ctx.restore()
     // The existing deck/discard centers are preserved; outlines simply frame them.
     ctx.strokeStyle = '#c5ad7080'; ctx.lineWidth = 2
     for (const x of [536, 960]) {

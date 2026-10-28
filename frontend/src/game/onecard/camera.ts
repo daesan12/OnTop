@@ -1,7 +1,8 @@
 import { tableScale, tableSeats, type TableAnchor } from '../../config'
 import type { Game } from '../protocol'
 
-export const ONECARD_CAMERA = { fov: 68, seatOffset: .55, eyeHeight: 1.7, targetHeight: 1.12 } as const
+// A slightly higher eye and lower focus leave the deck exposed above the private hand.
+export const ONECARD_CAMERA = { fov: 68, seatOffset: .55, eyeHeight: 1.9, targetHeight: .88 } as const
 export function oneCardPlayerViewActive(game: Game | null) {
   return game?.role === 'PLAYER' && game.onecard?.status === 'PLAYING'
 }
