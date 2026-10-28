@@ -8,7 +8,7 @@ import { useGame } from '../store'
 import type { Card } from './protocol'
 import { createBackTexture, createFaceTexture, createFeltTexture } from './artwork'
 
-// Original generic artwork, generated locally. Only the approved public top card gets a texture.
+// Only the approved public top card gets a face texture; opponents always use the common back.
 const face = new PlaneGeometry(.3, .43), slab = new BoxGeometry(1, 1, 1)
 const paper = new MeshStandardMaterial({ color: '#eee4cc', roughness: .9 })
 const matBase = new BoxGeometry(1.85, .022, 1.34), feltPlane = new PlaneGeometry(1.79, 1.28)

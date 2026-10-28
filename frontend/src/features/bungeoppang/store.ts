@@ -25,6 +25,7 @@ type AnyGrill = GrillState | v4.GrillState;
 export const isV4Grill = (grill: AnyGrill | null): grill is v4.GrillState => !!grill && 'rulesVersion' in grill;
 import { inputState } from "../../world/inputOwnership";
 import { useSession } from '../../network/worldClient';
+import { refreshWalletAfterSettlement } from '../wallet/settlementRefresh';
 import { rememberRoamingView } from '../../world/cameraReturn';
 import { canOpenBungeoppang } from './access';
 import {
@@ -768,6 +769,7 @@ function acceptServerResult(result: BungeoppangSubmitResult) {
       isFirstGame: false,
     },
   }));
+  if (!service.mock) refreshWalletAfterSettlement(useSession.getState().sessionId, `minigame:${get().gameId}`);
 }
 
 /** Re-anchor time only: keep every previously recorded action and in-flight delivery prefix intact. */

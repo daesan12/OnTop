@@ -64,6 +64,7 @@ export async function fixture(
     version = 0,
     channelVersion = 0,
     loggedIn = true
+  let walletAmount = 100, walletReads = 0
   const sent: {
       type: string
       payload: Record<string, unknown>
@@ -275,7 +276,10 @@ export async function fixture(
           characterGender: options.onecardPreview ? publicProfiles[ownId]?.characterGender ?? 'MALE' : 'MALE' },
       })
     }
-    if (url.pathname === '/api/v1/wallets/me') return route.fulfill({ json: { balance: 100, reservedBalance: 0, availableBalance: 100 } })
+    if (url.pathname === '/api/v1/wallets/me') {
+      walletReads++
+      return route.fulfill({ json: { balance: walletAmount, reservedBalance: 0, availableBalance: walletAmount } })
+    }
     if (url.pathname === '/api/v1/channels')
       return route.fulfill({
         json: {
@@ -466,10 +470,11 @@ export async function fixture(
       const { requestId, type, payload } = message
       if (options.onecardPranks && cardPranks.handle(type, payload, requestId)) return
       if (options.spectatorEvents && ['GAME_SPECTATOR_CHAT_SEND', 'OMOK_SPECTATOR_PING_SEND'].includes(type)) {
-        if (!watchingGame || seated || finished) {
+        const ping = type === 'OMOK_SPECTATOR_PING_SEND', now = Date.now()
+        const approved = !seated && watchingGame || !ping && seated && started
+        if (!approved || finished || payload.gameId !== gameId) {
           emit(ws, 'ERROR', { code:'GAME_SPECTATOR_ACCESS_DENIED', message:'관전 권한을 확인해주세요.' }, requestId); return
         }
-        const ping = type === 'OMOK_SPECTATOR_PING_SEND', now = Date.now()
         if (ping && payload.basedOnVersion !== gameVersion) {
           emit(ws,'ERROR',{ code:'OMOK_SPECTATOR_PING_STALE_VERSION',message:'최신 판에서 다시 추천해주세요.' },requestId); return
         }
@@ -787,6 +792,11 @@ export async function fixture(
     approveTableJoins: () => { for (const request of heldTableJoins.splice(0)) approveTableJoin(request.ws, request.requestId) },
     holdTableLeave: (hold: boolean) => { holdTableLeave = hold },
     approveTableLeaves: () => { for (const request of heldTableLeaves.splice(0)) approveTableLeave(request.ws, request.requestId) },
+    unseatViaState: () => {
+      seated = false; ready = false
+      table(sockets.at(-1)!, 'TABLE_STATE', null)
+      world(sockets.at(-1)!)
+    },
     publishTabletWait: (seconds: number | null) => {
       waitExpiresAt = seconds === null ? null : Date.now() + seconds * 1000; waitRevision++
       emit(sockets.at(-1)!, 'TABLE_HOST_WAIT_STATE', { tableId, epoch: 'fixture-tablet-server', revision: waitRevision,
@@ -867,6 +877,8 @@ export async function fixture(
       return resultPayload()
     },
     notifyResult: (payload: Result) => emit(sockets.at(-1)!, 'GAME_RESULT', payload),
+    setWalletBalance: (value: number) => { walletAmount = value },
+    get walletReads() { return walletReads },
     nextRound: () => {
       if (options.forfeit) {
         gameId += '-next'; gameVersion = 0; forfeitVersion = -1; finished = false; recoveryStatus = 'RESTORED'

@@ -106,11 +106,15 @@ export function receiveGame(m: Envelope, ownId: string, tableId: string) {
     s = useGame.getState()
   if (m.type === 'TABLE_LEFT') {
     resetGame()
+  } else if (m.type === 'TABLE_STATE') {
+    // The runtime supplies the seat confirmed by the world store, including forced removal.
+    if (s.game?.role !== 'SPECTATOR' && (!tableId || (s.start?.tableId && s.start.tableId !== tableId))) resetGame()
   } else if (m.type === 'GAME_START_STATE') {
     const next = parseStart(p)
     if (next.tableId !== null && next.tableId !== tableId) return
     if (s.start?.tableId === next.tableId && next.revision < s.start.revision)
       return
+    if (next.phase === 'NOT_SEATED') { resetGame(); return }
     const newGame =
       next.gameSessionId && next.gameSessionId !== s.permittedGameId
     useGame.setState({
@@ -167,6 +171,12 @@ export function receiveGame(m: Envelope, ownId: string, tableId: string) {
         throw new Error('본인 경기 복구가 아닙니다.')
       if (s.permittedGameId && s.permittedGameId !== p.gameId) return
       if (s.game?.gameId === p.gameId && p.version < s.game.version) return
+      // A historical terminal snapshot is not a new seat or an active game.
+      if (!tableId && (status === 'FINISHED' || gameState(next).status === 'FINISHED')) {
+        resetGame()
+        useGame.setState({ recovery: 'LOBBY' })
+        return
+      }
       useGame.setState({
         recovery: status,
         permittedGameId: p.gameId,
@@ -176,6 +186,7 @@ export function receiveGame(m: Envelope, ownId: string, tableId: string) {
       })
       applyGame(next)
     } else {
+      if (status === 'LOBBY' && !tableId) { resetGame(); useGame.setState({ recovery: status }); return }
       useGame.setState({
         recovery: status,
         ...(status === 'LOBBY'
@@ -214,7 +225,7 @@ export function receiveGame(m: Envelope, ownId: string, tableId: string) {
         awaitingVersion: Math.max(s.awaitingVersion, p.version),
       })
   } else if (m.type === 'GAME_RESULT') {
-    if ((p.gameSessionId !== s.permittedGameId && p.gameSessionId !== s.completedGameId) || s.game?.role === 'SPECTATOR')
+    if (!tableId || (p.gameSessionId !== s.permittedGameId && p.gameSessionId !== s.completedGameId) || s.game?.role === 'SPECTATOR')
       return
     const next = parseResult(p, ownId)
     if (

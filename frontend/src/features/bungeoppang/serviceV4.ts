@@ -426,7 +426,7 @@ export function createBungeoppangV4Service(requestJSON: RequestJson): Bungeoppan
       sessions.delete(gameId);
     },
     async balance() {
-      const p = await request('/api/v1/wallets/me');
+      const p = await request('/api/v1/wallets/me', { cache: 'no-store' });
       if (!record(p) || !whole(p.balance) || !whole(p.reservedBalance) || !whole(p.availableBalance)
         || Number(p.balance) - Number(p.reservedBalance) !== Number(p.availableBalance)) return fail();
       return Number(p.balance);

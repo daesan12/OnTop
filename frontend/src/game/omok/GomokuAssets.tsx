@@ -127,7 +127,6 @@ export const GomokuAssets = memo(function GomokuAssets() {
       <mesh
         name="gomoku-playing-surface"
         position={[0, 0.011, 0]}
-        receiveShadow
       >
         <boxGeometry
           args={[
