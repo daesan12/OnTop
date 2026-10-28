@@ -44,6 +44,14 @@ and include parameters such as LOD. Dynamic/component-owned geometry keeps its
 existing lifecycle. Capturing before caller transforms prevents applying those
 transforms twice when restoring a cached batch.
 
+Cold procedural construction keeps source indices through transforms and merging.
+Only each unique source vertex needs its coordinate/normal/color work; welding
+memoizes repeated source indices while preserving first occurrence and triangle
+order. Mixed non-indexed sources receive an identity index. Box/sphere templates
+are reused within each prop builder and disposed after finishing. Structure copies
+use `BufferGeometry.copy`, avoiding a subclass's redundant default constructor.
+All 34 baked batches, including raycast ranges, remain byte-identical after decode.
+
 `prepareScene` starts asynchronous shader compilation, uploads unique visible
 material maps in yielding batches, then waits for all prepared program variants
 before the first presented draw. Shader diagnostics remain enabled. Video

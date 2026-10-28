@@ -17,6 +17,7 @@ import {
 import { weldStaticVertices } from './weldStaticVertices'
 import type { Part, XYZ } from './Instances'
 import { recordPropBuild, takeBakedProp } from './bakedProps'
+import { indexedCopy } from './indexedGeometry'
 
 export interface SurfaceBatch {
   geometry: BufferGeometry
@@ -84,9 +85,7 @@ export function mergeSurfaceParts(
   let start = 0
   for (const batch of batches) {
     for (const part of batch.parts) {
-      const g = batch.geometry.index
-        ? batch.geometry.toNonIndexed()
-        : batch.geometry.clone()
+      const g = indexedCopy(batch.geometry)
       // Only attributes consumed by this material; no material groups/subdraws.
       for (const name of Object.keys(g.attributes))
         if (!['position', 'normal', 'uv'].includes(name))
@@ -133,8 +132,8 @@ export function mergeSurfaceParts(
       object.updateMatrix()
       g.applyMatrix4(object.matrix)
       g.computeBoundingBox()
-      ranges.push({ bounds: g.boundingBox!.clone(), start, count: p.count })
-      start += p.count
+      ranges.push({ bounds: g.boundingBox!.clone(), start, count: g.index!.count })
+      start += g.index!.count
       pieces.push(g)
     }
   }

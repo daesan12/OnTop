@@ -19,12 +19,16 @@ import {
 } from 'three/addons/utils/BufferGeometryUtils.js'
 import { weldStaticVertices } from './weldStaticVertices'
 import { recordPropBuild, takeBakedProp } from './bakedProps'
+import { indexedCopy } from './indexedGeometry'
 export type XYZ = [number, number, number]
 export type PropFinish =
   'wood' | 'metal' | 'gold' | 'stone' | 'paint' | 'tile' | 'glow'
+
 /** Build static, vertex-coloured material batches; dispose construction geometry immediately. */
 export class PropBuilder {
   private readonly baked: ReturnType<typeof takeBakedProp>
+  private boxSource?: BufferGeometry
+  private sphereSource?: BufferGeometry
   constructor(
     private readonly sphereSegments: readonly [number, number] = [12, 8],
     private readonly cacheKey?: string,
@@ -45,10 +49,11 @@ export class PropBuilder {
     p: XYZ = [0, 0, 0],
     s: XYZ = [1, 1, 1],
     r: XYZ = [0, 0, 0],
+    retainSource = false,
   ) {
-    if (this.baked) { g.dispose(); return }
-    const flat = g.index ? g.toNonIndexed() : g.clone()
-    g.dispose()
+    if (this.baked) { if (!retainSource) g.dispose(); return }
+    const flat = indexedCopy(g)
+    if (!retainSource) g.dispose()
     const matrix = new Matrix4().makeRotationFromEuler(new Euler(...r))
     matrix.scale(new Vector3(...s))
     matrix.setPosition(...p)
@@ -71,11 +76,11 @@ export class PropBuilder {
   }
   box(k: PropFinish, c: string, p: XYZ, s: XYZ, r: XYZ = [0, 0, 0]) {
     if (this.baked) return
-    this.add(k, new BoxGeometry(1, 1, 1), c, p, s, r)
+    this.add(k, this.boxSource ??= new BoxGeometry(1, 1, 1), c, p, s, r, true)
   }
   ball(k: PropFinish, c: string, p: XYZ, s: XYZ) {
     if (this.baked) return
-    this.add(k, new SphereGeometry(1, ...this.sphereSegments), c, p, s)
+    this.add(k, this.sphereSource ??= new SphereGeometry(1, ...this.sphereSegments), c, p, s, [0, 0, 0], true)
   }
   cylinder(
     k: PropFinish,
@@ -155,6 +160,8 @@ export class PropBuilder {
         return [[key, g]]
       }),
     ) as Partial<Record<PropFinish, BufferGeometry>>
+    this.boxSource?.dispose(); this.sphereSource?.dispose()
+    this.boxSource = this.sphereSource = undefined
     recordPropBuild(this.cacheKey, art)
     return art
   }
