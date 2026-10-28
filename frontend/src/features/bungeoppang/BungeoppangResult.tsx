@@ -4,6 +4,8 @@ import { BUNGEOPPANG as R, bungeoppangV4Preview, bungeoppangV5Preview } from './
 import { escapeBungeoppang, isV4Grill, refreshBungeoppangWallet, setBungeoppangHelp, startBungeoppang, submitBungeoppang, useBungeoppang } from './store'
 import './bungeoppangResult.css'
 import { RankingDetails, RankingSummary, useBungeoppangRanking } from './BungeoppangRanking'
+import { RewardCoinSource } from '../wallet/RewardCoinFlight'
+import { bungeoppangService } from './service'
 
 function ActionIcon({ kind }: { kind: 'retry' | 'park' | 'book' }) {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -38,7 +40,7 @@ export function BungeoppangResult() {
     </div>
     <div className="paper-stats"><div><span>완성</span><b>{summary.made}개</b></div><div><span>실수</span><b className="paper-mistakes">{summary.failed}회</b></div></div>
     <RankingSummary feed={ranking} onOpen={() => setRankingOpen(true)} />
-    <div className="paper-settlement" role="status"><strong><span className="bung-result-coin" aria-hidden="true">▣</span>{preview ? `미리보기 · 환산 예상 ${result?.coinsCalculated ?? '확인 중'}냥` : result ? `받은 엽전 ${result.coinsGranted}냥` : submitError ? '보상 내역을 확인하지 못했어요' : '보상 확인 중'}</strong>
+    <div className="paper-settlement" role="status"><strong><RewardCoinSource receipt={gameId ? `minigame:${gameId}` : ''} amount={!bungeoppangService.mock && !preview ? result?.coinsGranted ?? 0 : 0}><span className="bung-result-coin" aria-hidden="true">▣</span>{preview ? `미리보기 · 환산 예상 ${result?.coinsCalculated ?? '확인 중'}냥` : result ? `받은 엽전 ${result.coinsGranted}냥` : submitError ? '보상 내역을 확인하지 못했어요' : '보상 확인 중'}</RewardCoinSource></strong>
       <small>{preview ? '미리보기 · 실제 엽전 지급 없음' : result ? `오늘 번 엽전 ${today} / ${result.dailyCap}냥` : '확인이 끝나면 엽전에 반영돼요'}</small></div>
     {result?.capReached && <p>오늘 장사는 끝! 게임은 계속할 수 있어요</p>}
     {!preview && result && result.coinsGranted < result.coinsCalculated && <p>환산 {result.coinsCalculated}냥 중 오늘 한도를 적용해 {result.coinsGranted}냥을 받았어요.</p>}
