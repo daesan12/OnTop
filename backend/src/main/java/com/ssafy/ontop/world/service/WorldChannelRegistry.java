@@ -1,6 +1,7 @@
 package com.ssafy.ontop.world.service;
 
 import com.ssafy.ontop.world.config.WorldChannelProperties;
+import com.ssafy.ontop.world.config.DynamicChannelsProperties;
 import com.ssafy.ontop.world.config.WorldChannelProperties.Channel;
 import com.ssafy.ontop.world.movement.MoveInput;
 import com.ssafy.ontop.world.movement.ParkScene;
@@ -47,8 +48,8 @@ public class WorldChannelRegistry implements ChannelPresence {
     @Autowired
     public WorldChannelRegistry(WorldChannelProperties properties,
             @Value("${ontop.world.movement.minimum-interval:50ms}") Duration minimumInterval,
-            WorldMapRuntime runtime) {
-        this(properties, minimumInterval, System::nanoTime, runtime.scene());
+            WorldMapRuntime runtime, DynamicChannelsProperties dynamicChannels) {
+        this(properties, minimumInterval, System::nanoTime, runtime::scene, dynamicChannels);
     }
 
     public WorldChannelRegistry(WorldChannelProperties properties, Duration minimumInterval, LongSupplier nanoTime) {
@@ -62,6 +63,11 @@ public class WorldChannelRegistry implements ChannelPresence {
 
     private WorldChannelRegistry(WorldChannelProperties properties, Duration minimumInterval, LongSupplier nanoTime,
             java.util.function.Supplier<ParkScene> scene) {
+        this(properties, minimumInterval, nanoTime, scene, DynamicChannelsProperties.disabled());
+    }
+
+    private WorldChannelRegistry(WorldChannelProperties properties, Duration minimumInterval, LongSupplier nanoTime,
+            java.util.function.Supplier<ParkScene> scene, DynamicChannelsProperties dynamicChannels) {
         if (minimumInterval == null || minimumInterval.isNegative() || minimumInterval.isZero()
                 || minimumInterval.compareTo(Duration.ofSeconds(60)) > 0) {
             throw new IllegalArgumentException("이동 전송 간격은 0 초과 60초 이하여야 합니다.");
@@ -70,9 +76,37 @@ public class WorldChannelRegistry implements ChannelPresence {
         this.nanoTime = nanoTime;
         this.scene = java.util.Objects.requireNonNull(scene);
         lastStep = lastPatch = nanoTime.getAsLong();
-        for (Channel channel : properties.channels()) {
+        List<Channel> initial = properties.channels();
+        if (dynamicChannels.enabled()) {
+            if (initial.isEmpty()) {
+                initial = List.of(new Channel("channel-1", "운영 공원 1", dynamicChannels.capacity()));
+            } else if (initial.size() != 1 || initial.getFirst().capacity() != dynamicChannels.capacity()) {
+                throw new IllegalArgumentException("유동 채널은 정원이 일치하는 초기 채널 하나만 허용합니다.");
+            }
+        }
+        for (Channel channel : initial) {
             rooms.put(channel.channelId(), new Room(channel, scene));
         }
+    }
+
+    public synchronized List<Channel> definitions() {
+        return rooms.values().stream().map(room -> room.definition).toList();
+    }
+
+    /** Called only after the matching tables and watch anchors have been prepared. */
+    public synchronized void addChannel(Channel definition) {
+        if (rooms.containsKey(definition.channelId())) {
+            throw new IllegalArgumentException("이미 등록된 채널 ID입니다.");
+        }
+        rooms.put(definition.channelId(), new Room(definition, scene));
+    }
+
+    public synchronized void removeEmptyChannel(String channelId) {
+        Room room = rooms.get(channelId);
+        if (room == null || !room.users.isEmpty() || room.physics != null || rooms.size() <= 1) {
+            throw new IllegalStateException("사용 중이거나 마지막 채널은 정리할 수 없습니다.");
+        }
+        rooms.remove(channelId);
     }
 
     public synchronized Change join(String userId, String channelId) {

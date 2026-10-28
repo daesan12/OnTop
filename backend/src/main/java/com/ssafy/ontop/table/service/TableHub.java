@@ -39,6 +39,7 @@ import com.ssafy.ontop.table.websocket.ConnectionCloseReason;
 import com.ssafy.ontop.table.websocket.TablePeer;
 import com.ssafy.ontop.table.websocket.WebSocketHeartbeat;
 import com.ssafy.ontop.world.config.WorldChannelProperties;
+import com.ssafy.ontop.world.config.DynamicChannelsProperties;
 import com.ssafy.ontop.world.config.WorldEmoteProperties;
 import com.ssafy.ontop.world.config.WorldProximityProperties;
 import com.ssafy.ontop.world.domain.ChatText;
@@ -94,7 +95,13 @@ public class TableHub {
     private final TableProtocol protocol;
     private final Map<String, TableRoom> rooms = new HashMap<>();
     private final Map<String, String> tableChannels = new HashMap<>();
+    private final Map<String, String> tableAnchors = new HashMap<>();
     private final Set<String> channelIds;
+    private final Map<String, Long> emptyChannelsSince = new HashMap<>();
+    private DynamicChannelsProperties dynamicChannels = DynamicChannelsProperties.disabled();
+    private WorldMapRuntime dynamicMap;
+    private String initialChannelId;
+    private int nextChannelNumber = 1;
     private final Map<String, Member> members = new HashMap<>();
     private final WorldMapCompatibility maps;
     private final Set<String> mapVerifiedSessions = new HashSet<>();
@@ -311,10 +318,19 @@ public class TableHub {
             @Value("${ontop.websocket.heartbeat.timeout:10s}") Duration heartbeatTimeout,
             WorldChannelRegistry channels, WorldChatService chat, WorldEmoteService emotes,
             Optional<GameStateGateway> gameStates, Optional<GameActionGateway> gameActions,
-            Optional<GameResultService> gameResults, WorldProximity proximity, WorldMapCompatibility maps) {
+            Optional<GameResultService> gameResults, WorldProximity proximity, WorldMapCompatibility maps,
+            DynamicChannelsProperties dynamicChannels) {
         this(mapper, gateway, startRehearsal, reconnect, heartbeatInterval, heartbeatTimeout, channels, chat,
                 emotes, gameStates, gameActions, gameResults, proximity, maps, runtime.prepared().orElse(null),
                 runtime.legacyTables().orElse(null));
+        this.dynamicChannels = dynamicChannels;
+        this.dynamicMap = runtime;
+        if (dynamicChannels.enabled()) {
+            if (channelIds.size() != 1 || channels.definitions().getFirst().capacity() != dynamicChannels.capacity()) {
+                throw new IllegalArgumentException("운영 유동 채널은 정원이 일치하는 초기 채널 하나가 필요합니다.");
+            }
+            initialChannelId = channels.definitions().getFirst().channelId();
+        }
         // 실제 서버에서는 연동 비활성 상태도 조회해 FE에 원인을 알릴 수 있다.
         protocol.enableStartQueries();
         startDiagnosticsEnabled = true;
@@ -373,7 +389,7 @@ public class TableHub {
         for (ConnectionCloseReason reason : ConnectionCloseReason.values()) {
             closedByReason.put(reason, new LongAdder());
         }
-        channelIds = Set.copyOf(channels.snapshot().keySet());
+        channelIds = new HashSet<>(channels.snapshot().keySet());
         if (preparedPark != null) {
             Set<String> preparedChannels = preparedPark.bindings().stream().map(PreparedParkMap.Binding::channelId)
                     .collect(java.util.stream.Collectors.toSet());
@@ -383,6 +399,7 @@ public class TableHub {
             for (var binding : preparedPark.bindings()) {
                 rooms.put(binding.tableId(), new TableRoom(binding.tableId()));
                 tableChannels.put(binding.tableId(), binding.channelId());
+                tableAnchors.put(binding.tableId(), binding.anchorId());
             }
         } else if (legacyTables != null && !channelIds.isEmpty()) {
             Set<String> registeredChannels = legacyTables.entries().stream()
@@ -393,6 +410,7 @@ public class TableHub {
             for (var table : legacyTables.entries()) {
                 rooms.put(table.tableId(), new TableRoom(table.tableId()));
                 tableChannels.put(table.tableId(), table.channelId());
+                tableAnchors.put(table.tableId(), table.anchorId());
             }
         } else if (channelIds.isEmpty()) {
             rooms.put("table-1", new TableRoom("table-1"));
@@ -417,6 +435,7 @@ public class TableHub {
         heartbeatTimer.scheduleWithFixedDelay(this::advanceWorld, 33, 33, TimeUnit.MILLISECONDS);
         heartbeatTimer.scheduleWithFixedDelay(this::pollProfiles, 5, 5, TimeUnit.SECONDS);
         heartbeatTimer.scheduleWithFixedDelay(this::checkHostWaits, 100, 100, TimeUnit.MILLISECONDS);
+        heartbeatTimer.scheduleWithFixedDelay(this::pruneDynamicChannels, 1, 1, TimeUnit.SECONDS);
     }
 
     public synchronized void connect(WebSocketSession session) {
@@ -553,8 +572,99 @@ public class TableHub {
             int available = snapshot.capacity() - occupied;
             return new TableSummaryResponse(tableId, snapshot.capacity(), snapshot.minimumPlayers(), occupied,
                     available, ready, snapshot.allReady(), status, available > 0 && status.equals("WAITING"),
-                    snapshot.gameCode(), snapshot.targetScore(), snapshot.betAmountPerPlayer(), publicGameId(tableId), snapshot.selectorUserId(), snapshot.selectedPlayers(), snapshot.startMode());
+                    snapshot.gameCode(), snapshot.targetScore(), snapshot.betAmountPerPlayer(), publicGameId(tableId), snapshot.selectorUserId(), snapshot.selectedPlayers(), snapshot.startMode(), tableAnchors.get(tableId));
         }).toList());
+    }
+
+    private void ensureSpareChannel() {
+        if (!dynamicChannels.enabled() || channelIds.size() >= dynamicChannels.maxChannels()
+                || channels.snapshot().values().stream().anyMatch(count -> count < dynamicChannels.spawnAt())) {
+            return;
+        }
+        String channelId = "channel-" + UUID.randomUUID();
+        var layout = dynamicMap.tableLayout(channelId);
+        if (layout.isEmpty() || layout.stream().anyMatch(table -> rooms.containsKey(table.tableId()))) {
+            throw new IllegalStateException("새 채널의 테이블 배치를 준비할 수 없습니다.");
+        }
+        try {
+            for (var table : layout) {
+                rooms.put(table.tableId(), new TableRoom(table.tableId()));
+                tableChannels.put(table.tableId(), channelId);
+                tableAnchors.put(table.tableId(), table.anchorId());
+                proximity.registerTable(table.tableId(), table.point());
+            }
+            channels.addChannel(new WorldChannelProperties.Channel(channelId,
+                    "운영 공원 " + (nextChannelNumber + 1), dynamicChannels.capacity()));
+        } catch (RuntimeException exception) {
+            for (var table : layout) {
+                rooms.remove(table.tableId());
+                tableChannels.remove(table.tableId());
+                tableAnchors.remove(table.tableId());
+                proximity.removeTable(table.tableId());
+            }
+            throw exception;
+        }
+        nextChannelNumber++;
+        channelIds.add(channelId);
+        emptyChannelsSince.put(channelId, System.nanoTime());
+        log.info("운영 채널 생성 channel={} total={}", channelId, channelIds.size());
+    }
+
+    /** The Hub lock also guards seats, games, reconnect leases, facilities and table registration. */
+    private synchronized void pruneDynamicChannels() {
+        if (stopped || !dynamicChannels.enabled()) { return; }
+        try {
+            long now = System.nanoTime();
+            Map<String, Integer> counts = channels.snapshot();
+            for (String channelId : Set.copyOf(channelIds)) {
+                if (channelId.equals(initialChannelId)) { continue; }
+                if (counts.getOrDefault(channelId, 0) != 0 || hasChannelActivity(channelId)) {
+                    emptyChannelsSince.remove(channelId);
+                    continue;
+                }
+                long emptySince = emptyChannelsSince.computeIfAbsent(channelId, ignored -> now);
+                if (now - emptySince < dynamicChannels.idleTimeout().toNanos()) { continue; }
+                // Keep an empty spare when every other channel is at the creation threshold.
+                if (counts.entrySet().stream().filter(entry -> !entry.getKey().equals(channelId))
+                        .allMatch(entry -> entry.getValue() >= dynamicChannels.spawnAt())) { continue; }
+                follows.removeEmptyChannel(channelId);
+                facilities.removeEmptyChannel(channelId);
+                channels.removeEmptyChannel(channelId);
+                channelIds.remove(channelId);
+                emptyChannelsSince.remove(channelId);
+                for (String tableId : tableChannels.entrySet().stream()
+                        .filter(entry -> entry.getValue().equals(channelId)).map(Map.Entry::getKey).toList()) {
+                    rooms.remove(tableId);
+                    tableChannels.remove(tableId);
+                    tableAnchors.remove(tableId);
+                    proximity.removeTable(tableId);
+                    starts.remove(tableId);
+                    startRevisions.remove(tableId);
+                    manualStartReceipts.remove(tableId);
+                    settledHostResults.remove(tableId);
+                    reactionRounds.remove(tableId);
+                }
+                log.info("운영 채널 정리 channel={} total={}", channelId, channelIds.size());
+            }
+        } catch (RuntimeException exception) {
+            log.error("운영 채널 유휴 정리 실패", exception);
+        }
+    }
+
+    private boolean hasChannelActivity(String channelId) {
+        if (follows.hasLinks(channelId)) { return true; }
+        if (!facilities.state(channelId).occupancies().isEmpty()) { return true; }
+        for (var entry : tableChannels.entrySet()) {
+            if (!entry.getValue().equals(channelId)) { continue; }
+            String tableId = entry.getKey();
+            if (seating.containsValue(tableId) || watching.containsValue(tableId)
+                    || waitingReconnects.values().stream().anyMatch(lease -> lease.tableId().equals(tableId))
+                    || starts.containsKey(tableId) && !starts.get(tableId).phase().equals("WAITING")
+                    || rooms.get(tableId).snapshot().seats().stream().anyMatch(seat -> seat.userId() != null)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public synchronized void receive(String sessionId, String text) {
@@ -878,6 +988,11 @@ public class TableHub {
         }
         long joinStarted = System.nanoTime();
         WorldChannelRegistry.Change change = channels.join(member.userId(), channelId);
+        if (change.changed()) {
+            emptyChannelsSince.remove(channelId);
+            try { ensureSpareChannel(); }
+            catch (RuntimeException exception) { log.error("예비 운영 채널 생성 실패", exception); }
+        }
         syncWorldTableSeats(channelId);
         Long connectedAt = connectionStarted.remove(member.sessionId());
         log.debug("공원 입장 서버 준비 joinMs={} connectedToJoinMs={} map={}",

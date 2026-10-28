@@ -11,7 +11,6 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.security.Principal;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Profile;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,7 +18,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@Profile("(local | dev) & !prod & !production")
 @Tag(name = "Table")
 public class TableQueryController {
 
@@ -32,7 +30,7 @@ public class TableQueryController {
         this.authenticated = authenticated;
     }
 
-    @Operation(summary = "채널 테이블 목록 조회", description = "local/dev 프로필에서 실제 TableHub의 현재 상태를 조회하며 입장/예약하지 않습니다. channelId 누락/불일치 시 기존 400/404 정책을 따릅니다. Access JWT와 활성 회원 검증이 필요합니다. 비인증 개발 데모는 정식 사용 대상이 아닙니다.",
+    @Operation(summary = "채널 테이블 목록 조회", description = "실제 TableHub의 현재 상태와 테이블 맵 앵커를 조회하며 입장/예약하지 않습니다. channelId 누락/불일치 시 기존 400/404 정책을 따릅니다. Access JWT와 활성 회원 검증이 필요합니다.",
             security = {@SecurityRequirement(name = "AccessJwt")})
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "성공 (Cache-Control: no-store)",
