@@ -10,6 +10,7 @@ import { useParkRuntime } from '../park/runtime/ParkRuntime'
 import { useSession } from '../network/worldClient'
 import { gameState } from './protocol'
 import { FinishedForfeitStatus } from './OmokSurrender'
+import { BoardRewardCoinSource } from '../features/wallet/RewardCoinFlight'
 
 export function GamePanel() {
   const runtime = useParkRuntime(), pending = useSession(s => s.pending), connected = useSession(s => s.status === 'connected')
@@ -40,7 +41,7 @@ export function GamePanel() {
     <button onClick={() => useTableLobby.setState({ gatheringDetails: '' })}>테이블 함께 보기</button>
     <h2>{gathering.gameName} · 경기 결과</h2><p role="status">{gathering.headline}</p>
     <ol>{gathering.rows.map(row => <li key={row.seat}>{row.nickname} · {row.label}{row.score && ` · ${row.score}`}</li>)}</ol>
-    <p>{gathering.settlement}</p><p>좌석은 유지됩니다. 서버가 대기실을 연 뒤 다시 준비하면 새 판을 시작합니다.</p>
+    <p><BoardRewardCoinSource>{gathering.settlement}</BoardRewardCoinSource></p><p>좌석은 유지됩니다. 서버가 대기실을 연 뒤 다시 준비하면 새 판을 시작합니다.</p>
     <FinishedForfeitStatus />
     <button disabled={pending || !connected} onClick={() => void runtime.checkResult()}>정산 결과 확인</button>
   </section>

@@ -16,6 +16,7 @@ import { TabletLobby } from './TabletLobby'
 import { TABLET_ENABLED } from './tabletFeature'
 import { participantResultLabel, resultSettlement } from './gatheringModel'
 import { HostStartWaitNotice } from './HostStartWaitControls'
+import { BoardRewardCoinSource } from '../wallet/RewardCoinFlight'
 
 export function TableLobby() {
   return <>{TABLET_ENABLED && <HostStartWaitNotice />}<TableLobbyContent /></>
@@ -69,7 +70,7 @@ function TableLobbyContent() {
       {lastResult && ownTable && <section aria-label="지난 판 결과" className="table-round-result">
         <strong>지난 판 결과{lastResult.status === 'INVALID' && ' · 무효 경기'}</strong>
         <p>{lastResult.participants.map(p => `${p.userId === s.own ? '나' : s.profiles[p.userId]?.nickname ?? '상대'}: ${participantResultLabel(lastResult.status, p.result)}`).join(' · ')}</p>
-        <p>{resultSettlement(lastResult)}</p>
+        <p><BoardRewardCoinSource>{resultSettlement(lastResult)}</BoardRewardCoinSource></p>
         <p>좌석은 유지됩니다. 서버가 대기실을 연 뒤 다시 준비하면 새 판을 시작합니다.</p>
         <button disabled={s.pending || !s.connected || lastResult.settlementStatus !== 'SETTLED' || !waitingForRound(start, tableId)} onClick={() => useGame.setState({ lastResult: null, dismissedResult: { gameId: lastResult.gameSessionId, version: lastResult.version } })}>
           {table?.selectorUserId === s.own ? '다음 판 준비' : '대기실로 돌아가기'}</button>
