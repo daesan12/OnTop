@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -52,6 +53,7 @@ public class MinigameService {
     private final Clock clock;
     private final int startsPerMinute;
     private final boolean v5Enabled;
+    private final Consumer<MinigameActivityChanged> activityEvents;
     private final ObjectMapper json = new ObjectMapper().findAndRegisterModules();
     private final SecureRandom random = new SecureRandom();
     private final BungeoppangRules rules = new BungeoppangRules();
@@ -71,6 +73,15 @@ public class MinigameService {
     /** v5 stays unavailable unless explicitly enabled; a disabled v5 start keeps the old version mismatch. */
     public MinigameService(MinigameRepository repository, PlatformTransactionManager manager, Clock clock,
             int startsPerMinute, boolean v5Enabled) {
+        this(repository, manager, clock, startsPerMinute, v5Enabled, ignored -> { });
+    }
+
+    /**
+     * {@code activityEvents} receives the public world activity from inside each transaction. The Spring
+     * publisher delivers it to an AFTER_COMMIT listener, so a rollback never reaches the world.
+     */
+    public MinigameService(MinigameRepository repository, PlatformTransactionManager manager, Clock clock,
+            int startsPerMinute, boolean v5Enabled, Consumer<MinigameActivityChanged> activityEvents) {
         if (startsPerMinute < 1) { throw new IllegalArgumentException("시작 제한은 1 이상이어야 합니다."); }
         this.repository = repository;
         this.transactions = new TransactionTemplate(manager);
@@ -78,6 +89,7 @@ public class MinigameService {
         this.clock = clock;
         this.startsPerMinute = startsPerMinute;
         this.v5Enabled = v5Enabled;
+        this.activityEvents = java.util.Objects.requireNonNull(activityEvents);
     }
 
     public boolean v5Enabled() {
@@ -121,6 +133,7 @@ public class MinigameService {
                 } else {
                     active.abandon(issuedAt);
                     terminateV4(active.id(), "SUPERSEDED");
+                    activityEnded(active);
                 }
             }
 
@@ -144,6 +157,10 @@ public class MinigameService {
             }
             repository.persist(new MinigameStartRequest(userId, key, session.id()));
             repository.flush();
+            // Only a newly created session announces itself; an idempotent replay above publishes nothing.
+            // The bubble covers the start buffer and countdown and ends at the stored play end.
+            activityEvents.accept(new MinigameActivityChanged(userId, session.id(),
+                    timing == null ? session.startedAt().plusSeconds(60) : timing.playEndsAt()));
             return startResponse(session, record);
         });
     }
@@ -493,6 +510,7 @@ public class MinigameService {
         catch (MinigameException exception) {
             record.reject(write(submission), exception.detail(), exception.index());
             session.invalidate(current);
+            activityEnded(session);
             repository.flush();
             return exception;
         }
@@ -501,6 +519,7 @@ public class MinigameService {
         long reward = Math.min(calculated, Math.max(0, BungeoppangRules.DAILY_CAP - today));
         wallet.creditReward(reward);
         session.complete(score.score(), reward, current);
+        activityEnded(session);
         if (reward > 0) {
             repository.persist(WalletTransaction.minigameReward(wallet.id(), session.id(), reward,
                     "minigame-reward:" + session.id()));
@@ -597,6 +616,7 @@ public class MinigameService {
         long reward = Math.min(calculated, Math.max(0, BungeoppangRules.DAILY_CAP - today));
         wallet.creditReward(reward);
         session.complete(result.score(), reward, settledAt);
+        activityEnded(session);
         if (reward > 0) {
             repository.persist(WalletTransaction.minigameReward(wallet.id(), sessionId, reward,
                     "minigame-reward:" + sessionId));
@@ -807,6 +827,7 @@ public class MinigameService {
                 requirePlaying(session);
                 session.abandon(now());
                 terminateV4(session.id(), "USER_ABANDONED");
+                activityEnded(session);
                 repository.flush();
             }
             return new MinigameAbandonResponse(Long.toString(sessionId), session.status(), 0);
@@ -830,6 +851,15 @@ public class MinigameService {
     private void invalidate(MinigameSession session, Instant current, String reason) {
         session.invalidate(current);
         terminateV4(session.id(), reason);
+        activityEnded(session);
+    }
+
+    /**
+     * Every PLAYING-to-terminal transition (complete, abandon, supersede, expiry, rejection) ends the public
+     * activity of exactly this session. The world ignores it if a newer session of the user already started.
+     */
+    private void activityEnded(MinigameSession session) {
+        activityEvents.accept(new MinigameActivityChanged(session.userId(), session.id(), null));
     }
 
     /** v4 and v5 both keep their time origin and terminal reason in the round row. */

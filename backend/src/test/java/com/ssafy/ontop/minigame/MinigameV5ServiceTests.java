@@ -16,6 +16,7 @@ import com.ssafy.ontop.minigame.service.BungeoppangV4Rules.FillingCounts;
 import com.ssafy.ontop.minigame.service.BungeoppangV5DeliveryContract;
 import com.ssafy.ontop.minigame.service.BungeoppangV5Rules;
 import com.ssafy.ontop.minigame.service.BungeoppangV5Spec;
+import com.ssafy.ontop.minigame.service.MinigameActivityChanged;
 import com.ssafy.ontop.minigame.service.MinigameException;
 import com.ssafy.ontop.minigame.service.MinigameService;
 import com.ssafy.ontop.wallet.domain.Wallet;
@@ -63,6 +64,7 @@ class MinigameV5ServiceTests {
     private final Map<String, MinigameStartRequest> startRequests = new HashMap<>();
     private final AtomicLong nextSessionId = new AtomicLong(902);
     private final AdjustableClock clock = new AdjustableClock(NOW);
+    private final List<MinigameActivityChanged> activityEvents = new ArrayList<>();
 
     private MinigameService service;
 
@@ -109,7 +111,46 @@ class MinigameV5ServiceTests {
             }
             return null;
         }).when(repository).persist(any());
-        service = new MinigameService(repository, manager, clock, 10, true);
+        service = new MinigameService(repository, manager, clock, 10, true, activityEvents::add);
+    }
+
+    @Test
+    void v5_시작은_저장한_playEndsAt까지_이용_상태를_한번만_알리고_재시도는_알리지_않는다() {
+        var started = service.startV5(USER_ID, "BUNGEOPPANG", "v5-start");
+        service.startV5(USER_ID, "BUNGEOPPANG", "v5-start");
+
+        long sessionId = Long.parseLong(started.minigameSessionId());
+        assertThat(activityEvents).containsExactly(
+                new MinigameActivityChanged(USER_ID, sessionId, NOW.plusMillis(184_500)));
+        assertThat(started.timing().playEndsAt()).isEqualTo(NOW.plusMillis(184_500));
+    }
+
+    @Test
+    void 새_판_시작은_이전_판_해제_뒤에_새_판_시작을_알린다() {
+        long first = Long.parseLong(service.startV5(USER_ID, "BUNGEOPPANG", "v5-one").minigameSessionId());
+        long second = Long.parseLong(service.startV5(USER_ID, "BUNGEOPPANG", "v5-two").minigameSessionId());
+
+        assertThat(activityEvents).containsExactly(
+                new MinigameActivityChanged(USER_ID, first, NOW.plusMillis(184_500)),
+                new MinigameActivityChanged(USER_ID, first, null),
+                new MinigameActivityChanged(USER_ID, second, NOW.plusMillis(184_500)));
+        assertThat(second).isGreaterThan(first);
+    }
+
+    @Test
+    void 포기와_만료는_그_판만_한번_해제하고_이미_끝난_판은_다시_알리지_않는다() {
+        long abandoned = Long.parseLong(service.startV5(USER_ID, "BUNGEOPPANG", "v5-one").minigameSessionId());
+        service.abandon(USER_ID, abandoned);
+        service.abandon(USER_ID, abandoned);
+        assertThat(activityEvents).endsWith(new MinigameActivityChanged(USER_ID, abandoned, null));
+        assertThat(activityEvents).filteredOn(event -> event.activeUntil() == null).hasSize(1);
+
+        long expiring = Long.parseLong(service.startV5(USER_ID, "BUNGEOPPANG", "v5-two").minigameSessionId());
+        clock.set(NOW.plusMillis(209_500));
+        load(expiring);
+        load(expiring);
+        assertThat(activityEvents).endsWith(new MinigameActivityChanged(USER_ID, expiring, null));
+        assertThat(activityEvents).filteredOn(event -> event.activeUntil() == null).hasSize(2);
     }
 
     @Test
