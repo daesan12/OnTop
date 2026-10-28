@@ -91,10 +91,11 @@ application.yml은 기본 enabled=false, `(local | dev) & !prod & !production`�
 local/dev는 회원 WebSocket 인증 기본값에서 각각 26개이며, Feedback와 Notes의 enabled=true가 각각
 2개씩 추가된다. 두 기능을 모두 켠 문서 테스트는 local/dev 모두 30개다.
 WebSocket 인증을 local에서 명시적으로 끄면 Ticket API 1개가 제외된다.
-Channel/Table/Shop/Minigame/Feedback/Notes는 `(local | dev) & !prod & !production` 조건이다.
+Shop/Minigame/Feedback/Notes는 `(local | dev) & !prod & !production` 조건이다.
+Channel/Table 조회는 운영에서도 인증된 회원에게 제공한다.
 Feedback/Notes는 Controller 등록도 기능 플래그를 요구한다. 그 외 Controller가 보여도
 DB와 서비스 Bean이 없으면 기능 호출은 503일 수 있다. prod 혼합에서는 문서 자체를 공개하지 않는다.
-ChannelQueryService는 설정 채널과 현재 presence를, TableHub는 실제 테이블 상태를 조회한다.
+ChannelQueryService는 실제 등록 채널과 현재 presence를, TableHub는 실제 테이블 상태와 맵 앵커를 조회한다.
 ShopService/ShopRepository는 실제 지갑 잠금·구매 원장/멱등 영수증·보유/장착 트랜잭션을 구현한다.
 상점 서비스는 추가로 local/dev와 db, `ontop.shop.enabled=true`, 별도 상점 스키마와 지갑이 필요하다.
 기본 V1~V4는 공통 Wallet까지 포함하지만 상점 테이블은 만들지 않는다. 상점 구성/지갑이 없으면

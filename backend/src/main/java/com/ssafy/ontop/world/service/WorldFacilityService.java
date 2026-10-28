@@ -47,6 +47,13 @@ public final class WorldFacilityService {
                         java.util.Comparator.comparing(Lease::facilityId).thenComparingInt(Lease::seatIndex)).toList());
     }
 
+    public void removeEmptyChannel(String channelId) {
+        if (users.values().stream().anyMatch(lease -> lease.channelId().equals(channelId))) {
+            throw new IllegalStateException("시설 사용 중인 채널은 정리할 수 없습니다.");
+        }
+        versions.remove(channelId);
+    }
+
     public Definition definition(String facilityId) {
         return catalog.facilities().stream().filter(item -> item.facilityId().equals(facilityId)).findFirst()
                 .orElseThrow(() -> failure("FACILITY_NOT_FOUND", "등록되지 않은 시설입니다."));

@@ -12,7 +12,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import java.security.Principal;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.context.annotation.Profile;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@Profile("(local | dev) & !prod & !production")
+@ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 @Tag(name = "Channel")
 public class ChannelQueryController {
 
@@ -32,7 +32,7 @@ public class ChannelQueryController {
         this.service = service;
     }
 
-    @Operation(summary = "채널 목록 조회", description = "local/dev 프로필의 실제 채널/현재 인원 조회입니다. 입장/예약하지 않습니다. Access JWT와 활성 회원 검증이 필요합니다. 개발 배포는 dev,db 프로필을 사용합니다.",
+    @Operation(summary = "채널 목록 조회", description = "실제 채널/현재 인원 조회입니다. 입장/예약하지 않습니다. Access JWT와 활성 회원 검증이 필요합니다.",
             security = {@SecurityRequirement(name = "AccessJwt")})
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "성공 (Cache-Control: no-store)",

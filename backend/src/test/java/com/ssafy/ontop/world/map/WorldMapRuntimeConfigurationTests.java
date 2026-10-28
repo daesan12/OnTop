@@ -43,6 +43,23 @@ class WorldMapRuntimeConfigurationTests {
     }
 
     @Test
+    void 유동_채널을_켜면_설정_채널이_없어도_첫_공원과_테이블을_준비한다() {
+        runner().withPropertyValues("ontop.world.dynamic-channels.enabled=true").run(context -> {
+            assertThat(context).hasNotFailed();
+            assertThat(context.getBean(WorldChannelRegistry.class).definitions()).hasSize(1);
+            assertThat(context.getBean(WorldChannelRegistry.class).definitions().getFirst().capacity()).isEqualTo(20);
+            assertThat(context.getBean(TableHub.class).listTables("channel-1").tables()).hasSize(16);
+        });
+    }
+
+    @Test
+    void 생성_기준이_정원_이상이면_시작하지_않는다() {
+        runner().withPropertyValues("ontop.world.dynamic-channels.enabled=true",
+                "ontop.world.dynamic-channels.spawn-at=20")
+                .run(context -> assertThat(context).hasFailed());
+    }
+
+    @Test
     void 경로만_지정해도_기본_맵을_전환하거나_파일을_열지_않는다() {
         runner().withPropertyValues("ontop.world.map.json-path=missing-map.json",
                 "ontop.world.map.manifest-path=missing-manifest.json").run(context -> {
