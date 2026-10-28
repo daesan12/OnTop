@@ -85,17 +85,18 @@ test('table placement uses the live channel response when static bindings are ab
   })).toEqual([{ channelId: 'fixture-channel', tableId, anchorId: TABLES[0]!.id }])
 })
 
-test('profile menu lists 내 정보 · 설정 · 로그아웃 · 회원 탈퇴 and 설정 opens graphics settings', async ({ page }) => {
+test('profile menu lists 내 정보 · 로그아웃 · 회원 탈퇴 and the dock 설정 opens settings', async ({ page }) => {
   await fixture(page); await loaded(page)
   await openMenu(page)
   await expect(menu(page)).toContainText('공원 산책자')
   await expect(menu(page)).toContainText('100냥')
-  for (const name of ['내 정보', '설정', '로그아웃', '회원 탈퇴']) await expect(menu(page).getByRole('menuitem', { name: new RegExp(name) })).toBeVisible()
-  await expect(menu(page).getByRole('menuitem', { name: /설정/ })).toContainText('그래픽 품질 · Low')
+  for (const name of ['내 정보', '로그아웃', '회원 탈퇴']) await expect(menu(page).getByRole('menuitem', { name: new RegExp(name) })).toBeVisible()
+  // 설정 moved to the 빠른 메뉴 dock (S15P31B105-256).
+  await expect(menu(page).getByRole('menuitem', { name: /설정/ })).toHaveCount(0)
   await screenshot(page, 'park-menus-profile')
-  await menu(page).getByRole('menuitem', { name: /설정/ }).click()
-  await expect(menu(page)).toBeHidden()
-  await expect(page.getByRole('region', { name: '그래픽과 성능' })).toBeVisible()
+  await page.keyboard.press('Escape'); await expect(menu(page)).toBeHidden()
+  await page.getByRole('button', { name: '설정', exact: true }).click()
+  await expect(page.getByRole('region', { name: '설정', exact: true })).toBeVisible()
 })
 
 test('내 정보 checks availability before saving, shows the result and updates the park name', async ({ page }) => {

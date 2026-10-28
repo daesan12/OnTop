@@ -16,7 +16,7 @@ for (const kind of ['feedback', 'notes'] as const) test('M15 F1 owns Tab/Escape 
   const panel=page.getByRole('dialog',{name:kind==='feedback'?'온탑 소리함':'전망대 익명 메모',exact:true})
   const draft=panel.getByRole('textbox'); await draft.fill('F1 아래에서 보존할 작성 내용')
   await page.keyboard.press('F1'); await opened(page)
-  await page.keyboard.press('Tab'); await expect(manual(page).getByLabel('그래픽 품질')).toBeFocused()
+  await page.keyboard.press('Tab'); await expect(manual(page).locator(':focus')).toHaveCount(1)
   const sent=server.sent.length
   await manual(page).focus()
   for(const key of ['KeyW','KeyE','Space','KeyG','KeyM'])await page.keyboard.press(key)

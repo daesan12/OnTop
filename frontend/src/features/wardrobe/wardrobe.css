@@ -16,7 +16,7 @@
 }
 .wardrobe :is(.wardrobe-title, .wardrobe-top-actions, .wardrobe-panel, .wardrobe-bubble, .wardrobe-stage__controls) { pointer-events: auto; }
 /* The park stays as the backdrop, but its HUD and name tags would sit on top of the wardrobe layout. */
-.park-page:has(section.wardrobe) :is(.park-hud, .park-quick-dock, .park-dock-wardrobe, .park-map, .emotes,
+.park-page:has(section.wardrobe) :is(.park-hud, .park-quick-dock, .park-dock-wardrobe, .park-dock-settings, .park-map, .emotes,
   .manual-launcher, .park-location-chip, .park-runtime-tools, .park-interaction, .facility-status,
   .park-camera-controls, .follow-status) { visibility: hidden; }
 /* Name tags set their own per-frame visibility, so the layer is faded instead. */
