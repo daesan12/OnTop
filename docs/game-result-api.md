@@ -89,7 +89,7 @@ DB 확정 참가비 B의 예약을 해제하고 balance는 유지한다. 반환 
 ## 규칙 엔진 종료부터 결과 수신까지
 
 1. 오목·주사위·원카드·거짓말 다리의 실제 종료 이벤트를 `GameFinishedResultListener`가 받는다. 기존 `GameStateChanged`는 참가자·관전자에게 공개 종료 상태를 전달하고, 종료 이벤트는 결과 저장 담당의 입력으로 사용할 수 있다. 종료 판정 자체가 DB 커밋 성공을 뜻하지 않는다.
-2. 연결부는 현재 접속한 최초 참가자만 `GameResultGateway.load(userId, gameId)`로 비동기 1회 조회한다. 저장된 본인 결과가 있으면 `requestId=null`인 `GAME_RESULT`를 보낸다. 관전자·타인은 조회하거나 방송하지 않는다.
+2. 연결부는 현재 접속한 최초 참가자만 `GameResultGateway.load(userId, gameId)`로 비동기 1회 조회한다. 저장된 본인 결과의 자동 전달은 실제 시작부터 같은 경기 좌석을 유지한 현재 연결로 제한한다. `TABLE_LEFT` 이후 과거 경기 알림은 보내지 않는다. 관전자·타인에게 방송하지 않는다.
 3. 아직 저장되지 않았거나 읽기가 실패하면 가짜 결과를 만들지 않는다. DB 수신 후 FINISHED/PENDING·INVALID/PENDING은 종결 재시도 worker가 정산/반환한다. 정산·반환과 같은 트랜잭션에 outbox를 저장하고 커밋 후 GameResultNotifications가 재전달한다. 프론트는 GAME_RESULT_CHECK로 같은 저장 결과를 다시 읽는다. 조회나 알림 재시도가 Wallet 지급을 다시 실행하지 않는다.
 4. 자동 조회 중 같은 경기의 중복 종료는 추가 조회하지 않는다. 커밋 알림이 먼저 도착했다면 늦은 자동 조회의 같은/과거 버전은 버린다. 연결이 바뀌면 이전 조회 응답을 새 연결로 넘기지 않는다.
 5. 결과 통신 version은 엔진의 착수 version과 별개다. 정산만 변경돼도 저장 결과의 version을 올려야 한다. 오프라인 복귀는 본인 경기 ID로 명시 재조회한다.
@@ -101,7 +101,7 @@ DB 확정 참가비 B의 예약을 해제하고 balance는 유지한다. 반환 
 기권 승인은 DB 정산 완료가 아니다. 결과 조회·커밋 후 알림 계약과 금액 계산은 변경하지 않는다.
 
 1. 판정 수신(PENDING) 또는 정산/반환(SETTLED)과 **같은 DB 트랜잭션**에서 본인별 결과 스냅샷의 outbox를 저장한다. 커밋 후 GameResultNotifications가 StoredGameRoundEnded와 GameResultCommitted를 발행하고 전달 상태를 기록한다. outbox 기록 실패는 원래 DB 트랜잭션도 롤백한다. userId는 내부 수신자 확인용이며 클라이언트가 발행하는 이벤트가 아니다.
-2. `GameResultService`가 같은 내부 계정의 현재 인증 연결에만 requestId=null의 GAME_RESULT를 보낸다. 채널·테이블·관전자에게 방송하지 않는다. JSON에는 내부 userId를 제외한다.
+2. `GameResultService`의 전달을 `GameDeliveryScope`가 현재 연결·좌석 경기와 대조한다. requestId=null인 자동 GAME_RESULT는 같은 현재 경기만 전달하고 퇴장한 과거 경기는 생략한다. 시작 처리 도중 먼저 도착한 결과는 제한적으로 보관해 실제 시작 성공으로 확정된 경기만 전달한다. 명시 GAME_RESULT_CHECK의 본인 이력 응답은 좌석과 무관하게 유지한다. 채널·테이블·관전자에게 방송하지 않는다. JSON에는 내부 userId를 제외한다.
 3. 결과의 userId와 myCoinDelta를 같은 사용자 기준으로 생성하는 것은 결과 담당의 책임이다. 연결부는 수신자의 참가 목록 포함, PENDING/null·SETTLED/확정값, 결과 조회의 사용자·경기 일치를 검사한다. 승패·원장 검증이나 중복 지급 방지는 결과 담당의 트랜잭션 책임이다.
 4. 연결 중 최근64경기의 전달 버전만 보관해 중복/과거 자동 알림을 생략한다. 그보다 오래된 경기·새 연결에는 중복 억제 기록이 없으므로 프론트도 경기별 version을 비교한다. 같은 버전에 다른 결과를 만들지 않는다. 명시적 조회는 같은 버전도 응답한다.
 5. 연결 종료 시 연결별 전달 버전 기록을 제거한다. outbox는 서버 내부 발행 재시도를 영속화하지만 클라이언트 수신 ACK나 오프라인 사용자별 수신함은 제공하지 않는다. 재접속한 프론트는 알고 있는 경기 ID로 GAME_RESULT_CHECK를 사용한다. 별도 결과 REST·알 수 없는 과거 경기 자동 발견 API는 없다.

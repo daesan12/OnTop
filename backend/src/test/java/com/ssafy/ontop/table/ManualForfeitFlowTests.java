@@ -55,10 +55,11 @@ class ManualForfeitFlowTests {
             assertThat(accepted.path("type").asText()).isEqualTo("GAME_FORFEIT_RESULT");
             assertThat(accepted.at("/payload/duplicate").asBoolean()).isFalse();
             assertThat(accepted.at("/payload/version").asLong()).isEqualTo(1);
-            second.state("FINISHED");
+            // 엔진 직접 생성 흐름에는 실제 시작 좌석이 없다. 종료 복구는 LOBBY지만 영수증 재확인은 유지한다.
+            second.state("LOBBY");
             var duplicated = second.request("GAME_FORFEIT", Map.of("gameId", "manual", "actionId", "button"));
             assertThat(duplicated.at("/payload/duplicate").asBoolean()).isTrue();
-            second.state("FINISHED");
+            second.state("LOBBY");
             var finished = first.await(message -> message.path("type").asText().equals("GAME_STATE")
                     && message.at("/payload/publicState/status").asText().equals("FINISHED"));
             assertThat(finished.at("/payload/publicState/winnerUserId").asText()).isEqualTo("101");
@@ -74,7 +75,7 @@ class ManualForfeitFlowTests {
                                     || event instanceof GameParticipantLeft).toList())));
         }
         awaitServerDisconnect();
-        try (var returned = connect("ssafy", "FINISHED")) {
+        try (var returned = connect("ssafy", "LOBBY")) {
             assertThat(returned.request("GAME_ACTION_SEND", Map.of("gameId", "manual", "actionId", "revive",
                     "expectedVersion", 1, "input", Map.of("x", 0, "y", 0)))
                     .at("/payload/code").asText()).isEqualTo("GAME_RECOVERY_REQUIRED");
@@ -99,7 +100,7 @@ class ManualForfeitFlowTests {
             assertThat(collector.events.stream().filter(GameFinished.class::isInstance)).isEmpty();
             assertThat(third.request("GAME_FORFEIT", Map.of("gameId", "multi", "actionId", "last"))
                     .path("type").asText()).isEqualTo("GAME_FORFEIT_RESULT");
-            third.state("FINISHED");
+            third.state("LOBBY");
             assertThat(collector.events.stream().filter(GameParticipantLeft.class::isInstance)).hasSize(2);
             assertThat(collector.events.stream().filter(GameFinished.class::isInstance)).hasSize(1);
         }

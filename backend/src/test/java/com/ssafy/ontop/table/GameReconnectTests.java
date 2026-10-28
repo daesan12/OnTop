@@ -74,6 +74,74 @@ class GameReconnectTests {
         assertThat(service.canForfeitGame(101, "first", "another-game")).isFalse();
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.EnumSource(Phase.class)
+    void 종료복구만_현재좌석정책으로제한하고_진행중과탈락복구는_유지한다(Phase phase) throws Exception {
+        engine.snapshot = snapshot(101, 3, 2, phase);
+        var inbox = new Inbox();
+        service.connected(101, "current", null, inbox::offer, game -> false);
+        String expected = phase == Phase.FINISHED ? "LOBBY" : phase == Phase.PLAYING ? "RESTORED" : "ELIMINATED";
+        View view = inbox.await(expected);
+        assertThat(view.gameId()).isEqualTo(phase == Phase.FINISHED ? null : "game-1");
+        assertThat(service.canForfeitGame(101, "current", "game-1")).isTrue();
+        assertThat(service.canControlGame(101, "current", "game-1")).isEqualTo(phase == Phase.PLAYING);
+    }
+
+    @Test
+    void 퇴장전에시작한느린종료조회는_로비복구를_덮지못한다() throws Exception {
+        engine.snapshot = snapshot(101, 2, 2, Phase.FINISHED);
+        var allowed = new java.util.concurrent.atomic.AtomicBoolean(true);
+        var inbox = new Inbox();
+        service.connected(101, "current", null, inbox::offer, game -> allowed.get());
+        inbox.await("FINISHED");
+        var entered = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        var completed = new CountDownLatch(1);
+        var calls = new AtomicInteger();
+        engine.load = user -> {
+            if (calls.incrementAndGet() == 1) {
+                entered.countDown();
+                try { release.await(5, TimeUnit.SECONDS); }
+                catch (InterruptedException exception) { Thread.currentThread().interrupt(); }
+                finally { completed.countDown(); }
+            }
+            return Optional.of(engine.snapshot);
+        };
+        service.refresh(101, "current", "old", inbox::offer);
+        assertThat(entered.await(5, TimeUnit.SECONDS)).isTrue();
+        allowed.set(false);
+        service.tableLeft(101, "current");
+        inbox.await("LOBBY");
+        release.countDown();
+        assertThat(completed.await(5, TimeUnit.SECONDS)).isTrue();
+        assertThat(inbox.messages.poll(150, TimeUnit.MILLISECONDS)).isNull();
+        assertThat(service.canControlGame(101, "current", "game-1")).isFalse();
+        assertThat(service.canForfeitGame(101, "current", "game-1")).isTrue();
+    }
+
+    @Test
+    void 숨긴종료경기의기권영수증만재확인하고_새시작과빈조회에서는권한을지운다() throws Exception {
+        engine.snapshot = snapshot(101, 2, 2, Phase.FINISHED);
+        var inbox = new Inbox();
+        service.connected(101, "current", null, inbox::offer, game -> false);
+        inbox.await("LOBBY");
+        assertThat(service.canForfeitGame(101, "current", "game-1")).isTrue();
+        assertThat(service.canForfeitGame(101, "other", "game-1")).isFalse();
+        assertThat(service.canForfeitGame(101, "current", "other-game")).isFalse();
+        service.startPending(101);
+        assertThat(service.canForfeitGame(101, "current", "game-1")).isFalse();
+        engine.load = user -> Optional.empty();
+        service.startResolved(101);
+        inbox.await("LOBBY");
+        assertThat(service.canForfeitGame(101, "current", "game-1")).isFalse();
+        engine.load = user -> Optional.of(new GameRecoverySnapshot(user, "new-game", 2, 1, Phase.PLAYING,
+                mapper.createObjectNode()));
+        service.refresh(101, "current", "new", inbox::offer);
+        inbox.await("RESTORED");
+        assertThat(service.canForfeitGame(101, "current", "game-1")).isFalse();
+        assertThat(service.canControlGame(101, "current", "new-game")).isTrue();
+    }
+
     @Test
     void 유예_안에_새연결로_최신_본인상태를_복구하고_턴시간을_변경하지않는다() throws Exception {
         Inbox first = connect("first");
