@@ -2,6 +2,7 @@ import { memo, useLayoutEffect, useRef, type CSSProperties } from 'react';
 import { BREAD_NAMES, type BreadTool } from './rulesV4';
 import { INGREDIENT_LOOK, type BungFeedback } from './presentation';
 import { isV4Grill, useBungeoppang } from './store';
+import { isV5Grill } from './rulesV5';
 
 export const ingredientStyle = (tool: BreadTool): CSSProperties => ({
   '--ingredient': INGREDIENT_LOOK[tool].color, '--ingredient-ink': INGREDIENT_LOOK[tool].ink,
@@ -84,7 +85,7 @@ function Flight({ item }: { item: BungFeedback }) {
 
 export function FeedbackFlights() {
   const feedback = useBungeoppang(s => s.feedback);
-  const active = useBungeoppang(s => s.phase === 'play' && isV4Grill(s.grill));
+  const active = useBungeoppang(s => s.phase === 'play' && isV4Grill(s.grill) && !isV5Grill(s.grill));
   const latest = feedback.at(-1);
   if (!active) return null;
   return <>

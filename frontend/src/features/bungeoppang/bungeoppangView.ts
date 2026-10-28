@@ -1,4 +1,4 @@
-import { BUNGEOPPANG } from "./config";
+import { BUNGEOPPANG, bungeoppangV5Enabled } from "./config";
 import { MINI_PROPS } from "../../config";
 import { FISH_CART_GRILL } from '../../config/fishCart';
 
@@ -24,9 +24,11 @@ export const bungeoppangView = {
   /** 복귀 전환이 끝나는 시각(performance.now). 1인칭 복귀도 부드럽게 하기 위해 쓴다. */
   returningUntil: 0,
   // 약 45° 내려다보기. CodeFishBreadCart가 조리 중·복귀 전환 동안 차양과 상단 간판을 숨긴다.
-  position: [cart.x + cx, layout.surfaceY + 1.2, cart.z + cz + 1.12] as [number, number, number],
-  target: [cart.x + cx, layout.surfaceY, cart.z + cz] as [number, number, number],
-  fov: 40,
+  position: (bungeoppangV5Enabled ? [cart.x + cx, layout.surfaceY + 1.10, cart.z + cz + 1.52]
+    : [cart.x + cx, layout.surfaceY + 1.2, cart.z + cz + 1.12]) as [number, number, number],
+  target: (bungeoppangV5Enabled ? [cart.x + cx, layout.surfaceY + .145, cart.z + cz - .02]
+    : [cart.x + cx, layout.surfaceY, cart.z + cz]) as [number, number, number],
+  fov: bungeoppangV5Enabled ? 36 : 40,
   standX: cart.x,
   standZ: cart.z + cart.depth / 2 + 1,
 };
@@ -42,6 +44,7 @@ export function bungeoppangReturnOpacity(now: number, reducedMotion = false) {
 /** Monotonic wall time: hidden tabs and help do not pause the server's 60-second round. */
 export const bungeoppangClock = {
   t: 0,
+  durationMs: Number(BUNGEOPPANG.durationMs),
   frameAt: 0,
   countdown: 0,
   ending: 0,
@@ -51,7 +54,7 @@ export const bungeoppangClock = {
 };
 export function gameNow() {
   return Math.min(
-    BUNGEOPPANG.durationMs,
+    bungeoppangClock.durationMs,
     Math.max(0, Math.floor(performance.now() - bungeoppangClock.playAt)),
   );
 }

@@ -43,6 +43,7 @@ export interface WorldState {
     characterGender?: 'MALE' | 'FEMALE' | null
     equipment?: PublicEquipment[] | null
     tableSeat?: PublicTableSeat | null
+    activity?: 'BUNGEOPPANG' | null
   }[]
 }
 export interface TableSummary {
@@ -171,7 +172,8 @@ export function worldState(value: Record<string, unknown>): WorldState {
         && (a.nickname == null || (typeof a.nickname === 'string' && !!a.nickname.trim()))
         && (a.characterGender == null || a.characterGender === 'MALE' || a.characterGender === 'FEMALE')
         && (a.equipment == null || validPublicEquipment(a.equipment))
-        && tableSeat(a.tableSeat),
+        && tableSeat(a.tableSeat)
+        && (a.activity == null || a.activity === 'BUNGEOPPANG'),
     )
   )
     throw new Error('월드 상태 형식이 올바르지 않습니다.')

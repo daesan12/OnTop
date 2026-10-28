@@ -1,0 +1,19 @@
+{
+  "generator": "OpenAI built-in image_gen",
+  "date": "2026-10-28",
+  "asset": "frontend/public/art/bungeoppang/fish-states-round-25d.png",
+  "editTarget": "frontend/public/art/bungeoppang/fish-states-25d.png",
+  "layout": {
+    "columns": 6,
+    "states": [
+      "raw",
+      "light",
+      "golden",
+      "overdone",
+      "burnt",
+      "mould"
+    ],
+    "transparent": true
+  },
+  "prompt": "Use case: precise-object-edit, game sprite atlas.\nInput image is the edit target: the current six-state fish-shaped pastry texture atlas. Replace its fish designs with cuter plump bungeoppang, keeping the atlas contract below.\nCreate ONE transparent PNG atlas, a wide 3:1 canvas ideally 3072x1024, exactly SIX equal-width vertical cells laid out left to right in a SINGLE row. Each cell is one sixth of the full width. Each object must be centered at exactly the same relative position, the center of its cell horizontally and vertically. Leave generous transparent space above and below. Object occupies 84% of each cell width and approximately 40% of total canvas height. No panels, labels, borders, text or extra objects.\nAll six fish have the IDENTICAL silhouette, scale and registration: facing right, short stubby two-lobed tail on left, very plump circular belly and round forehead, tiny rounded fins. Total nose-to-tail length only 1.15 times its body height: stubby, round, adorable, absolutely not long or slender.\nThe face has one large rounded embossed pastry eye and a gentle smiling mouth, made entirely of baked pastry relief, no cartoon white eyes, no cheek paint. Simplify embossed scales to soft rounded scallops. Cozy premium 2.5D game art, softly baked dimensional surface, full direct TOP-DOWN view of fish lying on a surface, no perspective tilt, no side thickness extrusion. Use warm upper-left light, gentle shading within each object and no ground shadows. Readability at small game sizes.\nCells from left to right:\n1 pale ivory raw batter, soft shallow relief.\n2 lightly baked honey beige.\n3 perfectly baked warm golden orange, appetizing.\n4 overdone dark amber brown.\n5 burnt charcoal brown-black, eye and smile still readable in relief.\n6 empty black cast-iron mould with the same plump fish silhouette and recessed matching scale/face details, black metallic edge highlights.\nMaintain the cooking-state color progression of the edit target. Match silhouettes exactly across all six states. Preserve genuine transparent background and clean anti-aliased cutout edges."
+}

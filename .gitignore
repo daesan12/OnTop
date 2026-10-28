@@ -31,6 +31,10 @@ out/
 __pycache__/
 *.pyc
 
+# Local Tripo CLI state and intermediate provider exports; runtime assets are versioned separately.
+.tripo/
+**/tripo-out/
+
 # Personal local-only test screens
 /backend/src/main/resources/dev/tables.html
 /backend/src/test/resources/omok-demo/

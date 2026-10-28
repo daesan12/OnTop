@@ -1,0 +1,85 @@
+{
+  "source": {
+    "file": "../docs/bungeoppang-v5/npc-runtime-production/v3/tripo-out/bung-girl-motion3-v1-aedbf5c5/model.glb",
+    "bytes": 13003360,
+    "sha256": "92d93010a6ebca6ca78bd4e8f1692646591019ec791cf9e41fb41dd7b8d317a6"
+  },
+  "runtime": {
+    "file": "public/art/bungeoppang/customers/runtime/girl-pink-hat.glb",
+    "bytes": 2490928,
+    "sha256": "4a8e9b0ef8290c8b1aba871eebdc9d01491dcb6dbf8eaf7ac96539f97ab3dca6"
+  },
+  "meshes": [
+    {
+      "sourceTriangles": 39230,
+      "triangles": 22590,
+      "vertices": 14836,
+      "relativeError": 0.003977902699261904
+    }
+  ],
+  "textures": [
+    {
+      "roles": [
+        "normal"
+      ],
+      "source": [
+        4096,
+        4096
+      ],
+      "size": [
+        1024,
+        1024
+      ],
+      "bytes": 132208
+    },
+    {
+      "roles": [
+        "color"
+      ],
+      "source": [
+        4096,
+        4096
+      ],
+      "size": [
+        2048,
+        2048
+      ],
+      "bytes": 830774
+    },
+    {
+      "roles": [
+        "data"
+      ],
+      "source": [
+        4096,
+        4096
+      ],
+      "size": [
+        512,
+        512
+      ],
+      "bytes": 220238
+    }
+  ],
+  "skins": 1,
+  "animations": [
+    {
+      "name": "idle",
+      "channels": 195
+    },
+    {
+      "name": "walk",
+      "channels": 195
+    }
+  ],
+  "policy": {
+    "targetTriangles": 20000,
+    "errorLimit": 0.004,
+    "color": 2048,
+    "normal": 1024,
+    "data": 512,
+    "meshoptRoundTrip": "attributes exact; triangle winding/topology equivalent",
+    "retainedVertexAttributes": "byte-identical",
+    "sourcePreserved": true
+  }
+}

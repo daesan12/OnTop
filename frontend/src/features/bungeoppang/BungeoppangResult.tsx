@@ -1,5 +1,5 @@
 import { PaperPopup } from '../tableLobby/PaperPopup'
-import { BUNGEOPPANG as R, bungeoppangV4Preview } from './config'
+import { BUNGEOPPANG as R, bungeoppangV4Preview, bungeoppangV5Preview } from './config'
 import { escapeBungeoppang, isV4Grill, refreshBungeoppangWallet, startBungeoppang, submitBungeoppang, useBungeoppang } from './store'
 
 export function BungeoppangResult() {
@@ -9,7 +9,7 @@ export function BungeoppangResult() {
   const walletError = useBungeoppang(s => s.walletError), status = useBungeoppang(s => s.status)
   if (!grill) return null
   const summary = result ?? grill, today = result?.todayEarned ?? status?.todayEarned
-  const v4 = isV4Grill(grill), preview = v4 && bungeoppangV4Preview
+  const v4 = isV4Grill(grill), preview = v4 && (bungeoppangV4Preview || bungeoppangV5Preview)
   return <PaperPopup title="붕어빵 뒤집기" label="붕어빵 결과" onClose={escapeBungeoppang} className="bungeoppang-paper-result">
     <section role="region" aria-label="결과">
     <h2 style={{ fontSize: 'clamp(28px, 4vw, 39px)', marginTop: 20 }}>오늘도 잘 구웠어요</h2>
