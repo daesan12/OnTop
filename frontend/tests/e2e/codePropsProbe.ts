@@ -49,12 +49,13 @@ export function propsProbe(kind: 'mailbox' | 'cart') {
 
 // Frontend-only visual review of the two traditional props, including summit height.
 import { NOTES_BOX } from '../../src/config/notes'
+import { NOTES_BOARD_SCALE } from '../../src/world/art/notesBoardLayout'
 export function heritageView(kind:'mailbox'|'notes',yaw=.25,distance=3.1) {
   release?.()
-  const p=kind==='notes'?NOTES_BOX:MAILBOX,base=kind==='notes'?NOTES_BOX.y:0,store=root()
+  const p=kind==='notes'?NOTES_BOX:MAILBOX,base=kind==='notes'?NOTES_BOX.y:0,scale=kind==='notes'?NOTES_BOARD_SCALE:1,store=root()
   release=store.getState().internal.subscribe({current:({camera})=>{
-    camera.position.set(p.x+Math.sin(yaw)*distance,base+1.5,p.z+Math.cos(yaw)*distance)
-    camera.lookAt(p.x,base+.9,p.z);camera.updateMatrixWorld()
+    camera.position.set(p.x+Math.sin(yaw)*distance*scale,base+1.5*scale,p.z+Math.cos(yaw)*distance*scale)
+    camera.lookAt(p.x,base+.9*scale,p.z);camera.updateMatrixWorld()
   }},.5,store)
 }
 export function heritageProbe(kind:'mailbox'|'notes') {

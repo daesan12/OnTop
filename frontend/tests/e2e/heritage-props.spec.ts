@@ -4,6 +4,7 @@ import { feedbackFixture } from './feedbackFixture'
 import { notesFixture } from './notesFixture'
 import { MAILBOX } from '../../src/config/parkPlan'
 import { NOTES_BOX } from '../../src/config/notes'
+import { NOTES_BOARD_SCALE } from '../../src/world/art/notesBoardLayout'
 
 for(const kind of ['mailbox','notes'] as const)test(`${kind} reference detail retains world bounds, LOD and E interaction`,async({page})=>{
   const p=kind==='notes'?NOTES_BOX:MAILBOX,base=kind==='notes'?NOTES_BOX.y:0,errors:string[]=[]
@@ -17,9 +18,10 @@ for(const kind of ['mailbox','notes'] as const)test(`${kind} reference detail re
   const probe=()=>page.evaluate(async kind=>(await import('/tests/e2e/codePropsProbe.ts' as string)).heritageProbe(kind),kind)
   await page.evaluate(async()=>(await import('/tests/e2e/sceneProbe.ts' as string)).visualTime(.6));await view(.2)
   await expect.poll(async()=>(await probe()).lod).toBe(0)
-  const state=await probe(),half=kind==='notes'?[.65,.48]:[MAILBOX.bodyHalfWidth,MAILBOX.bodyHalfDepth]
+  const state=await probe(),half=kind==='notes'?[.65*NOTES_BOARD_SCALE,.48*NOTES_BOARD_SCALE]:[MAILBOX.bodyHalfWidth,MAILBOX.bodyHalfDepth]
   expect(state.position).toEqual([p.x,base,p.z]);expect(state.min[0]).toBeGreaterThanOrEqual(p.x-half[0]!-.001);expect(state.max[0]).toBeLessThanOrEqual(p.x+half[0]!+.001)
-  expect(state.min[2]).toBeGreaterThanOrEqual(p.z-half[1]!-.001);expect(state.max[2]).toBeLessThanOrEqual(p.z+half[1]!+.001);expect(state.max[1]).toBeLessThanOrEqual(base+(kind==='notes'?1.72:MAILBOX.height)+.001)
+  expect(state.min[2]).toBeGreaterThanOrEqual(p.z-half[1]!-.001);expect(state.max[2]).toBeLessThanOrEqual(p.z+half[1]!+.001);expect(state.min[1]).toBeGreaterThanOrEqual(base-.001);expect(state.max[1]).toBeLessThanOrEqual(base+(kind==='notes'?1.72*NOTES_BOARD_SCALE:MAILBOX.height)+.001)
+  if(kind==='notes'){expect(state.max[0]!-state.min[0]!).toBeGreaterThan(2.3);expect(state.max[1]!-base).toBeGreaterThan(3.35)}
   expect(state.far).toBeLessThan(state.near*.7);await page.waitForTimeout(400);await screenshot(page,`heritage-v2-${kind}-front`)
   await view(.95);await page.waitForTimeout(300);await screenshot(page,`heritage-v2-${kind}-side`)
   await page.evaluate(async()=>(await import('/tests/e2e/sceneProbe.ts' as string)).visualTime(.05));await page.waitForTimeout(400);await screenshot(page,`heritage-v2-${kind}-night`)
