@@ -39,6 +39,11 @@ public final class BungeoppangV4DeliveryContract {
     }
 
     public static BungeoppangV4DeliveryDtos.Request parse(JsonNode body) {
+        return parse(body, BungeoppangV4Spec.RULES_VERSION, BungeoppangV4Spec.rules().maxLogEntries());
+    }
+
+    /** Shared with v5, whose action wire shape is identical apart from the version and log limit. */
+    static BungeoppangV4DeliveryDtos.Request parse(JsonNode body, String rulesVersion, int maxLogEntries) {
         if (body == null || !body.isObject() || body.size() != ROOT_FIELDS.size()
                 || !only(body, ROOT_FIELDS) || !body.path("rulesVersion").isTextual()
                 || !body.path("throughSeq").isIntegralNumber() || !body.path("throughSeq").canConvertToInt()
@@ -48,9 +53,9 @@ public final class BungeoppangV4DeliveryContract {
         String version = body.path("rulesVersion").textValue();
         int throughSeq = body.path("throughSeq").intValue();
         String prefixHash = body.path("prefixHash").textValue();
-        if (!BungeoppangV4Spec.RULES_VERSION.equals(version) || throughSeq < 1
+        if (!rulesVersion.equals(version) || throughSeq < 1
                 || !prefixHash.matches("[0-9a-f]{64}") || body.path("log").size() != throughSeq
-                || throughSeq > BungeoppangV4Spec.rules().maxLogEntries()) {
+                || throughSeq > maxLogEntries) {
             throw invalid();
         }
         List<BungeoppangV4DeliveryDtos.Action> actions = new ArrayList<>(throughSeq);
@@ -61,6 +66,10 @@ public final class BungeoppangV4DeliveryContract {
     }
 
     public static BungeoppangV4CompleteDtos.Request parseComplete(JsonNode body) {
+        return parseComplete(body, BungeoppangV4Spec.RULES_VERSION, BungeoppangV4Spec.rules().maxLogEntries());
+    }
+
+    static BungeoppangV4CompleteDtos.Request parseComplete(JsonNode body, String rulesVersion, int maxLogEntries) {
         if (body == null || !body.isObject() || !only(body, COMPLETE_FIELDS)
                 || !body.path("rulesVersion").isTextual()
                 || !body.path("throughSeq").isIntegralNumber() || !body.path("throughSeq").canConvertToInt()
@@ -73,9 +82,9 @@ public final class BungeoppangV4DeliveryContract {
         String version = body.path("rulesVersion").textValue();
         int throughSeq = body.path("throughSeq").intValue();
         String prefixHash = body.path("prefixHash").textValue();
-        if (!BungeoppangV4Spec.RULES_VERSION.equals(version) || throughSeq < 0
+        if (!rulesVersion.equals(version) || throughSeq < 0
                 || !prefixHash.matches("[0-9a-f]{64}") || body.path("log").size() != throughSeq
-                || throughSeq > BungeoppangV4Spec.rules().maxLogEntries()) {
+                || throughSeq > maxLogEntries) {
             throw invalid();
         }
         List<BungeoppangV4DeliveryDtos.Action> actions = new ArrayList<>(throughSeq);
@@ -106,7 +115,13 @@ public final class BungeoppangV4DeliveryContract {
 
     public static String prefixHash(long sessionId, String configVersion,
             List<BungeoppangV4DeliveryDtos.Action> actions) {
-        byte[] hash = digest(("BUNGEOPPANG/v4\n" + sessionId + "\n" + configVersion + "\n")
+        return prefixHash(BungeoppangV4Spec.RULES_VERSION, sessionId, configVersion, actions);
+    }
+
+    /** The seed names the rules version; each step hashes the previous digest, LF and the action tuple. */
+    static String prefixHash(String rulesVersion, long sessionId, String configVersion,
+            List<BungeoppangV4DeliveryDtos.Action> actions) {
+        byte[] hash = digest(("BUNGEOPPANG/" + rulesVersion + "\n" + sessionId + "\n" + configVersion + "\n")
                 .getBytes(StandardCharsets.UTF_8));
         for (BungeoppangV4DeliveryDtos.Action action : actions) {
             Object[] tuple = {action.seq(), action.action(), action.t(), action.slot(), action.filling(),
