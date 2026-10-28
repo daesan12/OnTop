@@ -5,6 +5,8 @@ import { clearChannel, resetWorld, useSession } from '../../src/network/worldCli
 import { ParkRuntime } from '../../src/park/runtime/runtime'
 import { EXPECTED_MAP_VERSION } from '../../src/config/mapVersion'
 import { inputState } from '../../src/world/inputOwnership'
+import { createBungeoppangV4Service } from '../../src/features/bungeoppang/serviceV4'
+import { createBungeoppangV5Service } from '../../src/features/bungeoppang/serviceV5'
 
 const sockets: MovementSocket[] = []
 class MovementSocket implements SocketLike {
@@ -88,6 +90,26 @@ afterEach(async () => {
 })
 
 describe('M14 authenticated REST and movement ownership boundary', () => {
+  it.each(['v4', 'v5'] as const)('sends the %s lobby through the authenticated runtime', async rulesVersion => {
+    const original = vi.mocked(fetch).getMockImplementation()!
+    const path = `/api/v1/minigames/sessions?rulesVersion=${rulesVersion}`
+    const lobby = { rulesVersion, todayEarned: 0, dailyCap: 100, isFirstGame: true, seenTips: [] }
+    vi.mocked(fetch).mockImplementation(async (input, init) =>
+      input === path ? json(lobby) : original(input, init))
+    const create = rulesVersion === 'v5' ? createBungeoppangV5Service : createBungeoppangV4Service
+    const service = create((url, init) => runtime.requestJSON(url, init))
+    expect(service.mock).toBe(false)
+    expect(await service.getStatus()).toEqual(lobby)
+    expect(fetch).toHaveBeenCalledWith(path, expect.objectContaining({
+      credentials: 'omit', headers: { Authorization: 'Bearer fixture-access' },
+    }))
+  })
+  it.each(['v6', 'v50', 'v5&unexpected=true'])('blocks unsupported lobby query %s before sending it', async version => {
+    vi.mocked(fetch).mockClear()
+    await expect(runtime.requestJSON(`/api/v1/minigames/sessions?rulesVersion=${version}`))
+      .rejects.toThrow('사용할 수 없는 요청')
+    expect(fetch).not.toHaveBeenCalled()
+  })
   it('reuses the same start body and key through the existing 401 refresh flow', async () => {
     const original = vi.mocked(fetch).getMockImplementation()!
     const attempts: RequestInit[] = []
