@@ -1,0 +1,40 @@
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+const {events}=vi.hoisted(()=>({events:[] as string[]}))
+vi.mock('../../src/main',()=>{events.push('main');return {}})
+beforeEach(()=>{vi.resetModules();events.length=0})
+afterEach(()=>vi.unstubAllGlobals())
+it('starts one refresh before UI loading and shares it with the checking page',async()=>{
+  vi.stubGlobal('window',{location:{pathname:'/park'}})
+  let respond!: (response:Response)=>void
+  const fetch=vi.fn(()=>{events.push('refresh');return new Promise<Response>(resolve=>{respond=resolve})})
+  vi.stubGlobal('fetch',fetch)
+  await import('../../src/bootstrap')
+  await vi.dynamicImportSettled()
+  expect(events).toEqual(['refresh','main'])
+  const {restoreInitialAuthSession}=await import('../../src/auth/authFlow')
+  const reused=restoreInitialAuthSession()
+  expect(fetch).toHaveBeenCalledOnce()
+  expect(fetch).toHaveBeenCalledWith('/api/v1/auth/refresh',{
+    method:'POST',credentials:'include',cache:'no-store',
+  })
+  respond(new Response(JSON.stringify({accessToken:'test'})))
+  expect(await reused).toBe(true)
+})
+it('reuses an early 401 for both checking effects and allows a later retry',async()=>{
+  vi.stubGlobal('window',{location:{pathname:'/'}})
+  const fetch=vi.fn().mockResolvedValue(new Response(null,{status:401}))
+  vi.stubGlobal('fetch',fetch)
+  await import('../../src/bootstrap');await vi.dynamicImportSettled()
+  const {restoreInitialAuthSession,restoreAuthSession}=await import('../../src/auth/authFlow')
+  expect(await Promise.all([restoreInitialAuthSession(),restoreInitialAuthSession()])).toEqual([false,false])
+  expect(fetch).toHaveBeenCalledOnce()
+  await restoreAuthSession()
+  expect(fetch).toHaveBeenCalledTimes(2)
+})
+it('leaves OAuth callback exchange exclusive without refreshing an older session',async()=>{
+  vi.stubGlobal('window',{location:{pathname:'/auth/callback'}})
+  const fetch=vi.fn();vi.stubGlobal('fetch',fetch)
+  await import('../../src/bootstrap')
+  await vi.dynamicImportSettled()
+  expect(fetch).not.toHaveBeenCalled()
+})

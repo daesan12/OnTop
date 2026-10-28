@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from 'react'
 import { useLoader } from '@react-three/fiber'
+import { ParkTextureLoader } from './ParkTextureLoader'
 import {
   BufferGeometry,
   CircleGeometry,
@@ -9,7 +10,6 @@ import {
   RepeatWrapping,
   RingGeometry,
   SRGBColorSpace,
-  TextureLoader,
 } from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import {
@@ -165,7 +165,7 @@ for (let quadrant = 0; quadrant < 4; quadrant++)
     })
   }
 export function Ground() {
-  const stone = useLoader(TextureLoader, '/art/granite-paving.webp')
+  const stone = useLoader(ParkTextureLoader, '/art/granite-paving.webp')
   const stoneDetail = useSurfaceMaps('stone')
   const paving = useMemo(pavingGeometry, [])
   const lawn = useMemo(() => {
