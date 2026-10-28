@@ -13,6 +13,7 @@ import {
 } from '../../config'
 import { seeded, type Part } from './Instances'
 import { SurfaceMaterial } from './SurfaceMaterial'
+import { WalkwayMaterial } from './WalkwayMaterial'
 import { DetailInstances } from './DetailInstances'
 
 const data = createTerrainMesh()
@@ -203,14 +204,8 @@ export function PlannedGround() {
           strength={0.55}
         />
       </mesh>
-      <mesh geometry={paths} receiveShadow dispose={null}>
-        <SurfaceMaterial
-          kind="stone"
-          paving
-          color="#d3cdb9"
-          strength={0.25}
-          depthOffset
-        />
+      <mesh name="park-paved-walkways" geometry={paths} receiveShadow dispose={null}>
+        <WalkwayMaterial />
       </mesh>
       <DetailInstances
         name="path-curbs"
@@ -235,13 +230,8 @@ export function PlannedGround() {
           strength={0.22}
         />
       </mesh>
-      <mesh geometry={plaza} dispose={null} receiveShadow>
-        <SurfaceMaterial
-          kind="stone"
-          color="#d4cfbc"
-          strength={0.2}
-          depthOffset
-        />
+      <mesh name="park-paved-fountain-plaza" geometry={plaza} dispose={null} receiveShadow>
+        <WalkwayMaterial color="#ccc5b3" />
       </mesh>
     </group>
   )
