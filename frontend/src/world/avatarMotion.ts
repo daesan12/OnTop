@@ -63,7 +63,7 @@ export function createAvatarMotion(model: Rig) {
   const grip = createFitnessGrip(), hipFit = new Vector3()
   let phase = 0, swimPhase = 0, move = 0, run = 0
   return {
-    apply(avatar: Avatar, now: number, delta: number, pose: Pose, figure: Group, reaction?: DefeatReaction | null) {
+    apply(avatar: Avatar, now: number, delta: number, pose: Pose, figure: Group, reaction?: DefeatReaction | null, seatedPose?: (model: Rig) => void) {
       const kind = avatarPoseKind(avatar)
       const seated = kind === 'seated'
       const age = avatarEmoteAge(avatar, now)
@@ -146,6 +146,7 @@ export function createAvatarMotion(model: Rig) {
         sampleCharacterEmote(avatar.emote, age, model)
       }
       if (reaction && avatar.connected && (kind === 'ground' || seated) && !avatar.moving) sampleDefeatMotion(reaction.kind, now - reaction.at, model)
+      if (seated && age === null && !reaction) seatedPose?.(model)
       model.apply(delta)
       if (kind === 'ground' || kind === 'telescope') {
         figure.position.y = pavingLift(pose.x, pose.z, pose.y - 0.8) + model.groundShift() + 0.003

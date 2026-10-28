@@ -691,8 +691,10 @@ export function previewPublicMatch(ref: PublicMatchReference) {
   ;(publicMatchService as typeof publicMatchService & { set(ref: PublicMatchReference): void }).set(ref)
 }
 export function onecardProbe() {
-  const scene = root().scene, top = scene.getObjectByName('onecard-public-top'), backs = scene.getObjectByName('onecard-public-card-backs') as InstancedMesh | undefined
-  return { top: top?.userData.cardId, backs: backs?.count ?? 0, visible: !!scene.getObjectByName('onecard-table'),
+  const scene = root().scene, top = scene.getObjectByName('onecard-public-top')
+  let backs = 0
+  scene.traverse(object => { if (object.name.startsWith('onecard-held-hand-')) backs += object.userData.displayedCount ?? 0 })
+  return { top: top?.userData.cardId, backs, visible: !!scene.getObjectByName('onecard-table'),
     publicData: JSON.stringify({ session: useSession.getState(), avatars: [...avatars] }) }
 }
 export function bridgeProbe() {
