@@ -779,6 +779,11 @@ export async function fixture(
     approveTableJoins: () => { for (const request of heldTableJoins.splice(0)) approveTableJoin(request.ws, request.requestId) },
     holdTableLeave: (hold: boolean) => { holdTableLeave = hold },
     approveTableLeaves: () => { for (const request of heldTableLeaves.splice(0)) approveTableLeave(request.ws, request.requestId) },
+    unseatViaState: () => {
+      seated = false; ready = false
+      table(sockets.at(-1)!, 'TABLE_STATE', null)
+      world(sockets.at(-1)!)
+    },
     publishTabletWait: (seconds: number | null) => {
       waitExpiresAt = seconds === null ? null : Date.now() + seconds * 1000; waitRevision++
       emit(sockets.at(-1)!, 'TABLE_HOST_WAIT_STATE', { tableId, epoch: 'fixture-tablet-server', revision: waitRevision,

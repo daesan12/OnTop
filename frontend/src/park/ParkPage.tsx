@@ -56,7 +56,7 @@ export function ParkPage(props: ParkProps) {
 function ParkContent({ onExit, exitError, onAuthEnded }: ParkProps) {
   const bungeoppang = useBungeoppang(s => s.phase !== 'idle')
   const omokFocus = useGame(s => s.game?.role === 'PLAYER' && s.game.omok?.status === 'PLAYING' && !s.lastResult)
-  const omokWatching = useGame(s => s.game?.role === 'SPECTATOR' && s.game.omok?.status === 'PLAYING')
+  const omokChat = useGame(s => s.game?.omok?.status === 'PLAYING' && !s.lastResult)
   const session = useSession(useShallow(s=>({ sessionId:s.sessionId,roomId:s.roomId })))
   const [quality,setQuality] = useState<QualityPreset>('low')
   const changeQuality = useCallback((value: QualityPreset) => {
@@ -99,7 +99,7 @@ function ParkContent({ onExit, exitError, onAuthEnded }: ParkProps) {
         </div>}
 
         <div className="park-roaming-ui" hidden={bungeoppang} inert={bungeoppang}>
-          {!omokFocus && (omokWatching ? <SpectatorChat /> : <ParkChat key={`${session.sessionId}:${session.roomId}`} />)}
+          {omokChat ? <SpectatorChat /> : !omokFocus && <ParkChat key={`${session.sessionId}:${session.roomId}`} />}
         </div>
 
         {!omokFocus && <aside className="park-shortcuts" aria-label="조작 방법">

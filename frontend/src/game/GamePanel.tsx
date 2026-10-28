@@ -16,9 +16,14 @@ export function GamePanel() {
   const gathering = useGathering(), details = useTableLobby(s => s.gatheringDetails)
   const spectatorResult = useGame(s => s.game?.role === 'SPECTATOR' && gameState(s.game).status === 'FINISHED' ? s.game : null)
   const profiles = useSession(s => s.profiles)
+  const seated = useSession(s => !!s.tableId && s.seatIndex >= 0
+    && !!s.tableStates[s.tableId]?.seats.some(seat => seat.userId === s.sessionId))
+  const terminalPlayer = useGame(s => s.game?.role === 'PLAYER'
+    && (gameState(s.game).status === 'FINISHED' || !!s.result || !!s.lastResult))
   const dice = useGame(s => !!s.game?.dice || (s.start?.gameCode === 'DICE' && ['PLAYING', 'SETTLING'].includes(s.start.phase)))
   const card = useGame(s => !!s.game?.onecard || (s.start?.gameCode === 'ONE_CARD' && ['PLAYING', 'SETTLING'].includes(s.start.phase)))
   const bridge = useGame(s => !!s.game?.bridge || (s.start?.gameCode === 'LIAR_BRIDGE' && ['PLAYING', 'SETTLING'].includes(s.start.phase)))
+  if (terminalPlayer && !seated) return null
   if (spectatorResult) {
     if (spectatorResult.dice) return <FarklePanel />
     const winners = spectatorResult.onecard?.winnerUserIds ?? spectatorResult.bridge?.winnerUserIds

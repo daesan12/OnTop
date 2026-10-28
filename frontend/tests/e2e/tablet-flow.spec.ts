@@ -499,7 +499,7 @@ test('remaining player sees server-approved host succession and can still use th
   expect(calls.filter(c => c.kind === 'start')).toHaveLength(1)
 })
 
-test('result popup preserves pending settlement, server host and next-round permission', async ({ page }) => {
+test('result popup preserves settlement and next-round permission, then clears on exit and reload', async ({ page }) => {
   const server = await fixture(page, { omok: true, manualLobby: true })
   const tablet = await openTable(page); await bindManualPort(page, server)
   await tablet.getByLabel('1인 참가비').fill('20')
@@ -526,6 +526,25 @@ test('result popup preserves pending settlement, server host and next-round perm
   await result.getByRole('button', { name: '다음 판 준비', exact: true }).click()
   await expect(page.getByRole('dialog', { name: '게임 태블릿' })).toBeVisible()
   await expect(page.getByRole('button', { name: '게임 시작', exact: true })).toHaveCount(0)
+  await page.getByRole('dialog', { name: '게임 태블릿' }).getByRole('button', { name: '일어나기', exact: true }).click()
+  await expect(page.getByRole('dialog', { name: '게임 태블릿' })).toHaveCount(0)
+  server.restoreGame(); server.settle()
+  await expect(result).toHaveCount(0)
+  await expect(page.getByRole('region', { name: '오목 경기', exact: true })).toHaveCount(0)
+  await page.reload()
+  await expect(page.getByLabel('공원 기본 화면')).toBeVisible()
+  await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90_000 })
+  await expect.poll(() => page.evaluate(async () => {
+    const s = (await import('/src/network/worldClient.ts' as string)).useSession.getState()
+    return s.status === 'connected' && s.tables.length > 0 && !s.pending
+  })).toBe(true)
+  server.restoreGame(); server.settle()
+  await expect.poll(() => page.evaluate(async () => {
+    const s = (await import('/src/game/store.ts' as string)).useGame.getState()
+    return !s.game && !s.result && !s.lastResult && !s.permittedGameId
+  })).toBe(true)
+  await expect(result).toHaveCount(0)
+  await screenshot(page, 'qa-tablet-result-cleared-after-reload')
 })
 
 test('tablet invalid result keeps refund recovery with a stale or missing engine and waits for settlement', async ({ page }) => {

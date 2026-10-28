@@ -7,25 +7,22 @@ import { PARK_DESTINATIONS, type Destination } from './parkNavigation'
 import { useNavigation, cancelNavigation, useParkMap, openParkMap, closeParkMap, selectDestination } from './navigationState'
 import './navigation.css'
 import mapIcon from '../parkMenus/icons/dock-map.svg'
-import { useGame } from '../../game/store'
-import { gameBlocksParkMap } from './mapAccess'
+import { gameplayMenusLocked, useGameplayMenusLocked } from '../parkMenus/gameplayLock'
 
 const zoneName = (zone: typeof PARK_ZONES[number]) => zone.id === 'vr' ? 'VR 구역 · 주변' : zone.name
 function canOpen() {
-  const game = useGame.getState()
-  if (gameBlocksParkMap(game.game, game.start?.phase)) return false
-  return useSession.getState().status === 'connected' && !Object.entries(inputState).some(([key, value]) => key !== 'mapOpen' && value)
+  return !gameplayMenusLocked() && useSession.getState().status === 'connected' && !Object.entries(inputState).some(([key, value]) => key !== 'mapOpen' && value)
     && !document.querySelector('dialog[open], [role="dialog"]')
 }
 export function ParkMap() {
+  const gameplayLocked = useGameplayMenusLocked()
   const open = useParkMap(s => s.open), path = useNavigation(s => s.path), destination = useNavigation(s => s.target)
   const status = useSession(s => s.status), compatible = useSession(s => s.mapCompatible)
-  const gameBlocked = useGame(s => gameBlocksParkMap(s.game, s.start?.phase))
   const panel = useRef<HTMLDialogElement>(null), launcher = useRef<HTMLButtonElement>(null), previousFocus = useRef<HTMLElement | null>(null)
   const [position, setPosition] = useState<{ x: number; z: number } | null>(null)
   const [players, setPlayers] = useState<{ id: string; x: number; z: number; nickname: string }[]>([])
   const [hovered, setHovered] = useState('')
-  useEffect(() => { if (gameBlocked) { closeParkMap(); cancelNavigation() } }, [gameBlocked])
+  useLayoutEffect(() => { if (gameplayLocked) { closeParkMap(); cancelNavigation() } }, [gameplayLocked])
   const choose = (target: Destination) => {
     const s = useSession.getState()
     if (s.status === 'connected' && s.mapCompatible) selectDestination(target, s.sessionId, s.roomId)
@@ -76,7 +73,7 @@ export function ParkMap() {
     return () => { clearInterval(timer); document.body.style.overflow = previous }
   }, [open])
   return <aside className="park-map" aria-label="공원 안내 지도">
-    <button ref={launcher} className="park-quick-button" aria-label="공원 지도" aria-keyshortcuts="M" aria-controls="park-map-panel" aria-expanded={open} disabled={status !== 'connected' || gameBlocked} onClick={() => { if (open) closeParkMap(); else if (canOpen()) openParkMap() }}>
+    <button ref={launcher} className="park-quick-button" aria-label="공원 지도" aria-keyshortcuts="M" aria-controls="park-map-panel" aria-expanded={open} disabled={status !== 'connected' || gameplayLocked} title={gameplayLocked ? '게임 중에는 지도를 사용할 수 없어요.' : undefined} onClick={() => { if (open) closeParkMap(); else if (canOpen()) openParkMap() }}>
       <img src={mapIcon} alt="" /><span>지도</span><kbd>M</kbd>
     </button>
     <dialog ref={panel} id="park-map-panel" className="park-map-panel" aria-label="공원 지도창" onCancel={event => { event.preventDefault(); closeParkMap() }} onClose={() => { if (!panel.current?.open) closeParkMap() }} onKeyDown={event=>{
