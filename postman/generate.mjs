@@ -16,7 +16,9 @@ const variables = {
     accessToken: '', websocketTicket: '', shopItemId: '', userItemId: '', purchaseRequestKey: '', purchaseId: '',
     facilityLeaseId: '', feedbackOperationId: '', feedbackReceiptId: '', noteOperationId: '', noteId: '',
     followTargetId: '', followId: '', tableVersion: 0, startActionId: 'replace-on-new-start-keep-on-retry',
-    mapId: 'park', mapVersion: 'replace-with-your-frontend-map-version'
+    mapId: 'park', mapVersion: 'replace-with-your-frontend-map-version',
+    prankEventId: '', prankAttemptId: '', prankEffectId: '', prankTargetId: '', prankTurnCount: 0,
+    bungeoRankingCursor: '', bungeoRankingSnapshotId: ''
 };
 
 const statusTest = status => `pm.test('HTTP ${status}', () => pm.response.to.have.status(${status}));`;
@@ -507,6 +509,36 @@ for (const request of [rankingSuccess, rankingInvalid]) {
     request.headers = [{ key: 'Authorization', value: 'Bearer {{accessToken}}' }];
 }
 httpItems.push(rankingSuccess, rankingInvalid, rankingAnonymous);
+const bungeoRankingDescription = '붕어빵 v4/v5 개인 최고 전체 랭킹. 기존 회원 JWT/db 필요. made DESC·failed ASC, 동점1,1,3·완료시각 우선. '
+    + '완료·정산 확정만 포함(보상0도 포함). 첫 페이지는 최신 DB, 후속은 동일2분 스냅샷. cursor는 같은 사용자/버전/limit로만 사용. '
+    + '409 RANKING_SNAPSHOT_EXPIRED면 처음부터 재조회. 신규 SQL/팀원 완료코드 변경 없음. 개발 서버 배포·실계정 검수 별도. docs/bungeoppang-rankings-api.md';
+const bungeoRankingTest = `pm.test('개인 최고 랭킹 계약', () => {
+    const b = pm.response.json();
+    pm.expect(b.basis).to.eql('PERSONAL_BEST');
+    pm.expect(b.period).to.eql('ALL_TIME');
+    pm.expect(b.items).to.be.an('array');
+    pm.expect(b.items.length).to.be.at.most(20);
+    pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store');
+});
+if (pm.response.code === 200) {
+    const b = pm.response.json();
+    pm.environment.set('bungeoRankingCursor', b.nextCursor || '');
+    pm.environment.set('bungeoRankingSnapshotId', b.snapshotId);
+}`;
+const bungeoRankingRequests = [
+    http('33 붕어빵 v5 개인 최고 전체 랭킹', '/api/v1/minigames/bungeoppang/rankings?period=ALL_TIME&rulesVersion=v5&limit=20', 200,
+        bungeoRankingDescription, bungeoRankingTest),
+    http('34 붕어빵 v5 다음 페이지 — cursor 있을 때만', '/api/v1/minigames/bungeoppang/rankings?period=ALL_TIME&rulesVersion=v5&limit=20&cursor={{bungeoRankingCursor}}', 200,
+        bungeoRankingDescription, bungeoRankingTest, requireEnvironment + `\nif (!pm.environment.get('bungeoRankingCursor')) throw new Error('다음 페이지가 없습니다. 33부터 조회하세요.');`),
+    http('35 붕어빵 v4 랭킹 — 별도 첫 조회', '/api/v1/minigames/bungeoppang/rankings?period=ALL_TIME&rulesVersion=v4&limit=20', 200,
+        bungeoRankingDescription, bungeoRankingTest),
+    http('36 붕어빵 랭킹 limit 오류', '/api/v1/minigames/bungeoppang/rankings?rulesVersion=v5&limit=21', 400,
+        bungeoRankingDescription, codeTest('INVALID_LIMIT'))
+];
+for (const request of bungeoRankingRequests) {
+    request.headers = [{key:'Authorization',value:'Bearer {{accessToken}}'}];
+}
+httpItems.push(...bungeoRankingRequests);
 const httpV3 = { name: 'OnTop HTTP', $kind: 'collection', description: guide, items: httpItems };
 const wsGuide = '# 근거리 채팅·관전 테스트 (20m)\n\n'
     + [0, 1, 2, 5].map(index => `## ${String(index + 1).padStart(2, '0')} 연결\n${wsItems[index].description
@@ -644,8 +676,27 @@ const reactionGuide = '\n\n## 기권·패배 공개 연출 (서버 수신 전용
         motion: 'head-clutch', durationMs: 3600, occurredAt: '2026-10-26T09:00:00Z',
     } }) + '\n명세 docs/world-game-reaction-api.md. 코드/로컬검증이며 실제 배포·FE3D 연결은 별도입니다.';
 wsItems[6].description += reactionGuide;
+const prankGuide = '\n\n원카드 방어: pranks-enabled=true/defense-enabled=true와 FE 두 플래그 공동 활성화 후 사용. '
+    + '관전자·대상·턴별1회, REACH 후1400ms 내 대상 HIT 승인 시 해당 관전자만3000ms 차단. '
+    + 'HIT 없으면 FLIPPED 최대2장(실제 카드정보 없음), 대상 RESTORE 후2500ms 면역. '
+    + '같은 eventId 재확인은 같은 마감/효과를 반환하고 재방송하지 않음. 새 행동은 새 UUID, 요청 유실은 같은 UUID. '
+    + 'REACH_STARTED의 attemptId와 FLIPPED의 eventId를 개인 환경에 복사. 현재 turnCount/targetUserId는 공개 상태에서 가져옴. '
+    + '구형 HAND_FLIP_SEND는 방어 활성 시 ONECARD_DEFENSE_REQUIRED. docs/onecard-ux-be-spec.md. 배포·실계정3D 검수 별도.';
+for (const index of [5,6]) {
+    wsItems[index].description += prankGuide;
+    wsItems[index].messages.push(
+        message('원카드 장난 01 손 뻗기 — 승인 관전자', 'ONECARD_PRANK_REACH_SEND',
+            {gameId:'{{gameId}}',eventId:'{{prankEventId}}',targetUserId:'{{prankTargetId}}',turnCount:'{{prankTurnCount}}'}),
+        message('원카드 장난 02 뿅망치 — 대상 플레이어', 'ONECARD_PRANK_HIT_SEND',
+            {gameId:'{{gameId}}',eventId:'{{prankEventId}}',attemptId:'{{prankAttemptId}}'}),
+        message('원카드 장난 03 손패 복구 — 대상 플레이어', 'ONECARD_HAND_RESTORE_SEND',
+            {gameId:'{{gameId}}',eventId:'{{prankEventId}}',effectId:'{{prankEffectId}}'})
+    );
+    // Saved Message 변수는 문자열 치환이므로 turnCount만 JSON 정수로 둔다.
+    wsItems[index].messages.at(-3).content = wsItems[index].messages.at(-3).content.replace('"{{prankTurnCount}}"','{{prankTurnCount}}');
+}
 const wsV3 = { name: 'OnTop WebSocket', $kind: 'collection', description: wsGuide + appearanceGuide + publicProfileGuide + seatGuide
-        + facilityGuide + followGuide + mapGuide + tabletGuide + reactionGuide,
+        + facilityGuide + followGuide + mapGuide + tabletGuide + reactionGuide + prankGuide,
     items: wsItems };
 const httpV21 = {
     info: { name: httpV3.name, description: guide, schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json' },
@@ -671,7 +722,8 @@ function yaml(value, indent = 0) {
         + (nested(item) ? '\n' + yaml(item, indent + 2) : ' ' + JSON.stringify(item))).join('\n');
 }
 const outputs = new Map([
-    ['OnTop-Ranking.postman_collection.json', JSON.stringify({info:{...httpV21.info,name:'OnTop Ranking',description:rankingDescription},item:httpV21.item.slice(-3)},null,2)+'\n'],
+    ['OnTop-Ranking.postman_collection.json', JSON.stringify({info:{...httpV21.info,name:'OnTop Ranking',description:rankingDescription},item:httpV21.item.slice(29,32)},null,2)+'\n'],
+    ['OnTop-Bungeoppang-Ranking.postman_collection.json', JSON.stringify({info:{...httpV21.info,name:'OnTop Bungeoppang Ranking',description:bungeoRankingDescription},item:httpV21.item.slice(32)},null,2)+'\n'],
     ['OnTop-Minigame.postman_collection.json', JSON.stringify({info:{...httpV21.info,name:'OnTop Minigame',description:'붕어빵 v2: 23시작화면조회→19시작→60초 플레이→21입력 검증·보상. 20본인판조회,22포기는 별도 새 판에서 확인. 15점당1냥·KST 하루100냥·랭킹 제외·탭 이동 시간 진행. 기존 API 경로 유지. docs/minigame-api.md.'},item:httpV21.item.slice(18,23)},null,2)+'\n'],
     ['OnTop-Shop.postman_collection.json', JSON.stringify({info: {...httpV21.info, name: 'OnTop Shop',
         description: 'SHOP-01/02 · INVENTORY-01/02. 13목록→14구매→15동일키 재요청→16보유→17장착. 18은 같은키 충돌 검사. local,db 또는 dev,db + ontop.shop.enabled=true(dev: SHOP_ENABLED=true) + 공통/상점 스키마가 필요합니다. dev는 기본 비활성이며 기존 V100 적용 이력·버전 순서 확인 후 기존 Flyway locations에 db/shop을 명시적으로 추가합니다. 공유 DB/SQL/이력은 자동 변경하지 않습니다. 실제 배포 후 개인 환경 baseUrl=https://dev-api.on-top.world와 해당 서버 Access JWT를 사용합니다. 기존 예제 Origin={{baseUrl}}는 개발 API 호스트가 되어403일 수 있으므로 AUTH_ALLOWED_ORIGINS에 등록된 실제 프론트 주소로 바꾸거나 비브라우저 Postman에서는 Origin 헤더를 제외하세요. 보유 의상 재구매는 서버에서 거절하고 소비형은 수량을 누적합니다. 테스트 계정의 개인 로컬 Access JWT만 사용하고 공유하지 마세요. 기본 DB에 스키마를 자동 적용하지 않았습니다. 실제 DB 초기화·공통 재화 통합·3D 외형 계약은 별도 확인합니다.\n\n2026-10-22: 상점 저장 처리를 JPA 엔티티·JPQL로 전환했습니다. 기존 6개 요청·응답·중복 구매 방지·롤백 계약은 그대로이며 예제 수정 없이 사용할 수 있습니다.' + appearanceGuide},

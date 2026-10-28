@@ -41,6 +41,7 @@ HttpSecurity를 요구하지 않으며, 실제 Servlet 서버에서는 프로필
 
 | 메서드/경로 | 접근 정책 | 실제 검증 또는 제한 |
 | --- | --- | --- |
+| GET `/api/v1/minigames/bungeoppang/rankings` | **Access JWT + 활성 회원/로그인 세션** | v4/v5 개인 최고 전체 랭킹·본인 순위. [계약](bungeoppang-rankings-api.md). 기존 인증 로직 유지 |
 | GET `/api/v1/auth/{provider}/authorize` | 공개 | ssafy/naver, 신뢰된 callback 설정, 서버 state 발급 |
 | GET `/api/v1/auth/{provider}/callback` | 별도 인증 | OAuth 세션·provider·state, 공급자 조회, 회원 상태 |
 | POST `/api/v1/auth/exchange` | 별도 인증 | exchangeCode + 같은 OAuth 세션, 일회 소비/세션 ID 회전, 기존 Origin 검증 |

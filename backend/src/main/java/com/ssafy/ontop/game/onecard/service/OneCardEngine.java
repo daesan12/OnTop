@@ -90,6 +90,12 @@ public final class OneCardEngine implements GameEngine {
         throw new IllegalStateException("원카드 초기 배분에 실패했습니다. 경기 생성을 다시 시도해주세요.");
     }
 
+    /** 장난 판정도 카드 입력·턴 만료와 같은 잠금에서 공개 상태만 검사한다. */
+    public synchronized <T> T withPrankState(String gameId, java.util.function.BiFunction<Snapshot, Long, T> operation) {
+        OneCardMatch match = games.get(gameId);
+        return operation.apply(match == null ? null : match.snapshot(), clock.millis());
+    }
+
     @Override
     public GameActionResult apply(GameActionCommand command) {
         GameActionResult result = null;

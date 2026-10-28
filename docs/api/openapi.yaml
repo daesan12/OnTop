@@ -7,6 +7,8 @@ servers:
 - url: /
   description: 현재 문서 서버 (local/dev)
 tags:
+- name: Bungeoppang Ranking
+  description: 붕어빵 버전별 개인 최고 기록
 - name: WALLET
   description: 인증된 본인의 지갑 조회
 - name: Ranking
@@ -2819,7 +2821,8 @@ paths:
       tags:
       - Table
       summary: 채널 테이블 목록 조회
-      description: 실제 TableHub의 현재 상태와 테이블 맵 앵커를 조회하며 입장/예약하지 않습니다. channelId 누락/불일치 시 기존 400/404 정책을 따릅니다. Access JWT와 활성 회원 검증이 필요합니다.
+      description: 실제 TableHub의 현재 상태와 테이블 맵 앵커를 조회하며 입장/예약하지 않습니다. channelId 누락/불일치
+        시 기존 400/404 정책을 따릅니다. Access JWT와 활성 회원 검증이 필요합니다.
       operationId: listTables
       parameters:
       - name: channelId
@@ -3253,6 +3256,114 @@ paths:
                 type: string
           content:
             application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+      security:
+      - AccessJwt: []
+  /api/v1/minigames/bungeoppang/rankings:
+    get:
+      tags:
+      - Bungeoppang Ranking
+      summary: 붕어빵 버전별 개인 최고 전체 랭킹
+      description: "v4/v5의 확정 완료·정산 기록을 분리합니다. 완성 내림차순·실수 오름차순, 동점1,1,3. 커서 없는 조회는\
+        \ 최신 DB를 읽고 후속 페이지는 최대2분의 동일 스냅샷을 읽습니다."
+      operationId: rankings_1
+      parameters:
+      - name: period
+        in: query
+        required: false
+        schema:
+          type: string
+          default: ALL_TIME
+          enum:
+          - ALL_TIME
+      - name: rulesVersion
+        in: query
+        required: false
+        schema:
+          type: string
+          default: v5
+          enum:
+          - v4
+          - v5
+      - name: limit
+        in: query
+        required: false
+        schema:
+          maximum: 20
+          minimum: 1
+          type: integer
+          default: 20
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          description: 동일 스냅샷 페이지 (no-store)
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/BungeoppangRankingPage"
+        "400":
+          description: INVALID_LIMIT / INVALID_CURSOR / RANKING_INVALID_PERIOD / RANKING_INVALID_RULES_VERSION
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "401":
+          description: 회원 인증 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "403":
+          description: Origin·권한 거부
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "409":
+          description: RANKING_SNAPSHOT_EXPIRED — 처음부터 재조회
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "503":
+          description: RANKING_UNAVAILABLE / RANKING_TOO_LARGE
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
               schema:
                 $ref: "#/components/schemas/AuthErrorResponse"
       security:
@@ -4760,6 +4871,52 @@ components:
         endedAt:
           type: string
           format: date-time
+          nullable: true
+    BungeoppangRankingItem:
+      type: object
+      properties:
+        rank:
+          type: integer
+          format: int64
+        userId:
+          type: string
+        nickname:
+          type: string
+        made:
+          type: integer
+          format: int64
+        failed:
+          type: integer
+          format: int64
+        completedAt:
+          type: string
+          format: date-time
+      nullable: true
+    BungeoppangRankingPage:
+      type: object
+      properties:
+        rulesVersion:
+          type: string
+        period:
+          type: string
+        basis:
+          type: string
+        snapshotId:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
+        totalParticipants:
+          type: integer
+          format: int64
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/BungeoppangRankingItem"
+        me:
+          $ref: "#/components/schemas/BungeoppangRankingItem"
+        nextCursor:
+          type: string
           nullable: true
     ChannelListResponse:
       required:

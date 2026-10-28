@@ -173,3 +173,9 @@ MySQL·HTTP·Raw WebSocket·heartbeat는 실제 실행이다. 물리 시간은 F
 결과는 `backend/build/reports/tests/mysqlTest/index.html` 및 `backend/build/test-results/mysqlTest/`에서 확인한다. XML 표준 출력의 APPEARANCE_FLOW와 PUBLIC_WORLD_STATE는 검사에 사용한 격리 테스트 계정·공개 외형 상태이며 인증 토큰/접속권은 출력하지 않는다.
 
 FarkleFlowTests·OneCardFlowTests·BridgeFlowTests는 실제 게임 엔진·SecureRandom·소켓으로 각 게임의 상태/복구/시간/종료 흐름을 검사한다. 원카드는 본인 손패 격리, 다리는 비밀 눈·비공개/공개 판정을 포함한다. 인증/시작은 테스트 대역·시각은 제어시계, 원카드 기권 손패 정책은 테스트 조건으로 명시하고 제품 확정과 구분한다.
+
+## 원카드 방어·붕어빵 랭킹 FE 계약 검수
+
+backend에서 `node tools/check-game-additions-frontend.mjs` 실행. Java21·frontend 기존 node_modules와 별도 로컬 MySQL이 필요하다. TEST_BUNGEO_RANKING_DB_URL은 loopback의 ontop_ranking_test_bungeo_* 전용 스키마만 허용한다. TEST_GAME_DB_USERNAME/PASSWORD는 개인 환경에서 설정하며 출력/공유하지 않는다. 기존 Flyway만 적용하고 신규 SQL/공용 DB 변경은 없다. 픽스처 회원만 생성하고 종료 시 해당 회원만 비활성화하며 기존 데이터를 초기화하지 않는다.
+
+도구는 매번 새 runId로 실제 OneCardPrankFlowTests·BungeoppangRankingMySqlTests를 실행한 뒤 그 실행의 RawWS/HTTP 프레임만 무수정 FE 처리기에 넣는다. 이전 성공 응답을 재사용하지 않는다. 방어/뒤집기/복구·보호 카드, 동점1,1,3·고정 페이지·새 첫조회 갱신·v4/v5 보상0 실제 완료를 확인한다. 양수 랭킹 기록은 명시적 DB fixture, 시간은 제어시계, 원카드 회원 조회/예약/정산은 대역이다. 실제 화면/배포 검수와 구분한다. 결과: build/reports/onecard-prank-wire.json, bungeoppang-ranking-wire.json, reports/tests/test 및 mysqlTest.

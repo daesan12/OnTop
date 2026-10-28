@@ -1,0 +1,15 @@
+"name": "33 붕어빵 v5 개인 최고 전체 랭킹"
+"$kind": "http-request"
+"method": "GET"
+"url": "{{baseUrl}}/api/v1/minigames/bungeoppang/rankings?period=ALL_TIME&rulesVersion=v5&limit=20"
+"description": "붕어빵 v4/v5 개인 최고 전체 랭킹. 기존 회원 JWT/db 필요. made DESC·failed ASC, 동점1,1,3·완료시각 우선. 완료·정산 확정만 포함(보상0도 포함). 첫 페이지는 최신 DB, 후속은 동일2분 스냅샷. cursor는 같은 사용자/버전/limit로만 사용. 409 RANKING_SNAPSHOT_EXPIRED면 처음부터 재조회. 신규 SQL/팀원 완료코드 변경 없음. 개발 서버 배포·실계정 검수 별도. docs/bungeoppang-rankings-api.md"
+"auth":
+  "type": "noauth"
+"scripts":
+  -
+    "type": "afterResponse"
+    "code": "pm.test('HTTP 200', () => pm.response.to.have.status(200));\npm.test('개인 최고 랭킹 계약', () => {\n    const b = pm.response.json();\n    pm.expect(b.basis).to.eql('PERSONAL_BEST');\n    pm.expect(b.period).to.eql('ALL_TIME');\n    pm.expect(b.items).to.be.an('array');\n    pm.expect(b.items.length).to.be.at.most(20);\n    pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store');\n});\nif (pm.response.code === 200) {\n    const b = pm.response.json();\n    pm.environment.set('bungeoRankingCursor', b.nextCursor || '');\n    pm.environment.set('bungeoRankingSnapshotId', b.snapshotId);\n}"
+"headers":
+  -
+    "key": "Authorization"
+    "value": "Bearer {{accessToken}}"
