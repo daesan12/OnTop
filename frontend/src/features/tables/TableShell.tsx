@@ -46,7 +46,7 @@ export function TableShell({ anchor, onInspect = interactWithTable }: {
       scale={[tableScale(anchor), 1, tableScale(anchor)]}
       name={anchor.id}
       position={[...anchor.position]}
-      userData={{ assetId: anchor.assetId }}
+      userData={{ assetId: anchor.assetId, chairCount: seatCount }}
       onClick={(event) => {
         event.stopPropagation()
         onInspect(anchor.id)

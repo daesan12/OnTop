@@ -342,7 +342,7 @@ export class ParkRuntime implements ParkRuntimePort {
       || (method === 'PATCH' && path === '/api/v1/users/me/equipment')
     const profileRequest = ((method === 'PATCH' || method === 'DELETE') && path === '/api/v1/users/me')
       || (method === 'GET' && /^\/api\/v1\/users\/nickname-availability\?nickname=[^&#]+$/.test(path))
-    const minigameRequest = /^\/api\/v1\/minigames\/sessions(?:\?rulesVersion=v4|\/\d+(?:\?(?:(?:includeSource|includeProgress)=true|deliveryKey=[A-Za-z0-9_-]{1,64})(?:&(?:(?:includeSource|includeProgress)=true|deliveryKey=[A-Za-z0-9_-]{1,64}))*|\/(?:complete|abandon|deliveries))?)?$/.test(path)
+    const minigameRequest = /^\/api\/v1\/minigames\/sessions(?:\?rulesVersion=v[45]|\/\d+(?:\?(?:(?:includeSource|includeProgress)=true|deliveryKey=[A-Za-z0-9_-]{1,64})(?:&(?:(?:includeSource|includeProgress)=true|deliveryKey=[A-Za-z0-9_-]{1,64}))*|\/(?:complete|abandon|deliveries))?)?$/.test(path)
     const rankingRequest = BUNGEOPPANG_RANKINGS_ENABLED && method === 'GET'
       && /^\/api\/v1\/minigames\/bungeoppang\/rankings\?period=ALL_TIME&rulesVersion=v[45]&limit=20(?:&cursor=[A-Za-z0-9%+_.~-]{1,1536})?$/.test(path)
     if (!this.active || (!notesRead && !notesWrite && !shopRequest && !profileRequest

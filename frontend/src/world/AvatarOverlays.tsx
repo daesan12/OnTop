@@ -6,6 +6,10 @@ import { avatars, useSession } from '../network/worldClient'
 import { useGathering } from '../features/tableLobby/gathering'
 import { OMOK_FOCUS_LAYER } from './omokCamera'
 import { OneCardOverhead } from '../game/onecard/OneCardOverhead'
+import { useGame } from '../game/store'
+import { useShop } from '../features/shop/controller'
+import { AVATAR_ACTIVITY_LABELS } from '../network/avatarActivity'
+import { ownGameActivity } from './avatarActivity'
 
 export interface AvatarAnchors {
   root: Object3D
@@ -29,7 +33,12 @@ const AvatarOverlay = memo(function AvatarOverlay({
 }) {
   const bubble = useSession((state) => state.bubbles[id])
   const own = useSession((state) => state.sessionId === id)
-  const cooking = useSession(state => state.activities[id] === 'BUNGEOPPANG')
+  const activity = useSession(state => state.activities[id])
+  const local = useSession(state => state.sessionId === id && state.status === 'connected' && state.mapCompatible)
+  const playing = useGame(state => local && ownGameActivity(id, state))
+  const shopping = useShop(state => local && state.open && state.owner === id)
+  const activityLabel = activity ? AVATAR_ACTIVITY_LABELS[activity]
+    : playing ? AVATAR_ACTIVITY_LABELS.GAME : shopping ? AVATAR_ACTIVITY_LABELS.SHOP : null
   const nickname = useSession(state => state.profiles[id]?.nickname
     ?? (state.sessionId === id ? '나' : '산책자 ' + id.slice(-6)))
   const gathering = useGathering(), participant = gathering?.rows.find(row => row.playerId === id)
@@ -68,7 +77,7 @@ const AvatarOverlay = memo(function AvatarOverlay({
       data-player-id={id}
     >
       {speaking && <div className="avatar-speech">{bubble.text}</div>}
-      {cooking && <div className="avatar-speech avatar-activity">붕어빵 뒤집는 중</div>}
+      {activityLabel && <div className="avatar-speech avatar-activity">{activityLabel}</div>}
       <div className="avatar-nickname">{nickname}</div>
       <OneCardOverhead userId={id} />
       {participant && <div className={`gathering-role${participant.ready ? ' is-ready' : ''}`} style={{ display: 'block' }}>{participant.label}</div>}

@@ -1,4 +1,5 @@
 import { validPublicEquipment, type PublicEquipment } from './equipment'
+import { isAvatarActivity, type AvatarActivity } from './avatarActivity'
 
 /** Existing Spring Raw WebSocket contracts; UI models live in worldClient. */
 export interface Envelope {
@@ -43,7 +44,7 @@ export interface WorldState {
     characterGender?: 'MALE' | 'FEMALE' | null
     equipment?: PublicEquipment[] | null
     tableSeat?: PublicTableSeat | null
-    activity?: 'BUNGEOPPANG' | null
+    activity?: AvatarActivity | null
   }[]
 }
 export interface TableSummary {
@@ -173,7 +174,7 @@ export function worldState(value: Record<string, unknown>): WorldState {
         && (a.characterGender == null || a.characterGender === 'MALE' || a.characterGender === 'FEMALE')
         && (a.equipment == null || validPublicEquipment(a.equipment))
         && tableSeat(a.tableSeat)
-        && (a.activity == null || a.activity === 'BUNGEOPPANG'),
+        && (a.activity == null || isAvatarActivity(a.activity)),
     )
   )
     throw new Error('월드 상태 형식이 올바르지 않습니다.')
