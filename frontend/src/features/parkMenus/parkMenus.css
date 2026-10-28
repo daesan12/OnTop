@@ -11,10 +11,7 @@
 .park-account__summary .park-chevron { transition: transform 150ms; }
 .park-location[aria-expanded='true'] .park-chevron,
 .park-account__trigger[aria-expanded='true'] .park-chevron { transform: rotate(180deg); }
-/* The retry stays for wallet errors but shows as an icon only, as in the design's profile bar. */
 .park-account .park-wallet { gap: 4px; margin-left: 0; }
-.park-account .park-wallet__refresh { font-size: 0; }
-.park-account .park-wallet__refresh > span { font-size: 16px; opacity: 0.7; }
 /* An open dropdown stays above the neighbour/follow buttons beside the HUD corners. */
 .park-page .park-account:has(> .park-menu-dropdown),
 .park-channel-menu .park-menu-dropdown { z-index: 30; }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { approvedChairCount, manualStartAllowed, readyWouldAutoStart } from '../../src/features/tableLobby/tabletModel'
+import { approvedChairCount, manualStartAllowed, presentedChairCount, readyWouldAutoStart } from '../../src/features/tableLobby/tabletModel'
 import { screenTransform, TABLET } from '../../src/features/tableLobby/tabletProjection'
-import type { TableState } from '../../src/network/protocol'
+import type { TableState, TableSummary } from '../../src/network/protocol'
 
 const table: TableState = { tableId: 'a', version: 2, capacity: 4, minimumPlayers: 2, gameCode: 'ONE_CARD', targetScore: null,
   betAmountPerPlayer: 20, selectorUserId: 'a', allReady: true,
@@ -26,6 +26,22 @@ describe('tablet lobby authority', () => {
     expect(approvedChairCount({ ...table, gameCode: null }, null)).toBe(2)
     expect(approvedChairCount(table, 3)).toBe(3)
     expect(approvedChairCount({ ...table, seats: table.seats.map(s => s.seatNumber === 4 ? { ...s, userId: 'c' } : s) }, 2)).toBe(4)
+  })
+  it('shows approved three/four-player chairs to a passerby without subscribing to the table', () => {
+    const summary: TableSummary = { tableId: 'a', capacity: 3, occupiedSeats: 1, availableSeats: 2,
+      joinable: true, gameCode: 'ONE_CARD', betAmountPerPlayer: 20, status: 'WAITING', startMode: 'MANUAL', selectedPlayers: 3 }
+    expect(presentedChairCount(undefined, undefined, null)).toBe(2)
+    expect(presentedChairCount(undefined, summary, null)).toBe(3)
+    expect(presentedChairCount(undefined, { ...summary, capacity: 4, selectedPlayers: 4 }, null)).toBe(4)
+    expect(presentedChairCount(undefined, { ...summary, capacity: 2, selectedPlayers: 2 }, null)).toBe(2)
+    expect(presentedChairCount(undefined, { ...summary, capacity: 4, gameCode: null, selectedPlayers: null, startMode: 'AUTO' }, null)).toBe(2)
+  })
+  it('uses detailed seat approval over an older summary and preserves a fourth-seat occupant', () => {
+    const summary: TableSummary = { tableId: 'a', capacity: 4, occupiedSeats: 1, availableSeats: 3,
+      joinable: true, gameCode: 'ONE_CARD', betAmountPerPlayer: 20, status: 'WAITING', startMode: 'MANUAL', selectedPlayers: 4 }
+    const approved = { ...table, capacity: 3, startMode: 'MANUAL' as const, selectedPlayers: 3 }
+    expect(presentedChairCount(approved, summary, null)).toBe(3)
+    expect(presentedChairCount({ ...approved, seats: table.seats.map(s => s.seatNumber === 4 ? { ...s, userId: 'c' } : s) }, summary, 2)).toBe(4)
   })
   it('projects screen points without mixing device pixels with CSS pixels', () => {
     const matrix = screenTransform([{ x: 10, y: 20 }, { x: 10 + TABLET.pixelsX, y: 20 },

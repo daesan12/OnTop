@@ -1,5 +1,72 @@
 import { expect, test } from '@playwright/test'
 import { fixture, screenshot } from './contractFixture'
+import { shopFixture } from './shopFixture'
+
+async function loaded(page: import('@playwright/test').Page) {
+  await page.goto('/park'); await expect(page).toHaveTitle('OnTop')
+  await expect(page.getByLabel('공원 기본 화면')).toBeVisible()
+  await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90000 })
+  await expect.poll(() => page.evaluate(async () => (await import('/src/network/worldClient.ts' as string)).useSession.getState().status)).toBe('connected')
+}
+
+test('public game and shop activity use persistent head bubbles without joining or watching', async ({ page }) => {
+  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message))
+  const server = await fixture(page, { manualMovement: true, position: { x: 0, y: .8, z: 34, yaw: 0 } })
+  await loaded(page); server.remotePose({ x: 2, y: .8, z: 32, yaw: 0 })
+  const other = page.locator('.avatar-overhead[data-player-id="102"]')
+  server.activity('102', 'GAME')
+  await expect(other.locator('.avatar-activity')).toHaveText('게임 중')
+  await expect(other.locator('.avatar-activity')).toBeVisible()
+  await screenshot(page, 'avatar-remote-game-activity')
+  server.chatFrom('102', '곧 돌아올게요')
+  server.activity('102', 'SHOP')
+  await expect(other.locator('.avatar-activity')).toHaveText('상점 이용중')
+  await expect(other.locator('.avatar-activity')).toHaveCount(1)
+  await expect(other.getByText('곧 돌아올게요', { exact: true })).toBeVisible()
+  await expect(page.locator('.avatar-overhead-own .avatar-activity')).toHaveCount(0)
+  await screenshot(page, 'avatar-remote-shop-activity')
+  server.activity('102', null)
+  await expect(other.locator('.avatar-activity')).toHaveCount(0)
+  await expect(other.getByText('곧 돌아올게요', { exact: true })).toBeVisible()
+  expect(server.sent.some(message => ['TABLE_JOIN', 'TABLE_WATCH', 'GAME_WATCH'].includes(message.type))).toBe(false)
+  expect(errors).toEqual([]); await expect(page.locator('vite-error-overlay')).toHaveCount(0)
+})
+
+test('the local board-game label waits for approved play and clears at settlement', async ({ page }) => {
+  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message))
+  const server = await fixture(page, { omok: true, manualMovement: true })
+  await loaded(page)
+  const activity = page.locator('.avatar-overhead-own .avatar-activity')
+  await expect(activity).toHaveCount(0)
+  await page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).inspectTable())
+  await page.getByRole('button', { name: '앉기', exact: true }).click()
+  await page.getByLabel('1인 참가비', { exact: true }).fill('1')
+  await page.getByRole('button', { name: '오목 선택', exact: true }).click()
+  await expect(activity).toHaveCount(0)
+  await page.getByRole('button', { name: '준비', exact: true }).click(); server.confirmStart()
+  await expect(page.getByRole('region', { name: '오목 경기', exact: true })).toBeVisible()
+  // The own model is hidden by the seated camera, but its label state must still be correct.
+  await expect(activity).toHaveText('게임 중')
+  server.finishGame(); await expect(activity).toHaveCount(0)
+  expect(errors).toEqual([]); await expect(page.locator('vite-error-overlay')).toHaveCount(0)
+})
+
+test('the future shop label follows real shop open/close without enabling a new launcher', async ({ page }) => {
+  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message))
+  const server = await fixture(page, { manualMovement: true })
+  await shopFixture(page, equipment => server.equipment('101', equipment))
+  await loaded(page)
+  const activity = page.locator('.avatar-overhead-own .avatar-activity')
+  await expect(activity).toHaveCount(0)
+  // The storefront launcher is deliberately deferred. Exercise its existing controller.
+  await page.evaluate(async () => (await import('/src/features/shop/controller.ts' as string)).openShop())
+  await expect(page.getByRole('dialog', { name: '온탑 상점과 옷장' })).toBeVisible()
+  await expect(activity).toHaveText('상점 이용중')
+  await expect(page.locator('.avatar-overhead[data-player-id="102"] .avatar-activity')).toHaveCount(0)
+  await page.keyboard.press('Escape'); await expect(activity).toHaveCount(0)
+  await expect(page.getByRole('dialog', { name: '온탑 상점과 옷장' })).toHaveCount(0)
+  expect(errors).toEqual([]); await expect(page.locator('vite-error-overlay')).toHaveCount(0)
+})
 
 test('a nearby player shows a persistent bungeoppang activity bubble and removes it on server-approved exit', async ({ page }) => {
   const errors: string[] = []

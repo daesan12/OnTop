@@ -15,6 +15,7 @@ import {
   type PublicTableSeat,
 } from './protocol'
 import type { TableBinding } from './tableBindings'
+import type { AvatarActivity } from './avatarActivity'
 import { EXPECTED_MAP_VERSION } from '../config/mapVersion'
 import { resetGame } from '../game/store'
 import { resetBenchState, useBenchState } from '../features/interactions/benchState'
@@ -108,7 +109,7 @@ export interface Session {
   fitnessId: string
   profiles: Record<string, DisplayProfile>
   equipment: Record<string, readonly PublicEquipment[]>
-  activities: Record<string, 'BUNGEOPPANG'>
+  activities: Record<string, AvatarActivity>
   account: { nickname: string; balance: number | null } | null
 }
 const initial = (): Session => ({
@@ -458,7 +459,7 @@ export function receive(message: Envelope) {
       let equipment = state.equipment
       const nextActivities: Session['activities'] = {}
       for (const avatar of next.avatars)
-        if (mapCompatible && avatar.activity === 'BUNGEOPPANG') nextActivities[avatar.userId] = avatar.activity
+        if (mapCompatible && avatar.activity) nextActivities[avatar.userId] = avatar.activity
       const activities = Object.keys(state.activities).length === Object.keys(nextActivities).length
         && Object.keys(nextActivities).every(id => state.activities[id] === nextActivities[id])
         ? state.activities : nextActivities
