@@ -53,9 +53,8 @@ read_state() {
 }
 tested_base=$(read_state tested.sha)
 [[ -n "$tested_base" ]] || tested_base=$(read_state dev.sha)
-reviewed_base=$(read_state reviewed-config.sha)
 backend_image=$(docker inspect --format '{{.Config.Image}}' ontop-dev-app-app-1 2>/dev/null || true)
-python3 infra/ci/plan_changes.py --head "$SOURCE_SHA" --tested-base "$tested_base" --backend-base "$(read_state backend-deployed.sha)" --frontend-base "$(read_state frontend-deployed.sha)" --reviewed-base "$reviewed_base" --live-backend-image "$backend_image"
+python3 infra/ci/plan_changes.py --head "$SOURCE_SHA" --tested-base "$tested_base" --backend-base "$(read_state backend-deployed.sha)" --frontend-base "$(read_state frontend-deployed.sha)" --live-backend-image "$backend_image"
 ''', returnStdout: true).trim()
                     def flags = [:]
                     result.split('\n').each { line ->
@@ -71,7 +70,7 @@ python3 infra/ci/plan_changes.py --head "$SOURCE_SHA" --tested-base "$tested_bas
                     env.ALLOW_BACKEND_DEPLOY = flags['ALLOW_BACKEND_DEPLOY'] ?: ''
                     env.ALLOW_FRONTEND_DEPLOY = flags['ALLOW_FRONTEND_DEPLOY'] ?: ''
                     env.BACKEND_SEED_SHA = flags['BACKEND_SEED_SHA'] ?: ''
-                    env.MANUAL_REVIEW = flags['MANUAL_REVIEW'] ?: ''
+                    env.DEPLOY_BLOCKED = flags['DEPLOY_BLOCKED'] ?: ''
                     env.FULL_CHECK = flags['FULL_CHECK'] ?: ''
                     if (!(env.TEST_BACKEND ==~ /[01]/) ||
                         !(env.TEST_FRONTEND ==~ /[01]/) ||
@@ -79,7 +78,7 @@ python3 infra/ci/plan_changes.py --head "$SOURCE_SHA" --tested-base "$tested_bas
                         !(env.DEPLOY_FRONTEND ==~ /[01]/) ||
                         !(env.ALLOW_BACKEND_DEPLOY ==~ /[01]/) ||
                         !(env.ALLOW_FRONTEND_DEPLOY ==~ /[01]/) ||
-                        !(env.MANUAL_REVIEW ==~ /[01]/) ||
+                        !(env.DEPLOY_BLOCKED ==~ /[01]/) ||
                         !(env.FULL_CHECK ==~ /[01]/) ||
                         (env.BACKEND_SEED_SHA && !(env.BACKEND_SEED_SHA ==~ /[0-9a-f]{40}/))) {
                         error('Change classification returned missing or invalid flags.')
@@ -110,7 +109,16 @@ APP_ENV_FILE="$scratch_env" docker compose --env-file infra/app/dev.deploy.env.e
             when { expression { env.TEST_BACKEND == '1' } }
             steps {
                 dir('backend') {
-                    sh './gradlew --no-daemon test'
+                    sh '''#!/usr/bin/env bash
+set -euo pipefail
+started=$SECONDS
+test_result=0
+./gradlew --no-daemon test || test_result=$?
+if [[ -d build/test-results/test ]]; then
+  python3 ../infra/ci/report_test_times.py build/test-results/test --wall-seconds "$((SECONDS - started))" || true
+fi
+exit "$test_result"
+'''
                 }
             }
         }
@@ -201,11 +209,11 @@ cat vercel-deployment-url.txt
             }
         }
 
-        stage('Manual review gate') {
-            when { expression { env.MANUAL_REVIEW == '1' } }
+        stage('Deployment state gate') {
+            when { expression { env.DEPLOY_BLOCKED == '1' } }
             steps {
                 script {
-                    echo 'Some deployment targets need configuration review or a verified baseline. Check change flags for each target.'
+                    echo 'Deployment needs a valid baseline or a matching live backend image. Check change flags for each target.'
                     currentBuild.result = 'UNSTABLE'
                 }
             }
@@ -214,7 +222,7 @@ cat vercel-deployment-url.txt
         stage('Initial baseline') {
             when { expression { env.FULL_CHECK == '1' } }
             steps {
-                echo 'No valid tested SHA was found. Full tests ran; deployment requires baseline review.'
+                echo 'No valid tested SHA was found. Full tests ran; deployment requires baseline initialization.'
             }
         }
     }

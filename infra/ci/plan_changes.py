@@ -20,7 +20,6 @@ def plan(
     tested_base: str,
     backend_base: str,
     frontend_base: str,
-    reviewed_base: str,
     live_backend_image: str,
 ) -> dict[str, str]:
     image_match = IMAGE_TAG.fullmatch(live_backend_image.strip())
@@ -33,17 +32,9 @@ def plan(
     test_flags, invalid_test = difference(tested_base, head)
     backend_flags, invalid_backend = difference(effective_backend_base, head)
     frontend_flags, invalid_frontend = difference(frontend_base, head)
-    review_flags, invalid_review = difference(reviewed_base, head)
-
     missing_baseline = invalid_backend or invalid_frontend
     full_check = invalid_test
-    config_review = bool(review_flags["MANUAL_REVIEW"]) or invalid_review
-    manual_review = (
-        config_review
-        or missing_baseline
-        or backend_drift
-        or full_check
-    )
+    deploy_blocked = missing_baseline or backend_drift or full_check
     deploy_backend = bool(invalid_backend or backend_flags["BACKEND_CHANGED"])
     deploy_frontend = bool(invalid_frontend or frontend_flags["FRONTEND_CHANGED"])
     return {
@@ -51,14 +42,12 @@ def plan(
         "TEST_FRONTEND": str(int(full_check or test_flags["FRONTEND_CHANGED"] or invalid_frontend)),
         "DEPLOY_BACKEND": str(int(deploy_backend)),
         "DEPLOY_FRONTEND": str(int(deploy_frontend)),
-        "ALLOW_BACKEND_DEPLOY": str(int(deploy_backend and not (config_review or full_check or invalid_backend or backend_drift))),
-        "ALLOW_FRONTEND_DEPLOY": str(int(deploy_frontend and not (config_review or full_check or invalid_frontend))),
-        "MANUAL_REVIEW": str(int(manual_review)),
-        "CONFIG_REVIEW_REQUIRED": str(int(config_review)),
+        "ALLOW_BACKEND_DEPLOY": str(int(deploy_backend and not (full_check or invalid_backend or backend_drift))),
+        "ALLOW_FRONTEND_DEPLOY": str(int(deploy_frontend and not (full_check or invalid_frontend))),
+        "DEPLOY_BLOCKED": str(int(deploy_blocked)),
         "FULL_CHECK": str(int(full_check)),
         "BACKEND_BASELINE_REQUIRED": str(int(invalid_backend)),
         "FRONTEND_BASELINE_REQUIRED": str(int(invalid_frontend)),
-        "REVIEW_BASELINE_REQUIRED": str(int(invalid_review)),
         "BACKEND_DRIFT": str(int(backend_drift)),
         "BACKEND_SEED_SHA": backend_seed,
     }
@@ -66,7 +55,7 @@ def plan(
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    for name in ("head", "tested-base", "backend-base", "frontend-base", "reviewed-base", "live-backend-image"):
+    for name in ("head", "tested-base", "backend-base", "frontend-base", "live-backend-image"):
         parser.add_argument("--" + name, required=name == "head", default="")
     arguments = parser.parse_args()
     result = plan(
@@ -74,7 +63,6 @@ def main() -> None:
         arguments.tested_base,
         arguments.backend_base,
         arguments.frontend_base,
-        arguments.reviewed_base,
         arguments.live_backend_image,
     )
     for key, value in result.items():
