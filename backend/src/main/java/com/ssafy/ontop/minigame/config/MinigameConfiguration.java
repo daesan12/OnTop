@@ -20,7 +20,9 @@ import org.springframework.transaction.PlatformTransactionManager;
 public class MinigameConfiguration {
     @Bean
     MinigameService minigameService(MinigameRepository repository, PlatformTransactionManager manager,
-            @Value("${ontop.minigames.starts-per-minute:10}") int startsPerMinute) {
-        return new MinigameService(repository, manager, Clock.systemUTC(), startsPerMinute);
+            @Value("${ontop.minigames.starts-per-minute:10}") int startsPerMinute,
+            // 통합 검증(V5-5) 전까지 기본 비활성. 켜지 않으면 v5 요청은 기존처럼 RULES_VERSION_MISMATCH다.
+            @Value("${ontop.minigames.bungeoppang-v5-enabled:false}") boolean v5Enabled) {
+        return new MinigameService(repository, manager, Clock.systemUTC(), startsPerMinute, v5Enabled);
     }
 }

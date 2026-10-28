@@ -76,7 +76,7 @@ class MinigameMySqlTests {
         tokens.clear();
         jdbc.execute("DROP TRIGGER IF EXISTS minigame_test_fail_ledger");
         jdbc.execute("DROP TRIGGER IF EXISTS minigame_test_fail_delivery_receipt");
-        for (String table : List.of("bungeoppang_v4_receipts", "bungeoppang_v4_progress",
+        for (String table : List.of("bungeoppang_v5_orders", "bungeoppang_v4_receipts", "bungeoppang_v4_progress",
                 "bungeoppang_v4_orders", "bungeoppang_v4_rounds",
                 "bungeoppang_records", "bungeoppang_profiles", "minigame_start_requests",
                 "wallet_transactions", "minigame_sessions", "shop_purchases", "user_items", "items",
