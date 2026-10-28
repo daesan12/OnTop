@@ -1,6 +1,7 @@
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -13,12 +14,24 @@ class RepoFixture:
         # The Jenkins workspace is writable; some local sandboxes restrict Git
         # repository creation in the operating system's default temp folder.
         self.temp = tempfile.TemporaryDirectory(dir=Path.cwd())
-        self.addCleanup(self.temp.cleanup)
+        self.addCleanup(self.cleanup_temp)
         self.repo = Path(self.temp.name)
         self.git("init", "-q")
         self.git("config", "user.name", "CI Test")
         self.git("config", "user.email", "ci-test@example.invalid")
         self.base = self.commit({"backend/App.java": "a", "frontend/App.tsx": "a", "Jenkinsfile": "a"})
+
+    def cleanup_temp(self):
+        # Windows can briefly retain Git's directory handle after the last
+        # subprocess exits. Jenkins runs on Linux, where the first try works.
+        for attempt in range(10):
+            try:
+                self.temp.cleanup()
+                return
+            except PermissionError:
+                if attempt == 9:
+                    raise
+                time.sleep(0.1)
 
     def git(self, *args):
         return subprocess.check_output(["git", *args], cwd=self.repo, text=True).strip()
@@ -32,13 +45,12 @@ class RepoFixture:
         self.git("commit", "-qm", "test change")
         return self.git("rev-parse", "HEAD")
 
-    def plan(self, head, tested=None, backend=None, frontend=None, reviewed=None, live=None):
+    def plan(self, head, tested=None, backend=None, frontend=None, live=None):
         arguments = [sys.executable, str(TOOLS / "plan_changes.py"), "--head", head]
         for name, value in {
             "tested-base": tested,
             "backend-base": backend,
             "frontend-base": frontend,
-            "reviewed-base": reviewed,
             "live-backend-image": live,
         }.items():
             arguments.extend(["--" + name, value or ""])
@@ -50,16 +62,16 @@ class ChangePlanTests(RepoFixture, unittest.TestCase):
         changed = self.commit({"backend/App.java": "b"})
         head = self.commit({"docs/notes.md": "documentation"})
         flags = self.plan(head, tested=changed, backend=self.base, frontend=self.base,
-                          reviewed=head, live=f"wooaw/ontop-backend:sha-{self.base}")
+                          live=f"wooaw/ontop-backend:sha-{self.base}")
         self.assertEqual((flags["TEST_BACKEND"], flags["DEPLOY_BACKEND"]), ("0", "1"))
         self.assertEqual((flags["TEST_FRONTEND"], flags["DEPLOY_FRONTEND"]), ("0", "0"))
-        self.assertEqual(flags["MANUAL_REVIEW"], "0")
+        self.assertEqual(flags["DEPLOY_BLOCKED"], "0")
 
     def test_frontend_retries_after_backend_was_deployed(self):
         changed = self.commit({"backend/App.java": "b", "frontend/App.tsx": "b"})
         head = self.commit({"docs/notes.md": "documentation"})
         flags = self.plan(head, tested=changed, backend=changed, frontend=self.base,
-                          reviewed=head, live=f"wooaw/ontop-backend:sha-{changed}")
+                          live=f"wooaw/ontop-backend:sha-{changed}")
         self.assertEqual((flags["DEPLOY_BACKEND"], flags["DEPLOY_FRONTEND"]), ("0", "1"))
         self.assertEqual((flags["TEST_BACKEND"], flags["TEST_FRONTEND"]), ("0", "0"))
 
@@ -67,54 +79,89 @@ class ChangePlanTests(RepoFixture, unittest.TestCase):
         self.commit({"frontend/App.tsx": "b"})
         head = self.commit({"docs/notes.md": "documentation"})
         flags = self.plan(head, tested=self.base, backend=self.base, frontend=self.base,
-                          reviewed=head, live=f"wooaw/ontop-backend:sha-{self.base}")
+                          live=f"wooaw/ontop-backend:sha-{self.base}")
         self.assertEqual((flags["TEST_FRONTEND"], flags["DEPLOY_FRONTEND"]), ("1", "1"))
 
-    def test_unreviewed_ci_change_remains_a_gate_after_tests_advance(self):
+    def test_ci_change_does_not_block_pending_backend_deploy(self):
         tested = self.commit({"Jenkinsfile": "new pipeline"})
         head = self.commit({"backend/App.java": "b"})
         flags = self.plan(head, tested=tested, backend=self.base, frontend=self.base,
-                          reviewed=self.base, live=f"wooaw/ontop-backend:sha-{self.base}")
-        self.assertEqual((flags["DEPLOY_BACKEND"], flags["MANUAL_REVIEW"]), ("1", "1"))
-        approved = self.plan(head, tested=tested, backend=self.base, frontend=self.base,
-                             reviewed=head, live=f"wooaw/ontop-backend:sha-{self.base}")
-        self.assertEqual(approved["MANUAL_REVIEW"], "0")
+                          live=f"wooaw/ontop-backend:sha-{self.base}")
+        self.assertEqual((flags["DEPLOY_BACKEND"], flags["ALLOW_BACKEND_DEPLOY"]), ("1", "1"))
+        self.assertEqual(flags["DEPLOY_BLOCKED"], "0")
 
     def test_missing_frontend_baseline_blocks_automatic_deploy(self):
         flags = self.plan(self.base, tested=self.base, backend="", frontend="",
-                          reviewed=self.base, live=f"wooaw/ontop-backend:sha-{self.base}")
+                          live=f"wooaw/ontop-backend:sha-{self.base}")
         self.assertEqual(flags["BACKEND_SEED_SHA"], self.base)
         self.assertEqual(flags["BACKEND_BASELINE_REQUIRED"], "0")
         self.assertEqual(flags["FRONTEND_BASELINE_REQUIRED"], "1")
-        self.assertEqual(flags["MANUAL_REVIEW"], "1")
+        self.assertEqual(flags["DEPLOY_BLOCKED"], "1")
         self.assertEqual(flags["ALLOW_FRONTEND_DEPLOY"], "0")
 
     def test_missing_frontend_baseline_does_not_block_backend(self):
         head = self.commit({"backend/App.java": "b", "frontend/App.tsx": "b"})
         flags = self.plan(head, tested=self.base, backend=self.base, frontend="",
-                          reviewed=head, live=f"wooaw/ontop-backend:sha-{self.base}")
+                          live=f"wooaw/ontop-backend:sha-{self.base}")
         self.assertEqual(flags["ALLOW_BACKEND_DEPLOY"], "1")
         self.assertEqual(flags["ALLOW_FRONTEND_DEPLOY"], "0")
-        self.assertEqual(flags["MANUAL_REVIEW"], "1")
+        self.assertEqual(flags["DEPLOY_BLOCKED"], "1")
 
-    def test_unreviewed_configuration_blocks_both_deployments(self):
+    def test_ci_change_does_not_block_both_deployments(self):
         head = self.commit({"Jenkinsfile": "b", "backend/App.java": "b", "frontend/App.tsx": "b"})
         flags = self.plan(head, tested=self.base, backend=self.base, frontend=self.base,
-                          reviewed="", live=f"wooaw/ontop-backend:sha-{self.base}")
-        self.assertEqual(flags["CONFIG_REVIEW_REQUIRED"], "1")
-        self.assertEqual((flags["ALLOW_BACKEND_DEPLOY"], flags["ALLOW_FRONTEND_DEPLOY"]), ("0", "0"))
+                          live=f"wooaw/ontop-backend:sha-{self.base}")
+        self.assertEqual((flags["ALLOW_BACKEND_DEPLOY"], flags["ALLOW_FRONTEND_DEPLOY"]), ("1", "1"))
+        self.assertEqual(flags["DEPLOY_BLOCKED"], "0")
+
+    def test_gitignore_does_not_retest_or_redeploy_frontend(self):
+        head = self.commit({".gitignore": "generated/", "backend/App.java": "b"})
+        flags = self.plan(head, tested=self.base, backend=self.base, frontend=self.base,
+                          live=f"wooaw/ontop-backend:sha-{self.base}")
+        self.assertEqual((flags["TEST_BACKEND"], flags["TEST_FRONTEND"]), ("1", "0"))
+        self.assertEqual((flags["ALLOW_BACKEND_DEPLOY"], flags["DEPLOY_FRONTEND"]), ("1", "0"))
+
+    def test_dev_config_only_does_not_pretend_to_deploy_server_config(self):
+        head = self.commit({"infra/app/dev.app.env.example": "WORLD_DYNAMIC_CHANNELS_ENABLED=false"})
+        flags = self.plan(head, tested=self.base, backend=self.base, frontend=self.base,
+                          live=f"wooaw/ontop-backend:sha-{self.base}")
+        self.assertEqual((flags["TEST_BACKEND"], flags["TEST_FRONTEND"]), ("0", "0"))
+        self.assertEqual((flags["DEPLOY_BACKEND"], flags["DEPLOY_FRONTEND"]), ("0", "0"))
+        self.assertEqual(flags["DEPLOY_BLOCKED"], "0")
+
+    def test_unknown_shared_file_checks_and_deploys_both_services(self):
+        head = self.commit({"shared.settings": "changed"})
+        flags = self.plan(head, tested=self.base, backend=self.base, frontend=self.base,
+                          live=f"wooaw/ontop-backend:sha-{self.base}")
+        self.assertEqual((flags["TEST_BACKEND"], flags["TEST_FRONTEND"]), ("1", "1"))
+        self.assertEqual((flags["ALLOW_BACKEND_DEPLOY"], flags["ALLOW_FRONTEND_DEPLOY"]), ("1", "1"))
+
+    def test_ci_only_runs_pipeline_checks_without_service_deploy(self):
+        head = self.commit({"Jenkinsfile": "new pipeline"})
+        flags = self.plan(head, tested=self.base, backend=self.base, frontend=self.base,
+                          live=f"wooaw/ontop-backend:sha-{self.base}")
+        self.assertEqual((flags["TEST_BACKEND"], flags["TEST_FRONTEND"]), ("0", "0"))
+        self.assertEqual((flags["DEPLOY_BACKEND"], flags["DEPLOY_FRONTEND"]), ("0", "0"))
+        self.assertEqual(flags["DEPLOY_BLOCKED"], "0")
+
+    def test_frontend_only_tests_and_deploys_frontend(self):
+        head = self.commit({"frontend/App.tsx": "b"})
+        flags = self.plan(head, tested=self.base, backend=self.base, frontend=self.base,
+                          live=f"wooaw/ontop-backend:sha-{self.base}")
+        self.assertEqual((flags["TEST_BACKEND"], flags["TEST_FRONTEND"]), ("0", "1"))
+        self.assertEqual((flags["ALLOW_BACKEND_DEPLOY"], flags["ALLOW_FRONTEND_DEPLOY"]), ("0", "1"))
 
     def test_running_backend_mismatch_blocks_automatic_deploy(self):
         live = self.commit({"backend/App.java": "b"})
         flags = self.plan(live, tested=live, backend=self.base, frontend=self.base,
-                          reviewed=live, live=f"wooaw/ontop-backend:sha-{live}")
-        self.assertEqual((flags["BACKEND_DRIFT"], flags["MANUAL_REVIEW"]), ("1", "1"))
+                          live=f"wooaw/ontop-backend:sha-{live}")
+        self.assertEqual((flags["BACKEND_DRIFT"], flags["DEPLOY_BLOCKED"]), ("1", "1"))
 
     def test_missing_test_baseline_runs_both_test_suites_without_deploy(self):
         flags = self.plan(self.base, backend=self.base, frontend=self.base,
-                          reviewed=self.base, live=f"wooaw/ontop-backend:sha-{self.base}")
+                          live=f"wooaw/ontop-backend:sha-{self.base}")
         self.assertEqual((flags["TEST_BACKEND"], flags["TEST_FRONTEND"]), ("1", "1"))
-        self.assertEqual((flags["FULL_CHECK"], flags["MANUAL_REVIEW"]), ("1", "1"))
+        self.assertEqual((flags["FULL_CHECK"], flags["DEPLOY_BLOCKED"]), ("1", "1"))
 
 
 class StateWriterTests(RepoFixture, unittest.TestCase):

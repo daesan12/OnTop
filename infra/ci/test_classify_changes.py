@@ -24,21 +24,23 @@ class ChangeClassificationTests(unittest.TestCase):
         flags = classify(["analytics/queries/01_daily_active.sql", "analytics/scripts/run.py"])
         self.assertFalse(any(flags.values()))
 
-    def test_infra_requires_review(self):
+    def test_gitignore_only(self):
+        self.assertFalse(any(classify([".gitignore"]).values()))
+
+    def test_infra_is_classified_without_service_changes(self):
         flags = classify(["infra/prod-db/compose.yaml", "infra/app/compose.dev.yaml"])
         self.assertEqual(flags["PROD_CONFIG_CHANGED"], 1)
         self.assertEqual(flags["DEV_CONFIG_CHANGED"], 1)
-        self.assertEqual(flags["MANUAL_REVIEW"], 1)
+        self.assertEqual((flags["BACKEND_CHANGED"], flags["FRONTEND_CHANGED"]), (0, 0))
 
-    def test_ci_change_requires_review(self):
+    def test_ci_change_uses_pipeline_checks(self):
         flags = classify(["Jenkinsfile"])
         self.assertEqual(flags["CI_CONFIG_CHANGED"], 1)
-        self.assertEqual(flags["MANUAL_REVIEW"], 1)
+        self.assertEqual((flags["BACKEND_CHANGED"], flags["FRONTEND_CHANGED"]), (0, 0))
 
-    def test_unknown_shared_file_fails_closed(self):
+    def test_unknown_shared_file_tests_both_services(self):
         flags = classify(["settings.gradle"])
         self.assertEqual((flags["BACKEND_CHANGED"], flags["FRONTEND_CHANGED"]), (1, 1))
-        self.assertEqual(flags["MANUAL_REVIEW"], 1)
 
 
 if __name__ == "__main__":
