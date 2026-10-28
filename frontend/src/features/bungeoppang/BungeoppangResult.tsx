@@ -1,7 +1,9 @@
+import { useState } from 'react'
 import { PaperPopup } from '../tableLobby/PaperPopup'
 import { BUNGEOPPANG as R, bungeoppangV4Preview, bungeoppangV5Preview } from './config'
 import { escapeBungeoppang, isV4Grill, refreshBungeoppangWallet, setBungeoppangHelp, startBungeoppang, submitBungeoppang, useBungeoppang } from './store'
 import './bungeoppangResult.css'
+import { RankingDetails, RankingSummary, useBungeoppangRanking } from './BungeoppangRanking'
 
 function ActionIcon({ kind }: { kind: 'retry' | 'park' | 'book' }) {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -16,10 +18,17 @@ export function BungeoppangResult() {
   const submitting = useBungeoppang(s => s.submitting), submitError = useBungeoppang(s => s.submitError)
   const starting = useBungeoppang(s => s.starting), startError = useBungeoppang(s => s.startError)
   const walletError = useBungeoppang(s => s.walletError), status = useBungeoppang(s => s.status)
+  const gameId = useBungeoppang(s => s.gameId), [rankingOpen, setRankingOpen] = useState(false)
+  const rulesVersion = isV4Grill(grill) ? grill.rulesVersion : R.rulesVersion
+  const ranking = useBungeoppangRanking(rulesVersion, `${gameId}/${!!result}`, !!grill)
   if (!grill) return null
   const summary = result ?? grill, today = result?.todayEarned ?? status?.todayEarned
   const v4 = isV4Grill(grill), preview = v4 && (bungeoppangV4Preview || bungeoppangV5Preview)
-  return <PaperPopup title="붕어빵 도전 결과" label="붕어빵 결과" onClose={escapeBungeoppang} className="bungeoppang-paper-result">
+  if (rankingOpen) return <PaperPopup key="ranking" title="붕어빵 전체 랭킹" label="붕어빵 전체 랭킹" closeLabel="랭킹 닫기"
+    onClose={() => setRankingOpen(false)} className="bungeoppang-paper-result bungeoppang-ranking-popup">
+    <RankingDetails feed={ranking} rulesVersion={rulesVersion} onBack={() => setRankingOpen(false)} />
+  </PaperPopup>
+  return <PaperPopup key="result" title="붕어빵 도전 결과" label="붕어빵 결과" onClose={escapeBungeoppang} className="bungeoppang-paper-result">
     <section role="region" aria-label="결과">
     <h2>붕어빵 도전 결과</h2>
     <p className="paper-subtitle">{summary.made ? '따끈따끈, 오늘의 장사를 마쳤어요' : '다음엔 더 잘할 수 있어요!'}</p>
@@ -28,7 +37,7 @@ export function BungeoppangResult() {
       <img src="/art/bungeoppang/result-fish.webp" alt="노릇하게 구운 붕어빵" width="400" height="220" />
     </div>
     <div className="paper-stats"><div><span>완성</span><b>{summary.made}개</b></div><div><span>실수</span><b className="paper-mistakes">{summary.failed}회</b></div></div>
-    <p className="bung-result-finished">이번 도전을 마쳤어요</p>
+    <RankingSummary feed={ranking} onOpen={() => setRankingOpen(true)} />
     <div className="paper-settlement" role="status"><strong><span className="bung-result-coin" aria-hidden="true">▣</span>{preview ? `미리보기 · 환산 예상 ${result?.coinsCalculated ?? '확인 중'}냥` : result ? `받은 엽전 ${result.coinsGranted}냥` : submitError ? '보상 내역을 확인하지 못했어요' : '보상 확인 중'}</strong>
       <small>{preview ? '미리보기 · 실제 엽전 지급 없음' : result ? `오늘 번 엽전 ${today} / ${result.dailyCap}냥` : '확인이 끝나면 엽전에 반영돼요'}</small></div>
     {result?.capReached && <p>오늘 장사는 끝! 게임은 계속할 수 있어요</p>}

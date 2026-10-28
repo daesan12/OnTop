@@ -5,7 +5,9 @@ import {
 } from '../../auth/authFlow'
 import { SharedSocket, ServerError } from '../../network/socketClient'
 import { OmokSpectatorEvents } from '../../game/omok/spectatorEvents'
-import { OneCardPrankEvents, ONECARD_PRANKS_ENABLED } from '../../game/onecard/prankEvents'
+import { OneCardPrankEvents, ONECARD_PRANKS_ENABLED, type PrankScope } from '../../game/onecard/prankEvents'
+import { OneCardDefenseEvents, ONECARD_DEFENSE_ENABLED } from '../../game/onecard/defenseEvents'
+import { BUNGEOPPANG_RANKINGS_ENABLED } from '../../features/bungeoppang/ranking'
 import { handScope, useOneCardUI } from '../../game/onecard/uiState'
 import { WorldTimeClient } from '../../network/worldTimeClient'
 import { EXPECTED_MAP } from '../../config/mapVersion'
@@ -144,6 +146,7 @@ export class ParkRuntime implements ParkRuntimePort {
     hide: () => {
       this.omokEvents.reset()
       this.oneCardPranks.reset()
+      this.oneCardDefense.reset()
       if (this.gameWatchRequestId) this.obsoleteGameWatchRequests.add(this.gameWatchRequestId)
       for (const id of this.spectatorChecks.keys()) this.obsoleteGameWatchRequests.add(id)
       this.spectatorChecks.clear()
@@ -172,9 +175,7 @@ export class ParkRuntime implements ParkRuntimePort {
     request: (type, payload, expected, onId) => this.socket.request(type, payload, expected, onId),
   })
   sendSpectatorChat = (text: string) => this.omokEvents.send('chat', text)
-  private oneCardPranks = new OneCardPrankEvents({
-    enabled: ONECARD_PRANKS_ENABLED,
-    scope: () => {
+  private oneCardScope = (): PrankScope | null => {
       const s = useSession.getState(), state = useGame.getState(), game = state.game
       if (!this.active || !this.socket.connected || s.status !== 'connected' || !s.mapCompatible || !s.roomId
         || !game?.onecard || game.onecard.status !== 'PLAYING' || state.lastResult) return null
@@ -188,15 +189,31 @@ export class ParkRuntime implements ParkRuntimePort {
         canSend: game.role === 'SPECTATOR' && !s.tableId && game.onecard.stage === 'PLAYING' && getAuthSession()?.status === 'AUTHENTICATED',
         canRestore: game.role === 'PLAYER', handIds: game.hand?.hand.map(c => c.id) ?? [],
         protectedId: ui.scope === handScope(s.sessionId, s.roomId, game.gameId, game.version) ? ui.selectedId : '' }
-    },
+    }
+  private oneCardPranks = new OneCardPrankEvents({
+    enabled: ONECARD_PRANKS_ENABLED, scope: () => this.oneCardScope(),
     request: (type, payload, expected, onId) => this.socket.request(type, payload, expected, onId),
   })
-  flipOneCardHand = (targetUserId: string) => this.oneCardPranks.flip(targetUserId)
+  private oneCardDefense = new OneCardDefenseEvents({
+    enabled: ONECARD_DEFENSE_ENABLED,
+    scope: () => {
+      const state = useGame.getState(), scope = this.oneCardScope()
+      if (!scope) return null
+      const fresh = !state.uncertain && !state.pending && !!state.game && state.game.version >= state.awaitingVersion
+        && (scope.role === 'SPECTATOR' || state.recovery === 'RESTORED')
+      return { ...scope, canSend: scope.canSend && fresh, canRestore: scope.canRestore && fresh }
+    },
+    canReach: target => this.oneCardPranks.canFlip(target),
+    request: (type, payload, expected, onId) => this.socket.request(type, payload, expected, onId),
+  })
+  flipOneCardHand = (targetUserId: string) => ONECARD_DEFENSE_ENABLED ? this.oneCardDefense.reach(targetUserId) : this.oneCardPranks.flip(targetUserId)
+  hitOneCardHand = (attemptId: string) => this.oneCardDefense.hit(attemptId)
   restoreOneCardHand = () => this.oneCardPranks.restore()
   pingOmok = (x: number, y: number) => this.omokEvents.send('ping', { x, y })
   private resetSpectator() {
     this.omokEvents.reset()
     this.oneCardPranks.reset()
+    this.oneCardDefense.reset()
     this.spectatorIntent = null; this.spectator.reset(); this.gameWatchRequestId = ''
     this.spectatorChecks.clear()
     this.obsoleteGameWatchRequests.clear(); this.tableClosing = null
@@ -322,8 +339,10 @@ export class ParkRuntime implements ParkRuntimePort {
     const profileRequest = ((method === 'PATCH' || method === 'DELETE') && path === '/api/v1/users/me')
       || (method === 'GET' && /^\/api\/v1\/users\/nickname-availability\?nickname=[^&#]+$/.test(path))
     const minigameRequest = /^\/api\/v1\/minigames\/sessions(?:\?rulesVersion=v4|\/\d+(?:\?(?:(?:includeSource|includeProgress)=true|deliveryKey=[A-Za-z0-9_-]{1,64})(?:&(?:(?:includeSource|includeProgress)=true|deliveryKey=[A-Za-z0-9_-]{1,64}))*|\/(?:complete|abandon|deliveries))?)?$/.test(path)
+    const rankingRequest = BUNGEOPPANG_RANKINGS_ENABLED && method === 'GET'
+      && /^\/api\/v1\/minigames\/bungeoppang\/rankings\?period=ALL_TIME&rulesVersion=v[45]&limit=20(?:&cursor=[A-Za-z0-9%+_.~-]{1,1536})?$/.test(path)
     if (!this.active || (!notesRead && !notesWrite && !shopRequest && !profileRequest
-      && !minigameRequest && !/^\/api\/v1\/(?:wallets\/me|feedback)$/.test(path))
+      && !minigameRequest && !rankingRequest && !/^\/api\/v1\/(?:wallets\/me|feedback)$/.test(path))
       || (path === '/api/v1/feedback' && init.method !== 'POST'))
       throw new Error('현재 공원에서 사용할 수 없는 요청입니다.')
     const signals = [this.bootAbort?.signal, init.signal].filter((s): s is AbortSignal => !!s)
@@ -458,6 +477,7 @@ export class ParkRuntime implements ParkRuntimePort {
   }
   private message(message: Envelope) {
     if (!this.active) return
+    if (this.oneCardDefense.accept(message)) return
     if (this.oneCardPranks.accept(message)) return
     if (this.omokEvents.accept(message)) return
     if (this.worldTime.ownsError(message) || message.type === 'WORLD_TIME_STATE') return
@@ -498,6 +518,7 @@ export class ParkRuntime implements ParkRuntimePort {
       receiveWalletSettlement(message, session.sessionId)
       this.omokEvents.sync()
       this.oneCardPranks.sync()
+      this.oneCardDefense.sync()
     } catch (error) {
       useGame.setState({
         uncertain: true,

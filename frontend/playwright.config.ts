@@ -3,8 +3,8 @@ import os from 'node:os'
 import path from 'node:path'
 export default defineConfig({
   testDir: './tests/e2e',
-  // Preview-only mock assertions use playwright.facilities.config.ts.
-  testIgnore: ['**/tablet-flow.spec.ts', '**/m04.spec.ts', '**/m05.spec.ts', '**/m06.spec.ts', '**/m07.spec.ts', '**/m08.spec.ts', '**/m09.spec.ts', '**/m10.spec.ts', '**/m11.spec.ts', '**/m12.spec.ts', '**/m13.spec.ts', '**/manual-preview.spec.ts', '**/follow-preview.spec.ts'],
+  // Preview-only assertions use their dedicated configs; proposed game contracts are opt-in.
+  testIgnore: ['**/onecard-defense.spec.ts', '**/bungeoppang-ranking.spec.ts', '**/tablet-flow.spec.ts', '**/m04.spec.ts', '**/m05.spec.ts', '**/m06.spec.ts', '**/m07.spec.ts', '**/m08.spec.ts', '**/m09.spec.ts', '**/m10.spec.ts', '**/m11.spec.ts', '**/m12.spec.ts', '**/m13.spec.ts', '**/manual-preview.spec.ts', '**/follow-preview.spec.ts'],
   timeout: 120_000,
   workers: 1,
   outputDir:
