@@ -1,8 +1,8 @@
-import { useEffect, useLayoutEffect, useRef } from 'react'
+import { useLayoutEffect, useRef } from 'react'
 import { useSession } from '../../network/worldClient'
 import { emptyEquipment } from '../../network/equipment'
 import { inputState } from '../../world/inputOwnership'
-import { closeShop, equipShopItem, purchaseShopItem, refreshShop, resetShop,
+import { closeShop, equipShopItem, purchaseShopItem, refreshShop,
   selectShopItem, setShopQuantity, useShop } from './controller'
 import type { ShopItem } from './contracts'
 import './shop.css'
@@ -15,14 +15,6 @@ export function ShopPanel() {
   const s = useShop(), panel = useRef<HTMLDialogElement>(null), previousFocus = useRef<HTMLElement | null>(null)
   const approved = useSession(state => state.equipment[state.sessionId] ?? emptyEquipment)
   const owner = useSession(state => state.sessionId)
-  useEffect(() => {
-    const unsubscribe = useSession.subscribe((next, old) => {
-      if (next.sessionId && useShop.getState().owner && next.sessionId !== useShop.getState().owner) resetShop()
-      else if (next.status !== 'connected' || next.roomId !== old.roomId) closeShop()
-    })
-    window.addEventListener('ontop-manual-open', closeShop)
-    return () => { unsubscribe(); window.removeEventListener('ontop-manual-open', closeShop); resetShop() }
-  }, [])
   useLayoutEffect(() => {
     const element = panel.current
     if (s.open && element && !element.open) {

@@ -1,6 +1,7 @@
 import { Component, Suspense, lazy, useCallback, useState, type ReactNode } from 'react'
 import type { QualityPreset } from '../config'
-const WorldCanvas = lazy(() => import('../world/WorldCanvas').then(module => ({ default: module.WorldCanvas })))
+import { loadWorldCanvas } from './loadWorldCanvas'
+const WorldCanvas = lazy(() => loadWorldCanvas().then(module => ({ default: module.WorldCanvas })))
 
 class SceneBoundary extends Component<{children:ReactNode},{error:string}> {
   state = {error:''}

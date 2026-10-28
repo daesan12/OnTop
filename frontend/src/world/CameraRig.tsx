@@ -1,4 +1,9 @@
 import { gatheringCameraActive } from '../features/tableLobby/gathering'
+import { oneCardPlayerViewActive, oneCardCameraPose, ONECARD_CAMERA } from '../game/onecard/camera'
+import { tabletLobbyActive } from '../features/tableLobby/tabletModel'
+import { TABLET } from '../features/tableLobby/tabletProjection'
+import { renderedTableAnchors } from '../features/tableLobby/tabletAnchors'
+import { TABLET_ENABLED } from '../features/tableLobby/tabletFeature'
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { Matrix4, PerspectiveCamera, Quaternion, Raycaster, SkinnedMesh, Vector3, type Object3D } from 'three'
@@ -121,7 +126,7 @@ export function CameraRig() {
       avatar = avatars.get(session.sessionId)
     const facilities = useFacilityState.getState()
     const temporaryView = !!(avatar?.tableId || avatar?.benchId || avatar?.fitnessId || avatar?.telescopeId
-      || session.tableId || session.focusedAnchorId || useGame.getState().watchedGameId || bungeoppangView.active
+      || session.tableId || session.focusedAnchorId || useTableLobby.getState().joiningAnchorId || useGame.getState().watchedGameId || bungeoppangView.active
       || useFeedbackState.getState().open || useNotesState.getState().open)
     if (temporaryView) rememberRoamingView(session.sessionId, session.roomId)
     restoreRoamingView(session.sessionId, session.roomId, temporaryView || session.status !== 'connected'
@@ -220,7 +225,7 @@ export function CameraRig() {
       Object.assign(viewControls, state.savedView)
       state.bench = ''
     }
-    const game = useGame.getState().game
+    const gameSession = useGame.getState(), game = gameSession.game
     const scope = seatScope(session)
     if (state.seatScope !== scope) { resetSeatedLook(); state.seatScope = scope }
     const looking = !!scope && useTableLobby.getState().lookScope === scope
@@ -231,13 +236,11 @@ export function CameraRig() {
     const closeAnchor = benchView.scope === benchScope && benchView.view !== 'seated' ? benchAnchor : undefined
     const spectatorBoard = closeAnchor ? closeView === 'board' : !!watchedAnchor && useTableLobby.getState().spectatorView === 'board'
     const firstPerson = roamingFirstPerson(avatar, !!useGame.getState().watchedGameId)
-    const boardFocus =
-      !looking && seated && !!avatar.tableId &&
-      game?.omok?.status === 'PLAYING' &&
-      (game.role === 'SPECTATOR' || game.omok.turnUserId === session.sessionId)
+    const boardFocus = seated && !!avatar.tableId && game?.role === 'PLAYER'
+      && game.omok?.status === 'PLAYING' && !gameSession.lastResult
     const ownOmok = seated && !!avatar.tableId && (session.tableStates[session.tableId]?.gameCode === 'OMOK'
       || game?.role === 'PLAYER' && !!game.omok)
-    const gathering = gatheringCameraActive()
+    const gathering = !TABLET_ENABLED && gatheringCameraActive()
     const focusedOmok = boardFocus && ownOmok && !gathering
     if (focusedOmok) {
       camera.layers.set(OMOK_FOCUS_LAYER)
@@ -255,7 +258,20 @@ export function CameraRig() {
       state.look,
       1 - Math.exp(-CAMERA.followSpeed * Math.min(delta, 0.1)),
     )
-    if (gathering) {
+    const tablet = tabletLobbyActive()
+    if (tablet) {
+      const anchor = renderedTableAnchors.get(avatar.tableId) ?? TABLES.find(t => t.id === avatar.tableId)
+      if (anchor) {
+        const seat = tableSeats(anchor)[session.seatIndex] ?? tableSeats(anchor)[0]!
+        const yaw = Math.atan2(seat.x, seat.z), scale = tableScale(anchor)
+        const aspect = camera instanceof PerspectiveCamera ? camera.aspect : 1.6
+        const distance = 1.65 * scale * Math.max(1, 1.6 / aspect)
+        const centerY = anchor.position[1] + 1.06 + (TABLET.y - 1.06) * scale
+        state.look.set(anchor.position[0], centerY, anchor.position[2])
+        state.desired.set(anchor.position[0] + Math.sin(yaw) * distance,
+          centerY + .19 * scale, anchor.position[2] + Math.cos(yaw) * distance)
+      }
+    } else if (gathering) {
       const anchor = TABLES.find(t => t.id === avatar.tableId)
       if (anchor) {
         const seat = tableSeats(anchor)[session.seatIndex] ?? tableSeats(anchor)[0]!
@@ -265,11 +281,18 @@ export function CameraRig() {
         state.desired.set(anchor.position[0] + Math.sin(yaw) * radius,
           Math.min(anchor.position[1] + 2.8, spectatorClearHeight(anchor.pavilionId)), anchor.position[2] + Math.cos(yaw) * radius)
       }
+    } else if (seated && avatar.tableId && oneCardPlayerViewActive(game)) {
+      const anchor = TABLES.find(t => t.id === avatar.tableId)
+      if (anchor) {
+        const pose = oneCardCameraPose(anchor, session.seatIndex)
+        state.desired.set(...pose.position)
+        state.look.set(...pose.target)
+      }
     } else if (focusedOmok && camera instanceof PerspectiveCamera) {
       const anchor = TABLES.find(t => t.id === avatar.tableId)!
       state.look.set(anchor.position[0], anchor.position[1] + GOMOKU.boardY + .017, anchor.position[2])
       state.desired.copy(state.look)
-      state.desired.y += omokTopDownHeight(camera.aspect, tableScale(anchor))
+      state.desired.y += omokTopDownHeight(camera.aspect, tableScale(anchor), gl.domElement.clientHeight)
       state.targetUp.set(0, 0, avatar.seatIndex === 0 ? -1 : 1)
     } else if (diceFocus) {
       const anchor = TABLES.find(t => t.id === avatar.tableId)!
@@ -374,7 +397,7 @@ export function CameraRig() {
       )
       state.look.copy(center)
     }
-    const targetFov = gathering ? ownOmok ? 60 : CAMERA.fov : diceFocus ? DICE_CAMERA.fov : boardFocus || spectatorBoard ? GOMOKU.topDownFov : seated ? GOMOKU.seatedFov : CAMERA.fov
+    const targetFov = tablet ? 43 : gathering ? ownOmok ? 60 : CAMERA.fov : seated && oneCardPlayerViewActive(game) ? ONECARD_CAMERA.fov : diceFocus ? DICE_CAMERA.fov : boardFocus || spectatorBoard ? GOMOKU.topDownFov : seated ? GOMOKU.seatedFov : CAMERA.fov
     const smoothingOmok = ownOmok || state.omokTransition
     const smoothingDice = ownDice || state.diceTransition
     const smoothingBoard = smoothingOmok || smoothingDice

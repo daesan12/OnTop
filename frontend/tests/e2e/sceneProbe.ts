@@ -691,8 +691,10 @@ export function previewPublicMatch(ref: PublicMatchReference) {
   ;(publicMatchService as typeof publicMatchService & { set(ref: PublicMatchReference): void }).set(ref)
 }
 export function onecardProbe() {
-  const scene = root().scene, top = scene.getObjectByName('onecard-public-top'), backs = scene.getObjectByName('onecard-public-card-backs') as InstancedMesh | undefined
-  return { top: top?.userData.cardId, backs: backs?.count ?? 0, visible: !!scene.getObjectByName('onecard-table'),
+  const scene = root().scene, top = scene.getObjectByName('onecard-public-top')
+  let backs = 0
+  scene.traverse(object => { if (object.name.startsWith('onecard-held-hand-')) backs += object.userData.displayedCount ?? 0 })
+  return { top: top?.userData.cardId, backs, visible: !!scene.getObjectByName('onecard-table'),
     publicData: JSON.stringify({ session: useSession.getState(), avatars: [...avatars] }) }
 }
 export function bridgeProbe() {
@@ -770,4 +772,23 @@ export function wardrobeCameraProbe() {
 export function routeArrowsProbe() {
   const arrows = root().scene.getObjectByName('navigation-route-arrows') as InstancedMesh | undefined
   return arrows ? arrows.count : -1
+}
+
+export async function swimDirectionProbe() {
+  const scene = root().scene, angles = new Map<string, number>(), travel: Record<string, number> = {}
+  for (let frame = 0; frame < 45; frame++) {
+    await new Promise(requestAnimationFrame)
+    for (const id of ['101', '102']) for (const side of ['L', 'R']) {
+      const model = scene.getObjectByName('avatar-' + id)!
+      const hand = model.getObjectByName('hand_' + side)!.getWorldPosition(new Vector3())
+      const shoulder = model.getObjectByName('upperArm_' + side)!.getWorldPosition(new Vector3())
+      // Remove avatar yaw; the signed Y/Z orbit measures forward/backward arm travel.
+      hand.sub(shoulder).applyAxisAngle(new Vector3(0, 1, 0), -model.rotation.y)
+      const key = `${id}-${side}`, angle = Math.atan2(hand.z, hand.y), previous = angles.get(key)
+      travel[key] ??= 0
+      if (previous !== undefined) travel[key] += Math.atan2(Math.sin(angle - previous), Math.cos(angle - previous))
+      angles.set(key, angle)
+    }
+  }
+  return travel
 }

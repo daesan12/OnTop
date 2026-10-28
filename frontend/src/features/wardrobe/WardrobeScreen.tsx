@@ -1,12 +1,11 @@
-import { useEffect, useLayoutEffect, useRef } from 'react'
-import leafImage from '../../assets/park-leaf.png'
-import coinImage from '../../assets/yeopjeon-icon.png'
+import { useLayoutEffect, useRef } from 'react'
+import leafImage from '../../assets/entry/park-leaf.webp'
+import coinImage from '../../assets/entry/yeopjeon-icon.webp'
 import { equipSlots, type EquipSlot } from '../../network/equipment'
 import { useSession } from '../../network/worldClient'
 import type { OwnedItem } from '../shop/contracts'
-import wardrobeIcon from '../parkMenus/icons/dock-wardrobe.svg'
 import {
-  cancelWardrobePreview, closeWardrobe, openWardrobe, previewWardrobeItem, refreshWardrobe, resetWardrobe,
+  cancelWardrobePreview, closeWardrobe, previewWardrobeItem, refreshWardrobe,
   setWardrobeFilter, setWardrobeQuery, slotLabels, turnWardrobeView, useWardrobe, wearPreviewedItem, type WardrobeFilter,
 } from './state'
 import { wardrobeView } from './view'
@@ -16,16 +15,6 @@ import './wardrobe.css'
 const tabs: WardrobeFilter[] = ['ALL', ...equipSlots]
 const QUARTER_TURN = Math.PI / 4
 const walkKeys = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ShiftLeft', 'ShiftRight', 'Space'])
-
-/** Dock 옷장 button; the wardrobe is only for walking in the park, not while seated or using a facility. */
-export function WardrobeLauncher() {
-  const disabled = useSession(s => s.status !== 'connected' || !s.roomId
-    || !!(s.tableId || s.benchId || s.fitnessId || s.telescopeId || s.watchedTableId))
-  return <button className="park-shop-launcher" type="button" aria-label="옷장"
-    disabled={disabled} onClick={openWardrobe}>
-    <img src={wardrobeIcon} alt="" /><span>옷장</span>
-  </button>
-}
 
 function ItemArt({ owned, variant }: { owned: OwnedItem; variant: CharacterVariant }) {
   return <span className="wardrobe-art" data-slot={owned.item.equipSlot}>
@@ -59,16 +48,6 @@ export function WardrobeScreen() {
   const variant: CharacterVariant = useSession(state => state.profiles[state.sessionId]?.character === 'girl' ? 'girl' : 'man')
   const stage = useRef<HTMLElement>(null)
   const shown = s.open && s.owner === owner
-  useEffect(() => {
-    const unsubscribe = useSession.subscribe((next, old) => {
-      const { owner: wardrobeOwner } = useWardrobe.getState()
-      if (next.sessionId && wardrobeOwner && next.sessionId !== wardrobeOwner) resetWardrobe()
-      else if (next.status !== 'connected' || next.roomId !== old.roomId
-        || next.tableId || next.benchId || next.fitnessId || next.telescopeId) closeWardrobe()
-    })
-    window.addEventListener('ontop-manual-open', closeWardrobe)
-    return () => { unsubscribe(); window.removeEventListener('ontop-manual-open', closeWardrobe); resetWardrobe() }
-  }, [])
   // The park camera frames the avatar inside the stage box, wherever the layout puts it.
   useLayoutEffect(() => {
     if (!shown) return
@@ -87,9 +66,6 @@ export function WardrobeScreen() {
     canvas()?.focus({ preventScroll: true })
     const keys = (event: KeyboardEvent) => {
       const target = event.target instanceof HTMLElement ? event.target : null
-      if (event.code === 'Escape' && !event.isComposing) {
-        event.preventDefault(); event.stopImmediatePropagation(); closeWardrobe(); return
-      }
       // A clicked wardrobe button keeps focus; walking keys hand it back to the park so the avatar moves.
       if (walkKeys.has(event.code) && target?.closest('.wardrobe') && !target.closest('input')
         && !event.ctrlKey && !event.altKey && !event.metaKey) canvas()?.focus({ preventScroll: true })

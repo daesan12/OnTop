@@ -1,4 +1,5 @@
 import { TABLE_SEATS } from '../../config/table-seats'
+import { useMemo } from 'react'
 import { Instances, yawPart, type Part } from '../../world/art/Instances'
 import { BeveledBox } from '../../world/art/BeveledBox'
 import { SurfaceMaterial } from '../../world/art/SurfaceMaterial'
@@ -68,6 +69,7 @@ function place(part: Part, seat: typeof TABLE_SEATS[number]): Part {
   yawPart(result, seat.yaw)
   return result
 }
+const tableHardwareCount = hardware.length
 for (const seat of TABLE_SEATS) {
   chairSurfaces.push(...seatBoards.map(p => place(p, seat)))
   chairFrames.push(...seatFrame.map(p => place(p, seat)))
@@ -81,17 +83,21 @@ function WoodBatch({ parts, dark = false }: { parts: readonly Part[]; dark?: boo
 }
 
 /** Approved shared furniture for ordinary pavilions. TableShell retains all gameplay contracts. */
-export function PavilionWoodTable() {
+export function PavilionWoodTable({ seatCount = 4 }: { seatCount?: number }) {
+  const visible = useMemo(() => ({
+    surfaces: chairSurfaces.slice(0, seatCount * seatBoards.length), frames: chairFrames.slice(0, seatCount * seatFrame.length),
+    hardware: hardware.slice(0, tableHardwareCount + seatCount * seatHardware.length),
+  }), [seatCount])
   return <group name="pavilion-wood-table">
     <group name="pavilion-table-body">
       <WoodBatch parts={tabletop} />
       <WoodBatch parts={tableFrame} dark />
     </group>
     <group name="pavilion-chairs-body">
-      <WoodBatch parts={chairSurfaces} />
-      <WoodBatch parts={chairFrames} dark />
+      <WoodBatch parts={visible.surfaces} />
+      <WoodBatch parts={visible.frames} dark />
     </group>
-    <Instances parts={hardware} shadow={false}
+    <Instances parts={visible.hardware} shadow={false}
       material={<meshStandardMaterial metalness={0.65} roughness={0.48} />}>
       <BeveledBox />
     </Instances>

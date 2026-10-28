@@ -17,12 +17,17 @@
     "assets:rulebooks": "node scripts/prepare-rulebook-art.mjs",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",
+    "dev:tablet": "vite --mode tablet --host localhost --port 5203 --strictPort",
+    "build:tablet": "node scripts/publish-rulebooks.mjs && tsc --noEmit && vite build --mode tablet --outDir dist-tablet",
+    "test:e2e:tablet": "playwright test --config playwright.tablet.config.ts",
+    "test:e2e:tablet:default": "playwright test --config playwright.tablet-default.config.ts",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "test:e2e:facilities": "playwright test --config playwright.facilities.config.ts",
     "typecheck:tests": "tsc --project tsconfig.tests.json --noEmit",
     "check:migration": "node scripts/check-migration-boundary.mjs",
-    "assets:chair": "node scripts/prepare-wood-chair.mjs"
+    "assets:chair": "node scripts/prepare-wood-chair.mjs",
+    "assets:entry": "node scripts/prepare-entry-images.mjs"
   },
   "dependencies": {
     "@react-three/fiber": "9.8.1",

@@ -6,12 +6,17 @@ test('park assets start while authentication is pending without opening a socket
   const server = await fixture(page)
   let release!: () => void
   const gate = new Promise<void>(resolve => { release = resolve })
-  let characters = 0
-  page.on('request', request => { if (request.url().includes('/art/characters/')) characters++ })
+  let characters = 0, scenes = 0
+  page.on('request', request => {
+    if (request.url().includes('/art/characters/')) characters++
+    if (request.url().includes('/src/world/WorldCanvas.tsx')) scenes++
+  })
   await page.route('**/api/v1/auth/refresh', async route => { await gate; await route.fallback() })
   try {
     await page.goto('/park', { waitUntil: 'domcontentloaded' })
     await expect.poll(() => characters).toBe(2)
+    await expect.poll(() => scenes).toBe(1)
+    await expect(page.locator('canvas')).toHaveCount(0)
     expect(server.connections).toBe(0)
     release()
     await expect(page.getByLabel('공원 기본 화면')).toBeVisible()

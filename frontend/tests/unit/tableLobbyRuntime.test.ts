@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { clearAuthSession, restoreAuthSession } from '../../src/auth/authFlow'
 import type { SocketLike } from '../../src/network/socketClient'
-import { resetWorld, useSession } from '../../src/network/worldClient'
+import { avatars, resetWorld, useSession } from '../../src/network/worldClient'
+import { TABLES } from '../../src/config'
 import { useTableLobby } from '../../src/features/tableLobby/state'
 import { ParkRuntime } from '../../src/park/runtime/SpringParkRuntime'
 import { useGame } from '../../src/game/store'
@@ -18,10 +19,15 @@ class ContractSocket implements SocketLike {
   readyState = 0; onopen: SocketLike['onopen'] = null; onclose: SocketLike['onclose'] = null
   onmessage: SocketLike['onmessage'] = null; onerror: SocketLike['onerror'] = null
   mode: 'success' | 'error' | 'hold' = 'success'
+  joinMode: 'approve' | 'hold' | 'reject' = 'approve'
   requests: { requestId: string; type: string; payload: Record<string, unknown> }[] = []
   lastTable: object = table
   constructor() { socket = this; queueMicrotask(() => { this.readyState = 1; this.onopen?.(new Event('open')); this.emit('CONNECTED', { userId: '101' }) }) }
   emit(type: string, payload: object, requestId: string | null = null) { this.onmessage?.({ data: JSON.stringify({ type, payload, requestId }) } as MessageEvent) }
+  approveJoin(requestId: string) {
+    this.lastTable = { ...table, seats: table.seats.map((seat, index) => index === 0 ? { ...seat, userId: '101' } : seat) }
+    this.emit('TABLE_STATE', this.lastTable, requestId)
+  }
   send(data: string) {
     const r = JSON.parse(data); this.requests.push(r)
     queueMicrotask(() => {
@@ -29,6 +35,8 @@ class ContractSocket implements SocketLike {
       if (r.type === 'TABLE_WATCH' && this.mode === 'success') this.emit('TABLE_WATCH_STATE', table, r.requestId)
       if (r.type === 'TABLE_WATCH' && this.mode === 'error') this.emit('ERROR', { code: 'TABLE_OUT_OF_RANGE', message: '관전 범위 오류' }, r.requestId)
       if (r.type === 'TABLE_UNWATCH') this.emit('TABLE_WATCH_LEFT', { tableId: table.tableId }, r.requestId)
+      if (r.type === 'TABLE_JOIN' && this.joinMode === 'approve') this.approveJoin(r.requestId)
+      if (r.type === 'TABLE_JOIN' && this.joinMode === 'reject') this.emit('ERROR', { code: 'TABLE_FULL', message: '빈 좌석이 없습니다.' }, r.requestId)
       if (r.type === 'GAME_RESULT_CHECK') this.emit('GAME_RESULT', storedResult, r.requestId)
       if (r.type === 'GAME_SELECT') {
         this.lastTable = { ...table, version: 5, seats: table.seats.map((s, i) => ({ ...s, userId: i === 0 ? '101' : '102' })), selectorUserId: '101', gameCode: r.payload.gameCode, targetScore: r.payload.targetScore ?? null, betAmountPerPlayer: r.payload.betAmountPerPlayer }
@@ -62,6 +70,60 @@ beforeEach(async () => {
   await vi.waitFor(() => expect(useSession.getState().tables).toHaveLength(1))
 })
 afterEach(async () => { await runtime.stop(); vi.useRealTimers(); clearAuthSession(); vi.unstubAllGlobals() })
+function nearTable() {
+  useSession.setState({ mapCompatible: true })
+  const [x, y, z] = TABLES[0]!.position, pose = { x, y: y + .8, z: z + 3, yaw: 0 }
+  avatars.set('101', { current: pose, previous: pose, at: 0, nickname: '나', color: 0, connected: true,
+    moving: false, running: false, swimming: false, emote: '', emoteAt: 0, tableId: '', seatIndex: -1,
+    benchId: '', fitnessId: '', fitnessStartedAt: 0, telescopeId: '', telescopeYaw: 0, telescopePitch: 0, followTargetId: '' })
+  return TABLES[0]!.id
+}
+it('direct seating does not inspect or assign a seat until the server approves and blocks duplicate requests', async () => {
+  const anchor = nearTable(); socket.joinMode = 'hold'
+  const request = runtime.joinTable(anchor)
+  await vi.waitFor(() => expect(socket.requests.some(r => r.type === 'TABLE_JOIN')).toBe(true))
+  expect(useTableLobby.getState()).toMatchObject({ panelOpen: false, joiningAnchorId: anchor })
+  expect(useSession.getState()).toMatchObject({ tableId: '', seatIndex: -1, focusedAnchorId: '' })
+  expect(await runtime.joinTable(anchor)).toBe(false)
+  const joins = socket.requests.filter(r => r.type === 'TABLE_JOIN')
+  expect(joins).toHaveLength(1); expect(joins[0]!.payload).toEqual({ tableId: table.tableId })
+  expect(socket.requests.some(r => r.type === 'TABLE_WATCH')).toBe(false)
+  socket.approveJoin(joins[0]!.requestId)
+  expect(await request).toBe(true)
+  expect(useSession.getState()).toMatchObject({ tableId: table.tableId, seatIndex: 0, focusedAnchorId: '' })
+  expect(useTableLobby.getState()).toMatchObject({ joiningAnchorId: '', panelOpen: false })
+})
+it('a full table leaves the player standing, keeps the panel closed and permits an explicit retry', async () => {
+  const anchor = nearTable(); socket.joinMode = 'reject'
+  expect(await runtime.joinTable(anchor)).toBe(false)
+  expect(useSession.getState()).toMatchObject({ tableId: '', seatIndex: -1, focusedAnchorId: '', pending: false })
+  expect(useSession.getState().error).toContain('빈 좌석')
+  expect(useTableLobby.getState()).toMatchObject({ joiningAnchorId: '', panelOpen: false })
+  socket.joinMode = 'approve'; expect(await runtime.joinTable(anchor)).toBe(true)
+  expect(socket.requests.filter(r => r.type === 'TABLE_JOIN')).toHaveLength(2)
+  expect(socket.requests.some(r => r.type === 'GAME_WATCH')).toBe(false)
+})
+it('direct seating rejects distant clicks, unknown bindings, and a move from another occupied table', async () => {
+  const anchor = nearTable(); avatars.get('101')!.current.x += 100
+  expect(await runtime.joinTable(anchor)).toBe(false)
+  nearTable(); expect(await runtime.joinTable('missing-anchor')).toBe(false)
+  useSession.setState({ mapCompatible: false }); expect(await runtime.joinTable(anchor)).toBe(false)
+  useSession.setState({ mapCompatible: true })
+  useSession.setState({ tableId: 'another-table' })
+  expect(await runtime.joinTable(anchor)).toBe(false)
+  expect(socket.requests.some(r => r.type === 'TABLE_JOIN')).toBe(false)
+})
+it('a timed-out direct request clears its waiting indicator without replay or optimistic seating', async () => {
+  const anchor = nearTable(); socket.joinMode = 'hold'
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+  const request = runtime.joinTable(anchor)
+  await vi.waitFor(() => expect(socket.requests.some(r => r.type === 'TABLE_JOIN')).toBe(true))
+  await vi.advanceTimersByTimeAsync(8100)
+  expect(await request).toBe(false)
+  expect(useTableLobby.getState().joiningAnchorId).toBe('')
+  expect(useSession.getState()).toMatchObject({ tableId: '', pending: false })
+  expect(socket.requests.filter(r => r.type === 'TABLE_JOIN')).toHaveLength(1)
+})
 it('a rejection stays an error with no fake table; retry uses the same TABLE_WATCH API', async () => {
   socket.mode = 'error'; runtime.inspectTable('table-1')
   await vi.waitFor(() => expect(useTableLobby.getState().status).toBe('error'))

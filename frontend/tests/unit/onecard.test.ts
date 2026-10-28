@@ -85,4 +85,5 @@ it('presents card effects without implementing random draws or game authority', 
   expect(cardLabel(card('joker-color', null))).toBe('컬러 조커')
   expect(cardEffect(card('A', 'spades'))).toBe('+5 공격')
   expect(cardEffect(card('K'))).toBe('한 장 더 내기')
+  expect(cardEffect(card('4'))).toBe('')
 })

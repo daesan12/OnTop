@@ -6,11 +6,11 @@ import {
 } from 'three'
 import { PropBuilder, type XYZ } from '../art/propGeometry'
 
-const body = new PropBuilder(),
-  head = new PropBuilder(),
-  folded = new PropBuilder(),
-  wing = new PropBuilder(),
-  foot = new PropBuilder()
+const body = new PropBuilder([12, 8], 'pigeon-body'),
+  head = new PropBuilder([12, 8], 'pigeon-head'),
+  folded = new PropBuilder([12, 8], 'pigeon-folded-wing'),
+  wing = new PropBuilder([12, 8], 'pigeon-wing'),
+  foot = new PropBuilder([12, 8], 'pigeon-foot')
 const feather = (
   b: PropBuilder,
   c: string,

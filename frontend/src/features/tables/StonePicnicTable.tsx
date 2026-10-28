@@ -1,4 +1,5 @@
 import { PICNIC_TABLE_SEATS } from '../../config'
+import { useMemo } from 'react'
 import { Instances, type Part } from '../../world/art/Instances'
 import { SurfaceMaterial } from '../../world/art/SurfaceMaterial'
 import { BeveledBox } from '../../world/art/BeveledBox'
@@ -14,11 +15,12 @@ const parts: Part[] = [
     c: '#c4b89f',
   })),
 ]
-export function StonePicnicTable() {
+export function StonePicnicTable({ seatCount = 4 }: { seatCount?: number }) {
+  const visible = useMemo(() => parts.slice(0, 2 + seatCount), [seatCount])
   return (
     <group name="stone-picnic-table-and-seats">
       <Instances
-        parts={parts}
+        parts={visible}
         material={<SurfaceMaterial kind="stone" mapping="box" />}
       >
         <BeveledBox />

@@ -1,45 +1,42 @@
+import { useState } from 'react'
 import { useSession } from '../../network/worldClient'
 import { useGame, tableBusy } from '../../game/store'
 import { useParkRuntime } from '../../park/runtime/ParkRuntime'
-import { openManual } from '../manual/manualState'
-import { GAME_MANUAL, type GatheringModel } from './gatheringModel'
-import { getGathering, returnToWaiting } from './gathering'
-import { resetSeatedLook, seatScope, useTableLobby } from './state'
+import type { GatheringModel } from './gatheringModel'
+import { returnToWaiting } from './gathering'
 import { FinishedForfeitStatus } from '../../game/OmokSurrender'
-import './gathering.css'
+import { PaperPopup, ResultTrophy } from './PaperPopup'
+import { TABLET_ENABLED } from './tabletFeature'
+import { LegacyTableGatheringHud } from './LegacyTableGatheringHud'
 
 export function TableGatheringHud({ model }: { model: GatheringModel }) {
+  return TABLET_ENABLED ? <TabletResult model={model} /> : <LegacyTableGatheringHud model={model} />
+}
+function TabletResult({ model }: { model: GatheringModel }) {
   const runtime = useParkRuntime(), pending = useSession(s => s.pending), connected = useSession(s => s.status === 'connected')
-  const error = useGame(s => s.error), busy = useGame(tableBusy), gamePending = useGame(s => s.pending)
-  const looking = useTableLobby(s => !!s.lookScope)
-  const anchor = useSession(s => s.bindings.find(b => b.channelId === s.roomId && b.tableId === model.tableId)?.anchorId)
+  const own = useSession(s => s.sessionId), error = useGame(s => s.error), busy = useGame(tableBusy), gamePending = useGame(s => s.pending)
+  const [closed, setClosed] = useState('')
   const disabled = pending || gamePending || !connected
-  const primary = () => {
-    const current = getGathering()
-    if (disabled || current?.scope !== model.scope) return
-    if (current.finished) { if (current.canReturn) returnToWaiting(); else void runtime.checkResult() }
-    else if (!busy && current.playable) void runtime.setReady(!current.own?.ready)
-  }
-  const manual = GAME_MANUAL[model.gameCode as keyof typeof GAME_MANUAL]
-  return <aside className="gathering-hud" role="region" aria-label="테이블 함께 보기" data-phase={model.finished ? 'finished' : 'waiting'} data-camera-mode={looking ? 'seated' : 'gathering'}>
-    <header className="gathering-caption"><span>{anchor ? `TABLE ${anchor.replace('table-', '').padStart(2, '0')} · ` : ''}{model.gameName}</span><h2>{model.title}</h2><p role="status">{model.headline}</p></header>
-    <div className="gathering-accessible-roster" aria-label="참가자 상태">{model.rows.map(row => <p key={row.seat}>{row.nickname} · {row.label}{row.score ? ` · ${row.score}` : ''}</p>)}</div>
-    <div className="gathering-actions">
-      <p className="gathering-social-hint">관전자와 함께 한 판 <span>Enter · 훈수와 응원</span></p>
-      {model.finished && <p className="settlement-note">{model.reason} · {model.settlement}</p>}
-      {model.finished && <FinishedForfeitStatus />}
-      <div className="button-row">
-        <button className="primary" disabled={disabled || (!model.finished && (busy || !model.playable))} onClick={primary}>
-          {model.finished ? model.canReturn ? '다음 판 준비' : '정산 결과 확인' : model.own?.ready ? '준비 취소' : '준비'}</button>
-        <button onClick={() => useTableLobby.setState({ gatheringDetails: model.scope })}>{model.finished ? '결과 자세히' : '게임 설정'}</button>
-        {manual && <button onClick={() => openManual(manual)}>게임 설명</button>}
-        <button onClick={() => {
-          if (looking) resetSeatedLook()
-          else useTableLobby.setState({ lookScope: seatScope(useSession.getState()) })
-        }}>{looking ? '테이블 함께 보기' : '주변 둘러보기'}</button>
-        <button disabled={disabled || busy} onClick={() => void runtime.leaveTable()}>자리에서 일어나기</button>
-      </div>
-      {error && <p className="gathering-error" role="alert">{error}</p>}
+  const checkable = useGame(s => !!(s.permittedGameId || s.completedGameId) && !s.watchedGameId && s.game?.role !== 'SPECTATOR')
+  const outcome = model.invalid ? '무효 경기' : model.rows.find(row => row.playerId === own)?.label ?? '경기 종료'
+  if (closed === model.scope) return <button className="paper-reopen" onClick={() => setClosed('')}>경기 결과 다시 보기</button>
+  return <PaperPopup title={`${model.gameName} · ${model.rows.filter(row => row.playerId).length}인 경기 종료`}
+    label="경기 결과" onClose={() => setClosed(model.scope)} className="table-result-popover">
+    {!model.invalid && <ResultTrophy />}<h2>{outcome}</h2><p className="paper-subtitle">{model.invalid ? '경기가 무효 처리되어 참가비 예약을 해제해요' : outcome === '승리' ? '멋진 한 판이었어요' : outcome === '무승부' ? '좋은 승부였어요' : '함께해서 즐거운 한 판이었어요'}</p>
+    <ol className="paper-players" aria-label="참가자 결과">{model.rows.filter(row => row.playerId).map(row => <li key={row.playerId} data-winner={row.winner}>
+      <span className="paper-person-icon" aria-hidden="true">{row.nickname.slice(0, 1)}</span>
+      <span className="paper-player-name">{row.playerId === own ? '나' : row.nickname}</span><span>{row.score}</span>
+      <span className="paper-player-outcome">{row.label}</span>
+    </li>)}</ol>
+    <div className="paper-settlement" role="status"><strong>{!model.settled && <i className="paper-pending" aria-hidden="true" />}{model.settled || model.invalid ? model.settlement : '보상 확인 중'}</strong>
+      <small>{model.invalid ? model.settled ? '서버에서 참가비 예약 해제를 확인했어요' : '서버의 참가비 예약 해제를 기다리고 있어요' : model.settled ? '서버에서 정산한 결과예요' : '확인이 끝나면 엽전에 반영돼요'}</small></div>
+    <div className="paper-actions"><button className="paper-primary" disabled={disabled || !model.canReturn} onClick={returnToWaiting}>다음 판 준비</button>
+      <button disabled={disabled || busy} onClick={() => void runtime.leaveTable()}>자리에서 일어나기</button>
+      {!model.canReturn && <small>{model.settled ? '서버가 다음 판 대기실을 여는 중이에요' : '정산을 확인한 뒤 다음 판을 준비할 수 있어요'}</small>}
+      {!model.settled && <button className="paper-text-button" disabled={disabled || !checkable} onClick={() => void runtime.checkResult()}>정산 결과 확인</button>}
     </div>
-  </aside>
+    <div className="paper-forfeit"><FinishedForfeitStatus /></div>
+    {model.reason && <details><summary>경기 종료 사유</summary><p>{model.reason}</p></details>}
+    {error && <p className="paper-error" role="alert">{error}</p>}
+  </PaperPopup>
 }

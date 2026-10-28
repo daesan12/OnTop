@@ -13,7 +13,7 @@ function bodyShape() {
   return s
 }
 function build(detailed: boolean) {
-  const b = new PropBuilder([16, 10])
+  const b = new PropBuilder([16, 10], `mailbox-${detailed}`)
   const enamel = '#a82b31', dark = '#6d2028', brass = '#be9a58'
   rounded(b, 'metal', '#343936', [0, 0.065, 0], [0.9, 0.13, 0.74], 0.035)
   rounded(b, 'metal', '#50504a', [0, 0.15, 0], [0.79, 0.07, 0.65], 0.018)

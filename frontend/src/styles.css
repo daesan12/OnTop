@@ -41,7 +41,7 @@ button { font: inherit; }
   min-height: 100vh;
   min-height: 100dvh;
   overflow: hidden;
-  background: url('./assets/park-background.png') center / cover no-repeat;
+  background: url('./assets/entry/park-background.webp') center / cover no-repeat;
 }
 
 .login-panel {
@@ -50,7 +50,7 @@ button { font: inherit; }
   right: 6.4vw;
   width: min(34.12vw, 60.6vh);
   aspect-ratio: 1034 / 1521;
-  background: url('./assets/login-panel.png') center / contain no-repeat;
+  background: url('./assets/entry/login-panel.webp') center / contain no-repeat;
   container-type: inline-size;
 }
 

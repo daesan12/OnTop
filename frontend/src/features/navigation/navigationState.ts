@@ -1,6 +1,8 @@
 import { create } from 'zustand'
 import { clearRoamingInput, inputState } from '../../world/inputOwnership'
 import type { Destination, NavPoint } from './parkNavigation'
+import { useGame } from '../../game/store'
+import { gameBlocksParkMap } from './mapAccess'
 
 type NavigationStatus = 'idle' | 'planning' | 'guiding' | 'unreachable' | 'unavailable' | 'paused' | 'arrived'
 const initial = () => ({ owner: '', channel: '', target: null as Destination | null, path: [] as NavPoint[], status: 'idle' as NavigationStatus })
@@ -14,6 +16,8 @@ export function cancelNavigation() { useNavigation.setState(initial(), true) }
 
 export const useParkMap = create(() => ({ open: false }))
 export function openParkMap() {
+  const game = useGame.getState()
+  if (gameBlocksParkMap(game.game, game.start?.phase)) return
   if (useParkMap.getState().open) return
   inputState.mapOpen = true
   clearRoamingInput()

@@ -4,12 +4,15 @@ import {
   restoreAuthSession,
 } from '../../auth/authFlow'
 import { SharedSocket, ServerError } from '../../network/socketClient'
+import { OmokSpectatorEvents } from '../../game/omok/spectatorEvents'
+import { OneCardPrankEvents, ONECARD_PRANKS_ENABLED } from '../../game/onecard/prankEvents'
+import { handScope, useOneCardUI } from '../../game/onecard/uiState'
 import { WorldTimeClient } from '../../network/worldTimeClient'
 import { EXPECTED_MAP } from '../../config/mapVersion'
 import { FacilityClient } from '../../network/facilityClient'
 import { facilityMovementBlocked, serverFacilities } from '../../features/facilities/state'
 import { RestError } from '../../network/restError'
-import { inputState } from '../../world/inputOwnership'
+import { clearRoamingInput, inputState } from '../../world/inputOwnership'
 import { rememberRoamingView } from '../../world/cameraReturn'
 import { benchTable, benchViewScope } from '../../features/interactions/benchSpectator'
 import { useBenchState } from '../../features/interactions/benchState'
@@ -31,7 +34,7 @@ import { canActOneCard } from '../../game/onecard/actions'
 import type { OneCardInput } from '../../game/onecard/protocol'
 import { canActBridge } from '../../game/bridge/actions'
 import type { BridgeInput } from '../../game/bridge/protocol'
-import { parkBindingsUrl } from './deployment'
+import { loadParkBindings } from './deployment'
 import type { ParkRuntimePort } from './contracts'
 import { benchBusy } from '../../features/interactions/benchState'
 import { fitnessBusy } from '../../features/fitness/state'
@@ -49,6 +52,9 @@ import { PublicGameWatcher } from '../../features/tableLobby/PublicGameWatcher'
 import { FollowClient } from '../../features/follow/serverClient'
 import { bindFollowService, followService } from '../../features/follow/service'
 import { useTableLobby, resetSeatedLook } from '../../features/tableLobby/state'
+import { TabletLobbyClient } from '../../features/tableLobby/TabletLobbyClient'
+import { TABLET_ENABLED } from '../../features/tableLobby/tabletFeature'
+import { canReachTable } from '../../features/tableLobby/tableReach'
 import {
   avatars,
   cancelAvatarEmote,
@@ -120,6 +126,8 @@ export class ParkRuntime implements ParkRuntimePort {
     closed: (code) => this.closed(code),
     error: (message) => this.report(message),
   })
+  private tablet = new TabletLobbyClient({ connected: () => this.active && this.socket.connected,
+    request: (type, payload, expected) => this.socket.request(type, payload, expected), action: job => this.action(job) })
   private worldTime = new WorldTimeClient({
     request: (type, payload, expected, onId) => this.socket.request(type, payload, expected, onId),
   })
@@ -133,6 +141,8 @@ export class ParkRuntime implements ParkRuntimePort {
     },
     stop: async () => { await this.socket.request('GAME_UNWATCH', {}, ['GAME_WATCH_LEFT']) },
     hide: () => {
+      this.omokEvents.reset()
+      this.oneCardPranks.reset()
       if (this.gameWatchRequestId) this.obsoleteGameWatchRequests.add(this.gameWatchRequestId)
       for (const id of this.spectatorChecks.keys()) this.obsoleteGameWatchRequests.add(id)
       this.spectatorChecks.clear()
@@ -145,7 +155,46 @@ export class ParkRuntime implements ParkRuntimePort {
       spectatorError: error,
     }),
   })
+  private omokEvents = new OmokSpectatorEvents({
+    scope: () => {
+      const s = useSession.getState(), g = useGame.getState()
+      if (!this.active || !this.socket.connected || s.status !== 'connected' || !s.mapCompatible || !s.roomId
+        || !g.game?.omok || g.game.omok.status !== 'PLAYING' || g.lastResult) return null
+      const game = g.game
+      if (game.role === 'PLAYER' && (g.recovery !== 'RESTORED' || g.permittedGameId !== game.gameId)) return null
+      if (game.role === 'SPECTATOR' && (!this.spectator.accepts(game.gameId) || g.watchedGameId !== game.gameId)) return null
+      return { key: JSON.stringify([this.generation, s.sessionId, s.roomId, game.gameId, game.role,
+        game.role === 'SPECTATOR' ? this.gameWatchRequestId : '']), gameId: game.gameId, version: game.version,
+        role: game.role, canSend: game.role === 'SPECTATOR' && !s.tableId && getAuthSession()?.status === 'AUTHENTICATED' }
+    },
+    request: (type, payload, expected, onId) => this.socket.request(type, payload, expected, onId),
+  })
+  sendSpectatorChat = (text: string) => this.omokEvents.send('chat', text)
+  private oneCardPranks = new OneCardPrankEvents({
+    enabled: ONECARD_PRANKS_ENABLED,
+    scope: () => {
+      const s = useSession.getState(), state = useGame.getState(), game = state.game
+      if (!this.active || !this.socket.connected || s.status !== 'connected' || !s.mapCompatible || !s.roomId
+        || !game?.onecard || game.onecard.status !== 'PLAYING' || state.lastResult) return null
+      if (game.role === 'PLAYER' && (state.permittedGameId !== game.gameId
+        || !game.onecard.players.some(p => p.userId === s.sessionId && p.active))) return null
+      if (game.role === 'SPECTATOR' && (!this.spectator.accepts(game.gameId) || state.watchedGameId !== game.gameId)) return null
+      const ui = useOneCardUI.getState()
+      return { key: JSON.stringify([this.generation, s.sessionId, s.roomId, game.gameId, game.role,
+        game.role === 'SPECTATOR' ? this.gameWatchRequestId : '']), gameId: game.gameId, ownId: s.sessionId,
+        role: game.role, turnCount: game.onecard.turnCount, turnUserId: game.onecard.turnUserId,
+        canSend: game.role === 'SPECTATOR' && !s.tableId && game.onecard.stage === 'PLAYING' && getAuthSession()?.status === 'AUTHENTICATED',
+        canRestore: game.role === 'PLAYER', handIds: game.hand?.hand.map(c => c.id) ?? [],
+        protectedId: ui.scope === handScope(s.sessionId, s.roomId, game.gameId, game.version) ? ui.selectedId : '' }
+    },
+    request: (type, payload, expected, onId) => this.socket.request(type, payload, expected, onId),
+  })
+  flipOneCardHand = (targetUserId: string) => this.oneCardPranks.flip(targetUserId)
+  restoreOneCardHand = () => this.oneCardPranks.restore()
+  pingOmok = (x: number, y: number) => this.omokEvents.send('ping', { x, y })
   private resetSpectator() {
+    this.omokEvents.reset()
+    this.oneCardPranks.reset()
     this.spectatorIntent = null; this.spectator.reset(); this.gameWatchRequestId = ''
     this.spectatorChecks.clear()
     this.obsoleteGameWatchRequests.clear(); this.tableClosing = null
@@ -199,6 +248,7 @@ export class ParkRuntime implements ParkRuntimePort {
       })
   }
   private authEnded() {
+    this.tablet.end()
     this.mapReady = false
     this.worldTime.reset()
     this.forfeitRequests.clear()
@@ -280,11 +330,13 @@ export class ParkRuntime implements ParkRuntimePort {
   start() {
     if (this.active) return
     this.active = true
+    if (TABLET_ENABLED) this.tablet.begin()
     bindFollowService(this.follow)
     this.retryCount = 0
     void this.boot()
   }
   private async boot() {
+    if (TABLET_ENABLED) this.tablet.reset(true)
     this.mapReady = false
     this.worldTime.reset()
     interruptForfeit()
@@ -304,13 +356,7 @@ export class ParkRuntime implements ParkRuntimePort {
       if (!this.active || generation !== this.generation) return
       const ready = Promise.all([
         this.getJSON('/api/v1/channels', { signal: abort.signal }),
-        fetch(parkBindingsUrl(), {
-          signal: abort.signal,
-          cache: 'no-store',
-        }).then((r) => {
-          if (!r.ok) throw new Error('공원 배치 설정 파일을 읽을 수 없습니다.')
-          return r.json() as Promise<unknown>
-        }),
+        loadParkBindings(abort.signal),
         this.getJSON('/api/v1/users/me', { signal: abort.signal }).then(
           userProfile,
         ),
@@ -336,6 +382,7 @@ export class ParkRuntime implements ParkRuntimePort {
     }
   }
   async stop() {
+    this.tablet.end()
     this.mapReady = false
     this.worldTime.reset()
     this.forfeitRequests.clear()
@@ -354,6 +401,7 @@ export class ParkRuntime implements ParkRuntimePort {
     await closing
   }
   private closed(code: number) {
+    if (TABLET_ENABLED) this.tablet.reset(true)
     this.mapReady = false
     this.worldTime.reset()
     interruptForfeit()
@@ -396,6 +444,8 @@ export class ParkRuntime implements ParkRuntimePort {
   }
   private message(message: Envelope) {
     if (!this.active) return
+    if (this.oneCardPranks.accept(message)) return
+    if (this.omokEvents.accept(message)) return
     if (this.worldTime.ownsError(message) || message.type === 'WORLD_TIME_STATE') return
     if (message.type === 'ERROR' && message.requestId && this.forfeitRequests.has(message.requestId)
       && this.forfeitRequests.get(message.requestId) !== JSON.stringify([useSession.getState().sessionId, useGame.getState().permittedGameId])) return
@@ -431,6 +481,8 @@ export class ParkRuntime implements ParkRuntimePort {
     const session = useSession.getState()
     try {
       receiveGame(message, session.sessionId, session.tableId)
+      this.omokEvents.sync()
+      this.oneCardPranks.sync()
     } catch (error) {
       useGame.setState({
         uncertain: true,
@@ -438,6 +490,7 @@ export class ParkRuntime implements ParkRuntimePort {
       })
       throw error
     }
+    if (TABLET_ENABLED) this.tablet.accept(message)
     if ((message.type === 'ERROR' && message.requestId === null || message.type === 'GAME_WATCH_LEFT' && message.requestId === null)
       && this.spectatorIntent && !useGame.getState().watchedGameId && useTableLobby.getState().spectatorStatus === 'watching')
       this.spectator.revoked('경기 관전 권한이 종료됐어요. 다시 연결해주세요.')
@@ -626,6 +679,7 @@ export class ParkRuntime implements ParkRuntimePort {
       && !facilityMovementBlocked(s.sessionId)
       && !tableBusy() && !s.tableId && (!useGame.getState().watchedGameId || stoppedIntent(intent))
       && (!inputState.minigameOpen || stoppedIntent(intent))
+      && (!useTableLobby.getState().joiningAnchorId || stoppedIntent(intent))
       && (!(benchBusy(s.sessionId) || fitnessBusy(s.sessionId) || telescopeBusy(s.sessionId)) || stoppedIntent(intent)) && this.socket.connected
   }
   private async sendMovement(intent: MovementIntent, scope: string) {
@@ -707,8 +761,9 @@ export class ParkRuntime implements ParkRuntimePort {
     })
     return ok && current() && useTableLobby.getState().status === 'ready'
   }
-  joinTable = () =>
+  joinTable = (anchorId?: string) =>
     this.action(async () => {
+      const joinGeneration = this.generation
       if (facilityMovementBlocked(useSession.getState().sessionId)) throw new Error('먼저 시설 이용·승인 위치 확인을 마쳐주세요.')
       if (inputState.minigameOpen) throw new Error('먼저 미니게임을 마쳐주세요.')
       if (benchBusy(useSession.getState().sessionId)) throw new Error('먼저 벤치에서 일어나주세요.')
@@ -721,14 +776,35 @@ export class ParkRuntime implements ParkRuntimePort {
       const tableId = bindAnchor(
         s.bindings,
         s.roomId,
-        s.focusedAnchorId,
+        anchorId ?? s.focusedAnchorId,
         s.tables.map((t) => t.tableId),
       )
       if (!tableId)
         throw new Error('서버 테이블과 공원 배치 연결이 필요합니다.')
+      if (s.tableId === tableId) return
+      if (s.tableId) throw new Error('먼저 현재 테이블에서 일어나주세요.')
+      if (anchorId !== undefined) {
+        if (!canReachTable(avatars.get(s.sessionId)?.current, anchorId)) throw new Error('테이블 의자 가까이에서 앉기를 눌러주세요.')
+        rememberRoamingView(s.sessionId, s.roomId)
+        useTableLobby.setState({ panelOpen: false, joiningAnchorId: anchorId })
+        useSession.setState({ focusedAnchorId: '' })
+        clearRoamingInput()
+      }
       this.stopMovement()
-      await this.socket.request('TABLE_JOIN', { tableId }, ['TABLE_STATE'])
-      // Only TABLE_STATE assigns a seat. Never send a userId, seatNumber or final position.
+      try {
+        if (this.tableClosing && !await this.tableClosing) throw new Error('이전 테이블 구독 종료를 먼저 확인해주세요.')
+        await this.socket.request('TABLE_JOIN', { tableId }, ['TABLE_STATE'])
+        // Only TABLE_STATE assigns a seat. Never send a userId, seatNumber or final position.
+        const current = useSession.getState()
+        if (this.generation !== joinGeneration || current.sessionId !== s.sessionId || current.roomId !== s.roomId || current.tableId !== tableId
+          || !current.tableStates[tableId]?.seats.some(seat => seat.userId === current.sessionId))
+          throw new Error('서버의 착석 상태를 확인하지 못했습니다. 테이블 상태를 다시 확인해주세요.')
+      } finally {
+        if (this.generation === joinGeneration && anchorId !== undefined && useTableLobby.getState().joiningAnchorId === anchorId) {
+          useTableLobby.setState({ joiningAnchorId: '' })
+          clearRoamingInput()
+        }
+      }
     })
   leaveTable = () =>
     this.action(async () => {

@@ -185,7 +185,7 @@ function cartArt() {
 // Retain the earlier procedural source without allocating unused geometry.
 export const createFishCartArt = cartArt
 function boothArt() {
-  const b = new PropBuilder()
+  const b = new PropBuilder([12, 8], 'vr-booth')
   // The thin stone apron stays below the existing auto-step height.
   b.box('stone', '#b5b6ae', [0, 0.07, 0], [12.5, 0.14, 8.6])
   for (let x = -6; x <= 6; x += 0.6)
