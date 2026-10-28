@@ -10,7 +10,7 @@ const message = (kind: 'chat' | 'ping' = 'ping', patch: object = {}): Envelope =
   payload: { gameId: 'g', eventId: eventId(), senderUserId: '505', sentAt: 100_000, serverNow: 100_000,
     expiresAt: 100_000 + (kind === 'chat' ? 3000 : 2000), ...(kind === 'chat' ? { text: '여기요' } : { x: 7, y: 7, basedOnVersion: 8 }), ...patch } })
 function setup(role: 'PLAYER' | 'SPECTATOR' = 'SPECTATOR') {
-  let context: EventScope | null = { key: 'owner/connection/g/'+role, gameId: 'g', version: 8, role, canSend: role === 'SPECTATOR' }
+  let context: EventScope | null = { key: 'owner/connection/g/'+role, gameId: 'g', version: 8, role, canSend: true }
   let now = 0
   const request = vi.fn<(type: string, p: Record<string, unknown>, expected: readonly string[], id: (v: string) => void) => Promise<Envelope>>()
   const feed = new OmokSpectatorEvents({ scope: () => context, now: () => now, request }); feeds.push(feed); feed.sync()
@@ -64,8 +64,9 @@ it('bounds chat/ping display without an unbounded queue and keeps only the lates
   s.feed.accept(message('ping', { eventId: eventId(200), senderUserId: '508' }))
   expect(useOmokEvents.getState().pings.filter(p => p.senderUserId === '508')).toHaveLength(1)
 })
-it('never sends for players or before approval, sends the displayed version for spectators and displays ACK once', async () => {
-  const player = setup('PLAYER'); expect(await player.feed.send('chat', 'hello')).toBe(false); expect(player.request).not.toHaveBeenCalled()
+it('never sends before approval, sends the displayed version for spectators and displays ACK once', async () => {
+  const unapproved = setup(); unapproved.context({ key: 'unapproved', gameId: 'g', version: 8, role: 'SPECTATOR', canSend: false })
+  expect(await unapproved.feed.send('chat', 'hello')).toBe(false); expect(unapproved.request).not.toHaveBeenCalled()
   const s = setup()
   s.request.mockImplementation(async (_, payload, __, onId) => {
     onId('req-1')
@@ -76,6 +77,24 @@ it('never sends for players or before approval, sends the displayed version for 
   expect(s.request.mock.calls[0]?.[1]).toMatchObject({ gameId: 'g', x: 0, y: 14, basedOnVersion: 8 })
   expect(useOmokEvents.getState().pings).toHaveLength(1)
   expect(await s.feed.send('ping', { x: 1, y: 1 })).toBe(false); expect(s.request).toHaveBeenCalledTimes(1)
+})
+it('allows an approved player chat but never grants player ping authority', async () => {
+  const s = setup('PLAYER')
+  expect(s.feed.canPing()).toBe(false)
+  expect(await s.feed.send('ping', { x: 7, y: 7 })).toBe(false)
+  expect(s.request).not.toHaveBeenCalled()
+  s.request.mockImplementation(async (_, payload, __, onId) => {
+    onId('player-chat')
+    const ack = { ...message('chat', payload), requestId: 'player-chat' }
+    s.feed.accept(ack); return ack
+  })
+  expect(await s.feed.send('chat', '함께 해요')).toBe(true)
+  expect(s.request.mock.calls[0]?.[0]).toBe('GAME_SPECTATOR_CHAT_SEND')
+  expect(useOmokEvents.getState().chats).toHaveLength(1)
+  expect(s.feed.canPing()).toBe(false)
+  s.context({ key: 'player-chat-recovering', gameId: 'g', version: 8, role: 'PLAYER', canSend: false })
+  expect(await s.feed.send('chat', '복구 전')).toBe(false)
+  expect(s.request).toHaveBeenCalledTimes(1)
 })
 it('owns spectator errors without mutating game state, never retries, and blocks denied senders', async () => {
   const s = setup()

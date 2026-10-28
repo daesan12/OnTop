@@ -99,7 +99,7 @@ test('four seated players and a separate observer: flip crosses windows and rest
       if (remoteCount === 17) await shot(page, 'onecard-4p-17-cards')
     }
     await panel(page).getByRole('button', { name: '하트 J · 다음 차례 건너뛰기', exact: true }).click()
-    await expect(panel(page).getByRole('button', { name: '하트 J · 다음 차례 건너뛰기', exact: true }).locator('.onecard-effect')).toHaveText('다음 차례 건너뛰기')
+    await expect(panel(page).getByRole('button', { name: '하트 J · 다음 차례 건너뛰기', exact: true }).locator('img')).toHaveAttribute('src', '/art/onecard/classic/H-J.svg')
     await expect(panel(page).locator('.onecard-description')).toHaveCount(0)
     await expect(panel(page).getByRole('button', { name: '하트 J 내기', exact: true })).toBeEnabled()
     await shot(page, 'onecard-4p-play')

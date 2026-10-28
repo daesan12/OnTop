@@ -7,6 +7,7 @@ import { clearRoamingInput, inputState, panelOwnsKeys } from '../../world/inputO
 import type { OwnedItem } from '../shop/contracts'
 import { createShopService, ShopError } from '../shop/service'
 import { wardrobeView } from './view'
+import { gameplayMenusLocked } from '../parkMenus/gameplayLock'
 
 /** Slightly above eye level, so the zoomed figure is seen almost straight on. */
 const WARDROBE_PITCH = 0.16
@@ -37,7 +38,8 @@ export const wearable = (items: OwnedItem[]) => items.filter(owned => owned.item
 
 export function openWardrobe() {
   const s = useSession.getState()
-  if (useWardrobe.getState().open || !ownerPresent(s.sessionId) || panelOwnsKeys()) return
+  if (useWardrobe.getState().open || !ownerPresent(s.sessionId) || panelOwnsKeys() || gameplayMenusLocked()
+    || s.tableId || s.benchId || s.fitnessId || s.telescopeId || s.watchedTableId) return
   if (useWardrobe.getState().owner !== s.sessionId) useWardrobe.setState(initial(), true)
   // Other shortcuts stay closed; walking and turning the view keep working (panelOwnsMovement).
   inputState.wardrobeOpen = true

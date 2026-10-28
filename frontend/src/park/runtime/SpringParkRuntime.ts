@@ -18,6 +18,7 @@ import { benchTable, benchViewScope } from '../../features/interactions/benchSpe
 import { useBenchState } from '../../features/interactions/benchState'
 import { useFacilityState } from '../../features/facilities/state'
 import { filterChat } from '../../features/chat/filterChat'
+import { receiveWalletSettlement } from '../../features/wallet/settlementRefresh'
 import {
   channel,
   record,
@@ -161,11 +162,12 @@ export class ParkRuntime implements ParkRuntimePort {
       if (!this.active || !this.socket.connected || s.status !== 'connected' || !s.mapCompatible || !s.roomId
         || !g.game?.omok || g.game.omok.status !== 'PLAYING' || g.lastResult) return null
       const game = g.game
-      if (game.role === 'PLAYER' && (g.recovery !== 'RESTORED' || g.permittedGameId !== game.gameId)) return null
+      if (game.role === 'PLAYER' && (!s.tableId || g.recovery !== 'RESTORED' || g.permittedGameId !== game.gameId
+        || ![game.omok!.blackUserId, game.omok!.whiteUserId].includes(s.sessionId))) return null
       if (game.role === 'SPECTATOR' && (!this.spectator.accepts(game.gameId) || g.watchedGameId !== game.gameId)) return null
       return { key: JSON.stringify([this.generation, s.sessionId, s.roomId, game.gameId, game.role,
         game.role === 'SPECTATOR' ? this.gameWatchRequestId : '']), gameId: game.gameId, version: game.version,
-        role: game.role, canSend: game.role === 'SPECTATOR' && !s.tableId && getAuthSession()?.status === 'AUTHENTICATED' }
+        role: game.role, canSend: (game.role === 'PLAYER' || !s.tableId) && getAuthSession()?.status === 'AUTHENTICATED' }
     },
     request: (type, payload, expected, onId) => this.socket.request(type, payload, expected, onId),
   })
@@ -493,6 +495,7 @@ export class ParkRuntime implements ParkRuntimePort {
     const session = useSession.getState()
     try {
       receiveGame(message, session.sessionId, session.tableId)
+      receiveWalletSettlement(message, session.sessionId)
       this.omokEvents.sync()
       this.oneCardPranks.sync()
     } catch (error) {
