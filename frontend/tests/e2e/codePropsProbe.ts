@@ -46,3 +46,21 @@ export function propsProbe(kind: 'mailbox' | 'cart') {
     signs: group.children.flatMap(o => o.name === 'code-fish-cart' ? o.children.filter(c => c.name.startsWith('prop-sign-')).map(c => c.name) : []),
     code: !!group.getObjectByName(kind === 'mailbox' ? 'code-mailbox' : 'code-fish-cart') }
 }
+
+// Frontend-only visual review of the two traditional props, including summit height.
+import { NOTES_BOX } from '../../src/config/notes'
+export function heritageView(kind:'mailbox'|'notes',yaw=.25,distance=3.1) {
+  release?.()
+  const p=kind==='notes'?NOTES_BOX:MAILBOX,base=kind==='notes'?NOTES_BOX.y:0,store=root()
+  release=store.getState().internal.subscribe({current:({camera})=>{
+    camera.position.set(p.x+Math.sin(yaw)*distance,base+1.5,p.z+Math.cos(yaw)*distance)
+    camera.lookAt(p.x,base+.9,p.z);camera.updateMatrixWorld()
+  }},.5,store)
+}
+export function heritageProbe(kind:'mailbox'|'notes') {
+  const group=root().getState().scene.getObjectByName(kind==='notes'?'tower-notes-mailbox':'feedback-mailbox')!
+  const lod=group.getObjectByName(kind==='notes'?'observatory-notes-board':'mailbox-craft') as LOD
+  const triangles=(object:Object3D)=>{let n=0;object.traverse(o=>{if(o instanceof Mesh)n+=(o.geometry.index?.count??o.geometry.getAttribute('position').count)/3});return n}
+  const bounds=new Box3().setFromObject(group)
+  return {position:group.getWorldPosition(new Vector3()).toArray(),min:bounds.min.toArray(),max:bounds.max.toArray(),lod:lod.getCurrentLevel(),near:triangles(lod.levels[0]!.object),far:triangles(lod.levels[1]!.object)}
+}

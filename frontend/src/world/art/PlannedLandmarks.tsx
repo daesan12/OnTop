@@ -1,4 +1,4 @@
-import { NOTES_BOX } from '../../config'
+import { TraditionalNotesBoard } from './TraditionalNotesBoard'
 import { ParkFountain } from './ParkFountain'
 import { ParkActivities } from './ParkActivities'
 import { ObservationTelescopes } from './ObservationTelescopes'
@@ -289,23 +289,7 @@ export function PlannedLandmarks({ quality }: { quality: QualityPreset }) {
           <SurfaceMaterial kind="wood" color="#aa8955" side={2} />
         </mesh>
         <ObservationTelescopes />
-        <group
-          name="tower-notes-mailbox"
-          position={[NOTES_BOX.x, NOTES_BOX.y, NOTES_BOX.z]}
-        >
-          <mesh position={[0, 0.1, 0]}>
-            <boxGeometry args={[1.3, 0.2, 0.96]} />
-            <SurfaceMaterial kind="stone" color="#b4ac97" />
-          </mesh>
-          <mesh position={[0, 0.9, 0]} castShadow>
-            <boxGeometry args={[1.1, 1.5, 0.75]} />
-            <SurfaceMaterial kind="wood" color="#41695c" />
-          </mesh>
-          <mesh position={[0, 1.68, 0]}>
-            <boxGeometry args={[1.3, 0.16, 0.96]} />
-            <SurfaceMaterial kind="wood" color="#ad825a" />
-          </mesh>
-        </group>
+        <TraditionalNotesBoard />
       </group>
       <ParkFountain quality={quality} />
       <ParkActivities />

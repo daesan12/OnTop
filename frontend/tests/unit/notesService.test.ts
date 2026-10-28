@@ -10,6 +10,23 @@ const receipt = { note: row, nextAllowedAt: '2026-10-25T00:00:15Z' }
 const signal = () => new AbortController().signal
 
 describe('M08 authenticated anonymous notes REST adapter', () => {
+  it('gates topic writes until the BE contract is enabled, reads only supported anonymous categories and verifies ACKs', async () => {
+    const request = vi.fn().mockResolvedValue({ ...receipt, note: { ...row, category: 'cheer', nickname: 'secret' } })
+    const legacy = createNotesService(request)
+    await legacy.submit(context, { ...submission, category: 'cheer' }, signal())
+    expect(JSON.parse(request.mock.calls[0]![1].body)).not.toHaveProperty('category')
+    const enabled = createNotesService(request, true)
+    const accepted = await enabled.submit(context, { ...submission, category: 'cheer' }, signal())
+    expect(accepted.note.category).toBe('cheer')
+    expect(accepted.note).not.toHaveProperty('nickname')
+    expect(JSON.parse(request.mock.calls[1]![1].body).category).toBe('cheer')
+    request.mockResolvedValueOnce({ ...receipt, note: { ...row, category: 'worry' } })
+    await expect(enabled.submit(context, { ...submission, category: 'cheer' }, signal())).rejects.toMatchObject({ code: 'INVALID_RESPONSE' })
+    request.mockResolvedValueOnce({ notes: [{ ...row, category: 'unknown', nickname: 'secret' }] })
+    const [oldNote] = await enabled.read(context, signal())
+    expect(oldNote).not.toHaveProperty('category')
+    expect(oldNote).not.toHaveProperty('nickname')
+  })
   it('uses the escaped channel query and only anonymous display fields, with stable numeric ID ordering', async () => {
     const request = vi.fn().mockResolvedValue({ notes: [
       { ...row, nickname: 'secret', userId: 'author' }, { ...row, id: '9007199254740994' }, row,

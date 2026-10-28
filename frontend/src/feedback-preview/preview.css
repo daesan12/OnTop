@@ -1,0 +1,12 @@
+.feedback-preview-page { position: fixed; inset: 0; background: #a5b9a0; }
+.feedback-preview-toolbar { position: absolute; left: 20px; right: 20px; top: 16px; z-index: 3; display: flex; justify-content: space-between; align-items: center; gap: 16px; color: #fff5dd; padding: 15px 20px; background: #19372ae8; border: 1px solid #d5c49155; border-radius: 12px; box-shadow: 0 5px 24px #152d2528; }
+.feedback-preview-toolbar strong { font-size: 20px; }
+.feedback-preview-toolbar span { display: block; margin-top: 5px; font-size: 12px; color: #e1d6be; }
+.feedback-preview-toolbar > div:last-child { display: flex; align-items: center; gap: 12px; }
+.feedback-preview-toolbar button { border: 1px solid #dbc68e; background: #ead9af; color: #422e18; padding: 10px 15px; border-radius: 7px; font: inherit; cursor: pointer; }
+.feedback-preview-toolbar button:disabled, .feedback-preview-toolbar label:has(input:disabled) { opacity: .45; cursor: default; }
+.feedback-preview-toolbar label { font-size: 13px; }
+.feedback-preview-hint { position: absolute; bottom: 35px; left: 50%; transform: translateX(-50%); color: #fff5df; background: #203c2edb; border: 1px solid #d8c99c55; border-radius: 12px; padding: 18px 28px; text-align: center; white-space: nowrap; }
+.feedback-preview-hint kbd { border: 1px solid #d9c595; border-radius: 5px; padding: 3px 9px; margin-right: 8px; background: #f0deb8; color: #3b2b1b; }
+.feedback-preview-hint small { display: block; margin-top: 12px; color: #d6c7a4; }
+@media(max-width:760px) { .feedback-preview-toolbar { left: 10px; right: 10px; top: 10px; padding: 12px; flex-direction: column; align-items: stretch; } .feedback-preview-toolbar strong { font-size: 17px; } .feedback-preview-toolbar > div:last-child { justify-content: space-between; gap: 6px; } .feedback-preview-toolbar button { font-size: 12px; padding: 8px; } .feedback-preview-toolbar label { font-size: 11px; } .feedback-preview-hint { padding: 15px; font-size: 14px; } }

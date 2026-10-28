@@ -182,6 +182,7 @@ for (const kind of ['feedback', 'notes'] as const) for (const first of [true, fa
     await page.keyboard.press('KeyE')
     await expect(panel).toBeVisible()
     await expect.poll(async () => (await probe(page)).active).toBe(false)
+    if (kind === 'notes') await panel.getByRole('button', { name: /메모 작성하기/ }).click()
     await panel.getByRole('textbox').fill('이용을 마칠 때까지 보관할 내용')
     await page.keyboard.press('F1')
     const manual = page.getByRole('dialog', { name: '게임 설명서', exact: true })
