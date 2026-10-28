@@ -175,9 +175,19 @@ export function farkleProbe() {
   const { scene, camera } = root()
   const dice: { id: string; face: number; held: boolean; quaternion: number[] }[] = []
   scene.traverse(o => { if (o.name.startsWith('farkle-die-')) dice.push({ id: o.name, face: o.userData.face, held: o.userData.held, quaternion: o.quaternion.toArray() }) })
+  const hourglass = scene.getObjectByName('farkle-hourglass-body'), sand = scene.getObjectByName('farkle-hourglass-sand')
+  const table = scene.getObjectByName('farkle-table-table-1')
   return { dice, cameraReady: diceCamera.ready, cup: useDiceUI.getState().cup, selected: useDiceUI.getState().selectedIds,
+    tabletopScale: table?.scale.x, hourglass: hourglass ? { flips: hourglass.userData.flips as number,
+      flipping: hourglass.userData.flipping as boolean, angle: hourglass.rotation.z, remaining: sand?.userData.remaining as number } : null,
     camera: camera.position.toArray(), direction: camera.getWorldDirection(new Vector3()).toArray(),
     fov: (camera as import('three').PerspectiveCamera).fov }
+}
+export function pointForFarkleObject(name: string) {
+  const { scene, camera, gl } = root(), object = scene.getObjectByName(name)!
+  const p = object.localToWorld(new Vector3(0, 0, name === 'farkle-scorebook-prop' ? .06 : 0)).project(camera)
+  const box = gl.domElement.getBoundingClientRect()
+  return { x: box.left + (p.x + 1) * box.width / 2, y: box.top + (1 - p.y) * box.height / 2 }
 }
 export function pointForFarkleCup() {
   const { scene, camera, gl } = root()

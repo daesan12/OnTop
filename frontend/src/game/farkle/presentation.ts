@@ -1,5 +1,7 @@
 /** Client-only dimensions; these never change scoring, randomness or turn timing. */
 export const FARKLE_VISUAL = {
+  tabletopScale: 0.7,
+  tabletopOffsetX: 0.2,
   dieScale: 0.85,
   traySurfaceY: 1.098,
   cupRestX: 0.91,
