@@ -70,6 +70,20 @@ class MinigameServiceTests {
     }
 
     @Test
+    void v2_완료는_커밋할_이용_상태_해제를_한번만_알린다() {
+        var activityEvents = new java.util.ArrayList<com.ssafy.ontop.minigame.service.MinigameActivityChanged>();
+        var withEvents = new MinigameService(repository, manager, Clock.fixed(now, ZoneOffset.UTC), 10, false,
+                activityEvents::add);
+
+        var first = withEvents.complete(101, 901, BungeoppangFixtures.sevenGolden(heats));
+        withEvents.complete(101, 901, BungeoppangFixtures.body("{\"log\":[]}"));
+
+        assertThat(first.status()).isEqualTo("COMPLETED");
+        assertThat(activityEvents).containsExactly(
+                new com.ssafy.ontop.minigame.service.MinigameActivityChanged(101, 901, null));
+    }
+
+    @Test
     void 오늘_98냥이면_2냥만_지급하고_KST_날짜로_조회한다() {
         when(repository.earned(eq(101L), any(), any())).thenReturn(98L);
         var result = service.complete(101, 901, BungeoppangFixtures.sevenGolden(heats));
