@@ -38,6 +38,14 @@ it('resolves numeric hash collisions without merging different large coordinates
   geometry.dispose()
 })
 
+it('resolves a numeric hash collision and reuses indexed vertices', () => {
+  const geometry = new BufferGeometry().setAttribute('position', new Float32BufferAttribute([
+    0, 0, 0, 293, 0, 4816941, 0, 0, 0,
+  ], 3)).setIndex([0, 1, 2, 1, 0, 2])
+  equivalent(geometry, 1)
+  geometry.dispose()
+})
+
 it('matches tolerance rounding on negative coordinates and indexed sources', () => {
   const geometry = new BufferGeometry().setAttribute('position', new Float32BufferAttribute([
     -.00000049, .00000049, 0, -.00000051, .00000051, 0, -1, 1, 2,

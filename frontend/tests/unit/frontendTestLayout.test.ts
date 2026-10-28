@@ -2,9 +2,16 @@ import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'
 import { parseBindings, bindAnchor } from '../../src/network/tableBindings'
 import { TABLES } from '../../src/config'
-import { parkBindingsUrl } from '../../src/park/runtime/deployment'
+import { packagedParkBindings, parkBindingsUrl } from '../../src/park/runtime/deployment'
 
 describe('team frontend-test deployment isolation', () => {
+  it('packages the exact deployed layout without requiring a startup HTTP request', () => {
+    for (const host of ['dev.on-top.world', 'www.on-top.world', 'localhost', 'dev.on-top.world.example.com']) {
+      const file = host === 'dev.on-top.world' ? 'park-bindings.dev.json' : 'park-bindings.json'
+      expect(packagedParkBindings(false, host)).toEqual(JSON.parse(fs.readFileSync(`public/${file}`, 'utf8')))
+    }
+    expect(packagedParkBindings(true, 'dev.on-top.world')).toBeUndefined()
+  })
   it('keeps the team local IDs out of default and production mappings', () => {
     const defaults = JSON.parse(
       fs.readFileSync('public/park-bindings.json', 'utf8'),

@@ -2,6 +2,103 @@ import { expect, test, type Page } from '@playwright/test'
 import { fixture, screenshot } from './contractFixture'
 import type { PreparationContext, PreparationSelection } from '../../src/features/tableLobby/tabletModel'
 import { bungeoppangFixture } from './bungeoppangFixture'
+import { TABLES, tableSeats } from '../../src/config'
+
+const directAnchor = TABLES.find(table => table.picnicId)!
+const directSeat = tableSeats(directAnchor)[0]!
+const directPosition = { x: directAnchor.position[0] + directSeat.x, y: directAnchor.position[1] + .8,
+  z: directAnchor.position[2] + directSeat.z + .6, yaw: Math.PI }
+async function approachChair(page: Page) {
+  await page.goto('/park'); await expect(page).toHaveTitle('OnTop')
+  await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90000 })
+  await page.locator('canvas').focus()
+  await expect(page.getByRole('button', { name: 'E 테이블에 앉기', exact: true })).toBeVisible({ timeout: 15000 })
+}
+
+test('E seating skips table information, waits for server approval, then opens the tablet and starts normally', async ({ page }) => {
+  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message))
+  const server = await fixture(page, { omok: true, manualLobby: true, tabletServer: true,
+    anchorId: directAnchor.id, position: directPosition })
+  server.tableJoinMode('hold')
+  await approachChair(page)
+  const previousView = await page.evaluate(async () => (await import('/src/world/cameraPerspective.ts' as string)).useCameraPerspective.getState().perspective)
+  await screenshot(page, 'direct-seat-01-near-chair')
+  await page.keyboard.press('KeyE')
+  await expect(page.getByText('자리를 확인하고 있어요…', { exact: true })).toBeVisible()
+  await page.keyboard.press('KeyE')
+  await expect(page.getByRole('dialog', { name: '테이블 정보', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('dialog', { name: '게임 태블릿', exact: true })).toHaveCount(0)
+  expect(server.sent.filter(message => message.type === 'TABLE_JOIN')).toHaveLength(1)
+  expect(server.sent.some(message => message.type === 'TABLE_WATCH')).toBe(false)
+  expect(await page.evaluate(async () => (await import('/src/network/worldClient.ts' as string)).useSession.getState().tableId)).toBe('')
+  await screenshot(page, 'direct-seat-02-awaiting-approval')
+  server.approveTableJoins()
+  const tablet = page.getByRole('dialog', { name: '게임 태블릿', exact: true })
+  await expect(tablet).toBeVisible({ timeout: 20000 })
+  await expect(page.getByRole('dialog', { name: '테이블 정보', exact: true })).toHaveCount(0)
+  await expect(page.getByText('자리를 확인하고 있어요…', { exact: true })).toHaveCount(0)
+  await expect(tablet.getByRole('heading', { name: '어떤 게임을 할까요?' })).toBeVisible()
+  await page.waitForTimeout(800); await screenshot(page, 'direct-seat-03-tablet')
+  await tablet.getByRole('button', { name: '일어나기', exact: true }).click()
+  await expect(tablet).toHaveCount(0)
+  await page.locator('canvas').focus()
+  await expect.poll(() => page.evaluate(async () => (await import('/src/world/roamingCamera.ts' as string)).canControlRoamingCamera())).toBe(true)
+  await expect.poll(() => page.evaluate(async () => (await import('/src/world/cameraPerspective.ts' as string)).useCameraPerspective.getState().perspective)).toBe(previousView)
+  server.tableJoinMode('approve')
+  await page.keyboard.press('KeyE'); await expect(tablet).toBeVisible({ timeout: 20000 })
+  await tablet.getByLabel('1인 참가비').fill('7')
+  await tablet.getByRole('button', { name: '선택하고 준비하기' }).click()
+  await tablet.getByRole('checkbox').check(); await tablet.getByRole('button', { name: '준비 완료', exact: true }).click()
+  server.readyTabletOthers(true)
+  await tablet.getByRole('button', { name: '게임 시작', exact: true }).click()
+  await expect(page.getByRole('region', { name: '오목 경기', exact: true })).toBeVisible()
+  expect(server.sent.filter(message => message.type === 'TABLE_START')).toHaveLength(1)
+  expect(Object.keys(server.sent.find(message => message.type === 'TABLE_JOIN')!.payload)).toEqual(['tableId'])
+  await expect(page.locator('vite-error-overlay')).toHaveCount(0); expect(errors).toEqual([])
+})
+
+for (const rejection of [
+  { code: 'TABLE_FULL', message: '빈 좌석이 없습니다.' },
+  { code: 'TABLE_BUSY', message: '진행 중인 경기입니다.' },
+]) test(`direct seating ${rejection.code} stays standing, shows a brief error and never starts spectating`, async ({ page }) => {
+  const server = await fixture(page, { omok: true, manualLobby: true, tabletServer: true,
+    anchorId: directAnchor.id, position: directPosition })
+  server.tableJoinMode('reject', rejection.code, rejection.message)
+  await approachChair(page); await page.keyboard.press('KeyE')
+  await expect(page.locator('.park-runtime-status')).toContainText(rejection.message)
+  await expect(page.getByRole('dialog', { name: '게임 태블릿', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('dialog', { name: '테이블 정보', exact: true })).toHaveCount(0)
+  expect(server.sent.some(message => message.type === 'GAME_WATCH' || message.type === 'TABLE_WATCH')).toBe(false)
+  expect(await page.evaluate(async () => (await import('/src/world/roamingCamera.ts' as string)).canControlRoamingCamera())).toBe(true)
+  server.tableJoinMode('approve'); await page.locator('canvas').focus(); await page.keyboard.press('KeyE')
+  await expect(page.getByRole('dialog', { name: '게임 태블릿', exact: true })).toBeVisible({ timeout: 20000 })
+})
+
+test('public information and spectating remain an explicit secondary choice, without automatically joining', async ({ page }) => {
+  const server = await fixture(page, { omok: true, manualLobby: true, tabletServer: true,
+    anchorId: directAnchor.id, position: directPosition })
+  await approachChair(page)
+  await page.getByRole('button', { name: '테이블 정보·관전', exact: true }).click()
+  const info = page.getByRole('dialog', { name: '테이블 정보', exact: true })
+  await expect(info).toBeVisible()
+  await expect.poll(() => server.sent.filter(message => message.type === 'TABLE_WATCH').length).toBe(1)
+  expect(server.sent.some(message => message.type === 'TABLE_JOIN')).toBe(false)
+  await info.getByRole('button', { name: '앉기', exact: true }).click()
+  await expect(page.getByRole('dialog', { name: '게임 태블릿', exact: true })).toBeVisible({ timeout: 20000 })
+})
+
+test('the shared table mesh action rejects distant clicks without seating or opening information', async ({ page }) => {
+  const server = await fixture(page, { omok: true, anchorId: directAnchor.id,
+    position: { ...directPosition, x: directPosition.x + 100 } })
+  await page.goto('/park'); await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90000 })
+  await expect.poll(() => page.evaluate(async () => {
+    const s = (await import('/src/network/worldClient.ts' as string)).useSession.getState()
+    return s.status === 'connected' && !s.pending && s.tables.length > 0
+  })).toBe(true)
+  await page.evaluate(async id => (await import('/src/features/tableLobby/tableInteraction.ts' as string)).interactWithTable(id), directAnchor.id)
+  await expect(page.locator('.park-runtime-status')).toContainText('테이블 의자 가까이')
+  expect(server.sent.some(message => message.type === 'TABLE_JOIN' || message.type === 'TABLE_WATCH')).toBe(false)
+})
 
 async function openTable(page: Page, anchorId = 'table-1') {
   await page.goto('/park')
@@ -31,6 +128,110 @@ async function bindManualPort(page: Page, server: Awaited<ReturnType<typeof fixt
   })
   return calls
 }
+
+for (const stage of ['select', 'ready'] as const)
+test(`Escape leaves the ${stage} tablet once, after server approval, and restores roaming`, async ({ page }) => {
+  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message))
+  const server = await fixture(page, { omok: true, manualLobby: true, tabletServer: true,
+    anchorId: directAnchor.id, position: directPosition })
+  await approachChair(page); await page.keyboard.press('KeyE')
+  const tablet = page.getByRole('dialog', { name: '게임 태블릿', exact: true })
+  await expect(tablet).toBeVisible({ timeout: 20000 })
+  await tablet.getByLabel('1인 참가비').fill('20')
+  if (stage === 'ready') {
+    await tablet.getByRole('button', { name: '선택하고 준비하기' }).click()
+    await tablet.getByRole('checkbox').check()
+    await tablet.getByRole('button', { name: '준비 완료', exact: true }).click()
+    await expect(tablet.getByRole('button', { name: '준비 취소', exact: true })).toBeEnabled()
+  }
+  await expect(tablet.getByRole('button', { name: '일어나기', exact: true })).toHaveAttribute('aria-keyshortcuts', 'Escape')
+  server.holdTableLeave(true)
+  await page.keyboard.down('Escape'); await page.keyboard.down('Escape'); await page.keyboard.up('Escape')
+  await expect.poll(() => server.sent.filter(message => message.type === 'TABLE_LEAVE').length).toBe(1)
+  await expect(tablet).toBeVisible()
+  expect(await page.evaluate(async () => (await import('/src/network/worldClient.ts' as string)).useSession.getState().tableId)).not.toBe('')
+  await page.keyboard.press('Escape')
+  expect(server.sent.filter(message => message.type === 'TABLE_LEAVE')).toHaveLength(1)
+  server.approveTableLeaves()
+  await expect(tablet).toHaveCount(0)
+  await page.locator('canvas').focus()
+  await expect.poll(() => page.evaluate(async () => (await import('/src/world/roamingCamera.ts' as string)).canControlRoamingCamera())).toBe(true)
+  expect(server.sent.some(message => message.type === 'GAME_FORFEIT')).toBe(false)
+  await screenshot(page, `tablet-escape-${stage}-standing`)
+  await expect(page.locator('vite-error-overlay')).toHaveCount(0); expect(errors).toEqual([])
+})
+
+test('Escape closes the tablet manual first and leaves only on the next press', async ({ page }) => {
+  const server = await fixture(page, { omok: true, manualLobby: true, tabletServer: true })
+  const tablet = await openTable(page)
+  await tablet.getByRole('button', { name: '설명서', exact: true }).click()
+  const manual = page.getByRole('dialog', { name: '게임 설명서', exact: true })
+  await expect(manual).toHaveAttribute('data-phase', 'open')
+  await page.keyboard.press('Escape')
+  await expect(manual).toHaveCount(0)
+  await expect(tablet).toBeVisible()
+  expect(server.sent.some(message => message.type === 'TABLE_LEAVE')).toBe(false)
+  await page.keyboard.press('Escape')
+  await expect(tablet).toHaveCount(0)
+  expect(server.sent.filter(message => message.type === 'TABLE_LEAVE')).toHaveLength(1)
+})
+
+for (const viewport of [{ width: 1920, height: 1080 }, { width: 1366, height: 768 }])
+test(`tablet game selection keeps its screen and controls in place at ${viewport.width}`, async ({ page }) => {
+  await page.setViewportSize(viewport)
+  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message))
+  const server = await fixture(page, { omok: true, manualLobby: true, tabletServer: true })
+  const tablet = await openTable(page)
+  const layout = () => tablet.evaluate(node => {
+    const rect = (element: Element | null) => {
+      const box = element?.getBoundingClientRect()
+      return box && { x: box.x, y: box.y, width: box.width, height: box.height }
+    }
+    return { screen: rect(node), title: rect(node.querySelector('.tablet-title')), list: rect(node.querySelector('.tablet-game-list')),
+      detail: rect(node.querySelector('.tablet-selection-detail')), start: rect(node.querySelector('.tablet-primary')), bet: rect(node.querySelector('.tablet-bet-input')),
+      paperScroll: node.querySelector('.tablet-paper')?.scrollTop, documentScroll: document.scrollingElement?.scrollTop }
+  })
+  await page.waitForTimeout(1000)
+  const before = await layout()
+  await screenshot(page, `tablet-layout-selection-${viewport.width}`)
+  for (const name of ['주사위 한 판', '원카드', '거짓말 다리 건너기', '오목', '주사위 한 판']) {
+    await tablet.getByRole('button', { name, exact: false }).first().click()
+    await expect(tablet.getByLabel('주사위 목표 점수')).toHaveCount(name === '주사위 한 판' ? 1 : 0)
+    const after = await layout()
+    for (const key of ['screen', 'title', 'list', 'detail', 'start', 'bet'] as const) {
+      for (const axis of ['x', 'y', 'width', 'height'] as const)
+        expect(Math.abs(after[key]![axis] - before[key]![axis]), `${name}: ${key}.${axis}`).toBeLessThan(1)
+    }
+    expect(after.paperScroll).toBe(0); expect(after.documentScroll).toBe(0)
+    expect(after.start!.y + after.start!.height).toBeLessThan(after.screen!.y + after.screen!.height)
+  }
+  await tablet.getByLabel('주사위 목표 점수').selectOption('6000')
+  await tablet.getByLabel('1인 참가비').fill('20')
+  await expect(tablet.getByRole('button', { name: '선택하고 준비하기' })).toBeInViewport()
+  await screenshot(page, `tablet-layout-dice-${viewport.width}`)
+  await tablet.getByRole('button', { name: '선택하고 준비하기' }).click()
+  await expect(tablet).toContainText('함께 시작할까요?')
+  expect(server.sent.find(message => message.type === 'TABLE_CONFIGURE')?.payload).toMatchObject({ gameCode: 'DICE', targetScore: 6000, betAmountPerPlayer: 20 })
+  await expect(page.locator('vite-error-overlay')).toHaveCount(0); expect(errors).toEqual([])
+})
+
+test('narrow tablet dice selection keeps its frame fixed and all settings reachable', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message))
+  const server = await fixture(page, { omok: true, manualLobby: true, tabletServer: true })
+  const tablet = await openTable(page), before = await tablet.boundingBox()
+  await tablet.getByRole('button', { name: '주사위 한 판', exact: false }).first().click()
+  expect(await tablet.boundingBox()).toEqual(before)
+  await tablet.getByLabel('주사위 목표 점수').selectOption('4000')
+  await tablet.getByLabel('1인 참가비').fill('7')
+  await tablet.getByRole('button', { name: '선택하고 준비하기' }).scrollIntoViewIfNeeded()
+  await screenshot(page, 'tablet-layout-dice-mobile')
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth && document.scrollingElement?.scrollTop === 0)).toBe(true)
+  await tablet.getByRole('button', { name: '선택하고 준비하기' }).click()
+  await expect(tablet).toContainText('함께 시작할까요?')
+  expect(server.sent.find(message => message.type === 'TABLE_CONFIGURE')?.payload).toMatchObject({ gameCode: 'DICE', targetScore: 4000, betAmountPerPlayer: 7 })
+  await expect(page.locator('vite-error-overlay')).toHaveCount(0); expect(errors).toEqual([])
+})
 
 test('tablet powers on and never falls back to legacy auto-start after an unsupported configure', async ({ page }) => {
   const errors: string[] = []
@@ -85,6 +286,9 @@ for (const variant of [
   await tablet.getByRole('button', { name: '게임 시작', exact: true }).click()
   await expect(tablet).toHaveCount(0)
   await expect(page.getByRole('region', { name: variant.panel, exact: true })).toBeVisible()
+  await page.getByLabel('3D 공원', { exact: true }).locator('canvas').focus(); await page.keyboard.press('Escape')
+  await expect(page.getByRole('region', { name: variant.panel, exact: true })).toBeVisible()
+  expect(server.sent.some(message => message.type === 'TABLE_LEAVE' || message.type === 'GAME_FORFEIT')).toBe(false)
   if (variant.game === 'DICE') await expect(page.getByRole('region', { name: variant.panel, exact: true })).toContainText('6,000')
   const start = server.sent.filter(m => m.type === 'TABLE_START'); expect(start).toHaveLength(1)
   expect(Object.keys(start[0]!.payload).sort()).toEqual(['actionId', 'expectedVersion'])
@@ -106,6 +310,36 @@ test('real timeout receipt follows TABLE_LEFT and does not disconnect the park',
   expect(await page.evaluate(async () => (await import('/src/network/worldClient.ts' as string)).useSession.getState().status)).toBe('connected')
   expect(server.sent.filter(m => m.type === 'TABLE_LEAVE')).toHaveLength(0)
   await screenshot(page, 'tablet-real-server-timeout')
+})
+
+test('omok assets appear on selection and feedback starts only after the server confirms manual start', async ({ page }) => {
+  const server = await fixture(page, { omok: true, manualLobby: true, tabletServer: true, spectatorEvents: true })
+  const tablet = await openTable(page)
+  await tablet.getByLabel('1인 참가비').fill('1')
+  await tablet.getByRole('button', { name: '선택하고 준비하기' }).click()
+  const art = () => page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).omokArtProbe())
+  const camera = () => page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).omokCameraProbe())
+  await expect.poll(async () => (await art()).present).toBe(true)
+  await expect(page.locator('[data-omok-focus="true"]')).toHaveCount(0)
+  server.spectatorEvent('chat'); await expect(page.locator('.omok-floating-chat')).toHaveCount(0)
+  await tablet.getByRole('checkbox').check()
+  await tablet.getByRole('button', { name: '준비 완료', exact: true }).click()
+  server.readyTabletOthers(true); server.publishTabletWait(120); server.holdTabletStart(true)
+  await tablet.getByRole('button', { name: '게임 시작', exact: true }).click()
+  await expect(tablet).toBeVisible()
+  expect((await camera()).ready).toBe(false)
+  await expect(page.locator('[data-omok-focus="true"]')).toHaveCount(0)
+  server.confirmStart()
+  await expect(tablet).toHaveCount(0)
+  await expect.poll(async () => (await camera()).ready).toBe(true)
+  server.spectatorEvent('chat', { text: '가운데를 막아봐요!' })
+  server.spectatorEvent('ping', { x: 7, y: 7 })
+  await expect(page.locator('.omok-floating-chat')).toContainText('가운데를 막아봐요!')
+  await expect(page.locator('.omok-ping-label')).toHaveCount(1)
+  await expect(page.getByRole('region', { name: '주변 채팅', exact: true })).toHaveCount(0)
+  expect(server.sent.filter(m => m.type === 'TABLE_START')).toHaveLength(1)
+  expect(server.sent.filter(m => m.type === 'GAME_SELECT')).toHaveLength(0)
+  await screenshot(page, 'tablet-omok-confirmed-feedback')
 })
 
 test('unanswered manual start requires a read before a new explicit start and never auto-replays', async ({ page }) => {
@@ -279,7 +513,9 @@ test('result popup preserves pending settlement, server host and next-round perm
   await expect(result.getByText('보상 확인 중', { exact: true })).toBeVisible()
   await expect(result.getByRole('button', { name: '다음 판 준비', exact: true })).toBeDisabled()
   await page.waitForTimeout(350); await screenshot(page, 'tablet-result-pending')
-  await result.getByRole('button', { name: '결과 창 닫기' }).click()
+  await page.keyboard.press('Escape')
+  await expect(result).toHaveCount(0)
+  expect(server.sent.some(message => message.type === 'TABLE_LEAVE')).toBe(false)
   await page.getByRole('button', { name: '경기 결과 다시 보기' }).click()
   await expect(result).toBeVisible()
   server.settle(); await expect(result).toContainText('정산 완료')

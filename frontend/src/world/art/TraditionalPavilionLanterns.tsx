@@ -19,7 +19,7 @@ import { SurfaceMaterial } from './SurfaceMaterial'
 import { hanjiGrain, metalGrain } from './ornamentTextures'
 import { environmentFrame } from '../environmentState'
 
-const b = new PropBuilder(),
+const b = new PropBuilder([12, 8], 'pavilion-lanterns'),
   red = '#833d2c',
   trim = '#a95738',
   green = '#274c3b',

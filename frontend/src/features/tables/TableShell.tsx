@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 
 import { GOMOKU, TABLE_SEATS, tableScale, type TableAnchor } from '../../config'
-import { parkRuntime } from '../../park/runtime/runtime'
+import { interactWithTable } from '../tableLobby/tableInteraction'
 import { Instances, type Part } from '../../world/art/Instances'
 
 import { SurfaceMaterial } from '../../world/art/SurfaceMaterial'
@@ -16,7 +16,7 @@ import { BridgeBoard } from '../../game/bridge/BridgeBoard'
 import { usePresentedChairCount } from '../tableLobby/useTablePresentation'
 
 /** Stable game/seat anchors survive replacement of the visual table subtree. */
-export function TableShell({ anchor, onInspect = parkRuntime.inspectTable }: {
+export function TableShell({ anchor, onInspect = interactWithTable }: {
   anchor: TableAnchor; onInspect?: (id: string) => void
 }) {
   const fourSeats = true

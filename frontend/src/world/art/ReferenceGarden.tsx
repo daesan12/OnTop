@@ -1,5 +1,6 @@
 import { useLoader } from '@react-three/fiber'
 import { leafMapUrl } from '../worldAssets'
+import { ParkTextureLoader } from './ParkTextureLoader'
 import {
   BufferGeometry,
   PlaneGeometry,
@@ -7,7 +8,6 @@ import {
   Matrix4,
   Quaternion,
   Vector3,
-  TextureLoader,
   Float32BufferAttribute,
   Shape,
   ShapeGeometry,
@@ -92,7 +92,7 @@ export const crownGeometry = (() => {
   return merged
 })()
 export function GardenFoliageMaterial() {
-  const map = useLoader(TextureLoader, leafMapUrl)
+  const map = useLoader(ParkTextureLoader, leafMapUrl)
   return (
     <meshStandardMaterial
       map={map}

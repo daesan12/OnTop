@@ -1,4 +1,5 @@
 import { gatheringCameraActive } from '../features/tableLobby/gathering'
+import { oneCardPlayerViewActive, oneCardCameraPose, ONECARD_CAMERA } from '../game/onecard/camera'
 import { tabletLobbyActive } from '../features/tableLobby/tabletModel'
 import { TABLET } from '../features/tableLobby/tabletProjection'
 import { renderedTableAnchors } from '../features/tableLobby/tabletAnchors'
@@ -125,7 +126,7 @@ export function CameraRig() {
       avatar = avatars.get(session.sessionId)
     const facilities = useFacilityState.getState()
     const temporaryView = !!(avatar?.tableId || avatar?.benchId || avatar?.fitnessId || avatar?.telescopeId
-      || session.tableId || session.focusedAnchorId || useGame.getState().watchedGameId || bungeoppangView.active
+      || session.tableId || session.focusedAnchorId || useTableLobby.getState().joiningAnchorId || useGame.getState().watchedGameId || bungeoppangView.active
       || useFeedbackState.getState().open || useNotesState.getState().open)
     if (temporaryView) rememberRoamingView(session.sessionId, session.roomId)
     restoreRoamingView(session.sessionId, session.roomId, temporaryView || session.status !== 'connected'
@@ -224,7 +225,7 @@ export function CameraRig() {
       Object.assign(viewControls, state.savedView)
       state.bench = ''
     }
-    const game = useGame.getState().game
+    const gameSession = useGame.getState(), game = gameSession.game
     const scope = seatScope(session)
     if (state.seatScope !== scope) { resetSeatedLook(); state.seatScope = scope }
     const looking = !!scope && useTableLobby.getState().lookScope === scope
@@ -235,10 +236,8 @@ export function CameraRig() {
     const closeAnchor = benchView.scope === benchScope && benchView.view !== 'seated' ? benchAnchor : undefined
     const spectatorBoard = closeAnchor ? closeView === 'board' : !!watchedAnchor && useTableLobby.getState().spectatorView === 'board'
     const firstPerson = roamingFirstPerson(avatar, !!useGame.getState().watchedGameId)
-    const boardFocus =
-      !looking && seated && !!avatar.tableId &&
-      game?.omok?.status === 'PLAYING' &&
-      (game.role === 'SPECTATOR' || game.omok.turnUserId === session.sessionId)
+    const boardFocus = seated && !!avatar.tableId && game?.role === 'PLAYER'
+      && game.omok?.status === 'PLAYING' && !gameSession.lastResult
     const ownOmok = seated && !!avatar.tableId && (session.tableStates[session.tableId]?.gameCode === 'OMOK'
       || game?.role === 'PLAYER' && !!game.omok)
     const gathering = !TABLET_ENABLED && gatheringCameraActive()
@@ -282,11 +281,18 @@ export function CameraRig() {
         state.desired.set(anchor.position[0] + Math.sin(yaw) * radius,
           Math.min(anchor.position[1] + 2.8, spectatorClearHeight(anchor.pavilionId)), anchor.position[2] + Math.cos(yaw) * radius)
       }
+    } else if (seated && avatar.tableId && oneCardPlayerViewActive(game)) {
+      const anchor = TABLES.find(t => t.id === avatar.tableId)
+      if (anchor) {
+        const pose = oneCardCameraPose(anchor, session.seatIndex)
+        state.desired.set(...pose.position)
+        state.look.set(...pose.target)
+      }
     } else if (focusedOmok && camera instanceof PerspectiveCamera) {
       const anchor = TABLES.find(t => t.id === avatar.tableId)!
       state.look.set(anchor.position[0], anchor.position[1] + GOMOKU.boardY + .017, anchor.position[2])
       state.desired.copy(state.look)
-      state.desired.y += omokTopDownHeight(camera.aspect, tableScale(anchor))
+      state.desired.y += omokTopDownHeight(camera.aspect, tableScale(anchor), gl.domElement.clientHeight)
       state.targetUp.set(0, 0, avatar.seatIndex === 0 ? -1 : 1)
     } else if (diceFocus) {
       const anchor = TABLES.find(t => t.id === avatar.tableId)!
@@ -391,7 +397,7 @@ export function CameraRig() {
       )
       state.look.copy(center)
     }
-    const targetFov = tablet ? 43 : gathering ? ownOmok ? 60 : CAMERA.fov : diceFocus ? DICE_CAMERA.fov : boardFocus || spectatorBoard ? GOMOKU.topDownFov : seated ? GOMOKU.seatedFov : CAMERA.fov
+    const targetFov = tablet ? 43 : gathering ? ownOmok ? 60 : CAMERA.fov : seated && oneCardPlayerViewActive(game) ? ONECARD_CAMERA.fov : diceFocus ? DICE_CAMERA.fov : boardFocus || spectatorBoard ? GOMOKU.topDownFov : seated ? GOMOKU.seatedFov : CAMERA.fov
     const smoothingOmok = ownOmok || state.omokTransition
     const smoothingDice = ownDice || state.diceTransition
     const smoothingBoard = smoothingOmok || smoothingDice

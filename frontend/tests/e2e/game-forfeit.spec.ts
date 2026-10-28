@@ -23,13 +23,33 @@ async function start(page: Page, kind: Kind = 'OMOK', count: 2 | 3 | 4 = 2) {
   await page.getByRole('button', { name: selection[kind], exact: true }).click()
   await page.getByRole('button', { name: '준비', exact: true }).click(); server.confirmStart()
   const panel = page.getByRole('region', { name: labels[kind], exact: true })
-  await expect(panel).toBeVisible(); await expect(panel.getByRole('button', { name: '기권', exact: true })).toBeEnabled()
+  await expect(panel).toBeVisible()
+  if (kind === 'OMOK') await expect(page.locator('button[aria-label="공원 지도"]')).toHaveCount(0)
+  else await expect(page.locator('button[aria-label="공원 지도"]')).toBeDisabled()
+  await page.locator('canvas').focus(); await page.keyboard.press('KeyM')
+  await page.evaluate(async () => (await import('/src/features/navigation/navigationState.ts' as string)).openParkMap())
+  expect(await page.evaluate(async () => (await import('/src/features/navigation/navigationState.ts' as string)).useParkMap.getState().open)).toBe(false)
+  await expect(page.getByRole('dialog', { name: '공원 지도창', exact: true })).toBeHidden()
+  if (kind === 'ONE_CARD') await expect(panel.getByRole('timer')).toBeVisible()
+  else await expect(panel.getByRole('button', { name: '기권', exact: true })).toBeEnabled()
   if (kind === 'OMOK') await panel.getByText('키보드로 오목판 조작', { exact: true }).click()
   return { server, panel }
 }
+async function openConfirm(page: Page) {
+  if ((await game(page))?.onecard) {
+    await page.locator('canvas').focus(); await page.keyboard.press('Escape')
+    await expect(page.getByRole('dialog', { name: '기권하시겠습니까?', exact: true })).toContainText('배팅한 엽전은 모두 잃게 됩니다.')
+  } else {
+    await page.getByRole('button', { name: '기권', exact: true }).click()
+    await expect(page.getByRole('group', { name: '기권 확인', exact: true })).toContainText('되돌릴 수 없으며')
+  }
+}
+async function available(page: Page) {
+  if ((await game(page))?.onecard) { await openConfirm(page); await page.getByRole('button', { name: '계속 플레이', exact: true }).click() }
+  else await expect(page.getByRole('button', { name: '기권', exact: true })).toBeEnabled()
+}
 async function confirm(page: Page) {
-  await page.getByRole('button', { name: '기권', exact: true }).click()
-  await expect(page.getByRole('group', { name: '기권 확인', exact: true })).toContainText('되돌릴 수 없으며')
+  await openConfirm(page)
   await page.getByRole('button', { name: '기권 확정', exact: true }).click({ clickCount: 2 })
 }
 const errors = new WeakMap<Page, string[]>()
@@ -46,13 +66,12 @@ for (const kind of ['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE'] as const) {
     if (kind === 'DICE') server.diceSnapshot({ turnUserId: '102' })
     if (kind === 'ONE_CARD') server.cardSnapshot({ turnUserId: '102' })
     if (kind === 'LIAR_BRIDGE') server.bridgeSnapshot({ turnUserId: '102' })
-    await expect(panel.getByRole('button', { name: '기권', exact: true })).toBeEnabled()
-    await panel.getByRole('button', { name: '기권', exact: true }).click()
-    await panel.getByRole('button', { name: '계속 플레이', exact: true }).click()
+    await openConfirm(page)
+    await page.getByRole('button', { name: '계속 플레이', exact: true }).click()
     await page.locator('canvas').focus(); await page.keyboard.press('KeyW')
     expect(server.sent.some(m => ['GAME_FORFEIT', 'TABLE_LEAVE'].includes(m.type))).toBe(false)
     server.forfeitMode('hold'); server.forfeitOrder(kind === 'DICE' ? 'receipt-first' : 'state-first')
-    await confirm(page); await expect(panel).toContainText('기권 요청 확인 중')
+    await confirm(page); await expect(kind === 'ONE_CARD' ? page.locator('body') : panel).toContainText('기권 요청 확인 중')
     const requests = server.sent.filter(m => m.type === 'GAME_FORFEIT'); expect(requests).toHaveLength(1)
     expect(Object.keys(requests[0]!.payload).sort()).toEqual(['actionId', 'gameId'])
     expect(requests[0]!.payload.actionId).toMatch(/^[\w-]{1,64}$/)
@@ -68,10 +87,10 @@ for (const kind of ['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE'] as const) {
     const oldId = (await game(page))!.gameId
     server.nextRound(); await expect(panel).toHaveCount(0)
     await nextRound(page); server.confirmStart()
-    await expect(panel.getByRole('button', { name: '기권', exact: true })).toBeEnabled()
+    await available(page)
     expect((await game(page))!.gameId).not.toBe(oldId)
     server.lateForfeitError(requests[0]!.requestId); server.lateForfeitReceipt(oldId, String(requests[0]!.payload.actionId))
-    await expect(panel.getByRole('button', { name: '기권', exact: true })).toBeEnabled()
+    await available(page)
     expect(server.sent.filter(m => m.type === 'GAME_FORFEIT')).toHaveLength(1)
   })
 }
@@ -79,7 +98,7 @@ for (const kind of ['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE'] as const) {
 for (const kind of ['ONE_CARD', 'LIAR_BRIDGE'] as const) for (const count of [3, 4] as const) {
   test(`${kind} ${count} players: own elimination keeps the remaining match and seats intact`, async ({ page }) => {
     const { server, panel } = await start(page, kind, count)
-    await confirm(page); await expect(panel).toContainText('기권 요청이 확인됐어요')
+    await confirm(page); await expect(panel).toContainText(kind === 'ONE_CARD' ? '기권 처리되어' : '기권 요청이 확인됐어요')
     const g = (await game(page))!
     expect((g.onecard ?? g.bridge)!.status).toBe('PLAYING')
     expect(await page.evaluate(async () => (await import('/src/game/store.ts' as string)).useGame.getState().recovery)).toBe('ELIMINATED')

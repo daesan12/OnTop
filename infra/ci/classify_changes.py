@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Classify every changed path since the last successful CI deployment."""
+"""Classify paths changed between two Git commits."""
 
 import argparse
 import subprocess

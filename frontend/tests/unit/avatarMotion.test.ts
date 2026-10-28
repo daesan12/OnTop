@@ -76,11 +76,19 @@ describe('avatar pose transitions and resource ownership', () => {
         figure.add(rig.root)
         const a = avatar({ swimming: true, moving: true })
         const handSamples: number[] = []
+        const armAngles: Record<string, number> = {}, armTravel: Record<string, number> = { L: 0, R: 0 }
         let min = Infinity, max = -Infinity, kickMin = Infinity, kickMax = -Infinity
         for (let i = 0; i < fps * 4; i++) {
           motion.apply(a, 0, 1 / fps, pose, figure)
           figure.updateMatrixWorld(true)
           if (i < fps) continue
+          for (const side of ['L', 'R'] as const) {
+            const shoulder = rig.bones[`upperArm_${side}`].getWorldPosition(new Vector3())
+            const relative = rig.bones[`hand_${side}`].getWorldPosition(new Vector3()).sub(shoulder)
+            const angle = Math.atan2(relative.z, relative.y), before = armAngles[side]
+            if (before !== undefined) armTravel[side]! += Math.atan2(Math.sin(angle - before), Math.cos(angle - before))
+            armAngles[side] = angle
+          }
           const hand = rig.bones.hand_L.getWorldPosition(new Vector3())
           handSamples.push(hand.z)
           min = Math.min(min, hand.z); max = Math.max(max, hand.z)
@@ -95,6 +103,9 @@ describe('avatar pose transitions and resource ownership', () => {
         const middle = (min + max) / 2
         const crossings = handSamples.filter((z, i) => i > 0 && (z - middle) * (handSamples[i - 1]! - middle) < 0).length
         expect(crossings).toBeGreaterThanOrEqual(5)
+        // Signed hand travel catches a backwards stroke; range/crossings alone cannot.
+        expect(armTravel.L).toBeGreaterThan(8)
+        expect(armTravel.R).toBeGreaterThan(8)
         expect(rig.bones.lowerArm_L.rotation.x).toBeLessThan(-0.15)
         expect(kickMax - kickMin).toBeGreaterThan(0.35)
         for (let i = 0; i < fps; i++) motion.apply({ ...a, moving: false }, 0, 1 / fps, pose, figure)

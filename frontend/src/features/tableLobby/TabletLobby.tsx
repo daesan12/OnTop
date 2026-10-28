@@ -10,6 +10,7 @@ import { manualStartAllowed, preparationContext, readyWouldAutoStart, usePrepara
 import { tabletProjection } from './tabletProjection'
 import { HostStartButton, HostStartWaitStatus } from './HostStartWaitControls'
 import { useTabletStartStatus } from './TabletLobbyClient'
+import { inputState } from '../../world/inputOwnership'
 import './tablet.css'
 const TabletPortrait = lazy(() => import('./TabletPortrait').then(module => ({ default: module.TabletPortrait })))
 
@@ -45,6 +46,7 @@ function TabletSession({ tableId }: { tableId: string }) {
   const approvedCount = table && port?.selectedPlayers(table), max = TABLE_GAMES.find(game => game.code === code)!.capacity
   const occupied = table?.seats.filter(seat => seat.userId).length ?? 0
   const busy = s.pending || g.pending || g.busy || working || !s.connected || g.uncertain
+  const canStand = active && !busy && !!mine
   const signature = table ? `${table.tableId}/${table.gameCode}/${table.targetScore}/${table.betAmountPerPlayer}/${approvedCount ?? ''}` : ''
   useEffect(() => { setConfirmedBet(''); setBet(String(table?.betAmountPerPlayer ?? '')) }, [signature])
   useEffect(() => {
@@ -66,6 +68,22 @@ function TabletSession({ tableId }: { tableId: string }) {
     if (active && document.pointerLockElement) document.exitPointerLock()
     if (active) element.current?.focus({ preventScroll: true })
   }, [active])
+  useEffect(() => {
+    if (!active) return
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.defaultPrevented || event.repeat || event.isComposing
+        || event.ctrlKey || event.altKey || event.metaKey || document.hidden || Object.values(inputState).some(Boolean)) return
+      const node = element.current, focus = document.activeElement
+      // A pending button can lose focus to body; other panels keep their own Escape.
+      if (!node || focus && focus !== document.body && !node.contains(focus) && focus.tagName !== 'CANVAS') return
+      if ([...document.querySelectorAll<HTMLElement>('dialog[open],[role="dialog"],[role="alertdialog"]')]
+        .some(dialog => dialog !== node && dialog.getClientRects().length)) return
+      event.preventDefault()
+      if (canStand) void runtime.leaveTable()
+    }
+    window.addEventListener('keydown', escape)
+    return () => window.removeEventListener('keydown', escape)
+  }, [active, canStand, runtime])
   async function command(action: () => Promise<boolean>) {
     if (busy) return
     const epoch = ++commandEpoch.current
@@ -86,7 +104,6 @@ function TabletSession({ tableId }: { tableId: string }) {
   return <section ref={element} tabIndex={-1} className="table-tablet" role={active ? 'dialog' : undefined}
     aria-label="게임 태블릿" aria-hidden={!active} inert={!active} data-active={active} data-stage={step}
     onKeyDown={event => {
-      if (event.key === 'Escape') { event.stopPropagation(); event.preventDefault() }
       if (event.key !== 'Tab') return
       const controls = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled),input:not(:disabled),select:not(:disabled)')).filter(e => e.getClientRects().length)
       const first = controls[0], last = controls.at(-1)
@@ -113,8 +130,8 @@ function TabletSession({ tableId }: { tableId: string }) {
           <GameArt code={code} />
           <fieldset disabled={!host || busy}><legend>참가 인원</legend><div className="tablet-counts">{[2, 3, 4].filter(n => n <= max).map(n => <button key={n}
             aria-pressed={count === n} onClick={() => setCount(n)}>{n}인</button>)}</div></fieldset>
-          {code === 'DICE' && <label className="tablet-score">목표 점수<select aria-label="주사위 목표 점수" disabled={!host || busy} value={target} onChange={e => setTarget(Number(e.target.value))}>
-            {TARGET_SCORES.map(score => <option key={score} value={score}>{score.toLocaleString()}점</option>)}</select></label>}
+          <div className="tablet-score-slot">{code === 'DICE' && <label className="tablet-score">목표 점수<select aria-label="주사위 목표 점수" disabled={!host || busy} value={target} onChange={e => setTarget(Number(e.target.value))}>
+            {TARGET_SCORES.map(score => <option key={score} value={score}>{score.toLocaleString()}점</option>)}</select></label>}</div>
           <label className="tablet-bet-input">1인 참가 판돈<input aria-label="1인 참가비" inputMode="numeric" type="text" maxLength={15} value={bet} disabled={!host || busy}
             placeholder="금액 입력" onChange={e => setBet(e.target.value)} /><span>냥</span></label>
           {!countSupported && <p className="tablet-contract-note" role="status">{count}인 정원 선택은 서버 연결 준비 중입니다.</p>}
@@ -142,7 +159,7 @@ function TabletSession({ tableId }: { tableId: string }) {
           : table.allReady ? '모두 준비했어요. 방장의 시작을 기다려요.' : `${occupied}명 착석 · ${table.seats.filter(s => s.userId && s.ready).length}명 준비 완료`} />
         {!port && <p className="tablet-contract-note">방장 수동 시작 연결 준비 중{finalReadyBlocked ? ' · 자동 시작을 막기 위해 마지막 준비를 잠시 기다려주세요.' : ''}</p>}
         {port && approvedCount == null && <p className="tablet-contract-note">방장이 게임·인원·판돈을 확정한 뒤 준비할 수 있어요.</p>}
-        <footer className="tablet-ready-actions"><button disabled={busy || !mine} onClick={() => void runtime.leaveTable()}>일어나기</button>
+        <footer className="tablet-ready-actions"><button disabled={busy || !mine} aria-keyshortcuts="Escape" title="일어나기 (Esc)" onClick={() => void runtime.leaveTable()}>일어나기</button>
           {host ? <HostStartButton table={table} selectedCount={approvedCount ?? null} disabled={!startEnabled} onStart={() => port && void command(() => port.start(preparationContext(table)))} />
             : <span className="tablet-host-wait">방장이 게임을 시작해요</span>}
           <button disabled={busy || !mine || !table.gameCode || !table.betAmountPerPlayer || (!mine.ready && (confirmedBet !== confirmation || !port || approvedCount == null))}
@@ -152,7 +169,7 @@ function TabletSession({ tableId }: { tableId: string }) {
       <div className="tablet-footer-status" aria-live="polite">{(error || g.error || s.sessionError) && <p role="alert">{error || g.error || s.sessionError}</p>}
         {startUncertain && port?.recoverStart && <p role="status">시작 요청 응답을 확인하고 있어요. 새 요청을 보내기 전에 상태를 확인해주세요.
           <button disabled={s.pending || working || !s.connected} onClick={() => void command(() => port.recoverStart!(preparationContext(table)))}>시작 요청 상태 확인</button></p>}
-        {step === 'select' && <button disabled={busy} onClick={() => table.gameCode ? setStep('ready') : void runtime.leaveTable()}>{table.gameCode ? '돌아가기' : '일어나기'}</button>}
+        {step === 'select' && <button disabled={busy} aria-keyshortcuts={table.gameCode ? undefined : 'Escape'} title={table.gameCode ? undefined : '일어나기 (Esc)'} onClick={() => table.gameCode ? setStep('ready') : void runtime.leaveTable()}>{table.gameCode ? '돌아가기' : '일어나기'}</button>}
         {['STARTING', 'CONFIRMED'].includes(g.start?.phase ?? '') && <button disabled={s.pending || working || !s.connected} onClick={() => void runtime.checkStart()}>시작 상태 다시 확인</button>}
         {['PENDING', 'EXPIRED', 'UNAVAILABLE'].includes(g.recovery) && <button disabled={s.pending || working || !s.connected} onClick={() => void runtime.checkRecovery()}>경기 복구 다시 확인</button>}
       </div>

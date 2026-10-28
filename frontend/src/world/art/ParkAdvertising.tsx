@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame, useLoader } from '@react-three/fiber'
+import { ParkTextureLoader } from './ParkTextureLoader'
 import {
   MeshBasicMaterial,
   PlaneGeometry,
   SRGBColorSpace,
-  TextureLoader,
   type Group,
 } from 'three'
 import { A_FRAME, A_FRAME_SIGNS, AD_BALLOON } from '../../config'
@@ -140,7 +140,7 @@ function Poster({
 }
 
 export function ParkAdvertising() {
-  const texture = useLoader(TextureLoader, PARK_ADVERTISEMENT.imageUrl)
+  const texture = useLoader(ParkTextureLoader, PARK_ADVERTISEMENT.imageUrl)
   const material = useMemo(() => {
     texture.colorSpace = SRGBColorSpace
     texture.anisotropy = 16

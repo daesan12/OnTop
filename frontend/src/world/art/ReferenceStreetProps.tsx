@@ -6,7 +6,7 @@ import { Instances, seeded, type Part } from './Instances'
 const leaves: Part[] = [],
   flowers: Part[] = []
 function scenery() {
-  const b = new PropBuilder(),
+  const b = new PropBuilder([12, 8], 'street-planters'),
     rand = seeded(8421)
   for (const p of STREET_PLANTERS) {
     if (p.kind === 'bowl') {

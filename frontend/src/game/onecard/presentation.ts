@@ -15,6 +15,6 @@ export function cardEffect(c: Card) {
     case 'J': return '다음 차례 건너뛰기'
     case 'Q': return '방향 반전'
     case 'K': return '한 장 더 내기'
-    default: return '일반 카드'
+    default: return ''
   }
 }
