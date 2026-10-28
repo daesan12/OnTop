@@ -12,6 +12,9 @@ const seat = (page: Page, id = '101') => page.evaluate(async id =>
   (await import('/tests/e2e/sceneProbe.ts' as string)).publicSeatProbe(id), id)
 const emote = (page: Page) => page.evaluate(async () =>
   (await import('/tests/e2e/sceneProbe.ts' as string)).emoteProbe())
+const anchor = TABLES.find(table => table.picnicId)!, placement = tableSeats(anchor)[0]!
+const approach = { x: anchor.position[0] + placement.x, y: anchor.position[1] + .8,
+  z: anchor.position[2] + placement.z + .6, yaw: Math.PI }
 
 test('public seat snapshot renders the actor seated for a bystander before the bystander joins or watches', async ({ page, context }) => {
   const errors: string[] = []
@@ -20,25 +23,25 @@ test('public seat snapshot renders the actor seated for a bystander before the b
     p.on('console', m => { if (m.type() === 'error') errors.push(m.text()) })
   }
   observe(page)
-  const actor = await fixture(page, { omok: true, m09: true })
+  const actor = await fixture(page, { omok: true, manualLobby: true, tabletServer: true,
+    anchorId: anchor.id, position: approach })
   await loaded(page)
   const observer = await context.newPage(); observe(observer)
-  const bystander = await fixture(observer, { ownUserId: '102', manualMovement: true })
+  const bystander = await fixture(observer, { ownUserId: '102', manualMovement: true, anchorId: anchor.id })
   await loaded(observer)
   expect((await seat(observer)).seatIndex).toBe(-1)
+  await expect(page.getByRole('button', { name: 'E 테이블에 앉기', exact: true })).toBeVisible()
   await page.locator('canvas').focus(); await page.keyboard.press('KeyE')
-  const lobby = page.getByRole('dialog', { name: '테이블 정보', exact: true })
-  await expect(lobby).toBeVisible()
-  await lobby.getByRole('button', { name: '앉기', exact: true }).click()
+  const tablet = page.getByRole('dialog', { name: '게임 태블릿', exact: true })
+  await expect(tablet).toBeVisible()
   await expect.poll(async () => (await seat(page)).ownTable).toBe(tableId)
-  // Proposed BE WORLD_STATE extension, independently delivered to the bystander.
+  // BE WORLD_STATE public seat contract, independently delivered to the bystander.
   bystander.tableSeat('101', { tableId, seatNumber: 1 })
   await expect.poll(async () => (await seat(observer)).seatIndex).toBe(0)
   await expect.poll(async () => (await seat(observer)).thigh!).toBeLessThan(-1.5)
   await expect.poll(async () => (await seat(observer)).knee!).toBeGreaterThan(1.5)
   expect(await seat(observer)).toMatchObject({ visible: true, ownTable: '', watchedTable: '' })
   expect(bystander.sent.some(m => ['TABLE_JOIN', 'TABLE_WATCH', 'GAME_WATCH'].includes(m.type))).toBe(false)
-  const anchor = TABLES[0]!, placement = tableSeats(anchor)[0]!
   bystander.remotePose({ x: anchor.position[0] + placement.x + 5, y: anchor.position[1] + .8,
     z: anchor.position[2] + placement.z + 4 })
   await observer.evaluate(async () => {
@@ -48,8 +51,7 @@ test('public seat snapshot renders the actor seated for a bystander before the b
     await new Promise(resolve => setTimeout(resolve, 350))
   })
   await screenshot(observer, 'avatar-feedback-public-seated')
-  await lobby.getByRole('button', { name: '테이블 정보 닫기' }).click()
-  await page.locator('canvas').focus(); await page.keyboard.press('KeyW')
+  await tablet.getByRole('button', { name: '일어나기', exact: true }).click()
   await expect.poll(() => actor.sent.some(m => m.type === 'TABLE_LEAVE')).toBe(true)
   bystander.tableSeat('101', null)
   await expect.poll(async () => (await seat(observer)).seatIndex).toBe(-1)

@@ -27,7 +27,7 @@ export interface Position {
   running: boolean
   swimming: boolean
 }
-/** Proposed public presentation contract; seatNumber is 1-based, like TABLE_STATE. */
+/** Public WORLD_STATE seating contract; seatNumber is 1-based, like TABLE_STATE. */
 export interface PublicTableSeat {
   tableId: string
   seatNumber: number

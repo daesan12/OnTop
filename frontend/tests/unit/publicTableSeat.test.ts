@@ -25,7 +25,7 @@ beforeEach(() => {
       gameCode: null, betAmountPerPlayer: null, status: 'WAITING' }] })
 })
 
-describe('public world table seat presentation (proposed BE contract)', () => {
+describe('public world table seat presentation (WORLD_STATE contract)', () => {
   it('shows a remote seated pose without joining or watching their table', () => {
     emit('WORLD_STATE', snapshot(1, { tableId, seatNumber: 1 }))
     const remote = avatars.get('102')!, seat = tableSeats(anchor)[0]!
