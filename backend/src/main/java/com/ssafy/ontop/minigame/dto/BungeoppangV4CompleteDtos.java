@@ -15,7 +15,8 @@ public final class BungeoppangV4CompleteDtos {
             List<BungeoppangV4DeliveryDtos.Action> log, List<String> seenTips, Long clientScore) {
     }
 
-    @Schema(name = "BungeoppangV4CompleteResponse")
+    @Schema(name = "BungeoppangV4CompleteResponse",
+            description = "v4와 v5 완료가 함께 쓰는 정산 응답입니다. rulesVersion이 v4 또는 v5입니다.")
     public record Response(String minigameSessionId, String status, String rulesVersion, String configVersion,
             int verifiedCompletedCount, long rewardAmount, long score, int made, int golden, int failed,
             int wasted, int maxCombo, long coinsCalculated, long coinsGranted, long todayEarned,
