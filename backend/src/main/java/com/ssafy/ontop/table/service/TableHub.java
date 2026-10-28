@@ -25,6 +25,8 @@ import com.ssafy.ontop.game.start.CommittedGameStartService;
 import com.ssafy.ontop.game.state.GameStateGateway;
 import com.ssafy.ontop.game.state.GameStateChanged;
 import com.ssafy.ontop.game.state.GameStateView;
+import com.ssafy.ontop.game.onecard.service.OneCardEngine;
+import com.ssafy.ontop.game.onecard.service.OneCardPranks;
 import com.ssafy.ontop.table.domain.TableGame;
 import com.ssafy.ontop.table.domain.TableRoom;
 import com.ssafy.ontop.table.domain.TableStartAttempt;
@@ -151,6 +153,19 @@ public class TableHub {
     @Autowired(required = false)
     public void configureWorldClock(com.ssafy.ontop.world.service.WorldClock clock) { worldClock = clock; }
     private SpectatorEventPolicy spectatorEvents = new SpectatorEventPolicy();
+    private Optional<OneCardEngine> prankEngine = Optional.empty();
+    private final OneCardPranks onecardPranks = new OneCardPranks();
+    private boolean pranksEnabled;
+    private boolean prankDefenseEnabled = true;
+
+    @Autowired
+    public void configureOneCardPranks(Optional<OneCardEngine> engine,
+            @Value("${ontop.games.onecard.pranks-enabled:false}") boolean enabled,
+            @Value("${ontop.games.onecard.defense-enabled:true}") boolean defense) {
+        prankEngine = engine;
+        pranksEnabled = enabled;
+        prankDefenseEnabled = defense;
+    }
 
     @Autowired(required = false)
     public void configureSpectatorEvents(SpectatorEventPolicy policy) { spectatorEvents = policy; }
@@ -438,6 +453,7 @@ public class TableHub {
         heartbeatTimer.scheduleWithFixedDelay(this::pollProfiles, 5, 5, TimeUnit.SECONDS);
         heartbeatTimer.scheduleWithFixedDelay(this::checkHostWaits, 100, 100, TimeUnit.MILLISECONDS);
         heartbeatTimer.scheduleWithFixedDelay(this::pruneDynamicChannels, 1, 1, TimeUnit.SECONDS);
+        heartbeatTimer.scheduleWithFixedDelay(this::tickOneCardPranks, 33, 33, TimeUnit.MILLISECONDS);
     }
 
     public synchronized void connect(WebSocketSession session) {
@@ -702,6 +718,11 @@ public class TableHub {
                 gameResults.get().check(sessionId, requestId, request.payload().get("gameSessionId").textValue());
                 return;
             }
+            if (request.type().equals("ONECARD_PRANK_REACH_SEND") || request.type().equals("ONECARD_PRANK_HIT_SEND")
+                    || request.type().equals("ONECARD_HAND_FLIP_SEND") || request.type().equals("ONECARD_HAND_RESTORE_SEND")) {
+                sendOneCardPrank(sessionId, member, request);
+                return;
+            }
             if (request.type().equals("GAME_UNWATCH")) {
                 unwatchGame(sessionId, member, request);
                 return;
@@ -767,6 +788,8 @@ public class TableHub {
                 case "GAME_START_CHECK" -> checkStart(member, request);
                 default -> throw new IllegalStateException("검증되지 않은 메시지");
             }
+        } catch (OneCardPranks.Rejected exception) {
+            member.peer().offer(protocol.error(requestId, exception.code(), exception.getMessage()));
         } catch (WorldFollowService.FollowException exception) {
             member.peer().offer(protocol.error(requestId, exception.code(), exception.getMessage()));
         } catch (WorldFacilityService.FacilityException exception) {
@@ -809,6 +832,7 @@ public class TableHub {
         stateQueries.remove(sessionId);
         statePushes.remove(sessionId);
         actionRequests.remove(sessionId);
+        tickOneCardPranks();
         watching.remove(member.userId());
         endFollows(member.userId());
         chat.disconnected(member.userId());
@@ -894,6 +918,7 @@ public class TableHub {
         follows.clear();
         chat.clear();
         spectatorEvents.clear();
+        onecardPranks.clear();
         emotes.clear();
         seating.clear();
         seatedGames.clear();
@@ -2219,6 +2244,7 @@ public class TableHub {
         if (push.initialRequestId != null) {
             closePendingWatch(push, "GAME_WATCH_CANCELLED");
         }
+        tickOneCardPranks();
         member.peer().offer(protocol.encode(request.requestId(), "GAME_WATCH_LEFT", Map.of("gameId", push.gameId)));
     }
 
@@ -2264,6 +2290,7 @@ public class TableHub {
         if (stopped || gameStates.isEmpty()) {
             return;
         }
+        tickOneCardPranks();
         for (var entry : members.entrySet()) {
             String sessionId = entry.getKey();
             Member member = entry.getValue();
@@ -2410,6 +2437,99 @@ public class TableHub {
                 closePendingWatch(push, "GAME_STATE_ACCESS_DENIED");
             }
         }
+        tickOneCardPranks();
+    }
+
+    private void sendOneCardPrank(String sessionId, Member member, Request request) {
+        if (!pranksEnabled || prankEngine.isEmpty()) {
+            fail(request, "ONECARD_DEFENSE_NOT_CONFIGURED", "원카드 장난 연결이 준비되지 않았습니다.");
+        }
+        if (member.accountId() == null || reconnect.isEmpty()) {
+            fail(request, "ONECARD_PRANK_ACCESS_DENIED", "인증된 경기 당사자만 요청할 수 있습니다.");
+        }
+        var payload = request.payload();
+        String game = payload.path("gameId").asText();
+        boolean reach = request.type().equals("ONECARD_PRANK_REACH_SEND");
+        boolean legacy = request.type().equals("ONECARD_HAND_FLIP_SEND");
+        if (legacy && prankDefenseEnabled) {
+            fail(request, "ONECARD_DEFENSE_REQUIRED", "손 뻗기 요청으로 방어 시간을 먼저 확인해주세요.");
+        }
+        if ((reach || request.type().equals("ONECARD_PRANK_HIT_SEND")) && !prankDefenseEnabled) {
+            fail(request, "ONECARD_DEFENSE_NOT_CONFIGURED", "뿅망치 방어가 활성화되지 않았습니다.");
+        }
+        StatePush scope = reach || legacy ? approvedSpectator(sessionId, member, game)
+                : approvedPlayerChat(sessionId, member, game);
+        if (scope == null || !"ONE_CARD".equals(scope.gameCode)) {
+            fail(request, "ONECARD_PRANK_ACCESS_DENIED", "승인된 원카드 경기에서만 요청할 수 있습니다.");
+        }
+        prankEngine.orElseThrow().withPrankState(game, (state, now) -> {
+            onecardPranks.advance(game, state, now, (actor, target) -> prankAuthorized(game, actor, target))
+                    .forEach(notice -> publishOneCardPrank(notice, null));
+            String event = payload.path("eventId").asText();
+            OneCardPranks.Reply reply;
+            if (reach || legacy) {
+                long target;
+                try { target = Long.parseLong(payload.path("targetUserId").asText()); }
+                catch (NumberFormatException exception) { throw new RequestException(request.requestId(), "INVALID_PAYLOAD", "회원 ID를 확인해주세요."); }
+                if (!prankAuthorized(game, member.accountId(), target)) {
+                    fail(request, "ONECARD_PRANK_ACCESS_DENIED", "현재 연결된 참가자에게만 요청할 수 있습니다.");
+                }
+                reply = onecardPranks.reach(state, member.accountId(), event, target,
+                        payload.path("turnCount").asLong(), now, legacy);
+            } else if (request.type().equals("ONECARD_PRANK_HIT_SEND")) {
+                reply = onecardPranks.hit(state, member.accountId(), event, payload.path("attemptId").asText(), now);
+            } else {
+                reply = onecardPranks.restore(state, member.accountId(), event, payload.path("effectId").asText(), now);
+            }
+            member.peer().offer(protocol.encode(request.requestId(), reply.acknowledgement().type(), reply.acknowledgement().payload()));
+            reply.notices().forEach(notice -> publishOneCardPrank(notice,
+                    notice == reply.acknowledgement() ? member : null));
+            return null;
+        });
+    }
+
+    private boolean prankAuthorized(String game, long actor, long target) {
+        boolean player = false;
+        boolean viewer = actor == 0;
+        for (Member member : members.values()) {
+            if (!isMapReady(member) || member.accountId() == null) { continue; }
+            if (member.accountId() == target && approvedPlayerChat(member.sessionId(), member, game) != null) { player = true; }
+            if (member.accountId() == actor && approvedSpectator(member.sessionId(), member, game) != null) { viewer = true; }
+        }
+        return player && viewer;
+    }
+
+    private synchronized void tickOneCardPranks() {
+        if (stopped || !pranksEnabled || prankEngine.isEmpty()) { return; }
+        for (String game : onecardPranks.games()) {
+            try {
+                prankEngine.get().withPrankState(game, (state, now) -> {
+                    onecardPranks.advance(game, state, now, (actor, target) -> prankAuthorized(game, actor, target))
+                            .forEach(notice -> publishOneCardPrank(notice, null));
+                    return null;
+                });
+            } catch (RuntimeException exception) {
+                org.slf4j.LoggerFactory.getLogger(TableHub.class).warn("원카드 장난 정리 재시도 exceptionType={}", exception.getClass().getName());
+            }
+        }
+    }
+
+    private void publishOneCardPrank(OneCardPranks.Notice notice, Member skip) {
+        String game = notice.payload().get("gameId").toString();
+        boolean privateReach = notice.type().startsWith("ONECARD_PRANK_");
+        String targetId = notice.payload().get("targetUserId").toString();
+        String actorId = String.valueOf(notice.payload().get("actorUserId"));
+        String encoded = protocol.encode(null, notice.type(), notice.payload());
+        for (Member target : members.values()) {
+            if (target == skip || target.accountId() == null || !isMapReady(target)) { continue; }
+            StatePush push = statePushes.get(target.sessionId());
+            boolean player = push != null && push.role == GameStateView.Role.PLAYER && push.gameId.equals(game)
+                    && push.players.contains(target.userId()) && java.util.Objects.equals(push.tableId, seating.get(target.userId()));
+            boolean viewer = approvedSpectator(target.sessionId(), target, game) != null;
+            if ((player || viewer) && (!privateReach || target.userId().equals(actorId) || target.userId().equals(targetId))) {
+                target.peer().offer(encoded);
+            }
+        }
     }
 
     private void refreshWatchRange(Member member) {
@@ -2438,8 +2558,14 @@ public class TableHub {
         var publicState = view.publicState();
         push.gameCode = publicState.path("gameCode").textValue();
         push.status = publicState.path("status").textValue();
-        push.players = Set.copyOf(java.util.List.of(publicState.path("blackUserId").asText(),
-                publicState.path("whiteUserId").asText()));
+        if ("ONE_CARD".equals(push.gameCode)) {
+            var players = new HashSet<String>();
+            publicState.path("players").forEach(player -> players.add(player.path("userId").asText()));
+            push.players = Set.copyOf(players);
+        } else {
+            push.players = Set.copyOf(java.util.List.of(publicState.path("blackUserId").asText(),
+                    publicState.path("whiteUserId").asText()));
+        }
     }
 
     private StatePush approvedPlayerChat(String sessionId, Member member, String gameId) {
