@@ -20,10 +20,6 @@ export const surfaceMapUrls = Object.fromEntries(
   ]),
 ) as Record<Surface, string[]>
 export function preloadWorldAssets() {
-  for (const kind of ['wood', 'stone', 'grass'] as const)
-    useLoader.preload(ParkTextureLoader, surfaceMapUrls[kind])
-  for (const url of [leafMapUrl, parkAdvertisementUrl])
-    useLoader.preload(ParkTextureLoader, url)
-  useLoader.preload(ParkTextureLoader, '/art/granite-paving.webp')
+  useLoader.preload(ParkTextureLoader, parkAdvertisementUrl)
   useLoader.preload(ParkAssetLoader, characterUrls)
 }

@@ -1,15 +1,11 @@
 import { useEffect, useMemo } from 'react'
-import { useLoader } from '@react-three/fiber'
-import { ParkTextureLoader } from './ParkTextureLoader'
 import {
   BufferGeometry,
   CircleGeometry,
   Color,
   Float32BufferAttribute,
   PlaneGeometry,
-  RepeatWrapping,
   RingGeometry,
-  SRGBColorSpace,
 } from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import {
@@ -28,7 +24,7 @@ import {
   OBSERVATION_TOWER,
 } from '../../config'
 import { Instances, seeded, type Part } from './Instances'
-import { SurfaceMaterial, useSurfaceMaps } from './SurfaceMaterial'
+import { SurfaceMaterial } from './SurfaceMaterial'
 
 // Walkway manifest also keeps decorative grass out of the paving.
 const paths = [
@@ -165,8 +161,6 @@ for (let quadrant = 0; quadrant < 4; quadrant++)
     })
   }
 export function Ground() {
-  const stone = useLoader(ParkTextureLoader, '/art/granite-paving.webp')
-  const stoneDetail = useSurfaceMaps('stone')
   const paving = useMemo(pavingGeometry, [])
   const lawn = useMemo(() => {
     const geometry = new PlaneGeometry(
@@ -191,13 +185,6 @@ export function Ground() {
       uv.setXY(i, positions.getX(i) / 3, positions.getZ(i) / 3)
     return geometry
   }, [])
-  useMemo(() => {
-    stone.wrapS = stone.wrapT = RepeatWrapping
-    stone.repeat.set(1, 1)
-    stone.colorSpace = SRGBColorSpace
-    stone.anisotropy = 4
-    stone.needsUpdate = true
-  }, [stone])
   useEffect(
     () => () => {
       paving.dispose()
@@ -212,11 +199,7 @@ export function Ground() {
       </mesh>
       <mesh geometry={paving} receiveShadow>
         <meshStandardMaterial
-          map={stone}
           color="#e7ddc7"
-          normalMap={stoneDetail.normalMap}
-          normalScale={[0.14, 0.14]}
-          roughnessMap={stoneDetail.roughnessMap}
           roughness={0.97}
           polygonOffset
           polygonOffsetFactor={-1}
