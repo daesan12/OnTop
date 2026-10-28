@@ -19,9 +19,9 @@ import developmentBindings from '../../public/park-bindings.dev.json' with { typ
 export const tableId = 'fixture-server-table'
 const artifacts =
   process.env.QA_ARTIFACT_DIR ?? path.join(os.tmpdir(), 'ontop-fe-qa')
-export async function screenshot(page: Page, name: string) {
+export async function screenshot(page: Page, name: string, animations: 'allow' | 'disabled' = 'allow') {
   await fs.mkdir(artifacts, { recursive: true })
-  await page.screenshot({ path: path.join(artifacts, name + '.png') })
+  await page.screenshot({ path: path.join(artifacts, name + '.png'), animations })
 }
 export async function fixture(
   page: Page,
@@ -128,7 +128,7 @@ export async function fixture(
     attackTotal: 0, lastAttack: null, turnCount: 1, winnerUserIds: [], endReason: null, endedAt: null }
   let cardHand: Hand = { userId: options.ownUserId ?? '101', hand: initialHand, playableCardIds: initialHand.map(c => c.id), canDraw: true }
   const cardReplies: { input: object; patch: Partial<OneCard>; hand: Hand }[] = []
-  const cardPranks = onecardPrankFixture({ gameId: () => gameId, state: () => cardState, room: options.onecardPreview?.room,
+  const cardPranks = onecardPrankFixture({ ownId, gameId: () => gameId, state: () => cardState, room: options.onecardPreview?.room,
     emit: (type, payload, requestId) => emit(sockets.at(-1)!, type, payload, requestId ?? null) })
   let diceState: Farkle = { gameCode: 'DICE', status: 'PLAYING', players: ['101', '102'], scores: [0, 0], targetScore: 4000,
     turnTimeLimitMs: 30000, turnUserId: '101', turnDeadline: new Date(Date.now() + 30000).toISOString(), turnScore: 0, dice: [],
