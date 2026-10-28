@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
-import leafImage from '../../assets/entry/park-leaf.webp'
+import parkLogo from '../../assets/entry/ontop-logo.webp'
+import { parkName } from '../../config/parkName'
 import peopleImage from '../../assets/entry/park-people.webp'
 import { useSession } from '../../network/worldClient'
 import { useParkRuntime } from '../../park/runtime/ParkRuntime'
@@ -39,9 +40,9 @@ export function ChannelMenu() {
         if (shown) fold()
         else { setOpen(true); void runtime.refreshChannels() }
       }}>
-      <span className="park-location__icon"><img className="park-location__leaf" src={leafImage} alt="" /></span>
+      <span className="park-location__icon"><img className="park-location__logo" src={parkLogo} alt="온탑 로고" width="90" height="60" /></span>
       <span className="park-location__details">
-        <span className="park-location__name">{state.name || '채널 선택'}</span>
+        <span className="park-location__name">{parkName(state.name) || '채널 선택'}</span>
         <span className="park-location__population">
           {state.roomId && <img className="park-location__dot" src={dotOpen} alt="" />}
           <img src={peopleImage} alt="" />
@@ -62,7 +63,7 @@ export function ChannelMenu() {
             void runtime.selectChannel(channel.channelId).then(ok => { if (ok) setOpen(false) })
           }}>
           <img src={full ? dotFull : dotOpen} alt="" />
-          <span className="park-channel-option__name">{channel.name}</span>
+          <span className="park-channel-option__name">{parkName(channel.name)}</span>
           <span className="park-channel-option__count">{channel.currentUsers} / {channel.capacity}</span>
           {current && <span className="park-menu-badge park-menu-badge--current">현재</span>}
           {full && <span className="park-menu-badge">가득 참</span>}

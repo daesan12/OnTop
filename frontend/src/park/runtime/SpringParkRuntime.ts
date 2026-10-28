@@ -12,7 +12,7 @@ import { handScope, useOneCardUI } from '../../game/onecard/uiState'
 import { WorldTimeClient } from '../../network/worldTimeClient'
 import { EXPECTED_MAP } from '../../config/mapVersion'
 import { FacilityClient } from '../../network/facilityClient'
-import { facilityMovementBlocked, serverFacilities } from '../../features/facilities/state'
+import { facilityMovementBlocked, FacilityUseBlockedError, showFacilityUseNotice, serverFacilities } from '../../features/facilities/state'
 import { RestError } from '../../network/restError'
 import { clearRoamingInput, inputState } from '../../world/inputOwnership'
 import { rememberRoamingView } from '../../world/cameraReturn'
@@ -261,6 +261,10 @@ export class ParkRuntime implements ParkRuntimePort {
     }
   }
   private report(error: unknown) {
+    if (this.active && error instanceof FacilityUseBlockedError) {
+      showFacilityUseNotice(useSession.getState().sessionId)
+      return
+    }
     if (this.active)
       useSession.setState({
         error: error instanceof Error ? error.message : String(error),
@@ -810,7 +814,7 @@ export class ParkRuntime implements ParkRuntimePort {
   joinTable = (anchorId?: string) =>
     this.action(async () => {
       const joinGeneration = this.generation
-      if (facilityMovementBlocked(useSession.getState().sessionId)) throw new Error('먼저 시설 이용·승인 위치 확인을 마쳐주세요.')
+      if (facilityMovementBlocked(useSession.getState().sessionId)) throw new FacilityUseBlockedError()
       if (inputState.minigameOpen) throw new Error('먼저 미니게임을 마쳐주세요.')
       if (benchBusy(useSession.getState().sessionId)) throw new Error('먼저 벤치에서 일어나주세요.')
       if (fitnessBusy(useSession.getState().sessionId)) throw new Error('먼저 운동기구에서 내려와주세요.')
@@ -1064,16 +1068,18 @@ export class ParkRuntime implements ParkRuntimePort {
       useTableLobby.setState({ spectatorRequested: true, spectatorError: '' })
       return this.spectator.set({ gameId, scope: JSON.stringify([this.generation, session.sessionId, session.roomId, session.watchedTableId, benchViewScope(session)]) }, true)
   }
-  watchBench = async (anchorId: string): Promise<boolean> => {
+  watchBench = async (anchorId: string, observeOnly = false): Promise<boolean> => {
     const s = useSession.getState(), scope = benchViewScope(s)
     if (!scope || benchTable(s.benchId)?.id !== anchorId) return false
     if (!await this.watchTable(anchorId, false)) return false
     const current = useSession.getState()
     if (scope !== benchViewScope(current)) { this.closeTable(); return false }
+    if (observeOnly) return true
+    const ref = publicMatchService.find({ channelId: s.roomId, tableId: current.watchedTableId })
+    if (!ref) return false
     this.spectatorIntent = { userId: s.sessionId, channelId: s.roomId, tableId: current.watchedTableId, benchScope: scope }
     useTableLobby.setState({ spectatorRequested: true, spectatorError: '' })
-    const ref = publicMatchService.find({ channelId: s.roomId, tableId: current.watchedTableId })
-    return this.spectator.set(ref ? { gameId: ref.gameId, scope: JSON.stringify([this.generation, s.sessionId, s.roomId, current.watchedTableId, scope]) } : null, true)
+    return this.spectator.set({ gameId: ref.gameId, scope: JSON.stringify([this.generation, s.sessionId, s.roomId, current.watchedTableId, scope]) }, true)
   }
   unwatchGame = (): Promise<boolean> => {
     this.spectatorIntent = null

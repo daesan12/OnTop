@@ -273,8 +273,7 @@ function stopAvatarEmote(userId: string, releaseCooldown = true) {
   if (releaseCooldown && userId === useSession.getState().sessionId) {
     // Invalidate the old async request so its ACK/error/finally cannot change a new one.
     resetEmotes()
-    useEmoteState.setState({ readyAt: 0, cancelled: true,
-      notice: '감정표현이 취소되었습니다. 멈춘 뒤 다른 감정표현을 사용할 수 있어요.' })
+    useEmoteState.setState({ readyAt: 0, cancelled: true })
   }
 }
 export function presentEmote(event: EmoteEvent, motion: EmoteId, source: 'server' | 'mock') {

@@ -3,6 +3,7 @@ import { useShallow } from 'zustand/react/shallow'
 import avatarImage from '../../assets/entry/park-avatar.webp'
 import coinImage from '../../assets/entry/yeopjeon-icon.webp'
 import { useSession } from '../../network/worldClient'
+import { parkName } from '../../config/parkName'
 import { useParkRuntime } from '../../park/runtime/ParkRuntime'
 import { MenuDialog } from './MenuDialog'
 import { NICKNAME_MAX, NICKNAME_PATTERN, checkNickname, nicknameProblem, updateNickname, type NicknameProblem } from './service'
@@ -79,7 +80,7 @@ export function ProfileDialog({ onClose, onSaved }: { onClose: () => void; onSav
       <span className="park-menu-avatar park-menu-avatar--large"><img src={avatarImage} alt="" /></span>
       <span className="park-profile-summary__info">
         <b>{session.nickname}</b>
-        <small>{session.character === 'girl' ? '여자' : '남자'} 캐릭터 · {session.channelName ? `${session.channelName}에서 산책 중` : '채널 선택 전'}</small>
+        <small>{session.character === 'girl' ? '여자' : '남자'} 캐릭터 · {session.channelName ? `${parkName(session.channelName)}에서 산책 중` : '채널 선택 전'}</small>
       </span>
       <span className="park-profile-summary__balance">
         <img src={coinImage} alt="" />{session.balance === null ? '—' : session.balance.toLocaleString('ko-KR')}<i>냥</i>

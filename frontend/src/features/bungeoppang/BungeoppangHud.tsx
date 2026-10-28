@@ -40,6 +40,8 @@ import {
 import "./bungeoppang.css";
 import "./bungeoppangFeedback.css";
 import './bungeoppangV5.css';
+import './bungeoppangStart.css';
+import coinIcon from '../../assets/yeopjeon-icon.png';
 import { BungeoppangResult } from './BungeoppangResult';
 
 const R = BUNGEOPPANG;
@@ -85,7 +87,7 @@ export function BungeoppangHud() {
       {phase === "result" && <BungeoppangResult />}
       <ExitConfirm />
       {(bungeoppangV4Preview || bungeoppangV5Preview) && <div className="bung-preview-note">{bungeoppangV5Preview ? 'v5' : 'v4'} 개발 미리보기 · 실제 엽전 지급 없음</div>}
-      {phase !== 'leaving' && phase !== 'result' && <button className="bung-help-button" onClick={() => setBungeoppangHelp(true)}>F1 조작 안내</button>}
+      {phase !== 'leaving' && phase !== 'result' && phase !== 'start' && <button className="bung-help-button" onClick={() => setBungeoppangHelp(true)}>F1 조작 안내</button>}
     </div>
   );
 }
@@ -429,20 +431,21 @@ function TipBubble() {
   );
 }
 
+const START_STEPS = [
+  { title: '익는 상태를 보고', description: '붕어빵이 익어가는 모습을 확인해요.', alt: '철판 위에서 익어가는 붕어빵과 익힘 게이지' },
+  { title: '클릭해서 뒤집기', description: '타이밍에 맞춰 클릭하면 뒤집어져요.', alt: '뒤집개로 노릇한 붕어빵을 뒤집는 모습' },
+  { title: '양쪽이 익으면 완성!', description: '양쪽이 노릇하게 익으면 완성돼요.', alt: '양쪽이 노릇하게 완성된 붕어빵' },
+] as const;
 function Steps() {
-  const v4 = useBungeoppang(s => s.status?.rulesVersion === 'v4' || s.status?.rulesVersion === 'v5');
-  return (
-    <ol className="bung-steps">
-      <li>
-        반죽 <kbd>Space</kbd>
-      </li>
-      <li>
-        {v4 ? '소 선택' : '팥'} <kbd>{v4 ? '1~4' : '1'}</kbd>
-      </li>
-      <li>뒤집기</li>
-      <li>{v4 ? '쟁반 → R 전달' : '꺼내기'}</li>
-    </ol>
-  );
+  return <ol className="bung-start-steps" aria-label="붕어빵 굽는 방법">
+    {START_STEPS.map((step, index) => <li key={step.title}>
+      <div className="bung-start-step-heading">
+        <span className="bung-start-step-number" aria-hidden="true">{index + 1}</span>
+        <div><h3>{step.title}</h3><p>{step.description}</p></div>
+      </div>
+      <img src={`/art/bungeoppang/start-step-${index + 1}.webp`} alt={step.alt} width="800" height="686" />
+    </li>)}
+  </ol>;
 }
 function StartPanel() {
   const status = useBungeoppang((s) => s.status);
@@ -453,16 +456,16 @@ function StartPanel() {
   const capped = !!status && status.todayEarned >= status.dailyCap;
   return (
     <section className="bung-panel bung-start" aria-label="붕어빵 굽기 시작">
-      <h2>붕어빵 굽기</h2>
+      <header className="bung-start-title">
+        <span className="bung-start-cloud" aria-hidden="true"><CloudDecoration /></span>
+        <h2><img src="/art/bungeoppang/result-fish.webp" alt="" width="76" height="50" />붕어빵 굽기</h2>
+        <span className="bung-start-cloud" aria-hidden="true"><CloudDecoration /></span>
+      </header>
+      <p className="bung-start-intro">제한 시간 동안 붕어빵을 빠르고 정확하게 뒤집어 양쪽이 모두 익으면 완성!</p>
       <Steps />
-      {status?.rulesVersion === 'v4' && <p>빵마다 랜덤 불! 주문은 한 손님 최대 4개 · 쟁반 4자리 · 60초 동안 전달해요.</p>}
-      {status?.rulesVersion === 'v5' && <p>3분 장사 · 마지막 30초는 센 불!<br />반죽 위에 소를 넣으면 불이 켜져요. 쟁반은 2단 10개, 손님은 최대 3명이에요.<br />손님을 골라 R로 전달하고, 탄 빵은 눌러서 바로 버려요.</p>}
-      <p className="bung-keys-line">
-        칸은 클릭 또는 Q W E A S D · 재료는 휠로도 바꿔요
-      </p>
-      <p>
-        오늘 번 엽전 <b>{status ? status.todayEarned : "…"}</b> /{" "}
-        {R.dailyCoinCap}냥
+      <p className="bung-start-earned" aria-label={`오늘 번 엽전 ${status?.todayEarned ?? '확인 중'} / ${status?.dailyCap ?? R.dailyCoinCap}냥`}>
+        <span>오늘 한 번의 도전 · {status?.todayEarned ?? '…'} /</span>
+        <strong><img src={coinIcon} alt="엽전" width="28" height="28" />{status?.dailyCap ?? R.dailyCoinCap}냥</strong>
       </p>
       {capped && (
         <p className="bung-cap">오늘 장사는 끝! 게임은 계속할 수 있어요</p>
@@ -486,13 +489,19 @@ function StartPanel() {
         </p>
       )}
       <footer>
-        <span>서버가 발급한 불 세기로 굽고, 기록 검증 후 엽전을 받아요.</span>
         <button type="button" className="bung-link" onClick={leaveBungeoppang}>
           ESC 나가기
         </button>
       </footer>
     </section>
   );
+}
+
+function CloudDecoration() {
+  return <svg viewBox="0 0 180 52" fill="none" aria-hidden="true">
+    <path d="M4 39h57c17 0 17-12 0-12H39c-11 0-11-10 0-10h73c15 0 15-11 6-11-7 0-8 6-3 6M61 31h15M17 39h-6" stroke="currentColor" strokeWidth="8" strokeLinecap="round" />
+    <path d="M92 17h83" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+  </svg>;
 }
 
 function Countdown() {

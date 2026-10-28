@@ -40,6 +40,6 @@ export interface ParkRuntimePort {
   hitOneCardHand?(attemptId: string): Promise<boolean>
   actBridge(input: import('../../game/bridge/protocol').BridgeInput): Promise<boolean>
   watchGame(gameId: string): Promise<boolean>
-  watchBench(anchorId: string): Promise<boolean>
+  watchBench(anchorId: string, observeOnly?: boolean): Promise<boolean>
   unwatchGame(): Promise<boolean>
 }

@@ -91,7 +91,7 @@ test('window loss cancels mouse re-lock while retaining first-person and orbit r
   await page.evaluate(async id => { await (await import('/src/features/fitness/controller.ts' as string)).enterFitness(id) }, d.facilityId)
   await expect.poll(async () => (await own(page)).pending).toBe(false)
   await page.evaluate(() => window.dispatchEvent(new Event('blur')))
-  await page.getByRole('button', { name: '운동기구에서 내려오기', exact: true }).click()
+  await page.locator('canvas').focus(); await page.keyboard.press('KeyW')
   await expect.poll(async () => String((await cameraState(page)).first)).toBe('true')
   await expect.poll(async () => (await probe(page)).controls).toEqual(before)
   await expect.poll(async () => String((await cameraState(page)).mouse)).toBe('false')

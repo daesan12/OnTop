@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useSession } from '../../network/worldClient'
+import { parkName } from '../../config/parkName'
 import { useParkRuntime } from '../../park/runtime/ParkRuntime'
 import { inputState, setChatInputOpen } from '../../world/inputOwnership'
 import { CHAT } from './settings'
@@ -17,7 +18,7 @@ export function ParkChat() {
   const runtime = useParkRuntime()
   const session = useSession(useShallow(s => ({ messages: s.messages, profiles: s.profiles,
     own: s.sessionId, channel: s.roomId, pending: s.pending, connected: s.status === 'connected' })))
-  const channelName = useSession(s => s.roomId ? s.channelName : '')
+  const channelName = useSession(s => s.roomId ? parkName(s.channelName) : '')
   const [open, setOpen] = useState(false), [history, setHistory] = useState(false)
   const [previewUntil, setPreviewUntil] = useState(0), [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false), [notice, setNotice] = useState('')
