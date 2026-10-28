@@ -13,6 +13,7 @@ import { PlaceholderWorld } from './PlaceholderWorld'
 import { ParkSun } from './ParkSun'
 import { EnvironmentScene } from './EnvironmentScene'
 import { ParkPigeons } from './pigeons/ParkPigeons'
+import { ParkSoundscape } from '../audio/ParkSoundscape'
 import { NightLighting } from './NightLighting'
 import { CameraRig } from './CameraRig'
 
@@ -158,6 +159,7 @@ export const WorldCanvas = memo(function WorldCanvas({
         <BungeoppangGrill />
 
         <ParkPigeons quality={quality} />
+        <ParkSoundscape />
         <CameraRig />
         {TABLET_ENABLED && <TableTablet3D />}
         <PerformanceProbe />
