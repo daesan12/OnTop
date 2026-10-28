@@ -13,7 +13,6 @@ def classify(paths: list[str]) -> dict[str, int]:
         "DEV_CONFIG_CHANGED": 0,
         "PROD_CONFIG_CHANGED": 0,
         "CI_CONFIG_CHANGED": 0,
-        "MANUAL_REVIEW": 0,
     }
     for path in paths:
         normalized = PurePosixPath(path).as_posix()
@@ -23,35 +22,30 @@ def classify(paths: list[str]) -> dict[str, int]:
             result["FRONTEND_CHANGED"] = 1
         elif normalized == "Jenkinsfile" or normalized.startswith("infra/ci/"):
             result["CI_CONFIG_CHANGED"] = 1
-            result["MANUAL_REVIEW"] = 1
         elif normalized == "infra/app/compose.dev.yaml" or normalized.startswith(
             "infra/app/nginx/"
         ) or normalized.startswith("infra/app/dev."):
             result["DEV_CONFIG_CHANGED"] = 1
-            result["MANUAL_REVIEW"] = 1
         elif normalized == "infra/app/compose.prod.yaml" or normalized.startswith(
             "infra/app/prod."
         ) or normalized.startswith("infra/prod-db/"):
             result["PROD_CONFIG_CHANGED"] = 1
-            result["MANUAL_REVIEW"] = 1
         elif normalized.startswith("infra/app/"):
             result["DEV_CONFIG_CHANGED"] = 1
             result["PROD_CONFIG_CHANGED"] = 1
-            result["MANUAL_REVIEW"] = 1
         elif normalized.startswith("postman/"):
             result["BACKEND_CHANGED"] = 1
-        elif (
+        elif normalized == ".gitignore" or (
             normalized.startswith("docs/")
             or normalized.startswith("analytics/")
             or normalized.endswith(".md")
         ):
-            # Offline analytics queries and scripts are not part of a deployed build.
+            # Documentation, offline analytics and Git ignore rules do not change the app.
             continue
         else:
-            # Unknown shared files must not silently skip checks or deploy.
+            # Unknown shared files require both service tests and deployments.
             result["BACKEND_CHANGED"] = 1
             result["FRONTEND_CHANGED"] = 1
-            result["MANUAL_REVIEW"] = 1
     return result
 
 

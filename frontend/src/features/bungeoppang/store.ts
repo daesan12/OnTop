@@ -10,6 +10,7 @@ import { slotScreen } from './bungeoppangView';
 import { BUNG_GRILL } from './bungeoppangView';
 import { customerPoint, trayPoint, trashPoint } from './layoutV5';
 import { roundClockAnchor } from './serverTime';
+import { playSfx } from '../../audio/sfx';
 import {
   actionFor,
   applyAction,
@@ -648,12 +649,14 @@ function onEvent(event: GrillEvent | v4.GrillEvent, before: AnyGrill, afterOverr
     now = performance.now();
   if (event.kind === "pour") {
     fx.pourAt = now;
+    playSfx('bungeo-pour');
     tip("POUR", event.slot);
   } else if (event.kind === "fill") {
     fx.fillAt = now;
     Object.assign(crossed[event.slot]!, { gold: false, burnt: false });
   } else if (event.kind === "flip") {
     fx.flipAt = now;
+    playSfx('bungeo-flip');
     Object.assign(crossed[event.slot]!, { gold: false, burnt: false });
     popup(event.slot, event.judgement, event.judgement);
   } else if (event.kind === "takeOut") {
@@ -878,6 +881,7 @@ function watchSlots(grill: AnyGrill) {
     }
     if (level >= R.burntFrom && !mark.burnt) {
       mark.burnt = true;
+      playSfx('bungeo-burn');
       tip("BURNT", i);
     }
   });

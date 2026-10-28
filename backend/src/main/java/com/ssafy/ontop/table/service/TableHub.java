@@ -2068,6 +2068,23 @@ public class TableHub {
         }
     }
 
+    /** Runs only after the minigame transaction commits, so a rolled-back start or end is never shown. */
+    @org.springframework.transaction.event.TransactionalEventListener(
+            phase = org.springframework.transaction.event.TransactionPhase.AFTER_COMMIT)
+    public synchronized void minigameActivityChanged(
+            com.ssafy.ontop.minigame.service.MinigameActivityChanged event) {
+        if (stopped) { return; }
+        try {
+            Duration remaining = event.activeUntil() == null ? Duration.ZERO
+                    : Duration.between(tableNow(), event.activeUntil());
+            var state = channels.minigameActivity(Long.toString(event.userId()), event.sessionId(), remaining);
+            if (state != null) { publishWorld(state, null, null); }
+        } catch (RuntimeException exception) {
+            // A committed game or reward must not become an HTTP failure because a peer disconnected.
+            org.slf4j.LoggerFactory.getLogger(TableHub.class).warn("미니게임 이용 상태 방송 실패", exception);
+        }
+    }
+
     @EventListener
     public void roundResultLoaded(com.ssafy.ontop.game.result.GameResultLoaded event) {
         roundSettled(new GameResultCommitted(event.result()));

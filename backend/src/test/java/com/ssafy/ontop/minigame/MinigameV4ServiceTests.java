@@ -16,6 +16,7 @@ import com.ssafy.ontop.minigame.dto.BungeoppangV4CompleteDtos;
 import com.ssafy.ontop.minigame.service.BungeoppangV4DeliveryContract;
 import com.ssafy.ontop.minigame.repository.MinigameRepository;
 import com.ssafy.ontop.minigame.service.BungeoppangV4Spec;
+import com.ssafy.ontop.minigame.service.MinigameActivityChanged;
 import com.ssafy.ontop.minigame.service.MinigameException;
 import com.ssafy.ontop.minigame.service.MinigameService;
 import com.ssafy.ontop.wallet.domain.Wallet;
@@ -270,11 +271,17 @@ class MinigameV4ServiceTests {
 
     @Test
     void v4_명시적_포기는_USER_ABANDONED_사유로_종결한다() {
+        var activityEvents = new ArrayList<MinigameActivityChanged>();
+        service = new MinigameService(repository, manager, Clock.fixed(NOW, ZoneOffset.UTC), 10, false,
+                activityEvents::add);
         BungeoppangV4Responses.StartResponse created =
                 service.startV4(USER_ID, "BUNGEOPPANG", "v4-start");
         long id = Long.parseLong(created.minigameSessionId());
 
         assertThat(service.abandon(USER_ID, id).status()).isEqualTo("ABANDONED");
+        assertThat(activityEvents).containsExactly(
+                new MinigameActivityChanged(USER_ID, id, created.timing().playEndsAt()),
+                new MinigameActivityChanged(USER_ID, id, null));
         var response = (BungeoppangV4Responses.SessionResponse) service.loadSession(USER_ID, id, false);
 
         assertThat(response.status()).isEqualTo("ABANDONED");
@@ -349,7 +356,8 @@ class MinigameV4ServiceTests {
     @Test
     void v4_완료는_서버점수로_한번만_정산하고_같은본문을_재생한다() {
         AdjustableClock clock = new AdjustableClock(NOW);
-        service = new MinigameService(repository, manager, clock);
+        var activityEvents = new ArrayList<MinigameActivityChanged>();
+        service = new MinigameService(repository, manager, clock, 10, false, activityEvents::add);
         var started = service.startV4(USER_ID, "BUNGEOPPANG", "v4-start");
         long id = Long.parseLong(started.minigameSessionId());
         ReflectionTestUtils.setField(records.get(id), "heats", "[" + "100,".repeat(511) + "100]");
@@ -357,6 +365,9 @@ class MinigameV4ServiceTests {
         var delivery = delivery(id, "delivery-one");
         service.deliver(USER_ID, id, "delivery-one", delivery);
         JsonNode body = completeBody(id, delivery.log(), 999_999L);
+        assertThat(activityEvents).containsExactly(
+                new MinigameActivityChanged(USER_ID, id, started.timing().playEndsAt()));
+        assertThat(started.timing().playEndsAt()).isEqualTo(NOW.plusMillis(64_500));
         clock.set(NOW.plusSeconds(65));
 
         var first = (BungeoppangV4CompleteDtos.Response) service.complete(USER_ID, id, "complete-one", body);
@@ -379,6 +390,10 @@ class MinigameV4ServiceTests {
         assertThat(wallet.reserved()).isEqualTo(10);
         assertThat(sessions.get(id).status()).isEqualTo("COMPLETED");
         assertThat(rounds.get(id).terminalReason()).isEqualTo("VERIFIED");
+        // Replayed completions return the stored result without a second end event.
+        assertThat(activityEvents).containsExactly(
+                new MinigameActivityChanged(USER_ID, id, started.timing().playEndsAt()),
+                new MinigameActivityChanged(USER_ID, id, null));
         assertThat(((BungeoppangV4Responses.SessionResponse) service.loadSession(USER_ID, id, false)).result())
                 .isEqualTo(first);
 
