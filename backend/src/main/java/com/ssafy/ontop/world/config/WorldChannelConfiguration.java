@@ -9,12 +9,13 @@ import org.springframework.context.annotation.Configuration;
 
 @Configuration
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
-@EnableConfigurationProperties({WorldChannelProperties.class, WorldEmoteProperties.class,
+@EnableConfigurationProperties({WorldChannelProperties.class, DynamicChannelsProperties.class, WorldEmoteProperties.class,
         WorldProximityProperties.class, WorldMapProperties.class})
 public class WorldChannelConfiguration {
     @Bean
-    public WorldMapRuntime worldMapRuntime(WorldMapProperties properties, WorldChannelProperties channels)
+    public WorldMapRuntime worldMapRuntime(WorldMapProperties properties, WorldChannelProperties channels,
+            DynamicChannelsProperties dynamicChannels)
             throws IOException {
-        return WorldMapRuntime.load(properties, channels);
+        return WorldMapRuntime.load(properties, channels, dynamicChannels);
     }
 }

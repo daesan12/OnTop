@@ -8,11 +8,9 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 
 @Service
-@Profile("(local | dev) & !prod & !production")
 public class ChannelQueryService {
 
     private final List<Channel> channels;
@@ -28,7 +26,9 @@ public class ChannelQueryService {
         try {
             // 응답 하나에서 인원 시점이 섞이지 않게 한 번만 읽는다. 조회는 입장·예약을 하지 않는다.
             Map<String, Integer> counts = Map.copyOf(presence.snapshot());
-            return new ChannelListResponse(channels.stream().map(channel -> {
+            List<Channel> visible = presence instanceof WorldChannelRegistry registry
+                    ? registry.definitions() : channels;
+            return new ChannelListResponse(visible.stream().sorted(Comparator.comparing(Channel::channelId)).map(channel -> {
                 int currentUsers = counts.getOrDefault(channel.channelId(), 0);
                 if (currentUsers < 0) {
                     throw new IllegalStateException("채널 사용자 수는 음수일 수 없습니다.");
