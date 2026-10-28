@@ -47,40 +47,45 @@ pipeline {
                 script {
                     def result = sh(script: '''#!/usr/bin/env bash
 set -euo pipefail
-base=''
-if [[ "$SOURCE_BRANCH" == dev ]]; then
-  if [[ -f /var/lib/jenkins/ontop-state/dev.sha ]]; then
-    base=$(cat /var/lib/jenkins/ontop-state/dev.sha)
-  fi
-else
-  if git show-ref --verify --quiet refs/remotes/origin/dev; then
-    base=$(git merge-base origin/dev HEAD || true)
-  fi
-fi
-python3 infra/ci/classify_changes.py --base "$base" --head "$SOURCE_SHA"
+state=/var/lib/jenkins/ontop-state
+read_state() {
+  [[ -s "$state/$1" ]] && cat "$state/$1" || true
+}
+tested_base=$(read_state tested.sha)
+[[ -n "$tested_base" ]] || tested_base=$(read_state dev.sha)
+reviewed_base=$(read_state reviewed-config.sha)
+backend_image=$(docker inspect --format '{{.Config.Image}}' ontop-dev-app-app-1 2>/dev/null || true)
+python3 infra/ci/plan_changes.py --head "$SOURCE_SHA" --tested-base "$tested_base" --backend-base "$(read_state backend-deployed.sha)" --frontend-base "$(read_state frontend-deployed.sha)" --reviewed-base "$reviewed_base" --live-backend-image "$backend_image"
 ''', returnStdout: true).trim()
-                    // Jenkins' Groovy sandbox rejects dynamic env[key] writes.
-                    // Assign only the four flags used by this pipeline.
-                    env.BACKEND_CHANGED = ''
-                    env.FRONTEND_CHANGED = ''
-                    env.MANUAL_REVIEW = ''
-                    env.FULL_CHECK = ''
+                    def flags = [:]
                     result.split('\n').each { line ->
-                        if (line.startsWith('BACKEND_CHANGED=')) {
-                            env.BACKEND_CHANGED = line.substring('BACKEND_CHANGED='.length())
-                        } else if (line.startsWith('FRONTEND_CHANGED=')) {
-                            env.FRONTEND_CHANGED = line.substring('FRONTEND_CHANGED='.length())
-                        } else if (line.startsWith('MANUAL_REVIEW=')) {
-                            env.MANUAL_REVIEW = line.substring('MANUAL_REVIEW='.length())
-                        } else if (line.startsWith('FULL_CHECK=')) {
-                            env.FULL_CHECK = line.substring('FULL_CHECK='.length())
+                        def separator = line.indexOf('=')
+                        if (separator > 0) {
+                            flags[line.substring(0, separator)] = line.substring(separator + 1)
                         }
                     }
-                    if (!(env.BACKEND_CHANGED ==~ /[01]/) ||
-                        !(env.FRONTEND_CHANGED ==~ /[01]/) ||
+                    env.TEST_BACKEND = flags['TEST_BACKEND'] ?: ''
+                    env.TEST_FRONTEND = flags['TEST_FRONTEND'] ?: ''
+                    env.DEPLOY_BACKEND = flags['DEPLOY_BACKEND'] ?: ''
+                    env.DEPLOY_FRONTEND = flags['DEPLOY_FRONTEND'] ?: ''
+                    env.ALLOW_BACKEND_DEPLOY = flags['ALLOW_BACKEND_DEPLOY'] ?: ''
+                    env.ALLOW_FRONTEND_DEPLOY = flags['ALLOW_FRONTEND_DEPLOY'] ?: ''
+                    env.BACKEND_SEED_SHA = flags['BACKEND_SEED_SHA'] ?: ''
+                    env.MANUAL_REVIEW = flags['MANUAL_REVIEW'] ?: ''
+                    env.FULL_CHECK = flags['FULL_CHECK'] ?: ''
+                    if (!(env.TEST_BACKEND ==~ /[01]/) ||
+                        !(env.TEST_FRONTEND ==~ /[01]/) ||
+                        !(env.DEPLOY_BACKEND ==~ /[01]/) ||
+                        !(env.DEPLOY_FRONTEND ==~ /[01]/) ||
+                        !(env.ALLOW_BACKEND_DEPLOY ==~ /[01]/) ||
+                        !(env.ALLOW_FRONTEND_DEPLOY ==~ /[01]/) ||
                         !(env.MANUAL_REVIEW ==~ /[01]/) ||
-                        !(env.FULL_CHECK ==~ /[01]/)) {
+                        !(env.FULL_CHECK ==~ /[01]/) ||
+                        (env.BACKEND_SEED_SHA && !(env.BACKEND_SEED_SHA ==~ /[0-9a-f]{40}/))) {
                         error('Change classification returned missing or invalid flags.')
+                    }
+                    if (env.BACKEND_SEED_SHA) {
+                        sh 'python3 infra/ci/write_state.py --kind backend --sha "$BACKEND_SEED_SHA" --state-dir /var/lib/jenkins/ontop-state'
                     }
                     echo "Change flags: ${result.replace('\n', ', ')}"
                 }
@@ -102,7 +107,7 @@ APP_ENV_FILE="$scratch_env" docker compose --env-file infra/app/dev.deploy.env.e
         }
 
         stage('Backend tests') {
-            when { expression { env.BACKEND_CHANGED == '1' } }
+            when { expression { env.TEST_BACKEND == '1' } }
             steps {
                 dir('backend') {
                     sh './gradlew --no-daemon test'
@@ -111,7 +116,7 @@ APP_ENV_FILE="$scratch_env" docker compose --env-file infra/app/dev.deploy.env.e
         }
 
         stage('Frontend tests and build') {
-            when { expression { env.FRONTEND_CHANGED == '1' } }
+            when { expression { env.TEST_FRONTEND == '1' } }
             steps {
                 dir('frontend') {
                     sh '''#!/usr/bin/env bash
@@ -124,11 +129,16 @@ pnpm run build
             }
         }
 
+        stage('Record tested SHA') {
+            steps {
+                sh 'python3 infra/ci/write_state.py --kind tested --sha "$SOURCE_SHA" --state-dir /var/lib/jenkins/ontop-state'
+            }
+        }
+
         stage('Build and publish backend image') {
             when {
                 expression {
-                    env.SOURCE_BRANCH == 'dev' && env.BACKEND_CHANGED == '1' &&
-                    env.MANUAL_REVIEW == '0' && env.FULL_CHECK == '0'
+                    env.SOURCE_BRANCH == 'dev' && env.ALLOW_BACKEND_DEPLOY == '1'
                 }
             }
             steps {
@@ -155,20 +165,19 @@ docker push "$image"
         stage('Deploy backend to dev') {
             when {
                 expression {
-                    env.SOURCE_BRANCH == 'dev' && env.BACKEND_CHANGED == '1' &&
-                    env.MANUAL_REVIEW == '0' && env.FULL_CHECK == '0'
+                    env.SOURCE_BRANCH == 'dev' && env.ALLOW_BACKEND_DEPLOY == '1'
                 }
             }
             steps {
                 sh 'sudo -n /usr/local/sbin/ontop-deploy-dev "$SOURCE_SHA"'
+                sh 'python3 infra/ci/write_state.py --kind backend --sha "$SOURCE_SHA" --state-dir /var/lib/jenkins/ontop-state'
             }
         }
 
         stage('Deploy frontend to dev Vercel project') {
             when {
                 expression {
-                    env.SOURCE_BRANCH == 'dev' && env.FRONTEND_CHANGED == '1' &&
-                    env.MANUAL_REVIEW == '0' && env.FULL_CHECK == '0'
+                    env.SOURCE_BRANCH == 'dev' && env.ALLOW_FRONTEND_DEPLOY == '1'
                 }
             }
             steps {
@@ -188,6 +197,7 @@ vercel deploy --prod --yes --project "$VERCEL_PROJECT_ID" --token "$VERCEL_TOKEN
 cat vercel-deployment-url.txt
 '''
                 }
+                sh 'python3 infra/ci/write_state.py --kind frontend --sha "$SOURCE_SHA" --state-dir /var/lib/jenkins/ontop-state'
             }
         }
 
@@ -195,7 +205,7 @@ cat vercel-deployment-url.txt
             when { expression { env.MANUAL_REVIEW == '1' } }
             steps {
                 script {
-                    echo 'Infrastructure or CI configuration changed. Automatic deployment was skipped.'
+                    echo 'Some deployment targets need configuration review or a verified baseline. Check change flags for each target.'
                     currentBuild.result = 'UNSTABLE'
                 }
             }
@@ -204,23 +214,12 @@ cat vercel-deployment-url.txt
         stage('Initial baseline') {
             when { expression { env.FULL_CHECK == '1' } }
             steps {
-                echo 'First build runs all tests and records a baseline. Existing dev deployments are left in place.'
+                echo 'No valid tested SHA was found. Full tests ran; deployment requires baseline review.'
             }
         }
     }
     post {
         always {
-            script {
-                if (env.SOURCE_BRANCH == 'dev' &&
-                    (currentBuild.currentResult == 'SUCCESS' || currentBuild.currentResult == 'UNSTABLE')) {
-                    sh '''#!/usr/bin/env bash
-set -euo pipefail
-install -d -m 0700 /var/lib/jenkins/ontop-state
-printf '%s\n' "$SOURCE_SHA" > /var/lib/jenkins/ontop-state/dev.sha.new
-mv -f /var/lib/jenkins/ontop-state/dev.sha.new /var/lib/jenkins/ontop-state/dev.sha
-'''
-                }
-            }
             archiveArtifacts artifacts: 'frontend/vercel-deployment-url.txt', allowEmptyArchive: true
         }
     }
