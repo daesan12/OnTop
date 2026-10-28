@@ -6,6 +6,7 @@ import com.ssafy.ontop.minigame.domain.BungeoppangV4Order;
 import com.ssafy.ontop.minigame.domain.BungeoppangV4Progress;
 import com.ssafy.ontop.minigame.domain.BungeoppangV4Receipt;
 import com.ssafy.ontop.minigame.domain.BungeoppangV4Round;
+import com.ssafy.ontop.minigame.domain.BungeoppangV5Order;
 import com.ssafy.ontop.minigame.domain.MinigameSession;
 import com.ssafy.ontop.minigame.domain.MinigameStartRequest;
 import com.ssafy.ontop.wallet.domain.Wallet;
@@ -73,6 +74,13 @@ public class MinigameRepository {
     public List<BungeoppangV4Order> v4Orders(long sessionId) {
         return entities.createQuery("select o from BungeoppangV4Order o where o.sessionId = :session"
                 + " order by o.orderIndex", BungeoppangV4Order.class)
+                .setParameter("session", sessionId).getResultList();
+    }
+
+    /** Issue order; replay activates each order by its availableAfterSeq. */
+    public List<BungeoppangV5Order> v5Orders(long sessionId) {
+        return entities.createQuery("select o from BungeoppangV5Order o where o.sessionId = :session"
+                + " order by o.orderId", BungeoppangV5Order.class)
                 .setParameter("session", sessionId).getResultList();
     }
 

@@ -9,7 +9,9 @@ import com.ssafy.ontop.minigame.dto.BungeoppangV4DeliveryDtos;
 import com.ssafy.ontop.minigame.dto.BungeoppangV4CompleteDtos;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ssafy.ontop.minigame.dto.MinigameStatusResponse;
+import com.ssafy.ontop.minigame.dto.BungeoppangV5Responses;
 import com.ssafy.ontop.minigame.service.BungeoppangV4Spec;
+import com.ssafy.ontop.minigame.service.BungeoppangV5Spec;
 import com.ssafy.ontop.minigame.service.MinigameService;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -30,6 +32,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -133,6 +136,44 @@ class MinigameHttpTests {
 
         verify(minigames).start(101, "BUNGEOPPANG", "old-1");
         verify(minigames).start(101, "BUNGEOPPANG", "old-2");
+    }
+
+    @Test
+    void v5는_설정으로_켠_경우에만_시작과_로비를_v5_서비스로_보낸다() throws Exception {
+        String token = jwt.issue(101, TestLoginSessions.ID);
+        String body = "{\"minigameType\":\"BUNGEOPPANG\",\"rulesVersion\":\"v5\"}";
+
+        var disabled = request("", body, token, "v5-key");
+        assertThat(disabled.statusCode()).isEqualTo(409);
+        assertThat(disabled.body()).contains("RULES_VERSION_MISMATCH");
+        assertThat(request("?rulesVersion=v5", null, token, null).statusCode()).isEqualTo(409);
+        verify(minigames, never()).startV5(any(Long.class), any(), any());
+
+        Instant issued = Instant.parse("2026-10-28T00:00:00.123Z");
+        var timing = BungeoppangV5Spec.timing(issued);
+        var orders = List.of(new BungeoppangV5Responses.Order("1", 0, 0,
+                new BungeoppangV4Responses.FillingCounts(2, 0, 0, 0)));
+        var checkpoint = new BungeoppangV5Responses.Checkpoint(0, 0, BungeoppangV5Spec.initialPrefixHash(901), 0,
+                null, BungeoppangV4Spec.initialCheckpoint(901).slots(), List.of(),
+                BungeoppangV4Spec.initialCheckpoint(901).stats(), orders);
+        when(minigames.v5Enabled()).thenReturn(true);
+        when(minigames.startV5(101, "BUNGEOPPANG", "v5-key")).thenReturn(new BungeoppangV5Responses.StartResponse(
+                "901", "BUNGEOPPANG", "PLAYING", "WAITING_START", "v5", BungeoppangV5Spec.CONFIG_VERSION, issued,
+                timing.playStartsAt(), timing, BungeoppangV5Spec.rules(), List.of(85, 100, 115), true, checkpoint));
+        when(minigames.statusV5(101)).thenReturn(new BungeoppangV4Responses.LobbyResponse("v5", issued, 0, 100,
+                true, List.of(), null, List.of("v2", "v4", "v5")));
+
+        var started = request("", body, token, "v5-key");
+        var lobby = request("?rulesVersion=v5", null, token, null);
+
+        assertThat(started.statusCode()).isEqualTo(201);
+        assertThat(started.body()).contains("\"rulesVersion\":\"v5\"", "\"heatAssignment\":\"FILL\"",
+                "\"maxActiveOrders\":3", "\"playEndsAt\":\"2026-10-28T00:03:04.623Z\"",
+                "\"activeOrders\":[{\"orderId\":\"1\",\"customerSlot\":0,\"availableAfterSeq\":0");
+        assertThat(lobby.statusCode()).isEqualTo(200);
+        assertThat(lobby.body()).contains("\"supportedRulesVersions\":[\"v2\",\"v4\",\"v5\"]");
+        verify(minigames).startV5(101, "BUNGEOPPANG", "v5-key");
+        verify(minigames).statusV5(101);
     }
 
     @Test

@@ -9,12 +9,14 @@ import com.ssafy.ontop.minigame.domain.BungeoppangV4Order;
 import com.ssafy.ontop.minigame.domain.BungeoppangV4Progress;
 import com.ssafy.ontop.minigame.domain.BungeoppangV4Receipt;
 import com.ssafy.ontop.minigame.domain.BungeoppangV4Round;
+import com.ssafy.ontop.minigame.domain.BungeoppangV5Order;
 import com.ssafy.ontop.minigame.domain.MinigameSession;
 import com.ssafy.ontop.minigame.domain.MinigameStartRequest;
 import com.ssafy.ontop.minigame.dto.BungeoppangStatusResponse;
 import com.ssafy.ontop.minigame.dto.BungeoppangV4Responses;
 import com.ssafy.ontop.minigame.dto.BungeoppangV4DeliveryDtos;
 import com.ssafy.ontop.minigame.dto.BungeoppangV4CompleteDtos;
+import com.ssafy.ontop.minigame.dto.BungeoppangV5Responses;
 import com.ssafy.ontop.minigame.dto.MinigameAbandonResponse;
 import com.ssafy.ontop.minigame.dto.MinigameCompleteResponse;
 import com.ssafy.ontop.minigame.dto.MinigameStartResponse;
@@ -43,15 +45,18 @@ public class MinigameService {
     private static final String BUNGEOPPANG = "BUNGEOPPANG";
     private static final String V2 = BungeoppangRules.VERSION;
     private static final String V4 = BungeoppangV4Spec.RULES_VERSION;
+    private static final String V5 = BungeoppangV5Spec.RULES_VERSION;
 
     private final MinigameRepository repository;
     private final TransactionTemplate transactions;
     private final Clock clock;
     private final int startsPerMinute;
+    private final boolean v5Enabled;
     private final ObjectMapper json = new ObjectMapper().findAndRegisterModules();
     private final SecureRandom random = new SecureRandom();
     private final BungeoppangRules rules = new BungeoppangRules();
     private final BungeoppangV4Rules v4Rules = new BungeoppangV4Rules();
+    private final BungeoppangV5Rules v5Rules = new BungeoppangV5Rules();
     private final ConcurrentHashMap<Long, DeliveryBucket> deliveryRates = new ConcurrentHashMap<>();
 
     public MinigameService(MinigameRepository repository, PlatformTransactionManager manager, Clock clock) {
@@ -60,12 +65,23 @@ public class MinigameService {
 
     public MinigameService(MinigameRepository repository, PlatformTransactionManager manager, Clock clock,
             int startsPerMinute) {
+        this(repository, manager, clock, startsPerMinute, false);
+    }
+
+    /** v5 stays unavailable unless explicitly enabled; a disabled v5 start keeps the old version mismatch. */
+    public MinigameService(MinigameRepository repository, PlatformTransactionManager manager, Clock clock,
+            int startsPerMinute, boolean v5Enabled) {
         if (startsPerMinute < 1) { throw new IllegalArgumentException("시작 제한은 1 이상이어야 합니다."); }
         this.repository = repository;
         this.transactions = new TransactionTemplate(manager);
         this.transactions.setIsolationLevel(TransactionDefinition.ISOLATION_READ_COMMITTED);
         this.clock = clock;
         this.startsPerMinute = startsPerMinute;
+        this.v5Enabled = v5Enabled;
+    }
+
+    public boolean v5Enabled() {
+        return v5Enabled;
     }
 
     /** Existing v2 entry point retained for binary and test compatibility. */
@@ -75,6 +91,10 @@ public class MinigameService {
 
     public BungeoppangV4Responses.StartResponse startV4(long userId, String type, String key) {
         return (BungeoppangV4Responses.StartResponse) startVersion(userId, type, V4, key);
+    }
+
+    public BungeoppangV5Responses.StartResponse startV5(long userId, String type, String key) {
+        return (BungeoppangV5Responses.StartResponse) startVersion(userId, type, V5, key);
     }
 
     private Object startVersion(long userId, String type, String requestedVersion, String key) {
@@ -105,19 +125,22 @@ public class MinigameService {
             }
 
             boolean firstGame = repository.firstGame(userId);
-            BungeoppangV4Responses.Timing timing = V4.equals(requestedVersion)
-                    ? BungeoppangV4Spec.timing(issuedAt) : null;
+            BungeoppangV4Responses.Timing timing = V4.equals(requestedVersion) ? BungeoppangV4Spec.timing(issuedAt)
+                    : V5.equals(requestedVersion) ? BungeoppangV5Spec.timing(issuedAt) : null;
             MinigameSession session = new MinigameSession(userId,
                     timing == null ? issuedAt : timing.playStartsAt());
             repository.persist(session);
             repository.flush();
 
-            int heatCount = V4.equals(requestedVersion) ? BungeoppangV4Spec.rules().heatListLength() : 64;
+            int heatCount = V4.equals(requestedVersion) ? BungeoppangV4Spec.rules().heatListLength()
+                    : V5.equals(requestedVersion) ? BungeoppangV5Spec.rules().heatListLength() : 64;
             List<Integer> heats = random.ints(heatCount, 85, 116).boxed().toList();
             BungeoppangRecord record = new BungeoppangRecord(session.id(), requestedVersion, write(heats), firstGame);
             repository.persist(record);
             if (V4.equals(requestedVersion)) {
                 persistV4Source(session.id(), issuedAt, timing);
+            } else if (V5.equals(requestedVersion)) {
+                persistV5Source(session.id(), issuedAt, timing, heats);
             }
             repository.persist(new MinigameStartRequest(userId, key, session.id()));
             repository.flush();
@@ -140,10 +163,51 @@ public class MinigameService {
                 issuedAt));
     }
 
+    /**
+     * v5 reuses the v4 round row for its time origin and approved checkpoint; only its orders get their own
+     * table. The opening checkpoint is the replay of an empty log, so start and recovery share one source.
+     */
+    private void persistV5Source(long sessionId, Instant issuedAt, BungeoppangV4Responses.Timing timing,
+            List<Integer> heats) {
+        List<BungeoppangV5Rules.Order> opening = openingV5Orders();
+        BungeoppangV5Responses.Checkpoint checkpoint = BungeoppangV5Spec.checkpoint(0, 0,
+                BungeoppangV5Spec.initialPrefixHash(sessionId), v5Rules.replay(List.of(), heats, opening));
+        V5ConfigSnapshot config = new V5ConfigSnapshot(BungeoppangV5Spec.rules(),
+                BungeoppangV5Spec.START_BUFFER_MS, BungeoppangV5Spec.SUBMISSION_GRACE_MS,
+                BungeoppangV5Spec.PROCESSING_DRAIN_MS);
+        repository.persist(new BungeoppangV4Round(sessionId, BungeoppangV5Spec.CONFIG_VERSION,
+                write(config), issuedAt, timing.countdownStartsAt(), timing.playStartsAt(), timing.playEndsAt(),
+                timing.submitDeadline(), timing.expiresAt(), checkpoint.prefixHash(), write(checkpoint)));
+        repository.persist(new BungeoppangV4Progress(sessionId, "[]"));
+        for (BungeoppangV5Rules.Order order : opening) {
+            repository.persist(new BungeoppangV5Order(sessionId, Long.parseLong(order.orderId()),
+                    order.customerSlot(), order.availableAfterSeq(), order.items().bean(), order.items().custard(),
+                    order.items().pizza(), order.items().chocolate(), issuedAt));
+        }
+    }
+
+    /** One opening order per customer slot: the first is the fixed bean-2 order, the rest use the v4 mix. */
+    private List<BungeoppangV5Rules.Order> openingV5Orders() {
+        var orders = new ArrayList<BungeoppangV5Rules.Order>(BungeoppangV5Spec.MAX_ACTIVE_ORDERS);
+        for (int slot = 0; slot < BungeoppangV5Spec.MAX_ACTIVE_ORDERS; slot++) {
+            BungeoppangV4Rules.Order generated = v4Rules.nextOrder(slot, random,
+                    BungeoppangV5Spec.calculationRules());
+            orders.add(new BungeoppangV5Rules.Order(generated.orderId(), slot, 0, generated.items()));
+        }
+        return orders;
+    }
+
     private Object startResponse(MinigameSession session, BungeoppangRecord record) {
         if (V2.equals(record.rulesVersion())) {
             return new MinigameStartResponse(Long.toString(session.id()), session.minigameType(), "PLAYING",
                     session.startedAt(), record.rulesVersion(), heats(record), record.firstGame());
+        }
+        if (V5.equals(record.rulesVersion())) {
+            BungeoppangV4Round round = requireV4Round(session.id(), false);
+            return new BungeoppangV5Responses.StartResponse(Long.toString(session.id()), session.minigameType(),
+                    "PLAYING", "WAITING_START", V5, round.configVersion(), round.issuedAt(), session.startedAt(),
+                    BungeoppangV4Spec.timing(round), v5Config(round).rules(), heats(record), record.firstGame(),
+                    v5Checkpoint(round));
         }
         if (!V4.equals(record.rulesVersion())) {
             throw versionMismatch();
@@ -185,6 +249,26 @@ public class MinigameService {
         });
     }
 
+    /** The v4 lobby shape under rulesVersion v5; the v4 response itself is unchanged. */
+    public BungeoppangV4Responses.LobbyResponse statusV5(long userId) {
+        if (!v5Enabled) { throw versionMismatch(); }
+        return transactions.execute(tx -> {
+            lockWallet(userId);
+            Instant current = now();
+            String activeSessionId = null;
+            for (MinigameSession session : repository.playing(userId)) {
+                if (expired(session, current)) {
+                    invalidate(session, current, "EXPIRED");
+                } else if (activeSessionId == null) {
+                    activeSessionId = Long.toString(session.id());
+                }
+            }
+            return new BungeoppangV4Responses.LobbyResponse(V5, current, earned(userId, current),
+                    BungeoppangRules.DAILY_CAP, repository.firstGame(userId),
+                    tips(repository.profile(userId).seenTips()), activeSessionId, List.of(V2, V4, V5));
+        });
+    }
+
     /** Existing v2 state query retained for callers that depend on its exact JSON shape. */
     public MinigameStatusResponse load(long userId, long sessionId) {
         Object response = loadSession(userId, sessionId, false);
@@ -216,9 +300,39 @@ public class MinigameService {
                 return new MinigameStatusResponse(Long.toString(session.id()), session.status(), session.score(),
                         session.rewardAmount(), session.startedAt(), session.endedAt());
             }
+            if (V5.equals(record.rulesVersion())) {
+                return v5SessionResponse(session, record, current, includeSource, includeProgress, deliveryKey);
+            }
             if (!V4.equals(record.rulesVersion())) { throw versionMismatch(); }
             return v4SessionResponse(session, record, current, includeSource, includeProgress, deliveryKey);
         });
+    }
+
+    /**
+     * Recovery returns the stored approved checkpoint, its accepted log and every server-issued order.
+     * Nothing from the client is trusted; the remaining time follows the stored timing and serverNow.
+     */
+    private BungeoppangV5Responses.SessionResponse v5SessionResponse(MinigameSession session,
+            BungeoppangRecord record, Instant current, boolean includeSource, boolean includeProgress,
+            String deliveryKey) {
+        BungeoppangV4Round round = requireV4Round(session.id(), false);
+        boolean active = "PLAYING".equals(session.status());
+        boolean progress = active || includeProgress;
+        List<BungeoppangV4DeliveryDtos.Action> accepted = progress ? acceptedLog(session.id()) : List.of();
+        Object lookup = deliveryKey == null ? null : deliveryLookup(session.id(), deliveryKey);
+        // v5 완료 응답 DTO는 V5-3에서 정한다. 그 전까지 저장된 결과를 그대로 읽기만 한다.
+        Object finalResult = "COMPLETED".equals(session.status()) && record.result() != null
+                ? readTree(record.result()) : null;
+        return new BungeoppangV5Responses.SessionResponse(Long.toString(session.id()), V5,
+                round.configVersion(), session.status(), BungeoppangV4Spec.phase(session.status(), current, round),
+                session.score(), session.rewardAmount(), session.endedAt(), active ? null : round.terminalReason(),
+                current, session.startedAt(), BungeoppangV4Spec.timing(round),
+                progress ? v5Checkpoint(round) : null, new ArrayList<>(accepted),
+                progress ? repository.v5Orders(session.id()).stream().map(this::v5Order)
+                        .map(BungeoppangV5Spec::order).toList() : List.of(),
+                finalResult, lookup, includeSource ? v5Config(round).rules() : null,
+                includeSource ? heats(record) : null, includeSource ? round.issuedAt() : null,
+                includeSource ? record.firstGame() : null);
     }
 
     private BungeoppangV4Responses.SessionResponse v4SessionResponse(MinigameSession session,
@@ -707,7 +821,7 @@ public class MinigameService {
 
     private boolean expired(MinigameSession session, Instant current) {
         var record = repository.record(session.id());
-        if (record.isPresent() && V4.equals(record.get().rulesVersion())) {
+        if (record.isPresent() && hasRound(record.get())) {
             return !current.isBefore(requireV4Round(session.id(), false).expiresAt());
         }
         return !current.isBefore(session.startedAt().plusSeconds(600));
@@ -718,16 +832,23 @@ public class MinigameService {
         terminateV4(session.id(), reason);
     }
 
+    /** v4 and v5 both keep their time origin and terminal reason in the round row. */
     private void terminateV4(long sessionId, String reason) {
-        repository.record(sessionId).filter(record -> V4.equals(record.rulesVersion()))
+        repository.record(sessionId).filter(this::hasRound)
                 .ifPresent(ignored -> requireV4Round(sessionId, true).terminate(reason));
+    }
+
+    private boolean hasRound(BungeoppangRecord record) {
+        return V4.equals(record.rulesVersion()) || V5.equals(record.rulesVersion());
     }
 
     private void validateStart(String type, String version, String key) {
         if (!BUNGEOPPANG.equals(type)) {
             throw error(400, "UNSUPPORTED_MINIGAME", "지원하지 않는 미니게임입니다.");
         }
-        if (!V2.equals(version) && !V4.equals(version)) { throw versionMismatch(); }
+        if (!V2.equals(version) && !V4.equals(version) && !(v5Enabled && V5.equals(version))) {
+            throw versionMismatch();
+        }
         if (key == null || !key.matches("[A-Za-z0-9_-]{1,64}")) {
             throw error(400, "INVALID_REQUEST", "중복 방지 키를 확인하세요.");
         }
@@ -773,6 +894,20 @@ public class MinigameService {
         return read(round.configJson(), V4ConfigSnapshot.class);
     }
 
+    private BungeoppangV5Responses.Checkpoint v5Checkpoint(BungeoppangV4Round round) {
+        return read(round.checkpointJson(), BungeoppangV5Responses.Checkpoint.class);
+    }
+
+    private V5ConfigSnapshot v5Config(BungeoppangV4Round round) {
+        return read(round.configJson(), V5ConfigSnapshot.class);
+    }
+
+    private BungeoppangV5Rules.Order v5Order(BungeoppangV5Order order) {
+        return new BungeoppangV5Rules.Order(Long.toString(order.orderId()), order.customerSlot(),
+                order.availableAfterSeq(), new BungeoppangV4Rules.FillingCounts(order.bean(), order.custard(),
+                        order.pizza(), order.chocolate()));
+    }
+
     private MinigameException rejected(BungeoppangRecord record) {
         return new MinigameException(422, "LOG_INVALID", "입력 기록을 확인할 수 없습니다.",
                 record.rejectionDetail(), record.rejectionIndex());
@@ -803,6 +938,10 @@ public class MinigameService {
     }
 
     private record V4ConfigSnapshot(BungeoppangV4Responses.Rules rules, int startBufferMs,
+            int submissionGraceMs, int processingDrainMs) {
+    }
+
+    private record V5ConfigSnapshot(BungeoppangV5Responses.Rules rules, int startBufferMs,
             int submissionGraceMs, int processingDrainMs) {
     }
 

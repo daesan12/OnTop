@@ -2,6 +2,7 @@ package com.ssafy.ontop.minigame.service;
 
 import com.ssafy.ontop.minigame.dto.BungeoppangV4Responses;
 import com.ssafy.ontop.minigame.dto.BungeoppangV5Responses;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -10,13 +11,17 @@ public final class BungeoppangV5Spec {
     public static final String RULES_VERSION = "v5";
     public static final String CONFIG_VERSION = "v5-20261027.1";
     public static final String HEAT_ASSIGNMENT = "FILL";
+    public static final int START_BUFFER_MS = 1_000;
+    public static final int COUNTDOWN_MS = 3_500;
     public static final int DURATION_MS = 180_000;
+    public static final int SUBMISSION_GRACE_MS = 15_000;
+    public static final int PROCESSING_DRAIN_MS = 10_000;
     public static final int MAX_ACTIVE_ORDERS = 3;
 
     private static final BungeoppangV4Responses.FillingCounts FIRST_ORDER =
             new BungeoppangV4Responses.FillingCounts(2, 0, 0, 0);
     private static final BungeoppangV5Responses.Rules RULES = new BungeoppangV5Responses.Rules(
-            6, DURATION_MS, 3_500, 8_000, 6_000, 150_000, 85, 115, 2_048,
+            6, DURATION_MS, COUNTDOWN_MS, 8_000, 6_000, 150_000, 85, 115, 2_048,
             10, 4, 20, 50, FIRST_ORDER, 50, 70, 90, 100, 2, 5, 15, 100,
             50, 300, 3_600, HEAT_ASSIGNMENT, MAX_ACTIVE_ORDERS);
     /** The same values in the v4 shape, so the shared v4 doneness and scoring functions apply unchanged. */
@@ -37,6 +42,16 @@ public final class BungeoppangV5Spec {
 
     static BungeoppangV4Responses.Rules calculationRules() {
         return CALCULATION_RULES;
+    }
+
+    /** Same phase boundaries as v4 with a 180 second play window. */
+    public static BungeoppangV4Responses.Timing timing(Instant issuedAt) {
+        Instant countdown = issuedAt.plusMillis(START_BUFFER_MS);
+        Instant play = countdown.plusMillis(COUNTDOWN_MS);
+        Instant end = play.plusMillis(DURATION_MS);
+        Instant deadline = end.plusMillis(SUBMISSION_GRACE_MS);
+        return new BungeoppangV4Responses.Timing(countdown, play, end, deadline,
+                deadline.plusMillis(PROCESSING_DRAIN_MS));
     }
 
     public static String initialPrefixHash(long sessionId) {

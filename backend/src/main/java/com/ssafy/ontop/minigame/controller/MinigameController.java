@@ -83,10 +83,13 @@ public class MinigameController {
         if (keys.size() != 1 || !keys.getFirst().matches("[A-Za-z0-9_-]{1,64}")) {
             throw invalid();
         }
+        String type = body.path("minigameType").textValue();
         return ResponseEntity.status(201).cacheControl(CacheControl.noStore())
-                .body(rulesVersion.equals("v4")
-                        ? service().startV4(userId, body.path("minigameType").textValue(), keys.getFirst())
-                        : service().start(userId, body.path("minigameType").textValue(), keys.getFirst()));
+                .body(switch (rulesVersion) {
+                    case "v4" -> service().startV4(userId, type, keys.getFirst());
+                    case "v5" -> service().startV5(userId, type, keys.getFirst());
+                    default -> service().start(userId, type, keys.getFirst());
+                });
     }
 
     @GetMapping("/{sessionId}")
@@ -116,8 +119,11 @@ public class MinigameController {
         String selected = rulesVersion == null ? "v2" : rulesVersion;
         if (selected.isBlank()) { throw invalid(); }
         requireKnownVersion(selected);
-        return ok(selected.equals("v4") ? service().statusV4(account(principal))
-                : service().status(account(principal)));
+        return ok(switch (selected) {
+            case "v4" -> service().statusV4(account(principal));
+            case "v5" -> service().statusV5(account(principal));
+            default -> service().status(account(principal));
+        });
     }
 
     @PostMapping("/{sessionId}/deliveries")
@@ -242,8 +248,13 @@ public class MinigameController {
         }
     }
 
+    /** v5 is known only while explicitly enabled; otherwise it answers exactly like any unsupported version. */
     private void requireKnownVersion(String version) {
         if (version.equals("v2") || version.equals("v4")) { return; }
+        if (version.equals("v5")) {
+            MinigameService service = services.getIfAvailable();
+            if (service != null && service.v5Enabled()) { return; }
+        }
         if (!version.matches("v[1-9][0-9]{0,8}")) { throw invalid(); }
         throw new MinigameException(409, "RULES_VERSION_MISMATCH", "지원하지 않는 규칙 버전입니다.");
     }
