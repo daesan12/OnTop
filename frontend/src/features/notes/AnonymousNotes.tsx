@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
-import { NOTES_BOX, type AnonymousNote } from '../../config/notes'
+import { NOTES_BOX, type AnonymousNote } from '../../park/mapConfig'
 import { closeNotes, refreshNotes, submitNote, watchNotes } from './controller'
 import { notesService } from './service'
 import { editNoteDraft, editNoteTopic, useNotesState } from './state'

@@ -27,6 +27,7 @@ export async function screenshot(page: Page, name: string, animations: 'allow' |
 export async function fixture(
   page: Page,
   options: {
+    connectedMap?: { mapId: string; schemaVersion: number; mapVersion: string }
     channelName?: string
     mapVersion?: string
     bindings?: boolean
@@ -440,7 +441,7 @@ export async function fixture(
   const follow = followFixture((type, payload, id = null) => emit(sockets.at(-1)!, type, payload, id), options.ownUserId ?? '101')
   await page.routeWebSocket('**/ws/tables?**', (ws) => {
     let mapVerified = false
-    const map = { mapId: 'park', schemaVersion: 1, mapVersion: options.mapVersion ?? EXPECTED_MAP_VERSION }
+    const map = options.connectedMap ?? { mapId: 'park', schemaVersion: 1, mapVersion: options.mapVersion ?? EXPECTED_MAP_VERSION }
     connections++
     active++
     maxActive = Math.max(maxActive, active)
@@ -450,7 +451,7 @@ export async function fixture(
         requestId: null,
         type: 'CONNECTED',
         payload: { userId: ownId, time: serverTime(), map,
-          mapVerificationRequired: options.mapVerificationRequired ?? false },
+          mapVerificationRequired: options.mapVerificationRequired ?? !!options.connectedMap },
       }),
     )
     // TableHub.activateConnection: a kept seat (frozen start or MANUAL waiting lease) gets its TABLE_STATE and
@@ -473,6 +474,7 @@ export async function fixture(
         code: null,
       })
     ws.onClose(() => {
+      ws.close(); // Complete the mock server's close handshake before a deliberate reconnect.
       active--
       facilities.disconnect()
       follow.disconnect()
@@ -729,6 +731,7 @@ export async function fixture(
     })
   })
   return {
+    mapMismatch: (map: { mapId: string; schemaVersion: number; mapVersion: string }) => emit(sockets.at(-1)!, 'ERROR', { code: 'MAP_VERSION_MISMATCH', serverMap: map, message: '맵 버전이 다릅니다.' }),
     sent,
     cardPranks,
     activity: (userId: string, activity: AvatarActivity | null) => {

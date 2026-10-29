@@ -19,7 +19,7 @@ import {
 } from "three";
 import { BUNGEOPPANG, bungeoppangV5Enabled } from "./config";
 import { createFishCartShape as fishShape } from '../../world/art/fishCartShape';
-import { createSculptedFish } from '../../world/art/fishBreadGeometry';
+import { createSculptedFish } from './fishBreadGeometry';
 import { v5HeatEls, BURNER_JET_OFFSETS, burnerJetEls } from './layoutV5';
 import { cookLevel, judge } from "./rules";
 import { heatLook, INGREDIENT_LOOK } from './presentation';

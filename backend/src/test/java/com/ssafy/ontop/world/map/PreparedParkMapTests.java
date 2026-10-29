@@ -65,6 +65,33 @@ class PreparedParkMapTests {
     }
 
     @Test
+    void 테이블이_18개로_늘어도_기존_16개_ID와_매핑을_유지한다() throws Exception {
+        var previous = load(fixture(), Set.of("channel-1", "channel-2"));
+        ObjectNode source = fixture();
+        var tables = (com.fasterxml.jackson.databind.node.ArrayNode) source.path("data").path("tables");
+        for (int number = 17; number <= 18; number++) {
+            tables.addObject().put("id", "table-" + number).putArray("position")
+                    .add(-53).add(0.1).add(number == 17 ? -8 : 2);
+        }
+        JsonNode first = tables.remove(0);
+        tables.add(first);
+        var expanded = load(source, Set.of("channel-1", "channel-2"));
+        var oldDocument = mapper.createObjectNode();
+        oldDocument.putArray("emotes").add("FART");
+        oldDocument.set("bindings", mapper.valueToTree(previous.bindings()));
+
+        assertThat(expanded.bindings()).hasSize(36).containsAll(previous.bindings());
+        assertThat(expanded.bindings()).extracting(PreparedParkMap.Binding::tableId).doesNotHaveDuplicates();
+        assertThat(expanded.createRooms()).hasSize(36);
+        assertThat(expanded.proximity().tables().get(PreparedParkMap.serverTableId("channel-1", 17)))
+                .isEqualTo(new com.ssafy.ontop.world.config.WorldProximityProperties.Point(-53.0, -8.0));
+        assertThat(expanded.proximity().tables().get(PreparedParkMap.serverTableId("channel-2", 18)))
+                .isEqualTo(new com.ssafy.ontop.world.config.WorldProximityProperties.Point(-53.0, 2.0));
+        assertThat(expanded.bindingsDocument(oldDocument).path("emotes")).isEqualTo(oldDocument.path("emotes"));
+        assertThat(expanded.bindingsDocument(oldDocument).path("bindings").size()).isEqualTo(36);
+    }
+
+    @Test
     void 조립한_좌석은_채널과_다른_구성에_영향_없이_게임선택과_준비를_처리한다() throws Exception {
         var park = load(fixture(), Set.of("channel-1", "channel-2"));
         var rooms = park.createRooms();
@@ -152,7 +179,7 @@ class PreparedParkMapTests {
     void 앵커_누락과_중복_또는_빈_채널은_실패한다() throws Exception {
         ObjectNode map = fixture();
         var tables = (com.fasterxml.jackson.databind.node.ArrayNode) map.path("data").path("tables");
-        tables.remove(15);
+        tables.remove(7);
         assertThatThrownBy(() -> load(map, Set.of("channel-1"))).isInstanceOf(IllegalArgumentException.class);
         tables.add(tables.get(0).deepCopy());
         assertThatThrownBy(() -> load(map, Set.of("channel-1"))).isInstanceOf(IllegalArgumentException.class);

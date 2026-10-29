@@ -38,9 +38,9 @@ public final class PreparedParkMap {
         var entries = new ArrayList<Binding>();
         require(!channels.isEmpty() && channels.stream().noneMatch(String::isBlank), "채널 목록이 필요합니다.");
         Map<String, JsonNode> anchors = indexed(data.path("tables"));
-        require(anchors.size() == 16, "새 공원은 16개 게임 테이블을 사용합니다.");
+        require(!anchors.isEmpty(), "게임 테이블 앵커가 필요합니다.");
         for (String channel : channels.stream().sorted().toList()) {
-            for (int number = 1; number <= 16; number++) {
+            for (int number = 1; number <= anchors.size(); number++) {
                 String anchorId = "table-" + number;
                 JsonNode anchor = anchors.get(anchorId);
                 require(anchor != null, "테이블 앵커가 누락되었습니다: " + anchorId);

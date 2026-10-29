@@ -10,7 +10,7 @@ import { avatarPoseActive, avatarPoseKey, avatarSeatSurface, createAvatarMotion 
 import { SwimmingRipples } from './SwimmingRipples'
 
 import { AvatarPoseCadence } from '../performance/avatarPoseCadence'
-import { CHARACTER } from '../config'
+import { CHARACTER } from '../park/mapConfig'
 import { FartCloud } from './art/FartCloud'
 import { bungeoppangReturnOpacity } from '../features/bungeoppang/bungeoppangView'
 import { createAvatarOpacity } from './avatarOpacity'

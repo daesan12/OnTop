@@ -9,7 +9,7 @@ import {
   characterGestureDuration,
   createFitnessMotion,
   sampleFitnessMotion,
-} from '../config'
+} from '../park/mapConfig'
 import type { createCharacterRig } from './art/CharacterRig'
 import { createGait, pavingLift, sampleGait } from './art/characterMotion'
 import { sampleCharacterEmote } from './art/characterEmotes'

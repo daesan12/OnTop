@@ -47,7 +47,7 @@ class WorldMapSelectionWebSocketTests {
     }
 
     @Test
-    void 실제_앱의_선택설정으로_새맵_확인과_16번_착석_준비를_연결한다() throws Exception {
+    void 실제_앱의_선택설정으로_새맵_확인과_마지막_테이블_착석_준비를_연결한다() throws Exception {
         try (ScenarioClient first = new ScenarioClient(port, "naver");
                 ScenarioClient second = new ScenarioClient(port, "ssafy")) {
             var connected = first.await(message -> message.path("type").asText().equals("CONNECTED"));
@@ -60,8 +60,9 @@ class WorldMapSelectionWebSocketTests {
                     .isEqualTo("WORLD_MAP_STATE");
             first.request("CHANNEL_JOIN", Map.of("channelId", "channel-1"));
             second.request("CHANNEL_JOIN", Map.of("channelId", "channel-1"));
-            assertThat(hub.listTables("channel-1").tables()).hasSize(16);
-            String table = PreparedParkMap.serverTableId("channel-1", 16);
+            int tableCount = runtime.prepared().orElseThrow().bindings().size();
+            assertThat(hub.listTables("channel-1").tables()).hasSize(tableCount);
+            String table = PreparedParkMap.serverTableId("channel-1", tableCount);
             first.request("TABLE_JOIN", Map.of("tableId", table));
             assertThat(first.request("GAME_SELECT", Map.of("gameCode", "OMOK", "betAmountPerPlayer", 1))
                     .path("type").asText()).isEqualTo("TABLE_STATE");

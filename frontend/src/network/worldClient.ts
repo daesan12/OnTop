@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { EnvironmentClock, NETWORK, OVERHEAD, TABLES, tableScale, tableSeats, type CharacterId } from '../config'
+import { EnvironmentClock, NETWORK, OVERHEAD, TABLES, tableScale, tableSeats, type CharacterId } from '../park/mapConfig'
 import { CHAT } from '../features/chat/settings'
 import { filterChat } from '../features/chat/filterChat'
 import {
@@ -15,8 +15,9 @@ import {
   type PublicTableSeat,
 } from './protocol'
 import type { TableBinding } from './tableBindings'
+import type { MapIdentity } from './mapContract'
 import type { AvatarActivity } from './avatarActivity'
-import { EXPECTED_MAP_VERSION } from '../config/mapVersion'
+import { EXPECTED_MAP_VERSION } from '../park/mapConfig'
 import { resetGame } from '../game/store'
 import { resetBenchState, useBenchState } from '../features/interactions/benchState'
 import { clearRoamingInput } from '../world/inputOwnership'
@@ -106,6 +107,8 @@ export interface Session {
   bindings: TableBinding[]
   mapCompatible: boolean
   mapVersion: string
+  mapContractStatus: 'pending' | 'confirming' | 'legacy' | 'verified' | 'mismatch'
+  serverMap: MapIdentity | null
   // Facility display IDs come from explicit development leases, never guessed wire fields.
   telescopeId: string
   benchId: string
@@ -138,6 +141,8 @@ const initial = (): Session => ({
   bindings: [],
   mapCompatible: false,
   mapVersion: '',
+  mapContractStatus: 'pending',
+  serverMap: null,
   telescopeId: '',
   benchId: '',
   fitnessId: '',
@@ -430,7 +435,7 @@ export function refreshActivityPresentation() {
   if (useNotesState.getState().open && (!own?.connected || own.seatIndex >= 0 || own.fitnessId
     || own.telescopeId || own.swimming || !canReachNotes(authoritativePose(state.sessionId)))) resetNotesState(true)
 }
-export function receive(message: Envelope) {
+export function receive(message: Envelope, expectedMapVersion: string = EXPECTED_MAP_VERSION) {
   if ((message.type === 'ERROR' || message.type === 'WORLD_EMOTE_EVENT') && retiredEmoteRequest(message.requestId)) return
   const p = message.payload,
     state = useSession.getState()
@@ -469,7 +474,7 @@ export function receive(message: Envelope) {
       )
         return
       worldVersion = next.version
-      const mapCompatible = next.mapVersion === EXPECTED_MAP_VERSION
+      const mapCompatible = next.mapVersion === expectedMapVersion
       if (!mapCompatible || state.mapVersion && state.mapVersion !== next.mapVersion) remoteMovement.reset()
       if (!mapCompatible) { defeatTimeline.clear(); resetBenchState(); resetFitnessState(); resetTelescopeState(); resetFeedbackState(true); resetNotesState(true); clearRoamingInput() }
       const ids = next.avatars.map((a) => a.userId),

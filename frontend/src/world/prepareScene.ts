@@ -9,9 +9,6 @@ export async function prepareScene(
 ) {
   performance.mark('park-scene-prepare-start')
   const compiling = renderer.compileAsync(scene, camera)
-  // This pass deliberately does not draw yet. Submit shader work now so GPU
-  // compilation can run while the following texture uploads occupy the CPU.
-  renderer.getContext().flush()
   const textures = new Set<Texture>()
   const collect = (material: Material) => {
     for (const value of Object.values(material)) if (value instanceof Texture && !(value instanceof VideoTexture)) textures.add(value)

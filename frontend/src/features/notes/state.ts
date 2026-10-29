@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { AnonymousNote } from '../../config/notes'
+import type { AnonymousNote } from '../../park/mapConfig'
 import { inputState } from '../../world/inputOwnership'
 import { parseNoteText } from './validation'
 import type { NoteTopic } from './topics'

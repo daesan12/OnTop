@@ -1,4 +1,4 @@
-import { GOMOKU, TABLES, tableScale } from '../../config'
+import { GOMOKU, TABLES, tableScale } from '../../park/mapConfig'
 import type { Pose } from '../../network/worldClient'
 
 /** Same existing table interaction radius for the E hint and explicit 3D clicks. */

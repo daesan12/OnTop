@@ -1,3 +1,4 @@
+import { SIMPLE_MAP } from './mapRenderProfile'
 import { TraditionalNotesBoard } from './TraditionalNotesBoard'
 import { ParkFountain } from './ParkFountain'
 import { ParkActivities } from './ParkActivities'
@@ -47,12 +48,12 @@ distantRoof.setAttribute(
 )
 distantRoof.computeVertexNormals()
 
-function PavilionSlot({ p }: { p: (typeof PARK_PAVILIONS)[number] }) {
+export function PavilionSlot({ p }: { p: { id: string; x: number; z: number; floor: number; ground: number; scale: number } }) {
   const near = useRef<Group>(null),
     far = useRef<Group>(null)
   const localY = p.floor - 0.72 * p.scale
   useFrame(({ camera }) => {
-    const close =
+    const close = !SIMPLE_MAP &&
       Math.hypot(
         camera.position.x - p.x,
         camera.position.z - p.z,
@@ -63,13 +64,13 @@ function PavilionSlot({ p }: { p: (typeof PARK_PAVILIONS)[number] }) {
   })
   return (
     <group name={`pavilion-${p.id}`}>
-      <group
+      {!SIMPLE_MAP && <group
         ref={near}
         position={[p.x, localY, p.z + 3 * p.scale]}
         scale={p.scale}
       >
         <Pavilion structureOnly main={p.id === 'P0'} assetScale={p.scale} />
-      </group>
+      </group>}
       <group ref={far} position={[p.x, p.floor, p.z]} scale={p.scale}>
         <mesh geometry={distantRoof} dispose={null}>
           <meshStandardMaterial color="#454a48" roughness={1} side={2} />
@@ -244,8 +245,8 @@ for (const radius of [TOWER.inner, TOWER.outer])
 // combined mesh opaque, so camera fading never hides the entire tower. The
 // twelve solid columns still fade individually when they obstruct the player.
 const towerFrame = mergeStaticBeams([
-  { parts: rails, sides: 6 },
-  { parts: supports, sides: 8 },
+  { parts: rails, sides: SIMPLE_MAP ? 3 : 6 },
+  { parts: supports, sides: SIMPLE_MAP ? 4 : 8 },
 ])
 export function PlannedLandmarks({ quality }: { quality: QualityPreset }) {
   return (
@@ -254,6 +255,16 @@ export function PlannedLandmarks({ quality }: { quality: QualityPreset }) {
       {PARK_PAVILIONS.map((p) => (
         <PavilionSlot key={p.id} p={p} />
       ))}
+      <ObservationTower />
+      <ParkFountain quality={quality} />
+      <ParkActivities />
+    </group>
+  )
+}
+
+/** Shared tower art; callers may translate the entire existing model for layout review. */
+export function ObservationTower() {
+  return (
       <group name="spiral-observation-tower">
         <mesh
           name="tower-walkway-floor"
@@ -291,8 +302,5 @@ export function PlannedLandmarks({ quality }: { quality: QualityPreset }) {
         <ObservationTelescopes />
         <TraditionalNotesBoard />
       </group>
-      <ParkFountain quality={quality} />
-      <ParkActivities />
-    </group>
   )
 }

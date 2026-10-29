@@ -1,4 +1,4 @@
-import { EXPECTED_MAP_VERSION } from '../../config/mapVersion'
+import { EXPECTED_MAP_VERSION } from '../../park/mapConfig'
 import type { NavPoint } from './parkNavigation'
 import type { RouteResult, RouteWork } from './navigation.worker'
 
