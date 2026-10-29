@@ -164,7 +164,9 @@ participants/myCoinDelta/endedAt이며 PENDING의 myCoinDelta는 null이다. 응
 - 현재 boot의 SETTLING은 신뢰된 DB 종결 결과로 복구한다. 다른 boot의 미완료 경기 자동 INVALID/반환은 미구현이다.
 - 자세한 nullable/필드 규칙: [결과](../game-result-api.md), [Story 174 구현과 한계](../game-recovery.md).
 - 새로고침·재연결 후 FE는 이 탭의 경기 ID가 경기 내역 REST의 최근 종료 경기와 같을 때만 기존
-  GAME_RESULT_CHECK를 다시 보낸다. 새 메시지·필드는 없다. 상세: [새로고침 후 결과 발견](../game-recovery.md#새로고침-후-경기-결과-발견-ontop-story-b).
+  GAME_RESULT_CHECK를 다시 보낸다. 새 메시지·필드는 없다.
+- 서버가 유지한 좌석(대기석 유예 복귀·frozen 좌석)의 재접속은 `CONNECTED` 직후 TABLE_STATE와 이 테이블의 GAME_START_STATE를
+  받는다. FE는 채널 입장·테이블 목록 조회 뒤 적용한다. 상세: [Story C](../game-recovery.md#새로고침websocket-재접속-좌석시작-상태-수신-ontop-story-c). 상세: [새로고침 후 결과 발견](../game-recovery.md#새로고침-후-경기-결과-발견-ontop-story-b).
 
 ## GAME_SELECT 참가비 계약 (Story 172 보완/173)
 

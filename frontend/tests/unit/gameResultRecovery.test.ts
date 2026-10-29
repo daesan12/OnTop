@@ -36,6 +36,8 @@ let socket: ContractSocket, runtime: ParkRuntime, storage: MemoryStorage
 let history: () => Promise<unknown>, historyCalls: { url: string; auth: string | null }[]
 /** Mirrors TableHub.register/activateConnection for a member whose table is still SETTLING. */
 let settlingActivation = false
+/** TableHub.register sends this before any seat state. */
+const notSeated = { ...waiting, tableId: null, revision: 0, phase: 'NOT_SEATED', gameCode: null }
 const finishedOmok = { ...omok, status: 'FINISHED', turnUserId: null, turnDeadline: null, winnerUserId: '101',
   endReason: 'FIVE_IN_ROW', endedAt: '2026-10-29T00:00:00Z' }
 class ContractSocket implements SocketLike {
@@ -50,7 +52,7 @@ class ContractSocket implements SocketLike {
       this.readyState = 1; this.onopen?.(new Event('open')); this.emit('CONNECTED', { userId: '101' })
       if (!settlingActivation) return
       // Sent before CHANNEL_JOIN, so the FE has no table list yet and cannot keep the seat or start state.
-      this.emit('GAME_START_STATE', { ...waiting, tableId: null, revision: 0, gameCode: null })
+      this.emit('GAME_START_STATE', notSeated)
       this.emit('TABLE_STATE', table)
       this.emit('GAME_START_STATE', { ...waiting, revision: 4, phase: 'SETTLING', startAttemptId: 'a', gameSessionId: '7' })
       this.emit('GAME_CONNECTION_STATE', { status: 'FINISHED', gameId: '7', version: 9, state: finishedOmok })
@@ -320,27 +322,30 @@ describe('store candidate rules', () => {
 })
 
 describe('MR QA scenarios', () => {
-  it('real server order: a refresh during SETTLING restores the result once settlement returns the table to WAITING', async () => {
+  it('real server order: a refresh during SETTLING keeps the seat and game, then shows the settled result in WAITING', async () => {
     storage.setItem(key, '7'); settlingActivation = true
     runtime.reconnect()
     await vi.waitFor(() => expect(useSession.getState().tables).toHaveLength(1))
     await vi.waitFor(() => expect(useSession.getState().status).toBe('connected'))
     await settle()
-    // The pre-join TABLE_STATE/SETTLING were dropped: no seat, so the seat-scoped push is dropped too.
-    expect(useSession.getState().tableId).toBe('')
+    // The pre-join seat, SETTLING and FINISHED snapshot are read with the table list (Story C).
+    expect(useSession.getState().tableId).toBe('server-table')
+    expect(useGame.getState()).toMatchObject({ recovery: 'FINISHED', permittedGameId: '7', start: { phase: 'SETTLING' } })
+    // The seat-scoped push now reaches the current game.
     socket.emit('GAME_RESULT', result('7', 2))
-    expect(useGame.getState().lastResult).toBeNull()
-    expect(historyCalls).toHaveLength(0)
+    expect(useGame.getState().lastResult).toEqual(result('7', 2))
     // TableHub.releaseSettledRound: publish(room) then publishStart(tableId).
     socket.emit('TABLE_STATE', { ...table, version: 2 })
     socket.emit('GAME_START_STATE', { ...waiting, revision: 5 })
-    await vi.waitFor(() => expect(useGame.getState().lastResult).toEqual(result('7', 2)))
-    expect(useGame.getState()).toMatchObject({ completedGameId: '7', permittedGameId: '', recovery: 'LOBBY' })
+    expect(useGame.getState()).toMatchObject({ completedGameId: '7', permittedGameId: '', lastResult: result('7', 2) })
+    // The result is already known, so history discovery is not needed.
+    await settle()
+    expect(historyCalls).toHaveLength(0)
   })
 
   it('a seat broadcast without this table\'s WAITING start state does not restore an unclosable result', async () => {
     storage.setItem(key, '7')
-    socket.emit('GAME_START_STATE', { ...waiting, tableId: null, revision: 0, gameCode: null })
+    socket.emit('GAME_START_STATE', notSeated)
     socket.emit('TABLE_STATE', table)
     socket.emit('GAME_CONNECTION_STATE', { status: 'LOBBY' })
     await settle()
