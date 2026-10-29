@@ -178,7 +178,8 @@ class MinigameV5ServiceTests {
         BungeoppangV5Responses.Checkpoint checkpoint = started.checkpoint();
         assertThat(checkpoint.revision()).isZero();
         assertThat(checkpoint.throughSeq()).isZero();
-        assertThat(checkpoint.prefixHash()).isEqualTo(BungeoppangV5Spec.initialPrefixHash(sessionId));
+        assertThat(checkpoint.prefixHash())
+                .isEqualTo(BungeoppangV5Spec.initialPrefixHash(sessionId, BungeoppangV5Spec.CONFIG_VERSION));
         assertThat(checkpoint.heatCursor()).isZero();
         assertThat(checkpoint.lastAt()).isNull();
         assertThat(checkpoint.tray()).isEmpty();
@@ -221,8 +222,10 @@ class MinigameV5ServiceTests {
                                 order.chocolate())))
                 .toList();
 
-        var replayed = BungeoppangV5Spec.checkpoint(0, 0, BungeoppangV5Spec.initialPrefixHash(sessionId),
-                new BungeoppangV5Rules().replay(List.of(), started.heats(), stored));
+        var replayed = BungeoppangV5Spec.checkpoint(0, 0,
+                BungeoppangV5Spec.initialPrefixHash(sessionId, started.configVersion()),
+                new BungeoppangV5Rules().replay(List.of(), started.heats(), stored,
+                        BungeoppangV5Spec.calculationRules(started.rules())));
 
         assertThat(started.checkpoint()).isEqualTo(replayed);
         assertThat(BungeoppangV5DeliveryContract.prefixHash(sessionId, started.configVersion(),

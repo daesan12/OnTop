@@ -153,7 +153,8 @@ class MinigameHttpTests {
         var timing = BungeoppangV5Spec.timing(issued);
         var orders = List.of(new BungeoppangV5Responses.Order("1", 0, 0,
                 new BungeoppangV4Responses.FillingCounts(2, 0, 0, 0)));
-        var checkpoint = new BungeoppangV5Responses.Checkpoint(0, 0, BungeoppangV5Spec.initialPrefixHash(901), 0,
+        var checkpoint = new BungeoppangV5Responses.Checkpoint(0, 0, BungeoppangV5Spec.initialPrefixHash(901,
+                BungeoppangV5Spec.CONFIG_VERSION), 0,
                 null, BungeoppangV4Spec.initialCheckpoint(901).slots(), List.of(),
                 BungeoppangV4Spec.initialCheckpoint(901).stats(), orders);
         when(minigames.v5Enabled()).thenReturn(true);

@@ -24,24 +24,27 @@ public final class BungeoppangV5Spec {
             6, DURATION_MS, COUNTDOWN_MS, 8_000, 6_000, 150_000, 85, 115, 2_048,
             10, 4, 20, 50, FIRST_ORDER, 50, 70, 90, 100, 2, 5, 15, 100,
             50, 300, 3_600, HEAT_ASSIGNMENT, MAX_ACTIVE_ORDERS);
-    /** The same values in the v4 shape, so the shared v4 doneness and scoring functions apply unchanged. */
-    private static final BungeoppangV4Responses.Rules CALCULATION_RULES = new BungeoppangV4Responses.Rules(
-            RULES.slots(), RULES.durationMs(), RULES.countdownMs(), RULES.sideMs(), RULES.rushSideMs(),
-            RULES.rushFromMs(), RULES.heatMin(), RULES.heatMax(), RULES.heatListLength(), RULES.trayCapacity(),
-            RULES.maxOrderItems(), RULES.specialOrderChancePercent(), RULES.specialBonusPercent(),
-            RULES.firstOrder(), RULES.okFrom(), RULES.goldenFrom(), RULES.goldenTo(), RULES.burntFrom(),
-            RULES.okPoint(), RULES.goldenPoint(), RULES.pointsPerCoin(), RULES.dailyCoinCap(), RULES.minGapMs(),
-            RULES.sameSlotGapMs(), RULES.maxLogEntries());
 
     private BungeoppangV5Spec() {
     }
 
+    /** Rules for a newly issued round. An existing round always uses the snapshot stored with it. */
     public static BungeoppangV5Responses.Rules rules() {
         return RULES;
     }
 
-    static BungeoppangV4Responses.Rules calculationRules() {
-        return CALCULATION_RULES;
+    /**
+     * The given v5 rules in the v4 shape, so the shared v4 doneness and scoring functions apply unchanged.
+     * Replay, delivery and settlement pass the round's stored snapshot here, never the current constants.
+     */
+    public static BungeoppangV4Responses.Rules calculationRules(BungeoppangV5Responses.Rules rules) {
+        return new BungeoppangV4Responses.Rules(
+                rules.slots(), rules.durationMs(), rules.countdownMs(), rules.sideMs(), rules.rushSideMs(),
+                rules.rushFromMs(), rules.heatMin(), rules.heatMax(), rules.heatListLength(), rules.trayCapacity(),
+                rules.maxOrderItems(), rules.specialOrderChancePercent(), rules.specialBonusPercent(),
+                rules.firstOrder(), rules.okFrom(), rules.goldenFrom(), rules.goldenTo(), rules.burntFrom(),
+                rules.okPoint(), rules.goldenPoint(), rules.pointsPerCoin(), rules.dailyCoinCap(), rules.minGapMs(),
+                rules.sameSlotGapMs(), rules.maxLogEntries());
     }
 
     /** Same phase boundaries as v4 with a 180 second play window. */
@@ -54,8 +57,9 @@ public final class BungeoppangV5Spec {
                 deadline.plusMillis(PROCESSING_DRAIN_MS));
     }
 
-    public static String initialPrefixHash(long sessionId) {
-        return BungeoppangV5DeliveryContract.prefixHash(sessionId, CONFIG_VERSION, List.of());
+    /** The hash seed carries the round's stored config version. */
+    public static String initialPrefixHash(long sessionId, String configVersion) {
+        return BungeoppangV5DeliveryContract.prefixHash(sessionId, configVersion, List.of());
     }
 
     public static BungeoppangV5Responses.Order order(BungeoppangV5Rules.Order order) {

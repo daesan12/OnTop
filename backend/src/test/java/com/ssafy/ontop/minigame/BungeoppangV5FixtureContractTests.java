@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ssafy.ontop.minigame.dto.BungeoppangV4DeliveryDtos;
+import com.ssafy.ontop.minigame.dto.BungeoppangV4Responses;
 import com.ssafy.ontop.minigame.service.BungeoppangV4DeliveryContract;
 import com.ssafy.ontop.minigame.service.BungeoppangV4Rules.FillingCounts;
 import com.ssafy.ontop.minigame.service.BungeoppangV5DeliveryContract;
@@ -25,6 +26,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class BungeoppangV5FixtureContractTests {
     private static final Path FIXTURE = Path.of("..", "frontend", "tests", "fixtures", "bungeoppang-v5.json");
     private static final String DELIVERY_KEY = "delivery-two";
+    /** The fixture ends at 22.2 s, inside every issued play window. */
+    private static final BungeoppangV4Responses.Rules CURRENT =
+            BungeoppangV5Spec.calculationRules(BungeoppangV5Spec.rules());
     private final ObjectMapper json = new ObjectMapper().setSerializationInclusion(JsonInclude.Include.NON_NULL);
 
     @Test
@@ -34,7 +38,7 @@ class BungeoppangV5FixtureContractTests {
 
         var result = new BungeoppangV5Rules().replay(
                 BungeoppangV5DeliveryContract.domainActions(wire(fixture.path("log"))),
-                integers(fixture.path("heats")), orders(fixture.path("orders")));
+                integers(fixture.path("heats")), orders(fixture.path("orders")), CURRENT);
 
         assertThat(BungeoppangV5Spec.RULES_VERSION).isEqualTo(expected.path("rulesVersion").textValue());
         assertThat(result.heatCursor()).isEqualTo(expected.path("fills").intValue());
@@ -64,7 +68,7 @@ class BungeoppangV5FixtureContractTests {
         String config = BungeoppangV5Spec.CONFIG_VERSION;
 
         assertThat(config).isEqualTo("v5-20261027.1").isNotEqualTo("v4-20261027.1");
-        assertThat(BungeoppangV5Spec.initialPrefixHash(901))
+        assertThat(BungeoppangV5Spec.initialPrefixHash(901, config))
                 .isEqualTo("7ac7c529cf10bc98977c5c7676d8b295f8ceb682857bb5727ffe6953470e1876");
         assertThat(BungeoppangV5DeliveryContract.prefixHash(901, config, delivery))
                 .isEqualTo("a2793d12d244a95dd6410b1f8219406e6b86074bca1fc9f42bd56686002f9850");
@@ -120,7 +124,7 @@ class BungeoppangV5FixtureContractTests {
         JsonNode fixture = fixture();
         var actions = BungeoppangV5DeliveryContract.domainActions(wire(fixture.path("log")).subList(0, 6));
         var result = new BungeoppangV5Rules().replay(actions, integers(fixture.path("heats")),
-                orders(fixture.path("orders")));
+                orders(fixture.path("orders")), CURRENT);
         String hash = BungeoppangV5DeliveryContract.prefixHash(901, BungeoppangV5Spec.CONFIG_VERSION,
                 wire(fixture.path("log")).subList(0, 6));
 

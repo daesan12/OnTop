@@ -634,6 +634,7 @@ class BungeoppangV5MySqlTests {
             var rules = new com.ssafy.ontop.minigame.service.BungeoppangV5Rules();
             var domain = BungeoppangV5DeliveryContract.domainActions(request.log());
             var heats = java.util.Collections.nCopies(2_048, 100);
+            var snapshot = BungeoppangV5Spec.calculationRules(BungeoppangV5Spec.rules());
             var opening = List.of(
                     new com.ssafy.ontop.minigame.service.BungeoppangV5Rules.Order("1", 0, 0,
                             new com.ssafy.ontop.minigame.service.BungeoppangV4Rules.FillingCounts(2, 0, 0, 0)),
@@ -644,9 +645,9 @@ class BungeoppangV5MySqlTests {
             double replayTotal = 0;
             for (int run = 0; run < 20; run++) {
                 long replayStarted = System.nanoTime();
-                rules.replay(domain.subList(0, domain.size() - 1), heats, opening);
-                rules.replay(domain, heats, opening);
-                rules.replay(domain, heats, opening);
+                rules.replay(domain.subList(0, domain.size() - 1), heats, opening, snapshot);
+                rules.replay(domain, heats, opening, snapshot);
+                rules.replay(domain, heats, opening, snapshot);
                 replayTotal += (System.nanoTime() - replayStarted) / 1e6;
             }
             report.append(String.format(java.util.Locale.ROOT, "%d, %d, %d, %.1f, %.1f, %.1f, %.2f%n", target, actions,

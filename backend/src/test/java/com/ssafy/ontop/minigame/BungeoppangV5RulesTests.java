@@ -1,10 +1,12 @@
 package com.ssafy.ontop.minigame;
 
+import com.ssafy.ontop.minigame.dto.BungeoppangV4Responses;
 import com.ssafy.ontop.minigame.service.BungeoppangV4Rules.Action;
 import com.ssafy.ontop.minigame.service.BungeoppangV4Rules.Filling;
 import com.ssafy.ontop.minigame.service.BungeoppangV4Rules.FillingCounts;
 import com.ssafy.ontop.minigame.service.BungeoppangV5Rules;
 import com.ssafy.ontop.minigame.service.BungeoppangV5Rules.Order;
+import com.ssafy.ontop.minigame.service.BungeoppangV5Spec;
 import com.ssafy.ontop.minigame.service.MinigameException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -17,7 +19,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class BungeoppangV5RulesTests {
-    private final BungeoppangV5Rules rules = new BungeoppangV5Rules();
+    private final Replay rules = new Replay(BungeoppangV5Spec.calculationRules(BungeoppangV5Spec.rules()));
+
+    /** The engine with one round's rules snapshot, as the service passes the stored one. */
+    private record Replay(BungeoppangV4Responses.Rules snapshot) {
+        BungeoppangV5Rules.Result replay(List<Action> log, List<Integer> heats, List<Order> issued) {
+            return new BungeoppangV5Rules().replay(log, heats, issued, snapshot);
+        }
+    }
 
     @Test
     void FILL부터_가열해_2000ms_FILL_6400ms_TURN의_앞면은_55다() {
