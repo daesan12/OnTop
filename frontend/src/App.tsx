@@ -4,6 +4,7 @@ import { clearAuthSession, getAuthSession, logout, restoreInitialAuthSession } f
 import { LoginPage } from './login/LoginPage'
 import { OnboardingPage } from './onboarding/OnboardingPage'
 import { ParkPage } from './park/ParkPage'
+import { forgetTabGames } from './game/resultRecovery'
 import { preloadWorldAssets } from './world/worldAssets'
 import { preloadWorldCanvas } from './park/loadWorldCanvas'
 
@@ -89,6 +90,7 @@ export default function App() {
     setExitError('')
     try {
       await logout()
+      forgetTabGames()
       window.history.replaceState(null, '', '/')
       setPage('login')
     } catch (error) {

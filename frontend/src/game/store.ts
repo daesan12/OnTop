@@ -30,6 +30,8 @@ interface Session {
   result: Result | null
   lastResult: Result | null
   completedGameId: string
+  /** Own ended game found after a reconnect; not active, not input permission, not yet verified. */
+  resultCandidateGameId: string
   dismissedResult: { gameId: string; version: number } | null
 }
 const initial = (): Session => ({
@@ -45,6 +47,7 @@ const initial = (): Session => ({
   result: null,
   lastResult: null,
   completedGameId: '',
+  resultCandidateGameId: '',
   dismissedResult: null,
 })
 export const useGame = create<Session>(initial)
@@ -122,6 +125,7 @@ export function receiveGame(m: Envelope, ownId: string, tableId: string) {
       ...(!next.simulation && ['PLAYING', 'SETTLING'].includes(next.phase)
         ? {
             permittedGameId: next.gameSessionId!,
+            resultCandidateGameId: '',
             ...(newGame
               ? {
                   game: null,
@@ -180,6 +184,7 @@ export function receiveGame(m: Envelope, ownId: string, tableId: string) {
       useGame.setState({
         recovery: status,
         permittedGameId: p.gameId,
+        resultCandidateGameId: '',
         uncertain: false,
         ...(p.gameId !== s.permittedGameId && p.gameId !== s.completedGameId
           ? { lastResult: null, completedGameId: '', dismissedResult: null } : {}),
@@ -225,7 +230,11 @@ export function receiveGame(m: Envelope, ownId: string, tableId: string) {
         awaitingVersion: Math.max(s.awaitingVersion, p.version),
       })
   } else if (m.type === 'GAME_RESULT') {
-    if (!tableId || (p.gameSessionId !== s.permittedGameId && p.gameSessionId !== s.completedGameId) || s.game?.role === 'SPECTATOR')
+    // A discovered candidate only fills the seat's empty completed slot; it never displaces an active game.
+    const candidate = !!s.resultCandidateGameId && p.gameSessionId === s.resultCandidateGameId
+      && !s.permittedGameId && (!s.completedGameId || s.completedGameId === p.gameSessionId)
+    if (!tableId || (p.gameSessionId !== s.permittedGameId && p.gameSessionId !== s.completedGameId && !candidate)
+      || s.game?.role === 'SPECTATOR')
       return
     const next = parseResult(p, ownId)
     if (
@@ -234,7 +243,8 @@ export function receiveGame(m: Envelope, ownId: string, tableId: string) {
     )
       return
     const dismissed = s.dismissedResult?.gameId === next.gameSessionId && s.dismissedResult.version >= next.version
-    useGame.setState({ lastResult: dismissed ? null : next, ...(p.gameSessionId === s.permittedGameId ? { result: next } : {}) })
+    useGame.setState({ lastResult: dismissed ? null : next, ...(p.gameSessionId === s.permittedGameId ? { result: next } : {}),
+      ...(candidate ? { completedGameId: next.gameSessionId, resultCandidateGameId: '' } : {}) })
   } else if (m.type === 'GAME_WATCH_LEFT') {
     if (p.gameId !== s.watchedGameId) return
     useGame.setState({
