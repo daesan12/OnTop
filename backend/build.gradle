@@ -1,0 +1,161 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.5.16'
+    id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'com.ssafy.ontop'
+version = '0.0.1-SNAPSHOT'
+
+springBoot {
+    buildInfo {
+        properties { time = null }
+    }
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'com.github.stephengold:Minie:9.0.3'
+    implementation 'org.jmonkeyengine:jme3-desktop:3.8.1-stable'
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-websocket'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.17'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.flywaydb:flyway-core'
+    implementation 'com.nimbusds:nimbus-jose-jwt:10.10'
+    runtimeOnly 'org.flywaydb:flyway-mysql'
+    runtimeOnly 'com.mysql:mysql-connector-j'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.security:spring-security-test'
+    testImplementation('io.swagger.parser.v3:swagger-parser-v3:2.1.36') {
+        // parser의 javax Swagger core와 중복하지 않고 springdoc의 Jakarta core를 재사용한다.
+        exclude group: 'io.swagger.core.v3'
+    }
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test') {
+    useJUnitPlatform {
+        excludeTags 'mysql'
+    }
+}
+
+tasks.register('mysqlTest', Test) {
+    description = '별도 MySQL 8.4 DB에서 V1/V2·제약조건·JPA 매핑·인증 상태와 교환 검증'
+    group = 'verification'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnitPlatform {
+        includeTags 'mysql'
+    }
+    // JVM 기본 시간대가 UTC가 아니어도 TIMESTAMP/Instant 왕복이 같은 시각인지 확인한다.
+    systemProperty 'user.timezone', 'Asia/Seoul'
+    // 전체 MySQL 회귀에서 캐시된 컨텍스트마다 Hikari 풀이 남아 연결 한도를 소진하지 않게 한다.
+    // 개별 테스트의 풀 크기·동시성은 유지하고, 오래된 테스트 컨텍스트와 유휴 풀만 닫는다.
+    systemProperty 'spring.test.context.cache.maxSize', '8'
+    // 격리 outbox 재시작 테스트의 별도 JVM에 동일한 테스트 classpath를 전달한다.
+    systemProperty 'ontop.test.runtime-classpath', sourceSets.test.runtimeClasspath.asPath
+    outputs.upToDateWhen { false }
+    outputs.cacheIf { false }
+    testLogging {
+        events 'passed', 'failed', 'skipped'
+        exceptionFormat = 'short'
+    }
+}
+
+tasks.register('initializeWallets', JavaExec) {
+    description = '기존 활성 회원의 누락된 지갑만 초기화 (명시적 관리 명령, DB 환경변수 필요)'
+    group = 'application'
+    dependsOn classes
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.ssafy.ontop.wallet.admin.WalletInitializationCommand'
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
+}
+
+tasks.register('omokDemo', JavaExec) {
+    description = '127.0.0.1:18081에서 테스트 전용 오목 화면 실행 (운영 JAR 제외)'
+    group = 'verification'
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.ssafy.ontop.demo.OmokDemoApplication'
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
+}
+
+tasks.register('flowTest', Test) {
+    description = '광장·테이블·경기 통신 및 heartbeat·복귀/만료 시나리오 실행'
+    group = 'verification'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnitPlatform()
+    filter {
+        includeTestsMatching 'com.ssafy.ontop.table.FullFlowTests'
+        includeTestsMatching 'com.ssafy.ontop.table.LoginWebSocketFlowTests'
+        includeTestsMatching 'com.ssafy.ontop.table.LoginChannelFlowTests'
+        includeTestsMatching 'com.ssafy.ontop.table.LoginTableFlowTests'
+        includeTestsMatching 'com.ssafy.ontop.table.CommittedStartFlowTests'
+        includeTestsMatching 'com.ssafy.ontop.table.DevCommittedStartFlowTests'
+        includeTestsMatching 'com.ssafy.ontop.table.WorldFullFlowTests'
+        includeTestsMatching 'com.ssafy.ontop.table.GameCommunicationFlowTests'
+        includeTestsMatching 'com.ssafy.ontop.table.WorldProximityWebSocketTests.채팅과관전_거리이탈부터_재접속까지_연속확인한다'
+        includeTestsMatching 'com.ssafy.ontop.table.OmokFlowTests'
+        includeTestsMatching 'com.ssafy.ontop.table.FarkleFlowTests'
+        includeTestsMatching 'com.ssafy.ontop.table.OneCardFlowTests'
+        includeTestsMatching 'com.ssafy.ontop.table.BridgeFlowTests'
+        includeTestsMatching 'com.ssafy.ontop.table.WorldMovementWebSocketTests'
+    }
+    // 반복 실행해도 실제 소켓 시나리오를 다시 확인한다.
+    outputs.upToDateWhen { false }
+    outputs.cacheIf { false }
+    systemProperty 'logging.level.root', 'ERROR'
+    systemProperty 'spring.main.banner-mode', 'off'
+    testLogging {
+        events 'passed', 'failed', 'skipped'
+        showStandardStreams = true
+        exceptionFormat = 'short'
+    }
+}
+
+tasks.register('gamesDemo', JavaExec) {
+    description = '127.0.0.1:18082에서 테스트 전용 주사위·원카드·다리 화면 실행 (운영 JAR 제외)'
+    group = 'verification'
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.ssafy.ontop.demo.GamesDemoApplication'
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+tasks.register('exportOpenApi', Test) {
+    description = '실제 local HTTP 문서 엔드포인트에서 docs/api/openapi.yaml 재생성 (DB 불필요)'
+    group = 'documentation'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnitPlatform()
+    filter { includeTestsMatching 'com.ssafy.ontop.api.OpenApiLocalTests' }
+    systemProperty 'ontop.openapi.export', 'true'
+    outputs.upToDateWhen { false }
+}
+
+tasks.register('shopDemo', JavaExec) {
+    description = '격리 MySQL·테스트 계정으로 127.0.0.1:18083 상점 검증 화면 실행 (운영 JAR 제외)'
+    group = 'verification'
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.ssafy.ontop.demo.ShopDemoApplication'
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
+}

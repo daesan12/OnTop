@@ -1,0 +1,36 @@
+import { expect, test } from '@playwright/test'
+import { fixture } from './contractFixture'
+import { feedbackFixture } from './feedbackFixture'
+import { MAILBOX } from '../../src/config'
+
+test('E unfurls the roof paper; only an acknowledged private submission folds and enters the mailbox', async ({ page }) => {
+  await fixture(page, { manualMovement: true, position: { x: MAILBOX.x - 1.5, y: .8, z: MAILBOX.z, yaw: 0 } })
+  const rest = await feedbackFixture(page)
+  rest.mode('hold')
+  await page.goto('/park')
+  await expect(page.locator('.park-scene-message')).toHaveCount(0, { timeout: 90000 })
+  await page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).orbit(0, .35, 6.8))
+  await expect(page.getByRole('button', { name: /소리함에 의견 쓰기/ })).toBeEnabled()
+  await page.locator('canvas').focus(); await page.keyboard.press('KeyE')
+  const dialog = page.getByRole('dialog', { name: '온탑 소리함', exact: true })
+  const area = dialog.getByLabel('의견 내용')
+  await expect(dialog).toHaveAttribute('data-phase', 'writing')
+  await expect(area).toHaveAttribute('maxlength', '600')
+  await area.fill('가'.repeat(600))
+  await dialog.getByRole('button', { name: /맵 및 시설/ }).click()
+  await expect(area).toHaveValue('가'.repeat(600))
+  await expect(dialog.getByRole('alert')).toContainText('600자')
+  await area.fill('공원 안내를 더 늘려주시면 좋겠어요.')
+  await dialog.getByRole('button', { name: /맵 및 시설/ }).click()
+  await dialog.getByRole('button', { name: '의견 보내기', exact: true }).click()
+  await expect.poll(() => rest.acceptedCount).toBe(1)
+  await expect(dialog).toHaveAttribute('data-phase', 'writing')
+  await expect(area).toHaveValue('[맵 및 시설] 공원 안내를 더 늘려주시면 좋겠어요.')
+  expect(rest.requests[0]!.text).toBe('[맵 및 시설] 공원 안내를 더 늘려주시면 좋겠어요.')
+  await rest.release()
+  await expect(dialog).toHaveAttribute('data-phase', 'folding')
+  await expect(page.locator('.feedback-flying-letter')).toHaveCount(1)
+  await expect(dialog).toContainText('의견을 전달했어요')
+  await expect(dialog).toHaveAttribute('data-phase', 'delivered')
+  await expect(dialog).toHaveCount(0)
+})

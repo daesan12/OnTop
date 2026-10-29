@@ -1,0 +1,85 @@
+{
+  "source": {
+    "file": "../docs/bungeoppang-v5/npc-runtime-production/v3/tripo-out/bung-older-motion3-v1-68e1313e/model.glb",
+    "bytes": 11041104,
+    "sha256": "5a42972052f1e62739ff08f0d7071dc9a7f972c2d17d6ec2116983901d45d742"
+  },
+  "runtime": {
+    "file": "public/art/bungeoppang/customers/runtime/older-flat-cap.glb",
+    "bytes": 2201384,
+    "sha256": "01337c71f40c68077071dfc5dbb2a9903d7021c39012506171da4e50812a1fa0"
+  },
+  "meshes": [
+    {
+      "sourceTriangles": 38830,
+      "triangles": 20246,
+      "vertices": 12509,
+      "relativeError": 0.0039949906058609486
+    }
+  ],
+  "textures": [
+    {
+      "roles": [
+        "normal"
+      ],
+      "source": [
+        4096,
+        4096
+      ],
+      "size": [
+        1024,
+        1024
+      ],
+      "bytes": 72764
+    },
+    {
+      "roles": [
+        "color"
+      ],
+      "source": [
+        4096,
+        4096
+      ],
+      "size": [
+        2048,
+        2048
+      ],
+      "bytes": 733822
+    },
+    {
+      "roles": [
+        "data"
+      ],
+      "source": [
+        4096,
+        4096
+      ],
+      "size": [
+        512,
+        512
+      ],
+      "bytes": 213204
+    }
+  ],
+  "skins": 1,
+  "animations": [
+    {
+      "name": "idle",
+      "channels": 195
+    },
+    {
+      "name": "walk",
+      "channels": 195
+    }
+  ],
+  "policy": {
+    "targetTriangles": 20000,
+    "errorLimit": 0.004,
+    "color": 2048,
+    "normal": 1024,
+    "data": 512,
+    "meshoptRoundTrip": "attributes exact; triangle winding/topology equivalent",
+    "retainedVertexAttributes": "byte-identical",
+    "sourcePreserved": true
+  }
+}

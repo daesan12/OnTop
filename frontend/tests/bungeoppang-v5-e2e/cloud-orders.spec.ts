@@ -1,0 +1,41 @@
+import { expect, test, type Page } from '@playwright/test';
+import { fixture, screenshot } from '../e2e/contractFixture';
+import type { v5Probe } from './probe';
+const state = (page: Page): Promise<ReturnType<typeof v5Probe>> => page.evaluate(async () =>
+  (await import('/tests/bungeoppang-v5-e2e/probe.ts' as string)).v5Probe());
+
+test('cloud orders keep selection readable and batter stays cold until filling', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await fixture(page, { players: 4, manualMovement: true, position: { x: -36, y: .8, z: 16.3, yaw: Math.PI } });
+  await page.goto('/park');
+  await page.getByRole('button', { name: 'E 붕어빵 굽기', exact: true }).click();
+  await expect(page.getByRole('region', { name: '붕어빵 굽기 시작' })).toContainText('소를 넣으면');
+  await page.getByRole('button', { name: '시작', exact: true }).click();
+  await expect(page.locator('.bung-root')).toHaveAttribute('data-phase', 'play');
+  await page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).visualTime(.42));
+  await expect(page.locator('.bung25-order-cloud')).toHaveCount(1);
+  await expect(page.getByRole('button', { name: '2번 손님 주문 선택', exact: true })).toBeEnabled({ timeout: 12000 });
+  await page.getByRole('button', { name: '2번 손님 주문 선택', exact: true }).click();
+  await expect(page.locator('.bung25-order').nth(1)).toHaveAttribute('data-selected', 'true');
+  await page.keyboard.press('Space'); await page.keyboard.press('KeyQ');
+  await expect(page.locator('.bung25-slot').first()).toHaveAttribute('data-lit', 'false');
+  await expect(page.locator('.bung25-slot').first().locator('.bung-cook-readout')).toHaveText('소를 넣으면 불이 켜져요');
+  await expect(page.locator('.bung25-slot').first().locator('.bung-cook-readout')).toBeVisible();
+  await page.waitForTimeout(8500);
+  const cold = await state(page);
+  expect(cold.grill!.slots[0]!.phase).toBe('batter'); expect(cold.grill!.fills).toBe(0);
+  expect(cold.burners[0]!.visible).toBe(false);
+  await expect(page.getByRole('progressbar', { name: 'q 현재 면 익힘', exact: true })).toHaveAttribute('aria-valuenow', '0');
+  await screenshot(page, 'v5-cloud-cold-batter');
+  await page.keyboard.press('Digit2'); await page.keyboard.press('KeyQ');
+  await expect(page.locator('.bung25-slot').first()).toHaveAttribute('data-lit', 'true');
+  const hot = await state(page);
+  expect(hot.grill!.slots[0]!.phase).toBe('front'); expect(hot.grill!.fills).toBe(1);
+  expect(hot.grill!.slots[0]!.since).toBeGreaterThan(8000);
+  await expect.poll(async () => (await state(page)).burners[0]!.visible).toBe(true);
+  await screenshot(page, 'v5-cloud-filling-starts-heat');
+  await page.keyboard.press('Escape'); await page.getByRole('button', { name: '그만두기', exact: true }).click();
+  await expect(page.locator('.bung-root')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});

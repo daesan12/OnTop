@@ -1,0 +1,28 @@
+# Deployed development park. Authentication and persistence still use the db profile.
+# Local demo controllers and in-memory game-start/settlement fixtures are not enabled.
+ontop:
+  # 상점 V100 적용 이력·순서를 확인한 뒤 기존 Flyway 목록에 db/shop을 명시적으로 추가한다.
+  shop:
+    enabled: ${SHOP_ENABLED:false}
+  # DB 시작 Gateway를 등록한 뒤 명시적으로 켠다. 시연용 Gateway는 dev에 등록하지 않는다.
+  game-start:
+    enabled: ${GAME_START_ENABLED:false}
+  games:
+    omok:
+      enabled: ${GAME_OMOK_ENABLED:false}
+    farkle:
+      enabled: ${GAME_FARKLE_ENABLED:false}
+    onecard:
+      enabled: ${GAME_ONECARD_ENABLED:false}
+    bridge:
+      enabled: ${GAME_BRIDGE_ENABLED:false}
+  notes:
+    enabled: ${NOTES_ENABLED:false}
+    privacy-secret: ${NOTES_PRIVACY_SECRET:}
+  minigames:
+    enabled: true
+  world:
+    channels:
+      - channel-id: channel-1
+        name: 개발 공원
+        capacity: 40

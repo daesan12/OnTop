@@ -1,0 +1,25 @@
+.park-page .park-interaction {
+  position: absolute;
+  z-index: 7;
+  left: 50%;
+  bottom: 110px;
+  transform: translateX(-50%);
+  max-width: calc(100vw - 32px);
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+}
+.park-interaction kbd { margin-right: 8px; }
+.park-interaction small { max-width: 360px; line-height: 1.5; }
+@media (max-width: 600px) {
+  .park-page:has(.park-interaction[data-fitness-id]) .emotes { top: 140px; bottom: auto; }
+}
+.bench-spectator, .bench-spectator > [role="group"] { display:flex; flex-wrap:wrap; gap:8px; }
+.bench-spectator { flex-direction:column; }
+.bench-watch-error { max-width:260px; font-size:12px; line-height:1.5; color:#dfd9bd; }
+.park-page:has(.bench-spectator button[aria-pressed="true"]) :is([aria-label="오목 경기"],.farkle-panel,.onecard-panel,.bridge-panel) { bottom:calc(var(--park-edge) + 140px); max-height:calc(100dvh - 280px); }
+.bench-spectator button[aria-pressed="true"] { border-color:#dfd2b0; background:#51614a; }
+.park-page .park-interaction:has(.bench-spectator button[aria-pressed="true"]) { left:auto; right:calc(var(--park-edge) + 100px); bottom:var(--park-edge); transform:none; width:max-content; max-width:calc(100vw - 380px); flex-direction:row; flex-wrap:wrap; padding:12px 16px; }
+.park-interaction:has(.bench-spectator button[aria-pressed="true"]) > :is(strong,small) { display:none; }
+.park-interaction:has(.bench-spectator button[aria-pressed="true"]) .bench-spectator { flex-direction:row; align-items:center; }
+.park-page:has(.bench-spectator button[aria-pressed="true"]) .park-shortcuts { visibility:hidden; }

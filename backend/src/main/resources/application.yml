@@ -1,0 +1,135 @@
+spring:
+  application:
+    name: ontop
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  sql:
+    init:
+      mode: never
+
+# 기본/운영에서는 문서 리소스를 등록하지 않는다.
+springdoc:
+  api-docs:
+    enabled: false
+    version: OPENAPI_3_0
+  swagger-ui:
+    enabled: false
+    persist-authorization: false
+    with-credentials: true
+    disable-swagger-default-url: true
+  override-with-generic-response: false
+  paths-to-match: /api/v1/**
+
+ontop:
+  admin:
+    # 서버에서 확정한 내부 회원 ID만 관리자 권한을 얻는다. 지급 ID는 조회 ID에도 포함해야 한다.
+    read-ids: ${ADMIN_READ_IDS:${FEEDBACK_ADMINISTRATOR_IDS:}}
+    grant-ids: ${ADMIN_GRANT_IDS:}
+  analytics:
+    # 백업 복원본에서 만든 집계 파일만 읽는다. 원본 행동 로그에 접근하지 않는다.
+    snapshot-path: ${ANALYTICS_SNAPSHOT_PATH:/run/ontop/analytics/admin-summary.json}
+  feedback:
+    # DB 마이그레이션은 기능 플래그와 별개로 적용한다. API와 서비스만 명시적으로 켠다.
+    enabled: ${FEEDBACK_ENABLED:false}
+    administrator-ids: ${ADMIN_READ_IDS:${FEEDBACK_ADMINISTRATOR_IDS:}}
+  world:
+    dynamic-channels:
+      # Explicitly enable only after the single-instance deployment is ready. Story 119 sets the measured limit.
+      enabled: ${WORLD_DYNAMIC_CHANNELS_ENABLED:false}
+      capacity: ${WORLD_CHANNEL_CAPACITY:20}
+      spawn-at: ${WORLD_CHANNEL_SPAWN_AT:18}
+      max-channels: ${WORLD_MAX_CHANNELS:2}
+      idle-timeout: ${WORLD_CHANNEL_IDLE_TIMEOUT:5m}
+    map:
+      # generated는 외부 파일과 FE 공동 검증 후에만 명시적으로 선택한다.
+      source: ${WORLD_MAP_SOURCE:legacy}
+      json-path: ${WORLD_MAP_JSON_PATH:}
+      manifest-path: ${WORLD_MAP_MANIFEST_PATH:}
+      # FE 맵 확인 요청 연결 후 활성화한다. 현재 충돌 맵 교체와는 별개다.
+      require-match: ${WORLD_MAP_REQUIRE_MATCH:false}
+    emote:
+      cooldowns:
+        WAVE: 5s
+        CLAP: 5s
+        APPLAUSE_REQUEST: 1800ms
+        TSK: 1800ms
+        FART: 1800ms
+  websocket:
+    authenticated: ${WEBSOCKET_AUTHENTICATED:true}
+  # 행동 로그는 db 프로필에서만 켤 수 있다. 큐·유실 기준은 docs/behavior-log.md 5장.
+  behavior-log:
+    enabled: ${BEHAVIOR_LOG_ENABLED:false}
+  auth:
+    jwt-secret-base64: ${AUTH_JWT_SECRET_BASE64:}
+    jwt-issuer: ${AUTH_JWT_ISSUER:ontop}
+    allowed-origins: ${AUTH_ALLOWED_ORIGINS:}
+    refresh-cookie:
+      secure: ${AUTH_REFRESH_COOKIE_SECURE:true}
+      same-site: ${AUTH_REFRESH_COOKIE_SAME_SITE:Lax}
+      path: ${AUTH_REFRESH_COOKIE_PATH:/api/v1/auth}
+  oauth:
+    frontend-callback-uri: ${AUTH_FRONTEND_CALLBACK_URI:}
+    ssafy:
+      client-id: ${SSAFY_CLIENT_ID:}
+      client-secret: ${SSAFY_CLIENT_SECRET:}
+      redirect-uri: ${SSAFY_REDIRECT_URI:}
+    naver:
+      client-id: ${NAVER_CLIENT_ID:}
+      client-secret: ${NAVER_CLIENT_SECRET:}
+      redirect-uri: ${NAVER_REDIRECT_URI:}
+
+server:
+  servlet:
+    session:
+      timeout: 10m
+      tracking-modes: cookie
+      cookie:
+        http-only: true
+        secure: true
+        same-site: lax
+        path: /api/v1/auth
+
+# MySQL 중복키 예외 원문에는 소셜 식별자가 포함될 수 있다. 외부 입력/SQL 원문을 기록하지 않는다.
+logging:
+  level:
+    org.hibernate.engine.jdbc.spi.SqlExceptionHelper: "OFF"
+    com.jme3.bullet: WARN
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      show-components: never
+
+---
+spring:
+  config:
+    activate:
+      on-profile: "!db"
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+      - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
+      - org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration
+
+---
+spring:
+  config:
+    activate:
+      on-profile: "(local | dev) & !prod & !production"
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+ontop:
+  world:
+    emote:
+      # FE 5종과 연결할 코드. 표현별 간격은 위 공통 설정을 따른다.
+      codes: ${WORLD_EMOTE_CODES:WAVE,CLAP,APPLAUSE_REQUEST,TSK,FART}

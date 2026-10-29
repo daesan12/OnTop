@@ -1,0 +1,281 @@
+/* Park HUD layout (Figma 01-A / 공원 / 기본): quick dock, location chip, chat, overlays.
+   Feature launchers keep their own markup and behaviour; this file only places and dresses them. */
+
+/* Shared glass for the HUD blocks; dropdowns stay a little denser so their lists read clearly. */
+.park-page {
+  --hud-glass: rgba(41, 38, 32, 0.5);
+  --hud-glass-strong: rgba(41, 38, 32, 0.72);
+  --hud-blur: blur(14px) saturate(1.2);
+}
+
+/* 빠른 메뉴 frame, 82×291 design px at the bottom-right corner, plus a 69px 설정 slot at the bottom. */
+.park-quick-dock {
+  position: absolute;
+  right: var(--park-edge);
+  bottom: var(--park-edge);
+  z-index: 11;
+  width: 82px;
+  height: 360px;
+  border: 1px solid rgba(247, 241, 229, 0.14);
+  border-radius: 20px;
+  background: var(--hud-glass);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  backdrop-filter: var(--hud-blur);
+  pointer-events: none;
+  transform: scale(var(--park-ui-scale));
+  transform-origin: bottom right;
+}
+.park-quick-dock::after {
+  content: '';
+  position: absolute;
+  top: 76px;
+  left: 19px;
+  width: 44px;
+  height: 1px;
+  background: rgba(247, 241, 229, 0.14);
+}
+
+/* Slots, bottom-up from the dock edge: 설정 7 · 설명서 76 · 감정표현 145 · 지도 214 · 옷장 286 (design px). */
+.park-page .park-dock-wardrobe,
+.park-page .park-dock-settings,
+.park-page .park-map,
+.park-page .emotes,
+.park-page .manual-launcher {
+  position: absolute;
+  top: auto;
+  left: auto;
+  right: calc(var(--park-edge) + 7px * var(--park-ui-scale));
+  z-index: 12;
+  transform: scale(var(--park-ui-scale));
+  transform-origin: bottom right;
+}
+.park-page .park-dock-wardrobe { bottom: calc(var(--park-edge) + 286px * var(--park-ui-scale)); }
+.park-page .park-dock-settings { bottom: calc(var(--park-edge) + 7px * var(--park-ui-scale)); }
+.park-page .park-map { bottom: calc(var(--park-edge) + 214px * var(--park-ui-scale)); }
+.park-page .emotes { bottom: calc(var(--park-edge) + 145px * var(--park-ui-scale)); display: flex; flex-direction: column; align-items: flex-end; }
+.park-page .manual-launcher { bottom: calc(var(--park-edge) + 76px * var(--park-ui-scale)); }
+
+.park-dock-wardrobe .park-shop-launcher,
+.park-dock-settings .park-settings-launcher,
+.park-page .park-map > .park-quick-button,
+.park-page .emotes > .emote-wheel-trigger,
+.park-page .manual-launcher {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  width: 68px;
+  min-width: 0;
+  height: 67px;
+  padding: 10px 0 9px;
+  border: 0;
+  border-radius: 14px;
+  color: #f7f1e5;
+  background: transparent;
+  box-shadow: none;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  pointer-events: auto;
+}
+/* The manual launcher is both a slot and its button; keep it absolutely placed. */
+.park-page .manual-launcher { position: absolute; }
+.park-dock-wardrobe .park-shop-launcher:hover:not(:disabled),
+.park-dock-settings .park-settings-launcher:hover,
+.park-dock-settings .park-settings-launcher[aria-expanded='true'],
+.park-page .park-map > .park-quick-button:hover:not(:disabled),
+.park-page .park-map > .park-quick-button[aria-expanded='true'],
+.park-page .emotes > .emote-wheel-trigger:hover:not(:disabled),
+.park-page .emotes > .emote-wheel-trigger[aria-expanded='true'],
+.park-page .manual-launcher:hover { border: 0; background: rgba(247, 241, 229, 0.1); }
+.park-dock-wardrobe .park-shop-launcher:disabled { opacity: 0.55; cursor: not-allowed; }
+.park-page .park-map > .park-quick-button:disabled,
+.park-page .emotes > .emote-wheel-trigger:disabled { opacity: 0.55; cursor: default; }
+.park-dock-wardrobe .park-shop-launcher > img,
+.park-dock-settings .park-settings-launcher > img,
+.park-page .park-map > .park-quick-button > img,
+.park-page .emotes > .emote-wheel-trigger > img { width: 22px; height: 22px; }
+.park-page .manual-launcher > svg { width: 24px; height: 22px; }
+.park-dock-settings .park-settings-launcher kbd,
+.park-page .park-map > .park-quick-button kbd,
+.park-page .emotes > .emote-wheel-trigger kbd,
+.park-page .manual-launcher kbd {
+  position: absolute;
+  top: 5px;
+  left: 46px;
+  min-width: 16px;
+  padding: 1px 5px 2px;
+  border: 0;
+  border-radius: 5px;
+  color: #292620;
+  background: #f7f1e5;
+  font: inherit;
+  font-size: 10px;
+  line-height: 1.2;
+}
+.park-page .emotes .emote-feedback { margin-bottom: 8px; }
+
+/* Camera toggles are not in the dock design; on desktop they sit just left of it. */
+@media (min-width: 901px) {
+  .park-page .park-camera-controls {
+    right: calc(var(--park-edge) + 94px * var(--park-ui-scale));
+    bottom: var(--park-edge);
+  }
+}
+
+/* 위치 칩: top centre. The runtime tools (테이블 로비 열기, 그래픽 패널) move under it. */
+.park-location-chip {
+  position: absolute;
+  top: var(--park-edge);
+  left: 50%;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 18px;
+  border: 1px solid rgba(247, 241, 229, 0.14);
+  border-radius: 999px;
+  color: #f7f1e5;
+  background: var(--hud-glass);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  backdrop-filter: var(--hud-blur);
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translateX(-50%) scale(var(--park-ui-scale));
+  transform-origin: top center;
+}
+.park-location-chip > i { width: 1px; height: 16px; background: rgba(247, 241, 229, 0.25); }
+.park-location-chip__place,
+.park-location-chip__time { display: flex; align-items: center; }
+.park-location-chip__place { gap: 8px; font-size: 17px; font-weight: 700; }
+.park-location-chip__place img { width: 14px; height: 17px; }
+.park-location-chip__time { gap: 6px; color: rgba(247, 241, 229, 0.85); font-size: 15px; font-weight: 500; }
+.park-location-chip__time img { width: 15.3px; height: 15.3px; }
+.park-page .park-runtime-tools { top: calc(var(--park-edge) + 58px * var(--park-ui-scale)); }
+.park-page[data-bungeoppang='true'] .park-location-chip,
+.park-page[data-bungeoppang='true'] .park-quick-dock,
+.park-page:has(.gathering-hud, .prototype-game) .park-location-chip { visibility: hidden; }
+
+/* 채팅 패널 */
+.park-page .park-chat {
+  gap: 14px;
+  width: 440px;
+  padding: 18px 20px 16px;
+  border: 1px solid rgba(247, 241, 229, 0.14);
+  border-radius: 20px;
+  color: #f7f1e5;
+  background: var(--hud-glass);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  backdrop-filter: var(--hud-blur);
+  text-shadow: none;
+  pointer-events: auto;
+}
+.park-page .park-chat__messages { padding: 0; }
+.park-page .park-chat__heading { padding-bottom: 14px; margin-bottom: 14px; border-bottom: 1px solid rgba(247, 241, 229, 0.14); }
+.park-page .park-chat__messages h1 { display: flex; align-items: center; gap: 8px; font-size: 19px; font-weight: 700; }
+.park-page .park-chat__messages h1 img { width: 18px; height: 18px; }
+.park-chat__radius { padding: 2px 8px 3px; border-radius: 999px; color: #e8b451; background: rgba(232, 180, 81, 0.18); font-size: 12px; font-weight: 500; }
+.park-page .park-chat__heading button { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 8px; background: none; }
+.park-page .park-chat__heading button:hover { background: rgba(247, 241, 229, 0.1); }
+.park-page .park-chat__heading button img { width: 18px; height: 18px; transition: transform 150ms; }
+.park-page .park-chat__heading button[aria-expanded='true'] img { transform: rotate(180deg); }
+.park-chat__system { margin: 0; color: rgba(247, 241, 229, 0.55); font-size: 14px; font-weight: 500; }
+.park-page .park-chat__message { gap: 12px; font-size: 17px; }
+.park-page .park-chat__author { flex: 0 0 auto; max-width: 160px; color: #e8b451; font-weight: 700; }
+.park-page .park-chat__author--own { color: #f2cf7d; }
+.park-page .park-chat__composer { --chat-composer-height:52px; height:var(--chat-composer-height); min-height:var(--chat-composer-height); box-sizing:border-box; gap:4px; padding:6px 6px 6px 12px; border:0; border-radius:14px; color:#292620; background:#efece0; font-size:16px; }
+.park-page .park-chat__composer--closed > span:first-child { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.park-page .park-chat__composer--closed > span:first-child { color: rgba(41, 38, 32, 0.5); }
+.park-page .park-chat__composer--closed:hover { color: #292620; }
+.park-chat__send-icon,
+.park-page .park-chat__composer--open button[type='submit'] {
+  display: grid;
+  flex: 0 0 calc(var(--chat-composer-height, 52px) - 12px);
+  place-items: center;
+  width: calc(var(--chat-composer-height, 52px) - 12px);
+  height: calc(var(--chat-composer-height, 52px) - 12px);
+  min-width:0;
+  min-height:0;
+  padding:0;
+  border-radius: 10px;
+  background: #e8b451;
+}
+.park-chat__send-icon img,
+.park-page .park-chat__composer--open button[type='submit'] img { width: 18px; height: 18px; }
+.park-page .park-chat__composer--open button[type='button'] { flex:0 0 calc(var(--chat-composer-height, 52px) - 12px); width:calc(var(--chat-composer-height, 52px) - 12px); height:calc(var(--chat-composer-height, 52px) - 12px); min-width:0; min-height:0; padding:0; }
+.park-page .park-chat__composer--open { border: 0; }
+.park-page .park-chat__composer--open input { color: #292620; }
+.park-page .park-chat__composer--open input::placeholder { color: rgba(41, 38, 32, 0.5); }
+.park-page .park-chat__composer--open button[type='button'] { color: #53604f; background: none; }
+.park-page .park-chat__history-hint,
+.park-page .park-chat__notice { color: rgba(247, 241, 229, 0.7); }
+
+/* 말풍선 · 닉네임표 over avatars. */
+.park-page .avatar-nickname {
+  display: inline-block;
+  padding: 3px 10px 4px;
+  border-radius: 999px;
+  color: #e8b451;
+  background: rgba(41, 38, 32, 0.6);
+  font-size: 13px;
+}
+.park-page .avatar-speech {
+  position: relative;
+  margin-bottom: 15px;
+  padding: 9px 16px 10px;
+  border-radius: 16px;
+  color: #292620;
+  background: #efece0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  font-size: 17px;
+}
+.park-page .avatar-speech::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  width: 16px;
+  height: 9px;
+  background: url('./icons/speech-tail.svg') center / contain no-repeat;
+  transform: translateX(-50%);
+}
+
+/* 상호작용 안내 카드: same card language as the table card (E keycap). */
+.park-page .park-interaction {
+  border: 1px solid rgba(247, 241, 229, 0.14);
+  border-radius: 16px;
+  background: var(--hud-glass);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  backdrop-filter: var(--hud-blur);
+}
+.park-page .park-interaction > button[aria-keyshortcuts='E'] {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: none;
+  font-size: 15px;
+}
+.park-page .park-interaction kbd {
+  min-width: 20px;
+  padding: 1px 6px 3px;
+  border-bottom: 2px solid #c7b899;
+  border-radius: 5px;
+  color: #292620;
+  background: #f7f1e5;
+  font: inherit;
+  font-size: 12px;
+}
+
+@media (max-width: 900px) {
+  /* No room between the corner cards: the chip drops under the channel card. */
+  .park-location-chip { top: 94px; left: 16px; transform: scale(0.85); transform-origin: top left; }
+  .park-page .park-runtime-tools { top: 140px; }
+  .park-page .park-chat { width: min(400px, calc(100% - 32px)); padding: 14px 16px 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .park-page .park-chat__heading button img { transition: none; }
+}

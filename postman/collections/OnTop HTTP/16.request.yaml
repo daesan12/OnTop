@@ -1,0 +1,21 @@
+"name": "16 내 보유 아이템 조회"
+"$kind": "http-request"
+"method": "GET"
+"url": "{{baseUrl}}/api/v1/users/me/items"
+"description": "INVENTORY-01: 본인 quantity>0 보유·수량·장착 여부를 조회합니다. 판매 종료 보유도 표시합니다."
+"auth":
+  "type": "noauth"
+"scripts":
+  -
+    "type": "beforeRequest"
+    "code": "if (!pm.environment.name) throw new Error('먼저 OnTop Local 환경을 선택해주세요.');\nif (!pm.environment.get('accessToken')) throw new Error('개인 로컬 Access JWT가 필요합니다.');"
+  -
+    "type": "afterResponse"
+    "code": "pm.test('HTTP 200', () => pm.response.to.have.status(200));\npm.expect(pm.response.json().items).to.be.an('array');"
+"headers":
+  -
+    "key": "Authorization"
+    "value": "Bearer {{accessToken}}"
+  -
+    "key": "Origin"
+    "value": "{{baseUrl}}"

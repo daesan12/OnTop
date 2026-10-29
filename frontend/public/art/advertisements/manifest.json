@@ -1,0 +1,98 @@
+[
+  {
+    "file": "adv_pickus_1.webp",
+    "width": 1920,
+    "height": 864,
+    "bytes": 127494,
+    "sha256": "9aec540064f0841aa01520e5ed0efef5b8edef99109ea473bcccd1ac5eb62b98",
+    "source": "User attachment adv_pickus_1.png, 2026-10-19",
+    "sourceDimensions": [4800, 2160],
+    "sourceBytes": 3803987,
+    "sourceSha256": "88efdc647d9b4741f70320bf922ce6395cbf729cc3e8eb115f3b556e4895d51a",
+    "rights": "User-provided PICKUS test advertisement; not a claim of project ownership",
+    "usage": "Archived earlier creative/encoding; superseded by original PICKUS PNG images on 2026-10-20",
+    "processing": "WebP quality 90; proportional resize only; no crop or creative edit"
+  },
+  {
+    "file": "adv_pickus_2.webp",
+    "width": 1536,
+    "height": 2048,
+    "bytes": 226256,
+    "sha256": "be275cdfaa2591f9f940e475d5eca98e7dc06abe4b4c43b8bfd0817f382fe8f1",
+    "source": "User attachment adv_pickus_2.png, 2026-10-19",
+    "sourceDimensions": [2160, 2880],
+    "sourceBytes": 3042795,
+    "sourceSha256": "5fc1d53752808f44822de55dda4739170cabb9db2b74f59cd84a65c6730fb25e",
+    "rights": "User-provided PICKUS test advertisement; not a claim of project ownership",
+    "usage": "Archived earlier creative/encoding; superseded by original PICKUS PNG images on 2026-10-20",
+    "processing": "WebP quality 90; proportional resize only; no crop or creative edit"
+  },
+  {
+    "file": "adv_pickus_3.mp4",
+    "width": 1080,
+    "height": 1920,
+    "durationSeconds": 10,
+    "bytes": 4335553,
+    "sha256": "57cbd37efdff92551222900bc98c59d65e0f04003f159236929e7aa23cfc8049",
+    "source": "User attachment adv_pickus_3.mp4, 2026-10-19",
+    "rights": "User-provided PICKUS test advertisement; not a claim of project ownership",
+    "usage": "Building advertising playlist; play once for min(source duration, 20 seconds), then advance; muted shared video player with still fallback",
+    "processing": "Copied unchanged; muted/defaultMuted/volume zero at playback; image fallback on failure"
+  },
+  {
+    "file": "adv_pickus_1.png",
+    "width": 4800,
+    "height": 2160,
+    "bytes": 3803987,
+    "sha256": "88efdc647d9b4741f70320bf922ce6395cbf729cc3e8eb115f3b556e4895d51a",
+    "source": "User-provided original adv_pickus_1.png",
+    "rights": "User-provided advertising creative; no claim of project ownership",
+    "usage": "Building advertising playlist",
+    "processing": "Copied unchanged; preserve source resolution and aspect ratio; MP4 playback muted"
+  },
+  {
+    "file": "adv_pickus_2.png",
+    "width": 2160,
+    "height": 2880,
+    "bytes": 3042795,
+    "sha256": "5fc1d53752808f44822de55dda4739170cabb9db2b74f59cd84a65c6730fb25e",
+    "source": "User-provided original adv_pickus_2.png",
+    "rights": "User-provided advertising creative; no claim of project ownership",
+    "usage": "Building advertising playlist",
+    "processing": "Copied unchanged; preserve source resolution and aspect ratio; MP4 playback muted"
+  },
+  {
+    "file": "adv_pickus_4.png",
+    "width": 2160,
+    "height": 2880,
+    "bytes": 2974760,
+    "sha256": "a44a608eed72de346afbccddfe52e97752da572f1233c9d0f98da9bfdb7c296d",
+    "source": "User-provided original adv_pickus_4.png",
+    "rights": "User-provided advertising creative; no claim of project ownership",
+    "usage": "Building playlist, A-frame signs, air-balloon banner; PICKUS destination link",
+    "processing": "Copied unchanged; preserve source resolution and aspect ratio; MP4 playback muted"
+  },
+  {
+    "file": "adv_dero_1.mp4",
+    "width": 1080,
+    "height": 1920,
+    "bytes": 4948101,
+    "sha256": "4ea16a67a7316e765aeda72460d046005a5073a1a45021a20476aaebaf0c1288",
+    "source": "User-provided original adv_dero_1.mp4",
+    "rights": "User-provided advertising creative; no claim of project ownership",
+    "usage": "Building advertising playlist; play once for min(source duration, 20 seconds), then advance; muted shared video player with still fallback",
+    "processing": "Copied unchanged; preserve source resolution and aspect ratio; MP4 playback muted",
+    "durationSeconds": 13.7
+  },
+  {
+    "file": "dero-poster.jpg",
+    "width": 1080,
+    "height": 1920,
+    "bytes": 157260,
+    "sha256": "228a13a1649920ed46e4a3a0de98437ec902692f609658d33ea3367962d96735",
+    "source": "Frame at 1s of user-provided adv_dero_1.mp4",
+    "rights": "User-provided advertising creative; no claim of project ownership",
+    "usage": "Building advertising playlist",
+    "processing": "Native-resolution JPEG quality 94 fallback, extracted with browser video canvas"
+  }
+]

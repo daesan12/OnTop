@@ -1,0 +1,31 @@
+package com.ssafy.ontop.table.domain;
+
+// OnTop v0.4의 네 게임을 local 선택 검증에 사용한다. 실제 게임 엔진 구현 목록과 다르다.
+public enum TableGame {
+    OMOK(2, 2), DICE(2, 2), ONE_CARD(2, 4), LIAR_BRIDGE(2, 4);
+
+    private final int minimumPlayers;
+    private final int maximumPlayers;
+
+    TableGame(int minimumPlayers, int maximumPlayers) {
+        this.minimumPlayers = minimumPlayers;
+        this.maximumPlayers = maximumPlayers;
+    }
+
+    public int minimumPlayers() {
+        return minimumPlayers;
+    }
+
+    public int maximumPlayers() {
+        return maximumPlayers;
+    }
+
+    public static TableGame find(String code) {
+        for (TableGame game : values()) {
+            if (game.name().equals(code)) {
+                return game;
+            }
+        }
+        return null;
+    }
+}

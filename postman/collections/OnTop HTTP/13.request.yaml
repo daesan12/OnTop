@@ -1,0 +1,21 @@
+"name": "13 상점 판매 아이템 조회"
+"$kind": "http-request"
+"method": "GET"
+"url": "{{baseUrl}}/api/v1/shop/items"
+"description": "SHOP-01: local,db 또는 dev,db + ontop.shop.enabled=true(dev: SHOP_ENABLED=true)·공통 지갑/상점 스키마가 필요합니다. dev 사용 시 예제 Origin 헤더를 AUTH_ALLOWED_ORIGINS에 등록된 프론트 주소로 바꾸거나 비브라우저 테스트에서는 제외하세요. 판매 상품을 조회하며 첫 itemId를 개인 환경에 저장합니다."
+"auth":
+  "type": "noauth"
+"scripts":
+  -
+    "type": "beforeRequest"
+    "code": "if (!pm.environment.name) throw new Error('먼저 OnTop Local 환경을 선택해주세요.');\nif (!pm.environment.get('accessToken')) throw new Error('개인 로컬 Access JWT가 필요합니다.');"
+  -
+    "type": "afterResponse"
+    "code": "pm.test('HTTP 200', () => pm.response.to.have.status(200));\nconst items=pm.response.json().items; pm.expect(items).to.be.an('array');\nif(items.length) pm.environment.set('shopItemId',items[0].itemId);"
+"headers":
+  -
+    "key": "Authorization"
+    "value": "Bearer {{accessToken}}"
+  -
+    "key": "Origin"
+    "value": "{{baseUrl}}"

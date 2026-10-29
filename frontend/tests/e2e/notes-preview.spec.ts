@@ -1,0 +1,39 @@
+import { expect, test } from '@playwright/test'
+test('memo filters, pages, native IME, 300 characters, fountain pen and acknowledged paper attachment',async({page})=>{
+ const errors:string[]=[],transports:string[]=[];page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>{if(/\/api\/|\/ws/.test(new URL(r.url()).pathname))transports.push(r.url())})
+ await page.goto('/notes-preview.html')
+ // Test-only acknowledged posts; the product preview itself starts empty.
+ await page.evaluate(async()=>{
+   const {notesService}=await import('/src/features/notes/service.ts' as string)
+   const {NOTES_BOX}=await import('/src/config/notes.ts' as string)
+   const {NOTE_TOPICS}=await import('/src/features/notes/topics.ts' as string)
+   await Promise.all(Array.from({length:16},(_,i)=>notesService.submit({userId:'writer-'+i,channelId:'preview-channel',position:{x:NOTES_BOX.x,y:NOTES_BOX.y+.8,z:NOTES_BOX.z,yaw:0}},
+     {operationId:crypto.randomUUID(),text:'사용자가 작성한 테스트 메모 '+i,category:NOTE_TOPICS[i%5].id},new AbortController().signal)))
+ })
+ await page.getByRole('button',{name:'E · 메모함 열기',exact:true}).click()
+ const dialog=page.getByRole('dialog',{name:'전망대 익명 메모'}),wall=dialog.getByRole('region',{name:'익명 메모 목록'})
+ await expect(wall.locator('article')).toHaveCount(12);await dialog.getByRole('button',{name:'다음 메모 페이지'}).click();await expect(wall.locator('article')).toHaveCount(4)
+ await dialog.getByRole('navigation',{name:'메모 주제 필터'}).getByRole('button',{name:'응원',exact:true}).click();await expect(wall.locator('article')).toHaveCount(3)
+ await dialog.getByRole('button',{name:/메모 작성하기/}).click();const area=dialog.getByLabel('새 메모',{exact:true});await expect(area).toBeFocused()
+ await area.fill('한글 조합 중');await area.dispatchEvent('keydown',{key:'Escape',code:'Escape',isComposing:true,keyCode:229});await expect(dialog).toBeVisible()
+ await area.fill('첫째 줄\n둘째 줄 마음 한 장');await expect.poll(()=>page.locator('.notes-fountain-pen').evaluate(el=>parseFloat((el as HTMLElement).style.top))).toBeGreaterThan(50)
+  await expect(page.locator('.notes-fountain-pen')).toHaveCSS('opacity','1')
+ await area.press('End');await area.press('Enter');await area.pressSequentially('A');await expect(page.locator('.notes-fountain-pen')).toHaveClass(/is-writing/)
+ await area.fill('가'.repeat(300));await area.pressSequentially('나');await expect(area).toHaveValue('가'.repeat(300));await expect(dialog.locator('#notes-length')).toHaveText('300/300')
+ await area.fill('만년필로 적는 마음\n오늘도 좋은 하루 보내세요!');await dialog.getByRole('button',{name:'응원',exact:true}).click();await dialog.getByRole('button',{name:/메모 남기기/}).click();await expect(area).toHaveValue(/만년필/);await expect(area).toHaveJSProperty('readOnly',true)
+ await expect(page.locator('.notes-fold-stage')).toBeVisible();await expect(dialog.getByRole('heading',{name:'메모가 등록되었어요!'})).toBeVisible();await dialog.getByRole('button',{name:'메모함 보러가기'}).click()
+ await expect(wall.getByText('만년필로 적는 마음',{exact:false})).toHaveCount(1);await dialog.getByRole('navigation',{name:'메모 주제 필터'}).getByRole('button',{name:'응원',exact:true}).click();await expect(wall.getByText('만년필로 적는 마음',{exact:false})).toBeVisible();expect(errors).toEqual([]);expect(transports).toEqual([])
+})
+test('mobile failed submission keeps draft and topic without false success, and traps focus',async({page})=>{
+ await page.setViewportSize({width:390,height:844});await page.goto('/notes-preview.html');await page.getByLabel('전송 실패 확인').check();await page.getByRole('button',{name:'E · 메모함 열기'}).click()
+ const dialog=page.getByRole('dialog',{name:'전망대 익명 메모'});await expect(dialog.getByRole('region',{name:'익명 메모 목록'})).toHaveAttribute('aria-busy','false');await dialog.getByRole('button',{name:/메모 작성하기/}).click();const area=dialog.getByLabel('새 메모',{exact:true})
+ await area.fill('  저장 실패해도 지켜줄 메모\n');await dialog.getByRole('button',{name:'고민',exact:true}).click();await dialog.getByRole('button',{name:/메모 남기기/}).click();await expect(dialog.getByRole('alert')).toContainText('미리보기 전송 실패')
+ await expect(area).toHaveValue('  저장 실패해도 지켜줄 메모\n');await expect(dialog.getByRole('button',{name:'고민',exact:true})).toHaveAttribute('aria-pressed','true');await expect(page.locator('.notes-fold-stage')).toHaveCount(0)
+ await page.keyboard.press('Tab');expect(await dialog.evaluate(el=>el.contains(document.activeElement))).toBe(true);const box=await dialog.boundingBox();expect(box!.x).toBeGreaterThanOrEqual(0);expect(box!.x+box!.width).toBeLessThanOrEqual(390);expect(box!.y+box!.height).toBeLessThanOrEqual(844)
+ await page.keyboard.press('Escape');await expect(dialog).toBeHidden();await page.getByRole('button',{name:'E · 메모함 열기'}).click();await dialog.getByRole('button',{name:/메모 작성하기/}).click();await expect(area).toHaveValue('  저장 실패해도 지켜줄 메모\n');await expect(dialog.getByRole('button',{name:'고민',exact:true})).toHaveAttribute('aria-pressed','true')
+})
+test('compact reduced motion layout skips zoom and pen motion and still delivers',async({page})=>{
+ await page.setViewportSize({width:1280,height:720});await page.emulateMedia({reducedMotion:'reduce'});await page.goto('/notes-preview.html');await page.getByRole('button',{name:'E · 메모함 열기'}).click();const dialog=page.getByRole('dialog',{name:'전망대 익명 메모'})
+ await expect(dialog.getByRole('region',{name:'익명 메모 목록'})).toHaveAttribute('aria-busy','false');expect(await dialog.evaluate(el=>getComputedStyle(el).animationName)).toBe('none');await dialog.getByRole('button',{name:/메모 작성하기/}).click();await dialog.getByLabel('새 메모',{exact:true}).fill('움직임을 줄여도 마음은 전해져요.')
+ await expect(page.locator('.notes-fountain-pen')).toBeHidden();await dialog.getByRole('button',{name:/메모 남기기/}).click();await expect(dialog.getByRole('heading',{name:'메모가 등록되었어요!'})).toBeVisible();const box=await dialog.boundingBox();expect(box!.y+box!.height).toBeLessThanOrEqual(720)
+})

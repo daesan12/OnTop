@@ -1,0 +1,306 @@
+.park-page {
+  position: relative;
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow: hidden;
+  color: #f3efe3;
+  background: #645e48;
+  font-family: 'BusanDandiMyeongjo', serif;
+  font-weight: 300;
+}
+
+.park-scene,
+.park-scene::after,
+.park-hud {
+  position: absolute;
+  inset: 0;
+}
+
+.park-scene {
+  background: url('../assets/entry/park-overview.webp') center / cover no-repeat;
+}
+
+.park-scene::after {
+  content: '';
+  background: rgba(23, 20, 14, 0.16);
+}
+
+.park-hud { pointer-events: none; }
+.park-hud button, .park-hud input, .park-chat__list { pointer-events: auto; }
+
+/* 채널 카드 · 프로필 바 (Figma 01-A / 공원 / 기본). */
+.park-location,
+.park-account__summary {
+  border: 1px solid rgba(247, 241, 229, 0.14);
+  border-radius: 18px;
+  color: #f7f1e5;
+  background: var(--hud-glass);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  backdrop-filter: var(--hud-blur);
+  white-space: nowrap;
+}
+
+.park-location {
+  position: absolute;
+  top: var(--park-edge);
+  left: var(--park-edge);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 86px;
+  padding: 12px 14px 12px 10px;
+  transform: scale(var(--park-ui-scale));
+  transform-origin: top left;
+}
+
+.park-location__icon { display: flex; flex: 0 0 90px; }
+.park-location__logo { display: block; width: 90px; height: 60px; object-fit: contain; border-radius: 10px; }
+.park-location__details { display: flex; flex-direction: column; gap: 2px; }
+.park-location__name { font-size: 24px; font-weight: 700; line-height: 1.3; }
+.park-location__population { display: flex; align-items: center; gap: 6px; color: rgba(247, 241, 229, 0.85); font-size: 16px; font-weight: 500; }
+.park-location__population img { width: 16px; height: 16px; object-fit: contain; }
+.park-location__population .park-location__dot { width: 8px; height: 8px; }
+.park-location .park-chevron { width: 18px; height: 18px; margin-left: 6px; }
+.park-chevron { display: block; flex: 0 0 auto; width: 16px; height: 16px; }
+
+.park-account {
+  position: absolute;
+  top: var(--park-edge);
+  right: var(--park-edge);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+  transform: scale(var(--park-ui-scale));
+  transform-origin: top right;
+}
+
+.park-account__summary {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  max-width: 560px;
+  height: 62px;
+  padding: 8px 14px 8px 18px;
+}
+
+.park-account__coin { flex: 0 0 auto; width: 30px; height: 30px; object-fit: contain; }
+.park-account__balance { font-size: 20px; font-weight: 500; }
+.park-account__balance .park-wallet__unit { margin-left: 8px; color: #e8b451; font-size: 18px; font-style: normal; font-weight: 700; }
+.park-account__separator { flex: 0 0 auto; width: 1px; height: 28px; background: rgba(247, 241, 229, 0.2); }
+.park-account__nickname { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 19px; font-weight: 700; }
+.park-account__avatar { position: relative; flex: 0 0 44px; width: 44px; height: 44px; overflow: hidden; border: 2px solid #e8b451; border-radius: 50%; background: #f5ebd1; }
+.park-account__avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+
+.park-exit {
+  min-width: 80px;
+  height: 44px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 14px;
+  color: #f2eddb;
+  background: rgba(29, 28, 23, 0.95);
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.park-exit:hover { background: #3c392f; }
+.park-exit-error { max-width: 300px; margin: 0; padding: 10px 12px; border-radius: 8px; color: #2a2519; background: #f7eee0; font-size: 14px; }
+
+.park-chat {
+  position: absolute;
+  bottom: var(--park-edge);
+  left: var(--park-edge);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 430px;
+  transform: scale(var(--park-ui-scale));
+  transform-origin: bottom left;
+  color: #fffdf2;
+  text-shadow: 0 1px 3px #101d17, 0 0 5px #101d17, 0 1px 1px #101d17;
+}
+
+.park-chat__messages {
+  display: flex;
+  flex-direction: column;
+  height: 270px;
+  padding: 12px 0;
+  border-radius: 15px;
+  background: transparent;
+}
+
+.park-chat__messages h1 {
+  flex: 0 0 auto;
+  margin: 0;
+  padding-bottom: 0;
+  font-size: 20px;
+  font-weight: 300;
+  line-height: 1.4;
+}
+
+.park-chat__list {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 10px;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #e2eadc88 transparent;
+}
+
+.park-chat__heading { display:flex; align-items:center; justify-content:space-between; gap:12px; padding-bottom:9px; }
+.park-chat__heading button { padding:4px 6px; border:1px solid #e2eadc44; border-radius:5px; background:#13251b55; color:#e2eadc; font:inherit; font-size:13px; text-shadow:inherit; cursor:pointer; }
+.park-chat[data-expanded="false"] .park-chat__messages { height:auto; }
+.park-chat[data-expanded="false"] .park-chat__list { flex:none; max-height:100px; }
+.park-chat__history-hint { margin-top:8px; color:#e2eadc; font-size:12px; }
+.park-chat__notice { margin:0; font-size:13px; color:#ffe3a1; }
+.park-chat button:focus-visible { outline:2px solid #d5efb3; outline-offset:3px; }
+
+.park-chat__message { display: flex; flex: 0 0 auto; gap: 14px; margin: 0; font-size: 18px; line-height: 1.35; white-space: nowrap; }
+.park-chat__message:first-child { margin-top: 0; }
+.park-chat__author { flex: 0 0 130px; overflow: hidden; color: #e4b541; text-overflow: ellipsis; }
+.park-chat__author--own { color: #f2d77d; }
+.park-chat__message > span:last-child { min-width: 0; overflow-wrap: anywhere; white-space: normal; }
+
+.park-chat__composer {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 60px;
+  border: 0;
+  border-radius: 15px;
+  font-size: 17px;
+}
+
+.park-chat__composer--closed {
+  justify-content: space-between;
+  padding: 0;
+  color: #e5e0d0;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.park-chat__composer--closed:hover { color: #fff; }
+.park-chat__composer--closed kbd {
+  padding: 8px 12px;
+  border-radius: 10px;
+  color: #3b3b30;
+  background: #ebe9d9;
+  font: inherit;
+  font-size: 14px;
+}
+
+.park-chat__composer--open { padding: 0 14px; background: #13251b66; border:1px solid #e2eadc66; }
+.park-chat__composer--open input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  color: #fffdf2;
+  background: transparent;
+  font: inherit;
+}
+.park-chat__composer--open input::placeholder { color: #e2eadc; opacity: 1; }
+.park-chat__composer--open:focus-within { outline: 2px solid #e0d7b8; outline-offset: 2px; }
+.park-chat__composer--open button {
+  display: grid;
+  flex: 0 0 31px;
+  place-items: center;
+  width: 31px;
+  height: 31px;
+  padding: 0;
+  border: 0;
+  border-radius: 9px;
+  color: #29251d;
+  background: #d7d2bb;
+  cursor: pointer;
+  font-size: 24px;
+  line-height: 1;
+}
+
+/* 조작 안내 (Figma 01-A): keycaps on a dark bar, centred at the bottom. */
+.park-shortcuts {
+  position: absolute;
+  bottom: var(--park-edge);
+  left: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  padding: 16px 28px;
+  border: 1px solid rgba(247, 241, 229, 0.14);
+  border-radius: 18px;
+  color: #f7f1e5;
+  background: var(--hud-glass);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  backdrop-filter: var(--hud-blur);
+  transform: translateX(-50%) scale(var(--park-ui-scale));
+  transform-origin: bottom center;
+}
+
+.park-shortcuts__item { display: flex; align-items: center; gap: 10px; white-space: nowrap; font-size: 16px; font-weight: 500; }
+.park-shortcuts kbd {
+  min-width: 32px;
+  padding: 4px 10px 5px;
+  border-bottom: 3px solid #c7b899;
+  border-radius: 8px;
+  color: #292620;
+  background: #f7f1e5;
+  font: inherit;
+  font-size: 13px;
+  text-align: center;
+}
+.park-hud button:focus-visible { outline: 2px solid #f6e9ae; outline-offset: 3px; }
+
+.auth-loading { display: grid; min-height: 100dvh; place-items: center; color: #f3efe3; background: #27372b; }
+.park-deferred-content { position: fixed; top: 24px; left: 50%; transform: translateX(-50%); z-index: 80; width: min(420px, calc(100vw - 32px)); box-sizing: border-box; padding: 16px; border: 1px solid #e0d8bd; border-radius: 12px; color: #f3efe3; background: #27372b; box-shadow: 0 8px 30px #0005; }
+.park-deferred-content p { margin: 0 0 12px; }
+.park-deferred-content button { margin-right: 8px; padding: 6px 12px; font: inherit; cursor: pointer; }
+
+.facility-status { position: absolute; left: 20px; top: 150px; max-width: min(340px, calc(100% - 40px)); z-index: 12; }
+@media (min-width:901px) and (max-width:1200px) {
+  .park-chat { width:340px; bottom:calc(var(--park-edge) + 60px); transform:none; }
+  .park-chat__messages { height:min(300px, 38vh); }
+  .park-chat__messages h1 { font-size:16px; }
+  .park-chat__message { gap:9px; font-size:14px; }
+  .park-chat__author { flex-basis:92px; }
+  .park-chat__composer { height:42px; font-size:14px; }
+  .park-chat__composer--closed kbd { padding:5px 9px; font-size:12px; }
+}
+@media (max-width: 700px) {
+  .facility-status { top: 185px; }
+}
+
+@media (max-width: 900px) {
+  .park-location { top: 16px; left: 16px; transform: scale(0.8); transform-origin: top left; }
+  .park-location__icon { flex-basis: 78px; }
+  .park-location__logo { width: 78px; height: 52px; }
+  .park-account { top: 16px; right: 16px; transform: none; }
+  .park-account__summary { max-width: calc(100vw - 240px); height: 52px; gap: 10px; padding: 6px 10px 6px 12px; }
+  .park-account__coin { width: 24px; height: 24px; }
+  .park-account__balance { font-size: 15px; }
+  .park-account__balance .park-wallet__unit { margin-left: 4px; font-size: 14px; }
+  .park-account__nickname { font-size: 14px; }
+  .park-account__avatar { flex-basis: 36px; width: 36px; height: 36px; }
+  .park-exit { min-width: 65px; height: 34px; font-size: 13px; }
+  .park-chat { bottom: 16px; left: 16px; width: min(430px, calc(100% - 32px)); transform: none; }
+  .park-chat__messages { height: min(270px, 34vh); }
+  .park-shortcuts { left: auto; right: 112px; bottom: 16px; max-width: calc(100% - 590px); padding: 10px 12px; gap: 10px; overflow-x: auto; transform: none; }
+  .park-shortcuts__item { gap: 4px; font-size: 13px; }
+  .park-shortcuts kbd { min-width: 0; padding: 2px 6px 3px; font-size: 11px; }
+}
+
+@media (max-width: 700px) {
+  .park-account__balance { font-size: 13px; }
+  .park-account__nickname { display: none; }
+  .park-shortcuts { bottom: 365px; left: 16px; right: 112px; max-width: none; justify-content: flex-start; }
+  .park-shortcuts__item { font-size: 12px; }
+  .park-chat__messages { height: 270px; }
+}

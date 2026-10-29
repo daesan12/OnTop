@@ -1,0 +1,17 @@
+# Copy to /etc/systemd/system/ontop-prod-db.service after checking the checkout path.
+[Unit]
+Description=OnTop production MySQL on encrypted EBS
+Requires=docker.service wg-quick@wg0.service
+After=docker.service wg-quick@wg0.service
+RequiresMountsFor=/srv/ontop/mysql
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/bash /opt/ontop/infra/prod-db/start.sh
+ExecStop=/usr/bin/docker compose --env-file /etc/ontop/prod-db/compose.env -f /opt/ontop/infra/prod-db/compose.yaml stop mysql
+TimeoutStartSec=180
+TimeoutStopSec=120
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,44 @@
+concurrency: 2
+defaults:
+  out: ./docs/bungeoppang-v5/npc-reference-production
+jobs:
+  - input: "docs/bungeoppang-v5/npc-reference-production/student-brown-coat-reference-v1.png"
+    name: "bungeoppang-student-brown-coat-v1"
+    params:
+      face_limit: 40000
+      texture: true
+      pbr: true
+      texture_quality: detailed
+      geometry_quality: detailed
+  - input: "docs/bungeoppang-v5/npc-reference-production/worker-earmuffs-reference-v1.png"
+    name: "bungeoppang-worker-earmuffs-v1"
+    params:
+      face_limit: 40000
+      texture: true
+      pbr: true
+      texture_quality: detailed
+      geometry_quality: detailed
+  - input: "docs/bungeoppang-v5/npc-reference-production/older-flat-cap-reference-v1.png"
+    name: "bungeoppang-older-flat-cap-v1"
+    params:
+      face_limit: 40000
+      texture: true
+      pbr: true
+      texture_quality: detailed
+      geometry_quality: detailed
+  - input: "docs/bungeoppang-v5/npc-reference-production/girl-pink-hat-reference-v1.png"
+    name: "bungeoppang-girl-pink-hat-v1"
+    params:
+      face_limit: 40000
+      texture: true
+      pbr: true
+      texture_quality: detailed
+      geometry_quality: detailed
+  - input: "docs/bungeoppang-v5/npc-reference-production/woman-glasses-bun-reference-v1.png"
+    name: "bungeoppang-woman-glasses-bun-v1"
+    params:
+      face_limit: 40000
+      texture: true
+      pbr: true
+      texture_quality: detailed
+      geometry_quality: detailed

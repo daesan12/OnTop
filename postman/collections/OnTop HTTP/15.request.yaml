@@ -1,0 +1,33 @@
+"name": "15 동일 구매 재요청 — 추가 차감 없음"
+"$kind": "http-request"
+"method": "POST"
+"url": "{{baseUrl}}/api/v1/shop/purchases"
+"description": "14의 키·itemId·수량을 유지합니다. 가격/판매 상태가 바뀌어도 같은 영수증을 반환합니다. 새 구매는14입니다."
+"auth":
+  "type": "noauth"
+"scripts":
+  -
+    "type": "beforeRequest"
+    "code": "if (!pm.environment.name) throw new Error('먼저 OnTop Local 환경을 선택해주세요.');\nif (!pm.environment.get('accessToken')) throw new Error('개인 로컬 Access JWT가 필요합니다.');\nif(!/^[1-9][0-9]*$/.test(String(pm.environment.get('shopItemId')||''))) throw new Error('13에서 판매 itemId를 선택하세요.');\nif(!pm.environment.get('purchaseRequestKey')) throw new Error('먼저14를 실행하세요.');"
+  -
+    "type": "afterResponse"
+    "code": "pm.test('HTTP 200', () => pm.response.to.have.status(200));\npm.expect(pm.response.json().purchaseId).to.eql(pm.environment.get('purchaseId'));"
+"headers":
+  -
+    "key": "Authorization"
+    "value": "Bearer {{accessToken}}"
+  -
+    "key": "Origin"
+    "value": "{{baseUrl}}"
+  -
+    "key": "Content-Type"
+    "value": "application/json"
+  -
+    "key": "Idempotency-Key"
+    "value": "{{purchaseRequestKey}}"
+"body":
+  "mode": "raw"
+  "raw": "{\n  \"itemId\": {{shopItemId}},\n  \"quantity\": 1\n}"
+  "options":
+    "raw":
+      "language": "json"

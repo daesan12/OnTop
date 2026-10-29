@@ -1,0 +1,42 @@
+.gitnexus/
+
+# Local database credentials
+.env
+.env.*
+!.env.example
+!.env.frontend-test.example
+
+# Local agent instructions and personal code guide
+AGENTS.md
+AGENTS.override.md
+agent.md
+CODE_GUIDE.md
+.agents/
+.codex/
+
+# Gradle and build outputs
+.gradle/
+build/
+backend/node_modules/
+
+# IDE files
+.idea/
+*.iml
+.classpath
+.project
+.settings/
+.vscode/
+bin/
+out/
+__pycache__/
+*.pyc
+
+# Local Tripo CLI state and intermediate provider exports; runtime assets are versioned separately.
+.tripo/
+**/tripo-out/
+
+# Personal local-only test screens
+/backend/src/main/resources/dev/tables.html
+/backend/src/test/resources/omok-demo/
+/backend/src/test/resources/games-demo/
+/backend/src/test/resources/shop-demo/

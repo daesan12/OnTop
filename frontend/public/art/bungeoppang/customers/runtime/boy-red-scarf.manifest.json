@@ -1,0 +1,85 @@
+{
+  "source": {
+    "file": "../docs/bungeoppang-v5/npc-runtime-production/v3/tripo-out/bung-boy-motion3-v1-1c3435c2/model.glb",
+    "bytes": 11861024,
+    "sha256": "73a35ab382c7e87cb94fa8e30ef1a789ca23e4ce7b4a5a853623d562252b7326"
+  },
+  "runtime": {
+    "file": "public/art/bungeoppang/customers/runtime/boy-red-scarf.glb",
+    "bytes": 2480872,
+    "sha256": "21744a4db3d495475603d1e5dcfc98aecf58851612e08a2d4a5d14c845db9e7c"
+  },
+  "meshes": [
+    {
+      "sourceTriangles": 37709,
+      "triangles": 23098,
+      "vertices": 15227,
+      "relativeError": 0.003998218569904566
+    }
+  ],
+  "textures": [
+    {
+      "roles": [
+        "normal"
+      ],
+      "source": [
+        4096,
+        4096
+      ],
+      "size": [
+        1024,
+        1024
+      ],
+      "bytes": 89858
+    },
+    {
+      "roles": [
+        "color"
+      ],
+      "source": [
+        4096,
+        4096
+      ],
+      "size": [
+        2048,
+        2048
+      ],
+      "bytes": 843428
+    },
+    {
+      "roles": [
+        "data"
+      ],
+      "source": [
+        4096,
+        4096
+      ],
+      "size": [
+        512,
+        512
+      ],
+      "bytes": 227970
+    }
+  ],
+  "skins": 1,
+  "animations": [
+    {
+      "name": "idle",
+      "channels": 195
+    },
+    {
+      "name": "walk",
+      "channels": 195
+    }
+  ],
+  "policy": {
+    "targetTriangles": 20000,
+    "errorLimit": 0.004,
+    "color": 2048,
+    "normal": 1024,
+    "data": 512,
+    "meshoptRoundTrip": "attributes exact; triangle winding/topology equivalent",
+    "retainedVertexAttributes": "byte-identical",
+    "sourcePreserved": true
+  }
+}

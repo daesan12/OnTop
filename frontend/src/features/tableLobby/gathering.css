@@ -1,0 +1,177 @@
+.gathering-hud {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  color: #fff4df;
+}
+.gathering-caption {
+  position: absolute;
+  top: 26px;
+  left: 28px;
+  padding: 16px 22px;
+  border-left: 2px solid #c3a76c;
+  background: #15291edb;
+  border-radius: 0 8px 8px 0;
+  max-width: min(520px, 46vw);
+}
+.gathering-caption > span {
+  color: #d9cba8;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+}
+.gathering-caption h2 {
+  margin: 7px 0 5px;
+  font-size: 25px;
+  font-weight: 650;
+  line-height: 1.3;
+}
+.gathering-caption p {
+  margin: 0;
+  color: #d4e8c6;
+  font-size: 14px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.gathering-actions {
+  position: absolute;
+  right: 22px;
+  bottom: 24px;
+  width: min(660px, 59vw);
+  padding: 12px 15px;
+  background: #172b23eb;
+  border: 1px solid #c3a76c55;
+  border-radius: 10px;
+  pointer-events: auto;
+}
+.gathering-actions .button-row {
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+}
+.gathering-actions button {
+  min-height: 38px;
+  padding: 8px 12px;
+  font:
+    600 13px/1.35 "Malgun Gothic",
+    sans-serif;
+  border: 1px solid #d8c9a855;
+  color: #f9edda;
+  background: #33483a;
+  border-radius: 6px;
+}
+.gathering-actions button.primary {
+  color: #1c3a29;
+  background: #d5e8c8;
+  border-color: #d5e8c8;
+}
+.gathering-actions button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.gathering-actions button:focus-visible {
+  outline: 2px solid #f1cf87;
+  outline-offset: 3px;
+}
+.gathering-actions button small {
+  display: none;
+}
+.gathering-actions .button-row > button {
+  flex: 0 0 auto;
+  width: auto;
+  white-space: nowrap;
+}
+.gathering-actions .leave-table {
+  margin: 0;
+}
+.gathering-focus .park-quick-actions {
+  bottom: 145px;
+}
+.gathering-social-hint {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: #d9cba8;
+}
+.gathering-social-hint span {
+  color: #bdcdbc;
+}
+.gathering-error {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: #ffc2ac;
+}
+.gathering-accessible-roster {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.gathering-settings-return {
+  width: 100%;
+  margin-bottom: 10px;
+}
+.gathering-role {
+  display: none;
+  padding: 3px 8px;
+  border-radius: 5px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #e2e7d8;
+  background: #20332ce8;
+  border: 1px solid #d5cbb653;
+}
+.avatar-overhead[data-gathering="participant"] .gathering-role,
+.avatar-overhead[data-gathering="spectator"] .gathering-role {
+  display: block;
+}
+.gathering-role.is-ready {
+  color: #c2f3d0;
+  border-color: #97d7aa88;
+}
+.avatar-overhead[data-gathering="spectator"] .gathering-role {
+  color: #edd29c;
+}
+@media (max-height: 760px) {
+  .gathering-caption {
+    top: 16px;
+    padding: 10px 16px;
+  }
+  .gathering-caption h2 {
+    font-size: 21px;
+  }
+  .gathering-actions {
+    bottom: 16px;
+    padding: 10px 12px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gathering-hud * {
+    transition: none;
+  }
+}
+
+/* Preserve the existing park account/chat controls while giving the table its own stage. */
+.park-page:has(.gathering-hud, .prototype-game) .park-location,
+.park-page:has(.gathering-hud, .prototype-game) .park-shortcuts { display:none; }
+.park-page:has(.gathering-hud) .follow-launcher { display:none; }
+.park-page .gathering-caption { top:24px; max-width:min(420px,43vw); }
+.park-page .gathering-actions { bottom:20px; right:calc(var(--park-edge) + 96px * var(--park-ui-scale)); z-index:5; max-height:36vh; overflow:auto; }
+.gathering-actions .button-row { display:flex; }
+.park-page .gathering-actions p { margin:0 0 8px; }
+.gathering-actions .gathering-error { color:#ffc2ac; }
+.park-page .gathering-actions .button-row button { white-space:normal; }
+.park-page .gathering-actions .settlement-note { color:#d8cfaa; font-size:12px; }
+.park-page:has(.gathering-hud) .camera-controls { bottom:180px; }
+@media(max-height:760px) { .park-page .gathering-actions { max-height:32vh; } }
+@media (min-width:901px) and (max-width:1200px) {
+  /* The park chat is 440px wide without scaling at these widths. */
+  .park-page .gathering-actions { max-width:calc(100vw - 440px - 96px * var(--park-ui-scale) - 3 * var(--park-edge)); }
+}

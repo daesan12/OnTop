@@ -1,0 +1,11 @@
+"name": "09 관리 API 비노출 확인"
+"$kind": "http-request"
+"method": "GET"
+"url": "{{baseUrl}}/actuator/env"
+"description": "health 이외 관리 API를 노출하지 않는지 확인합니다."
+"auth":
+  "type": "noauth"
+"scripts":
+  -
+    "type": "afterResponse"
+    "code": "pm.test('HTTP 404', () => pm.response.to.have.status(404));\n"

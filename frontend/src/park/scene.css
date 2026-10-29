@@ -1,0 +1,141 @@
+/* Only the park scene and newly added integration controls; teammate UI selectors stay intact. */
+.park-page {
+  height: 100dvh;
+}
+.park-page .park-scene--live {
+  background: none;
+}
+.park-page .park-scene--live::after {
+  display: none;
+}
+.park-page .park-scene--live canvas {
+  display: block;
+  touch-action: none;
+}
+.park-page .park-scene-message {
+  position: absolute;
+  left: 50%;
+  top: 40%;
+  transform: translate(-50%, -50%);
+  padding: 16px 22px;
+  border-radius: 12px;
+  background: #201d18e8;
+  color: #f3efe3;
+  max-width: 460px;
+}
+.park-page .park-scene-message button {
+  display: block;
+  margin-top: 12px;
+}
+.park-page .avatar-overlays {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.park-page .avatar-overhead {
+  position: absolute;
+  left: 0;
+  top: 0;
+  text-align: center;
+  will-change: transform;
+}
+.park-page .avatar-nickname,
+.park-page .avatar-speech {
+  max-width: 250px;
+  overflow-wrap: anywhere;
+  padding: 4px 9px;
+  border-radius: 8px;
+  background: #201d18ce;
+  color: #f3efe3;
+  font:
+    14px/1.4 'BusanDandiMyeongjo',
+    serif;
+}
+.park-page .avatar-speech {
+  margin-bottom: 5px;
+  background: #f3efe3ed;
+  color: #27372b;
+}
+.park-page .avatar-speech.avatar-activity {
+  white-space: nowrap;
+  border: 1px solid #d6ac54;
+  background: #624219;
+  color: #fff0c1;
+  box-shadow: 0 3px 12px #271b1452;
+  font-size: 14px;
+}
+.park-page .avatar-speech.avatar-activity::after {
+  background: #624219;
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+}
+.park-page .park-runtime-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 14px;
+  background: #201d18f2;
+  color: #f3efe3;
+  font-size: 15px;
+}
+.park-page .park-runtime-panel button,
+.park-page .park-runtime-tools > button,
+.park-page .park-runtime-status button {
+  border: 1px solid #e6ddbf55;
+  padding: 8px 12px;
+  border-radius: 9px;
+  color: #f3efe3;
+  background: #343127;
+  cursor: pointer;
+  font: inherit;
+}
+.park-page .park-runtime-panel button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.park-page .park-runtime-panel select {
+  color: #27372b;
+  background: #f3efe3;
+  border: 0;
+  padding: 5px;
+  border-radius: 5px;
+  font: inherit;
+}
+.park-page .park-runtime-panel p {
+  margin: 0;
+}
+.park-page .park-runtime-tools {
+  position: absolute;
+  top: var(--park-edge);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 4;
+}
+.park-page .park-runtime-tools .park-runtime-panel {
+  margin-top: 8px;
+  min-width: 270px;
+}
+.park-page .park-table-panel {
+  position: absolute;
+  bottom: calc(var(--park-edge) + 80px);
+  right: var(--park-edge);
+  z-index: 5;
+  min-width: 250px;
+  max-width: 350px;
+}
+.park-page .park-runtime-status {
+  position: absolute;
+  top: calc(var(--park-edge) + 105px);
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 600px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: #201d18ef;
+  color: #f3efe3;
+  z-index: 6;
+}
+.park-page .park-runtime-status button {
+  margin-left: 10px;
+}

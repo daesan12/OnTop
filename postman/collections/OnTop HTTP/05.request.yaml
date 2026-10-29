@@ -1,0 +1,11 @@
+"name": "05 채널 목록 — 미인증 401"
+"$kind": "http-request"
+"method": "GET"
+"url": "{{baseUrl}}/api/v1/channels"
+"description": "인증 헤더 없는 실패 예제입니다. 로그인 성공 조회는 11을 사용하세요. 임의 userId·테스트 인증 헤더는 인증되지 않습니다."
+"auth":
+  "type": "noauth"
+"scripts":
+  -
+    "type": "afterResponse"
+    "code": "pm.test('HTTP 401', () => pm.response.to.have.status(401));\npm.test('UNAUTHENTICATED', () => pm.expect(pm.response.json().code).to.eql('UNAUTHENTICATED'));"

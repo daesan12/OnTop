@@ -1,0 +1,33 @@
+"name": "18 같은 구매 키에 다른 수량 — 409"
+"$kind": "http-request"
+"method": "POST"
+"url": "{{baseUrl}}/api/v1/shop/purchases"
+"description": "14 성공 뒤 같은 계정·itemId·키를 유지하며 수량만2로 바꿔 충돌을 확인합니다. 추가 차감/지급은 없습니다."
+"auth":
+  "type": "noauth"
+"scripts":
+  -
+    "type": "beforeRequest"
+    "code": "if (!pm.environment.name) throw new Error('먼저 OnTop Local 환경을 선택해주세요.');\nif (!pm.environment.get('accessToken')) throw new Error('개인 로컬 Access JWT가 필요합니다.');\nif(!/^[1-9][0-9]*$/.test(String(pm.environment.get('shopItemId')||''))) throw new Error('13에서 판매 itemId를 선택하세요.');\nif(!pm.environment.get('purchaseRequestKey')) throw new Error('먼저14를 실행하세요.');"
+  -
+    "type": "afterResponse"
+    "code": "pm.test('HTTP 409', () => pm.response.to.have.status(409));\npm.test('IDEMPOTENCY_CONFLICT', () => pm.expect(pm.response.json().code).to.eql('IDEMPOTENCY_CONFLICT'));"
+"headers":
+  -
+    "key": "Authorization"
+    "value": "Bearer {{accessToken}}"
+  -
+    "key": "Origin"
+    "value": "{{baseUrl}}"
+  -
+    "key": "Content-Type"
+    "value": "application/json"
+  -
+    "key": "Idempotency-Key"
+    "value": "{{purchaseRequestKey}}"
+"body":
+  "mode": "raw"
+  "raw": "{\n  \"itemId\": {{shopItemId}},\n  \"quantity\": 2\n}"
+  "options":
+    "raw":
+      "language": "json"

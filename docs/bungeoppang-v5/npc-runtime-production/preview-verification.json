@@ -1,0 +1,53 @@
+{
+  "results": [
+    {
+      "id": "boy-red-scarf",
+      "triangles": 23098,
+      "geometry": 2,
+      "textures": 8,
+      "bones": 65,
+      "clips": 2
+    },
+    {
+      "id": "student-brown-coat",
+      "triangles": 20714,
+      "geometry": 2,
+      "textures": 8,
+      "bones": 65,
+      "clips": 2
+    },
+    {
+      "id": "worker-earmuffs",
+      "triangles": 19999,
+      "geometry": 2,
+      "textures": 8,
+      "bones": 65,
+      "clips": 2
+    },
+    {
+      "id": "older-flat-cap",
+      "triangles": 20246,
+      "geometry": 2,
+      "textures": 8,
+      "bones": 65,
+      "clips": 2
+    },
+    {
+      "id": "girl-pink-hat",
+      "triangles": 22590,
+      "geometry": 2,
+      "textures": 8,
+      "bones": 65,
+      "clips": 2
+    },
+    {
+      "id": "woman-glasses-bun",
+      "triangles": 20000,
+      "geometry": 2,
+      "textures": 8,
+      "bones": 65,
+      "clips": 2
+    }
+  ],
+  "errors": []
+}

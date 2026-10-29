@@ -1,0 +1,30 @@
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      connection-init-sql: "SET time_zone = '+00:00'"
+  jpa:
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+    # Production may add reviewed optional migrations without relying on profile-file precedence.
+    locations: ${DB_MIGRATION_LOCATIONS:classpath:db/migration}
+    baseline-on-migrate: false
+    validate-on-migrate: true
+    validate-migration-naming: true
+    fail-on-missing-locations: true
+
+---
+spring:
+  config:
+    activate:
+      on-profile: "dev & db & !prod & !production"
+  flyway:
+    # 공통 migration과 미니게임 V110/V111/V124/V125/V126을 함께 검증·적용한다. 기존 테이블은 초기화하지 않는다.
+    locations: classpath:db/migration,classpath:db/minigame

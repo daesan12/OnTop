@@ -1,0 +1,279 @@
+{
+  "info": {
+    "name": "OnTop Minigame",
+    "description": "붕어빵 v2: 23시작화면조회→19시작→60초 플레이→21입력 검증·보상. 20본인판조회,22포기는 별도 새 판에서 확인. 15점당1냥·KST 하루100냥·랭킹 제외·탭 이동 시간 진행. 기존 API 경로 유지. docs/minigame-api.md.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "19 붕어빵 시작 — 세션 ID 저장",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/v1/minigames/sessions",
+        "description": "MINI-01 v2: local,db + ontop.minigames.enabled=true 또는 dev,db에서 사용. dev는 V110/V111 추가 적용과 기본 활성화. 개인 환경 baseUrl=https://dev-api.on-top.world 및 해당 서버 Access JWT 사용(병합·배포 후). 같은 키는 같은 세션/불 세기. 새 키는 이전 판 포기. 60초·6칸·15점당1냥·KST 하루100냥. 탭 이동 중 시간 진행, 랭킹 제외.",
+        "auth": {
+          "type": "noauth"
+        },
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          },
+          {
+            "key": "Origin",
+            "value": "{{baseUrl}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "{{minigameRequestKey}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"minigameType\": \"BUNGEOPPANG\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.environment.name) throw new Error('먼저 OnTop Local 환경을 선택해주세요.');",
+              "if (!pm.environment.get('accessToken')) throw new Error('개인 로컬 Access JWT가 필요합니다.');",
+              "pm.environment.set('minigameRequestKey',pm.variables.replaceIn('{{$guid}}'));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+              "if(pm.response.code===201){ const s=pm.response.json(); pm.environment.set('minigameSessionId',s.minigameSessionId); pm.environment.set('minigameHeats',JSON.stringify(s.heats)); pm.environment.set('minigameStartedAt',s.startedAt); pm.environment.unset('minigameLog'); pm.expect(s.heats).to.have.lengthOf(64); pm.expect(s.rulesVersion).to.eql('v2'); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "20 본인 미니게임 상태",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/v1/minigames/sessions/{{minigameSessionId}}",
+        "description": "MINI-02: 본인만 조회. 진행 중 score/endedAt=null, rewardAmount=0. 타인은404.",
+        "auth": {
+          "type": "noauth"
+        },
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          },
+          {
+            "key": "Origin",
+            "value": "{{baseUrl}}"
+          }
+        ]
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.environment.name) throw new Error('먼저 OnTop Local 환경을 선택해주세요.');",
+              "if (!pm.environment.get('accessToken')) throw new Error('개인 로컬 Access JWT가 필요합니다.');",
+              "if(!/^[1-9][0-9]*$/.test(String(pm.environment.get('minigameSessionId')||''))) throw new Error('먼저19를 실행하세요.');"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.expect(pm.response.json().minigameSessionId).to.eql(pm.environment.get('minigameSessionId'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "21 붕어빵 입력 검증·보상 확정",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/v1/minigames/sessions/{{minigameSessionId}}/complete",
+        "description": "MINI-03 v2: 시작 후60초 이상 기다린 뒤 제출. minigameLog에 실제 FE 로그를 넣거나 비워두면 발급 heats로 황금7개(86점) 테스트 입력을 만듭니다. 테스트 입력은 개발 서버 검증용이며 실제 플레이 증거가 아닙니다. 최소50ms·같은칸300ms·6칸·상태 순서를 검증합니다. 결과86점/계산5냥, 일일상한 적용. 같은 판 재전송은 최초 결과. 422 TOO_EARLY는 기다린 후 재시도, LOG_INVALID는 첫 사유 유지. score/rewardAmount/userId 금지. 포기 테스트는 새 판을 시작한 뒤22를 실행하세요.",
+        "auth": {
+          "type": "noauth"
+        },
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          },
+          {
+            "key": "Origin",
+            "value": "{{baseUrl}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"log\": {{minigameLog}},\n  \"seenTips\": [\"START\", \"GOLD\"],\n  \"clientScore\": 86\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.environment.name) throw new Error('먼저 OnTop Local 환경을 선택해주세요.');",
+              "if (!pm.environment.get('accessToken')) throw new Error('개인 로컬 Access JWT가 필요합니다.');",
+              "if(!/^[1-9][0-9]*$/.test(String(pm.environment.get('minigameSessionId')||''))) throw new Error('먼저19를 실행하세요.');",
+              "if(!pm.environment.get('minigameLog')) {",
+              " const heats=JSON.parse(pm.environment.get('minigameHeats')||'[]'); if(heats.length!==64) throw new Error('먼저19 실행');",
+              " const log=[];",
+              " for(let i=0;i<7;i++){const slot=i%6,pour=i<6?i*350:22000,fill=pour+3000,d=Math.ceil(600000/heats[i]);",
+              " log.push({slot,action:'POUR',t:pour},{slot,action:'FILL',t:fill},{slot,action:'TURN',t:fill+d},{slot,action:'TURN',t:fill+2*d});}",
+              " log.sort((a,b)=>a.t-b.t); let last=-50; log.forEach(e=>{e.t=Math.max(e.t,last+50);last=e.t;});",
+              " pm.environment.set('minigameLog',JSON.stringify(log));",
+              "}"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "if(pm.response.code===200){const r=pm.response.json(); pm.expect(r.coinsGranted).to.be.within(0,r.coinsCalculated); pm.expect(r.todayEarned).to.be.at.most(100); pm.expect(r.rewardAmount).to.eql(r.coinsGranted);}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "22 붕어빵 중도 포기",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/v1/minigames/sessions/{{minigameSessionId}}/abandon",
+        "description": "MINI-04: PLAYING→ABANDONED, 보상0. 반복 포기는 같은 결과, 이미 완료된 세션은409로 지급 취소 방지.",
+        "auth": {
+          "type": "noauth"
+        },
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          },
+          {
+            "key": "Origin",
+            "value": "{{baseUrl}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.environment.name) throw new Error('먼저 OnTop Local 환경을 선택해주세요.');",
+              "if (!pm.environment.get('accessToken')) throw new Error('개인 로컬 Access JWT가 필요합니다.');",
+              "if(!/^[1-9][0-9]*$/.test(String(pm.environment.get('minigameSessionId')||''))) throw new Error('먼저19를 실행하세요.');"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.expect(pm.response.json().status).to.eql('ABANDONED'); pm.expect(pm.response.json().rewardAmount).to.eql(0);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "23 붕어빵 오늘 보상·첫 판·안내 조회",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/v1/minigames/sessions",
+        "description": "MINI-02 추가 조회: KST todayEarned, dailyCap100, isFirstGame, seenTips, rulesVersion v2. 랭킹 없음.",
+        "auth": {
+          "type": "noauth"
+        },
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          },
+          {
+            "key": "Origin",
+            "value": "{{baseUrl}}"
+          }
+        ]
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.environment.name) throw new Error('먼저 OnTop Local 환경을 선택해주세요.');",
+              "if (!pm.environment.get('accessToken')) throw new Error('개인 로컬 Access JWT가 필요합니다.');"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.expect(pm.response.json().dailyCap).to.eql(100); pm.expect(pm.response.json().rulesVersion).to.eql('v2');"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

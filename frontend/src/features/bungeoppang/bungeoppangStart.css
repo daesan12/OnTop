@@ -1,0 +1,79 @@
+/* The preparation guide follows the supplied cream-paper, three-step reference. */
+.bung-root .bung-panel.bung-start {
+  box-sizing: border-box;
+  top: 48%;
+  width: min(964px, calc(100vw - 48px));
+  max-height: calc(100dvh - 48px);
+  overflow-y: auto;
+  padding: 26px 50px 22px;
+  color: #4a2510;
+  background: radial-gradient(ellipse at 48% 35%, #fffdf7, #fcf5e9);
+  border: 1px solid #d7be99;
+  border-radius: 22px;
+  box-shadow: 0 12px 36px #28150940;
+  text-align: center;
+}
+.bung-start-title { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.bung-root .bung-start .bung-start-title h2 {
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0; gap: 16px;
+  margin: 0; color: #49230e; font: 900 48px/1.4 'Malgun Gothic', system-ui, sans-serif; letter-spacing: -2.8px;
+}
+.bung-start-title h2 img { display: block; width: 76px; height: 50px; object-fit: contain; }
+.bung-start-cloud { width: 170px; max-width: 20%; color: #f5dfbb; opacity: .8; }
+.bung-start-cloud svg { display: block; width: 100%; }
+.bung-start-cloud:last-child { transform: scaleX(-1); }
+.bung-root .bung-start .bung-start-intro { margin: 4px 0 27px; font-size: 19px; line-height: 1.55; color: #835735; word-break: keep-all; }
+.bung-start-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 62px; margin: 0; padding: 0; list-style: none; text-align: left; }
+.bung-start-steps > li { position: relative; min-width: 0; }
+.bung-start-step-heading { display: flex; align-items: center; gap: 12px; min-height: 50px; margin-bottom: 12px; }
+.bung-start-step-number { display: grid; place-items: center; flex: 0 0 48px; height: 48px; border-radius: 50%; background: radial-gradient(circle at 38% 30%, #603217, #371b0c); color: #fffdf8; font: 700 30px/1 system-ui, sans-serif; }
+.bung-start-step-heading > div { min-width: 0; }
+.bung-start-step-heading h3 { margin: 0 0 3px; font: 800 21px/1.25 'Malgun Gothic', system-ui, sans-serif; letter-spacing: -.9px; white-space: nowrap; }
+.bung-root .bung-start-step-heading p { margin: 0; color: #38281b; font-size: 12px; line-height: 1.45; letter-spacing: -.5px; white-space: nowrap; }
+.bung-start-steps > li > img { display: block; box-sizing: border-box; width: 100%; height: auto; aspect-ratio: 1.5; object-fit: cover; border-radius: 11px; border: 3px solid #e6d8c3; box-shadow: 0 3px 5px #6e452318; }
+.bung-start-steps > li:not(:last-child)::after { content: '➜'; position: absolute; right: -49px; top: calc(50% + 12px); transform: translateY(-50%); color: #a17345; font: 700 40px/1 system-ui, sans-serif; }
+.bung-root .bung-start .bung-start-earned { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; margin: 22px 0 12px; color: #57331b; font: 700 23px/1.5 'Malgun Gothic', system-ui, sans-serif; font-variant-numeric: tabular-nums; }
+.bung-start-earned .bung-start-amount { display: inline-flex; align-items: center; gap: 7px; color: inherit; font: inherit; }
+.bung-start-earned img { display: block; width: 28px; height: 28px; object-fit: contain; }
+.bung-root .bung-start .bung-primary { display: block; width: 178px; min-height: 68px; margin: 0 auto; padding: 12px 24px; border: 1px solid #813a16; border-radius: 12px; background: linear-gradient(#ae5e24, #88401a); color: #fffaf4; box-shadow: 0 4px 0 #622c12, 0 7px 14px #71381029; font: 700 26px/1.4 'Malgun Gothic', system-ui, sans-serif; transition: background .15s, box-shadow .15s, transform .15s; }
+.bung-root .bung-start .bung-primary:hover:not(:disabled) { background: linear-gradient(#bc6a2d, #98491d); box-shadow: 0 5px 0 #622c12, 0 9px 17px #71381030; transform: translateY(-1px); }
+.bung-root .bung-start .bung-primary:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 2px 0 #622c12, 0 3px 8px #71381029; }
+.bung-root .bung-start .bung-primary:disabled { background: #b79a80; border-color: #a98a70; box-shadow: 0 2px 0 #957455; opacity: .7; }
+.bung-root .bung-start button:focus-visible { outline: 3px solid #84572e; outline-offset: 4px; }
+.bung-root .bung-start footer { justify-content: flex-end; margin: -38px -20px 0 0; min-height: 38px; font-size: 14px; }
+.bung-root .bung-start .bung-start-exit { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 38px; padding: 6px 12px; border: 1px solid #d8c3a7; border-radius: 9px; background: #f6eddf; color: #735137; font: 600 14px/1.4 'Malgun Gothic', system-ui, sans-serif; text-decoration: none; transition: background .15s, border-color .15s; }
+.bung-root .bung-start .bung-start-exit:hover { background: #eddfc9; border-color: #bb9a72; }
+.bung-root .bung-start .bung-start-exit kbd { margin: 0; padding: 2px 5px; border: 1px solid #d1b997; border-radius: 4px; background: #fffaf1; color: inherit; font: 600 11px/1.25 'Malgun Gothic', system-ui, sans-serif; }
+.bung-start .bung-error { margin: 8px 0 12px; }
+@media (max-width: 1000px) {
+  .bung-root .bung-panel.bung-start { padding: 24px 30px 22px; }
+  .bung-start-steps { gap: 40px; }
+  .bung-start-step-heading { gap: 8px; }
+  .bung-start-step-number { flex-basis: 38px; height: 38px; font-size: 25px; }
+  .bung-start-step-heading h3 { font-size: 18px; }
+  .bung-root .bung-start-step-heading p { font-size: 11px; letter-spacing: -.7px; }
+  .bung-start-steps > li:not(:last-child)::after { right: -34px; font-size: 29px; }
+  .bung-root .bung-start footer { margin-right: -10px; }
+}
+@media (max-width: 700px) {
+  .bung-root .bung-panel.bung-start { top: 50%; width: calc(100vw - 24px); max-height: calc(100dvh - 24px); padding: 20px; border-radius: 18px; }
+  .bung-root .bung-start .bung-start-title h2 { font-size: 30px; gap: 9px; letter-spacing: -1.8px; }
+  .bung-start-title { justify-content: center; gap: 8px; }
+  .bung-start-title h2 img { width: 51px; height: 36px; }
+  .bung-start-cloud { display: none; }
+  .bung-root .bung-start .bung-start-intro { font-size: 14px; margin: 6px 0 20px; }
+  .bung-start-steps { grid-template-columns: 1fr; gap: 22px; }
+  .bung-start-step-heading { min-height: 40px; margin-bottom: 8px; }
+  .bung-start-step-heading h3 { font-size: 19px; }
+  .bung-root .bung-start-step-heading p { font-size: 12px; white-space: normal; }
+  .bung-start-steps > li > img { aspect-ratio: 1.85; }
+  .bung-start-steps > li:not(:last-child)::after { display: none; }
+  .bung-root .bung-start .bung-start-earned { margin-top: 20px; font-size: 17px; }
+  .bung-root .bung-start .bung-primary { width: 150px; min-height: 52px; font-size: 21px; }
+  .bung-root .bung-start footer { margin: 14px 0 0; justify-content: center; font-size: 14px; }
+  .bung-root .bung-start .bung-start-exit { min-height: 44px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bung-root .bung-start .bung-primary,
+  .bung-root .bung-start .bung-start-exit { transition: none; }
+}

@@ -1,0 +1,18 @@
+"name": "38 내 경기 내역 다음 페이지"
+"$kind": "http-request"
+"method": "GET"
+"url": "{{baseUrl}}/api/v1/users/me/games?size=20&cursor={{historyCursor}}"
+"description": "HISTORY-01/02. 기존 회원 Access JWT·db 프로필 필요. 본인 종료/무효 경기만 DB ID 내림차순, size1~100·기본20. gameCode OMOK/DICE/ONE_CARD/LIAR_BRIDGE, 정산대기는 내역과 확정 승패에 포함. 무효는 내역만 표시·통계 제외. played=wins+losses+forfeits+draws, 기권을 losses에 중복 포함하지 않음. 조회는 판돈/정산/원장을 수정하지 않음. cursor는 마지막 경기 DB ID 문자열. 뒤늦게 종료된 경기는 새 첫 조회에서 다시 확인. docs/game-history-api.md."
+"auth":
+  "type": "noauth"
+"scripts":
+  -
+    "type": "beforeRequest"
+    "code": "if (!pm.environment.name) throw new Error('먼저 OnTop Local 환경을 선택해주세요.');\nif(!pm.environment.get('historyCursor')) throw new Error('다음 페이지가 없습니다. 37을 먼저 조회하세요.');"
+  -
+    "type": "afterResponse"
+    "code": "pm.test('HTTP 200', () => pm.response.to.have.status(200));\npm.test('본인 경기 내역 계약', () => {\n    const b=pm.response.json();pm.expect(b.items).to.be.an('array');\n    pm.expect(b.hasNext).to.be.a('boolean');\n    b.items.forEach(i=>{pm.expect(i.gameSessionId).to.be.a('string');pm.expect(['FINISHED','INVALID']).to.include(i.status);});\n    pm.expect(b.hasNext ? typeof b.nextCursor==='string' : b.nextCursor===null).to.eql(true);\n    pm.environment.set('historyCursor',b.nextCursor || '');\n});"
+"headers":
+  -
+    "key": "Authorization"
+    "value": "Bearer {{accessToken}}"

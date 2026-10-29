@@ -1,0 +1,9 @@
+dist-tablet/
+node_modules/
+dist/
+.pnpm-store/
+*.tsbuildinfo
+.vercel
+.env*
+!.env.example
+audio-source/

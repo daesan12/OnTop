@@ -1,0 +1,44 @@
+{
+  "tasks": [
+    {
+      "taskId": "b19be13f-03bb-4130-b77c-bfd4a7292668",
+      "type": "image_to_model",
+      "status": "success",
+      "credits": 60,
+      "model": "v3.1-20260211"
+    },
+    {
+      "taskId": "48770dfd-133d-49a7-b2ff-9aff509e4a57",
+      "type": "image_to_model",
+      "status": "success",
+      "credits": 60,
+      "model": "v3.1-20260211"
+    },
+    {
+      "taskId": "f03c126e-69b7-4355-9f15-f447135b5af4",
+      "type": "image_to_model",
+      "status": "success",
+      "credits": 60,
+      "model": "v3.1-20260211"
+    },
+    {
+      "taskId": "d09f37f2-32be-4064-bebf-8f3349979161",
+      "type": "image_to_model",
+      "status": "success",
+      "credits": 60,
+      "model": "v3.1-20260211"
+    },
+    {
+      "taskId": "6f9d7137-e4d3-4ba6-9359-5adddef4df63",
+      "type": "image_to_model",
+      "status": "success",
+      "credits": 60,
+      "model": "v3.1-20260211"
+    }
+  ],
+  "totalCredits": 300.0,
+  "balance": {
+    "balance": 550,
+    "frozen": 0
+  }
+}

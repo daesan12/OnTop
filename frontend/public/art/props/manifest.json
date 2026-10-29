@@ -1,0 +1,26 @@
+[
+  {
+    "source": "붕어빵카트.glb",
+    "sourceBytes": 61931316,
+    "sourceSha256": "ed8c50adac7c8c680fdec0a30ba4f0d1bf990a53d05f53f9da16276696415a05",
+    "runtime": "fish-bread-cart.glb",
+    "runtimeBytes": 2562296,
+    "runtimeSha256": "63829429e464f1130b269e76fc60649fdd3cb0134dbe1b9ae871377b22505a7a",
+    "lods": [
+      {
+        "name": "tripo_mesh_3c64912a-9bd1-4824-9e43-ae412276c859",
+        "triangles": 39705,
+        "primitives": 8
+      },
+      {
+        "name": "tripo_mesh_3c64912a-9bd1-4824-9e43-ae412276c859.001",
+        "triangles": 31157,
+        "primitives": 8
+      }
+    ],
+    "provenance": "User-supplied local GLB for this project; no independent license assertion.",
+    "processing": "UV-preserving Blender collapse; original 2048 color atlas, 1024 normal/roughness; shared-texture LOD; lossless Meshopt buffers and WebP images.",
+    "repair": "Replaced front fascia/menu/display typography, six fish mould cavities, stove and bread; retained supplied canopy, chassis, wheels and wood atlas.",
+    "gpuTextureCompression": false
+  }
+]

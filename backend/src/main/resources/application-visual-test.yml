@@ -1,0 +1,13 @@
+# local과 함께 명시적으로 켜는 브라우저 검증용 설정이다. 최종 채널 수·정원이 아니다.
+ontop:
+  world:
+    emote:
+      # 송수신 검증 코드이며 실제 3D 모션/최종 제품 목록이 아니다.
+      codes: [WAVE, CLAP]
+    channels:
+      - channel-id: visual-a
+        name: 광장 A (테스트)
+        capacity: 4
+      - channel-id: visual-b
+        name: 광장 B (테스트)
+        capacity: 4

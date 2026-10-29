@@ -1,0 +1,92 @@
+import { useMemo } from 'react'
+
+import { GOMOKU, TABLE_SEATS, tableScale, type TableAnchor } from '../../config'
+import { interactWithTable } from '../tableLobby/tableInteraction'
+import { Instances, type Part } from '../../world/art/Instances'
+
+import { SurfaceMaterial } from '../../world/art/SurfaceMaterial'
+import { BeveledBox } from '../../world/art/BeveledBox'
+import { PavilionWoodTable } from './PavilionWoodTable'
+import { StonePicnicTable } from './StonePicnicTable'
+import { MainPavilionTable } from './MainPavilionTable'
+import { OmokBoard } from '../../game/OmokBoard'
+import { FarkleTable } from '../../game/farkle/FarkleTable'
+import { OneCardBoard } from '../../game/onecard/OneCardBoard'
+import { BridgeBoard } from '../../game/bridge/BridgeBoard'
+import { usePresentedChairCount } from '../tableLobby/useTablePresentation'
+
+/** Stable game/seat anchors survive replacement of the visual table subtree. */
+export function TableShell({ anchor, onInspect = interactWithTable }: {
+  anchor: TableAnchor; onInspect?: (id: string) => void
+}) {
+  const fourSeats = true
+  const mainPavilion = anchor.pavilionId === 'P0'
+  const seatCount = usePresentedChairCount(anchor)
+  const parts = useMemo(() => {
+    const stone: Part[] = [
+      { p: [0, 0.99, 0], s: [2.1, 0.14, 1.6], c: '#c7c6b9' },
+    ]
+    const supports: Part[] = []
+    for (const x of [-0.7, 0.7])
+      supports.push({ p: [x, 0.46, 0], s: [0.28, 0.92, 1.15], c: '#545e57' })
+    for (const z of GOMOKU.seatZ) {
+      stone.push({ p: [0, 0.48, z], s: [2.1, 0.16, 0.52], c: '#c3c3b7' })
+      for (const x of [-0.7, 0.7])
+        supports.push({ p: [x, 0.2, z], s: [0.28, 0.4, 0.43], c: '#545e57' })
+    }
+    if (fourSeats)
+      for (const { x, z } of TABLE_SEATS.slice(2, seatCount)) {
+        stone.push({ p: [x, 0.48, z], s: [0.52, 0.16, 0.85], c: '#c3c3b7' })
+        supports.push({ p: [x, 0.2, z], s: [0.32, 0.4, 0.6], c: '#545e57' })
+      }
+    return { stone, supports }
+  }, [fourSeats, seatCount])
+  return (
+    <group
+      scale={[tableScale(anchor), 1, tableScale(anchor)]}
+      name={anchor.id}
+      position={[...anchor.position]}
+      userData={{ assetId: anchor.assetId, chairCount: seatCount }}
+      onClick={(event) => {
+        event.stopPropagation()
+        onInspect(anchor.id)
+      }}
+    >
+      {anchor.picnicId ? (
+        <StonePicnicTable seatCount={seatCount} />
+      ) : mainPavilion ? (
+        <MainPavilionTable seatCount={seatCount} />
+      ) : anchor.pavilionId ? (
+        <PavilionWoodTable seatCount={seatCount} />
+      ) : (
+        <>
+          <Instances
+            parts={parts.stone}
+            material={
+              <SurfaceMaterial
+                kind="stone"
+                mapping="box"
+                meters={1.25}
+                color="#ffffff"
+              />
+            }
+          >
+            <BeveledBox />
+          </Instances>
+          <Instances
+            parts={parts.supports}
+            material={
+              <meshStandardMaterial metalness={0.35} roughness={0.62} />
+            }
+          >
+            <boxGeometry />
+          </Instances>
+        </>
+      )}
+      <OmokBoard anchor={anchor} />
+      <FarkleTable anchor={anchor} />
+      <OneCardBoard anchor={anchor} />
+      <BridgeBoard anchor={anchor} />
+    </group>
+  )
+}
