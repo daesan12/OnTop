@@ -79,6 +79,29 @@ function nearTable() {
     benchId: '', fitnessId: '', fitnessStartedAt: 0, telescopeId: '', telescopeYaw: 0, telescopePitch: 0, followTargetId: '' })
   return TABLES[0]!.id
 }
+it('a delayed movement rejection after approved seating cannot become the tablet error', async () => {
+  const anchor = nearTable()
+  runtime.move(1, 0, false, false)
+  await vi.waitFor(() => expect(socket.requests.some(r => r.type === 'WORLD_MOVE')).toBe(true))
+  const movement = socket.requests.find(r => r.type === 'WORLD_MOVE')!
+  expect(await runtime.joinTable(anchor)).toBe(true)
+  socket.emit('ERROR', { code: 'TABLE_BUSY', message: '먼저 테이블에서 퇴장해주세요.' }, movement.requestId)
+  await Promise.resolve()
+  expect(useSession.getState().error).toBe('')
+  expect(useSession.getState().tableId).toBe(table.tableId)
+  // A real failure from a different operation must still be visible.
+  socket.emit('ERROR', { code: 'TABLE_BUSY', message: '실제 테이블 설정 오류' }, 'configuration-error')
+  expect(useSession.getState().error).toBe('실제 테이블 설정 오류')
+})
+it('a movement rejection while standing still reports a server seating mismatch', async () => {
+  nearTable()
+  runtime.move(1, 0, false, false)
+  await vi.waitFor(() => expect(socket.requests.some(r => r.type === 'WORLD_MOVE')).toBe(true))
+  const movement = socket.requests.find(r => r.type === 'WORLD_MOVE')!
+  socket.emit('ERROR', { code: 'TABLE_BUSY', message: '먼저 테이블에서 퇴장해주세요.' }, movement.requestId)
+  await Promise.resolve()
+  expect(useSession.getState().error).toBe('먼저 테이블에서 퇴장해주세요.')
+})
 it('a facility-blocked table action is temporary guidance and never becomes a persistent session error', async () => {
   const anchor = nearTable()
   useFacilityState.setState({ pending: true })

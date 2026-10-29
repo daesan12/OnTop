@@ -32,7 +32,9 @@ export function gatheringCameraActive() {
   return !!getGathering()?.finished
 }
 export function returnToWaiting() {
-  const m = getGathering(), result = useGame.getState().lastResult
-  if (!m?.canReturn || !result) return
-  useGame.setState({ lastResult: null, dismissedResult: { gameId: result.gameSessionId, version: result.version } })
+  const m = getGathering(), state = useGame.getState(), result = state.lastResult ?? state.result
+  if (!m?.canReturn || !result || state.pending || result.gameSessionId !== (state.permittedGameId || state.completedGameId)) return
+  useGame.setState({ game: null, result: null, lastResult: null, permittedGameId: '', resultCandidateGameId: '', recovery: 'LOBBY',
+    completedGameId: result.gameSessionId, awaitingVersion: -1, uncertain: false, error: '',
+    dismissedResult: { gameId: result.gameSessionId, version: result.version } })
 }
