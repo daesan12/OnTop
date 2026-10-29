@@ -9,10 +9,16 @@ const event = (type: string, code: string, flags: Flags = {}, cancelable = true)
   Object.assign(new Event(type, { cancelable }), { code, key: code, ...flags }) as KeyboardEvent
 const restricted: [string, Flags][] = [
   ['F12', {}], ['F12', { ctrlKey: true }], ['F12', { shiftKey: true }], ['F12', { metaKey: true }],
+  ...['KeyI', 'KeyJ', 'KeyC'].map(code => [code, { ctrlKey: true, shiftKey: true }] as [string, Flags]),
 ]
 const preserved: [string, Flags][] = [
   ['F11', {}], ['F5', {}], ['F5', { ctrlKey: true }], ['F5', { shiftKey: true }],
-  ...['KeyI', 'KeyJ', 'KeyC', 'KeyK'].map(code => [code, { ctrlKey: true, shiftKey: true }] as [string, Flags]),
+  ['KeyK', { ctrlKey: true, shiftKey: true }],
+  ...['KeyI', 'KeyJ', 'KeyC'].flatMap(code => [
+    [code, { ctrlKey: true }], [code, { shiftKey: true }],
+    [code, { ctrlKey: true, shiftKey: true, altKey: true }],
+    [code, { ctrlKey: true, shiftKey: true, metaKey: true }],
+  ] as [string, Flags][]),
   ...['KeyI', 'KeyJ', 'KeyC', 'KeyK', 'KeyU'].map(code => [code, { metaKey: true, altKey: true }] as [string, Flags]),
   ...['KeyU', 'KeyS', 'KeyP', 'KeyR'].flatMap(code => [
     [code, { ctrlKey: true }], [code, { metaKey: true }], [code, { ctrlKey: true, shiftKey: true }],
@@ -48,9 +54,12 @@ it.each(preserved)('preserves game, editing, accessibility and browser exit key 
   expect(win.dispatchEvent(event('keyup', code, flags))).toBe(true)
 })
 
-it('restricts only F12, including the key fallback, and preserves composition and AltGraph', () => {
+it('handles key fallback and non-Latin layouts while preserving composition and AltGraph', () => {
   expect(isRestrictedBrowserShortcut(event('keydown', '', { key: 'F12' }))).toBe(true)
-  expect(isRestrictedBrowserShortcut(event('keydown', 'KeyI', { key: 'ㅑ', ctrlKey: true, shiftKey: true }))).toBe(false)
+  expect(isRestrictedBrowserShortcut(event('keydown', '', { key: 'i', ctrlKey: true, shiftKey: true }))).toBe(true)
+  expect(isRestrictedBrowserShortcut(event('keydown', 'KeyI', { key: 'ㅑ', ctrlKey: true, shiftKey: true }))).toBe(true)
+  expect(isRestrictedBrowserShortcut(event('keydown', 'KeyI', { ctrlKey: true, shiftKey: true, isComposing: true }))).toBe(false)
+  expect(isRestrictedBrowserShortcut(event('keydown', 'KeyI', { ctrlKey: true, shiftKey: true, getModifierState: () => true }))).toBe(false)
   expect(isRestrictedBrowserShortcut(event('keydown', 'F12', { isComposing: true }))).toBe(false)
   expect(isRestrictedBrowserShortcut(event('keydown', 'F12', { getModifierState: () => true }))).toBe(false)
 })
@@ -94,13 +103,13 @@ it('clears transient controls on blur, hidden tab, pagehide and fullscreen chang
   expect(interrupt).toHaveBeenCalledTimes(1)
 })
 
-it('does not turn a restricted Ctrl chord into a standalone Ctrl mouse-look request', () => {
+it.each(['F12', 'KeyI', 'KeyJ', 'KeyC'])('does not turn restricted %s into a standalone Ctrl mouse-look request', code => {
   const canvas = { focus: vi.fn(), requestPointerLock: vi.fn(() => Promise.resolve()) } as unknown as HTMLCanvasElement
   const mouse = installMouseLook(canvas, () => true, vi.fn(), vi.fn())
   const release = () => mouse.release()
   win.addEventListener('ontop-browser-interrupt', release)
   win.dispatchEvent(event('keydown', 'ControlLeft', { ctrlKey: true }))
-  win.dispatchEvent(event('keydown', 'F12', { ctrlKey: true }))
+  win.dispatchEvent(event('keydown', code, { ctrlKey: true, shiftKey: code !== 'F12' }))
   win.dispatchEvent(event('keyup', 'ControlLeft'))
   expect(canvas.requestPointerLock).not.toHaveBeenCalled()
   win.removeEventListener('ontop-browser-interrupt', release); mouse.dispose()
