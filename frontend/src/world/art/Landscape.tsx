@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { BufferGeometry, Float32BufferAttribute, IcosahedronGeometry, MeshLambertMaterial } from 'three'
+import { BufferGeometry, Float32BufferAttribute } from 'three'
 import {
   TABLES,
   PARK_SIZE,
@@ -11,9 +11,9 @@ import {
   groundHeight,
   type QualityPreset,
 } from '../../config'
-import { seeded, type Part } from './Instances'
-import { SpatialBatchInstances } from './SpatialBatches'
+import { SpatialInstances, seeded, type Part } from './Instances'
 import { isParkLawn } from './ParkGround'
+import { SurfaceMaterial } from './SurfaceMaterial'
 import { DetailInstances, DetailMaterial } from './DetailInstances'
 
 // World-space distance budget for sub-meter decoration, independent of map area.
@@ -22,8 +22,6 @@ const detailRanges: Record<QualityPreset, number> = {
   medium: 44,
   high: 56,
 }
-const shrubGeometry = new IcosahedronGeometry(1, 0)
-const shrubMaterial = new MeshLambertMaterial({ color: '#b0c090' })
 
 function vegetation(quality: QualityPreset) {
   const rand = seeded(4317)
@@ -56,7 +54,7 @@ function vegetation(quality: QualityPreset) {
   })
   {
     const density = Math.round(
-      (quality === 'low' ? 4000 : quality === 'medium' ? 6400 : 8000) *
+      (quality === 'low' ? 24000 : quality === 'medium' ? 40000 : 64000) *
         (PARK_SIZE / 320) ** 2,
     )
     for (
@@ -88,11 +86,11 @@ function vegetation(quality: QualityPreset) {
   return { shrubs, grass, flowers, fallen }
 }
 
-// Two tapered blades per tuft, no transparent overdraw.
+// Four bent, tapered blades per tuft (12 triangles), no transparent overdraw.
 const grassGeometry = (() => {
   const vertices: number[] = [],
     colors: number[] = []
-  for (let i = 0; i < 2; i++) {
+  for (let i = 0; i < 4; i++) {
     const a = i * 2.4,
       c = Math.cos(a),
       s = Math.sin(a)
@@ -124,13 +122,24 @@ const grassGeometry = (() => {
 export function Vegetation({ quality }: { quality: QualityPreset }) {
   const detailRange = detailRanges[quality]
   const art = useMemo(() => vegetation(quality), [quality])
-  const shrubs = useMemo(() => [{ geometry: shrubGeometry, parts: art.shrubs }], [art])
   return (
     <group
       name="art-vegetation"
       userData={{ assetId: 'placeholder/vegetation' }}
     >
-      <SpatialBatchInstances batches={shrubs} material={shrubMaterial} shadow name="park-shrubs-multi-draw" />
+      <SpatialInstances
+        parts={art.shrubs}
+        material={
+          <SurfaceMaterial
+            kind="grass"
+            strength={0.7}
+            color="#b0c090"
+            detail={0.3}
+          />
+        }
+      >
+        <icosahedronGeometry args={[1, 1]} />
+      </SpatialInstances>
       <DetailInstances
         name="detail-grass"
         parts={art.grass}
@@ -206,10 +215,9 @@ const contacts: Part[] = [
 /** Cheap analytical contact shade for Low; no extra lights, render targets or textures. */
 export function ContactShade() {
   return (
-    <DetailInstances
-      name="park-contact-shade"
-      range={Infinity}
+    <SpatialInstances
       parts={contacts}
+      shadow={false}
       material={
         <shaderMaterial
           transparent
@@ -220,6 +228,6 @@ export function ContactShade() {
       }
     >
       <planeGeometry />
-    </DetailInstances>
+    </SpatialInstances>
   )
 }

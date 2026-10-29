@@ -17,6 +17,7 @@ export function ParkTools() {
       focusedAnchorId: s.focusedAnchorId,
       tableId: s.tableId,
       bindings: s.bindings,
+      mapContractStatus: s.mapContractStatus,
     })),
   )
   const facilityNotice = useFacilityUseNotice(s => s.message)
@@ -44,7 +45,10 @@ export function ParkTools() {
               ? '공원 서버 연결 중…'
               : '다시 연결하고 있어요…')}
           {state.status === 'error' && (
-            <button onClick={runtime.reconnect}>다시 연결</button>
+            <>
+              {state.mapContractStatus === 'mismatch' && <button onClick={() => window.location.reload()}>페이지 새로고침</button>}
+              <button onClick={runtime.reconnect}>다시 연결</button>
+            </>
           )}
         </div>
       )}

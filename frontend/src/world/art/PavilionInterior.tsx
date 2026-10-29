@@ -12,7 +12,7 @@ import {
 
 // Two shared geometry sets, no new texture downloads or per-frame rebuilds.
 const sizes = new Map(
-  [...new Set(PARK_PAVILIONS.map((p) => p.scale))].map((scale) => [
+  [...new Set<number>(PARK_PAVILIONS.map((p) => p.scale))].map((scale) => [
     scale,
     {
       bench: createPavilionBench(scale),
@@ -31,10 +31,12 @@ const sizes = new Map(
   ]),
 )
 
-export function PavilionInterior() {
+export function PavilionInterior({ placements = PARK_PAVILIONS }: {
+  placements?: readonly { id: string; x: number; z: number; floor: number; scale: number }[]
+} = {}) {
   return (
     <group name="pavilion-timber-benches">
-      {PARK_PAVILIONS.map((p) => {
+      {placements.map((p) => {
         const art = sizes.get(p.scale)!
         return (
           <group

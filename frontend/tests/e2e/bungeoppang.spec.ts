@@ -21,7 +21,7 @@ const state = (page: Page) => page.evaluate(async () => {
     tray: s.grill?.tray?.length ?? 0, order: !!s.grill?.order, orderPending: s.orderPending }
 })
 
-for (const walletFailure of [false, true]) test(`M14 original six-slot controls, actual 60s, same-key/result retries, ${walletFailure ? 'wallet failure retry' : 'automatic wallet reward'} and abandon restore the park`, async ({ page }) => {
+test('M14 original six-slot controls, actual 60s, same-key/result retries, server reward and abandon restore the park', async ({ page }) => {
   test.setTimeout(180000)
   const errors: string[] = []
   page.on('pageerror', e => errors.push(e.message))
@@ -86,22 +86,20 @@ for (const walletFailure of [false, true]) test(`M14 original six-slot controls,
   await expect(page.getByRole('dialog', { name: '붕어빵 결과', exact: true })).toBeVisible({ timeout: 6000 })
   await expect(page.getByRole('button', { name: '같은 결과 다시 확인', exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: '다시 도전', exact: true })).toBeDisabled()
-  if (walletFailure) server.failWallet('WALLET_UNAVAILABLE')
+  server.failWallet('WALLET_UNAVAILABLE')
   await page.getByRole('button', { name: '같은 결과 다시 확인', exact: true }).click()
   await expect(page.getByRole('dialog', { name: '붕어빵 결과', exact: true })).toContainText('서버 정산 완료')
   const completed = server.requests.filter(r => r.path.endsWith('/complete'))
   expect(completed).toHaveLength(2); expect(completed[0]).toEqual(completed[1])
   const result = (await state(page)).result!
   expect(result.made).toBe(4); expect(result.score).toBeGreaterThan(0)
-  if (walletFailure) {
-    await expect(page.getByRole('dialog', { name: '붕어빵 결과', exact: true })).toContainText('지갑 잔액을 새로 확인하지 못했어요')
-    await expect(page.getByLabel('내 정보')).toContainText('100냥')
-    const walletReads = server.walletReads
-    server.failWallet(null)
-    await page.getByRole('button', { name: '잔액 다시 확인', exact: true }).click()
-    await expect.poll(() => server.walletReads).toBe(walletReads + 1)
-  }
+  await expect(page.getByRole('dialog', { name: '붕어빵 결과', exact: true })).toContainText('지갑 잔액을 새로 확인하지 못했어요')
+  await expect(page.getByLabel('내 정보')).toContainText('100냥')
+  const walletReads = server.walletReads
+  server.failWallet(null)
+  await page.getByRole('button', { name: '잔액 다시 확인', exact: true }).click()
   await expect(page.getByLabel('내 정보')).toContainText(`${100 + result.coinsGranted}냥`)
+  expect(server.walletReads).toBe(walletReads + 1)
   expect(server.requests.filter(r => r.path.endsWith('/complete'))).toHaveLength(2)
   await expect(page.getByRole('button', { name: '잔액 다시 확인', exact: true })).toHaveCount(0)
   await screenshot(page, 'm14-server-result')

@@ -1,4 +1,4 @@
-import { MAILBOX } from '../../config'
+import { MAILBOX } from '../../park/mapConfig'
 import type { Pose } from '../../network/worldClient'
 
 export const FEEDBACK_TIMEOUT_MS = 10_000

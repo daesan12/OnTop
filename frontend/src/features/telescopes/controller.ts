@@ -1,4 +1,4 @@
-import { TELESCOPE } from '../../config'
+import { TELESCOPE } from '../../park/mapConfig'
 import { tableBusy } from '../../game/store'
 import { avatars, authoritativePose, cancelAvatarEmote, refreshActivityPresentation, useSession } from '../../network/worldClient'
 import { parkRuntime } from '../../park/runtime/runtime'

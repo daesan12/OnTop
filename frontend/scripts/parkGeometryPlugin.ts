@@ -31,7 +31,7 @@ export function parkGeometryPlugin(): Plugin {
         const props = codec.capturePropBuilds()
         // Only CPU-only static art modules run here; no renderer or auth boot.
         for (const module of [
-          'art/activityPropGeometry.ts', 'art/fishCartGeometry.ts', 'art/mailboxGeometry.ts', 'art/notesBoardGeometry.ts',
+          'art/activityPropGeometry.ts', 'art/fishCartGeometry.ts', 'art/mailboxGeometry.ts',
           'art/LandmarkRefinements.tsx', 'art/ReferenceBenchFrames.tsx',
           'art/ReferenceStreetProps.tsx', 'art/FitnessStyle.tsx', 'art/TelescopeModel.tsx',
           'art/TraditionalPavilionLanterns.tsx', 'pigeons/pigeonGeometry.ts', 'art/Pavilion.tsx', 'art/StonePagoda.tsx',

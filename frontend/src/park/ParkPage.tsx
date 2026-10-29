@@ -12,6 +12,7 @@ import { ParkRuntimeProvider } from './runtime/ParkRuntime'
 import { ParkTools } from './ParkTools'
 import type { QualityPreset } from '../config'
 import { ParkInteractionHint } from '../features/interactions/ParkInteractionHint'
+import { ConstructionNotice } from '../features/construction/ConstructionNotice'
 import { EmoteWheel } from '../features/emotes/EmoteWheel'
 import { TelescopePanel } from '../features/telescopes/TelescopePanel'
 import { FeedbackPanel } from '../features/feedback/FeedbackPanel'
@@ -122,6 +123,7 @@ function ParkContent({ onExit, exitError, onAuthEnded }: ParkProps) {
         <ParkTools />
         {!omokFocus && <>
         <ParkInteractionHint />
+        <ConstructionNotice />
         <FacilityStatus />
         <EmoteWheel />
         <TelescopePanel />

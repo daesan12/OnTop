@@ -1,5 +1,5 @@
-import { BENCHES, FITNESS_STATIONS, TELESCOPES } from '../config'
-import { EXPECTED_MAP_VERSION } from '../config/mapVersion'
+import { BENCH_IDS, FITNESS_STATIONS, TELESCOPES } from '../park/mapConfig'
+import { EXPECTED_MAP_VERSION } from '../park/mapConfig'
 import { clearRoamingInput } from '../world/inputOwnership'
 import { parseFacilityCatalogPage, parseFacilitySnapshot, type FacilityLease, type FacilityKind } from '../features/facilities/protocol'
 import { resetFacilities, useFacilityState } from '../features/facilities/state'
@@ -7,13 +7,14 @@ import type { Envelope } from './protocol'
 
 interface Scope { generation: number; channelId: string; userId: string; connected: boolean }
 interface Dependencies {
+  mapVersion?(): string
   scope(): Scope
   request(type: string, payload: Record<string, unknown>, expected: readonly string[], onId: (id: string) => void): Promise<Envelope>
   apply(leases: readonly FacilityLease[]): void
   blockMovement(): void
 }
 const expectedKinds = new Map<string, FacilityKind>([
-  ...BENCHES.map((_, i) => [`bench-${i}`, 'BENCH'] as const),
+  ...BENCH_IDS.map(id => [id, 'BENCH'] as const),
   ...FITNESS_STATIONS.map(s => [s.id, 'FITNESS'] as const),
   ...TELESCOPES.map(t => [t.id, 'TELESCOPE'] as const),
 ])
@@ -99,7 +100,7 @@ export class FacilityClient {
         let offset = 0, first: ReturnType<typeof parseFacilityCatalogPage> | undefined
         for (let pages = 0; ; pages++) {
           if (pages > 100) throw new Error('시설 목록 페이지가 올바르지 않습니다.')
-          const page = parseFacilityCatalogPage((await this.request('WORLD_FACILITY_CATALOG', offset ? { offset } : {})).payload)
+          const page = parseFacilityCatalogPage((await this.request('WORLD_FACILITY_CATALOG', offset ? { offset } : {})).payload,this.deps.mapVersion?.() ?? EXPECTED_MAP_VERSION)
           if (!this.current(epoch)) throw cancelled()
           first ??= page
           if (page.offset !== offset || page.total !== first.total || page.aimIntervalMs !== first.aimIntervalMs
@@ -134,7 +135,7 @@ export class FacilityClient {
       || (message.requestId !== null && !this.ids.has(message.requestId))
       || message.payload.channelId !== this.scope!.channelId) return false
     try {
-      const snapshot = parseFacilitySnapshot(message.payload), state = useFacilityState.getState()
+      const snapshot = parseFacilitySnapshot(message.payload,this.deps.mapVersion?.() ?? EXPECTED_MAP_VERSION), state = useFacilityState.getState()
       if (snapshot.version < state.version) return true
       if (!state.options) return false // CHECK after the complete catalog obtains the latest full snapshot.
       for (const lease of snapshot.occupancies) {
@@ -159,7 +160,7 @@ export class FacilityClient {
     }
   }
   world(payload: Record<string, unknown>) {
-    if (!this.current() || payload.channelId !== this.scope!.channelId || payload.mapVersion !== EXPECTED_MAP_VERSION
+    if (!this.current() || payload.channelId !== this.scope!.channelId || payload.mapVersion !== (this.deps.mapVersion?.() ?? EXPECTED_MAP_VERSION)
       || typeof payload.version !== 'number' || payload.version <= this.worldVersion || !Array.isArray(payload.avatars)) return
     this.worldVersion = payload.version
     const present = payload.avatars.some(a => a?.userId === this.scope!.userId)

@@ -6,6 +6,7 @@ import { NightMaterial } from '../NightLighting'
 import { metalGrain } from './ornamentTextures'
 import { heritageTextures } from './heritageTextures'
 import { useCanvasFont } from './useCanvasFont'
+import { SIMPLE_MAP } from './mapRenderProfile'
 
 export type CraftedArt = Partial<Record<PropFinish, BufferGeometry>>
 function HeritageMaterial({ finish }: { finish: string }) {
@@ -22,6 +23,7 @@ function Batches({ art, shadow, environment, heritage, surfaceMaps }: { art: Cra
     castShadow={shadow && finish !== 'glow'} receiveShadow>
     <primitive object={geometry} attach="geometry" dispose={null} />
     {heritage && finish === 'paint' && surfaceMaps?.paint ? <meshBasicMaterial vertexColors map={surfaceMaps.paint} toneMapped={false} side={DoubleSide} alphaTest={.35}/>
+      : SIMPLE_MAP ? <meshLambertMaterial vertexColors flatShading side={finish==='tile'||finish==='stone'?DoubleSide:undefined}/>
       : surfaceMaps?.[finish as PropFinish] ? <meshStandardMaterial vertexColors map={surfaceMaps[finish as PropFinish]}
       bumpMap={finish === 'wood' ? surfaceMaps.wood : undefined} bumpScale={.001}
       roughness={.94} side={finish === 'paint' ? DoubleSide : undefined} alphaTest={.35}/>
@@ -61,10 +63,10 @@ export function PropSign({ width, height, position, draw, rotation = [0, 0, 0], 
   const fontReady = useCanvasFont(font)
   const texture = useMemo(() => {
     const canvas = document.createElement('canvas')
-    canvas.width = 1024; canvas.height = Math.max(256, Math.round(1024 * height / width))
+    canvas.width = SIMPLE_MAP ? 512 : 1024; canvas.height = Math.max(SIMPLE_MAP ? 128 : 256, Math.round(canvas.width * height / width))
     draw(canvas.getContext('2d')!, canvas.width, canvas.height)
     const map = new CanvasTexture(canvas)
-    map.colorSpace = SRGBColorSpace; map.anisotropy = 4
+    map.colorSpace = SRGBColorSpace; map.anisotropy = SIMPLE_MAP ? 1 : 4
     return map
   }, [draw, width, height, fontReady])
   useEffect(() => () => texture.dispose(), [texture])

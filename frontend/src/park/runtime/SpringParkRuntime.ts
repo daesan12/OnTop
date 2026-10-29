@@ -10,7 +10,7 @@ import { OneCardDefenseEvents, ONECARD_DEFENSE_ENABLED } from '../../game/onecar
 import { BUNGEOPPANG_RANKINGS_ENABLED } from '../../features/bungeoppang/ranking'
 import { handScope, useOneCardUI } from '../../game/onecard/uiState'
 import { WorldTimeClient } from '../../network/worldTimeClient'
-import { EXPECTED_MAP } from '../../config/mapVersion'
+import {MapAdmission,MAP_UPDATE_MESSAGE,type MapIdentity} from '../../network/mapContract'
 import { FacilityClient } from '../../network/facilityClient'
 import { facilityMovementBlocked, FacilityUseBlockedError, showFacilityUseNotice, serverFacilities } from '../../features/facilities/state'
 import { RestError } from '../../network/restError'
@@ -86,6 +86,13 @@ export function validateChat(value: string): string {
 type AuthEnded = () => void
 /** One instance per app, including StrictMode's mount → cleanup → mount probe. */
 export class ParkRuntime implements ParkRuntimePort {
+  private readonly mapAdmission: MapAdmission
+  constructor(options: {map?:MapIdentity;requireMapMetadata?:boolean} = {}) {
+    this.mapAdmission=new MapAdmission(options.map,options.requireMapMetadata)
+  }
+  private mapConfirmationId = ''
+  private beforeMap: Envelope[] = []
+
   private active = false
   private mapReady = false
   private generation = 0
@@ -238,6 +245,7 @@ export class ParkRuntime implements ParkRuntimePort {
       scope: JSON.stringify([this.generation, intent.userId, intent.channelId, intent.tableId, intent.benchScope]) } : null)
   }
   private facilities = new FacilityClient({
+    mapVersion: () => this.mapAdmission.expected.mapVersion,
     scope: () => {
       const s = useSession.getState()
       return { generation: this.generation, channelId: s.roomId, userId: s.sessionId,
@@ -380,6 +388,7 @@ export class ParkRuntime implements ParkRuntimePort {
     void this.boot()
   }
   private async boot() {
+    this.mapAdmission.reset();this.mapConfirmationId='';this.beforeMap=[]
     if (TABLET_ENABLED) this.tablet.reset(true)
     this.mapReady = false
     this.worldTime.reset()
@@ -449,6 +458,7 @@ export class ParkRuntime implements ParkRuntimePort {
     await closing
   }
   private closed(code: number) {
+    if(this.mapAdmission.status==='mismatch')return
     if (TABLET_ENABLED) this.tablet.reset(true)
     this.mapReady = false
     this.worldTime.reset()
@@ -507,6 +517,40 @@ export class ParkRuntime implements ParkRuntimePort {
     if (message.type === 'ERROR' && message.requestId
       && this.movementRejectedAfterSeating(message.requestId, message.payload.code)) return
     // Seat states held before the table list carry no requestId, so they never meet the movement filter above.
+    if(message.type==='ERROR'&&['MAP_VERSION_MISMATCH','MAP_VERSION_REQUIRED'].includes(String(message.payload.code))) {
+      this.rejectMap(message.payload.serverMap)
+      return
+    }
+    if(this.mapAdmission.status==='mismatch')return
+    if(message.type==='WORLD_MAP_STATE') {
+      if(this.mapAdmission.status!=='confirming'||message.requestId!==this.mapConfirmationId)return
+      if(!this.mapAdmission.confirmed(message.payload.map,message.payload.verified)){this.rejectMap(message.payload.map);return}
+      this.mapReady=true
+      useSession.setState({status:'connected',mapContractStatus:'verified',serverMap:this.mapAdmission.serverMap})
+      const queued=this.beforeMap;this.beforeMap=[]
+      this.enterPreferredChannel()
+      for(const pending of queued)this.message(pending)
+      return
+    }
+    if(message.type!=='CONNECTED'&&!this.mapAdmission.allowed) {
+      if(this.mapAdmission.status==='confirming'&&/^(GAME_|TABLE_)/.test(message.type)) {
+        if(this.beforeMap.length>=64){this.rejectMap(this.mapAdmission.serverMap);return}
+        this.beforeMap.push(message)
+      }
+      return
+    }
+    if(message.type==='CONNECTED') {
+      clearTimeout(this.timer)
+      if(message.payload.map===undefined&&message.payload.mapVerificationRequired===true){this.rejectMap(undefined);return}
+      if(!this.mapAdmission.connected(message.payload.map)){this.rejectMap(message.payload.map);return}
+      useSession.setState({mapContractStatus:this.mapAdmission.status,serverMap:this.mapAdmission.serverMap})
+    }
+    if(message.type==='WORLD_STATE'&&this.mapAdmission.status==='verified'
+      &&message.payload.channelId===useSession.getState().roomId
+      &&message.payload.mapVersion!==this.mapAdmission.expected.mapVersion) {
+      this.rejectMap({...this.mapAdmission.serverMap,mapVersion:message.payload.mapVersion})
+      return
+    }
     if (this.holdInitialState(message)) return
     if (this.oneCardDefense.accept(message)) return
     if (this.oneCardPranks.accept(message)) return
@@ -529,7 +573,7 @@ export class ParkRuntime implements ParkRuntimePort {
       if (!['loading', 'ready'].includes(q.status) || message.payload.tableId !== q.tableId ||
         (message.requestId !== null && message.requestId !== this.tableWatchRequestId)) return
     }
-    receive(message)
+    receive(message,this.mapAdmission.expected.mapVersion)
     if (serverFacilities) {
       if (message.type === 'WORLD_FACILITY_STATE') this.facilities.accept(message)
       if (message.type === 'WORLD_STATE') {
@@ -586,42 +630,46 @@ export class ParkRuntime implements ParkRuntimePort {
         { nickname: profile.nickname, balance: null },
       )
       this.inputSequence = 0
-      const channels = useSession.getState().channels
-      const selected =
-        channels.find((c) => c.channelId === this.preferredChannel) ??
-        (channels.length === 1 ? channels[0] : undefined)
-      void this.confirmConnectedMap(message.payload, selected?.channelId)
+      if(this.mapAdmission.status==='confirming') {
+        useSession.setState({status:'joining'})
+        void this.confirmMap()
+      } else {this.mapReady=true;this.enterPreferredChannel()}
     }
   }
-  private async confirmConnectedMap(payload: Record<string, unknown>, channelId?: string) {
-    const generation = this.generation
-    const current = () => this.active && generation === this.generation && this.socket.connected
-    const matches = (value: unknown) => record(value) && value.mapId === EXPECTED_MAP.mapId
-      && value.schemaVersion === EXPECTED_MAP.schemaVersion && value.mapVersion === EXPECTED_MAP.mapVersion
-    this.mapReady = false
+  private enterPreferredChannel() {
+    const channels=useSession.getState().channels
+    const selected=channels.find(c=>c.channelId===this.preferredChannel)??(channels.length===1?channels[0]:undefined)
+    if(selected&&this.mapAdmission.allowed)void this.selectChannel(selected.channelId)
+  }
+  private async confirmMap() {
+    const generation=this.generation
     try {
-      // Legacy servers without metadata remain gated by the approved WORLD_STATE version.
-      if (payload.map !== undefined || payload.mapVerificationRequired === true) {
-        if (!matches(payload.map)) throw new Error('서버와 공원 맵 버전이 다릅니다. 같은 버전으로 배포됐는지 확인해주세요.')
-        if (payload.mapVerificationRequired === true) {
-          const result = await this.socket.request('WORLD_MAP_CONFIRM', { ...EXPECTED_MAP }, ['WORLD_MAP_STATE'])
-          if (!current()) return
-          if (result.payload.verified !== true || !matches(result.payload.map))
-            throw new Error('서버 맵 버전 확인이 승인되지 않았습니다.')
-        }
-      }
-      if (!current()) return
-      this.mapReady = true
-      if (channelId) void this.selectChannel(channelId)
-    } catch (error) {
-      if (!current()) return
-      this.movement.clear(false)
-      useSession.setState({ mapCompatible: false })
-      this.report(error)
+      await this.socket.request('WORLD_MAP_CONFIRM',{...this.mapAdmission.expected},['WORLD_MAP_STATE'],id=>{this.mapConfirmationId=id})
+    } catch {
+      if(this.active&&generation===this.generation&&this.mapAdmission.status!=='mismatch')this.rejectMap(this.mapAdmission.serverMap)
     }
+  }
+  private rejectMap(serverMap:unknown) {
+    this.mapReady=false
+    this.mapAdmission.reject(serverMap)
+    this.beforeMap=[]
+    if (TABLET_ENABLED) this.tablet.reset(true)
+    this.worldTime.reset()
+    interruptForfeit()
+    this.follow.reset()
+    this.resetSpectator()
+    ++this.generation
+    this.bootAbort?.abort()
+    clearTimeout(this.timer)
+    this.facilities.reset()
+    this.movement.clear()
+    resetWorld('error',MAP_UPDATE_MESSAGE)
+    useSession.setState({mapContractStatus:'mismatch',serverMap:this.mapAdmission.serverMap})
+    // No automatic retry loop with the same stale bundle. The user chooses refresh/reconnect.
+    void this.socket.disconnect()
   }
   private async action(job: () => Promise<unknown>) {
-    if (!this.active || this.actionBusy) return false
+    if (!this.active || this.actionBusy || !this.mapAdmission.allowed) return false
     this.actionBusy = true
     useSession.setState({ pending: true, error: '' })
     const generation = this.generation

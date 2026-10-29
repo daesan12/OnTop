@@ -1,13 +1,4 @@
 // Dev-server-only inspection helper. Never imported by production code or bundled with the app.
-export function pavilionChairProbe(anchorId: string) {
-  const table = root().scene.getObjectByName(anchorId)
-  const counts: number[] = []
-  table?.getObjectByName('main-table-timber-chairs')?.traverse(object => {
-    if ('isInstancedMesh' in object && object.isInstancedMesh) counts.push((object as InstancedMesh).count)
-  })
-  return { chairCount: table?.userData.chairCount, counts }
-}
-
 export function equipmentProbe() {
   const s = useSession.getState()
   return { approved: s.equipment, models: s.ids.map(id => {
@@ -184,19 +175,9 @@ export function farkleProbe() {
   const { scene, camera } = root()
   const dice: { id: string; face: number; held: boolean; quaternion: number[] }[] = []
   scene.traverse(o => { if (o.name.startsWith('farkle-die-')) dice.push({ id: o.name, face: o.userData.face, held: o.userData.held, quaternion: o.quaternion.toArray() }) })
-  const hourglass = scene.getObjectByName('farkle-hourglass-body'), sand = scene.getObjectByName('farkle-hourglass-sand')
-  const table = scene.getObjectByName('farkle-table-table-1')
   return { dice, cameraReady: diceCamera.ready, cup: useDiceUI.getState().cup, selected: useDiceUI.getState().selectedIds,
-    tabletopScale: table?.scale.x, hourglass: hourglass ? { flips: hourglass.userData.flips as number,
-      flipping: hourglass.userData.flipping as boolean, angle: hourglass.rotation.z, remaining: sand?.userData.remaining as number } : null,
     camera: camera.position.toArray(), direction: camera.getWorldDirection(new Vector3()).toArray(),
     fov: (camera as import('three').PerspectiveCamera).fov }
-}
-export function pointForFarkleObject(name: string) {
-  const { scene, camera, gl } = root(), object = scene.getObjectByName(name)!
-  const p = object.localToWorld(new Vector3(0, 0, name === 'farkle-scorebook-prop' ? .06 : 0)).project(camera)
-  const box = gl.domElement.getBoundingClientRect()
-  return { x: box.left + (p.x + 1) * box.width / 2, y: box.top + (1 - p.y) * box.height / 2 }
 }
 export function pointForFarkleCup() {
   const { scene, camera, gl } = root()
@@ -555,14 +536,6 @@ export function emoteProbe() {
       cloudVisible: scene.getObjectByName('fart-' + id)?.visible,
     })) }
 }
-export function publicSeatProbe(id: string) {
-  const avatar = avatars.get(id), model = root().scene.getObjectByName('avatar-' + id)
-  return { seatIndex: avatar?.seatIndex, tableId: avatar?.tableId, visible: model?.visible,
-    thigh: model?.getObjectByName('upperLeg_L')?.rotation.x,
-    knee: model?.getObjectByName('lowerLeg_L')?.rotation.x,
-    position: model?.position.toArray(), ownTable: useSession.getState().tableId,
-    watchedTable: useSession.getState().watchedTableId }
-}
 export function fixtureInputFlag(flag: 'manualOpen' | 'mapOpen' | 'minigameOpen', open: boolean) { inputState[flag] = open }
 
 import { PULLDOWN_LIFT, AVATAR, createFitnessMotion, sampleFitnessMotion } from '../../src/config'
@@ -723,10 +696,8 @@ export function previewPublicMatch(ref: PublicMatchReference) {
   ;(publicMatchService as typeof publicMatchService & { set(ref: PublicMatchReference): void }).set(ref)
 }
 export function onecardProbe() {
-  const scene = root().scene, top = scene.getObjectByName('onecard-public-top')
-  let backs = 0
-  scene.traverse(object => { if (object.name.startsWith('onecard-held-hand-')) backs += object.userData.displayedCount ?? 0 })
-  return { top: top?.userData.cardId, backs, visible: !!scene.getObjectByName('onecard-table'),
+  const scene = root().scene, top = scene.getObjectByName('onecard-public-top'), backs = scene.getObjectByName('onecard-public-card-backs') as InstancedMesh | undefined
+  return { top: top?.userData.cardId, backs: backs?.count ?? 0, visible: !!scene.getObjectByName('onecard-table'),
     publicData: JSON.stringify({ session: useSession.getState(), avatars: [...avatars] }) }
 }
 export function bridgeProbe() {
