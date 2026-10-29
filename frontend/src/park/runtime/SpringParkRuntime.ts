@@ -95,6 +95,7 @@ export class ParkRuntime implements ParkRuntimePort {
   private bootAbort: AbortController | undefined
   private authListeners = new Set<AuthEnded>()
   private actionBusy = false
+  private movementRequests = new Set<string>()
   private inspection = 0
   private tableWatchRequestId = ''
   private obsoleteWatchRequests = new Set<string>()
@@ -502,6 +503,9 @@ export class ParkRuntime implements ParkRuntimePort {
   }
   private message(message: Envelope) {
     if (!this.active) return
+    if (message.type === 'ERROR' && message.requestId
+      && this.movementRejectedAfterSeating(message.requestId, message.payload.code)) return
+    // Seat states held before the table list carry no requestId, so they never meet the movement filter above.
     if (this.holdInitialState(message)) return
     if (this.oneCardDefense.accept(message)) return
     if (this.oneCardPranks.accept(message)) return
@@ -785,22 +789,33 @@ export class ParkRuntime implements ParkRuntimePort {
       && (!useTableLobby.getState().joiningAnchorId || stoppedIntent(intent))
       && (!(benchBusy(s.sessionId) || fitnessBusy(s.sessionId) || telescopeBusy(s.sessionId)) || stoppedIntent(intent)) && this.socket.connected
   }
+  private movementRejectedAfterSeating(requestId: string, code: unknown) {
+    const s = useSession.getState()
+    return code === 'TABLE_BUSY' && this.movementRequests.has(requestId) && s.seatIndex >= 0
+      && !!s.tableStates[s.tableId]?.seats.some(seat => seat.userId === s.sessionId)
+  }
   private async sendMovement(intent: MovementIntent, scope: string) {
     if (scope !== this.movementScope() || !this.canSendMovement(intent)) return
     const sequence = ++this.inputSequence
+    let requestId = ''
     try {
       await this.socket.request('WORLD_MOVE', {
         seq: sequence,
         ...intent,
-      }, ['WORLD_STATE'])
+      }, ['WORLD_STATE'], id => { requestId = id; this.movementRequests.add(id) })
       if (scope === this.movementScope() && this.active) clearMovementNotice(sequence)
     } catch (error) {
       if (scope !== this.movementScope() || !this.active) return
+      // The server may reject a movement sent just before the approved seat.
+      // That old movement error does not describe the current tablet action.
+      if (error instanceof ServerError && this.movementRejectedAfterSeating(requestId, error.code)) return
       // A rejected or timed-out input is never replayed; fresh key input may resume.
       this.movement.clear(false)
       if (error instanceof ServerError && error.code === 'MOVE_TOO_FREQUENT')
         showMovementNotice(error.message, sequence)
       else this.report(error)
+    } finally {
+      this.movementRequests.delete(requestId)
     }
   }
   inspectTable = (anchorId: string) => {

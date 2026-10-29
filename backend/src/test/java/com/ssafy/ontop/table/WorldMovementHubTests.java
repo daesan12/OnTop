@@ -79,6 +79,7 @@ class WorldMovementHubTests {
         user.request("WORLD_MOVE", move(0, 1));
         var position = registry.worldState("one");
         user.request("TABLE_JOIN", Map.of("tableId", hub.listTables("one").tables().getFirst().tableId()));
+        user.next("WORLD_STATE");
         var seated = registry.worldState("one");
         assertThat(seated.avatars().getFirst().position()).isEqualTo(position.avatars().getFirst().position());
         assertThat(seated.avatars().getFirst().tableSeat()).isNotNull();
@@ -86,6 +87,7 @@ class WorldMovementHubTests {
                 .isEqualTo("TABLE_BUSY");
         assertThat(registry.worldState("one")).isEqualTo(seated);
         user.request("TABLE_LEAVE", Map.of());
+        user.next("WORLD_STATE");
         user.request("CHANNEL_LEAVE", Map.of());
         assertThat(registry.worldState("one").avatars()).isEmpty();
         assertThat(user.request("WORLD_MOVE", move(1, 100)).path("payload").path("code").asText())

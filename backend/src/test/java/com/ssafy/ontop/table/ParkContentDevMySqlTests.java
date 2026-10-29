@@ -105,7 +105,7 @@ class ParkContentDevMySqlTests {
             JsonNode published = json.readTree(publicList.body()).path("notes");
             assertThat(published).hasSize(1);
             assertThat(published.get(0).properties()).extracting(Map.Entry::getKey)
-                    .containsExactlyInAnyOrder("id", "text", "createdAt");
+                    .containsExactlyInAnyOrder("id", "text", "createdAt", "category");
             assertThat(publicList.body()).contains("공개 익명 메모입니다")
                     .doesNotContain("비공개 의견", "authorUserId", "nickname", "channelId", "operationId");
             assertThat(publicList.headers().firstValue("Cache-Control")).contains("no-store");

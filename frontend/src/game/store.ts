@@ -175,10 +175,19 @@ export function receiveGame(m: Envelope, ownId: string, tableId: string) {
         throw new Error('본인 경기 복구가 아닙니다.')
       if (s.permittedGameId && s.permittedGameId !== p.gameId) return
       if (s.game?.gameId === p.gameId && p.version < s.game.version) return
+      const terminal = status === 'FINISHED' || gameState(next).status === 'FINISHED'
       // A historical terminal snapshot is not a new seat or an active game.
-      if (!tableId && (status === 'FINISHED' || gameState(next).status === 'FINISHED')) {
+      if (!tableId && terminal) {
         resetGame()
         useGame.setState({ recovery: 'LOBBY' })
+        return
+      }
+      // WAITING is the server's next-round authority. A delayed snapshot of the
+      // completed game must not restore input permission or replace its stored result.
+      const waiting = s.start?.tableId === tableId && s.start.phase === 'WAITING' && !s.start.simulation
+      if (waiting && (terminal || p.gameId === s.completedGameId)) {
+        useGame.setState({ recovery: 'LOBBY', game: null, permittedGameId: '', result: null,
+          awaitingVersion: -1, uncertain: false, error: '' })
         return
       }
       useGame.setState({
@@ -242,8 +251,15 @@ export function receiveGame(m: Envelope, ownId: string, tableId: string) {
       next.version < s.lastResult.version
     )
       return
-    const dismissed = s.dismissedResult?.gameId === next.gameSessionId && s.dismissedResult.version >= next.version
-    useGame.setState({ lastResult: dismissed ? null : next, ...(p.gameSessionId === s.permittedGameId ? { result: next } : {}),
+    // Dismissal is allowed only after settlement and WAITING. A later version of
+    // that same result may refresh the wallet, but must not reopen the old round.
+    if (s.dismissedResult?.gameId === next.gameSessionId) {
+      useGame.setState({ dismissedResult: { gameId: next.gameSessionId,
+        version: Math.max(s.dismissedResult.version, next.version) },
+        ...(candidate ? { resultCandidateGameId: '' } : {}) })
+      return
+    }
+    useGame.setState({ lastResult: next, ...(p.gameSessionId === s.permittedGameId ? { result: next } : {}),
       ...(candidate ? { completedGameId: next.gameSessionId, resultCandidateGameId: '' } : {}) })
   } else if (m.type === 'GAME_WATCH_LEFT') {
     if (p.gameId !== s.watchedGameId) return

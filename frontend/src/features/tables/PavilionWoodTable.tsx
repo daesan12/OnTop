@@ -76,26 +76,31 @@ for (const seat of TABLE_SEATS) {
   hardware.push(...seatHardware.map(p => place(p, seat)))
 }
 
-function WoodBatch({ parts, dark = false }: { parts: readonly Part[]; dark?: boolean }) {
+// All four wood layers use the same solid Lambert state. Keep the named body /
+// chair groups and their original parts, but submit one batch per group.
+const tableWood = [...tabletop, ...tableFrame]
+export function pavilionWoodParts(seatCount: number) {
+  return {
+    body: tableWood,
+    chairs: [...chairSurfaces.slice(0, seatCount * seatBoards.length), ...chairFrames.slice(0, seatCount * seatFrame.length)],
+    hardware: hardware.slice(0, tableHardwareCount + seatCount * seatHardware.length),
+  }
+}
+function WoodBatch({ parts }: { parts: readonly Part[] }) {
   return <Instances parts={parts} material={
-    <SurfaceMaterial kind="wood" mapping="box" meters={0.8} strength={dark ? 0.12 : 0.18} detail={0.7} />
+    <SurfaceMaterial kind="wood" mapping="box" meters={0.8} strength={0.18} detail={0.7} />
   }><BeveledBox /></Instances>
 }
 
 /** Approved shared furniture for ordinary pavilions. TableShell retains all gameplay contracts. */
 export function PavilionWoodTable({ seatCount = 4 }: { seatCount?: number }) {
-  const visible = useMemo(() => ({
-    surfaces: chairSurfaces.slice(0, seatCount * seatBoards.length), frames: chairFrames.slice(0, seatCount * seatFrame.length),
-    hardware: hardware.slice(0, tableHardwareCount + seatCount * seatHardware.length),
-  }), [seatCount])
+  const visible = useMemo(() => pavilionWoodParts(seatCount), [seatCount])
   return <group name="pavilion-wood-table">
     <group name="pavilion-table-body">
-      <WoodBatch parts={tabletop} />
-      <WoodBatch parts={tableFrame} dark />
+      <WoodBatch parts={visible.body} />
     </group>
     <group name="pavilion-chairs-body">
-      <WoodBatch parts={visible.surfaces} />
-      <WoodBatch parts={visible.frames} dark />
+      <WoodBatch parts={visible.chairs} />
     </group>
     <Instances parts={visible.hardware} shadow={false}
       material={<meshStandardMaterial metalness={0.65} roughness={0.48} />}>

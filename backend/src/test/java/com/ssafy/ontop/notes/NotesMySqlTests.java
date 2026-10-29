@@ -94,12 +94,13 @@ class NotesMySqlTests {
         var response = request("GET", "?channelId=channel-2", null, tokenB);
         assertThat(response.statusCode()).isEqualTo(200);
         var note = mapper.readTree(response.body()).path("notes").get(0);
-        assertThat(note.fieldNames()).toIterable().containsExactlyInAnyOrder("id", "text", "createdAt");
+        assertThat(note.fieldNames()).toIterable().containsExactlyInAnyOrder("id", "text", "createdAt", "category");
+        assertThat(note.path("category").asText()).isEqualTo("free");
         assertThat(note.path("text").asText()).isEqualTo("가 메모");
         assertThat(response.headers().firstValue("Cache-Control")).contains("no-store");
         assertThat(response.headers().firstValue("Access-Control-Allow-Origin")).contains("https://dev.on-top.world");
         assertThat(jdbc.queryForList("SHOW COLUMNS FROM anonymous_notes").stream().map(row -> row.get("Field")))
-                .containsExactly("id", "body", "created_at");
+                .containsExactly("id", "body", "created_at", "category");
     }
 
     @Test
@@ -182,14 +183,56 @@ class NotesMySqlTests {
 
     @Test
     void DB저장후실패는_메모와_메타데이터를_함께롤백하고_같은키로복구한다() throws Exception {
+        long revision = jdbc.queryForObject("SELECT revision FROM anonymous_note_board WHERE id=1", Long.class);
         doAnswer(call -> { call.callRealMethod(); throw new org.springframework.dao.DataAccessResourceFailureException("검증용"); })
                 .when(repository).saveRequest(any());
         String key = key("failure");
         assertThat(request("POST", "", body(key, "실패 메모"), tokenA).statusCode()).isEqualTo(503);
         assertThat(count()).isZero();
+        assertThat(jdbc.queryForObject("SELECT revision FROM anonymous_note_board WHERE id=1", Long.class)).isEqualTo(revision);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM anonymous_note_requests", Integer.class)).isZero();
         doCallRealMethod().when(repository).saveRequest(any());
         assertThat(request("POST", "", body(key, "실패 메모"), tokenA).statusCode()).isEqualTo(201);
+    }
+
+    @Autowired org.springframework.transaction.PlatformTransactionManager manager;
+
+    @Test
+    void 주제와_재시도비교를_저장하고_다른인스턴스도_커밋된변경만알린다() {
+        var otherHub = org.mockito.Mockito.mock(TableHub.class);
+        var observer = new com.ssafy.ontop.notes.service.NotesChangeNotifier(repository, manager, otherHub);
+        observer.initialize();
+        String request = key("category");
+        var cheer = new com.ssafy.ontop.notes.domain.NoteCategory("cheer");
+        var accepted = notes.submit(101, request, "channel-1", new NoteText("응원합니다"), cheer);
+        assertThat(accepted.note().category()).isEqualTo("cheer");
+        long revision = jdbc.queryForObject("SELECT revision FROM anonymous_note_board WHERE id=1", Long.class);
+        assertThat(notes.submit(101, request, "channel-1", new NoteText("응원합니다"), cheer)).isEqualTo(accepted);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> notes.submit(101, request, "channel-1",
+                new NoteText("응원합니다"), com.ssafy.ontop.notes.domain.NoteCategory.FREE))
+                .isInstanceOf(com.ssafy.ontop.notes.service.NoteException.class)
+                .extracting("code").isEqualTo("IDEMPOTENCY_CONFLICT");
+        assertThat(jdbc.queryForObject("SELECT revision FROM anonymous_note_board WHERE id=1", Long.class)).isEqualTo(revision);
+        observer.reconcile(); observer.reconcile(); observer.committed(revision - 1);
+        org.mockito.Mockito.verify(otherHub).notesChanged(revision);
+        org.mockito.Mockito.verifyNoMoreInteractions(otherHub);
+        assertThat(jdbc.queryForObject("SELECT category FROM anonymous_notes WHERE id=?", String.class,
+                Long.parseLong(accepted.note().id()))).isEqualTo("cheer");
+    }
+
+    @Test
+    void 바깥트랜잭션이롤백되면_주제와변경번호와알림도확정되지않는다() {
+        long before = jdbc.queryForObject("SELECT revision FROM anonymous_note_board WHERE id=1", Long.class);
+        var transaction = new org.springframework.transaction.support.TransactionTemplate(manager);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> transaction.executeWithoutResult(status -> {
+            notes.submit(101, key("rollback-category"), "channel-1", new NoteText("롤백 검증"),
+                    new com.ssafy.ontop.notes.domain.NoteCategory("worry"));
+            status.setRollbackOnly();
+            throw new IllegalStateException("의도한 검증 롤백");
+        })).isInstanceOf(IllegalStateException.class);
+        assertThat(count()).isZero();
+        assertThat(jdbc.queryForObject("SELECT revision FROM anonymous_note_board WHERE id=1", Long.class)).isEqualTo(before);
+        org.mockito.Mockito.verify(hub, org.mockito.Mockito.never()).notesChanged(anyLong());
     }
 
     @Test

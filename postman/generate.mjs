@@ -237,12 +237,15 @@ feedbackAdmin.headers=[{key:'Authorization',value:'Bearer {{accessToken}}'}]; ht
 
 const notesDescription = 'M08 공개 익명 메모. local/dev,db + notes.enabled=true + 전용 privacy-secret + V121 순서 조율 후 스키마 적용 필요. '
     + '서버 위치(54.5,18.92,48.5) XZ2.6m·높이차0.7m미만, 테이블/시설/수영 중 불가. '
-    + '전 채널 공용 최신120장·쓰기15초/읽기1초. 메모/응답은 id,text,createdAt만 사용. '
-    + '24시간 동일키 재확인,410은 자동 재게시 금지. 창을 연 동안2초마다 겹치지 않게 조회하고 닫기·이탈·단절 시 중지. docs/notes-api.md.';
+    + '전 채널 공용 최신120장·쓰기15초/읽기1초. 공개 필드는 id,text,createdAt,category. '
+    + 'category daily/cheer/worry/recommend/free, 생략free. 같은 키의 주제 변경은409. '
+    + '24시간 동일키 재확인,410은 자동 재게시 금지. 정기GET없이 열기/재접속/NOTES_CHANGED 후 합쳐조회. '
+    + 'V129 번호 사용 가능 확인·MR 포함 승인(2026-10-29). 공용DB 적용·배포는 미확인. FE VITE_NOTES_CATEGORIES=true 빌드와 subscribe연결 필요. docs/notes-api.md.';
 const notesBody = {mode:'raw',raw:JSON.stringify({operationId:'{{noteOperationId}}',channelId:'{{channelIdA}}',
-    text:'오늘도 좋은 하루 보내세요'},null,2),options:{raw:{language:'json'}}};
+    text:'오늘도 좋은 하루 보내세요',category:'cheer'},null,2),options:{raw:{language:'json'}}};
 const noteNew = http('27 전망대 익명 메모 작성','/api/v1/notes',201,notesDescription,
-    `const r=pm.response.json(); pm.expect(Object.keys(r.note).sort()).to.eql(['createdAt','id','text']);
+    `const r=pm.response.json(); pm.expect(Object.keys(r.note).sort()).to.eql(['category','createdAt','id','text']);
+pm.expect(r.note.category).to.eql('cheer');
 if(pm.response.code===201) pm.environment.set('noteId',r.note.id);`,
     shopSetup + `\npm.environment.set('noteOperationId',Date.now()+'_'+pm.variables.replaceIn('{{$guid}}'));`);
 noteNew.method='POST';noteNew.headers=[{key:'Authorization',value:'Bearer {{accessToken}}'},
@@ -253,7 +256,7 @@ const noteReplay = http('28 익명 메모 동일 요청 재확인','/api/v1/note
 noteReplay.method='POST';noteReplay.headers=noteNew.headers;noteReplay.body=notesBody;httpItems.push(noteReplay);
 const noteRead = http('29 전망대 익명 메모 조회','/api/v1/notes?channelId={{channelIdA}}',200,notesDescription,
     `const notes=pm.response.json().notes;pm.expect(notes).to.be.an('array');pm.expect(notes.length).to.be.at.most(120);
-notes.forEach(n=>pm.expect(Object.keys(n).sort()).to.eql(['createdAt','id','text']));`,shopSetup);
+notes.forEach(n=>{pm.expect(Object.keys(n).sort()).to.eql(['category','createdAt','id','text']);pm.expect(['daily','cheer','worry','recommend','free']).to.include(n.category);});`,shopSetup);
 noteRead.headers=[{key:'Authorization',value:'Bearer {{accessToken}}'}];httpItems.push(noteRead);
 
 
@@ -595,6 +598,14 @@ const seatGuide = '\n\n## 공개 테이블 착석 (2026-10-28 · 배포 전)\n'
     + 'FE는 기존 서버 tableId/anchorId 매핑으로 표시하고 본인 버튼 권한은 기존 TABLE_STATE를 사용합니다. '
     + '로컬 코드 계약이며 FE 보존 브랜치 통합·실제3D·배포 검수는 별도입니다.';
 wsItems[6].description += seatGuide;
+wsItems[6].description += '\n\n2026-10-29 로컬 확장: WORLD_STATE.tables 전체 목록의 tableId/anchorId/chairCount와 HTTP chairCount를 사용합니다. '
+    + 'max(2,승인 인원,최대점유좌석)으로 채널별 실제 충돌을 켜고, 새 의자에 겹친 산책자는 서버 안전 위치로 이동합니다. 정적 mapVersion은 유지합니다. '
+    + 'avatars[].activity=GAME은 실제 시작 승인 참가자만, 종료·정산 진입은 전원/기권·탈락은 해당 사용자만 null. SHOP은 미연결입니다. '
+    + 'NOTES_CHANGED{revision문자열}는 새 메모 커밋 후 전 채널 알림이며 본문/작성자 없음. 열린 FE창만 읽기1초 제한에 맞춰 합쳐GET, 정기GET 없음. '
+    + 'V129 번호 사용 가능 확인·MR 포함 승인(2026-10-29). 공용DB 적용·배포는 미확인. docs/world-table-chairs-api.md, docs/notes-api.md.';
+wsItems[6].messages.push({name:'수신 예시 · NOTES_CHANGED — 직접 전송 금지·로컬 구현',
+    $kind:'websocket-message', contentType:'json',
+    content:JSON.stringify({requestId:null,type:'NOTES_CHANGED',payload:{revision:'1234'}},null,2)});
 wsItems[6].messages.push({
     name: '수신 예시 · WORLD_STATE tableSeat — 직접 전송 금지·배포 전',
     $kind: 'websocket-message', contentType: 'json',
@@ -602,11 +613,11 @@ wsItems[6].messages.push({
         channelId: '{{channelIdA}}', version: 12, mapVersion: '{{mapVersion}}', avatars: [
             { userId: '101', nickname: '검증자A', characterGender: 'MALE',
                 position: {lastInputSeq:0,x:-2.025,y:0.84,z:34,yaw:0,moving:false,running:false,swimming:false},
-                equipment: null, tableSeat: {tableId:'{{tableIdA}}',seatNumber:1} },
+                equipment: null, tableSeat: {tableId:'{{tableIdA}}',seatNumber:1}, activity:'GAME' },
             { userId: '202', nickname: '검증자B', characterGender: 'FEMALE',
                 position: {lastInputSeq:0,x:-2.025,y:0.84,z:34,yaw:0,moving:false,running:false,swimming:false},
-                equipment: null, tableSeat: null }
-        ]
+                equipment: null, tableSeat: null, activity:null }
+        ], tables:[{tableId:'{{tableIdA}}',anchorId:'table-5',chairCount:3}]
     } }, null, 2)
 }, {
     name: '수신 예시 · WORLD_EMOTE_CANCELLED — 직접 전송 금지·배포 전',

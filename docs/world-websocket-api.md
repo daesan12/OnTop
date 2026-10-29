@@ -193,7 +193,11 @@
 
 ### 미니게임 이용 상태 · 2026-10-28
 
-`WORLD_STATE.payload.avatars[].activity`는 서버가 승인한 공개 이용 상태로 `"BUNGEOPPANG"` 또는 `null`이다.
+`WORLD_STATE.payload.avatars[].activity`는 서버가 승인한 공개 이용 상태로 `"GAME"`, `"BUNGEOPPANG"` 또는 `null`이다.
+GAME은 실제 시작 예약·엔진 승인 뒤 참가자만 표시하며 대기·준비·관전은 제외한다. 경기 종료/정산 진입은 전원,
+기권·탈락은 해당 참가자만 해제한다. 시작 응답보다 먼저 도착한 이탈도 시도별로 보관해 확정 경기 ID와 대조한다.
+오래된 경기 사건은 새 경기 표시를 변경하지 않는다. SHOP은 진입/종료 계약 미확정으로 서버에서 설정하지 않는다.
+공개 의자는 [의자 상태 계약](world-table-chairs-api.md)의 WORLD_STATE.tables와 HTTP chairCount를 사용한다.
 이전 서버처럼 필드가 없어도 FE는 `null`로 처리한다. 같은 아바타의 `tableSeat`과 독립적으로 함께 전달된다.
 클라이언트가 이 값을 설정하는 명령은 없고, 세션 ID·점수·보상·조리 로그는 공개하지 않는다.
 FE는 채팅 기록과 별도로 머리 위에 “붕어빵 뒤집는 중”을 표시한다.

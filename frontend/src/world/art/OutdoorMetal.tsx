@@ -1,3 +1,4 @@
+import { attachSharedMaterial, sharedOutdoorMetal } from './sharedMaterials'
 /** Flat painted finishes share the park's texture-free lighting. */
 export function OutdoorMetal({
   finish = 'painted',
@@ -7,11 +8,6 @@ export function OutdoorMetal({
   vertexColors?: boolean
 }) {
   return (
-    <meshStandardMaterial
-      vertexColors={vertexColors}
-      flatShading
-      metalness={finish === 'brass' ? 0.15 : 0}
-      roughness={1}
-    />
+    <primitive object={sharedOutdoorMetal(finish, vertexColors)} attach={attachSharedMaterial} dispose={null} />
   )
 }

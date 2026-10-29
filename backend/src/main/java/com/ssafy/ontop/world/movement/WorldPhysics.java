@@ -19,7 +19,19 @@ public final class WorldPhysics implements AutoCloseable {
     private ParkScene scene;
     private final java.util.function.Supplier<ParkScene> sceneSource;
     private PhysicsSpace space;
+    private com.jme3.bullet.objects.PhysicsGhostObject standProbe;
     private final Map<String, Actor> actors = new HashMap<>();
+    private final Map<String, Chair> chairs = new HashMap<>();
+    private static final java.util.regex.Pattern CHAIR = java.util.regex.Pattern.compile("(.+)-chair-([0-3])");
+    private static final class Chair {
+        final String anchor;
+        final int number;
+        final PhysicsRigidBody body;
+        boolean active;
+        Chair(String anchor, int number, PhysicsRigidBody body) {
+            this.anchor = anchor; this.number = number; this.body = body;
+        }
+    }
     private JsonNode movement;
 
     private Thread owner;
@@ -79,14 +91,80 @@ public final class WorldPhysics implements AutoCloseable {
         space = new PhysicsSpace(PhysicsSpace.BroadphaseType.DBVT);
         space.setAccuracy(DT);
         space.setMaxSubSteps(0);
+        standProbe = new com.jme3.bullet.objects.PhysicsGhostObject(
+                new CapsuleCollisionShape(number("radius"), number("halfHeight") * 2, 1));
+        standProbe.setCollisionGroup(1); standProbe.setCollideWithGroups(2);
         for (ParkScene.Shape shape : scene.shapes) {
             var body = new PhysicsRigidBody(shape.shape(), 0);
             body.setPhysicsLocation(shape.center());
             body.setPhysicsRotation(shape.rotation());
             body.setCollisionGroup(2);
             body.setCollideWithGroups(1);
-            space.addCollisionObject(body);
+            var match = CHAIR.matcher(shape.id());
+            if (match.matches()) {
+                var chair = new Chair(match.group(1), Integer.parseInt(match.group(2)) + 1, body);
+                if (chairs.putIfAbsent(shape.id(), chair) != null) {
+                    throw new IllegalStateException("중복 의자 충돌 ID");
+                }
+                chair.active = chair.number <= 2;
+                if (chair.active) { space.addCollisionObject(body); }
+            } else { space.addCollisionObject(body); }
         }
+    }
+
+    /** 승인된 채널별 앵커 설정만 받는다. 정적 맵의 의자 몸체를 재사용한다. */
+    public Map<String, Snapshot> chairCounts(Map<String, Integer> counts) {
+        var copy = Map.copyOf(counts);
+        if (copy.values().stream().anyMatch(count -> count < 2 || count > 4)) {
+            throw new IllegalArgumentException("의자 수는 2~4개입니다.");
+        }
+        return call(() -> {
+            Map<String, Snapshot> relocated = new java.util.HashMap<>();
+            var added = new java.util.HashSet<PhysicsRigidBody>();
+            for (Chair chair : chairs.values()) {
+                boolean active = chair.number <= copy.getOrDefault(chair.anchor, 2);
+                if (active == chair.active) { continue; }
+                chair.active = active;
+                if (active) { space.addCollisionObject(chair.body); added.add(chair.body); }
+                else { space.removeCollisionObject(chair.body); }
+            }
+            if (!added.isEmpty()) {
+                for (var entry : actors.entrySet()) {
+                    Actor actor = entry.getValue();
+                    if (actor.seated) { continue; }
+                    Vector3f position = actor.body.getPhysicsLocation(null);
+                    var probe = standProbe;
+                    probe.setPhysicsLocation(position);
+                    boolean[] overlaps = {false};
+                    space.contactTest(probe, event -> {
+                        if (event.getDistance1() < -.02f
+                                && (added.contains(event.getObjectA()) || added.contains(event.getObjectB()))) {
+                            overlaps[0] = true;
+                        }
+                    });
+                    if (overlaps[0]) {
+                        Vector3f target = nearbyStand(position);
+                        if (target == null) {
+                            target = validatedFallback(actor, (float) scene.data.path("world").path("halfSize").asDouble() - 1);
+                        }
+                        recover(actor, position, target, "CHAIR_ACTIVATED", System.nanoTime());
+                        relocated.put(entry.getKey(), snapshotNow(entry.getKey()));
+                    }
+                }
+            }
+            return Map.copyOf(relocated);
+        });
+    }
+
+    private Vector3f nearbyStand(Vector3f origin) {
+        for (float distance = .25f; distance <= 4; distance += .25f) {
+            for (int direction = 0; direction < 16; direction++) {
+                double angle = direction * Math.PI / 8;
+                var candidate = origin.add((float) Math.cos(angle) * distance, 0, (float) Math.sin(angle) * distance);
+                if (canStand(candidate.x, candidate.y, candidate.z)) { return candidate; }
+            }
+        }
+        return null;
     }
 
     public void add(String id) {
@@ -484,10 +562,7 @@ public final class WorldPhysics implements AutoCloseable {
     public boolean canStand(double x, double y, double z) {
         return call(() -> {
             var center = new Vector3f((float) x, (float) y, (float) z);
-            var probe = new com.jme3.bullet.objects.PhysicsGhostObject(
-                    new CapsuleCollisionShape(number("radius"), number("halfHeight") * 2, 1));
-            probe.setCollisionGroup(1);
-            probe.setCollideWithGroups(2);
+            var probe = standProbe;
             probe.setPhysicsLocation(center);
             boolean[] blocked = {false};
             space.contactTest(probe, event -> {
@@ -519,6 +594,8 @@ public final class WorldPhysics implements AutoCloseable {
                     () -> {
                         space.destroy();
                         actors.clear();
+                        chairs.clear();
+                        standProbe = null;
                         return null;
                     });
         } finally {
