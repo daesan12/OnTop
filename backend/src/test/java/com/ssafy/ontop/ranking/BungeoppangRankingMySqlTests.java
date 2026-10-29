@@ -163,6 +163,66 @@ class BungeoppangRankingMySqlTests {
         }
     }
 
+    /**
+     * v5 boards by the stored play window: 3-minute records stay out of the default 2-minute board and remain
+     * readable with durationMs=180000; a different config version with the same window shares the board.
+     */
+    @Test void v5는_판에_저장된_플레이시간별로_분리하고_같은시간의_다른_configVersion은_함께_집계한다() throws Exception {
+        try {
+            Member a = member(), b = member(), c = member();
+            Instant base = time.clock.instant();
+            seed(a, "v5", 10, 1, base.plusSeconds(1), "COMPLETED", true);
+            threeMinutes(seed(a, "v5", 30, 0, base.plusSeconds(2), "COMPLETED", true));
+            seed(b, "v5", 8, 0, base.plusSeconds(3), "COMPLETED", true);
+            long sameLength = seed(b, "v5", 12, 0, base.plusSeconds(4), "COMPLETED", true);
+            jdbc.update("UPDATE bungeoppang_v4_rounds SET config_version='v5-20991231.1' WHERE minigame_session_id=?",
+                    sameLength);
+            threeMinutes(seed(c, "v5", 30, 0, base.plusSeconds(5), "COMPLETED", true));
+            seed(a, "v4", 5, 0, base.plusSeconds(6), "COMPLETED", true);
+            time.clock.time = base.plusSeconds(60);
+
+            JsonNode two = ranking(a, "v5", null, 20, null);
+            assertThat(two.path("durationMs").asInt()).isEqualTo(120000);
+            assertThat(two.path("totalParticipants").asInt()).isEqualTo(2);
+            assertThat(two.path("items")).extracting(item -> item.path("userId").asLong()).containsExactly(b.id, a.id);
+            assertThat(two.at("/items/0/made").asInt()).isEqualTo(12);
+            assertThat(two.at("/me/made").asInt()).isEqualTo(10);
+            assertThat(two.at("/me/rank").asInt()).isEqualTo(2);
+            assertThat(ranking(a, "v5", "120000", 20, null).path("items")).isEqualTo(two.path("items"));
+
+            JsonNode three = ranking(a, "v5", "180000", 20, null);
+            assertThat(three.path("durationMs").asInt()).isEqualTo(180000);
+            assertThat(three.path("totalParticipants").asInt()).isEqualTo(2);
+            assertThat(three.path("items")).extracting(item -> item.path("userId").asLong()).containsExactly(a.id, c.id);
+            assertThat(three.path("items")).extracting(item -> item.path("rank").asInt()).containsExactly(1, 1);
+            assertThat(three.at("/me/made").asInt()).isEqualTo(30);
+
+            JsonNode v4 = ranking(a, "v4", null, 20, null);
+            assertThat(v4.path("durationMs").isNull()).isTrue();
+            assertThat(v4.at("/me/made").asInt()).isEqualTo(5);
+            for (String path : List.of(path("v5", "60000", 20, null), path("v4", "120000", 20, null))) {
+                var invalid = send(a, "GET", path, null, null);
+                assertThat(invalid.statusCode()).as(path).isEqualTo(400);
+                assertThat(mapper.readTree(invalid.body()).path("code").asText()).isEqualTo("RANKING_INVALID_DURATION");
+            }
+            String threeMinuteCursor = ranking(a, "v5", "180000", 1, null).path("nextCursor").asText();
+            var crossed = send(a, "GET", path("v5", null, 1, threeMinuteCursor), null, null);
+            assertThat(crossed.statusCode()).isEqualTo(409);
+            assertThat(mapper.readTree(crossed.body()).path("code").asText()).isEqualTo("RANKING_SNAPSHOT_EXPIRED");
+            assertThat(ranking(a, "v5", "180000", 1, threeMinuteCursor).at("/items/0/userId").asLong()).isEqualTo(c.id);
+        } finally {
+            for (Member member : fixtures) { jdbc.update("UPDATE users SET deleted_at=CURRENT_TIMESTAMP(3) WHERE id=?", member.id); }
+        }
+    }
+
+    /** The row a three-minute round got before 2026-10-29: legacy config version and a 180 s play window. */
+    private void threeMinutes(long sessionId) {
+        jdbc.update("UPDATE bungeoppang_v4_rounds SET config_version='v5-20261027.1',"
+                + " play_ends_at=TIMESTAMPADD(MICROSECOND,180000000,play_starts_at),"
+                + " submit_deadline=TIMESTAMPADD(MICROSECOND,195000000,play_starts_at),"
+                + " expires_at=TIMESTAMPADD(MICROSECOND,205000000,play_starts_at) WHERE minigame_session_id=?", sessionId);
+    }
+
     private Member member() {
         var user = users.saveAndFlush(new User(LoginProvider.NAVER, "bungeo-ranking-" + UUID.randomUUID(),
                 "R" + UUID.randomUUID().toString().replace("-", "").substring(0, 7), CharacterGender.MALE));
@@ -193,13 +253,20 @@ class BungeoppangRankingMySqlTests {
         return id;
     }
     private JsonNode ranking(Member member, String version, int limit, String cursor) throws Exception {
-        var response = send(member, "GET", path(version, limit, cursor), null, null);
+        return ranking(member, version, null, limit, cursor);
+    }
+    private JsonNode ranking(Member member, String version, String duration, int limit, String cursor) throws Exception {
+        var response = send(member, "GET", path(version, duration, limit, cursor), null, null);
         assertThat(response.statusCode()).as(response.body()).isEqualTo(200);
         assertThat(response.headers().firstValue("Cache-Control").orElse("")).contains("no-store");
         return mapper.readTree(response.body());
     }
     private String path(String version, int limit, String cursor) {
+        return path(version, null, limit, cursor);
+    }
+    private String path(String version, String duration, int limit, String cursor) {
         return "/api/v1/minigames/bungeoppang/rankings?period=ALL_TIME&rulesVersion=" + version + "&limit=" + limit
+                + (duration == null ? "" : "&durationMs=" + duration)
                 + (cursor == null ? "" : "&cursor=" + URLEncoder.encode(cursor, StandardCharsets.UTF_8));
     }
     private HttpResponse<String> send(Member member, String method, String path, Object body, String key) throws Exception {

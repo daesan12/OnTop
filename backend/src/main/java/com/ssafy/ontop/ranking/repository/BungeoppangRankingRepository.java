@@ -15,9 +15,15 @@ public class BungeoppangRankingRepository {
     private final EntityManager entities;
     public BungeoppangRankingRepository(EntityManager entities) { this.entities = entities; }
 
+    /**
+     * {@code durationMs} null keeps the query unchanged (v4). Otherwise only rounds whose stored play window
+     * {@code play_ends_at - play_starts_at} equals it are ranked, so config versions with the same length share a board.
+     */
     @Transactional(readOnly = true)
-    public List<Item> personalBests(String version) {
-        List<?> rows = entities.createNativeQuery("""
+    public List<Item> personalBests(String version, Integer durationMs) {
+        String duration = durationMs == null ? ""
+                : "AND TIMESTAMPDIFF(MICROSECOND, r.play_starts_at, r.play_ends_at)=:durationMicros";
+        var query = entities.createNativeQuery("""
                 WITH completed AS (
                     SELECT s.id AS session_id, s.user_id, u.nickname, r.settled_at,
                            JSON_EXTRACT(IF(JSON_VALID(b.result_json), b.result_json, '{}'), '$.made') AS made_json,
@@ -29,6 +35,7 @@ public class BungeoppangRankingRepository {
                     WHERE s.minigame_type='BUNGEOPPANG' AND s.status='COMPLETED' AND s.ended_at IS NOT NULL
                       AND r.terminal_reason='VERIFIED' AND r.settled_at IS NOT NULL
                       AND b.rules_version=:version AND u.deleted_at IS NULL
+                      %s
                 ), scores AS (
                     SELECT session_id, user_id, nickname, settled_at,
                            CAST(JSON_UNQUOTE(made_json) AS UNSIGNED) AS made,
@@ -46,7 +53,9 @@ public class BungeoppangRankingRepository {
                        user_id, nickname, made, failed, settled_at
                 FROM choices WHERE choice=1
                 ORDER BY made DESC, failed ASC, settled_at ASC, user_id ASC
-                """, Object[].class).setParameter("version", version).setMaxResults(10_001).getResultList();
+                """.formatted(duration), Object[].class).setParameter("version", version);
+        if (durationMs != null) { query.setParameter("durationMicros", durationMs * 1_000L); }
+        List<?> rows = query.setMaxResults(10_001).getResultList();
         return rows.stream().map(value -> {
             Object[] row = (Object[]) value;
             return new Item(((Number)row[0]).longValue(), row[1].toString(), (String)row[2],

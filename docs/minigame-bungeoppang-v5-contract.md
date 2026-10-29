@@ -128,5 +128,16 @@
   규칙과 시각을 쓴다. 상수가 바뀌어도 이미 발급된 판에는 닿지 않는다.
 - 기존 3분 판: 배포 전에 시작한 판은 저장된 180초·150초 규칙, 해시 seed, 타임라인, checkpoint로 그대로 진행·재접속·
   완료·재시도한다. 120초 이후 행동과 150초 가속도 원래대로 인정한다. 기존 행을 일괄 수정하거나 마이그레이션하지 않는다.
-- 랭킹: 전체 랭킹은 아직 `rulesVersion` 기준이라 v5 안에서 3분 기록과 2분 기록을 함께 정렬한다. 판 원본의
-  `config_version`으로 구분할 수 있지만 분리 방식은 FE와 협의 후 정한다. 기존 기록은 삭제·초기화하지 않는다.
+- 랭킹: 아래 8절처럼 v5 랭킹을 판에 저장된 플레이 시간으로 2분·3분 분리한다. 기존 기록은 삭제·초기화하지 않는다.
+
+## 8. 전체 랭킹 · `GET /api/v1/minigames/bungeoppang/rankings` · 2026-10-29
+
+`?period=ALL_TIME&rulesVersion=v4|v5&limit=1..20[&durationMs=120000|180000][&cursor=…]`
+
+- v5는 판 원본의 `play_ends_at - play_starts_at`(저장된 플레이 시간)이 같은 기록끼리만 집계한다. `durationMs`를 생략하면
+  신규 판 길이 `120000`, `180000`이면 기존 3분 판 기록이다. 같은 길이의 서로 다른 `configVersion`은 함께 집계한다.
+- 그 밖의 값은 400 `RANKING_INVALID_DURATION`. v4는 기존 조회 그대로이며 `durationMs`를 지정하면 같은 400이다.
+- 응답에 `durationMs`를 추가했다(v5는 조회한 시간, v4는 `null`). 정렬·순위·개인 최고 기록 선정은 바뀌지 않았다.
+- 스냅샷은 시간까지 구분한다. 다른 `durationMs`로 커서를 다시 쓰면 409 `RANKING_SNAPSHOT_EXPIRED`이며 커서 형식·서명은 같다.
+- FE는 결과 화면에서 그 판에 저장된 `rules.durationMs`를 함께 보내고, 응답·다음 페이지의 `durationMs`가 같은지 확인한다.
+  배포 순서는 BE 먼저다. FE만 먼저 배포되면 기존 BE 응답에 `durationMs`가 없어 v5 랭킹을 표시하지 않는다.

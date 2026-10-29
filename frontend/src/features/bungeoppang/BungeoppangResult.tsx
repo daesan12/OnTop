@@ -5,6 +5,7 @@ import { BUNGEOPPANG as R, bungeoppangV4Preview, bungeoppangV5Preview } from './
 import { escapeBungeoppang, isV4Grill, refreshBungeoppangWallet, setBungeoppangHelp, startBungeoppang, submitBungeoppang, useBungeoppang } from './store'
 import './bungeoppangResult.css'
 import { RankingDetails, RankingSummary, useBungeoppangRanking } from './BungeoppangRanking'
+import { rankingDurationMs } from './ranking'
 import { RewardCoinSource } from '../wallet/RewardCoinFlight'
 import { bungeoppangService } from './service'
 
@@ -22,8 +23,11 @@ export function BungeoppangResult() {
   const starting = useBungeoppang(s => s.starting), startError = useBungeoppang(s => s.startError)
   const walletError = useBungeoppang(s => s.walletError), status = useBungeoppang(s => s.status)
   const gameId = useBungeoppang(s => s.gameId), [rankingOpen, setRankingOpen] = useState(false)
+  const roundRules = useBungeoppang(s => s.rules)
   const rulesVersion = isV4Grill(grill) ? grill.rulesVersion : R.rulesVersion
-  const ranking = useBungeoppangRanking(rulesVersion, `${gameId}/${!!result}`, !!grill)
+  // v5 boards are split by play length; the round's stored rules decide which board this result belongs to.
+  const ranking = useBungeoppangRanking(rulesVersion, `${gameId}/${!!result}`, !!grill,
+    rankingDurationMs(rulesVersion, roundRules))
   if (!grill) return null
   const summary = result ?? grill, today = result?.todayEarned ?? status?.todayEarned
   const v4 = isV4Grill(grill), preview = v4 && (bungeoppangV4Preview || bungeoppangV5Preview)
