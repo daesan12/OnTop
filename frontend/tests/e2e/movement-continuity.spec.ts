@@ -4,6 +4,52 @@ import { join } from 'node:path'
 import { fixture, screenshot } from './contractFixture'
 
 const directory = process.env.MOVEMENT_COMPARISON_DIR
+test('recovers a display below a platform to the server-confirmed landing without a collision deadlock', async ({ page }) => {
+  await fixture(page, { manualMovement: true })
+  await page.goto('/park')
+  await expect(page.getByLabel('공원 기본 화면')).toBeVisible()
+  await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90_000 })
+  const result = await page.evaluate(async () => {
+    const wc = await import('/src/network/worldClient.ts' as string)
+    const { localMovement } = await import('/src/network/localMovementPrediction.ts' as string)
+    const { VR_COURSE_PADS, MOVEMENT } = await import('/src/config/index.ts' as string)
+    const { EXPECTED_MAP_VERSION } = await import('/src/config/mapVersion.ts' as string)
+    const { renderedMovementPose } = await import('/tests/e2e/sceneProbe.ts' as string)
+    const { setCameraPerspective } = await import('/src/world/cameraPerspective.ts' as string)
+    setCameraPerspective('third-person')
+    const pad = VR_COURSE_PADS[5]!, session = wc.useSession.getState()
+    const below = { lastInputSeq: 0, x: pad.x, y: pad.height - pad.thickness - MOVEMENT.halfHeight - MOVEMENT.radius - .05,
+      z: pad.z, yaw: 0, moving: false, running: false, swimming: false }
+    const landed = { ...below, y: pad.height + MOVEMENT.halfHeight + MOVEMENT.radius }
+    const receive = (position: typeof below, tick: number) => wc.receive({ type: 'WORLD_STATE', requestId: null, payload: {
+      channelId: session.roomId, version: 200000 + tick, mapVersion: EXPECTED_MAP_VERSION,
+      avatars: [{ userId: session.sessionId, position,
+        motion: { epoch: 100, tick, appliedInputSeq: 0, inputAgeMs: 250, velocityY: tick === 1 ? -2 : 0,
+          grounded: tick !== 1, inputActive: false } }],
+    } })
+    localMovement.reset(); receive(below, 1); await localMovement.prepare()
+    await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+    const initial = renderedMovementPose()
+    receive(landed, 4)
+    const start = performance.now(), samples: { at: number; x: number; y: number; z: number; yaw: number }[] = []
+    await new Promise<void>(resolve => {
+      const frame = () => {
+        const pose = renderedMovementPose(), at = performance.now() - start
+        if (pose) samples.push({ at, ...pose })
+        if (at >= 500) resolve(); else requestAnimationFrame(frame)
+      }
+      requestAnimationFrame(frame)
+    })
+    return { initial, landed, samples, official: wc.authoritativePose(session.sessionId),
+      scope: 'Synthetic late-landing correction branch in actual Three.js/Rapier rendering; not a claimed authoritative jump trajectory.' }
+  })
+  expect(result.initial!.y).toBeLessThan(result.landed.y - 1)
+  expect(Math.abs(result.samples.at(-1)!.y - result.landed.y)).toBeLessThan(.08)
+  expect(result.official).toMatchObject({ x: result.landed.x, y: result.landed.y, z: result.landed.z })
+  if (directory) writeFileSync(join(directory, 'browser-landing-correction.json'), JSON.stringify(result, null, 2))
+  await screenshot(page, 'movement-landing-correction')
+})
+
 test('renders rapid strafes, jumps, platform falls and stairs without correction teleports', async ({ page }) => {
   test.skip(!directory, 'Optional actual-render replay; generate the Bullet traces first.')
   const traces = JSON.parse(readFileSync(join(directory!, 'bullet-traces.json'), 'utf8'))

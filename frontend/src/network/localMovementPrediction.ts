@@ -12,8 +12,6 @@ export interface PredictionSimulation {
   pose(): Pose
   setChairs(counts: ReadonlyMap<string, number>): void
   blocked?(): boolean
-  /** Clamp a display-only offset against the scene without changing physical state. */
-  clampCorrection?(offset: { x: number; y: number; z: number }, from?: Pose): { x: number; y: number; z: number }
   dispose(): void
 }
 const STOP: MovementIntent = { dx: 0, dz: 0, run: false, jump: false }
@@ -211,9 +209,9 @@ export class LocalMovementPrediction {
       const limit = (MOVEMENT.runSpeed + MOVEMENT.walkSpeed / 2) * seconds
       if (horizontal > limit && horizontal > 0) { delta.x *= limit / horizontal; delta.z *= limit / horizontal }
       delta.y = Math.max(MOVEMENT.maxFallSpeed * seconds, Math.min(-MOVEMENT.maxFallSpeed * seconds, delta.y))
-      const safe = this.sim!.clampCorrection?.(delta, previous.pose)
-        ?? (this.sim!.blocked?.() ? { x: 0, y: 0, z: 0 } : delta)
-      pose.x = previous.pose.x + safe.x; pose.y = previous.pose.y + safe.y; pose.z = previous.pose.z + safe.z
+      // Collision belongs to the physical simulation, not to this correction
+      // path. Sweeping a wrong display pose can trap it below a valid landing.
+      pose.x = previous.pose.x + delta.x; pose.y = previous.pose.y + delta.y; pose.z = previous.pose.z + delta.z
     }
     this.displayed = { pose: { ...pose }, at: Math.max(at, previous?.at ?? at) }
     return pose

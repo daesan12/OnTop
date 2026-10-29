@@ -26,9 +26,6 @@ class PredictionPhysics implements PredictionSimulation {
   private yaw = Math.PI
   private climbY = 0
   private obstructed = false
-  // Bullet rests slightly lower than Rapier's contact skin. Display-only sweeps
-  // leave that small vertical clearance; physical capsule dimensions stay exact.
-  private readonly displayShape = new RAPIER.Capsule(MOVEMENT.halfHeight - MOVEMENT.offset * 2, MOVEMENT.radius)
   constructor() {
     for (const box of WORLD_COLLIDERS.filter(b => !staticStructureBatch(b.id))) {
       const half = box.movementHalf ?? box.half
@@ -114,27 +111,5 @@ class PredictionPhysics implements PredictionSimulation {
   }
   pose(): Pose { return { ...this.body.translation(), yaw: this.yaw } }
   blocked() { return this.obstructed }
-  clampCorrection(offset: { x: number; y: number; z: number }, from = this.body.translation()) {
-    const p = from
-    const limit = WORLD.halfSize - WORLD.boundaryHalfDepth - MOVEMENT.radius - MOVEMENT.offset
-    const horizontal = { x: Math.max(-limit, Math.min(limit, p.x + offset.x)) - p.x,
-      y: 0, z: Math.max(-limit, Math.min(limit, p.z + offset.z)) - p.z }
-    const sweep = (from: { x: number; y: number; z: number }, delta: typeof horizontal) => {
-      const length = Math.hypot(delta.x, delta.y, delta.z)
-      if (length < .00001) return delta
-      const hit = this.world.castShape(from, { x: 0, y: 0, z: 0, w: 1 }, delta,
-        this.displayShape, 0, 1, false, undefined, undefined, this.collider, this.body)
-      const scale = hit ? Math.max(0, Math.min(1, hit.time_of_impact - .001 / length)) : 1
-      return { x: delta.x * scale, y: delta.y * scale, z: delta.z * scale }
-    }
-    // Move upward before crossing a raised surface; move downward after crossing
-    // it. Floor contact must not cancel a safe sideways correction. Both segments
-    // are swept, so neither ordering goes through a wall or ceiling.
-    const up = offset.y > 0 ? sweep(p, { x: 0, y: offset.y, z: 0 }).y : 0
-    const safe = sweep({ x: p.x, y: p.y + up, z: p.z }, horizontal)
-    const vertical = offset.y > 0 ? { y: up }
-      : sweep({ x: p.x + safe.x, y: p.y, z: p.z + safe.z }, { x: 0, y: offset.y, z: 0 })
-    return { x: safe.x, y: vertical.y, z: safe.z }
-  }
   dispose() { this.world.free() }
 }

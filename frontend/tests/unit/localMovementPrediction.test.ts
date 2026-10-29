@@ -78,9 +78,8 @@ describe('own movement prediction; authority and other avatars stay separate', (
     expect(p.y).toBeCloseTo(origin.y)
     prediction.reset()
   })
-  it('keeps a small contact correction continuous when the physics query says its path is safe', async () => {
-    const sim = Object.assign(new FlatSimulation(), { blocked: () => true,
-      clampCorrection: (offset: { x: number; y: number; z: number }) => offset })
+  it('keeps a small contact correction continuous without applying a second physical collision gate', async () => {
+    const sim = Object.assign(new FlatSimulation(), { blocked: () => true })
     const prediction = new LocalMovementPrediction(async () => sim, () => 0)
     prediction.reconcile('one', origin, motion(), true, 0); await prediction.prepare()
     prediction.intend(walk, 0); prediction.sentInput(1, 0)
@@ -222,35 +221,52 @@ describe('own movement prediction; authority and other avatars stay separate', (
   })
 })
 describe('the actual shared-map collision predictor', () => {
-  it('blocks display movement through a wall and a jump platform without changing the physical pose', async () => {
+  it('converges to a confirmed platform landing even when the old display is below its underside', async () => {
+    const sim = await createPredictionPhysics()
+    const prediction = new LocalMovementPrediction(async () => sim, () => 0)
+    try {
+      const pad = VR_COURSE_PADS[5]!
+      const below = { x: pad.x, y: pad.height - pad.thickness - MOVEMENT.halfHeight - MOVEMENT.radius - .05,
+        z: pad.z, yaw: 0 }
+      const landed = { ...below, y: pad.height + MOVEMENT.halfHeight + MOVEMENT.radius }
+      prediction.reconcile('platform', below, { ...motion(), grounded: false, velocityY: -2 }, true, 0)
+      await prediction.prepare()
+      const displayed = { ...below }; prediction.sample(0, displayed)
+      prediction.reconcile('platform', landed, motion(3, 0), true, 100)
+      for (let frame = 7; frame <= 30; frame++) prediction.sample(frame * 1000 / 60, displayed)
+      expect(Math.abs(displayed.y - landed.y)).toBeLessThan(.08)
+      expect(Math.hypot(displayed.x - landed.x, displayed.z - landed.z)).toBeLessThan(.01)
+    } finally { prediction.reset() }
+  })
+  it('keeps displayed running alongside a wall close to the physical controller', async () => {
+    const sim = await createPredictionPhysics()
+    const prediction = new LocalMovementPrediction(async () => sim, () => 0)
+    try {
+      const wall = WORLD_COLLIDERS.find(box => box.id === 'vr-pagoda-body')!
+      const from = { x: wall.center[0] - wall.half[0] - MOVEMENT.radius - .001,
+        y: .8, z: wall.center[2], yaw: 0 }
+      prediction.reconcile('wall', from, motion(), true, 0); await prediction.prepare()
+      prediction.sample(0, { ...from })
+      prediction.intend({ dx: Math.SQRT1_2, dz: Math.SQRT1_2, run: true, jump: false }, 0)
+      const displayed = { ...from }
+      for (let frame = 1; frame <= 12; frame++) prediction.sample(frame * 1000 / 60, displayed)
+      expect(displayed.z - from.z).toBeGreaterThan(1)
+      expect(Math.abs(displayed.z - sim.pose().z)).toBeLessThan(.05)
+    } finally { prediction.reset() }
+  })
+  it('retains physical wall blocking and platform support when display correction does not sweep', async () => {
     const sim = await createPredictionPhysics()
     try {
       const wall = WORLD_COLLIDERS.find(box => box.id === 'vr-pagoda-body')!
       const from = { x: wall.center[0] - wall.half[0] - MOVEMENT.radius - .1, y: 1.5, z: wall.center[2], yaw: 0 }
       sim.reset(from, 0, false)
-      const before = sim.pose()
-      const blocked = sim.clampCorrection!({ x: 2, y: 0, z: 0 }, from)
-      expect(blocked.x).toBeLessThanOrEqual(.102)
-      expect(sim.pose()).toEqual(before)
+      for (let frame = 0; frame < 60; frame++) sim.step({ dx: 1, dz: 0, run: true, jump: false }, 1 / 60)
+      expect(sim.pose().x).toBeLessThan(wall.center[0] - wall.half[0] - MOVEMENT.radius + .01)
       const pad = VR_COURSE_PADS[5]!
       const above = { x: pad.x, y: pad.height + .8, z: pad.z, yaw: 0 }
-      const falling = sim.clampCorrection!({ x: 0, y: -2, z: 0 }, above)
-      expect(falling.y).toBeGreaterThan(-.065)
-      expect(sim.pose()).toEqual(before)
-    } finally { sim.dispose() }
-  })
-  it('keeps a safe horizontal correction even when its vertical component touches the floor', async () => {
-    const sim = await createPredictionPhysics()
-    try {
-      const [x, y, z] = spawnPosition(0)
-      sim.reset({ x, y, z, yaw: 0 }, 0, true)
-      for (let i = 0; i < 12; i++) sim.step(stop, 1 / 60)
-      const before = sim.pose()
-      const offset = sim.clampCorrection!({ x: -.3, y: -.08, z: 0 })
-      expect(offset.x).toBeCloseTo(-.3, 2)
-      // Query skin tolerates the existing 4cm Bullet/Rapier resting-height difference.
-      expect(offset.y).toBeGreaterThan(-.065)
-      expect(sim.pose()).toEqual(before)
+      sim.reset(above, 0, false)
+      for (let frame = 0; frame < 60; frame++) sim.step(stop, 1 / 60)
+      expect(sim.pose().y).toBeGreaterThan(pad.height + .7)
     } finally { sim.dispose() }
   })
   it('walks at the configured speed and respects the playable boundary and the floor', async () => {
