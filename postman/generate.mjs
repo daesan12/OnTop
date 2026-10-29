@@ -519,7 +519,9 @@ const bungeoRankingTest = `pm.test('개인 최고 랭킹 계약', () => {
     pm.expect(b.items).to.be.an('array');
     pm.expect(b.items.length).to.be.at.most(20);
     pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store');
-});
+});`;
+// 34는 v5 다음 페이지 전용이다. 별도 v4 첫 조회가 진행 중인 v5 커서를 덮어쓰지 않는다.
+const bungeoV5RankingTest = bungeoRankingTest + `
 if (pm.response.code === 200) {
     const b = pm.response.json();
     pm.environment.set('bungeoRankingCursor', b.nextCursor || '');
@@ -527,9 +529,9 @@ if (pm.response.code === 200) {
 }`;
 const bungeoRankingRequests = [
     http('33 붕어빵 v5 개인 최고 전체 랭킹', '/api/v1/minigames/bungeoppang/rankings?period=ALL_TIME&rulesVersion=v5&limit=20', 200,
-        bungeoRankingDescription, bungeoRankingTest),
+        bungeoRankingDescription, bungeoV5RankingTest),
     http('34 붕어빵 v5 다음 페이지 — cursor 있을 때만', '/api/v1/minigames/bungeoppang/rankings?period=ALL_TIME&rulesVersion=v5&limit=20&cursor={{bungeoRankingCursor}}', 200,
-        bungeoRankingDescription, bungeoRankingTest, requireEnvironment + `\nif (!pm.environment.get('bungeoRankingCursor')) throw new Error('다음 페이지가 없습니다. 33부터 조회하세요.');`),
+        bungeoRankingDescription, bungeoV5RankingTest, requireEnvironment + `\nif (!pm.environment.get('bungeoRankingCursor')) throw new Error('다음 페이지가 없습니다. 33부터 조회하세요.');`),
     http('35 붕어빵 v4 랭킹 — 별도 첫 조회', '/api/v1/minigames/bungeoppang/rankings?period=ALL_TIME&rulesVersion=v4&limit=20', 200,
         bungeoRankingDescription, bungeoRankingTest),
     http('36 붕어빵 랭킹 limit 오류', '/api/v1/minigames/bungeoppang/rankings?rulesVersion=v5&limit=21', 400,
