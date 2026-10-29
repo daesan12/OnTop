@@ -256,7 +256,13 @@ public final class WorldPhysics implements AutoCloseable {
 
     private boolean inputNow(String id, MoveInput input, long now) {
         Actor actor = actors.get(id);
-        if (actor.clientControlled) return false;
+        if (actor.clientControlled) {
+            // An already-open old client only knows WORLD_MOVE. Keep it usable during rollout.
+            // Once position reporting starts, delayed directional inputs must never switch authority.
+            if (actor.positionReportedEver) return false;
+            actor.positionDisabled = true;
+            serverControl(actor);
+        }
         if (input.seq() <= actor.seq) {
             return false;
         }
@@ -541,6 +547,7 @@ public final class WorldPhysics implements AutoCloseable {
             a.body.warp(new Vector3f((float) p.x(), (float) p.y(), (float) p.z()));
             a.seq = candidate.seq(); a.receivedAt = now; a.yaw = candidate.yaw();
             a.reportStarted = true;
+            a.positionReportedEver = true;
             a.moving = Math.hypot(p.x() - before.x(), p.z() - before.z()) > .0001;
             a.running = a.moving && candidate.run(); a.swimming = swimming(a.body.getPhysicsLocation(null));
             a.airborne = !positionCollision.supported(p);
@@ -791,7 +798,7 @@ public final class WorldPhysics implements AutoCloseable {
         boolean moving, running, swimming, jumpQueued, seated, airborne;
         double climbTargetY;
         Recovery recovery;
-        boolean clientControlled, positionDisabled, reportStarted;
+        boolean clientControlled, positionDisabled, reportStarted, positionReportedEver;
         ClientPositionValidator positionValidator;
 
         Actor(PhysicsCharacter body, int slot, Vector3f spawn) {

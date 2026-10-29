@@ -6,6 +6,28 @@ import java.util.Set;
 
 class ClientPositionPhysicsTests {
     private long now;
+    @Test void 구클라이언트의_최초방향입력은_서버이동으로_복귀해_배포중에도_움직인다() {
+        try (var physics = new WorldPhysics(ParkScene.load(), true, () -> now)) {
+            physics.add("a"); physics.place("a", -10, .84, 42);
+            assertThat(physics.snapshot("a").motion().authority()).isEqualTo("CLIENT_VALIDATED");
+            assertThat(physics.input("a", new MoveInput(1, 1, 0, true, false), now)).isTrue();
+            for (int i = 0; i < 6; i++) physics.step(now += WorldPhysics.STEP_NANOS, Set.of());
+            assertThat(physics.snapshot("a").motion().authority()).isNull();
+            assertThat(physics.snapshot("a").x()).isGreaterThan(-9.5);
+        }
+    }
+    @Test void C사용자가_서버물리후_복귀할때_늦은방향입력이_C를_해제하지않는다() {
+        try (var physics = new WorldPhysics(ParkScene.load(), true, () -> now)) {
+            physics.add("a"); physics.place("a", -10, .84, 42);
+            now = 100_000_000;
+            physics.report("a", report(physics, 1, -9.5, .84), now);
+            physics.serverMovement("a");
+            for (int i = 0; i < 12; i++) physics.step(now += WorldPhysics.STEP_NANOS, Set.of());
+            assertThat(physics.snapshot("a").motion().authority()).isEqualTo("CLIENT_VALIDATED");
+            assertThat(physics.input("a", new MoveInput(2, 1, 0, true, false), now)).isFalse();
+            assertThat(physics.snapshot("a").motion().authority()).isEqualTo("CLIENT_VALIDATED");
+        }
+    }
     private ClientPositionValidator.Candidate report(WorldPhysics physics, long seq, double x, double y) {
         return new ClientPositionValidator.Candidate(seq, physics.snapshot("a").motion().epoch(),
                 new ClientPositionValidator.Pose(x, y, 42), true, false);

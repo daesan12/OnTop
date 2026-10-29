@@ -41,16 +41,15 @@ it('selects the same generated scene placements and identity used by the server 
     expect(map.telescopeLanding(t,true)).toEqual([expected.x,expected.y,expected.z])
   }
 })
-it('preserves the 16 BE mappings and leaves the two new VR server IDs for BE to assign',()=>{
+it('matches all 18 accepted BE mappings while preserving existing server IDs',()=>{
   const received=JSON.parse(readFileSync('public/park-bindings.generated.frontend-test.json','utf8'))
   const canonical=JSON.parse(readFileSync('../docs/integration/park-180/park-bindings.frontend-test.json','utf8'))
   expect(received).toEqual(canonical)
   const bindings=parseBindings(received.bindings)
   for(const channel of ['channel-1','channel-2']) {
     const ids=bindings.filter(b=>b.channelId===channel).map(b=>b.tableId)
-    expect(ids).toHaveLength(16)
-    for(const table of map.TABLES.slice(0,16))expect(bindAnchor(bindings,channel,table.id,ids)).toBeTruthy()
-    for(const id of ['table-17','table-18'])expect(bindAnchor(bindings,channel,id,ids)).toBeNull()
+    expect(ids).toHaveLength(18)
+    for(const table of map.TABLES)expect(bindAnchor(bindings,channel,table.id,ids)).toBeTruthy()
   }
   expect(JSON.parse(readFileSync('public/park-bindings.frontend-test.json','utf8')).bindings).toHaveLength(4)
 })

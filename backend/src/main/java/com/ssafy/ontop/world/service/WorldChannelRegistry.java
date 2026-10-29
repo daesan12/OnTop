@@ -48,9 +48,9 @@ public class WorldChannelRegistry implements ChannelPresence {
     @Autowired
     void configurePositionReports(@Value("${ontop.world.movement.client-position:false}") boolean enabled,
             org.springframework.core.env.Environment environment) {
-        if (enabled && (!environment.acceptsProfiles(org.springframework.core.env.Profiles.of("local"))
-                || environment.acceptsProfiles(org.springframework.core.env.Profiles.of("dev", "prod")))) {
-            throw new IllegalArgumentException("위치 보고 실험은 local 프로필에서만 허용합니다.");
+        if (enabled && (!environment.acceptsProfiles(org.springframework.core.env.Profiles.of("local", "dev"))
+                || environment.acceptsProfiles(org.springframework.core.env.Profiles.of("prod", "production")))) {
+            throw new IllegalArgumentException("좌표 검증 이동은 local 또는 dev 프로필에서만 허용합니다.");
         }
         clientPositions = enabled;
     }

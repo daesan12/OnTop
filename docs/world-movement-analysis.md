@@ -155,9 +155,9 @@ Three.js 아바타·카메라를 포함해4종×3모드12조건도 재생했다.
 - 낮은 천장에 막힌 점프는 실제로 바닥에 머물러도 초안의 자유 포물선 하한 때문에 거절된다. 실물 Bullet 천장 fixture에서 이 한계를 재현했다. 하한 검사를 통째로 면제하면 과속 하강 우회가 다시 생기므로, 제품 전환 전 수직 접촉과 실패한 점프를 별도로 판별해야 한다.
 - 수영·전망대 점프·따라가기·시설 고정·동적 의자·다중 소켓 공통 위치·실제 상호작용 위치 캐시·소켓 계약은 미연결이다. 현재 B 화면은 기존 Java 서버에 접속하며 이 초안을 사용하지 않는다. 후속은 이 경계를 연결하고 같은 조건의 체감·정합성을 함께 검사하는 작업이다.
 
-## 9. 로컬 전용 C: 위치 보고와 실제 승인 좌표 연결
+## 9. C: 위치 보고와 실제 승인 좌표 연결 (dev 기본 적용)
 
-기본 이동과 dev/prod는 기존 방향 입력 방식이다. `ontop.world.movement.client-position=true`를 명시한 local 프로필에서만 `WORLD_POSITION`을 사용한다. local+dev/prod 혼합 프로필도 기동 시 거절한다. 환경 예제·인프라·배포 설정을 바꾸지 않았다.
+로컬 검수 후 사용자 승인으로 dev의 기본 이동을 C로 변경했다. application-dev.yml에 client-position: true를 적용하여 별도 env 작업 없이 dev,db에서 WORLD_POSITION을 사용한다. local은 명시적 true일 때 사용하며 prod/production이 섞인 C 활성화는 기동 시 거절한다. 환경 예제·Compose·Jenkinsfile은 변경하지 않았다. 실제 배포와 WAN 검수 완료를 뜻하지 않는다.
 
 FE Rapier의 물리 위치를 기존60ms 송신 큐(최대 약16.7Hz)에서 보낸다. 표시 보정 뒤 좌표는 보내지 않는다. `Motion.authority=CLIENT_VALIDATED`인 본인만 좌표 보고를 사용하고, 정상 ACK는 이전 표본 확인으로 처리해 새 로컬 물리에 reset/replay하지 않는다. 같은 승인 순번의 재방송은500ms 확인 기한을 연장하지 않는다. 강제 이동/모드 전환의 새 epoch만 물리를 초기화한다. 원격 사용자는 기존 snapshot interpolation을 유지한다.
 

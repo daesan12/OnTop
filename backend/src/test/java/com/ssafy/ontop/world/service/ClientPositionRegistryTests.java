@@ -13,12 +13,49 @@ class ClientPositionRegistryTests {
         return new WorldChannelRegistry(new WorldChannelProperties(List.of(
                 new WorldChannelProperties.Channel("one", "로컬", 3))), Duration.ofMillis(50));
     }
-    @Test void local외에는_실험설정을_켤수없다() {
-        for (var profiles : List.of(new String[]{"dev"}, new String[]{"prod"}, new String[]{"local", "dev"}, new String[]{})) {
+    @Test void 운영과_지정되지않은_프로필은_좌표보고를_켤수없다() {
+        for (var profiles : List.of(new String[]{"prod"}, new String[]{"production"},
+                new String[]{"local", "prod"}, new String[]{"dev", "prod"},
+                new String[]{"dev", "production"}, new String[]{})) {
             var environment = new MockEnvironment(); environment.setActiveProfiles(profiles);
             var registry = registry();
             assertThatThrownBy(() -> registry.configurePositionReports(true, environment)).isInstanceOf(IllegalArgumentException.class);
             registry.clear();
+        }
+    }
+    @Test void 개발DB_프로필은_별도설정없이_C로_입장한다() {
+        new org.springframework.boot.test.context.runner.ApplicationContextRunner()
+                .withInitializer(new org.springframework.boot.test.context.ConfigDataApplicationContextInitializer())
+                .withPropertyValues("spring.profiles.active=dev,db")
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    var environment = context.getEnvironment();
+                    assertThat(environment.getProperty("ontop.world.movement.client-position", Boolean.class, false)).isTrue();
+                    var registry = registry();
+                    registry.configurePositionReports(true, environment);
+                    try {
+                        registry.join("a", "one");
+                        assertThat(registry.worldState("one").avatars().getFirst().motion().authority())
+                                .isEqualTo("CLIENT_VALIDATED");
+                    } finally { registry.clear(); }
+                });
+    }
+    @Test void 운영DB_프로필은_기존방향입력을_유지한다() {
+        for (String profiles : List.of("prod,db", "dev,production", "dev,prod", "prod,dev")) {
+            new org.springframework.boot.test.context.runner.ApplicationContextRunner()
+                    .withInitializer(new org.springframework.boot.test.context.ConfigDataApplicationContextInitializer())
+                    .withPropertyValues("spring.profiles.active=" + profiles)
+                    .run(context -> {
+                        assertThat(context).hasNotFailed();
+                        var environment = context.getEnvironment();
+                        assertThat(environment.getProperty("ontop.world.movement.client-position", Boolean.class, false)).isFalse();
+                        var registry = registry();
+                        registry.configurePositionReports(false, environment);
+                        try {
+                            registry.join("a", "one");
+                            assertThat(registry.worldState("one").avatars().getFirst().motion().authority()).isNull();
+                        } finally { registry.clear(); }
+                    });
         }
     }
     @Test void 기본비활성_위치보고는_캐시에_반영되지않는다() {
