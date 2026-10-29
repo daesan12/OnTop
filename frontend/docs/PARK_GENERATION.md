@@ -88,3 +88,10 @@ BE 요청에 따라 `data.interactions.notes`(익명 메모함 이용 위치·�
 - `parkPhysics.test.ts`: 2D 여유 폭 변경과 3D 원본 형상 독립성, 정규 격자/삼각형 방향/인덱스, 수면 아래 지형, 4방향 계단, 시설 이동·ID·퇴장 방향·캡슐 중심 스폰.
 - `mapContract.test.ts`, `mapAdmissionRuntime.test.ts`: 실제 소켓 경로의 CONNECTED 비교, 확인 요청 identity 전송과 승인 전 입장/복구 차단, 오류 차단, 늦은 스냅샷 무시, 재접속 시 재검사. `map-contract.spec.ts`는 안내·버튼을 브라우저에서 검증한다.
 - 배치 브라우저 검사에서 표시 버전과 서버 JSON 버전의 일치, 기존 산책/수영/점프/모델 동작을 확인한다. Browser plugin not available: 기존 Playwright/Edge로 검증한다.
+
+## 시설 등록 추가 규격 (2026-10-28)
+
+- data.tables와 data.interactions.tableSeats에 VR 게임 테이블 table-17/18을 추가했다. 기존 16개 앵커는 유지한다.
+- data.interactions.benches에 bench-forest-southwest/northeast/southeast를 추가했다. WORLD_FACILITY_CATALOG에는 기존 BENCH 계약으로 연결한다.
+- data.interactions.construction은 FE 공사 안내용 별도 목록이다. 각 항목은 id/kind=CONSTRUCTION/status=construction/label/position/reachPosition/yaw/radius/heightTolerance/message를 가진다. 이 목록은 WORLD_FACILITY_USE나 기존 BENCH/FITNESS/TELESCOPE catalog에 넣지 않는다. BE 로더는 이 부가 필드를 허용/무시하고 기존 판정은 유지하면 된다.
+- 기존 BE 매핑 파일은 신규 서버 ID 회신 전까지 16개를 유지한다. FE·BE 공동 검수 전 운영 전환하지 않는다.

@@ -23,7 +23,8 @@ export function buildCollision(input:{definition:ParkDefinition;boxes:readonly B
   return {
     boundary:{kind:'rounded-square',half:d.park.size/2-d.park.movementInset,radius:d.park.movementCornerRadius},
     obstacles:[
-      ...input.boxes.filter(b=>!kioskIds.has(b.id)).map((b):MapObstacle=>({...b,kind:'box',halfX:b.halfX+r.boxClearance,halfZ:b.halfZ+r.boxClearance,yaw:0})),
+      ...input.boxes.filter(b=>!kioskIds.has(b.id)&&b.id!=='fountain-basin').map((b):MapObstacle=>({...b,kind:'box',halfX:b.halfX+r.boxClearance,halfZ:b.halfZ+r.boxClearance,yaw:0})),
+      {id:'fountain-basin',kind:'circle',...d.sites.fountain,radius:d.fountain.baseBasinRadius*d.fountain.scale+r.boxClearance},
       ...input.kiosks.map((k):MapObstacle=>({id:'layout-'+k.kind,kind:'box',x:k.x,z:k.z,halfX:k.width/2+r.boxClearance,halfZ:k.depth/2+r.boxClearance,yaw:k.yaw})),
       ...segments(input.fences,'fence',r.fenceRadius),
       ...input.lamps.map((p,i):MapObstacle=>({id:'layout-lamp-'+i,kind:'circle',x:p[0],z:p[2],radius:r.lampRadius})),

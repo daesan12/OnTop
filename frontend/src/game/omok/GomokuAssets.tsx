@@ -1,7 +1,7 @@
 import { memo, useLayoutEffect, useRef } from "react";
 import {
   LatheGeometry,
-  MeshStandardMaterial,
+  MeshLambertMaterial,
   SphereGeometry,
   Vector2,
   type Group,
@@ -14,13 +14,11 @@ import { BoardWood } from "./BoardWood";
 
 // Shared by the four table settings, placed stones, previews and decorative supplies.
 export const stoneGeometry = new SphereGeometry(0.039, 12, 8);
-export const blackStoneMaterial = new MeshStandardMaterial({
+export const blackStoneMaterial = new MeshLambertMaterial({
   color: "#101717",
-  roughness: 0.23,
 });
-export const whiteStoneMaterial = new MeshStandardMaterial({
-  color: "#f3eee2",
-  roughness: 0.28,
+export const whiteStoneMaterial = new MeshLambertMaterial({
+  color: "#d6d1c6",
 });
 
 const body: Part[] = [
@@ -127,7 +125,6 @@ export const GomokuAssets = memo(function GomokuAssets() {
       <mesh
         name="gomoku-playing-surface"
         position={[0, 0.011, 0]}
-        receiveShadow
       >
         <boxGeometry
           args={[
@@ -141,7 +138,7 @@ export const GomokuAssets = memo(function GomokuAssets() {
       <Instances
         parts={inlay}
         shadow={false}
-        material={<meshStandardMaterial roughness={0.58} />}
+        material={<meshLambertMaterial />}
       >
         <boxGeometry />
       </Instances>

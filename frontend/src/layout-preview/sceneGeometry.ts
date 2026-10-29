@@ -1,8 +1,10 @@
+import { inKioskEntrance,inMailboxClearing } from '../map/park/planting'
+import { SIMPLE_MAP } from '../world/art/mapRenderProfile'
 import { roundedSquare,insideRoundedSquare } from '../world/art/roundedOutline'
 import { ExtrudeGeometry,Path, Shape, ShapeGeometry } from 'three'
 import { PropBuilder } from '../world/art/propGeometry'
 import { beam, seeded, type Part } from '../world/art/Instances'
-import { DRAFT_PARK,SETTINGS, DRAFT_PAVILIONS,DRAFT_STAIRS,PAVILION_COURT,DRAFT_FITNESS_AREA,DRAFT_FOUNTAIN,VR_COURT, DRAFT_BOXES, FENCE_BLOCKERS, LIFE_PLAZA, SITES, KIOSKS, DRAFT_LAMPS, onPath } from './layout'
+import { DRAFT_PARK,SETTINGS,KIOSKS, DRAFT_PAVILIONS,DRAFT_STAIRS,PAVILION_COURT,DRAFT_FITNESS_AREA,DRAFT_FOUNTAIN,VR_COURT, DRAFT_BOXES, FENCE_BLOCKERS, LIFE_PLAZA, SITES, DRAFT_LAMPS, onPath } from './layout'
 import { FISHING_DECKS,FISHING_LANDINGS,shoreAccess } from './lakeLayout'
 
 // All geometry and instances are static and shared. No per-frame construction.
@@ -34,8 +36,10 @@ for(const side of [-1,1])for(let step=0;step<SETTINGS.pagoda.steps;step++) {
 }
 // Uniform apron shared by the two east-facing houses and the original pagoda.
 b.box('stone','#c8c0ad',[VR_COURT.x,.05,VR_COURT.z],[VR_COURT.width,.1,VR_COURT.depth])
-for(let x=VR_COURT.x-VR_COURT.width/2+.5;x<VR_COURT.x+VR_COURT.width/2;x+=1)b.box('stone','#afa997',[x,.102,VR_COURT.z],[.018,.012,VR_COURT.depth])
-for(let z=VR_COURT.z-VR_COURT.depth/2+.5;z<VR_COURT.z+VR_COURT.depth/2;z+=1)b.box('stone','#afa997',[VR_COURT.x,.102,z],[VR_COURT.width,.012,.018])
+if(!SIMPLE_MAP){
+  for(let x=VR_COURT.x-VR_COURT.width/2+.5;x<VR_COURT.x+VR_COURT.width/2;x+=1)b.box('stone','#afa997',[x,.102,VR_COURT.z],[.018,.012,VR_COURT.depth])
+  for(let z=VR_COURT.z-VR_COURT.depth/2+.5;z<VR_COURT.z+VR_COURT.depth/2;z+=1)b.box('stone','#afa997',[VR_COURT.x,.102,z],[VR_COURT.width,.012,.018])
+}
 export const gardenArt=b.finish()
 
 // Static landscaped grove batches. Keep all structural footprints and routes clear.
@@ -44,8 +48,9 @@ const random=seeded(1802026)
 const candidates: [number,number][]=[]
 for(let z=-79;z<=79;z+=3.15)for(let x=-79;x<=79;x+=3.15)candidates.push([x+(random()-.5)*1.2,z+(random()-.5)*1.2])
 function reserved(x:number,z:number) {
+  if(inKioskEntrance(x,z,KIOSKS))return true
   if(onPath(x,z,1.4)||DRAFT_LAMPS.some(p=>Math.hypot(x-p[0],z-p[2])<2))return true
-  if(Math.abs(x)<LIFE_PLAZA.width/2+.8&&Math.abs(z-LIFE_PLAZA.z)<LIFE_PLAZA.depth/2+.8)return true
+  if(Math.hypot(x-LIFE_PLAZA.x,z-LIFE_PLAZA.z)<LIFE_PLAZA.pavingRadius+4)return true
   if(Math.abs(x-SITES.pagoda.x)<18&&z<SITES.pagoda.z+17&&z>SITES.pagoda.z-19)return true
   if(DRAFT_PAVILIONS.some(p=>Math.abs(x-p.x)<(p.id==='P0'?15:PAVILION_COURT.width/2+1.5)&&Math.abs(z-p.z)<(p.id==='P0'?18:PAVILION_COURT.depth/2+1.5)))return true
   if(Math.hypot((x-SITES.lake.x)/(SITES.lake.rx+3),(z-SITES.lake.z)/(SITES.lake.rz+3))<1)return true
@@ -64,12 +69,6 @@ for(const [x,z] of candidates) {
   trunks.push({p:[x,h*.3,z],s:[.22,h*.6,.22],c:'#72553c'})
   crowns.push({p:[x,h*.72,z],s:[r,h*.37,r],c:pink?'#c98f9e':['#537e55','#6f965d','#456d4c','#87a265'][Math.floor(random()*4)]!})
   if(random()<.4)shrubs.push({p:[x+1.4,.5,z+1],s:[1,.65,.9],c:'#66875b'})
-}
-for(const side of [-1,1])for(const z of [35,44,53]) {
-  const x=side*35.9
-  if(DRAFT_LAMPS.some(p=>Math.hypot(x-p[0],z-p[2])<2)||KIOSKS.some(k=>Math.hypot(x-k.x,z-k.z)<6.7))continue
-  trunks.push({p:[x,1.35,z],s:[.16,2.7,.16],c:'#72553c'})
-  crowns.push({p:[x,3.7,z],s:[1.1,1.6,1.1],c:z===44?'#bd8d9a':'#658759'})
 }
 // Continuous inner wall planting, leaving the south entrance and perimeter path clear.
 export const PERIMETER_TREE_SITES:Array<{x:number;z:number}>=[]
@@ -90,7 +89,7 @@ export const shoreTrunks:Part[]=[],shoreCrowns:Part[]=[]
 export const SHORE_TREE_SITES:Array<{id:string;x:number;z:number}>=[]
 for(let i=0;i<74;i++) {
   const a=i*Math.PI*2/74,x=SITES.lake.x+Math.cos(a)*(SITES.lake.rx+2.1),z=SITES.lake.z+Math.sin(a)*(SITES.lake.rz+3)
-  if(shoreAccess(x,z)||onPath(x,z,.05)||Math.abs(x-25)<9&&Math.abs(z-38)<8)continue
+  if(inKioskEntrance(x,z,KIOSKS)||shoreAccess(x,z)||onPath(x,z,.05)||Math.abs(x-25)<9&&Math.abs(z-38)<8)continue
   SHORE_TREE_SITES.push({id:`shore-tree-${i}`,x,z})
   const h=5.5+random()*1.8
   shoreTrunks.push({p:[x,h*.32,z],s:[.2,h*.64,.2],c:'#776045'})
@@ -102,6 +101,12 @@ for(const side of [-1,1])for(let z=-75;z<84;z+=7) {
   shrubs.push({p:[x,.4,z],s:[.85,.5,.8],c:'#78945e'})
   for(let i=0;i<5;i++)flowers.push({p:[x+(random()-.5)*1.5,.65,z+(random()-.5)*1.5],s:[.15,.2,.15],c:i%2?'#e3b887':'#d89ea2'})
 }
+
+// Filter after seeded construction so clearing one facility does not reshuffle the forest.
+for(let i=trunks.length-1;i>=0;i--)if(inMailboxClearing(trunks[i]!.p[0],trunks[i]!.p[2],SITES.mailbox,SETTINGS.planting.mailboxTreeClearance)){
+  trunks.splice(i,1);crowns.splice(i,1)
+}
+for(let i=shrubs.length-1;i>=0;i--)if(inMailboxClearing(shrubs[i]!.p[0],shrubs[i]!.p[2],SITES.mailbox,SETTINGS.planting.mailboxTreeClearance))shrubs.splice(i,1)
 
 // A separate background ring: decorative, never included in walking bounds/colliders.
 const city=new PropBuilder([6,4]);
@@ -143,11 +148,7 @@ for(const p of FISHING_LANDINGS) {
   const profile=new Shape();profile.moveTo(p.x0,0);profile.lineTo(p.x1,0);profile.lineTo(p.x1,p.y1);profile.lineTo(p.x0,p.y0);profile.closePath()
   extra.add('stone',new ExtrudeGeometry(profile,{depth:3.2,bevelEnabled:false}),'#c5bea9',[0,0,p.z-1.6])
 }
-// Forest rest seats, simple benches facing the paths.
-for(const [x,z] of [[-73,80],[52,-73],[74,73]]) {
-  for(const dx of [-1,1])extra.box('metal','#48584a',[x+dx,.35,z],[.16,.7,.8])
-  extra.box('wood','#a48b60',[x,.75,z],[3.2,.18,.85]);extra.box('wood','#a48b60',[x,1.2,z-.4],[3.2,.7,.1])
-}
+// Forest benches are shared ReferenceBench instances derived from interaction data.
 export const detailArt=extra.finish()
 
 const lakeBank:Part[]=[]

@@ -1,9 +1,10 @@
+import { SIMPLE_MAP } from './mapRenderProfile'
 import { useMemo } from 'react'
 import type { MeshStandardMaterial } from 'three'
 import { useSurfaceMaps } from './SurfaceMaterial'
 
 /** Metric, staggered granite courses with pale lime joints; no extra image download. */
-export function BoundaryMasonry() {
+function DetailedBoundaryMasonry() {
   const maps = useSurfaceMaps('stone')
   const compile = useMemo<MeshStandardMaterial['onBeforeCompile']>(
     () => (shader) => {
@@ -68,7 +69,7 @@ export function BoundaryMasonry() {
 }
 
 /** UV relief on the small circular tile ends: inset ring and eight-petal rosette. */
-export function MaksaeMaterial() {
+function DetailedMaksaeMaterial() {
   const compile = useMemo<MeshStandardMaterial['onBeforeCompile']>(
     () => (shader) => {
       shader.vertexShader = `varying vec2 vMaksaeUv;\n${shader.vertexShader}`
@@ -102,3 +103,6 @@ export function MaksaeMaterial() {
     />
   )
 }
+
+export function BoundaryMasonry(){return SIMPLE_MAP?<meshLambertMaterial color="#858c83" flatShading/>:<DetailedBoundaryMasonry/>}
+export function MaksaeMaterial(){return SIMPLE_MAP?<meshLambertMaterial color="#9b9b8d" flatShading/>:<DetailedMaksaeMaterial/>}

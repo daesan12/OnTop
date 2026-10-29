@@ -56,7 +56,10 @@ function furniture(lamps: readonly (readonly [number, number, number])[] = LAMPS
   for (const [x, y, z] of lamps) {
     const metal = '#283233',
       gold = '#a58a53'
-    poles.push({ p: [x, y + 1.82, z], s: [0.075, 3.64, 0.075], c: metal })
+    const triple = Math.abs(x) === 6 && (z === 24 || z === 53)
+    const mainHeadHeight = triple ? 4.05 : 3.77
+    const poleTop=mainHeadHeight-.24+.015
+    poles.push({ p: [x, y + poleTop/2, z], s: [0.075, poleTop, 0.075], c: metal })
     for (const [height, radius, depth] of [
       [0.12, 0.13, 0.24],
       [0.32, 0.115, 0.16],
@@ -78,14 +81,13 @@ function furniture(lamps: readonly (readonly [number, number, number])[] = LAMPS
       })
     }
     stone.push({ p: [x, y + 0.065, z], s: [0.38, 0.13, 0.38], c: '#b7b7ae' })
-    const triple = Math.abs(x) === 6 && (z === 24 || z === 53)
     const heads = triple
       ? [
           [-0.55, 3.65],
-          [0, 4.05],
+          [0, mainHeadHeight],
           [0.55, 3.65],
         ]
-      : [[0, 3.77]]
+      : [[0, mainHeadHeight]]
     if (triple)
       for (const side of [-1, 1]) {
         boxes.push({
@@ -93,13 +95,15 @@ function furniture(lamps: readonly (readonly [number, number, number])[] = LAMPS
           s: [0.62, 0.075, 0.075],
           c: metal,
         })
+        const supportBottom=3.21,supportTop=heads[0]![1]!-.24+.015
         poles.push({
-          p: [x + side * 0.55, y + 3.35, z],
-          s: [0.035, 0.27, 0.035],
+          p: [x + side * 0.55, y + (supportBottom+supportTop)/2, z],
+          s: [0.035, supportTop-supportBottom, 0.035],
           c: metal,
         })
       }
     for (const [dx, height] of heads) {
+      poles.push({p:[x+dx,y+height-.29,z],s:[.09,.1,.09],c:metal})
       glass.push({
         p: [x + dx, y + height, z],
         s: [0.28, 0.42, 0.28],

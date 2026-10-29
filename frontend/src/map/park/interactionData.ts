@@ -42,6 +42,7 @@ export function buildInteractionData(i:Input) {
     add({id:`bench-fountain-${[1,3,5,7][index]}`,x,z,yaw:b.yaw},b.y,1.4*d.fountain.scale,.56,1.5,[b.x,b.y,b.z])
   }
   for(const deck of i.decks)add({id:deck.id+'-bench',x:deck.x-(deck.wood?1:-1)*.7,z:deck.z-2.15,yaw:0},.32,1.15,.46)
+  for(const bench of d.forestBenches)add(bench,0)
   // Explicit quadrant/seat identity survives adding or reordering other benches.
   for(const quadrant of [0,1,2,3]) {
     const a=quadrant*Math.PI/2+Math.PI/4

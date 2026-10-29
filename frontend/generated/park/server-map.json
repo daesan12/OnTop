@@ -12,36 +12,36 @@
           "halfZ": 1.1,
           "id": "table-1",
           "kind": "box",
-          "x": -10,
+          "x": -12,
           "yaw": 0,
-          "z": 32
+          "z": 34
         },
         {
           "halfX": 1.35,
           "halfZ": 1.1,
           "id": "table-2",
           "kind": "box",
-          "x": 10,
+          "x": 12,
           "yaw": 0,
-          "z": 32
+          "z": 34
         },
         {
           "halfX": 1.35,
           "halfZ": 1.1,
           "id": "table-3",
           "kind": "box",
-          "x": -10,
+          "x": -12,
           "yaw": 0,
-          "z": 52
+          "z": 58
         },
         {
           "halfX": 1.35,
           "halfZ": 1.1,
           "id": "table-4",
           "kind": "box",
-          "x": 10,
+          "x": 12,
           "yaw": 0,
-          "z": 52
+          "z": 58
         },
         {
           "halfX": 1.35,
@@ -57,7 +57,7 @@
           "halfZ": 1.1,
           "id": "table-6",
           "kind": "box",
-          "x": -24,
+          "x": -28,
           "yaw": 0,
           "z": 4
         },
@@ -66,7 +66,7 @@
           "halfZ": 1.1,
           "id": "table-7",
           "kind": "box",
-          "x": 24,
+          "x": 28,
           "yaw": 0,
           "z": 4
         },
@@ -140,7 +140,7 @@
           "kind": "box",
           "x": 48,
           "yaw": 0,
-          "z": -72
+          "z": -70.5
         },
         {
           "halfX": 1.35,
@@ -150,6 +150,24 @@
           "x": 71,
           "yaw": 0,
           "z": 75
+        },
+        {
+          "halfX": 1.5,
+          "halfZ": 1.05,
+          "id": "table-17",
+          "kind": "box",
+          "x": -53,
+          "yaw": 0,
+          "z": -8
+        },
+        {
+          "halfX": 1.5,
+          "halfZ": 1.05,
+          "id": "table-18",
+          "kind": "box",
+          "x": -53,
+          "yaw": 0,
+          "z": 2
         },
         {
           "halfX": 1.5815415806617297,
@@ -260,76 +278,661 @@
           "z": 62.05885716173109
         },
         {
-          "halfX": 2.5999999999999996,
-          "halfZ": 3.6999999999999997,
-          "id": "plaza-rest-garden--1",
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "kiosk-tree-shop-0-0",
           "kind": "box",
-          "x": -19.3,
+          "x": -44.57268960314261,
           "yaw": 0,
-          "z": 34.5
+          "z": 39.30666419935816
         },
         {
-          "halfX": 2.5999999999999996,
-          "halfZ": 3.6999999999999997,
-          "id": "plaza-rest-garden-1",
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "kiosk-tree-shop-0-2",
           "kind": "box",
-          "x": 19.3,
+          "x": -43.272689603142595,
           "yaw": 0,
-          "z": 34.5
+          "z": 37.05499814951862
         },
         {
-          "halfX": 0.8,
-          "halfZ": 1.7,
-          "id": "plaza-rest-bench--1-33",
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "kiosk-tree-shop-0-4",
           "kind": "box",
-          "x": -16.3,
+          "x": -41.9726896031426,
           "yaw": 0,
-          "z": 33
+          "z": 34.803332099679075
         },
         {
-          "halfX": 0.8,
-          "halfZ": 1.7,
-          "id": "plaza-rest-bench--1-36",
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "kiosk-tree-shop-2-0",
           "kind": "box",
-          "x": -16.3,
+          "x": -42.321023553303064,
           "yaw": 0,
-          "z": 36
+          "z": 40.606664199358164
         },
         {
-          "halfX": 0.8,
-          "halfZ": 1.7,
-          "id": "plaza-rest-bench-1-33",
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "kiosk-tree-shop-2-10",
           "kind": "box",
-          "x": 16.3,
+          "x": -35.82102355330306,
           "yaw": 0,
-          "z": 33
+          "z": 29.348333950160455
         },
         {
-          "halfX": 0.8,
-          "halfZ": 1.7,
-          "id": "plaza-rest-bench-1-36",
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "kiosk-tree-shop-3-8",
           "kind": "box",
-          "x": 16.3,
+          "x": -35.99519052838329,
           "yaw": 0,
-          "z": 36
+          "z": 32.25
         },
         {
-          "halfX": 0.64,
-          "halfZ": 0.64,
-          "id": "plaza-bin--1",
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "kiosk-tree-shop-4-10",
           "kind": "box",
-          "x": -16.5,
+          "x": -33.56935750346352,
           "yaw": 0,
-          "z": 39
+          "z": 30.648333950160456
         },
         {
-          "halfX": 0.64,
-          "halfZ": 0.64,
-          "id": "plaza-bin-1",
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "kiosk-tree-shop-7-1",
           "kind": "box",
-          "x": 16.5,
+          "x": -36.04185842870421,
           "yaw": 0,
-          "z": 39
+          "z": 42.73083117443839
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "kiosk-tree-shop-9-2",
+          "kind": "box",
+          "x": -33.14019237886467,
+          "yaw": 0,
+          "z": 42.90499814951862
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "kiosk-tree-shop-9-14",
+          "kind": "box",
+          "x": -25.340192378864664,
+          "yaw": 0,
+          "z": 29.395001850481382
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "kiosk-tree-drink-0-0",
+          "kind": "box",
+          "x": -33.72006165897972,
+          "yaw": 0,
+          "z": 68.15666419935816
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "kiosk-tree-drink-0-2",
+          "kind": "box",
+          "x": -35.02006165897972,
+          "yaw": 0,
+          "z": 65.90499814951862
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "kiosk-tree-drink-0-13",
+          "kind": "box",
+          "x": -42.17006165897972,
+          "yaw": 0,
+          "z": 53.52083487540115
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "kiosk-tree-drink-0-15",
+          "kind": "box",
+          "x": -43.470061658979716,
+          "yaw": 0,
+          "z": 51.26916882556161
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "kiosk-tree-drink-2-7",
+          "kind": "box",
+          "x": -36.01839560914018,
+          "yaw": 0,
+          "z": 58.97583302491977
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "kiosk-tree-drink-4-6",
+          "kind": "box",
+          "x": -33.11672955930064,
+          "yaw": 0,
+          "z": 58.80166604983954
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "kiosk-tree-drink-4-8",
+          "kind": "box",
+          "x": -34.416729559300634,
+          "yaw": 0,
+          "z": 56.55
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "kiosk-tree-drink-4-10",
+          "kind": "box",
+          "x": -35.71672955930064,
+          "yaw": 0,
+          "z": 54.298333950160455
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "kiosk-tree-drink-6-13",
+          "kind": "box",
+          "x": -35.4150635094611,
+          "yaw": 0,
+          "z": 49.62083487540115
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "kiosk-tree-drink-9-3",
+          "kind": "box",
+          "x": -25.537564434701785,
+          "yaw": 0,
+          "z": 58.929165124598846
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "kiosk-tree-photo-0-0",
+          "kind": "box",
+          "x": 34.412881982007264,
+          "yaw": 0,
+          "z": 21.043335800641838
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "kiosk-tree-photo-0-12",
+          "kind": "box",
+          "x": 42.21288198200727,
+          "yaw": 0,
+          "z": 34.55333209967908
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "kiosk-tree-photo-2-6",
+          "kind": "box",
+          "x": 36.06121593216773,
+          "yaw": 0,
+          "z": 29.09833395016046
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "kiosk-tree-photo-4-5",
+          "kind": "box",
+          "x": 33.159549882328186,
+          "yaw": 0,
+          "z": 29.27250092524069
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "kiosk-tree-photo-4-7",
+          "kind": "box",
+          "x": 34.45954988232819,
+          "yaw": 0,
+          "z": 31.52416697508023
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "kiosk-tree-photo-4-9",
+          "kind": "box",
+          "x": 35.75954988232819,
+          "yaw": 0,
+          "z": 33.77583302491977
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "kiosk-tree-photo-7-3",
+          "kind": "box",
+          "x": 28.48205080756888,
+          "yaw": 0,
+          "z": 28.970834875401152
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "kiosk-tree-photo-7-13",
+          "kind": "box",
+          "x": 34.982050807568875,
+          "yaw": 0,
+          "z": 40.22916512459885
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "kiosk-tree-photo-9-2",
+          "kind": "box",
+          "x": 25.580384757729334,
+          "yaw": 0,
+          "z": 29.145001850481382
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "kiosk-tree-photo-9-13",
+          "kind": "box",
+          "x": 32.73038475772933,
+          "yaw": 0,
+          "z": 41.529165124598855
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "plaza-belt-tree-2",
+          "kind": "box",
+          "x": 31.527946591687172,
+          "yaw": 0,
+          "z": 50.15073291259764
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "plaza-belt-tree-3",
+          "kind": "box",
+          "x": 25.50041729048399,
+          "yaw": 0,
+          "z": 51.072348372419334
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "plaza-belt-tree-4",
+          "kind": "box",
+          "x": 27.915256379754073,
+          "yaw": 0,
+          "z": 53.47987040346285
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "plaza-belt-tree-5",
+          "kind": "box",
+          "x": 30.112378117944363,
+          "yaw": 0,
+          "z": 56.22177499664054
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "plaza-belt-tree-6",
+          "kind": "box",
+          "x": 24.020867845293456,
+          "yaw": 0,
+          "z": 55.94976924149233
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "plaza-belt-tree-7",
+          "kind": "box",
+          "x": 25.919622230294692,
+          "yaw": 0,
+          "z": 58.78214314732914
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "plaza-belt-tree-15",
+          "kind": "box",
+          "x": 14.444826058509662,
+          "yaw": 0,
+          "z": 67.61820991986617
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "plaza-belt-tree-16",
+          "kind": "box",
+          "x": 14.450000000000003,
+          "yaw": 0,
+          "z": 71.02813416937028
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "plaza-belt-tree-17",
+          "kind": "box",
+          "x": 14.06478034896424,
+          "yaw": 0,
+          "z": 74.52055318073948
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "plaza-belt-tree-18",
+          "kind": "box",
+          "x": 9.949769241492335,
+          "yaw": 0,
+          "z": 70.02086784529345
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "plaza-belt-tree-19",
+          "kind": "box",
+          "x": 9.289600547261372,
+          "yaw": 0,
+          "z": 73.36628074240855
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "plaza-belt-tree-20",
+          "kind": "box",
+          "x": 8.23044563426016,
+          "yaw": 0,
+          "z": 76.71644127599237
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "plaza-belt-tree-21",
+          "kind": "box",
+          "x": 5.072348372419337,
+          "yaw": 0,
+          "z": 71.500417290484
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "plaza-belt-tree-27",
+          "kind": "box",
+          "x": -5.072348372419333,
+          "yaw": 0,
+          "z": 71.500417290484
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "plaza-belt-tree-28",
+          "kind": "box",
+          "x": -7.479870403462845,
+          "yaw": 0,
+          "z": 73.91525637975407
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "plaza-belt-tree-29",
+          "kind": "box",
+          "x": -10.221774996640539,
+          "yaw": 0,
+          "z": 76.11237811794436
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "plaza-belt-tree-30",
+          "kind": "box",
+          "x": -9.949769241492326,
+          "yaw": 0,
+          "z": 70.02086784529345
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "plaza-belt-tree-31",
+          "kind": "box",
+          "x": -12.782143147329132,
+          "yaw": 0,
+          "z": 71.91962223029469
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "plaza-belt-tree-33",
+          "kind": "box",
+          "x": -14.44482605850966,
+          "yaw": 0,
+          "z": 67.61820991986617
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "plaza-belt-tree-57",
+          "kind": "box",
+          "x": -21.61820991986618,
+          "yaw": 0,
+          "z": 31.55517394149035
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "plaza-belt-tree-87",
+          "kind": "box",
+          "x": 21.61820991986616,
+          "yaw": 0,
+          "z": 31.555173941490324
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "pavilion-tree-P1-0",
+          "kind": "box",
+          "x": -18.5,
+          "yaw": 0,
+          "z": -2
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "pavilion-tree-P1-1",
+          "kind": "box",
+          "x": -18.5,
+          "yaw": 0,
+          "z": 0.8999999999999999
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "pavilion-tree-P1-2",
+          "kind": "box",
+          "x": -18.5,
+          "yaw": 0,
+          "z": 3.8
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "pavilion-tree-P1-3",
+          "kind": "box",
+          "x": -18.5,
+          "yaw": 0,
+          "z": 6.699999999999999
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "pavilion-tree-P1-4",
+          "kind": "box",
+          "x": -18.5,
+          "yaw": 0,
+          "z": 9.6
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "pavilion-tree-P1-5",
+          "kind": "box",
+          "x": -18.5,
+          "yaw": 0,
+          "z": 12.5
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "pavilion-tree-P1-8",
+          "kind": "box",
+          "x": -33.5,
+          "yaw": 0,
+          "z": 17
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "pavilion-tree-P1-10",
+          "kind": "box",
+          "x": -22.5,
+          "yaw": 0,
+          "z": 17
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "pavilion-tree-P1-11",
+          "kind": "box",
+          "x": -33.5,
+          "yaw": 0,
+          "z": -5
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "pavilion-tree-P1-12",
+          "kind": "box",
+          "x": -22.5,
+          "yaw": 0,
+          "z": -5
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "pavilion-tree-P2-0",
+          "kind": "box",
+          "x": 18.5,
+          "yaw": 0,
+          "z": -2
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "pavilion-tree-P2-1",
+          "kind": "box",
+          "x": 18.5,
+          "yaw": 0,
+          "z": 0.8999999999999999
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "pavilion-tree-P2-2",
+          "kind": "box",
+          "x": 18.5,
+          "yaw": 0,
+          "z": 3.8
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "pavilion-tree-P2-3",
+          "kind": "box",
+          "x": 18.5,
+          "yaw": 0,
+          "z": 6.699999999999999
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "pavilion-tree-P2-4",
+          "kind": "box",
+          "x": 18.5,
+          "yaw": 0,
+          "z": 9.6
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "pavilion-tree-P2-5",
+          "kind": "box",
+          "x": 18.5,
+          "yaw": 0,
+          "z": 12.5
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "pavilion-tree-P2-6",
+          "kind": "box",
+          "x": 18.5,
+          "yaw": 0,
+          "z": 15.399999999999999
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "pavilion-tree-P2-7",
+          "kind": "box",
+          "x": 18.5,
+          "yaw": 0,
+          "z": 18.3
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "pavilion-tree-P2-8",
+          "kind": "box",
+          "x": 22.5,
+          "yaw": 0,
+          "z": 17
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "pavilion-tree-P2-10",
+          "kind": "box",
+          "x": 33.5,
+          "yaw": 0,
+          "z": 17
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "pavilion-tree-P2-11",
+          "kind": "box",
+          "x": 22.5,
+          "yaw": 0,
+          "z": -5
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "pavilion-tree-P2-12",
+          "kind": "box",
+          "x": 33.5,
+          "yaw": 0,
+          "z": -5
         },
         {
           "halfX": 0.52,
@@ -503,22 +1106,40 @@
           "z": 26
         },
         {
-          "halfX": 1.55,
-          "halfZ": 1.15,
-          "id": "layout-vr-stone-set-1",
+          "halfX": 1.7,
+          "halfZ": 0.75,
+          "id": "bench-forest-southwest",
           "kind": "box",
-          "x": -53,
+          "x": -73,
           "yaw": 0,
-          "z": -8
+          "z": 80
+        },
+        {
+          "halfX": 1.7,
+          "halfZ": 0.75,
+          "id": "bench-forest-northeast",
+          "kind": "box",
+          "x": 52,
+          "yaw": 0,
+          "z": -73
+        },
+        {
+          "halfX": 1.7,
+          "halfZ": 0.75,
+          "id": "bench-forest-southeast",
+          "kind": "box",
+          "x": 74,
+          "yaw": 0,
+          "z": 73
         },
         {
           "halfX": 0.8500000000000001,
           "halfZ": 0.8500000000000001,
-          "id": "layout-vr-stone-set-1-chair--1",
+          "id": "layout-vr-stone-set-1-chair-0",
           "kind": "box",
           "x": -53,
           "yaw": 0,
-          "z": -9.8
+          "z": -6.2
         },
         {
           "halfX": 0.8500000000000001,
@@ -527,25 +1148,34 @@
           "kind": "box",
           "x": -53,
           "yaw": 0,
-          "z": -6.2
-        },
-        {
-          "halfX": 1.55,
-          "halfZ": 1.15,
-          "id": "layout-vr-stone-set-2",
-          "kind": "box",
-          "x": -53,
-          "yaw": 0,
-          "z": 2
+          "z": -9.8
         },
         {
           "halfX": 0.8500000000000001,
           "halfZ": 0.8500000000000001,
-          "id": "layout-vr-stone-set-2-chair--1",
+          "id": "layout-vr-stone-set-1-chair-2",
+          "kind": "box",
+          "x": -55,
+          "yaw": 0,
+          "z": -8
+        },
+        {
+          "halfX": 0.8500000000000001,
+          "halfZ": 0.8500000000000001,
+          "id": "layout-vr-stone-set-1-chair-3",
+          "kind": "box",
+          "x": -51,
+          "yaw": 0,
+          "z": -8
+        },
+        {
+          "halfX": 0.8500000000000001,
+          "halfZ": 0.8500000000000001,
+          "id": "layout-vr-stone-set-2-chair-0",
           "kind": "box",
           "x": -53,
           "yaw": 0,
-          "z": 0.19999999999999996
+          "z": 3.8
         },
         {
           "halfX": 0.8500000000000001,
@@ -554,7 +1184,25 @@
           "kind": "box",
           "x": -53,
           "yaw": 0,
-          "z": 3.8
+          "z": 0.19999999999999996
+        },
+        {
+          "halfX": 0.8500000000000001,
+          "halfZ": 0.8500000000000001,
+          "id": "layout-vr-stone-set-2-chair-2",
+          "kind": "box",
+          "x": -55,
+          "yaw": 0,
+          "z": 2
+        },
+        {
+          "halfX": 0.8500000000000001,
+          "halfZ": 0.8500000000000001,
+          "id": "layout-vr-stone-set-2-chair-3",
+          "kind": "box",
+          "x": -51,
+          "yaw": 0,
+          "z": 2
         },
         {
           "halfX": 0.6799999999999999,
@@ -575,42 +1223,6 @@
           "z": 90
         },
         {
-          "halfX": 1.4200000000000002,
-          "halfZ": 2.77,
-          "id": "plaza-planter-30",
-          "kind": "box",
-          "x": 13.85640646055102,
-          "yaw": 0,
-          "z": 50
-        },
-        {
-          "halfX": 1.4200000000000002,
-          "halfZ": 2.77,
-          "id": "plaza-planter-150",
-          "kind": "box",
-          "x": -13.85640646055102,
-          "yaw": 0,
-          "z": 50
-        },
-        {
-          "halfX": 1.433012701892219,
-          "halfZ": 1.7624355652982142,
-          "id": "plaza-planter-30-bench",
-          "kind": "box",
-          "x": 11.777945491468365,
-          "yaw": 0,
-          "z": 48.8
-        },
-        {
-          "halfX": 1.433012701892219,
-          "halfZ": 1.762435565298214,
-          "id": "plaza-planter-150-bench",
-          "kind": "box",
-          "x": -11.777945491468365,
-          "yaw": 0,
-          "z": 48.8
-        },
-        {
           "halfX": 1.5,
           "halfZ": 0.72,
           "id": "fishing-bench-0",
@@ -627,15 +1239,6 @@
           "x": 79.7,
           "yaw": 0,
           "z": -45.15
-        },
-        {
-          "halfX": 6.644,
-          "halfZ": 6.644,
-          "id": "fountain-basin",
-          "kind": "box",
-          "x": -63,
-          "yaw": 0,
-          "z": -56
         },
         {
           "halfX": 5.1,
@@ -1026,174 +1629,154 @@
           "z": 18
         },
         {
-          "halfX": 1,
-          "halfZ": 0.8,
-          "id": "a-frame-arrival",
-          "kind": "box",
-          "x": -16,
-          "yaw": 0,
-          "z": 32
-        },
-        {
-          "halfX": 1,
-          "halfZ": 0.8,
-          "id": "a-frame-pavilion",
-          "kind": "box",
-          "x": -35,
-          "yaw": 0,
-          "z": -13
-        },
-        {
-          "halfX": 1,
-          "halfZ": 0.8,
-          "id": "a-frame-west-walk",
-          "kind": "box",
-          "x": -57,
-          "yaw": 0,
-          "z": -40
+          "id": "fountain-basin",
+          "kind": "circle",
+          "radius": 6.644,
+          "x": -63,
+          "z": -56
         },
         {
           "halfX": 5.1,
           "halfZ": 3.9,
           "id": "layout-shop",
           "kind": "box",
-          "x": -29,
-          "yaw": 0.7853981633974483,
-          "z": 35
+          "x": -29.5,
+          "yaw": 1.0471975511965976,
+          "z": 36
         },
         {
           "halfX": 4.2,
           "halfZ": 2.8,
           "id": "layout-drink",
           "kind": "box",
-          "x": -26,
-          "yaw": 0,
-          "z": 50.5
+          "x": -30,
+          "yaw": 2.0943951023931953,
+          "z": 54
         },
         {
           "halfX": 4.7,
           "halfZ": 3.5999999999999996,
           "id": "layout-photo",
           "kind": "box",
-          "x": 29,
-          "yaw": -0.7853981633974483,
-          "z": 35
+          "x": 30,
+          "yaw": -1.0471975511965976,
+          "z": 35.6
         },
         {
           "from": [
-            -35.64680374315355,
-            35.848528137423855
+            -35.7007041555162,
+            38.539934640057524
           ],
           "id": "kiosk-shop-0",
           "kind": "segment",
           "radius": 0.46,
           "to": [
-            -28.151471862576145,
-            28.353196256846452
+            -30.4007041555162,
+            29.360065359942475
           ]
         },
         {
           "from": [
-            -35.64680374315355,
-            35.848528137423855
+            -35.7007041555162,
+            38.539934640057524
           ],
           "id": "kiosk-shop-1",
           "kind": "segment",
           "radius": 0.46,
           "to": [
-            -29.848528137423862,
-            41.64680374315354
+            -28.5992958444838,
+            42.63993464005752
           ]
         },
         {
           "from": [
-            -28.151471862576145,
-            28.353196256846452
+            -30.4007041555162,
+            29.360065359942475
           ],
           "id": "kiosk-shop-2",
           "kind": "segment",
           "radius": 0.46,
           "to": [
-            -22.353196256846452,
-            34.151471862576145
+            -23.299295844483805,
+            33.460065359942476
           ]
         },
         {
           "from": [
-            -30.4,
-            47.5
+            -30.398076211353317,
+            59.31051177665153
           ],
           "id": "kiosk-drink-0",
           "kind": "segment",
           "radius": 0.46,
           "to": [
-            -21.6,
-            47.5
+            -34.79807621135332,
+            51.68948822334847
           ]
         },
         {
           "from": [
-            -30.4,
-            47.5
+            -30.398076211353317,
+            59.31051177665153
           ],
           "id": "kiosk-drink-1",
           "kind": "segment",
           "radius": 0.46,
           "to": [
-            -30.4,
-            53.5
+            -25.201923788646685,
+            56.31051177665153
           ]
         },
         {
           "from": [
-            -21.6,
-            47.5
+            -34.79807621135332,
+            51.68948822334847
           ],
           "id": "kiosk-drink-2",
           "kind": "segment",
           "radius": 0.46,
           "to": [
-            -21.6,
-            53.5
+            -29.601923788646687,
+            48.68948822334847
           ]
         },
         {
           "from": [
-            28.222182540694796,
-            28.848171003677038
+            30.840896534380867,
+            29.456475521456255
           ],
           "id": "kiosk-photo-0",
           "kind": "segment",
           "radius": 0.46,
           "to": [
-            35.15182899632296,
-            35.7778174593052
+            35.740896534380866,
+            37.94352447854375
           ]
         },
         {
           "from": [
-            28.222182540694796,
-            28.848171003677038
+            30.840896534380867,
+            29.456475521456255
           ],
           "id": "kiosk-photo-1",
           "kind": "segment",
           "radius": 0.46,
           "to": [
-            22.848171003677038,
-            34.222182540694796
+            24.259103465619134,
+            33.25647552145625
           ]
         },
         {
           "from": [
-            35.15182899632296,
-            35.7778174593052
+            35.740896534380866,
+            37.94352447854375
           ],
           "id": "kiosk-photo-2",
           "kind": "segment",
           "radius": 0.46,
           "to": [
-            29.7778174593052,
-            41.15182899632296
+            29.159103465619136,
+            41.74352447854375
           ]
         },
         {
@@ -1276,157 +1859,157 @@
         },
         {
           "from": [
-            -31.25,
+            -35.25,
             -4.5
           ],
           "id": "court-P1-north--7.25",
           "kind": "segment",
           "radius": 0.46,
           "to": [
-            -26.6,
+            -30.6,
             -4.5
           ]
         },
         {
           "from": [
-            -21.4,
+            -25.4,
             -4.5
           ],
           "id": "court-P1-north-2.6",
           "kind": "segment",
           "radius": 0.46,
           "to": [
-            -16.75,
+            -20.75,
             -4.5
           ]
         },
         {
           "from": [
-            -31.25,
+            -35.25,
             12.5
           ],
           "id": "court-P1-south--7.25",
           "kind": "segment",
           "radius": 0.46,
           "to": [
-            -26.6,
+            -30.6,
             12.5
           ]
         },
         {
           "from": [
-            -21.4,
+            -25.4,
             12.5
           ],
           "id": "court-P1-south-2.6",
           "kind": "segment",
           "radius": 0.46,
           "to": [
-            -16.75,
+            -20.75,
             12.5
           ]
         },
         {
           "from": [
-            -16.75,
+            -20.75,
             -4.5
           ],
           "id": "court-P1-east--8.5",
           "kind": "segment",
           "radius": 0.46,
           "to": [
-            -16.75,
+            -20.75,
             12.5
           ]
         },
         {
           "from": [
-            -31.25,
+            -35.25,
             -4.5
           ],
           "id": "court-P1-west--8.5",
           "kind": "segment",
           "radius": 0.46,
           "to": [
-            -31.25,
+            -35.25,
             12.5
           ]
         },
         {
           "from": [
-            16.75,
+            20.75,
             -4.5
           ],
           "id": "court-P2-north--7.25",
           "kind": "segment",
           "radius": 0.46,
           "to": [
-            21.4,
+            25.4,
             -4.5
           ]
         },
         {
           "from": [
-            26.6,
+            30.6,
             -4.5
           ],
           "id": "court-P2-north-2.6",
           "kind": "segment",
           "radius": 0.46,
           "to": [
-            31.25,
+            35.25,
             -4.5
           ]
         },
         {
           "from": [
-            16.75,
+            20.75,
             12.5
           ],
           "id": "court-P2-south--7.25",
           "kind": "segment",
           "radius": 0.46,
           "to": [
-            21.4,
+            25.4,
             12.5
           ]
         },
         {
           "from": [
-            26.6,
+            30.6,
             12.5
           ],
           "id": "court-P2-south-2.6",
           "kind": "segment",
           "radius": 0.46,
           "to": [
-            31.25,
+            35.25,
             12.5
           ]
         },
         {
           "from": [
-            31.25,
+            35.25,
             -4.5
           ],
           "id": "court-P2-east--8.5",
           "kind": "segment",
           "radius": 0.46,
           "to": [
-            31.25,
+            35.25,
             12.5
           ]
         },
         {
           "from": [
-            16.75,
+            20.75,
             -4.5
           ],
           "id": "court-P2-west--8.5",
           "kind": "segment",
           "radius": 0.46,
           "to": [
-            16.75,
+            20.75,
             12.5
           ]
         },
@@ -3410,36 +3993,36 @@
           "id": "layout-lamp-0",
           "kind": "circle",
           "radius": 0.48,
-          "x": -33.5,
-          "z": 45.5
+          "x": 20.284442352070435,
+          "z": 51.43519994715294
         },
         {
           "id": "layout-lamp-1",
           "kind": "circle",
           "radius": 0.48,
-          "x": 33.5,
-          "z": 45.5
+          "x": -20.284442352070432,
+          "z": 51.43519994715294
         },
         {
           "id": "layout-lamp-2",
           "kind": "circle",
           "radius": 0.48,
-          "x": 33.5,
-          "z": 56.5
+          "x": -20.284442352070435,
+          "z": 40.564800052847076
         },
         {
           "id": "layout-lamp-3",
           "kind": "circle",
           "radius": 0.48,
-          "x": -8,
-          "z": 58.5
+          "x": 14.849242404917494,
+          "z": 31.1507575950825
         },
         {
           "id": "layout-lamp-4",
           "kind": "circle",
           "radius": 0.48,
-          "x": 8,
-          "z": 58.5
+          "x": 20.284442352070435,
+          "z": 40.56480005284706
         },
         {
           "id": "layout-lamp-5",
@@ -3460,255 +4043,241 @@
           "kind": "circle",
           "radius": 0.48,
           "x": -27,
-          "z": 18.416666666666668
+          "z": -33.5
         },
         {
           "id": "layout-lamp-8",
           "kind": "circle",
           "radius": 0.48,
           "x": -27,
-          "z": -33.083333333333336
+          "z": -50.5
         },
         {
           "id": "layout-lamp-9",
           "kind": "circle",
           "radius": 0.48,
-          "x": -27,
-          "z": -50.25
+          "x": 21,
+          "z": -33.5
         },
         {
           "id": "layout-lamp-10",
           "kind": "circle",
           "radius": 0.48,
           "x": 21,
-          "z": 18.416666666666668
+          "z": -50.5
         },
         {
           "id": "layout-lamp-11",
-          "kind": "circle",
-          "radius": 0.48,
-          "x": 21,
-          "z": -33.083333333333336
-        },
-        {
-          "id": "layout-lamp-12",
-          "kind": "circle",
-          "radius": 0.48,
-          "x": 21,
-          "z": -50.25
-        },
-        {
-          "id": "layout-lamp-13",
           "kind": "circle",
           "radius": 0.48,
           "x": -30.214285714285715,
           "z": -79
         },
         {
-          "id": "layout-lamp-14",
+          "id": "layout-lamp-12",
           "kind": "circle",
           "radius": 0.48,
           "x": -12.642857142857146,
           "z": -79
         },
         {
-          "id": "layout-lamp-15",
+          "id": "layout-lamp-13",
           "kind": "circle",
           "radius": 0.48,
           "x": 4.928571428571431,
           "z": -79
         },
         {
-          "id": "layout-lamp-16",
+          "id": "layout-lamp-14",
           "kind": "circle",
           "radius": 0.48,
           "x": 22.5,
           "z": -79
         },
         {
-          "id": "layout-lamp-17",
+          "id": "layout-lamp-15",
           "kind": "circle",
           "radius": 0.48,
           "x": 40.071428571428584,
           "z": -79
         },
         {
-          "id": "layout-lamp-18",
+          "id": "layout-lamp-16",
           "kind": "circle",
           "radius": 0.48,
           "x": 57.64285714285714,
           "z": -79
         },
         {
-          "id": "layout-lamp-19",
+          "id": "layout-lamp-17",
           "kind": "circle",
           "radius": 0.48,
           "x": 75.21428571428572,
           "z": -79
         },
         {
-          "id": "layout-lamp-20",
+          "id": "layout-lamp-18",
           "kind": "circle",
           "radius": 0.48,
           "x": -36,
           "z": -68
         },
         {
-          "id": "layout-lamp-21",
+          "id": "layout-lamp-19",
           "kind": "circle",
           "radius": 0.48,
           "x": -36,
           "z": -52
         },
         {
-          "id": "layout-lamp-22",
+          "id": "layout-lamp-20",
           "kind": "circle",
           "radius": 0.48,
           "x": -36,
           "z": -36
         },
         {
-          "id": "layout-lamp-23",
+          "id": "layout-lamp-21",
           "kind": "circle",
           "radius": 0.48,
           "x": -36,
           "z": -20
         },
         {
-          "id": "layout-lamp-24",
+          "id": "layout-lamp-22",
           "kind": "circle",
           "radius": 0.48,
-          "x": -36,
+          "x": -42,
           "z": -4
         },
         {
-          "id": "layout-lamp-25",
-          "kind": "circle",
-          "radius": 0.48,
-          "x": -36,
-          "z": 12
-        },
-        {
-          "id": "layout-lamp-26",
+          "id": "layout-lamp-23",
           "kind": "circle",
           "radius": 0.48,
           "x": -42,
           "z": 28
         },
         {
-          "id": "layout-lamp-27",
+          "id": "layout-lamp-24",
           "kind": "circle",
           "radius": 0.48,
           "x": -42,
           "z": 44
         },
         {
-          "id": "layout-lamp-28",
+          "id": "layout-lamp-25",
           "kind": "circle",
           "radius": 0.48,
           "x": -42,
           "z": 60
         },
         {
-          "id": "layout-lamp-29",
+          "id": "layout-lamp-26",
           "kind": "circle",
           "radius": 0.48,
           "x": -36,
           "z": 76
         },
         {
-          "id": "layout-lamp-30",
+          "id": "layout-lamp-27",
           "kind": "circle",
           "radius": 0.48,
           "x": -50.25,
           "z": 15
         },
         {
-          "id": "layout-lamp-31",
+          "id": "layout-lamp-28",
           "kind": "circle",
           "radius": 0.48,
           "x": -60.25,
           "z": 42
         },
         {
-          "id": "layout-lamp-32",
+          "id": "layout-lamp-29",
           "kind": "circle",
           "radius": 0.48,
-          "x": 42,
-          "z": 36
+          "x": 29.25,
+          "z": 59
         },
         {
-          "id": "layout-lamp-33",
+          "id": "layout-lamp-30",
+          "kind": "circle",
+          "radius": 0.48,
+          "x": 36,
+          "z": 54
+        },
+        {
+          "id": "layout-lamp-31",
           "kind": "circle",
           "radius": 0.48,
           "x": 42,
           "z": 72
         },
         {
-          "id": "layout-lamp-34",
+          "id": "layout-lamp-32",
           "kind": "circle",
           "radius": 0.48,
           "x": 49.75,
           "z": 78
         },
         {
-          "id": "layout-lamp-35",
+          "id": "layout-lamp-33",
           "kind": "circle",
           "radius": 0.48,
           "x": 71.25,
           "z": 78
         },
         {
-          "id": "layout-lamp-36",
+          "id": "layout-lamp-34",
           "kind": "circle",
           "radius": 0.48,
           "x": 81.25,
           "z": -68.44444444444444
         },
         {
-          "id": "layout-lamp-37",
+          "id": "layout-lamp-35",
           "kind": "circle",
           "radius": 0.48,
           "x": 81.25,
           "z": -51.333333333333336
         },
         {
-          "id": "layout-lamp-38",
+          "id": "layout-lamp-36",
           "kind": "circle",
           "radius": 0.48,
           "x": 81.25,
           "z": -34.22222222222222
         },
         {
-          "id": "layout-lamp-39",
+          "id": "layout-lamp-37",
           "kind": "circle",
           "radius": 0.48,
           "x": 81.25,
           "z": 17.111111111111114
         },
         {
-          "id": "layout-lamp-40",
+          "id": "layout-lamp-38",
           "kind": "circle",
           "radius": 0.48,
           "x": 81.25,
           "z": 34.222222222222214
         },
         {
-          "id": "layout-lamp-41",
+          "id": "layout-lamp-39",
           "kind": "circle",
           "radius": 0.48,
           "x": 81.25,
           "z": 51.33333333333334
         },
         {
-          "id": "layout-lamp-42",
+          "id": "layout-lamp-40",
           "kind": "circle",
           "radius": 0.48,
           "x": 81.25,
           "z": 68.44444444444443
         },
         {
-          "id": "layout-lamp-43",
+          "id": "layout-lamp-41",
           "kind": "circle",
           "radius": 0.48,
           "x": -73,
@@ -5678,41 +6247,31 @@
         "id": "layout-shop",
         "kind": "shop",
         "position": [
-          -29,
+          -29.5,
           0,
-          35
+          36
         ],
-        "yaw": 0.7853981633974483
+        "yaw": 1.0471975511965976
       },
       {
         "id": "layout-drink",
         "kind": "drink",
         "position": [
-          -26,
+          -30,
           0,
-          50.5
+          54
         ],
-        "yaw": 0
+        "yaw": 2.0943951023931953
       },
       {
         "id": "layout-photo",
         "kind": "photo",
         "position": [
-          29,
+          30,
           0,
-          35
+          35.6
         ],
-        "yaw": -0.7853981633974483
-      },
-      {
-        "id": "advertising-balloon",
-        "kind": "balloon",
-        "position": [
-          -35,
-          0,
-          29
-        ],
-        "yaw": 0
+        "yaw": -1.0471975511965976
       }
     ],
     "fences": {
@@ -5852,7 +6411,7 @@
           ],
           "id": "court-P1",
           "width": 14.5,
-          "x": -24,
+          "x": -28,
           "z": 4
         },
         {
@@ -5871,7 +6430,7 @@
           ],
           "id": "court-P2",
           "width": 14.5,
-          "x": 24,
+          "x": 28,
           "z": 4
         },
         {
@@ -6038,101 +6597,101 @@
       "runs": [
         {
           "from": [
-            -35.64680374315355,
-            35.848528137423855
+            -35.7007041555162,
+            38.539934640057524
           ],
           "id": "kiosk-shop-0",
           "to": [
-            -28.151471862576145,
-            28.353196256846452
+            -30.4007041555162,
+            29.360065359942475
           ]
         },
         {
           "from": [
-            -35.64680374315355,
-            35.848528137423855
+            -35.7007041555162,
+            38.539934640057524
           ],
           "id": "kiosk-shop-1",
           "to": [
-            -29.848528137423862,
-            41.64680374315354
+            -28.5992958444838,
+            42.63993464005752
           ]
         },
         {
           "from": [
-            -28.151471862576145,
-            28.353196256846452
+            -30.4007041555162,
+            29.360065359942475
           ],
           "id": "kiosk-shop-2",
           "to": [
-            -22.353196256846452,
-            34.151471862576145
+            -23.299295844483805,
+            33.460065359942476
           ]
         },
         {
           "from": [
-            -30.4,
-            47.5
+            -30.398076211353317,
+            59.31051177665153
           ],
           "id": "kiosk-drink-0",
           "to": [
-            -21.6,
-            47.5
+            -34.79807621135332,
+            51.68948822334847
           ]
         },
         {
           "from": [
-            -30.4,
-            47.5
+            -30.398076211353317,
+            59.31051177665153
           ],
           "id": "kiosk-drink-1",
           "to": [
-            -30.4,
-            53.5
+            -25.201923788646685,
+            56.31051177665153
           ]
         },
         {
           "from": [
-            -21.6,
-            47.5
+            -34.79807621135332,
+            51.68948822334847
           ],
           "id": "kiosk-drink-2",
           "to": [
-            -21.6,
-            53.5
+            -29.601923788646687,
+            48.68948822334847
           ]
         },
         {
           "from": [
-            28.222182540694796,
-            28.848171003677038
+            30.840896534380867,
+            29.456475521456255
           ],
           "id": "kiosk-photo-0",
           "to": [
-            35.15182899632296,
-            35.7778174593052
+            35.740896534380866,
+            37.94352447854375
           ]
         },
         {
           "from": [
-            28.222182540694796,
-            28.848171003677038
+            30.840896534380867,
+            29.456475521456255
           ],
           "id": "kiosk-photo-1",
           "to": [
-            22.848171003677038,
-            34.222182540694796
+            24.259103465619134,
+            33.25647552145625
           ]
         },
         {
           "from": [
-            35.15182899632296,
-            35.7778174593052
+            35.740896534380866,
+            37.94352447854375
           ],
           "id": "kiosk-photo-2",
           "to": [
-            29.7778174593052,
-            41.15182899632296
+            29.159103465619136,
+            41.74352447854375
           ]
         },
         {
@@ -6203,133 +6762,133 @@
         },
         {
           "from": [
-            -31.25,
+            -35.25,
             -4.5
           ],
           "id": "court-P1-north--7.25",
           "to": [
-            -26.6,
+            -30.6,
             -4.5
           ]
         },
         {
           "from": [
-            -21.4,
+            -25.4,
             -4.5
           ],
           "id": "court-P1-north-2.6",
           "to": [
-            -16.75,
+            -20.75,
             -4.5
           ]
         },
         {
           "from": [
-            -31.25,
+            -35.25,
             12.5
           ],
           "id": "court-P1-south--7.25",
           "to": [
-            -26.6,
+            -30.6,
             12.5
           ]
         },
         {
           "from": [
-            -21.4,
+            -25.4,
             12.5
           ],
           "id": "court-P1-south-2.6",
           "to": [
-            -16.75,
+            -20.75,
             12.5
           ]
         },
         {
           "from": [
-            -16.75,
+            -20.75,
             -4.5
           ],
           "id": "court-P1-east--8.5",
           "to": [
-            -16.75,
+            -20.75,
             12.5
           ]
         },
         {
           "from": [
-            -31.25,
+            -35.25,
             -4.5
           ],
           "id": "court-P1-west--8.5",
           "to": [
-            -31.25,
+            -35.25,
             12.5
           ]
         },
         {
           "from": [
-            16.75,
+            20.75,
             -4.5
           ],
           "id": "court-P2-north--7.25",
           "to": [
-            21.4,
+            25.4,
             -4.5
           ]
         },
         {
           "from": [
-            26.6,
+            30.6,
             -4.5
           ],
           "id": "court-P2-north-2.6",
           "to": [
-            31.25,
+            35.25,
             -4.5
           ]
         },
         {
           "from": [
-            16.75,
+            20.75,
             12.5
           ],
           "id": "court-P2-south--7.25",
           "to": [
-            21.4,
+            25.4,
             12.5
           ]
         },
         {
           "from": [
-            26.6,
+            30.6,
             12.5
           ],
           "id": "court-P2-south-2.6",
           "to": [
-            31.25,
+            35.25,
             12.5
           ]
         },
         {
           "from": [
-            31.25,
+            35.25,
             -4.5
           ],
           "id": "court-P2-east--8.5",
           "to": [
-            31.25,
+            35.25,
             12.5
           ]
         },
         {
           "from": [
-            16.75,
+            20.75,
             -4.5
           ],
           "id": "court-P2-west--8.5",
           "to": [
-            16.75,
+            20.75,
             12.5
           ]
         },
@@ -8198,7 +8757,7 @@
           "id": "bench-26",
           "kind": "BENCH",
           "position": [
-            -21.46389622626655,
+            -25.46389622626655,
             0.72,
             6.536103773733452
           ],
@@ -8206,14 +8765,14 @@
           "seats": [
             {
               "exit": {
-                "x": -22.24171368557175,
+                "x": -26.24171368557175,
                 "y": 1.52,
                 "yaw": -2.356194490192345,
                 "z": 5.75828631442825
               },
               "seatIndex": 0,
               "use": {
-                "x": -21.05377429317835,
+                "x": -25.05377429317835,
                 "y": 1.52,
                 "yaw": -2.356194490192345,
                 "z": 6.026986891279138
@@ -8221,14 +8780,14 @@
             },
             {
               "exit": {
-                "x": -22.24171368557175,
+                "x": -26.24171368557175,
                 "y": 1.52,
                 "yaw": -2.356194490192345,
                 "z": 5.75828631442825
               },
               "seatIndex": 1,
               "use": {
-                "x": -21.973013108720863,
+                "x": -25.973013108720863,
                 "y": 1.52,
                 "yaw": -2.356194490192345,
                 "z": 6.946225706821649
@@ -8243,7 +8802,7 @@
           "id": "bench-27",
           "kind": "BENCH",
           "position": [
-            -26.53610377373345,
+            -30.53610377373345,
             0.72,
             6.536103773733453
           ],
@@ -8251,14 +8810,14 @@
           "seats": [
             {
               "exit": {
-                "x": -25.75828631442825,
+                "x": -29.75828631442825,
                 "y": 1.52,
                 "yaw": -3.9269908169872414,
                 "z": 5.758286314428251
               },
               "seatIndex": 0,
               "use": {
-                "x": -26.026986891279137,
+                "x": -30.026986891279137,
                 "y": 1.52,
                 "yaw": -3.9269908169872414,
                 "z": 6.94622570682165
@@ -8266,14 +8825,14 @@
             },
             {
               "exit": {
-                "x": -25.75828631442825,
+                "x": -29.75828631442825,
                 "y": 1.52,
                 "yaw": -3.9269908169872414,
                 "z": 5.758286314428251
               },
               "seatIndex": 1,
               "use": {
-                "x": -26.94622570682165,
+                "x": -30.94622570682165,
                 "y": 1.52,
                 "yaw": -3.9269908169872414,
                 "z": 6.0269868912791384
@@ -8288,7 +8847,7 @@
           "id": "bench-28",
           "kind": "BENCH",
           "position": [
-            -27.586592352399435,
+            -31.586592352399435,
             0.72,
             4
           ],
@@ -8296,14 +8855,14 @@
           "seats": [
             {
               "exit": {
-                "x": -26.486592352399434,
+                "x": -30.486592352399434,
                 "y": 1.52,
                 "yaw": -4.71238898038469,
                 "z": 4
               },
               "seatIndex": 0,
               "use": {
-                "x": -27.516592352399435,
+                "x": -31.516592352399435,
                 "y": 1.52,
                 "yaw": -4.71238898038469,
                 "z": 4.65
@@ -8311,14 +8870,14 @@
             },
             {
               "exit": {
-                "x": -26.486592352399434,
+                "x": -30.486592352399434,
                 "y": 1.52,
                 "yaw": -4.71238898038469,
                 "z": 4
               },
               "seatIndex": 1,
               "use": {
-                "x": -27.516592352399435,
+                "x": -31.516592352399435,
                 "y": 1.52,
                 "yaw": -4.71238898038469,
                 "z": 3.35
@@ -8333,7 +8892,7 @@
           "id": "bench-29",
           "kind": "BENCH",
           "position": [
-            -26.53610377373345,
+            -30.53610377373345,
             0.72,
             1.4638962262665478
           ],
@@ -8341,14 +8900,14 @@
           "seats": [
             {
               "exit": {
-                "x": -25.758286314428247,
+                "x": -29.758286314428247,
                 "y": 1.52,
                 "yaw": -5.497787143782138,
                 "z": 2.24171368557175
               },
               "seatIndex": 0,
               "use": {
-                "x": -26.94622570682165,
+                "x": -30.94622570682165,
                 "y": 1.52,
                 "yaw": -5.497787143782138,
                 "z": 1.973013108720862
@@ -8356,14 +8915,14 @@
             },
             {
               "exit": {
-                "x": -25.758286314428247,
+                "x": -29.758286314428247,
                 "y": 1.52,
                 "yaw": -5.497787143782138,
                 "z": 2.24171368557175
               },
               "seatIndex": 1,
               "use": {
-                "x": -26.026986891279137,
+                "x": -30.026986891279137,
                 "y": 1.52,
                 "yaw": -5.497787143782138,
                 "z": 1.0537742931783503
@@ -8378,7 +8937,7 @@
           "id": "bench-30",
           "kind": "BENCH",
           "position": [
-            -21.46389622626655,
+            -25.46389622626655,
             0.72,
             1.463896226266547
           ],
@@ -8386,14 +8945,14 @@
           "seats": [
             {
               "exit": {
-                "x": -22.24171368557175,
+                "x": -26.24171368557175,
                 "y": 1.52,
                 "yaw": -7.0685834705770345,
                 "z": 2.2417136855717494
               },
               "seatIndex": 0,
               "use": {
-                "x": -21.973013108720863,
+                "x": -25.973013108720863,
                 "y": 1.52,
                 "yaw": -7.0685834705770345,
                 "z": 1.0537742931783494
@@ -8401,14 +8960,14 @@
             },
             {
               "exit": {
-                "x": -22.24171368557175,
+                "x": -26.24171368557175,
                 "y": 1.52,
                 "yaw": -7.0685834705770345,
                 "z": 2.2417136855717494
               },
               "seatIndex": 1,
               "use": {
-                "x": -21.05377429317835,
+                "x": -25.05377429317835,
                 "y": 1.52,
                 "yaw": -7.0685834705770345,
                 "z": 1.973013108720861
@@ -8423,7 +8982,7 @@
           "id": "bench-31",
           "kind": "BENCH",
           "position": [
-            -20.413407647600565,
+            -24.413407647600565,
             0.72,
             3.999999999999999
           ],
@@ -8431,14 +8990,14 @@
           "seats": [
             {
               "exit": {
-                "x": -21.513407647600566,
+                "x": -25.513407647600566,
                 "y": 1.52,
                 "yaw": -7.853981633974483,
                 "z": 3.9999999999999996
               },
               "seatIndex": 0,
               "use": {
-                "x": -20.483407647600565,
+                "x": -24.483407647600565,
                 "y": 1.52,
                 "yaw": -7.853981633974483,
                 "z": 3.349999999999999
@@ -8446,14 +9005,14 @@
             },
             {
               "exit": {
-                "x": -21.513407647600566,
+                "x": -25.513407647600566,
                 "y": 1.52,
                 "yaw": -7.853981633974483,
                 "z": 3.9999999999999996
               },
               "seatIndex": 1,
               "use": {
-                "x": -20.483407647600565,
+                "x": -24.483407647600565,
                 "y": 1.52,
                 "yaw": -7.853981633974483,
                 "z": 4.6499999999999995
@@ -8468,7 +9027,7 @@
           "id": "bench-32",
           "kind": "BENCH",
           "position": [
-            26.53610377373345,
+            30.53610377373345,
             0.72,
             6.536103773733452
           ],
@@ -8476,14 +9035,14 @@
           "seats": [
             {
               "exit": {
-                "x": 25.75828631442825,
+                "x": 29.75828631442825,
                 "y": 1.52,
                 "yaw": -2.356194490192345,
                 "z": 5.75828631442825
               },
               "seatIndex": 0,
               "use": {
-                "x": 26.94622570682165,
+                "x": 30.94622570682165,
                 "y": 1.52,
                 "yaw": -2.356194490192345,
                 "z": 6.026986891279138
@@ -8491,14 +9050,14 @@
             },
             {
               "exit": {
-                "x": 25.75828631442825,
+                "x": 29.75828631442825,
                 "y": 1.52,
                 "yaw": -2.356194490192345,
                 "z": 5.75828631442825
               },
               "seatIndex": 1,
               "use": {
-                "x": 26.026986891279137,
+                "x": 30.026986891279137,
                 "y": 1.52,
                 "yaw": -2.356194490192345,
                 "z": 6.946225706821649
@@ -8513,7 +9072,7 @@
           "id": "bench-33",
           "kind": "BENCH",
           "position": [
-            21.46389622626655,
+            25.46389622626655,
             0.72,
             6.536103773733453
           ],
@@ -8521,14 +9080,14 @@
           "seats": [
             {
               "exit": {
-                "x": 22.24171368557175,
+                "x": 26.24171368557175,
                 "y": 1.52,
                 "yaw": -3.9269908169872414,
                 "z": 5.758286314428251
               },
               "seatIndex": 0,
               "use": {
-                "x": 21.973013108720863,
+                "x": 25.973013108720863,
                 "y": 1.52,
                 "yaw": -3.9269908169872414,
                 "z": 6.94622570682165
@@ -8536,14 +9095,14 @@
             },
             {
               "exit": {
-                "x": 22.24171368557175,
+                "x": 26.24171368557175,
                 "y": 1.52,
                 "yaw": -3.9269908169872414,
                 "z": 5.758286314428251
               },
               "seatIndex": 1,
               "use": {
-                "x": 21.05377429317835,
+                "x": 25.05377429317835,
                 "y": 1.52,
                 "yaw": -3.9269908169872414,
                 "z": 6.0269868912791384
@@ -8558,7 +9117,7 @@
           "id": "bench-34",
           "kind": "BENCH",
           "position": [
-            20.413407647600565,
+            24.413407647600565,
             0.72,
             4
           ],
@@ -8566,14 +9125,14 @@
           "seats": [
             {
               "exit": {
-                "x": 21.513407647600566,
+                "x": 25.513407647600566,
                 "y": 1.52,
                 "yaw": -4.71238898038469,
                 "z": 4
               },
               "seatIndex": 0,
               "use": {
-                "x": 20.483407647600565,
+                "x": 24.483407647600565,
                 "y": 1.52,
                 "yaw": -4.71238898038469,
                 "z": 4.65
@@ -8581,14 +9140,14 @@
             },
             {
               "exit": {
-                "x": 21.513407647600566,
+                "x": 25.513407647600566,
                 "y": 1.52,
                 "yaw": -4.71238898038469,
                 "z": 4
               },
               "seatIndex": 1,
               "use": {
-                "x": 20.483407647600565,
+                "x": 24.483407647600565,
                 "y": 1.52,
                 "yaw": -4.71238898038469,
                 "z": 3.35
@@ -8603,7 +9162,7 @@
           "id": "bench-35",
           "kind": "BENCH",
           "position": [
-            21.46389622626655,
+            25.46389622626655,
             0.72,
             1.4638962262665478
           ],
@@ -8611,14 +9170,14 @@
           "seats": [
             {
               "exit": {
-                "x": 22.241713685571753,
+                "x": 26.241713685571753,
                 "y": 1.52,
                 "yaw": -5.497787143782138,
                 "z": 2.24171368557175
               },
               "seatIndex": 0,
               "use": {
-                "x": 21.05377429317835,
+                "x": 25.05377429317835,
                 "y": 1.52,
                 "yaw": -5.497787143782138,
                 "z": 1.973013108720862
@@ -8626,14 +9185,14 @@
             },
             {
               "exit": {
-                "x": 22.241713685571753,
+                "x": 26.241713685571753,
                 "y": 1.52,
                 "yaw": -5.497787143782138,
                 "z": 2.24171368557175
               },
               "seatIndex": 1,
               "use": {
-                "x": 21.973013108720863,
+                "x": 25.973013108720863,
                 "y": 1.52,
                 "yaw": -5.497787143782138,
                 "z": 1.0537742931783503
@@ -8648,7 +9207,7 @@
           "id": "bench-36",
           "kind": "BENCH",
           "position": [
-            26.53610377373345,
+            30.53610377373345,
             0.72,
             1.463896226266547
           ],
@@ -8656,14 +9215,14 @@
           "seats": [
             {
               "exit": {
-                "x": 25.75828631442825,
+                "x": 29.75828631442825,
                 "y": 1.52,
                 "yaw": -7.0685834705770345,
                 "z": 2.2417136855717494
               },
               "seatIndex": 0,
               "use": {
-                "x": 26.026986891279137,
+                "x": 30.026986891279137,
                 "y": 1.52,
                 "yaw": -7.0685834705770345,
                 "z": 1.0537742931783494
@@ -8671,14 +9230,14 @@
             },
             {
               "exit": {
-                "x": 25.75828631442825,
+                "x": 29.75828631442825,
                 "y": 1.52,
                 "yaw": -7.0685834705770345,
                 "z": 2.2417136855717494
               },
               "seatIndex": 1,
               "use": {
-                "x": 26.94622570682165,
+                "x": 30.94622570682165,
                 "y": 1.52,
                 "yaw": -7.0685834705770345,
                 "z": 1.973013108720861
@@ -8693,7 +9252,7 @@
           "id": "bench-37",
           "kind": "BENCH",
           "position": [
-            27.586592352399435,
+            31.586592352399435,
             0.72,
             3.999999999999999
           ],
@@ -8701,14 +9260,14 @@
           "seats": [
             {
               "exit": {
-                "x": 26.486592352399434,
+                "x": 30.486592352399434,
                 "y": 1.52,
                 "yaw": -7.853981633974483,
                 "z": 3.9999999999999996
               },
               "seatIndex": 0,
               "use": {
-                "x": 27.516592352399435,
+                "x": 31.516592352399435,
                 "y": 1.52,
                 "yaw": -7.853981633974483,
                 "z": 3.349999999999999
@@ -8716,14 +9275,14 @@
             },
             {
               "exit": {
-                "x": 26.486592352399434,
+                "x": 30.486592352399434,
                 "y": 1.52,
                 "yaw": -7.853981633974483,
                 "z": 3.9999999999999996
               },
               "seatIndex": 1,
               "use": {
-                "x": 27.516592352399435,
+                "x": 31.516592352399435,
                 "y": 1.52,
                 "yaw": -7.853981633974483,
                 "z": 4.6499999999999995
@@ -10445,276 +11004,6 @@
         },
         {
           "heightTolerance": 0.7,
-          "id": "plaza-planter-30-bench",
-          "kind": "BENCH",
-          "position": [
-            11.777945491468365,
-            0.14,
-            48.8
-          ],
-          "radius": 3,
-          "seats": [
-            {
-              "exit": {
-                "x": 10.478907385791707,
-                "y": 0.9400000000000001,
-                "yaw": -2.0943951023931953,
-                "z": 48.05
-              },
-              "seatIndex": 0,
-              "use": {
-                "x": 12.042323713203453,
-                "y": 0.9400000000000001,
-                "yaw": -2.0943951023931953,
-                "z": 48.202083487540115
-              }
-            },
-            {
-              "exit": {
-                "x": 10.478907385791707,
-                "y": 0.9400000000000001,
-                "yaw": -2.0943951023931953,
-                "z": 48.05
-              },
-              "seatIndex": 1,
-              "use": {
-                "x": 11.392323713203455,
-                "y": 0.9400000000000001,
-                "yaw": -2.0943951023931953,
-                "z": 49.327916512459886
-              }
-            }
-          ],
-          "siteId": "plaza-planter-30-bench",
-          "yaw": -2.0943951023931953
-        },
-        {
-          "heightTolerance": 0.7,
-          "id": "plaza-planter-150-bench",
-          "kind": "BENCH",
-          "position": [
-            -11.777945491468365,
-            0.14,
-            48.8
-          ],
-          "radius": 3,
-          "seats": [
-            {
-              "exit": {
-                "x": -10.478907385791707,
-                "y": 0.9400000000000001,
-                "yaw": -4.188790204786391,
-                "z": 48.05
-              },
-              "seatIndex": 0,
-              "use": {
-                "x": -11.392323713203455,
-                "y": 0.9400000000000001,
-                "yaw": -4.188790204786391,
-                "z": 49.327916512459886
-              }
-            },
-            {
-              "exit": {
-                "x": -10.478907385791707,
-                "y": 0.9400000000000001,
-                "yaw": -4.188790204786391,
-                "z": 48.05
-              },
-              "seatIndex": 1,
-              "use": {
-                "x": -12.042323713203453,
-                "y": 0.9400000000000001,
-                "yaw": -4.188790204786391,
-                "z": 48.202083487540115
-              }
-            }
-          ],
-          "siteId": "plaza-planter-150-bench",
-          "yaw": -4.188790204786391
-        },
-        {
-          "heightTolerance": 0.7,
-          "id": "plaza-rest-bench--1-33",
-          "kind": "BENCH",
-          "position": [
-            -16.3,
-            0.14,
-            33
-          ],
-          "radius": 3,
-          "seats": [
-            {
-              "exit": {
-                "x": -14.8,
-                "y": 0.9400000000000001,
-                "yaw": 1.5707963267948966,
-                "z": 33
-              },
-              "seatIndex": 0,
-              "use": {
-                "x": -16.23,
-                "y": 0.9400000000000001,
-                "yaw": 1.5707963267948966,
-                "z": 33.65
-              }
-            },
-            {
-              "exit": {
-                "x": -14.8,
-                "y": 0.9400000000000001,
-                "yaw": 1.5707963267948966,
-                "z": 33
-              },
-              "seatIndex": 1,
-              "use": {
-                "x": -16.23,
-                "y": 0.9400000000000001,
-                "yaw": 1.5707963267948966,
-                "z": 32.35
-              }
-            }
-          ],
-          "siteId": "plaza-rest-bench--1-33",
-          "yaw": 1.5707963267948966
-        },
-        {
-          "heightTolerance": 0.7,
-          "id": "plaza-rest-bench--1-36",
-          "kind": "BENCH",
-          "position": [
-            -16.3,
-            0.14,
-            36
-          ],
-          "radius": 3,
-          "seats": [
-            {
-              "exit": {
-                "x": -14.8,
-                "y": 0.9400000000000001,
-                "yaw": 1.5707963267948966,
-                "z": 36
-              },
-              "seatIndex": 0,
-              "use": {
-                "x": -16.23,
-                "y": 0.9400000000000001,
-                "yaw": 1.5707963267948966,
-                "z": 36.65
-              }
-            },
-            {
-              "exit": {
-                "x": -14.8,
-                "y": 0.9400000000000001,
-                "yaw": 1.5707963267948966,
-                "z": 36
-              },
-              "seatIndex": 1,
-              "use": {
-                "x": -16.23,
-                "y": 0.9400000000000001,
-                "yaw": 1.5707963267948966,
-                "z": 35.35
-              }
-            }
-          ],
-          "siteId": "plaza-rest-bench--1-36",
-          "yaw": 1.5707963267948966
-        },
-        {
-          "heightTolerance": 0.7,
-          "id": "plaza-rest-bench-1-33",
-          "kind": "BENCH",
-          "position": [
-            16.3,
-            0.14,
-            33
-          ],
-          "radius": 3,
-          "seats": [
-            {
-              "exit": {
-                "x": 14.8,
-                "y": 0.9400000000000001,
-                "yaw": -1.5707963267948966,
-                "z": 33
-              },
-              "seatIndex": 0,
-              "use": {
-                "x": 16.23,
-                "y": 0.9400000000000001,
-                "yaw": -1.5707963267948966,
-                "z": 32.35
-              }
-            },
-            {
-              "exit": {
-                "x": 14.8,
-                "y": 0.9400000000000001,
-                "yaw": -1.5707963267948966,
-                "z": 33
-              },
-              "seatIndex": 1,
-              "use": {
-                "x": 16.23,
-                "y": 0.9400000000000001,
-                "yaw": -1.5707963267948966,
-                "z": 33.65
-              }
-            }
-          ],
-          "siteId": "plaza-rest-bench-1-33",
-          "yaw": -1.5707963267948966
-        },
-        {
-          "heightTolerance": 0.7,
-          "id": "plaza-rest-bench-1-36",
-          "kind": "BENCH",
-          "position": [
-            16.3,
-            0.14,
-            36
-          ],
-          "radius": 3,
-          "seats": [
-            {
-              "exit": {
-                "x": 14.8,
-                "y": 0.9400000000000001,
-                "yaw": -1.5707963267948966,
-                "z": 36
-              },
-              "seatIndex": 0,
-              "use": {
-                "x": 16.23,
-                "y": 0.9400000000000001,
-                "yaw": -1.5707963267948966,
-                "z": 35.35
-              }
-            },
-            {
-              "exit": {
-                "x": 14.8,
-                "y": 0.9400000000000001,
-                "yaw": -1.5707963267948966,
-                "z": 36
-              },
-              "seatIndex": 1,
-              "use": {
-                "x": 16.23,
-                "y": 0.9400000000000001,
-                "yaw": -1.5707963267948966,
-                "z": 36.65
-              }
-            }
-          ],
-          "siteId": "plaza-rest-bench-1-36",
-          "yaw": -1.5707963267948966
-        },
-        {
-          "heightTolerance": 0.7,
           "id": "bench-event-west",
           "kind": "BENCH",
           "position": [
@@ -11075,6 +11364,141 @@
         },
         {
           "heightTolerance": 0.7,
+          "id": "bench-forest-southwest",
+          "kind": "BENCH",
+          "position": [
+            -73,
+            0,
+            80
+          ],
+          "radius": 3,
+          "seats": [
+            {
+              "exit": {
+                "x": -73,
+                "y": 0.8,
+                "yaw": 0,
+                "z": 81.5
+              },
+              "seatIndex": 0,
+              "use": {
+                "x": -73.65,
+                "y": 0.8,
+                "yaw": 0,
+                "z": 80.07
+              }
+            },
+            {
+              "exit": {
+                "x": -73,
+                "y": 0.8,
+                "yaw": 0,
+                "z": 81.5
+              },
+              "seatIndex": 1,
+              "use": {
+                "x": -72.35,
+                "y": 0.8,
+                "yaw": 0,
+                "z": 80.07
+              }
+            }
+          ],
+          "siteId": "bench-forest-southwest",
+          "yaw": 0
+        },
+        {
+          "heightTolerance": 0.7,
+          "id": "bench-forest-northeast",
+          "kind": "BENCH",
+          "position": [
+            52,
+            0,
+            -73
+          ],
+          "radius": 3,
+          "seats": [
+            {
+              "exit": {
+                "x": 52,
+                "y": 0.8,
+                "yaw": 0,
+                "z": -71.5
+              },
+              "seatIndex": 0,
+              "use": {
+                "x": 51.35,
+                "y": 0.8,
+                "yaw": 0,
+                "z": -72.93
+              }
+            },
+            {
+              "exit": {
+                "x": 52,
+                "y": 0.8,
+                "yaw": 0,
+                "z": -71.5
+              },
+              "seatIndex": 1,
+              "use": {
+                "x": 52.65,
+                "y": 0.8,
+                "yaw": 0,
+                "z": -72.93
+              }
+            }
+          ],
+          "siteId": "bench-forest-northeast",
+          "yaw": 0
+        },
+        {
+          "heightTolerance": 0.7,
+          "id": "bench-forest-southeast",
+          "kind": "BENCH",
+          "position": [
+            74,
+            0,
+            73
+          ],
+          "radius": 3,
+          "seats": [
+            {
+              "exit": {
+                "x": 74,
+                "y": 0.8,
+                "yaw": 0,
+                "z": 74.5
+              },
+              "seatIndex": 0,
+              "use": {
+                "x": 73.35,
+                "y": 0.8,
+                "yaw": 0,
+                "z": 73.07
+              }
+            },
+            {
+              "exit": {
+                "x": 74,
+                "y": 0.8,
+                "yaw": 0,
+                "z": 74.5
+              },
+              "seatIndex": 1,
+              "use": {
+                "x": 74.65,
+                "y": 0.8,
+                "yaw": 0,
+                "z": 73.07
+              }
+            }
+          ],
+          "siteId": "bench-forest-southeast",
+          "yaw": 0
+        },
+        {
+          "heightTolerance": 0.7,
           "id": "bench-fitness-ring-0",
           "kind": "BENCH",
           "position": [
@@ -11252,6 +11676,68 @@
           ],
           "siteId": "bench-fitness-ring-3",
           "yaw": 7.0685834705770345
+        }
+      ],
+      "construction": [
+        {
+          "heightTolerance": 0.7,
+          "id": "layout-shop",
+          "kind": "CONSTRUCTION",
+          "label": "상점",
+          "message": "현재 공사 중입니다. 준비가 끝나면 이용할 수 있어요.",
+          "position": [
+            -29.5,
+            0,
+            36
+          ],
+          "radius": 3,
+          "reachPosition": [
+            -24.823462819564032,
+            0.8,
+            38.7
+          ],
+          "status": "construction",
+          "yaw": 4.1887902047863905
+        },
+        {
+          "heightTolerance": 0.7,
+          "id": "layout-drink",
+          "kind": "CONSTRUCTION",
+          "label": "응모부스",
+          "message": "현재 공사 중입니다. 준비가 끝나면 이용할 수 있어요.",
+          "position": [
+            -30,
+            0,
+            54
+          ],
+          "radius": 3,
+          "reachPosition": [
+            -26.276090763726913,
+            0.8,
+            51.85
+          ],
+          "status": "construction",
+          "yaw": 5.235987755982988
+        },
+        {
+          "heightTolerance": 0.7,
+          "id": "layout-photo",
+          "kind": "CONSTRUCTION",
+          "label": "포토부스",
+          "message": "현재 공사 중입니다. 준비가 끝나면 이용할 수 있어요.",
+          "position": [
+            30,
+            0,
+            35.6
+          ],
+          "radius": 3,
+          "reachPosition": [
+            25.583270440699366,
+            0.8,
+            38.15
+          ],
+          "status": "construction",
+          "yaw": 2.0943951023931957
         }
       ],
       "fitness": [
@@ -11596,9 +12082,9 @@
             ]
           ],
           "position": [
-            -10,
-            0,
-            32
+            -12,
+            0.14,
+            34
           ],
           "tableId": "table-1"
         },
@@ -11626,9 +12112,9 @@
             ]
           ],
           "position": [
-            10,
-            0,
-            32
+            12,
+            0.14,
+            34
           ],
           "tableId": "table-2"
         },
@@ -11656,9 +12142,9 @@
             ]
           ],
           "position": [
-            -10,
-            0,
-            52
+            -12,
+            0.14,
+            58
           ],
           "tableId": "table-3"
         },
@@ -11686,9 +12172,9 @@
             ]
           ],
           "position": [
-            10,
-            0,
-            52
+            12,
+            0.14,
+            58
           ],
           "tableId": "table-4"
         },
@@ -11746,7 +12232,7 @@
             ]
           ],
           "position": [
-            -24,
+            -28,
             0.72,
             4
           ],
@@ -11776,7 +12262,7 @@
             ]
           ],
           "position": [
-            24,
+            28,
             0.72,
             4
           ],
@@ -12018,7 +12504,7 @@
           "position": [
             48,
             0,
-            -72
+            -70.5
           ],
           "tableId": "table-15"
         },
@@ -12051,6 +12537,66 @@
             75
           ],
           "tableId": "table-16"
+        },
+        {
+          "localSeats": [
+            [
+              0,
+              0,
+              1.8
+            ],
+            [
+              0,
+              0,
+              -1.8
+            ],
+            [
+              -2,
+              0,
+              0
+            ],
+            [
+              2,
+              0,
+              0
+            ]
+          ],
+          "position": [
+            -53,
+            0.1,
+            -8
+          ],
+          "tableId": "table-17"
+        },
+        {
+          "localSeats": [
+            [
+              0,
+              0,
+              1.8
+            ],
+            [
+              0,
+              0,
+              -1.8
+            ],
+            [
+              -2,
+              0,
+              0
+            ],
+            [
+              2,
+              0,
+              0
+            ]
+          ],
+          "position": [
+            -53,
+            0.1,
+            2
+          ],
+          "tableId": "table-18"
         }
       ],
       "telescopes": [
@@ -12140,7 +12686,7 @@
             -27
           ]
         ],
-        "width": 6
+        "width": 8
       },
       {
         "id": "pagoda-west",
@@ -12189,7 +12735,7 @@
         "points": [
           [
             -24,
-            27
+            -8
           ],
           [
             -24,
@@ -12203,11 +12749,39 @@
         "points": [
           [
             24,
-            27
+            -8
           ],
           [
             24,
             -76
+          ]
+        ],
+        "width": 4
+      },
+      {
+        "id": "west-main-side-pavilion",
+        "points": [
+          [
+            -28,
+            -8
+          ],
+          [
+            -28,
+            25
+          ]
+        ],
+        "width": 4
+      },
+      {
+        "id": "east-main-side-pavilion",
+        "points": [
+          [
+            28,
+            -8
+          ],
+          [
+            28,
+            25
           ]
         ],
         "width": 4
@@ -12453,99 +13027,15 @@
         "points": [
           [
             -63,
-            47
-          ],
-          [
-            -58.712478287754294,
-            44.549987593002456
-          ],
-          [
-            -58.17710741308098,
-            44.23148995033199
-          ],
-          [
-            -57.655986104162764,
-            43.89599205952158
-          ],
-          [
-            -57.149114360999604,
-            43.543493920571194
-          ],
-          [
-            -56.656492183591546,
-            43.173995533480884
-          ],
-          [
-            -56.17811957193857,
-            42.787496898250616
-          ],
-          [
-            -55.71399652604069,
-            42.38399801488039
-          ],
-          [
-            -55.26412304589789,
-            41.96349888337022
-          ],
-          [
-            -54.82849913151018,
-            41.5259995037201
-          ],
-          [
-            -54.407124782877545,
-            41.07149987593002
-          ],
-          [
-            -54,
-            40.6
-          ],
-          [
-            -53,
-            39.4
-          ],
-          [
-            -52.62,
-            38.91275900129638
-          ],
-          [
-            -52.28000000000001,
-            38.4110360051855
-          ],
-          [
-            -51.97999999999999,
-            37.89483101166736
-          ],
-          [
-            -51.720000000000006,
-            37.36414402074197
-          ],
-          [
-            -51.5,
-            36.818975032409334
-          ],
-          [
-            -51.32,
-            36.25932404666944
-          ],
-          [
-            -51.18000000000001,
-            35.685191063522296
-          ],
-          [
-            -51.08,
-            35.0965760829679
-          ],
-          [
-            -51.019999999999996,
-            34.493479105006244
+            31
           ],
           [
             -51,
-            33.87590012963734
+            31
           ],
           [
             -51,
-            25.5
+            23
           ]
         ],
         "width": 3.5
@@ -12591,11 +13081,11 @@
           ],
           [
             -39,
-            56
+            46
           ],
           [
-            -12,
-            56
+            -20,
+            46
           ]
         ],
         "width": 3.5
@@ -12619,100 +13109,56 @@
         "points": [
           [
             -39,
-            43
+            46
           ],
           [
-            -12,
-            43
+            -20,
+            46
           ]
         ],
-        "width": 3
+        "width": 4
       },
       {
         "id": "photo-plaza",
         "points": [
           [
-            14,
-            43
-          ],
-          [
             20,
-            43
+            46
           ],
           [
-            20.396000000000004,
-            42.98800000000001
-          ],
-          [
-            20.784000000000002,
-            42.952000000000005
-          ],
-          [
-            21.163999999999998,
-            42.891999999999996
-          ],
-          [
-            21.535999999999998,
-            42.808
-          ],
-          [
-            21.9,
-            42.7
-          ],
-          [
-            22.256,
-            42.568
-          ],
-          [
-            22.604,
-            42.412
-          ],
-          [
-            22.944000000000003,
-            42.232
-          ],
-          [
-            23.276000000000003,
-            42.02799999999999
-          ],
-          [
-            23.6,
-            41.8
-          ],
-          [
-            26,
-            40
+            39,
+            46
           ]
         ],
-        "width": 3
+        "width": 4
       },
       {
         "id": "photo-front",
         "points": [
           [
-            26,
+            23,
             40
           ],
           [
-            26,
-            62
+            25.7,
+            38.1
           ]
         ],
-        "width": 3.5
+        "width": 2.2
       },
       {
         "id": "photo-north",
         "points": [
           [
-            29,
-            25
+            25.7,
+            38.1
           ],
           [
-            29,
-            28
+            26,
+            37.9
           ]
         ],
-        "width": 3.5
+        "width": 2.2
       },
       {
         "id": "fountain-south",
@@ -12903,266 +13349,192 @@
           ],
           [
             -63,
-            13.8
+            15
           ],
           [
-            -63.01102974036022,
-            14.03272703158295
+            -63.01788854382,
+            15.38894427191
           ],
           [
-            -63.04411896144088,
-            14.250908126331803
+            -63.071554175280006,
+            15.75577708764
           ],
           [
-            -63.099267663241946,
-            14.454543284246549
+            -63.160996894379984,
+            16.10049844718999
           ],
           [
-            -63.17647584576347,
-            14.6436325053272
+            -63.286216701119976,
+            16.423108350559986
           ],
           [
-            -63.275743509005416,
-            14.81817578957375
+            -63.44721359549996,
+            16.72360679774998
           ],
           [
-            -63.3970706529678,
-            14.9781731369862
+            -63.64398757751994,
+            17.001993788759968
           ],
           [
-            -63.54045727765062,
-            15.123624547564551
+            -63.87653864717991,
+            17.258269323589957
           ],
           [
-            -63.705903383053865,
-            15.2545300213088
+            -64.14486680447989,
+            17.492433402239946
           ],
           [
-            -63.89340896917755,
-            15.37088955821895
+            -64.44897204941987,
+            17.704486024709933
           ],
           [
-            -64.10297403602166,
-            15.472703158295001
+            -64.78885438199983,
+            17.894427190999917
           ],
           [
-            -68.16170993996388,
-            17.212161402841666
+            -71.9266873708001,
+            21.46334368540005
           ],
           [
-            -68.52298505137075,
-            17.377850736301752
+            -72.13061677034808,
+            21.577308385174042
           ],
           [
-            -68.8714943615769,
-            17.55978329781867
+            -72.31307991731208,
+            21.70453995865604
           ],
           [
-            -69.20723787058229,
-            17.757959087392415
+            -72.47407681169203,
+            21.845038405846026
           ],
           [
-            -69.530215578387,
-            17.972378105023
+            -72.61360745348804,
+            21.99880372674402
           ],
           [
-            -69.84042748499097,
-            18.203040350710417
+            -72.73167184270002,
+            22.165835921350013
           ],
           [
-            -70.13787359039422,
-            18.44994582445467
+            -72.82826997932801,
+            22.34613498966401
           ],
           [
-            -70.42255389459675,
-            18.71309452625575
+            -72.90340186337201,
+            22.539700931686006
           ],
           [
-            -70.69446839759857,
-            18.992486456113667
+            -72.957067494832,
+            22.746533747416002
           ],
           [
-            -70.95361709939964,
-            19.28812161402842
+            -72.989266873708,
+            22.966633436854
           ],
           [
-            -71.2,
-            19.6
+            -73,
+            23.2
           ],
           [
-            -71.8,
-            20.4
+            -73,
+            23.8
           ],
           [
-            -72.01238262381113,
-            20.71649390095109
+            -72.99040000000001,
+            24.035200000000003
           ],
           [
-            -72.16953049524457,
-            21.02597560380436
+            -72.96160000000002,
+            24.260800000000007
           ],
           [
-            -72.27144361430025,
-            21.328445108559794
+            -72.91359999999999,
+            24.476799999999997
           ],
           [
-            -72.31812198097823,
-            21.62390241521741
+            -72.84639999999999,
+            24.6832
           ],
           [
-            -72.30956559527849,
-            21.912347523777214
+            -72.76,
+            24.88
           ],
           [
-            -72.24577445720102,
-            22.193780434239184
+            -72.6544,
+            25.0672
           ],
           [
-            -72.12674856674583,
-            22.468201146603334
+            -72.5296,
+            25.2448
           ],
           [
-            -71.95248792391293,
-            22.735609660869663
+            -72.38560000000001,
+            25.4128
           ],
           [
-            -71.72299252870229,
-            22.996005977038166
+            -72.22240000000001,
+            25.5712
           ],
           [
-            -71.43826238111394,
-            23.249390095108847
+            -72.04,
+            25.72
           ],
           [
-            -70,
-            24.4
+            -65.64,
+            30.52
           ],
           [
-            -69.59709148629875,
-            24.71545425685062
+            -65.5104,
+            30.6112
           ],
           [
-            -69.18836594519505,
-            25.021817027402488
+            -65.37760000000002,
+            30.692800000000005
           ],
           [
-            -68.77382337668882,
-            25.319088311655587
+            -65.2416,
+            30.764799999999994
           ],
           [
-            -68.35346378078013,
-            25.607268109609937
+            -65.1024,
+            30.827199999999998
           ],
           [
-            -67.92728715746895,
-            25.88635642126553
+            -64.96,
+            30.88
           ],
           [
-            -67.49529350675529,
-            26.15635324662236
+            -64.8144,
+            30.9232
           ],
           [
-            -67.05748282863914,
-            26.417258585680436
+            -64.66560000000001,
+            30.9568
           ],
           [
-            -66.61385512312052,
-            26.66907243843975
+            -64.5136,
+            30.980800000000002
           ],
           [
-            -66.16441039019938,
-            26.911794804900307
+            -64.3584,
+            30.995200000000004
           ],
           [
-            -65.70914862987578,
-            27.145425685062108
+            -64.2,
+            31
           ],
           [
-            -63.130495168499706,
-            28.434752415750147
-          ],
-          [
-            -62.5008448242584,
-            28.73531820786911
-          ],
-          [
-            -61.864091858934344,
-            29.01091655052605
-          ],
-          [
-            -61.22023627252753,
-            29.26154744372096
-          ],
-          [
-            -60.56927806503798,
-            29.487210887453863
-          ],
-          [
-            -59.91121723646568,
-            29.687906881724743
-          ],
-          [
-            -59.24605378681064,
-            29.863635426533598
-          ],
-          [
-            -58.57378771607286,
-            30.014396521880432
-          ],
-          [
-            -57.89441902425233,
-            30.140190167765248
-          ],
-          [
-            -57.20794771134905,
-            30.24101636418804
-          ],
-          [
-            -56.51437377736303,
-            30.316875111148814
-          ],
-          [
-            -52.48562622263697,
-            30.683124888851186
-          ],
-          [
-            -51.78835724033594,
-            30.74333115996946
-          ],
-          [
-            -51.09080078248767,
-            30.797199928864764
-          ],
-          [
-            -50.39295684909211,
-            30.84473119553708
-          ],
-          [
-            -49.69482544014931,
-            30.885924959986426
-          ],
-          [
-            -48.99640655565924,
-            30.920781222212796
-          ],
-          [
-            -48.297700195621914,
-            30.94929998221619
-          ],
-          [
-            -47.598706360037326,
-            30.971481239996606
-          ],
-          [
-            -46.899425048905485,
-            30.987324995554047
-          ],
-          [
-            -46.199856262226376,
-            30.996831248888512
-          ],
+            -63,
+            31
+          ]
+        ],
+        "width": 3.5
+      },
+      {
+        "id": "event-east",
+        "points": [
           [
-            -45.5,
+            -63,
             31
           ],
           [
@@ -13170,7 +13542,7 @@
             31
           ]
         ],
-        "width": 3
+        "width": 3.5
       },
       {
         "id": "event-west",
@@ -13185,6 +13557,48 @@
           ]
         ],
         "width": 3
+      },
+      {
+        "id": "shop-approach",
+        "points": [
+          [
+            -22,
+            40
+          ],
+          [
+            -25,
+            38.6
+          ]
+        ],
+        "width": 2.2
+      },
+      {
+        "id": "raffle-approach",
+        "points": [
+          [
+            -23.5,
+            50
+          ],
+          [
+            -26.5,
+            52
+          ]
+        ],
+        "width": 2.2
+      },
+      {
+        "id": "cart-apron",
+        "points": [
+          [
+            -54.3,
+            23
+          ],
+          [
+            -47.7,
+            23
+          ]
+        ],
+        "width": 5.4
       },
       {
         "id": "cart-access",
@@ -13653,7 +14067,7 @@
         "ground": 0,
         "id": "P1",
         "scale": 1.2,
-        "x": -24,
+        "x": -28,
         "z": 4
       },
       {
@@ -13661,7 +14075,7 @@
         "ground": 0,
         "id": "P2",
         "scale": 1.2,
-        "x": 24,
+        "x": 28,
         "z": 4
       },
       {
@@ -15836,7 +16250,7 @@
         },
         {
           "center": [
-            -19.953407647600564,
+            -23.953407647600564,
             2.9400000000000004,
             5.676153433759094
           ],
@@ -15851,7 +16265,7 @@
         },
         {
           "center": [
-            -22.323846566240906,
+            -26.323846566240906,
             2.9400000000000004,
             8.046592352399436
           ],
@@ -15866,7 +16280,7 @@
         },
         {
           "center": [
-            -25.676153433759094,
+            -29.676153433759094,
             2.9400000000000004,
             8.046592352399436
           ],
@@ -15881,7 +16295,7 @@
         },
         {
           "center": [
-            -28.046592352399436,
+            -32.046592352399436,
             2.9400000000000004,
             5.676153433759094
           ],
@@ -15896,7 +16310,7 @@
         },
         {
           "center": [
-            -28.046592352399436,
+            -32.046592352399436,
             2.9400000000000004,
             2.323846566240907
           ],
@@ -15911,7 +16325,7 @@
         },
         {
           "center": [
-            -25.676153433759097,
+            -29.676153433759097,
             2.9400000000000004,
             -0.04659235239943449
           ],
@@ -15926,7 +16340,7 @@
         },
         {
           "center": [
-            -22.323846566240906,
+            -26.323846566240906,
             2.9400000000000004,
             -0.04659235239943538
           ],
@@ -15941,7 +16355,7 @@
         },
         {
           "center": [
-            -19.953407647600564,
+            -23.953407647600564,
             2.9400000000000004,
             2.323846566240904
           ],
@@ -15956,7 +16370,7 @@
         },
         {
           "center": [
-            -21.138627106920737,
+            -25.138627106920737,
             1.33,
             6.861372893079265
           ],
@@ -15971,7 +16385,7 @@
         },
         {
           "center": [
-            -26.861372893079263,
+            -30.861372893079263,
             1.33,
             6.861372893079265
           ],
@@ -15986,7 +16400,7 @@
         },
         {
           "center": [
-            -28.046592352399436,
+            -32.046592352399436,
             1.33,
             4
           ],
@@ -16001,7 +16415,7 @@
         },
         {
           "center": [
-            -26.861372893079267,
+            -30.861372893079267,
             1.33,
             1.1386271069207363
           ],
@@ -16016,7 +16430,7 @@
         },
         {
           "center": [
-            -21.138627106920737,
+            -25.138627106920737,
             1.33,
             1.1386271069207363
           ],
@@ -16031,7 +16445,7 @@
         },
         {
           "center": [
-            -19.953407647600564,
+            -23.953407647600564,
             1.33,
             3.9999999999999973
           ],
@@ -16046,7 +16460,7 @@
         },
         {
           "center": [
-            28.046592352399436,
+            32.046592352399436,
             2.9400000000000004,
             5.676153433759094
           ],
@@ -16061,7 +16475,7 @@
         },
         {
           "center": [
-            25.676153433759094,
+            29.676153433759094,
             2.9400000000000004,
             8.046592352399436
           ],
@@ -16076,7 +16490,7 @@
         },
         {
           "center": [
-            22.323846566240906,
+            26.323846566240906,
             2.9400000000000004,
             8.046592352399436
           ],
@@ -16091,7 +16505,7 @@
         },
         {
           "center": [
-            19.953407647600564,
+            23.953407647600564,
             2.9400000000000004,
             5.676153433759094
           ],
@@ -16106,7 +16520,7 @@
         },
         {
           "center": [
-            19.953407647600564,
+            23.953407647600564,
             2.9400000000000004,
             2.323846566240907
           ],
@@ -16121,7 +16535,7 @@
         },
         {
           "center": [
-            22.323846566240903,
+            26.323846566240903,
             2.9400000000000004,
             -0.04659235239943449
           ],
@@ -16136,7 +16550,7 @@
         },
         {
           "center": [
-            25.676153433759094,
+            29.676153433759094,
             2.9400000000000004,
             -0.04659235239943538
           ],
@@ -16151,7 +16565,7 @@
         },
         {
           "center": [
-            28.046592352399436,
+            32.046592352399436,
             2.9400000000000004,
             2.323846566240904
           ],
@@ -16166,7 +16580,7 @@
         },
         {
           "center": [
-            26.861372893079263,
+            30.861372893079263,
             1.33,
             6.861372893079265
           ],
@@ -16181,7 +16595,7 @@
         },
         {
           "center": [
-            21.138627106920737,
+            25.138627106920737,
             1.33,
             6.861372893079265
           ],
@@ -16196,7 +16610,7 @@
         },
         {
           "center": [
-            19.953407647600564,
+            23.953407647600564,
             1.33,
             4
           ],
@@ -16211,7 +16625,7 @@
         },
         {
           "center": [
-            21.138627106920733,
+            25.138627106920733,
             1.33,
             1.1386271069207363
           ],
@@ -16226,7 +16640,7 @@
         },
         {
           "center": [
-            26.861372893079263,
+            30.861372893079263,
             1.33,
             1.1386271069207363
           ],
@@ -16241,7 +16655,7 @@
         },
         {
           "center": [
-            28.046592352399436,
+            32.046592352399436,
             1.33,
             3.9999999999999973
           ],
@@ -17876,7 +18290,7 @@
         },
         {
           "center": [
-            -24,
+            -28,
             0.09,
             -1.9554400103324339
           ],
@@ -17891,7 +18305,7 @@
         },
         {
           "center": [
-            -24,
+            -28,
             0.18,
             -1.6354400103324336
           ],
@@ -17906,7 +18320,7 @@
         },
         {
           "center": [
-            -24,
+            -28,
             0.27,
             -1.3154400103324342
           ],
@@ -17921,7 +18335,7 @@
         },
         {
           "center": [
-            -24,
+            -28,
             0.36,
             -0.9954400103324339
           ],
@@ -17936,7 +18350,7 @@
         },
         {
           "center": [
-            -24,
+            -28,
             0.09,
             9.955440010332435
           ],
@@ -17951,7 +18365,7 @@
         },
         {
           "center": [
-            -24,
+            -28,
             0.18,
             9.635440010332434
           ],
@@ -17966,7 +18380,7 @@
         },
         {
           "center": [
-            -24,
+            -28,
             0.27,
             9.315440010332434
           ],
@@ -17981,7 +18395,7 @@
         },
         {
           "center": [
-            -24,
+            -28,
             0.36,
             8.995440010332434
           ],
@@ -17996,7 +18410,7 @@
         },
         {
           "center": [
-            24,
+            28,
             0.09,
             -1.9554400103324339
           ],
@@ -18011,7 +18425,7 @@
         },
         {
           "center": [
-            24,
+            28,
             0.18,
             -1.6354400103324336
           ],
@@ -18026,7 +18440,7 @@
         },
         {
           "center": [
-            24,
+            28,
             0.27,
             -1.3154400103324342
           ],
@@ -18041,7 +18455,7 @@
         },
         {
           "center": [
-            24,
+            28,
             0.36,
             -0.9954400103324339
           ],
@@ -18056,7 +18470,7 @@
         },
         {
           "center": [
-            24,
+            28,
             0.09,
             9.955440010332435
           ],
@@ -18071,7 +18485,7 @@
         },
         {
           "center": [
-            24,
+            28,
             0.18,
             9.635440010332434
           ],
@@ -18086,7 +18500,7 @@
         },
         {
           "center": [
-            24,
+            28,
             0.27,
             9.315440010332434
           ],
@@ -18101,7 +18515,7 @@
         },
         {
           "center": [
-            24,
+            28,
             0.36,
             8.995440010332434
           ],
@@ -19646,9 +20060,9 @@
         },
         {
           "center": [
-            -29,
+            -29.5,
             2.3,
-            35
+            36
           ],
           "half": [
             4.8,
@@ -19657,13 +20071,13 @@
           ],
           "id": "layout-shop",
           "role": "solid",
-          "yaw": 0.7853981633974483
+          "yaw": 1.0471975511965976
         },
         {
           "center": [
-            -26,
+            -30,
             2.3,
-            50.5
+            54
           ],
           "half": [
             3.9,
@@ -19672,13 +20086,13 @@
           ],
           "id": "layout-drink",
           "role": "solid",
-          "yaw": 0
+          "yaw": 2.0943951023931953
         },
         {
           "center": [
-            29,
+            30,
             2.3,
-            35
+            35.6
           ],
           "half": [
             4.4,
@@ -19687,67 +20101,7 @@
           ],
           "id": "layout-photo",
           "role": "solid",
-          "yaw": -0.7853981633974483
-        },
-        {
-          "center": [
-            -19.3,
-            0.4,
-            34.5
-          ],
-          "half": [
-            2.3,
-            0.4,
-            3.4
-          ],
-          "id": "plaza-rest-garden--1",
-          "role": "solid",
-          "yaw": 0
-        },
-        {
-          "center": [
-            19.3,
-            0.4,
-            34.5
-          ],
-          "half": [
-            2.3,
-            0.4,
-            3.4
-          ],
-          "id": "plaza-rest-garden-1",
-          "role": "solid",
-          "yaw": 0
-        },
-        {
-          "center": [
-            -16.5,
-            0.55,
-            39
-          ],
-          "half": [
-            0.34,
-            0.55,
-            0.34
-          ],
-          "id": "plaza-bin--1",
-          "role": "solid",
-          "yaw": 0
-        },
-        {
-          "center": [
-            16.5,
-            0.55,
-            39
-          ],
-          "half": [
-            0.34,
-            0.55,
-            0.34
-          ],
-          "id": "plaza-bin-1",
-          "role": "solid",
-          "yaw": 0
+          "yaw": -1.0471975511965976
         },
         {
           "center": [
@@ -20021,17 +20375,1097 @@
         },
         {
           "center": [
-            0,
-            0.07,
-            42
+            -44.57268960314261,
+            1.8,
+            39.30666419935816
           ],
           "half": [
-            35,
-            0.07,
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "kiosk-tree-shop-0-0",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            -43.272689603142595,
+            1.8,
+            37.05499814951862
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "kiosk-tree-shop-0-2",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            -41.9726896031426,
+            1.8,
+            34.803332099679075
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "kiosk-tree-shop-0-4",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            -42.321023553303064,
+            1.8,
+            40.606664199358164
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "kiosk-tree-shop-2-0",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            -35.82102355330306,
+            1.8,
+            29.348333950160455
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "kiosk-tree-shop-2-10",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            -35.99519052838329,
+            1.8,
+            32.25
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "kiosk-tree-shop-3-8",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            -33.56935750346352,
+            1.8,
+            30.648333950160456
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "kiosk-tree-shop-4-10",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            -36.04185842870421,
+            1.8,
+            42.73083117443839
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "kiosk-tree-shop-7-1",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            -33.14019237886467,
+            1.8,
+            42.90499814951862
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "kiosk-tree-shop-9-2",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            -25.340192378864664,
+            1.8,
+            29.395001850481382
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "kiosk-tree-shop-9-14",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            -33.72006165897972,
+            1.8,
+            68.15666419935816
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "kiosk-tree-drink-0-0",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            -35.02006165897972,
+            1.8,
+            65.90499814951862
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "kiosk-tree-drink-0-2",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            -42.17006165897972,
+            1.8,
+            53.52083487540115
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "kiosk-tree-drink-0-13",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            -43.470061658979716,
+            1.8,
+            51.26916882556161
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "kiosk-tree-drink-0-15",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            -36.01839560914018,
+            1.8,
+            58.97583302491977
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "kiosk-tree-drink-2-7",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            -33.11672955930064,
+            1.8,
+            58.80166604983954
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "kiosk-tree-drink-4-6",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            -34.416729559300634,
+            1.8,
+            56.55
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "kiosk-tree-drink-4-8",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            -35.71672955930064,
+            1.8,
+            54.298333950160455
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "kiosk-tree-drink-4-10",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            -35.4150635094611,
+            1.8,
+            49.62083487540115
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "kiosk-tree-drink-6-13",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            -25.537564434701785,
+            1.8,
+            58.929165124598846
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "kiosk-tree-drink-9-3",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            34.412881982007264,
+            1.8,
+            21.043335800641838
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "kiosk-tree-photo-0-0",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            42.21288198200727,
+            1.8,
+            34.55333209967908
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "kiosk-tree-photo-0-12",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            36.06121593216773,
+            1.8,
+            29.09833395016046
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "kiosk-tree-photo-2-6",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            33.159549882328186,
+            1.8,
+            29.27250092524069
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "kiosk-tree-photo-4-5",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            34.45954988232819,
+            1.8,
+            31.52416697508023
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "kiosk-tree-photo-4-7",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            35.75954988232819,
+            1.8,
+            33.77583302491977
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "kiosk-tree-photo-4-9",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            28.48205080756888,
+            1.8,
+            28.970834875401152
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "kiosk-tree-photo-7-3",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            34.982050807568875,
+            1.8,
+            40.22916512459885
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "kiosk-tree-photo-7-13",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            25.580384757729334,
+            1.8,
+            29.145001850481382
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "kiosk-tree-photo-9-2",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            32.73038475772933,
+            1.8,
+            41.529165124598855
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "kiosk-tree-photo-9-13",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            31.527946591687172,
+            1.8,
+            50.15073291259764
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "plaza-belt-tree-2",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            25.50041729048399,
+            1.8,
+            51.072348372419334
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "plaza-belt-tree-3",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            27.915256379754073,
+            1.8,
+            53.47987040346285
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "plaza-belt-tree-4",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            30.112378117944363,
+            1.8,
+            56.22177499664054
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "plaza-belt-tree-5",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            24.020867845293456,
+            1.8,
+            55.94976924149233
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "plaza-belt-tree-6",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            25.919622230294692,
+            1.8,
+            58.78214314732914
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "plaza-belt-tree-7",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            14.444826058509662,
+            1.8,
+            67.61820991986617
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "plaza-belt-tree-15",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            14.450000000000003,
+            1.8,
+            71.02813416937028
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "plaza-belt-tree-16",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            14.06478034896424,
+            1.8,
+            74.52055318073948
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "plaza-belt-tree-17",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            9.949769241492335,
+            1.8,
+            70.02086784529345
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "plaza-belt-tree-18",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            9.289600547261372,
+            1.8,
+            73.36628074240855
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "plaza-belt-tree-19",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            8.23044563426016,
+            1.8,
+            76.71644127599237
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "plaza-belt-tree-20",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            5.072348372419337,
+            1.8,
+            71.500417290484
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "plaza-belt-tree-21",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            -5.072348372419333,
+            1.8,
+            71.500417290484
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "plaza-belt-tree-27",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            -7.479870403462845,
+            1.8,
+            73.91525637975407
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "plaza-belt-tree-28",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            -10.221774996640539,
+            1.8,
+            76.11237811794436
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "plaza-belt-tree-29",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            -9.949769241492326,
+            1.8,
+            70.02086784529345
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "plaza-belt-tree-30",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            -12.782143147329132,
+            1.8,
+            71.91962223029469
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "plaza-belt-tree-31",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            -14.44482605850966,
+            1.8,
+            67.61820991986617
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "plaza-belt-tree-33",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            -21.61820991986618,
+            1.8,
+            31.55517394149035
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "plaza-belt-tree-57",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            21.61820991986616,
+            1.8,
+            31.555173941490324
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "plaza-belt-tree-87",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            -18.5,
+            1.8,
+            -2
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "pavilion-tree-P1-0",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            -18.5,
+            1.8,
+            0.8999999999999999
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "pavilion-tree-P1-1",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            -18.5,
+            1.8,
+            3.8
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "pavilion-tree-P1-2",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            -18.5,
+            1.8,
+            6.699999999999999
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "pavilion-tree-P1-3",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            -18.5,
+            1.8,
+            9.6
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "pavilion-tree-P1-4",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            -18.5,
+            1.8,
+            12.5
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "pavilion-tree-P1-5",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            -33.5,
+            1.8,
             17
           ],
-          "id": "plaza-floor",
-          "role": "surface",
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "pavilion-tree-P1-8",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            -22.5,
+            1.8,
+            17
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "pavilion-tree-P1-10",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            -33.5,
+            1.8,
+            -5
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "pavilion-tree-P1-11",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            -22.5,
+            1.8,
+            -5
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "pavilion-tree-P1-12",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            18.5,
+            1.8,
+            -2
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "pavilion-tree-P2-0",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            18.5,
+            1.8,
+            0.8999999999999999
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "pavilion-tree-P2-1",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            18.5,
+            1.8,
+            3.8
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "pavilion-tree-P2-2",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            18.5,
+            1.8,
+            6.699999999999999
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "pavilion-tree-P2-3",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            18.5,
+            1.8,
+            9.6
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "pavilion-tree-P2-4",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            18.5,
+            1.8,
+            12.5
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "pavilion-tree-P2-5",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            18.5,
+            1.8,
+            15.399999999999999
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "pavilion-tree-P2-6",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            18.5,
+            1.8,
+            18.3
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "pavilion-tree-P2-7",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            22.5,
+            1.8,
+            17
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "pavilion-tree-P2-8",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            33.5,
+            1.8,
+            17
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "pavilion-tree-P2-10",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            22.5,
+            1.8,
+            -5
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "pavilion-tree-P2-11",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            33.5,
+            1.8,
+            -5
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "pavilion-tree-P2-12",
+          "role": "solid",
           "yaw": 0
         },
         {
@@ -20126,9 +21560,9 @@
         },
         {
           "center": [
-            -10,
-            0.86,
-            32
+            -12,
+            1,
+            34
           ],
           "half": [
             0.95,
@@ -20141,9 +21575,9 @@
         },
         {
           "center": [
-            10,
-            0.86,
-            32
+            12,
+            1,
+            34
           ],
           "half": [
             0.95,
@@ -20156,9 +21590,9 @@
         },
         {
           "center": [
-            -10,
-            0.86,
-            52
+            -12,
+            1,
+            58
           ],
           "half": [
             0.95,
@@ -20171,9 +21605,9 @@
         },
         {
           "center": [
-            10,
-            0.86,
-            52
+            12,
+            1,
+            58
           ],
           "half": [
             0.95,
@@ -20201,7 +21635,7 @@
         },
         {
           "center": [
-            -24,
+            -28,
             1.58,
             4
           ],
@@ -20216,7 +21650,7 @@
         },
         {
           "center": [
-            24,
+            28,
             1.58,
             4
           ],
@@ -20338,7 +21772,7 @@
           "center": [
             48,
             0.86,
-            -72
+            -70.5
           ],
           "half": [
             0.95,
@@ -20363,6 +21797,276 @@
           "id": "table-16-top",
           "role": "solid",
           "yaw": 0
+        },
+        {
+          "center": [
+            -53,
+            1.04,
+            -8
+          ],
+          "half": [
+            1.2,
+            0.12,
+            0.75
+          ],
+          "id": "table-17-top",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            -53,
+            0.55,
+            -6.2
+          ],
+          "half": [
+            0.525,
+            0.11,
+            0.425
+          ],
+          "id": "table-17-chair-0",
+          "role": "solid",
+          "yaw": 3.141592653589793
+        },
+        {
+          "center": [
+            -53,
+            0.98,
+            -5.83
+          ],
+          "half": [
+            0.525,
+            0.325,
+            0.075
+          ],
+          "id": "table-17-chair-back-0",
+          "role": "solid",
+          "yaw": 3.141592653589793
+        },
+        {
+          "center": [
+            -53,
+            0.55,
+            -9.8
+          ],
+          "half": [
+            0.525,
+            0.11,
+            0.425
+          ],
+          "id": "table-17-chair-1",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            -53,
+            0.98,
+            -10.17
+          ],
+          "half": [
+            0.525,
+            0.325,
+            0.075
+          ],
+          "id": "table-17-chair-back-1",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            -55,
+            0.55,
+            -8
+          ],
+          "half": [
+            0.525,
+            0.11,
+            0.425
+          ],
+          "id": "table-17-chair-2",
+          "role": "solid",
+          "yaw": 1.5707963267948966
+        },
+        {
+          "center": [
+            -55.37,
+            0.98,
+            -8
+          ],
+          "half": [
+            0.525,
+            0.325,
+            0.075
+          ],
+          "id": "table-17-chair-back-2",
+          "role": "solid",
+          "yaw": 1.5707963267948966
+        },
+        {
+          "center": [
+            -51,
+            0.55,
+            -8
+          ],
+          "half": [
+            0.525,
+            0.11,
+            0.425
+          ],
+          "id": "table-17-chair-3",
+          "role": "solid",
+          "yaw": -1.5707963267948966
+        },
+        {
+          "center": [
+            -50.63,
+            0.98,
+            -8
+          ],
+          "half": [
+            0.525,
+            0.325,
+            0.075
+          ],
+          "id": "table-17-chair-back-3",
+          "role": "solid",
+          "yaw": -1.5707963267948966
+        },
+        {
+          "center": [
+            -53,
+            1.04,
+            2
+          ],
+          "half": [
+            1.2,
+            0.12,
+            0.75
+          ],
+          "id": "table-18-top",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            -53,
+            0.55,
+            3.8
+          ],
+          "half": [
+            0.525,
+            0.11,
+            0.425
+          ],
+          "id": "table-18-chair-0",
+          "role": "solid",
+          "yaw": 3.141592653589793
+        },
+        {
+          "center": [
+            -53,
+            0.98,
+            4.17
+          ],
+          "half": [
+            0.525,
+            0.325,
+            0.075
+          ],
+          "id": "table-18-chair-back-0",
+          "role": "solid",
+          "yaw": 3.141592653589793
+        },
+        {
+          "center": [
+            -53,
+            0.55,
+            0.19999999999999996
+          ],
+          "half": [
+            0.525,
+            0.11,
+            0.425
+          ],
+          "id": "table-18-chair-1",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            -53,
+            0.98,
+            -0.17000000000000004
+          ],
+          "half": [
+            0.525,
+            0.325,
+            0.075
+          ],
+          "id": "table-18-chair-back-1",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            -55,
+            0.55,
+            2
+          ],
+          "half": [
+            0.525,
+            0.11,
+            0.425
+          ],
+          "id": "table-18-chair-2",
+          "role": "solid",
+          "yaw": 1.5707963267948966
+        },
+        {
+          "center": [
+            -55.37,
+            0.98,
+            2
+          ],
+          "half": [
+            0.525,
+            0.325,
+            0.075
+          ],
+          "id": "table-18-chair-back-2",
+          "role": "solid",
+          "yaw": 1.5707963267948966
+        },
+        {
+          "center": [
+            -51,
+            0.55,
+            2
+          ],
+          "half": [
+            0.525,
+            0.11,
+            0.425
+          ],
+          "id": "table-18-chair-3",
+          "role": "solid",
+          "yaw": -1.5707963267948966
+        },
+        {
+          "center": [
+            -50.63,
+            0.98,
+            2
+          ],
+          "half": [
+            0.525,
+            0.325,
+            0.075
+          ],
+          "id": "table-18-chair-back-3",
+          "role": "solid",
+          "yaw": -1.5707963267948966
         },
         {
           "center": [
@@ -20726,7 +22430,7 @@
         },
         {
           "center": [
-            -21.46389622626655,
+            -25.46389622626655,
             1.22,
             6.536103773733452
           ],
@@ -20741,7 +22445,7 @@
         },
         {
           "center": [
-            -21.19519564941566,
+            -25.19519564941566,
             1.66,
             6.80480435058434
           ],
@@ -20756,7 +22460,7 @@
         },
         {
           "center": [
-            -26.53610377373345,
+            -30.53610377373345,
             1.22,
             6.536103773733453
           ],
@@ -20771,7 +22475,7 @@
         },
         {
           "center": [
-            -26.80480435058434,
+            -30.80480435058434,
             1.66,
             6.804804350584341
           ],
@@ -20786,7 +22490,7 @@
         },
         {
           "center": [
-            -27.586592352399435,
+            -31.586592352399435,
             1.22,
             4
           ],
@@ -20801,7 +22505,7 @@
         },
         {
           "center": [
-            -27.966592352399434,
+            -31.966592352399434,
             1.66,
             4
           ],
@@ -20816,7 +22520,7 @@
         },
         {
           "center": [
-            -26.53610377373345,
+            -30.53610377373345,
             1.22,
             1.4638962262665478
           ],
@@ -20831,7 +22535,7 @@
         },
         {
           "center": [
-            -26.80480435058434,
+            -30.80480435058434,
             1.66,
             1.19519564941566
           ],
@@ -20846,7 +22550,7 @@
         },
         {
           "center": [
-            -21.46389622626655,
+            -25.46389622626655,
             1.22,
             1.463896226266547
           ],
@@ -20861,7 +22565,7 @@
         },
         {
           "center": [
-            -21.19519564941566,
+            -25.19519564941566,
             1.66,
             1.1951956494156588
           ],
@@ -20876,7 +22580,7 @@
         },
         {
           "center": [
-            -20.413407647600565,
+            -24.413407647600565,
             1.22,
             3.999999999999999
           ],
@@ -20891,7 +22595,7 @@
         },
         {
           "center": [
-            -20.033407647600566,
+            -24.033407647600566,
             1.66,
             3.999999999999999
           ],
@@ -20906,7 +22610,7 @@
         },
         {
           "center": [
-            26.53610377373345,
+            30.53610377373345,
             1.22,
             6.536103773733452
           ],
@@ -20921,7 +22625,7 @@
         },
         {
           "center": [
-            26.80480435058434,
+            30.80480435058434,
             1.66,
             6.80480435058434
           ],
@@ -20936,7 +22640,7 @@
         },
         {
           "center": [
-            21.46389622626655,
+            25.46389622626655,
             1.22,
             6.536103773733453
           ],
@@ -20951,7 +22655,7 @@
         },
         {
           "center": [
-            21.19519564941566,
+            25.19519564941566,
             1.66,
             6.804804350584341
           ],
@@ -20966,7 +22670,7 @@
         },
         {
           "center": [
-            20.413407647600565,
+            24.413407647600565,
             1.22,
             4
           ],
@@ -20981,7 +22685,7 @@
         },
         {
           "center": [
-            20.033407647600566,
+            24.033407647600566,
             1.66,
             4
           ],
@@ -20996,7 +22700,7 @@
         },
         {
           "center": [
-            21.46389622626655,
+            25.46389622626655,
             1.22,
             1.4638962262665478
           ],
@@ -21011,7 +22715,7 @@
         },
         {
           "center": [
-            21.19519564941566,
+            25.19519564941566,
             1.66,
             1.19519564941566
           ],
@@ -21026,7 +22730,7 @@
         },
         {
           "center": [
-            26.53610377373345,
+            30.53610377373345,
             1.22,
             1.463896226266547
           ],
@@ -21041,7 +22745,7 @@
         },
         {
           "center": [
-            26.80480435058434,
+            30.80480435058434,
             1.66,
             1.1951956494156588
           ],
@@ -21056,7 +22760,7 @@
         },
         {
           "center": [
-            27.586592352399435,
+            31.586592352399435,
             1.22,
             3.999999999999999
           ],
@@ -21071,7 +22775,7 @@
         },
         {
           "center": [
-            27.966592352399434,
+            31.966592352399434,
             1.66,
             3.999999999999999
           ],
@@ -22226,186 +23930,6 @@
         },
         {
           "center": [
-            11.777945491468365,
-            0.6400000000000001,
-            48.8
-          ],
-          "half": [
-            1.4,
-            0.06,
-            0.38
-          ],
-          "id": "plaza-planter-30-bench-seat",
-          "role": "solid",
-          "yaw": -2.0943951023931953
-        },
-        {
-          "center": [
-            12.107035144906453,
-            1.08,
-            48.989999999999995
-          ],
-          "half": [
-            1.4,
-            0.3,
-            0.06
-          ],
-          "id": "plaza-planter-30-bench-back",
-          "role": "solid",
-          "yaw": -2.0943951023931953
-        },
-        {
-          "center": [
-            -11.777945491468365,
-            0.6400000000000001,
-            48.8
-          ],
-          "half": [
-            1.4,
-            0.06,
-            0.38
-          ],
-          "id": "plaza-planter-150-bench-seat",
-          "role": "solid",
-          "yaw": -4.188790204786391
-        },
-        {
-          "center": [
-            -12.107035144906453,
-            1.08,
-            48.989999999999995
-          ],
-          "half": [
-            1.4,
-            0.3,
-            0.06
-          ],
-          "id": "plaza-planter-150-bench-back",
-          "role": "solid",
-          "yaw": -4.188790204786391
-        },
-        {
-          "center": [
-            -16.3,
-            0.6400000000000001,
-            33
-          ],
-          "half": [
-            1.4,
-            0.06,
-            0.38
-          ],
-          "id": "plaza-rest-bench--1-33-seat",
-          "role": "solid",
-          "yaw": 1.5707963267948966
-        },
-        {
-          "center": [
-            -16.68,
-            1.08,
-            33
-          ],
-          "half": [
-            1.4,
-            0.3,
-            0.06
-          ],
-          "id": "plaza-rest-bench--1-33-back",
-          "role": "solid",
-          "yaw": 1.5707963267948966
-        },
-        {
-          "center": [
-            -16.3,
-            0.6400000000000001,
-            36
-          ],
-          "half": [
-            1.4,
-            0.06,
-            0.38
-          ],
-          "id": "plaza-rest-bench--1-36-seat",
-          "role": "solid",
-          "yaw": 1.5707963267948966
-        },
-        {
-          "center": [
-            -16.68,
-            1.08,
-            36
-          ],
-          "half": [
-            1.4,
-            0.3,
-            0.06
-          ],
-          "id": "plaza-rest-bench--1-36-back",
-          "role": "solid",
-          "yaw": 1.5707963267948966
-        },
-        {
-          "center": [
-            16.3,
-            0.6400000000000001,
-            33
-          ],
-          "half": [
-            1.4,
-            0.06,
-            0.38
-          ],
-          "id": "plaza-rest-bench-1-33-seat",
-          "role": "solid",
-          "yaw": -1.5707963267948966
-        },
-        {
-          "center": [
-            16.68,
-            1.08,
-            33
-          ],
-          "half": [
-            1.4,
-            0.3,
-            0.06
-          ],
-          "id": "plaza-rest-bench-1-33-back",
-          "role": "solid",
-          "yaw": -1.5707963267948966
-        },
-        {
-          "center": [
-            16.3,
-            0.6400000000000001,
-            36
-          ],
-          "half": [
-            1.4,
-            0.06,
-            0.38
-          ],
-          "id": "plaza-rest-bench-1-36-seat",
-          "role": "solid",
-          "yaw": -1.5707963267948966
-        },
-        {
-          "center": [
-            16.68,
-            1.08,
-            36
-          ],
-          "half": [
-            1.4,
-            0.3,
-            0.06
-          ],
-          "id": "plaza-rest-bench-1-36-back",
-          "role": "solid",
-          "yaw": -1.5707963267948966
-        },
-        {
-          "center": [
             -75,
             0.51,
             14
@@ -22641,6 +24165,96 @@
             0.06
           ],
           "id": "layout-fishing-east-bench-back",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            -73,
+            0.5,
+            80
+          ],
+          "half": [
+            1.4,
+            0.06,
+            0.38
+          ],
+          "id": "bench-forest-southwest-seat",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            -73,
+            0.94,
+            79.62
+          ],
+          "half": [
+            1.4,
+            0.3,
+            0.06
+          ],
+          "id": "bench-forest-southwest-back",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            52,
+            0.5,
+            -73
+          ],
+          "half": [
+            1.4,
+            0.06,
+            0.38
+          ],
+          "id": "bench-forest-northeast-seat",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            52,
+            0.94,
+            -73.38
+          ],
+          "half": [
+            1.4,
+            0.3,
+            0.06
+          ],
+          "id": "bench-forest-northeast-back",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            74,
+            0.5,
+            73
+          ],
+          "half": [
+            1.4,
+            0.06,
+            0.38
+          ],
+          "id": "bench-forest-southeast-seat",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            74,
+            0.94,
+            72.62
+          ],
+          "half": [
+            1.4,
+            0.3,
+            0.06
+          ],
+          "id": "bench-forest-southeast-back",
           "role": "solid",
           "yaw": 0
         },
@@ -23621,69 +25235,69 @@
         },
         {
           "center": [
-            -31.899137802864846,
+            -33.0507041555162,
             0.55,
-            32.10086219713516
+            33.95
           ],
           "half": [
             0.07,
             0.55,
-            5.3
+            5.300000000000001
           ],
           "id": "kiosk-shop-0",
           "role": "solid",
-          "yaw": 2.356194490192345
+          "yaw": 2.6179938779914944
         },
         {
           "center": [
-            -32.747665940288705,
+            -32.15,
             0.55,
-            38.7476659402887
+            40.58993464005752
           ],
           "half": [
             0.07,
             0.55,
-            4.099999999999997
+            4.099999999999999
           ],
           "id": "kiosk-shop-1",
           "role": "solid",
-          "yaw": 0.7853981633974483
+          "yaw": 1.0471975511965983
         },
         {
           "center": [
-            -25.2523340597113,
+            -26.85,
             0.55,
-            31.2523340597113
+            31.410065359942475
           ],
           "half": [
             0.07,
             0.55,
-            4.100000000000002
+            4.099999999999999
           ],
           "id": "kiosk-shop-2",
           "role": "solid",
-          "yaw": 0.7853981633974483
+          "yaw": 1.0471975511965974
         },
         {
           "center": [
-            -26,
+            -32.598076211353316,
             0.55,
-            47.5
+            55.5
           ],
           "half": [
             0.07,
             0.55,
-            4.399999999999999
+            4.400000000000001
           ],
           "id": "kiosk-drink-0",
           "role": "solid",
-          "yaw": 1.5707963267948966
+          "yaw": -2.617993877991494
         },
         {
           "center": [
-            -30.4,
+            -27.8,
             0.55,
-            50.5
+            57.81051177665153
           ],
           "half": [
             0.07,
@@ -23692,13 +25306,13 @@
           ],
           "id": "kiosk-drink-1",
           "role": "solid",
-          "yaw": 0
+          "yaw": 2.0943951023931957
         },
         {
           "center": [
-            -21.6,
+            -32.2,
             0.55,
-            50.5
+            50.18948822334847
           ],
           "half": [
             0.07,
@@ -23707,52 +25321,52 @@
           ],
           "id": "kiosk-drink-2",
           "role": "solid",
-          "yaw": 0
+          "yaw": 2.0943951023931957
         },
         {
           "center": [
-            31.68700576850888,
+            33.29089653438086,
             0.55,
-            32.31299423149112
+            33.7
           ],
           "half": [
             0.07,
             0.55,
-            4.899999999999998
+            4.899999999999999
           ],
           "id": "kiosk-photo-0",
           "role": "solid",
-          "yaw": 0.7853981633974488
+          "yaw": 0.5235987755982989
         },
         {
           "center": [
-            25.535176772185917,
+            27.55,
             0.55,
-            31.535176772185917
+            31.356475521456254
+          ],
+          "half": [
+            0.07,
+            0.55,
+            3.8
+          ],
+          "id": "kiosk-photo-1",
+          "role": "solid",
+          "yaw": -1.047197551196598
+        },
+        {
+          "center": [
+            32.45,
+            0.55,
+            39.84352447854375
           ],
           "half": [
             0.07,
             0.55,
             3.7999999999999976
           ],
-          "id": "kiosk-photo-1",
-          "role": "solid",
-          "yaw": -0.7853981633974483
-        },
-        {
-          "center": [
-            32.46482322781408,
-            0.55,
-            38.46482322781408
-          ],
-          "half": [
-            0.07,
-            0.55,
-            3.800000000000001
-          ],
           "id": "kiosk-photo-2",
           "role": "solid",
-          "yaw": -0.785398163397448
+          "yaw": -1.0471975511965979
         },
         {
           "center": [
@@ -23846,7 +25460,7 @@
         },
         {
           "center": [
-            -28.925,
+            -32.925,
             0.55,
             -4.5
           ],
@@ -23861,7 +25475,7 @@
         },
         {
           "center": [
-            -19.075,
+            -23.075,
             0.55,
             -4.5
           ],
@@ -23876,7 +25490,7 @@
         },
         {
           "center": [
-            -28.925,
+            -32.925,
             0.55,
             12.5
           ],
@@ -23891,7 +25505,7 @@
         },
         {
           "center": [
-            -19.075,
+            -23.075,
             0.55,
             12.5
           ],
@@ -23906,7 +25520,7 @@
         },
         {
           "center": [
-            -16.75,
+            -20.75,
             0.55,
             4
           ],
@@ -23921,7 +25535,7 @@
         },
         {
           "center": [
-            -31.25,
+            -35.25,
             0.55,
             4
           ],
@@ -23936,7 +25550,7 @@
         },
         {
           "center": [
-            19.075,
+            23.075,
             0.55,
             -4.5
           ],
@@ -23951,7 +25565,7 @@
         },
         {
           "center": [
-            28.925,
+            32.925,
             0.55,
             -4.5
           ],
@@ -23966,7 +25580,7 @@
         },
         {
           "center": [
-            19.075,
+            23.075,
             0.55,
             12.5
           ],
@@ -23981,7 +25595,7 @@
         },
         {
           "center": [
-            28.925,
+            32.925,
             0.55,
             12.5
           ],
@@ -23996,7 +25610,7 @@
         },
         {
           "center": [
-            31.25,
+            35.25,
             0.55,
             4
           ],
@@ -24011,7 +25625,7 @@
         },
         {
           "center": [
-            16.75,
+            20.75,
             0.55,
             4
           ],
@@ -27386,9 +29000,9 @@
         },
         {
           "center": [
-            -33.5,
+            20.284442352070435,
             2.5,
-            45.5
+            51.43519994715294
           ],
           "half": [
             0.12,
@@ -27401,9 +29015,9 @@
         },
         {
           "center": [
-            33.5,
+            -20.284442352070432,
             2.5,
-            45.5
+            51.43519994715294
           ],
           "half": [
             0.12,
@@ -27416,9 +29030,9 @@
         },
         {
           "center": [
-            33.5,
+            -20.284442352070435,
             2.5,
-            56.5
+            40.564800052847076
           ],
           "half": [
             0.12,
@@ -27431,9 +29045,9 @@
         },
         {
           "center": [
-            -8,
+            14.849242404917494,
             2.5,
-            58.5
+            31.1507575950825
           ],
           "half": [
             0.12,
@@ -27446,9 +29060,9 @@
         },
         {
           "center": [
-            8,
+            20.284442352070435,
             2.5,
-            58.5
+            40.56480005284706
           ],
           "half": [
             0.12,
@@ -27493,7 +29107,7 @@
           "center": [
             -27,
             2.5,
-            18.416666666666668
+            -33.5
           ],
           "half": [
             0.12,
@@ -27508,7 +29122,7 @@
           "center": [
             -27,
             2.5,
-            -33.083333333333336
+            -50.5
           ],
           "half": [
             0.12,
@@ -27521,9 +29135,9 @@
         },
         {
           "center": [
-            -27,
+            21,
             2.5,
-            -50.25
+            -33.5
           ],
           "half": [
             0.12,
@@ -27538,7 +29152,7 @@
           "center": [
             21,
             2.5,
-            18.416666666666668
+            -50.5
           ],
           "half": [
             0.12,
@@ -27546,36 +29160,6 @@
             0.12
           ],
           "id": "lamp-10",
-          "role": "solid",
-          "yaw": 0
-        },
-        {
-          "center": [
-            21,
-            2.5,
-            -33.083333333333336
-          ],
-          "half": [
-            0.12,
-            2.5,
-            0.12
-          ],
-          "id": "lamp-11",
-          "role": "solid",
-          "yaw": 0
-        },
-        {
-          "center": [
-            21,
-            2.5,
-            -50.25
-          ],
-          "half": [
-            0.12,
-            2.5,
-            0.12
-          ],
-          "id": "lamp-12",
           "role": "solid",
           "yaw": 0
         },
@@ -27590,7 +29174,7 @@
             2.5,
             0.12
           ],
-          "id": "lamp-13",
+          "id": "lamp-11",
           "role": "solid",
           "yaw": 0
         },
@@ -27605,7 +29189,7 @@
             2.5,
             0.12
           ],
-          "id": "lamp-14",
+          "id": "lamp-12",
           "role": "solid",
           "yaw": 0
         },
@@ -27620,7 +29204,7 @@
             2.5,
             0.12
           ],
-          "id": "lamp-15",
+          "id": "lamp-13",
           "role": "solid",
           "yaw": 0
         },
@@ -27635,7 +29219,7 @@
             2.5,
             0.12
           ],
-          "id": "lamp-16",
+          "id": "lamp-14",
           "role": "solid",
           "yaw": 0
         },
@@ -27650,7 +29234,7 @@
             2.5,
             0.12
           ],
-          "id": "lamp-17",
+          "id": "lamp-15",
           "role": "solid",
           "yaw": 0
         },
@@ -27665,7 +29249,7 @@
             2.5,
             0.12
           ],
-          "id": "lamp-18",
+          "id": "lamp-16",
           "role": "solid",
           "yaw": 0
         },
@@ -27680,7 +29264,7 @@
             2.5,
             0.12
           ],
-          "id": "lamp-19",
+          "id": "lamp-17",
           "role": "solid",
           "yaw": 0
         },
@@ -27695,7 +29279,7 @@
             2.5,
             0.12
           ],
-          "id": "lamp-20",
+          "id": "lamp-18",
           "role": "solid",
           "yaw": 0
         },
@@ -27710,7 +29294,7 @@
             2.5,
             0.12
           ],
-          "id": "lamp-21",
+          "id": "lamp-19",
           "role": "solid",
           "yaw": 0
         },
@@ -27725,7 +29309,7 @@
             2.5,
             0.12
           ],
-          "id": "lamp-22",
+          "id": "lamp-20",
           "role": "solid",
           "yaw": 0
         },
@@ -27740,13 +29324,13 @@
             2.5,
             0.12
           ],
-          "id": "lamp-23",
+          "id": "lamp-21",
           "role": "solid",
           "yaw": 0
         },
         {
           "center": [
-            -36,
+            -42,
             2.5,
             -4
           ],
@@ -27755,22 +29339,7 @@
             2.5,
             0.12
           ],
-          "id": "lamp-24",
-          "role": "solid",
-          "yaw": 0
-        },
-        {
-          "center": [
-            -36,
-            2.5,
-            12
-          ],
-          "half": [
-            0.12,
-            2.5,
-            0.12
-          ],
-          "id": "lamp-25",
+          "id": "lamp-22",
           "role": "solid",
           "yaw": 0
         },
@@ -27785,7 +29354,7 @@
             2.5,
             0.12
           ],
-          "id": "lamp-26",
+          "id": "lamp-23",
           "role": "solid",
           "yaw": 0
         },
@@ -27800,7 +29369,7 @@
             2.5,
             0.12
           ],
-          "id": "lamp-27",
+          "id": "lamp-24",
           "role": "solid",
           "yaw": 0
         },
@@ -27815,7 +29384,7 @@
             2.5,
             0.12
           ],
-          "id": "lamp-28",
+          "id": "lamp-25",
           "role": "solid",
           "yaw": 0
         },
@@ -27830,7 +29399,7 @@
             2.5,
             0.12
           ],
-          "id": "lamp-29",
+          "id": "lamp-26",
           "role": "solid",
           "yaw": 0
         },
@@ -27845,7 +29414,7 @@
             2.5,
             0.12
           ],
-          "id": "lamp-30",
+          "id": "lamp-27",
           "role": "solid",
           "yaw": 0
         },
@@ -27860,22 +29429,37 @@
             2.5,
             0.12
           ],
-          "id": "lamp-31",
+          "id": "lamp-28",
           "role": "solid",
           "yaw": 0
         },
         {
           "center": [
-            42,
+            29.25,
             2.5,
-            36
+            59
           ],
           "half": [
             0.12,
             2.5,
             0.12
           ],
-          "id": "lamp-32",
+          "id": "lamp-29",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            36,
+            2.5,
+            54
+          ],
+          "half": [
+            0.12,
+            2.5,
+            0.12
+          ],
+          "id": "lamp-30",
           "role": "solid",
           "yaw": 0
         },
@@ -27890,7 +29474,7 @@
             2.5,
             0.12
           ],
-          "id": "lamp-33",
+          "id": "lamp-31",
           "role": "solid",
           "yaw": 0
         },
@@ -27905,7 +29489,7 @@
             2.5,
             0.12
           ],
-          "id": "lamp-34",
+          "id": "lamp-32",
           "role": "solid",
           "yaw": 0
         },
@@ -27920,7 +29504,7 @@
             2.5,
             0.12
           ],
-          "id": "lamp-35",
+          "id": "lamp-33",
           "role": "solid",
           "yaw": 0
         },
@@ -27935,7 +29519,7 @@
             2.5,
             0.12
           ],
-          "id": "lamp-36",
+          "id": "lamp-34",
           "role": "solid",
           "yaw": 0
         },
@@ -27950,7 +29534,7 @@
             2.5,
             0.12
           ],
-          "id": "lamp-37",
+          "id": "lamp-35",
           "role": "solid",
           "yaw": 0
         },
@@ -27965,7 +29549,7 @@
             2.5,
             0.12
           ],
-          "id": "lamp-38",
+          "id": "lamp-36",
           "role": "solid",
           "yaw": 0
         },
@@ -27980,7 +29564,7 @@
             2.5,
             0.12
           ],
-          "id": "lamp-39",
+          "id": "lamp-37",
           "role": "solid",
           "yaw": 0
         },
@@ -27995,7 +29579,7 @@
             2.5,
             0.12
           ],
-          "id": "lamp-40",
+          "id": "lamp-38",
           "role": "solid",
           "yaw": 0
         },
@@ -28010,7 +29594,7 @@
             2.5,
             0.12
           ],
-          "id": "lamp-41",
+          "id": "lamp-39",
           "role": "solid",
           "yaw": 0
         },
@@ -28025,7 +29609,7 @@
             2.5,
             0.12
           ],
-          "id": "lamp-42",
+          "id": "lamp-40",
           "role": "solid",
           "yaw": 0
         },
@@ -28040,7 +29624,7 @@
             2.5,
             0.12
           ],
-          "id": "lamp-43",
+          "id": "lamp-41",
           "role": "solid",
           "yaw": 0
         },
@@ -44366,96 +45950,6 @@
         },
         {
           "center": [
-            -53,
-            0.95,
-            -8
-          ],
-          "half": [
-            1.2,
-            0.12,
-            0.75
-          ],
-          "id": "layout-vr-stone-set-1",
-          "role": "solid",
-          "yaw": 0
-        },
-        {
-          "center": [
-            -53,
-            0.49,
-            -9.8
-          ],
-          "half": [
-            0.525,
-            0.11,
-            0.425
-          ],
-          "id": "layout-vr-stone-set-1-chair--1",
-          "role": "solid",
-          "yaw": 0
-        },
-        {
-          "center": [
-            -53,
-            0.49,
-            -6.2
-          ],
-          "half": [
-            0.525,
-            0.11,
-            0.425
-          ],
-          "id": "layout-vr-stone-set-1-chair-1",
-          "role": "solid",
-          "yaw": 0
-        },
-        {
-          "center": [
-            -53,
-            0.95,
-            2
-          ],
-          "half": [
-            1.2,
-            0.12,
-            0.75
-          ],
-          "id": "layout-vr-stone-set-2",
-          "role": "solid",
-          "yaw": 0
-        },
-        {
-          "center": [
-            -53,
-            0.49,
-            0.19999999999999996
-          ],
-          "half": [
-            0.525,
-            0.11,
-            0.425
-          ],
-          "id": "layout-vr-stone-set-2-chair--1",
-          "role": "solid",
-          "yaw": 0
-        },
-        {
-          "center": [
-            -53,
-            0.49,
-            3.8
-          ],
-          "half": [
-            0.525,
-            0.11,
-            0.425
-          ],
-          "id": "layout-vr-stone-set-2-chair-1",
-          "role": "solid",
-          "yaw": 0
-        },
-        {
-          "center": [
             -51,
             1.55,
             23
@@ -44551,52 +46045,52 @@
           "id": "P1-floor",
           "role": "surface",
           "vertices": [
-            -19.011050524439053,
+            -23.011050524439053,
             0,
             6.066490534771485,
-            -21.933509465228514,
+            -25.933509465228514,
             0,
             8.988949475560947,
-            -26.066490534771486,
+            -30.066490534771486,
             0,
             8.988949475560947,
-            -28.988949475560947,
+            -32.98894947556095,
             0,
             6.066490534771486,
-            -28.98894947556095,
+            -32.98894947556095,
             0,
             1.933509465228516,
-            -26.06649053477149,
+            -30.06649053477149,
             0,
             -0.9889494755609469,
-            -21.933509465228514,
+            -25.933509465228514,
             0,
             -0.9889494755609478,
-            -19.011050524439053,
+            -23.011050524439053,
             0,
             1.933509465228512,
-            -19.011050524439053,
+            -23.011050524439053,
             0.72,
             6.066490534771485,
-            -21.933509465228514,
+            -25.933509465228514,
             0.72,
             8.988949475560947,
-            -26.066490534771486,
+            -30.066490534771486,
             0.72,
             8.988949475560947,
-            -28.988949475560947,
+            -32.98894947556095,
             0.72,
             6.066490534771486,
-            -28.98894947556095,
+            -32.98894947556095,
             0.72,
             1.933509465228516,
-            -26.06649053477149,
+            -30.06649053477149,
             0.72,
             -0.9889494755609469,
-            -21.933509465228514,
+            -25.933509465228514,
             0.72,
             -0.9889494755609478,
-            -19.011050524439053,
+            -23.011050524439053,
             0.72,
             1.933509465228512
           ]
@@ -44605,52 +46099,52 @@
           "id": "P2-floor",
           "role": "surface",
           "vertices": [
-            28.988949475560947,
+            32.98894947556095,
             0,
             6.066490534771485,
-            26.066490534771486,
+            30.066490534771486,
             0,
             8.988949475560947,
-            21.933509465228514,
+            25.933509465228514,
             0,
             8.988949475560947,
-            19.011050524439053,
+            23.011050524439053,
             0,
             6.066490534771486,
-            19.01105052443905,
+            23.01105052443905,
             0,
             1.933509465228516,
-            21.93350946522851,
+            25.93350946522851,
             0,
             -0.9889494755609469,
-            26.066490534771486,
+            30.066490534771486,
             0,
             -0.9889494755609478,
-            28.988949475560947,
+            32.98894947556094,
             0,
             1.933509465228512,
-            28.988949475560947,
+            32.98894947556095,
             0.72,
             6.066490534771485,
-            26.066490534771486,
+            30.066490534771486,
             0.72,
             8.988949475560947,
-            21.933509465228514,
+            25.933509465228514,
             0.72,
             8.988949475560947,
-            19.011050524439053,
+            23.011050524439053,
             0.72,
             6.066490534771486,
-            19.01105052443905,
+            23.01105052443905,
             0.72,
             1.933509465228516,
-            21.93350946522851,
+            25.93350946522851,
             0.72,
             -0.9889494755609469,
-            26.066490534771486,
+            30.066490534771486,
             0.72,
             -0.9889494755609478,
-            28.988949475560947,
+            32.98894947556094,
             0.72,
             1.933509465228512
           ]
@@ -44977,6 +46471,588 @@
             28.988949475560947,
             0.72,
             71.93350946522851
+          ]
+        },
+        {
+          "id": "plaza-floor",
+          "role": "surface",
+          "vertices": [
+            24,
+            0,
+            46,
+            23.94861415772648,
+            0,
+            47.56967510152343,
+            23.79467667297145,
+            0,
+            49.13262861328124,
+            23.53884672967753,
+            0,
+            50.68216772838708,
+            23.18221983093764,
+            0,
+            52.2116570824605,
+            22.726323107882536,
+            0,
+            53.71454716727588,
+            22.17310878027088,
+            0,
+            55.18440237676215,
+            21.52494579678452,
+            0,
+            56.61492856525603,
+            20.784609690826528,
+            0,
+            58,
+            19.955270695261085,
+            0,
+            59.33368559247045,
+            19.040480166989646,
+            0,
+            60.6102742962093,
+            18.044155379495457,
+            0,
+            61.82429956240165,
+            16.970562748477143,
+            0,
+            62.970562748477136,
+            15.824299562401652,
+            0,
+            64.04415537949546,
+            14.610274296209296,
+            0,
+            65.04048016698965,
+            13.333685592470458,
+            0,
+            65.95527069526108,
+            12.000000000000004,
+            0,
+            66.78460969082653,
+            10.61492856525603,
+            0,
+            67.52494579678452,
+            9.184402376762156,
+            0,
+            68.17310878027088,
+            7.714547167275881,
+            0,
+            68.72632310788254,
+            6.211657082460498,
+            0,
+            69.18221983093764,
+            4.68216772838708,
+            0,
+            69.53884672967753,
+            3.1326286132812413,
+            0,
+            69.79467667297145,
+            1.5696751015234385,
+            0,
+            69.94861415772648,
+            1.4695761589768238e-15,
+            0,
+            70,
+            -1.5696751015234356,
+            0,
+            69.94861415772648,
+            -3.1326286132812386,
+            0,
+            69.79467667297145,
+            -4.682167728387077,
+            0,
+            69.53884672967753,
+            -6.211657082460495,
+            0,
+            69.18221983093764,
+            -7.714547167275878,
+            0,
+            68.72632310788254,
+            -9.184402376762147,
+            0,
+            68.17310878027088,
+            -10.614928565256028,
+            0,
+            67.52494579678452,
+            -11.999999999999995,
+            0,
+            66.78460969082653,
+            -13.333685592470456,
+            0,
+            65.95527069526108,
+            -14.610274296209296,
+            0,
+            65.04048016698965,
+            -15.824299562401652,
+            0,
+            64.04415537949546,
+            -16.97056274847714,
+            0,
+            62.97056274847714,
+            -18.044155379495454,
+            0,
+            61.824299562401656,
+            -19.040480166989642,
+            0,
+            60.6102742962093,
+            -19.95527069526108,
+            0,
+            59.33368559247046,
+            -20.784609690826528,
+            0,
+            58,
+            -21.524945796784515,
+            0,
+            56.61492856525604,
+            -22.17310878027088,
+            0,
+            55.18440237676216,
+            -22.726323107882536,
+            0,
+            53.71454716727588,
+            -23.182219830937637,
+            0,
+            52.211657082460505,
+            -23.53884672967753,
+            0,
+            50.68216772838708,
+            -23.79467667297145,
+            0,
+            49.13262861328125,
+            -23.94861415772648,
+            0,
+            47.56967510152344,
+            -24,
+            0,
+            46,
+            -23.94861415772648,
+            0,
+            44.43032489847657,
+            -23.79467667297145,
+            0,
+            42.86737138671876,
+            -23.538846729677534,
+            0,
+            41.31783227161293,
+            -23.18221983093764,
+            0,
+            39.7883429175395,
+            -22.726323107882536,
+            0,
+            38.285452832724125,
+            -22.173108780270883,
+            0,
+            36.81559762323785,
+            -21.524945796784518,
+            0,
+            35.38507143474396,
+            -20.78460969082653,
+            0,
+            34.00000000000001,
+            -19.955270695261092,
+            0,
+            32.666314407529555,
+            -19.040480166989646,
+            0,
+            31.389725703790702,
+            -18.044155379495457,
+            0,
+            30.175700437598348,
+            -16.97056274847715,
+            0,
+            29.029437251522868,
+            -15.824299562401658,
+            0,
+            27.955844620504546,
+            -14.610274296209301,
+            0,
+            26.95951983301036,
+            -13.333685592470452,
+            0,
+            26.044729304738915,
+            -12.00000000000001,
+            0,
+            25.215390309173475,
+            -10.614928565256033,
+            0,
+            24.475054203215482,
+            -9.184402376762147,
+            0,
+            23.826891219729117,
+            -7.714547167275883,
+            0,
+            23.273676892117464,
+            -6.211657082460495,
+            0,
+            22.81778016906236,
+            -4.682167728387088,
+            0,
+            22.461153270322473,
+            -3.132628613281239,
+            0,
+            22.20532332702855,
+            -1.5696751015234254,
+            0,
+            22.05138584227352,
+            -4.408728476930472e-15,
+            0,
+            22,
+            1.569675101523417,
+            0,
+            22.051385842273515,
+            3.1326286132812307,
+            0,
+            22.205323327028548,
+            4.682167728387079,
+            0,
+            22.46115327032247,
+            6.211657082460487,
+            0,
+            22.81778016906236,
+            7.714547167275875,
+            0,
+            23.273676892117464,
+            9.18440237676214,
+            0,
+            23.826891219729113,
+            10.614928565256024,
+            0,
+            24.47505420321548,
+            12.000000000000004,
+            0,
+            25.215390309173472,
+            13.333685592470445,
+            0,
+            26.044729304738908,
+            14.610274296209276,
+            0,
+            26.959519833010344,
+            15.824299562401658,
+            0,
+            27.95584462050455,
+            16.970562748477136,
+            0,
+            29.029437251522857,
+            18.04415537949546,
+            0,
+            30.17570043759835,
+            19.04048016698964,
+            0,
+            31.3897257037907,
+            19.95527069526107,
+            0,
+            32.666314407529526,
+            20.78460969082652,
+            0,
+            33.999999999999986,
+            21.524945796784518,
+            0,
+            35.38507143474396,
+            22.173108780270883,
+            0,
+            36.81559762323785,
+            22.726323107882536,
+            0,
+            38.28545283272412,
+            23.182219830937633,
+            0,
+            39.78834291753948,
+            23.538846729677527,
+            0,
+            41.317832271612914,
+            23.79467667297145,
+            0,
+            42.86737138671876,
+            23.94861415772648,
+            0,
+            44.43032489847657,
+            24,
+            0.14,
+            46,
+            23.94861415772648,
+            0.14,
+            47.56967510152343,
+            23.79467667297145,
+            0.14,
+            49.13262861328124,
+            23.53884672967753,
+            0.14,
+            50.68216772838708,
+            23.18221983093764,
+            0.14,
+            52.2116570824605,
+            22.726323107882536,
+            0.14,
+            53.71454716727588,
+            22.17310878027088,
+            0.14,
+            55.18440237676215,
+            21.52494579678452,
+            0.14,
+            56.61492856525603,
+            20.784609690826528,
+            0.14,
+            58,
+            19.955270695261085,
+            0.14,
+            59.33368559247045,
+            19.040480166989646,
+            0.14,
+            60.6102742962093,
+            18.044155379495457,
+            0.14,
+            61.82429956240165,
+            16.970562748477143,
+            0.14,
+            62.970562748477136,
+            15.824299562401652,
+            0.14,
+            64.04415537949546,
+            14.610274296209296,
+            0.14,
+            65.04048016698965,
+            13.333685592470458,
+            0.14,
+            65.95527069526108,
+            12.000000000000004,
+            0.14,
+            66.78460969082653,
+            10.61492856525603,
+            0.14,
+            67.52494579678452,
+            9.184402376762156,
+            0.14,
+            68.17310878027088,
+            7.714547167275881,
+            0.14,
+            68.72632310788254,
+            6.211657082460498,
+            0.14,
+            69.18221983093764,
+            4.68216772838708,
+            0.14,
+            69.53884672967753,
+            3.1326286132812413,
+            0.14,
+            69.79467667297145,
+            1.5696751015234385,
+            0.14,
+            69.94861415772648,
+            1.4695761589768238e-15,
+            0.14,
+            70,
+            -1.5696751015234356,
+            0.14,
+            69.94861415772648,
+            -3.1326286132812386,
+            0.14,
+            69.79467667297145,
+            -4.682167728387077,
+            0.14,
+            69.53884672967753,
+            -6.211657082460495,
+            0.14,
+            69.18221983093764,
+            -7.714547167275878,
+            0.14,
+            68.72632310788254,
+            -9.184402376762147,
+            0.14,
+            68.17310878027088,
+            -10.614928565256028,
+            0.14,
+            67.52494579678452,
+            -11.999999999999995,
+            0.14,
+            66.78460969082653,
+            -13.333685592470456,
+            0.14,
+            65.95527069526108,
+            -14.610274296209296,
+            0.14,
+            65.04048016698965,
+            -15.824299562401652,
+            0.14,
+            64.04415537949546,
+            -16.97056274847714,
+            0.14,
+            62.97056274847714,
+            -18.044155379495454,
+            0.14,
+            61.824299562401656,
+            -19.040480166989642,
+            0.14,
+            60.6102742962093,
+            -19.95527069526108,
+            0.14,
+            59.33368559247046,
+            -20.784609690826528,
+            0.14,
+            58,
+            -21.524945796784515,
+            0.14,
+            56.61492856525604,
+            -22.17310878027088,
+            0.14,
+            55.18440237676216,
+            -22.726323107882536,
+            0.14,
+            53.71454716727588,
+            -23.182219830937637,
+            0.14,
+            52.211657082460505,
+            -23.53884672967753,
+            0.14,
+            50.68216772838708,
+            -23.79467667297145,
+            0.14,
+            49.13262861328125,
+            -23.94861415772648,
+            0.14,
+            47.56967510152344,
+            -24,
+            0.14,
+            46,
+            -23.94861415772648,
+            0.14,
+            44.43032489847657,
+            -23.79467667297145,
+            0.14,
+            42.86737138671876,
+            -23.538846729677534,
+            0.14,
+            41.31783227161293,
+            -23.18221983093764,
+            0.14,
+            39.7883429175395,
+            -22.726323107882536,
+            0.14,
+            38.285452832724125,
+            -22.173108780270883,
+            0.14,
+            36.81559762323785,
+            -21.524945796784518,
+            0.14,
+            35.38507143474396,
+            -20.78460969082653,
+            0.14,
+            34.00000000000001,
+            -19.955270695261092,
+            0.14,
+            32.666314407529555,
+            -19.040480166989646,
+            0.14,
+            31.389725703790702,
+            -18.044155379495457,
+            0.14,
+            30.175700437598348,
+            -16.97056274847715,
+            0.14,
+            29.029437251522868,
+            -15.824299562401658,
+            0.14,
+            27.955844620504546,
+            -14.610274296209301,
+            0.14,
+            26.95951983301036,
+            -13.333685592470452,
+            0.14,
+            26.044729304738915,
+            -12.00000000000001,
+            0.14,
+            25.215390309173475,
+            -10.614928565256033,
+            0.14,
+            24.475054203215482,
+            -9.184402376762147,
+            0.14,
+            23.826891219729117,
+            -7.714547167275883,
+            0.14,
+            23.273676892117464,
+            -6.211657082460495,
+            0.14,
+            22.81778016906236,
+            -4.682167728387088,
+            0.14,
+            22.461153270322473,
+            -3.132628613281239,
+            0.14,
+            22.20532332702855,
+            -1.5696751015234254,
+            0.14,
+            22.05138584227352,
+            -4.408728476930472e-15,
+            0.14,
+            22,
+            1.569675101523417,
+            0.14,
+            22.051385842273515,
+            3.1326286132812307,
+            0.14,
+            22.205323327028548,
+            4.682167728387079,
+            0.14,
+            22.46115327032247,
+            6.211657082460487,
+            0.14,
+            22.81778016906236,
+            7.714547167275875,
+            0.14,
+            23.273676892117464,
+            9.18440237676214,
+            0.14,
+            23.826891219729113,
+            10.614928565256024,
+            0.14,
+            24.47505420321548,
+            12.000000000000004,
+            0.14,
+            25.215390309173472,
+            13.333685592470445,
+            0.14,
+            26.044729304738908,
+            14.610274296209276,
+            0.14,
+            26.959519833010344,
+            15.824299562401658,
+            0.14,
+            27.95584462050455,
+            16.970562748477136,
+            0.14,
+            29.029437251522857,
+            18.04415537949546,
+            0.14,
+            30.17570043759835,
+            19.04048016698964,
+            0.14,
+            31.3897257037907,
+            19.95527069526107,
+            0.14,
+            32.666314407529526,
+            20.78460969082652,
+            0.14,
+            33.999999999999986,
+            21.524945796784518,
+            0.14,
+            35.38507143474396,
+            22.173108780270883,
+            0.14,
+            36.81559762323785,
+            22.726323107882536,
+            0.14,
+            38.28545283272412,
+            23.182219830937633,
+            0.14,
+            39.78834291753948,
+            23.538846729677527,
+            0.14,
+            41.317832271612914,
+            23.79467667297145,
+            0.14,
+            42.86737138671876,
+            23.94861415772648,
+            0.14,
+            44.43032489847657
           ]
         },
         {
@@ -97953,10 +100029,10 @@
             0,
             -72,
             -70,
-            -0.007186597383459031,
+            -0.00015187355694166194,
             -72,
             -68,
-            -0.08703767942189472,
+            -0.06494912570291897,
             -72,
             -66,
             -0.1700140878280716,
@@ -97971,10 +100047,10 @@
             -0.17630486259114167,
             -72,
             -58,
-            -0.09182874434420098,
+            -0.0685243069342724,
             -72,
             -56,
-            -0.012776173126149544,
+            -0.00026999743456295784,
             -72,
             -54,
             0,
@@ -98223,7 +100299,7 @@
             0,
             -70,
             -72,
-            -0.09358375326055146,
+            -0.08106583054404655,
             -70,
             -70,
             -0.2867008980582214,
@@ -98250,7 +100326,7 @@
             -0.300381281375474,
             -70,
             -54,
-            -0.1558443268138145,
+            -0.1349983234116042,
             -70,
             -52,
             0,
@@ -98763,7 +100839,7 @@
             0,
             -66,
             -76,
-            -0.12087714551625753,
+            -0.12060437440380112,
             -66,
             -74,
             -0.42574605872223603,
@@ -98802,7 +100878,7 @@
             -0.44188467446227486,
             -66,
             -50,
-            -0.21220418834822946,
+            -0.2117253288229119,
             -66,
             -48,
             0,
@@ -99033,7 +101109,7 @@
             0,
             -64,
             -78,
-            -0.03850565228141095,
+            -0.017714060411965257,
             -64,
             -76,
             -0.35156053626901085,
@@ -99078,7 +101154,7 @@
             -0.3587973680393455,
             -64,
             -48,
-            -0.07069215681894578,
+            -0.03252107320221824,
             -64,
             -46,
             0,
@@ -99576,7 +101652,7 @@
             0,
             -60,
             -80,
-            -0.00801457194899721,
+            -0.0001693710506255207,
             -60,
             -78,
             -0.31831762274165554,
@@ -99627,7 +101703,7 @@
             -0.33979990762844997,
             -60,
             -46,
-            -0.013069227216478681,
+            -0.000276190513804746,
             -60,
             -44,
             0,
@@ -99849,7 +101925,7 @@
             0,
             -58,
             -80,
-            -0.013069227216477266,
+            -0.004146786448093346,
             -58,
             -78,
             -0.38248140910629724,
@@ -99900,7 +101976,7 @@
             -0.39430090182324173,
             -58,
             -46,
-            -0.01569578115357705,
+            -0.004980176065638568,
             -58,
             -44,
             0,
@@ -100122,7 +102198,7 @@
             0,
             -56,
             -80,
-            -0.01569578115357535,
+            -0.0072206546076780675,
             -56,
             -78,
             -0.40809030999300666,
@@ -100173,7 +102249,7 @@
             -0.4080903099930083,
             -56,
             -46,
-            -0.01569578115357705,
+            -0.00722065460767885,
             -56,
             -44,
             0,
@@ -100395,7 +102471,7 @@
             0,
             -54,
             -80,
-            -0.01569578115357535,
+            -0.004980176065638028,
             -54,
             -78,
             -0.3943009018232403,
@@ -100446,7 +102522,7 @@
             -0.3824814091062989,
             -54,
             -46,
-            -0.013069227216478681,
+            -0.004146786448093794,
             -54,
             -44,
             0,
@@ -100668,7 +102744,7 @@
             0,
             -52,
             -80,
-            -0.013069227216477266,
+            -0.00027619051380471606,
             -52,
             -78,
             -0.3397999076284485,
@@ -100719,7 +102795,7 @@
             -0.318317622741657,
             -52,
             -46,
-            -0.00801457194899808,
+            -0.00016937105062553908,
             -52,
             -44,
             0,
@@ -101217,7 +103293,7 @@
             0,
             -48,
             -78,
-            -0.0706921568189457,
+            -0.0325210732022182,
             -48,
             -76,
             -0.35879736803934403,
@@ -101262,7 +103338,7 @@
             -0.3515605362690123,
             -48,
             -48,
-            -0.03850565228141181,
+            -0.017714060411965653,
             -48,
             -46,
             0,
@@ -101493,7 +103569,7 @@
             0,
             -46,
             -76,
-            -0.21220418834822902,
+            -0.21172532882291145,
             -46,
             -74,
             -0.44188467446227364,
@@ -101532,7 +103608,7 @@
             -0.4257460587222373,
             -46,
             -50,
-            -0.120877145516259,
+            -0.12060437440380259,
             -46,
             -48,
             0,
@@ -102045,7 +104121,7 @@
             0,
             -42,
             -72,
-            -0.1558443268138145,
+            -0.1349983234116042,
             -42,
             -70,
             -0.300381281375474,
@@ -102072,7 +104148,7 @@
             -0.2867008980582214,
             -42,
             -54,
-            -0.09358375326055145,
+            -0.08106583054404654,
             -42,
             -52,
             0,
@@ -102321,10 +104397,10 @@
             0,
             -40,
             -70,
-            -0.012776173126149544,
+            -0.00026999743456295784,
             -40,
             -68,
-            -0.09182874434420098,
+            -0.0685243069342724,
             -40,
             -66,
             -0.17630486259114167,
@@ -102339,10 +104415,10 @@
             -0.1700140878280716,
             -40,
             -58,
-            -0.08703767942189472,
+            -0.06494912570291897,
             -40,
             -56,
-            -0.007186597383459025,
+            -0.0001518735569416618,
             -40,
             -54,
             0,
@@ -127638,7 +129714,7 @@
           "id": "P1",
           "join": 4.835440010332434,
           "tread": 0.32,
-          "x": -24,
+          "x": -28,
           "z": 4
         },
         {
@@ -127647,7 +129723,7 @@
           "id": "P2",
           "join": 4.835440010332434,
           "tread": 0.32,
-          "x": 24,
+          "x": 28,
           "z": 4
         },
         {
@@ -127711,9 +129787,9 @@
         "assetId": "procedural/stone-game-table",
         "id": "table-1",
         "position": [
-          -10,
-          0,
-          32
+          -12,
+          0.14,
+          34
         ],
         "seatAnchors": [
           [
@@ -127742,9 +129818,9 @@
         "assetId": "procedural/stone-game-table",
         "id": "table-2",
         "position": [
-          10,
-          0,
-          32
+          12,
+          0.14,
+          34
         ],
         "seatAnchors": [
           [
@@ -127773,9 +129849,9 @@
         "assetId": "procedural/stone-game-table",
         "id": "table-3",
         "position": [
-          -10,
-          0,
-          52
+          -12,
+          0.14,
+          58
         ],
         "seatAnchors": [
           [
@@ -127804,9 +129880,9 @@
         "assetId": "procedural/stone-game-table",
         "id": "table-4",
         "position": [
-          10,
-          0,
-          52
+          12,
+          0.14,
+          58
         ],
         "seatAnchors": [
           [
@@ -127868,7 +129944,7 @@
         "id": "table-6",
         "pavilionId": "P1",
         "position": [
-          -24,
+          -28,
           0.72,
           4
         ],
@@ -127900,7 +129976,7 @@
         "id": "table-7",
         "pavilionId": "P2",
         "position": [
-          24,
+          28,
           0.72,
           4
         ],
@@ -128158,7 +130234,7 @@
         "position": [
           48,
           0,
-          -72
+          -70.5
         ],
         "seatAnchors": [
           [
@@ -128214,6 +130290,68 @@
             0
           ]
         ]
+      },
+      {
+        "assetId": "procedural/vr-stone-game-table",
+        "id": "table-17",
+        "position": [
+          -53,
+          0.1,
+          -8
+        ],
+        "seatAnchors": [
+          [
+            0,
+            0,
+            1.8
+          ],
+          [
+            0,
+            0,
+            -1.8
+          ],
+          [
+            -2,
+            0,
+            0
+          ],
+          [
+            2,
+            0,
+            0
+          ]
+        ]
+      },
+      {
+        "assetId": "procedural/vr-stone-game-table",
+        "id": "table-18",
+        "position": [
+          -53,
+          0.1,
+          2
+        ],
+        "seatAnchors": [
+          [
+            0,
+            0,
+            1.8
+          ],
+          [
+            0,
+            0,
+            -1.8
+          ],
+          [
+            -2,
+            0,
+            0
+          ],
+          [
+            2,
+            0,
+            0
+          ]
+        ]
       }
     ],
     "world": {
@@ -128235,11 +130373,11 @@
   "format": "ontop.park-map",
   "hashAlgorithm": "sha256",
   "hashes": {
-    "dataHash": "4a626c4e965be186fd9f766b1820ee7b4533985774c6efe293425f526720d81f",
-    "sourceHash": "99f75e309aa8043106af7601c65f69968cdb89b8416f55fea494a6ca449b492a"
+    "dataHash": "9b18bd40c6da36de15c9592ac7c113c7bb4502e10c12d6a568dda6d8ea82440d",
+    "sourceHash": "1a9c4e535d76221d42e6219965be19612461ebf577408e7f30fdb11d947072f1"
   },
   "mapId": "park",
-  "mapVersion": "2857774aae694b3b091f80d9e0b67d23133e0582f78098ff706f8933ad5bcf0a",
+  "mapVersion": "cac3cb040a43630b0b40201ab089a4b328146c03211867b2a155d2b3614acc81",
   "schemaVersion": 2,
   "semantics": {
     "additionalPlayerInflation": "server-capsule-only",

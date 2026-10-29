@@ -12,6 +12,7 @@ import { advanceBungeoppangTime, escapeBungeoppang, leaveBungeoppang, openBungeo
 import { inputState } from '../../src/world/inputOwnership'
 import { bungeoppangClock, bungeoppangView } from '../../src/features/bungeoppang/bungeoppangView'
 import { useSession } from '../../src/network/worldClient'
+import { useWalletSettlement } from '../../src/features/wallet/settlementRefresh'
 import { BUNGEOPPANG_V4 as V4 } from '../../src/features/bungeoppang/config'
 import { createGrill as createV4Grill } from '../../src/features/bungeoppang/rulesV4'
 
@@ -220,6 +221,20 @@ it('retries only the balance after settlement and ignores an older in-flight wal
   expect(service.submitResult).not.toHaveBeenCalled()
   resetBungeoppang(); await refreshBungeoppangWallet()
   expect(service.balance).toHaveBeenCalledTimes(3)
+})
+
+it('confirmed completion refreshes the actual wallet and publishes an invalidation that survives leaving', async () => {
+  const owner = 'mini-completion-wallet-owner'
+  useSession.setState({ sessionId: owner, account: { nickname: 'test', balance: 100 } })
+  await enter(); await startBungeoppang()
+  const revision = useWalletSettlement.getState().revision
+  vi.mocked(service.balance).mockResolvedValueOnce(180)
+  await vi.advanceTimersByTimeAsync(65000)
+  expect(useBungeoppang.getState().result).toEqual(result)
+  expect(useSession.getState().account?.balance).toBe(180)
+  expect(useWalletSettlement.getState()).toEqual({ owner, revision: revision + 1 })
+  leaveBungeoppang()
+  expect(useWalletSettlement.getState()).toEqual({ owner, revision: revision + 1 })
 })
 
 const firstOrder = { items: { bean: 2, custard: 0, pizza: 0, chocolate: 0 } };

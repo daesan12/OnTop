@@ -1,8 +1,8 @@
 import { MAILBOX } from '../../config/parkPlan'
 import { CraftedPropLod, PropSign } from './CraftedProp'
-import { mailboxArt, mailboxNote, mailboxTitle } from './mailboxGeometry'
+import { mailboxArt, mailboxTitle } from './mailboxGeometry'
 
-/** Procedural red enamel letterbox. Preserve the original world anchor and feedback identity. */
+/** Tiled-roof wooden letterbox; the original world anchor and collision identity are preserved. */
 export function TraditionalMailbox() {
   return (
     <group
@@ -14,9 +14,8 @@ export function TraditionalMailbox() {
       }}
     >
       <group name="code-mailbox" scale={MAILBOX.height / 1.8}>
-        <CraftedPropLod name="mailbox-craft" near={mailboxArt.near} far={mailboxArt.far} distance={18} />
-        <PropSign position={[0, 1.555, 0.321]} width={0.628} height={0.195} draw={mailboxTitle} />
-        <PropSign position={[0, 0.52, 0.347]} width={0.375} height={0.065} draw={mailboxNote} />
+        <CraftedPropLod name="mailbox-craft" near={mailboxArt.near} far={mailboxArt.far} distance={18} heritage />
+        <PropSign position={[0, 1.355, 0.298]} width={0.57} height={0.225} draw={mailboxTitle} transparent font={'700 32px "BusanDandiMyeongjo"'} />
       </group>
     </group>
   )

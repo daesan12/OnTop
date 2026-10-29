@@ -1,3 +1,4 @@
+import { SIMPLE_MAP } from '../world/art/mapRenderProfile'
 import { SETTINGS } from './layout'
 import { BufferGeometry,ExtrudeGeometry,Float32BufferAttribute,IcosahedronGeometry,Shape,ShapeGeometry } from 'three'
 import { PropBuilder } from '../world/art/propGeometry'
@@ -30,7 +31,7 @@ for(const c of CROSSINGS) {
         if(v===0)shape.moveTo(px,pz);else shape.lineTo(px,pz)
       }
       shape.closePath()
-      const g=new ExtrudeGeometry(shape,{depth:stoneHeight-.16,bevelEnabled:true,bevelSize:.09,bevelThickness:.08,bevelSegments:3,steps:1})
+      const g=new ExtrudeGeometry(shape,{depth:stoneHeight-.16,bevelEnabled:true,bevelSize:.09,bevelThickness:.08,bevelSegments:SIMPLE_MAP?1:3,steps:1})
       g.rotateX(-Math.PI/2)
       bridges.add('stone',g,['#989e91','#aeb1a2','#8e998f'][i%3]!,[x,h-stoneHeight+.08,c.z+Math.sin(i*2.7)*.1])
       // Embedded mineral flecks and weathered seams sit below the bevel, never as a floating cap.
@@ -81,7 +82,7 @@ let pad=0
 for(const [cx,cz] of SETTINGS.lake.lotusOffsets.map(([x,z])=>[DRAFT_LAKE.x+x,DRAFT_LAKE.z+z]))for(let i=0;i<15;i++) {
   const a=i*2.39996,r=Math.sqrt(i)*.8,x=cx!+Math.cos(a)*r,z=cz!+Math.sin(a)*r
   if(lakeRadius(x,z)>.91||CROSSINGS.some(c=>Math.abs(z-c.z)<c.halfWidth+2))continue
-  plants.add('paint',new ShapeGeometry(leaf,12),i%2?'#678351':'#7c995c',[x,.08,z],[.42+i%3*.09,.42+i%3*.09,1],[-Math.PI/2,0,a]);pad++
+  plants.add('paint',new ShapeGeometry(leaf,SIMPLE_MAP?3:12),i%2?'#678351':'#7c995c',[x,.08,z],[.42+i%3*.09,.42+i%3*.09,1],[-Math.PI/2,0,a]);pad++
   if(i%3===0) {
     for(let petal=0;petal<7;petal++) {
       const t=petal*Math.PI*2/7

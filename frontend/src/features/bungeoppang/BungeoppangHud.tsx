@@ -1,8 +1,12 @@
 import { useEffect, useState, type CSSProperties } from "react";
-import { BUNGEOPPANG, bungeoppangV4Preview } from "./config";
+import { BUNGEOPPANG, bungeoppangV4Preview, bungeoppangV5Preview } from "./config";
+import { isV5Grill } from './rulesV5';
+import { BungeoppangHudV5 } from './BungeoppangHudV5';
 import { BREAD_NAMES, BREAD_TOOLS, BREAD_FILLINGS, orderReady, trayCounts, orderSize, type BreadTool } from './rulesV4';
 import type { GrillSlot } from "./rules";
 import { heatLook } from './presentation';
+import { BungeoppangBurner } from './BungeoppangBurner';
+import { v5HeatEls } from './layoutV5';
 import { BreadToken, CustomerScene, FeedbackFlights, ToolFeedback, TrashBin, ingredientStyle } from './BungeoppangFeedback';
 import { inputState } from "../../world/inputOwnership";
 import { useSession } from "../../network/worldClient";
@@ -29,6 +33,7 @@ import {
   isV4Grill,
   cycleBungeoppangTool,
   deliverBungeoppangOrder,
+  deliverMatchingBungeoppangOrder,
   discardBungeoppangTray,
   requestBungeoppangOrder,
   syncBungeoppangTime,
@@ -36,6 +41,9 @@ import {
 } from "./store";
 import "./bungeoppang.css";
 import "./bungeoppangFeedback.css";
+import './bungeoppangV5.css';
+import './bungeoppangStart.css';
+import coinIcon from '../../assets/entry/yeopjeon-icon.webp';
 import { BungeoppangResult } from './BungeoppangResult';
 
 const R = BUNGEOPPANG;
@@ -52,6 +60,7 @@ const typing = () => {
 /** 붕어빵 미니게임 화면. 3D 철판은 BungeoppangGrill, 여기는 HUD·패널·입력이다. */
 export function BungeoppangHud() {
   const phase = useBungeoppang((s) => s.phase);
+  const v5 = useBungeoppang(s => isV4Grill(s.grill) && isV5Grill(s.grill));
   useMinigameInput(phase !== "idle");
   useEffect(() => {
     const unsubscribe = useSession.subscribe((s, old) => {
@@ -66,21 +75,22 @@ export function BungeoppangHud() {
   const playing =
     phase === "countdown" || phase === "play" || phase === "ending";
   return (
-    <div className="bung-root" data-phase={phase} aria-label="붕어빵 굽기">
-      {playing && <PlayHud />}
-      {playing && <OrderTray />}
+    <div className="bung-root" data-phase={phase} data-version={v5 || bungeoppangV5Preview ? 'v5' : 'v4'} aria-label="붕어빵 굽기"
+      onDragStartCapture={event => event.preventDefault()}>
+      {playing && !v5 && <PlayHud />}
+      {playing && (v5 ? <BungeoppangHudV5 /> : <OrderTray />)}
       {playing && <SlotOverlays />}
       <TimeSyncStatus />
       <Popups />
       <FeedbackFlights />
-      <TipBubble />
+      {!v5 && <TipBubble />}
       {phase === "start" && <StartPanel />}
       {phase === "countdown" && <Countdown />}
       {phase === "ending" && <div className="bung-big-text">끝!</div>}
       {phase === "result" && <BungeoppangResult />}
       <ExitConfirm />
-      {bungeoppangV4Preview && <div className="bung-preview-note">v4 개발 미리보기 · 실제 엽전 지급 없음</div>}
-      {phase !== 'leaving' && <button className="bung-help-button" onClick={() => setBungeoppangHelp(true)}>F1 조작 안내</button>}
+      {(bungeoppangV4Preview || bungeoppangV5Preview) && <div className="bung-preview-note">{bungeoppangV5Preview ? 'v5' : 'v4'} 개발 미리보기 · 실제 엽전 지급 없음</div>}
+      {phase !== 'leaving' && phase !== 'result' && phase !== 'start' && <button className="bung-help-button" onClick={() => setBungeoppangHelp(true)}>F1 조작 안내</button>}
     </div>
   );
 }
@@ -139,7 +149,7 @@ function useMinigameInput(active: boolean) {
       }
       if (event.code === 'KeyR' && isV4Grill(useBungeoppang.getState().grill)) {
         consume();
-        if (!event.repeat) deliverBungeoppangOrder();
+        if (!event.repeat) deliverMatchingBungeoppangOrder();
         return;
       }
       const slot = SLOT_CODES.indexOf(event.code);
@@ -206,12 +216,15 @@ function PlayHud() {
   const combo = useBungeoppang((s) => s.grill?.combo ?? 0);
   const tool = useBungeoppang((s) => s.tool);
   const v4 = useBungeoppang((s) => isV4Grill(s.grill));
+  const rules = useBungeoppang(s => s.rules);
+  const v5 = useBungeoppang(s => isV4Grill(s.grill) && isV5Grill(s.grill));
   const t = clock.t;
-  const warn = phase === "play" && t >= R.rushWarnFromMs && t < R.rushFromMs;
-  const rush = phase !== "countdown" && t >= R.rushFromMs;
-  const left = Math.max(0, (R.durationMs - t) / 1000);
+  const warn = phase === "play" && t >= rules.rushFromMs - 3000 && t < rules.rushFromMs;
+  const rush = phase !== "countdown" && t >= rules.rushFromMs;
+  const left = Math.max(0, (clock.durationMs - t) / 1000);
   return (
     <>
+      <div className={v5 ? 'bung-v5-accessibility' : undefined}>
       <div
         className="bung-edge"
         data-state={warn ? "warn" : rush ? "rush" : "off"}
@@ -236,10 +249,10 @@ function PlayHud() {
       </div>
       {warn && (
         <div className="bung-banner" role="alert">
-          손님이 몰려와요! {Math.ceil((R.rushFromMs - t) / 1000)}
+          손님이 몰려와요! {Math.ceil((rules.rushFromMs - t) / 1000)}
         </div>
       )}
-      {rush && t < R.rushFromMs + 1800 && (
+      {rush && t < rules.rushFromMs + 1800 && (
         <div className="bung-banner" role="alert">
           손님 몰림! 불이 세졌어요
         </div>
@@ -254,6 +267,7 @@ function PlayHud() {
         <span className="bung-tools-label">휠 위·아래로도 바꿔요</span>
       </div>
       {v4 && <ToolFeedback />}
+      </div>
     </>
   );
 }
@@ -314,6 +328,7 @@ function SlotOverlays() {
   const phase = useBungeoppang((s) => s.phase);
   const confirmExit = useBungeoppang((s) => s.confirmExit);
   const rules = useBungeoppang(s => s.rules);
+  const v5 = useBungeoppang(s => isV4Grill(s.grill) && isV5Grill(s.grill));
   if (!slots) return null;
   return (
     <>
@@ -322,6 +337,20 @@ function SlotOverlays() {
         const [label, ok] = actionLabel(slot, tool);
         const showLabel =
           phase === "play" && !confirmExit && (hover === i || (firstGame && i === 0 && slot.phase === 'empty'));
+        if (v5) return <div key={i} className="bung-slot bung25-slot bung-v5-heat-cell" data-row={i < 3 ? 'back' : 'front'}
+          ref={el => { slotOverlayEls[i] = el; v5HeatEls[i] = el; }}>
+          <span className="bung25-slot-key">{R.slotKeys[i]}</span>
+          <span className="bung25-slot-name">{slot.phase === 'empty' ? '반죽 붓기' : slot.phase === 'batter' ? '소 넣기'
+            : `${'filling' in slot && slot.filling ? BREAD_NAMES[slot.filling] : ''} · ${slot.phase === 'front' ? '뒤집기' : '꺼내기'}`}</span>
+          <BungeoppangBurner slot={i} />
+          <div className="bung25-cell-meter">
+            <span className="bung25-fire" aria-hidden="true">{[0, 1, 2].map(n => <svg key={n} viewBox="0 0 14 20"><path d="M8 1C9 6 14 8 13 13 13 21 1 21 1 13 1 9 5 7 5 4 5 8 8 9 8 1Z" /></svg>)}</span><b className="bung-v5-heat-label">꺼짐</b>
+            <strong className="bung-v5-heat-value">—</strong><span className="bung-v5-heat-speed bung-v5-accessibility" />
+            <span className="bung-gauge" role="progressbar" aria-label={`${R.slotKeys[i]} 현재 면 익힘`} aria-valuemin={0} aria-valuemax={100}><span className="bung-gauge-fill" /></span>
+            <small className="bung-v5-cook-state bung-v5-accessibility" />
+          </div>
+          <span className="bung-cook-readout" />
+        </div>;
         return (
           <div
             key={i}
@@ -339,6 +368,9 @@ function SlotOverlays() {
                 <b>{heat.label} {slot.heat}%</b><small className="bung-heat-speed">굽기 ×{heat.speed.toFixed(2)}</small>
               </span>
             </>}
+            {v5 && slot.phase === 'batter' && <span className="bung-heat" data-heat={heat.band}>
+              <b>{heat.label} {slot.heat}%</b><small className="bung-heat-speed">굽기 ×{heat.speed.toFixed(2)}</small>
+            </span>}
             {showLabel && !('filling' in slot && slot.filling) && (
               <span className="bung-slot-label" data-ok={ok}>
                 {label}
@@ -403,20 +435,21 @@ function TipBubble() {
   );
 }
 
+const START_STEPS = [
+  { title: '익는 상태를 보고', description: '붕어빵이 익어가는 모습을 확인해요.', alt: '철판 위에서 익어가는 붕어빵과 익힘 게이지' },
+  { title: '클릭해서 뒤집기', description: '타이밍에 맞춰 클릭하면 뒤집어져요.', alt: '뒤집개로 노릇한 붕어빵을 뒤집는 모습' },
+  { title: '양쪽이 익으면 완성!', description: '양쪽이 노릇하게 익으면 완성돼요.', alt: '양쪽이 노릇하게 완성된 붕어빵' },
+] as const;
 function Steps() {
-  const v4 = useBungeoppang(s => s.status?.rulesVersion === 'v4');
-  return (
-    <ol className="bung-steps">
-      <li>
-        반죽 <kbd>Space</kbd>
-      </li>
-      <li>
-        {v4 ? '소 선택' : '팥'} <kbd>{v4 ? '1~4' : '1'}</kbd>
-      </li>
-      <li>뒤집기</li>
-      <li>{v4 ? '쟁반 → R 전달' : '꺼내기'}</li>
-    </ol>
-  );
+  return <ol className="bung-start-steps" aria-label="붕어빵 굽는 방법">
+    {START_STEPS.map((step, index) => <li key={step.title}>
+      <div className="bung-start-step-heading">
+        <span className="bung-start-step-number" aria-hidden="true">{index + 1}</span>
+        <div><h3>{step.title}</h3><p>{step.description}</p></div>
+      </div>
+      <img src={`/art/bungeoppang/start-step-${index + 1}.webp`} alt={step.alt} width="800" height="686" />
+    </li>)}
+  </ol>;
 }
 function StartPanel() {
   const status = useBungeoppang((s) => s.status);
@@ -427,15 +460,19 @@ function StartPanel() {
   const capped = !!status && status.todayEarned >= status.dailyCap;
   return (
     <section className="bung-panel bung-start" aria-label="붕어빵 굽기 시작">
-      <h2>붕어빵 굽기</h2>
+      <header className="bung-start-title">
+        <span className="bung-start-cloud" aria-hidden="true"><CloudDecoration /></span>
+        <h2><img src="/art/bungeoppang/result-fish.webp" alt="" width="76" height="50" />붕어빵 굽기</h2>
+        <span className="bung-start-cloud" aria-hidden="true"><CloudDecoration /></span>
+      </header>
+      <p className="bung-start-intro">제한 시간 동안 붕어빵을 빠르고 정확하게 뒤집어 양쪽이 모두 익으면 완성!</p>
       <Steps />
-      {status?.rulesVersion === 'v4' && <p>빵마다 랜덤 불! 주문은 한 손님 최대 4개 · 쟁반 4자리 · 60초 동안 전달해요.</p>}
-      <p className="bung-keys-line">
-        칸은 클릭 또는 Q W E A S D · 재료는 휠로도 바꿔요
-      </p>
-      <p>
-        오늘 번 엽전 <b>{status ? status.todayEarned : "…"}</b> /{" "}
-        {R.dailyCoinCap}냥
+      <p className="bung-start-earned" aria-label={`오늘 번 엽전 ${status ? `${status.todayEarned}냥` : '확인 중'} / ${status?.dailyCap ?? R.dailyCoinCap}냥`}>
+        <span className="bung-start-amount">{!status ? '수익 확인 중' : status.todayEarned > 0
+          ? <><img src={coinIcon} alt="" width="28" height="28" />{status.todayEarned.toLocaleString()}냥</>
+          : '오늘 한 번의 도전'}</span>
+        <span aria-hidden="true">/</span>
+        <strong className="bung-start-amount"><img src={coinIcon} alt="" width="28" height="28" />{status?.dailyCap ?? R.dailyCoinCap}냥</strong>
       </p>
       {capped && (
         <p className="bung-cap">오늘 장사는 끝! 게임은 계속할 수 있어요</p>
@@ -459,13 +496,19 @@ function StartPanel() {
         </p>
       )}
       <footer>
-        <span>서버가 발급한 불 세기로 굽고, 기록 검증 후 엽전을 받아요.</span>
-        <button type="button" className="bung-link" onClick={leaveBungeoppang}>
-          ESC 나가기
+        <button type="button" className="bung-start-exit" aria-label="ESC 나가기" aria-keyshortcuts="Escape" onClick={leaveBungeoppang}>
+          <kbd>ESC</kbd><span>나가기</span>
         </button>
       </footer>
     </section>
   );
+}
+
+function CloudDecoration() {
+  return <svg viewBox="0 0 180 52" fill="none" aria-hidden="true">
+    <path d="M4 39h57c17 0 17-12 0-12H39c-11 0-11-10 0-10h73c15 0 15-11 6-11-7 0-8 6-3 6M61 31h15M17 39h-6" stroke="currentColor" strokeWidth="8" strokeLinecap="round" />
+    <path d="M92 17h83" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+  </svg>;
 }
 
 function Countdown() {

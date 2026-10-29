@@ -21,6 +21,7 @@ interface Input {
   stairs:readonly {id:string;x:number;z:number;floor:number;join:number;count:number;tread:number}[]
   tables:readonly TableAnchor[];fitness:readonly FitnessStation[];benches:readonly BenchSite[]
   kiosks:readonly {kind:string;x:number;z:number;width:number;depth:number;yaw:number}[]
+  plazaTrees:readonly {id:string;x:number;z:number}[]
   fences:readonly {id:string;from:readonly [number,number];to:readonly [number,number]}[]
   centralRails:readonly {id:string;from:readonly [number,number];to:readonly [number,number]}[]
   stairRails:readonly {id:string;from:readonly [number,number];to:readonly [number,number]}[]
@@ -90,7 +91,10 @@ export function buildPhysics(i:Input) {
   for(const [n,p] of d.vrEdgeTrees.entries())box('vr-belt-tree-'+n,[p.x,1.8,p.z],[.22,1.8,.22])
   // Aprons are walkable surfaces; never use a building-height box for an entire zone.
   box('vr-court-floor',[d.vrCourt.x,.05,d.vrCourt.z],[d.vrCourt.width/2,.05,d.vrCourt.depth/2],0,'surface')
-  box('plaza-floor',[d.plaza.x,.07,d.plaza.z],[d.plaza.width/2,.07,d.plaza.depth/2],0,'surface')
+  const plazaVertices:number[]=[]
+  for(const y of [0,.14])for(let n=0;n<96;n++){const a=n*Math.PI/48;plazaVertices.push(d.plaza.x+Math.cos(a)*d.plaza.pavingRadius,y,d.plaza.z+Math.sin(a)*d.plaza.pavingRadius)}
+  hulls.push({id:'plaza-floor',vertices:plazaVertices,role:'surface'})
+  for(const p of i.plazaTrees)box(p.id,[p.x,1.8,p.z],[.25,1.8,.25])
   for(const kind of ['vr','folk'] as const) {
     const p=d.sites[kind],yaw=d.vrCourt.yaw
     const local=(x:number,y:number,z:number):Point3=>[p.x+x*Math.cos(yaw)+z*Math.sin(yaw),y,p.z-x*Math.sin(yaw)+z*Math.cos(yaw)]
@@ -98,7 +102,15 @@ export function buildPhysics(i:Input) {
     box(kind+'-back',local(0,1.6,-4.3),[6.25,1.6,.1],yaw)
     for(const sign of [-1,1])box(kind+'-side-'+sign,local(sign*6.2,1.35,-.2),[.075,1.35,4.1],yaw)
   }
-  for(const t of i.tables)box(t.id+'-top',[t.position[0],t.position[1]+.86,t.position[2]],[t.pavilionId?1:.95,.12,t.pavilionId?1:.75])
+  for(const t of i.tables){
+    const vr=t.assetId==='procedural/vr-stone-game-table'
+    box(t.id+'-top',[t.position[0],t.position[1]+(vr?.94:.86),t.position[2]],[vr?1.2:t.pavilionId?1:.95,.12,t.pavilionId?1:.75])
+    if(vr)for(const [n,[x,,z]] of t.seatAnchors.entries()){
+      const yaw=[Math.PI,0,Math.PI/2,-Math.PI/2][n]!
+      box(t.id+'-chair-'+n,[t.position[0]+x,t.position[1]+.45,t.position[2]+z],[.525,.11,.425],yaw)
+      box(t.id+'-chair-back-'+n,[t.position[0]+x-Math.sin(yaw)*.37,t.position[1]+.88,t.position[2]+z-Math.cos(yaw)*.37],[.525,.325,.075],yaw)
+    }
+  }
   // Fountain basin is round; its collision proxy must not enclose the surrounding sunken plaza.
   const fountainRadius=d.fountain.baseBasinRadius*d.fountain.scale,basin:number[]=[]
   for(const y of [-1.1,-.325])for(let n=0;n<48;n++){const a=n*Math.PI/24;basin.push(d.sites.fountain.x+Math.cos(a)*fountainRadius,y,d.sites.fountain.z+Math.sin(a)*fountainRadius)}
@@ -157,7 +169,6 @@ export function buildPhysics(i:Input) {
     segment(`tower-rail-${radius}-${n}`,[a[0]+dx,a[1],a[2]+dz],[b[0]+dx,b[1],b[2]+dz],.12,height)
   }
   TOWER_DECK_RAIL_SEGMENTS.forEach(([a,b],n)=>segment('tower-deck-rail-'+n,[a[0]+dx,a[1],a[2]+dz],[b[0]+dx,b[1],b[2]+dz],.12,1.4))
-  for(const t of d.vrStoneSets){box(t.id,[t.x,.95,t.z],[1.2,.12,.75]);for(const sign of [-1,1])box(t.id+'-chair-'+sign,[t.x,.49,t.z+sign*1.8],[.525,.11,.425])}
   box('fish-bread',[d.sites.cart.x,MINI_PROPS[0].height/2,d.sites.cart.z],[MINI_PROPS[0].width/2,MINI_PROPS[0].height/2,MINI_PROPS[0].depth/2])
   box('feedback-mailbox',[d.sites.mailbox.x,MAILBOX.height/2,d.sites.mailbox.z],[MAILBOX.bodyHalfWidth,MAILBOX.height/2,MAILBOX.bodyHalfDepth])
   const [sx,sz]=d.park.spawn,centerOffset=MOVEMENT.radius+MOVEMENT.halfHeight+MOVEMENT.offset+d.physics.spawnClearance

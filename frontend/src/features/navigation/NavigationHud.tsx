@@ -7,6 +7,8 @@ import { useNavigation, cancelNavigation } from './navigationState'
 import { navDistance, navigationHeight, navigationSegmentClear } from './parkNavigation'
 import { createRoutePlanner } from './routePlanner'
 
+const ARRIVAL_RADIUS = 3
+
 export function ParkNavigation() {
   const target = useNavigation(s => s.target)
   const status = useNavigation(s => s.status)
@@ -33,6 +35,12 @@ export function ParkNavigation() {
         if (state.status !== 'paused') useNavigation.setState({ status: 'paused', path: [] })
         return
       }
+      // A nearby reachable approach is enough, even when search is pending or the
+      // player has left the planned line. Check before replanning clears the path.
+      const end = state.path.at(-1) ?? target
+      if (navDistance(pose, end) <= ARRIVAL_RADIUS && navigationSegmentClear(pose, end)) {
+        arrivalAt = now; useNavigation.setState({ status: 'arrived', path: [] }); return
+      }
       if (pending) return
       let path = state.path, nearest = 0, distance = Infinity
       for (let i = 0; i < path.length; i++) { const d = navDistance(pose, path[i]!); if (d < distance) { distance = d; nearest = i } }
@@ -42,7 +50,7 @@ export function ParkNavigation() {
         lastPlan = now; lastOrigin = { x: pose.x, z: pose.z }
         pending = true
         useNavigation.setState({ path: [], status: 'planning' })
-        const ownsReply = () => !disposed && useNavigation.getState().target === target
+        const ownsReply = () => !disposed && !arrivalAt && useNavigation.getState().target === target
           && useSession.getState().sessionId === session.sessionId && useSession.getState().roomId === session.roomId
           && useSession.getState().status === 'connected' && useSession.getState().mapCompatible
         void planner.plan(pose, target).then(result => {
@@ -53,10 +61,6 @@ export function ParkNavigation() {
           if (ownsReply()) useNavigation.setState({ path: [], status: 'unavailable' })
         }).finally(() => { pending = false })
         return
-      }
-      const end = path.at(-1)!
-      if (navDistance(pose, end) < 1.2 && navigationSegmentClear(pose, end)) {
-        arrivalAt = now; useNavigation.setState({ status: 'arrived', path: [] }); return
       }
       let remaining = navDistance(pose, path[nearest]!)
       for (let i = nearest + 1; i < path.length; i++) remaining += navDistance(path[i - 1]!, path[i]!)

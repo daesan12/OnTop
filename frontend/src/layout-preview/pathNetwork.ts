@@ -68,8 +68,24 @@ export function roadContours(routes:readonly DraftRoute[]):ParkPoint[][] {
 }
 /** Small corner cutbacks preserve the long straight axes and make junctions taper smoothly. */
 function roundedPath(points:readonly ParkPoint[],radius=3):Path {
+  // Boolean intersections split straight boundaries into short collinear edges.
+  // Remove those splits before choosing fillet lengths, or tiny edges leave grass spikes.
+  let simple=[...points],changed=true
+  while(changed&&simple.length>3){
+    changed=false
+    const next=simple.filter((p,i)=>{
+      const a=simple[(i+simple.length-1)%simple.length]!,b=simple[(i+1)%simple.length]!
+      const ux=p[0]-a[0],uz=p[1]-a[1],vx=b[0]-p[0],vz=b[1]-p[1]
+      const redundant=Math.hypot(ux,uz)<1e-5||Math.abs(ux*vz-uz*vx)<1e-5&&ux*vx+uz*vz>=0
+      if(redundant)changed=true
+      return !redundant
+    })
+    if(next.length<3)break
+    simple=next
+  }
+  points=simple
   const path=new Path(),corners=points.map((p,i)=>{
-    const a=points[(i+points.length-1)%points.length]!,b=points[(i+1)%points.length]!,before=Math.hypot(a[0]-p[0],a[1]-p[1]),after=Math.hypot(b[0]-p[0],b[1]-p[1]),turn=(p[0]-a[0])*(b[1]-p[1])-(p[1]-a[1])*(b[0]-p[0]),cut=Math.min(turn<0?radius:.6,before*.4,after*.4)
+    const a=points[(i+points.length-1)%points.length]!,b=points[(i+1)%points.length]!,before=Math.hypot(a[0]-p[0],a[1]-p[1]),after=Math.hypot(b[0]-p[0],b[1]-p[1]),turn=(p[0]-a[0])*(b[1]-p[1])-(p[1]-a[1])*(b[0]-p[0]),cut=Math.min(turn<0?radius:1.2,before*.4,after*.4)
     return {p,start:[p[0]+(a[0]-p[0])*cut/before,p[1]+(a[1]-p[1])*cut/before] as ParkPoint,end:[p[0]+(b[0]-p[0])*cut/after,p[1]+(b[1]-p[1])*cut/after] as ParkPoint}
   })
   path.moveTo(corners[0]!.start[0],-corners[0]!.start[1])

@@ -10,7 +10,7 @@ import { useTelescopeState } from '../telescopes/state'
 import { NotesServiceError, type NotesContext } from './contracts'
 import { notesService } from './service'
 import { notesSignal, resetNotesState, useNotesState } from './state'
-import { canReachNotes, compareNotes, NOTES_POLL_MS, NOTES_TIMEOUT_MS, parseNotes, parseNoteText } from './validation'
+import { canReachNotes, compareNotes, NOTES_TIMEOUT_MS, parseNotes, parseNoteText } from './validation'
 
 function context(): NotesContext | null {
   const s = useSession.getState(), a = avatars.get(s.sessionId), position = authoritativePose(s.sessionId)
@@ -28,8 +28,9 @@ export function openNotes(): boolean {
   parkRuntime.stopMovement()
   clearRoamingInput()
   inputState.notesOpen = true
-  useNotesState.setState({ open: true, ownerId: scope.userId, channelId: scope.channelId, notice: '' })
-  if (notesService.mode !== 'unavailable') void refreshNotes()
+  const cached = useNotesState.getState()
+  useNotesState.setState({ open: true, ownerId: scope.userId, channelId: scope.channelId, notice: '', prefetched: false })
+  if (notesService.mode !== 'unavailable' && !(cached.loaded && cached.prefetched)) void refreshNotes()
   return true
 }
 export function closeNotes() {
@@ -37,9 +38,9 @@ export function closeNotes() {
   clearRoamingInput()
   if (typeof document !== 'undefined') document.querySelector<HTMLCanvasElement>('canvas')?.focus({ preventScroll: true })
 }
-async function request<T>(kind: 'read' | 'submit', job: (scope: NotesContext, signal: AbortSignal) => Promise<T>, accept: (result: T) => void) {
+async function request<T>(kind: 'read' | 'submit', job: (scope: NotesContext, signal: AbortSignal) => Promise<T>, accept: (result: T) => void, background = false) {
   const state = useNotesState.getState(), scope = context()
-  if (!state.open || state.loading || state.pending || !scope || state.ownerId !== scope.userId || state.channelId !== scope.channelId
+  if ((!state.open && !background) || state.loading || state.pending || !scope || state.ownerId !== scope.userId || state.channelId !== scope.channelId
     || Object.entries(inputState).some(([key, value]) => key !== 'notesOpen' && value)) return false
   if (notesService.mode === 'unavailable') return false
   if (kind === 'read' && Date.now() < state.nextReadAt) return false
@@ -51,7 +52,7 @@ async function request<T>(kind: 'read' | 'submit', job: (scope: NotesContext, si
   const cancelled = new Promise<never>((_, reject) => { rejectAbort = () => reject(new Error('메모 요청이 취소되었습니다.')) })
   child.signal.addEventListener('abort', rejectAbort, { once: true })
   const timer = setTimeout(() => { timeout = true; child.abort() }, NOTES_TIMEOUT_MS)
-  const current = () => useNotesState.getState().epoch === state.epoch && useNotesState.getState().open
+  const current = () => useNotesState.getState().epoch === state.epoch && (background || useNotesState.getState().open)
     && useSession.getState().sessionId === scope.userId && useSession.getState().roomId === scope.channelId
   try {
     const result = await Promise.race([Promise.resolve().then(() => job(scope, child.signal)), cancelled])
@@ -78,53 +79,65 @@ async function request<T>(kind: 'read' | 'submit', job: (scope: NotesContext, si
     if (current()) useNotesState.setState(kind === 'read' ? { loading: false } : { pending: false })
   }
 }
-export const refreshNotes = () => request('read', (scope, signal) => notesService.read(scope, signal), result => {
-  useNotesState.setState({ notes: parseNotes(result), loaded: true })
-})
+const readNotes = (background = false) => request('read', (scope, signal) => notesService.read(scope, signal), result => {
+  const notes = parseNotes(result)
+  useNotesState.setState({ notes, displayNotes: notes, loaded: true, prefetched: background && !useNotesState.getState().open })
+}, background)
+export const refreshNotes = () => readNotes()
+/** One authorized read on approach, shared with E-open; never a periodic poll. */
+export function refreshNearbyNotes() {
+  const scope = context(), state = useNotesState.getState()
+  if (!scope || panelOwnsKeys() || state.open) return Promise.resolve(false)
+  if (state.ownerId !== scope.userId || state.channelId !== scope.channelId) resetNotesState()
+  useNotesState.setState({ ownerId: scope.userId, channelId: scope.channelId })
+  return readNotes(true)
+}
 export async function submitNote() {
   const state = useNotesState.getState(), text = parseNoteText(state.draft)
   if (!state.open || state.pending || state.loading || state.retryBlocked || !context()) return false
   if (!text) { useNotesState.setState({ error: '메모를 1~300자로 적어주세요.' }); return false }
   if (Date.now() < state.nextAllowedAt) { useNotesState.setState({ error: '잠시 후 새 메모를 붙여주세요.' }); return false }
-  const operationId = state.operationId && state.submittedText === text ? state.operationId : Date.now() + '_' + crypto.randomUUID()
-  useNotesState.setState({ operationId, submittedText: text })
-  return request('submit', (scope, signal) => notesService.submit(scope, { text, operationId }, signal), receipt => {
+  const operationId = state.operationId && state.submittedText === text && state.submittedTopic === state.draftTopic ? state.operationId : Date.now() + '_' + crypto.randomUUID()
+  useNotesState.setState({ operationId, submittedText: text, submittedTopic: state.draftTopic })
+  return request('submit', (scope, signal) => notesService.submit(scope, { text, operationId, ...(notesService.supportsTopics ? { category: state.draftTopic } : {}) }, signal), receipt => {
     const [note] = parseNotes([receipt.note])
-    if (!note || note.text !== text || !Number.isFinite(receipt.nextAllowedAt) || receipt.nextAllowedAt < note.createdAt)
+    if (!note || note.text !== text || (notesService.supportsTopics && note.category !== state.draftTopic) || !Number.isFinite(receipt.nextAllowedAt) || receipt.nextAllowedAt < note.createdAt)
       throw new Error('게시 결과를 확인하지 못했습니다. 목록을 확인한 뒤 다시 시도해주세요.')
     useNotesState.setState(s => ({ draft: '', operationId: '', submittedText: '', nextAllowedAt: receipt.nextAllowedAt,
       retryBlocked: false, notes: [note, ...s.notes.filter(n => n.id !== note.id)].sort(compareNotes).slice(0, NOTES_BOX.capacity),
+      displayNotes: [note, ...s.notes.filter(n => n.id !== note.id)].sort(compareNotes).slice(0, NOTES_BOX.capacity),
       loaded: true, notice: notesService.mode === 'mock'
         ? '개발 목업에 메모를 붙였어요. 현재 페이지에서만 보이며 실제 서버에 저장되지 않습니다.' : '익명 메모를 붙였어요. 고맙습니다!' }))
   })
 }
 let stopWatcher: (() => void) | undefined
-/** One non-overlapping poll per open visit; reset/close cancels the request and timer. */
+/** One coalesced refresh per creation event. An idle board never schedules a read. */
 export function watchNotes() {
   stopWatcher?.()
-  let timer: ReturnType<typeof setTimeout> | undefined
   const signal = notesSignal()
-  let stopped = false
-  const changed = (delay = NOTES_POLL_MS) => {
-    if (stopped || signal.aborted) return
+  let stopped = false, dirty = false
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const flush = () => {
+    if (stopped || signal.aborted || !dirty) return
+    const s = useNotesState.getState()
+    if (!s.open) return
+    if (!context()) { resetNotesState(true); return }
+    if (s.pending || s.loading) return
     clearTimeout(timer)
-    timer = setTimeout(async () => {
-      if (stopped || signal.aborted) return
-      const s = useNotesState.getState()
-      if (!s.open) return
-      if (!context()) { resetNotesState(true); return }
-      if (!s.pending && !s.loading) await refreshNotes()
-      if (notesService.mode === 'server') changed()
-      else if (s.pending || s.loading) changed(1000)
-    }, Math.max(delay, useNotesState.getState().nextReadAt - Date.now()))
+    const wait = Math.max(0, s.nextReadAt - Date.now())
+    if (wait) { timer = setTimeout(flush, wait); return }
+    dirty = false
+    void refreshNotes()
   }
-  const unsubscribe = notesService.subscribe(() => changed(1000))
+  const unsubscribe = notesService.subscribe(() => { dirty = true; flush() })
+  const unwatch = useNotesState.subscribe((s, previous) => {
+    if ((previous.loading && !s.loading) || (previous.pending && !s.pending)) flush()
+  })
   const stop = () => {
-    stopped = true; clearTimeout(timer); unsubscribe(); signal.removeEventListener('abort', stop)
+    stopped = true; clearTimeout(timer); unsubscribe(); unwatch(); signal.removeEventListener('abort', stop)
     if (stopWatcher === stop) stopWatcher = undefined
   }
   stopWatcher = stop
   signal.addEventListener('abort', stop, { once: true })
-  if (notesService.mode === 'server') changed()
   return stop
 }

@@ -63,7 +63,7 @@ export async function submitFeedback(): Promise<boolean> {
       throw new Error('전달 결과를 확인하지 못했습니다. 같은 내용으로 다시 시도해주세요.')
     useFeedbackState.setState({ draft: '', operationId: '', submittedText: '', error: '',
       nextAllowedAt: receipt.nextAllowedAt,
-      notice: feedbackService.mode === 'mock' ? '목업 전달을 확인했어요. 실제 관리자에게 전송하거나 영구 저장하지 않습니다.' : '의견을 전달했어요. 고맙습니다!' })
+      notice: '의견을 전달했어요. 고맙습니다!' })
     return true
   } catch (error) {
     if (current()) useFeedbackState.setState({

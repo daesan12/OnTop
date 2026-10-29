@@ -10,15 +10,21 @@ import { useParkRuntime } from '../park/runtime/ParkRuntime'
 import { useSession } from '../network/worldClient'
 import { gameState } from './protocol'
 import { FinishedForfeitStatus } from './OmokSurrender'
+import { BoardRewardCoinSource } from '../features/wallet/RewardCoinFlight'
 
 export function GamePanel() {
   const runtime = useParkRuntime(), pending = useSession(s => s.pending), connected = useSession(s => s.status === 'connected')
   const gathering = useGathering(), details = useTableLobby(s => s.gatheringDetails)
   const spectatorResult = useGame(s => s.game?.role === 'SPECTATOR' && gameState(s.game).status === 'FINISHED' ? s.game : null)
   const profiles = useSession(s => s.profiles)
+  const seated = useSession(s => !!s.tableId && s.seatIndex >= 0
+    && !!s.tableStates[s.tableId]?.seats.some(seat => seat.userId === s.sessionId))
+  const terminalPlayer = useGame(s => s.game?.role === 'PLAYER'
+    && (gameState(s.game).status === 'FINISHED' || !!s.result || !!s.lastResult))
   const dice = useGame(s => !!s.game?.dice || (s.start?.gameCode === 'DICE' && ['PLAYING', 'SETTLING'].includes(s.start.phase)))
   const card = useGame(s => !!s.game?.onecard || (s.start?.gameCode === 'ONE_CARD' && ['PLAYING', 'SETTLING'].includes(s.start.phase)))
   const bridge = useGame(s => !!s.game?.bridge || (s.start?.gameCode === 'LIAR_BRIDGE' && ['PLAYING', 'SETTLING'].includes(s.start.phase)))
+  if (terminalPlayer && !seated) return null
   if (spectatorResult) {
     if (spectatorResult.dice) return <FarklePanel />
     const winners = spectatorResult.onecard?.winnerUserIds ?? spectatorResult.bridge?.winnerUserIds
@@ -35,7 +41,7 @@ export function GamePanel() {
     <button onClick={() => useTableLobby.setState({ gatheringDetails: '' })}>테이블 함께 보기</button>
     <h2>{gathering.gameName} · 경기 결과</h2><p role="status">{gathering.headline}</p>
     <ol>{gathering.rows.map(row => <li key={row.seat}>{row.nickname} · {row.label}{row.score && ` · ${row.score}`}</li>)}</ol>
-    <p>{gathering.settlement}</p><p>좌석은 유지됩니다. 서버가 대기실을 연 뒤 다시 준비하면 새 판을 시작합니다.</p>
+    <p><BoardRewardCoinSource>{gathering.settlement}</BoardRewardCoinSource></p><p>좌석은 유지됩니다. 서버가 대기실을 연 뒤 다시 준비하면 새 판을 시작합니다.</p>
     <FinishedForfeitStatus />
     <button disabled={pending || !connected} onClick={() => void runtime.checkResult()}>정산 결과 확인</button>
   </section>

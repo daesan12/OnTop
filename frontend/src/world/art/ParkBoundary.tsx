@@ -1,3 +1,4 @@
+import { SIMPLE_MAP } from './mapRenderProfile'
 import { useLayoutEffect, useMemo, useRef } from 'react'
 import { LOD, type Group } from 'three'
 import { extend } from '@react-three/fiber'
@@ -140,6 +141,22 @@ export function ParkBoundary({halfSize=WORLD.halfSize,entranceWidth=0,cornerRadi
     const corners:Part[]=[-1,1].flatMap(x=>[-1,1].map(z=>({p:[x*halfSize,0,z*halfSize] as [number,number,number],s:[1,1,1] as [number,number,number],c:white})))
     return {corners,cornerPiers:corners.map(p=>({...p,p:[p.p[0],.95,p.p[2]] as [number,number,number],s:[.91,1.9,.91] as [number,number,number]})),sections:boundarySections(halfSize,entranceWidth,cornerRadius)}
   },[halfSize,entranceWidth,cornerRadius])
+  if(SIMPLE_MAP) {
+    const walls:Part[]=[],feet:Part[]=[],roofs:Part[]=[]
+    for(const section of sections){
+      const yaw=section.side*Math.PI/2
+      const p:Part['p']=[Math.cos(yaw)*section.x-Math.sin(yaw)*halfSize,0,-Math.sin(yaw)*section.x-Math.cos(yaw)*halfSize]
+      walls.push({p:[p[0],(WALL.bodyTop+WALL.base)/2,p[2]],s:[section.span,WALL.bodyTop-WALL.base,WALL.depth],r:[0,yaw,0],c:'#858c83'})
+      feet.push({p:[p[0],.12,p[2]],s:[section.span,.24,.77],r:[0,yaw,0],c:'#999b95'})
+      roofs.push({p,s:[section.span/4,1,1],r:[0,yaw,0],c:white})
+    }
+    return <group name="reference-tiled-boundary" userData={{assetId:'original/reference-wall-1',reference:'wall_1.jpg'}}>
+      <Instances parts={walls} shadow={false}><boxGeometry/></Instances>
+      <Instances parts={feet} shadow={false}><boxGeometry/></Instances>
+      <Roof detailed={false} parts={roofs}/>
+      {cornerRadius>0&&<RoundedBoundaryCorners half={halfSize} radius={cornerRadius}/>}
+    </group>
+  }
   return (
     <group
       name="reference-tiled-boundary"

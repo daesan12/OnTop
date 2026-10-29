@@ -1,3 +1,4 @@
+import { SIMPLE_MAP } from './mapRenderProfile'
 import {
   BoxGeometry,
   BufferGeometry,
@@ -9,6 +10,7 @@ import {
   LatheGeometry,
   Matrix4,
   SphereGeometry,
+  IcosahedronGeometry,
   TorusGeometry,
   TubeGeometry,
   Vector2,
@@ -71,11 +73,12 @@ export class PropBuilder {
   }
   box(k: PropFinish, c: string, p: XYZ, s: XYZ, r: XYZ = [0, 0, 0]) {
     if (this.baked) return
+    if(SIMPLE_MAP && Math.max(...s) < .12) return
     this.add(k, new BoxGeometry(1, 1, 1), c, p, s, r)
   }
   ball(k: PropFinish, c: string, p: XYZ, s: XYZ) {
     if (this.baked) return
-    this.add(k, new SphereGeometry(1, ...this.sphereSegments), c, p, s)
+    this.add(k, SIMPLE_MAP ? new IcosahedronGeometry(1,0) : new SphereGeometry(1, ...this.sphereSegments), c, p, s)
   }
   cylinder(
     k: PropFinish,
@@ -90,7 +93,7 @@ export class PropBuilder {
     if (this.baked) return
     this.add(
       k,
-      new CylinderGeometry(top, bottom, h, segments),
+      new CylinderGeometry(top, bottom, h, SIMPLE_MAP?Math.min(segments,segments>=32?32:8):segments),
       c,
       p,
       [1, 1, 1],
@@ -106,7 +109,7 @@ export class PropBuilder {
     r: XYZ = [0, 0, 0],
   ) {
     if (this.baked) return
-    this.add(k, new TorusGeometry(radius, tube, 5, 24), c, p, [1, 1, 1], r)
+    this.add(k, new TorusGeometry(radius, tube, SIMPLE_MAP?3:5, SIMPLE_MAP?8:24), c, p, [1, 1, 1], r)
   }
   curve(
     k: PropFinish,
@@ -115,14 +118,14 @@ export class PropBuilder {
     radius: number,
     segments = 18,
   ) {
-    if (this.baked) return
+    if (this.baked || (SIMPLE_MAP && radius < .07)) return
     this.add(
       k,
       new TubeGeometry(
         new CatmullRomCurve3(points.map((p) => new Vector3(...p))),
-        segments,
+        SIMPLE_MAP ? Math.min(segments, 4) : segments,
         radius,
-        5,
+        SIMPLE_MAP ? 3 : 5,
         false,
       ),
       c,
@@ -133,8 +136,8 @@ export class PropBuilder {
     this.add(
       k,
       new LatheGeometry(
-        profile.map((v) => new Vector2(...v)),
-        24,
+        (SIMPLE_MAP ? profile.filter((_,i)=>i===0||i===Math.floor(profile.length/2)||i===profile.length-1) : profile).map((v) => new Vector2(...v)),
+        SIMPLE_MAP ? 8 : 24,
       ),
       c,
       p,
@@ -191,12 +194,12 @@ export function hipRoof(
   for (let side = 0; side < 4; side++) {
     const positions: number[] = [],
       uv: number[] = []
-    for (let j = 0; j < 10; j++)
-      for (let i = 0; i < 12; i++) {
-        const a = point(side, i / 12, j / 10),
-          c = point(side, (i + 1) / 12, j / 10),
-          d = point(side, i / 12, (j + 1) / 10),
-          e = point(side, (i + 1) / 12, (j + 1) / 10)
+    for (let j = 0; j < (SIMPLE_MAP?2:10); j++)
+      for (let i = 0; i < (SIMPLE_MAP?2:12); i++) {
+        const a = point(side, i / (SIMPLE_MAP?2:12), j / (SIMPLE_MAP?2:10)),
+          c = point(side, (i + 1) / (SIMPLE_MAP?2:12), j / (SIMPLE_MAP?2:10)),
+          d = point(side, i / (SIMPLE_MAP?2:12), (j + 1) / (SIMPLE_MAP?2:10)),
+          e = point(side, (i + 1) / (SIMPLE_MAP?2:12), (j + 1) / (SIMPLE_MAP?2:10))
         positions.push(...a, ...c, ...d, ...c, ...e, ...d)
         uv.push(
           i / 12,
@@ -218,6 +221,7 @@ export function hipRoof(
     g.setAttribute('uv', new Float32BufferAttribute(uv, 2))
     g.computeVertexNormals()
     b.add('tile', g, color)
+    if(SIMPLE_MAP)continue
     const tiles = Math.ceil((side % 2 ? depth : width) / 0.28)
     for (let i = 0; i <= tiles; i++) {
       const pts = Array.from({ length: 9 }, (_, j) => {

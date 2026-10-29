@@ -50,6 +50,7 @@
   max-height: calc(100dvh - 32px);
   margin: auto;
   overflow-y: auto;
+  scrollbar-width: none;
   overscroll-behavior: contain;
   padding: 26px 28px 20px;
   border: 1px solid var(--map-line);
@@ -61,6 +62,7 @@
   color-scheme: light;
   pointer-events: auto;
 }
+.park-map-panel::-webkit-scrollbar { display: none; }
 .park-map-panel::backdrop { background: rgba(20, 18, 12, 0.45); }
 .park-map-panel h2, .park-map-panel h3, .park-map-panel p, .park-map-panel figure { margin: 0; }
 .park-map-panel button { font: inherit; cursor: pointer; }
@@ -273,7 +275,7 @@
 }
 .park-map { position:absolute; top:var(--park-edge, 30px); left:calc(50% - 180px); z-index:12; }
 .park-navigation { top:calc(var(--park-edge,30px) + 82px); max-width:min(480px,calc(100vw - 40px)); }
-.park-page:has(.park-runtime-tools [aria-label="그래픽과 성능"]) .park-navigation { display:none; }
+.park-page:has(.park-runtime-tools #park-graphics-settings) .park-navigation { display:none; }
 @media(max-width:900px) {
   .park-map { top:134px; left:50%; transform:translateX(-50%); }
   .park-map-panel { padding: 20px 16px 16px; }

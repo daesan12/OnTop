@@ -1,3 +1,4 @@
+import { SIMPLE_MAP } from './mapRenderProfile'
 import { BufferGeometry, Float32BufferAttribute, SphereGeometry } from 'three'
 import {
   FOUNTAIN,
@@ -69,6 +70,7 @@ const fountain = new PropBuilder([12, 8], 'fountain-refinements')
 // Each paving tile follows the existing bowl's collision terrain. The outer
 // rings express the reference's concentric courses without creating false steps.
 for (let row = 0; row < 12; row++) {
+  if(SIMPLE_MAP)continue
   const inner = 5.4 + row * 0.69,
     outer = inner + 0.675
   for (let i = 0; i < 96; i++) {

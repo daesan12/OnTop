@@ -33,9 +33,16 @@
     "assets:chair": "node scripts/prepare-wood-chair.mjs",
     "map:generate": "node scripts/generate-park-map.mjs",
     "map:check": "node scripts/generate-park-map.mjs --check",
-    "assets:entry": "node scripts/prepare-entry-images.mjs"
+    "assets:entry": "node scripts/prepare-entry-images.mjs",
+    "dev:bungeoppang:v5": "vite --mode bungeoppang-v5-preview",
+    "test:e2e:bungeoppang:v5": "playwright test --config playwright.bungeoppang-v5.config.ts",
+    "dev:feedback": "vite --mode feedback-preview --host 127.0.0.1 --port 5204 --strictPort --open /feedback-preview.html",
+    "test:e2e:browser-guard": "playwright test --config playwright.browser-guard.config.ts",
+    "dev:notes": "vite --mode notes-preview --host 127.0.0.1 --port 5205 --strictPort --open /notes-preview.html",
+    "test:e2e:notes-preview": "playwright test --config playwright.notes.config.ts"
   },
   "dependencies": {
+    "@dimforge/rapier3d-compat": "0.21.0",
     "@react-three/fiber": "9.8.1",
     "react": "19.3.0",
     "react-dom": "19.3.0",

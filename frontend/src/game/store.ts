@@ -30,6 +30,8 @@ interface Session {
   result: Result | null
   lastResult: Result | null
   completedGameId: string
+  /** Own ended game found after a reconnect; not active, not input permission, not yet verified. */
+  resultCandidateGameId: string
   dismissedResult: { gameId: string; version: number } | null
 }
 const initial = (): Session => ({
@@ -45,6 +47,7 @@ const initial = (): Session => ({
   result: null,
   lastResult: null,
   completedGameId: '',
+  resultCandidateGameId: '',
   dismissedResult: null,
 })
 export const useGame = create<Session>(initial)
@@ -106,11 +109,15 @@ export function receiveGame(m: Envelope, ownId: string, tableId: string) {
     s = useGame.getState()
   if (m.type === 'TABLE_LEFT') {
     resetGame()
+  } else if (m.type === 'TABLE_STATE') {
+    // The runtime supplies the seat confirmed by the world store, including forced removal.
+    if (s.game?.role !== 'SPECTATOR' && (!tableId || (s.start?.tableId && s.start.tableId !== tableId))) resetGame()
   } else if (m.type === 'GAME_START_STATE') {
     const next = parseStart(p)
     if (next.tableId !== null && next.tableId !== tableId) return
     if (s.start?.tableId === next.tableId && next.revision < s.start.revision)
       return
+    if (next.phase === 'NOT_SEATED') { resetGame(); return }
     const newGame =
       next.gameSessionId && next.gameSessionId !== s.permittedGameId
     useGame.setState({
@@ -118,6 +125,7 @@ export function receiveGame(m: Envelope, ownId: string, tableId: string) {
       ...(!next.simulation && ['PLAYING', 'SETTLING'].includes(next.phase)
         ? {
             permittedGameId: next.gameSessionId!,
+            resultCandidateGameId: '',
             ...(newGame
               ? {
                   game: null,
@@ -167,15 +175,32 @@ export function receiveGame(m: Envelope, ownId: string, tableId: string) {
         throw new Error('본인 경기 복구가 아닙니다.')
       if (s.permittedGameId && s.permittedGameId !== p.gameId) return
       if (s.game?.gameId === p.gameId && p.version < s.game.version) return
+      const terminal = status === 'FINISHED' || gameState(next).status === 'FINISHED'
+      // A historical terminal snapshot is not a new seat or an active game.
+      if (!tableId && terminal) {
+        resetGame()
+        useGame.setState({ recovery: 'LOBBY' })
+        return
+      }
+      // WAITING is the server's next-round authority. A delayed snapshot of the
+      // completed game must not restore input permission or replace its stored result.
+      const waiting = s.start?.tableId === tableId && s.start.phase === 'WAITING' && !s.start.simulation
+      if (waiting && (terminal || p.gameId === s.completedGameId)) {
+        useGame.setState({ recovery: 'LOBBY', game: null, permittedGameId: '', result: null,
+          awaitingVersion: -1, uncertain: false, error: '' })
+        return
+      }
       useGame.setState({
         recovery: status,
         permittedGameId: p.gameId,
+        resultCandidateGameId: '',
         uncertain: false,
         ...(p.gameId !== s.permittedGameId && p.gameId !== s.completedGameId
           ? { lastResult: null, completedGameId: '', dismissedResult: null } : {}),
       })
       applyGame(next)
     } else {
+      if (status === 'LOBBY' && !tableId) { resetGame(); useGame.setState({ recovery: status }); return }
       useGame.setState({
         recovery: status,
         ...(status === 'LOBBY'
@@ -214,7 +239,11 @@ export function receiveGame(m: Envelope, ownId: string, tableId: string) {
         awaitingVersion: Math.max(s.awaitingVersion, p.version),
       })
   } else if (m.type === 'GAME_RESULT') {
-    if ((p.gameSessionId !== s.permittedGameId && p.gameSessionId !== s.completedGameId) || s.game?.role === 'SPECTATOR')
+    // A discovered candidate only fills the seat's empty completed slot; it never displaces an active game.
+    const candidate = !!s.resultCandidateGameId && p.gameSessionId === s.resultCandidateGameId
+      && !s.permittedGameId && (!s.completedGameId || s.completedGameId === p.gameSessionId)
+    if (!tableId || (p.gameSessionId !== s.permittedGameId && p.gameSessionId !== s.completedGameId && !candidate)
+      || s.game?.role === 'SPECTATOR')
       return
     const next = parseResult(p, ownId)
     if (
@@ -222,8 +251,16 @@ export function receiveGame(m: Envelope, ownId: string, tableId: string) {
       next.version < s.lastResult.version
     )
       return
-    const dismissed = s.dismissedResult?.gameId === next.gameSessionId && s.dismissedResult.version >= next.version
-    useGame.setState({ lastResult: dismissed ? null : next, ...(p.gameSessionId === s.permittedGameId ? { result: next } : {}) })
+    // Dismissal is allowed only after settlement and WAITING. A later version of
+    // that same result may refresh the wallet, but must not reopen the old round.
+    if (s.dismissedResult?.gameId === next.gameSessionId) {
+      useGame.setState({ dismissedResult: { gameId: next.gameSessionId,
+        version: Math.max(s.dismissedResult.version, next.version) },
+        ...(candidate ? { resultCandidateGameId: '' } : {}) })
+      return
+    }
+    useGame.setState({ lastResult: next, ...(p.gameSessionId === s.permittedGameId ? { result: next } : {}),
+      ...(candidate ? { completedGameId: next.gameSessionId, resultCandidateGameId: '' } : {}) })
   } else if (m.type === 'GAME_WATCH_LEFT') {
     if (p.gameId !== s.watchedGameId) return
     useGame.setState({

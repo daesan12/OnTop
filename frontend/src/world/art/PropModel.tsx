@@ -1,3 +1,7 @@
+import { SIMPLE_MAP } from './mapRenderProfile'
+import { WalkwayMaterial } from './WalkwayMaterial'
+import { MeshLambertMaterial } from 'three'
+const simplePropMaterial=new MeshLambertMaterial({vertexColors:true,flatShading:true})
 import type { BufferGeometry } from 'three'
 import { OutdoorMetal } from './OutdoorMetal'
 import { SurfaceMaterial } from './SurfaceMaterial'
@@ -7,10 +11,14 @@ export function PropModel({
   art,
   name,
   shadow = true,
+  paving = false,
+  pavingHole,
 }: {
   art: Partial<Record<PropFinish, BufferGeometry>>
   name: string
   shadow?: boolean
+  paving?:boolean
+  pavingHole?:readonly [number,number,number]
 }) {
   return (
     <group name={name}>
@@ -23,7 +31,7 @@ export function PropModel({
           receiveShadow
           userData={kind === 'stone' ? { keepOpaque: true } : undefined}
         >
-          {kind === 'wood' ? (
+          {paving&&kind==='stone'?<WalkwayMaterial vertexColors excludedDisk={pavingHole}/>:SIMPLE_MAP?<primitive object={simplePropMaterial} attach="material" dispose={null}/>:kind === 'wood' ? (
             <SurfaceMaterial
               kind="wood"
               vertexColors

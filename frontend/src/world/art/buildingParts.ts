@@ -1,3 +1,4 @@
+import { SIMPLE_MAP } from './mapRenderProfile'
 import type { Part } from './Instances'
 import {
   advertisementSize,
@@ -32,6 +33,17 @@ export function buildingParts({
   const wall = ['#c8c3b6', '#afb9b9', '#bbb7ac'][variant % 3]!
   add(stone, [0, h / 2, 0], [w, h, d], wall)
   add(stone, [0, 0.09, 0], [w + 1.8, 0.18, d + 1.8], '#b7b7ad')
+  if (SIMPLE_MAP) {
+    add(stone,[0,h+.5,-d*.15],[w*.35,1,d*.3],'#929c98')
+    for(let face=0;face<4;face++) {
+      const yaw=face*Math.PI/2,span=face%2?d:w,depth=face%2?w:d
+      for(let row=0;row<4;row++) {
+        const y=(row+.5)*h/4,z=depth/2+.05
+        add(glass,[Math.sin(yaw)*z,y,Math.cos(yaw)*z],[span*.88,h*.15,.08],'#8cabb0',[0,yaw,0])
+      }
+    }
+    return {stone,metal,glass}
+  }
   // Parapets and recessed equipment differentiate the silhouette from a plain box.
   for (const side of [-1, 1]) {
     add(stone, [side * (w / 2 - 0.2), h + 0.45, 0], [0.4, 0.9, d], wall)

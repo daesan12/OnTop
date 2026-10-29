@@ -4,11 +4,15 @@ import {
   restoreAuthSession,
 } from '../../auth/authFlow'
 import { SharedSocket, ServerError } from '../../network/socketClient'
-import { MapAdmission, MAP_UPDATE_MESSAGE, type MapIdentity } from '../../network/mapContract'
 import { OmokSpectatorEvents } from '../../game/omok/spectatorEvents'
+import { OneCardPrankEvents, ONECARD_PRANKS_ENABLED, type PrankScope } from '../../game/onecard/prankEvents'
+import { OneCardDefenseEvents, ONECARD_DEFENSE_ENABLED } from '../../game/onecard/defenseEvents'
+import { BUNGEOPPANG_RANKINGS_ENABLED } from '../../features/bungeoppang/ranking'
+import { handScope, useOneCardUI } from '../../game/onecard/uiState'
 import { WorldTimeClient } from '../../network/worldTimeClient'
+import {MapAdmission,MAP_UPDATE_MESSAGE,type MapIdentity} from '../../network/mapContract'
 import { FacilityClient } from '../../network/facilityClient'
-import { facilityMovementBlocked, serverFacilities } from '../../features/facilities/state'
+import { facilityMovementBlocked, FacilityUseBlockedError, showFacilityUseNotice, serverFacilities } from '../../features/facilities/state'
 import { RestError } from '../../network/restError'
 import { clearRoamingInput, inputState } from '../../world/inputOwnership'
 import { rememberRoamingView } from '../../world/cameraReturn'
@@ -16,6 +20,7 @@ import { benchTable, benchViewScope } from '../../features/interactions/benchSpe
 import { useBenchState } from '../../features/interactions/benchState'
 import { useFacilityState } from '../../features/facilities/state'
 import { filterChat } from '../../features/chat/filterChat'
+import { receiveWalletSettlement } from '../../features/wallet/settlementRefresh'
 import {
   channel,
   record,
@@ -26,6 +31,7 @@ import {
 import { bindAnchor, parseBindings } from '../../network/tableBindings'
 import { setDisplayProfiles } from '../../network/profileBridge'
 import { canPlace, canPlayDice, receiveGame, tableBusy, useGame } from '../../game/store'
+import { forgetTabGames, keepTabGame, latestEndedGame, readTabGame } from '../../game/resultRecovery'
 import { canStartForfeit, canRetryForfeit, definiteForfeitRejection, forfeitError, interruptForfeit, parseForfeitResult, resetForfeit, useForfeit } from '../../game/forfeit'
 import { validDiceAction } from '../../game/farkle/scoring'
 import { canActOneCard } from '../../game/onecard/actions'
@@ -40,11 +46,12 @@ import { telescopeBusy } from '../../features/telescopes/state'
 import { resetFeedbackState, useFeedbackState } from '../../features/feedback/state'
 import { resetNotesState, useNotesState } from '../../features/notes/state'
 import { MovementInputBuffer, normalizedMove, stoppedIntent, type MovementIntent } from '../../network/movementInput'
+import { localMovement } from '../../network/localMovementPrediction'
 import { emoteSource, emoteUnavailable } from '../../features/emotes/availability'
 import { parseEmoteBindings, previewEmoteBindings, type EmoteId } from '../../features/emotes/catalog'
 import { emoteSignal, useEmoteState } from '../../features/emotes/state'
 import { mockEmote } from '../../features/emotes/mock/MockEmoteService'
-import { gameSelection, type TableGameCode } from '../../features/tableLobby/model'
+import { gameSelection, waitingForRound, type TableGameCode } from '../../features/tableLobby/model'
 import { publicMatchService } from '../../features/tableLobby/publicMatch'
 import { PublicGameWatcher } from '../../features/tableLobby/PublicGameWatcher'
 import { FollowClient } from '../../features/follow/serverClient'
@@ -85,7 +92,9 @@ export class ParkRuntime implements ParkRuntimePort {
   }
   private mapConfirmationId = ''
   private beforeMap: Envelope[] = []
+
   private active = false
+  private mapReady = false
   private generation = 0
   private inputSequence = 0
   private retryCount = 0
@@ -94,10 +103,17 @@ export class ParkRuntime implements ParkRuntimePort {
   private bootAbort: AbortController | undefined
   private authListeners = new Set<AuthEnded>()
   private actionBusy = false
+  private movementRequests = new Set<string>()
   private inspection = 0
   private tableWatchRequestId = ''
   private obsoleteWatchRequests = new Set<string>()
   private ownProfile: ReturnType<typeof userProfile> | null = null
+  private resultDiscovery = ''
+  private resultDiscovering = -1
+  /** Seat states the server sends on (re)connect, before CHANNEL_JOIN and the REST table list exist. */
+  private initialStates: Envelope[] | null = null
+  private quietResultChecks = new Set<string>()
+  private untrackTabGame: (() => void) | undefined
   private facilityMapInvalid = false
   private spectatorIntent: { userId: string; channelId: string; tableId: string; benchScope: string } | null = null
   private gameWatchRequestId = ''
@@ -145,6 +161,8 @@ export class ParkRuntime implements ParkRuntimePort {
     stop: async () => { await this.socket.request('GAME_UNWATCH', {}, ['GAME_WATCH_LEFT']) },
     hide: () => {
       this.omokEvents.reset()
+      this.oneCardPranks.reset()
+      this.oneCardDefense.reset()
       if (this.gameWatchRequestId) this.obsoleteGameWatchRequests.add(this.gameWatchRequestId)
       for (const id of this.spectatorChecks.keys()) this.obsoleteGameWatchRequests.add(id)
       this.spectatorChecks.clear()
@@ -163,18 +181,55 @@ export class ParkRuntime implements ParkRuntimePort {
       if (!this.active || !this.socket.connected || s.status !== 'connected' || !s.mapCompatible || !s.roomId
         || !g.game?.omok || g.game.omok.status !== 'PLAYING' || g.lastResult) return null
       const game = g.game
-      if (game.role === 'PLAYER' && (g.recovery !== 'RESTORED' || g.permittedGameId !== game.gameId)) return null
+      if (game.role === 'PLAYER' && (!s.tableId || g.recovery !== 'RESTORED' || g.permittedGameId !== game.gameId
+        || ![game.omok!.blackUserId, game.omok!.whiteUserId].includes(s.sessionId))) return null
       if (game.role === 'SPECTATOR' && (!this.spectator.accepts(game.gameId) || g.watchedGameId !== game.gameId)) return null
       return { key: JSON.stringify([this.generation, s.sessionId, s.roomId, game.gameId, game.role,
         game.role === 'SPECTATOR' ? this.gameWatchRequestId : '']), gameId: game.gameId, version: game.version,
-        role: game.role, canSend: game.role === 'SPECTATOR' && !s.tableId && getAuthSession()?.status === 'AUTHENTICATED' }
+        role: game.role, canSend: (game.role === 'PLAYER' || !s.tableId) && getAuthSession()?.status === 'AUTHENTICATED' }
     },
     request: (type, payload, expected, onId) => this.socket.request(type, payload, expected, onId),
   })
   sendSpectatorChat = (text: string) => this.omokEvents.send('chat', text)
+  private oneCardScope = (): PrankScope | null => {
+      const s = useSession.getState(), state = useGame.getState(), game = state.game
+      if (!this.active || !this.socket.connected || s.status !== 'connected' || !s.mapCompatible || !s.roomId
+        || !game?.onecard || game.onecard.status !== 'PLAYING' || state.lastResult) return null
+      if (game.role === 'PLAYER' && (state.permittedGameId !== game.gameId
+        || !game.onecard.players.some(p => p.userId === s.sessionId && p.active))) return null
+      if (game.role === 'SPECTATOR' && (!this.spectator.accepts(game.gameId) || state.watchedGameId !== game.gameId)) return null
+      const ui = useOneCardUI.getState()
+      return { key: JSON.stringify([this.generation, s.sessionId, s.roomId, game.gameId, game.role,
+        game.role === 'SPECTATOR' ? this.gameWatchRequestId : '']), gameId: game.gameId, ownId: s.sessionId,
+        role: game.role, turnCount: game.onecard.turnCount, turnUserId: game.onecard.turnUserId,
+        canSend: game.role === 'SPECTATOR' && !s.tableId && game.onecard.stage === 'PLAYING' && getAuthSession()?.status === 'AUTHENTICATED',
+        canRestore: game.role === 'PLAYER', handIds: game.hand?.hand.map(c => c.id) ?? [],
+        protectedId: ui.scope === handScope(s.sessionId, s.roomId, game.gameId, game.version) ? ui.selectedId : '' }
+    }
+  private oneCardPranks = new OneCardPrankEvents({
+    enabled: ONECARD_PRANKS_ENABLED, scope: () => this.oneCardScope(),
+    request: (type, payload, expected, onId) => this.socket.request(type, payload, expected, onId),
+  })
+  private oneCardDefense = new OneCardDefenseEvents({
+    enabled: ONECARD_DEFENSE_ENABLED,
+    scope: () => {
+      const state = useGame.getState(), scope = this.oneCardScope()
+      if (!scope) return null
+      const fresh = !state.uncertain && !state.pending && !!state.game && state.game.version >= state.awaitingVersion
+        && (scope.role === 'SPECTATOR' || state.recovery === 'RESTORED')
+      return { ...scope, canSend: scope.canSend && fresh, canRestore: scope.canRestore && fresh }
+    },
+    canReach: target => this.oneCardPranks.canFlip(target),
+    request: (type, payload, expected, onId) => this.socket.request(type, payload, expected, onId),
+  })
+  flipOneCardHand = (targetUserId: string) => ONECARD_DEFENSE_ENABLED ? this.oneCardDefense.reach(targetUserId) : this.oneCardPranks.flip(targetUserId)
+  hitOneCardHand = (attemptId: string) => this.oneCardDefense.hit(attemptId)
+  restoreOneCardHand = () => this.oneCardPranks.restore()
   pingOmok = (x: number, y: number) => this.omokEvents.send('ping', { x, y })
   private resetSpectator() {
     this.omokEvents.reset()
+    this.oneCardPranks.reset()
+    this.oneCardDefense.reset()
     this.spectatorIntent = null; this.spectator.reset(); this.gameWatchRequestId = ''
     this.spectatorChecks.clear()
     this.obsoleteGameWatchRequests.clear(); this.tableClosing = null
@@ -198,7 +253,7 @@ export class ParkRuntime implements ParkRuntimePort {
     },
     request: (type, payload, expected, onId) => this.socket.request(type, payload, expected, onId),
     apply: applyFacilityOccupancies,
-    blockMovement: () => this.movement.clear(false),
+    blockMovement: () => { this.movement.clear(false); localMovement.suspend() },
   })
   checkFacilities = (reloadCatalog = false) => this.facilities.refresh(reloadCatalog)
   private follow = new FollowClient({
@@ -223,13 +278,18 @@ export class ParkRuntime implements ParkRuntimePort {
     }
   }
   private report(error: unknown) {
-    if (this.active && this.mapAdmission.status !== 'mismatch')
+    if (this.active && error instanceof FacilityUseBlockedError) {
+      showFacilityUseNotice(useSession.getState().sessionId)
+      return
+    }
+    if (this.active)
       useSession.setState({
         error: error instanceof Error ? error.message : String(error),
       })
   }
   private authEnded() {
     this.tablet.end()
+    this.mapReady = false
     this.worldTime.reset()
     this.forfeitRequests.clear()
     resetForfeit()
@@ -242,6 +302,8 @@ export class ParkRuntime implements ParkRuntimePort {
     this.active = false
     clearTimeout(this.timer)
     this.bootAbort?.abort()
+    this.initialStates = null
+    forgetTabGames()
     clearAuthSession()
     void this.socket.disconnect()
     resetWorld('error', '로그인이 종료되었습니다. 다시 로그인해주세요.')
@@ -299,9 +361,11 @@ export class ParkRuntime implements ParkRuntimePort {
       || (method === 'PATCH' && path === '/api/v1/users/me/equipment')
     const profileRequest = ((method === 'PATCH' || method === 'DELETE') && path === '/api/v1/users/me')
       || (method === 'GET' && /^\/api\/v1\/users\/nickname-availability\?nickname=[^&#]+$/.test(path))
-    const minigameRequest = /^\/api\/v1\/minigames\/sessions(?:\?rulesVersion=v4|\/\d+(?:\?(?:(?:includeSource|includeProgress)=true|deliveryKey=[A-Za-z0-9_-]{1,64})(?:&(?:(?:includeSource|includeProgress)=true|deliveryKey=[A-Za-z0-9_-]{1,64}))*|\/(?:complete|abandon|deliveries))?)?$/.test(path)
+    const minigameRequest = /^\/api\/v1\/minigames\/sessions(?:\?rulesVersion=v[45]|\/\d+(?:\?(?:(?:includeSource|includeProgress)=true|deliveryKey=[A-Za-z0-9_-]{1,64})(?:&(?:(?:includeSource|includeProgress)=true|deliveryKey=[A-Za-z0-9_-]{1,64}))*|\/(?:complete|abandon|deliveries))?)?$/.test(path)
+    const rankingRequest = BUNGEOPPANG_RANKINGS_ENABLED && method === 'GET'
+      && /^\/api\/v1\/minigames\/bungeoppang\/rankings\?period=ALL_TIME&rulesVersion=v[45]&limit=20(?:&durationMs=[1-9]\d{0,8})?(?:&cursor=[A-Za-z0-9%+_.~-]{1,1536})?$/.test(path)
     if (!this.active || (!notesRead && !notesWrite && !shopRequest && !profileRequest
-      && !minigameRequest && !/^\/api\/v1\/(?:wallets\/me|feedback)$/.test(path))
+      && !minigameRequest && !rankingRequest && !/^\/api\/v1\/(?:wallets\/me|feedback)$/.test(path))
       || (path === '/api/v1/feedback' && init.method !== 'POST'))
       throw new Error('현재 공원에서 사용할 수 없는 요청입니다.')
     const signals = [this.bootAbort?.signal, init.signal].filter((s): s is AbortSignal => !!s)
@@ -312,14 +376,21 @@ export class ParkRuntime implements ParkRuntimePort {
     this.active = true
     if (TABLET_ENABLED) this.tablet.begin()
     bindFollowService(this.follow)
+    this.untrackTabGame?.()
+    this.untrackTabGame = useGame.subscribe((next, prev) => {
+      const owner = useSession.getState().sessionId
+      if (next.permittedGameId && next.permittedGameId !== prev.permittedGameId) keepTabGame(owner, next.permittedGameId)
+      // A result the player already closed is not shown again after a refresh.
+      if (next.dismissedResult && next.dismissedResult !== prev.dismissedResult
+        && readTabGame(owner) === next.dismissedResult.gameId) keepTabGame(owner, '')
+    })
     this.retryCount = 0
     void this.boot()
   }
   private async boot() {
-    this.mapAdmission.reset()
-    this.mapConfirmationId=''
-    this.beforeMap=[]
+    this.mapAdmission.reset();this.mapConfirmationId='';this.beforeMap=[]
     if (TABLET_ENABLED) this.tablet.reset(true)
+    this.mapReady = false
     this.worldTime.reset()
     interruptForfeit()
     this.follow.reset()
@@ -328,6 +399,7 @@ export class ParkRuntime implements ParkRuntimePort {
     this.facilityMapInvalid = false
     this.movement.clear()
     const generation = ++this.generation
+    this.initialStates = []
     this.actionBusy = false
     this.bootAbort?.abort()
     const abort = (this.bootAbort = new AbortController())
@@ -356,8 +428,6 @@ export class ParkRuntime implements ParkRuntimePort {
           this.report('서버에 등록된 채널이 없습니다. 채널 설정을 확인해주세요.')
       })
       await this.socket.connect(ready)
-      if(this.mapAdmission.required&&this.mapAdmission.status==='pending'&&generation===this.generation)
-        this.timer=setTimeout(()=>{if(this.active&&generation===this.generation&&this.mapAdmission.status==='pending')this.rejectMap(undefined)},8000)
     } catch (error) {
       if (!this.active || generation !== this.generation) return
       abort.abort()
@@ -366,7 +436,10 @@ export class ParkRuntime implements ParkRuntimePort {
     }
   }
   async stop() {
+    this.untrackTabGame?.()
+    this.untrackTabGame = undefined
     this.tablet.end()
+    this.mapReady = false
     this.worldTime.reset()
     this.forfeitRequests.clear()
     resetForfeit()
@@ -376,6 +449,7 @@ export class ParkRuntime implements ParkRuntimePort {
     this.movement.clear()
     this.active = false
     ++this.generation
+    this.initialStates = null
     this.actionBusy = false
     clearTimeout(this.timer)
     this.bootAbort?.abort()
@@ -384,7 +458,9 @@ export class ParkRuntime implements ParkRuntimePort {
     await closing
   }
   private closed(code: number) {
+    if(this.mapAdmission.status==='mismatch')return
     if (TABLET_ENABLED) this.tablet.reset(true)
+    this.mapReady = false
     this.worldTime.reset()
     interruptForfeit()
     this.follow.reset()
@@ -392,7 +468,6 @@ export class ParkRuntime implements ParkRuntimePort {
     this.facilities.reset()
     this.movement.clear()
     if (!this.active) return
-    if (this.mapAdmission.status === 'mismatch') return
     if (code === 4401 || code === 4403) {
       this.authEnded()
       return
@@ -425,8 +500,23 @@ export class ParkRuntime implements ParkRuntimePort {
     this.retryCount = 0
     void this.boot()
   }
+  refreshChannels = async (): Promise<boolean> => {
+    if (!this.active) return false
+    try {
+      const body = await this.getJSON('/api/v1/channels', { signal: this.bootAbort?.signal })
+      if (!record(body) || !Array.isArray(body.items)) throw new Error('채널 목록을 확인할 수 없습니다.')
+      useSession.setState({ channels: body.items.map(channel) })
+      return true
+    } catch (error) {
+      this.report(error)
+      return false
+    }
+  }
   private message(message: Envelope) {
     if (!this.active) return
+    if (message.type === 'ERROR' && message.requestId
+      && this.movementRejectedAfterSeating(message.requestId, message.payload.code)) return
+    // Seat states held before the table list carry no requestId, so they never meet the movement filter above.
     if(message.type==='ERROR'&&['MAP_VERSION_MISMATCH','MAP_VERSION_REQUIRED'].includes(String(message.payload.code))) {
       this.rejectMap(message.payload.serverMap)
       return
@@ -435,6 +525,7 @@ export class ParkRuntime implements ParkRuntimePort {
     if(message.type==='WORLD_MAP_STATE') {
       if(this.mapAdmission.status!=='confirming'||message.requestId!==this.mapConfirmationId)return
       if(!this.mapAdmission.confirmed(message.payload.map,message.payload.verified)){this.rejectMap(message.payload.map);return}
+      this.mapReady=true
       useSession.setState({status:'connected',mapContractStatus:'verified',serverMap:this.mapAdmission.serverMap})
       const queued=this.beforeMap;this.beforeMap=[]
       this.enterPreferredChannel()
@@ -460,6 +551,9 @@ export class ParkRuntime implements ParkRuntimePort {
       this.rejectMap({...this.mapAdmission.serverMap,mapVersion:message.payload.mapVersion})
       return
     }
+    if (this.holdInitialState(message)) return
+    if (this.oneCardDefense.accept(message)) return
+    if (this.oneCardPranks.accept(message)) return
     if (this.omokEvents.accept(message)) return
     if (this.worldTime.ownsError(message) || message.type === 'WORLD_TIME_STATE') return
     if (message.type === 'ERROR' && message.requestId && this.forfeitRequests.has(message.requestId)
@@ -467,6 +561,8 @@ export class ParkRuntime implements ParkRuntimePort {
     if (this.follow.ownsError(message)) return
     if (message.type === 'WORLD_FOLLOW_STATE') { if (followService.mode === 'server') this.follow.accept(message); return }
     if (message.type === 'ERROR' && message.requestId && this.obsoleteGameWatchRequests.has(message.requestId)) return
+    // An automatic result recovery is not a user action; its rejection stays silent.
+    if (message.type === 'ERROR' && message.requestId && this.quietResultChecks.has(message.requestId)) return
     if (message.type === 'GAME_STATE' && message.payload.role === 'SPECTATOR'
       && (!this.spectator.accepts(message.payload.gameId) || message.requestId !== null && message.requestId !== this.gameWatchRequestId
         && this.spectatorChecks.get(message.requestId) !== this.gameWatchRequestId)) return
@@ -496,7 +592,10 @@ export class ParkRuntime implements ParkRuntimePort {
     const session = useSession.getState()
     try {
       receiveGame(message, session.sessionId, session.tableId)
+      receiveWalletSettlement(message, session.sessionId)
       this.omokEvents.sync()
+      this.oneCardPranks.sync()
+      this.oneCardDefense.sync()
     } catch (error) {
       useGame.setState({
         uncertain: true,
@@ -505,6 +604,8 @@ export class ParkRuntime implements ParkRuntimePort {
       throw error
     }
     if (TABLET_ENABLED) this.tablet.accept(message)
+    if (message.type === 'TABLE_LEFT') keepTabGame(session.sessionId, '')
+    this.discoverResult()
     if ((message.type === 'ERROR' && message.requestId === null || message.type === 'GAME_WATCH_LEFT' && message.requestId === null)
       && this.spectatorIntent && !useGame.getState().watchedGameId && useTableLobby.getState().spectatorStatus === 'watching')
       this.spectator.revoked('경기 관전 권한이 종료됐어요. 다시 연결해주세요.')
@@ -532,7 +633,7 @@ export class ParkRuntime implements ParkRuntimePort {
       if(this.mapAdmission.status==='confirming') {
         useSession.setState({status:'joining'})
         void this.confirmMap()
-      } else this.enterPreferredChannel()
+      } else {this.mapReady=true;this.enterPreferredChannel()}
     }
   }
   private enterPreferredChannel() {
@@ -549,6 +650,7 @@ export class ParkRuntime implements ParkRuntimePort {
     }
   }
   private rejectMap(serverMap:unknown) {
+    this.mapReady=false
     this.mapAdmission.reject(serverMap)
     this.beforeMap=[]
     if (TABLET_ENABLED) this.tablet.reset(true)
@@ -567,8 +669,7 @@ export class ParkRuntime implements ParkRuntimePort {
     void this.socket.disconnect()
   }
   private async action(job: () => Promise<unknown>) {
-    if (!this.active || this.actionBusy) return false
-    if(!this.mapAdmission.allowed)return false
+    if (!this.active || this.actionBusy || !this.mapAdmission.allowed) return false
     this.actionBusy = true
     useSession.setState({ pending: true, error: '' })
     const generation = this.generation
@@ -587,7 +688,7 @@ export class ParkRuntime implements ParkRuntimePort {
   }
   selectChannel = (channelId: string) =>
     this.action(async () => {
-      if(!this.mapAdmission.allowed)throw new Error('서버 맵 정보를 확인한 뒤 입장해주세요.')
+      if (!this.mapReady) throw new Error('서버 맵 버전 확인을 먼저 완료해주세요.')
       const state = useSession.getState()
       if (inputState.minigameOpen) throw new Error('먼저 미니게임을 마쳐주세요.')
       if (benchBusy(state.sessionId)) throw new Error('먼저 벤치에서 일어나주세요.')
@@ -611,28 +712,64 @@ export class ParkRuntime implements ParkRuntimePort {
         !state.roomId && notes.ownerId === state.sessionId && notes.channelId === channelId)
       this.inputSequence = 0
       const generation = this.generation
-      await this.socket.request('CHANNEL_JOIN', this.mapAdmission.request({ channelId }), [
-        'CHANNEL_STATE',
-      ])
-      if(generation!==this.generation||!this.mapAdmission.allowed||useSession.getState().roomId!==channelId)return
-      this.preferredChannel = channelId
-      this.retryCount = 0
-      if (followService.mode === 'server') void this.follow.begin().catch(() => {})
-      // Initial world messages keep their existing order. Facilities explicitly query after CHANNEL_JOIN.
-      if (serverFacilities) void this.facilities.begin().catch(() => {})
-      const body = await this.getJSON(
-        `/api/v1/tables?channelId=${encodeURIComponent(channelId)}`,
-        { signal: this.bootAbort?.signal },
-      )
-      if (
-        generation !== this.generation ||
-        useSession.getState().roomId !== channelId
-      )
-        return
-      if (!record(body) || !Array.isArray(body.tables))
-        throw new Error('테이블 목록을 확인할 수 없습니다.')
-      useSession.setState({ tables: body.tables.map(tableSummary) })
+      try {
+        try {
+          await this.socket.request('CHANNEL_JOIN', { channelId }, ['CHANNEL_STATE'])
+        } catch (error) {
+          await this.refreshChannels()
+          throw error
+        }
+        this.preferredChannel = channelId
+        this.retryCount = 0
+        if (followService.mode === 'server') void this.follow.begin().catch(() => {})
+        // Initial world messages keep their existing order. Facilities explicitly query after CHANNEL_JOIN.
+        if (serverFacilities) void this.facilities.begin().catch(() => {})
+        const body = await this.getJSON(
+          `/api/v1/tables?channelId=${encodeURIComponent(channelId)}`,
+          { signal: this.bootAbort?.signal },
+        )
+        if (
+          generation !== this.generation ||
+          useSession.getState().roomId !== channelId
+        )
+          return
+        if (!record(body) || !Array.isArray(body.tables))
+          throw new Error('테이블 목록을 확인할 수 없습니다.')
+        const tables = body.tables.map(tableSummary)
+        const liveBindings = body.tables.length && body.tables.every(item => record(item) && typeof item.tableId === 'string'
+          && typeof item.anchorId === 'string')
+          ? parseBindings(body.tables.map(item => ({ channelId, tableId: item.tableId, anchorId: item.anchorId })))
+          : null
+        useSession.setState(current => ({ tables, bindings: liveBindings
+          ? [...current.bindings.filter(binding => binding.channelId !== channelId), ...liveBindings]
+          : current.bindings }))
+      } finally {
+        // With or without the list, held seat states are read once now through the normal handlers.
+        this.applyInitialStates(generation)
+      }
     })
+  /** Existing handlers drop seat states that precede the table list; hold them, in arrival order, until it exists. */
+  private holdInitialState(message: Envelope) {
+    const held = this.initialStates
+    if (!held || message.requestId !== null || held.length >= 64) return false
+    const seat = message.type === 'TABLE_STATE' || message.type === 'TABLE_HOST_WAIT_STATE'
+      || message.type === 'GAME_START_STATE' && message.payload.tableId !== null
+    // After a held seat its game messages wait too, so they are read with the table as before the refresh.
+    const game = held.some(m => m.type === 'TABLE_STATE')
+      && ['GAME_START_STATE', 'GAME_CONNECTION_STATE', 'GAME_STATE', 'GAME_RESULT'].includes(message.type)
+    if (!seat && !game) return false
+    held.push(message)
+    return true
+  }
+  private applyInitialStates(generation: number) {
+    const held = this.initialStates
+    if (generation !== this.generation || !held) return
+    this.initialStates = null
+    // A table-scoped start state needs the seat first; otherwise arrival order (and every version check) is kept.
+    for (const message of [...held.filter(m => m.type === 'TABLE_STATE'), ...held.filter(m => m.type !== 'TABLE_STATE')]) {
+      try { this.message(message) } catch (error) { this.report(error) }
+    }
+  }
   sendChat = (value: string) =>
     this.action(async () => {
       const text = filterChat(validateChat(value))
@@ -646,7 +783,8 @@ export class ParkRuntime implements ParkRuntimePort {
   move = (dx: number, dz: number, run: boolean, jump = false) => {
     const intent = normalizedMove(dx, dz, run, jump)
     if (!intent || !this.canSendMovement(intent)) return
-    if (!stoppedIntent(intent)) cancelAvatarEmote(useSession.getState().sessionId)
+    localMovement.intend(intent)
+    if (!stoppedIntent(intent)) cancelAvatarEmote(useSession.getState().sessionId, 'movement')
     this.movement.enqueue(intent, this.movementScope())
   }
   stopMovement = () => {
@@ -701,22 +839,35 @@ export class ParkRuntime implements ParkRuntimePort {
       && (!useTableLobby.getState().joiningAnchorId || stoppedIntent(intent))
       && (!(benchBusy(s.sessionId) || fitnessBusy(s.sessionId) || telescopeBusy(s.sessionId)) || stoppedIntent(intent)) && this.socket.connected
   }
+  private movementRejectedAfterSeating(requestId: string, code: unknown) {
+    const s = useSession.getState()
+    return code === 'TABLE_BUSY' && this.movementRequests.has(requestId) && s.seatIndex >= 0
+      && !!s.tableStates[s.tableId]?.seats.some(seat => seat.userId === s.sessionId)
+  }
   private async sendMovement(intent: MovementIntent, scope: string) {
     if (scope !== this.movementScope() || !this.canSendMovement(intent)) return
     const sequence = ++this.inputSequence
+    localMovement.sentInput(sequence)
+    let requestId = ''
     try {
       await this.socket.request('WORLD_MOVE', {
         seq: sequence,
         ...intent,
-      }, ['WORLD_STATE'])
+      }, ['WORLD_STATE'], id => { requestId = id; this.movementRequests.add(id) })
       if (scope === this.movementScope() && this.active) clearMovementNotice(sequence)
     } catch (error) {
       if (scope !== this.movementScope() || !this.active) return
+      localMovement.reject(sequence)
+      // The server may reject a movement sent just before the approved seat.
+      // That old movement error does not describe the current tablet action.
+      if (error instanceof ServerError && this.movementRejectedAfterSeating(requestId, error.code)) return
       // A rejected or timed-out input is never replayed; fresh key input may resume.
       this.movement.clear(false)
       if (error instanceof ServerError && error.code === 'MOVE_TOO_FREQUENT')
         showMovementNotice(error.message, sequence)
       else this.report(error)
+    } finally {
+      this.movementRequests.delete(requestId)
     }
   }
   inspectTable = (anchorId: string) => {
@@ -783,7 +934,7 @@ export class ParkRuntime implements ParkRuntimePort {
   joinTable = (anchorId?: string) =>
     this.action(async () => {
       const joinGeneration = this.generation
-      if (facilityMovementBlocked(useSession.getState().sessionId)) throw new Error('먼저 시설 이용·승인 위치 확인을 마쳐주세요.')
+      if (facilityMovementBlocked(useSession.getState().sessionId)) throw new FacilityUseBlockedError()
       if (inputState.minigameOpen) throw new Error('먼저 미니게임을 마쳐주세요.')
       if (benchBusy(useSession.getState().sessionId)) throw new Error('먼저 벤치에서 일어나주세요.')
       if (fitnessBusy(useSession.getState().sessionId)) throw new Error('먼저 운동기구에서 내려와주세요.')
@@ -862,7 +1013,7 @@ export class ParkRuntime implements ParkRuntimePort {
     )
   checkRecovery = () =>
     this.action(() =>
-      this.socket.request('GAME_RECONNECT_CHECK', this.mapAdmission.request(), [
+      this.socket.request('GAME_RECONNECT_CHECK', {}, [
         'GAME_CONNECTION_STATE',
       ]),
     )
@@ -898,6 +1049,50 @@ export class ParkRuntime implements ParkRuntimePort {
         ['GAME_RESULT'],
       )
     })
+  /** Seated in a lobby again with nothing active: the tab's game ID survived only in sessionStorage. */
+  private resultRecoverable(owner: string, gameId: string) {
+    const s = useSession.getState(), g = useGame.getState()
+    return !!owner && s.sessionId === owner && this.ownProfile?.userId === owner && s.status === 'connected'
+      && this.mapReady && this.socket.connected && !!s.tableId && !!s.tableStates[s.tableId]?.seats.some(seat => seat.userId === owner)
+      // The server's WAITING for this table: the restored result can close into the next round. Without it
+      // (the seat's start state precedes CHANNEL_JOIN) a restored result would hold the tablet lobby.
+      && waitingForRound(g.start, s.tableId)
+      // RESTORED/ELIMINATED keep the active game first; UNKNOWN/PENDING/EXPIRED/UNAVAILABLE are not a lobby.
+      && ['LOBBY', 'FINISHED'].includes(g.recovery)
+      && !g.permittedGameId && !g.watchedGameId && !g.game && !g.result && !g.lastResult
+      && (!g.completedGameId || g.completedGameId === gameId)
+  }
+  /** History REST names the latest own ended game; only this tab's own game is re-read with GAME_RESULT_CHECK. */
+  private discoverResult() {
+    const owner = useSession.getState().sessionId, gameId = readTabGame(owner), start = useGame.getState().start
+    // One attempt per connection and start revision: the table's return to WAITING retries a game that
+    // history did not list yet (DB receipt still pending), without a request per message.
+    const scope = JSON.stringify([this.generation, start?.tableId ?? null, start?.revision ?? -1])
+    if (!this.active || this.resultDiscovering === this.generation || this.resultDiscovery === scope
+      || !gameId || !this.resultRecoverable(owner, gameId)) return
+    const generation = this.resultDiscovering = this.generation
+    this.resultDiscovery = scope
+    const current = () => this.active && generation === this.generation
+      && readTabGame(owner) === gameId && this.resultRecoverable(owner, gameId)
+    void (async () => {
+      let requestId = ''
+      try {
+        const latest = latestEndedGame(await this.getJSON('/api/v1/users/me/games?size=1', { signal: this.bootAbort?.signal }))
+        // A newer game from another tab or device, or an older one, is left to an explicit history view.
+        if (latest !== gameId || !current()) return
+        useGame.setState({ resultCandidateGameId: gameId })
+        await this.socket.request('GAME_RESULT_CHECK', { gameSessionId: gameId }, ['GAME_RESULT'], id => {
+          requestId = id
+          this.quietResultChecks.add(id)
+        })
+      } catch { /* Best effort: pushes for the seat and explicit checks still work without it. */ } finally {
+        this.quietResultChecks.delete(requestId)
+        if (this.resultDiscovering === generation) this.resultDiscovering = -1
+        if (generation === this.generation && useGame.getState().resultCandidateGameId === gameId)
+          useGame.setState({ resultCandidateGameId: '' })
+      }
+    })()
+  }
   forfeitGame = (gameId: string, retry = false) => this.action(async () => {
     const own = useSession.getState(), state = useGame.getState()
     if (own.status !== 'connected' || own.sessionId === '' || state.permittedGameId !== gameId
@@ -1037,16 +1232,18 @@ export class ParkRuntime implements ParkRuntimePort {
       useTableLobby.setState({ spectatorRequested: true, spectatorError: '' })
       return this.spectator.set({ gameId, scope: JSON.stringify([this.generation, session.sessionId, session.roomId, session.watchedTableId, benchViewScope(session)]) }, true)
   }
-  watchBench = async (anchorId: string): Promise<boolean> => {
+  watchBench = async (anchorId: string, observeOnly = false): Promise<boolean> => {
     const s = useSession.getState(), scope = benchViewScope(s)
     if (!scope || benchTable(s.benchId)?.id !== anchorId) return false
     if (!await this.watchTable(anchorId, false)) return false
     const current = useSession.getState()
     if (scope !== benchViewScope(current)) { this.closeTable(); return false }
+    if (observeOnly) return true
+    const ref = publicMatchService.find({ channelId: s.roomId, tableId: current.watchedTableId })
+    if (!ref) return false
     this.spectatorIntent = { userId: s.sessionId, channelId: s.roomId, tableId: current.watchedTableId, benchScope: scope }
     useTableLobby.setState({ spectatorRequested: true, spectatorError: '' })
-    const ref = publicMatchService.find({ channelId: s.roomId, tableId: current.watchedTableId })
-    return this.spectator.set(ref ? { gameId: ref.gameId, scope: JSON.stringify([this.generation, s.sessionId, s.roomId, current.watchedTableId, scope]) } : null, true)
+    return this.spectator.set({ gameId: ref.gameId, scope: JSON.stringify([this.generation, s.sessionId, s.roomId, current.watchedTableId, scope]) }, true)
   }
   unwatchGame = (): Promise<boolean> => {
     this.spectatorIntent = null

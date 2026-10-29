@@ -1,3 +1,4 @@
+import { SIMPLE_MAP } from './mapRenderProfile'
 import { metalGrain } from './ornamentTextures'
 
 /** Shared micro-roughness; reflection comes from the scene's outdoor probe. */
@@ -8,6 +9,7 @@ export function OutdoorMetal({
   finish?: 'painted' | 'iron' | 'brass'
   vertexColors?: boolean
 }) {
+  if(SIMPLE_MAP)return <meshLambertMaterial vertexColors={vertexColors} flatShading/>
   return (
     <meshStandardMaterial
       vertexColors={vertexColors}

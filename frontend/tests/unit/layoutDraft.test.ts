@@ -4,16 +4,18 @@ import { gatePromenadeGeometry } from '../../src/layout-preview/PreviewLandscapi
 import { mainGateArt } from '../../src/layout-preview/reviewFurnitureGeometry'
 import { stairRailFrame,stairSupportSites } from '../../src/layout-preview/pagodaBalustrade'
 import { fountainTerrain,fitnessRestArt } from '../../src/layout-preview/districtGeometry'
+import { fountainPavingHeight } from '../../src/layout-preview/fountainPaving'
 import { describe,it,expect } from 'vitest'
 import { TABLES } from '../../src/config/world'
-import { DRAFT_FOUNTAIN,VR_EDGE_TREE_SITES,DRAFT_LAMPS,STAIR_RAIL_RUNS,DRAFT_PAVILIONS,DRAFT_TABLES,DRAFT_STAIRS,DRAFT_FITNESS_AREA,DRAFT_FITNESS_STATIONS,DRAFT_JUMP_PADS,FENCE_COURTS,FENCE_RUNS,ROUND_COURTS,LIFE_PLAZA,KIOSKS,DRAFT_TOWER_BENCHES,VR_STONE_SETS,EVENT_BENCHES,nearSegment,VR_YAW,VR_COURT,EVENT_GROVE,PATHS,MARKERS,SITES,canWalk,walkHeight,roundRoute } from '../../src/layout-preview/layout'
+import { SETTINGS,DRAFT_FOUNTAIN,VR_EDGE_TREE_SITES,DRAFT_LAMPS,STAIR_RAIL_RUNS,DRAFT_PAVILIONS,DRAFT_TABLES,DRAFT_STAIRS,DRAFT_FITNESS_AREA,DRAFT_FITNESS_STATIONS,DRAFT_JUMP_PADS,FENCE_COURTS,FENCE_RUNS,ROUND_COURTS,LIFE_PLAZA,KIOSKS,DRAFT_TOWER_BENCHES,VR_STONE_SETS,EVENT_BENCHES,nearSegment,VR_YAW,VR_COURT,EVENT_GROVE,PATHS,MARKERS,SITES,canWalk,walkHeight,roundRoute } from '../../src/layout-preview/layout'
 import { CROSSINGS,DRAFT_LAKE,shoreHalfSpan,DRAFT_LAKE_ROCKS,SHORE_RUNS,crossingHeight,swimmingAt } from '../../src/layout-preview/lakeLayout'
 describe('180m layout draft contracts',()=>{
   it('retains every existing table ID and its seat data across placement changes',()=>{
-    expect(DRAFT_TABLES.map(t=>t.id)).toEqual(TABLES.map(t=>t.id))
-    for(const t of DRAFT_TABLES)expect(t.seatAnchors).toEqual(TABLES.find(old=>old.id===t.id)!.seatAnchors)
+    expect(DRAFT_TABLES.slice(0,16).map(t=>t.id)).toEqual(TABLES.map(t=>t.id))
+    expect(DRAFT_TABLES.slice(16).map(t=>t.id)).toEqual(['table-17','table-18'])
+    for(const t of DRAFT_TABLES.slice(0,16))expect(t.seatAnchors).toEqual(TABLES.find(old=>old.id===t.id)!.seatAnchors)
     expect(DRAFT_PAVILIONS.map(p=>p.id)).toEqual(['P0','P1','P2','P3','P4','P5','P6','P7','P8'])
-    expect(new Set(MARKERS.map(m=>m.id)).size).toBe(27)
+    expect(new Set(MARKERS.map(m=>m.id)).size).toBe(23)
   })
   it('blocks exterior edges and obstacles while keeping crossings, water and arrival open',()=>{
     for(const p of [[89,0],[-89,0],[0,-89],[0,89],[102,0],[0,130],[NaN,0],[Infinity,0],[SITES.cart.x,SITES.cart.z],[SITES.mailbox.x,SITES.mailbox.z]])expect(canWalk(p[0]!,p[1]!)).toBe(false)
@@ -42,10 +44,19 @@ describe('180m layout draft contracts',()=>{
     for(const id of ['west-pavilions','east-pavilions']) {
       const route=PATHS.find(p=>p.id===id)!
       expect(new Set(route.points.map(p=>p[0])).size).toBe(1)
-      expect(route.points[0]![1]).toBe(27);expect(route.points.at(-1)![1]).toBe(-76)
+      expect(route.points[0]![1]).toBe(-8);expect(route.points.at(-1)![1]).toBe(-76)
     }
-    expect(new Set(DRAFT_PAVILIONS.filter(p=>['P1','P3','P5','P7'].includes(p.id)).map(p=>p.x)).size).toBe(1)
-    expect(new Set(DRAFT_PAVILIONS.filter(p=>['P2','P4','P6','P8'].includes(p.id)).map(p=>p.x)).size).toBe(1)
+    expect(new Set(DRAFT_PAVILIONS.filter(p=>['P3','P5','P7'].includes(p.id)).map(p=>p.x)).size).toBe(1)
+    expect(new Set(DRAFT_PAVILIONS.filter(p=>['P4','P6','P8'].includes(p.id)).map(p=>p.x)).size).toBe(1)
+    expect(DRAFT_PAVILIONS.find(p=>p.id==='P1')!.x).toBe(-28)
+    expect(DRAFT_PAVILIONS.find(p=>p.id==='P2')!.x).toBe(28)
+    for(const side of [-1,1]){
+      const route=PATHS.find(r=>r.id===(side<0?'west-main-side-pavilion':'east-main-side-pavilion'))!
+      expect(route.points).toEqual([[side*28,-8],[side*28,25]])
+      for(const z of [-4.5,12.5])expect(canWalk(side*28,z)).toBe(true)
+      const gapTrees=SETTINGS.pavilionEdgeTrees.filter(t=>t.id.startsWith('pavilion-tree-'+(side<0?'P1':'P2')+'-')&&Math.abs(t.x)<21)
+      expect(gapTrees.length).toBeGreaterThanOrEqual(4)
+    }
     expect(DRAFT_PAVILIONS.filter(p=>p.id==='P5'||p.id==='P6').every(p=>p.z===-61)).toBe(true)
     for(const id of ['north-cross','garden-cross','service-entry','fountain-south','tower-east','tower-west']) {
       const points=PATHS.find(p=>p.id===id)!.points
@@ -70,8 +81,8 @@ describe('180m layout draft contracts',()=>{
     expect(PATHS.find(p=>p.id==='west-spine')!.points).toEqual([[-39,-76],[-39,84]])
     for(let z=-75;z<83;z+=.4)expect(canWalk(-39,z),`west spine z=${z}`).toBe(true)
     for(let x=-45;x<39;x+=.3)expect(canWalk(x,-8),`VR cross x=${x}`).toBe(true)
-    for(let x=-39;x<-12;x+=.3)expect(canWalk(x,56),`fitness cross x=${x}`).toBe(true)
-    for(let x=-39;x<-12;x+=.3)expect(canWalk(x,43),`service cross x=${x}`).toBe(true)
+    for(let x=-39;x<-12;x+=.3)expect(canWalk(x,46),`fitness cross x=${x}`).toBe(true)
+    for(let x=-39;x<-12;x+=.3)expect(canWalk(x,46),`service cross x=${x}`).toBe(true)
     for(const side of [-1,1])for(let z=-8;z<25;z+=.3)expect(canWalk(side*14.9,z),`side lane ${side} z=${z}`).toBe(true)
     expect(DRAFT_FITNESS_AREA.width).toBeGreaterThan(DRAFT_FITNESS_AREA.depth);expect(DRAFT_FITNESS_AREA.depth).toBeLessThan(30)
     for(const s of DRAFT_FITNESS_STATIONS)expect(canWalk(s.position[0],s.position[2]),s.id).toBe(false)
@@ -123,15 +134,15 @@ describe('180m layout draft contracts',()=>{
   })
   it('keeps lamps beside routes and off the central terrace, with all four stairways open',()=>{
     expect(DRAFT_LAMPS.length).toBeGreaterThan(25)
-    for(const [x,,z] of DRAFT_LAMPS){expect(Math.abs(x)>=19||Math.abs(z+40)>=22).toBe(true);expect(Math.abs(x)>=30||z<=27||z>=57).toBe(true);expect(canWalk(x,z)).toBe(false)}
+    for(const [x,,z] of DRAFT_LAMPS){expect(Math.abs(x)>=19||Math.abs(z+40)>=22).toBe(true);expect(Math.hypot(x-LIFE_PLAZA.x,z-LIFE_PLAZA.z)>=20).toBe(true);expect(canWalk(x,z)).toBe(false)}
     expect(STAIR_RAIL_RUNS).toHaveLength(8)
     for(const side of [-1,1])for(let d=13;d<=17;d+=.2){expect(canWalk(side*d,-40)).toBe(true);expect(canWalk(0,-40+side*d)).toBe(true)}
-    expect(KIOSKS.find(k=>k.kind==='shop')!.yaw).toBe(Math.PI/4)
-    expect(KIOSKS.find(k=>k.kind==='drink')!.yaw).toBe(0)
+    expect(KIOSKS.find(k=>k.kind==='shop')!.yaw).toBe(SETTINGS.kiosks.shop.yaw)
+    expect(KIOSKS.find(k=>k.kind==='drink')!.yaw).toBe(SETTINGS.kiosks.drink.yaw)
     expect(MARKERS.find(m=>m.id==='layout-drink')!.label).toBe('응모부스')
-    for(const t of DRAFT_TABLES.slice(0,4))expect(Math.hypot(t.position[0],t.position[2]-42)).toBeCloseTo(Math.sqrt(200))
+    for(const t of DRAFT_TABLES.slice(0,4))expect(Math.hypot(t.position[0]-LIFE_PLAZA.x,t.position[2]-LIFE_PLAZA.z)).toBeCloseTo(Math.sqrt(288))
   })
-  it('bonds every stair-rail support to the rendered treads, and places fitness backrests inside the seat ring',()=>{
+  it('bonds every stair-rail support to the rendered treads, and keeps the fitness ring bench backless',()=>{
     const mesh=new Mesh(gardenArt.stone,new MeshBasicMaterial()),ray=new Raycaster()
     expect(stairSupportSites).toHaveLength(48)
     for(const s of stairSupportSites){
@@ -142,8 +153,11 @@ describe('180m layout draft contracts',()=>{
       expect(hits[0]!.point.y).toBeCloseTo(s.bottom,3)
     }
     const p=fitnessRestArt.wood!.getAttribute('position'),radii:number[]=[]
-    for(let i=0;i<p.count;i++)if(p.getY(i)>.69&&p.getY(i)<1.3)radii.push(Math.hypot(p.getX(i)-SITES.fitness.x,p.getZ(i)-SITES.fitness.z))
-    expect(radii.length).toBeGreaterThan(50);expect(Math.max(...radii)).toBeLessThan(2.7)
+    for(let i=0;i<p.count;i++){
+      expect(p.getY(i)).toBeLessThanOrEqual(.621)
+      radii.push(Math.hypot(p.getX(i)-SITES.fitness.x,p.getZ(i)-SITES.fitness.z))
+    }
+    expect(radii.length).toBeGreaterThan(50);expect(Math.min(...radii)).toBeGreaterThan(2.59);expect(Math.max(...radii)).toBeLessThan(3.38)
     ;(mesh.material as MeshBasicMaterial).dispose()
     expect(KIOSKS.find(k=>k.kind==='shop')!.width).toBe(9.6);expect(KIOSKS.find(k=>k.kind==='drink')!.width).toBe(7.8)
     expect(SITES.vrPagoda.x-SITES.vr.x).toBe(21)
@@ -161,11 +175,12 @@ describe('180m layout draft contracts',()=>{
     for(const r of [7.5,10,14,17])for(let i=0;i<8;i++){
       const a=i*Math.PI/4,x=SITES.fountain.x+Math.cos(a)*r,z=SITES.fountain.z+Math.sin(a)*r
       ray.set(new Vector3(x,2,z),new Vector3(0,-1,0));const hit=ray.intersectObject(terrain)[0]!
-      expect(hit).toBeDefined();expect(Math.abs(hit.point.y-walkHeight(x,z))).toBeLessThan(.035)
+      expect(hit).toBeDefined();expect(Math.abs(hit.point.y-fountainPavingHeight(x,z))).toBeLessThan(.035)
+      expect(Math.abs(hit.point.y-walkHeight(x,z))).toBeLessThan(.11)
     }
     expect(DRAFT_FOUNTAIN.plazaRadius).toBeGreaterThan(17);expect(DRAFT_FOUNTAIN.jetHeightScale).toBe(1.65)
     expect(VR_EDGE_TREE_SITES.length).toBeGreaterThan(12);for(const p of VR_EDGE_TREE_SITES)expect(canWalk(p.x,p.z)).toBe(false)
-    expect(DRAFT_LAMPS.filter(([x,,z])=>Math.abs(x)<35&&z>25&&z<59).length).toBeGreaterThanOrEqual(4)
+    expect(DRAFT_LAMPS.filter(([x,,z])=>Math.hypot(x-SETTINGS.plaza.x,z-SETTINGS.plaza.z)<SETTINGS.plaza.pavingRadius).length).toBeGreaterThanOrEqual(4)
     material.dispose()
   })
   it('joins stair tops to the octagonal face with a matching floor height and restores all jump pads',()=>{

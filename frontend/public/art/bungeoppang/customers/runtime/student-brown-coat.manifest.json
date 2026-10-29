@@ -1,0 +1,85 @@
+{
+  "source": {
+    "file": "../docs/bungeoppang-v5/npc-runtime-production/v3/tripo-out/bung-student-motion3-v1-dc73f132/model.glb",
+    "bytes": 9860892,
+    "sha256": "6edb3f887eadfb2da40d6c6b75605fa953ae06d912f939f816dd6bb4a1cf5e59"
+  },
+  "runtime": {
+    "file": "public/art/bungeoppang/customers/runtime/student-brown-coat.glb",
+    "bytes": 2179032,
+    "sha256": "8b84a6dbc26cbd3a75825d487e7312adaaf38eecb390e2fbefaf146b91e4f3d7"
+  },
+  "meshes": [
+    {
+      "sourceTriangles": 38830,
+      "triangles": 20714,
+      "vertices": 14794,
+      "relativeError": 0.003970881458371878
+    }
+  ],
+  "textures": [
+    {
+      "roles": [
+        "normal"
+      ],
+      "source": [
+        4096,
+        4096
+      ],
+      "size": [
+        1024,
+        1024
+      ],
+      "bytes": 47140
+    },
+    {
+      "roles": [
+        "color"
+      ],
+      "source": [
+        4096,
+        4096
+      ],
+      "size": [
+        2048,
+        2048
+      ],
+      "bytes": 605726
+    },
+    {
+      "roles": [
+        "data"
+      ],
+      "source": [
+        4096,
+        4096
+      ],
+      "size": [
+        512,
+        512
+      ],
+      "bytes": 242488
+    }
+  ],
+  "skins": 1,
+  "animations": [
+    {
+      "name": "idle",
+      "channels": 195
+    },
+    {
+      "name": "walk",
+      "channels": 195
+    }
+  ],
+  "policy": {
+    "targetTriangles": 20000,
+    "errorLimit": 0.004,
+    "color": 2048,
+    "normal": 1024,
+    "data": 512,
+    "meshoptRoundTrip": "attributes exact; triangle winding/topology equivalent",
+    "retainedVertexAttributes": "byte-identical",
+    "sourcePreserved": true
+  }
+}

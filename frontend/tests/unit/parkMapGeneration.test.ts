@@ -24,7 +24,7 @@ describe('park map generation',()=>{
     const moved=createMapArtifacts(resolveParkLayout(d).data,sources),original=artifact()
     expect(moved.mapVersion).not.toBe(original.mapVersion)
     expect(moved.server.data.tables.map(t=>t.id)).toEqual(PARK_DATA.tables.map(t=>t.id))
-    expect(moved.server.data.collision.obstacles.find(o=>o.id==='layout-shop')).toMatchObject({x:-28.75})
+    expect(moved.server.data.collision.obstacles.find(o=>o.id==='layout-shop')).toMatchObject({x:PARK_DEFINITION.sites.shop.x+.25})
     const changedSource=createMapArtifacts(PARK_DATA,[{...sources[0]!,sha256:sha256('new rules')},sources[1]!])
     expect(changedSource.mapVersion).not.toBe(original.mapVersion)
     expect(changedSource.manifest.hashes.dataHash).toBe(original.manifest.hashes.dataHash)
@@ -39,7 +39,7 @@ describe('park map generation',()=>{
       const actual=result.artifacts.find(a=>a.path===file.path)!
       expect(sha256(actual.content)).toBe(file.sha256);expect(Buffer.byteLength(actual.content,'utf8')).toBe(file.bytes)
     }
-    expect(result.manifest.counts.tables).toBe(16)
+    expect(result.manifest.counts.tables).toBe(18)
     expect(server.semantics.additionalPlayerInflation).toBe('server-capsule-only')
     expect(server.semantics.previewCollision.serverPhysics).toBe(false)
     expect(server.schemaVersion).toBe(2)

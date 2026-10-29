@@ -1,3 +1,4 @@
+import { SIMPLE_MAP } from './mapRenderProfile'
 import { useLayoutEffect, useMemo, useRef, type ReactNode } from 'react'
 import {
   Color,
@@ -84,7 +85,7 @@ export function Instances({
       receiveShadow
     >
       {children}
-      {material ?? <meshStandardMaterial roughness={0.88} />}
+      {material ?? (SIMPLE_MAP ? <meshLambertMaterial flatShading/> : <meshStandardMaterial roughness={0.88} />)}
     </instancedMesh>
   )
 }

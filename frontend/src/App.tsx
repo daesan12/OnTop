@@ -1,9 +1,10 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import { AuthCallbackPage } from './auth/AuthCallbackPage'
-import { clearAuthSession, getAuthSession, logout, restoreAuthSession } from './auth/authFlow'
+import { clearAuthSession, getAuthSession, logout, restoreInitialAuthSession } from './auth/authFlow'
 import { LoginPage } from './login/LoginPage'
 import { OnboardingPage } from './onboarding/OnboardingPage'
 import { ParkPage } from './park/ParkPage'
+import { forgetTabGames } from './game/resultRecovery'
 import { preloadWorldAssets } from './world/worldAssets'
 import { preloadWorldCanvas } from './park/loadWorldCanvas'
 
@@ -46,7 +47,7 @@ export default function App() {
   useEffect(() => {
     if (page !== 'checking') return
     let active = true
-    restoreAuthSession().then((authenticated) => {
+    restoreInitialAuthSession().then((authenticated) => {
       if (!active) return
       if (authenticated) {
         const path = window.location.pathname
@@ -89,6 +90,7 @@ export default function App() {
     setExitError('')
     try {
       await logout()
+      forgetTabGames()
       window.history.replaceState(null, '', '/')
       setPage('login')
     } catch (error) {

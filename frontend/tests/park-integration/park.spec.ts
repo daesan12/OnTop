@@ -8,7 +8,7 @@ import {TABLES,tableSeats} from '../../src/park/mapConfig'
 const state=(page:Page)=>page.evaluate(async()=>(await import('/tests/park-integration/probe.ts' as string)).probe())
 async function shot(page:Page,name:string){const dir=process.env.QA_ARTIFACT_DIR??path.join(os.tmpdir(),'ontop-park-qa');await fs.mkdir(dir,{recursive:true});await page.screenshot({path:path.join(dir,name+'.png')})}
 
-test('generated park waits for approval, renders 16 mapped tables, and supports map, seating and facilities',async({page})=>{
+test('generated park waits for approval, renders 18 mapped tables, and supports map, seating and facilities',async({page})=>{
  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message))
  const server=await parkFixture(page,{holdConfirmation:true})
  await page.goto('/park');await expect(page).toHaveTitle('OnTop')
@@ -20,14 +20,14 @@ test('generated park waits for approval, renders 16 mapped tables, and supports 
  await expect.poll(async()=>(await state(page)).facilities).toBe(true)
  const current=await state(page)
  expect(current.identity).toEqual(identity);expect(current.session.mapContractStatus).toBe('verified')
- expect(current.session.tables).toHaveLength(16)
+ expect(current.session.tables).toHaveLength(18)
  for(const t of current.tables)expect(t.position).toEqual(PARK_DATA.tables.find(x=>x.id===t.id)!.position)
  expect(current.mailbox?.[0]).toBe(PARK_DATA.interactions.mailbox.position[0])
  expect(server.requests.find(r=>r.type==='CHANNEL_JOIN')!.payload).toEqual({channelId:'channel-1'})
  await page.getByRole('button',{name:'공원 지도',exact:true}).click()
- await expect(page.locator('[data-table-id]')).toHaveCount(16);await shot(page,'generated-map')
+ await expect(page.locator('[data-table-id]')).toHaveCount(18);await shot(page,'generated-map')
  await page.getByRole('button',{name:'소리함 길 안내',exact:true}).click()
- await expect(page.locator('.navigation-map-route')).toHaveCount(1)
+ await expect(page.locator('.navigation-map-route')).toHaveCount(1,{timeout:15000})
  await page.keyboard.press('Escape')
  await expect(page.getByRole('region',{name:'내 길 안내',exact:true})).toHaveAttribute('data-status','guiding')
  await page.getByRole('button',{name:'길 안내 취소',exact:true}).click()
@@ -45,20 +45,56 @@ test('generated park waits for approval, renders 16 mapped tables, and supports 
  await lobby.getByRole('button',{name:'일어나기',exact:true}).click()
  await expect.poll(async()=>(await state(page)).session.tableId).toBe('')
  await expect(lobby).toBeHidden()
+ for(const vr of PARK_DATA.tables.filter(t=>t.assetId==='procedural/vr-stone-game-table')){
+  server.place({x:vr.position[0],y:vr.position[1]+.8,z:vr.position[2]+2.4})
+  await page.evaluate(async(id)=>(await import('/tests/park-integration/probe.ts' as string)).inspect(id),vr.id)
+  await expect(lobby).toBeVisible()
+  await expect.poll(async()=>(await state(page)).session.tableId).toBe('fixture-'+vr.id)
+  server.enableFourPlayers(vr.id)
+  const surfaces=()=>page.evaluate(async(id)=>(await import('/tests/park-integration/probe.ts' as string)).renderedSeatHeights(id),vr.id)
+  await expect.poll(async()=>(await surfaces()).count).toBe(4)
+  for(const height of (await surfaces()).heights)expect(height).toBeCloseTo(vr.position[1]+.56,3)
+  await shot(page,'vr-game-'+vr.id)
+  server.resetGame(vr.id)
+  await expect(lobby).toBeVisible()
+  await lobby.getByRole('button',{name:'일어나기',exact:true}).click()
+  await expect.poll(async()=>(await state(page)).session.tableId).toBe('')
+ }
  const bench=PARK_DATA.interactions.benches[0]!
  server.place({x:bench.position[0],y:bench.position[1]+.8,z:bench.position[2]})
  const hint=page.getByRole('complementary',{name:'가까운 상호작용'})
  await expect(hint).toHaveAttribute('data-target-id',bench.id)
  await hint.getByRole('button',{name:/벤치에 앉기/}).click()
  await expect.poll(async()=>(await state(page)).session.benchId).toBe(bench.id)
- await hint.getByRole('button',{name:'벤치에서 일어나기'}).click()
+ await page.keyboard.press('KeyW')
  await expect.poll(async()=>(await state(page)).session.benchId).toBe('')
+ for(const ring of PARK_DATA.interactions.benches.filter(b=>b.id.startsWith('bench-fitness-ring-')||b.siteId.startsWith('bench-forest-')||b.siteId.startsWith('bench-fountain-'))){
+  server.place(ring.seats[0]!.exit)
+  await expect(hint).toHaveAttribute('data-target-id',ring.id)
+  await hint.getByRole('button',{name:/벤치에 앉기/}).click()
+  await expect.poll(async()=>(await state(page)).session.benchId).toBe(ring.id)
+  expect(server.requests.filter(r=>r.type==='WORLD_FACILITY_USE').at(-1)!.payload.facilityId).toBe(ring.id)
+  await page.keyboard.press('KeyW')
+  await expect.poll(async()=>(await state(page)).session.benchId).toBe('')
+  await expect.poll(async()=>(await state(page)).pose).toEqual(ring.seats[0]!.exit)
+ }
+ for(const site of PARK_DATA.interactions.construction){
+  const [x,y,z]=site.reachPosition;server.place({x,y,z,yaw:site.yaw})
+  await expect(hint).toHaveAttribute('data-target-id',site.id)
+  const before=server.requests.filter(r=>r.type==='WORLD_FACILITY_USE').length
+  await page.keyboard.press('KeyE')
+  const dialog=page.getByRole('dialog',{name:site.label+' 공사 안내',exact:true})
+  await expect(dialog).toBeVisible();await expect(dialog.getByRole('heading')).toHaveText('공사 중')
+  expect(server.requests.filter(r=>r.type==='WORLD_FACILITY_USE')).toHaveLength(before)
+  await shot(page,'live-construction-'+site.id)
+  await page.keyboard.press('Escape');await expect(dialog).toBeHidden()
+ }
  const f=PARK_DATA.interactions.fitness[0]!
  server.place({x:f.position[0],y:f.position[1]+.8,z:f.position[2]})
  await expect(hint).toHaveAttribute('data-target-id',f.id)
  await hint.getByRole('button').first().click()
  await expect.poll(async()=>(await state(page)).session.fitnessId).toBe(f.id)
- await hint.getByRole('button',{name:'운동기구에서 내려오기'}).click()
+ await page.keyboard.press('KeyW')
  await expect.poll(async()=>(await state(page)).session.fitnessId).toBe('')
  const telescope=PARK_DATA.interactions.telescopes[0]!
  server.place({x:telescope.position[0],y:telescope.position[1]+.8,z:telescope.position[2]})

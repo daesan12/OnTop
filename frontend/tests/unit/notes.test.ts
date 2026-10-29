@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NOTES_BOX } from '../../src/config/notes'
 import { EXPECTED_MAP_VERSION } from '../../src/config/mapVersion'
-import { closeNotes, openNotes, refreshNotes, submitNote, watchNotes } from '../../src/features/notes/controller'
+import { closeNotes, openNotes, refreshNearbyNotes, refreshNotes, submitNote, watchNotes } from '../../src/features/notes/controller'
 import { MockNotesService } from '../../src/features/notes/mock/MockNotesService'
 import { notesService } from '../../src/features/notes/service'
 import { editNoteDraft, useNotesState } from '../../src/features/notes/state'
@@ -31,6 +31,7 @@ const compose = async () => { expect(openNotes()).toBe(true); await vi.advanceTi
 const receipt = (text = body): NoteReceipt => ({ note: { id: crypto.randomUUID(), text, createdAt: Date.now() }, nextAllowedAt: Date.now() + NOTES_BOX.cooldownMs })
 beforeEach(() => {
   vi.useFakeTimers(); vi.setSystemTime(Date.now() + 60_000)
+  Object.assign(notesService, { supportsTopics: false })
   resetWorld(); interactionAim.ready = false; roamingInput.ready = true
   for (const key of Object.keys(inputState) as (keyof typeof inputState)[]) inputState[key] = false
   emit('CONNECTED', { userId: '101' })
@@ -40,6 +41,29 @@ beforeEach(() => {
 afterEach(() => { vi.restoreAllMocks(); resetWorld(); Object.assign(notesService, { mode: 'mock' }); roamingInput.ready = false; vi.useRealTimers() })
 
 describe('M08 anonymous notes, permissions and request lifetime', () => {
+  it('shares one nearby authorized read with E-open and retains only its display snapshot on close', async () => {
+    const row=receipt().note,read=vi.spyOn(notesService,'read').mockResolvedValue([row])
+    expect(await refreshNearbyNotes()).toBe(true)
+    expect(useNotesState.getState()).toMatchObject({open:false,displayNotes:[row],prefetched:true})
+    expect(openNotes()).toBe(true);await vi.advanceTimersByTimeAsync(2000)
+    expect(read).toHaveBeenCalledOnce()
+    closeNotes();expect(useNotesState.getState()).toMatchObject({notes:[],displayNotes:[row]})
+    resetWorld();expect(useNotesState.getState().displayNotes).toEqual([])
+  })
+  it('lets E-open await an existing nearby read instead of issuing another request', async () => {
+    let complete!:(rows: ReturnType<typeof parseNotes>)=>void
+    const read=vi.spyOn(notesService,'read').mockImplementation(()=>new Promise(resolve=>{complete=resolve}))
+    const pending=refreshNearbyNotes();await vi.advanceTimersByTimeAsync(1)
+    expect(openNotes()).toBe(true);const row=receipt().note;complete([row])
+    expect(await pending).toBe(true);expect(read).toHaveBeenCalledOnce()
+    expect(useNotesState.getState()).toMatchObject({notes:[row],displayNotes:[row],prefetched:false})
+  })
+  it('never puts an unacknowledged failed draft on the world asset or keeps another identity snapshot', async () => {
+    await compose();const before=useNotesState.getState().displayNotes
+    vi.spyOn(notesService,'submit').mockRejectedValue(new Error('거절'))
+    expect(await submitNote()).toBe(false);expect(useNotesState.getState().displayNotes).toEqual(before)
+    emit('CONNECTED',{userId:'other-user'});expect(useNotesState.getState().displayNotes).toEqual([])
+  })
   it('validates 1~300 raw/normalized characters with NFC, controls and newlines', () => {
     expect(parseNoteText(' 가\n나\t\u200b\u0000 ')).toBe('가\n나')
     expect(parseNoteText('가'.normalize('NFD'))).toBe('가')
@@ -232,29 +256,34 @@ describe('M08 anonymous notes, permissions and request lifetime', () => {
     expect(useNotesState.getState().retryBlocked).toBe(true)
     editNoteDraft('새로운 마음 한 장'); expect(useNotesState.getState()).toMatchObject({ retryBlocked: false, operationId: '' })
   })
-  it('polls every two seconds without overlapping requests and cancels all work on close', async () => {
+  it('never polls an idle server and coalesces creation notifications without overlapping reads', async () => {
     Object.assign(notesService, { mode: 'server' })
-    let complete!: (rows: ReturnType<typeof parseNotes>) => void
-    const read = vi.spyOn(notesService, 'read').mockResolvedValueOnce([]).mockImplementationOnce(() => new Promise(resolve => { complete = resolve })).mockResolvedValue([])
+    let changed = () => {}, complete!: (rows: ReturnType<typeof parseNotes>) => void
+    vi.spyOn(notesService, 'subscribe').mockImplementation(callback => { changed = callback; return vi.fn() })
+    const read = vi.spyOn(notesService, 'read').mockResolvedValueOnce([])
+      .mockImplementationOnce(() => new Promise(resolve => { complete = resolve })).mockResolvedValue([])
     expect(openNotes()).toBe(true); const stop = watchNotes()
-    await vi.advanceTimersByTimeAsync(1999); expect(read).toHaveBeenCalledTimes(1)
-    await vi.advanceTimersByTimeAsync(1); expect(read).toHaveBeenCalledTimes(2)
-    await vi.advanceTimersByTimeAsync(6000); expect(read).toHaveBeenCalledTimes(2)
+    await vi.advanceTimersByTimeAsync(8000); expect(read).toHaveBeenCalledTimes(1)
+    changed(); await vi.advanceTimersByTimeAsync(1); expect(read).toHaveBeenCalledTimes(2)
+    changed(); changed(); await vi.advanceTimersByTimeAsync(6000); expect(read).toHaveBeenCalledTimes(2)
     complete([receipt().note]); await vi.advanceTimersByTimeAsync(1)
-    expect(useNotesState.getState().notes).toHaveLength(1)
-    closeNotes(); await vi.advanceTimersByTimeAsync(8000); expect(read).toHaveBeenCalledTimes(2); stop()
+    expect(read).toHaveBeenCalledTimes(3)
+    await vi.advanceTimersByTimeAsync(8000); expect(read).toHaveBeenCalledTimes(3)
+    closeNotes(); changed(); await vi.advanceTimersByTimeAsync(8000); expect(read).toHaveBeenCalledTimes(3); stop()
   })
-  it('honors read cooldown without erasing old notes and replaces duplicate watchers', async () => {
+  it('honors read cooldown without erasing notes or scheduling automatic retries', async () => {
     Object.assign(notesService, { mode: 'server' })
     const row = receipt().note, deadline = Date.now() + 7000
+    let changed = () => {}
+    vi.spyOn(notesService, 'subscribe').mockImplementation(callback => { changed = callback; return vi.fn() })
     const read = vi.spyOn(notesService, 'read').mockResolvedValueOnce([row])
       .mockRejectedValueOnce(new NotesServiceError('NOTES_READ_COOLDOWN', '조회 간격', deadline)).mockResolvedValue([row])
     expect(openNotes()).toBe(true); const oldStop = watchNotes(); const stop = watchNotes(); oldStop()
-    await vi.advanceTimersByTimeAsync(2000)
+    await vi.advanceTimersByTimeAsync(1000); await refreshNotes()
     expect(read).toHaveBeenCalledTimes(2)
     expect(useNotesState.getState()).toMatchObject({ notes: [row], nextReadAt: deadline, readError: '조회 간격' })
-    await vi.advanceTimersByTimeAsync(4999); expect(read).toHaveBeenCalledTimes(2)
-    await vi.advanceTimersByTimeAsync(1); expect(read).toHaveBeenCalledTimes(3)
+    await vi.advanceTimersByTimeAsync(8000); expect(read).toHaveBeenCalledTimes(2)
+    changed(); await vi.advanceTimersByTimeAsync(1); expect(read).toHaveBeenCalledTimes(3)
     resetWorld('reconnecting'); await vi.advanceTimersByTimeAsync(8000); expect(read).toHaveBeenCalledTimes(3); stop()
   })
 })

@@ -1,4 +1,5 @@
 import { it,expect,vi } from 'vitest'
+import {PARK_DEFINITION} from '../../src/map/park'
 import { createServer } from 'vite'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
@@ -33,13 +34,13 @@ it('preview watcher regenerates matching server/FE versions, preserves last good
     const first=await readServer()
     expect(first.mapVersion).toBe(JSON.parse(await readFile(path.join(root,SERVER_MAP_PATH),'utf8')).mapVersion)
     const source=path.join(fixture,'src/map/park/definition.ts'),original=await readFile(source,'utf8')
-    await writeFile(source,original.replace('shop: { x: -29, z: 35 }','shop: { x: -28.75, z: 35 }'))
+    await writeFile(source,original.replace(/shop: \{ x: [-\d.]+, z: [-\d.]+ \}/,`shop: { x: ${PARK_DEFINITION.sites.shop.x+.25}, z: ${PARK_DEFINITION.sites.shop.z} }`))
     await vi.waitFor(async()=>expect((await readServer()).mapVersion).not.toBe(first.mapVersion),{timeout:10000,interval:100})
     await vi.waitFor(()=>expect(send.mock.calls.some(([payload])=>payloadType(payload)==='full-reload')).toBe(true),{timeout:10000})
     const changed=await readServer()
-    expect(changed.data.facilities.find((f:{id:string})=>f.id==='layout-shop').position[0]).toBe(-28.75)
+    expect(changed.data.facilities.find((f:{id:string})=>f.id==='layout-shop').position[0]).toBe(PARK_DEFINITION.sites.shop.x+.25)
     expect(await readFile(path.join(fixture,FE_VERSION_PATH),'utf8')).toContain(changed.mapVersion)
-    await writeFile(source,original.replace('shop: { x: -29, z: 35 }','shop: { x: NaN, z: 35 }'))
+    await writeFile(source,original.replace(/shop: \{ x: [-\d.]+, z: [-\d.]+ \}/,`shop: { x: NaN, z: ${PARK_DEFINITION.sites.shop.z} }`))
     await vi.waitFor(()=>expect(send.mock.calls.some(([payload])=>payloadType(payload)==='error')).toBe(true),{timeout:10000,interval:100})
     expect((await readServer()).mapVersion).toBe(changed.mapVersion)
     expect(await readFile(path.join(fixture,FE_VERSION_PATH),'utf8')).toContain(changed.mapVersion)

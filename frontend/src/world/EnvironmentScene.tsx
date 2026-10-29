@@ -1,3 +1,5 @@
+import { SIMPLE_MAP } from './art/mapRenderProfile'
+import { SimpleParkEnvironment } from './SimpleParkEnvironment'
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { outdoorReflectionMap } from './art/ornamentTextures'
@@ -49,7 +51,7 @@ void main(){
  #include <colorspace_fragment>
 }`
 
-export function EnvironmentScene({fixedTime}:{fixedTime?:number}={}) {
+function DetailedEnvironmentScene({fixedTime}:{fixedTime?:number}={}) {
   const scene = useThree((state) => state.scene)
   useEffect(() => {
     const previous = scene.environment
@@ -138,4 +140,8 @@ export function EnvironmentScene({fixedTime}:{fixedTime?:number}={}) {
       <hemisphereLight ref={ambient} layers-mask={3} />
     </>
   )
+}
+
+export function EnvironmentScene(props: {fixedTime?:number} = {}) {
+  return SIMPLE_MAP ? <SimpleParkEnvironment {...props}/> : <DetailedEnvironmentScene {...props}/>
 }

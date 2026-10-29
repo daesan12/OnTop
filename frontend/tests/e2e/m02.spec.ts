@@ -14,7 +14,7 @@ async function loaded(page: Page) {
   await page.locator('canvas').focus()
 }
 
-test('M02 transient movement rate notice expires and clears on successful movement', async ({ page }) => {
+test('M02 movement rate diagnostics stay hidden while other server errors remain visible', async ({ page }) => {
   const errors: string[] = [], consoleErrors: string[] = []
   page.on('pageerror', error => errors.push(error.message))
   page.on('console', message => { if (message.type() === 'error') consoleErrors.push(message.text()) })
@@ -27,10 +27,14 @@ test('M02 transient movement rate notice expires and clears on successful moveme
       const { parkRuntime } = await import('/src/park/runtime/runtime.ts' as string)
       parkRuntime.move(1, 0, false)
     })
-    await expect(notice).toHaveText('이동 입력 전송 간격을 확인해주세요.')
+    await expect.poll(() => page.evaluate(async () => {
+      const { useSession } = await import('/src/network/worldClient.ts' as string)
+      return useSession.getState().movementNotice?.message
+    })).toBe('이동 입력 전송 간격을 확인해주세요.')
+    await expect(notice).toBeHidden()
   }
   await rejectMove()
-  await screenshot(page, 'm02-movement-notice-visible')
+  await screenshot(page, 'm02-movement-rate-hidden')
   await expect(notice).toBeHidden({ timeout: 4500 })
   await screenshot(page, 'm02-movement-notice-expired')
   await rejectMove()
@@ -40,6 +44,11 @@ test('M02 transient movement rate notice expires and clears on successful moveme
   await expect(notice).toBeHidden({ timeout: 2000 })
   await page.keyboard.up('KeyW')
   await screenshot(page, 'm02-movement-notice-recovered')
+  await page.evaluate(async () => {
+    const { receive } = await import('/src/network/worldClient.ts' as string)
+    receive({ type: 'ERROR', requestId: null, payload: { code: 'OTHER_ERROR', message: '검수용 다른 오류' } })
+  })
+  await expect(notice).toHaveText('검수용 다른 오류')
   expect(await page.locator('canvas').count()).toBeGreaterThan(0)
   expect(await page.locator('vite-error-overlay').count()).toBe(0)
   expect(errors).toEqual([])

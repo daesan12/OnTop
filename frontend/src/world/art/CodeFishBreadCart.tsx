@@ -6,16 +6,16 @@ import { CraftedPropLod, PropSign } from './CraftedProp'
 import { cartAwning, cartGlass, cartMenu, cartName, fishCartArt, fishCartCanopyArt } from './fishCartGeometry'
 
 /** Local art only. The owning fish-bread group retains the existing anchor and proximity gate. */
-export function CodeFishBreadCart() {
+export function CodeFishBreadCart({detailDistance=22}:{detailDistance?:number}={}) {
   const canopy = useRef<Group>(null)
   useFrame(() => {
     if (canopy.current) canopy.current.visible = !bungeoppangView.active
       && performance.now() >= bungeoppangView.returningUntil
   })
   return <group name="code-fish-cart">
-    <CraftedPropLod name="fish-cart-craft" near={fishCartArt.near} far={fishCartArt.far} distance={22} />
+    <CraftedPropLod name="fish-cart-craft" near={fishCartArt.near} far={fishCartArt.far} distance={detailDistance} />
     <group ref={canopy} name="fish-cart-cooking-occluders">
-      <CraftedPropLod name="fish-cart-canopy" near={fishCartCanopyArt.near} far={fishCartCanopyArt.far} distance={22} />
+      <CraftedPropLod name="fish-cart-canopy" near={fishCartCanopyArt.near} far={fishCartCanopyArt.far} distance={detailDistance} />
       <PropSign position={[0, 2.43, 1.087]} width={2.13} height={0.28} draw={cartAwning} />
     </group>
     <mesh name="cart-display-glass">

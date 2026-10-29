@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { Fragment, useMemo } from 'react'
 import { DistantLandscape } from './DistantLandscape'
 import { WORLD, PARK_SIZE } from '../../config'
 import { Instances, type Part } from './Instances'
@@ -87,11 +87,13 @@ function createCity(parkSize:number) {
   }
   return {buildings,windows,roads,trim,media:MEDIA_BUILDINGS.map(b=>({...b,x:b.x-Math.sin(b.yaw)*offset,z:b.z-Math.cos(b.yaw)*offset}))}
 }
-export function PlannedCity({parkSize=PARK_SIZE,exteriorOnly=false,entranceWidth=0,cornerRadius=0}:{cornerRadius?:number;parkSize?:number;exteriorOnly?:boolean;entranceWidth?:number}={}) {
+export function PlannedCity({parkSize=PARK_SIZE,exteriorOnly=false,entranceWidth=0,cornerRadius=0,advertising=true}:{cornerRadius?:number;parkSize?:number;exteriorOnly?:boolean;entranceWidth?:number;advertising?:boolean}={}) {
   const {buildings,windows,roads,trim,media}=useMemo(()=>createCity(parkSize),[parkSize])
+  // An ad-free city must not mount the resource provider: it owns image/video loading.
+  const Resources=advertising?AdvertisementResources:Fragment
   return (
-    <AdvertisementResources>
-      <group name="external-advertising-city">
+    <Resources>
+      <group name={advertising?'external-advertising-city':'external-city'}>
         <Instances parts={roads} shadow={false}>
           <boxGeometry />
         </Instances>
@@ -135,10 +137,10 @@ export function PlannedCity({parkSize=PARK_SIZE,exteriorOnly=false,entranceWidth
             <boxGeometry />
           </DetailInstances>
           {media.map((b) => (
-            <MediaBuilding key={b.id} b={b} />
+            <MediaBuilding key={b.id} b={b} advertising={advertising} />
           ))}
         </group>
-        {!exteriorOnly&&<group
+        {advertising&&!exteriorOnly&&<group
           position={[-78, 0, 43]}
           rotation={[0, Math.PI / 2, 0]}
           name="external-digital-sign"
@@ -163,8 +165,8 @@ export function PlannedCity({parkSize=PARK_SIZE,exteriorOnly=false,entranceWidth
           />
         </group>
         }
-        {!exteriorOnly&&<ParkAdvertising />}
+        {advertising&&!exteriorOnly&&<ParkAdvertising />}
       </group>
-    </AdvertisementResources>
+    </Resources>
   )
 }

@@ -6,11 +6,11 @@ import {
   tableBusy,
   useGame,
 } from '../../src/game/store'
-import { parseGame, parseOmok, parseResult } from '../../src/game/protocol'
+import { parseGame, parseOmok, parseResult, type Omok } from '../../src/game/protocol'
 import type { Envelope } from '../../src/network/protocol'
 
 const deadline = '2099-01-01T00:00:30Z'
-function omok() {
+function omok(): Omok {
   return {
     gameCode: 'OMOK',
     status: 'PLAYING',
@@ -52,6 +52,49 @@ function snapshot(version: number, state = omok(), role = 'PLAYER') {
   }
 }
 beforeEach(resetGame)
+
+describe('leaving a table clears terminal presentation', () => {
+  const unseated = (type: string, payload: Record<string, unknown>) =>
+    receiveGame({ type, payload, requestId: null }, '101', '')
+  const finished = (): Omok => ({ ...omok(), status: 'FINISHED', turnUserId: null, turnDeadline: null,
+    winnerUserId: '101', endReason: 'TURN_TIMEOUT', endedAt: '2026-10-28T00:00:00Z' })
+
+  it.each(['TABLE_LEFT', 'TABLE_STATE'])('clears the board, results and authority after %s without an own seat', type => {
+    restore()
+    send('GAME_RESULT', invalidResult())
+    unseated(type, { tableId: 'table-real' })
+    unseated('GAME_RESULT', invalidResult())
+    unseated('GAME_STATE', snapshot(10, finished()))
+    expect(useGame.getState()).toMatchObject({ game: null, result: null, lastResult: null,
+      permittedGameId: '', completedGameId: '', start: null })
+  })
+
+  it('does not revive a completed game delivered on reconnect without a table', () => {
+    unseated('GAME_CONNECTION_STATE', { status: 'FINISHED', gameId: 'game-real', version: 9, state: finished() })
+    unseated('GAME_RESULT', invalidResult())
+    expect(useGame.getState()).toMatchObject({ recovery: 'LOBBY', game: null, lastResult: null, permittedGameId: '' })
+    expect(tableBusy()).toBe(false)
+  })
+
+  it('keeps a genuine active recovery before seat delivery and a seated terminal recovery', () => {
+    unseated('GAME_CONNECTION_STATE', { status: 'RESTORED', gameId: 'game-real', version: 0, state: omok() })
+    expect(useGame.getState().game?.omok?.status).toBe('PLAYING')
+    send('GAME_CONNECTION_STATE', { status: 'FINISHED', gameId: 'game-real', version: 9, state: finished() })
+    expect(useGame.getState().game?.omok?.status).toBe('FINISHED')
+  })
+
+  it('clears results and authority on NOT_SEATED and on unseated LOBBY', () => {
+    for (const message of [
+      { type: 'GAME_START_STATE', payload: { tableId: null, revision: 1, phase: 'NOT_SEATED',
+        startAttemptId: null, gameCode: null, gameSessionId: null, code: null, simulation: false } },
+      { type: 'GAME_CONNECTION_STATE', payload: { status: 'LOBBY' } },
+    ]) {
+      restore(); send('GAME_RESULT', invalidResult())
+      unseated(message.type, message.payload)
+      expect(useGame.getState()).toMatchObject({ game: null, result: null, lastResult: null, permittedGameId: '' })
+    }
+  })
+})
 
 const invalidResult = () => ({
   version: 1, gameSessionId: 'game-real', gameCode: 'OMOK', status: 'INVALID',

@@ -12,3 +12,14 @@ it('keeps four distinct filling colors without changing the crust quality palett
   const colors = ['bean', 'custard', 'pizza', 'chocolate'].map(f => INGREDIENT_LOOK[f as keyof typeof INGREDIENT_LOOK].color);
   expect(new Set(colors).size).toBe(4);
 });
+it('scales burner height with assigned heat and boosts the same heat only during rush', () => {
+  const low = heatLook(85, 0, R), medium = heatLook(100, 0, R), high = heatLook(115, 0, R);
+  expect(low.burnerHeight).toBeLessThan(medium.burnerHeight);
+  expect(medium.burnerHeight).toBeLessThan(high.burnerHeight);
+  expect(low.burnerScale).toBeLessThan(high.burnerScale);
+  expect(low.burnerPulseMs).toBeGreaterThan(high.burnerPulseMs);
+  const rush = heatLook(85, R.rushFromMs, R);
+  expect(rush.label).toBe(low.label);
+  expect(rush.burnerHeight).toBeGreaterThan(low.burnerHeight);
+  expect(rush.burnerPulseMs).toBeLessThan(low.burnerPulseMs);
+});

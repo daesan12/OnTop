@@ -1,4 +1,6 @@
 import { gatheringCameraActive } from '../features/tableLobby/gathering'
+import { OneCardHeldHand } from '../game/onecard/OneCardHeldHand'
+import { oneCardHeldCount, oneCardHoldingPose } from '../game/onecard/heldHand'
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { useFrame, useLoader } from '@react-three/fiber'
 import { Group, Vector3 } from 'three'
@@ -8,12 +10,13 @@ import { avatarPoseActive, avatarPoseKey, avatarSeatSurface, createAvatarMotion 
 import { SwimmingRipples } from './SwimmingRipples'
 
 import { AvatarPoseCadence } from '../performance/avatarPoseCadence'
-import { CHARACTER } from '../config'
+import { CHARACTER } from '../park/mapConfig'
 import { FartCloud } from './art/FartCloud'
 import { bungeoppangReturnOpacity } from '../features/bungeoppang/bungeoppangView'
 import { createAvatarOpacity } from './avatarOpacity'
 import { emptyEquipment } from '../network/equipment'
 import { roamingFirstPerson } from './roamingCamera'
+import { localMovement } from '../network/localMovementPrediction'
 import { useGame } from '../game/store'
 import { openAvatarMenu } from '../features/follow/FollowMenu'
 import { gameReaction, installGameReactions } from './gameReactions'
@@ -50,7 +53,7 @@ function Avatar({
   const pose = useMemo(() => ({ x: 0, y: 0, z: 0, yaw: 0 }), [])
   const worldPosition = useMemo(() => new Vector3(), [])
   const motion = useMemo(() => createAvatarMotion(model), [model])
-  const cadence = useMemo(() => new AvatarPoseCadence(), [])
+  const cadence = useMemo(() => new AvatarPoseCadence(), [model])
   const appearance = useMemo(() => createAvatarOpacity(model.root), [model])
   const reducedMotion = useMemo(() => window.matchMedia('(prefers-reduced-motion: reduce)'), [])
   useLayoutEffect(() => {
@@ -84,13 +87,15 @@ function Avatar({
     )
     root.current.rotation.y = pose.yaw
     if (!root.current.visible) return
-    const distance = camera.position.distanceTo(
-      root.current.getWorldPosition(worldPosition),
-    )
+    // The visitors parent has an identity transform; this position is already
+    // in world space. Avoid walking/updating the ancestor matrices per avatar.
+    const distance = camera.position.distanceTo(root.current.position)
     model.lod(distance)
     const now = estimatedServerTime()
     const reaction = gameReaction(id, avatar, now)
-    const active = !!reaction || avatarPoseActive(avatar, now)
+    const holdingCards = seated && oneCardHeldCount(id, avatar.tableId) > 0
+    const displayAvatar = own && localMovement.ready ? { ...avatar, ...localMovement.displayFlags(frameAt) } : avatar
+    const active = !!reaction || avatarPoseActive(displayAvatar, now)
     // Keep the authoritative position interpolation above at display cadence.
     // State changes (seat, action, reconnect) must never wait for the next pose tick.
     const poseDelta = cadence.advance(
@@ -98,10 +103,10 @@ function Avatar({
       distance,
       own,
       active,
-      `${avatarPoseKey(avatar)}|${reaction?.key ?? ''}`,
+      `${avatarPoseKey(avatar)}|${reaction?.key ?? ''}|${holdingCards}|${active ? '' : `${avatar.current.x}|${avatar.current.y}|${avatar.current.z}`}`,
     )
     if (!poseDelta) return
-    motion.apply(avatar, now, poseDelta, pose, figure.current, reaction)
+    motion.apply(displayAvatar, now, poseDelta, pose, figure.current, reaction, holdingCards ? oneCardHoldingPose : undefined)
     // Follow the posed head when swimming; a tilted standing-height marker
     // otherwise puts the nickname in front of the swimmer's face/water.
     model.bones.head.getWorldPosition(worldPosition)
@@ -128,6 +133,7 @@ function Avatar({
       <FartCloud id={id} />
       <group ref={figure} name={`figure-${id}`}>
         <primitive object={model.root} dispose={null} />
+        <OneCardHeldHand userId={id} model={model} />
       </group>
       <group ref={marker} position={[0, CHARACTER.height - 0.5, 0]} />
     </group>

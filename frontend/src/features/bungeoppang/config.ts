@@ -48,3 +48,27 @@ export const BUNGEOPPANG_V4 = {
 
 // Deliberate development mode only; never enable a mock after an API error.
 export const bungeoppangV4Preview = import.meta.env?.DEV === true && import.meta.env.MODE === 'bungeoppang-preview';
+
+export const BUNGEOPPANG_V5 = {
+  ...BUNGEOPPANG_V4,
+  rulesVersion: 'v5',
+  heatAssignment: 'FILL',
+  durationMs: 120_000,
+  rushFromMs: 90_000,
+  rushWarnFromMs: 87_000,
+  trayCapacity: 10,
+  maxActiveOrders: 3,
+  heatListLength: 2048,
+  maxLogEntries: 3600,
+} as const;
+/** Existing server-issued v5 rounds retain their original three-minute snapshot. */
+export const BUNGEOPPANG_V5_LEGACY = {
+  ...BUNGEOPPANG_V5,
+  durationMs: 180_000,
+  rushFromMs: 150_000,
+  rushWarnFromMs: 147_000,
+} as const;
+/** Deliberate opt-in only. A missing v5 backend must never turn into a simulated reward. */
+export const bungeoppangV5Preview = import.meta.env?.DEV === true && import.meta.env.MODE === 'bungeoppang-v5-preview';
+/** Enable only after the BE team accepts/deploys the v5 draft contract. Default remains v4. */
+export const bungeoppangV5Enabled = bungeoppangV5Preview || import.meta.env.VITE_BUNGEOPPANG_RULES_VERSION === 'v5';

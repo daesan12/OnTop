@@ -1,3 +1,4 @@
+import { SIMPLE_MAP } from './mapRenderProfile'
 import { useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import {
@@ -231,12 +232,12 @@ function PaperMaterial() {
     <meshStandardMaterial
       ref={ref}
       vertexColors
-      map={hanjiGrain}
-      bumpMap={hanjiGrain}
+      map={SIMPLE_MAP?null:hanjiGrain}
+      bumpMap={SIMPLE_MAP?null:hanjiGrain}
       bumpScale={0.0015}
       roughness={0.94}
       emissive="#ffb85c"
-      emissiveMap={hanjiGrain}
+      emissiveMap={SIMPLE_MAP?null:hanjiGrain}
       emissiveIntensity={0}
     />
   )
@@ -267,7 +268,7 @@ export function TraditionalPavilionLanterns() {
                 vertexColors
                 roughness={kind === 'gold' ? 0.4 : 0.7}
                 metalness={kind === 'gold' ? 0.7 : 0}
-                roughnessMap={kind === 'gold' ? metalGrain : null}
+                roughnessMap={!SIMPLE_MAP&&kind === 'gold' ? metalGrain : null}
               />
             )
           }
@@ -277,7 +278,7 @@ export function TraditionalPavilionLanterns() {
       ))}
       <DetailInstances
         name="lantern-chain-links"
-        parts={chainLinks}
+        parts={SIMPLE_MAP?[]:chainLinks}
         range={Infinity}
         material={<meshStandardMaterial metalness={0.72} roughness={0.39} />}
       >

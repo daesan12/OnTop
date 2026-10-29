@@ -1,4 +1,6 @@
 import { create } from 'zustand'
+import { GENERATED_PARK_ENABLED } from '../../park/mapSelection'
+import { openConstructionNotice } from '../construction/model'
 import { useSession } from '../../network/worldClient'
 import { parkRuntime } from '../../park/runtime/runtime'
 import { clearRoamingInput, inputState, panelOwnsKeys } from '../../world/inputOwnership'
@@ -29,6 +31,7 @@ const message = (error: unknown) => error instanceof Error ? error.message : 'ìš
 export function openShop() {
   const s = useSession.getState()
   if (useShop.getState().open || !ownerPresent(s.sessionId) || panelOwnsKeys()) return
+  if(GENERATED_PARK_ENABLED){openConstructionNotice('layout-shop');return}
   if (useShop.getState().owner !== s.sessionId) resetShop()
   inputState.shopOpen = true
   clearRoamingInput()

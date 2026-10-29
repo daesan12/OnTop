@@ -11,7 +11,7 @@ describe('common park definition',()=>{
     expect(json.collision.obstacles.length).toBeGreaterThan(200)
     expect(new Set(json.collision.obstacles.map((o:{kind:string})=>o.kind))).toEqual(new Set(['box','circle','segment','annular-sector']))
     for(const [x,z] of [[0,82],[10,35],[-29,35],[62,-14],[89,0]])expect(isWalkable(json.collision,x!,z!)).toBe(PARK_LAYOUT.canWalk(x!,z!))
-    expect(json.tables.map((t:{id:string})=>t.id)).toEqual(TABLES.map(t=>t.id))
+    expect(json.tables.map((t:{id:string})=>t.id)).toEqual([...TABLES.map(t=>t.id),'table-17','table-18'])
     expect(json.facilities.find((f:{id:string})=>f.id==='layout-drink').kind).toBe('drink')
     expect(json.interactions.tableSeats[0].localSeats).toEqual(TABLES[0]!.seatAnchors)
   })

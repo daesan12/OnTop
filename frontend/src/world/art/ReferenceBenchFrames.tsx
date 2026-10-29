@@ -103,8 +103,8 @@ for(const side of [-1,1])for(let j=0;j<5;j++)benchWood.cylinder('metal','#8e8e79
 const singleBenchWood=benchWood.finish()
 
 /** The original cast-iron frame and slats, for a separately placed existing bench. */
-export function ReferenceBench({name,position,yaw}:{name:string;position:[number,number,number];yaw:number}) {
-  return <group name={name} position={position} rotation={[0,yaw,0]}>
+export function ReferenceBench({name,position,yaw,horizontalScale=1,seatHeight=.58}:{name:string;position:[number,number,number];yaw:number;horizontalScale?:number;seatHeight?:number}) {
+  return <group name={name} position={position} rotation={[0,yaw,0]} scale={[horizontalScale,seatHeight/.58,horizontalScale]}>
     <mesh geometry={full} dispose={null} castShadow><meshStandardMaterial vertexColors metalness={.55} roughness={.63}/></mesh>
     <PropModel art={singleBenchWood} name="original-reference-bench-slats"/>
   </group>

@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { Markdown } from "./Markdown";
-import { RulebookReader } from "./RulebookReader";
-import { filterManuals, gameManuals, parkGuides } from "./catalog";
+import { filterGuides, filterManuals, gameManuals, parkGuides } from "./catalog";
 import { GameArt } from "./GameArt";
 import { useManual } from "./manualState";
 import {
@@ -12,13 +11,27 @@ import {
   type ManualSection,
 } from "./types";
 
-const navigation: { id: ManualPage; icon: string; title: string }[] = [
-  { id: "catalog", icon: "▤", title: "게임 찾아보기" },
-  { id: "welcome", icon: "✦", title: "처음 오셨나요?" },
-  { id: "controls", icon: "⌘", title: "이동과 조작" },
-  { id: "join", icon: "♧", title: "테이블 참여" },
-  { id: "watch", icon: "◎", title: "관전과 응원" },
-  { id: "coins", icon: "◉", title: "엽전 안내" },
+// Read top to bottom by a first-time visitor: the park first, then walking around, then playing together.
+const navigation: { group: string; items: { id: ManualPage; icon: string; title: string }[] }[] = [
+  { group: "처음이라면", items: [
+    { id: "intro", icon: "✿", title: "온탑 소개" },
+    { id: "welcome", icon: "✦", title: "첫 걸음" },
+  ] },
+  { group: "공원 생활", items: [
+    { id: "controls", icon: "⌘", title: "산책과 조작" },
+    { id: "places", icon: "⌖", title: "공원 둘러보기" },
+    { id: "social", icon: "☺", title: "함께 어울리기" },
+    { id: "coins", icon: "◉", title: "엽전과 꾸미기" },
+  ] },
+  { group: "함께 놀기", items: [
+    { id: "catalog", icon: "▤", title: "게임 찾아보기" },
+    { id: "join", icon: "♧", title: "테이블 참여" },
+    { id: "watch", icon: "◎", title: "관전과 응원" },
+  ] },
+  { group: "도움말", items: [
+    { id: "account", icon: "⚙", title: "내 계정·설정" },
+    { id: "faq", icon: "?", title: "자주 묻는 질문" },
+  ] },
 ];
 
 function Section({
@@ -126,6 +139,12 @@ export default function ManualContents() {
       : undefined;
   const sections = game?.sections ?? guide?.sections;
   const results = filterManuals(category, query);
+  const guideResults = filterGuides(query);
+  // Guide pages read like chapters: each one points on to the next in the contents.
+  const pageOrder = navigation.flatMap(({ items }) => items);
+  const nextPage = guide
+    ? pageOrder[pageOrder.findIndex((item) => item.id === displayPage) + 1]
+    : undefined;
   const detailedSections = (
     <>
       <nav className="manual-chapters" aria-label="설명 목차">
@@ -168,20 +187,25 @@ export default function ManualContents() {
     <div className="manual-body">
       <nav className="manual-nav" aria-label="설명서 안내">
         <div className="manual-nav-links">
-          {navigation.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => go(item.id)}
-              aria-current={
-                page === item.id || (item.id === "catalog" && !!game)
-                  ? "page"
-                  : undefined
-              }
-            >
-              <span aria-hidden="true">{item.icon}</span>
-              {item.title}
-              <i aria-hidden="true">›</i>
-            </button>
+          {navigation.map(({ group, items }) => (
+            <div key={group} className="manual-nav-group" role="group" aria-label={group}>
+              <small aria-hidden="true">{group}</small>
+              {items.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => go(item.id)}
+                  aria-current={
+                    page === item.id || (item.id === "catalog" && !!game)
+                      ? "page"
+                      : undefined
+                  }
+                >
+                  <span aria-hidden="true">{item.icon}</span>
+                  {item.title}
+                  <i aria-hidden="true">›</i>
+                </button>
+              ))}
+            </div>
           ))}
         </div>
         <div className="manual-nav-note">
@@ -285,7 +309,7 @@ export default function ManualContents() {
                   </div>
                   <span role="status">
                     {query
-                      ? `‘${query}’ · ${results.length}개`
+                      ? `‘${query}’ · 게임 ${results.length}개 · 공원 안내 ${guideResults.length}개`
                       : "이용 가능한 게임과 개발중인 콘텐츠"}
                   </span>
                 </div>
@@ -325,7 +349,7 @@ export default function ManualContents() {
                       </button>
                     ))}
                   </div>
-                ) : (
+                ) : guideResults.length === 0 && (
                   <div className="manual-empty">
                     <span aria-hidden="true">⌕</span>
                     <h4>찾으시는 설명이 없어요</h4>
@@ -343,16 +367,28 @@ export default function ManualContents() {
                     </button>
                   </div>
                 )}
+                {guideResults.length > 0 && (
+                  <section className="manual-guide-results" aria-label="공원 안내 검색 결과">
+                    <h4>공원 안내에서 찾았어요</h4>
+                    {guideResults.map((id) => (
+                      <button key={id} onClick={() => go(id)}>
+                        <b>{parkGuides[id].title}</b>
+                        <small>{parkGuides[id].subtitle}</small>
+                        <span aria-hidden="true">→</span>
+                      </button>
+                    ))}
+                  </section>
+                )}
                 <button
                   className="manual-first-card"
-                  onClick={() => go("welcome")}
+                  onClick={() => go("intro")}
                 >
                   <span className="manual-first-icon" aria-hidden="true">
                     ✦
                   </span>
                   <span>
                     <b>처음 오셨다면, 여기부터</b>
-                    <small>이동부터 테이블에 앉아 첫 게임을 시작하기까지</small>
+                    <small>온탑 소개부터 테이블에 앉아 첫 게임을 시작하기까지</small>
                   </span>
                   <span aria-hidden="true">→</span>
                 </button>
@@ -362,19 +398,17 @@ export default function ManualContents() {
                 </p>
               </>
             ) : (
-              <article
-                className={`manual-article${game?.rulebook ? " manual-article-illustrated" : ""}`}
-              >
-                <button className="manual-back" onClick={() => go("catalog")}>
-                  ← 게임 목록
-                </button>
+              <article className={`manual-article${game ? " game-guide" : ""}`}>
+                {game && (
+                  <button className="manual-back" onClick={() => go("catalog")}>
+                    ← 게임 목록
+                  </button>
+                )}
                 <div className="manual-detail-heading">
                   <div>
                     <span className="manual-eyebrow">
                       {game
-                        ? game.status === "development"
-                          ? "개발중 · 현재 준비 상태"
-                          : "게임 설명 · 현재 적용 규칙"
+                        ? `${game.category === "game" ? "보드게임" : "미니게임"} · ${game.players}`
                         : "공원 이용 안내"}
                     </span>
                     <h3 ref={title} tabIndex={-1}>
@@ -384,39 +418,55 @@ export default function ManualContents() {
                   </div>
                   {game && <GameArt game={game.id} />}
                 </div>
-                {game && !game.rulebook && (
+                {game ? (
                   <>
-                    <div className="manual-facts">
-                      <span>{game.players}</span>
-                      <span>{game.goal}</span>
-                      <span>{game.timing}</span>
-                    </div>
-                    <div className="manual-summary">
-                      <b>
-                        {game.status === "development"
-                          ? "개발중인 게임이에요"
-                          : "이것만 알면 첫걸음은 끝!"}
-                      </b>
-                      <p>{game.summary}</p>
-                    </div>
+                    {/* One designed page per game: facts, the flow of a round, keys and must-know rules, then the full rules. */}
+                    <dl className="game-guide-facts">
+                      <div><dt>함께하는 인원</dt><dd>{game.players}</dd></div>
+                      <div><dt>이기는 방법</dt><dd>{game.goal}</dd></div>
+                      <div><dt>제한시간</dt><dd>{game.timing}</dd></div>
+                    </dl>
+                    <p className="game-guide-summary"><b>한눈에 보기</b>{game.summary}</p>
+                    <section className="game-guide-block" aria-labelledby="game-guide-flow">
+                      <h4 id="game-guide-flow">한 판의 흐름</h4>
+                      <ol className="game-guide-flow">
+                        {game.flow.map((step, index) => (
+                          <li key={step.title}>
+                            <span aria-hidden="true">{index + 1}</span>
+                            <b>{step.title}</b>
+                            <p>{step.body}</p>
+                          </li>
+                        ))}
+                      </ol>
+                    </section>
+                    {game.keys && (
+                      <section className="game-guide-block" aria-labelledby="game-guide-keys">
+                        <h4 id="game-guide-keys">조작</h4>
+                        <ul className="game-guide-keys">
+                          {game.keys.map(([key, action]) => (
+                            <li key={key}><kbd>{key}</kbd>{action}</li>
+                          ))}
+                        </ul>
+                      </section>
+                    )}
+                    <section className="game-guide-block" aria-labelledby="game-guide-points">
+                      <h4 id="game-guide-points">꼭 기억해요</h4>
+                      <ul className="game-guide-points">
+                        {game.points.map((point) => <li key={point}>{point}</li>)}
+                      </ul>
+                    </section>
+                    <section className="game-guide-block game-guide-rules" aria-labelledby="game-guide-rules">
+                      <div className="game-guide-rules-head">
+                        <h4 id="game-guide-rules">자세한 규칙</h4>
+                        {game.rulebook && (
+                          <a href={game.rulebook.rulebookUrl} download={`${game.title}-상세규칙.md`}>
+                            규칙 파일 내려받기
+                          </a>
+                        )}
+                      </div>
+                      {detailedSections}
+                    </section>
                   </>
-                )}
-                {game?.rulebook ? (
-                  <RulebookReader
-                    key={game.id}
-                    title={game.title}
-                    book={game.rulebook}
-                  >
-                    <div className="manual-facts">
-                      <span>{game.players}</span>
-                      <span>{game.goal}</span>
-                      <span>{game.timing}</span>
-                    </div>
-                    <div className="manual-summary">
-                      <p>{game.summary}</p>
-                    </div>
-                    {detailedSections}
-                  </RulebookReader>
                 ) : (
                   detailedSections
                 )}
@@ -426,6 +476,11 @@ export default function ManualContents() {
                       ? "이용 가능한 게임은 목록에서 확인해 주세요."
                       : "이제 함께 한 판 해 볼까요?"}
                   </span>
+                  {nextPage && (
+                    <button onClick={() => go(nextPage.id)}>
+                      다음 장 · {nextPage.title} →
+                    </button>
+                  )}
                   <button
                     onClick={() => {
                       scroller.current?.scrollTo({ top: 0 });

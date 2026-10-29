@@ -10,6 +10,8 @@ import { buildCollision,isWalkable } from './collision'
 import { validateParkDefinition,assertUniqueIds,validatePhysics } from './validate'
 import { buildInteractionData } from './interactionData'
 import { buildPhysics } from './physics'
+import { inKioskEntrance,inMailboxClearing } from './planting'
+import { blendFountainEdge } from './fountainHeight'
 
 export type SiteMarker = { no: string; id: string; label: string; x: number; z: number; note: string }
 export type ParkPoint = readonly [number,number]
@@ -25,7 +27,7 @@ validateParkDefinition(definition)
 const DRAFT_PARK={size:definition.park.size,half:definition.park.size/2,backgroundSize:definition.park.backgroundSize,spawn:definition.park.spawn}
 const lake=resolveLake(definition.lake)
 const {DRAFT_LAKE,DRAFT_LAKE_ROCKS,SHORE_RUNS,FISHING_RAILS,crossingHeight,lakeFloorHeight,fishingHeight}=lake
-const SITES={pagoda:definition.sites.pagoda,fountain:definition.sites.fountain,hall:definition.sites.hall,fitness:definition.sites.fitness,event:definition.sites.event,lake:DRAFT_LAKE,tower:definition.sites.tower,vr:definition.sites.vr,folk:definition.sites.folk,vrPagoda:definition.sites.vrPagoda,cart:definition.sites.cart,mailbox:definition.sites.mailbox,shop:definition.sites.shop,drink:definition.sites.drink,photo:definition.sites.photo,balloon:definition.sites.balloon,fishing:{x:lake.FISHING_DECKS[0]!.x,z:lake.FISHING_DECKS[0]!.z},fishingEast:{x:lake.FISHING_DECKS[1]!.x,z:lake.FISHING_DECKS[1]!.z}}
+const SITES={pagoda:definition.sites.pagoda,fountain:definition.sites.fountain,hall:definition.sites.hall,fitness:definition.sites.fitness,event:definition.sites.event,lake:DRAFT_LAKE,tower:definition.sites.tower,vr:definition.sites.vr,folk:definition.sites.folk,vrPagoda:definition.sites.vrPagoda,cart:definition.sites.cart,mailbox:definition.sites.mailbox,shop:definition.sites.shop,drink:definition.sites.drink,photo:definition.sites.photo,fishing:{x:lake.FISHING_DECKS[0]!.x,z:lake.FISHING_DECKS[0]!.z},fishingEast:{x:lake.FISHING_DECKS[1]!.x,z:lake.FISHING_DECKS[1]!.z}}
 const DRAFT_FOUNTAIN={scale:definition.fountain.scale,jetHeightScale:definition.fountain.jetHeightScale,plazaRadius:definition.fountain.basePlazaRadius*definition.fountain.scale,basinRadius:definition.fountain.baseBasinRadius*definition.fountain.scale}
 const VR_COURT={x:definition.vrCourt.x,z:definition.vrCourt.z,width:definition.vrCourt.width,depth:definition.vrCourt.depth}
 const VR_EDGE_TREE_SITES=definition.vrEdgeTrees
@@ -60,12 +62,14 @@ const DRAFT_PAVILIONS = PARK_PAVILIONS.map(p => ({ ...p,
 }))
 const DRAFT_STAIRS=DRAFT_PAVILIONS.map(p=>({id:p.id,x:p.x,z:p.z,floor:p.floor,join:pavilionStairJoin(p.scale),count:Math.ceil(p.floor/.18),tread:.32}))
 const otherTablePositions=definition.tables
-const DRAFT_TABLES: readonly TableAnchor[] = TABLES.map(table => {
+const DRAFT_TABLES: readonly TableAnchor[] = [...TABLES.map<TableAnchor>(table => {
   const pavilion = DRAFT_PAVILIONS.find(p => p.id === table.pavilionId)
   const point = otherTablePositions[table.id]
   if (!pavilion && !point) throw new Error(`Missing draft placement: ${table.id}`)
-  return { ...table, position: pavilion ? [pavilion.x, pavilion.floor, pavilion.z] : [point![0], 0, point![1]] }
-})
+  return { ...table, position: pavilion ? [pavilion.x, pavilion.floor, pavilion.z] : [point![0], Math.hypot(point![0]-definition.plaza.x,point![1]-definition.plaza.z)<definition.plaza.pavingRadius?.14:0, point![1]] }
+}),...VR_STONE_SETS.map(s=>({id:s.tableId,assetId:'procedural/vr-stone-game-table',position:[s.x,.1,s.z] as const,
+  seatAnchors:definition.vrStoneSeats.map(([x,z])=>[x,0,z] as const),spectatorRadius:3.5}))]
+assertUniqueIds('game tables',DRAFT_TABLES)
 
 const MARKERS: readonly SiteMarker[] = [
   { no:'01', id:'pavilion-P0', label:'메인 팔각정', x:definition.pavilions.P0![0],z:definition.pavilions.P0![1],note:'기존 중앙 정자·테이블 유지' },
@@ -79,21 +83,17 @@ const MARKERS: readonly SiteMarker[] = [
   { no:'09', id:'layout-rest-grove',label:'수목 · 쉼터',x:-73,z:73,note:'기존 피크닉 테이블 ID 유지' },
   { no:'10', id:'layout-fishing-deck',label:'낚시 데크',...SITES.fishing,note:'데크 위치 시안 · 기능 추가 없음' },
   { no:'11', id:'layout-fishing-east',label:'맞은편 낚시터',...SITES.fishingEast,note:'동쪽 수변 접근 공간' },
-  { no:'12', id:'layout-background',label:'외곽 광고 건물',x:0,z:-133,note:'도로·보도·건물은 이동 불가 배경' },
+  { no:'12', id:'layout-background',label:'외곽 건물',x:0,z:-133,note:'도로·보도·건물은 이동 불가 배경' },
   { no:'13', id:'layout-shop',label:'광장 상점',...SITES.shop,note:'건물·진입 공간 시안' },
   { no:'14', id:'layout-drink',label:'응모부스',...SITES.drink,note:'부스 위치 시안' },
   { no:'15', id:'layout-photo',label:'포토부스',...SITES.photo,note:'광장 동쪽 · 촬영 동선 확보' },
   { no:'16', id:'layout-hall-room',label:'민속놀이 존',...SITES.folk,note:'VR 체험관과 구분한 두 번째 한옥' },
   { no:'17', id:'layout-fish-feed',label:'물고기 먹이주기',x:41,z:-14,note:'수변 위치 시안' },
   { no:'18', id:'layout-north-grove',label:'숲 탐색',x:48,z:-73,note:'북동쪽 수목 구역' },
-  { no:'19', id:'layout-life-plaza',label:'스폰 · 생활광장',x:definition.plaza.x,z:definition.plaza.z,note:'블록 광장 · 원형 스폰 문양 · 가장자리 소형 건물' },
+  { no:'19', id:'layout-life-plaza',label:'스폰 · 생활광장',x:definition.plaza.x,z:definition.plaza.z,note:'원형 석재 광장 · 네 방향 돌 테이블 · 숲으로 둘러싼 상점과 부스' },
   { no:'20', id:'layout-event-grove',label:'숲길 · 이벤트 예비지',...SITES.event,note:'도면의 S자 숲길 · 작은 카트 쉼터' },
   { no:'21', id:'layout-main-gate',label:'담장 · 정문',x:0,z:MAIN_GATE.z-1,note:'공원 내부 180 × 180m' },
   { no:'22', id:'layout-wood-bridge',label:'나무다리 · 북쪽 돌다리',x:62,z:9,note:'남쪽 목교 · 북쪽 징검다리 · 수영 진입부' },
-  { no:'23', id:'a-frame-arrival',label:'A1 · 상점 옆 광고판',x:-16,z:32,note:'기존 광고판 ID 유지' },
-  { no:'24', id:'a-frame-pavilion',label:'A2 · 체험관 옆 광고판',x:-35,z:-13,note:'기존 광고판 ID 유지 · 직선 통로 옆으로 이동' },
-  { no:'25', id:'a-frame-west-walk',label:'A3 · 분수 진입 광고판',x:-57,z:-40,note:'기존 광고판 ID 유지' },
-  { no:'26', id:'advertising-balloon',label:'에어벌룬 광고',...SITES.balloon,note:'풍선 2개 · 중심 13m · 지상 추 없음' },
   { no:'27', id:'feedback-mailbox',label:'전통 소리함',...SITES.mailbox,note:'기존 코드 모델·시설 ID 유지' },
 ]
 /** Cut the sharp vertices back and use tangent quadratic turns. Keep straight axes straight. */
@@ -167,28 +167,34 @@ const STAIR_RAIL_RUNS=[0,1,2,3].flatMap(side=>[-1,1].map(sign=>{
 const FENCE_BLOCKERS:readonly DraftBox[]=[...FENCE_RUNS,...CENTRAL_RAIL_RUNS,...STAIR_RAIL_RUNS].map(run=>({id:run.id,x:(run.from[0]+run.to[0])/2,z:(run.from[1]+run.to[1])/2,
   halfX:Math.max(.12,Math.abs(run.to[0]-run.from[0])/2),halfZ:Math.max(.12,Math.abs(run.to[1]-run.from[1])/2)}))
 const LIFE_PLAZA=definition.plaza
-// Solid planting islands sit outside the circular paving, away from its four entrances.
-const PLAZA_PLANTERS=[30,150,210,330].map(degrees=>{
-  const angle=degrees*Math.PI/180
-  return {id:`plaza-planter-${degrees}`,x:LIFE_PLAZA.x+Math.cos(angle)*16,z:LIFE_PLAZA.z+Math.sin(angle)*16,radius:1.1,angle}
-})
-const PLAZA_BEDS=PLAZA_PLANTERS.filter(p=>p.z>LIFE_PLAZA.z).map(p=>({id:p.id,x:p.x,z:p.z,width:1.8,depth:4.5}))
-const PLAZA_BENCHES=PLAZA_PLANTERS.filter(p=>p.z>LIFE_PLAZA.z).map(p=>({id:p.id+'-bench',x:p.x-Math.cos(p.angle)*2.4,z:p.z-Math.sin(p.angle)*2.4,yaw:-Math.PI/2-p.angle}))
+// Removed from the plaza by design; existing benches elsewhere keep their IDs.
+const PLAZA_PLANTERS:readonly {id:string;x:number;z:number;radius:number;angle:number}[]=[]
+const PLAZA_BEDS:readonly {id:string;x:number;z:number;width:number;depth:number}[]=[]
+const PLAZA_BENCHES:readonly {id:string;x:number;z:number;yaw:number}[]=[]
+const PLAZA_TREE_SITES=definition.plazaTrees.filter(p=>!inMailboxClearing(p.x,p.z,SITES.mailbox,definition.planting.mailboxTreeClearance)&&Math.hypot(p.x-LIFE_PLAZA.x,p.z-LIFE_PLAZA.z)>LIFE_PLAZA.pavingRadius+.7&&!onPath(p.x,p.z,.9)&&!inKioskEntrance(p.x,p.z,KIOSKS)
+  &&!DRAFT_PAVILIONS.some(q=>Math.abs(p.x-q.x)<(q.id==='P0'?15:PAVILION_COURT.width/2+2)&&Math.abs(p.z-q.z)<(q.id==='P0'?18:PAVILION_COURT.depth/2+2))
+  &&!KIOSKS.some(k=>{const dx=p.x-k.x,dz=p.z-k.z,c=Math.cos(k.yaw),sn=Math.sin(k.yaw);return Math.abs(dx*c-dz*sn)<k.width/2+1.8&&Math.abs(dx*sn+dz*c)<k.depth/2+1.8}))
+  .reduce<{id:string;x:number;z:number}[]>((trees,p)=>{if(!trees.some(t=>Math.hypot(t.x-p.x,t.z-p.z)<2.35))trees.push(p);return trees},[])
+const PAVILION_TREE_SITES=definition.pavilionEdgeTrees.filter(p=>!inMailboxClearing(p.x,p.z,SITES.mailbox,definition.planting.mailboxTreeClearance)&&!onPath(p.x,p.z,.55)
+  &&!DRAFT_PAVILIONS.some(q=>Math.abs(p.x-q.x)<(q.id==='P0'?13.5:PAVILION_COURT.width/2+.4)&&Math.abs(p.z-q.z)<(q.id==='P0'?16:PAVILION_COURT.depth/2+.4)))
+const LANDSCAPE_TREE_SITES=[...PLAZA_TREE_SITES,...PAVILION_TREE_SITES]
 const PLAZA_REST_GARDENS=definition.plazaRestGardens
 const PLAZA_REST_BENCHES=definition.plazaRestBenches
 const PLAZA_BINS=definition.plazaBins
-const tableBoxes: DraftBox[] = DRAFT_TABLES.map(t => ({id:t.id,x:t.position[0],z:t.position[2],halfX:1.05,halfZ:.8}))
+const tableBoxes: DraftBox[] = DRAFT_TABLES.map(t => ({id:t.id,x:t.position[0],z:t.position[2],halfX:t.assetId==='procedural/vr-stone-game-table'?1.2:1.05,halfZ:t.assetId==='procedural/vr-stone-game-table'?.75:.8}))
 // The thin floor pad is walkable. Preserve solid machine bounds at their new positions.
 const translatedFitness=DRAFT_FITNESS_STATIONS.map(s=>({id:s.id,x:s.position[0],z:s.position[2],
   halfX:1.15*Math.abs(Math.cos(s.yaw))+1.1*Math.abs(Math.sin(s.yaw)),halfZ:1.15*Math.abs(Math.sin(s.yaw))+1.1*Math.abs(Math.cos(s.yaw))}))
 const DRAFT_BOXES: readonly DraftBox[] = [
   ...tableBoxes,...translatedFitness,
+  ...LANDSCAPE_TREE_SITES.map(p=>({id:p.id,x:p.x,z:p.z,halfX:.25,halfZ:.25})),
   ...PLAZA_REST_GARDENS.map(p=>({id:p.id,x:p.x,z:p.z,halfX:p.width/2,halfZ:p.depth/2})),
   ...PLAZA_REST_BENCHES.map(p=>({id:p.id,x:p.x,z:p.z,halfX:.5,halfZ:1.4})),
   ...PLAZA_BINS.map(p=>({id:p.id,x:p.x,z:p.z,halfX:.34,halfZ:.34})),
   ...VR_EDGE_TREE_SITES.map((p,i)=>({id:"vr-belt-tree-"+i,...p,halfX:.22,halfZ:.22})),
   ...EVENT_BENCHES.map((b,i)=>({id:'event-bench-'+i,x:b.x,z:b.z,halfX:1.4,halfZ:.5})),
-  ...VR_STONE_SETS.flatMap(s=>[{id:s.id,x:s.x,z:s.z,halfX:1.25,halfZ:.85},...[-1,1].map(side=>({id:s.id+'-chair-'+side,x:s.x,z:s.z+side*1.8,halfX:.55,halfZ:.55}))]),
+  ...definition.forestBenches.map(b=>({id:b.id,x:b.x,z:b.z,halfX:1.4,halfZ:.45})),
+  ...VR_STONE_SETS.flatMap(s=>definition.vrStoneSeats.map(([x,z],n)=>({id:s.id+'-chair-'+n,x:s.x+x,z:s.z+z,halfX:.55,halfZ:.55}))),
   ...[-MAIN_GATE.postX,MAIN_GATE.postX].map((x,i)=>({id:'gate-column-'+i,x,z:MAIN_GATE.z,halfX:.38,halfZ:.45})),
   ...PLAZA_BEDS.map(p=>({id:p.id,x:p.x,z:p.z,halfX:p.width/2+.22,halfZ:p.depth/2+.22})),
   ...PLAZA_BENCHES.map(p=>({id:p.id,x:p.x,z:p.z,halfX:1.4*Math.abs(Math.cos(p.yaw))+.5*Math.abs(Math.sin(p.yaw)),halfZ:1.4*Math.abs(Math.sin(p.yaw))+.5*Math.abs(Math.cos(p.yaw))})),
@@ -202,13 +208,12 @@ const DRAFT_BOXES: readonly DraftBox[] = [
   {id:'fish-bread',...SITES.cart,halfX:MINI_PROPS[0].width/2,halfZ:MINI_PROPS[0].depth/2},
   {id:'feedback-mailbox',...SITES.mailbox,halfX:MAILBOX.bodyHalfWidth,halfZ:MAILBOX.bodyHalfDepth},
   ...KIOSKS.map(k=>({id:`layout-${k.kind}`,x:k.x,z:k.z,halfX:k.width/2*Math.abs(Math.cos(k.yaw))+k.depth/2*Math.abs(Math.sin(k.yaw)),halfZ:k.width/2*Math.abs(Math.sin(k.yaw))+k.depth/2*Math.abs(Math.cos(k.yaw))})),
-  ...MARKERS.filter(m => m.no==='23'||m.no==='24'||m.no==='25').map(m=>({id:m.id,x:m.x,z:m.z,halfX:.7,halfZ:.5})),
 ]
 // Lamps sit beside paving, clear of buildings, stairs, water, fences and the pagoda terrace.
 const DRAFT_LAMPS:readonly (readonly [number,number,number])[]=(()=>{
   const points:Array<readonly [number,number,number]>=[]
   const add=(x:number,z:number,plaza=false)=>{
-    if(!plaza&&Math.abs(x)<36&&z>23&&z<61)return
+    if(!plaza&&Math.hypot(x-LIFE_PLAZA.x,z-LIFE_PLAZA.z)<LIFE_PLAZA.pavingRadius+2)return
     if(Math.abs(x)>86||Math.abs(z)>86||Math.abs(x-SITES.pagoda.x)<19&&Math.abs(z-SITES.pagoda.z)<22)return
     if(Math.hypot((x-SITES.lake.x)/(SITES.lake.rx+2.5),(z-SITES.lake.z)/(SITES.lake.rz+3))<1||Math.hypot(x-SITES.tower.x,z-SITES.tower.z)<13.5||Math.hypot(x-SITES.fountain.x,z-SITES.fountain.z)<DRAFT_FOUNTAIN.plazaRadius+.8)return
     if(DRAFT_PAVILIONS.some(p=>Math.abs(x-p.x)<(p.id==='P0'?14:PAVILION_COURT.width/2+1)&&Math.abs(z-p.z)<(p.id==='P0'?17:PAVILION_COURT.depth/2+1)))return
@@ -217,7 +222,8 @@ const DRAFT_LAMPS:readonly (readonly [number,number,number])[]=(()=>{
     if(points.some(p=>Math.hypot(p[0]-x,p[2]-z)<8)||onPath(x,z,.25))return
     points.push([x,0,z])
   }
-  for(const [x,z] of [[-33.5,45.5],[33.5,45.5],[-33.5,56.5],[33.5,56.5],[-8,58.5],[8,58.5]])add(x!,z!,true)
+  // Preserve the seven established plaza lamps when nearby temporary furniture is removed.
+  for(const degrees of [15,60,120,165,195,315,345]){const a=degrees*Math.PI/180;add(LIFE_PLAZA.x+Math.cos(a)*21,LIFE_PLAZA.z+Math.sin(a)*21,true)}
   const selected=new Set(['arrival','west-spine','north-cross','hall-south-cross','fitness-north','fitness-cart-link','south-east','lake-east','service-entry','west-pavilions','east-pavilions'])
   for(const r of PATHS.filter(r=>selected.has(r.id)))for(let i=1;i<r.points.length;i++) {
     const a=r.points[i-1]!,b=r.points[i]!,dx=b[0]-a[0],dz=b[1]-a[1],length=Math.hypot(dx,dz),n=Math.floor(length/16)
@@ -228,7 +234,8 @@ const DRAFT_LAMPS:readonly (readonly [number,number,number])[]=(()=>{
   return points
 })()
 const ORIGINAL_SITES = { fountain:FOUNTAIN, tower:TOWER_SITE }
-const fountainGroundHeight=(x:number,z:number)=>groundHeight(FOUNTAIN.x+(x-SITES.fountain.x)/DRAFT_FOUNTAIN.scale,FOUNTAIN.z+(z-SITES.fountain.z)/DRAFT_FOUNTAIN.scale)
+const fountainGroundHeight=(x:number,z:number)=>blendFountainEdge(Math.hypot(x-SITES.fountain.x,z-SITES.fountain.z),DRAFT_FOUNTAIN.plazaRadius,
+  groundHeight(FOUNTAIN.x+(x-SITES.fountain.x)/DRAFT_FOUNTAIN.scale,FOUNTAIN.z+(z-SITES.fountain.z)/DRAFT_FOUNTAIN.scale))
 function nearSegment(x:number,z:number,a:readonly number[],b:readonly number[]) {
   const dx=b[0]!-a[0]!,dz=b[1]!-a[1]!,t=Math.max(0,Math.min(1,((x-a[0]!)*dx+(z-a[1]!)*dz)/(dx*dx+dz*dz||1)))
   return Math.hypot(x-a[0]!-t*dx,z-a[1]!-t*dz)
@@ -256,17 +263,18 @@ function walkHeight(x:number,z:number) {
   for(const [along,across] of [[Math.abs(x-SITES.pagoda.x),Math.abs(z-SITES.pagoda.z)],[Math.abs(z-SITES.pagoda.z),Math.abs(x-SITES.pagoda.x)]])if(across!<=definition.pagoda.stairHalfWidth&&along!>=definition.pagoda.terraceHalf&&along!<=definition.pagoda.terraceHalf+definition.pagoda.steps*definition.pagoda.tread+.01)return Math.min(SITES.pagoda.floor,Math.max(definition.pagoda.riser,Math.ceil((definition.pagoda.terraceHalf+definition.pagoda.steps*definition.pagoda.tread-along!)/definition.pagoda.tread)*definition.pagoda.riser))
   const d=Math.hypot(x-SITES.fountain.x,z-SITES.fountain.z)
   if(d<DRAFT_FOUNTAIN.plazaRadius)return fountainGroundHeight(x,z)
+  if(Math.hypot(x-LIFE_PLAZA.x,z-LIFE_PLAZA.z)<=LIFE_PLAZA.pavingRadius)return .14
   return 0
 }
 
-const facilityIds={pagoda:'garden-pagoda',fountain:'reference-fountain',fitness:'fitness-garden',tower:'spiral-observation-tower',vr:'vr-experience-hall',folk:'layout-hall-room',vrPagoda:'vr-stone-pagoda',cart:'fish-bread',mailbox:'feedback-mailbox',shop:'layout-shop',drink:'layout-drink',photo:'layout-photo',balloon:'advertising-balloon'} as const
+const facilityIds={pagoda:'garden-pagoda',fountain:'reference-fountain',fitness:'fitness-garden',tower:'spiral-observation-tower',vr:'vr-experience-hall',folk:'layout-hall-room',vrPagoda:'vr-stone-pagoda',cart:'fish-bread',mailbox:'feedback-mailbox',shop:'layout-shop',drink:'layout-drink',photo:'layout-photo'} as const
 const facilities=Object.entries(facilityIds).map(([kind,id])=>{
   const site=SITES[kind as keyof typeof facilityIds],kiosk=KIOSKS.find(k=>k.kind===kind)
   return {id,kind,position:[site.x,kind==='pagoda'?SITES.pagoda.floor:0,site.z] as const,yaw:kiosk?.yaw??(kind==='vr'||kind==='folk'?VR_YAW:0)}
 })
 const interactionData=buildInteractionData({definition,pavilions:DRAFT_PAVILIONS,towerBenches:DRAFT_TOWER_BENCHES,plazaBenches:PLAZA_BENCHES,restBenches:PLAZA_REST_BENCHES,fitness:DRAFT_FITNESS_STATIONS,decks:lake.FISHING_DECKS})
 const terrainHeight=(x:number,z:number)=>lake.lakeRadius(x,z)<1?lakeFloorHeight(x,z):Math.hypot(x-SITES.fountain.x,z-SITES.fountain.z)<DRAFT_FOUNTAIN.plazaRadius?fountainGroundHeight(x,z):0
-const physics=buildPhysics({definition,lake,terrainHeight,supportHeight:walkHeight,pavilions:DRAFT_PAVILIONS,stairs:DRAFT_STAIRS,tables:DRAFT_TABLES,fitness:DRAFT_FITNESS_STATIONS,benches:interactionData.benchSites,kiosks:KIOSKS,fences:FENCE_RUNS,centralRails:CENTRAL_RAIL_RUNS,stairRails:STAIR_RAIL_RUNS,lamps:DRAFT_LAMPS})
+const physics=buildPhysics({definition,lake,terrainHeight,supportHeight:walkHeight,pavilions:DRAFT_PAVILIONS,stairs:DRAFT_STAIRS,tables:DRAFT_TABLES,fitness:DRAFT_FITNESS_STATIONS,benches:interactionData.benchSites,kiosks:KIOSKS,plazaTrees:LANDSCAPE_TREE_SITES,fences:FENCE_RUNS,centralRails:CENTRAL_RAIL_RUNS,stairRails:STAIR_RAIL_RUNS,lamps:DRAFT_LAMPS})
 validatePhysics(physics)
 const {benchSites:_benchSites,...facilityInteractions}=interactionData
 /** Serializable review data for a future generator; not the agreed Java/server contract. */
@@ -274,7 +282,12 @@ const data={
   metadata:definition.metadata,
   world:{...DRAFT_PARK,boundary:COLLISION.boundary,wallCornerRadius:definition.park.wallCornerRadius},
   facilities,pavilions:DRAFT_PAVILIONS,tables:DRAFT_TABLES.map(({spectatorRadius:_unused,...t})=>t),
-  interactions:{...facilityInteractions,mailbox:{id:'feedback-mailbox',position:[SITES.mailbox.x,0,SITES.mailbox.z],radius:MAILBOX.interactionRadius},tableSeats:DRAFT_TABLES.map(t=>({tableId:t.id,position:t.position,localSeats:t.seatAnchors}))},
+  interactions:{...facilityInteractions,construction:KIOSKS.map(k=>{
+    const distance=k.depth/2+1.8
+    return {id:'layout-'+k.kind,kind:'CONSTRUCTION' as const,status:'construction' as const,label:({shop:'상점',drink:'응모부스',photo:'포토부스'})[k.kind],
+      position:[k.x,0,k.z] as const,reachPosition:[k.x+Math.sin(k.yaw)*distance,.8,k.z+Math.cos(k.yaw)*distance] as const,
+      yaw:k.yaw+Math.PI,radius:3,heightTolerance:.7,message:'현재 공사 중입니다. 준비가 끝나면 이용할 수 있어요.'}
+  }),mailbox:{id:'feedback-mailbox',position:[SITES.mailbox.x,0,SITES.mailbox.z],radius:MAILBOX.interactionRadius},tableSeats:DRAFT_TABLES.map(t=>({tableId:t.id,position:t.position,localSeats:t.seatAnchors}))},
   paths:PATHS,perimeter:{points:PERIMETER,width:definition.park.perimeterWidth},
   fences:{courts:FENCE_COURTS,roundCourts:ROUND_COURTS,runs:FENCE_RUNS,centralRails:CENTRAL_RAIL_RUNS,stairRails:STAIR_RAIL_RUNS},
   collision:COLLISION,physics,
@@ -286,5 +299,5 @@ assertUniqueIds('physical shapes',[...physics.boxes,...physics.meshes,...physics
 assertUniqueIds('interaction facilities',[...facilityInteractions.benches,...facilityInteractions.fitness,...facilityInteractions.telescopes])
 if(!canWalk(...DRAFT_PARK.spawn))throw new Error('park.spawn is blocked')
 if(lake.swimmingAt(...DRAFT_PARK.spawn))throw new Error('park.spawn cannot be underwater')
-return {data,SETTINGS:definition,DRAFT_FITNESS_STATIONS,DRAFT_TOWER_BENCHES,DRAFT_JUMP_PADS,DRAFT_PAVILIONS,DRAFT_STAIRS,DRAFT_TABLES,MARKERS,roundRoute,PATHS,PERIMETER,FENCE_COURTS,ROUND_COURTS,KIOSK_FENCE_RUNS,FENCE_RUNS,CENTRAL_RAIL_RUNS,STAIR_RAIL_RUNS,FENCE_BLOCKERS,PLAZA_PLANTERS,PLAZA_BEDS,PLAZA_BENCHES,DRAFT_BOXES,DRAFT_LAMPS,ORIGINAL_SITES,fountainGroundHeight,nearSegment,onPath,walkHeight,COLLISION,canWalk,lake,DRAFT_PARK,SITES,DRAFT_FOUNTAIN,VR_COURT,VR_EDGE_TREE_SITES,EVENT_GROVE,DRAFT_FITNESS_AREA,KIOSKS,EVENT_BENCHES,MAIN_GATE,VR_STONE_SETS,VR_YAW,PAVILION_COURT,LIFE_PLAZA,PLAZA_REST_GARDENS,PLAZA_REST_BENCHES,PLAZA_BINS}
+return {data,SETTINGS:definition,PAVILION_TREE_SITES,PLAZA_TREE_SITES,DRAFT_FITNESS_STATIONS,DRAFT_TOWER_BENCHES,DRAFT_JUMP_PADS,DRAFT_PAVILIONS,DRAFT_STAIRS,DRAFT_TABLES,MARKERS,roundRoute,PATHS,PERIMETER,FENCE_COURTS,ROUND_COURTS,KIOSK_FENCE_RUNS,FENCE_RUNS,CENTRAL_RAIL_RUNS,STAIR_RAIL_RUNS,FENCE_BLOCKERS,PLAZA_PLANTERS,PLAZA_BEDS,PLAZA_BENCHES,DRAFT_BOXES,DRAFT_LAMPS,ORIGINAL_SITES,fountainGroundHeight,nearSegment,onPath,walkHeight,COLLISION,canWalk,lake,DRAFT_PARK,SITES,DRAFT_FOUNTAIN,VR_COURT,VR_EDGE_TREE_SITES,EVENT_GROVE,DRAFT_FITNESS_AREA,KIOSKS,EVENT_BENCHES,MAIN_GATE,VR_STONE_SETS,VR_YAW,PAVILION_COURT,LIFE_PLAZA,PLAZA_REST_GARDENS,PLAZA_REST_BENCHES,PLAZA_BINS}
 }

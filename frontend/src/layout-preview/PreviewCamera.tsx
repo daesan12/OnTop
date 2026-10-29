@@ -9,6 +9,9 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { DRAFT_PARK,canWalk,walkHeight,MARKERS,KIOSKS,type SiteMarker } from './layout'
 import { DRAFT_LAKE,swimmingAt } from './lakeLayout'
 import { SWIMMING } from '../config/parkLandforms'
+import { usePreviewBench,previewBenches,resetPreviewBench,updatePreviewBenchNearby,sitPreviewBench,standPreviewBench } from './PreviewBench'
+import { panelOwnsKeys } from '../world/inputOwnership'
+import { constructionSites,canReachConstruction,openConstructionNotice } from '../features/construction/model'
 
 export type PreviewView='overview'|'plan'|'walk'|'skyline'|'jump'|'course'
 export const previewMotion={x:DRAFT_PARK.spawn[0],z:DRAFT_PARK.spawn[1],yaw:0,pitch:0,vx:0,vz:0,ready:false,frames:0,swimming:false,mode:'overview' as PreviewView}
@@ -30,6 +33,7 @@ export function PreviewCamera({view,focus,labels,markerElements,indicators,onRea
   },[camera,size.width,size.height,view])
   useEffect(()=>{
     previewMotion.mode=view;setJumpView(view);previewMotion.swimming=false;previewMotion.vx=0;previewMotion.vz=0;keys.current.clear();camera.rotation.order='YXZ';camera.up.set(0,1,0)
+    resetPreviewBench(view==='walk')
     if(view==='jump') {
       jumpSession.x=JUMP_START.x;jumpSession.z=JUMP_START.z;jumpSession.y=0;jumpSession.vy=0;jumpSession.pad=null;jumpSession.grounded=true;jumpSession.yaw=0;jumpSession.pitch=.04;jumpSession.active=false;jumpSession.result=null;jumpSession.bufferUntil=-1e6
     } else if(view==='walk') {
@@ -38,7 +42,7 @@ export function PreviewCamera({view,focus,labels,markerElements,indicators,onRea
       const orbit=new OrbitControls(camera,gl.domElement);controls.current=orbit
       orbit.enableRotate=view!=='plan';orbit.enablePan=view!=='plan';
       orbit.enableDamping=true;orbit.dampingFactor=.12;orbit.minDistance=12;orbit.maxDistance=420;orbit.maxPolarAngle=Math.PI*.485
-      camera.position.set(...(view==='plan'?[0,265,.001]:view==='skyline'?[30,20,-30]:view==='course'?[-105,84,92]:[-145,170,205]) as [number,number,number])
+      camera.position.set(...(view==='plan'?[0,265,.001]:view==='skyline'?[30,20,-30]:view==='course'?[-105,84,92]:[0,210,220]) as [number,number,number])
       if(view==='course')orbit.target.set(0,25,-15)
       else if(view==='skyline')orbit.target.set(-250,22,250)
       else orbit.target.set(0,0,0)
@@ -50,6 +54,7 @@ export function PreviewCamera({view,focus,labels,markerElements,indicators,onRea
     if(!focus||view==='jump'||view==='plan')return
     if(view==='walk') {
       // Find an unobstructed approach; selecting the lake may start in swimmable water.
+      resetPreviewBench()
       for(const radius of [8,13,18]) {
         let found=false
         for(const [dx,dz] of [[0,1],[1,0],[-1,0],[0,-1]]) {
@@ -62,7 +67,7 @@ export function PreviewCamera({view,focus,labels,markerElements,indicators,onRea
       const kiosk=KIOSKS.find(k=>focus.id===`layout-${k.kind}`)
       if(kiosk) {
         controls.current.target.set(focus.x,1.5,focus.z)
-        camera.position.set(focus.x+Math.sin(kiosk.yaw)*30-Math.cos(kiosk.yaw)*12,18,focus.z+Math.cos(kiosk.yaw)*30+Math.sin(kiosk.yaw)*12)
+        camera.position.set(focus.x+Math.sin(kiosk.yaw)*23-Math.cos(kiosk.yaw)*8,8.5,focus.z+Math.cos(kiosk.yaw)*23+Math.sin(kiosk.yaw)*8)
         controls.current.update()
         return
       }
@@ -77,7 +82,15 @@ export function PreviewCamera({view,focus,labels,markerElements,indicators,onRea
     const target=gl.domElement
     let dragging=false,lastX=0,lastY=0
     const down=(event:KeyboardEvent)=>{
+      if(panelOwnsKeys())return
       if(event.target instanceof HTMLElement&&(event.target.matches('input,textarea')||event.target.isContentEditable))return
+      if(view==='walk'&&event.code==='KeyE'&&!event.repeat){
+        event.preventDefault()
+        const p={x:previewMotion.x,y:walkHeight(previewMotion.x,previewMotion.z)+.8,z:previewMotion.z}
+        const construction=constructionSites.find(s=>canReachConstruction(p,s.id))
+        if(usePreviewBench.getState().seated)standPreviewBench();else if(construction)openConstructionNotice(construction.id);else sitPreviewBench(0)
+        return
+      }
       if(view==='jump'&&event.code==='Space'){event.preventDefault();if(!event.repeat&&!jumpSession.manual){queueJump(jumpSession);enableJumpAudio()}return}
       if((view==='walk'||view==='jump')&&['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','ShiftLeft','ShiftRight'].includes(event.code)) {
         event.preventDefault();keys.current.add(event.code);if(view==='jump')enableJumpAudio()
@@ -88,9 +101,9 @@ export function PreviewCamera({view,focus,labels,markerElements,indicators,onRea
     const pointerDown=(event:PointerEvent)=>{if(view==='walk'||view==='jump'){dragging=true;lastX=event.clientX;lastY=event.clientY;target.setPointerCapture(event.pointerId)}}
     const pointerMove=(event:PointerEvent)=>{if(!dragging)return;if(view==='jump'){jumpSession.yaw-=(event.clientX-lastX)*.004;jumpSession.pitch=MathUtils.clamp(jumpSession.pitch-(event.clientY-lastY)*.004,-1.35,1.25);lastX=event.clientX;lastY=event.clientY;return}previewMotion.yaw-=(event.clientX-lastX)*.004;previewMotion.pitch=MathUtils.clamp(previewMotion.pitch-(event.clientY-lastY)*.004,-1.2,1.15);lastX=event.clientX;lastY=event.clientY}
     const pointerUp=()=>{dragging=false}
-    window.addEventListener('keydown',down);window.addEventListener('keyup',up);window.addEventListener('blur',clear)
+    window.addEventListener('keydown',down);window.addEventListener('keyup',up);window.addEventListener('blur',clear);window.addEventListener('ontop-clear-input',clear)
     target.addEventListener('pointerdown',pointerDown);target.addEventListener('pointermove',pointerMove);target.addEventListener('pointerup',pointerUp);target.addEventListener('pointercancel',clear)
-    return()=>{clear();window.removeEventListener('keydown',down);window.removeEventListener('keyup',up);window.removeEventListener('blur',clear);target.removeEventListener('pointerdown',pointerDown);target.removeEventListener('pointermove',pointerMove);target.removeEventListener('pointerup',pointerUp);target.removeEventListener('pointercancel',clear)}
+    return()=>{clear();window.removeEventListener('keydown',down);window.removeEventListener('keyup',up);window.removeEventListener('blur',clear);window.removeEventListener('ontop-clear-input',clear);target.removeEventListener('pointerdown',pointerDown);target.removeEventListener('pointermove',pointerMove);target.removeEventListener('pointerup',pointerUp);target.removeEventListener('pointercancel',clear)}
   },[view,gl])
   const started=useRef(false),reviewRevision=useRef(-1)
   useFrame((_,delta)=>{
@@ -107,19 +120,28 @@ export function PreviewCamera({view,focus,labels,markerElements,indicators,onRea
       camera.position.set(jumpSession.x,jumpSession.y+(jumpSession.swimming?.72:1.56),jumpSession.z);camera.rotation.set(jumpSession.pitch,jumpSession.yaw,0)
       previewMotion.x=jumpSession.x;previewMotion.z=jumpSession.z;previewMotion.vx=jumpSession.vx;previewMotion.vz=jumpSession.vz
     } else if(view==='walk') {
+      const request=usePreviewBench.getState().poseRequest
+      if(request){
+        previewMotion.x=request.x;previewMotion.z=request.z;previewMotion.yaw=request.yaw;previewMotion.pitch=-.03;keys.current.clear()
+        usePreviewBench.setState({poseRequest:null})
+      }
+      const seated=usePreviewBench.getState().seated
+      const seat=seated?previewBenches.find(b=>b.id===seated.benchId)!.seats[seated.seatIndex]!.use:null
       const pressed=(...codes:string[])=>codes.some(code=>keys.current.has(code))
       let forward=Number(pressed('KeyW','ArrowUp'))-Number(pressed('KeyS','ArrowDown'))
       let right=Number(pressed('KeyD','ArrowRight'))-Number(pressed('KeyA','ArrowLeft'))
       const length=Math.hypot(forward,right)||1;forward/=length;right/=length
       const swimming=swimmingAt(previewMotion.x,previewMotion.z),fast=pressed('ShiftLeft','ShiftRight')
-      const distance=Math.min(delta,.04)*(swimming?(fast?SWIMMING.fastSpeed:SWIMMING.speed):(fast?10:6))
+      const distance=seat||panelOwnsKeys()?0:Math.min(delta,.04)*(swimming?(fast?SWIMMING.fastSpeed:SWIMMING.speed):(fast?10:6))
       const dx=(-Math.sin(previewMotion.yaw)*forward+Math.cos(previewMotion.yaw)*right)*distance
       const dz=(-Math.cos(previewMotion.yaw)*forward-Math.sin(previewMotion.yaw)*right)*distance
       previewMotion.vx=0;previewMotion.vz=0
       if(canWalk(previewMotion.x+dx,previewMotion.z)){previewMotion.x+=dx;previewMotion.vx=dx/Math.max(.001,Math.min(delta,.04))}
       if(canWalk(previewMotion.x,previewMotion.z+dz)){previewMotion.z+=dz;previewMotion.vz=dz/Math.max(.001,Math.min(delta,.04))}
       previewMotion.swimming=swimmingAt(previewMotion.x,previewMotion.z)
-      const eye=previewMotion.swimming?DRAFT_LAKE.surfaceY+SWIMMING.floatOffset+.72:walkHeight(previewMotion.x,previewMotion.z)+1.65
+      if(seat){previewMotion.x=seat.x;previewMotion.z=seat.z;previewMotion.swimming=false}
+      updatePreviewBenchNearby(previewMotion.x,walkHeight(previewMotion.x,previewMotion.z)+.8,previewMotion.z)
+      const eye=seat?seat.y+.55:previewMotion.swimming?DRAFT_LAKE.surfaceY+SWIMMING.floatOffset+.72:walkHeight(previewMotion.x,previewMotion.z)+1.65
       camera.position.set(previewMotion.x,eye,previewMotion.z)
       camera.rotation.set(previewMotion.pitch,previewMotion.yaw,0)
     } else controls.current?.update()
@@ -127,7 +149,7 @@ export function PreviewCamera({view,focus,labels,markerElements,indicators,onRea
     if(center&&!started.current) {started.current=true;previewMotion.ready=true;onReady()}
     previewMotion.frames++
     if(indicators.current.travel) {
-      const text=previewMotion.swimming?'수영 중 · Shift 빠르게':'산책 중 · 호수 진입로에서 수영 가능'
+      const text=usePreviewBench.getState().seated?'벤치에 앉아 쉬는 중 · E 일어나기':previewMotion.swimming?'수영 중 · Shift 빠르게':'산책 중 · 호수 진입로에서 수영 가능'
       if(indicators.current.travel.textContent!==text)indicators.current.travel.textContent=text
     }
     origin.set(0,0,0).project(camera);north.set(0,0,-20).project(camera);east.set(20,0,0).project(camera)

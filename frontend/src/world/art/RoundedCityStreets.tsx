@@ -1,3 +1,4 @@
+import { SIMPLE_MAP } from './mapRenderProfile'
 import { useEffect,useMemo } from 'react'
 import { DoubleSide } from 'three'
 import { Instances,type Part } from './Instances'
@@ -18,10 +19,10 @@ export function RoundedCityStreets({parkSize,radius,parts}:{parkSize:number;radi
     const half=parkSize/2
     // Continuous tangent curves through each corner; keep the existing crossings open.
     for(const [offset,width,dashed,color] of [[11.17,.1,false,'#d5ac45'],[11.43,.1,false,'#d5ac45'],[5.05,.1,false,'#c6c8bc'],[17.55,.1,false,'#c6c8bc'],[8,.11,true,'#e8e5d9'],[14.6,.11,true,'#e8e5d9']] as const) {
-      const points=roundedSquare(half+offset,radius+offset,96,1)
+      const points=roundedSquare(half+offset,radius+offset,SIMPLE_MAP?12:96,1)
       let distance=0
       for(let i=0;i<points.length;i++) {
-        const a=points[i]!,b=points[(i+1)%points.length]!,dx=b[0]-a[0],dz=b[1]-a[1],length=Math.hypot(dx,dz),n=Math.ceil(length/.5)
+        const a=points[i]!,b=points[(i+1)%points.length]!,dx=b[0]-a[0],dz=b[1]-a[1],length=Math.hypot(dx,dz),n=Math.ceil(length/(SIMPLE_MAP?(dashed?3:12):.5))
         for(let k=0;k<n;k++) {
           const t=(k+.5)/n,x=a[0]+dx*t,z=a[1]+dz*t,d=distance+length*t
           if(Math.min(Math.abs(x),Math.abs(z))<6 || dashed&&d%6>3)continue
@@ -39,11 +40,11 @@ export function RoundedCityStreets({parkSize,radius,parts}:{parkSize:number;radi
     <mesh name="city-continuous-asphalt" geometry={geometry.road} receiveShadow><UrbanMaterial kind="asphalt" color="#656c6c"/></mesh>
     {[geometry.innerWalk,geometry.outerWalk].map((g,i)=><mesh key={i} geometry={g} receiveShadow><SurfaceMaterial kind="stone" mapping="box" color="#bbb9ad" paving meters={1.4} side={DoubleSide}/></mesh>)}
     {[geometry.innerCurb,geometry.outerCurb].map((g,i)=><mesh key={i} geometry={g}><SurfaceMaterial kind="stone" color="#c8c5b9" mapping="box" side={DoubleSide}/></mesh>)}
-    <Instances parts={parts.paving.filter(p=>Math.max(...p.s)<6)} shadow={false}><boxGeometry/></Instances>
+    <Instances parts={parts.paving.filter(p=>Math.max(...p.s)<6 && (!SIMPLE_MAP || Math.max(...p.s)>1))} shadow={false}><boxGeometry/></Instances>
     <Instances parts={parts.stone.filter(p=>Math.max(...p.s)<1&&awayFromCorners(p))} shadow={false}><boxGeometry/></Instances>
     <Instances parts={markings} shadow={false}><boxGeometry/></Instances>
     <Instances parts={parts.metal.filter(awayFromCorners)} shadow={false} material={<meshStandardMaterial roughness={.65} metalness={.4}/>}><boxGeometry/></Instances>
-    <Instances parts={parts.round} shadow={false}><cylinderGeometry args={[1,1,1,16]}/></Instances>
+    <Instances parts={parts.round} shadow={false}><cylinderGeometry args={[1,1,1,SIMPLE_MAP?6:16]}/></Instances>
     <Instances parts={parts.lights} shadow={false} material={<NightMaterial strength={.6}/>}><boxGeometry/></Instances>
   </group>
 }

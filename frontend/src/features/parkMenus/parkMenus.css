@@ -11,10 +11,7 @@
 .park-account__summary .park-chevron { transition: transform 150ms; }
 .park-location[aria-expanded='true'] .park-chevron,
 .park-account__trigger[aria-expanded='true'] .park-chevron { transform: rotate(180deg); }
-/* The retry stays for wallet errors but shows as an icon only, as in the design's profile bar. */
 .park-account .park-wallet { gap: 4px; margin-left: 0; }
-.park-account .park-wallet__refresh { font-size: 0; }
-.park-account .park-wallet__refresh > span { font-size: 16px; opacity: 0.7; }
 /* An open dropdown stays above the neighbour/follow buttons beside the HUD corners. */
 .park-page .park-account:has(> .park-menu-dropdown),
 .park-channel-menu .park-menu-dropdown { z-index: 30; }
@@ -150,9 +147,8 @@
   border-radius: 50%;
   background: #f5ebd1;
 }
-.park-menu-avatar img { position: absolute; top: 5px; left: 3px; width: 47.6px; height: auto; }
+.park-menu-avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .park-menu-avatar--large { flex-basis: 64px; width: 64px; height: 64px; border-color: #b18328; }
-.park-menu-avatar--large img { top: 6px; left: 3.9px; width: 54.4px; }
 .park-menu-item { gap: 14px; padding: 11px 14px; }
 .park-menu-item > img { width: 20px; height: 20px; object-fit: contain; }
 .park-menu-item b { display: block; font-size: 16px; font-weight: 500; }

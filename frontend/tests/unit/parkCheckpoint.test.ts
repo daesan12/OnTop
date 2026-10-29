@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto'
 import checkpoint from '../fixtures/parkCheckpoint.json'
 import * as layout from '../../src/layout-preview/layout'
 import * as lake from '../../src/layout-preview/lakeLayout'
-it('preserves the approved 11c543c layout and 19,881 movement/height/swimming samples',()=>{
+it('preserves the circular plaza review layout and 19,881 movement/height/swimming samples',()=>{
  const hash=(v:unknown)=>createHash('sha256').update(JSON.stringify(v)).digest('hex')
  const movement=[]
  for(let zi=0;zi<=140;zi++)for(let xi=0;xi<=140;xi++){const x=-91+xi*1.3,z=-91+zi*1.3;movement.push([layout.canWalk(x,z),layout.walkHeight(x,z).toFixed(6),lake.swimmingAt(x,z)])}

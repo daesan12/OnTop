@@ -12,7 +12,7 @@ function safe(x:number,z:number) {
     &&!trees.some(t=>Math.hypot(x-t.p[0],z-t.p[2])<.65)
 }
 function height(x:number,z:number) {
-  return Math.max(walkHeight(x,z),Math.abs(x)<LIFE_PLAZA.width/2&&Math.abs(z-LIFE_PLAZA.z)<LIFE_PLAZA.depth/2?.14:.085)
+  return Math.max(walkHeight(x,z),Math.hypot(x-LIFE_PLAZA.x,z-LIFE_PLAZA.z)<LIFE_PLAZA.pavingRadius?.14:.085)
 }
 function clear(a:Point,b:Point) {
   const steps=Math.max(1,Math.ceil(Math.hypot(b.x-a.x,b.z-a.z)/.25))

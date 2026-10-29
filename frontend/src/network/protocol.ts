@@ -1,4 +1,6 @@
 import { validPublicEquipment, type PublicEquipment } from './equipment'
+import { isAvatarActivity, type AvatarActivity } from './avatarActivity'
+import type { MotionSnapshot } from './localMovementPrediction'
 
 /** Existing Spring Raw WebSocket contracts; UI models live in worldClient. */
 export interface Envelope {
@@ -27,16 +29,25 @@ export interface Position {
   running: boolean
   swimming: boolean
 }
+/** Public WORLD_STATE seating contract; seatNumber is 1-based, like TABLE_STATE. */
+export interface PublicTableSeat {
+  tableId: string
+  seatNumber: number
+}
 export interface WorldState {
   channelId: string
   version: number
   mapVersion: string
+  tables?: { tableId: string; anchorId: string; chairCount: number }[]
   avatars: {
     userId: string
     position: Position
     nickname?: string | null
     characterGender?: 'MALE' | 'FEMALE' | null
     equipment?: PublicEquipment[] | null
+    tableSeat?: PublicTableSeat | null
+    activity?: AvatarActivity | null
+    motion?: MotionSnapshot | null
   }[]
 }
 export interface TableSummary {
@@ -145,6 +156,14 @@ export function channelState(value: Record<string, unknown>): ChannelState {
   return value as unknown as ChannelState
 }
 export function worldState(value: Record<string, unknown>): WorldState {
+  const motion = (m: unknown) => m == null || record(m)
+    && integer(m.epoch) && integer(m.tick) && integer(m.appliedInputSeq)
+    && typeof m.inputAgeMs === 'number' && Number.isFinite(m.inputAgeMs) && m.inputAgeMs >= 0 && m.inputAgeMs <= 250
+    && typeof m.velocityY === 'number' && Number.isFinite(m.velocityY)
+    && typeof m.grounded === 'boolean' && typeof m.inputActive === 'boolean'
+  const tableSeat = (s: unknown) => s == null || record(s)
+    && text(s.tableId) && s.tableId.length <= 120
+    && integer(s.seatNumber) && s.seatNumber >= 1 && s.seatNumber <= 4
   const position = (p: unknown) =>
     record(p) &&
     integer(p.lastInputSeq) &&
@@ -156,17 +175,23 @@ export function worldState(value: Record<string, unknown>): WorldState {
     !text(value.channelId) ||
     !integer(value.version) ||
     !text(value.mapVersion) ||
+    (value.tables !== undefined && (!Array.isArray(value.tables) || !value.tables.every(t => record(t)
+      && text(t.tableId) && text(t.anchorId) && integer(t.chairCount) && t.chairCount >= 2 && t.chairCount <= 4))) ||
     !Array.isArray(value.avatars) ||
     !value.avatars.every(
       (a) => record(a) && text(a.userId) && position(a.position)
         && (a.nickname == null || (typeof a.nickname === 'string' && !!a.nickname.trim()))
         && (a.characterGender == null || a.characterGender === 'MALE' || a.characterGender === 'FEMALE')
-        && (a.equipment == null || validPublicEquipment(a.equipment)),
+        && (a.equipment == null || validPublicEquipment(a.equipment))
+        && tableSeat(a.tableSeat)
+        && (a.activity == null || isAvatarActivity(a.activity)) && motion(a.motion),
     )
   )
     throw new Error('월드 상태 형식이 올바르지 않습니다.')
   if (new Set(value.avatars.map((a) => a.userId)).size !== value.avatars.length)
     throw new Error('중복 아바타 상태입니다.')
+  const seats = value.avatars.flatMap(a => a.tableSeat ? [`${a.tableSeat.tableId}\0${a.tableSeat.seatNumber}`] : [])
+  if (new Set(seats).size !== seats.length) throw new Error('중복 테이블 착석 상태입니다.')
   return value as unknown as WorldState
 }
 export function tableSummary(value: unknown): TableSummary {

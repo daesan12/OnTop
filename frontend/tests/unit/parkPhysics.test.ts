@@ -16,7 +16,7 @@ describe('park server physics and interaction contract',()=>{
     expect(changed.collision).not.toEqual(PARK_DATA.collision)
     const shop=PARK_DATA.physics.boxes.find(b=>b.id==='layout-shop')!
     expect(shop.half).toEqual([PARK_DEFINITION.kiosks.shop.width/2,2.3,PARK_DEFINITION.kiosks.shop.depth/2])
-    expect(shop.yaw).toBe(Math.PI/4)
+    expect(shop.yaw).toBe(PARK_DEFINITION.kiosks.shop.yaw)
     expect(PARK_DATA.physics.playerInflation).toBe(0)
     expect(PARK_DATA.physics.collisionMargin).toBe(0)
   })
@@ -60,7 +60,7 @@ describe('park server physics and interaction contract',()=>{
     expect(telescope.position[0]).toBeCloseTo(TELESCOPES[0]!.position[0]-TOWER_SITE.x+d.sites.tower.x)
   })
   it('keeps IDs and directions attached to moved fixtures, with table-local seats intact',()=>{
-    const d=structuredClone(PARK_DEFINITION);d.pavilions.P1=[-27,5];d.sites.fitness.x+=2;d.sites.fitness.z-=3
+    const d=structuredClone(PARK_DEFINITION);d.pavilions.P1=[d.pavilions.P1![0]-3,d.pavilions.P1![1]+1];d.sites.fitness.x+=2;d.sites.fitness.z-=3
     const changed=resolveParkLayout(d).data
     for(const kind of ['benches','fitness','telescopes'] as const)expect(changed.interactions[kind].map(x=>x.id)).toEqual(PARK_DATA.interactions[kind].map(x=>x.id))
     const before=PARK_DATA.interactions.benches.find(b=>b.siteId==='bench-P1-bay-0')!,after=changed.interactions.benches.find(b=>b.id===before.id)!

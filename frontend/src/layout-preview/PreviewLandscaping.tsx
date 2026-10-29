@@ -1,14 +1,16 @@
+import { existingTreeModel } from './existingTreeModel'
+import { FacetedParkTreeInstances } from '../world/art/FacetedParkTreeInstances'
 
 import { Shape,ShapeGeometry } from 'three'
 import { Instances,seeded,type Part } from '../world/art/Instances'
 import { PropBuilder } from '../world/art/propGeometry'
 import { PropModel } from '../world/art/PropModel'
 import { GardenFoliageMaterial,crownGeometry } from '../world/art/ReferenceGarden'
-import { SurfaceMaterial } from '../world/art/SurfaceMaterial'
+import { WalkwayMaterial } from '../world/art/WalkwayMaterial'
 import { PERIMETER_TREE_SITES } from './sceneGeometry'
-import { DRAFT_PARK,SETTINGS,PLAZA_REST_GARDENS,PLAZA_BINS,VR_EDGE_TREE_SITES } from './layout'
+import { DRAFT_PARK,SETTINGS,PAVILION_TREE_SITES,PLAZA_TREE_SITES,PLAZA_REST_GARDENS,PLAZA_BINS,VR_EDGE_TREE_SITES } from './layout'
 
-const wood=new PropBuilder([12,8]),shrubs:Part[]=[],crowns:Part[]=[],leaves:Part[]=[],vrCrowns:Part[]=[]
+const wood=new PropBuilder([12,8]),shrubs:Part[]=[],crowns:Part[]=[],leaves:Part[]=[]
 const rand=seeded(261026)
 const leaf=new Shape();leaf.moveTo(0,0);leaf.quadraticCurveTo(.44,.32,0,1);leaf.quadraticCurveTo(-.44,.32,0,0)
 const leafGeometry=new ShapeGeometry(leaf,8)
@@ -67,15 +69,17 @@ for(const bin of PLAZA_BINS){
   wood.box('metal','#283c32',[bin.x,1.18,bin.z],[.78,.12,.78])
   wood.box('metal','#172a24',[bin.x,.98,bin.z+.373],[.4,.17,.035])
 }
-for(const [i,p] of VR_EDGE_TREE_SITES.entries()){
-  const h=4.8+i%3*.45
-  wood.cylinder('wood','#776449',[p.x,h*.34,p.z],.085,.15,h*.68,[0,0,0],9)
-  for(let j=0;j<5;j++){
-    const a=j*2.4+i,dx=Math.cos(a)*.67,dz=Math.sin(a)*.67,y=h*.48+j*.18
-    wood.curve('wood','#806a4e',[[p.x,h*.32,p.z],[p.x+dx*.4,y,p.z+dz*.4],[p.x+dx,y+.65,p.z+dz]],.025,10)
-    vrCrowns.push({p:[p.x+dx,y+1,p.z+dz],s:[.78,1.25,.8],c:['#5d824c','#7b9758','#476f49'][i%3]!})
+// Use the same single-crown, seven-sided trunk style as the existing woodland.
+const treeRandom=seeded(1802610)
+export const simpleTreeBelts=Object.fromEntries(Object.entries({vr:VR_EDGE_TREE_SITES,plaza:PLAZA_TREE_SITES,pavilion:PAVILION_TREE_SITES}).map(([name,sites])=>{
+  const trunks:Part[]=[],crowns:Part[]=[]
+  for(const p of sites){
+    const h=4.2+treeRandom()*3.7,r=1.05+treeRandom()*.65,pink=treeRandom()<.19
+    trunks.push({p:[p.x,h*.3,p.z],s:[.22,h*.6,.22],c:'#72553c'})
+    crowns.push({p:[p.x,h*.72,p.z],s:[r,h*.37,r],c:pink?'#c98f9e':['#537e55','#6f965d','#456d4c','#87a265'][Math.floor(treeRandom()*4)]!})
   }
-}
+  return [name,{trunks,crowns,...existingTreeModel(trunks,crowns)}]
+}))
 const furnitureArt=wood.finish()
 // Pave the full south wall apron; the original avenue is slightly above this single surface.
 const south=new Shape(),half=DRAFT_PARK.half,radius=SETTINGS.park.wallCornerRadius,corner=half-radius;
@@ -93,8 +97,9 @@ const grateArt=grates.finish()
 export function PreviewLandscaping(){return <group name="layout-reference-rest-gardens">
   <PropModel art={furnitureArt} name="layout-timber-planters-and-bins"/>
   <Instances parts={[...shrubs,...crowns]} shadow={false} material={<GardenFoliageMaterial/>}><primitive object={crownGeometry} attach="geometry" dispose={null}/></Instances>
-  <group name="layout-vr-green-belt"><Instances parts={vrCrowns} shadow={false} material={<GardenFoliageMaterial/>}><primitive object={crownGeometry} attach="geometry" dispose={null}/></Instances></group>
+
+  {Object.entries(simpleTreeBelts).map(([name,trees])=><FacetedParkTreeInstances key={name} name={'layout-'+name+'-green-belt'} parts={trees.parts} treeCount={trees.plantings.length}/>)}
   <Instances parts={leaves} shadow={false} material={<meshStandardMaterial roughness={.86} side={2}/>}><primitive object={leafGeometry} attach="geometry" dispose={null}/></Instances>
-  <mesh name="layout-gate-stone-promenade" geometry={gatePromenadeGeometry} dispose={null} receiveShadow><SurfaceMaterial kind="stone" mapping="box" paving color="#c8c1ad" meters={1.7} strength={.1}/></mesh>
+  <mesh name="layout-gate-stone-promenade" geometry={gatePromenadeGeometry} dispose={null} receiveShadow><WalkwayMaterial color="#c8c1ad"/></mesh>
   <PropModel art={grateArt} name="layout-south-tree-grates"/>
 </group>}

@@ -1,3 +1,4 @@
+import { SIMPLE_MAP } from '../world/art/mapRenderProfile'
 import { useSurfaceMaps } from '../world/art/SurfaceMaterial'
 import { useLayoutEffect,useMemo,useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
@@ -15,7 +16,7 @@ export const jumpVisualState={hits:0,lastTheme:'',soundLayers:0}
 export function setJumpView(view:string){pulse.view=view}
 function materialFor(theme:JumpTheme,finish:string,stone:ReturnType<typeof useSurfaceMaps>,wood:ReturnType<typeof useSurfaceMaps>) {
   const surface=finish==='wood'||theme==='fish'||theme==='kite'||theme==='lantern'?wood:stone,normal=theme==='cloud'?.055:theme==='gomoku'?.12:theme==='stone'?.35:.18
-  const material=new MeshStandardMaterial({transparent:true,depthWrite:false,vertexColors:true,map:finish==='stone'||finish==='wood'?surface.map:null,normalMap:surface.normalMap,normalScale:new Vector2(normal,normal),roughnessMap:surface.roughnessMap,roughness:finish==='gold'?.58:theme==='gomoku'?.26:theme==='cloud'||theme==='kite'?.96:theme==='lily'?.45:.85,metalness:finish==='gold'?.75:0})
+  const material=new MeshStandardMaterial({transparent:true,depthWrite:false,vertexColors:true,map:!SIMPLE_MAP&&(finish==='stone'||finish==='wood')?surface.map:null,normalMap:SIMPLE_MAP?null:surface.normalMap,normalScale:new Vector2(normal,normal),roughnessMap:SIMPLE_MAP?null:surface.roughnessMap,roughness:finish==='gold'?.58:theme==='gomoku'?.26:theme==='cloud'||theme==='kite'?.96:theme==='lily'?.45:.85,metalness:finish==='gold'?.75:0})
   material.onBeforeCompile=shader=>{
     shader.uniforms.jumpTime={get value(){return pulse.time}}
     shader.vertexShader=`attribute float aFade;attribute float aHit;varying float vFade;varying float vHit;varying vec3 vJumpPoint;uniform float jumpTime;\n${shader.vertexShader}`
@@ -28,9 +29,9 @@ function materialFor(theme:JumpTheme,finish:string,stone:ReturnType<typeof useSu
     shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
       diffuseColor.a*=vFade;
       float grain=sin(vJumpPoint.x*31.+sin(vJumpPoint.z*18.))*sin(vJumpPoint.y*38.+vJumpPoint.z*33.);
-      diffuseColor.rgb*=1.+grain*.025;
+      ${SIMPLE_MAP?'':'diffuseColor.rgb*=1.+grain*.025;'}
       diffuseColor.rgb*=1.+vHit*${theme==='lantern'?'1.2':'.55'};
-      ${theme==='stone'||theme==='gomoku'?'float crack=1.-smoothstep(.009,.021,abs(sin(vJumpPoint.x*7.+sin(vJumpPoint.z*5.))*vJumpPoint.z));if(vJumpPoint.y>-.035)diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*.35,crack*vHit);':''}
+      ${!SIMPLE_MAP&&(theme==='stone'||theme==='gomoku')?'float crack=1.-smoothstep(.009,.021,abs(sin(vJumpPoint.x*7.+sin(vJumpPoint.z*5.))*vJumpPoint.z));if(vJumpPoint.y>-.035)diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*.35,crack*vHit);':''}
     `)
     if(finish==='glow')shader.fragmentShader=shader.fragmentShader.replace('#include <opaque_fragment>','outgoingLight+=diffuseColor.rgb*(.45+vHit);\n#include <opaque_fragment>')
   }

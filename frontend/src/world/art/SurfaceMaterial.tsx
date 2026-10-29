@@ -1,3 +1,4 @@
+import { SIMPLE_MAP } from './mapRenderProfile'
 import { useLayoutEffect, useMemo } from 'react'
 import { useLoader } from '@react-three/fiber'
 import {
@@ -15,7 +16,7 @@ const configured = new WeakSet<Texture>()
 
 /** Shared, local CC0 detail maps; no per-instance textures or runtime CDN calls. */
 export function useSurfaceMaps(kind: Surface) {
-  const maps = useLoader(TextureLoader, surfaceMapUrls[kind])
+  const maps = useLoader(TextureLoader, SIMPLE_MAP ? [] : surfaceMapUrls[kind])
   return useMemo(() => {
     maps.forEach((map, i) => {
       if (configured.has(map)) return
@@ -25,12 +26,12 @@ export function useSurfaceMaps(kind: Surface) {
       map.needsUpdate = true
       configured.add(map)
     })
-    return { map: maps[0]!, normalMap: maps[1]!, roughnessMap: maps[2]! }
+    return { map: maps[0] ?? null, normalMap: maps[1] ?? null, roughnessMap: maps[2] ?? null }
   }, [maps])
 }
 
 /** Box projection uses each instance's dimensions, so a long wall doesn't stretch one tile. */
-export function SurfaceMaterial({
+function DetailedSurfaceMaterial({
   kind,
   mapping = 'uv',
   meters = 1.5,
@@ -192,4 +193,8 @@ export function SurfaceMaterial({
       customProgramCacheKey={() => programKey}
     />
   )
+}
+
+export function SurfaceMaterial(props:Parameters<typeof DetailedSurfaceMaterial>[0]){
+  return SIMPLE_MAP?<meshLambertMaterial color={props.color??'#ffffff'} vertexColors={props.vertexColors??false} side={props.side??0} flatShading polygonOffset={props.depthOffset} polygonOffsetFactor={0} polygonOffsetUnits={-1}/>:<DetailedSurfaceMaterial {...props}/>
 }

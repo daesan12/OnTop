@@ -13,6 +13,7 @@ export interface ParkRuntimePort {
   releaseFacility(leaseId: string, signal: AbortSignal): Promise<void>
   aimFacility(leaseId: string, aim: { yaw: number; pitch: number }, signal: AbortSignal): Promise<{ yaw: number; pitch: number }>
   selectChannel(channelId: string): Promise<boolean>
+  refreshChannels(): Promise<boolean>
   sendChat(text: string): Promise<boolean>
   sendSpectatorChat(text: string): Promise<boolean>
   pingOmok(x: number, y: number): Promise<boolean>
@@ -34,8 +35,11 @@ export interface ParkRuntimePort {
   placeOmok(x: number, y: number): Promise<boolean>
   actDice(kind: 'roll' | 'bank', selectedIds: readonly number[]): Promise<boolean>
   actOneCard(input: import('../../game/onecard/protocol').OneCardInput): Promise<boolean>
+  flipOneCardHand?(targetUserId: string): Promise<boolean>
+  restoreOneCardHand?(): Promise<boolean>
+  hitOneCardHand?(attemptId: string): Promise<boolean>
   actBridge(input: import('../../game/bridge/protocol').BridgeInput): Promise<boolean>
   watchGame(gameId: string): Promise<boolean>
-  watchBench(anchorId: string): Promise<boolean>
+  watchBench(anchorId: string, observeOnly?: boolean): Promise<boolean>
   unwatchGame(): Promise<boolean>
 }

@@ -1,3 +1,4 @@
+import { SIMPLE_MAP } from './mapRenderProfile'
 import {
   BufferGeometry,
   Float32BufferAttribute,
@@ -65,9 +66,9 @@ function roofGeometry(cross: boolean) {
     ]
   }
   for (let edge = 0; edge < outline.length; edge++) {
-    for (let segment = 0; segment < 4; segment++) {
-      const u = segment / 4,
-        v = (segment + 1) / 4
+    for (let segment = 0; segment < (SIMPLE_MAP ? 1 : 4); segment++) {
+      const u = segment / (SIMPLE_MAP ? 1 : 4),
+        v = (segment + 1) / (SIMPLE_MAP ? 1 : 4)
       for (let ring = 0; ring < 3; ring++) {
         const a = point(edge, u, ring),
           b = point(edge, v, ring)
@@ -127,6 +128,7 @@ function createPagoda() {
     height: number,
     yaw: number,
   ) => {
+    if (SIMPLE_MAP) return
     const transform = (dx: number, dy: number, dz: number): XYZ => [
       x + dx * Math.cos(yaw) + dz * Math.sin(yaw),
       y + dy,
@@ -304,7 +306,7 @@ function createPagoda() {
 const art = createPagoda()
 const detailGeometry = new BoxGeometry()
 const reliefGeometry = new IcosahedronGeometry(1, 0)
-const masonryGeometry = new RoundedBoxGeometry(1, 1, 1, 1, 0.025)
+const masonryGeometry = SIMPLE_MAP ? new BoxGeometry() : new RoundedBoxGeometry(1, 1, 1, 1, 0.025)
 const stoneAssets = new Map<number, BufferGeometry>()
 function stoneAsset(scale: number) {
   let geometry = stoneAssets.get(scale)

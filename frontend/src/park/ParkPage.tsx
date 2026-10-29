@@ -1,5 +1,8 @@
-import { useCallback, useEffect, useState, type CSSProperties } from 'react'
+import { useEffect, useLayoutEffect, useState, type CSSProperties } from 'react'
+import { installBrowserShortcutGuard } from './browserShortcuts'
 import { ParkScene } from './ParkScene'
+import { ParkBgm } from '../audio/ParkBgm'
+import { ParkSfx } from '../audio/ParkSfx'
 import './park.css'
 import './scene.css'
 import '../features/parkMenus/hud.css'
@@ -9,6 +12,7 @@ import { ParkRuntimeProvider } from './runtime/ParkRuntime'
 import { ParkTools } from './ParkTools'
 import type { QualityPreset } from '../config'
 import { ParkInteractionHint } from '../features/interactions/ParkInteractionHint'
+import { ConstructionNotice } from '../features/construction/ConstructionNotice'
 import { EmoteWheel } from '../features/emotes/EmoteWheel'
 import { TelescopePanel } from '../features/telescopes/TelescopePanel'
 import { FeedbackPanel } from '../features/feedback/FeedbackPanel'
@@ -16,7 +20,7 @@ import { AnonymousNotes } from '../features/notes/AnonymousNotes'
 import { ManualHost } from '../features/manual/ManualHost'
 import { FacilityStatus } from '../features/facilities/FacilityStatus'
 import { ManualWorldActions } from '../features/manual/ManualWorldActions'
-import { resetMetrics } from '../performance/metrics'
+import { SettingsLauncher } from '../performance/GraphicsSettings'
 import { ParkMap } from '../features/navigation/ParkMap'
 import { ParkNavigation } from '../features/navigation/NavigationHud'
 import { BungeoppangHud } from '../features/bungeoppang/BungeoppangHud'
@@ -31,6 +35,7 @@ import { useGame } from '../game/store'
 import { OmokFeedback, SpectatorChat } from '../game/omok/OmokFeedback'
 import { ChannelMenu } from '../features/parkMenus/ChannelMenu'
 import { AccountMenu } from '../features/parkMenus/AccountMenu'
+import { RewardCoinFlight } from '../features/wallet/RewardCoinFlight'
 import { LocationChip } from '../features/parkMenus/LocationChip'
 
 const shortcuts = [
@@ -51,18 +56,20 @@ function getHudScale(): number {
 
 type ParkProps = { onExit: () => void; exitError: string; onAuthEnded: () => void }
 export function ParkPage(props: ParkProps) {
+  useLayoutEffect(() => {
+    // Keep local debugging available; explicit opt-in exercises the production guard in QA.
+    if (import.meta.env.PROD || import.meta.env.VITE_BROWSER_SHORTCUT_GUARD === 'true')
+      return installBrowserShortcutGuard()
+  }, [])
   return <ParkRuntimeProvider onAuthEnded={props.onAuthEnded}><ParkContent {...props}/></ParkRuntimeProvider>
 }
 function ParkContent({ onExit, exitError, onAuthEnded }: ParkProps) {
   const bungeoppang = useBungeoppang(s => s.phase !== 'idle')
   const omokFocus = useGame(s => s.game?.role === 'PLAYER' && s.game.omok?.status === 'PLAYING' && !s.lastResult)
-  const omokWatching = useGame(s => s.game?.role === 'SPECTATOR' && s.game.omok?.status === 'PLAYING')
+  const omokChat = useGame(s => s.game?.omok?.status === 'PLAYING' && !s.lastResult)
   const session = useSession(useShallow(s=>({ sessionId:s.sessionId,roomId:s.roomId })))
-  const [quality,setQuality] = useState<QualityPreset>('low')
-  const changeQuality = useCallback((value: QualityPreset) => {
-    setQuality(value)
-    resetMetrics()
-  }, [])
+  // Everyone plays on the Low preset; the graphics choice is not offered.
+  const quality: QualityPreset = 'low'
   const [hudScale, setHudScale] = useState(getHudScale)
 
   useEffect(() => {
@@ -86,20 +93,24 @@ function ParkContent({ onExit, exitError, onAuthEnded }: ParkProps) {
       '--park-edge': `${20 * hudScale}px`,
     } as CSSProperties}>
       <ParkScene quality={quality} />
+      <ParkBgm />
+      <ParkSfx />
+      <RewardCoinFlight />
       <div className="park-hud">
         {!omokFocus && <div className="park-roaming-ui" hidden={bungeoppang} inert={bungeoppang}>
           <ChannelMenu />
           {/* 빠른 메뉴: each feature keeps its own launcher, placed into a slot by CSS. */}
           <div className="park-quick-dock" aria-hidden="true" />
+          <div className="park-dock-settings"><SettingsLauncher /></div>
           <div className="park-dock-wardrobe"><WardrobeLauncher /></div>
           <LocationChip />
         </div>}
         {!omokFocus && <div inert={bungeoppang}>
-          <AccountMenu quality={quality} exitError={exitError} onExit={onExit} onWithdrawn={onAuthEnded} />
+          <AccountMenu exitError={exitError} onExit={onExit} onWithdrawn={onAuthEnded} />
         </div>}
 
         <div className="park-roaming-ui" hidden={bungeoppang} inert={bungeoppang}>
-          {!omokFocus && (omokWatching ? <SpectatorChat /> : <ParkChat key={`${session.sessionId}:${session.roomId}`} />)}
+          {omokChat ? <SpectatorChat /> : !omokFocus && <ParkChat key={`${session.sessionId}:${session.roomId}`} />}
         </div>
 
         {!omokFocus && <aside className="park-shortcuts" aria-label="조작 방법">
@@ -109,9 +120,10 @@ function ParkContent({ onExit, exitError, onAuthEnded }: ParkProps) {
         </aside>}
       </div>
       <div className="park-roaming-ui" hidden={bungeoppang} inert={bungeoppang}>
-        <ParkTools quality={quality} onQuality={changeQuality}/>
+        <ParkTools />
         {!omokFocus && <>
         <ParkInteractionHint />
+        <ConstructionNotice />
         <FacilityStatus />
         <EmoteWheel />
         <TelescopePanel />
@@ -128,7 +140,7 @@ function ParkContent({ onExit, exitError, onAuthEnded }: ParkProps) {
       </div>
       <BungeoppangHud />
       <OmokFeedback />
-      <ManualHost showLauncher={!omokFocus} worldActions={bungeoppang || omokFocus ? undefined : <ManualWorldActions quality={quality} onQuality={changeQuality} />} />
+      <ManualHost showLauncher={!omokFocus} worldActions={bungeoppang || omokFocus ? undefined : <ManualWorldActions />} />
     </main>
   )
 }

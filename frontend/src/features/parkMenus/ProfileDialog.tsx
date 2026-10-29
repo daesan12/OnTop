@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
-import avatarImage from '../../assets/entry/park-avatar.webp'
 import coinImage from '../../assets/entry/yeopjeon-icon.webp'
 import { useSession } from '../../network/worldClient'
+import { parkName } from '../parkMenus/parkName'
 import { useParkRuntime } from '../../park/runtime/ParkRuntime'
+import { useOwnPortrait } from './characterPortrait'
 import { MenuDialog } from './MenuDialog'
 import { NICKNAME_MAX, NICKNAME_PATTERN, checkNickname, nicknameProblem, updateNickname, type NicknameProblem } from './service'
 import closeIcon from './icons/icon-close.svg'
@@ -30,6 +31,7 @@ export function ProfileDialog({ onClose, onSaved }: { onClose: () => void; onSav
     nickname: s.account?.nickname ?? '', balance: s.account?.balance ?? null,
     character: s.profiles[s.sessionId]?.character, channelName: s.channelName,
   })))
+  const portrait = useOwnPortrait()
   const [value, setValue] = useState(session.nickname)
   const [check, setCheck] = useState<Check | null>(null)
   const [saving, setSaving] = useState(false)
@@ -76,10 +78,10 @@ export function ProfileDialog({ onClose, onSaved }: { onClose: () => void; onSav
       <button type="button" className="park-menu-icon-button" aria-label="내 정보 닫기" onClick={onClose}><img src={closeIcon} alt="" /></button>
     </header>
     <div className="park-profile-summary">
-      <span className="park-menu-avatar park-menu-avatar--large"><img src={avatarImage} alt="" /></span>
+      <span className="park-menu-avatar park-menu-avatar--large"><img src={portrait} alt="" /></span>
       <span className="park-profile-summary__info">
         <b>{session.nickname}</b>
-        <small>{session.character === 'girl' ? '여자' : '남자'} 캐릭터 · {session.channelName ? `${session.channelName}에서 산책 중` : '채널 선택 전'}</small>
+        <small>{session.character === 'girl' ? '여자' : '남자'} 캐릭터 · {session.channelName ? `${parkName(session.channelName)}에서 산책 중` : '채널 선택 전'}</small>
       </span>
       <span className="park-profile-summary__balance">
         <img src={coinImage} alt="" />{session.balance === null ? '—' : session.balance.toLocaleString('ko-KR')}<i>냥</i>

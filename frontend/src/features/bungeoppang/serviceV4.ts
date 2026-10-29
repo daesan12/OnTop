@@ -76,16 +76,16 @@ const messages: Record<string, string> = {
   MINIGAME_UNAVAILABLE: '미니게임 서버를 잠시 사용할 수 없어요.',
 };
 
-function toTiming(value: unknown): RoundTiming {
+export function toTiming(value: unknown, durationMs = 60000): RoundTiming {
   const fields = ['countdownStartsAt', 'playStartsAt', 'playEndsAt', 'submitDeadline', 'expiresAt'] as const;
   if (!record(value) || !fields.every(name => instant(value[name]))) return fail();
   const times = fields.map(name => Date.parse(value[name] as string));
   if (times.some((time, index) => index > 0 && time <= times[index - 1]!)
-    || times[1]! - times[0]! !== 3500 || times[2]! - times[1]! !== 60000) return fail();
+    || times[1]! - times[0]! !== 3500 || times[2]! - times[1]! !== durationMs) return fail();
   return Object.fromEntries(fields.map(name => [name, value[name]])) as unknown as RoundTiming;
 }
 
-function toRules(value: unknown): Readonly<BungeoppangRules & { rulesVersion: 'v4' }> {
+export function toRules(value: unknown): Readonly<BungeoppangRules & { rulesVersion: 'v4' }> {
   if (!record(value)) return fail();
   const ints = ['slots', 'durationMs', 'countdownMs', 'sideMs', 'rushSideMs', 'rushFromMs', 'heatMin',
     'heatMax', 'heatListLength', 'trayCapacity', 'maxOrderItems', 'specialOrderChancePercent',
@@ -122,7 +122,7 @@ function toOrder(value: unknown): WireOrder {
   } };
 }
 
-function toCheckpoint(value: unknown): V4Checkpoint {
+export function toCheckpoint(value: unknown): V4Checkpoint {
   if (!record(value) || !whole(value.revision) || !whole(value.throughSeq)
     || typeof value.prefixHash !== 'string' || !/^[0-9a-f]{64}$/.test(value.prefixHash)
     || !whole(value.heatCursor) || !(value.lastAt === null || whole(value.lastAt))
@@ -182,9 +182,9 @@ async function sha256(bytes: Uint8Array): Promise<Uint8Array> {
   return new Uint8Array(await crypto.subtle.digest('SHA-256', Uint8Array.from(bytes).buffer));
 }
 const hex = (bytes: Uint8Array) => Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
-async function prefixHash(sessionId: string, configVersion: string, actions: WireAction[]): Promise<string> {
+export async function prefixHash(sessionId: string, configVersion: string, actions: WireAction[], version = 'v4'): Promise<string> {
   const encoder = new TextEncoder();
-  let hash = await sha256(encoder.encode(`BUNGEOPPANG/v4\n${sessionId}\n${configVersion}\n`));
+  let hash = await sha256(encoder.encode(`BUNGEOPPANG/${version}\n${sessionId}\n${configVersion}\n`));
   for (const action of actions) {
     const tuple = [action.seq, action.action, action.t, action.slot ?? null, action.filling ?? null,
       action.breadId ?? null, action.orderId ?? null, action.deliveryKey ?? null];
@@ -254,9 +254,9 @@ async function wireCompletion(source: SessionSource, input: BungeoppangSubmit) {
   return { actions, hash: await prefixHash(input.gameId, source.configVersion, actions) };
 }
 
-function completeResult(value: unknown, gameId: string) {
+export function completeResult(value: unknown, gameId: string, version = 'v4') {
   if (!record(value) || value.minigameSessionId !== gameId || value.status !== 'COMPLETED'
-    || value.rulesVersion !== 'v4' || typeof value.configVersion !== 'string') return fail();
+    || value.rulesVersion !== version || typeof value.configVersion !== 'string') return fail();
   const integers = ['verifiedCompletedCount', 'rewardAmount', 'score', 'made', 'golden', 'failed', 'wasted',
     'maxCombo', 'coinsCalculated', 'coinsGranted', 'todayEarned', 'dailyCap', 'successfulMade', 'served',
     'customersServed', 'specialServed', 'bonusScore', 'grillDiscarded', 'trayDiscarded', 'undeliveredCount',
@@ -279,7 +279,7 @@ function completeResult(value: unknown, gameId: string) {
     trayDiscarded: Number(value.trayDiscarded), undeliveredCount: Number(value.undeliveredCount),
     unfinishedGrillCount: Number(value.unfinishedGrillCount), rewardDate: value.rewardDate,
     settledAt: value.settledAt as string, finalThroughSeq: Number(value.finalThroughSeq),
-    finalPrefixHash: value.finalPrefixHash, rulesVersion: 'v4', configVersion: value.configVersion,
+    finalPrefixHash: value.finalPrefixHash, rulesVersion: version, configVersion: value.configVersion,
   };
 }
 
@@ -426,7 +426,7 @@ export function createBungeoppangV4Service(requestJSON: RequestJson): Bungeoppan
       sessions.delete(gameId);
     },
     async balance() {
-      const p = await request('/api/v1/wallets/me');
+      const p = await request('/api/v1/wallets/me', { cache: 'no-store' });
       if (!record(p) || !whole(p.balance) || !whole(p.reservedBalance) || !whole(p.availableBalance)
         || Number(p.balance) - Number(p.reservedBalance) !== Number(p.availableBalance)) return fail();
       return Number(p.balance);

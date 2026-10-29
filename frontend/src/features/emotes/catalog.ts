@@ -1,4 +1,4 @@
-import { CLAP_EMOTE, NETWORK, SOCIAL_GESTURES } from '../../config'
+import { CLAP_EMOTE, NETWORK, SOCIAL_GESTURES } from '../../park/mapConfig'
 
 export const emotes = [
   { id: 'EMOTE_APPLAUSE_REQUEST', label: '박수 부탁', icon: 'clap', color: '#efd58d', durationMs: NETWORK.emoteDurationMs, cooldownMs: 1800 },

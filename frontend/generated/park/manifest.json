@@ -1,38 +1,39 @@
 {
   "artifacts": [
     {
-      "bytes": 2499280,
+      "bytes": 2545864,
       "path": "generated/park/server-map.json",
-      "sha256": "f091a95b3c873d0fd0206b98ec54337c596768b26b82e503233c5cfc4403f344"
+      "sha256": "cd7e8e93333d3bdb3ecb8d1b72da6709f4cd88c6f0a77a0030c71f77a45e40c4"
     },
     {
       "bytes": 329,
       "path": "src/map/park/generated/mapVersion.ts",
-      "sha256": "0c378be874187a2537e5461aad4ba55023ccc9c271ea8d799220ec568d56b372"
+      "sha256": "a96e25551d0455e30be5ff8c982e0f8bd43f20050045e782da9d6c7f6d5d16f9"
     }
   ],
   "counts": {
-    "benches": 74,
-    "facilities": 13,
+    "benches": 71,
+    "construction": 3,
+    "facilities": 12,
     "fitness": 12,
-    "localSeats": 64,
-    "obstacles": 487,
-    "paths": 54,
+    "localSeats": 72,
+    "obstacles": 550,
+    "paths": 60,
     "pavilions": 9,
-    "physicalBoxes": 2024,
-    "physicalHulls": 34,
+    "physicalBoxes": 2096,
+    "physicalHulls": 35,
     "physicalMeshes": 8,
-    "tables": 16,
+    "tables": 18,
     "telescopes": 2
   },
   "format": "ontop.park-map-manifest",
   "hashAlgorithm": "sha256",
   "hashes": {
-    "dataHash": "4a626c4e965be186fd9f766b1820ee7b4533985774c6efe293425f526720d81f",
-    "sourceHash": "99f75e309aa8043106af7601c65f69968cdb89b8416f55fea494a6ca449b492a"
+    "dataHash": "9b18bd40c6da36de15c9592ac7c113c7bb4502e10c12d6a568dda6d8ea82440d",
+    "sourceHash": "1a9c4e535d76221d42e6219965be19612461ebf577408e7f30fdb11d947072f1"
   },
   "mapId": "park",
-  "mapVersion": "2857774aae694b3b091f80d9e0b67d23133e0582f78098ff706f8933ad5bcf0a",
+  "mapVersion": "cac3cb040a43630b0b40201ab089a4b328146c03211867b2a155d2b3614acc81",
   "schemaVersion": 2,
   "sources": [
     {
@@ -81,7 +82,7 @@
     },
     {
       "path": "src/config/notes.ts",
-      "sha256": "b6fef6de816e9ce03200c965e962385f9eb3a3b4b19e7045506c48e5911f5d78"
+      "sha256": "6e149be8272ad43c41741e40cde0fe19300b7b451d344cd58bd232e61611793f"
     },
     {
       "path": "src/config/pagoda.ts",
@@ -129,7 +130,7 @@
     },
     {
       "path": "src/config/table-seats.ts",
-      "sha256": "e95b1516e050b2e3a84675645cd6294d7462509f1c2aba254d865805ac873337"
+      "sha256": "7283c3c9a6fcd11aa855e2d0444d796e499b35705ac21c573cf04c64fa8e82fe"
     },
     {
       "path": "src/config/telescopes.ts",
@@ -145,11 +146,15 @@
     },
     {
       "path": "src/map/park/collision.ts",
-      "sha256": "abdf6d097352327a29cfa19d565fc96988efbe68de9a78043846c6e992ad91e9"
+      "sha256": "00b7343a460881ba457dcb1ecce2fa35721f6c73b752de5822e8a32af3304d48"
     },
     {
       "path": "src/map/park/definition.ts",
-      "sha256": "53e3102e17a7520ddbb4cd0ed86391cdd3e9d72165b617798d059b84daf919da"
+      "sha256": "bc24581fc7db62063de077b0d328a329eba4fea17f192a80ca31b70e227b5331"
+    },
+    {
+      "path": "src/map/park/fountainHeight.ts",
+      "sha256": "9996ee1c49bd09c43142d4abde7f831ee4001553bb8232b7372ff1094c4b7573"
     },
     {
       "path": "src/map/park/index.ts",
@@ -157,7 +162,7 @@
     },
     {
       "path": "src/map/park/interactionData.ts",
-      "sha256": "bd2d615978e14694cf952bdee7383d78cc4658f920b407cd8b6e6d85c85e473f"
+      "sha256": "c9e4be160c37056cc075756f9ca139dafa6937d3df6bad43666a5f99b560c6dd"
     },
     {
       "path": "src/map/park/lake.ts",
@@ -165,15 +170,19 @@
     },
     {
       "path": "src/map/park/physics.ts",
-      "sha256": "38c74fd21db6d0cefa0de595b3f5dc042a918f82c3be2398e67b5f932577e908"
+      "sha256": "4e70a9d3b7a63f79b833fd818d35f293a590833e836f58d39e09fa9f1ae26d80"
+    },
+    {
+      "path": "src/map/park/planting.ts",
+      "sha256": "bd3bdbb670b168952aab25e1c8a721b69b263da79cf985394f26c69199bed8e6"
     },
     {
       "path": "src/map/park/resolve.ts",
-      "sha256": "d4570a9358119cc100437e388d3099b6a0078abdc68cf606a418676d9d6f4b19"
+      "sha256": "b1f94341af448b715c4e8fae5458f9c96aa3b535f0b65e37104c29d45335061e"
     },
     {
       "path": "src/map/park/validate.ts",
-      "sha256": "d2991a21b3d19acee3014487841612f9ac39a39152f25a51c847ba3c3adbeac2"
+      "sha256": "7e441e49006eb34809264552707e4c625e7c61cc8a08f6f354a840e2f9086e7e"
     }
   ],
   "validation": {

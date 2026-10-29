@@ -1,9 +1,11 @@
+import { SIMPLE_MAP } from '../world/art/mapRenderProfile'
 import { BoxGeometry,LatheGeometry,Vector2,ExtrudeGeometry,Path,RingGeometry,Shape,SphereGeometry } from 'three'
 import { PropBuilder,type PropFinish } from '../world/art/propGeometry'
 import type { JumpTheme } from './jumpCourse'
 import { JUMP_START,JUMP_FINISH } from './jumpCourse'
 
 function slab(b:PropBuilder,kind:PropFinish,color:string,w:number,d:number,h:number,y=0) {
+  if(SIMPLE_MAP){b.box(kind,color,[0,y-h/2,0],[w,h,d]);return}
   const shape=new Shape(),r=.12
   shape.moveTo(-w/2+r,-d/2);shape.lineTo(w/2-r,-d/2);shape.quadraticCurveTo(w/2,-d/2,w/2,-d/2+r);shape.lineTo(w/2,d/2-r);shape.quadraticCurveTo(w/2,d/2,w/2-r,d/2);shape.lineTo(-w/2+r,d/2);shape.quadraticCurveTo(-w/2,d/2,-w/2,d/2-r);shape.lineTo(-w/2,-d/2+r);shape.quadraticCurveTo(-w/2,-d/2,-w/2+r,-d/2)
   const g=new ExtrudeGeometry(shape,{depth:Math.max(.01,h-.06),bevelEnabled:true,bevelSize:.03,bevelThickness:.03,bevelSegments:4,curveSegments:12});g.rotateX(-Math.PI/2)
@@ -20,7 +22,7 @@ function slab(b:PropBuilder,kind:PropFinish,color:string,w:number,d:number,h:num
 function coinGeometry(size=2,depth=.2) {
   const s=new Shape();s.absarc(0,0,size,0,Math.PI*2,false)
   const h=new Path(),hole=size*.46;h.moveTo(-hole,-hole);h.lineTo(-hole,hole);h.lineTo(hole,hole);h.lineTo(hole,-hole);h.closePath();s.holes.push(h)
-  return new ExtrudeGeometry(s,{depth,bevelEnabled:true,bevelThickness:.025,bevelSize:.025,bevelSegments:2,curveSegments:48})
+  return new ExtrudeGeometry(s,{depth,bevelEnabled:true,bevelThickness:.025,bevelSize:.025,bevelSegments:SIMPLE_MAP?1:2,curveSegments:SIMPLE_MAP?8:48})
 }
 function themeModel(theme:JumpTheme) {
   const b=new PropBuilder([16,10])
@@ -29,7 +31,7 @@ function themeModel(theme:JumpTheme) {
     b.cylinder('stone','#cfc9bd',[0,-.29,0],1.3,1,.12,[0,Math.PI/4,0],4)
     slab(b,'stone','#a49e92',1.15,1.15,.12,-.35)
   } else if(theme==='gomoku') {
-    b.add('stone',new LatheGeometry([[0,0],[.5,0],[.73,.04],[.84,.16],[.85,.27],[.81,.4],[.7,.5],[0,.5]].map(p=>new Vector2(p[0],p[1])),64),'#e9e5d9',[0,-.5,0])
+    b.add('stone',new LatheGeometry([[0,0],[.5,0],[.73,.04],[.84,.16],[.85,.27],[.81,.4],[.7,.5],[0,.5]].map(p=>new Vector2(p[0],p[1])),SIMPLE_MAP?12:64),'#e9e5d9',[0,-.5,0])
   } else if(theme==='fish') {
     b.ball('paint','#c99343',[0,-.3,0],[1,.3,.62])
     slab(b,'paint','#dfa854',1.4,.82,.13)
@@ -49,7 +51,7 @@ function themeModel(theme:JumpTheme) {
     b.box('paint','#5b1f1a',[0,-.24,0],[1.6,.035,.06])
   } else if(theme==='cloud') {
     for(const [x,y,z,r] of [[0,-.45,0,.85],[-.65,-.45,.1,.6],[.65,-.43,-.08,.6],[.1,-.34,-.6,.57],[-.1,-.4,.6,.58],[.38,-.27,.3,.52]]) {
-      const g=new SphereGeometry(1,18,12);g.scale(r!,r!*.85,r!);g.translate(x!,y!,z!);const p=g.getAttribute('position');for(let i=0;i<p.count;i++)p.setY(i,Math.min(0,p.getY(i)));g.computeVertexNormals();b.add('paint',g,'#edf0eb')
+      const g=new SphereGeometry(1,SIMPLE_MAP?6:18,SIMPLE_MAP?4:12);g.scale(r!,r!*.85,r!);g.translate(x!,y!,z!);const p=g.getAttribute('position');for(let i=0;i<p.count;i++)p.setY(i,Math.min(0,p.getY(i)));g.computeVertexNormals();b.add('paint',g,'#edf0eb')
     }
   } else if(theme==='lantern') {
     b.cylinder('paint','#cf3a2f',[0,-.43,0],.56,.6,.48,[0,0,0],24)
@@ -74,7 +76,7 @@ function themeModel(theme:JumpTheme) {
     for(const side of [-1,1])b.curve('paint','#b8523a',[[side*.45,-.03,.9],[side*.47,-.2,1.2],[side*.56,-.5,1.45],[side*.42,-.72,1.65]],.025,16)
   } else if(theme==='lily') {
     const s=new Shape();s.moveTo(0,0);s.absarc(0,0,1,.18,Math.PI*2-.18,false);s.lineTo(0,0)
-    const g=new ExtrudeGeometry(s,{depth:.1,bevelEnabled:false,curveSegments:40});g.rotateX(-Math.PI/2);b.add('paint',g,'#5e8c57',[0,-.1,0])
+    const g=new ExtrudeGeometry(s,{depth:.1,bevelEnabled:false,curveSegments:SIMPLE_MAP?8:40});g.rotateX(-Math.PI/2);b.add('paint',g,'#5e8c57',[0,-.1,0])
     for(let i=1;i<9;i++){const a=i*Math.PI/5;b.curve('paint','#426943',[[0,.012,0],[Math.cos(a)*.45,.015,Math.sin(a)*.45],[Math.cos(a)*.9,.012,Math.sin(a)*.9]],.012,8)}
     for(let i=0;i<8;i++){const a=i*Math.PI/4;b.ball('paint','#ef93ad',[.43+Math.cos(a)*.15,.1,.35+Math.sin(a)*.15],[.09,.12,.09])}
     b.ball('gold','#f2d15c',[.43,.15,.35],[.08,.06,.08])

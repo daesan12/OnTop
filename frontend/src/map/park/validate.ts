@@ -39,6 +39,9 @@ export function validateParkDefinition(d:ParkDefinition) {
   for(const [id,p] of Object.entries(d.sites))point(p.x,p.z,`sites.${id}`)
   for(const [id,p] of Object.entries(d.pavilions))point(...p,`pavilions.${id}`)
   for(const [id,p] of Object.entries(d.tables))point(...p,`tables.${id}`)
+  assertUniqueIds('VR game table IDs',d.vrStoneSets.map(s=>({id:s.tableId})))
+  if(d.vrStoneSeats.length!==4)throw new Error('VR game tables need four seats')
+  for(const s of d.vrStoneSets)if(Object.hasOwn(d.tables,s.tableId)||/^table-(?:[1-9]|1[0-6])$/.test(s.tableId))throw new Error('VR game table ID must not replace an existing table')
   if(d.gate.opening!==d.gate.boundaryOpening||d.gate.postX*2!==d.gate.opening)throw new Error('gate opening and posts must align')
   positive(d.gate.opening,'gate.opening')
   for(const [id,k] of Object.entries(d.kiosks)){positive(k.width,`${id}.width`);positive(k.depth,`${id}.depth`)}
@@ -48,6 +51,6 @@ export function validateParkDefinition(d:ParkDefinition) {
   if(!d.lake.crossings.some(c=>c.kind==='wood')||d.lake.decks.length!==2)throw new Error('lake requires the existing wood bridge and two fishing decks')
   for(const c of d.lake.crossings){if(Math.abs(c.offsetZ)>=d.lake.rz)throw new Error(`${c.id} misses the lake`);positive(c.halfWidth,`${c.id}.halfWidth`)}
   for(const route of d.routes){positive(route.width,`${route.id}.width`);if(route.points.length<2)throw new Error(`${route.id} needs two points`);route.points.forEach(p=>point(...p,route.id))}
-  for(const [label,items] of Object.entries({routes:d.routes,crossings:d.lake.crossings,decks:d.lake.decks,gardens:d.plazaRestGardens,benches:d.plazaRestBenches,bins:d.plazaBins,stoneSets:d.vrStoneSets}))assertUniqueIds(label,items)
+  for(const [label,items] of Object.entries({routes:d.routes,crossings:d.lake.crossings,decks:d.lake.decks,gardens:d.plazaRestGardens,benches:d.plazaRestBenches,forestBenches:d.forestBenches,bins:d.plazaBins,stoneSets:d.vrStoneSets}))assertUniqueIds(label,items)
   for(const id of d.curvedRoutes)if(!d.routes.some(r=>r.id===id))throw new Error(`missing curved route ${id}`)
 }

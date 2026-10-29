@@ -1,3 +1,5 @@
+import { SIMPLE_MAP } from './mapRenderProfile'
+import { IcosahedronGeometry } from 'three'
 import { useMemo } from 'react'
 import { useLoader } from '@react-three/fiber'
 import { leafMapUrl } from '../worldAssets'
@@ -27,8 +29,8 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 
 // Original opaque meshes inspired by map_asset_3/4; no sheet pixels on billboards.
 const flowerShape = new Shape()
-for (let i = 0; i <= 60; i++) {
-  const a = (i * Math.PI) / 30,
+for (let i = 0; i <= (SIMPLE_MAP?5:60); i++) {
+  const a = (i * Math.PI*2) / (SIMPLE_MAP?5:60),
     r = 0.7 + 0.3 * Math.cos(a * 5)
   if (i) flowerShape.lineTo(Math.cos(a) * r, Math.sin(a) * r)
   else flowerShape.moveTo(Math.cos(a) * r, Math.sin(a) * r)
@@ -38,7 +40,7 @@ const leafShape = new Shape()
 leafShape.moveTo(0, 1)
 leafShape.quadraticCurveTo(0.65, 0.2, 0, -1)
 leafShape.quadraticCurveTo(-0.65, 0.2, 0, 1)
-const leafGeometry = new ShapeGeometry(leafShape, 3)
+const leafGeometry = new ShapeGeometry(leafShape, SIMPLE_MAP?1:3)
 const lotusGeometry = (() => {
   const p: number[] = []
   for (let i = 0; i < 24; i++) {
@@ -65,6 +67,7 @@ const lotusGeometry = (() => {
 // Dense irregular leaf sprays keep the crown silhouette porous, not a solid ball.
 // One shared cluster mesh, instanced across the added trees and flower-bed shrubs.
 export const crownGeometry = (() => {
+  if(SIMPLE_MAP) return new IcosahedronGeometry(1, 0)
   const rand = seeded(31842),
     patches: BufferGeometry[] = []
   for (let i = 0; i < 120; i++) {
@@ -92,7 +95,7 @@ export const crownGeometry = (() => {
   merged.computeVertexNormals()
   return merged
 })()
-export function GardenFoliageMaterial() {
+function DetailedGardenFoliageMaterial() {
   const map = useLoader(TextureLoader, leafMapUrl)
   return (
     <meshStandardMaterial
@@ -337,4 +340,8 @@ export function ReferenceFlowerBeds({beds}:{beds:readonly FlowerBed[]}) {
     <Instances parts={bedsArt.shrubs} shadow={false} material={<GardenFoliageMaterial/>}><primitive object={crownGeometry} attach="geometry" dispose={null}/></Instances>
     <Instances parts={bedsArt.flowers} shadow={false} material={<meshStandardMaterial roughness={1} side={2}/>}><primitive object={flowerGeometry} attach="geometry" dispose={null}/></Instances>
   </group>
+}
+
+export function GardenFoliageMaterial() {
+  return SIMPLE_MAP ? <meshLambertMaterial flatShading/> : <DetailedGardenFoliageMaterial/>
 }

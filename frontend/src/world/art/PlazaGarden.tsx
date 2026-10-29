@@ -1,3 +1,4 @@
+import { SIMPLE_MAP } from './mapRenderProfile'
 import { FOUNTAIN_GARDENS } from '../../config'
 import { Instances, seeded, beam, type Part } from './Instances'
 import { SurfaceMaterial } from './SurfaceMaterial'
@@ -102,9 +103,9 @@ export function PlazaGarden() {
         parts={shrubs}
         material={<meshStandardMaterial roughness={1} />}
       >
-        <icosahedronGeometry args={[1, 1]} />
+        <icosahedronGeometry args={[1, SIMPLE_MAP ? 0 : 1]} />
       </Instances>
-      <Instances parts={leaves} shadow={false}>
+      <Instances parts={SIMPLE_MAP ? [] : leaves} shadow={false}>
         <coneGeometry args={[1, 1, 4]} />
       </Instances>
     </group>

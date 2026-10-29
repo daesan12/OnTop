@@ -3,9 +3,16 @@ import { useManual, openManual, closeManual, resetManual } from "../manual/manua
 import { BUNGEOPPANG } from "./config";
 import { BUNGEOPPANG_V4 } from './config';
 import * as v4 from './rulesV4';
+import * as v5 from './rulesV5';
+import { advanceCustomerArrivalsV5, canUseCustomerOrderV5, resetCustomerArrivalsV5, useCustomerArrivalsV5 } from './customerArrivalV5';
+import { holdCustomerDepartureV5, approveCustomerDepartureV5, advanceCustomerDeparturesV5,
+  cancelPendingCustomerDeparturesV5 } from './customerDepartureV5';
 import type { BungFeedback, FeedbackPoint } from './presentation';
 import { slotScreen } from './bungeoppangView';
+import { BUNG_GRILL } from './bungeoppangView';
+import { customerPoint, trayPoint, trashPoint } from './layoutV5';
 import { roundClockAnchor } from './serverTime';
+import { playSfx } from '../../audio/sfx';
 import {
   actionFor,
   applyAction,
@@ -21,6 +28,7 @@ type AnyGrill = GrillState | v4.GrillState;
 export const isV4Grill = (grill: AnyGrill | null): grill is v4.GrillState => !!grill && 'rulesVersion' in grill;
 import { inputState } from "../../world/inputOwnership";
 import { useSession } from '../../network/worldClient';
+import { refreshWalletAfterSettlement } from '../wallet/settlementRefresh';
 import { rememberRoamingView } from '../../world/cameraReturn';
 import { canOpenBungeoppang } from './access';
 import {
@@ -70,6 +78,9 @@ interface BungState {
   rules: Readonly<v4.BungeoppangRules>;
   orderPending: boolean;
   orderError: string | null;
+  selectedCustomer: string | null;
+  choosingWaste: boolean;
+  wasteTarget: { kind: 'grill'; slot: number; lastAt: number | null } | { kind: 'tray'; breadId: number } | null;
   timeSyncPending: boolean;
   timeSyncError: string | null;
   gameId: string;
@@ -101,6 +112,9 @@ const initial = (): Omit<BungState, "phase" | "status" | "seenTips"> => ({
   rules: BUNGEOPPANG_V4,
   orderPending: false,
   orderError: null,
+  selectedCustomer: null,
+  choosingWaste: false,
+  wasteTarget: null,
   timeSyncPending: false,
   timeSyncError: null,
   gameId: "",
@@ -150,6 +164,7 @@ let visit = 0;
 let walletRequest = 0;
 let startKey = '';
 let submission: BungeoppangSubmit | null = null;
+let v5DeliveryFeedback: { before: v4.GrillState; after: v4.GrillState; event: v4.GrillEvent; orderId: string | null } | null = null;
 let timedGameId = '';
 let loopTimer: ReturnType<typeof setInterval> | undefined;
 let transitionTimer: ReturnType<typeof setTimeout>;
@@ -213,6 +228,7 @@ export function openBungeoppang() {
   const session = useSession.getState();
   rememberRoamingView(session.sessionId, session.roomId);
   ++visit;
+  resetCustomerArrivalsV5();
   set({ phase: "entering", ...initial(), status: null, seenTips: [] });
   inputState.minigameOpen = true;
   clearHeldInput();
@@ -221,6 +237,7 @@ export function openBungeoppang() {
   startKey = '';
   submission = null;
   orderSubmission = null;
+  v5DeliveryFeedback = null;
   if (document.pointerLockElement) void document.exitPointerLock();
   (document.activeElement as HTMLElement | null)?.blur?.();
   void refreshBungeoppangStatus();
@@ -232,6 +249,7 @@ export function leaveBungeoppang() {
   const phase = get().phase;
   if (phase === "idle" || phase === "leaving") return;
   ++visit;
+  resetCustomerArrivalsV5();
   clearTimeout(transitionTimer);
   clearTimeout(tipTimer);
   cancelAnimationFrame(raf);
@@ -246,11 +264,13 @@ export function leaveBungeoppang() {
   inputState.minigameOpen = false;
   clearHeldInput();
   set({ phase: "idle", ...initial() });
+  v5DeliveryFeedback = null;
 }
 /** 연결이 끊기는 등 화면을 바로 정리해야 할 때. */
 export function resetBungeoppang() {
   if (get().phase === 'idle' && !view.active && !view.returningUntil) return;
   ++visit;
+  resetCustomerArrivalsV5();
   clearTimeout(transitionTimer);
   clearTimeout(tipTimer);
   cancelAnimationFrame(raf);
@@ -261,6 +281,7 @@ export function resetBungeoppang() {
   startKey = '';
   submission = null;
   orderSubmission = null;
+  v5DeliveryFeedback = null;
   view.active = false;
   view.returningUntil = 0;
   set({ phase: "idle", ...initial(), status: null, seenTips: [] });
@@ -282,19 +303,21 @@ export async function startBungeoppang() {
       void service.abandon(game.gameId).catch(() => {});
       return;
     }
-    if (game.rulesVersion !== R.rulesVersion && !(game.rulesVersion === 'v4' && game.v4 && service.nextOrder))
+    if (game.rulesVersion !== R.rulesVersion && !(game.rulesVersion === 'v4' && game.v4 && service.nextOrder)
+      && !(game.rulesVersion === 'v5' && game.v5 && service.deliverV5))
       throw new BungeoppangServiceError(
         "RULES_VERSION_MISMATCH",
         "게임이 업데이트됐어요. 새로고침해 주세요.",
       );
     if (get().phase !== "start" && get().phase !== "result") return;
-    const sync = game.v4?.timeSync;
+    const sync = game.v5?.timeSync ?? game.v4?.timeSync;
     if (game.v4?.timing && !sync) throw new BungeoppangServiceError('INVALID_RESPONSE', '서버 시간을 확인하지 못했어요.', true);
     if (sync && sync.status !== 'PLAYING' && sync.status !== 'COMPLETED')
       throw new BungeoppangServiceError('GAME_NOT_ACTIVE', '이미 종료되거나 만료된 판이에요. 새 판을 시작해 주세요.');
     startKey = '';
     submission = null;
     orderSubmission = null;
+    v5DeliveryFeedback = null;
     for (const c of crossed) Object.assign(c, { gold: false, burnt: false });
     for (const fx of slotFx)
       Object.assign(fx, {
@@ -306,22 +329,29 @@ export async function startBungeoppang() {
       });
     timedGameId = sync?.status === 'PLAYING' ? game.gameId : '';
     const now = performance.now();
+    const roundRules = game.v5?.rules ?? game.v4?.rules ?? BUNGEOPPANG_V4;
     const anchor = sync ? roundClockAnchor(sync.timing, sync.sample)
       : { playAt: now + R.countdownMs, countdownAt: now };
     Object.assign(clock, {
       ...anchor,
-      t: Math.min(R.durationMs, Math.max(0, now - anchor.playAt)),
+      durationMs: roundRules.durationMs,
+      t: Math.min(roundRules.durationMs, Math.max(0, now - anchor.playAt)),
       frameAt: now,
       countdown: Math.max(0, anchor.playAt - now),
       preparing: now < anchor.countdownAt,
       ending: 0,
     });
+    resetCustomerArrivalsV5(game.v5?.grill?.activeOrders ?? game.v5?.orders ?? []);
     set({
       phase: sync?.status === 'COMPLETED' ? 'result' : 'countdown',
       starting: false,
       gameId: game.gameId,
-      grill: game.v4 ? v4.createGrill(game.heats, game.v4.order, game.v4.rules) : createGrill(game.heats, R),
-      rules: Object.freeze({ ...(game.v4?.rules ?? BUNGEOPPANG_V4) }),
+      grill: game.v5 ? game.v5.grill ?? v5.createGrill(game.heats, game.v5.orders, game.v5.rules)
+        : game.v4 ? v4.createGrill(game.heats, game.v4.order, game.v4.rules) : createGrill(game.heats, R),
+      rules: Object.freeze({ ...roundRules }),
+      selectedCustomer: null,
+      choosingWaste: false,
+      wasteTarget: null,
       orderPending: false,
       orderError: null,
       timeSyncPending: false,
@@ -376,7 +406,8 @@ export function cycleBungeoppangTool(direction: number) {
 function act(slot: number, action: v4.BreadAction) {
   const grill = get().grill!;
   if (!Number.isInteger(slot)) return;
-  if (grill.log.length >= R.maxLogEntries) { popup(null, '입력 기록 한도에 도달했어요. 이번 판은 추가 조작할 수 없어요.', 'PLAIN'); return; }
+  const rules = isV4Grill(grill) ? get().rules : R;
+  if (grill.log.length >= rules.maxLogEntries) { popup(null, '입력 기록 한도에 도달했어요. 이번 판은 추가 조작할 수 없어요.', 'PLAIN'); return; }
   const t = gameNow();
   const current = action === 'DELIVER' || action === 'TRAY_DISCARD' ? null : grill.slots[slot];
   // 서버가 거부할 입력은 기록하지 않는다(같은 칸 0.3초, 연타 0.05초).
@@ -391,21 +422,42 @@ function act(slot: number, action: v4.BreadAction) {
     if (isV4Grill(grill)) {
       const entry: v4.GrillLogEntry = { slot, action, t };
       if (action === 'FILL' && get().tool !== 'batter') entry.filling = get().tool as v4.BreadFilling;
-      if (action === 'DELIVER') entry.order = grill.orderIndex;
-      result = v4.applyAction(grill, entry, get().rules);
+      if (v5.isV5Grill(grill)) {
+        if (action === 'DELIVER') entry.orderId = get().selectedCustomer ?? undefined;
+        if (action === 'TRAY_DISCARD') entry.breadId = grill.tray[slot]?.id;
+        result = v5.applyAction(grill, entry, get().rules);
+      } else {
+        if (action === 'DELIVER') entry.order = grill.orderIndex;
+        result = v4.applyAction(grill, entry, get().rules);
+      }
     } else result = applyAction(grill, { slot, action: action as BreadAction, t }, R);
   } catch (error) {
     if (error instanceof Error) popup(current ? slot : null, error.message, 'PLAIN');
     return;
   }
-  set({ grill: result.state });
-  onEvent(result.event, grill);
-  if (result.event.kind === 'deliver') void requestBungeoppangOrder();
+  if (result.event.kind === 'deliver' && isV4Grill(grill) && v5.isV5Grill(grill)) {
+    const customer = grill.activeOrders.find(order => order.orderId === get().selectedCustomer);
+    if (customer) holdCustomerDepartureV5(customer);
+  }
+  set({ grill: result.state, wasteTarget: null, choosingWaste: false });
+  if (result.event.kind === 'deliver' && isV4Grill(grill) && v5.isV5Grill(grill))
+    v5DeliveryFeedback = { before: grill, after: result.state as v4.GrillState, event: result.event, orderId: get().selectedCustomer };
+  else onEvent(result.event, grill);
+  if (result.event.kind === 'deliver') {
+    if (v5.isV5Grill(isV4Grill(result.state) ? result.state : null)) void requestV5Delivery();
+    else void requestBungeoppangOrder();
+  }
 }
 export function pressBungeoppangSlot(slot: number) {
   if (!Number.isInteger(slot) || slot < 0 || slot >= R.slots || !canAct()) return;
   const s = get();
   const current = s.grill!.slots[slot]!;
+  if (isV4Grill(s.grill) && v5.isV5Grill(s.grill)) {
+    if (v5.burnt(s.grill.slots[slot]!, gameNow(), s.rules)) { act(slot, 'DISCARD'); return; }
+    if (s.choosingWaste && current.phase !== 'empty') {
+      set({ wasteTarget: { kind: 'grill', slot, lastAt: current.lastAt } }); return;
+    }
+  }
   const action = isV4Grill(s.grill) ? v4.actionFor(current.phase, s.tool) : actionFor(current.phase, s.tool as 'batter' | 'bean');
   if (action === "NEED_BATTER" || action === "NEED_BEAN" || action === 'NEED_FILLING') {
     slotFx[slot]!.shakeAt = performance.now();
@@ -425,10 +477,105 @@ export function discardBungeoppangSlot(slot: number) {
   act(slot, "DISCARD");
 }
 export function deliverBungeoppangOrder() {
+  const s = get();
+  if (isV4Grill(s.grill) && v5.isV5Grill(s.grill) && !canUseCustomerOrderV5(s.selectedCustomer)) return;
   if (canAct() && isV4Grill(get().grill) && !get().orderPending && !get().orderError) act(-1, 'DELIVER');
+}
+/** R chooses one fulfillable, arrived order; explicit delivery buttons keep their selected target. */
+export function deliverMatchingBungeoppangOrder() {
+  if (!canAct()) return;
+  const s = get(), grill = s.grill;
+  if (!isV4Grill(grill) || s.orderPending || s.orderError) return;
+  if (!v5.isV5Grill(grill)) { deliverBungeoppangOrder(); return; }
+  const admitted = useCustomerArrivalsV5.getState().admitted;
+  const matches = grill.activeOrders.filter(order => canUseCustomerOrderV5(order.orderId) && v5.ready(grill, order))
+    .sort((a, b) => admitted[a.orderId]! - admitted[b.orderId]! || a.customerSlot - b.customerSlot);
+  const target = matches.find(order => order.orderId === s.selectedCustomer) ?? matches[0];
+  if (!target) { popup(null, '전달할 수 있는 주문이 아직 없어요.', 'PLAIN'); return; }
+  set({ selectedCustomer: target.orderId });
+  deliverBungeoppangOrder();
 }
 export function discardBungeoppangTray(index: number) {
   if (canAct() && isV4Grill(get().grill)) act(index, 'TRAY_DISCARD');
+}
+export function selectBungeoppangCustomer(orderId: string) {
+  const s = get();
+  if (!canAct() || !isV4Grill(s.grill) || !v5.isV5Grill(s.grill)
+    || !s.grill.activeOrders.some(o => o.orderId === orderId) || !canUseCustomerOrderV5(orderId)) return false;
+  set({ selectedCustomer: orderId });
+  return true;
+}
+export function toggleBungeoppangWaste() {
+  if (canAct()) set(s => ({ choosingWaste: !s.choosingWaste, wasteTarget: null }));
+}
+export function selectBungeoppangTray(breadId: number) {
+  const s = get();
+  if (canAct() && isV4Grill(s.grill) && s.grill.tray.some(b => b.id === breadId))
+    set({ choosingWaste: true, wasteTarget: { kind: 'tray', breadId } });
+}
+export function trashBungeoppangSelection() {
+  if (!canAct()) return;
+  const s = get(), target = s.wasteTarget;
+  if (!target) { popup(null, '버릴 빵을 먼저 골라 주세요.', 'PLAIN'); return; }
+  if (target.kind === 'grill') {
+    const current = s.grill!.slots[target.slot];
+    if (current?.phase !== 'empty' && current?.lastAt === target.lastAt) discardBungeoppangSlot(target.slot);
+  } else if (isV4Grill(s.grill)) {
+    const index = s.grill.tray.findIndex(b => b.id === target.breadId);
+    if (index >= 0) discardBungeoppangTray(index);
+  }
+  set({ wasteTarget: null, choosingWaste: false });
+}
+/** One delivery in flight per round. Cooking suffixes continue above its immutable prefix. */
+export async function requestV5Delivery() {
+  const s = get();
+  if (!isV4Grill(s.grill) || !v5.isV5Grill(s.grill) || s.orderPending || !service.deliverV5 || s.phase !== 'play') return;
+  const currentVisit = visit;
+  orderSubmission = s.orderError && orderSubmission?.gameId === s.gameId ? orderSubmission : {
+    gameId: s.gameId, log: s.grill.log.map(e => ({ ...e })), clientScore: s.grill.score,
+    seenTips: [...s.newTips], deliveryKey: crypto.randomUUID(),
+  };
+  const prefix = orderSubmission;
+  set({ orderPending: true, orderError: null });
+  try {
+    const reply = await service.deliverV5(prefix);
+    const latest = get();
+    if (visit !== currentVisit || latest.gameId !== s.gameId || latest.phase !== 'play'
+      || !isV4Grill(latest.grill) || !v5.isV5Grill(latest.grill)) return;
+    let grill = reply.grill;
+    for (const entry of latest.grill.log.slice(prefix.log.length)) {
+      try { grill = v5.applyAction(grill, entry, latest.rules).state; } catch { /* Drop intent invalidated by the approved checkpoint. */ }
+    }
+    const selectedCustomer = grill.activeOrders.some(o => o.orderId === latest.selectedCustomer)
+      ? latest.selectedCustomer : grill.activeOrders[0]?.orderId ?? null;
+    orderSubmission = null;
+    set({ grill, selectedCustomer, orderPending: false, orderError: null });
+    if (v5DeliveryFeedback) {
+      const f = v5DeliveryFeedback;
+      onEvent(f.event, f.before, f.after, f.orderId); v5DeliveryFeedback = null;
+    }
+  } catch (error) {
+    if (visit !== currentVisit || get().gameId !== s.gameId || get().phase !== 'play') return;
+    if (error instanceof BungeoppangServiceError && !error.retryable && service.recoverV5) {
+      try {
+        const reply = await service.recoverV5(s.gameId);
+        const latest = get();
+        if (visit !== currentVisit || latest.gameId !== s.gameId || latest.phase !== 'play') return;
+        let grill = reply.grill;
+        for (const entry of latest.grill?.log.slice(prefix.log.length) ?? []) {
+          try { grill = v5.applyAction(grill, entry, latest.rules).state; } catch { /* Conflicting local intent was not approved. */ }
+        }
+        orderSubmission = null;
+        v5DeliveryFeedback = null;
+        cancelPendingCustomerDeparturesV5();
+        set({ grill, selectedCustomer: grill.activeOrders[0]?.orderId ?? null, orderPending: false, orderError: null });
+        popup(null, '서버 상태로 복구했어요. 손님 주문을 다시 확인해 주세요.', 'PLAIN');
+        return;
+      } catch { /* Keep the same immutable request available for retry. */ }
+    }
+    if (visit === currentVisit && get().gameId === s.gameId && get().phase === 'play')
+      set({ orderPending: false, orderError: error instanceof Error ? error.message : '납품 확인을 다시 시도해 주세요.' });
+  }
 }
 let orderSubmission: BungeoppangSubmit | null = null;
 export async function requestBungeoppangOrder() {
@@ -492,16 +639,25 @@ function feedback(value: Omit<BungFeedback, 'id'>) {
     if (visit === currentVisit) set(s => ({ feedback: s.feedback.filter(item => item.id !== id) }));
   }, 1400);
 }
-function onEvent(event: GrillEvent | v4.GrillEvent, before: AnyGrill) {
+function onEvent(event: GrillEvent | v4.GrillEvent, before: AnyGrill, afterOverride?: AnyGrill, customerId?: string | null) {
   const v4Grill = isV4Grill(before) ? before : null;
   if (event.kind === 'deliver') {
     if (v4Grill) {
-      const after = get().grill;
+      if (v5.isV5Grill(v4Grill)) {
+        const customer = v4Grill.activeOrders.find(order => order.orderId === (customerId ?? get().selectedCustomer));
+        if (customer) approveCustomerDepartureV5(customer);
+      }
+      const after = afterOverride ?? get().grill;
       const remaining = isV4Grill(after) ? new Set(after.tray.map(b => b.id)) : new Set<number>();
       v4Grill.tray.filter(b => !remaining.has(b.id)).forEach((bread, i) => feedback({
-        kind: 'deliver', filling: bread.filling, points: event.points, guestIndex: v4Grill.orderIndex,
+        kind: 'deliver', filling: bread.filling, points: event.points,
+        guestIndex: v5.isV5Grill(v4Grill) ? v4Grill.activeOrders.find(o => o.orderId === (customerId ?? get().selectedCustomer))?.customerSlot : v4Grill.orderIndex,
         from: elementPoint(`[data-tray-bread-id="${bread.id}"]`, { x: window.innerWidth - 130, y: 250 + i * 50 }),
         message: `${event.count}개 전달! +${event.points}점${event.bonus ? ` · 특수 +${event.bonus}` : ''}`,
+        ...(v5.isV5Grill(v4Grill) ? { guestOrderId: customerId ?? get().selectedCustomer ?? undefined,
+          fromWorld: trayPoint(v4Grill.tray.indexOf(bread)),
+          toWorld: customerPoint(v4Grill.activeOrders.find(o => o.orderId === (customerId ?? get().selectedCustomer))?.customerSlot ?? 0)
+            .map((n, axis) => n + (axis === 1 ? 1.1 : 0)) as [number, number, number] } : {}),
       }));
     }
     popup(null, `${event.count}개 전달! +${event.points}점 (특수 +${event.bonus})`, 'PERFECT'); return;
@@ -510,6 +666,7 @@ function onEvent(event: GrillEvent | v4.GrillEvent, before: AnyGrill) {
     const bread = v4Grill?.tray[event.slot];
     if (bread) feedback({ kind: 'discard', filling: bread.filling, points: 0,
       from: elementPoint(`[data-tray-bread-id="${bread.id}"]`, { x: window.innerWidth - 130, y: 260 }),
+      ...(v5.isV5Grill(v4Grill!) ? { fromWorld: trayPoint(event.slot), toWorld: trashPoint } : {}),
       message: `${v4.BREAD_NAMES[bread.filling]} 폐기 · 점수 없음` });
     popup(null, '쟁반에서 버렸어요', 'PLAIN'); return;
   }
@@ -517,12 +674,14 @@ function onEvent(event: GrillEvent | v4.GrillEvent, before: AnyGrill) {
     now = performance.now();
   if (event.kind === "pour") {
     fx.pourAt = now;
+    playSfx('bungeo-pour');
     tip("POUR", event.slot);
   } else if (event.kind === "fill") {
     fx.fillAt = now;
     Object.assign(crossed[event.slot]!, { gold: false, burnt: false });
   } else if (event.kind === "flip") {
     fx.flipAt = now;
+    playSfx('bungeo-flip');
     Object.assign(crossed[event.slot]!, { gold: false, burnt: false });
     popup(event.slot, event.judgement, event.judgement);
   } else if (event.kind === "takeOut") {
@@ -533,6 +692,8 @@ function onEvent(event: GrillEvent | v4.GrillEvent, before: AnyGrill) {
       feedback({ kind: event.base ? 'store' : 'discard', filling, from: { ...slotScreen[event.slot]! },
         breadId: event.base && isV4Grill(after) ? after.tray.at(-1)?.id : undefined,
         points: event.points, burnt: event.front >= R.burntFrom || event.back >= R.burntFrom,
+        ...(v5.isV5Grill(v4Grill) ? { fromWorld: [BUNG_GRILL.slots[event.slot]![0], BUNG_GRILL.top, BUNG_GRILL.slots[event.slot]![1]] as [number, number, number],
+          toWorld: event.base && isV4Grill(after) ? trayPoint(after.tray.length - 1) : trashPoint } : {}),
         message: event.base ? `${v4.BREAD_NAMES[filling]} ${event.points}점 · 쟁반에 보관했어요`
           : `${v4.BREAD_NAMES[filling]} ${event.front >= R.burntFrom || event.back >= R.burntFrom ? '탔어요' : '설익었어요'} · 폐기했어요` });
     }
@@ -546,6 +707,8 @@ function onEvent(event: GrillEvent | v4.GrillEvent, before: AnyGrill) {
     if (v4Grill) {
       const filling = v4Grill.slots[event.slot]!.filling ?? 'batter';
       feedback({ kind: 'discard', filling, from: { ...slotScreen[event.slot]! }, points: 0,
+        ...(v5.isV5Grill(v4Grill) ? { burnt: v5.burnt(v4Grill.slots[event.slot]!, gameNow(), get().rules),
+          fromWorld: [BUNG_GRILL.slots[event.slot]![0], BUNG_GRILL.top, BUNG_GRILL.slots[event.slot]![1]] as [number, number, number], toWorld: trashPoint } : {}),
         message: `${v4.BREAD_NAMES[filling]} 폐기 · 콤보 초기화` });
     }
     popup(event.slot, "버림", "PLAIN");
@@ -634,6 +797,7 @@ function acceptServerResult(result: BungeoppangSubmitResult) {
       isFirstGame: false,
     },
   }));
+  if (!service.mock) refreshWalletAfterSettlement(useSession.getState().sessionId, `minigame:${get().gameId}`);
 }
 
 /** Re-anchor time only: keep every previously recorded action and in-flight delivery prefix intact. */
@@ -692,6 +856,7 @@ function tick(now: number) {
 }
 export function advanceBungeoppangTime(now = performance.now()) {
   const s = get();
+  advanceCustomerDeparturesV5(now);
   clock.frameAt = now;
   if (s.phase === "countdown") {
     clock.countdown = Math.max(0, clock.playAt - now);
@@ -701,20 +866,30 @@ export function advanceBungeoppangTime(now = performance.now()) {
     }
   }
   if (get().phase === "play") {
-    clock.t = Math.min(R.durationMs, Math.max(0, now - clock.playAt));
+    const rules = isV4Grill(get().grill) ? get().rules : R;
+    clock.t = Math.min(rules.durationMs, Math.max(0, now - clock.playAt));
+    const current = get();
+    if (isV4Grill(current.grill) && v5.isV5Grill(current.grill)) {
+      if (!document.hidden) advanceCustomerArrivalsV5(current.grill.activeOrders, clock.t, rules.rushFromMs, rules.durationMs);
+      const available = current.grill.activeOrders.filter(order => canUseCustomerOrderV5(order.orderId));
+      if (!available.some(order => order.orderId === current.selectedCustomer)) {
+        const selectedCustomer = available[0]?.orderId ?? null;
+        if (selectedCustomer !== current.selectedCustomer) set({ selectedCustomer });
+      }
+    }
     watchSlots(get().grill!);
-    if (clock.t >= R.rushFromMs) tip("RUSH");
-    if (clock.t >= R.durationMs) {
+    if (clock.t >= rules.rushFromMs) tip("RUSH");
+    if (clock.t >= rules.durationMs) {
       clock.ending = R.endingMs;
       set({ phase: "ending", confirmExit: false, orderPending: false, orderError: null });
       void submitBungeoppang();
     }
   }
   if (get().phase === "ending") {
-    clock.ending = Math.max(0, clock.playAt + R.durationMs + R.endingMs - now);
+    clock.ending = Math.max(0, clock.playAt + clock.durationMs + R.endingMs - now);
     if (clock.ending <= 0) set({ phase: "result" });
     const current = get();
-    if (now >= clock.playAt + R.durationMs && !current.result && !current.submitError)
+    if (now >= clock.playAt + clock.durationMs && !current.result && !current.submitError)
       void submitBungeoppang();
   }
   if (!['countdown', 'play', 'ending'].includes(get().phase)) clearInterval(loopTimer);
@@ -722,7 +897,7 @@ export function advanceBungeoppangTime(now = performance.now()) {
 function watchSlots(grill: AnyGrill) {
   const rules = isV4Grill(grill) ? get().rules : R;
   grill.slots.forEach((slot, i) => {
-    if (slot.phase !== "front" && slot.phase !== "back") return;
+    if (slot.phase !== "front" && slot.phase !== "back" && !(isV4Grill(grill) && v5.isV5Grill(grill) && slot.phase === 'batter')) return;
     const level = cookLevel(slot.since, clock.t, slot.heat, rules);
     const mark = crossed[i]!;
     if (level >= R.goldenFrom && !mark.gold) {
@@ -732,6 +907,7 @@ function watchSlots(grill: AnyGrill) {
     }
     if (level >= R.burntFrom && !mark.burnt) {
       mark.burnt = true;
+      playSfx('bungeo-burn');
       tip("BURNT", i);
     }
   });

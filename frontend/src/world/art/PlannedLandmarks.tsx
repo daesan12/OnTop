@@ -1,4 +1,5 @@
-import { NOTES_BOX } from '../../config'
+import { SIMPLE_MAP } from './mapRenderProfile'
+import { TraditionalNotesBoard } from './TraditionalNotesBoard'
 import { ParkFountain } from './ParkFountain'
 import { ParkActivities } from './ParkActivities'
 import { ObservationTelescopes } from './ObservationTelescopes'
@@ -52,7 +53,7 @@ export function PavilionSlot({ p }: { p: { id: string; x: number; z: number; flo
     far = useRef<Group>(null)
   const localY = p.floor - 0.72 * p.scale
   useFrame(({ camera }) => {
-    const close =
+    const close = !SIMPLE_MAP &&
       Math.hypot(
         camera.position.x - p.x,
         camera.position.z - p.z,
@@ -63,13 +64,13 @@ export function PavilionSlot({ p }: { p: { id: string; x: number; z: number; flo
   })
   return (
     <group name={`pavilion-${p.id}`}>
-      <group
+      {!SIMPLE_MAP && <group
         ref={near}
         position={[p.x, localY, p.z + 3 * p.scale]}
         scale={p.scale}
       >
         <Pavilion structureOnly main={p.id === 'P0'} assetScale={p.scale} />
-      </group>
+      </group>}
       <group ref={far} position={[p.x, p.floor, p.z]} scale={p.scale}>
         <mesh geometry={distantRoof} dispose={null}>
           <meshStandardMaterial color="#454a48" roughness={1} side={2} />
@@ -244,8 +245,8 @@ for (const radius of [TOWER.inner, TOWER.outer])
 // combined mesh opaque, so camera fading never hides the entire tower. The
 // twelve solid columns still fade individually when they obstruct the player.
 const towerFrame = mergeStaticBeams([
-  { parts: rails, sides: 6 },
-  { parts: supports, sides: 8 },
+  { parts: rails, sides: SIMPLE_MAP ? 3 : 6 },
+  { parts: supports, sides: SIMPLE_MAP ? 4 : 8 },
 ])
 export function PlannedLandmarks({ quality }: { quality: QualityPreset }) {
   return (
@@ -299,23 +300,7 @@ export function ObservationTower() {
           <SurfaceMaterial kind="wood" color="#aa8955" side={2} />
         </mesh>
         <ObservationTelescopes />
-        <group
-          name="tower-notes-mailbox"
-          position={[NOTES_BOX.x, NOTES_BOX.y, NOTES_BOX.z]}
-        >
-          <mesh position={[0, 0.1, 0]}>
-            <boxGeometry args={[1.3, 0.2, 0.96]} />
-            <SurfaceMaterial kind="stone" color="#b4ac97" />
-          </mesh>
-          <mesh position={[0, 0.9, 0]} castShadow>
-            <boxGeometry args={[1.1, 1.5, 0.75]} />
-            <SurfaceMaterial kind="wood" color="#41695c" />
-          </mesh>
-          <mesh position={[0, 1.68, 0]}>
-            <boxGeometry args={[1.3, 0.16, 0.96]} />
-            <SurfaceMaterial kind="wood" color="#ad825a" />
-          </mesh>
-        </group>
+        <TraditionalNotesBoard />
       </group>
   )
 }

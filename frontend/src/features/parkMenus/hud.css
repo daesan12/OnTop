@@ -8,14 +8,14 @@
   --hud-blur: blur(14px) saturate(1.2);
 }
 
-/* 빠른 메뉴 frame, 82×291 design px at the bottom-right corner. */
+/* 빠른 메뉴 frame, 82×291 design px at the bottom-right corner, plus a 69px 설정 slot at the bottom. */
 .park-quick-dock {
   position: absolute;
   right: var(--park-edge);
   bottom: var(--park-edge);
   z-index: 11;
   width: 82px;
-  height: 291px;
+  height: 360px;
   border: 1px solid rgba(247, 241, 229, 0.14);
   border-radius: 20px;
   background: var(--hud-glass);
@@ -35,8 +35,9 @@
   background: rgba(247, 241, 229, 0.14);
 }
 
-/* Slots, bottom-up from the dock edge: 설명서 7 · 감정표현 76 · 지도 145 · 옷장 217 (design px). */
+/* Slots, bottom-up from the dock edge: 설정 7 · 설명서 76 · 감정표현 145 · 지도 214 · 옷장 286 (design px). */
 .park-page .park-dock-wardrobe,
+.park-page .park-dock-settings,
 .park-page .park-map,
 .park-page .emotes,
 .park-page .manual-launcher {
@@ -48,12 +49,14 @@
   transform: scale(var(--park-ui-scale));
   transform-origin: bottom right;
 }
-.park-page .park-dock-wardrobe { bottom: calc(var(--park-edge) + 217px * var(--park-ui-scale)); }
-.park-page .park-map { bottom: calc(var(--park-edge) + 145px * var(--park-ui-scale)); }
-.park-page .emotes { bottom: calc(var(--park-edge) + 76px * var(--park-ui-scale)); display: flex; flex-direction: column; align-items: flex-end; }
-.park-page .manual-launcher { bottom: calc(var(--park-edge) + 7px * var(--park-ui-scale)); }
+.park-page .park-dock-wardrobe { bottom: calc(var(--park-edge) + 286px * var(--park-ui-scale)); }
+.park-page .park-dock-settings { bottom: calc(var(--park-edge) + 7px * var(--park-ui-scale)); }
+.park-page .park-map { bottom: calc(var(--park-edge) + 214px * var(--park-ui-scale)); }
+.park-page .emotes { bottom: calc(var(--park-edge) + 145px * var(--park-ui-scale)); display: flex; flex-direction: column; align-items: flex-end; }
+.park-page .manual-launcher { bottom: calc(var(--park-edge) + 76px * var(--park-ui-scale)); }
 
 .park-dock-wardrobe .park-shop-launcher,
+.park-dock-settings .park-settings-launcher,
 .park-page .park-map > .park-quick-button,
 .park-page .emotes > .emote-wheel-trigger,
 .park-page .manual-launcher {
@@ -81,6 +84,8 @@
 /* The manual launcher is both a slot and its button; keep it absolutely placed. */
 .park-page .manual-launcher { position: absolute; }
 .park-dock-wardrobe .park-shop-launcher:hover:not(:disabled),
+.park-dock-settings .park-settings-launcher:hover,
+.park-dock-settings .park-settings-launcher[aria-expanded='true'],
 .park-page .park-map > .park-quick-button:hover:not(:disabled),
 .park-page .park-map > .park-quick-button[aria-expanded='true'],
 .park-page .emotes > .emote-wheel-trigger:hover:not(:disabled),
@@ -90,9 +95,11 @@
 .park-page .park-map > .park-quick-button:disabled,
 .park-page .emotes > .emote-wheel-trigger:disabled { opacity: 0.55; cursor: default; }
 .park-dock-wardrobe .park-shop-launcher > img,
+.park-dock-settings .park-settings-launcher > img,
 .park-page .park-map > .park-quick-button > img,
 .park-page .emotes > .emote-wheel-trigger > img { width: 22px; height: 22px; }
 .park-page .manual-launcher > svg { width: 24px; height: 22px; }
+.park-dock-settings .park-settings-launcher kbd,
 .park-page .park-map > .park-quick-button kbd,
 .park-page .emotes > .emote-wheel-trigger kbd,
 .park-page .manual-launcher kbd {
@@ -179,21 +186,26 @@
 .park-page .park-chat__message { gap: 12px; font-size: 17px; }
 .park-page .park-chat__author { flex: 0 0 auto; max-width: 160px; color: #e8b451; font-weight: 700; }
 .park-page .park-chat__author--own { color: #f2cf7d; }
-.park-page .park-chat__composer { height: 52px; padding: 6px 6px 6px 18px; border: 0; border-radius: 14px; color: #292620; background: #efece0; font-size: 16px; }
+.park-page .park-chat__composer { --chat-composer-height:52px; height:var(--chat-composer-height); min-height:var(--chat-composer-height); box-sizing:border-box; gap:4px; padding:6px 6px 6px 12px; border:0; border-radius:14px; color:#292620; background:#efece0; font-size:16px; }
+.park-page .park-chat__composer--closed > span:first-child { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .park-page .park-chat__composer--closed > span:first-child { color: rgba(41, 38, 32, 0.5); }
 .park-page .park-chat__composer--closed:hover { color: #292620; }
 .park-chat__send-icon,
 .park-page .park-chat__composer--open button[type='submit'] {
   display: grid;
-  flex: 0 0 40px;
+  flex: 0 0 calc(var(--chat-composer-height, 52px) - 12px);
   place-items: center;
-  width: 40px;
-  height: 40px;
+  width: calc(var(--chat-composer-height, 52px) - 12px);
+  height: calc(var(--chat-composer-height, 52px) - 12px);
+  min-width:0;
+  min-height:0;
+  padding:0;
   border-radius: 10px;
   background: #e8b451;
 }
 .park-chat__send-icon img,
 .park-page .park-chat__composer--open button[type='submit'] img { width: 18px; height: 18px; }
+.park-page .park-chat__composer--open button[type='button'] { flex:0 0 calc(var(--chat-composer-height, 52px) - 12px); width:calc(var(--chat-composer-height, 52px) - 12px); height:calc(var(--chat-composer-height, 52px) - 12px); min-width:0; min-height:0; padding:0; }
 .park-page .park-chat__composer--open { border: 0; }
 .park-page .park-chat__composer--open input { color: #292620; }
 .park-page .park-chat__composer--open input::placeholder { color: rgba(41, 38, 32, 0.5); }
