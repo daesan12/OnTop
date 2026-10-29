@@ -98,7 +98,6 @@ function NotesVisit() {
         </div><button type="button" className="notes-primary" onClick={() => setView('compose')} disabled={view === 'folding'}>✎ 메모 작성하기</button>
           <button className="notes-refresh" type="button" disabled={unavailable || state.loading || state.pending || now < state.nextReadAt}
             onClick={() => { void refreshNotes() }}>{state.loading ? '불러오는 중…' : '새로고침'}</button></footer>
-        <p className="notes-caption">이름 없이 남긴 마음, 함께 읽어요.</p>
       </> : view === 'compose' ? <>
         <header className="notes-title"><small>온탑 메모함</small><h2>여기에 마음 한 장 남겨요</h2>
           <p id="notes-description">익명으로 누구나 볼 수 있는 메모예요.<br/>좋은 말, 응원, 일상, 고민 등 자유롭게 남겨주세요.</p></header>
