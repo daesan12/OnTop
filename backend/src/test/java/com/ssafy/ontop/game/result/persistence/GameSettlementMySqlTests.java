@@ -3,6 +3,7 @@ package com.ssafy.ontop.game.result.persistence;
 import com.ssafy.ontop.game.action.GameForfeitCommand;
 import com.ssafy.ontop.game.domain.GameAmounts;
 import com.ssafy.ontop.game.omok.service.OmokEngine;
+import com.ssafy.ontop.game.reconnect.ActiveGameLookup;
 import com.ssafy.ontop.game.result.GameDepartureReason;
 import com.ssafy.ontop.game.result.GameFinished;
 import com.ssafy.ontop.game.result.GameResultCommitted;
@@ -74,6 +75,7 @@ class GameSettlementMySqlTests {
     @Autowired private OmokEngine omok;
     @Autowired private CommittedGameStartService committedStarts;
     @Autowired private Flyway flyway;
+    @Autowired private ActiveGameLookup activeGames;
     @MockitoSpyBean private PlatformTransactionManager transactions;
 
     @DynamicPropertySource static void isolated(DynamicPropertyRegistry registry) {
@@ -88,7 +90,7 @@ class GameSettlementMySqlTests {
 
     @Test void 신규_DB에서_최신_마이그레이션과_JPA_validate와_재실행을_확인한다() {
         assertThat(flyway.info().applied()).extracting(m -> m.getVersion().getVersion())
-                .endsWith("112", "122", "123", "124", "125", "126");
+                .endsWith("112", "122", "123", "124", "125", "126", "127", "128");
         assertThat(flyway.validateWithResult().validationSuccessful).isTrue();
         assertThat(flyway.migrate().migrationsExecuted).isZero();
         assertThat(jdbc.queryForObject("SELECT VERSION()", String.class)).startsWith("8.4.");
@@ -488,6 +490,9 @@ class GameSettlementMySqlTests {
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM game_participants WHERE game_session_id=? AND reservation_released_at IS NULL",
                 Integer.class, id)).isZero();
         assertThat(jdbc.queryForObject("SELECT active_table_id FROM game_sessions WHERE id=?", String.class, id)).isNull();
+        for (long user : game.users()) {
+            assertThat(activeGames.findByUserId(user)).isEmpty();
+        }
     }
 
     private long ledgerCount(Fixture game) {
