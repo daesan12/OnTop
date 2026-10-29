@@ -57,7 +57,7 @@ export function RankingSummary({ feed, onOpen }: { feed: Feed; onOpen(): void })
       <strong>{data?.me ? <>{data.me.rank}<small>위</small></> : '—'}<span>{data ? ` / ${data.totalParticipants}명` : ''}</span></strong>
       <small>{!enabled ? '전체 랭킹 준비 중' : loading && !data ? '순위를 확인하고 있어요' : error && !data ? '랭킹을 다시 확인해 주세요'
         : !data?.me ? '아직 등록된 최고 기록이 없어요' : '전체 기간 · 완성 개수와 실수 기준'}</small>
-    </div><button className="bung-ranking-open" onClick={onOpen}>랭킹 보기 <span aria-hidden="true">›</span></button></div>
+    </div><button className="bung-ranking-open" onClick={onOpen}>랭킹 보기 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false"><path d="M5 12h14m-5-5 5 5-5 5" /></svg></button></div>
   </section>
 }
 export function RankingDetails({ feed, rulesVersion, onBack }: { feed: Feed; rulesVersion: string; onBack(): void }) {
