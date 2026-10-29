@@ -100,9 +100,11 @@ export function installDiceControls() {
     if (e.code === 'KeyQ') { e.preventDefault(); bankDice() }
   }
   window.addEventListener('ontop-manual-open', cancel); window.addEventListener('keydown', down, true); window.addEventListener('blur', cancel)
+  window.addEventListener('ontop-browser-interrupt', cancel)
   document.addEventListener('visibilitychange', cancel)
   return () => {
     disposePresentation(); window.removeEventListener('ontop-manual-open', cancel); window.removeEventListener('keydown', down, true); window.removeEventListener('blur', cancel)
+    window.removeEventListener('ontop-browser-interrupt', cancel)
     document.removeEventListener('visibilitychange', cancel)
   }
 }

@@ -1,4 +1,5 @@
-import { useEffect, useState, type CSSProperties } from 'react'
+import { useEffect, useLayoutEffect, useState, type CSSProperties } from 'react'
+import { installBrowserShortcutGuard } from './browserShortcuts'
 import { ParkScene } from './ParkScene'
 import { ParkBgm } from '../audio/ParkBgm'
 import { ParkSfx } from '../audio/ParkSfx'
@@ -54,6 +55,11 @@ function getHudScale(): number {
 
 type ParkProps = { onExit: () => void; exitError: string; onAuthEnded: () => void }
 export function ParkPage(props: ParkProps) {
+  useLayoutEffect(() => {
+    // Keep local debugging available; explicit opt-in exercises the production guard in QA.
+    if (import.meta.env.PROD || import.meta.env.VITE_BROWSER_SHORTCUT_GUARD === 'true')
+      return installBrowserShortcutGuard()
+  }, [])
   return <ParkRuntimeProvider onAuthEnded={props.onAuthEnded}><ParkContent {...props}/></ParkRuntimeProvider>
 }
 function ParkContent({ onExit, exitError, onAuthEnded }: ParkProps) {
