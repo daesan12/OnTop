@@ -45,6 +45,7 @@ import { fitnessBusy } from '../../features/fitness/state'
 import { telescopeBusy } from '../../features/telescopes/state'
 import { resetFeedbackState, useFeedbackState } from '../../features/feedback/state'
 import { resetNotesState, useNotesState } from '../../features/notes/state'
+import { NotesChangeEvents } from '../../features/notes/changeEvents'
 import { MovementInputBuffer, normalizedMove, stoppedIntent, type MovementIntent } from '../../network/movementInput'
 import { emoteSource, emoteUnavailable } from '../../features/emotes/availability'
 import { parseEmoteBindings, previewEmoteBindings, type EmoteId } from '../../features/emotes/catalog'
@@ -94,6 +95,8 @@ export class ParkRuntime implements ParkRuntimePort {
   private timer: ReturnType<typeof setTimeout> | undefined
   private bootAbort: AbortController | undefined
   private authListeners = new Set<AuthEnded>()
+  private notesChanges = new NotesChangeEvents()
+  subscribeNotesChanged = (changed: () => void) => this.notesChanges.subscribe(changed)
   private actionBusy = false
   private movementRequests = new Set<string>()
   private inspection = 0
@@ -277,6 +280,7 @@ export class ParkRuntime implements ParkRuntimePort {
       })
   }
   private authEnded() {
+    this.notesChanges.reset()
     this.tablet.end()
     this.mapReady = false
     this.worldTime.reset()
@@ -376,6 +380,7 @@ export class ParkRuntime implements ParkRuntimePort {
     void this.boot()
   }
   private async boot() {
+    this.notesChanges.reset()
     if (TABLET_ENABLED) this.tablet.reset(true)
     this.mapReady = false
     this.worldTime.reset()
@@ -422,6 +427,7 @@ export class ParkRuntime implements ParkRuntimePort {
     }
   }
   async stop() {
+    this.notesChanges.reset()
     this.untrackTabGame?.()
     this.untrackTabGame = undefined
     this.tablet.end()
@@ -443,6 +449,7 @@ export class ParkRuntime implements ParkRuntimePort {
     await closing
   }
   private closed(code: number) {
+    this.notesChanges.reset()
     if (TABLET_ENABLED) this.tablet.reset(true)
     this.mapReady = false
     this.worldTime.reset()
@@ -498,6 +505,12 @@ export class ParkRuntime implements ParkRuntimePort {
   }
   private message(message: Envelope) {
     if (!this.active) return
+    if (message.type === 'NOTES_CHANGED') {
+      const session = useSession.getState()
+      if (this.mapReady && session.status === 'connected' && session.mapCompatible && session.roomId && !session.pending)
+        this.notesChanges.accept(message)
+      return
+    }
     if (message.type === 'ERROR' && message.requestId
       && this.movementRejectedAfterSeating(message.requestId, message.payload.code)) return
     if (this.oneCardDefense.accept(message)) return
@@ -642,6 +655,7 @@ export class ParkRuntime implements ParkRuntimePort {
         throw new Error('경기 진행·복구·정산 중에는 채널을 바꿀 수 없습니다.')
       if (state.tableId) throw new Error('먼저 테이블에서 일어나주세요.')
       if (state.roomId === channelId) return
+      this.notesChanges.reset()
       this.follow.reset()
       this.facilities.reset()
       this.facilityMapInvalid = false

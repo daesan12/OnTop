@@ -938,6 +938,7 @@ export async function fixture(
     },
     close: (code: number) =>
       sockets.at(-1)!.close({ code, reason: 'Fixture close' }),
+    notesChanged: (revision: unknown) => emit(sockets.at(-1)!, 'NOTES_CHANGED', { revision }),
     endSession: () => {
       loggedIn = false
       sockets.at(-1)!.close({ code: 4401, reason: 'Login session ended' })
