@@ -240,7 +240,7 @@ const notesDescription = 'M08 공개 익명 메모. local/dev,db + notes.enabled
     + '전 채널 공용 최신120장·쓰기15초/읽기1초. 공개 필드는 id,text,createdAt,category. '
     + 'category daily/cheer/worry/recommend/free, 생략free. 같은 키의 주제 변경은409. '
     + '24시간 동일키 재확인,410은 자동 재게시 금지. 정기GET없이 열기/재접속/NOTES_CHANGED 후 합쳐조회. '
-    + 'V129 로컬후보: 팀원 버전·적용 순서 확인 전 푸시/공용DB적용금지. FE VITE_NOTES_CATEGORIES=true 빌드와 subscribe연결 필요. docs/notes-api.md.';
+    + 'V129 번호 사용 가능 확인·MR 포함 승인(2026-10-29). 공용DB 적용·배포는 미확인. FE VITE_NOTES_CATEGORIES=true 빌드와 subscribe연결 필요. docs/notes-api.md.';
 const notesBody = {mode:'raw',raw:JSON.stringify({operationId:'{{noteOperationId}}',channelId:'{{channelIdA}}',
     text:'오늘도 좋은 하루 보내세요',category:'cheer'},null,2),options:{raw:{language:'json'}}};
 const noteNew = http('27 전망대 익명 메모 작성','/api/v1/notes',201,notesDescription,
@@ -602,7 +602,7 @@ wsItems[6].description += '\n\n2026-10-29 로컬 확장: WORLD_STATE.tables 전�
     + 'max(2,승인 인원,최대점유좌석)으로 채널별 실제 충돌을 켜고, 새 의자에 겹친 산책자는 서버 안전 위치로 이동합니다. 정적 mapVersion은 유지합니다. '
     + 'avatars[].activity=GAME은 실제 시작 승인 참가자만, 종료·정산 진입은 전원/기권·탈락은 해당 사용자만 null. SHOP은 미연결입니다. '
     + 'NOTES_CHANGED{revision문자열}는 새 메모 커밋 후 전 채널 알림이며 본문/작성자 없음. 열린 FE창만 읽기1초 제한에 맞춰 합쳐GET, 정기GET 없음. '
-    + 'V129는 로컬 격리 검증만 승인됐고 버전 순서 확인 전 푸시/공용 적용 금지. docs/world-table-chairs-api.md, docs/notes-api.md.';
+    + 'V129 번호 사용 가능 확인·MR 포함 승인(2026-10-29). 공용DB 적용·배포는 미확인. docs/world-table-chairs-api.md, docs/notes-api.md.';
 wsItems[6].messages.push({name:'수신 예시 · NOTES_CHANGED — 직접 전송 금지·로컬 구현',
     $kind:'websocket-message', contentType:'json',
     content:JSON.stringify({requestId:null,type:'NOTES_CHANGED',payload:{revision:'1234'}},null,2)});

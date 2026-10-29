@@ -144,8 +144,9 @@ DB 커밋 성공 뒤 반환한다. 주제는 daily/cheer/worry/recommend/free �
   팀 버전 순서 합의 후 `classpath:db/notes`를 추가한다. 기존 DB repair/reset/outOfOrder 자동 실행 없음.
 - 신고·삭제·필터 관리 API는 이번 범위에 없다. 실제 개발 서버 배포와 FE UI 연결 완료를 의미하지 않는다.
 
-2026-10-29 로컬 확장: 후보 V129는 사용자 승인한 격리 DB에서만 검증한다. 기존 SQL은 보존하며 팀원과
-버전·적용 순서를 확인하기 전 푸시/병합/공용 DB 적용은 보류한다. 새 코드의 notes 활성화 전에 V129가 필요하다(JPA validate).
+2026-10-29 사용자 전달로 V129 번호 사용 가능을 확인했고 푸시·dev 대상 MR 생성을 승인받았다.
+격리 DB 검증은 완료했으며 기존 SQL은 보존한다. 공용 DB 적용 이력·배포 성공은 아직 확인하지 않았다.
+배포 시 기존 Flyway 이력을 유지하고 notes 활성화/새 코드의 JPA 검증 전에 V129를 적용해야 한다.
 FE는 배포 확인 후 빌드 환경의 `VITE_NOTES_CATEGORIES=true`로 다시 빌드하고 NOTES_CHANGED 수신을 subscribe에 연결한다.
 
 ## 실제 접속 연동 검증
