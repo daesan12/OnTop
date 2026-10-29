@@ -2,7 +2,7 @@ import { BufferGeometry, ExtrudeGeometry, Float32BufferAttribute, Shape, TorusGe
 import { PropBuilder, type XYZ } from './propGeometry'
 import { carvedBox, fineCurve, leaf, softBall } from './heritageGeometry'
 import { memoRoof } from './notesRoofGeometry'
-import { MEMO_ATLAS_GRID, memoSlips } from './notesBoardLayout'
+import { MEMO_ATLAS_GRID, MEMO_ATLAS_ROWS, memoSlots, NOTES_BOARD_VISIBLE_LIMIT } from './notesBoardLayout'
 
 function invitationShape() {
   const s=new Shape();s.moveTo(-.115,-.06);s.quadraticCurveTo(-.135,.065,-.07,.103)
@@ -49,11 +49,11 @@ function foliage(b:PropBuilder) {
   for(let i=0;i<6;i++)leaf(b,-.49+(i%2?-.009:.011),.73-i*.032,.219,.024,(i%2?-.8:.7),'#64783d')
 }
 function paper(b:PropBuilder,index:number,detailed:boolean) {
-  const slip=memoSlips[index]!,n=detailed?5:1,p:number[]=[],uv:number[]=[],triangles:number[]=[]
+  const slip=memoSlots[index]!,n=detailed?5:1,p:number[]=[],uv:number[]=[],triangles:number[]=[]
   for(let j=0;j<=n;j++)for(let i=0;i<=n;i++) {
     const u=i/n,v=j/n,curl=Math.pow(v,3)*(.007+.027*Math.pow(Math.abs(u-.5)*2,3))
     p.push((u-.5)*slip.w,(.5-v)*slip.h,.009+curl+.002*Math.sin(u*Math.PI))
-    uv.push((index%MEMO_ATLAS_GRID+.015+u*.97)/MEMO_ATLAS_GRID,1-(Math.floor(index/MEMO_ATLAS_GRID)+.015+v*.97)/MEMO_ATLAS_GRID)
+    uv.push((index%MEMO_ATLAS_GRID+.015+u*.97)/MEMO_ATLAS_GRID,1-(Math.floor(index/MEMO_ATLAS_GRID)+.015+v*.97)/MEMO_ATLAS_ROWS)
   }
   for(let j=0;j<n;j++)for(let i=0;i<n;i++){const a=j*(n+1)+i,c=a+n+1;triangles.push(a,c,a+1,a+1,c,c+1)}
   const geometry=new BufferGeometry();geometry.setAttribute('position',new Float32BufferAttribute(p,3));geometry.setAttribute('uv',new Float32BufferAttribute(uv,2));geometry.setIndex(triangles);geometry.computeVertexNormals()
@@ -71,8 +71,8 @@ function headerShape(scale=1) {
   s.quadraticCurveTo(-.10*scale,.096*scale,-.31*scale,.077*scale);s.lineTo(-.347*scale,.052*scale);s.closePath();return s
 }
 function build(detailed:boolean) {
-  const b=new PropBuilder([6,3],`observatory-notes-hanok-v4-${detailed}`)
-  // A broader, lower board, still wholly inside the existing summit collider.
+  const b=new PropBuilder([6,3],`observatory-notes-hanok-v5-empty-${detailed}`)
+  // Static frame only. A separate bounded batch contains actual user posts.
   for(const side of [-1,1]) {
     const x=side*.475
     carvedBox(b,'wood','#63482f',[x,.68,0],[.095,1.36,.14],.008)
@@ -94,8 +94,6 @@ function build(detailed:boolean) {
   b.add('wood',new ExtrudeGeometry(headerShape(.954),{depth:.008,bevelEnabled:true,bevelThickness:.002,bevelSize:.002,bevelSegments:1,curveSegments:6}),'#c4a16c',[0,1.323,.233])
   for(const x of [-.314,.314])b.cylinder('gold','#a58b58',[x,1.327,.246],.0045,.0045,.005,[Math.PI/2,0,0],8)
   memoRoof(b,detailed)
-  const selected=detailed?memoSlips.map((_,i)=>i):[0,2,4,6,9,11]
-  for(const i of selected)paper(b,i,detailed)
   for(const side of [-1,1])lantern(b,side,detailed)
   if(detailed) {
     foliage(b)
@@ -108,6 +106,14 @@ function build(detailed:boolean) {
   return b.finish()
 }
 export const notesBoardArt={near:build(true),far:build(false)}
+export function createMemoPaperArt(count:number) {
+  const buildPapers=(detailed:boolean)=>{
+    const b=new PropBuilder([6,3])
+    for(let i=0;i<Math.min(count,NOTES_BOARD_VISIBLE_LIMIT);i++)paper(b,i,detailed)
+    return b.finish()
+  }
+  return {near:buildPapers(true),far:buildPapers(false)}
+}
 export function notesBoardTitle(c:CanvasRenderingContext2D,w:number,h:number) {
   c.clearRect(0,0,w,h);c.fillStyle='#493622';c.textAlign='center';c.textBaseline='middle'
   c.font=`500 ${h*.52}px "BusanDandiMyeongjo","Batang",serif`;c.fillText('온탑 메모함',w/2,h*.56,w*.94)

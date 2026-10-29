@@ -28,8 +28,9 @@ export function openNotes(): boolean {
   parkRuntime.stopMovement()
   clearRoamingInput()
   inputState.notesOpen = true
-  useNotesState.setState({ open: true, ownerId: scope.userId, channelId: scope.channelId, notice: '' })
-  if (notesService.mode !== 'unavailable') void refreshNotes()
+  const cached = useNotesState.getState()
+  useNotesState.setState({ open: true, ownerId: scope.userId, channelId: scope.channelId, notice: '', prefetched: false })
+  if (notesService.mode !== 'unavailable' && !(cached.loaded && cached.prefetched)) void refreshNotes()
   return true
 }
 export function closeNotes() {
@@ -37,9 +38,9 @@ export function closeNotes() {
   clearRoamingInput()
   if (typeof document !== 'undefined') document.querySelector<HTMLCanvasElement>('canvas')?.focus({ preventScroll: true })
 }
-async function request<T>(kind: 'read' | 'submit', job: (scope: NotesContext, signal: AbortSignal) => Promise<T>, accept: (result: T) => void) {
+async function request<T>(kind: 'read' | 'submit', job: (scope: NotesContext, signal: AbortSignal) => Promise<T>, accept: (result: T) => void, background = false) {
   const state = useNotesState.getState(), scope = context()
-  if (!state.open || state.loading || state.pending || !scope || state.ownerId !== scope.userId || state.channelId !== scope.channelId
+  if ((!state.open && !background) || state.loading || state.pending || !scope || state.ownerId !== scope.userId || state.channelId !== scope.channelId
     || Object.entries(inputState).some(([key, value]) => key !== 'notesOpen' && value)) return false
   if (notesService.mode === 'unavailable') return false
   if (kind === 'read' && Date.now() < state.nextReadAt) return false
@@ -51,7 +52,7 @@ async function request<T>(kind: 'read' | 'submit', job: (scope: NotesContext, si
   const cancelled = new Promise<never>((_, reject) => { rejectAbort = () => reject(new Error('메모 요청이 취소되었습니다.')) })
   child.signal.addEventListener('abort', rejectAbort, { once: true })
   const timer = setTimeout(() => { timeout = true; child.abort() }, NOTES_TIMEOUT_MS)
-  const current = () => useNotesState.getState().epoch === state.epoch && useNotesState.getState().open
+  const current = () => useNotesState.getState().epoch === state.epoch && (background || useNotesState.getState().open)
     && useSession.getState().sessionId === scope.userId && useSession.getState().roomId === scope.channelId
   try {
     const result = await Promise.race([Promise.resolve().then(() => job(scope, child.signal)), cancelled])
@@ -78,9 +79,19 @@ async function request<T>(kind: 'read' | 'submit', job: (scope: NotesContext, si
     if (current()) useNotesState.setState(kind === 'read' ? { loading: false } : { pending: false })
   }
 }
-export const refreshNotes = () => request('read', (scope, signal) => notesService.read(scope, signal), result => {
-  useNotesState.setState({ notes: parseNotes(result), loaded: true })
-})
+const readNotes = (background = false) => request('read', (scope, signal) => notesService.read(scope, signal), result => {
+  const notes = parseNotes(result)
+  useNotesState.setState({ notes, displayNotes: notes, loaded: true, prefetched: background && !useNotesState.getState().open })
+}, background)
+export const refreshNotes = () => readNotes()
+/** One authorized read on approach, shared with E-open; never a periodic poll. */
+export function refreshNearbyNotes() {
+  const scope = context(), state = useNotesState.getState()
+  if (!scope || panelOwnsKeys() || state.open) return Promise.resolve(false)
+  if (state.ownerId !== scope.userId || state.channelId !== scope.channelId) resetNotesState()
+  useNotesState.setState({ ownerId: scope.userId, channelId: scope.channelId })
+  return readNotes(true)
+}
 export async function submitNote() {
   const state = useNotesState.getState(), text = parseNoteText(state.draft)
   if (!state.open || state.pending || state.loading || state.retryBlocked || !context()) return false
@@ -94,6 +105,7 @@ export async function submitNote() {
       throw new Error('게시 결과를 확인하지 못했습니다. 목록을 확인한 뒤 다시 시도해주세요.')
     useNotesState.setState(s => ({ draft: '', operationId: '', submittedText: '', nextAllowedAt: receipt.nextAllowedAt,
       retryBlocked: false, notes: [note, ...s.notes.filter(n => n.id !== note.id)].sort(compareNotes).slice(0, NOTES_BOX.capacity),
+      displayNotes: [note, ...s.notes.filter(n => n.id !== note.id)].sort(compareNotes).slice(0, NOTES_BOX.capacity),
       loaded: true, notice: notesService.mode === 'mock'
         ? '개발 목업에 메모를 붙였어요. 현재 페이지에서만 보이며 실제 서버에 저장되지 않습니다.' : '익명 메모를 붙였어요. 고맙습니다!' }))
   })

@@ -63,5 +63,15 @@ export function heritageProbe(kind:'mailbox'|'notes') {
   const lod=group.getObjectByName(kind==='notes'?'observatory-notes-board':'mailbox-craft') as LOD
   const triangles=(object:Object3D)=>{let n=0;object.traverse(o=>{if(o instanceof Mesh)n+=(o.geometry.index?.count??o.geometry.getAttribute('position').count)/3});return n}
   const bounds=new Box3().setFromObject(group)
-  return {position:group.getWorldPosition(new Vector3()).toArray(),min:bounds.min.toArray(),max:bounds.max.toArray(),lod:lod.getCurrentLevel(),near:triangles(lod.levels[0]!.object),far:triangles(lod.levels[1]!.object)}
+  return {position:group.getWorldPosition(new Vector3()).toArray(),min:bounds.min.toArray(),max:bounds.max.toArray(),lod:lod.getCurrentLevel(),near:triangles(lod.levels[0]!.object),far:triangles(lod.levels[1]!.object),
+    noteIds:(group.getObjectByName('observatory-user-notes')?.userData.noteIds??[]) as string[]}
+}
+export function heritageSignProbe(kind:'mailbox'|'notes') {
+  const scene=root().getState().scene,group=scene.getObjectByName(kind==='notes'?'tower-notes-mailbox':'feedback-mailbox')!
+  const signs:{name:string;texture:string;font:string}[]=[]
+  group.traverse(object=>{if(object instanceof Mesh&&object.name.startsWith('prop-sign-')){
+    const material=object.material as import('three').MeshBasicMaterial,canvas=material.map?.image as HTMLCanvasElement
+    signs.push({name:object.name,texture:material.map?.uuid??'',font:canvas?.getContext('2d')?.font??''})
+  }})
+  return signs
 }
