@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
-import avatarImage from '../../assets/entry/park-avatar.webp'
 import coinImage from '../../assets/entry/yeopjeon-icon.webp'
 import { useSession } from '../../network/worldClient'
 import { useParkRuntime } from '../../park/runtime/ParkRuntime'
 import { WalletBalance } from '../wallet/WalletBalance'
+import { useOwnPortrait } from './characterPortrait'
 import { MenuDialog } from './MenuDialog'
 import { NicknameDoneDialog, ProfileDialog } from './ProfileDialog'
 import { withdraw } from './service'
@@ -25,6 +25,7 @@ export function AccountMenu({ exitError, onExit, onWithdrawn }: {
   onWithdrawn: () => void
 }) {
   const account = useSession(useShallow(s => ({ nickname: s.account?.nickname ?? '정보 미연동', balance: s.account?.balance ?? null })))
+  const portrait = useOwnPortrait()
   const [open, setOpen] = useState(false)
   const [dialog, setDialog] = useState<Dialog>(null)
   const root = useRef<HTMLDivElement>(null), trigger = useRef<HTMLButtonElement>(null)
@@ -51,13 +52,13 @@ export function AccountMenu({ exitError, onExit, onWithdrawn }: {
       <button ref={trigger} type="button" className="park-account__trigger" aria-label="내 메뉴" aria-haspopup="menu"
         aria-expanded={open} aria-controls="park-account-menu" onClick={() => setOpen(value => !value)}>
         <span className="park-account__nickname">{account.nickname}</span>
-        <span className="park-account__avatar"><img src={avatarImage} alt="내 캐릭터" /></span>
+        <span className="park-account__avatar"><img src={portrait} alt="내 캐릭터" /></span>
         <img className="park-chevron" src={chevronIcon} alt="" />
       </button>
     </div>
     {open && <div id="park-account-menu" className="park-menu-dropdown park-account-dropdown" role="menu" aria-label="내 메뉴">
       <div className="park-account-dropdown__header">
-        <span className="park-menu-avatar"><img src={avatarImage} alt="" /></span>
+        <span className="park-menu-avatar"><img src={portrait} alt="" /></span>
         <span>
           <b>{account.nickname}</b>
           <small><img src={coinImage} alt="" />{account.balance === null ? '—' : account.balance.toLocaleString('ko-KR')}<i>냥</i></small>
