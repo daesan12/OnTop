@@ -1,6 +1,6 @@
 import type { MovementIntent } from './movementInput'
 import type { Pose } from './worldClient'
-import { NETWORK } from '../config'
+import { MOVEMENT, NETWORK } from '../config'
 
 export interface MotionSnapshot {
   epoch: number; tick: number; appliedInputSeq: number; inputAgeMs: number
@@ -12,6 +12,8 @@ export interface PredictionSimulation {
   pose(): Pose
   setChairs(counts: ReadonlyMap<string, number>): void
   blocked?(): boolean
+  /** Clamp a display-only offset against the scene without changing physical state. */
+  clampCorrection?(offset: { x: number; y: number; z: number }, from?: Pose): { x: number; y: number; z: number }
   dispose(): void
 }
 const STOP: MovementIntent = { dx: 0, dz: 0, run: false, jump: false }
@@ -19,7 +21,7 @@ const HORIZON_MS = 250
 const distance = (a: Pose, b: Pose) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z)
 const angleDelta = (from: number, to: number) => Math.atan2(Math.sin(to - from), Math.cos(to - from))
 type IntentFrame = { at: number; intent: MovementIntent }
-type SentFrame = { seq: number; at: number }
+type SentFrame = { seq: number; at: number; jumpAt: number }
 function last<T>(values: T[], predicate: (value: T) => boolean): T | undefined {
   for (let i = values.length - 1; i >= 0; i--) if (predicate(values[i]!)) return values[i]
 }
@@ -30,7 +32,7 @@ export class LocalMovementPrediction {
   private preparing: Promise<void> | undefined
   private generation = 0
   private scope = ''
-  private baseline: { pose: Pose; motion: MotionSnapshot; at: number } | undefined
+  private baseline: { pose: Pose; motion: MotionSnapshot; at: number; anchor: number } | undefined
   private timeline: IntentFrame[] = []
   private sent: SentFrame[] = []
   private simulatedAt = 0
@@ -42,10 +44,12 @@ export class LocalMovementPrediction {
   private resets = 0
   private allowed = false
   private lastJumpAt = -Infinity
+  private acknowledgedJumpAt = -Infinity
   private idleWindow = true
   private highestSent = 0
   private unavailable = false
   private facing: { from: number; to: number; at: number } | undefined
+  private displayed: { pose: Pose; at: number } | undefined
   private chairCounts: ReadonlyMap<string, number> = new Map()
   constructor(private readonly factory: () => Promise<PredictionSimulation> = async () =>
     (await import('./predictionPhysics')).createPredictionPhysics(), private readonly now = () => performance.now()) {}
@@ -72,15 +76,19 @@ export class LocalMovementPrediction {
     this.scope = ''; this.baseline = undefined; this.timeline = []; this.sent = []
     this.intent = { ...STOP }; this.allowed = false; this.firstInput = undefined
     this.lastJumpAt = -Infinity
+    this.acknowledgedJumpAt = -Infinity
     this.idleWindow = true; this.highestSent = 0
     this.unavailable = false
     this.facing = undefined
+    this.displayed = undefined
     this.correction = { x: 0, y: 0, z: 0, at: 0 }
   }
   suspend() {
     this.timeline = []; this.sent = []; this.intent = { ...STOP }; this.firstInput = undefined
     this.allowed = false; this.correction = { x: 0, y: 0, z: 0, at: 0 }
     this.facing = undefined
+    this.displayed = undefined
+    this.acknowledgedJumpAt = this.lastJumpAt = -Infinity
   }
   reconcile(scope: string, pose: Pose & { moving?: boolean }, motion: MotionSnapshot | undefined, allowed: boolean, at = this.now()) {
     if (scope !== this.scope) { this.reset(); this.scope = scope }
@@ -93,33 +101,46 @@ export class LocalMovementPrediction {
       return
     }
     this.advance(at)
-    const visible = this.sim?.pose()
-    if (visible) {
-      const blend = Math.max(0, 1 - (at - this.correction.at) / 80)
-      visible.x += this.correction.x * blend; visible.y += this.correction.y * blend; visible.z += this.correction.z * blend
-    }
+    const visible = this.sim ? this.displayPosition(at) : undefined
     this.allowed = true
-    this.baseline = { pose: { ...pose }, motion, at }
+    for (const sent of this.sent) if (sent.seq <= motion.appliedInputSeq)
+      this.acknowledgedJumpAt = Math.max(this.acknowledgedJumpAt, sent.jumpAt)
+    const frame = this.sent.find(f => f.seq === motion.appliedInputSeq)
+    // A missing acknowledged input is not the first local keystroke's timestamp.
+    // Carry the previous physics clock forward instead of replaying from an unrelated intent.
+    const inferred = old ? old.anchor + (motion.tick - old.motion.tick) * 1000 / 30 : at
+    let anchor = Math.max(at - HORIZON_MS, Math.min(at, frame ? frame.at + motion.inputAgeMs : inferred))
+    // A pre-jump state cannot consume a jump which the server has not processed yet.
+    const pendingJump = this.timeline.find(f => f.intent.jump && f.at > this.acknowledgedJumpAt)
+    if (!newEpoch && motion.grounded && pendingJump) anchor = Math.max(at - HORIZON_MS, Math.min(anchor, pendingJump.at))
+    this.baseline = { pose: { ...pose }, motion, at, anchor }
     if (newEpoch) this.facing = { from: pose.yaw, to: pose.yaw, at }
     if (!this.sim) { void this.prepare(); return }
-    const frame = this.sent.find(f => f.seq === motion.appliedInputSeq)
-    const anchor = Math.max(at - HORIZON_MS, Math.min(at,
-      frame ? frame.at + motion.inputAgeMs : this.timeline[0]?.at ?? at))
     this.sim.reset(pose, motion.velocityY, motion.grounded)
     this.simulatedAt = newEpoch ? at : anchor
-    this.lastJumpAt = anchor
+    this.lastJumpAt = this.acknowledgedJumpAt
     if (newEpoch) {
       this.timeline = []; this.sent = []; this.intent = { ...STOP }; this.firstInput = undefined
       this.highestSent = motion.appliedInputSeq
+      this.acknowledgedJumpAt = this.lastJumpAt = -Infinity
+      this.displayed = undefined
     } else this.advance(at)
     const after = this.sim.pose()
     const error = visible ? distance(visible, after) : 0
     if (error > .01) this.push(this.corrections, error)
-    // Teleports/recovery/seat epochs are authoritative immediately, never eased through obstacles.
-    if (!newEpoch && visible && error < .75 && !this.sim.blocked?.()) {
+    // Normal prediction errors have a movement-derived envelope. Actual relocation
+    // is identified by its epoch; an arbitrary .75m cutoff snapped rapid strafes.
+    const plausible = visible && Math.hypot(visible.x - after.x, visible.z - after.z)
+      <= MOVEMENT.runSpeed * HORIZON_MS / 1000 + MOVEMENT.radius
+      && Math.abs(visible.y - after.y) <= -MOVEMENT.maxFallSpeed * HORIZON_MS / 1000 + MOVEMENT.stepHeight
+    if (!newEpoch && plausible) {
       this.correction = { x: visible.x - after.x, y: visible.y - after.y, z: visible.z - after.z, at }
-    } else { this.correction = { x: 0, y: 0, z: 0, at }; if (error >= .75) ++this.resets }
-    if (error >= .75) this.facing = { from: after.yaw, to: after.yaw, at }
+    } else {
+      this.correction = { x: 0, y: 0, z: 0, at }
+      if (visible && error > .01) ++this.resets
+      this.facing = { from: after.yaw, to: after.yaw, at }
+      this.displayed = undefined
+    }
     this.sent = this.sent.filter(f => f.seq >= motion.appliedInputSeq).slice(-128)
     this.idleWindow = (pose.moving === false || !motion.inputActive) && motion.appliedInputSeq >= this.highestSent
     this.trim(at)
@@ -141,11 +162,18 @@ export class LocalMovementPrediction {
     }
     this.intent = { ...intent }
   }
-  sentInput(seq: number, at = this.now()) {
+  sentInput(seq: number, at = this.now(), intent = this.intent) {
     this.highestSent = Math.max(this.highestSent, seq)
-    this.sent.push({ seq, at }); this.sent = this.sent.slice(-128)
+    const jumpAt = intent.jump ? last(this.timeline, f => f.intent.jump && f.at <= at)?.at ?? at : -Infinity
+    this.sent.push({ seq, at, jumpAt }); this.sent = this.sent.slice(-128)
   }
   reject(seq: number) {
+    const rejected = this.sent.find(f => f.seq === seq)
+    if (rejected && Number.isFinite(rejected.jumpAt)
+      && !this.sent.some(f => f.seq !== seq && f.jumpAt === rejected.jumpAt)) {
+      for (const frame of this.timeline) if (frame.at === rejected.jumpAt)
+        frame.intent = { ...frame.intent, jump: false }
+    }
     this.sent = this.sent.filter(f => f.seq !== seq)
     // A rejected input is never retransmitted here. The next fresh intent remains independently paced.
   }
@@ -153,10 +181,8 @@ export class LocalMovementPrediction {
   sample(at: number, target: Pose): boolean {
     if (!this.ready) return false
     this.advance(at)
-    Object.assign(target, this.sim!.pose())
+    Object.assign(target, this.displayPosition(at))
     target.yaw = this.displayYaw(target.yaw, at)
-    const blend = Math.max(0, 1 - (at - this.correction.at) / 80)
-    target.x += this.correction.x * blend; target.y += this.correction.y * blend; target.z += this.correction.z * blend
     if (this.firstInput && distance(target, this.firstInput.pose) > .001) {
       this.push(this.responseTimes, at - this.firstInput.at); this.firstInput = undefined
     }
@@ -167,6 +193,31 @@ export class LocalMovementPrediction {
     return { moving: !!(active && (this.intent.dx || this.intent.dz)), running: !!(active && this.intent.run) }
   }
   metrics() { return { firstResponseMs: [...this.responseTimes], correctionMetres: [...this.corrections], hardCorrections: this.resets } }
+  private displayOffset(at: number) {
+    const blend = Math.max(0, 1 - (at - this.correction.at) / 80)
+    const offset = { x: this.correction.x * blend, y: this.correction.y * blend, z: this.correction.z * blend }
+    return offset
+  }
+  private displayPosition(at: number): Pose {
+    const pose = this.sim!.pose(), offset = this.displayOffset(at)
+    pose.x += offset.x; pose.y += offset.y; pose.z += offset.z
+    const previous = this.displayed
+    if (previous) {
+      const seconds = Math.max(0, at - previous.at) / 1000
+      const delta = { x: pose.x - previous.pose.x, y: pose.y - previous.pose.y, z: pose.z - previous.pose.z }
+      // Keep input response immediate, but never turn a correction into an
+      // unbounded one-frame move. Relocation epochs bypass this display path.
+      const horizontal = Math.hypot(delta.x, delta.z)
+      const limit = (MOVEMENT.runSpeed + MOVEMENT.walkSpeed / 2) * seconds
+      if (horizontal > limit && horizontal > 0) { delta.x *= limit / horizontal; delta.z *= limit / horizontal }
+      delta.y = Math.max(MOVEMENT.maxFallSpeed * seconds, Math.min(-MOVEMENT.maxFallSpeed * seconds, delta.y))
+      const safe = this.sim!.clampCorrection?.(delta, previous.pose)
+        ?? (this.sim!.blocked?.() ? { x: 0, y: 0, z: 0 } : delta)
+      pose.x = previous.pose.x + safe.x; pose.y = previous.pose.y + safe.y; pose.z = previous.pose.z + safe.z
+    }
+    this.displayed = { pose: { ...pose }, at: Math.max(at, previous?.at ?? at) }
+    return pose
+  }
   private displayYaw(yaw: number, at: number) {
     const facing = this.facing ?? { from: yaw, to: yaw, at }
     const t = Math.min(1, Math.max(0, (at - facing.at) / NETWORK.interpolationMs))

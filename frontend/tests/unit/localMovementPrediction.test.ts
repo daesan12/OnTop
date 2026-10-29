@@ -3,7 +3,7 @@ import { LocalMovementPrediction, type MotionSnapshot, type PredictionSimulation
 import type { MovementIntent } from '../../src/network/movementInput'
 import { sampleMovement } from '../../src/world/movementPresentation'
 import { createPredictionPhysics } from '../../src/network/predictionPhysics'
-import { groundHeight, MOVEMENT, spawnPosition, WORLD } from '../../src/config'
+import { groundHeight, MOVEMENT, spawnPosition, WORLD, WORLD_COLLIDERS, VR_COURSE_PADS } from '../../src/config'
 
 const origin = { x: -2, y: .8, z: 34, yaw: Math.PI }
 const motion = (tick = 0, seq = 0): MotionSnapshot => ({ epoch: 0, tick, appliedInputSeq: seq,
@@ -25,6 +25,16 @@ class FlatSimulation implements PredictionSimulation {
   setChairs() {}
   dispose() { this.disposed = true }
 }
+class JumpSimulation extends FlatSimulation {
+  vy = 0
+  reset(pose: typeof origin, velocityY = 0) { super.reset(pose); this.vy = velocityY }
+  step(intent: MovementIntent, seconds: number) {
+    super.step(intent, seconds)
+    if (intent.jump) this.vy = 6.2
+    this.vy -= 18 * seconds
+    this.p.y = Math.max(origin.y, this.p.y + this.vy * seconds)
+  }
+}
 async function ready(pose = origin) {
   const sim = new FlatSimulation()
   const prediction = new LocalMovementPrediction(async () => sim, () => 0)
@@ -33,6 +43,56 @@ async function ready(pose = origin) {
   return { sim, prediction }
 }
 describe('own movement prediction; authority and other avatars stay separate', () => {
+  it('does not replay a rejected jump when a later ordinary input is acknowledged', async () => {
+    const sim = new JumpSimulation()
+    const prediction = new LocalMovementPrediction(async () => sim, () => 0)
+    prediction.reconcile('one', origin, motion(), true, 0); await prediction.prepare()
+    prediction.intend({ ...stop, jump: true }, 20); prediction.sentInput(1, 20)
+    prediction.sample(45, { ...origin }); prediction.reject(1)
+    prediction.intend(stop, 60); prediction.sentInput(2, 60)
+    prediction.reconcile('one', origin, { ...motion(3, 2), inputAgeMs: 40 }, true, 100)
+    const p = { ...origin }; prediction.sample(220, p)
+    expect(p.y).toBeCloseTo(origin.y)
+    prediction.reset()
+  })
+  it('replays an unprocessed jump after a late pre-jump snapshot instead of dropping the ascent', async () => {
+    const sim = new JumpSimulation()
+    const prediction = new LocalMovementPrediction(async () => sim, () => 0)
+    prediction.reconcile('one', origin, motion(), true, 0); await prediction.prepare()
+    prediction.intend({ ...walk, jump: true }, 20); prediction.sentInput(1, 20)
+    const p = { ...origin }; prediction.sample(65, p)
+    expect(p.y).toBeGreaterThan(1)
+    prediction.reconcile('one', origin, motion(1, 0), true, 70)
+    prediction.sample(160, p)
+    expect(p.y).toBeGreaterThan(1.3)
+    prediction.reset()
+  })
+  it('does not turn an acknowledged jump into another jump after a grounded server confirmation', async () => {
+    const sim = new JumpSimulation()
+    const prediction = new LocalMovementPrediction(async () => sim, () => 0)
+    prediction.reconcile('one', origin, motion(), true, 0); await prediction.prepare()
+    prediction.intend({ ...stop, jump: true }, 20); prediction.sentInput(1, 20)
+    prediction.sample(45, { ...origin })
+    prediction.reconcile('one', origin, { ...motion(2, 1), inputAgeMs: 30 }, true, 70)
+    const p = { ...origin }; prediction.sample(170, p)
+    expect(p.y).toBeCloseTo(origin.y)
+    prediction.reset()
+  })
+  it('keeps a small contact correction continuous when the physics query says its path is safe', async () => {
+    const sim = Object.assign(new FlatSimulation(), { blocked: () => true,
+      clampCorrection: (offset: { x: number; y: number; z: number }) => offset })
+    const prediction = new LocalMovementPrediction(async () => sim, () => 0)
+    prediction.reconcile('one', origin, motion(), true, 0); await prediction.prepare()
+    prediction.intend(walk, 0); prediction.sentInput(1, 0)
+    const p = { ...origin }; prediction.sample(100, p); const visible = p.x
+    prediction.reconcile('one', { ...origin, x: origin.x + .4 },
+      { ...motion(3, 1), inputAgeMs: 100, inputActive: true }, true, 100)
+    prediction.sample(100, p)
+    expect(p.x).toBeCloseTo(visible)
+    prediction.sample(190, p)
+    expect(p.x).toBeCloseTo(origin.x + .4 + 6.25 * .09)
+    prediction.reset()
+  })
   it('keeps position immediate but blends a quarter-turn and does not restart it for server acknowledgements', async () => {
     const { prediction } = await ready({ ...origin, yaw: 0 })
     const p = { ...origin }
@@ -162,6 +222,37 @@ describe('own movement prediction; authority and other avatars stay separate', (
   })
 })
 describe('the actual shared-map collision predictor', () => {
+  it('blocks display movement through a wall and a jump platform without changing the physical pose', async () => {
+    const sim = await createPredictionPhysics()
+    try {
+      const wall = WORLD_COLLIDERS.find(box => box.id === 'vr-pagoda-body')!
+      const from = { x: wall.center[0] - wall.half[0] - MOVEMENT.radius - .1, y: 1.5, z: wall.center[2], yaw: 0 }
+      sim.reset(from, 0, false)
+      const before = sim.pose()
+      const blocked = sim.clampCorrection!({ x: 2, y: 0, z: 0 }, from)
+      expect(blocked.x).toBeLessThanOrEqual(.102)
+      expect(sim.pose()).toEqual(before)
+      const pad = VR_COURSE_PADS[5]!
+      const above = { x: pad.x, y: pad.height + .8, z: pad.z, yaw: 0 }
+      const falling = sim.clampCorrection!({ x: 0, y: -2, z: 0 }, above)
+      expect(falling.y).toBeGreaterThan(-.065)
+      expect(sim.pose()).toEqual(before)
+    } finally { sim.dispose() }
+  })
+  it('keeps a safe horizontal correction even when its vertical component touches the floor', async () => {
+    const sim = await createPredictionPhysics()
+    try {
+      const [x, y, z] = spawnPosition(0)
+      sim.reset({ x, y, z, yaw: 0 }, 0, true)
+      for (let i = 0; i < 12; i++) sim.step(stop, 1 / 60)
+      const before = sim.pose()
+      const offset = sim.clampCorrection!({ x: -.3, y: -.08, z: 0 })
+      expect(offset.x).toBeCloseTo(-.3, 2)
+      // Query skin tolerates the existing 4cm Bullet/Rapier resting-height difference.
+      expect(offset.y).toBeGreaterThan(-.065)
+      expect(sim.pose()).toEqual(before)
+    } finally { sim.dispose() }
+  })
   it('walks at the configured speed and respects the playable boundary and the floor', async () => {
     const sim = await createPredictionPhysics()
     try {

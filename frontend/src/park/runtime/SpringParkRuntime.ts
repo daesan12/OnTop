@@ -799,7 +799,7 @@ export class ParkRuntime implements ParkRuntimePort {
   private async sendMovement(intent: MovementIntent, scope: string) {
     if (scope !== this.movementScope() || !this.canSendMovement(intent)) return
     const sequence = ++this.inputSequence
-    localMovement.sentInput(sequence)
+    localMovement.sentInput(sequence, performance.now(), intent)
     let requestId = ''
     try {
       await this.socket.request('WORLD_MOVE', {
