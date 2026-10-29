@@ -13,6 +13,7 @@ import {
   type Object3D,
 } from 'three'
 import { raycastStaticSurface } from './art/staticSurface'
+import { FadeBatchedMesh } from './art/FadeBatchedMesh'
 
 export const cameraOcclusion = {
   focus: { value: new Vector3() },
@@ -51,6 +52,7 @@ interface Entry {
   proxy?: InstancedMesh
   materials?: Material[]
   opacity: { value: number }
+  hidden?: boolean
 }
 interface SourceStamp {
   geometry: BufferGeometry
@@ -97,7 +99,8 @@ function eligible(node: Object3D): node is Mesh {
       m.type !== 'RawShaderMaterial',
   )
 }
-function visible(node: Object3D) {
+function visible(node: Object3D, index: number) {
+  if (node instanceof FadeBatchedMesh && !node.getVisibleAt(index)) return false
   for (let p: Object3D | null = node; p; p = p.parent)
     if (!p.visible) return false
   return true
@@ -134,7 +137,7 @@ export class CameraOcclusionFader {
         return (
           !stamp ||
           stamp.geometry !== mesh.geometry ||
-          stamp.count !== (mesh instanceof InstancedMesh ? mesh.count : 1) ||
+          stamp.count !== (mesh instanceof FadeBatchedMesh ? mesh.instanceCount : mesh instanceof InstancedMesh ? mesh.count : 1) ||
           !stamp.matrix.equals(mesh.matrixWorld)
         )
       })
@@ -146,17 +149,19 @@ export class CameraOcclusionFader {
       source.geometry.computeBoundingBox()
       if (!source.geometry.boundingBox || source.geometry.boundingBox.isEmpty())
         continue
-      const count = source instanceof InstancedMesh ? source.count : 1
+      const count = source instanceof FadeBatchedMesh ? source.instanceCount : source instanceof InstancedMesh ? source.count : 1
       this.sources.set(source, {
         geometry: source.geometry,
         count,
         matrix: source.matrixWorld.clone(),
       })
       for (let index = 0; index < count; index++) {
-        if (source instanceof InstancedMesh) source.getMatrixAt(index, local)
+        const geometry = source instanceof FadeBatchedMesh ? source.sourceGeometryAt(index) : source.geometry
+        if (!geometry.boundingBox) geometry.computeBoundingBox()
+        if (source instanceof InstancedMesh || source instanceof FadeBatchedMesh) source.getMatrixAt(index, local)
         else local.identity()
         world.multiplyMatrices(source.matrixWorld, local)
-        const bounds = source.geometry.boundingBox.clone().applyMatrix4(world)
+        const bounds = geometry.boundingBox!.clone().applyMatrix4(world)
         if (bounds.max.y - bounds.min.y < 0.08) continue
         const entry: Entry = {
           source,
@@ -214,7 +219,7 @@ export class CameraOcclusionFader {
           for (const entry of bucket) {
             if (entry.seen === this.frame) continue
             entry.seen = this.frame
-            if (!visible(entry.source)) continue
+            if (!visible(entry.source, entry.index)) continue
             // Bounds only select candidates. A nearby surface or an opening in
             // a large/rotated mesh must not make the entire part transparent.
             if (
@@ -239,13 +244,19 @@ export class CameraOcclusionFader {
         continue
       }
       if (!entry.materials) this.prepare(entry)
-      if (entry.proxy && !entry.proxy.visible) {
-        const source = entry.source as InstancedMesh
-        source.setMatrixAt(entry.index, hiddenMatrix)
-        source.instanceMatrix.addUpdateRange(entry.index * 16, 16)
-        source.instanceMatrix.needsUpdate = true
-        entry.proxy.visible = true
-      } else if (!entry.proxy)
+      if (entry.proxy) {
+        const source = entry.source as InstancedMesh | FadeBatchedMesh
+        if (!entry.hidden) {
+          source.setMatrixAt(entry.index, hiddenMatrix)
+          if (source instanceof InstancedMesh) {
+            source.instanceMatrix.addUpdateRange(entry.index * 16, 16)
+            source.instanceMatrix.needsUpdate = true
+          }
+          entry.hidden = true
+        }
+        entry.proxy.userData.cameraFadeActive = true
+        entry.proxy.visible = visible(source, entry.index)
+      } else
         entry.source.material = Array.isArray(entry.original)
           ? entry.materials!
           : entry.materials![0]!
@@ -255,10 +266,10 @@ export class CameraOcclusionFader {
 
   private blocksSight(entry: Entry) {
     const source = entry.source
-    this.probe.geometry = source.geometry
+    this.probe.geometry = source instanceof FadeBatchedMesh ? source.sourceGeometryAt(entry.index) : source.geometry
     this.probe.material = entry.original
     this.probe.matrixWorld.copy(source.matrixWorld)
-    if (source instanceof InstancedMesh) {
+    if (source instanceof InstancedMesh || source instanceof FadeBatchedMesh) {
       // Faded instances have a zero-scale source matrix. Test their saved pose,
       // independently of the visible fade proxy and the other batch instances.
       if (entry.matrix) this.instanceMatrix.copy(entry.matrix)
@@ -297,18 +308,18 @@ export class CameraOcclusionFader {
       material.customProgramCacheKey = () => `${key}|park-smooth-opacity-v2`
       return material
     })
-    if (source instanceof InstancedMesh) {
+    if (source instanceof InstancedMesh || source instanceof FadeBatchedMesh) {
       entry.matrix = new Matrix4()
       source.getMatrixAt(entry.index, entry.matrix)
       const proxy = new InstancedMesh(
-        source.geometry,
+        source instanceof FadeBatchedMesh ? source.sourceGeometryAt(entry.index) : source.geometry,
         Array.isArray(entry.original) ? entry.materials : entry.materials[0],
         1,
       )
       proxy.name = 'camera-fade-proxy'
       proxy.userData.cameraFadeProxy = true
       proxy.setMatrixAt(0, entry.matrix)
-      if (source.instanceColor) {
+      if (source instanceof FadeBatchedMesh || source.instanceColor) {
         source.getColorAt(entry.index, tint)
         proxy.setColorAt(0, tint)
       }
@@ -319,18 +330,23 @@ export class CameraOcclusionFader {
       proxy.raycast = () => {}
       proxy.visible = false
       source.add(proxy)
+      if (source instanceof FadeBatchedMesh) source.fadeProxies.set(entry.index, proxy)
       entry.proxy = proxy
     }
   }
 
   private restore(entry: Entry) {
     if (entry.proxy) {
-      if (entry.proxy.visible) {
-        const source = entry.source as InstancedMesh
+      const source = entry.source as InstancedMesh | FadeBatchedMesh
+      if (!(source instanceof FadeBatchedMesh && source.isDisposed)) {
         source.setMatrixAt(entry.index, entry.matrix!)
-        source.instanceMatrix.addUpdateRange(entry.index * 16, 16)
-        source.instanceMatrix.needsUpdate = true
+        if (source instanceof InstancedMesh) {
+          source.instanceMatrix.addUpdateRange(entry.index * 16, 16)
+          source.instanceMatrix.needsUpdate = true
+        }
       }
+      entry.hidden = false
+      entry.proxy.userData.cameraFadeActive = false
       entry.proxy.visible = false
     } else entry.source.material = entry.original
     entry.amount = 0
@@ -345,6 +361,7 @@ export class CameraOcclusionFader {
   dispose() {
     this.reset()
     for (const entry of this.entries) {
+      if (entry.source instanceof FadeBatchedMesh) entry.source.fadeProxies.delete(entry.index)
       entry.proxy?.removeFromParent()
       entry.proxy?.dispose()
       for (const material of entry.materials ?? []) material.dispose()

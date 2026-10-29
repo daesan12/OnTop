@@ -1,4 +1,5 @@
 import { useLayoutEffect, useMemo, useRef, type ReactNode } from 'react'
+import { attachSharedMaterial, sharedInstanceMaterial } from './sharedMaterials'
 import {
   Color,
   Euler,
@@ -84,7 +85,7 @@ export function Instances({
       receiveShadow
     >
       {children}
-      {material ?? <meshStandardMaterial roughness={0.88} />}
+      {material ?? <primitive object={sharedInstanceMaterial} attach={attachSharedMaterial} dispose={null} />}
     </instancedMesh>
   )
 }

@@ -16,6 +16,27 @@ const anchor = TABLES.find(table => table.picnicId)!, placement = tableSeats(anc
 const approach = { x: anchor.position[0] + placement.x, y: anchor.position[1] + .8,
   z: anchor.position[2] + placement.z + .6, yaw: Math.PI }
 
+test('a settled remote avatar wakes for walking, a gesture and a public seat change', async ({ page }) => {
+  const errors: string[] = []
+  page.on('pageerror', error => errors.push(error.message))
+  const server = await fixture(page, { manualMovement: true, position: { x: 0, y: .8, z: 34, yaw: 0 } })
+  await loaded(page)
+  await page.waitForTimeout(2200)
+  server.remotePose({ x: 3, y: .8, z: 33, moving: true })
+  await expect.poll(async () => (await seat(page, '102')).position![0]).toBeCloseTo(3, 2)
+  await expect.poll(async () => Math.abs((await seat(page, '102')).thigh!)).toBeGreaterThan(.1)
+  server.remotePose({ moving: false })
+  await expect.poll(async () => Math.abs((await seat(page, '102')).thigh!)).toBeLessThan(.01)
+  await page.waitForTimeout(2200)
+  server.emote({ eventId: 'idle-wake-wave', channelId: 'fixture-channel', userId: '102', emoteCode: 'WAVE', sentAt: new Date().toISOString() })
+  await expect.poll(async () => (await emote(page)).avatars[1]!.emote).toBe('EMOTE_WAVE')
+  await expect.poll(async () => Math.hypot(...(await emote(page)).avatars[1]!.arm!)).toBeGreaterThan(.05)
+  server.tableSeat('102', { tableId, seatNumber: 1 })
+  await expect.poll(async () => (await seat(page, '102')).thigh!).toBeLessThan(-1.5)
+  await screenshot(page, 'runtime-performance-avatar-wake')
+  expect(errors).toEqual([])
+})
+
 test('public seat snapshot renders the actor seated for a bystander before the bystander joins or watches', async ({ page, context }) => {
   const errors: string[] = []
   const observe = (p: Page) => {
