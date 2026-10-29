@@ -28,7 +28,10 @@ export function installMovementPanel() {
     warning.textContent = clientValidated
       ? '로컬 전용 검증 모드입니다. 승인 실패·보고 만료 시 기존 서버 이동으로 복귀합니다.'
       : 'B는 진단용이며 서버 위치와 어긋날 수 있어요. 전환 직후 초기화 구간은 비교에서 제외해 주세요.'
-    buttons.forEach((button, index) => { button.disabled = clientValidated; button.style.background = modes[index]![0] === mode ? '#85c4ff' : '#eee' })
+    buttons.forEach((button, index) => { button.disabled = clientValidated; button.style.background = !clientValidated && modes[index]![0] === mode ? '#85c4ff' : '#eee' })
+    reconnect.textContent = clientValidated ? 'C: 서버 좌표 검증 사용 중' : 'C: 서버 좌표 검증 다시 연결'
+    reconnect.disabled = clientValidated
+    reconnect.style.background = clientValidated ? '#85c4ff' : '#eee'
   }
   for (const [next, label] of modes) {
     const button = document.createElement('button')
@@ -43,6 +46,11 @@ export function installMovementPanel() {
     }
     buttons.push(button); panel.append(button)
   }
+  const reconnect = document.createElement('button')
+  reconnect.style.cssText = 'margin:7px 5px 3px 0;padding:7px;cursor:pointer;color:#152532'
+  reconnect.title = '새로 연결해 시작 위치로 돌아갑니다. 로컬 서버의 C 설정이 켜져 있어야 합니다.'
+  reconnect.onclick = () => { clearRoamingInput(); location.reload() }
+  panel.append(reconnect)
   const download = document.createElement('button')
   download.textContent = '최근 프레임 로그 저장'
   download.onclick = () => {
