@@ -109,6 +109,8 @@ gameId/version/state를 노출하지 않으며 기존 FE 파서와 재시도 UI�
 | 맵 확인 | WORLD_MAP_CONFIRM | WORLD_MAP_STATE |
 | 광장 | CHANNEL_JOIN / CHANNEL_LEAVE | CHANNEL_STATE / CHANNEL_LEFT / WORLD_STATE |
 | 이동 | WORLD_MOVE | WORLD_STATE |
+| C 좌표 검증 이동 (dev 기본) | WORLD_POSITION | WORLD_STATE; local 명시 활성·dev 기본 활성·prod 제외. [계약](../world-movement-prediction.md#c-좌표-검증-이동-계약-dev-기본-적용-prod-제외) |
+| 클라이언트 물리 준비 실패 시 서버 이동 복귀 | WORLD_POSITION_FALLBACK | WORLD_STATE; C 모드에서 사용, payload는 현재 epoch |
 | 채팅·감정 | WORLD_CHAT_SEND / WORLD_EMOTE_SEND | WORLD_CHAT_MESSAGE / WORLD_EMOTE_EVENT / WORLD_EMOTE_CANCELLED |
 | 따라가기 | WORLD_FOLLOW_CHECK / WORLD_FOLLOW_START / WORLD_FOLLOW_STOP | WORLD_FOLLOW_STATE ([상세](../world-follow-api.md)) |
 | 시설 | WORLD_FACILITY_CHECK / WORLD_FACILITY_CATALOG / WORLD_FACILITY_USE / WORLD_FACILITY_RELEASE / WORLD_FACILITY_AIM | [시설 계약](../world-facility-api.md)의 상태·목록·이용 응답 |

@@ -439,9 +439,25 @@ export function movementProbe() {
   }
 }
 
+export function renderedMovementCamera() {
+  const camera = root().camera
+  const direction = camera.getWorldDirection(new Vector3())
+  return { x: camera.position.x, y: camera.position.y, z: camera.position.z,
+    yaw: Math.atan2(direction.x, direction.z), quaternion: camera.quaternion.toArray() }
+}
+export function observeMovementWrites() {
+  const avatar = root().scene.getObjectByName('avatar-' + useSession.getState().sessionId)
+  if (!avatar) throw new Error('Movement model not ready')
+  const position = avatar.position, original = position.set
+  let at = 0
+  position.set = function (this: Vector3, x: number, y: number, z: number) {
+    original.call(this, x, y, z); at = performance.now(); return this
+  }
+  return { at: () => at, dispose: () => { position.set = original } }
+}
 export function renderedMovementPose() {
   const object = root().scene.getObjectByName('avatar-' + useSession.getState().sessionId)
-  return object ? { x: object.position.x, y: object.position.y + .8, z: object.position.z } : null
+  return object ? { x: object.position.x, y: object.position.y + .8, z: object.position.z, yaw: object.rotation.y } : null
 }
 
 /** Keep unrelated advertisement uploads out of the avatar allocation/disposal comparison. */

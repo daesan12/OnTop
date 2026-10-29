@@ -43,6 +43,17 @@ public class WorldChannelRegistry implements ChannelPresence {
     private final java.util.function.Supplier<ParkScene> scene;
     private long lastStep;
     private long lastPatch;
+    private boolean clientPositions;
+
+    @Autowired
+    void configurePositionReports(@Value("${ontop.world.movement.client-position:false}") boolean enabled,
+            org.springframework.core.env.Environment environment) {
+        if (enabled && (!environment.acceptsProfiles(org.springframework.core.env.Profiles.of("local", "dev"))
+                || environment.acceptsProfiles(org.springframework.core.env.Profiles.of("prod", "production")))) {
+            throw new IllegalArgumentException("좌표 검증 이동은 local 또는 dev 프로필에서만 허용합니다.");
+        }
+        clientPositions = enabled;
+    }
 
     public WorldChannelRegistry(WorldChannelProperties properties) {
         this(properties, Duration.ofMillis(50));
@@ -135,7 +146,7 @@ public class WorldChannelRegistry implements ChannelPresence {
         long started = System.nanoTime();
         boolean cold = room.physics == null;
         if (cold) {
-            room.physics = new WorldPhysics(scene.get());
+            room.physics = new WorldPhysics(scene.get(), clientPositions, nanoTime);
             room.physics.chairCounts(chairCounts(room.tables));
         }
         room.physics.add(userId);
@@ -382,6 +393,52 @@ public class WorldChannelRegistry implements ChannelPresence {
         }
     }
 
+    public synchronized WorldChange reportPosition(String userId,
+            com.ssafy.ontop.world.movement.ClientPositionValidator.Candidate report) {
+        if (!clientPositions) throw new ChannelException("UNSUPPORTED_MESSAGE_TYPE", "위치 보고 모드는 비활성화 상태입니다.");
+        String channel = membership.get(userId);
+        if (channel == null) throw new ChannelException("NOT_IN_CHANNEL", "먼저 채널에 입장해주세요.");
+        Room room = rooms.get(channel);
+        if (room.held.contains(userId) || room.tableSeats.containsKey(userId) || activity(userId) != null)
+            throw new ChannelException("ACTIVITY_BUSY", "활동을 종료한 뒤 이동해주세요.");
+        long now = nanoTime.getAsLong();
+        Movement previous = room.positions.get(userId);
+        if (report.seq() > previous.position().lastInputSeq()
+                && !room.moveBudgets.computeIfAbsent(userId, ignored -> new MoveBudget(now)).take(now, minimumMoveNanos))
+            throw new ChannelException("MOVE_TOO_FREQUENT", "위치 보고 간격을 확인해주세요.");
+        var snapshot = room.physics.report(userId, report, now);
+        Position position = position(snapshot);
+        boolean changed = !position.equals(previous.position()) || !snapshot.motion().equals(room.motions.get(userId));
+        room.positions.put(userId, new Movement(position, now));
+        room.motions.put(userId, snapshot.motion());
+        if (changed) { room.worldVersion++; room.dirty = true; }
+        return new WorldChange(room.worldState(), changed);
+    }
+
+    public synchronized WorldChange serverMovement(String userId) {
+        Room room = rooms.get(membership.get(userId));
+        if (!clientPositions) return new WorldChange(room.worldState(), false);
+        var snapshot = room.physics.serverMovement(userId);
+        var previous = room.positions.get(userId);
+        boolean changed = !snapshot.motion().equals(room.motions.get(userId));
+        room.positions.put(userId, new Movement(position(snapshot), previous.acceptedAtNanos()));
+        room.motions.put(userId, snapshot.motion());
+        if (changed) { room.worldVersion++; room.dirty = true; }
+        return new WorldChange(room.worldState(), changed);
+    }
+    public synchronized WorldChange disablePosition(String userId, long epoch) {
+        if (!clientPositions) throw new ChannelException("UNSUPPORTED_MESSAGE_TYPE", "위치 보고 모드는 비활성화 상태입니다.");
+        Room room = rooms.get(membership.get(userId));
+        if (room == null) throw new ChannelException("NOT_IN_CHANNEL", "먼저 채널에 입장해주세요.");
+        var snapshot = room.physics.disablePosition(userId, epoch);
+        var previous = room.positions.get(userId);
+        boolean changed = !snapshot.motion().equals(room.motions.get(userId));
+        room.positions.put(userId, new Movement(position(snapshot), previous.acceptedAtNanos()));
+        room.motions.put(userId, snapshot.motion());
+        if (changed) { room.worldVersion++; room.dirty = true; }
+        return new WorldChange(room.worldState(), changed);
+    }
+
     public synchronized void holdFacility(String userId, WorldFacilityService.Pose pose) {
         Room room = rooms.get(membership.get(userId));
         room.physics.hold(userId, pose.x(), pose.y(), pose.z(), pose.yaw());
@@ -433,6 +490,7 @@ public class WorldChannelRegistry implements ChannelPresence {
                 if (room.physics != null) {
                     var frozen = new java.util.HashSet<>(seated);
                     frozen.addAll(room.held);
+                    if (clientPositions) room.users.stream().filter(user -> activity(user) != null).forEach(frozen::add);
                     room.physics.step(tick, frozen, targets.getOrDefault(room.definition.channelId(), Map.of()));
                 }
             }

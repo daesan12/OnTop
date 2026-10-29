@@ -20,9 +20,11 @@ class MovementPredictionFrontendTests {
         Path directory = Path.of(System.getenv("MOVEMENT_COMPARISON_DIR")).toAbsolutePath();
         Files.createDirectories(directory);
         var traces = new ArrayList<Map<String, Object>>();
-        for (int delay : new int[]{0, 50, 100}) {
+        for (int delay : new int[]{0, 25, 50, 100}) {
             traces.add(trace("flat", delay, false));
             traces.add(trace("boundary", delay, true));
+            for (String name : new String[]{"sprint", "shift", "strafe", "jump", "jump-pad", "pad-fall", "stairs"})
+                traces.add(trace(name, delay, false));
         }
         new ObjectMapper().writerWithDefaultPrettyPrinter().writeValue(directory.resolve("bullet-traces.json").toFile(), traces);
         var builder = new ProcessBuilder("node", "node_modules/vitest/vitest.mjs", "run", "tests/unit/movementComparison.test.ts")
@@ -41,6 +43,16 @@ class MovementPredictionFrontendTests {
     private Map<String, Object> trace(String name, int delay, boolean boundary) {
         try (var physics = new WorldPhysics()) {
             physics.add("a");
+            var scene = ParkScene.load();
+            if (name.equals("sprint") || name.equals("shift"))
+                physics.place("a", -10, scene.groundHeight(-10, 42) + .8, 42);
+            if (name.equals("jump-pad") || name.equals("pad-fall")) {
+                var pad = java.util.stream.StreamSupport.stream(scene.data.path("boxes").spliterator(), false)
+                        .filter(box -> box.path("id").asText().equals("future-jump-pad-5")).findFirst().orElseThrow();
+                physics.place("a", pad.path("center").get(0).asDouble(),
+                        pad.path("center").get(1).asDouble() + pad.path("half").get(1).asDouble() + .8,
+                        pad.path("center").get(2).asDouble());
+            } else if (name.equals("stairs")) physics.place("a", -18, .8, 11.6);
             if (boundary) {
                 var data = ParkScene.load().data;
                 double limit = data.path("world").path("halfSize").asDouble()
@@ -50,28 +62,49 @@ class MovementPredictionFrontendTests {
             }
             for (int tick = 1; tick <= 30; tick++) physics.step(tick * WorldPhysics.STEP_NANOS, Set.of());
             var initial = physics.snapshot("a");
-            List<Map<String, Object>> commands = new ArrayList<>(), frames = new ArrayList<>();
-            for (int at = 100, seq = 1; at <= 1300; at += 60, seq++) {
-                double dx = at < 640 ? 1 : at < 820 ? 0 : at < 1180 ? -1 : 0;
-                commands.add(Map.of("at", at, "seq", seq, "intent", Map.of("dx", dx, "dz", 0, "run", false, "jump", false)));
+            List<Map<String, Object>> commands = new ArrayList<>(), frames = new ArrayList<>(), intents = new ArrayList<>();
+            boolean extended = !name.equals("flat") && !boundary;
+            int end = extended ? 2200 : 1300;
+            for (int at = 100; at <= end; at += 20) {
+                double dx = at < 640 ? 1 : at < 820 ? 0 : at < 1180 ? -1 : 0, dz = 0;
+                boolean run = false, jump = false;
+                if (name.equals("sprint") || name.equals("shift")) { dx = at < 1900 ? 1 : 0; run = name.equals("sprint") || at >= 600; }
+                if (name.equals("strafe")) { dx = at < 1900 ? ((at - 100) / 80 % 2 == 0 ? 1 : -1) : 0; run = true; }
+                if (name.equals("jump")) { dx = at < 1900 ? .6 : 0; jump = at == 100 || at == 1000; }
+                if (name.equals("jump-pad")) { dx = at < 550 ? 1 : at < 800 ? -1 : 0; jump = at == 100; }
+                if (name.equals("pad-fall")) dx = at < 1100 ? 1 : 0;
+                if (name.equals("stairs")) { dx = 0; dz = at < 800 ? -1 : at < 1500 ? 1 : 0; }
+                var intent = Map.of("dx", dx, "dz", dz, "run", run, "jump", jump);
+                intents.add(Map.of("at", at, "intent", intent));
+                if ((at - 100) % 60 == 0) {
+                    // The ordinary FE queue keeps a jump that happened between send slots.
+                    boolean queuedJump = jump || intents.stream().skip(Math.max(0, intents.size() - 3))
+                            .anyMatch(item -> ((Map<?, ?>) item.get("intent")).get("jump").equals(true));
+                    commands.add(Map.of("at", at, "seq", commands.size() + 1,
+                            "intent", Map.of("dx", dx, "dz", dz, "run", run, "jump", queuedJump)));
+                }
             }
             long origin = 2_000_000_000L;
             int next = 0;
-            for (int tick = 1; tick <= 51; tick++) {
+            for (int tick = 1; tick <= (extended ? 90 : 51); tick++) {
                 long now = origin + tick * WorldPhysics.STEP_NANOS;
                 while (next < commands.size() && ((int) commands.get(next).get("at") + delay) * 1_000_000L + origin <= now) {
                     var command = commands.get(next++);
                     @SuppressWarnings("unchecked") var intent = (Map<String, Object>) command.get("intent");
                     long received = origin + ((int) command.get("at") + delay) * 1_000_000L;
-                    physics.input("a", new MoveInput((int) command.get("seq"), (double) intent.get("dx"), 0, false, false), received);
+                    physics.input("a", new MoveInput((int) command.get("seq"), (double) intent.get("dx"),
+                            (double) intent.get("dz"), (boolean) intent.get("run"), (boolean) intent.get("jump")), received);
                     // The immediate receipt response still carries the previous completed physics state.
-                    frames.add(frame((int) command.get("at") + delay * 2, physics.snapshot("a")));
+                    var receipt = new java.util.HashMap<>(frame((int) command.get("at") + delay * 2, physics.snapshot("a")));
+                    receipt.put("receiptSeq", command.get("seq"));
+                    frames.add(receipt);
                 }
                 physics.step(now, Set.of());
                 if (tick % 3 == 0) frames.add(frame(tick * WorldPhysics.STEP_NANOS / 1_000_000.0 + delay, physics.snapshot("a")));
             }
             frames.sort(Comparator.comparingDouble(f -> ((Number) f.get("at")).doubleValue()));
-            return Map.of("scenario", name, "oneWayMs", delay, "initial", initial, "commands", commands, "frames", frames);
+            return Map.of("scenario", name, "oneWayMs", delay, "initial", initial,
+                    "commands", commands, "intents", intents, "frames", frames, "duration", extended ? 3100 : 1800);
         }
     }
     private Map<String, Object> frame(double at, WorldPhysics.Snapshot snapshot) { return Map.of("at", at, "state", snapshot); }
