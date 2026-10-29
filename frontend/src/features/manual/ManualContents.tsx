@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { Markdown } from "./Markdown";
-import { RulebookReader } from "./RulebookReader";
 import { filterGuides, filterManuals, gameManuals, parkGuides } from "./catalog";
 import { GameArt } from "./GameArt";
 import { useManual } from "./manualState";
@@ -399,9 +398,7 @@ export default function ManualContents() {
                 </p>
               </>
             ) : (
-              <article
-                className={`manual-article${game?.rulebook ? " manual-article-illustrated" : ""}`}
-              >
+              <article className={`manual-article${game ? " game-guide" : ""}`}>
                 {game && (
                   <button className="manual-back" onClick={() => go("catalog")}>
                     ← 게임 목록
@@ -411,9 +408,7 @@ export default function ManualContents() {
                   <div>
                     <span className="manual-eyebrow">
                       {game
-                        ? game.status === "development"
-                          ? "개발중 · 현재 준비 상태"
-                          : "게임 설명 · 현재 적용 규칙"
+                        ? `${game.category === "game" ? "보드게임" : "미니게임"} · ${game.players}`
                         : "공원 이용 안내"}
                     </span>
                     <h3 ref={title} tabIndex={-1}>
@@ -423,39 +418,55 @@ export default function ManualContents() {
                   </div>
                   {game && <GameArt game={game.id} />}
                 </div>
-                {game && !game.rulebook && (
+                {game ? (
                   <>
-                    <div className="manual-facts">
-                      <span>{game.players}</span>
-                      <span>{game.goal}</span>
-                      <span>{game.timing}</span>
-                    </div>
-                    <div className="manual-summary">
-                      <b>
-                        {game.status === "development"
-                          ? "개발중인 게임이에요"
-                          : "이것만 알면 첫걸음은 끝!"}
-                      </b>
-                      <p>{game.summary}</p>
-                    </div>
+                    {/* One designed page per game: facts, the flow of a round, keys and must-know rules, then the full rules. */}
+                    <dl className="game-guide-facts">
+                      <div><dt>함께하는 인원</dt><dd>{game.players}</dd></div>
+                      <div><dt>이기는 방법</dt><dd>{game.goal}</dd></div>
+                      <div><dt>제한시간</dt><dd>{game.timing}</dd></div>
+                    </dl>
+                    <p className="game-guide-summary"><b>한눈에 보기</b>{game.summary}</p>
+                    <section className="game-guide-block" aria-labelledby="game-guide-flow">
+                      <h4 id="game-guide-flow">한 판의 흐름</h4>
+                      <ol className="game-guide-flow">
+                        {game.flow.map((step, index) => (
+                          <li key={step.title}>
+                            <span aria-hidden="true">{index + 1}</span>
+                            <b>{step.title}</b>
+                            <p>{step.body}</p>
+                          </li>
+                        ))}
+                      </ol>
+                    </section>
+                    {game.keys && (
+                      <section className="game-guide-block" aria-labelledby="game-guide-keys">
+                        <h4 id="game-guide-keys">조작</h4>
+                        <ul className="game-guide-keys">
+                          {game.keys.map(([key, action]) => (
+                            <li key={key}><kbd>{key}</kbd>{action}</li>
+                          ))}
+                        </ul>
+                      </section>
+                    )}
+                    <section className="game-guide-block" aria-labelledby="game-guide-points">
+                      <h4 id="game-guide-points">꼭 기억해요</h4>
+                      <ul className="game-guide-points">
+                        {game.points.map((point) => <li key={point}>{point}</li>)}
+                      </ul>
+                    </section>
+                    <section className="game-guide-block game-guide-rules" aria-labelledby="game-guide-rules">
+                      <div className="game-guide-rules-head">
+                        <h4 id="game-guide-rules">자세한 규칙</h4>
+                        {game.rulebook && (
+                          <a href={game.rulebook.rulebookUrl} download={`${game.title}-상세규칙.md`}>
+                            규칙 파일 내려받기
+                          </a>
+                        )}
+                      </div>
+                      {detailedSections}
+                    </section>
                   </>
-                )}
-                {game?.rulebook ? (
-                  <RulebookReader
-                    key={game.id}
-                    title={game.title}
-                    book={game.rulebook}
-                  >
-                    <div className="manual-facts">
-                      <span>{game.players}</span>
-                      <span>{game.goal}</span>
-                      <span>{game.timing}</span>
-                    </div>
-                    <div className="manual-summary">
-                      <p>{game.summary}</p>
-                    </div>
-                    {detailedSections}
-                  </RulebookReader>
                 ) : (
                   detailedSections
                 )}

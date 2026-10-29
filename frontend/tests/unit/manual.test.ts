@@ -77,3 +77,9 @@ it('opens the first-steps page only once after onboarding',()=>{
   expect(takeWelcomeManual()).toBe(true);
   expect(takeWelcomeManual()).toBe(false);
 });
+it('gives every game a designed page: a round in steps and the rules most often missed',()=>{
+  for (const game of gameManuals) {
+    expect(game.flow.length).toBeGreaterThanOrEqual(3);
+    expect(game.points.length).toBeGreaterThanOrEqual(3);
+  }
+});

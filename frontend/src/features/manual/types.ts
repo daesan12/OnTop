@@ -36,17 +36,10 @@ export interface ManualSection {
   example?: { title: string; text: string };
   tip?: string;
 }
-export interface RulebookPage {
-  src: string;
-  title: string;
-  alt: string;
-  note?: string;
-}
 export interface Rulebook {
   markdown: string;
   rulebookUrl: string;
   sections: ManualSection[];
-  pages: RulebookPage[];
 }
 export interface GameManual {
   status: "available" | "development";
@@ -59,6 +52,12 @@ export interface GameManual {
   goal: string;
   timing: string;
   summary: string;
+  /** A round from start to finish, shown as numbered cards. */
+  flow: { title: string; body: string }[];
+  /** Key or button, then what it does. */
+  keys?: [string, string][];
+  /** Rules a first-time player most often misses. */
+  points: string[];
   sections: ManualSection[];
   rulebook?: Rulebook;
 }
