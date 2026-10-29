@@ -24,18 +24,30 @@ public class NotesService {
     private final NotesProperties properties;
     private final NotePrivacy privacy;
     private final Clock clock;
+    private final java.util.function.LongConsumer changed;
 
     public NotesService(NotesRepository repository, PlatformTransactionManager manager, TableHub hub,
             NotesProperties properties, Clock clock) {
+        this(repository, manager, hub, properties, clock, ignored -> {});
+    }
+
+    public NotesService(NotesRepository repository, PlatformTransactionManager manager, TableHub hub,
+            NotesProperties properties, Clock clock, java.util.function.LongConsumer changed) {
         this.repository = repository;
         transactions = new TransactionTemplate(manager);
         this.hub = hub;
         this.properties = properties;
         privacy = new NotePrivacy(properties.privacySecret());
         this.clock = clock;
+        this.changed = changed;
     }
 
     public NoteReceiptResponse submit(long user, String key, String channel, NoteText text) {
+        return submit(user, key, channel, text, com.ssafy.ontop.notes.domain.NoteCategory.FREE);
+    }
+
+    public NoteReceiptResponse submit(long user, String key, String channel, NoteText text,
+            com.ssafy.ontop.notes.domain.NoteCategory category) {
         return Objects.requireNonNull(transactions.execute(transaction -> {
             member(user);
             access(user, channel);
@@ -43,7 +55,10 @@ public class NotesService {
             Instant now = now();
             Instant keyTime = keyTime(key, now);
             String requestDigest = privacy.digest("request", user + ":" + key);
-            String bodyDigest = privacy.digest("body", text.value());
+            // free는 기존 24시간 영수증의 HMAC과 호환한다.
+            String bodyDigest = category.equals(com.ssafy.ontop.notes.domain.NoteCategory.FREE)
+                    ? privacy.digest("body", text.value())
+                    : privacy.digest("body-category", category.value() + "\0" + text.value());
             var previous = repository.request(requestDigest);
             if (previous != null && now.isBefore(previous.expiresAt())) {
                 if (!previous.bodyDigest().equals(bodyDigest)) {
@@ -57,13 +72,24 @@ public class NotesService {
             }
             var rate = repository.rate(privacy.digest("rate", Long.toString(user)), now);
             checkAfter(rate.writeAfter(), now, "NOTES_WRITE_COOLDOWN");
-            var note = new AnonymousNote(text, now);
+            var note = new AnonymousNote(text, category, now);
             repository.save(note);
             // 키 검사와 같은 시각에 만료시켜 정리 직후에도 같은 키가 새 글이 되지 않게 한다.
             repository.saveRequest(new NoteRequest(requestDigest, bodyDigest, note.id(), now,
                     keyTime.plusSeconds(86400)));
             rate.write(now);
             repository.trim();
+            long revision = repository.advanceRevision();
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                    new org.springframework.transaction.support.TransactionSynchronization() {
+                        @Override public void afterCommit() {
+                            try { changed.accept(revision); }
+                            catch (RuntimeException failure) {
+                                org.slf4j.LoggerFactory.getLogger(NotesService.class).warn("메모 변경 알림 지연 type={}",
+                                        failure.getClass().getSimpleName());
+                            }
+                        }
+                    });
             return new NoteReceiptResponse(NoteResponse.from(note), now.plusSeconds(15));
         }));
     }

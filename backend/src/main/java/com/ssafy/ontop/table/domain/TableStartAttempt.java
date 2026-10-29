@@ -15,6 +15,19 @@ public final class TableStartAttempt {
     private boolean checking;
     private final java.util.Set<String> endedGames = new java.util.HashSet<>();
     private final java.util.Set<String> settledGames = new java.util.HashSet<>();
+    private final java.util.Map<String, java.util.Set<String>> earlyDepartures = new java.util.HashMap<>();
+
+    public void rememberDeparture(String gameId, String userId) {
+        if (earlyDepartures.size() < 64 || earlyDepartures.containsKey(gameId)) {
+            earlyDepartures.computeIfAbsent(gameId, ignored -> new java.util.HashSet<>()).add(userId);
+        }
+    }
+
+    public java.util.Set<String> takeDepartures(String gameId) {
+        var matching = java.util.Set.copyOf(earlyDepartures.getOrDefault(gameId, java.util.Set.of()));
+        earlyDepartures.clear();
+        return matching;
+    }
 
     public TableStartAttempt(GameStartCommand command) {
         this.command = command;

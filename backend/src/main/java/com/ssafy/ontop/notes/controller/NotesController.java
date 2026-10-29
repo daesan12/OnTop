@@ -71,7 +71,7 @@ public class NotesController {
             content = @Content(schema = @Schema(implementation = NotesController.ErrorResponse.class)))
     public ResponseEntity<NoteReceiptResponse> submit(Principal principal, @RequestBody JsonNode body) {
         long userId = account(principal);
-        if (!body.isObject() || body.size() != 3 || !body.hasNonNull("operationId")
+        if (!body.isObject() || body.size() != (body.has("category") ? 4 : 3) || !body.hasNonNull("operationId")
                 || !body.hasNonNull("channelId") || !body.hasNonNull("text")) {
             throw invalid();
         }
@@ -91,12 +91,21 @@ public class NotesController {
         } catch (IllegalArgumentException exception) {
             throw new NoteException(400, "NOTES_TEXT_INVALID", "메모는 1~300자로 작성해주세요.");
         }
-        var response = service().submit(userId, key, channel, text);
+        com.ssafy.ontop.notes.dto.NoteReceiptResponse response;
+        if (body.has("category")) {
+            if (!body.path("category").isTextual()) { throw invalid(); }
+            com.ssafy.ontop.notes.domain.NoteCategory category;
+            try { category = new com.ssafy.ontop.notes.domain.NoteCategory(body.path("category").asText()); }
+            catch (IllegalArgumentException invalid) {
+                throw new NoteException(400, "NOTES_CATEGORY_INVALID", "메모 주제를 확인해주세요.");
+            }
+            response = service().submit(userId, key, channel, text, category);
+        } else { response = service().submit(userId, key, channel, text); }
         return ResponseEntity.status(201).cacheControl(CacheControl.noStore()).body(response);
     }
 
     @GetMapping("/api/v1/notes")
-    @Operation(summary = "전망대 익명 메모 조회", description = "인증·서버 근접/활동 검사. 창을 연 동안2초마다 재조회하고 이탈·단절 시 중지.")
+    @Operation(summary = "전망대 익명 메모 조회", description = "인증·서버 근접/활동 검사. 열기/재접속 및 NOTES_CHANGED 알림 후 합쳐 재조회. 정기 GET 없음.")
     @ApiResponse(responseCode = "200", description = "최신 메모 목록. 없으면 notes 빈 배열",
             content = @Content(mediaType = "application/json", schema = @Schema(implementation = NoteListResponse.class)))
     @ApiResponse(responseCode = "409", description = "NOT_IN_CHANNEL / NOTES_ACTIVITY_CONFLICT",
@@ -155,7 +164,9 @@ public class NotesController {
     public record ErrorResponse(String code, String message, Instant nextAllowedAt) {
     }
 
-    public record NoteSubmissionRequest(String operationId, String channelId, String text) {
+    public record NoteSubmissionRequest(String operationId, String channelId, String text,
+            @Schema(description = "생략 시 free", allowableValues = {"daily", "cheer", "worry", "recommend", "free"})
+            String category) {
         @Override
         public String toString() { return "NoteSubmission[redacted]"; }
     }

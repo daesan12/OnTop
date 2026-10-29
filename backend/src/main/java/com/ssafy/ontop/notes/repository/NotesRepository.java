@@ -47,6 +47,17 @@ public class NotesRepository {
     public void save(AnonymousNote note) { entities.persist(note); entities.flush(); }
     public void saveRequest(NoteRequest request) { entities.persist(request); entities.flush(); }
 
+    public long revision() {
+        return entities.createQuery("select b.revision from NoteBoard b where b.id=1", Long.class).getSingleResult();
+    }
+
+    public long advanceRevision() {
+        int changed = entities.createQuery("update NoteBoard b set b.revision=b.revision+1 where b.id=1 and b.revision<:maximum")
+                .setParameter("maximum", Long.MAX_VALUE).executeUpdate();
+        if (changed != 1) { throw new IllegalStateException("메모 변경 번호를 확정할 수 없습니다."); }
+        return revision();
+    }
+
     public List<AnonymousNote> list() {
         return entities.createQuery("select n from AnonymousNote n order by n.createdAt desc, n.id desc",
                 AnonymousNote.class).setMaxResults(120).getResultList();
