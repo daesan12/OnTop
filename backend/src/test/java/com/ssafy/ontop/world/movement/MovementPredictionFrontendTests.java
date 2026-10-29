@@ -23,7 +23,7 @@ class MovementPredictionFrontendTests {
         for (int delay : new int[]{0, 25, 50, 100}) {
             traces.add(trace("flat", delay, false));
             traces.add(trace("boundary", delay, true));
-            for (String name : new String[]{"strafe", "jump", "jump-pad", "pad-fall", "stairs"})
+            for (String name : new String[]{"sprint", "shift", "strafe", "jump", "jump-pad", "pad-fall", "stairs"})
                 traces.add(trace(name, delay, false));
         }
         new ObjectMapper().writerWithDefaultPrettyPrinter().writeValue(directory.resolve("bullet-traces.json").toFile(), traces);
@@ -44,6 +44,8 @@ class MovementPredictionFrontendTests {
         try (var physics = new WorldPhysics()) {
             physics.add("a");
             var scene = ParkScene.load();
+            if (name.equals("sprint") || name.equals("shift"))
+                physics.place("a", -10, scene.groundHeight(-10, 42) + .8, 42);
             if (name.equals("jump-pad") || name.equals("pad-fall")) {
                 var pad = java.util.stream.StreamSupport.stream(scene.data.path("boxes").spliterator(), false)
                         .filter(box -> box.path("id").asText().equals("future-jump-pad-5")).findFirst().orElseThrow();
@@ -66,6 +68,7 @@ class MovementPredictionFrontendTests {
             for (int at = 100; at <= end; at += 20) {
                 double dx = at < 640 ? 1 : at < 820 ? 0 : at < 1180 ? -1 : 0, dz = 0;
                 boolean run = false, jump = false;
+                if (name.equals("sprint") || name.equals("shift")) { dx = at < 1900 ? 1 : 0; run = name.equals("sprint") || at >= 600; }
                 if (name.equals("strafe")) { dx = at < 1900 ? ((at - 100) / 80 % 2 == 0 ? 1 : -1) : 0; run = true; }
                 if (name.equals("jump")) { dx = at < 1900 ? .6 : 0; jump = at == 100 || at == 1000; }
                 if (name.equals("jump-pad")) { dx = at < 550 ? 1 : at < 800 ? -1 : 0; jump = at == 100; }
