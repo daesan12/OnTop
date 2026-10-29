@@ -1,6 +1,6 @@
 # 경기 공개·개인 상태 조회·자동 전송 연결부
 
-OnTop v0.4의 **비공개 정보는 본인에게만 전송, 관전자는 공개 정보만 수신** 원칙을 위한 local/dev 연결부다. 선택적 [오목](omok.md)·[주사위](farkle.md)·[원카드](onecard.md)·[거짓말 다리](bridge.md) 엔진이 실제 상태를 제공한다. 기존 JWT·접속권을 사용하며 실제 DB 예약·정산은 별도 연결한다. 엔진 등록은 prod/production 혼합 시 제외하며 dev 활성화 조건은 [경기 시작 안내](committed-game-start.md#켜는-조건)를 따른다. 거리 검사는 [20m 근거리 계약](world-proximity.md)과 실행 서버의 테이블 좌표 설정을 따른다. `GameStateGateway` 구현이 없으면 성공 데이터 대신 명시적 오류를 반환한다.
+OnTop v0.4의 **비공개 정보는 본인에게만 전송, 관전자는 공개 정보만 수신** 원칙을 위한 local/dev 및 운영 `prod,db` 연결부다. 선택적 [오목](omok.md)·[주사위](farkle.md)·[원카드](onecard.md)·[거짓말 다리](bridge.md) 엔진이 실제 상태를 제공한다. 기존 JWT·접속권을 사용하며 실제 DB 예약·정산은 별도 연결한다. 운영과 local/dev 혼합 프로필은 제외하며 활성화 조건은 [경기 시작 안내](committed-game-start.md#켜는-조건)를 따른다. 거리 검사는 [20m 근거리 계약](world-proximity.md)과 실행 서버의 테이블 좌표 설정을 따른다. `GameStateGateway` 구현이 없으면 성공 데이터 대신 명시적 오류를 반환한다.
 
 2026-10-20 Notion에 [경기 통신 상세 7종](websocket-api/09-game-communication.md)을 반영하고 저장 내용을 재조회했다. 4종의 실제 상태·입력 필드는 [오목](omok.md)·[주사위](farkle.md)·[원카드](onecard.md)·[거짓말 다리](bridge.md) 계약을 따른다. 기존 `TABLE_WATCH`는 대기 상태 구독이며 경기 관전 권한을 부여하지 않는다.
 

@@ -8,3 +8,9 @@ export const customerPoint = (slot: number): Point3 => cartPoint(-1.16 + slot * 
 export const trashPoint = cartPoint(1.71, 1.2, .72);
 /** The render loop owns fast-changing readouts; React only owns structure and refs. */
 export const v5HeatEls: (HTMLElement | null)[] = Array(6).fill(null);
+/** Small flame outlets around the real plate edges, leaving the food and central meter clear. */
+export const BURNER_JET_OFFSETS = [
+  [-.198, -.09], [-.198, .015], [-.198, .115], [-.16, .16],
+  [.16, .16], [.198, .115], [.198, .015], [.198, -.09],
+] as const;
+export const burnerJetEls: (HTMLElement | null)[][] = Array.from({ length: 6 }, () => Array(8).fill(null));

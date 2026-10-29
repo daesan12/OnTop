@@ -279,7 +279,7 @@ FE는 채팅 기록과 별도로 머리 위에 “붕어빵 뒤집는 중”을 
 
 ## 감정표현 전송 기반 · WORLD_EMOTE_SEND / WORLD_EMOTE_EVENT
 
-서버의 `ontop.world.emote.codes`에 등록한 코드만 허용한다. local/dev(운영 혼합 제외)는 WAVE·CLAP·APPLAUSE_REQUEST·TSK·FART 5종을 기본 등록하며 `WORLD_EMOTE_CODES`로 재정의할 수 있다. 운영 기본 목록은 비어 있어 배포 설정에서 명시 등록해야 한다. visual-test는 기존 WAVE/CLAP 검증 설정을 유지한다. 실제 3D 애니메이션 연결·운영 배포 완료를 뜻하지 않는다.
+서버의 `ontop.world.emote.codes`에 등록한 코드만 허용한다. local/dev와 운영 prod,db는 WAVE·CLAP·APPLAUSE_REQUEST·TSK·FART 5종을 기본 등록하며 `WORLD_EMOTE_CODES`로 재정의할 수 있다. 운영의 실제 환경변수·배포 적용 여부는 별도로 확인해야 한다. visual-test는 기존 WAVE/CLAP 검증 설정을 유지한다. 실제 3D 애니메이션 연결·운영 배포 완료를 뜻하지 않는다.
 
 | FE 표현 ID | 서버 코드 | 표시 | 다음 사용까지 |
 | --- | --- | --- | --- |

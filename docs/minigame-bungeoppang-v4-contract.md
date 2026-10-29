@@ -85,7 +85,7 @@ FE 고정 자료:
 | FE 쟁반 index, 주문 index | 안정 빵 ID·서버 주문 ID로 변환 |
 | FE rulesV4 순수 검증기는 t=60000 허용 | 59999까지로 보완 |
 
-[현행] MINIGAME은 local/dev용이며 prod/production에서는 비활성이다. DB 서비스는 db + ontop.minigames.enabled=true가 필요하다. 이 문서로 운영 프로필·배포·기능 플래그를 확대하지 않는다.
+[2026-10-29 갱신] MINIGAME은 local/dev와 운영 `prod,db`에서 등록 가능하다. DB 서비스는 db + ontop.minigames.enabled=true가 필요하고 운영 기본값은 꺼져 있다. 운영 DB의 V110/V111/V124/V125/V126/V128 적용 이력과 Flyway 위치를 확인한 뒤 별도로 활성화한다. 이 문서의 v4 구현 이력은 실제 운영 배포 완료를 뜻하지 않는다.
 
 ### 1.1 Story 1·2 구현 상태
 

@@ -1,19 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
-import { BUNGEOPPANG_V5 as R } from '../../src/features/bungeoppang/config';
+import { BUNGEOPPANG_V5, BUNGEOPPANG_V5_LEGACY } from '../../src/features/bungeoppang/config';
 import { createBungeoppangV5Service } from '../../src/features/bungeoppang/serviceV5';
 import { prefixHash } from '../../src/features/bungeoppang/serviceV4';
 import { createGrill, replay, type CustomerOrder, type GrillState } from '../../src/features/bungeoppang/rulesV5';
 import type { GrillLogEntry } from '../../src/features/bungeoppang/rulesV4';
-import flow from '../fixtures/bungeoppang-v5-flow.json';
-
-// The backend replays the same file through its real HTTP API (BungeoppangV5IntegrationMySqlTests).
-const config = 'v5-20261027.1';
-const heats = Array(2048).fill(flow.heat);
-const history = flow.orders as CustomerOrder[];
-const log = flow.log as GrillLogEntry[];
-const keys = flow.deliveryKeys as Record<string, string>;
-const timing = { countdownStartsAt: '2026-10-28T00:00:01.000Z', playStartsAt: '2026-10-28T00:00:04.500Z',
-  playEndsAt: '2026-10-28T00:03:04.500Z', submitDeadline: '2026-10-28T00:03:19.500Z', expiresAt: '2026-10-28T00:03:29.500Z' };
+import legacyFlow from '../fixtures/bungeoppang-v5-flow.json';
+import twoMinuteFlow from '../fixtures/bungeoppang-v5-2min-flow.json';
 
 /** Server-shaped checkpoint from the FE replay, as the backend serializes it. */
 function wireCheckpoint(state: GrillState, revision: number, hash: string) {
@@ -25,7 +17,16 @@ function wireCheckpoint(state: GrillState, revision: number, hash: string) {
       specialServed: state.specialServed, bonusScore: state.bonusScore }, activeOrders: state.activeOrders };
 }
 
-describe('v5 shared full-round flow', () => {
+describe.each([
+  { name: 'two minutes', R: BUNGEOPPANG_V5, flow: twoMinuteFlow, config: 'v5-20261029.1' },
+  // Keep the fixture already used by BE tests intact during deployment transition.
+  { name: 'legacy three minutes', R: BUNGEOPPANG_V5_LEGACY, flow: legacyFlow, config: 'v5-20261027.1' },
+])('v5 shared full-round flow: $name', ({ R, flow, config }) => {
+  const heats = Array(2048).fill(flow.heat), history = flow.orders as CustomerOrder[];
+  const log = flow.log as GrillLogEntry[], keys = flow.deliveryKeys as Record<string, string>;
+  const at = Date.parse('2026-10-28T00:00:04.500Z'), iso = (ms: number) => new Date(at + ms).toISOString();
+  const timing = { countdownStartsAt: iso(-3500), playStartsAt: iso(0), playEndsAt: iso(R.durationMs),
+    submitDeadline: iso(R.durationMs + 15000), expiresAt: iso(R.durationMs + 25000) };
   it('FE replay of the shared round reaches the shared final result', () => {
     const state = replay(log, heats, history, R);
     const e = flow.expected;
@@ -76,7 +77,7 @@ describe('v5 shared full-round flow', () => {
         coinsCalculated: 2, coinsGranted: 2, todayEarned: 2, dailyCap: 100, capReached: false,
         successfulMade: state.made, served: state.served, customersServed: state.customersServed,
         specialServed: state.specialServed, bonusScore: state.bonusScore, grillDiscarded: 1, trayDiscarded: 1,
-        undeliveredCount: 0, unfinishedGrillCount: 0, rewardDate: '2026-10-28', settledAt: '2026-10-28T00:03:05.000Z',
+        undeliveredCount: 0, unfinishedGrillCount: 0, rewardDate: '2026-10-28', settledAt: iso(R.durationMs + 500),
         finalThroughSeq: body.throughSeq, finalPrefixHash: body.prefixHash };
       return { minigameSessionId: '901', deliveryKey: body.log.at(-1).deliveryKey, accepted: true,
         throughSeq: body.throughSeq, prefixHash: body.prefixHash, checkpoint: wireCheckpoint(state, ++revision, body.prefixHash) };

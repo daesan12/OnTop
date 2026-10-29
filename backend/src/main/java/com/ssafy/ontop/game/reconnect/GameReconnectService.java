@@ -6,8 +6,6 @@ import com.ssafy.ontop.game.reconnect.GameRecoveryGateway.Action;
 import com.ssafy.ontop.game.reconnect.GameRecoveryGateway.GraceExpiration;
 import com.ssafy.ontop.game.reconnect.GameRecoverySnapshot.Phase;
 import com.ssafy.ontop.game.result.GameDepartureReason;
-import com.ssafy.ontop.game.domain.GameSession;
-import com.ssafy.ontop.game.start.GameRuntimeIdentity;
 import jakarta.annotation.PreDestroy;
 import java.time.Clock;
 import java.time.Duration;
@@ -23,9 +21,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -35,11 +30,8 @@ import org.springframework.transaction.event.TransactionalEventListener;
 public class GameReconnectService {
 
     private static final Duration GRACE = Duration.ofSeconds(30);
-    private static final Logger log = LoggerFactory.getLogger(GameReconnectService.class);
 
     private final Optional<GameRecoveryGateway> gateway;
-    private final Optional<ActiveGameLookup> activeGames;
-    private final Optional<GameRuntimeIdentity> runtimeIdentity;
     private final Clock clock;
     private final Map<Long, Slot> users = new HashMap<>();
     private final ExecutorService workers = Executors.newVirtualThreadPerTaskExecutor();
@@ -48,15 +40,7 @@ public class GameReconnectService {
     private boolean stopped;
 
     public GameReconnectService(Optional<GameRecoveryGateway> gateway, Optional<Clock> clock) {
-        this(gateway, clock, Optional.empty(), Optional.empty());
-    }
-
-    @Autowired
-    public GameReconnectService(Optional<GameRecoveryGateway> gateway, Optional<Clock> clock,
-            Optional<ActiveGameLookup> activeGames, Optional<GameRuntimeIdentity> runtimeIdentity) {
         this.gateway = gateway;
-        this.activeGames = activeGames;
-        this.runtimeIdentity = runtimeIdentity;
         this.clock = clock.orElseGet(Clock::systemUTC);
         timer.scheduleWithFixedDelay(this::checkTimeouts, 1, 1, TimeUnit.SECONDS);
     }
@@ -72,7 +56,7 @@ public class GameReconnectService {
 
     public synchronized void connected(long userId, String sessionId, String loginSessionId,
             BiConsumer<String, View> output, java.util.function.Predicate<String> finishedAllowed) {
-        if (!recoveryConfigured() || stopped) {
+        if (gateway.isEmpty() || stopped) {
             return;
         }
         Slot slot = users.computeIfAbsent(userId, Slot::new);
@@ -92,7 +76,7 @@ public class GameReconnectService {
     /** 퇴장은 이력을 지우지 않는다. 늦은 이전 조회를 무효화하고 현재 연결의 복구만 다시 판정한다. */
     public synchronized void tableLeft(long userId, String sessionId) {
         Slot slot = users.get(userId);
-        if (stopped || !recoveryConfigured() || slot == null || !sessionId.equals(slot.sessionId)) { return; }
+        if (stopped || gateway.isEmpty() || slot == null || !sessionId.equals(slot.sessionId)) { return; }
         slot.generation++;
         slot.loading = false;
         if (slot.snapshot != null && slot.snapshot.phase() == Phase.FINISHED) { slot.snapshot = null; }
@@ -165,7 +149,7 @@ public class GameReconnectService {
     }
 
     public synchronized boolean canUseLobby(long userId, String sessionId) {
-        if (!recoveryConfigured()) {
+        if (gateway.isEmpty()) {
             return true;
         }
         Slot slot = users.get(userId);
@@ -175,12 +159,12 @@ public class GameReconnectService {
     }
 
     public synchronized void startPending(long userId) {
-        if (recoveryConfigured()) { users.computeIfAbsent(userId, Slot::new).pendingStart = true; }
+        if (gateway.isPresent()) { users.computeIfAbsent(userId, Slot::new).pendingStart = true; }
     }
 
     public synchronized void startResolved(long userId) {
         Slot slot = users.get(userId);
-        if (slot == null || stopped || !recoveryConfigured()) { return; }
+        if (slot == null || stopped || gateway.isEmpty()) { return; }
         slot.pendingStart = false;
         // 시작 전 LOBBY 조회가 늦게 끝나 새 경기 상태를 덮지 못하게 한다.
         slot.generation++;
@@ -208,7 +192,7 @@ public class GameReconnectService {
     // 기권 전 시작한 느린 조회가 기권 후 참가 자격을 되살리지 못하게 세대를 교체한다.
     public synchronized void forfeitResolved(long userId, String sessionId) {
         Slot slot = users.get(userId);
-        if (stopped || !recoveryConfigured() || slot == null || !sessionId.equals(slot.sessionId)) { return; }
+        if (stopped || gateway.isEmpty() || slot == null || !sessionId.equals(slot.sessionId)) { return; }
         slot.generation++;
         slot.loading = false;
         submitLoad(slot, null);
@@ -216,7 +200,7 @@ public class GameReconnectService {
 
     public synchronized void refresh(long userId, String sessionId, String requestId,
             BiConsumer<String, View> output) {
-        if (!recoveryConfigured()) {
+        if (gateway.isEmpty()) {
             output.accept(requestId, new View("UNAVAILABLE", null, null, null, null, "RECOVERY_NOT_CONFIGURED"));
             return;
         }
@@ -228,7 +212,7 @@ public class GameReconnectService {
 
     // 생산에서는 타이머가 호출하며, 테스트에서는 Clock을 진행시켜 30초 경계를 직접 확인한다.
     public synchronized void checkTimeouts() {
-        if (stopped || !recoveryConfigured()) {
+        if (stopped || gateway.isEmpty()) {
             return;
         }
         for (Slot slot : new ArrayList<>(users.values())) {
@@ -266,14 +250,9 @@ public class GameReconnectService {
         workers.execute(() -> load(slot, generation, requestId));
     }
 
-    private boolean recoveryConfigured() {
-        return gateway.isPresent() || activeGames.isPresent();
-    }
-
     private void load(Slot slot, long generation, String requestId) {
         try {
-            RecoveryRead read = loadConsistent(slot.userId);
-            Optional<GameRecoverySnapshot> result = read.snapshot();
+            Optional<GameRecoverySnapshot> result = gateway.orElseThrow().load(slot.userId);
             validate(slot, result);
             GraceExpiration overdue = null;
             synchronized (this) {
@@ -287,8 +266,7 @@ public class GameReconnectService {
             }
             if (overdue != null) {
                 expire(slot, overdue);
-                read = loadConsistent(slot.userId);
-                result = read.snapshot();
+                result = gateway.orElseThrow().load(slot.userId);
                 validate(slot, result);
             }
             synchronized (this) {
@@ -296,13 +274,9 @@ public class GameReconnectService {
                     return;
                 }
                 slot.loading = false;
-                apply(slot, result, read.activeMarker(), requestId);
+                apply(slot, result, requestId);
             }
         } catch (RuntimeException exception) {
-            RecoveryFailure failure = exception instanceof RecoveryConsistencyException consistency
-                    ? consistency.failure : RecoveryFailure.ENGINE_LOOKUP_FAILED;
-            log.warn("경기 복구 불가: reason={}, category={}", failure,
-                    exception.getClass().getSimpleName());
             synchronized (this) {
                 if (current(slot, generation)) {
                     slot.loading = false;
@@ -312,73 +286,6 @@ public class GameReconnectService {
                 }
             }
         }
-    }
-
-    private RecoveryRead loadConsistent(long userId) {
-        if (activeGames.isEmpty()) {
-            return new RecoveryRead(gateway.orElseThrow().load(userId), false);
-        }
-        if (runtimeIdentity.isEmpty()) {
-            throw new RecoveryConsistencyException(RecoveryFailure.RUNTIME_IDENTITY_MISSING);
-        }
-        Optional<ActiveGameRecord> active;
-        try {
-            active = activeGames.orElseThrow().findByUserId(userId);
-        } catch (RuntimeException exception) {
-            throw new RecoveryConsistencyException(RecoveryFailure.DB_LOOKUP_FAILED, exception);
-        }
-        if (gateway.isEmpty()) {
-            if (active.isEmpty()) {
-                return new RecoveryRead(Optional.empty(), false);
-            }
-            throw new RecoveryConsistencyException(RecoveryFailure.ENGINE_LOOKUP_FAILED);
-        }
-        Optional<GameRecoverySnapshot> engine;
-        try {
-            engine = gateway.orElseThrow().load(userId);
-        } catch (RuntimeException exception) {
-            throw new RecoveryConsistencyException(RecoveryFailure.ENGINE_LOOKUP_FAILED, exception);
-        }
-        return new RecoveryRead(reconcile(active, engine), active.isPresent());
-    }
-
-    private Optional<GameRecoverySnapshot> reconcile(Optional<ActiveGameRecord> active,
-            Optional<GameRecoverySnapshot> engine) {
-        if (active.isEmpty()) {
-            if (engine.isPresent() && engine.get().phase() != Phase.FINISHED) {
-                throw new RecoveryConsistencyException(RecoveryFailure.DB_RECORD_MISSING);
-            }
-            // 정산 커밋이 활성 마커를 먼저 해제한 직후에도 기존 종료 영수증은 그대로 전달할 수 있다.
-            return engine;
-        }
-        ActiveGameRecord record = active.get();
-        GameRuntimeIdentity identity = runtimeIdentity.orElseThrow();
-        if (!record.ownedBy(identity.instanceId(), identity.bootId())) {
-            throw new RecoveryConsistencyException(RecoveryFailure.OWNER_MISMATCH);
-        }
-        if (engine.isEmpty()) {
-            throw new RecoveryConsistencyException(RecoveryFailure.ENGINE_MISSING);
-        }
-        GameRecoverySnapshot snapshot = engine.get();
-        if (!record.gameId().equals(snapshot.gameId())) {
-            throw new RecoveryConsistencyException(RecoveryFailure.GAME_MISMATCH);
-        }
-        if (record.settlementStatus() != GameSession.SettlementStatus.PENDING) {
-            // SETTLED인데 active_user_id가 남아 있으면 정상 정산 완료로 묵인하지 않는다.
-            throw new RecoveryConsistencyException(RecoveryFailure.ACTIVE_MARKER_INVALID);
-        }
-        switch (record.status()) {
-            case RESERVED, RUNNING -> {
-                // 엔진 종료와 DB 판정 수신 사이의 짧은 경합에서는 FINISHED snapshot도 유효하다.
-            }
-            case FINISHED, INVALID -> {
-                if (snapshot.phase() != Phase.FINISHED) {
-                    throw new RecoveryConsistencyException(RecoveryFailure.TERMINAL_STATE_MISMATCH);
-                }
-            }
-            default -> throw new RecoveryConsistencyException(RecoveryFailure.ACTIVE_MARKER_INVALID);
-        }
-        return engine;
     }
 
     private synchronized void validate(Slot slot, Optional<GameRecoverySnapshot> result) {
@@ -391,19 +298,14 @@ public class GameReconnectService {
         }
     }
 
-    private void apply(Slot slot, Optional<GameRecoverySnapshot> result, boolean activeMarker, String requestId) {
+    private void apply(Slot slot, Optional<GameRecoverySnapshot> result, String requestId) {
         // 종료 이력은 활성 복구와 분리한다. 기존 기권 영수증 재확인 권한은 유지한다.
         slot.finishedReceiptGameId = result.filter(snapshot -> snapshot.phase() == Phase.FINISHED)
                 .map(GameRecoverySnapshot::gameId).orElse(null);
-        boolean hiddenActiveTerminal = activeMarker && result.filter(snapshot -> snapshot.phase() == Phase.FINISHED)
-                .filter(snapshot -> !slot.finishedAllowed.test(snapshot.gameId())).isPresent();
         result = result.filter(snapshot -> snapshot.phase() != Phase.FINISHED
                 || slot.finishedAllowed.test(snapshot.gameId()));
         slot.snapshot = result.orElse(null);
-        if (hiddenActiveTerminal) {
-            // DB 예약이 남은 종결 경기를 현재 테이블 이력 부재만으로 LOBBY라고 하지 않는다.
-            slot.status = "UNAVAILABLE";
-        } else if (slot.snapshot == null) {
+        if (slot.snapshot == null) {
             slot.status = "LOBBY";
         } else if (slot.expiration != null && slot.snapshot.gameId().equals(slot.expiration.gameId())
                 && slot.snapshot.phase() == Phase.PLAYING) {
@@ -428,8 +330,7 @@ public class GameReconnectService {
         boolean expose = slot.snapshot != null && !slot.status.equals("EXPIRED");
         emit(slot, requestId, new View(slot.status, expose ? slot.snapshot.gameId() : null,
                 expose ? slot.snapshot.version() : null, expose ? slot.snapshot.state() : null,
-                slot.deadline, slot.status.equals("EXPIRED") ? "RECONNECT_EXPIRED"
-                        : slot.status.equals("UNAVAILABLE") ? "RECOVERY_UNAVAILABLE" : null));
+                slot.deadline, slot.status.equals("EXPIRED") ? "RECONNECT_EXPIRED" : null));
     }
 
     private GraceExpiration expiration(Slot slot, GameRecoverySnapshot snapshot) {
@@ -489,9 +390,6 @@ public class GameReconnectService {
             Instant reconnectUntil, String code) {
     }
 
-    private record RecoveryRead(Optional<GameRecoverySnapshot> snapshot, boolean activeMarker) {
-    }
-
     private static final class Slot {
         private final long userId;
         private String sessionId;
@@ -515,31 +413,6 @@ public class GameReconnectService {
 
         private Slot(long userId) {
             this.userId = userId;
-        }
-    }
-
-    private enum RecoveryFailure {
-        DB_LOOKUP_FAILED,
-        ENGINE_LOOKUP_FAILED,
-        RUNTIME_IDENTITY_MISSING,
-        DB_RECORD_MISSING,
-        ENGINE_MISSING,
-        GAME_MISMATCH,
-        OWNER_MISMATCH,
-        ACTIVE_MARKER_INVALID,
-        TERMINAL_STATE_MISMATCH
-    }
-
-    private static final class RecoveryConsistencyException extends RuntimeException {
-        private final RecoveryFailure failure;
-
-        private RecoveryConsistencyException(RecoveryFailure failure) {
-            this.failure = failure;
-        }
-
-        private RecoveryConsistencyException(RecoveryFailure failure, RuntimeException cause) {
-            super(cause);
-            this.failure = failure;
         }
     }
 }

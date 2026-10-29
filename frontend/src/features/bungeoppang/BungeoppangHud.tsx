@@ -5,6 +5,7 @@ import { BungeoppangHudV5 } from './BungeoppangHudV5';
 import { BREAD_NAMES, BREAD_TOOLS, BREAD_FILLINGS, orderReady, trayCounts, orderSize, type BreadTool } from './rulesV4';
 import type { GrillSlot } from "./rules";
 import { heatLook } from './presentation';
+import { BungeoppangBurner } from './BungeoppangBurner';
 import { v5HeatEls } from './layoutV5';
 import { BreadToken, CustomerScene, FeedbackFlights, ToolFeedback, TrashBin, ingredientStyle } from './BungeoppangFeedback';
 import { inputState } from "../../world/inputOwnership";
@@ -32,6 +33,7 @@ import {
   isV4Grill,
   cycleBungeoppangTool,
   deliverBungeoppangOrder,
+  deliverMatchingBungeoppangOrder,
   discardBungeoppangTray,
   requestBungeoppangOrder,
   syncBungeoppangTime,
@@ -41,7 +43,7 @@ import "./bungeoppang.css";
 import "./bungeoppangFeedback.css";
 import './bungeoppangV5.css';
 import './bungeoppangStart.css';
-import coinIcon from '../../assets/yeopjeon-icon.png';
+import coinIcon from '../../assets/entry/yeopjeon-icon.webp';
 import { BungeoppangResult } from './BungeoppangResult';
 
 const R = BUNGEOPPANG;
@@ -73,7 +75,8 @@ export function BungeoppangHud() {
   const playing =
     phase === "countdown" || phase === "play" || phase === "ending";
   return (
-    <div className="bung-root" data-phase={phase} data-version={v5 || bungeoppangV5Preview ? 'v5' : 'v4'} aria-label="붕어빵 굽기">
+    <div className="bung-root" data-phase={phase} data-version={v5 || bungeoppangV5Preview ? 'v5' : 'v4'} aria-label="붕어빵 굽기"
+      onDragStartCapture={event => event.preventDefault()}>
       {playing && !v5 && <PlayHud />}
       {playing && (v5 ? <BungeoppangHudV5 /> : <OrderTray />)}
       {playing && <SlotOverlays />}
@@ -146,7 +149,7 @@ function useMinigameInput(active: boolean) {
       }
       if (event.code === 'KeyR' && isV4Grill(useBungeoppang.getState().grill)) {
         consume();
-        if (!event.repeat) deliverBungeoppangOrder();
+        if (!event.repeat) deliverMatchingBungeoppangOrder();
         return;
       }
       const slot = SLOT_CODES.indexOf(event.code);
@@ -339,6 +342,7 @@ function SlotOverlays() {
           <span className="bung25-slot-key">{R.slotKeys[i]}</span>
           <span className="bung25-slot-name">{slot.phase === 'empty' ? '반죽 붓기' : slot.phase === 'batter' ? '소 넣기'
             : `${'filling' in slot && slot.filling ? BREAD_NAMES[slot.filling] : ''} · ${slot.phase === 'front' ? '뒤집기' : '꺼내기'}`}</span>
+          <BungeoppangBurner slot={i} />
           <div className="bung25-cell-meter">
             <span className="bung25-fire" aria-hidden="true">{[0, 1, 2].map(n => <svg key={n} viewBox="0 0 14 20"><path d="M8 1C9 6 14 8 13 13 13 21 1 21 1 13 1 9 5 7 5 4 5 8 8 9 8 1Z" /></svg>)}</span><b className="bung-v5-heat-label">꺼짐</b>
             <strong className="bung-v5-heat-value">—</strong><span className="bung-v5-heat-speed bung-v5-accessibility" />
@@ -463,9 +467,12 @@ function StartPanel() {
       </header>
       <p className="bung-start-intro">제한 시간 동안 붕어빵을 빠르고 정확하게 뒤집어 양쪽이 모두 익으면 완성!</p>
       <Steps />
-      <p className="bung-start-earned" aria-label={`오늘 번 엽전 ${status?.todayEarned ?? '확인 중'} / ${status?.dailyCap ?? R.dailyCoinCap}냥`}>
-        <span>오늘 한 번의 도전 · {status?.todayEarned ?? '…'} /</span>
-        <strong><img src={coinIcon} alt="엽전" width="28" height="28" />{status?.dailyCap ?? R.dailyCoinCap}냥</strong>
+      <p className="bung-start-earned" aria-label={`오늘 번 엽전 ${status ? `${status.todayEarned}냥` : '확인 중'} / ${status?.dailyCap ?? R.dailyCoinCap}냥`}>
+        <span className="bung-start-amount">{!status ? '수익 확인 중' : status.todayEarned > 0
+          ? <><img src={coinIcon} alt="" width="28" height="28" />{status.todayEarned.toLocaleString()}냥</>
+          : '오늘 한 번의 도전'}</span>
+        <span aria-hidden="true">/</span>
+        <strong className="bung-start-amount"><img src={coinIcon} alt="" width="28" height="28" />{status?.dailyCap ?? R.dailyCoinCap}냥</strong>
       </p>
       {capped && (
         <p className="bung-cap">오늘 장사는 끝! 게임은 계속할 수 있어요</p>
@@ -489,8 +496,8 @@ function StartPanel() {
         </p>
       )}
       <footer>
-        <button type="button" className="bung-link" onClick={leaveBungeoppang}>
-          ESC 나가기
+        <button type="button" className="bung-start-exit" aria-label="ESC 나가기" aria-keyshortcuts="Escape" onClick={leaveBungeoppang}>
+          <kbd>ESC</kbd><span>나가기</span>
         </button>
       </footer>
     </section>

@@ -13,6 +13,8 @@
 
 운영 앱의 `/etc/ontop/prod-app/app.env`에 아래 값을 넣고 앱을 재생성해야 한다. 저장소의 `infra/app/prod.app.env.example`은 예시 파일이며 실제 서버 설정을 바꾸지 않는다.
 
+운영 Compose는 `prod,db` 프로필을 사용한다. 게임·상점·미니게임·메모는 운영용 코드에서 등록 가능하지만 기본 기능 플래그는 꺼져 있다. 채널·테이블뿐 아니라 실제 게임까지 검증하려면 `infra/app/README.md`의 마이그레이션·기능 활성화 절차를 먼저 확인한다. `local`/`dev` 프로필을 운영 서버에 추가하지 않는다.
+
 ```dotenv
 WORLD_DYNAMIC_CHANNELS_ENABLED=true
 WORLD_CHANNEL_CAPACITY=20

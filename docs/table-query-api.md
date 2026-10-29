@@ -1,6 +1,6 @@
 # 테이블 목록 조회 API
 
-`local/dev`의 현재 테이블·빈자리 조회 API다. 기존 로그인 Access JWT·활성 회원 인증이 필요하다. 기본값은 인증 필수이며, WebSocket의 local 개발 인증 옵션과 보호 REST 인증은 구분한다. DB 차감·경기 저장과 별개다.
+`local/dev`와 운영 `prod,db`의 현재 테이블·빈자리 조회 API다. 기존 로그인 Access JWT·활성 회원 인증이 필요하다. 기본값은 인증 필수이며, WebSocket의 local 개발 인증 옵션과 보호 REST 인증은 구분한다. DB 차감·경기 저장과 별개다.
 
 ## 로그인부터 착석까지
 
@@ -9,7 +9,7 @@
 3. 접속권 발급 → WebSocket 연결 → CHANNEL_JOIN → TABLE_JOIN → GAME_SELECT → READY_SET.
 4. 같은 GET을 다시 호출하면 착석·준비·퇴장·heartbeat 종료의 공개 요약이 반영된다. 조회 시점의 빈자리이며 실제 착석 때 다시 검사한다.
 
-`local`의 GET/OPTIONS는 `ChannelAccessFilter`와 공통 REST 보안 체인을 거친다. `dev`는 공통 REST 보안 체인의 JWT·활성 회원/로그인 세션 확인 및 `RestCorsFilter`의 허용 Origin 정책을 적용한다. 토큰 URL·userId 쿼리·X-User-Id·접속권·온보딩 토큰을 인증으로 사용하지 않는다. 기존 서버 Principal은 유지하지만 명시한 Authorization은 반드시 검증한다. DB 계정 어댑터는 `local,db` 또는 개발 배포의 `dev,db`가 필요하다. GET은 접속권을 소비하지 않는다.
+`local`의 GET/OPTIONS는 `ChannelAccessFilter`와 공통 REST 보안 체인을 거친다. `dev`와 `prod`는 공통 REST 보안 체인의 JWT·활성 회원/로그인 세션 확인 및 `RestCorsFilter`의 허용 Origin 정책을 적용한다. 토큰 URL·userId 쿼리·X-User-Id·접속권·온보딩 토큰을 인증으로 사용하지 않는다. 기존 서버 Principal은 유지하지만 명시한 Authorization은 반드시 검증한다. DB 계정 어댑터는 `local,db`, 개발 배포의 `dev,db` 또는 운영 `prod,db`가 필요하다. GET은 접속권을 소비하지 않는다.
 
 허용 Origin의 GET/Authorization 프리플라이트는 local 204, dev 공통 CORS의 2xx다. dev의 인증/출처 오류 코드는 공통 REST 계약을 따른다. 아래 UNAUTHENTICATED/FORBIDDEN/SERVICE_UNAVAILABLE은 local 필터의 코드다. 성공·오류 모두 no-store, 허용 출처 CORS 헤더를 유지한다. 미인증/만료/위조/비활성401 UNAUTHENTICATED, 출처/프리플라이트 거절403 FORBIDDEN, JWT 설정·계정 조회 장애503 SERVICE_UNAVAILABLE이며 내부 예외는 노출하지 않는다. 인증을 먼저 확인하므로 무인증 채널 누락 요청도401이다. 개발 모드의 기존 GET·오류 계약은 유지한다.
 
@@ -19,7 +19,7 @@
 | URL | `/api/v1/tables` |
 | 요청 본문·필수 헤더 | Body 없음. 인증 모드는 Authorization 필수. 채널 설정 환경에서는 Query `channelId` 필수 |
 | 성공 | `200 OK`, `Content-Type: application/json`, `Cache-Control: no-store` |
-| local/dev 외 환경 또는 prod/production 함께 활성화 | `404 Not Found` |
+| local/dev/prod 외 환경 | `404 Not Found` |
 
 ## 응답
 

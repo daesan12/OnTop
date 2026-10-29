@@ -57,17 +57,17 @@ export function RankingSummary({ feed, onOpen }: { feed: Feed; onOpen(): void })
       <strong>{data?.me ? <>{data.me.rank}<small>위</small></> : '—'}<span>{data ? ` / ${data.totalParticipants}명` : ''}</span></strong>
       <small>{!enabled ? '전체 랭킹 준비 중' : loading && !data ? '순위를 확인하고 있어요' : error && !data ? '랭킹을 다시 확인해 주세요'
         : !data?.me ? '아직 등록된 최고 기록이 없어요' : '전체 기간 · 완성 개수와 실수 기준'}</small>
-    </div><button className="bung-ranking-open" onClick={onOpen}>랭킹 보기 <span aria-hidden="true">›</span></button></div>
+    </div><button className="bung-ranking-open" onClick={onOpen}>랭킹 보기 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false"><path d="M5 12h14m-5-5 5 5-5 5" /></svg></button></div>
   </section>
 }
-export function RankingDetails({ feed, rulesVersion, onBack }: { feed: Feed; rulesVersion: string; onBack(): void }) {
+export function RankingDetails({ feed, onBack }: { feed: Feed; onBack(): void }) {
   const { data, loading, error, enabled, ownId } = feed
   return <section className="bung-ranking-details" aria-label="전체 랭킹 상세">
     <h2>붕어빵 전체 랭킹</h2><p className="paper-subtitle">따끈하게 쌓아 올린 우리들의 최고 기록</p>
     <div className="bung-result-ornament" aria-hidden="true">❖</div>
     <p className="bung-ranking-rule">완성 개수 많은 순 · 실수 적은 순<br />동점은 같은 순위, 먼저 완료한 기록부터 표시해요</p>
     <div className="bung-ranking-overview"><RankingMedal /><div><strong>{data ? `${data.totalParticipants.toLocaleString()}명` : '전체 기간'}</strong>
-      <span>개인별 최고 기록 · {rulesVersion === 'v5' ? '3분' : '1분'} 도전</span></div>{data?.me && <b>내 순위 {data.me.rank}위</b>}</div>
+      <span>개인별 최고 기록 · 전체 기간</span></div>{data?.me && <b>내 순위 {data.me.rank}위</b>}</div>
     {!enabled ? <p className="bung-ranking-message" role="status">전체 랭킹을 준비하고 있어요.<br />준비가 끝나면 참여자들의 기록을 확인할 수 있어요.</p>
       : loading && !data ? <p className="bung-ranking-message" role="status">전체 랭킹을 불러오고 있어요…</p>
         : data && data.items.length === 0 ? <p className="bung-ranking-message" role="status">아직 등록된 기록이 없어요. 첫 도전을 기다리고 있어요!</p> : null}

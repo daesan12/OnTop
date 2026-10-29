@@ -769,7 +769,10 @@ for (const collection of [httpV3, wsV3]) {
 for (const [relative, content] of outputs) {
     const file = path.join(root, relative);
     if (checkOnly) {
-        if (await readFile(file, 'utf8') !== content) throw new Error(`생성 결과 불일치: ${relative}`);
+        // Windows checkout의 CRLF는 허용하되 실제 예제 내용 차이는 계속 거절한다.
+        if ((await readFile(file, 'utf8')).replace(/\r\n/g, '\n') !== content) {
+            throw new Error(`생성 결과 불일치: ${relative}`);
+        }
     } else {
         await mkdir(path.dirname(file), { recursive: true });
         await writeFile(file, content, 'utf8');
