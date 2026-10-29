@@ -22,10 +22,10 @@ HTTP/DB/상점 저장 결과는 대역이 아니며, 브라우저 window·쿠키
 
 ## 공통
 
-- local/dev 프로필에서 등록한다(prod/production 혼합 제외). 4개 API 모두 Access JWT·활성 계정 필수. 인증은 ShopAccessFilter→기존 AccessJwtService/계정 조회다. userId·접속권·세션 값으로 우회하지 않는다.
+- local/dev 또는 운영 `prod,db`에서 등록한다(운영과 local/dev 혼합 제외). 4개 API 모두 Access JWT·활성 계정 필수. 인증은 ShopAccessFilter→기존 AccessJwtService/계정 조회다. userId·접속권·세션 값으로 우회하지 않는다.
 - JSON 응답, Cache-Control: no-store. 허용된 AUTH_ALLOWED_ORIGINS만 CORS, OPTIONS는 인증 없이204. 요청은 GET/POST/PATCH, Authorization/Content-Type/Idempotency-Key만 프리플라이트 허용.
 - 숫자 ID는 양의 정수, 수량도 양의 int. 금액·소유자·장착 부위 추가 입력, 문자열 숫자·소수·잘못된 JSON은400 INVALID_REQUEST.
-- 기본값은 비활성: local,db 또는 dev,db + ontop.shop.enabled=true와 아래 스키마가 필요하다. dev 환경변수는 SHOP_ENABLED=true다. 미설정503 SHOP_NOT_CONFIGURED, DB 장애503 SHOP_UNAVAILABLE. 빈 목록/구매 성공으로 위장하지 않는다.
+- 기본값은 비활성: local,db·dev,db·prod,db + ontop.shop.enabled=true와 아래 스키마가 필요하다. dev/prod 환경변수는 SHOP_ENABLED=true다. 미설정503 SHOP_NOT_CONFIGURED, DB 장애503 SHOP_UNAVAILABLE. 빈 목록/구매 성공으로 위장하지 않는다.
 
 ## dev 실행 준비
 
@@ -41,7 +41,7 @@ Postman의 baseUrl은 API 주소다. 예제의 Origin={{baseUrl}}는 dev에서 �
 AUTH_ALLOWED_ORIGINS에 등록된 실제 프론트 Origin으로 바꾸거나, 비브라우저 테스트에서는 Origin 헤더를 제외한다.
 브라우저 프론트는 실제 페이지 Origin을 보내며 서버 허용 목록은 이번 작업에서 바꾸지 않았다.
 
-ShopDevHttpTests는 dev의 인증·미설정503·구매/장착 CORS를, ShopRuntimeProfileTests는 기본 비활성·운영 제외를 검사한다.
+ShopDevHttpTests는 dev의 인증·미설정503·구매/장착 CORS를, ShopRuntimeProfileTests는 기본 비활성·운영 `prod,db` 등록·혼합 프로필 제외를 검사한다.
 ShopDevMySqlTests는 dev,db의 실제 JWT/접속권·HTTP·JPA·새 격리 MySQL·RawWS로 구매 재시도·예약금 보호·
 기보유 의상 거절·보유 조회·장착·다른 회원 장착 거절·같은 채널 전파·재접속 복구를 확인한다.
 물리 시간은 fixture이며 실제 OAuth 제공자·프론트 렌더링·공유 DB 적용·경기 예약/정산·원격 배포 검증은 아니다.

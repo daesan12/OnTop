@@ -28,7 +28,8 @@ function art(s: FitnessStation) {
     boxes: Part[] = [],
     moving: Part[] = [],
     movingBoxes: Part[] = [],
-    liftBoxes: Part[] = []
+    liftBoxes: Part[] = [],
+    liftTubes: Part[] = []
   const tube = (a: XYZ, b: XYZ, r = 0.055, c: string = cream) =>
     tubes.push(beam(a, b, r, c))
   const box = (p: XYZ, size: XYZ, c: string = rubber) =>
@@ -59,9 +60,14 @@ function art(s: FitnessStation) {
     for (const side of [-1, 1]) {
       tube([side * 0.95, 0.1, 0], [side * 0.95, 1.5, 0], 0.09, green)
       tube([side * 0.95, 1.1, 0], [side * 0.95, 1.1, 0.18])
+      tube([side * 0.95, pivot[1], 0], [side * 0.95, pivot[1], -0.48], 0.065)
       moving.push(beam([side * 0.8, 0, 0], [side * 0.8, -0.51, 0], 0.05, cream))
     }
     tube([-0.95, 1.1, 0.18], [0.95, 1.1, 0.18])
+    // The platform rocks about one central Z axle, rather than loose side rods.
+    tube([-0.95, pivot[1], -0.48], [0.95, pivot[1], -0.48], 0.065, green)
+    tube([0, pivot[1], -0.48], [0, pivot[1], 0.06], 0.085)
+    moving.push(beam([-0.8, 0, 0], [0.8, 0, 0], 0.065, green))
     movingBoxes.push({ p: [0, -0.51, 0], s: [1.65, 0.07, 0.65], c: rubber })
   } else if (kind === 'twister') {
     tube([0, 0.1, 0.6], [0, 1.3, 0.6], 0.11, green)
@@ -71,6 +77,8 @@ function art(s: FitnessStation) {
     tube([0, 0.1, 0.78], [0, 2, 0.78], 0.12, green)
     pivot[1] = 1.02
     pivot[2] = 0.28
+    tube([0, pivot[1], 0.78], [...pivot], 0.065)
+    moving.push(beam([0, 0, -0.04], [0, 0, 0.04], 0.085, green))
     for (const side of [-1, 1])
       moving.push(
         beam([0, 0, 0], [side * 0.27, 0, 0], 0.025, cream),
@@ -87,6 +95,8 @@ function art(s: FitnessStation) {
     tube([-0.65, 1.6, z], [0.65, 1.6, z])
     pivot[1] = 1
     pivot[2] = z
+    // The three rollers rotate around the same continuous X axle.
+    tube([-0.65, pivot[1], z], [0.65, pivot[1], z], 0.045)
   } else {
     // Seat and limb supports are fitted to the current stylized avatar proportions.
     const seatParts = kind === 'pulldown' ? liftBoxes : boxes
@@ -108,12 +118,21 @@ function art(s: FitnessStation) {
       pivot[2] = 0.5
       tube([-0.65, 0.1, -0.4], [-0.65, 1, -0.4], 0.07, green)
       tube([0.65, 0.1, -0.4], [0.65, 1, -0.4], 0.07, green)
+      tube([-0.65, 0.2, -0.4], [0.65, 0.2, -0.4], 0.065, green)
+      tube([0, 0.2, -0.4], [0, 0.2, 0], 0.065, green)
+      // A fixed rail stays inside the moving carriage throughout its 0.35m stroke.
+      tube([0, 0.1, -0.18], [0, 0.1, 0.55], 0.06)
       movingBoxes.push({ p: [0, 0, 0], s: [0.8, 0.12, 0.55], c: rubber })
       moving.push(beam([0, 0, 0], [0, -0.1, -0.5], 0.07, cream))
+      moving.push(beam([0, -0.1, -0.6], [0, -0.1, -0.4], 0.10, green))
     } else if (kind === 'pulldown') {
       tube([0, 0.1, -0.6], [0, 2.3, -0.6], 0.12, green)
+      tube([0, 0.18, -0.6], [0, 0.18, 0], 0.08, green)
       pivot[1] = 1.36
       pivot[2] = -0.4
+      tube([0, pivot[1], -0.6], [...pivot], 0.075)
+      // Sliding inner stem overlaps the fixed pedestal even at maximum seat lift.
+      liftTubes.push(beam([0, 0.06, 0], [0, 0.5, 0], 0.075, cream))
       for (const side of [-1, 1]) {
         moving.push(beam([0, 0, 0], [side * 0.22, 0, 0.35], 0.055, cream))
         moving.push(
@@ -126,7 +145,7 @@ function art(s: FitnessStation) {
       tube([-0.5, 0.4, 0.45], [0.5, 0.4, 0.45], 0.09, green)
     }
   }
-  return { tubes, boxes, moving, movingBoxes, liftBoxes, pivot }
+  return { tubes, boxes, moving, movingBoxes, liftBoxes, liftTubes, pivot }
 }
 export function ExerciseStation({ station }: { station: FitnessStation }) {
   const model = useMemo(() => art(station), [station]),
@@ -193,6 +212,9 @@ export function ExerciseStation({ station }: { station: FitnessStation }) {
       </Instances>
       {station.kind === 'pulldown' && (
         <group ref={seatLift} name="pulldown-seat-lift">
+          <Instances parts={model.liftTubes} material={metal}>
+            <cylinderGeometry args={[1, 1, 1, 12]} />
+          </Instances>
           <Instances parts={model.liftBoxes} material={plastic}>
             <BeveledBox />
           </Instances>

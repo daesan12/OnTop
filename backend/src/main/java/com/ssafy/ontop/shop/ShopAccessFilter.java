@@ -16,13 +16,14 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Set;
 import org.springframework.beans.factory.ObjectProvider;
+import com.ssafy.ontop.config.RuntimeProfiles;
 import org.springframework.context.annotation.Profile;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 @Component
-@Profile("(local | dev) & !prod & !production")
+@Profile(RuntimeProfiles.PRODUCT_FEATURE)
 @Order(-101)
 public class ShopAccessFilter extends OncePerRequestFilter {
     private static final Set<String> PATHS = Set.of("/api/v1/shop/items", "/api/v1/shop/purchases",

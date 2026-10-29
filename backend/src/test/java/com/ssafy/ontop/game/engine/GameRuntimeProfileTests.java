@@ -76,8 +76,29 @@ class GameRuntimeProfileTests {
     }
 
     @ParameterizedTest
+    @ValueSource(strings = {"prod,db", "production,db"})
+    void 운영DB프로필에서_경기엔진과_시작_결과_재접속을_등록한다(String profiles) {
+        enabled(profiles).withPropertyValues("ontop.game-start.enabled=true", "ontop.games.omok.enabled=true",
+                "ontop.games.farkle.enabled=true", "ontop.games.onecard.enabled=true",
+                "ontop.games.bridge.enabled=true")
+                .withBean(GameStartGateway.class, () -> new GameStartGateway() {
+            @Override public GameStartResult startGame(GameStartCommand command) {
+                throw new AssertionError("기동 중 예약 금지");
+            }
+            @Override public GameStartResult findStartResult(UUID id) {
+                throw new AssertionError("기동 중 결과 조회 금지");
+            }
+        }).run(context -> assertThat(context).hasNotFailed()
+                .hasSingleBean(CommittedGameStartService.class).hasSingleBean(GameEngineRouter.class)
+                .hasSingleBean(OmokEngine.class).hasSingleBean(FarkleEngine.class)
+                .hasSingleBean(OneCardEngine.class).hasSingleBean(BridgeEngine.class)
+                .hasSingleBean(GameReconnectService.class).hasSingleBean(GameResultService.class)
+                .hasSingleBean(GameFinishedResultListener.class));
+    }
+
+    @ParameterizedTest
     @ValueSource(strings = {"prod", "production", "dev,prod", "dev,production", "local,prod", "local,production"})
-    void 운영프로필이_포함되면_경기연결부와_엔진을_등록하지_않는다(String profiles) {
+    void 운영DB가_없거나_개발프로필과_섞이면_경기기능을_등록하지_않는다(String profiles) {
         enabled(profiles).withPropertyValues("ontop.game-start.enabled=true", "ontop.games.omok.enabled=true",
                 "ontop.games.farkle.enabled=true", "ontop.games.onecard.enabled=true", "ontop.games.bridge.enabled=true")
                 .run(context -> assertThat(context).hasNotFailed()

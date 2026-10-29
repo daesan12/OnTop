@@ -104,12 +104,12 @@ describe('v5 independent simulation', () => {
     expect(replay(log, initial().heats, [...orders(), replacement], R).activeOrders.map(o => o.orderId)).toEqual(['1', '3', '4']);
     expect(() => replay([{ slot: -1, action: 'DELIVER', t: 0, orderId: '4' }], initial().heats, [...orders(), replacement], R)).toThrow();
   });
-  it.each([149999, 150000, 179999])('accepts t=%i in the 3-minute interval', t => {
+  it.each([89999, 90000, 119999])('accepts t=%i in the 2-minute interval', t => {
     expect(applyAction(initial(), { slot: 0, action: 'POUR', t }, R).state.log[0]!.t).toBe(t);
   });
-  it('rejects t=180000 and handles the rush boundary without rounding each section', () => {
-    expect(() => applyAction(initial(), { slot: 0, action: 'POUR', t: 180000 }, R)).toThrow();
-    expect(cookLevel(148000, 152000, 100, R)).toBe(58);
+  it('rejects t=120000 and handles the rush boundary without rounding each section', () => {
+    expect(() => applyAction(initial(), { slot: 0, action: 'POUR', t: 120000 }, R)).toThrow();
+    expect(cookLevel(88000, 92000, 100, R)).toBe(58);
   });
   it('rejects duplicate customer slots and more than three active orders', () => {
     expect(() => validateCustomers([...orders(), { ...orders()[0]!, orderId: '4' }], R)).toThrow();

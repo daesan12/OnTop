@@ -45,7 +45,7 @@ test('v5 reference 2.5D screen, ten stock, selective delivery and trash', async 
     setCameraPerspective('third-person'); Object.assign(viewControls, previous);
   }, savedView);
   await page.getByRole('button', { name: 'E 붕어빵 굽기', exact: true }).click();
-  await expect(page.getByRole('region', { name: '붕어빵 굽기 시작' })).toContainText('3분');
+  await expect(page.getByRole('region', { name: '붕어빵 굽기 시작' })).toContainText('제한 시간');
   await page.getByRole('button', { name: '시작', exact: true }).click();
   await expect(page.locator('.bung-root')).toHaveAttribute('data-phase', 'play', { timeout: 10000 });
   await expect(page.locator('.bung25-order')).toHaveCount(3);
@@ -116,7 +116,9 @@ test('v5 reference 2.5D screen, ten stock, selective delivery and trash', async 
   await expect.poll(async () => (await state(page)).grill!.customersServed).toBe(1);
   await expect(page.locator('.bung25-order')).toHaveCount(3);
   const afterIds = await page.locator('.bung25-order').evaluateAll(els => els.map(e => e.getAttribute('data-order-id')));
-  expect(afterIds).toContain(ids[1]); expect(afterIds).toContain(ids[2]); expect(afterIds).not.toContain(ids[0]);
+  expect(afterIds).toContain(ids[1]); expect(afterIds).toContain(ids[2]);
+  await expect(page.locator(`.bung25-thanks[data-order-id="${ids[0]}"]`)).toHaveCount(0, { timeout: 8000 });
+  expect(await page.locator('.bung25-order').evaluateAll(els => els.map(e => e.getAttribute('data-order-id')))).not.toContain(ids[0]);
   const third = (await state(page)).ui!.orders[2]!.select; await page.mouse.click(third.x, third.y);
   expect((await state(page)).selectedCustomer).toBe(ids[2]);
   // The two-row tray buttons select the same bread IDs consumed by the visible bin control.
@@ -278,7 +280,7 @@ test('2.5D readable cooking stages match the fixed reference layout', async ({ p
   await expect(page.locator('.bung-root')).toBeHidden();
 });
 
-test('three-minute monotonic preview clock, final thirty-second rush and result without real reward', async ({ page }) => {
+test('two-minute monotonic preview clock, final thirty-second rush and result without real reward', async ({ page }) => {
   const errors: string[] = [], requests: string[] = [];
   page.on('pageerror', e => errors.push(e.message));
   page.on('request', r => { if (r.url().includes('/minigames/')) requests.push(r.url()); });
@@ -288,16 +290,17 @@ test('three-minute monotonic preview clock, final thirty-second rush and result 
   await page.getByRole('button', { name: 'E 붕어빵 굽기', exact: true }).click();
   await page.getByRole('button', { name: '시작', exact: true }).click();
   await expect(page.locator('.bung-root')).toHaveAttribute('data-phase', 'play', { timeout: 10000 });
+  await expect(page.getByRole('timer')).toContainText('02:00');
   const started = Date.now();
-  await expect(page.locator('.bung25-rush')).toContainText('손님이 몰려와요', { timeout: 150000 });
+  await expect(page.locator('.bung25-rush')).toContainText('손님이 몰려와요', { timeout: 95000 });
   await expect(page.getByRole('timer')).toHaveAttribute('data-rush', 'true', { timeout: 5000 });
   await page.keyboard.press('Space'); await page.keyboard.press('KeyQ');
   await screenshot(page, 'v5-last-thirty-seconds');
   await expect(page.locator('.bung-root')).toHaveAttribute('data-phase', 'result', { timeout: 40000 });
-  expect(Date.now() - started).toBeGreaterThanOrEqual(179000);
-  await expect(page.getByRole('region', { name: '결과', exact: true })).toContainText('실제 엽전 지급 없음');
+  expect(Date.now() - started).toBeGreaterThanOrEqual(119000);
+  await expect(page.getByRole('dialog', { name: '붕어빵 결과', exact: true })).toContainText('실제 엽전 지급 없음');
   expect((await state(page)).result!.coinsGranted).toBe(0);
-  await screenshot(page, 'v5-three-minute-result');
+  await screenshot(page, 'v5-two-minute-result');
   expect(errors).toEqual([]); expect(requests).toEqual([]);
   await expect(page.locator('vite-error-overlay')).toHaveCount(0);
   await page.getByRole('button', { name: '공원으로', exact: true }).click();

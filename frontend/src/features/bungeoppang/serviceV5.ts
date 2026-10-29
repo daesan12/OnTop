@@ -1,6 +1,6 @@
 import { record } from '../../network/protocol';
 import { RestError } from '../../network/restError';
-import { BUNGEOPPANG_V5 as R } from './config';
+import { BUNGEOPPANG_V5 as R, BUNGEOPPANG_V5_LEGACY } from './config';
 import { completeResult, createBungeoppangV4Service, prefixHash, toCheckpoint, toRules, toTiming } from './serviceV4';
 import { validateCustomers, type CustomerOrder, type GrillState } from './rulesV5';
 import { BREAD_FILLINGS, type BungeoppangRules, type GrillLogEntry } from './rulesV4';
@@ -39,9 +39,9 @@ function checkpoint(value: unknown, source: Pick<Source, 'rules' | 'heats'>, log
     bonusScore: c.stats.bonusScore, log: structuredClone(log) };
   return { grill, revision: c.revision, hash: c.prefixHash };
 }
-function localLog(actions: WireAction[]): GrillLogEntry[] {
+function localLog(actions: WireAction[], rules: BungeoppangRules): GrillLogEntry[] {
   return actions.map((a, index) => {
-    if (!record(a) || a.seq !== index + 1 || !whole(a.t) || a.t >= R.durationMs
+    if (!record(a) || a.seq !== index + 1 || !whole(a.t) || a.t >= rules.durationMs
       || !['POUR', 'FILL', 'TURN', 'DISCARD', 'TRAY_DISCARD', 'DELIVER'].includes(a.action)) return fail();
     if (a.action === 'DELIVER' && (!id(a.orderId) || !keyOk(a.deliveryKey))) return fail();
     if (a.action === 'TRAY_DISCARD' && (!whole(a.breadId) || a.breadId < 1)) return fail();
@@ -90,7 +90,7 @@ export function createBungeoppangV5Service(requestJSON: (path: string, init?: Re
       else { a.slot = entry.slot; if (entry.action === 'FILL') a.filling = entry.filling; }
       return a;
     });
-    localLog(actions);
+    localLog(actions, s.rules);
     const tuple = (a: WireAction) => [a.seq, a.action, a.t, a.slot ?? null, a.filling ?? null,
       a.breadId ?? null, a.orderId ?? null, a.deliveryKey ?? null];
     if (actions.length > s.rules.maxLogEntries || actions.length < s.accepted.length
@@ -117,9 +117,11 @@ export function createBungeoppangV5Service(requestJSON: (path: string, init?: Re
       if (!record(p) || !id(p.minigameSessionId) || p.rulesVersion !== 'v5' || p.minigameType !== 'BUNGEOPPANG'
         || p.status !== 'PLAYING' || typeof p.configVersion !== 'string' || typeof p.startedAt !== 'string'
         || !Number.isFinite(Date.parse(p.startedAt)) || typeof p.isFirstGame !== 'boolean' || !Array.isArray(p.heats)) return fail();
-      const rules = toRules(p.rules), timing = toTiming(p.timing, R.durationMs);
+      const rules = toRules(p.rules), timing = toTiming(p.timing, rules.durationMs);
+      const supportedTiming = [R, BUNGEOPPANG_V5_LEGACY].some(profile =>
+        rules.durationMs === profile.durationMs && rules.rushFromMs === profile.rushFromMs);
       if (!record(p.rules) || p.rules.heatAssignment !== 'FILL' || p.rules.maxActiveOrders !== 3
-        || rules.slots !== 6 || rules.durationMs !== 180000 || rules.rushFromMs !== 150000 || rules.trayCapacity !== 10
+        || rules.slots !== 6 || !supportedTiming || rules.trayCapacity !== 10
         || rules.sideMs !== 8000 || rules.rushSideMs !== 6000 || rules.heatMin !== 85 || rules.heatMax !== 115
         || p.heats.length !== rules.heatListLength || rules.heatListLength < 1 || rules.heatListLength > 4096
         || rules.maxLogEntries < 1 || rules.maxLogEntries > 3600
@@ -138,7 +140,7 @@ export function createBungeoppangV5Service(requestJSON: (path: string, init?: Re
       if (!record(p) || p.rulesVersion !== 'v5' || p.minigameSessionId !== gameId || p.configVersion !== s.config
         || !['PLAYING', 'COMPLETED', 'ABANDONED', 'INVALID'].includes(String(p.status))
         || typeof p.serverNow !== 'string' || !Number.isFinite(Date.parse(p.serverNow))) return fail();
-      const timing = toTiming(p.timing, R.durationMs);
+      const timing = toTiming(p.timing, s.rules.durationMs);
       if (JSON.stringify(timing) !== JSON.stringify(s.timing)) return fail();
       if (receivedAt - sent > 1000) throw new BungeoppangServiceError('TIME_SYNC_SLOW', '서버 시간을 다시 확인해 주세요.', true);
       return { timing, sample: { receivedAt, serverNowMs: Date.parse(p.serverNow), rttMs: receivedAt - sent },
@@ -159,7 +161,7 @@ export function createBungeoppangV5Service(requestJSON: (path: string, init?: Re
       const s = source(gameId), p = await request(`${sessionPath(gameId)}?includeProgress=true`);
       if (!record(p) || p.minigameSessionId !== gameId || p.rulesVersion !== 'v5' || p.configVersion !== s.config
         || p.status !== 'PLAYING' || !Array.isArray(p.acceptedLog)) return fail();
-      const accepted = p.acceptedLog as WireAction[], log = localLog(accepted), next = checkpoint(p.checkpoint, s, log);
+      const accepted = p.acceptedLog as WireAction[], log = localLog(accepted, s.rules), next = checkpoint(p.checkpoint, s, log);
       if (next.revision < s.revision || await prefixHash(gameId, s.config, accepted, 'v5') !== next.hash) return fail();
       s.grill = next.grill; s.revision = next.revision; s.accepted = structuredClone(accepted); return next;
     },

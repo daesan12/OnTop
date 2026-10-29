@@ -115,8 +115,8 @@ public class MinigameOpenApiCustomizer implements OperationCustomizer, OpenApiCu
             });
         }
         operation.setDescription((operation.getDescription() == null ? "" : operation.getDescription() + " ")
-                + "local,db + ontop.minigames.enabled=true 또는 dev,db에서 사용합니다. dev는 기본 활성화하며 "
-                + "공통 스키마에 V110/V111, v4 초기화 V124, 납품 영수증 V125, 최종 정산 V126을 추가합니다. prod/production에서는 비활성화합니다. "
+                + "local,db 또는 dev,db에서 사용하며, 운영 prod,db에서도 기능 플래그로 활성화할 수 있습니다. dev는 기본 활성화하며 "
+                + "공통 스키마에 V110/V111, v4 초기화 V124, 납품 영수증 V125, 최종 정산 V126을 추가합니다. 운영은 DB 이력과 마이그레이션 위치 검토가 먼저 필요합니다. "
                 + "버전 생략은 기존 v2이고 v4는 명시적으로 선택합니다. v4는 납품 승인·checkpoint·다음 주문, "
                 + "마지막 미승인 납품 검증, 영속 멱등 완료와 Wallet 일일 한도 지급을 제공합니다. "
                 + "v2는 60초, 15점당 1냥, KST 하루 100냥 계약을 유지합니다. "

@@ -1,6 +1,6 @@
 # 경기 종료·정산 결과 전송 연결부
 
-현재 구현은 Story 172·173·174를 포함한다. local/dev 인증 연결에서 등록되며(prod/production 혼합 제외),
+현재 구현은 Story 172·173·174를 포함한다. local/dev 인증 연결 또는 운영 `prod,db`에서 등록되며(운영과 local/dev 혼합 제외),
 db 프로필과 game-start 활성 조건에서 실제 결과 저장·정산·INVALID 반환 Gateway를 연결한다.
 아래 두 WS 메시지의 JSON 형식은 유지한다. 기능 등록 조건과 실제 배포 활성화는 구분하며,
 다른 boot의 미완료 경기를 자동 INVALID/반환하는 복구는 구현·활성화하지 않았다.
