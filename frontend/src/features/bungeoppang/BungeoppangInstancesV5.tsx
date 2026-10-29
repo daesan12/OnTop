@@ -51,9 +51,9 @@ export function StockInstances({ tray, geometry, material }: { tray: readonly Tr
   </>;
 }
 
-/** The front observation bay exposes each mould's burner without covering the food above it. */
-const burnerPoints = BUNG_GRILL.slots.map(([x], i) =>
-  [x + (i < 3 ? -.075 : .075), BUNG_GRILL.top - .14, BUNG_GRILL.center[2] + .53] as const);
+/** Keep physical flames beneath their own mould; the 2.5D window reveals each burner above. */
+const burnerPoints = BUNG_GRILL.slots.map(([x, z]) =>
+  [x, BUNG_GRILL.top - .14, z] as const);
 export function BurnerInstances({ geometry, foot, metal, outer, inner }: {
   geometry: ConeGeometry; foot: CylinderGeometry; metal: MeshStandardMaterial; outer: MeshBasicMaterial; inner: MeshBasicMaterial;
 }) {
@@ -77,8 +77,8 @@ export function BurnerInstances({ geometry, foot, metal, outer, inner }: {
     burnerPoints.forEach(([x, y, z], i) => {
       const slot = s.grill?.slots[i], visible = slot?.phase === 'front' || slot?.phase === 'back';
       const heat = slot?.heat ?? 100, look = heatLook(heat, bungeoppangClock.t, s.rules);
-      const size = (.62 + (heat - 85) / 30 * .68) * (look.rush ? 1.3 : 1);
-      const flicker = reduced ? 1 : 1 + Math.sin(performance.now() * .013 + i) * .05;
+      const size = look.burnerScale;
+      const flicker = reduced ? 1 : 1 + Math.sin(performance.now() / look.burnerPulseMs * Math.PI * 2 + i) * .08;
       const indicator = scratch.indicators[i]!;
       indicator.visible = visible; indicator.heat = heat; indicator.speed = look.speed;
       indicator.scale[0] = size; indicator.scale[1] = size * flicker; indicator.scale[2] = size;

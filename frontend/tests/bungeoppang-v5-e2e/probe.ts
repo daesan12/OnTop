@@ -68,7 +68,8 @@ export function customerAnimationProbe() {
     const head = bounds.getCenter(new Vector3()); head.y = bounds.max.y - .18;
     head.project(camera);
     const rect = gl.domElement.getBoundingClientRect();
-    return { name: actor.name, orderId: String(actor.userData.orderId), lookId: String(actor.userData.lookId),
+    return { name: actor.name, uuid: actor.uuid, departurePhase: actor.userData.departurePhase ?? null,
+      orderId: String(actor.userData.orderId), lookId: String(actor.userData.lookId),
       loaded: Boolean(actor.userData.loaded), visible: actor.visible, arrived: Boolean(actor.userData.arrived), motion: String(actor.userData.motion),
       animationTime: Number(actor.userData.animationTime), skins, position: actor.position.toArray(),
       head: { x: rect.left + (head.x + 1) * rect.width / 2, y: rect.top + (1 - head.y) * rect.height / 2 } };

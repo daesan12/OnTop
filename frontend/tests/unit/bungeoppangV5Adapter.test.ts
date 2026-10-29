@@ -1,16 +1,16 @@
 import { describe, expect, it, vi } from 'vitest';
-import { BUNGEOPPANG_V5 as R } from '../../src/features/bungeoppang/config';
+import { BUNGEOPPANG_V5 as R, BUNGEOPPANG_V5_LEGACY } from '../../src/features/bungeoppang/config';
 import { createBungeoppangV5Service } from '../../src/features/bungeoppang/serviceV5';
 import { prefixHash } from '../../src/features/bungeoppang/serviceV4';
 import { RestError } from '../../src/network/restError';
 import { createGrill, replay, type GrillState } from '../../src/features/bungeoppang/rulesV5';
 import type { BungeoppangSubmit } from '../../src/features/bungeoppang/service';
-import type { GrillLogEntry } from '../../src/features/bungeoppang/rulesV4';
+import type { BungeoppangRules, GrillLogEntry } from '../../src/features/bungeoppang/rulesV4';
 import fixture from '../fixtures/bungeoppang-v5.json';
 
-const config = 'v5-20261027.1';
+const config = 'v5-20261029.1';
 const timing = { countdownStartsAt: '2026-10-27T00:00:01.000Z', playStartsAt: '2026-10-27T00:00:04.500Z',
-  playEndsAt: '2026-10-27T00:03:04.500Z', submitDeadline: '2026-10-27T00:03:19.500Z', expiresAt: '2026-10-27T00:03:29.500Z' };
+  playEndsAt: '2026-10-27T00:02:04.500Z', submitDeadline: '2026-10-27T00:02:19.500Z', expiresAt: '2026-10-27T00:02:29.500Z' };
 const heats = Array(2048).fill(100);
 function wireCheckpoint(state: GrillState, revision: number, hash: string) {
   return { revision, throughSeq: state.log.length, prefixHash: hash, heatCursor: state.fills, lastAt: state.lastAt,
@@ -20,13 +20,17 @@ function wireCheckpoint(state: GrillState, revision: number, hash: string) {
       combo: state.combo, maxCombo: state.maxCombo, served: state.served, customersServed: state.customersServed,
       specialServed: state.specialServed, bonusScore: state.bonusScore }, activeOrders: state.activeOrders };
 }
-async function responses() {
-  const hash = await prefixHash('901', config, [], 'v5'), initial = createGrill(heats, fixture.orders, R);
+async function responses(rules: BungeoppangRules = R) {
+  const version = rules.durationMs === 180000 ? 'v5-20261027.1' : config;
+  const at = Date.parse(timing.playStartsAt), iso = (ms: number) => new Date(at + ms).toISOString();
+  const roundTiming = { ...timing, playEndsAt: iso(rules.durationMs),
+    submitDeadline: iso(rules.durationMs + 15000), expiresAt: iso(rules.durationMs + 25000) };
+  const hash = await prefixHash('901', version, [], 'v5'), initial = createGrill(heats, fixture.orders, rules);
   const checkpoint = wireCheckpoint(initial, 0, hash);
-  const source = { minigameSessionId: '901', minigameType: 'BUNGEOPPANG', rulesVersion: 'v5', configVersion: config,
-    status: 'PLAYING', serverNow: '2026-10-27T00:00:00Z', timing, checkpoint, acceptedLog: [] };
+  const source = { minigameSessionId: '901', minigameType: 'BUNGEOPPANG', rulesVersion: 'v5', configVersion: version,
+    status: 'PLAYING', serverNow: '2026-10-27T00:00:00Z', timing: roundTiming, checkpoint, acceptedLog: [] };
   return { start: { ...source, startedAt: timing.playStartsAt, isFirstGame: true, heats,
-    rules: { ...R, specialOrderChancePercent: 20, heatAssignment: 'FILL' } }, session: source };
+    rules: { ...rules, specialOrderChancePercent: 20, heatAssignment: 'FILL' } }, session: source };
 }
 const deliveryInput: BungeoppangSubmit = { gameId: '901', log: [...fixture.log.slice(0, 5)] as GrillLogEntry[],
   clientScore: 10, seenTips: [], deliveryKey: 'delivery-two' };
@@ -37,7 +41,7 @@ describe('v5 draft REST port, opt-in only', () => {
     const request = vi.fn().mockResolvedValueOnce(p.start).mockResolvedValueOnce(p.session).mockResolvedValueOnce(p.session);
     const game = await createBungeoppangV5Service(request).startGame('start');
     expect(JSON.parse(request.mock.calls[0]![1].body)).toEqual({ minigameType: 'BUNGEOPPANG', rulesVersion: 'v5' });
-    expect(game.v5?.orders).toHaveLength(3); expect(game.v5?.rules.durationMs).toBe(180000);
+    expect(game.v5?.orders).toHaveLength(3); expect(game.v5?.rules.durationMs).toBe(120000);
     expect(request.mock.calls[1]![0]).toBe('/api/v1/minigames/sessions/901');
     expect(request.mock.calls[2]![0]).toContain('includeProgress=true');
   });
@@ -80,5 +84,28 @@ describe('v5 draft REST port, opt-in only', () => {
   it('rejects a 60-second clock presented with v5 rules', async () => {
     const p = await responses(); p.start.timing = { ...timing, playEndsAt: '2026-10-27T00:01:04.500Z' };
     await expect(createBungeoppangV5Service(vi.fn().mockResolvedValue(p.start)).startGame('start')).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
+  });
+  it.each([60000, 150000])('rejects a mismatched rush start %i in a two-minute round', async rushFromMs => {
+    const p = await responses(); p.start.rules.rushFromMs = rushFromMs;
+    await expect(createBungeoppangV5Service(vi.fn().mockResolvedValue(p.start)).startGame('start'))
+      .rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
+  });
+  it('keeps the server-issued legacy clock and can submit actions after two minutes', async () => {
+    const p = await responses(BUNGEOPPANG_V5_LEGACY);
+    const request = vi.fn().mockResolvedValueOnce(p.start).mockResolvedValueOnce(p.session).mockResolvedValueOnce(p.session)
+      .mockRejectedValueOnce(new RestError(422, 'LOG_INVALID', 'server rejection'));
+    const service = createBungeoppangV5Service(request), game = await service.startGame('legacy');
+    expect(game.v5?.rules).toMatchObject({ durationMs: 180000, rushFromMs: 150000 });
+    await expect(service.submitResult({ gameId: '901', log: [{ slot: 0, action: 'POUR', t: 150000 }],
+      clientScore: 0, seenTips: [], completeKey: 'legacy-complete' })).rejects.toMatchObject({ code: 'LOG_INVALID' });
+    expect(JSON.parse(request.mock.calls[3]![1].body).log[0].t).toBe(150000);
+  });
+  it('blocks actions at the two-minute end before making a completion request', async () => {
+    const p = await responses();
+    const request = vi.fn().mockResolvedValueOnce(p.start).mockResolvedValueOnce(p.session).mockResolvedValueOnce(p.session);
+    const service = createBungeoppangV5Service(request); await service.startGame('two-minute');
+    await expect(service.submitResult({ gameId: '901', log: [{ slot: 0, action: 'POUR', t: 120000 }],
+      clientScore: 0, seenTips: [], completeKey: 'two-minute-complete' })).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
+    expect(request).toHaveBeenCalledTimes(3);
   });
 });

@@ -63,7 +63,7 @@ export function createV5PreviewService(random = Math.random, now = Date.now): Bu
     async submitResult(input) {
       const r = round(input.gameId);
       if (r.result) return clone(r.result);
-      if (now() < r.end) throw new BungeoppangServiceError('TOO_EARLY', '3분 플레이가 끝난 뒤 확인해 주세요.', true);
+      if (now() < r.end) throw new BungeoppangServiceError('TOO_EARLY', '2분 플레이가 끝난 뒤 확인해 주세요.', true);
       if (input.deliveryKey && !r.receipts.has(input.deliveryKey)) {
         // The in-flight prefix is the last DELIVER; suffix cooking remains part of final replay.
         let lastDelivery = -1;

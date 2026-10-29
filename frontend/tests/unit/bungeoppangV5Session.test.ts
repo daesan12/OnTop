@@ -6,15 +6,16 @@ vi.mock('../../src/features/bungeoppang/service', async original => ({
     balance: vi.fn(), deliverV5: vi.fn(), recoverV5: vi.fn() },
 }));
 import { bungeoppangService as service, BungeoppangServiceError } from '../../src/features/bungeoppang/service';
-import { BUNGEOPPANG_V5 as R } from '../../src/features/bungeoppang/config';
+import { BUNGEOPPANG_V5 as R, BUNGEOPPANG_V5_LEGACY } from '../../src/features/bungeoppang/config';
 import { createGrill, replay, type GrillState } from '../../src/features/bungeoppang/rulesV5';
-import type { GrillLogEntry } from '../../src/features/bungeoppang/rulesV4';
-import { advanceBungeoppangTime, deliverBungeoppangOrder, leaveBungeoppang, openBungeoppang, pressBungeoppangSlot,
+import type { BreadFilling, GrillLogEntry } from '../../src/features/bungeoppang/rulesV4';
+import { advanceBungeoppangTime, deliverBungeoppangOrder, deliverMatchingBungeoppangOrder, leaveBungeoppang, openBungeoppang, pressBungeoppangSlot,
   resetBungeoppang, selectBungeoppangCustomer, selectBungeoppangTray, startBungeoppang, trashBungeoppangSelection,
   useBungeoppang } from '../../src/features/bungeoppang/store';
 import { bungeoppangClock, gameNow } from '../../src/features/bungeoppang/bungeoppangView';
 import fixture from '../fixtures/bungeoppang-v5.json';
 import { beginCustomerSpeechV5, advanceCustomerSpeechV5, useCustomerSpeechV5 } from '../../src/features/bungeoppang/customerSpeechV5';
+import { useCustomerDeparturesV5 } from '../../src/features/bungeoppang/customerDepartureV5';
 import { useCustomerArrivalsV5 } from '../../src/features/bungeoppang/customerArrivalV5';
 const heats = Array(2048).fill(100);
 beforeEach(() => {
@@ -40,6 +41,72 @@ async function start() {
   for (const order of fixture.orders) { beginCustomerSpeechV5(order.orderId); advanceCustomerSpeechV5(order.orderId, 'summary'); }
 }
 const current = () => useBungeoppang.getState().grill as GrillState;
+const stock = (...fillings: BreadFilling[]) => fillings.map((filling, index) =>
+  ({ id: index + 1, filling, front: 80, back: 80, points: 10 }));
+it('R finds an unselected fulfillable order, keeps extra bread and blocks repeat delivery while pending', async () => {
+  await start(); await vi.advanceTimersByTimeAsync(14000);
+  const grill: GrillState = { ...current(), activeOrders: [...current().activeOrders].reverse(),
+    tray: stock('bean', 'custard', 'chocolate') };
+  useBungeoppang.setState({ grill, selectedCustomer: '1' });
+  vi.mocked(service.deliverV5!).mockReturnValue(new Promise(() => {}));
+  deliverMatchingBungeoppangOrder(); deliverMatchingBungeoppangOrder();
+  expect(current().log.at(-1)).toMatchObject({ action: 'DELIVER', orderId: '2' });
+  expect(current().tray.map(b => b.filling)).toEqual(['custard', 'chocolate']);
+  expect(service.deliverV5).toHaveBeenCalledTimes(1);
+  expect(useBungeoppang.getState().orderPending).toBe(true);
+  expect(vi.mocked(service.deliverV5!).mock.calls[0]![0].log.at(-1)).toMatchObject({ orderId: '2' });
+});
+it('R prioritizes a ready selected customer and sends just one order per press', async () => {
+  await start(); await vi.advanceTimersByTimeAsync(14000);
+  useBungeoppang.setState({ grill: { ...current(), tray: stock('bean', 'bean', 'custard') }, selectedCustomer: '3' });
+  vi.mocked(service.deliverV5!).mockImplementation(async () => ({ grill: current(), revision: 1 }));
+  deliverMatchingBungeoppangOrder(); await vi.advanceTimersByTimeAsync(0);
+  expect(current().log.at(-1)).toMatchObject({ action: 'DELIVER', orderId: '3' });
+  expect(current().tray.map(b => b.filling)).toEqual(['bean', 'bean']);
+  expect(service.deliverV5).toHaveBeenCalledTimes(1);
+  await vi.advanceTimersByTimeAsync(50); deliverMatchingBungeoppangOrder();
+  expect(current().log.at(-1)).toMatchObject({ action: 'DELIVER', orderId: '1' });
+  expect(service.deliverV5).toHaveBeenCalledTimes(2);
+});
+it('R does not send a partial or wrong-filling order', async () => {
+  await start(); await vi.advanceTimersByTimeAsync(14000);
+  const grill: GrillState = { ...current(), activeOrders: [fixture.orders[0]!, fixture.orders[2]!],
+    tray: stock('bean', 'chocolate') };
+  useBungeoppang.setState({ grill, selectedCustomer: '1' });
+  deliverMatchingBungeoppangOrder();
+  expect(current().log).toEqual([]); expect(current().tray).toHaveLength(2);
+  expect(service.deliverV5).not.toHaveBeenCalled();
+});
+it('R matches every filling in a mixed order and consumes only the requested quantities', async () => {
+  await start(); await vi.advanceTimersByTimeAsync(14000);
+  const order = { ...fixture.orders[1]!, items: { bean: 1, custard: 1, pizza: 0, chocolate: 0 } };
+  const grill: GrillState = { ...current(), activeOrders: [order], tray: stock('bean', 'bean', 'custard', 'chocolate') };
+  useBungeoppang.setState({ grill, selectedCustomer: null });
+  vi.mocked(service.deliverV5!).mockReturnValue(new Promise(() => {}));
+  deliverMatchingBungeoppangOrder();
+  expect(current().log.at(-1)).toMatchObject({ action: 'DELIVER', orderId: '2' });
+  expect(current().tray.map(b => b.filling)).toEqual(['bean', 'chocolate']);
+});
+it('R skips hidden or greeting customers, then delivers when their request is announced', async () => {
+  await start();
+  useBungeoppang.setState({ grill: { ...current(), tray: stock('custard') }, selectedCustomer: '1' });
+  deliverMatchingBungeoppangOrder(); expect(service.deliverV5).not.toHaveBeenCalled();
+  await vi.advanceTimersByTimeAsync(14000);
+  useCustomerSpeechV5.setState(s => ({ stages: { ...s.stages, '3': 'greeting' } }));
+  deliverMatchingBungeoppangOrder(); expect(service.deliverV5).not.toHaveBeenCalled();
+  advanceCustomerSpeechV5('3', 'request');
+  vi.mocked(service.deliverV5!).mockReturnValue(new Promise(() => {}));
+  deliverMatchingBungeoppangOrder();
+  expect(current().log.at(-1)).toMatchObject({ action: 'DELIVER', orderId: '3' });
+});
+it('R preserves failed-delivery retry state and ignores input while an exit dialog is open', async () => {
+  await start(); await vi.advanceTimersByTimeAsync(14000);
+  useBungeoppang.setState({ grill: { ...current(), tray: stock('custard') }, selectedCustomer: '1', orderError: '응답 유실' });
+  deliverMatchingBungeoppangOrder();
+  expect(useBungeoppang.getState().orderError).toBe('응답 유실');
+  useBungeoppang.setState({ orderError: null, confirmExit: true }); deliverMatchingBungeoppangOrder();
+  expect(current().log).toEqual([]); expect(service.deliverV5).not.toHaveBeenCalled();
+});
 it('cannot select or deliver an approved order before that customer enters', async () => {
   await start();
   const grill = createGrill(heats, fixture.orders, R), wanted = fixture.orders[1]!;
@@ -57,12 +124,26 @@ it('cannot select or deliver an approved order before that customer enters', asy
   expect(useCustomerArrivalsV5.getState().admitted).toEqual({});
   useCustomerSpeechV5.setState({ stages: {}, dialogues: {} });
 });
-it('does not end at the old 60 second cutoff and closes at 180 seconds', async () => {
+it('does not end at the old 60 second cutoff and closes at 120 seconds', async () => {
   await start(); await vi.advanceTimersByTimeAsync(60000);
   expect(gameNow()).toBe(60000); expect(useBungeoppang.getState().phase).toBe('play');
   expect(service.submitResult).not.toHaveBeenCalled();
-  await vi.advanceTimersByTimeAsync(120000); advanceBungeoppangTime();
-  expect(bungeoppangClock.t).toBe(180000); expect(useBungeoppang.getState().phase).toBe('ending');
+  await vi.advanceTimersByTimeAsync(59999);
+  expect(useBungeoppang.getState().phase).toBe('play');
+  expect(service.submitResult).not.toHaveBeenCalled();
+  await vi.advanceTimersByTimeAsync(1); advanceBungeoppangTime();
+  expect(bungeoppangClock.t).toBe(120000); expect(useBungeoppang.getState().phase).toBe('ending');
+  expect(service.submitResult).toHaveBeenCalledTimes(1);
+});
+it('keeps a server-issued three-minute round playing after two minutes', async () => {
+  vi.mocked(service.startGame).mockResolvedValueOnce({ gameId: 'legacy-1', startedAt: new Date(0).toISOString(), rulesVersion: 'v5',
+    heats, isFirstGame: true, v5: { rules: { ...BUNGEOPPANG_V5_LEGACY }, orders: fixture.orders } });
+  await start(); await vi.advanceTimersByTimeAsync(120000);
+  expect(useBungeoppang.getState().phase).toBe('play');
+  expect(bungeoppangClock.durationMs).toBe(180000);
+  expect(service.submitResult).not.toHaveBeenCalled();
+  await vi.advanceTimersByTimeAsync(60000); advanceBungeoppangTime();
+  expect(useBungeoppang.getState().phase).toBe('ending');
   expect(service.submitResult).toHaveBeenCalledTimes(1);
 });
 it('a normal key on burned filled bread emits one DISCARD, never a TURN or a tray insertion', async () => {
@@ -81,6 +162,7 @@ it('keeps a frozen delivery prefix, allows suffix cooking, and shows success onl
   deliverBungeoppangOrder();
   expect(useBungeoppang.getState().orderPending).toBe(true);
   expect(useBungeoppang.getState().feedback.some(f => f.kind === 'deliver')).toBe(false);
+  expect(useCustomerDeparturesV5.getState().visits['2']?.phase).toBe('pending');
   expect(service.deliverV5).toHaveBeenCalledTimes(1);
   const submitted = vi.mocked(service.deliverV5!).mock.calls[0]![0];
   selectBungeoppangCustomer('3');
@@ -93,6 +175,9 @@ it('keeps a frozen delivery prefix, allows suffix cooking, and shows success onl
   expect(useBungeoppang.getState()).toMatchObject({ selectedCustomer: '3', orderPending: false });
   expect(useBungeoppang.getState().feedback.find(f => f.kind === 'deliver')?.guestIndex).toBe(1);
   expect(useBungeoppang.getState().feedback.find(f => f.kind === 'deliver')?.guestOrderId).toBe('2');
+  expect(useCustomerDeparturesV5.getState().visits['2']?.phase).toBe('receiving');
+  await vi.advanceTimersByTimeAsync(550);
+  expect(useCustomerDeparturesV5.getState().visits['2']?.phase).toBe('thanks');
 });
 it('a late server recovery cannot change a departed visit', async () => {
   await start(); await vi.advanceTimersByTimeAsync(14850);

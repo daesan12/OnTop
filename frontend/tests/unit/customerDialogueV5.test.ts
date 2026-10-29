@@ -7,17 +7,19 @@ import { advanceCustomerSpeechV5, beginCustomerSpeechV5, customerRequestDuration
 afterEach(() => useCustomerSpeechV5.setState({ stages: {}, dialogues: {} }));
 
 it.each(CUSTOMER_ASSETS_V5.map((asset, i) => ({ ...asset, orderId: String(i + 1) })))
-  ('$name gets six greetings and six requests without repeats, including across bag boundaries', ({ id, orderId }) => {
+  ('$name gets six greetings, requests and thanks without repeats, including across bag boundaries', ({ id, orderId }) => {
     const deck = new CustomerDialogueDeckV5(() => .4), profile = CUSTOMER_DIALOGUE_V5[id];
     const visits = Array.from({ length: 18 }, () => deck.next(orderId));
     for (let start = 0; start < visits.length; start += 6) {
       const batch = visits.slice(start, start + 6);
       expect(new Set(batch.map(v => v.greeting))).toEqual(new Set(profile.greetings));
       expect(new Set(batch.map(v => v.request))).toEqual(new Set(profile.requests));
+      expect(new Set(batch.map(v => v.thanks))).toEqual(new Set(profile.thanks));
     }
     for (let i = 1; i < visits.length; i++) {
       expect(visits[i]!.greeting).not.toBe(visits[i - 1]!.greeting);
       expect(visits[i]!.request).not.toBe(visits[i - 1]!.request);
+      expect(visits[i]!.thanks).not.toBe(visits[i - 1]!.thanks);
     }
   });
 
