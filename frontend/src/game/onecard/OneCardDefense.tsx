@@ -22,10 +22,25 @@ export function OneCardReachCard({ userId, name, disabled, onReach }: { userId: 
   </div>
 }
 
+interface Strike { id: string; attemptId: string; actorUserId: string; x: number; y: number; phase: 'windup' | 'hit' | 'miss' }
+
 export function OneCardDefenseOverlay({ held, active, ownId }: { held: boolean; active: boolean; ownId: string }) {
   const defense = useOneCardDefense(), profiles = useSession(s => s.profiles), runtime = useParkRuntime()
-  const root = useRef<HTMLDivElement>(null), [now, setNow] = useState(() => performance.now()), [swing, setSwing] = useState(0)
+  const root = useRef<HTMLDivElement>(null), [now, setNow] = useState(() => performance.now()), [strike, setStrike] = useState<Strike | null>(null)
   useEffect(() => { const timer = setInterval(() => setNow(performance.now()), 100); return () => clearInterval(timer) }, [])
+  useEffect(() => { if (!held || !active) setStrike(null) }, [held, active])
+  useEffect(() => {
+    const block = defense.lastBlock
+    if (!active || !held || !block || block.targetUserId !== ownId || block.until <= performance.now()) return
+    // Only a server-approved block produces contact, recoil and sparks. A click alone is a wind-up.
+    setStrike(previous => previous?.attemptId === block.attemptId
+      ? { ...previous, id: block.eventId, phase: 'hit' } : previous)
+  }, [defense.lastBlock, active, held, ownId])
+  useEffect(() => {
+    if (!strike || strike.phase === 'windup') return
+    const timer = setTimeout(() => setStrike(previous => previous?.id === strike.id ? null : previous), 760)
+    return () => clearTimeout(timer)
+  }, [strike?.id, strike?.phase])
   useEffect(() => {
     if (!held) return
     let frame = 0, x = 0, y = 0
@@ -48,11 +63,24 @@ export function OneCardDefenseOverlay({ held, active, ownId }: { held: boolean; 
     {attempts.map((attempt, index) => <button key={attempt.attemptId} className="onecard-ghost-hand" data-actor-user-id={attempt.actorUserId}
       style={{ left: `${48 + (index % 2 ? -1 : 1) * (14 + Math.floor(index / 2) * 13)}%` }}
       aria-label={`${profiles[attempt.actorUserId]?.nickname ?? '관전자'}의 손 막기`} disabled={!held || defense.pending}
-      onClick={() => { if (held && !defense.pending) { setSwing(value => value + 1); void runtime.hitOneCardHand?.(attempt.attemptId) } }}>
+      onClick={event => {
+        if (!held || defense.pending || strike) return
+        const bounds = event.currentTarget.querySelector('img')!.getBoundingClientRect()
+        setStrike({ id: attempt.attemptId, attemptId: attempt.attemptId, actorUserId: attempt.actorUserId,
+          x: bounds.x + bounds.width * .46, y: bounds.y + bounds.height * .45, phase: 'windup' })
+        void runtime.hitOneCardHand?.(attempt.attemptId).then(approved => {
+          if (!approved) setStrike(previous => previous?.attemptId === attempt.attemptId ? { ...previous, phase: 'miss' } : previous)
+        })
+      }}>
       <img src="/art/onecard/prank/ghost-hand.webp" alt="" draggable={false} />
       <span>{profiles[attempt.actorUserId]?.nickname ?? '관전자'}의 손 · {held ? '눌러서 막기' : '뿅망치를 들어 막아주세요'}</span>
     </button>)}
-    {held && <><div className="onecard-hammer" aria-hidden="true"><img key={swing} data-swing={swing > 0} src="/art/onecard/prank/hammer.webp" alt="" draggable={false} /></div>
+    {strike?.phase === 'hit' && <div key={`strike/${strike.id}`} className="onecard-strike-contact" style={{ left: strike.x, top: strike.y }} aria-hidden="true">
+      <img className="onecard-hit-hand" src="/art/onecard/prank/ghost-hand.webp" alt="" draggable={false} />
+      <span className="onecard-impact-ring" /><span className="onecard-impact-spark">✦</span><b className="onecard-impact-word">퍽!</b>
+    </div>}
+    {held && <><div className="onecard-hammer" data-strike-phase={strike?.phase ?? 'idle'} aria-hidden="true"
+      style={strike ? { left: strike.x, top: strike.y } : undefined}><img key={strike ? `${strike.id}/${strike.phase}` : 'idle'} src="/art/onecard/prank/hammer.webp" alt="" draggable={false} /></div>
       <p className="onecard-hammer-hint" role="status">{!defense.enabled ? '뿅망치 준비 완료 · 방해 차단은 서버 연동 후 사용할 수 있어요'
         : defense.pending ? '서버에서 방어를 확인하고 있어요…' : '투명한 손을 눌러 내 패를 지켜주세요'}</p></>}
     {block && <div key={block.eventId} className="onecard-hit-feedback" role="status"><b>퍽!</b><span>방해 차단 {Math.max(0, Math.ceil((block.until - now) / 1000))}초</span><small>{profiles[block.actorUserId]?.nickname ?? '관전자'}가 잠시 내 패를 뒤집을 수 없어요</small></div>}

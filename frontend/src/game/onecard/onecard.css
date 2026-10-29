@@ -216,3 +216,32 @@
 @media(prefers-reduced-motion:reduce) {
  .park-page .onecard-game-hud.onecard-panel .onecard-hand-card,.park-page .onecard-game-hud.onecard-panel .onecard-primary-actions>button { transition:none; }
 }
+
+/* Abilities remain readable even on cards that cannot currently be played. */
+.park-page .onecard-game-hud.onecard-panel .onecard-hand-card:hover { z-index:60; }
+.park-page .onecard-game-hud.onecard-panel .onecard-ability-tip { display:none; position:absolute; bottom:calc(100% + 12px); left:50%; width:max-content; max-width:min(210px,65vw); box-sizing:border-box; padding:8px 13px; border:1px solid #d6bc7c; border-radius:10px; background:#153d34f5; color:#fff6dc; box-shadow:0 6px 20px #071f1940; font:600 13px/1.45 system-ui,'Malgun Gothic',sans-serif; white-space:normal; word-break:keep-all; transform:translateX(-50%) rotate(calc(-1 * var(--fan-angle))); pointer-events:none; }
+.park-page .onecard-game-hud.onecard-panel .onecard-ability-tip::after { content:''; position:absolute; top:100%; left:calc(50% - 4px); width:8px; height:8px; border-right:1px solid #d6bc7c; border-bottom:1px solid #d6bc7c; background:#153d34; transform:translateY(-4px) rotate(45deg); }
+.park-page .onecard-game-hud.onecard-panel .onecard-hand-card:is(:hover,:focus-visible):not([data-dragging=true])>.onecard-ability-tip { display:block; }
+.park-page .onecard-game-hud.onecard-panel .onecard-forfeit-trigger { position:absolute; top:26px; right:24px; display:flex; align-items:center; justify-content:center; gap:8px; min-height:40px; padding:9px 13px; border:1px solid #d6b8a1a0; border-radius:12px; color:#f9ede0; background:#5c3d36e8; box-shadow:0 4px 12px #24171325,inset 0 1px 0 #fff3dc15; font:600 13px/1 system-ui,'Malgun Gothic',sans-serif; pointer-events:auto; cursor:pointer; }
+.park-page .onecard-game-hud.onecard-panel .onecard-forfeit-trigger svg { width:16px; height:18px; }
+.park-page .onecard-game-hud.onecard-panel .onecard-forfeit-trigger kbd { color:#e2cdbd; font:11px/1 system-ui,sans-serif; }
+.park-page .onecard-game-hud.onecard-panel .onecard-forfeit-trigger:hover:not(:disabled) { background:#785047; border-color:#e4c4a6; }
+.park-page .onecard-game-hud.onecard-panel .onecard-forfeit-trigger:disabled { opacity:.5; cursor:default; }
+.park-page .onecard-game-hud.onecard-panel .onecard-forfeit-trigger:focus-visible { outline:2px solid #f1d18a; outline-offset:4px; }
+
+/* Emerald play, ivory draw, sage restore and warm brass hammer. */
+.park-page .onecard-game-hud.onecard-panel .onecard-command-tray { background:linear-gradient(145deg,#fffaf0f5,#ece6d8f7); border-color:#c9b785; box-shadow:0 10px 28px #142c2238,inset 0 0 0 3px #fffdf470; }
+.park-page .onecard-game-hud.onecard-panel .onecard-primary-actions>button { border-color:#b8c5b7; color:#254c40; background:linear-gradient(#f1f5eb,#dfe9da); box-shadow:0 4px 0 #a5b49f,inset 0 1px 0 #fffdf6; }
+.park-page .onecard-game-hud.onecard-panel .onecard-primary-actions>.onecard-submit { border-color:#2e7461; color:#fff5d8; background:linear-gradient(#276a58,#164c3e); box-shadow:0 4px 0 #0d362c,inset 0 1px 0 #77a89188; }
+.park-page .onecard-game-hud.onecard-panel .onecard-primary-actions>.onecard-submit:hover:not(:disabled) { background:linear-gradient(#35866c,#205d4b); }
+.park-page .onecard-game-hud.onecard-panel .onecard-primary-actions>.onecard-draw-action { border-color:#cebb8e; background:linear-gradient(#fffaf0,#f0e6ce); color:#584b2e; box-shadow:0 4px 0 #b8a57b,inset 0 1px 0 #fffdf6; }
+.park-page .onecard-game-hud.onecard-panel .onecard-primary-actions>.onecard-hammer-action { border-color:#b98b48; background:linear-gradient(#f4dba2,#d9b36f); color:#533d1e; box-shadow:0 4px 0 #aa803e,inset 0 1px 0 #fff0c8; }
+.park-page .onecard-game-hud.onecard-panel .onecard-primary-actions>.onecard-hammer-action:hover:not(:disabled) { background:#f5e2b3; }
+.park-page .onecard-game-hud.onecard-panel .onecard-primary-actions>.onecard-hammer-action[aria-pressed=true] { border-color:#d4ab66; color:#fff2cf; background:linear-gradient(#8a6634,#634721); box-shadow:0 4px 0 #47321c,inset 0 1px 0 #e6c68d77; }
+.park-page .onecard-game-hud.onecard-panel .onecard-primary-actions>.onecard-hammer-action[aria-pressed=true]:is(:hover,:focus-visible) { background:#896334; color:#fff2cf; }
+.park-page .onecard-game-hud.onecard-panel .onecard-primary-actions>button:disabled { opacity:.62; color:#72796b; border-color:#c4c6bb; background:#e5e7df; box-shadow:0 2px 0 #b9beb0; }
+@media(max-width:800px) {
+ .park-page .onecard-game-hud.onecard-panel .onecard-forfeit-trigger { top:126px; left:14px; right:auto; min-height:36px; padding:8px 11px; }
+ .park-page .onecard-game-hud.onecard-panel .onecard-forfeit-trigger kbd { display:none; }
+ .park-page .onecard-game-hud.onecard-panel .onecard-ability-tip { font-size:12px; padding:7px 10px; bottom:calc(100% + 9px); }
+}
