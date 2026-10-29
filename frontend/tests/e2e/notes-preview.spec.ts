@@ -1,7 +1,16 @@
 import { expect, test } from '@playwright/test'
 test('memo filters, pages, native IME, 300 characters, fountain pen and acknowledged paper attachment',async({page})=>{
  const errors:string[]=[],transports:string[]=[];page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>{if(/\/api\/|\/ws/.test(new URL(r.url()).pathname))transports.push(r.url())})
- await page.goto('/notes-preview.html');await page.getByRole('button',{name:'E · 메모함 열기',exact:true}).click()
+ await page.goto('/notes-preview.html')
+ // Test-only acknowledged posts; the product preview itself starts empty.
+ await page.evaluate(async()=>{
+   const {notesService}=await import('/src/features/notes/service.ts' as string)
+   const {NOTES_BOX}=await import('/src/config/notes.ts' as string)
+   const {NOTE_TOPICS}=await import('/src/features/notes/topics.ts' as string)
+   await Promise.all(Array.from({length:16},(_,i)=>notesService.submit({userId:'writer-'+i,channelId:'preview-channel',position:{x:NOTES_BOX.x,y:NOTES_BOX.y+.8,z:NOTES_BOX.z,yaw:0}},
+     {operationId:crypto.randomUUID(),text:'사용자가 작성한 테스트 메모 '+i,category:NOTE_TOPICS[i%5].id},new AbortController().signal)))
+ })
+ await page.getByRole('button',{name:'E · 메모함 열기',exact:true}).click()
  const dialog=page.getByRole('dialog',{name:'전망대 익명 메모'}),wall=dialog.getByRole('region',{name:'익명 메모 목록'})
  await expect(wall.locator('article')).toHaveCount(12);await dialog.getByRole('button',{name:'다음 메모 페이지'}).click();await expect(wall.locator('article')).toHaveCount(4)
  await dialog.getByRole('navigation',{name:'메모 주제 필터'}).getByRole('button',{name:'응원',exact:true}).click();await expect(wall.locator('article')).toHaveCount(3)

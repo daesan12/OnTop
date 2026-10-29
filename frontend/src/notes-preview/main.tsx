@@ -12,7 +12,6 @@ import { AnonymousNotes } from '../features/notes/AnonymousNotes'
 import { notesService } from '../features/notes/service'
 import { MockNotesService } from '../features/notes/mock/MockNotesService'
 import { useNotesState } from '../features/notes/state'
-import { NOTE_TOPICS } from '../features/notes/topics'
 import { roamingInput } from '../world/inputOwnership'
 import '../styles.css'
 import './preview.css'
@@ -23,8 +22,7 @@ roamingInput.ready = true
 receive({ type:'CONNECTED',payload:{userId:'preview-user'},requestId:null })
 receive({ type:'CHANNEL_STATE',payload:{channelId:'preview-channel',name:'전망대 로컬 메모함',version:1,currentUsers:1,capacity:16,userIds:['preview-user']},requestId:null })
 receive({ type:'WORLD_STATE',payload:{channelId:'preview-channel',version:1,mapVersion:EXPECTED_MAP_VERSION,avatars:[{userId:'preview-user',position:{x:NOTES_BOX.x,y:NOTES_BOX.y+.8,z:NOTES_BOX.z+1.6,yaw:Math.PI,moving:false,running:false,swimming:false,lastInputSeq:0}}]},requestId:null })
-const samples=['오늘도 잘하고 있어요! 잠깐 쉬어가도 괜찮아요.','탑골공원 너무 예뻐요. 바람도 좋아요.','이곳 전망이 정말 멋지네요. 다음에 또 올게요!','맛있는 붕어빵 추천해요!','온탑에서 만난 하루, 오래 기억할게요.','좋은 사람들과 게임해서 행복해요.','모두 좋은 하루 되세요.','요즘 하고 싶은 일이 너무 많아요. 여러분은 어떤가요?','다 같이 즐겨요~','산책하다가 들러요.','오늘의 작은 행복은 무엇인가요?','천천히, 내 속도로 가봐요.','여기서 바라보는 노을을 추천해요.','멋진 정원에 마음 한 장 남겨요.','다음에 또 만나요!','작은 응원이 큰 힘이 되네요.']
-const mock=new MockNotesService(550,samples.map((text,i)=>({id:String(i+1),text,createdAt:Date.now()-i*1000,category:NOTE_TOPICS[i%5]!.id})))
+const mock=new MockNotesService(550)
 function Camera({yaw}:{yaw:number}){
  useFrame(({camera})=>{camera.position.set(NOTES_BOX.x+Math.sin(yaw)*3.4*NOTES_BOARD_SCALE,NOTES_BOX.y+1.45*NOTES_BOARD_SCALE,NOTES_BOX.z+Math.cos(yaw)*3.4*NOTES_BOARD_SCALE);camera.lookAt(NOTES_BOX.x,NOTES_BOX.y+.9*NOTES_BOARD_SCALE,NOTES_BOX.z)})
  return null

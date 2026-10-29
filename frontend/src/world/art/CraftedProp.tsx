@@ -5,6 +5,7 @@ import { SurfaceMaterial } from './SurfaceMaterial'
 import { NightMaterial } from '../NightLighting'
 import { metalGrain } from './ornamentTextures'
 import { heritageTextures } from './heritageTextures'
+import { useCanvasFont } from './useCanvasFont'
 
 export type CraftedArt = Partial<Record<PropFinish, BufferGeometry>>
 function HeritageMaterial({ finish }: { finish: string }) {
@@ -20,7 +21,8 @@ function Batches({ art, shadow, environment, heritage, surfaceMaps }: { art: Cra
   return <>{Object.entries(art).map(([finish, geometry]) => <mesh key={finish}
     castShadow={shadow && finish !== 'glow'} receiveShadow>
     <primitive object={geometry} attach="geometry" dispose={null} />
-    {surfaceMaps?.[finish as PropFinish] ? <meshStandardMaterial vertexColors map={surfaceMaps[finish as PropFinish]}
+    {heritage && finish === 'paint' && surfaceMaps?.paint ? <meshBasicMaterial vertexColors map={surfaceMaps.paint} toneMapped={false} side={DoubleSide} alphaTest={.35}/>
+      : surfaceMaps?.[finish as PropFinish] ? <meshStandardMaterial vertexColors map={surfaceMaps[finish as PropFinish]}
       bumpMap={finish === 'wood' ? surfaceMaps.wood : undefined} bumpScale={.001}
       roughness={.94} side={finish === 'paint' ? DoubleSide : undefined} alphaTest={.35}/>
       : heritage ? <HeritageMaterial finish={finish}/>
@@ -52,10 +54,11 @@ export function CraftedPropLod({ name, near, far, distance, environment, heritag
 }
 
 /** Local canvas lettering, no image download or runtime font service. */
-export function PropSign({ width, height, position, draw, rotation = [0, 0, 0], transparent = false }: {
+export function PropSign({ width, height, position, draw, rotation = [0, 0, 0], transparent = false, font }: {
   width: number; height: number; position: [number, number, number];
-  rotation?: [number, number, number]; draw: (context: CanvasRenderingContext2D, w: number, h: number) => void; transparent?: boolean
+  rotation?: [number, number, number]; draw: (context: CanvasRenderingContext2D, w: number, h: number) => void; transparent?: boolean; font?: string
 }) {
+  const fontReady = useCanvasFont(font)
   const texture = useMemo(() => {
     const canvas = document.createElement('canvas')
     canvas.width = 1024; canvas.height = Math.max(256, Math.round(1024 * height / width))
@@ -63,10 +66,12 @@ export function PropSign({ width, height, position, draw, rotation = [0, 0, 0], 
     const map = new CanvasTexture(canvas)
     map.colorSpace = SRGBColorSpace; map.anisotropy = 4
     return map
-  }, [draw, width, height])
+  }, [draw, width, height, fontReady])
   useEffect(() => () => texture.dispose(), [texture])
   return <mesh name={'prop-sign-' + draw.name} position={position} rotation={rotation}>
     <planeGeometry args={[width, height]} />
-    <meshStandardMaterial map={texture} roughness={0.68} metalness={0.08} transparent={transparent} alphaTest={transparent ? .05 : 0} />
+    {font ? <meshBasicMaterial map={texture} toneMapped={false} transparent={transparent} alphaTest={transparent ? .05 : 0}
+      polygonOffset polygonOffsetFactor={-1} polygonOffsetUnits={-1}/>
+      : <meshStandardMaterial map={texture} roughness={0.68} metalness={0.08} transparent={transparent} alphaTest={transparent ? .05 : 0} />}
   </mesh>
 }
