@@ -1,0 +1,149 @@
+{
+  "info": {
+    "name": "OnTop History",
+    "description": "HISTORY-01/02. 기존 회원 Access JWT·db 프로필 필요. 본인 종료/무효 경기만 DB ID 내림차순, size1~100·기본20. gameCode OMOK/DICE/ONE_CARD/LIAR_BRIDGE, 정산대기는 내역과 확정 승패에 포함. 무효는 내역만 표시·통계 제외. played=wins+losses+forfeits+draws, 기권을 losses에 중복 포함하지 않음. 조회는 판돈/정산/원장을 수정하지 않음. cursor는 마지막 경기 DB ID 문자열. 뒤늦게 종료된 경기는 새 첫 조회에서 다시 확인. docs/game-history-api.md.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "37 내 경기 내역 첫 페이지",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/v1/users/me/games?size=20",
+        "description": "HISTORY-01/02. 기존 회원 Access JWT·db 프로필 필요. 본인 종료/무효 경기만 DB ID 내림차순, size1~100·기본20. gameCode OMOK/DICE/ONE_CARD/LIAR_BRIDGE, 정산대기는 내역과 확정 승패에 포함. 무효는 내역만 표시·통계 제외. played=wins+losses+forfeits+draws, 기권을 losses에 중복 포함하지 않음. 조회는 판돈/정산/원장을 수정하지 않음. cursor는 마지막 경기 DB ID 문자열. 뒤늦게 종료된 경기는 새 첫 조회에서 다시 확인. docs/game-history-api.md.",
+        "auth": {
+          "type": "noauth"
+        },
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ]
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('본인 경기 내역 계약', () => {",
+              "    const b=pm.response.json();pm.expect(b.items).to.be.an('array');",
+              "    pm.expect(b.hasNext).to.be.a('boolean');",
+              "    b.items.forEach(i=>{pm.expect(i.gameSessionId).to.be.a('string');pm.expect(['FINISHED','INVALID']).to.include(i.status);});",
+              "    pm.expect(b.hasNext ? typeof b.nextCursor==='string' : b.nextCursor===null).to.eql(true);",
+              "    pm.environment.set('historyCursor',b.nextCursor || '');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "38 내 경기 내역 다음 페이지",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/v1/users/me/games?size=20&cursor={{historyCursor}}",
+        "description": "HISTORY-01/02. 기존 회원 Access JWT·db 프로필 필요. 본인 종료/무효 경기만 DB ID 내림차순, size1~100·기본20. gameCode OMOK/DICE/ONE_CARD/LIAR_BRIDGE, 정산대기는 내역과 확정 승패에 포함. 무효는 내역만 표시·통계 제외. played=wins+losses+forfeits+draws, 기권을 losses에 중복 포함하지 않음. 조회는 판돈/정산/원장을 수정하지 않음. cursor는 마지막 경기 DB ID 문자열. 뒤늦게 종료된 경기는 새 첫 조회에서 다시 확인. docs/game-history-api.md.",
+        "auth": {
+          "type": "noauth"
+        },
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ]
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.environment.name) throw new Error('먼저 OnTop Local 환경을 선택해주세요.');",
+              "if(!pm.environment.get('historyCursor')) throw new Error('다음 페이지가 없습니다. 37을 먼저 조회하세요.');"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('본인 경기 내역 계약', () => {",
+              "    const b=pm.response.json();pm.expect(b.items).to.be.an('array');",
+              "    pm.expect(b.hasNext).to.be.a('boolean');",
+              "    b.items.forEach(i=>{pm.expect(i.gameSessionId).to.be.a('string');pm.expect(['FINISHED','INVALID']).to.include(i.status);});",
+              "    pm.expect(b.hasNext ? typeof b.nextCursor==='string' : b.nextCursor===null).to.eql(true);",
+              "    pm.environment.set('historyCursor',b.nextCursor || '');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "39 내 게임별 전적",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/v1/users/me/game-stats",
+        "description": "HISTORY-01/02. 기존 회원 Access JWT·db 프로필 필요. 본인 종료/무효 경기만 DB ID 내림차순, size1~100·기본20. gameCode OMOK/DICE/ONE_CARD/LIAR_BRIDGE, 정산대기는 내역과 확정 승패에 포함. 무효는 내역만 표시·통계 제외. played=wins+losses+forfeits+draws, 기권을 losses에 중복 포함하지 않음. 조회는 판돈/정산/원장을 수정하지 않음. cursor는 마지막 경기 DB ID 문자열. 뒤늦게 종료된 경기는 새 첫 조회에서 다시 확인. docs/game-history-api.md.",
+        "auth": {
+          "type": "noauth"
+        },
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ]
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('승패 기권 중복 제외',()=>{",
+              "        pm.response.json().items.forEach(i=>pm.expect(i.played).to.eql(i.wins+i.losses+i.forfeits+i.draws));",
+              "    });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "40 전적 잘못된 커서",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/v1/users/me/games?cursor=-1",
+        "description": "HISTORY-01/02. 기존 회원 Access JWT·db 프로필 필요. 본인 종료/무효 경기만 DB ID 내림차순, size1~100·기본20. gameCode OMOK/DICE/ONE_CARD/LIAR_BRIDGE, 정산대기는 내역과 확정 승패에 포함. 무효는 내역만 표시·통계 제외. played=wins+losses+forfeits+draws, 기권을 losses에 중복 포함하지 않음. 조회는 판돈/정산/원장을 수정하지 않음. cursor는 마지막 경기 DB ID 문자열. 뒤늦게 종료된 경기는 새 첫 조회에서 다시 확인. docs/game-history-api.md.",
+        "auth": {
+          "type": "noauth"
+        },
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ]
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+              "pm.test('INVALID_CURSOR', () => pm.expect(pm.response.json().code).to.eql('INVALID_CURSOR'));"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

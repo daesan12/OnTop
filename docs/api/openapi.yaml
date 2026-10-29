@@ -13,6 +13,8 @@ tags:
   description: 인증된 본인의 지갑 조회
 - name: Ranking
   description: 보유 엽전 랭킹
+- name: HISTORY
+  description: 인증된 본인의 종료 경기 내역과 게임별 전적
 paths:
   /api/v1/users/onboarding:
     post:
@@ -2816,6 +2818,154 @@ paths:
                 - $ref: "#/components/schemas/ShopErrorResponse"
       security:
       - AccessJwt: []
+  /api/v1/users/me/games:
+    get:
+      tags:
+      - HISTORY
+      summary: 내 경기 내역
+      description: 본인 참가 종료·무효 경기의 DB ID 내림차순. cursor 미만을 size+1건 조회하며 정산 대기도 표시합니다.
+        진행 중 경기는 제외합니다.
+      operationId: games
+      parameters:
+      - name: cursor
+        in: query
+        description: 마지막 경기 DB ID. 다음 페이지는 이 ID 미만
+        required: false
+        schema:
+          type: string
+      - name: size
+        in: query
+        required: false
+        schema:
+          maximum: 100
+          minimum: 1
+          type: integer
+          default: 20
+      - name: gameCode
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - OMOK
+          - DICE
+          - ONE_CARD
+          - LIAR_BRIDGE
+      responses:
+        "200":
+          description: 본인 경기 내역 (no-store)
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GameHistoryPageResponse"
+        "400":
+          description: INVALID_CURSOR / INVALID_SIZE / UNSUPPORTED_GAME
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "401":
+          description: AUTH_AUTHENTICATION_REQUIRED / AUTH_INVALID_ACCESS_TOKEN /
+            AUTH_MEMBER_STATE_CHANGED
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "403":
+          description: Origin·회원 권한 거부
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "503":
+          description: HISTORY_UNAVAILABLE / AUTH_MEMBER_LOOKUP_UNAVAILABLE
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+      security:
+      - AccessJwt: []
+  /api/v1/users/me/game-stats:
+    get:
+      tags:
+      - HISTORY
+      summary: 내 게임별 전적
+      description: "FINISHED의 확정 결과만 집계합니다. INVALID·진행 중은 제외, 기권은 losses에 중복 포함하지\
+        \ 않습니다. 기록이 있는 게임만 코드순으로 반환합니다."
+      operationId: stats
+      responses:
+        "401":
+          description: AUTH_AUTHENTICATION_REQUIRED / AUTH_INVALID_ACCESS_TOKEN /
+            AUTH_MEMBER_STATE_CHANGED
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "403":
+          description: Origin·회원 권한 거부
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "503":
+          description: HISTORY_UNAVAILABLE / AUTH_MEMBER_LOOKUP_UNAVAILABLE
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "200":
+          description: 본인 게임별 전적 (no-store)
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GameStatsResponse"
+      security:
+      - AccessJwt: []
   /api/v1/tables:
     get:
       tags:
@@ -4667,6 +4817,64 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/OwnedItemResponse"
+    GameHistoryItem:
+      type: object
+      properties:
+        gameSessionId:
+          type: string
+        gameCode:
+          type: string
+        status:
+          type: string
+        myResult:
+          type: string
+          description: WIN/LOSE/FORFEIT/DRAW. 판정 없는 무효 경기는 null
+          nullable: true
+        settlementStatus:
+          type: string
+        endedAt:
+          type: string
+          format: date-time
+    GameHistoryPageResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/GameHistoryItem"
+        nextCursor:
+          type: string
+          description: 다음 페이지가 있을 때 마지막 경기 DB ID
+          nullable: true
+        hasNext:
+          type: boolean
+    GameStatsItem:
+      type: object
+      properties:
+        gameCode:
+          type: string
+        played:
+          type: integer
+          format: int64
+        wins:
+          type: integer
+          format: int64
+        losses:
+          type: integer
+          format: int64
+        forfeits:
+          type: integer
+          format: int64
+        draws:
+          type: integer
+          format: int64
+    GameStatsResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/GameStatsItem"
     TableListResponse:
       required:
       - tables
