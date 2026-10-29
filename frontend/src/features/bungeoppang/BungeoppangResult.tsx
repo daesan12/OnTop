@@ -29,7 +29,7 @@ export function BungeoppangResult() {
   const v4 = isV4Grill(grill), preview = v4 && (bungeoppangV4Preview || bungeoppangV5Preview)
   if (rankingOpen) return <PaperPopup key="ranking" title="붕어빵 전체 랭킹" label="붕어빵 전체 랭킹" closeLabel="랭킹 닫기"
     onClose={() => setRankingOpen(false)} className="bungeoppang-paper-result bungeoppang-ranking-popup">
-    <RankingDetails feed={ranking} rulesVersion={rulesVersion} onBack={() => setRankingOpen(false)} />
+    <RankingDetails feed={ranking} onBack={() => setRankingOpen(false)} />
   </PaperPopup>
   return <PaperPopup key="result" title="붕어빵 도전 결과" label="붕어빵 결과" onClose={escapeBungeoppang} className="bungeoppang-paper-result">
     <section role="region" aria-label="결과">

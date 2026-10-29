@@ -45,7 +45,7 @@ export function BungeoppangSceneV5() {
   if (!grill || !('rulesVersion' in grill) || !isV5Grill(grill) || !['countdown', 'play', 'ending'].includes(phase)) return null;
   return <group name="bungeoppang-v5-private">
     <mesh name="bungeoppang-flight-prewarm" visible={false} geometry={art.fish} material={art.crust} dispose={null} />
-    <BungeoppangCustomersV5 orders={grill.activeOrders} feedback={feedback} />
+    <BungeoppangCustomersV5 orders={grill.activeOrders} />
     <StockInstances tray={grill.tray} geometry={art.fish} material={art.crust} />
     <BurnerInstances geometry={art.flame} foot={art.burner} metal={art.metal} outer={art.flameMaterial} inner={art.coreMaterial} />
     <SteamInstances />

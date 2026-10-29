@@ -20,7 +20,7 @@ import {
 import { BUNGEOPPANG, bungeoppangV5Enabled } from "./config";
 import { createFishCartShape as fishShape } from '../../world/art/fishCartShape';
 import { createSculptedFish } from '../../world/art/fishBreadGeometry';
-import { v5HeatEls } from './layoutV5';
+import { v5HeatEls, BURNER_JET_OFFSETS, burnerJetEls } from './layoutV5';
 import { cookLevel, judge } from "./rules";
 import { heatLook, INGREDIENT_LOOK } from './presentation';
 import { BREAD_NAMES, BREAD_TOOLS } from './rulesV4';
@@ -222,6 +222,13 @@ function GrillMeshes() {
         const lit = cooking;
         const look = heatLook(slot?.heat ?? 100, bungeoppangClock.t, rules);
         monitor.dataset.lit = String(lit); monitor.dataset.heat = look.band; monitor.dataset.rush = String(look.rush);
+        // Only update flame parameters when the assigned heat or rush state changes.
+        const burnerKey = `${slot?.heat ?? 100}:${look.rush}`;
+        if (monitor.dataset.burnerKey !== burnerKey) {
+          monitor.dataset.burnerKey = burnerKey;
+          monitor.style.setProperty('--burner-height', String(look.burnerHeight));
+          monitor.style.setProperty('--burner-pulse', `${look.burnerPulseMs}ms`);
+        }
         const values = { '.bung-v5-heat-label': lit ? look.label : '꺼짐',
           '.bung-v5-heat-value': lit ? `${slot!.heat}%` : '—',
           '.bung-v5-heat-speed': lit ? `굽기 ×${look.speed.toFixed(2)}` : slot?.phase === 'batter' ? '소를 넣으면 가열 시작' : '반죽을 부어요',
@@ -292,6 +299,15 @@ function GrillMeshes() {
         sy = rect.top + ((1 - v.y) / 2) * rect.height;
       const width = Math.abs(((w.x - v.x) / 2) * rect.width) * 2;
       Object.assign(slotScreen[i]!, { x: sx, y: sy, width });
+      if (v5) BURNER_JET_OFFSETS.forEach(([dx, dz], jet) => {
+        const flame = burnerJetEls[i]![jet];
+        if (!flame) return;
+        const point = scratch.w.set(x + dx, BUNG_GRILL.top, z + dz).project(camera);
+        const px = `${(rect.left + (point.x + 1) / 2 * rect.width - sx).toFixed(1)}px`;
+        const py = `${(rect.top + (1 - point.y) / 2 * rect.height - sy).toFixed(1)}px`;
+        if (flame.style.getPropertyValue('--jet-x') !== px) flame.style.setProperty('--jet-x', px);
+        if (flame.style.getPropertyValue('--jet-y') !== py) flame.style.setProperty('--jet-y', py);
+      });
       const el = slotOverlayEls[i];
       if (el) {
         el.style.transform = `translate(${sx.toFixed(1)}px, ${sy.toFixed(1)}px)`;

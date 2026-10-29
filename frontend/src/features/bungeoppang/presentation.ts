@@ -13,9 +13,15 @@ export const INGREDIENT_LOOK: Record<BreadTool, { color: string; ink: string; de
 export function heatLook(heat: number, at: number, rules: { rushFromMs: number; sideMs: number; rushSideMs: number }) {
   const rush = at >= rules.rushFromMs;
   const band = heat <= 93 ? 'low' : heat >= 107 ? 'high' : 'medium';
+  const speed = heat / 100 * (rush ? rules.sideMs / rules.rushSideMs : 1);
+  const strength = Math.max(0, Math.min(1, (heat - 85) / 30));
   return { band, label: band === 'low' ? '약불' : band === 'high' ? '센불' : '보통불',
     flames: band === 'low' ? 1 : band === 'high' ? 3 : 2,
-    speed: heat / 100 * (rush ? rules.sideMs / rules.rushSideMs : 1), rush };
+    speed, rush,
+    burnerScale: (.62 + strength * .68) * (rush ? 1.3 : 1),
+    burnerHeight: (.035 + strength * .055) * (rush ? 1.3 : 1),
+    burnerPulseMs: Math.round(860 / speed),
+  };
 }
 
 export interface FeedbackPoint { x: number; y: number }
