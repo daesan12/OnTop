@@ -1,0 +1,23 @@
+ontop:
+  game-start:
+    enabled: ${GAME_START_ENABLED:false}
+  games:
+    omok:
+      enabled: ${GAME_OMOK_ENABLED:false}
+    farkle:
+      enabled: ${GAME_FARKLE_ENABLED:false}
+    onecard:
+      enabled: ${GAME_ONECARD_ENABLED:false}
+    bridge:
+      enabled: ${GAME_BRIDGE_ENABLED:false}
+  minigames:
+    enabled: ${MINIGAMES_ENABLED:false}
+    bungeoppang-v5-enabled: ${BUNGEOPPANG_V5_ENABLED:false}
+  shop:
+    enabled: ${SHOP_ENABLED:false}
+  notes:
+    enabled: ${NOTES_ENABLED:false}
+    privacy-secret: ${NOTES_PRIVACY_SECRET:}
+  world:
+    emote:
+      codes: ${WORLD_EMOTE_CODES:WAVE,CLAP,APPLAUSE_REQUEST,TSK,FART}

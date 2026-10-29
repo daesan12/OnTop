@@ -9,6 +9,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.List;
+import com.ssafy.ontop.config.RuntimeProfiles;
 import org.springframework.context.annotation.Profile;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.MediaType;
@@ -19,7 +20,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 /** 공통 인증 코드를 바꾸지 않고 시작 API의 Idempotency-Key 사전 요청만 지원한다. */
 @Component
-@Profile("(local | dev) & !prod & !production")
+@Profile(RuntimeProfiles.PRODUCT_FEATURE)
 @Order(-101)
 public class MinigamePreflightFilter extends OncePerRequestFilter {
     private final AuthExchangeOriginPolicy origins;

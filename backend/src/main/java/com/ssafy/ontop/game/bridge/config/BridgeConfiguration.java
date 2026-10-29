@@ -15,10 +15,11 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import com.ssafy.ontop.config.RuntimeProfiles;
 import org.springframework.context.annotation.Profile;
 
 @Configuration(proxyBeanMethods = false)
-@Profile("(local | dev) & !prod & !production")
+@Profile(RuntimeProfiles.PRODUCT_FEATURE)
 @ConditionalOnProperty(name = "ontop.games.bridge.enabled", havingValue = "true")
 @Import(GameEngineGateways.class)
 public class BridgeConfiguration {

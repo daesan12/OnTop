@@ -2,7 +2,7 @@
 
 본인 버튼 기권은 별도 [GAME_FORFEIT](game-forfeit-api.md)를 사용한다. GAME_ACTION_SEND의 input에 넣지 않는다.
 
-OnTop v0.4의 서버 판정·재접속 정책을 따르는 local/dev 연결부다. 선택적으로 켜는 [오목](omok.md)·[주사위](farkle.md)·[원카드](onecard.md)·[거짓말 다리](bridge.md) 엔진이 입력·상태·복구 Gateway를 구현한다. 기존 JWT·접속권을 사용하며 실제 DB 예약·정산은 별도 연결한다. 엔진 등록은 prod/production 혼합 시 제외하며 dev 활성화 조건은 [경기 시작 안내](committed-game-start.md#켜는-조건)를 따른다. 2026-10-20 Notion에 입력 전달·처리 확인 항목을 반영하고 아래 로컬 통신 계약과 대조했다. 기존 준비·시작·복구 규칙은 변경하지 않는다.
+OnTop v0.4의 서버 판정·재접속 정책을 따르는 local/dev 및 운영 `prod,db` 연결부다. 선택적으로 켜는 [오목](omok.md)·[주사위](farkle.md)·[원카드](onecard.md)·[거짓말 다리](bridge.md) 엔진이 입력·상태·복구 Gateway를 구현한다. 기존 JWT·접속권을 사용하며 실제 DB 예약·정산은 별도 연결한다. 운영과 local/dev 혼합 프로필은 제외하며 활성화 조건은 [경기 시작 안내](committed-game-start.md#켜는-조건)를 따른다. 2026-10-20 Notion에 입력 전달·처리 확인 항목을 반영하고 아래 로컬 통신 계약과 대조했다. 기존 준비·시작·복구 규칙은 변경하지 않는다.
 
 ## 입력과 처리 확인
 
