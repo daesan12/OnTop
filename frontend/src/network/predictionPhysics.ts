@@ -98,6 +98,7 @@ class PredictionPhysics implements PredictionSimulation {
       x: input.dx * speed * dt, y: this.vy * dt, z: input.dz * speed * dt,
     })
     const delta = this.controller.computedMovement()
+    if (this.vy > 0 && delta.y + .0001 < this.vy * dt) this.vy = 0
     const limit = WORLD.halfSize - WORLD.boundaryHalfDepth - MOVEMENT.radius - MOVEMENT.offset
     this.body.setNextKinematicTranslation({ x: Math.max(-limit, Math.min(limit, p.x + delta.x)),
       y: p.y + delta.y, z: Math.max(-limit, Math.min(limit, p.z + delta.z)) })

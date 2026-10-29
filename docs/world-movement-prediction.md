@@ -63,6 +63,24 @@ Java Bullet과 Rapier는 다른 엔진이므로 완전히 같은 궤적을 보�
 
 테스트 전용 `ClientPositionPrototypeTests`는 별도의 client-driven 위치 검증 가능성을 살펴보는 오프라인 초안이다. 제품 프로토콜은 여전히 방향 입력 방식이며 좌표 제출 API가 추가된 것이 아니다. 사용자 B 선호와 초안의 통과/미검증 범위는 `world-movement-analysis.md`8절을 참고한다.
 
+### local opt-in 실험 계약 (dev/prod 미적용)
+
+기본 OFF인 `ontop.world.movement.client-position=true`는 local 프로필에서만 허용한다. 이때 `WORLD_STATE.avatars[].motion.authority`가 `CLIENT_VALIDATED`인 본인만 아래 메시지를 기존60ms 큐에서 전송한다. 구서버/기본 서버/권위 필드가 없는 actor는 기존 `WORLD_MOVE`다.
+
+```json
+{
+  "requestId": "position-1",
+  "type": "WORLD_POSITION",
+  "payload": { "seq": 1, "epoch": 1, "x": -2.0, "y": 0.84, "z": 34.0, "yaw": 0.0, "run": false, "jump": false }
+}
+```
+
+응답은 기존 `WORLD_STATE`다. seq는 보고 순번, epoch는 직전 서버 세대를 사용하며 x/y/z/yaw는 실제 로컬 물리 표본이다. client timestamp/dt/grounded/userId 필드는 허용하지 않는다. 정상 승인에 appliedInputSeq가 증가하면 확인 기한을 갱신하고 물리는 되감지 않는다. 과거 승인 재방송은 기한을 늘리지 않는다. 새 epoch가 오면 이전 보고를 버리고 서버 위치에서 다시 시작한다.
+
+위치·속도·충돌 검증 거절이나500ms 보고 만료는 마지막 승인 좌표에서 서버 모드로 복귀하고 authority를 생략한다. 이 입장 중 좌표 모드 자동 재시도는 없다. 잘못된 공통 필드는 INVALID_PAYLOAD, 기능 OFF는 UNSUPPORTED_MESSAGE_TYPE, 채널 미입장은 NOT_IN_CHANNEL, 활동 차단은 기존 TABLE_BUSY/FACILITY_BUSY 또는 ACTIVITY_BUSY, 과다 요청은 MOVE_TOO_FREQUENT다. 인증/게임 복구/맵 확인은 공통 게이트다. 수영·전망대·따라가기에서 서버 모드로 전환하는 정상 경계와 실패 fallback은 구분한다. 상세는 분석서9절을 참고한다. 현재 서비스용 Notion/Postman 계약을 C로 대체하지 않는다.
+
+첫 보고 전에는 승인 스폰을 유지해 WASM/모델 로딩 시간 때문에 실패 복귀하지 않는다. 클라이언트 준비 완료 시 로딩 시간을 이동으로 재생하지 않는다. 준비 실패는 `WORLD_POSITION_FALLBACK`에 `{"epoch":현재세대}`를 보내 명시적으로 서버 이동으로 복귀한다. 옛 세대 요청/중복 요청은 추가 세대 변경 없이 현재 WORLD_STATE를 돌려준다. 준비 중에는 WORLD_MOVE를 보내지 않으며 준비 실패 후 서버 권위 응답을 받은 뒤 기존 입력으로 이동한다.
+
 BE 먼저 반영 후 FE를 반영할 수 있다. 구FE는 추가 motion을 무시하고 신FE는 motion 없는 구BE에서 기존 표시를 사용한다. 인증·DB 스키마·게임 규칙 변경은 없다.
 
 MovementPredictionContractTests는 수락/물리 완료 구분, 버스트·충전·중복 순번, 속도와 의자 안전 이동의 세대 동기화를 검사한다. FE 단위 검사는 예측·재생·정지·방향 전환·기한·재접속/활동 중단·실제 Rapier 충돌을 확인한다. 선택 실행 MovementPredictionFrontendTests와 movement-prediction.spec.ts는 같은 Bullet 궤적의 제어된 리플레이를 비교한다. 합성 로그인/전송과 준비된 충돌 월드의 로컬 비교이며 운영 지연 측정·실제 로그인 연동 검수와 구분한다.

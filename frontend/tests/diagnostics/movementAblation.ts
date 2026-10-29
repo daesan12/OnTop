@@ -22,6 +22,9 @@ export function installMovementAblation(prediction: LocalMovementPrediction, mod
   if (mode !== 'baseline') probe.displayOffset = () => ({ x: 0, y: 0, z: 0 })
   let ordinaryResets = 0
   prediction.reconcile = (scope, pose, motion, allowed, at = performance.now()) => {
+    // A/B belongs only to the legacy input-authority path. Do not override the
+    // real position-approval lease or its correction handling in local C mode.
+    if (motion?.authority === 'CLIENT_VALIDATED') { reconcile(scope, pose, motion, allowed, at); return }
     const previous = probe.baseline
     const ordinary = previous && scope === probe.scope && probe.allowed && allowed && motion
       && motion.epoch === previous.motion.epoch

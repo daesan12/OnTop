@@ -5,6 +5,7 @@ import { MOVEMENT, NETWORK } from '../config'
 export interface MotionSnapshot {
   epoch: number; tick: number; appliedInputSeq: number; inputAgeMs: number
   velocityY: number; grounded: boolean; inputActive: boolean
+  authority?: 'CLIENT_VALIDATED'
 }
 export interface PredictionSimulation {
   reset(pose: Pose, velocityY: number, grounded: boolean): void
@@ -55,6 +56,18 @@ export class LocalMovementPrediction {
     (await import('./predictionPhysics')).createPredictionPhysics(), private readonly now = () => performance.now()) {}
 
   get ready() { return this.allowed && !!this.sim && !!this.baseline }
+  get epoch() { return this.baseline?.motion.epoch ?? null }
+  get positionMode() { return this.baseline?.motion.authority === 'CLIENT_VALIDATED' }
+  get positionPreparing() { return this.baseline?.motion.authority === 'CLIENT_VALIDATED' && !this.sim && !this.unavailable }
+  positionFallback() {
+    return this.unavailable && this.baseline?.motion.authority === 'CLIENT_VALIDATED' ? { epoch: this.baseline.motion.epoch } : undefined
+  }
+  private get horizon() { return this.baseline?.motion.authority === 'CLIENT_VALIDATED' ? 500 : HORIZON_MS }
+  positionReport(seq: number, intent: MovementIntent, at = this.now()) {
+    if (!this.ready || this.baseline?.motion.authority !== 'CLIENT_VALIDATED') return undefined
+    this.advance(at)
+    return { seq, epoch: this.baseline.motion.epoch, ...this.sim!.pose(), run: intent.run, jump: intent.jump }
+  }
   async prepare() {
     if (this.unavailable || this.sim || this.preparing) return this.preparing
     const generation = this.generation
@@ -63,7 +76,14 @@ export class LocalMovementPrediction {
       this.sim = sim
       sim.setChairs(this.chairCounts)
       const base = this.baseline
-      if (base) { sim.reset(base.pose, base.motion.velocityY, base.motion.grounded); this.simulatedAt = base.at }
+      if (base) {
+        const at = base.motion.authority === 'CLIENT_VALIDATED' && base.motion.appliedInputSeq === 0 ? this.now() : base.at
+        if (at !== base.at) {
+          base.at = at
+          this.timeline = [{ at, intent: { ...this.intent, jump: false } }]
+        }
+        sim.reset(base.pose, base.motion.velocityY, base.motion.grounded); this.simulatedAt = at
+      }
     }).catch(() => {
       if (generation === this.generation) this.unavailable = true
       // WASM/browser failure keeps the original server-only presentation; no fake local success.
@@ -99,6 +119,20 @@ export class LocalMovementPrediction {
     if (!newEpoch && motion.tick < old.motion.tick) return
     if (!newEpoch && motion.tick === old.motion.tick && distance(pose, old.pose) < .0001) {
       this.allowed = true
+      if (motion.authority === 'CLIENT_VALIDATED') this.baseline = { ...old, motion,
+        at: motion.appliedInputSeq > old.motion.appliedInputSeq ? at : old.at }
+      return
+    }
+    if (!newEpoch && motion.authority === 'CLIENT_VALIDATED' && old.motion.authority === 'CLIENT_VALIDATED') {
+      this.advance(at)
+      // This pose acknowledges a previously submitted physical sample. It is
+      // never applied over the character's newer local physics position.
+      this.baseline = { pose: { ...pose }, motion,
+        at: motion.appliedInputSeq > old.motion.appliedInputSeq ? at : old.at, anchor: at }
+      this.allowed = true
+      this.idleWindow = false
+      this.sent = this.sent.filter(frame => frame.seq > motion.appliedInputSeq)
+      this.trim(at)
       return
     }
     this.advance(at)
@@ -152,7 +186,7 @@ export class LocalMovementPrediction {
   intend(intent: MovementIntent, at = this.now()) {
     if (!this.allowed || !this.baseline) return
     // An idle world does not broadcast unchanged positions. Begin from the last confirmed idle pose.
-    if (this.idleWindow && !this.intent.dx && !this.intent.dz && !this.intent.jump && (intent.dx || intent.dz || intent.jump)) {
+    if (this.baseline.motion.authority !== 'CLIENT_VALIDATED' && this.idleWindow && !this.intent.dx && !this.intent.dz && !this.intent.jump && (intent.dx || intent.dz || intent.jump)) {
       this.baseline.at = at; this.simulatedAt = at
       this.idleWindow = false
     }
@@ -200,7 +234,7 @@ export class LocalMovementPrediction {
     return true
   }
   displayFlags(at: number) {
-    const active = this.ready && !!this.baseline && at - this.baseline.at <= HORIZON_MS
+    const active = this.ready && !!this.baseline && at - this.baseline.at <= this.horizon
     return { moving: !!(active && (this.intent.dx || this.intent.dz)), running: !!(active && this.intent.run) }
   }
   metrics() { return { firstResponseMs: [...this.responseTimes], correctionMetres: [...this.corrections],
@@ -247,9 +281,9 @@ export class LocalMovementPrediction {
   }
   private advance(at: number) {
     if (!this.sim || !this.baseline) return
-    const end = Math.min(at, this.baseline.at + HORIZON_MS)
+    const end = Math.min(at, this.baseline.at + this.horizon)
     if (end <= this.simulatedAt) return
-    const start = Math.max(this.simulatedAt, end - HORIZON_MS)
+    const start = Math.max(this.simulatedAt, end - this.horizon)
     const initial = last(this.timeline, f => f.at <= start)
     let jumpAt = initial?.at ?? -Infinity
     let input = { ...(initial?.intent ?? STOP), jump: !!initial?.intent.jump && jumpAt > this.lastJumpAt }

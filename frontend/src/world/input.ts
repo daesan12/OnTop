@@ -13,6 +13,7 @@ import { normalizeTelescopeAim } from '../features/telescopes/anchors'
 import { telescopeTurnRate, telescopeView, zoomTelescope } from '../features/telescopeView'
 import { inputState, panelOwnsKeys, panelOwnsMovement, roamingInput, textInputOwnsKeys } from './inputOwnership'
 import { cameraRelativeMove, MOVEMENT_INPUT_INTERVAL_MS, type MovementIntent } from '../network/movementInput'
+import { localMovement } from '../network/localMovementPrediction'
 import { useGame } from '../game/store'
 import { canLeaveByMovement } from '../features/tableLobby/model'
 import { seatScope, turnSeatedLook } from '../features/tableLobby/state'
@@ -73,7 +74,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     const side = Number(keys.has('KeyD') || keys.has('ArrowRight')) - Number(keys.has('KeyA') || keys.has('ArrowLeft'))
     cameraRelativeMove(forward, side, viewControls.yaw,
       keys.has('ShiftLeft') || keys.has('ShiftRight'), jumpNow, intent)
-    if (intent.dx || intent.dz || jumpNow || hadMovement)
+    if (intent.dx || intent.dz || jumpNow || hadMovement || localMovement.positionMode)
       parkRuntime.move(intent.dx, intent.dz, intent.run, intent.jump)
     hadMovement = !!(intent.dx || intent.dz)
   }
@@ -319,6 +320,10 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
       if (benchExitKey && useSession.getState().benchId && useSession.getState().status === 'connected'
         && !document.hidden && !panelOwnsKeys() && !textInputOwnsKeys(document.activeElement)) return
       if (hadMovement || keys.size || jump) stop()
+      // Foreground UI/text focus blocks controls, not the verified position lease.
+      // Actual facility/table/activity ownership remains gated by the runtime.
+      if (!document.hidden && localMovement.positionMode && localMovement.ready)
+        parkRuntime.move(0, 0, false, false)
       return
     }
     if (!useSession.getState().benchId) benchExitKey = false

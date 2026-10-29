@@ -782,7 +782,7 @@ export class ParkRuntime implements ParkRuntimePort {
   }
   private movementScope() {
     const s = useSession.getState()
-    return JSON.stringify([this.generation, s.sessionId, s.roomId])
+    return JSON.stringify([this.generation, s.sessionId, s.roomId, localMovement.epoch])
   }
   private canSendMovement(intent: MovementIntent) {
     const s = useSession.getState()
@@ -800,11 +800,19 @@ export class ParkRuntime implements ParkRuntimePort {
   }
   private async sendMovement(intent: MovementIntent, scope: string) {
     if (scope !== this.movementScope() || !this.canSendMovement(intent)) return
+    const fallback = localMovement.positionFallback()
+    if (fallback) {
+      try { await this.socket.request('WORLD_POSITION_FALLBACK', fallback, ['WORLD_STATE']) }
+      catch (error) { if (scope === this.movementScope() && this.active) this.report(error) }
+      return
+    }
+    if (localMovement.positionPreparing) return
     const sequence = ++this.inputSequence
     localMovement.sentInput(sequence, performance.now(), intent)
     let requestId = ''
     try {
-      await this.socket.request('WORLD_MOVE', {
+      const report = localMovement.positionReport(sequence, intent)
+      await this.socket.request(report ? 'WORLD_POSITION' : 'WORLD_MOVE', report ?? {
         seq: sequence,
         ...intent,
       }, ['WORLD_STATE'], id => { requestId = id; this.movementRequests.set(id, sequence) })

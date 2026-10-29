@@ -161,6 +161,7 @@ export function worldState(value: Record<string, unknown>): WorldState {
     && typeof m.inputAgeMs === 'number' && Number.isFinite(m.inputAgeMs) && m.inputAgeMs >= 0 && m.inputAgeMs <= 250
     && typeof m.velocityY === 'number' && Number.isFinite(m.velocityY)
     && typeof m.grounded === 'boolean' && typeof m.inputActive === 'boolean'
+      && (m.authority === undefined || m.authority === 'CLIENT_VALIDATED')
   const tableSeat = (s: unknown) => s == null || record(s)
     && text(s.tableId) && s.tableId.length <= 120
     && integer(s.seatNumber) && s.seatNumber >= 1 && s.seatNumber <= 4

@@ -23,8 +23,12 @@ export function installMovementPanel() {
   const writes = observeMovementWrites()
   let frameId = 0, disposed = false
   const update = () => {
-    status.textContent = `${modes.find(m => m[0] === mode)![1]} · ${localMovement.ready ? '준비됨' : '서버 확인 대기'} · Shift 달리기/좌우/점프 비교`
-    buttons.forEach((button, index) => button.style.background = modes[index]![0] === mode ? '#85c4ff' : '#eee')
+    const clientValidated = experiment.snapshot().motion?.authority === 'CLIENT_VALIDATED'
+    status.textContent = `${clientValidated ? 'C: 로컬 이동 + 서버 좌표 검증' : modes.find(m => m[0] === mode)![1]} · ${localMovement.ready ? '준비됨' : '서버 확인 대기'} · Shift 달리기/좌우/점프 비교`
+    warning.textContent = clientValidated
+      ? '로컬 전용 검증 모드입니다. 승인 실패·보고 만료 시 기존 서버 이동으로 복귀합니다.'
+      : 'B는 진단용이며 서버 위치와 어긋날 수 있어요. 전환 직후 초기화 구간은 비교에서 제외해 주세요.'
+    buttons.forEach((button, index) => { button.disabled = clientValidated; button.style.background = modes[index]![0] === mode ? '#85c4ff' : '#eee' })
   }
   for (const [next, label] of modes) {
     const button = document.createElement('button')
