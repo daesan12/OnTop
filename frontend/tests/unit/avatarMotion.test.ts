@@ -44,7 +44,41 @@ describe('avatar pose transitions and resource ownership', () => {
     expect(cadence.advance(1 / 60, 5, false, true, avatarPoseKey(a))).toBeGreaterThan(0)
   })
 
+  it('sleeps only after idle easing, and immediately wakes for pose or position changes', () => {
+    for (const own of [true, false]) {
+      const cadence = new AvatarPoseCadence()
+      let updates = 0
+      for (let i = 0; i < 100; i++) if (cadence.advance(1 / 60, 8, own, false, 'idle:0,0,0')) updates++
+      expect(updates).toBeGreaterThan(10)
+      for (let i = 0; i < 120; i++) expect(cadence.advance(1 / 60, 8, own, false, 'idle:0,0,0')).toBe(0)
+      expect(cadence.advance(1 / 60, 8, own, false, 'idle:0,1,0')).toBeGreaterThan(0)
+      expect(cadence.advance(1 / 60, 8, own, true, 'walk:0,1,0')).toBeGreaterThan(0)
+      for (let i = 0; i < 120; i++) expect(cadence.advance(1 / 60, 8, own, true, 'walk:0,1,0')).toBeGreaterThan(0)
+      expect(cadence.advance(1 / 60, 8, own, false, 'sit:0,1,0')).toBeGreaterThan(0)
+    }
+  })
+
   for (const name of ['man', 'girl'] as const) {
+    it(`${name}: an idle pose settles before sleep and resumes the next gesture`, async () => {
+      const source = await characterSource(name), rig = createCharacterRig(source), reference = createCharacterRig(source)
+      const motion = createAvatarMotion(rig), fullMotion = createAvatarMotion(reference), cadence = new AvatarPoseCadence()
+      const figure = new Group(), fullFigure = new Group()
+      const step = (a: AvatarSnapshot, frames: number) => {
+        for (let i = 0; i < frames; i++) {
+          const delta = cadence.advance(1 / 60, 8, false, avatarPoseActive(a, 500), avatarPoseKey(a))
+          if (delta) motion.apply(a, 500, delta, pose, figure)
+          fullMotion.apply(a, 500, 1 / 60, pose, fullFigure)
+        }
+      }
+      step(avatar({ moving: true, running: true }), 60)
+      step(avatar(), 240)
+      for (const joint of characterBones) expect(rig.bones[joint].quaternion.angleTo(reference.bones[joint].quaternion)).toBeLessThan(0.0001)
+      expect(figure.position.y).toBeCloseTo(fullFigure.position.y, 4)
+      const before = rig.bones.upperArm_R.quaternion.clone()
+      step(avatar({ emote: 'EMOTE_WAVE', emoteAt: 100 }), 1)
+      expect(rig.bones.upperArm_R.quaternion.angleTo(before)).toBeGreaterThan(0.001)
+      rig.dispose(); reference.dispose()
+    })
     it(`${name}: keeps the seated body and clothing above the seat surface`, async () => {
       const rig = createCharacterRig(await characterSource(name)), motion = createAvatarMotion(rig)
       const figure = new Group()
