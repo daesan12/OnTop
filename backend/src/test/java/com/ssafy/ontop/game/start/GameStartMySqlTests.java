@@ -2,6 +2,10 @@ package com.ssafy.ontop.game.start;
 
 import com.ssafy.ontop.game.domain.GameParticipant;
 import com.ssafy.ontop.game.domain.GameSession;
+import com.ssafy.ontop.game.reconnect.ActiveGameLookup;
+import com.ssafy.ontop.game.reconnect.GameReconnectService;
+import com.ssafy.ontop.game.reconnect.GameRecoveryGateway;
+import com.ssafy.ontop.game.reconnect.GameRecoverySnapshot;
 import com.ssafy.ontop.game.repository.GameSessionRepository;
 import com.ssafy.ontop.minigame.service.MinigameService;
 import com.ssafy.ontop.shop.ShopException;
@@ -21,6 +25,7 @@ import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import org.flywaydb.core.Flyway;
 import org.hibernate.engine.spi.SessionFactoryImplementor;
@@ -76,6 +81,8 @@ class GameStartMySqlTests {
     @Autowired private EntityManagerFactory entities;
     @Autowired private Flyway flyway;
     @Autowired private UserLockProbe probe;
+    @Autowired private ActiveGameLookup activeGames;
+    @Autowired private GameRuntimeIdentity runtimeIdentity;
 
     @AfterEach
     void clearProbe() {
@@ -97,7 +104,8 @@ class GameStartMySqlTests {
     void 신규_DB에_기본과_선택적_마이그레이션을_적용하고_JPA_validate와_재실행을_검증한다() {
         assertThat(jdbc.queryForObject("SELECT VERSION()", String.class)).startsWith("8.4.");
         assertThat(flyway.info().applied()).extracting(info -> info.getVersion().getVersion())
-                .containsExactly("1", "2", "3", "4", "5", "6", "100", "110", "111", "112", "122", "123", "124", "125", "126");
+                .containsExactly("1", "2", "3", "4", "5", "6", "100", "110", "111", "112", "122", "123",
+                        "124", "125", "126", "127", "128");
         assertThat(flyway.info().pending()).isEmpty();
         assertThat(flyway.validateWithResult().validationSuccessful).isTrue();
         assertThat(flyway.migrate().migrationsExecuted).isZero();
@@ -139,6 +147,58 @@ class GameStartMySqlTests {
                 + " AND settlement_status='PENDING' AND reserved_at IS NOT NULL AND started_at IS NULL"
                 + " AND ended_at IS NULL AND settled_at IS NULL AND owner_boot_id IS NOT NULL", Integer.class, id))
                 .isEqualTo(1);
+    }
+
+    @Test
+    void 활성경기_JOIN조회와_엔진소실판정은_Wallet과_원장을_변경하지_않는다() throws Exception {
+        long owner = member();
+        var command = command("OMOK", owner, member());
+        var reserved = gateway.startGame(command);
+        long gameId = GameIdCodec.parse(reserved.gameSessionId());
+        Wallet before = wallets.findByUserId(owner).orElseThrow();
+        long balance = before.balance();
+        long reservedBalance = before.reserved();
+        long ledgerRows = ledger.count();
+
+        var record = activeGames.findByUserId(owner).orElseThrow();
+        assertThat(record.gameSessionId()).isEqualTo(gameId);
+        assertThat(record.gameId()).isEqualTo(reserved.gameSessionId());
+        assertThat(record.gameCode()).isEqualTo("OMOK");
+        assertThat(record.tableId()).isEqualTo(command.tableId());
+        assertThat(record.status()).isEqualTo(GameSession.Status.RESERVED);
+        assertThat(record.settlementStatus()).isEqualTo(GameSession.SettlementStatus.PENDING);
+        assertThat(record.ownedBy(runtimeIdentity.instanceId(), runtimeIdentity.bootId())).isTrue();
+        assertThat(record.reservedAt()).isNotNull();
+        assertThat(record.startedAt()).isNull();
+        assertThat(record.endedAt()).isNull();
+
+        GameRecoveryGateway emptyRouter = new GameRecoveryGateway() {
+            @Override public java.util.Optional<GameRecoverySnapshot> load(long userId) {
+                return java.util.Optional.empty();
+            }
+            @Override public void graceExpired(GraceExpiration command) { }
+        };
+        var messages = new LinkedBlockingQueue<GameReconnectService.View>();
+        var reconnect = new GameReconnectService(java.util.Optional.of(emptyRouter), java.util.Optional.empty(),
+                java.util.Optional.of(activeGames), java.util.Optional.of(runtimeIdentity));
+        try {
+            reconnect.connected(owner, "mysql-reconnect", (requestId, view) -> messages.add(view));
+            GameReconnectService.View view;
+            do {
+                view = messages.poll(5, TimeUnit.SECONDS);
+                assertThat(view).isNotNull();
+            } while (!view.status().equals("UNAVAILABLE"));
+            assertThat(view.code()).isEqualTo("RECOVERY_UNAVAILABLE");
+            assertThat(reconnect.canUseLobby(owner, "mysql-reconnect")).isFalse();
+        } finally {
+            reconnect.shutdown();
+        }
+
+        Wallet after = wallets.findByUserId(owner).orElseThrow();
+        assertThat(after.balance()).isEqualTo(balance);
+        assertThat(after.reserved()).isEqualTo(reservedBalance);
+        assertThat(ledger.count()).isEqualTo(ledgerRows);
+        assertThat(activeGames.findByUserId(Long.MAX_VALUE)).isEmpty();
     }
 
     @Test

@@ -181,7 +181,7 @@ class CommittedStartFlowTests {
             prepare(first, second, "OMOK");
             assertThat(reservation.entered.await(5, TimeUnit.SECONDS)).isTrue();
             second.stopPong();
-            assertThat(second.awaitClose()).isEqualTo(1001);
+            awaitServerDisconnect(second);
             clock.advanceSeconds(seconds);
             reservation.release.countDown();
             playing(first);
@@ -493,7 +493,7 @@ class CommittedStartFlowTests {
             prepare(first, second, "OMOK");
             assertThat(reservation.entered.await(5, TimeUnit.SECONDS)).isTrue();
             second.stopPong();
-            assertThat(second.awaitClose()).isEqualTo(1001);
+            awaitServerDisconnect(second);
             clock.advanceSeconds(seconds);
             try (var returned = connect(202, "LOBBY")) {
                 // 유예 안에 돌아온 시점이 기준이다. 확정이 더 늦어져도 그 복귀를 보존한다.
@@ -522,7 +522,7 @@ class CommittedStartFlowTests {
             prepare(first, second, "OMOK");
             assertThat(reservation.entered.await(5, TimeUnit.SECONDS)).isTrue();
             second.stopPong();
-            assertThat(second.awaitClose()).isEqualTo(1001);
+            awaitServerDisconnect(second);
             clock.advanceSeconds(30);
             try (var returned = connect(202, "LOBBY")) {
                 reservation.release.countDown();
@@ -530,6 +530,12 @@ class CommittedStartFlowTests {
                 assertThat(returned.state("FINISHED").path("gameId").asText()).isEqualTo(GAME);
             }
         }
+    }
+
+    private void awaitServerDisconnect(ScenarioClient client) throws Exception {
+        assertThat(client.awaitClose()).isEqualTo(1001);
+        // close frame은 Hub 정리보다 먼저 도착할 수 있다. 같은 monitor를 다시 획득해 단절 등록 완료를 기다린다.
+        hub.metricsSnapshot();
     }
 
     private ScenarioClient connect(long id) throws Exception { return connect(id, "LOBBY"); }
