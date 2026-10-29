@@ -28,6 +28,35 @@
 | 다른 boot의 미완료 경기 자동 INVALID/반환 | 실행 소유권 확인 전 구현·활성화하지 않음 |
 | FE의 INVALID nullable 결과 지원 | 승인 후 반영, 공통 2D/3D 표시·재조회 연결 |
 
+## DB 활성 경기와 엔진 재접속 대조 (OnTop Story A)
+
+`JpaActiveGameLookup`은 `game_participants.active_user_id`와 `game_sessions`를 한 번의 읽기 전용
+JOIN으로 조회한다. `active_user_id` UNIQUE 때문에 사용자별 결과는 최대 한 건이다. 조회 결과에는
+gameSessionId/gameCode/tableId, 경기·정산 상태, owner instance/boot, reserved/started/ended 시각이 포함된다.
+조회는 경기·참가자·Wallet·원장을 변경하지 않으며 신규 migration은 없다.
+
+DB 기능이 켜진 환경의 `GameReconnectService`는 자동 연결 조회와 수동 `GAME_RECONNECT_CHECK`에 같은
+판정을 적용한다.
+
+- DB와 엔진이 모두 비어 있을 때만 기존 `LOBBY`다.
+- DB gameSessionId와 엔진 gameId가 같고 owner instance/boot가 현재 실행과 같을 때만 기존 snapshot을
+  사용한다. PLAYING은 `RESTORED`, 탈락·종료는 기존 의미를 유지한다.
+- DB 활성 경기만 남았거나 gameId/owner/state가 다르거나 DB 조회가 실패하면
+  `UNAVAILABLE(code=RECOVERY_UNAVAILABLE)`이다. snapshot과 저장소 오류 상세는 노출하지 않는다.
+- FINISHED/INVALID + PENDING은 진행 중 복구와 구분한다. 엔진도 FINISHED일 때만 종료 snapshot으로
+  취급하며, 현재 테이블 이력이 없어 종료 snapshot을 표시할 수 없더라도 `LOBBY`로 바꾸지 않는다.
+- SETTLED인데 active marker가 남은 기록은 정상 완료로 묵인하지 않는다.
+- 엔진 종료와 DB 판정 수신 사이의 `RUNNING + FINISHED snapshot`, 정산 커밋으로 active marker가
+  해제된 직후의 FINISHED snapshot은 시점 경합으로 허용한다. 다음 조회에서 최신 상태를 다시 판정한다.
+
+기존 서버 감지 시각 기준 30초 유예, 동일 만료 event 재시도, 2인 기권/3~4인 탈락 처리는 바뀌지
+않는다. `UNAVAILABLE`은 기존 `canUseLobby()`에서 false이므로 테이블·월드·관전 진입도 복구 확인 전
+차단된다. DB의 `MEMBER_ALREADY_IN_GAME` UNIQUE 차단은 최종 안전장치로 유지한다.
+
+이 대조는 heartbeat/lease/fencing이나 엔진 복원이 아니다. 과거 boot의 RESERVED/RUNNING을 INVALID로
+바꾸거나 참가비를 반환하지 않으며, 자동 무효화·환불은 후속 운영 소유권 계약 전까지 지원하지 않는다.
+운영 로그는 불일치 분류와 예외 종류만 기록하고 사용자·Wallet 상세를 기록하지 않는다.
+
 ### 활성화와 RUNNING
 
 `GameRuntimeIdentity`는 현재 Spring 실행에서 공유하는 instanceId와 boot UUID를 제공한다.
