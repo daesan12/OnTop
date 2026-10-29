@@ -1,6 +1,8 @@
 import { test, expect, type Page } from '@playwright/test'
 import { fixture, screenshot } from './contractFixture'
 import { MAILBOX, NOTES_BOX } from '../../src/config'
+import { facilityCatalog } from '../fixtures/facilityCatalog'
+import { benchTable } from '../../src/features/interactions/benchSpectator'
 
 const manual=(page:Page)=>page.getByRole('dialog',{name:'게임 설명서',exact:true})
 
@@ -42,6 +44,12 @@ async function loaded(page:Page) {
     return roamingInput.ready && useSession.getState().status==='connected'
   })).toBe(true)
   await page.locator('canvas').focus()
+}
+// E seats at once; the table panel (fee and game choice) opens from the lobby button.
+async function seatAtTable(page:Page) {
+  await page.keyboard.press('KeyE')
+  await page.getByRole('button',{name:'테이블 로비 열기',exact:true}).click()
+  await expect(page.getByRole('dialog',{name:'테이블 정보'})).toBeVisible()
 }
 async function opened(page:Page) {
   await expect(manual(page)).toBeVisible()
@@ -120,7 +128,7 @@ for(const [code,title,options] of [
   ['OMOK','오목',{omok:true}],['DICE','주사위 한 판',{dice:true}],['ONE_CARD','원카드',{onecard:2 as const}],['LIAR_BRIDGE','거짓말 다리 건너기',{bridge:2 as const}],
 ] as const) test('M15 contextual F1 preserves participant state and BE command flow: '+code,async({page})=>{
   const server=await fixture(page,{...options,omok:true,m09:true}); await loaded(page)
-  await page.keyboard.press('KeyE'); await page.getByRole('button',{name:'앉기',exact:true}).click()
+  await seatAtTable(page)
   await page.getByLabel('1인 참가비').fill('1'); await page.getByRole('button',{name:title+' 선택',exact:true}).click()
   await page.keyboard.press('F1'); await opened(page)
   await expect(manual(page).getByRole('heading',{name:title,exact:true,level:3})).toBeVisible()
@@ -156,7 +164,7 @@ test('M15 missing illustration offers bundled detail rules and F1 closes both mo
 
 test('M15 F1 leaves the existing dice score sheet owned and Esc closes only the front modal',async({page})=>{
   const server=await fixture(page,{omok:true,dice:true,m09:true}); await loaded(page)
-  await page.keyboard.press('KeyE'); await page.getByRole('button',{name:'앉기',exact:true}).click()
+  await seatAtTable(page)
   await page.getByLabel('1인 참가비').fill('1'); await page.getByRole('button',{name:'주사위 한 판 선택',exact:true}).click()
   await page.getByRole('button',{name:'준비',exact:true}).click(); server.confirmStart()
   await expect(page.getByRole('region',{name:'주사위 경기',exact:true})).toBeVisible()
@@ -179,4 +187,37 @@ test('M15 F1 preserves the chat draft/focus and ignores IME, repeat and modified
   await expect(manual(page)).toHaveCount(0)
   await page.keyboard.press('F1'); await opened(page); await close(page)
   await expect(chat).toBeFocused(); await expect(chat).toHaveValue('작성 중인 메시지')
+})
+
+// Spectating starts from a pavilion bench; the table panel opens only at one's own seat.
+test('M15 spectator F1 preserves public role, camera and private-state boundaries',async({page})=>{
+  const bench=facilityCatalog.facilities.find(d=>d.kind==='BENCH'&&benchTable(d.facilityId)?.pavilionId==='P1')!
+  const server=await fixture(page,{publicSpectator:true,manualMovement:true,position:bench.center,anchorId:benchTable(bench.facilityId)!.id,omok:true,spectatorEvents:true})
+  await loaded(page)
+  await expect.poll(()=>page.evaluate(async()=>(await import('/src/features/facilities/state.ts' as string)).useFacilityState.getState().ready)).toBe(true)
+  expect(await page.evaluate(async id=>(await import('/src/features/interactions/benchController.ts' as string)).sitBench(id,0),bench.facilityId)).toBe(true)
+  await page.getByRole('button',{name:'가까이 관전',exact:true}).click()
+  await expect.poll(()=>page.evaluate(async()=>(await import('/src/features/tableLobby/state.ts' as string)).useTableLobby.getState().spectatorStatus)).toBe('watching')
+  const probe=()=>page.evaluate(async()=>{
+    const game=(await import('/src/game/store.ts' as string)).useGame.getState().game
+    return {role:game?.role,gameId:game?.gameId,status:(await import('/src/features/tableLobby/state.ts' as string)).useTableLobby.getState().spectatorStatus,
+      camera:(await import('/tests/e2e/sceneProbe.ts' as string)).adCameraProbe().camera as number[]}
+  })
+  // The close view eases in; measure only once the camera has come to rest.
+  await expect.poll(async()=>{
+    const from=(await probe()).camera; await page.waitForTimeout(250)
+    return (await probe()).camera.every((value,index)=>Math.abs(value-from[index]!)<1e-4)
+  }).toBe(true)
+  const before=await probe(); expect(before.role).toBe('SPECTATOR')
+  await page.keyboard.press('F1'); await opened(page)
+  await expect(manual(page).getByRole('heading',{name:'오목',exact:true,level:3})).toBeVisible()
+  await manual(page).focus()
+  await page.keyboard.press('KeyE'); await page.keyboard.press('Space'); await page.keyboard.press('KeyW')
+  await close(page)
+  const {camera:beforeCamera,...beforeState}=before, {camera:afterCamera,...afterState}=await probe()
+  expect(afterState).toEqual(beforeState)
+  afterCamera.forEach((value,index)=>expect(value).toBeCloseTo(beforeCamera[index]!,3))
+  expect(await page.evaluate(async()=>{const s=(await import('/src/network/worldClient.ts' as string)).useSession.getState();return (await import('/src/game/store.ts' as string)).canPlace(s.sessionId,7,7)})).toBe(false)
+  expect(server.sent.some(m=>m.type==='GAME_ACTION_SEND')).toBe(false)
+  await screenshot(page,'m15-spectator-restored')
 })
