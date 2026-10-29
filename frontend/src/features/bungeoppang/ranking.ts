@@ -1,6 +1,6 @@
 import { record } from '../../network/protocol'
 
-export const BUNGEOPPANG_RANKINGS_ENABLED = import.meta.env.VITE_BUNGEOPPANG_RANKINGS === 'true'
+export const BUNGEOPPANG_RANKINGS_ENABLED = import.meta.env.VITE_BUNGEOPPANG_RANKINGS !== 'false'
 export interface RankingEntry { rank: number; userId: string; nickname: string; made: number; failed: number; completedAt: string }
 export interface RankingPage {
   rulesVersion: string; period: 'ALL_TIME'; basis: 'PERSONAL_BEST'; snapshotId: string; updatedAt: string
@@ -32,7 +32,7 @@ function validOrder(items: RankingEntry[]) {
   }
   return true
 }
-/** Draft read-only contract; never manufacture a rank or infer global ranks from a local page. */
+/** Server read-only contract; never manufacture a rank or infer global ranks from a local page. */
 export function parseRanking(value: unknown, rulesVersion: string, ownId: string): RankingPage {
   if (!record(value) || value.rulesVersion !== rulesVersion || value.period !== 'ALL_TIME' || value.basis !== 'PERSONAL_BEST'
     || !text(value.snapshotId) || !date(value.updatedAt) || !whole(value.totalParticipants)

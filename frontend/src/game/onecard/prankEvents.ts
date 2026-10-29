@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { integer, record, type Envelope } from '../../network/protocol'
 import { flipCandidates } from './uiState'
 
-export const ONECARD_PRANKS_ENABLED = import.meta.env.VITE_ONECARD_PRANKS === 'true'
+export const ONECARD_PRANKS_ENABLED = import.meta.env.VITE_ONECARD_PRANKS !== 'false'
 export const RESTORE_IMMUNITY_MS = 2500
 export interface PrankScope {
   key: string; gameId: string; ownId: string; role: 'PLAYER' | 'SPECTATOR'; turnCount: number
@@ -22,7 +22,7 @@ interface Dependencies {
 }
 const id = (v: unknown): v is string => typeof v === 'string' && !!v.trim() && v.length <= 120
 const uuid = (v: unknown): v is string => typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)
-/** Proposed BE contract. The production flag stays off until BE confirms and deploys it. */
+/** Confirmed BE contract. An explicit false can disable pranks for a server without support. */
 export class OneCardPrankEvents {
   private scope: PrankScope | null = null
   private seen = new Set<string>()
