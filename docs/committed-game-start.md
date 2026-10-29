@@ -12,7 +12,7 @@
 | 시작 예약 | 실제 DB `GameStartGateway` 구현은 dev에 미등록. 같은 startAttemptId에 참가자·좌석·순서가 같은 결과를 반환하고, 전원 예약 커밋 후에만 RESERVED |
 | 종료 저장·정산 | 공통 GameParticipantLeft/GameFinished의 eventId로 중복 반영 방지. 게임별 종료 이벤트와 공통 이벤트 양쪽에서 이중 정산하지 않음 |
 | 결과 조회·알림 | 실제 DB `GameResultGateway` 구현은 dev에 미등록. 본인 종료 결과만 조회하며 조회로 정산하지 않음. 경기 전체 정산 커밋 후 본인별 GameResultCommitted, PENDING보다 증가한 version 필요 |
-| 개발 서버 등록 | CommittedGameStartService·GameReconnectService·GameResultService·종료 연결 리스너 및 네 엔진 설정은 local/dev에서 등록 가능. prod/production이 함께 켜지면 제외. 시작·엔진은 기본 false로 명시 활성화 필요 |
+| 실행 프로필 | CommittedGameStartService·GameReconnectService·GameResultService·종료 연결 리스너 및 네 엔진은 local/dev 또는 운영 `prod,db`에서 등록 가능. 운영과 local/dev 혼합 프로필은 제외. 시작·엔진은 기본 false로 명시 활성화 필요 |
 
 개발 서버를 local 혼합 프로필로 우회 실행하지 않는다. DB 구현·활성화가 반영된 버전에서
 실제 지갑 balance/reserved_balance·원장·경기/참가자 기록의 원자성을 확인하고, PENDING 동안 SETTLING,
@@ -25,7 +25,7 @@ SETTLED 뒤 좌석 유지·준비 해제·다음 판 새 시도까지 검증한�
 
 ## 켜는 조건
 
-- `local` 또는 `dev` + `ontop.websocket.authenticated=true` + `ontop.game-start.enabled=true`. `prod`/`production`과 혼합하면 연결부를 등록하지 않는다.
+- `local` 또는 `dev`, 운영에서는 `prod,db` + `ontop.websocket.authenticated=true` + `ontop.game-start.enabled=true`. `prod`/`production`과 local/dev를 혼합하면 연결부를 등록하지 않는다. 운영 서버에서 local/dev를 추가하지 않는다.
 - B의 실제 DB Gateway는 `JpaGameStartGateway`이며 `db`와 `ontop.game-start.enabled=true` 조건에서 등록된다. V112가 적용된 DB가 필요하다. 기본값은 false다. [경기 시작 영속화 계약](game-start-persistence.md)을 따른다. 종료 정산/자동 반환은 후속 Story이므로 실제 DB에서 임의 활성화하지 않는다.
 - `ontop.start-rehearsal.enabled=true`와 동시 사용하거나 LocalGameStartGateway를 실제 시작에 사용할 수 없다.
 - 사용할 게임 엔진을 별도로 활성화한다. 오목은 `ontop.games.omok.enabled=true`. 원카드/거짓말 다리는 해당 엔진을 활성화해야 한다. 원카드 기권 손패는 사용자 확정에 따라 REMOVE(이번 경기에서 제외)로 고정하며 별도 정책 설정은 필요하지 않다.
@@ -54,7 +54,7 @@ SETTLING을 해제할 수 있다.
 `DevCommittedStartFlowTests`는 local을 섞지 않은 dev의 실제 channel-1·조회된 tableId로
 JWT/접속권 → 착석·준비 → 예약 확정 대기 → 엔진 착수 → heartbeat 단절·29초 복귀 → 시간패 →
 PENDING → SETTLED → 준비 해제·다음 판을 검사한다. 회원 조회·예약·결과 저장은 테스트 대역이다.
-`GameRuntimeProfileTests`는 dev 옵션·DB 예약 Gateway 누락 시 기동 실패·운영 혼합 프로필 제외를 검사한다.
+`GameRuntimeProfileTests`는 dev 옵션·DB 예약 Gateway 누락 시 기동 실패·운영 `prod,db` 등록·운영 혼합 프로필 제외를 검사한다.
 
 ## 한 흐름
 

@@ -58,7 +58,7 @@
 
 ## 서버 활성화·시작 연결
 
-기본값은 꺼짐이다. `local`/`dev`에서 `ontop.games.omok.enabled=true`로 실제 오목 엔진을 등록한다(prod/production 혼합 시 제외). dev 환경변수는 `GAME_OMOK_ENABLED=true`이며 실제 시작에는 [예약 Gateway 연결](committed-game-start.md#켜는-조건)도 필요하다. 인증된 경기 통신에는 기존 `ontop.websocket.authenticated=true`와 실제 사용자 검증기가 필요하다. 테스트 헤더를 운영 코드에 추가하지 않았다.
+기본값은 꺼짐이다. `local`/`dev` 또는 운영 `prod,db`에서 `ontop.games.omok.enabled=true`로 실제 오목 엔진을 등록한다(운영과 local/dev 혼합 시 제외). dev/prod 환경변수는 `GAME_OMOK_ENABLED=true`이며 실제 시작에는 [예약 Gateway 연결](committed-game-start.md#켜는-조건)도 필요하다. 인증된 경기 통신에는 기존 `ontop.websocket.authenticated=true`와 실제 사용자 검증기가 필요하다. 테스트 헤더를 운영 코드에 추가하지 않았다.
 
 참가 확정·차감 커밋을 확인한 **서버 내부 코드**가 `OmokEngine.create(gameId, tableId, blackUserId, whiteUserId)`를 호출한다. 흑/백은 이 호출자가 정해 전달한다. 같은 내용의 같은 경기 생성은 기존 판을 초기화하지 않는다. 다른 내용의 동일 ID, 같은 테이블/참가자의 다른 진행 오목 경기는 거절한다. 외부 임의 생성 API는 없다.
 

@@ -13,7 +13,8 @@ spring:
           time_zone: UTC
   flyway:
     enabled: true
-    locations: classpath:db/migration
+    # Production may add reviewed optional migrations without relying on profile-file precedence.
+    locations: ${DB_MIGRATION_LOCATIONS:classpath:db/migration}
     baseline-on-migrate: false
     validate-on-migrate: true
     validate-migration-naming: true
