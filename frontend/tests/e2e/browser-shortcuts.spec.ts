@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { fixture, screenshot } from './contractFixture'
 
-test('only F12 is cancelled before modal handlers; other browser shortcuts remain available', async ({ page }) => {
+test('F12 and Ctrl+Shift+I/J/C are cancelled while refresh and other shortcuts remain available', async ({ page }) => {
   const errors: string[] = []
   const consoleErrors: string[] = []
   page.on('pageerror', error => errors.push(error.message))
@@ -35,7 +35,7 @@ test('only F12 is cancelled before modal handlers; other browser shortcuts remai
       { code: 'F5' }, { code: 'F5', ctrlKey: true }, { code: 'F11' },
       { code: 'KeyR', ctrlKey: true }, { code: 'KeyR', ctrlKey: true, shiftKey: true },
       { code: 'KeyR', metaKey: true, shiftKey: true },
-      ...['KeyI', 'KeyJ', 'KeyC', 'KeyK'].map(code => ({ code, ctrlKey: true, shiftKey: true })),
+      { code: 'KeyK', ctrlKey: true, shiftKey: true },
       ...['KeyU', 'KeyS', 'KeyP'].map(code => ({ code, ctrlKey: true })),
       ...['KeyI', 'KeyU'].map(code => ({ code, metaKey: true, altKey: true })),
     ]
@@ -47,7 +47,7 @@ test('only F12 is cancelled before modal handlers; other browser shortcuts remai
     })
   })
   for (const result of allowed) expect(result.cancelled, JSON.stringify(result.shortcut)).toBe(false)
-  for (const chord of ['F12', 'Control+F12']) {
+  for (const chord of ['F12', 'Control+F12', 'Control+Shift+KeyI', 'Control+Shift+KeyJ', 'Control+Shift+KeyC']) {
     await page.keyboard.press(chord)
     expect(await page.evaluate(() => {
       const records = (window as unknown as { shortcutRecords: KeyboardEvent[] }).shortcutRecords
@@ -57,15 +57,18 @@ test('only F12 is cancelled before modal handlers; other browser shortcuts remai
   expect(await page.evaluate(() => (window as unknown as { pointerRequests: number }).pointerRequests)).toBe(0)
   await expect(page).toHaveURL(/\/park$/)
 
-  // Held movement stops on the intercepted shortcut without waiting for keyup.
-  await canvas.focus()
-  await page.keyboard.down('KeyW')
-  await expect.poll(() => server.sent.filter(m => m.type === 'WORLD_MOVE' && (m.payload.dx || m.payload.dz)).length).toBeGreaterThan(0)
-  await page.keyboard.press('F12')
-  const moving = server.sent.filter(m => m.type === 'WORLD_MOVE' && (m.payload.dx || m.payload.dz)).length
-  await page.waitForTimeout(400)
-  expect(server.sent.filter(m => m.type === 'WORLD_MOVE' && (m.payload.dx || m.payload.dz)).length).toBe(moving)
-  await page.keyboard.up('KeyW')
+  // Each intercepted shortcut stops held movement without waiting for keyup.
+  for (const chord of ['F12', 'Control+Shift+KeyI', 'Control+Shift+KeyJ', 'Control+Shift+KeyC']) {
+    await canvas.focus()
+    const before = server.sent.filter(m => m.type === 'WORLD_MOVE' && (m.payload.dx || m.payload.dz)).length
+    await page.keyboard.down('KeyW')
+    await expect.poll(() => server.sent.filter(m => m.type === 'WORLD_MOVE' && (m.payload.dx || m.payload.dz)).length).toBeGreaterThan(before)
+    await page.keyboard.press(chord)
+    const moving = server.sent.filter(m => m.type === 'WORLD_MOVE' && (m.payload.dx || m.payload.dz)).length
+    await page.waitForTimeout(250)
+    expect(server.sent.filter(m => m.type === 'WORLD_MOVE' && (m.payload.dx || m.payload.dz)).length, chord).toBe(moving)
+    await page.keyboard.up('KeyW')
+  }
 
   // The same input reset reaches the live world controls on browser lifecycle changes.
   for (const lifecycle of ['blur', 'pagehide', 'fullscreenchange', 'visibilitychange']) {
@@ -98,9 +101,11 @@ test('only F12 is cancelled before modal handlers; other browser shortcuts remai
   // The existing manual consumes capture events; the guard must still run first.
   await page.keyboard.press('F1')
   await expect(page.locator('dialog[open]')).toBeVisible()
-  await page.keyboard.press('F12')
-  expect(await page.evaluate(() =>
-    (window as unknown as { shortcutRecords: KeyboardEvent[] }).shortcutRecords.at(-1)?.defaultPrevented)).toBe(true)
+  for (const chord of ['F12', 'Control+Shift+KeyI', 'Control+Shift+KeyJ', 'Control+Shift+KeyC']) {
+    await page.keyboard.press(chord)
+    expect(await page.evaluate(() =>
+      (window as unknown as { shortcutRecords: KeyboardEvent[] }).shortcutRecords.at(-1)?.defaultPrevented), chord).toBe(true)
+  }
   await page.keyboard.press('Escape')
   await expect(page.locator('dialog[open]')).toHaveCount(0)
 
@@ -124,7 +129,8 @@ test('login has no game shortcut guard', async ({ page }) => {
   await page.goto('/')
   await expect(page.locator('.login-page')).toBeVisible()
   expect(await page.evaluate(() => {
-    const event = new KeyboardEvent('keydown', { code: 'F12', key: 'F12', bubbles: true, cancelable: true })
-    return window.dispatchEvent(event)
+    return ['F12', 'KeyI', 'KeyJ', 'KeyC'].every(code => window.dispatchEvent(new KeyboardEvent('keydown', {
+      code, key: code, ctrlKey: code !== 'F12', shiftKey: code !== 'F12', bubbles: true, cancelable: true,
+    })))
   })).toBe(true)
 })

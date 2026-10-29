@@ -1,7 +1,9 @@
-/** F12 convenience guard only. Every other browser shortcut remains available. */
+/** Guard only F12 and Ctrl+Shift+I/J/C; preserve refresh and other browser shortcuts. */
 export function isRestrictedBrowserShortcut(event: KeyboardEvent): boolean {
   if (event.isComposing || event.getModifierState?.('AltGraph')) return false
-  return (event.code || event.key) === 'F12'
+  const code = event.code || (event.key.length === 1 ? `Key${event.key.toUpperCase()}` : event.key)
+  return code === 'F12' || (event.ctrlKey && event.shiftKey && !event.altKey && !event.metaKey
+    && ['KeyI', 'KeyJ', 'KeyC'].includes(code))
 }
 
 /** Install before the game's passive effects, including modal capture handlers. */
