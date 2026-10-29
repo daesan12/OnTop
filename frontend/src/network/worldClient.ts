@@ -13,6 +13,7 @@ import {
   type TableSummary,
   type TableState,
   type PublicTableSeat,
+  type PublicTable,
 } from './protocol'
 import type { TableBinding } from './tableBindings'
 import type { AvatarActivity } from './avatarActivity'
@@ -97,6 +98,8 @@ export interface Session {
   seatIndex: number
   focusedAnchorId: string
   tables: TableSummary[]
+  // null: legacy/missing projection. An empty object is an approved empty full snapshot.
+  publicTables: Record<string, PublicTable> | null
   tableStates: Record<string, TableState>
   watchedTableId: string
   pending: boolean
@@ -129,6 +132,7 @@ const initial = (): Session => ({
   seatIndex: -1,
   focusedAnchorId: '',
   tables: [],
+  publicTables: null,
   tableStates: {},
   watchedTableId: '',
   pending: false,
@@ -235,6 +239,7 @@ export function clearChannel(keepFeedbackDraft = false, keepNotesDraft = false) 
     messages: [],
     bubbles: {},
     tables: [],
+    publicTables: null,
     tableStates: {},
     watchedTableId: '',
     tableId: '',
@@ -462,6 +467,14 @@ export function receive(message: Envelope) {
       const activities = Object.keys(state.activities).length === Object.keys(nextActivities).length
         && Object.keys(nextActivities).every(id => state.activities[id] === nextActivities[id])
         ? state.activities : nextActivities
+      const publicTables = !mapCompatible || next.tables === undefined ? null
+        : state.publicTables && Object.keys(state.publicTables).length === next.tables.length
+          && next.tables.every(table => state.publicTables?.[table.tableId]?.anchorId === (table.anchorId ?? null)
+            && state.publicTables?.[table.tableId]?.chairCount === table.chairCount)
+          ? state.publicTables
+          : Object.fromEntries(next.tables.map(table => [table.tableId, {
+            tableId: table.tableId, anchorId: table.anchorId ?? null, chairCount: table.chairCount,
+          }]))
       const present = new Set(ids)
       for (const id of Object.keys(equipment)) {
         if (present.has(id)) continue
@@ -569,6 +582,7 @@ export function receive(message: Envelope) {
         profiles,
         equipment,
         activities,
+        publicTables,
         ...(state.account && profiles[state.sessionId]
           && state.account.nickname !== profiles[state.sessionId]!.nickname
           ? { account: { ...state.account, nickname: profiles[state.sessionId]!.nickname } } : {}),

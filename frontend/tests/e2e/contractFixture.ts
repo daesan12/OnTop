@@ -14,6 +14,7 @@ import { onecardPrankFixture, type OneCardPrankRoom } from './onecardPrankFixtur
 import type { PublicEquipment } from '../../src/network/equipment'
 import type { GameReactionEvent } from '../../src/game/presentation/defeat'
 import type { AvatarActivity } from '../../src/network/avatarActivity'
+import type { PublicTable } from '../../src/network/protocol'
 import developmentBindings from '../../public/park-bindings.dev.json' with { type: 'json' }
 
 // Contract fixtures intercept HTTP/RawWS only in tests. No production fake-auth or socket bypass.
@@ -55,10 +56,12 @@ export async function fixture(
     mapVerificationRequired?: boolean
     rejectMapConfirmation?: boolean
     spectatorEvents?: boolean
+    worldTables?: PublicTable[]
   } = {},
 ) {
   const anchor = TABLES.find(t => t.id === options.anchorId) ?? TABLES[0]!
   const ownId = options.onecardPreview?.observer ? '505' : options.ownUserId ?? '101'
+  let publicTables = options.worldTables
   const worldIds = () => options.onecardPreview ? ['101', '102', '103', '104', ...(options.onecardPreview.observer ? ['505'] : [])]
     : Array.from({ length: options.players ?? 2 }, (_, i) => String(101 + i))
   let tickets = 0,
@@ -334,7 +337,7 @@ export async function fixture(
       },
     }),
   )
-  const world = (ws: WebSocketRoute, requestId: string | null = null) =>
+  const world = (ws: WebSocketRoute, requestId: string | null = null, patch: Record<string, unknown> = {}) =>
     ws.send(
       JSON.stringify({
         requestId,
@@ -343,6 +346,7 @@ export async function fixture(
           channelId: 'fixture-channel',
           version: ++version,
           mapVersion: options.mapVersion ?? EXPECTED_MAP_VERSION,
+          ...(publicTables === undefined ? {} : { tables: publicTables }),
           avatars: worldIds().map((userId, i) => ({
             userId,
             ...publicProfiles[userId],
@@ -359,6 +363,7 @@ export async function fixture(
                     ...(i === 1 ? remotePosition : {}),
                   },
           })),
+          ...patch,
         },
       }),
     )
@@ -723,6 +728,17 @@ export async function fixture(
   return {
     sent,
     cardPranks,
+    publicTables: (tables: PublicTable[] | undefined) => {
+      publicTables = tables
+      for (const ws of sockets) world(ws)
+    },
+    worldMapVersion: (mapVersion: string | undefined) => {
+      options.mapVersion = mapVersion
+      for (const ws of sockets) world(ws)
+    },
+    worldSnapshot: (patch: Record<string, unknown>) => {
+      for (const ws of sockets) world(ws, null, patch)
+    },
     activity: (userId: string, activity: AvatarActivity | null) => {
       activities[userId] = activity
       for (const ws of sockets) world(ws)

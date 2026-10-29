@@ -38,6 +38,8 @@
 
 ### 실제 개발 서버 확인과 한계
 
+의자 실시간 동기화 후속 작업에서 BE MR !192가 포함된 `dev(a6b06d6)` 위로 충돌 없이 반영했다. 전적 서비스·화면·단위 테스트는 보존했고, 의자/활동 작업과 함께 전적 7개·프로필 메뉴 7개 브라우저 회귀를 다시 통과했다. 전체 후속 검증은 [PUBLIC_CHAIRS_FE_INTEGRATION.md](./PUBLIC_CHAIRS_FE_INTEGRATION.md)에 기록했다.
+
 - `https://dev-api.on-top.world/api/v1/users/me/games?size=20`: 인증 없는 요청에서 `401 AUTH_AUTHENTICATION_REQUIRED` 확인.
 - `https://dev-api.on-top.world/api/v1/users/me/game-stats`: 인증 없는 요청에서 같은 401 확인.
 - 개발 서버 `/v3/api-docs`는 Nginx 404여서 라이브 Swagger 스키마를 가져오지는 못했다.
