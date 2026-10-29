@@ -79,5 +79,13 @@
     "channelId" : "channel-1",
     "tableId" : "table-ec222417-d623-3346-9b49-5ace809af808",
     "anchorId" : "table-16"
+  }, {
+    "channelId" : "channel-1",
+    "tableId" : "table-3d1ca028-096f-321b-a346-518f4676c2f5",
+    "anchorId" : "table-17"
+  }, {
+    "channelId" : "channel-1",
+    "tableId" : "table-64e69ab6-ac6b-3750-9de0-72d70167169d",
+    "anchorId" : "table-18"
   } ]
 }

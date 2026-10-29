@@ -28,7 +28,7 @@ class PreparedParkMapHandoffTests {
         JsonNode source = mapper.readTree(input.resolve("server-map.json").toFile()).path("data");
         JsonNode converted = park.collisionData();
 
-        assertThat(park.createRooms()).hasSize(32);
+        assertThat(park.createRooms()).hasSize(source.path("tables").size() * 2);
         assertThat(converted.path("boxes")).isEqualTo(source.path("physics").path("boxes"));
         assertThat(converted.path("hulls")).isEqualTo(source.path("physics").path("hulls"));
         assertThat(converted.path("steppingStones")).isEqualTo(source.path("physics").path("steppingStones"));
@@ -45,11 +45,33 @@ class PreparedParkMapHandoffTests {
     }
 
     @Test
-    void 신규_16번_테이블_관전은_해당_채널의_새좌표_20m를_기준으로_검사한다() throws Exception {
+    void 전달본의_모든_시설_좌석은_이용_하차_자세와_채널_격리를_유지한다() throws Exception {
+        var park = load(Set.of("channel-1", "channel-2"));
+        var service = new com.ssafy.ontop.world.service.WorldFacilityService(park.facilities(),
+                java.time.Clock.systemUTC(), System::nanoTime);
+        for (var facility : park.facilities().facilities()) {
+            for (int seat = 0; seat < facility.seats().size(); seat++) {
+                var center = facility.center();
+                var position = new WorldChannelRegistry.Position(0, center.x(), center.y(), center.z(),
+                        center.yaw(), false, false, false);
+                var lease = service.use("101", "channel-1", facility.facilityId() + "-" + seat,
+                        facility.facilityId(), seat, position);
+                assertThat(lease.pose()).isEqualTo(facility.seats().get(seat));
+                assertThat(lease.exit()).isEqualTo(facility.exit());
+                assertThat(service.state("channel-2").occupancies()).isEmpty();
+                assertThat(service.release("101")).isEqualTo(lease);
+                assertThat(service.state("channel-1").occupancies()).isEmpty();
+            }
+        }
+    }
+
+    @Test
+    void 마지막_테이블_관전은_해당_채널의_새좌표_20m를_기준으로_검사한다() throws Exception {
         var park = load(Set.of("channel-1", "channel-2"));
         var registry = mock(WorldChannelRegistry.class);
         var proximity = new WorldProximity(registry, park.proximity());
-        var binding = park.bindings().get(15);
+        var binding = park.bindings().stream().filter(entry -> entry.channelId().equals("channel-1"))
+                .reduce((first, last) -> last).orElseThrow();
         var point = park.proximity().tables().get(binding.tableId());
         when(registry.channelOf("101")).thenReturn("channel-1");
         when(registry.positionOf("101")).thenReturn(new WorldChannelRegistry.Position(
@@ -71,7 +93,9 @@ class PreparedParkMapHandoffTests {
             ObjectNode previous = (ObjectNode) mapper.readTree(input.resolve(name).toFile());
             ObjectNode generated = park.bindingsDocument(previous);
             assertThat(generated.path("emotes")).isEqualTo(previous.path("emotes"));
-            assertThat(generated.path("bindings").size()).isEqualTo(channels.size() * 16);
+            int tableCount = mapper.readTree(input.resolve("server-map.json").toFile())
+                    .path("data").path("tables").size();
+            assertThat(generated.path("bindings").size()).isEqualTo(channels.size() * tableCount);
             assertThat(park.bindingsDocument(generated)).isEqualTo(generated);
             assertThat(mapper.readTree(Path.of("..", "docs", "integration", "park-180", name).toFile()))
                     .isEqualTo(generated);
