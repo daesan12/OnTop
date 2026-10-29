@@ -40,3 +40,23 @@
  .onecard-hit-feedback { left:55%; top:35%; padding:11px 13px; min-width:180px; }.onecard-hit-feedback>b { font-size:29px; }.onecard-hit-feedback>span { font-size:16px; }
 }
 @media(prefers-reduced-motion:reduce) { .park-page .onecard-game-hud.onecard-panel .onecard-ghost-hand,.onecard-hammer[data-strike-phase] img,.onecard-hit-feedback { animation:none; } .onecard-strike-contact { display:none; } }
+
+/* Server-timed approach: clearly visible, low over the private hand, with time to react. */
+.park-page .onecard-game-hud.onecard-panel .onecard-ghost-hand { position:fixed; left:60%; top:65%; width:clamp(140px,15vw,205px); animation:onecard-hand-approach var(--reach-duration,3200ms) cubic-bezier(.18,.15,.65,1) both; touch-action:manipulation; }
+.park-page .onecard-game-hud.onecard-panel .onecard-ghost-hand img { opacity:.97; filter:drop-shadow(0 2px 2px #184b3b88) drop-shadow(0 0 3px #fff8deaa); }
+.park-page .onecard-game-hud.onecard-panel .onecard-ghost-hand:enabled:hover img { opacity:1; }
+.park-page .onecard-game-hud.onecard-panel .onecard-ghost-hand>span { margin-top:-16px; transform:none; padding:5px 9px; font-size:11px; background:#fff8eaf5; }
+.onecard-ghost-hand small { display:block; color:#946525; font-size:10px; margin-top:2px; font-variant-numeric:tabular-nums; }
+.onecard-hit-hand { opacity:.97; }
+.onecard-hammer { width:clamp(135px,17vw,230px); }
+.onecard-hammer-hint { top:auto; bottom:110px; padding:6px 11px; font-size:11px; }
+@keyframes onecard-hand-approach {
+ from { transform:translate(-50%,-50%) translate(var(--reach-start-x,140px),-150px) rotate(-24deg) scale(.72); }
+ to { transform:translate(-50%,-50%) translate(0,0) rotate(-8deg) scale(1); }
+}
+@media(max-width:800px) {
+ .park-page .onecard-game-hud.onecard-panel .onecard-ghost-hand { width:140px; }
+ .onecard-hammer { width:145px; }
+ .onecard-hammer-hint { bottom:145px; top:auto; }
+}
+@media(prefers-reduced-motion:reduce) { .park-page .onecard-game-hud.onecard-panel .onecard-ghost-hand { animation:none; transform:translate(-50%,-50%); } }

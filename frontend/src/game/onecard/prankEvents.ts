@@ -1,14 +1,15 @@
+import { selectedCardTarget } from './selectedCardTarget'
 import { create } from 'zustand'
 import { integer, record, type Envelope } from '../../network/protocol'
 import { flipCandidates } from './uiState'
 
-export const ONECARD_PRANKS_ENABLED = import.meta.env.VITE_ONECARD_PRANKS === 'true'
+export const ONECARD_PRANKS_ENABLED = import.meta.env.VITE_ONECARD_PRANKS !== 'false'
 export const RESTORE_IMMUNITY_MS = 2500
 export interface PrankScope {
   key: string; gameId: string; ownId: string; role: 'PLAYER' | 'SPECTATOR'; turnCount: number
-  turnUserId: string | null; canSend: boolean; canRestore: boolean; handIds: readonly string[]; protectedId: string
+  turnUserId: string | null; canSend: boolean; canRestore: boolean; handIds: readonly string[]; protectedId: string; version?: number
 }
-interface Effect { eventId: string; targetUserId: string; turnCount: number; count: number }
+interface Effect { eventId: string; targetUserId: string; turnCount: number; count: number; cardIndex?: number }
 interface View {
   scope: string; enabled: boolean; pending: boolean; error: string; effect: Effect | null
   flippedIds: string[]; usedTurn: string; immune: Record<string, number>
@@ -22,7 +23,7 @@ interface Dependencies {
 }
 const id = (v: unknown): v is string => typeof v === 'string' && !!v.trim() && v.length <= 120
 const uuid = (v: unknown): v is string => typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)
-/** Proposed BE contract. The production flag stays off until BE confirms and deploys it. */
+/** Confirmed BE contract. An explicit false can disable pranks for a server without support. */
 export class OneCardPrankEvents {
   private scope: PrankScope | null = null
   private seen = new Set<string>()
@@ -53,9 +54,15 @@ export class OneCardPrankEvents {
         || typeof p.count !== 'number' || useOneCardPranks.getState().effect
         || useOneCardPranks.getState().usedTurn === `${p.targetUserId}/${p.turnCount}`
         || (useOneCardPranks.getState().immune[p.targetUserId] ?? 0) > this.now()) return true
-      const effect: Effect = { eventId: p.eventId, targetUserId: p.targetUserId, turnCount: p.turnCount, count: p.count }
+      const targeted = p.cardIndex !== undefined || p.handVersion !== undefined
+      if (targeted && (!Number.isInteger(p.cardIndex) || Number(p.cardIndex) < 0 || Number(p.cardIndex) >= 54
+        || p.count !== 1 || !integer(p.handVersion) || p.handVersion !== scope.version
+        || scope.role === 'PLAYER' && Number(p.cardIndex) >= scope.handIds.length)) return true
+      const effect: Effect = { eventId: p.eventId, targetUserId: p.targetUserId, turnCount: p.turnCount, count: p.count,
+        ...(targeted ? { cardIndex: p.cardIndex as number } : {}) }
       const flippedIds = scope.ownId === p.targetUserId && scope.role === 'PLAYER'
-        ? flipCandidates(scope.handIds, scope.protectedId, p.count) : []
+        ? targeted ? scope.handIds[p.cardIndex as number] === scope.protectedId ? [] : [scope.handIds[p.cardIndex as number]!]
+          : flipCandidates(scope.handIds, scope.protectedId, p.count) : []
       useOneCardPranks.setState({ effect, flippedIds, usedTurn: `${p.targetUserId}/${p.turnCount}`, error: '' })
       if (scope.ownId === p.targetUserId && !flippedIds.length) void this.restore()
     } else {
@@ -78,10 +85,12 @@ export class OneCardPrankEvents {
       && targetUserId === scope.turnUserId && state.usedTurn !== `${targetUserId}/${scope.turnCount}`
       && (state.immune[targetUserId] ?? 0) <= this.now()
   }
-  async flip(targetUserId: string) {
+  async flip(targetUserId: string, cardIndex?: number, handVersion?: number) {
     if (!this.canFlip(targetUserId) || !this.scope) return false
     const scope = this.scope
-    return this.send('ONECARD_HAND_FLIP_SEND', { gameId: scope.gameId, eventId: crypto.randomUUID(), targetUserId, turnCount: scope.turnCount }, 'ONECARD_HAND_FLIPPED')
+    const selected = selectedCardTarget(cardIndex, handVersion, scope)
+    if (!selected) return false
+    return this.send('ONECARD_HAND_FLIP_SEND', { gameId: scope.gameId, eventId: crypto.randomUUID(), targetUserId, turnCount: scope.turnCount, ...selected }, 'ONECARD_HAND_FLIPPED')
   }
   async restore() {
     this.sync()

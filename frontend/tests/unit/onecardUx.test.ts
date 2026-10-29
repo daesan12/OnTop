@@ -1,7 +1,7 @@
 import { beforeEach, expect, it, vi } from 'vitest'
 import { TABLES, tableSeats } from '../../src/config'
 import { oneCardCameraPose, oneCardPlayerViewActive } from '../../src/game/onecard/camera'
-import { fanPose, flipCandidates, handScope } from '../../src/game/onecard/uiState'
+import { fanPose, flipCandidates, handScope, privateHandLayout } from '../../src/game/onecard/uiState'
 import { OneCardPrankEvents, useOneCardPranks, type PrankScope } from '../../src/game/onecard/prankEvents'
 import type { Envelope } from '../../src/network/protocol'
 
@@ -27,6 +27,38 @@ it('caps flips at two and protects the selected or submitting card, including th
   expect(flipCandidates(['hearts-K'], 'hearts-K')).toEqual([])
   expect(flipCandidates(['hearts-4'], '')).toEqual(['hearts-4'])
   expect(handScope('a', 'b', 'g', 1)).not.toBe(handScope('a', 'b', 'g', 2))
+})
+it('flips only the spectator-selected slot without substituting a different card', () => {
+  scope = { ...scope!, version: 9 }
+  const { events } = client()
+  events.accept(flip({ count: 1, cardIndex: 2, handVersion: 9 }))
+  expect(useOneCardPranks.getState().flippedIds).toEqual(['spades-3'])
+})
+it('restores a selected protected slot immediately and never flips its neighbour', () => {
+  scope = { ...scope!, version: 9 }
+  const { events, request } = client()
+  events.accept(flip({ count: 1, cardIndex: 1, handVersion: 9 }))
+  expect(useOneCardPranks.getState().flippedIds).toEqual([])
+  expect(request).toHaveBeenCalledTimes(1)
+})
+it('ignores stale, incomplete and out-of-range targeted effects', () => {
+  scope = { ...scope!, version: 9 }
+  const { events } = client()
+  for (const patch of [{ cardIndex: 2, handVersion: 8 }, { cardIndex: 3, handVersion: 9 },
+    { cardIndex: -1, handVersion: 9 }, { cardIndex: 1.5, handVersion: 9 }, { cardIndex: 1 }])
+    events.accept(flip({ count: 1, ...patch }))
+  expect(useOneCardPranks.getState().flippedIds).toEqual([])
+  expect(useOneCardPranks.getState().effect).toBeNull()
+})
+it('sends the public slot and exact version, and rejects an outdated UI selection', async () => {
+  scope = { ...scope!, version: 9, role: 'SPECTATOR', ownId: '505', canSend: true }
+  const { events, request } = client()
+  request.mockImplementationOnce(async (_type, payload) => flip({ ...payload, count: 1 }))
+  expect(await events.flip('101', 2, 8)).toBe(false)
+  expect(request).not.toHaveBeenCalled()
+  expect(await events.flip('101', 2, 9)).toBe(true)
+  expect(request.mock.calls[0]![1]).toMatchObject({ cardIndex: 2, handVersion: 9 })
+  expect(request.mock.calls[0]![1]).not.toHaveProperty('cardId')
 })
 it('restores every flipped card synchronously before the ACK and preserves the once-per-turn limit', async () => {
   const { events, request } = client()
@@ -129,4 +161,16 @@ it('builds a symmetric fan and a seat-centered first-person pose for every table
     expect((position[0] - anchor.position[0]) * seat.z - (position[2] - anchor.position[2]) * seat.x).toBeCloseTo(0)
   }
   expect(oneCardPlayerViewActive(null)).toBe(false)
+})
+it('fits every private card on desktop and mobile without unbounded fan drop', () => {
+  for (const width of [342, 740, 1060]) for (const count of [1, 7, 17, 39, 54]) {
+    const layout = privateHandLayout(count, width, 800)
+    expect(layout.cardWidth).toBeGreaterThanOrEqual(40)
+    expect(layout.cardWidth + Math.max(0, count - 1) * layout.step).toBeLessThanOrEqual(width - 39)
+    for (let i = 0; i < count; i++) {
+      const pose = fanPose(i, count)
+      expect(Math.abs(pose.angle)).toBeLessThanOrEqual(9); expect(pose.lift).toBeLessThanOrEqual(12)
+    }
+  }
+  expect(privateHandLayout(39, 1060, 800).cardWidth).toBeLessThan(privateHandLayout(7, 1060, 800).cardWidth)
 })

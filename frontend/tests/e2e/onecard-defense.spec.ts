@@ -3,6 +3,7 @@ import { fixture, screenshot } from './contractFixture'
 import { createOneCardPrankRoom } from './onecardPrankFixture'
 import { facilityCatalog } from '../fixtures/facilityCatalog'
 import { benchTable } from '../../src/features/interactions/benchSpectator'
+import { choose3DCard } from './onecardHeldInput'
 const panel = (page: Page) => page.getByLabel('원카드 경기', { exact: true })
 async function load(page: Page) {
   await page.goto('/park'); await expect(page).toHaveTitle(/온탑|OnTop/i)
@@ -10,12 +11,11 @@ async function load(page: Page) {
   await expect.poll(() => page.evaluate(async () => (await import('/src/network/worldClient.ts' as string)).useSession.getState().status)).toBe('connected')
   await page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).visualTime(.46))
 }
-async function seat(page: Page, server: Awaited<ReturnType<typeof fixture>>, anchorId?: string) {
-  await page.getByRole('button', { name: /테이블에 앉기/ }).click()
-  await page.evaluate(async id => {
-    if (id) (await import('/src/park/runtime/runtime.ts' as string)).parkRuntime.inspectTable(id)
-    else (await import('/tests/e2e/sceneProbe.ts' as string)).inspectTable()
-  }, anchorId)
+async function seat(page: Page, server: Awaited<ReturnType<typeof fixture>>) {
+  await page.locator('canvas').focus()
+  const seatAction = page.getByRole('button', { name: 'E 테이블에 앉기', exact: true })
+  await expect(seatAction).toBeEnabled({ timeout: 15000 }); await seatAction.click()
+  await page.getByRole('button', { name: '테이블 로비 열기', exact: true }).click()
   await page.getByLabel('1인 참가비').fill('1')
   await page.getByRole('button', { name: '원카드 선택', exact: true }).click()
   await page.getByRole('button', { name: '준비', exact: true }).click(); server.confirmStart()
@@ -27,7 +27,7 @@ test('spectator clicks public backs; defender sees a ghost hand and a server-app
   const room = createOneCardPrankRoom(), bench = facilityCatalog.facilities.find(f => f.kind === 'BENCH' && benchTable(f.facilityId)?.pavilionId === 'P1')!, anchor = benchTable(bench.facilityId)!
   const player = await fixture(page, { omok: true, m09: true, onecard: 4, players: 4, onecardPranks: true,
     onecardPreview: { observer: false, room }, anchorId: anchor.id })
-  await load(page); await seat(page, player, anchor.id)
+  await load(page); await seat(page, player)
   const other = await browser.newContext({ viewport: { width: 1280, height: 800 } })
   try {
     const observerPage = await other.newPage(); watch(observerPage)
@@ -42,12 +42,12 @@ test('spectator clicks public backs; defender sees a ghost hand and a server-app
     for (const p of [page, observerPage]) await p.evaluate(now => { Date.now = () => now }, Date.now())
     await panel(page).getByRole('button', { name: '하트 K · 한 장 더 내기', exact: true }).click()
     await panel(page).getByRole('button', { name: '뿅망치 들기', exact: true }).click()
-    const reach = panel(observerPage).getByRole('button', { name: /손패에 손 뻗기$/ })
-    await expect(reach).toBeEnabled(); await reach.click()
+    await choose3DCard(observerPage, '101', 1)
     const hand = panel(page).getByRole('button', { name: /의 손 막기$/ })
     await expect(hand).toBeEnabled(); await expect(hand).toHaveAttribute('data-actor-user-id', '505')
-    await screenshot(page, 'onecard-ghost-hand', 'disabled')
-    await hand.click()
+    await screenshot(page, 'onecard-ghost-hand', 'allow')
+    const target = (await hand.locator('img').boundingBox())!
+    await page.mouse.click(target.x + target.width / 2, target.y + target.height / 2)
     const hammer = panel(page).locator('.onecard-hammer[data-strike-phase=hit] img')
     await expect(hammer).toBeAttached()
     await expect(panel(page).locator('.onecard-strike-contact')).toBeAttached()
@@ -57,7 +57,8 @@ test('spectator clicks public backs; defender sees a ghost hand and a server-app
     await screenshot(page, 'onecard-hammer-contact', 'allow')
     await expect(panel(page).getByText(/방해 차단 [123]초/)).toBeVisible()
     await expect(panel(page).locator('[data-flipped=true]')).toHaveCount(0)
-    await expect(reach).toBeDisabled()
+    await choose3DCard(observerPage, '101', 1)
+    expect(observer.sent.filter(m => m.type === 'ONECARD_PRANK_REACH_SEND')).toHaveLength(1)
     await screenshot(page, 'onecard-hammer-blocked', 'disabled')
     await expect(panel(page).locator('.onecard-strike-contact')).toHaveCount(0)
     const hits = player.sent.filter(m => m.type === 'ONECARD_PRANK_HIT_SEND')
@@ -68,11 +69,19 @@ test('spectator clicks public backs; defender sees a ghost hand and a server-app
     expect(await observerPage.evaluate(async () => (await import('/src/game/store.ts' as string)).useGame.getState().game.hand)).toBeNull()
     player.cardSnapshot({ turnCount: 2 }); observer.cardSnapshot({ turnCount: 2 }, observer.cardHand(), 'SPECTATOR')
     await panel(page).getByRole('button', { name: '하트 K · 한 장 더 내기', exact: true }).click()
-    await expect(reach).toBeEnabled({ timeout: 6500 }); await reach.click(); await expect(hand).toBeVisible()
+    await expect.poll(() => observerPage.evaluate(async () => {
+      const game = (await import('/src/game/store.ts' as string)).useGame.getState().game!
+      return (await import('/src/game/onecard/spectatorTargets.ts' as string)).spectatorCardEligible({ userId: '101', index: 1, version: game.version })
+    }), { timeout: 6500 }).toBe(true)
+    await choose3DCard(observerPage, '101', 1); await expect(hand).toBeVisible()
+    await page.waitForTimeout(2200)
+    await expect(panel(page).locator('[data-flipped=true]')).toHaveCount(0)
+    await page.waitForTimeout(1100)
     observer.cardPranks.resolveReach()
-    await expect(panel(page).locator('[data-flipped=true]')).toHaveCount(2)
+    await expect(panel(page).locator('[data-flipped=true]')).toHaveCount(1)
+    await expect(panel(page).locator('[data-card-id="hearts-7"]')).toHaveAttribute('data-flipped', 'true')
     await expect(panel(page).getByRole('button', { name: '하트 K 내기', exact: true })).toBeEnabled()
-    await panel(page).getByRole('button', { name: '손패 정리 · 2장 복구', exact: true }).click()
+    await panel(page).getByRole('button', { name: '손패 정리 · 1장 복구', exact: true }).click()
     await expect(panel(page).locator('[data-flipped=true]')).toHaveCount(0)
     expect(errors).toEqual([])
   } finally { await other.close() }

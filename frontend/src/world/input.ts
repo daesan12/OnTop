@@ -11,7 +11,7 @@ import { aimTelescope, leaveTelescope } from '../features/telescopes/controller'
 import { useTelescopeState } from '../features/telescopes/state'
 import { normalizeTelescopeAim } from '../features/telescopes/anchors'
 import { telescopeTurnRate, telescopeView, zoomTelescope } from '../features/telescopeView'
-import { inputState, panelOwnsKeys, panelOwnsMovement, roamingInput, textInputOwnsKeys } from './inputOwnership'
+import { inputState, panelOwnsKeys, panelOwnsMovement, roamingInput, scenePointerOwners, textInputOwnsKeys } from './inputOwnership'
 import { cameraRelativeMove, MOVEMENT_INPUT_INTERVAL_MS, type MovementIntent } from '../network/movementInput'
 import { useGame } from '../game/store'
 import { canLeaveByMovement } from '../features/tableLobby/model'
@@ -131,6 +131,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
   // Controllers clear input just before marking their request pending, so decide after they finish.
   // The map, emote wheel and manual only borrow the cursor: closing them returns to mouse look.
   const clearInput = () => {
+    scenePointerOwners.clear()
     const wasLocked = mouseLook.locked()
     stop()
     queueMicrotask(() => {
@@ -140,7 +141,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
       if (wasLocked && (inputState.mapOpen || inputState.emoteWheelOpen || inputState.manualOpen)) mouseLookReturn.requested = true
     })
   }
-  const abandonMouseLook = () => { cancelMouseLookReturn(); clear() }
+  const abandonMouseLook = () => { scenePointerOwners.clear(); cancelMouseLookReturn(); clear() }
   const changePerspective = () => {
     if (!canControlRoamingCamera()) return
     stop()
@@ -239,6 +240,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
   }
   const up = (event: KeyboardEvent) => keys.delete(event.code)
   const pointerDown = (event: PointerEvent) => {
+    if (event.defaultPrevented || scenePointerOwners.has(event.pointerId)) return
     if (mouseLook.locked()) return
     const session = useSession.getState(), scope = seatScope(session)
     const benchScope = benchViewScope(session), benchView = useBenchSpectator.getState()
@@ -259,6 +261,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     }
   }
   const pointerMove = (event: PointerEvent) => {
+    if (scenePointerOwners.has(event.pointerId)) { benchDragging = ''; seatDragging = ''; drag = false; return }
     if (mouseLook.locked()) return
     if (benchDragging) {
       const benchView = useBenchSpectator.getState()
@@ -282,7 +285,8 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     }
     rotate(event.movementX, event.movementY)
   }
-  const pointerUp = () => {
+  const pointerUp = (event: PointerEvent) => {
+    scenePointerOwners.delete(event.pointerId)
     drag = false
     seatDragging = ''
     benchDragging = ''
@@ -335,9 +339,11 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
   canvas.addEventListener('contextmenu', contextMenu)
   window.addEventListener('pointermove', pointerMove)
   window.addEventListener('pointerup', pointerUp)
+  window.addEventListener('pointercancel', pointerUp)
   canvas.addEventListener('wheel', wheel, { passive: false })
   roamingInput.ready = true
   return () => {
+    scenePointerOwners.clear()
     roamingInput.ready = false
     clearInterval(interval)
     clearInterval(aiming)
@@ -358,6 +364,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     canvas.removeEventListener('contextmenu', contextMenu)
     window.removeEventListener('pointermove', pointerMove)
     window.removeEventListener('pointerup', pointerUp)
+    window.removeEventListener('pointercancel', pointerUp)
     canvas.removeEventListener('wheel', wheel)
     if (previousTabIndex === null) canvas.removeAttribute('tabindex')
     else canvas.setAttribute('tabindex', previousTabIndex)

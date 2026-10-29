@@ -44,14 +44,13 @@ test('M12 2-player atomic hands, card/suit/K/draw/attack commands, result and ne
   await expect(p.getByRole('button', { name: '하트 4', exact: true })).toBeEnabled(); expect((await state(page))!.onecard!.extraAction).toBe(true); expect((await state(page))!.onecard!.turnDeadline).toBe(originalDeadline)
   const drawn = { ...afterK, hand: [...afterK.hand, card('8', 'clubs')], playableCardIds: [], canDraw: false }
   server.cardReply({ kind: 'draw' }, { extraAction: false, turnUserId: '102', players: server.cardState().players.map(p => p.userId === '101' ? { ...p, cardCount: 6 } : p) }, drawn)
-  await p.getByRole('button', { name: '한 장 뽑고 넘기기', exact: true }).click(); await expect(handButtons(page)).toHaveCount(6)
+  await p.getByRole('button', { name: '드로우', exact: true }).click(); await expect(handButtons(page)).toHaveCount(6)
   await expect(p.getByRole('button', { name: '클로버 8', exact: true })).toBeDisabled()
   server.cardSnapshot({ turnUserId: '101', attackTotal: 7, topCard: card('joker-color', null), lastAttack: card('joker-color', null) }, drawn)
   const accepted = { ...drawn, hand: [...drawn.hand, ...['2', '3', '4', '5', '6', '7', '8'].map(rank => card(rank, 'spades'))] }
   server.cardReply({ kind: 'accept-attack' }, { attackTotal: 0, lastAttack: null, turnUserId: '102', players: server.cardState().players.map(p => p.userId === '101' ? { ...p, cardCount: 13 } : p) }, accepted)
-  await p.getByRole('button', { name: '공격 받기 · +7장', exact: true }).click(); await expect(handButtons(page)).toHaveCount(8)
-  await p.getByRole('button', { name: '다음 손패', exact: true }).click(); await expect(handButtons(page)).toHaveCount(5)
-  await p.getByRole('button', { name: '이전 손패', exact: true }).click()
+  await p.getByRole('button', { name: '공격 받기 · +7장', exact: true }).click(); await expect(handButtons(page)).toHaveCount(13)
+  await expect(p.getByRole('button', { name: '다음 손패', exact: true })).toHaveCount(0)
   await expect(p.getByRole('button', { name: '원카드 규칙', exact: true })).toHaveCount(0)
   await screenshot(page, 'm12-player')
   const end = { status: 'FINISHED' as const, stage: 'FINISHED' as const, turnUserId: null, turnDeadline: null, winnerUserIds: ['102'], endReason: 'EMPTY_HAND', endedAt: new Date().toISOString() }
@@ -85,14 +84,14 @@ for (const count of [3, 4] as const) test(`M12 ${count}-player declaration/repor
   server.restoreGame(); await expect(handButtons(page)).toHaveCount(1)
   server.cardSnapshot({ turnDeadline: new Date(Date.now() - 100).toISOString() })
   await expect(p.getByRole('timer', { name: '차례 남은 시간' })).toContainText('0초'); await expect(handButtons(page).first()).toBeDisabled()
-  await expect(p.getByRole('button', { name: '한 장 뽑고 넘기기' })).toBeDisabled()
+  await expect(p.getByRole('button', { name: '드로우' })).toBeDisabled()
   if (count === 4) { await page.setViewportSize({ width: 1000, height: 700 }); await screenshot(page, 'm12-narrow') }
   expect(server.sent.filter(m => m.type === 'GAME_ACTION_SEND').map(m => m.payload.input)).toEqual([{ kind: 'catch-one', targetUserId: '102' }, { kind: 'declare-one' }])
 })
 test('M12 stale rejection freezes inputs, latest refresh recovers, malformed foreign hand is never rendered', async ({ page }) => {
   const server = await start(page), p = panel(page)
   server.rejectNextAction('GAME_ACTION_STALE_VERSION', '최신 버전을 확인해주세요.')
-  await p.getByRole('button', { name: '한 장 뽑고 넘기기' }).click(); await expect(p).toContainText('자동으로 재전송하지 않습니다.')
+  await p.getByRole('button', { name: '드로우' }).click(); await expect(p).toContainText('자동으로 재전송하지 않습니다.')
   await expect(handButtons(page)).toHaveCount(0)
   await p.getByRole('button', { name: '최신 원카드 확인' }).click(); await expect(handButtons(page)).toHaveCount(7)
   server.cardSnapshot({}, { ...server.cardHand(), userId: '102' })

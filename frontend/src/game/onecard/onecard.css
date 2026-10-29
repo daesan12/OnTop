@@ -218,6 +218,20 @@
 }
 
 /* Abilities remain readable even on cards that cannot currently be played. */
+.park-page:has(.onecard-game-hud[data-role=SPECTATOR]) .park-interaction { display:none; }
+.park-page .onecard-game-hud.onecard-panel .onecard-spectator-hint { position:absolute; bottom:92px; left:50%; transform:translateX(-50%); max-width:70vw; padding:9px 16px; border:1px solid #d7c18370; border-radius:14px; background:#173e35e8; color:#fff7dc; font-size:13px; text-align:center; pointer-events:none; }
+.onecard-spectator-hint small { display:block; margin-top:4px; font-size:11px; opacity:.8; }
+.park-page .onecard-game-hud.onecard-panel[data-role=SPECTATOR] .onecard-recovery-controls { left:auto; right:22px; top:24px; bottom:auto; transform:none; padding:5px; }
+.park-page:has(.bench-spectator button[aria-pressed="true"]) .onecard-game-hud.onecard-panel[data-role=SPECTATOR] .onecard-recovery-controls { bottom:auto; }
+@media(max-width:800px) {
+ .park-page .onecard-game-hud.onecard-panel[data-role=SPECTATOR] .onecard-recovery-controls { top:126px; left:12px; right:auto; }
+ .park-page:has(.onecard-game-hud[data-role=SPECTATOR]) .park-chat { top:auto; bottom:18px; transform:none; width:180px; max-height:170px; }
+ .park-page:has(.onecard-game-hud[data-role=SPECTATOR]) .park-chat:not([data-expanded=true]) .park-chat__list { display:none; }
+ .park-page .onecard-game-hud.onecard-panel .onecard-spectator-hint { bottom:160px; max-width:90vw; width:max-content; font-size:11px; padding:7px 10px; }
+ .park-page:has(.park-chat[data-expanded=true]) .onecard-game-hud.onecard-panel .onecard-spectator-hint { display:none; }
+
+
+}
 .park-page .onecard-game-hud.onecard-panel .onecard-hand-card:hover { z-index:60; }
 .park-page .onecard-game-hud.onecard-panel .onecard-ability-tip { display:none; position:absolute; bottom:calc(100% + 12px); left:50%; width:max-content; max-width:min(210px,65vw); box-sizing:border-box; padding:8px 13px; border:1px solid #d6bc7c; border-radius:10px; background:#153d34f5; color:#fff6dc; box-shadow:0 6px 20px #071f1940; font:600 13px/1.45 system-ui,'Malgun Gothic',sans-serif; white-space:normal; word-break:keep-all; transform:translateX(-50%) rotate(calc(-1 * var(--fan-angle))); pointer-events:none; }
 .park-page .onecard-game-hud.onecard-panel .onecard-ability-tip::after { content:''; position:absolute; top:100%; left:calc(50% - 4px); width:8px; height:8px; border-right:1px solid #d6bc7c; border-bottom:1px solid #d6bc7c; background:#153d34; transform:translateY(-4px) rotate(45deg); }
@@ -245,3 +259,32 @@
  .park-page .onecard-game-hud.onecard-panel .onecard-forfeit-trigger kbd { display:none; }
  .park-page .onecard-game-hud.onecard-panel .onecard-ability-tip { font-size:12px; padding:7px 10px; bottom:calc(100% + 9px); }
 }
+
+/* A single private fan fits every card; dense hands trade card size for full visibility. */
+.park-page .onecard-game-hud.onecard-panel .onecard-hand { height:calc(var(--card-width) * 1.4 + 54px); padding:28px 0 20px; }
+.park-page .onecard-game-hud.onecard-panel .onecard-hand-card { height:calc(var(--card-width) * 1.4); }
+.park-page .onecard-game-hud.onecard-panel .onecard-hand-card:is(:hover,:focus-visible,[aria-pressed=true]):not([data-dragging=true]) { transform:translateY(calc(var(--fan-lift) - 22px)) rotate(var(--fan-angle)) scale(1.08); z-index:70; }
+.park-page .onecard-game-hud.onecard-panel .onecard-hand[data-dense=true] .onecard-hand-card:is(:hover,:focus-visible,[aria-pressed=true]):not([data-dragging=true]) { transform:translateY(calc(var(--fan-lift) - 28px)) rotate(var(--fan-angle)) scale(var(--preview-scale)); }
+.park-page .onecard-game-hud.onecard-panel .onecard-actions-panel { bottom:16px; gap:4px; }
+.park-page .onecard-game-hud.onecard-panel .onecard-command-tray { padding:6px 8px; gap:4px; border-radius:14px; width:max-content; max-width:100%; }
+.park-page .onecard-game-hud.onecard-panel .onecard-selection-info { min-height:24px; padding:2px 8px; gap:8px; border:0; background:none; box-shadow:none; }
+.park-page .onecard-game-hud.onecard-panel .onecard-selection-info strong { font-size:13px; }
+.park-page .onecard-game-hud.onecard-panel .onecard-selection-info .onecard-effect { font-size:11px; }
+.park-page .onecard-game-hud.onecard-panel .onecard-primary-actions { display:flex; width:auto; gap:6px; }
+.park-page .onecard-game-hud.onecard-panel .onecard-primary-actions>button { min-height:36px; min-width:100px; padding:6px 9px; gap:5px; font-size:12px; border-radius:9px; }
+.park-page .onecard-game-hud.onecard-panel .onecard-action-icon,.park-page .onecard-game-hud.onecard-panel .onecard-hammer-action>img { width:17px; height:17px; }
+.park-page .onecard-game-hud.onecard-panel .onecard-hammer-action>small { font-size:9px; opacity:.75; }
+.onecard-turn-cue { position:absolute; top:156px; left:50%; transform:translateX(-50%); display:flex; align-items:center; gap:8px; padding:7px 15px; border:1px solid #b4cabb66; border-radius:22px; background:#173c35ef; color:#d5e2d2; font:600 13px/1.4 system-ui,sans-serif; }
+.onecard-turn-cue[data-own=true] { color:#fff3c9; border-color:#e3c47a; box-shadow:0 0 0 3px #edce761c; animation:onecard-turn-arrival .6s ease-out 2; }
+.onecard-turn-cue[data-own=true]>span { color:#edce76; }
+.onecard-turn-cue small { font-size:11px; font-weight:400; }
+.park-page .onecard-game-hud.onecard-panel[data-own-turn=true] .onecard-turn-timer { border-color:#e4c578; box-shadow:0 0 0 3px #edce7628; }
+.park-page .onecard-game-hud.onecard-panel[data-own-turn=true] .onecard-command-tray { border-color:#d6b86d; }
+@keyframes onecard-turn-arrival { from { box-shadow:0 0 0 0 #f0cf7c88; } to { box-shadow:0 0 0 12px #f0cf7c00; } }
+@media(max-width:800px) {
+ .park-page .onecard-game-hud.onecard-panel .onecard-command-tray { width:100%; padding:5px 7px; }
+ .park-page .onecard-game-hud.onecard-panel .onecard-primary-actions { display:grid; width:100%; grid-template-columns:repeat(2,minmax(0,1fr)); gap:5px; }
+ .park-page .onecard-game-hud.onecard-panel .onecard-primary-actions>button { min-width:0; min-height:35px; padding:6px; font-size:11px; }
+ .onecard-turn-cue { top:126px; padding:6px 11px; font-size:12px; }
+}
+@media(prefers-reduced-motion:reduce) { .onecard-turn-cue[data-own=true] { animation:none; } }

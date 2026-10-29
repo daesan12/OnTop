@@ -10,7 +10,7 @@ async function shot(page: Page, name: string) {
   await fs.mkdir(dir, { recursive: true }); await page.screenshot({ path: path.join(dir, name + '.png'), animations: 'disabled' })
 }
 async function start(page: Page, count: 2 | 3 = 2) {
-  const server = await fixture(page, { omok: true, m09: true, onecard: count, players: count, forfeit: true, onecardPranks: true })
+  const server = await fixture(page, { omok: true, m09: true, onecard: count, players: count, forfeit: true, onecardPranks: true, spectatorEvents: true })
   await page.goto('/park'); await expect(page).toHaveTitle('OnTop')
   await expect.poll(() => page.evaluate(async () => {
     const state = (await import('/src/network/worldClient.ts' as string)).useSession.getState()
@@ -37,6 +37,45 @@ async function iconInsideComposer(page: Page, open: boolean) {
   expect(inner.y + inner.height).toBeLessThanOrEqual(outer.y + outer.height + .5)
 }
 
+test('game chat keeps long history and both composer states inside the panel on desktop and mobile', async ({ page }) => {
+  const errors: string[] = []; page.on('pageerror', e => errors.push(e.message))
+  page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
+  const server = await start(page), chat = page.getByRole('region', { name: '경기 채팅', exact: true })
+  await expect(page.getByRole('button', { name: '드로우', exact: true })).toBeEnabled()
+  for (let index = 0; index < 20; index++) server.spectatorEvent('chat', {
+    senderUserId: '102', text: `대화 ${index + 1} ${'긴 메시지도 채팅창 안에서 줄을 바꾸며 읽을 수 있어야 해요. '.repeat(4)}`.trim(),
+  })
+  for (const viewport of [{ width: 1280, height: 800 }, { width: 390, height: 844 }]) {
+    await page.setViewportSize(viewport)
+    await iconInsideComposer(page, false)
+    await chat.getByRole('button', { name: '채팅 기록 보기', exact: true }).click()
+    await expect(chat.locator('.park-chat__message')).toHaveCount(viewport.width === 1280 ? 20 : 21)
+    await expect.poll(() => chat.getByRole('log').evaluate(node => node.scrollHeight > node.clientHeight)).toBe(true)
+    await chat.getByRole('button', { name: '채팅 입력창 열기', exact: true }).click()
+    const input = chat.getByRole('textbox', { name: '경기 채팅 메시지', exact: true })
+    await input.fill(`채팅 확인 ${viewport.width}`); await iconInsideComposer(page, true)
+    const contained = await chat.evaluate(node => {
+      const outer = node.getBoundingClientRect()
+      return outer.left >= 0 && outer.right <= innerWidth && outer.top >= 0 && outer.bottom <= innerHeight
+        && [...node.querySelectorAll('.park-chat__heading,.park-chat__messages,.park-chat__composer,.park-chat__composer button')].every(child => {
+          const rect = child.getBoundingClientRect()
+          return rect.left >= outer.left && rect.right <= outer.right && rect.top >= outer.top && rect.bottom <= outer.bottom
+        }) && node.scrollWidth <= node.clientWidth
+    })
+    expect(contained).toBe(true)
+    await shot(page, `onecard-chat-open-${viewport.width}`)
+    // Respect the real one-second chat send interval across rapid viewport changes.
+    if (viewport.width === 390) await page.waitForTimeout(1100)
+    await page.keyboard.press('Enter')
+    await expect(chat.getByText(`채팅 확인 ${viewport.width}`, { exact: true })).toBeVisible()
+    await page.keyboard.press('Escape'); await expect(chat).toHaveAttribute('data-expanded', 'false')
+    await iconInsideComposer(page, false); await shot(page, `onecard-chat-closed-${viewport.width}`)
+  }
+  expect(server.sent.filter(packet => packet.type === 'GAME_SPECTATOR_CHAT_SEND')).toHaveLength(2)
+  expect(server.sent.filter(packet => packet.type === 'WORLD_CHAT_SEND')).toHaveLength(0)
+  await expect(page.locator('vite-error-overlay')).toHaveCount(0); expect(errors).toEqual([])
+})
+
 test('gameplay map lock, contained chat icons and Escape confirm/cancel send only one explicit forfeit', async ({ page }) => {
   const errors: string[] = []; page.on('pageerror', e => errors.push(e.message))
   const server = await start(page)
@@ -50,7 +89,7 @@ test('gameplay map lock, contained chat icons and Escape confirm/cancel send onl
   await iconInsideComposer(page, false)
   await page.getByRole('button', { name: '채팅 입력창 열기', exact: true }).click()
   await iconInsideComposer(page, true)
-  await page.getByRole('textbox', { name: '주변 채팅 메시지' }).fill('확인 중')
+  await page.getByRole('textbox', { name: '경기 채팅 메시지' }).fill('확인 중')
   await page.keyboard.press('Escape')
   const dialog = page.getByRole('dialog', { name: '기권하시겠습니까?', exact: true })
   await expect(dialog).toBeHidden()
@@ -92,8 +131,10 @@ test('ability hints cover unplayable cards and both jokers, but never ordinary o
   await four.hover(); await expect(page.getByRole('tooltip')).toHaveCount(0)
   const color = page.getByRole('button', { name: '컬러 조커 · +7 · 무늬 선택', exact: true })
   const black = page.getByRole('button', { name: '흑백 조커 · +5 · 무늬 선택', exact: true })
-  await expect(color.locator('img')).toHaveAttribute('src', '/art/onecard/joker-color.svg')
-  await expect(black.locator('img')).toHaveAttribute('src', '/art/onecard/joker-black.svg')
+  await expect(color.locator('img')).toHaveAttribute('src', '/art/onecard/joker-moon-color.webp')
+  await expect(black.locator('img')).toHaveAttribute('src', '/art/onecard/joker-moon-black.webp')
+  for (const card of [color, black]) await expect.poll(() => card.locator('img').evaluate(img =>
+    (img as HTMLImageElement).complete && (img as HTMLImageElement).naturalWidth === 640)).toBe(true)
   await color.hover(); await expect(color.getByRole('tooltip')).toHaveText('+7 · 무늬 선택')
   await shot(page, 'onecard-qa-jokers-tooltip')
   await black.focus(); await page.keyboard.press('Tab'); await page.keyboard.press('Shift+Tab')
@@ -104,7 +145,7 @@ test('ability hints cover unplayable cards and both jokers, but never ordinary o
   await page.getByRole('button', { name: '손패 정리 · 2장 복구', exact: true }).click()
   await expect(king).toHaveAttribute('data-flipped', 'false')
   await page.setViewportSize({ width: 390, height: 844 })
-  await page.getByRole('button', { name: '다음 손패', exact: true }).click()
+  await expect(page.getByRole('button', { name: '다음 손패', exact: true })).toHaveCount(0)
   await color.click(); await expect(color).toHaveAttribute('aria-pressed', 'true')
   await shot(page, 'onecard-qa-mobile-jokers')
   const exit = await page.getByRole('button', { name: '기권', exact: true }).boundingBox()
@@ -114,6 +155,19 @@ test('ability hints cover unplayable cards and both jokers, but never ordinary o
   await expect(dialog).toBeVisible(); await dialog.getByRole('button', { name: '계속 플레이', exact: true }).click()
   await expect(dialog).toBeHidden()
   expect(server.sent.filter(m => m.type === 'GAME_FORFEIT')).toHaveLength(0)
+  const remaining = hand.filter(card => card.id !== 'joker-color')
+  server.cardReply({ kind: 'play', cardId: 'joker-color' }, {
+    topCard: card(null, 'joker-color'), stage: 'CHOOSE_SUIT', attackTotal: 7, lastAttack: card(null, 'joker-color'),
+    players: server.cardState().players.map(p => p.userId === '101' ? { ...p, cardCount: remaining.length } : p),
+  }, { userId: '101', hand: remaining, playableCardIds: [], canDraw: false })
+  await page.getByRole('button', { name: '컬러 조커 내기', exact: true }).click()
+  await expect(page.getByRole('group', { name: '무늬 선택', exact: true })).toBeVisible()
+  const publicCard = page.getByLabel('바닥 카드 컬러 조커', { exact: true }).locator('img')
+  await expect(publicCard).toHaveAttribute('src', '/art/onecard/joker-moon-color.webp')
+  await expect.poll(() => publicCard.evaluate(img => (img as HTMLImageElement).complete)).toBe(true)
+  await shot(page, 'onecard-joker-public-mobile')
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await shot(page, 'onecard-joker-public-desktop')
 })
 
 test('an eliminated One Card player can explicitly recover an unconfirmed forfeit receipt', async ({ page }) => {

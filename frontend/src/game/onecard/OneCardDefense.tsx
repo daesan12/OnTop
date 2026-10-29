@@ -1,28 +1,33 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent } from 'react'
 import { useSession } from '../../network/worldClient'
 import { useParkRuntime } from '../../park/runtime/ParkRuntime'
-import { useOneCardDefense } from './defenseEvents'
+import { useOneCardDefense, type Reach } from './defenseEvents'
+import { useGame } from '../store'
 import './onecardDefense.css'
 
-export function OneCardReachCard({ userId, name, disabled, onReach }: { userId: string; name: string; disabled: boolean; onReach(): void }) {
-  const defense = useOneCardDefense(), [now, setNow] = useState(() => performance.now())
-  const ownId = useSession(s => s.sessionId)
-  useEffect(() => { const timer = setInterval(() => setNow(performance.now()), 100); return () => clearInterval(timer) }, [])
-  const blocked = Math.max(0, Math.ceil(((defense.blocks[`${ownId}/${userId}`] ?? 0) - now) / 1000))
-  return <div className="onecard-reach-control">
-    <button className="onecard-reach-cards" aria-label={`${name} 손패에 손 뻗기`}
-      disabled={disabled || !defense.enabled || defense.pending || blocked > 0} onClick={onReach}>
-      <span className="onecard-public-backs" aria-hidden="true">{[0, 1, 2].map(index => <img key={index} src="/art/onecard/classic/B-1.svg" alt="" draggable={false} />)}</span>
-      <span>{name}의 손패</span><small>{blocked ? `방해 차단 ${blocked}초` : defense.pending ? '손을 뻗는 중…' : '카드를 눌러 손 뻗기'}</small>
-    </button>
-    <p className="onecard-prank-status" role="status">{blocked ? '뿅망치에 맞았어요. 잠깐 쉬었다가 다시 구경해요.'
-      : !defense.enabled ? '투명 손과 방해 차단은 서버 연동 후 사용할 수 있어요.'
-        : defense.attempts.some(a => a.actorUserId === ownId && a.until > now) ? '손을 뻗었어요. 상대의 뿅망치를 조심하세요!'
-          : '공개된 카드 뒷면만 보여요. 상대의 실제 패는 볼 수 없어요.'}</p>
-  </div>
-}
-
 interface Strike { id: string; attemptId: string; actorUserId: string; x: number; y: number; phase: 'windup' | 'hit' | 'miss' }
+
+function ReachingHand({ attempt, index, now, held, pending, name, hit }: {
+  attempt: Reach; index: number; now: number; held: boolean; pending: boolean; name: string; hit(event: MouseEvent<HTMLButtonElement>): void
+}) {
+  const root = useRef<HTMLButtonElement>(null), offset = useRef(Math.max(0, performance.now() - attempt.startedAt))
+  useLayoutEffect(() => {
+    const cards = useGame.getState().game?.hand?.hand, cardId = cards?.[attempt.cardIndex ?? 0]?.id
+    const target = cardId ? document.querySelector<HTMLElement>(`[data-card-id="${CSS.escape(cardId)}"]`) : document.querySelector<HTMLElement>('.onecard-hand')
+    const bounds = target?.getBoundingClientRect(), x = Math.max(90, Math.min(innerWidth - 90, bounds ? bounds.left + bounds.width * .5 + index * 26 : innerWidth * .6))
+    const y = Math.max(240, Math.min(innerHeight - 140, bounds ? bounds.top + bounds.height * .25 : innerHeight * .65))
+    if (root.current) {
+      root.current.style.left = `${x}px`; root.current.style.top = `${y}px`
+      root.current.style.setProperty('--reach-start-x', `${x > innerWidth / 2 ? -140 : 140}px`)
+    }
+  }, [attempt, index, now])
+  return <button ref={root} className="onecard-ghost-hand" data-actor-user-id={attempt.actorUserId} data-armed={held}
+    style={{ '--reach-duration': `${attempt.duration}ms`, animationDelay: `-${offset.current}ms` } as CSSProperties}
+    aria-label={`${name}의 손 막기`} aria-disabled={!held || pending} disabled={pending} onClick={hit}>
+    <img src="/art/onecard/prank/ghost-hand.webp" alt="" draggable={false} />
+    <span>{name}의 손 · {held ? '눌러서 막기' : '우클릭으로 망치 꺼내기'}<small>방어 {Math.max(0, (attempt.until - now) / 1000).toFixed(1)}초</small></span>
+  </button>
+}
 
 export function OneCardDefenseOverlay({ held, active, ownId }: { held: boolean; active: boolean; ownId: string }) {
   const defense = useOneCardDefense(), profiles = useSession(s => s.profiles), runtime = useParkRuntime()
@@ -60,10 +65,8 @@ export function OneCardDefenseOverlay({ held, active, ownId }: { held: boolean; 
   const attempts = defense.enabled ? defense.attempts.filter(a => a.targetUserId === ownId && a.until > now) : []
   const block = defense.lastBlock?.targetUserId === ownId && defense.lastBlock.until > now ? defense.lastBlock : null
   return <div ref={root} className="onecard-defense-overlay" aria-label="뿅망치 방어">
-    {attempts.map((attempt, index) => <button key={attempt.attemptId} className="onecard-ghost-hand" data-actor-user-id={attempt.actorUserId}
-      style={{ left: `${48 + (index % 2 ? -1 : 1) * (14 + Math.floor(index / 2) * 13)}%` }}
-      aria-label={`${profiles[attempt.actorUserId]?.nickname ?? '관전자'}의 손 막기`} disabled={!held || defense.pending}
-      onClick={event => {
+    {attempts.map((attempt, index) => <ReachingHand key={attempt.attemptId} attempt={attempt} index={index} now={now}
+      held={held} pending={defense.pending} name={profiles[attempt.actorUserId]?.nickname ?? '관전자'} hit={event => {
         if (!held || defense.pending || strike) return
         const bounds = event.currentTarget.querySelector('img')!.getBoundingClientRect()
         setStrike({ id: attempt.attemptId, attemptId: attempt.attemptId, actorUserId: attempt.actorUserId,
@@ -71,10 +74,7 @@ export function OneCardDefenseOverlay({ held, active, ownId }: { held: boolean; 
         void runtime.hitOneCardHand?.(attempt.attemptId).then(approved => {
           if (!approved) setStrike(previous => previous?.attemptId === attempt.attemptId ? { ...previous, phase: 'miss' } : previous)
         })
-      }}>
-      <img src="/art/onecard/prank/ghost-hand.webp" alt="" draggable={false} />
-      <span>{profiles[attempt.actorUserId]?.nickname ?? '관전자'}의 손 · {held ? '눌러서 막기' : '뿅망치를 들어 막아주세요'}</span>
-    </button>)}
+      }} />)}
     {strike?.phase === 'hit' && <div key={`strike/${strike.id}`} className="onecard-strike-contact" style={{ left: strike.x, top: strike.y }} aria-hidden="true">
       <img className="onecard-hit-hand" src="/art/onecard/prank/ghost-hand.webp" alt="" draggable={false} />
       <span className="onecard-impact-ring" /><span className="onecard-impact-spark">✦</span><b className="onecard-impact-word">퍽!</b>
@@ -82,7 +82,7 @@ export function OneCardDefenseOverlay({ held, active, ownId }: { held: boolean; 
     {held && <><div className="onecard-hammer" data-strike-phase={strike?.phase ?? 'idle'} aria-hidden="true"
       style={strike ? { left: strike.x, top: strike.y } : undefined}><img key={strike ? `${strike.id}/${strike.phase}` : 'idle'} src="/art/onecard/prank/hammer.webp" alt="" draggable={false} /></div>
       <p className="onecard-hammer-hint" role="status">{!defense.enabled ? '뿅망치 준비 완료 · 방해 차단은 서버 연동 후 사용할 수 있어요'
-        : defense.pending ? '서버에서 방어를 확인하고 있어요…' : '투명한 손을 눌러 내 패를 지켜주세요'}</p></>}
+        : defense.pending ? '서버에서 방어를 확인하고 있어요…' : '다가오는 손을 눌러 막기 · 우클릭으로 내려놓기'}</p></>}
     {block && <div key={block.eventId} className="onecard-hit-feedback" role="status"><b>퍽!</b><span>방해 차단 {Math.max(0, Math.ceil((block.until - now) / 1000))}초</span><small>{profiles[block.actorUserId]?.nickname ?? '관전자'}가 잠시 내 패를 뒤집을 수 없어요</small></div>}
   </div>
 }
