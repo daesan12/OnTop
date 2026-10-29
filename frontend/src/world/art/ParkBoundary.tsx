@@ -1,11 +1,12 @@
-import { useLayoutEffect, useMemo, useRef } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { LOD, type Group } from 'three'
-import { extend } from '@react-three/fiber'
+import { extend, useThree } from '@react-three/fiber'
 import { WORLD } from '../../config'
 import { Instances, type Part } from './Instances'
 import { SurfaceMaterial } from './SurfaceMaterial'
 import { BoundaryMasonry, MaksaeMaterial } from './BoundaryMaterial'
 import { createWallCorner, createWallRoof, WALL } from './boundaryGeometry'
+import { BoundaryBatches } from './boundaryBatches'
 
 // Only three shared geometry sets for the entire 640m perimeter, generated on lazy world import.
 const near = createWallRoof(),
@@ -143,7 +144,18 @@ function WallSection({ side, i }: { side: number; i: number }) {
   )
 }
 
+function MultiDrawBoundary() {
+  const [batches, setBatches] = useState<BoundaryBatches | null>(null)
+  useLayoutEffect(() => {
+    const next = new BoundaryBatches(near, far, corner)
+    setBatches(next)
+    return () => next.dispose()
+  }, [])
+  return <>{batches?.meshes.map(mesh => <primitive key={mesh.uuid} object={mesh} dispose={null} />)}</>
+}
+
 export function ParkBoundary() {
+  const multiDraw = useThree(state => state.gl.extensions.has('WEBGL_multi_draw'))
   return (
     <group
       name="reference-tiled-boundary"
@@ -152,6 +164,7 @@ export function ParkBoundary() {
         reference: 'wall_1.jpg',
       }}
     >
+      {multiDraw ? <MultiDrawBoundary /> : <>
       {sections.map((s) => (
         <WallSection key={`${s.side}-${s.i}`} {...s} />
       ))}
@@ -179,6 +192,7 @@ export function ParkBoundary() {
       <Instances parts={corners} shadow={false} material={<MaksaeMaterial />}>
         <primitive object={corner.ends} attach="geometry" dispose={null} />
       </Instances>
+      </>}
     </group>
   )
 }

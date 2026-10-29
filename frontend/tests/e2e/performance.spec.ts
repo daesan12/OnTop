@@ -8,6 +8,8 @@ async function loaded(page: Page) {
   await page.goto('/park'); await expect(page).toHaveTitle('OnTop')
   await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90000 })
   await expect(page.getByLabel('공원 기본 화면')).toBeVisible(); await page.locator('canvas').focus()
+  // The loading label can be absent before the lazy Canvas mounts on a cold visit.
+  await expect.poll(() => page.evaluate(() => performance.getEntriesByName('park-scene-presented').length), { timeout: 90000 }).toBeGreaterThan(0)
 }
 // 설정 lives in the 빠른 메뉴 dock (S15P31B105-256); everyone renders on the Low preset.
 async function open(page: Page) { await page.getByRole('button', { name: '설정', exact: true }).click(); await expect(panel(page)).toBeVisible() }
@@ -98,9 +100,11 @@ test('M15 settings preserves table participation, active match and map guidance'
   const guide = page.getByRole('region', { name: '내 길 안내', exact: true }); await expect(guide).toBeVisible()
   await open(page); await expect(guide).toHaveCount(0)
   await close(page); await expect(guide).toBeVisible()
-  await page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).inspectTable())
+  await page.getByRole('button', { name: 'E 테이블에 앉기', exact: true }).click()
+  await page.getByRole('button', { name: '테이블 로비 열기', exact: true }).click()
   const lobby = page.getByRole('dialog', { name: '테이블 정보', exact: true })
-  await lobby.getByRole('button', { name: '앉기', exact: true }).click(); await lobby.getByLabel('1인 참가비').fill('1'); await lobby.getByRole('button', { name: '오목 선택', exact: true }).click(); await lobby.getByRole('button', { name: '준비', exact: true }).click(); server.confirmStart()
+  await expect(lobby).toBeVisible()
+  await lobby.getByLabel('1인 참가비').fill('1'); await lobby.getByRole('button', { name: '오목 선택', exact: true }).click(); await lobby.getByRole('button', { name: '준비', exact: true }).click(); server.confirmStart()
   await expect(page.getByRole('region', { name: '오목 경기', exact: true })).toBeVisible()
   const commands = server.sent.filter(m => /TABLE_LEAVE|GAME_ACTION|READY_SET/.test(m.type)).length
   await book(page)

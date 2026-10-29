@@ -5,7 +5,7 @@ import {
   IcosahedronGeometry,
   MeshLambertMaterial,
 } from 'three'
-import { SpatialInstances } from './Instances'
+import { SpatialBatchInstances } from './SpatialBatches'
 import { buildParkTreeParts, parkTreePlantings } from './parkTreeParts'
 
 const { wood, crowns, cones } = buildParkTreeParts(parkTreePlantings)
@@ -15,8 +15,7 @@ const roundGeometry = new IcosahedronGeometry(1, 0)
 const coneGeometry = new ConeGeometry(1, 2, 8)
 const material = new MeshLambertMaterial()
 // Stable indices let CameraOcclusionFader hide just the obstructing tree part.
-// Shared geometry is still divided into static spatial sectors: submitting the
-// entire forest as three draws lost CPU-throttled performance in comparison.
+// Static spatial sectors still exclude off-screen groves before multi-draw.
 export const parkTreeBatches = [
   { parts: wood, geometry: trunkGeometry },
   { parts: crowns, geometry: roundGeometry },
@@ -32,18 +31,7 @@ export const SimpleParkTrees = memo(function SimpleParkTrees() {
         treeCount: parkTreePlantings.length,
       }}
     >
-      {parkTreeBatches.map(({ parts, geometry }) => (
-        <SpatialInstances
-          key={geometry.uuid}
-          parts={parts}
-          shadow={false}
-          material={
-            <primitive object={material} attach="material" dispose={null} />
-          }
-        >
-          <primitive object={geometry} attach="geometry" dispose={null} />
-        </SpatialInstances>
-      ))}
+      <SpatialBatchInstances batches={parkTreeBatches} material={material} shadow={false} name="park-trees-multi-draw" />
     </group>
   )
 })
