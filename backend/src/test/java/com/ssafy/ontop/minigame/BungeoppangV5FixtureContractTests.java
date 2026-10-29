@@ -15,9 +15,12 @@ import com.ssafy.ontop.minigame.service.MinigameException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -164,6 +167,105 @@ class BungeoppangV5FixtureContractTests {
         assertThat(order.path("orderId").textValue()).isEqualTo("3");
         assertThat(order.path("customerSlot").intValue()).isEqualTo(2);
         assertThat(checkpoint.path("stats").path("customersServed").intValue()).isOne();
+    }
+
+    /**
+     * The FE full-round files replayed with the rules snapshot their round stores: the unchanged three-minute file
+     * with the legacy rules, the two-minute file with the new rules. Every delivery step and the final result
+     * match the file. The BE MySQL test drives the same files through HTTP.
+     */
+    @ParameterizedTest(name = "{0}")
+    @CsvSource({"bungeoppang-v5-2min-flow.json, false", "bungeoppang-v5-flow.json, true"})
+    void FE_한판_fixture를_판의_저장_규칙으로_재계산하면_납품_단계와_최종_결과가_같다(String name, boolean legacy)
+            throws Exception {
+        JsonNode flow = flow(name);
+        var snapshot = legacy ? BungeoppangV5Spec.legacyRules() : BungeoppangV5Spec.rules();
+        var rules = BungeoppangV5Spec.calculationRules(snapshot);
+        var heats = Collections.nCopies(2_048, flow.path("heat").intValue());
+        var log = BungeoppangV5DeliveryContract.domainActions(wire(flow.path("log")));
+        var history = orders(flow.path("orders"));
+
+        for (JsonNode step : flow.path("deliveries")) {
+            var delivered = new BungeoppangV5Rules().replay(log.subList(0, step.path("throughSeq").intValue()),
+                    heats, history, rules);
+            assertThat(delivered.score()).isEqualTo(step.path("score").longValue());
+            assertThat(delivered.tray()).extracting(bread -> bread.breadId())
+                    .containsExactlyElementsOf(longs(step.path("tray")));
+            assertThat(delivered.activeOrders()).extracting(BungeoppangV5Rules.Order::orderId)
+                    .containsExactlyElementsOf(texts(step.path("activeOrders")));
+        }
+        var result = new BungeoppangV5Rules().replay(log, heats, history, rules);
+        JsonNode expected = flow.path("expected");
+        assertThat(List.of(result.score(), (long) result.made(), (long) result.successfulMade(),
+                (long) result.golden(), (long) result.failed(), (long) result.wasted(),
+                (long) result.grillDiscarded(), (long) result.trayDiscarded(), (long) result.combo(),
+                (long) result.maxCombo(), (long) result.served(), (long) result.customersServed(),
+                (long) result.specialServed(), result.bonusScore(), (long) result.heatCursor(),
+                result.score() / snapshot.pointsPerCoin()))
+                .containsExactly(expected.path("score").longValue(), expected.path("made").longValue(),
+                        expected.path("successfulMade").longValue(), expected.path("golden").longValue(),
+                        expected.path("failed").longValue(), expected.path("wasted").longValue(),
+                        expected.path("grillDiscarded").longValue(), expected.path("trayDiscarded").longValue(),
+                        expected.path("combo").longValue(), expected.path("maxCombo").longValue(),
+                        expected.path("served").longValue(), expected.path("customersServed").longValue(),
+                        expected.path("specialServed").longValue(), expected.path("bonusScore").longValue(),
+                        expected.path("fills").longValue(), expected.path("coinsCalculated").longValue());
+        assertThat(result.tray()).isEmpty();
+        assertThat(result.activeOrders()).extracting(BungeoppangV5Rules.Order::orderId)
+                .containsExactlyElementsOf(texts(expected.path("activeOrders")));
+    }
+
+    @Test
+    void 두_FE_한판_fixture는_가속_구간만_옮기고_같은_결과를_기대하며_판_규칙이_바뀌면_결과가_달라진다() throws Exception {
+        JsonNode legacyFlow = flow("bungeoppang-v5-flow.json");
+        JsonNode twoMinuteFlow = flow("bungeoppang-v5-2min-flow.json");
+        for (String field : List.of("heat", "orders", "deliveryKeys", "deliveries", "expected")) {
+            assertThat(twoMinuteFlow.path(field)).as(field).isEqualTo(legacyFlow.path(field));
+        }
+        // Same actions; only the ones from the legacy 150 s rush start move to the 90 s rush start.
+        JsonNode legacyLog = legacyFlow.path("log");
+        JsonNode twoMinuteLog = twoMinuteFlow.path("log");
+        assertThat(twoMinuteLog).hasSameSizeAs(legacyLog);
+        for (int i = 0; i < legacyLog.size(); i++) {
+            int t = legacyLog.get(i).path("t").intValue();
+            ObjectNode moved = ((ObjectNode) legacyLog.get(i).deepCopy()).put("t", t >= 150_000 ? t - 60_000 : t);
+            assertThat(twoMinuteLog.get(i)).as("log %d", i).isEqualTo(moved);
+        }
+
+        var heats = Collections.nCopies(2_048, 100);
+        var current = BungeoppangV5Spec.calculationRules(BungeoppangV5Spec.rules());
+        var legacy = BungeoppangV5Spec.calculationRules(BungeoppangV5Spec.legacyRules());
+        // A three-minute log is outside a new round: its first action at 150 s is rejected.
+        assertThatThrownBy(() -> new BungeoppangV5Rules().replay(
+                BungeoppangV5DeliveryContract.domainActions(wire(legacyLog)), heats,
+                orders(legacyFlow.path("orders")), current))
+                .isInstanceOfSatisfying(MinigameException.class, error -> {
+                    assertThat(error.detail()).isEqualTo("BAD_ENTRY");
+                    assertThat(error.index()).isEqualTo(18);
+                });
+        // Under the legacy rules 90 s is not rush yet, so the rush bread is no longer golden.
+        var shiftedOnLegacy = new BungeoppangV5Rules().replay(
+                BungeoppangV5DeliveryContract.domainActions(wire(twoMinuteLog)), heats,
+                orders(twoMinuteFlow.path("orders")), legacy);
+        assertThat(shiftedOnLegacy.golden()).isEqualTo(twoMinuteFlow.path("expected").path("golden").intValue() - 1);
+    }
+
+    private JsonNode flow(String name) throws Exception {
+        Path path = FIXTURE.resolveSibling(name);
+        assertThat(path).as("FE 공통 한판 fixture는 저장소의 frontend 폴더에 있어야 합니다.").exists();
+        return json.readTree(Files.readString(path));
+    }
+
+    private static List<Long> longs(JsonNode values) {
+        var result = new ArrayList<Long>();
+        values.forEach(value -> result.add(value.longValue()));
+        return result;
+    }
+
+    private static List<String> texts(JsonNode values) {
+        var result = new ArrayList<String>();
+        values.forEach(value -> result.add(value.textValue()));
+        return result;
     }
 
     private JsonNode fixture() throws Exception {
