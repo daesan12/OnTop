@@ -77,7 +77,8 @@ class TableQueryTests {
         for (JsonNode table : tables) {
             assertThat(table.properties()).extracting(Map.Entry::getKey).containsExactlyInAnyOrder(
                     "tableId", "capacity", "minimumPlayers", "occupiedSeats", "availableSeats", "readyCount",
-                    "allReady", "status", "joinable", "gameCode", "targetScore", "betAmountPerPlayer", "gameId", "selectorUserId", "selectedPlayers", "startMode", "anchorId");
+                    "allReady", "status", "joinable", "gameCode", "targetScore", "betAmountPerPlayer", "gameId", "selectorUserId", "selectedPlayers", "startMode", "anchorId", "chairCount");
+            assertThat(table.path("chairCount").asInt()).isEqualTo(2);
             assertThat(table.path("anchorId").isNull()).isTrue();
             assertThat(table.path("gameCode").isNull()).isTrue();
             assertThat(table.path("gameId").isNull()).isTrue();

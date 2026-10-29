@@ -10,5 +10,6 @@ public record TableSummaryResponse(String tableId, int capacity, int minimumPlay
         @Schema(nullable = true, description = "현재 방장. 빈 테이블은 null") String selectorUserId,
         @Schema(nullable = true, description = "MANUAL의 선택 정원. AUTO는 null") Integer selectedPlayers,
         @Schema(allowableValues = {"AUTO", "MANUAL"}, description = "기존 자동 시작 또는 새 태블릿 수동 시작") String startMode,
-        @Schema(nullable = true, description = "현재 공원 맵에서 테이블을 배치할 앵커 ID") String anchorId) {
+        @Schema(nullable = true, description = "현재 공원 맵에서 테이블을 배치할 앵커 ID") String anchorId,
+        @Schema(description = "승인 인원과 점유 좌석을 반영한 실제 의자 수(2~4)") int chairCount) {
 }

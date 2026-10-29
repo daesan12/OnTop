@@ -27,9 +27,15 @@ public class NotesConfiguration {
     }
 
     @Bean
+    com.ssafy.ontop.notes.service.NotesChangeNotifier notesChangeNotifier(NotesRepository repository,
+            PlatformTransactionManager manager, TableHub hub) {
+        return new com.ssafy.ontop.notes.service.NotesChangeNotifier(repository, manager, hub);
+    }
+
+    @Bean
     NotesService notesService(NotesRepository repository, PlatformTransactionManager manager,
-            TableHub hub, NotesProperties properties) {
-        return new NotesService(repository, manager, hub, properties, Clock.systemUTC());
+            TableHub hub, NotesProperties properties, com.ssafy.ontop.notes.service.NotesChangeNotifier changed) {
+        return new NotesService(repository, manager, hub, properties, Clock.systemUTC(), changed::committed);
     }
 
 }

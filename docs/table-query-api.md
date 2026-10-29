@@ -37,7 +37,8 @@
       "status": "WAITING",
       "joinable": true,
       "gameCode": "OMOK",
-      "targetScore": null
+      "targetScore": null,
+      "chairCount": 2
     }
   ]
 }
@@ -111,3 +112,6 @@ ID만 받았다고 구독·조작권이 생기지 않는다. GET 이후 종료/�
 ## 새 태블릿 요약 추가
 
 selectorUserId(빈 테이블 null), selectedPlayers(AUTO null/수동 선택 정수), startMode(AUTO/MANUAL). MANUAL capacity는 선택 정원, allReady는 선택 정원 전원이 필요하다. 다른 필드는 유지한다. [태블릿](tablet-lobby-api.md).
+
+2026-10-29 chairCount(2~4) 추가: 승인 인원과 최대 점유 좌석 번호를 함께 반영한다.
+주변 사용자의 실시간 갱신은 [WORLD_STATE.tables](world-table-chairs-api.md) 전체 목록을 사용한다.
