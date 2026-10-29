@@ -96,12 +96,12 @@ test('table placement uses the live channel response when static bindings are ab
   })).toEqual([{ channelId: 'fixture-channel', tableId, anchorId: TABLES[0]!.id }])
 })
 
-test('profile menu lists 내 정보 · 로그아웃 · 회원 탈퇴 and the dock 설정 opens settings', async ({ page }) => {
+test('profile menu lists 내 정보 · 내 전적 · 로그아웃 · 회원 탈퇴 and the dock 설정 opens settings', async ({ page }) => {
   await fixture(page); await loaded(page)
   await openMenu(page)
   await expect(menu(page)).toContainText('공원 산책자')
   await expect(menu(page)).toContainText('100냥')
-  for (const name of ['내 정보', '로그아웃', '회원 탈퇴']) await expect(menu(page).getByRole('menuitem', { name: new RegExp(name) })).toBeVisible()
+  for (const name of ['내 정보', '내 전적', '로그아웃', '회원 탈퇴']) await expect(menu(page).getByRole('menuitem', { name: new RegExp(name) })).toBeVisible()
   // 설정 moved to the 빠른 메뉴 dock (S15P31B105-256).
   await expect(menu(page).getByRole('menuitem', { name: /설정/ })).toHaveCount(0)
   await screenshot(page, 'park-menus-profile')
