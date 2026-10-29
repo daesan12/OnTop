@@ -54,6 +54,18 @@ export function finishManualClosing() {
   window.dispatchEvent(new Event("ontop-clear-input"));
 }
 
+// Set by onboarding only, so returning players (and test sessions that skip onboarding) never see it.
+let welcomePending = false;
+export function requestWelcomeManual() {
+  welcomePending = true;
+}
+/** The park opens the first-steps page once, on the first connection after onboarding. */
+export function takeWelcomeManual() {
+  const pending = welcomePending;
+  welcomePending = false;
+  return pending;
+}
+
 /** Session/park teardown must release only this modal's ownership. */
 export function resetManual() {
   if (!useManual.getState().open) return;
