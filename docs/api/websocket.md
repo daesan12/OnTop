@@ -1,5 +1,8 @@
 # OnTop WebSocket 연결 및 메시지 계약
 
+완성 텍스트의 공통 빈도·동시 접속 상한과 1013/1009 종료는 [유입 제한](../websocket-ingress-limits.md)을 따른다.
+로컬 구현이며 운영 수치·신뢰 프록시·FE 지연 재연결 정책은 협의 전이다.
+
 맵 식별 정보: [CONNECTED / WORLD_MAP_CONFIRM / WORLD_MAP_STATE](../world-map-api.md).
 WORLD_MAP_REQUIRE_MATCH=true에서는 확인 전 입장·경기 복구를 보류한다. 기본 false는 기존 FE 호환이다.
 
