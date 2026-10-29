@@ -283,6 +283,7 @@ public final class WorldPhysics implements AutoCloseable {
         physicsTick++;
         for (var entry : actors.entrySet()) {
             Actor a = entry.getValue();
+            a.beforeStepY = a.body.getPhysicsLocation(null).y;
             if (seated.contains(entry.getKey())) {
                 stop(entry.getKey());
                 if (!a.seated) {
@@ -376,7 +377,7 @@ public final class WorldPhysics implements AutoCloseable {
                     a.body.jump();
                 }
             }
-            a.jumpQueued = false;
+            if (now >= a.receivedAt) { a.jumpQueued = false; }
             if (dx != 0 || dz != 0) {
                 a.yaw = Math.atan2(dx, dz);
             }
@@ -387,6 +388,9 @@ public final class WorldPhysics implements AutoCloseable {
         for (Actor a : actors.values()) {
             if (a.seated) { continue; }
             Vector3f position = a.body.getPhysicsLocation(null);
+            a.motion = new Motion(a.motionEpoch, physicsTick, now >= a.receivedAt ? a.seq : a.motion.appliedInputSeq(),
+                    Math.min(250, Math.max(0, (now - a.receivedAt) / 1_000_000.0)),
+                    a.body.onGround() ? 0 : (position.y - a.beforeStepY) / DT, a.body.onGround(), inputActive(a, now));
             float limit =
                     (float)
                                     (scene.data.path("world").path("halfSize").asDouble()
@@ -457,6 +461,7 @@ public final class WorldPhysics implements AutoCloseable {
         actor.climbTargetY = 0;
         actor.moving = actor.running = false;
         actor.swimming = swimming(target);
+        resetMotion(actor);
     }
 
     /** 서버 진단 전용. 사용자별 마지막 복구 한 건만 메모리에 유지하며 WS에는 노출하지 않는다. */
@@ -528,7 +533,7 @@ public final class WorldPhysics implements AutoCloseable {
     private Snapshot snapshotNow(String id) {
         Actor a = actors.get(id);
         Vector3f p = a.body.getPhysicsLocation(null);
-        return new Snapshot(a.seq, p.x, p.y, p.z, a.yaw, a.moving, a.running, a.swimming);
+        return new Snapshot(a.seq, p.x, p.y, p.z, a.yaw, a.moving, a.running, a.swimming, a.motion);
     }
 
     /** Trusted server relocation, never exposed as a client coordinate command. */
@@ -553,6 +558,7 @@ public final class WorldPhysics implements AutoCloseable {
             actor.body.setLinearVelocity(Vector3f.ZERO);
             actor.yaw = yaw;
             actor.swimming = false;
+            resetMotion(actor);
             actor.airborne = false;
             return null;
         });
@@ -581,6 +587,11 @@ public final class WorldPhysics implements AutoCloseable {
         stop(id);
         a.body.warp(new Vector3f((float) x, (float) y, (float) z));
         a.body.setLinearVelocity(Vector3f.ZERO);
+        resetMotion(a);
+    }
+
+    private void resetMotion(Actor actor) {
+        actor.motion = new Motion(++actor.motionEpoch, physicsTick, actor.seq, 250, 0, false, false);
     }
 
     private float number(String key) {
@@ -611,7 +622,16 @@ public final class WorldPhysics implements AutoCloseable {
             double yaw,
             boolean moving,
             boolean running,
-            boolean swimming) {}
+            boolean swimming, Motion motion) {
+        public Snapshot(long seq, double x, double y, double z, double yaw,
+                boolean moving, boolean running, boolean swimming) {
+            this(seq, x, y, z, yaw, moving, running, swimming, null);
+        }
+    }
+
+    /** Receipt seq stays backward compatible; this seq describes the position after a physics step. */
+    public record Motion(long epoch, long tick, long appliedInputSeq, double inputAgeMs,
+            double velocityY, boolean grounded, boolean inputActive) {}
 
     private static final class Actor {
         final PhysicsCharacter body;
@@ -620,6 +640,9 @@ public final class WorldPhysics implements AutoCloseable {
         MoveInput input;
         long seq;
         long receivedAt;
+        long motionEpoch;
+        double beforeStepY;
+        Motion motion = new Motion(0, 0, 0, 250, 0, false, false);
         double yaw = Math.PI;
         boolean moving, running, swimming, jumpQueued, seated, airborne;
         double climbTargetY;

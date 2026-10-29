@@ -95,12 +95,14 @@
 | `NOT_IN_CHANNEL` | 입장하지 않은 연결의 퇴장 요청 |
 | `TABLE_BUSY` | 테이블 착석 중 채널 변경·퇴장 |
 | `GAME_RECOVERY_REQUIRED` | 경기 복구 상태가 대기 기능을 막음 |
-| `MOVE_TOO_FREQUENT` | 새 순번의 이동이 최소 전송 간격보다 빠름 |
+| `MOVE_TOO_FREQUENT` | 새 순번의 이동이 평균 입력 예산과 일시 버스트를 초과함 |
 | `CHAT_TOO_FREQUENT` | 채팅 전송이 사용자별 최소 간격보다 빠름 |
 
 예상하지 못한 오류는 기존 `INTERNAL_ERROR`를 따른다. 오류 메시지 문자열보다 code로 분기한다.
 
 ## 광장 이동 · WORLD_MOVE / WORLD_STATE
+
+본인 화면 예측·물리 완료 순번·보정 세대의 선택 응답 `avatars[].motion`은 [이동 예측 계약](world-movement-prediction.md)을 따른다. 공식 위치와 거리 판정은 서버가 유지한다.
 
 2026-10-21 사용자 요청으로 **서버 입력 기반 이동**으로 전환했다. 기존 좌표 보고 payload는 호환하지 않으며 INVALID_PAYLOAD로 거절한다.
 
@@ -121,7 +123,7 @@
 - seq: 채널 입장 기간 중1~4294967295 증가 정수. dx/dz: 각[-1,1] 유한 숫자, 대각선 길이가1을 넘으면 정규화. run은 boolean 필수, jump는 boolean 선택(기본false). 사용자·채널·시각·dt·최종 좌표·회전각은 보내지 않는다.
 - 입장 시 서버가 스폰을 부여한다. m/Y-up이며 위치는 캐릭터 캡슐 중심이다. 본인 입력 확인은 원래 requestId의 WORLD_STATE이고 위치는 직전 계산 값일 수 있다. lastInputSeq는 마지막 **수락한** 입력 확인이며 해당 입력이 전부 시뮬레이션됐다는 뜻은 아니다.
 - 서버가30Hz 고정 간격으로 계산하며 변화가 있으면 약100ms마다 같은 채널에 requestId=null의 전체 WORLD_STATE를 보낸다. 입력 빈도가 물리 계산 시간을 늘리지 않는다. 지연 시 최대3스텝만 보충하며 과도한 지연분은 버린다. 운영 처리량을 측정한 값은 아니다.
-- 입력 최소 간격 기본50ms(ontop.world.movement.minimum-interval 설정), 새 입력이250ms 없으면 수평 이동 정지. 과거/중복 seq는 재적용·만료 연장 없이 최신 상태만 본인에게 응답한다. 너무 빠른 새 입력은 MOVE_TOO_FREQUENT이며 순번을 소비하지 않는다.
+- 입력 예산은 기본50ms당1개(ontop.world.movement.minimum-interval 설정), 일시 버스트4개까지 허용한다. 새 입력이250ms 없으면 수평 이동 정지. 과거/중복 seq는 재적용·만료 연장·예산 소비 없이 최신 상태만 본인에게 응답한다. 예산을 넘는 새 입력은 MOVE_TOO_FREQUENT이며 순번을 소비하지 않는다.
 - 걷기6.25m/s·달리기9m/s·기본 점프6.2m/s·중력-18m/s²·추락 한도20m/s·자동 단차0.22m. 반지름0.30/중앙 선분 반높이0.48m 캡슐을 사용한다. 참조 여유0.02m는 맵 경계·발 위치 계산에 사용하며 Bullet 캡슐의 내부 margin은 Rapier skin과 별개다. 공중 재점프는 차단한다.
 - 수령한 shared-config 전체를 bake한 park.json은 박스1,142개·메시4개(지형/팔각정 계단/전망대 경사로·데크·난간/팔각정 울타리)·팔각정 바닥 hull9개를 포함한다. 메시로 합친 박스를 중복 등록하지 않는다. 물리 엔진은 Java Minie9.0.3/Bullet이며 TypeScript/Rapier와 수치적으로 동일한 엔진은 아니다.
 - 수영 속도·부력·징검다리 오르기·전망대 전용 점프는 전달 코드에 맞춰 처리한다. 전체3D 프론트 동작 동등성·Linux native·운영 부하 검증은 별도다. 생성/입력/계산/조회/제거를 채널별 전용 물리 thread에 모은다.

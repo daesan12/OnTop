@@ -46,6 +46,7 @@ import { telescopeBusy } from '../../features/telescopes/state'
 import { resetFeedbackState, useFeedbackState } from '../../features/feedback/state'
 import { resetNotesState, useNotesState } from '../../features/notes/state'
 import { MovementInputBuffer, normalizedMove, stoppedIntent, type MovementIntent } from '../../network/movementInput'
+import { localMovement } from '../../network/localMovementPrediction'
 import { emoteSource, emoteUnavailable } from '../../features/emotes/availability'
 import { parseEmoteBindings, previewEmoteBindings, type EmoteId } from '../../features/emotes/catalog'
 import { emoteSignal, useEmoteState } from '../../features/emotes/state'
@@ -244,7 +245,7 @@ export class ParkRuntime implements ParkRuntimePort {
     },
     request: (type, payload, expected, onId) => this.socket.request(type, payload, expected, onId),
     apply: applyFacilityOccupancies,
-    blockMovement: () => this.movement.clear(false),
+    blockMovement: () => { this.movement.clear(false); localMovement.suspend() },
   })
   checkFacilities = (reloadCatalog = false) => this.facilities.refresh(reloadCatalog)
   private follow = new FollowClient({
@@ -734,6 +735,7 @@ export class ParkRuntime implements ParkRuntimePort {
   move = (dx: number, dz: number, run: boolean, jump = false) => {
     const intent = normalizedMove(dx, dz, run, jump)
     if (!intent || !this.canSendMovement(intent)) return
+    localMovement.intend(intent)
     if (!stoppedIntent(intent)) cancelAvatarEmote(useSession.getState().sessionId, 'movement')
     this.movement.enqueue(intent, this.movementScope())
   }
@@ -797,6 +799,7 @@ export class ParkRuntime implements ParkRuntimePort {
   private async sendMovement(intent: MovementIntent, scope: string) {
     if (scope !== this.movementScope() || !this.canSendMovement(intent)) return
     const sequence = ++this.inputSequence
+    localMovement.sentInput(sequence)
     let requestId = ''
     try {
       await this.socket.request('WORLD_MOVE', {
@@ -806,6 +809,7 @@ export class ParkRuntime implements ParkRuntimePort {
       if (scope === this.movementScope() && this.active) clearMovementNotice(sequence)
     } catch (error) {
       if (scope !== this.movementScope() || !this.active) return
+      localMovement.reject(sequence)
       // The server may reject a movement sent just before the approved seat.
       // That old movement error does not describe the current tablet action.
       if (error instanceof ServerError && this.movementRejectedAfterSeating(requestId, error.code)) return

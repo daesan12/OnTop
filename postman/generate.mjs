@@ -264,7 +264,7 @@ const message = (name, type, payload = {}) => ({
     name, $kind: 'websocket-message', contentType: 'json',
     content: JSON.stringify({ requestId: '{{$guid}}', type, payload }, null, 2).replace(/\"\{\{tableVersion\}\}\"/g, '{{tableVersion}}')
 });
-const movementGuide = 'WORLD_MOVE는 {seq,dx,dz,run,jump?} 입력만 허용합니다. seq1~4294967295, dx/dz 각[-1,1] 대각선 정규화, run필수 boolean/jump선택. 서버30Hz·변화100ms동기화·입력50ms·250ms만료. 걷기6.25/달리기9/점프6.2/중력-18/단차0.22. 채널 입장 시 서버 스폰(캡슐 중심), lastInputSeq는 수락순번, mapVersion 대조. 기존 sequence/x/y/z/yaw 주입은 INVALID_PAYLOAD. 재접속30초·채팅/관전20m 유지. ';
+const movementGuide = 'WORLD_MOVE는 {seq,dx,dz,run,jump?} 입력만 허용합니다. seq1~4294967295, dx/dz 각[-1,1] 대각선 정규화, run필수 boolean/jump선택. 서버30Hz·변화100ms동기화·입력 평균50ms당1개/일시4개·250ms만료. 걷기6.25/달리기9/점프6.2/중력-18/단차0.22. 채널 입장 시 서버 스폰(캡슐 중심), lastInputSeq는 수락순번, mapVersion 대조. 기존 sequence/x/y/z/yaw 주입은 INVALID_PAYLOAD. 재접속30초·채팅/관전20m 유지. ';
 const joinA = () => message('01 광장 A 입장 → CHANNEL_STATE + WORLD_STATE', 'CHANNEL_JOIN', { channelId: '{{channelIdA}}' });
 const locate = () => message('이동 입력 → WORLD_STATE (채널 입장 시 서버 스폰)',
     'WORLD_MOVE', { seq: 1, dx: 0, dz: -1, run: false, jump: false });
@@ -598,6 +598,18 @@ const seatGuide = '\n\n## 공개 테이블 착석 (2026-10-28 · 배포 전)\n'
     + 'FE는 기존 서버 tableId/anchorId 매핑으로 표시하고 본인 버튼 권한은 기존 TABLE_STATE를 사용합니다. '
     + '로컬 코드 계약이며 FE 보존 브랜치 통합·실제3D·배포 검수는 별도입니다.';
 wsItems[6].description += seatGuide;
+wsItems[6].description += '\n\n2026-10-29 로컬 이동 예측: avatars[].motion{epoch,tick,appliedInputSeq,inputAgeMs,velocityY,grounded,inputActive}는 실제 물리 계산 결과입니다. '
+    + 'lastInputSeq는 수락 확인이므로 appliedInputSeq와 다를 수 있습니다. 본인만 최대250ms 충돌 예측·서버 보정, 타인은 기존 보간·공식 거리 판정은 서버 유지. '
+    + 'motion 없는 구서버/WASM 초기화 실패는 기존 표시를 유지합니다. 입력은 평균50ms당1개·일시버스트4개, 초과 시 MOVE_TOO_FREQUENT. '
+    + '비교 수치는 로컬 제어 리플레이이며 실제 서버 배포·실계정 검수는 별도입니다. docs/world-movement-prediction.md.';
+wsItems[6].messages.push({ name: '수신 예시 · WORLD_STATE motion — 직접 전송 금지·로컬 구현',
+    $kind: 'websocket-message', contentType: 'json', content: JSON.stringify({ requestId: null, type: 'WORLD_STATE', payload: {
+        channelId: '{{channelIdA}}', version: 20, mapVersion: '{{mapVersion}}', avatars: [{ userId: '101',
+            nickname: '검증자A', characterGender: 'MALE', equipment: null, tableSeat: null, activity: null,
+            position: { lastInputSeq:12,x:0.2083,y:0.84,z:34,yaw:1.5707963267948966,moving:true,running:false,swimming:false },
+            motion: { epoch:0,tick:30,appliedInputSeq:11,inputAgeMs:33.333333,velocityY:0,grounded:true,inputActive:true }
+        }]
+    } }, null, 2) });
 wsItems[6].description += '\n\n2026-10-29 로컬 확장: WORLD_STATE.tables 전체 목록의 tableId/anchorId/chairCount와 HTTP chairCount를 사용합니다. '
     + 'max(2,승인 인원,최대점유좌석)으로 채널별 실제 충돌을 켜고, 새 의자에 겹친 산책자는 서버 안전 위치로 이동합니다. 정적 mapVersion은 유지합니다. '
     + 'avatars[].activity=GAME은 실제 시작 승인 참가자만, 종료·정산 진입은 전원/기권·탈락은 해당 사용자만 null. SHOP은 미연결입니다. '
