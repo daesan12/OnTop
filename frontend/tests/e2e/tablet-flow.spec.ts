@@ -616,14 +616,9 @@ test('a reload with the unclosed result restores it through history and GAME_RES
       const s = (await import('/src/network/worldClient.ts' as string)).useSession.getState()
       return s.status === 'connected' && s.tables.length > 0 && !s.pending
     })).toBe(true)
-    // The real server's own TABLE_STATE precedes CHANNEL_JOIN; the seat returns with the next table broadcast.
-    const calls = history.length
-    server.readyTabletOthers(false)
-    await page.waitForTimeout(500)
-    // A seat without this table's WAITING start state keeps the tablet lobby instead of an unclosable result.
-    await expect(result).toHaveCount(0)
-    expect(history).toHaveLength(calls)
-    server.nextRound()
+    // The fixture sends the kept seat and WAITING before CHANNEL_JOIN, as TableHub does; no later nudge is sent.
+    await expect.poll(() => page.evaluate(async () =>
+      (await import('/src/network/worldClient.ts' as string)).useSession.getState().tableId)).not.toBe('')
   }
   await reconnect()
   await expect(result).toBeVisible()
@@ -635,9 +630,52 @@ test('a reload with the unclosed result restores it through history and GAME_RES
   await result.getByRole('button', { name: '다음 판 준비', exact: true }).click()
   await expect(result).toHaveCount(0)
   await reconnect()
-  await page.waitForTimeout(500)
+  // A closed result leaves only the restored waiting room.
+  await expect(page.getByRole('dialog', { name: '게임 태블릿', exact: true })).toBeVisible()
   await expect(result).toHaveCount(0)
   expect(history).toHaveLength(1)
+})
+
+for (const kind of ['OMOK', 'DICE'] as const)
+test(`${kind} reloads during play${kind === 'OMOK' ? ' and settlement' : ''} restore the kept seat and game from pre-join states`, async ({ page }) => {
+  const server = await fixture(page, { omok: true, manualLobby: true, dice: kind === 'DICE', gameId: '801' })
+  const tablet = await openTable(page); await bindManualPort(page, server)
+  if (kind === 'DICE') {
+    await tablet.getByRole('button', { name: '주사위 한 판', exact: false }).first().click()
+    await tablet.getByLabel('주사위 목표 점수').selectOption('4000')
+  }
+  await tablet.getByLabel('1인 참가비').fill('20')
+  await tablet.getByRole('button', { name: '선택하고 준비하기' }).click()
+  await tablet.getByRole('checkbox').check(); await tablet.getByRole('button', { name: '준비 완료', exact: true }).click()
+  server.readyTabletOthers(true); await tablet.getByRole('button', { name: '게임 시작', exact: true }).click()
+  const board = page.getByRole('region', { name: kind === 'OMOK' ? '오목 경기' : '주사위 경기', exact: true })
+  await expect(board).toBeVisible()
+  const restored = async (expected: string) => {
+    await page.reload()
+    await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90_000 })
+    await expect.poll(() => page.evaluate(async () => {
+      const s = (await import('/src/network/worldClient.ts' as string)).useSession.getState()
+      const g = (await import('/src/game/store.ts' as string)).useGame.getState()
+      return [s.status, s.tableId !== '', g.permittedGameId, g.recovery, g.start?.phase].join(' ')
+    })).toBe(expected)
+  }
+  // The fixture sends only what TableHub sends: seat and start before CHANNEL_JOIN, then the recovery state.
+  await restored('connected true 801 RESTORED PLAYING')
+  await expect(board).toBeVisible()
+  await expect(page.getByRole('dialog', { name: '게임 태블릿', exact: true })).toHaveCount(0)
+  if (kind === 'DICE') return
+  server.finishGame('FIVE_IN_A_ROW', '101')
+  await restored('connected true 801 FINISHED SETTLING')
+  const result = page.getByRole('dialog', { name: '경기 결과', exact: true })
+  await expect(result).toBeVisible()
+  await expect(result.getByRole('button', { name: '다음 판 준비', exact: true })).toBeDisabled()
+  server.settle(); await expect(result).toContainText('정산 완료')
+  server.host('102'); server.nextRound()
+  await result.getByRole('button', { name: '다음 판 준비', exact: true }).click()
+  await expect(page.getByRole('dialog', { name: '게임 태블릿', exact: true })).toBeVisible()
+  await page.getByRole('dialog', { name: '게임 태블릿' }).getByRole('button', { name: '일어나기', exact: true }).click()
+  await expect(page.getByRole('dialog', { name: '게임 태블릿' })).toHaveCount(0)
+  expect(server.sent.filter(message => message.type === 'TABLE_LEAVE')).toHaveLength(1)
 })
 
 test('tablet invalid result keeps refund recovery with a stale or missing engine and waits for settlement', async ({ page }) => {
