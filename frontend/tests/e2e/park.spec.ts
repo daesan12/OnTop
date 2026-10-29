@@ -46,22 +46,19 @@ test('park shares one socket for chat, input and server-confirmed table seats', 
     )
     .toBe(true)
   await page.keyboard.up('KeyW')
+  // E seats at once; the table panel then opens from the lobby button.
   await page.keyboard.press('KeyE')
-  await expect(page.getByRole('dialog', { name: '테이블 정보' })).toBeVisible()
-  await expect(
-    page.getByRole('button', { name: '앉기', exact: true }),
-  ).toBeEnabled()
-  await page.getByRole('button', { name: '앉기', exact: true }).click()
-  await expect(page.getByRole('button', { name: '일어나기' })).toBeVisible()
-  expect(server.sent.find((m) => m.type === 'TABLE_JOIN')?.payload).toEqual({
+  await expect.poll(() => server.sent.find((m) => m.type === 'TABLE_JOIN')?.payload).toEqual({
     tableId,
   })
+  await page.getByRole('button', { name: '테이블 로비 열기', exact: true }).click()
+  await expect(page.getByRole('dialog', { name: '테이블 정보' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '일어나기' })).toBeVisible()
   await screenshot(page, 'park-seated')
   await page.getByRole('button', { name: '일어나기' }).click()
-  await expect(
-    page.getByRole('button', { name: '앉기', exact: true }),
-  ).toBeVisible()
-  await page.getByRole('button', { name: '테이블 정보 닫기' }).click()
+  // The panel belongs to one's own seat, so standing up closes it.
+  await expect(page.getByRole('dialog', { name: '테이블 정보' })).toHaveCount(0)
+  expect(server.sent.some((m) => m.type === 'TABLE_LEAVE')).toBe(true)
   expect(server.maxActive).toBe(1)
   expect(server.connections).toBe(1)
   await screenshot(page, 'park-roaming')
@@ -94,7 +91,7 @@ test('chat rejection retains the draft; missing mappings never send a seat reque
   await input.press('Escape')
   await page.locator('canvas').click({ position: { x: 80, y: 300 } })
   await page.keyboard.press('KeyE')
-  await expect(page.getByRole('dialog')).toContainText('배치 연결이 필요')
+  await expect(page.getByRole('alert').filter({ hasText: '배치 연결이 필요' })).toBeVisible()
   expect(server.sent.some((m) => m.type === 'TABLE_JOIN')).toBe(false)
 })
 
@@ -174,9 +171,8 @@ test('table pointer picking, seated visibility and LOD', async ({
     const q = await import('/tests/e2e/sceneProbe.ts' as string)
     return q.pointForTable(id)
   }, TABLES[0]!.id)
+  // Clicking a table seats at once, like E.
   await page.locator('canvas').click({ position: point })
-  await expect(page.getByRole('dialog', { name: '테이블 정보' })).toBeVisible()
-  await page.getByRole('button', { name: '앉기', exact: true }).click()
   await expect
     .poll(() =>
       page.evaluate(async () => {
@@ -190,8 +186,9 @@ test('table pointer picking, seated visibility and LOD', async ({
       }),
     )
     .toEqual({ seated: true, own: false, remote: true })
+  await page.getByRole('button', { name: '테이블 로비 열기', exact: true }).click()
   await page.getByRole('button', { name: '일어나기' }).click()
-  await page.getByRole('button', { name: '테이블 정보 닫기' }).click()
+  await expect(page.getByRole('dialog', { name: '테이블 정보' })).toHaveCount(0)
   await page.evaluate(async () => {
     const q = await import('/tests/e2e/sceneProbe.ts' as string)
     q.orbit(-Math.PI / 2, 0.45, 55)
