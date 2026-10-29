@@ -8,7 +8,7 @@
 "scripts":
   -
     "type": "afterResponse"
-    "code": "pm.test('HTTP 200', () => pm.response.to.have.status(200));\npm.test('개인 최고 랭킹 계약', () => {\n    const b = pm.response.json();\n    pm.expect(b.basis).to.eql('PERSONAL_BEST');\n    pm.expect(b.period).to.eql('ALL_TIME');\n    pm.expect(b.items).to.be.an('array');\n    pm.expect(b.items.length).to.be.at.most(20);\n    pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store');\n});\nif (pm.response.code === 200) {\n    const b = pm.response.json();\n    pm.environment.set('bungeoRankingCursor', b.nextCursor || '');\n    pm.environment.set('bungeoRankingSnapshotId', b.snapshotId);\n}"
+    "code": "pm.test('HTTP 200', () => pm.response.to.have.status(200));\npm.test('개인 최고 랭킹 계약', () => {\n    const b = pm.response.json();\n    pm.expect(b.basis).to.eql('PERSONAL_BEST');\n    pm.expect(b.period).to.eql('ALL_TIME');\n    pm.expect(b.items).to.be.an('array');\n    pm.expect(b.items.length).to.be.at.most(20);\n    pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store');\n});"
 "headers":
   -
     "key": "Authorization"

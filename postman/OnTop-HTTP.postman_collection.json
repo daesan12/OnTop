@@ -1519,12 +1519,7 @@
               "    pm.expect(b.items).to.be.an('array');",
               "    pm.expect(b.items.length).to.be.at.most(20);",
               "    pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store');",
-              "});",
-              "if (pm.response.code === 200) {",
-              "    const b = pm.response.json();",
-              "    pm.environment.set('bungeoRankingCursor', b.nextCursor || '');",
-              "    pm.environment.set('bungeoRankingSnapshotId', b.snapshotId);",
-              "}"
+              "});"
             ]
           }
         }
