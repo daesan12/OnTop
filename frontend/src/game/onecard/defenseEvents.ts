@@ -1,8 +1,8 @@
 import { create } from 'zustand'
 import { integer, record, type Envelope } from '../../network/protocol'
-import type { PrankScope } from './prankEvents'
+import { ONECARD_PRANKS_ENABLED, type PrankScope } from './prankEvents'
 
-export const ONECARD_DEFENSE_ENABLED = import.meta.env.VITE_ONECARD_PRANK_DEFENSE === 'true' && import.meta.env.VITE_ONECARD_PRANKS === 'true'
+export const ONECARD_DEFENSE_ENABLED = import.meta.env.VITE_ONECARD_PRANK_DEFENSE !== 'false' && ONECARD_PRANKS_ENABLED
 export const PRANK_BLOCK_MS = 3000
 export interface Reach { attemptId: string; actorUserId: string; targetUserId: string; turnCount: number; until: number }
 interface Block extends Reach { eventId: string }
@@ -16,7 +16,7 @@ interface Dependencies {
   enabled: boolean; scope(): PrankScope | null; canReach(target: string): boolean; now?(): number
   request(type: string, payload: Record<string, unknown>, expected: readonly string[], onId: (id: string) => void): Promise<Envelope>
 }
-/** Proposed two-phase prank contract. No local hit, timer, or error can grant a block or flip. */
+/** Server-confirmed two-phase contract. No local hit, timer, or error can grant a block or flip. */
 export class OneCardDefenseEvents {
   private scope: PrankScope | null = null
   private seen = new Set<string>()

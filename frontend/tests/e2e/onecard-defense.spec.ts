@@ -10,15 +10,12 @@ async function load(page: Page) {
   await expect.poll(() => page.evaluate(async () => (await import('/src/network/worldClient.ts' as string)).useSession.getState().status)).toBe('connected')
   await page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).visualTime(.46))
 }
-async function seat(page: Page, server: Awaited<ReturnType<typeof fixture>>, anchorId?: string) {
-  await expect(async () => {
-    await page.evaluate(async id => {
-      if (id) (await import('/src/park/runtime/runtime.ts' as string)).parkRuntime.inspectTable(id)
-      else (await import('/tests/e2e/sceneProbe.ts' as string)).inspectTable()
-    }, anchorId)
-    await expect(page.getByRole('button', { name: '앉기', exact: true })).toBeVisible({ timeout: 1500 })
-  }).toPass({ timeout: 15000 })
-  await page.getByRole('button', { name: '앉기', exact: true }).click(); await page.getByLabel('1인 참가비').fill('1')
+async function seat(page: Page, server: Awaited<ReturnType<typeof fixture>>) {
+  await page.locator('canvas').focus()
+  const seatAction = page.getByRole('button', { name: 'E 테이블에 앉기', exact: true })
+  await expect(seatAction).toBeEnabled({ timeout: 15000 }); await seatAction.click()
+  await page.getByRole('button', { name: '테이블 로비 열기', exact: true }).click()
+  await page.getByLabel('1인 참가비').fill('1')
   await page.getByRole('button', { name: '원카드 선택', exact: true }).click()
   await page.getByRole('button', { name: '준비', exact: true }).click(); server.confirmStart()
   await expect(panel(page).getByRole('button', { name: '뿅망치 들기', exact: true })).toBeEnabled()
@@ -29,7 +26,7 @@ test('spectator clicks public backs; defender sees a ghost hand and a server-app
   const room = createOneCardPrankRoom(), bench = facilityCatalog.facilities.find(f => f.kind === 'BENCH' && benchTable(f.facilityId)?.pavilionId === 'P1')!, anchor = benchTable(bench.facilityId)!
   const player = await fixture(page, { omok: true, m09: true, onecard: 4, players: 4, onecardPranks: true,
     onecardPreview: { observer: false, room }, anchorId: anchor.id })
-  await load(page); await seat(page, player, anchor.id)
+  await load(page); await seat(page, player)
   const other = await browser.newContext({ viewport: { width: 1280, height: 800 } })
   try {
     const observerPage = await other.newPage(); watch(observerPage)
