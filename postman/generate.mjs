@@ -18,7 +18,7 @@ const variables = {
     followTargetId: '', followId: '', tableVersion: 0, startActionId: 'replace-on-new-start-keep-on-retry',
     mapId: 'park', mapVersion: 'replace-with-your-frontend-map-version',
     prankEventId: '', prankAttemptId: '', prankEffectId: '', prankTargetId: '', prankTurnCount: 0,
-    bungeoRankingCursor: '', bungeoRankingSnapshotId: ''
+    bungeoRankingCursor: '', bungeoRankingSnapshotId: '', historyCursor: ''
 };
 
 const statusTest = status => `pm.test('HTTP ${status}', () => pm.response.to.have.status(${status}));`;
@@ -539,6 +539,30 @@ for (const request of bungeoRankingRequests) {
     request.headers = [{key:'Authorization',value:'Bearer {{accessToken}}'}];
 }
 httpItems.push(...bungeoRankingRequests);
+
+const historyDescription = 'HISTORY-01/02. 기존 회원 Access JWT·db 프로필 필요. 본인 종료/무효 경기만 DB ID 내림차순, size1~100·기본20. '
+    + 'gameCode OMOK/DICE/ONE_CARD/LIAR_BRIDGE, 정산대기는 내역과 확정 승패에 포함. 무효는 내역만 표시·통계 제외. '
+    + 'played=wins+losses+forfeits+draws, 기권을 losses에 중복 포함하지 않음. 조회는 판돈/정산/원장을 수정하지 않음. '
+    + 'cursor는 마지막 경기 DB ID 문자열. 뒤늦게 종료된 경기는 새 첫 조회에서 다시 확인. docs/game-history-api.md.';
+const historyReadTest = `pm.test('본인 경기 내역 계약', () => {
+    const b=pm.response.json();pm.expect(b.items).to.be.an('array');
+    pm.expect(b.hasNext).to.be.a('boolean');
+    b.items.forEach(i=>{pm.expect(i.gameSessionId).to.be.a('string');pm.expect(['FINISHED','INVALID']).to.include(i.status);});
+    pm.expect(b.hasNext ? typeof b.nextCursor==='string' : b.nextCursor===null).to.eql(true);
+    pm.environment.set('historyCursor',b.nextCursor || '');
+});`;
+const historyRequests = [
+    http('37 내 경기 내역 첫 페이지','/api/v1/users/me/games?size=20',200,historyDescription,historyReadTest),
+    http('38 내 경기 내역 다음 페이지','/api/v1/users/me/games?size=20&cursor={{historyCursor}}',200,historyDescription,historyReadTest,
+        requireEnvironment+`\nif(!pm.environment.get('historyCursor')) throw new Error('다음 페이지가 없습니다. 37을 먼저 조회하세요.');`),
+    http('39 내 게임별 전적','/api/v1/users/me/game-stats',200,historyDescription,`pm.test('승패 기권 중복 제외',()=>{
+        pm.response.json().items.forEach(i=>pm.expect(i.played).to.eql(i.wins+i.losses+i.forfeits+i.draws));
+    });`),
+    http('40 전적 잘못된 커서','/api/v1/users/me/games?cursor=-1',400,historyDescription,codeTest('INVALID_CURSOR'))
+];
+for(const request of historyRequests) request.headers=[{key:'Authorization',value:'Bearer {{accessToken}}'}];
+httpItems.push(...historyRequests);
+
 const httpV3 = { name: 'OnTop HTTP', $kind: 'collection', description: guide, items: httpItems };
 const wsGuide = '# 근거리 채팅·관전 테스트 (20m)\n\n'
     + [0, 1, 2, 5].map(index => `## ${String(index + 1).padStart(2, '0')} 연결\n${wsItems[index].description
@@ -722,8 +746,9 @@ function yaml(value, indent = 0) {
         + (nested(item) ? '\n' + yaml(item, indent + 2) : ' ' + JSON.stringify(item))).join('\n');
 }
 const outputs = new Map([
+    ['OnTop-History.postman_collection.json', JSON.stringify({info:{...httpV21.info,name:'OnTop History',description:historyDescription},item:httpV21.item.slice(36,40)},null,2)+'\n'],
     ['OnTop-Ranking.postman_collection.json', JSON.stringify({info:{...httpV21.info,name:'OnTop Ranking',description:rankingDescription},item:httpV21.item.slice(29,32)},null,2)+'\n'],
-    ['OnTop-Bungeoppang-Ranking.postman_collection.json', JSON.stringify({info:{...httpV21.info,name:'OnTop Bungeoppang Ranking',description:bungeoRankingDescription},item:httpV21.item.slice(32)},null,2)+'\n'],
+    ['OnTop-Bungeoppang-Ranking.postman_collection.json', JSON.stringify({info:{...httpV21.info,name:'OnTop Bungeoppang Ranking',description:bungeoRankingDescription},item:httpV21.item.slice(32,36)},null,2)+'\n'],
     ['OnTop-Minigame.postman_collection.json', JSON.stringify({info:{...httpV21.info,name:'OnTop Minigame',description:'붕어빵 v2: 23시작화면조회→19시작→60초 플레이→21입력 검증·보상. 20본인판조회,22포기는 별도 새 판에서 확인. 15점당1냥·KST 하루100냥·랭킹 제외·탭 이동 시간 진행. 기존 API 경로 유지. docs/minigame-api.md.'},item:httpV21.item.slice(18,23)},null,2)+'\n'],
     ['OnTop-Shop.postman_collection.json', JSON.stringify({info: {...httpV21.info, name: 'OnTop Shop',
         description: 'SHOP-01/02 · INVENTORY-01/02. 13목록→14구매→15동일키 재요청→16보유→17장착. 18은 같은키 충돌 검사. local,db 또는 dev,db + ontop.shop.enabled=true(dev: SHOP_ENABLED=true) + 공통/상점 스키마가 필요합니다. dev는 기본 비활성이며 기존 V100 적용 이력·버전 순서 확인 후 기존 Flyway locations에 db/shop을 명시적으로 추가합니다. 공유 DB/SQL/이력은 자동 변경하지 않습니다. 실제 배포 후 개인 환경 baseUrl=https://dev-api.on-top.world와 해당 서버 Access JWT를 사용합니다. 기존 예제 Origin={{baseUrl}}는 개발 API 호스트가 되어403일 수 있으므로 AUTH_ALLOWED_ORIGINS에 등록된 실제 프론트 주소로 바꾸거나 비브라우저 Postman에서는 Origin 헤더를 제외하세요. 보유 의상 재구매는 서버에서 거절하고 소비형은 수량을 누적합니다. 테스트 계정의 개인 로컬 Access JWT만 사용하고 공유하지 마세요. 기본 DB에 스키마를 자동 적용하지 않았습니다. 실제 DB 초기화·공통 재화 통합·3D 외형 계약은 별도 확인합니다.\n\n2026-10-22: 상점 저장 처리를 JPA 엔티티·JPQL로 전환했습니다. 기존 6개 요청·응답·중복 구매 방지·롤백 계약은 그대로이며 예제 수정 없이 사용할 수 있습니다.' + appearanceGuide},
