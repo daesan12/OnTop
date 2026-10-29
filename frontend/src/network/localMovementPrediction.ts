@@ -11,7 +11,6 @@ export interface PredictionSimulation {
   step(input: MovementIntent, seconds: number): void
   pose(): Pose
   setChairs(counts: ReadonlyMap<string, number>): void
-  blocked?(): boolean
   dispose(): void
 }
 const STOP: MovementIntent = { dx: 0, dz: 0, run: false, jump: false }
@@ -39,6 +38,9 @@ export class LocalMovementPrediction {
   private firstInput: { at: number; pose: Pose } | undefined
   private readonly responseTimes: number[] = []
   private readonly corrections: number[] = []
+  private readonly roundTrips: number[] = []
+  private readonly diagnostics: { at: number; tick: number; appliedInputSeq: number; anchor: number;
+    errorM: number; epochChanged: boolean; roundTripMs: number }[] = []
   private resets = 0
   private allowed = false
   private lastJumpAt = -Infinity
@@ -80,6 +82,7 @@ export class LocalMovementPrediction {
     this.facing = undefined
     this.displayed = undefined
     this.correction = { x: 0, y: 0, z: 0, at: 0 }
+    this.roundTrips.length = this.diagnostics.length = 0
   }
   suspend() {
     this.timeline = []; this.sent = []; this.intent = { ...STOP }; this.firstInput = undefined
@@ -107,6 +110,8 @@ export class LocalMovementPrediction {
     // A missing acknowledged input is not the first local keystroke's timestamp.
     // Carry the previous physics clock forward instead of replaying from an unrelated intent.
     const inferred = old ? old.anchor + (motion.tick - old.motion.tick) * 1000 / 30 : at
+    // RTT is diagnostic only: half-RTT is not an authoritative physics timestamp
+    // (queues and asymmetric delivery make that estimate unstable around jumps).
     let anchor = Math.max(at - HORIZON_MS, Math.min(at, frame ? frame.at + motion.inputAgeMs : inferred))
     // A pre-jump state cannot consume a jump which the server has not processed yet.
     const pendingJump = this.timeline.find(f => f.intent.jump && f.at > this.acknowledgedJumpAt)
@@ -126,12 +131,13 @@ export class LocalMovementPrediction {
     const after = this.sim.pose()
     const error = visible ? distance(visible, after) : 0
     if (error > .01) this.push(this.corrections, error)
-    // Normal prediction errors have a movement-derived envelope. Actual relocation
-    // is identified by its epoch; an arbitrary .75m cutoff snapped rapid strafes.
-    const plausible = visible && Math.hypot(visible.x - after.x, visible.z - after.z)
-      <= MOVEMENT.runSpeed * HORIZON_MS / 1000 + MOVEMENT.radius
-      && Math.abs(visible.y - after.y) <= -MOVEMENT.maxFallSpeed * HORIZON_MS / 1000 + MOVEMENT.stepHeight
-    if (!newEpoch && plausible) {
+    this.diagnostics.push({ at, tick: motion.tick, appliedInputSeq: motion.appliedInputSeq, anchor,
+      errorM: error, epochChanged: newEpoch, roundTripMs: this.roundTrips.length ? Math.min(...this.roundTrips) : 0 })
+    if (this.diagnostics.length > 64) this.diagnostics.shift()
+    // Only the server's relocation epoch authorizes a display snap. A delayed
+    // ordinary state can be metres away during rapid strafes; error magnitude
+    // alone must not turn legitimate correction into a one-frame teleport.
+    if (!newEpoch && visible) {
       this.correction = { x: visible.x - after.x, y: visible.y - after.y, z: visible.z - after.z, at }
     } else {
       this.correction = { x: 0, y: 0, z: 0, at }
@@ -165,6 +171,13 @@ export class LocalMovementPrediction {
     const jumpAt = intent.jump ? last(this.timeline, f => f.intent.jump && f.at <= at)?.at ?? at : -Infinity
     this.sent.push({ seq, at, jumpAt }); this.sent = this.sent.slice(-128)
   }
+  receivedInput(seq: number, at = this.now()) {
+    const input = this.sent.find(frame => frame.seq === seq)
+    const rtt = input ? at - input.at : -1
+    if (rtt < 0 || rtt > 2 * HORIZON_MS) return
+    this.roundTrips.push(rtt)
+    if (this.roundTrips.length > 16) this.roundTrips.shift()
+  }
   reject(seq: number) {
     const rejected = this.sent.find(f => f.seq === seq)
     if (rejected && Number.isFinite(rejected.jumpAt)
@@ -190,7 +203,8 @@ export class LocalMovementPrediction {
     const active = this.ready && !!this.baseline && at - this.baseline.at <= HORIZON_MS
     return { moving: !!(active && (this.intent.dx || this.intent.dz)), running: !!(active && this.intent.run) }
   }
-  metrics() { return { firstResponseMs: [...this.responseTimes], correctionMetres: [...this.corrections], hardCorrections: this.resets } }
+  metrics() { return { firstResponseMs: [...this.responseTimes], correctionMetres: [...this.corrections],
+    hardCorrections: this.resets, roundTripMs: [...this.roundTrips], reconciliations: [...this.diagnostics] } }
   private displayOffset(at: number) {
     const blend = Math.max(0, 1 - (at - this.correction.at) / 80)
     const offset = { x: this.correction.x * blend, y: this.correction.y * blend, z: this.correction.z * blend }

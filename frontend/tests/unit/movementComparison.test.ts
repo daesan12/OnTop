@@ -12,7 +12,7 @@ interface State extends Pose { motion: MotionSnapshot }
 interface Trace { scenario: string; oneWayMs: number; initial: State
   commands: { at: number; seq: number; intent: MovementIntent }[]
   intents?: { at: number; intent: MovementIntent }[]
-  frames: { at: number; state: State }[]; duration?: number }
+  frames: { at: number; state: State; receiptSeq?: number }[]; duration?: number }
 const directory = process.env.MOVEMENT_COMPARISON_DIR
 it.skipIf(!directory)('compares the unchanged presenter and predictor against identical real Bullet traces', async () => {
   const traces = JSON.parse(readFileSync(join(directory!, 'bullet-traces.json'), 'utf8')) as Trace[]
@@ -38,6 +38,7 @@ it.skipIf(!directory)('compares the unchanged presenter and predictor against id
         if (!samePose(baseline.current, frame.state)) baseline = {
           previous: { ...before }, current: frame.state, at: frame.at }
         official = frame.state
+        if (frame.receiptSeq !== undefined && !baselineModule) prediction.receivedInput(frame.receiptSeq, frame.at)
         prediction.reconcile('trace', frame.state, frame.state.motion, true, frame.at)
         prediction.sample(frame.at, predicted)
         sameFrameJump = Math.max(sameFrameJump, Math.hypot(predicted.x - visible.x, predicted.y - visible.y, predicted.z - visible.z))
@@ -86,6 +87,7 @@ it.skipIf(!directory)('compares the unchanged presenter and predictor against id
     }
     results.push({ scenario: trace.scenario, roundTripMs: trace.oneWayMs * 2, beforeFirstResponseMs: beforeResponse,
       afterFirstResponseMs: predictedResponse, maxCorrectionM: Math.max(0, ...metrics.correctionMetres),
+      correctionSamples: metrics.correctionMetres.length,
       hardCorrections: metrics.hardCorrections, sameFrameJump, maxFrameHorizontal, maxFrameVertical, settledErrorM, correctionJumps, samples })
     prediction.reset()
   }

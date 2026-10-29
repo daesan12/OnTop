@@ -25,7 +25,6 @@ class PredictionPhysics implements PredictionSimulation {
   private grounded = false
   private yaw = Math.PI
   private climbY = 0
-  private obstructed = false
   constructor() {
     for (const box of WORLD_COLLIDERS.filter(b => !staticStructureBatch(b.id))) {
       const half = box.movementHalf ?? box.half
@@ -68,7 +67,7 @@ class PredictionPhysics implements PredictionSimulation {
   reset(pose: Pose, velocityY: number, grounded: boolean) {
     this.body.setTranslation(pose, true)
     this.body.setNextKinematicTranslation(pose)
-    this.vy = velocityY; this.grounded = grounded; this.yaw = pose.yaw; this.climbY = 0; this.obstructed = false
+    this.vy = velocityY; this.grounded = grounded; this.yaw = pose.yaw; this.climbY = 0
     this.world.step()
   }
   setChairs(counts: ReadonlyMap<string, number>) {
@@ -99,7 +98,6 @@ class PredictionPhysics implements PredictionSimulation {
       x: input.dx * speed * dt, y: this.vy * dt, z: input.dz * speed * dt,
     })
     const delta = this.controller.computedMovement()
-    this.obstructed ||= Math.hypot(delta.x - input.dx * speed * dt, delta.z - input.dz * speed * dt) > .005
     const limit = WORLD.halfSize - WORLD.boundaryHalfDepth - MOVEMENT.radius - MOVEMENT.offset
     this.body.setNextKinematicTranslation({ x: Math.max(-limit, Math.min(limit, p.x + delta.x)),
       y: p.y + delta.y, z: Math.max(-limit, Math.min(limit, p.z + delta.z)) })
@@ -110,6 +108,5 @@ class PredictionPhysics implements PredictionSimulation {
     this.world.step()
   }
   pose(): Pose { return { ...this.body.translation(), yaw: this.yaw } }
-  blocked() { return this.obstructed }
   dispose() { this.world.free() }
 }

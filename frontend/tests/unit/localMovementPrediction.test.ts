@@ -43,6 +43,29 @@ async function ready(pose = origin) {
   return { sim, prediction }
 }
 describe('own movement prediction; authority and other avatars stay separate', () => {
+  it('records bounded request RTT diagnostics without shifting jump replay by a guessed half-RTT', async () => {
+    const { prediction } = await ready()
+    prediction.intend(walk, 100); prediction.sentInput(1, 100, walk)
+    prediction.receivedInput(1, 200)
+    prediction.reconcile('one', { ...origin, x: origin.x + .625 }, { ...motion(6, 1), inputAgeMs: 100 }, true, 300)
+    expect(prediction.metrics().reconciliations.at(-1)).toMatchObject({ anchor: 200, roundTripMs: 100 })
+    prediction.receivedInput(999, 301) // no matching pending input
+    expect(prediction.metrics().roundTripMs).toEqual([100])
+    prediction.reset(); expect(prediction.metrics().roundTripMs).toEqual([])
+  })
+  it('never turns a large same-epoch prediction error into a snap, but honours an explicit server relocation', async () => {
+    const { prediction } = await ready(), p = { ...origin }
+    prediction.intend(walk, 10); prediction.sentInput(1, 10)
+    prediction.sample(100, p); const visible = { ...p }
+    prediction.reconcile('one', { ...origin, x: origin.x + 4 }, motion(3, 1), true, 100)
+    prediction.sample(100, p); expect(p.x).toBeCloseTo(visible.x)
+    prediction.sample(116, p); expect(p.x - visible.x).toBeLessThanOrEqual(12.125 * .016 + .001)
+    expect(prediction.metrics().hardCorrections).toBe(0)
+    prediction.reconcile('one', { ...origin, x: 20 }, { ...motion(6, 1), epoch: 1 }, true, 200)
+    prediction.sample(200, p); expect(p.x).toBe(20)
+    expect(prediction.metrics().hardCorrections).toBe(1)
+    prediction.reset()
+  })
   it('does not replay a rejected jump when a later ordinary input is acknowledged', async () => {
     const sim = new JumpSimulation()
     const prediction = new LocalMovementPrediction(async () => sim, () => 0)

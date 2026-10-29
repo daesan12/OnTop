@@ -81,6 +81,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     const scale = lookScale()
     viewControls.yaw -= x * 0.004 * scale
     viewControls.pitch = Math.max(-0.2, Math.min(1.1, viewControls.pitch + y * 0.003 * scale))
+    if (hadMovement) sendIntent()
   }
   // Shared by drag and mouse look; zoom slows the aim and the server sync keeps its own interval.
   const turnTelescope = (x: number, y: number) => {
@@ -217,7 +218,10 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
         if (!event.repeat && event.code !== 'ShiftLeft' && event.code !== 'ShiftRight') void leaveFitness()
         if (event.repeat) return
       }
+      const changed = !keys.has(event.code)
       keys.add(event.code)
+      // Local intent must not wait for the transport's 60ms send cadence.
+      if (changed) sendIntent()
     }
     if (event.code === 'Space' && !event.repeat) {
       event.preventDefault()
@@ -237,7 +241,10 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
       }
     }
   }
-  const up = (event: KeyboardEvent) => keys.delete(event.code)
+  const up = (event: KeyboardEvent) => {
+    const changed = keys.delete(event.code)
+    if (changed && movement.has(event.code) && !blocked() && !useSession.getState().telescopeId) sendIntent()
+  }
   const pointerDown = (event: PointerEvent) => {
     if (mouseLook.locked()) return
     const session = useSession.getState(), scope = seatScope(session)

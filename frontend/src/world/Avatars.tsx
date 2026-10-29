@@ -17,6 +17,7 @@ import { createAvatarOpacity } from './avatarOpacity'
 import { emptyEquipment } from '../network/equipment'
 import { roamingFirstPerson } from './roamingCamera'
 import { localMovement } from '../network/localMovementPrediction'
+import { remoteMovement } from '../network/remoteMovement'
 import { useGame } from '../game/store'
 import { openAvatarMenu } from '../features/follow/FollowMenu'
 import { gameReaction, installGameReactions } from './gameReactions'
@@ -94,7 +95,9 @@ function Avatar({
     const now = estimatedServerTime()
     const reaction = gameReaction(id, avatar, now)
     const holdingCards = seated && oneCardHeldCount(id, avatar.tableId) > 0
-    const displayAvatar = own && localMovement.ready ? { ...avatar, ...localMovement.displayFlags(frameAt) } : avatar
+    const displayFlags = own && localMovement.ready ? localMovement.displayFlags(frameAt)
+      : !own ? remoteMovement.flags(id) : undefined
+    const displayAvatar = displayFlags ? { ...avatar, ...displayFlags } : avatar
     const active = !!reaction || avatarPoseActive(displayAvatar, now)
     // Keep the authoritative position interpolation above at display cadence.
     // State changes (seat, action, reconnect) must never wait for the next pose tick.

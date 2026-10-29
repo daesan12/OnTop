@@ -82,14 +82,39 @@ test('M02 queues Space synchronously before the polling tick and ignores repeats
       return { immediate, afterRepeat, afterChat }
     } finally { parkRuntime.move = original; setChatInputOpen(false) }
   })
-  expect(result.immediate).toHaveLength(1)
-  expect(result.immediate[0]).toEqual([0, -1, false, true])
-  expect(result.afterRepeat).toBe(1)
+  expect(result.immediate).toEqual([[0, -1, false, false], [0, -1, false, true]])
+  expect(result.afterRepeat).toBe(2)
   // Opening chat sends a separate stop, with Space still blocked.
-  expect(result.afterChat).toBe(2)
+  expect(result.afterChat).toBe(4)
   expect(server.sent.filter(m => m.type === 'WORLD_MOVE' && m.payload.jump).length).toBeLessThanOrEqual(1)
   expect(await page.locator('vite-error-overlay').count()).toBe(0)
   await screenshot(page, 'm02-jump-input')
+})
+
+test('M02 direction, Shift and key release reach local intent immediately instead of waiting for the network cadence', async ({ page }) => {
+  await fixture(page, { manualMovement: true })
+  await loaded(page)
+  const result = await page.evaluate(async () => {
+    const { parkRuntime } = await import('/src/park/runtime/runtime.ts' as string)
+    const { viewControls } = await import('/src/world/cameraPerspective.ts' as string)
+    const original = parkRuntime.move, calls: { dx: number; dz: number; run: boolean; jump: boolean }[] = []
+    viewControls.yaw = 0
+    parkRuntime.move = (dx: number, dz: number, run: boolean, jump = false) => { calls.push({ dx, dz, run, jump }); original(dx, dz, run, jump) }
+    const key = (type: string, code: string) => window.dispatchEvent(new KeyboardEvent(type, { code, cancelable: true }))
+    try {
+      key('keydown', 'KeyA'); const left = calls.at(-1)
+      key('keydown', 'ShiftLeft'); const running = calls.at(-1)
+      key('keyup', 'KeyA'); const stopped = calls.at(-1)
+      key('keyup', 'ShiftLeft')
+      key('keydown', 'KeyD'); const right = calls.at(-1)
+      key('keyup', 'KeyD')
+      return { left, running, stopped, right }
+    } finally { parkRuntime.move = original }
+  })
+  expect(result.left).toMatchObject({ dx: -1, run: false, jump: false })
+  expect(result.running).toMatchObject({ dx: -1, run: true })
+  expect(Math.hypot(result.stopped!.dx, result.stopped!.dz)).toBe(0)
+  expect(result.right).toMatchObject({ dx: 1, run: false })
 })
 
 test('M02 preserves the movement protocol, one-shot Space and stopping across blur/reconnect', async ({ page }) => {

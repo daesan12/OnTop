@@ -96,7 +96,7 @@ export class ParkRuntime implements ParkRuntimePort {
   private bootAbort: AbortController | undefined
   private authListeners = new Set<AuthEnded>()
   private actionBusy = false
-  private movementRequests = new Set<string>()
+  private movementRequests = new Map<string, number>()
   private inspection = 0
   private tableWatchRequestId = ''
   private obsoleteWatchRequests = new Set<string>()
@@ -504,6 +504,8 @@ export class ParkRuntime implements ParkRuntimePort {
   }
   private message(message: Envelope) {
     if (!this.active) return
+    const moveSeq = message.requestId ? this.movementRequests.get(message.requestId) : undefined
+    if (message.type === 'WORLD_STATE' && moveSeq !== undefined) localMovement.receivedInput(moveSeq)
     if (message.type === 'ERROR' && message.requestId
       && this.movementRejectedAfterSeating(message.requestId, message.payload.code)) return
     // Seat states held before the table list carry no requestId, so they never meet the movement filter above.
@@ -805,7 +807,7 @@ export class ParkRuntime implements ParkRuntimePort {
       await this.socket.request('WORLD_MOVE', {
         seq: sequence,
         ...intent,
-      }, ['WORLD_STATE'], id => { requestId = id; this.movementRequests.add(id) })
+      }, ['WORLD_STATE'], id => { requestId = id; this.movementRequests.set(id, sequence) })
       if (scope === this.movementScope() && this.active) clearMovementNotice(sequence)
     } catch (error) {
       if (scope !== this.movementScope() || !this.active) return
@@ -813,8 +815,8 @@ export class ParkRuntime implements ParkRuntimePort {
       // The server may reject a movement sent just before the approved seat.
       // That old movement error does not describe the current tablet action.
       if (error instanceof ServerError && this.movementRejectedAfterSeating(requestId, error.code)) return
-      // A rejected or timed-out input is never replayed; fresh key input may resume.
-      this.movement.clear(false)
+      // Do not cancel a newer direction/jump already waiting in the queue.
+      // The failed input itself was consumed by flush and is never replayed.
       if (error instanceof ServerError && error.code === 'MOVE_TOO_FREQUENT')
         showMovementNotice(error.message, sequence)
       else this.report(error)

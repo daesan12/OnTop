@@ -20,7 +20,7 @@ class MovementPredictionFrontendTests {
         Path directory = Path.of(System.getenv("MOVEMENT_COMPARISON_DIR")).toAbsolutePath();
         Files.createDirectories(directory);
         var traces = new ArrayList<Map<String, Object>>();
-        for (int delay : new int[]{0, 50, 100}) {
+        for (int delay : new int[]{0, 25, 50, 100}) {
             traces.add(trace("flat", delay, false));
             traces.add(trace("boundary", delay, true));
             for (String name : new String[]{"strafe", "jump", "jump-pad", "pad-fall", "stairs"})
@@ -92,7 +92,9 @@ class MovementPredictionFrontendTests {
                     physics.input("a", new MoveInput((int) command.get("seq"), (double) intent.get("dx"),
                             (double) intent.get("dz"), (boolean) intent.get("run"), (boolean) intent.get("jump")), received);
                     // The immediate receipt response still carries the previous completed physics state.
-                    frames.add(frame((int) command.get("at") + delay * 2, physics.snapshot("a")));
+                    var receipt = new java.util.HashMap<>(frame((int) command.get("at") + delay * 2, physics.snapshot("a")));
+                    receipt.put("receiptSeq", command.get("seq"));
+                    frames.add(receipt);
                 }
                 physics.step(now, Set.of());
                 if (tick % 3 == 0) frames.add(frame(tick * WorldPhysics.STEP_NANOS / 1_000_000.0 + delay, physics.snapshot("a")));
