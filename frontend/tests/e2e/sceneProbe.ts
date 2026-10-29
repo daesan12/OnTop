@@ -460,7 +460,7 @@ export function movementProbe() {
 
 export function renderedMovementPose() {
   const object = root().scene.getObjectByName('avatar-' + useSession.getState().sessionId)
-  return object ? { x: object.position.x, y: object.position.y + .8, z: object.position.z } : null
+  return object ? { x: object.position.x, y: object.position.y + .8, z: object.position.z, yaw: object.rotation.y } : null
 }
 
 /** Keep unrelated advertisement uploads out of the avatar allocation/disposal comparison. */

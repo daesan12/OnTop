@@ -1,5 +1,6 @@
 import type { MovementIntent } from './movementInput'
 import type { Pose } from './worldClient'
+import { NETWORK } from '../config'
 
 export interface MotionSnapshot {
   epoch: number; tick: number; appliedInputSeq: number; inputAgeMs: number
@@ -16,6 +17,7 @@ export interface PredictionSimulation {
 const STOP: MovementIntent = { dx: 0, dz: 0, run: false, jump: false }
 const HORIZON_MS = 250
 const distance = (a: Pose, b: Pose) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z)
+const angleDelta = (from: number, to: number) => Math.atan2(Math.sin(to - from), Math.cos(to - from))
 type IntentFrame = { at: number; intent: MovementIntent }
 type SentFrame = { seq: number; at: number }
 function last<T>(values: T[], predicate: (value: T) => boolean): T | undefined {
@@ -43,6 +45,7 @@ export class LocalMovementPrediction {
   private idleWindow = true
   private highestSent = 0
   private unavailable = false
+  private facing: { from: number; to: number; at: number } | undefined
   private chairCounts: ReadonlyMap<string, number> = new Map()
   constructor(private readonly factory: () => Promise<PredictionSimulation> = async () =>
     (await import('./predictionPhysics')).createPredictionPhysics(), private readonly now = () => performance.now()) {}
@@ -71,11 +74,13 @@ export class LocalMovementPrediction {
     this.lastJumpAt = -Infinity
     this.idleWindow = true; this.highestSent = 0
     this.unavailable = false
+    this.facing = undefined
     this.correction = { x: 0, y: 0, z: 0, at: 0 }
   }
   suspend() {
     this.timeline = []; this.sent = []; this.intent = { ...STOP }; this.firstInput = undefined
     this.allowed = false; this.correction = { x: 0, y: 0, z: 0, at: 0 }
+    this.facing = undefined
   }
   reconcile(scope: string, pose: Pose & { moving?: boolean }, motion: MotionSnapshot | undefined, allowed: boolean, at = this.now()) {
     if (scope !== this.scope) { this.reset(); this.scope = scope }
@@ -95,6 +100,7 @@ export class LocalMovementPrediction {
     }
     this.allowed = true
     this.baseline = { pose: { ...pose }, motion, at }
+    if (newEpoch) this.facing = { from: pose.yaw, to: pose.yaw, at }
     if (!this.sim) { void this.prepare(); return }
     const frame = this.sent.find(f => f.seq === motion.appliedInputSeq)
     const anchor = Math.max(at - HORIZON_MS, Math.min(at,
@@ -113,6 +119,7 @@ export class LocalMovementPrediction {
     if (!newEpoch && visible && error < .75 && !this.sim.blocked?.()) {
       this.correction = { x: visible.x - after.x, y: visible.y - after.y, z: visible.z - after.z, at }
     } else { this.correction = { x: 0, y: 0, z: 0, at }; if (error >= .75) ++this.resets }
+    if (error >= .75) this.facing = { from: after.yaw, to: after.yaw, at }
     this.sent = this.sent.filter(f => f.seq >= motion.appliedInputSeq).slice(-128)
     this.idleWindow = (pose.moving === false || !motion.inputActive) && motion.appliedInputSeq >= this.highestSent
     this.trim(at)
@@ -147,6 +154,7 @@ export class LocalMovementPrediction {
     if (!this.ready) return false
     this.advance(at)
     Object.assign(target, this.sim!.pose())
+    target.yaw = this.displayYaw(target.yaw, at)
     const blend = Math.max(0, 1 - (at - this.correction.at) / 80)
     target.x += this.correction.x * blend; target.y += this.correction.y * blend; target.z += this.correction.z * blend
     if (this.firstInput && distance(target, this.firstInput.pose) > .001) {
@@ -159,6 +167,15 @@ export class LocalMovementPrediction {
     return { moving: !!(active && (this.intent.dx || this.intent.dz)), running: !!(active && this.intent.run) }
   }
   metrics() { return { firstResponseMs: [...this.responseTimes], correctionMetres: [...this.corrections], hardCorrections: this.resets } }
+  private displayYaw(yaw: number, at: number) {
+    const facing = this.facing ?? { from: yaw, to: yaw, at }
+    const t = Math.min(1, Math.max(0, (at - facing.at) / NETWORK.interpolationMs))
+    const visible = facing.from + angleDelta(facing.from, facing.to) * t
+    // Keep prediction's position immediate; only the displayed facing uses the existing turn interval.
+    this.facing = Math.abs(angleDelta(facing.to, yaw)) > .000001
+      ? { from: visible, to: yaw, at } : facing
+    return visible
+  }
   private push(list: number[], value: number) { list.push(value); if (list.length > 256) list.shift() }
   private trim(at: number) {
     const frame = last(this.timeline, f => f.at < at - 2 * HORIZON_MS)

@@ -18,20 +18,69 @@ class FlatSimulation implements PredictionSimulation {
   step(intent: MovementIntent, seconds: number) {
     this.p.x += intent.dx * (intent.run ? 9 : 6.25) * seconds
     this.p.z += intent.dz * (intent.run ? 9 : 6.25) * seconds
+    if (intent.dx || intent.dz) this.p.yaw = Math.atan2(intent.dx, intent.dz)
     if (intent.jump) ++this.jumps
   }
   pose() { return { ...this.p } }
   setChairs() {}
   dispose() { this.disposed = true }
 }
-async function ready() {
+async function ready(pose = origin) {
   const sim = new FlatSimulation()
   const prediction = new LocalMovementPrediction(async () => sim, () => 0)
-  prediction.reconcile('one', origin, motion(), true, 0)
+  prediction.reconcile('one', pose, motion(), true, 0)
   await prediction.prepare()
   return { sim, prediction }
 }
 describe('own movement prediction; authority and other avatars stay separate', () => {
+  it('keeps position immediate but blends a quarter-turn and does not restart it for server acknowledgements', async () => {
+    const { prediction } = await ready({ ...origin, yaw: 0 })
+    const p = { ...origin }
+    prediction.sample(0, p)
+    prediction.intend(walk, 0); prediction.sentInput(1, 0)
+    prediction.sample(17, p)
+    expect(p.x).toBeGreaterThan(origin.x)
+    expect(p.yaw).toBeLessThan(Math.PI / 4)
+    prediction.sample(77, p)
+    expect(p.yaw).toBeGreaterThan(0)
+    expect(p.yaw).toBeLessThan(Math.PI / 2)
+    const visibleYaw = p.yaw
+    prediction.reconcile('one', { ...p, yaw: Math.PI / 2 }, { ...motion(2, 1), inputActive: true }, true, 77)
+    prediction.sample(77, p)
+    expect(p.yaw).toBeCloseTo(visibleYaw)
+    prediction.sample(137, p)
+    expect(p.yaw).toBeCloseTo(Math.PI / 2)
+    prediction.reset()
+  })
+  it('continues a rapid direction change from the visible facing without delaying the new travel direction', async () => {
+    const { prediction } = await ready({ ...origin, yaw: 0 })
+    const p = { ...origin }; prediction.sample(0, p)
+    prediction.intend(walk, 0); prediction.sample(17, p); prediction.sample(77, p)
+    const before = { ...p }
+    prediction.intend({ ...walk, dx: 0, dz: -1 }, 77); prediction.sample(94, p)
+    expect(p.z).toBeLessThan(before.z)
+    expect(p.yaw - before.yaw).toBeLessThan(.3)
+    prediction.sample(154, p)
+    expect(p.yaw).toBeGreaterThan(before.yaw); expect(p.yaw).toBeLessThan(Math.PI)
+    const sameFrame = p.yaw; prediction.sample(154, p)
+    expect(p.yaw).toBe(sameFrame)
+    prediction.sample(214, p); expect(p.yaw).toBeCloseTo(Math.PI)
+    prediction.reset()
+  })
+  it('turns across the angle seam by the short path and resets facing immediately on a relocation epoch', async () => {
+    const startYaw = Math.PI * 179 / 180, endYaw = -startYaw
+    const { prediction } = await ready({ ...origin, yaw: startYaw })
+    const p = { ...origin }; prediction.sample(0, p)
+    prediction.intend({ ...walk, dx: Math.sin(endYaw), dz: Math.cos(endYaw) }, 0)
+    prediction.sample(17, p); prediction.sample(77, p)
+    expect(Math.abs(p.yaw - startYaw)).toBeLessThan(Math.PI / 90)
+    prediction.sample(137, p)
+    expect(Math.atan2(Math.sin(p.yaw - endYaw), Math.cos(p.yaw - endYaw))).toBeCloseTo(0)
+    prediction.reconcile('one', { ...origin, x: 20, yaw: -.5 }, { ...motion(3, 1), epoch: 1 }, true, 150)
+    prediction.sample(150, p)
+    expect(p.x).toBe(20); expect(p.yaw).toBe(-.5)
+    prediction.reset()
+  })
   it('renders a new intent on the next frame before any reply, while the old presenter stays still', async () => {
     const { prediction } = await ready()
     prediction.intend(walk, 0); prediction.sentInput(1, 0)
