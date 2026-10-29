@@ -4,7 +4,6 @@ import com.ssafy.ontop.game.reconnect.ActiveGameLookup;
 import com.ssafy.ontop.game.reconnect.ActiveGameRecord;
 import com.ssafy.ontop.game.repository.GameParticipantRepository;
 import java.util.Optional;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Isolation;
@@ -13,7 +12,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Component
 @Profile("db")
-@ConditionalOnProperty(name = "ontop.game-start.enabled", havingValue = "true")
 public class JpaActiveGameLookup implements ActiveGameLookup {
     private final GameParticipantRepository participants;
 
