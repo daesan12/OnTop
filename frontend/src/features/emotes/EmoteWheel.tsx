@@ -229,6 +229,7 @@ export function EmoteWheel() {
     window.addEventListener("keyup", keyup, true);
     window.addEventListener("pointermove", move, true);
     window.addEventListener("blur", cancel);
+    window.addEventListener("ontop-browser-interrupt", cancel);
     window.addEventListener("ontop-manual-open", cancel);
     window.addEventListener("resize", cancel);
     document.addEventListener("visibilitychange", visibility);
@@ -239,6 +240,7 @@ export function EmoteWheel() {
       window.removeEventListener("keyup", keyup, true);
       window.removeEventListener("pointermove", move, true);
       window.removeEventListener("blur", cancel);
+      window.removeEventListener("ontop-browser-interrupt", cancel);
       window.removeEventListener("ontop-manual-open", cancel);
       window.removeEventListener("resize", cancel);
       document.removeEventListener("visibilitychange", visibility);
