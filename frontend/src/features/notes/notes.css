@@ -18,7 +18,7 @@
 .notes-primary{border:1px solid #305645;border-radius:28px;background:linear-gradient(#527f65,#3e6751);color:#fff9e9;padding:12px 30px;font-size:17px;box-shadow:inset 0 1px 1px #fff8,0 3px 5px #6e542026;min-height:47px}.notes-refresh,.notes-back{border:0;background:transparent;color:#7b654a;text-decoration:underline;text-underline-offset:4px;font-size:12px;padding:8px}.notes-caption{text-align:center;font-size:11px;line-height:1.6;color:#8a765b;margin:12px 0 0}
 .notes-inkwell{position:relative;overflow:hidden;border:1px solid #d0b592;border-radius:10px;background:linear-gradient(120deg,#fffaf0c9,#fff7e891);box-shadow:inset 0 2px 5px #ac85521a;margin-top:25px}
 .notes-inkwell textarea{display:block;box-sizing:border-box;width:100%;min-height:230px;border:0;background:transparent;resize:none;padding:17px 18px;font:18px/1.9 BusanDandiMyeongjo,"Malgun Gothic",serif;color:#54432f;letter-spacing:.02em;scrollbar-width:thin;outline-offset:-3px!important}.notes-inkwell textarea::placeholder{color:#a18e76;font-size:16px}
-.notes-caret-mirror{position:fixed!important;left:-99999px;top:0;visibility:hidden;white-space:pre-wrap;overflow-wrap:break-word;border:0;word-break:normal}.notes-caret-mirror span{overflow-wrap:break-word}
+.notes-caret-mirror{position:absolute!important;left:0;top:0;visibility:hidden;pointer-events:none;white-space:pre-wrap;overflow-wrap:break-word;border:0;word-break:normal}.notes-caret-mirror span{overflow-wrap:break-word}
 .notes-fountain-pen{position:absolute;width:84px;height:84px;object-fit:contain;pointer-events:none;transform:translate(-5px,-79px) rotate(24deg);transform-origin:5px 79px;transition:left .08s linear,top .08s linear,opacity .15s;filter:drop-shadow(1px 3px 1px #654b3730)}.notes-fountain-pen.is-writing{animation:notes-pen-scratch .16s ease-in-out infinite alternate}
 .notes-counter{text-align:right;color:#80664b;font-size:13px;margin:7px 0 18px}.notes-topics{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;padding:0;margin:0 0 20px;border:0}.notes-topics button{display:flex;flex-direction:column;align-items:center;gap:1px;border:1px solid #c6b08d;border-radius:6px;background:var(--topic-paper);padding:7px 2px;font-size:14px;color:#6e5a43;box-shadow:0 2px 3px #654b3714}.notes-topics button span{font-family:Georgia,serif;font-size:25px;line-height:1.1}.notes-topics button[aria-pressed=true]{outline:2px solid #4e7356;outline-offset:2px;box-shadow:0 2px 5px #4e73564d}.notes-topics:disabled button{opacity:.58}
 .notes-submit{display:block;width:83%;margin:20px auto 0}.notes-back{display:block;margin:10px auto 0}.notes-error{background:#fff0e3b3;border-left:3px solid #a95338;padding:9px 12px;margin:10px 0;color:#95402a;font-size:12px;line-height:1.6}.notes-paper [role=status]{font-size:13px;text-align:center;color:#776042}.notes-sr-only{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
@@ -56,7 +56,8 @@
 .notes-inkwell textarea::placeholder{color:#82694e;opacity:1}
 .notes-primary{color:#fffdf5}
 .notes-error{color:#a34c32;background:#fff7e9f2;font-weight:500}
-.notes-board{display:flex;flex-direction:column;width:min(980px,100%);max-width:100%;height:min(760px,calc(100dvh - 40px));min-height:0;overflow:hidden;padding:clamp(34px,6dvh,58px) clamp(34px,6vw,64px) clamp(54px,9dvh,76px)}
+/* Match the artwork's crest and bottom frame instead of placing text over them. */
+.notes-board{--notes-board-height:min(760px,calc(100dvh - 40px));display:flex;flex-direction:column;width:min(980px,100%);max-width:100%;height:var(--notes-board-height);min-height:0;overflow:hidden;padding:calc(var(--notes-board-height)*.13) clamp(34px,6vw,64px) calc(var(--notes-board-height)*.1)}
 .notes-board>.notes-title,.notes-board>.notes-filters,.notes-board>.notes-error,.notes-board>.notes-board-footer{flex:0 0 auto}
 .notes-board .notes-title>small{display:none}
 .notes-board .notes-title h2{font-size:28px}
@@ -64,13 +65,20 @@
 .notes-board .notes-filters{flex-wrap:wrap}
 .notes-board .notes-wall{flex:1 1 0;min-height:0;max-height:none;overflow:auto;overscroll-behavior:contain;padding:6px 8px 12px;scrollbar-gutter:stable}
 .notes-board .notes-wall:has(.notes-empty){align-content:center}
-.notes-board .notes-empty{margin:0;padding:16px 6px;font-size:15px}
-.notes-board>.notes-error{margin:8px 0;overflow-wrap:anywhere;text-align:center}
+.notes-board .notes-empty{margin:0;padding:16px 6px;font-size:15px;word-break:keep-all;overflow-wrap:anywhere}
+.notes-board>.notes-error{align-self:center;width:100%;max-width:680px;box-sizing:border-box;margin:8px 0;overflow-wrap:anywhere;text-align:center;border-radius:4px}
 .notes-board-footer{gap:18px;flex-wrap:wrap;margin-top:12px}
 .notes-board .notes-refresh{font-size:13px}
+/* Keep the paper background fixed while long forms scroll inside its safe area. */
+.notes-paper{display:flex;flex-direction:column;height:min(760px,calc(100dvh - 40px));min-height:0;overflow:hidden}
+.notes-paper>.notes-title{flex:none}
+.notes-paper>form,.notes-paper>.notes-success{flex:1 1 0;min-height:0;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-gutter:stable;padding:4px 4px 8px}
+.notes-paper>.notes-success>*{flex-shrink:0}
+.notes-paper .notes-success .sticky-note{max-width:100%}
 
 @media(max-width:700px){
- .notes-board{height:calc(100dvh - 20px);min-height:0;padding:38px 28px 52px}
+ .notes-board{--notes-board-height:calc(100dvh - 20px);height:var(--notes-board-height);min-height:0;padding:52px 28px}
+ .notes-paper{height:min(760px,calc(100dvh - 20px))}
  .notes-board .notes-title h2{font-size:24px}
  .notes-board .notes-title p{font-size:13px}
  .notes-board .notes-filters{margin-bottom:12px}
@@ -80,7 +88,7 @@
 }
 @media(max-height:520px){
  .notes-backdrop{padding:8px}
- .notes-board{height:calc(100dvh - 16px);max-height:calc(100dvh - 16px);padding-top:22px;padding-bottom:38px}
+ .notes-board{--notes-board-height:calc(100dvh - 16px);height:var(--notes-board-height);max-height:var(--notes-board-height);padding-top:calc(var(--notes-board-height)*.13);padding-bottom:38px}
  .notes-board .notes-title{margin-bottom:8px}
  .notes-board .notes-title h2{font-size:22px;margin:0}
  .notes-board .notes-title p{display:none}
