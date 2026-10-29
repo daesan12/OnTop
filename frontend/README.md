@@ -1,6 +1,6 @@
 # OnTop frontend
 
-운영 공원 화면의 브라우저 단축키 제한과 화면 이탈 시 입력 정리는 [FE 적용 범위](docs/BROWSER_SHORTCUT_GUARD.md)를 참고한다. 개발자 도구 접근/클라이언트 변조의 완전 차단을 보장하지 않으며, 서버 검증 확인 항목과 바로 전달할 요청 글은 [BE 요청 문서](docs/BROWSER_GAME_INTEGRITY_BE_REQUEST.md)에 정리했다. 로컬 QA는 `pnpm test:e2e:browser-guard`를 사용한다.
+운영 공원 화면은 F12만 제한하며 F5·Ctrl+Shift+R 등 나머지 브라우저 단축키는 허용한다. 화면 이탈 시 입력 정리와 제한 범위는 [FE 적용 범위](docs/BROWSER_SHORTCUT_GUARD.md)를 참고한다. 개발자 도구 접근/클라이언트 변조의 완전 차단을 보장하지 않으며, 서버 검증 확인 항목과 바로 전달할 요청 글은 [BE 요청 문서](docs/BROWSER_GAME_INTEGRITY_BE_REQUEST.md)에 정리했다. 로컬 QA는 `pnpm test:e2e:browser-guard`를 사용한다.
 
 일반 `pnpm dev`와 `pnpm build`에서 착석하면 태블릿 게임 선택·준비·시작 화면을 표시한다. 별도의 tablet 모드나 활성화 환경변수는 필요하지 않다. 기존 AUTO 서버 호환이 필요한 환경만 `VITE_TABLET_LOBBY=false`를 명시한다. 시설/붕어빵 에셋 미리보기는 기존 화면을 유지한다. 서버 계약과 전달 문구는 [태블릿 인계 문서](docs/TABLET_LOBBY_HANDOFF.md), 생성 아트는 [제작 기록](docs/TABLET_ART_PROMPTS.md)을 참고한다. `dev:tablet`/`build:tablet`은 기존 검수 주소·산출물의 호환 명령으로 유지한다.
 

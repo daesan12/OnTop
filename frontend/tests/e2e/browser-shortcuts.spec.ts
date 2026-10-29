@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { fixture, screenshot } from './contractFixture'
 
-test('game shortcuts are cancelled before modal handlers; editing, F1 and Esc remain usable', async ({ page }) => {
+test('only F12 is cancelled before modal handlers; other browser shortcuts remain available', async ({ page }) => {
   const errors: string[] = []
   const consoleErrors: string[] = []
   page.on('pageerror', error => errors.push(error.message))
@@ -29,9 +29,25 @@ test('game shortcuts are cancelled before modal handlers; editing, F1 and Esc re
       return Promise.resolve()
     }
   })
-  for (const chord of ['F11', 'F12', 'F5', 'Control+Shift+KeyI', 'Control+Shift+KeyJ', 'Control+Shift+KeyC',
-    'Control+Shift+KeyK', 'Control+KeyU', 'Control+KeyS', 'Control+KeyP', 'Control+KeyR',
-    'Control+Shift+KeyR', 'Meta+Alt+KeyI', 'Meta+Alt+KeyU']) {
+  // Dispatch cancellable DOM events so testing refresh/print/save does not leave the flow.
+  const allowed = await page.evaluate(() => {
+    const shortcuts = [
+      { code: 'F5' }, { code: 'F5', ctrlKey: true }, { code: 'F11' },
+      { code: 'KeyR', ctrlKey: true }, { code: 'KeyR', ctrlKey: true, shiftKey: true },
+      { code: 'KeyR', metaKey: true, shiftKey: true },
+      ...['KeyI', 'KeyJ', 'KeyC', 'KeyK'].map(code => ({ code, ctrlKey: true, shiftKey: true })),
+      ...['KeyU', 'KeyS', 'KeyP'].map(code => ({ code, ctrlKey: true })),
+      ...['KeyI', 'KeyU'].map(code => ({ code, metaKey: true, altKey: true })),
+    ]
+    return shortcuts.map(shortcut => {
+      const event = new KeyboardEvent('keydown', { ...shortcut, bubbles: true, cancelable: true })
+      window.dispatchEvent(event)
+      window.dispatchEvent(new KeyboardEvent('keyup', { ...shortcut, bubbles: true, cancelable: true }))
+      return { shortcut, cancelled: event.defaultPrevented }
+    })
+  })
+  for (const result of allowed) expect(result.cancelled, JSON.stringify(result.shortcut)).toBe(false)
+  for (const chord of ['F12', 'Control+F12']) {
     await page.keyboard.press(chord)
     expect(await page.evaluate(() => {
       const records = (window as unknown as { shortcutRecords: KeyboardEvent[] }).shortcutRecords
@@ -94,7 +110,7 @@ test('game shortcuts are cancelled before modal handlers; editing, F1 and Esc re
   await input.fill('입력 유지 확인')
   await page.keyboard.press('Control+A')
   expect(await input.evaluate((el: HTMLInputElement) => el.selectionEnd! - el.selectionStart!)).toBe('입력 유지 확인'.length)
-  await page.keyboard.press('Control+KeyU')
+  await page.keyboard.press('F12')
   await expect(input).toHaveValue('입력 유지 확인')
   await page.keyboard.press('Escape')
   await screenshot(page, 'browser-shortcuts-park')

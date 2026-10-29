@@ -1,17 +1,7 @@
-/** Convenience guard only. The browser and the user retain control of DevTools. */
+/** F12 convenience guard only. Every other browser shortcut remains available. */
 export function isRestrictedBrowserShortcut(event: KeyboardEvent): boolean {
   if (event.isComposing || event.getModifierState?.('AltGraph')) return false
-  const code = event.code || (/^[a-z]$/i.test(event.key) ? `Key${event.key.toUpperCase()}` : event.key)
-  if (code === 'F11' || code === 'F12' || code === 'F5') return true
-
-  // Windows/Linux DevTools; macOS uses Command + Option instead of Ctrl + Shift.
-  if ((event.ctrlKey && event.shiftKey && !event.altKey && !event.metaKey)
-    || (event.metaKey && event.altKey && !event.ctrlKey)) {
-    if (['KeyI', 'KeyJ', 'KeyC', 'KeyK'].includes(code)) return true
-  }
-  if (event.metaKey && event.altKey && !event.ctrlKey && code === 'KeyU') return true
-  if (event.altKey || !(event.ctrlKey || event.metaKey)) return false
-  return ['KeyU', 'KeyS', 'KeyP', 'KeyR'].includes(code)
+  return (event.code || event.key) === 'F12'
 }
 
 /** Install before the game's passive effects, including modal capture handlers. */
