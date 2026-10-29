@@ -52,7 +52,7 @@ function Avatar({
   const pose = useMemo(() => ({ x: 0, y: 0, z: 0, yaw: 0 }), [])
   const worldPosition = useMemo(() => new Vector3(), [])
   const motion = useMemo(() => createAvatarMotion(model), [model])
-  const cadence = useMemo(() => new AvatarPoseCadence(), [])
+  const cadence = useMemo(() => new AvatarPoseCadence(), [model])
   const appearance = useMemo(() => createAvatarOpacity(model.root), [model])
   const reducedMotion = useMemo(() => window.matchMedia('(prefers-reduced-motion: reduce)'), [])
   useLayoutEffect(() => {
@@ -86,9 +86,9 @@ function Avatar({
     )
     root.current.rotation.y = pose.yaw
     if (!root.current.visible) return
-    const distance = camera.position.distanceTo(
-      root.current.getWorldPosition(worldPosition),
-    )
+    // The visitors parent has an identity transform; this position is already
+    // in world space. Avoid walking/updating the ancestor matrices per avatar.
+    const distance = camera.position.distanceTo(root.current.position)
     model.lod(distance)
     const now = estimatedServerTime()
     const reaction = gameReaction(id, avatar, now)
@@ -101,7 +101,7 @@ function Avatar({
       distance,
       own,
       active,
-      `${avatarPoseKey(avatar)}|${reaction?.key ?? ''}|${holdingCards}`,
+      `${avatarPoseKey(avatar)}|${reaction?.key ?? ''}|${holdingCards}|${active ? '' : `${avatar.current.x}|${avatar.current.y}|${avatar.current.z}`}`,
     )
     if (!poseDelta) return
     motion.apply(avatar, now, poseDelta, pose, figure.current, reaction, holdingCards ? oneCardHoldingPose : undefined)

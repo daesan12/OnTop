@@ -5,6 +5,7 @@ export class AvatarPoseCadence {
   private previousKey: string | undefined
   private previousActive = false
   private distant = false
+  private quiet = 0
 
   advance(
     delta: number,
@@ -18,9 +19,17 @@ export class AvatarPoseCadence {
     const interval =
       own || (active && !this.distant) ? 0 : active ? 1 / 15 : 1 / 12
     const changed = this.previousKey !== key || this.previousActive !== active
+    const dt = Math.min(Math.max(0, delta), 0.1)
+    this.quiet = changed || active ? 0 : this.quiet + dt
     this.previousKey = key
     this.previousActive = active
-    this.elapsed += Math.min(Math.max(0, delta), 0.1)
+    this.elapsed += dt
+    // Leave time for locomotion/seat/hand easing to converge before sleeping.
+    // A new state or authoritative position key always wakes the pose immediately.
+    if (!changed && !active && this.quiet >= 1.5) {
+      this.elapsed = 0
+      return 0
+    }
     if (!changed && this.elapsed + 1e-8 < interval) return 0
     const step = this.elapsed
     this.elapsed = 0
