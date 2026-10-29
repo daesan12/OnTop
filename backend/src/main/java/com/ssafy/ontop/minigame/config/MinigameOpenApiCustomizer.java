@@ -33,6 +33,9 @@ import org.springframework.web.method.HandlerMethod;
 public class MinigameOpenApiCustomizer implements OperationCustomizer, OpenApiCustomizer {
     private static final String V5_FLAG = "v5는 서버 설정 ontop.minigames.bungeoppang-v5-enabled=true일 때만 받고, "
             + "기본값(false)에서는 409 RULES_VERSION_MISMATCH입니다.";
+    /** The schema bound covers every v5 round still accepted; each round enforces its own stored length. */
+    private static final String V5_ACTION_TIME = "플레이 시작 후 경과 ms. 판마다 저장된 rules.durationMs 미만이어야 합니다. "
+            + "신규 판(v5-20261029.1)은 119999까지, 기존 판(v5-20261027.1)은 179999까지 받습니다.";
 
     @Override
     public Operation customize(Operation operation, HandlerMethod handler) {
@@ -122,7 +125,8 @@ public class MinigameOpenApiCustomizer implements OperationCustomizer, OpenApiCu
                 + "v2는 60초, 15점당 1냥, KST 하루 100냥 계약을 유지합니다. "
                 + "탭 이동 중에도 시간은 흐르며 랭킹은 제외합니다. score·rewardAmount·userId를 본문에 넣지 않습니다. "
                 + "상태 GET도 지갑 잠금과 만료 세션 INVALID 갱신을 수행할 수 있습니다. 읽기 전용 트랜잭션이 아닙니다. "
-                + "v5(180초, 활성 손님 3명, 선택 납품·충원, V128)도 제공하며 " + V5_FLAG);
+                + "v5(신규 판 120초·90초부터 가속, 기존 v5-20261027.1 판은 저장된 180초·150초 규칙 유지, "
+                + "활성 손님 3명, 선택 납품·충원, V128)도 제공하며 " + V5_FLAG);
         return operation;
     }
 
@@ -237,7 +241,7 @@ public class MinigameOpenApiCustomizer implements OperationCustomizer, OpenApiCu
         schema.addProperty("throughSeq", new IntegerSchema().minimum(java.math.BigDecimal.ONE)
                 .maximum(java.math.BigDecimal.valueOf(maxLog)));
         schema.addProperty("prefixHash", new StringSchema().pattern("^[0-9a-f]{64}$"));
-        schema.addProperty("log", new ArraySchema().items(action(maxT)).minItems(1).maxItems(maxLog));
+        schema.addProperty("log", new ArraySchema().items(action(version, maxT)).minItems(1).maxItems(maxLog));
         schema.required(List.of("rulesVersion", "throughSeq", "prefixHash", "log"));
         return schema;
     }
@@ -249,7 +253,7 @@ public class MinigameOpenApiCustomizer implements OperationCustomizer, OpenApiCu
         schema.addProperty("throughSeq", new IntegerSchema().minimum(java.math.BigDecimal.ZERO)
                 .maximum(java.math.BigDecimal.valueOf(maxLog)));
         schema.addProperty("prefixHash", new StringSchema().pattern("^[0-9a-f]{64}$"));
-        schema.addProperty("log", new ArraySchema().items(action(maxT)).maxItems(maxLog));
+        schema.addProperty("log", new ArraySchema().items(action(version, maxT)).maxItems(maxLog));
         schema.addProperty("seenTips", new ArraySchema().items(new StringSchema()).maxItems(5));
         schema.addProperty("clientScore", new IntegerSchema().format("int64")
                 .minimum(java.math.BigDecimal.ZERO));
@@ -257,14 +261,15 @@ public class MinigameOpenApiCustomizer implements OperationCustomizer, OpenApiCu
         return schema;
     }
 
-    private ObjectSchema action(int maxT) {
+    private ObjectSchema action(String version, int maxT) {
         ObjectSchema entry = new ObjectSchema();
         entry.additionalProperties(false);
         entry.addProperty("seq", new IntegerSchema().minimum(java.math.BigDecimal.ONE));
         entry.addProperty("action", new StringSchema()._enum(List.of(
                 "POUR", "FILL", "TURN", "DISCARD", "TRAY_DISCARD", "DELIVER")));
         entry.addProperty("t", new IntegerSchema().minimum(java.math.BigDecimal.ZERO)
-                .maximum(java.math.BigDecimal.valueOf(maxT)));
+                .maximum(java.math.BigDecimal.valueOf(maxT))
+                .description("v5".equals(version) ? V5_ACTION_TIME : null));
         entry.addProperty("slot", new IntegerSchema().minimum(java.math.BigDecimal.ZERO)
                 .maximum(java.math.BigDecimal.valueOf(5)).nullable(true));
         entry.addProperty("filling", new StringSchema()

@@ -169,7 +169,7 @@ class MinigameHttpTests {
 
         assertThat(started.statusCode()).isEqualTo(201);
         assertThat(started.body()).contains("\"rulesVersion\":\"v5\"", "\"heatAssignment\":\"FILL\"",
-                "\"maxActiveOrders\":3", "\"playEndsAt\":\"2026-10-28T00:03:04.623Z\"",
+                "\"maxActiveOrders\":3", "\"playEndsAt\":\"2026-10-28T00:02:04.623Z\"",
                 "\"activeOrders\":[{\"orderId\":\"1\",\"customerSlot\":0,\"availableAfterSeq\":0");
         assertThat(lobby.statusCode()).isEqualTo(200);
         assertThat(lobby.body()).contains("\"supportedRulesVersions\":[\"v2\",\"v4\",\"v5\"]");

@@ -65,8 +65,9 @@ class BungeoppangV5FixtureContractTests {
         JsonNode fixture = fixture();
         List<BungeoppangV4DeliveryDtos.Action> all = wire(fixture.path("log"));
         List<BungeoppangV4DeliveryDtos.Action> delivery = all.subList(0, 5);
-        String config = BungeoppangV5Spec.CONFIG_VERSION;
+        String config = BungeoppangV5Spec.LEGACY_CONFIG_VERSION;
 
+        // Existing three-minute rounds keep the values they were issued with.
         assertThat(config).isEqualTo("v5-20261027.1").isNotEqualTo("v4-20261027.1");
         assertThat(BungeoppangV5Spec.initialPrefixHash(901, config))
                 .isEqualTo("7ac7c529cf10bc98977c5c7676d8b295f8ceb682857bb5727ffe6953470e1876");
@@ -76,6 +77,16 @@ class BungeoppangV5FixtureContractTests {
                 .isEqualTo("e57dce6242b1f6e3d19191fe7bd9b90f311726f460600efcb93d9f8092c851e2");
         assertThat(BungeoppangV4DeliveryContract.prefixHash(901, config, delivery))
                 .isEqualTo("1e3272b596241d6e6d6fc8b81d8172797ffa8b9fb1f829fb17a8c034c83175ca");
+
+        // New two-minute rounds: same tuple chain, seed carries the new config version (values from the FE formula).
+        String current = BungeoppangV5Spec.CONFIG_VERSION;
+        assertThat(current).isEqualTo("v5-20261029.1");
+        assertThat(BungeoppangV5Spec.initialPrefixHash(901, current))
+                .isEqualTo("28808102872b82be26a1b4b0fd381d5fee8259a540c7a62b65937ef3bd153698");
+        assertThat(BungeoppangV5DeliveryContract.prefixHash(901, current, delivery))
+                .isEqualTo("620fb957a4a202fc24548d55ee239a0b8fb2ba26f7949414cba237bc9f6ffc4f");
+        assertThat(BungeoppangV5DeliveryContract.prefixHash(901, current, all))
+                .isEqualTo("be17157852ef0aa511292f59247cd71499494684dba367cd2d6a2b71bc94b141");
     }
 
     @Test
@@ -107,7 +118,12 @@ class BungeoppangV5FixtureContractTests {
         assertThat(List.of(rules.slots(), rules.durationMs(), rules.rushFromMs(), rules.trayCapacity(),
                 rules.sideMs(), rules.rushSideMs(), rules.heatMin(), rules.heatMax(), rules.heatListLength(),
                 rules.maxLogEntries(), rules.minGapMs(), rules.sameSlotGapMs()))
-                .containsExactly(6, 180_000, 150_000, 10, 8_000, 6_000, 85, 115, 2_048, 3_600, 50, 300);
+                .containsExactly(6, 120_000, 90_000, 10, 8_000, 6_000, 85, 115, 2_048, 3_600, 50, 300);
+        // FE serviceV5 accepts exactly (120000, 90000) and the legacy (180000, 150000); nothing else differs.
+        var legacy = BungeoppangV5Spec.legacyRules();
+        assertThat(List.of(legacy.durationMs(), legacy.rushFromMs())).containsExactly(180_000, 150_000);
+        assertThat(json.<JsonNode>valueToTree(legacy)).isEqualTo(((ObjectNode) wire.deepCopy())
+                .put("durationMs", 180_000).put("rushFromMs", 150_000));
         for (String field : List.of("slots", "durationMs", "countdownMs", "sideMs", "rushSideMs", "rushFromMs",
                 "heatMin", "heatMax", "heatListLength", "trayCapacity", "maxOrderItems",
                 "specialOrderChancePercent", "specialBonusPercent", "okFrom", "goldenFrom", "goldenTo",
