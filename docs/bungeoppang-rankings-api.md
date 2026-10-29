@@ -59,3 +59,16 @@ GET `/api/v1/minigames/bungeoppang/rankings?period=ALL_TIME&rulesVersion=v5&limi
 ## 검증
 
 Service/HTTP: 서명·소유자·버전·limit·만료·CORS·미인증·고정 페이지. BungeoppangRankingMySqlTests: 별도 loopback DB에서 기존 Flyway만 적용해 실제 v4/v5 시작→0점 완료→중복 완료→즉시 랭킹 반영(제어 시계). 양수 최고기록·동점·미정산 제외는 명시적 SQL 테스트 픽스처이며 실제 양수 플레이 검수가 아니다. check-game-additions-frontend.mjs는 실제 HTTP 응답을 무수정 FE 랭킹 파서/병합기에 넣어 확인한다. 배포·실계정 화면 검수는 별도다.
+
+기본20명 페이지 경계·만료 복구는 `BungeoppangRankingPaginationFlowTests`에서 별도로 연결한다.
+회원/DB 조회22명과 시계는 fixture이며 실제 Spring HTTP/JWT·스냅샷 응답을
+`check-bungeoppang-ranking-pagination.mjs`가 수정 없는 FE `fetchRanking/parseRanking/appendRanking`에 전달한다.
+경계 동점·새 기록 중 기존 페이지 유지·다른 회원/버전/limit 거절·만료409 후 첫 페이지 갱신·빈 v4를 확인한다.
+기존 실제 MySQL 검사를 대체하거나 React 화면의 자동 복구 구현을 증명하지 않는다.
+Node24와 frontend 의존성 설치 후 backend에서 실행한다.
+
+```powershell
+$env:TEST_RANKING_FRONTEND = 'true'
+.\gradlew.bat test --tests '*BungeoppangRankingPaginationFlowTests'
+Remove-Item Env:TEST_RANKING_FRONTEND
+```
