@@ -11,7 +11,17 @@ export const manualGameIds = [
 ] as const;
 export type ManualGameId = (typeof manualGameIds)[number];
 export type ManualCategory = "game" | "minigame" | "vr";
-export type GuideId = "welcome" | "controls" | "join" | "watch" | "coins";
+export type GuideId =
+  | "intro"
+  | "welcome"
+  | "controls"
+  | "places"
+  | "social"
+  | "coins"
+  | "join"
+  | "watch"
+  | "account"
+  | "faq";
 export type ManualPage = ManualGameId | GuideId | "catalog";
 export function isManualGameId(value: unknown): value is ManualGameId {
   return manualGameIds.some((id) => id === value);

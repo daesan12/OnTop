@@ -3,9 +3,9 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { createElement } from 'react';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { useManual, openManual, closeManual, finishManualOpening, finishManualClosing, resetManual } from '../../src/features/manual/manualState';
+import { useManual, openManual, closeManual, finishManualOpening, finishManualClosing, resetManual, requestWelcomeManual, takeWelcomeManual } from '../../src/features/manual/manualState';
 import { inputState } from '../../src/world/inputOwnership';
-import { filterManuals, gameManuals } from '../../src/features/manual/catalog';
+import { filterGuides, filterManuals, gameManuals, parkGuides } from '../../src/features/manual/catalog';
 import { rulebooks } from '../../src/features/manual/rulebooks';
 import { Markdown } from '../../src/features/manual/Markdown';
 
@@ -59,4 +59,21 @@ it('ships only optimized illustrations with verified integrity and original reso
     expect(createHash('sha256').update(bytes).digest('hex')).toBe(entry.sha256);
     expect(entry.bytes).toBeLessThan(entry.sourceBytes); expect(entry.width).toBe(1672); expect([940,941]).toContain(entry.height);
   }
+});
+it('covers every park guide chapter in plain words and finds them by search',()=>{
+  expect(Object.keys(parkGuides)).toEqual(['intro','welcome','controls','places','social','coins','join','watch','account','faq']);
+  for (const guide of Object.values(parkGuides)) {
+    expect(guide.sections.length).toBeGreaterThan(0);
+    expect(JSON.stringify(guide)).not.toMatch(/서버|목업|FPS|렌더|개발 미리보기/);
+  }
+  expect(parkGuides.places.sections.map(s=>s.title)).toContain('망원경 조작 설명');
+  expect(filterGuides('따라가기')).toEqual(['social']);
+  expect(filterGuides('옷장 착용하기')).toEqual(['coins']);
+  expect(filterGuides('  ')).toEqual([]);
+});
+it('opens the first-steps page only once after onboarding',()=>{
+  expect(takeWelcomeManual()).toBe(false);
+  requestWelcomeManual();
+  expect(takeWelcomeManual()).toBe(true);
+  expect(takeWelcomeManual()).toBe(false);
 });

@@ -31,9 +31,9 @@ export function NewspaperCover() {
         <i className="cover-stamp">창간호</i>
       </div>
       <p className="cover-motto">좋은 사람과 좋은 시간, 탑골에서</p>
-      <p className="cover-headline">탑골 정자에 놀이판이 열렸다</p>
+      <p className="cover-headline">탑골공원에 놀이판이 열렸다</p>
       <p className="cover-deck">
-        오목 · 원카드 · 주사위 · 거짓말 다리, 오늘은 누구와 한 판?
+        걷고, 어울리고, 한 판 하고 · 처음이라면 첫 걸음부터
       </p>
       <figure className="cover-photo">
         <div>
@@ -58,7 +58,7 @@ export function NewspaperCover() {
           ))}
         </div>
         <div className="cover-open-note">
-          <b>신문을 펼쳐 게임을 골라요 ▶</b>
+          <b>신문을 펼쳐 공원 안내를 읽어요 ▶</b>
           <span>다음 호 예고 · 장기 (준비 중)</span>
         </div>
       </div>

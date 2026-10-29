@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { Markdown } from "./Markdown";
 import { RulebookReader } from "./RulebookReader";
-import { filterManuals, gameManuals, parkGuides } from "./catalog";
+import { filterGuides, filterManuals, gameManuals, parkGuides } from "./catalog";
 import { GameArt } from "./GameArt";
 import { useManual } from "./manualState";
 import {
@@ -12,13 +12,27 @@ import {
   type ManualSection,
 } from "./types";
 
-const navigation: { id: ManualPage; icon: string; title: string }[] = [
-  { id: "catalog", icon: "▤", title: "게임 찾아보기" },
-  { id: "welcome", icon: "✦", title: "처음 오셨나요?" },
-  { id: "controls", icon: "⌘", title: "이동과 조작" },
-  { id: "join", icon: "♧", title: "테이블 참여" },
-  { id: "watch", icon: "◎", title: "관전과 응원" },
-  { id: "coins", icon: "◉", title: "엽전 안내" },
+// Read top to bottom by a first-time visitor: the park first, then walking around, then playing together.
+const navigation: { group: string; items: { id: ManualPage; icon: string; title: string }[] }[] = [
+  { group: "처음이라면", items: [
+    { id: "intro", icon: "✿", title: "온탑 소개" },
+    { id: "welcome", icon: "✦", title: "첫 걸음" },
+  ] },
+  { group: "공원 생활", items: [
+    { id: "controls", icon: "⌘", title: "산책과 조작" },
+    { id: "places", icon: "⌖", title: "공원 둘러보기" },
+    { id: "social", icon: "☺", title: "함께 어울리기" },
+    { id: "coins", icon: "◉", title: "엽전과 꾸미기" },
+  ] },
+  { group: "함께 놀기", items: [
+    { id: "catalog", icon: "▤", title: "게임 찾아보기" },
+    { id: "join", icon: "♧", title: "테이블 참여" },
+    { id: "watch", icon: "◎", title: "관전과 응원" },
+  ] },
+  { group: "도움말", items: [
+    { id: "account", icon: "⚙", title: "내 계정·설정" },
+    { id: "faq", icon: "?", title: "자주 묻는 질문" },
+  ] },
 ];
 
 function Section({
@@ -126,6 +140,12 @@ export default function ManualContents() {
       : undefined;
   const sections = game?.sections ?? guide?.sections;
   const results = filterManuals(category, query);
+  const guideResults = filterGuides(query);
+  // Guide pages read like chapters: each one points on to the next in the contents.
+  const pageOrder = navigation.flatMap(({ items }) => items);
+  const nextPage = guide
+    ? pageOrder[pageOrder.findIndex((item) => item.id === displayPage) + 1]
+    : undefined;
   const detailedSections = (
     <>
       <nav className="manual-chapters" aria-label="설명 목차">
@@ -168,20 +188,25 @@ export default function ManualContents() {
     <div className="manual-body">
       <nav className="manual-nav" aria-label="설명서 안내">
         <div className="manual-nav-links">
-          {navigation.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => go(item.id)}
-              aria-current={
-                page === item.id || (item.id === "catalog" && !!game)
-                  ? "page"
-                  : undefined
-              }
-            >
-              <span aria-hidden="true">{item.icon}</span>
-              {item.title}
-              <i aria-hidden="true">›</i>
-            </button>
+          {navigation.map(({ group, items }) => (
+            <div key={group} className="manual-nav-group" role="group" aria-label={group}>
+              <small aria-hidden="true">{group}</small>
+              {items.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => go(item.id)}
+                  aria-current={
+                    page === item.id || (item.id === "catalog" && !!game)
+                      ? "page"
+                      : undefined
+                  }
+                >
+                  <span aria-hidden="true">{item.icon}</span>
+                  {item.title}
+                  <i aria-hidden="true">›</i>
+                </button>
+              ))}
+            </div>
           ))}
         </div>
         <div className="manual-nav-note">
@@ -285,7 +310,7 @@ export default function ManualContents() {
                   </div>
                   <span role="status">
                     {query
-                      ? `‘${query}’ · ${results.length}개`
+                      ? `‘${query}’ · 게임 ${results.length}개 · 공원 안내 ${guideResults.length}개`
                       : "이용 가능한 게임과 개발중인 콘텐츠"}
                   </span>
                 </div>
@@ -325,7 +350,7 @@ export default function ManualContents() {
                       </button>
                     ))}
                   </div>
-                ) : (
+                ) : guideResults.length === 0 && (
                   <div className="manual-empty">
                     <span aria-hidden="true">⌕</span>
                     <h4>찾으시는 설명이 없어요</h4>
@@ -343,16 +368,28 @@ export default function ManualContents() {
                     </button>
                   </div>
                 )}
+                {guideResults.length > 0 && (
+                  <section className="manual-guide-results" aria-label="공원 안내 검색 결과">
+                    <h4>공원 안내에서 찾았어요</h4>
+                    {guideResults.map((id) => (
+                      <button key={id} onClick={() => go(id)}>
+                        <b>{parkGuides[id].title}</b>
+                        <small>{parkGuides[id].subtitle}</small>
+                        <span aria-hidden="true">→</span>
+                      </button>
+                    ))}
+                  </section>
+                )}
                 <button
                   className="manual-first-card"
-                  onClick={() => go("welcome")}
+                  onClick={() => go("intro")}
                 >
                   <span className="manual-first-icon" aria-hidden="true">
                     ✦
                   </span>
                   <span>
                     <b>처음 오셨다면, 여기부터</b>
-                    <small>이동부터 테이블에 앉아 첫 게임을 시작하기까지</small>
+                    <small>온탑 소개부터 테이블에 앉아 첫 게임을 시작하기까지</small>
                   </span>
                   <span aria-hidden="true">→</span>
                 </button>
@@ -365,9 +402,11 @@ export default function ManualContents() {
               <article
                 className={`manual-article${game?.rulebook ? " manual-article-illustrated" : ""}`}
               >
-                <button className="manual-back" onClick={() => go("catalog")}>
-                  ← 게임 목록
-                </button>
+                {game && (
+                  <button className="manual-back" onClick={() => go("catalog")}>
+                    ← 게임 목록
+                  </button>
+                )}
                 <div className="manual-detail-heading">
                   <div>
                     <span className="manual-eyebrow">
@@ -426,6 +465,11 @@ export default function ManualContents() {
                       ? "이용 가능한 게임은 목록에서 확인해 주세요."
                       : "이제 함께 한 판 해 볼까요?"}
                   </span>
+                  {nextPage && (
+                    <button onClick={() => go(nextPage.id)}>
+                      다음 장 · {nextPage.title} →
+                    </button>
+                  )}
                   <button
                     onClick={() => {
                       scroller.current?.scrollTo({ top: 0 });
