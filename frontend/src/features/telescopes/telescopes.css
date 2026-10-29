@@ -1,14 +1,77 @@
-.telescope-viewfinder { position: absolute; inset: 0; pointer-events: none; z-index: 8; overflow: hidden; }
-.telescope-viewfinder::before { content: ''; position: absolute; width: min(78vw, 78vh); aspect-ratio: 1; border-radius: 50%; left: 50%; top: 50%; transform: translate(-50%, -50%); box-shadow: 0 0 0 150vmax #07110de8, inset 0 0 40px #000a; border: 2px solid #d3dcc14d; }
-.telescope-viewfinder span { position: absolute; left: 50%; top: 50%; width: 22px; height: 22px; transform: translate(-50%, -50%); border: 1px solid #e7edc977; border-radius: 50%; }
-.park-page .telescope-panel { position: absolute; z-index: 10; bottom: 24px; left: 50%; transform: translateX(-50%); width: min(420px, calc(100vw - 32px)); box-sizing: border-box; text-align: center; gap: 8px; }
-.telescope-panel > div:first-child, .telescope-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.telescope-actions { justify-content: center; }
-.telescope-panel output { font-variant-numeric: tabular-nums; }
+.telescope-overlay {
+  /* Keep the optical center aligned with the camera and reserve space below the lens. */
+  --telescope-aperture: min(84vw, calc(100dvh - 176px));
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  pointer-events: none;
+  color: #f3efe3;
+}
+.telescope-viewfinder { position: absolute; inset: 0; overflow: hidden; }
+.telescope-viewfinder::before {
+  content: '';
+  position: absolute;
+  box-sizing: border-box;
+  width: var(--telescope-aperture);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 0 150vmax #040906f5, inset 0 0 24px #0009, inset 0 0 64px #0005;
+  border: 1px solid #e6eed373;
+}
+.telescope-viewfinder span {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  transform: translate(-50%, -50%);
+  border: 1px solid #e7edc980;
+  border-radius: 50%;
+}
+.park-page .telescope-panel {
+  position: absolute;
+  top: calc(50% + var(--telescope-aperture) / 2 + 16px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(480px, calc(100% - 32px));
+  font-size: 14px;
+  line-height: 1.5;
+}
+.telescope-controls { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.telescope-caption > div { display: flex; align-items: baseline; gap: 14px; }
+.telescope-caption strong { font-weight: 500; }
+.telescope-caption p { margin: 4px 0 0; color: #c3cbb9; font-size: 13px; }
+.telescope-panel output { color: #e9d5a4; font-variant-numeric: tabular-nums; }
+.telescope-controls button {
+  flex: none;
+  padding: 9px 14px;
+  border: 1px solid #e6ddbf55;
+  border-radius: 9px;
+  background: #f3efe30a;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  pointer-events: auto;
+}
+.telescope-controls button:hover { background: #f3efe31a; border-color: #e6ddbf99; }
+.telescope-controls button:focus-visible { outline: 2px solid #e9d5a4; outline-offset: 4px; }
+.telescope-controls button:disabled { opacity: 0.5; cursor: default; }
+.telescope-panel > [role='status'], .telescope-panel > [role='alert'] { display: block; margin-top: 8px; font-size: 13px; }
+.telescope-panel > [role='alert'] { color: #ffbead; }
 .telescope-error { position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 12; background: #201d18f2; color: #f3efe3; padding: 16px; border-radius: 12px; max-width: calc(100vw - 32px); }
 .telescope-error button { margin-left: 12px; }
 .telescope-guide-backdrop { position: absolute; inset: 0; z-index: 20; background: #0008; display: grid; place-items: center; }
 .park-page .telescope-guide { width: min(420px, calc(100vw - 32px)); box-sizing: border-box; line-height: 1.6; }
-.park-page:has(.telescope-panel) .park-shortcuts, .park-page:has(.telescope-panel) .emotes,
-.park-page:has(.telescope-panel) .park-runtime-tools { display: none; }
-@media (max-width: 600px) { .park-page .telescope-panel { bottom: 12px; left: 16px; transform: none; width: calc(100vw - 128px); font-size: 14px; } }
+.park-page:has(.telescope-panel) .park-hud,
+.park-page:has(.telescope-panel) .emotes,
+.park-page:has(.telescope-panel) .park-runtime-tools,
+.park-page:has(.telescope-panel) .park-map > .park-quick-button,
+.park-page:has(.telescope-panel) .manual-launcher { display: none; }
+@media (max-width: 600px) {
+  .telescope-controls { gap: 10px; }
+  .telescope-caption > div { gap: 10px; }
+  .telescope-controls button { padding: 9px 10px; font-size: 13px; }
+}
