@@ -102,7 +102,7 @@ serverNow/expiresAt은 Unix ms이며 expiresAt=null은 타이머 없음이다. e
 
 ## 재접속·결과 승계
 
-MANUAL 대기석의 일반 네트워크 종료는 동일 로그인 세션에서 30초 내 복귀 시 좌석/준비/기존 만료시각을 보존한다. 새 접속권·필요 시 WORLD_MAP_CONFIRM·원래 CHANNEL_JOIN을 다시 수행한다. 맵 미확인 상태는 자동 복구하지 않고 유예도 연장하지 않는다. 유예 만료 시 퇴장/준비 해제, LOGOUT/MEMBER_DEACTIVATED 등 인증 종료는 즉시 대기석 정리. AUTO 대기석 기존 정책과 경기 중 GAME_CONNECTION_STATE 복구는 유지한다.
+MANUAL 대기석의 일반 네트워크 종료는 동일 로그인 세션에서 30초 내 복귀 시 좌석/준비/기존 만료시각을 보존한다. 새 접속권·필요 시 WORLD_MAP_CONFIRM·원래 CHANNEL_JOIN을 다시 수행한다. 맵 미확인 상태는 자동 복구하지 않고 유예도 연장하지 않는다. 유예 만료 시 퇴장/준비 해제, LOGOUT/MEMBER_DEACTIVATED 등 인증 종료는 즉시 대기석 정리. AUTO 대기석 기존 정책과 경기 중 GAME_CONNECTION_STATE 복구는 유지한다. 유예 복귀와 frozen 좌석 재접속은 채널 입장 전에 TABLE_STATE와 이 테이블의 GAME_START_STATE를 받으며, FE는 테이블 목록 조회 뒤 이를 적용한다([Story C](game-recovery.md#새로고침websocket-재접속-좌석시작-상태-수신-ontop-story-c)).
 
 정산 확정 전에는 다음 경기를 열거나 결과 기반 방장을 바꾸지 않는다. 종료와 동일 경기의 전체 SETTLED 확인 후 남아 있는 WIN 참가자가 방장, 공동 WIN 또는 DRAW는 해당 남은 인원 중 서버 추첨. 승자가 없거나 모두 떠남/INVALID면 남은 착석자 전체 중 추첨한다. 중복 종료·정산 알림은 다시 추첨하지 않는다. 사용자가 2026-10-27 승인한 예외 정책이다.
 

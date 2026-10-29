@@ -104,6 +104,8 @@ export class ParkRuntime implements ParkRuntimePort {
   private ownProfile: ReturnType<typeof userProfile> | null = null
   private resultDiscovery = ''
   private resultDiscovering = -1
+  /** Seat states the server sends on (re)connect, before CHANNEL_JOIN and the REST table list exist. */
+  private initialStates: Envelope[] | null = null
   private quietResultChecks = new Set<string>()
   private untrackTabGame: (() => void) | undefined
   private facilityMapInvalid = false
@@ -294,6 +296,7 @@ export class ParkRuntime implements ParkRuntimePort {
     this.active = false
     clearTimeout(this.timer)
     this.bootAbort?.abort()
+    this.initialStates = null
     forgetTabGames()
     clearAuthSession()
     void this.socket.disconnect()
@@ -389,6 +392,7 @@ export class ParkRuntime implements ParkRuntimePort {
     this.facilityMapInvalid = false
     this.movement.clear()
     const generation = ++this.generation
+    this.initialStates = []
     this.actionBusy = false
     this.bootAbort?.abort()
     const abort = (this.bootAbort = new AbortController())
@@ -438,6 +442,7 @@ export class ParkRuntime implements ParkRuntimePort {
     this.movement.clear()
     this.active = false
     ++this.generation
+    this.initialStates = null
     this.actionBusy = false
     clearTimeout(this.timer)
     this.bootAbort?.abort()
@@ -503,6 +508,8 @@ export class ParkRuntime implements ParkRuntimePort {
     if (!this.active) return
     if (message.type === 'ERROR' && message.requestId
       && this.movementRejectedAfterSeating(message.requestId, message.payload.code)) return
+    // Seat states held before the table list carry no requestId, so they never meet the movement filter above.
+    if (this.holdInitialState(message)) return
     if (this.oneCardDefense.accept(message)) return
     if (this.oneCardPranks.accept(message)) return
     if (this.omokEvents.accept(message)) return
@@ -660,36 +667,63 @@ export class ParkRuntime implements ParkRuntimePort {
       this.inputSequence = 0
       const generation = this.generation
       try {
-        await this.socket.request('CHANNEL_JOIN', { channelId }, ['CHANNEL_STATE'])
-      } catch (error) {
-        await this.refreshChannels()
-        throw error
+        try {
+          await this.socket.request('CHANNEL_JOIN', { channelId }, ['CHANNEL_STATE'])
+        } catch (error) {
+          await this.refreshChannels()
+          throw error
+        }
+        this.preferredChannel = channelId
+        this.retryCount = 0
+        if (followService.mode === 'server') void this.follow.begin().catch(() => {})
+        // Initial world messages keep their existing order. Facilities explicitly query after CHANNEL_JOIN.
+        if (serverFacilities) void this.facilities.begin().catch(() => {})
+        const body = await this.getJSON(
+          `/api/v1/tables?channelId=${encodeURIComponent(channelId)}`,
+          { signal: this.bootAbort?.signal },
+        )
+        if (
+          generation !== this.generation ||
+          useSession.getState().roomId !== channelId
+        )
+          return
+        if (!record(body) || !Array.isArray(body.tables))
+          throw new Error('테이블 목록을 확인할 수 없습니다.')
+        const tables = body.tables.map(tableSummary)
+        const liveBindings = body.tables.length && body.tables.every(item => record(item) && typeof item.tableId === 'string'
+          && typeof item.anchorId === 'string')
+          ? parseBindings(body.tables.map(item => ({ channelId, tableId: item.tableId, anchorId: item.anchorId })))
+          : null
+        useSession.setState(current => ({ tables, bindings: liveBindings
+          ? [...current.bindings.filter(binding => binding.channelId !== channelId), ...liveBindings]
+          : current.bindings }))
+      } finally {
+        // With or without the list, held seat states are read once now through the normal handlers.
+        this.applyInitialStates(generation)
       }
-      this.preferredChannel = channelId
-      this.retryCount = 0
-      if (followService.mode === 'server') void this.follow.begin().catch(() => {})
-      // Initial world messages keep their existing order. Facilities explicitly query after CHANNEL_JOIN.
-      if (serverFacilities) void this.facilities.begin().catch(() => {})
-      const body = await this.getJSON(
-        `/api/v1/tables?channelId=${encodeURIComponent(channelId)}`,
-        { signal: this.bootAbort?.signal },
-      )
-      if (
-        generation !== this.generation ||
-        useSession.getState().roomId !== channelId
-      )
-        return
-      if (!record(body) || !Array.isArray(body.tables))
-        throw new Error('테이블 목록을 확인할 수 없습니다.')
-      const tables = body.tables.map(tableSummary)
-      const liveBindings = body.tables.length && body.tables.every(item => record(item) && typeof item.tableId === 'string'
-        && typeof item.anchorId === 'string')
-        ? parseBindings(body.tables.map(item => ({ channelId, tableId: item.tableId, anchorId: item.anchorId })))
-        : null
-      useSession.setState(current => ({ tables, bindings: liveBindings
-        ? [...current.bindings.filter(binding => binding.channelId !== channelId), ...liveBindings]
-        : current.bindings }))
     })
+  /** Existing handlers drop seat states that precede the table list; hold them, in arrival order, until it exists. */
+  private holdInitialState(message: Envelope) {
+    const held = this.initialStates
+    if (!held || message.requestId !== null || held.length >= 64) return false
+    const seat = message.type === 'TABLE_STATE' || message.type === 'TABLE_HOST_WAIT_STATE'
+      || message.type === 'GAME_START_STATE' && message.payload.tableId !== null
+    // After a held seat its game messages wait too, so they are read with the table as before the refresh.
+    const game = held.some(m => m.type === 'TABLE_STATE')
+      && ['GAME_START_STATE', 'GAME_CONNECTION_STATE', 'GAME_STATE', 'GAME_RESULT'].includes(message.type)
+    if (!seat && !game) return false
+    held.push(message)
+    return true
+  }
+  private applyInitialStates(generation: number) {
+    const held = this.initialStates
+    if (generation !== this.generation || !held) return
+    this.initialStates = null
+    // A table-scoped start state needs the seat first; otherwise arrival order (and every version check) is kept.
+    for (const message of [...held.filter(m => m.type === 'TABLE_STATE'), ...held.filter(m => m.type !== 'TABLE_STATE')]) {
+      try { this.message(message) } catch (error) { this.report(error) }
+    }
+  }
   sendChat = (value: string) =>
     gameChatScope() ? this.sendSpectatorChat(filterChat(value)) :
     this.action(async () => {

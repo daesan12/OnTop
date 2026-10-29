@@ -206,9 +206,9 @@ export async function fixture(
       },
       requestId,
     )
-  const recovery = (ws: WebSocketRoute, requestId: string | null = null) =>
+  const recovery = (ws: WebSocketRoute, requestId: string | null = null, status?: string) =>
     emit(ws, 'GAME_CONNECTION_STATE', {
-      status: options.forfeit ? recoveryStatus : 'RESTORED',
+      status: status ?? (options.forfeit ? recoveryStatus : 'RESTORED'),
       gameId,
       version: gameVersion,
       state: options.bridge ? { publicState: bridgeState, privateState: bridgeSecret ?? {} } : options.onecard ? { publicState: cardState, privateState: cardHand } : options.dice ? diceState : omok(),
@@ -455,7 +455,16 @@ export async function fixture(
           mapVerificationRequired: options.mapVerificationRequired ?? false },
       }),
     )
+    // TableHub.activateConnection: a kept seat (frozen start or MANUAL waiting lease) gets its TABLE_STATE and
+    // start state right after CONNECTED, before CHANNEL_JOIN and the REST table list. AUTO waiting seats are released.
+    const frozen = started && !(finished && settled)
+    if (seated && (frozen || options.manualLobby)) {
+      table(ws, 'TABLE_STATE', null)
+      start(ws, frozen ? finished ? 'SETTLING' : 'PLAYING' : 'WAITING')
+    }
     if (options.forfeit && started) recovery(ws)
+    // GameReconnectService: the kept seat's game is RESTORED, or FINISHED once the engine ended it.
+    else if (options.omok && seated && frozen) recovery(ws, null, finished ? 'FINISHED' : 'RESTORED')
     else if (options.omok)
       emit(ws, 'GAME_CONNECTION_STATE', {
         status: 'LOBBY',
@@ -522,7 +531,6 @@ export async function fixture(
           }),
         )
         world(ws)
-        if (options.forfeit && started) { table(ws, 'TABLE_STATE', null); start(ws, finished ? 'SETTLING' : 'PLAYING') }
       }
       if (type === 'WORLD_MOVE') {
         if (rejectNextMovement) {

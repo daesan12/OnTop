@@ -487,13 +487,19 @@ public class TableHub {
     private void activateConnection(Member member, String sessionId, String loginSessionId, boolean reservedStart) {
         expireWaitingReconnects();
         WaitingReconnect lease = waitingReconnects.get(member.userId());
+        String tableId = seating.get(member.userId());
         if (lease != null && java.util.Objects.equals(lease.loginSessionId(), loginSessionId)) {
             waitingReconnects.remove(member.userId());
-            String tableId = seating.get(member.userId());
             if (tableId != null) {
                 member.peer().offer(protocol.encode(null, "TABLE_STATE", publicSnapshot(rooms.get(tableId))));
                 replyHostWait(member, rooms.get(tableId), null);
+                // 유지된 대기석도 frozen 좌석처럼 현재 시작 상태를 함께 받아야 다음 판 준비 조건을 판단한다.
+                replyStartState(member, tableId, null);
             }
+        } else if (reservedStart) {
+            // frozen 좌석은 TABLE_STATE를 다시 받을 기회가 다음 테이블 방송뿐이다. 복구 판정보다 먼저 보낸다.
+            member.peer().offer(protocol.encode(null, "TABLE_STATE", publicSnapshot(rooms.get(tableId))));
+            replyStartState(member, tableId, null);
         }
         member.delivery().current(seatedGames.get(member.userId()));
         TableStartAttempt pendingAttempt = starts.get(seating.get(member.userId()));
@@ -504,7 +510,6 @@ public class TableHub {
         gameResults.ifPresent(service -> service.connected(sessionId, member.accountId(), member.delivery()::result));
         reconnect.ifPresent(service -> service.connected(member.accountId(), sessionId, loginSessionId,
                 member.delivery()::recovery, member.delivery()::allowsFinished));
-        if (reservedStart) { replyStartState(member, seating.get(member.userId()), null); }
     }
 
     private Member register(WebSocketSession session, String userId, Long accountId) {

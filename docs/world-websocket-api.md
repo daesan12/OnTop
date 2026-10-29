@@ -1,5 +1,8 @@
 # 광장 WebSocket · 채널·이동·채팅
 
+공통 메시지 빈도·동시 접속 상한과 1013/1009 종료는 [유입 제한](websocket-ingress-limits.md)을 참고한다.
+로컬 구현이며 운영 수치·신뢰 프록시·FE 지연 재연결 정책은 아직 합의 전이다.
+
 연결 시 실제 로딩한 맵 정보와 입장 전 확인은 [맵 버전 계약](world-map-api.md)을 사용한다.
 버전 검사 활성화 시 WORLD_MAP_CONFIRM 성공 후 기존 CHANNEL_JOIN을 보낸다.
 
