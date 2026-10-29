@@ -1,6 +1,8 @@
 import { test, expect, type Page } from '@playwright/test'
 import { fixture, screenshot } from './contractFixture'
 import { MAILBOX, NOTES_BOX } from '../../src/config'
+import { facilityCatalog } from '../fixtures/facilityCatalog'
+import { benchTable } from '../../src/features/interactions/benchSpectator'
 
 const manual=(page:Page)=>page.getByRole('dialog',{name:'게임 설명서',exact:true})
 
@@ -43,6 +45,12 @@ async function loaded(page:Page) {
   })).toBe(true)
   await page.locator('canvas').focus()
 }
+// E seats at once; the table panel (fee and game choice) opens from the lobby button.
+async function seatAtTable(page:Page) {
+  await page.keyboard.press('KeyE')
+  await page.getByRole('button',{name:'테이블 로비 열기',exact:true}).click()
+  await expect(page.getByRole('dialog',{name:'테이블 정보'})).toBeVisible()
+}
 async function opened(page:Page) {
   await expect(manual(page)).toBeVisible()
   await expect(manual(page)).toHaveAttribute('data-phase','open')
@@ -58,6 +66,9 @@ test('M15 original scroll, search, categories, rulebook images/zoom/downloads an
   expect(images).toEqual([])
   await page.getByRole('button',{name:'게임 설명서 F1',exact:true}).click(); await opened(page)
   await expect(manual(page).getByRole('button',{name:/설명 읽기$/})).toHaveCount(5)
+  // Two columns for every game, the odd last card (붕어빵) included.
+  const widths=await manual(page).locator('.manual-card').evaluateAll(cards=>cards.map(card=>Math.round(card.getBoundingClientRect().width)))
+  expect(new Set(widths).size).toBe(1)
   await screenshot(page,'m15-catalog')
   await manual(page).getByRole('button',{name:'미니게임',exact:true}).click()
   await expect(manual(page).getByRole('button',{name:/설명 읽기$/})).toHaveCount(1)
@@ -65,10 +76,14 @@ test('M15 original scroll, search, categories, rulebook images/zoom/downloads an
   await manual(page).getByRole('searchbox',{name:'게임 설명 검색'}).fill('금수 렌주')
   await expect(manual(page).getByRole('button',{name:/설명 읽기$/})).toHaveCount(1)
   await manual(page).getByRole('button',{name:'오목 설명 읽기',exact:true}).click()
-  await expect(manual(page).getByLabel('렌주 그림 규칙')).toBeVisible()
-  await expect(manual(page)).toContainText('흑 정확히 5목')
+  const guide=manual(page).locator('.game-guide')
+  const back=guide.getByRole('button',{name:'← 게임 목록',exact:true})
+  // The way back sits at the top left of the game page.
+  expect((await back.boundingBox())!.x-(await guide.boundingBox())!.x).toBeLessThan(20)
+  await expect(guide).toContainText('흑 정확히 5목')
+  for (const heading of ['한 판의 흐름','조작','꼭 기억해요','자세한 규칙']) await expect(guide.getByRole('heading',{name:heading,exact:true,level:4})).toBeVisible()
   await screenshot(page,'m15-renju')
-  await manual(page).getByRole('button',{name:'상세 규칙',exact:true}).click()
+  await expect(guide.getByRole('link',{name:'규칙 파일 내려받기'})).toHaveAttribute('href','/rulebooks/gomoku/v1.md')
   const download=await page.request.get('/rulebooks/gomoku/v1.md')
   expect(download.ok()).toBe(true); expect(await download.text()).toContain('삼삼·사사·장목')
   await manual(page).getByRole('navigation',{name:'설명 목차'}).getByRole('button',{name:/흑돌의 금수/}).click()
@@ -76,19 +91,13 @@ test('M15 original scroll, search, categories, rulebook images/zoom/downloads an
   await expect(manual(page).locator('#manual-rule-3')).toBeInViewport()
   await manual(page).getByRole('searchbox',{name:'게임 설명 검색'}).fill('원카드')
   await manual(page).getByRole('button',{name:'원카드 설명 읽기',exact:true}).click()
-  await expect(manual(page).locator('.rulebook-illustration img')).toHaveJSProperty('complete',true)
-  expect(images).toHaveLength(1)
-  await manual(page).getByRole('button',{name:/그림 크게 보기/}).click()
-  const light=page.getByRole('dialog',{name:'원카드 그림 확대',exact:true})
-  await expect(light).toBeVisible()
-  await light.getByRole('button',{name:'다음 그림',exact:true}).click()
-  await expect(light.getByRole('heading')).toHaveText('특수 카드와 공격 막기')
-  await light.getByRole('button',{name:'그림 확대',exact:true}).click()
-  await expect(light.getByRole('status')).toContainText('150%')
-  await light.getByRole('button',{name:'화면 맞춤',exact:true}).click()
-  await page.keyboard.press('ArrowLeft'); await expect(light.getByRole('heading')).toHaveText('같은 카드 찾기와 원카드 선언')
-  await screenshot(page,'m15-original-onecard-zoom')
-  await page.keyboard.press('Escape'); await expect(light).toHaveCount(0); await opened(page)
+  await expect(guide.getByRole('heading',{name:/특수 카드 알아보기/})).toBeVisible()
+  await expect(guide.locator('.game-guide-flow li')).toHaveCount(4)
+  await screenshot(page,'m15-onecard-guide')
+  // The designed page replaces the old picture pages; no rulebook art is fetched.
+  expect(images).toEqual([])
+  await back.click()
+  await expect(manual(page).getByRole('button',{name:'원카드 설명 읽기',exact:true})).toBeVisible()
   await manual(page).getByRole('button',{name:'설명서 닫기',exact:true}).focus()
   await page.keyboard.press('Shift+Tab')
   expect(await page.evaluate(()=>document.activeElement?.closest('.game-manual')!==null)).toBe(true)
@@ -120,7 +129,7 @@ for(const [code,title,options] of [
   ['OMOK','오목',{omok:true}],['DICE','주사위 한 판',{dice:true}],['ONE_CARD','원카드',{onecard:2 as const}],['LIAR_BRIDGE','거짓말 다리 건너기',{bridge:2 as const}],
 ] as const) test('M15 contextual F1 preserves participant state and BE command flow: '+code,async({page})=>{
   const server=await fixture(page,{...options,omok:true,m09:true}); await loaded(page)
-  await page.keyboard.press('KeyE'); await page.getByRole('button',{name:'앉기',exact:true}).click()
+  await seatAtTable(page)
   await page.getByLabel('1인 참가비').fill('1'); await page.getByRole('button',{name:title+' 선택',exact:true}).click()
   await page.keyboard.press('F1'); await opened(page)
   await expect(manual(page).getByRole('heading',{name:title,exact:true,level:3})).toBeVisible()
@@ -139,24 +148,20 @@ for(const [code,title,options] of [
   expect(after).toEqual(before)
 })
 
-test('M15 missing illustration offers bundled detail rules and F1 closes both modal layers',async({page})=>{
+test('M15 game guide needs no rulebook pictures and F1 reopens on the same game',async({page})=>{
   await page.route('**/art/rulebooks/**',route=>route.abort())
   await fixture(page); await loaded(page); await page.keyboard.press('F1'); await opened(page)
   await manual(page).getByRole('button',{name:'원카드 설명 읽기',exact:true}).click()
-  await expect(manual(page).getByText('그림을 불러오지 못했어요.')).toBeVisible()
-  await manual(page).getByRole('button',{name:'상세 규칙 읽기',exact:true}).click()
+  await expect(manual(page).getByRole('heading',{name:'꼭 기억해요',exact:true,level:4})).toBeVisible()
   await expect(manual(page).getByRole('heading',{name:/특수 카드 알아보기/})).toBeVisible()
-  await manual(page).getByRole('button',{name:'그림으로 보기',exact:true}).click()
-  await manual(page).getByRole('button',{name:/그림 크게 보기/}).click()
-  await expect(page.getByRole('dialog',{name:'원카드 그림 확대'})).toBeVisible()
   await page.keyboard.press('F1'); await expect(page.locator('dialog[open]')).toHaveCount(0)
   await page.keyboard.press('F1'); await opened(page)
-  await expect(page.getByRole('dialog',{name:'원카드 그림 확대'})).toHaveCount(0)
+  await expect(manual(page).getByRole('heading',{name:'원카드',exact:true,level:3})).toBeVisible()
 })
 
 test('M15 F1 leaves the existing dice score sheet owned and Esc closes only the front modal',async({page})=>{
   const server=await fixture(page,{omok:true,dice:true,m09:true}); await loaded(page)
-  await page.keyboard.press('KeyE'); await page.getByRole('button',{name:'앉기',exact:true}).click()
+  await seatAtTable(page)
   await page.getByLabel('1인 참가비').fill('1'); await page.getByRole('button',{name:'주사위 한 판 선택',exact:true}).click()
   await page.getByRole('button',{name:'준비',exact:true}).click(); server.confirmStart()
   await expect(page.getByRole('region',{name:'주사위 경기',exact:true})).toBeVisible()
@@ -179,4 +184,37 @@ test('M15 F1 preserves the chat draft/focus and ignores IME, repeat and modified
   await expect(manual(page)).toHaveCount(0)
   await page.keyboard.press('F1'); await opened(page); await close(page)
   await expect(chat).toBeFocused(); await expect(chat).toHaveValue('작성 중인 메시지')
+})
+
+// Spectating starts from a pavilion bench; the table panel opens only at one's own seat.
+test('M15 spectator F1 preserves public role, camera and private-state boundaries',async({page})=>{
+  const bench=facilityCatalog.facilities.find(d=>d.kind==='BENCH'&&benchTable(d.facilityId)?.pavilionId==='P1')!
+  const server=await fixture(page,{publicSpectator:true,manualMovement:true,position:bench.center,anchorId:benchTable(bench.facilityId)!.id,omok:true,spectatorEvents:true})
+  await loaded(page)
+  await expect.poll(()=>page.evaluate(async()=>(await import('/src/features/facilities/state.ts' as string)).useFacilityState.getState().ready)).toBe(true)
+  expect(await page.evaluate(async id=>(await import('/src/features/interactions/benchController.ts' as string)).sitBench(id,0),bench.facilityId)).toBe(true)
+  await page.getByRole('button',{name:'가까이 관전',exact:true}).click()
+  await expect.poll(()=>page.evaluate(async()=>(await import('/src/features/tableLobby/state.ts' as string)).useTableLobby.getState().spectatorStatus)).toBe('watching')
+  const probe=()=>page.evaluate(async()=>{
+    const game=(await import('/src/game/store.ts' as string)).useGame.getState().game
+    return {role:game?.role,gameId:game?.gameId,status:(await import('/src/features/tableLobby/state.ts' as string)).useTableLobby.getState().spectatorStatus,
+      camera:(await import('/tests/e2e/sceneProbe.ts' as string)).adCameraProbe().camera as number[]}
+  })
+  // The close view eases in; measure only once the camera has come to rest.
+  await expect.poll(async()=>{
+    const from=(await probe()).camera; await page.waitForTimeout(250)
+    return (await probe()).camera.every((value,index)=>Math.abs(value-from[index]!)<1e-4)
+  }).toBe(true)
+  const before=await probe(); expect(before.role).toBe('SPECTATOR')
+  await page.keyboard.press('F1'); await opened(page)
+  await expect(manual(page).getByRole('heading',{name:'오목',exact:true,level:3})).toBeVisible()
+  await manual(page).focus()
+  await page.keyboard.press('KeyE'); await page.keyboard.press('Space'); await page.keyboard.press('KeyW')
+  await close(page)
+  const {camera:beforeCamera,...beforeState}=before, {camera:afterCamera,...afterState}=await probe()
+  expect(afterState).toEqual(beforeState)
+  afterCamera.forEach((value,index)=>expect(value).toBeCloseTo(beforeCamera[index]!,3))
+  expect(await page.evaluate(async()=>{const s=(await import('/src/network/worldClient.ts' as string)).useSession.getState();return (await import('/src/game/store.ts' as string)).canPlace(s.sessionId,7,7)})).toBe(false)
+  expect(server.sent.some(m=>m.type==='GAME_ACTION_SEND')).toBe(false)
+  await screenshot(page,'m15-spectator-restored')
 })

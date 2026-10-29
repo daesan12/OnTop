@@ -591,6 +591,55 @@ test('result popup preserves settlement and next-round permission, then clears o
   await screenshot(page, 'qa-tablet-result-cleared-after-reload')
 })
 
+test('a reload with the unclosed result restores it through history and GAME_RESULT_CHECK, but not once closed', async ({ page }) => {
+  const server = await fixture(page, { omok: true, manualLobby: true, gameId: '701' })
+  const history: string[] = []
+  await page.route('**/api/v1/users/me/games?**', route => {
+    history.push(new URL(route.request().url()).search)
+    return route.fulfill({ json: { items: [{ gameSessionId: '701', gameCode: 'OMOK', status: 'FINISHED', myResult: 'WIN',
+      settlementStatus: 'SETTLED', endedAt: '2026-10-29T00:00:00Z' }], nextCursor: null, hasNext: false } })
+  })
+  const tablet = await openTable(page); await bindManualPort(page, server)
+  await tablet.getByLabel('1인 참가비').fill('20')
+  await tablet.getByRole('button', { name: '선택하고 준비하기' }).click()
+  await tablet.getByRole('checkbox').check(); await tablet.getByRole('button', { name: '준비 완료', exact: true }).click()
+  server.readyTabletOthers(true); await tablet.getByRole('button', { name: '게임 시작', exact: true }).click()
+  server.finishGame('FIVE_IN_A_ROW', '101'); server.settle()
+  const result = page.getByRole('dialog', { name: '경기 결과', exact: true })
+  await expect(result).toContainText('정산 완료')
+  server.host('102'); server.nextRound()
+  await expect(result.getByRole('button', { name: '다음 판 준비', exact: true })).toBeEnabled()
+  const reconnect = async () => {
+    await page.reload()
+    await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90_000 })
+    await expect.poll(() => page.evaluate(async () => {
+      const s = (await import('/src/network/worldClient.ts' as string)).useSession.getState()
+      return s.status === 'connected' && s.tables.length > 0 && !s.pending
+    })).toBe(true)
+    // The real server's own TABLE_STATE precedes CHANNEL_JOIN; the seat returns with the next table broadcast.
+    const calls = history.length
+    server.readyTabletOthers(false)
+    await page.waitForTimeout(500)
+    // A seat without this table's WAITING start state keeps the tablet lobby instead of an unclosable result.
+    await expect(result).toHaveCount(0)
+    expect(history).toHaveLength(calls)
+    server.nextRound()
+  }
+  await reconnect()
+  await expect(result).toBeVisible()
+  await expect(result).toContainText('정산 완료')
+  expect(history).toEqual(['?size=1'])
+  expect(server.sent.filter(m => m.type === 'GAME_RESULT_CHECK').map(m => m.payload)).toEqual([{ gameSessionId: '701' }])
+  expect(await page.evaluate(async () => (await import('/src/game/store.ts' as string)).useGame.getState().permittedGameId)).toBe('')
+  await screenshot(page, 'tablet-result-restored-after-reload')
+  await result.getByRole('button', { name: '다음 판 준비', exact: true }).click()
+  await expect(result).toHaveCount(0)
+  await reconnect()
+  await page.waitForTimeout(500)
+  await expect(result).toHaveCount(0)
+  expect(history).toHaveLength(1)
+})
+
 test('tablet invalid result keeps refund recovery with a stale or missing engine and waits for settlement', async ({ page }) => {
   const server = await fixture(page, { omok: true, manualLobby: true })
   const tablet = await openTable(page); await bindManualPort(page, server)

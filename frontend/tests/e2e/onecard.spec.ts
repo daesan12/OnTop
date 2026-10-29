@@ -11,11 +11,10 @@ async function start(page: Page, count: 2 | 3 | 4 = 2) {
     const s = (await import('/src/network/worldClient.ts' as string)).useSession.getState()
     return s.status === 'connected' && s.bindings.length > 0
   })).toBe(true)
-  await expect(async () => {
-    await page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).inspectTable())
-    await expect(page.getByRole('button', { name: '앉기', exact: true })).toBeVisible({ timeout: 1500 })
-  }).toPass({ timeout: 15000 })
-  await page.getByRole('button', { name: '앉기', exact: true }).click()
+  await page.locator('canvas').focus()
+  const seat = page.getByRole('button', { name: 'E 테이블에 앉기', exact: true })
+  await expect(seat).toBeEnabled({ timeout: 15000 }); await seat.click()
+  await page.getByRole('button', { name: '테이블 로비 열기', exact: true }).click()
   await page.getByLabel('1인 참가비').fill('1'); await page.getByRole('button', { name: '원카드 선택', exact: true }).click()
   await page.getByRole('button', { name: '준비', exact: true }).click(); server.confirmStart()
   await expect(panel(page).getByRole('timer', { name: '차례 남은 시간' })).toBeVisible(); await expect(panel(page).getByLabel('나만 볼 수 있는 카드').getByRole('button')).toHaveCount(7)
@@ -29,7 +28,7 @@ test('M12 2-player atomic hands, card/suit/K/draw/attack commands, result and ne
   const after7: Hand = { ...server.cardHand(), hand: server.cardHand().hand.filter(c => c.rank !== '7'), playableCardIds: [], canDraw: false }
   server.holdState(true)
   server.cardReply({ kind: 'play', cardId: 'hearts-7' }, { topCard: card('7'), stage: 'CHOOSE_SUIT', players: server.cardState().players.map(p => p.userId === '101' ? { ...p, cardCount: 6 } : p) }, after7)
-  await handButtons(page).filter({ hasText: '7' }).click(); await p.getByRole('button', { name: '하트 7 내기', exact: true }).click()
+  await p.getByRole('button', { name: '하트 7 · 무늬 선택', exact: true }).click(); await p.getByRole('button', { name: '하트 7 내기', exact: true }).click()
   await expect(p).toContainText('처리 확인 수신'); await expect(handButtons(page)).toHaveCount(0)
   server.holdState(false); server.flushGame()
   await expect(p.getByRole('group', { name: '무늬 선택' })).toBeVisible()

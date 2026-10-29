@@ -3,6 +3,8 @@ import path from 'node:path'
 import os from 'node:os'
 import fs from 'node:fs/promises'
 import { fixture } from './contractFixture'
+import { choose3DCard } from './onecardHeldInput'
+import { createOneCardPrankRoom } from './onecardPrankFixture'
 
 const panel = (page: Page) => page.getByLabel('원카드 경기', { exact: true })
 async function start(page: Page) {
@@ -13,11 +15,10 @@ async function start(page: Page) {
     const s = (await import('/src/network/worldClient.ts' as string)).useSession.getState()
     return s.status === 'connected' && s.bindings.length > 0
   })).toBe(true)
-  await expect(async () => {
-    await page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).inspectTable())
-    await expect(page.getByRole('button', { name: '앉기', exact: true })).toBeVisible({ timeout: 1500 })
-  }).toPass({ timeout: 15000 })
-  await page.getByRole('button', { name: '앉기', exact: true }).click()
+  await page.locator('canvas').focus()
+  const seat = page.getByRole('button', { name: 'E 테이블에 앉기', exact: true })
+  await expect(seat).toBeEnabled({ timeout: 15000 }); await seat.click()
+  await page.getByRole('button', { name: '테이블 로비 열기', exact: true }).click()
   await page.getByLabel('1인 참가비').fill('1')
   await page.getByRole('button', { name: '원카드 선택', exact: true }).click()
   await page.getByRole('button', { name: '준비', exact: true }).click(); server.confirmStart()
@@ -53,7 +54,7 @@ test('first-person scene, legal cards, protected selection, one-click restore an
   await shot(page, 'onecard-selected-classic')
   await expect(p.getByRole('button', { name: '하트 K 내기', exact: true })).toBeEnabled()
   await p.getByRole('button', { name: '뿅망치 들기', exact: true }).click()
-  await expect(p.getByText(/방해 차단은 서버 연동 후 사용할 수 있어요/)).toBeVisible()
+  await expect(p.getByText('다가오는 손을 눌러 막기 · 우클릭으로 내려놓기', { exact: true })).toBeVisible()
   await p.getByRole('button', { name: '뿅망치 내려놓기', exact: true }).click()
   expect(server.sent.filter(m => m.type === 'ONECARD_PRANK_HIT_SEND')).toHaveLength(0)
   server.cardPranks.flip()
@@ -94,7 +95,7 @@ test('an approved spectator sends only a prank event and never receives a privat
   const { benchTable } = await import('../../src/features/interactions/benchSpectator')
   const bench = facilityCatalog.facilities.find(d => d.kind === 'BENCH' && benchTable(d.facilityId)?.pavilionId === 'P1')!
   const anchor = benchTable(bench.facilityId)!
-  const server = await fixture(page, { omok: true, onecard: 2, onecardPranks: true, publicSpectator: true,
+  const server = await fixture(page, { omok: true, ownUserId: '505', players: 4, onecard: 2, onecardPranks: true, publicSpectator: true, onecardPreview: { observer: true, room: createOneCardPrankRoom() },
     manualMovement: true, position: bench.center, anchorId: anchor.id })
   await page.goto('/park')
   await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90000 })
@@ -106,9 +107,9 @@ test('an approved spectator sends only a prank event and never receives a privat
   const deck = await page.evaluate(async () => (await import('/tests/e2e/onecardSceneProbe.ts' as string)).oneCardDeckTarget())
   expect(deck.allowed).toBe(false)
   await page.mouse.click(deck.x, deck.y)
-  const prank = p.getByRole('button', { name: /손패 뒤집기$/ })
-  await expect(prank).toBeEnabled(); await prank.click(); await expect(prank).toBeDisabled()
-  expect(server.sent.filter(m => m.type === 'ONECARD_HAND_FLIP_SEND')).toHaveLength(1)
+  await choose3DCard(page, '101', 0)
+  expect(server.sent.filter(m => m.type === 'ONECARD_PRANK_REACH_SEND')).toHaveLength(1)
+  expect(server.sent.filter(m => m.type === 'ONECARD_HAND_FLIP_SEND')).toHaveLength(0)
   expect(server.sent.filter(m => m.type === 'GAME_ACTION_SEND')).toHaveLength(0)
   await expect(p.getByLabel('나만 볼 수 있는 카드')).toHaveCount(0)
   expect(await page.evaluate(async () => (await import('/src/game/store.ts' as string)).useGame.getState().game.hand)).toBeNull()

@@ -65,6 +65,12 @@ Service/HTTP: 서명·소유자·버전·limit·만료·CORS·미인증·고정 
 `check-bungeoppang-ranking-pagination.mjs`가 수정 없는 FE `fetchRanking/parseRanking/appendRanking`에 전달한다.
 경계 동점·새 기록 중 기존 페이지 유지·다른 회원/버전/limit 거절·만료409 후 첫 페이지 갱신·빈 v4를 확인한다.
 기존 실제 MySQL 검사를 대체하거나 React 화면의 자동 복구 구현을 증명하지 않는다.
+Postman `OnTop Bungeoppang Ranking`의33은 v5 첫 조회,34는 v5 다음 페이지,35는 v4 별도 첫 조회,
+36은 limit 오류 예제다. 개인 환경의 baseUrl/accessToken을 설정한다.33/34만
+bungeoRankingCursor/bungeoRankingSnapshotId를 저장하고,35는 진행 중인 v5 커서를 변경하지 않는다.
+34는 커서가 없으면 사전 검사에서 오류를 알린다.409 만료 시33을 다시 실행하며,35의 v4 커서를34에 넣지 않는다.
+저장 스크립트 회귀는 저장소 루트에서 `node --test postman/ranking-examples.test.mjs`로 실행한다.
+
 Node24와 frontend 의존성 설치 후 backend에서 실행한다.
 
 ```powershell

@@ -143,6 +143,9 @@ public class GameSession {
     public String endReason() { return endReason; }
     public Instant endedAt() { return endedAt; }
     public Instant reservedAt() { return reservedAt; }
+    public Instant startedAt() { return startedAt; }
+    public String ownerInstanceId() { return ownerInstanceId; }
+    public UUID ownerBootId() { return ownerBootId; }
     public long resultVersion() { return resultVersion; }
     public Long engineFinishVersion() { return engineFinishVersion; }
     public boolean hasFinish() { return finishEventId != null; }

@@ -48,6 +48,8 @@ export async function fixture(
     publicSpectator?: boolean
     forfeit?: boolean
     manualLobby?: boolean
+    /** DB-style decimal game ID; the default IDs are readable fixture names. */
+    gameId?: string
     tabletServer?: boolean
     serverTimeOffsetMs?: number
     mapVerificationRequired?: boolean
@@ -116,7 +118,7 @@ export async function fixture(
     finished = false,
     holdState = false,
     forbid = false
-  let gameId = options.bridge ? 'fixture-confirmed-bridge' : options.onecard ? 'fixture-confirmed-onecard' : options.dice ? 'fixture-confirmed-dice' : 'fixture-confirmed-omok'
+  let gameId = options.gameId ?? (options.bridge ? 'fixture-confirmed-bridge' : options.onecard ? 'fixture-confirmed-onecard' : options.dice ? 'fixture-confirmed-dice' : 'fixture-confirmed-omok')
   let publicGameId: string | null = options.publicSpectator ? gameId : null
   let watchingGameId = '', holdGameWatch = false
   const heldGameWatches: { requestId: string; gameId: string }[] = []

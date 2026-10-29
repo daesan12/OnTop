@@ -4,7 +4,7 @@
 
 ## 활성화와 권한
 
-기존 원카드 엔진과 인증·예약·정산 계약을 유지한다. `ontop.games.onecard.enabled=true`에 `ontop.games.onecard.pranks-enabled=true`를 함께 지정한다(pranks 기본 false). `ontop.games.onecard.defense-enabled` 기본 true다. FE는 `VITE_ONECARD_PRANKS=true`일 때 방어 접근을 기본 사용하며 `VITE_ONECARD_PRANK_DEFENSE=false`로 명시하면 개입을 끈다. 이 작업에서 실행 서버 설정은 바꾸지 않는다.
+기존 원카드 엔진과 인증·예약·정산 계약을 유지한다. `ontop.games.onecard.enabled=true`에 `ontop.games.onecard.pranks-enabled=true`를 함께 지정한다(pranks 기본 false). `ontop.games.onecard.defense-enabled` 기본 true다. FE는 최신 dev의 장난·방어 기본 활성화를 유지하며, `VITE_ONECARD_PRANKS=false` 또는 `VITE_ONECARD_PRANK_DEFENSE=false`로 명시하면 개입을 끈다. 이 작업에서 실행 서버 설정은 바꾸지 않는다.
 
 방어 활성 시 구형 ONECARD_HAND_FLIP_SEND는 ONECARD_DEFENSE_REQUIRED로 거절한다. 방어 비활성 호환 모드에서만 구형 즉시 뒤집기를 허용하며 새 REACH/HIT는 ONECARD_DEFENSE_NOT_CONFIGURED다. 장난 전체 미설정도 같은 NOT_CONFIGURED다.
 

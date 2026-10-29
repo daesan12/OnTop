@@ -119,6 +119,7 @@ public class TableHub {
     private final Map<String, String> seatedGames = new HashMap<>();
     private final Map<String, String> watching = new HashMap<>();
     private final Map<String, TableStartAttempt> starts = new HashMap<>();
+    private final Map<String, Set<String>> inactiveGameParticipants = new HashMap<>();
     private final Map<String, Long> startRevisions = new HashMap<>();
     private final Optional<GameStartGateway> gateway;
     private final boolean startRehearsal;
@@ -589,7 +590,7 @@ public class TableHub {
             int available = snapshot.capacity() - occupied;
             return new TableSummaryResponse(tableId, snapshot.capacity(), snapshot.minimumPlayers(), occupied,
                     available, ready, snapshot.allReady(), status, available > 0 && status.equals("WAITING"),
-                    snapshot.gameCode(), snapshot.targetScore(), snapshot.betAmountPerPlayer(), publicGameId(tableId), snapshot.selectorUserId(), snapshot.selectedPlayers(), snapshot.startMode(), tableAnchors.get(tableId));
+                    snapshot.gameCode(), snapshot.targetScore(), snapshot.betAmountPerPlayer(), publicGameId(tableId), snapshot.selectorUserId(), snapshot.selectedPlayers(), snapshot.startMode(), tableAnchors.get(tableId), chairCount(snapshot));
         }).toList());
     }
 
@@ -1549,6 +1550,15 @@ public class TableHub {
         }
     }
 
+    /** 공개 게시판 변경 번호만 모든 입장 채널에 전파한다. 본문·작성자 정보는 포함하지 않는다. */
+    public synchronized void notesChanged(long revision) {
+        if (stopped || revision <= 0) { return; }
+        String message = protocol.encode(null, "NOTES_CHANGED", Map.of("revision", Long.toString(revision)));
+        for (Member member : members.values()) {
+            if (isMapReady(member) && channels.channelOf(member.userId()) != null) { member.peer().offer(message); }
+        }
+    }
+
     private void publishChannel(WorldChannelRegistry.State state, Member actor, String requestId) {
         for (Member target : members.values()) {
             if (state.userIds().contains(target.userId())) {
@@ -1810,7 +1820,7 @@ public class TableHub {
 
     private void publish(TableRoom room, Member actor, String requestId) {
         refreshDeliveryScopes();
-        syncWorldTableSeats(tableChannels.get(room.snapshot().tableId()));
+        boolean worldChanged = syncWorldTableSeats(tableChannels.get(room.snapshot().tableId()));
         TableStartAttempt start = starts.get(room.snapshot().tableId());
         room.refreshWait(tableNow(), start == null || !start.frozen());
         TableRoom.Snapshot snapshot = publicSnapshot(room);
@@ -1829,14 +1839,19 @@ public class TableHub {
             }
         }
         publishHostWait(room);
+        if (worldChanged) { publishWorld(channels.worldState(tableChannels.get(snapshot.tableId())), null, null); }
     }
 
     /** 준비·판돈·경기 비공개 정보 없이, 같은 Hub 확정 시점의 실제 좌석만 복사한다. */
-    private void syncWorldTableSeats(String channelId) {
-        if (channelId == null) { return; }
+    private boolean syncWorldTableSeats(String channelId) {
+        if (channelId == null) { return false; }
+        long previous = channels.worldState(channelId).version();
         Map<String, WorldChannelRegistry.TableSeat> seats = new HashMap<>();
+        var publicTables = new ArrayList<WorldChannelRegistry.PublicTable>();
         for (var entry : rooms.entrySet()) {
             if (!channelId.equals(tableChannels.get(entry.getKey()))) { continue; }
+            publicTables.add(new WorldChannelRegistry.PublicTable(entry.getKey(), tableAnchors.get(entry.getKey()),
+                    chairCount(entry.getValue().snapshot())));
             for (var seat : entry.getValue().snapshot().seats()) {
                 if (seat.userId() != null && entry.getKey().equals(seating.get(seat.userId()))) {
                     seats.put(seat.userId(), new WorldChannelRegistry.TableSeat(entry.getKey(), seat.seatNumber()));
@@ -1844,6 +1859,46 @@ public class TableHub {
             }
         }
         channels.tableSeats(channelId, seats);
+        publicTables.sort(java.util.Comparator.comparing(WorldChannelRegistry.PublicTable::tableId));
+        channels.tables(channelId, publicTables);
+        return channels.worldState(channelId).version() != previous;
+    }
+
+    private static int chairCount(TableRoom.Snapshot table) {
+        int occupied = table.seats().stream().filter(seat -> seat.userId() != null)
+                .mapToInt(TableRoom.Seat::seatNumber).max().orElse(0);
+        return Math.max(Math.max(2, occupied), table.selectedPlayers() == null ? 2 : table.selectedPlayers());
+    }
+
+    private void syncGameActivities() {
+        Map<String, String> current = new HashMap<>();
+        if (committedStarts.isPresent()) {
+            starts.forEach((table, attempt) -> {
+                String game = publicGameId(table);
+                if (game == null) { return; }
+                Set<String> inactive = inactiveGameParticipants.getOrDefault(game, Set.of());
+                for (Participant participant : attempt.command().participants()) {
+                    if (!inactive.contains(participant.userId())) { current.put(participant.userId(), game); }
+                }
+            });
+        }
+        for (var state : channels.boardGames(current)) { publishWorld(state, null, null); }
+    }
+
+    @EventListener
+    public synchronized void gameParticipantActivityEnded(com.ssafy.ontop.game.result.GameParticipantLeft event) {
+        if (stopped) { return; }
+        TableStartAttempt attempt = starts.get(event.tableId());
+        if (attempt == null || attempt.command().participants().stream()
+                    .noneMatch(player -> player.userId().equals(Long.toString(event.userId())))) { return; }
+        if (attempt.starting()) {
+            attempt.rememberDeparture(event.gameId(), Long.toString(event.userId()));
+            return;
+        }
+        if (!event.gameId().equals(publicGameId(event.tableId()))) { return; }
+        inactiveGameParticipants.computeIfAbsent(event.gameId(), ignored -> new HashSet<>())
+                .add(Long.toString(event.userId()));
+        syncGameActivities();
     }
 
     private TableRoom.Snapshot publicSnapshot(TableRoom room) {
@@ -1975,6 +2030,8 @@ public class TableHub {
         attempt.apply(result);
         if (committedStarts.isPresent()) { attempt.playing(); }
         if (committedStarts.isPresent() && result.isReservationCommitted(attempt.command())) {
+            Set<String> early = attempt.takeDepartures(result.gameSessionId());
+            if (!early.isEmpty()) { inactiveGameParticipants.put(result.gameSessionId(), new HashSet<>(early)); }
             for (Participant player : attempt.command().participants()) {
                 if (tableId.equals(seating.get(player.userId()))) {
                     seatedGames.put(player.userId(), result.gameSessionId());
@@ -2000,6 +2057,7 @@ public class TableHub {
                     && !connected.contains(entry.getKey()));
             publish(rooms.get(tableId), null, null);
         }
+        syncGameActivities();
         publishStart(tableId);
         if (committedStarts.isPresent() && !attempt.starting()) {
             attempt.command().participants().forEach(player -> reconnect.ifPresent(service ->
@@ -2065,6 +2123,8 @@ public class TableHub {
             return;
         }
         if (attempt == null || !gameId.equals(attempt.view(0, false).gameSessionId()) || !attempt.endRound()) { return; }
+        inactiveGameParticipants.remove(gameId);
+        syncGameActivities();
         TableRoom room = rooms.get(tableId);
         room.resetReady();
         publish(room, null, null);

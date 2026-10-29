@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "OnTop Notes",
-    "description": "M08 공개 익명 메모. local/dev,db + notes.enabled=true + 전용 privacy-secret + V121 순서 조율 후 스키마 적용 필요. 서버 위치(54.5,18.92,48.5) XZ2.6m·높이차0.7m미만, 테이블/시설/수영 중 불가. 전 채널 공용 최신120장·쓰기15초/읽기1초. 메모/응답은 id,text,createdAt만 사용. 24시간 동일키 재확인,410은 자동 재게시 금지. 창을 연 동안2초마다 겹치지 않게 조회하고 닫기·이탈·단절 시 중지. docs/notes-api.md.",
+    "description": "M08 공개 익명 메모. local/dev,db + notes.enabled=true + 전용 privacy-secret + V121 순서 조율 후 스키마 적용 필요. 서버 위치(54.5,18.92,48.5) XZ2.6m·높이차0.7m미만, 테이블/시설/수영 중 불가. 전 채널 공용 최신120장·쓰기15초/읽기1초. 공개 필드는 id,text,createdAt,category. category daily/cheer/worry/recommend/free, 생략free. 같은 키의 주제 변경은409. 24시간 동일키 재확인,410은 자동 재게시 금지. 정기GET없이 열기/재접속/NOTES_CHANGED 후 합쳐조회. V129 번호 사용 가능 확인·MR 포함 승인(2026-10-29). 공용DB 적용·배포는 미확인. FE VITE_NOTES_CATEGORIES=true 빌드와 subscribe연결 필요. docs/notes-api.md.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -10,7 +10,7 @@
       "request": {
         "method": "POST",
         "url": "{{baseUrl}}/api/v1/notes",
-        "description": "M08 공개 익명 메모. local/dev,db + notes.enabled=true + 전용 privacy-secret + V121 순서 조율 후 스키마 적용 필요. 서버 위치(54.5,18.92,48.5) XZ2.6m·높이차0.7m미만, 테이블/시설/수영 중 불가. 전 채널 공용 최신120장·쓰기15초/읽기1초. 메모/응답은 id,text,createdAt만 사용. 24시간 동일키 재확인,410은 자동 재게시 금지. 창을 연 동안2초마다 겹치지 않게 조회하고 닫기·이탈·단절 시 중지. docs/notes-api.md.",
+        "description": "M08 공개 익명 메모. local/dev,db + notes.enabled=true + 전용 privacy-secret + V121 순서 조율 후 스키마 적용 필요. 서버 위치(54.5,18.92,48.5) XZ2.6m·높이차0.7m미만, 테이블/시설/수영 중 불가. 전 채널 공용 최신120장·쓰기15초/읽기1초. 공개 필드는 id,text,createdAt,category. category daily/cheer/worry/recommend/free, 생략free. 같은 키의 주제 변경은409. 24시간 동일키 재확인,410은 자동 재게시 금지. 정기GET없이 열기/재접속/NOTES_CHANGED 후 합쳐조회. V129 번호 사용 가능 확인·MR 포함 승인(2026-10-29). 공용DB 적용·배포는 미확인. FE VITE_NOTES_CATEGORIES=true 빌드와 subscribe연결 필요. docs/notes-api.md.",
         "auth": {
           "type": "noauth"
         },
@@ -26,7 +26,7 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"operationId\": \"{{noteOperationId}}\",\n  \"channelId\": \"{{channelIdA}}\",\n  \"text\": \"오늘도 좋은 하루 보내세요\"\n}",
+          "raw": "{\n  \"operationId\": \"{{noteOperationId}}\",\n  \"channelId\": \"{{channelIdA}}\",\n  \"text\": \"오늘도 좋은 하루 보내세요\",\n  \"category\": \"cheer\"\n}",
           "options": {
             "raw": {
               "language": "json"
@@ -52,7 +52,8 @@
             "type": "text/javascript",
             "exec": [
               "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
-              "const r=pm.response.json(); pm.expect(Object.keys(r.note).sort()).to.eql(['createdAt','id','text']);",
+              "const r=pm.response.json(); pm.expect(Object.keys(r.note).sort()).to.eql(['category','createdAt','id','text']);",
+              "pm.expect(r.note.category).to.eql('cheer');",
               "if(pm.response.code===201) pm.environment.set('noteId',r.note.id);"
             ]
           }
@@ -64,7 +65,7 @@
       "request": {
         "method": "POST",
         "url": "{{baseUrl}}/api/v1/notes",
-        "description": "M08 공개 익명 메모. local/dev,db + notes.enabled=true + 전용 privacy-secret + V121 순서 조율 후 스키마 적용 필요. 서버 위치(54.5,18.92,48.5) XZ2.6m·높이차0.7m미만, 테이블/시설/수영 중 불가. 전 채널 공용 최신120장·쓰기15초/읽기1초. 메모/응답은 id,text,createdAt만 사용. 24시간 동일키 재확인,410은 자동 재게시 금지. 창을 연 동안2초마다 겹치지 않게 조회하고 닫기·이탈·단절 시 중지. docs/notes-api.md.",
+        "description": "M08 공개 익명 메모. local/dev,db + notes.enabled=true + 전용 privacy-secret + V121 순서 조율 후 스키마 적용 필요. 서버 위치(54.5,18.92,48.5) XZ2.6m·높이차0.7m미만, 테이블/시설/수영 중 불가. 전 채널 공용 최신120장·쓰기15초/읽기1초. 공개 필드는 id,text,createdAt,category. category daily/cheer/worry/recommend/free, 생략free. 같은 키의 주제 변경은409. 24시간 동일키 재확인,410은 자동 재게시 금지. 정기GET없이 열기/재접속/NOTES_CHANGED 후 합쳐조회. V129 번호 사용 가능 확인·MR 포함 승인(2026-10-29). 공용DB 적용·배포는 미확인. FE VITE_NOTES_CATEGORIES=true 빌드와 subscribe연결 필요. docs/notes-api.md.",
         "auth": {
           "type": "noauth"
         },
@@ -80,7 +81,7 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"operationId\": \"{{noteOperationId}}\",\n  \"channelId\": \"{{channelIdA}}\",\n  \"text\": \"오늘도 좋은 하루 보내세요\"\n}",
+          "raw": "{\n  \"operationId\": \"{{noteOperationId}}\",\n  \"channelId\": \"{{channelIdA}}\",\n  \"text\": \"오늘도 좋은 하루 보내세요\",\n  \"category\": \"cheer\"\n}",
           "options": {
             "raw": {
               "language": "json"
@@ -117,7 +118,7 @@
       "request": {
         "method": "GET",
         "url": "{{baseUrl}}/api/v1/notes?channelId={{channelIdA}}",
-        "description": "M08 공개 익명 메모. local/dev,db + notes.enabled=true + 전용 privacy-secret + V121 순서 조율 후 스키마 적용 필요. 서버 위치(54.5,18.92,48.5) XZ2.6m·높이차0.7m미만, 테이블/시설/수영 중 불가. 전 채널 공용 최신120장·쓰기15초/읽기1초. 메모/응답은 id,text,createdAt만 사용. 24시간 동일키 재확인,410은 자동 재게시 금지. 창을 연 동안2초마다 겹치지 않게 조회하고 닫기·이탈·단절 시 중지. docs/notes-api.md.",
+        "description": "M08 공개 익명 메모. local/dev,db + notes.enabled=true + 전용 privacy-secret + V121 순서 조율 후 스키마 적용 필요. 서버 위치(54.5,18.92,48.5) XZ2.6m·높이차0.7m미만, 테이블/시설/수영 중 불가. 전 채널 공용 최신120장·쓰기15초/읽기1초. 공개 필드는 id,text,createdAt,category. category daily/cheer/worry/recommend/free, 생략free. 같은 키의 주제 변경은409. 24시간 동일키 재확인,410은 자동 재게시 금지. 정기GET없이 열기/재접속/NOTES_CHANGED 후 합쳐조회. V129 번호 사용 가능 확인·MR 포함 승인(2026-10-29). 공용DB 적용·배포는 미확인. FE VITE_NOTES_CATEGORIES=true 빌드와 subscribe연결 필요. docs/notes-api.md.",
         "auth": {
           "type": "noauth"
         },
@@ -146,7 +147,7 @@
             "exec": [
               "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
               "const notes=pm.response.json().notes;pm.expect(notes).to.be.an('array');pm.expect(notes.length).to.be.at.most(120);",
-              "notes.forEach(n=>pm.expect(Object.keys(n).sort()).to.eql(['createdAt','id','text']));"
+              "notes.forEach(n=>{pm.expect(Object.keys(n).sort()).to.eql(['category','createdAt','id','text']);pm.expect(['daily','cheer','worry','recommend','free']).to.include(n.category);});"
             ]
           }
         }

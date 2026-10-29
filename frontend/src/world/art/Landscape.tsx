@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { BufferGeometry, Float32BufferAttribute } from 'three'
+import { BufferGeometry, Float32BufferAttribute, IcosahedronGeometry, MeshLambertMaterial } from 'three'
 import {
   TABLES,
   PARK_SIZE,
@@ -11,9 +11,9 @@ import {
   groundHeight,
   type QualityPreset,
 } from '../../config'
-import { SpatialInstances, seeded, type Part } from './Instances'
+import { seeded, type Part } from './Instances'
+import { SpatialBatchInstances } from './SpatialBatches'
 import { isParkLawn } from './ParkGround'
-import { SurfaceMaterial } from './SurfaceMaterial'
 import { DetailInstances, DetailMaterial } from './DetailInstances'
 
 // World-space distance budget for sub-meter decoration, independent of map area.
@@ -22,6 +22,8 @@ const detailRanges: Record<QualityPreset, number> = {
   medium: 44,
   high: 56,
 }
+const shrubGeometry = new IcosahedronGeometry(1, 0)
+const shrubMaterial = new MeshLambertMaterial({ color: '#b0c090' })
 
 function vegetation(quality: QualityPreset) {
   const rand = seeded(4317)
@@ -122,24 +124,13 @@ const grassGeometry = (() => {
 export function Vegetation({ quality }: { quality: QualityPreset }) {
   const detailRange = detailRanges[quality]
   const art = useMemo(() => vegetation(quality), [quality])
+  const shrubs = useMemo(() => [{ geometry: shrubGeometry, parts: art.shrubs }], [art])
   return (
     <group
       name="art-vegetation"
       userData={{ assetId: 'placeholder/vegetation' }}
     >
-      <SpatialInstances
-        parts={art.shrubs}
-        material={
-          <SurfaceMaterial
-            kind="grass"
-            strength={0.7}
-            color="#b0c090"
-            detail={0.3}
-          />
-        }
-      >
-        <icosahedronGeometry args={[1, 0]} />
-      </SpatialInstances>
+      <SpatialBatchInstances batches={shrubs} material={shrubMaterial} shadow name="park-shrubs-multi-draw" />
       <DetailInstances
         name="detail-grass"
         parts={art.grass}

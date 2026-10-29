@@ -39,6 +39,9 @@ HISTORY-01 / HISTORY-02. Notion REST 명세의 기존 경로·응답 필드를 �
 - 정산 PENDING도 종료 판정이 있으면 표시한다. 결과 없는 INVALID의 myResult는 null이며, 저장된 FORFEIT가 있으면 그대로 표시한다.
 - 페이지는 불변 스냅샷이 아니다. 이전 페이지를 본 뒤 늦게 종료된 높은 ID의 경기는 새 첫 조회에서 확인한다.
 - 조회하지 않은 경기는 빈 목록이며 404가 아니다. 읽기 요청이 결과 확정·예약 해제·정산을 실행하지 않는다.
+- FE는 새로고침 후 결과 발견에 `size=1`의 첫 항목만 쓴다. 이는 사용자의 "가장 최근 종료(FINISHED·INVALID) 경기"이며
+  진행 중 경기는 나오지 않는다. 진행 중 경기는 이 API가 아니라 `GAME_CONNECTION_STATE`로 복구한다.
+  [새로고침 후 결과 발견](game-recovery.md#새로고침-후-경기-결과-발견-ontop-story-b) 참고.
 
 ## HISTORY-02 · 내 게임별 전적
 

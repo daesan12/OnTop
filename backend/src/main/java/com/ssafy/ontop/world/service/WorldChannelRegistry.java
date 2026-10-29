@@ -37,6 +37,7 @@ public class WorldChannelRegistry implements ChannelPresence {
     private final Map<String, String> membership = new HashMap<>();
     // Per user, not per room: reconnects and channel moves keep an ongoing game's public activity.
     private final Map<String, MinigamePresence> minigames = new HashMap<>();
+    private final Map<String, String> boardGames = new HashMap<>();
     private final long minimumMoveNanos;
     private final LongSupplier nanoTime;
     private final java.util.function.Supplier<ParkScene> scene;
@@ -92,7 +93,7 @@ public class WorldChannelRegistry implements ChannelPresence {
             }
         }
         for (Channel channel : initial) {
-            rooms.put(channel.channelId(), new Room(channel, scene, this::cooking));
+            rooms.put(channel.channelId(), new Room(channel, scene, this::activity));
         }
     }
 
@@ -105,7 +106,7 @@ public class WorldChannelRegistry implements ChannelPresence {
         if (rooms.containsKey(definition.channelId())) {
             throw new IllegalArgumentException("이미 등록된 채널 ID입니다.");
         }
-        rooms.put(definition.channelId(), new Room(definition, scene, this::cooking));
+        rooms.put(definition.channelId(), new Room(definition, scene, this::activity));
     }
 
     public synchronized void removeEmptyChannel(String channelId) {
@@ -133,7 +134,10 @@ public class WorldChannelRegistry implements ChannelPresence {
         }
         long started = System.nanoTime();
         boolean cold = room.physics == null;
-        if (cold) { room.physics = new WorldPhysics(scene.get()); }
+        if (cold) {
+            room.physics = new WorldPhysics(scene.get());
+            room.physics.chairCounts(chairCounts(room.tables));
+        }
         room.physics.add(userId);
         log.debug("공원 진입 물리 준비 cold={} elapsedMs={}", cold, (System.nanoTime() - started) / 1_000_000.0);
         room.users.add(userId);
@@ -224,6 +228,54 @@ public class WorldChannelRegistry implements ChannelPresence {
     private boolean cooking(String userId) {
         MinigamePresence presence = minigames.get(userId);
         return presence != null && presence.active();
+    }
+
+    private String activity(String userId) {
+        return cooking(userId) ? "BUNGEOPPANG" : boardGames.containsKey(userId) ? "GAME" : null;
+    }
+
+    /** Hub 현재 라운드의 확정 참가자 전체 투영. 오래된 사건으로 개별 값을 덮지 않는다. */
+    public synchronized List<WorldState> boardGames(Map<String, String> current) {
+        var changed = new java.util.HashSet<String>();
+        var users = new java.util.HashSet<>(boardGames.keySet()); users.addAll(current.keySet());
+        for (String user : users) {
+            if (!java.util.Objects.equals(boardGames.get(user), current.get(user))) {
+                String channel = membership.get(user);
+                if (channel != null) { changed.add(channel); }
+            }
+        }
+        boardGames.clear(); boardGames.putAll(current);
+        return changed.stream().map(id -> { Room room = rooms.get(id); room.worldVersion++; return room.worldState(); }).toList();
+    }
+
+    /** 현재 승인 설정과 점유 좌석에서 계산한 공개 의자 수. 새 접속도 전체 목록을 받는다. */
+    public synchronized void tables(String channelId, List<PublicTable> tables) {
+        Room room = rooms.get(channelId);
+        if (room == null) { return; }
+        var copy = List.copyOf(tables);
+        if (copy.equals(room.tables)) { return; }
+        if (room.physics != null) {
+            room.physics.chairCounts(chairCounts(copy)).forEach((user, moved) -> {
+                Movement previous = room.positions.get(user);
+                room.positions.put(user, new Movement(position(moved), previous.acceptedAtNanos()));
+            });
+        }
+        room.tables = copy;
+        room.worldVersion++;
+    }
+
+    private static Map<String, Integer> chairCounts(List<PublicTable> tables) {
+        Map<String, Integer> counts = new HashMap<>();
+        for (var table : tables) { if (table.anchorId() != null) { counts.put(table.anchorId(), table.chairCount()); } }
+        return counts;
+    }
+
+    public record PublicTable(String tableId, String anchorId, int chairCount) {
+        public PublicTable {
+            if (tableId == null || tableId.isBlank() || chairCount < 2 || chairCount > 4) {
+                throw new IllegalArgumentException("공개 테이블 의자 설정이 올바르지 않습니다.");
+            }
+        }
     }
 
     public synchronized boolean hasMovementActivity(String userId) {
@@ -453,6 +505,7 @@ public class WorldChannelRegistry implements ChannelPresence {
     public synchronized void clear() {
         membership.clear();
         minigames.clear();
+        boardGames.clear();
         for (Room room : rooms.values()) {
             if (room.physics != null) {
                 room.physics.close();
@@ -464,6 +517,7 @@ public class WorldChannelRegistry implements ChannelPresence {
                 room.equipment.clear();
                 room.profiles.clear();
                 room.tableSeats.clear();
+                room.tables = List.of();
                 room.held.clear();
                 room.version++;
                 room.worldVersion++;
@@ -493,7 +547,8 @@ public class WorldChannelRegistry implements ChannelPresence {
             String nickname, String characterGender,
             @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.ALWAYS)
             TableSeat tableSeat,
-            /** Public minigame activity: {@code BUNGEOPPANG} or null. No session ID, score or log is exposed. */
+            /** Public server-approved GAME/BUNGEOPPANG activity; no private game data. */
+            @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.ALWAYS)
             String activity) {
         public Avatar(String userId, Position position, List<WorldAppearanceGateway.Equipment> equipment,
                 String nickname, String characterGender, TableSeat tableSeat) {
@@ -516,10 +571,16 @@ public class WorldChannelRegistry implements ChannelPresence {
         }
     }
 
-    public record WorldState(String channelId, long version, List<Avatar> avatars, String mapVersion) {
+    public record WorldState(String channelId, long version, List<Avatar> avatars, String mapVersion,
+            List<PublicTable> tables) {
+
+        public WorldState(String channelId, long version, List<Avatar> avatars, String mapVersion) {
+            this(channelId, version, avatars, mapVersion, List.of());
+        }
 
         public WorldState {
             avatars = List.copyOf(avatars);
+            tables = List.copyOf(tables);
         }
     }
 
@@ -558,7 +619,7 @@ public class WorldChannelRegistry implements ChannelPresence {
 
     private static final class Room {
         private final java.util.function.Supplier<ParkScene> scene;
-        private final java.util.function.Predicate<String> cooking;
+        private final java.util.function.Function<String, String> activity;
 
         private final Channel definition;
         private final LinkedHashSet<String> users = new LinkedHashSet<>();
@@ -566,6 +627,7 @@ public class WorldChannelRegistry implements ChannelPresence {
         private final Map<String, List<WorldAppearanceGateway.Equipment>> equipment = new HashMap<>();
         private final Map<String, WorldProfileGateway.Profile> profiles = new HashMap<>();
         private final Map<String, TableSeat> tableSeats = new HashMap<>();
+        private List<PublicTable> tables = List.of();
         private final java.util.Set<String> held = new java.util.HashSet<>();
         private long version;
         private long worldVersion;
@@ -573,10 +635,10 @@ public class WorldChannelRegistry implements ChannelPresence {
         private boolean dirty;
 
         private Room(Channel definition, java.util.function.Supplier<ParkScene> scene,
-                java.util.function.Predicate<String> cooking) {
+                java.util.function.Function<String, String> activity) {
             this.definition = definition;
             this.scene = scene;
-            this.cooking = cooking;
+            this.activity = activity;
         }
 
         private State state() {
@@ -589,8 +651,8 @@ public class WorldChannelRegistry implements ChannelPresence {
                     .map(user -> new Avatar(user, positions.containsKey(user) ? positions.get(user).position() : null,
                             equipment.get(user), profiles.containsKey(user) ? profiles.get(user).nickname() : null,
                             profiles.containsKey(user) ? profiles.get(user).characterGender() : null,
-                            tableSeats.get(user), cooking.test(user) ? "BUNGEOPPANG" : null))
-                    .toList(), scene.get().version());
+                            tableSeats.get(user), activity.apply(user)))
+                    .toList(), scene.get().version(), tables);
         }
     }
 

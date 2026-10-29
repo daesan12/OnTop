@@ -272,7 +272,7 @@ paths:
       tags:
       - NOTES
       summary: 전망대 익명 메모 조회
-      description: 인증·서버 근접/활동 검사. 창을 연 동안2초마다 재조회하고 이탈·단절 시 중지.
+      description: 인증·서버 근접/활동 검사. 열기/재접속 및 NOTES_CHANGED 알림 후 합쳐 재조회. 정기 GET 없음.
       operationId: list
       parameters:
       - name: channelId
@@ -410,6 +410,16 @@ paths:
                     UTF-16 단위. 코드포인트 길이인 minLength와 다릅니다.
                   x-utf16-max-length: 300
                   x-normalized-utf16-min-length: 1
+                category:
+                  type: string
+                  description: 생략 시 free. 명시적 null은 허용하지 않는다.
+                  default: free
+                  enum:
+                  - daily
+                  - cheer
+                  - worry
+                  - recommend
+                  - free
               additionalProperties: false
         required: true
       responses:
@@ -459,7 +469,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/NotesErrorResponse"
         "400":
-          description: INVALID_REQUEST / NOTES_TEXT_INVALID
+          description: INVALID_REQUEST / NOTES_TEXT_INVALID / NOTES_CATEGORY_INVALID
           headers:
             Cache-Control:
               description: no-store
@@ -4112,6 +4122,7 @@ components:
           format: date-time
     NoteResponse:
       required:
+      - category
       - createdAt
       - id
       - text
@@ -4124,6 +4135,8 @@ components:
         createdAt:
           type: string
           format: date-time
+        category:
+          type: string
     NotesErrorResponse:
       required:
       - code
@@ -4892,6 +4905,7 @@ components:
       - availableSeats
       - betAmountPerPlayer
       - capacity
+      - chairCount
       - gameCode
       - gameId
       - joinable
@@ -4964,6 +4978,10 @@ components:
           type: string
           description: 현재 공원 맵에서 테이블을 배치할 앵커 ID
           nullable: true
+        chairCount:
+          type: integer
+          description: 승인 인원과 점유 좌석을 반영한 실제 의자 수(2~4)
+          format: int32
     ItemListResponse:
       required:
       - items
