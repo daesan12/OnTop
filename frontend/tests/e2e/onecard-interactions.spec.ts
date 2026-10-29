@@ -37,8 +37,11 @@ async function start(page: Page) {
   return server
 }
 async function beginDrag(page: Page, card: Locator, dx: number, dy: number) {
+  await card.hover()
+  await card.evaluate(async node => { await Promise.all(node.getAnimations().map(animation => animation.finished.catch(() => {}))) })
   const b = (await card.boundingBox())!, x = b.x + b.width / 2, y = b.y + b.height * .45
   await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move(x + dx, y + dy, { steps: 9 })
+  await expect(card).toHaveAttribute('data-dragging', 'true')
 }
 function afterPlay(server: Awaited<ReturnType<typeof fixture>>, rank = '4'): Hand {
   const hand = server.cardHand()
