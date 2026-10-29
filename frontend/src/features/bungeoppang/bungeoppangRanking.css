@@ -21,7 +21,7 @@
 .bung-ranking-table caption { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
 .bung-ranking-table thead { position:sticky; top:0; z-index:1; background:#ebe3d1; }
 .bung-ranking-table thead th { padding:12px 7px; color:#686c5d; font-size:12px; }
-.bung-ranking-table th:nth-child(1) { width:16%; }.bung-ranking-table th:nth-child(2) { width:46%; }.bung-ranking-table th:nth-child(3),.bung-ranking-table th:nth-child(4) { width:19%; }
+.bung-ranking-table thead th:nth-child(1) { width:14%; }.bung-ranking-table thead th:nth-child(2) { width:38%; }.bung-ranking-table thead th:nth-child(3) { width:26%; }.bung-ranking-table thead th:nth-child(4) { width:22%; }
 .bung-ranking-table tbody td,.bung-ranking-table tbody th { padding:13px 7px; border-top:1px solid #d9ccb555; background:#fffcf438; }
 .bung-ranking-table tbody th { text-align:left; min-width:0; }.bung-ranking-table tbody th>span { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:650; }
 .bung-ranking-table time { display:block; margin-top:5px; font-size:10px; color:#8a8a7c; font-weight:400; }
