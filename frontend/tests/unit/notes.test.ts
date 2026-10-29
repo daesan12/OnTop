@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NOTES_BOX } from '../../src/config/notes'
 import { EXPECTED_MAP_VERSION } from '../../src/config/mapVersion'
-import { closeNotes, openNotes, refreshNotes, submitNote, watchNotes } from '../../src/features/notes/controller'
+import { closeNotes, openNotes, refreshNearbyNotes, refreshNotes, submitNote, watchNotes } from '../../src/features/notes/controller'
 import { MockNotesService } from '../../src/features/notes/mock/MockNotesService'
 import { notesService } from '../../src/features/notes/service'
 import { editNoteDraft, useNotesState } from '../../src/features/notes/state'
@@ -41,6 +41,29 @@ beforeEach(() => {
 afterEach(() => { vi.restoreAllMocks(); resetWorld(); Object.assign(notesService, { mode: 'mock' }); roamingInput.ready = false; vi.useRealTimers() })
 
 describe('M08 anonymous notes, permissions and request lifetime', () => {
+  it('shares one nearby authorized read with E-open and retains only its display snapshot on close', async () => {
+    const row=receipt().note,read=vi.spyOn(notesService,'read').mockResolvedValue([row])
+    expect(await refreshNearbyNotes()).toBe(true)
+    expect(useNotesState.getState()).toMatchObject({open:false,displayNotes:[row],prefetched:true})
+    expect(openNotes()).toBe(true);await vi.advanceTimersByTimeAsync(2000)
+    expect(read).toHaveBeenCalledOnce()
+    closeNotes();expect(useNotesState.getState()).toMatchObject({notes:[],displayNotes:[row]})
+    resetWorld();expect(useNotesState.getState().displayNotes).toEqual([])
+  })
+  it('lets E-open await an existing nearby read instead of issuing another request', async () => {
+    let complete!:(rows: ReturnType<typeof parseNotes>)=>void
+    const read=vi.spyOn(notesService,'read').mockImplementation(()=>new Promise(resolve=>{complete=resolve}))
+    const pending=refreshNearbyNotes();await vi.advanceTimersByTimeAsync(1)
+    expect(openNotes()).toBe(true);const row=receipt().note;complete([row])
+    expect(await pending).toBe(true);expect(read).toHaveBeenCalledOnce()
+    expect(useNotesState.getState()).toMatchObject({notes:[row],displayNotes:[row],prefetched:false})
+  })
+  it('never puts an unacknowledged failed draft on the world asset or keeps another identity snapshot', async () => {
+    await compose();const before=useNotesState.getState().displayNotes
+    vi.spyOn(notesService,'submit').mockRejectedValue(new Error('거절'))
+    expect(await submitNote()).toBe(false);expect(useNotesState.getState().displayNotes).toEqual(before)
+    emit('CONNECTED',{userId:'other-user'});expect(useNotesState.getState().displayNotes).toEqual([])
+  })
   it('validates 1~300 raw/normalized characters with NFC, controls and newlines', () => {
     expect(parseNoteText(' 가\n나\t\u200b\u0000 ')).toBe('가\n나')
     expect(parseNoteText('가'.normalize('NFD'))).toBe('가')
