@@ -54,7 +54,7 @@ BUST·BANK 후 새 차례 상태를 즉시 보낸다. 프로토타입의 ROLLING
 
 ## 서버 연결과 검증
 
-local/dev에서 `ontop.games.farkle.enabled=true`로 선택 활성화한다(기본 꺼짐, prod/production 혼합 시 제외). dev 환경변수는 `GAME_FARKLE_ENABLED=true`이며 실제 시작에는 [예약 Gateway 연결](committed-game-start.md#켜는-조건)도 필요하다. `FarkleEngine.create(gameId,tableId,List<Long> players,int targetScore)`는 실제 참가·예약 커밋을 확인한 서버 내부 호출 전용이다. 임의 생성 API는 없다. 오목과 함께 켜면 GameEngineRouter가 gameId로 분기하며 참가자/테이블의 중복 진행을 막는다.
+local/dev 또는 운영 `prod,db`에서 `ontop.games.farkle.enabled=true`로 선택 활성화한다(기본 꺼짐, 운영과 local/dev 혼합 시 제외). dev/prod 환경변수는 `GAME_FARKLE_ENABLED=true`이며 실제 시작에는 [예약 Gateway 연결](committed-game-start.md#켜는-조건)도 필요하다. `FarkleEngine.create(gameId,tableId,List<Long> players,int targetScore)`는 실제 참가·예약 커밋을 확인한 서버 내부 호출 전용이다. 임의 생성 API는 없다. 오목과 함께 켜면 GameEngineRouter가 gameId로 분기하며 참가자/테이블의 중복 진행을 막는다.
 
 FarkleGameFinished는 서버 승패 알림이며 정산 완료가 아니다. 실제 저장·정산 후 기존 GameResultGateway/GameResultCommitted를 연결한다. 엔진·중복 기록은 메모리이며 재시작·다중 서버 영속성·종료 알림 전달 보장은 제공하지 않는다.
 

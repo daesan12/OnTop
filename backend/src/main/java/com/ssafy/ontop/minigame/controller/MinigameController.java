@@ -8,6 +8,7 @@ import com.ssafy.ontop.minigame.dto.MinigameStartResponse;
 import com.ssafy.ontop.minigame.dto.MinigameStatusResponse;
 import com.ssafy.ontop.minigame.dto.BungeoppangV4DeliveryDtos;
 import com.ssafy.ontop.minigame.service.BungeoppangV4DeliveryContract;
+import com.ssafy.ontop.minigame.service.BungeoppangV5DeliveryContract;
 import com.ssafy.ontop.minigame.service.MinigameException;
 import com.ssafy.ontop.minigame.service.MinigameService;
 import com.ssafy.ontop.minigame.service.StoredMinigameResponseException;
@@ -24,6 +25,7 @@ import java.security.Principal;
 import java.util.Collections;
 import java.util.Set;
 import org.springframework.beans.factory.ObjectProvider;
+import com.ssafy.ontop.config.RuntimeProfiles;
 import org.springframework.context.annotation.Profile;
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.CacheControl;
@@ -40,7 +42,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@Profile("(local | dev) & !prod & !production")
+@Profile(RuntimeProfiles.PRODUCT_FEATURE)
 @RequestMapping("/api/v1/minigames/sessions")
 @Tag(name = "MINIGAME")
 @SecurityRequirement(name = "AccessJwt")
@@ -83,10 +85,13 @@ public class MinigameController {
         if (keys.size() != 1 || !keys.getFirst().matches("[A-Za-z0-9_-]{1,64}")) {
             throw invalid();
         }
+        String type = body.path("minigameType").textValue();
         return ResponseEntity.status(201).cacheControl(CacheControl.noStore())
-                .body(rulesVersion.equals("v4")
-                        ? service().startV4(userId, body.path("minigameType").textValue(), keys.getFirst())
-                        : service().start(userId, body.path("minigameType").textValue(), keys.getFirst()));
+                .body(switch (rulesVersion) {
+                    case "v4" -> service().startV4(userId, type, keys.getFirst());
+                    case "v5" -> service().startV5(userId, type, keys.getFirst());
+                    default -> service().start(userId, type, keys.getFirst());
+                });
     }
 
     @GetMapping("/{sessionId}")
@@ -116,12 +121,17 @@ public class MinigameController {
         String selected = rulesVersion == null ? "v2" : rulesVersion;
         if (selected.isBlank()) { throw invalid(); }
         requireKnownVersion(selected);
-        return ok(selected.equals("v4") ? service().statusV4(account(principal))
-                : service().status(account(principal)));
+        return ok(switch (selected) {
+            case "v4" -> service().statusV4(account(principal));
+            case "v5" -> service().statusV5(account(principal));
+            default -> service().status(account(principal));
+        });
     }
 
     @PostMapping("/{sessionId}/deliveries")
-    @Operation(summary = "붕어빵 v4 납품 승인", description = "승인 prefix·FIFO 재고·현재 주문을 검증하고 영속 영수증과 다음 주문을 원자적으로 저장합니다.")
+    @Operation(summary = "붕어빵 v4·v5 납품 승인", description = "승인 prefix·종류별 FIFO 재고·대상 주문을 검증하고 "
+            + "영속 영수증과 다음 주문을 원자적으로 저장합니다. v4는 현재 주문 한 건, v5는 활성 주문 3건 중 고른 주문을 "
+            + "납품하고 비운 손님 자리에 replacementOrder를 발급합니다. v5 본문은 1 MiB, v4는 256 KiB까지 받습니다.")
     @ApiResponse(responseCode = "200", description = "최초 승인 또는 같은 키·본문의 최초 응답 재생",
             content = @Content(mediaType = "application/json",
                     schema = @Schema(implementation = BungeoppangV4DeliveryDtos.Response.class)))
@@ -135,7 +145,7 @@ public class MinigameController {
     public ResponseEntity<?> deliver(Principal principal, @PathVariable String sessionId,
             HttpServletRequest request) {
         long contentLength = request.getContentLengthLong();
-        if (contentLength > BungeoppangV4DeliveryContract.MAX_BODY_BYTES) {
+        if (contentLength > BungeoppangV5DeliveryContract.MAX_BODY_BYTES) {
             throw new MinigameException(413, "REQUEST_TOO_LARGE", "납품 요청 본문이 너무 큽니다.");
         }
         String encoding = request.getHeader("Content-Encoding");
@@ -153,12 +163,17 @@ public class MinigameController {
         var keys = Collections.list(request.getHeaders("Idempotency-Key"));
         if (keys.size() != 1 || !keys.getFirst().matches("[A-Za-z0-9_-]{1,64}")) { throw invalid(); }
         byte[] bytes;
-        try { bytes = request.getInputStream().readNBytes(BungeoppangV4DeliveryContract.MAX_BODY_BYTES + 1); }
+        try { bytes = request.getInputStream().readNBytes(BungeoppangV5DeliveryContract.MAX_BODY_BYTES + 1); }
         catch (IOException exception) { throw invalid(); }
-        if (bytes.length > BungeoppangV4DeliveryContract.MAX_BODY_BYTES) {
+        if (bytes.length > BungeoppangV5DeliveryContract.MAX_BODY_BYTES) {
             throw new MinigameException(413, "REQUEST_TOO_LARGE", "납품 요청 본문이 너무 큽니다.");
         }
-        BungeoppangV4DeliveryDtos.Request delivery = BungeoppangV4DeliveryContract.parse(bytes);
+        JsonNode body = limitedJson(bytes, "납품");
+        if (isV5(body)) {
+            return ok(service().deliverV5(account(principal), sessionId(sessionId), keys.getFirst(),
+                    BungeoppangV5DeliveryContract.parse(body)));
+        }
+        BungeoppangV4DeliveryDtos.Request delivery = BungeoppangV4DeliveryContract.parse(body);
         return ok(service().deliver(account(principal), sessionId(sessionId), keys.getFirst(), delivery));
     }
 
@@ -242,8 +257,13 @@ public class MinigameController {
         }
     }
 
+    /** v5 is known only while explicitly enabled; otherwise it answers exactly like any unsupported version. */
     private void requireKnownVersion(String version) {
         if (version.equals("v2") || version.equals("v4")) { return; }
+        if (version.equals("v5")) {
+            MinigameService service = services.getIfAvailable();
+            if (service != null && service.v5Enabled()) { return; }
+        }
         if (!version.matches("v[1-9][0-9]{0,8}")) { throw invalid(); }
         throw new MinigameException(409, "RULES_VERSION_MISMATCH", "지원하지 않는 규칙 버전입니다.");
     }
@@ -262,7 +282,7 @@ public class MinigameController {
 
     private JsonNode strictBody(HttpServletRequest request, String operation) {
         long contentLength = request.getContentLengthLong();
-        if (contentLength > BungeoppangV4DeliveryContract.MAX_BODY_BYTES) {
+        if (contentLength > BungeoppangV5DeliveryContract.MAX_BODY_BYTES) {
             throw new MinigameException(413, "REQUEST_TOO_LARGE", operation + " 요청 본문이 너무 큽니다.");
         }
         String encoding = request.getHeader("Content-Encoding");
@@ -278,12 +298,36 @@ public class MinigameController {
             throw new MinigameException(415, "UNSUPPORTED_MEDIA_TYPE", "JSON " + operation + " 요청만 지원합니다.");
         }
         byte[] bytes;
-        try { bytes = request.getInputStream().readNBytes(BungeoppangV4DeliveryContract.MAX_BODY_BYTES + 1); }
+        try { bytes = request.getInputStream().readNBytes(BungeoppangV5DeliveryContract.MAX_BODY_BYTES + 1); }
         catch (IOException exception) { throw invalid(); }
-        if (bytes.length > BungeoppangV4DeliveryContract.MAX_BODY_BYTES) {
+        if (bytes.length > BungeoppangV5DeliveryContract.MAX_BODY_BYTES) {
             throw new MinigameException(413, "REQUEST_TOO_LARGE", operation + " 요청 본문이 너무 큽니다.");
         }
-        return BungeoppangV4DeliveryContract.parseJson(bytes);
+        return limitedJson(bytes, operation);
+    }
+
+    /**
+     * Only a v5 log may use the 1 MiB body; every other body keeps the v4 256 KiB limit, and an oversized body
+     * that is not a v5 request still answers 413 even when it is not valid JSON.
+     */
+    private JsonNode limitedJson(byte[] bytes, String operation) {
+        boolean overV4 = bytes.length > BungeoppangV4DeliveryContract.MAX_BODY_BYTES;
+        JsonNode body;
+        try { body = BungeoppangV4DeliveryContract.parseJson(bytes); }
+        catch (MinigameException exception) {
+            if (overV4) { throw tooLarge(operation); }
+            throw exception;
+        }
+        if (overV4 && !isV5(body)) { throw tooLarge(operation); }
+        return body;
+    }
+
+    private static boolean isV5(JsonNode body) {
+        return body != null && "v5".equals(body.path("rulesVersion").textValue());
+    }
+
+    private static MinigameException tooLarge(String operation) {
+        return new MinigameException(413, "REQUEST_TOO_LARGE", operation + " 요청 본문이 너무 큽니다.");
     }
 
     private MinigameException invalid() {

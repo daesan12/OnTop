@@ -91,8 +91,8 @@ public class OpenApiSchemaCustomizer implements OperationCustomizer {
             });
         }
         if (controller.equals("ShopController")) {
-            operation.setDescription(operation.getDescription() + " local/dev 프로필에서 등록됩니다(운영 혼합 제외). "
-                    + "실제 서비스는 db 및 ontop.shop.enabled=true(dev: SHOP_ENABLED=true), "
+            operation.setDescription(operation.getDescription() + " local/dev 또는 운영 prod,db에서 등록됩니다(운영과 개발 프로필 혼합 제외). "
+                    + "실제 서비스는 db 및 ontop.shop.enabled=true(SHOP_ENABLED=true), "
                     + "별도 상점 스키마와 회원 지갑이 필요합니다. 기존 V100 적용 이력·순서를 확인한 뒤 "
                     + "Flyway locations에 db/shop을 명시적으로 추가합니다. 기본 비활성·실제 배포는 별도입니다.");
             if (handler.getMethod().getName().equals("purchase")) {

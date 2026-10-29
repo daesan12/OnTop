@@ -8,8 +8,9 @@ services:
     env_file:
       - ${APP_ENV_FILE:?Set APP_ENV_FILE outside the repository}
     environment:
-      SPRING_PROFILES_ACTIVE: db
+      SPRING_PROFILES_ACTIVE: prod,db
       SERVER_FORWARD_HEADERS_STRATEGY: framework
+      JAVA_TOOL_OPTIONS: -Djava.io.tmpdir=/run/ontop-native
       DB_PASSWORD_FILE: /run/secrets/db_password
     secrets:
       - db_password
@@ -23,6 +24,8 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+      # Bullet's native library needs an executable, app-owned extraction path.
+      - /run/ontop-native:exec,mode=0700,uid=10001,gid=10001,size=64m
     security_opt:
       - no-new-privileges:true
     cap_drop:

@@ -1,5 +1,8 @@
 # OnTop WebSocket 연결 및 메시지 계약
 
+완성 텍스트의 공통 빈도·동시 접속 상한과 1013/1009 종료는 [유입 제한](../websocket-ingress-limits.md)을 따른다.
+로컬 구현이며 운영 수치·신뢰 프록시·FE 지연 재연결 정책은 협의 전이다.
+
 맵 식별 정보: [CONNECTED / WORLD_MAP_CONFIRM / WORLD_MAP_STATE](../world-map-api.md).
 WORLD_MAP_REQUIRE_MATCH=true에서는 확인 전 입장·경기 복구를 보류한다. 기본 false는 기존 FE 호환이다.
 
@@ -75,6 +78,17 @@ LOGOUT·MEMBER_DEACTIVATED는 게임에 즉시 이탈 사유로 전달한다. �
 AUTH_SESSION_REVOKED는 30초 유예다. 즉시 이탈은 경기 전체 종료·정산 완료와 같지 않으며,
 다인전은 남은 참가자로 계속할 수 있다. 상세는 [경기 재접속](../game-reconnect.md).
 
+DB 경기 시작 기능이 켜진 환경에서는 연결 직후 자동 확인과 수동 `GAME_RECONNECT_CHECK`가 동일하게
+DB 활성 경기와 현재 프로세스 엔진을 대조한다. 둘 다 없을 때만 `LOBBY`이며, DB 활성 경기만 남거나
+gameId/instanceId/bootId/종결 상태가 일치하지 않거나 DB 조회가 실패하면 기존
+`GAME_CONNECTION_STATE`의 `UNAVAILABLE`과 `code=RECOVERY_UNAVAILABLE`을 반환한다. 이 응답은
+gameId/version/state를 노출하지 않으며 기존 FE 파서와 재시도 UI를 그대로 사용한다. 새 WebSocket
+이벤트나 상태 값은 추가하지 않았다.
+
+`UNAVAILABLE`, `PENDING`, `EXPIRED` 동안 서버의 로비·테이블·관전 경로는 기존
+`GAME_RECOVERY_REQUIRED`로 차단된다. DB 조회는 정산·Wallet·예약을 변경하지 않는다. 30초 유예와
+기권/탈락 정책은 유지하며, 엔진 유실이나 다른 boot 기록의 자동 INVALID·환불·복원은 지원하지 않는다.
+
 ## 공통 프레임
 
 ```json
@@ -107,6 +121,7 @@ AUTH_SESSION_REVOKED는 30초 유예다. 즉시 이탈은 경기 전체 종료·
 | 수동 기권 | GAME_FORFEIT | GAME_FORFEIT_RESULT |
 | 오목 관전 채팅·핑 | GAME_SPECTATOR_CHAT_SEND / OMOK_SPECTATOR_PING_SEND | GAME_SPECTATOR_CHAT_MESSAGE / OMOK_SPECTATOR_PING ([상세](../websocket-api/10-game-spectator-events.md), 승인 관전자만 발신) |
 | 경기 결과 | GAME_RESULT_CHECK | GAME_RESULT |
+| 원카드 장난·방어 | ONECARD_PRANK_REACH_SEND / ONECARD_PRANK_HIT_SEND / ONECARD_HAND_RESTORE_SEND / ONECARD_HAND_FLIP_SEND | [방어·차단·뒤집기·복구](../onecard-ux-be-spec.md), 구형 FLIP은 방어 비활성 호환 전용 |
 | 오류 | 잘못된 메시지/권한/연동 미준비 | ERROR |
 
 이 목록은 TableProtocol.parse의 실제 switch와 Hub 전송을 대조했다.
@@ -148,6 +163,10 @@ participants/myCoinDelta/endedAt이며 PENDING의 myCoinDelta는 null이다. 응
 - 같은 경기/version 중복·역순 알림은 최신 결과를 유지한다. GAME_RESULT_CHECK는 같은 저장 결과를 읽으며 지급하지 않는다.
 - 현재 boot의 SETTLING은 신뢰된 DB 종결 결과로 복구한다. 다른 boot의 미완료 경기 자동 INVALID/반환은 미구현이다.
 - 자세한 nullable/필드 규칙: [결과](../game-result-api.md), [Story 174 구현과 한계](../game-recovery.md).
+- 새로고침·재연결 후 FE는 이 탭의 경기 ID가 경기 내역 REST의 최근 종료 경기와 같을 때만 기존
+  GAME_RESULT_CHECK를 다시 보낸다. 새 메시지·필드는 없다.
+- 서버가 유지한 좌석(대기석 유예 복귀·frozen 좌석)의 재접속은 `CONNECTED` 직후 TABLE_STATE와 이 테이블의 GAME_START_STATE를
+  받는다. FE는 채널 입장·테이블 목록 조회 뒤 적용한다. 상세: [Story C](../game-recovery.md#새로고침websocket-재접속-좌석시작-상태-수신-ontop-story-c). 상세: [새로고침 후 결과 발견](../game-recovery.md#새로고침-후-경기-결과-발견-ontop-story-b).
 
 ## GAME_SELECT 참가비 계약 (Story 172 보완/173)
 

@@ -105,21 +105,20 @@ class GameCommunicationFlowTests {
                         System.out.println("[SIMULATED] 경기 담당의 종료·저장 결과를 대역으로 주입. 승패 계산·지급 없음.");
                         returned.request("GAME_RECONNECT_CHECK", Map.of());
                         second.request("GAME_RECONNECT_CHECK", Map.of());
-                        returned.state("FINISHED");
-                        second.state("FINISHED");
+                        // 이 대역 흐름은 실제 예약·착석을 거치지 않으므로 종료 후 활성 복구는 없다.
+                        returned.state("LOBBY");
+                        second.state("LOBBY");
                         var rejected = returned.request("GAME_ACTION_SEND", action("after-finish", 13));
                         assertThat(rejected.path("payload").path("code").asText())
                                 .isEqualTo("GAME_RECOVERY_REQUIRED");
                         assertThat(engine.actionCount).isEqualTo(4);
                         publishResults();
-                        assertResult(returned.await(GameCommunicationFlowTests::isResult), 13, null);
-                        assertResult(second.await(GameCommunicationFlowTests::isResult), 13, null);
-                        pass("종료 상태 복구 반영 → 입력 차단 → 본인 종료 결과 PENDING/null 수신");
+                        assertResult(returned.request("GAME_RESULT_CHECK", Map.of("gameSessionId", "flow-game")), 13, null);
+                        assertResult(second.request("GAME_RESULT_CHECK", Map.of("gameSessionId", "flow-game")), 13, null);
+                        pass("미착석 종료 복구 LOBBY → 입력 차단 → 본인 종료 결과 PENDING/null 명시 조회");
 
                         engine.settle();
                         publishResults();
-                        assertResult(returned.await(GameCommunicationFlowTests::isResult), 14, 1L);
-                        assertResult(second.await(GameCommunicationFlowTests::isResult), 14, -1L);
                         assertResult(returned.request("GAME_RESULT_CHECK", Map.of("gameSessionId", "flow-game")),
                                 14, 1L);
                         assertResult(second.request("GAME_RESULT_CHECK", Map.of("gameSessionId", "flow-game")),

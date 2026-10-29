@@ -1,3 +1,4 @@
+import { buildingParts as defaultBuildingParts } from './defaultBuildingParts'
 import { SIMPLE_MAP } from './mapRenderProfile'
 import type { Part } from './Instances'
 import {
@@ -20,6 +21,7 @@ export function buildingParts({
   variant = 0,
   slots = [],
 }: BuildingDimensions) {
+  if (!SIMPLE_MAP) return defaultBuildingParts({ w, h, d, variant, slots })
   const stone: Part[] = [],
     metal: Part[] = [],
     glass: Part[] = []

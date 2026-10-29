@@ -11,11 +11,12 @@ import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import com.ssafy.ontop.config.RuntimeProfiles;
 import org.springframework.context.annotation.Profile;
 import org.springframework.transaction.PlatformTransactionManager;
 
 @Configuration(proxyBeanMethods = false)
-@Profile("(local | dev) & db & !prod & !production")
+@Profile(RuntimeProfiles.PRODUCT_FEATURE_WITH_DB)
 @ConditionalOnProperty(name = "ontop.notes.enabled", havingValue = "true")
 @EnableConfigurationProperties(NotesProperties.class)
 @EntityScan(basePackageClasses = AnonymousNote.class)
@@ -26,9 +27,15 @@ public class NotesConfiguration {
     }
 
     @Bean
+    com.ssafy.ontop.notes.service.NotesChangeNotifier notesChangeNotifier(NotesRepository repository,
+            PlatformTransactionManager manager, TableHub hub) {
+        return new com.ssafy.ontop.notes.service.NotesChangeNotifier(repository, manager, hub);
+    }
+
+    @Bean
     NotesService notesService(NotesRepository repository, PlatformTransactionManager manager,
-            TableHub hub, NotesProperties properties) {
-        return new NotesService(repository, manager, hub, properties, Clock.systemUTC());
+            TableHub hub, NotesProperties properties, com.ssafy.ontop.notes.service.NotesChangeNotifier changed) {
+        return new NotesService(repository, manager, hub, properties, Clock.systemUTC(), changed::committed);
     }
 
 }

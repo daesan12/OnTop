@@ -9,12 +9,13 @@ import java.util.Optional;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import com.ssafy.ontop.config.RuntimeProfiles;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 
 /** 판돈 예약 저장은 Gateway가 담당한다. 전원 예약 커밋을 확인한 뒤에만 메모리 엔진을 생성한다. 즉시 차감하지 않는다. */
 @Service
-@Profile("(local | dev) & !prod & !production")
+@Profile(RuntimeProfiles.PRODUCT_FEATURE)
 @ConditionalOnProperty(name = "ontop.game-start.enabled", havingValue = "true")
 public class CommittedGameStartService {
 

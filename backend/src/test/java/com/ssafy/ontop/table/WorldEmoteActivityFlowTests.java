@@ -47,7 +47,11 @@ class WorldEmoteActivityFlowTests {
 
             second.assertNoMessageDuring(this::cancelled, () -> first.request("WORLD_MOVE", input));
             first.request("WORLD_MOVE", Map.of("seq", 2, "dx", 0, "dz", 0, "run", false));
-            assertCode(emote(first), "EMOTE_TOO_FREQUENT");
+            JsonNode applause = first.request("WORLD_EMOTE_SEND", Map.of("emoteCode", "CLAP"));
+            assertThat(applause.path("type").asText()).isEqualTo("WORLD_EMOTE_EVENT");
+            assertThat(second.await(message -> message.path("type").asText().equals("WORLD_EMOTE_EVENT"))
+                    .at("/payload/eventId")).isEqualTo(applause.at("/payload/eventId"));
+            second.assertNoMessageDuring(this::cancelled, () -> first.request("WORLD_MOVE", input));
         }
     }
 

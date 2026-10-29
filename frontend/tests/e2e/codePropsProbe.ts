@@ -46,3 +46,32 @@ export function propsProbe(kind: 'mailbox' | 'cart') {
     signs: group.children.flatMap(o => o.name === 'code-fish-cart' ? o.children.filter(c => c.name.startsWith('prop-sign-')).map(c => c.name) : []),
     code: !!group.getObjectByName(kind === 'mailbox' ? 'code-mailbox' : 'code-fish-cart') }
 }
+
+// Frontend-only visual review of the two traditional props, including summit height.
+import { NOTES_BOX } from '../../src/config/notes'
+import { NOTES_BOARD_SCALE } from '../../src/world/art/notesBoardLayout'
+export function heritageView(kind:'mailbox'|'notes',yaw=.25,distance=3.1) {
+  release?.()
+  const p=kind==='notes'?NOTES_BOX:MAILBOX,base=kind==='notes'?NOTES_BOX.y:0,scale=kind==='notes'?NOTES_BOARD_SCALE:1,store=root()
+  release=store.getState().internal.subscribe({current:({camera})=>{
+    camera.position.set(p.x+Math.sin(yaw)*distance*scale,base+1.5*scale,p.z+Math.cos(yaw)*distance*scale)
+    camera.lookAt(p.x,base+.9*scale,p.z);camera.updateMatrixWorld()
+  }},.5,store)
+}
+export function heritageProbe(kind:'mailbox'|'notes') {
+  const group=root().getState().scene.getObjectByName(kind==='notes'?'tower-notes-mailbox':'feedback-mailbox')!
+  const lod=group.getObjectByName(kind==='notes'?'observatory-notes-board':'mailbox-craft') as LOD
+  const triangles=(object:Object3D)=>{let n=0;object.traverse(o=>{if(o instanceof Mesh)n+=(o.geometry.index?.count??o.geometry.getAttribute('position').count)/3});return n}
+  const bounds=new Box3().setFromObject(group)
+  return {position:group.getWorldPosition(new Vector3()).toArray(),min:bounds.min.toArray(),max:bounds.max.toArray(),lod:lod.getCurrentLevel(),near:triangles(lod.levels[0]!.object),far:triangles(lod.levels[1]!.object),
+    noteIds:(group.getObjectByName('observatory-user-notes')?.userData.noteIds??[]) as string[]}
+}
+export function heritageSignProbe(kind:'mailbox'|'notes') {
+  const scene=root().getState().scene,group=scene.getObjectByName(kind==='notes'?'tower-notes-mailbox':'feedback-mailbox')!
+  const signs:{name:string;texture:string;font:string}[]=[]
+  group.traverse(object=>{if(object instanceof Mesh&&object.name.startsWith('prop-sign-')){
+    const material=object.material as import('three').MeshBasicMaterial,canvas=material.map?.image as HTMLCanvasElement
+    signs.push({name:object.name,texture:material.map?.uuid??'',font:canvas?.getContext('2d')?.font??''})
+  }})
+  return signs
+}

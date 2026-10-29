@@ -181,7 +181,7 @@ class CommittedStartFlowTests {
             prepare(first, second, "OMOK");
             assertThat(reservation.entered.await(5, TimeUnit.SECONDS)).isTrue();
             second.stopPong();
-            assertThat(second.awaitClose()).isEqualTo(1001);
+            awaitServerDisconnect(second);
             clock.advanceSeconds(seconds);
             reservation.release.countDown();
             playing(first);
@@ -298,12 +298,57 @@ class CommittedStartFlowTests {
             assertThat(second.await(m -> m.path("type").asText().equals("GAME_RESULT"))
                     .path("payload").path("myCoinDelta").asLong()).isEqualTo(1);
             first.stopPong(); assertThat(first.awaitClose()).isEqualTo(1001);
-            try (var returned = connect(101, "FINISHED")) {
+            try (var returned = connect(101, "LOBBY")) {
                 var replay = returned.request("GAME_RESULT_CHECK", Map.of("gameSessionId", GAME));
                 assertThat(replay.path("payload").path("version").asLong()).isEqualTo(2);
                 assertThat(replay.path("payload").path("myCoinDelta").asLong()).isEqualTo(-1);
             }
             assertThat(reservation.reservations.get()).isEqualTo(1);
+        }
+    }
+
+    @Test
+    void 정산후퇴장은_종료복구와자동결과를정리하고_재착석과재접속도_과거경기를되살리지않는다() throws Exception {
+        try (var first = connect(101); var second = connect(202)) {
+            prepare(first, second, "OMOK");
+            reservation.release.countDown();
+            playing(first);
+            first.state("RESTORED"); second.state("RESTORED");
+            clock.advanceSeconds(30); engine.tick();
+            first.state("FINISHED");
+            for (long user : new long[]{101, 202}) {
+                results.saved.put(user, result(user, SettlementStatus.SETTLED));
+                events.publishEvent(new GameResultCommitted(results.saved.get(user)));
+            }
+            first.await(m -> m.path("type").asText().equals("GAME_START_STATE")
+                    && m.at("/payload/phase").asText().equals("WAITING"));
+            assertThat(first.request("TABLE_LEAVE", Map.of()).path("type").asText()).isEqualTo("TABLE_LEFT");
+            first.assertNoMessageDuring(message -> message.path("type").asText().equals("GAME_CONNECTION_STATE")
+                    && message.at("/payload/status").asText().equals("FINISHED")
+                    || message.path("type").asText().equals("GAME_RESULT") && message.path("requestId").isNull(), () -> {
+                first.sendRequest("GAME_RECONNECT_CHECK", Map.of());
+                first.state("LOBBY");
+                assertThat(first.request("GAME_START_CHECK", Map.of()).at("/payload/code").asText())
+                        .isEqualTo("NOT_SEATED");
+                // 명시 조회는 좌석과 무관한 본인 이력 조회다. 저장 결과 자체는 유지한다.
+                assertThat(first.request("GAME_RESULT_CHECK", Map.of("gameSessionId", GAME)).path("type").asText())
+                        .isEqualTo("GAME_RESULT");
+                events.publishEvent(new GameResultCommitted(result(101, SettlementStatus.SETTLED)));
+                assertThat(first.request("TABLE_JOIN", Map.of("tableId", "table-1")).path("type").asText())
+                        .isEqualTo("TABLE_STATE");
+                first.sendRequest("GAME_RECONNECT_CHECK", Map.of());
+                first.state("LOBBY");
+                first.request("TABLE_LEAVE", Map.of());
+                return null;
+            });
+            first.close();
+            try (var returned = connect(101, "LOBBY")) {
+                assertThat(returned.request("GAME_START_CHECK", Map.of()).at("/payload/code").asText())
+                        .isEqualTo("NOT_SEATED");
+                assertThat(returned.request("GAME_RESULT_CHECK", Map.of("gameSessionId", GAME))
+                        .at("/payload/settlementStatus").asText()).isEqualTo("SETTLED");
+            }
+            assertThat(results.saved).hasSize(2);
         }
     }
 
@@ -427,9 +472,15 @@ class CommittedStartFlowTests {
                 anyLong(), anyLong());
         try (var first = connect(101); var second = connect(202)) {
             prepare(first, second, "OMOK"); reservation.release.countDown();
-            first.await(m -> m.path("type").asText().equals("GAME_START_STATE")
-                    && m.path("payload").path("phase").asText().equals("WAITING")
-                    && m.path("payload").path("gameSessionId").asText().equals(GAME));
+            boolean[] received = {false, false};
+            first.await(m -> {
+                if (m.path("type").asText().equals("GAME_START_STATE")
+                        && m.at("/payload/phase").asText().equals("WAITING")
+                        && m.at("/payload/gameSessionId").asText().equals(GAME)) { received[0] = true; }
+                if (m.path("type").asText().equals("GAME_RESULT")
+                        && m.at("/payload/gameSessionId").asText().equals(GAME)) { received[1] = true; }
+                return received[0] && received[1];
+            });
             assertThat(hub.listTables().tables().getFirst().status()).isEqualTo("WAITING");
             assertThat(hub.listTables().tables().getFirst().readyCount()).isZero();
         }
@@ -442,7 +493,7 @@ class CommittedStartFlowTests {
             prepare(first, second, "OMOK");
             assertThat(reservation.entered.await(5, TimeUnit.SECONDS)).isTrue();
             second.stopPong();
-            assertThat(second.awaitClose()).isEqualTo(1001);
+            awaitServerDisconnect(second);
             clock.advanceSeconds(seconds);
             try (var returned = connect(202, "LOBBY")) {
                 // 유예 안에 돌아온 시점이 기준이다. 확정이 더 늦어져도 그 복귀를 보존한다.
@@ -467,18 +518,24 @@ class CommittedStartFlowTests {
         engine.create("previous-game", "previous-table", 101, 202);
         clock.advanceSeconds(30);
         engine.tick();
-        try (var first = connect(101, "FINISHED"); var second = connect(202, "FINISHED")) {
+        try (var first = connect(101, "LOBBY"); var second = connect(202, "LOBBY")) {
             prepare(first, second, "OMOK");
             assertThat(reservation.entered.await(5, TimeUnit.SECONDS)).isTrue();
             second.stopPong();
-            assertThat(second.awaitClose()).isEqualTo(1001);
+            awaitServerDisconnect(second);
             clock.advanceSeconds(30);
-            try (var returned = connect(202, "FINISHED")) {
+            try (var returned = connect(202, "LOBBY")) {
                 reservation.release.countDown();
                 playing(first);
                 assertThat(returned.state("FINISHED").path("gameId").asText()).isEqualTo(GAME);
             }
         }
+    }
+
+    private void awaitServerDisconnect(ScenarioClient client) throws Exception {
+        assertThat(client.awaitClose()).isEqualTo(1001);
+        // close frame은 Hub 정리보다 먼저 도착할 수 있다. 같은 monitor를 다시 획득해 단절 등록 완료를 기다린다.
+        hub.metricsSnapshot();
     }
 
     private ScenarioClient connect(long id) throws Exception { return connect(id, "LOBBY"); }

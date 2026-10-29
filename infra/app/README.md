@@ -30,7 +30,14 @@
 - `https://api.on-top.world/ws/tables`와 `https://dev-api.on-top.world/ws/tables`에 허용된 Origin의 WebSocket Upgrade 요청을 티켓 없이 보냈을 때 둘 다 `401`을 반환했다. Nginx 경로가 백엔드 인증 인터셉터까지 도달하는 것은 확인했지만, 로그인과 일회용 티켓을 사용한 실제 `101 Switching Protocols` 연결은 아직 검증하지 못했다.
 - 재부팅 후 메모리 7.6 GiB 중 약 6.4 GiB가 사용 가능했고, 루트 파일시스템은 48 GiB 중 4.6 GiB 사용 중이었다. Jenkins 빌드를 함께 실행할 때의 CPU 크레딧·메모리 사용량은 Story 116에서 다시 측정한다.
 
-현재 `db` 프로필은 인증·DB와 헬스체크를 실행하지만, 채널 조회·게임 구현의 여러 Bean이 `local` 프로필에 묶여 있다. 이 구성을 그대로 운영하면 **전체 게임이 동작한다고 판정할 수 없다.** 백엔드 담당자와 운영 프로필의 Bean·개발 전용 엔드포인트 경계를 확정하기 전에는 `local,db`를 운영 우회책으로 켜지 않는다. GitLab Webhook/Jenkins 자동 배포는 Story 116, 게임 드레인과 blue/green 전환은 Story 118의 범위다.
+기존 `db` 단독 프로필은 게임·상점·미니게임·메모의 일부 Bean을 등록하지 않았다. 운영용 코드에서는 `prod,db`를 사용하고, 각 제품 기능의 Bean은 이 조합에서 등록될 수 있게 분리했다. **기능 플래그는 기본적으로 꺼져 있으며, 실제 운영 서버에 새 이미지와 환경변수를 반영한 상태는 아니다.** `local,db`나 `dev,db`를 운영 우회책으로 사용하지 않는다. GitLab Webhook/Jenkins 자동 배포는 Story 116, 게임 드레인과 blue/green 전환은 Story 118의 범위다.
+
+## 2026-10-29 운영 기능 프로필 준비 (S15P31B105-117)
+
+- `compose.prod.yaml`은 `prod,db`를 사용한다. 이 프로필에서는 경기 시작·4종 엔진·결과·재접속, 붕어빵, 상점, 익명 메모가 **명시적으로 활성화했을 때** 등록될 수 있다. 로컬 시연 Gateway와 `/dev/tables`, 개발용 API 문서는 운영 프로필에서 등록되지 않는다. `local` 또는 `dev`와 `prod`/`production`을 섞어 실행하지 않는다.
+- `application-prod.yml`의 게임·미니게임·상점·메모 활성화 기본값은 `false`다. `prod.app.env.example`에 필요한 환경변수 이름을 기록했지만, 실제 서버의 `/etc/ontop/prod-app/app.env`는 자동 변경되지 않는다. 환경파일을 바꾼 뒤에는 `restart`가 아닌 앱 컨테이너 **재생성**이 필요하다.
+- 현재 운영용 Flyway 위치 기본값은 공통 `db/migration`이다. 붕어빵 `db/minigame`, 상점 `db/shop`, 익명 메모 `db/notes`를 활성화하기 전에 **운영 DB의 `flyway_schema_history`와 기존 테이블을 읽기 전용으로 확인**하고, 필요한 위치·버전·적용 순서를 한 번의 검토된 배포로 결정한다. 특히 낮은 버전의 마이그레이션을 뒤늦게 추가할 때는 Flyway 적용 순서를 검증한다. 이 코드 변경만으로 운영 DB에 새 테이블을 만들거나 기능을 켜지 않는다.
+- 운영 승격 전 별도 환경에서 로그인 → 채널 → 테이블 → 오목·원카드·파클·브릿지·붕어빵 시작·종료·정산·재접속과 상점·메모를 확인한다. 인증과 기능 플래그를 모두 켰다는 사실만으로 완료 처리하지 않는다.
 
 ## 2026-10-23 행동 로그 설정 (S15P31B105-138, 140)
 
@@ -147,6 +154,8 @@ sudo docker compose --env-file /etc/ontop/prod-app/deploy.env -f infra/app/compo
 ```
 
 DEV 앱의 `/tmp`는 실행 금지(`noexec`)를 유지한다. 첫 `CHANNEL_JOIN`에서 Bullet 물리 엔진이 네이티브 라이브러리를 추출하므로, `compose.dev.yaml`은 UID/GID `10001` 전용의 실행 가능 tmpfs `/run/ontop-native`를 만들고 `JAVA_TOOL_OPTIONS`의 `java.io.tmpdir`로 지정한다. 2026-10-23 DEV에서 `/tmp`만 사용했을 때 WebSocket `101` 직후 채널 입장 응답 없이 연결이 닫혔고, 전용 경로를 적용한 뒤 사용자가 개발 공원 입장을 확인했다. 헬스체크 `200`만으로 채널 입장을 검증했다고 판단하지 않는다.
+
+PROD 앱도 같은 임시 경로가 필요하다. 2026-10-29 첫 전체 기능 배포에서 `/tmp`의 `libbulletjme-x86_64.so`를 실행할 수 없어 앱이 시작에 실패하고 `restart: unless-stopped`에 따라 반복 재시작했다. 운영 Compose에 `/run/ontop-native`와 `JAVA_TOOL_OPTIONS`를 적용한 뒤 앱이 `healthy`로 기동했다. 앱 컨테이너를 재생성한 후 외부 API가 계속 502이면, 앱의 내부 health가 `UP`인지 먼저 확인하고 Compose Nginx를 재시작해 새 앱 주소를 다시 해석하게 한다. DB 마이그레이션·게임 흐름은 별도로 확인한다.
 
 `bootstrap.conf`는 인증서 발급을 위한 HTTP 경로만 열고 API는 프록시하지 않는다. PROD-APP에서 임시 `ontop-acme-bootstrap`으로 ACME 경로를 검증한 후 `ontop-tls-bootstrap`으로 HTTPS를 준비하고 API에는 503을 반환했다. Certbot 갱신 모의 시험이 성공했다. 앱이 healthy가 된 뒤 임시 컨테이너를 중지하고 Compose Nginx로 전환했으며 외부 health 확인 후 임시 컨테이너를 제거했다. PROD-APP의 WireGuard·DB 연결, Flyway 초기 마이그레이션도 확인했다. DEV-CI의 MySQL·앱·Nginx도 시작해 외부 HTTPS 헬스를 확인했다. 예시의 `manual` 태그는 자리 표시자다. 실제 릴리스에는 커밋 SHA나 릴리스 태그를 기록한다.
 

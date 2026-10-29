@@ -1157,7 +1157,7 @@
       "request": {
         "method": "POST",
         "url": "{{baseUrl}}/api/v1/notes",
-        "description": "M08 공개 익명 메모. local/dev,db + notes.enabled=true + 전용 privacy-secret + V121 순서 조율 후 스키마 적용 필요. 서버 위치(54.5,18.92,48.5) XZ2.6m·높이차0.7m미만, 테이블/시설/수영 중 불가. 전 채널 공용 최신120장·쓰기15초/읽기1초. 메모/응답은 id,text,createdAt만 사용. 24시간 동일키 재확인,410은 자동 재게시 금지. 창을 연 동안2초마다 겹치지 않게 조회하고 닫기·이탈·단절 시 중지. docs/notes-api.md.",
+        "description": "M08 공개 익명 메모. local/dev,db + notes.enabled=true + 전용 privacy-secret + V121 순서 조율 후 스키마 적용 필요. 서버 위치(54.5,18.92,48.5) XZ2.6m·높이차0.7m미만, 테이블/시설/수영 중 불가. 전 채널 공용 최신120장·쓰기15초/읽기1초. 공개 필드는 id,text,createdAt,category. category daily/cheer/worry/recommend/free, 생략free. 같은 키의 주제 변경은409. 24시간 동일키 재확인,410은 자동 재게시 금지. 정기GET없이 열기/재접속/NOTES_CHANGED 후 합쳐조회. V129 번호 사용 가능 확인·MR 포함 승인(2026-10-29). 공용DB 적용·배포는 미확인. FE VITE_NOTES_CATEGORIES=true 빌드와 subscribe연결 필요. docs/notes-api.md.",
         "auth": {
           "type": "noauth"
         },
@@ -1173,7 +1173,7 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"operationId\": \"{{noteOperationId}}\",\n  \"channelId\": \"{{channelIdA}}\",\n  \"text\": \"오늘도 좋은 하루 보내세요\"\n}",
+          "raw": "{\n  \"operationId\": \"{{noteOperationId}}\",\n  \"channelId\": \"{{channelIdA}}\",\n  \"text\": \"오늘도 좋은 하루 보내세요\",\n  \"category\": \"cheer\"\n}",
           "options": {
             "raw": {
               "language": "json"
@@ -1199,7 +1199,8 @@
             "type": "text/javascript",
             "exec": [
               "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
-              "const r=pm.response.json(); pm.expect(Object.keys(r.note).sort()).to.eql(['createdAt','id','text']);",
+              "const r=pm.response.json(); pm.expect(Object.keys(r.note).sort()).to.eql(['category','createdAt','id','text']);",
+              "pm.expect(r.note.category).to.eql('cheer');",
               "if(pm.response.code===201) pm.environment.set('noteId',r.note.id);"
             ]
           }
@@ -1211,7 +1212,7 @@
       "request": {
         "method": "POST",
         "url": "{{baseUrl}}/api/v1/notes",
-        "description": "M08 공개 익명 메모. local/dev,db + notes.enabled=true + 전용 privacy-secret + V121 순서 조율 후 스키마 적용 필요. 서버 위치(54.5,18.92,48.5) XZ2.6m·높이차0.7m미만, 테이블/시설/수영 중 불가. 전 채널 공용 최신120장·쓰기15초/읽기1초. 메모/응답은 id,text,createdAt만 사용. 24시간 동일키 재확인,410은 자동 재게시 금지. 창을 연 동안2초마다 겹치지 않게 조회하고 닫기·이탈·단절 시 중지. docs/notes-api.md.",
+        "description": "M08 공개 익명 메모. local/dev,db + notes.enabled=true + 전용 privacy-secret + V121 순서 조율 후 스키마 적용 필요. 서버 위치(54.5,18.92,48.5) XZ2.6m·높이차0.7m미만, 테이블/시설/수영 중 불가. 전 채널 공용 최신120장·쓰기15초/읽기1초. 공개 필드는 id,text,createdAt,category. category daily/cheer/worry/recommend/free, 생략free. 같은 키의 주제 변경은409. 24시간 동일키 재확인,410은 자동 재게시 금지. 정기GET없이 열기/재접속/NOTES_CHANGED 후 합쳐조회. V129 번호 사용 가능 확인·MR 포함 승인(2026-10-29). 공용DB 적용·배포는 미확인. FE VITE_NOTES_CATEGORIES=true 빌드와 subscribe연결 필요. docs/notes-api.md.",
         "auth": {
           "type": "noauth"
         },
@@ -1227,7 +1228,7 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"operationId\": \"{{noteOperationId}}\",\n  \"channelId\": \"{{channelIdA}}\",\n  \"text\": \"오늘도 좋은 하루 보내세요\"\n}",
+          "raw": "{\n  \"operationId\": \"{{noteOperationId}}\",\n  \"channelId\": \"{{channelIdA}}\",\n  \"text\": \"오늘도 좋은 하루 보내세요\",\n  \"category\": \"cheer\"\n}",
           "options": {
             "raw": {
               "language": "json"
@@ -1264,7 +1265,7 @@
       "request": {
         "method": "GET",
         "url": "{{baseUrl}}/api/v1/notes?channelId={{channelIdA}}",
-        "description": "M08 공개 익명 메모. local/dev,db + notes.enabled=true + 전용 privacy-secret + V121 순서 조율 후 스키마 적용 필요. 서버 위치(54.5,18.92,48.5) XZ2.6m·높이차0.7m미만, 테이블/시설/수영 중 불가. 전 채널 공용 최신120장·쓰기15초/읽기1초. 메모/응답은 id,text,createdAt만 사용. 24시간 동일키 재확인,410은 자동 재게시 금지. 창을 연 동안2초마다 겹치지 않게 조회하고 닫기·이탈·단절 시 중지. docs/notes-api.md.",
+        "description": "M08 공개 익명 메모. local/dev,db + notes.enabled=true + 전용 privacy-secret + V121 순서 조율 후 스키마 적용 필요. 서버 위치(54.5,18.92,48.5) XZ2.6m·높이차0.7m미만, 테이블/시설/수영 중 불가. 전 채널 공용 최신120장·쓰기15초/읽기1초. 공개 필드는 id,text,createdAt,category. category daily/cheer/worry/recommend/free, 생략free. 같은 키의 주제 변경은409. 24시간 동일키 재확인,410은 자동 재게시 금지. 정기GET없이 열기/재접속/NOTES_CHANGED 후 합쳐조회. V129 번호 사용 가능 확인·MR 포함 승인(2026-10-29). 공용DB 적용·배포는 미확인. FE VITE_NOTES_CATEGORIES=true 빌드와 subscribe연결 필요. docs/notes-api.md.",
         "auth": {
           "type": "noauth"
         },
@@ -1293,7 +1294,7 @@
             "exec": [
               "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
               "const notes=pm.response.json().notes;pm.expect(notes).to.be.an('array');pm.expect(notes.length).to.be.at.most(120);",
-              "notes.forEach(n=>pm.expect(Object.keys(n).sort()).to.eql(['createdAt','id','text']));"
+              "notes.forEach(n=>{pm.expect(Object.keys(n).sort()).to.eql(['category','createdAt','id','text']);pm.expect(['daily','cheer','worry','recommend','free']).to.include(n.category);});"
             ]
           }
         }
@@ -1392,6 +1393,303 @@
             "exec": [
               "pm.test('HTTP 401', () => pm.response.to.have.status(401));",
               "pm.test('AUTH_AUTHENTICATION_REQUIRED', () => pm.expect(pm.response.json().code).to.eql('AUTH_AUTHENTICATION_REQUIRED'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "33 붕어빵 v5 개인 최고 전체 랭킹",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/v1/minigames/bungeoppang/rankings?period=ALL_TIME&rulesVersion=v5&limit=20",
+        "description": "붕어빵 v4/v5 개인 최고 전체 랭킹. 기존 회원 JWT/db 필요. made DESC·failed ASC, 동점1,1,3·완료시각 우선. 완료·정산 확정만 포함(보상0도 포함). 첫 페이지는 최신 DB, 후속은 동일2분 스냅샷. cursor는 같은 사용자/버전/limit로만 사용. 409 RANKING_SNAPSHOT_EXPIRED면 처음부터 재조회. 신규 SQL/팀원 완료코드 변경 없음. 개발 서버 배포·실계정 검수 별도. docs/bungeoppang-rankings-api.md",
+        "auth": {
+          "type": "noauth"
+        },
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ]
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('개인 최고 랭킹 계약', () => {",
+              "    const b = pm.response.json();",
+              "    pm.expect(b.basis).to.eql('PERSONAL_BEST');",
+              "    pm.expect(b.period).to.eql('ALL_TIME');",
+              "    pm.expect(b.items).to.be.an('array');",
+              "    pm.expect(b.items.length).to.be.at.most(20);",
+              "    pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store');",
+              "});",
+              "if (pm.response.code === 200) {",
+              "    const b = pm.response.json();",
+              "    pm.environment.set('bungeoRankingCursor', b.nextCursor || '');",
+              "    pm.environment.set('bungeoRankingSnapshotId', b.snapshotId);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "34 붕어빵 v5 다음 페이지 — cursor 있을 때만",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/v1/minigames/bungeoppang/rankings?period=ALL_TIME&rulesVersion=v5&limit=20&cursor={{bungeoRankingCursor}}",
+        "description": "붕어빵 v4/v5 개인 최고 전체 랭킹. 기존 회원 JWT/db 필요. made DESC·failed ASC, 동점1,1,3·완료시각 우선. 완료·정산 확정만 포함(보상0도 포함). 첫 페이지는 최신 DB, 후속은 동일2분 스냅샷. cursor는 같은 사용자/버전/limit로만 사용. 409 RANKING_SNAPSHOT_EXPIRED면 처음부터 재조회. 신규 SQL/팀원 완료코드 변경 없음. 개발 서버 배포·실계정 검수 별도. docs/bungeoppang-rankings-api.md",
+        "auth": {
+          "type": "noauth"
+        },
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ]
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.environment.name) throw new Error('먼저 OnTop Local 환경을 선택해주세요.');",
+              "if (!pm.environment.get('bungeoRankingCursor')) throw new Error('다음 페이지가 없습니다. 33부터 조회하세요.');"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('개인 최고 랭킹 계약', () => {",
+              "    const b = pm.response.json();",
+              "    pm.expect(b.basis).to.eql('PERSONAL_BEST');",
+              "    pm.expect(b.period).to.eql('ALL_TIME');",
+              "    pm.expect(b.items).to.be.an('array');",
+              "    pm.expect(b.items.length).to.be.at.most(20);",
+              "    pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store');",
+              "});",
+              "if (pm.response.code === 200) {",
+              "    const b = pm.response.json();",
+              "    pm.environment.set('bungeoRankingCursor', b.nextCursor || '');",
+              "    pm.environment.set('bungeoRankingSnapshotId', b.snapshotId);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "35 붕어빵 v4 랭킹 — 별도 첫 조회",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/v1/minigames/bungeoppang/rankings?period=ALL_TIME&rulesVersion=v4&limit=20",
+        "description": "붕어빵 v4/v5 개인 최고 전체 랭킹. 기존 회원 JWT/db 필요. made DESC·failed ASC, 동점1,1,3·완료시각 우선. 완료·정산 확정만 포함(보상0도 포함). 첫 페이지는 최신 DB, 후속은 동일2분 스냅샷. cursor는 같은 사용자/버전/limit로만 사용. 409 RANKING_SNAPSHOT_EXPIRED면 처음부터 재조회. 신규 SQL/팀원 완료코드 변경 없음. 개발 서버 배포·실계정 검수 별도. docs/bungeoppang-rankings-api.md",
+        "auth": {
+          "type": "noauth"
+        },
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ]
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('개인 최고 랭킹 계약', () => {",
+              "    const b = pm.response.json();",
+              "    pm.expect(b.basis).to.eql('PERSONAL_BEST');",
+              "    pm.expect(b.period).to.eql('ALL_TIME');",
+              "    pm.expect(b.items).to.be.an('array');",
+              "    pm.expect(b.items.length).to.be.at.most(20);",
+              "    pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "36 붕어빵 랭킹 limit 오류",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/v1/minigames/bungeoppang/rankings?rulesVersion=v5&limit=21",
+        "description": "붕어빵 v4/v5 개인 최고 전체 랭킹. 기존 회원 JWT/db 필요. made DESC·failed ASC, 동점1,1,3·완료시각 우선. 완료·정산 확정만 포함(보상0도 포함). 첫 페이지는 최신 DB, 후속은 동일2분 스냅샷. cursor는 같은 사용자/버전/limit로만 사용. 409 RANKING_SNAPSHOT_EXPIRED면 처음부터 재조회. 신규 SQL/팀원 완료코드 변경 없음. 개발 서버 배포·실계정 검수 별도. docs/bungeoppang-rankings-api.md",
+        "auth": {
+          "type": "noauth"
+        },
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ]
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+              "pm.test('INVALID_LIMIT', () => pm.expect(pm.response.json().code).to.eql('INVALID_LIMIT'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "37 내 경기 내역 첫 페이지",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/v1/users/me/games?size=20",
+        "description": "HISTORY-01/02. 기존 회원 Access JWT·db 프로필 필요. 본인 종료/무효 경기만 DB ID 내림차순, size1~100·기본20. gameCode OMOK/DICE/ONE_CARD/LIAR_BRIDGE, 정산대기는 내역과 확정 승패에 포함. 무효는 내역만 표시·통계 제외. played=wins+losses+forfeits+draws, 기권을 losses에 중복 포함하지 않음. 조회는 판돈/정산/원장을 수정하지 않음. cursor는 마지막 경기 DB ID 문자열. 뒤늦게 종료된 경기는 새 첫 조회에서 다시 확인. docs/game-history-api.md.",
+        "auth": {
+          "type": "noauth"
+        },
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ]
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('본인 경기 내역 계약', () => {",
+              "    const b=pm.response.json();pm.expect(b.items).to.be.an('array');",
+              "    pm.expect(b.hasNext).to.be.a('boolean');",
+              "    b.items.forEach(i=>{pm.expect(i.gameSessionId).to.be.a('string');pm.expect(['FINISHED','INVALID']).to.include(i.status);});",
+              "    pm.expect(b.hasNext ? typeof b.nextCursor==='string' : b.nextCursor===null).to.eql(true);",
+              "    pm.environment.set('historyCursor',b.nextCursor || '');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "38 내 경기 내역 다음 페이지",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/v1/users/me/games?size=20&cursor={{historyCursor}}",
+        "description": "HISTORY-01/02. 기존 회원 Access JWT·db 프로필 필요. 본인 종료/무효 경기만 DB ID 내림차순, size1~100·기본20. gameCode OMOK/DICE/ONE_CARD/LIAR_BRIDGE, 정산대기는 내역과 확정 승패에 포함. 무효는 내역만 표시·통계 제외. played=wins+losses+forfeits+draws, 기권을 losses에 중복 포함하지 않음. 조회는 판돈/정산/원장을 수정하지 않음. cursor는 마지막 경기 DB ID 문자열. 뒤늦게 종료된 경기는 새 첫 조회에서 다시 확인. docs/game-history-api.md.",
+        "auth": {
+          "type": "noauth"
+        },
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ]
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.environment.name) throw new Error('먼저 OnTop Local 환경을 선택해주세요.');",
+              "if(!pm.environment.get('historyCursor')) throw new Error('다음 페이지가 없습니다. 37을 먼저 조회하세요.');"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('본인 경기 내역 계약', () => {",
+              "    const b=pm.response.json();pm.expect(b.items).to.be.an('array');",
+              "    pm.expect(b.hasNext).to.be.a('boolean');",
+              "    b.items.forEach(i=>{pm.expect(i.gameSessionId).to.be.a('string');pm.expect(['FINISHED','INVALID']).to.include(i.status);});",
+              "    pm.expect(b.hasNext ? typeof b.nextCursor==='string' : b.nextCursor===null).to.eql(true);",
+              "    pm.environment.set('historyCursor',b.nextCursor || '');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "39 내 게임별 전적",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/v1/users/me/game-stats",
+        "description": "HISTORY-01/02. 기존 회원 Access JWT·db 프로필 필요. 본인 종료/무효 경기만 DB ID 내림차순, size1~100·기본20. gameCode OMOK/DICE/ONE_CARD/LIAR_BRIDGE, 정산대기는 내역과 확정 승패에 포함. 무효는 내역만 표시·통계 제외. played=wins+losses+forfeits+draws, 기권을 losses에 중복 포함하지 않음. 조회는 판돈/정산/원장을 수정하지 않음. cursor는 마지막 경기 DB ID 문자열. 뒤늦게 종료된 경기는 새 첫 조회에서 다시 확인. docs/game-history-api.md.",
+        "auth": {
+          "type": "noauth"
+        },
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ]
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('승패 기권 중복 제외',()=>{",
+              "        pm.response.json().items.forEach(i=>pm.expect(i.played).to.eql(i.wins+i.losses+i.forfeits+i.draws));",
+              "    });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "40 전적 잘못된 커서",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/v1/users/me/games?cursor=-1",
+        "description": "HISTORY-01/02. 기존 회원 Access JWT·db 프로필 필요. 본인 종료/무효 경기만 DB ID 내림차순, size1~100·기본20. gameCode OMOK/DICE/ONE_CARD/LIAR_BRIDGE, 정산대기는 내역과 확정 승패에 포함. 무효는 내역만 표시·통계 제외. played=wins+losses+forfeits+draws, 기권을 losses에 중복 포함하지 않음. 조회는 판돈/정산/원장을 수정하지 않음. cursor는 마지막 경기 DB ID 문자열. 뒤늦게 종료된 경기는 새 첫 조회에서 다시 확인. docs/game-history-api.md.",
+        "auth": {
+          "type": "noauth"
+        },
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ]
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+              "pm.test('INVALID_CURSOR', () => pm.expect(pm.response.json().code).to.eql('INVALID_CURSOR'));"
             ]
           }
         }

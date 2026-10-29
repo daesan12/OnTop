@@ -9,10 +9,14 @@ import com.ssafy.ontop.game.omok.config.OmokConfiguration;
 import com.ssafy.ontop.game.omok.service.OmokEngine;
 import com.ssafy.ontop.game.onecard.config.OneCardConfiguration;
 import com.ssafy.ontop.game.onecard.service.OneCardEngine;
+import com.ssafy.ontop.game.reconnect.ActiveGameLookup;
 import com.ssafy.ontop.game.reconnect.GameReconnectService;
+import com.ssafy.ontop.game.reconnect.persistence.JpaActiveGameLookup;
+import com.ssafy.ontop.game.repository.GameParticipantRepository;
 import com.ssafy.ontop.game.result.GameFinishedResultListener;
 import com.ssafy.ontop.game.result.GameResultService;
 import com.ssafy.ontop.game.start.CommittedGameStartService;
+import com.ssafy.ontop.game.start.GameRuntimeIdentity;
 import com.ssafy.ontop.game.start.GameStartCommand;
 import com.ssafy.ontop.game.start.GameStartGateway;
 import com.ssafy.ontop.game.start.GameStartResult;
@@ -25,6 +29,7 @@ import org.springframework.boot.test.context.ConfigDataApplicationContextInitial
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 
 class GameRuntimeProfileTests {
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
@@ -33,6 +38,10 @@ class GameRuntimeProfileTests {
             .withUserConfiguration(OmokConfiguration.class, FarkleConfiguration.class, OneCardConfiguration.class,
                     BridgeConfiguration.class, CommittedGameStartService.class, GameReconnectService.class,
                     GameResultService.class, GameFinishedResultListener.class);
+    private final ApplicationContextRunner recoveryRunner = new ApplicationContextRunner()
+            .withInitializer(new ConfigDataApplicationContextInitializer())
+            .withBean(GameParticipantRepository.class, () -> mock(GameParticipantRepository.class))
+            .withUserConfiguration(GameReconnectService.class, JpaActiveGameLookup.class, GameRuntimeIdentity.class);
 
     @Test
     void 기본dev는_시작과_엔진을_자동활성화하지_않는다() {
@@ -76,8 +85,29 @@ class GameRuntimeProfileTests {
     }
 
     @ParameterizedTest
+    @ValueSource(strings = {"prod,db", "production,db"})
+    void 운영DB프로필에서_경기엔진과_시작_결과_재접속을_등록한다(String profiles) {
+        enabled(profiles).withPropertyValues("ontop.game-start.enabled=true", "ontop.games.omok.enabled=true",
+                "ontop.games.farkle.enabled=true", "ontop.games.onecard.enabled=true",
+                "ontop.games.bridge.enabled=true")
+                .withBean(GameStartGateway.class, () -> new GameStartGateway() {
+            @Override public GameStartResult startGame(GameStartCommand command) {
+                throw new AssertionError("기동 중 예약 금지");
+            }
+            @Override public GameStartResult findStartResult(UUID id) {
+                throw new AssertionError("기동 중 결과 조회 금지");
+            }
+        }).run(context -> assertThat(context).hasNotFailed()
+                .hasSingleBean(CommittedGameStartService.class).hasSingleBean(GameEngineRouter.class)
+                .hasSingleBean(OmokEngine.class).hasSingleBean(FarkleEngine.class)
+                .hasSingleBean(OneCardEngine.class).hasSingleBean(BridgeEngine.class)
+                .hasSingleBean(GameReconnectService.class).hasSingleBean(GameResultService.class)
+                .hasSingleBean(GameFinishedResultListener.class));
+    }
+
+    @ParameterizedTest
     @ValueSource(strings = {"prod", "production", "dev,prod", "dev,production", "local,prod", "local,production"})
-    void 운영프로필이_포함되면_경기연결부와_엔진을_등록하지_않는다(String profiles) {
+    void 운영DB가_없거나_개발프로필과_섞이면_경기기능을_등록하지_않는다(String profiles) {
         enabled(profiles).withPropertyValues("ontop.game-start.enabled=true", "ontop.games.omok.enabled=true",
                 "ontop.games.farkle.enabled=true", "ontop.games.onecard.enabled=true", "ontop.games.bridge.enabled=true")
                 .run(context -> assertThat(context).hasNotFailed()
@@ -86,6 +116,28 @@ class GameRuntimeProfileTests {
                 .doesNotHaveBean(OneCardEngine.class).doesNotHaveBean(BridgeEngine.class)
                 .doesNotHaveBean(GameReconnectService.class).doesNotHaveBean(GameResultService.class)
                 .doesNotHaveBean(GameFinishedResultListener.class));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"local,db", "dev,db", "prod,db", "production,db"})
+    void DB활성경기조회와실행주체는_게임시작플래그와무관하게등록한다(String profiles) {
+        for (String enabled : new String[] {"true", "false"}) {
+            recoveryRunner.withPropertyValues("spring.profiles.active=" + profiles,
+                    "ontop.game-start.enabled=" + enabled).run(context -> assertThat(context).hasNotFailed()
+                    .hasSingleBean(GameReconnectService.class).hasSingleBean(ActiveGameLookup.class)
+                    .hasSingleBean(JpaActiveGameLookup.class).hasSingleBean(GameRuntimeIdentity.class));
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"local", "dev", "prod", "production"})
+    void DB프로필이없으면_활성경기조회와실행주체를등록하지않는다(String profiles) {
+        for (String enabled : new String[] {"true", "false"}) {
+            recoveryRunner.withPropertyValues("spring.profiles.active=" + profiles,
+                    "ontop.game-start.enabled=" + enabled).run(context -> assertThat(context).hasNotFailed()
+                    .doesNotHaveBean(ActiveGameLookup.class).doesNotHaveBean(JpaActiveGameLookup.class)
+                    .doesNotHaveBean(GameRuntimeIdentity.class));
+        }
     }
 
     private ApplicationContextRunner enabled(String profiles) {

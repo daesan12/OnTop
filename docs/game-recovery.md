@@ -28,6 +28,35 @@
 | 다른 boot의 미완료 경기 자동 INVALID/반환 | 실행 소유권 확인 전 구현·활성화하지 않음 |
 | FE의 INVALID nullable 결과 지원 | 승인 후 반영, 공통 2D/3D 표시·재조회 연결 |
 
+## DB 활성 경기와 엔진 재접속 대조 (OnTop Story A)
+
+`JpaActiveGameLookup`은 `game_participants.active_user_id`와 `game_sessions`를 한 번의 읽기 전용
+JOIN으로 조회한다. `active_user_id` UNIQUE 때문에 사용자별 결과는 최대 한 건이다. 조회 결과에는
+gameSessionId/gameCode/tableId, 경기·정산 상태, owner instance/boot, reserved/started/ended 시각이 포함된다.
+조회는 경기·참가자·Wallet·원장을 변경하지 않으며 신규 migration은 없다.
+
+DB 기능이 켜진 환경의 `GameReconnectService`는 자동 연결 조회와 수동 `GAME_RECONNECT_CHECK`에 같은
+판정을 적용한다.
+
+- DB와 엔진이 모두 비어 있을 때만 기존 `LOBBY`다.
+- DB gameSessionId와 엔진 gameId가 같고 owner instance/boot가 현재 실행과 같을 때만 기존 snapshot을
+  사용한다. PLAYING은 `RESTORED`, 탈락·종료는 기존 의미를 유지한다.
+- DB 활성 경기만 남았거나 gameId/owner/state가 다르거나 DB 조회가 실패하면
+  `UNAVAILABLE(code=RECOVERY_UNAVAILABLE)`이다. snapshot과 저장소 오류 상세는 노출하지 않는다.
+- FINISHED/INVALID + PENDING은 진행 중 복구와 구분한다. 엔진도 FINISHED일 때만 종료 snapshot으로
+  취급하며, 현재 테이블 이력이 없어 종료 snapshot을 표시할 수 없더라도 `LOBBY`로 바꾸지 않는다.
+- SETTLED인데 active marker가 남은 기록은 정상 완료로 묵인하지 않는다.
+- 엔진 종료와 DB 판정 수신 사이의 `RUNNING + FINISHED snapshot`, 정산 커밋으로 active marker가
+  해제된 직후의 FINISHED snapshot은 시점 경합으로 허용한다. 다음 조회에서 최신 상태를 다시 판정한다.
+
+기존 서버 감지 시각 기준 30초 유예, 동일 만료 event 재시도, 2인 기권/3~4인 탈락 처리는 바뀌지
+않는다. `UNAVAILABLE`은 기존 `canUseLobby()`에서 false이므로 테이블·월드·관전 진입도 복구 확인 전
+차단된다. DB의 `MEMBER_ALREADY_IN_GAME` UNIQUE 차단은 최종 안전장치로 유지한다.
+
+이 대조는 heartbeat/lease/fencing이나 엔진 복원이 아니다. 과거 boot의 RESERVED/RUNNING을 INVALID로
+바꾸거나 참가비를 반환하지 않으며, 자동 무효화·환불은 후속 운영 소유권 계약 전까지 지원하지 않는다.
+운영 로그는 불일치 분류와 예외 종류만 기록하고 사용자·Wallet 상세를 기록하지 않는다.
+
 ### 활성화와 RUNNING
 
 `GameRuntimeIdentity`는 현재 Spring 실행에서 공유하는 instanceId와 boot UUID를 제공한다.
@@ -168,7 +197,88 @@ BE 계약: INVALID/PENDING의 myCoinDelta=null, INVALID/SETTLED의 myCoinDelta=0
 엔진 판정 없는 참가자 result=null. FINISHED에서는 null 금지.
 FE는 해당 계약을 수용한다. 반환 표시는 결과의 확정 B를 사용하며 잔액에 B를 새로 더하지 않는다.
 이미 확인한 경기의 재조회만 지원한다. 재접속·새로고침으로 ID를 잃은 과거 경기 자동 발견과
-WalletBalance 자동 갱신은 이번 범위에 포함하지 않는다.
+WalletBalance 자동 갱신은 이번 범위에 포함하지 않는다. (자동 발견은 아래 Story B에서 기존 API만으로 보완했다.)
+
+## 새로고침 후 경기 결과 발견 (OnTop Story B)
+
+FE 경기 ID는 Zustand 메모리에 있어 브라우저 새로고침과 WebSocket 재연결(`resetWorld`)에서 사라진다.
+서버 결과는 남아 있으므로 **기존** 경기 내역 REST와 `GAME_RESULT_CHECK`만으로 ID를 다시 찾는다.
+새 REST·WS 메시지·필드, BE·Wallet·정산·엔진 변경은 없다.
+
+흐름(`SpringParkRuntime.discoverResult`, `game/resultRecovery.ts`):
+
+1. 서버가 허가한 본인 경기 ID(`permittedGameId`)가 생기면 탭의 `sessionStorage`에 계정별 키
+   `ontop.game.result-candidate.v1:{userId}`로 십진수 문자열만 저장한다. 결과를 닫거나(`dismissedResult`)
+   `TABLE_LEFT`를 받으면 지운다. 로그인 종료(`authEnded`)·로그아웃은 탭의 모든 계정 값을 지운다.
+2. 재연결 뒤 아래가 모두 참일 때 `GET /api/v1/users/me/games?size=1`을 호출한다. 연결 세대·시작 상태 revision마다
+   한 번, 동시에 한 건만 실행한다. 내역에 아직 없던 경기(DB 수신 지연)는 대기실 전환의 새 revision에서 다시 확인한다.
+   - 같은 계정(`CONNECTED`·프로필·세션 사용자 일치), 맵 확인·채널 연결 완료, 본인이 테이블 좌석에 있음
+   - 이 테이블의 `GAME_START_STATE`가 WAITING(`waitingForRound`). 결과 HUD의 "다음 판 준비"와 같은 조건이라
+     복구한 결과가 닫히지 않는 상태를 만들지 않는다.
+   - 자동 `GAME_CONNECTION_STATE`가 `LOBBY` 또는 `FINISHED`(종료 ID가 대기실 전환으로 정리된 상태)
+   - 활성 경기·관전·결과가 없음
+3. 응답 첫 항목(DB ID 내림차순의 최근 종료 경기)이 탭 기록과 **같을 때만** `resultCandidateGameId`로 두고
+   기존 `GAME_RESULT_CHECK`를 보낸다. 다르면(다른 탭·기기의 더 최근 경기 등) 아무것도 표시하지 않는다.
+4. 그 경기의 `GAME_RESULT`만 비어 있는 `completedGameId`로 승격해 기존 "지난 판 결과"·결과 HUD에 표시한다.
+   이후 `PENDING → SETTLED`, 중복·역순 version은 기존 `lastResult` 비교를 그대로 쓴다.
+
+우선순위와 제한:
+
+- `RESTORED`·`ELIMINATED`(진행 중 경기)는 결과 발견보다 우선하며 REST를 호출하지 않는다.
+  `UNKNOWN`·`PENDING`·`EXPIRED`·`UNAVAILABLE`은 로비가 아니므로 과거 결과를 보류하고 복구 상태를 바꾸지 않는다.
+- 결과 후보는 `permittedGameId`가 아니며 입력·기권·관전 권한을 주지 않는다. 활성 경기가 생기면 후보를 버리고,
+  후보 결과는 활성 경기나 다른 완료 경기를 덮어쓰지 않는다. 좌석이 없거나 관전 중이면 받지 않는다.
+- 세대 변경(재연결), 계정 변경, 새 경기 시작, 탭 기록 변경 뒤 도착한 REST 응답은 버린다.
+  자동 조회의 `ERROR`는 사용자 오류로 띄우지 않는다. 실패해도 기존 자동 전달·명시 조회는 그대로다.
+- `sessionStorage`는 표시 힌트일 뿐 권한 근거가 아니다. 본인 참가·종료 여부는 REST의 JWT 범위와
+  서버의 `GAME_RESULT_CHECK` 참가 검증이 결정한다. 저장소가 없거나 막히면 자동 표시만 꺼진다.
+
+알려진 한계:
+
+- 좌석·시작 상태 재수신은 [Story C](#새로고침websocket-재접속-좌석시작-상태-수신-ontop-story-c)에서 보완했다.
+  서버가 유지한 좌석(MANUAL 대기석 30초 유예, 진행·정산 중 고정 좌석)은 재접속 직후 좌석과 이 테이블의 시작 상태가
+  복원되므로, 대기실에서 결과를 보던 중 새로고침해도 닫지 않은 결과를 복구한다.
+- AUTO 테이블은 네트워크 종료 시 서버가 좌석을 바로 정리한다. 좌석이 없으면 결과 HUD도 없으므로 자동 표시하지 않는다.
+  결과 조회 자체(REST·`GAME_RESULT_CHECK`)는 좌석을 요구하지 않는다. 좌석 조건은 FE 표시 정책이다.
+- 다른 탭·기기의 경기, 이미 닫은 결과, 좌석이 정리된 뒤(대기석 30초 유예 만료·퇴장)의 결과는 자동 표시하지 않는다.
+  FE에는 아직 경기 내역 화면이 없어 이 경우의 **명시적 조회 UI가 없다**. 경기 내역 화면 추가는 별도 UI 결정이다.
+- 탭 기록보다 새 경기가 다른 곳에서 끝났다면 `size=1`만 보므로 탭의 이전 결과는 자동 복구하지 않는다.
+- 서버의 `GAME_RESULT_CHECK`는 연결당 한 건만 동시에 처리한다. 자동 조회 중에는 FE에 경기 ID가 없어 수동
+  "정산 결과 확인"을 보낼 수 없다. 자동 조회가 `GAME_RESULT_PENDING` 등으로 실패하면 조용히 끝내고 다음 revision에서 다시 확인한다.
+- 자동 조회 요청이 FE 제한 시간을 넘긴 뒤 도착한 `GAME_RESULT`는 후보가 이미 비어 표시하지 않는다.
+- 경기 내역은 `db` 프로필에서만 응답한다(그 외 503). 이 경우 자동 발견은 조용히 생략된다.
+
+## 새로고침·WebSocket 재접속 좌석·시작 상태 수신 (OnTop Story C)
+
+좌석 유지·해제, 30초 유예, 상태 전이, 정산 후 미연결 좌석 정리, 방장 정책은 바꾸지 않았다.
+서버가 이미 유지하기로 판정한 좌석의 기존 메시지가 FE에 도달하도록 전송 시점과 수신 보관만 보완했다.
+새 REST·WebSocket 메시지·필드는 없다.
+
+원인: 재접속 상태는 `CONNECTED` 직후(채널 입장 전) 전송되지만 FE는 `CHANNEL_JOIN` 응답 뒤 REST 테이블 목록을 받은 다음에야
+`TABLE_STATE`(목록에 없는 테이블)와 테이블 범위 `GAME_START_STATE`(좌석 없음)를 받아들인다. 또 frozen 좌석에는
+`TABLE_STATE` 자체가 오지 않았다.
+
+BE (`TableHub.activateConnection`, 기존 메시지·수신자 그대로):
+
+| 재접속 판정 (기존) | 보내는 상태 |
+| --- | --- |
+| 같은 로그인 세션의 MANUAL 대기석 유예 복귀 | `TABLE_STATE` → `TABLE_HOST_WAIT_STATE` → 이 테이블의 `GAME_START_STATE`(추가) |
+| frozen 좌석(STARTING~SETTLING) | `TABLE_STATE`(추가) → 이 테이블의 `GAME_START_STATE`(기존, 복구 판정보다 먼저 보내도록 앞당김) |
+| 그 밖(AUTO 대기석 해제, 정산 때 미연결로 정리된 좌석, 유예 만료) | 없음 — 좌석을 되살리지 않는다 |
+
+FE (`SpringParkRuntime`):
+
+- 연결 세대마다 첫 채널 입장과 테이블 목록 조회가 끝날 때까지, 기존 핸들러가 버렸을 요청 없는 상태만 도착 순서대로 보관한다.
+  `TABLE_STATE`·`TABLE_HOST_WAIT_STATE`·테이블 범위 `GAME_START_STATE`, 그리고 보관한 좌석 뒤에 온
+  `GAME_START_STATE`·`GAME_CONNECTION_STATE`·`GAME_STATE`·`GAME_RESULT`.
+- 목록 조회가 끝나면(실패해도) 한 번만 기존 `message()` 경로로 다시 적용한다. `TABLE_STATE`를 먼저, 나머지는 도착 순서대로
+  읽으며 version·revision 검사, 목록에 없는 테이블 거절, `NOT_SEATED` 처리 등 기존 판정을 그대로 쓴다.
+- 보관분은 재연결(새 세대)·로그인 종료·중지 때 버린다. `clearChannel()`은 보관분을 지우지 않는다.
+- 좌석보다 먼저 온 `GAME_CONNECTION_STATE`는 기존처럼 즉시 처리한다(서버는 좌석을 먼저 보낸다).
+- `GAME_START_CHECK` 추가 호출은 필요 없었다. 서버가 두 경우 모두 현재 시작 상태를 함께 보낸다.
+
+알려진 한계: 채널이 여러 개이고 새로고침으로 직전 채널 기억이 사라지면 사용자가 좌석의 채널을 고를 때까지 보관한다.
+다른 채널을 고르면 기존처럼 `TABLE_BUSY`이며 그 채널 목록에 없는 좌석은 적용하지 않는다.
 
 ## Migration·검증
 

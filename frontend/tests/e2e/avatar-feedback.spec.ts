@@ -1,0 +1,106 @@
+import { expect, test, type Page } from '@playwright/test'
+import { fixture, screenshot, tableId } from './contractFixture'
+import { TABLES, tableSeats } from '../../src/config'
+
+async function loaded(page: Page) {
+  await page.goto('/park')
+  await expect(page).toHaveTitle('OnTop')
+  await expect(page.getByLabel('공원 기본 화면')).toBeVisible()
+  await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90_000 })
+}
+const seat = (page: Page, id = '101') => page.evaluate(async id =>
+  (await import('/tests/e2e/sceneProbe.ts' as string)).publicSeatProbe(id), id)
+const emote = (page: Page) => page.evaluate(async () =>
+  (await import('/tests/e2e/sceneProbe.ts' as string)).emoteProbe())
+const anchor = TABLES.find(table => table.picnicId)!, placement = tableSeats(anchor)[0]!
+const approach = { x: anchor.position[0] + placement.x, y: anchor.position[1] + .8,
+  z: anchor.position[2] + placement.z + .6, yaw: Math.PI }
+
+test('a settled remote avatar wakes for walking, a gesture and a public seat change', async ({ page }) => {
+  const errors: string[] = []
+  page.on('pageerror', error => errors.push(error.message))
+  const server = await fixture(page, { manualMovement: true, position: { x: 0, y: .8, z: 34, yaw: 0 } })
+  await loaded(page)
+  await page.waitForTimeout(2200)
+  server.remotePose({ x: 3, y: .8, z: 33, moving: true })
+  await expect.poll(async () => (await seat(page, '102')).position![0]).toBeCloseTo(3, 2)
+  await expect.poll(async () => Math.abs((await seat(page, '102')).thigh!)).toBeGreaterThan(.1)
+  server.remotePose({ moving: false })
+  await expect.poll(async () => Math.abs((await seat(page, '102')).thigh!)).toBeLessThan(.01)
+  await page.waitForTimeout(2200)
+  server.emote({ eventId: 'idle-wake-wave', channelId: 'fixture-channel', userId: '102', emoteCode: 'WAVE', sentAt: new Date().toISOString() })
+  await expect.poll(async () => (await emote(page)).avatars[1]!.emote).toBe('EMOTE_WAVE')
+  await expect.poll(async () => Math.hypot(...(await emote(page)).avatars[1]!.arm!)).toBeGreaterThan(.05)
+  server.tableSeat('102', { tableId, seatNumber: 1 })
+  await expect.poll(async () => (await seat(page, '102')).thigh!).toBeLessThan(-1.5)
+  await screenshot(page, 'runtime-performance-avatar-wake')
+  expect(errors).toEqual([])
+})
+
+test('public seat snapshot renders the actor seated for a bystander before the bystander joins or watches', async ({ page, context }) => {
+  const errors: string[] = []
+  const observe = (p: Page) => {
+    p.on('pageerror', e => errors.push(e.message))
+    p.on('console', m => { if (m.type() === 'error') errors.push(m.text()) })
+  }
+  observe(page)
+  const actor = await fixture(page, { omok: true, manualLobby: true, tabletServer: true,
+    anchorId: anchor.id, position: approach })
+  await loaded(page)
+  const observer = await context.newPage(); observe(observer)
+  const bystander = await fixture(observer, { ownUserId: '102', manualMovement: true, anchorId: anchor.id })
+  await loaded(observer)
+  expect((await seat(observer)).seatIndex).toBe(-1)
+  await expect(page.getByRole('button', { name: 'E 테이블에 앉기', exact: true })).toBeVisible()
+  await page.locator('canvas').focus(); await page.keyboard.press('KeyE')
+  const tablet = page.getByRole('dialog', { name: '게임 태블릿', exact: true })
+  await expect(tablet).toBeVisible()
+  await expect.poll(async () => (await seat(page)).ownTable).toBe(tableId)
+  // BE WORLD_STATE public seat contract, independently delivered to the bystander.
+  bystander.tableSeat('101', { tableId, seatNumber: 1 })
+  await expect.poll(async () => (await seat(observer)).seatIndex).toBe(0)
+  await expect.poll(async () => (await seat(observer)).thigh!).toBeLessThan(-1.5)
+  await expect.poll(async () => (await seat(observer)).knee!).toBeGreaterThan(1.5)
+  expect(await seat(observer)).toMatchObject({ visible: true, ownTable: '', watchedTable: '' })
+  expect(bystander.sent.some(m => ['TABLE_JOIN', 'TABLE_WATCH', 'GAME_WATCH'].includes(m.type))).toBe(false)
+  bystander.remotePose({ x: anchor.position[0] + placement.x + 5, y: anchor.position[1] + .8,
+    z: anchor.position[2] + placement.z + 4 })
+  await observer.evaluate(async () => {
+    const controls = await import('/src/world/cameraPerspective.ts' as string)
+    controls.setCameraPerspective('first-person')
+    Object.assign(controls.viewControls, { yaw: Math.atan2(5, 4), pitch: .15 })
+    await new Promise(resolve => setTimeout(resolve, 350))
+  })
+  await screenshot(observer, 'avatar-feedback-public-seated')
+  await tablet.getByRole('button', { name: '일어나기', exact: true }).click()
+  await expect.poll(() => actor.sent.some(m => m.type === 'TABLE_LEAVE')).toBe(true)
+  bystander.tableSeat('101', null)
+  await expect.poll(async () => (await seat(observer)).seatIndex).toBe(-1)
+  await expect.poll(async () => Math.abs((await seat(observer)).thigh!)).toBeLessThan(.05)
+  await expect(observer.locator('vite-error-overlay')).toHaveCount(0)
+  expect(errors).toEqual([])
+  await observer.close()
+})
+
+test('moving cancels a wave and a different emote can be selected immediately after stopping', async ({ page }) => {
+  const errors: string[] = []
+  page.on('pageerror', e => errors.push(e.message))
+  page.on('console', m => { if (m.type() === 'error') errors.push(m.text()) })
+  const server = await fixture(page, { emoteBindings: 'development', manualMovement: true,
+    position: { x: 0, y: .8, z: 34, yaw: 0 } })
+  await loaded(page)
+  await page.getByRole('button', { name: '감정표현 열기' }).click()
+  await page.getByRole('dialog', { name: '감정표현 선택' }).getByRole('button', { name: '손 인사', exact: true }).click()
+  await expect.poll(async () => (await emote(page)).avatars[0]!.emote).toBe('EMOTE_WAVE')
+  await page.locator('canvas').focus(); await page.keyboard.down('KeyW')
+  await expect.poll(async () => (await emote(page)).avatars[0]!.emote).toBe('')
+  expect((await emote(page)).readyAt).toBe(0)
+  await page.keyboard.up('KeyW'); server.pose({ moving: false })
+  await page.getByRole('button', { name: '감정표현 열기' }).click()
+  await page.getByRole('dialog', { name: '감정표현 선택' }).getByRole('button', { name: '박수', exact: true }).click()
+  await expect.poll(async () => (await emote(page)).avatars[0]!.emote).toBe('EMOTE_CLAP')
+  expect(server.sent.filter(m => m.type === 'WORLD_EMOTE_SEND').map(m => m.payload.emoteCode)).toEqual(['WAVE', 'CLAP'])
+  await screenshot(page, 'avatar-feedback-immediate-emote')
+  expect(errors).toEqual([])
+  await expect(page.locator('vite-error-overlay')).toHaveCount(0)
+})

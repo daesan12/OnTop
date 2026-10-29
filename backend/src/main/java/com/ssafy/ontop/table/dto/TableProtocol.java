@@ -126,6 +126,18 @@ public final class TableProtocol {
                     && payload.path("actionId").asText().length() <= 64;
             case "GAME_SPECTATOR_CHAT_SEND" -> fields(payload, Set.of("gameId", "eventId", "text"))
                     && validGameId(payload) && validEventId(payload) && validChatText(payload.get("text"));
+            case "ONECARD_PRANK_REACH_SEND", "ONECARD_HAND_FLIP_SEND" ->
+                    fields(payload, Set.of("gameId", "eventId", "targetUserId", "turnCount"))
+                    && validGameId(payload) && validEventId(payload)
+                    && payload.path("targetUserId").isTextual()
+                    && payload.path("targetUserId").asText().matches("[1-9][0-9]{0,18}")
+                    && payload.path("turnCount").isIntegralNumber() && payload.path("turnCount").canConvertToLong()
+                    && payload.path("turnCount").asLong() >= 0
+                    && payload.path("turnCount").asLong() <= 9_007_199_254_740_991L;
+            case "ONECARD_PRANK_HIT_SEND" -> fields(payload, Set.of("gameId", "eventId", "attemptId"))
+                    && validGameId(payload) && validEventId(payload) && prankUuid(payload.path("attemptId"));
+            case "ONECARD_HAND_RESTORE_SEND" -> fields(payload, Set.of("gameId", "eventId", "effectId"))
+                    && validGameId(payload) && validEventId(payload) && prankUuid(payload.path("effectId"));
             case "OMOK_SPECTATOR_PING_SEND" -> fields(payload, Set.of("gameId", "eventId", "basedOnVersion", "x", "y"))
                     && validGameId(payload) && validEventId(payload)
                     && payload.path("basedOnVersion").isIntegralNumber()
@@ -143,6 +155,10 @@ public final class TableProtocol {
             throw new RequestException(requestId, "INVALID_PAYLOAD", "요청 데이터를 확인해주세요.");
         }
         return new Request(requestId, type, payload);
+    }
+
+    private static boolean prankUuid(JsonNode value) {
+        return value.isTextual() && value.asText().matches("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}");
     }
 
     public String encode(String requestId, String type, Object payload) {

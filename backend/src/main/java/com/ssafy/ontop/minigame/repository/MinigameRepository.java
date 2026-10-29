@@ -6,6 +6,7 @@ import com.ssafy.ontop.minigame.domain.BungeoppangV4Order;
 import com.ssafy.ontop.minigame.domain.BungeoppangV4Progress;
 import com.ssafy.ontop.minigame.domain.BungeoppangV4Receipt;
 import com.ssafy.ontop.minigame.domain.BungeoppangV4Round;
+import com.ssafy.ontop.minigame.domain.BungeoppangV5Order;
 import com.ssafy.ontop.minigame.domain.MinigameSession;
 import com.ssafy.ontop.minigame.domain.MinigameStartRequest;
 import com.ssafy.ontop.wallet.domain.Wallet;
@@ -15,11 +16,12 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import com.ssafy.ontop.config.RuntimeProfiles;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Repository;
 
 @Repository
-@Profile("(local | dev) & db & !prod & !production")
+@Profile(RuntimeProfiles.PRODUCT_FEATURE_WITH_DB)
 @ConditionalOnProperty(name = "ontop.minigames.enabled", havingValue = "true")
 public class MinigameRepository {
     private final EntityManager entities;
@@ -73,6 +75,13 @@ public class MinigameRepository {
     public List<BungeoppangV4Order> v4Orders(long sessionId) {
         return entities.createQuery("select o from BungeoppangV4Order o where o.sessionId = :session"
                 + " order by o.orderIndex", BungeoppangV4Order.class)
+                .setParameter("session", sessionId).getResultList();
+    }
+
+    /** Issue order; replay activates each order by its availableAfterSeq. */
+    public List<BungeoppangV5Order> v5Orders(long sessionId) {
+        return entities.createQuery("select o from BungeoppangV5Order o where o.sessionId = :session"
+                + " order by o.orderId", BungeoppangV5Order.class)
                 .setParameter("session", sessionId).getResultList();
     }
 

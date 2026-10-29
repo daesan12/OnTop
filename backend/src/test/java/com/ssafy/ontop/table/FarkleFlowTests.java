@@ -79,7 +79,8 @@ class FarkleFlowTests {
                 JsonNode delivered = viewer.await(message -> version(message,end.version()));
                 assertThat(delivered.path("payload").path("publicState").path("endReason").asText()).isEqualTo("TARGET_REACHED");
                 returned.sendRequest("GAME_RECONNECT_CHECK",Map.of());
-                returned.state("FINISHED");
+                // 엔진을 직접 생성한 미착석 연결: 종료 이력을 현재 좌석 경기로 복구하지 않는다.
+                returned.state("LOBBY");
                 omok.create("after-dice",TABLE,101,202);
                 returned.sendRequest("GAME_RECONNECT_CHECK",Map.of());
                 assertThat(returned.state("RESTORED").path("state").path("gameCode").asText()).isEqualTo("OMOK");

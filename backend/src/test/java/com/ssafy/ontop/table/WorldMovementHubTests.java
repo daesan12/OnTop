@@ -2,11 +2,15 @@ package com.ssafy.ontop.table;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ssafy.ontop.auth.security.TestLoginSessions;
+import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser;
+import com.ssafy.ontop.minigame.service.MinigameActivityChanged;
 import com.ssafy.ontop.table.service.TableHub;
 import com.ssafy.ontop.world.config.WorldChannelProperties;
 import com.ssafy.ontop.world.config.WorldChannelProperties.Channel;
 import com.ssafy.ontop.world.service.WorldChannelRegistry;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -75,14 +79,54 @@ class WorldMovementHubTests {
         user.request("WORLD_MOVE", move(0, 1));
         var position = registry.worldState("one");
         user.request("TABLE_JOIN", Map.of("tableId", hub.listTables("one").tables().getFirst().tableId()));
+        user.next("WORLD_STATE");
+        var seated = registry.worldState("one");
+        assertThat(seated.avatars().getFirst().position()).isEqualTo(position.avatars().getFirst().position());
+        assertThat(seated.avatars().getFirst().tableSeat()).isNotNull();
         assertThat(user.request("WORLD_MOVE", move(1, 100)).path("payload").path("code").asText())
                 .isEqualTo("TABLE_BUSY");
-        assertThat(registry.worldState("one")).isEqualTo(position);
+        assertThat(registry.worldState("one")).isEqualTo(seated);
         user.request("TABLE_LEAVE", Map.of());
+        user.next("WORLD_STATE");
         user.request("CHANNEL_LEAVE", Map.of());
         assertThat(registry.worldState("one").avatars()).isEmpty();
         assertThat(user.request("WORLD_MOVE", move(1, 100)).path("payload").path("code").asText())
                 .isEqualTo("NOT_IN_CHANNEL");
+    }
+
+    @Test
+    void 붕어빵_이용_상태와_종료를_본인과_같은_채널_접속자에게만_방송한다() throws Exception {
+        Peer first = peer(101L);
+        Peer second = peer(102L);
+        Peer outside = peer(103L);
+        first.request("CHANNEL_JOIN", Map.of("channelId", "one"));
+        first.next("WORLD_STATE");
+        second.request("CHANNEL_JOIN", Map.of("channelId", "one"));
+        second.next("WORLD_STATE");
+        first.next("CHANNEL_STATE");
+        first.next("WORLD_STATE");
+        outside.request("CHANNEL_JOIN", Map.of("channelId", "two"));
+        outside.next("WORLD_STATE");
+
+        hub.minigameActivityChanged(new MinigameActivityChanged(101, 10, Instant.now().plusSeconds(60)));
+        for (Peer peer : List.of(first, second)) {
+            var avatars = peer.next("WORLD_STATE").path("payload").path("avatars");
+            assertThat(avatars.get(0).path("activity").asText()).isEqualTo("BUNGEOPPANG");
+            assertThat(avatars.get(0).has("tableSeat")).isTrue();
+            assertThat(avatars.get(1).path("activity").isNull()).isTrue();
+        }
+        assertThat(outside.messages.poll(100, TimeUnit.MILLISECONDS)).isNull();
+
+        // The same start again changes nothing visible, so nobody receives a new WORLD_STATE.
+        hub.minigameActivityChanged(new MinigameActivityChanged(101, 10, Instant.now().plusSeconds(60)));
+        assertThat(first.messages.poll(100, TimeUnit.MILLISECONDS)).isNull();
+
+        hub.minigameActivityChanged(new MinigameActivityChanged(101, 10, null));
+        for (Peer peer : List.of(first, second)) {
+            assertThat(peer.next("WORLD_STATE").path("payload").path("avatars").get(0).path("activity").isNull())
+                    .isTrue();
+        }
+        assertThat(outside.messages.poll(100, TimeUnit.MILLISECONDS)).isNull();
     }
 
     private Map<String, Object> move(long sequence, double x) {
@@ -90,6 +134,10 @@ class WorldMovementHubTests {
     }
 
     private Peer peer() throws Exception {
+        return peer(null);
+    }
+
+    private Peer peer(Long accountId) throws Exception {
         Peer peer = new Peer();
         WebSocketSession session = mock(WebSocketSession.class);
         when(session.getId()).thenReturn(peer.id);
@@ -99,7 +147,12 @@ class WorldMovementHubTests {
             }
             return null;
         }).when(session).sendMessage(any());
-        hub.connect(session);
+        if (accountId == null) {
+            hub.connect(session);
+        } else {
+            assertThat(hub.connectAuthenticated(session, new VerifiedWebSocketUser(accountId,
+                    VerifiedWebSocketUser.Provider.NAVER, TestLoginSessions.ID))).isTrue();
+        }
         peer.next("CONNECTED");
         return peer;
     }

@@ -1,0 +1,34 @@
+{
+  "jobs": {
+    "bungeoppang-student-brown-coat-v1": {
+      "status": "success",
+      "attempts": 1,
+      "task_id": "b19be13f-03bb-4130-b77c-bfd4a7292668",
+      "output_dir": "docs\\bungeoppang-v5\\npc-reference-production\\tripo-out\\bungeoppang-student-brown-coat-v-b19be13f"
+    },
+    "bungeoppang-worker-earmuffs-v1": {
+      "status": "success",
+      "attempts": 1,
+      "task_id": "48770dfd-133d-49a7-b2ff-9aff509e4a57",
+      "output_dir": "docs\\bungeoppang-v5\\npc-reference-production\\tripo-out\\bungeoppang-worker-earmuffs-v1-48770dfd"
+    },
+    "bungeoppang-older-flat-cap-v1": {
+      "status": "success",
+      "attempts": 1,
+      "task_id": "f03c126e-69b7-4355-9f15-f447135b5af4",
+      "output_dir": "docs\\bungeoppang-v5\\npc-reference-production\\tripo-out\\bungeoppang-older-flat-cap-v1-f03c126e"
+    },
+    "bungeoppang-girl-pink-hat-v1": {
+      "status": "success",
+      "attempts": 1,
+      "task_id": "d09f37f2-32be-4064-bebf-8f3349979161",
+      "output_dir": "docs\\bungeoppang-v5\\npc-reference-production\\tripo-out\\bungeoppang-girl-pink-hat-v1-d09f37f2"
+    },
+    "bungeoppang-woman-glasses-bun-v1": {
+      "status": "success",
+      "attempts": 1,
+      "task_id": "6f9d7137-e4d3-4ba6-9359-5adddef4df63",
+      "output_dir": "docs\\bungeoppang-v5\\npc-reference-production\\tripo-out\\bungeoppang-woman-glasses-bun-v1-6f9d7137"
+    }
+  }
+}

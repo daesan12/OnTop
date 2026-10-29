@@ -35,7 +35,7 @@ public class BungeoppangRecord {
 
     public BungeoppangRecord(long sessionId, String rulesVersion, String heats, boolean firstGame) {
         this.sessionId = sessionId;
-        if (!"v2".equals(rulesVersion) && !"v4".equals(rulesVersion)) {
+        if (!"v2".equals(rulesVersion) && !"v4".equals(rulesVersion) && !"v5".equals(rulesVersion)) {
             throw new IllegalArgumentException("지원하지 않는 붕어빵 규칙 버전입니다.");
         }
         this.rulesVersion = rulesVersion;

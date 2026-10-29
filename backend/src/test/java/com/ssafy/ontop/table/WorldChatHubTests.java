@@ -76,9 +76,11 @@ class WorldChatHubTests {
                 .path("payload").path("code").asText()).isEqualTo("NOT_IN_CHANNEL");
         user.join("one");
         user.request("TABLE_JOIN", Map.of("tableId", hub.listTables("one").tables().getFirst().tableId()));
+        user.next("WORLD_STATE");
         assertThat(user.request("WORLD_CHAT_SEND", Map.of("text", "대기 중"))
                 .path("type").asText()).isEqualTo("WORLD_CHAT_MESSAGE");
         user.request("TABLE_LEAVE", Map.of());
+        user.next("WORLD_STATE");
         user.request("CHANNEL_LEAVE", Map.of());
         user.join("two");
         assertThat(user.request("WORLD_CHAT_SEND", Map.of("text", "이동 직후"))

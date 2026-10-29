@@ -1,4 +1,5 @@
 import { SIMPLE_MAP } from './mapRenderProfile'
+import { PropBuilder as MapPropBuilder, hipRoof as mapHipRoof } from './previewPropGeometry'
 import {
   BoxGeometry,
   BufferGeometry,
@@ -10,7 +11,6 @@ import {
   LatheGeometry,
   Matrix4,
   SphereGeometry,
-  IcosahedronGeometry,
   TorusGeometry,
   TubeGeometry,
   Vector2,
@@ -21,12 +21,17 @@ import {
 } from 'three/addons/utils/BufferGeometryUtils.js'
 import { weldStaticVertices } from './weldStaticVertices'
 import { recordPropBuild, takeBakedProp } from './bakedProps'
+import { indexedCopy } from './indexedGeometry'
+import { lowPolyPrimitive } from './lowPolyPrimitive'
 export type XYZ = [number, number, number]
 export type PropFinish =
   'wood' | 'metal' | 'gold' | 'stone' | 'paint' | 'tile' | 'glow'
+
 /** Build static, vertex-coloured material batches; dispose construction geometry immediately. */
-export class PropBuilder {
+class DevPropBuilder {
   private readonly baked: ReturnType<typeof takeBakedProp>
+  private boxSource?: BufferGeometry
+  private sphereSource?: BufferGeometry
   constructor(
     private readonly sphereSegments: readonly [number, number] = [12, 8],
     private readonly cacheKey?: string,
@@ -47,10 +52,14 @@ export class PropBuilder {
     p: XYZ = [0, 0, 0],
     s: XYZ = [1, 1, 1],
     r: XYZ = [0, 0, 0],
+    retainSource = false,
+    tintExisting = false,
   ) {
-    if (this.baked) { g.dispose(); return }
-    const flat = g.index ? g.toNonIndexed() : g.clone()
-    g.dispose()
+    if (this.baked) { if (!retainSource) g.dispose(); return }
+    const source = tintExisting ? g : lowPolyPrimitive(g)
+    const flat = indexedCopy(source)
+    if (source !== g) source.dispose()
+    if (!retainSource) g.dispose()
     const matrix = new Matrix4().makeRotationFromEuler(new Euler(...r))
     matrix.scale(new Vector3(...s))
     matrix.setPosition(...p)
@@ -61,24 +70,24 @@ export class PropBuilder {
         'uv',
         new Float32BufferAttribute(new Float32Array(count * 2), 2),
       )
+    const original = tintExisting ? flat.getAttribute('color') : undefined
     const c = new Color(color),
       colors = new Float32Array(count * 3)
     for (let i = 0; i < count; i++) {
-      colors[i * 3] = c.r
-      colors[i * 3 + 1] = c.g
-      colors[i * 3 + 2] = c.b
+      colors[i * 3] = c.r * (original?.getX(i) ?? 1)
+      colors[i * 3 + 1] = c.g * (original?.getY(i) ?? 1)
+      colors[i * 3 + 2] = c.b * (original?.getZ(i) ?? 1)
     }
     flat.setAttribute('color', new Float32BufferAttribute(colors, 3))
     this.parts[kind].push(flat)
   }
   box(k: PropFinish, c: string, p: XYZ, s: XYZ, r: XYZ = [0, 0, 0]) {
     if (this.baked) return
-    if(SIMPLE_MAP && Math.max(...s) < .12) return
-    this.add(k, new BoxGeometry(1, 1, 1), c, p, s, r)
+    this.add(k, this.boxSource ??= new BoxGeometry(1, 1, 1), c, p, s, r, true)
   }
   ball(k: PropFinish, c: string, p: XYZ, s: XYZ) {
     if (this.baked) return
-    this.add(k, SIMPLE_MAP ? new IcosahedronGeometry(1,0) : new SphereGeometry(1, ...this.sphereSegments), c, p, s)
+    this.add(k, this.sphereSource ??= new SphereGeometry(1, Math.min(8, this.sphereSegments[0]), Math.min(4, this.sphereSegments[1])), c, p, s, [0, 0, 0], true)
   }
   cylinder(
     k: PropFinish,
@@ -93,7 +102,7 @@ export class PropBuilder {
     if (this.baked) return
     this.add(
       k,
-      new CylinderGeometry(top, bottom, h, SIMPLE_MAP?Math.min(segments,segments>=32?32:8):segments),
+      new CylinderGeometry(top, bottom, h, Math.min(8, segments)),
       c,
       p,
       [1, 1, 1],
@@ -109,7 +118,7 @@ export class PropBuilder {
     r: XYZ = [0, 0, 0],
   ) {
     if (this.baked) return
-    this.add(k, new TorusGeometry(radius, tube, SIMPLE_MAP?3:5, SIMPLE_MAP?8:24), c, p, [1, 1, 1], r)
+    this.add(k, new TorusGeometry(radius, tube, 3, 8), c, p, [1, 1, 1], r)
   }
   curve(
     k: PropFinish,
@@ -118,14 +127,14 @@ export class PropBuilder {
     radius: number,
     segments = 18,
   ) {
-    if (this.baked || (SIMPLE_MAP && radius < .07)) return
+    if (this.baked) return
     this.add(
       k,
       new TubeGeometry(
         new CatmullRomCurve3(points.map((p) => new Vector3(...p))),
-        SIMPLE_MAP ? Math.min(segments, 4) : segments,
+        Math.min(6, segments),
         radius,
-        SIMPLE_MAP ? 3 : 5,
+        3,
         false,
       ),
       c,
@@ -136,8 +145,8 @@ export class PropBuilder {
     this.add(
       k,
       new LatheGeometry(
-        (SIMPLE_MAP ? profile.filter((_,i)=>i===0||i===Math.floor(profile.length/2)||i===profile.length-1) : profile).map((v) => new Vector2(...v)),
-        SIMPLE_MAP ? 8 : 24,
+        profile.map((v) => new Vector2(...v)),
+        8,
       ),
       c,
       p,
@@ -158,10 +167,15 @@ export class PropBuilder {
         return [[key, g]]
       }),
     ) as Partial<Record<PropFinish, BufferGeometry>>
+    this.boxSource?.dispose(); this.sphereSource?.dispose()
+    this.boxSource = this.sphereSource = undefined
     recordPropBuild(this.cacheKey, art)
     return art
   }
 }
+export const PropBuilder = SIMPLE_MAP ? MapPropBuilder : DevPropBuilder
+export type PropBuilder = MapPropBuilder | DevPropBuilder
+
 /** Four swept hip-roof faces, curved tile rolls and raised corner ridges. */
 export function hipRoof(
   b: PropBuilder,
@@ -171,6 +185,8 @@ export function hipRoof(
   rise: number,
   red = false,
 ) {
+  if (SIMPLE_MAP) return mapHipRoof(b as MapPropBuilder, width, depth, y, rise, red)
+
   const color = red ? '#b34c2c' : '#414957',
     ridge = red ? '#d57943' : '#737c85'
   const corners: XYZ[] = [
@@ -194,51 +210,17 @@ export function hipRoof(
   for (let side = 0; side < 4; side++) {
     const positions: number[] = [],
       uv: number[] = []
-    for (let j = 0; j < (SIMPLE_MAP?2:10); j++)
-      for (let i = 0; i < (SIMPLE_MAP?2:12); i++) {
-        const a = point(side, i / (SIMPLE_MAP?2:12), j / (SIMPLE_MAP?2:10)),
-          c = point(side, (i + 1) / (SIMPLE_MAP?2:12), j / (SIMPLE_MAP?2:10)),
-          d = point(side, i / (SIMPLE_MAP?2:12), (j + 1) / (SIMPLE_MAP?2:10)),
-          e = point(side, (i + 1) / (SIMPLE_MAP?2:12), (j + 1) / (SIMPLE_MAP?2:10))
-        positions.push(...a, ...c, ...d, ...c, ...e, ...d)
-        uv.push(
-          i / 12,
-          j / 10,
-          i / 12,
-          (j + 1) / 10,
-          (i + 1) / 12,
-          j / 10,
-          (i + 1) / 12,
-          j / 10,
-          i / 12,
-          (j + 1) / 10,
-          (i + 1) / 12,
-          (j + 1) / 10,
-        )
-      }
+    for (let j = 0; j < 3; j++) {
+      const a = point(side, 0, j / 3), c = point(side, 1, j / 3),
+        d = point(side, 0, (j + 1) / 3), e = point(side, 1, (j + 1) / 3)
+      positions.push(...a, ...c, ...d, ...c, ...e, ...d)
+      uv.push(0, j / 3, 1, j / 3, 0, (j + 1) / 3, 1, j / 3, 1, (j + 1) / 3, 0, (j + 1) / 3)
+    }
     const g = new BufferGeometry()
     g.setAttribute('position', new Float32BufferAttribute(positions, 3))
     g.setAttribute('uv', new Float32BufferAttribute(uv, 2))
     g.computeVertexNormals()
     b.add('tile', g, color)
-    if(SIMPLE_MAP)continue
-    const tiles = Math.ceil((side % 2 ? depth : width) / 0.28)
-    for (let i = 0; i <= tiles; i++) {
-      const pts = Array.from({ length: 9 }, (_, j) => {
-        const p = point(side, i / tiles, 0.12 + j * 0.11)
-        p[1] += 0.03
-        return p
-      })
-      b.curve('tile', i % 2 ? color : ridge, pts, red ? 0.035 : 0.055, 12)
-    }
-    for (const t of [0.25, 0.4, 0.55, 0.7, 0.85, 1])
-      b.curve(
-        'tile',
-        ridge,
-        Array.from({ length: 9 }, (_, j) => point(side, j / 8, t)),
-        0.023,
-        10,
-      )
     b.curve(
       'tile',
       ridge,

@@ -1,3 +1,4 @@
+import { SIMPLE_MAP } from './mapRenderProfile'
 import {
   BufferGeometry,
   Float32BufferAttribute,
@@ -34,6 +35,7 @@ function createPavilion() {
     tiles: Part[] = []
   const vertices: number[] = []
   for (let side = 0; side < 8; side++) {
+    if (SIMPLE_MAP) {
     for (let row = 0; row < 12; row++) {
       for (let col = 0; col < 14; col++) {
         const a = roofPoint(side, col / 14, row / 12),
@@ -69,6 +71,19 @@ function createPavilion() {
       a[1] += 0.022
       b[1] += 0.022
       tileEnds.push(beam(a, b, col === 0 ? 0.083 : 0.054, '#626961'))
+    }
+    } else {
+    for (let row = 0; row < 4; row++) {
+      const a = roofPoint(side, 0, row / 4), b = roofPoint(side, 1, row / 4),
+        c = roofPoint(side, 0, (row + 1) / 4), d = roofPoint(side, 1, (row + 1) / 4)
+      vertices.push(...a, ...b, ...c, ...b, ...d, ...c)
+    }
+    // Four short segments on each corner retain the lifted-eave silhouette.
+    for (let row = 0; row < 4; row++) {
+      const a = roofPoint(side, 0, row / 4), b = roofPoint(side, 0, (row + 1) / 4)
+      a[1] += 0.025; b[1] += 0.025
+      tiles.push(beam(a, b, 0.064, '#626961'))
+    }
     }
     const p = PILLARS[side]!,
       n = PILLARS[(side + 1) % 8]!
@@ -213,7 +228,7 @@ const roofAssets = [false, true].map((main) => {
   return geometry
 })
 // The two untextured finial pieces also share one asset and one finish.
-const finialSphere = new SphereGeometry(0.18, 12, 8)
+const finialSphere = new SphereGeometry(0.18, SIMPLE_MAP ? 12 : 6, SIMPLE_MAP ? 8 : 3)
 const finialCone = new ConeGeometry(0.12, 0.45, 8)
 const finial = mergeSurfaceParts([
   {
@@ -334,7 +349,7 @@ export function Pavilion({
           parts={main ? mainColumns : art.columns}
           material={<SurfaceMaterial kind="wood" strength={0.25} />}
         >
-          <cylinderGeometry args={[1, 1.035, 1, 16]} />
+          <cylinderGeometry args={[1, 1.035, 1, SIMPLE_MAP ? 16 : 8]} />
         </Instances>
         <Instances
           parts={art.feet}
@@ -348,7 +363,7 @@ export function Pavilion({
             />
           }
         >
-          <cylinderGeometry args={[1, 1.08, 1, 12]} />
+          <cylinderGeometry args={[1, 1.08, 1, SIMPLE_MAP ? 12 : 6]} />
         </Instances>
         <mesh
           name="pavilion-roof-asset"

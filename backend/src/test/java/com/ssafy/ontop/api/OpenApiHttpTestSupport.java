@@ -88,7 +88,9 @@ abstract class OpenApiHttpTestSupport {
                 "DELETE /api/v1/users/me", "GET /api/v1/users/nickname-availability",
                 "POST /api/v1/users/onboarding", "GET /api/v1/admin/me", "GET /api/v1/admin/analytics/summary",
                 "GET /api/v1/wallets/me",
-                "GET /api/v1/wallets/me/transactions", "GET /api/v1/rankings"));
+                "GET /api/v1/wallets/me/transactions", "GET /api/v1/rankings",
+                "GET /api/v1/minigames/bungeoppang/rankings",
+                "GET /api/v1/users/me/games", "GET /api/v1/users/me/game-stats"));
         if (environment.acceptsProfiles(Profiles.of("(local | dev) & !prod & !production"))) {
             expected.addAll(Set.of("GET /api/v1/channels", "GET /api/v1/tables"));
             assertThat(api.at("/components/schemas/TableSummaryResponse/properties/gameId/nullable").asBoolean())

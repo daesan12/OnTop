@@ -41,6 +41,7 @@ HttpSecurity를 요구하지 않으며, 실제 Servlet 서버에서는 프로필
 
 | 메서드/경로 | 접근 정책 | 실제 검증 또는 제한 |
 | --- | --- | --- |
+| GET `/api/v1/minigames/bungeoppang/rankings` | **Access JWT + 활성 회원/로그인 세션** | v4/v5 개인 최고 전체 랭킹·본인 순위. [계약](bungeoppang-rankings-api.md). 기존 인증 로직 유지 |
 | GET `/api/v1/auth/{provider}/authorize` | 공개 | ssafy/naver, 신뢰된 callback 설정, 서버 state 발급 |
 | GET `/api/v1/auth/{provider}/callback` | 별도 인증 | OAuth 세션·provider·state, 공급자 조회, 회원 상태 |
 | POST `/api/v1/auth/exchange` | 별도 인증 | exchangeCode + 같은 OAuth 세션, 일회 소비/세션 ID 회전, 기존 Origin 검증 |
@@ -53,9 +54,9 @@ HttpSecurity를 요구하지 않으며, 실제 Servlet 서버에서는 프로필
 | GET `/api/v1/users/nickname-availability` | 온보딩 Bearer 또는 Access JWT | 닉네임 사전 조회, 본인 제외·DB collation 기준. [USER-04](nickname-availability.md) |
 | GET `/api/v1/wallets/me` | **Access JWT + 활성 회원/로그인 세션** | 본인 잔액 조회. [WALLET](wallet-balance.md) |
 | GET `/api/v1/wallets/me/transactions` | **Access JWT + 활성 회원/로그인 세션** | 본인 원장의 거래 ID 커서 조회. [WALLET](wallet-transactions.md) |
-| GET `/api/v1/channels` | **Access JWT + 활성 회원** | local/dev에서 등록. 개발 배포는 dev,db 사용 |
-| GET `/api/v1/tables` | **Access JWT + 활성 회원** | local/dev에서 등록. 채널 설정 시 channelId 필요 |
-| POST `/api/v1/minigames/sessions` | **Access JWT + 활성 회원** | local 전용. Idempotency-Key 필수, 미니게임 서비스는 별도 활성화 |
+| GET `/api/v1/channels` | **Access JWT + 활성 회원** | local/dev 및 운영 prod,db에서 등록. 채널 목록 조회 |
+| GET `/api/v1/tables` | **Access JWT + 활성 회원** | local/dev 및 운영 prod,db에서 등록. 채널 설정 시 channelId 필요 |
+| POST `/api/v1/minigames/sessions` | **Access JWT + 활성 회원** | local/dev 및 운영 prod,db에서 등록. Idempotency-Key 필수, 미니게임 서비스는 별도 활성화 |
 | GET `/api/v1/minigames/sessions` | **Access JWT + 활성 회원** | 본인 오늘 획득·규칙 버전 상태 조회 |
 | GET `/api/v1/minigames/sessions/{sessionId}` | **Access JWT + 활성 회원** | 본인 세션만 조회 |
 | POST `/api/v1/minigames/sessions/{sessionId}/deliveries` | **Access JWT + 활성 회원** | v4 납품 승인. Idempotency-Key 필수, 엄격한 JSON 본문·256KB 제한, 본인 진행 판만 |

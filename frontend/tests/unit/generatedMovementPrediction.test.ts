@@ -2,6 +2,7 @@ import { afterAll, expect, it, vi } from 'vitest';
 import RAPIER from '@dimforge/rapier3d-compat';
 
 vi.stubEnv('VITE_PARK_MAP', 'generated');
+vi.stubEnv('MODE', 'park-integration');
 vi.resetModules();
 const { PARK_DATA } = await import('../../src/map/park');
 const { createPredictionPhysics } = await import('../../src/network/predictionPhysics');

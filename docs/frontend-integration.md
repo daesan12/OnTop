@@ -31,7 +31,8 @@ node backend/tools/check-frontend-connection.mjs --base-url https://dev-api.on-t
 
 개발 배포는 수정 소스로 이미지를 다시 빌드하고, 서버의 `compose.dev.yaml`도 함께 갱신해
 `SPRING_PROFILES_ACTIVE=dev,db`를 적용해야 한다. 기존 이미지의 프로필만 바꿔서는 해결되지 않는다.
-Compose 변경은 현재 Jenkins 분류에서 `MANUAL_REVIEW=1`이므로 자동 이미지 발행·배포가 생략된다.
+Compose 변경 자체는 Jenkins의 앱 배포를 보류하지 않는다. 다만 서버의 실제 Compose 파일은
+Jenkins가 자동으로 교체하지 않으므로 인프라 담당자가 별도로 반영해야 한다.
 인프라 담당자가 수정 이미지와 서버 Compose를 함께 반영한 뒤 실제 회원 Access로
 `GET /api/v1/channels`와 `GET /api/v1/tables?channelId=channel-1`의 200,
 새 접속권으로 WSS 연결 및 `CHANNEL_JOIN` 성공을 확인한다. 비밀키·DB 데이터는 변경하지 않는다.
@@ -40,6 +41,10 @@ Compose 변경은 현재 Jenkins 분류에서 `MANUAL_REVIEW=1`이므로 자동 
 현재 맵 전체16개 연결 코드는 [현재 맵 테이블 연결](legacy-table-integration.md)과
 [개발 대응표](integration/legacy-tables/bindings.dev.md)를 따른다. 기존2개 ID와 mapVersion은 유지한다.
 Spring 실행에서 시작 연결 비활성은 `GAME_START_CHECK`의 `START_NOT_CONFIGURED`로 구분한다.
+Spring AUTO 테이블은 전원 준비 직후 시작 연결이 없으면 같은 테이블의 인증된 참가자에게
+`ERROR(requestId=null, code=START_NOT_CONFIGURED)`를 알린다. 준비 요청의 `TABLE_STATE` 성공과
+별도 알림이며 준비를 취소하거나 경기/예약을 만들지 않는다. MANUAL의 `TABLE_START` 거절은
+해당 요청 ID를 유지한다. 실제 경기 활성화는 인프라·DB 담당과 설정을 확인한 뒤 진행한다.
 개발 조회 API는 공통 REST 인증·CORS 정책을 유지한다. `/dev/tables`, `/dev/world-config`,
 local 전용 게임 시작·정산 대역은 활성화하지 않는다. 게임 엔진·판돈 예약/정산의 실제 배포와
 프론트의 공원 테이블 모델 매핑은 별도 확인이 필요하며, 공원 입장 복구만으로 완료로 보지 않는다.
@@ -49,7 +54,7 @@ local 전용 게임 시작·정산 대역은 활성화하지 않는다. 게임 �
 
 ### 상점·보유·의상 장착 활성화
 
-SHOP-01/02·INVENTORY-01/02는 local/dev에서 등록한다. dev,db의 SHOP_ENABLED는 기본 false다.
+SHOP-01/02·INVENTORY-01/02는 local/dev 또는 운영 prod,db에서 등록한다. dev,db와 prod,db의 SHOP_ENABLED는 기본 false다.
 기존 V100 적용 이력·Flyway 버전 순서를 확인한 뒤 기존 locations에 classpath:db/shop을 추가하고 활성화한다.
 공유 DB가 이미 V110/V111 이상이면 낮은 V100 적용 절차를 DB 담당과 먼저 조율한다.
 이 작업에서 Flyway 경로/이력·데이터를 자동 변경하지 않는다. 코드 등록과 실제 dev 배포/상품 준비는 구분한다.

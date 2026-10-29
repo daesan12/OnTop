@@ -54,6 +54,12 @@ true는 세 필드만, false는 `{"ready":false}`만 허용합니다. 요청 필
 - 게임별 최소 인원(현재 2명)을 충족하고 현재 착석자 모두 준비하면 `allReady=true`입니다. 원카드·거짓말은 2~4명이 가능하며 빈 좌석은 제외합니다. 한 명은 준비해도 `allReady=false`입니다.
 - 전원 준비 상태에서도 준비 취소·퇴장이 가능합니다. 실제 경기 상태로 전환하지 않습니다.
 
+Spring AUTO 시작 연결이 비활성인 경우, 전원 준비가 된 `TABLE_STATE` 뒤에 같은 테이블의 인증된 참가자에게만
+`ERROR`를 자동 알립니다. 이때 `requestId=null`, `payload.code=START_NOT_CONFIGURED`입니다.
+이는 이미 성공한 준비 요청의 실패 응답이 아니며 준비 상태는 유지합니다. 예약·경기를 만들지 않고,
+관전자·다른 테이블에는 보내지 않습니다. MANUAL은 방장의 `TABLE_START` 요청 시 같은 오류를
+해당 요청 ID로 반환합니다. 서버 로그만 남긴 채 시작을 무기한 기다리게 하지 않도록 구분합니다.
+
 ### 실패
 
 - `INVALID_PAYLOAD`: ready 누락·타입 오류·허용하지 않은 필드, true의 참가비/expectedVersion 누락 또는 잘못된 형식.

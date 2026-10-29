@@ -1,6 +1,7 @@
 import {afterAll,expect,it,vi} from 'vitest'
 import {readFileSync} from 'node:fs'
 vi.stubEnv('VITE_PARK_MAP','generated')
+vi.stubEnv('MODE','park-integration')
 vi.resetModules()
 const map=await import('../../src/park/mapConfig')
 const {PARK_DATA,PARK_LAYOUT}=await import('../../src/map/park')
