@@ -43,7 +43,7 @@
 | `CHANNEL_NOT_FOUND` | 등록되지 않은 채널 | 채널 목록 확인 |
 | `ALREADY_IN_CHANNEL` | 다른 채널에 입장 중 | 기존 채널 퇴장 후 입장 |
 | `CHANNEL_FULL` | 채널 정원 초과 | 다른 채널 선택 |
-| `MOVE_TOO_FREQUENT` | 최소 간격보다 빠른 새 이동 | 최신 위치를 모아 간격 후 전송 |
+| `MOVE_TOO_FREQUENT` | 평균 입력 예산·일시 버스트를 넘긴 새 이동 | 최신 방향 입력을 모아 간격 후 전송, 거절 입력 재전송 안 함 |
 | `CHAT_TOO_FREQUENT` | 최소 간격보다 빠른 채팅 | 간격 후 새 메시지 전송. 무조건 자동 재시도하지 않음 |
 | `EMOTE_NOT_SUPPORTED` | 서버에 등록되지 않은 감정표현 코드 | 등록 코드 확인 |
 | `EMOTE_TOO_FREQUENT` | 최소 간격보다 빠른 감정표현 | 간격 후 사용. 무조건 자동 재시도하지 않음 |

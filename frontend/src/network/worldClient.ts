@@ -21,6 +21,7 @@ import { resetGame } from '../game/store'
 import { resetBenchState, useBenchState } from '../features/interactions/benchState'
 import { clearRoamingInput } from '../world/inputOwnership'
 import { samePose, sampleMovement } from '../world/movementPresentation'
+import { localMovement } from './localMovementPrediction'
 import { EmoteTimeline, parseEmoteEvent, parseEmoteCancellation, type EmoteEvent } from '../features/emotes/timeline'
 import { resetEmotes, retiredEmoteRequest, useEmoteState } from '../features/emotes/state'
 import type { EmoteId } from '../features/emotes/catalog'
@@ -179,6 +180,7 @@ export function showMovementNotice(message: string, sequence: number) {
   }, 3000)
 }
 export function resetWorld(status: Session['status'] = 'idle', error = '') {
+  localMovement.reset()
   clearMovementNotice()
   eventClock.reset()
   defeatTimeline.clear()
@@ -204,6 +206,7 @@ export function resetWorld(status: Session['status'] = 'idle', error = '') {
   useSession.setState({ ...initial(), status, error })
 }
 export function clearChannel(keepFeedbackDraft = false, keepNotesDraft = false) {
+  localMovement.reset()
   clearMovementNotice()
   defeatTimeline.clear()
   resetFollow()
@@ -255,7 +258,17 @@ export function sampleAvatar(
   now: number,
   target: Pose,
 ): Pose {
+  if (avatar === avatars.get(useSession.getState().sessionId)) {
+    if (!predictionAllowed()) localMovement.suspend()
+    else if (localMovement.sample(now, target)) return target
+  }
   return sampleMovement(avatar, now, NETWORK.interpolationMs, target)
+}
+
+function predictionAllowed() {
+  const s = useSession.getState(), own = avatars.get(s.sessionId)
+  return !!own && s.status === 'connected' && s.mapCompatible && !own.tableId && !own.benchId
+    && !own.fitnessId && !own.telescopeId && !own.followTargetId && !s.activities[s.sessionId]
 }
 // UTC event time advances on a monotonic clock after CONNECTED; world day rendering is separate.
 export const estimatedServerTime = () => eventClock.ready ? eventClock.now(performance.now()) : Date.now()
@@ -581,6 +594,16 @@ export function receive(message: Envelope) {
             }
           : {}),
       })
+      const own = next.avatars.find(a => a.userId === state.sessionId)
+      if (own) {
+        localMovement.reconcile(state.sessionId + '\0' + state.roomId + '\0' + next.mapVersion,
+          own.position, own.motion ?? undefined, predictionAllowed(), now)
+        const counts = new Map<string, number>()
+        for (const table of next.tables ?? []) {
+          counts.set(table.anchorId, table.chairCount)
+        }
+        localMovement.setChairs(counts)
+      } else localMovement.suspend()
       if (state.mapCompatible && !mapCompatible) {
         resetEmotes()
         for (const id of avatars.keys()) cancelAvatarEmote(id)

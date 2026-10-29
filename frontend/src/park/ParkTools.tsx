@@ -13,7 +13,6 @@ export function ParkTools() {
     useShallow((s) => ({
       status: s.status,
       error: s.error,
-      movementNotice: s.movementNotice?.message,
       roomId: s.roomId,
       focusedAnchorId: s.focusedAnchorId,
       tableId: s.tableId,
@@ -21,7 +20,7 @@ export function ParkTools() {
     })),
   )
   const facilityNotice = useFacilityUseNotice(s => s.message)
-  const error = state.error || facilityNotice || state.movementNotice
+  const error = state.error || facilityNotice
   return (
     <>
       <div className="park-runtime-tools">

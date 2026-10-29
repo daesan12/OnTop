@@ -16,6 +16,7 @@ import { bungeoppangReturnOpacity } from '../features/bungeoppang/bungeoppangVie
 import { createAvatarOpacity } from './avatarOpacity'
 import { emptyEquipment } from '../network/equipment'
 import { roamingFirstPerson } from './roamingCamera'
+import { localMovement } from '../network/localMovementPrediction'
 import { useGame } from '../game/store'
 import { openAvatarMenu } from '../features/follow/FollowMenu'
 import { gameReaction, installGameReactions } from './gameReactions'
@@ -93,7 +94,8 @@ function Avatar({
     const now = estimatedServerTime()
     const reaction = gameReaction(id, avatar, now)
     const holdingCards = seated && oneCardHeldCount(id, avatar.tableId) > 0
-    const active = !!reaction || avatarPoseActive(avatar, now)
+    const displayAvatar = own && localMovement.ready ? { ...avatar, ...localMovement.displayFlags(frameAt) } : avatar
+    const active = !!reaction || avatarPoseActive(displayAvatar, now)
     // Keep the authoritative position interpolation above at display cadence.
     // State changes (seat, action, reconnect) must never wait for the next pose tick.
     const poseDelta = cadence.advance(
@@ -104,7 +106,7 @@ function Avatar({
       `${avatarPoseKey(avatar)}|${reaction?.key ?? ''}|${holdingCards}|${active ? '' : `${avatar.current.x}|${avatar.current.y}|${avatar.current.z}`}`,
     )
     if (!poseDelta) return
-    motion.apply(avatar, now, poseDelta, pose, figure.current, reaction, holdingCards ? oneCardHoldingPose : undefined)
+    motion.apply(displayAvatar, now, poseDelta, pose, figure.current, reaction, holdingCards ? oneCardHoldingPose : undefined)
     // Follow the posed head when swimming; a tilted standing-height marker
     // otherwise puts the nickname in front of the swimmer's face/water.
     model.bones.head.getWorldPosition(worldPosition)

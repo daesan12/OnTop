@@ -36,6 +36,7 @@
     "test:e2e:notes-preview": "playwright test --config playwright.notes.config.ts"
   },
   "dependencies": {
+    "@dimforge/rapier3d-compat": "0.21.0",
     "@react-three/fiber": "9.8.1",
     "react": "19.3.0",
     "react-dom": "19.3.0",
