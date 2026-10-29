@@ -61,14 +61,15 @@
 .bung-root .bung25-deliver:disabled { opacity:1; color:#947554; background:#b58b5430; border-color:#b2946b5e; }
 .bung25-order[data-ready="true"] .bung25-deliver:not(:disabled) { background:linear-gradient(#ffe8a6,#f2c35a); color:#4a2b13; border-color:#b18436; font-weight:800; box-shadow:inset 0 1px 0 #fff9dc; }
 .bung25-deliver kbd { margin:0; font-size:9px; line-height:1.2; }
-.bung25-bottom { position:absolute; bottom:37px; left:24px; display:flex; align-items:end; gap:16px; }
+/* Opaque foreground controls cover projected cooking effects; the modal dim sits above both. */
+.bung25-bottom { position:absolute; z-index:1; bottom:37px; left:24px; display:flex; align-items:end; gap:16px; }
 .bung25-tools { display:flex; gap:5px; }
-.bung-root .bung25-tools button { position:relative; width:77px; height:112px; padding:4px 2px 7px; display:flex; flex-direction:column; align-items:center; justify-content:end; gap:2px; color:#fff4dd; border:1px solid #bdb098; border-radius:9px; background:linear-gradient(#33261fdd,#100d0cf5); box-shadow:inset 0 0 0 2px #ffffff09,0 4px 8px #13080055; font-size:13px; }
-.bung-root .bung25-tools button[data-active="true"] { border-color:#ffda7b; box-shadow:inset 0 0 0 2px #f7c96688,0 0 16px #d9973059; background:linear-gradient(#67452de8,#2c1c10f5); }
+.bung-root .bung25-tools button { position:relative; width:77px; height:112px; padding:4px 2px 7px; display:flex; flex-direction:column; align-items:center; justify-content:end; gap:2px; color:#fff4dd; border:1px solid #bdb098; border-radius:9px; background:linear-gradient(#33261f,#100d0c); box-shadow:inset 0 0 0 2px #ffffff09,0 4px 8px #13080055; font-size:13px; }
+.bung-root .bung25-tools button[data-active="true"] { border-color:#ffda7b; box-shadow:inset 0 0 0 2px #f7c96688,0 0 16px #d9973059; background:linear-gradient(#67452d,#2c1c10); }
 .bung25-tools button b { font-size:13px; line-height:1.2; }
 .bung-root .bung25-tools kbd { font-size:12px; border:0; margin:0; padding:0; line-height:1.2; }
 .bung25-ingredient { position:absolute; left:4px; top:2px; width:calc(100% - 8px); height:63px; background-image:url('/art/bungeoppang/ingredients-25d.png'); background-size:500% auto; background-repeat:no-repeat; }
-.bung25-stock { pointer-events:auto; background:linear-gradient(#513823f5,#281b14f5); padding:8px; border:2px solid #956a43; border-radius:7px; box-shadow:inset 0 0 0 2px #d0a4774d,0 4px 10px #180b0759; width:268px; }
+.bung25-stock { pointer-events:auto; background:linear-gradient(#513823,#281b14); padding:8px; border:2px solid #956a43; border-radius:7px; box-shadow:inset 0 0 0 2px #d0a4774d,0 4px 10px #180b0759; width:268px; }
 .bung25-stock header { display:flex; align-items:center; justify-content:space-between; font-size:12px; margin:0 2px 6px; }
 .bung25-stock header strong { color:#ffdb8a; margin-left:5px; }
 .bung25-stock header small { font-size:10px; color:#cfb998; }
@@ -108,6 +109,7 @@
 .bung-root[data-version="v5"] .bung-start,.bung-root[data-version="v5"] .bung-result { color:#4b2c1c; background:linear-gradient(110deg,#dfbf8e,#fff0c9 38%,#ecd0a2); border:3px solid #82552c; border-radius:8px; box-shadow:0 0 0 5px #322016c9,0 15px 50px #180c08a6; }
 .bung-root[data-version="v5"] .bung-start h2 { font-size:32px; }
 .bung-root[data-version="v5"] .bung-primary { background:linear-gradient(#ffe49a,#edba50); color:#4c2e17; border:1px solid #97632c; }
+.bung-root[data-version="v5"] .bung-dim { z-index:2; }
 .bung-root[data-version="v5"] .bung-confirm { background:linear-gradient(#342a24,#211a16); color:#fff1d7; border-color:#9d8464; }
 .bung-root[data-version="v5"] .bung-confirm .bung-row>button:first-child { background:#b84635; color:#fff4e3; border-color:#eb8c68; }
 @media (min-width:1600px) { .bung25-orders { width:760px; gap:18px; } .bung25-bottom { bottom:45px; gap:20px; } .bung-root .bung25-tools button { width:90px; height:126px; } .bung25-ingredient { height:75px; } .bung25-stock { width:310px; } .bung-root .bung25-stock li button { height:39px; } }
