@@ -4,7 +4,9 @@ import { BUNGEOPPANG } from "./config";
 import { BUNGEOPPANG_V4 } from './config';
 import * as v4 from './rulesV4';
 import * as v5 from './rulesV5';
-import { advanceCustomerArrivalsV5, canUseCustomerOrderV5, resetCustomerArrivalsV5 } from './customerArrivalV5';
+import { advanceCustomerArrivalsV5, canUseCustomerOrderV5, resetCustomerArrivalsV5, useCustomerArrivalsV5 } from './customerArrivalV5';
+import { holdCustomerDepartureV5, approveCustomerDepartureV5, advanceCustomerDeparturesV5,
+  cancelPendingCustomerDeparturesV5 } from './customerDepartureV5';
 import type { BungFeedback, FeedbackPoint } from './presentation';
 import { slotScreen } from './bungeoppangView';
 import { BUNG_GRILL } from './bungeoppangView';
@@ -433,6 +435,10 @@ function act(slot: number, action: v4.BreadAction) {
     if (error instanceof Error) popup(current ? slot : null, error.message, 'PLAIN');
     return;
   }
+  if (result.event.kind === 'deliver' && isV4Grill(grill) && v5.isV5Grill(grill)) {
+    const customer = grill.activeOrders.find(order => order.orderId === get().selectedCustomer);
+    if (customer) holdCustomerDepartureV5(customer);
+  }
   set({ grill: result.state, wasteTarget: null, choosingWaste: false });
   if (result.event.kind === 'deliver' && isV4Grill(grill) && v5.isV5Grill(grill))
     v5DeliveryFeedback = { before: grill, after: result.state as v4.GrillState, event: result.event, orderId: get().selectedCustomer };
@@ -474,6 +480,20 @@ export function deliverBungeoppangOrder() {
   const s = get();
   if (isV4Grill(s.grill) && v5.isV5Grill(s.grill) && !canUseCustomerOrderV5(s.selectedCustomer)) return;
   if (canAct() && isV4Grill(get().grill) && !get().orderPending && !get().orderError) act(-1, 'DELIVER');
+}
+/** R chooses one fulfillable, arrived order; explicit delivery buttons keep their selected target. */
+export function deliverMatchingBungeoppangOrder() {
+  if (!canAct()) return;
+  const s = get(), grill = s.grill;
+  if (!isV4Grill(grill) || s.orderPending || s.orderError) return;
+  if (!v5.isV5Grill(grill)) { deliverBungeoppangOrder(); return; }
+  const admitted = useCustomerArrivalsV5.getState().admitted;
+  const matches = grill.activeOrders.filter(order => canUseCustomerOrderV5(order.orderId) && v5.ready(grill, order))
+    .sort((a, b) => admitted[a.orderId]! - admitted[b.orderId]! || a.customerSlot - b.customerSlot);
+  const target = matches.find(order => order.orderId === s.selectedCustomer) ?? matches[0];
+  if (!target) { popup(null, '전달할 수 있는 주문이 아직 없어요.', 'PLAIN'); return; }
+  set({ selectedCustomer: target.orderId });
+  deliverBungeoppangOrder();
 }
 export function discardBungeoppangTray(index: number) {
   if (canAct() && isV4Grill(get().grill)) act(index, 'TRAY_DISCARD');
@@ -547,6 +567,7 @@ export async function requestV5Delivery() {
         }
         orderSubmission = null;
         v5DeliveryFeedback = null;
+        cancelPendingCustomerDeparturesV5();
         set({ grill, selectedCustomer: grill.activeOrders[0]?.orderId ?? null, orderPending: false, orderError: null });
         popup(null, '서버 상태로 복구했어요. 손님 주문을 다시 확인해 주세요.', 'PLAIN');
         return;
@@ -622,6 +643,10 @@ function onEvent(event: GrillEvent | v4.GrillEvent, before: AnyGrill, afterOverr
   const v4Grill = isV4Grill(before) ? before : null;
   if (event.kind === 'deliver') {
     if (v4Grill) {
+      if (v5.isV5Grill(v4Grill)) {
+        const customer = v4Grill.activeOrders.find(order => order.orderId === (customerId ?? get().selectedCustomer));
+        if (customer) approveCustomerDepartureV5(customer);
+      }
       const after = afterOverride ?? get().grill;
       const remaining = isV4Grill(after) ? new Set(after.tray.map(b => b.id)) : new Set<number>();
       v4Grill.tray.filter(b => !remaining.has(b.id)).forEach((bread, i) => feedback({
@@ -831,6 +856,7 @@ function tick(now: number) {
 }
 export function advanceBungeoppangTime(now = performance.now()) {
   const s = get();
+  advanceCustomerDeparturesV5(now);
   clock.frameAt = now;
   if (s.phase === "countdown") {
     clock.countdown = Math.max(0, clock.playAt - now);

@@ -8,7 +8,7 @@ services:
     env_file:
       - ${APP_ENV_FILE:?Set APP_ENV_FILE outside the repository}
     environment:
-      SPRING_PROFILES_ACTIVE: db
+      SPRING_PROFILES_ACTIVE: prod,db
       SERVER_FORWARD_HEADERS_STRATEGY: framework
       DB_PASSWORD_FILE: /run/secrets/db_password
     secrets:

@@ -8,6 +8,7 @@ import { ingredientStyle } from './BungeoppangFeedback';
 import { BreadPortraitV5 } from './BreadPortraitV5';
 import { advanceCustomerSpeechV5, customerRequestText, registerCustomerCloudV5, useCustomerSpeechV5 } from './customerSpeechV5';
 import { useCustomerArrivalsV5 } from './customerArrivalV5';
+import { useCustomerDeparturesV5, type CustomerDepartureV5 } from './customerDepartureV5';
 
 function ServiceHeader() {
   const [, tick] = useState(0);
@@ -69,14 +70,27 @@ function CustomerOrderCloud({ order, selected, done, counts, active, pending, er
     </p>}
     {summary && done && <button type="button" className="bung25-deliver" disabled={!active || pending || error}
       onClick={e => { e.currentTarget.blur(); selectBungeoppangCustomer(order.orderId); deliverBungeoppangOrder(); }}>
-      {pending && selected ? '전달 확인 중…' : '전달하기'}{selected && <kbd>R</kbd>}
+      {pending && selected ? '전달 확인 중…' : '전달하기'}
     </button>}</>}
+  </section>;
+}
+
+function CustomerThanksCloud({ visit }: { visit: CustomerDepartureV5 }) {
+  const { order, phase } = visit;
+  return <section ref={element => { registerCustomerCloudV5(order.orderId, element); }}
+    className="bung25-order bung25-thanks" data-order-id={order.orderId} data-stage={phase}
+    aria-label={`${order.customerSlot + 1}번 손님 ${phase === 'pending' ? '전달 확인' : '감사 인사'}`}>
+    <OrderCloud />
+    <p className="bung25-speech" role="status" aria-live="polite" aria-atomic="true">
+      {phase === 'pending' ? '전달을 확인하고 있어요…' : phase === 'receiving' ? '붕어빵을 받고 있어요.' : visit.thanks}
+    </p>
   </section>;
 }
 
 /** Fixed, readable UI over a close, three-dimensional cooking set. */
 export function BungeoppangHudV5() {
   const s = useBungeoppang();
+  const departures = useCustomerDeparturesV5(state => state.visits);
   const grill = s.grill;
   if (!grill || !('rulesVersion' in grill) || !isV5Grill(grill)) return null;
   const counts = trayCounts(grill), active = s.phase === 'play' && !s.confirmExit && !s.helpOpen && !s.abandonPending;
@@ -85,6 +99,8 @@ export function BungeoppangHudV5() {
     <ServiceHeader />
     <div className="bung25-orders" aria-label="손님 주문">
       {[0, 1, 2].map(slot => {
+        const departure = Object.values(departures).find(visit => visit.order.customerSlot === slot);
+        if (departure) return <CustomerThanksCloud key={`thanks-${departure.order.orderId}`} visit={departure} />;
         const order = grill.activeOrders.find(o => o.customerSlot === slot);
         if (!order) return <section key={`empty-${slot}`} className="bung25-order bung25-order-empty" aria-hidden="true" />;
         return <CustomerOrderCloud key={order.orderId} order={order} selected={order.orderId === s.selectedCustomer}
@@ -122,7 +138,7 @@ export function BungeoppangHudV5() {
           onClick={e => { e.currentTarget.blur(); toggleBungeoppangWaste(); }}>철판 빵 선택</button>
       </div>
     </div>
-    <p className="bung25-instruction" role="status">{wasteHint}<span>Q W E / A S D 조리 · 휠 재료 변경</span></p>
+    <p className="bung25-instruction" role="status">{wasteHint}<span>Q W E / A S D 조리 · 휠 재료 변경 · R 준비된 주문 자동 전달</span></p>
     {s.orderError && <div className="bung-v5-delivery-error" role="alert">{s.orderError}
       <button disabled={!active || s.orderPending} onClick={() => void requestV5Delivery()}>같은 납품 다시 확인</button>
     </div>}

@@ -12,11 +12,12 @@ import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import com.ssafy.ontop.config.RuntimeProfiles;
 import org.springframework.context.annotation.Profile;
 import org.springframework.transaction.PlatformTransactionManager;
 
 @Configuration
-@Profile("(local | dev) & db & !prod & !production")
+@Profile(RuntimeProfiles.PRODUCT_FEATURE_WITH_DB)
 @ConditionalOnProperty(name = "ontop.shop.enabled", havingValue = "true")
 @EntityScan(basePackageClasses = {Item.class, UserItem.class, ShopPurchase.class})
 public class ShopConfiguration {

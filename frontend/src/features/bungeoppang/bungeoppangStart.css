@@ -32,14 +32,18 @@
 .bung-root .bung-start-step-heading p { margin: 0; color: #38281b; font-size: 12px; line-height: 1.45; letter-spacing: -.5px; white-space: nowrap; }
 .bung-start-steps > li > img { display: block; box-sizing: border-box; width: 100%; height: auto; aspect-ratio: 1.5; object-fit: cover; border-radius: 11px; border: 3px solid #e6d8c3; box-shadow: 0 3px 5px #6e452318; }
 .bung-start-steps > li:not(:last-child)::after { content: '➜'; position: absolute; right: -49px; top: calc(50% + 12px); transform: translateY(-50%); color: #a17345; font: 700 40px/1 system-ui, sans-serif; }
-.bung-root .bung-start .bung-start-earned { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; margin: 22px 0 12px; color: #795033; font-size: 23px; line-height: 1.5; }
-.bung-start-earned strong { display: inline-flex; align-items: center; gap: 7px; color: #48230e; font: 700 23px/1.5 'Malgun Gothic', system-ui, sans-serif; }
+.bung-root .bung-start .bung-start-earned { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; margin: 22px 0 12px; color: #57331b; font: 700 23px/1.5 'Malgun Gothic', system-ui, sans-serif; font-variant-numeric: tabular-nums; }
+.bung-start-earned .bung-start-amount { display: inline-flex; align-items: center; gap: 7px; color: inherit; font: inherit; }
 .bung-start-earned img { display: block; width: 28px; height: 28px; object-fit: contain; }
-.bung-root .bung-start .bung-primary { display: block; width: 178px; min-height: 68px; margin: 0 auto; padding: 12px 24px; border: 0; border-radius: 12px; background: #ad8565; color: #fffaf4; font: 700 26px/1.4 'Malgun Gothic', system-ui, sans-serif; }
-.bung-root .bung-start .bung-primary:hover:not(:disabled) { background: #906443; }
-.bung-root .bung-start .bung-primary:disabled { opacity: .8; }
+.bung-root .bung-start .bung-primary { display: block; width: 178px; min-height: 68px; margin: 0 auto; padding: 12px 24px; border: 1px solid #813a16; border-radius: 12px; background: linear-gradient(#ae5e24, #88401a); color: #fffaf4; box-shadow: 0 4px 0 #622c12, 0 7px 14px #71381029; font: 700 26px/1.4 'Malgun Gothic', system-ui, sans-serif; transition: background .15s, box-shadow .15s, transform .15s; }
+.bung-root .bung-start .bung-primary:hover:not(:disabled) { background: linear-gradient(#bc6a2d, #98491d); box-shadow: 0 5px 0 #622c12, 0 9px 17px #71381030; transform: translateY(-1px); }
+.bung-root .bung-start .bung-primary:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 2px 0 #622c12, 0 3px 8px #71381029; }
+.bung-root .bung-start .bung-primary:disabled { background: #b79a80; border-color: #a98a70; box-shadow: 0 2px 0 #957455; opacity: .7; }
 .bung-root .bung-start button:focus-visible { outline: 3px solid #84572e; outline-offset: 4px; }
-.bung-root .bung-start footer { justify-content: flex-end; margin: -23px -20px 0 0; min-height: 23px; font-size: 16px; }
+.bung-root .bung-start footer { justify-content: flex-end; margin: -38px -20px 0 0; min-height: 38px; font-size: 14px; }
+.bung-root .bung-start .bung-start-exit { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 38px; padding: 6px 12px; border: 1px solid #d8c3a7; border-radius: 9px; background: #f6eddf; color: #735137; font: 600 14px/1.4 'Malgun Gothic', system-ui, sans-serif; text-decoration: none; transition: background .15s, border-color .15s; }
+.bung-root .bung-start .bung-start-exit:hover { background: #eddfc9; border-color: #bb9a72; }
+.bung-root .bung-start .bung-start-exit kbd { margin: 0; padding: 2px 5px; border: 1px solid #d1b997; border-radius: 4px; background: #fffaf1; color: inherit; font: 600 11px/1.25 'Malgun Gothic', system-ui, sans-serif; }
 .bung-start .bung-error { margin: 8px 0 12px; }
 @media (max-width: 1000px) {
   .bung-root .bung-panel.bung-start { padding: 24px 30px 22px; }
@@ -65,7 +69,11 @@
   .bung-start-steps > li > img { aspect-ratio: 1.85; }
   .bung-start-steps > li:not(:last-child)::after { display: none; }
   .bung-root .bung-start .bung-start-earned { margin-top: 20px; font-size: 17px; }
-  .bung-start-earned strong { font-size: 19px; }
   .bung-root .bung-start .bung-primary { width: 150px; min-height: 52px; font-size: 21px; }
   .bung-root .bung-start footer { margin: 14px 0 0; justify-content: center; font-size: 14px; }
+  .bung-root .bung-start .bung-start-exit { min-height: 44px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bung-root .bung-start .bung-primary,
+  .bung-root .bung-start .bung-start-exit { transition: none; }
 }

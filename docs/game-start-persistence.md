@@ -9,7 +9,7 @@ selector가 GAME_SELECT로 확정한 B를 예약한다. V122가 기존 1코인 C
 `GameStartGateway`의 실제 DB 구현은 `JpaGameStartGateway`다.
 `db` 프로필과 `ontop.game-start.enabled=true`를 함께 사용해야 등록된다.
 기존 local rehearsal의 문자열 경기 ID와 `LocalGameStartGateway`는 변경하지 않는다.
-실제 엔진 연결은 기존 `CommittedGameStartService`의 local/dev 조건(prod/production 제외)과 게임별 활성화 설정을 따른다.
+실제 엔진 연결은 `CommittedGameStartService`의 local/dev 또는 운영 `prod,db` 조건과 게임별 활성화 설정을 따른다. 운영과 local/dev를 혼합한 프로필은 제외한다.
 기본값이나 dev의 게임 활성화 설정은 이번 작업에서 바꾸지 않는다.
 
 Story 1은 **예약 커밋** 경계다. Story 173에서 정상 종료 정산·예약 해제를 연결했다.

@@ -54,7 +54,7 @@ local 전용 게임 시작·정산 대역은 활성화하지 않는다. 게임 �
 
 ### 상점·보유·의상 장착 활성화
 
-SHOP-01/02·INVENTORY-01/02는 local/dev에서 등록한다. dev,db의 SHOP_ENABLED는 기본 false다.
+SHOP-01/02·INVENTORY-01/02는 local/dev 또는 운영 prod,db에서 등록한다. dev,db와 prod,db의 SHOP_ENABLED는 기본 false다.
 기존 V100 적용 이력·Flyway 버전 순서를 확인한 뒤 기존 locations에 classpath:db/shop을 추가하고 활성화한다.
 공유 DB가 이미 V110/V111 이상이면 낮은 V100 적용 절차를 DB 담당과 먼저 조율한다.
 이 작업에서 Flyway 경로/이력·데이터를 자동 변경하지 않는다. 코드 등록과 실제 dev 배포/상품 준비는 구분한다.

@@ -13,11 +13,11 @@ describe('v5 explicit issuer simulation', () => {
     a.heats[0] = 999; expect((await service.startGame('start')).heats[0]).toBe(85);
     expect(service.mock).toBe(true);
   });
-  it('rejects early completion and grants zero real coins after an actual three minute round', async () => {
+  it('rejects early completion and grants zero real coins after an actual two minute round', async () => {
     let now = 0;
     const service = createV5PreviewService(() => .5, () => now), game = await service.startGame('start');
     const input = { gameId: game.gameId, log: [], clientScore: 99999, seenTips: [] };
-    now = R.countdownMs + 179999;
+    now = R.countdownMs + 119999;
     await expect(service.submitResult(input)).rejects.toMatchObject({ code: 'TOO_EARLY' });
     now++;
     await expect(service.submitResult(input)).resolves.toMatchObject({ score: 0, coinsGranted: 0, rulesVersion: 'v5' });
