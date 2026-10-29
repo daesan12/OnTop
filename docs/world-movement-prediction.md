@@ -61,6 +61,8 @@ Java Bullet과 Rapier는 다른 엔진이므로 완전히 같은 궤적을 보�
 
 ## 호환과 검증
 
+테스트 전용 `ClientPositionPrototypeTests`는 별도의 client-driven 위치 검증 가능성을 살펴보는 오프라인 초안이다. 제품 프로토콜은 여전히 방향 입력 방식이며 좌표 제출 API가 추가된 것이 아니다. 사용자 B 선호와 초안의 통과/미검증 범위는 `world-movement-analysis.md`8절을 참고한다.
+
 BE 먼저 반영 후 FE를 반영할 수 있다. 구FE는 추가 motion을 무시하고 신FE는 motion 없는 구BE에서 기존 표시를 사용한다. 인증·DB 스키마·게임 규칙 변경은 없다.
 
 MovementPredictionContractTests는 수락/물리 완료 구분, 버스트·충전·중복 순번, 속도와 의자 안전 이동의 세대 동기화를 검사한다. FE 단위 검사는 예측·재생·정지·방향 전환·기한·재접속/활동 중단·실제 Rapier 충돌을 확인한다. 선택 실행 MovementPredictionFrontendTests와 movement-prediction.spec.ts는 같은 Bullet 궤적의 제어된 리플레이를 비교한다. 합성 로그인/전송과 준비된 충돌 월드의 로컬 비교이며 운영 지연 측정·실제 로그인 연동 검수와 구분한다.
