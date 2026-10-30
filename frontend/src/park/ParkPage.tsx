@@ -112,7 +112,7 @@ function ParkContent({ onExit, exitError, onAuthEnded }: ParkProps) {
           <AccountMenu exitError={exitError} onExit={onExit} onWithdrawn={onAuthEnded} />
         </div>}
 
-        <div className="park-roaming-ui" hidden={bungeoppang} inert={bungeoppang}>
+        <div className="park-chat-layer" hidden={bungeoppang} inert={bungeoppang}>
           {omokChat ? <SpectatorChat /> : !omokFocus && <ParkChat key={`${session.sessionId}:${session.roomId}`} />}
         </div>
 

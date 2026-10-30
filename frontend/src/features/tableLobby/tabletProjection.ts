@@ -1,5 +1,5 @@
 /** Project real HTML onto the 3D screen. Coordinates stay in CSS pixels, independent of DPR. */
-export const TABLET = { width: 1.65, height: 1.03125, pixelsX: 1280, pixelsY: 800, y: 1.65, tilt: -0.12, screenDepth: .06 } as const
+export const TABLET = { width: 1.452, height: .9075, pixelsX: 1280, pixelsY: 800, y: 1.65, tilt: -0.12, screenDepth: .06 } as const
 export const tabletProjection = { element: null as HTMLElement | null, amount: 0 }
 export function screenTransform(points: readonly { x: number; y: number }[]) {
   const w = TABLET.pixelsX, h = TABLET.pixelsY

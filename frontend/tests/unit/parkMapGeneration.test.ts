@@ -20,11 +20,11 @@ describe('park map generation',()=>{
     expect(canonicalJson({b:1,a:-0})).toBe('{"a":0,"b":1}')
   })
   it('changes one shared version when placement or calculation source changes',()=>{
-    const d=structuredClone(PARK_DEFINITION);d.sites.shop.x+=.25
+    const d=structuredClone(PARK_DEFINITION);d.sites.drink.x+=.25
     const moved=createMapArtifacts(resolveParkLayout(d).data,sources),original=artifact()
     expect(moved.mapVersion).not.toBe(original.mapVersion)
     expect(moved.server.data.tables.map(t=>t.id)).toEqual(PARK_DATA.tables.map(t=>t.id))
-    expect(moved.server.data.collision.obstacles.find(o=>o.id==='layout-shop')).toMatchObject({x:PARK_DEFINITION.sites.shop.x+.25})
+    expect(moved.server.data.collision.obstacles.find(o=>o.id==='layout-drink')).toMatchObject({x:PARK_DEFINITION.sites.drink.x+.25})
     const changedSource=createMapArtifacts(PARK_DATA,[{...sources[0]!,sha256:sha256('new rules')},sources[1]!])
     expect(changedSource.mapVersion).not.toBe(original.mapVersion)
     expect(changedSource.manifest.hashes.dataHash).toBe(original.manifest.hashes.dataHash)

@@ -117,3 +117,50 @@ it.each([undefined,'PARK_V1'] as const)('slides off furniture after a high fall 
   expect(Math.hypot(pose.x-table.position[0],pose.z-table.position[2])).toBeGreaterThan(1)
  }finally{simulation.dispose()}
 })
+
+
+it('keeps PARK_V1 selected through generated water buoyancy and a return to normal ground',async()=>{
+ const sim=await createPredictionPhysics('PARK_V1'),stop={dx:0,dz:0,run:false,jump:false}
+ const {groundHeight,lakeRadiusAt,LAKE:water,SWIMMING}=await import('../../src/park/mapConfig')
+ try{
+  const point=[-5,0,5].flatMap(dx=>[-8,0,8].map(dz=>({x:water.x+dx,z:water.z+dz}))).find(p=>lakeRadiusAt(p.x,p.z)<.7&&water.surfaceY-groundHeight(p.x,p.z)>1)!
+  expect(point).toBeTruthy();const floatY=water.surfaceY+SWIMMING.floatOffset
+  sim.reset({...point,y:floatY-.2,yaw:0},0,false)
+  for(let n=0;n<120;n++)sim.step(stop,1/60)
+  expect(sim.pose().y).toBeCloseTo(floatY,2)
+  sim.reset({x:0,y:.84,z:82,yaw:0},0,true)
+  for(let n=0;n<60;n++)sim.step(stop,1/60)
+  const start=sim.pose();for(let n=0;n<60;n++)sim.step({...stop,dz:-1,run:true},1/60)
+  expect(start.z-sim.pose().z).toBeGreaterThan(7)
+ }finally{sim.dispose()}
+})
+it('walks the generated tower spiral with the same PARK_V1 controller',async()=>{
+ const sim=await createPredictionPhysics('PARK_V1'),tower=PARK_DATA.physics.tower,radius=(tower.inner+tower.outer)/2
+ try{
+  sim.reset({x:tower.x+radius,y:tower.surfaceOffset+.84,z:tower.z,yaw:0},0,false)
+  for(let n=0;n<45;n++)sim.step({dx:0,dz:0,run:false,jump:false},1/60)
+  const start=sim.pose()
+  for(let n=0;n<540;n++){
+   const p=sim.pose(),angle=Math.atan2(p.z-tower.z,p.x-tower.x)+.08
+   const dx=tower.x+radius*Math.cos(angle)-p.x,dz=tower.z+radius*Math.sin(angle)-p.z,length=Math.hypot(dx,dz)
+   sim.step({dx:dx/length,dz:dz/length,run:false,jump:false},1/60)
+   expect([sim.pose().x,sim.pose().y,sim.pose().z].every(Number.isFinite)).toBe(true)
+  }
+  expect(sim.pose().y-start.y).toBeGreaterThan(2)
+ }finally{sim.dispose()}
+})
+it('can enter and leave the generated shallow lake opening without changing PARK_V1',async()=>{
+ const {LAKE,SWIMMING,groundHeight,lakeRadiusAt}=await import('../../src/park/mapConfig')
+ const sim=await createPredictionPhysics('PARK_V1'),stop={dx:0,dz:0,run:false,jump:false},x=LAKE.x+LAKE.radiusX+2,z=LAKE.z
+ try{
+  sim.reset({x,y:groundHeight(x,z)+.84,z,yaw:0},0,false)
+  for(let n=0;n<60;n++)sim.step(stop,1/60)
+  let entered=false,exited=false
+  for(let n=1;n<=600;n++){
+   sim.step({...stop,dx:n<=240?-1:1,run:true},1/60)
+   const p=sim.pose(),wet=lakeRadiusAt(p.x,p.z)<1&&LAKE.surfaceY-groundHeight(p.x,p.z)>SWIMMING.depthThreshold&&p.y<LAKE.surfaceY+.4
+   entered ||=wet;exited ||=entered&&!wet
+  }
+  expect(entered).toBe(true);expect(exited).toBe(true);expect(sim.pose().y).toBeGreaterThan(.7)
+ }finally{sim.dispose()}
+})

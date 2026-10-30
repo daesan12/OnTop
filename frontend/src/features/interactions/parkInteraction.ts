@@ -52,7 +52,7 @@ export function getParkInteraction(): ParkInteraction | null {
   if(GENERATED_PARK_ENABLED)for(const site of constructionSites){
     if(!canReachConstruction(p.current,site.id))continue
     const [x,y,z]=site.reachPosition,distance=Math.hypot(p.current.x-x,p.current.z-z)
-    choices.push({kind:'construction',id:site.id,label:site.label+' · 공사 안내',occupied:false,available:true,distance,score:interactionScore(distance,{x,y,z})})
+    choices.push({kind:'construction',id:site.id,label:site.label+(site.id==='layout-photo'?' · 공사 안내':' · 무료 목업 체험'),occupied:false,available:true,distance,score:interactionScore(distance,{x,y,z})})
   }
   if (canReachBungeoppang(p.current)) {
     const cart = MINI_PROPS[0], distance = Math.hypot(p.current.x - cart.x, p.current.z - cart.z)

@@ -3,7 +3,7 @@ import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import {
   Color,
   CatmullRomCurve3,
-  BoxGeometry,
+  PlaneGeometry,
   ExtrudeGeometry,
   Group,
   InstancedMesh,
@@ -133,7 +133,9 @@ function GrillMeshes() {
       batter,
       cavity,
       bean: new SphereGeometry(0.045, 10, 6),
-      hit: new BoxGeometry(L * 1.12, 0.14, L * 0.82),
+      // Coplanar targets follow the six plates, without raised front faces
+      // intercepting clicks intended for the row behind them.
+      hit: new PlaneGeometry(.38, .33).rotateX(-Math.PI / 2),
     };
   }, [L, detailed]);
   const materials = useMemo(
@@ -211,7 +213,7 @@ function GrillMeshes() {
       // 재료가 맞지 않을 때 0.25초 흔들기
       const shake = now - fx.shakeAt;
       const offset = shake < 250 ? Math.sin(shake / 18) * 0.012 : 0;
-      if (group) group.position.x = x + offset;
+      if (group) group.position.x = x;
       const cooking =
         showGame && (slot?.phase === "front" || slot?.phase === "back");
       const level = cooking
@@ -384,11 +386,11 @@ function GrillMeshes() {
           }}
           position={[x, BUNG_GRILL.top, z]}
         >
-          {/* 붕어빵이 뒤집히며 움직여도 빗나가지 않는 넓은 클릭 상자 */}
+          {/* Keep each target fixed to its plate through shake/flip animations. */}
           <mesh
             material={materials.hit}
             geometry={geometries.hit}
-            position={[0, 0.06, 0]}
+            position={[0, 0.002, 0]}
             onPointerDown={onDown(i)}
             onPointerOver={(e) => {
               e.stopPropagation();

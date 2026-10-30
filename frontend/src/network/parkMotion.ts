@@ -8,6 +8,7 @@ export const PARK_MOTION = {
 export class ParkMotion {
  private vx=0; private vz=0; private vy=0; private remaining=.05; private running=false
  reset(velocityY=0){this.vx=this.vz=0;this.vy=velocityY;this.remaining=.05;this.running=false}
+ stopHorizontal(){this.vx=this.vz=0;this.running=false}
  advance(input:MovementIntent,seconds:number,grounded:boolean,jumpSpeed:number=PARK_MOTION.jumpSpeed){
   const settings=PARK_MOTION
   const dt=Math.max(0,Math.min(seconds,.1)), jump=input.jump&&grounded

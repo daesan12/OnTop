@@ -62,7 +62,7 @@ export function buildInteractionData(i:Input) {
   }))
   const fitness=i.fitness.map(s=>({id:s.id,kind:'FITNESS' as const,position:s.position,yaw:s.yaw,radius:FITNESS.interactionRadius,heightTolerance:.7,
     use:at(s.position[0],s.position[1]+s.baseHeight+.8,s.position[2],s.yaw),
-    exit:at(s.position[0]-Math.sin(s.yaw)*FITNESS.exitOffset,s.position[1]+FITNESS.padSurfaceHeight+.8,s.position[2]-Math.cos(s.yaw)*FITNESS.exitOffset,s.yaw),
+    exit:at(s.position[0]-Math.sin(s.yaw)*d.fitness.exitOffset,s.position[1]+FITNESS.padSurfaceHeight+.8,s.position[2]-Math.cos(s.yaw)*d.fitness.exitOffset,s.yaw),
   }))
   const telescopes=TELESCOPES.map(t=>{
     const x=t.position[0]-TOWER_SITE.x+d.sites.tower.x,z=t.position[2]-TOWER_SITE.z+d.sites.tower.z,y=t.position[1]

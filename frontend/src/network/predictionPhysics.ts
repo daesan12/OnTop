@@ -43,6 +43,8 @@ class PredictionPhysics implements PredictionSimulation {
     }
     return top
   }
+  private followTarget: {x:number;z:number} | undefined
+  private surfaceFlags = {moving:false,running:false}
   private vy = 0
   private grounded = false
   private yaw = Math.PI
@@ -105,6 +107,15 @@ class PredictionPhysics implements PredictionSimulation {
     this.world.timestep = 1 / 60
     this.world.step()
   }
+  setFollowTarget(target: {x:number;z:number} | undefined) { this.followTarget = target }
+  stopHorizontal() { this.parkMotion.stopHorizontal(); this.surfaceFlags={moving:false,running:false} }
+  private limitFollow(wanted:{x:number;z:number}, p:{x:number;z:number}) {
+    if (!this.followTarget) return
+    const distance=Math.hypot(this.followTarget.x-p.x,this.followTarget.z-p.z)
+    const allowance=Math.max(0,distance-2.2),length=Math.hypot(wanted.x,wanted.z)
+    if(length>allowance&&length>0){wanted.x*=allowance/length;wanted.z*=allowance/length}
+    if(allowance<.00001)this.parkMotion.stopHorizontal()
+  }
   setMotionProfile(profile: 'PARK_V1' | undefined) { this.tuned = profile === 'PARK_V1' }
   reset(pose: Pose, velocityY: number, grounded: boolean, grace?: JumpGraceSnapshot) {
     this.syncJumpCourse()
@@ -124,6 +135,10 @@ class PredictionPhysics implements PredictionSimulation {
     const p = this.body.translation()
     const swimming = lakeRadiusAt(p.x, p.z) < 1
       && LAKE.surfaceY - groundHeight(p.x, p.z) > SWIMMING.depthThreshold && p.y < LAKE.surfaceY + 0.4
+    // The generated lake bank rises slightly above Rapier's default 45 degrees.
+    // Limit this allowance to the actual lake bank; ordinary stairs/walls keep their limit.
+    const lakeBank = this.tuned && GENERATED_PARK_ENABLED && lakeRadiusAt(p.x,p.z)<1 && groundHeight(p.x,p.z)<LAKE.surfaceY
+    this.controller.setMaxSlopeClimbAngle(lakeBank ? Math.atan(LAKE.depth/(Math.min(LAKE.radiusX,LAKE.radiusZ)*.14))+.03 : Math.PI/4)
     const speed = swimming ? input.run ? SWIMMING.fastSpeed : SWIMMING.speed
       : input.run ? MOVEMENT.runSpeed : MOVEMENT.walkSpeed
     if (this.tuned && !swimming && !this.climbY) {
@@ -151,10 +166,11 @@ class PredictionPhysics implements PredictionSimulation {
       ? Math.max(-2, Math.min(2, (LAKE.surfaceY + SWIMMING.floatOffset - p.y) * 5))
       : Math.max(MOVEMENT.maxFallSpeed,
         this.vy + (MOVEMENT.gravity) * dt)
-    this.controller.computeColliderMovement(this.collider, {
-      x: input.dx * speed * dt, y: this.vy * dt, z: input.dz * speed * dt,
-    })
+    const wanted = {x:input.dx*speed*dt,y:this.vy*dt,z:input.dz*speed*dt}
+    this.limitFollow(wanted,p)
+    this.controller.computeColliderMovement(this.collider, wanted)
     const delta = this.controller.computedMovement()
+    this.surfaceFlags={moving:Math.hypot(delta.x,delta.z)>dt*.12,running:input.run&&Math.hypot(delta.x,delta.z)>dt*.12}
     if (this.vy > 0 && delta.y + .0001 < this.vy * dt) this.vy = 0
     const limit = WORLD.halfSize - WORLD.boundaryHalfDepth - MOVEMENT.radius - MOVEMENT.offset
     const proposed={ x: Math.max(-limit, Math.min(limit, p.x + delta.x)),y:p.y+delta.y,z:Math.max(-limit, Math.min(limit, p.z + delta.z)) }
@@ -169,6 +185,7 @@ class PredictionPhysics implements PredictionSimulation {
   private stepTuned(input: MovementIntent, dt: number, launch: boolean) {
     const p=this.body.translation(),jumpSpeed=this.onPavilion(p)?PARK_DATA.physics.pavilionTunedJumpSpeed:undefined
     const wanted=this.parkMotion.advance(input,dt,this.grounded||launch,jumpSpeed)
+    this.limitFollow(wanted,p)
     // Finish a known stair rise before its centre crosses the tread. Rounded
     // capsule corner contact can otherwise report an interpenetrating mid-step.
     const foot=p.y-MOVEMENT.halfHeight-MOVEMENT.radius
@@ -215,7 +232,7 @@ class PredictionPhysics implements PredictionSimulation {
     const foot=pose.y-MOVEMENT.halfHeight-MOVEMENT.radius-MOVEMENT.offset
     return GENERATED_PARK_ENABLED&&PARK_PAVILIONS.some(site=>Math.abs(foot-site.floor)<.15&&Math.hypot(pose.x-site.x,pose.z-site.z)<4.5*site.scale+.3)
   }
-  movementFlags() { return this.tunedActive ? this.parkMotion.flags() : undefined }
+  movementFlags() { return this.tunedActive ? this.parkMotion.flags() : this.surfaceFlags }
   pose(): Pose { return { ...this.body.translation(), yaw: this.yaw } }
   dispose() { this.world.free() }
 }

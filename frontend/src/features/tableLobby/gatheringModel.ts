@@ -18,7 +18,9 @@ export function resultSettlement(result: Result) {
   if (result.status === 'INVALID') return result.settlementStatus === 'SETTLED'
     ? `예약 해제 완료 · 참가비 ${result.betAmountPerPlayer} 코인 · 잔액 변화 0`
     : `무효 경기 · 참가비 ${result.betAmountPerPlayer} 코인 예약금 반환 대기`
-  return result.settlementStatus === 'SETTLED' ? `정산 완료 · 내 엽전 증감 ${result.myCoinDelta}` : '정산 대기 중'
+  return result.settlementStatus === 'SETTLED'
+    ? typeof result.myCoinDelta === 'number' ? `내 엽전 ${result.myCoinDelta > 0 ? '+' : ''}${result.myCoinDelta}냥` : '엽전 확인 중'
+    : '정산 대기 중'
 }
 /** Public presentation only. Never infer rankings, payouts or next-round permission. */
 export function gatheringModel({ table, ownId, game, result, start, nickname }: Context) {

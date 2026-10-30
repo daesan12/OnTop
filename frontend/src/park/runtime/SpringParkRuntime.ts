@@ -280,7 +280,10 @@ export class ParkRuntime implements ParkRuntimePort {
       return { generation: this.generation, userId: s.sessionId, channelId: s.roomId,
         connected: this.active && this.socket.connected && s.status === 'connected' }
     },
-    request: (type, payload, expected, onId) => this.socket.request(type, payload, expected, onId),
+    request: (type, payload, expected, onId) => {
+      if (type === 'WORLD_FOLLOW_STOP') localMovement.stopSteering()
+      return this.socket.request(type, payload, expected, onId)
+    },
   })
   useFacility = (id: string, seat: number, signal: AbortSignal) => {
     const session = useSession.getState()
@@ -885,6 +888,11 @@ export class ParkRuntime implements ParkRuntimePort {
   }
   private async sendMovement(intent: MovementIntent, scope: string) {
     if (scope !== this.movementScope() || !this.canSendMovement(intent)) return
+    if (localMovement.positionUnavailable) {
+      const message = '이동 엔진을 준비하지 못했습니다. 새로고침 후 다시 접속해주세요.'
+      if (useSession.getState().error !== message) this.report(message)
+      return
+    }
     const fallback = localMovement.positionFallback()
     if (fallback) {
       try { await this.socket.request('WORLD_POSITION_FALLBACK', fallback, ['WORLD_STATE']) }
