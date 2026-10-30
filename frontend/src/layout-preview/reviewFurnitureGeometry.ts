@@ -1,5 +1,6 @@
 import { PropBuilder,hipRoof } from '../world/art/propGeometry'
 import { MAIN_GATE,EVENT_BENCHES } from './layout'
+import { connectGateRoof } from './mainGateStructure'
 
 const gate=new PropBuilder([12,8])
 // A single narrow doorway with solid stone wings meeting the continuous park wall.
@@ -10,14 +11,20 @@ for(const x of [-MAIN_GATE.postX,MAIN_GATE.postX]) {
   for(const side of [-1,1])gate.box('wood','#8c6541',[x+side*.32,4.04,MAIN_GATE.z],[1.05,.18,.62],[0,0,side*.2])
 }
 for(const side of [-1,1]) {
-  gate.box('glow','#ffcd8c',[side*(MAIN_GATE.postX+.05),3.35,MAIN_GATE.z+1.25],[.35,.46,.35])
-  gate.box('tile','#40554c',[side*2.65,3.65,MAIN_GATE.z+1.25],[.56,.12,.6])
+  const lanternX=side*(MAIN_GATE.postX+.05)
+  gate.box('glow','#ffcd8c',[lanternX,3.35,MAIN_GATE.z+1.25],[.35,.46,.35])
+  gate.box('tile','#40554c',[lanternX,3.63,MAIN_GATE.z+1.25],[.56,.14,.6])
+  // Cantilever arms overlap the lintel and carry each lantern by a short hanger.
+  gate.box('wood','#8c6541',[lanternX,3.98,MAIN_GATE.z+.64],[.18,.2,1.5])
+  gate.cylinder('metal','#4a4438',[lanternX,3.84,MAIN_GATE.z+1.25],.045,.045,.4)
   // Timber doors are held open against the stone piers, leaving the centre unobstructed.
   gate.box('wood','#69472d',[side*(MAIN_GATE.postX-.05),1.75,MAIN_GATE.z-.7],[.14,3.1,1.5],[0,side*.16,0])
 }
 gate.box('paint','#42614d',[0,4.08,MAIN_GATE.z],[MAIN_GATE.opening+1.6,.32,1])
 gate.box('wood','#986d47',[0,4.32,MAIN_GATE.z],[MAIN_GATE.opening+2.3,.18,1.4])
 const gateRoof=new PropBuilder([12,8]);hipRoof(gateRoof,MAIN_GATE.opening+4,4.8,4.42,1.35)
+// Fit the timber seat to the rendered roof facets, closing the gap above the lintel.
+connectGateRoof(gateRoof,MAIN_GATE.opening+2.3,1.4)
 for(const kind of Object.keys(gateRoof.parts) as Array<keyof typeof gateRoof.parts>)for(const geometry of gateRoof.parts[kind]){geometry.translate(0,0,MAIN_GATE.z);gate.parts[kind].push(geometry)}
 
 
