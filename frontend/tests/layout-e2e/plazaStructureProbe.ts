@@ -32,15 +32,19 @@ export function plazaPlanCapture(){
  return state.gl.domElement.toDataURL('image/png')
 }
 
-export function lotteryApproachProbe(){
+export function plazaLawnProbe(){
  const scene=_roots.get(document.querySelector('canvas')!)!.store.getState().scene
  const paving=scene.getObjectByName('layout-smooth-paths')!,ray=new Raycaster()
- const route=PATHS.find(p=>p.id==='raffle-approach')!,a=route.points[0]!,b=route.points.at(-1)!
- return Array.from({length:16},(_,i)=>{
-  const t=(i+1)/17,x=a[0]+(b[0]-a[0])*t,z=a[1]+(b[1]-a[1])*t
+ return [[26.5,53],[-25.98,38.18],[24.9,38.66],[34.3,43]].map(([x,z])=>{
   ray.set(new Vector3(x,3,z),new Vector3(0,-1,0))
-  return ray.intersectObject(paving).length>0
+  return ray.intersectObject(paving).length===0
  })
+}
+
+export function mailboxPoseProbe(){
+ const scene=_roots.get(document.querySelector('canvas')!)!.store.getState().scene
+ const mailbox=scene.getObjectByName('feedback-mailbox')!
+ return {position:mailbox.position.toArray(),yaw:mailbox.rotation.y,scale:mailbox.scale.toArray()}
 }
 
 export async function rankingBoardRenderProbe(){

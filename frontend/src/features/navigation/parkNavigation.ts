@@ -20,6 +20,8 @@ export type Destination = NavPoint & { name: string };
 /** Arrival points are accessible approaches, rather than the centres of solid props. */
 const main = PARK_PAVILIONS[0];
 const cart=MINI_PROPS[0],cartYaw='yaw' in cart?cart.yaw:0;
+const mailboxYaw='yaw' in MAILBOX?MAILBOX.yaw:0;
+const mailboxStandOff=GENERATED_PARK_ENABLED?1.8:1.5;
 /** Approaches derive from the current OnTop layout, never a prototype zone centre. */
 export const PARK_DESTINATIONS: Record<string, NavPoint> = {
   ...(GENERATED_PARK_ENABLED ? { jumpmap: RETURN_TO } : {}),
@@ -32,7 +34,7 @@ export const PARK_DESTINATIONS: Record<string, NavPoint> = {
   mini: { x:cart.x+Math.sin(cartYaw)*(cart.depth/2+1.8), z:cart.z+Math.cos(cartYaw)*(cart.depth/2+1.8) },
   vr: { x: VR_ZONE.x, z: VR_ZONE.z+VR_ZONE.depth/2+1 },
   fountain: { x: FOUNTAIN.x, z: FOUNTAIN.z+FOUNTAIN.plazaRadius+1 },
-  mailbox: { x: MAILBOX.x, z: MAILBOX.z+1.5 },
+  mailbox: { x: MAILBOX.x+Math.sin(mailboxYaw)*mailboxStandOff, z: MAILBOX.z+Math.cos(mailboxYaw)*mailboxStandOff },
   pagoda: { x: GARDEN_PAGODA.x, z: GARDEN_PAGODA.z+GARDEN_PAGODA.plazaWidth/2+3.4 },
 };
 export const navDistance = (a: NavPoint, b: NavPoint) =>

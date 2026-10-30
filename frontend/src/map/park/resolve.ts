@@ -218,7 +218,7 @@ const DRAFT_BOXES: readonly DraftBox[] = [
   {id:'fish-bread',...SITES.cart,
     halfX:(definition.fishBreadShop.width*Math.abs(Math.cos(definition.fishBreadShop.yaw))+definition.fishBreadShop.depth*Math.abs(Math.sin(definition.fishBreadShop.yaw)))/2,
     halfZ:(definition.fishBreadShop.width*Math.abs(Math.sin(definition.fishBreadShop.yaw))+definition.fishBreadShop.depth*Math.abs(Math.cos(definition.fishBreadShop.yaw)))/2},
-  {id:'feedback-mailbox',...SITES.mailbox,halfX:MAILBOX.bodyHalfWidth*definition.mailbox.scale,halfZ:MAILBOX.bodyHalfDepth*definition.mailbox.scale},
+  {id:'feedback-mailbox',...SITES.mailbox,halfX:definition.mailbox.scale*(MAILBOX.bodyHalfWidth*Math.abs(Math.cos(definition.mailbox.yaw))+MAILBOX.bodyHalfDepth*Math.abs(Math.sin(definition.mailbox.yaw))),halfZ:definition.mailbox.scale*(MAILBOX.bodyHalfWidth*Math.abs(Math.sin(definition.mailbox.yaw))+MAILBOX.bodyHalfDepth*Math.abs(Math.cos(definition.mailbox.yaw)))},
   ...KIOSKS.map(k=>({id:`layout-${k.kind}`,x:k.x,z:k.z,halfX:k.width/2*Math.abs(Math.cos(k.yaw))+k.depth/2*Math.abs(Math.sin(k.yaw)),halfZ:k.width/2*Math.abs(Math.sin(k.yaw))+k.depth/2*Math.abs(Math.cos(k.yaw))})),
 ]
 // Preserve the established forest's seeded omissions when a lamp is relocated.
@@ -268,7 +268,7 @@ function walkHeight(x:number,z:number) {
 const facilityIds={pagoda:'garden-pagoda',fountain:'reference-fountain',fitness:'fitness-garden',tower:'spiral-observation-tower',vr:'vr-experience-hall',folk:'layout-hall-room',vrPagoda:'vr-stone-pagoda',cart:'fish-bread',mailbox:'feedback-mailbox',shop:'layout-shop',drink:'layout-drink',photo:'layout-photo'} as const
 const facilities=Object.entries(facilityIds).filter(([,id])=>!disabledKioskIds.has(id)).map(([kind,id])=>{
   const site=SITES[kind as keyof typeof facilityIds],kiosk=KIOSKS.find(k=>k.kind===kind)
-  return {id,kind,position:[site.x,kind==='pagoda'?SITES.pagoda.floor:0,site.z] as const,yaw:kiosk?.yaw??(kind==='cart'?definition.fishBreadShop.yaw:kind==='vr'||kind==='folk'?VR_YAW:0)}
+  return {id,kind,position:[site.x,kind==='pagoda'?SITES.pagoda.floor:0,site.z] as const,yaw:kiosk?.yaw??(kind==='cart'?definition.fishBreadShop.yaw:kind==='mailbox'?definition.mailbox.yaw:kind==='vr'||kind==='folk'?VR_YAW:0)}
 })
 const interactionData=buildInteractionData({definition,pavilions:DRAFT_PAVILIONS,towerBenches:DRAFT_TOWER_BENCHES,plazaBenches:PLAZA_BENCHES,restBenches:PLAZA_REST_BENCHES,fitness:DRAFT_FITNESS_STATIONS,decks:lake.FISHING_DECKS})
 const terrainHeight=(x:number,z:number)=>lake.lakeRadius(x,z)<1?lakeFloorHeight(x,z):Math.hypot(x-SITES.fountain.x,z-SITES.fountain.z)<DRAFT_FOUNTAIN.plazaRadius?fountainGroundHeight(x,z):0

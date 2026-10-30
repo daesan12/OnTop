@@ -2,9 +2,10 @@ import { describe,it,expect,vi } from 'vitest'
 vi.mock('../../src/park/mapSelection',()=>({GENERATED_PARK_ENABLED:true}))
 import { WHEEL_VALUES,WHEEL_STEP,wheelLanding } from '../../src/features/luckyFacilities/wheel'
 import { PARK_LAYOUT,PARK_DATA,PARK_DEFINITION,resolveParkLayout } from '../../src/map/park'
-import { MINI_PROPS } from '../../src/park/mapConfig'
+import { MINI_PROPS,MAILBOX } from '../../src/park/mapConfig'
 import { canReachBungeoppang } from '../../src/features/bungeoppang/access'
 import { PARK_DESTINATIONS } from '../../src/features/navigation/parkNavigation'
+import { canReachFeedback } from '../../src/features/feedback/validation'
 
 describe('lucky facility mock and enlarged fish shop',()=>{
   it('lands the visible pointer on the reported sector after repeated spins',()=>{
@@ -57,21 +58,28 @@ describe('lucky facility mock and enlarged fish shop',()=>{
     expect(canReachBungeoppang({x:NaN,y:.14,z})).toBe(false)
     expect(canReachBungeoppang({x:cart.x,y:5,z})).toBe(false)
   })
-  it('aligns a straight walkable path with the lottery entrance and preserves the photo area',()=>{
+  it('approaches the enlarged mailbox from its new front and keeps it reachable',()=>{
+    const destination=PARK_DESTINATIONS.mailbox!,yaw=PARK_DEFINITION.mailbox.yaw
+    expect(destination.x).toBeCloseTo(MAILBOX.x+Math.sin(yaw)*1.8)
+    expect(destination.z).toBeCloseTo(MAILBOX.z+Math.cos(yaw)*1.8)
+    expect(canReachFeedback({...destination,y:.8,yaw:0})).toBe(true)
+    expect(canReachFeedback({x:34.3,y:.8,z:41.5,yaw:0})).toBe(false)
+    const solid=PARK_DATA.physics.boxes.find(b=>b.id==='feedback-mailbox')!
+    expect(solid.yaw).toBe(yaw)
+    expect(solid.half[0]).toBeCloseTo(.46*1.9)
+    expect(solid.half[2]).toBeCloseTo(.4*1.9)
+    expect(PARK_LAYOUT.canWalk(MAILBOX.x,MAILBOX.z)).toBe(false)
+    expect(PARK_LAYOUT.canWalk(destination.x,destination.z)).toBe(true)
+  })
+  it('removes the recent facility paths and keeps lawn approaches and the ranking area accessible',()=>{
     const lottery=PARK_LAYOUT.KIOSKS.find(k=>k.kind==='drink')!,p=PARK_LAYOUT.LIFE_PLAZA
     expect(lottery.yaw).toBeCloseTo(Math.atan2(p.x-lottery.x,p.z-lottery.z))
-    const route=PARK_LAYOUT.PATHS.find(r=>r.id==='raffle-approach')!
-    expect(route.points).toHaveLength(2)
-    const [start,end]=route.points
-    expect(Math.hypot(start![0]-p.x,start![1]-p.z)).toBeLessThan(p.pavingRadius)
-    for(const point of route.points){
-      const dx=point[0]-lottery.x,dz=point[1]-lottery.z
-      expect(dx*Math.cos(lottery.yaw)-dz*Math.sin(lottery.yaw)).toBeCloseTo(0)
-    }
-    // Paving tucks under the raised threshold; players stop at the serving point.
-    expect(Math.hypot(end![0]-lottery.x,end![1]-lottery.z)).toBeCloseTo(lottery.depth/2-.15)
+    const removed=['mailbox-approach','raffle-approach','photo-front','photo-north','cart-apron','cart-access']
+    expect(PARK_LAYOUT.PATHS.some(r=>removed.includes(r.id))).toBe(false)
     const reach=PARK_DATA.interactions.construction.find(s=>s.id==='layout-drink')!.reachPosition
-    for(let n=0;n<=30;n++)expect(PARK_LAYOUT.canWalk(start![0]+(reach[0]-start![0])*n/30,start![1]+(reach[2]-start![1])*n/30)).toBe(true)
+    expect(PARK_LAYOUT.canWalk(reach[0],reach[2])).toBe(true)
+    const mailbox=PARK_DESTINATIONS.mailbox!
+    expect(PARK_LAYOUT.canWalk(mailbox.x,mailbox.z)).toBe(true)
     expect(PARK_LAYOUT.KIOSKS.find(k=>k.kind==='photo')).toMatchObject({x:30,z:35.6,width:9.6,depth:6.6,yaw:-Math.PI/3,fenced:false})
     for(const site of PARK_DATA.interactions.construction){
       const [x,,z]=site.reachPosition

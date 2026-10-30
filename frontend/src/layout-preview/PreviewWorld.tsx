@@ -129,7 +129,7 @@ export const PreviewWorld=memo(function PreviewWorld({live=false}:{live?:boolean
       {!live&&<PreviewSwimmingRipples/>}
     </group>
     <group name="fish-bread" position={[SITES.cart.x,0,SITES.cart.z]} userData={{assetId:"user/repaired-fish-cart"}}><FishBreadShop/></group>
-    <TraditionalMailbox position={[SITES.mailbox.x,0,SITES.mailbox.z]} scale={SETTINGS.mailbox.scale}/>
+    <TraditionalMailbox position={[SITES.mailbox.x,0,SITES.mailbox.z]} scale={SETTINGS.mailbox.scale} yaw={SETTINGS.mailbox.yaw}/>
     <PlazaBuilding kind="shop" live={live}/><PlazaBuilding kind="drink" live={live}/>
     {live?<PlazaBuilding kind="photo" live/>:<RankingBoardModel/>}
     <PreviewPigeons live={live}/>

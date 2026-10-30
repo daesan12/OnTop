@@ -27,8 +27,9 @@ it('keeps every tree belt outside the sound box and its usable clearing',()=>{
   const {mailbox}=PARK_LAYOUT.SITES,r=PARK_LAYOUT.SETTINGS.planting.mailboxTreeClearance
   for(const t of all)expect(inMailboxClearing(t.p[0],t.p[2],mailbox,r)).toBe(false)
   for(const t of [...PARK_LAYOUT.PLAZA_TREE_SITES,...PARK_LAYOUT.PAVILION_TREE_SITES])expect(inMailboxClearing(t.x,t.z,mailbox,r)).toBe(false)
-  expect(PARK_DATA.interactions.mailbox.position).toEqual([34.3,0,41.5])
-  expect(PARK_LAYOUT.canWalk(mailbox.x,mailbox.z+1.5)).toBe(true)
+  expect(PARK_DATA.interactions.mailbox.position).toEqual([24.2,0,30.4])
+  const yaw=PARK_LAYOUT.SETTINGS.mailbox.yaw
+  expect(PARK_LAYOUT.canWalk(mailbox.x+Math.sin(yaw)*1.8,mailbox.z+Math.cos(yaw)*1.8)).toBe(true)
 })
 
 it('surrounds the enlarged fish shop on both sides and behind, with no crowns in its roof or entrance',()=>{
@@ -53,9 +54,14 @@ it('removes ranking fences from rendered runs and both collision contracts, and 
  const prefix='kiosk-photo-'
  for(const list of [PARK_LAYOUT.FENCE_RUNS,PARK_DATA.physics.boxes,PARK_DATA.collision.obstacles])expect(list.some(p=>p.id.startsWith(prefix))).toBe(false)
  const {mailbox,photo}=PARK_LAYOUT.SITES
- expect(Math.hypot(mailbox.x-photo.x,mailbox.z-photo.z)).toBeLessThan(8)
- expect(PARK_DATA.physics.boxes.find(p=>p.id==='feedback-mailbox')!.center).toEqual([mailbox.x,1.35,mailbox.z])
- for(let z=mailbox.z+1.5;z<=46;z+=.15)expect(PARK_LAYOUT.canWalk(mailbox.x,z)).toBe(true)
+ expect(Math.hypot(mailbox.x-photo.x,mailbox.z-photo.z)).toBeLessThan(9)
+ const box=PARK_DATA.physics.boxes.find(p=>p.id==='feedback-mailbox')!,yaw=PARK_LAYOUT.SETTINGS.mailbox.yaw
+ expect(box.center).toEqual([mailbox.x,1.71,mailbox.z])
+ expect(box.yaw).toBeCloseTo(Math.atan2(-mailbox.x,46-mailbox.z))
+ const dx=mailbox.x-photo.x,dz=mailbox.z-photo.z,boardYaw=PARK_LAYOUT.SETTINGS.kiosks.photo.yaw
+ expect(dx*Math.cos(boardYaw)-dz*Math.sin(boardYaw)).toBeLessThan(-7)
+ for(let d=1.8;d<=5;d+=.15)expect(PARK_LAYOUT.canWalk(mailbox.x+Math.sin(yaw)*d,mailbox.z+Math.cos(yaw)*d)).toBe(true)
+ expect(PARK_LAYOUT.PLAZA_TREE_SITES.filter(t=>t.id.startsWith('ranking-grove-tree-')).length).toBeGreaterThanOrEqual(3)
  const roof={...PARK_LAYOUT.SETTINGS.rankingBoard,yaw:PARK_LAYOUT.SETTINGS.kiosks.photo.yaw}
  for(const t of [...trunks,...shoreTrunks,...Object.values(simpleTreeBelts).flatMap(b=>b.trunks)])expect(inCanopyClearing(t.p[0],t.p[2],photo,roof,1.7)).toBe(false)
 })

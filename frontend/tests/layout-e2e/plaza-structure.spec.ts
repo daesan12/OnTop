@@ -68,8 +68,13 @@ test('the full facility outlines and courtyard fences stay inside their lawn poc
  }
  await expect(page.getByLabel('배치 시안 시설 목록').getByRole('button',{name:/^13/})).toHaveCount(0)
  const approach=await page.evaluate(async()=>
-  (await import('/tests/layout-e2e/plazaStructureProbe.ts' as string)).lotteryApproachProbe())
+  (await import('/tests/layout-e2e/plazaStructureProbe.ts' as string)).plazaLawnProbe())
  expect(approach.every(Boolean)).toBe(true)
+ const mailbox=await page.evaluate(async()=>
+  (await import('/tests/layout-e2e/plazaStructureProbe.ts' as string)).mailboxPoseProbe())
+ expect(mailbox.position).toEqual([24.2,0,30.4])
+ expect(mailbox.scale).toEqual([1.9,1.9,1.9])
+ expect(mailbox.yaw).toBeCloseTo(Math.atan2(-24.2,46-30.4),12)
  const dir=process.env.QA_ARTIFACT_DIR??path.join(os.tmpdir(),'ontop-plaza-placement-qa')
  await fs.mkdir(dir,{recursive:true})
  await fs.writeFile(path.join(dir,'placement-bounds.json'),JSON.stringify(bounds,null,2))

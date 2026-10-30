@@ -9,7 +9,7 @@ const sites = {
   event:{x:-64,z:21},
   tower: { x: 62, z: 56 },
   vr: {x:-74,z:-23},folk:{x:-74,z:-3},vrPagoda:{x:-53,z:-23},
-  cart: { x: -30.1, z: 35.8 }, mailbox: { x: 34.3, z: 41.5 },
+  cart: { x: -30.1, z: 35.8 }, mailbox: { x: 24.2, z: 30.4 },
   shop: { x: 27, z: 50.8 }, drink: { x: 31.8, z: 54.6 }, photo: { x: 30, z: 35.6 },
 }
 // Keep the wheel's anchor/model for later use, but omit it from the active map.
@@ -18,10 +18,6 @@ const fishBreadShop={width:9.216,depth:6.912,height:5.856,scale:.96,yaw:Math.PI/
 const cartPoint=(across:number,forward:number):MapPoint=>[
   sites.cart.x+across*Math.cos(fishBreadShop.yaw)+forward*Math.sin(fishBreadShop.yaw),
   sites.cart.z-across*Math.sin(fishBreadShop.yaw)+forward*Math.cos(fishBreadShop.yaw),
-]
-const lotteryPoint=(forward:number):MapPoint=>[
-  sites.drink.x+Math.sin(kiosks.drink.yaw)*forward,
-  sites.drink.z+Math.cos(kiosks.drink.yaw)*forward,
 ]
 
 // Persistent IDs are explicit. Array order never assigns pavilion/table identities.
@@ -69,9 +65,6 @@ const routes:readonly MapRoute[] = [
   {id:'service-entry',points:[[-39,62],[39,62]],width:4},
   {id:'service-plaza',points:[[-39,46],[-20,46]],width:4},
   {id:'photo-plaza',points:[[20,46],[39,46]],width:4},
-  {id:'photo-front',points:[[23,40],[25.7,38.1]],width:2.2},
-  {id:'photo-north',points:[[25.7,38.1],[26,37.9]],width:2.2},
-  {id:'mailbox-approach',points:[[sites.mailbox.x,46],[sites.mailbox.x,sites.mailbox.z+.5]],width:1.8},
   {id:'fountain-south',points:[[-63,-42],[-63,-36]],width:4},
   {id:'fountain-vr',points:[[-63,-42],[-63,-32],[-62,-32]],width:3.5},
   {id:'vr-west-entry',points:[[-84,-12],[-62,-12]],width:3},
@@ -81,9 +74,6 @@ const routes:readonly MapRoute[] = [
   {id:'event-winding',points:[[-63,12],[-63,17],[-73,22],[-73,25],[-65,31],[-63,31]],width:3.5},
   {id:'event-east',points:[[-63,31],[-39,31]],width:3.5},
   {id:'event-west',points:[[-84,22],[-73,22]],width:3},
-  {id:'raffle-approach',points:[lotteryPoint(Math.hypot(sites.drink.x-plaza.x,sites.drink.z-plaza.z)-plaza.pavingRadius+.8),lotteryPoint(kiosks.drink.depth/2-.15)],width:2.4},
-  {id:'cart-apron',points:[cartPoint(-2.8,fishBreadShop.depth/2+1.3),cartPoint(2.8,fishBreadShop.depth/2+1.3)],width:2.2},
-  {id:'cart-access',points:[[-22,40],cartPoint(0,fishBreadShop.depth/2+1.3)],width:2.8},
   {id:'south-east',points:[[39,27],[39,81],[82,81]],width:4},
   {id:'tower-west',points:[[39,56],[50.5,56]],width:4},
   {id:'tower-east',points:[[73.5,56],[84,56]],width:4},
@@ -110,7 +100,7 @@ export const PARK_DEFINITION = {
   sites,
   // Includes the low-poly canopy and a clear place to stand in front of the sound box.
   planting:{mailboxTreeClearance:4.4,facilityCanopyClearance:1.85,woodlandSupplementSpacing:3.15},
-  mailbox:{scale:1.5},
+  mailbox:{scale:1.9,yaw:Math.atan2(plaza.x-sites.mailbox.x,plaza.z-sites.mailbox.z)},
   rankingBoard:{scale:1.06,roofWidth:10.6,roofDepth:2.226},
   // Lamp IDs stay stable. Local offsets follow their district when its layout moves.
   lighting:{anchors:[
@@ -167,7 +157,11 @@ export const PARK_DEFINITION = {
   plazaTrees:[...([[-1.6,-5.95],[1,-5.95],[3.6,-5.95],[-7.1,-1.3],[-7.1,1.3],[7.1,-1.3],[7.1,1.3]] as const).map(([across,forward],i)=>{
     const [x,z]=cartPoint(across,forward)
     return {id:'fish-shop-tree-'+i,x,z}
-  }),...(['shop','drink','photo'] as const).filter(kind=>kiosks[kind].enabled).flatMap(kind=>{
+  }),...([[-3,-5.2],[-.4,-5.2],[2.2,-5.2],[8,-2],[8,.6]] as const).map(([across,forward],i)=>({
+    id:'ranking-grove-tree-'+i,
+    x:sites.photo.x+across*Math.cos(kiosks.photo.yaw)+forward*Math.sin(kiosks.photo.yaw),
+    z:sites.photo.z-across*Math.sin(kiosks.photo.yaw)+forward*Math.cos(kiosks.photo.yaw),
+  })),...(['shop','drink','photo'] as const).filter(kind=>kiosks[kind].enabled).flatMap(kind=>{
     const p=sites[kind],k=kiosks[kind],points:{id:string;x:number;z:number}[]=[]
     // Two-dimensional side/back planting pockets; the front is intentionally empty.
     for(let row=0;row<10;row++)for(let col=0;col<17;col++){

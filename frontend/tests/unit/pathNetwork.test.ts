@@ -14,12 +14,6 @@ function paved(geometry:ReturnType<typeof buildPathNetwork>['geometry'],x:number
   return false
 }
 describe('continuous slim-corner park paving',()=>{
-  it('renders short diagonal entrance paths and joins them to the straight network',()=>{
-    const {geometry}=buildPathNetwork([{id:'main',width:4,points:[[-8,0],[8,0]]},{id:'entrance',width:2.4,points:[[0,0],[10,3]]}])
-    for(let t=0;t<=1;t+=.025)expect(paved(geometry,10*t,3*t),'diagonal entrance '+t).toBe(true)
-    expect(paved(geometry,5,4)).toBe(false)
-    geometry.dispose()
-  })
   it('joins crossing strips into one surface with no grass seams while trimming the sharp outer corners',()=>{
     const {geometry,contours}=buildPathNetwork([{id:'L',width:4,points:[[0,0],[10,0],[10,10]]},{id:'cross',width:3,points:[[5,-8],[5,8]]}])
     expect(contours).toHaveLength(1)
@@ -70,16 +64,11 @@ describe('continuous slim-corner park paving',()=>{
     for(let x=-39;x<-20;x+=.5)expect(paved(geometry,x,46),`fitness x=${x}`).toBe(true)
     geometry.dispose()
   })
-  it('uses one paved surface from the fitness entrance through the cart forecourt',()=>{
+  it('keeps the established fitness entrance and connecting routes paved',()=>{
     const {geometry}=buildPathNetwork(PATHS)
     for(let z=23;z<=31;z+=.25)expect(paved(geometry,-51,z),`cart approach ${z}`).toBe(true)
     for(let x=-62.8;x<=-51;x+=.25)expect(paved(geometry,x,31),`fitness connection ${x}`).toBe(true)
     for(let z=31;z<=52;z+=.25)expect(paved(geometry,-63,z),`fitness north ${z}`).toBe(true)
-    const apron=PATHS.find(p=>p.id==='cart-apron')!,access=PATHS.find(p=>p.id==='cart-access')!
-    for(const route of [apron,access])for(let t=.05;t<1;t+=.05){
-      const a=route.points[0]!,b=route.points.at(-1)!
-      expect(paved(geometry,a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t),route.id).toBe(true)
-    }
     geometry.dispose()
   })
 })

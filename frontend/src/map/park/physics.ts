@@ -170,7 +170,7 @@ export function buildPhysics(i:Input) {
   }
   TOWER_DECK_RAIL_SEGMENTS.forEach(([a,b],n)=>segment('tower-deck-rail-'+n,[a[0]+dx,a[1],a[2]+dz],[b[0]+dx,b[1],b[2]+dz],.12,1.4))
   box('fish-bread',[d.sites.cart.x,d.fishBreadShop.height/2,d.sites.cart.z],[d.fishBreadShop.width/2,d.fishBreadShop.height/2,d.fishBreadShop.depth/2],d.fishBreadShop.yaw)
-  box('feedback-mailbox',[d.sites.mailbox.x,MAILBOX.height*d.mailbox.scale/2,d.sites.mailbox.z],[MAILBOX.bodyHalfWidth*d.mailbox.scale,MAILBOX.height*d.mailbox.scale/2,MAILBOX.bodyHalfDepth*d.mailbox.scale])
+  box('feedback-mailbox',[d.sites.mailbox.x,MAILBOX.height*d.mailbox.scale/2,d.sites.mailbox.z],[MAILBOX.bodyHalfWidth*d.mailbox.scale,MAILBOX.height*d.mailbox.scale/2,MAILBOX.bodyHalfDepth*d.mailbox.scale],d.mailbox.yaw)
   const [sx,sz]=d.park.spawn,centerOffset=MOVEMENT.radius+MOVEMENT.halfHeight+MOVEMENT.offset+d.physics.spawnClearance
   let spawnGround=i.supportHeight(sx,sz)
   for(const b of boxes)if(b.role==='surface') {

@@ -20,8 +20,6 @@ it('moves seven obstructive lamps while keeping all 42 IDs and aligning solids t
    const dx=x-k.x,dz=z-k.z,across=dx*Math.cos(k.yaw)-dz*Math.sin(k.yaw),forward=dx*Math.sin(k.yaw)+dz*Math.cos(k.yaw)
    expect(Math.abs(across)>k.width/2+.48||Math.abs(forward)>k.depth/2+.48,'lamp-'+n+' '+k.kind).toBe(true)
   }
-  const approach=PARK_LAYOUT.PATHS.find(p=>p.id==='raffle-approach')!
-  for(let i=1;i<approach.points.length;i++)expect(PARK_LAYOUT.nearSegment(x,z,approach.points[i-1]!,approach.points[i]!), 'lamp-'+n+' lottery path').toBeGreaterThan(approach.width/2+.48)
   const entrance=PARK_DATA.interactions.construction.find(s=>s.id==='layout-drink')!
   expect(Math.hypot(x-entrance.reachPosition[0],z-entrance.reachPosition[2]),'lamp-'+n+' lottery reach').toBeGreaterThan(entrance.radius+.48)
  }
