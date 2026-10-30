@@ -7,6 +7,41 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class AlkkagiMatchTests {
     @Test
+    void 같은_발사에서_초기속도는_높이고_전체_미끄러짐은_짧게_줄인다() throws Exception {
+        var current = AlkkagiSettings.provisional();
+        var previous = new AlkkagiSettings(4.5, 5, 1.0 / 120, 1.8, .82, 8, .025,
+                24, 3600, 30_000, 720_000);
+        var before = measureShot(previous);
+        var after = measureShot(current);
+
+        assertThat(after[0]).isGreaterThan(before[0]);
+        assertThat(after[1]).isLessThan(before[1]);
+        var report = java.nio.file.Path.of("build/alkkagi/feel-comparison.json");
+        java.nio.file.Files.createDirectories(report.getParent());
+        java.nio.file.Files.writeString(report, "{\"conditions\":\"same 32 pieces, p13, power .6, fixed 120Hz\","
+                + "\"beforeInitialSpeed\":" + before[0] + ",\"afterInitialSpeed\":" + after[0]
+                + ",\"beforeSimulationSeconds\":" + before[1] + ",\"afterSimulationSeconds\":" + after[1] + "}");
+    }
+
+    private double[] measureShot(AlkkagiSettings settings) {
+        var match = new AlkkagiMatch(settings);
+        match.start(0);
+        match.shoot(0, shot(match, "feel", "p13", 0, -1, .6), 1);
+        int steps = 0;
+        double initialSpeed = 0;
+        while (match.snapshot(0).stage().equals("SIMULATING") && steps < 3600) {
+            match.advance(2 + Math.round(steps * settings.stepSeconds() * 1000));
+            if (steps == 0) {
+                var piece = match.snapshot(0).pieces().get(13);
+                initialSpeed = Math.hypot(piece.vx(), piece.vy());
+            }
+            steps++;
+        }
+        assertThat(match.snapshot(0).stage()).isEqualTo("AIMING");
+        return new double[]{initialSpeed, steps * settings.stepSeconds()};
+    }
+
+    @Test
     void 임시_구성은_각_16개이며_서로_겹치지_않는다() {
         var match = new AlkkagiMatch(AlkkagiSettings.provisional());
         var state = match.snapshot(0);
