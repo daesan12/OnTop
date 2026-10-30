@@ -1,6 +1,10 @@
 import type { ParkDefinition } from './definition'
 import type { buildPhysics } from './physics'
 export function validatePhysics(p:ReturnType<typeof buildPhysics>) {
+  const fountain=p.fountainPolicy
+  if(![fountain.x,fountain.z,fountain.radius,fountain.bottom,fountain.top,fountain.exitGap].every(Number.isFinite)
+    ||fountain.radius<=0||fountain.top<=fountain.bottom||fountain.exitGap<0)throw new Error('invalid fountain movement policy')
+  if(!(p.pavilionJumpSpeed>0)||p.furniturePolicy.kind!=='no-climb'||p.furniturePolicy.movementHeight<=0)throw new Error('invalid pavilion movement policy')
   assertUniqueIds('physical shapes',[...p.boxes,...p.meshes,...p.hulls])
   for(const b of p.boxes)if(![...b.center,...b.half,b.yaw].every(Number.isFinite)||b.half.some(n=>n<=0))throw new Error(`${b.id}: invalid physical box`)
   for(const m of [...p.meshes,...p.hulls])if(m.vertices.length%3||m.vertices.length<9||!m.vertices.every(Number.isFinite))throw new Error(`${m.id}: invalid vertices`)
@@ -27,6 +31,11 @@ export function validateParkDefinition(d:ParkDefinition) {
   const positive=(n:number,path:string)=>{if(!(n>0))throw new Error(`${path} must be positive`)}
   const half=d.park.size/2
   positive(d.park.size,'park.size')
+  positive(d.fountain.baseFootRadius,'fountain.baseFootRadius')
+  if(d.fountain.baseFootRadius<d.fountain.baseBasinRadius||d.fountain.movementTop<=d.fountain.movementBottom)throw new Error('invalid fountain movement column')
+  for(const [id,lamp] of Object.entries(d.lighting.relocations)){
+    if(!/^lamp-\d+$/.test(id)||!['plaza','lake','fitness'].includes(lamp.anchor))throw new Error('invalid lamp relocation: '+id)
+  }
   positive(d.physics.terrainStep,'physics.terrainStep')
   if(d.physics.terrainStep<.5||Math.abs(d.park.size/d.physics.terrainStep-Math.round(d.park.size/d.physics.terrainStep))>1e-8)throw new Error('terrainStep must divide park.size and be at least 0.5m')
   if(d.physics.spawnClearance<0)throw new Error('spawnClearance cannot be negative')

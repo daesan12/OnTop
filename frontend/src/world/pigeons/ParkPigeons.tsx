@@ -159,7 +159,7 @@ export function ParkPigeons({ quality,habitat }: { quality: QualityPreset;habita
     for (const batch of batches.current) batch.finish()
   })
   return (
-    <group name="park-pigeons" dispose={null}>
+    <group name="park-pigeons" dispose={null} userData={{birds:state.birds}}>
       {parts.map((part, i) => (
         <instancedMesh
           key={i}

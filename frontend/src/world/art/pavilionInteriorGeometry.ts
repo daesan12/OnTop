@@ -149,7 +149,10 @@ export function createPavilionBench(scale: number) {
     const span=(radius-TIMBER.seatHalfDepth)*MITRE*2
     box(0,TIMBER.seatHeight-.06,0,span,.12,TIMBER.seatHalfDepth*2,'#b9956e')
     box(0,.82,-TIMBER.inset,span,.45,.12,'#a37b54')
-    for(const x of [-span*.35,span*.35])box(x,.22,0,.16,.44,.5,'#9d7652')
+    for(const x of [-span*.35,span*.35]){
+      box(x,.255,0,.16,.51,.5,'#9d7652')
+      box(x,.51,-.41,.12,1.02,.16,'#9d7652')
+    }
     return merge(parts)
   }
   const depth = TIMBER.seatHalfDepth * 2

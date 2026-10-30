@@ -209,8 +209,9 @@ const DRAFT_BOXES: readonly DraftBox[] = [
   {id:'feedback-mailbox',...SITES.mailbox,halfX:MAILBOX.bodyHalfWidth,halfZ:MAILBOX.bodyHalfDepth},
   ...KIOSKS.map(k=>({id:`layout-${k.kind}`,x:k.x,z:k.z,halfX:k.width/2*Math.abs(Math.cos(k.yaw))+k.depth/2*Math.abs(Math.sin(k.yaw)),halfZ:k.width/2*Math.abs(Math.sin(k.yaw))+k.depth/2*Math.abs(Math.cos(k.yaw))})),
 ]
-// Lamps sit beside paving, clear of buildings, stairs, water, fences and the pagoda terrace.
-const DRAFT_LAMPS:readonly (readonly [number,number,number])[]=(()=>{
+// Preserve the established forest's seeded omissions when a lamp is relocated.
+// These reservations are not rendered lamps or collision shapes.
+const TREE_LAMP_RESERVATIONS:readonly (readonly [number,number,number])[]=(()=>{
   const points:Array<readonly [number,number,number]>=[]
   const add=(x:number,z:number,plaza=false)=>{
     if(!plaza&&Math.hypot(x-LIFE_PLAZA.x,z-LIFE_PLAZA.z)<LIFE_PLAZA.pavingRadius+2)return
@@ -222,7 +223,7 @@ const DRAFT_LAMPS:readonly (readonly [number,number,number])[]=(()=>{
     if(points.some(p=>Math.hypot(p[0]-x,p[2]-z)<8)||onPath(x,z,.25))return
     points.push([x,0,z])
   }
-  // Preserve the seven established plaza lamps when nearby temporary furniture is removed.
+  // Historical plaza candidates retained only for procedural planting stability.
   for(const degrees of [15,60,120,165,195,315,345]){const a=degrees*Math.PI/180;add(LIFE_PLAZA.x+Math.cos(a)*21,LIFE_PLAZA.z+Math.sin(a)*21,true)}
   const selected=new Set(['arrival','west-spine','north-cross','hall-south-cross','fitness-north','fitness-cart-link','south-east','lake-east','service-entry','west-pavilions','east-pavilions'])
   for(const r of PATHS.filter(r=>selected.has(r.id)))for(let i=1;i<r.points.length;i++) {
@@ -243,6 +244,12 @@ function nearSegment(x:number,z:number,a:readonly number[],b:readonly number[]) 
 function onPath(x:number,z:number,extra=0) {
   return [...PATHS,{points:PERIMETER,width:definition.park.perimeterWidth}].some(p=>p.points.slice(1).some((b,i)=>nearSegment(x,z,p.points[i]!,b)<p.width/2+extra))
 }
+const DRAFT_LAMPS:readonly (readonly [number,number,number])[]=TREE_LAMP_RESERVATIONS.map((point,n)=>{
+  const relocation=definition.lighting.relocations['lamp-'+n]
+  const anchor=relocation&&(relocation.anchor==='plaza'?LIFE_PLAZA:SITES[relocation.anchor])
+  const x=anchor?anchor.x+relocation!.offset[0]:point[0],z=anchor?anchor.z+relocation!.offset[1]:point[2]
+  return [x,walkHeight(x,z),z] as const
+})
 const COLLISION=buildCollision({definition,boxes:DRAFT_BOXES,kiosks:KIOSKS,fences:[...FENCE_RUNS,...CENTRAL_RAIL_RUNS,...STAIR_RAIL_RUNS],lamps:DRAFT_LAMPS,fishingRails:FISHING_RAILS,shoreRails:SHORE_RUNS})
 const canWalk=(x:number,z:number)=>isWalkable(COLLISION,x,z)
 /** Preview walking heights only; this is deliberately not an authoritative physics engine. */
@@ -299,5 +306,5 @@ assertUniqueIds('physical shapes',[...physics.boxes,...physics.meshes,...physics
 assertUniqueIds('interaction facilities',[...facilityInteractions.benches,...facilityInteractions.fitness,...facilityInteractions.telescopes])
 if(!canWalk(...DRAFT_PARK.spawn))throw new Error('park.spawn is blocked')
 if(lake.swimmingAt(...DRAFT_PARK.spawn))throw new Error('park.spawn cannot be underwater')
-return {data,SETTINGS:definition,PAVILION_TREE_SITES,PLAZA_TREE_SITES,DRAFT_FITNESS_STATIONS,DRAFT_TOWER_BENCHES,DRAFT_JUMP_PADS,DRAFT_PAVILIONS,DRAFT_STAIRS,DRAFT_TABLES,MARKERS,roundRoute,PATHS,PERIMETER,FENCE_COURTS,ROUND_COURTS,KIOSK_FENCE_RUNS,FENCE_RUNS,CENTRAL_RAIL_RUNS,STAIR_RAIL_RUNS,FENCE_BLOCKERS,PLAZA_PLANTERS,PLAZA_BEDS,PLAZA_BENCHES,DRAFT_BOXES,DRAFT_LAMPS,ORIGINAL_SITES,fountainGroundHeight,nearSegment,onPath,walkHeight,COLLISION,canWalk,lake,DRAFT_PARK,SITES,DRAFT_FOUNTAIN,VR_COURT,VR_EDGE_TREE_SITES,EVENT_GROVE,DRAFT_FITNESS_AREA,KIOSKS,EVENT_BENCHES,MAIN_GATE,VR_STONE_SETS,VR_YAW,PAVILION_COURT,LIFE_PLAZA,PLAZA_REST_GARDENS,PLAZA_REST_BENCHES,PLAZA_BINS}
+return {data,SETTINGS:definition,TREE_LAMP_RESERVATIONS,PAVILION_TREE_SITES,PLAZA_TREE_SITES,DRAFT_FITNESS_STATIONS,DRAFT_TOWER_BENCHES,DRAFT_JUMP_PADS,DRAFT_PAVILIONS,DRAFT_STAIRS,DRAFT_TABLES,MARKERS,roundRoute,PATHS,PERIMETER,FENCE_COURTS,ROUND_COURTS,KIOSK_FENCE_RUNS,FENCE_RUNS,CENTRAL_RAIL_RUNS,STAIR_RAIL_RUNS,FENCE_BLOCKERS,PLAZA_PLANTERS,PLAZA_BEDS,PLAZA_BENCHES,DRAFT_BOXES,DRAFT_LAMPS,ORIGINAL_SITES,fountainGroundHeight,nearSegment,onPath,walkHeight,COLLISION,canWalk,lake,DRAFT_PARK,SITES,DRAFT_FOUNTAIN,VR_COURT,VR_EDGE_TREE_SITES,EVENT_GROVE,DRAFT_FITNESS_AREA,KIOSKS,EVENT_BENCHES,MAIN_GATE,VR_STONE_SETS,VR_YAW,PAVILION_COURT,LIFE_PLAZA,PLAZA_REST_GARDENS,PLAZA_REST_BENCHES,PLAZA_BINS}
 }

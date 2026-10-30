@@ -49,7 +49,7 @@ test('generated park waits for approval, renders 18 mapped tables, and supports 
   server.place({x:vr.position[0],y:vr.position[1]+.8,z:vr.position[2]+2.4})
   await page.evaluate(async(id)=>(await import('/tests/park-integration/probe.ts' as string)).inspect(id),vr.id)
   await expect(lobby).toBeVisible()
-  await expect.poll(async()=>(await state(page)).session.tableId).toBe('fixture-'+vr.id)
+  await expect.poll(async()=>(await state(page)).session.tableId).toBe(current.session.bindings.find((b:{channelId:string;anchorId:string;tableId:string})=>b.channelId==='channel-1'&&b.anchorId===vr.id)!.tableId)
   server.enableFourPlayers(vr.id)
   const surfaces=()=>page.evaluate(async(id)=>(await import('/tests/park-integration/probe.ts' as string)).renderedSeatHeights(id),vr.id)
   await expect.poll(async()=>(await surfaces()).count).toBe(4)

@@ -1,4 +1,6 @@
 import { hipRoof, PropBuilder, type XYZ } from './propGeometry'
+import { SIMPLE_MAP } from './mapRenderProfile'
+import { connectExperienceHall } from './experienceHallStructure'
 function fish(b: PropBuilder, p: XYZ, s: number) {
   const at = (x: number, y: number, z: number): XYZ => [
     p[0] + x * s,
@@ -215,6 +217,7 @@ function boothArt() {
       b.ball('glow', '#f7d59a', [x, 3.44, z], [0.055, 0.055, 0.055])
   }
   hipRoof(b, 13.5, 9.8, 3.89, 2.15)
+  if(SIMPLE_MAP)connectExperienceHall(b)
   for (const x of [-3, 0, 3]) {
     b.box('metal', '#303640', [x, 0.5, -2], [1.8, 1, 1])
     b.box('paint', '#40375d', [x, 0.6, -1.49], [1.55, 0.68, 0.015])

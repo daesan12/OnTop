@@ -1,5 +1,5 @@
 {
-  "description": "Remove three A-frame advertisements and balloon; other placements, physics and interactions preserved, 2026-10-29",
+  "description": "Accepted map preserved; seven lamps relocated and their movement blockers follow, 2026-10-30; fountain foot excludes climbing",
   "data": {
     "DRAFT_PARK": "e3854d40e5253714d51f775e49add74da1ae51ed05962f791efe6e0b1d3dd610",
     "SITES": "0ef028ce40e340a7b39feb6e43549afe4d04e70f6f49180fddee7ea321bc06c9",
@@ -9,7 +9,7 @@
     "FENCE_RUNS": "bbb923a3b0725d5e2cf8c86a036074d2987149051db57ba3ba4837d1f6eefdcf",
     "CENTRAL_RAIL_RUNS": "58355d97dab79f180a7ebb9d01894367d2d3b8d90e153f8b85bbd4c97dd51879",
     "STAIR_RAIL_RUNS": "ddc33257f903fd189bcdd95514ef83b9262b1cd13fc49f397b92a940593359bb",
-    "DRAFT_LAMPS": "02d511e3bf95485fde20a55e50302105f4892fa828e5c4fc9edbc3caf124e282",
+    "DRAFT_LAMPS": "56f7dabf194151328eecaa462bef093336989c4fd1dce573913034ce372c5c61",
     "PATHS": "cd40c6dc32898cff8f0c845fea055195826f6c8115fddb1a65f5325b742948bf",
     "PERIMETER": "b0491ce6b6e619278b9651c488838fac16dc481f1807e82a4f4f2f98f9cf1543",
     "MARKERS": "368ceb5a9de01a7de74220a219e0aa30341ad031d6e852d811aa69f65420313e",
@@ -17,5 +17,5 @@
     "DRAFT_FITNESS_STATIONS": "ca82ee0934d36d1d1beb2f2234d92e9be5da8385d0e47ab662b484f3996df413",
     "DRAFT_TOWER_BENCHES": "d54aae7921377f5f814e81755bee8660be861a71e5264a9766e6afe132faa088"
   },
-  "movement": "6d4db9ea52b895556b6323577bd245a940a316adf9e454c123358a8014f03b3e"
+  "movement": "7a994b5c2ad5664c44235438b1f64306da33679f33c756c8d1b6af656f212bb2"
 }

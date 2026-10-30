@@ -21,10 +21,18 @@ export function omokPlayProbe(x=7,y=7){
   point:{x:rect.left+(point.x+1)*rect.width/2,y:rect.top+(1-point.y)*rect.height/2}}
 }
 export function sceneReady(){return !!_roots.get(document.querySelector('canvas')!)?.store.getState().scene.getObjectByName('park-service-map')}
+export function migrationFollowupsProbe(){
+ const scene=_roots.get(document.querySelector('canvas')!)!.store.getState().scene
+ const names:string[]=[];scene.traverse(o=>names.push(o.name))
+ return {rails:names.filter(n=>/^pavilion-P\d-railings$/.test(n)),course:!!scene.getObjectByName('service-jump-course'),localCourse:!!scene.getObjectByName('layout-vr-jump-course'),
+  clouds:names.filter(n=>n==='simple-shared-clouds'||n==='simple-sky-clouds'),lanterns:!!scene.getObjectByName('traditional-pavilion-lanterns'),
+  birdModes:(scene.getObjectByName('park-pigeons')?.userData.birds??[]).map((b:{x:number;y:number;z:number;mode:string})=>({x:b.x,y:b.y,z:b.z,mode:b.mode}))}
+}
 export function renderedOwnPosition(){
  const scene=_roots.get(document.querySelector('canvas')!)?.store.getState().scene
  return scene?.getObjectByName('avatar-'+useSession.getState().sessionId)?.position.toArray()
 }
+export function cameraPosition(){return _roots.get(document.querySelector('canvas')!)!.store.getState().camera.position.toArray()}
 export function detailProbe(){
  const {scene}=_roots.get(document.querySelector('canvas')!)!.store.getState()
  scene.updateMatrixWorld(true)

@@ -17,6 +17,7 @@ import {
 import { environmentFrame as frame } from './environmentState'
 import { Instances, type Part } from './art/Instances'
 import { TraditionalPavilionLanterns } from './art/TraditionalPavilionLanterns'
+import { GENERATED_PARK_ENABLED } from '../park/mapSelection'
 
 export function NightMaterial({
   color = '#ece3cb',
@@ -54,6 +55,7 @@ const candidates = [
     y: y + 3.7,
     z,
     floor: y,
+    poolOffset: GENERATED_PARK_ENABLED ? .012 : .105,
     radius: 4.2,
     strength: 24,
     color: ENVIRONMENT.palette.path,
@@ -63,13 +65,14 @@ const candidates = [
     y: t.position[1] + 3.2,
     z: t.position[2],
     floor: t.position[1],
+    poolOffset:.105,
     radius: 3.8,
     strength: 30,
     color: ENVIRONMENT.palette.table,
   })),
 ]
 const pools: Part[] = candidates.map((p) => ({
-  p: [p.x, p.floor + 0.105, p.z],
+  p: [p.x, p.floor + p.poolOffset, p.z],
   s: [p.radius, p.radius, 1],
   r: [-Math.PI / 2, 0, 0],
   c: p.color,
