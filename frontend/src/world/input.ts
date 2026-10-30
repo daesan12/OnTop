@@ -224,9 +224,9 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
       // Local intent must not wait for the transport's 60ms send cadence.
       if (changed) sendIntent()
     }
-    if (event.code === 'Space' && !event.repeat) {
+    if (event.code === 'Space') {
       event.preventDefault()
-      if (!useSession.getState().benchId && !useSession.getState().fitnessId
+      if (!event.repeat && !useSession.getState().benchId && !useSession.getState().fitnessId
         && !useBenchState.getState().pending && !useFitnessState.getState().pending && !useTelescopeState.getState().pending) {
         // Queue the edge now, rather than waiting for the roaming polling tick.
         // The transport still enforces its minimum interval and sends it only once.

@@ -1,4 +1,5 @@
 import { GENERATED_PARK_ENABLED } from '../../park/mapSelection'
+import { RETURN_TO } from '../jumpmap/course'
 import { serviceWalkHeight,isOnLakeCrossing } from '../../park/mapConfig'
 import {
   WORLD_COLLIDERS,
@@ -20,6 +21,7 @@ export type Destination = NavPoint & { name: string };
 const main = PARK_PAVILIONS[0];
 /** Approaches derive from the current OnTop layout, never a prototype zone centre. */
 export const PARK_DESTINATIONS: Record<string, NavPoint> = {
+  ...(GENERATED_PARK_ENABLED ? { jumpmap: RETURN_TO } : {}),
   central: { x: main.x, z: main.z + pavilionStairJoin(main.scale) + Math.ceil((main.floor-main.ground)/0.18)*0.5 + 0.65 },
   "games-west": { x: PARK_ZONES[1].x, z: PARK_ZONES[1].z },
   "games-east": { x: PARK_ZONES[2].x, z: PARK_ZONES[2].z },

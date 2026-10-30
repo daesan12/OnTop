@@ -4,6 +4,7 @@ import { lazy } from 'react'
 import { GENERATED_PARK_ENABLED } from '../park/mapSelection'
 import { LIVE_MAP_IDENTITY } from '../network/mapContract'
 const GeneratedParkWorld=lazy(()=>import('../layout-preview/PreviewWorld').then(m=>({default:m.PreviewWorld})))
+const ServiceJumpCourse=lazy(()=>import('../features/jumpmap/ServiceJumpCourse').then(m=>({default:m.ServiceJumpCourse})))
 import { TableTablet3D } from '../features/tableLobby/TableTablet3D'
 import { TABLET_ENABLED } from '../features/tableLobby/tabletFeature'
 import { useFrame } from '@react-three/fiber'
@@ -157,6 +158,7 @@ export const WorldCanvas = memo(function WorldCanvas({
         <NightLighting quality={GENERATED_PARK_ENABLED ? 'low' : quality} />
         <Suspense fallback={null}>
           {GENERATED_PARK_ENABLED?<group name="park-service-map" userData={{...LIVE_MAP_IDENTITY}}><GeneratedParkWorld live/></group>:<PlaceholderWorld quality={quality} />}
+          {GENERATED_PARK_ENABLED && <ServiceJumpCourse />}
           <SceneReady onReady={onReady} />
         </Suspense>
         <Avatars overlayTargets={overlayTargets} />
