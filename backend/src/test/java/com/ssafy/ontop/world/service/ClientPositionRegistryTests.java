@@ -84,4 +84,21 @@ class ClientPositionRegistryTests {
             assertThat(registry.worldState("one").avatars().getFirst().motion().authority()).isEqualTo("CLIENT_VALIDATED");
         } finally { registry.clear(); }
     }
+    @Test void 조정프로필은_개발에서_기본활성이고_월드에_전달된다() {
+        new org.springframework.boot.test.context.runner.ApplicationContextRunner()
+                .withInitializer(new org.springframework.boot.test.context.ConfigDataApplicationContextInitializer())
+                .withPropertyValues("spring.profiles.active=dev,db")
+                .run(context -> {
+                    assertThat(context).hasNotFailed();var env=context.getEnvironment();
+                    assertThat(env.getProperty("ontop.world.movement.tuned-profile",Boolean.class,false)).isTrue();
+                    var registry=registry();registry.configurePositionReports(true,env);registry.configureTunedMovement(true,env);
+                    try{registry.join("a","one");assertThat(registry.worldState("one").avatars().getFirst().motion().profile()).isEqualTo("PARK_V1");}finally{registry.clear();}
+                });
+    }
+    @Test void 조정프로필은_운영에서_명시적으로도_켤수없다() {
+        for(var profiles:List.of(new String[]{"prod"},new String[]{"production"},new String[]{"dev","prod"},new String[]{})){
+            var env=new MockEnvironment();env.setActiveProfiles(profiles);var registry=registry();
+            try{assertThatThrownBy(()->registry.configureTunedMovement(true,env)).isInstanceOf(IllegalArgumentException.class);}finally{registry.clear();}
+        }
+    }
 }
