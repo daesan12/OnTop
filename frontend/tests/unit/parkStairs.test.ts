@@ -40,3 +40,19 @@ it.each([false,true])('keeps flat-road walking continuous with split input frame
   expect(resets).toBe(0)
  }finally{sim.dispose()}
 })
+
+it('preserves the optional course coyote and landing buffer on PARK_V1',async()=>{
+ const {useJumpmap}=await import('../../src/features/jumpmap/state')
+ useJumpmap.setState({available:true})
+ const sim=await createPredictionPhysics('PARK_V1')
+ try {
+  sim.reset({x:0,y:1.05,z:75,yaw:0},0,false,{coyoteTicks:3,jumpBufferTicks:0})
+  const before=sim.pose().y
+  sim.step({...stop,jump:true},1/60)
+  expect(sim.pose().y).toBeGreaterThan(before+.1)
+  sim.reset({x:0,y:.8001,z:75,yaw:0},0,false,{coyoteTicks:0,jumpBufferTicks:4})
+  let peak=sim.pose().y
+  for(let n=0;n<30;n++){sim.step(stop,1/60);peak=Math.max(peak,sim.pose().y)}
+  expect(peak).toBeGreaterThan(1.8)
+ }finally{sim.dispose();useJumpmap.setState({available:false})}
+})

@@ -123,7 +123,8 @@ class PredictionPhysics implements PredictionSimulation {
       : input.run ? MOVEMENT.runSpeed : MOVEMENT.walkSpeed
     if (this.tuned && !swimming && !this.climbY) {
       if (!this.tunedActive) this.parkMotion.reset(this.vy)
-      this.tunedActive = true; this.stepTuned(input, dt); return
+      const jump = this.jumpEnabled ? this.jumpGrace.step(input.jump, this.grounded, dt) : input.jump && this.grounded
+      this.tunedActive = true; this.stepTuned({ ...input, jump }, dt, jump); return
     }
     this.tunedActive = false
     if (input.jump && swimming && (input.dx || input.dz)) {
@@ -157,8 +158,8 @@ class PredictionPhysics implements PredictionSimulation {
     this.world.timestep = dt
     this.world.step()
   }
-  private stepTuned(input: MovementIntent, dt: number) {
-    const p=this.body.translation(), wanted=this.parkMotion.advance(input,dt,this.grounded)
+  private stepTuned(input: MovementIntent, dt: number, launch: boolean) {
+    const p=this.body.translation(), wanted=this.parkMotion.advance(input,dt,this.grounded||launch)
     // Finish a known stair rise before its centre crosses the tread. Rounded
     // capsule corner contact can otherwise report an interpenetrating mid-step.
     const foot=p.y-MOVEMENT.halfHeight-MOVEMENT.radius
