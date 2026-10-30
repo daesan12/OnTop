@@ -5,7 +5,7 @@
 - FE 전달 기준은 MR !199, 머지 커밋 `927f25210afe048f71e65e6abded06e85edb83b8`이다. 이 파일이 추가된 `dev`에는 이후 BE의 18개 테이블 매핑도 들어 있다.
 - 현재 후보: `mapId=park`, `schemaVersion=2`, `mapVersion=cac3cb040a43630b0b40201ab089a4b328146c03211867b2a155d2b3614acc81`. `server-map.json` 원본 SHA-256은 `cd7e8e93333d3bdb3ecb8d1b72da6709f4cd88c6f0a77a0030c71f77a45e40c4`이다.
 - 개발 매핑의 BE 확정본은 `8c7bf72`에 반영된 `docs/integration/park-180/park-bindings.dev.json`이다(2026-10-30 담당자 확인). `frontend/public/park-bindings.generated.dev.json`은 바이트까지 동일한 FE 정적 응답 파일이다. Git 원본과 Linux 서버 파일의 SHA-256은 `f959b89c6bfd1873f565e5e9fe87594f6bebd5427da00ef169b09bc15feacc62`이다. Windows에서 CRLF로 체크아웃한 작업 파일은 바이트 해시가 다를 수 있으므로 배포 기록에는 Git 원본 해시를 사용한다.
-- CI는 새 맵 **후보**를 검사하고 `frontend/dist-park/`를 빌드한다. 기존 Jenkins Vercel 배포는 일반 `pnpm build`와 `frontend/dist/`를 유지한다. 현재 DEV/PROD 실행 맵은 이 문서나 CI 변경만으로 전환되지 않는다.
+- DEV 자동 배포는 `frontend/vercel.dev.json`을 명시해 `VITE_PARK_BINDINGS_URL=/park-bindings.generated.dev.json pnpm run build:park`와 `dist-park`를 사용한다. 기본 `vercel.json`과 운영 프로젝트의 빌드 설정은 유지한다. 새 FE 게시 전 실행 중 DEV BE의 generated 맵 identity가 일치해야 한다.
 - 운영용 채널 매핑 파일은 아직 확정되지 않았다. 운영 FE에 개발용 매핑을 재사용하지 않는다.
 - 2026-10-30 DEV-CI에는 위 두 맵 JSON을 `/opt/ontop/maps/cac3cb040a43630b0b40201ab089a4b328146c03211867b2a155d2b3614acc81/`에 스테이징했다. 서버에서 map SHA-256과 manifest SHA-256(`db33a56ed1f1e76c5c4594e1790a885a2290db6337243176eb5f8130aa2f8673`)을 확인했다. 디렉터리는 `root:root 0755`, 파일은 `root:root 0644`이며 `park-map.enabled` 표식은 없고 기존 DEV 앱은 `healthy`다. 파일 공급 준비만 완료한 상태다.
 - 현재 `https://dev.on-top.world/park-bindings.generated.dev.json`은 HTTP 200 JSON이며 18개 bindings·5개 emotes를 제공한다. 2026-10-30 응답 본문의 SHA-256도 위 BE 확정본과 일치했다. URL 제공 확인은 새 맵 화면 전환과 별개다.
@@ -15,7 +15,7 @@
 1. `python3 infra/ci/check_park_handoff.py`는 manifest에 기록된 생성 파일과 입력 파일의 SHA-256, 맵 identity, 18개 앵커, BE/FE 매핑·emotes 일치를 확인한다.
 2. `frontend`에서 잠금 파일 기준 설치 후 `pnpm map:check`를 **빌드 전에** 실행한다. 맵 관련 변경 또는 CI 변경이면 `VITE_PARK_BINDINGS_URL=/park-bindings.generated.dev.json pnpm run build:park`로 후보 번들을 만든다. 출력은 `frontend/dist-park/`이다.
 3. 백엔드 전체 테스트가 필요한 빌드에서는 `bash infra/ci/run-generated-map-tests.sh full`로 네 파일을 준비해 `TEST_GENERATED_MAP_DIR`을 설정한다. 맵/CI 변경만 있는 빌드는 같은 스크립트의 `handoff` 모드로 여섯 전달본 테스트를 실행한다. JUnit XML이 없거나 0건·스킵·실패이면 빌드가 실패한다.
-4. `Jenkinsfile`의 일반 `dev` 배포 단계는 기존 맵을 유지한다. 후보 빌드 성공을 서비스 전환 성공으로 해석하지 않는다.
+4. 일반 FE 변경도 새 맵 빌드를 검사한다. DEV Vercel 배포 직전에 `python3 infra/ci/check_live_park.py`로 실행 컨테이너의 `WORLD_MAP_SOURCE`와 마운트된 JSON의 mapId·schemaVersion·mapVersion을 비교한다. 구 맵 BE나 버전 불일치는 FE 게시를 차단한다. 배포 프로젝트 ID도 `ontop-frontend-dev`로 제한한다. CI 성공 후 실제 개발 도메인의 공원 입장도 확인한다.
 
 로컬에서 동일한 파일 검사: 저장소 루트에서 `python3 infra/ci/check_park_handoff.py`, `frontend`에서 `pnpm map:check`. BE 전달본 검사는 Java 21이 있는 Linux 빌드 환경에서 `bash infra/ci/run-generated-map-tests.sh handoff`로 실행한다.
 
@@ -71,7 +71,7 @@ sudo docker compose --env-file /etc/ontop/dev-app/deploy.env \
 ```
 
 4. 앱 health, 시작 로그의 맵 identity, 실제 WS 확인 상태를 확인하고, FE 개발 프로젝트의 새 맵 빌드를 같은 검증 시간에 `dev.on-top.world`로 전환한다. Vercel의 빌드 명령·출력 디렉터리가 각각 `pnpm build:park`, `dist-park`인지 확인한다. 기존 일반 빌드 설정으로 재배포하면 구 맵으로 돌아간다.
-5. 최종 검증과 별개로 이후 Jenkins 일반 FE 배포가 구 맵을 다시 게시하지 않게 배포 모드도 확정해야 한다. 현재 Jenkins는 후보 빌드 후에도 일반 빌드를 배포하도록 의도적으로 유지했다. 이 후속 변경 전에는 `dev` 자동 FE 배포를 통한 지속 전환을 완료한 것으로 보지 않는다.
+5. 이후 Jenkins FE 배포도 `--local-config vercel.dev.json`으로 새 맵을 유지한다. 구 맵으로 되돌릴 때는 BE와 FE를 함께 복구하고 이 DEV 전용 배포 설정도 호환되는 커밋으로 되돌린다.
 
 ## 복구
 
