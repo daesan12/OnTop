@@ -114,7 +114,7 @@ if (Test-Path analytics/out) { Remove-Item -Recurse -Force analytics/out }
 | `08_shop.sql` | 아이템별 구매·구매자·수량·장착 | 금액은 원장(`wallet_transactions`)이 원본이다 |
 | `09_position_heatmap.sql` | 5m 격자별 이동량·멈춘 곳 | 사람이 몰리는 곳과 비어 있는 곳으로 배치를 조정한다 |
 | `10_stuck_points.sql` | 이동 중인데 1초에 0.5m도 못 움직인 지점 | 많이 모이는 격자는 충돌·지형 버그 후보다. 맵 담당에게 좌표와 함께 전달한다 |
-| `11_zone_traffic.sql` | 맵 배치(legacy·generated)·구역별 방문자·이동량·멈춘 곳 | 구역 정의는 파일 안의 목록을 고친다. `unmapped`가 보이면 아래 "구역 수정"대로 맵 버전을 추가한다 |
+| `11_zone_traffic.sql` | 구역별 방문자·이동량·멈춘 곳 | 구역 정의는 파일 안의 목록을 고친다 |
 | `12_minigame_daily.sql` | 날짜별 붕어빵 판 수·이용자·완료·포기·기한 초과, 평균 점수·시간, 보상 | 포기·기한 초과가 많으면 조작 난이도나 제한 시간(10분)을 점검한다 |
 | `13_minigame_daily_cap.sql` | 날짜별 일일 보상 한도(100) 도달자 비율 | 도달 비율이 높으면 한도가 낮아 더 할 이유가 없을 수 있다. 한도·보상량 조정 근거로 쓴다 |
 | `14_feedback_daily.sql` | 날짜별 소리함 제출 수·제출자 수 | 공지·업데이트 직후 제출이 늘었는지 본다. 내용은 분석하지 않는다 |
