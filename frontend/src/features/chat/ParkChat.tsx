@@ -15,7 +15,7 @@ import { gameChatScope } from './gameChat'
 const textControl = (target: EventTarget | null) => target instanceof HTMLElement
   && !!target.closest('input,textarea,select,button,a,[contenteditable="true"],[role="button"]')
 const anotherPanel = () => Object.entries(inputState).some(([key, value]) => value && key !== 'chatOpen')
-  || !!document.querySelector('dialog[open],[role="dialog"]')
+  || !!document.querySelector('dialog[open],[role="dialog"]:not(.table-tablet[data-active="true"])')
 
 export function ParkChat() {
   const gameId = useGame(gameChatScope), channel = useSession(s => s.roomId)

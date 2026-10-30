@@ -10,6 +10,7 @@ import {
   ENVIRONMENT,
   ENVIRONMENT_QUALITY,
   LAMPS,
+  MINI_PROPS,
   TABLES,
   smoothRange,
   type QualityPreset,
@@ -18,6 +19,7 @@ import { environmentFrame as frame } from './environmentState'
 import { Instances, type Part } from './art/Instances'
 import { TraditionalPavilionLanterns } from './art/TraditionalPavilionLanterns'
 import { GENERATED_PARK_ENABLED } from '../park/mapSelection'
+import { FISH_SHOP_LANTERNS } from './art/shopLanternLayout'
 
 export function NightMaterial({
   color = '#ece3cb',
@@ -49,7 +51,16 @@ export function NightMaterial({
     />
   )
 }
+const shop=MINI_PROPS[0],shopScale='scale' in shop?shop.scale:1,shopYaw='yaw' in shop?shop.yaw:0
+const shopLights=GENERATED_PARK_ENABLED?FISH_SHOP_LANTERNS.map(([x,y,z])=>({
+  x:shop.x+shopScale*(x*Math.cos(shopYaw)+z*Math.sin(shopYaw)),
+  y:y*shopScale,
+  z:shop.z+shopScale*(-x*Math.sin(shopYaw)+z*Math.cos(shopYaw)),
+  floor:0,poolOffset:.012,radius:2.8,strength:18,color:'#FFD6A3',
+})):[]
 const candidates = [
+  // Reuse the bounded light pool; the new lanterns add no permanent point lights.
+  ...shopLights,
   ...LAMPS.map(([x, y, z]) => ({
     x,
     y: y + 3.7,

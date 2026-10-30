@@ -103,14 +103,7 @@ function TabletSession({ tableId }: { tableId: string }) {
   const seats = table.seats.slice(0, Math.max(2, approvedCount ?? table.capacity))
   const game = TABLE_GAMES.find(game => game.code === table.gameCode)
   return <section ref={element} tabIndex={-1} className="table-tablet" role={active ? 'dialog' : undefined}
-    aria-label="게임 태블릿" aria-hidden={!active} inert={!active} data-active={active} data-stage={step}
-    onKeyDown={event => {
-      if (event.key !== 'Tab') return
-      const controls = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled),input:not(:disabled),select:not(:disabled)')).filter(e => e.getClientRects().length)
-      const first = controls[0], last = controls.at(-1)
-      if (event.shiftKey && (document.activeElement === first || document.activeElement === element.current)) { event.preventDefault(); last?.focus() }
-      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus() }
-    }}>
+    aria-label="게임 태블릿" aria-hidden={!active} inert={!active} data-active={active} data-stage={step}>
     <div className="tablet-paper">
       <header className="tablet-title"><b className="tablet-brand">온탑</b>
         {step === 'ready' && <p>{game?.name ?? '게임 선택 대기'} · {s.anchor?.replace('table-', '') ?? ''}번 탁자</p>}

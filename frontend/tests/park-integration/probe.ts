@@ -9,6 +9,7 @@ import {PARK_DATA} from '../../src/map/park'
 import type {Mesh} from 'three'
 import {GOMOKU} from '../../src/config'
 import {omokCamera} from '../../src/game/cameraState'
+import {fishBreadShopArt} from '../../src/world/art/luckyFacilityGeometry'
 
 /** Tablet selection clears focusedAnchorId; inspect the actual seated board camera. */
 export function omokPlayProbe(x=7,y=7){
@@ -21,6 +22,13 @@ export function omokPlayProbe(x=7,y=7){
   point:{x:rect.left+(point.x+1)*rect.width/2,y:rect.top+(1-point.y)*rect.height/2}}
 }
 export function sceneReady(){return !!_roots.get(document.querySelector('canvas')!)?.store.getState().scene.getObjectByName('park-service-map')}
+export function fishShopLanternProbe(){
+ const {scene}=_roots.get(document.querySelector('canvas')!)!.store.getState()
+ const shop=scene.getObjectByName('fish-bread-shop-building')!
+ const mesh=shop.children.find(o=>(o as Mesh).geometry===fishBreadShopArt.glow) as Mesh
+ const material=mesh.material as import('three').MeshStandardMaterial
+ return {emission:material.emissiveIntensity??0,emissive:!!material.emissive?.getHex()}
+}
 export function migrationFollowupsProbe(){
  const scene=_roots.get(document.querySelector('canvas')!)!.store.getState().scene
  const names:string[]=[];scene.traverse(o=>names.push(o.name))

@@ -1,5 +1,5 @@
 {
-  "description": "Lottery booth moved toward plaza with four rear trees and three relocated lamps; existing paths and other facilities preserved, 2026-10-30",
+  "description": "Accepted new plaza retained; user-approved fish-shop lantern clearance, night lighting and cooking return fix, 2026-10-31",
   "files": {
     "src/layout-preview/districtGeometry.ts": "882709ac240a987c6d7fc5d8740f9d48e93851c586b232dfa05bacd7b70fe1ff",
     "src/layout-preview/existingTreeModel.ts": "fcb9c89c3c90e11ac5a5670a0498dae14184a10b1acac281523ad56ed4748826",
@@ -112,7 +112,7 @@
     "src/world/art/PlannedWater.tsx": "7ef91d086c5254325cbe24b9faaee5f55c60429448e49c2f3896b2defef347ab",
     "src/world/art/PlazaGarden.tsx": "cdb4ebb3e4bc81e4047df4cc6ae542bb5845b3eb86c1c55164f5270bf14efbdc",
     "src/world/art/propGeometry.ts": "c88d9a69bf3dd4d1e3dd3ee27e80e1fca96774f13dc570913dd58b274b17eed0",
-    "src/world/art/PropModel.tsx": "f871c20e65aa0b54d030993b543adc34ad4b60bfbb69ad26b3993cbfff148cb5",
+    "src/world/art/PropModel.tsx": "ceaae8415f8942357886a3e6f5028eb29479133e0c6f61ae44c56db589b63395",
     "src/world/art/ReferenceBenchFrames.tsx": "658f63c1851cfd63e5e4f34a43732bfb4e48ebc78db1ab229e068aa0cf83adf9",
     "src/world/art/ReferenceGarden.tsx": "b0d0d39e2599730b142bae09745c42510da1da6c3d153e771164cf06628470ce",
     "src/world/art/ReferenceStreetProps.tsx": "b341294a22d8d1deffe6ee2c4abfee5d8426b4c9f9826fc23860956853aaa7b6",
@@ -186,13 +186,14 @@
     "src/world/art/fitnessPavingGeometry.ts": "3792ea65214584704f47532280e40dccea1ec858cc97b5b51503e117467e20a2",
     "src/world/simpleEnvironmentPalette.ts": "aee77b31091c84944e81d79de860f500bd48486c343b719eb4164716a4663d37",
     "src/world/ParkSun.tsx": "0574bebac05a542cd557fea0de83dbff7908931e50c59f5a800adac238dba5b3",
-    "src/world/NightLighting.tsx": "0655c6b74eeb7cb1b102c256342456b3fe7d3b53f6030ff1cc1863ea59e52119",
+    "src/world/NightLighting.tsx": "5d497625ec2296facefe5e4db5d90e69fda14f21b62cc1cb43fc9e62933a442c",
     "src/features/jumpmap/landingMotion.ts": "bd2fef3d57e71cb273cfb2e0c63052bbfe55e6f44b1972676ba306380b434223",
-    "src/world/art/LuckyFacilities.tsx": "ebfcc20f68990332c4f2dc0633b23c04467e4f3dced0b5a37167040cdf582004",
-    "src/world/art/luckyFacilityGeometry.ts": "5a661551c2548a29a9e34a8f19713812c07e4ef199711f9d1eae79a04b16e022",
+    "src/world/art/LuckyFacilities.tsx": "dbd272599edccefe1e640f798ad3055721e4b2215bf5ad6c09950121eabf755b",
+    "src/world/art/luckyFacilityGeometry.ts": "a57a4ba43957909b57635a81a91804519934d8dd51e38431cfa44a0f4bf1ea3d",
     "src/layout-preview/stairFlightGeometry.ts": "73060545b54ff9e5cc27df141bdd5fb0f7912f971f5d821f74dad865aa2bab2d",
     "src/layout-preview/RankingBoardModel.tsx": "99252170dd3109afcea93d8111a0b1de540c7ea8c0eec16533f009ceb5dee0b0",
-    "src/layout-preview/rankingBoardRoofSeats.ts": "dfeebed6f3acdb238dd855aa65c12cc72adfb8c606964cca86a1a42bdb026a1d"
+    "src/layout-preview/rankingBoardRoofSeats.ts": "dfeebed6f3acdb238dd855aa65c12cc72adfb8c606964cca86a1a42bdb026a1d",
+    "src/world/art/shopLanternLayout.ts": "a12a5e070c4ac1be12d3f29ef93bef162e0fb4c2cfd93099073d609abe89ee94"
   },
   "compatibilityReview": {
     "date": "2026-10-29",
