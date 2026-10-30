@@ -8,10 +8,15 @@ const sites = {
   event:{x:-64,z:21},
   tower: { x: 62, z: 56 },
   vr: {x:-74,z:-23},folk:{x:-74,z:-3},vrPagoda:{x:-53,z:-23},
-  cart: { x: -51, z: 23 }, mailbox: { x: -18, z: 18 },
+  cart: { x: 30, z: 54 }, mailbox: { x: -18, z: 18 },
   shop: { x: -29.5, z: 36 }, drink: { x: -30, z: 54 }, photo: { x: 30, z: 35.6 },
 }
-const kiosks={shop:{width:9.6,depth:7.2,yaw:Math.PI/3},drink:{width:7.8,depth:5,yaw:Math.PI*2/3},photo:{width:8.8,depth:6.6,yaw:-Math.PI/3}}
+const kiosks={shop:{width:4.8,depth:2.4,yaw:Math.PI/3},drink:{width:7.8,depth:5,yaw:Math.PI*2/3},photo:{width:8.8,depth:6.6,yaw:-Math.PI/3}}
+const fishBreadShop={width:8.16,depth:6.12,height:5.185,scale:.85,yaw:-Math.PI*2/3}
+const cartPoint=(across:number,forward:number):MapPoint=>[
+  sites.cart.x+across*Math.cos(fishBreadShop.yaw)+forward*Math.sin(fishBreadShop.yaw),
+  sites.cart.z-across*Math.sin(fishBreadShop.yaw)+forward*Math.cos(fishBreadShop.yaw),
+]
 
 // Persistent IDs are explicit. Array order never assigns pavilion/table identities.
 const pavilionPositions: Record<string, readonly [number, number]> = {
@@ -71,8 +76,8 @@ const routes:readonly MapRoute[] = [
   {id:'event-west',points:[[-84,22],[-73,22]],width:3},
   {id:'shop-approach',points:[[-22,40],[-25,38.6]],width:2.2},
   {id:'raffle-approach',points:[[-23.5,50],[-26.5,52]],width:2.2},
-  {id:'cart-apron',points:[[-54.3,23],[-47.7,23]],width:5.4},
-  {id:'cart-access',points:[[-51,31],[-51,25.5]],width:2.8},
+  {id:'cart-apron',points:[cartPoint(-3.3,fishBreadShop.depth/2+1.3),cartPoint(3.3,fishBreadShop.depth/2+1.3)],width:2.2},
+  {id:'cart-access',points:[[23.5,50],cartPoint(0,fishBreadShop.depth/2+1.3)],width:2.8},
   {id:'south-east',points:[[39,27],[39,81],[82,81]],width:4},
   {id:'tower-west',points:[[39,56],[50.5,56]],width:4},
   {id:'tower-east',points:[[73.5,56],[84,56]],width:4},
@@ -101,7 +106,22 @@ export const PARK_DEFINITION = {
   planting:{mailboxTreeClearance:4.4,woodlandSupplementSpacing:3.15},
   mailbox:{scale:1.5},
   // Lamp IDs stay stable. Local offsets follow their district when its layout moves.
-  lighting:{relocations:{
+  lighting:{anchors:[
+    [20.284442352070435,51.43519994715294],[-20.284442352070432,51.43519994715294],[-20.284442352070435,40.564800052847076],
+    [14.849242404917494,31.1507575950825],[20.284442352070435,40.56480005284706],[-5,79.5],
+    [5,79.5],[-27,-33.5],[-27,-50.5],
+    [21,-33.5],[21,-50.5],[-30.214285714285715,-79],
+    [-12.642857142857146,-79],[4.928571428571431,-79],[22.5,-79],
+    [40.071428571428584,-79],[57.64285714285714,-79],[75.21428571428572,-79],
+    [-36,-68],[-36,-52],[-36,-36],
+    [-36,-20],[-42,-4],[-42,28],
+    [-42,44],[-42,60],[-36,76],
+    [-50.25,15],[-60.25,42],[29.25,59],
+    [36,54],[42,72],[49.75,78],
+    [71.25,78],[81.25,-68.44444444444444],[81.25,-51.333333333333336],
+    [81.25,-34.22222222222222],[81.25,17.111111111111114],[81.25,34.222222222222214],
+    [81.25,51.33333333333334],[81.25,68.44444444444443],[-73,78],
+  ] as readonly MapPoint[],relocations:{
     'lamp-0':{anchor:'plaza',offset:[21,9]},
     'lamp-1':{anchor:'plaza',offset:[-12,19.3]},
     'lamp-2':{anchor:'plaza',offset:[-15,-17]},
@@ -122,7 +142,7 @@ export const PARK_DEFINITION = {
   event:{width:32,depth:26,benches:[{x:-75,z:14,side:-1},{x:-57,z:26,side:1}]},
   fitness:{width:30,depth:22,radius:15,rx:15,rz:11,stationRadius:7.5,exitOffset:2.8,fenceRx:16.2,fenceRz:12.2,fenceOpening:5.6},
   kiosks,
-  fishBreadShop:{width:9.6,depth:7.2,height:6.1},
+  fishBreadShop,
   gate:{opening:5.2,boundaryOpening:5.2,postX:2.6},
   pavilionCourt:{width:14.5,depth:17},
   pavilionEdgeTrees:['P1','P2'].flatMap(id=>{

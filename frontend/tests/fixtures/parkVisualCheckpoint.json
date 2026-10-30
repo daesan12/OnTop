@@ -1,5 +1,5 @@
 {
-  "description": "Lucky wheel room, lottery room and enlarged fish shop; other park facilities retained, 2026-10-30",
+  "description": "Standalone enlarged wheel and compact fish shop beside photo booth; existing lamp IDs and other facilities preserved, 2026-10-30",
   "files": {
     "src/layout-preview/districtGeometry.ts": "a2840ed6640b66a60154057ac31dc177c7625c0b4930907d651a717f8fcf134b",
     "src/layout-preview/existingTreeModel.ts": "fcb9c89c3c90e11ac5a5670a0498dae14184a10b1acac281523ad56ed4748826",
@@ -23,7 +23,7 @@
     "src/layout-preview/PlazaBuildings.tsx": "3dbbf17a86c9ed2fd0c765c3be750171f05687511075ce58b7e6130da5b9ca97",
     "src/layout-preview/plazaBuildingStructure.ts": "129c2fae114d2fba97779eab1892a867bf33e6a1337ec8ab654d8a198cd18925",
     "src/layout-preview/PreviewBench.tsx": "ebdc4958755d78008bb27bee9e0933878ad71331479e522324a0c2c8333e0375",
-    "src/layout-preview/PreviewCamera.tsx": "69a9243053361bb0fa28c2cc607ba3cad375e494d6b9c87827b852620798a746",
+    "src/layout-preview/PreviewCamera.tsx": "f25fe0f27d243cb1c264f347d9b224157012921a5a66df89f32e21b8769d75ae",
     "src/layout-preview/PreviewJumpCourse.tsx": "c403d6672ba9f080b5c3eead31de84059c4cba314f019d747bad24e4f8a58ad3",
     "src/layout-preview/PreviewLandscaping.tsx": "7bdec8aadc5b6e47e9d9ab3c0a0c86933e39d3ca2b86ced0d111bfc299f50dde",
     "src/layout-preview/PreviewPigeons.tsx": "829f4d51b3832a6e78e11af044975dbe8567f24499605949fc32990c9c109b2a",
@@ -31,16 +31,16 @@
     "src/layout-preview/PreviewWorld.tsx": "3172645c14f08fb4a4ebffaab713802df033200e9d280f3e7ebc33bcca366c0a",
     "src/layout-preview/reviewFurnitureGeometry.ts": "ebac00b5aa5aebf3625d49c7ac3485a02bcba28fa79de0a599a8f44bf54fdf53",
     "src/layout-preview/sceneGeometry.ts": "29b5cc9e13888ea2d2b59ffcacf1bc418d1832b6e33b3cf637de0096c8eccdd5",
-    "src/map/park/collision.ts": "4c3b3f9d2455449118dafa7141687a2fc2eb9593c69afb577047af09155cdbb3",
-    "src/map/park/definition.ts": "43f22e11da2c848f9b4c534f434c21fc0d5b684c3d63790ba58a851837607c2b",
+    "src/map/park/collision.ts": "5d0a325c26d0047ea8aa8ac493e8694060584eeeca03daa33938e25bb1488a8c",
+    "src/map/park/definition.ts": "6de1773183d6073912a0d396f2e06efb641eba25f675aca157a150faed326b05",
     "src/map/park/fountainHeight.ts": "9996ee1c49bd09c43142d4abde7f831ee4001553bb8232b7372ff1094c4b7573",
-    "src/map/park/generated/mapVersion.ts": "39edccf27f686f8e6c2656e33d241146cbd36b13d2752534ef9038d5636813a3",
+    "src/map/park/generated/mapVersion.ts": "620cab2cc1a8df63a128cec9710fc48f65b6d9d87c2ee301dc55afa2df4eb4ef",
     "src/map/park/index.ts": "86ea47fe7b5e3b4472e9f74719374663e481e6c8c187f85317dbdbf2cd13cd02",
     "src/map/park/interactionData.ts": "34a447bb4521153f76cad68b4f9b2bfe62fa12695d7219b38f74b54d173f94d8",
     "src/map/park/lake.ts": "6b3544dfda8ae89b798d8c7f677f3e3e7b354197d7d2e2f5f31660a772070a4e",
-    "src/map/park/physics.ts": "78b35430a6a4adf6529dcaf48354968e1709e6107e596718128c0e39d7d45a51",
+    "src/map/park/physics.ts": "1c8b987c208784f7c8c40fdf7a2f6603bc6bd1bf5d7a4386238341fe81b1b8dd",
     "src/map/park/planting.ts": "bd3bdbb670b168952aab25e1c8a721b69b263da79cf985394f26c69199bed8e6",
-    "src/map/park/resolve.ts": "b403b22f6b39d068f8bb40ace839f8fea671633d097647d6fa611ea0e936ae6f",
+    "src/map/park/resolve.ts": "d19ec480b3baceaf1601171e2961fcc0c637465f3dd0043b6a2602e184655d32",
     "src/map/park/validate.ts": "c2974dfaf52502f0db86230435f8c60016bf0ce7be1e128c58ae04c502849df4",
     "src/world/art/activityPropGeometry.ts": "0af0ed0e25ec916cc9ab43debb7c6e76ad92fbbe4fa3ffcda1a602469851252f",
     "src/world/art/ActivityProps.tsx": "6f5a52839f518c2aacd507c989af67d427e6ef9e18d4bf560afea16acd107601",
@@ -188,8 +188,8 @@
     "src/world/ParkSun.tsx": "0574bebac05a542cd557fea0de83dbff7908931e50c59f5a800adac238dba5b3",
     "src/world/NightLighting.tsx": "0655c6b74eeb7cb1b102c256342456b3fe7d3b53f6030ff1cc1863ea59e52119",
     "src/features/jumpmap/landingMotion.ts": "bd2fef3d57e71cb273cfb2e0c63052bbfe55e6f44b1972676ba306380b434223",
-    "src/world/art/LuckyFacilities.tsx": "441bb76a3c9bf5fae317fbfbc8d3dae691c98f8ba41105584a3915686b96f36c",
-    "src/world/art/luckyFacilityGeometry.ts": "1818de67717a9c64846f18008a377c3d26b86d604ad82639c16c8478de779ad2"
+    "src/world/art/LuckyFacilities.tsx": "eff93a9d5ec6beacdc8dfd92ad3e22980279b4311b07b27db9fd8e4234520b4c",
+    "src/world/art/luckyFacilityGeometry.ts": "9f4d54c22ab9d330ca7390069149b0ba12df9b63b3aae2daaba6ece5aeee07e9"
   },
   "compatibilityReview": {
     "date": "2026-10-29",

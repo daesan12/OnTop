@@ -6,7 +6,7 @@ import { useEffect, useRef, type RefObject } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { MathUtils,PerspectiveCamera, Vector3 } from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
-import { DRAFT_PARK,canWalk,walkHeight,MARKERS,KIOSKS,type SiteMarker } from './layout'
+import { DRAFT_PARK,canWalk,walkHeight,MARKERS,KIOSKS,SETTINGS,type SiteMarker } from './layout'
 import { DRAFT_LAKE,swimmingAt } from './lakeLayout'
 import { SWIMMING } from '../config/parkLandforms'
 import { usePreviewBench,previewBenches,resetPreviewBench,updatePreviewBenchNearby,sitPreviewBench,standPreviewBench } from './PreviewBench'
@@ -17,7 +17,7 @@ export type PreviewView='overview'|'plan'|'walk'|'skyline'|'jump'|'course'
 export const previewMotion={x:DRAFT_PARK.spawn[0],z:DRAFT_PARK.spawn[1],yaw:0,pitch:0,vx:0,vz:0,ready:false,frames:0,swimming:false,mode:'overview' as PreviewView}
 const projected=new Vector3()
 const origin=new Vector3(),north=new Vector3(),east=new Vector3()
-const labelHeight=(m:SiteMarker)=>m.no==='03'?31:m.no==='08'?23:m.no==='01'?16:m.no==='02'?10:4
+const labelHeight=(m:SiteMarker)=>m.no==='03'?31:m.no==='08'?23:m.no==='01'?16:m.no==='02'?10:m.id==='layout-shop'?6.3:4
 const compactMarkers=new Set(['01','07','21'])
 export function PreviewCamera({view,focus,labels,markerElements,indicators,onReady,resetEpoch}:{
   view:PreviewView;focus:SiteMarker|undefined;labels:boolean;resetEpoch:number;
@@ -64,7 +64,7 @@ export function PreviewCamera({view,focus,labels,markerElements,indicators,onRea
         if(found)break
       }
     } else if(controls.current) {
-      const kiosk=KIOSKS.find(k=>focus.id===`layout-${k.kind}`)??(focus.id==='fish-bread'?{yaw:0}:undefined)
+      const kiosk=KIOSKS.find(k=>focus.id===`layout-${k.kind}`)??(focus.id==='fish-bread'?{yaw:SETTINGS.fishBreadShop.yaw}:undefined)
       if(kiosk) {
         controls.current.target.set(focus.x,1.5,focus.z)
         camera.position.set(focus.x+Math.sin(kiosk.yaw)*23-Math.cos(kiosk.yaw)*8,8.5,focus.z+Math.cos(kiosk.yaw)*23+Math.sin(kiosk.yaw)*8)

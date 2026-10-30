@@ -42,6 +42,7 @@ const DRAFT_FITNESS_STATIONS=FITNESS_STATIONS.map((station,i)=>{
   return {...s,position:[SITES.fitness.x+dx,s.position[1],SITES.fitness.z+dz] as [number,number,number],yaw:Math.atan2(-dx,-dz)}
 })
 const KIOSKS=(['shop','drink','photo'] as const).map(kind=>({kind,...SITES[kind],scale:1,...definition.kiosks[kind]}))
+const facilityClearances=[...KIOSKS,{...SITES.cart,...definition.fishBreadShop}]
 const EVENT_BENCHES=definition.event.benches
 const MAIN_GATE={...definition.gate,z:DRAFT_PARK.half}
 const VR_STONE_SETS=definition.vrStoneSets
@@ -135,7 +136,7 @@ const FENCE_COURTS:readonly FenceCourt[]=[
 const ROUND_COURTS=[
   {id:'fitness-court',...SITES.fitness,radius:definition.fitness.fenceRx,rx:definition.fitness.fenceRx,rz:definition.fitness.fenceRz,gates:[0,Math.PI/2,Math.PI,Math.PI*1.5],opening:definition.fitness.fenceOpening},
 ] as const
-const KIOSK_FENCE_RUNS=KIOSKS.flatMap(k=>{
+const KIOSK_FENCE_RUNS=KIOSKS.filter(k=>k.kind!=='shop').flatMap(k=>{
   const w=k.width/2+.5,d=k.depth/2+.5
   const at=(x:number,z:number):ParkPoint=>[k.x+x*Math.cos(k.yaw)+z*Math.sin(k.yaw),k.z-x*Math.sin(k.yaw)+z*Math.cos(k.yaw)]
   return [[[-w,-d],[w,-d]],[[-w,-d],[-w,d]],[[w,-d],[w,d]]].map((p,i)=>({id:'kiosk-'+k.kind+'-'+i,from:at(p[0]![0]!,p[0]![1]!),to:at(p[1]![0]!,p[1]![1]!)}))
@@ -176,9 +177,9 @@ const LIFE_PLAZA=definition.plaza
 const PLAZA_PLANTERS:readonly {id:string;x:number;z:number;radius:number;angle:number}[]=[]
 const PLAZA_BEDS:readonly {id:string;x:number;z:number;width:number;depth:number}[]=[]
 const PLAZA_BENCHES:readonly {id:string;x:number;z:number;yaw:number}[]=[]
-const PLAZA_TREE_SITES=definition.plazaTrees.filter(p=>!inMailboxClearing(p.x,p.z,SITES.mailbox,definition.planting.mailboxTreeClearance)&&Math.hypot(p.x-LIFE_PLAZA.x,p.z-LIFE_PLAZA.z)>LIFE_PLAZA.pavingRadius+.7&&!onPath(p.x,p.z,.9)&&!inKioskEntrance(p.x,p.z,KIOSKS)
+const PLAZA_TREE_SITES=definition.plazaTrees.filter(p=>!inMailboxClearing(p.x,p.z,SITES.mailbox,definition.planting.mailboxTreeClearance)&&Math.hypot(p.x-LIFE_PLAZA.x,p.z-LIFE_PLAZA.z)>LIFE_PLAZA.pavingRadius+.7&&!onPath(p.x,p.z,.9)&&!inKioskEntrance(p.x,p.z,facilityClearances)
   &&!DRAFT_PAVILIONS.some(q=>Math.abs(p.x-q.x)<(q.id==='P0'?15:PAVILION_COURT.width/2+2)&&Math.abs(p.z-q.z)<(q.id==='P0'?18:PAVILION_COURT.depth/2+2))
-  &&!KIOSKS.some(k=>{const dx=p.x-k.x,dz=p.z-k.z,c=Math.cos(k.yaw),sn=Math.sin(k.yaw);return Math.abs(dx*c-dz*sn)<k.width/2+1.8&&Math.abs(dx*sn+dz*c)<k.depth/2+1.8}))
+  &&!facilityClearances.some(k=>{const dx=p.x-k.x,dz=p.z-k.z,c=Math.cos(k.yaw),sn=Math.sin(k.yaw);return Math.abs(dx*c-dz*sn)<k.width/2+1.8&&Math.abs(dx*sn+dz*c)<k.depth/2+1.8}))
   .reduce<{id:string;x:number;z:number}[]>((trees,p)=>{if(!trees.some(t=>Math.hypot(t.x-p.x,t.z-p.z)<2.35))trees.push(p);return trees},[])
 const PAVILION_TREE_SITES=definition.pavilionEdgeTrees.filter(p=>!inMailboxClearing(p.x,p.z,SITES.mailbox,definition.planting.mailboxTreeClearance)&&!onPath(p.x,p.z,.55)
   &&!DRAFT_PAVILIONS.some(q=>Math.abs(p.x-q.x)<(q.id==='P0'?13.5:PAVILION_COURT.width/2+.4)&&Math.abs(p.z-q.z)<(q.id==='P0'?16:PAVILION_COURT.depth/2+.4)))
@@ -210,35 +211,16 @@ const DRAFT_BOXES: readonly DraftBox[] = [
   {id:'vr-stone-pagoda',...SITES.vrPagoda,halfX:4.8,halfZ:4.8},
   ...DRAFT_LAKE_ROCKS.map(r=>({id:r.id,x:r.x,z:r.z,halfX:r.size[0]*.9,halfZ:r.size[2]*.9})),
   {id:'garden-pagoda',...SITES.pagoda,halfX:8,halfZ:8},
-  {id:'fish-bread',...SITES.cart,halfX:definition.fishBreadShop.width/2,halfZ:definition.fishBreadShop.depth/2},
+  {id:'fish-bread',...SITES.cart,
+    halfX:(definition.fishBreadShop.width*Math.abs(Math.cos(definition.fishBreadShop.yaw))+definition.fishBreadShop.depth*Math.abs(Math.sin(definition.fishBreadShop.yaw)))/2,
+    halfZ:(definition.fishBreadShop.width*Math.abs(Math.sin(definition.fishBreadShop.yaw))+definition.fishBreadShop.depth*Math.abs(Math.cos(definition.fishBreadShop.yaw)))/2},
   {id:'feedback-mailbox',...SITES.mailbox,halfX:MAILBOX.bodyHalfWidth*definition.mailbox.scale,halfZ:MAILBOX.bodyHalfDepth*definition.mailbox.scale},
   ...KIOSKS.map(k=>({id:`layout-${k.kind}`,x:k.x,z:k.z,halfX:k.width/2*Math.abs(Math.cos(k.yaw))+k.depth/2*Math.abs(Math.sin(k.yaw)),halfZ:k.width/2*Math.abs(Math.sin(k.yaw))+k.depth/2*Math.abs(Math.cos(k.yaw))})),
 ]
 // Preserve the established forest's seeded omissions when a lamp is relocated.
 // These reservations are not rendered lamps or collision shapes.
-const TREE_LAMP_RESERVATIONS:readonly (readonly [number,number,number])[]=(()=>{
-  const points:Array<readonly [number,number,number]>=[]
-  const add=(x:number,z:number,plaza=false)=>{
-    if(!plaza&&Math.hypot(x-LIFE_PLAZA.x,z-LIFE_PLAZA.z)<LIFE_PLAZA.pavingRadius+2)return
-    if(Math.abs(x)>86||Math.abs(z)>86||Math.abs(x-SITES.pagoda.x)<19&&Math.abs(z-SITES.pagoda.z)<22)return
-    if(Math.hypot((x-SITES.lake.x)/(SITES.lake.rx+2.5),(z-SITES.lake.z)/(SITES.lake.rz+3))<1||Math.hypot(x-SITES.tower.x,z-SITES.tower.z)<13.5||Math.hypot(x-SITES.fountain.x,z-SITES.fountain.z)<DRAFT_FOUNTAIN.plazaRadius+.8)return
-    if(DRAFT_PAVILIONS.some(p=>Math.abs(x-p.x)<(p.id==='P0'?14:PAVILION_COURT.width/2+1)&&Math.abs(z-p.z)<(p.id==='P0'?17:PAVILION_COURT.depth/2+1)))return
-    if(DRAFT_BOXES.some(b=>Math.abs(x-b.x)<b.halfX+1.5&&Math.abs(z-b.z)<b.halfZ+1.5))return
-  if([...FENCE_RUNS,...CENTRAL_RAIL_RUNS,...STAIR_RAIL_RUNS].some(r=>nearSegment(x,z,r.from,r.to)<1.2))return
-    if(points.some(p=>Math.hypot(p[0]-x,p[2]-z)<8)||onPath(x,z,.25))return
-    points.push([x,0,z])
-  }
-  // Historical plaza candidates retained only for procedural planting stability.
-  for(const degrees of [15,60,120,165,195,315,345]){const a=degrees*Math.PI/180;add(LIFE_PLAZA.x+Math.cos(a)*21,LIFE_PLAZA.z+Math.sin(a)*21,true)}
-  const selected=new Set(['arrival','west-spine','north-cross','hall-south-cross','fitness-north','fitness-cart-link','south-east','lake-east','service-entry','west-pavilions','east-pavilions'])
-  for(const r of PATHS.filter(r=>selected.has(r.id)))for(let i=1;i<r.points.length;i++) {
-    const a=r.points[i-1]!,b=r.points[i]!,dx=b[0]-a[0],dz=b[1]-a[1],length=Math.hypot(dx,dz),n=Math.floor(length/16)
-    for(let j=0;j<n;j++)for(const side of [-1,1]){const t=(j+.5)/Math.max(1,n),offset=r.width/2+1;add(a[0]+dx*t-dz/length*offset*side,a[1]+dz*t+dx/length*offset*side)}
-  }
-  for(const x of [-30,0,30])for(const z of [23,61])add(x,z)
-  for(const [x,z] of [[-32,47],[32,51],[-20,27],[20,27],[-18,57],[18,57],[-77,-65],[-78,-46],[-49,-62],[-57,49],[-73,78],[52,73],[76,73]])add(x!,z!)
-  return points
-})()
+// Explicit historical anchors keep lamp identities stable when facilities and planting move.
+const TREE_LAMP_RESERVATIONS=definition.lighting.anchors.map(([x,z])=>[x,0,z] as const)
 const ORIGINAL_SITES = { fountain:FOUNTAIN, tower:TOWER_SITE }
 const fountainGroundHeight=(x:number,z:number)=>blendFountainEdge(Math.hypot(x-SITES.fountain.x,z-SITES.fountain.z),DRAFT_FOUNTAIN.plazaRadius,
   groundHeight(FOUNTAIN.x+(x-SITES.fountain.x)/DRAFT_FOUNTAIN.scale,FOUNTAIN.z+(z-SITES.fountain.z)/DRAFT_FOUNTAIN.scale))
@@ -282,7 +264,7 @@ function walkHeight(x:number,z:number) {
 const facilityIds={pagoda:'garden-pagoda',fountain:'reference-fountain',fitness:'fitness-garden',tower:'spiral-observation-tower',vr:'vr-experience-hall',folk:'layout-hall-room',vrPagoda:'vr-stone-pagoda',cart:'fish-bread',mailbox:'feedback-mailbox',shop:'layout-shop',drink:'layout-drink',photo:'layout-photo'} as const
 const facilities=Object.entries(facilityIds).map(([kind,id])=>{
   const site=SITES[kind as keyof typeof facilityIds],kiosk=KIOSKS.find(k=>k.kind===kind)
-  return {id,kind,position:[site.x,kind==='pagoda'?SITES.pagoda.floor:0,site.z] as const,yaw:kiosk?.yaw??(kind==='vr'||kind==='folk'?VR_YAW:0)}
+  return {id,kind,position:[site.x,kind==='pagoda'?SITES.pagoda.floor:0,site.z] as const,yaw:kiosk?.yaw??(kind==='cart'?definition.fishBreadShop.yaw:kind==='vr'||kind==='folk'?VR_YAW:0)}
 })
 const interactionData=buildInteractionData({definition,pavilions:DRAFT_PAVILIONS,towerBenches:DRAFT_TOWER_BENCHES,plazaBenches:PLAZA_BENCHES,restBenches:PLAZA_REST_BENCHES,fitness:DRAFT_FITNESS_STATIONS,decks:lake.FISHING_DECKS})
 const terrainHeight=(x:number,z:number)=>lake.lakeRadius(x,z)<1?lakeFloorHeight(x,z):Math.hypot(x-SITES.fountain.x,z-SITES.fountain.z)<DRAFT_FOUNTAIN.plazaRadius?fountainGroundHeight(x,z):0

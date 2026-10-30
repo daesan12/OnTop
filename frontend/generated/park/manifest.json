@@ -1,14 +1,14 @@
 {
   "artifacts": [
     {
-      "bytes": 2562448,
+      "bytes": 2560623,
       "path": "generated/park/server-map.json",
-      "sha256": "e1f3045b54a13cf18f00bc13225bc6bf5b2de8fdcbdc72b29b212d84fe8c6cd6"
+      "sha256": "ff6cc3064a761a77080869c8514064c4e74654561479ec9deaa57d70900dca28"
     },
     {
       "bytes": 329,
       "path": "src/map/park/generated/mapVersion.ts",
-      "sha256": "39edccf27f686f8e6c2656e33d241146cbd36b13d2752534ef9038d5636813a3"
+      "sha256": "620cab2cc1a8df63a128cec9710fc48f65b6d9d87c2ee301dc55afa2df4eb4ef"
     }
   ],
   "counts": {
@@ -17,10 +17,10 @@
     "facilities": 12,
     "fitness": 12,
     "localSeats": 72,
-    "obstacles": 550,
+    "obstacles": 548,
     "paths": 60,
     "pavilions": 9,
-    "physicalBoxes": 2152,
+    "physicalBoxes": 2150,
     "physicalHulls": 35,
     "physicalMeshes": 8,
     "tables": 18,
@@ -29,11 +29,11 @@
   "format": "ontop.park-map-manifest",
   "hashAlgorithm": "sha256",
   "hashes": {
-    "dataHash": "4b18e91518df0d99edbef63a9971720d7682785b3707ca586f5579232fec0fca",
-    "sourceHash": "7985eda5192089c26ee0cef7aab584d1a2335c76527781450df0df8dc681e1d0"
+    "dataHash": "ed08932899a39e267cf0431c2511d0b2896a7f484e1d8d3fb9e20d762a8b8815",
+    "sourceHash": "57c199fbc816978349dbce9bdb48054cd8f4b26f2e1bca78670f92507cf8f4e4"
   },
   "mapId": "park",
-  "mapVersion": "381eee0c1a4255efbd2ce63ad64dcea9d9442abf233d18b8200211b9896f79ee",
+  "mapVersion": "4f0c298dd6e0100800326b2a22c996b4fe7fb7e39b2e1505cfb06b1719ad18b5",
   "schemaVersion": 2,
   "sources": [
     {
@@ -146,11 +146,11 @@
     },
     {
       "path": "src/map/park/collision.ts",
-      "sha256": "4c3b3f9d2455449118dafa7141687a2fc2eb9593c69afb577047af09155cdbb3"
+      "sha256": "5d0a325c26d0047ea8aa8ac493e8694060584eeeca03daa33938e25bb1488a8c"
     },
     {
       "path": "src/map/park/definition.ts",
-      "sha256": "43f22e11da2c848f9b4c534f434c21fc0d5b684c3d63790ba58a851837607c2b"
+      "sha256": "6de1773183d6073912a0d396f2e06efb641eba25f675aca157a150faed326b05"
     },
     {
       "path": "src/map/park/fountainHeight.ts",
@@ -174,7 +174,7 @@
     },
     {
       "path": "src/map/park/physics.ts",
-      "sha256": "78b35430a6a4adf6529dcaf48354968e1709e6107e596718128c0e39d7d45a51"
+      "sha256": "1c8b987c208784f7c8c40fdf7a2f6603bc6bd1bf5d7a4386238341fe81b1b8dd"
     },
     {
       "path": "src/map/park/planting.ts",
@@ -182,7 +182,7 @@
     },
     {
       "path": "src/map/park/resolve.ts",
-      "sha256": "b403b22f6b39d068f8bb40ace839f8fea671633d097647d6fa611ea0e936ae6f"
+      "sha256": "d19ec480b3baceaf1601171e2961fcc0c637465f3dd0043b6a2602e184655d32"
     },
     {
       "path": "src/map/park/validate.ts",

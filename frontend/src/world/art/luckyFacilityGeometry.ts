@@ -87,18 +87,11 @@ function wheel(b:PropBuilder){
     const a=i*Math.PI/10;b.ball('gold','#d7b46e',[Math.sin(a)*(r+.075),cy+Math.cos(a)*(r+.075),z+.19],[.045,.045,.045])
   }
 }
-const lucky=house(9.2,6.6);wheel(lucky)
-for(const x of [-3.1,3.1]){
-  lucky.box('wood',dark,[x,1.45,-1.2],[1.4,.14,1.1])
-  lucky.box('wood',wood,[x,.87,-1.2],[.18,1.16,.7])
-  for(let i=0;i<3;i++)gift(lucky,[x-.4+i*.4,1.76,-1.2],['#cf6a4c','#5d9290','#d5b256'][i]!)
-}
+export const LUCKY_WHEEL_SCALE=1.35
+const lucky=new PropBuilder([8,4]);wheel(lucky)
 export const luckyRoomArt=lucky.finish()
-
-function gift(b:PropBuilder,p:XYZ,color:string){
-  b.box('paint',color,p,[.36,.4,.36]);b.box('gold','#e9c16b',p,[.07,.42,.38])
-  b.box('gold','#e9c16b',[p[0],p[1]+.22,p[2]],[.4,.06,.08])
-}
+// With the house removed, centre the stand on its anchor and seat its feet on the ground.
+for(const geometry of Object.values(luckyRoomArt))geometry.translate(0,-.32,-1.95).scale(LUCKY_WHEEL_SCALE,LUCKY_WHEEL_SCALE,LUCKY_WHEEL_SCALE)
 const lottery=house(7.6,4.8,true)
 for(const x of [-2.6,0,2.6]){
   lottery.box('wood',dark,[x,1.42,-1.65],[1.7,2.15,.23])
@@ -161,7 +154,6 @@ export function facilitySign(label:string,subtitle=''){
     if(subtitle){c.fillStyle='#a65b3c';c.font=`600 ${h*.18}px "Malgun Gothic",sans-serif`;c.fillText(subtitle,w/2,h*.79,w*.85)}
   }
 }
-export const luckyRoomSign=facilitySign('행운 뽑기방','돌려보는 오늘의 행운')
 export const lotteryRoomSign=facilitySign('복권방','작은 기대, 커다란 설렘')
 export const fishBreadShopSign=facilitySign('붕어빵','갓 구운 따끈한 한 입')
 export const fishMenuSign=facilitySign('오늘의 메뉴','팥 · 슈크림')

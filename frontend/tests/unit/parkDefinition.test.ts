@@ -15,16 +15,16 @@ describe('common park definition',()=>{
     expect(json.facilities.find((f:{id:string})=>f.id==='layout-drink').kind).toBe('drink')
     expect(json.interactions.tableSeats[0].localSeats).toEqual(TABLES[0]!.seatAnchors)
   })
-  it('moves a rotated shop, its close fence, marker and collision together',()=>{
-    const d=clone();d.sites.shop={x:10,z:65};d.kiosks.shop.yaw=0;d.kiosks.shop.width=12
-    const map=resolveParkLayout(d),shop=map.KIOSKS.find(k=>k.kind==='shop')!
-    expect(map.MARKERS.find(m=>m.id==='layout-shop')).toMatchObject({x:10,z:65})
-    expect(map.data.facilities.find(f=>f.id==='layout-shop')).toMatchObject({position:[10,0,65],yaw:0})
-    expect(map.KIOSK_FENCE_RUNS.find(f=>f.id==='kiosk-shop-0')).toMatchObject({from:[3.5,60.9],to:[16.5,60.9]})
+  it('moves a lottery booth, its close fence, marker and collision together',()=>{
+    const d=clone();d.sites.drink={x:10,z:65};d.kiosks.drink.yaw=0;d.kiosks.drink.width=12
+    const map=resolveParkLayout(d),shop=map.KIOSKS.find(k=>k.kind==='drink')!
+    expect(map.MARKERS.find(m=>m.id==='layout-drink')).toMatchObject({x:10,z:65})
+    expect(map.data.facilities.find(f=>f.id==='layout-drink')).toMatchObject({position:[10,0,65],yaw:0})
+    expect(map.KIOSK_FENCE_RUNS.find(f=>f.id==='kiosk-drink-0')).toMatchObject({from:[3.5,62],to:[16.5,62]})
     expect(map.canWalk(shop.x+5.8,shop.z)).toBe(false)
     expect(PARK_LAYOUT.canWalk(shop.x+5.8,shop.z)).toBe(true)
-    expect(map.COLLISION.obstacles.filter(o=>o.id==='layout-shop')).toHaveLength(1)
-    expect(map.COLLISION.obstacles.find(o=>o.id==='layout-shop')).toMatchObject({halfX:6.3,yaw:0})
+    expect(map.COLLISION.obstacles.filter(o=>o.id==='layout-drink')).toHaveLength(1)
+    expect(map.COLLISION.obstacles.find(o=>o.id==='layout-drink')).toMatchObject({halfX:6.3,yaw:0})
   })
   it('keeps table identity and local seats attached when a pavilion moves',()=>{
     const d=clone();d.pavilions.P1=[-24,0]

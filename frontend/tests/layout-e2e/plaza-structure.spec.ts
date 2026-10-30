@@ -17,6 +17,8 @@ test('kiosks connect their roofs and retain the photo notice and lucky facility 
   expect(asset.roofJoints.every(Boolean)).toBe(true)
   expect(asset.signBrackets.every(Boolean)).toBe(true)
   expect(asset.pillarJoints.every(Boolean)).toBe(true)
+  expect(asset.wheelOnly).toBe(true)
+  if(asset.kind==='shop'){expect(asset.minY).toBeCloseTo(0);expect(asset.width).toBeGreaterThan(4);expect(asset.width).toBeLessThan(k.width)}
   expect(asset.boardPosts.every(p=>p.wood&&p.floor)).toBe(true)
   const no={shop:'13',drink:'14',photo:'15'}[k.kind]
   await page.getByLabel('배치 시안 시설 목록').getByRole('button',{name:new RegExp('^'+no)}).click()

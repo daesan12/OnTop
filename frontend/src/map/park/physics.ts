@@ -86,7 +86,10 @@ export function buildPhysics(i:Input) {
   // The VR tower uses the same stepped model at its own 0.7 scale.
   const vr=d.sites.vrPagoda
   box('vr-pagoda-body',[vr.x,7,vr.z],[3,7,3])
-  for(const k of i.kiosks)box('layout-'+k.kind,[k.x,2.3,k.z],[k.width/2,2.3,k.depth/2],k.yaw)
+  for(const k of i.kiosks){
+    const halfHeight=k.kind==='shop'?2.6:2.3
+    box('layout-'+k.kind,[k.x,halfHeight,k.z],[k.width/2,halfHeight,k.depth/2],k.yaw)
+  }
   for(const p of d.plazaRestGardens)box(p.id,[p.x,.4,p.z],[p.width/2,.4,p.depth/2])
   for(const p of d.plazaBins)box(p.id,[p.x,.55,p.z],[.34,.55,.34])
   for(const [n,p] of d.vrEdgeTrees.entries())box('vr-belt-tree-'+n,[p.x,1.8,p.z],[.22,1.8,.22])
@@ -166,7 +169,7 @@ export function buildPhysics(i:Input) {
     segment(`tower-rail-${radius}-${n}`,[a[0]+dx,a[1],a[2]+dz],[b[0]+dx,b[1],b[2]+dz],.12,height)
   }
   TOWER_DECK_RAIL_SEGMENTS.forEach(([a,b],n)=>segment('tower-deck-rail-'+n,[a[0]+dx,a[1],a[2]+dz],[b[0]+dx,b[1],b[2]+dz],.12,1.4))
-  box('fish-bread',[d.sites.cart.x,d.fishBreadShop.height/2,d.sites.cart.z],[d.fishBreadShop.width/2,d.fishBreadShop.height/2,d.fishBreadShop.depth/2])
+  box('fish-bread',[d.sites.cart.x,d.fishBreadShop.height/2,d.sites.cart.z],[d.fishBreadShop.width/2,d.fishBreadShop.height/2,d.fishBreadShop.depth/2],d.fishBreadShop.yaw)
   box('feedback-mailbox',[d.sites.mailbox.x,MAILBOX.height*d.mailbox.scale/2,d.sites.mailbox.z],[MAILBOX.bodyHalfWidth*d.mailbox.scale,MAILBOX.height*d.mailbox.scale/2,MAILBOX.bodyHalfDepth*d.mailbox.scale])
   const [sx,sz]=d.park.spawn,centerOffset=MOVEMENT.radius+MOVEMENT.halfHeight+MOVEMENT.offset+d.physics.spawnClearance
   let spawnGround=i.supportHeight(sx,sz)
