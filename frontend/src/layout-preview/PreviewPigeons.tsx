@@ -1,4 +1,7 @@
-import { avatars } from '../network/worldClient'
+import { avatars,sampleAvatar,useSession } from '../network/worldClient'
+import { localMovement } from '../network/localMovementPrediction'
+import { MOVEMENT } from '../config'
+import { createPigeonVisitorSampler } from '../world/pigeons/visitorMotion'
 import { ParkPigeons,type PigeonHabitat } from '../world/pigeons/ParkPigeons'
 import { createBirds,type Point,type Visitor } from '../world/pigeons/pigeonSimulation'
 import { canWalk,LIFE_PLAZA,walkHeight } from './layout'
@@ -39,9 +42,17 @@ const habitat:PigeonHabitat={
 }
 /** Original mesh, animation and behavior, with preview-only terrain/visitor inputs. */
 const liveVisitors:Visitor[]=[]
+const sampleVisitor=createPigeonVisitorSampler(),livePose={x:0,y:0,z:0,yaw:0}
 const liveHabitat:PigeonHabitat={...habitat,visitors:()=>{
  liveVisitors.length=0
- for(const a of avatars.values())if(a.connected&&!a.swimming)liveVisitors.push({x:a.current.x,y:a.current.y,z:a.current.z,vx:(a.current.x-a.previous.x)/.12,vz:(a.current.z-a.previous.z)/.12})
+ const now=performance.now(),own=useSession.getState().sessionId
+ for(const [id,a] of avatars) {
+  if(!a.connected)continue
+  sampleAvatar(a,now,livePose)
+  const flags=id===own&&localMovement.ready?localMovement.displayFlags(now):a
+  const running=flags.running&&flags.moving&&!a.swimming&&!a.tableId&&!a.benchId&&!a.fitnessId&&!a.telescopeId
+  liveVisitors.push(sampleVisitor(id,livePose,now,running,MOVEMENT.runSpeed))
+ }
  return liveVisitors
 }}
 export function PreviewPigeons({live=false}:{live?:boolean}={}){return <ParkPigeons quality="high" habitat={live?liveHabitat:habitat}/>}

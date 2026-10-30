@@ -6,6 +6,7 @@ import {facilityCatalog as originalCatalog} from '../fixtures/facilityCatalog'
 import type {FacilityDefinition,FacilityLease} from '../../src/features/facilities/protocol'
 import type {MapIdentity} from '../../src/network/mapContract'
 import {disabledJumpmapStatus} from '../fixtures/jumpmap'
+import type {NoteTopic} from '../../src/features/notes/topics'
 
 export const identity={mapId:'park',schemaVersion:2,mapVersion:PARK_MAP_VERSION}
 const data=PARK_DATA
@@ -17,12 +18,13 @@ export const generatedFacilityCatalog = { ...originalCatalog, mapVersion: PARK_M
 
 /** Browser-only wire simulation: production contains no mock login, physics or transport bypass. */
 export async function parkFixture(page:Page,options:{holdConfirmation?:boolean;serverMap?:MapIdentity;omitMap?:boolean}={}) {
-  // Current generated bindings already include table-17/18; never append duplicate anchors.
+  // All 18 canonical IDs remain aligned with the latest generated bindings.
   const bindings=bindingsFile.bindings.filter(b=>b.channelId==='channel-1')
   await page.route('**/park-bindings.generated.frontend-test.json',route=>route.fulfill({json:{...bindingsFile,bindings}}))
   const requests:{type:string;payload:Record<string,unknown>;requestId:string}[]=[]
   const restRequests:{path:string;method:string;body:Record<string,unknown>}[]=[]
-  const notes:{id:string;text:string;createdAt:string}[]=[]
+  const notes:{id:string;text:string;createdAt:string;category:NoteTopic}[]=[]
+  let notesRevision=0
   let socket:WebSocketRoute,confirmationId='',version=0,channelVersion=0,facilityVersion=0,lease:FacilityLease|undefined,seated='',watched=''
   const fourPlayerTables=new Set<string>()
   const position={x:data.physics.spawn.position[0],y:data.physics.spawn.position[1],z:data.physics.spawn.position[2],yaw:Math.PI,moving:false,running:false,swimming:false,lastInputSeq:0}
@@ -38,7 +40,8 @@ export async function parkFixture(page:Page,options:{holdConfirmation?:boolean;s
       await route.fulfill({json:disabledJumpmapStatus('channel-1',identity.mapVersion)});return
     }
     if(p==='/api/v1/notes'&&method==='POST'){
-      const note={id:String(notes.length+1),text:String(requestBody.text),createdAt:new Date().toISOString()};notes.push(note)
+      const note={id:String(notes.length+1),text:String(requestBody.text),createdAt:new Date().toISOString(),category:(requestBody.category??'free') as NoteTopic};notes.push(note)
+      emit('NOTES_CHANGED',{revision:String(++notesRevision)})
       await route.fulfill({json:{note,nextAllowedAt:new Date(Date.now()+60000).toISOString()}});return
     }
     if(p==='/api/v1/feedback'&&method==='POST'){
@@ -50,7 +53,7 @@ export async function parkFixture(page:Page,options:{holdConfirmation?:boolean;s
   await page.routeWebSocket('**/ws/tables?**',ws=>{
     socket=ws
     let dx=0,dz=0
-    const tick=setInterval(()=>{if(position.moving){position.x+=dx*.2;position.z+=dz*.2;world()}},50)
+    const tick=setInterval(()=>{if(position.moving){const step=(position.running?9:6.25)*.05;position.x+=dx*step;position.z+=dz*step;world()}},50)
     ws.onClose((code,reason)=>{clearInterval(tick);ws.close({code,reason})})
     ws.onMessage(raw=>{
       const r=JSON.parse(String(raw));requests.push(r)
@@ -78,5 +81,7 @@ export async function parkFixture(page:Page,options:{holdConfirmation?:boolean;s
     })
     emit('CONNECTED',{userId:'101',...(options.omitMap?{}:{map:options.serverMap??identity}),mapVerificationRequired:true})
   })
-  return {emit,requests,restRequests,resetGame:(anchorId:string)=>{const id=bindings.find(b=>b.anchorId===anchorId)!.tableId;fourPlayerTables.delete(id);table(id,null)},enableFourPlayers:(anchorId:string)=>{const id=bindings.find(b=>b.anchorId===anchorId)!.tableId;fourPlayerTables.add(id);table(id,null)},approve:()=>emit('WORLD_MAP_STATE',{map:identity,verified:true},confirmationId),place:(p:{x:number;y:number;z:number;yaw?:number},swimming=false)=>{Object.assign(position,p,{moving:false,running:false,swimming});world()},mismatch:()=>emit('ERROR',{code:'MAP_VERSION_MISMATCH',serverMap:{...identity,mapVersion:'f'.repeat(64)},message:'맵 버전 확인 필요'})}
+  return {emit,requests,restRequests,
+    addNote:(text:string,category:NoteTopic='free')=>{notes.push({id:String(notes.length+1),text,category,createdAt:new Date().toISOString()});emit('NOTES_CHANGED',{revision:String(++notesRevision)})},
+    resetGame:(anchorId:string)=>{const id=bindings.find(b=>b.anchorId===anchorId)!.tableId;fourPlayerTables.delete(id);table(id,null)},enableFourPlayers:(anchorId:string)=>{const id=bindings.find(b=>b.anchorId===anchorId)!.tableId;fourPlayerTables.add(id);table(id,null)},approve:()=>emit('WORLD_MAP_STATE',{map:identity,verified:true},confirmationId),place:(p:{x:number;y:number;z:number;yaw?:number},swimming=false)=>{Object.assign(position,p,{moving:false,running:false,swimming});world()},mismatch:()=>emit('ERROR',{code:'MAP_VERSION_MISMATCH',serverMap:{...identity,mapVersion:'f'.repeat(64)},message:'맵 버전 확인 필요'})}
 }

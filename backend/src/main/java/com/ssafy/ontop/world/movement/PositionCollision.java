@@ -9,10 +9,15 @@ import com.jme3.math.Vector3f;
 /** Queries the channel's active geometry; every call must run on WorldPhysics' owner thread. */
 final class PositionCollision implements ClientPositionValidator.Geometry {
     private final PhysicsSpace space;
+    private final ParkMovementPolicy policy;
+    private final java.util.function.Predicate<String> active;
     private final CapsuleCollisionShape capsule;
     private final PhysicsGhostObject probe;
     PositionCollision(ParkScene scene, PhysicsSpace space) {
-        this.space = space;
+        this(scene, space, id -> space.getRigidBodyList().stream().anyMatch(body -> id.equals(body.getUserObject())));
+    }
+    PositionCollision(ParkScene scene, PhysicsSpace space, java.util.function.Predicate<String> active) {
+        this.space = space; this.policy = scene.policy; this.active = active;
         var movement = scene.data.path("movement");
         float radius = (float) movement.path("radius").asDouble(), half = (float) movement.path("halfHeight").asDouble();
         capsule = new CapsuleCollisionShape(radius, half * 2, 1);
@@ -21,6 +26,7 @@ final class PositionCollision implements ClientPositionValidator.Geometry {
     }
     public boolean supported(ClientPositionValidator.Pose pose) {
         var from = point(pose);
+        if (!policy.allowsSupport(from, active)) return false;
         // A centre ray loses support earlier than the capsule at platform edges.
         return space.sweepTest(capsule, new Transform(from), new Transform(from.add(0, -.17f, 0))).stream()
                 .anyMatch(hit -> hit.getCollisionObject().getCollisionGroup() == 2 && hit.getHitNormalLocal(null).y > .6);
@@ -40,18 +46,31 @@ final class PositionCollision implements ClientPositionValidator.Geometry {
             if (other.getCollisionGroup() == 2 && event.getDistance1() < -.05f) overlapping[0] = true;
         });
         if (overlapping[0]) return false;
+        // Rapier may finish a valid landing a few millimetres inside Bullet's contact skin.
+        // Only walkable contact at the END of a supported descent gets this tolerance.
         if (sweep(start, end)) return true;
+        if (end.y < start.y && supported(to) && sweep(start, end, true)) return true;
         // Conservative single-step allowance; multi-step/ramp parity remains an experiment.
         return allowStep && sweep(start, start.add(0, .22f, 0))
                 && sweep(start.add(0, .22f, 0), end.add(0, .22f, 0));
     }
-    private boolean sweep(Vector3f from, Vector3f to) {
+    public double jumpSpeed(ClientPositionValidator.Pose from, boolean tuned) { return policy.jumpSpeed(point(from), tuned); }
+    boolean correctionClear(Vector3f from, Vector3f to) {
+        if (!clear(new ClientPositionValidator.Pose(to.x, to.y, to.z), new ClientPositionValidator.Pose(to.x, to.y, to.z), false)) return false;
+        var delta = to.subtract(from);
+        return space.sweepTest(capsule, new Transform(from), new Transform(to)).stream().noneMatch(hit ->
+                hit.getCollisionObject().getCollisionGroup() == 2 && !policy.manages(String.valueOf(hit.getCollisionObject().getUserObject()))
+                && hit.getHitFraction() < .9999 && hit.getHitNormalLocal(null).dot(delta) < -.0001);
+    }
+    private boolean sweep(Vector3f from, Vector3f to) { return sweep(from, to, false); }
+    private boolean sweep(Vector3f from, Vector3f to, boolean landing) {
         var delta = to.subtract(from);
         if (delta.lengthSquared() < 1e-10) return true;
         return space.sweepTest(capsule, new Transform(from), new Transform(to)).stream().noneMatch(hit -> {
             if (hit.getCollisionObject().getCollisionGroup() != 2) return false;
             var normal = hit.getHitNormalLocal(null); // Minie returns physics-space coordinates despite this name.
             if (hit.getHitFraction() >= .9999 || normal.dot(delta) >= -.0001) return false;
+            if (landing && normal.y >= .6 && -normal.dot(delta) * (1 - hit.getHitFraction()) <= .005) return false;
             // Ignore initial walkable contact during small ground/step movement,
             // but never ignore a floor crossed in the middle of a falling path.
             return normal.y < .6 || hit.getHitFraction() > .01 || delta.y < -.27;

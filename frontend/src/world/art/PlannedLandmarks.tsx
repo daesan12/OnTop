@@ -1,4 +1,5 @@
 import { SIMPLE_MAP } from './mapRenderProfile'
+import { PavilionRailings } from './PavilionRailings'
 import { TraditionalNotesBoard } from './TraditionalNotesBoard'
 import { ParkFountain } from './ParkFountain'
 import { ParkActivities } from './ParkActivities'
@@ -64,6 +65,7 @@ export function PavilionSlot({ p }: { p: { id: string; x: number; z: number; flo
   })
   return (
     <group name={`pavilion-${p.id}`}>
+      {SIMPLE_MAP&&<PavilionRailings pavilion={p}/>}
       {!SIMPLE_MAP && <group
         ref={near}
         position={[p.x, localY, p.z + 3 * p.scale]}

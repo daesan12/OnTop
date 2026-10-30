@@ -12,6 +12,7 @@ import { fitnessService } from '../fitness/service'
 import { telescopeService } from '../telescopes/service'
 import { BenchSpectatorControls } from './BenchSpectatorControls'
 import { useTableLobby } from '../tableLobby/state'
+import { useGame } from '../../game/store'
 
 export function ParkInteractionHint() {
   const { benchId, fitnessId } = useSession(useShallow(s => ({ benchId: s.benchId, fitnessId: s.fitnessId })))
@@ -19,6 +20,7 @@ export function ParkInteractionHint() {
   const fitness = useFitnessState(useShallow(s => ({ pending: s.pending, error: s.error })))
   const telescopePending = useTelescopeState(s => s.pending)
   const joiningTable = useTableLobby(s => !!s.joiningAnchorId)
+  const omokWatching = useGame(s => s.game?.role === 'SPECTATOR' && !!s.game.omok && !!s.watchedGameId)
   const [target, setTarget] = useState<ParkInteraction | null>(null)
   useEffect(() => {
     const sample = () => {
@@ -33,6 +35,7 @@ export function ParkInteractionHint() {
   if (!target && !benchId && !fitnessId && !pending && !fitness.pending && !telescopePending && !joiningTable && !error && !fitness.error) return null
   const station = findFitness(fitnessId)
   return <aside className="park-runtime-panel park-interaction" aria-label="가까운 상호작용"
+    hidden={omokWatching}
     data-target-id={fitnessId || target?.id || benchId} data-fitness-id={fitnessId || (target?.kind === 'fitness' ? target.id : undefined)}>
     {fitnessId ? <>
       <strong>{station?.name} 이용 중{fitnessService.mode === 'mock' ? ' · 목업' : ''}</strong>

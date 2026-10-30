@@ -7,11 +7,32 @@ import {getParkInteraction} from '../../src/features/interactions/parkInteractio
 import {Raycaster} from 'three'
 import {PARK_DATA} from '../../src/map/park'
 import type {Mesh} from 'three'
+import {GOMOKU} from '../../src/config'
+import {omokCamera} from '../../src/game/cameraState'
+
+/** Tablet selection clears focusedAnchorId; inspect the actual seated board camera. */
+export function omokPlayProbe(x=7,y=7){
+ const state=_roots.get(document.querySelector('canvas')!)?.store.getState()
+ const board=state?.scene.getObjectByName('omok-board-'+omokCamera.anchorId)
+ if(!state||!board||!omokCamera.ready)return null
+ const {camera,gl}=state,rect=gl.domElement.getBoundingClientRect()
+ const point=board.localToWorld(new Vector3((x/14-.5)*GOMOKU.boardSpan,.019,(y/14-.5)*GOMOKU.boardSpan)).project(camera)
+ return {position:camera.position.toArray(),quaternion:camera.quaternion.toArray(),
+  point:{x:rect.left+(point.x+1)*rect.width/2,y:rect.top+(1-point.y)*rect.height/2}}
+}
 export function sceneReady(){return !!_roots.get(document.querySelector('canvas')!)?.store.getState().scene.getObjectByName('park-service-map')}
+export function migrationFollowupsProbe(){
+ const scene=_roots.get(document.querySelector('canvas')!)!.store.getState().scene
+ const names:string[]=[];scene.traverse(o=>names.push(o.name))
+ return {rails:names.filter(n=>/^pavilion-P\d-railings$/.test(n)),course:!!scene.getObjectByName('service-jump-course'),localCourse:!!scene.getObjectByName('layout-vr-jump-course'),
+  clouds:names.filter(n=>n==='simple-shared-clouds'||n==='simple-sky-clouds'),lanterns:!!scene.getObjectByName('traditional-pavilion-lanterns'),
+  birdModes:(scene.getObjectByName('park-pigeons')?.userData.birds??[]).map((b:{x:number;y:number;z:number;mode:string})=>({x:b.x,y:b.y,z:b.z,mode:b.mode}))}
+}
 export function renderedOwnPosition(){
  const scene=_roots.get(document.querySelector('canvas')!)?.store.getState().scene
  return scene?.getObjectByName('avatar-'+useSession.getState().sessionId)?.position.toArray()
 }
+export function cameraPosition(){return _roots.get(document.querySelector('canvas')!)!.store.getState().camera.position.toArray()}
 export function detailProbe(){
  const {scene}=_roots.get(document.querySelector('canvas')!)!.store.getState()
  scene.updateMatrixWorld(true)

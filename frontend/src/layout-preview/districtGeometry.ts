@@ -1,4 +1,4 @@
-import { BufferGeometry,Float32BufferAttribute } from 'three'
+import { BoxGeometry,BufferGeometry,Float32BufferAttribute } from 'three'
 import { PropBuilder } from '../world/art/propGeometry'
 import { SITES } from './layout'
 import { fountainPavingHeight,fountainPavingRadius,FOUNTAIN_PAVING_SEGMENTS } from './fountainPaving'
@@ -12,7 +12,13 @@ for(let quadrant=0;quadrant<4;quadrant++) {
   const count=12
   for(let i=0;i<count;i++) {
     const a=start+arc*(i+.5)/count
-    garden.box('wood',['#b78a52','#c29a64','#a97e4c'][i%3]!,[x+Math.cos(a)*2.98,.56,z-Math.sin(a)*2.98],[.76,.12,2.6*arc/count*.94],[0,a,0])
+    // Closed wedge planks meet the curved frame; narrow joints replace the wide outer gaps.
+    const slat=new BoxGeometry(1,1,1),positions=slat.getAttribute('position')
+    for(let n=0;n<positions.count;n++){
+      const r=positions.getX(n)<0?2.6:3.36,angle=start+arc*(i+(positions.getZ(n)<0?1:0))/count+(positions.getZ(n)<0?-.002:.002)
+      positions.setXYZ(n,x+Math.cos(angle)*r,positions.getY(n)<0?.5:.62,z-Math.sin(angle)*r)
+    }
+    slat.computeVertexNormals();garden.add('wood',slat,['#b78a52','#c29a64','#a97e4c'][i%3]!)
     for(const r of [2.66,3.28])garden.box('metal','#34433e',[x+Math.cos(a)*r,.465,z-Math.sin(a)*r],[.1,.1,r*arc/count*1.02],[0,a,0])
   }
   for(const t of [.1,.5,.9]) {

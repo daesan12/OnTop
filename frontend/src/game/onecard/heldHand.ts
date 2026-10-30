@@ -16,7 +16,7 @@ export function oneCardHeldCount(userId: string, anchorId: string) {
 export function oneCardHoldingPose(model: ReturnType<typeof createCharacterRig>) {
   for (const side of ['L', 'R'] as const) {
     const sign = side === 'L' ? 1 : -1
-    model.reachFitnessHand(side, sign * .115, .96, .36, -.3, 0, sign * -.15)
+    model.reachFitnessHand(side, sign * .115, .98, .62, -.3, 0, sign * -.15)
     model.handPose(side, 'cup')
   }
 }

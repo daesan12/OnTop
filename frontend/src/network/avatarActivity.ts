@@ -1,5 +1,5 @@
-/** GAME/SHOP are the public display extension requested in docs/AVATAR_ACTIVITY_BE_REQUEST.md.
- * Existing servers can keep sending BUNGEOPPANG/null until the BE extension is deployed. */
+/** GAME/BUNGEOPPANG are approved public activities. SHOP remains a future-contract
+ * display extension until server shop entry/exit broadcasting is implemented. */
 export const AVATAR_ACTIVITY_LABELS = {
   BUNGEOPPANG: '붕어빵 뒤집는 중',
   GAME: '게임 중',

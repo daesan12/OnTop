@@ -1,10 +1,12 @@
+import { selectedCardTarget } from './selectedCardTarget'
 import { create } from 'zustand'
 import { integer, record, type Envelope } from '../../network/protocol'
 import { ONECARD_PRANKS_ENABLED, type PrankScope } from './prankEvents'
 
 export const ONECARD_DEFENSE_ENABLED = import.meta.env.VITE_ONECARD_PRANK_DEFENSE !== 'false' && ONECARD_PRANKS_ENABLED
 export const PRANK_BLOCK_MS = 3000
-export interface Reach { attemptId: string; actorUserId: string; targetUserId: string; turnCount: number; until: number }
+export const PRANK_REACH_MS = 3200
+export interface Reach { attemptId: string; actorUserId: string; targetUserId: string; turnCount: number; until: number; startedAt: number; duration: number; cardIndex?: number }
 interface Block extends Reach { eventId: string }
 interface View { scope: string; enabled: boolean; pending: boolean; error: string; attempts: Reach[]; blocks: Record<string, number>; lastBlock: Block | null; usedTurn: string }
 const initial = (): View => ({ scope: '', enabled: false, pending: false, error: '', attempts: [], blocks: {}, lastBlock: null, usedTurn: '' })
@@ -47,11 +49,12 @@ export class OneCardDefenseEvents {
     const state = useOneCardDefense.getState()
     if (message.type === 'ONECARD_PRANK_REACH_STARTED') {
       if (p.turnCount !== scope.turnCount || p.targetUserId !== scope.turnUserId || !integer(p.resolveAt)
-        || p.resolveAt <= p.serverNow || p.resolveAt - p.serverNow > 1500
+        || p.resolveAt <= p.serverNow || p.resolveAt - p.serverNow > PRANK_REACH_MS
         || state.attempts.some(a => a.attemptId === p.attemptId)
         || (state.blocks[pair(p.actorUserId, p.targetUserId)] ?? 0) > this.now()) return true
       const attempt: Reach = { attemptId: p.attemptId, actorUserId: p.actorUserId, targetUserId: p.targetUserId,
-        turnCount: p.turnCount, until: this.now() + p.resolveAt - p.serverNow }
+        turnCount: p.turnCount, until: this.now() + p.resolveAt - p.serverNow, startedAt: this.now(), duration: p.resolveAt - p.serverNow,
+        ...(Number.isInteger(p.cardIndex) ? { cardIndex: p.cardIndex as number } : {}) }
       this.recent.set(attempt.attemptId, attempt)
       if (this.recent.size > 32) this.recent.delete(this.recent.keys().next().value!)
       useOneCardDefense.setState({ attempts: [...state.attempts.slice(-3), attempt], error: '',
@@ -81,10 +84,12 @@ export class OneCardDefenseEvents {
       && this.deps.canReach(target) && !state.attempts.some(a => a.actorUserId === scope.ownId)
       && state.usedTurn !== `${target}/${scope.turnCount}` && (state.blocks[pair(scope.ownId, target)] ?? 0) <= this.now()
   }
-  reach(targetUserId: string) {
+  reach(targetUserId: string, cardIndex?: number, handVersion?: number) {
     if (!this.canReach(targetUserId) || !this.scope) return Promise.resolve(false)
+    const selected = selectedCardTarget(cardIndex, handVersion, this.scope)
+    if (!selected) return Promise.resolve(false)
     return this.send('ONECARD_PRANK_REACH_SEND', { gameId: this.scope.gameId, eventId: crypto.randomUUID(), targetUserId,
-      turnCount: this.scope.turnCount }, 'ONECARD_PRANK_REACH_STARTED')
+      turnCount: this.scope.turnCount, ...selected }, 'ONECARD_PRANK_REACH_STARTED')
   }
   hit(attemptId: string) {
     this.sync()

@@ -8,7 +8,15 @@
 .park-page .onecard-game-hud.onecard-panel .onecard-ghost-hand:focus-visible { outline:2px solid #f5d37b; outline-offset:4px; border-radius:28px; }
 .onecard-hammer { position:fixed; left:var(--hammer-x,82vw); top:var(--hammer-y,47vh); width:clamp(180px,23vw,340px); transform:translate(-27%,-23%); z-index:3; pointer-events:none; }
 .onecard-hammer img { display:block; width:100%; filter:drop-shadow(0 9px 7px #271c1840); transform-origin:80% 83%; }
-.onecard-hammer img[data-swing=true] { animation:onecard-hammer-hit .3s cubic-bezier(.2,.8,.2,1); }
+.onecard-hammer[data-strike-phase]:not([data-strike-phase=idle]) { transform:translate(-36%,-28%); }
+.onecard-hammer[data-strike-phase=windup] img { animation:onecard-hammer-windup .18s ease-out both; }
+.onecard-hammer[data-strike-phase=hit] img { animation:onecard-hammer-hit .7s cubic-bezier(.2,.8,.2,1) both; }
+.onecard-hammer[data-strike-phase=miss] img { animation:onecard-hammer-return .25s ease-out both; }
+.onecard-strike-contact { position:fixed; z-index:2; pointer-events:none; }
+.onecard-hit-hand { position:absolute; width:clamp(160px,21vw,310px); max-width:none; opacity:.26; transform:translate(-46%,-45%) rotate(-12deg); animation:onecard-hand-recoil .48s .24s both; }
+.onecard-impact-ring { position:absolute; width:75px; height:75px; border:4px solid #ffe29a; border-radius:50%; box-shadow:0 0 25px #ffdf7b88; animation:onecard-contact-ring .44s .22s both; }
+.onecard-impact-spark { position:absolute; color:#fff1a9; font:900 94px/1 Georgia,serif; text-shadow:0 0 20px #d59a39; animation:onecard-contact-spark .38s .22s both; }
+.onecard-impact-word { position:absolute; color:#fff2bc; -webkit-text-stroke:1px #86502c; font:900 32px/1 system-ui,sans-serif; white-space:nowrap; animation:onecard-contact-word .5s .22s both; }
 .onecard-hammer-hint { position:absolute; top:170px; left:50%; transform:translateX(-50%); width:max-content; max-width:80%; padding:8px 15px; border:1px solid #c2bba8; border-radius:20px; background:#f6f0e5f5; color:#3a3e36; font-size:12px; text-align:center; }
 .onecard-hit-feedback { position:absolute; top:35%; left:65%; transform:translate(-50%,-50%); display:flex; flex-direction:column; align-items:center; gap:6px; padding:15px 20px; border:2px solid #c3a66b; border-radius:20px; background:#fff8e5f5; box-shadow:0 10px 30px #1d281e30; color:#353a31; animation:onecard-hit-pop .25s ease-out; text-align:center; }
 .onecard-hit-feedback>b { font:900 38px/1 system-ui,sans-serif; color:#c96532; }.onecard-hit-feedback>span { font-size:19px; font-weight:800; }.onecard-hit-feedback>small { max-width:240px; font-size:12px; line-height:1.5; }
@@ -18,11 +26,37 @@
 .park-page .onecard-game-hud.onecard-panel .onecard-primary-actions>.onecard-hammer-action[aria-pressed=true] { background:#33382f; color:#fffaf0; border-color:#42473e; }
 .park-page .onecard-game-hud.onecard-panel .onecard-primary-actions>.onecard-hammer-action[aria-pressed=true]:is(:hover,:focus-visible) { background:#454d3d; color:#fffaf0; }
 @keyframes onecard-hand-reach { from { opacity:0; translate:40px -30px; } to { opacity:1; translate:0 0; } }
-@keyframes onecard-hammer-hit { 0%,100% { transform:rotate(-12deg); } 35% { transform:rotate(-42deg); } 65% { transform:rotate(21deg) scale(.97,1.03); } }
+@keyframes onecard-hammer-windup { from { transform:rotate(-12deg); } to { transform:translate(8%,-9%) rotate(-50deg); } }
+@keyframes onecard-hammer-hit { 0%,25% { transform:translate(8%,-9%) rotate(-50deg); } 35% { transform:translate(0,0) rotate(0deg) scale(1.04,.94); } 48% { transform:translate(-2%,2%) rotate(12deg); } 72%,100% { transform:translate(5%,-5%) rotate(-12deg); } }
+@keyframes onecard-hammer-return { from { transform:translate(8%,-9%) rotate(-50deg); } to { transform:rotate(-12deg); } }
+@keyframes onecard-hand-recoil { 0% { opacity:.28; transform:translate(-46%,-45%) rotate(-12deg); } 20% { opacity:.4; transform:translate(-48%,-39%) rotate(-22deg) scale(.87,1.06); } 100% { opacity:0; transform:translate(-22%,-110%) rotate(28deg) scale(.72); } }
+@keyframes onecard-contact-ring { from { opacity:1; transform:translate(-50%,-50%) scale(.25); } to { opacity:0; transform:translate(-50%,-50%) scale(1.8); } }
+@keyframes onecard-contact-spark { from { opacity:1; transform:translate(-50%,-50%) rotate(-15deg) scale(.3); } to { opacity:0; transform:translate(-50%,-50%) rotate(20deg) scale(1.15); } }
+@keyframes onecard-contact-word { from { opacity:1; transform:translate(-50%,-110%) rotate(-10deg) scale(.6); } 40% { opacity:1; transform:translate(-50%,-160%) rotate(-10deg) scale(1.15); } to { opacity:0; transform:translate(-50%,-210%) rotate(-10deg) scale(1); } }
 @keyframes onecard-hit-pop { from { opacity:0; scale:.8; } to { opacity:1; scale:1; } }
 @media(max-width:800px) {
  .onecard-hammer { width:190px; }.onecard-hammer-hint { top:140px; font-size:11px; max-width:85%; }
  .park-page .onecard-game-hud.onecard-panel .onecard-ghost-hand { top:30%; width:170px; }.park-page .onecard-game-hud.onecard-panel .onecard-ghost-hand>span { font-size:10px; }
  .onecard-hit-feedback { left:55%; top:35%; padding:11px 13px; min-width:180px; }.onecard-hit-feedback>b { font-size:29px; }.onecard-hit-feedback>span { font-size:16px; }
 }
-@media(prefers-reduced-motion:reduce) { .park-page .onecard-game-hud.onecard-panel .onecard-ghost-hand,.onecard-hammer img[data-swing=true],.onecard-hit-feedback { animation:none; } }
+@media(prefers-reduced-motion:reduce) { .park-page .onecard-game-hud.onecard-panel .onecard-ghost-hand,.onecard-hammer[data-strike-phase] img,.onecard-hit-feedback { animation:none; } .onecard-strike-contact { display:none; } }
+
+/* Server-timed approach: clearly visible, low over the private hand, with time to react. */
+.park-page .onecard-game-hud.onecard-panel .onecard-ghost-hand { position:fixed; left:60%; top:65%; width:clamp(140px,15vw,205px); animation:onecard-hand-approach var(--reach-duration,3200ms) cubic-bezier(.18,.15,.65,1) both; touch-action:manipulation; }
+.park-page .onecard-game-hud.onecard-panel .onecard-ghost-hand img { opacity:.97; filter:drop-shadow(0 2px 2px #184b3b88) drop-shadow(0 0 3px #fff8deaa); }
+.park-page .onecard-game-hud.onecard-panel .onecard-ghost-hand:enabled:hover img { opacity:1; }
+.park-page .onecard-game-hud.onecard-panel .onecard-ghost-hand>span { margin-top:-16px; transform:none; padding:5px 9px; font-size:11px; background:#fff8eaf5; }
+.onecard-ghost-hand small { display:block; color:#946525; font-size:10px; margin-top:2px; font-variant-numeric:tabular-nums; }
+.onecard-hit-hand { opacity:.97; }
+.onecard-hammer { width:clamp(135px,17vw,230px); }
+.onecard-hammer-hint { top:auto; bottom:110px; padding:6px 11px; font-size:11px; }
+@keyframes onecard-hand-approach {
+ from { transform:translate(-50%,-50%) translate(var(--reach-start-x,140px),-150px) rotate(-24deg) scale(.72); }
+ to { transform:translate(-50%,-50%) translate(0,0) rotate(-8deg) scale(1); }
+}
+@media(max-width:800px) {
+ .park-page .onecard-game-hud.onecard-panel .onecard-ghost-hand { width:140px; }
+ .onecard-hammer { width:145px; }
+ .onecard-hammer-hint { bottom:145px; top:auto; }
+}
+@media(prefers-reduced-motion:reduce) { .park-page .onecard-game-hud.onecard-panel .onecard-ghost-hand { animation:none; transform:translate(-50%,-50%); } }

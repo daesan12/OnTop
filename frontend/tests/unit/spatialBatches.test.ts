@@ -66,3 +66,19 @@ it('fades only the obstructing crown across sector hide/show and restores its sh
   mesh.setVisibleAt(0, true); expect(proxies[0]!.visible).toBe(false)
   fader.dispose(); mesh.dispose(); material.dispose()
 })
+
+it('ignores disposed batches between scene replacement and the next camera refresh', () => {
+  const source = parkTreeBatches[1]!, part = source.parts[0]!, material = new MeshLambertMaterial()
+  const mesh = new SpatialBatches([{ geometry: source.geometry, parts: [part,
+    { ...part, p: [part.p[0] + 30, part.p[1], part.p[2]] }] }], material)
+  const scene = new Scene(); scene.add(mesh)
+  const fader = new CameraOcclusionFader(); fader.refresh(scene)
+  fader.update(new Vector3(part.p[0], part.p[1], part.p[2] + 10), new Vector3(part.p[0], part.p[1], part.p[2] - 10), true, 1)
+  expect(mesh.children.some(child => child.userData.cameraFadeProxy && child.visible)).toBe(true)
+  mesh.dispose()
+  // Both a previously faded instance and a new ray candidate remain in the cached grid.
+  expect(() => fader.update(new Vector3(part.p[0] + 30, part.p[1], part.p[2] + 10),
+    new Vector3(part.p[0] + 30, part.p[1], part.p[2] - 10), true, 1)).not.toThrow()
+  expect(() => fader.refresh(scene)).not.toThrow()
+  fader.dispose(); material.dispose()
+})

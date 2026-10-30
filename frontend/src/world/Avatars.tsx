@@ -6,7 +6,7 @@ import { useFrame, useLoader } from '@react-three/fiber'
 import { Group, Vector3 } from 'three'
 import { ParkAssetLoader } from './art/assetLoader'
 import { characterUrls, createCharacterRig } from './worldAssets'
-import { avatarPoseActive, avatarPoseKey, avatarSeatSurface, createAvatarMotion } from './avatarMotion'
+import { avatarPoseActive, avatarPoseAmbient, avatarPoseKey, avatarSeatSurface, createAvatarMotion } from './avatarMotion'
 import { SwimmingRipples } from './SwimmingRipples'
 
 import { AvatarPoseCadence } from '../performance/avatarPoseCadence'
@@ -115,9 +115,12 @@ function Avatar({
       own,
       active,
       `${avatarPoseKey(avatar)}|${reaction?.key ?? ''}|${holdingCards}|${active ? '' : `${avatar.current.x}|${avatar.current.y}|${avatar.current.z}`}`,
+      !reaction && avatarPoseAmbient(displayAvatar),
     )
     if (!poseDelta) return
-    motion.apply(displayAvatar, now, poseDelta, pose, figure.current, reaction, holdingCards ? oneCardHoldingPose : undefined)
+    motion.apply(displayAvatar, now, poseDelta, pose, figure.current, reaction,
+      holdingCards ? oneCardHoldingPose : undefined,
+      own && localMovement.motionProfile === 'PARK_V1' ? 'procedural' : 'clips')
     // Follow the posed head when swimming; a tilted standing-height marker
     // otherwise puts the nickname in front of the swimmer's face/water.
     model.bones.head.getWorldPosition(worldPosition)

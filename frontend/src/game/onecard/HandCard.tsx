@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, type CSSProperties, type PointerEvent } from 'react'
+import { useId, useLayoutEffect, useRef, type CSSProperties, type PointerEvent } from 'react'
 import type { Card } from './protocol'
 import { CardFace } from './CardFace'
 import { cardEffect, cardLabel, redCard } from './presentation'
@@ -15,6 +15,7 @@ interface Drag { id: number; x: number; y: number; dx: number; dy: number; heigh
 /** Move the existing private DOM card, never a private texture in the shared 3D scene. */
 export function HandCard({ card, scope, index, angle, lift, flipped, selected, playable, canPlay, select, grab, play, restore, dragging }: Props) {
   const button = useRef<HTMLButtonElement>(null), drag = useRef<Drag | null>(null), suppressClick = useRef(false)
+  const hintId = useId(), effect = flipped ? '' : cardEffect(card)
   const cancel = () => {
     const node = button.current, previous = drag.current
     drag.current = null
@@ -67,6 +68,7 @@ export function HandCard({ card, scope, index, angle, lift, flipped, selected, p
     style={{ '--fan-angle': `${angle}deg`, '--fan-lift': `${lift}px`, '--fan-index': index } as CSSProperties}
     data-card-id={card.id} data-flipped={flipped} data-playable={!flipped && playable} aria-pressed={!flipped && selected}
     aria-label={flipped ? '뒤집힌 카드 · 모든 손패 복구' : [cardLabel(card), cardEffect(card)].filter(Boolean).join(' · ')}
+    aria-describedby={effect ? hintId : undefined}
     disabled={!flipped && !playable} onPointerDown={start} onPointerMove={move} onPointerUp={release}
     onPointerCancel={cancel} onLostPointerCapture={cancel} onDragStart={event => event.preventDefault()}
     onClick={event => {
@@ -78,5 +80,6 @@ export function HandCard({ card, scope, index, angle, lift, flipped, selected, p
       <span className="onecard-card-front">{!flipped && <CardFace card={card} />}</span>
       <span className="onecard-card-back" aria-hidden="true"><span>✦</span></span>
     </span>
+    {effect && <span id={hintId} role="tooltip" className="onecard-ability-tip">{effect}</span>}
   </button>
 }

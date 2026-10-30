@@ -16,12 +16,13 @@ describe('new park facility completion',()=>{
       expect(t.position).toEqual([set.x,.1,set.z])
       expect(tableSeats(t).map(s=>[s.x,0,s.z])).toEqual(t.seatAnchors)
       const top=d.physics.boxes.find(b=>b.id===t.id+'-top')!
-      expect(top.center[1]+top.half[1]).toBeCloseTo(t.position[1]+1.06)
+      // Movement barrier forbids jumping on furniture; the rendered top stays at 1.06m.
+      expect(top.center[1]+top.half[1]).toBeCloseTo(t.position[1]+2.5)
       const path=new Mesh(pathPaving,new MeshBasicMaterial({side:2})),ray=new Raycaster()
       // The analytic path helper has round end caps; inspect actual paving at the VR junction.
       for(const [n,[x,,z]] of t.seatAnchors.entries()){
         const solid=d.physics.boxes.find(b=>b.id===t.id+'-chair-'+n)!
-        expect(solid.center).toEqual([set.x+x,.55,set.z+z])
+        expect(solid.center).toEqual([set.x+x,t.position[1]+1.25,set.z+z])
         for(const dx of [-.6,0,.6])for(const dz of [-.6,0,.6]){
           ray.set(new Vector3(set.x+x+dx,5,set.z+z+dz),new Vector3(0,-1,0))
           expect(ray.intersectObject(path),t.id+' seat '+n).toHaveLength(0)

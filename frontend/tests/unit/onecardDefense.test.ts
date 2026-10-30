@@ -39,6 +39,16 @@ it('waits for the hit ACK, accepts a delayed approval, and never extends a repla
   expect(useOneCardDefense.getState().blocks['505/101']).toBe(5500)
   expect(Object.keys(request.mock.calls[0]![1]).sort()).toEqual(['attemptId', 'eventId', 'gameId'])
 })
+it('accepts a 3.2 second approach and still allows a hit after two seconds', async () => {
+  const { events, request } = client()
+  events.accept(started({ resolveAt: 13200 }))
+  expect(useOneCardDefense.getState().attempts[0]).toMatchObject({ startedAt: 1000, duration: 3200, until: 4200 })
+  time = 3000; events.sync()
+  expect(useOneCardDefense.getState().attempts).toHaveLength(1)
+  expect(await events.hit(attemptId)).toBe(true)
+  expect(request).toHaveBeenCalledTimes(1)
+  expect(useOneCardDefense.getState().blocks['505/101']).toBe(6000)
+})
 it('does not accept unknown, forged-long or mismatched blocks, or submit a hit after its window', async () => {
   const { events, request } = client()
   events.accept(blocked()); expect(useOneCardDefense.getState().lastBlock).toBeNull()

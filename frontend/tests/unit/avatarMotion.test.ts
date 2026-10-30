@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { Group, SkinnedMesh, Vector3 } from 'three'
 import { characterSource } from '../fixtures/characterRig'
 import { characterBones, createCharacterRig } from '../../src/world/art/CharacterRig'
-import { avatarEmoteAge, avatarPoseActive, avatarPoseKey, avatarSeatSurface, createAvatarMotion } from '../../src/world/avatarMotion'
+import { avatarEmoteAge, avatarPoseActive, avatarPoseAmbient, avatarPoseKey, avatarSeatSurface, createAvatarMotion } from '../../src/world/avatarMotion'
 import { AvatarPoseCadence } from '../../src/performance/avatarPoseCadence'
 import { CHARACTER, CLAP_EMOTE, FITNESS_STATIONS, SOCIAL_GESTURES } from '../../src/config'
 import { FITNESS, PULLDOWN_LIFT, createFitnessMotion, sampleFitnessMotion } from '../../src/config'
@@ -59,24 +59,63 @@ describe('avatar pose transitions and resource ownership', () => {
   })
 
   for (const name of ['man', 'girl'] as const) {
-    it(`${name}: an idle pose settles before sleep and resumes the next gesture`, async () => {
+    it(`${name}: a near idle keeps playing, a distant one sleeps, and both resume the next gesture`, async () => {
       const source = await characterSource(name), rig = createCharacterRig(source), reference = createCharacterRig(source)
       const motion = createAvatarMotion(rig), fullMotion = createAvatarMotion(reference), cadence = new AvatarPoseCadence()
       const figure = new Group(), fullFigure = new Group()
-      const step = (a: AvatarSnapshot, frames: number) => {
+      const step = (a: AvatarSnapshot, frames: number, distance = 8) => {
         for (let i = 0; i < frames; i++) {
-          const delta = cadence.advance(1 / 60, 8, false, avatarPoseActive(a, 500), avatarPoseKey(a))
+          const delta = cadence.advance(1 / 60, distance, false, avatarPoseActive(a, 500), avatarPoseKey(a), avatarPoseAmbient(a))
           if (delta) motion.apply(a, 500, delta, pose, figure)
           fullMotion.apply(a, 500, 1 / 60, pose, fullFigure)
         }
       }
+      const posed = () => characterBones.map(joint => rig.bones[joint].quaternion.clone())
+      const moved = (before: ReturnType<typeof posed>) => Math.max(...characterBones.map((joint, i) => rig.bones[joint].quaternion.angleTo(before[i]!)))
       step(avatar({ moving: true, running: true }), 60)
       step(avatar(), 240)
-      for (const joint of characterBones) expect(rig.bones[joint].quaternion.angleTo(reference.bones[joint].quaternion)).toBeLessThan(0.0001)
-      expect(figure.position.y).toBeCloseTo(fullFigure.position.y, 4)
-      const before = rig.bones.upperArm_R.quaternion.clone()
-      step(avatar({ emote: 'EMOTE_WAVE', emoteAt: 100 }), 1)
-      expect(rig.bones.upperArm_R.quaternion.angleTo(before)).toBeGreaterThan(0.001)
+      // Near: the authored idle never settles; sampled at 15fps it tracks the every-frame reference.
+      for (const joint of characterBones) expect(rig.bones[joint].quaternion.angleTo(reference.bones[joint].quaternion)).toBeLessThan(0.02)
+      expect(figure.position.y).toBeCloseTo(fullFigure.position.y, 2)
+      let before = posed()
+      step(avatar(), 60)
+      expect(moved(before)).toBeGreaterThan(0.001)
+      // Distant: it eases, then sleeps like any idle pose.
+      step(avatar(), 240, 20)
+      before = posed()
+      step(avatar(), 120, 20)
+      expect(moved(before)).toBeLessThan(1e-6)                                   // angleTo's rounding only
+      const arm = rig.bones.upperArm_R.quaternion.clone()
+      step(avatar({ emote: 'EMOTE_WAVE', emoteAt: 100 }), 1, 20)
+      expect(rig.bones.upperArm_R.quaternion.angleTo(arm)).toBeGreaterThan(0.001)
+      rig.dispose(); reference.dispose()
+    })
+    it(`${name}: PARK_V1 gait settles after stopping and preserves seated/emote poses`, async () => {
+      const source = await characterSource(name), rig = createCharacterRig(source), reference = createCharacterRig(source)
+      const motion = createAvatarMotion(rig), authored = createAvatarMotion(reference)
+      const figure = new Group(), other = new Group()
+      const step = (a: AvatarSnapshot, frames: number) => {
+        for (let i = 0; i < frames; i++) {
+          motion.apply(a, 500, 1 / 60, pose, figure, undefined, undefined, 'procedural')
+          authored.apply(a, 500, 1 / 60, pose, other)
+        }
+      }
+      step(avatar({ moving: true, running: true }), 90)
+      expect(rig.bones.hips.quaternion.angleTo(reference.bones.hips.quaternion)).toBeGreaterThan(0.001)
+      step(avatar(), 240)
+      const idle = characterBones.map(joint => rig.bones[joint].quaternion.clone())
+      const authoredIdle = reference.bones.chest.quaternion.clone()
+      step(avatar(), 60)
+      for (let i = 0; i < characterBones.length; i++)
+        expect(rig.bones[characterBones[i]!].quaternion.angleTo(idle[i]!)).toBeLessThan(1e-6)
+      expect(reference.bones.chest.quaternion.angleTo(authoredIdle)).toBeGreaterThan(0.001)
+      step(avatar({ tableId: 'table-1', seatIndex: 0 }), 240)
+      for (const joint of characterBones)
+        expect(rig.bones[joint].quaternion.angleTo(reference.bones[joint].quaternion)).toBeLessThan(1e-6)
+      step(avatar({ emote: 'EMOTE_WAVE', emoteAt: 100 }), 240)
+      // Gesture IK blends from each base; its arm/hand/head pose stays within one degree.
+      for (const joint of ['upperArm_R', 'lowerArm_R', 'hand_R', 'head'] as const)
+        expect(rig.bones[joint].quaternion.angleTo(reference.bones[joint].quaternion)).toBeLessThan(0.0175)
       rig.dispose(); reference.dispose()
     })
     it(`${name}: keeps the seated body and clothing above the seat surface`, async () => {
@@ -103,15 +142,15 @@ describe('avatar pose transitions and resource ownership', () => {
       expect(avatarSeatSurface('bench-0') + rig.seatedHipLift - rig.hipHeight + bottom).toBeGreaterThan(0.58)
       rig.dispose()
     })
-    it(`${name}: swims with alternating full arm strokes, kicks and a stable pelvis at 30/60fps`, async () => {
+    it(`${name}: swims with the authored crawl, kicks and a stable pelvis at 30/60fps`, async () => {
       for (const fps of [30, 60]) {
         const rig = createCharacterRig(await characterSource(name)), motion = createAvatarMotion(rig)
         const figure = new Group(), hips = new Vector3()
         figure.add(rig.root)
         const a = avatar({ swimming: true, moving: true })
         const handSamples: number[] = []
-        const armAngles: Record<string, number> = {}, armTravel: Record<string, number> = { L: 0, R: 0 }
-        let min = Infinity, max = -Infinity, kickMin = Infinity, kickMax = -Infinity
+        const armSweep = { L: [Infinity, -Infinity], R: [Infinity, -Infinity] }
+        let min = Infinity, max = -Infinity, kickMin = Infinity, kickMax = -Infinity, elbow = Infinity
         for (let i = 0; i < fps * 4; i++) {
           motion.apply(a, 0, 1 / fps, pose, figure)
           figure.updateMatrixWorld(true)
@@ -119,28 +158,29 @@ describe('avatar pose transitions and resource ownership', () => {
           for (const side of ['L', 'R'] as const) {
             const shoulder = rig.bones[`upperArm_${side}`].getWorldPosition(new Vector3())
             const relative = rig.bones[`hand_${side}`].getWorldPosition(new Vector3()).sub(shoulder)
-            const angle = Math.atan2(relative.z, relative.y), before = armAngles[side]
-            if (before !== undefined) armTravel[side]! += Math.atan2(Math.sin(angle - before), Math.cos(angle - before))
-            armAngles[side] = angle
+            const angle = Math.atan2(relative.z, relative.y)
+            armSweep[side][0] = Math.min(armSweep[side][0]!, angle); armSweep[side][1] = Math.max(armSweep[side][1]!, angle)
           }
           const hand = rig.bones.hand_L.getWorldPosition(new Vector3())
           handSamples.push(hand.z)
           min = Math.min(min, hand.z); max = Math.max(max, hand.z)
           kickMin = Math.min(kickMin, rig.bones.upperLeg_L.rotation.x)
           kickMax = Math.max(kickMax, rig.bones.upperLeg_L.rotation.x)
+          elbow = Math.min(elbow, rig.bones.lowerArm_L.rotation.x)
           rig.bones.hips.getWorldPosition(hips)
           expect(Math.abs(hips.z)).toBeLessThan(0.001)
           expect(hips.y).toBeCloseTo(0.8, 3)
         }
         expect(figure.rotation.x).toBeCloseTo(1.3, 3)
-        expect(max - min).toBeGreaterThan(0.4)
+        // The authored crawl (characterClips) sweeps each arm back and forth with a bent elbow, about two
+        // strokes per loop; the figure tilt, pelvis and waterline stay the game's.
+        expect(max - min).toBeGreaterThan(0.2)
         const middle = (min + max) / 2
         const crossings = handSamples.filter((z, i) => i > 0 && (z - middle) * (handSamples[i - 1]! - middle) < 0).length
-        expect(crossings).toBeGreaterThanOrEqual(5)
-        // Signed hand travel catches a backwards stroke; range/crossings alone cannot.
-        expect(armTravel.L).toBeGreaterThan(8)
-        expect(armTravel.R).toBeGreaterThan(8)
-        expect(rig.bones.lowerArm_L.rotation.x).toBeLessThan(-0.15)
+        expect(crossings).toBeGreaterThanOrEqual(2)
+        expect(armSweep.L[1]! - armSweep.L[0]!).toBeGreaterThan(0.5)
+        expect(armSweep.R[1]! - armSweep.R[0]!).toBeGreaterThan(0.5)
+        expect(elbow).toBeLessThan(-0.15)
         expect(kickMax - kickMin).toBeGreaterThan(0.35)
         for (let i = 0; i < fps; i++) motion.apply({ ...a, moving: false }, 0, 1 / fps, pose, figure)
         expect(figure.rotation.x).toBeLessThan(0.2)
@@ -228,10 +268,10 @@ describe('avatar pose transitions and resource ownership', () => {
       step(avatar({ benchId: 'bench-0', seatIndex: 0, moving: true }), 900, 60)
       expect(rig.bones.upperLeg_L.rotation.x).toBeCloseTo(-Math.PI / 2, 4)
       expect(figure.position.z).toBe(0.18)
-      if (name === 'girl') {
-        const mesh = rig.root.getObjectByName('near-body') as SkinnedMesh
-        expect(mesh.morphTargetInfluences![mesh.morphTargetDictionary!.seatedCloth!]).toBeCloseTo(1, 4)
-      }
+      // A seated-cloth corrective (a skirt) is optional: the shared-body girl wears shorts.
+      const nearBody = rig.root.getObjectByName('near-body') as SkinnedMesh
+      if (nearBody.morphTargetDictionary?.seatedCloth !== undefined)
+        expect(nearBody.morphTargetInfluences![nearBody.morphTargetDictionary.seatedCloth]).toBeCloseTo(1, 4)
       step(avatar({ swimming: true, emote: 'EMOTE_WAVE' }))
       expect(figure.rotation.x).toBeCloseTo(0.18, 3)
       expect(Number.isFinite(figure.position.y)).toBe(true)
@@ -252,7 +292,8 @@ describe('avatar pose transitions and resource ownership', () => {
       expect(rig.bones.upperArm_L.rotation.x).toBeCloseTo(-1.1, 4)
       expect(rig.bones.head.rotation.x).toBeCloseTo(-0.16, 4)
       step(avatar({ fitnessId: 'unregistered' }), 900, 60)
-      expect(rig.bones.upperArm_L.rotation.x).toBeCloseTo(0, 3)
+      // An unknown machine falls back to standing: the authored idle, which sways a little around the rest.
+      expect(rig.bones.upperArm_L.rotation.x).toBeCloseTo(0, 1)
       for (const emote of ['EMOTE_CLAP', 'EMOTE_APPLAUSE_REQUEST', 'EMOTE_TSK', 'EMOTE_WAVE', 'EMOTE_TABLE_FLIP']) {
         step(avatar({ emote, emoteAt: 100 }), 900)
         expect(Math.abs(rig.bones.upperArm_R.rotation.x)).toBeGreaterThan(0.01)
@@ -260,11 +301,10 @@ describe('avatar pose transitions and resource ownership', () => {
       step(avatar(), 10_000, 90)
       expect(figure.rotation.x).toBe(0)
       expect(figure.position.z).toBe(0)
-      expect(rig.bones.upperLeg_L.rotation.x).toBeCloseTo(0, 3)
-      if (name === 'girl') {
-        const mesh = rig.root.getObjectByName('far-body') as SkinnedMesh
-        expect(mesh.morphTargetInfluences![mesh.morphTargetDictionary!.seatedCloth!]).toBe(0)
-      }
+      expect(rig.bones.upperLeg_L.rotation.x).toBeCloseTo(0, 1)
+      const farBody = rig.root.getObjectByName('far-body') as SkinnedMesh
+      if (farBody.morphTargetDictionary?.seatedCloth !== undefined)
+        expect(farBody.morphTargetInfluences![farBody.morphTargetDictionary.seatedCloth]).toBe(0)
       rig.dispose()
     })
   }

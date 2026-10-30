@@ -1,14 +1,14 @@
 {
   "artifacts": [
     {
-      "bytes": 2545863,
+      "bytes": 2562463,
       "path": "generated/park/server-map.json",
-      "sha256": "0eb15f4dccb14bca7ded0bedb63448228c969c74a4ef054ec30ac8856a56d496"
+      "sha256": "2f414118b0c2dfad42fc4bb361c332090861c302d325a5ac02300844258b8d90"
     },
     {
       "bytes": 329,
       "path": "src/map/park/generated/mapVersion.ts",
-      "sha256": "8ad5bb83531d5f512c66ff291218ccd3cf1c36a200f18fad8fd5ba22844c40bc"
+      "sha256": "92e97f984b56a0302878b88bc3cd22e8118275aaa6c59bbf6c8c557389080c3e"
     }
   ],
   "counts": {
@@ -20,7 +20,7 @@
     "obstacles": 550,
     "paths": 60,
     "pavilions": 9,
-    "physicalBoxes": 2096,
+    "physicalBoxes": 2152,
     "physicalHulls": 35,
     "physicalMeshes": 8,
     "tables": 18,
@@ -29,11 +29,11 @@
   "format": "ontop.park-map-manifest",
   "hashAlgorithm": "sha256",
   "hashes": {
-    "dataHash": "084a6147793165ed861d70090b3697309c8c9ee2e4c8b7e7086174886196f4b6",
-    "sourceHash": "436691ed5b3c74ef1abbeec83da9e006c0b5dc0278ba6f5b509ad036a2c3adb8"
+    "dataHash": "b9d81ad04307fc65931e4fc70057b5d5f08dbe942302cb6f1d590befb6e68787",
+    "sourceHash": "a45ed3b9023069098bfe0ab903e0188296b6028714a733c18f80f45cd99d1dbb"
   },
   "mapId": "park",
-  "mapVersion": "8567d192f66c47472fe67f0bab356331602c29ea9e95e97cfa85bbeb199500cf",
+  "mapVersion": "70a3d67952adcd8b1f9bfb123c9440ab7cd676b996960fef6d40f1f3a4a6fb36",
   "schemaVersion": 2,
   "sources": [
     {
@@ -146,15 +146,19 @@
     },
     {
       "path": "src/map/park/collision.ts",
-      "sha256": "00b7343a460881ba457dcb1ecce2fa35721f6c73b752de5822e8a32af3304d48"
+      "sha256": "4c3b3f9d2455449118dafa7141687a2fc2eb9593c69afb577047af09155cdbb3"
     },
     {
       "path": "src/map/park/definition.ts",
-      "sha256": "c65f46791403766d24f4a83facc41f342b58ce82e2fa8db5547cd00af09f14ff"
+      "sha256": "6629604cd331a8d63de19b2141475a528e220dd54fafab0da98ae72bc08018ba"
     },
     {
       "path": "src/map/park/fountainHeight.ts",
       "sha256": "9996ee1c49bd09c43142d4abde7f831ee4001553bb8232b7372ff1094c4b7573"
+    },
+    {
+      "path": "src/map/park/furnitureCollision.ts",
+      "sha256": "d80ff55a24ea336d7cef6c123e23761310790a6b85181aaaacf61b493d6b332e"
     },
     {
       "path": "src/map/park/index.ts",
@@ -170,7 +174,7 @@
     },
     {
       "path": "src/map/park/physics.ts",
-      "sha256": "624c6548577c2752a52f52780505cc5518b7217008d7dcdbfe8d3b0c1b4d69e3"
+      "sha256": "20f73eae680db0bdbbc4bd7990c15ff54a0e14f60c9313b13a9a1e444b90516e"
     },
     {
       "path": "src/map/park/planting.ts",
@@ -178,11 +182,11 @@
     },
     {
       "path": "src/map/park/resolve.ts",
-      "sha256": "88908fe663dad1f6a3b0427fcdd701cb4d245eded2b405864cde8991df67ef25"
+      "sha256": "ace6a3b9e5ffa7ecd42d4fd31c3a4d1bc22afd29879da61c2965dc3a0772fbfe"
     },
     {
       "path": "src/map/park/validate.ts",
-      "sha256": "33cb3b0c617a67f2fb9de7f5f8e357cac8e8a0d7540930a3d70f7d7d8b3f991d"
+      "sha256": "c2974dfaf52502f0db86230435f8c60016bf0ce7be1e128c58ae04c502849df4"
     }
   ],
   "validation": {

@@ -49,7 +49,7 @@ function TableLobbyContent() {
     && !s.seated && !busy && s.connected
   if (TABLET_ENABLED && ownTable) return gathering?.finished ? <TableGatheringHud key={gathering.scope} model={gathering} /> : <TabletLobby tableId={tableId} />
   if (gathering && details !== gathering.scope && (gathering.gameCode || gathering.finished)) return <TableGatheringHud model={gathering} />
-  if (!ownTable || !s.focused || !query.panelOpen || game) return null
+  if (!s.focused || !query.panelOpen || game) return null
   return <section role="dialog" aria-label="테이블 정보" className="park-runtime-panel park-table-panel table-lobby">
     <div className="table-lobby-heading"><strong>테이블 · {s.focused || s.bindings.find(b => b.tableId === tableId)?.anchorId}</strong>
       <div className="table-heading-actions">{ownTable && <button disabled={s.pending || busy || !s.connected} onClick={() => void runtime.leaveTable()}>일어나기</button>}

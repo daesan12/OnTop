@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import java.util.Set;
 import java.util.function.LongSupplier;
 
-/** Local opt-in movement validator. Not enabled in dev/prod. */
+/** Server-approved movement. The tuned profile accepts bounded client physics, never arbitrary positions. */
 public final class ClientPositionValidator {
     public record Pose(double x, double y, double z) {}
     public record Candidate(long seq, long epoch, Pose pose, boolean run, boolean jump, double yaw) {
@@ -27,11 +27,12 @@ public final class ClientPositionValidator {
         boolean supported(Pose pose);
         boolean clear(Pose from, Pose to, boolean allowStep);
         Double ceiling(Pose from, double rise);
+        default double jumpSpeed(Pose from, boolean tuned) { return tuned ? 8 : 6.2; }
     }
     record Decision(boolean accepted, String reason, Pose approved, long acceptedSeq) {}
     private record Flight(double originY, long started, double speed) {}
     private static final long FRESHNESS = 500_000_000L;
-    private static final double BURST_SECONDS = .35; // Local experiment: bounded scheduler/TCP batching.
+    private static final double BURST_SECONDS = .35; // Bounded scheduler/TCP batching.
     private final LongSupplier clock;
     private final Geometry geometry;
     private final double boundary;
@@ -40,8 +41,14 @@ public final class ClientPositionValidator {
     private double budget;
     private boolean blocked;
     private Flight flight;
+    private final boolean tuned;
+    private long airWindowAt;
+    private double airWindowY;
     ClientPositionValidator(Pose initial, long epoch, double boundary, Geometry geometry, LongSupplier clock) {
-        this.clock = clock; this.geometry = geometry; this.boundary = boundary;
+        this(initial, epoch, boundary, geometry, clock, false);
+    }
+    ClientPositionValidator(Pose initial, long epoch, double boundary, Geometry geometry, LongSupplier clock, boolean tuned) {
+        this.clock = clock; this.geometry = geometry; this.boundary = boundary; this.tuned = tuned;
         relocate(initial, epoch);
     }
     // Only a trusted server call can establish an origin or a new generation.
@@ -49,7 +56,7 @@ public final class ClientPositionValidator {
         if (!finite(pose) || Math.abs(pose.x) > boundary || Math.abs(pose.z) > boundary || !geometry.clear(pose, pose, false))
             throw new IllegalArgumentException("unsafe origin");
         approved = pose; this.epoch = epoch; sequence = 0; approvedAt = budgetAt = clock.getAsLong();
-        budget = .9; flight = null;
+        budget = .9; flight = null; airWindowAt = approvedAt; airWindowY = pose.y;
     }
     synchronized void blocked(boolean value) { blocked = value; }
     synchronized Decision accept(Candidate candidate) {
@@ -59,19 +66,71 @@ public final class ClientPositionValidator {
         if (candidate.epoch != epoch) return deny("EPOCH");
         if (candidate.seq <= sequence || candidate.seq < 1 || candidate.seq > 0xffff_ffffL) return deny("SEQUENCE");
         if (now - budgetAt < 0 || now - approvedAt < 0) return deny("CLOCK");
-        if (now - approvedAt > FRESHNESS) return deny("STALE");
+        if (now - approvedAt > (tuned ? 2_000_000_000L : FRESHNESS)) return deny("STALE");
         Pose target = candidate.pose;
         if (Math.abs(target.x) > boundary || Math.abs(target.z) > boundary || Math.abs(target.y) > 256) return deny("BOUNDS");
-        double speed = candidate.run ? 9 : 6.25;
+        double speed = (candidate.run ? (tuned ? 8 : 9) : (tuned ? 6 : 6.25)) * (tuned ? 1.15 : 1);
         budget = Math.min(speed * BURST_SECONDS, budget + (now - budgetAt) / 1e9 * speed);
         budgetAt = now;
         double horizontal = Math.hypot(target.x - approved.x, target.z - approved.z);
         if (horizontal > budget + .0001) return deny("SPEED");
         boolean supportedFrom = geometry.supported(approved), supportedTo = geometry.supported(target);
+        double launchSpeed = geometry.jumpSpeed(approved, tuned);
+        if (tuned) {
+            double seconds = (now - approvedAt) / 1e9;
+            // Bound large vertical changes, but do not demand Bullet/Rapier ballistic parity.
+            double dy = target.y - approved.y;
+            if ((dy > launchSpeed * seconds + .7 && !(candidate.jump && supportedFrom && dy <= tunedRise(launchSpeed)))
+                    || dy < -85 * seconds - .7) return deny("VERTICAL");
+            // The client integrator advances at most 100ms after a rendering stall.
+            // Do not count an unobserved packet gap as continuous hovering.
+            long nextAirAt = airWindowAt + Math.max(0, now - approvedAt - 100_000_000L);
+            double nextAirY = airWindowY;
+            if (supportedTo || supportedFrom) { nextAirAt = now; nextAirY = target.y; }
+            else if (now - nextAirAt > 1_500_000_000L) {
+                if (target.y > airWindowY - .3) return deny("HOVER");
+                nextAirAt = now; nextAirY = target.y;
+            }
+            Flight next = flight;
+            if (next == null && candidate.jump && supportedFrom) next = new Flight(approved.y, now, launchSpeed);
+            if (next == null) {
+                // Grounded steps/slopes retain the existing geometric allowance.
+                // Leaving support without a jump can fall, but cannot invent lift.
+                if (supportedTo && supportedFrom) {
+                    if (dy > horizontal + .22) return deny("VERTICAL");
+                } else {
+                    if (dy > .05) return deny("JUMP_REQUIRED");
+                    next = new Flight(approved.y, now, 0);
+                }
+            }
+            if (next != null) {
+                // Selected jump peaks at about 1.21m. Permit solver/timing margin,
+                // without demanding frame-exact Bullet/Rapier ballistic parity.
+                double riseLimit = next.speed > 0 ? tunedRise(next.speed) : .05;
+                if (target.y > next.originY + riseLimit) return deny("JUMP_HEIGHT");
+                if (supportedTo && target.y <= approved.y + .01
+                        && (next.speed == 0 || now - next.started > 150_000_000L)) next = null;
+            }
+            if (!geometry.clear(approved, target, supportedFrom && supportedTo)) {
+                // Sub-millimetre contact jitter must not disable the client profile.
+                // Acknowledge the report at the LAST SAFE point, never at target:
+                // repeated wall reports cannot accumulate penetration.
+                if (flight == null && !candidate.jump && supportedFrom && supportedTo
+                        && horizontal * horizontal + dy * dy <= .001 * .001) {
+                    sequence = candidate.seq; approvedAt = now;
+                    return new Decision(true, "CONTACT_HELD", approved, sequence);
+                }
+                return deny("COLLISION");
+            }
+            flight = next;
+            budget -= horizontal; approved = target; sequence = candidate.seq; approvedAt = now;
+            airWindowAt = nextAirAt; airWindowY = nextAirY;
+            return new Decision(true, "ACCEPTED", approved, sequence);
+        }
         Flight next = flight;
         if (next == null && candidate.jump && supportedFrom) {
             long takeoff = target.y - approved.y > .1 ? approvedAt : now;
-            next = new Flight(approved.y, takeoff, 6.2);
+            next = new Flight(approved.y, takeoff, launchSpeed);
         }
         if (next == null && !supportedTo) next = new Flight(approved.y, approvedAt, 0);
         if (next != null) {
@@ -101,6 +160,11 @@ public final class ClientPositionValidator {
         if (!geometry.clear(approved, target, supportedFrom && supportedTo)) return deny("COLLISION");
         budget -= horizontal; approved = target; sequence = candidate.seq; approvedAt = now; flight = next;
         return new Decision(true, "ACCEPTED", approved, sequence);
+    }
+    private static double tunedRise(double speed) {
+        double height = 0;
+        for (double velocity = speed; velocity > 0; velocity = (velocity - 1.5) * .98) height += velocity * .05;
+        return height + .24;
     }
     private Decision deny(String reason) { return new Decision(false, reason, approved, sequence); }
     private static boolean finite(Pose p) { return p != null && Double.isFinite(p.x) && Double.isFinite(p.y) && Double.isFinite(p.z); }

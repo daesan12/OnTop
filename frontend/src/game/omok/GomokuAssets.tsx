@@ -1,24 +1,26 @@
 import { memo, useLayoutEffect, useRef } from "react";
 import {
   LatheGeometry,
-  MeshLambertMaterial,
+  MeshStandardMaterial,
   SphereGeometry,
   Vector2,
   type Group,
 } from "three";
 import { GOMOKU } from "../../config";
-import { BeveledBox } from "../../world/art/BeveledBox";
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { Instances, type Part } from "../../world/art/Instances";
-import { SurfaceMaterial } from "../../world/art/SurfaceMaterial";
-import { BoardWood } from "./BoardWood";
+import { BoardWood, OmokWood } from "./BoardWood";
 
 // Shared by the four table settings, placed stones, previews and decorative supplies.
-export const stoneGeometry = new SphereGeometry(0.039, 12, 8);
-export const blackStoneMaterial = new MeshLambertMaterial({
+const frameGeometry = new RoundedBoxGeometry(1, 1, 1, 1, .025);
+export const stoneGeometry = new SphereGeometry(0.039, 16, 10);
+export const blackStoneMaterial = new MeshStandardMaterial({
   color: "#101717",
+  roughness: .23,
 });
-export const whiteStoneMaterial = new MeshLambertMaterial({
-  color: "#d6d1c6",
+export const whiteStoneMaterial = new MeshStandardMaterial({
+  color: "#f3eee2",
+  roughness: .28,
 });
 
 const body: Part[] = [
@@ -42,7 +44,7 @@ for (const sign of [-1, 1]) {
 function lathe(points: [number, number][]) {
   return new LatheGeometry(
     points.map(([x, y]) => new Vector2(x, y)),
-    24,
+    32,
   );
 }
 // A closed shell with a real interior, rather than a solid hemisphere.
@@ -104,7 +106,7 @@ for (const [index, sign] of ([-1, 1] as const).entries()) {
 }
 
 /** Original prototype art, adapted to the current tabletop. Keep the grid at local Y=0.
- * Static parts stay instanced; 24-sided bowls and shared 12x8 stones preserve the silhouette.
+ * Static parts stay instanced; the prototype's rounded frame and polished stones share geometry.
  * The lower base is shallower to clear the current pavilion felt without moving seat/camera anchors. */
 export const GomokuAssets = memo(function GomokuAssets() {
   const root = useRef<Group>(null);
@@ -118,9 +120,9 @@ export const GomokuAssets = memo(function GomokuAssets() {
     <group ref={root} name="walnut-gomoku-assets" position={[0, -0.014, 0]}>
       <Instances
         parts={body}
-        material={<SurfaceMaterial kind="wood" detail={0.42} strength={0.1} />}
+        material={<OmokWood detail={0.42} strength={0.1} />}
       >
-        <BeveledBox />
+        <primitive object={frameGeometry} attach="geometry" dispose={null} />
       </Instances>
       <mesh
         name="gomoku-playing-surface"
@@ -138,19 +140,19 @@ export const GomokuAssets = memo(function GomokuAssets() {
       <Instances
         parts={inlay}
         shadow={false}
-        material={<meshLambertMaterial />}
+        material={<meshStandardMaterial roughness={.58} />}
       >
         <boxGeometry />
       </Instances>
       <Instances
         parts={bowls}
-        material={<SurfaceMaterial kind="wood" detail={0.45} strength={0.08} />}
+        material={<OmokWood detail={0.45} strength={0.08} />}
       >
         <primitive object={bowlGeometry} attach="geometry" dispose={null} />
       </Instances>
       <Instances
         parts={lids}
-        material={<SurfaceMaterial kind="wood" detail={0.45} strength={0.08} />}
+        material={<OmokWood detail={0.45} strength={0.08} />}
       >
         <primitive object={lidGeometry} attach="geometry" dispose={null} />
       </Instances>

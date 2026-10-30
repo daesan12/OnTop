@@ -4,7 +4,7 @@ import { roundedSquare,insideRoundedSquare } from '../world/art/roundedOutline'
 import { ExtrudeGeometry,Path, Shape, ShapeGeometry } from 'three'
 import { PropBuilder } from '../world/art/propGeometry'
 import { beam, seeded, type Part } from '../world/art/Instances'
-import { DRAFT_PARK,SETTINGS,KIOSKS, DRAFT_PAVILIONS,DRAFT_STAIRS,PAVILION_COURT,DRAFT_FITNESS_AREA,DRAFT_FOUNTAIN,VR_COURT, DRAFT_BOXES, FENCE_BLOCKERS, LIFE_PLAZA, SITES, DRAFT_LAMPS, onPath } from './layout'
+import { DRAFT_PARK,SETTINGS,KIOSKS, DRAFT_PAVILIONS,DRAFT_STAIRS,PAVILION_COURT,DRAFT_FITNESS_AREA,DRAFT_FOUNTAIN,VR_COURT, DRAFT_BOXES, FENCE_BLOCKERS, LIFE_PLAZA, SITES, TREE_LAMP_RESERVATIONS, onPath } from './layout'
 import { FISHING_DECKS,FISHING_LANDINGS,shoreAccess } from './lakeLayout'
 
 // All geometry and instances are static and shared. No per-frame construction.
@@ -49,7 +49,7 @@ const candidates: [number,number][]=[]
 for(let z=-79;z<=79;z+=3.15)for(let x=-79;x<=79;x+=3.15)candidates.push([x+(random()-.5)*1.2,z+(random()-.5)*1.2])
 function reserved(x:number,z:number) {
   if(inKioskEntrance(x,z,KIOSKS))return true
-  if(onPath(x,z,1.4)||DRAFT_LAMPS.some(p=>Math.hypot(x-p[0],z-p[2])<2))return true
+  if(onPath(x,z,1.4)||TREE_LAMP_RESERVATIONS.some(p=>Math.hypot(x-p[0],z-p[2])<2))return true
   if(Math.hypot(x-LIFE_PLAZA.x,z-LIFE_PLAZA.z)<LIFE_PLAZA.pavingRadius+4)return true
   if(Math.abs(x-SITES.pagoda.x)<18&&z<SITES.pagoda.z+17&&z>SITES.pagoda.z-19)return true
   if(DRAFT_PAVILIONS.some(p=>Math.abs(x-p.x)<(p.id==='P0'?15:PAVILION_COURT.width/2+1.5)&&Math.abs(z-p.z)<(p.id==='P0'?18:PAVILION_COURT.depth/2+1.5)))return true

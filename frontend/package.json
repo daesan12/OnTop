@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "vite",
     "dev:park": "vite --mode park-integration --host localhost --port 5202 --strictPort",
-    "build:park": "node scripts/generate-park-map.mjs && node scripts/publish-rulebooks.mjs && tsc --noEmit && vite build --mode park-integration --outDir dist-park",
+    "build:park": "node scripts/generate-park-map.mjs && node scripts/export-jumpmap-course.mjs && node scripts/publish-rulebooks.mjs && tsc --noEmit && vite build --mode park-integration --outDir dist-park",
     "dev:layout": "vite --mode layout-preview --host 127.0.0.1 --port 5201 --strictPort",
     "dev:bungeoppang": "vite --mode bungeoppang-preview",
     "dev:facilities": "vite --mode facility-preview",
@@ -27,6 +27,8 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "test:e2e:park": "playwright test --config playwright.park.config.ts",
+    "test:e2e:omok-feedback": "playwright test --config playwright.omok-feedback.config.ts",
+    "test:e2e:omok-new-map": "playwright test --config playwright.omok-new-map.config.ts omok-tablet-qa.spec.ts play-flow.spec.ts",
     "test:e2e:facilities": "playwright test --config playwright.facilities.config.ts",
     "typecheck:tests": "tsc --project tsconfig.tests.json --noEmit",
     "check:migration": "node scripts/check-migration-boundary.mjs",
