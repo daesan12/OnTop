@@ -1,5 +1,5 @@
 {
-  "description": "Latest dev d803cbe0 with FE migration fixes and tactile jump effects; MR214 JSON/manifest frozen for BE221",
+  "description": "Latest dev d803cbe0 with FE migration fixes and tactile jump effects; MR214 JSON/manifest frozen for BE221; Jira 284 ranking board replaces the photo booth in layout preview only",
   "files": {
     "src/layout-preview/districtGeometry.ts": "a2840ed6640b66a60154057ac31dc177c7625c0b4930907d651a717f8fcf134b",
     "src/layout-preview/existingTreeModel.ts": "fcb9c89c3c90e11ac5a5670a0498dae14184a10b1acac281523ad56ed4748826",
@@ -28,7 +28,7 @@
     "src/layout-preview/PreviewLandscaping.tsx": "7bdec8aadc5b6e47e9d9ab3c0a0c86933e39d3ca2b86ced0d111bfc299f50dde",
     "src/layout-preview/PreviewPigeons.tsx": "829f4d51b3832a6e78e11af044975dbe8567f24499605949fc32990c9c109b2a",
     "src/layout-preview/PreviewSwimmingRipples.tsx": "7000a53d1d96f9e4aa21a23cdb89546168680a61a9ddb64240297151b22989b0",
-    "src/layout-preview/PreviewWorld.tsx": "2fdb3dd1a5ec32e9ebf54c6c2758bf9ce5f67c5d40ac27eb1e68cb3b74fb899c",
+    "src/layout-preview/PreviewWorld.tsx": "a6b7c361a6d90d8a337b2c44c1a5bea22c2e693dfae51d8a25420a4f1f4991ae",
     "src/layout-preview/reviewFurnitureGeometry.ts": "ebac00b5aa5aebf3625d49c7ac3485a02bcba28fa79de0a599a8f44bf54fdf53",
     "src/layout-preview/sceneGeometry.ts": "29b5cc9e13888ea2d2b59ffcacf1bc418d1832b6e33b3cf637de0096c8eccdd5",
     "src/map/park/collision.ts": "4c3b3f9d2455449118dafa7141687a2fc2eb9593c69afb577047af09155cdbb3",
