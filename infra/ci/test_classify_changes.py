@@ -24,6 +24,21 @@ class ChangeClassificationTests(unittest.TestCase):
         flags = classify(["analytics/queries/01_daily_active.sql", "analytics/scripts/run.py"])
         self.assertFalse(any(flags.values()))
 
+    def test_generated_map_and_be_bindings_trigger_park_checks(self):
+        for path in (
+            "frontend/generated/park/server-map.json",
+            "frontend/src/config/parkLayout.ts",
+            "frontend/src/park/runtime/deployment.ts",
+            "frontend/scripts/map/load-input.ts",
+            "frontend/vite.config.ts",
+            "frontend/public/park-bindings.generated.dev.json",
+            "docs/integration/park-180/park-bindings.dev.json",
+        ):
+            with self.subTest(path=path):
+                flags = classify([path])
+                self.assertEqual((flags["PARK_MAP_CHANGED"], flags["FRONTEND_CHANGED"]), (1, 1))
+                self.assertEqual(flags["BACKEND_CHANGED"], 0)
+
     def test_gitignore_only(self):
         self.assertFalse(any(classify([".gitignore"]).values()))
 
