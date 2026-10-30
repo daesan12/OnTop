@@ -12,7 +12,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class AlkkagiMatchTests {
     @Test
-    void 모든_크기의_최대힘_자유발사는_네칸_안에_멈추고_약한_당김은_짧게_간다() throws Exception {
+    void 선택한_기본값에서_종류별_발사거리는_유한하고_당김에_따라_증가한다() throws Exception {
         var settings = AlkkagiSettings.provisional();
         var previous = new AlkkagiSettings(4.5, 5, 1.0 / 120, 5, .9, 12, .025,
                 24, 3600, 30_000, 720_000);
@@ -25,10 +25,10 @@ class AlkkagiMatchTests {
             var half = freeFlight(piece, .5, settings);
             var quarter = freeFlight(piece, .25, settings);
             assertThat(old[0]).isGreaterThan(full[0]);
-            assertThat(full[0]).isBetween(2.5, 4.1);
+            assertThat(full[0]).isBetween(5.0, 7.6);
             assertThat(full[1]).isLessThan(.75);
-            assertThat(half[0]).isBetween(.9, 1.7);
-            assertThat(quarter[0]).isBetween(.25, .55);
+            assertThat(half[0]).isBetween(1.9, 3.1);
+            assertThat(quarter[0]).isBetween(.55, 1.0);
             assertThat(quarter[0]).isLessThan(half[0]);
             assertThat(half[0]).isLessThan(full[0]);
             rows.add("{\"type\":\"" + piece.type() + "\",\"beforeFullDistance\":" + old[0]
@@ -37,7 +37,7 @@ class AlkkagiMatchTests {
         }
         var path = java.nio.file.Path.of("build/alkkagi/free-flight-comparison.json");
         java.nio.file.Files.createDirectories(path.getParent());
-        java.nio.file.Files.writeString(path, "{\"conditions\":\"isolated no collision/boundary, actual body/deceleration, 120Hz, impulse12, deceleration5 vs18, separated model\",\"rows\":["
+        java.nio.file.Files.writeString(path, "{\"conditions\":\"isolated no collision/boundary, actual body/deceleration, 120Hz, impulse12, legacy impulse12/deceleration5 vs selected impulse30/deceleration60, separated model\",\"rows\":["
                 + String.join(",", rows) + "]}");
     }
 
@@ -76,9 +76,9 @@ class AlkkagiMatchTests {
         double pawnToKing = targetTravel(soldier, king);
         double middleToKing = targetTravel(middle, king);
         double kingToPawn = targetTravel(king, soldier);
-        assertThat(pawnToKing).isBetween(0.0, .15);
+        assertThat(pawnToKing).isBetween(0.0, .48);
         assertThat(middleToKing).isGreaterThan(pawnToKing).isLessThan(2);
-        assertThat(kingToPawn).isBetween(2., 6.);
+        assertThat(kingToPawn).isBetween(6., 20.);
         assertThat(kingToPawn).isGreaterThan(pawnToKing * 20);
         var report = java.nio.file.Path.of("build/alkkagi/size-knockback.json");
         java.nio.file.Files.createDirectories(report.getParent());

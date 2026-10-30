@@ -32,6 +32,9 @@ class AlkkagiModelStudyTests {
             List.of(15., 15., 15.), "linear", "constant", 30, .9, false, true, true, false, false);
     static final Model CANDIDATE = new Model("candidate-separated", List.of(.8, 2.4, 6.4),
             List.of(12., 11., 10.), "soft", "constant", 18, .55, false, true, false, false, true);
+    // 사용자가 실제 로컬 조작 후 선택한30/60/1. 이전 후보 결과는 덮어쓰지 않는다.
+    static final Model SELECTED = new Model("user-selected-30-60-1", List.of(.8, 2.4, 6.4),
+            List.of(30., 27.5, 25.), "soft", "constant", 60, 1, false, true, false, false, true);
     static List<Model> models() { return List.of(BASE,
             new Model("curve-sqrt", BASE.masses, BASE.speeds, "sqrt", "constant", 30,.9,false,true,true,false,false),
             new Model("curve-soft", BASE.masses, BASE.speeds, "soft", "constant", 30,.9,false,true,true,false,false),
@@ -39,7 +42,7 @@ class AlkkagiModelStudyTests {
             new Model("equal-energy", BASE.masses, List.of(15.,7.5,15/Math.sqrt(24)), "linear","constant",30,.9,false,true,true,false,false),
             new Model("type-speed-only", BASE.masses, List.of(15.,12.,10.), "linear","constant",30,.9,false,true,true,false,false),
             new Model("exponential-only", BASE.masses, BASE.speeds,"linear","exponential",6,.9,false,true,true,false,false),
-            CANDIDATE); }
+            CANDIDATE, SELECTED); }
     record Particle(int size, double x, double y, double radius) { }
     static int size(AlkkagiMatch.PieceView p) { return p.radius() > .4 ? 2 : p.radius() > .3 ? 1 : 0; }
     static List<Particle> initialBoard() {
@@ -158,7 +161,7 @@ class AlkkagiModelStudyTests {
             for(int size=0;size<3;size++)for(double p:new double[]{.25,.5,.75,1}) {
                 var run=simulate(model,List.of(new Particle(size,0,0,new double[]{.24,.32,.43}[size])),0,p,1,0,false);
                 rows.add(tag(run.summary,"free-size"+size));
-                if(model==BASE||model==CANDIDATE)traces.add(Map.of("model",model.name,"scenario","free-"+size+"-"+p,"frames",run.frames));
+                if(model==BASE||model==CANDIDATE||model==SELECTED)traces.add(Map.of("model",model.name,"scenario","free-"+size+"-"+p,"frames",run.frames));
             }
             for(int[] pair:new int[][]{{0,2},{2,0},{1,2},{2,1},{0,0},{1,1},{2,2}}) {
                 for(boolean glancing:new boolean[]{false,true}) {
@@ -167,7 +170,7 @@ class AlkkagiModelStudyTests {
                     var run=simulate(model,layout,0,1,1,0,false);
                     var scenario="pair-"+pair[0]+"-"+pair[1]+(glancing?"-glance":"-head");
                     rows.add(tag(run.summary,scenario));
-                    if(model==BASE||model==CANDIDATE) {
+                    if(model==BASE||model==CANDIDATE||model==SELECTED) {
                         events.add(Map.of("model",model.name,"scenario",scenario,"contacts",run.contacts));
                         traces.add(Map.of("model",model.name,"scenario",scenario,"frames",run.frames));
                     }
@@ -176,19 +179,19 @@ class AlkkagiModelStudyTests {
             var chain=simulate(model,List.of(new Particle(2,0,0,.43),new Particle(0,.9,0,.24),
                     new Particle(1,1.65,.1,.32),new Particle(0,2.4,0,.24)),0,1,1,0,false);
             rows.add(tag(chain.summary,"chain"));
-            if(model==BASE||model==CANDIDATE)events.add(Map.of("model",model.name,"scenario","chain","contacts",chain.contacts));
+            if(model==BASE||model==CANDIDATE||model==SELECTED)events.add(Map.of("model",model.name,"scenario","chain","contacts",chain.contacts));
             for(int shooter:new int[]{13,0,8}) for(double p:new double[]{.25,.5,1}) {
                 var board=simulate(model,initialBoard(),shooter,p,0,-1,true);
                 var again=simulate(model,initialBoard(),shooter,p,0,-1,true);
                 assertThat(board.summary.get("final")).isEqualTo(again.summary.get("final"));
                 assertThat(board.summary.get("settled")).isEqualTo(true);
                 rows.add(tag(board.summary,"board32-p"+shooter));
-                if(model==BASE||model==CANDIDATE)traces.add(Map.of("model",model.name,"scenario","board32-p"+shooter+"-"+p,"frames",board.frames));
+                if(model==BASE||model==CANDIDATE||model==SELECTED)traces.add(Map.of("model",model.name,"scenario","board32-p"+shooter+"-"+p,"frames",board.frames));
             }
             var outward=simulate(model,initialBoard(),0,1,0,1,true);
-            if(model==BASE||model==CANDIDATE) assertThat((Long)outward.summary.get("eliminated")).isEqualTo(1);
+            if(model==BASE||model==CANDIDATE||model==SELECTED) assertThat((Long)outward.summary.get("eliminated")).isEqualTo(1);
             rows.add(tag(outward.summary,"board32-outward"));
-            if(model==BASE||model==CANDIDATE)traces.add(Map.of("model",model.name,"scenario","board32-outward","frames",outward.frames));
+            if(model==BASE||model==CANDIDATE||model==SELECTED)traces.add(Map.of("model",model.name,"scenario","board32-outward","frames",outward.frames));
         }
         var probes=new ArrayList<Map<String,Object>>();
         for(var variant:List.of(BASE,new Model("probe-rotation",BASE.masses,BASE.speeds,"linear","constant",30,.9,true,true,true,false,false),
@@ -216,7 +219,7 @@ class AlkkagiModelStudyTests {
 
     @Test void 채택모델의_계측세계와_실제경기_전체좌표_탈락_턴전환이_일치한다() {
         for(int shooter:new int[]{13,0,8}) for(double power:new double[]{.25,.5,1}) {
-            var measured=simulate(CANDIDATE,initialBoard(),shooter,power,0,-1,true);
+            var measured=simulate(SELECTED,initialBoard(),shooter,power,0,-1,true);
             var match=new AlkkagiMatch(AlkkagiSettings.provisional());match.start(0);
             var before=match.snapshot(0);
             match.shoot(0,new AlkkagiMatch.Shot(before.gameId(),"study",before.version(),"p"+shooter,0,-1,power),1);

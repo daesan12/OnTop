@@ -25,7 +25,7 @@ function App() {
   const [connected, setConnected] = useState(false), [notice, setNotice] = useState('서버 연결 중…')
   const [pending, setPending] = useState(false), [now, setNow] = useState(Date.now())
   const [seq, setSeq] = useState(0)
-  const [tuning, setTuning] = useState({ maximumImpulse: 12, deceleration: 18, restitution: .55 })
+  const [tuning, setTuning] = useState({ maximumImpulse: 30, deceleration: 60, restitution: 1 })
   useEffect(() => {
     if (state) setTuning({ maximumImpulse: state.settings.maximumImpulse,
       deceleration: state.settings.deceleration, restitution: state.settings.restitution })
@@ -95,7 +95,7 @@ function App() {
       <summary>물리값 조절 · 로컬 전용 <span>현재 힘 {state?.settings.maximumImpulse ?? '—'} / 감속 {state?.settings.deceleration ?? '—'} / 반발 {state?.settings.restitution ?? '—'}</span></summary>
       <p>값을 바꾼 뒤 ‘적용하고 새 판’을 누르면 양쪽 화면에 반영됩니다. 진행 중인 판은 초기화됩니다.</p>
       {([
-        ['maximumImpulse', '발사 힘', .5, 30, .5, '12 = 종류별 기본 출발 속도 · 질량과 별도 조절'],
+        ['maximumImpulse', '발사 힘', .5, 30, .5, '12 = 속도 배율1 · 사용자 선택 기본값30(2.5배)'],
         ['deceleration', '감속', .1, 60, .1, '높을수록 빨리 멈춤'],
         ['restitution', '반발', 0, 1, .01, '높을수록 충돌 후 더 잘 튕김'],
       ] as const).map(([key, title, min, max, step, description]) => <div className="tuning-row" key={key}>
@@ -114,7 +114,7 @@ function App() {
         <button className="secondary" disabled={!connected || pending || !state}
           onClick={() => state && send({ type: 'TUNE_RESET', gameId: state.gameId, expectedVersion: state.version })}>기본값으로 새 판</button>
       </div> : <p>홍팀 화면에서 조절할 수 있어요. 현재 서버 값은 모든 화면에서 확인할 수 있습니다.</p>}
-      <small>일반 ‘새 판’은 조절한 값을 유지합니다. 서버를 다시 시작하면 기본값(12 / 18 / 0.55)으로 돌아갑니다.</small>
+      <small>일반 ‘새 판’은 조절한 값을 유지합니다. 서버를 다시 시작하면 선택한 기본값(30 / 60 / 1)으로 돌아갑니다.</small>
     </details>
     <div className="board"><Canvas shadows camera={{ position: [0, 14, 0.01], fov: 46 }}>
       <color attach="background" args={['#253d37']} /><ambientLight intensity={1.8} />

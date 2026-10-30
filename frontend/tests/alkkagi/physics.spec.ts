@@ -29,7 +29,7 @@ test('실제 드래그 발사를 두 브라우저가 같은 서버 상태로 받
   await page.getByRole('button', { name: '테스트 시작' }).click()
   await expect.poll(() => red.at(-1)?.state.stage).toBe('AIMING')
   expect(red.at(-1).state.modelId).toBe('separated-v1')
-  expect(red.at(-1).state.pieces[8].launchSpeed).toBe(10)
+  expect(red.at(-1).state.pieces[8].launchSpeed).toBe(25)
   const rect = (await page.locator('canvas').boundingBox())!
   const aimVersion = red.at(-1).state.version
   // 첫 동작은 선택만 한다. 크게 끌어 놓아도 발사가 되어서는 안 된다.
@@ -103,10 +103,10 @@ test('로컬 조절 패널이 서버와 다른 화면에 적용되고 기본값�
   await page.getByRole('button', { name: '새 판', exact: true }).click()
   await expect(page.getByRole('spinbutton', { name: '발사 힘 값', exact: true })).toHaveValue('15')
   await page.getByRole('button', { name: '기본값으로 새 판', exact: true }).click()
-  await expect.poll(() => states.at(-1)?.settings.maximumImpulse).toBe(12)
-  await expect(page.getByRole('spinbutton', { name: '발사 힘 값', exact: true })).toHaveValue('12')
-  await expect(page.getByRole('spinbutton', { name: '감속 값', exact: true })).toHaveValue('18')
-  await expect(page.getByRole('spinbutton', { name: '반발 값', exact: true })).toHaveValue('0.55')
+  await expect.poll(() => states.at(-1)?.settings.maximumImpulse).toBe(30)
+  await expect(page.getByRole('spinbutton', { name: '발사 힘 값', exact: true })).toHaveValue('30')
+  await expect(page.getByRole('spinbutton', { name: '감속 값', exact: true })).toHaveValue('60')
+  await expect(page.getByRole('spinbutton', { name: '반발 값', exact: true })).toHaveValue('1')
 })
 
 test('판 밖 탈락은 양쪽에 반영되고 새 관전자는 탈락한 알을 최신 상태로 받는다', async ({page,context}) => {

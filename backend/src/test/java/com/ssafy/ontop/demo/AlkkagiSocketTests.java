@@ -88,12 +88,12 @@ class AlkkagiSocketTests {
                     + "\",\"expectedVersion\":0}", true).join();
             var defaults = a.until(m -> m.path("type").asText().equals("STATE")
                     && !m.path("state").path("gameId").equals(reset.path("state").path("gameId")));
-            assertThat(defaults.path("state").path("settings").path("maximumImpulse").asDouble()).isEqualTo(12);
-            assertThat(defaults.path("state").path("settings").path("deceleration").asDouble()).isEqualTo(18);
-            assertThat(defaults.path("state").path("settings").path("restitution").asDouble()).isEqualTo(.55);
+            assertThat(defaults.path("state").path("settings").path("maximumImpulse").asDouble()).isEqualTo(30);
+            assertThat(defaults.path("state").path("settings").path("deceleration").asDouble()).isEqualTo(60);
+            assertThat(defaults.path("state").path("settings").path("restitution").asDouble()).isEqualTo(1);
             assertThat(defaults.path("state").path("modelId").asText()).isEqualTo("separated-v1");
             assertThat(defaults.path("state").path("inputCurveBoost").asDouble()).isEqualTo(.5);
-            assertThat(defaults.path("state").path("pieces").get(8).path("launchSpeed").asDouble()).isEqualTo(10);
+            assertThat(defaults.path("state").path("pieces").get(8).path("launchSpeed").asDouble()).isEqualTo(25);
         } finally {
             red.abort(); green.abort();
         }
