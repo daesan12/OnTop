@@ -1,6 +1,6 @@
 """가짜 데이터(seed.py)로 analytics/queries의 결과가 손으로 계산한 정답과 같은지 확인한다.
 
-빈 검증 DB를 만들고 백엔드의 실제 마이그레이션(회원 V1, 행동 로그 V5·V6, 붕어빵 V110, 소리함 V127)을 적용하므로
+빈 검증 DB를 만들고 백엔드의 실제 마이그레이션(회원 V1, 지갑 V4, 행동 로그 V5·V6, 붕어빵 V110, 소리함 V127)을 적용하므로
 테이블 구조가 바뀌면 이 검증이 먼저 깨진다.
 
     python analytics/scripts/verify.py --container <MySQL 8.4 컨테이너 이름>
@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parents[2]
 QUERIES = ROOT / "analytics" / "queries"
 MIGRATIONS = [
     ROOT / "backend/src/main/resources/db/migration/V1__create_users.sql",
+    ROOT / "backend/src/main/resources/db/migration/V4__create_wallets.sql",
     ROOT / "backend/src/main/resources/db/migration/V5__create_behavior_events.sql",
     ROOT / "backend/src/main/resources/db/migration/V6__create_world_position_samples.sql",
     ROOT / "backend/src/main/resources/db/minigame/V110__create_minigame_sessions.sql",
@@ -120,6 +121,40 @@ EXPECTED: dict[str, list[dict[str, str]]] = {
         {"kst_date": "2026-10-28", "game_code": "DICE", "games_started": "1", "games_ended": "1",
          "games_completed": "1", "forfeits": "0", "participants": "2", "duration_seconds": "300",
          "timed_games": "1"},
+    ],
+    "19_economy_daily.sql": [
+        {"kst_date": "2026-10-26", "transaction_type": "SIGNUP_BONUS", "transactions": "1", "users": "1",
+         "coins_in": "100", "coins_out": "0", "net_coins": "100"},
+        {"kst_date": "2026-10-26", "transaction_type": "ALL", "transactions": "1", "users": "1",
+         "coins_in": "100", "coins_out": "0", "net_coins": "100"},
+        {"kst_date": "2026-10-27", "transaction_type": "GAME_RESERVE", "transactions": "2", "users": "2",
+         "coins_in": "0", "coins_out": "0", "net_coins": "0"},
+        {"kst_date": "2026-10-27", "transaction_type": "GAME_SETTLEMENT", "transactions": "2", "users": "2",
+         "coins_in": "1", "coins_out": "1", "net_coins": "0"},
+        {"kst_date": "2026-10-27", "transaction_type": "MINIGAME_REWARD", "transactions": "3", "users": "2",
+         "coins_in": "130", "coins_out": "0", "net_coins": "130"},
+        {"kst_date": "2026-10-27", "transaction_type": "SHOP_PURCHASE", "transactions": "1", "users": "1",
+         "coins_in": "0", "coins_out": "20", "net_coins": "-20"},
+        {"kst_date": "2026-10-27", "transaction_type": "SIGNUP_BONUS", "transactions": "4", "users": "4",
+         "coins_in": "400", "coins_out": "0", "net_coins": "400"},
+        {"kst_date": "2026-10-27", "transaction_type": "ALL", "transactions": "12", "users": "4",
+         "coins_in": "531", "coins_out": "21", "net_coins": "510"},
+        {"kst_date": "2026-10-28", "transaction_type": "GAME_RESERVE", "transactions": "2", "users": "2",
+         "coins_in": "0", "coins_out": "0", "net_coins": "0"},
+        {"kst_date": "2026-10-28", "transaction_type": "GAME_SETTLEMENT", "transactions": "2", "users": "2",
+         "coins_in": "5", "coins_out": "5", "net_coins": "0"},
+        {"kst_date": "2026-10-28", "transaction_type": "MINIGAME_REWARD", "transactions": "2", "users": "2",
+         "coins_in": "65", "coins_out": "0", "net_coins": "65"},
+        {"kst_date": "2026-10-28", "transaction_type": "ALL", "transactions": "6", "users": "3",
+         "coins_in": "70", "coins_out": "5", "net_coins": "65"},
+    ],
+    "20_wallet_balances.sql": [
+        {"wallets": "4", "total_balance": "575", "avg_balance": "143.8", "median_balance": "135.0",
+         "max_balance": "196", "top10_share_pct": "34.1", "reserved_balance": "0"},
+    ],
+    "21_bet_amounts.sql": [
+        {"game_code": "DICE", "games": "1", "min_bet": "5", "avg_bet": "5.0", "max_bet": "5", "avg_pot": "10.0"},
+        {"game_code": "OMOK", "games": "1", "min_bet": "1", "avg_bet": "1.0", "max_bet": "1", "avg_pot": "2.0"},
     ],
 }
 
