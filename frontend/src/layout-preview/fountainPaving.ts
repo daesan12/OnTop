@@ -15,6 +15,20 @@ export function fountainPavingHeight(x:number,z:number) {
   return (fountainGroundHeight(x,z)+.008)*(1-blend)+pathTop*blend
 }
 
+/** The collar is 8.5cm above the lawn. Close that exposed edge so a low view
+ * cannot see the sky through the open side beneath the paving. */
+export function createFountainPavingSkirt(){
+  const vertices:number[]=[],uv:number[]=[]
+  const at=(n:number,y:number)=>{const a=n*Math.PI*2/FOUNTAIN_PAVING_SEGMENTS;return [SITES.fountain.x+Math.cos(a)*fountainPavingRadius,y,SITES.fountain.z+Math.sin(a)*fountainPavingRadius]}
+  for(let n=0;n<FOUNTAIN_PAVING_SEGMENTS;n++){
+    const a=at(n,pathTop),b=at(n+1,pathTop),c=at(n,-.03),d=at(n+1,-.03)
+    for(const p of [a,d,c,a,b,d]){vertices.push(...p);uv.push(p[0]!/1.2,p[2]!/1.2)}
+  }
+  const geometry=new BufferGeometry()
+  geometry.setAttribute('position',new Float32BufferAttribute(vertices,3));geometry.setAttribute('uv',new Float32BufferAttribute(uv,2));geometry.computeVertexNormals()
+  return geometry
+}
+
 /** Subtract the same convex outline as the sloping plaza, including triangles
  * whose vertices lie outside it. Moving just those vertices leaves flat bridges. */
 export function cutFountainFromPaving(source:BufferGeometry) {

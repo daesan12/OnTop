@@ -15,7 +15,7 @@ describe('180m layout draft contracts',()=>{
     expect(DRAFT_TABLES.slice(16).map(t=>t.id)).toEqual(['table-17','table-18'])
     for(const t of DRAFT_TABLES.slice(0,16))expect(t.seatAnchors).toEqual(TABLES.find(old=>old.id===t.id)!.seatAnchors)
     expect(DRAFT_PAVILIONS.map(p=>p.id)).toEqual(['P0','P1','P2','P3','P4','P5','P6','P7','P8'])
-    expect(new Set(MARKERS.map(m=>m.id)).size).toBe(23)
+    expect(new Set(MARKERS.map(m=>m.id)).size).toBe(24)
   })
   it('blocks exterior edges and obstacles while keeping crossings, water and arrival open',()=>{
     for(const p of [[89,0],[-89,0],[0,-89],[0,89],[102,0],[0,130],[NaN,0],[Infinity,0],[SITES.cart.x,SITES.cart.z],[SITES.mailbox.x,SITES.mailbox.z]])expect(canWalk(p[0]!,p[1]!)).toBe(false)
@@ -101,7 +101,7 @@ describe('180m layout draft contracts',()=>{
     expect(DRAFT_PAVILIONS.filter(p=>p.id==='P7'||p.id==='P8').every(p=>p.z>69)).toBe(true)
     expect(EVENT_GROVE.z).toBeGreaterThan(18);expect(EVENT_GROVE.width).toBe(32);expect(VR_COURT.depth).toBeGreaterThan(32)
     expect(VR_YAW).toBe(Math.PI/2)
-    for(const k of KIOSKS){expect(k.width).toBeGreaterThan(7);expect(k.depth).toBeGreaterThanOrEqual(5)}
+    for(const k of KIOSKS){expect(k.width).toBe(SETTINGS.kiosks[k.kind].width);expect(k.depth).toBe(SETTINGS.kiosks[k.kind].depth)}
   })
   it('joins the fishing decks to the path with gradual landings and keeps side rails solid',()=>{
     for(const [a,b] of [[42,45],[82,84]]) {
@@ -139,7 +139,7 @@ describe('180m layout draft contracts',()=>{
     for(const side of [-1,1])for(let d=13;d<=17;d+=.2){expect(canWalk(side*d,-40)).toBe(true);expect(canWalk(0,-40+side*d)).toBe(true)}
     expect(KIOSKS.find(k=>k.kind==='shop')!.yaw).toBe(SETTINGS.kiosks.shop.yaw)
     expect(KIOSKS.find(k=>k.kind==='drink')!.yaw).toBe(SETTINGS.kiosks.drink.yaw)
-    expect(MARKERS.find(m=>m.id==='layout-drink')!.label).toBe('응모부스')
+    expect(MARKERS.find(m=>m.id==='layout-drink')!.label).toBe('복권방')
     for(const t of DRAFT_TABLES.slice(0,4))expect(Math.hypot(t.position[0]-LIFE_PLAZA.x,t.position[2]-LIFE_PLAZA.z)).toBeCloseTo(Math.sqrt(288))
   })
   it('bonds every stair-rail support to the rendered treads, and keeps the fitness ring bench backless',()=>{
@@ -159,7 +159,7 @@ describe('180m layout draft contracts',()=>{
     }
     expect(radii.length).toBeGreaterThan(50);expect(Math.min(...radii)).toBeGreaterThan(2.59);expect(Math.max(...radii)).toBeLessThan(3.38)
     ;(mesh.material as MeshBasicMaterial).dispose()
-    expect(KIOSKS.find(k=>k.kind==='shop')!.width).toBe(9.6);expect(KIOSKS.find(k=>k.kind==='drink')!.width).toBe(7.8)
+    expect(KIOSKS.find(k=>k.kind==='shop')!.width).toBe(SETTINGS.kiosks.shop.width);expect(KIOSKS.find(k=>k.kind==='drink')!.width).toBe(SETTINGS.kiosks.drink.width)
     expect(SITES.vrPagoda.x-SITES.vr.x).toBe(21)
     expect(SITES.vr.x-4.8).toBeGreaterThan(VR_COURT.x-VR_COURT.width/2)
   })

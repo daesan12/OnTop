@@ -6,6 +6,7 @@ import { PropBuilder } from '../world/art/propGeometry'
 import { beam, seeded, type Part } from '../world/art/Instances'
 import { DRAFT_PARK,SETTINGS,KIOSKS, DRAFT_PAVILIONS,DRAFT_STAIRS,PAVILION_COURT,DRAFT_FITNESS_AREA,DRAFT_FOUNTAIN,VR_COURT, DRAFT_BOXES, FENCE_BLOCKERS, LIFE_PLAZA, SITES, TREE_LAMP_RESERVATIONS, onPath } from './layout'
 import { FISHING_DECKS,FISHING_LANDINGS,shoreAccess } from './lakeLayout'
+import { createStairFlight } from './stairFlightGeometry'
 
 // All geometry and instances are static and shared. No per-frame construction.
 const shape=new Shape();roundedSquare(DRAFT_PARK.half,SETTINGS.park.wallCornerRadius,24).forEach(([x,z],i)=>i?shape.lineTo(x,-z):shape.moveTo(x,-z));shape.closePath()
@@ -23,16 +24,19 @@ for(const p of DRAFT_PAVILIONS) {
   for(const side of [-1,1])b.box('stone','#a49c80',[p.x+side*(w/2+.1),.17,p.z],[.28,.34,d])
 }
 const stairs=new PropBuilder([6,4])
-for(const p of DRAFT_STAIRS)for(const side of [-1,1])for(let i=0;i<p.count;i++) {
-  const h=(i+1)*p.floor/p.count
-  stairs.box('stone','#c5baa0',[p.x,h/2,p.z+side*(p.join+(p.count-i-.5)*p.tread)],[3.6,h,p.tread+.035])
+for(const p of DRAFT_STAIRS)for(const side of [-1,1]) {
+  const pavilion=DRAFT_PAVILIONS.find(q=>q.id===p.id)!
+  // Start at the actual octagonal face; the platform owns the shared top plane.
+  const face=4.5*pavilion.scale*Math.cos(Math.PI/8)
+  const geometry=createStairFlight(3.6,face,Array.from({length:p.count},(_,i)=>({edge:p.join+(i+1)*p.tread+.0175,height:(p.count-i)*p.floor/p.count})))
+  stairs.add('stone',geometry,'#c5baa0',[p.x,0,p.z],[1,1,1],[0,side===1?0:Math.PI,0])
 }
 export const pavilionStairsArt=stairs.finish()
 b.box('stone','#b9b6a6',[SITES.pagoda.x,SITES.pagoda.floor/2,SITES.pagoda.z],[SETTINGS.pagoda.terraceHalf*2,SITES.pagoda.floor,SETTINGS.pagoda.terraceHalf*2])
-for(const side of [-1,1])for(let step=0;step<SETTINGS.pagoda.steps;step++) {
-  const h=(step+1)*SETTINGS.pagoda.riser,offset=SETTINGS.pagoda.terraceHalf+SETTINGS.pagoda.steps*SETTINGS.pagoda.tread-SETTINGS.pagoda.tread/2-step*SETTINGS.pagoda.tread
-  b.box('stone','#d4cebc',[SITES.pagoda.x+side*offset,h/2,SITES.pagoda.z],[SETTINGS.pagoda.tread+.02,h,SETTINGS.pagoda.stairHalfWidth*2])
-  b.box('stone','#d4cebc',[SITES.pagoda.x,h/2,SITES.pagoda.z+side*offset],[SETTINGS.pagoda.stairHalfWidth*2,h,SETTINGS.pagoda.tread+.02])
+for(let side=0;side<4;side++) {
+  const geometry=createStairFlight(SETTINGS.pagoda.stairHalfWidth*2,SETTINGS.pagoda.terraceHalf,
+    Array.from({length:SETTINGS.pagoda.steps},(_,i)=>({edge:SETTINGS.pagoda.terraceHalf+(i+1)*SETTINGS.pagoda.tread+.01,height:(SETTINGS.pagoda.steps-i)*SETTINGS.pagoda.riser})))
+  b.add('stone',geometry,'#d4cebc',[SITES.pagoda.x,0,SITES.pagoda.z],[1,1,1],[0,side*Math.PI/2,0])
 }
 // Uniform apron shared by the two east-facing houses and the original pagoda.
 b.box('stone','#c8c0ad',[VR_COURT.x,.05,VR_COURT.z],[VR_COURT.width,.1,VR_COURT.depth])

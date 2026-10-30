@@ -57,4 +57,12 @@
 
 frontend에서 pnpm exec vite --mode layout-preview --host 127.0.0.1 --port 5211 --strictPort 실행 후 /layout-preview.html의 13·14·28번으로 확인한다. 돌림판·복권 체험은 API 요청, 잔액 차감, 보상 지급이 없는 로컬 목업이다.
 
-타입 검사, 단위·회귀 테스트 8개 파일 50개, Edge/Playwright 브라우저 검사 3개, 맵 전달본 검사 및 park-integration 빌드를 검증했다. 데스크톱 1600×1000과 모바일 390×844에서 목업, 키보드, 결과 표시와 조리 외형 전환을 확인했다. Browser plugin not available이므로 기존 Playwright를 사용했다. 실제 서버·다인 게임 검증은 배포 단계에서 수행한다.
+타입 검사, 단위·회귀 테스트 12개 파일 77개, 시설 목업 브라우저 검사 3개와 지면 브라우저 검사 2개, 맵 전달본 검사 및 park-integration 빌드를 검증했다. 데스크톱 1600×1000과 모바일 390×844에서 목업, 키보드, 결과 표시와 조리 외형 전환을 확인했다. Browser plugin not available이므로 기존 Playwright를 사용했다. 실제 서버·다인 게임 검증은 배포 단계에서 수행한다.
+
+## 분수 가장자리와 계단 화면 수정
+
+분수 포장은 잔디보다 8.5cm 높지만 옆면이 열려 있어 낮은 시점에서 하늘색 틈이 보였다. 같은 128각 외곽선에 옆면을 연결해 막았으며 포장 높이와 보행 충돌은 유지했다.
+
+정자와 돌탑 계단은 겹친 박스 대신 노출면만 있는 연속 형상으로 바꿨다. 단상과 맨 위 디딤면의 중복도 제거해 시점 이동 시 깊이 판정이 경쟁하지 않도록 했다. 관련 파일은 layout-preview/fountainPaving.ts, districtGeometry.ts, sceneGeometry.ts와 새 stairFlightGeometry.ts다.
+
+이 수정은 렌더링 형상만 바꾼다. server-map.json과 mapVersion은 위의 기존 값으로 유지되므로 추가 BE 맵 반영이나 별도 인프라 전환을 요구하지 않는다.

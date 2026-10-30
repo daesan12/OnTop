@@ -1,9 +1,9 @@
 {
-  "description": "Enlarged fish shop and lottery booth with east passage; photo area and other facilities preserved, 2026-10-30",
+  "description": "Closed fountain collar and continuous exposed stair flights; gameplay map and facilities preserved, 2026-10-30",
   "files": {
-    "src/layout-preview/districtGeometry.ts": "a2840ed6640b66a60154057ac31dc177c7625c0b4930907d651a717f8fcf134b",
+    "src/layout-preview/districtGeometry.ts": "882709ac240a987c6d7fc5d8740f9d48e93851c586b232dfa05bacd7b70fe1ff",
     "src/layout-preview/existingTreeModel.ts": "fcb9c89c3c90e11ac5a5670a0498dae14184a10b1acac281523ad56ed4748826",
-    "src/layout-preview/fountainPaving.ts": "ae20847fbb63200b12939d020d464f168cddce8b384d7fad1a0955ef50c77b42",
+    "src/layout-preview/fountainPaving.ts": "b8955836fa9cb447e8d6f4523b0f81341cebdb1c292760b06a4f5ef63076c549",
     "src/layout-preview/jumpAudio.ts": "577826a54148ebaea63f0bcee38802a99e5e822614e0831fd775dc8e5958146d",
     "src/layout-preview/jumpCourse.ts": "8f78898d78ba683c7c50df8db68b28a73c8db27bd0433d9ca18df8a995432b39",
     "src/layout-preview/jumpGeometry.ts": "070ef9dcd882f1dcd27d9f85731dbcd9060f864583c7fef4c31c9b9a775d7577",
@@ -30,7 +30,7 @@
     "src/layout-preview/PreviewSwimmingRipples.tsx": "7000a53d1d96f9e4aa21a23cdb89546168680a61a9ddb64240297151b22989b0",
     "src/layout-preview/PreviewWorld.tsx": "3172645c14f08fb4a4ebffaab713802df033200e9d280f3e7ebc33bcca366c0a",
     "src/layout-preview/reviewFurnitureGeometry.ts": "ebac00b5aa5aebf3625d49c7ac3485a02bcba28fa79de0a599a8f44bf54fdf53",
-    "src/layout-preview/sceneGeometry.ts": "29b5cc9e13888ea2d2b59ffcacf1bc418d1832b6e33b3cf637de0096c8eccdd5",
+    "src/layout-preview/sceneGeometry.ts": "66e222292d6068eaf4fc5274df7353bdb7417c5f3ba1b0e1b3309e1872c84b2c",
     "src/map/park/collision.ts": "5d0a325c26d0047ea8aa8ac493e8694060584eeeca03daa33938e25bb1488a8c",
     "src/map/park/definition.ts": "650da69c30b7600160c029b00fbeaa092f178328a3306fdf149411b971930855",
     "src/map/park/fountainHeight.ts": "9996ee1c49bd09c43142d4abde7f831ee4001553bb8232b7372ff1094c4b7573",
@@ -189,7 +189,8 @@
     "src/world/NightLighting.tsx": "0655c6b74eeb7cb1b102c256342456b3fe7d3b53f6030ff1cc1863ea59e52119",
     "src/features/jumpmap/landingMotion.ts": "bd2fef3d57e71cb273cfb2e0c63052bbfe55e6f44b1972676ba306380b434223",
     "src/world/art/LuckyFacilities.tsx": "505d3c28ae2d448ba2023d1a848be425fbc6610faa700c94f6c188f75b6b617b",
-    "src/world/art/luckyFacilityGeometry.ts": "5a661551c2548a29a9e34a8f19713812c07e4ef199711f9d1eae79a04b16e022"
+    "src/world/art/luckyFacilityGeometry.ts": "5a661551c2548a29a9e34a8f19713812c07e4ef199711f9d1eae79a04b16e022",
+    "src/layout-preview/stairFlightGeometry.ts": "73060545b54ff9e5cc27df141bdd5fb0f7912f971f5d821f74dad865aa2bab2d"
   },
   "compatibilityReview": {
     "date": "2026-10-29",
