@@ -1,5 +1,5 @@
 {
-  "description": "Recent plaza spur paths removed and paving restored; larger mailbox faces centre from ranking left, with replanted grove, 2026-10-30",
+  "description": "Connected ranking roof, frame, lanterns and refined signs; accepted lawn and mailbox placement preserved, 2026-10-30",
   "files": {
     "src/layout-preview/districtGeometry.ts": "882709ac240a987c6d7fc5d8740f9d48e93851c586b232dfa05bacd7b70fe1ff",
     "src/layout-preview/existingTreeModel.ts": "fcb9c89c3c90e11ac5a5670a0498dae14184a10b1acac281523ad56ed4748826",
@@ -23,7 +23,7 @@
     "src/layout-preview/PlazaBuildings.tsx": "3dbbf17a86c9ed2fd0c765c3be750171f05687511075ce58b7e6130da5b9ca97",
     "src/layout-preview/plazaBuildingStructure.ts": "129c2fae114d2fba97779eab1892a867bf33e6a1337ec8ab654d8a198cd18925",
     "src/layout-preview/PreviewBench.tsx": "ebdc4958755d78008bb27bee9e0933878ad71331479e522324a0c2c8333e0375",
-    "src/layout-preview/PreviewCamera.tsx": "65e389aee6b63f1ad4cfc0fa6b606e6a584fb235ee5e905d61ba7a1896d300e3",
+    "src/layout-preview/PreviewCamera.tsx": "e3a317388ec9381b18800217b1c5d426acad9d5926e4f9b68ff4dd275d81fad2",
     "src/layout-preview/PreviewJumpCourse.tsx": "c403d6672ba9f080b5c3eead31de84059c4cba314f019d747bad24e4f8a58ad3",
     "src/layout-preview/PreviewLandscaping.tsx": "7bdec8aadc5b6e47e9d9ab3c0a0c86933e39d3ca2b86ced0d111bfc299f50dde",
     "src/layout-preview/PreviewPigeons.tsx": "829f4d51b3832a6e78e11af044975dbe8567f24499605949fc32990c9c109b2a",
@@ -191,7 +191,8 @@
     "src/world/art/LuckyFacilities.tsx": "ebfcc20f68990332c4f2dc0633b23c04467e4f3dced0b5a37167040cdf582004",
     "src/world/art/luckyFacilityGeometry.ts": "5a661551c2548a29a9e34a8f19713812c07e4ef199711f9d1eae79a04b16e022",
     "src/layout-preview/stairFlightGeometry.ts": "73060545b54ff9e5cc27df141bdd5fb0f7912f971f5d821f74dad865aa2bab2d",
-    "src/layout-preview/RankingBoardModel.tsx": "68ed8547a5d1cfc086ad7681c247dd159751404156dde08684324b65f3d9be77"
+    "src/layout-preview/RankingBoardModel.tsx": "99252170dd3109afcea93d8111a0b1de540c7ea8c0eec16533f009ceb5dee0b0",
+    "src/layout-preview/rankingBoardRoofSeats.ts": "dfeebed6f3acdb238dd855aa65c12cc72adfb8c606964cca86a1a42bdb026a1d"
   },
   "compatibilityReview": {
     "date": "2026-10-29",

@@ -1,7 +1,7 @@
 import {_roots} from '@react-three/fiber'
 import {Box3,Raycaster,Vector3,Mesh,MeshBasicMaterial,DoubleSide} from 'three'
 import {plazaBuildingArt} from '../../src/layout-preview/PlazaBuildings'
-import {KIOSKS,PATHS} from '../../src/layout-preview/layout'
+import {KIOSKS} from '../../src/layout-preview/layout'
 import {constructionBoardPosition} from '../../src/layout-preview/plazaBuildingStructure'
 import {bungeoppangView} from '../../src/features/bungeoppang/bungeoppangView'
 import {rankingBoardModelMetrics} from '../../src/layout-preview/RankingBoardModel'
@@ -11,6 +11,16 @@ export function rankingBoardProbe(){
  const board=scene.getObjectByName('ranking-board-preview')!
  return {position:board.position.toArray(),yaw:board.rotation.y,scale:board.scale.toArray(),assetId:board.userData.assetId,
   meshCount:board.children.length,metrics:rankingBoardModelMetrics}
+}
+
+export function rankingBoardDetailCapture(side:'front'|'back'){
+ const state=_roots.get(document.querySelector('canvas')!)!.store.getState()
+ const board=state.scene.getObjectByName('ranking-board-preview')!,camera=state.camera.clone()
+ state.scene.updateMatrixWorld(true)
+ camera.position.copy(new Vector3(...(side==='front'?[0,3.2,16]:[10,2.2,-9]) as [number,number,number]).applyMatrix4(board.matrixWorld))
+ camera.lookAt(new Vector3(0,3,0).applyMatrix4(board.matrixWorld));camera.updateMatrixWorld(true)
+ state.gl.render(state.scene,camera)
+ return state.gl.domElement.toDataURL('image/png')
 }
 
 /** Measure rendered roofs, signs and feet, including every parent transform. */

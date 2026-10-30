@@ -36,7 +36,13 @@ test('lucky facility mocks and ranking board retain their independent models and
  expect(rankingBoard.assetId).toBe('procedural/ranking-board')
  expect(rankingBoard.meshCount).toBe(9)
  expect(rankingBoard.metrics).toMatchObject({displayPlaneCount:3,structureTextureCount:0})
- expect(rankingBoard.metrics.triangleCount).toBeLessThan(500)
+ expect(rankingBoard.metrics.triangleCount).toBeLessThan(1000)
+ await fs.writeFile(path.join(dir,'ranking-board-metrics.json'),JSON.stringify(rankingBoard.metrics,null,2))
+ for(const side of ['front','back'] as const){
+  const capture=await page.evaluate(async side=>
+   (await import('/tests/layout-e2e/plazaStructureProbe.ts' as string)).rankingBoardDetailCapture(side),side)
+  await fs.writeFile(path.join(dir,'ranking-'+side+'-connected.png'),Buffer.from(capture.split(',')[1]!,'base64'))
+ }
  expect(errors).toEqual([])
 })
 
