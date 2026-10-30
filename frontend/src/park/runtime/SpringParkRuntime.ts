@@ -370,11 +370,13 @@ export class ParkRuntime implements ParkRuntimePort {
       || (method === 'PATCH' && path === '/api/v1/users/me/equipment')
     const profileRequest = ((method === 'PATCH' || method === 'DELETE') && path === '/api/v1/users/me')
       || (method === 'GET' && /^\/api\/v1\/users\/nickname-availability\?nickname=[^&#]+$/.test(path))
+    const historyRequest = method === 'GET' && (path === '/api/v1/users/me/game-stats'
+      || /^\/api\/v1\/users\/me\/games\?size=20(?:&cursor=[1-9]\d{0,18})?(?:&gameCode=(?:OMOK|DICE|ONE_CARD|LIAR_BRIDGE))?$/.test(path))
     const minigameRequest = /^\/api\/v1\/minigames\/sessions(?:\?rulesVersion=v[45]|\/\d+(?:\?(?:(?:includeSource|includeProgress)=true|deliveryKey=[A-Za-z0-9_-]{1,64})(?:&(?:(?:includeSource|includeProgress)=true|deliveryKey=[A-Za-z0-9_-]{1,64}))*|\/(?:complete|abandon|deliveries))?)?$/.test(path)
     const rankingRequest = BUNGEOPPANG_RANKINGS_ENABLED && method === 'GET'
       && /^\/api\/v1\/minigames\/bungeoppang\/rankings\?period=ALL_TIME&rulesVersion=v[45]&limit=20(?:&durationMs=[1-9]\d{0,8})?(?:&cursor=[A-Za-z0-9%+_.~-]{1,1536})?$/.test(path)
     if (!this.active || (!notesRead && !notesWrite && !shopRequest && !profileRequest
-      && !minigameRequest && !jumpmapRequest && !rankingRequest && !/^\/api\/v1\/(?:wallets\/me|feedback)$/.test(path))
+      && !historyRequest && !minigameRequest && !jumpmapRequest && !rankingRequest && !/^\/api\/v1\/(?:wallets\/me|feedback)$/.test(path))
       || (path === '/api/v1/feedback' && init.method !== 'POST'))
       throw new Error('현재 공원에서 사용할 수 없는 요청입니다.')
     const signals = [this.bootAbort?.signal, init.signal].filter((s): s is AbortSignal => !!s)

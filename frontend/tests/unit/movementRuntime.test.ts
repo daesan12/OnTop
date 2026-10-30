@@ -90,6 +90,22 @@ afterEach(async () => {
 })
 
 describe('M14 authenticated REST and movement ownership boundary', () => {
+  it.each(['/api/v1/users/me/games?size=20', '/api/v1/users/me/games?size=20&cursor=9007199254740993&gameCode=OMOK',
+    '/api/v1/users/me/game-stats'])('sends history GET %s with the existing Bearer authentication', async path => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ items: [] }))
+    await runtime.requestJSON(path, { method: 'GET', cache: 'no-store' })
+    expect(fetch).toHaveBeenLastCalledWith(path, expect.objectContaining({ method: 'GET', cache: 'no-store', credentials: 'omit',
+      headers: { Authorization: 'Bearer fixture-access' } }))
+  })
+  it.each([
+    ['/api/v1/users/me/games?size=20', 'POST'], ['/api/v1/users/me/game-stats', 'DELETE'],
+    ['/api/v1/users/102/games?size=20', 'GET'], ['/api/v1/users/me/games?size=20&userId=102', 'GET'],
+    ['/api/v1/users/me/games?size=20&cursor=-1', 'GET'], ['/api/v1/users/me/games?size=20&gameCode=FARKLE', 'GET'],
+  ])('blocks undocumented history request %s %s', async (path, method) => {
+    vi.mocked(fetch).mockClear()
+    await expect(runtime.requestJSON(path, { method })).rejects.toThrow('사용할 수 없는 요청')
+    expect(fetch).not.toHaveBeenCalled()
+  })
   it.each(['v4', 'v5'] as const)('sends the %s lobby through the authenticated runtime', async rulesVersion => {
     const original = vi.mocked(fetch).getMockImplementation()!
     const path = `/api/v1/minigames/sessions?rulesVersion=${rulesVersion}`
