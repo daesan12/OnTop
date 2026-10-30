@@ -47,6 +47,20 @@ public class JdbcJumpmapStore implements JumpmapStore {
         return "jumpmap:" + runId + ":" + gate;
     }
 
+    /** 운영처럼 db/minigame 위치를 적용하지 않은 DB에서는 테이블이 없다. 조회 실패도 준비 안 됨으로 본다. */
+    @Override
+    public boolean ready() {
+        try {
+            Integer tables = jdbc.queryForObject("""
+                    SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE()
+                      AND TABLE_NAME IN ('jump_runs', 'jump_gate_rewards', 'jump_daily_earnings', 'jump_profiles')
+                    """, Integer.class);
+            return tables != null && tables == 4;
+        } catch (org.springframework.dao.DataAccessException exception) {
+            return false;
+        }
+    }
+
     @Override
     public Started start(String runId, long userId, String channelId, Instant at) {
         return transaction(() -> {

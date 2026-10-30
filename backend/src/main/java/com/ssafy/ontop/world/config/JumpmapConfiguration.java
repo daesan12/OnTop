@@ -23,8 +23,10 @@ public class JumpmapConfiguration {
     @Bean
     public JumpmapActivation jumpmapActivation(JumpmapProperties properties, WorldMapRuntime runtime,
             ObjectProvider<JumpmapStore> stores) {
+        // 플래그가 꺼져 있으면 DB도 조회하지 않는다. 테이블이 없는 DB(운영 기본 migration 위치)는 저장소 없음으로 본다.
+        var store = properties.enabled() ? stores.getIfAvailable() : null;
         return JumpmapActivation.decide(properties.enabled(), runtime.scene().version(), JumpCourse::loadDefault,
-                stores.getIfAvailable() != null);
+                store != null && store.ready());
     }
 
     @Bean(initMethod = "start", destroyMethod = "close")

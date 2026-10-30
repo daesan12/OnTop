@@ -22,7 +22,24 @@ class JumpmapConfigurationTests {
     }
 
     private static WebApplicationContextRunner withStore() {
-        return runner().withBean(JumpmapStore.class, () -> Mockito.mock(JumpmapStore.class));
+        return withStore(true);
+    }
+
+    private static WebApplicationContextRunner withStore(boolean ready) {
+        return runner().withBean(JumpmapStore.class, () -> {
+            var store = Mockito.mock(JumpmapStore.class);
+            Mockito.when(store.ready()).thenReturn(ready);
+            return store;
+        });
+    }
+
+    @Test
+    void 테이블이_없는_DB에서는_플래그를_켜도_서버는_시작하고_점프맵만_비활성이다() {
+        withStore(false).withPropertyValues(generated()).run(context -> {
+            assertThat(context).hasNotFailed();
+            assertThat(context.getBean(JumpmapActivation.class).state()).isEqualTo(JumpmapActivation.State.NO_STORE);
+            assertThat(context.getBean(JumpmapService.class).active()).isFalse();
+        });
     }
 
     private static String[] generated() {

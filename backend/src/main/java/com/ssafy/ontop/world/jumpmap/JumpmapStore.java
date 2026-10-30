@@ -27,6 +27,9 @@ public interface JumpmapStore {
     record Status(boolean firstRun, List<String> seenTips, Long bestFinishMs, int todayEarned, LocalDate today) {}
     record RewardKey(String runId, int gate) {}
 
+    /** 점프맵 테이블(V130)이 현재 DB에 있는지. 없으면 플래그를 켜도 점프맵만 비활성으로 두고 서버는 시작한다. */
+    default boolean ready() { return true; }
+
     /** 판 행을 STARTED로 만들고 첫 도전 여부를 프로필에 남긴다. */
     Started start(String runId, long userId, String channelId, Instant at);
 
