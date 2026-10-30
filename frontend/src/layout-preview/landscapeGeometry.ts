@@ -46,7 +46,8 @@ for(const run of FENCE_RUNS) {
 export const fenceArt=fences.finish()
 
 const plaza=new PropBuilder([8,6])
-plaza.cylinder('stone','#b7af99',[LIFE_PLAZA.x,.055,LIFE_PLAZA.z],LIFE_PLAZA.pavingRadius,LIFE_PLAZA.pavingRadius,.11,[0,0,0],128)
+// Pale limestone stays bright under the shared day/night lighting.
+plaza.cylinder('stone','#eeeae0',[LIFE_PLAZA.x,.055,LIFE_PLAZA.z],LIFE_PLAZA.pavingRadius,LIFE_PLAZA.pavingRadius,.11,[0,0,0],128)
 for(let x=LIFE_PLAZA.x-LIFE_PLAZA.width/2+1;x<LIFE_PLAZA.x+LIFE_PLAZA.width/2;x+=2)for(let z=LIFE_PLAZA.z-LIFE_PLAZA.depth/2+1;z<LIFE_PLAZA.z+LIFE_PLAZA.depth/2;z+=2) {
   if(SIMPLE_MAP)continue
   const tile=new Shape(),loX=Math.max(LIFE_PLAZA.x-LIFE_PLAZA.width/2,x-.97),hiX=Math.min(LIFE_PLAZA.x+LIFE_PLAZA.width/2,x+.97),loZ=Math.max(LIFE_PLAZA.z-LIFE_PLAZA.depth/2,z-.97),hiZ=Math.min(LIFE_PLAZA.z+LIFE_PLAZA.depth/2,z+.97)
@@ -76,29 +77,29 @@ for(let x=LIFE_PLAZA.x-LIFE_PLAZA.width/2+1;x<LIFE_PLAZA.x+LIFE_PLAZA.width/2;x+
     }
   }
   const clipped=new BufferGeometry();clipped.setAttribute('position',new Float32BufferAttribute(vertices,3));clipped.setAttribute('uv',new Float32BufferAttribute(uvs,2));clipped.computeVertexNormals();g.dispose()
-  plaza.add('stone',clipped,(x/2+z/2)%3?'#c8c0ad':'#d5ccb9',[0,.14,0])
+  plaza.add('stone',clipped,(x/2+z/2)%3?'#eeeae0':'#f5f1e8',[0,.14,0])
 }
-for(const [r,w] of [[LIFE_PLAZA.pavingRadius-.22,.4],[LIFE_PLAZA.pavingRadius-1,.08]])plaza.add('stone',new RingGeometry(r!-w!/2,r!+w!/2,128),'#879481',[LIFE_PLAZA.x,.145,LIFE_PLAZA.z],[1,1,1],[-Math.PI/2,0,0])
+for(const [r,w] of [[LIFE_PLAZA.pavingRadius-.22,.4],[LIFE_PLAZA.pavingRadius-1,.08]])plaza.add('stone',new RingGeometry(r!-w!/2,r!+w!/2,128),'#a5b7ac',[LIFE_PLAZA.x,.145,LIFE_PLAZA.z],[1,1,1],[-Math.PI/2,0,0])
 // The arrival avenue continues the exact block palette, grid and finished height.
 for(let x=-4;x<=4;x+=2)for(let z=70;z<=88;z+=2) {
   if(SIMPLE_MAP)continue
   const lo=Math.max(-4,x-.97),hi=Math.min(4,x+.97)
-  plaza.box('stone',(x/2+z/2)%3?'#c8c0ad':'#d5ccb9',[(lo+hi)/2,.122,z],[hi-lo,.035,1.94])
+  plaza.box('stone',(x/2+z/2)%3?'#eeeae0':'#f5f1e8',[(lo+hi)/2,.122,z],[hi-lo,.035,1.94])
 }
-for(const x of [-3.9,3.9])plaza.box('stone','#879481',[x,.15,79],[.14,.05,20])
-plaza.cylinder('stone','#dfd2b3',[LIFE_PLAZA.x,.12,LIFE_PLAZA.z],LIFE_PLAZA.radius,LIFE_PLAZA.radius,.04,[0,0,0],96)
+for(const x of [-3.9,3.9])plaza.box('stone','#a5b7ac',[x,.15,79],[.14,.05,20])
+plaza.cylinder('stone','#f5f1e6',[LIFE_PLAZA.x,.12,LIFE_PLAZA.z],LIFE_PLAZA.radius,LIFE_PLAZA.radius,.04,[0,0,0],96)
 // Flush, concentric stone inlays and a compass-flower mosaic leave the centre walkable.
-for(const [radius,width,color] of [[7.2,.2,'#8d9b86'],[6.85,.08,'#a58b59'],[5.3,.12,'#819184']] as const) {
+for(const [radius,width,color] of [[7.2,.2,'#a5b7ac'],[6.85,.08,'#c6ba97'],[5.3,.12,'#9eb2a8']] as const) {
   plaza.add('stone',new RingGeometry(radius-width/2,radius+width/2,96),color,[LIFE_PLAZA.x,.143,LIFE_PLAZA.z],[1,1,1],[-Math.PI/2,0,0])
 }
 for(let i=0;i<8;i++) {
   const a=i*Math.PI/4,s=new Shape()
   s.moveTo(0,0);s.lineTo(-.65,2.8);s.lineTo(0,4.8);s.lineTo(.65,2.8);s.closePath()
-  plaza.add('stone',new ShapeGeometry(s),i%2?'#b09b74':'#819285',[LIFE_PLAZA.x,.146,LIFE_PLAZA.z],[1,1,1],[-Math.PI/2,0,a])
+  plaza.add('stone',new ShapeGeometry(s),i%2?'#c6ba97':'#9eb2a8',[LIFE_PLAZA.x,.146,LIFE_PLAZA.z],[1,1,1],[-Math.PI/2,0,a])
 }
-plaza.cylinder('stone','#d9ceb0',[LIFE_PLAZA.x,.148,LIFE_PLAZA.z],.75,.75,.008,[0,0,0],32)
+plaza.cylinder('stone','#f5f1e6',[LIFE_PLAZA.x,.148,LIFE_PLAZA.z],.75,.75,.008,[0,0,0],32)
 for(let i=0;i<32;i++) {
   const a=i*Math.PI/16
-  plaza.box('stone','#b1a17f',[Math.cos(a)*6.35,.146,LIFE_PLAZA.z+Math.sin(a)*6.35],[.06,.018,.4],[0,Math.PI/2-a,0])
+  plaza.box('stone','#b9ad8d',[Math.cos(a)*6.35,.146,LIFE_PLAZA.z+Math.sin(a)*6.35],[.06,.018,.4],[0,Math.PI/2-a,0])
 }
 export const plazaArt=plaza.finish()

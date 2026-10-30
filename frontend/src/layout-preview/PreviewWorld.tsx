@@ -77,7 +77,7 @@ export const PreviewWorld=memo(function PreviewWorld({live=false}:{live?:boolean
     <mesh name="layout-smooth-paths" geometry={pathPaving} dispose={null} receiveShadow><WalkwayMaterial color="#d8cfb8"/></mesh>
     <Instances parts={pathCurbs} shadow={false}><boxGeometry/></Instances>
     <PropModel art={fenceArt} name="layout-courtyard-fences"/>
-    <PropModel art={plazaArt} name="layout-life-plaza" paving pavingHole={[SETTINGS.plaza.x,SETTINGS.plaza.z,SETTINGS.plaza.radius+.15]}/>
+    <PropModel art={plazaArt} name="layout-life-plaza" paving pavingColor="#ffffff" pavingHole={[SETTINGS.plaza.x,SETTINGS.plaza.z,SETTINGS.plaza.radius+.15]}/>
     <group position={[0,.14,0]}><ReferenceFlowerBeds beds={PLAZA_BEDS}/></group>
     {PLAZA_BENCHES.map(b=><ReferenceBench key={b.id} name={b.id} position={[b.x,.14,b.z]} yaw={b.yaw}/>)}
     <PreviewLandscaping/>

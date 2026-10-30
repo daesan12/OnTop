@@ -10,7 +10,7 @@ export const GeneratedParkMapBackground=memo(function GeneratedParkMapBackground
   <circle cx={p.SITES.fountain.x} cy={p.SITES.fountain.z} r={p.DRAFT_FOUNTAIN.plazaRadius} fill="#e0d7c4"/>
   <circle cx={p.SITES.fountain.x} cy={p.SITES.fountain.z} r={p.DRAFT_FOUNTAIN.basinRadius} fill="#7fa5b0"/>
   <ellipse cx={p.SITES.fitness.x} cy={p.SITES.fitness.z} rx={p.DRAFT_FITNESS_AREA.rx} ry={p.DRAFT_FITNESS_AREA.rz} fill="#c8c0ad"/>
-  <circle cx={p.LIFE_PLAZA.x} cy={p.LIFE_PLAZA.z} r={p.LIFE_PLAZA.pavingRadius} fill="#d4cbb5" stroke="#929c81" strokeWidth={.6}/>
+  <circle cx={p.LIFE_PLAZA.x} cy={p.LIFE_PLAZA.z} r={p.LIFE_PLAZA.pavingRadius} fill="#eeeae0" stroke="#a5b7ac" strokeWidth={.6}/>
   {p.DRAFT_PAVILIONS.map(q=><circle key={q.id} cx={q.x} cy={q.z} r={4.5*q.scale} fill="#536b65" stroke="#c3a56b"/>)}
   {p.KIOSKS.map(k=><rect key={k.kind} x={k.x-k.width/2} y={k.z-k.depth/2} width={k.width} height={k.depth} transform={`rotate(${-k.yaw*180/Math.PI} ${k.x} ${k.z})`} fill="#8e7355"/>)}
   {p.DRAFT_TABLES.map(t=><circle key={t.id} data-table-id={t.id} cx={t.position[0]} cy={t.position[2]} r={1.3} fill="#a87d54"/>)}
