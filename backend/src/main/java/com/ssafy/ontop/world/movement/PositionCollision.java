@@ -55,6 +55,29 @@ final class PositionCollision implements ClientPositionValidator.Geometry {
         return allowStep && sweep(start, start.add(0, .22f, 0))
                 && sweep(start.add(0, .22f, 0), end.add(0, .22f, 0));
     }
+    /** A reported chord can cut a rounded, walkable corner traversed over several render frames.
+     * Accept only a fully swept rise-then-across or across-then-drop path within one auto-step.
+     * The tuned validator still checks time, movement budget, jump origin/height and hovering.
+     */
+    public boolean clearCorner(ClientPositionValidator.Pose from, ClientPositionValidator.Pose to) {
+        double rise = to.y() - from.y();
+        if (Math.abs(rise) < .0001 || Math.abs(rise) > .22 + .0001
+                || (rise > 0 ? !supported(to) : !supported(from)) || !clear(to, to, false)) return false;
+        var start = point(from); var end = point(to); var delta = end.subtract(start);
+        var hits = space.sweepTest(capsule, new Transform(start), new Transform(end));
+        boolean corner = false;
+        for (var hit : hits) {
+            if (hit.getCollisionObject().getCollisionGroup() != 2 || hit.getHitFraction() >= .9999) continue;
+            var normal = hit.getHitNormalLocal(null);
+            if (normal.dot(delta) >= -.0001) continue;
+            if (normal.y < .6) return false; // No wall/ceiling or lateral detours.
+            corner = true;
+        }
+        if (!corner) return false;
+        var pivot = rise > 0 ? new ClientPositionValidator.Pose(from.x(), to.y(), from.z())
+                : new ClientPositionValidator.Pose(to.x(), from.y(), to.z());
+        return clear(from, pivot, false) && clear(pivot, to, false);
+    }
     public boolean swimming(ClientPositionValidator.Pose pose) {
         var lake = scene.data.path("lake");
         double radius = Math.hypot((pose.x() - lake.path("x").asDouble()) / lake.path("radiusX").asDouble(),
