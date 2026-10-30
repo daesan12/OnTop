@@ -3,11 +3,19 @@ import {Raycaster,Vector3,Mesh,MeshBasicMaterial,DoubleSide} from 'three'
 import {plazaBuildingArt} from '../../src/layout-preview/PlazaBuildings'
 import {KIOSKS} from '../../src/layout-preview/layout'
 import {constructionBoardPosition} from '../../src/layout-preview/plazaBuildingStructure'
+import {rankingBoardModelMetrics} from '../../src/layout-preview/RankingBoardModel'
+
+export function rankingBoardProbe(){
+ const scene=_roots.get(document.querySelector('canvas')!)!.store.getState().scene
+ const board=scene.getObjectByName('ranking-board-preview')!
+ return {position:board.position.toArray(),yaw:board.rotation.y,assetId:board.userData.assetId,
+  meshCount:board.children.length,metrics:rankingBoardModelMetrics}
+}
 
 export function plazaStructureProbe(){
  const scene=_roots.get(document.querySelector('canvas')!)!.store.getState().scene
  const material=new MeshBasicMaterial({side:DoubleSide}),ray=new Raycaster()
- try{return KIOSKS.map(k=>{
+ try{return KIOSKS.filter(k=>k.kind!=='photo').map(k=>{
   const group=scene.getObjectByName('layout-'+k.kind)!,art=plazaBuildingArt[k.kind]
   const wood=new Mesh(art.wood!,material),stone=new Mesh(art.stone!,material)
   const solid=(point:readonly number[],direction:readonly number[],target:Mesh,distance:number)=>{
