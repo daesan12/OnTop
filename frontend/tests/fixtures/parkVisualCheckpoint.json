@@ -1,5 +1,5 @@
 {
-  "description": "Latest dev map with concentric workout stations, two inversion machines, 1.5x sound box and 108 additional trees; merged plaza and gate preserved, 2026-10-30",
+  "description": "Concentric workout stations, two inversion machines and 1.5x sound box; merged plaza, gate and decorative trees preserved, 2026-10-30",
   "files": {
     "src/layout-preview/districtGeometry.ts": "ea0c6788c9ccdc5c819365e0bffe93479beec8b5e2c93814183ffddcec2530f9",
     "src/layout-preview/existingTreeModel.ts": "fcb9c89c3c90e11ac5a5670a0498dae14184a10b1acac281523ad56ed4748826",
@@ -30,7 +30,7 @@
     "src/layout-preview/PreviewSwimmingRipples.tsx": "7000a53d1d96f9e4aa21a23cdb89546168680a61a9ddb64240297151b22989b0",
     "src/layout-preview/PreviewWorld.tsx": "aeadb3f0743fe7590edc019c0a94e60fb465fffa22edc8f50b88472ee7744e2e",
     "src/layout-preview/reviewFurnitureGeometry.ts": "ebac00b5aa5aebf3625d49c7ac3485a02bcba28fa79de0a599a8f44bf54fdf53",
-    "src/layout-preview/sceneGeometry.ts": "546be2332df761c30af844b3189ea94d907435329f1d8f52b8f53dccafbf3dda",
+    "src/layout-preview/sceneGeometry.ts": "d747537b34a3e65bf6e1cd5ed095f4c7c38f609b059ec50fced116165367cf14",
     "src/map/park/collision.ts": "00b7343a460881ba457dcb1ecce2fa35721f6c73b752de5822e8a32af3304d48",
     "src/map/park/definition.ts": "c65f46791403766d24f4a83facc41f342b58ce82e2fa8db5547cd00af09f14ff",
     "src/map/park/fountainHeight.ts": "9996ee1c49bd09c43142d4abde7f831ee4001553bb8232b7372ff1094c4b7573",

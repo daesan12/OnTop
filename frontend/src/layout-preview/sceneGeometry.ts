@@ -75,9 +75,11 @@ for(const [x,z] of candidates)addWoodlandTree(x,z)
 // Fill gaps between the established trees without reshuffling the existing grove.
 export const SUPPLEMENTAL_TREE_SITES:Array<{x:number;z:number}>=[]
 const supplementRandom=seeded(301026)
-for(let z=-77.425;z<=79;z+=SETTINGS.planting.woodlandSupplementSpacing)for(let x=-77.425;x<=79;x+=SETTINGS.planting.woodlandSupplementSpacing){
+// Decorative foliage is outside the shared movement map; keep its density local to the renderer.
+const woodlandSupplementSpacing=3.15
+for(let z=-77.425;z<=79;z+=woodlandSupplementSpacing)for(let x=-77.425;x<=79;x+=woodlandSupplementSpacing){
   const px=x+(supplementRandom()-.5)*.6,pz=z+(supplementRandom()-.5)*.6
-  if(inMailboxClearing(px,pz,SITES.mailbox,SETTINGS.planting.mailboxTreeClearance)||trunks.some(t=>Math.hypot(t.p[0]-px,t.p[2]-pz)<2.1))continue
+  if(inMailboxClearing(px,pz,SITES.mailbox,Math.max(4.4,SETTINGS.planting.mailboxTreeClearance))||trunks.some(t=>Math.hypot(t.p[0]-px,t.p[2]-pz)<2.1))continue
   if(addWoodlandTree(px,pz))SUPPLEMENTAL_TREE_SITES.push({x:px,z:pz})
 }
 // Continuous inner wall planting, leaving the south entrance and perimeter path clear.
