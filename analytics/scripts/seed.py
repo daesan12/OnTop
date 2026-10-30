@@ -10,7 +10,7 @@
 - 104: 가입 → 접속 1분 뒤 종료
 - local 개발 사용자(user_id 없음) 접속 1건
 2일차(KST 2026-10-28)
-- 101: 로그인 → 접속 10분, 착석 30초 대기 → 주사위 시작 → 5분 뒤 패배
+- 101: 로그인 → 접속 10분, 착석 30초 대기 → 주사위(판돈 5) 시작 → 5분 뒤 패배
 - 105(기존 회원): 접속 21분, 착석 90초 대기 → 같은 주사위에서 승리
 - 103: 접속 5분
 8일차(KST 2026-11-03)
@@ -27,6 +27,13 @@
 소리함(feedback_messages, 기능 테이블. 본문은 쿼리가 읽지 않으므로 고정 문구만 넣는다)
 - 1일차: 101이 one에 2건, 102가 two에 1건, 탈퇴로 회원 번호가 지워진 1건(one)
 - 103: 1일차 UTC 15:30(한국 2일차 00:30)에 two에 1건
+
+지갑(wallets·wallet_transactions, 기능 테이블. 위 시나리오와 금액을 맞춘다)
+- 가입 선물 100: 101~104는 1일차, 105는 하루 전(KST 2026-10-26)
+- 오목(판돈 1): 101 +1, 102 −1 / 주사위(판돈 5): 101 −5, 105 +5. 시작할 때 예약, 끝날 때 정산
+- 102 상점 구매 −20(아이템 7, 2개), 붕어빵 완료 판의 보상을 판 종료 시각에 지급
+- 104는 탈퇴 회원(지갑은 남지만 잔액 분포에서 제외)
+- 최종 잔액: 101=196, 102=109, 103=115, 104=100, 105=155
 """
 
 import json
@@ -119,7 +126,7 @@ def build_seed() -> str:
     event("2026-10-28 01:02:00", "TABLE_JOINED", 101, table="t1", channel="one")
     for user_id in (101, 105):
         event("2026-10-28 01:02:30", "GAME_STARTED", user_id, table="t1", channel="one", game="g2",
-              gameCode="DICE", players=2, targetScore=2000, betAmountPerPlayer=1)
+              gameCode="DICE", players=2, targetScore=2000, betAmountPerPlayer=5)
     event("2026-10-28 01:07:30", "GAME_ENDED", 101, table="t1", game="g2", gameCode="DICE",
           endReason="TARGET_REACHED", players=2, result="LOSE")
     event("2026-10-28 01:07:30", "GAME_ENDED", 105, table="t1", game="g2", gameCode="DICE",
@@ -148,10 +155,11 @@ def feature_sql() -> str:
     lines = []
     for user_id, provider, gender in [(101, "SSAFY", "MALE"), (102, "NAVER", "FEMALE"), (103, "SSAFY", "FEMALE"),
                                       (104, "NAVER", "MALE"), (105, "SSAFY", "MALE")]:
+        deleted = "'2026-10-29 00:00:00.000'" if user_id == 104 else "NULL"
         lines.append(
             "INSERT INTO users (id, login_provider, provider_user_id, nickname, character_gender, created_at, "
-            f"updated_at) VALUES ({user_id}, '{provider}', 'p{user_id}', 'u{user_id}', '{gender}', "
-            "'2026-10-27 00:00:00.000', '2026-10-27 00:00:00.000');"
+            f"updated_at, deleted_at) VALUES ({user_id}, '{provider}', 'p{user_id}', 'u{user_id}', '{gender}', "
+            f"'2026-10-27 00:00:00.000', '2026-10-27 00:00:00.000', {deleted});"
         )
     # (회원, 상태, 점수, 보상, 시작, 종료)
     for user_id, status, score, reward, started, ended in [
@@ -169,6 +177,7 @@ def feature_sql() -> str:
             f"ended_at) VALUES ({user_id}, 'BUNGEOPPANG', '{status}', {sql_value(score)}, {reward}, "
             f"'{timestamp(started)}', {sql_value(ended and timestamp(ended))});"
         )
+    lines.extend(wallet_sql())
     for user_id, channel, created in [
         (101, "one", "2026-10-27 01:40:00"),
         (101, "one", "2026-10-27 02:00:00"),
@@ -181,6 +190,47 @@ def feature_sql() -> str:
             f"({sql_value(user_id)}, '{channel}', 'seed', '{timestamp(created)}');"
         )
     return "\n".join(lines) + "\n"
+
+
+def wallet_sql() -> list[str]:
+    """지갑 잔액은 원장 합계와 같게 둔다. 붕어빵 판 번호는 위 minigame_sessions의 입력 순서(1부터)다."""
+    lines = []
+    # (회원, 유형, 경기, 붕어빵 판, 아이템, 잔액 변화, 예약 변화, 시각)
+    entries = [
+        (105, "SIGNUP_BONUS", None, None, None, 100, 0, "2026-10-26 01:00:00"),
+        (101, "SIGNUP_BONUS", None, None, None, 100, 0, "2026-10-27 00:59:00"),
+        (102, "SIGNUP_BONUS", None, None, None, 100, 0, "2026-10-27 00:59:30"),
+        (103, "SIGNUP_BONUS", None, None, None, 100, 0, "2026-10-27 01:59:00"),
+        (104, "SIGNUP_BONUS", None, None, None, 100, 0, "2026-10-27 02:59:00"),
+        (101, "GAME_RESERVE", 1, None, None, 0, 1, "2026-10-27 01:07:00"),
+        (102, "GAME_RESERVE", 1, None, None, 0, 1, "2026-10-27 01:07:00"),
+        (101, "GAME_SETTLEMENT", 1, None, None, 1, -1, "2026-10-27 01:17:00"),
+        (102, "GAME_SETTLEMENT", 1, None, None, -1, -1, "2026-10-27 01:17:00"),
+        (102, "SHOP_PURCHASE", None, None, 7, -20, 0, "2026-10-27 01:19:00"),
+        (101, "MINIGAME_REWARD", None, 1, None, 60, 0, "2026-10-27 01:23:00"),
+        (101, "MINIGAME_REWARD", None, 2, None, 40, 0, "2026-10-27 01:27:00"),
+        (102, "MINIGAME_REWARD", None, 4, None, 30, 0, "2026-10-27 01:34:00"),
+        (105, "MINIGAME_REWARD", None, 6, None, 50, 0, "2026-10-27 15:02:00"),
+        (101, "GAME_RESERVE", 2, None, None, 0, 5, "2026-10-28 01:02:30"),
+        (105, "GAME_RESERVE", 2, None, None, 0, 5, "2026-10-28 01:02:30"),
+        (101, "GAME_SETTLEMENT", 2, None, None, -5, -5, "2026-10-28 01:07:30"),
+        (105, "GAME_SETTLEMENT", 2, None, None, 5, -5, "2026-10-28 01:07:30"),
+        (103, "MINIGAME_REWARD", None, 7, None, 15, 0, "2026-10-28 05:03:00"),
+    ]
+    balances: dict[int, int] = {}
+    for user_id, _, _, _, _, balance_delta, _, _ in entries:
+        balances[user_id] = balances.get(user_id, 0) + balance_delta
+    for user_id in sorted(balances):
+        lines.append(f"INSERT INTO wallets (id, user_id, balance, reserved_balance) VALUES "
+                     f"({user_id - 100}, {user_id}, {balances[user_id]}, 0);")
+    for number, (user_id, kind, game, session, item, balance_delta, reserved_delta, at) in enumerate(entries):
+        lines.append(
+            "INSERT INTO wallet_transactions (wallet_id, game_session_id, minigame_session_id, item_id, "
+            "transaction_type, balance_delta, reserved_delta, idempotency_key, created_at) VALUES "
+            f"({user_id - 100}, {sql_value(game)}, {sql_value(session)}, {sql_value(item)}, '{kind}', "
+            f"{balance_delta}, {reserved_delta}, 'seed-{number}', '{timestamp(at)}');"
+        )
+    return lines
 
 
 def to_sql(events: list[tuple], positions: list[tuple]) -> str:
