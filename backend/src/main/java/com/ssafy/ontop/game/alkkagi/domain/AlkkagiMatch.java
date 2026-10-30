@@ -41,24 +41,15 @@ public final class AlkkagiMatch {
         for (int owner = 0; owner < 2; owner++) {
             int sign = owner == 0 ? 1 : -1;
             String[] back = {"車", "馬", "象", "士", "士", "象", "馬", "車"};
+            double[] columns = {-4, -3, -2, -1, 1, 2, 3, 4};
             for (int i = 0; i < back.length; i++) {
-                double radius = switch (back[i]) {
-                    case "車" -> 0.34;
-                    case "象" -> 0.32;
-                    case "士" -> 0.27;
-                    default -> 0.30;
-                };
-                double mass = switch (back[i]) {
-                    case "車" -> 1.8;
-                    case "象" -> 1.6;
-                    case "士" -> 1.1;
-                    default -> 1.4;
-                };
-                add(owner, back[i], i - 3.5, sign * 4.2, radius, mass);
+                // 영상에서 확인한 세 크기 그룹. 질량은 면적비에 가까운 로컬 검수값이다.
+                boolean small = back[i].equals("士");
+                add(owner, back[i], columns[i], sign * 4.2, small ? .24 : .32, small ? .8 : 1.4);
             }
-            add(owner, owner == 0 ? "漢" : "楚", 0, sign * 3.2, 0.42, 2.6);
-            add(owner, "包", -2.5, sign * 2.3, 0.34, 1.8);
-            add(owner, "包", 2.5, sign * 2.3, 0.34, 1.8);
+            add(owner, owner == 0 ? "漢" : "楚", 0, sign * 3.2, 0.43, 2.6);
+            add(owner, "包", -3, sign * 2.2, 0.32, 1.4);
+            add(owner, "包", 3, sign * 2.2, 0.32, 1.4);
             for (int i = 0; i < 5; i++) {
                 add(owner, owner == 0 ? "兵" : "卒", i * 2 - 4, sign * 1.2, 0.24, 0.8);
             }
@@ -125,9 +116,10 @@ public final class AlkkagiMatch {
         return version;
     }
 
-    /** 발사 힘은 기본 병/졸(질량0.8)의 충격량. 큰 알도 조준 속도를 내되 더 큰 운동량을 가진다. */
+    /** 같은 당김은 같은 발사 에너지: 큰 알은 더 느리게 출발하지만 운동량은 더 크다.
+     * 영상의 크기/충돌 차이를 재현하기 위한 근사 모델이며 원작의 역산된 공식은 아니다. */
     static double launchImpulse(double referenceImpulse, double power, double mass) {
-        return referenceImpulse * power * (mass / 0.8);
+        return referenceImpulse * power * Math.sqrt(mass / 0.8);
     }
 
     public void advance(long now) {

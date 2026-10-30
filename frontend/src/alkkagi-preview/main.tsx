@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { ArrowHelper, CanvasTexture, Group, Mesh, Plane, Vector2, Vector3 } from 'three'
 import { AlkkagiReplay, type Piece, type Snapshot } from '../game/alkkagi/replay'
+import { draggedShot } from '../game/alkkagi/aimInput'
 import './style.css'
 
 const role = new URLSearchParams(location.search).get('role') ?? 'red'
@@ -35,7 +36,7 @@ function App() {
     const connect = () => {
       const ws = new WebSocket(`ws://127.0.0.1:19183/dev/alkkagi-ws?role=${encodeURIComponent(role)}`)
       socket.current = ws
-      ws.onopen = () => { replay.clear(); setConnected(true); setNotice('내 알을 상대 방향 반대로 당겼다 놓으세요.') }
+      ws.onopen = () => { replay.clear(); setConnected(true); setNotice('알을 먼저 클릭해 선택한 뒤, 다시 누르고 당겨 발사하세요.') }
       ws.onmessage = event => {
         const msg = JSON.parse(event.data)
         if (msg.type === 'STATE') {
@@ -78,11 +79,11 @@ function App() {
     : state.stage === 'SIMULATING' ? '알이 움직이는 중입니다. 모두 멈추면 다음 차례가 됩니다.'
     : actor < 0 ? '관전 화면입니다. 홍팀·청팀 화면에서 발사할 수 있어요.'
     : state.turn !== actor ? `${names[state.turn]} 차례입니다. 해당 팀 화면에서 조작해주세요.`
-    : `내 차례! ${actor === 0 ? '빨간' : '초록'} 알을 누른 채 뒤로 당겼다가 놓으세요.`
+    : `내 차례! ${actor === 0 ? '빨간' : '초록'} 알 클릭으로 선택 → 다시 누르고 당겨서 발사`
   return <main>
     <header><div><span className="eyebrow">ONTOP · LOCAL PHYSICS LAB</span><h1>아이템 알까기 <small>기본 물리</small></h1></div>
       <div className={`connection ${connected ? 'on' : ''}`}>{connected ? '연결됨' : '연결 끊김'}</div></header>
-    <div className="provisional">임시 배치·물리값 · 일반 장기 구성 16개/인 · 원작 초기 배치 미확인 · 아이템/판돈 없음</div>
+    <div className="provisional">영상 기준 16개/인·세 크기 그룹 · 물리값은 검수용 근사 · 아이템/판돈 없음</div>
     <section className="stats"><div>내 역할<strong>{actor < 0 ? '관전자' : names[actor]}</strong></div>
       <div>현재 차례<strong>{result || (!state || state.stage === 'WAITING' ? '시작 대기' : `${names[state.turn]} · ${state.turnNumber}턴`)}</strong></div>
       <div>남은 시간<strong>{left === null ? state?.stage === 'SIMULATING' ? '충돌 계산 중' : '—' : `${left}초`}</strong></div>
@@ -124,12 +125,13 @@ function App() {
     <footer><p role="status">{notice}</p><div className="buttons">
       {actor === 0 && <button className="secondary" disabled={!connected || pending} onClick={() => send({ type: 'RESET' })}>새 판</button>}
       <a href="?role=red">홍팀</a><a href="?role=green" target="_blank">청팀 화면 열기 ↗</a><a href="?role=viewer" target="_blank">관전 ↗</a>
-    </div><small>같은 당김에서도 큰 알의 타격량은 더 큽니다 · 드래그 길이 = 세기 · Esc / 우클릭 취소</small>
+    </div><small>작은 알은 빠르게, 큰 알은 묵직하게 · 클릭 선택 → 다시 눌러 드래그 · Esc / 우클릭 취소</small>
       <details><summary>동기화 정보</summary><code>snapshot {seq} · tick {state?.tick} · shot {state?.simulationId} · version {state?.version}<br />game {state?.gameId}<br />{state?.endReason}</code></details></footer>
   </main>
 }
 
-type Aim = { piece: Piece; end: Vector3; gameId: string; version: number }
+type Aim = { piece: Piece; origin: Vector3; end: Vector3; start: { x: number; y: number }
+  moved: number; pointerId: number; gameId: string; version: number }
 function Scene({ state, replay, enabled, shoot, explain, blockedReason }: { state: Snapshot | null; replay: AlkkagiReplay; enabled: boolean
   shoot(p: Piece, dx: number, dy: number, power: number): void; explain(message: string): void; blockedReason: string }) {
   const groups = useRef(new Map<string, Group>())
@@ -149,15 +151,21 @@ function Scene({ state, replay, enabled, shoot, explain, blockedReason }: { stat
         -(event.clientY - rect.top) / rect.height * 2 + 1), camera)
       return raycaster.ray.intersectPlane(floor, new Vector3())
     }
-    const move = (event: PointerEvent) => { const p = point(event); if (aim.current && p) aim.current.end.copy(p) }
+    const move = (event: PointerEvent) => {
+      const a = aim.current, p = point(event)
+      if (a && p && event.pointerId === a.pointerId) {
+        a.end.copy(p); a.moved = Math.hypot(event.clientX - a.start.x, event.clientY - a.start.y)
+      }
+    }
     const up = (event: PointerEvent) => {
-      const a = aim.current; clearAim()
+      const a = aim.current
+      if (!a || event.pointerId !== a.pointerId) return
+      clearAim()
       if (event.button !== 0 || !a || !enabled || a.gameId !== state?.gameId || a.version !== state.version) return
-      const p = point(event) ?? a.end, dx = a.piece.x - p.x, dy = a.piece.y - p.z
-      const length = Math.hypot(dx, dy)
-      if (length >= .08) {
-        clear(); shoot(a.piece, dx / length, dy / length, Math.min(1, length / 2.5))
-      } else explain(`${a.piece.type} 선택됨 · 타격량 ×${(a.piece.mass / .8).toFixed(2)} · 누른 채 뒤로 당겼다 놓으세요.`)
+      const shot = draggedShot(a.start, { x: event.clientX, y: event.clientY }, a.origin, point(event) ?? a.end)
+      if (shot) {
+        clear(); shoot(a.piece, shot.dx, shot.dy, shot.power)
+      } else explain(`${a.piece.type} 선택됨 · 클릭/작은 흔들림으로는 발사되지 않습니다. 다시 누르고 당겨주세요.`)
     }
     const key = (e: KeyboardEvent) => { if (e.key === 'Escape') clear() }
     const cancel = (e: Event) => { e.preventDefault(); clear() }
@@ -197,8 +205,8 @@ function Scene({ state, replay, enabled, shoot, explain, blockedReason }: { stat
       }
     }
     if (aim.current) {
-      const a = aim.current, direction = new Vector3(a.piece.x - a.end.x, 0, a.piece.y - a.end.z)
-      const length = direction.length(); arrow.visible = length > .05
+      const a = aim.current, direction = new Vector3(a.origin.x - a.end.x, 0, a.origin.z - a.end.z)
+      const length = direction.length(); arrow.visible = a.moved >= 12 && length >= .08
       arrow.position.set(a.piece.x, .45, a.piece.y); arrow.setDirection(direction.normalize())
       arrow.setLength(Math.min(2.5, length), .25, .14)
     }
@@ -213,10 +221,18 @@ function Scene({ state, replay, enabled, shoot, explain, blockedReason }: { stat
         e.stopPropagation()
         if (!enabled) { explain(blockedReason); return }
         if (!piece.alive || piece.owner !== actor) { explain('상대 알입니다. 내 팀 색깔의 알을 골라주세요.'); return }
+        if (selected.current?.id !== piece.id) {
+          clearAim(); selected.current = piece
+          explain(`${piece.type} 선택됨 · 먼저 클릭해 선택했습니다. 이제 이 알을 다시 누르고 당겨주세요.`)
+          return
+        }
+        const origin = e.ray.intersectPlane(floor, new Vector3())
+        if (!origin) return
         gl.domElement.setPointerCapture(e.pointerId)
         selected.current = piece
-        explain(`${piece.type} 선택됨 · 타격량 ×${(piece.mass / .8).toFixed(2)} · 마우스를 누른 채 뒤로 당기고 놓으세요.`)
-        aim.current = { piece, end: new Vector3(piece.x, .36, piece.y), gameId: state!.gameId, version: state!.version }
+        explain(`${piece.type} 조준 중 · 당긴 뒤 놓으면 발사됩니다. Esc로 취소`)
+        aim.current = { piece, origin, end: origin.clone(), start: { x: e.clientX, y: e.clientY },
+          moved: 0, pointerId: e.pointerId, gameId: state!.gameId, version: state!.version }
       }}><cylinderGeometry args={[piece.radius, piece.radius * 1.03, .27, 8]} /><meshStandardMaterial color="#f0d5a1" roughness={.65} /></mesh>
       <Label piece={piece} />
     </group>)}

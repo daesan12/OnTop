@@ -21,19 +21,21 @@ class AlkkagiMatchTests {
         var king = large.snapshot(2).pieces().get(8);
 
         assertThat(AlkkagiMatch.launchImpulse(12, .6, king.mass()))
-                .isCloseTo(23.4, org.assertj.core.data.Offset.offset(1e-9));
+                .isCloseTo(7.2 * Math.sqrt(2.6 / .8), org.assertj.core.data.Offset.offset(1e-9));
         assertThat(AlkkagiMatch.launchImpulse(12, .6, soldier.mass()))
                 .isCloseTo(7.2, org.assertj.core.data.Offset.offset(1e-9));
-        assertThat(king.vx()).isCloseTo(soldier.vx(), org.assertj.core.data.Offset.offset(1e-9));
+        assertThat(king.vx()).isBetween(soldier.vx() * .5, soldier.vx() * .6);
         assertThat(king.mass() * king.vx()).isGreaterThan(soldier.mass() * soldier.vx());
     }
 
     @Test
-    void 같은_작은_표적을_같은_당김으로_치면_큰_알의_충돌_효과가_더_크다() throws Exception {
+    void 같은_작은_표적에_전달되는_속도를_크기별로_기록한다() throws Exception {
         double smallTargetSpeed = impactTargetSpeed(.8, .24);
-        double largeTargetSpeed = impactTargetSpeed(2.6, .42);
+        double largeTargetSpeed = impactTargetSpeed(2.6, .43);
 
-        assertThat(largeTargetSpeed).isGreaterThan(smallTargetSpeed * 1.3);
+        assertThat(largeTargetSpeed).isGreaterThan(0);
+        // 같은 에너지에서는 무조건 큰 알이 표적을 더 빠르게 쏘는 것이 아니다.
+        // 무거운 알은 충돌 후 자기 진행 방향을 더 유지한다(아래 반대 충돌 검증).
         var report = java.nio.file.Path.of("build/alkkagi/mass-impact.json");
         java.nio.file.Files.createDirectories(report.getParent());
         java.nio.file.Files.writeString(report, "{\"conditions\":\"stationary .8 target, power .6, restitution .9, 120Hz\","
@@ -52,6 +54,38 @@ class AlkkagiMatchTests {
         projectile.applyImpulse(new Vector2(AlkkagiMatch.launchImpulse(12, .6, mass), 0));
         for (int i = 0; i < 30; i++) { world.step(1); }
         return target.getLinearVelocity().getMagnitude();
+    }
+
+    @Test
+    void 작은_알은_큰_표적에_되튕기고_큰_알은_작은_표적을_밀며_전진한다() {
+        assertThat(projectileAfterImpact(.8, .24, 2.6, .43)).isLessThan(0);
+        assertThat(projectileAfterImpact(2.6, .43, .8, .24)).isGreaterThan(0);
+    }
+
+    private double projectileAfterImpact(double mass, double radius, double targetMass, double targetRadius) {
+        var world = new World<Body>();
+        world.setGravity(World.ZERO_GRAVITY);
+        world.getSettings().setStepFrequency(1.0 / 120);
+        var projectile = collisionBody(mass, radius);
+        var target = collisionBody(targetMass, targetRadius);
+        target.translate(1.5, 0);
+        world.addBody(projectile); world.addBody(target);
+        projectile.applyImpulse(new Vector2(AlkkagiMatch.launchImpulse(12, .6, mass), 0));
+        for (int i = 0; i < 40; i++) { world.step(1); }
+        return projectile.getLinearVelocity().x;
+    }
+
+    @Test
+    void 영상의_세_크기_그룹과_뒤줄_중앙_빈칸을_사용한다() {
+        var pieces = started().snapshot(0).pieces();
+        assertThat(pieces.get(3).radius()).isEqualTo(pieces.get(13).radius());
+        assertThat(pieces.get(0).radius()).isEqualTo(pieces.get(1).radius())
+                .isEqualTo(pieces.get(2).radius()).isEqualTo(pieces.get(9).radius());
+        assertThat(pieces.get(8).radius()).isGreaterThan(pieces.get(0).radius());
+        assertThat(pieces.subList(0, 8)).extracting(AlkkagiMatch.PieceView::x)
+                .containsExactly(-4., -3., -2., -1., 1., 2., 3., 4.);
+        assertThat(pieces.get(9).x()).isEqualTo(-3);
+        assertThat(pieces.get(10).x()).isEqualTo(3);
     }
 
     private Body collisionBody(double mass, double radius) {

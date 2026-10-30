@@ -26,8 +26,23 @@ test('실제 드래그 발사를 두 브라우저가 같은 서버 상태로 받
   await page.getByRole('button', { name: '테스트 시작' }).click()
   await expect.poll(() => red.at(-1)?.state.stage).toBe('AIMING')
   const rect = (await page.locator('canvas').boundingBox())!
-  await page.mouse.click(rect.x + rect.width / 2, rect.y + rect.height * .60)
+  const aimVersion = red.at(-1).state.version
+  // 첫 동작은 선택만 한다. 크게 끌어 놓아도 발사가 되어서는 안 된다.
+  await page.mouse.move(rect.x + rect.width / 2, rect.y + rect.height * .60)
+  await page.mouse.down()
+  await page.mouse.move(rect.x + rect.width / 2, rect.y + rect.height * .78, { steps: 8 })
+  await page.mouse.up()
   await expect(page.getByRole('status')).toContainText('선택됨')
+  // 선택된 알의 가장자리 클릭과 미세한 흔들림도 차례를 소비하지 않는다.
+  await page.mouse.click(rect.x + rect.width / 2 + 5, rect.y + rect.height * .60)
+  await page.mouse.move(rect.x + rect.width / 2, rect.y + rect.height * .60)
+  await page.mouse.down()
+  await page.mouse.move(rect.x + rect.width / 2 + 3, rect.y + rect.height * .60 + 2)
+  await page.mouse.up()
+  await expect.poll(() => red.at(-1)?.state.version).toBe(aimVersion)
+  expect(red.at(-1).state.simulationId).toBe(0)
+  expect(red.at(-1).state.turn).toBe(0)
+  await page.mouse.click(rect.x + rect.width / 2, rect.y + rect.height * .60)
   await page.screenshot({ path: '.vite-cache/alkkagi-test-results/selected-piece.png', fullPage: true })
   await page.mouse.move(rect.x + rect.width / 2, rect.y + rect.height * .60)
   await page.mouse.down()
