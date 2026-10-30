@@ -2,7 +2,8 @@ import { create } from 'zustand'
 import { COURSE_VERSION, MAP_VERSION, RULES_VERSION, expectedCoins, kstDate, COURSE } from './course'
 import { parseJumpEvent, type JumpEvent, type JumpStatus, type RunView, type TipKey, type EndReason } from './protocol'
 
-export interface ResultView extends RunView { reason: EndReason; finishMs?: number; bestFinishMs?: number | null; newBest?: boolean; until: number }
+/** recovered: 끊긴 동안 끝나 status lastRun으로 늦게 받은 결과. 팁·효과음을 다시 내지 않는다. */
+export interface ResultView extends RunView { reason: EndReason; finishMs?: number; bestFinishMs?: number | null; newBest?: boolean; until: number; recovered?: boolean }
 export interface Popup { gate: number; amount: number | null; label: string; at: number; anticipated: boolean }
 const initial = () => ({ owner: '', channelId: '', mapVersion: '', available: false, checked: false, recovering: false,
   error: '', revision: -1, refresh: 0, walletRevision: 0, earningsDate: '', todayEarned: null as number | null, bestFinishMs: null as number | null,
@@ -12,6 +13,14 @@ export const useJumpmap = create(initial)
 export const hits = new Map<number, { at: number; power: number }>()
 export const standing = new Map<string, number>()
 const lastSteps = new Map<string, number>(), closed = new Set<string>()
+// 재연결하면 closed가 비므로, 이미 보여 준 결과 runId는 탭 단위로 남겨 같은 결과를 두 번 띄우지 않는다.
+const SHOWN_KEY = 'ontop.jumpmap.shownResults'
+function shownResults(): string[] {
+  try { const value = JSON.parse(sessionStorage.getItem(SHOWN_KEY) ?? '[]'); return Array.isArray(value) ? value.filter(v => typeof v === 'string') : [] } catch { return [] }
+}
+function markShown(runId: string) {
+  try { sessionStorage.setItem(SHOWN_KEY, JSON.stringify([...shownResults().filter(id => id !== runId), runId].slice(-32))) } catch { /* 저장 불가 환경은 이번 연결의 closed로만 막는다. */ }
+}
 const stepListeners = new Set<(block: number, player: string, power: number) => void>()
 export const onStep = (fn: (block: number, player: string, power: number) => void) => { stepListeners.add(fn); return () => { stepListeners.delete(fn) } }
 export function presentStep(block: number, player: string, power: number, now = performance.now()) {
@@ -44,6 +53,14 @@ export function applyJumpStatus(status: JumpStatus, now = performance.now()) {
     revision: status.revision, ...moneyPatch(status), bestFinishMs: status.bestFinishMs,
     seenTips: [...new Set([...s.seenTips, ...status.seenTips])], recovering: available && !!status.activeRunId && !r,
     run: available && r ? { ...r, startedAt: now - r.elapsedMs } : null })
+  const last = status.lastRun
+  if (available && last && !r && !closed.has(last.runId) && !shownResults().includes(last.runId)) {
+    closed.add(last.runId); markShown(last.runId)
+    // 끊긴 동안 받은 엽전이 있을 수 있어 지갑도 다시 읽는다.
+    useJumpmap.setState(state => ({ walletRevision: state.walletRevision + 1, result: { runId: last.runId, elapsedMs: last.elapsedMs, gatesPassed: last.gatesPassed, finalReached: last.reason === 'FINISH',
+      maxHeight: last.maxHeight, runCoins: last.runCoins, reason: last.reason, finishMs: last.finishMs ?? undefined, bestFinishMs: last.bestFinishMs,
+      newBest: last.newBest ?? undefined, until: now + (last.reason === 'FINISH' ? 7000 : 10000), recovered: true } }))
+  }
 }
 export function receiveJumpmap(type: string, payload: unknown, owner: string, channelId: string, mapVersion: string, now = performance.now()) {
   if (!type.startsWith('JUMPMAP_')) return false
@@ -87,6 +104,7 @@ export function acceptJumpEvent(e: JumpEvent, now = performance.now()) {
   }
   if (e.type === 'JUMPMAP_ENDED') {
     closed.add(e.runId); if (closed.size > 128) closed.delete(closed.values().next().value!)
+    markShown(e.runId)
     useJumpmap.setState({ revision: e.revision, ...moneyPatch(e), run: null, recovering: false, walletRevision: s.walletRevision + 1,
       result: { runId: e.runId, elapsedMs: e.elapsedMs, gatesPassed: e.gatesPassed, finalReached: e.reason === 'FINISH', maxHeight: e.maxHeight, runCoins: e.runCoins,
         reason: e.reason, finishMs: e.finishMs, bestFinishMs: e.bestFinishMs, newBest: e.newBest, until: now + (e.reason === 'FINISH' ? 7000 : 10000) },

@@ -1639,6 +1639,29 @@ paths:
                 $ref: "#/components/schemas/AuthErrorResponse"
       security:
       - AccessJwt: []
+  /api/v1/minigames/jumpmap/tips:
+    post:
+      tags:
+      - MINIGAME
+      summary: 본 말풍선 저장
+      description: 모르는 키는 버리고 기존 목록과 합친다.
+      operationId: tips
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonNode"
+        required: true
+      responses:
+        "204":
+          description: 저장됨
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+      security:
+      - AccessJwt: []
   /api/v1/feedback:
     post:
       tags:
@@ -3430,6 +3453,36 @@ paths:
                 $ref: "#/components/schemas/AuthErrorResponse"
       security:
       - AccessJwt: []
+  /api/v1/minigames/jumpmap/status:
+    get:
+      tags:
+      - MINIGAME
+      summary: 점프맵 상태
+      description: "activeRun은 요청 채널에 있을 때만, lastRun은 최근 종료 판을 잠시만 담는다."
+      operationId: status_1
+      parameters:
+      - name: channelId
+        in: query
+        required: true
+        schema:
+          type: string
+          x-utf16-max-length: 64
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+      security:
+      - AccessJwt: []
   /api/v1/minigames/bungeoppang/rankings:
     get:
       tags:
@@ -4047,6 +4100,8 @@ components:
           - MALE
           - FEMALE
       additionalProperties: false
+    JsonNode:
+      type: object
     UserOnboardingResponse:
       required:
       - accessToken
@@ -5708,8 +5763,6 @@ components:
           nullable: true
           allOf:
           - $ref: "#/components/schemas/JsonNode"
-    JsonNode:
-      type: object
     BungeoppangV4Recovery:
       required:
       - acceptedPrefixHash

@@ -29,7 +29,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /** 실제 MySQL 8.4: V130, 문 지급 트랜잭션·하루 상한·멱등·자정·원장 일치·재시작 정리(BE 명세 8·10·15장). */
 @Tag("mysql")
-@SpringBootTest(properties = {
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "spring.profiles.active=local,db", "ontop.world.jumpmap.enabled=true",
         "spring.flyway.locations=classpath:db/migration,classpath:db/minigame",
         "ontop.auth.jwt-secret-base64=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
@@ -45,7 +45,67 @@ class JumpmapMySqlTests {
     @Autowired JumpmapService service;
     @Autowired JumpmapActivation activation;
     @Autowired Flyway flyway;
+    @Autowired com.ssafy.ontop.auth.service.AuthExchangePersistenceService issuer;
+    @org.springframework.boot.test.web.server.LocalServerPort int port;
+    private final java.net.http.HttpClient http = java.net.http.HttpClient.newHttpClient();
+    private final com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
     private int runs;
+
+    private java.net.http.HttpResponse<String> call(String method, String path, Long user, String body) throws Exception {
+        var builder = java.net.http.HttpRequest.newBuilder(java.net.URI.create("http://127.0.0.1:" + port + "/api/v1/minigames/jumpmap" + path))
+                .header("Origin", "http://localhost:8080");
+        if (user != null) {
+            builder.header("Authorization", "Bearer " + issuer.issueExisting(new com.ssafy.ontop.auth.domain.LoginOutcome(
+                    com.ssafy.ontop.auth.domain.OAuthProvider.NAVER, com.ssafy.ontop.auth.domain.LoginOutcome.Status.EXISTING_MEMBER,
+                    user, null)).accessToken());
+        }
+        if (body != null) builder.header("Content-Type", "application/json");
+        return http.send(builder.method(method, body == null ? java.net.http.HttpRequest.BodyPublishers.noBody()
+                : java.net.http.HttpRequest.BodyPublishers.ofString(body)).build(), java.net.http.HttpResponse.BodyHandlers.ofString());
+    }
+
+    @Test
+    void REST_status와_tips_계약과_최근종료_lastRun() throws Exception {
+        assertThat(call("GET", "/status?channelId=channel-1", null, null).statusCode()).isEqualTo(401);
+        var first = mapper.readTree(call("GET", "/status?channelId=channel-1", 101L, null).body());
+        assertThat(first.path("enabled").asBoolean()).isTrue();
+        assertThat(first.path("channelId").asText()).isEqualTo("channel-1");
+        assertThat(first.path("mapVersion").asText()).isEqualTo(service.mapVersion()).matches("[0-9a-f]{64}");
+        assertThat(first.path("courseVersion").asText()).isEqualTo("park180-jump-v1");
+        assertThat(first.path("rulesVersion").asText()).isEqualTo("v2");
+        assertThat(first.path("isFirstRun").asBoolean()).isTrue();
+        assertThat(first.path("dailyCap").asInt()).isEqualTo(100);
+        assertThat(first.path("todayEarned").asInt()).isZero();
+        assertThat(first.path("earningsDate").asText()).matches("\\d{4}-\\d{2}-\\d{2}");
+        assertThat(first.path("activeRunId").isNull()).isTrue();
+        assertThat(first.path("activeRun").isNull()).isTrue();
+        assertThat(first.path("lastRun").isNull()).isTrue();
+        assertThat(first.path("bestFinishMs").isNull()).isTrue();
+
+        assertThat(call("POST", "/tips", 101L, "{\"tips\":[\"START_SPOT\",\"UNKNOWN\"]}").statusCode()).isEqualTo(204);
+        assertThat(call("POST", "/tips", 101L, "{\"tips\":\"START_SPOT\"}").statusCode()).isEqualTo(400);
+        assertThat(call("GET", "/status?channelId=", 101L, null).statusCode()).isEqualTo(400);
+
+        var view = new JumpmapTracker.RunView("rest-run", 0, 0, false, .65, false, List.of(), List.of());
+        service.sink((user, type, payload) -> { });
+        service.accept(new JumpmapTracker.Started("101", "channel-1", "rest-run", 0), List.of("101"));
+        service.accept(new JumpmapTracker.Progress("101", "channel-1", "rest-run",
+                new JumpRun.Ended(JumpRun.EndReason.DISCONNECT, 41_000, null), view), List.of("101"));
+        service.drain(java.time.Duration.ofSeconds(10));
+
+        var after = mapper.readTree(call("GET", "/status?channelId=channel-1", 101L, null).body());
+        assertThat(after.path("revision").asLong()).isGreaterThan(first.path("revision").asLong());
+        assertThat(after.path("isFirstRun").asBoolean()).isFalse();
+        assertThat(after.path("seenTips")).extracting(com.fasterxml.jackson.databind.JsonNode::asText).containsExactly("START_SPOT");
+        assertThat(after.at("/lastRun/runId").asText()).isEqualTo("rest-run");
+        assertThat(after.at("/lastRun/reason").asText()).isEqualTo("DISCONNECT");
+        assertThat(after.at("/lastRun/elapsedMs").asLong()).isEqualTo(41_000);
+        assertThat(after.at("/lastRun/finishMs").isMissingNode()).isTrue();
+        // 다른 채널 요청에는 그 판의 결과를 싣지 않는다.
+        var other = mapper.readTree(call("GET", "/status?channelId=channel-2", 101L, null).body());
+        assertThat(other.path("lastRun").isNull()).isTrue();
+        assertThat(mapper.readTree(call("GET", "/status?channelId=channel-1", 202L, null).body()).path("lastRun").isNull()).isTrue();
+    }
 
     @DynamicPropertySource
     static void isolated(DynamicPropertyRegistry registry) {

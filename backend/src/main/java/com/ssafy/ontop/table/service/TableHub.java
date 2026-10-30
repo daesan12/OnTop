@@ -176,6 +176,15 @@ public class TableHub {
     @Autowired(required = false)
     public void configureJumpmap(com.ssafy.ontop.world.jumpmap.JumpmapService service) {
         jumpmapSignals = deliveries -> deliveries.forEach(delivery -> service.accept(delivery.signal(), delivery.recipients()));
+        service.sink(this::sendJumpmap);
+    }
+
+    /** 점프맵 저장 스레드에서도 호출된다. 같은 회원의 모든 연결(동시에 하나)에 송신 큐로만 넣는다. */
+    private synchronized void sendJumpmap(String userId, String type, java.util.Map<String, Object> payload) {
+        String encoded = protocol.encode(null, type, payload);
+        for (Member member : members.values()) {
+            if (member.userId().equals(userId)) member.peer().offer(encoded);
+        }
     }
     private final ExecutorService startWorkers = Executors.newVirtualThreadPerTaskExecutor();
     private final ScheduledExecutorService heartbeatTimer = Executors.newSingleThreadScheduledExecutor(
