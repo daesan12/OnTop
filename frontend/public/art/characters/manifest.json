@@ -7,15 +7,15 @@
       "character": "man",
       "source": {
         "file": "man_raw.glb",
-        "sha256": "c23ec8e3c245af1b8a5577703feff8ac4b4b0ded184d19074c7e9d0ff3ae05d1",
-        "bytes": 3987624,
+        "sha256": "43382ef57321cd527f7a75385d9633fa07071b6a73a269dec006c5f3268588b0",
+        "bytes": 4002740,
         "triangles": 31999,
         "generator": "Tripo items on a shared base (user supplied)"
       },
       "runtime": {
         "file": "man.glb",
-        "sha256": "cc498bdec073ac1976af36da06aa07056969fd0f49b7c9e2e42c2fd80010b72f",
-        "bytes": 2244188,
+        "sha256": "f3eb46769dea6f0d74478e6603ae1dda13bbb679aa5f3b047b7d0d976db23405",
+        "bytes": 2271024,
         "triangles": {
           "far": 6000,
           "near": 31999
@@ -28,32 +28,32 @@
         {
           "name": "far-body",
           "triangles": 6000,
-          "vertices": 10848
+          "vertices": 10943
         },
         {
           "name": "near-body",
           "triangles": 31999,
-          "vertices": 35210
+          "vertices": 35788
         }
       ],
       "limitations": [
         "Layered items joined into one surface; outfits are not swappable at runtime",
-        "Procedural animation, no facial rig or cloth simulation"
+        "Authored idle/walk/run/swim clips (src/world/art/characterClips.json); seated, machine and gesture poses procedural; no facial rig or cloth simulation"
       ]
     },
     {
       "character": "girl",
       "source": {
         "file": "girl_raw.glb",
-        "sha256": "cd97fec29e215761fb24d7379c5257860f105b46d13de4a3987b5bb488e93d8a",
-        "bytes": 4018244,
+        "sha256": "4ca61f58662971705bf0cb0dc411dcfb6043246e837d6c37bc221fe82f315f4f",
+        "bytes": 4020200,
         "triangles": 31999,
         "generator": "Tripo items on a shared base (user supplied)"
       },
       "runtime": {
         "file": "girl.glb",
-        "sha256": "4cdf4fc136af7a18bb13b8ac767923cb8deb1b1125ababd94023ba497b2c4fc9",
-        "bytes": 2148172,
+        "sha256": "fdc006fd65a04abbdd1b74da30af466bb8134712057667b74a17040acd5492ea",
+        "bytes": 2147168,
         "triangles": {
           "far": 6000,
           "near": 31999
@@ -66,17 +66,17 @@
         {
           "name": "far-body",
           "triangles": 6000,
-          "vertices": 10474
+          "vertices": 10612
         },
         {
           "name": "near-body",
           "triangles": 31999,
-          "vertices": 33548
+          "vertices": 33572
         }
       ],
       "limitations": [
         "Layered items joined into one surface; outfits are not swappable at runtime",
-        "Procedural animation, no facial rig or cloth simulation"
+        "Authored idle/walk/run/swim clips (src/world/art/characterClips.json); seated, machine and gesture poses procedural; no facial rig or cloth simulation"
       ]
     }
   ]

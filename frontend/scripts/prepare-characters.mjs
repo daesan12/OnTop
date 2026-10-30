@@ -122,7 +122,7 @@ for (const [name, file] of jobs) {
     bones: doc.skins[0].joints.length,
     surfaceRevision: rig.surfaceRevision,
     parts,
-    limitations: ['Layered items joined into one surface; outfits are not swappable at runtime', 'Procedural animation, no facial rig or cloth simulation'],
+    limitations: ['Layered items joined into one surface; outfits are not swappable at runtime', 'Authored idle/walk/run/swim clips (src/world/art/characterClips.json); seated, machine and gesture poses procedural; no facial rig or cloth simulation'],
   }
   const i = manifest.records.findIndex((r) => r.character === name)
   if (i < 0) manifest.records.push(record)
