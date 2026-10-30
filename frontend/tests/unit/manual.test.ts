@@ -31,7 +31,7 @@ describe('M15 input ownership and stale transitions',()=>{
   });
 });
 it('searches details across supported game/category boundaries without inventing later games',()=>{
-  expect(gameManuals.map(g=>g.id)).toEqual(['gomoku','farkle','onecard','bridge','fish-bread']);
+  expect(gameManuals.map(g=>g.id)).toEqual(['gomoku','farkle','onecard','bridge','ledger','fish-bread']);
   expect(filterManuals('game','렌주 금수').map(g=>g.id)).toEqual(['gomoku']);
   expect(filterManuals('minigame','반죽').map(g=>g.id)).toEqual(['fish-bread']);
   expect(filterManuals('game','반죽')).toEqual([]);

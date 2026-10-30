@@ -16,6 +16,8 @@ ontop:
       enabled: ${GAME_ONECARD_ENABLED:false}
     bridge:
       enabled: ${GAME_BRIDGE_ENABLED:false}
+    ledger:
+      enabled: ${GAME_LEDGER_ENABLED:false}
   notes:
     enabled: ${NOTES_ENABLED:false}
     privacy-secret: ${NOTES_PRIVACY_SECRET:}

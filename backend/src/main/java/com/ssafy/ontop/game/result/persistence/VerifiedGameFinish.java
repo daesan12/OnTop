@@ -20,7 +20,8 @@ final class VerifiedGameFinish {
             "DICE", Set.of("TARGET_REACHED", "RECONNECT_EXPIRED", "LOGOUT", "MEMBER_DEACTIVATED", "EXPLICIT_LEAVE"),
             "ONE_CARD", Set.of("EMPTY_HAND", "STALEMATE", "PLAYER_LEFT"),
             "LIAR_BRIDGE", Set.of("THREE_GOALS", "LAST_PLAYER_STANDING", "GOAL_SLOTS_EXHAUSTED",
-                    "NO_RUNNABLE_PAWNS", "ABORTED_NO_PLAYERS"));
+                    "NO_RUNNABLE_PAWNS", "ABORTED_NO_PLAYERS"),
+            "DICE_LEDGER", Set.of("ALL_CATEGORIES_FILLED", "LAST_PLAYER_STANDING"));
 
     private VerifiedGameFinish() { }
 

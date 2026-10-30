@@ -12,4 +12,5 @@ export function ownGameActivity(userId: string, state: {
     && gameState(game).status === 'PLAYING' && gamePlayers(game).includes(userId)
     && game.onecard?.players.find(player => player.userId === userId)?.active !== false
     && game.bridge?.players.find(player => player.userId === userId)?.forfeited !== true
+    && game.ledger?.players.find(player => player.userId === userId)?.forfeited !== true
 }

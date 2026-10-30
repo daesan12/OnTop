@@ -122,6 +122,7 @@ gameId/version/state를 노출하지 않으며 기존 FE 파서와 재시도 UI�
 | 경기 입력 | GAME_ACTION_SEND | GAME_ACTION_RESULT (개별 GAME_STATE 갱신과 구분) |
 | 수동 기권 | GAME_FORFEIT | GAME_FORFEIT_RESULT |
 | 오목 관전 채팅·핑 | GAME_SPECTATOR_CHAT_SEND / OMOK_SPECTATOR_PING_SEND | GAME_SPECTATOR_CHAT_MESSAGE / OMOK_SPECTATOR_PING ([상세](../websocket-api/10-game-spectator-events.md), 승인 관전자만 발신) |
+| 주사위 장부 관전 훈수 | DICE_LEDGER_SPECTATOR_PING_SEND | DICE_LEDGER_SPECTATOR_PING ([상세](../dice-ledger.md#관전자-훈수-핑), 승인 관전자만 발신) |
 | 경기 결과 | GAME_RESULT_CHECK | GAME_RESULT |
 | 원카드 장난·방어 | ONECARD_PRANK_REACH_SEND / ONECARD_PRANK_HIT_SEND / ONECARD_HAND_RESTORE_SEND / ONECARD_HAND_FLIP_SEND | [방어·차단·뒤집기·복구](../onecard-ux-be-spec.md), 구형 FLIP은 방어 비활성 호환 전용 |
 | 오류 | 잘못된 메시지/권한/연동 미준비 | ERROR |

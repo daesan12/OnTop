@@ -7,6 +7,7 @@ export const TABLE_GAMES = [
   { code: 'DICE', name: '주사위 한 판', capacity: 2, playable: false },
   { code: 'ONE_CARD', name: '원카드', capacity: 4, playable: true },
   { code: 'LIAR_BRIDGE', name: '거짓말 다리 건너기', capacity: 4, playable: false },
+  { code: 'DICE_LEDGER', name: '주사위 장부', capacity: 4, playable: true },
 ] as const
 export type TableGameCode = typeof TABLE_GAMES[number]['code']
 export const GAME_CONSTRUCTION_NOTICE = '공사 중인 게임입니다. 오목 또는 원카드를 선택해주세요.'

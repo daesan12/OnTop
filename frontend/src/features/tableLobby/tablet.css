@@ -27,7 +27,7 @@
 .tablet-construction { position: absolute; top: 33%; left: 50%; transform: translate(-50%, -50%); padding: 9px 22px; border: 2px solid #8b642a; border-radius: 8px; background: #fff1c9; color: #69491d; font-size: 24px; white-space: nowrap; }
 .tablet-game-art { background-image: url('/art/tablet/games.webp'); background-size: 200% 200%; background-position: 0 0; border-radius: 10px; aspect-ratio: 2 / 1; width: 100%; }
 .tablet-game-art[data-game='ONE_CARD'] { background-image: url('/art/tablet/onecard-v2.webp'); background-size: cover; background-position: center; }
-.tablet-game-art[data-game='DICE'] { background-image: url('/art/tablet/dice-v2.webp'); background-size: cover; background-position: center; }
+.tablet-game-art[data-game='DICE'], .tablet-game-art[data-game='DICE_LEDGER'] { background-image: url('/art/tablet/dice-v2.webp'); background-size: cover; background-position: center; }
 .tablet-game-art[data-game='LIAR_BRIDGE'] { background-image: url('/art/tablet/bridge-v2.webp'); background-size: cover; background-position: center; }
 .tablet-game-card > span { display: flex; align-items: center; justify-content: space-between; gap: 4px; padding: 11px 5px 2px; }
 .tablet-game-card strong { font-size: 23px; letter-spacing: -.05em; }
