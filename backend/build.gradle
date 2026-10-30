@@ -24,6 +24,7 @@ repositories {
 }
 
 dependencies {
+    implementation 'org.dyn4j:dyn4j:6.0.0'
     implementation 'com.github.stephengold:Minie:9.0.3'
     implementation 'org.jmonkeyengine:jme3-desktop:3.8.1-stable'
     implementation 'org.springframework.boot:spring-boot-starter-web'
@@ -44,6 +45,15 @@ dependencies {
         exclude group: 'io.swagger.core.v3'
     }
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.register('alkkagiDemo', JavaExec) {
+    description = '127.0.0.1:19183에서 DB 없는 알까기 물리 검증 서버 실행 (운영 JAR 제외)'
+    group = 'verification'
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.ssafy.ontop.demo.AlkkagiDemoApplication'
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
 }
 
 tasks.named('test') {
