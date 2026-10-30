@@ -1,14 +1,14 @@
 {
   "artifacts": [
     {
-      "bytes": 2555892,
+      "bytes": 2555929,
       "path": "generated/park/server-map.json",
-      "sha256": "a74d0c591982fa143c1986d4560ceb5db99bb4af840a6284948bc7cd5390f4b6"
+      "sha256": "e94e7fe9ef87abcd55d5a8ed962f3cca53e6fa984736c80280a591fc6c062bd8"
     },
     {
       "bytes": 329,
       "path": "src/map/park/generated/mapVersion.ts",
-      "sha256": "2bec46ad899c0087c8470098132a79d62ba7bbe9bb68cde0a7361cbd1ac99c30"
+      "sha256": "b2408d3cb006435b9a054901fd3573d0b1d98a87575113108c9ac206f26f4ffe"
     }
   ],
   "counts": {
@@ -29,11 +29,11 @@
   "format": "ontop.park-map-manifest",
   "hashAlgorithm": "sha256",
   "hashes": {
-    "dataHash": "e158128a17464af26a61daf8d8cd3747d8a3b79b68ffe03b865687228e14a06a",
-    "sourceHash": "3638a63febea63421592efed46e60ae5b80e49856073e12790451cb74877a944"
+    "dataHash": "2430f946c263894021392e3e9fdbe8ad5e893cb91ed5d4319146181af17fd3e8",
+    "sourceHash": "db3872ffdb9bd80da6f503bbb5c8cc93e93f898e210cf022d2992270d9ed6a15"
   },
   "mapId": "park",
-  "mapVersion": "3d56333fb36c48d147b6f6f0df944349dad074136b2c6ea7d56584494cf5d25f",
+  "mapVersion": "448b20e7d1a24ed53dc41e2a628c5a52fafb6c38df038daea12118ddf708755b",
   "schemaVersion": 2,
   "sources": [
     {
@@ -150,7 +150,7 @@
     },
     {
       "path": "src/map/park/definition.ts",
-      "sha256": "35d0f8bce93893d927ccd0a5044225613e7e6ef2d8bea45be508f4502aa36d5c"
+      "sha256": "650da69c30b7600160c029b00fbeaa092f178328a3306fdf149411b971930855"
     },
     {
       "path": "src/map/park/fountainHeight.ts",

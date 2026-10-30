@@ -9,10 +9,10 @@ const sites = {
   tower: { x: 62, z: 56 },
   vr: {x:-74,z:-23},folk:{x:-74,z:-3},vrPagoda:{x:-53,z:-23},
   cart: { x: -29.5, z: 36 }, mailbox: { x: -18, z: 18 },
-  shop: { x: 31.8, z: 50.38 }, drink: { x: 28.2, z: 56.62 }, photo: { x: 30, z: 35.6 },
+  shop: { x: 31.8, z: 50.38 }, drink: { x: 27.33, z: 56.12 }, photo: { x: 30, z: 35.6 },
 }
-const kiosks={shop:{width:4,depth:2,height:4.3,yaw:-Math.PI*2/3},drink:{width:5.44,depth:3.672,height:4.148,scale:.68,yaw:-Math.PI*2/3},photo:{width:8.8,depth:6.6,yaw:-Math.PI/3}}
-const fishBreadShop={width:6.72,depth:5.04,height:4.27,scale:.7,yaw:Math.PI/3}
+const kiosks={shop:{width:4,depth:2,height:4.3,yaw:-Math.PI*2/3},drink:{width:6.8,depth:4.59,height:5.185,scale:.85,yaw:-Math.PI*2/3},photo:{width:8.8,depth:6.6,yaw:-Math.PI/3}}
+const fishBreadShop={width:8.448,depth:6.336,height:5.368,scale:.88,yaw:Math.PI/3}
 const cartPoint=(across:number,forward:number):MapPoint=>[
   sites.cart.x+across*Math.cos(fishBreadShop.yaw)+forward*Math.sin(fishBreadShop.yaw),
   sites.cart.z-across*Math.sin(fishBreadShop.yaw)+forward*Math.cos(fishBreadShop.yaw),
@@ -75,7 +75,7 @@ const routes:readonly MapRoute[] = [
   {id:'event-east',points:[[-63,31],[-39,31]],width:3.5},
   {id:'event-west',points:[[-84,22],[-73,22]],width:3},
   {id:'shop-approach',points:[[23.5,50],[29.38,48.98]],width:2.2},
-  {id:'raffle-approach',points:[[23.5,50],[25.05,54.8]],width:2.2},
+  {id:'raffle-approach',points:[[23.5,50],[23.78,54.07]],width:2.2},
   {id:'cart-apron',points:[cartPoint(-2.8,fishBreadShop.depth/2+1.3),cartPoint(2.8,fishBreadShop.depth/2+1.3)],width:2.2},
   {id:'cart-access',points:[[-22,40],cartPoint(0,fishBreadShop.depth/2+1.3)],width:2.8},
   {id:'south-east',points:[[39,27],[39,81],[82,81]],width:4},

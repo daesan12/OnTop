@@ -1,21 +1,21 @@
 {
-  "description": "Fish shop on west, compact wheel and lottery pair on east; photo area and other facilities preserved, 2026-10-30",
+  "description": "Enlarged fish shop and lottery booth with east passage; photo area and other facilities preserved, 2026-10-30",
   "data": {
     "DRAFT_PARK": "e3854d40e5253714d51f775e49add74da1ae51ed05962f791efe6e0b1d3dd610",
-    "SITES": "d6e4647e8b246712e1d6d35960aa956785cf9869ad50d2fdea4241fad4486ec2",
+    "SITES": "5eeb41c3a11892502117ddd964ef63ee0a0d6ab99a126280df6f41dcf1072eda",
     "DRAFT_PAVILIONS": "367d84ded04a86fcd3c9f9b786f9a2af8bda0273e6731fc0efedb56396bd303f",
     "DRAFT_TABLES": "f31a9a6bbbdf9d1231bcbe1c3bf3eee12a8e872534d26888f6eb1ad057497d4f",
-    "DRAFT_BOXES": "ece61c6ee3b782aefdfee36cf5f0a7d7b4b3f6e0566658d37eb998abd8349f91",
-    "FENCE_RUNS": "3adf788c87d12d1022b17b814edce852ce166e620078d79a72fc8809b5b33f64",
+    "DRAFT_BOXES": "64a42f74576923e1eaffbad2bdff661c84ea18e0c02d5c34e087afdbb6d56729",
+    "FENCE_RUNS": "8a775cb665da3176c5930aa6b2f0f907457c0af7f80b79e89772d53e04d16bce",
     "CENTRAL_RAIL_RUNS": "58355d97dab79f180a7ebb9d01894367d2d3b8d90e153f8b85bbd4c97dd51879",
     "STAIR_RAIL_RUNS": "ddc33257f903fd189bcdd95514ef83b9262b1cd13fc49f397b92a940593359bb",
     "DRAFT_LAMPS": "56f7dabf194151328eecaa462bef093336989c4fd1dce573913034ce372c5c61",
-    "PATHS": "992fd5398c797a6092e4450ca41c068e7101d125c3b401688f011925f5a0b165",
+    "PATHS": "09b21cc059135be9f1dcb6577db7cdaed79d096d00c1222b416a0344ae769baa",
     "PERIMETER": "b0491ce6b6e619278b9651c488838fac16dc481f1807e82a4f4f2f98f9cf1543",
-    "MARKERS": "6d64ee49cecdb09e56f93d83ea4082511a522d4393ff918aa52279b0bbbd6206",
+    "MARKERS": "e86c6434dd60bbd45855ed3e34c34810d1f429752256f95f00a9ffb5938208ce",
     "DRAFT_JUMP_PADS": "d4127c3d38d6456c883cc35fab6e3b7459873802cadeacb1c97000ff923ab8b0",
     "DRAFT_FITNESS_STATIONS": "6249dcf6ce346535ec6912c1f22c4d01e0185d821f1a70c85c828002f3b1d5db",
     "DRAFT_TOWER_BENCHES": "d54aae7921377f5f814e81755bee8660be861a71e5264a9766e6afe132faa088"
   },
-  "movement": "8c023393ee77ac2529de0c8e3ed18bf3859ad52a7f5221ae8659224ca3bbdcc4"
+  "movement": "b2817e69432a9bfee0f9502943eac1c4b2746d202a8d59a6798bb5dec5aa641e"
 }

@@ -18,14 +18,14 @@ describe('lucky facility mock and enlarged fish shop',()=>{
   })
   it('swaps the fish shop and wheel and clusters the scaled lottery booth on the east',()=>{
     const cart=MINI_PROPS[0],box=PARK_DATA.physics.boxes.find(b=>b.id==='fish-bread')!
-    expect([cart.x,cart.z,cart.width,cart.depth]).toEqual([-29.5,36,6.72,5.04])
-    expect(box.half).toEqual([3.36,2.135,2.52])
+    expect([cart.x,cart.z,cart.width,cart.depth]).toEqual([-29.5,36,8.448,6.336])
+    expect(box.half).toEqual([4.224,2.684,3.168])
     expect(box.yaw).toBe(Math.PI/3)
     expect(PARK_DATA.physics.boxes.find(b=>b.id==='layout-shop')!.half).toEqual([2,2.15,1])
     expect(PARK_LAYOUT.KIOSK_FENCE_RUNS.some(f=>f.id.startsWith('kiosk-shop-'))).toBe(false)
-    expect(box.center).toEqual([cart.x,2.135,cart.z])
+    expect(box.center).toEqual([cart.x,2.684,cart.z])
     expect(PARK_LAYOUT.KIOSKS.filter(k=>k.kind!=='photo').map(k=>[k.kind,k.x,k.z,k.yaw])).toEqual([
-      ['shop',31.8,50.38,-Math.PI*2/3],['drink',28.2,56.62,-Math.PI*2/3],
+      ['shop',31.8,50.38,-Math.PI*2/3],['drink',27.33,56.12,-Math.PI*2/3],
     ])
   })
   it('permits the front serving apron and rejects the back, interior and non-finite coordinates',()=>{
@@ -50,8 +50,8 @@ describe('lucky facility mock and enlarged fish shop',()=>{
     const dx=lottery.x-wheel.x,dz=lottery.z-wheel.z
     const across=Math.abs(dx*Math.cos(wheel.yaw)-dz*Math.sin(wheel.yaw))
     const forward=Math.abs(dx*Math.sin(wheel.yaw)+dz*Math.cos(wheel.yaw))
-    expect(across-(wheel.width+lottery.width)/2).toBeGreaterThan(2)
-    expect(forward).toBeLessThan(.1)
+    expect(across-(wheel.width+lottery.width)/2).toBeGreaterThan(1.7)
+    expect(forward).toBeLessThan(1.1)
     expect(PARK_LAYOUT.KIOSKS.find(k=>k.kind==='photo')).toMatchObject({x:30,z:35.6,width:8.8,depth:6.6,yaw:-Math.PI/3})
     for(const site of PARK_DATA.interactions.construction){
       const [x,,z]=site.reachPosition

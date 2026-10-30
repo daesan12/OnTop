@@ -1,5 +1,5 @@
 {
-  "description": "Fish shop on west, compact wheel and lottery pair on east; photo area and other facilities preserved, 2026-10-30",
+  "description": "Enlarged fish shop and lottery booth with east passage; photo area and other facilities preserved, 2026-10-30",
   "files": {
     "src/layout-preview/districtGeometry.ts": "a2840ed6640b66a60154057ac31dc177c7625c0b4930907d651a717f8fcf134b",
     "src/layout-preview/existingTreeModel.ts": "fcb9c89c3c90e11ac5a5670a0498dae14184a10b1acac281523ad56ed4748826",
@@ -32,9 +32,9 @@
     "src/layout-preview/reviewFurnitureGeometry.ts": "ebac00b5aa5aebf3625d49c7ac3485a02bcba28fa79de0a599a8f44bf54fdf53",
     "src/layout-preview/sceneGeometry.ts": "29b5cc9e13888ea2d2b59ffcacf1bc418d1832b6e33b3cf637de0096c8eccdd5",
     "src/map/park/collision.ts": "5d0a325c26d0047ea8aa8ac493e8694060584eeeca03daa33938e25bb1488a8c",
-    "src/map/park/definition.ts": "35d0f8bce93893d927ccd0a5044225613e7e6ef2d8bea45be508f4502aa36d5c",
+    "src/map/park/definition.ts": "650da69c30b7600160c029b00fbeaa092f178328a3306fdf149411b971930855",
     "src/map/park/fountainHeight.ts": "9996ee1c49bd09c43142d4abde7f831ee4001553bb8232b7372ff1094c4b7573",
-    "src/map/park/generated/mapVersion.ts": "2bec46ad899c0087c8470098132a79d62ba7bbe9bb68cde0a7361cbd1ac99c30",
+    "src/map/park/generated/mapVersion.ts": "b2408d3cb006435b9a054901fd3573d0b1d98a87575113108c9ac206f26f4ffe",
     "src/map/park/index.ts": "86ea47fe7b5e3b4472e9f74719374663e481e6c8c187f85317dbdbf2cd13cd02",
     "src/map/park/interactionData.ts": "34a447bb4521153f76cad68b4f9b2bfe62fa12695d7219b38f74b54d173f94d8",
     "src/map/park/lake.ts": "6b3544dfda8ae89b798d8c7f677f3e3e7b354197d7d2e2f5f31660a772070a4e",
