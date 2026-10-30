@@ -1,5 +1,5 @@
 {
-  "description": "Preserve the accepted ad-free map while synchronizing dev functionality, 2026-10-29",
+  "description": "Preserve the accepted ad-free map, including merged plaza palette 3ea825c1 and gate connections c938a97b, 2026-10-30",
   "files": {
     "src/layout-preview/districtGeometry.ts": "ea0c6788c9ccdc5c819365e0bffe93479beec8b5e2c93814183ffddcec2530f9",
     "src/layout-preview/existingTreeModel.ts": "fcb9c89c3c90e11ac5a5670a0498dae14184a10b1acac281523ad56ed4748826",
@@ -12,7 +12,7 @@
     "src/layout-preview/jumpSimulation.ts": "71339bbee942e540a43c68f434ee3c3f6a35084c0b3b8c8ec5991057e31f10ab",
     "src/layout-preview/lakeGeometry.ts": "eec7bbb8685b1782b4b75e76969c2ef06123fb58104b8afe9b28145eedf35402",
     "src/layout-preview/lakeLayout.ts": "952b415b3a34d75d3288f6841c0f70870d8d95f24285c4615a8435e796fc86ac",
-    "src/layout-preview/landscapeGeometry.ts": "9fc6af5aae881705ef73790e4f7fa47438daf57e3089b82a0660ed94f053b095",
+    "src/layout-preview/landscapeGeometry.ts": "ad24264b45f56226f86fba353ff56f7b68c98f93073e95530f568a26d63148e3",
     "src/layout-preview/layout-preview.css": "6b38791a2453f16b15cd86744432723129b4f80479382fb73e8d4153d24e6a56",
     "src/layout-preview/layout.ts": "17ea0db35790e8c0a35cc106e6d757e30f5900833169d89e6a059f0a72d27072",
     "src/layout-preview/LayoutPreview.tsx": "761d97dd9bcb627308c176c5acdd1a4a691762a6034eef938c140d4f07815190",
@@ -28,8 +28,8 @@
     "src/layout-preview/PreviewLandscaping.tsx": "7bdec8aadc5b6e47e9d9ab3c0a0c86933e39d3ca2b86ced0d111bfc299f50dde",
     "src/layout-preview/PreviewPigeons.tsx": "f2ed2ba9dca9c8ce8020bb4d525e791bbdfae4dd53315b6d3fc3aca0760e4378",
     "src/layout-preview/PreviewSwimmingRipples.tsx": "7000a53d1d96f9e4aa21a23cdb89546168680a61a9ddb64240297151b22989b0",
-    "src/layout-preview/PreviewWorld.tsx": "833e93522d4600b5521fde8addfe2e7ae871db40f3c773f52648df20c1de7eb6",
-    "src/layout-preview/reviewFurnitureGeometry.ts": "0bc1afb0b4787b4ec32018d772f06668cfba4b9005ed6b358aa1ce5109a4799c",
+    "src/layout-preview/PreviewWorld.tsx": "c628b7e673704fac68fe420e70889b5ab3b5891a53aa8a71c6be582199ca9737",
+    "src/layout-preview/reviewFurnitureGeometry.ts": "ebac00b5aa5aebf3625d49c7ac3485a02bcba28fa79de0a599a8f44bf54fdf53",
     "src/layout-preview/sceneGeometry.ts": "2baf288c51e4bd0b75e3f94f3348c6521976c5ad09495d240f9f3e855358599d",
     "src/map/park/collision.ts": "00b7343a460881ba457dcb1ecce2fa35721f6c73b752de5822e8a32af3304d48",
     "src/map/park/definition.ts": "bc24581fc7db62063de077b0d328a329eba4fea17f192a80ca31b70e227b5331",
@@ -112,7 +112,7 @@
     "src/world/art/PlannedWater.tsx": "7ef91d086c5254325cbe24b9faaee5f55c60429448e49c2f3896b2defef347ab",
     "src/world/art/PlazaGarden.tsx": "cdb4ebb3e4bc81e4047df4cc6ae542bb5845b3eb86c1c55164f5270bf14efbdc",
     "src/world/art/propGeometry.ts": "c88d9a69bf3dd4d1e3dd3ee27e80e1fca96774f13dc570913dd58b274b17eed0",
-    "src/world/art/PropModel.tsx": "d8c72d616afbb4c17f95688e42896a52b1c0f8147150325287f6a4f5512a9510",
+    "src/world/art/PropModel.tsx": "f871c20e65aa0b54d030993b543adc34ad4b60bfbb69ad26b3993cbfff148cb5",
     "src/world/art/ReferenceBenchFrames.tsx": "a4a695db7bd3d84783af6ed8538d1208da572a0342c0e599543a5121ecc4af4e",
     "src/world/art/ReferenceGarden.tsx": "b0d0d39e2599730b142bae09745c42510da1da6c3d153e771164cf06628470ce",
     "src/world/art/ReferenceStreetProps.tsx": "b341294a22d8d1deffe6ee2c4abfee5d8426b4c9f9826fc23860956853aaa7b6",
@@ -177,7 +177,8 @@
     "src/world/art/previewPropGeometry.ts": "ec34bbfbe8a113ef4459b33fd232c0e3699fe646c51e0c3cdeef0c5495653385",
     "src/world/art/previewSimpleParkTrees.tsx": "00101a0dbd0d22807faaeabf962d1c78b1313275720d5be3b826bb8408f302c2",
     "src/features/tables/PreviewPavilionWoodTable.tsx": "f5279a760aae6e630935dc8ce1c74f954e36026b52e054486ca1ed1526f9888d",
-    "src/world/art/defaultBuildingParts.ts": "c07e68fca1249aa75e294e5564d3d96004937b17e958816c93d80b8f2a7c371c"
+    "src/world/art/defaultBuildingParts.ts": "c07e68fca1249aa75e294e5564d3d96004937b17e958816c93d80b8f2a7c371c",
+    "src/layout-preview/mainGateStructure.ts": "019faaa1b5b162e72bf95f44e61b519199307a34aee50e433226a0c1cb2a1232"
   },
   "compatibilityReview": {
     "date": "2026-10-29",
