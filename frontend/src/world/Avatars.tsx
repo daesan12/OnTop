@@ -17,6 +17,7 @@ import { createAvatarOpacity } from './avatarOpacity'
 import { emptyEquipment } from '../network/equipment'
 import { roamingFirstPerson } from './roamingCamera'
 import { localMovement } from '../network/localMovementPrediction'
+import { useJumpmap } from '../features/jumpmap/state'
 import { remoteMovement } from '../network/remoteMovement'
 import { useGame } from '../game/store'
 import { openAvatarMenu } from '../features/follow/FollowMenu'
@@ -56,6 +57,7 @@ function Avatar({
   const motion = useMemo(() => createAvatarMotion(model), [model])
   const cadence = useMemo(() => new AvatarPoseCadence(), [model])
   const appearance = useMemo(() => createAvatarOpacity(model.root), [model])
+  const overlapOpacity = useRef(1)
   const reducedMotion = useMemo(() => window.matchMedia('(prefers-reduced-motion: reduce)'), [])
   useLayoutEffect(() => {
     rigs.set(id, {
@@ -76,7 +78,13 @@ function Avatar({
     const seated = avatar.seatIndex >= 0
     const own = id === useSession.getState().sessionId
     // Hide only this client's own model; other clients retain the full avatar.
-    const opacity = own ? bungeoppangReturnOpacity(frameAt, reducedMotion.matches) : 1
+    const ownAvatar = !own && useJumpmap.getState().run ? avatars.get(useSession.getState().sessionId) : undefined
+    const ownPose = ownAvatar && sampleAvatar(ownAvatar, frameAt, { ...ownAvatar.current })
+    const overlap = !!ownPose && Math.hypot(pose.x - ownPose.x, pose.z - ownPose.z) < .7 && Math.abs(pose.y - ownPose.y) < 1.8
+    const targetOpacity = overlap ? .4 : 1
+    overlapOpacity.current = targetOpacity + (overlapOpacity.current - targetOpacity) * Math.exp(-Math.min(delta, .1) * 6)
+    if (Math.abs(overlapOpacity.current - targetOpacity) < .001) overlapOpacity.current = targetOpacity
+    const opacity = own ? bungeoppangReturnOpacity(frameAt, reducedMotion.matches) : overlapOpacity.current
     root.current.visible = opacity > 0 && !(own && (((avatar.tableId && seated && !gatheringCameraActive() || avatar.benchId && seated) || avatar.telescopeId)
       || roamingFirstPerson(avatar, !!useGame.getState().watchedGameId)))
     appearance.set(root.current.visible ? opacity : 1)
