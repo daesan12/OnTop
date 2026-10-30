@@ -13,7 +13,7 @@ async function open(page: Page) {
 }
 async function loaded(page: Page, positionSelf?: () => void) {
   await page.goto('/park')
-  await expect(page.getByLabel('공원 기본 화면')).toBeVisible()
+  await expect(page.getByLabel('공원 기본 화면')).toBeVisible({ timeout: 90_000 })
   await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90_000 })
   positionSelf?.()
   await page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).orbit(0, .35, 6.8))

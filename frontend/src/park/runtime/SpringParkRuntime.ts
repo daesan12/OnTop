@@ -525,12 +525,6 @@ export class ParkRuntime implements ParkRuntimePort {
     if (!this.active) return
     const moveSeq = message.requestId ? this.movementRequests.get(message.requestId) : undefined
     if (message.type === 'WORLD_STATE' && moveSeq !== undefined) localMovement.receivedInput(moveSeq)
-    if (message.type === 'NOTES_CHANGED') {
-      const session = useSession.getState()
-      if (this.mapReady && session.status === 'connected' && session.mapCompatible && session.roomId && !session.pending)
-        this.notesChanges.accept(message)
-      return
-    }
     if (message.type === 'ERROR' && message.requestId
       && this.movementRejectedAfterSeating(message.requestId, message.payload.code)) return
     // Seat states held before the table list carry no requestId, so they never meet the movement filter above.
@@ -569,6 +563,13 @@ export class ParkRuntime implements ParkRuntimePort {
       return
     }
     if (this.holdInitialState(message)) return
+    if (message.type === 'NOTES_CHANGED') {
+      const session = useSession.getState()
+      if (this.mapReady && this.mapAdmission.allowed && session.status === 'connected'
+        && session.mapCompatible && session.roomId && !session.pending)
+        this.notesChanges.accept(message)
+      return
+    }
     if (this.oneCardDefense.accept(message)) return
     if (this.oneCardPranks.accept(message)) return
     if (this.omokEvents.accept(message)) return
