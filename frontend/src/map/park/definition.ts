@@ -122,6 +122,7 @@ export const PARK_DEFINITION = {
   event:{width:32,depth:26,benches:[{x:-75,z:14,side:-1},{x:-57,z:26,side:1}]},
   fitness:{width:30,depth:22,radius:15,rx:15,rz:11,stationRadius:7.5,exitOffset:2.8,fenceRx:16.2,fenceRz:12.2,fenceOpening:5.6},
   kiosks,
+  fishBreadShop:{width:9.6,depth:7.2,height:6.1},
   gate:{opening:5.2,boundaryOpening:5.2,postX:2.6},
   pavilionCourt:{width:14.5,depth:17},
   pavilionEdgeTrees:['P1','P2'].flatMap(id=>{

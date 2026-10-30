@@ -1611,8 +1611,8 @@
           "z": -40
         },
         {
-          "halfX": 2.1999999999999997,
-          "halfZ": 1.5,
+          "halfX": 5.1,
+          "halfZ": 3.9,
           "id": "fish-bread",
           "kind": "box",
           "x": -51,
@@ -11683,7 +11683,7 @@
           "heightTolerance": 0.7,
           "id": "layout-shop",
           "kind": "CONSTRUCTION",
-          "label": "상점",
+          "label": "뽑기방",
           "message": "현재 공사 중입니다. 준비가 끝나면 이용할 수 있어요.",
           "position": [
             -29.5,
@@ -11703,7 +11703,7 @@
           "heightTolerance": 0.7,
           "id": "layout-drink",
           "kind": "CONSTRUCTION",
-          "label": "응모부스",
+          "label": "복권방",
           "message": "현재 공사 중입니다. 준비가 끝나면 이용할 수 있어요.",
           "position": [
             -30,
@@ -46791,13 +46791,13 @@
         {
           "center": [
             -51,
-            1.55,
+            3.05,
             23
           ],
           "half": [
-            1.9,
-            1.55,
-            1.2
+            4.8,
+            3.05,
+            3.6
           ],
           "id": "fish-bread",
           "role": "solid",
@@ -131236,11 +131236,11 @@
   "format": "ontop.park-map",
   "hashAlgorithm": "sha256",
   "hashes": {
-    "dataHash": "b9d81ad04307fc65931e4fc70057b5d5f08dbe942302cb6f1d590befb6e68787",
-    "sourceHash": "a45ed3b9023069098bfe0ab903e0188296b6028714a733c18f80f45cd99d1dbb"
+    "dataHash": "4b18e91518df0d99edbef63a9971720d7682785b3707ca586f5579232fec0fca",
+    "sourceHash": "7985eda5192089c26ee0cef7aab584d1a2335c76527781450df0df8dc681e1d0"
   },
   "mapId": "park",
-  "mapVersion": "70a3d67952adcd8b1f9bfb123c9440ab7cd676b996960fef6d40f1f3a4a6fb36",
+  "mapVersion": "381eee0c1a4255efbd2ce63ad64dcea9d9442abf233d18b8200211b9896f79ee",
   "schemaVersion": 2,
   "semantics": {
     "additionalPlayerInflation": "server-capsule-only",

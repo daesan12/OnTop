@@ -1,9 +1,16 @@
 import { useEffect,useRef } from 'react'
+import { LuckyFacilityPanel } from '../luckyFacilities/LuckyFacilityPanel'
 import { constructionSites,useConstructionNotice,closeConstructionNotice } from './model'
 import './construction.css'
 
 /** Local information only: does not start shopping, raffle, photo or server leases. */
 export function ConstructionNotice(){
+  const id=useConstructionNotice(s=>s.id)
+  useEffect(()=>()=>closeConstructionNotice(),[])
+  if(id==='layout-shop'||id==='layout-drink')return <LuckyFacilityPanel key={id} id={id}/>
+  return <ConstructionMessage/>
+}
+function ConstructionMessage(){
   const id=useConstructionNotice(s=>s.id),dialog=useRef<HTMLDialogElement>(null)
   const site=constructionSites.find(s=>s.id===id)
   useEffect(()=>{
@@ -12,7 +19,6 @@ export function ConstructionNotice(){
     element?.showModal()
     return()=>{element?.close()}
   },[id])
-  useEffect(()=>()=>closeConstructionNotice(),[])
   if(!site)return null
   return <dialog ref={dialog} className="construction-notice" aria-label={`${site.label} 공사 안내`} aria-describedby="construction-description"
     onKeyDown={event=>{if(event.key==='Tab'){event.preventDefault();event.stopPropagation();dialog.current?.querySelector('button')?.focus()}}}

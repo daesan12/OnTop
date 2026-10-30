@@ -1,4 +1,5 @@
 import { MINI_PROPS } from '../../park/mapConfig'
+import { GENERATED_PARK_ENABLED } from '../../park/mapSelection'
 import { avatars, useSession } from '../../network/worldClient'
 import { tableBusy, useGame } from '../../game/store'
 import { inputState } from '../../world/inputOwnership'
@@ -8,6 +9,9 @@ import { telescopeBusy } from '../telescopes/state'
 
 export function canReachBungeoppang(p: { x: number; y: number; z: number }) {
   const cart = MINI_PROPS[0]
+  if(![p.x,p.y,p.z].every(Number.isFinite))return false
+  if(GENERATED_PARK_ENABLED)return Math.abs(p.x-cart.x)<=cart.width/2+.8
+    &&p.z>=cart.z+cart.depth/2+.25&&p.z<=cart.z+cart.depth/2+2.8&&Math.abs(p.y-.8)<=.9
   return Math.hypot(p.x - cart.x, p.z - cart.z) <= 4.2 && Math.abs(p.y - .8) <= .9
 }
 export function canOpenBungeoppang(): boolean {

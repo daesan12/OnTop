@@ -1,14 +1,14 @@
 {
   "artifacts": [
     {
-      "bytes": 2562463,
+      "bytes": 2562448,
       "path": "generated/park/server-map.json",
-      "sha256": "2f414118b0c2dfad42fc4bb361c332090861c302d325a5ac02300844258b8d90"
+      "sha256": "e1f3045b54a13cf18f00bc13225bc6bf5b2de8fdcbdc72b29b212d84fe8c6cd6"
     },
     {
       "bytes": 329,
       "path": "src/map/park/generated/mapVersion.ts",
-      "sha256": "92e97f984b56a0302878b88bc3cd22e8118275aaa6c59bbf6c8c557389080c3e"
+      "sha256": "39edccf27f686f8e6c2656e33d241146cbd36b13d2752534ef9038d5636813a3"
     }
   ],
   "counts": {
@@ -29,11 +29,11 @@
   "format": "ontop.park-map-manifest",
   "hashAlgorithm": "sha256",
   "hashes": {
-    "dataHash": "b9d81ad04307fc65931e4fc70057b5d5f08dbe942302cb6f1d590befb6e68787",
-    "sourceHash": "a45ed3b9023069098bfe0ab903e0188296b6028714a733c18f80f45cd99d1dbb"
+    "dataHash": "4b18e91518df0d99edbef63a9971720d7682785b3707ca586f5579232fec0fca",
+    "sourceHash": "7985eda5192089c26ee0cef7aab584d1a2335c76527781450df0df8dc681e1d0"
   },
   "mapId": "park",
-  "mapVersion": "70a3d67952adcd8b1f9bfb123c9440ab7cd676b996960fef6d40f1f3a4a6fb36",
+  "mapVersion": "381eee0c1a4255efbd2ce63ad64dcea9d9442abf233d18b8200211b9896f79ee",
   "schemaVersion": 2,
   "sources": [
     {
@@ -150,7 +150,7 @@
     },
     {
       "path": "src/map/park/definition.ts",
-      "sha256": "6629604cd331a8d63de19b2141475a528e220dd54fafab0da98ae72bc08018ba"
+      "sha256": "43f22e11da2c848f9b4c534f434c21fc0d5b684c3d63790ba58a851837607c2b"
     },
     {
       "path": "src/map/park/fountainHeight.ts",
@@ -174,7 +174,7 @@
     },
     {
       "path": "src/map/park/physics.ts",
-      "sha256": "20f73eae680db0bdbbc4bd7990c15ff54a0e14f60c9313b13a9a1e444b90516e"
+      "sha256": "78b35430a6a4adf6529dcaf48354968e1709e6107e596718128c0e39d7d45a51"
     },
     {
       "path": "src/map/park/planting.ts",
@@ -182,7 +182,7 @@
     },
     {
       "path": "src/map/park/resolve.ts",
-      "sha256": "ace6a3b9e5ffa7ecd42d4fd31c3a4d1bc22afd29879da61c2965dc3a0772fbfe"
+      "sha256": "b403b22f6b39d068f8bb40ace839f8fea671633d097647d6fa611ea0e936ae6f"
     },
     {
       "path": "src/map/park/validate.ts",

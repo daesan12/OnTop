@@ -1,21 +1,21 @@
 {
-  "description": "Latest lamp, furniture and fountain policies preserved with centered fitness stations and enlarged sound box, 2026-10-30",
+  "description": "Lucky wheel room, lottery room and enlarged fish shop; all other park facilities retained, 2026-10-30",
   "data": {
     "DRAFT_PARK": "e3854d40e5253714d51f775e49add74da1ae51ed05962f791efe6e0b1d3dd610",
     "SITES": "0ef028ce40e340a7b39feb6e43549afe4d04e70f6f49180fddee7ea321bc06c9",
     "DRAFT_PAVILIONS": "367d84ded04a86fcd3c9f9b786f9a2af8bda0273e6731fc0efedb56396bd303f",
     "DRAFT_TABLES": "f31a9a6bbbdf9d1231bcbe1c3bf3eee12a8e872534d26888f6eb1ad057497d4f",
-    "DRAFT_BOXES": "768f35f0265f1d0f0d9c3cd78e65ef7ca6a2a1b161287ca5e06d8c7d14ac489b",
+    "DRAFT_BOXES": "c4f59f4079df21d9bf51aae410366fdbce66a354111598e4d9c025be91022bbe",
     "FENCE_RUNS": "bbb923a3b0725d5e2cf8c86a036074d2987149051db57ba3ba4837d1f6eefdcf",
     "CENTRAL_RAIL_RUNS": "58355d97dab79f180a7ebb9d01894367d2d3b8d90e153f8b85bbd4c97dd51879",
     "STAIR_RAIL_RUNS": "ddc33257f903fd189bcdd95514ef83b9262b1cd13fc49f397b92a940593359bb",
     "DRAFT_LAMPS": "56f7dabf194151328eecaa462bef093336989c4fd1dce573913034ce372c5c61",
     "PATHS": "cd40c6dc32898cff8f0c845fea055195826f6c8115fddb1a65f5325b742948bf",
     "PERIMETER": "b0491ce6b6e619278b9651c488838fac16dc481f1807e82a4f4f2f98f9cf1543",
-    "MARKERS": "368ceb5a9de01a7de74220a219e0aa30341ad031d6e852d811aa69f65420313e",
+    "MARKERS": "37ac8c005344616c657a328474ee8c68688ed72cf67a319f29d9411dd3fd5028",
     "DRAFT_JUMP_PADS": "d4127c3d38d6456c883cc35fab6e3b7459873802cadeacb1c97000ff923ab8b0",
     "DRAFT_FITNESS_STATIONS": "6249dcf6ce346535ec6912c1f22c4d01e0185d821f1a70c85c828002f3b1d5db",
     "DRAFT_TOWER_BENCHES": "d54aae7921377f5f814e81755bee8660be861a71e5264a9766e6afe132faa088"
   },
-  "movement": "d8ed1ab0c5a8f382446fc98670b224055cad71450ebd67bfe1989c2436796af3"
+  "movement": "1e5039345e02888fa410685925e6a071cef419683bc48c8a03e3437dc3aebdf4"
 }

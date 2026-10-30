@@ -1,7 +1,7 @@
 import { roundedSquare } from '../geometry'
 import { TOWER_BENCH_SITES } from '../../config/telescopes'
 import { TABLES, type TableAnchor } from '../../config/world'
-import { PARK_PAVILIONS, MINI_PROPS, MAILBOX, FOUNTAIN, TOWER_SITE,pavilionStairJoin } from '../../config/parkPlan'
+import { PARK_PAVILIONS, MAILBOX, FOUNTAIN, TOWER_SITE,pavilionStairJoin } from '../../config/parkPlan'
 import { FITNESS_STATIONS } from '../../config/fitness'
 import { VR_COURSE_PADS,groundHeight } from '../../config/parkLayout'
 import { resolveLake } from './lake'
@@ -88,8 +88,8 @@ const MARKERS: readonly SiteMarker[] = [
   { no:'10', id:'layout-fishing-deck',label:'낚시 데크',...SITES.fishing,note:'데크 위치 시안 · 기능 추가 없음' },
   { no:'11', id:'layout-fishing-east',label:'맞은편 낚시터',...SITES.fishingEast,note:'동쪽 수변 접근 공간' },
   { no:'12', id:'layout-background',label:'외곽 건물',x:0,z:-133,note:'도로·보도·건물은 이동 불가 배경' },
-  { no:'13', id:'layout-shop',label:'광장 상점',...SITES.shop,note:'건물·진입 공간 시안' },
-  { no:'14', id:'layout-drink',label:'응모부스',...SITES.drink,note:'부스 위치 시안' },
+  { no:'13', id:'layout-shop',label:'뽑기방',...SITES.shop,note:'돌림판 · 무료 2D 목업 체험' },
+  { no:'14', id:'layout-drink',label:'복권방',...SITES.drink,note:'한옥 복권방 · 무료 체험권 목업' },
   { no:'15', id:'layout-photo',label:'포토부스',...SITES.photo,note:'광장 동쪽 · 촬영 동선 확보' },
   { no:'16', id:'layout-hall-room',label:'민속놀이 존',...SITES.folk,note:'VR 체험관과 구분한 두 번째 한옥' },
   { no:'17', id:'layout-fish-feed',label:'물고기 먹이주기',x:41,z:-14,note:'수변 위치 시안' },
@@ -99,6 +99,7 @@ const MARKERS: readonly SiteMarker[] = [
   { no:'21', id:'layout-main-gate',label:'담장 · 정문',x:0,z:MAIN_GATE.z-1,note:'공원 내부 180 × 180m' },
   { no:'22', id:'layout-wood-bridge',label:'나무다리 · 북쪽 돌다리',x:62,z:9,note:'남쪽 목교 · 북쪽 징검다리 · 수영 진입부' },
   { no:'27', id:'feedback-mailbox',label:'전통 소리함',...SITES.mailbox,note:'기존 코드 모델·시설 ID 유지' },
+  { no:'28', id:'fish-bread',label:'붕어빵 가게',...SITES.cart,note:'상점 규모의 한옥 붕어빵 가게 · 기존 조리 게임 유지' },
 ]
 /** Cut the sharp vertices back and use tangent quadratic turns. Keep straight axes straight. */
 function roundRoute(points:readonly ParkPoint[],radius=3.5):ParkPoint[] {
@@ -209,7 +210,7 @@ const DRAFT_BOXES: readonly DraftBox[] = [
   {id:'vr-stone-pagoda',...SITES.vrPagoda,halfX:4.8,halfZ:4.8},
   ...DRAFT_LAKE_ROCKS.map(r=>({id:r.id,x:r.x,z:r.z,halfX:r.size[0]*.9,halfZ:r.size[2]*.9})),
   {id:'garden-pagoda',...SITES.pagoda,halfX:8,halfZ:8},
-  {id:'fish-bread',...SITES.cart,halfX:MINI_PROPS[0].width/2,halfZ:MINI_PROPS[0].depth/2},
+  {id:'fish-bread',...SITES.cart,halfX:definition.fishBreadShop.width/2,halfZ:definition.fishBreadShop.depth/2},
   {id:'feedback-mailbox',...SITES.mailbox,halfX:MAILBOX.bodyHalfWidth*definition.mailbox.scale,halfZ:MAILBOX.bodyHalfDepth*definition.mailbox.scale},
   ...KIOSKS.map(k=>({id:`layout-${k.kind}`,x:k.x,z:k.z,halfX:k.width/2*Math.abs(Math.cos(k.yaw))+k.depth/2*Math.abs(Math.sin(k.yaw)),halfZ:k.width/2*Math.abs(Math.sin(k.yaw))+k.depth/2*Math.abs(Math.cos(k.yaw))})),
 ]
@@ -295,7 +296,7 @@ const data={
   facilities,pavilions:DRAFT_PAVILIONS,tables:DRAFT_TABLES.map(({spectatorRadius:_unused,...t})=>t),
   interactions:{...facilityInteractions,construction:KIOSKS.map(k=>{
     const distance=k.depth/2+1.8
-    return {id:'layout-'+k.kind,kind:'CONSTRUCTION' as const,status:'construction' as const,label:({shop:'상점',drink:'응모부스',photo:'포토부스'})[k.kind],
+    return {id:'layout-'+k.kind,kind:'CONSTRUCTION' as const,status:'construction' as const,label:({shop:'뽑기방',drink:'복권방',photo:'포토부스'})[k.kind],
       position:[k.x,0,k.z] as const,reachPosition:[k.x+Math.sin(k.yaw)*distance,.8,k.z+Math.cos(k.yaw)*distance] as const,
       yaw:k.yaw+Math.PI,radius:3,heightTolerance:.7,message:'현재 공사 중입니다. 준비가 끝나면 이용할 수 있어요.'}
   }),mailbox:{id:'feedback-mailbox',position:[SITES.mailbox.x,0,SITES.mailbox.z],radius:MAILBOX.interactionRadius},tableSeats:DRAFT_TABLES.map(t=>({tableId:t.id,position:t.position,localSeats:t.seatAnchors}))},

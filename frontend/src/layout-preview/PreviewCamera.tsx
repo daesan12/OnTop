@@ -64,7 +64,7 @@ export function PreviewCamera({view,focus,labels,markerElements,indicators,onRea
         if(found)break
       }
     } else if(controls.current) {
-      const kiosk=KIOSKS.find(k=>focus.id===`layout-${k.kind}`)
+      const kiosk=KIOSKS.find(k=>focus.id===`layout-${k.kind}`)??(focus.id==='fish-bread'?{yaw:0}:undefined)
       if(kiosk) {
         controls.current.target.set(focus.x,1.5,focus.z)
         camera.position.set(focus.x+Math.sin(kiosk.yaw)*23-Math.cos(kiosk.yaw)*8,8.5,focus.z+Math.cos(kiosk.yaw)*23+Math.sin(kiosk.yaw)*8)

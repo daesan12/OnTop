@@ -24,7 +24,7 @@ import { TraditionalPavilionLanterns } from '../world/art/TraditionalPavilionLan
 import { MainPavilionRefinements } from '../world/art/LandmarkRefinements'
 import { TableShell } from '../features/tables/TableShell'
 import { TraditionalMailbox } from '../world/art/TraditionalMailbox'
-import { CodeFishBreadCart } from '../world/art/CodeFishBreadCart'
+import { FishBreadShop } from '../world/art/LuckyFacilities'
 import { VrHanokBooth } from '../world/art/ActivityProps'
 import { FitnessGarden } from '../world/art/FitnessGarden'
 import { StonePagoda } from '../world/art/StonePagoda'
@@ -127,7 +127,7 @@ export const PreviewWorld=memo(function PreviewWorld({live=false}:{live?:boolean
       {SETTINGS.lake.swimEntryOffsets.map(offset=><PropSign key={offset} position={[SITES.lake.x+offset,1.3,SITES.lake.z-4.5]} width={1.6} height={.6} draw={zoneSigns.swim}/>)}
       {!live&&<PreviewSwimmingRipples/>}
     </group>
-    <group name="fish-bread" position={[SITES.cart.x,0,SITES.cart.z]} userData={{assetId:"user/repaired-fish-cart"}}><CodeFishBreadCart detailDistance={80}/></group>
+    <group name="fish-bread" position={[SITES.cart.x,0,SITES.cart.z]} userData={{assetId:"user/repaired-fish-cart"}}><FishBreadShop/></group>
     <TraditionalMailbox position={[SITES.mailbox.x,0,SITES.mailbox.z]} scale={SETTINGS.mailbox.scale}/>
     <PlazaBuilding kind="shop" live={live}/><PlazaBuilding kind="drink" live={live}/><PlazaBuilding kind="photo" live={live}/>
     <PreviewPigeons live={live}/>

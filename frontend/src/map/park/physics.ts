@@ -1,6 +1,6 @@
 import { MOVEMENT } from '../../config'
 import { createTowerRamp,createTowerDeck,towerPoint,OBSERVATION_TOWER,TOWER_DECK_RAIL_SEGMENTS } from '../../config/parkLayout'
-import { PAVILION_CLOSED_SIDES,PAVILION_TIMBER,TOWER_SITE,MAILBOX,MINI_PROPS } from '../../config/parkPlan'
+import { PAVILION_CLOSED_SIDES,PAVILION_TIMBER,TOWER_SITE,MAILBOX } from '../../config/parkPlan'
 import { GARDEN_PAGODA,PAGODA_COLLIDERS } from '../../config/pagoda'
 import { TELESCOPES } from '../../config/telescopes'
 import { roundedSquare } from '../geometry'
@@ -166,7 +166,7 @@ export function buildPhysics(i:Input) {
     segment(`tower-rail-${radius}-${n}`,[a[0]+dx,a[1],a[2]+dz],[b[0]+dx,b[1],b[2]+dz],.12,height)
   }
   TOWER_DECK_RAIL_SEGMENTS.forEach(([a,b],n)=>segment('tower-deck-rail-'+n,[a[0]+dx,a[1],a[2]+dz],[b[0]+dx,b[1],b[2]+dz],.12,1.4))
-  box('fish-bread',[d.sites.cart.x,MINI_PROPS[0].height/2,d.sites.cart.z],[MINI_PROPS[0].width/2,MINI_PROPS[0].height/2,MINI_PROPS[0].depth/2])
+  box('fish-bread',[d.sites.cart.x,d.fishBreadShop.height/2,d.sites.cart.z],[d.fishBreadShop.width/2,d.fishBreadShop.height/2,d.fishBreadShop.depth/2])
   box('feedback-mailbox',[d.sites.mailbox.x,MAILBOX.height*d.mailbox.scale/2,d.sites.mailbox.z],[MAILBOX.bodyHalfWidth*d.mailbox.scale,MAILBOX.height*d.mailbox.scale/2,MAILBOX.bodyHalfDepth*d.mailbox.scale])
   const [sx,sz]=d.park.spawn,centerOffset=MOVEMENT.radius+MOVEMENT.halfHeight+MOVEMENT.offset+d.physics.spawnClearance
   let spawnGround=i.supportHeight(sx,sz)
