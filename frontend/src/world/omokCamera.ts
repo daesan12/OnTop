@@ -11,6 +11,20 @@ export function omokTopDownHeight(aspect: number, scale: number, viewportHeight?
   return span / (2 * Math.tan(GOMOKU.topDownFov * Math.PI / 360))
 }
 
+/** Fit the frame and coordinate labels in the measured space between the spectator HUDs. */
+export function omokSpectatorFrame(width: number, height: number, scale: number,
+  insets: { top: number; bottom: number; left: number; right: number }) {
+  const usableWidth = Math.max(1, width - insets.left - insets.right)
+  const usableHeight = Math.max(1, height - insets.top - insets.bottom)
+  const pixels = Math.min(usableWidth, usableHeight)
+  const unitsPerPixel = 1.54 * scale / pixels
+  return {
+    height: unitsPerPixel * height / (2 * Math.tan(GOMOKU.topDownFov * Math.PI / 360)),
+    offsetX: -(insets.left + usableWidth / 2 - width / 2) * unitsPerPixel,
+    offsetZ: -(insets.top + usableHeight / 2 - height / 2) * unitsPerPixel,
+  }
+}
+
 /** Rendering only: readiness never grants a seat or permission to place a stone. */
 export function advanceOmokCamera(camera: Camera, position: Vector3, rotation: Quaternion, fov: number, delta: number) {
   const blend = 1 - Math.exp(-7 * delta)

@@ -16,6 +16,7 @@ export function BenchSpectatorControls() {
     benchId: s.benchId, pending: s.pending, mapCompatible: s.mapCompatible,
     watchedTableId: s.watchedTableId, tableStates: s.tableStates })))
   const selectedView = useBenchSpectator(s => s.view), watching = useGame(s => s.watchedGameId)
+  const omokWatching = useGame(s => s.game?.role === 'SPECTATOR' && !!s.game.omok && !!s.watchedGameId)
   const directHands = useGame(s => s.game?.role === 'SPECTATOR' && !!s.game.onecard)
   const publicView = useTableLobby(s => s.spectatorView)
   const view = watching && selectedView !== 'seated' ? publicView === 'board' ? 'board' : 'participants' : selectedView
@@ -58,13 +59,14 @@ export function BenchSpectatorControls() {
       if (target instanceof HTMLElement && target.closest('input,textarea,select,a,[contenteditable="true"]')) return
       if (target instanceof HTMLElement && target.closest('button') && !target.closest('.bench-spectator')) return
       event.preventDefault()
+      if (omokWatching) { void change(view === 'board' ? 'participants' : 'board'); return }
       const views = ['seated', 'participants', 'board'] as const
       void change(views[(views.indexOf(view) + (event.shiftKey ? 2 : 1)) % views.length]!)
     }
     window.addEventListener('keydown', keydown)
     return () => window.removeEventListener('keydown', keydown)
   })
-  if (!scope || !anchor || !session.mapCompatible || directHands) return null
+  if (!scope || !anchor || !session.mapCompatible || omokWatching || directHands) return null
   return <div className="bench-spectator" role="group" aria-label="벤치 관전" aria-keyshortcuts="Tab Shift+Tab">
     <button type="button" disabled={disabled || view === 'seated' && !available} aria-pressed={view !== 'seated'}
       onClick={() => void change(view === 'seated' ? 'participants' : 'seated')}>

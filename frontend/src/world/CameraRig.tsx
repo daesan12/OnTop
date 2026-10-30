@@ -12,7 +12,7 @@ import { CAMERA, CHARACTER, GOMOKU, TABLES, TELESCOPE, TELESCOPES, telescopeFov,
 import { telescopeView } from '../features/telescopeView'
 import { interactionAim } from '../features/interactions/interactionAim'
 import { useGame } from '../game/store'
-import { omokCamera } from '../game/cameraState'
+import { omokCamera, omokSpectatorViewport } from '../game/cameraState'
 import { avatars, sampleAvatar, useSession } from '../network/worldClient'
 import { cameraOcclusion, CameraOcclusionFader } from './cameraOcclusion'
 import { installRoamingInput, viewControls } from './input'
@@ -29,7 +29,7 @@ import { useTelescopeState } from '../features/telescopes/state'
 import { useFeedbackState } from '../features/feedback/state'
 import { useNotesState } from '../features/notes/state'
 import { benchBoardLook, benchLook, benchTable, benchViewScope, spectatorClearHeight, useBenchSpectator } from '../features/interactions/benchSpectator'
-import { advanceOmokCamera, OMOK_FOCUS_LAYER, omokTopDownHeight } from './omokCamera'
+import { advanceOmokCamera, OMOK_FOCUS_LAYER, omokTopDownHeight, omokSpectatorFrame } from './omokCamera'
 import { wardrobeView } from '../features/wardrobe/view'
 
 /** Whole-figure framing used by the wardrobe zoom (the avatar plus a little headroom). */
@@ -241,7 +241,8 @@ export function CameraRig() {
     const ownOmok = seated && !!avatar.tableId && (session.tableStates[session.tableId]?.gameCode === 'OMOK'
       || game?.role === 'PLAYER' && !!game.omok)
     const gathering = !TABLET_ENABLED && gatheringCameraActive()
-    const focusedOmok = boardFocus && ownOmok && !gathering
+    const spectatorOmok = spectatorBoard && game?.role === 'SPECTATOR' && game.omok?.status === 'PLAYING'
+    const focusedOmok = boardFocus && ownOmok && !gathering || spectatorOmok
     if (focusedOmok) {
       camera.layers.set(OMOK_FOCUS_LAYER)
       raycaster.layers.set(OMOK_FOCUS_LAYER)
@@ -295,11 +296,17 @@ export function CameraRig() {
       const pose = oneCardSpectatorCameraPose(anchor, yaw, camera instanceof PerspectiveCamera ? camera.aspect : 1.6, spectatorClearHeight(anchor.pavilionId))
       state.desired.set(...pose.position); state.look.set(...pose.target)
     } else if (focusedOmok && camera instanceof PerspectiveCamera) {
-      const anchor = TABLES.find(t => t.id === avatar.tableId)!
+      const anchor = spectatorOmok ? (closeAnchor ?? watchedAnchor)! : TABLES.find(t => t.id === avatar.tableId)!
       state.look.set(anchor.position[0], anchor.position[1] + GOMOKU.boardY + .017, anchor.position[2])
-      state.desired.copy(state.look)
-      state.desired.y += omokTopDownHeight(camera.aspect, tableScale(anchor), gl.domElement.clientHeight)
-      state.targetUp.set(0, 0, avatar.seatIndex === 0 ? -1 : 1)
+      if (spectatorOmok) {
+        const frame = omokSpectatorFrame(gl.domElement.clientWidth, gl.domElement.clientHeight, tableScale(anchor), omokSpectatorViewport.insets)
+        state.look.x += frame.offsetX; state.look.z += frame.offsetZ
+        state.desired.copy(state.look); state.desired.y += frame.height
+      } else {
+        state.desired.copy(state.look)
+        state.desired.y += omokTopDownHeight(camera.aspect, tableScale(anchor), gl.domElement.clientHeight)
+      }
+      state.targetUp.set(0, 0, spectatorOmok || avatar.seatIndex === 0 ? -1 : 1)
     } else if (diceFocus) {
       const anchor = TABLES.find(t => t.id === avatar.tableId)!
       const seat = tableSeats(anchor)[session.seatIndex] ?? tableSeats(anchor)[0]!
@@ -404,7 +411,7 @@ export function CameraRig() {
       state.look.copy(center)
     }
     const targetFov = tablet ? 43 : gathering ? ownOmok ? 60 : CAMERA.fov : seated && oneCardPlayerViewActive(game) ? ONECARD_CAMERA.fov : diceFocus ? DICE_CAMERA.fov : boardFocus || spectatorBoard ? GOMOKU.topDownFov : seated ? GOMOKU.seatedFov : CAMERA.fov
-    const smoothingOmok = ownOmok || state.omokTransition
+    const smoothingOmok = focusedOmok || ownOmok || state.omokTransition
     const smoothingDice = ownDice || state.diceTransition
     const smoothingBoard = smoothingOmok || smoothingDice
     let omokSettled = false
@@ -413,7 +420,7 @@ export function CameraRig() {
       state.lookMatrix.lookAt(state.desired, state.look, state.targetUp)
       state.targetRotation.setFromRotationMatrix(state.lookMatrix)
       omokSettled = advanceOmokCamera(camera, state.desired, state.targetRotation, targetFov, delta)
-      if (smoothingOmok) state.omokTransition = ownOmok || !omokSettled
+      if (smoothingOmok) state.omokTransition = focusedOmok || ownOmok || !omokSettled
       if (smoothingDice) state.diceTransition = ownDice || !omokSettled
     } else {
       if (firstPerson && performance.now() >= bungeoppangView.returningUntil) camera.position.copy(state.desired)

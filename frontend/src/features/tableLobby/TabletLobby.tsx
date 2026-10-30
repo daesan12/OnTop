@@ -11,6 +11,7 @@ import { tabletProjection } from './tabletProjection'
 import { HostStartButton, HostStartWaitStatus } from './HostStartWaitControls'
 import { useTabletStartStatus } from './TabletLobbyClient'
 import { inputState } from '../../world/inputOwnership'
+import coinImage from '../../assets/entry/yeopjeon-icon.webp'
 import './tablet.css'
 const TabletPortrait = lazy(() => import('./TabletPortrait').then(module => ({ default: module.TabletPortrait })))
 
@@ -133,8 +134,9 @@ function TabletSession({ tableId }: { tableId: string }) {
             aria-pressed={count === n} onClick={() => setCount(n)}>{n}인</button>)}</div></fieldset>
           <div className="tablet-score-slot">{code === 'DICE' && <label className="tablet-score">목표 점수<select aria-label="주사위 목표 점수" disabled={!host || busy || !isTableGamePlayable(code)} value={target} onChange={e => setTarget(Number(e.target.value))}>
             {TARGET_SCORES.map(score => <option key={score} value={score}>{score.toLocaleString()}점</option>)}</select></label>}</div>
-          <label className="tablet-bet-input">1인 참가 판돈<input aria-label="1인 참가비" inputMode="numeric" type="text" maxLength={15} value={bet} disabled={!host || busy}
-            placeholder="금액 입력" onChange={e => setBet(e.target.value)} /><span>냥</span></label>
+          <label className="tablet-bet-input"><span>1인 참가 판돈</span><span className="tablet-money-field">
+            <img className="tablet-coin" src={coinImage} alt="" /><input aria-label="1인 참가비" inputMode="numeric" type="text" maxLength={15} value={bet} disabled={!host || busy}
+              placeholder="금액" onChange={e => setBet(e.target.value)} /><span>냥</span></span></label>
           {!countSupported && <p className="tablet-contract-note" role="status">{count}인 정원 선택은 서버 연결 준비 중입니다.</p>}
           {count < occupied && <p role="status">현재 앉은 {occupied}명보다 적게 설정할 수 없어요.</p>}
           <button className="tablet-manual" onClick={() => openManual(GAME_MANUAL[code])}>설명서</button>
@@ -151,9 +153,11 @@ function TabletSession({ tableId }: { tableId: string }) {
           <b className="tablet-name">{seat.userId === s.own ? '나' : seat.userId ? s.profiles[seat.userId]?.nickname ?? '산책자' : `${seat.seatNumber}번 빈자리`}{seat.userId && seat.userId === table.selectorUserId ? ' · 방장' : ''}</b>
           <span className="tablet-ready-stamp" data-ready={seat.ready}>{seat.userId ? seat.ready ? '✓ 준비 완료' : '준비 대기' : '참가 대기'}</span>
         </div>)}</div>
-        <div className="tablet-bet-confirm"><span>참가 판돈</span><strong><i aria-hidden="true">◉</i> {table.betAmountPerPlayer?.toLocaleString() ?? '—'}<small>냥</small></strong>
-          <label><input type="checkbox" checked={confirmedBet === confirmation || !!mine?.ready} disabled={busy || !!mine?.ready || !table.betAmountPerPlayer}
-            onChange={e => setConfirmedBet(e.target.checked ? confirmation : '')} /> 참가 금액을 확인했어요</label>
+        <div className="tablet-bet-confirm"><span>참가 판돈</span><strong><img className="tablet-coin" src={coinImage} alt="" /> {table.betAmountPerPlayer?.toLocaleString() ?? '—'}<small>냥</small></strong>
+          <label className="tablet-amount-agreement"><input type="checkbox" checked={confirmedBet === confirmation || !!mine?.ready} disabled={busy || !!mine?.ready || !table.betAmountPerPlayer}
+            onChange={e => setConfirmedBet(e.target.checked ? confirmation : '')} />
+            <span className="tablet-agreement-mark" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none"><path d="m4 10 4 4 8-8" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg></span>
+            <span>참가 금액을 확인했어요</span></label>
           {host && <button className="tablet-edit" disabled={busy} onClick={() => { setConfirmedBet(''); setStep('select') }}>게임·판돈 변경</button>}
         </div>
         <HostStartWaitStatus table={table} selectedCount={approvedCount ?? null} fallback={g.start?.phase === 'STARTING' || g.start?.phase === 'CONFIRMED' ? '서버가 참가·시작을 확인하고 있습니다.'
