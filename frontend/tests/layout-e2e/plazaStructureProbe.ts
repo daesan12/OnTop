@@ -12,6 +12,36 @@ export function rankingBoardProbe(){
   meshCount:board.children.length,metrics:rankingBoardModelMetrics}
 }
 
+export async function rankingBoardRenderProbe(){
+ const state=_roots.get(document.querySelector('canvas')!)!.store.getState()
+ const board=state.scene.getObjectByName('ranking-board-preview')!
+ const sample=async()=>{
+  const intervals:number[]=[]
+  let previous=performance.now()
+  await new Promise<void>(resolve=>{
+   let frame=0
+   const next=(now:number)=>{
+    if(frame++>5)intervals.push(now-previous)
+    previous=now
+    if(frame<90)requestAnimationFrame(next)
+    else resolve()
+   }
+   requestAnimationFrame(next)
+  })
+  intervals.sort((a,b)=>a-b)
+  return {medianFrameMs:intervals[Math.floor(intervals.length/2)]!,
+   p95FrameMs:intervals[Math.floor(intervals.length*.95)]!,
+   drawCalls:state.gl.info.render.calls,triangles:state.gl.info.render.triangles}
+ }
+ try{
+  board.visible=false
+  const withoutBoard=await sample()
+  board.visible=true
+  const withBoard=await sample()
+  return {withoutBoard,withBoard}
+ }finally{board.visible=true}
+}
+
 export function plazaStructureProbe(){
  const scene=_roots.get(document.querySelector('canvas')!)!.store.getState().scene
  const material=new MeshBasicMaterial({side:DoubleSide}),ray=new Raycaster()
