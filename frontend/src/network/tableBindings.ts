@@ -1,4 +1,4 @@
-import { TABLES } from '../config'
+import { TABLES } from '../park/mapConfig'
 import { record } from './protocol'
 
 export interface TableBinding {

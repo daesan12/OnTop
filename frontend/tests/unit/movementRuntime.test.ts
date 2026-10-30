@@ -262,15 +262,16 @@ describe('M02 real runtime delivery through the existing SharedSocket', () => {
     await vi.advanceTimersByTimeAsync(120)
     expect(moves()).toHaveLength(11)
   })
-  it.each(['rejection', 'timeout'])('reports movement %s without replaying a delivered jump', async mode => {
+  it.each(['rejection', 'timeout'])('preserves a newer queued jump after an older movement %s', async mode => {
     socket.holdMoves = true
     runtime.move(0, -1, false)
     runtime.move(1, 0, false, true)
     if (mode === 'rejection') socket.emit('ERROR', { code: 'MOVE_TOO_FREQUENT', message: '이동 간격 오류' }, moves()[0]!.requestId)
     else await vi.advanceTimersByTimeAsync(8100)
     await vi.advanceTimersByTimeAsync(120)
-    const delivered = mode === 'rejection' ? 1 : 2
+    const delivered = 2
     expect(moves()).toHaveLength(delivered)
+    expect(moves()[1]!.payload).toMatchObject({ seq: 2, dx: 1, jump: true })
     expect(mode === 'rejection' ? useSession.getState().movementNotice?.message : useSession.getState().error)
       .toContain(mode === 'rejection' ? '이동 간격 오류' : '응답 시간이 초과')
     runtime.move(1, 0, false)

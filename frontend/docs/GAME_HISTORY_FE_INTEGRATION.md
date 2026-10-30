@@ -1,5 +1,9 @@
 # 전적 조회 FE 연동
 
+## 새 맵 적용 (2026-10-30)
+
+생성 공원이 포함된 `dev(18225121)`를 통합하고 새 맵 장면에서 전적 7개 브라우저 시나리오를 다시 통과했다. 기권/패배 분리·커서·인증/재시도와 기존 화면을 보존하고 새 점프맵 요청 허용 목록과 공존하도록 런타임 충돌을 해결했다. 실행은 `pnpm exec playwright test --config playwright.records-park.config.ts`이며 자세한 전체 검증과 실제 서버 확인 한계는 [PUBLIC_CHAIRS_FE_INTEGRATION.md](./PUBLIC_CHAIRS_FE_INTEGRATION.md)를 참고한다.
+
 ## 계약 확인
 
 2026-10-29, `origin/dev`의 `fb6a307`에 머지된 `docs/game-history-api.md`, 응답 DTO, `GameHistoryHttpTests`를 읽어 아래 필드를 확인했다. BE 소스·DB·배포 설정은 수정하지 않았다.

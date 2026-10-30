@@ -1,5 +1,6 @@
 import { validPublicEquipment, type PublicEquipment } from './equipment'
 import { isAvatarActivity, type AvatarActivity } from './avatarActivity'
+import type { MotionSnapshot } from './localMovementPrediction'
 
 /** Existing Spring Raw WebSocket contracts; UI models live in worldClient. */
 export interface Envelope {
@@ -54,6 +55,7 @@ export interface WorldState {
     equipment?: PublicEquipment[] | null
     tableSeat?: PublicTableSeat | null
     activity?: AvatarActivity | null
+    motion?: MotionSnapshot | null
   }[]
 }
 export interface TableSummary {
@@ -163,6 +165,15 @@ export function channelState(value: Record<string, unknown>): ChannelState {
   return value as unknown as ChannelState
 }
 export function worldState(value: Record<string, unknown>): WorldState {
+  const motion = (m: unknown) => m == null || record(m)
+    && integer(m.epoch) && integer(m.tick) && integer(m.appliedInputSeq)
+    && typeof m.inputAgeMs === 'number' && Number.isFinite(m.inputAgeMs) && m.inputAgeMs >= 0 && m.inputAgeMs <= 250
+    && typeof m.velocityY === 'number' && Number.isFinite(m.velocityY)
+    && typeof m.grounded === 'boolean' && typeof m.inputActive === 'boolean'
+      && (m.authority === undefined || m.authority === 'CLIENT_VALIDATED')
+      && (m.profile === undefined || m.profile === 'PARK_V1')
+      && (m.jumpGrace === undefined || record(m.jumpGrace) && integer(m.jumpGrace.coyoteTicks) && m.jumpGrace.coyoteTicks <= 3
+        && integer(m.jumpGrace.jumpBufferTicks) && m.jumpGrace.jumpBufferTicks <= 4)
   const tableSeat = (s: unknown) => s == null || record(s)
     && text(s.tableId) && s.tableId.length <= 120
     && integer(s.seatNumber) && s.seatNumber >= 1 && s.seatNumber <= 4
@@ -184,7 +195,7 @@ export function worldState(value: Record<string, unknown>): WorldState {
         && (a.characterGender == null || a.characterGender === 'MALE' || a.characterGender === 'FEMALE')
         && (a.equipment == null || validPublicEquipment(a.equipment))
         && tableSeat(a.tableSeat)
-        && (a.activity == null || isAvatarActivity(a.activity)),
+        && (a.activity == null || isAvatarActivity(a.activity)) && motion(a.motion),
     )
   )
     throw new Error('월드 상태 형식이 올바르지 않습니다.')

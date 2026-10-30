@@ -1,3 +1,4 @@
+import { SIMPLE_MAP } from './mapRenderProfile'
 import { FOUNTAIN_GARDENS } from '../../config'
 import { Instances, seeded, beam, type Part } from './Instances'
 import { SurfaceMaterial } from './SurfaceMaterial'
@@ -42,7 +43,7 @@ for (const garden of FOUNTAIN_GARDENS) {
       })
     }
   }
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < 14; i++) {
     const dx = (random() - 0.5) * 3.3,
       dz = (random() - 0.5) * 0.95
     shrubs.push({
@@ -50,7 +51,7 @@ for (const garden of FOUNTAIN_GARDENS) {
       s: [0.32 + random() * 0.2, 0.26 + random() * 0.25, 0.3 + random() * 0.15],
       c: ['#3c6840', '#567d48', '#6f8a4c'][i % 3]!,
     })
-    for (let k = 0; k < 2; k++)
+    for (let k = 0; k < 4; k++)
       leaves.push({
         p: point(dx, 0.72 + random() * 0.12, dz),
         s: [0.07, 0.6, 0.07],
@@ -102,9 +103,9 @@ export function PlazaGarden() {
         parts={shrubs}
         material={<meshStandardMaterial roughness={1} />}
       >
-        <icosahedronGeometry args={[1, 0]} />
+        <icosahedronGeometry args={[1, SIMPLE_MAP ? 0 : 1]} />
       </Instances>
-      <Instances parts={leaves} shadow={false}>
+      <Instances parts={SIMPLE_MAP ? [] : leaves} shadow={false}>
         <coneGeometry args={[1, 1, 4]} />
       </Instances>
     </group>

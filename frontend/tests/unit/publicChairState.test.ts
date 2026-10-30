@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { localMovement } from '../../src/network/localMovementPrediction'
 import { clearChannel, receive, resetWorld, useSession } from '../../src/network/worldClient'
 import { tableSummary, worldState } from '../../src/network/protocol'
 import { EXPECTED_MAP_VERSION } from '../../src/config/mapVersion'
@@ -64,5 +65,16 @@ describe('public chair snapshots', () => {
     expect(tableSummary(summary).chairCount).toBeUndefined()
     for (const chairCount of [2, 3, 4]) expect(tableSummary({ ...summary, chairCount }).chairCount).toBe(chairCount)
     for (const chairCount of [null, 1, 5, 2.5, '3']) expect(() => tableSummary({ ...summary, chairCount })).toThrow()
+  })
+  it('uses the same explicitly bound public chairs for movement prediction and clears incompatible projections', () => {
+    begin()
+    useSession.setState({ bindings: [{ channelId: 'park', tableId: table.tableId, anchorId: table.anchorId }] })
+    const update = vi.spyOn(localMovement, 'setChairs')
+    publish(frame(1))
+    expect(update).toHaveBeenLastCalledWith(new Map([['table-5', 3]]))
+    publish(frame(2, { tables: [{ ...table, anchorId: 'wrong-anchor' }] }))
+    expect(update).toHaveBeenLastCalledWith(new Map())
+    publish(frame(3, { mapVersion: 'wrong-map' }))
+    expect(update).toHaveBeenLastCalledWith(new Map())
   })
 })

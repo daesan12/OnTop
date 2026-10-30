@@ -1,3 +1,6 @@
+import { GENERATED_PARK_ENABLED } from '../../park/mapSelection'
+import { RETURN_TO } from '../jumpmap/course'
+import { serviceWalkHeight,isOnLakeCrossing } from '../../park/mapConfig'
 import {
   WORLD_COLLIDERS,
   WORLD,
@@ -10,7 +13,7 @@ import {
   isOnParkWalkway,
   PARK_ZONES, FITNESS_AREA, VR_ZONE, FOUNTAIN, MAILBOX, MINI_PROPS, LAKE, GARDEN_PAGODA,
   pavilionStairJoin,
-} from "../../config";
+} from '../../park/mapConfig';
 
 export type NavPoint = { x: number; z: number };
 export type Destination = NavPoint & { name: string };
@@ -18,6 +21,7 @@ export type Destination = NavPoint & { name: string };
 const main = PARK_PAVILIONS[0];
 /** Approaches derive from the current OnTop layout, never a prototype zone centre. */
 export const PARK_DESTINATIONS: Record<string, NavPoint> = {
+  ...(GENERATED_PARK_ENABLED ? { jumpmap: RETURN_TO } : {}),
   central: { x: main.x, z: main.z + pavilionStairJoin(main.scale) + Math.ceil((main.floor-main.ground)/0.18)*0.5 + 0.65 },
   "games-west": { x: PARK_ZONES[1].x, z: PARK_ZONES[1].z },
   "games-east": { x: PARK_ZONES[2].x, z: PARK_ZONES[2].z },
@@ -78,6 +82,7 @@ function inside(
   );
 }
 export function navigationHeight(p: NavPoint): number {
+  if(GENERATED_PARK_ENABLED)return serviceWalkHeight(p.x,p.z);
   let height = groundHeight(p.x, p.z);
   for (const pavilion of PARK_PAVILIONS) {
     const dx = Math.abs(p.x - pavilion.x),
@@ -113,7 +118,7 @@ export function isNavigationWalkable(p: NavPoint): boolean {
     p.x >= BRIDGE.startX &&
     p.x <= BRIDGE.endX &&
     Math.abs(p.z - BRIDGE.z) < BRIDGE.halfWidth - clearance;
-  if (lakeRadiusAt(p.x, p.z) < 1.01 && !bridge) return false;
+  if (lakeRadiusAt(p.x, p.z) < 1.01 && !(GENERATED_PARK_ENABLED?isOnLakeCrossing(p.x,p.z):bridge)) return false;
   const floor = navigationHeight(p);
   return !nearby(p).some((box) => {
     const bottom = box.center[1] - box.half[1];

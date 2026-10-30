@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import type { TableAnchor } from '../../config'
+import type { TableAnchor } from '../../park/mapConfig'
 import { useSession } from '../../network/worldClient'
 import { renderedTableAnchors } from './tabletAnchors'
 import { presentedChairCount, usePreparationPort } from './tabletModel'

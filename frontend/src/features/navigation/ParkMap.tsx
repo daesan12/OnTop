@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { WORLD, PARK_SIZE, PARK_ZONES, NETWORK } from '../../config'
+import { WORLD, PARK_SIZE, PARK_ZONES, NETWORK } from '../../park/mapConfig'
 import { avatars, useSession } from '../../network/worldClient'
 import { inputState } from '../../world/inputOwnership'
 import { ParkMapBackground } from './ParkMapBackground'
@@ -8,6 +8,8 @@ import { useNavigation, cancelNavigation, useParkMap, openParkMap, closeParkMap,
 import './navigation.css'
 import mapIcon from '../parkMenus/icons/dock-map.svg'
 import { gameplayMenusLocked, useGameplayMenusLocked } from '../parkMenus/gameplayLock'
+import { GENERATED_PARK_ENABLED } from '../../park/mapSelection'
+import { RETURN_TO } from '../jumpmap/course'
 
 const zoneName = (zone: typeof PARK_ZONES[number]) => zone.id === 'vr' ? 'VR 구역 · 주변' : zone.name
 function canOpen() {
@@ -127,6 +129,7 @@ export function ParkMap() {
             <button type="button" onClick={cancelNavigation}>안내 취소</button>
           </section>}
           <h3>장소 바로가기</h3>
+          {GENERATED_PARK_ENABLED && <button className="map-destination" disabled={!compatible} onClick={() => choose(RETURN_TO)}>돌탑 점프맵 길 안내</button>}
           <div className="map-destinations">{PARK_ZONES.map((zone,index)=><button key={zone.id} className="map-destination" aria-label={`${index+1}. ${zoneName(zone)}`} aria-pressed={zone.id===selectedZone} disabled={!compatible} onClick={()=>chooseZone(zone)}>
             <span aria-hidden="true">{index+1}</span>{zoneName(zone)}
           </button>)}</div>

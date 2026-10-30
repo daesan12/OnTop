@@ -29,7 +29,7 @@ test.afterEach(async ({ page }) => {
 })
 async function loaded(page: Page) {
   await page.goto('/park'); await expect(page).toHaveTitle('OnTop')
-  await expect(page.getByLabel('공원 기본 화면', { exact: true })).toBeVisible()
+  await expect(page.getByLabel('공원 기본 화면', { exact: true })).toBeVisible({ timeout: 90000 })
   await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90000 })
   await expect.poll(() => page.evaluate(async () => (await import('/src/network/worldClient.ts' as string)).useSession.getState().status)).toBe('connected')
 }

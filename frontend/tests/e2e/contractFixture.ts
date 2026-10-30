@@ -1,8 +1,12 @@
-import { expect, type Page, type WebSocketRoute } from '@playwright/test'
+import { expect, test, type Page, type WebSocketRoute } from '@playwright/test'
 import os from 'node:os'
 import path from 'node:path'
 import fs from 'node:fs/promises'
-import { TABLES } from '../../src/config'
+import { TABLES, tableSeats } from '../../src/config'
+import { PARK_LAYOUT } from '../../src/map/park'
+import { PARK_MAP_VERSION } from '../../src/map/park/generated/mapVersion'
+import { generatedFacilityCatalog } from '../park-integration/fixture'
+import { disabledJumpmapStatus } from '../fixtures/jumpmap'
 import { EXPECTED_MAP_VERSION } from '../../src/config/mapVersion'
 import type { Farkle, Result } from '../../src/game/protocol'
 import type { OneCard, Hand, Card } from '../../src/game/onecard/protocol'
@@ -28,6 +32,8 @@ export async function screenshot(page: Page, name: string, animations: 'allow' |
 export async function fixture(
   page: Page,
   options: {
+    generatedPark?: boolean
+    connectedMap?: { mapId: string; schemaVersion: number; mapVersion: string }
     channelName?: string
     mapVersion?: string
     bindings?: boolean
@@ -59,7 +65,11 @@ export async function fixture(
     worldTables?: PublicTable[]
   } = {},
 ) {
-  const anchor = TABLES.find(t => t.id === options.anchorId) ?? TABLES[0]!
+  options = { ...options, generatedPark: options.generatedPark ?? test.info().project.metadata.generatedPark === true }
+  const anchors = options.generatedPark ? PARK_LAYOUT.DRAFT_TABLES : TABLES
+  const anchor = anchors.find(t => t.id === options.anchorId) ?? anchors[0]!
+  const expectedMapVersion = options.mapVersion ?? (options.generatedPark ? PARK_MAP_VERSION : EXPECTED_MAP_VERSION)
+  const startingSeat = tableSeats(anchor)[0]!
   const ownId = options.onecardPreview?.observer ? '505' : options.ownUserId ?? '101'
   let publicTables = options.worldTables
   const worldIds = () => options.onecardPreview ? ['101', '102', '103', '104', ...(options.onecardPreview.observer ? ['505'] : [])]
@@ -81,9 +91,9 @@ export async function fixture(
   const serverTime = () => ({ serverNow: Date.now() + (options.serverTimeOffsetMs ?? 0),
     cycleEpochMs: 1767193200000, cycleDurationMs: 1800000, timeZone: 'Asia/Seoul' })
   const position = {
-    x: anchor.position[0],
+    x: anchor.position[0] + (options.generatedPark ? startingSeat.x : 0),
     y: anchor.position[1] + 0.8,
-    z: anchor.position[2] + 3,
+    z: anchor.position[2] + (options.generatedPark ? startingSeat.z + .6 : 3),
     yaw: Math.PI,
     moving: false,
     running: false,
@@ -207,9 +217,9 @@ export async function fixture(
       },
       requestId,
     )
-  const recovery = (ws: WebSocketRoute, requestId: string | null = null) =>
+  const recovery = (ws: WebSocketRoute, requestId: string | null = null, status?: string) =>
     emit(ws, 'GAME_CONNECTION_STATE', {
-      status: options.forfeit ? recoveryStatus : 'RESTORED',
+      status: status ?? (options.forfeit ? recoveryStatus : 'RESTORED'),
       gameId,
       version: gameVersion,
       state: options.bridge ? { publicState: bridgeState, privateState: bridgeSecret ?? {} } : options.onecard ? { publicState: cardState, privateState: cardHand } : options.dice ? diceState : omok(),
@@ -256,6 +266,8 @@ export async function fixture(
     )
   await page.route('**/api/v1/**', async (route) => {
     const url = new URL(route.request().url())
+    if (url.pathname === '/api/v1/minigames/jumpmap/status' && route.request().method() === 'GET')
+      return route.fulfill({ json: disabledJumpmapStatus('fixture-channel', expectedMapVersion) })
     if (url.pathname.endsWith('/auth/refresh'))
       return route.fulfill({
         json: loggedIn ? { accessToken: 'fixture-access' } : {},
@@ -325,7 +337,7 @@ export async function fixture(
       })
     return route.fulfill({ status: 404, json: { code: 'NOT_IN_FIXTURE' } })
   })
-  await page.route('**/park-bindings.json', (route) =>
+  await page.route(/\/park-bindings(?:\.generated\.[^/]+)?\.json(?:\?.*)?$/, (route) =>
     route.fulfill({
       json: {
         emotes: options.emoteBindings === 'development' ? developmentBindings.emotes
@@ -345,7 +357,7 @@ export async function fixture(
         payload: {
           channelId: 'fixture-channel',
           version: ++version,
-          mapVersion: options.mapVersion ?? EXPECTED_MAP_VERSION,
+          mapVersion: options.mapVersion ?? expectedMapVersion,
           ...(publicTables === undefined ? {} : { tables: publicTables }),
           avatars: worldIds().map((userId, i) => ({
             userId,
@@ -408,6 +420,7 @@ export async function fixture(
     emit: (type, payload, id = null) => emit(sockets.at(-1)!, type, payload, id),
     world: () => world(sockets.at(-1)!), position, userId: ownId,
     remotePosition: pose => { remotePosition = pose },
+    ...(options.generatedPark ? { catalog: generatedFacilityCatalog } : {}),
   })
   // Explicit public/private test snapshots for the BE contract, not a local game engine.
   const scriptedForfeitState = () => {
@@ -445,7 +458,7 @@ export async function fixture(
   const follow = followFixture((type, payload, id = null) => emit(sockets.at(-1)!, type, payload, id), options.ownUserId ?? '101')
   await page.routeWebSocket('**/ws/tables?**', (ws) => {
     let mapVerified = false
-    const map = { mapId: 'park', schemaVersion: 1, mapVersion: options.mapVersion ?? EXPECTED_MAP_VERSION }
+    const map = options.connectedMap ?? { mapId: 'park', schemaVersion: options.generatedPark ? 2 : 1, mapVersion: expectedMapVersion }
     connections++
     active++
     maxActive = Math.max(maxActive, active)
@@ -455,10 +468,19 @@ export async function fixture(
         requestId: null,
         type: 'CONNECTED',
         payload: { userId: ownId, time: serverTime(), map,
-          mapVerificationRequired: options.mapVerificationRequired ?? false },
+          mapVerificationRequired: options.mapVerificationRequired ?? (!!options.connectedMap || !!options.generatedPark) },
       }),
     )
+    // TableHub.activateConnection: a kept seat (frozen start or MANUAL waiting lease) gets its TABLE_STATE and
+    // start state right after CONNECTED, before CHANNEL_JOIN and the REST table list. AUTO waiting seats are released.
+    const frozen = started && !(finished && settled)
+    if (seated && (frozen || options.manualLobby)) {
+      table(ws, 'TABLE_STATE', null)
+      start(ws, frozen ? finished ? 'SETTLING' : 'PLAYING' : 'WAITING')
+    }
     if (options.forfeit && started) recovery(ws)
+    // GameReconnectService: the kept seat's game is RESTORED, or FINISHED once the engine ended it.
+    else if (options.omok && seated && frozen) recovery(ws, null, finished ? 'FINISHED' : 'RESTORED')
     else if (options.omok)
       emit(ws, 'GAME_CONNECTION_STATE', {
         status: 'LOBBY',
@@ -469,6 +491,7 @@ export async function fixture(
         code: null,
       })
     ws.onClose(() => {
+      ws.close(); // Complete the mock server's close handshake before a deliberate reconnect.
       active--
       facilities.disconnect()
       follow.disconnect()
@@ -525,7 +548,6 @@ export async function fixture(
           }),
         )
         world(ws)
-        if (options.forfeit && started) { table(ws, 'TABLE_STATE', null); start(ws, finished ? 'SETTLING' : 'PLAYING') }
       }
       if (type === 'WORLD_MOVE') {
         if (rejectNextMovement) {
@@ -726,6 +748,7 @@ export async function fixture(
     })
   })
   return {
+    mapMismatch: (map: { mapId: string; schemaVersion: number; mapVersion: string }) => emit(sockets.at(-1)!, 'ERROR', { code: 'MAP_VERSION_MISMATCH', serverMap: map, message: '맵 버전이 다릅니다.' }),
     sent,
     cardPranks,
     publicTables: (tables: PublicTable[] | undefined) => {

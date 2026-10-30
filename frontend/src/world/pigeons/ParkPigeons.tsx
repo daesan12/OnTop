@@ -4,13 +4,13 @@ import { useFrame } from '@react-three/fiber'
 import { Color, Matrix4, Object3D, type InstancedMesh } from 'three'
 import { MOVEMENT, groundHeight, type QualityPreset } from '../../config'
 import { avatars } from '../../network/worldClient'
-import { playSfx } from '../../audio/sfx'
 import {
   createBirds,
   PIGEON,
   PIGEON_SITES,
   stepBird,
   type Visitor,
+  type Bird,type BirdEnvironment,type Point,
 } from './pigeonSimulation'
 import {
   pigeonGeometry,
@@ -28,14 +28,19 @@ const parts = [
   'foot',
   'shadow',
 ] as const
-let lastTakeoff = -Infinity
 /** Local ambient wildlife reacts to replicated movement of every nearby visitor. */
-export function ParkPigeons({ quality }: { quality: QualityPreset }) {
+export interface PigeonHabitat {
+  sites:readonly (readonly Point[])[]
+  spawn:(flock:number)=>Bird[]
+  environment:BirdEnvironment
+  visitors:()=>readonly Visitor[]
+}
+export function ParkPigeons({ quality,habitat }: { quality: QualityPreset;habitat?:PigeonHabitat }) {
   const meshes = useRef<(InstancedMesh | null)[]>([])
   const batches = useRef<CompactInstances[]>([])
   const state = useMemo(
     () => ({
-      birds: PIGEON_SITES.flatMap((_, i) => createBirds(i)),
+      birds: (habitat?.sites??PIGEON_SITES).flatMap((_, i) => habitat?habitat.spawn(i):createBirds(i)),
       visitors: Array.from(
         { length: 16 },
         () => ({ x: 0, y: 0, z: 0, vx: 0, vz: 0 }) as Visitor,
@@ -51,7 +56,7 @@ export function ParkPigeons({ quality }: { quality: QualityPreset }) {
         new Color('#e3e0db'),
       ],
     }),
-    [],
+    [habitat],
   )
   useLayoutEffect(() => {
     batches.current = meshes.current.map((mesh) => new CompactInstances(mesh!))
@@ -62,7 +67,8 @@ export function ParkPigeons({ quality }: { quality: QualityPreset }) {
     state.active.length = 0
     const now = performance.now()
     let n = 0
-    for (const a of avatars.values()) {
+    if(habitat)state.active.push(...habitat.visitors())
+    else for (const a of avatars.values()) {
       if (n >= state.visitors.length) break
       if (!a.connected) continue
       const dx = a.current.x - a.previous.x,
@@ -89,18 +95,13 @@ export function ParkPigeons({ quality }: { quality: QualityPreset }) {
     }
     for (const batch of batches.current) batch.begin()
     state.birds.forEach((b, i) => {
-      const resting = b.mode !== 'fly'
       stepBird(
         b,
         dt,
         state.active,
-        PIGEON_SITES[Math.floor(i / PIGEON.countPerFlock)],
+        (habitat?.sites??PIGEON_SITES)[Math.floor(i / PIGEON.countPerFlock)],
+        habitat?.environment,
       )
-      // One flutter per flock scare, not one per bird.
-      if (resting && b.mode === 'fly' && now - lastTakeoff > 1200) {
-        lastTakeoff = now
-        playSfx('amb-pigeon-takeoff', { x: b.x, y: b.y, z: b.z })
-      }
       const flight = b.mode === 'fly',
         walking = b.mode === 'walk',
         t = state.time + b.phase
@@ -146,7 +147,7 @@ export function ParkPigeons({ quality }: { quality: QualityPreset }) {
         part.updateMatrix()
         state.matrix.multiplyMatrices(state.root.matrix, part.matrix)
         if (k === 7) {
-          part.position.set(b.x, groundHeight(b.x, b.z) + 0.079, b.z)
+          part.position.set(b.x, (habitat?.environment.groundHeight??groundHeight)(b.x, b.z) + 0.079, b.z)
           part.rotation.set(-Math.PI / 2, 0, -b.yaw)
           part.scale.set(0.24, 0.36, 1)
           part.updateMatrix()

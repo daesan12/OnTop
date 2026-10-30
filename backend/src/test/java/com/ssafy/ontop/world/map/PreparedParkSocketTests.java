@@ -71,7 +71,7 @@ class PreparedParkSocketTests {
     private final ObjectMapper mapper = new ObjectMapper();
 
     @Test
-    void 새맵_확인과_채널별16개_테이블_착석_게임선택_준비를_실제소켓으로_처리한다() throws Exception {
+    void 새맵_확인과_채널별_모든_테이블_착석_게임선택_준비를_실제소켓으로_처리한다() throws Exception {
         try (Client first = new Client(); Client second = new Client()) {
             assertThat(first.connected.path("payload").path("map")).isEqualTo(mapper.valueToTree(park.metadata()));
             assertThat(first.request("WORLD_MAP_CONFIRM", ParkScene.load().metadata())
@@ -80,19 +80,22 @@ class PreparedParkSocketTests {
             second.confirm();
             first.request("CHANNEL_JOIN", Map.of("channelId", "channel-1"));
             second.request("CHANNEL_JOIN", Map.of("channelId", "channel-1"));
-            assertThat(hub.listTables("channel-1").tables()).hasSize(16);
-            assertThat(hub.listTables("channel-2").tables()).hasSize(16);
-            String table = PreparedParkMap.serverTableId("channel-1", 16);
-            assertThat(first.request("TABLE_JOIN", Map.of("tableId", table)).path("type").asText())
-                    .isEqualTo("TABLE_STATE");
-            assertThat(first.request("GAME_SELECT", Map.of("gameCode", "OMOK", "betAmountPerPlayer", 1))
-                    .path("type").asText())
-                    .isEqualTo("TABLE_STATE");
-            second.request("TABLE_JOIN", Map.of("tableId", table));
-            first.ready(table);
-            assertThat(second.ready(table)
-                    .path("payload").path("allReady").asBoolean()).isTrue();
-            assertThat(hub.listTables("channel-2").tables()).allMatch(item -> item.occupiedSeats() == 0);
+            int tableCount = park.bindings().size() / 2;
+            assertThat(hub.listTables("channel-1").tables()).hasSize(tableCount);
+            assertThat(hub.listTables("channel-2").tables()).hasSize(tableCount);
+            for (int number = 1; number <= tableCount; number++) {
+                String table = PreparedParkMap.serverTableId("channel-1", number);
+                assertThat(first.request("TABLE_JOIN", Map.of("tableId", table)).path("type").asText())
+                        .isEqualTo("TABLE_STATE");
+                assertThat(first.request("GAME_SELECT", Map.of("gameCode", "OMOK", "betAmountPerPlayer", 1))
+                        .path("type").asText()).isEqualTo("TABLE_STATE");
+                second.request("TABLE_JOIN", Map.of("tableId", table));
+                first.ready(table);
+                assertThat(second.ready(table).path("payload").path("allReady").asBoolean()).isTrue();
+                assertThat(hub.listTables("channel-2").tables()).allMatch(item -> item.occupiedSeats() == 0);
+                first.request("TABLE_LEAVE", Map.of());
+                second.request("TABLE_LEAVE", Map.of());
+            }
             assertThat(channels.worldState("channel-1").mapVersion()).isEqualTo(park.metadata().mapVersion());
             assertThat(ParkScene.load().metadata().schemaVersion()).isEqualTo(1);
         }

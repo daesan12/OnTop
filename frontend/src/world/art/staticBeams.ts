@@ -1,5 +1,4 @@
 import {
-  BufferGeometry,
   Color,
   CylinderGeometry,
   Float32BufferAttribute,
@@ -20,9 +19,7 @@ export function mergeStaticBeams(
     const open = new CylinderGeometry(1, 1, 1, sides, 1, true)
     const geometries = parts.map((part) => {
       const tilted = (part.r ?? []).some((n) => Math.abs(n) > 0.001)
-      // CylinderGeometry.clone() runs a fresh default cylinder constructor first.
-      // Copy buffers directly; the merged output only needs BufferGeometry data.
-      const geometry = new BufferGeometry().copy(tilted ? open : closed)
+      const geometry = (tilted ? open : closed).clone()
       geometry.clearGroups()
       object.position.set(...part.p)
       object.scale.set(...part.s)

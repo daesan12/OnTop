@@ -84,23 +84,24 @@ export function OmokPings({ gameId, focused }: { gameId: string; focused: boolea
 export function SpectatorChat() {
   const runtime = useParkRuntime(), canSend = useOmokEvents(s => s.canSend), sending = useOmokEvents(s => s.sending)
   const error = useOmokEvents(s => s.error), scope = useOmokEvents(s => s.scope)
-  const [draft, setDraft] = useState(''), [notice, setNotice] = useState('')
+  const [draft, setDraft] = useState(''), [notice, setNotice] = useState(''), [open, setOpen] = useState(false)
   const input = useRef<HTMLInputElement>(null)
   const player = useGame(s => s.game?.role === 'PLAYER')
-  useEffect(() => { setDraft(''); setNotice(''); return () => setChatInputOpen(false) }, [scope])
+  useEffect(() => { setDraft(''); setNotice(''); setOpen(false); return () => setChatInputOpen(false) }, [scope])
+  useEffect(() => { if (open) input.current?.focus() }, [open])
   useEffect(() => { if (!canSend) { input.current?.blur(); setChatInputOpen(false) } }, [canSend])
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.repeat || event.isComposing || event.keyCode === 229
         || event.ctrlKey || event.altKey || event.metaKey) return
       if (event.code === 'Escape' && document.activeElement === input.current) {
-        event.preventDefault(); input.current?.blur(); document.querySelector<HTMLCanvasElement>('canvas')?.focus(); return
+        event.preventDefault(); setOpen(false); input.current?.blur(); document.querySelector<HTMLCanvasElement>('canvas')?.focus(); return
       }
       if (event.code !== 'Enter' || !canSend || event.target === input.current
         || Object.entries(inputState).some(([panel, open]) => panel !== 'chatOpen' && open)
         || document.querySelector('dialog[open],[role="dialog"]')
-        || event.target instanceof Element && event.target.closest('input,textarea,select,button,a,[contenteditable="true"],[role="button"]')) return
-      event.preventDefault(); input.current?.focus()
+        || event.target instanceof Element && event.target.closest('input,textarea,select,button,a,summary,[contenteditable="true"],[role="button"]')) return
+      event.preventDefault(); setOpen(true); input.current?.focus()
     }
     window.addEventListener('keydown', key)
     return () => window.removeEventListener('keydown', key)
@@ -110,7 +111,12 @@ export function SpectatorChat() {
     const text = draft
     if (await runtime.sendSpectatorChat(text)) { setDraft(''); setNotice('전달 요청이 승인됐어요.'); }
   }
-  return <form className="omok-spectator-chat" onSubmit={event => void send(event)} aria-label={player ? '오목 경기 채팅' : '오목 관전 채팅'}>
+  return <form className="omok-spectator-chat" data-open={open} onSubmit={event => void send(event)} aria-label={player ? '오목 경기 채팅' : '오목 관전 채팅'}>
+    <button className="omok-chat-toggle" type="button" aria-expanded={open} aria-controls="omok-chat-body" onClick={() => {
+      setOpen(!open)
+      if (open) { input.current?.blur(); document.querySelector<HTMLCanvasElement>('canvas')?.focus() }
+    }}>{open ? '채팅 닫기' : '경기 채팅 열기'}</button>
+    <div id="omok-chat-body" className="omok-chat-body">
     <label htmlFor="omok-spectator-message">{player ? '경기 채팅' : '관전 채팅 · 판을 눌러 위치 추천'}</label>
     <div><input id="omok-spectator-message" ref={input} value={draft} disabled={!canSend} readOnly={sending} aria-keyshortcuts="Enter"
       placeholder={canSend ? '이 경기 관전자와 플레이어에게 보내기' : player ? '경기 연결 상태를 확인해주세요' : '관전 승인 상태를 확인해주세요'} maxLength={400}
@@ -118,6 +124,6 @@ export function SpectatorChat() {
       onChange={event => { setDraft(event.target.value); setNotice('') }}
       onKeyDown={event => { if (event.key === 'Enter' && (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229)) event.preventDefault() }} />
       <button type="submit" disabled={!canSend || sending || !draft.trim()}>보내기</button></div>
-    <p role="status">{error || notice || 'Enter로 입력·전송 · Esc로 입력 종료'}</p>
+    <p role="status">{error || notice || 'Enter로 입력·전송 · Esc로 입력 종료'}</p></div>
   </form>
 }

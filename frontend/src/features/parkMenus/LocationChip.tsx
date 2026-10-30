@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { PARK_ZONES } from '../../config/parkLayout'
+import { PARK_ZONES } from '../../park/mapConfig'
 import { avatars, useSession } from '../../network/worldClient'
 import { environmentFrame } from '../../world/environmentState'
 import pinIcon from './icons/place-pin.svg'

@@ -176,13 +176,16 @@ it('a successful late query after closing is discarded and its subscription rele
   expect(useSession.getState().focusedAnchorId).toBe('')
   expect(useSession.getState().tableStates).toEqual({})
 })
-it('only server selector can select a game; forwards target without adding table/user authority', async () => {
+it('only server selector can select an available game without adding table/user authority', async () => {
   useSession.setState({ tableId: table.tableId, tableStates: { [table.tableId]: table } })
   expect(await runtime.selectGame('DICE', 5, 4000)).toBe(false)
   useSession.setState({ tableStates: { [table.tableId]: { ...table, selectorUserId: '101' } } })
   expect(await runtime.selectGame('DICE', 5, 3000)).toBe(false)
-  expect(await runtime.selectGame('DICE', 5, 4000)).toBe(true)
-  expect(socket.requests.find(r => r.type === 'GAME_SELECT')?.payload).toEqual({ gameCode: 'DICE', targetScore: 4000, betAmountPerPlayer: 5 })
+  expect(await runtime.selectGame('DICE', 5, 4000)).toBe(false)
+  expect(await runtime.selectGame('LIAR_BRIDGE', 5)).toBe(false)
+  expect(socket.requests.some(r => r.type === 'GAME_SELECT')).toBe(false)
+  expect(await runtime.selectGame('ONE_CARD', 5)).toBe(true)
+  expect(socket.requests.find(r => r.type === 'GAME_SELECT')?.payload).toEqual({ gameCode: 'ONE_CARD', betAmountPerPlayer: 5 })
 })
 it('ordinary mode never guesses a public game ID or sends GAME_WATCH', async () => {
   expect(await runtime.watchGame('guess')).toBe(false)
@@ -192,11 +195,21 @@ it('ready confirms the displayed server fee and version; cancellation keeps its 
   useSession.setState({ tableId: table.tableId, tableStates: { [table.tableId]: { ...table, selectorUserId: '101' } } })
   expect(await runtime.setReady(true)).toBe(false)
   expect(socket.requests.some(r => r.type === 'READY_SET')).toBe(false)
-  expect(await runtime.selectGame('DICE', 5, 4000)).toBe(true)
+  expect(await runtime.selectGame('OMOK', 5)).toBe(true)
   expect(await runtime.setReady(true)).toBe(true)
   expect(socket.requests.filter(r => r.type === 'READY_SET').at(-1)?.payload).toEqual({ ready: true, betAmountPerPlayer: 5, expectedVersion: 5 })
   expect(await runtime.setReady(false)).toBe(true)
   expect(socket.requests.filter(r => r.type === 'READY_SET').at(-1)?.payload).toEqual({ ready: false })
+})
+it('blocks ready on a construction game from the server but still permits cancelling ready', async () => {
+  for (const gameCode of ['DICE', 'LIAR_BRIDGE']) {
+    useSession.setState({ tableId: table.tableId, tableStates: { [table.tableId]: { ...table, gameCode, betAmountPerPlayer: 5 } } })
+    const before = socket.requests.length
+    expect(await runtime.setReady(true)).toBe(false)
+    expect(socket.requests).toHaveLength(before)
+    expect(await runtime.setReady(false)).toBe(true)
+    expect(socket.requests.at(-1)?.payload).toEqual({ ready: false })
+  }
 })
 it('timeout ends pending state and a late approval cannot create a public table view', async () => {
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })

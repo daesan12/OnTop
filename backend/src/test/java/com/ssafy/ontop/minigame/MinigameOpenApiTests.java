@@ -84,6 +84,11 @@ class MinigameOpenApiTests {
             assertThat(deliverySchemas.get(1).at("/properties/log/maxItems").asInt()).isEqualTo(3600);
             assertThat(deliverySchemas.get(1).at("/properties/log/items/properties/t/maximum").asInt())
                     .isEqualTo(179_999);
+            // The schema bound still admits stored three-minute rounds; each round enforces its own length.
+            assertThat(deliverySchemas.get(1).at("/properties/log/items/properties/t/description").asText())
+                    .contains("rules.durationMs", "v5-20261029.1", "119999", "v5-20261027.1", "179999");
+            assertThat(deliverySchemas.get(0).at("/properties/log/items/properties/t/description").isMissingNode())
+                    .isTrue();
             assertThat(delivery.at("/responses/200/content/application~1json/schema/oneOf").toString())
                     .contains("BungeoppangV4DeliveryResponse", "BungeoppangV5DeliveryResponse");
             assertThat(schemas.at("/BungeoppangV5DeliveryResponse/properties/replacementOrder/$ref").asText())

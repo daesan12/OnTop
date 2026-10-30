@@ -1,12 +1,13 @@
-import { useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { SIMPLE_MAP } from './mapRenderProfile'
+import { useLayoutEffect, useMemo, useRef } from 'react'
 import { LOD, type Group } from 'three'
-import { extend, useThree } from '@react-three/fiber'
+import { extend } from '@react-three/fiber'
+import { RoundedBoundaryCorners } from './RoundedBoundaryCorners'
 import { WORLD } from '../../config'
 import { Instances, type Part } from './Instances'
 import { SurfaceMaterial } from './SurfaceMaterial'
 import { BoundaryMasonry, MaksaeMaterial } from './BoundaryMaterial'
 import { createWallCorner, createWallRoof, WALL } from './boundaryGeometry'
-import { BoundaryBatches } from './boundaryBatches'
 
 // Only three shared geometry sets for the entire 640m perimeter, generated on lazy world import.
 const near = createWallRoof(),
@@ -14,24 +15,18 @@ const near = createWallRoof(),
   corner = createWallCorner()
 const white = '#ffffff'
 const WallLOD = extend(LOD)
-const corners: Part[] = [-1, 1].flatMap((x) =>
-  [-1, 1].map(
-    (z) =>
-      ({
-        p: [x * WORLD.halfSize, 0, z * WORLD.halfSize],
-        s: [1, 1, 1],
-        c: white,
-      }) as Part,
-  ),
-)
-const cornerPiers = corners.map((p) => ({
-  ...p,
-  p: [p.p[0], 0.95, p.p[2]] as [number, number, number],
-  s: [0.91, 1.9, 0.91] as [number, number, number],
-}))
-const sections = Array.from({ length: 4 }, (_, side) =>
-  Array.from({ length: 8 }, (_, i) => ({ side, i })),
-).flat()
+export function boundarySections(halfSize:number,entranceWidth=0,cornerRadius=0) {
+  const limit=halfSize-(cornerRadius||.45),span=limit*2/8
+  return Array.from({length:4},(_,side)=>Array.from({length:8},(_,i)=>{
+    let start=-limit+i*span,end=start+span
+    // South entrance only; other sides retain the original continuous wall.
+    if(side===2&&entranceWidth>0) {
+      if(start<0)end=Math.min(end,-entranceWidth/2)
+      else start=Math.max(start,entranceWidth/2)
+    }
+    return {side,i,halfSize,span:end-start,x:(start+end)/2}
+  })).flat().filter(s=>s.span>0)
+}
 
 function Roof({ detailed, parts }: { detailed: boolean; parts: Part[] }) {
   const model = detailed ? near : far
@@ -67,13 +62,10 @@ function Roof({ detailed, parts }: { detailed: boolean; parts: Part[] }) {
   )
 }
 
-function WallSection({ side, i }: { side: number; i: number }) {
+function WallSection({ side, halfSize,span,x }: { side: number;halfSize:number;span:number;x:number }) {
   const lod = useRef<LOD>(null),
     detail = useRef<Group>(null),
     simple = useRef<Group>(null)
-  // Leave 45cm at each end, beneath the raised corner cap, for a clean hip joint.
-  const span = (WORLD.halfSize * 2 - 0.9) / 8,
-    x = -WORLD.halfSize + 0.45 + (i + 0.5) * span
   const parts = useMemo<Part[]>(
     () =>
       Array.from({ length: 5 }, (_, n) => ({
@@ -95,9 +87,9 @@ function WallSection({ side, i }: { side: number; i: number }) {
   return (
     <group
       position={[
-        Math.cos(yaw) * x - Math.sin(yaw) * WORLD.halfSize,
+        Math.cos(yaw) * x - Math.sin(yaw) * halfSize,
         0,
-        -Math.sin(yaw) * x - Math.cos(yaw) * WORLD.halfSize,
+        -Math.sin(yaw) * x - Math.cos(yaw) * halfSize,
       ]}
       rotation={[0, yaw, 0]}
     >
@@ -144,18 +136,27 @@ function WallSection({ side, i }: { side: number; i: number }) {
   )
 }
 
-function MultiDrawBoundary() {
-  const [batches, setBatches] = useState<BoundaryBatches | null>(null)
-  useLayoutEffect(() => {
-    const next = new BoundaryBatches(near, far, corner)
-    setBatches(next)
-    return () => next.dispose()
-  }, [])
-  return <>{batches?.meshes.map(mesh => <primitive key={mesh.uuid} object={mesh} dispose={null} />)}</>
-}
-
-export function ParkBoundary() {
-  const multiDraw = useThree(state => state.gl.extensions.has('WEBGL_multi_draw'))
+export function ParkBoundary({halfSize=WORLD.halfSize,entranceWidth=0,cornerRadius=0}:{cornerRadius?:number;halfSize?:number;entranceWidth?:number}={}) {
+  const {corners,cornerPiers,sections}=useMemo(()=>{
+    const corners:Part[]=[-1,1].flatMap(x=>[-1,1].map(z=>({p:[x*halfSize,0,z*halfSize] as [number,number,number],s:[1,1,1] as [number,number,number],c:white})))
+    return {corners,cornerPiers:corners.map(p=>({...p,p:[p.p[0],.95,p.p[2]] as [number,number,number],s:[.91,1.9,.91] as [number,number,number]})),sections:boundarySections(halfSize,entranceWidth,cornerRadius)}
+  },[halfSize,entranceWidth,cornerRadius])
+  if(SIMPLE_MAP) {
+    const walls:Part[]=[],feet:Part[]=[],roofs:Part[]=[]
+    for(const section of sections){
+      const yaw=section.side*Math.PI/2
+      const p:Part['p']=[Math.cos(yaw)*section.x-Math.sin(yaw)*halfSize,0,-Math.sin(yaw)*section.x-Math.cos(yaw)*halfSize]
+      walls.push({p:[p[0],(WALL.bodyTop+WALL.base)/2,p[2]],s:[section.span,WALL.bodyTop-WALL.base,WALL.depth],r:[0,yaw,0],c:'#858c83'})
+      feet.push({p:[p[0],.12,p[2]],s:[section.span,.24,.77],r:[0,yaw,0],c:'#999b95'})
+      roofs.push({p,s:[section.span/4,1,1],r:[0,yaw,0],c:white})
+    }
+    return <group name="reference-tiled-boundary" userData={{assetId:'original/reference-wall-1',reference:'wall_1.jpg'}}>
+      <Instances parts={walls} shadow={false}><boxGeometry/></Instances>
+      <Instances parts={feet} shadow={false}><boxGeometry/></Instances>
+      <Roof detailed={false} parts={roofs}/>
+      {cornerRadius>0&&<RoundedBoundaryCorners half={halfSize} radius={cornerRadius}/>}
+    </group>
+  }
   return (
     <group
       name="reference-tiled-boundary"
@@ -164,10 +165,10 @@ export function ParkBoundary() {
         reference: 'wall_1.jpg',
       }}
     >
-      {multiDraw ? <MultiDrawBoundary /> : <>
       {sections.map((s) => (
         <WallSection key={`${s.side}-${s.i}`} {...s} />
       ))}
+      {cornerRadius>0?<RoundedBoundaryCorners half={halfSize} radius={cornerRadius}/>:<>
       <Instances
         parts={cornerPiers}
         shadow={false}

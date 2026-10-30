@@ -13,10 +13,32 @@ def classify(paths: list[str]) -> dict[str, int]:
         "DEV_CONFIG_CHANGED": 0,
         "PROD_CONFIG_CHANGED": 0,
         "CI_CONFIG_CHANGED": 0,
+        "PARK_MAP_CHANGED": 0,
     }
     for path in paths:
         normalized = PurePosixPath(path).as_posix()
-        if normalized.startswith("backend/"):
+        if (
+            normalized.startswith("frontend/generated/park/")
+            or normalized.startswith("frontend/src/config/")
+            or normalized.startswith("frontend/src/map/park/")
+            or normalized.startswith("frontend/src/park/")
+            or normalized == "frontend/src/map/geometry.ts"
+            or normalized.startswith("frontend/scripts/map/")
+            or normalized in (
+                "frontend/scripts/generate-park-map.mjs",
+                "frontend/scripts/park-map-vite-plugin.ts",
+                "frontend/scripts/parkGeometryPlugin.ts",
+                "frontend/scripts/parkBindingsPlugin.ts",
+                "frontend/vite.config.ts",
+                "frontend/package.json",
+                "frontend/pnpm-lock.yaml",
+            )
+            or normalized.startswith("frontend/public/park-bindings.generated.")
+            or normalized.startswith("docs/integration/park-180/")
+        ):
+            result["PARK_MAP_CHANGED"] = 1
+            result["FRONTEND_CHANGED"] = 1
+        elif normalized.startswith("backend/"):
             result["BACKEND_CHANGED"] = 1
         elif normalized.startswith("frontend/"):
             result["FRONTEND_CHANGED"] = 1

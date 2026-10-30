@@ -17,6 +17,10 @@ export interface Visitor extends Point {
   vx: number
   vz: number
 }
+export interface BirdEnvironment {
+  groundHeight:(x:number,z:number)=>number
+  clearRoute:(a:Point,b:Point)=>boolean
+}
 export interface Bird extends Point {
   y: number
   yaw: number
@@ -58,19 +62,20 @@ export const PIGEON_SITES = centers.map((c) => {
     }
   return points
 })
+const defaultEnvironment:BirdEnvironment={groundHeight,clearRoute}
 function random(b: Bird) {
   b.seed = (Math.imul(b.seed, 1664525) + 1013904223) >>> 0
   return b.seed / 4294967296
 }
-export function createBirds(flock: number): Bird[] {
-  const sites = [...PIGEON_SITES[flock]].sort(
+export function createBirds(flock: number,landingSites:readonly Point[]=PIGEON_SITES[flock],center:Point=centers[flock],height=groundHeight): Bird[] {
+  const sites = [...landingSites].sort(
     (a, b) =>
-      Math.hypot(a.x - centers[flock].x, a.z - centers[flock].z) -
-      Math.hypot(b.x - centers[flock].x, b.z - centers[flock].z),
+      Math.hypot(a.x - center.x, a.z - center.z) -
+      Math.hypot(b.x - center.x, b.z - center.z),
   )
   return sites.slice(0, PIGEON.countPerFlock).map((p, i) => ({
     ...p,
-    y: groundHeight(p.x, p.z) + 0.08,
+    y: height(p.x, p.z) + 0.08,
     yaw: i * 2.4,
     mode: 'idle',
     age: 0,
@@ -99,6 +104,7 @@ function destination(
   sites: readonly Point[],
   visitors: readonly Visitor[],
   threat: Visitor,
+  environment:BirdEnvironment,
 ) {
   let best: Point | undefined,
     score = -Infinity
@@ -108,7 +114,7 @@ function destination(
       distance < 5 ||
       distance > 12 ||
       visitors.some((v) => Math.hypot(v.x - p.x, v.z - p.z) < 3) ||
-      !clearRoute(b, p)
+      !environment.clearRoute(b, p)
     )
       continue
     const away = Math.hypot(p.x - threat.x, p.z - threat.z)
@@ -126,6 +132,7 @@ export function stepBird(
   dt: number,
   visitors: readonly Visitor[],
   sites: readonly Point[],
+  environment:BirdEnvironment=defaultEnvironment,
 ) {
   dt = Math.max(0, Math.min(0.1, dt))
   b.age += dt
@@ -133,7 +140,7 @@ export function stepBird(
   if (b.mode !== 'fly' && b.cooldown === 0) {
     const threat = visitors.find((v) => approaching(b, v))
     if (threat) {
-      const target = destination(b, sites, visitors, threat)
+      const target = destination(b, sites, visitors, threat,environment)
       if (target) {
         b.mode = 'fly'
         b.from = { x: b.x, z: b.z }
@@ -149,7 +156,7 @@ export function stepBird(
       u = t * t * (3 - 2 * t)
     b.x = b.from.x + (b.target.x - b.from.x) * u
     b.z = b.from.z + (b.target.z - b.from.z) * u
-    b.y = groundHeight(b.x, b.z) + 0.08 + Math.sin(Math.PI * t) * 2.5
+    b.y = environment.groundHeight(b.x, b.z) + 0.08 + Math.sin(Math.PI * t) * 2.5
     if (t === 1) {
       b.mode = 'idle'
       b.age = 0
@@ -162,7 +169,7 @@ export function stepBird(
     const t = Math.min(1, b.age / b.duration)
     b.x = b.from.x + (b.target.x - b.from.x) * t
     b.z = b.from.z + (b.target.z - b.from.z) * t
-    b.y = groundHeight(b.x, b.z) + 0.08
+    b.y = environment.groundHeight(b.x, b.z) + 0.08
     if (t === 1) {
       b.mode = 'idle'
       b.age = 0
@@ -180,7 +187,7 @@ export function stepBird(
     // Stay within one metre of the flock's approved landing network.
     if (
       sites.some((p) => Math.hypot(p.x - target.x, p.z - target.z) < 1) &&
-      clearRoute(b, target)
+      environment.clearRoute(b, target)
     ) {
       b.mode = 'walk'
       b.from = { x: b.x, z: b.z }
