@@ -146,6 +146,9 @@ pnpm install --frozen-lockfile
 pnpm map:check
 pnpm run test
 pnpm run build
+if [[ "$TEST_PARK_MAP" != 1 ]]; then
+  VITE_PARK_BINDINGS_URL=/park-bindings.generated.dev.json pnpm run build:park
+fi
 '''
                 }
             }
@@ -203,6 +206,7 @@ docker push "$image"
                 }
             }
             steps {
+                sh 'python3 infra/ci/check_live_park.py'
                 withCredentials([string(credentialsId: 'vercel-ontop-token', variable: 'VERCEL_TOKEN')]) {
                     sh '''#!/usr/bin/env bash
 set -euo pipefail
@@ -215,7 +219,7 @@ export VERCEL_ORG_ID VERCEL_PROJECT_ID
 }
 cd frontend
 # This is the production target of the separate ontop-frontend-dev project.
-vercel deploy --prod --yes --project "$VERCEL_PROJECT_ID" --token "$VERCEL_TOKEN" > vercel-deployment-url.txt
+vercel deploy --prod --yes --local-config vercel.dev.json --project "$VERCEL_PROJECT_ID" --token "$VERCEL_TOKEN" > vercel-deployment-url.txt
 cat vercel-deployment-url.txt
 '''
                 }
