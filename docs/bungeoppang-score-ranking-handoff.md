@@ -1,6 +1,6 @@
 # BE 요청: 붕어빵 개인 최고 점수·최대 연속 콤보 랭킹
 
-작성일: 2026-10-29 · 최신 요청: 점수 동점 시 최대 연속 콤보로 비교
+작성일: 2026-10-29 · 갱신: 2026-10-30 · 새 생성형 맵 및 플레이 시간별 랭킹 유지
 
 ## 요청 요약
 
@@ -10,7 +10,7 @@ FE의 표시·응답 검증은 이 계약으로 수정했습니다. 이번 작�
 
 ## 집계 규칙
 
-1. 같은 규칙 버전(`v4`/`v5`)에서 사용자마다 대표 경기 한 건을 선택합니다. `score DESC, max_combo DESC, settled_at ASC, session_id ASC` 순서입니다.
+1. 같은 규칙 버전(`v4`/`v5`)에서 사용자마다 대표 경기 한 건을 선택합니다. v5는 최신 dev의 플레이 시간별 구분(`durationMs=120000` 또는 `180000`)을 유지하며, 해당 시간의 기록 안에서만 `score DESC, max_combo DESC, settled_at ASC, session_id ASC`로 선택합니다. v4는 단일 랭킹(`durationMs=null`)을 유지합니다.
 2. 최고 점수가 여러 건이면 그중 최대 연속 콤보가 가장 높은 경기를 선택합니다. 두 값이 같으면 먼저 정산된 경기를 선택합니다.
 3. `score`와 `maxCombo`는 **선택된 동일 경기의 값**입니다. 다른 경기에서 기록한 개인 최고 콤보를 가져와 합치지 않습니다. 누적 콤보·종료 직전 현재 콤보(`combo`) 대신 경기 전체의 최대 연속 콤보(`maxCombo`)를 사용합니다.
 4. 전체 순위는 `score DESC, max_combo DESC`로 계산합니다. 두 값이 모두 같아야 공동 순위이며 다음 순위는 인원수만큼 건너뜁니다. 예: `1, 1, 3`.
@@ -47,10 +47,11 @@ ORDER BY score DESC, max_combo DESC, settled_at ASC, user_id ASC
 경로·인증·파라미터는 그대로 유지합니다.
 
 ```text
-GET /api/v1/minigames/bungeoppang/rankings?period=ALL_TIME&rulesVersion=v5&limit=20
+GET /api/v1/minigames/bungeoppang/rankings?period=ALL_TIME&rulesVersion=v5&limit=20&durationMs=120000
 ```
 
 - `items[]`·`me`에 필수 숫자 필드 **`score`와 `maxCombo`**를 추가합니다. 두 값 모두 0 이상의 JavaScript 안전 정수여야 하며 문자열로 반환하지 않습니다.
+- 최신 dev에서 추가된 v5 `durationMs` 요청·응답과 커서 귀속을 유지합니다. FE는 방금 끝난 경기의 저장된 규칙 시간을 사용하며, 2분·3분 페이지를 섞지 않습니다. v4 요청에는 이 쿼리를 보내지 않고 응답은 null입니다.
 - `rank`는 위의 점수·최대 콤보 기준으로 서버가 계산합니다. `items`·`me`·다음 페이지는 같은 스냅샷 기준이어야 합니다.
 - `completedAt`은 선택된 대표 경기의 `settled_at`이며 UTC ISO 8601입니다.
 - `basis=PERSONAL_BEST`, `period=ALL_TIME`, 버전, 스냅샷, 전체 참여자 수, 커서 구조는 유지합니다.
@@ -62,6 +63,7 @@ GET /api/v1/minigames/bungeoppang/rankings?period=ALL_TIME&rulesVersion=v5&limit
 ```json
 {
   "rulesVersion": "v5",
+  "durationMs": 120000,
   "period": "ALL_TIME",
   "basis": "PERSONAL_BEST",
   "snapshotId": "score-combo-snapshot-1",
@@ -98,6 +100,7 @@ FE는 일부 페이지만 재정렬해서 전체 순위를 만들지 않습니�
 | 정상 0점·0콤보·보상 0 / 콤보 누락 / 미정산·기권 | 정상 확정 0 기록만 포함, 누락은 임의 0 치환 금지 |
 | 본인이 첫 페이지 밖 / 동점이 페이지 경계에 걸림 | `me`와 다음 페이지의 순위·콤보·표시 순서 일치 |
 | v4·v5에 각각 기록 있음 | 요청 버전의 기록만 집계 |
+| v5 2분·3분에 각각 기록 있음 | 요청 durationMs의 대표 기록·순위만 집계, 커서·페이지 혼합 금지 |
 
 ## BE 개발자에게 전달할 문구
 
