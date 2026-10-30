@@ -111,7 +111,17 @@ public final class ClientPositionValidator {
                 if (supportedTo && target.y <= approved.y + .01
                         && (next.speed == 0 || now - next.started > 150_000_000L)) next = null;
             }
-            if (!geometry.clear(approved, target, supportedFrom && supportedTo)) return deny("COLLISION");
+            if (!geometry.clear(approved, target, supportedFrom && supportedTo)) {
+                // Sub-millimetre contact jitter must not disable the client profile.
+                // Acknowledge the report at the LAST SAFE point, never at target:
+                // repeated wall reports cannot accumulate penetration.
+                if (flight == null && !candidate.jump && supportedFrom && supportedTo
+                        && horizontal * horizontal + dy * dy <= .001 * .001) {
+                    sequence = candidate.seq; approvedAt = now;
+                    return new Decision(true, "CONTACT_HELD", approved, sequence);
+                }
+                return deny("COLLISION");
+            }
             flight = next;
             budget -= horizontal; approved = target; sequence = candidate.seq; approvedAt = now;
             airWindowAt = nextAirAt; airWindowY = nextAirY;

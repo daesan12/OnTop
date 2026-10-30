@@ -23,8 +23,7 @@ for (const viewport of [
       })
       await expect(page).toHaveTitle(/온탑|OnTop/i)
       await expect(page.locator('vite-error-overlay')).toHaveCount(0)
-      await page.locator('canvas').click({ position: { x: 80, y: 300 } })
-      await page.keyboard.press('KeyE')
+      await page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).inspectTable())
       await page.getByRole('button', { name: '앉기', exact: true }).click()
       await page.getByLabel('1인 참가비').fill('1'); await page.getByRole('button', { name: '오목 선택', exact: true }).click()
       expect(
@@ -45,24 +44,24 @@ for (const viewport of [
       ).toHaveCount(0)
       server.confirmStart()
       const panel = page.locator('[aria-label="오목 경기"], .gathering-hud[data-phase="finished"]')
-      await panel.getByText('키보드로 오목판 조작', { exact: true }).click()
-      const cell = panel.getByRole('button', {
-        name: '8행 8열 빈칸',
-        exact: true,
-      })
-      await expect(cell).toBeEnabled()
-    await expect(panel.getByRole('group',{name:'오목판',exact:true})).toBeInViewport({ratio:1})
-    await expect(panel.getByRole('button',{name:'최신 판 확인'})).toBeInViewport()
+      await expect.poll(() => page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).omokCameraReady())).toBe(true)
+      const canPlace = (x = 7, y = 7) => page.evaluate(async ({ x, y }) => (await import('/src/game/store.ts' as string)).canPlace('101', x, y), { x, y })
+      const clickCell = async () => {
+        const p = await page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).pointForOmok(7, 7))
+        await page.mouse.click(p.x, p.y)
+      }
+      await expect.poll(() => canPlace()).toBe(true)
+      await expect(panel.getByRole('button',{name:'최신 판 확인'})).toHaveCount(0)
       server.forbidNext()
-      await cell.click()
+      await clickCell()
       await expect(panel.getByRole('alert')).toContainText('금수')
-      await expect(cell).toBeEnabled()
+      await expect.poll(() => canPlace()).toBe(true)
       server.holdState(true)
-      await cell.click()
+      await clickCell()
       await expect(
         panel.getByText('착수 확인 수신 · 최신 판을 기다리고 있습니다.'),
       ).toBeVisible()
-      await expect(cell).toBeDisabled()
+      await expect.poll(() => canPlace()).toBe(false)
       expect(
         server.sent.filter((m) => m.type === 'GAME_ACTION_SEND'),
       ).toHaveLength(2)
@@ -81,20 +80,14 @@ for (const viewport of [
         'input',
       ])
       server.flushGame()
-      await expect(
-        panel.getByRole('button', { name: '8행 8열 흑돌', exact: true }),
-      ).toBeVisible()
+      await expect(panel).toContainText('마지막 수: 흑 · H8')
       await expect(panel).toContainText('상대 차례')
       server.opponentMove()
       await expect(panel).toContainText('내 차례')
       server.recoveryPending()
-      await expect(
-        panel.getByRole('button', { name: '8행 9열 빈칸', exact: true }),
-      ).toBeDisabled()
+      await expect.poll(() => canPlace(8, 7)).toBe(false)
       server.restoreGame()
-      await expect(
-        panel.getByRole('button', { name: '8행 9열 빈칸', exact: true }),
-      ).toBeEnabled()
+      await expect.poll(() => canPlace(8, 7)).toBe(true)
       await expect
         .poll(() =>
           page.evaluate(async () => {

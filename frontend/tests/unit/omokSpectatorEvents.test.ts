@@ -17,6 +17,18 @@ function setup(role: 'PLAYER' | 'SPECTATOR' = 'SPECTATOR') {
   return { feed, request, context: (value: EventScope | null) => { context = value; feed.sync() },
     version: (version: number) => { context = context && { ...context, version }; feed.sync() }, advance: (ms: number) => { now += ms } }
 }
+it('keeps game-only history after bubbles expire, and erases it on a match change', () => {
+  const f = setup('PLAYER')
+  f.feed.accept(message('chat'))
+  f.feed.accept(message('chat'))
+  expect(useOmokEvents.getState().history).toHaveLength(1)
+  f.advance(4000); f.version(9)
+  expect(useOmokEvents.getState().chats).toHaveLength(0)
+  expect(useOmokEvents.getState().history).toHaveLength(1)
+  f.context({ key: 'another-match', gameId: 'other', role: 'SPECTATOR', version: 1, canSend: true })
+  f.feed.accept(message('chat'))
+  expect(useOmokEvents.getState().history).toHaveLength(0)
+})
 it('accepts numeric Unix ms and exact coordinate/version boundaries; rejects ISO, invalid coordinates and UUID', () => {
   expect(parseSpectatorEvent(message('ping', { x: 0, y: 14, basedOnVersion: Number.MAX_SAFE_INTEGER }))).not.toBeNull()
   for (const patch of [{ x: -1 }, { y: 15 }, { x: 1.1 }, { x: '7' }, { basedOnVersion: -1 },
@@ -113,4 +125,30 @@ it('ignores a request finishing after the connection scope changes', async () =>
   const task = s.feed.send('chat', 'hello')
   s.context({ key:'new-session',gameId:'g',version:8,role:'SPECTATOR',canSend:true })
   resolve(message('chat')); expect(await task).toBe(false); expect(useOmokEvents.getState().chats).toHaveLength(0)
+})
+
+it('publishes ping approval, cooldown and pending state separately from chat and expires feedback', async () => {
+  vi.useFakeTimers()
+  const s = setup()
+  let finish!: () => void
+  s.request.mockImplementation((_, payload, __, onId) => {
+    onId('ping-one')
+    return new Promise(resolve => { finish = () => resolve({ ...message('ping', payload), requestId: 'ping-one' }) })
+  })
+  const sending = s.feed.send('ping', { x: 7, y: 7 })
+  expect(useOmokEvents.getState().pingSending).toBe(true)
+  expect(useOmokEvents.getState().pingNotice).toBe('')
+  expect(await s.feed.send('ping', { x: 0, y: 0 })).toBe(false)
+  expect(s.request).toHaveBeenCalledTimes(1)
+  expect(useOmokEvents.getState().pingError).toContain('1초 간격')
+  expect(useOmokEvents.getState().error).toBe('')
+  finish(); expect(await sending).toBe(true)
+  expect(useOmokEvents.getState()).toMatchObject({ pingSending: false, pingReadyAt: 1000, pingNotice: 'H8 추천을 보냈어요.' })
+  s.advance(1000); vi.advanceTimersByTime(1000)
+  expect(useOmokEvents.getState()).toMatchObject({ pingReadyAt: 0, pingError: '' })
+  expect(s.feed.canPing()).toBe(true)
+  s.advance(1600); vi.advanceTimersByTime(1600)
+  expect(useOmokEvents.getState().pingNotice).toBe('')
+  s.context(null)
+  expect(useOmokEvents.getState()).toMatchObject({ pingSending: false, pingReadyAt: 0, pingNotice: '', pingError: '' })
 })

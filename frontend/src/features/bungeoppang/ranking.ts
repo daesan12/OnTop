@@ -1,7 +1,7 @@
 import { record } from '../../network/protocol'
 
 export const BUNGEOPPANG_RANKINGS_ENABLED = import.meta.env.VITE_BUNGEOPPANG_RANKINGS !== 'false'
-export interface RankingEntry { rank: number; userId: string; nickname: string; made: number; failed: number; completedAt: string }
+export interface RankingEntry { rank: number; userId: string; nickname: string; score: number; maxCombo: number; completedAt: string }
 export interface RankingPage {
   /** v5 boards are split by the round's stored play length; v4 has one board (null). */
   rulesVersion: string; durationMs: number | null; period: 'ALL_TIME'; basis: 'PERSONAL_BEST'; snapshotId: string; updatedAt: string
@@ -12,14 +12,19 @@ const id = (v: unknown): v is string => typeof v === 'string' && /^[1-9]\d{0,18}
 const date = (v: unknown): v is string => typeof v === 'string' && /Z$/.test(v) && Number.isFinite(Date.parse(v))
 const text = (v: unknown, max = 160): v is string => typeof v === 'string' && !!v.trim() && v.length <= max
 const invalid = (): never => { throw new Error('랭킹 응답을 확인하지 못했어요. 다시 불러와 주세요.') }
+export class RankingScoreUnavailableError extends Error {
+  constructor() { super('점수·콤보 기준 랭킹을 준비하고 있어요. 잠시 후 다시 확인해 주세요.') }
+}
 export function compareRanking(a: RankingEntry, b: RankingEntry) {
-  return b.made - a.made || a.failed - b.failed || Date.parse(a.completedAt) - Date.parse(b.completedAt)
+  return b.score - a.score || b.maxCombo - a.maxCombo || Date.parse(a.completedAt) - Date.parse(b.completedAt)
     || a.userId.length - b.userId.length || a.userId.localeCompare(b.userId)
 }
 function entry(value: unknown, total: number): RankingEntry {
+  // Older responses cannot establish the score/combo-based global rank.
+  if (record(value) && (value.score === undefined || value.maxCombo === undefined)) throw new RankingScoreUnavailableError()
   if (!record(value) || !whole(value.rank) || value.rank < 1 || value.rank > total || !id(value.userId)
-    || !text(value.nickname, 40) || !whole(value.made) || !whole(value.failed) || !date(value.completedAt)) return invalid()
-  return { rank: value.rank, userId: value.userId, nickname: value.nickname, made: value.made, failed: value.failed, completedAt: value.completedAt }
+    || !text(value.nickname, 40) || !whole(value.score) || !whole(value.maxCombo) || !date(value.completedAt)) return invalid()
+  return { rank: value.rank, userId: value.userId, nickname: value.nickname, score: value.score, maxCombo: value.maxCombo, completedAt: value.completedAt }
 }
 function validOrder(items: RankingEntry[]) {
   const users = new Set<string>()
@@ -28,7 +33,7 @@ function validOrder(items: RankingEntry[]) {
     if (users.has(current.userId)) return false
     users.add(current.userId)
     if (!before) continue
-    const tie = before.made === current.made && before.failed === current.failed
+    const tie = before.score === current.score && before.maxCombo === current.maxCombo
     if (compareRanking(before, current) > 0 || (tie ? before.rank !== current.rank : before.rank >= current.rank)) return false
   }
   return true

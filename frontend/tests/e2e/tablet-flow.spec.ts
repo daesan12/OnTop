@@ -652,3 +652,58 @@ test('reference-size pavilion tablet has aligned controls and clears the tableto
   await page.waitForTimeout(500); await screenshot(page, 'tablet-native-pavilion-ready')
   await expect(tablet.getByRole('button', { name: '일어나기', exact: true })).toBeInViewport()
 })
+
+test('tablet portrait framing keeps arms visible through projection, resize and profile changes', async ({ page }) => {
+  const errors: string[] = []
+  page.on('pageerror', error => errors.push(error.message))
+  page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
+  const server = await fixture(page, { omok: true, manualLobby: true, tabletServer: true, anchorId: 'table-5' })
+  const tablet = await openTable(page)
+  const amount = tablet.getByLabel('1인 참가비')
+  await amount.fill('0')
+  await expect(tablet.getByRole('button', { name: '선택하고 준비하기' })).toBeDisabled()
+  await amount.fill('25')
+  await screenshot(page, 'tablet-qa-money-input')
+  await tablet.getByRole('button', { name: '선택하고 준비하기' }).click()
+  const checkbox = tablet.getByRole('checkbox', { name: '참가 금액을 확인했어요' })
+  const ready = tablet.getByRole('button', { name: '준비 완료', exact: true })
+  await expect(ready).toBeDisabled()
+  await tablet.locator('.tablet-amount-agreement').click()
+  await expect(checkbox).toBeChecked(); await expect(ready).toBeEnabled()
+  await checkbox.focus(); await page.keyboard.press('Space')
+  await expect(checkbox).not.toBeChecked(); await expect(ready).toBeDisabled()
+  const probe = () => page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).tabletPortraitProbe())
+  let referenceSpan: number[] | undefined
+  const assertPortraits = async () => {
+    await expect.poll(async () => (await probe()).filter(Boolean).length).toBe(2)
+    const spans: number[] = []
+    for (const [index, portrait] of (await probe()).entries()) {
+      expect(portrait!.orthographic).toBe(true)
+      expect(Math.abs(portrait!.width - portrait!.containerWidth)).toBeLessThanOrEqual(2)
+      expect(Math.abs(portrait!.height - portrait!.containerHeight)).toBeLessThanOrEqual(2)
+      for (const hand of portrait!.hands) {
+        expect(Math.abs(hand[0]!)).toBeLessThan(.94); expect(Math.abs(hand[1]!)).toBeLessThan(.94)
+      }
+      const span = portrait!.head[1]! - Math.max(...portrait!.hands.map((hand: number[]) => hand[1]!))
+      expect(span).toBeGreaterThan(.4)
+      if (referenceSpan) expect(Math.abs(span - referenceSpan[index]!)).toBeLessThan(.08)
+      spans.push(span)
+    }
+    referenceSpan ??= spans
+  }
+  for (const viewport of [{ width: 1920, height: 1080 }, { width: 1366, height: 768 }, { width: 390, height: 844 }, { width: 1672, height: 941 }]) {
+    await page.setViewportSize(viewport)
+    await expect.poll(async () => (await probe()).every((p: { width: number; containerWidth: number } | null) => p && Math.abs(p.width - p.containerWidth) <= 2)).toBe(true)
+    await assertPortraits()
+    await screenshot(page, `tablet-qa-ready-${viewport.width}`)
+  }
+  server.profile('102', { nickname: '다른 참가자', characterGender: 'FEMALE' })
+  await expect(tablet).toContainText('다른 참가자')
+  referenceSpan = undefined
+  await assertPortraits()
+  await screenshot(page, 'tablet-qa-ready-two-characters')
+  await checkbox.check(); await ready.click()
+  await expect(tablet.getByRole('button', { name: '준비 취소', exact: true })).toBeEnabled()
+  await expect(page.locator('vite-error-overlay')).toHaveCount(0)
+  expect(errors).toEqual([])
+})

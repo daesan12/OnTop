@@ -376,6 +376,23 @@ class OmokSpectatorEventFlowTests {
     }
 
     @Test
+    void 복구상태만_받은_플레이어도_첫착수나_수동조회없이_즉시채팅한다() throws Exception {
+        var first = connect(101, "one");
+        var second = connect(202, "one");
+        var viewer = connect(505, "one");
+        near(viewer);
+        viewer.request("TABLE_WATCH", Map.of("tableId", TABLE));
+        start(TABLE, first, second, viewer, GAME, true);
+        watch(viewer, GAME);
+        for (var sender : List.of(first, second)) {
+            JsonNode ack = sender.request("GAME_SPECTATOR_CHAT_SEND", chat(GAME, "첫 수 전에도 응원해요"));
+            assertThat(ack.path("type").asText()).as(ack.toString()).isEqualTo("GAME_SPECTATOR_CHAT_MESSAGE");
+            assertThat(viewer.awaitSpectatorEvent(ack.at("/payload/eventId").asText()).path("payload"))
+                    .isEqualTo(ack.path("payload"));
+        }
+    }
+
+    @Test
     void 플레이어는_차례와무관하게_채팅하고_관전자와주고받되_핑과다른경기는_거절한다() throws Exception {
         var first = connect(101, "one");
         var second = connect(202, "one");
