@@ -62,7 +62,7 @@ public final class AlkkagiDemoApplication {
         private final Map<String, Client> clients = new ConcurrentHashMap<>();
         private final ScheduledExecutorService physics = Executors.newSingleThreadScheduledExecutor();
         private final ScheduledExecutorService sender = Executors.newSingleThreadScheduledExecutor();
-        private final AtomicReference<String> latest = new AtomicReference<>();
+        private final AtomicReference<Outbound> latest = new AtomicReference<>();
         private final AtomicBoolean sendScheduled = new AtomicBoolean();
         private final ArrayBlockingQueue<Runnable> commands = new ArrayBlockingQueue<>(64);
         private AlkkagiMatch match;
@@ -86,13 +86,17 @@ public final class AlkkagiDemoApplication {
                 }
                 match.advance(System.currentTimeMillis());
                 if (++frames % 6 == 0) {
-                    latest.set(mapper.writeValueAsString(Map.of("type", "STATE", "seq", ++sequence,
-                            "state", match.snapshot(System.currentTimeMillis()))));
+                    long now = System.currentTimeMillis();
+                    long seq = ++sequence;
+                    latest.set(new Outbound(mapper.writeValueAsString(Map.of("type", "STATE", "seq", seq,
+                            "state", match.snapshot(now))), Map.of(
+                            0, mapper.writeValueAsString(Map.of("type", "PRIVATE_STATE", "seq", seq, "state", match.privateView(0))),
+                            1, mapper.writeValueAsString(Map.of("type", "PRIVATE_STATE", "seq", seq, "state", match.privateView(1))))));
                     scheduleSend();
                 }
             } catch (Exception exception) {
                 // 스케줄러 예외가 이후 tick 전체를 취소하지 않도록 실패를 명시적으로 전달한다.
-                latest.set("{\"type\":\"ERROR\",\"code\":\"SIMULATION_FAILURE\"}");
+                latest.set(new Outbound("{\"type\":\"ERROR\",\"code\":\"SIMULATION_FAILURE\"}", Map.of()));
                 scheduleSend();
                 org.slf4j.LoggerFactory.getLogger(DemoSocket.class).error("알까기 로컬 tick 실패", exception);
             }
@@ -154,6 +158,39 @@ public final class AlkkagiDemoApplication {
                     tuning = next;
                     match = replacement;
                     client.offer("{\"type\":\"TUNING_APPLIED\"}");
+                } else if (type.equals("TEST_CARDS")) {
+                    if (client.actor != 0) throw new IllegalArgumentException("RED_PRACTICE_ONLY");
+                    var current = match.snapshot(System.currentTimeMillis());
+                    if (!input.path("gameId").asText().equals(current.gameId())
+                            || !input.path("expectedVersion").isIntegralNumber()
+                            || !input.path("expectedVersion").canConvertToLong()
+                            || input.path("expectedVersion").asLong(-1) != current.version())
+                        throw new IllegalArgumentException("STALE_VERSION");
+                    if (!current.stage().equals("WAITING") || !match.privateView(0).cards().isEmpty()
+                            || !match.privateView(1).cards().isEmpty())
+                        throw new IllegalArgumentException("PRACTICE_WAITING_ONLY");
+                    for (int actor = 0; actor < 2; actor++) {
+                        match.receiveCard(actor, "SWAP"); match.receiveCard(actor, "EXTRA_SHOT");
+                    }
+                } else if (type.equals("ITEM_USE")) {
+                    var fields = input.fieldNames();
+                    var allowed = java.util.Set.of("type", "gameId", "actionId", "expectedVersion", "cardId", "targetPieceIds");
+                    while (fields.hasNext()) {
+                        if (!allowed.contains(fields.next())) throw new IllegalArgumentException("UNKNOWN_FIELD");
+                    }
+                    if (!input.path("expectedVersion").isIntegralNumber() || !input.path("expectedVersion").canConvertToLong()
+                            || input.path("expectedVersion").asLong() < 0 || !input.path("targetPieceIds").isArray()
+                            || input.path("targetPieceIds").size() > 2) throw new IllegalArgumentException("INVALID_ITEM");
+                    var targets = new java.util.ArrayList<String>();
+                    for (var target : input.path("targetPieceIds")) {
+                        if (!target.isTextual()) throw new IllegalArgumentException("INVALID_TARGETS");
+                        targets.add(target.asText());
+                    }
+                    long accepted = match.useItem(client.actor, new AlkkagiMatch.ItemUse(input.path("gameId").asText(),
+                            input.path("actionId").asText(), input.path("expectedVersion").asLong(),
+                            input.path("cardId").asText(), targets), System.currentTimeMillis());
+                    client.offer(mapper.writeValueAsString(Map.of("type", "ITEM_ACCEPTED", "version", accepted,
+                            "actionId", input.path("actionId").asText())));
                 } else if (type.equals("SHOT")) {
                     var fields = input.fieldNames();
                     var allowed = java.util.Set.of("type", "gameId", "actionId", "expectedVersion", "pieceId",
@@ -223,7 +260,7 @@ public final class AlkkagiDemoApplication {
         }
 
         private void send() {
-            String snapshot = latest.getAndSet(null);
+            Outbound snapshot = latest.getAndSet(null);
             for (Client client : clients.values()) {
                 try {
                     for (int i = 0; i < 8; i++) {
@@ -231,7 +268,11 @@ public final class AlkkagiDemoApplication {
                         if (response == null) { break; }
                         client.socket.sendMessage(new TextMessage(response));
                     }
-                    if (snapshot != null) { client.socket.sendMessage(new TextMessage(snapshot)); }
+                    if (snapshot != null) {
+                        client.socket.sendMessage(new TextMessage(snapshot.publicJson()));
+                        String privateJson = snapshot.ownerJson().get(client.actor);
+                        if (privateJson != null) client.socket.sendMessage(new TextMessage(privateJson));
+                    }
                 } catch (Exception exception) {
                     clients.remove(client.socket.getId());
                     try { client.socket.close(CloseStatus.SESSION_NOT_RELIABLE); }
@@ -252,6 +293,8 @@ public final class AlkkagiDemoApplication {
             physics.shutdownNow();
             sender.shutdownNow();
         }
+
+        private record Outbound(String publicJson, Map<Integer, String> ownerJson) { }
 
         private static final class Client {
             private final int actor;

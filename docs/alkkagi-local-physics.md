@@ -15,6 +15,8 @@
 
 ## 이번 범위
 
+후속으로 비밀 손패·위치 교환·추가 발사를 로컬에 연결했다. 시작 전 연습 카드 지급, 요청/개인 응답, 시간·소모 검증은 [카드 계약](alkkagi-items.md)을 따른다. 실제 랜덤 카드 지급이나 제품 통합 완료는 아니다.
+
 `game/alkkagi/domain/AlkkagiMatch`는 dyn4j 6.0.0으로 기본 발사·원형 충돌·판 밖 탈락을 계산한다.
 고정 벽은 없다. 알 모양은 FE의 팔각 기둥이고 충돌체는 원이다.
 서버 소유 스레드가 120Hz 고정 스텝을 진행하고, 6스텝마다 최신 전체 스냅샷을 제공한다.
@@ -99,7 +101,7 @@ actor·알 좌표·충돌 결과를 입력받지 않는다. 역할은 테스트 
 공개 `STATE`는 seq와 state(gameId, version, tick, simulationId, stage, turn, turnNumber,
 turnDeadline, matchDeadline, serverNow, winner, endReason, pieces, timeouts, settings, provisional)를 포함한다.
 공개 말은 id/owner/type/x/y/vx/vy/radius/mass/alive/launchSpeed다. STATE에는 modelId와 inputCurveBoost도 포함한다. 서버 XY는 화면 XZ로 매핑한다.
-카드·RNG·회원 개인정보는 없다. 카드 자체가 아직 구현되지 않았다.
+공개 상태에는 미사용 손패의 종류/ID를 넣지 않는다. 손패는 소유자 전용 PRIVATE_STATE에만 포함하며 실제 RNG 지급·회원 인증은 아직 연결하지 않았다.
 
 ## 확정 타이머와 로컬 임시 정책
 
@@ -113,7 +115,7 @@ turnDeadline, matchDeadline, serverNow, winner, endReason, pieces, timeouts, set
 
 기존 `GameEngineRouter`·`GameStateView`·공통 입력/복구·회원 권한·판돈 예약 및 정산 연결을 재사용한다.
 현재 시작/게임 선택/종료 검증에는 기존4게임 분기가 있어 알까기 등록 확장이 필요하다.
-카드8종·관전자 커서/채팅/유령샷은 후속 범위이며 제외 확정이 아니다.
+카드8종 중 위치 교환·추가 발사는 로컬에 구현했고, 나머지6종·실제 지급·관전자 커서/채팅/유령샷은 후속 범위이며 제외 확정이 아니다.
 제품 코드·DB·공용 계약 변경은 별도로 맞추고, 신규 마이그레이션은 번호 공유 전 작성/푸시하지 않는다.
 미정 규칙은 [별도 목록](alkkagi-decisions.md)에 모았다.
 

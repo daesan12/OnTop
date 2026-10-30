@@ -24,6 +24,49 @@ class AlkkagiSocketTests {
     private final ObjectMapper mapper = new ObjectMapper();
 
     @Test
+    void 비밀카드는_소유자에게만_전송하고_상대카드_사용과_관전자_요청을_거절한다() throws Exception {
+        var a = new Reader(); var b = new Reader(); var c = new Reader();
+        WebSocket red = open("red", a), green = open("green", b), viewer = open("viewer", c);
+        try {
+            var first = a.until(m -> m.path("type").asText().equals("STATE"));
+            red.sendText("{\"type\":\"RESET\"}", true).join();
+            var ready = a.until(m -> m.path("type").asText().equals("STATE")
+                    && !m.path("state").path("gameId").equals(first.path("state").path("gameId")));
+            red.sendText(mapper.writeValueAsString(java.util.Map.of("type", "TEST_CARDS", "gameId",
+                    ready.path("state").path("gameId").asText(), "expectedVersion", 0)), true).join();
+            var own = a.until(m -> m.path("type").asText().equals("PRIVATE_STATE") && m.path("state").path("cards").size() == 2);
+            var other = b.until(m -> m.path("type").asText().equals("PRIVATE_STATE") && m.path("state").path("cards").size() == 2);
+            String ownId = own.path("state").path("cards").get(0).path("id").asText();
+            String otherId = other.path("state").path("cards").get(0).path("id").asText();
+            assertThat(own.toString()).doesNotContain(otherId);
+            assertThat(other.toString()).doesNotContain(ownId);
+            var publicState = c.until(m -> m.path("seq").asLong() == own.path("seq").asLong());
+            assertThat(publicState.path("type").asText()).isEqualTo("STATE");
+            assertThat(publicState.toString()).doesNotContain(ownId, otherId, "SWAP", "EXTRA_SHOT");
+            red.sendText("{\"type\":\"START\"}", true).join();
+            var started = a.until(m -> m.path("type").asText().equals("STATE") && m.path("state").path("stage").asText().equals("AIMING"));
+            var request = new java.util.LinkedHashMap<String, Object>();
+            request.put("type", "ITEM_USE"); request.put("gameId", ready.path("state").path("gameId").asText());
+            request.put("expectedVersion", started.path("state").path("version").asLong());
+            request.put("actionId", "item-1"); request.put("cardId", otherId); request.put("targetPieceIds", java.util.List.of("p11", "p12"));
+            red.sendText(mapper.writeValueAsString(request), true).join();
+            assertThat(a.until(m -> m.path("type").asText().equals("ERROR")).path("code").asText()).isEqualTo("CARD_NOT_OWNED");
+            viewer.sendText(mapper.writeValueAsString(request), true).join();
+            assertThat(c.until(m -> m.path("type").asText().equals("ERROR")).path("code").asText()).isEqualTo("PLAYER_REQUIRED");
+            request.put("cardId", ownId);
+            red.sendText(mapper.writeValueAsString(request), true).join();
+            a.until(m -> m.path("type").asText().equals("ITEM_ACCEPTED"));
+            var used = a.until(m -> m.path("type").asText().equals("PRIVATE_STATE") && m.path("state").path("cards").size() == 1);
+            assertThat(used.toString()).doesNotContain(ownId);
+            red.abort(); a = new Reader(); red = open("red", a);
+            assertThat(a.until(m -> m.path("type").asText().equals("PRIVATE_STATE")).path("state").path("cards").size()).isEqualTo(1);
+            // 공유 데모의 다음 테스트를 위해 새 판으로 돌린다.
+            red.sendText("{\"type\":\"RESET\"}", true).join();
+            a.until(m -> m.path("type").asText().equals("STATE") && m.path("state").path("version").asLong() == 0);
+        } finally { red.abort(); green.abort(); viewer.abort(); }
+    }
+
+    @Test
     void 송신기가_쉬는_중에도_물리_직렬화_실패를_전달한다() throws Exception {
         var failing = new ObjectMapper() {
             @Override public String writeValueAsString(Object value) throws com.fasterxml.jackson.core.JsonProcessingException {

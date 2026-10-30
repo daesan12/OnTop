@@ -18,6 +18,7 @@ public final class AlkkagiMatch {
     private final World<Body> world = new World<>();
     private final Map<String, Piece> pieces = new LinkedHashMap<>();
     private final Map<String, Receipt> receipts = new LinkedHashMap<>();
+    private final AlkkagiInventory inventory = new AlkkagiInventory();
     private final String gameId = UUID.randomUUID().toString();
     private String stage = "WAITING";
     private String reason;
@@ -32,6 +33,10 @@ public final class AlkkagiMatch {
     private long matchDeadline;
     private int simulationSteps;
     private int stableSteps;
+    private int shotsThisTurn;
+    private boolean itemUsedThisTurn;
+    private boolean extraShotActivated;
+    private ItemEffect lastItemEffect;
 
     public AlkkagiMatch(AlkkagiSettings settings) {
         this(settings, AlkkagiPhysics.experimental());
@@ -100,7 +105,7 @@ public final class AlkkagiMatch {
         String key = actor + ":" + shot.actionId();
         Receipt old = receipts.get(key);
         if (old != null) {
-            require(old.shot().equals(shot), "ACTION_ID_CONFLICT");
+            require(old.command().equals(shot), "ACTION_ID_CONFLICT");
             return old.version();
         }
         expire(now);
@@ -116,17 +121,90 @@ public final class AlkkagiMatch {
         piece.body.applyImpulse(new Vector2(shot.dx() / length, shot.dy() / length)
                 .multiply(physics.launchImpulse(settings.maximumImpulse(), shot.power(), physics.profile(piece.type))));
         timeouts[actor] = 0;
+        shotsThisTurn++;
         stage = "SIMULATING";
         simulationId++;
         simulationSteps = 0;
         stableSteps = 0;
         version++;
-        receipts.put(key, new Receipt(shot, version));
+        remember(key, shot);
+        return version;
+    }
+
+    private void remember(String key, Object command) {
+        receipts.put(key, new Receipt(command, version));
         // 로컬 검증에서도 장시간의 요청 이력을 무제한 보관하지 않는다.
         if (receipts.size() > 2048) {
             receipts.remove(receipts.keySet().iterator().next());
         }
+    }
+
+    /** 신뢰된 서버 측 지급 경계. 클라이언트가 카드 종류를 지정하는 제품 API는 노출하지 않는다. */
+    public void receiveCard(int actor, String type) {
+        require(actor == 0 || actor == 1, "PLAYER_REQUIRED");
+        require(!stage.equals("FINISHED"), "GAME_FINISHED");
+        AlkkagiInventory.Type cardType;
+        try { cardType = AlkkagiInventory.Type.valueOf(type); }
+        catch (RuntimeException invalid) { throw new IllegalArgumentException("INVALID_CARD_TYPE"); }
+        inventory.grant(actor, cardType);
+        version++;
+    }
+
+    public long useItem(int actor, ItemUse input, long now) {
+        require(actor == 0 || actor == 1, "PLAYER_REQUIRED");
+        require(input != null && input.actionId() != null && input.actionId().matches("[A-Za-z0-9-]{1,64}"), "INVALID_ACTION");
+        require(gameId.equals(input.gameId()), "STALE_GAME");
+        String key = actor + ":" + input.actionId();
+        var previous = receipts.get(key);
+        if (previous != null) {
+            require(previous.command().equals(input), "ACTION_ID_CONFLICT");
+            return previous.version();
+        }
+        expire(now);
+        require(stage.equals("AIMING"), "NOT_AIMING");
+        require(actor == turn, "NOT_YOUR_TURN");
+        require(input.expectedVersion() == version, "STALE_VERSION");
+        require(!itemUsedThisTurn && shotsThisTurn == 0, "ITEM_ALREADY_USED_OR_SHOT");
+        var card = inventory.requireCard(actor, input.cardId());
+        var targets = input.targetPieceIds();
+        if (card.type() == AlkkagiInventory.Type.SWAP) {
+            require(targets != null && targets.size() == 2 && !targets.get(0).equals(targets.get(1)), "INVALID_TARGETS");
+            var a = pieces.get(targets.get(0)); var b = pieces.get(targets.get(1));
+            require(a != null && b != null && a.alive && b.alive && a.owner == actor && b.owner == actor, "NOT_YOUR_PIECE");
+            var pa = a.body.getWorldCenter().copy(); var pb = b.body.getWorldCenter().copy();
+            validateSwapPosition(a, pb, a, b); validateSwapPosition(b, pa, a, b);
+            require(pa.distance(pb) >= a.radius + b.radius - 1e-9, "ITEM_OVERLAP");
+            a.body.translate(pb.x - pa.x, pb.y - pa.y);
+            b.body.translate(pa.x - pb.x, pa.y - pb.y);
+            // 직접 위치를 바꾼 뒤 이전 접촉 제약을 다음 발사에 재사용하지 않는다.
+            world.setUpdateRequired(true);
+        } else if (card.type() == AlkkagiInventory.Type.EXTRA_SHOT) {
+            require(targets != null && targets.isEmpty(), "INVALID_TARGETS");
+            extraShotActivated = true;
+        } else {
+            throw new IllegalArgumentException("ITEM_POLICY_PENDING");
+        }
+        inventory.consume(actor, input.cardId());
+        itemUsedThisTurn = true;
+        version++;
+        lastItemEffect = new ItemEffect(version, turnNumber, actor, card.type().name(), List.copyOf(targets));
+        remember(key, input);
         return version;
+    }
+
+    private void validateSwapPosition(Piece moving, Vector2 destination, Piece a, Piece b) {
+        require(Math.abs(destination.x) <= settings.halfWidth() && Math.abs(destination.y) <= settings.halfHeight(), "ITEM_OUTSIDE_BOARD");
+        for (var other : pieces.values()) {
+            if (other.alive && other != a && other != b) {
+                require(destination.distance(other.body.getWorldCenter()) >= moving.radius + other.radius - 1e-9, "ITEM_OVERLAP");
+            }
+        }
+    }
+
+    public PrivateView privateView(int actor) {
+        require(actor == 0 || actor == 1, "PLAYER_REQUIRED");
+        return new PrivateView(gameId, version, inventory.cards(actor).stream()
+                .map(card -> new CardView(card.id(), card.type().name())).toList());
     }
 
     public void advance(long now) {
@@ -181,6 +259,7 @@ public final class AlkkagiMatch {
         if (now >= matchDeadline) {
             resolveByCount("MATCH_TIME_LIMIT");
         } else if (now >= turnDeadline) {
+            if (shotsThisTurn > 0) { nextTurn(now); return; }
             timeouts[turn]++;
             if (timeouts[turn] >= 2) {
                 finish(1 - turn, "AFK_FORFEIT");
@@ -195,6 +274,9 @@ public final class AlkkagiMatch {
             resolveByCount("PIECES_OUT");
         } else if (now >= matchDeadline) {
             resolveByCount("MATCH_TIME_LIMIT");
+        } else if (extraShotActivated && shotsThisTurn == 1 && now < turnDeadline) {
+            stage = "AIMING";
+            version++;
         } else {
             nextTurn(now);
         }
@@ -220,6 +302,9 @@ public final class AlkkagiMatch {
         turnNumber++;
         turnDeadline = now + settings.turnMillis();
         stage = "AIMING";
+        shotsThisTurn = 0;
+        itemUsedThisTurn = false;
+        extraShotActivated = false;
         version++;
     }
 
@@ -234,7 +319,8 @@ public final class AlkkagiMatch {
         }
         return new Snapshot(gameId, version, tick, simulationId, stage, turn, turnNumber,
                 turnDeadline, matchDeadline, now, winner, reason, List.copyOf(views),
-                List.of(timeouts[0], timeouts[1]), settings, true, "separated-v1", physics.inputBoost());
+                List.of(timeouts[0], timeouts[1]), settings, true, "separated-v1", physics.inputBoost(),
+                itemUsedThisTurn, !stage.equals("FINISHED") && extraShotActivated && shotsThisTurn < 2 ? 1 : 0, lastItemEffect);
     }
 
     private static void require(boolean condition, String code) {
@@ -243,13 +329,25 @@ public final class AlkkagiMatch {
 
     public record Shot(String gameId, String actionId, long expectedVersion, String pieceId,
             double dx, double dy, double power) { }
+    public record ItemUse(String gameId, String actionId, long expectedVersion, String cardId, List<String> targetPieceIds) {
+        public ItemUse {
+            if (targetPieceIds != null) {
+                require(targetPieceIds.size() <= 2 && targetPieceIds.stream().allMatch(id -> id != null && !id.isBlank()), "INVALID_TARGETS");
+                targetPieceIds = List.copyOf(targetPieceIds);
+            }
+        }
+    }
+    public record ItemEffect(long version, int turnNumber, int actor, String type, List<String> targets) { }
+    public record CardView(String id, String type) { }
+    public record PrivateView(String gameId, long version, List<CardView> cards) { }
     public record PieceView(String id, int owner, String type, double x, double y, double vx, double vy,
             double radius, double mass, boolean alive, double launchSpeed) { }
     public record Snapshot(String gameId, long version, long tick, long simulationId, String stage,
             int turn, int turnNumber, long turnDeadline, long matchDeadline, long serverNow,
             Integer winner, String endReason, List<PieceView> pieces, List<Integer> timeouts,
-            AlkkagiSettings settings, boolean provisional, String modelId, double inputCurveBoost) { }
-    private record Receipt(Shot shot, long version) { }
+            AlkkagiSettings settings, boolean provisional, String modelId, double inputCurveBoost,
+            boolean itemUsedThisTurn, int extraShotsRemaining, ItemEffect lastItemEffect) { }
+    private record Receipt(Object command, long version) { }
     private static final class Piece {
         private final String id;
         private final int owner;

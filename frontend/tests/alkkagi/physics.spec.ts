@@ -30,6 +30,7 @@ test('실제 드래그 발사를 두 브라우저가 같은 서버 상태로 받
   await expect.poll(() => red.at(-1)?.state.stage).toBe('AIMING')
   expect(red.at(-1).state.modelId).toBe('separated-v1')
   expect(red.at(-1).state.pieces[8].launchSpeed).toBe(25)
+  await page.locator('canvas').scrollIntoViewIfNeeded()
   const rect = (await page.locator('canvas').boundingBox())!
   const aimVersion = red.at(-1).state.version
   // 첫 동작은 선택만 한다. 크게 끌어 놓아도 발사가 되어서는 안 된다.
@@ -119,6 +120,7 @@ test('판 밖 탈락은 양쪽에 반영되고 새 관전자는 탈락한 알을
   await expect.poll(async()=>(await page.locator('canvas').boundingBox())?.height??0).toBeGreaterThan(400)
   await page.getByRole('button',{name:'테스트 시작',exact:true}).click()
   await expect.poll(()=>states.at(-1)?.stage).toBe('AIMING')
+  await page.locator('canvas').scrollIntoViewIfNeeded()
   const rect=(await page.locator('canvas').boundingBox())!
   const x=rect.x+rect.width*.30,y=rect.y+rect.height*.86
   await page.mouse.click(x,y)

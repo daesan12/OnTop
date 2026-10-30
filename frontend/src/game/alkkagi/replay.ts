@@ -9,6 +9,8 @@ export interface Snapshot {
   pieces: Piece[]; timeouts: number[]; provisional: boolean
   settings: { halfWidth: number; halfHeight: number; maximumImpulse: number; deceleration: number; restitution: number }
   modelId?: string; inputCurveBoost?: number
+  itemUsedThisTurn?: boolean; extraShotsRemaining?: number
+  lastItemEffect?: { version: number; turnNumber: number; actor: number; type: string; targets: string[] } | null
 }
 type Frame = { seq: number; at: number; state: Snapshot }
 

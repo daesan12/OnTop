@@ -18,6 +18,10 @@ const errorNames: Record<string, string> = {
   RED_TUNING_ONLY: '홍팀 화면에서 물리값을 조절해주세요.',
 }
 
+type Card = { id: string; type: string }
+type PrivateState = { gameId: string; version: number; cards: Card[] }
+const cardNames: Record<string, string> = { SWAP: '내 알 위치 교환', EXTRA_SHOT: '한 번 더 튕기기' }
+
 function App() {
   const replay = useMemo(() => new AlkkagiReplay(), [])
   const socket = useRef<WebSocket | null>(null)
@@ -25,6 +29,15 @@ function App() {
   const [connected, setConnected] = useState(false), [notice, setNotice] = useState('서버 연결 중…')
   const [pending, setPending] = useState(false), [now, setNow] = useState(Date.now())
   const [seq, setSeq] = useState(0)
+  const [hand, setHand] = useState<PrivateState | null>(null)
+  const [item, setItem] = useState<Card | null>(null), [targets, setTargets] = useState<string[]>([])
+  const cancelItem = () => { setItem(null); setTargets([]) }
+  useEffect(cancelItem, [state?.gameId, state?.version, connected])
+  useEffect(() => {
+    const cancel = (e: KeyboardEvent) => { if (e.key === 'Escape') cancelItem() }
+    window.addEventListener('keydown', cancel)
+    return () => window.removeEventListener('keydown', cancel)
+  }, [])
   const [tuning, setTuning] = useState({ maximumImpulse: 30, deceleration: 60, restitution: 1 })
   useEffect(() => {
     if (state) setTuning({ maximumImpulse: state.settings.maximumImpulse,
@@ -44,6 +57,10 @@ function App() {
           setState(msg.state); setSeq(msg.seq)
           received.current = { wall: msg.state.serverNow, mono: performance.now() }
           setPending(false)
+         } else if (msg.type === 'PRIVATE_STATE') {
+          setHand(msg.state)
+        } else if (msg.type === 'ITEM_ACCEPTED') {
+          setNotice('아이템 적용 완료 · 발사 제한시간은 그대로입니다.')
         } else if (msg.type === 'ERROR') {
           setNotice(errorNames[msg.code] ?? msg.code); setPending(false)
         } else if (msg.type === 'SHOT_ACCEPTED') {
@@ -53,7 +70,7 @@ function App() {
         }
       }
       ws.onclose = event => {
-        setConnected(false); setPending(false)
+        setConnected(false); setPending(false); setHand(null)
         setNotice(event.code === 1008 ? '테스트 연결 한도 또는 역할 오류 · 불필요한 테스트 창을 닫아주세요.' : '연결 끊김 · 자동 재연결 중')
         if (!disposed) reconnect = setTimeout(connect, event.code === 1008 ? 5000 : 1000)
       }
@@ -71,6 +88,11 @@ function App() {
     send({ type: 'SHOT', gameId: state.gameId, actionId: crypto.randomUUID(), expectedVersion: state.version,
       pieceId: piece.id, dx, dy, power })
   }
+  const currentHand = hand?.gameId === state?.gameId ? hand : null
+  const canItem = connected && !pending && state?.stage === 'AIMING' && state.turn === actor
+    && !state.itemUsedThisTurn && currentHand?.version === state.version
+  const pickTarget = (piece: Piece) => setTargets(old => old.includes(piece.id)
+    ? old.filter(id => id !== piece.id) : old.length < 2 ? [...old, piece.id] : [old[1], piece.id])
   const left = state?.stage === 'AIMING' ? Math.max(0, Math.ceil((state.turnDeadline - now) / 1000)) : null
   const result = state?.stage === 'FINISHED' ? state.winner === null ? '무승부 / 검증 종료' : `${names[state.winner]} 승리` : ''
   const instruction = !connected ? '서버에 연결되면 시작할 수 있어요.'
@@ -83,7 +105,7 @@ function App() {
   return <main>
     <header><div><span className="eyebrow">ONTOP · LOCAL PHYSICS LAB</span><h1>아이템 알까기 <small>기본 물리</small></h1></div>
       <div className={`connection ${connected ? 'on' : ''}`}>{connected ? '연결됨' : '연결 끊김'}</div></header>
-    <div className="provisional">영상 기준 16개/인·세 크기 그룹 · 물리값은 검수용 근사 · 아이템/판돈 없음</div>
+    <div className="provisional">영상 기준 16개/인·세 크기 그룹 · 물리값은 검수용 근사 · 위치 교환·추가 발사 연습 카드 제공 · 판돈 없음</div>
     <section className="stats"><div>내 역할<strong>{actor < 0 ? '관전자' : names[actor]}</strong></div>
       <div>현재 차례<strong>{result || (!state || state.stage === 'WAITING' ? '시작 대기' : `${names[state.turn]} · ${state.turnNumber}턴`)}</strong></div>
       <div>남은 시간<strong>{left === null ? state?.stage === 'SIMULATING' ? '충돌 계산 중' : '—' : `${left}초`}</strong></div>
@@ -91,6 +113,27 @@ function App() {
     <div className="play-guide"><strong>{instruction}</strong>
       {actor === 0 && <button disabled={!connected || pending || state?.stage !== 'WAITING'} onClick={() => send({ type: 'START' })}>테스트 시작</button>}
     </div>
+    <section className="item-panel" aria-label="비밀 카드">
+      {actor >= 0 ? <>
+        <strong>내 비밀 카드 ({currentHand?.cards.length ?? 0}/2)</strong>
+        {actor === 0 && state?.stage === 'WAITING' && <button disabled={!connected || pending || !currentHand || !!currentHand.cards.length}
+          onClick={() => state && send({ type: 'TEST_CARDS', gameId: state.gameId, expectedVersion: state.version })}>연습 카드 받기 (로컬)</button>}
+        <div className="buttons">{currentHand?.cards.map(card => <button key={card.id} disabled={!canItem}
+          aria-pressed={item?.id === card.id} onClick={() => { setItem(card); setTargets([]) }}>{cardNames[card.type] ?? card.type}</button>)}</div>
+        {item && <div>
+          <p>{item.type === 'SWAP' ? '교환할 내 알 두 개를 클릭하세요.' : '원래 30초 안에서 발사 한 번을 추가합니다. 시간이 늘어나지 않습니다.'}</p>
+          {item.type === 'SWAP' && <p>선택: {targets.join(' ↔ ') || '없음'} ({targets.length}/2)</p>}
+          <button disabled={!canItem || (item.type === 'SWAP' && targets.length !== 2)} onClick={() => {
+            if (!state) return
+            send({ type: 'ITEM_USE', gameId: state.gameId, expectedVersion: state.version, actionId: crypto.randomUUID(),
+              cardId: item.id, targetPieceIds: item.type === 'SWAP' ? targets : [] })
+          }}>아이템 확정</button> <button className="secondary" onClick={cancelItem}>아이템 취소</button>
+        </div>}
+        <small>테스트 지급은 실제 지급 규칙이 아닙니다 · 턴당 아이템 1개 · 첫 발사 전 사용 · 취소하면 소모되지 않습니다.</small>
+      </> : <p>관전자는 미사용 카드 종류와 식별자를 받지 않습니다.</p>}
+      {!!state?.extraShotsRemaining && <p>추가 발사 예약 1회 · 원래 제한시간 안에서만 사용</p>}
+      {state?.lastItemEffect && <p>공개된 사용 효과: {names[state.lastItemEffect.actor]} · {cardNames[state.lastItemEffect.type] ?? state.lastItemEffect.type}</p>}
+    </section>
     <details className="tuning-panel">
       <summary>물리값 조절 · 로컬 전용 <span>현재 힘 {state?.settings.maximumImpulse ?? '—'} / 감속 {state?.settings.deceleration ?? '—'} / 반발 {state?.settings.restitution ?? '—'}</span></summary>
       <p>값을 바꾼 뒤 ‘적용하고 새 판’을 누르면 양쪽 화면에 반영됩니다. 진행 중인 판은 초기화됩니다.</p>
@@ -120,7 +163,8 @@ function App() {
       <color attach="background" args={['#253d37']} /><ambientLight intensity={1.8} />
       <directionalLight position={[3, 10, 6]} intensity={2.5} castShadow shadow-mapSize={[1024, 1024]} />
       <Scene state={state} replay={replay} enabled={connected && !pending && state?.stage === 'AIMING' && state.turn === actor}
-        shoot={shoot} explain={setNotice} blockedReason={instruction} />
+        shoot={shoot} explain={setNotice} blockedReason={instruction}
+        itemMode={item?.type ?? null} itemTargets={targets} pickTarget={pickTarget} cancelItem={cancelItem} />
     </Canvas></div>
     <footer><p role="status">{notice}</p><div className="buttons">
       {actor === 0 && <button className="secondary" disabled={!connected || pending} onClick={() => send({ type: 'RESET' })}>새 판</button>}
@@ -132,8 +176,8 @@ function App() {
 
 type Aim = { piece: Piece; origin: Vector3; end: Vector3; start: { x: number; y: number }
   moved: number; pointerId: number; gameId: string; version: number }
-function Scene({ state, replay, enabled, shoot, explain, blockedReason }: { state: Snapshot | null; replay: AlkkagiReplay; enabled: boolean
-  shoot(p: Piece, dx: number, dy: number, power: number): void; explain(message: string): void; blockedReason: string }) {
+function Scene({ state, replay, enabled, shoot, explain, blockedReason, itemMode, itemTargets, pickTarget, cancelItem }: { state: Snapshot | null; replay: AlkkagiReplay; enabled: boolean
+  shoot(p: Piece, dx: number, dy: number, power: number): void; explain(message: string): void; blockedReason: string; itemMode: string | null; itemTargets: string[]; pickTarget(piece: Piece): void; cancelItem(): void }) {
   const groups = useRef(new Map<string, Group>())
   const displayed = useRef({ gameId: '', generation: -1, alive: new Map<string, boolean>() })
   const { gl, camera, raycaster } = useThree()
@@ -171,7 +215,7 @@ function Scene({ state, replay, enabled, shoot, explain, blockedReason }: { stat
       } else explain(`${a.piece.type} 선택됨 · 클릭/작은 흔들림으로는 발사되지 않습니다. 다시 누르고 당겨주세요.`)
     }
     const key = (e: KeyboardEvent) => { if (e.key === 'Escape') clear() }
-    const cancel = (e: Event) => { e.preventDefault(); clear() }
+    const cancel = (e: Event) => { e.preventDefault(); clear(); cancelItem() }
     canvas.addEventListener('pointermove', move); canvas.addEventListener('pointerup', up)
     canvas.addEventListener('pointercancel', clear); canvas.addEventListener('contextmenu', cancel)
     window.addEventListener('keydown', key); window.addEventListener('blur', clear)
@@ -179,7 +223,7 @@ function Scene({ state, replay, enabled, shoot, explain, blockedReason }: { stat
       canvas.removeEventListener('pointercancel', clear); canvas.removeEventListener('contextmenu', cancel)
       window.removeEventListener('keydown', key); window.removeEventListener('blur', clear) }
   }, [camera, gl, raycaster, floor, enabled, state?.gameId, state?.version, shoot])
-  useEffect(clear, [enabled, state?.gameId, state?.version])
+  useEffect(clear, [enabled, state?.gameId, state?.version, itemMode])
   useFrame((_, delta) => {
     const frame = replay.sample(performance.now())
     if (!frame) return
@@ -224,6 +268,12 @@ function Scene({ state, replay, enabled, shoot, explain, blockedReason }: { stat
         e.stopPropagation()
         if (!enabled) { explain(blockedReason); return }
         if (!piece.alive || piece.owner !== actor) { explain('상대 알입니다. 내 팀 색깔의 알을 골라주세요.'); return }
+        if (itemMode) {
+          clear()
+          if (itemMode === 'SWAP') pickTarget(piece)
+          else explain('아이템 확정 또는 취소를 먼저 눌러주세요.')
+          return
+        }
         if (selected.current?.id !== piece.id) {
           clearAim(); selected.current = piece
           explain(`${piece.type} 선택됨 · 먼저 클릭해 선택했습니다. 이제 이 알을 다시 누르고 당겨주세요.`)
@@ -239,6 +289,12 @@ function Scene({ state, replay, enabled, shoot, explain, blockedReason }: { stat
       }}><cylinderGeometry args={[piece.radius, piece.radius * 1.03, .27, 8]} /><meshStandardMaterial color="#f0d5a1" roughness={.65} /></mesh>
       <Label piece={piece} />
     </group>)}
+    {itemTargets.map(id => {
+      const piece = pieces.find(p => p.id === id)
+      return piece ? <mesh key={id} position={[piece.x, .32, piece.y]} rotation={[-Math.PI / 2, 0, 0]} raycast={() => {}}>
+        <ringGeometry args={[piece.radius * 1.15, piece.radius * 1.32, 48]} /><meshBasicMaterial color="#5fffe6" depthWrite={false} />
+      </mesh> : null
+    })}
     <primitive object={arrow} />
     <mesh ref={selectionRing} visible={false} rotation={[-Math.PI / 2, 0, 0]} raycast={() => {}}>
       <ringGeometry args={[1, 1.13, 48]} /><meshBasicMaterial color="#fff38b" depthWrite={false} />
