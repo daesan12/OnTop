@@ -77,7 +77,8 @@ function ChatPanel({ gameId }: { gameId: string }) {
     const key = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.isComposing || event.keyCode === 229 || event.repeat
         || event.ctrlKey || event.altKey || event.metaKey || anotherPanel()) return
-      if (textControl(event.target) && event.target !== input.current) return
+      if ((textControl(event.target) && event.target !== input.current)
+        || (textControl(document.activeElement) && document.activeElement !== input.current)) return
       if (event.code === 'Escape' && (open || history || previewUntil)) {
         event.preventDefault(); setHistory(false); close(); return
       }
