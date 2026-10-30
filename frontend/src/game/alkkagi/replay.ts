@@ -1,6 +1,6 @@
 export interface Piece {
   id: string; owner: number; type: string; x: number; y: number; vx: number; vy: number
-  radius: number; mass: number; alive: boolean; launchSpeed?: number
+  radius: number; mass: number; alive: boolean; launchSpeed?: number; modifier?: string | null; restorePending?: boolean
 }
 export interface Snapshot {
   gameId: string; version: number; tick: number; simulationId: number; serverNow: number
@@ -9,6 +9,10 @@ export interface Snapshot {
   pieces: Piece[]; timeouts: number[]; provisional: boolean
   settings: { halfWidth: number; halfHeight: number; maximumImpulse: number; deceleration: number; restitution: number }
   modelId?: string; inputCurveBoost?: number
+  wall?: { owner: number; x: number; y: number; length: number; thickness: number; angle: number; expiresAfterTurn: number } | null
+  wallsUsed?: number[]; boostedPieceId?: string | null
+  itemRules?: { wallLength: number; wallThickness: number; wallMargin: number; relocateDistance: number; powerMultiplier: number;
+    growScale: number; shrinkScale: number; defendMassMultiplier: number; effectOpponentTurns: number }
   itemUsedThisTurn?: boolean; extraShotsRemaining?: number
   lastItemEffect?: { version: number; turnNumber: number; actor: number; type: string; targets: string[] } | null
 }

@@ -33,12 +33,7 @@ test('실제 드래그 발사를 두 브라우저가 같은 서버 상태로 받
   await page.locator('canvas').scrollIntoViewIfNeeded()
   const rect = (await page.locator('canvas').boundingBox())!
   const aimVersion = red.at(-1).state.version
-  // 첫 동작은 선택만 한다. 크게 끌어 놓아도 발사가 되어서는 안 된다.
-  await page.mouse.move(rect.x + rect.width / 2, rect.y + rect.height * .60)
-  await page.mouse.down()
-  await page.mouse.move(rect.x + rect.width / 2, rect.y + rect.height * .78, { steps: 8 })
-  await page.mouse.up()
-  await expect(page.getByRole('status')).toContainText('선택됨')
+  // 클릭/미세 흔들림은 발사하지 않는다. 이후 첫 드래그 자체가 바로 발사된다.
   // 선택된 알의 가장자리 클릭과 미세한 흔들림도 차례를 소비하지 않는다.
   await page.mouse.click(rect.x + rect.width / 2 + 5, rect.y + rect.height * .60)
   await page.mouse.move(rect.x + rect.width / 2, rect.y + rect.height * .60)
@@ -48,7 +43,6 @@ test('실제 드래그 발사를 두 브라우저가 같은 서버 상태로 받
   await expect.poll(() => red.at(-1)?.state.version).toBe(aimVersion)
   expect(red.at(-1).state.simulationId).toBe(0)
   expect(red.at(-1).state.turn).toBe(0)
-  await page.mouse.click(rect.x + rect.width / 2, rect.y + rect.height * .60)
   await page.screenshot({ path: '.vite-cache/alkkagi-test-results/selected-piece.png', fullPage: true })
   await page.mouse.move(rect.x + rect.width / 2, rect.y + rect.height * .60)
   await page.mouse.down()
@@ -83,7 +77,7 @@ test('로컬 조절 패널이 서버와 다른 화면에 적용되고 기본값�
   }))
   await page.goto('/alkkagi-preview.html?role=red')
   await expect(page.getByText('연결됨', { exact: true })).toBeVisible()
-  await page.locator('.tuning-panel summary').click()
+  await page.locator('.tuning-panel summary').filter({ hasText: '물리값 조절' }).click()
   await page.getByRole('spinbutton', { name: '발사 힘 값', exact: true }).fill('15')
   await page.getByRole('spinbutton', { name: '감속 값', exact: true }).fill('7')
   await page.getByRole('spinbutton', { name: '반발 값', exact: true }).fill('0.75')
@@ -94,8 +88,8 @@ test('로컬 조절 패널이 서버와 다른 화면에 적용되고 기본값�
   expect(states.at(-1).stage).toBe('WAITING')
   const green = await context.newPage()
   await green.goto('/alkkagi-preview.html?role=green')
-  await expect(green.locator('.tuning-panel summary')).toContainText('현재 힘 15 / 감속 7 / 반발 0.75')
-  await green.locator('.tuning-panel summary').click()
+  await expect(green.locator('.tuning-panel summary').filter({ hasText: '물리값 조절' })).toContainText('현재 힘 15 / 감속 7 / 반발 0.75')
+  await green.locator('.tuning-panel summary').filter({ hasText: '물리값 조절' }).click()
   await expect(green.getByRole('spinbutton', { name: '발사 힘 값', exact: true })).toBeDisabled()
   await page.getByRole('spinbutton', { name: '감속 값', exact: true }).fill('0')
   await expect(page.getByRole('button', { name: '적용하고 새 판', exact: true })).toBeDisabled()

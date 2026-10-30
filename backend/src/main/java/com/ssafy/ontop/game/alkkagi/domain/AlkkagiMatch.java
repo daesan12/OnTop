@@ -15,6 +15,11 @@ import org.dyn4j.world.World;
 public final class AlkkagiMatch {
     private final AlkkagiSettings settings;
     private final AlkkagiPhysics physics;
+    private final AlkkagiItemRules itemRules;
+    private WallView wall;
+    private Body wallBody;
+    private final int[] wallsUsed = new int[2];
+    private String boostedPieceId;
     private final World<Body> world = new World<>();
     private final Map<String, Piece> pieces = new LinkedHashMap<>();
     private final Map<String, Receipt> receipts = new LinkedHashMap<>();
@@ -42,7 +47,16 @@ public final class AlkkagiMatch {
         this(settings, AlkkagiPhysics.experimental());
     }
 
+    public AlkkagiMatch(AlkkagiSettings settings, AlkkagiItemRules itemRules) {
+        this(settings, AlkkagiPhysics.experimental(), itemRules);
+    }
+
     AlkkagiMatch(AlkkagiSettings settings, AlkkagiPhysics physics) {
+        this(settings, physics, AlkkagiItemRules.localPreview());
+    }
+
+    private AlkkagiMatch(AlkkagiSettings settings, AlkkagiPhysics physics, AlkkagiItemRules itemRules) {
+        this.itemRules = java.util.Objects.requireNonNull(itemRules);
         this.settings = settings;
         this.physics = physics;
         world.setGravity(World.ZERO_GRAVITY);
@@ -118,8 +132,12 @@ public final class AlkkagiMatch {
                 && shot.power() > 0 && shot.power() <= 1, "INVALID_SHOT");
         double length = Math.hypot(shot.dx(), shot.dy());
         require(Double.isFinite(length) && length >= 0.0001 && length <= 1.0001, "INVALID_DIRECTION");
+        require(boostedPieceId == null || boostedPieceId.equals(piece.id), "BOOST_TARGET_REQUIRED");
+        double boost = boostedPieceId == null ? 1 : itemRules.powerMultiplier();
         piece.body.applyImpulse(new Vector2(shot.dx() / length, shot.dy() / length)
-                .multiply(physics.launchImpulse(settings.maximumImpulse(), shot.power(), physics.profile(piece.type))));
+                .multiply(physics.launchImpulse(settings.maximumImpulse(), shot.power(), physics.profile(piece.type))
+                        * piece.mass / piece.baseMass * boost));
+        boostedPieceId = null;
         timeouts[actor] = 0;
         shotsThisTurn++;
         stage = "SIMULATING";
@@ -167,6 +185,8 @@ public final class AlkkagiMatch {
         require(!itemUsedThisTurn && shotsThisTurn == 0, "ITEM_ALREADY_USED_OR_SHOT");
         var card = inventory.requireCard(actor, input.cardId());
         var targets = input.targetPieceIds();
+        require(input.placement() == null || card.type() == AlkkagiInventory.Type.WALL
+                || card.type() == AlkkagiInventory.Type.RELOCATE, "INVALID_PLACEMENT");
         if (card.type() == AlkkagiInventory.Type.SWAP) {
             require(targets != null && targets.size() == 2 && !targets.get(0).equals(targets.get(1)), "INVALID_TARGETS");
             var a = pieces.get(targets.get(0)); var b = pieces.get(targets.get(1));
@@ -181,8 +201,37 @@ public final class AlkkagiMatch {
         } else if (card.type() == AlkkagiInventory.Type.EXTRA_SHOT) {
             require(targets != null && targets.isEmpty(), "INVALID_TARGETS");
             extraShotActivated = true;
+        } else if (card.type() == AlkkagiInventory.Type.WALL) {
+            require(targets != null && targets.isEmpty() && input.placement() != null, "INVALID_TARGETS");
+            placeWall(actor, input.placement());
         } else {
-            throw new IllegalArgumentException("ITEM_POLICY_PENDING");
+            require(targets != null && targets.size() == 1, "INVALID_TARGETS");
+            var piece = pieces.get(targets.getFirst());
+            require(piece != null && piece.alive && piece.owner == actor, "NOT_YOUR_PIECE");
+            if (card.type() == AlkkagiInventory.Type.RELOCATE) {
+                require(input.placement() != null, "INVALID_PLACEMENT");
+                var destination = input.placement();
+                validatePlacement(destination);
+                require(piece.body.getWorldCenter().distance(destination.x(), destination.y()) <= itemRules.relocateDistance(), "RELOCATE_TOO_FAR");
+                require(fits(destination.x(), destination.y(), piece.radius, piece, null, true), "ITEM_OVERLAP_OR_OUTSIDE");
+                var at = piece.body.getWorldCenter().copy();
+                piece.body.translate(destination.x() - at.x, destination.y() - at.y);
+                world.setUpdateRequired(true);
+            } else if (card.type() == AlkkagiInventory.Type.POWER_UP) {
+                boostedPieceId = piece.id;
+            } else {
+                require(piece.modifier == null, "MODIFIER_ACTIVE");
+                double scale = card.type() == AlkkagiInventory.Type.GROW ? itemRules.growScale()
+                        : card.type() == AlkkagiInventory.Type.SHRINK ? itemRules.shrinkScale() : 1;
+                double mass = piece.baseMass * (card.type() == AlkkagiInventory.Type.DEFEND
+                        ? itemRules.defendMassMultiplier() : scale * scale);
+                var at = piece.body.getWorldCenter();
+                require(card.type() == AlkkagiInventory.Type.DEFEND
+                        || fits(at.x, at.y, piece.baseRadius * scale, piece, null, true), "ITEM_OVERLAP_OR_OUTSIDE");
+                resize(piece, piece.baseRadius * scale, mass);
+                piece.modifier = card.type().name();
+                piece.expiresAfterTurn = turnNumber + itemRules.effectOpponentTurns() * 2 - 1;
+            }
         }
         inventory.consume(actor, input.cardId());
         itemUsedThisTurn = true;
@@ -198,6 +247,69 @@ public final class AlkkagiMatch {
             if (other.alive && other != a && other != b) {
                 require(destination.distance(other.body.getWorldCenter()) >= moving.radius + other.radius - 1e-9, "ITEM_OVERLAP");
             }
+        }
+        require(wall == null || !AlkkagiWallGeometry.overlaps(destination.x, destination.y, moving.radius, wall), "ITEM_OVERLAP");
+    }
+
+    private boolean fits(double x, double y, double radius, Piece a, Piece b, boolean fullInside) {
+        double margin = fullInside ? radius : 0;
+        if (Math.abs(x) + margin > settings.halfWidth() || Math.abs(y) + margin > settings.halfHeight()) return false;
+        for (var other : pieces.values()) {
+            if (other.alive && other != a && other != b
+                    && Math.hypot(x - other.body.getWorldCenter().x, y - other.body.getWorldCenter().y) < radius + other.radius - 1e-9) return false;
+        }
+        return wall == null || !AlkkagiWallGeometry.overlaps(x, y, radius, wall);
+    }
+
+    private void validatePlacement(Placement p) {
+        require(Double.isFinite(p.x()) && Double.isFinite(p.y()) && Double.isFinite(p.angle())
+                && Math.abs(p.angle()) <= Math.PI, "INVALID_PLACEMENT");
+    }
+
+    private void placeWall(int actor, Placement p) {
+        validatePlacement(p);
+        require(wall == null, "WALL_ALREADY_EXISTS");
+        require(wallsUsed[actor] < 3, "WALL_LIMIT");
+        double c = Math.abs(Math.cos(p.angle())), s = Math.abs(Math.sin(p.angle()));
+        double halfX = (c * itemRules.wallLength() + s * itemRules.wallThickness()) / 2;
+        double halfY = (s * itemRules.wallLength() + c * itemRules.wallThickness()) / 2;
+        require(Math.abs(p.x()) + halfX + itemRules.wallMargin() <= settings.halfWidth()
+                && Math.abs(p.y()) + halfY + itemRules.wallMargin() <= settings.halfHeight(), "ITEM_OUTSIDE_BOARD");
+        var candidate = new WallView(actor, p.x(), p.y(), itemRules.wallLength(), itemRules.wallThickness(), p.angle(), turnNumber + 1);
+        for (var piece : pieces.values()) {
+            var at = piece.body.getWorldCenter();
+            require(!piece.alive || !AlkkagiWallGeometry.overlaps(at.x, at.y, piece.radius + .02, candidate), "ITEM_OVERLAP");
+        }
+        Body body = new Body();
+        var fixture = body.addFixture(Geometry.createRectangle(candidate.length(), candidate.thickness()));
+        fixture.setRestitution(settings.restitution()); fixture.setFriction(.15);
+        body.setMass(MassType.INFINITE); body.rotate(p.angle()); body.translate(p.x(), p.y());
+        world.addBody(body); world.setUpdateRequired(true);
+        wall = candidate; wallBody = body; wallsUsed[actor]++;
+    }
+
+    private void resize(Piece piece, double radius, double mass) {
+        piece.body.removeAllFixtures();
+        var fixture = piece.body.addFixture(Geometry.createCircle(radius));
+        fixture.setDensity(mass / (Math.PI * radius * radius)); fixture.setRestitution(settings.restitution()); fixture.setFriction(.15);
+        piece.body.setMass(MassType.FIXED_ANGULAR_VELOCITY);
+        piece.radius = radius; piece.mass = mass;
+        world.setUpdateRequired(true);
+    }
+
+    private void endTurnEffects() {
+        boostedPieceId = null;
+        if (wall != null && turnNumber >= wall.expiresAfterTurn()) {
+            world.removeBody(wallBody); wall = null; wallBody = null; world.setUpdateRequired(true);
+        }
+        for (var piece : pieces.values()) {
+            if (piece.modifier == null || turnNumber < piece.expiresAfterTurn) continue;
+            var at = piece.body.getWorldCenter();
+            // 같은 크기/축소 원복에는 새 공간이 필요 없다. 축소 효과의 확대 원복만 검사한다.
+            if (!piece.alive || piece.baseRadius <= piece.radius
+                    || fits(at.x, at.y, piece.baseRadius, piece, null, true)) {
+                resize(piece, piece.baseRadius, piece.baseMass); piece.modifier = null; piece.restorePending = false;
+            } else piece.restorePending = true;
         }
     }
 
@@ -298,6 +410,7 @@ public final class AlkkagiMatch {
     }
 
     private void nextTurn(long now) {
+        endTurnEffects();
         turn = 1 - turn;
         turnNumber++;
         turnDeadline = now + settings.turnMillis();
@@ -315,12 +428,13 @@ public final class AlkkagiMatch {
             Vector2 v = piece.body.getLinearVelocity();
             views.add(new PieceView(piece.id, piece.owner, piece.type, at.x, at.y, v.x, v.y,
                     piece.radius, piece.mass, piece.alive,
-                    physics.maximumSpeed(settings.maximumImpulse(), physics.profile(piece.type))));
+                    physics.maximumSpeed(settings.maximumImpulse(), physics.profile(piece.type))
+                            * (piece.id.equals(boostedPieceId) ? itemRules.powerMultiplier() : 1), piece.modifier, piece.restorePending));
         }
         return new Snapshot(gameId, version, tick, simulationId, stage, turn, turnNumber,
                 turnDeadline, matchDeadline, now, winner, reason, List.copyOf(views),
                 List.of(timeouts[0], timeouts[1]), settings, true, "separated-v1", physics.inputBoost(),
-                itemUsedThisTurn, !stage.equals("FINISHED") && extraShotActivated && shotsThisTurn < 2 ? 1 : 0, lastItemEffect);
+                itemUsedThisTurn, !stage.equals("FINISHED") && extraShotActivated && shotsThisTurn < 2 ? 1 : 0, lastItemEffect, wall, List.of(wallsUsed[0], wallsUsed[1]), boostedPieceId, itemRules);
     }
 
     private static void require(boolean condition, String code) {
@@ -329,7 +443,11 @@ public final class AlkkagiMatch {
 
     public record Shot(String gameId, String actionId, long expectedVersion, String pieceId,
             double dx, double dy, double power) { }
-    public record ItemUse(String gameId, String actionId, long expectedVersion, String cardId, List<String> targetPieceIds) {
+    public record Placement(double x, double y, double angle) { }
+    public record ItemUse(String gameId, String actionId, long expectedVersion, String cardId, List<String> targetPieceIds, Placement placement) {
+        public ItemUse(String gameId, String actionId, long expectedVersion, String cardId, List<String> targetPieceIds) {
+            this(gameId, actionId, expectedVersion, cardId, targetPieceIds, null);
+        }
         public ItemUse {
             if (targetPieceIds != null) {
                 require(targetPieceIds.size() <= 2 && targetPieceIds.stream().allMatch(id -> id != null && !id.isBlank()), "INVALID_TARGETS");
@@ -338,28 +456,34 @@ public final class AlkkagiMatch {
         }
     }
     public record ItemEffect(long version, int turnNumber, int actor, String type, List<String> targets) { }
+    public record WallView(int owner, double x, double y, double length, double thickness, double angle, int expiresAfterTurn) { }
     public record CardView(String id, String type) { }
     public record PrivateView(String gameId, long version, List<CardView> cards) { }
     public record PieceView(String id, int owner, String type, double x, double y, double vx, double vy,
-            double radius, double mass, boolean alive, double launchSpeed) { }
+            double radius, double mass, boolean alive, double launchSpeed, String modifier, boolean restorePending) { }
     public record Snapshot(String gameId, long version, long tick, long simulationId, String stage,
             int turn, int turnNumber, long turnDeadline, long matchDeadline, long serverNow,
             Integer winner, String endReason, List<PieceView> pieces, List<Integer> timeouts,
             AlkkagiSettings settings, boolean provisional, String modelId, double inputCurveBoost,
-            boolean itemUsedThisTurn, int extraShotsRemaining, ItemEffect lastItemEffect) { }
+            boolean itemUsedThisTurn, int extraShotsRemaining, ItemEffect lastItemEffect, WallView wall, List<Integer> wallsUsed, String boostedPieceId, AlkkagiItemRules itemRules) { }
     private record Receipt(Object command, long version) { }
     private static final class Piece {
         private final String id;
         private final int owner;
         private final String type;
-        private final double radius;
-        private final double mass;
+        private double radius;
+        private double mass;
+        private final double baseRadius;
+        private final double baseMass;
+        private String modifier;
+        private int expiresAfterTurn;
+        private boolean restorePending;
         private final Body body;
         private boolean alive = true;
 
         private Piece(String id, int owner, String type, double radius, double mass, Body body) {
             this.id = id; this.owner = owner; this.type = type;
-            this.radius = radius; this.mass = mass; this.body = body;
+            this.radius = radius; this.mass = mass; this.baseRadius = radius; this.baseMass = mass; this.body = body;
         }
     }
 }

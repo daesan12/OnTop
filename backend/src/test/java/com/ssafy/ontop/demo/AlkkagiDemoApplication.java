@@ -3,6 +3,7 @@ package com.ssafy.ontop.demo;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ssafy.ontop.game.alkkagi.domain.AlkkagiMatch;
+import com.ssafy.ontop.game.alkkagi.domain.AlkkagiItemRules;
 import com.ssafy.ontop.game.alkkagi.domain.AlkkagiSettings;
 import java.io.IOException;
 import java.util.Map;
@@ -67,13 +68,14 @@ public final class AlkkagiDemoApplication {
         private final ArrayBlockingQueue<Runnable> commands = new ArrayBlockingQueue<>(64);
         private AlkkagiMatch match;
         private AlkkagiSettings tuning = AlkkagiSettings.provisional();
+        private AlkkagiItemRules itemRules = AlkkagiItemRules.localPreview();
         private long sequence;
         private int frames;
 
         public DemoSocket(ObjectMapper mapper) {
             this.mapper = mapper;
             // 생성부터 변경·조회까지 dyn4j 접근은 오직 이 스레드에서만 수행한다.
-            physics.execute(() -> match = new AlkkagiMatch(tuning));
+            physics.execute(() -> match = new AlkkagiMatch(tuning, itemRules));
             physics.scheduleAtFixedRate(this::step, 0, 8_333_333, TimeUnit.NANOSECONDS);
         }
 
@@ -141,7 +143,7 @@ public final class AlkkagiDemoApplication {
                     match.start(System.currentTimeMillis());
                 } else if (type.equals("RESET")) {
                     if (client.actor != 0) { throw new IllegalArgumentException("RED_RESET_ONLY"); }
-                    match = new AlkkagiMatch(tuning);
+                    match = new AlkkagiMatch(tuning, itemRules);
                 } else if (type.equals("TUNE") || type.equals("TUNE_RESET")) {
                     if (client.actor != 0) { throw new IllegalArgumentException("RED_TUNING_ONLY"); }
                     var current = match.snapshot(System.currentTimeMillis());
@@ -154,9 +156,28 @@ public final class AlkkagiDemoApplication {
                     AlkkagiSettings next = type.equals("TUNE_RESET") ? AlkkagiSettings.provisional()
                             : readTuning(input);
                     // 미리보기 값으로 현재 발사를 바꾸지 않고, 명시적으로 새 판을 만든다.
-                    AlkkagiMatch replacement = new AlkkagiMatch(next);
+                    AlkkagiMatch replacement = new AlkkagiMatch(next, itemRules);
                     tuning = next;
                     match = replacement;
+                    client.offer("{\"type\":\"TUNING_APPLIED\"}");
+                } else if (type.equals("TUNE_ITEMS")) {
+                    if (client.actor != 0) throw new IllegalArgumentException("RED_TUNING_ONLY");
+                    var current = match.snapshot(System.currentTimeMillis());
+                    if (!input.path("gameId").asText().equals(current.gameId())
+                            || !input.path("expectedVersion").isIntegralNumber() || !input.path("expectedVersion").canConvertToLong()
+                            || input.path("expectedVersion").asLong(-1) != current.version())
+                        throw new IllegalArgumentException("STALE_TUNING");
+                    var r = input.path("rules");
+                    var fields = java.util.List.of("wallLength", "wallThickness", "wallMargin", "relocateDistance", "powerMultiplier",
+                            "growScale", "shrinkScale", "defendMassMultiplier", "effectOpponentTurns");
+                    if (!r.isObject() || r.size() != fields.size() || fields.stream().anyMatch(f -> !r.path(f).isNumber())
+                            || !r.path("effectOpponentTurns").isIntegralNumber() || !r.path("effectOpponentTurns").canConvertToInt())
+                        throw new IllegalArgumentException("INVALID_ITEM_RULES");
+                    var next = new AlkkagiItemRules(r.path("wallLength").asDouble(), r.path("wallThickness").asDouble(),
+                            r.path("wallMargin").asDouble(), r.path("relocateDistance").asDouble(), r.path("powerMultiplier").asDouble(),
+                            r.path("growScale").asDouble(), r.path("shrinkScale").asDouble(), r.path("defendMassMultiplier").asDouble(),
+                            r.path("effectOpponentTurns").asInt());
+                    match = new AlkkagiMatch(tuning, next); itemRules = next;
                     client.offer("{\"type\":\"TUNING_APPLIED\"}");
                 } else if (type.equals("TEST_CARDS")) {
                     if (client.actor != 0) throw new IllegalArgumentException("RED_PRACTICE_ONLY");
@@ -169,12 +190,20 @@ public final class AlkkagiDemoApplication {
                     if (!current.stage().equals("WAITING") || !match.privateView(0).cards().isEmpty()
                             || !match.privateView(1).cards().isEmpty())
                         throw new IllegalArgumentException("PRACTICE_WAITING_ONLY");
-                    for (int actor = 0; actor < 2; actor++) {
-                        match.receiveCard(actor, "SWAP"); match.receiveCard(actor, "EXTRA_SHOT");
-                    }
+                    var types = new java.util.ArrayList<String>();
+                    if (input.has("cards")) {
+                        if (!input.path("cards").isArray() || input.path("cards").size() < 1 || input.path("cards").size() > 2)
+                            throw new IllegalArgumentException("INVALID_PRACTICE_CARDS");
+                        var allowed = java.util.Set.of("WALL", "RELOCATE", "POWER_UP", "GROW", "SHRINK", "EXTRA_SHOT", "SWAP", "DEFEND");
+                        for (var card : input.path("cards")) {
+                            if (!card.isTextual() || !allowed.contains(card.asText())) throw new IllegalArgumentException("INVALID_CARD_TYPE");
+                            types.add(card.asText());
+                        }
+                    } else { types.add("SWAP"); types.add("EXTRA_SHOT"); }
+                    for (int actor = 0; actor < 2; actor++) for (var cardType : types) match.receiveCard(actor, cardType);
                 } else if (type.equals("ITEM_USE")) {
                     var fields = input.fieldNames();
-                    var allowed = java.util.Set.of("type", "gameId", "actionId", "expectedVersion", "cardId", "targetPieceIds");
+                    var allowed = java.util.Set.of("type", "gameId", "actionId", "expectedVersion", "cardId", "targetPieceIds", "placement");
                     while (fields.hasNext()) {
                         if (!allowed.contains(fields.next())) throw new IllegalArgumentException("UNKNOWN_FIELD");
                     }
@@ -186,9 +215,16 @@ public final class AlkkagiDemoApplication {
                         if (!target.isTextual()) throw new IllegalArgumentException("INVALID_TARGETS");
                         targets.add(target.asText());
                     }
+                    AlkkagiMatch.Placement placement = null;
+                    if (input.has("placement")) {
+                        var p = input.path("placement");
+                        if (!p.isObject() || p.size() != 3 || !p.path("x").isNumber() || !p.path("y").isNumber()
+                                || !p.path("angle").isNumber()) throw new IllegalArgumentException("INVALID_PLACEMENT");
+                        placement = new AlkkagiMatch.Placement(p.path("x").asDouble(), p.path("y").asDouble(), p.path("angle").asDouble());
+                    }
                     long accepted = match.useItem(client.actor, new AlkkagiMatch.ItemUse(input.path("gameId").asText(),
                             input.path("actionId").asText(), input.path("expectedVersion").asLong(),
-                            input.path("cardId").asText(), targets), System.currentTimeMillis());
+                            input.path("cardId").asText(), targets, placement), System.currentTimeMillis());
                     client.offer(mapper.writeValueAsString(Map.of("type", "ITEM_ACCEPTED", "version", accepted,
                             "actionId", input.path("actionId").asText())));
                 } else if (type.equals("SHOT")) {

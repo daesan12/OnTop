@@ -17,3 +17,5 @@ button { background: #285945; color: white; border: none; border-radius: 7px; pa
 @media(max-width: 650px) { main { padding: 0 12px; margin-top: 14px; }.stats strong { font-size: 16px; }h1 { font-size: 22px; }.board { min-height: 410px; } }
 
 .item-panel{background:#fffdf5;border:1px solid #bdcdbb;border-radius:12px;padding:16px;margin:12px 0}.item-panel strong{display:block;margin-bottom:10px}.item-panel button[aria-pressed=true]{outline:3px solid #d69b41}.item-panel small{display:block;margin-top:10px}
+
+.item-rule{display:inline-flex;gap:10px;align-items:center;margin:8px 18px 8px 0}.item-rule input{width:85px}select{padding:8px;border:1px solid #bdcdbb;border-radius:6px;background:#fffdf5}

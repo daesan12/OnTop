@@ -15,12 +15,18 @@ const errorNames: Record<string, string> = {
   STALE_GAME: '새 판으로 변경됐습니다.', PLAYER_REQUIRED: '관전자는 발사할 수 없습니다.',
   STALE_TUNING: '판이 바뀌었습니다. 최신 상태에서 다시 적용해주세요.',
   INVALID_TUNING: '조절 범위를 확인해주세요. 발사 힘 0.5~30 / 감속 0.1~60 / 반발 0~1',
+  ITEM_OVERLAP: '다른 알이나 벽과 겹칩니다. 위치를 다시 골라주세요.',
+  ITEM_OVERLAP_OR_OUTSIDE: '겹치거나 판 밖인 위치입니다.', RELOCATE_TOO_FAR: '이동 가능 거리를 넘었습니다.',
+  WALL_ALREADY_EXISTS: '현재 벽이 사라진 뒤 설치할 수 있습니다.', WALL_LIMIT: '경기당 벽 3회를 모두 사용했습니다.',
+  MODIFIER_ACTIVE: '이 알의 기존 크기·방어 효과가 끝난 뒤 사용해주세요.', BOOST_TARGET_REQUIRED: '힘 강화한 알로 발사해주세요.',
+  INVALID_ITEM_RULES: '아이템 조절 범위를 확인해주세요.',
   RED_TUNING_ONLY: '홍팀 화면에서 물리값을 조절해주세요.',
 }
 
 type Card = { id: string; type: string }
 type PrivateState = { gameId: string; version: number; cards: Card[] }
-const cardNames: Record<string, string> = { SWAP: '내 알 위치 교환', EXTRA_SHOT: '한 번 더 튕기기' }
+const cardNames: Record<string, string> = { SWAP: '내 알 위치 교환', EXTRA_SHOT: '한 번 더 튕기기',
+  WALL: '벽 설치', RELOCATE: '알 재배치', POWER_UP: '힘 강화', GROW: '크기 확대', SHRINK: '크기 축소', DEFEND: '방어 자세' }
 
 function App() {
   const replay = useMemo(() => new AlkkagiReplay(), [])
@@ -31,7 +37,12 @@ function App() {
   const [seq, setSeq] = useState(0)
   const [hand, setHand] = useState<PrivateState | null>(null)
   const [item, setItem] = useState<Card | null>(null), [targets, setTargets] = useState<string[]>([])
-  const cancelItem = () => { setItem(null); setTargets([]) }
+  const [placement, setPlacement] = useState<{ x: number; y: number; angle: number } | null>(null)
+  const [practice, setPractice] = useState(['SWAP', 'EXTRA_SHOT'])
+  const [rules, setRules] = useState({ wallLength: 1.6, wallThickness: .18, wallMargin: .12, relocateDistance: 2,
+    powerMultiplier: 1.5, growScale: 1.25, shrinkScale: .8, defendMassMultiplier: 2, effectOpponentTurns: 1 })
+  useEffect(() => { if (state?.itemRules) setRules(state.itemRules) }, [state?.gameId])
+  const cancelItem = () => { setItem(null); setTargets([]); setPlacement(null) }
   useEffect(cancelItem, [state?.gameId, state?.version, connected])
   useEffect(() => {
     const cancel = (e: KeyboardEvent) => { if (e.key === 'Escape') cancelItem() }
@@ -49,7 +60,7 @@ function App() {
     const connect = () => {
       const ws = new WebSocket(`ws://127.0.0.1:19183/dev/alkkagi-ws?role=${encodeURIComponent(role)}`)
       socket.current = ws
-      ws.onopen = () => { replay.clear(); setConnected(true); setNotice('알을 먼저 클릭해 선택한 뒤, 다시 누르고 당겨 발사하세요.') }
+      ws.onopen = () => { replay.clear(); setConnected(true); setNotice('알을 누른 채 당겼다가 놓으면 발사됩니다. 클릭만 하면 발사되지 않습니다.') }
       ws.onmessage = event => {
         const msg = JSON.parse(event.data)
         if (msg.type === 'STATE') {
@@ -92,7 +103,7 @@ function App() {
   const canItem = connected && !pending && state?.stage === 'AIMING' && state.turn === actor
     && !state.itemUsedThisTurn && currentHand?.version === state.version
   const pickTarget = (piece: Piece) => setTargets(old => old.includes(piece.id)
-    ? old.filter(id => id !== piece.id) : old.length < 2 ? [...old, piece.id] : [old[1], piece.id])
+    ? old.filter(id => id !== piece.id) : item?.type === 'SWAP' ? old.length < 2 ? [...old, piece.id] : [old[1], piece.id] : [piece.id])
   const left = state?.stage === 'AIMING' ? Math.max(0, Math.ceil((state.turnDeadline - now) / 1000)) : null
   const result = state?.stage === 'FINISHED' ? state.winner === null ? '무승부 / 검증 종료' : `${names[state.winner]} 승리` : ''
   const instruction = !connected ? '서버에 연결되면 시작할 수 있어요.'
@@ -101,11 +112,11 @@ function App() {
     : state.stage === 'SIMULATING' ? '알이 움직이는 중입니다. 모두 멈추면 다음 차례가 됩니다.'
     : actor < 0 ? '관전 화면입니다. 홍팀·청팀 화면에서 발사할 수 있어요.'
     : state.turn !== actor ? `${names[state.turn]} 차례입니다. 해당 팀 화면에서 조작해주세요.`
-    : `내 차례! ${actor === 0 ? '빨간' : '초록'} 알 클릭으로 선택 → 다시 누르고 당겨서 발사`
+    : `내 차례! ${actor === 0 ? '빨간' : '초록'} 알을 누른 채 드래그 → 놓아서 발사`
   return <main>
     <header><div><span className="eyebrow">ONTOP · LOCAL PHYSICS LAB</span><h1>아이템 알까기 <small>기본 물리</small></h1></div>
       <div className={`connection ${connected ? 'on' : ''}`}>{connected ? '연결됨' : '연결 끊김'}</div></header>
-    <div className="provisional">영상 기준 16개/인·세 크기 그룹 · 물리값은 검수용 근사 · 위치 교환·추가 발사 연습 카드 제공 · 판돈 없음</div>
+    <div className="provisional">영상 기준 16개/인·세 크기 그룹 · 물리값은 검수용 근사 · 아이템8종 로컬 검수 · 미정 수치는 임시 설정 · 판돈 없음</div>
     <section className="stats"><div>내 역할<strong>{actor < 0 ? '관전자' : names[actor]}</strong></div>
       <div>현재 차례<strong>{result || (!state || state.stage === 'WAITING' ? '시작 대기' : `${names[state.turn]} · ${state.turnNumber}턴`)}</strong></div>
       <div>남은 시간<strong>{left === null ? state?.stage === 'SIMULATING' ? '충돌 계산 중' : '—' : `${left}초`}</strong></div>
@@ -116,24 +127,54 @@ function App() {
     <section className="item-panel" aria-label="비밀 카드">
       {actor >= 0 ? <>
         <strong>내 비밀 카드 ({currentHand?.cards.length ?? 0}/2)</strong>
-        {actor === 0 && state?.stage === 'WAITING' && <button disabled={!connected || pending || !currentHand || !!currentHand.cards.length}
-          onClick={() => state && send({ type: 'TEST_CARDS', gameId: state.gameId, expectedVersion: state.version })}>연습 카드 받기 (로컬)</button>}
+        {actor === 0 && state?.stage === 'WAITING' && <div className="buttons">
+          {practice.map((value, index) => <select key={index} aria-label={`연습 카드 ${index + 1}`} value={value}
+            onChange={e => setPractice(old => old.map((v, i) => i === index ? e.target.value : v))}>
+            {Object.entries(cardNames).map(([type, label]) => <option key={type} value={type}>{label}</option>)}
+          </select>)}
+          <button disabled={!connected || pending || !currentHand || !!currentHand.cards.length}
+          onClick={() => state && send({ type: 'TEST_CARDS', gameId: state.gameId, expectedVersion: state.version, cards: practice })}>연습 카드 받기 (로컬)</button></div>}
         <div className="buttons">{currentHand?.cards.map(card => <button key={card.id} disabled={!canItem}
-          aria-pressed={item?.id === card.id} onClick={() => { setItem(card); setTargets([]) }}>{cardNames[card.type] ?? card.type}</button>)}</div>
+          aria-pressed={item?.id === card.id} onClick={() => { setItem(card); setTargets([]); setPlacement(null) }}>{cardNames[card.type] ?? card.type}</button>)}</div>
         {item && <div>
-          <p>{item.type === 'SWAP' ? '교환할 내 알 두 개를 클릭하세요.' : '원래 30초 안에서 발사 한 번을 추가합니다. 시간이 늘어나지 않습니다.'}</p>
-          {item.type === 'SWAP' && <p>선택: {targets.join(' ↔ ') || '없음'} ({targets.length}/2)</p>}
-          <button disabled={!canItem || (item.type === 'SWAP' && targets.length !== 2)} onClick={() => {
+          <p>{item.type === 'SWAP' ? '교환할 내 알 두 개를 클릭하세요.' : item.type === 'EXTRA_SHOT'
+            ? '원래 30초 안에서 발사 한 번을 추가합니다. 시간이 늘어나지 않습니다.' : item.type === 'WALL'
+            ? '빈 판을 클릭해 벽 위치를 선택하고 각도를 조절하세요.' : item.type === 'RELOCATE'
+            ? '내 알 하나를 클릭한 뒤 빈 판을 클릭해 이동 위치를 선택하세요.' : '효과를 적용할 내 알 하나를 클릭하세요.'}</p>
+          {!['WALL', 'EXTRA_SHOT'].includes(item.type) && <p>선택: {targets.join(' ↔ ') || '없음'} ({targets.length}/{item.type === 'SWAP' ? 2 : 1})</p>}
+          {['WALL', 'RELOCATE'].includes(item.type) && <p>위치: {placement ? `${placement.x.toFixed(2)}, ${placement.y.toFixed(2)}` : '판을 클릭하세요'}
+            {item.type === 'WALL' && <label> 각도 <input aria-label="벽 각도" type="range" min={-180} max={180} step={15}
+              value={(placement?.angle ?? 0) * 180 / Math.PI} onChange={e => setPlacement(old => old
+                ? { ...old, angle: Number(e.target.value) * Math.PI / 180 } : null)} /></label>}</p>}
+          <button disabled={!canItem || (item.type === 'SWAP' ? targets.length !== 2 : !['WALL', 'EXTRA_SHOT'].includes(item.type) && targets.length !== 1) || (['WALL', 'RELOCATE'].includes(item.type) && !placement)} onClick={() => {
             if (!state) return
             send({ type: 'ITEM_USE', gameId: state.gameId, expectedVersion: state.version, actionId: crypto.randomUUID(),
-              cardId: item.id, targetPieceIds: item.type === 'SWAP' ? targets : [] })
+              cardId: item.id, targetPieceIds: ['WALL', 'EXTRA_SHOT'].includes(item.type) ? [] : targets,
+              ...(['WALL', 'RELOCATE'].includes(item.type) && placement ? { placement } : {}) })
           }}>아이템 확정</button> <button className="secondary" onClick={cancelItem}>아이템 취소</button>
         </div>}
         <small>테스트 지급은 실제 지급 규칙이 아닙니다 · 턴당 아이템 1개 · 첫 발사 전 사용 · 취소하면 소모되지 않습니다.</small>
       </> : <p>관전자는 미사용 카드 종류와 식별자를 받지 않습니다.</p>}
+      {state?.boostedPieceId && <p>힘 강화 대상: {state.boostedPieceId} · 이 알로 발사하세요.</p>}
+      {state?.pieces.filter(p => p.alive && p.modifier).map(p => <small key={p.id}>{p.id}: {cardNames[p.modifier!] ?? p.modifier}{p.restorePending ? ' · 원복 공간 대기' : ''}</small>)}
       {!!state?.extraShotsRemaining && <p>추가 발사 예약 1회 · 원래 제한시간 안에서만 사용</p>}
       {state?.lastItemEffect && <p>공개된 사용 효과: {names[state.lastItemEffect.actor]} · {cardNames[state.lastItemEffect.type] ?? state.lastItemEffect.type}</p>}
     </section>
+    <details className="tuning-panel">
+      <summary>아이템 수치 조절 · 로컬 임시값</summary>
+      <p>운영 확정 규칙이 아닙니다. 크기 변경 시 질량은 크기 배율의 제곱에 비례하며, 원복 자리가 겹치면 안전해질 때까지 보류합니다.</p>
+      {([
+        ['wallLength', '벽 길이', .5, 3, .1], ['wallThickness', '벽 두께', .1, .5, .01], ['wallMargin', '벽 가장자리 여백', .02, .4, .01],
+        ['relocateDistance', '재배치 거리', .5, 3, .1], ['powerMultiplier', '힘 강화 배율', 1.05, 2, .05],
+        ['growScale', '확대 배율', 1.05, 1.5, .05], ['shrinkScale', '축소 배율', .5, .95, .05],
+        ['defendMassMultiplier', '방어 질량 배율', 1.1, 4, .1], ['effectOpponentTurns', '효과 지속 상대 턴 수', 1, 3, 1],
+      ] as const).map(([key, title, min, max, step]) => <label key={key} className="item-rule">{title}
+        <input aria-label={title} type="number" min={min} max={max} step={step} disabled={actor !== 0} value={rules[key]}
+          onChange={e => setRules(old => ({ ...old, [key]: Number(e.target.value) }))} /></label>)}
+      {actor === 0 && <button disabled={!connected || pending || !state || Object.values(rules).some(v => !Number.isFinite(v))}
+        onClick={() => state && send({ type: 'TUNE_ITEMS', gameId: state.gameId, expectedVersion: state.version, rules })}>아이템 설정 적용하고 새 판</button>}
+      <small>벽은 전체1개·인당 경기3회, 상대의 다음 발사/스킵 턴 종료까지 유지합니다. 힘 강화는 지정 알의 이번 발사만 적용, 미발사 시 턴 종료에 해제합니다.</small>
+    </details>
     <details className="tuning-panel">
       <summary>물리값 조절 · 로컬 전용 <span>현재 힘 {state?.settings.maximumImpulse ?? '—'} / 감속 {state?.settings.deceleration ?? '—'} / 반발 {state?.settings.restitution ?? '—'}</span></summary>
       <p>값을 바꾼 뒤 ‘적용하고 새 판’을 누르면 양쪽 화면에 반영됩니다. 진행 중인 판은 초기화됩니다.</p>
@@ -164,20 +205,20 @@ function App() {
       <directionalLight position={[3, 10, 6]} intensity={2.5} castShadow shadow-mapSize={[1024, 1024]} />
       <Scene state={state} replay={replay} enabled={connected && !pending && state?.stage === 'AIMING' && state.turn === actor}
         shoot={shoot} explain={setNotice} blockedReason={instruction}
-        itemMode={item?.type ?? null} itemTargets={targets} pickTarget={pickTarget} cancelItem={cancelItem} />
+        itemMode={item?.type ?? null} itemTargets={targets} pickTarget={pickTarget} cancelItem={cancelItem} placement={placement} pickPlacement={(x, y) => setPlacement(old => ({ x, y, angle: old?.angle ?? 0 }))} />
     </Canvas></div>
     <footer><p role="status">{notice}</p><div className="buttons">
       {actor === 0 && <button className="secondary" disabled={!connected || pending} onClick={() => send({ type: 'RESET' })}>새 판</button>}
       <a href="?role=red">홍팀</a><a href="?role=green" target="_blank">청팀 화면 열기 ↗</a><a href="?role=viewer" target="_blank">관전 ↗</a>
-    </div><small>큰 알일수록 밀어내는 힘과 버티는 무게가 큽니다 · 클릭 선택 → 다시 눌러 드래그 · Esc / 우클릭 취소</small>
+    </div><small>큰 알일수록 밀어내는 힘과 버티는 무게가 큽니다 · 누른 채 드래그 → 놓아서 발사 · Esc / 우클릭 취소</small>
       <details><summary>동기화 정보</summary><code>snapshot {seq} · tick {state?.tick} · shot {state?.simulationId} · version {state?.version}<br />game {state?.gameId} · model {state?.modelId}<br />{state?.endReason}</code></details></footer>
   </main>
 }
 
 type Aim = { piece: Piece; origin: Vector3; end: Vector3; start: { x: number; y: number }
   moved: number; pointerId: number; gameId: string; version: number }
-function Scene({ state, replay, enabled, shoot, explain, blockedReason, itemMode, itemTargets, pickTarget, cancelItem }: { state: Snapshot | null; replay: AlkkagiReplay; enabled: boolean
-  shoot(p: Piece, dx: number, dy: number, power: number): void; explain(message: string): void; blockedReason: string; itemMode: string | null; itemTargets: string[]; pickTarget(piece: Piece): void; cancelItem(): void }) {
+function Scene({ state, replay, enabled, shoot, explain, blockedReason, itemMode, itemTargets, pickTarget, cancelItem, placement, pickPlacement }: { state: Snapshot | null; replay: AlkkagiReplay; enabled: boolean
+  shoot(p: Piece, dx: number, dy: number, power: number): void; explain(message: string): void; blockedReason: string; itemMode: string | null; itemTargets: string[]; pickTarget(piece: Piece): void; cancelItem(): void; placement: { x: number; y: number; angle: number } | null; pickPlacement(x: number, y: number): void }) {
   const groups = useRef(new Map<string, Group>())
   const displayed = useRef({ gameId: '', generation: -1, alive: new Map<string, boolean>() })
   const { gl, camera, raycaster } = useThree()
@@ -212,7 +253,7 @@ function Scene({ state, replay, enabled, shoot, explain, blockedReason, itemMode
       const shot = draggedShot(a.start, { x: event.clientX, y: event.clientY }, a.origin, point(event) ?? a.end)
       if (shot) {
         clear(); shoot(a.piece, shot.dx, shot.dy, shot.power)
-      } else explain(`${a.piece.type} 선택됨 · 클릭/작은 흔들림으로는 발사되지 않습니다. 다시 누르고 당겨주세요.`)
+      } else explain(`${a.piece.type} 선택됨 · 클릭/작은 흔들림으로는 발사되지 않습니다. 누른 채 당겨주세요.`)
     }
     const key = (e: KeyboardEvent) => { if (e.key === 'Escape') clear() }
     const cancel = (e: Event) => { e.preventDefault(); clear(); cancelItem() }
@@ -259,10 +300,14 @@ function Scene({ state, replay, enabled, shoot, explain, blockedReason, itemMode
     }
   })
   return <>
-    <mesh receiveShadow position={[0, -.14, 0]}><boxGeometry args={[9, .28, 10]} /><meshStandardMaterial color="#c5a06a" roughness={.85} /></mesh>
+    <mesh receiveShadow position={[0, -.14, 0]} onPointerDown={e => {
+      if (e.button === 0 && enabled && (itemMode === 'WALL' || itemMode === 'RELOCATE')) {
+        e.stopPropagation(); pickPlacement(e.point.x, e.point.z)
+      }
+    }}><boxGeometry args={[9, .28, 10]} /><meshStandardMaterial color="#c5a06a" roughness={.85} /></mesh>
     {Array.from({ length: 9 }, (_, i) => <mesh key={`v${i}`} position={[i - 4, .004, 0]}><boxGeometry args={[.012, .008, 9.5]} /><meshBasicMaterial color="#806243" /></mesh>)}
     {Array.from({ length: 10 }, (_, i) => <mesh key={`h${i}`} position={[0, .004, i - 4.5]}><boxGeometry args={[8.5, .008, .012]} /><meshBasicMaterial color="#806243" /></mesh>)}
-    {pieces.map(piece => <group key={`${state!.gameId}-${piece.id}`} ref={g => { if (g) groups.current.set(piece.id, g); else groups.current.delete(piece.id) }}>
+    {pieces.map(piece => <group key={`${state!.gameId}-${piece.id}-${piece.radius}`} ref={g => { if (g) groups.current.set(piece.id, g); else groups.current.delete(piece.id) }}>
       <mesh castShadow receiveShadow position={[0, .15, 0]} onPointerDown={e => {
         if (e.button !== 0) return
         e.stopPropagation()
@@ -270,13 +315,8 @@ function Scene({ state, replay, enabled, shoot, explain, blockedReason, itemMode
         if (!piece.alive || piece.owner !== actor) { explain('상대 알입니다. 내 팀 색깔의 알을 골라주세요.'); return }
         if (itemMode) {
           clear()
-          if (itemMode === 'SWAP') pickTarget(piece)
+          if (itemMode !== 'WALL' && itemMode !== 'EXTRA_SHOT') pickTarget(piece)
           else explain('아이템 확정 또는 취소를 먼저 눌러주세요.')
-          return
-        }
-        if (selected.current?.id !== piece.id) {
-          clearAim(); selected.current = piece
-          explain(`${piece.type} 선택됨 · 먼저 클릭해 선택했습니다. 이제 이 알을 다시 누르고 당겨주세요.`)
           return
         }
         const origin = e.ray.intersectPlane(floor, new Vector3())
@@ -295,6 +335,15 @@ function Scene({ state, replay, enabled, shoot, explain, blockedReason, itemMode
         <ringGeometry args={[piece.radius * 1.15, piece.radius * 1.32, 48]} /><meshBasicMaterial color="#5fffe6" depthWrite={false} />
       </mesh> : null
     })}
+    {state?.wall && <mesh position={[state.wall.x, .25, state.wall.y]} rotation={[0, -state.wall.angle, 0]} castShadow>
+      <boxGeometry args={[state.wall.length, .5, state.wall.thickness]} /><meshStandardMaterial color="#67503d" /></mesh>}
+    {placement && itemMode === 'WALL' && <mesh position={[placement.x, .26, placement.y]} rotation={[0, -placement.angle, 0]} raycast={() => {}}>
+      <boxGeometry args={[state?.itemRules?.wallLength ?? 1.6, .5, state?.itemRules?.wallThickness ?? .18]} />
+      <meshStandardMaterial color="#47ddca" transparent opacity={.55} />
+    </mesh>}
+    {placement && itemMode === 'RELOCATE' && <mesh position={[placement.x, .04, placement.y]} rotation={[-Math.PI / 2, 0, 0]} raycast={() => {}}>
+      <ringGeometry args={[.2, .3, 32]} /><meshBasicMaterial color="#47ddca" />
+    </mesh>}
     <primitive object={arrow} />
     <mesh ref={selectionRing} visible={false} rotation={[-Math.PI / 2, 0, 0]} raycast={() => {}}>
       <ringGeometry args={[1, 1.13, 48]} /><meshBasicMaterial color="#fff38b" depthWrite={false} />
