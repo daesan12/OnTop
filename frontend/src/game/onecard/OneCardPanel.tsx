@@ -1,5 +1,5 @@
 import { SeatedLookButton } from '../../features/tableLobby/SeatedLookButton'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useGame, recoveryBlocked } from '../store'
 import { useSession } from '../../network/worldClient'
@@ -7,7 +7,7 @@ import { useParkRuntime } from '../../park/runtime/ParkRuntime'
 import { useTableLobby } from '../../features/tableLobby/state'
 import { OneCardForfeitDialog } from './OneCardForfeitDialog'
 import { canActOneCard } from './actions'
-import { cardLabel, cardEffect, oneCardGuidance, redCard, SUITS, SUIT_GLYPH, SUIT_NAME } from './presentation'
+import { cardLabel, cardEffect, oneCardGuidance, redCard, SUIT_GLYPH, SUIT_NAME } from './presentation'
 import type { OneCardInput } from './protocol'
 import { CardFace } from './CardFace'
 import { FanHand } from './FanHand'
@@ -15,6 +15,7 @@ import { handScope, useOneCardUI } from './uiState'
 import { useOneCardPranks } from './prankEvents'
 import { ONECARD_DEFENSE_ENABLED, useOneCardDefense } from './defenseEvents'
 import { OneCardDefenseOverlay, OneCardReachCard } from './OneCardDefense'
+import { OneCardSuitChoice } from './OneCardSuitChoice'
 import './onecard.css'
 
 function ActionIcon({ kind }: { kind: 'play' | 'draw' | 'restore' }) {
@@ -29,6 +30,7 @@ export function OneCardPanel() {
   const s = useGame(), session = useSession(useShallow(s => ({ sessionId: s.sessionId, roomId: s.roomId, profiles: s.profiles, status: s.status, pending: s.pending }))), runtime = useParkRuntime()
   const view = useTableLobby(s => s.spectatorView)
   const [now, setNow] = useState(Date.now)
+  const guidanceRef = useRef<HTMLDivElement>(null)
   const [hammerHeld, setHammerHeld] = useState(false), defense = useOneCardDefense()
   const selection = useOneCardUI(), prank = useOneCardPranks()
   useEffect(() => () => { useOneCardUI.setState({ scope: '', selectedId: '' }) }, [])
@@ -57,7 +59,7 @@ export function OneCardPanel() {
   return <section className="minigame-hud onecard-panel onecard-game-hud" aria-label="원카드 경기" data-stage={o.stage} data-role={g.role}>
     {finished ? <div className="mini-status"><p role="status">{o.winnerUserIds.map(name).join(' · ')} {o.winnerUserIds.length > 1 ? '공동 승리' : '승리'}</p></div>
       : remaining !== null && <div className="onecard-turn-timer" role="timer" aria-label="차례 남은 시간" data-urgent={remaining <= 5}>
-        <span>{myTurn ? '내 차례' : `${name(o.turnUserId ?? '')}의 차례`}</span><strong>{remaining}<small>초</small></strong>
+        <span title={myTurn ? '내 차례' : `${name(o.turnUserId ?? '')}의 차례`}>{myTurn ? '내 차례' : `${name(o.turnUserId ?? '')}의 차례`}</span><strong>{remaining}<small>초</small></strong>
       </div>}
     <div className="onecard-roster" aria-label="원카드 참가자">{o.players.map(p => <div key={p.userId} className={p.userId === o.turnUserId ? 'active' : ''}>
       <b>{name(p.userId)}{!p.active ? ' · 기권' : ''}</b><span>{p.cardCount}장</span>
@@ -77,7 +79,7 @@ export function OneCardPanel() {
         grab={id => useOneCardUI.setState({ scope, selectedId: id })} play={id => send({ kind: 'play', cardId: id })}
         select={id => useOneCardUI.setState({ scope, selectedId: selected?.id === id ? '' : id })} />
       <div className="onecard-command-tray">
-      <div className="onecard-selection-info" role="status" aria-label="선택 카드 안내">
+      <div ref={guidanceRef} className="onecard-selection-info" role="status" aria-label="선택 카드 안내" tabIndex={-1}>
         <strong>{selectedForPlay ? cardLabel(selectedForPlay) : guidance.title}</strong>
         <span className="onecard-effect">{selectedForPlay && fresh && !s.pending && remaining !== 0 ? cardEffect(selectedForPlay) || '같은 무늬 또는 숫자로 이어갈 수 있어요' : actionHint}</span>
       </div>
@@ -86,9 +88,8 @@ export function OneCardPanel() {
         {o.players.filter(p => p.userId !== ownId && p.oneCardStatus === 'pending').map(p => <button key={p.userId}
           disabled={!can({ kind: 'catch-one', targetUserId: p.userId })} onClick={() => send({ kind: 'catch-one', targetUserId: p.userId })}>{name(p.userId)} 미선언 신고</button>)}
       </div>
-      {o.stage === 'CHOOSE_SUIT' && myTurn && <div className="onecard-actions onecard-suit-choice" role="group" aria-label="무늬 선택">{SUITS.map(suit => <button key={suit}
-        disabled={!can({ kind: 'select-suit', suit })} onClick={() => send({ kind: 'select-suit', suit })}>
-        <b aria-hidden="true" data-red={suit === 'hearts' || suit === 'diamonds'}>{SUIT_GLYPH[suit]}</b>{SUIT_NAME[suit]} 선택</button>)}</div>}
+      {o.stage === 'CHOOSE_SUIT' && myTurn && <OneCardSuitChoice enabled={can({ kind: 'select-suit', suit: 'hearts' })}
+        choose={suit => send({ kind: 'select-suit', suit })} guidance={guidanceRef} />}
       <div className="onecard-actions onecard-primary-actions" role="group" aria-label="원카드 행동">
         {o.stage === 'PLAYING' && <>
         <button className="onecard-submit" disabled={!selected || !can({ kind: 'play', cardId: selected.id })}

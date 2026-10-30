@@ -100,7 +100,7 @@ export function SpectatorChat() {
       if (event.code !== 'Enter' || !canSend || event.target === input.current
         || Object.entries(inputState).some(([panel, open]) => panel !== 'chatOpen' && open)
         || document.querySelector('dialog[open],[role="dialog"]')
-        || event.target instanceof Element && event.target.closest('input,textarea,select,button,a,[contenteditable="true"],[role="button"]')) return
+        || event.target instanceof Element && event.target.closest('input,textarea,select,button,a,summary,[contenteditable="true"],[role="button"]')) return
       event.preventDefault(); setOpen(true); input.current?.focus()
     }
     window.addEventListener('keydown', key)
