@@ -9,9 +9,13 @@ export interface MotionSnapshot {
   velocityY: number; grounded: boolean; inputActive: boolean
   authority?: 'CLIENT_VALIDATED'
   profile?: 'PARK_V1'
+  steering?: { dx: number; dz: number; run: boolean; targetX: number; targetZ: number }
+  correctionReason?: string
   jumpGrace?: JumpGraceSnapshot
 }
 export interface PredictionSimulation {
+  setFollowTarget?(target: {x:number;z:number} | undefined): void
+  stopHorizontal?(): void
   setMotionProfile?(profile: 'PARK_V1' | undefined): void
   reset(pose: Pose, velocityY: number, grounded: boolean, jumpGrace?: JumpGraceSnapshot): void
   step(input: MovementIntent, seconds: number): void
@@ -56,6 +60,8 @@ export class LocalMovementPrediction {
   private pendingPositionJump: {epoch:number;seq:number} | undefined
   private highestSent = 0
   private unavailable = false
+  private steering: MotionSnapshot['steering']
+  private steeringSuppressed = false
   private facing: { from: number; to: number; at: number } | undefined
   private displayed: { pose: Pose; at: number } | undefined
   private chairCounts: ReadonlyMap<string, number> = new Map()
@@ -66,9 +72,10 @@ export class LocalMovementPrediction {
   get epoch() { return this.baseline?.motion.epoch ?? null }
   get motionProfile() { return this.baseline?.motion.profile }
   get positionMode() { return this.baseline?.motion.authority === 'CLIENT_VALIDATED' }
+  get positionUnavailable() { return this.unavailable && this.tuned }
   get positionPreparing() { return this.baseline?.motion.authority === 'CLIENT_VALIDATED' && !this.sim && !this.unavailable }
   positionFallback() {
-    return this.unavailable && this.baseline?.motion.authority === 'CLIENT_VALIDATED' ? { epoch: this.baseline.motion.epoch } : undefined
+    return this.unavailable && !this.tuned && this.baseline?.motion.authority === 'CLIENT_VALIDATED' ? { epoch: this.baseline.motion.epoch } : undefined
   }
   private get tuned() { return this.baseline?.motion.profile === 'PARK_V1' }
   private get horizon() { return this.baseline?.motion.authority === 'CLIENT_VALIDATED' ? (this.tuned ? 2000 : 500) : HORIZON_MS }
@@ -76,7 +83,10 @@ export class LocalMovementPrediction {
     if (!this.ready || this.baseline?.motion.authority !== 'CLIENT_VALIDATED') return undefined
     this.advance(at)
     if (this.tuned && intent.jump && !this.pendingPositionJump) this.pendingPositionJump={epoch:this.baseline.motion.epoch,seq}
-    return { seq, epoch: this.baseline.motion.epoch, ...this.sim!.pose(), run: intent.run, jump: intent.jump || !!this.pendingPositionJump }
+    const effective = this.effectiveIntent(intent)
+    return { seq, epoch: this.baseline.motion.epoch, ...this.sim!.pose(), run: effective.run,
+      jump: intent.jump || !!this.pendingPositionJump,
+      manual: !!(intent.dx || intent.dz || intent.jump || this.pendingPositionJump || this.steeringSuppressed) }
   }
   async prepare() {
     if (this.unavailable || this.sim || this.preparing) return this.preparing
@@ -84,6 +94,7 @@ export class LocalMovementPrediction {
     this.preparing = this.factory().then(sim => {
       if (generation !== this.generation) { sim.dispose(); return }
       this.sim = sim
+      this.applyFollowTarget()
       sim.setChairs(this.chairCounts)
       const base = this.baseline
       if (base) {
@@ -97,7 +108,7 @@ export class LocalMovementPrediction {
       }
     }).catch(() => {
       if (generation === this.generation) this.unavailable = true
-      // WASM/browser failure keeps the original server-only presentation; no fake local success.
+      // PARK_V1 reports preparation failure without silently selecting different physics.
     }).finally(() => { if (generation === this.generation) this.preparing = undefined })
     return this.preparing
   }
@@ -113,10 +124,13 @@ export class LocalMovementPrediction {
     this.unavailable = false
     this.facing = undefined
     this.displayed = undefined
+    this.steering = undefined; this.steeringSuppressed = false
     this.correction = { x: 0, y: 0, z: 0, at: 0 }
     this.roundTrips.length = this.diagnostics.length = 0
   }
   suspend() {
+    this.steering = undefined; this.steeringSuppressed = false
+    this.sim?.setFollowTarget?.(undefined)
     this.pendingPositionJump=undefined
     this.timeline = []; this.sent = []; this.intent = { ...STOP }; this.firstInput = undefined
     this.allowed = false; this.correction = { x: 0, y: 0, z: 0, at: 0 }
@@ -127,15 +141,17 @@ export class LocalMovementPrediction {
   reconcile(scope: string, pose: Pose & { moving?: boolean }, motion: MotionSnapshot | undefined, allowed: boolean, at = this.now()) {
     if (scope !== this.scope) { this.reset(); this.scope = scope }
     if (!motion || !allowed) { this.suspend(); return }
-    // Native Bullet handoff owns swimming/tower/follow/fallback. Do not replay
-    // the normal-ground client integrator over a different native trajectory.
+    // Legacy native/held snapshots are presentation-only. New PARK_V1 actors
+    // retain CLIENT_VALIDATED across regions and recoverable report failures.
     if (motion.profile === 'PARK_V1' && motion.authority !== 'CLIENT_VALIDATED') {
       this.baseline = {pose:{...pose}, motion, at, anchor:at}
       this.suspend(); return
     }
     const old = this.baseline
+    if (old && motion.epoch < old.motion.epoch) return
     const newEpoch = !old || old.motion.epoch !== motion.epoch || old.motion.profile !== motion.profile || !this.allowed
     if (!newEpoch && motion.tick < old.motion.tick) return
+    this.syncSteering(motion.steering, at)
     if(this.pendingPositionJump&&(newEpoch||motion.epoch!==this.pendingPositionJump.epoch||motion.appliedInputSeq>=this.pendingPositionJump.seq))this.pendingPositionJump=undefined
     if (!newEpoch && motion.tick === old.motion.tick && distance(pose, old.pose) < .0001) {
       this.allowed = true
@@ -178,7 +194,10 @@ export class LocalMovementPrediction {
     this.simulatedAt = newEpoch ? at : anchor
     this.lastJumpAt = this.acknowledgedJumpAt
     if (newEpoch) {
-      this.timeline = []; this.sent = []; this.intent = { ...STOP }; this.firstInput = undefined
+      const held = old && motion.correctionReason ? { ...this.intent, jump: false } : { ...STOP }
+      this.sent = []; this.intent = held; this.firstInput = undefined
+      this.timeline = [{ at, intent: { ...this.effectiveIntent(held), jump: false } }]
+      this.applyFollowTarget()
       this.highestSent = motion.appliedInputSeq
       this.acknowledgedJumpAt = this.lastJumpAt = -Infinity
       this.displayed = undefined
@@ -215,11 +234,35 @@ export class LocalMovementPrediction {
     if ((intent.dx || intent.dz || intent.jump) && !(this.intent.dx || this.intent.dz || this.intent.jump)) {
       this.firstInput = { at, pose: this.sim?.pose() ?? this.baseline.pose }
     }
-    if (intent.dx !== this.intent.dx || intent.dz !== this.intent.dz || intent.run !== this.intent.run || intent.jump) {
-      this.timeline.push({ at, intent: { ...intent } })
+    if ((intent.dx || intent.dz || intent.jump) && this.steering) {
+      this.steeringSuppressed = true; this.applyFollowTarget()
+    }
+    const effective = this.effectiveIntent(intent), previous = this.timeline.at(-1)?.intent ?? STOP
+    if (effective.dx !== previous.dx || effective.dz !== previous.dz || effective.run !== previous.run || effective.jump) {
+      this.timeline.push({ at, intent: { ...effective } })
       this.timeline = this.timeline.slice(-128)
     }
     this.intent = { ...intent }
+  }
+  private effectiveIntent(manual = this.intent): MovementIntent {
+    return this.steering && !this.steeringSuppressed ? {dx:this.steering.dx,dz:this.steering.dz,run:this.steering.run,jump:false} : manual
+  }
+  private applyFollowTarget() {
+    const steering = !this.steeringSuppressed ? this.steering : undefined
+    this.sim?.setFollowTarget?.(steering ? {x:steering.targetX,z:steering.targetZ} : undefined)
+  }
+  private syncSteering(steering: MotionSnapshot['steering'], at: number) {
+    this.advance(at)
+    const changed = JSON.stringify(this.steering) !== JSON.stringify(steering)
+    this.steering = steering
+    if (!steering) this.steeringSuppressed = false
+    this.applyFollowTarget()
+    if (changed) this.timeline.push({at,intent:{...this.effectiveIntent(),jump:false}})
+  }
+  stopSteering(at = this.now()) {
+    this.advance(at); this.steeringSuppressed = !!this.steering
+    this.intent = {...STOP}; this.applyFollowTarget(); this.sim?.stopHorizontal?.()
+    this.timeline.push({at,intent:{...STOP}})
   }
   sentInput(seq: number, at = this.now(), intent = this.intent) {
     this.highestSent = Math.max(this.highestSent, seq)
@@ -257,7 +300,8 @@ export class LocalMovementPrediction {
   displayFlags(at: number) {
     const active = this.ready && !!this.baseline && at - this.baseline.at <= this.horizon
     const physical = active ? this.sim?.movementFlags?.() : undefined
-    return physical ?? { moving: !!(active && (this.intent.dx || this.intent.dz)), running: !!(active && this.intent.run) }
+    const effective = this.effectiveIntent()
+    return physical ?? { moving: !!(active && (effective.dx || effective.dz)), running: !!(active && effective.run) }
   }
   metrics() { return { firstResponseMs: [...this.responseTimes], correctionMetres: [...this.corrections],
     hardCorrections: this.resets, roundTripMs: [...this.roundTrips], reconciliations: [...this.diagnostics] } }

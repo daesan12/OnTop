@@ -220,7 +220,7 @@ public final class WorldPhysics implements AutoCloseable {
         actors.put(id, new Actor(body, slot, scene.spawn(slot)));
         actors.get(id).yaw = scene.spawnYaw();
         Actor actor = actors.get(id);
-        if (clientPositions && !specialMovement(actor.body.getPhysicsLocation(null))) {
+        if (clientPositions && (tunedMovement || !specialMovement(actor.body.getPhysicsLocation(null)))) {
             actor.clientControlled = true;
             space.removeCollisionObject(body);
             resetMotion(actor);
@@ -267,6 +267,7 @@ public final class WorldPhysics implements AutoCloseable {
     private boolean inputNow(String id, MoveInput input, long now) {
         Actor actor = actors.get(id);
         if (actor.clientControlled) {
+            if (tunedMovement) return false; // A direction-only packet cannot downgrade the selected movement engine.
             // An already-open old client only knows WORLD_MOVE. Keep it usable during rollout.
             // Once position reporting starts, delayed directional inputs must never switch authority.
             if (actor.positionReportedEver) return false;
@@ -303,6 +304,7 @@ public final class WorldPhysics implements AutoCloseable {
             actor.input = null;
             actor.jumpQueued = false;
             actor.climbTargetY = 0;
+            actor.followSteering = null;
             actor.moving = false;
             actor.running = false;
             actor.body.setWalkDirection(Vector3f.ZERO);
@@ -343,7 +345,10 @@ public final class WorldPhysics implements AutoCloseable {
                 a.seated = false;
                 space.addCollisionObject(a.body);
             }
-            if (a.clientControlled && (following.containsKey(entry.getKey()) || specialMovement(a.body.getPhysicsLocation(null)))) {
+            if (tunedMovement && clientPositions && !a.clientControlled && !a.positionDisabled) {
+                a.clientControlled = true; space.removeCollisionObject(a.body); resetMotion(a);
+            }
+            if (!tunedMovement && a.clientControlled && (following.containsKey(entry.getKey()) || specialMovement(a.body.getPhysicsLocation(null)))) {
                 serverControl(a);
             }
             if (a.clientControlled) {
@@ -353,11 +358,18 @@ public final class WorldPhysics implements AutoCloseable {
                 boolean fresh = !a.reportStarted || freshnessNow >= a.receivedAt && freshnessNow - a.receivedAt <= (tunedMovement ? 2_000_000_000L : 500_000_000L);
                 if (!fresh) {
                     log.info("로컬 좌표 검증 복귀 reason=REPORT_EXPIRED seq={}", a.seq);
-                    a.positionDisabled = true;
-                    serverControl(a);
+                    if (tunedMovement) expireReports(a);
+                    else { a.positionDisabled = true; serverControl(a); }
                 }
             }
             if (a.clientControlled) {
+                String targetId = following.get(entry.getKey());
+                Actor target = targetId == null || seated.contains(targetId) ? null : actors.get(targetId);
+                MoveInput directed = targetId == null ? null : followInput(a, target);
+                Vector3f targetPosition = target == null ? null : target.body.getPhysicsLocation(null);
+                a.followSteering = directed == null ? null : new Steering(directed.dx(), directed.dz(), directed.run(),
+                        targetPosition == null ? a.body.getPhysicsLocation(null).x : targetPosition.x,
+                        targetPosition == null ? a.body.getPhysicsLocation(null).z : targetPosition.z);
                 // Correct only a server-approved position, never a client's claimed large move.
                 anticipateExclusion(a, freshnessTime());
                 a.motion = new Motion(a.motionEpoch, physicsTick, a.seq, 0, a.motion.velocityY(),
@@ -561,12 +573,13 @@ public final class WorldPhysics implements AutoCloseable {
         resetMotion(actor);
     }
     public Snapshot serverMovement(String id) {
-        return call(() -> { serverControl(actors.get(id)); return snapshotNow(id); });
+        return call(() -> { if (!tunedMovement) serverControl(actors.get(id)); return snapshotNow(id); });
     }
     public Snapshot disablePosition(String id, long epoch) {
         return call(() -> {
             Actor actor = actors.get(id);
             if (actor.clientControlled && actor.motionEpoch == epoch) {
+                if (tunedMovement) { correctReport(actor, "SIMULATION_UNAVAILABLE"); return snapshotNow(id); }
                 actor.positionDisabled = true;
                 serverControl(actor);
             }
@@ -574,7 +587,7 @@ public final class WorldPhysics implements AutoCloseable {
         });
     }
 
-    /** Local opt-in only. Validation, native body and official snapshot are changed on one owner thread. */
+    /** Client-position profile. Validation, body and official snapshot change on one owner thread. */
     public Snapshot report(String id, ClientPositionValidator.Candidate candidate, long now) {
         return call(() -> {
             if (!clientPositions) throw new IllegalStateException("위치 보고 모드가 비활성화돼 있습니다.");
@@ -592,12 +605,18 @@ public final class WorldPhysics implements AutoCloseable {
             var result = a.positionValidator.accept(candidate);
             if (!result.accepted()) {
                 log.info("로컬 좌표 검증 복귀 reason={} seq={}", result.reason(), a.seq);
+                if (tunedMovement) {
+                    if (result.reason().equals("STALE")) expireReports(a);
+                    else correctReport(a, result.reason());
+                    return snapshotNow(id);
+                }
                 // A rejection falls back for the connection's remaining life. Old reports
                 // cannot keep advancing epochs or replenish a fresh validator's budget.
                 a.positionDisabled = true;
                 serverControl(a);
                 return snapshotNow(id);
             }
+            a.correctionReason = null;
             var p = result.approved();
             if (candidate.jump() && positionCollision.supported(before)) {
                 a.reportedJumpSpeed = scene.policy.jumpSpeed(new Vector3f((float) before.x(), (float) before.y(), (float) before.z()), tunedMovement);
@@ -611,10 +630,36 @@ public final class WorldPhysics implements AutoCloseable {
             a.moving = Math.hypot(p.x() - before.x(), p.z() - before.z()) > .0001;
             a.running = a.moving && candidate.run(); a.swimming = swimming(a.body.getPhysicsLocation(null));
             a.airborne = !positionCollision.supported(p);
+            if (!a.airborne) a.lastSafe.set((float)p.x(), (float)p.y(), (float)p.z());
             a.motion = new Motion(a.motionEpoch, physicsTick, a.seq, 0, vy, !a.airborne, true, "CLIENT_VALIDATED");
-            if (specialMovement(a.body.getPhysicsLocation(null))) serverControl(a);
+            if (!tunedMovement && specialMovement(a.body.getPhysicsLocation(null))) serverControl(a);
             return snapshotNow(id);
         });
+    }
+
+    private void correctReport(Actor actor, String reason) {
+        actor.motionEpoch = POSITION_EPOCHS.incrementAndGet();
+        if (actor.positionValidator != null) actor.positionValidator.resynchronize(actor.motionEpoch);
+        actor.moving = actor.running = false;
+        actor.correctionReason = reason;
+        actor.motion = new Motion(actor.motionEpoch, physicsTick, actor.seq, 250,
+                Math.min(0, actor.motion.velocityY()), positionCollision.supported(pose(actor)), false, "CLIENT_VALIDATED");
+    }
+    private void expireReports(Actor actor) {
+        var current = pose(actor);
+        if (!positionCollision.supported(current) && !positionCollision.swimming(current)) {
+            var below = positionCollision.supportBelow(current);
+            Vector3f safe = below == null ? validatedFallback(actor, (float)scene.data.path("world").path("halfSize").asDouble()-1)
+                    : new Vector3f((float)below.x(), (float)below.y(), (float)below.z());
+            actor.body.warp(safe);
+        }
+        actor.body.setLinearVelocity(Vector3f.ZERO);
+        actor.moving = actor.running = false;
+        resetMotion(actor);
+        actor.correctionReason = "REPORT_EXPIRED";
+        actor.swimming = swimming(actor.body.getPhysicsLocation(null));
+        actor.motion = new Motion(actor.motionEpoch, physicsTick, actor.seq, 250, 0,
+                positionCollision.supported(pose(actor)), false, "CLIENT_VALIDATED");
     }
 
     // 지형 높이는 탐색 범위만 정한다. 실제 충돌 지지면과 캡슐 여유를 확인한 위치로 복구한다.
@@ -729,7 +774,7 @@ public final class WorldPhysics implements AutoCloseable {
         Vector3f p = a.body.getPhysicsLocation(null);
         Motion motion = a.motion;
         if (tunedMovement) motion = new Motion(motion.epoch(), motion.tick(), motion.appliedInputSeq(),
-                motion.inputAgeMs(), motion.velocityY(), motion.grounded(), motion.inputActive(), motion.authority(), "PARK_V1");
+                motion.inputAgeMs(), motion.velocityY(), motion.grounded(), motion.inputActive(), motion.authority(), "PARK_V1", a.followSteering, a.correctionReason);
         return new Snapshot(a.seq, p.x, p.y, p.z, a.yaw, a.moving, a.running, a.swimming, motion);
     }
 
@@ -797,6 +842,7 @@ public final class WorldPhysics implements AutoCloseable {
                 actor.clientControlled ? "CLIENT_VALIDATED" : null);
         actor.positionValidator = null;
         actor.reportedJumpSpeed = 0;
+        actor.followSteering = null; actor.correctionReason = null;
         if (actor.clientControlled) {
             actor.receivedAt = clock.getAsLong();
             actor.reportStarted = false;
@@ -851,7 +897,15 @@ public final class WorldPhysics implements AutoCloseable {
             @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
             String authority,
             @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
-            String profile) {
+            String profile,
+            @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+            Steering steering,
+            @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+            String correctionReason) {
+        public Motion(long epoch, long tick, long appliedInputSeq, double inputAgeMs, double velocityY,
+                boolean grounded, boolean inputActive, String authority, String profile) {
+            this(epoch, tick, appliedInputSeq, inputAgeMs, velocityY, grounded, inputActive, authority, profile, null, null);
+        }
         public Motion(long epoch, long tick, long appliedInputSeq, double inputAgeMs, double velocityY,
                 boolean grounded, boolean inputActive, String authority) {
             this(epoch, tick, appliedInputSeq, inputAgeMs, velocityY, grounded, inputActive, authority, null);
@@ -861,6 +915,8 @@ public final class WorldPhysics implements AutoCloseable {
             this(epoch, tick, appliedInputSeq, inputAgeMs, velocityY, grounded, inputActive, null);
         }
     }
+
+    public record Steering(double dx, double dz, boolean run, double targetX, double targetZ) {}
 
     private static final class Actor {
         final PhysicsCharacter body;
@@ -879,6 +935,8 @@ public final class WorldPhysics implements AutoCloseable {
         double reportedJumpSpeed;
         boolean clientControlled, positionDisabled, reportStarted, positionReportedEver;
         ClientPositionValidator positionValidator;
+        Steering followSteering;
+        String correctionReason;
 
         Actor(PhysicsCharacter body, int slot, Vector3f spawn) {
             this.body = body;

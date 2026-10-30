@@ -66,7 +66,8 @@ class ParkMovementPolicyTests {
             world.place("a", 6, .84, 6); now += 60_000_000;
             var rejected = world.report("a",new Candidate(4,world.snapshot("a").motion().epoch(),new Pose(60,.84,60),true,false),now);
             assertThat(rejected.x()).isEqualTo(6);
-            assertThat(rejected.motion().authority()).isNull();
+            assertThat(rejected.motion().authority()).isEqualTo("CLIENT_VALIDATED");
+            assertThat(rejected.motion().correctionReason()).isEqualTo("SPEED");
         }
     }
     @Test void 팔각정_위에서만_두점프프로필을_적용하고_과도한높이는_거절한다() {
@@ -100,7 +101,7 @@ class ParkMovementPolicyTests {
             }
         }
     }
-    @Test void 팔각정_점프의_승인속도와_native인계를_같은_출발정책으로_유지한다() {
+    @Test void 팔각정_점프는_출발정책을_유지하고_tuned는_native로_전환하지않는다() {
         ObjectNode data=(ObjectNode)scene().data.deepCopy();
         box((com.fasterxml.jackson.databind.node.ArrayNode)data.path("boxes"),"pavilion-floor",0,1,0,4.5,1,4.5);
         var scene=ParkScene.fromPreparedData(data,new WorldMapMetadata("park",2,"b".repeat(64)));
@@ -110,7 +111,12 @@ class ParkMovementPolicyTests {
             assertThat(approved.motion().authority()).isEqualTo("CLIENT_VALIDATED");
             assertThat(approved.motion().velocityY()).isCloseTo(tuned?8.6:7.8,within(.0001));
             world.serverMovement("a");now+=WorldPhysics.STEP_NANOS;world.step(now,Set.of());
-            assertThat(world.snapshot("a").y()).isGreaterThan(3.15);
+            if (tuned) {
+                assertThat(world.snapshot("a").y()).isEqualTo(3);
+                assertThat(world.snapshot("a").motion().authority()).isEqualTo("CLIENT_VALIDATED");
+                var next=world.report("a",new Candidate(2,approved.motion().epoch(),new Pose(3,3.2,0),false,false),now);
+                assertThat(next.motion().correctionReason()).isNull();assertThat(next.y()).isCloseTo(3.2,within(.001));
+            } else assertThat(world.snapshot("a").y()).isGreaterThan(3.15);
         }
     }
     @Test void 실제_MR214의_모든_탁자는_인원변경과_착석_하차시_안전위치를_유지한다() throws Exception {

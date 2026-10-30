@@ -515,9 +515,14 @@ public class WorldChannelRegistry implements ChannelPresence {
             }
             boolean changed = false;
             for (String id : room.users) {
+                WorldPhysics.Motion oldMotion = room.motions.get(id);
                 Position next = snapshotPosition(room, id);
+                WorldPhysics.Motion newMotion = room.motions.get(id);
                 Movement previous = room.positions.get(id);
-                if (!next.equals(previous.position())) {
+                if (!next.equals(previous.position()) || oldMotion != null && newMotion != null && (
+                        oldMotion.epoch() != newMotion.epoch() || !java.util.Objects.equals(oldMotion.authority(), newMotion.authority())
+                        || !java.util.Objects.equals(oldMotion.steering(), newMotion.steering())
+                        || !java.util.Objects.equals(oldMotion.correctionReason(), newMotion.correctionReason()))) {
                     room.positions.put(id, new Movement(next, previous.acceptedAtNanos()));
                     changed = true;
                 }
