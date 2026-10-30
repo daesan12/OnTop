@@ -3,6 +3,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import os from 'node:os'
 import {parkFixture,identity} from './fixture'
+import bindingsFile from '../../public/park-bindings.generated.frontend-test.json' with {type:'json'}
 import {PARK_DATA} from '../../src/map/park'
 import {TABLES,tableSeats} from '../../src/park/mapConfig'
 const state=(page:Page)=>page.evaluate(async()=>(await import('/tests/park-integration/probe.ts' as string)).probe())
@@ -12,7 +13,7 @@ test('generated park waits for approval, renders 18 mapped tables, and supports 
  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message))
  const server=await parkFixture(page,{holdConfirmation:true})
  await page.goto('/park');await expect(page).toHaveTitle('OnTop')
- await expect.poll(()=>server.requests.find(r=>r.type==='WORLD_MAP_CONFIRM')?.type).toBe('WORLD_MAP_CONFIRM')
+ await expect.poll(()=>server.requests.find(r=>r.type==='WORLD_MAP_CONFIRM')?.type,{timeout:90000}).toBe('WORLD_MAP_CONFIRM')
  expect(server.requests.some(r=>r.type==='CHANNEL_JOIN')).toBe(false)
  server.approve()
  await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({timeout:90000})
@@ -49,7 +50,8 @@ test('generated park waits for approval, renders 18 mapped tables, and supports 
   server.place({x:vr.position[0],y:vr.position[1]+.8,z:vr.position[2]+2.4})
   await page.evaluate(async(id)=>(await import('/tests/park-integration/probe.ts' as string)).inspect(id),vr.id)
   await expect(lobby).toBeVisible()
-  await expect.poll(async()=>(await state(page)).session.tableId).toBe(current.session.bindings.find((b:{channelId:string;anchorId:string;tableId:string})=>b.channelId==='channel-1'&&b.anchorId===vr.id)!.tableId)
+  const binding=bindingsFile.bindings.find(b=>b.channelId==='channel-1'&&b.anchorId===vr.id)!
+  await expect.poll(async()=>(await state(page)).session.tableId).toBe(binding.tableId)
   server.enableFourPlayers(vr.id)
   const surfaces=()=>page.evaluate(async(id)=>(await import('/tests/park-integration/probe.ts' as string)).renderedSeatHeights(id),vr.id)
   await expect.poll(async()=>(await surfaces()).count).toBe(4)

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import coinImage from '../../assets/entry/yeopjeon-icon.webp'
 import { useSession } from '../../network/worldClient'
@@ -16,9 +16,10 @@ import warningIcon from './icons/dialog-warning.svg'
 import chevronIcon from './icons/chevron-profile.svg'
 import './parkMenus.css'
 
-type Dialog = null | 'profile' | 'logout' | 'withdraw' | { from: string; to: string }
+const GameRecordsDialog = lazy(() => import('../gameHistory/GameRecordsDialog'))
+type Dialog = null | 'profile' | 'records' | 'logout' | 'withdraw' | { from: string; to: string }
 
-/** Account pill with the profile menu (내 정보 · 로그아웃 · 회원 탈퇴); 설정 lives in the 빠른 메뉴 dock. */
+/** Account menu with profile, server records and session actions; 설정 lives in the 빠른 메뉴 dock. */
 export function AccountMenu({ exitError, onExit, onWithdrawn }: {
   exitError: string
   onExit: () => void | Promise<void>
@@ -68,6 +69,9 @@ export function AccountMenu({ exitError, onExit, onWithdrawn }: {
       <button type="button" role="menuitem" className="park-menu-item" onClick={() => choose('profile')}>
         <img src={profileIcon} alt="" /><span><b>내 정보</b><small>닉네임 변경</small></span>
       </button>
+      <button type="button" role="menuitem" className="park-menu-item" onClick={() => choose('records')}>
+        <img src={profileIcon} alt="" /><span><b>내 전적</b><small>경기 내역 · 게임별 전적</small></span>
+      </button>
       <hr />
       <button type="button" role="menuitem" className="park-menu-item" onClick={() => choose('logout')}>
         <img src={logoutIcon} alt="" /><span><b>로그아웃</b></span>
@@ -78,6 +82,9 @@ export function AccountMenu({ exitError, onExit, onWithdrawn }: {
     </div>}
     {exitError && <p className="park-exit-error" role="alert">{exitError}</p>}
     {dialog === 'profile' && <ProfileDialog onClose={() => setDialog(null)} onSaved={(from, to) => setDialog({ from, to })} />}
+    {dialog === 'records' && <Suspense fallback={<MenuDialog label="내 전적" className="park-confirm-dialog" onClose={() => setDialog(null)}><p role="status">전적 화면을 준비하고 있어요…</p><button className="park-menu-button" onClick={() => setDialog(null)}>닫기</button></MenuDialog>}>
+      <GameRecordsDialog onClose={() => setDialog(null)} />
+    </Suspense>}
     {typeof dialog === 'object' && dialog && <NicknameDoneDialog {...dialog} onClose={() => setDialog(null)} />}
     {dialog === 'logout' && <LogoutDialog onClose={() => setDialog(null)} onExit={onExit} />}
     {dialog === 'withdraw' && <WithdrawDialog onClose={() => setDialog(null)} onWithdrawn={onWithdrawn} />}

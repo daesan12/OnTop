@@ -10,6 +10,7 @@ import { jumpReturnRoute } from './jumpNavigation'
 import { walkHeight } from './layout'
 import { jumpSession } from './jumpSimulation'
 import { playJumpSound } from './jumpAudio'
+import { applyLandingMotion, landingGeometry } from '../features/jumpmap/landingMotion'
 
 const pulse={time:0,view:'overview'},object=new Object3D(),color=new Color()
 export const jumpVisualState={hits:0,lastTheme:'',soundLayers:0}
@@ -18,31 +19,26 @@ function materialFor(theme:JumpTheme,finish:string,stone:ReturnType<typeof useSu
   const surface=finish==='wood'||theme==='fish'||theme==='kite'||theme==='lantern'?wood:stone,normal=theme==='cloud'?.055:theme==='gomoku'?.12:theme==='stone'?.35:.18
   const material=new MeshStandardMaterial({transparent:true,depthWrite:false,vertexColors:true,map:!SIMPLE_MAP&&(finish==='stone'||finish==='wood')?surface.map:null,normalMap:SIMPLE_MAP?null:surface.normalMap,normalScale:new Vector2(normal,normal),roughnessMap:SIMPLE_MAP?null:surface.roughnessMap,roughness:finish==='gold'?.58:theme==='gomoku'?.26:theme==='cloud'||theme==='kite'?.96:theme==='lily'?.45:.85,metalness:finish==='gold'?.75:0})
   material.onBeforeCompile=shader=>{
-    shader.uniforms.jumpTime={get value(){return pulse.time}}
-    shader.vertexShader=`attribute float aFade;attribute float aHit;varying float vFade;varying float vHit;varying vec3 vJumpPoint;uniform float jumpTime;\n${shader.vertexShader}`
+    shader.vertexShader=`attribute float aFade;varying float vFade;\n${shader.vertexShader}`
     shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
-      float t=max(0.,jumpTime-aHit);float hit=step(0.,jumpTime-aHit)*exp(-t*7.);vHit=hit;vFade=aFade;vJumpPoint=position;
-      ${theme==='gomoku'?'transformed.y-=.07*sin(min(1.,t/.18)*3.14159)*exp(-t*3.);':theme==='cloud'?'transformed.y=transformed.y*(1.-hit*.22)-hit*.06;transformed.xz*=1.+hit*.12;':theme==='fish'?'transformed.z+=sign(position.z)*hit*.04;transformed.y*=1.-hit*.08;':theme==='lily'?'transformed.y-=.05*sin(t*17.)*exp(-t*5.);':theme==='kite'?'transformed.y+=sin(t*22.)*exp(-t*6.)*position.z*.035;':'transformed.y-=hit*.012;'}
+      vFade=aFade;
     `)
     shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>','vec3 jumpTint=diffuseColor.rgb;\n#include <map_fragment>\ndiffuseColor.rgb=mix(jumpTint,diffuseColor.rgb,.42);')
-    shader.fragmentShader=`varying float vFade;varying float vHit;varying vec3 vJumpPoint;\n${shader.fragmentShader}`
+    shader.fragmentShader=`varying float vFade;\n${shader.fragmentShader}`
     shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
       diffuseColor.a*=vFade;
-      float grain=sin(vJumpPoint.x*31.+sin(vJumpPoint.z*18.))*sin(vJumpPoint.y*38.+vJumpPoint.z*33.);
-      ${SIMPLE_MAP?'':'diffuseColor.rgb*=1.+grain*.025;'}
-      diffuseColor.rgb*=1.+vHit*${theme==='lantern'?'1.2':'.55'};
-      ${!SIMPLE_MAP&&(theme==='stone'||theme==='gomoku')?'float crack=1.-smoothstep(.009,.021,abs(sin(vJumpPoint.x*7.+sin(vJumpPoint.z*5.))*vJumpPoint.z));if(vJumpPoint.y>-.035)diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*.35,crack*vHit);':''}
     `)
-    if(finish==='glow')shader.fragmentShader=shader.fragmentShader.replace('#include <opaque_fragment>','outgoingLight+=diffuseColor.rgb*(.45+vHit);\n#include <opaque_fragment>')
+    if(finish==='glow')shader.fragmentShader=shader.fragmentShader.replace('#include <opaque_fragment>','outgoingLight+=diffuseColor.rgb*.45;\n#include <opaque_fragment>')
   }
-  material.customProgramCacheKey=()=>`preview-jump-${theme}-${finish}-pbr-v3`
+  applyLandingMotion(material,theme,{get value(){return pulse.time}},false)
+  material.customProgramCacheKey=()=>`preview-jump-${theme}-${finish}-tactile-v4`
   return material
 }
 function ThemeBatch({theme,pads}:{theme:JumpTheme;pads:readonly JumpPad[]}) {
   const stone=useSurfaceMaps('stone'),wood=useSurfaceMaps('wood')
   const meshes=useRef<InstancedMesh[]>([]),lastHit=useRef(0)
   const batches=useMemo(()=>Object.entries(jumpArt[theme]).map(([kind,g])=>{
-    const geometry=g.clone();geometry.setAttribute('aFade',new InstancedBufferAttribute(new Float32Array(pads.length).fill(1),1));geometry.setAttribute('aHit',new InstancedBufferAttribute(new Float32Array(pads.length).fill(-1000),1))
+    const geometry=landingGeometry(g,theme);geometry.setAttribute('aFade',new InstancedBufferAttribute(new Float32Array(pads.length).fill(1),1));geometry.setAttribute('aHit',new InstancedBufferAttribute(new Float32Array(pads.length).fill(-1000),1))
     return {kind,geometry,material:materialFor(theme,kind,stone,wood)}
   }),[theme,pads,stone,wood])
   useLayoutEffect(()=>{

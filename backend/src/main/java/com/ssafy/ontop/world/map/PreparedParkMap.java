@@ -148,6 +148,10 @@ public final class PreparedParkMap {
         root.put("sourceSha256", map.metadata().mapVersion());
         root.set("boxes", physics.path("boxes").deepCopy());
         root.set("hulls", physics.path("hulls").deepCopy());
+        for (String key : List.of("furniturePolicy", "fountainPolicy", "pavilionJumpSpeed", "pavilionTunedJumpSpeed")) {
+            if (physics.has(key)) root.set(key, physics.path(key).deepCopy());
+        }
+        if (data.has("pavilions")) root.set("pavilions", data.path("pavilions").deepCopy());
         JsonNode terrain = physics.path("terrain");
         Map<String, JsonNode> meshes = indexed(physics.path("meshes"));
         JsonNode ground = meshes.get(terrain.path("meshId").asText());

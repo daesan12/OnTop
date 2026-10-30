@@ -131,7 +131,12 @@ public final class TableProtocol {
             case "GAME_SPECTATOR_CHAT_SEND" -> fields(payload, Set.of("gameId", "eventId", "text"))
                     && validGameId(payload) && validEventId(payload) && validChatText(payload.get("text"));
             case "ONECARD_PRANK_REACH_SEND", "ONECARD_HAND_FLIP_SEND" ->
-                    fields(payload, Set.of("gameId", "eventId", "targetUserId", "turnCount"))
+                    (fields(payload, Set.of("gameId", "eventId", "targetUserId", "turnCount"))
+                    || fields(payload, Set.of("gameId", "eventId", "targetUserId", "turnCount", "cardIndex", "handVersion"))
+                    && payload.path("cardIndex").isIntegralNumber() && payload.path("cardIndex").canConvertToInt()
+                    && payload.path("cardIndex").asInt() >= 0 && payload.path("cardIndex").asInt() < 54
+                    && payload.path("handVersion").isIntegralNumber() && payload.path("handVersion").canConvertToLong()
+                    && payload.path("handVersion").asLong() >= 0 && payload.path("handVersion").asLong() <= 9_007_199_254_740_991L)
                     && validGameId(payload) && validEventId(payload)
                     && payload.path("targetUserId").isTextual()
                     && payload.path("targetUserId").asText().matches("[1-9][0-9]{0,18}")

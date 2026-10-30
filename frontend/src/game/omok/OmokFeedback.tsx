@@ -7,7 +7,7 @@ import { useManual } from '../../features/manual/manualState'
 import { setChatInputOpen, inputState } from '../../world/inputOwnership'
 import { useGame } from '../store'
 import { OMOK_FOCUS_LAYER } from '../../world/omokCamera'
-import { OMOK_HALF, OMOK_SPACING } from '../omokPresentation'
+import { OMOK_HALF, OMOK_SPACING, omokCoordinate } from '../omokPresentation'
 import { useOmokEvents, type DisplayEvent, type PingEvent } from './spectatorEvents'
 import './omokFocus.css'
 
@@ -32,7 +32,7 @@ export function OmokFeedback() {
     </div>)}
     {pings.map(ping => <span className="omok-ping-label" key={ping.eventId} ref={element => {
       if (element) labels.set(ping.eventId, element); else labels.delete(ping.eventId)
-    }}>{profiles[ping.senderUserId]?.nickname ?? '관전자'} 추천</span>)}
+    }}>{profiles[ping.senderUserId]?.nickname ?? '관전자'} · {omokCoordinate(ping.x, ping.y)} 추천</span>)}
   </div>
 }
 
@@ -69,10 +69,10 @@ function Ping({ ping, focused }: { ping: DisplayEvent<PingEvent>; focused: boole
   const layers = 1 << (focused ? OMOK_FOCUS_LAYER : 0)
   return <group ref={root} name={`omok-spectator-ping-${ping.eventId}`} position={[ping.x * OMOK_SPACING - OMOK_HALF, .047, ping.y * OMOK_SPACING - OMOK_HALF]}>
     <mesh rotation={[-Math.PI / 2, 0, 0]} layers-mask={layers} renderOrder={20} raycast={() => {}}>
-      <ringGeometry args={[.036, .041, 40]} /><meshBasicMaterial ref={ringMaterial} color="#70d5b0" transparent depthWrite={false} depthTest={false} />
+      <ringGeometry args={[.037, .044, 4]} /><meshBasicMaterial ref={ringMaterial} color="#70d5b0" transparent depthWrite={false} depthTest={false} />
     </mesh>
     <mesh ref={wave} rotation={[-Math.PI / 2, 0, 0]} layers-mask={layers} renderOrder={19} raycast={() => {}}>
-      <ringGeometry args={[.043, .045, 40]} /><meshBasicMaterial ref={waveMaterial} color="#70d5b0" transparent depthWrite={false} depthTest={false} />
+      <ringGeometry args={[.046, .049, 4]} /><meshBasicMaterial ref={waveMaterial} color="#70d5b0" transparent depthWrite={false} depthTest={false} />
     </mesh>
   </group>
 }

@@ -7,6 +7,7 @@ import { createOneCardPrankRoom } from './onecardPrankFixture'
 import { facilityCatalog } from '../fixtures/facilityCatalog'
 import { benchTable } from '../../src/features/interactions/benchSpectator'
 import type { Card, Hand } from '../../src/game/onecard/protocol'
+import { choose3DCard } from './onecardHeldInput'
 
 const panel = (page: Page) => page.getByLabel('원카드 경기', { exact: true })
 type Scene = ReturnType<typeof import('./onecardSceneProbe').oneCardSceneProbe>
@@ -24,7 +25,7 @@ async function load(page: Page) {
   await expect.poll(() => page.evaluate(async () => {
     const state = (await import('/src/network/worldClient.ts' as string)).useSession.getState()
     return state.status === 'connected' && state.bindings.length > 0
-  })).toBe(true)
+  }), { timeout: 20000 }).toBe(true)
   await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90000 })
   await expect(page.locator('canvas')).toBeVisible()
   await page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).visualTime(.46))
@@ -44,24 +45,21 @@ test('four seated players and a separate observer: flip crosses windows and rest
     p.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
   }
   watchErrors(page)
-  const player = await fixture(page, { omok: true, m09: true, onecard: 4, players: 4, onecardPranks: true,
+  const player = await fixture(page, { omok: true, m09: true, onecard: 4, players: 4, onecardPranks: true, spectatorEvents: true,
     onecardPreview: { observer: false, room, interactionReview: true }, publicProfiles: profiles, anchorId: anchor.id })
   await load(page)
-  await expect(async () => {
-    await page.evaluate(async id => (await import('/src/park/runtime/runtime.ts' as string)).parkRuntime.inspectTable(id), anchor.id)
-    await expect(page.getByRole('button', { name: '앉기', exact: true })).toBeVisible({ timeout: 1500 })
-  }).toPass({ timeout: 15000 })
-  await page.getByRole('button', { name: '앉기', exact: true }).click()
+  await page.getByRole('button', { name: /테이블에 앉기/ }).click()
+  await page.evaluate(async id => (await import('/src/park/runtime/runtime.ts' as string)).parkRuntime.inspectTable(id), anchor.id)
   await page.getByLabel('1인 참가비').fill('1')
   await page.getByRole('button', { name: '원카드 선택', exact: true }).click()
   await page.getByRole('button', { name: '준비', exact: true }).click(); player.confirmStart()
   await expect(panel(page).getByRole('timer', { name: '차례 남은 시간' })).toBeVisible()
 
-  const observerContext = await browser.newContext({ viewport: { width: 1280, height: 800 } })
+  const observerContext = await browser.newContext({ viewport: { width: 1280, height: 800 }, hasTouch: true })
   try {
     const observerPage = await observerContext.newPage()
     watchErrors(observerPage)
-    const observer = await fixture(observerPage, { omok: true, onecard: 4, players: 5, onecardPranks: true,
+    const observer = await fixture(observerPage, { omok: true, onecard: 4, players: 5, onecardPranks: true, spectatorEvents: true,
       onecardPreview: { observer: true, room, interactionReview: true }, publicSpectator: true, publicProfiles: profiles,
       manualMovement: true, position: bench.center, anchorId: anchor.id })
     await load(observerPage)
@@ -92,24 +90,33 @@ test('four seated players and a separate observer: flip crosses windows and rest
     }
     await expect.poll(async () => (await probe(page)).players.map(p => p.heldCount)).toEqual([7, 5, 4, 3])
     await expect.poll(async () => (await probe(observerPage)).players.every(p => p.heldCount > 0)).toBe(true)
-    for (const remoteCount of [17, 1, 5]) {
+    await shot(observerPage, 'onecard-3d-hands-initial')
+    for (const remoteCount of [39, 17, 1, 5]) {
       const next = { ...snapshot, drawCount: 39 - remoteCount, players: snapshot.players.map((p, i) => i === 1 ? { ...p, cardCount: remoteCount } : p) }
       player.cardSnapshot(next, hand); observer.cardSnapshot(next, hand, 'SPECTATOR')
       for (const p of [page, observerPage]) await expect.poll(async () => (await probe(p)).players.map(p => p.displayedCount)).toEqual([7, remoteCount, 4, 3])
-      if (remoteCount === 17) await shot(page, 'onecard-4p-17-cards')
+      await expect(observerPage.locator('.onecard-public-hand,.onecard-spectator-card')).toHaveCount(0)
+      if (remoteCount === 39) {
+        await choose3DCard(observerPage, '102', 38)
+      }
+      if (remoteCount === 17) {
+        await shot(page, 'onecard-4p-17-cards')
+        await choose3DCard(observerPage, '102', 16)
+        await shot(observerPage, 'onecard-observer-17-fan')
+        expect(observer.sent.filter(m => m.type === 'ONECARD_PRANK_REACH_SEND')).toHaveLength(0)
+      }
     }
     await panel(page).getByRole('button', { name: '하트 J · 다음 차례 건너뛰기', exact: true }).click()
     await expect(panel(page).getByRole('button', { name: '하트 J · 다음 차례 건너뛰기', exact: true }).locator('img')).toHaveAttribute('src', '/art/onecard/classic/H-J.svg')
     await expect(panel(page).locator('.onecard-description')).toHaveCount(0)
     await expect(panel(page).getByRole('button', { name: '하트 J 내기', exact: true })).toBeEnabled()
     await shot(page, 'onecard-4p-play')
-    const prank = panel(observerPage).getByRole('button', { name: '도윤 손패 뒤집기', exact: true })
-    await expect(prank).toBeEnabled()
-    const spectatorBounds = await observerPage.locator('.onecard-spectator').boundingBox()
-    const exitBounds = await panel(observerPage).getByRole('button', { name: '관전 종료', exact: true }).boundingBox()
-    const benchBounds = await observerPage.getByRole('group', { name: '벤치 관전', exact: true }).boundingBox()
-    expect(spectatorBounds!.y + spectatorBounds!.height).toBeLessThan(exitBounds!.y)
-    expect(exitBounds!.y + exitBounds!.height).toBeLessThan(benchBounds!.y)
+    await expect(observerPage.locator('.onecard-spectator')).toHaveCount(0)
+    await expect(observerPage.getByRole('group', { name: '벤치 관전', exact: true })).toHaveCount(0)
+    await expect(observerPage.getByRole('complementary', { name: '가까운 상호작용', exact: true })).toBeHidden()
+    await choose3DCard(observerPage, '102', 1)
+    await expect(observerPage.locator('.onecard-public-hand-pages')).toHaveCount(0)
+    expect(observer.sent.filter(m => m.type === 'ONECARD_PRANK_REACH_SEND')).toHaveLength(0)
     await shot(observerPage, 'onecard-4p-observer-ready')
     if (process.env.ONECARD_INTERACTIVE_PREVIEW === 'true') {
       // Opt-in local review only: keep the actual FE and shared mock room alive for manual interaction.
@@ -127,26 +134,33 @@ test('four seated players and a separate observer: flip crosses windows and rest
         await expect.poll(async () => (await probe(reviewPage)).position.every(Number.isFinite)).toBe(true)
         await shot(reviewPage, name)
       }
-      console.log('ONECARD_PREVIEW_READY: 관전자에서 도윤 손패 뒤집기 → 플레이어에서 손패 정리. 두 창을 닫으면 시연이 종료됩니다.')
+      console.log('ONECARD_PREVIEW_READY: 관전자에서 도윤의 손패 직접 선택 → 플레이어에서 손패 정리. 두 창을 닫으면 시연이 종료됩니다.')
       await Promise.all([page.waitForEvent('close', { timeout: 0 }), observerPage.waitForEvent('close', { timeout: 0 })])
       return
     }
-    await prank.click()
-    await expect(panel(page).locator('[data-flipped=true]')).toHaveCount(2)
+    await choose3DCard(observerPage, '101', 2)
+    await expect(panel(page).locator('.onecard-ghost-hand')).toBeVisible()
+    await expect(panel(page).locator('[data-flipped=true]')).toHaveCount(0)
+    await page.waitForTimeout(1200)
+    await expect(panel(page).locator('[data-flipped=true]')).toHaveCount(0)
+    await shot(page, 'onecard-slow-approach')
+    await expect(panel(page).locator('[data-flipped=true]')).toHaveCount(1, { timeout: 6000 })
+    await expect(panel(page).locator('[data-card-id="diamonds-K"]')).toHaveAttribute('data-flipped', 'true')
+    expect(observer.sent.find(m => m.type === 'ONECARD_PRANK_REACH_SEND')!.payload.cardIndex).toBe(2)
     await expect(panel(page).getByRole('button', { name: '하트 J 내기', exact: true })).toBeEnabled()
-    await expect(panel(observerPage).getByText('도윤의 카드 2장이 뒤집혔어요', { exact: true })).toBeVisible()
-    await expect(prank).toBeDisabled()
+    await expect(panel(observerPage).locator('.onecard-spectator-hint')).toContainText('도윤의 카드 1장이 뒤집혔어요')
+    expect(observer.sent.filter(m => m.type === 'ONECARD_PRANK_REACH_SEND')).toHaveLength(1)
     await expect(panel(observerPage).getByLabel('나만 볼 수 있는 카드')).toHaveCount(0)
     expect(await observerPage.evaluate(async () => (await import('/src/game/store.ts' as string)).useGame.getState().game.hand)).toBeNull()
     await shot(observerPage, 'onecard-4p-observer-intervention')
     await shot(page, 'onecard-4p-player-flipped')
-    await panel(page).getByRole('button', { name: '손패 정리 · 2장 복구', exact: true }).click()
+    await panel(page).getByRole('button', { name: '손패 정리 · 1장 복구', exact: true }).click()
     await expect(panel(page).locator('[data-flipped=true]')).toHaveCount(0)
     await expect.poll(() => panel(page).locator('.onecard-card-rotator').evaluateAll(cards => cards.every(card => getComputedStyle(card).transform === 'none'))).toBe(true)
-    await expect(panel(observerPage).getByText('복구 완료 · 이번 차례의 장난은 사용했어요', { exact: true })).toBeVisible()
-    await expect(prank).toBeDisabled()
+    await expect(panel(observerPage).locator('.onecard-spectator-hint')).toContainText('복구 완료 · 이번 차례의 장난은 사용했어요')
+    expect(observer.sent.filter(m => m.type === 'ONECARD_PRANK_REACH_SEND')).toHaveLength(1)
     await shot(page, 'onecard-4p-player-restored')
-    expect(observer.sent.filter(m => m.type === 'ONECARD_HAND_FLIP_SEND')).toHaveLength(1)
+    expect(observer.sent.filter(m => m.type === 'ONECARD_PRANK_REACH_SEND')).toHaveLength(1)
     expect(player.sent.filter(m => m.type === 'ONECARD_HAND_RESTORE_SEND')).toHaveLength(1)
     expect([...observer.sent, ...player.sent].filter(m => m.type === 'GAME_ACTION_SEND')).toHaveLength(0)
     // Review windows must survive ordinary game buttons without pretending to run a server game engine.
@@ -157,6 +171,24 @@ test('four seated players and a separate observer: flip crosses windows and rest
       await expect(panel(page).getByRole('button', { name: '하트 J 내기', exact: true })).toBeEnabled()
     }
     expect(await page.evaluate(async () => (await import('/src/game/store.ts' as string)).useGame.getState().uncertain)).toBe(false)
+    await observerPage.getByRole('button', { name: '채팅 입력창 열기', exact: true }).click()
+    await observerPage.getByRole('textbox', { name: '경기 채팅 메시지', exact: true }).fill('이번 경기에서만 응원해요')
+    await observerPage.keyboard.press('Enter')
+    for (const p of [page, observerPage]) await expect(p.getByRole('region', { name: '경기 채팅', exact: true }).getByText('이번 경기에서만 응원해요', { exact: true })).toBeVisible()
+    expect([...observer.sent, ...player.sent].filter(m => m.type === 'WORLD_CHAT_SEND')).toHaveLength(0)
+    await observerPage.keyboard.press('Escape')
+    await observerPage.setViewportSize({ width: 390, height: 844 })
+    for (const [id, index] of [['101', 2], ['102', 4], ['103', 3], ['104', 2]] as const)
+      await choose3DCard(observerPage, id, index)
+    await expect(observerPage.locator('.onecard-public-hand,.onecard-spectator-card')).toHaveCount(0)
+    await choose3DCard(observerPage, '102', 4, true)
+    await shot(observerPage, 'onecard-4p-observer-mobile')
+    observer.cardSnapshot({ players: observer.cardState().players.map(p => p.userId === '102' ? { ...p, cardCount: 17 } : p), drawCount: 22 }, hand, 'SPECTATOR')
+    await expect.poll(async () => (await probe(observerPage)).players.find(p => p.id === '102')?.displayedCount).toBe(17)
+    await choose3DCard(observerPage, '102', 16, true)
+    await shot(observerPage, 'onecard-observer-mobile-17-fan')
+    await observerPage.locator('canvas').focus(); await observerPage.keyboard.press('Escape')
+    await expect.poll(() => observerPage.evaluate(async () => (await import('/src/game/store.ts' as string)).useGame.getState().watchedGameId)).toBe('')
     expect(errors).toEqual([])
   } finally { await observerContext.close() }
 })

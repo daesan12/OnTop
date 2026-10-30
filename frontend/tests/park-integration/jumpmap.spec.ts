@@ -120,3 +120,32 @@ test('stale course versions and a changed server map never activate jump platfor
   await shot(page, 'jumpmap-stale-map-blocked')
   expect(errors).toEqual([])
 })
+
+test('landing pressure, rebound and recovery render for all seven materials and respect reduced motion', async ({ page }) => {
+  const { server, errors, emit, start } = await setup(page)
+  start()
+  const pad = COURSE[0]!
+  server.place({ x: pad.x, y: pad.top + .8, z: pad.z })
+  const power = () => page.evaluate(async () => (await import('/tests/park-integration/landingMotionProbe.ts' as string)).landingPower(0))
+  emit('JUMPMAP_STEP', 2, { playerId: '101', block: pad.block })
+  await expect.poll(power).toBe(1)
+  const samples = await page.evaluate(async () => (await import('/tests/park-integration/landingMotionProbe.ts' as string)).sampleLandingMotion())
+  for (const sample of samples.result) {
+    expect(sample.pressed, `${sample.theme} visibly compresses`).toBeGreaterThan(60)
+    expect(sample.release, `${sample.theme} visibly rebounds`).toBeGreaterThan(20)
+    expect(sample.settled, `${sample.theme} recovers its silhouette`).toBe(0)
+    expect(sample.reduced, `${sample.theme} stays still at zero motion power`).toBe(0)
+    expect(sample.maxVertices, `${sample.theme} stays within the shared geometry budget`).toBeLessThan(40000)
+  }
+  const dir = process.env.QA_ARTIFACT_DIR ?? path.join(os.tmpdir(), 'ontop-jumpmap-qa')
+  await fs.mkdir(dir, { recursive: true })
+  await fs.writeFile(path.join(dir, 'landing-material-motion.png'), Buffer.from(samples.image.split(',')[1]!, 'base64'))
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await expect.poll(power).toBe(0)
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  await expect.poll(power).toBe(1)
+  expect((await probe(page)).state.run?.gatesPassed).toBe(0)
+  await shot(page, 'jumpmap-tactile-in-park')
+  await expect(page.locator('vite-error-overlay')).toHaveCount(0)
+  expect(errors).toEqual([])
+})

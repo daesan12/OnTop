@@ -100,7 +100,7 @@ function eligible(node: Object3D): node is Mesh {
   )
 }
 function visible(node: Object3D, index: number) {
-  if (node instanceof FadeBatchedMesh && !node.getVisibleAt(index)) return false
+  if (node instanceof FadeBatchedMesh && (node.isDisposed || !node.getVisibleAt(index))) return false
   for (let p: Object3D | null = node; p; p = p.parent)
     if (!p.visible) return false
   return true
@@ -126,6 +126,8 @@ export class CameraOcclusionFader {
     root.updateWorldMatrix(true, true)
     const meshes: Mesh[] = []
     root.traverse((node) => {
+      // React can replace a batch between the spatial refresh and the next camera frame.
+      if (node instanceof FadeBatchedMesh && node.isDisposed) return
       // A non-instanced source temporarily owns a transparent fade material.
       if (this.sources.has(node as Mesh) || eligible(node))
         meshes.push(node as Mesh)
@@ -235,6 +237,11 @@ export class CameraOcclusionFader {
         }
     }
     for (const entry of this.active) {
+      if (entry.source instanceof FadeBatchedMesh && entry.source.isDisposed) {
+        this.restore(entry)
+        this.active.delete(entry)
+        continue
+      }
       const blocked =
         enabled && this.clock - entry.lastBlocked <= OCCLUSION_FADE.releaseDelay
       entry.amount = advanceOcclusionFade(entry.amount, blocked, delta)

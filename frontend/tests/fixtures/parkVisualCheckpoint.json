@@ -1,5 +1,5 @@
 {
-  "description": "Latest dev models, additional trees, connected gate and service jumpmap retained; approved migration and lamp/fountain fixes, 2026-10-30; latest PARK_V1 movement keeps no-climb enforcement and pavilion-only jump",
+  "description": "Latest dev d803cbe0 with FE migration fixes and tactile jump effects; MR214 JSON/manifest frozen for BE221",
   "files": {
     "src/layout-preview/districtGeometry.ts": "a2840ed6640b66a60154057ac31dc177c7625c0b4930907d651a717f8fcf134b",
     "src/layout-preview/existingTreeModel.ts": "fcb9c89c3c90e11ac5a5670a0498dae14184a10b1acac281523ad56ed4748826",
@@ -24,7 +24,7 @@
     "src/layout-preview/plazaBuildingStructure.ts": "7ea5038b1fe941d8e72146a8a8f385b5bd7167ea48b7896bac7f90a11a702596",
     "src/layout-preview/PreviewBench.tsx": "ebdc4958755d78008bb27bee9e0933878ad71331479e522324a0c2c8333e0375",
     "src/layout-preview/PreviewCamera.tsx": "2c684a0a0ec36dc68fa68948f0c064231c079db8d9234428db0e11b41ad3be3b",
-    "src/layout-preview/PreviewJumpCourse.tsx": "44dc3d5008ffbc7c6090ed6c64ee6f8456e76773fcace5907c01d7bad4a04921",
+    "src/layout-preview/PreviewJumpCourse.tsx": "c403d6672ba9f080b5c3eead31de84059c4cba314f019d747bad24e4f8a58ad3",
     "src/layout-preview/PreviewLandscaping.tsx": "7bdec8aadc5b6e47e9d9ab3c0a0c86933e39d3ca2b86ced0d111bfc299f50dde",
     "src/layout-preview/PreviewPigeons.tsx": "829f4d51b3832a6e78e11af044975dbe8567f24499605949fc32990c9c109b2a",
     "src/layout-preview/PreviewSwimmingRipples.tsx": "7000a53d1d96f9e4aa21a23cdb89546168680a61a9ddb64240297151b22989b0",
@@ -55,7 +55,7 @@
     "src/world/art/boundaryGeometry.ts": "35a2970a050b0a17cea0db82f243e406f660589437c649b38ce89041100cb7b6",
     "src/world/art/BoundaryMaterial.tsx": "8900398806937412865d37622ec83be8dfb130c3b2282d35dcab8bd57c6ac4e2",
     "src/world/art/buildingParts.ts": "cc4608c2ae98199c9add599f9c43dd688a1a086d0f9a2aa1883e63c07c0d42e0",
-    "src/world/art/characterAssets.ts": "591ed91afd65bab3c446d0a4c713f16ed23974c516b3dff49a6ffa1d6465fe20",
+    "src/world/art/characterAssets.ts": "16b8e1fffbf2c1dcfea2f2be4d301e9a8adcb7750700cce7b9ba8205757835ac",
     "src/world/art/characterEmotes.ts": "fa6f71be2a2f40be9d32817e3fa8333c93e5f9b7cd07cdf72dc2a024882e8cb9",
     "src/world/art/characterMotion.ts": "32b692c0a9c674604e164d58876ac1b37bbbb6f7c28be39c3e2e2252de5a7084",
     "src/world/art/CharacterRig.ts": "6d5f34ce8b97b306af039f45589fe94f7cbb70c355b63cc680c2904efa372b94",
@@ -186,7 +186,8 @@
     "src/world/art/fitnessPavingGeometry.ts": "3792ea65214584704f47532280e40dccea1ec858cc97b5b51503e117467e20a2",
     "src/world/simpleEnvironmentPalette.ts": "aee77b31091c84944e81d79de860f500bd48486c343b719eb4164716a4663d37",
     "src/world/ParkSun.tsx": "0574bebac05a542cd557fea0de83dbff7908931e50c59f5a800adac238dba5b3",
-    "src/world/NightLighting.tsx": "0655c6b74eeb7cb1b102c256342456b3fe7d3b53f6030ff1cc1863ea59e52119"
+    "src/world/NightLighting.tsx": "0655c6b74eeb7cb1b102c256342456b3fe7d3b53f6030ff1cc1863ea59e52119",
+    "src/features/jumpmap/landingMotion.ts": "bd2fef3d57e71cb273cfb2e0c63052bbfe55e6f44b1972676ba306380b434223"
   },
   "compatibilityReview": {
     "date": "2026-10-29",

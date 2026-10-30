@@ -1,5 +1,6 @@
 dist-tablet/
 node_modules/
+.vite-cache/
 dist/
 dist-park/
 .pnpm-store/
