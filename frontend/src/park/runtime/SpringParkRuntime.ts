@@ -16,7 +16,9 @@ import { facilityMovementBlocked, FacilityUseBlockedError, showFacilityUseNotice
 import { RestError } from '../../network/restError'
 import { clearRoamingInput, inputState } from '../../world/inputOwnership'
 import { rememberRoamingView } from '../../world/cameraReturn'
-import { benchTable, benchViewScope } from '../../features/interactions/benchSpectator'
+import { benchTable, benchViewScope, resetBenchSpectator } from '../../features/interactions/benchSpectator'
+import { gameChatScope } from '../../features/chat/gameChat'
+import { gamePlayers, gameState } from '../../game/protocol'
 import { useBenchState } from '../../features/interactions/benchState'
 import { useFacilityState } from '../../features/facilities/state'
 import { filterChat } from '../../features/chat/filterChat'
@@ -182,10 +184,10 @@ export class ParkRuntime implements ParkRuntimePort {
     scope: () => {
       const s = useSession.getState(), g = useGame.getState()
       if (!this.active || !this.socket.connected || s.status !== 'connected' || !s.mapCompatible || !s.roomId
-        || !g.game?.omok || g.game.omok.status !== 'PLAYING' || g.lastResult) return null
+        || !g.game || gameState(g.game).status !== 'PLAYING' || g.lastResult) return null
       const game = g.game
       if (game.role === 'PLAYER' && (!s.tableId || g.recovery !== 'RESTORED' || g.permittedGameId !== game.gameId
-        || ![game.omok!.blackUserId, game.omok!.whiteUserId].includes(s.sessionId))) return null
+        || !gamePlayers(game).includes(s.sessionId))) return null
       if (game.role === 'SPECTATOR' && (!this.spectator.accepts(game.gameId) || g.watchedGameId !== game.gameId)) return null
       return { key: JSON.stringify([this.generation, s.sessionId, s.roomId, game.gameId, game.role,
         game.role === 'SPECTATOR' ? this.gameWatchRequestId : '']), gameId: game.gameId, version: game.version,
@@ -204,7 +206,7 @@ export class ParkRuntime implements ParkRuntimePort {
       const ui = useOneCardUI.getState()
       return { key: JSON.stringify([this.generation, s.sessionId, s.roomId, game.gameId, game.role,
         game.role === 'SPECTATOR' ? this.gameWatchRequestId : '']), gameId: game.gameId, ownId: s.sessionId,
-        role: game.role, turnCount: game.onecard.turnCount, turnUserId: game.onecard.turnUserId,
+        role: game.role, version: game.version, turnCount: game.onecard.turnCount, turnUserId: game.onecard.turnUserId,
         canSend: game.role === 'SPECTATOR' && !s.tableId && game.onecard.stage === 'PLAYING' && getAuthSession()?.status === 'AUTHENTICATED',
         canRestore: game.role === 'PLAYER', handIds: game.hand?.hand.map(c => c.id) ?? [],
         protectedId: ui.scope === handScope(s.sessionId, s.roomId, game.gameId, game.version) ? ui.selectedId : '' }
@@ -225,7 +227,8 @@ export class ParkRuntime implements ParkRuntimePort {
     canReach: target => this.oneCardPranks.canFlip(target),
     request: (type, payload, expected, onId) => this.socket.request(type, payload, expected, onId),
   })
-  flipOneCardHand = (targetUserId: string) => ONECARD_DEFENSE_ENABLED ? this.oneCardDefense.reach(targetUserId) : this.oneCardPranks.flip(targetUserId)
+  flipOneCardHand = (targetUserId: string, cardIndex?: number, handVersion?: number) => ONECARD_DEFENSE_ENABLED
+    ? this.oneCardDefense.reach(targetUserId, cardIndex, handVersion) : Promise.resolve(false)
   hitOneCardHand = (attemptId: string) => this.oneCardDefense.hit(attemptId)
   restoreOneCardHand = () => this.oneCardPranks.restore()
   pingOmok = (x: number, y: number) => this.omokEvents.send('ping', { x, y })
@@ -790,6 +793,7 @@ export class ParkRuntime implements ParkRuntimePort {
     }
   }
   sendChat = (value: string) =>
+    gameChatScope() ? this.sendSpectatorChat(filterChat(value)) :
     this.action(async () => {
       const text = filterChat(validateChat(value))
       if (!useSession.getState().roomId)
@@ -1273,10 +1277,12 @@ export class ParkRuntime implements ParkRuntimePort {
     useTableLobby.setState({ spectatorRequested: true, spectatorError: '' })
     return this.spectator.set({ gameId: ref.gameId, scope: JSON.stringify([this.generation, s.sessionId, s.roomId, current.watchedTableId, scope]) }, true)
   }
-  unwatchGame = (): Promise<boolean> => {
+  unwatchGame = async (): Promise<boolean> => {
     this.spectatorIntent = null
     useTableLobby.setState({ spectatorRequested: false })
-    return this.spectator.set(null, true)
+    const approved = await this.spectator.set(null, true)
+    if (approved) resetBenchSpectator()
+    return approved
   }
   closeTable = () => {
     this.spectatorIntent = null

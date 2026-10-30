@@ -17,6 +17,18 @@ function setup(role: 'PLAYER' | 'SPECTATOR' = 'SPECTATOR') {
   return { feed, request, context: (value: EventScope | null) => { context = value; feed.sync() },
     version: (version: number) => { context = context && { ...context, version }; feed.sync() }, advance: (ms: number) => { now += ms } }
 }
+it('keeps game-only history after bubbles expire, and erases it on a match change', () => {
+  const f = setup('PLAYER')
+  f.feed.accept(message('chat'))
+  f.feed.accept(message('chat'))
+  expect(useOmokEvents.getState().history).toHaveLength(1)
+  f.advance(4000); f.version(9)
+  expect(useOmokEvents.getState().chats).toHaveLength(0)
+  expect(useOmokEvents.getState().history).toHaveLength(1)
+  f.context({ key: 'another-match', gameId: 'other', role: 'SPECTATOR', version: 1, canSend: true })
+  f.feed.accept(message('chat'))
+  expect(useOmokEvents.getState().history).toHaveLength(0)
+})
 it('accepts numeric Unix ms and exact coordinate/version boundaries; rejects ISO, invalid coordinates and UUID', () => {
   expect(parseSpectatorEvent(message('ping', { x: 0, y: 14, basedOnVersion: Number.MAX_SAFE_INTEGER }))).not.toBeNull()
   for (const patch of [{ x: -1 }, { y: 15 }, { x: 1.1 }, { x: '7' }, { basedOnVersion: -1 },
