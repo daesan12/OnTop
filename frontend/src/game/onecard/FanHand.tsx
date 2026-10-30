@@ -1,6 +1,6 @@
-import { useState, useSyncExternalStore, type CSSProperties } from 'react'
+import { useEffect, useState, useSyncExternalStore, type CSSProperties } from 'react'
 import type { Card } from './protocol'
-import { fanPose, HAND_PAGE_SIZE } from './uiState'
+import { clearOneCardSelection, fanPose, HAND_PAGE_SIZE } from './uiState'
 import { HandCard } from './HandCard'
 
 interface Props {
@@ -19,12 +19,14 @@ export function FanHand({ cards, playableIds, flippedIds, scope, selectedId, can
   const pageSize = compact ? 3 : HAND_PAGE_SIZE
   const [page, setPage] = useState(0), pages = Math.max(1, Math.ceil(cards.length / pageSize))
   const [drag, setDrag] = useState<{ id: string; ready: boolean } | null>(null)
+  useEffect(() => { setPage(0); clearOneCardSelection() }, [compact])
+  const changePage = (next: number) => { clearOneCardSelection(); setPage(next) }
   const current = Math.min(page, pages - 1), visible = cards.slice(current * pageSize, (current + 1) * pageSize)
   return <>
     {pages > 1 && <nav className="onecard-hand-pages" aria-label="손패 묶음 탐색">
-      <button disabled={current === 0} onClick={() => setPage(current - 1)}>이전 손패</button>
-      <span>{current + 1} / {pages} 묶음 · 전체 {cards.length}장</span>
-      <button disabled={current === pages - 1} onClick={() => setPage(current + 1)}>다음 손패</button>
+      <button disabled={current === 0} onClick={() => changePage(current - 1)}>이전 손패</button>
+      <span role="status">{current + 1} / {pages} 묶음 · 전체 {cards.length}장</span>
+      <button disabled={current === pages - 1} onClick={() => changePage(current + 1)}>다음 손패</button>
     </nav>}
     <div className="onecard-hand" aria-label="나만 볼 수 있는 카드" style={{ '--fan-count': visible.length } as CSSProperties} data-dragging={!!drag}>
       {drag && <div className="onecard-drop-guide" role="status" data-ready={drag.ready}>

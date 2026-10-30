@@ -33,11 +33,11 @@
   font-size: clamp(11px, 1.2vw, 23px);
   line-height: 1;
 }
-.park-page .omok-accessible-board button:disabled {
+.park-page .omok-accessible-board button[aria-disabled=true] {
   opacity: 1;
   cursor: default;
 }
-.park-page .omok-accessible-board button:not(:disabled):hover {
+.park-page .omok-accessible-board button[aria-disabled=false]:hover {
   background: #f9e2ac;
 }
 .park-page .omok-accessible-board .black {
@@ -54,6 +54,7 @@
   outline: 2px solid #1d5939;
   outline-offset: -2px;
 }
+.omok-keyboard > p { margin:0; padding:0 12px 8px; font-size:12px; line-height:1.5; color:#e4d5bc; }
 .park-page .omok-last-move-text { color: #f4cd87; }
 .park-page .omok-surrender-preview { border-top: 1px solid #e6ddbf55; padding-top: 8px; }
 .park-page .omok-actions {
