@@ -2218,6 +2218,9 @@ public class TableHub {
         seating.entrySet().removeIf(entry -> entry.getValue().equals(tableId) && !connected.contains(entry.getKey()));
         publish(room, null, null);
         publishStart(tableId);
+        // 정산 전 조회 장애로 남은 판정만 재확인한다. 정상 FINISHED·LOBBY에는 새 PENDING을 만들지 않는다.
+        attempt.command().participants().forEach(player -> reconnect.ifPresent(service ->
+                service.roundSettled(Long.parseLong(player.userId()))));
     }
 
     private void replyStartState(Member target, String tableId, String requestId) {
