@@ -9,6 +9,7 @@ import { isNoteTopic } from './topics'
 const messages: Record<string, string> = {
   INVALID_REQUEST: '메모 내용과 기기 시각을 확인해주세요. 같은 문제가 계속되면 새로고침해주세요.',
   NOTES_TEXT_INVALID: '메모를 1~300자로 적어주세요.',
+  NOTES_CATEGORY_INVALID: '메모 주제를 다시 선택해주세요. 작성 내용은 보관됩니다.',
   NOTES_OUT_OF_RANGE: '전망대 정상 메모함 가까이에서 다시 시도해주세요.',
   NOT_IN_CHANNEL: '공원 연결을 확인한 뒤 다시 시도해주세요.',
   NOTES_ACTIVITY_CONFLICT: '시설·수영·게임 이용을 마친 뒤 다시 시도해주세요.',
@@ -29,7 +30,11 @@ function note(value: unknown) {
     ...(isNoteTopic(value.category) ? { category: value.category } : {}) }
 }
 /** Reads occur on open, explicit refresh, or a creation notification; no periodic polling. */
-export function createNotesService(requestJSON: (path: string, init?: RequestInit) => Promise<unknown>, supportsTopics = false): NotesService {
+export function createNotesService(
+  requestJSON: (path: string, init?: RequestInit) => Promise<unknown>,
+  supportsTopics = false,
+  subscribe: NotesService['subscribe'] = () => () => {},
+): NotesService {
   async function call<T>(path: string, init: RequestInit, parse: (value: unknown) => T): Promise<T> {
     if (init.signal?.aborted) throw new Error('메모 요청이 취소되었습니다.')
     try {
@@ -80,9 +85,10 @@ export function createNotesService(requestJSON: (path: string, init?: RequestIni
         return { note: row, nextAllowedAt }
       })
     },
-    subscribe: () => () => {},
+    subscribe,
   }
 }
 export const notesService: NotesService = import.meta.env.DEV && ['facility-preview', 'notes-preview'].includes(import.meta.env.MODE)
   ? new MockNotesService()
-  : createNotesService((path, init) => parkRuntime.requestJSON(path, init), import.meta.env.VITE_NOTES_CATEGORIES === 'true')
+  : createNotesService((path, init) => parkRuntime.requestJSON(path, init),
+    import.meta.env.VITE_NOTES_CATEGORIES !== 'false', changed => parkRuntime.subscribeNotesChanged(changed))
