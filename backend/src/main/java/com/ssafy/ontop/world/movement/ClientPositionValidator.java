@@ -44,6 +44,12 @@ public final class ClientPositionValidator {
     private final boolean tuned;
     private long airWindowAt;
     private double airWindowY;
+    /** 코요테 3틱(100ms)에 보고 간격 여유 50ms. 점프맵 활성 채널에서만 켠다. */
+    private static final long COYOTE_NANOS = 150_000_000L;
+    private boolean jumpGrace;
+    private double groundLaunchSpeed = 8;
+
+    void jumpGrace(boolean enabled) { jumpGrace = enabled; }
     ClientPositionValidator(Pose initial, long epoch, double boundary, Geometry geometry, LongSupplier clock) {
         this(initial, epoch, boundary, geometry, clock, false);
     }
@@ -92,7 +98,14 @@ public final class ClientPositionValidator {
                 nextAirAt = now; nextAirY = target.y;
             }
             Flight next = flight;
+            if (supportedFrom) groundLaunchSpeed = launchSpeed;
             if (next == null && candidate.jump && supportedFrom) next = new Flight(approved.y, now, launchSpeed);
+            // v2 코요테: 걸어 나가 떨어진 지 100ms(+보고 간격 여유) 안의 점프 한 번은 떠나온 바닥 기준으로 허용한다.
+            // 점프로 떠난 비행(speed>0)이나 이미 코요테를 쓴 비행은 다시 올라갈 수 없다.
+            if (jumpGrace && next != null && next.speed == 0 && candidate.jump && !supportedFrom
+                    && now - next.started <= COYOTE_NANOS) {
+                next = new Flight(next.originY, now, groundLaunchSpeed);
+            }
             if (next == null) {
                 // Grounded steps/slopes retain the existing geometric allowance.
                 // Leaving support without a jump can fall, but cannot invent lift.
