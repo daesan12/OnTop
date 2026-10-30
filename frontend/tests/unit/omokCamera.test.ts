@@ -1,8 +1,23 @@
 import { describe, expect, it } from 'vitest'
 import { Matrix4, PerspectiveCamera, Quaternion, Vector3 } from 'three'
-import { advanceOmokCamera, omokTopDownHeight } from '../../src/world/omokCamera'
+import { advanceOmokCamera, omokTopDownHeight, omokSpectatorFrame } from '../../src/world/omokCamera'
 
 describe('original omok camera projection and transition', () => {
+  it.each([[1920, 1080], [1366, 768], [1000, 700], [768, 1024], [390, 844]])('fits the complete spectator frame between HUD bounds at %i×%i', (width, height) => {
+    const insets = { top: 110, bottom: 210, left: 20, right: 60 }
+    for (const scale of [1, 1.3]) {
+      const frame = omokSpectatorFrame(width, height, scale, insets)
+      const camera = new PerspectiveCamera(42, width / height)
+      camera.position.set(frame.offsetX, frame.height, frame.offsetZ)
+      camera.up.set(0, 0, -1); camera.lookAt(frame.offsetX, 0, frame.offsetZ); camera.updateMatrixWorld()
+      for (const x of [-.75, .75]) for (const z of [-.75, .75]) {
+        const point = new Vector3(x * scale, 0, z * scale).project(camera)
+        const screenX = (point.x + 1) * width / 2, screenY = (1 - point.y) * height / 2
+        expect(screenX).toBeGreaterThan(insets.left); expect(screenX).toBeLessThan(width - insets.right)
+        expect(screenY).toBeGreaterThan(insets.top); expect(screenY).toBeLessThan(height - insets.bottom)
+      }
+    }
+  })
   it.each([[1920, 1080], [1280, 720], [1000, 1400]])('keeps the board inside 80% of the shorter side at %i×%i', (width, height) => {
     const camera = new PerspectiveCamera(42, width / height)
     for (const scale of [1, 1.3]) {

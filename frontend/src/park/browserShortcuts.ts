@@ -1,9 +1,9 @@
-/** Guard only F12 and Ctrl+Shift+I/J/C; preserve refresh and other browser shortcuts. */
+/** Cancel app-delivered F12, Ctrl+W and Ctrl+Shift+I/J/C; browser-reserved chords may bypass the page. */
 export function isRestrictedBrowserShortcut(event: KeyboardEvent): boolean {
   if (event.isComposing || event.getModifierState?.('AltGraph')) return false
   const code = event.code || (event.key.length === 1 ? `Key${event.key.toUpperCase()}` : event.key)
-  return code === 'F12' || (event.ctrlKey && event.shiftKey && !event.altKey && !event.metaKey
-    && ['KeyI', 'KeyJ', 'KeyC'].includes(code))
+  return code === 'F12' || (event.ctrlKey && !event.altKey && !event.metaKey
+    && (code === 'KeyW' || event.shiftKey && ['KeyI', 'KeyJ', 'KeyC'].includes(code)))
 }
 
 /** Install before the game's passive effects, including modal capture handlers. */

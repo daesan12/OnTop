@@ -1,4 +1,28 @@
 // Dev-server-only inspection helper. Never imported by production code or bundled with the app.
+export function pavilionChairProbe(anchorId: string) {
+  const table = root().scene.getObjectByName(anchorId)
+  const counts: number[] = []
+  table?.getObjectByName('main-table-timber-chairs')?.traverse(object => {
+    if ('isInstancedMesh' in object && object.isInstancedMesh) counts.push((object as InstancedMesh).count)
+  })
+  return { chairCount: table?.userData.chairCount, counts }
+}
+
+export function tabletPortraitProbe() {
+  return [...document.querySelectorAll<HTMLCanvasElement>('.tablet-portrait canvas')].map(canvas => {
+    const state = _roots.get(canvas)?.store.getState()
+    const model = state?.scene.getObjectByName('character-model')
+    if (!state || !model) return null
+    model.updateWorldMatrix(true, true)
+    const hands = ['hand_L', 'hand_R'].map(name => model.getObjectByName(name)!.getWorldPosition(new Vector3()).project(state.camera).toArray())
+    const head = model.getObjectByName('head')!.getWorldPosition(new Vector3()).project(state.camera)
+    return { hands, head: head.toArray(), width: canvas.offsetWidth, height: canvas.offsetHeight,
+      containerWidth: canvas.closest<HTMLElement>('.tablet-portrait')!.clientWidth,
+      containerHeight: canvas.closest<HTMLElement>('.tablet-portrait')!.clientHeight,
+      orthographic: 'isOrthographicCamera' in state.camera && state.camera.isOrthographicCamera }
+  })
+}
+
 export function equipmentProbe() {
   const s = useSession.getState()
   return { approved: s.equipment, models: s.ids.map(id => {
@@ -60,7 +84,7 @@ export function gatheringProbe() {
 export const omokCameraReady = () => omokCamera.ready
 export function omokCameraProbe() {
   const { scene, camera, gl, raycaster } = root()
-  const anchorId = useSession.getState().focusedAnchorId
+  const anchorId = omokCamera.anchorId || useSession.getState().focusedAnchorId
   const board = scene.getObjectByName('omok-board-' + anchorId)!
   const rect = gl.domElement.getBoundingClientRect()
   const half = GOMOKU.boardOuterSpan / 2
@@ -75,6 +99,12 @@ export function omokCameraProbe() {
     rayLayers: raycaster.layers.mask, backdrop: !!backdrop?.visible,
     backdropTriangles: backdrop ? (backdrop.geometry.index?.count ?? 0) / 3 : 0,
     overheads: [...document.querySelectorAll<HTMLElement>('.avatar-overlays > *')].filter(e => e.style.visibility !== 'hidden').length }
+}
+export function omokCoordinateProbe() {
+  const board = root().scene.getObjectByName('omok-board-' + (omokCamera.anchorId || useSession.getState().focusedAnchorId))
+  const coordinates = board?.getObjectByName('omok-board-coordinates') as Mesh | undefined
+  const material = coordinates?.material as import('three').MeshBasicMaterial | undefined
+  return { visible: !!coordinates?.visible, textured: !!material?.map }
 }
 let omokTrace: { fov: number; position: number[]; quaternion: number[]; ready: boolean }[] = []
 let tracingOmok = false
@@ -92,7 +122,7 @@ export function finishOmokCameraTrace() { tracingOmok = false; return omokTrace 
 export function pointForOmok(x: number, y: number) {
   const { scene, camera, gl } = root()
   const object = scene.getObjectByName(
-    'omok-board-' + useSession.getState().focusedAnchorId,
+    'omok-board-' + (omokCamera.anchorId || useSession.getState().focusedAnchorId),
   )!
   const point = object
     .localToWorld(
@@ -126,7 +156,7 @@ export function omokGeometry() {
 }
 export function omokPresentationProbe() {
   const { scene, gl } = root()
-  const board = scene.getObjectByName('omok-board-' + useSession.getState().focusedAnchorId)
+  const board = scene.getObjectByName('omok-board-' + (omokCamera.anchorId || useSession.getState().focusedAnchorId))
   const hover = board?.getObjectByName('omok-hover'), last = board?.getObjectByName('omok-last-move')
   return { hover: !!hover?.visible, hoverPosition: hover?.position.toArray() ?? null,
     lastMove: last?.position.toArray() ?? null, cursor: gl.domElement.style.cursor }
@@ -134,7 +164,7 @@ export function omokPresentationProbe() {
 // M10 visual QA: inspect render-only supplies without changing game or transport state.
 export function omokArtProbe(visible?: boolean) {
   const { scene } = root()
-  const board = scene.getObjectByName('omok-board-' + useSession.getState().focusedAnchorId)
+  const board = scene.getObjectByName('omok-board-' + (omokCamera.anchorId || useSession.getState().focusedAnchorId))
   if (board && visible !== undefined) board.visible = visible
   const art = board?.getObjectByName('walnut-gomoku-assets')
   const bounds = art ? new Box3().setFromObject(art) : null
@@ -148,7 +178,7 @@ export function omokArtProbe(visible?: boolean) {
 }
 export function pointForOmokLocal(x: number, y: number, z: number) {
   const { scene, camera, gl } = root()
-  const board = scene.getObjectByName('omok-board-' + useSession.getState().focusedAnchorId)!
+  const board = scene.getObjectByName('omok-board-' + (omokCamera.anchorId || useSession.getState().focusedAnchorId))!
   const p = board.localToWorld(new Vector3(x, y, z)).project(camera), box = gl.domElement.getBoundingClientRect()
   return { x: (p.x + 1) * box.width / 2, y: (1 - p.y) * box.height / 2 }
 }
@@ -156,7 +186,7 @@ const omokResources = { instances: 0, shared: 0 }
 export function watchOmokResources() {
   omokResources.instances = omokResources.shared = 0
   const { scene } = root(), geometries = new Set(), materials = new Set()
-  scene.getObjectByName('omok-board-' + useSession.getState().focusedAnchorId)?.traverse(o => {
+  scene.getObjectByName('omok-board-' + (omokCamera.anchorId || useSession.getState().focusedAnchorId))?.traverse(o => {
     if (!('isInstancedMesh' in o)) return
     const mesh = o as InstancedMesh
     mesh.addEventListener('dispose', () => omokResources.instances++)

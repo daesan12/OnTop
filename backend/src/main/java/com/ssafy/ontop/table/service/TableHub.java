@@ -2660,11 +2660,27 @@ public class TableHub {
     }
 
     private StatePush approvedPlayerChat(String sessionId, Member member, String gameId) {
+        if (!reconnect.orElseThrow().canControlGame(member.accountId(), sessionId, gameId)) { return null; }
+        String tableId = seating.get(member.userId());
+        if (tableId == null) { return null; }
         StatePush push = statePushes.get(sessionId);
-        return push != null && push.member == member && push.role == GameStateView.Role.PLAYER
+        if (push != null && push.member == member && push.role == GameStateView.Role.PLAYER
                 && push.gameId.equals(gameId) && push.players.contains(member.userId())
-                && java.util.Objects.equals(push.tableId, seating.get(member.userId()))
-                && reconnect.orElseThrow().canControlGame(member.accountId(), sessionId, gameId) ? push : null;
+                && tableId.equals(push.tableId)) { return push; }
+        // RESTORED already grants this connection control before the first GAME_STATE push/query.
+        // Use the committed start under the Hub lock; never call the engine here or require a manual refresh.
+        TableStartAttempt attempt = starts.get(tableId);
+        if (attempt == null || !"PLAYING".equals(attempt.phase())
+                || !gameId.equals(seatedGames.get(member.userId()))
+                || !gameId.equals(attempt.view(0, false).gameSessionId())) { return null; }
+        Set<String> players = attempt.command().participants().stream().map(Participant::userId).collect(Collectors.toSet());
+        if (!players.contains(member.userId())) { return null; }
+        StatePush chatScope = new StatePush(member, gameId);
+        chatScope.tableId = tableId;
+        chatScope.gameCode = attempt.command().gameCode();
+        chatScope.status = "PLAYING";
+        chatScope.players = Set.copyOf(players);
+        return chatScope;
     }
 
     /**

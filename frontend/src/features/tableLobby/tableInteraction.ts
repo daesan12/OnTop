@@ -1,8 +1,13 @@
 import { parkRuntime } from '../../park/runtime/runtime'
 import { useSession } from '../../network/worldClient'
+import { bindAnchor } from '../../network/tableBindings'
 
-/** Tables and chairs share one entry: request a seat from the server. */
+/** Available tables seat directly; active/full tables expose the approved watch flow. */
 export function interactWithTable(anchorId: string) {
-  if (useSession.getState().tableId) return
-  void parkRuntime.joinTable(anchorId)
+  const session = useSession.getState()
+  if (session.tableId) return
+  const tableId = bindAnchor(session.bindings, session.roomId, anchorId, session.tables.map(t => t.tableId))
+  const table = session.tables.find(t => t.tableId === tableId)
+  if (table?.joinable === false) parkRuntime.inspectTable(anchorId)
+  else void parkRuntime.joinTable(anchorId)
 }
