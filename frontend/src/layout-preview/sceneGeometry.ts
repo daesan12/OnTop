@@ -63,12 +63,22 @@ function reserved(x:number,z:number) {
   if(Math.abs(x+35)<6&&Math.abs(z-29)<7)return true
   return false
 }
-for(const [x,z] of candidates) {
-  if(!insideRoundedSquare(x,z,82,7)||reserved(x,z)||random()<.05)continue
+function addWoodlandTree(x:number,z:number) {
+  if(!insideRoundedSquare(x,z,82,7)||reserved(x,z)||random()<.05)return false
   const h=4.2+random()*3.7,r=1.05+random()*.65,pink=random()<.19
   trunks.push({p:[x,h*.3,z],s:[.22,h*.6,.22],c:'#72553c'})
   crowns.push({p:[x,h*.72,z],s:[r,h*.37,r],c:pink?'#c98f9e':['#537e55','#6f965d','#456d4c','#87a265'][Math.floor(random()*4)]!})
   if(random()<.4)shrubs.push({p:[x+1.4,.5,z+1],s:[1,.65,.9],c:'#66875b'})
+  return true
+}
+for(const [x,z] of candidates)addWoodlandTree(x,z)
+// Fill gaps between the established trees without reshuffling the existing grove.
+export const SUPPLEMENTAL_TREE_SITES:Array<{x:number;z:number}>=[]
+const supplementRandom=seeded(301026)
+for(let z=-77.425;z<=79;z+=SETTINGS.planting.woodlandSupplementSpacing)for(let x=-77.425;x<=79;x+=SETTINGS.planting.woodlandSupplementSpacing){
+  const px=x+(supplementRandom()-.5)*.6,pz=z+(supplementRandom()-.5)*.6
+  if(inMailboxClearing(px,pz,SITES.mailbox,SETTINGS.planting.mailboxTreeClearance)||trunks.some(t=>Math.hypot(t.p[0]-px,t.p[2]-pz)<2.1))continue
+  if(addWoodlandTree(px,pz))SUPPLEMENTAL_TREE_SITES.push({x:px,z:pz})
 }
 // Continuous inner wall planting, leaving the south entrance and perimeter path clear.
 export const PERIMETER_TREE_SITES:Array<{x:number;z:number}>=[]

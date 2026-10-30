@@ -19,6 +19,45 @@ const {parseBindings,bindAnchor}=await import('../../src/network/tableBindings')
 const {PARK_DESTINATIONS,findParkRoute,navigationSegmentClear}=await import('../../src/features/navigation/parkNavigation')
 afterAll(()=>vi.unstubAllEnvs())
 
+it('replaces the back massage slot with a second inversion station and matching use/exit poses',async()=>{
+ const legacy=await import('../../src/config/fitness')
+ const {fitnessAnchors,findFitness}=await import('../../src/features/fitness/anchors')
+ expect(map.FITNESS_STATIONS).toHaveLength(legacy.FITNESS_STATIONS.length)
+ expect(map.FITNESS_STATIONS.map(s=>s.id)).toEqual(legacy.FITNESS_STATIONS.map(s=>s.id))
+ expect(map.FITNESS_STATIONS.filter(s=>s.kind==='inversion')).toHaveLength(2)
+ expect(map.FITNESS_STATIONS.some(s=>s.kind==='backmassage')).toBe(false)
+ const first=map.FITNESS_STATIONS.find(s=>s.id==='inversion')!,second=findFitness('backmassage')!
+ expect(second).toMatchObject({kind:'inversion',name:'거꾸로 매달리기 2',baseHeight:first.baseHeight,instruction:first.instruction})
+ const index=legacy.FITNESS_STATIONS.findIndex(s=>s.id==='backmassage'),angle=(index+.5)*Math.PI*2/legacy.FITNESS_STATIONS.length
+ expect(second.position).toEqual([PARK_LAYOUT.SITES.fitness.x+Math.cos(angle)*PARK_LAYOUT.SETTINGS.fitness.stationRadius,0,PARK_LAYOUT.SITES.fitness.z+Math.sin(angle)*PARK_LAYOUT.SETTINGS.fitness.stationRadius])
+ const anchors=fitnessAnchors(second.id),server=PARK_DATA.interactions.fitness.find(s=>s.id===second.id)!
+ expect(anchors).toEqual({use:server.use,exit:server.exit})
+ expect(anchors.use.y).toBeCloseTo(second.position[1]+.68+.8)
+ const motion=map.createFitnessMotion()
+ map.sampleFitnessMotion(second.kind,1000,2200,motion)
+ expect(motion.bodyX).toBeLessThan(-1)
+ expect(motion.mechanism).toBe(motion.bodyX)
+})
+
+it('keeps every workout station concentric with the tree, facing it, with safe use/exit and collider alignment',()=>{
+ const center=PARK_LAYOUT.SITES.fitness,radius=PARK_LAYOUT.SETTINGS.fitness.stationRadius,stations=map.FITNESS_STATIONS
+ const chord=2*radius*Math.sin(Math.PI/stations.length)
+ for(const [i,s] of stations.entries()){
+  const dx=center.x-s.position[0],dz=center.z-s.position[2]
+  expect(Math.hypot(dx,dz),s.id+' tree distance').toBeCloseTo(radius)
+  expect(s.position[0]+Math.sin(s.yaw)*radius,s.id+' facing X').toBeCloseTo(center.x)
+  expect(s.position[2]+Math.cos(s.yaw)*radius,s.id+' facing Z').toBeCloseTo(center.z)
+  const next=stations[(i+1)%stations.length]!
+  expect(Math.hypot(next.position[0]-s.position[0],next.position[2]-s.position[2]),s.id+' neighbour spacing').toBeCloseTo(chord)
+  const collider=PARK_DATA.physics.boxes.find(b=>b.id===s.id)!,interaction=PARK_DATA.interactions.fitness.find(f=>f.id===s.id)!
+  expect([collider.center[0],collider.center[2],collider.yaw]).toEqual([s.position[0],s.position[2],s.yaw])
+  expect(interaction.yaw).toBe(s.yaw)
+  expect(PARK_LAYOUT.canWalk(interaction.exit.x,interaction.exit.z),s.id+' dismount').toBe(true)
+  const inwardX=s.position[0]+Math.sin(s.yaw)*map.FITNESS.exitOffset,inwardZ=s.position[2]+Math.cos(s.yaw)*map.FITNESS.exitOffset
+  expect(PARK_LAYOUT.canWalk(inwardX,inwardZ),s.id+' inner approach').toBe(true)
+ }
+})
+
 it('connects dev feedback, notes and minigame entry to the accepted map instead of legacy coordinates',()=>{
  const mailbox=PARK_DATA.interactions.mailbox.position,notes=PARK_DATA.interactions.notes.reachPosition,cart=PARK_LAYOUT.SITES.cart
  expect(canReachFeedback({x:mailbox[0],y:mailbox[1]+.8,z:mailbox[2],yaw:0})).toBe(true)
@@ -26,6 +65,16 @@ it('connects dev feedback, notes and minigame entry to the accepted map instead 
  expect(canReachNotes({x:notes[0],y:.8,z:notes[2],yaw:0})).toBe(false)
  expect(canReachBungeoppang({x:cart.x,y:.8,z:cart.z})).toBe(true)
  expect(BUNG_GRILL.center).toEqual([cart.x+FISH_CART_GRILL.center[0],FISH_CART_GRILL.surfaceY,cart.z+FISH_CART_GRILL.center[2]])
+})
+
+it('scales the sound box and its collision footprint together while keeping its front usable',()=>{
+ const scale=PARK_LAYOUT.SETTINGS.mailbox.scale,box=PARK_DATA.physics.boxes.find(b=>b.id==='feedback-mailbox')!
+ expect(scale).toBe(1.5)
+ expect(map.MAILBOX.height).toBeCloseTo(2.7)
+ expect(box.center).toEqual([map.MAILBOX.x,map.MAILBOX.height/2,map.MAILBOX.z])
+ expect(box.half).toEqual([map.MAILBOX.bodyHalfWidth,map.MAILBOX.height/2,map.MAILBOX.bodyHalfDepth])
+ expect(PARK_LAYOUT.canWalk(map.MAILBOX.x,map.MAILBOX.z+1.5)).toBe(true)
+ expect(canReachFeedback({x:map.MAILBOX.x,y:.8,z:map.MAILBOX.z+1.5,yaw:Math.PI})).toBe(true)
 })
 
 it('selects the same generated scene placements and identity used by the server handoff',()=>{

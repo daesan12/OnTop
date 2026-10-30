@@ -87,11 +87,11 @@ describe('180m layout draft contracts',()=>{
     expect(DRAFT_FITNESS_AREA.width).toBeGreaterThan(DRAFT_FITNESS_AREA.depth);expect(DRAFT_FITNESS_AREA.depth).toBeLessThan(30)
     for(const s of DRAFT_FITNESS_STATIONS)expect(canWalk(s.position[0],s.position[2]),s.id).toBe(false)
   })
-  it('uses an elliptical fitness layout with clear shaded seats, a larger plaza and inward-facing small booths',()=>{
+  it('uses a concentric fitness circle with clear shaded seats, a larger plaza and inward-facing small booths',()=>{
     expect(SITES.fitness.z).toBeGreaterThan(56)
     for(const s of DRAFT_FITNESS_STATIONS) {
       const dx=s.position[0]-SITES.fitness.x,dz=s.position[2]-SITES.fitness.z
-      expect(Math.hypot(dx/11.5,dz/7.5)).toBeCloseTo(1)
+      expect(Math.hypot(dx,dz)).toBeCloseTo(SETTINGS.fitness.stationRadius)
       expect(Math.sin(s.yaw)*dx+Math.cos(s.yaw)*dz).toBeLessThan(0)
     }
     expect(canWalk(SITES.fitness.x,SITES.fitness.z)).toBe(false)

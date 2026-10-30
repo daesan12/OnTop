@@ -1,14 +1,14 @@
 {
   "artifacts": [
     {
-      "bytes": 2545864,
+      "bytes": 2545863,
       "path": "generated/park/server-map.json",
-      "sha256": "cd7e8e93333d3bdb3ecb8d1b72da6709f4cd88c6f0a77a0030c71f77a45e40c4"
+      "sha256": "0eb15f4dccb14bca7ded0bedb63448228c969c74a4ef054ec30ac8856a56d496"
     },
     {
       "bytes": 329,
       "path": "src/map/park/generated/mapVersion.ts",
-      "sha256": "a96e25551d0455e30be5ff8c982e0f8bd43f20050045e782da9d6c7f6d5d16f9"
+      "sha256": "8ad5bb83531d5f512c66ff291218ccd3cf1c36a200f18fad8fd5ba22844c40bc"
     }
   ],
   "counts": {
@@ -29,11 +29,11 @@
   "format": "ontop.park-map-manifest",
   "hashAlgorithm": "sha256",
   "hashes": {
-    "dataHash": "9b18bd40c6da36de15c9592ac7c113c7bb4502e10c12d6a568dda6d8ea82440d",
-    "sourceHash": "1a9c4e535d76221d42e6219965be19612461ebf577408e7f30fdb11d947072f1"
+    "dataHash": "084a6147793165ed861d70090b3697309c8c9ee2e4c8b7e7086174886196f4b6",
+    "sourceHash": "436691ed5b3c74ef1abbeec83da9e006c0b5dc0278ba6f5b509ad036a2c3adb8"
   },
   "mapId": "park",
-  "mapVersion": "cac3cb040a43630b0b40201ab089a4b328146c03211867b2a155d2b3614acc81",
+  "mapVersion": "8567d192f66c47472fe67f0bab356331602c29ea9e95e97cfa85bbeb199500cf",
   "schemaVersion": 2,
   "sources": [
     {
@@ -150,7 +150,7 @@
     },
     {
       "path": "src/map/park/definition.ts",
-      "sha256": "bc24581fc7db62063de077b0d328a329eba4fea17f192a80ca31b70e227b5331"
+      "sha256": "c65f46791403766d24f4a83facc41f342b58ce82e2fa8db5547cd00af09f14ff"
     },
     {
       "path": "src/map/park/fountainHeight.ts",
@@ -162,7 +162,7 @@
     },
     {
       "path": "src/map/park/interactionData.ts",
-      "sha256": "c9e4be160c37056cc075756f9ca139dafa6937d3df6bad43666a5f99b560c6dd"
+      "sha256": "34a447bb4521153f76cad68b4f9b2bfe62fa12695d7219b38f74b54d173f94d8"
     },
     {
       "path": "src/map/park/lake.ts",
@@ -170,7 +170,7 @@
     },
     {
       "path": "src/map/park/physics.ts",
-      "sha256": "4e70a9d3b7a63f79b833fd818d35f293a590833e836f58d39e09fa9f1ae26d80"
+      "sha256": "624c6548577c2752a52f52780505cc5518b7217008d7dcdbfe8d3b0c1b4d69e3"
     },
     {
       "path": "src/map/park/planting.ts",
@@ -178,11 +178,11 @@
     },
     {
       "path": "src/map/park/resolve.ts",
-      "sha256": "b1f94341af448b715c4e8fae5458f9c96aa3b535f0b65e37104c29d45335061e"
+      "sha256": "88908fe663dad1f6a3b0427fcdd701cb4d245eded2b405864cde8991df67ef25"
     },
     {
       "path": "src/map/park/validate.ts",
-      "sha256": "7e441e49006eb34809264552707e4c625e7c61cc8a08f6f354a840e2f9086e7e"
+      "sha256": "33cb3b0c617a67f2fb9de7f5f8e357cac8e8a0d7540930a3d70f7d7d8b3f991d"
     }
   ],
   "validation": {

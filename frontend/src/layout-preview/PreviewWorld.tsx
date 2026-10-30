@@ -31,7 +31,7 @@ import { Water } from '../world/art/WaterGarden'
 import { LakeFish } from '../world/art/LakeFish'
 import { vrBoothArt } from '../world/art/activityPropGeometry'
 import { ParkLamps } from '../world/art/ParkFurniture'
-import { ENVIRONMENT, MINI_PROPS, MAILBOX, GARDEN_PAGODA,VR_PAGODA,LAKE } from '../config'
+import { ENVIRONMENT, MINI_PROPS, GARDEN_PAGODA,VR_PAGODA,LAKE } from '../config'
 import { DRAFT_PARK,SETTINGS,DRAFT_PAVILIONS,DRAFT_TABLES,DRAFT_FITNESS_AREA,DRAFT_FITNESS_STATIONS,DRAFT_TOWER_BENCHES,DRAFT_FOUNTAIN,PLAZA_REST_BENCHES,PLAZA_BEDS,PLAZA_BENCHES,DRAFT_LAMPS,MAIN_GATE,VR_YAW,SITES,ORIGINAL_SITES } from './layout'
 import { lawn,gardenArt,pavilionStairsArt,cityArt,detailArt,trunks,crowns,flowers,shrubs,lakeBank,shoreTrunks,shoreCrowns } from './sceneGeometry'
 import { pathPaving,pathCurbs,fenceArt,plazaArt } from './landscapeGeometry'
@@ -125,7 +125,7 @@ export const PreviewWorld=memo(function PreviewWorld({live=false}:{live?:boolean
       {!live&&<PreviewSwimmingRipples/>}
     </group>
     <group name="fish-bread" position={[SITES.cart.x,0,SITES.cart.z]} userData={{assetId:"user/repaired-fish-cart"}}><CodeFishBreadCart detailDistance={80}/></group>
-    <group position={[SITES.mailbox.x-MAILBOX.x,0,SITES.mailbox.z-MAILBOX.z]}><TraditionalMailbox/></group>
+    <TraditionalMailbox position={[SITES.mailbox.x,0,SITES.mailbox.z]} scale={SETTINGS.mailbox.scale}/>
     <PlazaBuilding kind="shop" live={live}/><PlazaBuilding kind="drink" live={live}/><PlazaBuilding kind="photo" live={live}/>
     <PreviewPigeons live={live}/>
     <FacetedParkTreeInstances parts={groveTreeModels.parts} name="layout-grove-original-trees" treeCount={groveTreeModels.plantings.length}/>

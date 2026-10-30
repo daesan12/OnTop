@@ -33,8 +33,12 @@ const VR_COURT={x:definition.vrCourt.x,z:definition.vrCourt.z,width:definition.v
 const VR_EDGE_TREE_SITES=definition.vrEdgeTrees
 const EVENT_GROVE={...SITES.event,width:definition.event.width,depth:definition.event.depth}
 const DRAFT_FITNESS_AREA={...SITES.fitness,width:definition.fitness.width,depth:definition.fitness.depth,radius:definition.fitness.radius,rx:definition.fitness.rx,rz:definition.fitness.rz}
-const DRAFT_FITNESS_STATIONS=FITNESS_STATIONS.map((s,i)=>{
-  const a=(i+.5)*Math.PI*2/FITNESS_STATIONS.length,dx=Math.cos(a)*definition.fitness.stationRx,dz=Math.sin(a)*definition.fitness.stationRz
+const inversionStation=FITNESS_STATIONS.find(s=>s.kind==='inversion')!
+const DRAFT_FITNESS_STATIONS=FITNESS_STATIONS.map((station,i)=>{
+  // Replace this slot's equipment while retaining its placement and persistent facility ID.
+  const s=station.kind==='backmassage'?{...inversionStation,id:station.id,name:'거꾸로 매달리기 2'}:station
+  // One radius keeps all stations equally spaced around the central tree.
+  const a=(i+.5)*Math.PI*2/FITNESS_STATIONS.length,dx=Math.cos(a)*definition.fitness.stationRadius,dz=Math.sin(a)*definition.fitness.stationRadius
   return {...s,position:[SITES.fitness.x+dx,s.position[1],SITES.fitness.z+dz] as [number,number,number],yaw:Math.atan2(-dx,-dz)}
 })
 const KIOSKS=(['shop','drink','photo'] as const).map(kind=>({kind,...SITES[kind],scale:1,...definition.kiosks[kind]}))
@@ -206,7 +210,7 @@ const DRAFT_BOXES: readonly DraftBox[] = [
   ...DRAFT_LAKE_ROCKS.map(r=>({id:r.id,x:r.x,z:r.z,halfX:r.size[0]*.9,halfZ:r.size[2]*.9})),
   {id:'garden-pagoda',...SITES.pagoda,halfX:8,halfZ:8},
   {id:'fish-bread',...SITES.cart,halfX:MINI_PROPS[0].width/2,halfZ:MINI_PROPS[0].depth/2},
-  {id:'feedback-mailbox',...SITES.mailbox,halfX:MAILBOX.bodyHalfWidth,halfZ:MAILBOX.bodyHalfDepth},
+  {id:'feedback-mailbox',...SITES.mailbox,halfX:MAILBOX.bodyHalfWidth*definition.mailbox.scale,halfZ:MAILBOX.bodyHalfDepth*definition.mailbox.scale},
   ...KIOSKS.map(k=>({id:`layout-${k.kind}`,x:k.x,z:k.z,halfX:k.width/2*Math.abs(Math.cos(k.yaw))+k.depth/2*Math.abs(Math.sin(k.yaw)),halfZ:k.width/2*Math.abs(Math.sin(k.yaw))+k.depth/2*Math.abs(Math.cos(k.yaw))})),
 ]
 // Lamps sit beside paving, clear of buildings, stairs, water, fences and the pagoda terrace.

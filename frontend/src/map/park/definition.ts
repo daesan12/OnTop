@@ -98,7 +98,8 @@ export const PARK_DEFINITION = {
   // Main facility placements, metres in the X/Z ground plane.
   sites,
   // Includes the low-poly canopy and a clear place to stand in front of the sound box.
-  planting:{mailboxTreeClearance:3.4},
+  planting:{mailboxTreeClearance:4.4,woodlandSupplementSpacing:3.15},
+  mailbox:{scale:1.5},
   pavilions:pavilionPositions,
   tables:otherTablePositions,
   routes,
@@ -109,7 +110,7 @@ export const PARK_DEFINITION = {
   vrCourt:{x:-63,z:-12,width:34,depth:40,yaw:Math.PI/2},
   vrEdgeTrees:[...[-27,-21,-15,-2,4].map(z=>({x:-43.4,z})),...[-27,-21,-3,3].map(z=>({x:-81.1,z})),...[-77,-71,-55,-49].flatMap(x=>[{x,z:-33.1},{x,z:9.1}])],
   event:{width:32,depth:26,benches:[{x:-75,z:14,side:-1},{x:-57,z:26,side:1}]},
-  fitness:{width:30,depth:22,radius:15,rx:15,rz:11,stationRx:11.5,stationRz:7.5,fenceRx:16.2,fenceRz:12.2,fenceOpening:5.6},
+  fitness:{width:30,depth:22,radius:15,rx:15,rz:11,stationRadius:7.5,exitOffset:2.8,fenceRx:16.2,fenceRz:12.2,fenceOpening:5.6},
   kiosks,
   gate:{opening:5.2,boundaryOpening:5.2,postX:2.6},
   pavilionCourt:{width:14.5,depth:17},

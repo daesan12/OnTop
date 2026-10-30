@@ -3,11 +3,12 @@ import { CraftedPropLod, PropSign } from './CraftedProp'
 import { mailboxArt, mailboxTitle } from './mailboxGeometry'
 
 /** Tiled-roof wooden letterbox; the original world anchor and collision identity are preserved. */
-export function TraditionalMailbox() {
+export function TraditionalMailbox({position=[MAILBOX.x,0,MAILBOX.z],scale=1}:{position?:[number,number,number];scale?:number}={}) {
   return (
     <group
       name="feedback-mailbox"
-      position={[MAILBOX.x, 0, MAILBOX.z]}
+      position={position}
+      scale={scale}
       userData={{
         assetId: 'user/red-mailbox',
         source: 'code/mailboxGeometry',
