@@ -75,6 +75,61 @@ public class WorldChannelRegistry implements ChannelPresence {
         jumpmap = jumpCourse == null ? null : new com.ssafy.ontop.world.jumpmap.JumpmapTracker(jumpCourse);
     }
 
+    /** 점프맵 진행 중 네트워크 끊김의 재접속 유예(BE 명세 4장 DISCONNECT). */
+    public static final Duration JUMPMAP_GRACE = Duration.ofSeconds(15);
+    // 유예 중인 사용자 → 만료 시각(nanoTime). 캐릭터·채널 자리를 유지하고 물리는 계속 진행한다.
+    private final Map<String, Long> suspended = new HashMap<>();
+    private final List<State> suspensionEnds = new java.util.ArrayList<>();
+
+    /**
+     * 진행 중 점프맵 판이 있을 때만 유예한다. 입력을 멈추고, 위치 보고 중이었다면 서버 물리로 넘겨 낙하·호수 판정을 잇는다.
+     * @return 유예했으면 true. 호출자는 채널 퇴장 처리를 하지 않는다.
+     */
+    public synchronized boolean suspendJumpmap(String userId) {
+        String channelId = membership.get(userId);
+        if (jumpmap == null || channelId == null || jumpmapRun(userId).isEmpty() || suspended.containsKey(userId)) return false;
+        Room room = rooms.get(channelId);
+        room.physics.stop(userId);
+        serverMovement(userId);
+        room.moveBudgets.remove(userId);
+        suspended.put(userId, nanoTime.getAsLong() + JUMPMAP_GRACE.toNanos());
+        return true;
+    }
+
+    public synchronized boolean jumpmapSuspended(String userId) {
+        return suspended.containsKey(userId);
+    }
+
+    /** 유예 만료·판 종료로 채널에서 내보낸 사용자. 호출자는 레지스트리 잠금 밖에서 채널 상태를 알린다. */
+    public synchronized List<State> drainSuspensionEnds() {
+        var drained = List.copyOf(suspensionEnds);
+        suspensionEnds.clear();
+        return drained;
+    }
+
+    /** 만료는 한 번만: 내보낸 뒤 suspended에서 지우므로 다시 DISCONNECT하지 않는다. 판이 먼저 끝났으면 바로 정리한다. */
+    private void expireSuspensions(long now) {
+        for (var entry : List.copyOf(suspended.entrySet())) {
+            String userId = entry.getKey();
+            if (now - entry.getValue() >= 0 || jumpmapRun(userId).isEmpty()) {
+                suspended.remove(userId);
+                State state = remove(userId, com.ssafy.ontop.world.jumpmap.JumpRun.EndReason.DISCONNECT);
+                if (state != null) suspensionEnds.add(state);
+            }
+        }
+    }
+
+    /** 같은 채널로 돌아온 연결: 캐릭터·판을 그대로 두고 입력 순번과 이동 epoch만 새로 시작한다. */
+    private void resume(Room room, String userId) {
+        suspended.remove(userId);
+        var snapshot = room.physics.rebind(userId);
+        room.positions.put(userId, new Movement(position(snapshot), Long.MIN_VALUE));
+        room.motions.put(userId, snapshot.motion());
+        room.moveBudgets.remove(userId);
+        room.worldVersion++;
+        room.dirty = true;
+    }
+
     /** 점프맵 착지 알림의 수신 반경(BE 명세 11장). */
     public static final double JUMPMAP_STEP_RADIUS = 25;
     private com.ssafy.ontop.world.jumpmap.JumpmapTracker jumpmap;
@@ -207,6 +262,17 @@ public class WorldChannelRegistry implements ChannelPresence {
             throw new ChannelException("CHANNEL_NOT_FOUND", "등록되지 않은 채널입니다.");
         }
         String current = membership.get(userId);
+        if (current != null && suspended.containsKey(userId)) {
+            if (current.equals(channelId)) {
+                resume(rooms.get(current), userId);
+                return new Change(room.state(), false);
+            }
+            // 유예 중 다른 채널로 들어오면 이전 채널의 판은 LEFT로 끝낸다.
+            suspended.remove(userId);
+            State left = remove(userId, com.ssafy.ontop.world.jumpmap.JumpRun.EndReason.LEFT);
+            if (left != null) suspensionEnds.add(left);
+            current = null;
+        }
         if (current != null) {
             if (!current.equals(channelId)) {
                 throw new ChannelException("ALREADY_IN_CHANNEL", "먼저 현재 채널에서 퇴장해주세요.");
@@ -245,11 +311,13 @@ public class WorldChannelRegistry implements ChannelPresence {
     }
 
     private State remove(String userId, com.ssafy.ontop.world.jumpmap.JumpRun.EndReason reason) {
+        suspended.remove(userId);
         String channelId = membership.remove(userId);
         if (channelId == null) {
             return null;
         }
         Room room = rooms.get(channelId);
+        room.dirty = true;
         if (jumpmap != null) queueJumpmap(null, jumpmap.leave(userId, reason, nanoTime.getAsLong() / 1_000_000));
         room.users.remove(userId);
         room.positions.remove(userId);
@@ -581,6 +649,7 @@ public class WorldChannelRegistry implements ChannelPresence {
         }
         lastStep = now - lastStep > 3 * WorldPhysics.STEP_NANOS ? now : lastStep + steps * WorldPhysics.STEP_NANOS;
         expireMinigames(now);
+        expireSuspensions(now);
         var changes = new java.util.ArrayList<WorldState>();
         for (Room room : rooms.values()) {
             if (room.physics == null) {
@@ -655,6 +724,7 @@ public class WorldChannelRegistry implements ChannelPresence {
 
     public synchronized void clear() {
         membership.clear();
+        suspended.clear();
         minigames.clear();
         boardGames.clear();
         for (Room room : rooms.values()) {

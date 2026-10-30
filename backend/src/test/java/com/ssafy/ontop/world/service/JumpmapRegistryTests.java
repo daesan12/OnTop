@@ -106,6 +106,111 @@ class JumpmapRegistryTests {
         assertThat(registry.jumpmapRun("7")).isEmpty();
     }
 
+    private List<JumpRun.EndReason> endings() {
+        return signals(JumpmapTracker.Progress.class).stream().map(JumpmapTracker.Progress::outcome)
+                .filter(JumpRun.Ended.class::isInstance).map(o -> ((JumpRun.Ended) o).reason()).toList();
+    }
+
+    @Test
+    void 판이_없으면_유예하지_않고_유예는_15초_경계에서_한번만_DISCONNECT한다() {
+        delivered.clear();
+        var registry = registry(true);
+        registry.join("7", "channel-1");
+        assertThat(registry.suspendJumpmap("7")).isFalse();
+        dropOnto(registry, "7", course.colliders().getFirst());
+        assertThat(registry.suspendJumpmap("7")).isTrue();
+        assertThat(registry.suspendJumpmap("7")).isFalse();
+        delivered.clear();
+        int ticks = (int) (WorldChannelRegistry.JUMPMAP_GRACE.toNanos() / WorldPhysics.STEP_NANOS);
+        advance(registry, ticks - 2);
+        assertThat(registry.channelOf("7")).isEqualTo("channel-1");
+        assertThat(registry.jumpmapRun("7")).isPresent();
+        assertThat(endings()).isEmpty();
+        advance(registry, 3);
+        assertThat(registry.channelOf("7")).isNull();
+        assertThat(endings()).containsExactly(JumpRun.EndReason.DISCONNECT);
+        assertThat(registry.drainSuspensionEnds()).singleElement().satisfies(state -> assertThat(state.currentUsers()).isZero());
+        advance(registry, 30);
+        assertThat(endings()).containsExactly(JumpRun.EndReason.DISCONNECT);
+    }
+
+    @Test
+    void 유예중_같은채널_재입장은_캐릭터와_판을_잇고_순번과_epoch를_새로_시작한다() {
+        delivered.clear();
+        var registry = registry(true);
+        registry.join("7", "channel-1");
+        dropOnto(registry, "7", course.colliders().getFirst());
+        for (int i = 1; i <= 3; i++) registry.input("7", new MoveInput(i, 0, 0, false, false));
+        advance(registry, 2);
+        var before = registry.worldState("channel-1").avatars().getFirst();
+        long epoch = before.motion().epoch();
+        String runId = registry.jumpmapRun("7").orElseThrow().runId();
+        registry.suspendJumpmap("7");
+        advance(registry, 150);
+        var change = registry.join("7", "channel-1");
+        assertThat(change.changed()).isFalse();
+        assertThat(registry.jumpmapSuspended("7")).isFalse();
+        var after = registry.worldState("channel-1").avatars().getFirst();
+        assertThat(after.position().lastInputSeq()).isZero();
+        assertThat(after.motion().epoch()).isNotEqualTo(epoch);
+        assertThat(after.position().x()).isCloseTo(before.position().x(), org.assertj.core.data.Offset.offset(.01));
+        assertThat(registry.jumpmapRun("7")).get().extracting(JumpmapTracker.RunView::runId).isEqualTo(runId);
+        assertThat(registry.input("7", new MoveInput(1, 0, 0, false, false)).changed()).isTrue();
+        advance(registry, 600);
+        assertThat(endings()).isEmpty();
+        assertThat(registry.channelOf("7")).isEqualTo("channel-1");
+    }
+
+    @Test
+    void 유예중_다른채널_입장은_LEFT이고_유예중_판이_끝나면_바로_정리한다() {
+        delivered.clear();
+        var registry = new WorldChannelRegistry(new WorldChannelProperties(List.of(
+                new WorldChannelProperties.Channel("channel-1", "공원", 20), new WorldChannelProperties.Channel("channel-2", "공원2", 20))),
+                Duration.ofMillis(1), nanos::get, scene);
+        registry.configureJumpCourse(JumpmapActivation.decide(true, scene.version(), () -> course));
+        registry.join("7", "channel-1");
+        dropOnto(registry, "7", course.colliders().getFirst());
+        registry.suspendJumpmap("7");
+        registry.join("7", "channel-2");
+        delivered.addAll(registry.drainJumpmap());
+        assertThat(endings()).containsExactly(JumpRun.EndReason.LEFT);
+        assertThat(registry.channelOf("7")).isEqualTo("channel-2");
+        assertThat(registry.drainSuspensionEnds()).singleElement().satisfies(state -> assertThat(state.channelId()).isEqualTo("channel-1"));
+
+        delivered.clear();
+        registry.leave("7");
+        registry.join("7", "channel-1");
+        advance(registry, 1);
+        var pad = course.colliders().getFirst();
+        dropOnto(registry, "7", pad);
+        // 유예 중 판이 다른 이유(여기서는 서버 순간 이동 RESET)로 끝나면 남은 유예를 기다리지 않고 바로 정리한다.
+        registry.suspendJumpmap("7");
+        registry.releaseFacility("7", new WorldFacilityService.Pose(pad.x(), .95, pad.z() + 3, 0));
+        advance(registry, 5);
+        assertThat(endings()).containsExactly(JumpRun.EndReason.RESET);
+        assertThat(registry.channelOf("7")).isNull();
+        assertThat(registry.drainSuspensionEnds()).hasSize(1);
+    }
+
+    @Test
+    void 위치보고_사용자는_유예중_서버물리로_떨어지고_재입장후_다시_위치보고로_돌아간다() {
+        delivered.clear();
+        var registry = registry(true);
+        var dev = new org.springframework.mock.env.MockEnvironment();
+        dev.setActiveProfiles("dev");
+        registry.configurePositionReports(true, dev);
+        registry.join("7", "channel-1");
+        dropOnto(registry, "7", course.colliders().getFirst());
+        assertThat(registry.worldState("channel-1").avatars().getFirst().motion().authority()).isEqualTo("CLIENT_VALIDATED");
+        registry.suspendJumpmap("7");
+        assertThat(registry.worldState("channel-1").avatars().getFirst().motion().authority()).isNull();
+        advance(registry, 30);
+        registry.join("7", "channel-1");
+        advance(registry, 5);
+        assertThat(registry.worldState("channel-1").avatars().getFirst().motion().authority()).isEqualTo("CLIENT_VALIDATED");
+        assertThat(registry.jumpmapRun("7")).isPresent();
+    }
+
     @Test
     void 진행중_서버_배치는_RESET이고_퇴장과_연결끊김은_LEFT_DISCONNECT다() {
         delivered.clear();

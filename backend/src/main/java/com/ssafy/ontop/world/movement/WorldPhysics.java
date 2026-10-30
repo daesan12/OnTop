@@ -583,6 +583,23 @@ public final class WorldPhysics implements AutoCloseable {
         actor.body.setLinearVelocity(new Vector3f(0, vertical, 0));
         resetMotion(actor);
     }
+    /**
+     * 재접속 유예 뒤 같은 캐릭터에 새 연결을 묶는다. 위치·속도는 그대로 두고 입력 순번을 0부터, 이동 epoch를 새로 시작한다.
+     * 이전 연결의 위치 검증 실패 기록도 지워 새 연결이 착지 후 다시 위치 보고 방식으로 돌아갈 수 있게 한다.
+     */
+    public Snapshot rebind(String id) {
+        return call(() -> {
+            Actor actor = actors.get(id);
+            stopNow(id);
+            actor.seq = 0;
+            actor.positionDisabled = false;
+            actor.positionReportedEver = false;
+            if (actor.clientControlled) serverControl(actor);
+            else resetMotion(actor);
+            return snapshotNow(id);
+        });
+    }
+
     public Snapshot serverMovement(String id) {
         return call(() -> { serverControl(actors.get(id)); return snapshotNow(id); });
     }

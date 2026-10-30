@@ -61,6 +61,8 @@ ontop:
         FART: 1800ms
   websocket:
     authenticated: ${WEBSOCKET_AUTHENTICATED:true}
+    # 같은 로그인 세션 재연결 시 기존 연결 생존 확인 시간(0s=끔, 기존 1008). 후보 3s는 스테이징 측정 후 확정한다.
+    duplicate-probe-timeout: ${WEBSOCKET_DUPLICATE_PROBE_TIMEOUT:0s}
   # 행동 로그는 db 프로필에서만 켤 수 있다. 큐·유실 기준은 docs/behavior-log.md 5장.
   behavior-log:
     enabled: ${BEHAVIOR_LOG_ENABLED:false}
