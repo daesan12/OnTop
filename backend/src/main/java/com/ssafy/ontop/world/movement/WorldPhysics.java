@@ -18,6 +18,8 @@ public final class WorldPhysics implements AutoCloseable {
     private long physicsTick;
     public static final long STEP_NANOS = 1_000_000_000L / 30;
     private static final float DT = 1f / 30;
+    /** 측정한 ghost sweep 관통 시작 속도(약 27m/s)의 절반 이하. */
+    private static final double FAST_FALL_SWEEP = 12;
     private ParkScene scene;
     private final java.util.function.Supplier<ParkScene> sceneSource;
     private PhysicsSpace space;
@@ -229,11 +231,6 @@ public final class WorldPhysics implements AutoCloseable {
         body.setJumpSpeed(number("jumpSpeed"));
         body.setCollisionGroup(1);
         body.setCollideWithGroups(2); // Reference excludes other kinematic avatars.
-        if (course != null) {
-            // 기본 ghost sweep은 겹친 몸체만 검사해 0.05m 방패연을 약 34m/s 이상에서 지나칠 수 있다.
-            // 코스가 활성인 채널만 world sweep으로 낙하 경로 전체를 검사한다(78.4m/s 상한까지 확인).
-            body.setSweepTest(false);
-        }
         body.setPhysicsLocation(scene.spawn(slot));
         space.addCollisionObject(body);
         actors.put(id, new Actor(body, slot, scene.spawn(slot)));
@@ -405,6 +402,12 @@ public final class WorldPhysics implements AutoCloseable {
                                             .asDouble()
                             : number(active && input.run() ? "runSpeed" : "walkSpeed");
             double dx = active ? input.dx() : 0, dz = active ? input.dz() : 0;
+            if (course != null) {
+                // 기본 ghost sweep은 겹친 몸체만 검사해 얇은 발판을 약 27m/s 이상 낙하에서 지나칠 수 있다.
+                // 코스 활성 채널에서 빠르게 떨어지는 틱만 world sweep으로 경로 전체를 검사한다.
+                // 걷기·계단·벽·일반 점프는 기존 ghost sweep 그대로다.
+                a.body.setSweepTest(a.motion.velocityY() >= -FAST_FALL_SWEEP);
+            }
             a.body.setWalkDirection(
                     new Vector3f((float) dx * speed * DT, 0, (float) dz * speed * DT));
             if (active && a.jumpQueued && a.swimming && (dx != 0 || dz != 0)) {
