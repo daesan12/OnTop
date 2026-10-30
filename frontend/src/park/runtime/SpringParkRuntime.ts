@@ -51,7 +51,7 @@ import { emoteSource, emoteUnavailable } from '../../features/emotes/availabilit
 import { parseEmoteBindings, previewEmoteBindings, type EmoteId } from '../../features/emotes/catalog'
 import { emoteSignal, useEmoteState } from '../../features/emotes/state'
 import { mockEmote } from '../../features/emotes/mock/MockEmoteService'
-import { gameSelection, waitingForRound, type TableGameCode } from '../../features/tableLobby/model'
+import { GAME_CONSTRUCTION_NOTICE, gameSelection, isTableGamePlayable, waitingForRound, type TableGameCode } from '../../features/tableLobby/model'
 import { publicMatchService } from '../../features/tableLobby/publicMatch'
 import { PublicGameWatcher } from '../../features/tableLobby/PublicGameWatcher'
 import { FollowClient } from '../../features/follow/serverClient'
@@ -1012,6 +1012,7 @@ export class ParkRuntime implements ParkRuntimePort {
       if (tableBusy() || !['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE'].includes(s.tableStates[s.tableId]?.gameCode ?? ''))
         throw new Error('플레이 가능한 게임을 선택한 대기 테이블에서 준비해주세요.')
       const table = s.tableStates[s.tableId]
+      if (ready && !isTableGamePlayable(table.gameCode)) throw new Error(GAME_CONSTRUCTION_NOTICE)
       if (ready && (table.betAmountPerPlayer == null || table.betAmountPerPlayer <= 0)) throw new Error('확정 참가비를 먼저 확인해주세요.')
       await this.socket.request('READY_SET', ready
         ? { ready, betAmountPerPlayer: table.betAmountPerPlayer, expectedVersion: table.version }

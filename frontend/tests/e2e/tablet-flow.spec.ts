@@ -100,20 +100,59 @@ test('the shared table mesh action rejects distant clicks without seating or ope
   expect(server.sent.some(message => message.type === 'TABLE_JOIN' || message.type === 'TABLE_WATCH')).toBe(false)
 })
 
-async function openTable(page: Page, anchorId = 'table-1') {
+async function openTable(page: Page) {
   await page.goto('/park')
   await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90000 })
-  await expect(async () => {
-    await page.evaluate(async id => (await import('/src/park/runtime/runtime.ts' as string)).parkRuntime.inspectTable(id), anchorId)
-    await expect(page.getByRole('button', { name: '앉기', exact: true })).toBeVisible({ timeout: 1500 })
-  }).toPass({ timeout: 15000 })
-  await page.getByRole('button', { name: '앉기', exact: true }).click()
+  await page.getByRole('button', { name: 'E 테이블에 앉기', exact: true }).click()
   const tablet = page.getByRole('dialog', { name: '게임 태블릿', exact: true })
   await expect(tablet).toBeVisible({ timeout: 20000 })
   await expect.poll(() => tablet.evaluate(el => Number(getComputedStyle(el).opacity))).toBeGreaterThan(.99)
   await page.waitForTimeout(700)
   return tablet
 }
+test('construction games stay visible but unavailable while omok and one-card can be selected', async ({ page }) => {
+  const errors: string[] = []
+  page.on('pageerror', error => errors.push(error.message))
+  await fixture(page, { omok: true, manualLobby: true, tabletServer: true })
+  const tablet = await openTable(page)
+  await expect(page).toHaveTitle('OnTop')
+  for (const name of ['주사위 한 판', '거짓말 다리 건너기']) {
+    const card = tablet.getByRole('button', { name, exact: false }).first()
+    await expect(card).toBeDisabled()
+    await expect(card).toContainText('공사 중')
+  }
+  await expect(tablet.getByRole('button', { name: '오목', exact: false }).first()).toBeEnabled()
+  await tablet.getByRole('button', { name: '원카드', exact: false }).first().click()
+  await expect(tablet.locator('.tablet-selection-detail h3')).toHaveText('원카드')
+  await expect(tablet.getByLabel('주사위 목표 점수')).toHaveCount(0)
+  await screenshot(page, 'games-construction-desktop')
+  await page.setViewportSize({ width: 390, height: 844 })
+  await tablet.getByRole('button', { name: '오목', exact: false }).first().click()
+  await expect(tablet.locator('.tablet-selection-detail h3')).toHaveText('오목')
+  await screenshot(page, 'games-construction-mobile')
+  await expect(page.locator('vite-error-overlay')).toHaveCount(0)
+  expect(errors).toEqual([])
+})
+for (const gameCode of ['DICE', 'LIAR_BRIDGE']) test(`construction ${gameCode} from server blocks ready and start but allows switching games`, async ({ page }) => {
+  const server = await fixture(page, { omok: true, manualLobby: true, tabletServer: true })
+  const tablet = await openTable(page)
+  server.configureTablet({ gameCode, playerCount: 2, betAmountPerPlayer: 5, ...(gameCode === 'DICE' ? { targetScore: 4000 } : {}) })
+  await expect(tablet).toContainText('공사 중인 게임입니다. 오목 또는 원카드를 선택해주세요.')
+  await tablet.getByRole('checkbox').check()
+  server.readyTabletOthers(true)
+  await expect(tablet.getByRole('button', { name: '준비 완료', exact: true })).toBeDisabled()
+  await expect(tablet.getByRole('button', { name: '게임 시작', exact: true })).toBeDisabled()
+  expect(await page.evaluate(async () => (await import('/src/park/runtime/runtime.ts' as string)).parkRuntime.setReady(true))).toBe(false)
+  expect(server.sent.some(message => ['READY_SET', 'TABLE_START'].includes(message.type))).toBe(false)
+  await tablet.getByRole('button', { name: '게임·판돈 변경' }).click()
+  await expect(tablet.getByRole('button', { name: '선택하고 준비하기' })).toBeDisabled()
+  await tablet.getByRole('button', { name: '오목', exact: false }).first().click()
+  await tablet.getByRole('button', { name: '선택하고 준비하기' }).click()
+  await expect(tablet).toContainText('함께 시작할까요?')
+  expect(server.sent.filter(message => message.type === 'TABLE_CONFIGURE').at(-1)?.payload.gameCode).toBe('OMOK')
+  await tablet.getByRole('checkbox').check()
+  await expect(tablet.getByRole('button', { name: '준비 완료', exact: true })).toBeEnabled()
+})
 async function bindManualPort(page: Page, server: Awaited<ReturnType<typeof fixture>>) {
   const calls: { kind: string; context: unknown; selection?: unknown }[] = []
   await page.exposeFunction('tabletConfigureFixture', (context: PreparationContext, selection: PreparationSelection) => {
@@ -194,9 +233,9 @@ test(`tablet game selection keeps its screen and controls in place at ${viewport
   await page.waitForTimeout(1000)
   const before = await layout()
   await screenshot(page, `tablet-layout-selection-${viewport.width}`)
-  for (const name of ['주사위 한 판', '원카드', '거짓말 다리 건너기', '오목', '주사위 한 판']) {
+  for (const name of ['원카드', '오목', '원카드']) {
     await tablet.getByRole('button', { name, exact: false }).first().click()
-    await expect(tablet.getByLabel('주사위 목표 점수')).toHaveCount(name === '주사위 한 판' ? 1 : 0)
+    await expect(tablet.getByLabel('주사위 목표 점수')).toHaveCount(0)
     const after = await layout()
     for (const key of ['screen', 'title', 'list', 'detail', 'start', 'bet'] as const) {
       for (const axis of ['x', 'y', 'width', 'height'] as const)
@@ -205,31 +244,29 @@ test(`tablet game selection keeps its screen and controls in place at ${viewport
     expect(after.paperScroll).toBe(0); expect(after.documentScroll).toBe(0)
     expect(after.start!.y + after.start!.height).toBeLessThan(after.screen!.y + after.screen!.height)
   }
-  await tablet.getByLabel('주사위 목표 점수').selectOption('6000')
   await tablet.getByLabel('1인 참가비').fill('20')
   await expect(tablet.getByRole('button', { name: '선택하고 준비하기' })).toBeInViewport()
-  await screenshot(page, `tablet-layout-dice-${viewport.width}`)
+  await screenshot(page, `tablet-layout-onecard-${viewport.width}`)
   await tablet.getByRole('button', { name: '선택하고 준비하기' }).click()
   await expect(tablet).toContainText('함께 시작할까요?')
-  expect(server.sent.find(message => message.type === 'TABLE_CONFIGURE')?.payload).toMatchObject({ gameCode: 'DICE', targetScore: 6000, betAmountPerPlayer: 20 })
+  expect(server.sent.find(message => message.type === 'TABLE_CONFIGURE')?.payload).toMatchObject({ gameCode: 'ONE_CARD', betAmountPerPlayer: 20 })
   await expect(page.locator('vite-error-overlay')).toHaveCount(0); expect(errors).toEqual([])
 })
 
-test('narrow tablet dice selection keeps its frame fixed and all settings reachable', async ({ page }) => {
+test('narrow tablet one-card selection keeps its frame fixed and all settings reachable', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message))
   const server = await fixture(page, { omok: true, manualLobby: true, tabletServer: true })
   const tablet = await openTable(page), before = await tablet.boundingBox()
-  await tablet.getByRole('button', { name: '주사위 한 판', exact: false }).first().click()
+  await tablet.getByRole('button', { name: '원카드', exact: false }).first().click()
   expect(await tablet.boundingBox()).toEqual(before)
-  await tablet.getByLabel('주사위 목표 점수').selectOption('4000')
   await tablet.getByLabel('1인 참가비').fill('7')
   await tablet.getByRole('button', { name: '선택하고 준비하기' }).scrollIntoViewIfNeeded()
-  await screenshot(page, 'tablet-layout-dice-mobile')
+  await screenshot(page, 'tablet-layout-onecard-mobile')
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth && document.scrollingElement?.scrollTop === 0)).toBe(true)
   await tablet.getByRole('button', { name: '선택하고 준비하기' }).click()
   await expect(tablet).toContainText('함께 시작할까요?')
-  expect(server.sent.find(message => message.type === 'TABLE_CONFIGURE')?.payload).toMatchObject({ gameCode: 'DICE', targetScore: 4000, betAmountPerPlayer: 7 })
+  expect(server.sent.find(message => message.type === 'TABLE_CONFIGURE')?.payload).toMatchObject({ gameCode: 'ONE_CARD', betAmountPerPlayer: 7 })
   await expect(page.locator('vite-error-overlay')).toHaveCount(0); expect(errors).toEqual([])
 })
 
@@ -253,10 +290,9 @@ test('tablet powers on and never falls back to legacy auto-start after an unsupp
 
 for (const variant of [
   { game: 'OMOK', name: '오목', count: 2, panel: '오목 경기', options: {} },
-  { game: 'DICE', name: '주사위 한 판', count: 2, panel: '주사위 경기', options: { dice: true } },
   { game: 'ONE_CARD', name: '원카드', count: 3, panel: '원카드 경기', options: { onecard: 3 as const } },
-  { game: 'LIAR_BRIDGE', name: '거짓말 다리 건너기', count: 4, panel: '다리 경기', options: { bridge: 4 as const } },
-]) test(`real tablet adapter: ${variant.game} configure, cancel ready and explicit start`, async ({ page }) => {
+  { game: 'ONE_CARD', name: '원카드', count: 4, panel: '원카드 경기', options: { onecard: 4 as const } },
+]) test(`real tablet adapter: ${variant.game} ${variant.count} seats, configure, cancel ready and explicit start`, async ({ page }) => {
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message))
   const server = await fixture(page, { omok: true, ...variant.options, players: variant.count, manualLobby: true, tabletServer: true })
   const tablet = await openTable(page)
@@ -363,9 +399,8 @@ test('unanswered manual start requires a read before a new explicit start and ne
 
 for (const variant of [
   { game: 'OMOK', name: '오목', count: 2, panel: '오목 경기', options: { omok: true } },
-  { game: 'DICE', name: '주사위 한 판', count: 2, panel: '주사위 경기', options: { dice: true } },
   { game: 'ONE_CARD', name: '원카드', count: 3, panel: '원카드 경기', options: { onecard: 3 as const } },
-  { game: 'LIAR_BRIDGE', name: '거짓말 다리 건너기', count: 4, panel: '거짓말 다리 경기', options: { bridge: 4 as const } },
+  { game: 'ONE_CARD', name: '원카드', count: 4, panel: '원카드 경기', options: { onecard: 4 as const } },
 ]) test(`manual adapter: ${variant.game}, ${variant.count} seats, explicit start and existing gameplay`, async ({ page }) => {
   const errors: string[] = []; page.on('pageerror', e => errors.push(e.message))
   const server = await fixture(page, { omok: true, ...variant.options, manualLobby: true, players: 4,
@@ -606,7 +641,7 @@ test('minigame paper popup separates provisional score, pending reward and confi
 test('reference-size pavilion tablet has aligned controls and clears the tabletop', async ({ page }) => {
   await page.setViewportSize({ width: 1672, height: 941 })
   const server = await fixture(page, { omok: true, anchorId: 'table-5', manualLobby: true })
-  const tablet = await openTable(page, 'table-5'); await bindManualPort(page, server)
+  const tablet = await openTable(page); await bindManualPort(page, server)
   await screenshot(page, 'tablet-native-pavilion-selection')
   await tablet.getByLabel('1인 참가비').fill('20')
   await tablet.getByRole('button', { name: '선택하고 준비하기' }).click()

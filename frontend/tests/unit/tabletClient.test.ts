@@ -36,10 +36,21 @@ it('validates manual table selection while keeping AUTO and old servers readable
 })
 it('configures only the authenticated host and sends exactly the published payload', async () => {
   const { client, calls, port } = setup()
-  expect(await port.configure(context, { gameCode: 'DICE', playerCount: 2, betAmountPerPlayer: 5, targetScore: 4000 })).toBe(true)
-  expect(calls[0]).toEqual({ type: 'TABLE_CONFIGURE', payload: { gameCode: 'DICE', selectedPlayers: 2, betAmountPerPlayer: 5, targetScore: 4000, expectedVersion: 3 } })
+  expect(await port.configure(context, { gameCode: 'ONE_CARD', playerCount: 2, betAmountPerPlayer: 5 })).toBe(true)
+  expect(calls[0]).toEqual({ type: 'TABLE_CONFIGURE', payload: { gameCode: 'ONE_CARD', selectedPlayers: 2, betAmountPerPlayer: 5, expectedVersion: 3 } })
   expect(await port.configure({ ...context, userId: 'b' }, { gameCode: 'OMOK', playerCount: 2, betAmountPerPlayer: 5 })).toBe(false)
   expect(calls).toHaveLength(1)
+  client.end()
+})
+it('never sends configure or start commands for construction games, even with a stale ready table', async () => {
+  const { client, calls, port } = setup()
+  for (const gameCode of ['DICE', 'LIAR_BRIDGE'] as const) {
+    expect(await port.configure(context, { gameCode, playerCount: 2, betAmountPerPlayer: 5,
+      ...(gameCode === 'DICE' ? { targetScore: 4000 } : {}) })).toBe(false)
+    useSession.setState({ tableStates: { t: { ...table, gameCode } } })
+    expect(await port.start(context)).toBe(false)
+  }
+  expect(calls).toEqual([])
   client.end()
 })
 it('reuses an unconfirmed action identity and version, but uses a fresh identity for a later round', async () => {
