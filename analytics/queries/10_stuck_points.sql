@@ -15,7 +15,8 @@ WITH samples AS (
            LAG(moving) OVER w AS previous_moving
     FROM world_position_samples
     WHERE user_id IS NOT NULL
-    WINDOW w AS (PARTITION BY user_id ORDER BY sampled_at, id)
+    -- 맵이 바뀐 경계의 두 표본은 좌표 의미가 달라 비교하지 않는다.
+    WINDOW w AS (PARTITION BY user_id, map_version ORDER BY sampled_at, id)
 )
 SELECT map_version,
        FLOOR(x / 5) * 5 AS cell_x,
