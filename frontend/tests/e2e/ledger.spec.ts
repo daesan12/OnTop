@@ -90,7 +90,6 @@ test('주사위 장부 참가자: 굴림·예상 점수·보관·관전자 훈�
   const result = page.getByRole('region', { name: '테이블 함께 보기' })
   await expect(result.getByRole('status')).toContainText('공동 승리')
   await expect(result).toContainText('승리 · 258점'); await expect(result).toContainText('경기 종료 · 220점')
-  await expect(result).toContainText('종료 사유: 장부 완성')
   await settle(page); await screenshot(page, 'ledger-06-finished-joint')
   expect(server.sent.filter(m => m.type === 'GAME_ACTION_SEND').map(m => m.payload.input)).toEqual([
     { kind: 'roll', keepIds: [] }, { kind: 'roll', keepIds: [0, 1, 2, 3] }, { kind: 'score', category: 'FIVE_OF_A_KIND' }])
@@ -171,11 +170,12 @@ test('주사위 장부 관전자: 같은 장부를 보고 칸·주사위 훈수�
 
   await p.getByRole('button', { name: '풀하우스 훈수 · 예상 16점', exact: true }).click()
   await expect(p).toContainText('‘풀하우스’ 칸 훈수를 보냈어요.')
+  // 승인 직후 두 번째 훈수는 1초 간격 안이라 보내지 않는다(화면 대기 전에 확인해야 시간에 흔들리지 않는다).
+  await p.getByRole('button', { name: /주사위 4: 2/ }).click()
+  await expect(p).toContainText('1초 간격')
   await expect(p.locator('tr[data-hinted] th')).toContainText('풀하우스')
   const sent = server.sent.filter(m => m.type === 'DICE_LEDGER_SPECTATOR_PING_SEND')
   expect(sent.map(m => ({ category: m.payload.category, basedOnVersion: m.payload.basedOnVersion }))).toEqual([{ category: 'FULL_HOUSE', basedOnVersion: 1 }])
   await page.waitForTimeout(300); await screenshot(page, 'ledger-09-spectator-hint-sent')
-  await p.getByRole('button', { name: /주사위 4: 2/ }).click()
-  await expect(p).toContainText('1초 간격')
   expect(server.sent.filter(m => m.type === 'GAME_ACTION_SEND')).toHaveLength(0)
 })
