@@ -4,7 +4,7 @@ import {PARK_DATA,PARK_LAYOUT} from '../../src/map/park'
 import {trunks,shoreTrunks,SUPPLEMENTAL_TREE_SITES} from '../../src/layout-preview/sceneGeometry'
 import {simpleTreeBelts} from '../../src/layout-preview/PreviewLandscaping'
 
-it('clears all three kiosk fronts across existing woods and the new planting belts',()=>{
+it('clears active kiosk fronts across existing woods and the new planting belts',()=>{
   const all=[...trunks,...shoreTrunks,...Object.values(simpleTreeBelts).flatMap(b=>b.trunks)]
   for(const t of all)expect(inKioskEntrance(t.p[0],t.p[2],PARK_LAYOUT.KIOSKS)).toBe(false)
   for(const k of PARK_LAYOUT.KIOSKS){

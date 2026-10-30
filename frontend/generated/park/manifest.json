@@ -1,26 +1,26 @@
 {
   "artifacts": [
     {
-      "bytes": 2556070,
+      "bytes": 2552480,
       "path": "generated/park/server-map.json",
-      "sha256": "3eb0ae4b94c094807f5ed4701ead8143bc4e8f8afeae5afac36b85d3df2624c9"
+      "sha256": "15b91df615fdcc008fbf3a0bdce852ec6e0eab794ce58119b163f04f04129062"
     },
     {
       "bytes": 329,
       "path": "src/map/park/generated/mapVersion.ts",
-      "sha256": "5718137b3a044e00bec3652028d5d840ea0473e6ed880ecedccfc3267e4a9da6"
+      "sha256": "adfa5b6e8d1f1ddae92fc75eaa2389eb9c9f775ab745ad6fb5d02fc7314f1675"
     }
   ],
   "counts": {
     "benches": 71,
-    "construction": 3,
-    "facilities": 12,
+    "construction": 2,
+    "facilities": 11,
     "fitness": 12,
     "localSeats": 72,
-    "obstacles": 541,
-    "paths": 60,
+    "obstacles": 534,
+    "paths": 59,
     "pavilions": 9,
-    "physicalBoxes": 2143,
+    "physicalBoxes": 2136,
     "physicalHulls": 35,
     "physicalMeshes": 8,
     "tables": 18,
@@ -29,11 +29,11 @@
   "format": "ontop.park-map-manifest",
   "hashAlgorithm": "sha256",
   "hashes": {
-    "dataHash": "f487f70fd6b45b85312a1cad04b848eedd209ac7472730c5cc9f766051a1a995",
-    "sourceHash": "a13ad29f970ef2d6f5253b045f14ee6760a9eb08982a28b7883b174ed2e0b070"
+    "dataHash": "5069353667f8add98aa8ddf63b538c7387e34570b977cc7e928b64795b54fe7e",
+    "sourceHash": "dc14cc7b520169dc7ffc81162f6d9b3c94673f1c4c2b5720e649f912d1ee11f9"
   },
   "mapId": "park",
-  "mapVersion": "102257d44020a82e756ab2b6601416c8be7816f022ac01f76930129e8380ec9a",
+  "mapVersion": "70dc0fc5630a6d23d48ea22b5cd665b92bf2d47ee7c81e85d061778e29aa12f3",
   "schemaVersion": 2,
   "sources": [
     {
@@ -150,7 +150,7 @@
     },
     {
       "path": "src/map/park/definition.ts",
-      "sha256": "0f558d5de77c8ea8ab0eb0924e6a72e6d90d1fa43f73b4561f043430723424c4"
+      "sha256": "85889b1290aa24d7b76e8d91a05f56535a3856d892aac5e42759a2f31952459e"
     },
     {
       "path": "src/map/park/fountainHeight.ts",
@@ -182,7 +182,7 @@
     },
     {
       "path": "src/map/park/resolve.ts",
-      "sha256": "d19ec480b3baceaf1601171e2961fcc0c637465f3dd0043b6a2602e184655d32"
+      "sha256": "a6ca59f384d0db2db4788c5c846f77346066cdd53a8bdd9847b0f175cfaad448"
     },
     {
       "path": "src/map/park/validate.ts",

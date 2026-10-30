@@ -15,7 +15,7 @@ describe('180m layout draft contracts',()=>{
     expect(DRAFT_TABLES.slice(16).map(t=>t.id)).toEqual(['table-17','table-18'])
     for(const t of DRAFT_TABLES.slice(0,16))expect(t.seatAnchors).toEqual(TABLES.find(old=>old.id===t.id)!.seatAnchors)
     expect(DRAFT_PAVILIONS.map(p=>p.id)).toEqual(['P0','P1','P2','P3','P4','P5','P6','P7','P8'])
-    expect(new Set(MARKERS.map(m=>m.id)).size).toBe(24)
+    expect(new Set(MARKERS.map(m=>m.id)).size).toBe(23)
   })
   it('blocks exterior edges and obstacles while keeping crossings, water and arrival open',()=>{
     for(const p of [[89,0],[-89,0],[0,-89],[0,89],[102,0],[0,130],[NaN,0],[Infinity,0],[SITES.cart.x,SITES.cart.z],[SITES.mailbox.x,SITES.mailbox.z]])expect(canWalk(p[0]!,p[1]!)).toBe(false)
@@ -137,7 +137,7 @@ describe('180m layout draft contracts',()=>{
     for(const [x,,z] of DRAFT_LAMPS){expect(Math.abs(x)>=19||Math.abs(z+40)>=22).toBe(true);expect(Math.hypot(x-LIFE_PLAZA.x,z-LIFE_PLAZA.z)>=20).toBe(true);expect(canWalk(x,z)).toBe(false)}
     expect(STAIR_RAIL_RUNS).toHaveLength(8)
     for(const side of [-1,1])for(let d=13;d<=17;d+=.2){expect(canWalk(side*d,-40)).toBe(true);expect(canWalk(0,-40+side*d)).toBe(true)}
-    expect(KIOSKS.find(k=>k.kind==='shop')!.yaw).toBe(SETTINGS.kiosks.shop.yaw)
+    expect(KIOSKS.some(k=>k.kind==='shop')).toBe(false)
     expect(KIOSKS.find(k=>k.kind==='drink')!.yaw).toBe(SETTINGS.kiosks.drink.yaw)
     expect(MARKERS.find(m=>m.id==='layout-drink')!.label).toBe('복권방')
     for(const t of DRAFT_TABLES.slice(0,4))expect(Math.hypot(t.position[0]-LIFE_PLAZA.x,t.position[2]-LIFE_PLAZA.z)).toBeCloseTo(Math.sqrt(288))
@@ -159,7 +159,7 @@ describe('180m layout draft contracts',()=>{
     }
     expect(radii.length).toBeGreaterThan(50);expect(Math.min(...radii)).toBeGreaterThan(2.59);expect(Math.max(...radii)).toBeLessThan(3.38)
     ;(mesh.material as MeshBasicMaterial).dispose()
-    expect(KIOSKS.find(k=>k.kind==='shop')!.width).toBe(SETTINGS.kiosks.shop.width);expect(KIOSKS.find(k=>k.kind==='drink')!.width).toBe(SETTINGS.kiosks.drink.width)
+    expect(KIOSKS.find(k=>k.kind==='drink')!.width).toBe(SETTINGS.kiosks.drink.width)
     expect(SITES.vrPagoda.x-SITES.vr.x).toBe(21)
     expect(SITES.vr.x-4.8).toBeGreaterThan(VR_COURT.x-VR_COURT.width/2)
   })

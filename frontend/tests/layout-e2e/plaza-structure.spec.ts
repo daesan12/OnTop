@@ -12,7 +12,7 @@ test('lucky facility mocks and ranking board retain their independent models and
  const dir=process.env.QA_ARTIFACT_DIR??path.join(os.tmpdir(),'ontop-plaza-structure');await fs.mkdir(dir,{recursive:true})
  for(const asset of joints){
   const k=KIOSKS.find(k=>k.kind===asset.kind)!
-  expect(asset.position).toEqual([k.x,0,k.z]);expect(asset.yaw).toBe(k.yaw)
+  expect(asset.position).toEqual([k.x,0,k.z]);expect(asset.yaw).toBeCloseTo(k.yaw,12)
   expect(asset.assetId).toBe('procedural/plaza-'+k.kind);expect(asset.boundsValid).toBe(true)
   expect(asset.roofJoints.every(Boolean)).toBe(true)
   expect(asset.signBrackets.every(Boolean)).toBe(true)
@@ -65,8 +65,10 @@ test('the full facility outlines and courtyard fences stay inside their lawn poc
    expect(z+.17,fence.id).toBeLessThan(south!)
   }
  }
- const wheel=bounds.find(b=>b.name==='layout-shop')!,lottery=bounds.find(b=>b.name==='layout-drink')!
- expect(lottery.min[0]!-wheel.max[0]!).toBeGreaterThan(1.8)
+ await expect(page.getByLabel('배치 시안 시설 목록').getByRole('button',{name:/^13/})).toHaveCount(0)
+ const approach=await page.evaluate(async()=>
+  (await import('/tests/layout-e2e/plazaStructureProbe.ts' as string)).lotteryApproachProbe())
+ expect(approach.every(Boolean)).toBe(true)
  const dir=process.env.QA_ARTIFACT_DIR??path.join(os.tmpdir(),'ontop-plaza-placement-qa')
  await fs.mkdir(dir,{recursive:true})
  await fs.writeFile(path.join(dir,'placement-bounds.json'),JSON.stringify(bounds,null,2))

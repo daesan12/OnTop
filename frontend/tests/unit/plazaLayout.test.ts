@@ -53,15 +53,19 @@ describe('circular living plaza',()=>{
       expect(PARK_DATA.physics.boxes.find(b=>b.id===t.id)?.half).toEqual([.25,1.8,.25])
     }
   })
-  it('places all three buildings on lawn pockets with nearby trees and clear short approaches',()=>{
+  it('places active buildings on lawn pockets with nearby trees and clear short approaches',()=>{
     expect(PARK_LAYOUT.PLAZA_TREE_SITES.length).toBeGreaterThan(30)
     for(const k of PARK_LAYOUT.KIOSKS){
-      // The eastern pair shares its grove; trees are filtered out of both roofs' clearances.
+      // Keep planting outside the larger lottery canopy and its approach.
       expect(PARK_LAYOUT.PLAZA_TREE_SITES.filter(t=>Math.hypot(t.x-k.x,t.z-k.z)<10).length,k.kind).toBeGreaterThanOrEqual(k.kind==='drink'?2:3)
       for(const sx of [-.9,0,.9])for(const sz of [-.9,0,.9]){
         const dx=sx*k.width/2,dz=sz*k.depth/2,x=k.x+dx*Math.cos(k.yaw)+dz*Math.sin(k.yaw),z=k.z-dx*Math.sin(k.yaw)+dz*Math.cos(k.yaw)
         expect(Math.hypot(x-p.x,z-p.z),k.kind).toBeGreaterThan(p.pavingRadius)
-        expect(PARK_LAYOUT.onPath(x,z),k.kind).toBe(false)
+        // The entrance paving meets the raised threshold; keep the building
+        // clear of every other public path rather than rejecting that join.
+        const entrance=k.kind==='drink'?['raffle-approach']:k.kind==='photo'?['photo-front','photo-north']:['shop-approach']
+        const onOtherPath=PARK_LAYOUT.PATHS.filter(r=>!entrance.includes(r.id)).some(r=>r.points.slice(1).some((b,i)=>PARK_LAYOUT.nearSegment(x,z,r.points[i]!,b)<r.width/2))
+        expect(onOtherPath,k.kind).toBe(false)
       }
     }
   })

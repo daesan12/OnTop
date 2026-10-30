@@ -41,7 +41,8 @@ const DRAFT_FITNESS_STATIONS=FITNESS_STATIONS.map((station,i)=>{
   const a=(i+.5)*Math.PI*2/FITNESS_STATIONS.length,dx=Math.cos(a)*definition.fitness.stationRadius,dz=Math.sin(a)*definition.fitness.stationRadius
   return {...s,position:[SITES.fitness.x+dx,s.position[1],SITES.fitness.z+dz] as [number,number,number],yaw:Math.atan2(-dx,-dz)}
 })
-const KIOSKS=(['shop','drink','photo'] as const).map(kind=>({kind,...SITES[kind],scale:1,...definition.kiosks[kind]}))
+const KIOSKS=(['shop','drink','photo'] as const).map(kind=>({kind,...SITES[kind],scale:1,...definition.kiosks[kind]})).filter(k=>k.enabled)
+const disabledKioskIds=new Set(Object.entries(definition.kiosks).filter(([,k])=>!k.enabled).map(([kind])=>'layout-'+kind))
 const facilityClearances=[...KIOSKS,{...SITES.cart,...definition.fishBreadShop}]
 const EVENT_BENCHES=definition.event.benches
 const MAIN_GATE={...definition.gate,z:DRAFT_PARK.half}
@@ -101,7 +102,7 @@ const MARKERS: readonly SiteMarker[] = [
   { no:'22', id:'layout-wood-bridge',label:'나무다리 · 북쪽 돌다리',x:62,z:9,note:'남쪽 목교 · 북쪽 징검다리 · 수영 진입부' },
   { no:'27', id:'feedback-mailbox',label:'전통 소리함',...SITES.mailbox,note:'기존 코드 모델·시설 ID 유지' },
   { no:'28', id:'fish-bread',label:'붕어빵 가게',...SITES.cart,note:'상점 규모의 한옥 붕어빵 가게 · 기존 조리 게임 유지' },
-]
+].filter(m=>!disabledKioskIds.has(m.id))
 /** Cut the sharp vertices back and use tangent quadratic turns. Keep straight axes straight. */
 function roundRoute(points:readonly ParkPoint[],radius=3.5):ParkPoint[] {
   if(points.length<3)return [...points]
@@ -262,7 +263,7 @@ function walkHeight(x:number,z:number) {
 }
 
 const facilityIds={pagoda:'garden-pagoda',fountain:'reference-fountain',fitness:'fitness-garden',tower:'spiral-observation-tower',vr:'vr-experience-hall',folk:'layout-hall-room',vrPagoda:'vr-stone-pagoda',cart:'fish-bread',mailbox:'feedback-mailbox',shop:'layout-shop',drink:'layout-drink',photo:'layout-photo'} as const
-const facilities=Object.entries(facilityIds).map(([kind,id])=>{
+const facilities=Object.entries(facilityIds).filter(([,id])=>!disabledKioskIds.has(id)).map(([kind,id])=>{
   const site=SITES[kind as keyof typeof facilityIds],kiosk=KIOSKS.find(k=>k.kind===kind)
   return {id,kind,position:[site.x,kind==='pagoda'?SITES.pagoda.floor:0,site.z] as const,yaw:kiosk?.yaw??(kind==='cart'?definition.fishBreadShop.yaw:kind==='vr'||kind==='folk'?VR_YAW:0)}
 })

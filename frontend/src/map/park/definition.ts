@@ -2,6 +2,7 @@
 export type MapPoint = readonly [number,number]
 export type MapRoute = {id:string;points:readonly MapPoint[];width:number}
 const MAIN_AXIS_X=0
+const plaza={x:MAIN_AXIS_X,z:46,radius:7.4,pavingRadius:24,width:48,depth:48}
 const sites = {
   pagoda: { x: MAIN_AXIS_X, z: -40, floor: 1.8 }, fountain: { x: -63, z: -56 },
   hall: { x: -62, z: -12 }, fitness: { x: -63, z: 64 },
@@ -9,13 +10,18 @@ const sites = {
   tower: { x: 62, z: 56 },
   vr: {x:-74,z:-23},folk:{x:-74,z:-3},vrPagoda:{x:-53,z:-23},
   cart: { x: -29.5, z: 36 }, mailbox: { x: -18, z: 18 },
-  shop: { x: 27, z: 50.8 }, drink: { x: 32.5, z: 54.8 }, photo: { x: 30, z: 35.6 },
+  shop: { x: 27, z: 50.8 }, drink: { x: 31.8, z: 54.6 }, photo: { x: 30, z: 35.6 },
 }
-const kiosks={shop:{width:4,depth:2,height:4.3,yaw:-Math.PI/2},drink:{width:6.8,depth:4.59,height:5.185,scale:.85,yaw:-Math.PI/2},photo:{width:8.8,depth:6.6,yaw:-Math.PI/3}}
+// Keep the wheel's anchor/model for later use, but omit it from the active map.
+const kiosks={shop:{enabled:false,width:4,depth:2,height:4.3,yaw:-Math.PI/2},drink:{enabled:true,width:6.8,depth:4.59,height:5.185,scale:.85,yaw:Math.atan2(plaza.x-sites.drink.x,plaza.z-sites.drink.z)},photo:{enabled:true,width:8.8,depth:6.6,yaw:-Math.PI/3}}
 const fishBreadShop={width:8.448,depth:6.336,height:5.368,scale:.88,yaw:Math.PI/3}
 const cartPoint=(across:number,forward:number):MapPoint=>[
   sites.cart.x+across*Math.cos(fishBreadShop.yaw)+forward*Math.sin(fishBreadShop.yaw),
   sites.cart.z-across*Math.sin(fishBreadShop.yaw)+forward*Math.cos(fishBreadShop.yaw),
+]
+const lotteryPoint=(forward:number):MapPoint=>[
+  sites.drink.x+Math.sin(kiosks.drink.yaw)*forward,
+  sites.drink.z+Math.cos(kiosks.drink.yaw)*forward,
 ]
 
 // Persistent IDs are explicit. Array order never assigns pavilion/table identities.
@@ -74,8 +80,7 @@ const routes:readonly MapRoute[] = [
   {id:'event-winding',points:[[-63,12],[-63,17],[-73,22],[-73,25],[-65,31],[-63,31]],width:3.5},
   {id:'event-east',points:[[-63,31],[-39,31]],width:3.5},
   {id:'event-west',points:[[-84,22],[-73,22]],width:3},
-  {id:'shop-approach',points:[[23.5,50],[24.2,50.8]],width:2.2},
-  {id:'raffle-approach',points:[[23.5,50],[24.2,54.8],[28.405,54.8]],width:2.2},
+  {id:'raffle-approach',points:[lotteryPoint(Math.hypot(sites.drink.x-plaza.x,sites.drink.z-plaza.z)-plaza.pavingRadius+.8),lotteryPoint(kiosks.drink.depth/2-.15)],width:2.4},
   {id:'cart-apron',points:[cartPoint(-2.8,fishBreadShop.depth/2+1.3),cartPoint(2.8,fishBreadShop.depth/2+1.3)],width:2.2},
   {id:'cart-access',points:[[-22,40],cartPoint(0,fishBreadShop.depth/2+1.3)],width:2.8},
   {id:'south-east',points:[[39,27],[39,81],[82,81]],width:4},
@@ -152,12 +157,12 @@ export const PARK_DEFINITION = {
   vrStoneSets:[{id:'layout-vr-stone-set-1',tableId:'table-17',x:-53,z:-8},{id:'layout-vr-stone-set-2',tableId:'table-18',x:-53,z:2}],
   vrStoneSeats:[[0,1.8],[0,-1.8],[-2,0],[2,0]] as readonly MapPoint[],
   forestBenches:[{id:'bench-forest-southwest',x:-73,z:80,yaw:0},{id:'bench-forest-northeast',x:52,z:-73,yaw:0},{id:'bench-forest-southeast',x:74,z:73,yaw:0}],
-  plaza:{x:MAIN_AXIS_X,z:46,radius:7.4,pavingRadius:24,width:48,depth:48},
+  plaza,
   plazaRestGardens:[] as {id:string;x:number;z:number;width:number;depth:number;side:number}[],
   plazaRestBenches:[] as {id:string;x:number;z:number;yaw:number}[],
   plazaBins:[] as {id:string;x:number;z:number}[],
   // Deliberate tree belt; resolve filters entrance paths, forecourts and buildings.
-  plazaTrees:[...(['shop','drink','photo'] as const).flatMap(kind=>{
+  plazaTrees:[...(['shop','drink','photo'] as const).filter(kind=>kiosks[kind].enabled).flatMap(kind=>{
     const p=sites[kind],k=kiosks[kind],points:{id:string;x:number;z:number}[]=[]
     // Two-dimensional side/back planting pockets; the front is intentionally empty.
     for(let row=0;row<10;row++)for(let col=0;col<17;col++){

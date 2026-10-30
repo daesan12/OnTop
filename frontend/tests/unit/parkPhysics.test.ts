@@ -14,9 +14,9 @@ describe('park server physics and interaction contract',()=>{
     const changed=resolveParkLayout(d).data
     expect(changed.physics).toEqual(PARK_DATA.physics)
     expect(changed.collision).not.toEqual(PARK_DATA.collision)
-    const shop=PARK_DATA.physics.boxes.find(b=>b.id==='layout-shop')!
-    expect(shop.half).toEqual([PARK_DEFINITION.kiosks.shop.width/2,2.15,PARK_DEFINITION.kiosks.shop.depth/2])
-    expect(shop.yaw).toBe(PARK_DEFINITION.kiosks.shop.yaw)
+    const shop=PARK_DATA.physics.boxes.find(b=>b.id==='layout-drink')!
+    expect(shop.half).toEqual([PARK_DEFINITION.kiosks.drink.width/2,2.5925,PARK_DEFINITION.kiosks.drink.depth/2])
+    expect(shop.yaw).toBe(PARK_DEFINITION.kiosks.drink.yaw)
     expect(PARK_DATA.physics.playerInflation).toBe(0)
     expect(PARK_DATA.physics.collisionMargin).toBe(0)
   })

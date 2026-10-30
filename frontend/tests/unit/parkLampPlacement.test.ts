@@ -1,6 +1,5 @@
 import {it,expect} from 'vitest'
 import {PARK_DATA,PARK_LAYOUT} from '../../src/map/park'
-import {inKioskEntrance} from '../../src/map/park/planting'
 import {trunks,shoreTrunks} from '../../src/layout-preview/sceneGeometry'
 import {simpleTreeBelts} from '../../src/layout-preview/PreviewLandscaping'
 
@@ -15,7 +14,16 @@ it('moves seven obstructive lamps while keeping all 42 IDs and aligning solids t
   expect(solids[n]!.center).toEqual([x,y+2.5,z])
   expect(solids[n]!.half).toEqual([.12,2.5,.12])
   expect(PARK_LAYOUT.onPath(x,z,.25)).toBe(false)
-  expect(inKioskEntrance(x,z,PARK_LAYOUT.KIOSKS)).toBe(false)
+  // The wide tree-free forecourt can include existing plaza-rim lamps after a
+  // building rotates. Lamp posts must clear the solids and actual entrance path.
+  for(const k of PARK_LAYOUT.KIOSKS){
+   const dx=x-k.x,dz=z-k.z,across=dx*Math.cos(k.yaw)-dz*Math.sin(k.yaw),forward=dx*Math.sin(k.yaw)+dz*Math.cos(k.yaw)
+   expect(Math.abs(across)>k.width/2+.48||Math.abs(forward)>k.depth/2+.48,'lamp-'+n+' '+k.kind).toBe(true)
+  }
+  const approach=PARK_LAYOUT.PATHS.find(p=>p.id==='raffle-approach')!
+  for(let i=1;i<approach.points.length;i++)expect(PARK_LAYOUT.nearSegment(x,z,approach.points[i-1]!,approach.points[i]!), 'lamp-'+n+' lottery path').toBeGreaterThan(approach.width/2+.48)
+  const entrance=PARK_DATA.interactions.construction.find(s=>s.id==='layout-drink')!
+  expect(Math.hypot(x-entrance.reachPosition[0],z-entrance.reachPosition[2]),'lamp-'+n+' lottery reach').toBeGreaterThan(entrance.radius+.48)
  }
  for(const [x,y,z] of lamps.slice(0,5)) {
   expect(y).toBe(.14)

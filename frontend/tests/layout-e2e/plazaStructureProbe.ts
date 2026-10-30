@@ -1,7 +1,7 @@
 import {_roots} from '@react-three/fiber'
 import {Box3,Raycaster,Vector3,Mesh,MeshBasicMaterial,DoubleSide} from 'three'
 import {plazaBuildingArt} from '../../src/layout-preview/PlazaBuildings'
-import {KIOSKS} from '../../src/layout-preview/layout'
+import {KIOSKS,PATHS} from '../../src/layout-preview/layout'
 import {constructionBoardPosition} from '../../src/layout-preview/plazaBuildingStructure'
 import {bungeoppangView} from '../../src/features/bungeoppang/bungeoppangView'
 import {rankingBoardModelMetrics} from '../../src/layout-preview/RankingBoardModel'
@@ -17,7 +17,8 @@ export function rankingBoardProbe(){
 export function plazaPlacementProbe(){
  const scene=_roots.get(document.querySelector('canvas')!)!.store.getState().scene
  scene.updateMatrixWorld(true)
- return ['fish-bread-shop-exterior','layout-shop','layout-drink','ranking-board-preview'].map(name=>{
+ if(scene.getObjectByName('layout-shop'))throw new Error('The temporary wheel removal did not reach the rendered scene')
+ return ['fish-bread-shop-exterior','layout-drink','ranking-board-preview'].map(name=>{
   const box=new Box3().setFromObject(scene.getObjectByName(name)!,true)
   return {name,min:box.min.toArray(),max:box.max.toArray()}
  })
@@ -29,6 +30,17 @@ export function plazaPlanCapture(){
  camera.position.set(0,104,46.001);camera.lookAt(0,0,46);camera.updateMatrixWorld(true)
  state.gl.render(state.scene,camera)
  return state.gl.domElement.toDataURL('image/png')
+}
+
+export function lotteryApproachProbe(){
+ const scene=_roots.get(document.querySelector('canvas')!)!.store.getState().scene
+ const paving=scene.getObjectByName('layout-smooth-paths')!,ray=new Raycaster()
+ const route=PATHS.find(p=>p.id==='raffle-approach')!,a=route.points[0]!,b=route.points.at(-1)!
+ return Array.from({length:16},(_,i)=>{
+  const t=(i+1)/17,x=a[0]+(b[0]-a[0])*t,z=a[1]+(b[1]-a[1])*t
+  ray.set(new Vector3(x,3,z),new Vector3(0,-1,0))
+  return ray.intersectObject(paving).length>0
+ })
 }
 
 export async function rankingBoardRenderProbe(){

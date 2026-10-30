@@ -10,7 +10,8 @@ import { bungeoppangView } from '../../features/bungeoppang/bungeoppangView'
 import { luckyRoomArt,lotteryRoomArt,fishBreadShopArt,LUCKY_WHEEL_SCALE,lotteryRoomSign,fishBreadShopSign,fishMenuSign,wheelFace } from './luckyFacilityGeometry'
 
 export function LuckyFacility({kind,live}:{kind:'shop'|'drink';live:boolean}){
-  const k=KIOSKS.find(k=>k.kind===kind)!,lottery=kind==='drink'
+  const k=KIOSKS.find(k=>k.kind===kind),lottery=kind==='drink'
+  if(!k)return null
   return <group name={'layout-'+kind} position={[k.x,0,k.z]} rotation={[0,k.yaw,0]}
     userData={{assetId:'procedural/plaza-'+kind,previewRole:kind,mock:true}}
     onClick={event=>{

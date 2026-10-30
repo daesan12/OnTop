@@ -93,7 +93,13 @@ function roundedPath(points:readonly ParkPoint[],radius=3):Path {
   path.closePath();return path
 }
 export function buildPathNetwork(routes:readonly DraftRoute[]) {
-  const loops=joinPathContours(roadContours(routes),routes.filter(r=>r.points.length>6)),outer=loops.filter(l=>area(l)>0),holes=loops.filter(l=>area(l)<0),geometries:BufferGeometry[]=[]
+  // Short diagonal approaches need ribbons too; the rectangular network only
+  // contributes their horizontal/vertical segments.
+  const diagonals=routes.filter(r=>r.points.length<=6).flatMap(r=>r.points.slice(1).flatMap((b,i)=>{
+    const a=r.points[i]!
+    return Math.abs(a[0]-b[0])>=.001&&Math.abs(a[1]-b[1])>=.001?[{...r,points:[a,b]}]:[]
+  }))
+  const loops=joinPathContours(roadContours(routes),[...routes.filter(r=>r.points.length>6),...diagonals]),outer=loops.filter(l=>area(l)>0),holes=loops.filter(l=>area(l)<0),geometries:BufferGeometry[]=[]
   const edges:ParkPoint[][]=[]
   for(const loop of outer) {
     const path=roundedPath(loop),shape=new Shape();shape.curves=path.curves
