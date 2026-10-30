@@ -13,11 +13,12 @@ test.afterEach(async ({ page }) => {
   await expect(page.locator('vite-error-overlay')).toHaveCount(0)
 })
 
-async function start(page: Page, code: 'OMOK' | 'ONE_CARD', count: 2 | 4 = 4) {
+async function start(page: Page, code: 'OMOK' | 'ONE_CARD', count: 2 | 4 = 4,
+  options: { opponentName?: string; forfeit?: boolean } = {}) {
   const server = await fixture(page, { generatedPark: true, omok: true, manualLobby: true, tabletServer: true,
-    spectatorEvents: true,
+    spectatorEvents: true, forfeit: options.forfeit,
     ...(code === 'ONE_CARD' ? { onecard: count, players: count } : {}),
-    publicProfiles: { '101': { nickname: '나' }, '102': { nickname: '솔바람' } } })
+    publicProfiles: { '101': { nickname: '나' }, '102': { nickname: options.opponentName ?? '솔바람' } } })
   await page.goto('/park')
   await expect(page).toHaveTitle('OnTop')
   await expect(page).toHaveURL(/\/park$/)
@@ -224,4 +225,132 @@ test('one-card promotes the declaration window, explains draw-only turns and rec
   await panel.getByRole('button', { name: '최신 원카드 확인', exact: true }).click()
   await expect(panel.getByLabel('나만 볼 수 있는 카드').getByRole('button')).toHaveCount(1)
   expect(server.sent.filter(message => message.type === 'GAME_ACTION_SEND')).toHaveLength(2)
+})
+
+test('one-card keeps long turn names clear of the public card on narrow screens', async ({ page }) => {
+  const { server, panel } = await start(page, 'ONE_CARD', 4, { opponentName: '아주긴닉네임을쓰는참가자' })
+  server.cardSnapshot({ turnUserId: '102' }, { ...server.cardHand(), playableCardIds: [], canDraw: false })
+  for (const width of [390, 320]) {
+    await page.setViewportSize({ width, height: 844 })
+    const timer = panel.getByRole('timer'), publicCard = panel.getByLabel('바닥 카드와 공격 정보')
+    await expect(timer).toContainText('아주긴닉네임을쓰는참가자의 차례')
+    const left = (await timer.boundingBox())!, right = (await publicCard.boundingBox())!
+    await screenshot(page, `onecard-long-name-${width}`)
+    expect(left.x + left.width + 8).toBeLessThanOrEqual(right.x)
+    expect(right.x + right.width).toBeLessThanOrEqual(width)
+  }
+})
+
+test('one-card moves keyboard focus into suit choice and restores it after the choice', async ({ page }) => {
+  const { server, panel } = await start(page, 'ONE_CARD')
+  const hand = server.cardHand(), seven = hand.hand.find(card => card.id === 'hearts-7')!
+  const after = { ...hand, hand: hand.hand.filter(card => card.id !== seven.id), playableCardIds: [], canDraw: false }
+  server.cardReply({ kind: 'play', cardId: seven.id }, { stage: 'CHOOSE_SUIT', topCard: seven,
+    players: server.cardState().players.map(player => player.userId === '101' ? { ...player, cardCount: 6 } : player) }, after)
+  await panel.getByRole('button', { name: '하트 7 · 무늬 선택', exact: true }).click()
+  const submit = panel.getByRole('button', { name: '하트 7 내기', exact: true })
+  await submit.focus(); await page.keyboard.press('Enter')
+  const suits = panel.getByRole('group', { name: '무늬 선택', exact: true })
+  await expect(suits.getByRole('button', { name: '하트 선택', exact: true })).toBeFocused()
+  await page.keyboard.press('Tab')
+  await expect(suits.getByRole('button', { name: '다이아몬드 선택', exact: true })).toBeFocused()
+  server.cardReply({ kind: 'select-suit', suit: 'diamonds' }, { stage: 'PLAYING', activeSuit: 'diamonds', turnUserId: '102', turnCount: 2 }, after)
+  await page.keyboard.press('Enter')
+  await expect(suits).toHaveCount(0)
+  await expect(panel.getByLabel('선택 카드 안내')).toBeFocused()
+  expect(server.sent.filter(message => message.type === 'GAME_ACTION_SEND').map(message => message.payload.input))
+    .toEqual([{ kind: 'play', cardId: seven.id }, { kind: 'select-suit', suit: 'diamonds' }])
+})
+
+test('omok lets keyboard players close the board and resume from their last coordinate', async ({ page }) => {
+  const { server, panel } = await start(page, 'OMOK')
+  await page.setViewportSize({ width: 390, height: 844 })
+  await expect.poll(() => page.evaluate(async () => (await import('/tests/park-integration/probe.ts' as string)).omokPlayProbe())).not.toBeNull()
+  const toggle = panel.getByText('키보드로 오목판 조작', { exact: true })
+  await toggle.click()
+  const board = panel.getByRole('group', { name: '오목판', exact: true })
+  await board.getByRole('button', { name: '8행 8열 빈칸', exact: true }).focus()
+  await page.keyboard.press('ArrowRight')
+  await page.keyboard.press('Escape')
+  await expect(board).toBeHidden()
+  await expect(toggle).toBeFocused()
+  await page.keyboard.press('Enter'); await page.keyboard.press('Tab')
+  await expect(board.getByRole('button', { name: '8행 9열 빈칸', exact: true })).toBeFocused()
+  expect(server.sent.filter(message => message.type === 'GAME_ACTION_SEND')).toHaveLength(0)
+  await screenshot(page, 'omok-keyboard-resume-mobile')
+})
+
+test('new-map omok keeps the board camera fixed, places in 3D and blocks opponent or expired turns', async ({ page }) => {
+  const { server, panel } = await start(page, 'OMOK', 2)
+  const camera = (x=7,y=7) => page.evaluate(async ([x,y]) => (await import('/tests/park-integration/probe.ts' as string)).omokPlayProbe(x,y), [x,y])
+  await expect.poll(camera).not.toBeNull()
+  const before = (await camera())!
+  await page.keyboard.press('F1')
+  const manual = page.locator('dialog.game-manual')
+  await expect(manual).toBeVisible()
+  await page.keyboard.press('Escape'); await expect(manual).toBeHidden()
+  const point = (await camera(3,4))!.point
+  await page.mouse.click(point.x, point.y)
+  await expect.poll(() => server.sent.filter(message => message.type === 'GAME_ACTION_SEND').length).toBe(1)
+  expect(server.sent.find(message => message.type === 'GAME_ACTION_SEND')?.payload.input).toEqual({ x: 3, y: 4 })
+  server.turnTo('102'); await expect(panel).toContainText('상대 차례')
+  expect((await camera())!.position).toEqual(before.position)
+  expect((await camera())!.quaternion).toEqual(before.quaternion)
+  const empty = (await camera(5,6))!.point
+  await page.mouse.click(empty.x, empty.y)
+  server.turnTo('101', new Date(Date.now() - 100).toISOString())
+  await expect(panel).toContainText('착수 시간이 끝났습니다')
+  await page.mouse.click(empty.x, empty.y)
+  expect(server.sent.filter(message => message.type === 'GAME_ACTION_SEND')).toHaveLength(1)
+  await screenshot(page, 'omok-new-map-3d-move')
+})
+
+test('one-card suit changes leave chat and manual focus alone', async ({ page }) => {
+  const { server, panel } = await start(page, 'ONE_CARD')
+  const hand = server.cardHand(), seven = hand.hand.find(card => card.id === 'hearts-7')!
+  const after = { ...hand, hand: hand.hand.filter(card => card.id !== seven.id), playableCardIds: [], canDraw: false }
+  const players = server.cardState().players.map(player => player.userId === '101' ? { ...player, cardCount: 6 } : player)
+  await page.getByRole('button', { name: '채팅 입력창 열기', exact: true }).click()
+  const chat = page.getByRole('textbox', { name: '주변 채팅 메시지' })
+  await expect(chat).toBeFocused()
+  server.cardSnapshot({ stage: 'CHOOSE_SUIT', topCard: seven, players }, after)
+  const suits = panel.getByRole('group', { name: '무늬 선택', exact: true })
+  await expect(suits.getByRole('button').first()).toBeEnabled()
+  await expect(chat).toBeFocused()
+  await page.keyboard.press('Escape')
+  server.cardSnapshot({ stage: 'PLAYING', turnUserId: '102' }, after)
+  await expect(suits).toHaveCount(0)
+  await page.keyboard.press('F1')
+  const manual = page.locator('dialog.game-manual')
+  await expect(manual).toBeVisible()
+  server.cardSnapshot({ stage: 'CHOOSE_SUIT', turnUserId: '101' }, after)
+  await expect(suits.getByRole('button').first()).toBeEnabled()
+  expect(await manual.evaluate(node => node.contains(document.activeElement))).toBe(true)
+  await page.keyboard.press('Escape'); await expect(manual).toBeHidden()
+  expect(server.sent.filter(message => message.type === 'GAME_ACTION_SEND')).toHaveLength(0)
+})
+
+for (const code of ['OMOK', 'ONE_CARD'] as const) test(`new-map ${code}: confirmed forfeit sends once and waits for the server`, async ({ page }) => {
+  const { server, panel } = await start(page, code, 2, { forfeit: true })
+  server.forfeitMode('hold')
+  if (code === 'OMOK') {
+    await panel.getByRole('button', { name: '기권', exact: true }).click()
+    const confirmation = panel.getByRole('group', { name: '기권 확인', exact: true })
+    await confirmation.getByRole('button', { name: '계속 플레이', exact: true }).click()
+    expect(server.sent.filter(message => message.type === 'GAME_FORFEIT')).toHaveLength(0)
+    await panel.getByRole('button', { name: '기권', exact: true }).click()
+    await confirmation.getByRole('button', { name: '기권 확정', exact: true }).click()
+  } else {
+    await page.getByLabel('3D 공원', { exact: true }).locator('canvas').focus()
+    await page.keyboard.press('Escape')
+    await page.getByRole('dialog', { name: '기권하시겠습니까?', exact: true })
+      .getByRole('button', { name: '기권 확정', exact: true }).click({ clickCount: 2 })
+  }
+  await expect(page.getByText('기권 요청 확인 중…', { exact: true })).toBeVisible()
+  expect(server.sent.filter(message => message.type === 'GAME_FORFEIT')).toHaveLength(1)
+  server.completeForfeit()
+  const result = page.getByRole('dialog', { name: '경기 결과', exact: true })
+  await expect(result).toBeVisible()
+  expect(server.forfeitApplications).toBe(1)
+  expect(server.sent.filter(message => message.type === 'TABLE_LEAVE')).toHaveLength(0)
 })
