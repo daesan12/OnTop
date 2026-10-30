@@ -1,9 +1,9 @@
 import {test,expect} from '@playwright/test'
-import {KIOSKS} from '../../src/layout-preview/layout'
+import {KIOSKS,KIOSK_FENCE_RUNS} from '../../src/layout-preview/layout'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import os from 'node:os'
-import type {plazaStructureProbe,rankingBoardProbe} from './plazaStructureProbe'
+import type {plazaStructureProbe,rankingBoardProbe,plazaPlacementProbe} from './plazaStructureProbe'
 
 test('lucky facility mocks and ranking board retain their independent models and interactions',async({page})=>{
  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text())})
@@ -37,4 +37,40 @@ test('lucky facility mocks and ranking board retain their independent models and
  expect(rankingBoard.metrics).toMatchObject({displayPlaneCount:3,structureTextureCount:0})
  expect(rankingBoard.metrics.triangleCount).toBeLessThan(500)
  expect(errors).toEqual([])
+})
+
+test('the full facility outlines and courtyard fences stay inside their lawn pockets',async({page})=>{
+ await page.goto('/layout-preview.html')
+ await expect(page.getByText('배치 준비 완료',{exact:true})).toBeVisible({timeout:90000})
+ const bounds:ReturnType<typeof plazaPlacementProbe>=await page.evaluate(async()=>
+  (await import('/tests/layout-e2e/plazaStructureProbe.ts' as string)).plazaPlacementProbe())
+ for(const b of bounds){
+  const [left,right,north,south]=b.name==='fish-bread-shop-exterior'?[-37,-20,28,44]:
+   b.name==='ranking-board-preview'?[20,37,28,44]:[20,37,48,60]
+  expect(b.min[0],b.name+' west').toBeGreaterThan(left!+.2)
+  expect(b.max[0],b.name+' east').toBeLessThan(right!-.2)
+  expect(b.min[2],b.name+' north').toBeGreaterThan(north!+.2)
+  expect(b.max[2],b.name+' south').toBeLessThan(south!-.2)
+  const nearestX=Math.max(b.min[0]!,Math.min(0,b.max[0]!))
+  const nearestZ=Math.max(b.min[2]!,Math.min(46,b.max[2]!))
+  expect(Math.hypot(nearestX,nearestZ-46),b.name+' plaza clearance').toBeGreaterThan(24.35)
+ }
+ for(const fence of KIOSK_FENCE_RUNS){
+  const [north,south]=fence.id.startsWith('kiosk-photo-')?[28,44]:[48,60]
+  // Posts/caps extend .17m beyond each fence endpoint.
+  for(const [x,z] of [fence.from,fence.to]){
+   expect(x-.17,fence.id).toBeGreaterThan(20)
+   expect(x+.17,fence.id).toBeLessThan(37)
+   expect(z-.17,fence.id).toBeGreaterThan(north!)
+   expect(z+.17,fence.id).toBeLessThan(south!)
+  }
+ }
+ const wheel=bounds.find(b=>b.name==='layout-shop')!,lottery=bounds.find(b=>b.name==='layout-drink')!
+ expect(lottery.min[0]!-wheel.max[0]!).toBeGreaterThan(1.8)
+ const dir=process.env.QA_ARTIFACT_DIR??path.join(os.tmpdir(),'ontop-plaza-placement-qa')
+ await fs.mkdir(dir,{recursive:true})
+ await fs.writeFile(path.join(dir,'placement-bounds.json'),JSON.stringify(bounds,null,2))
+ const capture=await page.evaluate(async()=>
+  (await import('/tests/layout-e2e/plazaStructureProbe.ts' as string)).plazaPlanCapture())
+ await fs.writeFile(path.join(dir,'after-plan.png'),Buffer.from(capture.split(',')[1]!,'base64'))
 })

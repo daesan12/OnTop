@@ -13,6 +13,24 @@ export function rankingBoardProbe(){
   meshCount:board.children.length,metrics:rankingBoardModelMetrics}
 }
 
+/** Measure rendered roofs, signs and feet, including every parent transform. */
+export function plazaPlacementProbe(){
+ const scene=_roots.get(document.querySelector('canvas')!)!.store.getState().scene
+ scene.updateMatrixWorld(true)
+ return ['fish-bread-shop-exterior','layout-shop','layout-drink','ranking-board-preview'].map(name=>{
+  const box=new Box3().setFromObject(scene.getObjectByName(name)!,true)
+  return {name,min:box.min.toArray(),max:box.max.toArray()}
+ })
+}
+
+export function plazaPlanCapture(){
+ const state=_roots.get(document.querySelector('canvas')!)!.store.getState()
+ const camera=state.camera.clone()
+ camera.position.set(0,104,46.001);camera.lookAt(0,0,46);camera.updateMatrixWorld(true)
+ state.gl.render(state.scene,camera)
+ return state.gl.domElement.toDataURL('image/png')
+}
+
 export async function rankingBoardRenderProbe(){
  const state=_roots.get(document.querySelector('canvas')!)!.store.getState()
  const board=state.scene.getObjectByName('ranking-board-preview')!

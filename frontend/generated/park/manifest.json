@@ -1,14 +1,14 @@
 {
   "artifacts": [
     {
-      "bytes": 2555929,
+      "bytes": 2556070,
       "path": "generated/park/server-map.json",
-      "sha256": "e94e7fe9ef87abcd55d5a8ed962f3cca53e6fa984736c80280a591fc6c062bd8"
+      "sha256": "3eb0ae4b94c094807f5ed4701ead8143bc4e8f8afeae5afac36b85d3df2624c9"
     },
     {
       "bytes": 329,
       "path": "src/map/park/generated/mapVersion.ts",
-      "sha256": "b2408d3cb006435b9a054901fd3573d0b1d98a87575113108c9ac206f26f4ffe"
+      "sha256": "5718137b3a044e00bec3652028d5d840ea0473e6ed880ecedccfc3267e4a9da6"
     }
   ],
   "counts": {
@@ -17,10 +17,10 @@
     "facilities": 12,
     "fitness": 12,
     "localSeats": 72,
-    "obstacles": 539,
+    "obstacles": 541,
     "paths": 60,
     "pavilions": 9,
-    "physicalBoxes": 2141,
+    "physicalBoxes": 2143,
     "physicalHulls": 35,
     "physicalMeshes": 8,
     "tables": 18,
@@ -29,11 +29,11 @@
   "format": "ontop.park-map-manifest",
   "hashAlgorithm": "sha256",
   "hashes": {
-    "dataHash": "2430f946c263894021392e3e9fdbe8ad5e893cb91ed5d4319146181af17fd3e8",
-    "sourceHash": "db3872ffdb9bd80da6f503bbb5c8cc93e93f898e210cf022d2992270d9ed6a15"
+    "dataHash": "f487f70fd6b45b85312a1cad04b848eedd209ac7472730c5cc9f766051a1a995",
+    "sourceHash": "a13ad29f970ef2d6f5253b045f14ee6760a9eb08982a28b7883b174ed2e0b070"
   },
   "mapId": "park",
-  "mapVersion": "448b20e7d1a24ed53dc41e2a628c5a52fafb6c38df038daea12118ddf708755b",
+  "mapVersion": "102257d44020a82e756ab2b6601416c8be7816f022ac01f76930129e8380ec9a",
   "schemaVersion": 2,
   "sources": [
     {
@@ -150,7 +150,7 @@
     },
     {
       "path": "src/map/park/definition.ts",
-      "sha256": "650da69c30b7600160c029b00fbeaa092f178328a3306fdf149411b971930855"
+      "sha256": "0f558d5de77c8ea8ab0eb0924e6a72e6d90d1fa43f73b4561f043430723424c4"
     },
     {
       "path": "src/map/park/fountainHeight.ts",

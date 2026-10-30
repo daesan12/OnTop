@@ -94,7 +94,7 @@ const drawTitle = (c: CanvasRenderingContext2D, w: number, h: number) => {
 
 export function RankingBoardModel() {
   const site = KIOSKS.find(kiosk => kiosk.kind === 'photo')!
-  return <group name="ranking-board-preview" position={[site.x, 0, site.z]} rotation={[0, site.yaw, 0]}
+  return <group name="ranking-board-preview" position={[site.x, 0, site.z]} rotation={[0, site.yaw, 0]} scale={.94}
     userData={{ assetId: 'procedural/ranking-board', previewRole: 'ranking-board' }}>
     {entries.map(([kind, geometry]) => <mesh key={kind} geometry={geometry} dispose={null} castShadow={kind !== 'glow'} receiveShadow>
       <primitive object={kind === 'glow' ? lanternMaterial : flatMaterial} attach="material" dispose={null} />

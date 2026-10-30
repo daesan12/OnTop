@@ -25,7 +25,7 @@ describe('lucky facility mock and enlarged fish shop',()=>{
     expect(PARK_LAYOUT.KIOSK_FENCE_RUNS.some(f=>f.id.startsWith('kiosk-shop-'))).toBe(false)
     expect(box.center).toEqual([cart.x,2.684,cart.z])
     expect(PARK_LAYOUT.KIOSKS.filter(k=>k.kind!=='photo').map(k=>[k.kind,k.x,k.z,k.yaw])).toEqual([
-      ['shop',31.8,50.38,-Math.PI*2/3],['drink',27.33,56.12,-Math.PI*2/3],
+      ['shop',27,50.8,-Math.PI/2],['drink',32.5,54.8,-Math.PI/2],
     ])
   })
   it('permits the front serving apron and rejects the back, interior and non-finite coordinates',()=>{
@@ -50,8 +50,9 @@ describe('lucky facility mock and enlarged fish shop',()=>{
     const dx=lottery.x-wheel.x,dz=lottery.z-wheel.z
     const across=Math.abs(dx*Math.cos(wheel.yaw)-dz*Math.sin(wheel.yaw))
     const forward=Math.abs(dx*Math.sin(wheel.yaw)+dz*Math.cos(wheel.yaw))
-    expect(across-(wheel.width+lottery.width)/2).toBeGreaterThan(1.7)
-    expect(forward).toBeLessThan(1.1)
+    const acrossGap=across-(wheel.width+lottery.width)/2
+    const forwardGap=forward-(wheel.depth+lottery.depth)/2
+    expect(Math.max(acrossGap,forwardGap)).toBeGreaterThan(2)
     expect(PARK_LAYOUT.KIOSKS.find(k=>k.kind==='photo')).toMatchObject({x:30,z:35.6,width:8.8,depth:6.6,yaw:-Math.PI/3})
     for(const site of PARK_DATA.interactions.construction){
       const [x,,z]=site.reachPosition

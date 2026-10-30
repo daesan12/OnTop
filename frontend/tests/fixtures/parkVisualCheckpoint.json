@@ -1,5 +1,5 @@
 {
-  "description": "Merged latest dev ranking-board preview with lucky facilities and fountain/stair fixes, 2026-10-30",
+  "description": "Lawn-contained facilities and ranking-board preview with fountain/stair fixes preserved, 2026-10-30",
   "files": {
     "src/layout-preview/districtGeometry.ts": "882709ac240a987c6d7fc5d8740f9d48e93851c586b232dfa05bacd7b70fe1ff",
     "src/layout-preview/existingTreeModel.ts": "fcb9c89c3c90e11ac5a5670a0498dae14184a10b1acac281523ad56ed4748826",
@@ -32,9 +32,9 @@
     "src/layout-preview/reviewFurnitureGeometry.ts": "ebac00b5aa5aebf3625d49c7ac3485a02bcba28fa79de0a599a8f44bf54fdf53",
     "src/layout-preview/sceneGeometry.ts": "66e222292d6068eaf4fc5274df7353bdb7417c5f3ba1b0e1b3309e1872c84b2c",
     "src/map/park/collision.ts": "5d0a325c26d0047ea8aa8ac493e8694060584eeeca03daa33938e25bb1488a8c",
-    "src/map/park/definition.ts": "650da69c30b7600160c029b00fbeaa092f178328a3306fdf149411b971930855",
+    "src/map/park/definition.ts": "0f558d5de77c8ea8ab0eb0924e6a72e6d90d1fa43f73b4561f043430723424c4",
     "src/map/park/fountainHeight.ts": "9996ee1c49bd09c43142d4abde7f831ee4001553bb8232b7372ff1094c4b7573",
-    "src/map/park/generated/mapVersion.ts": "b2408d3cb006435b9a054901fd3573d0b1d98a87575113108c9ac206f26f4ffe",
+    "src/map/park/generated/mapVersion.ts": "5718137b3a044e00bec3652028d5d840ea0473e6ed880ecedccfc3267e4a9da6",
     "src/map/park/index.ts": "86ea47fe7b5e3b4472e9f74719374663e481e6c8c187f85317dbdbf2cd13cd02",
     "src/map/park/interactionData.ts": "34a447bb4521153f76cad68b4f9b2bfe62fa12695d7219b38f74b54d173f94d8",
     "src/map/park/lake.ts": "6b3544dfda8ae89b798d8c7f677f3e3e7b354197d7d2e2f5f31660a772070a4e",
@@ -191,7 +191,7 @@
     "src/world/art/LuckyFacilities.tsx": "505d3c28ae2d448ba2023d1a848be425fbc6610faa700c94f6c188f75b6b617b",
     "src/world/art/luckyFacilityGeometry.ts": "5a661551c2548a29a9e34a8f19713812c07e4ef199711f9d1eae79a04b16e022",
     "src/layout-preview/stairFlightGeometry.ts": "73060545b54ff9e5cc27df141bdd5fb0f7912f971f5d821f74dad865aa2bab2d",
-    "src/layout-preview/RankingBoardModel.tsx": "a9910e290182e5e4259a52412bc85dab3183aa05bfbf3507844030ed933d6688"
+    "src/layout-preview/RankingBoardModel.tsx": "e34813a24fac4dff56fffff3800a58e4affa0cb9ad8f30e6064a371cc21139d4"
   },
   "compatibilityReview": {
     "date": "2026-10-29",

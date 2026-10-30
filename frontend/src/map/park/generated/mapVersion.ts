@@ -2,4 +2,4 @@
 // Separate from the live service EXPECTED_MAP_VERSION until the new map is deployed.
 export const PARK_MAP_ID="park" as const
 export const PARK_MAP_SCHEMA_VERSION=2 as const
-export const PARK_MAP_VERSION="448b20e7d1a24ed53dc41e2a628c5a52fafb6c38df038daea12118ddf708755b" as const
+export const PARK_MAP_VERSION="102257d44020a82e756ab2b6601416c8be7816f022ac01f76930129e8380ec9a" as const
