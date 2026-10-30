@@ -1,10 +1,12 @@
 import { BENCHES, BENCH_YAWS, BENCH_PAVILIONS, PAVILION_BENCH_EXIT } from '../../config'
+import { GENERATED_PARK_ENABLED } from '../../park/mapSelection'
+import { PARK_DATA } from '../../map/park'
 import type { Pose } from '../../network/worldClient'
 import { facilityInRange } from '../facilities/state'
 
 export type BenchSeat = 0 | 1
 /** Existing map IDs/units. An internal placement manifest, not server IDs or DTOs. */
-export const benchAnchors = BENCHES.map((position, index) => {
+const legacyBenchAnchors = BENCHES.map((position, index) => {
   const yaw = BENCH_YAWS[index] ?? 0
   const exitDistance = BENCH_PAVILIONS[index] ? PAVILION_BENCH_EXIT : 1.5
   return {
@@ -19,6 +21,7 @@ export const benchAnchors = BENCHES.map((position, index) => {
       z: position[2] + Math.cos(yaw) * exitDistance, yaw } satisfies Pose,
   }
 })
+export const benchAnchors = GENERATED_PARK_ENABLED ? PARK_DATA.interactions.benches.map(b=>({...b,seats:b.seats.map(s=>s.use),exit:b.seats[0]!.exit})) : legacyBenchAnchors
 export const findBench = (id: string) => benchAnchors.find(bench => bench.id === id)
 export function canReachBench(position: Pose, benchId: string) {
   const approved = facilityInRange(position, benchId)

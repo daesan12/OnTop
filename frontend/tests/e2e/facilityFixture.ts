@@ -1,5 +1,5 @@
 import type { FacilityLease } from '../../src/features/facilities/protocol'
-import { facilityCatalog, facilityPage } from '../fixtures/facilityCatalog'
+import { facilityCatalog as defaultCatalog, facilityPage } from '../fixtures/facilityCatalog'
 
 /** Test-only wire peer. Production uses neither this fixture nor fake authentication. */
 export function facilityFixture(deps: {
@@ -8,7 +8,9 @@ export function facilityFixture(deps: {
   position: { x: number; y: number; z: number; yaw: number; moving: boolean; running: boolean; swimming: boolean }
   remotePosition(pose: { x: number; y: number; z: number; yaw: number }): void
   userId: string
+  catalog?: typeof defaultCatalog
 }) {
+  const facilityCatalog = deps.catalog ?? defaultCatalog
   let leases: FacilityLease[] = [], version = 0, counter = 0
   let holdWorld = false, blockedExit = false, badMap = false
   let rejectAim = false
@@ -29,7 +31,7 @@ export function facilityFixture(deps: {
     handle(type: string, payload: Record<string, unknown>, requestId: string) {
       if (!type.startsWith('WORLD_FACILITY_')) return false
       if (type === 'WORLD_FACILITY_CATALOG') {
-        const page = facilityPage(Number(payload.offset ?? 0))
+        const page = facilityPage(Number(payload.offset ?? 0), facilityCatalog)
         deps.emit(type, { ...page, ...(badMap ? { mapVersion: 'mismatched-facility-map' } : {}) }, requestId)
       } else if (type === 'WORLD_FACILITY_CHECK') state(requestId)
       else if (type === 'WORLD_FACILITY_USE') {

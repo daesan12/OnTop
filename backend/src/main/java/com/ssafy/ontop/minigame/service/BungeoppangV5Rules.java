@@ -42,10 +42,13 @@ public final class BungeoppangV5Rules {
         private Integer lastAt;
     }
 
-    /** Replays an action prefix against the issued heat list and the full order issuance history. */
-    public Result replay(List<Action> log, List<Integer> heats, List<Order> issued) {
-        BungeoppangV4Responses.Rules rules = BungeoppangV5Spec.calculationRules();
-        if (log == null || heats == null || issued == null) {
+    /**
+     * Replays an action prefix against the issued heat list and the full order issuance history.
+     * {@code rules} is the round's stored snapshot, so an existing round keeps its play length and rush start.
+     */
+    public Result replay(List<Action> log, List<Integer> heats, List<Order> issued,
+            BungeoppangV4Responses.Rules rules) {
+        if (rules == null || log == null || heats == null || issued == null) {
             throw invalid("BAD_ENTRY", -1);
         }
         if (log.size() > rules.maxLogEntries()) {

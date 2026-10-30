@@ -1,8 +1,10 @@
+import { GENERATED_PARK_ENABLED } from '../../park/mapSelection'
+import { GeneratedParkMapBackground } from './GeneratedParkMapBackground'
 import { memo } from 'react';
 import { WORLD, PARK_SIZE, PARK_ROUTES, PARK_ENTRANCE, LAKE, LAKE_WALK, BRIDGE, STEPPING_STONES,
   TREE_PLANTINGS, GARDEN_TREES, WILLOW_TREES, FOUNTAIN, VR_ZONE, FITNESS_AREA, BENCHES, PARK_PAVILIONS, TABLES } from '../../config';
 /** Static reference map: no raster downloads, textures, 3D assets or per-tick reconciliation. */
-export const ParkMapBackground = memo(function ParkMapBackground() {
+const LegacyParkMapBackground = memo(function ParkMapBackground() {
   return <g aria-hidden="true" className="park-map-background">
             <rect
               x={-WORLD.halfSize}
@@ -131,3 +133,5 @@ export const ParkMapBackground = memo(function ParkMapBackground() {
 {TABLES.map(t=><circle key={t.id} cx={t.position[0]} cy={t.position[2]} r={0.9} fill="#f6d790" />)}
   </g>;
 });
+
+export const ParkMapBackground=GENERATED_PARK_ENABLED?GeneratedParkMapBackground:LegacyParkMapBackground

@@ -73,6 +73,8 @@ class MinigameV5DeliveryServiceTests {
     private MinigameService service;
     private BungeoppangV5Responses.StartResponse started;
     private long id;
+    /** The config version stored with the round under test; request hashes are seeded with it. */
+    private String config = BungeoppangV5Spec.CONFIG_VERSION;
 
     @BeforeEach
     void fixture() {
@@ -294,7 +296,7 @@ class MinigameV5DeliveryServiceTests {
     void 완료는_서버_점수로_한번만_정산하고_말풍선을_한번_해제한다() {
         var request = delivery(twoBeans(), "1", "deliver-one");
         service.deliverV5(USER_ID, id, "deliver-one", request);
-        clock.set(NOW.plusMillis(185_000));
+        clock.set(NOW.plusMillis(125_000));
         JsonNode body = completeBody(request.log(), 999_999);
 
         var first = (BungeoppangV4CompleteDtos.Response) service.complete(USER_ID, id, "done-one", body);
@@ -324,7 +326,7 @@ class MinigameV5DeliveryServiceTests {
 
     @Test
     void 완료에_남은_미승인_납품_한_건은_같은_트랜잭션에서_승인하고_충원_주문까지_재계산한다() {
-        clock.set(NOW.plusMillis(185_000));
+        clock.set(NOW.plusMillis(125_000));
         var log = append(twoBeans(), deliver(9, 26_400, "1", "last-delivery"));
 
         var result = (BungeoppangV4CompleteDtos.Response) service.complete(USER_ID, id, "done",
@@ -342,7 +344,7 @@ class MinigameV5DeliveryServiceTests {
         when(repository.earned(eq(USER_ID), any(), any())).thenReturn(100L);
         var request = delivery(twoBeans(), "1", "deliver-one");
         service.deliverV5(USER_ID, id, "deliver-one", request);
-        clock.set(NOW.plusMillis(185_000));
+        clock.set(NOW.plusMillis(125_000));
 
         var result = (BungeoppangV4CompleteDtos.Response) service.complete(USER_ID, id, "done",
                 completeBody(request.log(), 0));
@@ -363,12 +365,136 @@ class MinigameV5DeliveryServiceTests {
         }, 422, "TOO_EARLY");
         assertThat(sessions.get(id).status()).isEqualTo("PLAYING");
 
-        clock.set(NOW.plusMillis(209_500));
+        clock.set(NOW.plusMillis(149_500));
         assertRejected(() -> service.complete(USER_ID, id, "late", body), 409, "GAME_NOT_ACTIVE");
         assertThat(sessions.get(id).status()).isEqualTo("INVALID");
         assertThat(rounds.get(id).terminalReason()).isEqualTo("SUBMISSION_EXPIRED");
         assertThat(wallet.balance()).isEqualTo(100);
         assertThat(activityEvents).last().isEqualTo(new MinigameActivityChanged(USER_ID, id, null));
+    }
+
+    @Test
+    void 신규_2분_판은_119999ms_납품을_받고_120000ms_납품은_서버_시각_검증에서_거절한다() {
+        clock.set(NOW.plusMillis(124_500));
+
+        var over = delivery(append(twoBeans(), deliver(9, 120_000, "1", "over")), "1", "over");
+        assertRejected(() -> service.deliverV5(USER_ID, id, "over", over), 422, "TIME_AHEAD");
+        assertThat(rounds.get(id).revision()).isZero();
+        assertThat(orders.get(id)).hasSize(3);
+
+        var edge = delivery(append(twoBeans(), deliver(9, 119_999, "1", "edge")), "1", "edge");
+        var approved = service.deliverV5(USER_ID, id, "edge", edge);
+        assertThat(approved.scoreDelta()).isEqualTo(20);
+        assertThat(approved.checkpoint().lastAt()).isEqualTo(119_999);
+    }
+
+    @Test
+    void 신규_2분_판은_playEndsAt_전_완료를_거절하고_120000ms_행동이_든_최종_로그는_정산하지_않는다() {
+        var edge = completeBody(append(twoBeans(), pour(9, 119_999, 2)), 0);
+        clock.set(NOW.plusMillis(124_499));
+        assertRejected(() -> service.complete(USER_ID, id, "edge", edge), 422, "TOO_EARLY");
+
+        clock.set(NOW.plusMillis(124_500));
+        var over = completeBody(append(twoBeans(), pour(9, 120_000, 2)), 0);
+        assertThatThrownBy(() -> service.complete(USER_ID, id, "over", over))
+                .isInstanceOfSatisfying(MinigameException.class, error -> {
+                    assertThat(error.code()).isEqualTo("LOG_INVALID");
+                    assertThat(error.detail()).isEqualTo("BAD_ENTRY");
+                    assertThat(error.index()).isEqualTo(8);
+                });
+        assertThat(sessions.get(id).status()).isEqualTo("PLAYING");
+        assertThat(ledger).isEmpty();
+
+        var result = (BungeoppangV4CompleteDtos.Response) service.complete(USER_ID, id, "edge", edge);
+        assertThat(result.configVersion()).isEqualTo("v5-20261029.1");
+        assertThat(result.finalThroughSeq()).isEqualTo(9);
+        assertThat(result.unfinishedGrillCount()).isOne();
+        assertThat(service.complete(USER_ID, id, "edge", edge)).isEqualTo(result);
+    }
+
+    @Test
+    void 신규_2분_판의_가속은_저장된_90초부터_적용된다() {
+        clock.set(NOW.plusMillis(4_500 + 92_200));
+        var log = rushBread(twoBeans(), 88_000, "rush");
+
+        var approved = service.deliverV5(USER_ID, id, "rush", delivery(log, "1", "rush"));
+
+        // FILL 88300 → TURN 92000: 1700 ms at 8 s per side and 2000 ms at 6 s per side.
+        assertThat(approved.checkpoint().slots().get(2).front()).isEqualTo(54);
+    }
+
+    @Test
+    void 기존_3분_판은_저장된_180초_규칙으로_120초_뒤_행동과_150초_가속을_인정하고_한번만_정산한다() throws Exception {
+        String storedConfig = legacyRound();
+        clock.set(NOW.plusMillis(4_500 + 152_200));
+        var request = delivery(rushBread(twoBeans(), 148_000, "legacy-rush"), "1", "legacy-rush");
+
+        var approved = service.deliverV5(USER_ID, id, "legacy-rush", request);
+
+        assertThat(approved.scoreDelta()).isEqualTo(20);
+        assertThat(approved.checkpoint().slots().get(2).front()).isEqualTo(54);
+        assertThat(approved.prefixHash()).isEqualTo(BungeoppangV5DeliveryContract.prefixHash(id,
+                BungeoppangV5Spec.LEGACY_CONFIG_VERSION, request.log()));
+        var recovered = (BungeoppangV5Responses.SessionResponse) service.loadSession(USER_ID, id, false, true, null);
+        assertThat(recovered.checkpoint()).isEqualTo(approved.checkpoint());
+        assertThat(recovered.acceptedLog()).hasSize(12);
+
+        var body = completeBody(request.log(), 0);
+        clock.set(NOW.plusMillis(184_499));
+        assertRejected(() -> service.complete(USER_ID, id, "legacy-done", body), 422, "TOO_EARLY");
+        assertThat(sessions.get(id).status()).isEqualTo("PLAYING");
+
+        clock.set(NOW.plusMillis(184_500));
+        var first = (BungeoppangV4CompleteDtos.Response) service.complete(USER_ID, id, "legacy-done", body);
+        assertThat(service.complete(USER_ID, id, "legacy-done", body)).isEqualTo(first);
+        assertThat(service.complete(USER_ID, id, "legacy-done-2", body)).isEqualTo(first);
+
+        assertThat(first.configVersion()).isEqualTo(BungeoppangV5Spec.LEGACY_CONFIG_VERSION);
+        assertThat(first.score()).isEqualTo(20);
+        assertThat(first.coinsGranted()).isOne();
+        assertThat(first.unfinishedGrillCount()).isOne();
+        assertThat(first.finalThroughSeq()).isEqualTo(12);
+        assertThat(wallet.balance()).isEqualTo(101);
+        assertThat(ledger).hasSize(1);
+        assertThat(rounds.get(id).configVersion()).isEqualTo(BungeoppangV5Spec.LEGACY_CONFIG_VERSION);
+        assertThat(rounds.get(id).configJson()).isEqualTo(storedConfig);
+    }
+
+    @Test
+    void 기존_3분_판의_같은_로그는_2분_규칙과_달리_평시로_익는다() throws Exception {
+        legacyRound();
+        clock.set(NOW.plusMillis(4_500 + 92_200));
+
+        var approved = service.deliverV5(USER_ID, id, "rush",
+                delivery(rushBread(twoBeans(), 88_000, "rush"), "1", "rush"));
+
+        // The legacy rush starts at 150 s, so all 3700 ms cook at 8 s per side.
+        assertThat(approved.checkpoint().slots().get(2).front()).isEqualTo(46);
+    }
+
+    @Test
+    void 기존_3분_판의_시작_재시도와_재접속은_저장된_규칙_시간_해시를_그대로_돌려준다() throws Exception {
+        legacyRound();
+
+        var retried = service.startV5(USER_ID, "BUNGEOPPANG", "v5-start");
+
+        assertThat(retried.configVersion()).isEqualTo(BungeoppangV5Spec.LEGACY_CONFIG_VERSION);
+        assertThat(retried.rules()).isEqualTo(BungeoppangV5Spec.legacyRules());
+        assertThat(retried.timing().playEndsAt()).isEqualTo(NOW.plusMillis(184_500));
+        assertThat(retried.timing().expiresAt()).isEqualTo(NOW.plusMillis(209_500));
+        assertThat(retried.checkpoint().prefixHash())
+                .isEqualTo(BungeoppangV5Spec.initialPrefixHash(id, BungeoppangV5Spec.LEGACY_CONFIG_VERSION))
+                .isNotEqualTo(BungeoppangV5Spec.initialPrefixHash(id, BungeoppangV5Spec.CONFIG_VERSION));
+
+        // A new round would have expired at 149.5 s; the legacy round keeps its stored deadline.
+        clock.set(NOW.plusMillis(150_000));
+        var recovered = (BungeoppangV5Responses.SessionResponse) service.loadSession(USER_ID, id, true, true, null);
+        assertThat(recovered.status()).isEqualTo("PLAYING");
+        assertThat(recovered.phase()).isEqualTo("PLAYING");
+        assertThat(recovered.configVersion()).isEqualTo(BungeoppangV5Spec.LEGACY_CONFIG_VERSION);
+        assertThat(recovered.rules()).isEqualTo(BungeoppangV5Spec.legacyRules());
+        assertThat(recovered.timing()).isEqualTo(retried.timing());
+        assertThat(recovered.checkpoint().prefixHash()).isEqualTo(retried.checkpoint().prefixHash());
     }
 
     private void items(long orderId, int bean, int custard) {
@@ -378,6 +504,39 @@ class MinigameV5DeliveryServiceTests {
         ReflectionTestUtils.setField(order, "custard", custard);
         ReflectionTestUtils.setField(order, "pizza", 0);
         ReflectionTestUtils.setField(order, "chocolate", 0);
+    }
+
+    /**
+     * Rewrites the started round into the row the previous release stored for a three-minute round: the legacy
+     * config version and rules snapshot, 180 s timing and an opening hash seeded with the legacy version.
+     * Returns the stored config JSON.
+     */
+    private String legacyRound() throws Exception {
+        BungeoppangV4Round current = rounds.get(id);
+        var opening = JSON.readValue(current.checkpointJson(), BungeoppangV5Responses.Checkpoint.class);
+        String hash = BungeoppangV5Spec.initialPrefixHash(id, BungeoppangV5Spec.LEGACY_CONFIG_VERSION);
+        var checkpoint = new BungeoppangV5Responses.Checkpoint(0, 0, hash, opening.heatCursor(), opening.lastAt(),
+                opening.slots(), opening.tray(), opening.stats(), opening.activeOrders());
+        String storedConfig = JSON.writeValueAsString(Map.of("rules", BungeoppangV5Spec.legacyRules(),
+                "startBufferMs", 1_000, "submissionGraceMs", 15_000, "processingDrainMs", 10_000));
+        Instant end = current.playStartsAt().plusMillis(180_000);
+        rounds.put(id, new BungeoppangV4Round(id, BungeoppangV5Spec.LEGACY_CONFIG_VERSION, storedConfig,
+                current.issuedAt(), current.countdownStartsAt(), current.playStartsAt(), end,
+                end.plusMillis(15_000), end.plusMillis(25_000), hash, JSON.writeValueAsString(checkpoint)));
+        config = BungeoppangV5Spec.LEGACY_CONFIG_VERSION;
+        return storedConfig;
+    }
+
+    /** One more bean on slot 2: POUR at {@code from}, FILL 300 ms later, TURN at from + 4000, then DELIVER 1. */
+    private static List<BungeoppangV4DeliveryDtos.Action> rushBread(List<BungeoppangV4DeliveryDtos.Action> log,
+            int from, String key) {
+        int seq = log.size();
+        var next = new ArrayList<>(log);
+        next.add(pour(seq + 1, from, 2));
+        next.add(fill(seq + 2, from + 300, 2));
+        next.add(turn(seq + 3, from + 4_000, 2));
+        next.add(deliver(seq + 4, from + 4_100, "1", key));
+        return next;
     }
 
     /** Two golden bean breads (front 80, back 80) on slots 0 and 1, finished at 26.3s. */
@@ -395,14 +554,14 @@ class MinigameV5DeliveryServiceTests {
             log.add(deliver(log.size() + 1, last.t() + 100, orderId, key));
         }
         return new BungeoppangV4DeliveryDtos.Request("v5", log.size(),
-                BungeoppangV5DeliveryContract.prefixHash(id, BungeoppangV5Spec.CONFIG_VERSION, log), List.copyOf(log));
+                BungeoppangV5DeliveryContract.prefixHash(id, config, log), List.copyOf(log));
     }
 
     private JsonNode completeBody(List<BungeoppangV4DeliveryDtos.Action> actions, long clientScore) {
         var body = JSON.createObjectNode();
         body.put("rulesVersion", "v5");
         body.put("throughSeq", actions.size());
-        body.put("prefixHash", BungeoppangV5DeliveryContract.prefixHash(id, BungeoppangV5Spec.CONFIG_VERSION, actions));
+        body.put("prefixHash", BungeoppangV5DeliveryContract.prefixHash(id, config, actions));
         var log = body.putArray("log");
         actions.forEach(action -> {
             var node = log.addObject().put("seq", action.seq()).put("action", action.action()).put("t", action.t());

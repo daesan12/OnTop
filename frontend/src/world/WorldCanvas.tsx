@@ -1,3 +1,10 @@
+import { MAP_RENDER_BUDGET } from './art/mapRenderProfile'
+import { ParkSoundscape } from '../audio/ParkSoundscape'
+import { lazy } from 'react'
+import { GENERATED_PARK_ENABLED } from '../park/mapSelection'
+import { LIVE_MAP_IDENTITY } from '../network/mapContract'
+const GeneratedParkWorld=lazy(()=>import('../layout-preview/PreviewWorld').then(m=>({default:m.PreviewWorld})))
+const ServiceJumpCourse=lazy(()=>import('../features/jumpmap/ServiceJumpCourse').then(m=>({default:m.ServiceJumpCourse})))
 import { TableTablet3D } from '../features/tableLobby/TableTablet3D'
 import { TABLET_ENABLED } from '../features/tableLobby/tabletFeature'
 import { useFrame } from '@react-three/fiber'
@@ -13,7 +20,6 @@ import { PlaceholderWorld } from './PlaceholderWorld'
 import { ParkSun } from './ParkSun'
 import { EnvironmentScene } from './EnvironmentScene'
 import { ParkPigeons } from './pigeons/ParkPigeons'
-import { ParkSoundscape } from '../audio/ParkSoundscape'
 import { NightLighting } from './NightLighting'
 import { CameraRig } from './CameraRig'
 
@@ -124,8 +130,8 @@ export const WorldCanvas = memo(function WorldCanvas({
       <Canvas
         // Keep sockets alive in hidden tabs; authoritative match state still arrives.
         frameloop={!visible || !active ? 'never' : 'always'}
-        shadows={preset.shadows ? 'percentage' : false}
-        dpr={dpr}
+        shadows={!GENERATED_PARK_ENABLED&&preset.shadows ? 'percentage' : false}
+        dpr={GENERATED_PARK_ENABLED?Math.min(dpr,MAP_RENDER_BUDGET.maxDpr,Math.sqrt(MAP_RENDER_BUDGET.maxPixels/Math.max(1,viewport.width*viewport.height))):dpr}
         camera={{
           position: [110, 115, 138],
           fov: CAMERA.fov,
@@ -147,10 +153,12 @@ export const WorldCanvas = memo(function WorldCanvas({
         }
       >
         <EnvironmentScene />
+        <ParkSoundscape />
         <ParkSun quality={quality} />
-        <NightLighting quality={quality} />
+        <NightLighting quality={GENERATED_PARK_ENABLED ? 'low' : quality} />
         <Suspense fallback={null}>
-          <PlaceholderWorld quality={quality} />
+          {GENERATED_PARK_ENABLED?<group name="park-service-map" userData={{...LIVE_MAP_IDENTITY}}><GeneratedParkWorld live/></group>:<PlaceholderWorld quality={quality} />}
+          {GENERATED_PARK_ENABLED && <ServiceJumpCourse />}
           <SceneReady onReady={onReady} />
         </Suspense>
         <Avatars overlayTargets={overlayTargets} />
@@ -158,12 +166,11 @@ export const WorldCanvas = memo(function WorldCanvas({
         <RouteArrows />
         <BungeoppangGrill />
 
-        <ParkPigeons quality={quality} />
-        <ParkSoundscape />
+        {!GENERATED_PARK_ENABLED&&<ParkPigeons quality={quality} />}
         <CameraRig />
         {TABLET_ENABLED && <TableTablet3D />}
         <PerformanceProbe />
-        <AdaptiveResolution ceiling={dpr} />
+        <AdaptiveResolution ceiling={GENERATED_PARK_ENABLED?Math.min(dpr,MAP_RENDER_BUDGET.maxDpr,Math.sqrt(MAP_RENDER_BUDGET.maxPixels/Math.max(1,viewport.width*viewport.height))):dpr} />
       </Canvas>
       <AvatarOverlays targets={overlayTargets} />
     </>

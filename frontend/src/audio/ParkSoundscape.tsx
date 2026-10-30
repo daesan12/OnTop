@@ -1,10 +1,9 @@
 import { useFrame } from '@react-three/fiber'
 import { useRef } from 'react'
 import { Vector3 } from 'three'
-import { FOUNTAIN, lakeRadiusAt } from '../config'
-import { LAKE } from '../config/parkLandforms'
+import { FOUNTAIN, lakeRadiusAt } from '../park/mapConfig'
+import { LAKE,isOnParkWalkway } from '../park/mapConfig'
 import { avatars, useSession } from '../network/worldClient'
-import { pavingHeight } from '../world/art/characterMotion'
 import { playSfx, setSfxListener, setSfxLoop } from './sfx'
 import { emoteSfx, moverSfx, type MoverState } from './sfxEvents'
 
@@ -44,7 +43,7 @@ export function ParkSoundscape() {
       const [state, cues] = moverSfx(movers.get(id), {
         ...at, at: a.at, moving: a.moving, running: a.running, swimming: a.swimming,
         free: a.seatIndex < 0 && !a.benchId && !a.fitnessId && !a.telescopeId,
-        paved: pavingHeight(p.x, p.z) > 0,
+        paved: isOnParkWalkway(p.x, p.z),
       })
       movers.set(id, state)
       for (const cue of cues) playSfx(cue, at)

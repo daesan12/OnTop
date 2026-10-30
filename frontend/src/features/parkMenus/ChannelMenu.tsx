@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import parkLogo from '../../assets/entry/ontop-logo.webp'
-import { parkName } from '../../config/parkName'
+import { parkName } from '../parkMenus/parkName'
 import peopleImage from '../../assets/entry/park-people.webp'
 import { useSession } from '../../network/worldClient'
 import { useParkRuntime } from '../../park/runtime/ParkRuntime'

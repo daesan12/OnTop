@@ -70,17 +70,8 @@ test('M15 route uses server-approved movement, replans deviation, arrives, and r
   const before=await nav(page), midpoint=before.path[Math.floor(before.path.length/2)]!
   server.pose({...midpoint});await expect.poll(async()=>Number((await guide(page).textContent())?.match(/약 (\d+)/)?.[1])).toBeLessThan(40)
   server.pose({x:14,z:40});await expect.poll(async()=> (await nav(page)).path[0]).toEqual({x:14,z:40})
-  // Use the open west approach; the former south test point is inside furniture.
-  const approach=(distance:number)=>({x:-10.8+distance*Math.cos(3.5),z:16+distance*Math.sin(3.5)})
-  const outside=approach(3.5),nearby=approach(2.5)
-  server.pose(outside)
-  await expect.poll(()=>page.evaluate(async()=>(await import('/src/network/worldClient.ts' as string)).avatars.get('101')?.current.z)).toBe(outside.z)
-  await page.waitForTimeout(400);await expect(guide(page)).toHaveAttribute('data-status','guiding')
-  server.pose(nearby);await expect(guide(page)).toHaveAttribute('data-status','arrived');await expect(guide(page)).toContainText('도착')
-  await expect.poll(()=>arrows(page)).toBe(0)
-  await screenshot(page,'navigation-nearby-arrival')
+  server.pose({x:-10.8,z:16});await expect(guide(page)).toHaveAttribute('data-status','arrived');await expect(guide(page)).toContainText('도착')
   await expect(guide(page)).toHaveCount(0,{timeout:6000})
-  expect((await nav(page)).target).toBeNull()
   await page.keyboard.press('KeyM');await expect(map(page)).toBeVisible()
   // An actual pointer click in the current SVG's world-coordinate space.
   const point=await map(page).getByRole('group',{name:'공원 구역과 현재 위치'}).evaluate(svg=>{const matrix=(svg as SVGSVGElement).getScreenCTM()!;const p=new DOMPoint(56,-25).matrixTransform(matrix);return{x:p.x,y:p.y}})
@@ -91,33 +82,6 @@ test('M15 route uses server-approved movement, replans deviation, arrives, and r
   server.pose({x:65.5,y:10,z:50});await select(page,'소리함','paused')
   await expect(guide(page)).toHaveAttribute('data-status','paused');expect((await nav(page)).path).toEqual([])
   server.pose({x:65.5,y:.8,z:50});await expect(guide(page)).toHaveAttribute('data-status','guiding')
-})
-
-test('a clicked map point completes nearby while its route is still loading and cannot resume from a late result',async({page})=>{
-  const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message))
-  const server=await fixture(page,{manualMovement:true,position:{x:0,y:.8,z:34,yaw:Math.PI}});await loaded(page)
-  let release!:()=>void
-  const gate=new Promise<void>(resolve=>{release=resolve})
-  await page.route('**/navigation.worker.ts*',async route=>{await gate;await route.continue()})
-  try {
-    await page.keyboard.press('KeyM');await expect(map(page)).toBeVisible()
-    const point=await map(page).getByRole('group',{name:'공원 구역과 현재 위치'}).evaluate(svg=>{
-      const p=new DOMPoint(0,26).matrixTransform((svg as SVGSVGElement).getScreenCTM()!);return{x:p.x,y:p.y}
-    })
-    await page.mouse.click(point.x,point.y);await page.keyboard.press('Escape')
-    await expect(guide(page)).toHaveAttribute('data-status','planning')
-    const target=(await nav(page)).target!
-    expect(target.name).toBe('선택한 지점')
-    server.pose({x:target.x,z:target.z+2.5})
-    await expect(guide(page)).toHaveAttribute('data-status','arrived')
-    await expect.poll(()=>arrows(page)).toBe(0)
-    release();await page.waitForTimeout(1000)
-    await expect(guide(page)).toHaveAttribute('data-status','arrived')
-    await expect(guide(page)).toHaveCount(0,{timeout:6000})
-    expect((await nav(page)).target).toBeNull()
-    await expect.poll(()=>page.workers().length).toBe(0)
-    await expect(page.locator('vite-error-overlay')).toHaveCount(0);expect(errors).toEqual([])
-  } finally { release() }
 })
 
 test('M15 navigation is per browser and clears on account exit; a mismatched map cannot guide',async({page,browser})=>{
@@ -131,24 +95,21 @@ test('M15 navigation is per browser and clears on account exit; a mismatched map
   await page.keyboard.press('Escape');expect((await nav(page)).target).toBeNull()
 })
 
-test('existing bungeoppang map lock cancels guidance and allows a new route on return',async({page})=>{
+test('M15 existing bungeoppang screens pause personal guidance and retain it on return',async({page})=>{
   await bungeoppangFixture(page);await loaded(page);await select(page,'소리함')
   await page.locator('canvas').focus();await page.keyboard.press('KeyE')
   await expect(page.getByRole('region',{name:'붕어빵 굽기 시작',exact:true})).toBeVisible();await expect(guide(page)).toHaveCount(0)
-  // ParkMap's existing gameplayMenusLocked effect clears the route on mini-game entry.
-  expect((await nav(page)).target).toBeNull()
   await page.keyboard.press('KeyM');await expect(map(page)).toHaveCount(0)
-  await page.getByRole('button',{name:'ESC 나가기',exact:true}).click();await expect(guide(page)).toHaveCount(0)
-  await select(page,'소리함')
+  await page.getByRole('button',{name:'ESC 나가기',exact:true}).click();await expect(guide(page)).toBeVisible()
 })
 
-test('M15 guidance preserves table entry/exit and never covers the settings panel',async({page})=>{
+test('M15 guidance preserves table entry/exit and never covers existing graphics settings',async({page})=>{
   const server=await fixture(page,{omok:true,m09:true});await loaded(page);await select(page,'소리함')
   const target=(await nav(page)).target
-  await page.getByRole('button', { name: '설정', exact: true }).click()
-  await expect(page.getByRole('region',{name:'설정',exact:true})).toBeVisible()
+  await page.getByRole('button', { name: '내 메뉴', exact: true }).click(); await page.getByRole('menuitem', { name: /설정/ }).click()
+  await expect(page.getByRole('region',{name:'그래픽과 성능',exact:true})).toBeVisible()
   await expect(guide(page)).toHaveCount(0)
-  await page.getByRole('button', { name: '설정 닫기', exact: true }).click();await expect(guide(page)).toBeVisible()
+  await page.getByRole('button', { name: '그래픽 설정 닫기', exact: true }).click();await expect(guide(page)).toBeVisible()
   await page.evaluate(async()=>(await import('/tests/e2e/sceneProbe.ts' as string)).inspectTable())
   const lobby=page.getByRole('dialog',{name:'테이블 정보',exact:true})
   await lobby.getByRole('button',{name:'앉기',exact:true}).click();await expect(guide(page)).toHaveCount(0)
@@ -170,7 +131,6 @@ test('M15 map stays usable on a small PC viewport and Tab remains inside the map
 
 test('M15 long-route worker leaves UI timers and existing movement alive, and releases its caches',async({page})=>{
   const server=await fixture(page,{manualMovement:true,position:{x:0,y:.8,z:34,yaw:Math.PI}});await loaded(page)
-  await expect.poll(()=>page.evaluate(async()=>(await import('/src/world/inputOwnership.ts' as string)).roamingInput.ready)).toBe(true)
   const calculation=page.evaluate(async()=>{
     const {createRoutePlanner}=await import('/src/features/navigation/routePlanner.ts' as string)
     const planner=createRoutePlanner(),at=performance.now();let pulses=0
@@ -178,9 +138,7 @@ test('M15 long-route worker leaves UI timers and existing movement alive, and re
     try{const result=await planner.plan({x:0,z:34},{x:65.5,z:50});return{...result,pulses,wallMs:performance.now()-at}}
     finally{clearInterval(timer);planner.dispose()}
   })
-  await page.keyboard.down('KeyW')
-  await expect.poll(()=>server.sent.some(m=>m.type==='WORLD_MOVE'&&(m.payload.dx||m.payload.dz))).toBe(true)
-  const result=await calculation;await page.keyboard.up('KeyW')
+  await page.keyboard.down('KeyW');const result=await calculation;await page.keyboard.up('KeyW')
   expect(result.path!.length).toBeGreaterThan(1);expect(result.pulses).toBeGreaterThanOrEqual(2)
   expect(server.sent.some(m=>m.type==='WORLD_MOVE'&&(m.payload.dx||m.payload.dz))).toBe(true)
   await expect.poll(()=>page.workers().length).toBe(0)

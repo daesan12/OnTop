@@ -1,10 +1,11 @@
+import { SIMPLE_MAP } from './mapRenderProfile'
 import { useMemo } from 'react'
 import { useFrame } from '@react-three/fiber'
 import type { MeshStandardMaterial } from 'three'
 import { environmentFrame } from '../environmentState'
 
 /** Lightweight sky / skyline approximation; no extra reflection cameras or render targets. */
-export function UrbanMaterial({ kind }: { kind: 'glass' | 'asphalt' }) {
+function DetailedUrbanMaterial({ kind,color='#ffffff' }: { kind: 'glass' | 'asphalt';color?:string }) {
   const night = useMemo(() => ({ value: 0 }), [])
   useFrame(() => {
     night.value = environmentFrame.night
@@ -62,11 +63,16 @@ export function UrbanMaterial({ kind }: { kind: 'glass' | 'asphalt' }) {
   )
   return (
     <meshStandardMaterial
-      color="#ffffff"
+      color={color}
       roughness={kind === 'glass' ? 0.25 : 0.96}
       metalness={kind === 'glass' ? 0.4 : 0}
       onBeforeCompile={compile}
       customProgramCacheKey={() => `urban-${kind}-v1`}
     />
   )
+}
+
+export function UrbanMaterial(props: Parameters<typeof DetailedUrbanMaterial>[0]) {
+  if(SIMPLE_MAP&&props.kind==='glass')return <meshBasicMaterial color="#829eaa"/>
+  return SIMPLE_MAP ? <meshLambertMaterial color={props.color ?? (props.kind === 'glass' ? '#829eaa' : '#ffffff')} flatShading/> : <DetailedUrbanMaterial {...props}/>
 }

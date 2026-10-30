@@ -4,7 +4,8 @@ import { useSession } from '../../network/worldClient'
 import { appendRanking, BUNGEOPPANG_RANKINGS_ENABLED, fetchRanking, RankingScoreUnavailableError, type RankingPage } from './ranking'
 import './bungeoppangRanking.css'
 
-export function useBungeoppangRanking(rulesVersion: string, refreshKey: string, active: boolean) {
+/** `durationMs` is the round's stored play length (v5 only), so a 3-minute round shows the 3-minute board. */
+export function useBungeoppangRanking(rulesVersion: string, refreshKey: string, active: boolean, durationMs?: number) {
   const runtime = useParkRuntime(), ownId = useSession(s => s.sessionId)
   const [data, setData] = useState<RankingPage | null>(null), [loading, setLoading] = useState(false)
   const [error, setError] = useState(''), [retry, setRetry] = useState(0)
@@ -17,20 +18,20 @@ export function useBungeoppangRanking(rulesVersion: string, refreshKey: string, 
     const request = new AbortController(); controller.current = request
     const timer = setTimeout(() => request.abort(), 12000)
     // A discarded StrictMode mount must not dispatch a duplicate ranking read.
-    void Promise.resolve().then(() => request.signal.aborted ? null : fetchRanking(runtime.requestJSON, rulesVersion, ownId, request.signal)).then(result => {
+    void Promise.resolve().then(() => request.signal.aborted ? null : fetchRanking(runtime.requestJSON, rulesVersion, ownId, request.signal, undefined, durationMs)).then(result => {
       if (result && visit === generation.current) setData(result)
     }).catch(cause => {
       if (visit === generation.current) setError(cause instanceof RankingScoreUnavailableError ? cause.message : '전체 랭킹을 불러오지 못했어요. 잠시 후 다시 확인해 주세요.')
     }).finally(() => { clearTimeout(timer); if (visit === generation.current) setLoading(false) })
     return () => { ++generation.current; request.abort(); clearTimeout(timer); controller.current?.abort() }
-  }, [enabled, ownId, rulesVersion, refreshKey, retry, runtime])
+  }, [enabled, ownId, rulesVersion, durationMs, refreshKey, retry, runtime])
   const more = async () => {
     if (!data?.nextCursor || loading || !enabled) return
     const visit = generation.current, request = new AbortController(); controller.current = request
     const timer = setTimeout(() => request.abort(), 12000)
     setLoading(true); setError('')
     try {
-      const next = await fetchRanking(runtime.requestJSON, rulesVersion, ownId, request.signal, data.nextCursor)
+      const next = await fetchRanking(runtime.requestJSON, rulesVersion, ownId, request.signal, data.nextCursor, durationMs)
       if (visit === generation.current) setData(appendRanking(data, next))
     } catch (cause) { if (visit === generation.current) setError(cause instanceof RankingScoreUnavailableError ? cause.message : '다음 순위를 불러오지 못했어요. 다시 불러와 주세요.') }
     finally { clearTimeout(timer); if (visit === generation.current) setLoading(false) }

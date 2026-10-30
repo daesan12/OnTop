@@ -1,3 +1,4 @@
+import { SIMPLE_MAP } from './mapRenderProfile'
 import { useEffect, useMemo } from 'react'
 import { useFrame } from '@react-three/fiber'
 import {
@@ -24,7 +25,7 @@ import { SurfaceMaterial } from './SurfaceMaterial'
 import { BeveledBox } from './BeveledBox'
 
 // Translucent single-pass water: sky tint + Fresnel, with no extra reflection camera.
-export function Water({
+function DetailedWater({
   position,
   radius,
 }: {
@@ -381,4 +382,8 @@ export function WaterGarden() {
       <Fountain />
     </group>
   )
+}
+
+export function Water(props: Parameters<typeof DetailedWater>[0]) {
+  return SIMPLE_MAP ? <mesh name="water-surface" renderOrder={2} position={[...props.position]} rotation={[-Math.PI/2,0,0]} scale={[...props.radius,1]}><circleGeometry args={[1,32]}/><meshLambertMaterial color="#5a9fa5" transparent opacity={.6} depthWrite={false}/></mesh> : <DetailedWater {...props}/>
 }

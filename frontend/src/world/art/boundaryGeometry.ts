@@ -1,3 +1,4 @@
+import { SIMPLE_MAP } from './mapRenderProfile'
 import { WORLD } from '../../config'
 import {
   BoxGeometry,
@@ -87,6 +88,7 @@ function merge(parts: BufferGeometry[]) {
 
 /** Four-metre reusable roof. Both sides have pan tiles, barrel covers and lapped courses. */
 export function createWallRoof(detailed = true) {
+  if(SIMPLE_MAP)detailed=false
   const clay: BufferGeometry[] = [],
     ends: BufferGeometry[] = [],
     timber: BufferGeometry[] = []
@@ -102,7 +104,7 @@ export function createWallRoof(detailed = true) {
     clay.push(
       patch(
         1,
-        12,
+        SIMPLE_MAP ? 2 : 12,
         (u, v) => [
           u * 4 - 2,
           wallRoofHeight(v * 0.76) - (detailed ? 0.04 : 0),

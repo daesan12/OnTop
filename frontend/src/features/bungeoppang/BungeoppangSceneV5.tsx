@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { ConeGeometry, CylinderGeometry, Group, Mesh, MeshBasicMaterial, MeshStandardMaterial, Vector3, type BufferGeometry } from 'three';
-import { createSculptedFish } from '../../world/art/fishBreadGeometry';
+import { createSculptedFish } from './fishBreadGeometry';
 import { BungeoppangCustomersV5 } from './BungeoppangCustomersV5';
-import { PropBuilder } from '../../world/art/propGeometry';
+import { PropBuilder } from './devArt/propGeometry';
 import { type BungFeedback } from './presentation';
 import { trashPoint } from './layoutV5';
 import { environmentFrame } from '../../world/environmentState';

@@ -2,6 +2,7 @@ import { create } from 'zustand'
 
 /** Local presentation only. Keep a selected card protected until the version changes. */
 export const useOneCardUI = create<{ scope: string; selectedId: string }>(() => ({ scope: '', selectedId: '' }))
+export const clearOneCardSelection = () => useOneCardUI.setState({ selectedId: '' })
 export const handScope = (userId: string, roomId: string, gameId: string, version: number) => JSON.stringify([userId, roomId, gameId, version])
 export function flipCandidates(ids: readonly string[], protectedId: string, count = 2) {
   return ids.filter(id => id !== protectedId).slice(0, Math.max(0, Math.min(2, count)))

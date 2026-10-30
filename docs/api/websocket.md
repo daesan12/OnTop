@@ -1,5 +1,8 @@
 # OnTop WebSocket 연결 및 메시지 계약
 
+완성 텍스트의 공통 빈도·동시 접속 상한과 1013/1009 종료는 [유입 제한](../websocket-ingress-limits.md)을 따른다.
+로컬 구현이며 운영 수치·신뢰 프록시·FE 지연 재연결 정책은 협의 전이다.
+
 맵 식별 정보: [CONNECTED / WORLD_MAP_CONFIRM / WORLD_MAP_STATE](../world-map-api.md).
 WORLD_MAP_REQUIRE_MATCH=true에서는 확인 전 입장·경기 복구를 보류한다. 기본 false는 기존 FE 호환이다.
 
@@ -106,6 +109,8 @@ gameId/version/state를 노출하지 않으며 기존 FE 파서와 재시도 UI�
 | 맵 확인 | WORLD_MAP_CONFIRM | WORLD_MAP_STATE |
 | 광장 | CHANNEL_JOIN / CHANNEL_LEAVE | CHANNEL_STATE / CHANNEL_LEFT / WORLD_STATE |
 | 이동 | WORLD_MOVE | WORLD_STATE |
+| C 좌표 검증 이동 (dev 기본) | WORLD_POSITION | WORLD_STATE; local 명시 활성·dev 기본 활성·prod 제외. [계약](../world-movement-prediction.md#c-좌표-검증-이동-계약-dev-기본-적용-prod-제외) |
+| 클라이언트 물리 준비 실패 시 서버 이동 복귀 | WORLD_POSITION_FALLBACK | WORLD_STATE; C 모드에서 사용, payload는 현재 epoch |
 | 채팅·감정 | WORLD_CHAT_SEND / WORLD_EMOTE_SEND | WORLD_CHAT_MESSAGE / WORLD_EMOTE_EVENT / WORLD_EMOTE_CANCELLED |
 | 따라가기 | WORLD_FOLLOW_CHECK / WORLD_FOLLOW_START / WORLD_FOLLOW_STOP | WORLD_FOLLOW_STATE ([상세](../world-follow-api.md)) |
 | 시설 | WORLD_FACILITY_CHECK / WORLD_FACILITY_CATALOG / WORLD_FACILITY_USE / WORLD_FACILITY_RELEASE / WORLD_FACILITY_AIM | [시설 계약](../world-facility-api.md)의 상태·목록·이용 응답 |
@@ -161,7 +166,9 @@ participants/myCoinDelta/endedAt이며 PENDING의 myCoinDelta는 null이다. 응
 - 현재 boot의 SETTLING은 신뢰된 DB 종결 결과로 복구한다. 다른 boot의 미완료 경기 자동 INVALID/반환은 미구현이다.
 - 자세한 nullable/필드 규칙: [결과](../game-result-api.md), [Story 174 구현과 한계](../game-recovery.md).
 - 새로고침·재연결 후 FE는 이 탭의 경기 ID가 경기 내역 REST의 최근 종료 경기와 같을 때만 기존
-  GAME_RESULT_CHECK를 다시 보낸다. 새 메시지·필드는 없다. 상세: [새로고침 후 결과 발견](../game-recovery.md#새로고침-후-경기-결과-발견-ontop-story-b).
+  GAME_RESULT_CHECK를 다시 보낸다. 새 메시지·필드는 없다.
+- 서버가 유지한 좌석(대기석 유예 복귀·frozen 좌석)의 재접속은 `CONNECTED` 직후 TABLE_STATE와 이 테이블의 GAME_START_STATE를
+  받는다. FE는 채널 입장·테이블 목록 조회 뒤 적용한다. 상세: [Story C](../game-recovery.md#새로고침websocket-재접속-좌석시작-상태-수신-ontop-story-c). 상세: [새로고침 후 결과 발견](../game-recovery.md#새로고침-후-경기-결과-발견-ontop-story-b).
 
 ## GAME_SELECT 참가비 계약 (Story 172 보완/173)
 

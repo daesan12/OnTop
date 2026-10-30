@@ -1,5 +1,7 @@
-import { attachSharedMaterial, sharedOutdoorMetal } from './sharedMaterials'
-/** Flat painted finishes share the park's texture-free lighting. */
+import { SIMPLE_MAP } from './mapRenderProfile'
+import { metalGrain } from './ornamentTextures'
+
+/** Shared micro-roughness; reflection comes from the scene's outdoor probe. */
 export function OutdoorMetal({
   finish = 'painted',
   vertexColors = false,
@@ -7,7 +9,15 @@ export function OutdoorMetal({
   finish?: 'painted' | 'iron' | 'brass'
   vertexColors?: boolean
 }) {
+  if(SIMPLE_MAP)return <meshLambertMaterial vertexColors={vertexColors} flatShading/>
   return (
-    <primitive object={sharedOutdoorMetal(finish, vertexColors)} attach={attachSharedMaterial} dispose={null} />
+    <meshStandardMaterial
+      vertexColors={vertexColors}
+      metalness={finish === 'brass' ? 0.78 : finish === 'iron' ? 0.7 : 0.22}
+      roughness={finish === 'brass' ? 0.47 : finish === 'iron' ? 0.65 : 0.6}
+      roughnessMap={metalGrain}
+      bumpMap={metalGrain}
+      bumpScale={0.00035}
+    />
   )
 }

@@ -13,6 +13,7 @@ import { normalizeTelescopeAim } from '../features/telescopes/anchors'
 import { telescopeTurnRate, telescopeView, zoomTelescope } from '../features/telescopeView'
 import { inputState, panelOwnsKeys, panelOwnsMovement, roamingInput, textInputOwnsKeys } from './inputOwnership'
 import { cameraRelativeMove, MOVEMENT_INPUT_INTERVAL_MS, type MovementIntent } from '../network/movementInput'
+import { localMovement } from '../network/localMovementPrediction'
 import { useGame } from '../game/store'
 import { canLeaveByMovement } from '../features/tableLobby/model'
 import { seatScope, turnSeatedLook } from '../features/tableLobby/state'
@@ -73,7 +74,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     const side = Number(keys.has('KeyD') || keys.has('ArrowRight')) - Number(keys.has('KeyA') || keys.has('ArrowLeft'))
     cameraRelativeMove(forward, side, viewControls.yaw,
       keys.has('ShiftLeft') || keys.has('ShiftRight'), jumpNow, intent)
-    if (intent.dx || intent.dz || jumpNow || hadMovement)
+    if (intent.dx || intent.dz || jumpNow || hadMovement || localMovement.positionMode)
       parkRuntime.move(intent.dx, intent.dz, intent.run, intent.jump)
     hadMovement = !!(intent.dx || intent.dz)
   }
@@ -81,6 +82,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     const scale = lookScale()
     viewControls.yaw -= x * 0.004 * scale
     viewControls.pitch = Math.max(-0.2, Math.min(1.1, viewControls.pitch + y * 0.003 * scale))
+    if (hadMovement) sendIntent()
   }
   // Shared by drag and mouse look; zoom slows the aim and the server sync keeps its own interval.
   const turnTelescope = (x: number, y: number) => {
@@ -217,11 +219,14 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
         if (!event.repeat && event.code !== 'ShiftLeft' && event.code !== 'ShiftRight') void leaveFitness()
         if (event.repeat) return
       }
+      const changed = !keys.has(event.code)
       keys.add(event.code)
+      // Local intent must not wait for the transport's 60ms send cadence.
+      if (changed) sendIntent()
     }
-    if (event.code === 'Space' && !event.repeat) {
+    if (event.code === 'Space') {
       event.preventDefault()
-      if (!useSession.getState().benchId && !useSession.getState().fitnessId
+      if (!event.repeat && !useSession.getState().benchId && !useSession.getState().fitnessId
         && !useBenchState.getState().pending && !useFitnessState.getState().pending && !useTelescopeState.getState().pending) {
         // Queue the edge now, rather than waiting for the roaming polling tick.
         // The transport still enforces its minimum interval and sends it only once.
@@ -237,7 +242,10 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
       }
     }
   }
-  const up = (event: KeyboardEvent) => keys.delete(event.code)
+  const up = (event: KeyboardEvent) => {
+    const changed = keys.delete(event.code)
+    if (changed && movement.has(event.code) && !blocked() && !useSession.getState().telescopeId) sendIntent()
+  }
   const pointerDown = (event: PointerEvent) => {
     if (mouseLook.locked()) return
     const session = useSession.getState(), scope = seatScope(session)
@@ -312,6 +320,10 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
       if (benchExitKey && useSession.getState().benchId && useSession.getState().status === 'connected'
         && !document.hidden && !panelOwnsKeys() && !textInputOwnsKeys(document.activeElement)) return
       if (hadMovement || keys.size || jump) stop()
+      // Foreground UI/text focus blocks controls, not the verified position lease.
+      // Actual facility/table/activity ownership remains gated by the runtime.
+      if (!document.hidden && localMovement.positionMode && localMovement.ready)
+        parkRuntime.move(0, 0, false, false)
       return
     }
     if (!useSession.getState().benchId) benchExitKey = false

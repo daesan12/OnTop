@@ -4,15 +4,18 @@ import { tableBusy, type useGame } from '../../game/store'
 
 export const TABLE_GAMES = [
   { code: 'OMOK', name: '오목', capacity: 2, playable: true },
-  { code: 'DICE', name: '주사위 한 판', capacity: 2, playable: true },
+  { code: 'DICE', name: '주사위 한 판', capacity: 2, playable: false },
   { code: 'ONE_CARD', name: '원카드', capacity: 4, playable: true },
-  { code: 'LIAR_BRIDGE', name: '거짓말 다리 건너기', capacity: 4, playable: true },
+  { code: 'LIAR_BRIDGE', name: '거짓말 다리 건너기', capacity: 4, playable: false },
 ] as const
 export type TableGameCode = typeof TABLE_GAMES[number]['code']
+export const GAME_CONSTRUCTION_NOTICE = '공사 중인 게임입니다. 오목 또는 원카드를 선택해주세요.'
+export const isTableGamePlayable = (code: string | null | undefined) => TABLE_GAMES.some(game => game.code === code && game.playable)
 export const TARGET_SCORES = [2000, 4000, 6000] as const
 export function gameSelection(code: TableGameCode, betAmountPerPlayer: number, targetScore?: number) {
   if (!Number.isSafeInteger(betAmountPerPlayer) || betAmountPerPlayer <= 0) throw new Error('참가비를 양의 정수로 입력해주세요.')
   if (!TABLE_GAMES.some(g => g.code === code)) throw new Error('지원하는 게임을 선택해주세요.')
+  if (!isTableGamePlayable(code)) throw new Error(GAME_CONSTRUCTION_NOTICE)
   const maxPlayers = TABLE_GAMES.find(g => g.code === code)!.capacity
   if (!Number.isSafeInteger(betAmountPerPlayer * maxPlayers)) throw new Error('전체 판돈이 지원 범위를 초과합니다.')
   if (code === 'DICE') {
@@ -29,7 +32,7 @@ export function lobbyStatus(table: TableState, ownId: string, busy: boolean) {
     mine, count, host: table.selectorUserId === ownId,
     canLeaveByMovement: !!mine && !mine.ready && !busy,
     canReady: !!mine && !busy && table.betAmountPerPlayer != null && table.betAmountPerPlayer > 0
-      && TABLE_GAMES.some(g => g.code === table.gameCode && g.playable),
+      && isTableGamePlayable(table.gameCode),
     message: count < table.minimumPlayers
       ? `최소 ${table.minimumPlayers}명 필요 · 현재 ${count}명`
       : table.allReady ? '전원 준비 완료 · 서버 시작 상태 대기' : '참가자 모두 준비하면 서버가 시작을 확인합니다.',

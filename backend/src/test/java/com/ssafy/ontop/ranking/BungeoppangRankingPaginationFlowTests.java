@@ -78,8 +78,8 @@ class BungeoppangRankingPaginationFlowTests {
         original.add(item(20, 20, 50));
         original.add(item(20, 21, 50));
         original.add(item(22, 42, 49));
-        when(rankings.personalBests("v5")).thenReturn(List.copyOf(original));
-        when(rankings.personalBests("v4")).thenReturn(List.of());
+        when(rankings.personalBests("v5", 120000)).thenReturn(List.copyOf(original));
+        when(rankings.personalBests("v4", null)).thenReturn(List.of());
 
         JsonNode first = get(42, "", 200);
         assertThat(first.path("items")).hasSize(20);
@@ -89,17 +89,18 @@ class BungeoppangRankingPaginationFlowTests {
         JsonNode otherUser = get(43, "&cursor=" + encoded, 409);
         JsonNode otherVersion = get(42, "&rulesVersion=v4&cursor=" + encoded, 409);
         JsonNode otherLimit = get(42, "&limit=19&cursor=" + encoded, 409);
+        JsonNode otherDuration = get(42, "&durationMs=180000&cursor=" + encoded, 409);
         String tampered = cursor.substring(0, cursor.indexOf('.') + 1) + "AAAA";
         JsonNode invalid = get(42, "&cursor=" + tampered, 400);
 
-        when(rankings.personalBests("v5")).thenReturn(List.of(item(1, 42, 200)));
+        when(rankings.personalBests("v5", 120000)).thenReturn(List.of(item(1, 42, 200)));
         JsonNode second = get(42, "&cursor=" + encoded, 200);
         assertThat(second.path("items")).hasSize(2);
         assertThat(second.at("/items/0/rank").asInt()).isEqualTo(20);
         assertThat(second.path("me")).isEqualTo(first.path("me"));
         assertThat(second.path("snapshotId")).isEqualTo(first.path("snapshotId"));
         assertThat(second.path("nextCursor").isNull()).isTrue();
-        verify(rankings, times(1)).personalBests("v5");
+        verify(rankings, times(1)).personalBests("v5", 120000);
 
         clock.time = clock.time.plus(Duration.ofMinutes(2));
         JsonNode expired = get(42, "&cursor=" + encoded, 409);
@@ -107,14 +108,14 @@ class BungeoppangRankingPaginationFlowTests {
         assertThat(fresh.path("snapshotId")).isNotEqualTo(first.path("snapshotId"));
         assertThat(fresh.at("/me/rank").asInt()).isEqualTo(1);
         JsonNode empty = get(42, "&rulesVersion=v4", 200);
-        verify(rankings, times(2)).personalBests("v5");
-        verify(rankings, times(1)).personalBests("v4");
+        verify(rankings, times(2)).personalBests("v5", 120000);
+        verify(rankings, times(1)).personalBests("v4", null);
 
         Path wire = temporary.resolve("ranking-wire.json");
         Files.writeString(wire, mapper.writeValueAsString(Map.of(
                 "first", first, "second", second, "fresh", fresh, "empty", empty,
                 "expired", expired, "otherUser", otherUser, "otherVersion", otherVersion,
-                "otherLimit", otherLimit, "invalid", invalid)));
+                "otherLimit", otherLimit, "otherDuration", otherDuration, "invalid", invalid)));
         Path output = temporary.resolve("frontend-output.txt");
         Process node = new ProcessBuilder("node", "tools/check-bungeoppang-ranking-pagination.mjs", wire.toString())
                 .redirectErrorStream(true).redirectOutput(output.toFile()).start();

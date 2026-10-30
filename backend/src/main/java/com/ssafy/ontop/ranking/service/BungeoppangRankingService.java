@@ -1,5 +1,6 @@
 package com.ssafy.ontop.ranking.service;
 
+import com.ssafy.ontop.minigame.service.BungeoppangV5Spec;
 import com.ssafy.ontop.ranking.dto.BungeoppangRankingPage;
 import com.ssafy.ontop.ranking.dto.BungeoppangRankingPage.Item;
 import com.ssafy.ontop.ranking.exception.BungeoppangRankingException;
@@ -14,6 +15,7 @@ import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -34,8 +36,11 @@ public class BungeoppangRankingService {
     private final Duration ttl;
     private final byte[] key = new byte[32];
     private final Map<String, Snapshot> snapshots = new LinkedHashMap<>();
-    private record Snapshot(String id, long user, String rules, int limit, Instant at, Instant until,
-            List<Item> items, Item me) { }
+    private record Snapshot(String id, long user, String rules, Integer durationMs, int limit, Instant at,
+            Instant until, List<Item> items, Item me) { }
+    /** v5 boards by stored play length: the length new rounds get is the default, the earlier one stays readable. */
+    private static final List<Integer> V5_DURATIONS = List.of(BungeoppangV5Spec.DURATION_MS,
+            BungeoppangV5Spec.legacyRules().durationMs());
 
     @Autowired
     public BungeoppangRankingService(ObjectProvider<BungeoppangRankingRepository> repositories,
@@ -50,24 +55,26 @@ public class BungeoppangRankingService {
         new SecureRandom().nextBytes(key);
     }
 
-    public BungeoppangRankingPage find(long user, String period, String rules, String requestedLimit, String cursor) {
+    public BungeoppangRankingPage find(long user, String period, String rules, String requestedDuration,
+            String requestedLimit, String cursor) {
         require(user > 0, 401, "AUTH_REQUIRED", "로그인이 필요합니다.");
         require("ALL_TIME".equals(period), 400, "RANKING_INVALID_PERIOD", "전체 기간만 조회할 수 있습니다.");
         require("v4".equals(rules) || "v5".equals(rules), 400, "RANKING_INVALID_RULES_VERSION", "v4 또는 v5를 지정해주세요.");
+        Integer durationMs = duration(rules, requestedDuration);
         require(requestedLimit != null && requestedLimit.matches("[0-9]{1,2}"), 400, "INVALID_LIMIT", "조회 개수는1~20입니다.");
         int limit = Integer.parseInt(requestedLimit);
         require(limit >= 1 && limit <= 20, 400, "INVALID_LIMIT", "조회 개수는1~20입니다.");
-        if (cursor != null) { return pageFromCursor(user, rules, limit, cursor); }
+        if (cursor != null) { return pageFromCursor(user, rules, durationMs, limit, cursor); }
         var repository = repositories.getIfAvailable();
         require(repository != null, 503, "RANKING_UNAVAILABLE", "랭킹 저장소가 준비되지 않았습니다.");
         List<Item> items;
-        try { items = List.copyOf(repository.personalBests(rules)); }
+        try { items = List.copyOf(repository.personalBests(rules, durationMs)); }
         catch (DataAccessException | TransactionException exception) {
             throw new BungeoppangRankingException(503, "RANKING_UNAVAILABLE", "랭킹을 불러오지 못했습니다.");
         }
         require(items.size() <= 10_000, 503, "RANKING_TOO_LARGE", "조회 가능한 랭킹 크기를 초과했습니다.");
         Instant now = clock.instant();
-        var snapshot = new Snapshot(UUID.randomUUID().toString(), user, rules, limit, now, now.plus(ttl), items,
+        var snapshot = new Snapshot(UUID.randomUUID().toString(), user, rules, durationMs, limit, now, now.plus(ttl), items,
                 items.stream().filter(item -> item.userId().equals(Long.toString(user))).findFirst().orElse(null));
         synchronized (snapshots) {
             prune(now);
@@ -79,7 +86,19 @@ public class BungeoppangRankingService {
         }
     }
 
-    private BungeoppangRankingPage pageFromCursor(long user, String rules, int limit, String cursor) {
+    /** v4 has a single board and takes no duration; v5 defaults to the length new rounds are issued with. */
+    private static Integer duration(String rules, String requested) {
+        if ("v4".equals(rules)) {
+            require(requested == null, 400, "RANKING_INVALID_DURATION", "v4 랭킹은 플레이 시간을 지정할 수 없습니다.");
+            return null;
+        }
+        if (requested == null) { return BungeoppangV5Spec.DURATION_MS; }
+        require(requested.matches("[1-9][0-9]{0,8}") && V5_DURATIONS.contains(Integer.parseInt(requested)), 400,
+                "RANKING_INVALID_DURATION", "플레이 시간은 120000 또는 180000만 지정할 수 있습니다.");
+        return Integer.parseInt(requested);
+    }
+
+    private BungeoppangRankingPage pageFromCursor(long user, String rules, Integer durationMs, int limit, String cursor) {
         require(cursor.length() <= 512, 400, "INVALID_CURSOR", "커서를 확인해주세요.");
         String id;
         int offset;
@@ -99,7 +118,8 @@ public class BungeoppangRankingService {
         synchronized (snapshots) {
             prune(clock.instant());
             Snapshot snapshot = snapshots.get(id);
-            require(snapshot != null && snapshot.user == user && snapshot.rules.equals(rules) && snapshot.limit == limit,
+            require(snapshot != null && snapshot.user == user && snapshot.rules.equals(rules)
+                    && Objects.equals(snapshot.durationMs, durationMs) && snapshot.limit == limit,
                     409, "RANKING_SNAPSHOT_EXPIRED", "랭킹을 처음부터 다시 조회해주세요.");
             require(MessageDigest.isEqual(sign(payload), signature), 400, "INVALID_CURSOR", "커서를 확인해주세요.");
             require(offset > 0 && offset < snapshot.items.size() && offset % limit == 0,
@@ -115,7 +135,7 @@ public class BungeoppangRankingService {
             byte[] bytes = (snapshot.id + ":" + end).getBytes(StandardCharsets.US_ASCII);
             cursor = ENCODER.encodeToString(bytes) + "." + ENCODER.encodeToString(sign(bytes));
         }
-        return new BungeoppangRankingPage(snapshot.rules, "ALL_TIME", "PERSONAL_BEST", snapshot.id,
+        return new BungeoppangRankingPage(snapshot.rules, snapshot.durationMs, "ALL_TIME", "PERSONAL_BEST", snapshot.id,
                 snapshot.at, snapshot.items.size(), snapshot.items.subList(offset, end), snapshot.me, cursor);
     }
     private byte[] sign(byte[] bytes) {

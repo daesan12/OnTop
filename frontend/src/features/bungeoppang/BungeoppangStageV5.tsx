@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { MeshStandardMaterial, type PointLight } from 'three';
-import { PropBuilder } from '../../world/art/propGeometry';
-import { griddle } from '../../world/art/fishCartGeometry';
+import { PropBuilder } from './devArt/propGeometry';
+import { griddle } from './privateGriddle';
 import { metalGrain, outdoorReflectionMap } from '../../world/art/ornamentTextures';
-import { SurfaceMaterial } from '../../world/art/SurfaceMaterial';
+import { SurfaceMaterial } from './devArt/SurfaceMaterial';
 import { FISH_CART_GRILL } from '../../config/fishCart';
 import { cartPoint } from './layoutV5';
 import { environmentFrame } from '../../world/environmentState';

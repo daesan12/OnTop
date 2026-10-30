@@ -1,4 +1,4 @@
-import { NOTES_BOX, parseAnonymousNote, type AnonymousNote } from '../../config/notes'
+import { NOTES_BOX, parseAnonymousNote, type AnonymousNote } from '../../park/mapConfig'
 import type { Pose } from '../../network/worldClient'
 import { isNoteTopic } from './topics'
 

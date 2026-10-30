@@ -8,6 +8,7 @@ import { createMemoAtlas, createMemoWood } from './notesBoardTextures'
 import { NOTES_BOARD_LOD_DISTANCE, NOTES_BOARD_SCALE, visibleBoardNotes } from './notesBoardLayout'
 import { useCanvasFont } from './useCanvasFont'
 import { useNearbyNotes } from './useNearbyNotes'
+import { SIMPLE_MAP } from './mapRenderProfile'
 
 const emptyNotes: never[] = []
 const noteFont = '500 32px "BusanDandiMyeongjo"'
@@ -20,11 +21,11 @@ export function TraditionalNotesBoard() {
   const available=status==='connected'&&compatible&&owner===session&&channel===room
   const visible=useMemo(()=>visibleBoardNotes(available?notes:emptyNotes),[available,notes])
   const count=visible.length
-  const paper=useMemo(()=>createMemoAtlas(visible),[visible,fontsReady]),wood=useMemo(createMemoWood,[])
+  const paper=useMemo(()=>visible.length?createMemoAtlas(visible):undefined,[visible,fontsReady]),wood=useMemo(()=>SIMPLE_MAP?undefined:createMemoWood(),[])
   const papers=useMemo(()=>createMemoPaperArt(count),[count])
   const woodMaps=useMemo(()=>({wood}),[wood]),paperMaps=useMemo(()=>({paint:paper}),[paper])
-  useEffect(()=>()=>paper.dispose(),[paper])
-  useEffect(()=>()=>wood.dispose(),[wood])
+  useEffect(()=>()=>paper?.dispose(),[paper])
+  useEffect(()=>()=>wood?.dispose(),[wood])
   useEffect(()=>()=>{for(const art of [papers.near,papers.far])for(const geometry of Object.values(art))geometry.dispose()},[papers])
   return <group name="tower-notes-mailbox" position={[NOTES_BOX.x,NOTES_BOX.y,NOTES_BOX.z]} scale={NOTES_BOARD_SCALE}>
     <CraftedPropLod name="observatory-notes-board" near={notesBoardArt.near} far={notesBoardArt.far} distance={NOTES_BOARD_LOD_DISTANCE} heritage surfaceMaps={woodMaps}/>

@@ -1,4 +1,4 @@
-import { FITNESS, FITNESS_STATIONS, TABLES, TELESCOPES, TELESCOPE, MAILBOX } from '../../config'
+import { FITNESS, FITNESS_STATIONS, TABLES, TELESCOPES, TELESCOPE, MAILBOX } from '../../park/mapConfig'
 import { avatars, useSession } from '../../network/worldClient'
 import { tableBusy, useGame } from '../../game/store'
 import { panelOwnsKeys, roamingInput } from '../../world/inputOwnership'
@@ -18,17 +18,19 @@ import { telescopeService } from '../telescopes/service'
 import { enterTelescope } from '../telescopes/controller'
 import { canReachFeedback } from '../feedback/validation'
 import { openFeedback } from '../feedback/controller'
-import { NOTES_BOX } from '../../config/notes'
+import { NOTES_BOX } from '../../park/mapConfig'
 import { canReachNotes } from '../notes/validation'
 import { openNotes } from '../notes/controller'
 import { canReachBungeoppang } from '../bungeoppang/access'
 import { openBungeoppang } from '../bungeoppang/store'
-import { MINI_PROPS } from '../../config'
+import { MINI_PROPS } from '../../park/mapConfig'
 import { interactWithTable } from '../tableLobby/tableInteraction'
 import { canReachTable } from '../tableLobby/tableReach'
+import { GENERATED_PARK_ENABLED } from '../../park/mapSelection'
+import { constructionSites,canReachConstruction,openConstructionNotice } from '../construction/model'
 
 export interface ParkInteraction {
-  kind: 'bench' | 'table' | 'fitness' | 'telescope' | 'feedback' | 'notes' | 'bungeoppang'
+  kind: 'bench' | 'table' | 'fitness' | 'telescope' | 'feedback' | 'notes' | 'bungeoppang' | 'construction'
   id: string
   label: string
   seat?: 0 | 1
@@ -47,6 +49,11 @@ export function getParkInteraction(): ParkInteraction | null {
     || p.fitnessId || p.telescopeId || p.swimming || session.pending || benches.pending || fitness.pending
     || useTelescopeState.getState().pending || tableBusy() || useGame.getState().watchedGameId || panelOwnsKeys()) return null
   const choices: ParkInteraction[] = []
+  if(GENERATED_PARK_ENABLED)for(const site of constructionSites){
+    if(!canReachConstruction(p.current,site.id))continue
+    const [x,y,z]=site.reachPosition,distance=Math.hypot(p.current.x-x,p.current.z-z)
+    choices.push({kind:'construction',id:site.id,label:site.label+' · 공사 안내',occupied:false,available:true,distance,score:interactionScore(distance,{x,y,z})})
+  }
   if (canReachBungeoppang(p.current)) {
     const cart = MINI_PROPS[0], distance = Math.hypot(p.current.x - cart.x, p.current.z - cart.z)
     choices.push({ kind: 'bungeoppang', id: cart.id, label: '붕어빵 굽기', occupied: false, available: true,
@@ -105,7 +112,8 @@ export function getParkInteraction(): ParkInteraction | null {
 export function interactWithPark(): boolean {
   const target = getParkInteraction()
   if (!target) return false
-  if (target.kind === 'bungeoppang') openBungeoppang()
+  if (target.kind === 'construction') openConstructionNotice(target.id)
+  else if (target.kind === 'bungeoppang') openBungeoppang()
   else if (target.kind === 'table') interactWithTable(target.id)
   else if (target.kind === 'notes') openNotes()
   else if (target.kind === 'feedback') openFeedback()

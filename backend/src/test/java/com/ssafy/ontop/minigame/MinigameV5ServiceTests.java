@@ -121,8 +121,8 @@ class MinigameV5ServiceTests {
 
         long sessionId = Long.parseLong(started.minigameSessionId());
         assertThat(activityEvents).containsExactly(
-                new MinigameActivityChanged(USER_ID, sessionId, NOW.plusMillis(184_500)));
-        assertThat(started.timing().playEndsAt()).isEqualTo(NOW.plusMillis(184_500));
+                new MinigameActivityChanged(USER_ID, sessionId, NOW.plusMillis(124_500)));
+        assertThat(started.timing().playEndsAt()).isEqualTo(NOW.plusMillis(124_500));
     }
 
     @Test
@@ -131,9 +131,9 @@ class MinigameV5ServiceTests {
         long second = Long.parseLong(service.startV5(USER_ID, "BUNGEOPPANG", "v5-two").minigameSessionId());
 
         assertThat(activityEvents).containsExactly(
-                new MinigameActivityChanged(USER_ID, first, NOW.plusMillis(184_500)),
+                new MinigameActivityChanged(USER_ID, first, NOW.plusMillis(124_500)),
                 new MinigameActivityChanged(USER_ID, first, null),
-                new MinigameActivityChanged(USER_ID, second, NOW.plusMillis(184_500)));
+                new MinigameActivityChanged(USER_ID, second, NOW.plusMillis(124_500)));
         assertThat(second).isGreaterThan(first);
     }
 
@@ -146,7 +146,7 @@ class MinigameV5ServiceTests {
         assertThat(activityEvents).filteredOn(event -> event.activeUntil() == null).hasSize(1);
 
         long expiring = Long.parseLong(service.startV5(USER_ID, "BUNGEOPPANG", "v5-two").minigameSessionId());
-        clock.set(NOW.plusMillis(209_500));
+        clock.set(NOW.plusMillis(149_500));
         load(expiring);
         load(expiring);
         assertThat(activityEvents).endsWith(new MinigameActivityChanged(USER_ID, expiring, null));
@@ -154,21 +154,23 @@ class MinigameV5ServiceTests {
     }
 
     @Test
-    void v5_시작은_180초_시간과_2048개_불과_서로_다른_자리의_첫_주문_3건을_반환한다() {
+    void v5_신규_판_시작은_120초_시간과_2048개_불과_서로_다른_자리의_첫_주문_3건을_반환한다() {
         BungeoppangV5Responses.StartResponse started = service.startV5(USER_ID, "BUNGEOPPANG", "v5-start");
         long sessionId = Long.parseLong(started.minigameSessionId());
 
         assertThat(started.rulesVersion()).isEqualTo("v5");
-        assertThat(started.configVersion()).isEqualTo(BungeoppangV5Spec.CONFIG_VERSION).isEqualTo("v5-20261027.1");
+        assertThat(started.configVersion()).isEqualTo(BungeoppangV5Spec.CONFIG_VERSION).isEqualTo("v5-20261029.1");
+        assertThat(started.rules().durationMs()).isEqualTo(120_000);
+        assertThat(started.rules().rushFromMs()).isEqualTo(90_000);
         assertThat(started.status()).isEqualTo("PLAYING");
         assertThat(started.phase()).isEqualTo("WAITING_START");
         assertThat(started.issuedAt()).isEqualTo(NOW);
         assertThat(started.startedAt()).isEqualTo(NOW.plusMillis(4_500));
         assertThat(started.timing().countdownStartsAt()).isEqualTo(NOW.plusMillis(1_000));
         assertThat(started.timing().playStartsAt()).isEqualTo(NOW.plusMillis(4_500));
-        assertThat(started.timing().playEndsAt()).isEqualTo(NOW.plusMillis(184_500));
-        assertThat(started.timing().submitDeadline()).isEqualTo(NOW.plusMillis(199_500));
-        assertThat(started.timing().expiresAt()).isEqualTo(NOW.plusMillis(209_500));
+        assertThat(started.timing().playEndsAt()).isEqualTo(NOW.plusMillis(124_500));
+        assertThat(started.timing().submitDeadline()).isEqualTo(NOW.plusMillis(139_500));
+        assertThat(started.timing().expiresAt()).isEqualTo(NOW.plusMillis(149_500));
         assertThat(started.heats()).hasSize(2_048).allMatch(heat -> heat >= 85 && heat <= 115);
         assertThat(started.rules()).isEqualTo(BungeoppangV5Spec.rules());
         assertThat(started.rules().heatAssignment()).isEqualTo("FILL");
@@ -178,7 +180,8 @@ class MinigameV5ServiceTests {
         BungeoppangV5Responses.Checkpoint checkpoint = started.checkpoint();
         assertThat(checkpoint.revision()).isZero();
         assertThat(checkpoint.throughSeq()).isZero();
-        assertThat(checkpoint.prefixHash()).isEqualTo(BungeoppangV5Spec.initialPrefixHash(sessionId));
+        assertThat(checkpoint.prefixHash())
+                .isEqualTo(BungeoppangV5Spec.initialPrefixHash(sessionId, BungeoppangV5Spec.CONFIG_VERSION));
         assertThat(checkpoint.heatCursor()).isZero();
         assertThat(checkpoint.lastAt()).isNull();
         assertThat(checkpoint.tray()).isEmpty();
@@ -221,8 +224,10 @@ class MinigameV5ServiceTests {
                                 order.chocolate())))
                 .toList();
 
-        var replayed = BungeoppangV5Spec.checkpoint(0, 0, BungeoppangV5Spec.initialPrefixHash(sessionId),
-                new BungeoppangV5Rules().replay(List.of(), started.heats(), stored));
+        var replayed = BungeoppangV5Spec.checkpoint(0, 0,
+                BungeoppangV5Spec.initialPrefixHash(sessionId, started.configVersion()),
+                new BungeoppangV5Rules().replay(List.of(), started.heats(), stored,
+                        BungeoppangV5Spec.calculationRules(started.rules())));
 
         assertThat(started.checkpoint()).isEqualTo(replayed);
         assertThat(BungeoppangV5DeliveryContract.prefixHash(sessionId, started.configVersion(),
@@ -236,7 +241,7 @@ class MinigameV5ServiceTests {
         assertThat(body.path("minigameSessionId").isTextual()).isTrue();
         assertThat(body.path("minigameType").textValue()).isEqualTo("BUNGEOPPANG");
         assertThat(body.path("startedAt").textValue()).isEqualTo("2026-10-28T00:00:04.623Z");
-        assertThat(body.path("timing").path("playEndsAt").textValue()).isEqualTo("2026-10-28T00:03:04.623Z");
+        assertThat(body.path("timing").path("playEndsAt").textValue()).isEqualTo("2026-10-28T00:02:04.623Z");
         assertThat(body.path("rules").path("heatAssignment").textValue()).isEqualTo("FILL");
         assertThat(body.path("heats").size()).isEqualTo(body.path("rules").path("heatListLength").intValue());
         JsonNode first = body.path("checkpoint").path("activeOrders").get(0);
@@ -327,9 +332,9 @@ class MinigameV5ServiceTests {
         assertThat(phase(sessionId)).isEqualTo("COUNTDOWN");
         clock.set(NOW.plusMillis(4_500));
         assertThat(phase(sessionId)).isEqualTo("PLAYING");
-        clock.set(NOW.plusMillis(184_499));
+        clock.set(NOW.plusMillis(124_499));
         assertThat(phase(sessionId)).isEqualTo("PLAYING");
-        clock.set(NOW.plusMillis(184_500));
+        clock.set(NOW.plusMillis(124_500));
         assertThat(phase(sessionId)).isEqualTo("AWAITING_COMPLETION");
     }
 
@@ -337,9 +342,9 @@ class MinigameV5ServiceTests {
     void v5_판은_expiresAt에_만료되고_판_원본의_종료_사유를_남긴다() {
         long sessionId = Long.parseLong(service.startV5(USER_ID, "BUNGEOPPANG", "v5-start").minigameSessionId());
 
-        clock.set(NOW.plusMillis(209_499));
+        clock.set(NOW.plusMillis(149_499));
         assertThat(load(sessionId).status()).isEqualTo("PLAYING");
-        clock.set(NOW.plusMillis(209_500));
+        clock.set(NOW.plusMillis(149_500));
         var expired = load(sessionId);
 
         assertThat(expired.status()).isEqualTo("INVALID");
