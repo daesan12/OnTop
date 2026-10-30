@@ -15,7 +15,9 @@
 - 103: 접속 5분
 8일차(KST 2026-11-03)
 - 101: 접속 10분
-위치: 101이 스폰 후 남쪽으로 이동하다 (5, 10) 근처에서 2초 동안 막힌 뒤 멈춤, 102는 호수 가운데에서 스폰
+위치: 101이 스폰 후 남쪽으로 이동하다 (5, 10) 근처에서 2초 동안 막힌 뒤 멈춤, 102는 호수 가운데에서 스폰(이상 기존 맵)
+     2일차 103은 새 생성 맵에서 전망대로 걸어가 멈춘 뒤 점프맵 공중(높이 20m)을 지나감,
+     105는 구역 대응표에 없는 맵 버전에서 멈춤
 시설: 1일차 101·102가 bench-0 두 좌석 이용(101은 5분 뒤 하차, 102는 10분 30초 뒤 연결 끊김),
      103은 walker-1 이용 후 종료 기록 없음, 2일차 101이 telescope-1을 1분 이용
 
@@ -41,7 +43,9 @@ import uuid
 from datetime import datetime
 
 NAMESPACE = uuid.UUID("6f2f4d4e-6c0b-4b6e-9a51-3c1f0a0c1400")
-MAP_VERSION = "map-v1"
+# 11_zone_traffic.sql의 layouts 대응표에 있는 실제 해시(기존 맵·생성 맵)를 쓴다.
+MAP_VERSION = "ae833248d2dd356c6603af72b2b865f9051a866e9cfa7d2b9c9abe890579944d"
+GENERATED_MAP_VERSION = "cac3cb040a43630b0b40201ab089a4b328146c03211867b2a155d2b3614acc81"
 
 
 def build_seed() -> str:
@@ -59,8 +63,9 @@ def build_seed() -> str:
             props.update(endReason=end_reason, durationMs=duration_ms)
         event(at, "FACILITY_RELEASED" if end_reason else "FACILITY_USED", user_id, channel="one", **props)
 
-    def position(at: str, user_id: int, x: float, z: float, moving: bool) -> None:
-        positions.append((at, user_id, x, z, moving))
+    def position(at: str, user_id: int, x: float, z: float, moving: bool, *,
+                 map_version: str = MAP_VERSION, y: float = 0.84) -> None:
+        positions.append((at, user_id, x, y, z, moving, map_version))
 
     # 1일차
     event("2026-10-27 00:59:00", "USER_ONBOARDED", 101, gender="MALE", provider="SSAFY")
@@ -146,6 +151,10 @@ def build_seed() -> str:
         position(f"2026-10-27 01:00:{10 + second:02d}", 101, x, z, True)
     position("2026-10-27 01:00:16.500", 101, 5.2, 10, False)
     position("2026-10-27 01:01:05", 102, 56, -12, False)
+    position("2026-10-28 05:00:10", 103, 55, 56, True, map_version=GENERATED_MAP_VERSION)
+    position("2026-10-28 05:00:11", 103, 62, 56, False, map_version=GENERATED_MAP_VERSION)
+    position("2026-10-28 05:00:20", 103, -20, -30, True, map_version=GENERATED_MAP_VERSION, y=20)
+    position("2026-10-28 01:00:00", 105, 0, 6, False, map_version="unknown-map")
 
     return to_sql(events, positions) + feature_sql()
 
@@ -244,11 +253,11 @@ def to_sql(events: list[tuple], positions: list[tuple]) -> str:
             f"{sql_value(channel)}, {sql_value(table)}, {sql_value(game)}, "
             f"{sql_value(json.dumps(props) if props else None)});"
         )
-    for at, user_id, x, z, moving in positions:
+    for at, user_id, x, y, z, moving, map_version in positions:
         lines.append(
             "INSERT INTO world_position_samples (user_id, channel_id, sampled_at, x, y, z, moving, running, "
-            f"swimming, map_version) VALUES ({user_id}, 'one', '{timestamp(at)}', {x}, 0.84, {z}, "
-            f"{int(moving)}, 0, 0, '{MAP_VERSION}');"
+            f"swimming, map_version) VALUES ({user_id}, 'one', '{timestamp(at)}', {x}, {y}, {z}, "
+            f"{int(moving)}, 0, 0, '{map_version}');"
         )
     return "\n".join(lines) + "\n"
 

@@ -140,7 +140,17 @@ if (Test-Path analytics/out) { Remove-Item -Recurse -Force analytics/out }
 
 ## 구역 수정
 
-`11_zone_traffic.sql` 안의 `zones` 목록이 구역 정의다. 중심 좌표는 `frontend/src/config`의 `PARK_ZONES`, `PARK_PAVILIONS`, `PICNIC_TABLES`(2026-10-23 기준)를 옮겼고, 반경·크기는 분석용으로 정한 값이다. 맵이 바뀌면 이 목록만 고치면 과거 좌표도 새 구역으로 다시 집계된다. 고친 뒤에는 `verify.py`의 `11_zone_traffic.sql` 기대값을 확인한다.
+`11_zone_traffic.sql`은 두 목록으로 구역을 정한다.
+
+- `layouts`: 좌표 표본의 `map_version`(서버 맵 해시)을 맵 배치에 연결한다. 기존 맵(`legacy`)은 `544bc6fa…`·`ae833248…`, 새 생성 맵(`generated`)은 `cac3cb04…`(2026-10-30 기준)다. 여기에 없는 버전은 다른 맵 구역에 섞지 않고 `unmapped`로 센다.
+- `zones`: 배치별 구역 정의다. `legacy`는 `frontend/src/config`의 `PARK_ZONES`, `PARK_PAVILIONS`, `PICNIC_TABLES`(2026-10-23 기준, 2026-10-30 재확인), `generated`는 `frontend/src/map/park/definition.ts`(2026-10-30 기준) 좌표를 옮겼다. 반경·크기는 분석용으로 정한 값이다. 생성 맵의 돌탑 점프맵은 공중을 지나가므로 높이 5m 이상(`min_y`)은 `jump-course`로 센다.
+
+맵이 바뀌면 이렇게 고친다.
+
+1. 결과에 `unmapped`가 보이면 `SELECT map_version, MIN(sampled_at), MAX(sampled_at), COUNT(*) FROM world_position_samples GROUP BY map_version;`으로 새 버전과 쓰인 기간을 찾는다.
+2. 배포된 맵이 무엇인지 확인한다. 기존 맵의 버전은 `backend/src/main/resources/world/park.json`의 `sourceSha256`, 생성 맵은 배포 담당(S15P31B105-273)이 알려 준 맵 파일의 `mapVersion`이다. 충돌만 고친 기존 맵이면 `legacy`, 새 생성 맵이면 `generated`로 `layouts`에 한 줄 추가한다. 생성 맵은 다시 만들 때마다 해시가 바뀐다.
+3. 장소 배치가 바뀌었으면 그 배치의 `zones`를 고친다. 목록만 고치면 과거 좌표도 다시 집계된다.
+4. `verify.py`의 `11_zone_traffic.sql` 기대값을 확인한다.
 
 ## 성능
 
