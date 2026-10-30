@@ -61,6 +61,26 @@ final class PositionCollision implements ClientPositionValidator.Geometry {
                 && sweep(start.add(0, .22f, 0), end.add(0, .22f, 0));
     }
     public double jumpSpeed(ClientPositionValidator.Pose from, boolean tuned) { return policy.jumpSpeed(point(from), tuned); }
+    /**
+     * 서 있던 바닥 가장자리에서 걸어 내려갈 때, 직선 경로가 떠나는 바닥의 모서리(접촉 법선의 수평 성분이 이동 방향을 향함)만
+     * 스치는지 확인한다. 하강 성분 때문에 막힌 것으로 계산된 접촉만 해당한다. 도착 위치 겹침, 다가가며 부딪히는 벽·모서리,
+     * 평평한 바닥 관통(법선 수평 성분 없음), 한 보고 0.27m 넘는 하강은 허용하지 않는다.
+     */
+    public boolean rollsOff(ClientPositionValidator.Pose from, ClientPositionValidator.Pose to) {
+        var start = point(from); var end = point(to);
+        var delta = end.subtract(start);
+        if (delta.y >= 0 || delta.y < -.27 || delta.x * delta.x + delta.z * delta.z < 1e-8) return false;
+        if (!clear(to, to, false)) return false;
+        return space.sweepTest(capsule, new Transform(start), new Transform(end)).stream().noneMatch(hit -> {
+            if (hit.getCollisionObject().getCollisionGroup() != 2) return false;
+            var normal = hit.getHitNormalLocal(null);
+            if (hit.getHitFraction() >= .9999 || normal.dot(delta) >= -.0001) return false;
+            // 서 있던 바닥: FE 캡슐은 접촉 여유(약 2cm)만큼 떠 있어, 직선 경로가 그만큼 내려가며 윗면에 닿는다.
+            if (normal.y >= .6 && hit.getHitFraction() * -delta.y <= .04) return false;
+            // 떠나는 모서리: 접촉 법선의 수평 성분이 이동 방향과 같다(다가가며 부딪힌 벽·모서리는 반대).
+            return normal.y <= 0 || normal.x * delta.x + normal.z * delta.z <= 1e-4;
+        });
+    }
     boolean correctionClear(Vector3f from, Vector3f to) {
         if (!clear(new ClientPositionValidator.Pose(to.x, to.y, to.z), new ClientPositionValidator.Pose(to.x, to.y, to.z), false)) return false;
         var delta = to.subtract(from);

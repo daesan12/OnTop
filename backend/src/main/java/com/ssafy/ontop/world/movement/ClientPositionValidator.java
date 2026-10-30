@@ -28,6 +28,8 @@ public final class ClientPositionValidator {
         boolean clear(Pose from, Pose to, boolean allowStep);
         Double ceiling(Pose from, double rise);
         default double jumpSpeed(Pose from, boolean tuned) { return tuned ? 8 : 6.2; }
+        /** 가장자리에서 굴러 내려가며 떠나는 바닥의 모서리만 스친 경로인지. 기본은 허용하지 않는다. */
+        default boolean rollsOff(Pose from, Pose to) { return false; }
     }
     record Decision(boolean accepted, String reason, Pose approved, long acceptedSeq) {}
     private record Flight(double originY, long started, double speed) {}
@@ -124,7 +126,10 @@ public final class ClientPositionValidator {
                 if (supportedTo && target.y <= approved.y + .01
                         && (next.speed == 0 || now - next.started > 150_000_000L)) next = null;
             }
-            if (!geometry.clear(approved, target, supportedFrom && supportedTo)) {
+            // 점프맵 활성 채널: FE가 발판 가장자리에서 걸어 내려갈 때 두 보고 사이 직선 경로가 떠나는 발판 모서리를
+            // 스치는 경우만 받는다(실제 FE 궤적에서 보고 위상에 따라 재현). 바닥 관통·벽·상승·빠른 낙하는 그대로 막는다.
+            if (!geometry.clear(approved, target, supportedFrom && supportedTo)
+                    && !(jumpGrace && supportedFrom && dy < 0 && geometry.rollsOff(approved, target))) {
                 // Sub-millimetre contact jitter must not disable the client profile.
                 // Acknowledge the report at the LAST SAFE point, never at target:
                 // repeated wall reports cannot accumulate penetration.
