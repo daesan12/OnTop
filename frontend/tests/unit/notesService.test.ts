@@ -10,6 +10,18 @@ const receipt = { note: row, nextAllowedAt: '2026-10-25T00:00:15Z' }
 const signal = () => new AbortController().signal
 
 describe('M08 authenticated anonymous notes REST adapter', () => {
+  it('uses the shared runtime subscription and releases it without extra HTTP requests', () => {
+    const changed = vi.fn(), stop = vi.fn(), subscribe = vi.fn(() => stop), request = vi.fn()
+    const service = createNotesService(request, true, subscribe)
+    expect(service.subscribe(changed)).toBe(stop)
+    expect(subscribe).toHaveBeenCalledWith(changed)
+    expect(request).not.toHaveBeenCalled()
+  })
+  it('explains a rejected category without treating it as a successful write', async () => {
+    const request = vi.fn().mockRejectedValue(new RestError(400, 'NOTES_CATEGORY_INVALID', 'invalid'))
+    await expect(createNotesService(request, true).submit(context, { ...submission, category: 'cheer' }, signal()))
+      .rejects.toMatchObject({ code: 'NOTES_CATEGORY_INVALID', message: expect.stringContaining('주제') })
+  })
   it('gates topic writes until the BE contract is enabled, reads only supported anonymous categories and verifies ACKs', async () => {
     const request = vi.fn().mockResolvedValue({ ...receipt, note: { ...row, category: 'cheer', nickname: 'secret' } })
     const legacy = createNotesService(request)
