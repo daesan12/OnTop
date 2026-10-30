@@ -7,20 +7,22 @@ import java.util.function.LongSupplier;
 /** Server-approved movement. The tuned profile accepts bounded client physics, never arbitrary positions. */
 public final class ClientPositionValidator {
     public record Pose(double x, double y, double z) {}
-    public record Candidate(long seq, long epoch, Pose pose, boolean run, boolean jump, double yaw) {
+    public record Candidate(long seq, long epoch, Pose pose, boolean run, boolean jump, double yaw, boolean manual) {
+        public Candidate(long seq, long epoch, Pose pose, boolean run, boolean jump, double yaw) { this(seq, epoch, pose, run, jump, yaw, true); }
         public Candidate(long seq, long epoch, Pose pose, boolean run, boolean jump) { this(seq, epoch, pose, run, jump, 0); }
         public static Candidate parse(JsonNode node) {
-            var allowed = Set.of("seq", "epoch", "x", "y", "z", "run", "jump", "yaw");
-            if (node == null || !node.isObject() || node.size() != allowed.size()) throw new IllegalArgumentException("fields");
+            var allowed = Set.of("seq", "epoch", "x", "y", "z", "run", "jump", "yaw", "manual");
+            if (node == null || !node.isObject() || node.size() != (node.has("manual") ? 9 : 8)) throw new IllegalArgumentException("fields");
             node.fieldNames().forEachRemaining(key -> { if (!allowed.contains(key)) throw new IllegalArgumentException("fields"); });
             for (var key : Set.of("seq", "epoch")) if (!node.path(key).isIntegralNumber() || !node.path(key).canConvertToLong())
                 throw new IllegalArgumentException("sequence");
             for (var key : Set.of("x", "y", "z", "yaw")) if (!node.path(key).isNumber() || !Double.isFinite(node.path(key).asDouble()))
                 throw new IllegalArgumentException("coordinates");
             if (!node.path("run").isBoolean() || !node.path("jump").isBoolean()) throw new IllegalArgumentException("intent");
+            if (node.has("manual") && !node.path("manual").isBoolean()) throw new IllegalArgumentException("manual");
             return new Candidate(node.path("seq").asLong(), node.path("epoch").asLong(),
                     new Pose(node.path("x").asDouble(), node.path("y").asDouble(), node.path("z").asDouble()),
-                    node.path("run").asBoolean(), node.path("jump").asBoolean(), node.path("yaw").asDouble());
+                    node.path("run").asBoolean(), node.path("jump").asBoolean(), node.path("yaw").asDouble(), !node.has("manual") || node.path("manual").asBoolean());
         }
     }
     interface Geometry {
@@ -28,9 +30,15 @@ public final class ClientPositionValidator {
         boolean clear(Pose from, Pose to, boolean allowStep);
         Double ceiling(Pose from, double rise);
         default double jumpSpeed(Pose from, boolean tuned) { return tuned ? 8 : 6.2; }
+        default boolean swimming(Pose pose) { return false; }
+        default double swimSpeed(boolean run) { return run ? 6.25 : 4; }
+        default double floatY() { return 0; }
+        default Double swimClimb(Pose from, Pose to) { return null; }
     }
     record Decision(boolean accepted, String reason, Pose approved, long acceptedSeq) {}
-    private record Flight(double originY, long started, double speed) {}
+    private record Flight(double originY, long started, double speed, Double ceilingY) {
+        Flight(double originY, long started, double speed) { this(originY, started, speed, null); }
+    }
     private static final long FRESHNESS = 500_000_000L;
     private static final double BURST_SECONDS = .35; // Bounded scheduler/TCP batching.
     private final LongSupplier clock;
@@ -53,11 +61,15 @@ public final class ClientPositionValidator {
     }
     // Only a trusted server call can establish an origin or a new generation.
     synchronized void relocate(Pose pose, long epoch) {
-        if (!finite(pose) || Math.abs(pose.x) > boundary || Math.abs(pose.z) > boundary || !geometry.clear(pose, pose, false))
+        if (!finite(pose) || Math.abs(pose.x) > boundary + (tuned ? .0001 : 0) || Math.abs(pose.z) > boundary + (tuned ? .0001 : 0))
             throw new IllegalArgumentException("unsafe origin");
+        if (tuned) pose = bounded(pose);
+        if (!geometry.clear(pose, pose, false)) throw new IllegalArgumentException("unsafe origin");
         approved = pose; this.epoch = epoch; sequence = 0; approvedAt = budgetAt = clock.getAsLong();
         budget = .9; flight = null; airWindowAt = approvedAt; airWindowY = pose.y;
     }
+    // Changing the correction epoch never grants a fresh movement budget or jump.
+    synchronized void resynchronize(long nextEpoch) { epoch = nextEpoch; }
     synchronized void blocked(boolean value) { blocked = value; }
     synchronized Decision accept(Candidate candidate) {
         long now = clock.getAsLong();
@@ -68,8 +80,12 @@ public final class ClientPositionValidator {
         if (now - budgetAt < 0 || now - approvedAt < 0) return deny("CLOCK");
         if (now - approvedAt > (tuned ? 2_000_000_000L : FRESHNESS)) return deny("STALE");
         Pose target = candidate.pose;
-        if (Math.abs(target.x) > boundary || Math.abs(target.z) > boundary || Math.abs(target.y) > 256) return deny("BOUNDS");
-        double speed = (candidate.run ? (tuned ? 8 : 9) : (tuned ? 6 : 6.25)) * (tuned ? 1.15 : 1);
+        if (Math.abs(target.x) > boundary + (tuned ? .0001 : 0) || Math.abs(target.z) > boundary + (tuned ? .0001 : 0) || Math.abs(target.y) > 256) return deny("BOUNDS");
+        // Rapier stores float coordinates; clamp sub-0.1mm rounding back INSIDE the boundary.
+        if (tuned) target = bounded(target);
+        boolean fromWater = tuned && geometry.swimming(approved), toWater = tuned && geometry.swimming(target);
+        double groundSpeed = candidate.run ? (tuned ? 8 : 9) : (tuned ? 6 : 6.25);
+        double speed = (fromWater && toWater ? geometry.swimSpeed(candidate.run) : groundSpeed) * (tuned ? 1.15 : 1);
         budget = Math.min(speed * BURST_SECONDS, budget + (now - budgetAt) / 1e9 * speed);
         budgetAt = now;
         double horizontal = Math.hypot(target.x - approved.x, target.z - approved.z);
@@ -92,6 +108,21 @@ public final class ClientPositionValidator {
                 nextAirAt = now; nextAirY = target.y;
             }
             Flight next = flight;
+            if (fromWater && candidate.jump) {
+                Double climb = geometry.swimClimb(approved, target);
+                if (climb != null && (next == null || next.ceilingY == null)) next = new Flight(approved.y, now, 5.5, climb);
+            }
+            if ((fromWater || toWater) && (next == null || next.ceilingY == null)) {
+                // Shore support can rise through a valid ground slope/automatic step.
+                boolean shore = fromWater && !toWater && supportedTo && dy <= horizontal + .22;
+                // Buoyancy is valid inside real water, bounded by the server's float level.
+                if (!shore && (dy > 2 * seconds + .08 || dy > 0 && target.y > Math.max(approved.y, geometry.floatY() + .15) + .00001))
+                    return deny("SWIM_HEIGHT");
+                if (!geometry.clear(approved, target, supportedTo && (supportedFrom || shore))) return deny("COLLISION");
+                budget -= horizontal; approved = target; sequence = candidate.seq; approvedAt = now;
+                flight = null; airWindowAt = now; airWindowY = target.y;
+                return new Decision(true, "ACCEPTED", approved, sequence);
+            }
             if (next == null && candidate.jump && supportedFrom) next = new Flight(approved.y, now, launchSpeed);
             if (next == null) {
                 // Grounded steps/slopes retain the existing geometric allowance.
@@ -107,7 +138,7 @@ public final class ClientPositionValidator {
                 // Selected jump peaks at about 1.21m. Permit solver/timing margin,
                 // without demanding frame-exact Bullet/Rapier ballistic parity.
                 double riseLimit = next.speed > 0 ? tunedRise(next.speed) : .05;
-                if (target.y > next.originY + riseLimit) return deny("JUMP_HEIGHT");
+                if (target.y > (next.ceilingY == null ? next.originY + riseLimit : next.ceilingY)) return deny("JUMP_HEIGHT");
                 if (supportedTo && target.y <= approved.y + .01
                         && (next.speed == 0 || now - next.started > 150_000_000L)) next = null;
             }
@@ -160,6 +191,9 @@ public final class ClientPositionValidator {
         if (!geometry.clear(approved, target, supportedFrom && supportedTo)) return deny("COLLISION");
         budget -= horizontal; approved = target; sequence = candidate.seq; approvedAt = now; flight = next;
         return new Decision(true, "ACCEPTED", approved, sequence);
+    }
+    private Pose bounded(Pose pose) {
+        return new Pose(Math.max(-boundary, Math.min(boundary, pose.x)), pose.y, Math.max(-boundary, Math.min(boundary, pose.z)));
     }
     private static double tunedRise(double speed) {
         double height = 0;

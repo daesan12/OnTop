@@ -1278,10 +1278,10 @@ public class TableHub {
         member.peer().offer(protocol.encode(request.requestId(), "WORLD_STATE", change.state()));
         var after = channels.positionOf(member.userId());
         if (before != null && after != null && after.lastInputSeq() == report.seq()
-                && before.lastInputSeq() < report.seq() && (report.jump()
+                && before.lastInputSeq() < report.seq() && (report.manual() || report.jump()
                 || Math.hypot(after.x() - before.x(), after.z() - before.z()) > .0001
                 || Math.abs(after.y() - before.y()) > .0001)) {
-            follows.stopFollowing(member.userId()).forEach(state -> publishFollow(state, null, null));
+            if (report.manual()) follows.stopFollowing(member.userId()).forEach(state -> publishFollow(state, null, null));
             if (after.moving() || Math.abs(after.y() - before.y()) > .01) cancelEmote(member.userId(), "MOVEMENT");
             refreshWatchRange(member);
         }

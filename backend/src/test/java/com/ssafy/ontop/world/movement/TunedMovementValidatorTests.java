@@ -77,9 +77,12 @@ class TunedMovementValidatorTests {
   obstacle.putArray("center").add(.75).add(.2).add(0);obstacle.putArray("half").add(.05).add(.2).add(2);
   var scene=ParkScene.fromPreparedData(data,new com.ssafy.ontop.world.dto.WorldMapMetadata("park",1,"a".repeat(64)));
   try(var physics=new WorldPhysics(scene,true,()->now,true)){
-   physics.add("a");physics.place("a",0,.84,0);now=200_000_000;
-   var state=physics.report("a",new Candidate(1,physics.snapshot("a").motion().epoch(),new Pose(1.5,.84,0),true,false),now);
-   assertThat(state.x()).isZero();assertThat(state.motion().authority()).isNull();
+   physics.add("a");physics.place("a",0,.84,0);
+   physics.report("a",new Candidate(1,physics.snapshot("a").motion().epoch(),new Pose(0,.84,0),true,false),now);
+   now=200_000_000;
+   var state=physics.report("a",new Candidate(2,physics.snapshot("a").motion().epoch(),new Pose(1.5,.84,0),true,false),now);
+   assertThat(state.x()).isZero();assertThat(state.motion().authority()).isEqualTo("CLIENT_VALIDATED");
+   assertThat(state.motion().correctionReason()).isEqualTo("COLLISION");
   }
  }
 

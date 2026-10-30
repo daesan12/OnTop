@@ -165,6 +165,9 @@ export function channelState(value: Record<string, unknown>): ChannelState {
   return value as unknown as ChannelState
 }
 export function worldState(value: Record<string, unknown>): WorldState {
+  const steering = (s: unknown) => s === undefined || record(s)
+    && ['dx','dz','targetX','targetZ'].every(k=>typeof s[k]==='number'&&Number.isFinite(s[k]))
+    && Math.hypot(Number(s.dx),Number(s.dz)) <= 1.00001 && typeof s.run === 'boolean'
   const motion = (m: unknown) => m == null || record(m)
     && integer(m.epoch) && integer(m.tick) && integer(m.appliedInputSeq)
     && typeof m.inputAgeMs === 'number' && Number.isFinite(m.inputAgeMs) && m.inputAgeMs >= 0 && m.inputAgeMs <= 250
@@ -172,6 +175,8 @@ export function worldState(value: Record<string, unknown>): WorldState {
     && typeof m.grounded === 'boolean' && typeof m.inputActive === 'boolean'
       && (m.authority === undefined || m.authority === 'CLIENT_VALIDATED')
       && (m.profile === undefined || m.profile === 'PARK_V1')
+      && (m.correctionReason === undefined || text(m.correctionReason) && m.correctionReason.length <= 64)
+      && steering(m.steering)
       && (m.jumpGrace === undefined || record(m.jumpGrace) && integer(m.jumpGrace.coyoteTicks) && m.jumpGrace.coyoteTicks <= 3
         && integer(m.jumpGrace.jumpBufferTicks) && m.jumpGrace.jumpBufferTicks <= 4)
   const tableSeat = (s: unknown) => s == null || record(s)

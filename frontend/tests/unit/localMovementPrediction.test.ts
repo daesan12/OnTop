@@ -307,3 +307,51 @@ describe('the actual shared-map collision predictor', () => {
     } finally { sim.dispose() }
   })
 })
+
+
+describe('unified PARK_V1 steering and corrections', () => {
+  const directed = {dx:1,dz:0,run:true,targetX:20,targetZ:34}
+  async function controlled() {
+    const sim = new FlatSimulation(), prediction = new LocalMovementPrediction(async()=>sim,()=>0)
+    prediction.reconcile('unified',origin,{...motion(),epoch:10,profile:'PARK_V1',authority:'CLIENT_VALIDATED'},true,0)
+    await prediction.prepare(); return {sim,prediction}
+  }
+  it('uses server steering through idle heartbeats; manual input suppresses delayed steering until release is confirmed',async()=>{
+    const {prediction,sim}=await controlled()
+    prediction.reconcile('unified',origin,{...motion(1),epoch:10,profile:'PARK_V1',authority:'CLIENT_VALIDATED',steering:directed},true,20)
+    prediction.intend(stop,30);prediction.sample(130,{...origin})
+    expect(sim.pose().x).toBeGreaterThan(origin.x+.5)
+    expect(prediction.positionReport(1,stop,140)).toMatchObject({manual:false,run:true})
+    prediction.intend({...walk,dx:-1},150)
+    const before=sim.pose().x
+    prediction.reconcile('unified',origin,{...motion(2),epoch:10,profile:'PARK_V1',authority:'CLIENT_VALIDATED',steering:directed},true,160)
+    prediction.sample(260,{...origin});expect(sim.pose().x).toBeLessThan(before)
+    expect(prediction.positionReport(2,stop,270)?.manual).toBe(true)
+    prediction.reset()
+  })
+  it('honours a correction epoch but retains held horizontal intent and ignores an older epoch',async()=>{
+    const {prediction,sim}=await controlled();prediction.intend(walk,10);prediction.sample(110,{...origin})
+    prediction.reconcile('unified',origin,{...motion(2),epoch:11,profile:'PARK_V1',authority:'CLIENT_VALIDATED',correctionReason:'COLLISION'},true,120)
+    expect(prediction.ready).toBe(true);expect(prediction.positionMode).toBe(true)
+    prediction.sample(220,{...origin});expect(sim.pose().x).toBeGreaterThan(origin.x+.5)
+    prediction.reconcile('unified',{...origin,x:60},{...motion(999),epoch:10,profile:'PARK_V1',authority:'CLIENT_VALIDATED'},true,230)
+    expect(prediction.epoch).toBe(11);expect(sim.pose().x).toBeLessThan(1)
+    prediction.reset()
+  })
+  it('does not silently request native physics when the selected local physics engine is unavailable',async()=>{
+    const prediction=new LocalMovementPrediction(async()=>{throw Error('WASM unavailable')},()=>0)
+    prediction.reconcile('one',origin,{...motion(),epoch:10,profile:'PARK_V1',authority:'CLIENT_VALIDATED'},true,0)
+    await prediction.prepare();expect(prediction.positionUnavailable).toBe(true)
+    expect(prediction.positionFallback()).toBeUndefined();prediction.reset()
+  })
+  it('keeps the approved 2.2m follow gap with real Rapier and restarts when the target moves',async()=>{
+    const sim=await createPredictionPhysics('PARK_V1')
+    try{
+      sim.reset({x:-10,y:.84,z:42,yaw:0},0,true);sim.setFollowTarget?.({x:-2,z:42})
+      for(let i=0;i<180;i++){sim.step({...walk,run:true},1/60);expect(Math.hypot(sim.pose().x+2,sim.pose().z-42)).toBeGreaterThanOrEqual(2.199)}
+      const stopped=sim.pose().x;sim.setFollowTarget?.({x:4,z:42})
+      for(let i=0;i<30;i++)sim.step({...walk,run:true},1/60)
+      expect(sim.pose().x).toBeGreaterThan(stopped)
+    }finally{sim.dispose()}
+  })
+})
