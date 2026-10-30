@@ -24,11 +24,11 @@ class AlkkagiMatchTests {
             var full = freeFlight(piece, 1, settings);
             var half = freeFlight(piece, .5, settings);
             var quarter = freeFlight(piece, .25, settings);
-            assertThat(old[0]).isGreaterThan(22);
-            assertThat(full[0]).isBetween(3.0, 4.0);
-            assertThat(full[1]).isLessThan(.6);
-            assertThat(half[0]).isBetween(.5, 1.2);
-            assertThat(quarter[0]).isBetween(.05, .3);
+            assertThat(old[0]).isGreaterThan(full[0]);
+            assertThat(full[0]).isBetween(2.5, 4.1);
+            assertThat(full[1]).isLessThan(.75);
+            assertThat(half[0]).isBetween(.9, 1.7);
+            assertThat(quarter[0]).isBetween(.25, .55);
             assertThat(quarter[0]).isLessThan(half[0]);
             assertThat(half[0]).isLessThan(full[0]);
             rows.add("{\"type\":\"" + piece.type() + "\",\"beforeFullDistance\":" + old[0]
@@ -37,7 +37,7 @@ class AlkkagiMatchTests {
         }
         var path = java.nio.file.Path.of("build/alkkagi/free-flight-comparison.json");
         java.nio.file.Files.createDirectories(path.getParent());
-        java.nio.file.Files.writeString(path, "{\"conditions\":\"isolated no collision/boundary, actual body/deceleration, 120Hz, impulse12, deceleration5 vs30\",\"rows\":["
+        java.nio.file.Files.writeString(path, "{\"conditions\":\"isolated no collision/boundary, actual body/deceleration, 120Hz, impulse12, deceleration5 vs18, separated model\",\"rows\":["
                 + String.join(",", rows) + "]}");
     }
 
@@ -47,7 +47,7 @@ class AlkkagiMatchTests {
         world.getSettings().setStepFrequency(settings.stepSeconds());
         var body = AlkkagiMatch.collisionBody(piece.radius(), piece.mass(), settings.restitution());
         world.addBody(body);
-        body.applyImpulse(new Vector2(AlkkagiMatch.launchImpulse(settings.maximumImpulse(), power, piece.mass()), 0));
+        body.applyImpulse(new Vector2(AlkkagiPhysics.experimental().launchImpulse(settings.maximumImpulse(), power, AlkkagiPhysics.experimental().profile(piece.type())), 0));
         int movingSteps = 0;
         for (int i = 0; i < 480; i++) {
             AlkkagiMatch.decelerate(body, settings);
@@ -58,15 +58,15 @@ class AlkkagiMatchTests {
     }
 
     @Test
-    void 같은_당김에서_출발속도는_유지하고_큰알_충격량은_더_크다() {
+    void 출발속도는_종류별_상한으로_제어하고_큰알_충격량은_더_크다() {
         var small = started(); var large = started();
         small.shoot(0, shot(small, "small", "p13", 1, 0, .6), 1);
         large.shoot(0, shot(large, "large", "p8", 1, 0, .6), 1);
         small.advance(2); large.advance(2);
         var soldier = small.snapshot(2).pieces().get(13);
         var king = large.snapshot(2).pieces().get(8);
-        assertThat(king.vx()).isCloseTo(soldier.vx(), org.assertj.core.data.Offset.offset(1e-9));
-        assertThat(king.mass() * king.vx()).isGreaterThan(soldier.mass() * soldier.vx() * 20);
+        assertThat(king.vx()).isLessThan(soldier.vx()).isGreaterThan(soldier.vx() * .75);
+        assertThat(king.mass() * king.vx()).isGreaterThan(soldier.mass() * soldier.vx() * 5);
     }
 
     @Test
@@ -77,8 +77,8 @@ class AlkkagiMatchTests {
         double middleToKing = targetTravel(middle, king);
         double kingToPawn = targetTravel(king, soldier);
         assertThat(pawnToKing).isBetween(0.0, .15);
-        assertThat(middleToKing).isGreaterThan(pawnToKing * 5);
-        assertThat(kingToPawn).isGreaterThan(2);
+        assertThat(middleToKing).isGreaterThan(pawnToKing).isLessThan(2);
+        assertThat(kingToPawn).isBetween(2., 6.);
         assertThat(kingToPawn).isGreaterThan(pawnToKing * 20);
         var report = java.nio.file.Path.of("build/alkkagi/size-knockback.json");
         java.nio.file.Files.createDirectories(report.getParent());
@@ -97,7 +97,7 @@ class AlkkagiMatchTests {
         double initialX = projectilePiece.radius() + targetPiece.radius() + .05;
         target.translate(initialX, 0);
         world.addBody(projectile); world.addBody(target);
-        projectile.applyImpulse(new Vector2(AlkkagiMatch.launchImpulse(settings.maximumImpulse(), 1, projectilePiece.mass()), 0));
+        projectile.applyImpulse(new Vector2(AlkkagiPhysics.experimental().launchImpulse(settings.maximumImpulse(), 1, AlkkagiPhysics.experimental().profile(projectilePiece.type())), 0));
         for (int i = 0; i < 480; i++) {
             AlkkagiMatch.decelerate(projectile, settings);
             AlkkagiMatch.decelerate(target, settings);

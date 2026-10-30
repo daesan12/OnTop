@@ -10,6 +10,13 @@ function state(x: number, alive = true): Snapshot {
       vx: 1, vy: 0, radius: .24, mass: .8, alive })) }
 }
 describe('알까기 서버 결과 재생', () => {
+  it('지연 비교는 동일 스냅샷에서 재생 시각만 바꾸고 물리는 바꾸지 않는다', () => {
+    const a = new AlkkagiReplay(100), b = new AlkkagiReplay(150)
+    for (const r of [a,b]) { r.push(1,state(0),0); r.push(2,state(2),100) }
+    expect(a.sample(200)?.pieces[0].x).toBe(2)
+    expect(b.sample(200)?.pieces[0].x).toBe(1)
+    expect(() => new AlkkagiReplay(Number.NaN)).toThrow('INVALID_REPLAY_DELAY')
+  })
   it('100ms 버퍼에서 두 스냅샷을 보간하고 지연 시 외삽하지 않는다', () => {
     const replay = new AlkkagiReplay()
     replay.push(1, state(0), 0); replay.push(2, state(2), 100)

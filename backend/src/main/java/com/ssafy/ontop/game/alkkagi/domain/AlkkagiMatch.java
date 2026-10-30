@@ -14,6 +14,7 @@ import org.dyn4j.world.World;
 /** 한 경기의 소유 스레드에서만 호출한다. 발사 결과를 클라이언트로부터 받지 않는다. */
 public final class AlkkagiMatch {
     private final AlkkagiSettings settings;
+    private final AlkkagiPhysics physics;
     private final World<Body> world = new World<>();
     private final Map<String, Piece> pieces = new LinkedHashMap<>();
     private final Map<String, Receipt> receipts = new LinkedHashMap<>();
@@ -33,30 +34,37 @@ public final class AlkkagiMatch {
     private int stableSteps;
 
     public AlkkagiMatch(AlkkagiSettings settings) {
+        this(settings, AlkkagiPhysics.experimental());
+    }
+
+    AlkkagiMatch(AlkkagiSettings settings, AlkkagiPhysics physics) {
         this.settings = settings;
+        this.physics = physics;
         world.setGravity(World.ZERO_GRAVITY);
         world.getSettings().setStepFrequency(settings.stepSeconds());
         // CCD의 이동 상한을 발사 검증값보다 충분히 크게 두고, 알별 bullet을 활성화한다.
         world.getSettings().setMaximumTranslation(2);
+        // 경기의 stopSpeed/settleSteps만 정지 기준으로 사용한다.
+        world.getSettings().setAtRestDetectionEnabled(false);
         for (int owner = 0; owner < 2; owner++) {
             int sign = owner == 0 ? 1 : -1;
             String[] back = {"車", "馬", "象", "士", "士", "象", "馬", "車"};
             double[] columns = {-4, -3, -2, -1, 1, 2, 3, 4};
             for (int i = 0; i < back.length; i++) {
-                // 사용자 검수 기준: 작은 알은 왕을 거의 밀지 못한다. 원작 실측 질량은 아니다.
-                boolean small = back[i].equals("士");
-                add(owner, back[i], columns[i], sign * 4.2, small ? .24 : .32, small ? .8 : 3.2);
+                add(owner, back[i], columns[i], sign * 4.2);
             }
-            add(owner, owner == 0 ? "漢" : "楚", 0, sign * 3.2, 0.43, 19.2);
-            add(owner, "包", -3, sign * 2.2, 0.32, 3.2);
-            add(owner, "包", 3, sign * 2.2, 0.32, 3.2);
+            add(owner, owner == 0 ? "漢" : "楚", 0, sign * 3.2);
+            add(owner, "包", -3, sign * 2.2);
+            add(owner, "包", 3, sign * 2.2);
             for (int i = 0; i < 5; i++) {
-                add(owner, owner == 0 ? "兵" : "卒", i * 2 - 4, sign * 1.2, 0.24, 0.8);
+                add(owner, owner == 0 ? "兵" : "卒", i * 2 - 4, sign * 1.2);
             }
         }
     }
 
-    private void add(int owner, String type, double x, double y, double radius, double mass) {
+    private void add(int owner, String type, double x, double y) {
+        var profile = physics.profile(type);
+        double radius = profile.radius(), mass = profile.mass();
         Body body = collisionBody(radius, mass, settings.restitution());
         body.translate(x, y);
         String id = "p" + pieces.size();
@@ -106,7 +114,7 @@ public final class AlkkagiMatch {
         double length = Math.hypot(shot.dx(), shot.dy());
         require(Double.isFinite(length) && length >= 0.0001 && length <= 1.0001, "INVALID_DIRECTION");
         piece.body.applyImpulse(new Vector2(shot.dx() / length, shot.dy() / length)
-                .multiply(launchImpulse(settings.maximumImpulse(), shot.power(), piece.mass)));
+                .multiply(physics.launchImpulse(settings.maximumImpulse(), shot.power(), physics.profile(piece.type))));
         timeouts[actor] = 0;
         stage = "SIMULATING";
         simulationId++;
@@ -119,11 +127,6 @@ public final class AlkkagiMatch {
             receipts.remove(receipts.keySet().iterator().next());
         }
         return version;
-    }
-
-    /** 출발 속도는 같게, 충격량·밀림 저항은 질량에 비례시킨 검수 모델. 원작 공식은 아니다. */
-    static double launchImpulse(double referenceImpulse, double power, double mass) {
-        return referenceImpulse * power * (mass / 0.8);
     }
 
     public void advance(long now) {
@@ -169,6 +172,7 @@ public final class AlkkagiMatch {
         Vector2 velocity = body.getLinearVelocity();
         double speed = velocity.getMagnitude();
         double next = Math.max(0, speed - settings.deceleration() * settings.stepSeconds());
+        if (next < settings.stopSpeed()) next = 0;
         body.setLinearVelocity(speed > 0 ? velocity.product(next / speed) : new Vector2());
     }
 
@@ -225,11 +229,12 @@ public final class AlkkagiMatch {
             Vector2 at = piece.body.getWorldCenter();
             Vector2 v = piece.body.getLinearVelocity();
             views.add(new PieceView(piece.id, piece.owner, piece.type, at.x, at.y, v.x, v.y,
-                    piece.radius, piece.mass, piece.alive));
+                    piece.radius, piece.mass, piece.alive,
+                    physics.maximumSpeed(settings.maximumImpulse(), physics.profile(piece.type))));
         }
         return new Snapshot(gameId, version, tick, simulationId, stage, turn, turnNumber,
                 turnDeadline, matchDeadline, now, winner, reason, List.copyOf(views),
-                List.of(timeouts[0], timeouts[1]), settings, true);
+                List.of(timeouts[0], timeouts[1]), settings, true, "separated-v1", physics.inputBoost());
     }
 
     private static void require(boolean condition, String code) {
@@ -239,11 +244,11 @@ public final class AlkkagiMatch {
     public record Shot(String gameId, String actionId, long expectedVersion, String pieceId,
             double dx, double dy, double power) { }
     public record PieceView(String id, int owner, String type, double x, double y, double vx, double vy,
-            double radius, double mass, boolean alive) { }
+            double radius, double mass, boolean alive, double launchSpeed) { }
     public record Snapshot(String gameId, long version, long tick, long simulationId, String stage,
             int turn, int turnNumber, long turnDeadline, long matchDeadline, long serverNow,
             Integer winner, String endReason, List<PieceView> pieces, List<Integer> timeouts,
-            AlkkagiSettings settings, boolean provisional) { }
+            AlkkagiSettings settings, boolean provisional, String modelId, double inputCurveBoost) { }
     private record Receipt(Shot shot, long version) { }
     private static final class Piece {
         private final String id;

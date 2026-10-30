@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { ArrowHelper, CanvasTexture, Group, Mesh, Plane, Vector2, Vector3 } from 'three'
 import { AlkkagiReplay, type Piece, type Snapshot } from '../game/alkkagi/replay'
-import { draggedShot } from '../game/alkkagi/aimInput'
+import { draggedShot, launchResponse } from '../game/alkkagi/aimInput'
 import './style.css'
 
 const role = new URLSearchParams(location.search).get('role') ?? 'red'
@@ -25,7 +25,7 @@ function App() {
   const [connected, setConnected] = useState(false), [notice, setNotice] = useState('서버 연결 중…')
   const [pending, setPending] = useState(false), [now, setNow] = useState(Date.now())
   const [seq, setSeq] = useState(0)
-  const [tuning, setTuning] = useState({ maximumImpulse: 12, deceleration: 30, restitution: .9 })
+  const [tuning, setTuning] = useState({ maximumImpulse: 12, deceleration: 18, restitution: .55 })
   useEffect(() => {
     if (state) setTuning({ maximumImpulse: state.settings.maximumImpulse,
       deceleration: state.settings.deceleration, restitution: state.settings.restitution })
@@ -95,7 +95,7 @@ function App() {
       <summary>물리값 조절 · 로컬 전용 <span>현재 힘 {state?.settings.maximumImpulse ?? '—'} / 감속 {state?.settings.deceleration ?? '—'} / 반발 {state?.settings.restitution ?? '—'}</span></summary>
       <p>값을 바꾼 뒤 ‘적용하고 새 판’을 누르면 양쪽 화면에 반영됩니다. 진행 중인 판은 초기화됩니다.</p>
       {([
-        ['maximumImpulse', '발사 힘', .5, 30, .5, '기준 세기 · 실제 타격량은 알 무게에 비례'],
+        ['maximumImpulse', '발사 힘', .5, 30, .5, '12 = 종류별 기본 출발 속도 · 질량과 별도 조절'],
         ['deceleration', '감속', .1, 60, .1, '높을수록 빨리 멈춤'],
         ['restitution', '반발', 0, 1, .01, '높을수록 충돌 후 더 잘 튕김'],
       ] as const).map(([key, title, min, max, step, description]) => <div className="tuning-row" key={key}>
@@ -114,7 +114,7 @@ function App() {
         <button className="secondary" disabled={!connected || pending || !state}
           onClick={() => state && send({ type: 'TUNE_RESET', gameId: state.gameId, expectedVersion: state.version })}>기본값으로 새 판</button>
       </div> : <p>홍팀 화면에서 조절할 수 있어요. 현재 서버 값은 모든 화면에서 확인할 수 있습니다.</p>}
-      <small>일반 ‘새 판’은 조절한 값을 유지합니다. 서버를 다시 시작하면 기본값(12 / 30 / 0.9)으로 돌아갑니다.</small>
+      <small>일반 ‘새 판’은 조절한 값을 유지합니다. 서버를 다시 시작하면 기본값(12 / 18 / 0.55)으로 돌아갑니다.</small>
     </details>
     <div className="board"><Canvas shadows camera={{ position: [0, 14, 0.01], fov: 46 }}>
       <color attach="background" args={['#253d37']} /><ambientLight intensity={1.8} />
@@ -126,7 +126,7 @@ function App() {
       {actor === 0 && <button className="secondary" disabled={!connected || pending} onClick={() => send({ type: 'RESET' })}>새 판</button>}
       <a href="?role=red">홍팀</a><a href="?role=green" target="_blank">청팀 화면 열기 ↗</a><a href="?role=viewer" target="_blank">관전 ↗</a>
     </div><small>큰 알일수록 밀어내는 힘과 버티는 무게가 큽니다 · 클릭 선택 → 다시 눌러 드래그 · Esc / 우클릭 취소</small>
-      <details><summary>동기화 정보</summary><code>snapshot {seq} · tick {state?.tick} · shot {state?.simulationId} · version {state?.version}<br />game {state?.gameId}<br />{state?.endReason}</code></details></footer>
+      <details><summary>동기화 정보</summary><code>snapshot {seq} · tick {state?.tick} · shot {state?.simulationId} · version {state?.version}<br />game {state?.gameId} · model {state?.modelId}<br />{state?.endReason}</code></details></footer>
   </main>
 }
 
@@ -155,6 +155,9 @@ function Scene({ state, replay, enabled, shoot, explain, blockedReason }: { stat
       const a = aim.current, p = point(event)
       if (a && p && event.pointerId === a.pointerId) {
         a.end.copy(p); a.moved = Math.hypot(event.clientX - a.start.x, event.clientY - a.start.y)
+        const shot = draggedShot(a.start, { x: event.clientX, y: event.clientY }, a.origin, p)
+        const response = launchResponse(shot?.power ?? 0, state?.inputCurveBoost ?? 0)
+        explain(`조준 입력 ${Math.round((shot?.power ?? 0) * 100)}% · 예상 출발 속도 ${((a.piece.launchSpeed ?? 0) * response).toFixed(2)}칸/초 · 놓으면 발사`)
       }
     }
     const up = (event: PointerEvent) => {
@@ -208,7 +211,7 @@ function Scene({ state, replay, enabled, shoot, explain, blockedReason }: { stat
       const a = aim.current, direction = new Vector3(a.origin.x - a.end.x, 0, a.origin.z - a.end.z)
       const length = direction.length(); arrow.visible = a.moved >= 12 && length >= .08
       arrow.position.set(a.piece.x, .45, a.piece.y); arrow.setDirection(direction.normalize())
-      arrow.setLength(Math.min(2.5, length), .25, .14)
+      arrow.setLength(2.5 * launchResponse(Math.min(1, length / 2.5), state?.inputCurveBoost ?? 0), .25, .14)
     }
   })
   return <>

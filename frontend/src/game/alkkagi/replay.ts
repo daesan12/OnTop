@@ -1,6 +1,6 @@
 export interface Piece {
   id: string; owner: number; type: string; x: number; y: number; vx: number; vy: number
-  radius: number; mass: number; alive: boolean
+  radius: number; mass: number; alive: boolean; launchSpeed?: number
 }
 export interface Snapshot {
   gameId: string; version: number; tick: number; simulationId: number; serverNow: number
@@ -8,11 +8,17 @@ export interface Snapshot {
   turnDeadline: number; matchDeadline: number; winner: number | null; endReason: string | null
   pieces: Piece[]; timeouts: number[]; provisional: boolean
   settings: { halfWidth: number; halfHeight: number; maximumImpulse: number; deceleration: number; restitution: number }
+  modelId?: string; inputCurveBoost?: number
 }
 type Frame = { seq: number; at: number; state: Snapshot }
 
 /** 서버 결과만 재생한다. 지연 시 외삽으로 새 충돌·탈락을 만들어내지 않는다. */
 export class AlkkagiReplay {
+  private readonly delayMs: number
+  constructor(delayMs = 100) {
+    if (!Number.isFinite(delayMs) || delayMs < 0 || delayMs > 500) throw new Error('INVALID_REPLAY_DELAY')
+    this.delayMs = delayMs
+  }
   private frames: Frame[] = []
   private epoch = 0
   get generation() { return this.epoch }
@@ -28,7 +34,7 @@ export class AlkkagiReplay {
   }
   sample(now: number): Snapshot | null {
     if (!this.frames.length) return null
-    const target = now - 100
+    const target = now - this.delayMs
     let a = this.frames[0], b = a
     for (const frame of this.frames) {
       if (frame.at <= target) a = frame

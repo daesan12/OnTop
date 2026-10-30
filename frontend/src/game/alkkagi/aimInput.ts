@@ -1,4 +1,8 @@
 /** 알 중심과 클릭 지점 사이의 간격을 발사 힘으로 취급하지 않는다. */
+export function launchResponse(power: number, boost: number) {
+  return power * (1 + boost * (1 - power))
+}
+
 export function draggedShot(start: { x: number; y: number }, end: { x: number; y: number },
   origin: { x: number; z: number }, point: { x: number; z: number }) {
   if (Math.hypot(end.x - start.x, end.y - start.y) < 12) return null

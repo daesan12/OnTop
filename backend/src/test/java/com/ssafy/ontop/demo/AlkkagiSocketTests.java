@@ -24,6 +24,28 @@ class AlkkagiSocketTests {
     private final ObjectMapper mapper = new ObjectMapper();
 
     @Test
+    void 송신기가_쉬는_중에도_물리_직렬화_실패를_전달한다() throws Exception {
+        var failing = new ObjectMapper() {
+            @Override public String writeValueAsString(Object value) throws com.fasterxml.jackson.core.JsonProcessingException {
+                throw new com.fasterxml.jackson.core.JsonProcessingException("expected local serialization failure") { };
+            }
+        };
+        var session = org.mockito.Mockito.mock(org.springframework.web.socket.WebSocketSession.class);
+        org.mockito.Mockito.when(session.getId()).thenReturn("failure-test");
+        org.mockito.Mockito.when(session.getUri()).thenReturn(URI.create("ws://127.0.0.1/dev/alkkagi-ws?role=viewer"));
+        org.mockito.Mockito.when(session.isOpen()).thenReturn(true);
+        var received = new LinkedBlockingQueue<String>();
+        org.mockito.Mockito.doAnswer(invocation -> {
+            received.add(invocation.getArgument(0, org.springframework.web.socket.WebSocketMessage.class).getPayload().toString());
+            return null;
+        }).when(session).sendMessage(org.mockito.ArgumentMatchers.any());
+        try (var socket = new AlkkagiDemoApplication.DemoSocket(failing)) {
+            socket.afterConnectionEstablished(session);
+            assertThat(received.poll(2, TimeUnit.SECONDS)).contains("SIMULATION_FAILURE");
+        }
+    }
+
+    @Test
     void 로컬_홍팀만_범위내_물리값을_새판에_적용하고_초기화할_수_있다() throws Exception {
         var a = new Reader(); var b = new Reader();
         WebSocket red = open("red", a), green = open("green", b);
@@ -67,7 +89,11 @@ class AlkkagiSocketTests {
             var defaults = a.until(m -> m.path("type").asText().equals("STATE")
                     && !m.path("state").path("gameId").equals(reset.path("state").path("gameId")));
             assertThat(defaults.path("state").path("settings").path("maximumImpulse").asDouble()).isEqualTo(12);
-            assertThat(defaults.path("state").path("settings").path("deceleration").asDouble()).isEqualTo(30);
+            assertThat(defaults.path("state").path("settings").path("deceleration").asDouble()).isEqualTo(18);
+            assertThat(defaults.path("state").path("settings").path("restitution").asDouble()).isEqualTo(.55);
+            assertThat(defaults.path("state").path("modelId").asText()).isEqualTo("separated-v1");
+            assertThat(defaults.path("state").path("inputCurveBoost").asDouble()).isEqualTo(.5);
+            assertThat(defaults.path("state").path("pieces").get(8).path("launchSpeed").asDouble()).isEqualTo(10);
         } finally {
             red.abort(); green.abort();
         }

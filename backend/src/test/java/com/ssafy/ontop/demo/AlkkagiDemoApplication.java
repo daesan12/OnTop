@@ -12,6 +12,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.actuate.autoconfigure.security.servlet.ManagementWebSecurityAutoConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
@@ -62,6 +63,7 @@ public final class AlkkagiDemoApplication {
         private final ScheduledExecutorService physics = Executors.newSingleThreadScheduledExecutor();
         private final ScheduledExecutorService sender = Executors.newSingleThreadScheduledExecutor();
         private final AtomicReference<String> latest = new AtomicReference<>();
+        private final AtomicBoolean sendScheduled = new AtomicBoolean();
         private final ArrayBlockingQueue<Runnable> commands = new ArrayBlockingQueue<>(64);
         private AlkkagiMatch match;
         private AlkkagiSettings tuning = AlkkagiSettings.provisional();
@@ -73,7 +75,6 @@ public final class AlkkagiDemoApplication {
             // 생성부터 변경·조회까지 dyn4j 접근은 오직 이 스레드에서만 수행한다.
             physics.execute(() -> match = new AlkkagiMatch(tuning));
             physics.scheduleAtFixedRate(this::step, 0, 8_333_333, TimeUnit.NANOSECONDS);
-            sender.scheduleWithFixedDelay(this::send, 0, 50, TimeUnit.MILLISECONDS);
         }
 
         private void step() {
@@ -87,10 +88,12 @@ public final class AlkkagiDemoApplication {
                 if (++frames % 6 == 0) {
                     latest.set(mapper.writeValueAsString(Map.of("type", "STATE", "seq", ++sequence,
                             "state", match.snapshot(System.currentTimeMillis()))));
+                    scheduleSend();
                 }
             } catch (Exception exception) {
                 // 스케줄러 예외가 이후 tick 전체를 취소하지 않도록 실패를 명시적으로 전달한다.
                 latest.set("{\"type\":\"ERROR\",\"code\":\"SIMULATION_FAILURE\"}");
+                scheduleSend();
                 org.slf4j.LoggerFactory.getLogger(DemoSocket.class).error("알까기 로컬 tick 실패", exception);
             }
         }
@@ -200,6 +203,23 @@ public final class AlkkagiDemoApplication {
             return new AlkkagiSettings(base.halfWidth(), base.halfHeight(), base.stepSeconds(), deceleration,
                     restitution, impulse, base.stopSpeed(), base.settleSteps(), base.maximumSimulationSteps(),
                     base.turnMillis(), base.matchMillis());
+        }
+
+        private void scheduleSend() {
+            // 발행 주기는 physics의6스텝이다. 별도 송신 타이머와 위상이 어긋나지 않게 한다.
+            // 느린 수신자가 있어도 큐는 활성 작업+예약 작업 한 개로 제한하고 최신 상태만 보낸다.
+            if (sender.isShutdown() || !sendScheduled.compareAndSet(false, true)) return;
+            try {
+                sender.execute(() -> {
+                    try { send(); }
+                    finally {
+                        sendScheduled.set(false);
+                        if (latest.get() != null) scheduleSend();
+                    }
+                });
+            } catch (java.util.concurrent.RejectedExecutionException closing) {
+                sendScheduled.set(false);
+            }
         }
 
         private void send() {
