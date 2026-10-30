@@ -141,7 +141,7 @@ PARK_V1에서 지상·비점프·진행 중 Flight 없음·출발/도착 모두 
 - 검증 거절은 마지막 승인 위치와 새 epoch를 방송한다. 권위는 CLIENT_VALIDATED, 프로필은 PARK_V1이다. 이동 예산·승인 순번·진행 중 점프·공중 정체 시계는 거절 때문에 초기화하지 않는다. 오래된 epoch/순번은 무시한다. 계속 누르고 있는 방향은 새 기준에서 재개하지만 점프는 재발사하지 않는다.
 - 유효 보고가2초 넘게 없으면 지지면 아래로 안전 복구한 후 새 세대에서 재개한다. 수영 중이면 물 위 승인 위치를 유지한다. 연결 해제는 기존 heartbeat/재접속 정책을 따른다.
 - WASM 준비 실패 시 PARK_V1을 다른 물리로 조용히 전환하지 않는다. 이동 불가 안내와 새로고침으로 복구한다. 구프로필의 WORLD_POSITION_FALLBACK 호환은 유지한다.
-- 따라가기 관계·거리·해제 권한은 서버가 판정한다. 매 tick 서버 방향을 motion.steering에 담고, FE는 그 방향을 같은 물리에 입력한다. 2.2m 이내 정지, 5m 이내 걷기/초과 달리기 조건과 기존 장애물 충돌을 사용한다. 자동 보고는 관계를 해제하지 않으며 수동 입력/종료는 즉시 해제한다.
+- 따라가기 관계·거리·해제 권한과 자동 이동은 서버가 판정한다. 브라우저 최소화로 프레임/위치 보고가 멈춰도 서버 30Hz 틱에서 자동 이동한다. 자동 따라가기 동안 profile=PARK_V1은 유지하고 authority는 생략한다. FE는 기존 서버 좌표 보간을 사용하며 WORLD_POSITION을 보내지 않는다. 2.2m 이내 정지, 5m 이내 걷기6/초과 달리기8과 기존 장애물 충돌을 사용한다. 직접 방향/점프 WORLD_MOVE 또는 종료 요청이 관계를 해제하며, 다음 틱에 현재 승인 좌표·수직속도로 CLIENT_VALIDATED에 복귀한다. 일반 직접 조작의 6/8/8/30·단차0.22m는 유지한다.
 
 WORLD_POSITION의 선택 필드 `manual:boolean`은 직접 이동/점프 의도이면 true, 자동 따라가기·정지 보고이면 false다. 생략하면 이전 클라이언트와 같이 true로 처리한다. 이는 서버 검증이나 접근 권한을 우회하는 플래그가 아니다.
 
@@ -163,7 +163,7 @@ WORLD_POSITION의 선택 필드 `manual:boolean`은 직접 이동/점프 의도�
 }
 ```
 
-기존 motion에 선택 필드만 추가한다. steering은 따라가기 중에만 있으며 targetX/targetZ는 서버 승인 대상 위치다. correctionReason은 새 보정 세대의 원인(SPEED, COLLISION, VERTICAL, REPORT_EXPIRED 등)이고 다음 정상 승인에서 제거한다. 둘 다 없을 수 있다. 좌표가 그대로여도 세대/권위/steering/보정 원인 변경은 방송한다.
+기존 motion의 steering은 이전 서버의 브라우저 자동 이동 호환 필드이며 현재 서버의 자동 따라가기는 보내지 않는다. correctionReason은 새 보정 세대의 원인(SPEED, COLLISION, VERTICAL, REPORT_EXPIRED 등)이고 다음 정상 승인에서 제거한다. 둘 다 없을 수 있다. 좌표가 그대로여도 세대/권위/보정 원인 변경은 방송한다. 아래는 서버가 자동 따라가기 중 보내는 motion 예시이며 authority가 없다.
 
 ```json
 {
@@ -174,15 +174,7 @@ WORLD_POSITION의 선택 필드 `manual:boolean`은 직접 이동/점프 의도�
   "velocityY": 0,
   "grounded": true,
   "inputActive": true,
-  "authority": "CLIENT_VALIDATED",
-  "profile": "PARK_V1",
-  "steering": {
-    "dx": 1,
-    "dz": 0,
-    "run": true,
-    "targetX": 8,
-    "targetZ": 34
-  }
+  "profile": "PARK_V1"
 }
 ```
 
@@ -191,3 +183,11 @@ WORLD_POSITION의 선택 필드 `manual:boolean`은 직접 이동/점프 의도�
 검증 진입점: UnifiedMovementTests, UnifiedMovementFlowTests(실제 RawWS + 합성 회원/신뢰 위치 fixture), generatedMovementPrediction.test.ts(실제 Rapier), 선택 UnifiedMovementFrontendTests(실제 Rapier 궤적을 Java/Bullet 검증기에 전달). 로컬 런처·계정 대역은 공유 코드에 포함하지 않는다. 운영 지연·실회원·공용 DB 검증과 구분한다.
 
 생성 호수의 얕은 진입부도 실제 Rapier 왕복 경로로 검사한다. 기존 45도 경사 제한은 이 맵의 짧은 축 호숫가(약48도)에서 출수를 막았다. PARK_V1이고 실제 호수 내부의 바닥이 수면보다 낮을 때만 생성 지형의 깊이/반경으로 구한 경사+계산 여유를 사용하며, 밖에서는 기존45도로 돌아간다. 자동 단차 높이와 벽/캡슐 검사는 변경하지 않는다.
+
+### 최소화 중 자동 따라가기 보완 (로컬 검증)
+
+WORLD_FOLLOW_START/STOP/CHECK·WORLD_FOLLOW_STATE의 요청/응답 필드는 유지한다. 자동 이동은 브라우저의 타이머·가시성 이벤트가 아니라 서버 물리 틱에 종속된다. 살아 있는 소켓의 heartbeat 응답은 계속 필요하며 실제 단절이면 기존대로 관계를 해제한다. 재접속은 자동 따라가기 복원이 아닌 CHECK로 관계를 다시 확인한다.
+
+따라가기 중 오래된 WORLD_POSITION은 승인 위치/순번을 바꾸지 않는다. 직접 WORLD_MOVE를 서버가 수락하면 관계를 해제하고 현재 위치에서 수동 프로필로 돌아온다. 점프로 해제할 때 서버가 승인한 점프 속도를 새 세대와 검증기의 Flight에 함께 넘기며, 자동→수동 전환마다 무료 이동 예산을 주지 않는다. WORLD_STATE의 기존 authority 생략/CLIENT_VALIDATED 처리를 그대로 사용하므로 새 메시지·환경변수·DB 변경이 없다.
+
+BackgroundFollowTests는 30초간 위치 보고 없이 이동 대상 추적·정지/재개, 실제 장애물 차단, 점프 인계·추가 이동 예산 차단을 검사한다. UnifiedMovementFlowTests는 실제 RawWS로 시작→서버 자동 이동→수동/명시 종료→새 C 세대·heartbeat 단절·재접속을 검사한다. 루프백 무보고 재현은 브라우저/OS가 소켓까지 완전히 중지한 경우를 보장하는 검사는 아니다.

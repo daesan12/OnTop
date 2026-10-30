@@ -93,16 +93,17 @@ class UnifiedMovementTests {
             assertThat(still.motion().authority()).isEqualTo("CLIENT_VALIDATED");assertThat(still.motion().correctionReason()).isNull();
         }
     }
-    @Test void 서버_따라가기방향만_전달하고_물리방식은_교체하지않는다(){
+    @Test void 따라가기는_좌표보고없이_서버에서_진행하고_끝나면_검수A로_돌아온다(){
         try(var world=new WorldPhysics(flat(),true,now::get,true)){
             world.add("a");world.add("b");world.place("a",-10,.84,42);world.place("b",-2,.84,42);
-            world.serverMovement("a");world.step(now.get(),Set.of(),Map.of("a","b"));var directed=world.snapshot("a");
-            assertThat(directed.motion().authority()).isEqualTo("CLIENT_VALIDATED");
-            assertThat(directed.motion().steering()).isNotNull();assertThat(directed.motion().steering().dx()).isCloseTo(1,within(.001));
-            assertThat(directed.motion().steering().run()).isTrue();assertThat(directed.x()).isEqualTo(-10);
-            world.place("b",-7.9,.84,42);world.step(now.get(),Set.of(),Map.of("a","b"));
-            assertThat(world.snapshot("a").motion().steering().dx()).isZero();
-            world.step(now.get(),Set.of(),Map.of());assertThat(world.snapshot("a").motion().steering()).isNull();
+            world.followMovement("a");
+            for(int n=1;n<=120;n++){now.addAndGet(WorldPhysics.STEP_NANOS);world.step(now.get(),Set.of(),Map.of("a","b"));}
+            var stopped=world.snapshot("a");
+            assertThat(stopped.motion().authority()).isNull();assertThat(stopped.motion().profile()).isEqualTo("PARK_V1");
+            assertThat(stopped.x()).isCloseTo(-4.2,within(.02));assertThat(stopped.moving()).isFalse();
+            world.stop("a");now.addAndGet(WorldPhysics.STEP_NANOS);world.step(now.get(),Set.of());
+            assertThat(world.snapshot("a").motion().authority()).isEqualTo("CLIENT_VALIDATED");
+            assertThat(world.snapshot("a").x()).isCloseTo(stopped.x(),within(.001));
         }
     }
     @Test void 물영역의_부력만_허용하고_수면초과와_육지공중상승은_거절한다(){

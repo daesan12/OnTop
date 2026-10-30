@@ -39,7 +39,7 @@ class WorldFollowPhysicsTests {
         try (var p = pair()) {
             p.input("a", new MoveInput(7, 0, 0, false, false), 0);
             step(p, 10);
-            assertThat(p.snapshot("a").x()).isGreaterThan(1.8);
+            assertThat(p.snapshot("a").x()).isCloseTo(1.8, offset(.003));
             assertThat(p.snapshot("a").lastInputSeq()).isEqualTo(7);
             // Hub가 관계를 제거한 뒤 받은 직접 조작이 다음 틱부터 우선한다.
             long now = ++tick * WorldPhysics.STEP_NANOS;

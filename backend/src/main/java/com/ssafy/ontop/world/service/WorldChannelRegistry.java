@@ -429,7 +429,7 @@ public class WorldChannelRegistry implements ChannelPresence {
     public synchronized WorldChange serverMovement(String userId) {
         Room room = rooms.get(membership.get(userId));
         if (!clientPositions) return new WorldChange(room.worldState(), false);
-        var snapshot = room.physics.serverMovement(userId);
+        var snapshot = room.physics.followMovement(userId);
         var previous = room.positions.get(userId);
         boolean changed = !snapshot.motion().equals(room.motions.get(userId));
         room.positions.put(userId, new Movement(position(snapshot), previous.acceptedAtNanos()));
