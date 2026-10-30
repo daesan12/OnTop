@@ -90,6 +90,34 @@ describe('avatar pose transitions and resource ownership', () => {
       expect(rig.bones.upperArm_R.quaternion.angleTo(arm)).toBeGreaterThan(0.001)
       rig.dispose(); reference.dispose()
     })
+    it(`${name}: PARK_V1 gait settles after stopping and preserves seated/emote poses`, async () => {
+      const source = await characterSource(name), rig = createCharacterRig(source), reference = createCharacterRig(source)
+      const motion = createAvatarMotion(rig), authored = createAvatarMotion(reference)
+      const figure = new Group(), other = new Group()
+      const step = (a: AvatarSnapshot, frames: number) => {
+        for (let i = 0; i < frames; i++) {
+          motion.apply(a, 500, 1 / 60, pose, figure, undefined, undefined, 'procedural')
+          authored.apply(a, 500, 1 / 60, pose, other)
+        }
+      }
+      step(avatar({ moving: true, running: true }), 90)
+      expect(rig.bones.hips.quaternion.angleTo(reference.bones.hips.quaternion)).toBeGreaterThan(0.001)
+      step(avatar(), 240)
+      const idle = characterBones.map(joint => rig.bones[joint].quaternion.clone())
+      const authoredIdle = reference.bones.chest.quaternion.clone()
+      step(avatar(), 60)
+      for (let i = 0; i < characterBones.length; i++)
+        expect(rig.bones[characterBones[i]!].quaternion.angleTo(idle[i]!)).toBeLessThan(1e-6)
+      expect(reference.bones.chest.quaternion.angleTo(authoredIdle)).toBeGreaterThan(0.001)
+      step(avatar({ tableId: 'table-1', seatIndex: 0 }), 240)
+      for (const joint of characterBones)
+        expect(rig.bones[joint].quaternion.angleTo(reference.bones[joint].quaternion)).toBeLessThan(1e-6)
+      step(avatar({ emote: 'EMOTE_WAVE', emoteAt: 100 }), 240)
+      // Gesture IK blends from each base; its arm/hand/head pose stays within one degree.
+      for (const joint of ['upperArm_R', 'lowerArm_R', 'hand_R', 'head'] as const)
+        expect(rig.bones[joint].quaternion.angleTo(reference.bones[joint].quaternion)).toBeLessThan(0.0175)
+      rig.dispose(); reference.dispose()
+    })
     it(`${name}: keeps the seated body and clothing above the seat surface`, async () => {
       const rig = createCharacterRig(await characterSource(name)), motion = createAvatarMotion(rig)
       const figure = new Group()

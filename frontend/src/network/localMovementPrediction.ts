@@ -64,6 +64,7 @@ export class LocalMovementPrediction {
 
   get ready() { return this.allowed && !!this.sim && !!this.baseline }
   get epoch() { return this.baseline?.motion.epoch ?? null }
+  get motionProfile() { return this.baseline?.motion.profile }
   get positionMode() { return this.baseline?.motion.authority === 'CLIENT_VALIDATED' }
   get positionPreparing() { return this.baseline?.motion.authority === 'CLIENT_VALIDATED' && !this.sim && !this.unavailable }
   positionFallback() {
