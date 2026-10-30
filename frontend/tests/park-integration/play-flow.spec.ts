@@ -33,6 +33,8 @@ async function start(page: Page, code: 'OMOK' | 'ONE_CARD', count: 2 | 4 = 4,
   }), { timeout: 90000 }).toEqual({ enabled: true, identity: { mapId: 'park', schemaVersion: 2, mapVersion: PARK_MAP_VERSION } })
   expect(server.sent.find(message => message.type === 'WORLD_MAP_CONFIRM')?.payload)
     .toEqual({ mapId: 'park', schemaVersion: 2, mapVersion: PARK_MAP_VERSION })
+  const activity = page.locator('.avatar-overhead-own .avatar-activity')
+  await expect(activity).toHaveCount(0)
   await page.getByRole('button', { name: 'E 테이블에 앉기', exact: true }).click()
   const tablet = page.getByRole('dialog', { name: '게임 태블릿', exact: true })
   await expect(tablet).toBeVisible({ timeout: 20000 })
@@ -43,9 +45,11 @@ async function start(page: Page, code: 'OMOK' | 'ONE_CARD', count: 2 | 4 = 4,
   await tablet.getByRole('checkbox').check()
   await tablet.getByRole('button', { name: '준비 완료', exact: true }).click()
   server.readyTabletOthers(true)
+  await expect(activity).toHaveCount(0)
   await tablet.getByRole('button', { name: '게임 시작', exact: true }).click()
   const panel = page.getByRole('region', { name: code === 'OMOK' ? '오목 경기' : '원카드 경기', exact: true })
   await expect(panel).toBeVisible()
+  await expect(activity).toHaveText('게임 중')
   return { server, panel }
 }
 
@@ -107,6 +111,7 @@ test('new-map card drag, visible deck and forfeit cancellation preserve server a
 for (const code of ['OMOK', 'ONE_CARD'] as const) test(`new-map ${code}: settlement, next game and approved exit`, async ({ page }) => {
   const { server } = await start(page, code, 2)
   server.finishGame()
+  await expect(page.locator('.avatar-overhead-own .avatar-activity')).toHaveCount(0)
   if (code === 'ONE_CARD') server.cardSnapshot({ status: 'FINISHED', stage: 'FINISHED', turnUserId: null,
     turnDeadline: null, endedAt: new Date().toISOString(), winnerUserIds: ['101'], endReason: 'EMPTY_HAND' })
   server.settle(); server.nextRound(); server.restoreGame()

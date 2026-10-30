@@ -1,0 +1,53 @@
+.park-menu-dialog.park-records-dialog { width:min(880px,calc(100vw - 32px)); max-height:calc(100dvh - 32px); padding:28px; overflow-y:auto; box-sizing:border-box; }
+.park-records-header { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; }
+.park-records-header p { margin-top:8px; }
+.park-records-dialog h3 { margin:0; font-size:18px; color:#294b3b; }
+.park-records-stats { margin-top:24px; }
+.park-records-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.park-records-dialog p.park-records-note { margin:10px 0 0; font-size:13px; color:#65705d; }
+.park-records-stat-grid { list-style:none; display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin:16px 0 0; padding:0; }
+.park-records-stat-grid > li { padding:15px 13px; border:1px solid #c8d0ba; border-radius:12px; background:#fffdf380; }
+.park-records-stat-grid h4 { margin:0; font-size:15px; line-height:1.5; overflow-wrap:anywhere; }
+.park-records-stat-grid > li > small { display:block; margin-top:5px; color:#687360; font-size:12px; }
+.park-records-stat-grid dl { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:15px 0 0; }
+.park-records-stat-grid dl > div { display:flex; align-items:center; justify-content:space-between; gap:5px; }
+.park-records-stat-grid dt { font-size:12px; }
+.park-records-stat-grid dd { margin:0; font-size:17px; font-weight:700; font-variant-numeric:tabular-nums; }
+.park-records-stat-grid [data-result='FORFEIT'] { color:#895222; }
+.park-records-history { margin-top:26px; padding-top:22px; border-top:1px solid #c8cdbb; }
+.park-records-filters { display:flex; flex-wrap:wrap; gap:7px; margin:14px 0; }
+.park-records-filters button,.park-records-text-button { font:inherit; cursor:pointer; }
+.park-records-filters button { padding:8px 12px; border:1px solid #bcc7ad; border-radius:20px; color:#42533b; background:transparent; font-size:13px; }
+.park-records-filters button[aria-pressed='true'] { color:#fff9ea; background:#294d40; border-color:#294d40; }
+.park-records-text-button { border:0; padding:6px 0; color:#2b644c; background:transparent; font-size:13px; text-decoration:underline; text-underline-offset:3px; }
+.park-records-text-button:disabled { color:#7d8373; cursor:default; }
+.park-records-list { list-style:none; margin:0; padding:0; border:1px solid #ccd0bb; border-radius:12px; overflow:hidden; }
+.park-records-row { display:grid; grid-template-columns:minmax(0,1fr) minmax(80px,.45fr) minmax(68px,.35fr); align-items:center; gap:16px; padding:15px 18px; background:#fffdf340; }
+.park-records-row + .park-records-row { border-top:1px solid #d3d6c6; }
+.park-records-row strong { display:block; font-size:15px; overflow-wrap:anywhere; }
+.park-records-row time { display:block; margin-top:6px; color:#6e7663; font-size:12px; line-height:1.5; }
+.park-records-result { display:flex; flex-direction:column; align-items:center; gap:5px; }
+.park-records-result > small { font-size:11px; color:#776b4c; }
+.park-records-badge { display:inline-block; padding:5px 12px; border-radius:6px; background:#e4e7da; color:#5c6553; font-size:13px; font-weight:700; text-align:center; }
+.park-records-badge[data-result='WIN'] { color:#256347; background:#dde9d6; }
+.park-records-badge[data-result='LOSE'] { color:#8c4938; background:#efddd3; }
+.park-records-badge[data-result='FORFEIT'] { color:#81521f; background:#eee0bf; }
+.park-records-settlement { justify-self:end; color:#617158; font-size:12px; }
+.park-records-settlement[data-pending='true'] { color:#94612e; }
+.park-records-more { display:block; width:100%; margin-top:14px; }
+.park-records-dialog p.park-records-message { padding:26px 12px; margin:12px 0 0; text-align:center; color:#69725e; }
+.park-records-dialog p.park-records-error { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; margin:14px 0 0; padding:12px; border-radius:8px; background:#ecdccc; color:#883f30; font-size:13px; }
+.park-records-dialog p.park-records-footer { margin-top:18px; }
+.park-records-dialog button:focus-visible { outline:2px solid #286b55; outline-offset:3px; }
+@media(max-width:640px) {
+ .park-menu-dialog.park-records-dialog { padding:20px 16px; }
+ .park-records-header h2 { font-size:24px; }
+ .park-records-header p { font-size:13px; }
+ .park-records-stat-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+ .park-records-row { gap:8px; padding:13px 10px; grid-template-columns:minmax(0,1fr) 64px 60px; }
+ .park-records-row strong { font-size:13px; }
+ .park-records-row time { font-size:11px; }
+ .park-records-badge { padding:5px 8px; font-size:12px; }
+ .park-records-settlement { font-size:11px; }
+ .park-records-filters button { padding:8px 10px; font-size:12px; }
+}

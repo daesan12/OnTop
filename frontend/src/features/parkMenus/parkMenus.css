@@ -361,6 +361,12 @@
   .park-account-dropdown { top: 62px; }
   .park-profile-dialog { padding: 28px 22px 24px; }
 }
+/* Keep the account entry usable when the channel card leaves no width for its trigger. */
+@media (max-width: 500px) {
+  .park-page .park-account { top: 108px; }
+  .park-page .park-account__summary { max-width: calc(100vw - 32px); }
+  .park-account-dropdown { width: min(320px, calc(100vw - 32px)); box-sizing: border-box; }
+}
 @media (prefers-reduced-motion: reduce) {
   .park-location .park-chevron,
   .park-account__summary .park-chevron { transition: none; }

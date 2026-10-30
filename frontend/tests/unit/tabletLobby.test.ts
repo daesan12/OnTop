@@ -35,6 +35,8 @@ describe('tablet lobby authority', () => {
     expect(presentedChairCount(undefined, { ...summary, capacity: 4, selectedPlayers: 4 }, null)).toBe(4)
     expect(presentedChairCount(undefined, { ...summary, capacity: 2, selectedPlayers: 2 }, null)).toBe(2)
     expect(presentedChairCount(undefined, { ...summary, capacity: 4, gameCode: null, selectedPlayers: null, startMode: 'AUTO' }, null)).toBe(2)
+    expect(presentedChairCount(undefined, { ...summary, chairCount: 4 }, null)).toBe(4)
+    expect(presentedChairCount(undefined, { ...summary, selectedPlayers: 4, chairCount: 2 }, null)).toBe(2)
   })
   it('uses detailed seat approval over an older summary and preserves a fourth-seat occupant', () => {
     const summary: TableSummary = { tableId: 'a', capacity: 4, occupiedSeats: 1, availableSeats: 3,

@@ -52,6 +52,7 @@ export function approvedChairCount(table: TableState | undefined, selected: numb
 export function presentedChairCount(table: TableState | undefined, summary: TableSummary | undefined, selected: number | null) {
   if (table) return approvedChairCount(table, selected ?? (table.startMode === 'MANUAL' ? table.selectedPlayers ?? null : null))
   if (!summary) return 2
+  if (summary.chairCount !== undefined) return summary.chairCount
   const count = summary.startMode === 'MANUAL' ? summary.selectedPlayers : null
   return Math.min(4, Math.max(2, summary.occupiedSeats, count ?? (summary.gameCode ? summary.capacity : 2)))
 }

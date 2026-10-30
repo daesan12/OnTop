@@ -34,11 +34,19 @@ export interface PublicTableSeat {
   tableId: string
   seatNumber: number
 }
+export type ChairCount = 2 | 3 | 4
+/** Public, full-channel chair projection; never grants a seat or a game subscription. */
+export interface PublicTable {
+  tableId: string
+  anchorId: string | null
+  chairCount: ChairCount
+}
+export const validChairCount = (value: unknown): value is ChairCount => value === 2 || value === 3 || value === 4
 export interface WorldState {
   channelId: string
   version: number
   mapVersion: string
-  tables?: { tableId: string; anchorId: string; chairCount: number }[]
+  tables?: PublicTable[]
   avatars: {
     userId: string
     position: Position
@@ -62,6 +70,7 @@ export interface TableSummary {
   gameId?: string | null
   selectedPlayers?: number | null
   startMode?: 'AUTO' | 'MANUAL'
+  chairCount?: ChairCount
 }
 export interface TableState {
   tableId: string
@@ -179,8 +188,6 @@ export function worldState(value: Record<string, unknown>): WorldState {
     !text(value.channelId) ||
     !integer(value.version) ||
     !text(value.mapVersion) ||
-    (value.tables !== undefined && (!Array.isArray(value.tables) || !value.tables.every(t => record(t)
-      && text(t.tableId) && text(t.anchorId) && integer(t.chairCount) && t.chairCount >= 2 && t.chairCount <= 4))) ||
     !Array.isArray(value.avatars) ||
     !value.avatars.every(
       (a) => record(a) && text(a.userId) && position(a.position)
@@ -196,6 +203,15 @@ export function worldState(value: Record<string, unknown>): WorldState {
     throw new Error('중복 아바타 상태입니다.')
   const seats = value.avatars.flatMap(a => a.tableSeat ? [`${a.tableSeat.tableId}\0${a.tableSeat.seatNumber}`] : [])
   if (new Set(seats).size !== seats.length) throw new Error('중복 테이블 착석 상태입니다.')
+  if (value.tables !== undefined) {
+    const publicId = (id: unknown): id is string => text(id) && !!id.trim() && id.length <= 120
+    if (!Array.isArray(value.tables) || !value.tables.every(table => record(table)
+      && publicId(table.tableId) && (table.anchorId == null || publicId(table.anchorId)) && validChairCount(table.chairCount)))
+      throw new Error('공개 의자 상태 형식이 올바르지 않습니다.')
+    const anchors = value.tables.flatMap(table => table.anchorId == null ? [] : [table.anchorId])
+    if (new Set(value.tables.map(table => table.tableId)).size !== value.tables.length || new Set(anchors).size !== anchors.length)
+      throw new Error('중복 공개 테이블 상태입니다.')
+  }
   return value as unknown as WorldState
 }
 export function tableSummary(value: unknown): TableSummary {
@@ -210,6 +226,7 @@ export function tableSummary(value: unknown): TableSummary {
     typeof value.joinable !== 'boolean' ||
     !(value.gameCode === null || text(value.gameCode)) ||
     !text(value.status) || !publicGameId(value.gameId) || !publicBet(value.betAmountPerPlayer) || !validTableMode(value)
+    || (value.chairCount !== undefined && !validChairCount(value.chairCount))
   )
     throw new Error('테이블 목록 형식이 올바르지 않습니다.')
   return { ...value, gameId: value.gameId ?? null, betAmountPerPlayer: value.betAmountPerPlayer ?? null } as unknown as TableSummary

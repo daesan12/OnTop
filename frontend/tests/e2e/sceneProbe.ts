@@ -1,4 +1,12 @@
 // Dev-server-only inspection helper. Never imported by production code or bundled with the app.
+export function pavilionChairProbe(anchorId: string) {
+  const table = root().scene.getObjectByName(anchorId), counts: number[] = []
+  const chairs = table?.getObjectByName('main-table-timber-chairs') ?? table
+  chairs?.traverse(object => {
+    if ('isInstancedMesh' in object && object.isInstancedMesh) counts.push((object as InstancedMesh).count)
+  })
+  return { chairCount: table?.userData.presentedSeatCount, counts, position: table?.position.toArray() }
+}
 export function equipmentProbe() {
   const s = useSession.getState()
   return { approved: s.equipment, models: s.ids.map(id => {
