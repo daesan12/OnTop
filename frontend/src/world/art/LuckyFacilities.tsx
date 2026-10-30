@@ -35,7 +35,9 @@ export function FishBreadShop(){
   useFrame(()=>{
     const cooking=bungeoppangView.active||performance.now()<bungeoppangView.returningUntil
     if(shop.current)shop.current.visible=!cooking
-    if(cookingCart.current)cookingCart.current.visible=cooking
+    // The private stage unmounts on exit. Never reveal its underlying legacy cart
+    // while the camera travels back to the new shop exterior.
+    if(cookingCart.current)cookingCart.current.visible=bungeoppangView.active
   })
   return <group name="fish-bread-shop">
     <group ref={shop} name="fish-bread-shop-exterior" scale={SETTINGS.fishBreadShop.scale} rotation={[0,SETTINGS.fishBreadShop.yaw,0]}>
@@ -43,6 +45,6 @@ export function FishBreadShop(){
       <PropSign position={[0,4.27,3.95]} width={5.88} height={.76} draw={fishBreadShopSign}/>
       <PropSign position={[3.25,2.8,-.065]} width={1.25} height={1.7} draw={fishMenuSign}/>
     </group>
-    <group ref={cookingCart} visible={false}><CodeFishBreadCart detailDistance={80}/></group>
+    <group ref={cookingCart} name="fish-bread-cooking-cart" visible={false}><CodeFishBreadCart detailDistance={80}/></group>
   </group>
 }

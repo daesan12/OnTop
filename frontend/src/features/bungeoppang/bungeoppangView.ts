@@ -6,6 +6,8 @@ import { FISH_CART_GRILL } from '../../config/fishCart';
 const cart = MINI_PROPS.find((p) => p.id === "fish-bread")!;
 const layout = FISH_CART_GRILL;
 const [cx, , cz] = layout.center;
+const shopYaw = 'yaw' in cart ? cart.yaw : 0;
+const standDistance = cart.depth / 2 + 1;
 /** 뒷줄(Q W E), 앞줄(A S D). 플레이어는 +z 쪽에서 -z를 바라본다. */
 export const BUNG_GRILL = {
   center: [cart.x + cx, layout.surfaceY, cart.z + cz] as const,
@@ -29,8 +31,8 @@ export const bungeoppangView = {
   target: (bungeoppangV5Enabled ? [cart.x + cx, layout.surfaceY + .145, cart.z + cz - .02]
     : [cart.x + cx, layout.surfaceY, cart.z + cz]) as [number, number, number],
   fov: bungeoppangV5Enabled ? 36 : 40,
-  standX: cart.x,
-  standZ: cart.z + cart.depth / 2 + 1,
+  standX: cart.x + Math.sin(shopYaw) * standDistance,
+  standZ: cart.z + Math.cos(shopYaw) * standDistance,
 };
 
 /** Reveal only after the camera has cleared the local avatar; controls are already live. */

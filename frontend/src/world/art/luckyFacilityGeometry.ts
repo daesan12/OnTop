@@ -2,6 +2,7 @@ import { BufferGeometry,CylinderGeometry,Float32BufferAttribute } from 'three'
 import { WHEEL_VALUES,wheelColor } from '../../features/luckyFacilities/wheel'
 import { PropBuilder, hipRoof, type XYZ } from './propGeometry'
 import { connectRoof } from '../../layout-preview/plazaBuildingStructure'
+import { FISH_SHOP_SIZE, shopLanternPositions } from './shopLanternLayout'
 
 const wood = '#a36b37', dark = '#593b2a', cream = '#f3dfb2'
 function roofUnderside(b:PropBuilder){
@@ -49,7 +50,11 @@ function house(width:number, depth:number, counter=false) {
   }
   b.box('wood',dark,[0,4.27,depth/2+.48],[width*.69,.98,.24])
   b.box('paint',cream,[0,4.27,depth/2+.615],[width*.64,.76,.04])
-  for(const x of [-width/2+.34,width/2-.34]){
+  for(const [x,,z] of shopLanternPositions(width,depth,counter)){
+    if(counter){
+      const postX=Math.sign(x)*(width/2-.16)
+      b.box('wood',dark,[(postX+x)/2,3.83,z],[Math.abs(x-postX)+.2,.2,.2])
+    }
     b.box('wood',dark,[x,3.83,depth/2+.2],[.2,.2,.9])
     b.box('metal','#514535',[x,3.48,depth/2+.5],[.06,.6,.06])
     b.box('glow','#ffce79',[x,3.09,depth/2+.5],[.38,.6,.38])
@@ -115,7 +120,7 @@ for(let i=0;i<3;i++){
 }
 export const lotteryRoomArt=lottery.finish()
 
-const fish=house(9.2,6.6,true)
+const fish=house(FISH_SHOP_SIZE.width,FISH_SHOP_SIZE.depth,true)
 // Red-and-cream awning is tucked into the front beam, with a continuous support rail.
 fish.box('wood',dark,[0,3.76,3.08],[9,.18,.2])
 for(let n=0;n<12;n++){

@@ -8,7 +8,8 @@ import { useTableLobby } from '../../features/tableLobby/state'
 import { OmokSurrender } from '../OmokSurrender'
 import { canActBridge } from './actions'
 import type { BridgeInput } from './protocol'
-import { COLORS, END, EVENTS, PAWNS, STAGES } from './presentation'
+import { COLORS, EVENTS, PAWNS, STAGES } from './presentation'
+import { resultSettlement } from '../../features/tableLobby/gatheringModel'
 import { TableClock, useTableNow } from './TableClock'
 import './bridge.css'
 
@@ -59,8 +60,7 @@ export function BridgePanel() {
     <div className="mini-feedback">{s.pending && <p>요청 중 · 서버 판정 확인 중입니다.</p>}{g.version < s.awaitingVersion && <p>처리 확인 수신 · 최신 판과 본인 상태를 기다리고 있습니다.</p>}
     {s.uncertain && <p>반영 여부를 확인해주세요. 같은 행동을 자동 재전송하지 않습니다.</p>}{recoveryBlocked() && <p>경기 복구 확인 중 · 입력을 잠시 멈췄습니다.</p>}{s.error && <p role="alert">{s.error}</p>}
     </div>
-    {finished && <p>종료 사유: {END[b.endReason!] ?? b.endReason}</p>}
-    {!spectator && finished && <p>{s.result ? s.result.settlementStatus === 'SETTLED' ? `정산 완료 · 내 엽전 증감 ${s.result.myCoinDelta}` : '정산 대기 중' : '결과·정산 확인 전입니다.'}</p>}
+    {!spectator && finished && <p>{s.result ? resultSettlement(s.result) : '결과 확인 중'}</p>}
     <section className="bridge-goals" aria-label="골인 점수 위치"><div className="bridge-goal-track">{b.goalSlots.map(slot => <span key={slot.slot} data-status={slot.status}
       title={slot.status === 'OCCUPIED' ? `${slot.slot}점 · ${name(slot.userId!)}` : slot.status === 'VACATED' ? `${slot.slot}번 사용 완료 · 재사용 불가` : `${slot.slot}번 미사용`}>{slot.slot}{slot.status === 'VACATED' ? ' ×' : slot.status === 'OCCUPIED' ? ' ●' : ''}</span>)}</div>
     <small>{b.nextGoalSlot <= 8 ? `다음 골인 번호 ${b.nextGoalSlot}` : '1~8번 발급 완료'} · 사용 완료 슬롯은 정렬하거나 다시 채우지 않습니다.</small>
