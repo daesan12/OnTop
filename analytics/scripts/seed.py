@@ -32,8 +32,14 @@
 - 가입 선물 100: 101~104는 1일차, 105는 하루 전(KST 2026-10-26)
 - 오목(판돈 1): 101 +1, 102 −1 / 주사위(판돈 5): 101 −5, 105 +5. 시작할 때 예약, 끝날 때 정산
 - 102 상점 구매 −20(아이템 7, 2개), 붕어빵 완료 판의 보상을 판 종료 시각에 지급
+- 2일차 오목(판돈 1, 경기 3): 103 +1, 104 −1
 - 104는 탈퇴 회원(지갑은 남지만 잔액 분포에서 제외)
-- 최종 잔액: 101=196, 102=109, 103=115, 104=100, 105=155
+- 최종 잔액: 101=196, 102=109, 103=116, 104=99, 105=155
+
+경기(game_sessions·game_participants, 기능 테이블. 행동 로그 game_id는 경기 번호와 같다)
+- 경기 1(1일차 오목)·경기 2(2일차 주사위)는 위 행동 로그와 같은 경기
+- 경기 3: 2일차 KST 12:00 103·104 오목. 행동 로그가 없는 경기(로그 유실 구간 가정)
+- 경기 4: 2일차 주사위 시작 시도가 잔액 부족으로 거절(예약·참가자 없음)
 """
 
 import json
@@ -77,11 +83,11 @@ def build_seed() -> str:
     event("2026-10-27 01:06:00", "TABLE_JOINED", 102, table="t1", channel="one")
     event("2026-10-27 01:06:30", "TABLE_READY_SET", 102, table="t1", ready=True)
     for user_id in (101, 102):
-        event("2026-10-27 01:07:00", "GAME_STARTED", user_id, table="t1", channel="one", game="g1",
+        event("2026-10-27 01:07:00", "GAME_STARTED", user_id, table="t1", channel="one", game="1",
               gameCode="OMOK", players=2, betAmountPerPlayer=1)
-    event("2026-10-27 01:17:00", "GAME_ENDED", 101, table="t1", game="g1", gameCode="OMOK",
+    event("2026-10-27 01:17:00", "GAME_ENDED", 101, table="t1", game="1", gameCode="OMOK",
           endReason="FORFEIT", players=2, result="WIN")
-    event("2026-10-27 01:17:00", "GAME_ENDED", 102, table="t1", game="g1", gameCode="OMOK",
+    event("2026-10-27 01:17:00", "GAME_ENDED", 102, table="t1", game="1", gameCode="OMOK",
           endReason="FORFEIT", players=2, result="FORFEIT", leaveReason="DISCONNECT_TIMEOUT")
     event("2026-10-27 01:18:00", "EMOTE_SENT", 102, channel="one", emoteCode="WAVE")
     event("2026-10-27 01:19:00", "SHOP_PURCHASED", 102, itemId=7, quantity=2, purchaseId="p-1")
@@ -121,11 +127,11 @@ def build_seed() -> str:
     event("2026-10-28 01:01:00", "TABLE_JOINED", 105, table="t1", channel="one")
     event("2026-10-28 01:02:00", "TABLE_JOINED", 101, table="t1", channel="one")
     for user_id in (101, 105):
-        event("2026-10-28 01:02:30", "GAME_STARTED", user_id, table="t1", channel="one", game="g2",
+        event("2026-10-28 01:02:30", "GAME_STARTED", user_id, table="t1", channel="one", game="2",
               gameCode="DICE", players=2, targetScore=2000, betAmountPerPlayer=5)
-    event("2026-10-28 01:07:30", "GAME_ENDED", 101, table="t1", game="g2", gameCode="DICE",
+    event("2026-10-28 01:07:30", "GAME_ENDED", 101, table="t1", game="2", gameCode="DICE",
           endReason="TARGET_REACHED", players=2, result="LOSE")
-    event("2026-10-28 01:07:30", "GAME_ENDED", 105, table="t1", game="g2", gameCode="DICE",
+    event("2026-10-28 01:07:30", "GAME_ENDED", 105, table="t1", game="2", gameCode="DICE",
           endReason="TARGET_REACHED", players=2, result="WIN")
     event("2026-10-28 01:10:00", "WS_DISCONNECTED", 101, reason="SOCKET_CLOSED")
     event("2026-10-28 01:20:00", "WS_DISCONNECTED", 105, reason="SOCKET_CLOSED")
@@ -173,6 +179,7 @@ def feature_sql() -> str:
             f"ended_at) VALUES ({user_id}, 'BUNGEOPPANG', '{status}', {sql_value(score)}, {reward}, "
             f"'{timestamp(started)}', {sql_value(ended and timestamp(ended))});"
         )
+    lines.extend(game_sql())
     lines.extend(wallet_sql())
     for user_id, channel, created in [
         (101, "one", "2026-10-27 01:40:00"),
@@ -212,6 +219,10 @@ def wallet_sql() -> list[str]:
         (101, "GAME_SETTLEMENT", 2, None, None, -5, -5, "2026-10-28 01:07:30"),
         (105, "GAME_SETTLEMENT", 2, None, None, 5, -5, "2026-10-28 01:07:30"),
         (103, "MINIGAME_REWARD", None, 7, None, 15, 0, "2026-10-28 05:03:00"),
+        (103, "GAME_RESERVE", 3, None, None, 0, 1, "2026-10-28 03:00:00"),
+        (104, "GAME_RESERVE", 3, None, None, 0, 1, "2026-10-28 03:00:00"),
+        (103, "GAME_SETTLEMENT", 3, None, None, 1, -1, "2026-10-28 03:08:00"),
+        (104, "GAME_SETTLEMENT", 3, None, None, -1, -1, "2026-10-28 03:08:00"),
     ]
     balances: dict[int, int] = {}
     for user_id, _, _, _, _, balance_delta, _, _ in entries:
@@ -225,6 +236,47 @@ def wallet_sql() -> list[str]:
             "transaction_type, balance_delta, reserved_delta, idempotency_key, created_at) VALUES "
             f"({user_id - 100}, {sql_value(game)}, {sql_value(session)}, {sql_value(item)}, '{kind}', "
             f"{balance_delta}, {reserved_delta}, 'seed-{number}', '{timestamp(at)}');"
+        )
+    return lines
+
+
+def game_sql() -> list[str]:
+    """확정·거절된 경기와 참가자. 지갑 원장이 경기 번호를 참조하므로 원장보다 먼저 넣는다."""
+    lines = []
+    # (번호, 게임, 목표, 테이블, 판돈, 상태, 거절 사유, 종료 사유, 시작(또는 시도), 종료)
+    games = [
+        (1, "OMOK", None, "t1", 1, "FINISHED", None, "FORFEIT", "2026-10-27 01:07:00", "2026-10-27 01:17:00"),
+        (2, "DICE", 2000, "t1", 5, "FINISHED", None, "TARGET_REACHED", "2026-10-28 01:02:30", "2026-10-28 01:07:30"),
+        (3, "OMOK", None, "t2", 1, "FINISHED", None, "FIVE_IN_ROW", "2026-10-28 03:00:00", "2026-10-28 03:08:00"),
+        (4, "DICE", 4000, "t3", 5, "REJECTED", "INSUFFICIENT_BALANCE", None, "2026-10-28 06:00:00", None),
+    ]
+    for number, code, target, table, bet, status, rejection, end_reason, started, ended in games:
+        confirmed = status != "REJECTED"
+        at = f"'{timestamp(started)}'"
+        done = sql_value(ended and timestamp(ended))
+        lines.append(
+            "INSERT INTO game_sessions (id, start_attempt_id, request_fingerprint, table_id, table_version, game_code, "
+            "target_score, participant_count, bet_amount_per_player, total_pot, status, settlement_status, "
+            "rejection_code, end_reason, owner_instance_id, owner_boot_id, created_at, reserved_at, started_at, "
+            f"ended_at, settled_at) VALUES ({number}, UNHEX(LPAD('{number}', 32, '0')), UNHEX(REPEAT('0', 64)), "
+            f"'{table}', 0, '{code}', {sql_value(target)}, 2, {bet}, {bet * 2}, '{status}', "
+            f"{sql_value('SETTLED' if confirmed else None)}, {sql_value(rejection)}, {sql_value(end_reason)}, "
+            f"'seed', UNHEX(REPEAT('0', 32)), {at}, {at if confirmed else 'NULL'}, {at if confirmed else 'NULL'}, "
+            f"{done}, {done});"
+        )
+    # (경기, 회원, 좌석, 상태, 결과, 이탈 사유, 엽전 증감)
+    for game, user_id, seat, status, result, leave, delta in [
+        (1, 101, 1, "FINISHED", "WIN", None, 1), (1, 102, 2, "LEFT", "FORFEIT", "DISCONNECT_TIMEOUT", -1),
+        (2, 101, 1, "FINISHED", "LOSE", None, -5), (2, 105, 2, "FINISHED", "WIN", None, 5),
+        (3, 103, 1, "FINISHED", "WIN", None, 1), (3, 104, 2, "FINISHED", "LOSE", None, -1),
+    ]:
+        ended = f"'{timestamp(games[game - 1][9])}'"
+        bet = games[game - 1][4]
+        lines.append(
+            "INSERT INTO game_participants (game_session_id, user_id, seat_number, participant_order, "
+            "participant_status, result, leave_reason, left_at, reserved_amount, coin_delta, "
+            f"reservation_released_at) VALUES ({game}, {user_id}, {seat}, {seat - 1}, '{status}', '{result}', "
+            f"{sql_value(leave)}, {ended if leave else 'NULL'}, {bet}, {delta}, {ended});"
         )
     return lines
 
