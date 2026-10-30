@@ -141,8 +141,8 @@ export class LocalMovementPrediction {
   reconcile(scope: string, pose: Pose & { moving?: boolean }, motion: MotionSnapshot | undefined, allowed: boolean, at = this.now()) {
     if (scope !== this.scope) { this.reset(); this.scope = scope }
     if (!motion || !allowed) { this.suspend(); return }
-    // Legacy native/held snapshots are presentation-only. New PARK_V1 actors
-    // retain CLIENT_VALIDATED across regions and recoverable report failures.
+    // Native/held snapshots, including server-owned automatic follow, are presentation-only.
+    // Manual PARK_V1 retains CLIENT_VALIDATED across regions and recoverable failures.
     if (motion.profile === 'PARK_V1' && motion.authority !== 'CLIENT_VALIDATED') {
       this.baseline = {pose:{...pose}, motion, at, anchor:at}
       this.suspend(); return

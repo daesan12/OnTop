@@ -68,6 +68,12 @@ public final class ClientPositionValidator {
         approved = pose; this.epoch = epoch; sequence = 0; approvedAt = budgetAt = clock.getAsLong();
         budget = .9; flight = null; airWindowAt = approvedAt; airWindowY = pose.y;
     }
+    // Trusted native-to-client handoff carries vertical motion, never a free movement burst.
+    synchronized void resumeTrusted(double velocityY) {
+        budget = 0;
+        if (velocityY > 0 || !geometry.supported(approved))
+            flight = new Flight(approved.y, approvedAt, Math.max(0, velocityY));
+    }
     // Changing the correction epoch never grants a fresh movement budget or jump.
     synchronized void resynchronize(long nextEpoch) { epoch = nextEpoch; }
     synchronized void blocked(boolean value) { blocked = value; }

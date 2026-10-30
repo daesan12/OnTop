@@ -254,8 +254,8 @@ public final class WorldPhysics implements AutoCloseable {
     public boolean hasMovementActivity(String id, long now) {
         return call(() -> {
             Actor actor = actors.get(id);
-            return actor != null && (actor.airborne || actor.jumpQueued || (actor.clientControlled && actor.moving
-                    && now >= actor.receivedAt && now - actor.receivedAt <= (tunedMovement ? 2_000_000_000L : 500_000_000L)) || (inputActive(actor, now)
+            return actor != null && (actor.airborne || actor.jumpQueued || (actor.moving && (!actor.clientControlled
+                    || now >= actor.receivedAt && now - actor.receivedAt <= (tunedMovement ? 2_000_000_000L : 500_000_000L))) || (inputActive(actor, now)
                     && (actor.input.dx() != 0 || actor.input.dz() != 0 || actor.input.jump())));
         });
     }
@@ -345,8 +345,10 @@ public final class WorldPhysics implements AutoCloseable {
                 a.seated = false;
                 space.addCollisionObject(a.body);
             }
-            if (tunedMovement && clientPositions && !a.clientControlled && !a.positionDisabled) {
-                a.clientControlled = true; space.removeCollisionObject(a.body); resetMotion(a);
+            // Automatic follow must advance even when the browser is throttled/minimized.
+            if (tunedMovement && clientPositions && following.containsKey(entry.getKey()) && a.clientControlled) serverControl(a);
+            if (tunedMovement && clientPositions && !a.clientControlled && !a.positionDisabled && !following.containsKey(entry.getKey())) {
+                resumeClientControl(a);
             }
             if (!tunedMovement && a.clientControlled && (following.containsKey(entry.getKey()) || specialMovement(a.body.getPhysicsLocation(null)))) {
                 serverControl(a);
@@ -363,17 +365,11 @@ public final class WorldPhysics implements AutoCloseable {
                 }
             }
             if (a.clientControlled) {
-                String targetId = following.get(entry.getKey());
-                Actor target = targetId == null || seated.contains(targetId) ? null : actors.get(targetId);
-                MoveInput directed = targetId == null ? null : followInput(a, target);
-                Vector3f targetPosition = target == null ? null : target.body.getPhysicsLocation(null);
-                a.followSteering = directed == null ? null : new Steering(directed.dx(), directed.dz(), directed.run(),
-                        targetPosition == null ? a.body.getPhysicsLocation(null).x : targetPosition.x,
-                        targetPosition == null ? a.body.getPhysicsLocation(null).z : targetPosition.z);
+                a.followSteering = null;
                 // Correct only a server-approved position, never a client's claimed large move.
                 anticipateExclusion(a, freshnessTime());
                 a.motion = new Motion(a.motionEpoch, physicsTick, a.seq, 0, a.motion.velocityY(),
-                        positionCollision.supported(pose(a)), true, "CLIENT_VALIDATED");
+                        a.motion.velocityY() <= 0 && positionCollision.supported(pose(a)), true, "CLIENT_VALIDATED");
                 continue;
             }
             MoveInput input = a.input;
@@ -572,6 +568,32 @@ public final class WorldPhysics implements AutoCloseable {
         actor.body.setLinearVelocity(new Vector3f(0, vertical, 0));
         resetMotion(actor);
     }
+    private ClientPositionValidator newPositionValidator(Actor actor) {
+        double boundary = scene.data.path("world").path("halfSize").asDouble()
+                - scene.data.path("world").path("boundaryHalfDepth").asDouble() - number("radius") - number("offset");
+        return new ClientPositionValidator(pose(actor), actor.motionEpoch, boundary, positionCollision, clock, tunedMovement);
+    }
+    private void resumeClientControl(Actor actor) {
+        double velocityY = actor.motion.velocityY();
+        boolean grounded = positionCollision.supported(pose(actor));
+        if (actor.jumpQueued && grounded) {
+            velocityY = scene.policy.jumpSpeed(actor.body.getPhysicsLocation(null), true);
+            grounded = false;
+        }
+        actor.jumpQueued = false; actor.moving = actor.running = false;
+        actor.clientControlled = true; space.removeCollisionObject(actor.body);
+        actor.body.setWalkDirection(Vector3f.ZERO);
+        resetMotion(actor);
+        actor.positionValidator = newPositionValidator(actor);
+        actor.positionValidator.resumeTrusted(velocityY);
+        actor.reportStarted = true;
+        actor.airborne = !grounded;
+        actor.motion = new Motion(actor.motionEpoch, physicsTick, actor.seq, 0, velocityY, grounded, false, "CLIENT_VALIDATED");
+    }
+    /** Server-owned automatic movement; manual PARK_V1 keeps client validation. */
+    public Snapshot followMovement(String id) {
+        return call(() -> { serverControl(actors.get(id)); return snapshotNow(id); });
+    }
     public Snapshot serverMovement(String id) {
         return call(() -> { if (!tunedMovement) serverControl(actors.get(id)); return snapshotNow(id); });
     }
@@ -597,9 +619,7 @@ public final class WorldPhysics implements AutoCloseable {
             anticipateExclusion(a, now);
             if (candidate.epoch() != a.motionEpoch) return snapshotNow(id);
             if (a.positionValidator == null) {
-                double boundary = scene.data.path("world").path("halfSize").asDouble()
-                        - scene.data.path("world").path("boundaryHalfDepth").asDouble() - number("radius") - number("offset");
-                a.positionValidator = new ClientPositionValidator(pose(a), a.motionEpoch, boundary, positionCollision, clock, tunedMovement);
+                a.positionValidator = newPositionValidator(a);
             }
             var before = pose(a);
             var result = a.positionValidator.accept(candidate);
@@ -721,7 +741,11 @@ public final class WorldPhysics implements AutoCloseable {
             double distance = Math.hypot(dx, dz);
             // Bullet 좌표는 float다. 2.2m의 표현 오차(수 µm)로 경계에서 한 걸음 더 나가지 않는다.
             if (distance > 2.2 + 0.00001 && distance <= 24 && Math.abs(other.y - own.y) <= 3.5) {
-                return new MoveInput(1, dx / distance, dz / distance, distance > 5, false);
+                boolean run = distance > 5;
+                double speed = swimming(own) ? scene.data.path("swimming").path(run ? "fastSpeed" : "speed").asDouble()
+                        : number(run ? "runSpeed" : "walkSpeed");
+                double fraction = Math.min(1, (distance - 2.2) / (speed * DT));
+                return new MoveInput(1, dx / distance * fraction, dz / distance * fraction, run, false);
             }
         }
         return new MoveInput(1, 0, 0, false, false);
