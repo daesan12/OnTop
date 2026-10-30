@@ -1,14 +1,14 @@
 {
   "artifacts": [
     {
-      "bytes": 2560623,
+      "bytes": 2555892,
       "path": "generated/park/server-map.json",
-      "sha256": "ff6cc3064a761a77080869c8514064c4e74654561479ec9deaa57d70900dca28"
+      "sha256": "a74d0c591982fa143c1986d4560ceb5db99bb4af840a6284948bc7cd5390f4b6"
     },
     {
       "bytes": 329,
       "path": "src/map/park/generated/mapVersion.ts",
-      "sha256": "620cab2cc1a8df63a128cec9710fc48f65b6d9d87c2ee301dc55afa2df4eb4ef"
+      "sha256": "2bec46ad899c0087c8470098132a79d62ba7bbe9bb68cde0a7361cbd1ac99c30"
     }
   ],
   "counts": {
@@ -17,10 +17,10 @@
     "facilities": 12,
     "fitness": 12,
     "localSeats": 72,
-    "obstacles": 548,
+    "obstacles": 539,
     "paths": 60,
     "pavilions": 9,
-    "physicalBoxes": 2150,
+    "physicalBoxes": 2141,
     "physicalHulls": 35,
     "physicalMeshes": 8,
     "tables": 18,
@@ -29,11 +29,11 @@
   "format": "ontop.park-map-manifest",
   "hashAlgorithm": "sha256",
   "hashes": {
-    "dataHash": "ed08932899a39e267cf0431c2511d0b2896a7f484e1d8d3fb9e20d762a8b8815",
-    "sourceHash": "57c199fbc816978349dbce9bdb48054cd8f4b26f2e1bca78670f92507cf8f4e4"
+    "dataHash": "e158128a17464af26a61daf8d8cd3747d8a3b79b68ffe03b865687228e14a06a",
+    "sourceHash": "3638a63febea63421592efed46e60ae5b80e49856073e12790451cb74877a944"
   },
   "mapId": "park",
-  "mapVersion": "4f0c298dd6e0100800326b2a22c996b4fe7fb7e39b2e1505cfb06b1719ad18b5",
+  "mapVersion": "3d56333fb36c48d147b6f6f0df944349dad074136b2c6ea7d56584494cf5d25f",
   "schemaVersion": 2,
   "sources": [
     {
@@ -150,7 +150,7 @@
     },
     {
       "path": "src/map/park/definition.ts",
-      "sha256": "6de1773183d6073912a0d396f2e06efb641eba25f675aca157a150faed326b05"
+      "sha256": "35d0f8bce93893d927ccd0a5044225613e7e6ef2d8bea45be508f4502aa36d5c"
     },
     {
       "path": "src/map/park/fountainHeight.ts",
@@ -174,7 +174,7 @@
     },
     {
       "path": "src/map/park/physics.ts",
-      "sha256": "1c8b987c208784f7c8c40fdf7a2f6603bc6bd1bf5d7a4386238341fe81b1b8dd"
+      "sha256": "56519fb7fa1b95b856fc3bf5e4bbec9b3b78ce1dd33a4cdc622c2c6159f3f192"
     },
     {
       "path": "src/map/park/planting.ts",

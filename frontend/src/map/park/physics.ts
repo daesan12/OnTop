@@ -21,7 +21,7 @@ interface Input {
   pavilions:readonly {id:string;x:number;z:number;floor:number;scale:number}[]
   stairs:readonly {id:string;x:number;z:number;floor:number;join:number;count:number;tread:number}[]
   tables:readonly TableAnchor[];fitness:readonly FitnessStation[];benches:readonly BenchSite[]
-  kiosks:readonly {kind:string;x:number;z:number;width:number;depth:number;yaw:number}[]
+  kiosks:readonly {kind:string;x:number;z:number;width:number;depth:number;yaw:number;height?:number}[]
   plazaTrees:readonly {id:string;x:number;z:number}[]
   fences:readonly {id:string;from:readonly [number,number];to:readonly [number,number]}[]
   centralRails:readonly {id:string;from:readonly [number,number];to:readonly [number,number]}[]
@@ -87,7 +87,7 @@ export function buildPhysics(i:Input) {
   const vr=d.sites.vrPagoda
   box('vr-pagoda-body',[vr.x,7,vr.z],[3,7,3])
   for(const k of i.kiosks){
-    const halfHeight=k.kind==='shop'?2.6:2.3
+    const halfHeight=(k.height??4.6)/2
     box('layout-'+k.kind,[k.x,halfHeight,k.z],[k.width/2,halfHeight,k.depth/2],k.yaw)
   }
   for(const p of d.plazaRestGardens)box(p.id,[p.x,.4,p.z],[p.width/2,.4,p.depth/2])

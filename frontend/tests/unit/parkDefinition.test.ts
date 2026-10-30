@@ -16,7 +16,7 @@ describe('common park definition',()=>{
     expect(json.interactions.tableSeats[0].localSeats).toEqual(TABLES[0]!.seatAnchors)
   })
   it('moves a lottery booth, its close fence, marker and collision together',()=>{
-    const d=clone();d.sites.drink={x:10,z:65};d.kiosks.drink.yaw=0;d.kiosks.drink.width=12
+    const d=clone();d.sites.drink={x:10,z:65};d.kiosks.drink.yaw=0;d.kiosks.drink.width=12;d.kiosks.drink.depth=5
     const map=resolveParkLayout(d),shop=map.KIOSKS.find(k=>k.kind==='drink')!
     expect(map.MARKERS.find(m=>m.id==='layout-drink')).toMatchObject({x:10,z:65})
     expect(map.data.facilities.find(f=>f.id==='layout-drink')).toMatchObject({position:[10,0,65],yaw:0})

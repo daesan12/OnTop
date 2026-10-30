@@ -20,9 +20,11 @@ export function LuckyFacility({kind,live}:{kind:'shop'|'drink';live:boolean}){
         if(getParkInteraction()?.id==='layout-'+kind)interactWithPark()
       })
     }}>
-    <PropModel art={lottery?lotteryRoomArt:luckyRoomArt} name={lottery?'lottery-room':'lucky-wheel-room'}/>
-    {lottery&&<PropSign position={[0,4.27,3.05]} width={7.6*.64} height={.76} draw={lotteryRoomSign}/>}
-    {!lottery&&<PropSign position={[0,(2.15-.32)*LUCKY_WHEEL_SCALE,(2.405-1.95)*LUCKY_WHEEL_SCALE]} width={3.05*LUCKY_WHEEL_SCALE} height={3.05*LUCKY_WHEEL_SCALE} draw={wheelFace} transparent/>}
+    <group scale={lottery?k.scale:1}>
+      <PropModel art={lottery?lotteryRoomArt:luckyRoomArt} name={lottery?'lottery-room':'lucky-wheel-room'}/>
+      {lottery&&<PropSign position={[0,4.27,3.05]} width={7.6*.64} height={.76} draw={lotteryRoomSign}/>}
+      {!lottery&&<PropSign position={[0,(2.15-.32)*LUCKY_WHEEL_SCALE,(2.405-1.95)*LUCKY_WHEEL_SCALE]} width={3.05*LUCKY_WHEEL_SCALE} height={3.05*LUCKY_WHEEL_SCALE} draw={wheelFace} transparent/>}
+    </group>
   </group>
 }
 

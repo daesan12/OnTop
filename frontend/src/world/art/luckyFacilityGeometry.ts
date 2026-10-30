@@ -87,7 +87,7 @@ function wheel(b:PropBuilder){
     const a=i*Math.PI/10;b.ball('gold','#d7b46e',[Math.sin(a)*(r+.075),cy+Math.cos(a)*(r+.075),z+.19],[.045,.045,.045])
   }
 }
-export const LUCKY_WHEEL_SCALE=1.35
+export const LUCKY_WHEEL_SCALE=1.1
 const lucky=new PropBuilder([8,4]);wheel(lucky)
 export const luckyRoomArt=lucky.finish()
 // With the house removed, centre the stand on its anchor and seat its feet on the ground.
