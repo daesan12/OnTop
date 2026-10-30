@@ -53,6 +53,11 @@ export function validateParkDefinition(d:ParkDefinition) {
   for(const s of d.vrStoneSets)if(Object.hasOwn(d.tables,s.tableId)||/^table-(?:[1-9]|1[0-6])$/.test(s.tableId))throw new Error('VR game table ID must not replace an existing table')
   if(d.gate.opening!==d.gate.boundaryOpening||d.gate.postX*2!==d.gate.opening)throw new Error('gate opening and posts must align')
   positive(d.gate.opening,'gate.opening')
+  positive(d.mailbox.scale,'mailbox.scale')
+  positive(d.planting.mailboxTreeClearance,'planting.mailboxTreeClearance')
+  positive(d.planting.facilityCanopyClearance,'planting.facilityCanopyClearance')
+  positive(d.rankingBoard.scale,'rankingBoard.scale')
+  if(d.planting.woodlandSupplementSpacing<3)throw new Error('woodlandSupplementSpacing must be at least 3m')
   for(const [id,k] of Object.entries(d.kiosks)){positive(k.width,`${id}.width`);positive(k.depth,`${id}.depth`)}
   for(const [id,n] of Object.entries({rx:d.lake.rx,rz:d.lake.rz,depth:d.lake.depth,swimmingThreshold:d.lake.swimmingThreshold,fountainScale:d.fountain.scale,vrWidth:d.vrCourt.width,vrDepth:d.vrCourt.depth}))positive(n,id)
   for(const n of Object.values(d.collision))if(n<0)throw new Error('collision clearances cannot be negative')

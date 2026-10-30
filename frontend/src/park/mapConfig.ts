@@ -13,11 +13,13 @@ export const BENCHES = generated ? p.data.interactions.benches.map(b => b.positi
 export const BENCH_IDS = generated ? p.data.interactions.benches.map(b => b.id) : base.BENCHES.map((_, n) => 'bench-' + n)
 export const BENCH_YAWS = generated ? p.data.interactions.benches.map(b => b.yaw) : base.BENCH_YAWS
 export const FITNESS_STATIONS = generated ? p.DRAFT_FITNESS_STATIONS : base.FITNESS_STATIONS
+// Diagonal stations need enough clearance to step outside their effective footprint.
+export const FITNESS = generated ? {...base.FITNESS,exitOffset:p.SETTINGS.fitness.exitOffset} : base.FITNESS
 export const FITNESS_AREA = generated ? p.DRAFT_FITNESS_AREA : base.FITNESS_AREA
 export const TELESCOPES = generated ? p.data.interactions.telescopes.map(t => ({...base.TELESCOPES.find(old => old.id === t.id)!, position:t.position, yaw:t.yaw})) : base.TELESCOPES
-export const MAILBOX = generated ? {...base.MAILBOX,...p.SITES.mailbox} : base.MAILBOX
+export const MAILBOX = generated ? {...base.MAILBOX,...p.SITES.mailbox,yaw:p.SETTINGS.mailbox.yaw,height:base.MAILBOX.height*p.SETTINGS.mailbox.scale,bodyHalfWidth:base.MAILBOX.bodyHalfWidth*p.SETTINGS.mailbox.scale,bodyHalfDepth:base.MAILBOX.bodyHalfDepth*p.SETTINGS.mailbox.scale} : base.MAILBOX
 export const NOTES_BOX = generated ? {...base.NOTES_BOX,x:p.data.interactions.notes.position[0],y:p.data.interactions.notes.position[1],z:p.data.interactions.notes.position[2]} : base.NOTES_BOX
-export const MINI_PROPS = generated ? [{...base.MINI_PROPS[0],...p.SITES.cart},{...base.MINI_PROPS[1],...p.SITES.vr}] as const : base.MINI_PROPS
+export const MINI_PROPS = generated ? [{...base.MINI_PROPS[0],...p.SITES.cart,...p.SETTINGS.fishBreadShop},{...base.MINI_PROPS[1],...p.SITES.vr}] as const : base.MINI_PROPS
 export const VR_ZONE = generated ? p.VR_COURT : base.VR_ZONE
 export const FOUNTAIN = generated ? {...base.FOUNTAIN,...p.SITES.fountain,plazaRadius:p.DRAFT_FOUNTAIN.plazaRadius} : base.FOUNTAIN
 export const GARDEN_PAGODA = generated ? {...base.GARDEN_PAGODA,...p.SITES.pagoda} : base.GARDEN_PAGODA

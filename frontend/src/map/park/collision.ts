@@ -1,5 +1,6 @@
 import { insideRoundedSquare } from '../geometry'
 import type { ParkDefinition,MapPoint } from './definition'
+import {MAILBOX} from '../../config/parkPlan'
 
 type Box={id:string;x:number;z:number;halfX:number;halfZ:number}
 type Run={from:MapPoint;to:MapPoint;id?:string}
@@ -23,7 +24,10 @@ export function buildCollision(input:{definition:ParkDefinition;boxes:readonly B
   return {
     boundary:{kind:'rounded-square',half:d.park.size/2-d.park.movementInset,radius:d.park.movementCornerRadius},
     obstacles:[
-      ...input.boxes.filter(b=>!kioskIds.has(b.id)&&b.id!=='fountain-basin').map((b):MapObstacle=>({...b,kind:'box',halfX:b.halfX+r.boxClearance,halfZ:b.halfZ+r.boxClearance,yaw:0})),
+      ...input.boxes.filter(b=>!kioskIds.has(b.id)&&b.id!=='fountain-basin').map((b):MapObstacle=>b.id==='fish-bread'
+        ? {...b,kind:'box',halfX:d.fishBreadShop.width/2+r.boxClearance,halfZ:d.fishBreadShop.depth/2+r.boxClearance,yaw:d.fishBreadShop.yaw}
+        : b.id==='feedback-mailbox'?{...b,kind:'box',halfX:MAILBOX.bodyHalfWidth*d.mailbox.scale+r.boxClearance,halfZ:MAILBOX.bodyHalfDepth*d.mailbox.scale+r.boxClearance,yaw:d.mailbox.yaw}
+        : {...b,kind:'box',halfX:b.halfX+r.boxClearance,halfZ:b.halfZ+r.boxClearance,yaw:0}),
       {id:'fountain-basin',kind:'circle',...d.sites.fountain,radius:d.fountain.baseFootRadius*d.fountain.scale+r.boxClearance},
       ...input.kiosks.map((k):MapObstacle=>({id:'layout-'+k.kind,kind:'box',x:k.x,z:k.z,halfX:k.width/2+r.boxClearance,halfZ:k.depth/2+r.boxClearance,yaw:k.yaw})),
       ...segments(input.fences,'fence',r.fenceRadius),

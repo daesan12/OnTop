@@ -3,17 +3,17 @@ import {it,expect} from 'vitest'
 import {plazaBuildingArt} from '../../src/layout-preview/PlazaBuildings'
 import {PARK_LAYOUT} from '../../src/map/park'
 
-it.each(['shop','photo'] as const)('keeps the complete %s roof, apron and steps inside the lawn pocket',(kind)=>{
+it.each(['drink','photo'] as const)('keeps the complete %s roof, apron and steps inside the lawn pocket',(kind)=>{
   const k=PARK_LAYOUT.KIOSKS.find(k=>k.kind===kind)!,plaza=PARK_LAYOUT.LIFE_PLAZA
   const bounds=new Box3()
   for(const geometry of Object.values(plazaBuildingArt[kind])){
     geometry.computeBoundingBox();bounds.union(geometry.boundingBox!)
   }
   // The authored roof/apron extends beyond the smaller solid building proxy.
-  expect(bounds.max.x-bounds.min.x).toBeGreaterThan(k.width)
-  expect(bounds.max.z-bounds.min.z).toBeGreaterThan(k.depth)
-  const world=(x:number,z:number)=>new Vector3(k.x+x*Math.cos(k.yaw)+z*Math.sin(k.yaw),0,k.z-x*Math.sin(k.yaw)+z*Math.cos(k.yaw))
-  const paths=PARK_LAYOUT.PATHS.filter(p=>!(kind==='shop'?['shop-approach']:['photo-front','photo-north']).includes(p.id))
+  expect((bounds.max.x-bounds.min.x)*k.scale).toBeGreaterThan(k.width)
+  expect((bounds.max.z-bounds.min.z)*k.scale).toBeGreaterThan(k.depth)
+  const world=(x:number,z:number)=>new Vector3(k.x+(x*Math.cos(k.yaw)+z*Math.sin(k.yaw))*k.scale,0,k.z+(-x*Math.sin(k.yaw)+z*Math.cos(k.yaw))*k.scale)
+  const paths=PARK_LAYOUT.PATHS.filter(p=>!(kind==='drink'?['raffle-approach']:['photo-front','photo-north']).includes(p.id))
   // Sample the conservative full rectangular envelope, including its interior.
   for(let x=bounds.min.x;x<=bounds.max.x+.001;x+=.2)for(let z=bounds.min.z;z<=bounds.max.z+.001;z+=.2){
     const p=world(x,z)

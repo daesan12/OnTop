@@ -87,11 +87,11 @@ describe('180m layout draft contracts',()=>{
     expect(DRAFT_FITNESS_AREA.width).toBeGreaterThan(DRAFT_FITNESS_AREA.depth);expect(DRAFT_FITNESS_AREA.depth).toBeLessThan(30)
     for(const s of DRAFT_FITNESS_STATIONS)expect(canWalk(s.position[0],s.position[2]),s.id).toBe(false)
   })
-  it('uses an elliptical fitness layout with clear shaded seats, a larger plaza and inward-facing small booths',()=>{
+  it('uses a concentric fitness circle with clear shaded seats, a larger plaza and inward-facing small booths',()=>{
     expect(SITES.fitness.z).toBeGreaterThan(56)
     for(const s of DRAFT_FITNESS_STATIONS) {
       const dx=s.position[0]-SITES.fitness.x,dz=s.position[2]-SITES.fitness.z
-      expect(Math.hypot(dx/11.5,dz/7.5)).toBeCloseTo(1)
+      expect(Math.hypot(dx,dz)).toBeCloseTo(SETTINGS.fitness.stationRadius)
       expect(Math.sin(s.yaw)*dx+Math.cos(s.yaw)*dz).toBeLessThan(0)
     }
     expect(canWalk(SITES.fitness.x,SITES.fitness.z)).toBe(false)
@@ -101,7 +101,7 @@ describe('180m layout draft contracts',()=>{
     expect(DRAFT_PAVILIONS.filter(p=>p.id==='P7'||p.id==='P8').every(p=>p.z>69)).toBe(true)
     expect(EVENT_GROVE.z).toBeGreaterThan(18);expect(EVENT_GROVE.width).toBe(32);expect(VR_COURT.depth).toBeGreaterThan(32)
     expect(VR_YAW).toBe(Math.PI/2)
-    for(const k of KIOSKS){expect(k.width).toBeGreaterThan(7);expect(k.depth).toBeGreaterThanOrEqual(5)}
+    for(const k of KIOSKS){expect(k.width).toBe(SETTINGS.kiosks[k.kind].width);expect(k.depth).toBe(SETTINGS.kiosks[k.kind].depth)}
   })
   it('joins the fishing decks to the path with gradual landings and keeps side rails solid',()=>{
     for(const [a,b] of [[42,45],[82,84]]) {
@@ -137,9 +137,9 @@ describe('180m layout draft contracts',()=>{
     for(const [x,,z] of DRAFT_LAMPS){expect(Math.abs(x)>=19||Math.abs(z+40)>=22).toBe(true);expect(Math.hypot(x-LIFE_PLAZA.x,z-LIFE_PLAZA.z)>=20).toBe(true);expect(canWalk(x,z)).toBe(false)}
     expect(STAIR_RAIL_RUNS).toHaveLength(8)
     for(const side of [-1,1])for(let d=13;d<=17;d+=.2){expect(canWalk(side*d,-40)).toBe(true);expect(canWalk(0,-40+side*d)).toBe(true)}
-    expect(KIOSKS.find(k=>k.kind==='shop')!.yaw).toBe(SETTINGS.kiosks.shop.yaw)
+    expect(KIOSKS.some(k=>k.kind==='shop')).toBe(false)
     expect(KIOSKS.find(k=>k.kind==='drink')!.yaw).toBe(SETTINGS.kiosks.drink.yaw)
-    expect(MARKERS.find(m=>m.id==='layout-drink')!.label).toBe('응모부스')
+    expect(MARKERS.find(m=>m.id==='layout-drink')!.label).toBe('복권방')
     for(const t of DRAFT_TABLES.slice(0,4))expect(Math.hypot(t.position[0]-LIFE_PLAZA.x,t.position[2]-LIFE_PLAZA.z)).toBeCloseTo(Math.sqrt(288))
   })
   it('bonds every stair-rail support to the rendered treads, and keeps the fitness ring bench backless',()=>{
@@ -159,7 +159,7 @@ describe('180m layout draft contracts',()=>{
     }
     expect(radii.length).toBeGreaterThan(50);expect(Math.min(...radii)).toBeGreaterThan(2.59);expect(Math.max(...radii)).toBeLessThan(3.38)
     ;(mesh.material as MeshBasicMaterial).dispose()
-    expect(KIOSKS.find(k=>k.kind==='shop')!.width).toBe(9.6);expect(KIOSKS.find(k=>k.kind==='drink')!.width).toBe(7.8)
+    expect(KIOSKS.find(k=>k.kind==='drink')!.width).toBe(SETTINGS.kiosks.drink.width)
     expect(SITES.vrPagoda.x-SITES.vr.x).toBe(21)
     expect(SITES.vr.x-4.8).toBeGreaterThan(VR_COURT.x-VR_COURT.width/2)
   })

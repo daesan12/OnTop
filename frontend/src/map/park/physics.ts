@@ -1,6 +1,6 @@
 import { MOVEMENT } from '../../config'
 import { createTowerRamp,createTowerDeck,towerPoint,OBSERVATION_TOWER,TOWER_DECK_RAIL_SEGMENTS } from '../../config/parkLayout'
-import { PAVILION_CLOSED_SIDES,PAVILION_TIMBER,TOWER_SITE,MAILBOX,MINI_PROPS } from '../../config/parkPlan'
+import { PAVILION_CLOSED_SIDES,PAVILION_TIMBER,TOWER_SITE,MAILBOX } from '../../config/parkPlan'
 import { GARDEN_PAGODA,PAGODA_COLLIDERS } from '../../config/pagoda'
 import { TELESCOPES } from '../../config/telescopes'
 import { roundedSquare } from '../geometry'
@@ -21,7 +21,7 @@ interface Input {
   pavilions:readonly {id:string;x:number;z:number;floor:number;scale:number}[]
   stairs:readonly {id:string;x:number;z:number;floor:number;join:number;count:number;tread:number}[]
   tables:readonly TableAnchor[];fitness:readonly FitnessStation[];benches:readonly BenchSite[]
-  kiosks:readonly {kind:string;x:number;z:number;width:number;depth:number;yaw:number}[]
+  kiosks:readonly {kind:string;x:number;z:number;width:number;depth:number;yaw:number;height?:number}[]
   plazaTrees:readonly {id:string;x:number;z:number}[]
   fences:readonly {id:string;from:readonly [number,number];to:readonly [number,number]}[]
   centralRails:readonly {id:string;from:readonly [number,number];to:readonly [number,number]}[]
@@ -86,7 +86,10 @@ export function buildPhysics(i:Input) {
   // The VR tower uses the same stepped model at its own 0.7 scale.
   const vr=d.sites.vrPagoda
   box('vr-pagoda-body',[vr.x,7,vr.z],[3,7,3])
-  for(const k of i.kiosks)box('layout-'+k.kind,[k.x,2.3,k.z],[k.width/2,2.3,k.depth/2],k.yaw)
+  for(const k of i.kiosks){
+    const halfHeight=(k.height??4.6)/2
+    box('layout-'+k.kind,[k.x,halfHeight,k.z],[k.width/2,halfHeight,k.depth/2],k.yaw)
+  }
   for(const p of d.plazaRestGardens)box(p.id,[p.x,.4,p.z],[p.width/2,.4,p.depth/2])
   for(const p of d.plazaBins)box(p.id,[p.x,.55,p.z],[.34,.55,.34])
   for(const [n,p] of d.vrEdgeTrees.entries())box('vr-belt-tree-'+n,[p.x,1.8,p.z],[.22,1.8,.22])
@@ -166,8 +169,8 @@ export function buildPhysics(i:Input) {
     segment(`tower-rail-${radius}-${n}`,[a[0]+dx,a[1],a[2]+dz],[b[0]+dx,b[1],b[2]+dz],.12,height)
   }
   TOWER_DECK_RAIL_SEGMENTS.forEach(([a,b],n)=>segment('tower-deck-rail-'+n,[a[0]+dx,a[1],a[2]+dz],[b[0]+dx,b[1],b[2]+dz],.12,1.4))
-  box('fish-bread',[d.sites.cart.x,MINI_PROPS[0].height/2,d.sites.cart.z],[MINI_PROPS[0].width/2,MINI_PROPS[0].height/2,MINI_PROPS[0].depth/2])
-  box('feedback-mailbox',[d.sites.mailbox.x,MAILBOX.height/2,d.sites.mailbox.z],[MAILBOX.bodyHalfWidth,MAILBOX.height/2,MAILBOX.bodyHalfDepth])
+  box('fish-bread',[d.sites.cart.x,d.fishBreadShop.height/2,d.sites.cart.z],[d.fishBreadShop.width/2,d.fishBreadShop.height/2,d.fishBreadShop.depth/2],d.fishBreadShop.yaw)
+  box('feedback-mailbox',[d.sites.mailbox.x,MAILBOX.height*d.mailbox.scale/2,d.sites.mailbox.z],[MAILBOX.bodyHalfWidth*d.mailbox.scale,MAILBOX.height*d.mailbox.scale/2,MAILBOX.bodyHalfDepth*d.mailbox.scale],d.mailbox.yaw)
   const [sx,sz]=d.park.spawn,centerOffset=MOVEMENT.radius+MOVEMENT.halfHeight+MOVEMENT.offset+d.physics.spawnClearance
   let spawnGround=i.supportHeight(sx,sz)
   for(const b of boxes)if(b.role==='surface') {
