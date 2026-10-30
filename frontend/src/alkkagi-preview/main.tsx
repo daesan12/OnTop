@@ -94,7 +94,7 @@ function App() {
       <summary>물리값 조절 · 로컬 전용 <span>현재 힘 {state?.settings.maximumImpulse ?? '—'} / 감속 {state?.settings.deceleration ?? '—'} / 반발 {state?.settings.restitution ?? '—'}</span></summary>
       <p>값을 바꾼 뒤 ‘적용하고 새 판’을 누르면 양쪽 화면에 반영됩니다. 진행 중인 판은 초기화됩니다.</p>
       {([
-        ['maximumImpulse', '발사 힘', .5, 30, .5, '높을수록 빠르고 세게 발사'],
+        ['maximumImpulse', '발사 힘', .5, 30, .5, '기준 세기 · 실제 타격량은 알 무게에 비례'],
         ['deceleration', '감속', .1, 20, .1, '높을수록 빨리 멈춤'],
         ['restitution', '반발', 0, 1, .01, '높을수록 충돌 후 더 잘 튕김'],
       ] as const).map(([key, title, min, max, step, description]) => <div className="tuning-row" key={key}>
@@ -124,7 +124,7 @@ function App() {
     <footer><p role="status">{notice}</p><div className="buttons">
       {actor === 0 && <button className="secondary" disabled={!connected || pending} onClick={() => send({ type: 'RESET' })}>새 판</button>}
       <a href="?role=red">홍팀</a><a href="?role=green" target="_blank">청팀 화면 열기 ↗</a><a href="?role=viewer" target="_blank">관전 ↗</a>
-    </div><small>작은 알은 가볍게, 큰 알은 무겁게 · 드래그 길이 = 힘 · Esc / 우클릭 취소</small>
+    </div><small>같은 당김에서도 큰 알의 타격량은 더 큽니다 · 드래그 길이 = 세기 · Esc / 우클릭 취소</small>
       <details><summary>동기화 정보</summary><code>snapshot {seq} · tick {state?.tick} · shot {state?.simulationId} · version {state?.version}<br />game {state?.gameId}<br />{state?.endReason}</code></details></footer>
   </main>
 }
@@ -157,7 +157,7 @@ function Scene({ state, replay, enabled, shoot, explain, blockedReason }: { stat
       const length = Math.hypot(dx, dy)
       if (length >= .08) {
         clear(); shoot(a.piece, dx / length, dy / length, Math.min(1, length / 2.5))
-      } else explain(`${a.piece.type} 선택됨 · 이 알을 누른 채 뒤로 당겼다 놓으면 발사됩니다.`)
+      } else explain(`${a.piece.type} 선택됨 · 타격량 ×${(a.piece.mass / .8).toFixed(2)} · 누른 채 뒤로 당겼다 놓으세요.`)
     }
     const key = (e: KeyboardEvent) => { if (e.key === 'Escape') clear() }
     const cancel = (e: Event) => { e.preventDefault(); clear() }
@@ -215,7 +215,7 @@ function Scene({ state, replay, enabled, shoot, explain, blockedReason }: { stat
         if (!piece.alive || piece.owner !== actor) { explain('상대 알입니다. 내 팀 색깔의 알을 골라주세요.'); return }
         gl.domElement.setPointerCapture(e.pointerId)
         selected.current = piece
-        explain(`${piece.type} 선택됨 · 마우스를 누른 채 뒤로 당기고 놓으세요.`)
+        explain(`${piece.type} 선택됨 · 타격량 ×${(piece.mass / .8).toFixed(2)} · 마우스를 누른 채 뒤로 당기고 놓으세요.`)
         aim.current = { piece, end: new Vector3(piece.x, .36, piece.y), gameId: state!.gameId, version: state!.version }
       }}><cylinderGeometry args={[piece.radius, piece.radius * 1.03, .27, 8]} /><meshStandardMaterial color="#f0d5a1" roughness={.65} /></mesh>
       <Label piece={piece} />

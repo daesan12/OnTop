@@ -1,11 +1,71 @@
 package com.ssafy.ontop.game.alkkagi.domain;
 
 import org.junit.jupiter.api.Test;
+import org.dyn4j.dynamics.Body;
+import org.dyn4j.geometry.Geometry;
+import org.dyn4j.geometry.MassType;
+import org.dyn4j.geometry.Vector2;
+import org.dyn4j.world.World;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class AlkkagiMatchTests {
+    @Test
+    void 같은_당김에서_큰_알은_더_큰_충격량으로_출발한다() {
+        var small = started(); var large = started();
+        small.shoot(0, shot(small, "small", "p13", 1, 0, .6), 1);
+        large.shoot(0, shot(large, "large", "p8", 1, 0, .6), 1);
+        small.advance(2); large.advance(2);
+        var soldier = small.snapshot(2).pieces().get(13);
+        var king = large.snapshot(2).pieces().get(8);
+
+        assertThat(AlkkagiMatch.launchImpulse(12, .6, king.mass()))
+                .isCloseTo(23.4, org.assertj.core.data.Offset.offset(1e-9));
+        assertThat(AlkkagiMatch.launchImpulse(12, .6, soldier.mass()))
+                .isCloseTo(7.2, org.assertj.core.data.Offset.offset(1e-9));
+        assertThat(king.vx()).isCloseTo(soldier.vx(), org.assertj.core.data.Offset.offset(1e-9));
+        assertThat(king.mass() * king.vx()).isGreaterThan(soldier.mass() * soldier.vx());
+    }
+
+    @Test
+    void 같은_작은_표적을_같은_당김으로_치면_큰_알의_충돌_효과가_더_크다() throws Exception {
+        double smallTargetSpeed = impactTargetSpeed(.8, .24);
+        double largeTargetSpeed = impactTargetSpeed(2.6, .42);
+
+        assertThat(largeTargetSpeed).isGreaterThan(smallTargetSpeed * 1.3);
+        var report = java.nio.file.Path.of("build/alkkagi/mass-impact.json");
+        java.nio.file.Files.createDirectories(report.getParent());
+        java.nio.file.Files.writeString(report, "{\"conditions\":\"stationary .8 target, power .6, restitution .9, 120Hz\","
+                + "\"smallProjectileMass\":0.8,\"largeProjectileMass\":2.6,\"smallTargetSpeed\":"
+                + smallTargetSpeed + ",\"largeTargetSpeed\":" + largeTargetSpeed + "}");
+    }
+
+    private double impactTargetSpeed(double mass, double radius) {
+        var world = new World<Body>();
+        world.setGravity(World.ZERO_GRAVITY);
+        world.getSettings().setStepFrequency(1.0 / 120);
+        var projectile = collisionBody(mass, radius);
+        var target = collisionBody(.8, .24);
+        target.translate(1.5, 0);
+        world.addBody(projectile); world.addBody(target);
+        projectile.applyImpulse(new Vector2(AlkkagiMatch.launchImpulse(12, .6, mass), 0));
+        for (int i = 0; i < 30; i++) { world.step(1); }
+        return target.getLinearVelocity().getMagnitude();
+    }
+
+    private Body collisionBody(double mass, double radius) {
+        var body = new Body();
+        var fixture = body.addFixture(Geometry.createCircle(radius));
+        fixture.setDensity(mass / (Math.PI * radius * radius));
+        fixture.setRestitution(.9);
+        fixture.setFriction(0);
+        body.setMass(MassType.FIXED_ANGULAR_VELOCITY);
+        body.setLinearDamping(0);
+        body.setBullet(true);
+        return body;
+    }
+
     @Test
     void 같은_발사에서_초기속도는_높이고_전체_미끄러짐은_짧게_줄인다() throws Exception {
         var current = AlkkagiSettings.provisional();

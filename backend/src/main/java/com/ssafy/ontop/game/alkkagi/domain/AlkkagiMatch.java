@@ -110,7 +110,7 @@ public final class AlkkagiMatch {
         double length = Math.hypot(shot.dx(), shot.dy());
         require(Double.isFinite(length) && length >= 0.0001 && length <= 1.0001, "INVALID_DIRECTION");
         piece.body.applyImpulse(new Vector2(shot.dx() / length, shot.dy() / length)
-                .multiply(settings.maximumImpulse() * shot.power()));
+                .multiply(launchImpulse(settings.maximumImpulse(), shot.power(), piece.mass)));
         timeouts[actor] = 0;
         stage = "SIMULATING";
         simulationId++;
@@ -123,6 +123,11 @@ public final class AlkkagiMatch {
             receipts.remove(receipts.keySet().iterator().next());
         }
         return version;
+    }
+
+    /** 발사 힘은 기본 병/졸(질량0.8)의 충격량. 큰 알도 조준 속도를 내되 더 큰 운동량을 가진다. */
+    static double launchImpulse(double referenceImpulse, double power, double mass) {
+        return referenceImpulse * power * (mass / 0.8);
     }
 
     public void advance(long now) {
