@@ -28,6 +28,7 @@ public final class ClientPositionValidator {
     interface Geometry {
         boolean supported(Pose pose);
         boolean clear(Pose from, Pose to, boolean allowStep);
+        default boolean clearCorner(Pose from, Pose to) { return false; }
         Double ceiling(Pose from, double rise);
         default double jumpSpeed(Pose from, boolean tuned) { return tuned ? 8 : 6.2; }
         default boolean swimming(Pose pose) { return false; }
@@ -148,7 +149,7 @@ public final class ClientPositionValidator {
                 if (supportedTo && target.y <= approved.y + .01
                         && (next.speed == 0 || now - next.started > 150_000_000L)) next = null;
             }
-            if (!geometry.clear(approved, target, supportedFrom && supportedTo)) {
+            if (!geometry.clear(approved, target, supportedFrom && supportedTo) && !geometry.clearCorner(approved, target)) {
                 // Sub-millimetre contact jitter must not disable the client profile.
                 // Acknowledge the report at the LAST SAFE point, never at target:
                 // repeated wall reports cannot accumulate penetration.
