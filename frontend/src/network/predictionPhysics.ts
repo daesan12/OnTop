@@ -10,6 +10,9 @@ import { addGeneratedPredictionColliders } from './predictionMap'
 import type { MovementIntent } from './movementInput'
 import type { Pose } from './worldClient'
 import type { PredictionSimulation } from './localMovementPrediction'
+import { COURSE_COLLIDERS } from '../features/jumpmap/course'
+import { useJumpmap } from '../features/jumpmap/state'
+import { JumpGrace, type JumpGraceSnapshot } from '../features/jumpmap/jumpGrace'
 
 let initialization: Promise<void> | undefined
 export async function createPredictionPhysics(): Promise<PredictionSimulation> {
@@ -28,6 +31,19 @@ class PredictionPhysics implements PredictionSimulation {
   private grounded = false
   private yaw = Math.PI
   private climbY = 0
+  private jumpEnabled = false
+  private readonly jumpGrace = new JumpGrace()
+  private readonly jumpColliders: RAPIER.Collider[] = []
+  private syncJumpCourse() {
+    const enabled = GENERATED_PARK_ENABLED && useJumpmap.getState().available
+    if (enabled === this.jumpEnabled) return
+    this.jumpEnabled = enabled
+    if (enabled && !this.jumpColliders.length) for (const b of COURSE_COLLIDERS) {
+      const desc = b.shape === 'cylinder' ? RAPIER.ColliderDesc.cylinder(b.half[1]!, b.radius!) : RAPIER.ColliderDesc.cuboid(b.half[0]!, b.half[1]!, b.half[2]!)
+      this.jumpColliders.push(this.world.createCollider(desc.setTranslation(b.center[0]!, b.center[1]!, b.center[2]!)))
+    }
+    for (const collider of this.jumpColliders) collider.setEnabled(enabled)
+  }
   constructor() {
     if (GENERATED_PARK_ENABLED) {
       this.chairs.push(...addGeneratedPredictionColliders(this.world))
@@ -71,16 +87,19 @@ class PredictionPhysics implements PredictionSimulation {
     this.world.timestep = 1 / 60
     this.world.step()
   }
-  reset(pose: Pose, velocityY: number, grounded: boolean) {
+  reset(pose: Pose, velocityY: number, grounded: boolean, grace?: JumpGraceSnapshot) {
+    this.syncJumpCourse()
     this.body.setTranslation(pose, true)
     this.body.setNextKinematicTranslation(pose)
     this.vy = velocityY; this.grounded = grounded; this.yaw = pose.yaw; this.climbY = 0
+    this.jumpGrace.reset(grounded, grace)
     this.world.step()
   }
   setChairs(counts: ReadonlyMap<string, number>) {
     for (const chair of this.chairs) chair.collider.setEnabled(chair.number <= (counts.get(chair.anchor) ?? 2))
   }
   step(input: MovementIntent, dt: number) {
+    this.syncJumpCourse()
     const p = this.body.translation()
     const swimming = lakeRadiusAt(p.x, p.z) < 1
       && LAKE.surfaceY - groundHeight(p.x, p.z) > SWIMMING.depthThreshold && p.y < LAKE.surfaceY + 0.4
@@ -92,7 +111,8 @@ class PredictionPhysics implements PredictionSimulation {
         && (s.x - p.x) * input.dx + (s.z - p.z) * input.dz > .02)
       if (stone) this.climbY = stone.top + MOVEMENT.halfHeight + MOVEMENT.radius + .16
     }
-    if (input.jump && this.grounded && !swimming) {
+    const jump = this.jumpEnabled ? this.jumpGrace.step(input.jump, this.grounded && !swimming, dt) : input.jump && this.grounded
+    if (jump && !swimming) {
       this.vy = predictionTowerSurface(p.x, p.y - MOVEMENT.halfHeight - MOVEMENT.radius - MOVEMENT.offset, p.z)
         ? OBSERVATION_TOWER.jumpSpeed : MOVEMENT.jumpSpeed
       this.grounded = false
