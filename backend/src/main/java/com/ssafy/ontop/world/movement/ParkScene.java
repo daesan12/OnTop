@@ -24,6 +24,7 @@ public final class ParkScene {
     private static ParkScene instance;
     final JsonNode data;
     final List<Shape> shapes;
+    final ParkMovementPolicy policy;
     private final WorldMapMetadata metadata;
 
     public static synchronized ParkScene load() {
@@ -59,6 +60,7 @@ public final class ParkScene {
     private ParkScene(JsonNode data, WorldMapMetadata metadata) {
         this.data = data;
         this.metadata = metadata;
+        this.policy = new ParkMovementPolicy(data);
         if (data.path("schemaVersion").asInt() != 1
                 || !data.path("units").asText().equals("m")
                 || !data.path("upAxis").asText().equals("Y")) {

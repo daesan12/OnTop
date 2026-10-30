@@ -27,6 +27,7 @@ public final class ClientPositionValidator {
         boolean supported(Pose pose);
         boolean clear(Pose from, Pose to, boolean allowStep);
         Double ceiling(Pose from, double rise);
+        default double jumpSpeed(Pose from, boolean tuned) { return tuned ? 8 : 6.2; }
     }
     record Decision(boolean accepted, String reason, Pose approved, long acceptedSeq) {}
     private record Flight(double originY, long started, double speed) {}
@@ -74,11 +75,12 @@ public final class ClientPositionValidator {
         double horizontal = Math.hypot(target.x - approved.x, target.z - approved.z);
         if (horizontal > budget + .0001) return deny("SPEED");
         boolean supportedFrom = geometry.supported(approved), supportedTo = geometry.supported(target);
+        double launchSpeed = geometry.jumpSpeed(approved, tuned);
         if (tuned) {
             double seconds = (now - approvedAt) / 1e9;
             // Bound large vertical changes, but do not demand Bullet/Rapier ballistic parity.
             double dy = target.y - approved.y;
-            if ((dy > 8 * seconds + .7 && !(candidate.jump && supportedFrom && dy <= 1.45))
+            if ((dy > launchSpeed * seconds + .7 && !(candidate.jump && supportedFrom && dy <= tunedRise(launchSpeed)))
                     || dy < -85 * seconds - .7) return deny("VERTICAL");
             // The client integrator advances at most 100ms after a rendering stall.
             // Do not count an unobserved packet gap as continuous hovering.
@@ -90,7 +92,7 @@ public final class ClientPositionValidator {
                 nextAirAt = now; nextAirY = target.y;
             }
             Flight next = flight;
-            if (next == null && candidate.jump && supportedFrom) next = new Flight(approved.y, now, 8);
+            if (next == null && candidate.jump && supportedFrom) next = new Flight(approved.y, now, launchSpeed);
             if (next == null) {
                 // Grounded steps/slopes retain the existing geometric allowance.
                 // Leaving support without a jump can fall, but cannot invent lift.
@@ -104,7 +106,7 @@ public final class ClientPositionValidator {
             if (next != null) {
                 // Selected jump peaks at about 1.21m. Permit solver/timing margin,
                 // without demanding frame-exact Bullet/Rapier ballistic parity.
-                double riseLimit = next.speed > 0 ? 1.45 : .05;
+                double riseLimit = next.speed > 0 ? tunedRise(next.speed) : .05;
                 if (target.y > next.originY + riseLimit) return deny("JUMP_HEIGHT");
                 if (supportedTo && target.y <= approved.y + .01
                         && (next.speed == 0 || now - next.started > 150_000_000L)) next = null;
@@ -128,7 +130,7 @@ public final class ClientPositionValidator {
         Flight next = flight;
         if (next == null && candidate.jump && supportedFrom) {
             long takeoff = target.y - approved.y > .1 ? approvedAt : now;
-            next = new Flight(approved.y, takeoff, 6.2);
+            next = new Flight(approved.y, takeoff, launchSpeed);
         }
         if (next == null && !supportedTo) next = new Flight(approved.y, approvedAt, 0);
         if (next != null) {
@@ -158,6 +160,11 @@ public final class ClientPositionValidator {
         if (!geometry.clear(approved, target, supportedFrom && supportedTo)) return deny("COLLISION");
         budget -= horizontal; approved = target; sequence = candidate.seq; approvedAt = now; flight = next;
         return new Decision(true, "ACCEPTED", approved, sequence);
+    }
+    private static double tunedRise(double speed) {
+        double height = 0;
+        for (double velocity = speed; velocity > 0; velocity = (velocity - 1.5) * .98) height += velocity * .05;
+        return height + .24;
     }
     private Decision deny(String reason) { return new Decision(false, reason, approved, sequence); }
     private static boolean finite(Pose p) { return p != null && Double.isFinite(p.x) && Double.isFinite(p.y) && Double.isFinite(p.z); }
