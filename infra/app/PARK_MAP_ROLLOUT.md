@@ -3,11 +3,11 @@
 ## 현재 상태와 고정 기준
 
 - FE 전달 기준은 MR !199, 머지 커밋 `927f25210afe048f71e65e6abded06e85edb83b8`이다. 이 파일이 추가된 `dev`에는 이후 BE의 18개 테이블 매핑도 들어 있다.
-- 현재 후보: `mapId=park`, `schemaVersion=2`, `mapVersion=cac3cb040a43630b0b40201ab089a4b328146c03211867b2a155d2b3614acc81`. `server-map.json` 원본 SHA-256은 `cd7e8e93333d3bdb3ecb8d1b72da6709f4cd88c6f0a77a0030c71f77a45e40c4`이다.
+- 현재 후보: `mapId=park`, `schemaVersion=2`, `mapVersion=04350122fdeee2b89212345ee4f776990d78832bb25435418b5ea6f2b2fbc769`. `server-map.json` 원본 SHA-256은 `0620716f518d499992e8c8cc7bc8dbf8c3d818216871d80bc6e0264ab92245a0`이다.
 - 개발 매핑의 BE 확정본은 `8c7bf72`에 반영된 `docs/integration/park-180/park-bindings.dev.json`이다(2026-10-30 담당자 확인). `frontend/public/park-bindings.generated.dev.json`은 바이트까지 동일한 FE 정적 응답 파일이다. Git 원본과 Linux 서버 파일의 SHA-256은 `f959b89c6bfd1873f565e5e9fe87594f6bebd5427da00ef169b09bc15feacc62`이다. Windows에서 CRLF로 체크아웃한 작업 파일은 바이트 해시가 다를 수 있으므로 배포 기록에는 Git 원본 해시를 사용한다.
 - DEV 자동 배포는 `frontend/vercel.dev.json`을 명시해 `VITE_PARK_BINDINGS_URL=/park-bindings.generated.dev.json pnpm run build:park`와 `dist-park`를 사용한다. 기본 `vercel.json`과 운영 프로젝트의 빌드 설정은 유지한다. 새 FE 게시 전 실행 중 DEV BE의 generated 맵 identity가 일치해야 한다.
 - 운영용 채널 매핑 파일은 아직 확정되지 않았다. 운영 FE에 개발용 매핑을 재사용하지 않는다.
-- 2026-10-30 DEV-CI에는 위 두 맵 JSON을 `/opt/ontop/maps/cac3cb040a43630b0b40201ab089a4b328146c03211867b2a155d2b3614acc81/`에 스테이징했다. 서버에서 map SHA-256과 manifest SHA-256(`db33a56ed1f1e76c5c4594e1790a885a2290db6337243176eb5f8130aa2f8673`)을 확인했다. 디렉터리는 `root:root 0755`, 파일은 `root:root 0644`이며 `park-map.enabled` 표식은 없고 기존 DEV 앱은 `healthy`다. 파일 공급 준비만 완료한 상태다.
+- 2026-10-30 DEV-CI에는 위 두 맵 JSON을 `/opt/ontop/maps/04350122fdeee2b89212345ee4f776990d78832bb25435418b5ea6f2b2fbc769/`에 스테이징했다. 서버에서 map SHA-256과 manifest SHA-256(`f6e6e8a06ff4e3357336f0b134230103160eac7bd24b15e9c51387315529e668`)을 확인했다. 디렉터리는 `root:root 0755`, 파일은 `root:root 0644`이며 기존 DEV 앱은 전환 전까지 이전 맵을 유지한다.
 - 현재 `https://dev.on-top.world/park-bindings.generated.dev.json`은 HTTP 200 JSON이며 18개 bindings·5개 emotes를 제공한다. 2026-10-30 응답 본문의 SHA-256도 위 BE 확정본과 일치했다. URL 제공 확인은 새 맵 화면 전환과 별개다.
 
 ## CI에서 확인하는 것
