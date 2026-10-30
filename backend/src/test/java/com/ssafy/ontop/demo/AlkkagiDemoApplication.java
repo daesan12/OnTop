@@ -192,7 +192,7 @@ public final class AlkkagiDemoApplication {
             if (!input.path("maximumImpulse").isNumber() || !input.path("deceleration").isNumber()
                     || !input.path("restitution").isNumber() || !Double.isFinite(impulse)
                     || !Double.isFinite(deceleration) || !Double.isFinite(restitution)
-                    || impulse < 0.5 || impulse > 30 || deceleration < 0.1 || deceleration > 20
+                    || impulse < 0.5 || impulse > 30 || deceleration < 0.1 || deceleration > 60
                     || restitution < 0 || restitution > 1) {
                 throw new IllegalArgumentException("INVALID_TUNING");
             }

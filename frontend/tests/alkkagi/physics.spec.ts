@@ -95,6 +95,6 @@ test('로컬 조절 패널이 서버와 다른 화면에 적용되고 기본값�
   await page.getByRole('button', { name: '기본값으로 새 판', exact: true }).click()
   await expect.poll(() => states.at(-1)?.settings.maximumImpulse).toBe(12)
   await expect(page.getByRole('spinbutton', { name: '발사 힘 값', exact: true })).toHaveValue('12')
-  await expect(page.getByRole('spinbutton', { name: '감속 값', exact: true })).toHaveValue('5')
+  await expect(page.getByRole('spinbutton', { name: '감속 값', exact: true })).toHaveValue('30')
   await expect(page.getByRole('spinbutton', { name: '반발 값', exact: true })).toHaveValue('0.9')
 })

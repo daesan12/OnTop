@@ -12,6 +12,52 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class AlkkagiMatchTests {
     @Test
+    void 모든_크기의_최대힘_자유발사는_네칸_안에_멈추고_약한_당김은_짧게_간다() throws Exception {
+        var settings = AlkkagiSettings.provisional();
+        var previous = new AlkkagiSettings(4.5, 5, 1.0 / 120, 5, .9, 12, .025,
+                24, 3600, 30_000, 720_000);
+        var pieces = started().snapshot(0).pieces();
+        var rows = new java.util.ArrayList<String>();
+        for (int id : new int[]{13, 0, 8}) {
+            var piece = pieces.get(id);
+            var old = freeFlight(piece, 1, previous);
+            var full = freeFlight(piece, 1, settings);
+            var half = freeFlight(piece, .5, settings);
+            var quarter = freeFlight(piece, .25, settings);
+            assertThat(old[0]).isGreaterThan(22);
+            assertThat(full[0]).isBetween(3.0, 4.0);
+            assertThat(full[1]).isLessThan(.6);
+            assertThat(half[0]).isBetween(.5, 1.2);
+            assertThat(quarter[0]).isBetween(.05, .3);
+            assertThat(quarter[0]).isLessThan(half[0]);
+            assertThat(half[0]).isLessThan(full[0]);
+            rows.add("{\"type\":\"" + piece.type() + "\",\"beforeFullDistance\":" + old[0]
+                    + ",\"fullDistance\":" + full[0] + ",\"movingSeconds\":" + full[1]
+                    + ",\"halfDistance\":" + half[0] + ",\"quarterDistance\":" + quarter[0] + "}");
+        }
+        var path = java.nio.file.Path.of("build/alkkagi/free-flight-comparison.json");
+        java.nio.file.Files.createDirectories(path.getParent());
+        java.nio.file.Files.writeString(path, "{\"conditions\":\"isolated no collision/boundary, actual body/deceleration, 120Hz, impulse12, deceleration5 vs30\",\"rows\":["
+                + String.join(",", rows) + "]}");
+    }
+
+    private double[] freeFlight(AlkkagiMatch.PieceView piece, double power, AlkkagiSettings settings) {
+        var world = new World<Body>();
+        world.setGravity(World.ZERO_GRAVITY);
+        world.getSettings().setStepFrequency(settings.stepSeconds());
+        var body = AlkkagiMatch.collisionBody(piece.radius(), piece.mass(), settings.restitution());
+        world.addBody(body);
+        body.applyImpulse(new Vector2(AlkkagiMatch.launchImpulse(settings.maximumImpulse(), power, piece.mass()), 0));
+        int movingSteps = 0;
+        for (int i = 0; i < 480; i++) {
+            AlkkagiMatch.decelerate(body, settings);
+            world.step(1);
+            if (body.getLinearVelocity().getMagnitude() > settings.stopSpeed()) movingSteps++;
+        }
+        return new double[]{body.getWorldCenter().x, movingSteps * settings.stepSeconds()};
+    }
+
+    @Test
     void 같은_당김에서_출발속도는_유지하고_큰알_충격량은_더_크다() {
         var small = started(); var large = started();
         small.shoot(0, shot(small, "small", "p13", 1, 0, .6), 1);

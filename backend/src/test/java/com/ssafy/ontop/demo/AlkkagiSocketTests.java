@@ -38,7 +38,7 @@ class AlkkagiSocketTests {
             green.sendText(valid, true).join();
             assertThat(b.until(m -> m.path("type").asText().equals("ERROR")).path("code").asText())
                     .isEqualTo("RED_TUNING_ONLY");
-            for (String invalid : new String[]{"0", "21", "\"NaN\"", "1e309"}) {
+            for (String invalid : new String[]{"0", "61", "\"NaN\"", "1e309"}) {
                 red.sendText(prefix + "\"maximumImpulse\":12,\"deceleration\":" + invalid
                         + ",\"restitution\":0.9}", true).join();
                 assertThat(a.until(m -> m.path("type").asText().equals("ERROR")).path("code").asText())
@@ -67,7 +67,7 @@ class AlkkagiSocketTests {
             var defaults = a.until(m -> m.path("type").asText().equals("STATE")
                     && !m.path("state").path("gameId").equals(reset.path("state").path("gameId")));
             assertThat(defaults.path("state").path("settings").path("maximumImpulse").asDouble()).isEqualTo(12);
-            assertThat(defaults.path("state").path("settings").path("deceleration").asDouble()).isEqualTo(5);
+            assertThat(defaults.path("state").path("settings").path("deceleration").asDouble()).isEqualTo(30);
         } finally {
             red.abort(); green.abort();
         }

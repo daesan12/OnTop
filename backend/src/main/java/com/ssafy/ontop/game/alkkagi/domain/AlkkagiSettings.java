@@ -20,7 +20,7 @@ public record AlkkagiSettings(double halfWidth, double halfHeight, double stepSe
 
     public static AlkkagiSettings provisional() {
         // 빠른 타격 후 짧게 감속한다. 원작 실측이 아닌 사용자 손맛 검수용 설정이다.
-        return new AlkkagiSettings(4.5, 5, 1.0 / 120, 5.0, 0.90, 12, 0.025,
+        return new AlkkagiSettings(4.5, 5, 1.0 / 120, 30.0, 0.90, 12, 0.025,
                 24, 3600, 30_000, 720_000);
     }
 }
