@@ -5,13 +5,14 @@ import java.util.Optional;
 import java.util.concurrent.Callable;
 
 /**
- * 프로세스 시작 시 한 번 정한 점프맵 코스 활성 여부. 서버 충돌체 추가와 이후 REST status의
- * enabled는 이 결정만 함께 사용한다. 비활성이어도 기존 공원 이동은 그대로 동작한다.
+ * 프로세스 시작 시 한 번 정한 점프맵 활성 여부. 서버 코스 충돌체, 판정·지급, REST status의 enabled는
+ * 모두 이 결정 하나만 사용한다. 비활성이어도 기존 공원 이동은 그대로 동작한다.
  */
 public final class JumpmapActivation {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(JumpmapActivation.class);
 
-    public enum State { DISABLED, INVALID_COURSE, MAP_MISMATCH, ACTIVE }
+    /** NO_STORE: DB 저장소(판·지급·지갑)가 없는 실행 환경. 충돌체도 켜지 않는다. */
+    public enum State { DISABLED, NO_STORE, INVALID_COURSE, MAP_MISMATCH, ACTIVE }
 
     private final State state;
     private final JumpCourse course;
@@ -25,10 +26,20 @@ public final class JumpmapActivation {
         return new JumpmapActivation(State.DISABLED, null);
     }
 
-    /** 플래그가 꺼져 있으면 코스 파일도 읽지 않는다. 코스 오류는 서버 시작을 막지 않고 점프맵만 끈다. */
+    /** 저장소를 확인하지 않는 판정(충돌체 테스트용). 운영 구성은 저장소 인자를 받는 판정을 쓴다. */
     public static JumpmapActivation decide(boolean enabled, String mapVersion, Callable<JumpCourse> loader) {
+        return decide(enabled, mapVersion, loader, true);
+    }
+
+    /** 플래그가 꺼져 있으면 코스 파일도 읽지 않는다. 코스·저장소 문제는 서버 시작을 막지 않고 점프맵만 끈다. */
+    public static JumpmapActivation decide(boolean enabled, String mapVersion, Callable<JumpCourse> loader,
+            boolean storeAvailable) {
         if (!enabled) {
             return disabled();
+        }
+        if (!storeAvailable) {
+            log.warn("점프맵 저장소(db 프로필)가 없어 비활성화");
+            return new JumpmapActivation(State.NO_STORE, null);
         }
         JumpCourse course;
         try {

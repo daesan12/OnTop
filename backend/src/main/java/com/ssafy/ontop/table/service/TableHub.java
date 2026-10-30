@@ -172,6 +172,11 @@ public class TableHub {
     public void configureSpectatorEvents(SpectatorEventPolicy policy) { spectatorEvents = policy; }
     // 점프맵 서비스가 없으면(비활성) 판정 신호를 버린다.
     private java.util.function.Consumer<java.util.List<WorldChannelRegistry.JumpmapDelivery>> jumpmapSignals = ignored -> { };
+
+    @Autowired(required = false)
+    public void configureJumpmap(com.ssafy.ontop.world.jumpmap.JumpmapService service) {
+        jumpmapSignals = deliveries -> deliveries.forEach(delivery -> service.accept(delivery.signal(), delivery.recipients()));
+    }
     private final ExecutorService startWorkers = Executors.newVirtualThreadPerTaskExecutor();
     private final ScheduledExecutorService heartbeatTimer = Executors.newSingleThreadScheduledExecutor(
             Thread.ofPlatform().daemon(true).name("table-heartbeat").factory());
