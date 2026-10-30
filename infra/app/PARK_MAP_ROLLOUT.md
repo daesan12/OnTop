@@ -3,7 +3,7 @@
 ## 현재 상태와 고정 기준
 
 - 최초 FE 전달 기준은 MR !199, 머지 커밋 `927f25210afe048f71e65e6abded06e85edb83b8`이다. 이 파일이 추가된 `dev`에는 이후 BE의 18개 테이블 매핑도 들어 있다.
-- 광장 수정 최신 후보: `mapId=park`, `schemaVersion=2`, `mapVersion=36f22a29154bba5715ba4d4c51f164512f46890e621b868a21d7c2cf654f6131`. `server-map.json` SHA-256은 `df7eda832e9d9f48d19004534e5fbd5214a9085de76868bf05d05ea47da08270`이다. [최신 요청문](../../docs/integration/park-180/plaza-infra-request.md)의 같은 커밋 생성물을 사용한다. 최신 후보의 서버 스테이징·전환은 이번 로컬 준비에서 실행하지 않았다.
+- 광장 수정 최신 후보: `mapId=park`, `schemaVersion=2`, `mapVersion=a0f4df03ce302cfc8a82d2c9c933ae1a8d58dfaea307640e1191a7ab4556a620`. `server-map.json` SHA-256은 `326a2812f3dea49cb72fbd808c8f846aebea66061ce9eb1086f373151b074cac`이다. [최신 요청문](../../docs/integration/park-180/plaza-infra-request.md)의 같은 커밋 생성물을 사용한다. 최신 후보의 서버 스테이징·전환은 이번 로컬 준비에서 실행하지 않았다.
 - 개발 매핑의 BE 확정본은 `8c7bf72`에 반영된 `docs/integration/park-180/park-bindings.dev.json`이다(2026-10-30 담당자 확인). `frontend/public/park-bindings.generated.dev.json`은 바이트까지 동일한 FE 정적 응답 파일이다. Git 원본과 Linux 서버 파일의 SHA-256은 `f959b89c6bfd1873f565e5e9fe87594f6bebd5427da00ef169b09bc15feacc62`이다. Windows에서 CRLF로 체크아웃한 작업 파일은 바이트 해시가 다를 수 있으므로 배포 기록에는 Git 원본 해시를 사용한다.
 - DEV 자동 배포는 `frontend/vercel.dev.json`을 명시해 `VITE_PARK_BINDINGS_URL=/park-bindings.generated.dev.json pnpm run build:park`와 `dist-park`를 사용한다. 기본 `vercel.json`과 운영 프로젝트의 빌드 설정은 유지한다. 새 FE 게시 전 실행 중 DEV BE의 generated 맵 identity가 일치해야 한다.
 - 운영용 채널 매핑 파일은 아직 확정되지 않았다. 운영 FE에 개발용 매핑을 재사용하지 않는다.

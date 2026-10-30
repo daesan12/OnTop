@@ -4,7 +4,7 @@ import { roundedSquare,insideRoundedSquare } from '../world/art/roundedOutline'
 import { ExtrudeGeometry,Path, Shape, ShapeGeometry } from 'three'
 import { PropBuilder } from '../world/art/propGeometry'
 import { beam, seeded, type Part } from '../world/art/Instances'
-import { DRAFT_PARK,SETTINGS,KIOSKS, DRAFT_PAVILIONS,DRAFT_STAIRS,PAVILION_COURT,DRAFT_FITNESS_AREA,DRAFT_FOUNTAIN,VR_COURT, DRAFT_BOXES, FENCE_BLOCKERS, LIFE_PLAZA, SITES, TREE_LAMP_RESERVATIONS, onPath } from './layout'
+import { DRAFT_PARK,SETTINGS,KIOSKS, DRAFT_PAVILIONS,DRAFT_STAIRS,PAVILION_COURT,DRAFT_FITNESS_AREA,DRAFT_FOUNTAIN,VR_COURT, DRAFT_BOXES, FENCE_BLOCKERS, LIFE_PLAZA, SITES, TREE_LAMP_RESERVATIONS, DRAFT_LAMPS, onPath } from './layout'
 import { FISHING_DECKS,FISHING_LANDINGS,shoreAccess } from './lakeLayout'
 import { createStairFlight } from './stairFlightGeometry'
 
@@ -119,7 +119,7 @@ for(const side of [-1,1])for(let z=-75;z<84;z+=7) {
 }
 
 // Filter after seeded construction so clearing one facility does not reshuffle the forest.
-const facilityPlantingClearing=(x:number,z:number)=>inCanopyClearing(x,z,SITES.cart,SETTINGS.fishBreadShop,SETTINGS.planting.facilityCanopyClearance)||inKioskEntrance(x,z,[{...SITES.cart,...SETTINGS.fishBreadShop}])||inCanopyClearing(x,z,SITES.photo,{...SETTINGS.rankingBoard,yaw:SETTINGS.kiosks.photo.yaw},SETTINGS.planting.facilityCanopyClearance)
+const facilityPlantingClearing=(x:number,z:number)=>inCanopyClearing(x,z,SITES.cart,SETTINGS.fishBreadShop,SETTINGS.planting.facilityCanopyClearance)||inKioskEntrance(x,z,[{...SITES.cart,...SETTINGS.fishBreadShop}])||inCanopyClearing(x,z,SITES.photo,{...SETTINGS.rankingBoard,yaw:SETTINGS.kiosks.photo.yaw},SETTINGS.planting.facilityCanopyClearance)||inCanopyClearing(x,z,SITES.drink,SETTINGS.kiosks.drink,SETTINGS.planting.facilityCanopyClearance)||inKioskEntrance(x,z,KIOSKS)||DRAFT_LAMPS.some(p=>Math.hypot(x-p[0],z-p[2])<2)
 for(let i=trunks.length-1;i>=0;i--)if(inMailboxClearing(trunks[i]!.p[0],trunks[i]!.p[2],SITES.mailbox,SETTINGS.planting.mailboxTreeClearance)||facilityPlantingClearing(trunks[i]!.p[0],trunks[i]!.p[2])){
   trunks.splice(i,1);crowns.splice(i,1)
 }

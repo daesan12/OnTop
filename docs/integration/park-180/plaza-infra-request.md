@@ -4,14 +4,16 @@
 
 안녕하세요. 광장 수정 맵의 FE·BE 버전 준비와 코드 검증을 완료해 DEV 환경 공동 전환을 요청드립니다. 시설 좌표 인계와 BE 담당자 조율은 제가 별도로 진행하겠습니다.
 
+복권방을 광장 쪽으로 약 1.8m 당기고, 뒤편 나무 네 그루와 가로등 세 개 재배치를 반영한 최종 후보입니다. 이전 `36f22a29154b…` 전달 ZIP 대신 아래 버전의 새 ZIP을 사용해 주세요. 가로등 42개 ID와 기존 테이블·좌석 ID는 유지했습니다.
+
 배포 기준은 `feat/plaza-lucky-facilities`의 **이 요청문을 포함하는 최종 커밋**입니다. 전달 ZIP의 `release.json.sourceCommit`에 전체 Git SHA가 있습니다. 다른 작업을 병합해 맵 원본이 바뀌면 그 합본에서 다시 생성·검증한 버전을 사용해 주세요.
 
 | 항목 | 확정값 |
 |---|---|
 | mapId / schemaVersion | `park` / `2` |
-| mapVersion | `36f22a29154bba5715ba4d4c51f164512f46890e621b868a21d7c2cf654f6131` |
-| server-map.json SHA-256 | `df7eda832e9d9f48d19004534e5fbd5214a9085de76868bf05d05ea47da08270` |
-| manifest.json SHA-256 | `ec35b3b01896aff143e93a0a2a7202dfdc416068f80609aefd15626b9d7e142a` |
+| mapVersion | `a0f4df03ce302cfc8a82d2c9c933ae1a8d58dfaea307640e1191a7ab4556a620` |
+| server-map.json SHA-256 | `326a2812f3dea49cb72fbd808c8f846aebea66061ce9eb1086f373151b074cac` |
+| manifest.json SHA-256 | `9ca52d461c7a5e3cc4123b117080f63928ad22418e3629c2fd64f4f6f125fe75` |
 
 같은 커밋의 다음 파일을 한 세트로 적용 부탁드립니다.
 
@@ -25,7 +27,7 @@ FE 빌드는 frontend에서 다음 명령으로 진행하며 출력은 `dist-par
 VITE_PARK_BINDINGS_URL=/park-bindings.generated.dev.json pnpm run build:park
 ```
 
-BE는 새 버전 디렉터리 `/opt/ontop/maps/36f22a29154bba5715ba4d4c51f164512f46890e621b868a21d7c2cf654f6131/`에 두 JSON을 스테이징하고, 기존 generated-map Compose 구성을 사용해 주세요.
+BE는 새 버전 디렉터리 `/opt/ontop/maps/a0f4df03ce302cfc8a82d2c9c933ae1a8d58dfaea307640e1191a7ab4556a620/`에 두 JSON을 스테이징하고, 기존 generated-map Compose 구성을 사용해 주세요.
 
 ```text
 WORLD_MAP_SOURCE=generated
@@ -36,7 +38,7 @@ WORLD_MAP_REQUIRE_MATCH=true
 
 서버 파일 스테이징·앱 재생성·FE 게시 순서는 `infra/app/PARK_MAP_ROLLOUT.md`를 따라 공동 점검 시간에 한 번의 전환 일정으로 묶어주세요. 파일 복사만으로는 실행 중 BE에 반영되지 않으므로 앱 재생성이 필요합니다. 기존 FE/BE/맵/설정의 호환 세트도 함께 복구할 수 있게 기록 부탁드립니다.
 
-현재 전달 JSON으로 BE 6개 클래스 15개 테스트를 실행했고 실패·스킵 없이 통과했습니다. FE 버전 선택·입장 확인과 시설 배치·점프맵 전달본 등 162개 검사, 브라우저 회귀 6개 및 DEV 매핑 URL을 지정한 정식 새 공원 빌드도 통과했습니다. 결과는 ZIP의 `verification.json`에 있습니다.
+현재 전달 JSON으로 BE 6개 클래스 15개 테스트를 실행했고 실패·스킵 없이 통과했습니다. FE 버전 선택·입장 확인과 시설 배치·점프맵 전달본 등 163개 검사, 브라우저 회귀 6개 및 DEV 매핑 URL을 지정한 정식 새 공원 빌드도 통과했습니다. 결과는 ZIP의 `verification.json`에 있습니다.
 
 전환 후 BE 시작 로그와 FE의 `WORLD_MAP_CONFIRM` 값이 위 버전인지, `WORLD_MAP_STATE.verified=true` 이후 입장되는지 확인 부탁드립니다. 로그인·공원 입장·이동/충돌·18개 테이블·소리함·붕어빵 접근·재접속도 공동 확인하고, 적용 커밋·FE 배포 ID·BE 이미지·맵 버전·완료 시간을 공유해 주세요.
 
@@ -54,7 +56,7 @@ WORLD_MAP_REQUIRE_MATCH=true
 
 정식 `build:park`의 exporter로 `frontend/docs/jumpmap/course.generated.json`과 `.sha256`도 현재 기본 맵 버전에 동기화했다. 기본 공원 JSON과 별도 계약이며 코스 좌표·`courseVersion=park180-jump-v1`·`rulesVersion=v2`는 유지한다.
 
-- course JSON SHA-256: `1cc6a2635b96ad34366aa45b6b9a5da1add93f84808d5ed87975a1ea00b4ccae`
+- course JSON SHA-256: `a492d99adbdb58fcde5b340a36ba4ee3ac084cbc0b09da478928e43ddf1e4fcc`
 - BE가 별도 점프맵 API·물리·보상 계약을 제공하지 않으면 기존 비활성 처리를 유지한다. 기본 공원 맵 전환만으로 점프맵 기능까지 활성화하지 않는다.
 - 별도 연동은 `frontend/docs/jumpmap/BE_추가요청_2026-10-30.md`를 참고한다. 사용자/BE 담당자 간 인계 시 이번에 동기화한 코스 파일을 사용한다.
 

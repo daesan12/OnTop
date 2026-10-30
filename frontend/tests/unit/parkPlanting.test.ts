@@ -50,6 +50,22 @@ it('surrounds the enlarged fish shop on both sides and behind, with no crowns in
  expect(local.some(p=>p.forward<-5.5)).toBe(true)
 })
 
+it('plants a rear lottery grove clear of the roof, front entrance and adjoining paths',()=>{
+ const {drink:site}=PARK_LAYOUT.SITES,roof=PARK_LAYOUT.SETTINGS.kiosks.drink
+ const grove=PARK_LAYOUT.PLAZA_TREE_SITES.filter(t=>t.id.startsWith('lottery-back-tree-'))
+ expect(grove).toHaveLength(4)
+ for(const t of grove){
+  const dx=t.x-site.x,dz=t.z-site.z
+  expect(dx*Math.sin(roof.yaw)+dz*Math.cos(roof.yaw)).toBeLessThan(-4.7)
+  expect(PARK_LAYOUT.onPath(t.x,t.z,.9)).toBe(false)
+  expect(PARK_DATA.physics.boxes.some(b=>b.id===t.id)).toBe(true)
+ }
+ for(const t of [...trunks,...shoreTrunks,...Object.values(simpleTreeBelts).flatMap(b=>b.trunks)]){
+  expect(inCanopyClearing(t.p[0],t.p[2],site,roof,1.7)).toBe(false)
+  expect(inKioskEntrance(t.p[0],t.p[2],[{...site,...roof}])).toBe(false)
+ }
+})
+
 it('removes ranking fences from rendered runs and both collision contracts, and places the mailbox nearby',()=>{
  const prefix='kiosk-photo-'
  for(const list of [PARK_LAYOUT.FENCE_RUNS,PARK_DATA.physics.boxes,PARK_DATA.collision.obstacles])expect(list.some(p=>p.id.startsWith(prefix))).toBe(false)

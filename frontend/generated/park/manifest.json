@@ -1,14 +1,14 @@
 {
   "artifacts": [
     {
-      "bytes": 2551286,
+      "bytes": 2551277,
       "path": "generated/park/server-map.json",
-      "sha256": "df7eda832e9d9f48d19004534e5fbd5214a9085de76868bf05d05ea47da08270"
+      "sha256": "326a2812f3dea49cb72fbd808c8f846aebea66061ce9eb1086f373151b074cac"
     },
     {
       "bytes": 329,
       "path": "src/map/park/generated/mapVersion.ts",
-      "sha256": "c86f7472500a64efb45290243ed1053fa4450ac0edab3da8d964b66ddff248b6"
+      "sha256": "0da3790268603aa40bd22232271b6252a8612b7751ace0b0c5dbdf9b8c1ced35"
     }
   ],
   "counts": {
@@ -29,11 +29,11 @@
   "format": "ontop.park-map-manifest",
   "hashAlgorithm": "sha256",
   "hashes": {
-    "dataHash": "3fdca5e20325bddbf9e2658b0f96584e38037dfeca15b88c5e744bab414513b8",
-    "sourceHash": "00e5613ef8b8cd45a27aa68dc74065b2af0d950c127a57f6ee93337e344e6cc4"
+    "dataHash": "d3eaf0f10e986f6bbc3957d786cded4bf20d6a154457ee83f7b145c23d9d1b67",
+    "sourceHash": "b15fd37548b5d9b73ec7c8cf80c310c65221cde11348976284192e76102d18ad"
   },
   "mapId": "park",
-  "mapVersion": "36f22a29154bba5715ba4d4c51f164512f46890e621b868a21d7c2cf654f6131",
+  "mapVersion": "a0f4df03ce302cfc8a82d2c9c933ae1a8d58dfaea307640e1191a7ab4556a620",
   "schemaVersion": 2,
   "sources": [
     {
@@ -150,7 +150,7 @@
     },
     {
       "path": "src/map/park/definition.ts",
-      "sha256": "9d3183ba783254e0c761424b4b6f08ac262d134657309e69fe26f2ac71290f65"
+      "sha256": "19330af6b232693d120711e4445f389ab7ff52ded9880ee034ba9d736b59fd77"
     },
     {
       "path": "src/map/park/fountainHeight.ts",
@@ -182,7 +182,7 @@
     },
     {
       "path": "src/map/park/resolve.ts",
-      "sha256": "05275f7c8cbe7fb9c91214c0504136d628264f49c3ff5a8c27e0b99ffd90902b"
+      "sha256": "f19a60fb17638467fd1185f4f4b670e0b4187fdd6093f3d9094943077b4a032e"
     },
     {
       "path": "src/map/park/validate.ts",

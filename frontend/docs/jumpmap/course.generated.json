@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "mapVersion": "36f22a29154bba5715ba4d4c51f164512f46890e621b868a21d7c2cf654f6131",
+  "mapVersion": "a0f4df03ce302cfc8a82d2c9c933ae1a8d58dfaea307640e1191a7ab4556a620",
   "courseVersion": "park180-jump-v1",
   "rulesVersion": "v2",
   "physics": {
@@ -4411,11 +4411,11 @@
     },
     {
       "path": "src/map/park/definition.ts",
-      "sha256": "9d3183ba783254e0c761424b4b6f08ac262d134657309e69fe26f2ac71290f65"
+      "sha256": "19330af6b232693d120711e4445f389ab7ff52ded9880ee034ba9d736b59fd77"
     },
     {
       "path": "src/map/park/resolve.ts",
-      "sha256": "05275f7c8cbe7fb9c91214c0504136d628264f49c3ff5a8c27e0b99ffd90902b"
+      "sha256": "f19a60fb17638467fd1185f4f4b670e0b4187fdd6093f3d9094943077b4a032e"
     }
   ]
 }

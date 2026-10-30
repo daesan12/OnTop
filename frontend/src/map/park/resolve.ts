@@ -44,7 +44,13 @@ const DRAFT_FITNESS_STATIONS=FITNESS_STATIONS.map((station,i)=>{
 const KIOSKS=(['shop','drink','photo'] as const).map(kind=>({kind,...SITES[kind],scale:1,...definition.kiosks[kind]})).filter(k=>k.enabled)
 const disabledKioskIds=new Set(Object.entries(definition.kiosks).filter(([,k])=>!k.enabled).map(([kind])=>'layout-'+kind))
 const facilityClearances=[...KIOSKS,{...SITES.cart,...definition.fishBreadShop}]
-const inFacilityCanopyClearing=(x:number,z:number)=>inCanopyClearing(x,z,SITES.cart,definition.fishBreadShop,definition.planting.facilityCanopyClearance)||inCanopyClearing(x,z,SITES.photo,{...definition.rankingBoard,yaw:definition.kiosks.photo.yaw},definition.planting.facilityCanopyClearance)
+const inFacilityCanopyClearing=(x:number,z:number)=>inCanopyClearing(x,z,SITES.cart,definition.fishBreadShop,definition.planting.facilityCanopyClearance)||inCanopyClearing(x,z,SITES.photo,{...definition.rankingBoard,yaw:definition.kiosks.photo.yaw},definition.planting.facilityCanopyClearance)||inCanopyClearing(x,z,SITES.drink,definition.kiosks.drink,definition.planting.facilityCanopyClearance)
+const lampSites=definition.lighting.anchors.map(([x,z],n)=>{
+  const relocation=definition.lighting.relocations['lamp-'+n]
+  const anchor=relocation&&(relocation.anchor==='plaza'?definition.plaza:SITES[relocation.anchor])
+  return anchor?[anchor.x+relocation!.offset[0],anchor.z+relocation!.offset[1]] as const:[x,z] as const
+})
+const inLampClearing=(x:number,z:number)=>lampSites.some(p=>Math.hypot(x-p[0],z-p[1])<2)
 const EVENT_BENCHES=definition.event.benches
 const MAIN_GATE={...definition.gate,z:DRAFT_PARK.half}
 const VR_STONE_SETS=definition.vrStoneSets
@@ -181,11 +187,13 @@ const PLAZA_BEDS:readonly {id:string;x:number;z:number;width:number;depth:number
 const PLAZA_BENCHES:readonly {id:string;x:number;z:number;yaw:number}[]=[]
 const PLAZA_TREE_SITES=definition.plazaTrees.filter(p=>!inMailboxClearing(p.x,p.z,SITES.mailbox,definition.planting.mailboxTreeClearance)&&Math.hypot(p.x-LIFE_PLAZA.x,p.z-LIFE_PLAZA.z)>LIFE_PLAZA.pavingRadius+.7&&!onPath(p.x,p.z,.9)&&!inKioskEntrance(p.x,p.z,facilityClearances)
   &&!inFacilityCanopyClearing(p.x,p.z)
+  &&!inLampClearing(p.x,p.z)
   &&!DRAFT_PAVILIONS.some(q=>Math.abs(p.x-q.x)<(q.id==='P0'?15:PAVILION_COURT.width/2+2)&&Math.abs(p.z-q.z)<(q.id==='P0'?18:PAVILION_COURT.depth/2+2))
   &&!facilityClearances.some(k=>{const dx=p.x-k.x,dz=p.z-k.z,c=Math.cos(k.yaw),sn=Math.sin(k.yaw);return Math.abs(dx*c-dz*sn)<k.width/2+1.8&&Math.abs(dx*sn+dz*c)<k.depth/2+1.8}))
   .reduce<{id:string;x:number;z:number}[]>((trees,p)=>{if(!trees.some(t=>Math.hypot(t.x-p.x,t.z-p.z)<2.35))trees.push(p);return trees},[])
 const PAVILION_TREE_SITES=definition.pavilionEdgeTrees.filter(p=>!inMailboxClearing(p.x,p.z,SITES.mailbox,definition.planting.mailboxTreeClearance)&&!onPath(p.x,p.z,.55)
   &&!inFacilityCanopyClearing(p.x,p.z)&&!inKioskEntrance(p.x,p.z,[{...SITES.cart,...definition.fishBreadShop}])
+  &&!inLampClearing(p.x,p.z)
   &&!DRAFT_PAVILIONS.some(q=>Math.abs(p.x-q.x)<(q.id==='P0'?13.5:PAVILION_COURT.width/2+.4)&&Math.abs(p.z-q.z)<(q.id==='P0'?16:PAVILION_COURT.depth/2+.4)))
 const LANDSCAPE_TREE_SITES=[...PLAZA_TREE_SITES,...PAVILION_TREE_SITES]
 const PLAZA_REST_GARDENS=definition.plazaRestGardens
@@ -235,12 +243,7 @@ function nearSegment(x:number,z:number,a:readonly number[],b:readonly number[]) 
 function onPath(x:number,z:number,extra=0) {
   return [...PATHS,{points:PERIMETER,width:definition.park.perimeterWidth}].some(p=>p.points.slice(1).some((b,i)=>nearSegment(x,z,p.points[i]!,b)<p.width/2+extra))
 }
-const DRAFT_LAMPS:readonly (readonly [number,number,number])[]=TREE_LAMP_RESERVATIONS.map((point,n)=>{
-  const relocation=definition.lighting.relocations['lamp-'+n]
-  const anchor=relocation&&(relocation.anchor==='plaza'?LIFE_PLAZA:SITES[relocation.anchor])
-  const x=anchor?anchor.x+relocation!.offset[0]:point[0],z=anchor?anchor.z+relocation!.offset[1]:point[2]
-  return [x,walkHeight(x,z),z] as const
-})
+const DRAFT_LAMPS:readonly (readonly [number,number,number])[]=lampSites.map(([x,z])=>[x,walkHeight(x,z),z] as const)
 const COLLISION=buildCollision({definition,boxes:DRAFT_BOXES,kiosks:KIOSKS,fences:[...FENCE_RUNS,...CENTRAL_RAIL_RUNS,...STAIR_RAIL_RUNS],lamps:DRAFT_LAMPS,fishingRails:FISHING_RAILS,shoreRails:SHORE_RUNS})
 const canWalk=(x:number,z:number)=>isWalkable(COLLISION,x,z)
 /** Preview walking heights only; this is deliberately not an authoritative physics engine. */

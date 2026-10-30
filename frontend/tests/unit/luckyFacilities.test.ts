@@ -25,7 +25,7 @@ describe('lucky facility mock and enlarged fish shop',()=>{
     expect(PARK_LAYOUT.KIOSK_FENCE_RUNS.some(f=>f.id.startsWith('kiosk-shop-'))).toBe(false)
     expect(box.center).toEqual([cart.x,2.928,cart.z])
     expect(PARK_LAYOUT.KIOSKS.filter(k=>k.kind!=='photo').map(k=>[k.kind,k.x,k.z,k.yaw])).toEqual([
-      ['drink',31.8,54.6,Math.atan2(-31.8,46-54.6)],
+      ['drink',30.06,54.13,Math.atan2(-30.06,46-54.13)],
     ])
   })
   it('temporarily removes the wheel from rendering data, movement, physics, notices and markers',()=>{

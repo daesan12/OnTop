@@ -12,7 +12,7 @@ test('fountain rim covers the sky gap and stairs render while the camera moves',
  await page.waitForTimeout(300)
  // These two formerly blue pixels looked below the open paving edge into the sky.
  for(const point of [[606,808],[700,828]]){
-  const hits=await page.evaluate(async([x,y])=>(await import('/tests/layout-e2e/groundSurfaceProbe.ts' as string)).groundRayAt(x,y),point)
+  const hits=await page.evaluate(async([x,y])=>(await import('/tests/layout-e2e/groundSurfaceProbe.ts' as string)).fountainSurfaceRayAt(x,y),point)
   expect(hits[0]?.name).toBe('layout-original-fountain-terrain')
  }
  await page.screenshot({path:path.join(dir,'fountain-after.png')})

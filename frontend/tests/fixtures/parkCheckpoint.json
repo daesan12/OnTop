@@ -1,21 +1,21 @@
 {
-  "description": "Recent plaza spur paths removed and paving restored; larger mailbox faces centre from ranking left, with replanted grove, 2026-10-30",
+  "description": "Lottery booth moved toward plaza with four rear trees and three relocated lamps; existing paths and other facilities preserved, 2026-10-30",
   "data": {
     "DRAFT_PARK": "e3854d40e5253714d51f775e49add74da1ae51ed05962f791efe6e0b1d3dd610",
-    "SITES": "aff233d1ec4b6bebbf0699dce28548e369a580e3c8870ddacc5bf6f982b9476c",
+    "SITES": "ede4a7355d5d999247a2665f7bb2367a11c06b7984dd961c8464a125d159d06d",
     "DRAFT_PAVILIONS": "367d84ded04a86fcd3c9f9b786f9a2af8bda0273e6731fc0efedb56396bd303f",
     "DRAFT_TABLES": "f31a9a6bbbdf9d1231bcbe1c3bf3eee12a8e872534d26888f6eb1ad057497d4f",
-    "DRAFT_BOXES": "e40c41d74fbbdf01b025339add2e467beb930b349b8dd6919379179b8327213e",
-    "FENCE_RUNS": "ec5bed8575df4f753a4c9b4b40375b2de821b7851e0c6b5710c9e2246db64ee5",
+    "DRAFT_BOXES": "67946596af8c2c6d9f8fc3f5964669dc1fe188fd42fd6f286c620c52db324175",
+    "FENCE_RUNS": "a4a2763bd1381bd938ebec3cd23aad17486c58cb9230b10ccb810f9dbda80bab",
     "CENTRAL_RAIL_RUNS": "58355d97dab79f180a7ebb9d01894367d2d3b8d90e153f8b85bbd4c97dd51879",
     "STAIR_RAIL_RUNS": "ddc33257f903fd189bcdd95514ef83b9262b1cd13fc49f397b92a940593359bb",
-    "DRAFT_LAMPS": "56f7dabf194151328eecaa462bef093336989c4fd1dce573913034ce372c5c61",
+    "DRAFT_LAMPS": "d71961d3e5e9e544380041b0734e712c201647918f563cd154d7a3d96a461537",
     "PATHS": "a129a06b8cf62daea3eede270ce4f0f039ceb5ff38c4ec57a89ab4a393b465b3",
     "PERIMETER": "b0491ce6b6e619278b9651c488838fac16dc481f1807e82a4f4f2f98f9cf1543",
-    "MARKERS": "7ec25bafedc7834154b593a5f0c7dc03b055ba002a8396dade81e05786994ba2",
+    "MARKERS": "fdf2f47da004c04ab22d0a5e9dd96f0b0137a2bc970916cdcd36c969b843522b",
     "DRAFT_JUMP_PADS": "d4127c3d38d6456c883cc35fab6e3b7459873802cadeacb1c97000ff923ab8b0",
     "DRAFT_FITNESS_STATIONS": "6249dcf6ce346535ec6912c1f22c4d01e0185d821f1a70c85c828002f3b1d5db",
     "DRAFT_TOWER_BENCHES": "d54aae7921377f5f814e81755bee8660be861a71e5264a9766e6afe132faa088"
   },
-  "movement": "3008eb43377b671f67789901ce89c14ec61d3464d98c8ed94727f4e6bc5d099e"
+  "movement": "b9e150c3188756646a74c3faab897ab8d7d75834c511da78060a24fb9b5e5d63"
 }

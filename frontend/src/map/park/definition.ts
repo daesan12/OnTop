@@ -10,10 +10,10 @@ const sites = {
   tower: { x: 62, z: 56 },
   vr: {x:-74,z:-23},folk:{x:-74,z:-3},vrPagoda:{x:-53,z:-23},
   cart: { x: -30.1, z: 35.8 }, mailbox: { x: 24.2, z: 30.4 },
-  shop: { x: 27, z: 50.8 }, drink: { x: 31.8, z: 54.6 }, photo: { x: 30, z: 35.6 },
+  shop: { x: 27, z: 50.8 }, drink: { x: 30.06, z: 54.13 }, photo: { x: 30, z: 35.6 },
 }
 // Keep the wheel's anchor/model for later use, but omit it from the active map.
-const kiosks={shop:{enabled:false,fenced:false,width:4,depth:2,height:4.3,yaw:-Math.PI/2},drink:{enabled:true,fenced:true,width:6.8,depth:4.59,height:5.185,scale:.85,yaw:Math.atan2(plaza.x-sites.drink.x,plaza.z-sites.drink.z)},photo:{enabled:true,fenced:false,width:9.6,depth:6.6,yaw:-Math.PI/3}}
+const kiosks={shop:{enabled:false,fenced:false,width:4,depth:2,height:4.3,yaw:-Math.PI/2},drink:{enabled:true,fenced:true,width:6.8,depth:4.59,height:5.185,scale:.85,roofWidth:7.65,roofDepth:5.27,yaw:Math.atan2(plaza.x-sites.drink.x,plaza.z-sites.drink.z)},photo:{enabled:true,fenced:false,width:9.6,depth:6.6,yaw:-Math.PI/3}}
 const fishBreadShop={width:9.216,depth:6.912,height:5.856,scale:.96,yaw:Math.PI/3,roofWidth:10.176,roofDepth:8.064}
 const cartPoint=(across:number,forward:number):MapPoint=>[
   sites.cart.x+across*Math.cos(fishBreadShop.yaw)+forward*Math.sin(fishBreadShop.yaw),
@@ -119,11 +119,13 @@ export const PARK_DEFINITION = {
     [81.25,-34.22222222222222],[81.25,17.111111111111114],[81.25,34.222222222222214],
     [81.25,51.33333333333334],[81.25,68.44444444444443],[-73,78],
   ] as readonly MapPoint[],relocations:{
-    'lamp-0':{anchor:'plaza',offset:[21,9]},
+    'lamp-0':{anchor:'plaza',offset:[25,12.7]},
     'lamp-1':{anchor:'plaza',offset:[-12,19.3]},
     'lamp-2':{anchor:'plaza',offset:[-15,-17]},
     'lamp-3':{anchor:'plaza',offset:[15,-17]},
     'lamp-4':{anchor:'plaza',offset:[12,19.3]},
+    'lamp-29':{anchor:'plaza',offset:[-25,12.7]},
+    'lamp-30':{anchor:'plaza',offset:[42,4]},
     'lamp-36':{anchor:'lake',offset:[19.25,-24.5]},
     'lamp-41':{anchor:'fitness',offset:[-6.4,14]},
   } as Record<string,{anchor:'plaza'|'lake'|'fitness';offset:MapPoint}>},
@@ -161,6 +163,10 @@ export const PARK_DEFINITION = {
     id:'ranking-grove-tree-'+i,
     x:sites.photo.x+across*Math.cos(kiosks.photo.yaw)+forward*Math.sin(kiosks.photo.yaw),
     z:sites.photo.z-across*Math.sin(kiosks.photo.yaw)+forward*Math.cos(kiosks.photo.yaw),
+  })),...[-4.3,-1.7,.9,3.5].map((across,i)=>({
+    id:'lottery-back-tree-'+i,
+    x:sites.drink.x+across*Math.cos(kiosks.drink.yaw)-4.8*Math.sin(kiosks.drink.yaw),
+    z:sites.drink.z-across*Math.sin(kiosks.drink.yaw)-4.8*Math.cos(kiosks.drink.yaw),
   })),...(['shop','drink','photo'] as const).filter(kind=>kiosks[kind].enabled).flatMap(kind=>{
     const p=sites[kind],k=kiosks[kind],points:{id:string;x:number;z:number}[]=[]
     // Two-dimensional side/back planting pockets; the front is intentionally empty.
