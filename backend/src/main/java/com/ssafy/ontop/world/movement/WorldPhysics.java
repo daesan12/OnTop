@@ -351,6 +351,7 @@ public final class WorldPhysics implements AutoCloseable {
                     a.positionValidator = null;
                     a.body.setLinearVelocity(Vector3f.ZERO);
                     a.seated = true;
+                    a.relocations++;
                     if (wasClientControlled) resetMotion(a);
                 }
                 continue;
@@ -663,6 +664,7 @@ public final class WorldPhysics implements AutoCloseable {
     }
 
     private void recover(Actor actor, Vector3f from, Vector3f target, String reason, long now) {
+        actor.relocations++;
         actor.recovery = new Recovery(reason, physicsTick, actor.seq, now, from.x, from.y, from.z,
                 target.x, target.y, target.z, actor.lastSafe.x, actor.lastSafe.y, actor.lastSafe.z,
                 Vector3f.isValidVector(from) ? scene.groundHeight(from.x, from.z) : Double.NaN, actor.body.onGround(), actor.swimming,
@@ -699,6 +701,23 @@ public final class WorldPhysics implements AutoCloseable {
             return new Support(terrain ? Support.Kind.TERRAIN : Support.Kind.STRUCTURE, collider, null);
         });
     }
+
+    /**
+     * 점프맵 판정 입력 한 건. 서버 몸체(승인 좌표) 기준이며 feet는 캡슐 중심 - 발 높이,
+     * aboveGround는 발 높이와 그 자리 지형 높이의 차이다.
+     */
+    public Observation observe(String id) {
+        return call(() -> {
+            Actor actor = actors.get(id);
+            Vector3f p = actor.body.getPhysicsLocation(null);
+            double feet = p.y - number("halfHeight") - number("radius") - number("offset");
+            return new Observation(support(id), actor.swimming, actor.seated, feet,
+                    feet - scene.groundHeight(p.x, p.z), actor.relocations, p.x, p.z);
+        });
+    }
+
+    public record Observation(Support support, boolean swimming, boolean seated, double feet, double aboveGround,
+            long relocations, double x, double z) {}
 
     public record Support(Kind kind, String colliderId, com.ssafy.ontop.world.jumpmap.JumpCourse.Collider course) {
         public static final Support NONE = new Support(Kind.NONE, null, null);
@@ -801,6 +820,7 @@ public final class WorldPhysics implements AutoCloseable {
                 actor.positionValidator = null;
                 actor.seated = true;
             }
+            actor.relocations++;
             actor.body.warp(new Vector3f((float) x, (float) y, (float) z));
             actor.body.setLinearVelocity(Vector3f.ZERO);
             actor.yaw = yaw;
@@ -831,6 +851,7 @@ public final class WorldPhysics implements AutoCloseable {
 
     private void placeNow(String id, double x, double y, double z) {
         Actor a = actors.get(id);
+        a.relocations++;
         stop(id);
         a.body.warp(new Vector3f((float) x, (float) y, (float) z));
         correctExclusion(a, a.body.getPhysicsLocation(null), scene.policy.slide(a.body.getPhysicsLocation(null), this::activeShape));
@@ -926,6 +947,8 @@ public final class WorldPhysics implements AutoCloseable {
         Recovery recovery;
         double reportedJumpSpeed;
         boolean clientControlled, positionDisabled, reportStarted, positionReportedEver;
+        // 서버 순간 이동(복구·배치·착석·시설) 횟수. 점프맵은 진행 중 변화를 RESET으로 본다.
+        long relocations;
         ClientPositionValidator positionValidator;
 
         Actor(PhysicsCharacter body, int slot, Vector3f spawn) {

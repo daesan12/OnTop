@@ -170,6 +170,8 @@ public class TableHub {
 
     @Autowired(required = false)
     public void configureSpectatorEvents(SpectatorEventPolicy policy) { spectatorEvents = policy; }
+    // 점프맵 서비스가 없으면(비활성) 판정 신호를 버린다.
+    private java.util.function.Consumer<java.util.List<WorldChannelRegistry.JumpmapDelivery>> jumpmapSignals = ignored -> { };
     private final ExecutorService startWorkers = Executors.newVirtualThreadPerTaskExecutor();
     private final ScheduledExecutorService heartbeatTimer = Executors.newSingleThreadScheduledExecutor(
             Thread.ofPlatform().daemon(true).name("table-heartbeat").factory());
@@ -1223,6 +1225,7 @@ public class TableHub {
         }
         try {
             var worlds = channels.advance(Set.copyOf(seating.keySet()), follows.activeStates());
+            dispatchJumpmap(channels.drainJumpmap());
             for (var following : follows.activeStates()) {
                 pruneFollows(channels.worldState(following.channelId()));
             }
@@ -1244,6 +1247,12 @@ public class TableHub {
             // Do not silently lose the scheduled simulation after one failed tick.
             org.slf4j.LoggerFactory.getLogger(TableHub.class).error("광장 이동 tick 실패", exception);
         }
+    }
+
+    /** 점프맵 판정 신호는 레지스트리 잠금 밖에서 넘긴다. 서비스가 없으면 버린다. */
+    private void dispatchJumpmap(java.util.List<WorldChannelRegistry.JumpmapDelivery> deliveries) {
+        if (deliveries.isEmpty()) return;
+        jumpmapSignals.accept(deliveries);
     }
 
     private void moveWorld(Member member, Request request) {

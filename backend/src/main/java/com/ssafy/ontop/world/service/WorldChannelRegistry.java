@@ -72,6 +72,60 @@ public class WorldChannelRegistry implements ChannelPresence {
     @Autowired(required = false)
     void configureJumpCourse(com.ssafy.ontop.world.jumpmap.JumpmapActivation activation) {
         jumpCourse = activation.course().orElse(null);
+        jumpmap = jumpCourse == null ? null : new com.ssafy.ontop.world.jumpmap.JumpmapTracker(jumpCourse);
+    }
+
+    /** 점프맵 착지 알림의 수신 반경(BE 명세 11장). */
+    public static final double JUMPMAP_STEP_RADIUS = 25;
+    private com.ssafy.ontop.world.jumpmap.JumpmapTracker jumpmap;
+    private final List<JumpmapDelivery> jumpmapSignals = new java.util.ArrayList<>();
+
+    /** 잠금 밖에서 저장·전송할 판정 신호. 착지 알림은 그 순간 반경 안의 같은 채널 사용자를 담는다. */
+    public record JumpmapDelivery(com.ssafy.ontop.world.jumpmap.JumpmapTracker.Signal signal, List<String> recipients) {}
+
+    /** 호출자는 레지스트리 잠금 밖에서 매 틱 비운다. 점프맵 비활성이면 항상 비어 있다. */
+    public synchronized List<JumpmapDelivery> drainJumpmap() {
+        var drained = List.copyOf(jumpmapSignals);
+        jumpmapSignals.clear();
+        return drained;
+    }
+
+    public synchronized java.util.Optional<com.ssafy.ontop.world.jumpmap.JumpmapTracker.RunView> jumpmapRun(String userId) {
+        return jumpmap == null ? java.util.Optional.empty() : jumpmap.active(userId, nanoTime.getAsLong() / 1_000_000);
+    }
+
+    private void observeJumpmap(Room room, String userId, boolean following, long nowNanos) {
+        if (jumpmap == null || room.physics == null) return;
+        var observation = room.physics.observe(userId);
+        var support = observation.support();
+        var surface = switch (support.kind()) {
+            case COURSE -> com.ssafy.ontop.world.jumpmap.JumpmapTracker.Surface.COURSE;
+            case TERRAIN -> com.ssafy.ontop.world.jumpmap.JumpmapTracker.Surface.GROUND;
+            case STRUCTURE -> observation.aboveGround() < com.ssafy.ontop.world.jumpmap.JumpmapTracker.GROUND_LEVEL
+                    ? com.ssafy.ontop.world.jumpmap.JumpmapTracker.Surface.GROUND
+                    : com.ssafy.ontop.world.jumpmap.JumpmapTracker.Surface.STRUCTURE;
+            case NONE -> com.ssafy.ontop.world.jumpmap.JumpmapTracker.Surface.NONE;
+        };
+        var pad = support.course();
+        var sample = new com.ssafy.ontop.world.jumpmap.JumpmapTracker.Sample(surface, support.colliderId(),
+                pad == null ? -1 : pad.block(), pad == null ? null : pad.gate(), observation.swimming(),
+                observation.feet(), observation.relocations(), following);
+        queueJumpmap(room, jumpmap.observe(userId, room.definition.channelId(), sample, nowNanos / 1_000_000));
+    }
+
+    private void queueJumpmap(Room room, List<com.ssafy.ontop.world.jumpmap.JumpmapTracker.Signal> signals) {
+        for (var signal : signals) {
+            List<String> recipients = List.of(signal.userId());
+            if (signal instanceof com.ssafy.ontop.world.jumpmap.JumpmapTracker.Step && room != null && room.physics != null) {
+                var origin = room.physics.snapshot(signal.userId());
+                recipients = room.users.stream().filter(user -> {
+                    var other = room.physics.snapshot(user);
+                    return Math.hypot(other.x() - origin.x(), other.z() - origin.z()) <= JUMPMAP_STEP_RADIUS
+                            && Math.abs(other.y() - origin.y()) <= JUMPMAP_STEP_RADIUS;
+                }).toList();
+            }
+            jumpmapSignals.add(new JumpmapDelivery(signal, recipients));
+        }
     }
 
     public WorldChannelRegistry(WorldChannelProperties properties) {
@@ -179,7 +233,7 @@ public class WorldChannelRegistry implements ChannelPresence {
     }
 
     public synchronized State leave(String userId) {
-        State state = disconnect(userId);
+        State state = remove(userId, com.ssafy.ontop.world.jumpmap.JumpRun.EndReason.LEFT);
         if (state == null) {
             throw new ChannelException("NOT_IN_CHANNEL", "입장한 채널이 없습니다.");
         }
@@ -187,11 +241,16 @@ public class WorldChannelRegistry implements ChannelPresence {
     }
 
     public synchronized State disconnect(String userId) {
+        return remove(userId, com.ssafy.ontop.world.jumpmap.JumpRun.EndReason.DISCONNECT);
+    }
+
+    private State remove(String userId, com.ssafy.ontop.world.jumpmap.JumpRun.EndReason reason) {
         String channelId = membership.remove(userId);
         if (channelId == null) {
             return null;
         }
         Room room = rooms.get(channelId);
+        if (jumpmap != null) queueJumpmap(null, jumpmap.leave(userId, reason, nanoTime.getAsLong() / 1_000_000));
         room.users.remove(userId);
         room.positions.remove(userId);
         room.motions.remove(userId);
@@ -426,6 +485,8 @@ public class WorldChannelRegistry implements ChannelPresence {
                 && !room.moveBudgets.computeIfAbsent(userId, ignored -> new MoveBudget(now)).take(now, minimumMoveNanos))
             throw new ChannelException("MOVE_TOO_FREQUENT", "위치 보고 간격을 확인해주세요.");
         var snapshot = room.physics.report(userId, report, now);
+        // 보고 사이 착지를 틱 관찰이 놓치지 않게 승인 좌표마다 관찰한다.
+        observeJumpmap(room, userId, false, now);
         Position position = position(snapshot);
         boolean changed = !position.equals(previous.position()) || !snapshot.motion().equals(room.motions.get(userId));
         room.positions.put(userId, new Movement(position, now));
@@ -510,7 +571,11 @@ public class WorldChannelRegistry implements ChannelPresence {
                     var frozen = new java.util.HashSet<>(seated);
                     frozen.addAll(room.held);
                     if (clientPositions) room.users.stream().filter(user -> activity(user) != null).forEach(frozen::add);
-                    room.physics.step(tick, frozen, targets.getOrDefault(room.definition.channelId(), Map.of()));
+                    var links = targets.getOrDefault(room.definition.channelId(), Map.of());
+                    room.physics.step(tick, frozen, links);
+                    for (String user : room.users) {
+                        observeJumpmap(room, user, links.containsKey(user), tick);
+                    }
                 }
             }
         }
