@@ -83,9 +83,9 @@
 | event_type | 연결 지점 | props | 단계 | 상태 |
 | --- | --- | --- | --- | --- |
 | `TABLE_JOINED` | `TableHub.join` 새 착석 | | 1 | 구현 |
-| `TABLE_LEFT` | `TableHub.leave`, `disconnect`의 좌석 정리 | `byDisconnect` | 1 | 구현 |
+| `TABLE_LEFT` | `TableHub.leave`, `disconnect`의 좌석 정리, 태블릿 재접속 유예 만료(`expireWaitingReconnects`), 방장 시작 만료(`checkHostTimeout`) | `byDisconnect`, `reason`(LEAVE·DISCONNECT·RECONNECT_EXPIRED·HOST_START_TIMEOUT) | 1 | 구현 |
 | `TABLE_READY_SET` | `TableHub.ready` 상태 변경 | `ready` | 1 | 구현 |
-| `GAME_SELECTED` | `TableHub.selectGame` 변경 | `gameCode`, `targetScore`(주사위) | 1 | 구현 |
+| `GAME_SELECTED` | `TableHub.selectGame`(자동 시작), `TableHub.configureTable`(태블릿 수동 시작) 변경 | `gameCode`, `targetScore`(주사위), `betAmountPerPlayer`, `startMode`(AUTO·MANUAL), `selectedPlayers`(MANUAL만) | 1 | 구현 |
 | `TABLE_WATCHED` | `TableHub.watch` 새 관전 | | 1 | 구현 |
 | `GAME_WATCHED` | `watchGame` 첫 상태 전달 | | 1 | 보류(요청 수락 뒤 비동기로 실패할 수 있어 성공 지점 확인 필요) |
 | `GAME_STARTED` | `TableHub.applyStartResult` 확정 경기 성공. 참가자마다 한 행. 리허설 확인은 제외 | `gameCode`, `players`, `targetScore`, `betAmountPerPlayer`(1인 예약 판돈) | 1 | 구현 |
@@ -93,6 +93,8 @@
 | `GAME_ENDED` | 네 엔진 공통 최종 판정 `GameFinished` 리스너. 참가자마다 한 행 | `gameCode`, `endReason`, `players`, `result`(WIN·LOSE·DRAW·FORFEIT), `leaveReason`(중도 이탈 시) | 1 | 구현 |
 | `GAME_SETTLED` | `TableHub.roundSettled` | `coinDelta`(본인) | 3 | 정산 작업 후 |
 | `GAME_RECONNECTED` | `GameReconnectService` 복구 성공 | | 1 | 미구현 |
+
+태블릿 테이블은 연결이 끊겨도 30초 동안 좌석을 유지한다. 이 동안은 `TABLE_LEFT`를 남기지 않고, 재접속하지 못해 좌석이 정리될 때 `reason=RECONNECT_EXPIRED`로 한 번 남긴다. `reason`은 2026-10-30(S15P31B105-275)부터 남으므로 그 전 행은 `byDisconnect`로만 구분한다.
 
 `GAME_ACTION`은 수가 많고 게임마다 `input` 구조가 달라서, 분석 질문이 생기기 전까지 수집하지 않는다.
 엔진 종료 이벤트에는 시작 시각이 없으므로 경기 시간은 같은 `game_id`의 `GAME_STARTED`와 `GAME_ENDED` 시각 차이로 계산한다.

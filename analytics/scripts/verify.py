@@ -47,7 +47,8 @@ EXPECTED: dict[str, list[dict[str, str]]] = {
         {"kst_date": "2026-11-03", "sessions": "1", "users": "1", "avg_minutes": "10.0", "median_minutes": "10.0"},
     ],
     "05_table_wait.sql": [
-        {"seatings": "5", "started": "4", "left_before_start": "1", "left_by_disconnect": "0", "unresolved": "0",
+        {"seatings": "5", "started": "4", "left_before_start": "1", "left_by_disconnect": "0",
+         "left_by_host_timeout": "1", "unresolved": "0",
          "left_before_start_pct": "20.0", "avg_wait_seconds_started": "75.0", "avg_wait_seconds_left": "120.0"},
     ],
     "06_game_summary.sql": [
