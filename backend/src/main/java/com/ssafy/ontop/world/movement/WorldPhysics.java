@@ -37,6 +37,8 @@ public final class WorldPhysics implements AutoCloseable {
     private JsonNode movement;
     private final boolean clientPositions;
     private final boolean tunedMovement;
+    // 활성화가 승인한 코스만 받는다. null이면 기존 공원 충돌만 사용한다.
+    private final com.ssafy.ontop.world.jumpmap.JumpCourse course;
     private final java.util.function.LongSupplier clock;
     private PositionCollision positionCollision;
 
@@ -86,17 +88,23 @@ public final class WorldPhysics implements AutoCloseable {
     }
 
     public WorldPhysics(ParkScene scene, boolean clientPositions, java.util.function.LongSupplier clock, boolean tunedMovement) {
-        this(() -> java.util.Objects.requireNonNull(scene), clientPositions, clock, tunedMovement);
+        this(scene, clientPositions, clock, tunedMovement, null);
+    }
+
+    public WorldPhysics(ParkScene scene, boolean clientPositions, java.util.function.LongSupplier clock, boolean tunedMovement,
+            com.ssafy.ontop.world.jumpmap.JumpCourse course) {
+        this(() -> java.util.Objects.requireNonNull(scene), clientPositions, clock, tunedMovement, course);
     }
     private WorldPhysics(java.util.function.Supplier<ParkScene> sceneSource, boolean clientPositions,
             java.util.function.LongSupplier clock) {
-        this(sceneSource, clientPositions, clock, false);
+        this(sceneSource, clientPositions, clock, false, null);
     }
     private WorldPhysics(java.util.function.Supplier<ParkScene> sceneSource, boolean clientPositions,
-            java.util.function.LongSupplier clock, boolean tunedMovement) {
+            java.util.function.LongSupplier clock, boolean tunedMovement, com.ssafy.ontop.world.jumpmap.JumpCourse course) {
         this.sceneSource = sceneSource;
         this.clientPositions = clientPositions;
         this.tunedMovement = tunedMovement;
+        this.course = course;
         this.clock = clock;
         try {
             call(
@@ -135,6 +143,12 @@ public final class WorldPhysics implements AutoCloseable {
                 chair.active = chair.number <= 2;
                 if (chair.active) { space.addCollisionObject(body); }
             } else { space.addCollisionObject(body); }
+        }
+        if (course != null) {
+            if (!course.mapVersion().equals(scene.version())) {
+                throw new IllegalArgumentException("점프맵 코스와 공원 충돌 맵의 버전이 다릅니다.");
+            }
+            JumpCourseColliders.addTo(space, course);
         }
         positionCollision = new PositionCollision(scene, space, this::activeShape);
     }
@@ -215,6 +229,11 @@ public final class WorldPhysics implements AutoCloseable {
         body.setJumpSpeed(number("jumpSpeed"));
         body.setCollisionGroup(1);
         body.setCollideWithGroups(2); // Reference excludes other kinematic avatars.
+        if (course != null) {
+            // 기본 ghost sweep은 겹친 몸체만 검사해 0.05m 방패연을 약 34m/s 이상에서 지나칠 수 있다.
+            // 코스가 활성인 채널만 world sweep으로 낙하 경로 전체를 검사한다(78.4m/s 상한까지 확인).
+            body.setSweepTest(false);
+        }
         body.setPhysicsLocation(scene.spawn(slot));
         space.addCollisionObject(body);
         actors.put(id, new Actor(body, slot, scene.spawn(slot)));
@@ -656,6 +675,32 @@ public final class WorldPhysics implements AutoCloseable {
         actor.moving = actor.running = false;
         actor.swimming = swimming(target);
         resetMotion(actor);
+    }
+
+    /**
+     * 서버가 가진 현재 위치의 발밑 충돌체. CLIENT_VALIDATED에서는 검증을 통과한 승인 좌표다.
+     * 클라이언트가 보낸 착지 여부나 발판 번호는 사용하지 않는다. 착석·시설 이용 중에는 NONE이다.
+     */
+    public Support support(String id) {
+        return call(() -> {
+            Actor actor = actors.get(id);
+            if (actor == null || actor.seated) return Support.NONE;
+            var object = positionCollision.supportObject(pose(actor));
+            if (object == null) return Support.NONE;
+            if (object.getUserObject() instanceof com.ssafy.ontop.world.jumpmap.JumpCourse.Collider pad) {
+                return new Support(Support.Kind.COURSE, pad.id(), pad);
+            }
+            String collider = String.valueOf(object.getUserObject());
+            // 두 맵 모두 meshes[0]이 지형이다(groundHeight와 같은 기준).
+            boolean terrain = collider.equals(scene.data.path("meshes").get(0).path("id").asText());
+            return new Support(terrain ? Support.Kind.TERRAIN : Support.Kind.STRUCTURE, collider, null);
+        });
+    }
+
+    public record Support(Kind kind, String colliderId, com.ssafy.ontop.world.jumpmap.JumpCourse.Collider course) {
+        public static final Support NONE = new Support(Kind.NONE, null, null);
+
+        public enum Kind { NONE, COURSE, TERRAIN, STRUCTURE }
     }
 
     /** 서버 진단 전용. 사용자별 마지막 복구 한 건만 메모리에 유지하며 WS에는 노출하지 않는다. */

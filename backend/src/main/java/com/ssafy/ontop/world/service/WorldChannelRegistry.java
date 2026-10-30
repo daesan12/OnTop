@@ -66,6 +66,14 @@ public class WorldChannelRegistry implements ChannelPresence {
         tunedMovement = enabled;
     }
 
+    // 활성화가 승인한 코스만 새 채널 물리에 추가한다. 빈이 없거나 비활성이면 기존 공원 충돌만 사용한다.
+    private com.ssafy.ontop.world.jumpmap.JumpCourse jumpCourse;
+
+    @Autowired(required = false)
+    void configureJumpCourse(com.ssafy.ontop.world.jumpmap.JumpmapActivation activation) {
+        jumpCourse = activation.course().orElse(null);
+    }
+
     public WorldChannelRegistry(WorldChannelProperties properties) {
         this(properties, Duration.ofMillis(50));
     }
@@ -157,7 +165,7 @@ public class WorldChannelRegistry implements ChannelPresence {
         long started = System.nanoTime();
         boolean cold = room.physics == null;
         if (cold) {
-            room.physics = new WorldPhysics(scene.get(), clientPositions, nanoTime, tunedMovement);
+            room.physics = new WorldPhysics(scene.get(), clientPositions, nanoTime, tunedMovement, jumpCourse);
             room.physics.chairCounts(chairCounts(room.tables));
         }
         room.physics.add(userId);

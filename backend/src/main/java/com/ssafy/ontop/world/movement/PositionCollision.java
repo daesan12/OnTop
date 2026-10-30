@@ -25,11 +25,17 @@ final class PositionCollision implements ClientPositionValidator.Geometry {
         probe.setCollisionGroup(1); probe.setCollideWithGroups(2);
     }
     public boolean supported(ClientPositionValidator.Pose pose) {
+        return supportObject(pose) != null;
+    }
+    /** supported()와 같은 판정에서 가장 먼저 닿는 걷는 면. 없으면 null이다. */
+    com.jme3.bullet.collision.PhysicsCollisionObject supportObject(ClientPositionValidator.Pose pose) {
         var from = point(pose);
-        if (!policy.allowsSupport(from, active)) return false;
+        if (!policy.allowsSupport(from, active)) return null;
         // A centre ray loses support earlier than the capsule at platform edges.
         return space.sweepTest(capsule, new Transform(from), new Transform(from.add(0, -.17f, 0))).stream()
-                .anyMatch(hit -> hit.getCollisionObject().getCollisionGroup() == 2 && hit.getHitNormalLocal(null).y > .6);
+                .filter(hit -> hit.getCollisionObject().getCollisionGroup() == 2 && hit.getHitNormalLocal(null).y > .6)
+                .min(java.util.Comparator.comparingDouble(com.jme3.bullet.collision.PhysicsSweepTestResult::getHitFraction))
+                .map(com.jme3.bullet.collision.PhysicsSweepTestResult::getCollisionObject).orElse(null);
     }
     public Double ceiling(ClientPositionValidator.Pose pose, double rise) {
         var from = point(pose);
