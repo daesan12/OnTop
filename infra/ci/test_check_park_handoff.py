@@ -13,8 +13,8 @@ ROOT = Path(__file__).resolve().parents[2]
 class ParkHandoffChecks(unittest.TestCase):
     def test_current_candidate_is_consistent(self):
         version, digest = validate(ROOT)
-        self.assertEqual(version, "04350122fdeee2b89212345ee4f776990d78832bb25435418b5ea6f2b2fbc769")
-        self.assertEqual(digest, "0620716f518d499992e8c8cc7bc8dbf8c3d818216871d80bc6e0264ab92245a0")
+        self.assertEqual(version, "e4c6e290be56dfb333a7b2fafd286664a5dd7f5e19ede0acfff859f6f6144200")
+        self.assertEqual(digest, "3eeacb4b96c99e42bfde6a865d0aaef3212a781b31cec0d1d65ec4af86c369d5")
 
     def test_prepares_the_four_be_handoff_files(self):
         with tempfile.TemporaryDirectory(dir=ROOT) as folder:
