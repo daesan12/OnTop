@@ -901,8 +901,7 @@ public class TableHub {
             TableRoom room = rooms.get(tableId);
             room.leave(member.userId());
             publish(room, null, null);
-            recordBehavior(BehaviorEventType.TABLE_LEFT, member.accountId(), builder -> builder.tableId(tableId)
-                    .channelId(tableChannels.get(tableId)).prop("byDisconnect", true));
+            recordTableLeft(member.accountId(), tableId, "DISCONNECT");
         }
     }
 
@@ -1650,7 +1649,8 @@ public class TableHub {
             publish(room, member, request.requestId());
             publishStart(tableId);
             recordBehavior(BehaviorEventType.GAME_SELECTED, member.accountId(), builder -> builder.tableId(tableId)
-                    .prop("gameCode", game.name()).prop("targetScore", targetScore).prop("betAmountPerPlayer", amount));
+                    .prop("gameCode", game.name()).prop("targetScore", targetScore).prop("betAmountPerPlayer", amount)
+                    .prop("startMode", "AUTO"));
         } else {
             replyState(member, request, room);
         }
@@ -1670,8 +1670,14 @@ public class TableHub {
         }
         replyStartState(member, null, null);
         publish(room, null, null);
-        recordBehavior(BehaviorEventType.TABLE_LEFT, member.accountId(), builder -> builder.tableId(tableId)
-                .channelId(tableChannels.get(tableId)).prop("byDisconnect", false));
+        recordTableLeft(member.accountId(), tableId, "LEAVE");
+    }
+
+    // 좌석이 실제로 정리된 뒤에만 호출한다. byDisconnect는 기존 분석 쿼리 호환을 위해 reason과 함께 남긴다.
+    private void recordTableLeft(Long accountId, String tableId, String reason) {
+        boolean byDisconnect = reason.equals("DISCONNECT") || reason.equals("RECONNECT_EXPIRED");
+        recordBehavior(BehaviorEventType.TABLE_LEFT, accountId, builder -> builder.tableId(tableId)
+                .channelId(tableChannels.get(tableId)).prop("byDisconnect", byDisconnect).prop("reason", reason));
     }
 
     private TableRoom seatedRoom(Member member, Request request) {
@@ -1702,11 +1708,15 @@ public class TableHub {
         Integer target = request.payload().has("targetScore") ? request.payload().path("targetScore").asInt() : null;
         if (game == TableGame.DICE && target == null) { fail(request, "GAME_OPTIONS_REQUIRED", "목표 점수를 선택해주세요."); }
         try {
-            if (room.configure(game, target, request.payload().path("betAmountPerPlayer").asLong(),
-                    request.payload().path("selectedPlayers").asInt())) {
+            long amount = request.payload().path("betAmountPerPlayer").asLong();
+            int players = request.payload().path("selectedPlayers").asInt();
+            if (room.configure(game, target, amount, players)) {
                 starts.remove(tableId);
                 publish(room, member, request.requestId());
                 publishStart(tableId);
+                recordBehavior(BehaviorEventType.GAME_SELECTED, member.accountId(), builder -> builder.tableId(tableId)
+                        .prop("gameCode", game.name()).prop("targetScore", target).prop("betAmountPerPlayer", amount)
+                        .prop("startMode", "MANUAL").prop("selectedPlayers", players));
             } else { replyState(member, request, room); }
         } catch (IllegalArgumentException invalid) { fail(request, "GAME_CONFIGURATION_INVALID", "정원·목표·판돈을 확인해주세요."); }
     }
@@ -1775,6 +1785,7 @@ public class TableHub {
             TableRoom room = rooms.get(tableId);
             room.leave(userId);
             publish(room, null, null);
+            recordTableLeft(accountIdOf(userId), tableId, "RECONNECT_EXPIRED");
         }
     }
 
@@ -1789,6 +1800,7 @@ public class TableHub {
         Member oldHost = members.values().stream().filter(m -> m.userId().equals(event.previousHostUserId())).findFirst().orElse(null);
         if (oldHost != null) { oldHost.peer().offer(protocol.encode(null, "TABLE_LEFT", Map.of("tableId", tableId, "reason", event.reason()))); }
         publish(room, null, null);
+        recordTableLeft(accountIdOf(event.previousHostUserId()), tableId, event.reason());
         String notice = protocol.encode(null, "TABLE_HOST_TIMEOUT", event);
         for (Member target : members.values()) {
             if (isMapReady(target) && (target == oldHost || tableId.equals(seating.get(target.userId()))
