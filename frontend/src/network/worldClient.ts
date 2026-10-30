@@ -42,6 +42,7 @@ import { sameEquipment, type PublicEquipment } from './equipment'
 import { resetFollow } from '../features/follow/state'
 import { resetBenchSpectator } from '../features/interactions/benchSpectator'
 import { defeatTimeline, parseGameReaction } from '../game/presentation/defeat'
+import { receiveJumpmap, resetJumpmap } from '../features/jumpmap/state'
 
 export interface Pose {
   x: number
@@ -187,6 +188,7 @@ export function showMovementNotice(message: string, sequence: number) {
   }, 3000)
 }
 export function resetWorld(status: Session['status'] = 'idle', error = '') {
+  resetJumpmap()
   localMovement.reset()
   remoteMovement.reset()
   clearMovementNotice()
@@ -214,6 +216,7 @@ export function resetWorld(status: Session['status'] = 'idle', error = '') {
   useSession.setState({ ...initial(), status, error })
 }
 export function clearChannel(keepFeedbackDraft = false, keepNotesDraft = false) {
+  resetJumpmap()
   localMovement.reset()
   remoteMovement.reset()
   clearMovementNotice()
@@ -439,6 +442,11 @@ export function receive(message: Envelope, expectedMapVersion: string = EXPECTED
   if ((message.type === 'ERROR' || message.type === 'WORLD_EMOTE_EVENT') && retiredEmoteRequest(message.requestId)) return
   const p = message.payload,
     state = useSession.getState()
+  if (message.type.startsWith('JUMPMAP_')) {
+    if (state.status === 'connected' && state.mapCompatible && state.mapContractStatus === 'verified')
+      receiveJumpmap(message.type, p, state.sessionId, state.roomId, state.mapVersion)
+    return
+  }
   switch (message.type) {
     case 'CONNECTED':
       if (typeof p.userId !== 'string' || !p.userId)

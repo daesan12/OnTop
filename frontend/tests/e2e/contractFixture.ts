@@ -6,6 +6,7 @@ import { TABLES, tableSeats } from '../../src/config'
 import { PARK_LAYOUT } from '../../src/map/park'
 import { PARK_MAP_VERSION } from '../../src/map/park/generated/mapVersion'
 import { generatedFacilityCatalog } from '../park-integration/fixture'
+import { disabledJumpmapStatus } from '../fixtures/jumpmap'
 import { EXPECTED_MAP_VERSION } from '../../src/config/mapVersion'
 import type { Farkle, Result } from '../../src/game/protocol'
 import type { OneCard, Hand, Card } from '../../src/game/onecard/protocol'
@@ -261,6 +262,8 @@ export async function fixture(
     )
   await page.route('**/api/v1/**', async (route) => {
     const url = new URL(route.request().url())
+    if (url.pathname === '/api/v1/minigames/jumpmap/status' && route.request().method() === 'GET')
+      return route.fulfill({ json: disabledJumpmapStatus('fixture-channel', expectedMapVersion) })
     if (url.pathname.endsWith('/auth/refresh'))
       return route.fulfill({
         json: loggedIn ? { accessToken: 'fixture-access' } : {},

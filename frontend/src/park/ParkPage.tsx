@@ -37,6 +37,8 @@ import { ChannelMenu } from '../features/parkMenus/ChannelMenu'
 import { AccountMenu } from '../features/parkMenus/AccountMenu'
 import { RewardCoinFlight } from '../features/wallet/RewardCoinFlight'
 import { LocationChip } from '../features/parkMenus/LocationChip'
+import { JumpmapHud } from '../features/jumpmap/JumpmapHud'
+import { useJumpmapController } from '../features/jumpmap/useJumpmapController'
 
 const shortcuts = [
   { key: 'WASD', action: '이동' },
@@ -64,6 +66,7 @@ export function ParkPage(props: ParkProps) {
   return <ParkRuntimeProvider onAuthEnded={props.onAuthEnded}><ParkContent {...props}/></ParkRuntimeProvider>
 }
 function ParkContent({ onExit, exitError, onAuthEnded }: ParkProps) {
+  useJumpmapController()
   const bungeoppang = useBungeoppang(s => s.phase !== 'idle')
   const omokFocus = useGame(s => s.game?.role === 'PLAYER' && s.game.omok?.status === 'PLAYING' && !s.lastResult)
   const omokChat = useGame(s => s.game?.omok?.status === 'PLAYING' && !s.lastResult)
@@ -136,6 +139,7 @@ function ParkContent({ onExit, exitError, onAuthEnded }: ParkProps) {
         <FollowMenu />
         <ParkMap />
         <ParkNavigation />
+        <JumpmapHud />
         </>}
       </div>
       <BungeoppangHud />

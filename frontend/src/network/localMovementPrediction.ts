@@ -2,16 +2,18 @@ import type { MovementIntent } from './movementInput'
 import type { Pose } from './worldClient'
 import { MOVEMENT, NETWORK } from '../config'
 import { PARK_MOTION } from './parkMotion'
+import type { JumpGraceSnapshot } from '../features/jumpmap/jumpGrace'
 
 export interface MotionSnapshot {
   epoch: number; tick: number; appliedInputSeq: number; inputAgeMs: number
   velocityY: number; grounded: boolean; inputActive: boolean
   authority?: 'CLIENT_VALIDATED'
   profile?: 'PARK_V1'
+  jumpGrace?: JumpGraceSnapshot
 }
 export interface PredictionSimulation {
   setMotionProfile?(profile: 'PARK_V1' | undefined): void
-  reset(pose: Pose, velocityY: number, grounded: boolean): void
+  reset(pose: Pose, velocityY: number, grounded: boolean, jumpGrace?: JumpGraceSnapshot): void
   step(input: MovementIntent, seconds: number): void
   pose(): Pose
   setChairs(counts: ReadonlyMap<string, number>): void
@@ -90,7 +92,7 @@ export class LocalMovementPrediction {
           this.timeline = [{ at, intent: { ...this.intent, jump: false } }]
         }
         sim.setMotionProfile?.(base.motion.profile)
-        sim.reset(base.pose, base.motion.velocityY, base.motion.grounded); this.simulatedAt = at
+        sim.reset(base.pose, base.motion.velocityY, base.motion.grounded, base.motion.jumpGrace); this.simulatedAt = at
       }
     }).catch(() => {
       if (generation === this.generation) this.unavailable = true
@@ -171,7 +173,7 @@ export class LocalMovementPrediction {
     if (newEpoch) this.facing = { from: pose.yaw, to: pose.yaw, at }
     if (!this.sim) { void this.prepare(); return }
     this.sim.setMotionProfile?.(motion.profile)
-    this.sim.reset(pose, motion.velocityY, motion.grounded)
+    this.sim.reset(pose, motion.velocityY, motion.grounded, motion.jumpGrace)
     this.simulatedAt = newEpoch ? at : anchor
     this.lastJumpAt = this.acknowledgedJumpAt
     if (newEpoch) {

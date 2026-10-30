@@ -1,7 +1,7 @@
 import {it,expect} from 'vitest'
 import {inKioskEntrance,inMailboxClearing} from '../../src/map/park/planting'
 import {PARK_DATA,PARK_LAYOUT} from '../../src/map/park'
-import {trunks,shoreTrunks} from '../../src/layout-preview/sceneGeometry'
+import {trunks,shoreTrunks,SUPPLEMENTAL_TREE_SITES} from '../../src/layout-preview/sceneGeometry'
 import {simpleTreeBelts} from '../../src/layout-preview/PreviewLandscaping'
 
 it('clears all three kiosk fronts across existing woods and the new planting belts',()=>{
@@ -29,6 +29,18 @@ it('keeps every tree belt outside the sound box and its usable clearing',()=>{
   for(const t of [...PARK_LAYOUT.PLAZA_TREE_SITES,...PARK_LAYOUT.PAVILION_TREE_SITES])expect(inMailboxClearing(t.x,t.z,mailbox,r)).toBe(false)
   expect(PARK_DATA.interactions.mailbox.position).toEqual([-18,0,18])
   expect(PARK_LAYOUT.canWalk(mailbox.x,mailbox.z+1.5)).toBe(true)
+})
+
+it('adds woodland trees in open gaps while keeping paths, facilities and neighbouring trunks clear',()=>{
+ expect(SUPPLEMENTAL_TREE_SITES.length).toBeGreaterThan(50)
+ const fitness=PARK_LAYOUT.SITES.fitness
+ for(const t of SUPPLEMENTAL_TREE_SITES){
+  expect(PARK_LAYOUT.onPath(t.x,t.z,1.4)).toBe(false)
+  expect(inKioskEntrance(t.x,t.z,PARK_LAYOUT.KIOSKS)).toBe(false)
+  expect(Math.hypot((t.x-fitness.x)/(PARK_LAYOUT.DRAFT_FITNESS_AREA.rx+3),(t.z-fitness.z)/(PARK_LAYOUT.DRAFT_FITNESS_AREA.rz+3))).toBeGreaterThanOrEqual(1)
+  expect(trunks.some(p=>p.p[0]===t.x&&p.p[2]===t.z)).toBe(true)
+  for(const p of trunks)if(p.p[0]!==t.x||p.p[2]!==t.z)expect(Math.hypot(p.p[0]-t.x,p.p[2]-t.z)).toBeGreaterThanOrEqual(2.1-1e-6)
+ }
 })
 
 it('keeps the entire outdoor stone seating footprint clear of paths, including four-player seats',()=>{
