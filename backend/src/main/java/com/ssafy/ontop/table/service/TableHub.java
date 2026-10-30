@@ -507,7 +507,9 @@ public class TableHub {
 
     /** 0이면 끈다(기존 1008 거절). 후보값 3초는 스테이징 측정 전까지 운영값으로 확정하지 않는다. */
     @Autowired(required = false)
-    public void configureDuplicateProbe(@Value("${ontop.websocket.duplicate-probe-timeout:0s}") Duration timeout) {
+    public void configureDuplicateProbe(@Value("${ontop.websocket.duplicate-probe-timeout:0s}") String value) {
+        // 변환 서비스가 없는 최소 구성에서도 시작하도록 문자열을 직접 해석한다("500ms", "3s").
+        Duration timeout = org.springframework.boot.convert.DurationStyle.detectAndParse(value);
         if (timeout.isNegative() || timeout.compareTo(heartbeatTimeout) >= 0) {
             throw new IllegalArgumentException("기존 연결 확인 시간은 0 이상, heartbeat 제한 시간 미만이어야 합니다.");
         }
