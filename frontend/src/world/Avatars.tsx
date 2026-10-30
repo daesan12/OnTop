@@ -118,7 +118,9 @@ function Avatar({
       !reaction && avatarPoseAmbient(displayAvatar),
     )
     if (!poseDelta) return
-    motion.apply(displayAvatar, now, poseDelta, pose, figure.current, reaction, holdingCards ? oneCardHoldingPose : undefined)
+    motion.apply(displayAvatar, now, poseDelta, pose, figure.current, reaction,
+      holdingCards ? oneCardHoldingPose : undefined,
+      own && localMovement.motionProfile === 'PARK_V1' ? 'procedural' : 'clips')
     // Follow the posed head when swimming; a tilted standing-height marker
     // otherwise puts the nickname in front of the swimmer's face/water.
     model.bones.head.getWorldPosition(worldPosition)

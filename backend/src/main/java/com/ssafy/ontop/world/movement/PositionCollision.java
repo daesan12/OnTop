@@ -46,7 +46,10 @@ final class PositionCollision implements ClientPositionValidator.Geometry {
             if (other.getCollisionGroup() == 2 && event.getDistance1() < -.05f) overlapping[0] = true;
         });
         if (overlapping[0]) return false;
+        // Rapier may finish a valid landing a few millimetres inside Bullet's contact skin.
+        // Only walkable contact at the END of a supported descent gets this tolerance.
         if (sweep(start, end)) return true;
+        if (end.y < start.y && supported(to) && sweep(start, end, true)) return true;
         // Conservative single-step allowance; multi-step/ramp parity remains an experiment.
         return allowStep && sweep(start, start.add(0, .22f, 0))
                 && sweep(start.add(0, .22f, 0), end.add(0, .22f, 0));
@@ -59,13 +62,15 @@ final class PositionCollision implements ClientPositionValidator.Geometry {
                 hit.getCollisionObject().getCollisionGroup() == 2 && !policy.manages(String.valueOf(hit.getCollisionObject().getUserObject()))
                 && hit.getHitFraction() < .9999 && hit.getHitNormalLocal(null).dot(delta) < -.0001);
     }
-    private boolean sweep(Vector3f from, Vector3f to) {
+    private boolean sweep(Vector3f from, Vector3f to) { return sweep(from, to, false); }
+    private boolean sweep(Vector3f from, Vector3f to, boolean landing) {
         var delta = to.subtract(from);
         if (delta.lengthSquared() < 1e-10) return true;
         return space.sweepTest(capsule, new Transform(from), new Transform(to)).stream().noneMatch(hit -> {
             if (hit.getCollisionObject().getCollisionGroup() != 2) return false;
             var normal = hit.getHitNormalLocal(null); // Minie returns physics-space coordinates despite this name.
             if (hit.getHitFraction() >= .9999 || normal.dot(delta) >= -.0001) return false;
+            if (landing && normal.y >= .6 && -normal.dot(delta) * (1 - hit.getHitFraction()) <= .005) return false;
             // Ignore initial walkable contact during small ground/step movement,
             // but never ignore a floor crossed in the middle of a falling path.
             return normal.y < .6 || hit.getHitFraction() > .01 || delta.y < -.27;
