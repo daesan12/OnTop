@@ -10,23 +10,39 @@
 - 104: 가입 → 접속 1분 뒤 종료
 - local 개발 사용자(user_id 없음) 접속 1건
 2일차(KST 2026-10-28)
-- 101: 로그인 → 접속 10분, 착석 30초 대기 → 주사위 시작 → 5분 뒤 패배
+- 101: 로그인 → 접속 10분, 착석 30초 대기 → 주사위(판돈 5) 시작 → 5분 뒤 패배
 - 105(기존 회원): 접속 21분, 착석 90초 대기 → 같은 주사위에서 승리
 - 103: 접속 5분
 8일차(KST 2026-11-03)
 - 101: 접속 10분
-위치: 101이 스폰 후 남쪽으로 이동하다 (5, 10) 근처에서 2초 동안 막힌 뒤 멈춤, 102는 호수 가운데에서 스폰
+위치: 101이 스폰 후 남쪽으로 이동하다 (5, 10) 근처에서 2초 동안 막힌 뒤 멈춤, 102는 호수 가운데에서 스폰(이상 기존 맵)
+     2일차 103은 새 생성 맵에서 전망대로 걸어가 멈춘 뒤 점프맵 공중(높이 20m)을 지나감,
+     105는 구역 대응표에 없는 맵 버전에서 멈춤
 시설: 1일차 101·102가 bench-0 두 좌석 이용(101은 5분 뒤 하차, 102는 10분 30초 뒤 연결 끊김),
      103은 walker-1 이용 후 종료 기록 없음, 2일차 101이 telescope-1을 1분 이용
 
 붕어빵(minigame_sessions, 행동 로그가 아닌 기능 테이블)
-- 1일차: 101 완료 2판(보상 60+40으로 일일 한도 100 도달), 102 포기 1판·완료 1판, 103 기한 초과 1판
-- 105: 1일차 23:59에 시작해 2일차 00:02에 완료(시작일과 보상일이 다름)
-- 2일차: 103 완료 1판, 101 진행 중 1판
+- 1일차(모두 v2): 101 완료 2판(보상 60+40으로 일일 한도 100 도달), 102 포기 1판·완료 1판, 103 기한 초과 1판,
+  104 입력 기록 거절 1판
+- 105: 1일차 23:59에 시작해 2일차 00:02에 완료(시작일과 보상일이 다름, v2)
+- 2일차: 103 완료 1판(v4, 60초), 101 진행 중 1판(v5 3분)
 
 소리함(feedback_messages, 기능 테이블. 본문은 쿼리가 읽지 않으므로 고정 문구만 넣는다)
 - 1일차: 101이 one에 2건, 102가 two에 1건, 탈퇴로 회원 번호가 지워진 1건(one)
 - 103: 1일차 UTC 15:30(한국 2일차 00:30)에 two에 1건
+
+지갑(wallets·wallet_transactions, 기능 테이블. 위 시나리오와 금액을 맞춘다)
+- 가입 선물 100: 101~104는 1일차, 105는 하루 전(KST 2026-10-26)
+- 오목(판돈 1): 101 +1, 102 −1 / 주사위(판돈 5): 101 −5, 105 +5. 시작할 때 예약, 끝날 때 정산
+- 102 상점 구매 −20(아이템 7, 2개), 붕어빵 완료 판의 보상을 판 종료 시각에 지급
+- 2일차 오목(판돈 1, 경기 3): 103 +1, 104 −1
+- 104는 탈퇴 회원(지갑은 남지만 잔액 분포에서 제외)
+- 최종 잔액: 101=196, 102=109, 103=116, 104=99, 105=155
+
+경기(game_sessions·game_participants, 기능 테이블. 행동 로그 game_id는 경기 번호와 같다)
+- 경기 1(1일차 오목)·경기 2(2일차 주사위)는 위 행동 로그와 같은 경기
+- 경기 3: 2일차 KST 12:00 103·104 오목. 행동 로그가 없는 경기(로그 유실 구간 가정)
+- 경기 4: 2일차 주사위 시작 시도가 잔액 부족으로 거절(예약·참가자 없음)
 """
 
 import json
@@ -34,7 +50,9 @@ import uuid
 from datetime import datetime
 
 NAMESPACE = uuid.UUID("6f2f4d4e-6c0b-4b6e-9a51-3c1f0a0c1400")
-MAP_VERSION = "map-v1"
+# 11_zone_traffic.sql의 layouts 대응표에 있는 실제 해시(기존 맵·생성 맵)를 쓴다.
+MAP_VERSION = "ae833248d2dd356c6603af72b2b865f9051a866e9cfa7d2b9c9abe890579944d"
+GENERATED_MAP_VERSION = "cac3cb040a43630b0b40201ab089a4b328146c03211867b2a155d2b3614acc81"
 
 
 def build_seed() -> str:
@@ -52,8 +70,9 @@ def build_seed() -> str:
             props.update(endReason=end_reason, durationMs=duration_ms)
         event(at, "FACILITY_RELEASED" if end_reason else "FACILITY_USED", user_id, channel="one", **props)
 
-    def position(at: str, user_id: int, x: float, z: float, moving: bool) -> None:
-        positions.append((at, user_id, x, z, moving))
+    def position(at: str, user_id: int, x: float, z: float, moving: bool, *,
+                 map_version: str = MAP_VERSION, y: float = 0.84) -> None:
+        positions.append((at, user_id, x, y, z, moving, map_version))
 
     # 1일차
     event("2026-10-27 00:59:00", "USER_ONBOARDED", 101, gender="MALE", provider="SSAFY")
@@ -65,32 +84,36 @@ def build_seed() -> str:
     event("2026-10-27 01:01:05", "CHANNEL_JOINED", 102, channel="one", currentUsers=2)
     event("2026-10-27 01:02:00", "CHAT_SENT", 102, channel="one", length=3, recipients=1)
     event("2026-10-27 01:05:00", "TABLE_JOINED", 101, table="t1", channel="one")
-    event("2026-10-27 01:05:30", "GAME_SELECTED", 101, table="t1", gameCode="OMOK")
+    event("2026-10-27 01:05:30", "GAME_SELECTED", 101, table="t1", gameCode="OMOK", startMode="AUTO")
     event("2026-10-27 01:05:40", "TABLE_READY_SET", 101, table="t1", ready=True)
     event("2026-10-27 01:06:00", "TABLE_JOINED", 102, table="t1", channel="one")
     event("2026-10-27 01:06:30", "TABLE_READY_SET", 102, table="t1", ready=True)
     for user_id in (101, 102):
-        event("2026-10-27 01:07:00", "GAME_STARTED", user_id, table="t1", channel="one", game="g1",
+        event("2026-10-27 01:07:00", "GAME_STARTED", user_id, table="t1", channel="one", game="1",
               gameCode="OMOK", players=2, betAmountPerPlayer=1)
-    event("2026-10-27 01:17:00", "GAME_ENDED", 101, table="t1", game="g1", gameCode="OMOK",
+    event("2026-10-27 01:17:00", "GAME_ENDED", 101, table="t1", game="1", gameCode="OMOK",
           endReason="FORFEIT", players=2, result="WIN")
-    event("2026-10-27 01:17:00", "GAME_ENDED", 102, table="t1", game="g1", gameCode="OMOK",
+    event("2026-10-27 01:17:00", "GAME_ENDED", 102, table="t1", game="1", gameCode="OMOK",
           endReason="FORFEIT", players=2, result="FORFEIT", leaveReason="DISCONNECT_TIMEOUT")
     event("2026-10-27 01:18:00", "EMOTE_SENT", 102, channel="one", emoteCode="WAVE")
     event("2026-10-27 01:19:00", "SHOP_PURCHASED", 102, itemId=7, quantity=2, purchaseId="p-1")
     event("2026-10-27 01:19:30", "ITEM_EQUIPPED", 102, itemId=7)
     event("2026-10-27 01:21:00", "WS_DISCONNECTED", 102, reason="SOCKET_CLOSED")
     event("2026-10-27 01:21:00.001", "CHANNEL_LEFT", 102, channel="one", byDisconnect=True)
-    event("2026-10-27 01:21:00.002", "TABLE_LEFT", 102, table="t1", channel="one", byDisconnect=True)
+    event("2026-10-27 01:21:00.002", "TABLE_LEFT", 102, table="t1", channel="one", byDisconnect=True,
+          reason="DISCONNECT")
     event("2026-10-27 01:30:00", "WS_DISCONNECTED", 101, reason="SOCKET_CLOSED")
     event("2026-10-27 01:30:00.001", "CHANNEL_LEFT", 101, channel="one", byDisconnect=True)
-    event("2026-10-27 01:30:00.002", "TABLE_LEFT", 101, table="t1", channel="one", byDisconnect=True)
+    event("2026-10-27 01:30:00.002", "TABLE_LEFT", 101, table="t1", channel="one", byDisconnect=True,
+          reason="DISCONNECT")
     event("2026-10-27 01:59:00", "USER_ONBOARDED", 103, gender="FEMALE", provider="SSAFY")
     event("2026-10-27 02:00:00", "WS_CONNECTED", 103)
     event("2026-10-27 02:00:05", "CHANNEL_JOINED", 103, channel="one", currentUsers=1)
     event("2026-10-27 02:01:00", "CHAT_SENT", 103, channel="one", length=8, recipients=0)
     event("2026-10-27 02:02:00", "TABLE_JOINED", 103, table="t2", channel="one")
-    event("2026-10-27 02:04:00", "TABLE_LEFT", 103, table="t2", channel="one", byDisconnect=False)
+    # 태블릿 방장이 시작하지 않아 좌석에서 빠진 경우(참가자 구성은 단순화)
+    event("2026-10-27 02:04:00", "TABLE_LEFT", 103, table="t2", channel="one", byDisconnect=False,
+          reason="HOST_START_TIMEOUT")
     event("2026-10-27 02:10:00", "WS_DISCONNECTED", 103, reason="SOCKET_CLOSED")
     event("2026-10-27 02:10:00.001", "CHANNEL_LEFT", 103, channel="one", byDisconnect=True)
     event("2026-10-27 02:59:00", "USER_ONBOARDED", 104, gender="MALE", provider="NAVER")
@@ -114,11 +137,11 @@ def build_seed() -> str:
     event("2026-10-28 01:01:00", "TABLE_JOINED", 105, table="t1", channel="one")
     event("2026-10-28 01:02:00", "TABLE_JOINED", 101, table="t1", channel="one")
     for user_id in (101, 105):
-        event("2026-10-28 01:02:30", "GAME_STARTED", user_id, table="t1", channel="one", game="g2",
-              gameCode="DICE", players=2, targetScore=2000, betAmountPerPlayer=1)
-    event("2026-10-28 01:07:30", "GAME_ENDED", 101, table="t1", game="g2", gameCode="DICE",
+        event("2026-10-28 01:02:30", "GAME_STARTED", user_id, table="t1", channel="one", game="2",
+              gameCode="DICE", players=2, targetScore=2000, betAmountPerPlayer=5)
+    event("2026-10-28 01:07:30", "GAME_ENDED", 101, table="t1", game="2", gameCode="DICE",
           endReason="TARGET_REACHED", players=2, result="LOSE")
-    event("2026-10-28 01:07:30", "GAME_ENDED", 105, table="t1", game="g2", gameCode="DICE",
+    event("2026-10-28 01:07:30", "GAME_ENDED", 105, table="t1", game="2", gameCode="DICE",
           endReason="TARGET_REACHED", players=2, result="WIN")
     event("2026-10-28 01:10:00", "WS_DISCONNECTED", 101, reason="SOCKET_CLOSED")
     event("2026-10-28 01:20:00", "WS_DISCONNECTED", 105, reason="SOCKET_CLOSED")
@@ -135,6 +158,10 @@ def build_seed() -> str:
         position(f"2026-10-27 01:00:{10 + second:02d}", 101, x, z, True)
     position("2026-10-27 01:00:16.500", 101, 5.2, 10, False)
     position("2026-10-27 01:01:05", 102, 56, -12, False)
+    position("2026-10-28 05:00:10", 103, 55, 56, True, map_version=GENERATED_MAP_VERSION)
+    position("2026-10-28 05:00:11", 103, 62, 56, False, map_version=GENERATED_MAP_VERSION)
+    position("2026-10-28 05:00:20", 103, -20, -30, True, map_version=GENERATED_MAP_VERSION, y=20)
+    position("2026-10-28 01:00:00", 105, 0, 6, False, map_version="unknown-map")
 
     return to_sql(events, positions) + feature_sql()
 
@@ -144,10 +171,11 @@ def feature_sql() -> str:
     lines = []
     for user_id, provider, gender in [(101, "SSAFY", "MALE"), (102, "NAVER", "FEMALE"), (103, "SSAFY", "FEMALE"),
                                       (104, "NAVER", "MALE"), (105, "SSAFY", "MALE")]:
+        deleted = "'2026-10-29 00:00:00.000'" if user_id == 104 else "NULL"
         lines.append(
             "INSERT INTO users (id, login_provider, provider_user_id, nickname, character_gender, created_at, "
-            f"updated_at) VALUES ({user_id}, '{provider}', 'p{user_id}', 'u{user_id}', '{gender}', "
-            "'2026-10-27 00:00:00.000', '2026-10-27 00:00:00.000');"
+            f"updated_at, deleted_at) VALUES ({user_id}, '{provider}', 'p{user_id}', 'u{user_id}', '{gender}', "
+            f"'2026-10-27 00:00:00.000', '2026-10-27 00:00:00.000', {deleted});"
         )
     # (회원, 상태, 점수, 보상, 시작, 종료)
     for user_id, status, score, reward, started, ended in [
@@ -159,12 +187,15 @@ def feature_sql() -> str:
         (105, "COMPLETED", 30, 50, "2026-10-27 14:59:00", "2026-10-27 15:02:00"),
         (103, "COMPLETED", 10, 15, "2026-10-28 05:01:00", "2026-10-28 05:03:00"),
         (101, "PLAYING", None, 0, "2026-10-28 01:03:00", None),
+        (104, "INVALID", None, 0, "2026-10-27 03:00:00", "2026-10-27 03:02:00"),
     ]:
         lines.append(
             "INSERT INTO minigame_sessions (user_id, minigame_type, status, score, reward_amount, started_at, "
             f"ended_at) VALUES ({user_id}, 'BUNGEOPPANG', '{status}', {sql_value(score)}, {reward}, "
             f"'{timestamp(started)}', {sql_value(ended and timestamp(ended))});"
         )
+    lines.extend(game_sql())
+    lines.extend(wallet_sql())
     for user_id, channel, created in [
         (101, "one", "2026-10-27 01:40:00"),
         (101, "one", "2026-10-27 02:00:00"),
@@ -176,7 +207,94 @@ def feature_sql() -> str:
             "INSERT INTO feedback_messages (user_id, channel_id, body, created_at) VALUES "
             f"({sql_value(user_id)}, '{channel}', 'seed', '{timestamp(created)}');"
         )
+    lines.extend(bungeoppang_version_sql())
     return "\n".join(lines) + "\n"
+
+
+def wallet_sql() -> list[str]:
+    """지갑 잔액은 원장 합계와 같게 둔다. 붕어빵 판 번호는 위 minigame_sessions의 입력 순서(1부터)다."""
+    lines = []
+    # (회원, 유형, 경기, 붕어빵 판, 아이템, 잔액 변화, 예약 변화, 시각)
+    entries = [
+        (105, "SIGNUP_BONUS", None, None, None, 100, 0, "2026-10-26 01:00:00"),
+        (101, "SIGNUP_BONUS", None, None, None, 100, 0, "2026-10-27 00:59:00"),
+        (102, "SIGNUP_BONUS", None, None, None, 100, 0, "2026-10-27 00:59:30"),
+        (103, "SIGNUP_BONUS", None, None, None, 100, 0, "2026-10-27 01:59:00"),
+        (104, "SIGNUP_BONUS", None, None, None, 100, 0, "2026-10-27 02:59:00"),
+        (101, "GAME_RESERVE", 1, None, None, 0, 1, "2026-10-27 01:07:00"),
+        (102, "GAME_RESERVE", 1, None, None, 0, 1, "2026-10-27 01:07:00"),
+        (101, "GAME_SETTLEMENT", 1, None, None, 1, -1, "2026-10-27 01:17:00"),
+        (102, "GAME_SETTLEMENT", 1, None, None, -1, -1, "2026-10-27 01:17:00"),
+        (102, "SHOP_PURCHASE", None, None, 7, -20, 0, "2026-10-27 01:19:00"),
+        (101, "MINIGAME_REWARD", None, 1, None, 60, 0, "2026-10-27 01:23:00"),
+        (101, "MINIGAME_REWARD", None, 2, None, 40, 0, "2026-10-27 01:27:00"),
+        (102, "MINIGAME_REWARD", None, 4, None, 30, 0, "2026-10-27 01:34:00"),
+        (105, "MINIGAME_REWARD", None, 6, None, 50, 0, "2026-10-27 15:02:00"),
+        (101, "GAME_RESERVE", 2, None, None, 0, 5, "2026-10-28 01:02:30"),
+        (105, "GAME_RESERVE", 2, None, None, 0, 5, "2026-10-28 01:02:30"),
+        (101, "GAME_SETTLEMENT", 2, None, None, -5, -5, "2026-10-28 01:07:30"),
+        (105, "GAME_SETTLEMENT", 2, None, None, 5, -5, "2026-10-28 01:07:30"),
+        (103, "MINIGAME_REWARD", None, 7, None, 15, 0, "2026-10-28 05:03:00"),
+        (103, "GAME_RESERVE", 3, None, None, 0, 1, "2026-10-28 03:00:00"),
+        (104, "GAME_RESERVE", 3, None, None, 0, 1, "2026-10-28 03:00:00"),
+        (103, "GAME_SETTLEMENT", 3, None, None, 1, -1, "2026-10-28 03:08:00"),
+        (104, "GAME_SETTLEMENT", 3, None, None, -1, -1, "2026-10-28 03:08:00"),
+    ]
+    balances: dict[int, int] = {}
+    for user_id, _, _, _, _, balance_delta, _, _ in entries:
+        balances[user_id] = balances.get(user_id, 0) + balance_delta
+    for user_id in sorted(balances):
+        lines.append(f"INSERT INTO wallets (id, user_id, balance, reserved_balance) VALUES "
+                     f"({user_id - 100}, {user_id}, {balances[user_id]}, 0);")
+    for number, (user_id, kind, game, session, item, balance_delta, reserved_delta, at) in enumerate(entries):
+        lines.append(
+            "INSERT INTO wallet_transactions (wallet_id, game_session_id, minigame_session_id, item_id, "
+            "transaction_type, balance_delta, reserved_delta, idempotency_key, created_at) VALUES "
+            f"({user_id - 100}, {sql_value(game)}, {sql_value(session)}, {sql_value(item)}, '{kind}', "
+            f"{balance_delta}, {reserved_delta}, 'seed-{number}', '{timestamp(at)}');"
+        )
+    return lines
+
+
+def game_sql() -> list[str]:
+    """확정·거절된 경기와 참가자. 지갑 원장이 경기 번호를 참조하므로 원장보다 먼저 넣는다."""
+    lines = []
+    # (번호, 게임, 목표, 테이블, 판돈, 상태, 거절 사유, 종료 사유, 시작(또는 시도), 종료)
+    games = [
+        (1, "OMOK", None, "t1", 1, "FINISHED", None, "FORFEIT", "2026-10-27 01:07:00", "2026-10-27 01:17:00"),
+        (2, "DICE", 2000, "t1", 5, "FINISHED", None, "TARGET_REACHED", "2026-10-28 01:02:30", "2026-10-28 01:07:30"),
+        (3, "OMOK", None, "t2", 1, "FINISHED", None, "FIVE_IN_ROW", "2026-10-28 03:00:00", "2026-10-28 03:08:00"),
+        (4, "DICE", 4000, "t3", 5, "REJECTED", "INSUFFICIENT_BALANCE", None, "2026-10-28 06:00:00", None),
+    ]
+    for number, code, target, table, bet, status, rejection, end_reason, started, ended in games:
+        confirmed = status != "REJECTED"
+        at = f"'{timestamp(started)}'"
+        done = sql_value(ended and timestamp(ended))
+        lines.append(
+            "INSERT INTO game_sessions (id, start_attempt_id, request_fingerprint, table_id, table_version, game_code, "
+            "target_score, participant_count, bet_amount_per_player, total_pot, status, settlement_status, "
+            "rejection_code, end_reason, owner_instance_id, owner_boot_id, created_at, reserved_at, started_at, "
+            f"ended_at, settled_at) VALUES ({number}, UNHEX(LPAD('{number}', 32, '0')), UNHEX(REPEAT('0', 64)), "
+            f"'{table}', 0, '{code}', {sql_value(target)}, 2, {bet}, {bet * 2}, '{status}', "
+            f"{sql_value('SETTLED' if confirmed else None)}, {sql_value(rejection)}, {sql_value(end_reason)}, "
+            f"'seed', UNHEX(REPEAT('0', 32)), {at}, {at if confirmed else 'NULL'}, {at if confirmed else 'NULL'}, "
+            f"{done}, {done});"
+        )
+    # (경기, 회원, 좌석, 상태, 결과, 이탈 사유, 엽전 증감)
+    for game, user_id, seat, status, result, leave, delta in [
+        (1, 101, 1, "FINISHED", "WIN", None, 1), (1, 102, 2, "LEFT", "FORFEIT", "DISCONNECT_TIMEOUT", -1),
+        (2, 101, 1, "FINISHED", "LOSE", None, -5), (2, 105, 2, "FINISHED", "WIN", None, 5),
+        (3, 103, 1, "FINISHED", "WIN", None, 1), (3, 104, 2, "FINISHED", "LOSE", None, -1),
+    ]:
+        ended = f"'{timestamp(games[game - 1][9])}'"
+        bet = games[game - 1][4]
+        lines.append(
+            "INSERT INTO game_participants (game_session_id, user_id, seat_number, participant_order, "
+            "participant_status, result, leave_reason, left_at, reserved_amount, coin_delta, "
+            f"reservation_released_at) VALUES ({game}, {user_id}, {seat}, {seat - 1}, '{status}', '{result}', "
+            f"{sql_value(leave)}, {ended if leave else 'NULL'}, {bet}, {delta}, {ended});"
+        )
+    return lines
 
 
 def to_sql(events: list[tuple], positions: list[tuple]) -> str:
@@ -190,11 +308,11 @@ def to_sql(events: list[tuple], positions: list[tuple]) -> str:
             f"{sql_value(channel)}, {sql_value(table)}, {sql_value(game)}, "
             f"{sql_value(json.dumps(props) if props else None)});"
         )
-    for at, user_id, x, z, moving in positions:
+    for at, user_id, x, y, z, moving, map_version in positions:
         lines.append(
             "INSERT INTO world_position_samples (user_id, channel_id, sampled_at, x, y, z, moving, running, "
-            f"swimming, map_version) VALUES ({user_id}, 'one', '{timestamp(at)}', {x}, 0.84, {z}, "
-            f"{int(moving)}, 0, 0, '{MAP_VERSION}');"
+            f"swimming, map_version) VALUES ({user_id}, 'one', '{timestamp(at)}', {x}, {y}, {z}, "
+            f"{int(moving)}, 0, 0, '{map_version}');"
         )
     return "\n".join(lines) + "\n"
 
@@ -209,6 +327,34 @@ def sql_value(value) -> str:
     if isinstance(value, int):
         return str(value)
     return "'" + str(value).replace("'", "''") + "'"
+
+
+def bungeoppang_version_sql() -> list[str]:
+    """판마다 규칙 버전 기록을 두고, v4·v5 판에는 판 테이블(설정 버전·조리 시간)을 둔다.
+    판 번호는 feature_sql의 minigame_sessions 입력 순서(1부터)다."""
+    lines = []
+    # (판 번호, 규칙 버전, 기록 거절 여부)
+    for session, rules, rejected in [(1, "v2", False), (2, "v2", False), (3, "v2", False), (4, "v2", False),
+                                     (5, "v2", False), (6, "v2", False), (7, "v4", False), (8, "v5", False),
+                                     (9, "v2", True)]:
+        lines.append(
+            "INSERT INTO bungeoppang_records (minigame_session_id, rules_version, heats, is_first_game, "
+            f"rejection_detail) VALUES ({session}, '{rules}', '[]', 0, {sql_value('seed' if rejected else None)});"
+        )
+    # (판 번호, 설정 버전, 발급·카운트다운, 조리 시작, 조리 끝, 제출 기한, 만료). 조리 60초(v4)·180초(v5 3분)
+    for session, config, issued, play_start, play_end, deadline, expires in [
+        (7, "v4-20261027.1", "2026-10-28 05:01:00", "2026-10-28 05:01:03", "2026-10-28 05:02:03",
+         "2026-10-28 05:02:33", "2026-10-28 05:03:33"),
+        (8, "v5-20261027.1", "2026-10-28 01:03:00", "2026-10-28 01:03:03", "2026-10-28 01:06:03",
+         "2026-10-28 01:06:33", "2026-10-28 01:07:33"),
+    ]:
+        times = ", ".join(f"'{timestamp(value)}'" for value in (issued, issued, play_start, play_end, deadline, expires))
+        lines.append(
+            "INSERT INTO bungeoppang_v4_rounds (minigame_session_id, config_version, config_json, issued_at, "
+            "countdown_starts_at, play_starts_at, play_ends_at, submit_deadline, expires_at, approved_prefix_hash, "
+            f"checkpoint_json) VALUES ({session}, '{config}', '{{}}', {times}, '{'0' * 64}', '{{}}');"
+        )
+    return lines
 
 
 if __name__ == "__main__":
