@@ -8,6 +8,7 @@ import { GAME_CONSTRUCTION_NOTICE, isTableGamePlayable, TABLE_GAMES, TARGET_SCOR
 import { useTableLobby } from '../features/tableLobby/state'
 import { lastMoveText, omokOutcome } from './omokPresentation'
 import { OmokSurrender } from './OmokSurrender'
+import { OmokKeyboardBoard } from './OmokKeyboardBoard'
 import './game.css'
 
 export function GameControls({ tableId }: { tableId: string }) {
@@ -130,27 +131,8 @@ export function OmokPanel() {
       {remaining !== null && <small>남은 시간 약 {remaining}초</small>}</div></div></>}
     <div className="focus-record"><span>{o.moveCount}수</span><span className="omok-last-move-text">{lastMoveText(o.lastMove)}</span></div>
     <p className="focus-hint">{s.pending ? '착수 요청 중 · 서버 확인을 기다리고 있습니다.' : !player ? '판의 교차점을 눌러 추천 위치를 알려주세요' : myTurn ? '빈 교차점을 클릭해 돌을 놓으세요' : '상대의 착수를 기다리고 있어요'}</p>
-    <details className="omok-keyboard"><summary>키보드로 오목판 조작</summary><div
-            role="group"
-            aria-label="오목판"
-            className="omok-accessible-board"
-          >
-            {o.board.flatMap((row, y) =>
-              row.map((stone, x) => (
-                <button
-                  key={y * 15 + x}
-                  className={(stone === 1 ? 'black' : stone === 2 ? 'white' : '') +
-                    (o.lastMove?.x === x && o.lastMove.y === y ? ' last-move' : '')}
-                  aria-current={o.lastMove?.x === x && o.lastMove.y === y ? true : undefined}
-                  aria-label={`${y + 1}행 ${x + 1}열 ${stone === 1 ? '흑돌' : stone === 2 ? '백돌' : '빈칸'}`}
-                  disabled={!connected || pending || !canPlace(own, x, y, now)}
-                  onClick={() => void runtime.placeOmok(x, y)}
-                >
-                  {stone ? '●' : '·'}
-                </button>
-              )),
-            )}
-          </div></details>
+    <OmokKeyboardBoard key={g.gameId} omok={o} canPlace={(x, y) => connected && !pending && canPlace(own, x, y)}
+      place={(x, y) => void runtime.placeOmok(x, y)} />
     <div className="focus-actions">{!player && <SeatedLookButton />}
       <button onClick={() => openManual('gomoku')}>게임 설명 · F1</button>
       <button disabled={pending || !connected} onClick={() => void runtime.checkGame()}>최신 판 확인</button>

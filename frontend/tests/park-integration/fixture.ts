@@ -12,6 +12,7 @@ const facilities:FacilityDefinition[]=[
   ...data.interactions.benches.map(b=>({facilityId:b.id,kind:b.kind,center:{x:b.position[0],y:b.position[1]+.8,z:b.position[2],yaw:b.yaw},radius:b.radius,heightTolerance:b.heightTolerance,seats:b.seats.map(s=>s.use),exit:b.seats[0]!.exit})),
   ...[...data.interactions.fitness,...data.interactions.telescopes].map(b=>({facilityId:b.id,kind:b.kind,center:{x:b.position[0],y:b.position[1]+.8,z:b.position[2],yaw:b.yaw},radius:b.radius,heightTolerance:b.heightTolerance,seats:[b.use],exit:b.exit})),
 ].sort((a,b)=>a.facilityId.localeCompare(b.facilityId))
+export const generatedFacilityCatalog = { ...originalCatalog, mapVersion: PARK_MAP_VERSION, facilities }
 
 /** Browser-only wire simulation: production contains no mock login, physics or transport bypass. */
 export async function parkFixture(page:Page,options:{holdConfirmation?:boolean;serverMap?:MapIdentity;omitMap?:boolean}={}) {
