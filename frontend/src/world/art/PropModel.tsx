@@ -12,12 +12,14 @@ export function PropModel({
   name,
   shadow = true,
   paving = false,
+  pavingColor,
   pavingHole,
 }: {
   art: Partial<Record<PropFinish, BufferGeometry>>
   name: string
   shadow?: boolean
   paving?:boolean
+  pavingColor?:string
   pavingHole?:readonly [number,number,number]
 }) {
   return (
@@ -31,7 +33,7 @@ export function PropModel({
           receiveShadow
           userData={kind === 'stone' ? { keepOpaque: true } : undefined}
         >
-          {paving&&kind==='stone'?<WalkwayMaterial vertexColors excludedDisk={pavingHole}/>:SIMPLE_MAP?<primitive object={simplePropMaterial} attach="material" dispose={null}/>:kind === 'wood' ? (
+          {paving&&kind==='stone'?<WalkwayMaterial color={pavingColor} vertexColors excludedDisk={pavingHole}/>:SIMPLE_MAP?<primitive object={simplePropMaterial} attach="material" dispose={null}/>:kind === 'wood' ? (
             <SurfaceMaterial
               kind="wood"
               vertexColors
