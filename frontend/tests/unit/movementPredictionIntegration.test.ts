@@ -35,3 +35,17 @@ it('disables prediction immediately for a server-approved activity and incompati
   state(3, null); expect(localMovement.ready).toBe(true)
   state(4, null, 'different'); expect(localMovement.ready).toBe(false)
 })
+
+
+it('keeps the real presenter and reporting path active for a server-directed PARK_V1 follower',async()=>{
+  resetWorld('connected');useSession.setState({sessionId:'101',roomId:'one',mapCompatible:true,mapVersion:EXPECTED_MAP_VERSION})
+  receive({type:'WORLD_STATE',requestId:null,payload:{channelId:'one',version:1,mapVersion:EXPECTED_MAP_VERSION,
+    avatars:[{userId:'101',position,motion:{...motion,epoch:10,profile:'PARK_V1',authority:'CLIENT_VALIDATED',
+      steering:{dx:1,dz:0,run:true,targetX:10,targetZ:34}}}]}})
+  await localMovement.prepare();avatars.get('101')!.followTargetId='102'
+  const start=performance.now();localMovement.intend({dx:0,dz:0,run:false,jump:false},start)
+  const displayed=sampleAvatar(avatars.get('101')!,start+120,{...position})
+  expect(localMovement.ready).toBe(true);expect(displayed.x).toBeGreaterThan(position.x+.1)
+  expect(localMovement.positionReport(1,{dx:0,dz:0,run:false,jump:false},start+130)).toMatchObject({manual:false,run:true})
+  expect(authoritativePose('101')!.x).toBe(position.x)
+})

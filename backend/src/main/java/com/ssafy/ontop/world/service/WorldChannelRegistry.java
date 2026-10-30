@@ -429,7 +429,7 @@ public class WorldChannelRegistry implements ChannelPresence {
     public synchronized WorldChange serverMovement(String userId) {
         Room room = rooms.get(membership.get(userId));
         if (!clientPositions) return new WorldChange(room.worldState(), false);
-        var snapshot = room.physics.serverMovement(userId);
+        var snapshot = room.physics.followMovement(userId);
         var previous = room.positions.get(userId);
         boolean changed = !snapshot.motion().equals(room.motions.get(userId));
         room.positions.put(userId, new Movement(position(snapshot), previous.acceptedAtNanos()));
@@ -515,9 +515,14 @@ public class WorldChannelRegistry implements ChannelPresence {
             }
             boolean changed = false;
             for (String id : room.users) {
+                WorldPhysics.Motion oldMotion = room.motions.get(id);
                 Position next = snapshotPosition(room, id);
+                WorldPhysics.Motion newMotion = room.motions.get(id);
                 Movement previous = room.positions.get(id);
-                if (!next.equals(previous.position())) {
+                if (!next.equals(previous.position()) || oldMotion != null && newMotion != null && (
+                        oldMotion.epoch() != newMotion.epoch() || !java.util.Objects.equals(oldMotion.authority(), newMotion.authority())
+                        || !java.util.Objects.equals(oldMotion.steering(), newMotion.steering())
+                        || !java.util.Objects.equals(oldMotion.correctionReason(), newMotion.correctionReason()))) {
                     room.positions.put(id, new Movement(next, previous.acceptedAtNanos()));
                     changed = true;
                 }
