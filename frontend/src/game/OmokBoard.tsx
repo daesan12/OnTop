@@ -17,13 +17,18 @@ import { omokCell, stonePoint, OMOK_SIZE, OMOK_SPACING as spacing, OMOK_HALF as 
 import { GomokuAssets, stoneGeometry, blackStoneMaterial as blackMaterial, whiteStoneMaterial as whiteMaterial } from './omok/GomokuAssets'
 import { FocusWood } from './omok/BoardWood'
 import { OMOK_FOCUS_LAYER } from '../world/omokCamera'
-import { seatScope } from '../features/tableLobby/state'
+import { seatScope, useTableLobby } from '../features/tableLobby/state'
 import { useOmokEvents } from './omok/spectatorEvents'
 import { OmokPings } from './omok/OmokFeedback'
 import { panelOwnsKeys } from '../world/inputOwnership'
+import { BoardCoordinates } from './omok/BoardCoordinates'
 
 const noRaycast = () => {} // Three line threshold is too wide for 9cm grid cells; pick the board surface.
 const blackPreview = blackMaterial.clone(), whitePreview = whiteMaterial.clone()
+const previewGuide = new BufferGeometry().setAttribute('position', new Float32BufferAttribute([
+  -.057, 0, 0, -.043, 0, 0, .043, 0, 0, .057, 0, 0,
+  0, 0, -.057, 0, 0, -.043, 0, 0, .043, 0, 0, .057,
+], 3))
 for (const material of [blackPreview, whitePreview]) {
   material.transparent = true
   material.opacity = 0.5
@@ -73,8 +78,9 @@ function OmokSurface({
   const ownsCursor = useRef(false)
   const connected = useSession(s => s.status === 'connected'), pending = useSession(s => s.pending)
   const scope = useSession(seatScope)
-  const focused = !!scope && game?.role === 'PLAYER'
-    && game.omok.status === 'PLAYING'
+  const seatIndex = useSession(s => s.seatIndex)
+  const spectatorView = useTableLobby(s => s.spectatorView)
+  const focused = game?.omok.status === 'PLAYING' && (game.role === 'PLAYER' ? !!scope : spectatorView === 'board')
   useLayoutEffect(() => {
     root.current?.traverse(object => {
       if (focused) object.layers.enable(OMOK_FOCUS_LAYER)
@@ -199,6 +205,7 @@ function OmokSurface({
       }}
     >
       <GomokuAssets />
+      <BoardCoordinates reversed={game?.role === 'PLAYER' && focused && seatIndex === 1} />
       {game && <OmokPings gameId={game.gameId} focused={focused} />}
       {/* Decorations never pick cells; keep the approved grid's original local coordinates. */}
       <mesh name="omok-pick-surface" position={[0, 0.0005, 0]} rotation={[-Math.PI / 2, 0, 0]}>
@@ -229,14 +236,15 @@ function OmokSurface({
       {game?.omok.lastMove && <mesh name="omok-last-move" raycast={noRaycast}
         position={[game.omok.lastMove.x * spacing - half, 0.038, game.omok.lastMove.y * spacing - half]}
         rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[0.012, 0.018, 16]} /><meshBasicMaterial color="#e88b37" />
+        <ringGeometry args={[0.014, 0.019, 4, 1, Math.PI / 4]} /><meshBasicMaterial color="#e88b37" />
       </mesh>}
       <group ref={hover} name="omok-hover" visible={false}>
         <mesh geometry={stoneGeometry} material={game?.omok.turnUserId === game?.omok.whiteUserId ? whitePreview : blackPreview}
           scale={[1, 0.42, 1]} raycast={noRaycast} dispose={null} />
-        <mesh position={[0, 0.018, 0]} rotation={[-Math.PI / 2, 0, 0]} raycast={noRaycast}>
-          <ringGeometry args={[0.035, 0.041, 20]} /><meshBasicMaterial color="#62a375" depthTest={false} />
-        </mesh>
+        <lineSegments name="omok-preview-guide" position={[0, .018, 0]} raycast={noRaycast}>
+          <primitive object={previewGuide} attach="geometry" dispose={null} />
+          <lineBasicMaterial color="#f2d7ad" depthTest={false} />
+        </lineSegments>
       </group>
     </group>
     </>

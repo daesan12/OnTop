@@ -9,6 +9,7 @@ const event = (type: string, code: string, flags: Flags = {}, cancelable = true)
   Object.assign(new Event(type, { cancelable }), { code, key: code, ...flags }) as KeyboardEvent
 const restricted: [string, Flags][] = [
   ['F12', {}], ['F12', { ctrlKey: true }], ['F12', { shiftKey: true }], ['F12', { metaKey: true }],
+  ['KeyW', { ctrlKey: true }], ['KeyW', { ctrlKey: true, shiftKey: true }],
   ...['KeyI', 'KeyJ', 'KeyC'].map(code => [code, { ctrlKey: true, shiftKey: true }] as [string, Flags]),
 ]
 const preserved: [string, Flags][] = [
@@ -25,8 +26,9 @@ const preserved: [string, Flags][] = [
   ] as [string, Flags][]),
   ...['Escape', 'F1', 'Tab', 'Enter', 'KeyW', 'KeyE', 'KeyR', 'KeyT', 'KeyQ', 'KeyV', 'KeyG', 'Space', 'ControlLeft']
     .map(code => [code, {}] as [string, Flags]),
-  ...['KeyA', 'KeyC', 'KeyV', 'KeyX', 'KeyZ', 'KeyY', 'KeyF', 'KeyL', 'KeyT', 'KeyW', 'Equal', 'Minus', 'Digit0']
+  ...['KeyA', 'KeyC', 'KeyV', 'KeyX', 'KeyZ', 'KeyY', 'KeyF', 'KeyL', 'KeyT', 'Equal', 'Minus', 'Digit0']
     .flatMap(code => [[code, { ctrlKey: true }], [code, { metaKey: true }]] as [string, Flags][]),
+  ['KeyW', { metaKey: true }], ['KeyW', { ctrlKey: true, altKey: true }],
   ['ArrowLeft', { altKey: true }], ['KeyS', { ctrlKey: true, altKey: true }],
 ]
 
