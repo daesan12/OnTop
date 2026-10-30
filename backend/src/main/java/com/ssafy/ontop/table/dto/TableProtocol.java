@@ -65,6 +65,10 @@ public final class TableProtocol {
             case "WORLD_CHAT_SEND" -> fields(payload, Set.of("text")) && validChatText(payload.get("text"));
             case "WORLD_EMOTE_SEND" -> fields(payload, Set.of("emoteCode")) && validEmoteCode(payload.get("emoteCode"));
             case "WORLD_MOVE" -> validMove(payload);
+            case "WORLD_POSITION" -> validPosition(payload);
+            case "WORLD_POSITION_FALLBACK" -> fields(payload, Set.of("epoch"))
+                    && payload.path("epoch").isIntegralNumber() && payload.path("epoch").canConvertToLong()
+                    && payload.path("epoch").asLong() >= 0 && payload.path("epoch").asLong() <= 9_007_199_254_740_991L;
             case "WORLD_FOLLOW_CHECK" -> fields(payload, Set.of());
             case "WORLD_FOLLOW_START" -> fields(payload, Set.of("targetId"))
                     && payload.path("targetId").isTextual()
@@ -202,6 +206,13 @@ public final class TableProtocol {
         } catch (IllegalArgumentException exception) {
             return false;
         }
+    }
+
+    private boolean validPosition(JsonNode payload) {
+        try {
+            com.ssafy.ontop.world.movement.ClientPositionValidator.Candidate.parse(payload);
+            return true;
+        } catch (IllegalArgumentException exception) { return false; }
     }
 
     private boolean validReady(JsonNode payload) {

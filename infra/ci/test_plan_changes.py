@@ -151,6 +151,19 @@ class ChangePlanTests(RepoFixture, unittest.TestCase):
         self.assertEqual((flags["TEST_BACKEND"], flags["TEST_FRONTEND"]), ("0", "1"))
         self.assertEqual((flags["ALLOW_BACKEND_DEPLOY"], flags["ALLOW_FRONTEND_DEPLOY"]), ("0", "1"))
 
+    def test_park_handoff_change_runs_park_checks_without_backend_deploy(self):
+        head = self.commit({"docs/integration/park-180/park-bindings.dev.json": "new mapping"})
+        flags = self.plan(head, tested=self.base, backend=self.base, frontend=self.base,
+                          live=f"wooaw/ontop-backend:sha-{self.base}")
+        self.assertEqual((flags["TEST_PARK_MAP"], flags["TEST_FRONTEND"]), ("1", "1"))
+        self.assertEqual((flags["DEPLOY_BACKEND"], flags["DEPLOY_FRONTEND"]), ("0", "1"))
+
+    def test_ci_change_runs_park_handoff_checks(self):
+        head = self.commit({"Jenkinsfile": "new pipeline"})
+        flags = self.plan(head, tested=self.base, backend=self.base, frontend=self.base,
+                          live=f"wooaw/ontop-backend:sha-{self.base}")
+        self.assertEqual(flags["TEST_PARK_MAP"], "1")
+
     def test_running_backend_mismatch_blocks_automatic_deploy(self):
         live = self.commit({"backend/App.java": "b"})
         flags = self.plan(live, tested=live, backend=self.base, frontend=self.base,

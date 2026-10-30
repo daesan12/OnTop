@@ -1,4 +1,4 @@
-import type { AnonymousNote } from '../../config/notes'
+import type { AnonymousNote } from '../../park/mapConfig'
 import type { Pose } from '../../network/worldClient'
 import type { NoteTopic } from './topics'
 

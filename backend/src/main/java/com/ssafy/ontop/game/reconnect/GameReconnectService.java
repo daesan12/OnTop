@@ -189,6 +189,26 @@ public class GameReconnectService {
         submitLoad(slot, null);
     }
 
+    /**
+     * 정산 완료로 테이블이 대기 상태가 된 뒤 정산 전 판정만 다시 조회한다.
+     * 결과는 기존 DB·엔진 대조를 그대로 따르며, 정산 통지만으로 LOBBY나 FINISHED를 만들지 않는다.
+     */
+    public synchronized void roundSettled(long userId) {
+        Slot slot = users.get(userId);
+        if (stopped || !recoveryConfigured() || slot == null || slot.sessionId == null || slot.pendingStart) {
+            return;
+        }
+        if (slot.status.equals("UNAVAILABLE")) {
+            slot.generation++;
+            slot.loading = false;
+            submitLoad(slot, null);
+        } else if (slot.status.equals("PENDING")) {
+            // 정산 커밋 전에 읽었을 수 있는 조회를 버리고, 원래 요청 ID로 다시 읽는다.
+            slot.generation++;
+            startLoad(slot, slot.loadRequestId);
+        }
+    }
+
     // 경기 입력 담당이 사용한다. 복구 완료한 현재 연결만 해당 경기를 조작할 수 있다.
     public synchronized boolean canControlGame(long userId, String sessionId, String gameId) {
         Slot slot = users.get(userId);
@@ -262,7 +282,12 @@ public class GameReconnectService {
         if (slot.loading) {
             return;
         }
+        startLoad(slot, requestId);
+    }
+
+    private void startLoad(Slot slot, String requestId) {
         slot.loading = true;
+        slot.loadRequestId = requestId;
         long generation = slot.generation;
         workers.execute(() -> load(slot, generation, requestId));
     }
@@ -503,6 +528,7 @@ public class GameReconnectService {
         private java.util.function.Predicate<String> finishedAllowed = game -> true;
         private long generation;
         private boolean loading;
+        private String loadRequestId;
         private boolean returnedInTime;
         private boolean pendingStart;
         private String status = "PENDING";

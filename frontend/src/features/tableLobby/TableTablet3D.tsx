@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Group, Vector3 } from 'three'
-import { TABLES, tableScale, tableSeats } from '../../config'
+import { TABLES, tableScale, tableSeats } from '../../park/mapConfig'
 import { useSession } from '../../network/worldClient'
 import { tabletLobbyActive } from './tabletModel'
 import { screenTransform, TABLET, tabletProjection } from './tabletProjection'

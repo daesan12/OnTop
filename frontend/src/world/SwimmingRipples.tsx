@@ -1,9 +1,9 @@
 import { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { DynamicDrawUsage, Object3D, type InstancedMesh } from 'three'
-import { LAKE, NETWORK } from '../config'
-import { avatars } from '../network/worldClient'
-import { sampleSwimmingPose } from './movementPresentation'
+import { LAKE, NETWORK } from '../park/mapConfig'
+import { avatars, sampleAvatar } from '../network/worldClient'
+import { remoteMovement } from '../network/remoteMovement'
 
 export function SwimmingRipples() {
   const mesh = useRef<InstancedMesh>(null),
@@ -13,9 +13,10 @@ export function SwimmingRipples() {
     if (!mesh.current) return
     let n = 0
     const now = performance.now()
-    for (const avatar of avatars.values()) {
+    for (const [id, avatar] of avatars) {
       if (n >= NETWORK.maxClients) break
-      if (!sampleSwimmingPose(avatar, now, NETWORK.interpolationMs, pose)) continue
+      sampleAvatar(avatar, now, pose)
+      if (!avatar.connected || !(remoteMovement.flags(id)?.swimming ?? avatar.swimming)) continue
       transform.position.set(
         pose.x,
         LAKE.surfaceY + 0.014,

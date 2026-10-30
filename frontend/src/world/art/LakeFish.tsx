@@ -1,3 +1,4 @@
+import { SIMPLE_MAP } from './mapRenderProfile'
 import { useLayoutEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import {
@@ -71,7 +72,7 @@ export function LakeFish({ quality }: { quality: QualityPreset }) {
         args={[undefined, undefined, preset.fish]}
         frustumCulled={false}
       >
-        <sphereGeometry args={[1, 12, 8]} />
+        <sphereGeometry args={[1, SIMPLE_MAP ? 6 : 12, SIMPLE_MAP ? 4 : 8]} />
         <meshStandardMaterial
           roughness={0.48}
           emissive="#5d4828"

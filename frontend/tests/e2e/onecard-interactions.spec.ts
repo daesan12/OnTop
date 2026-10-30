@@ -24,8 +24,8 @@ async function start(page: Page) {
     const s = (await import('/src/network/worldClient.ts' as string)).useSession.getState()
     return s.status === 'connected' && s.bindings.length > 0
   })).toBe(true)
-  await page.getByRole('button', { name: /테이블에 앉기/ }).click()
-  await page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).inspectTable())
+  await page.getByRole('button', { name: 'E 테이블에 앉기', exact: true }).click()
+  await page.getByRole('button', { name: '테이블 로비 열기', exact: true }).click()
   await page.getByLabel('1인 참가비').fill('1')
   await page.getByRole('button', { name: '원카드 선택', exact: true }).click()
   await page.getByRole('button', { name: '준비', exact: true }).click(); server.confirmStart()

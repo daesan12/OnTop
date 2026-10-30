@@ -778,6 +778,9 @@ public class TableHub {
                 case "CHANNEL_JOIN" -> joinChannel(member, request);
                 case "CHANNEL_LEAVE" -> leaveChannel(member, request);
                 case "WORLD_MOVE" -> moveWorld(member, request);
+                case "WORLD_POSITION" -> positionWorld(member, request);
+                case "WORLD_POSITION_FALLBACK" -> member.peer().offer(protocol.encode(request.requestId(), "WORLD_STATE",
+                        channels.disablePosition(member.userId(), request.payload().path("epoch").asLong()).state()));
                 case "WORLD_CHAT_SEND" -> sendChat(member, request);
                 case "WORLD_EMOTE_SEND" -> sendEmote(member, request);
                 case "WORLD_FOLLOW_START", "WORLD_FOLLOW_STOP", "WORLD_FOLLOW_CHECK" -> follow(member, request);
@@ -1267,6 +1270,24 @@ public class TableHub {
         }
     }
 
+    private void positionWorld(Member member, Request request) {
+        if (facilities.current(member.userId()) != null) fail(request, "FACILITY_BUSY", "먼저 시설 이용을 종료해주세요.");
+        if (seating.containsKey(member.userId())) fail(request, "TABLE_BUSY", "먼저 테이블에서 퇴장해주세요.");
+        var before = channels.positionOf(member.userId());
+        var report = com.ssafy.ontop.world.movement.ClientPositionValidator.Candidate.parse(request.payload());
+        var change = channels.reportPosition(member.userId(), report);
+        member.peer().offer(protocol.encode(request.requestId(), "WORLD_STATE", change.state()));
+        var after = channels.positionOf(member.userId());
+        if (before != null && after != null && after.lastInputSeq() == report.seq()
+                && before.lastInputSeq() < report.seq() && (report.jump()
+                || Math.hypot(after.x() - before.x(), after.z() - before.z()) > .0001
+                || Math.abs(after.y() - before.y()) > .0001)) {
+            follows.stopFollowing(member.userId()).forEach(state -> publishFollow(state, null, null));
+            if (after.moving() || Math.abs(after.y() - before.y()) > .01) cancelEmote(member.userId(), "MOVEMENT");
+            refreshWatchRange(member);
+        }
+    }
+
     private void sendChat(Member member, Request request) {
         StatePush scope = statePushes.get(member.sessionId());
         if (scope != null && scope.member == member && "PLAYING".equals(scope.status)) {
@@ -1446,6 +1467,8 @@ public class TableHub {
                         channels.positionOf(member.userId()), channels.positionOf(targetId));
                 if (state.version() != before) {
                     channels.stopMovement(member.userId());
+                    var world = channels.serverMovement(member.userId());
+                    if (world.changed()) publishWorld(world.state(), null, null);
                 }
             }
             case "WORLD_FOLLOW_STOP" -> state = follows.stop(channel, member.userId(),
@@ -2199,6 +2222,9 @@ public class TableHub {
         seating.entrySet().removeIf(entry -> entry.getValue().equals(tableId) && !connected.contains(entry.getKey()));
         publish(room, null, null);
         publishStart(tableId);
+        // 정산 전 조회 장애로 남은 판정만 재확인한다. 정상 FINISHED·LOBBY에는 새 PENDING을 만들지 않는다.
+        attempt.command().participants().forEach(player -> reconnect.ifPresent(service ->
+                service.roundSettled(Long.parseLong(player.userId()))));
     }
 
     private void replyStartState(Member target, String tableId, String requestId) {

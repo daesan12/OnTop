@@ -1,5 +1,6 @@
+import { SIMPLE_MAP } from './art/mapRenderProfile'
 import { useLoader } from '@react-three/fiber'
-import { ParkTextureLoader } from './art/ParkTextureLoader'
+import { TextureLoader } from 'three'
 import { ParkAssetLoader } from './art/assetLoader'
 import { characterUrls } from './art/CharacterRig'
 import parkPoster from '../assets/entry/adv_pickus_4.webp'
@@ -20,6 +21,9 @@ export const surfaceMapUrls = Object.fromEntries(
   ]),
 ) as Record<Surface, string[]>
 export function preloadWorldAssets() {
-  useLoader.preload(ParkTextureLoader, parkAdvertisementUrl)
+  if(!SIMPLE_MAP)for (const kind of ['wood', 'stone', 'grass'] as const)
+    useLoader.preload(TextureLoader, surfaceMapUrls[kind])
+  for (const url of SIMPLE_MAP ? [] : [leafMapUrl, parkAdvertisementUrl])
+    useLoader.preload(TextureLoader, url)
   useLoader.preload(ParkAssetLoader, characterUrls)
 }

@@ -1,7 +1,7 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Vector3, type Object3D } from 'three'
-import { OVERHEAD } from '../config'
+import { OVERHEAD } from '../park/mapConfig'
 import { avatars, useSession } from '../network/worldClient'
 import { useGathering } from '../features/tableLobby/gathering'
 import { OMOK_FOCUS_LAYER } from './omokCamera'

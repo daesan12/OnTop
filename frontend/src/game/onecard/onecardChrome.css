@@ -130,6 +130,8 @@
   .park-page .onecard-game-hud.onecard-panel .onecard-public p { font-size:14px; line-height:1.45; }
   .park-page .onecard-game-hud.onecard-panel .onecard-public-heading { font-size:9px; letter-spacing:.04em; }
   .park-page .onecard-game-hud.onecard-panel .onecard-command-tray { padding:5px 7px; }
+  .park-page .onecard-game-hud.onecard-panel .onecard-selection-info { flex-direction:row; flex-wrap:wrap; gap:2px 6px; }
+  .park-page .onecard-game-hud.onecard-panel[data-role=PLAYER] .onecard-recovery-controls { top:auto; bottom:170px; z-index:2; }
 }
 @media(prefers-reduced-motion:reduce) {
   .park-page .onecard-game-hud.onecard-panel .onecard-actions>button { transition:none; }

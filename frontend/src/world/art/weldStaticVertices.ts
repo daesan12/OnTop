@@ -4,9 +4,7 @@ import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js'
 /** Attribute-aware welding for static float geometry. Numeric hash buckets avoid
  * constructing a long decimal string for every vertex. Hash collisions are
  * checked against every quantized attribute, so seams and triangle order stay
- * identical to Three's mergeVertices. Repeated source indices reuse the first
- * result, avoiding repeated hashes for the same vertex. Other geometry uses the
- * general utility. */
+ * identical to Three's mergeVertices. Other geometry uses the general utility. */
 export function weldStaticVertices(geometry: BufferGeometry, tolerance = 1e-6): BufferGeometry {
   const attributes = Object.entries(geometry.attributes)
   if (!geometry.getAttribute('position') || Object.keys(geometry.morphAttributes).length
@@ -22,15 +20,9 @@ export function weldStaticVertices(geometry: BufferGeometry, tolerance = 1e-6): 
   const scratch = new Float64Array(sources.reduce((sum, { attribute }) => sum + attribute.itemSize, 0))
   const representatives = new Uint32Array(count), next = new Int32Array(count)
   const indices = new Uint32Array(count), buckets = new Map<number, number>()
-  const remapped = geometry.index ? new Int32Array(geometry.getAttribute('position').count).fill(-1) : undefined
   let unique = 0
   for (let vertex = 0; vertex < count; vertex++) {
     const sourceIndex = geometry.index ? geometry.index.getX(vertex) : vertex
-    const cached = remapped?.[sourceIndex]
-    if (cached !== undefined && cached !== -1) {
-      indices[vertex] = cached
-      continue
-    }
     let hash = 2166136261, component = 0
     for (const { attribute } of sources) {
       const offset = sourceIndex * attribute.itemSize
@@ -60,7 +52,6 @@ export function weldStaticVertices(geometry: BufferGeometry, tolerance = 1e-6): 
       buckets.set(hash, match)
     }
     indices[vertex] = match
-    if (remapped) remapped[sourceIndex] = match
   }
   const result = geometry.clone()
   for (const { name, attribute } of sources) {

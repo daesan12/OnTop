@@ -1,3 +1,4 @@
+import { SIMPLE_MAP } from './mapRenderProfile'
 import {
   BoxGeometry,
   BufferGeometry,
@@ -144,6 +145,13 @@ export function createPavilionBench(scale: number) {
     g.translate(x, y, z)
     parts.push(g)
   }
+  if(SIMPLE_MAP) {
+    const span=(radius-TIMBER.seatHalfDepth)*MITRE*2
+    box(0,TIMBER.seatHeight-.06,0,span,.12,TIMBER.seatHalfDepth*2,'#b9956e')
+    box(0,.82,-TIMBER.inset,span,.45,.12,'#a37b54')
+    for(const x of [-span*.35,span*.35])box(x,.22,0,.16,.44,.5,'#9d7652')
+    return merge(parts)
+  }
   const depth = TIMBER.seatHalfDepth * 2
   for (let row = 0; row < 3; row++) {
     const back = -depth / 2 + (row * depth) / 3 + 0.004,
@@ -219,6 +227,10 @@ export function createPavilionBench(scale: number) {
 export function createPavilionFloor(scale: number) {
   const radius = 3.94 * Math.cos(Math.PI / 8) * scale,
     parts: BufferGeometry[] = []
+  if(SIMPLE_MAP) return plank(Array.from({length:8},(_,i)=>{
+    const a=Math.PI/8+i*Math.PI/4,r=radius/Math.cos(Math.PI/8)
+    return [Math.cos(a)*r,Math.sin(a)*r] as Point
+  }),.006,.026,'#b49675')
   const rings = Math.ceil(radius / 0.3),
     step = radius / rings
   const center: Point[] = Array.from({ length: 8 }, (_, i) => {

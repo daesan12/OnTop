@@ -1,4 +1,4 @@
-import { TELESCOPE, TELESCOPES, telescopeLanding } from '../../config'
+import { TELESCOPE, TELESCOPES, telescopeLanding } from '../../park/mapConfig'
 import type { Pose } from '../../network/worldClient'
 import { facilityInRange, useFacilityState } from '../facilities/state'
 

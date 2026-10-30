@@ -27,11 +27,14 @@ public class BungeoppangRankingController {
     public BungeoppangRankingController(BungeoppangRankingService service) { this.service = service; }
     @Operation(summary = "붕어빵 버전별 개인 최고 전체 랭킹", security = @SecurityRequirement(name = "AccessJwt"),
             description = "v4/v5의 확정 완료·정산 기록을 분리합니다. 완성 내림차순·실수 오름차순, 동점1,1,3. "
+                    + "v5는 판에 저장된 플레이 시간(durationMs)별로 따로 집계합니다. 생략하면 신규 판의 120000(2분), "
+                    + "180000이면 기존 3분 판 기록이며 같은 시간의 configVersion은 함께 집계합니다. "
                     + "커서 없는 조회는 최신 DB를 읽고 후속 페이지는 최대2분의 동일 스냅샷을 읽습니다.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "동일 스냅샷 페이지 (no-store)",
                 content = @Content(schema = @Schema(implementation = BungeoppangRankingPage.class))),
-        @ApiResponse(responseCode = "400", description = "INVALID_LIMIT / INVALID_CURSOR / RANKING_INVALID_PERIOD / RANKING_INVALID_RULES_VERSION",
+        @ApiResponse(responseCode = "400", description = "INVALID_LIMIT / INVALID_CURSOR / RANKING_INVALID_PERIOD / "
+                + "RANKING_INVALID_RULES_VERSION / RANKING_INVALID_DURATION",
                 content = @Content(schema = @Schema(implementation = AuthErrorResponse.class))),
         @ApiResponse(responseCode = "401", description = "회원 인증 필요",
                 content = @Content(schema = @Schema(implementation = AuthErrorResponse.class))),
@@ -51,9 +54,13 @@ public class BungeoppangRankingController {
             @RequestParam(defaultValue = "v5") String rulesVersion,
             @Parameter(schema = @Schema(type = "integer", minimum = "1", maximum = "20", defaultValue = "20"))
             @RequestParam(defaultValue = "20") String limit,
+            @Parameter(description = "v5 전용 플레이 시간(ms): 120000(신규 2분 판, 생략 시 기본) 또는 180000(기존 3분 판). "
+                    + "그 외 값이나 v4에 지정하면 400 RANKING_INVALID_DURATION. 커서 조회는 첫 조회와 같은 값이어야 합니다.",
+                    schema = @Schema(type = "integer"))
+            @RequestParam(required = false) String durationMs,
             @RequestParam(required = false) String cursor) {
         if (user == null) { throw new RestAuthenticationException(RestAuthenticationException.Error.REQUIRED); }
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).header("Referrer-Policy", "no-referrer")
-                .body(service.find(user.userId(), period, rulesVersion, limit, cursor));
+                .body(service.find(user.userId(), period, rulesVersion, durationMs, limit, cursor));
     }
 }

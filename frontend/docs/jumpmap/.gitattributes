@@ -1,0 +1,3 @@
+# The handoff checksum describes the exported bytes on Windows and Linux alike.
+course.generated.json text eol=lf
+course.generated.sha256 text eol=lf

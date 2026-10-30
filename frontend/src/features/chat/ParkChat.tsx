@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useSession } from '../../network/worldClient'
-import { parkName } from '../../config/parkName'
+import { parkName } from '../parkMenus/parkName'
 import { useParkRuntime } from '../../park/runtime/ParkRuntime'
 import { inputState, setChatInputOpen } from '../../world/inputOwnership'
 import { CHAT } from './settings'

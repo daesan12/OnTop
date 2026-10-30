@@ -21,7 +21,7 @@ class GeneratedWorldMapRuntimeTests {
     Path temporary;
 
     @Test
-    void 명시적으로_선택한_장면과_16개_테이블이_같은_버전을_사용한다() {
+    void 명시적으로_선택한_장면과_모든_테이블이_같은_버전을_사용한다() {
         selected(input().resolve("server-map.json"), input().resolve("manifest.json")).run(context -> {
             assertThat(context).hasNotFailed();
             var runtime = context.getBean(WorldMapRuntime.class);
@@ -32,8 +32,9 @@ class GeneratedWorldMapRuntimeTests {
             assertThat(channels.mapMetadata()).isEqualTo(maps.metadata());
             assertThat(maps.metadata().schemaVersion()).isEqualTo(2);
             assertThat(maps.requiresMatch()).isTrue();
-            assertThat(context.getBean(TableHub.class).listTables("channel-1").tables()).hasSize(16);
-            String table = PreparedParkMap.serverTableId("channel-1", 16);
+            int tableCount = runtime.prepared().orElseThrow().bindings().size();
+            assertThat(context.getBean(TableHub.class).listTables("channel-1").tables()).hasSize(tableCount);
+            String table = PreparedParkMap.serverTableId("channel-1", tableCount);
             var point = runtime.prepared().orElseThrow().proximity().tables().get(table);
             channels.join("101", "channel-1");
             channels.holdFacility("101", new Pose(point.x() + 19, 0.84, point.z(), 0));

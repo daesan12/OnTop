@@ -1,5 +1,72 @@
 [
   {
+    "file": "adv_4.jpg",
+    "width": 467,
+    "height": 657,
+    "bytes": 50264,
+    "sha256": "03223d64d0b66f20ed2c7b9db0936c73e65de6de67c64e3527b8705647215788",
+    "source": "User attachment, 2026-10-19",
+    "rights": "User-provided third-party advertisement; not project-original or CC0",
+    "usage": "Archived earlier creative/encoding; superseded by original PICKUS PNG images on 2026-10-20",
+    "processing": "Copied unchanged; original aspect ratio; readable separate front/back faces"
+  },
+  {
+    "file": "adv_1.jpg",
+    "width": 466,
+    "height": 659,
+    "bytes": 53216,
+    "sha256": "4f6efc4030ca02166c9baca41669d34bbf1851d966d93dbeb20d9501229cc7de",
+    "source": "User attachment, 2026-10-19",
+    "rights": "User-provided third-party advertisement; not project-original or CC0",
+    "usage": "In-game advertising screens, requested by user",
+    "processing": "Copied unchanged; preserve aspect ratio at render time"
+  },
+  {
+    "file": "adv_2.jpg",
+    "width": 467,
+    "height": 657,
+    "bytes": 34564,
+    "sha256": "e39d6182f789e42fda24d1052e0e0ea67ad32c1457871a1f6e6544277efce133",
+    "source": "User attachment, 2026-10-19",
+    "rights": "User-provided third-party advertisement; not project-original or CC0",
+    "usage": "In-game advertising screens, requested by user",
+    "processing": "Copied unchanged; preserve aspect ratio at render time"
+  },
+  {
+    "file": "adv_3.jpg",
+    "width": 310,
+    "height": 431,
+    "bytes": 18062,
+    "sha256": "9dacbea2a7056df5a105fd9f71c8e48e9c7b77ca4462807ac796fa886aed9187",
+    "source": "User attachment, 2026-10-19",
+    "rights": "User-provided third-party advertisement; not project-original or CC0",
+    "usage": "In-game advertising screens, requested by user",
+    "processing": "Copied unchanged; preserve aspect ratio at render time"
+  },
+  {
+    "file": "ontap-film.webm",
+    "width": 768,
+    "height": 768,
+    "bytes": 1533841,
+    "sha256": "e5b7e0755d4c72021eb9fd5db638eec4119da20dad6ab752ad97e944547571a7",
+    "source": "Project-original Three.js scene, scripts/generate-ad-film.mjs, 2026-10-19",
+    "rights": "Original generated project media; no reference photo/video pixels copied",
+    "usage": "Building advertising playlist; play once for min(source duration, 20 seconds), then advance; muted shared video player with still fallback",
+    "processing": "WebM VP9, 24fps, about 10s, muted; WebP poster from the same scene",
+    "durationSeconds": 9.717658
+  },
+  {
+    "file": "ontap-film-poster.webp",
+    "width": 768,
+    "height": 768,
+    "bytes": 35836,
+    "sha256": "c563e2512fafae7bac038e26fc08f7bb484d43c2686708b205be1a5a3d654436",
+    "source": "Project-original Three.js scene, scripts/generate-ad-film.mjs, 2026-10-19",
+    "rights": "Original generated project media; no reference photo/video pixels copied",
+    "usage": "In-game advertising video and still fallback",
+    "processing": "WebM VP9, 24fps, about 10s, muted; WebP poster from the same scene"
+  },
+  {
     "file": "adv_pickus_1.webp",
     "width": 1920,
     "height": 864,

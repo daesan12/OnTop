@@ -157,7 +157,7 @@ FE `5c171c6`의 추가 데이터를 기준으로 `PreparedParkMap.load(mapFile, 
 
 | 제공 자료 | 연결 내용 |
 | --- | --- |
-| bindings / createRooms() | 채널별 table-1~16 앵커와 독립 TableRoom 16개. 기존 게임 선택·준비 모델 재사용 |
+| bindings / createRooms() | 생성 데이터의 연속된 table-1~N 앵커와 채널별 독립 TableRoom. 최신 전달본은 18개이며 기존 게임 선택·준비 모델 재사용 |
 | proximity() | 같은 서버 ID에 새 앵커의 X/Z 연결. 기존 채팅·관전 반경 20m 유지 |
 | collisionData() | 기존 Java 물리 입력 형식으로 지형·충돌·스폰·호수·전망대·디딤돌 변환 |
 | createScene() | 위 입력과 원래 schema2 식별 정보로 별도 네이티브 ParkScene 생성. 기본 장면 교체 없음 |
@@ -165,16 +165,16 @@ FE `5c171c6`의 추가 데이터를 기준으로 `PreparedParkMap.load(mapFile, 
 | notes() / feedback() | 익명 메모함·소리함 접근 기준. REST 저장/보존 정책과 별개 |
 
 서버 ID는 기존 `UUID.nameUUIDFromBytes(UTF-8(channelId + NUL + "table-" + 번호))` 규칙을 유지한다.
-처음 두 테이블 ID를 바꾸지 않고 3~16번을 같은 방식으로 확정했다. ID는 좌표·맵 버전·목록 정렬에 의존하지 않는다.
+기존 16개 ID를 바꾸지 않고 17~18번도 같은 방식으로 확정한다. ID는 좌표·맵 버전·목록 정렬에 의존하지 않는다.
 앵커 누락·중복·기존 매핑 충돌은 실패하며 목록 순서로 추측하지 않는다.
 
 프론트 전달 파일:
 
-- [개발 channel-1 · 16개](integration/park-180/park-bindings.dev.json)
-- [로컬 연동 channel-1/2 · 총 32개](integration/park-180/park-bindings.frontend-test.json)
+- [개발 channel-1 · 18개](integration/park-180/park-bindings.dev.json)
+- [로컬 연동 channel-1/2 · 총 36개](integration/park-180/park-bindings.frontend-test.json)
 
 두 파일은 기존 `{ "bindings": [{ "channelId", "tableId", "anchorId" }] }` 형식과 원본의 추가 필드를 유지한다.
-각 파일은 해당 환경 채널의 전체 매핑이다. **현재 서버에 16개가 등록/배포된 것은 아니므로 FE 실행 파일에
+각 파일은 해당 환경 채널의 전체 매핑이다. **실행 서버의 새 맵 전환·18개 등록을 확인하기 전에 FE 실행 파일에
 먼저 덮어쓰지 않는다.** 운영 채널은 실제 목록이 확정된 뒤 같은 규칙으로 따로 생성한다.
 
 변환 세부 사항:
@@ -198,11 +198,11 @@ park-bindings 두 파일이 있는 폴더로 지정하면 PreparedParkMapHandoff
 
 1. `park.createScene()`으로 별도 장면 생성 → WorldChannelRegistry의 명시적 장면 생성자에 전달.
 2. WorldMapCompatibility에 같은 `park.metadata()`를 전달. CONNECTED·WORLD_STATE·시설 버전을 일치시킨다.
-3. TableHub의 마지막 인수에 `park`를 전달하면 채널별 16개 등록·시설 카탈로그·20m 관전 좌표·메모함
+3. TableHub의 마지막 인수에 `park`를 전달하면 채널별 모든 테이블 등록·시설 카탈로그·20m 관전 좌표·메모함
    접근 기준을 함께 연결한다. 채널 목록이나 맵 식별 정보가 다르면 서버 시작 전에 실패한다.
 
 PreparedParkSocketTests는 랜덤 포트의 별도 서버에서 실제 네이티브 장면·WebSocket으로 schema2 확인,
-16번 테이블 착석·게임 선택·준비, 시설 이용/반납을 검사한다. 고정 회원 fixture와 서버 위치 fixture를 사용한다.
+전체 테이블 착석·게임 선택·준비·퇴장, 시설 이용/반납을 검사한다. 고정 회원 fixture와 서버 위치 fixture를 사용한다.
 준비 요청은 최신 dev의 동의 규칙에 맞춰 각 클라이언트가 직접 받은 테이블 금액·버전을 전송한다.
 메모/소리함 검사는 실제 Hub 접근 판정까지이며 REST 저장·실제 로그인·DB 검사가 아니다.
 단위 네이티브 이동은 단순 지형 fixture에서도 검증한다. PreparedParkMovementTests는 실제 FE 전달본의
@@ -214,7 +214,7 @@ PreparedParkSocketTests는 랜덤 포트의 별도 서버에서 실제 네이티
 
 `WorldChannelConfiguration`이 하나의 `WorldMapRuntime`을 만든다. Registry/물리 장면, 맵 버전 확인,
 TableHub의 테이블·시설·메모함, WorldProximity의 관전 좌표가 같은 선택 결과를 사용한다.
-기본값 `WORLD_MAP_SOURCE=legacy`에서는 기존 맵·채널당 테이블 2개를 유지한다.
+기본값 `WORLD_MAP_SOURCE=legacy`에서는 기존 맵·채널당 테이블 16개를 유지한다.
 JSON 경로만 설정해도 자동 전환되지 않는다.
 
 새 맵을 선택하는 별도 실행에는 아래 네 값이 모두 필요하다. `.env.example`은 legacy 기본값을 유지한다.
@@ -228,7 +228,7 @@ WORLD_MAP_REQUIRE_MATCH=true
 
 - 경로는 서버가 읽을 수 있는 일반 파일 경로다. 절대 경로를 권장하며 상대 경로는 실행 디렉터리 기준이다.
   URL/classpath 주소가 아니며 파일을 내려받거나 FE 생성물을 JAR에 자동 포함하지 않는다.
-- 두 파일은 같은 FE 생성 세트여야 한다. 채널 설정도 필요하며 각 채널에 기존 규칙으로 16개 테이블을 만든다.
+- 두 파일은 같은 FE 생성 세트여야 한다. 채널 설정도 필요하며 각 채널에 생성 데이터의 테이블을 기존 ID 규칙으로 만든다.
   기존 서버 ID·[환경별 매핑](integration/park-180/park-bindings.dev.json)은 유지한다.
 - 알 수 없는 source, 누락 경로/채널, require-match=false, 파일·체크섬·맵/좌표 규격 오류는 시작 실패다.
   실패 시 구형 맵으로 조용히 되돌아가지 않는다.
@@ -238,5 +238,39 @@ WORLD_MAP_REQUIRE_MATCH=true
 
 WorldMapRuntimeConfigurationTests는 기본값/경로만 설정/잘못된 설정을 검사한다.
 `TEST_GENERATED_MAP_DIR`을 지정한 GeneratedWorldMapRuntimeTests는 실제 전달본 선택과 변조 파일 거절을,
-WorldMapSelectionWebSocketTests는 실제 앱의 랜덤 포트에서 버전 확인·16번 착석·게임 선택·전원 준비를 검사한다.
+WorldMapSelectionWebSocketTests는 실제 앱의 랜덤 포트에서 버전 확인·마지막 테이블 착석·게임 선택·전원 준비를 검사한다.
 회원 인증은 fixture이며 DB 저장·FE 3D 화면·실제 실행 서버 전환 검증은 아니다.
+
+## 2026-10-29 확정 전달본 연결
+
+기준은 MR !199의 머지 커밋 `927f25210afe048f71e65e6abded06e85edb83b8`이며,
+확정 요청서는 `frontend/docs/PARK_MAP_ROLLOUT_REQUEST.md`다. 예전 16개 전달본 설명보다 이 절을 우선한다.
+
+```json
+{
+  "mapId": "park",
+  "schemaVersion": 2,
+  "mapVersion": "cac3cb040a43630b0b40201ab089a4b328146c03211867b2a155d2b3614acc81"
+}
+```
+
+- 원본 `server-map.json`: 2,545,864바이트, SHA-256 `cd7e8e93333d3bdb3ecb8d1b72da6709f4cd88c6f0a77a0030c71f77a45e40c4`.
+- 테이블 18개, 벤치 71구역/142석, 운동기구 12개, 망원경 2개다. 이 개수를 로더의 고정 상수로 쓰지 않는다.
+- `table-17`은 `[-53, 0.1, -8]`, `table-18`은 `[-53, 0.1, 2]`다.
+  서버 ID는 위 환경별 정본 JSON을 사용하며 FE 소스나 fixture ID로 대체하지 않는다.
+- 기존 체크섬 로더, Java 물리·이동 정책, 관전 20m, WORLD_MAP_CONFIRM과 기존 게임·붕어빵 API를 유지한다.
+  이번 수정은 맵 조립·테이블 매핑 범위이며 이동 보정 엔진·프론트 예측 코드를 변경하지 않는다.
+- 전달본 검사는 `TEST_GENERATED_MAP_DIR`에 맵·manifest·기존 개발/로컬 매핑 네 파일이 있는 절대 경로를 지정한다.
+  `GeneratedParkMapHandoffTests`, `PreparedParkMapHandoffTests`, `PreparedParkMovementTests`,
+  `PreparedParkSocketTests`, `GeneratedWorldMapRuntimeTests`, `WorldMapSelectionWebSocketTests`가
+  실제 실행됐는지 확인하며 스킵을 통과로 보지 않는다.
+- 인프라는 JSON 원본 두 파일을 서버에 공급하고 위 네 환경변수로 generated를 선택한다.
+  BE 정본 매핑의 bindings를 FE 정적 JSON URL로 공급하며 기존 emotes 등 추가 필드를 보존한다.
+  FE는 `VITE_PARK_BINDINGS_URL=<환경별 매핑 URL> pnpm build:park`로 빌드하고 `dist-park/`를 배포한다.
+  일반 빌드의 기존 맵 유지, 서버·FE·JSON·매핑을 같은 세트로 전환하는 조건은 바꾸지 않는다.
+- 실제 서버 전환·공동 검수·배포 시각은 아직 확정하지 않았다. DB 스키마·CI·Compose·실행 서버 설정은 변경하지 않는다.
+
+검증: 위 전달본으로 관련 11개 클래스/51건을 스킵·실패 없이 통과했다. Java 21 전체 일반 검사와
+bootJar도 성공했다(2,307건 중 2,304통과·별도 환경이 필요한 3건 스킵, 실패/오류 0).
+요청된 전달본 6개 클래스의 15건은 모두 실제 실행됐다. 시설 이용/접근·소켓 인증은 서버 위치/회원 fixture를
+포함하며 실제 사용자 로그인·DB 정산·FE 3D 공동 검수나 개발 서버 배포 완료를 뜻하지 않는다.

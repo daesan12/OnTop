@@ -1,3 +1,5 @@
+import { SIMPLE_MAP } from '../art/mapRenderProfile'
+import { IcosahedronGeometry, MeshLambertMaterial } from 'three'
 import {
   SphereGeometry,
   MeshStandardMaterial,
@@ -17,18 +19,18 @@ const feather = (
   p: XYZ,
   s: XYZ,
   r: XYZ = [0, 0, 0],
-) => b.add('paint', new SphereGeometry(1, 10, 6), c, p, s, r)
+) => b.add('paint', (SIMPLE_MAP ? new IcosahedronGeometry(1,0) : new SphereGeometry(1, 10, 6)), c, p, s, r)
 // Original reference-inspired rock pigeon, about 28cm tall; forward is +Z.
 body.add(
   'paint',
-  new SphereGeometry(1, 24, 16),
+  (SIMPLE_MAP ? new IcosahedronGeometry(1,0) : new SphereGeometry(1, 24, 16)),
   '#8a8d97',
   [0, 0.137, 0],
   [0.078, 0.1, 0.133],
 )
 body.add(
   'paint',
-  new SphereGeometry(1, 20, 12),
+  (SIMPLE_MAP ? new IcosahedronGeometry(1,0) : new SphereGeometry(1, 20, 12)),
   '#737785',
   [0, 0.2, 0.067],
   [0.047, 0.072, 0.05],
@@ -55,14 +57,14 @@ for (let side = -1; side <= 1; side += 2)
 // Head geometry is relative to a neck joint so pecking bends the neck naturally.
 head.add(
   'paint',
-  new SphereGeometry(1, 20, 12),
+  (SIMPLE_MAP ? new IcosahedronGeometry(1,0) : new SphereGeometry(1, 20, 12)),
   '#59616d',
   [0, 0.043, 0.012],
   [0.046, 0.068, 0.046],
 )
 head.add(
   'paint',
-  new SphereGeometry(1, 24, 16),
+  (SIMPLE_MAP ? new IcosahedronGeometry(1,0) : new SphereGeometry(1, 24, 16)),
   '#777d89',
   [0, 0.091, 0.027],
   [0.046, 0.047, 0.049],
@@ -202,7 +204,7 @@ export const pigeonGeometry = {
   foot: foot.finish().paint!,
   shadow: new PlaneGeometry(1, 1),
 }
-export const pigeonMaterial = new MeshStandardMaterial({
+export const pigeonMaterial = SIMPLE_MAP ? new MeshLambertMaterial({vertexColors:true,flatShading:true}) : new MeshStandardMaterial({
   vertexColors: true,
   roughness: 0.78,
 })

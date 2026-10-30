@@ -69,7 +69,6 @@ function scenery() {
   return b.finish()
 }
 const art = scenery()
-const simpleFlowers = flowers.filter((_, i) => i % 4 === 0)
 export function ReferenceStreetProps() {
   return (
     <group name="reference-street-planters">
@@ -81,8 +80,8 @@ export function ReferenceStreetProps() {
       >
         <primitive object={crownGeometry} attach="geometry" dispose={null} />
       </Instances>
-      <Instances parts={simpleFlowers} shadow={false}>
-        <octahedronGeometry />
+      <Instances parts={flowers} shadow={false}>
+        <sphereGeometry args={[1, 6, 4]} />
       </Instances>
     </group>
   )

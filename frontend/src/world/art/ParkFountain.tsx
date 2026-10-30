@@ -1,10 +1,11 @@
+import { SIMPLE_MAP } from './mapRenderProfile'
 import { FOUNTAIN, type QualityPreset } from '../../config'
 import { SurfaceMaterial } from './SurfaceMaterial'
 import { FountainEffects } from './FountainEffects'
 import { Water } from './WaterGarden'
 import { FountainRefinements } from './LandmarkRefinements'
 import { PlazaGarden } from './PlazaGarden'
-export function ParkFountain({ quality }: { quality: QualityPreset }) {
+export function ParkFountain({ quality,jetHeightScale=1 }: { quality: QualityPreset;jetHeightScale?:number }) {
   return (
     <group>
       <PlazaGarden />
@@ -14,7 +15,7 @@ export function ParkFountain({ quality }: { quality: QualityPreset }) {
         position={[FOUNTAIN.x, -FOUNTAIN.plazaDepth, FOUNTAIN.z]}
       >
         <mesh position={[0, 0.12, 0]} receiveShadow>
-          <cylinderGeometry args={[5.2, 5.4, 0.24, 64]} />
+          <cylinderGeometry args={[5.2, 5.4, 0.24, SIMPLE_MAP ? 16 : 64]} />
           <SurfaceMaterial
             kind="stone"
             mapping="box"
@@ -25,7 +26,7 @@ export function ParkFountain({ quality }: { quality: QualityPreset }) {
           />
         </mesh>
         <mesh position={[0, 0.26, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <circleGeometry args={[4.8, 64]} />
+          <circleGeometry args={[4.8, SIMPLE_MAP ? 16 : 64]} />
           <meshStandardMaterial
             color="#709f9c"
             roughness={0.2}
@@ -33,7 +34,7 @@ export function ParkFountain({ quality }: { quality: QualityPreset }) {
           />
         </mesh>
         <mesh position={[0, 0.45, 0]}>
-          <cylinderGeometry args={[5, 5, 0.65, 96, 1, true]} />
+          <cylinderGeometry args={[5, 5, 0.65, SIMPLE_MAP ? 16 : 96, 1, true]} />
           <SurfaceMaterial
             kind="stone"
             mapping="box"
@@ -53,7 +54,7 @@ export function ParkFountain({ quality }: { quality: QualityPreset }) {
           />
         </mesh>
         <Water position={[0, 0.63, 0]} radius={[4.8, 4.8]} />
-        <FountainEffects quality={quality} />
+        <group name="fountain-jet-height" position={[0,.64*(1-jetHeightScale),0]} scale={[1,jetHeightScale,1]}><FountainEffects quality={SIMPLE_MAP ? 'low' : quality} /></group>
       </group>
     </group>
   )

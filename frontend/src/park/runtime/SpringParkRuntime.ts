@@ -10,7 +10,7 @@ import { OneCardDefenseEvents, ONECARD_DEFENSE_ENABLED } from '../../game/onecar
 import { BUNGEOPPANG_RANKINGS_ENABLED } from '../../features/bungeoppang/ranking'
 import { handScope, useOneCardUI } from '../../game/onecard/uiState'
 import { WorldTimeClient } from '../../network/worldTimeClient'
-import { EXPECTED_MAP } from '../../config/mapVersion'
+import {MapAdmission,MAP_UPDATE_MESSAGE,type MapIdentity} from '../../network/mapContract'
 import { FacilityClient } from '../../network/facilityClient'
 import { facilityMovementBlocked, FacilityUseBlockedError, showFacilityUseNotice, serverFacilities } from '../../features/facilities/state'
 import { RestError } from '../../network/restError'
@@ -48,11 +48,12 @@ import { telescopeBusy } from '../../features/telescopes/state'
 import { resetFeedbackState, useFeedbackState } from '../../features/feedback/state'
 import { resetNotesState, useNotesState } from '../../features/notes/state'
 import { MovementInputBuffer, normalizedMove, stoppedIntent, type MovementIntent } from '../../network/movementInput'
+import { localMovement } from '../../network/localMovementPrediction'
 import { emoteSource, emoteUnavailable } from '../../features/emotes/availability'
 import { parseEmoteBindings, previewEmoteBindings, type EmoteId } from '../../features/emotes/catalog'
 import { emoteSignal, useEmoteState } from '../../features/emotes/state'
 import { mockEmote } from '../../features/emotes/mock/MockEmoteService'
-import { gameSelection, waitingForRound, type TableGameCode } from '../../features/tableLobby/model'
+import { GAME_CONSTRUCTION_NOTICE, gameSelection, isTableGamePlayable, waitingForRound, type TableGameCode } from '../../features/tableLobby/model'
 import { publicMatchService } from '../../features/tableLobby/publicMatch'
 import { PublicGameWatcher } from '../../features/tableLobby/PublicGameWatcher'
 import { FollowClient } from '../../features/follow/serverClient'
@@ -87,6 +88,13 @@ export function validateChat(value: string): string {
 type AuthEnded = () => void
 /** One instance per app, including StrictMode's mount → cleanup → mount probe. */
 export class ParkRuntime implements ParkRuntimePort {
+  private readonly mapAdmission: MapAdmission
+  constructor(options: {map?:MapIdentity;requireMapMetadata?:boolean} = {}) {
+    this.mapAdmission=new MapAdmission(options.map,options.requireMapMetadata)
+  }
+  private mapConfirmationId = ''
+  private beforeMap: Envelope[] = []
+
   private active = false
   private mapReady = false
   private generation = 0
@@ -97,7 +105,7 @@ export class ParkRuntime implements ParkRuntimePort {
   private bootAbort: AbortController | undefined
   private authListeners = new Set<AuthEnded>()
   private actionBusy = false
-  private movementRequests = new Set<string>()
+  private movementRequests = new Map<string, number>()
   private inspection = 0
   private tableWatchRequestId = ''
   private obsoleteWatchRequests = new Set<string>()
@@ -240,6 +248,7 @@ export class ParkRuntime implements ParkRuntimePort {
       scope: JSON.stringify([this.generation, intent.userId, intent.channelId, intent.tableId, intent.benchScope]) } : null)
   }
   private facilities = new FacilityClient({
+    mapVersion: () => this.mapAdmission.expected.mapVersion,
     scope: () => {
       const s = useSession.getState()
       return { generation: this.generation, channelId: s.roomId, userId: s.sessionId,
@@ -247,7 +256,7 @@ export class ParkRuntime implements ParkRuntimePort {
     },
     request: (type, payload, expected, onId) => this.socket.request(type, payload, expected, onId),
     apply: applyFacilityOccupancies,
-    blockMovement: () => this.movement.clear(false),
+    blockMovement: () => { this.movement.clear(false); localMovement.suspend() },
   })
   checkFacilities = (reloadCatalog = false) => this.facilities.refresh(reloadCatalog)
   private follow = new FollowClient({
@@ -350,6 +359,8 @@ export class ParkRuntime implements ParkRuntimePort {
     const notesRead = /^\/api\/v1\/notes\?channelId=[^&#?]+$/.test(path) && (init.method ?? 'GET') === 'GET'
     const notesWrite = path === '/api/v1/notes' && init.method === 'POST'
     const method = init.method ?? 'GET'
+    const jumpmapRequest = (method === 'GET' && /^\/api\/v1\/minigames\/jumpmap\/status\?channelId=[^&#?]+$/.test(path))
+      || (method === 'POST' && path === '/api/v1/minigames/jumpmap/tips')
     const shopRequest = (method === 'GET' && (path === '/api/v1/shop/items' || path === '/api/v1/users/me/items'))
       || (method === 'POST' && path === '/api/v1/shop/purchases')
       || (method === 'PATCH' && path === '/api/v1/users/me/equipment')
@@ -357,9 +368,9 @@ export class ParkRuntime implements ParkRuntimePort {
       || (method === 'GET' && /^\/api\/v1\/users\/nickname-availability\?nickname=[^&#]+$/.test(path))
     const minigameRequest = /^\/api\/v1\/minigames\/sessions(?:\?rulesVersion=v[45]|\/\d+(?:\?(?:(?:includeSource|includeProgress)=true|deliveryKey=[A-Za-z0-9_-]{1,64})(?:&(?:(?:includeSource|includeProgress)=true|deliveryKey=[A-Za-z0-9_-]{1,64}))*|\/(?:complete|abandon|deliveries))?)?$/.test(path)
     const rankingRequest = BUNGEOPPANG_RANKINGS_ENABLED && method === 'GET'
-      && /^\/api\/v1\/minigames\/bungeoppang\/rankings\?period=ALL_TIME&rulesVersion=v[45]&limit=20(?:&cursor=[A-Za-z0-9%+_.~-]{1,1536})?$/.test(path)
+      && /^\/api\/v1\/minigames\/bungeoppang\/rankings\?period=ALL_TIME&rulesVersion=v[45]&limit=20(?:&durationMs=[1-9]\d{0,8})?(?:&cursor=[A-Za-z0-9%+_.~-]{1,1536})?$/.test(path)
     if (!this.active || (!notesRead && !notesWrite && !shopRequest && !profileRequest
-      && !minigameRequest && !rankingRequest && !/^\/api\/v1\/(?:wallets\/me|feedback)$/.test(path))
+      && !minigameRequest && !jumpmapRequest && !rankingRequest && !/^\/api\/v1\/(?:wallets\/me|feedback)$/.test(path))
       || (path === '/api/v1/feedback' && init.method !== 'POST'))
       throw new Error('현재 공원에서 사용할 수 없는 요청입니다.')
     const signals = [this.bootAbort?.signal, init.signal].filter((s): s is AbortSignal => !!s)
@@ -382,6 +393,7 @@ export class ParkRuntime implements ParkRuntimePort {
     void this.boot()
   }
   private async boot() {
+    this.mapAdmission.reset();this.mapConfirmationId='';this.beforeMap=[]
     if (TABLET_ENABLED) this.tablet.reset(true)
     this.mapReady = false
     this.worldTime.reset()
@@ -451,6 +463,7 @@ export class ParkRuntime implements ParkRuntimePort {
     await closing
   }
   private closed(code: number) {
+    if(this.mapAdmission.status==='mismatch')return
     if (TABLET_ENABLED) this.tablet.reset(true)
     this.mapReady = false
     this.worldTime.reset()
@@ -506,9 +519,45 @@ export class ParkRuntime implements ParkRuntimePort {
   }
   private message(message: Envelope) {
     if (!this.active) return
+    const moveSeq = message.requestId ? this.movementRequests.get(message.requestId) : undefined
+    if (message.type === 'WORLD_STATE' && moveSeq !== undefined) localMovement.receivedInput(moveSeq)
     if (message.type === 'ERROR' && message.requestId
       && this.movementRejectedAfterSeating(message.requestId, message.payload.code)) return
     // Seat states held before the table list carry no requestId, so they never meet the movement filter above.
+    if(message.type==='ERROR'&&['MAP_VERSION_MISMATCH','MAP_VERSION_REQUIRED'].includes(String(message.payload.code))) {
+      this.rejectMap(message.payload.serverMap)
+      return
+    }
+    if(this.mapAdmission.status==='mismatch')return
+    if(message.type==='WORLD_MAP_STATE') {
+      if(this.mapAdmission.status!=='confirming'||message.requestId!==this.mapConfirmationId)return
+      if(!this.mapAdmission.confirmed(message.payload.map,message.payload.verified)){this.rejectMap(message.payload.map);return}
+      this.mapReady=true
+      useSession.setState({status:'connected',mapContractStatus:'verified',serverMap:this.mapAdmission.serverMap})
+      const queued=this.beforeMap;this.beforeMap=[]
+      this.enterPreferredChannel()
+      for(const pending of queued)this.message(pending)
+      return
+    }
+    if(message.type!=='CONNECTED'&&!this.mapAdmission.allowed) {
+      if(this.mapAdmission.status==='confirming'&&/^(GAME_|TABLE_)/.test(message.type)) {
+        if(this.beforeMap.length>=64){this.rejectMap(this.mapAdmission.serverMap);return}
+        this.beforeMap.push(message)
+      }
+      return
+    }
+    if(message.type==='CONNECTED') {
+      clearTimeout(this.timer)
+      if(message.payload.map===undefined&&message.payload.mapVerificationRequired===true){this.rejectMap(undefined);return}
+      if(!this.mapAdmission.connected(message.payload.map)){this.rejectMap(message.payload.map);return}
+      useSession.setState({mapContractStatus:this.mapAdmission.status,serverMap:this.mapAdmission.serverMap})
+    }
+    if(message.type==='WORLD_STATE'&&this.mapAdmission.status==='verified'
+      &&message.payload.channelId===useSession.getState().roomId
+      &&message.payload.mapVersion!==this.mapAdmission.expected.mapVersion) {
+      this.rejectMap({...this.mapAdmission.serverMap,mapVersion:message.payload.mapVersion})
+      return
+    }
     if (this.holdInitialState(message)) return
     if (this.oneCardDefense.accept(message)) return
     if (this.oneCardPranks.accept(message)) return
@@ -531,7 +580,7 @@ export class ParkRuntime implements ParkRuntimePort {
       if (!['loading', 'ready'].includes(q.status) || message.payload.tableId !== q.tableId ||
         (message.requestId !== null && message.requestId !== this.tableWatchRequestId)) return
     }
-    receive(message)
+    receive(message,this.mapAdmission.expected.mapVersion)
     if (serverFacilities) {
       if (message.type === 'WORLD_FACILITY_STATE') this.facilities.accept(message)
       if (message.type === 'WORLD_STATE') {
@@ -588,42 +637,46 @@ export class ParkRuntime implements ParkRuntimePort {
         { nickname: profile.nickname, balance: null },
       )
       this.inputSequence = 0
-      const channels = useSession.getState().channels
-      const selected =
-        channels.find((c) => c.channelId === this.preferredChannel) ??
-        (channels.length === 1 ? channels[0] : undefined)
-      void this.confirmConnectedMap(message.payload, selected?.channelId)
+      if(this.mapAdmission.status==='confirming') {
+        useSession.setState({status:'joining'})
+        void this.confirmMap()
+      } else {this.mapReady=true;this.enterPreferredChannel()}
     }
   }
-  private async confirmConnectedMap(payload: Record<string, unknown>, channelId?: string) {
-    const generation = this.generation
-    const current = () => this.active && generation === this.generation && this.socket.connected
-    const matches = (value: unknown) => record(value) && value.mapId === EXPECTED_MAP.mapId
-      && value.schemaVersion === EXPECTED_MAP.schemaVersion && value.mapVersion === EXPECTED_MAP.mapVersion
-    this.mapReady = false
+  private enterPreferredChannel() {
+    const channels=useSession.getState().channels
+    const selected=channels.find(c=>c.channelId===this.preferredChannel)??(channels.length===1?channels[0]:undefined)
+    if(selected&&this.mapAdmission.allowed)void this.selectChannel(selected.channelId)
+  }
+  private async confirmMap() {
+    const generation=this.generation
     try {
-      // Legacy servers without metadata remain gated by the approved WORLD_STATE version.
-      if (payload.map !== undefined || payload.mapVerificationRequired === true) {
-        if (!matches(payload.map)) throw new Error('서버와 공원 맵 버전이 다릅니다. 같은 버전으로 배포됐는지 확인해주세요.')
-        if (payload.mapVerificationRequired === true) {
-          const result = await this.socket.request('WORLD_MAP_CONFIRM', { ...EXPECTED_MAP }, ['WORLD_MAP_STATE'])
-          if (!current()) return
-          if (result.payload.verified !== true || !matches(result.payload.map))
-            throw new Error('서버 맵 버전 확인이 승인되지 않았습니다.')
-        }
-      }
-      if (!current()) return
-      this.mapReady = true
-      if (channelId) void this.selectChannel(channelId)
-    } catch (error) {
-      if (!current()) return
-      this.movement.clear(false)
-      useSession.setState({ mapCompatible: false })
-      this.report(error)
+      await this.socket.request('WORLD_MAP_CONFIRM',{...this.mapAdmission.expected},['WORLD_MAP_STATE'],id=>{this.mapConfirmationId=id})
+    } catch {
+      if(this.active&&generation===this.generation&&this.mapAdmission.status!=='mismatch')this.rejectMap(this.mapAdmission.serverMap)
     }
+  }
+  private rejectMap(serverMap:unknown) {
+    this.mapReady=false
+    this.mapAdmission.reject(serverMap)
+    this.beforeMap=[]
+    if (TABLET_ENABLED) this.tablet.reset(true)
+    this.worldTime.reset()
+    interruptForfeit()
+    this.follow.reset()
+    this.resetSpectator()
+    ++this.generation
+    this.bootAbort?.abort()
+    clearTimeout(this.timer)
+    this.facilities.reset()
+    this.movement.clear()
+    resetWorld('error',MAP_UPDATE_MESSAGE)
+    useSession.setState({mapContractStatus:'mismatch',serverMap:this.mapAdmission.serverMap})
+    // No automatic retry loop with the same stale bundle. The user chooses refresh/reconnect.
+    void this.socket.disconnect()
   }
   private async action(job: () => Promise<unknown>) {
-    if (!this.active || this.actionBusy) return false
+    if (!this.active || this.actionBusy || !this.mapAdmission.allowed) return false
     this.actionBusy = true
     useSession.setState({ pending: true, error: '' })
     const generation = this.generation
@@ -738,6 +791,7 @@ export class ParkRuntime implements ParkRuntimePort {
   move = (dx: number, dz: number, run: boolean, jump = false) => {
     const intent = normalizedMove(dx, dz, run, jump)
     if (!intent || !this.canSendMovement(intent)) return
+    localMovement.intend(intent)
     if (!stoppedIntent(intent)) cancelAvatarEmote(useSession.getState().sessionId, 'movement')
     this.movement.enqueue(intent, this.movementScope())
   }
@@ -782,7 +836,7 @@ export class ParkRuntime implements ParkRuntimePort {
   }
   private movementScope() {
     const s = useSession.getState()
-    return JSON.stringify([this.generation, s.sessionId, s.roomId])
+    return JSON.stringify([this.generation, s.sessionId, s.roomId, localMovement.epoch])
   }
   private canSendMovement(intent: MovementIntent) {
     const s = useSession.getState()
@@ -800,21 +854,31 @@ export class ParkRuntime implements ParkRuntimePort {
   }
   private async sendMovement(intent: MovementIntent, scope: string) {
     if (scope !== this.movementScope() || !this.canSendMovement(intent)) return
+    const fallback = localMovement.positionFallback()
+    if (fallback) {
+      try { await this.socket.request('WORLD_POSITION_FALLBACK', fallback, ['WORLD_STATE']) }
+      catch (error) { if (scope === this.movementScope() && this.active) this.report(error) }
+      return
+    }
+    if (localMovement.positionPreparing) return
     const sequence = ++this.inputSequence
+    localMovement.sentInput(sequence, performance.now(), intent)
     let requestId = ''
     try {
-      await this.socket.request('WORLD_MOVE', {
+      const report = localMovement.positionReport(sequence, intent)
+      await this.socket.request(report ? 'WORLD_POSITION' : 'WORLD_MOVE', report ?? {
         seq: sequence,
         ...intent,
-      }, ['WORLD_STATE'], id => { requestId = id; this.movementRequests.add(id) })
+      }, ['WORLD_STATE'], id => { requestId = id; this.movementRequests.set(id, sequence) })
       if (scope === this.movementScope() && this.active) clearMovementNotice(sequence)
     } catch (error) {
       if (scope !== this.movementScope() || !this.active) return
+      localMovement.reject(sequence)
       // The server may reject a movement sent just before the approved seat.
       // That old movement error does not describe the current tablet action.
       if (error instanceof ServerError && this.movementRejectedAfterSeating(requestId, error.code)) return
-      // A rejected or timed-out input is never replayed; fresh key input may resume.
-      this.movement.clear(false)
+      // Do not cancel a newer direction/jump already waiting in the queue.
+      // The failed input itself was consumed by flush and is never replayed.
       if (error instanceof ServerError && error.code === 'MOVE_TOO_FREQUENT')
         showMovementNotice(error.message, sequence)
       else this.report(error)
@@ -954,6 +1018,7 @@ export class ParkRuntime implements ParkRuntimePort {
       if (tableBusy() || !['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE'].includes(s.tableStates[s.tableId]?.gameCode ?? ''))
         throw new Error('플레이 가능한 게임을 선택한 대기 테이블에서 준비해주세요.')
       const table = s.tableStates[s.tableId]
+      if (ready && !isTableGamePlayable(table.gameCode)) throw new Error(GAME_CONSTRUCTION_NOTICE)
       if (ready && (table.betAmountPerPlayer == null || table.betAmountPerPlayer <= 0)) throw new Error('확정 참가비를 먼저 확인해주세요.')
       await this.socket.request('READY_SET', ready
         ? { ready, betAmountPerPlayer: table.betAmountPerPlayer, expectedVersion: table.version }

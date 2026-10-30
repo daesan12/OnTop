@@ -11,10 +11,8 @@ import {
   GAME_COURT,
   GARDEN_PAGODA,
 } from '../../config'
-import { seeded, type Part } from './Instances'
+import { Instances, seeded, type Part } from './Instances'
 import { SurfaceMaterial } from './SurfaceMaterial'
-import { WalkwayMaterial } from './WalkwayMaterial'
-import { DetailInstances } from './DetailInstances'
 
 const data = createTerrainMesh()
 const terrain = new BufferGeometry()
@@ -204,17 +202,22 @@ export function PlannedGround() {
           strength={0.55}
         />
       </mesh>
-      <mesh name="park-paved-walkways" geometry={paths} receiveShadow dispose={null}>
-        <WalkwayMaterial />
+      <mesh geometry={paths} receiveShadow dispose={null}>
+        <SurfaceMaterial
+          kind="stone"
+          paving
+          color="#d3cdb9"
+          strength={0.25}
+          depthOffset
+        />
       </mesh>
-      <DetailInstances
-        name="path-curbs"
-        range={Infinity}
+      <Instances
         parts={curbs}
+        shadow={false}
         material={<SurfaceMaterial kind="stone" mapping="box" strength={0.2} />}
       >
         <boxGeometry />
-      </DetailInstances>
+      </Instances>
       <mesh
         name="pavilion-stairs-merged"
         geometry={stairs}
@@ -230,8 +233,13 @@ export function PlannedGround() {
           strength={0.22}
         />
       </mesh>
-      <mesh name="park-paved-fountain-plaza" geometry={plaza} dispose={null} receiveShadow>
-        <WalkwayMaterial color="#ccc5b3" />
+      <mesh geometry={plaza} dispose={null} receiveShadow>
+        <SurfaceMaterial
+          kind="stone"
+          color="#d4cfbc"
+          strength={0.2}
+          depthOffset
+        />
       </mesh>
     </group>
   )

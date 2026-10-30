@@ -153,7 +153,8 @@ class MinigameHttpTests {
         var timing = BungeoppangV5Spec.timing(issued);
         var orders = List.of(new BungeoppangV5Responses.Order("1", 0, 0,
                 new BungeoppangV4Responses.FillingCounts(2, 0, 0, 0)));
-        var checkpoint = new BungeoppangV5Responses.Checkpoint(0, 0, BungeoppangV5Spec.initialPrefixHash(901), 0,
+        var checkpoint = new BungeoppangV5Responses.Checkpoint(0, 0, BungeoppangV5Spec.initialPrefixHash(901,
+                BungeoppangV5Spec.CONFIG_VERSION), 0,
                 null, BungeoppangV4Spec.initialCheckpoint(901).slots(), List.of(),
                 BungeoppangV4Spec.initialCheckpoint(901).stats(), orders);
         when(minigames.v5Enabled()).thenReturn(true);
@@ -168,7 +169,7 @@ class MinigameHttpTests {
 
         assertThat(started.statusCode()).isEqualTo(201);
         assertThat(started.body()).contains("\"rulesVersion\":\"v5\"", "\"heatAssignment\":\"FILL\"",
-                "\"maxActiveOrders\":3", "\"playEndsAt\":\"2026-10-28T00:03:04.623Z\"",
+                "\"maxActiveOrders\":3", "\"playEndsAt\":\"2026-10-28T00:02:04.623Z\"",
                 "\"activeOrders\":[{\"orderId\":\"1\",\"customerSlot\":0,\"availableAfterSeq\":0");
         assertThat(lobby.statusCode()).isEqualTo(200);
         assertThat(lobby.body()).contains("\"supportedRulesVersions\":[\"v2\",\"v4\",\"v5\"]");

@@ -40,6 +40,8 @@ def plan(
     return {
         "TEST_BACKEND": str(int(full_check or test_flags["BACKEND_CHANGED"] or invalid_backend)),
         "TEST_FRONTEND": str(int(full_check or test_flags["FRONTEND_CHANGED"] or invalid_frontend)),
+        "TEST_PARK_MAP": str(int(full_check or test_flags["PARK_MAP_CHANGED"]
+                                 or test_flags["CI_CONFIG_CHANGED"])),
         "DEPLOY_BACKEND": str(int(deploy_backend)),
         "DEPLOY_FRONTEND": str(int(deploy_frontend)),
         "ALLOW_BACKEND_DEPLOY": str(int(deploy_backend and not (full_check or invalid_backend or backend_drift))),

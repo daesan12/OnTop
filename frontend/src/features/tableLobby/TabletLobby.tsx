@@ -5,7 +5,7 @@ import { useGame, tableBusy } from '../../game/store'
 import { useParkRuntime } from '../../park/runtime/ParkRuntime'
 import { openManual } from '../manual/manualState'
 import { GAME_MANUAL } from './gatheringModel'
-import { TABLE_GAMES, TARGET_SCORES, type TableGameCode } from './model'
+import { GAME_CONSTRUCTION_NOTICE, isTableGamePlayable, TABLE_GAMES, TARGET_SCORES, type TableGameCode } from './model'
 import { manualStartAllowed, preparationContext, readyWouldAutoStart, usePreparationPort } from './tabletModel'
 import { tabletProjection } from './tabletProjection'
 import { HostStartButton, HostStartWaitStatus } from './HostStartWaitControls'
@@ -95,7 +95,7 @@ function TabletSession({ tableId }: { tableId: string }) {
   if (!table) return null
   const amount = Number(bet), validBet = /^\d+$/.test(bet) && Number.isSafeInteger(amount) && amount > 0 && Number.isSafeInteger(amount * max)
   const countSupported = !!port || count === max
-  const canConfigure = host && validBet && countSupported && count >= occupied
+  const canConfigure = host && isTableGamePlayable(code) && validBet && countSupported && count >= occupied
   const confirmation = signature
   const finalReadyBlocked = !port && !mine?.ready && readyWouldAutoStart(table, s.own)
   const startEnabled = !!port && manualStartAllowed(table, s.own, approvedCount ?? null) && !busy && !startUncertain
@@ -115,22 +115,23 @@ function TabletSession({ tableId }: { tableId: string }) {
         {step === 'ready' && <p>{game?.name ?? '게임 선택 대기'} · {s.anchor?.replace('table-', '') ?? ''}번 탁자</p>}
         <h2>{step === 'select' ? '어떤 게임을 할까요?' : '함께 시작할까요?'}</h2>
         {step === 'select' && <p>{host ? '게임을 고르고 참가 인원을 선택해요' : '방장이 게임을 선택하고 있어요'}</p>}
+        {step === 'ready' && game && !game.playable && <p role="status">{GAME_CONSTRUCTION_NOTICE}</p>}
       </header>
       {step === 'select' ? <div className="tablet-selection">
         <div className="tablet-game-list" role="group" aria-label="게임 선택">
           {choiceOrder.map(gameCode => { const item = TABLE_GAMES.find(g => g.code === gameCode)!; return <button key={gameCode}
-            className="tablet-game-card" data-selected={code === gameCode} aria-pressed={code === gameCode} disabled={!host || busy}
+            className="tablet-game-card" data-selected={code === gameCode} data-construction={!item.playable} aria-pressed={code === gameCode} disabled={!item.playable || !host || busy}
             onClick={() => { setCode(gameCode); setCount(2) }}>
-            <GameArt code={gameCode} /><span><strong>{item.name}</strong><small>{item.capacity === 2 ? '2인' : '2~4인'}</small></span>
+            <GameArt code={gameCode} />{!item.playable && <b className="tablet-construction">공사 중</b>}<span><strong>{item.name}</strong><small>{item.capacity === 2 ? '2인' : '2~4인'}</small></span>
           </button> })}
           <div className="tablet-coming">장기 · 준비 중</div>
         </div>
         <div className="tablet-selection-detail">
           <small>선택한 게임</small><h3>{TABLE_GAMES.find(g => g.code === code)?.name}</h3><p>{descriptions[code]}</p>
           <GameArt code={code} />
-          <fieldset disabled={!host || busy}><legend>참가 인원</legend><div className="tablet-counts">{[2, 3, 4].filter(n => n <= max).map(n => <button key={n}
+          <fieldset disabled={!host || busy || !isTableGamePlayable(code)}><legend>참가 인원</legend><div className="tablet-counts">{[2, 3, 4].filter(n => n <= max).map(n => <button key={n}
             aria-pressed={count === n} onClick={() => setCount(n)}>{n}인</button>)}</div></fieldset>
-          <div className="tablet-score-slot">{code === 'DICE' && <label className="tablet-score">목표 점수<select aria-label="주사위 목표 점수" disabled={!host || busy} value={target} onChange={e => setTarget(Number(e.target.value))}>
+          <div className="tablet-score-slot">{code === 'DICE' && <label className="tablet-score">목표 점수<select aria-label="주사위 목표 점수" disabled={!host || busy || !isTableGamePlayable(code)} value={target} onChange={e => setTarget(Number(e.target.value))}>
             {TARGET_SCORES.map(score => <option key={score} value={score}>{score.toLocaleString()}점</option>)}</select></label>}</div>
           <label className="tablet-bet-input">1인 참가 판돈<input aria-label="1인 참가비" inputMode="numeric" type="text" maxLength={15} value={bet} disabled={!host || busy}
             placeholder="금액 입력" onChange={e => setBet(e.target.value)} /><span>냥</span></label>
@@ -162,7 +163,7 @@ function TabletSession({ tableId }: { tableId: string }) {
         <footer className="tablet-ready-actions"><button disabled={busy || !mine} aria-keyshortcuts="Escape" title="일어나기 (Esc)" onClick={() => void runtime.leaveTable()}>일어나기</button>
           {host ? <HostStartButton table={table} selectedCount={approvedCount ?? null} disabled={!startEnabled} onStart={() => port && void command(() => port.start(preparationContext(table)))} />
             : <span className="tablet-host-wait">방장이 게임을 시작해요</span>}
-          <button disabled={busy || !mine || !table.gameCode || !table.betAmountPerPlayer || (!mine.ready && (confirmedBet !== confirmation || !port || approvedCount == null))}
+          <button disabled={busy || !mine || !table.gameCode || !table.betAmountPerPlayer || (!mine.ready && (!isTableGamePlayable(table.gameCode) || confirmedBet !== confirmation || !port || approvedCount == null))}
             onClick={() => void command(() => runtime.setReady(!mine?.ready))}>{mine?.ready ? '준비 취소' : '준비 완료'}</button>
         </footer>
       </div>}

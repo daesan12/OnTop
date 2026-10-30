@@ -14,15 +14,15 @@ export function ParkTools() {
     useShallow((s) => ({
       status: s.status,
       error: s.error,
-      movementNotice: s.movementNotice?.message,
       roomId: s.roomId,
       focusedAnchorId: s.focusedAnchorId,
       tableId: s.tableId,
       bindings: s.bindings,
+      mapContractStatus: s.mapContractStatus,
     })),
   )
   const facilityNotice = useFacilityUseNotice(s => s.message)
-  const error = state.error || facilityNotice || state.movementNotice
+  const error = state.error || facilityNotice
   return (
     <>
       <SpectatorExit />
@@ -47,7 +47,10 @@ export function ParkTools() {
               ? '공원 서버 연결 중…'
               : '다시 연결하고 있어요…')}
           {state.status === 'error' && (
-            <button onClick={runtime.reconnect}>다시 연결</button>
+            <>
+              {state.mapContractStatus === 'mismatch' && <button onClick={() => window.location.reload()}>페이지 새로고침</button>}
+              <button onClick={runtime.reconnect}>다시 연결</button>
+            </>
           )}
         </div>
       )}
