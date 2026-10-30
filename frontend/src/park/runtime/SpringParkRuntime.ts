@@ -16,7 +16,9 @@ import { facilityMovementBlocked, FacilityUseBlockedError, showFacilityUseNotice
 import { RestError } from '../../network/restError'
 import { clearRoamingInput, inputState } from '../../world/inputOwnership'
 import { rememberRoamingView } from '../../world/cameraReturn'
-import { benchTable, benchViewScope } from '../../features/interactions/benchSpectator'
+import { benchTable, benchViewScope, resetBenchSpectator } from '../../features/interactions/benchSpectator'
+import { gameChatScope } from '../../features/chat/gameChat'
+import { gamePlayers, gameState } from '../../game/protocol'
 import { useBenchState } from '../../features/interactions/benchState'
 import { useFacilityState } from '../../features/facilities/state'
 import { filterChat } from '../../features/chat/filterChat'
@@ -45,6 +47,7 @@ import { fitnessBusy } from '../../features/fitness/state'
 import { telescopeBusy } from '../../features/telescopes/state'
 import { resetFeedbackState, useFeedbackState } from '../../features/feedback/state'
 import { resetNotesState, useNotesState } from '../../features/notes/state'
+import { NotesChangeEvents } from '../../features/notes/changeEvents'
 import { MovementInputBuffer, normalizedMove, stoppedIntent, type MovementIntent } from '../../network/movementInput'
 import { localMovement } from '../../network/localMovementPrediction'
 import { emoteSource, emoteUnavailable } from '../../features/emotes/availability'
@@ -102,6 +105,8 @@ export class ParkRuntime implements ParkRuntimePort {
   private timer: ReturnType<typeof setTimeout> | undefined
   private bootAbort: AbortController | undefined
   private authListeners = new Set<AuthEnded>()
+  private notesChanges = new NotesChangeEvents()
+  subscribeNotesChanged = (changed: () => void) => this.notesChanges.subscribe(changed)
   private actionBusy = false
   private movementRequests = new Map<string, number>()
   private inspection = 0
@@ -179,10 +184,10 @@ export class ParkRuntime implements ParkRuntimePort {
     scope: () => {
       const s = useSession.getState(), g = useGame.getState()
       if (!this.active || !this.socket.connected || s.status !== 'connected' || !s.mapCompatible || !s.roomId
-        || !g.game?.omok || g.game.omok.status !== 'PLAYING' || g.lastResult) return null
+        || !g.game || gameState(g.game).status !== 'PLAYING' || g.lastResult) return null
       const game = g.game
       if (game.role === 'PLAYER' && (!s.tableId || g.recovery !== 'RESTORED' || g.permittedGameId !== game.gameId
-        || ![game.omok!.blackUserId, game.omok!.whiteUserId].includes(s.sessionId))) return null
+        || !gamePlayers(game).includes(s.sessionId))) return null
       if (game.role === 'SPECTATOR' && (!this.spectator.accepts(game.gameId) || g.watchedGameId !== game.gameId)) return null
       return { key: JSON.stringify([this.generation, s.sessionId, s.roomId, game.gameId, game.role,
         game.role === 'SPECTATOR' ? this.gameWatchRequestId : '']), gameId: game.gameId, version: game.version,
@@ -201,7 +206,7 @@ export class ParkRuntime implements ParkRuntimePort {
       const ui = useOneCardUI.getState()
       return { key: JSON.stringify([this.generation, s.sessionId, s.roomId, game.gameId, game.role,
         game.role === 'SPECTATOR' ? this.gameWatchRequestId : '']), gameId: game.gameId, ownId: s.sessionId,
-        role: game.role, turnCount: game.onecard.turnCount, turnUserId: game.onecard.turnUserId,
+        role: game.role, version: game.version, turnCount: game.onecard.turnCount, turnUserId: game.onecard.turnUserId,
         canSend: game.role === 'SPECTATOR' && !s.tableId && game.onecard.stage === 'PLAYING' && getAuthSession()?.status === 'AUTHENTICATED',
         canRestore: game.role === 'PLAYER', handIds: game.hand?.hand.map(c => c.id) ?? [],
         protectedId: ui.scope === handScope(s.sessionId, s.roomId, game.gameId, game.version) ? ui.selectedId : '' }
@@ -222,7 +227,8 @@ export class ParkRuntime implements ParkRuntimePort {
     canReach: target => this.oneCardPranks.canFlip(target),
     request: (type, payload, expected, onId) => this.socket.request(type, payload, expected, onId),
   })
-  flipOneCardHand = (targetUserId: string) => ONECARD_DEFENSE_ENABLED ? this.oneCardDefense.reach(targetUserId) : this.oneCardPranks.flip(targetUserId)
+  flipOneCardHand = (targetUserId: string, cardIndex?: number, handVersion?: number) => ONECARD_DEFENSE_ENABLED
+    ? this.oneCardDefense.reach(targetUserId, cardIndex, handVersion) : Promise.resolve(false)
   hitOneCardHand = (attemptId: string) => this.oneCardDefense.hit(attemptId)
   restoreOneCardHand = () => this.oneCardPranks.restore()
   pingOmok = (x: number, y: number) => this.omokEvents.send('ping', { x, y })
@@ -288,6 +294,7 @@ export class ParkRuntime implements ParkRuntimePort {
       })
   }
   private authEnded() {
+    this.notesChanges.reset()
     this.tablet.end()
     this.mapReady = false
     this.worldTime.reset()
@@ -356,16 +363,20 @@ export class ParkRuntime implements ParkRuntimePort {
     const notesRead = /^\/api\/v1\/notes\?channelId=[^&#?]+$/.test(path) && (init.method ?? 'GET') === 'GET'
     const notesWrite = path === '/api/v1/notes' && init.method === 'POST'
     const method = init.method ?? 'GET'
+    const jumpmapRequest = (method === 'GET' && /^\/api\/v1\/minigames\/jumpmap\/status\?channelId=[^&#?]+$/.test(path))
+      || (method === 'POST' && path === '/api/v1/minigames/jumpmap/tips')
     const shopRequest = (method === 'GET' && (path === '/api/v1/shop/items' || path === '/api/v1/users/me/items'))
       || (method === 'POST' && path === '/api/v1/shop/purchases')
       || (method === 'PATCH' && path === '/api/v1/users/me/equipment')
     const profileRequest = ((method === 'PATCH' || method === 'DELETE') && path === '/api/v1/users/me')
       || (method === 'GET' && /^\/api\/v1\/users\/nickname-availability\?nickname=[^&#]+$/.test(path))
+    const historyRequest = method === 'GET' && (path === '/api/v1/users/me/game-stats'
+      || /^\/api\/v1\/users\/me\/games\?size=20(?:&cursor=[1-9]\d{0,18})?(?:&gameCode=(?:OMOK|DICE|ONE_CARD|LIAR_BRIDGE))?$/.test(path))
     const minigameRequest = /^\/api\/v1\/minigames\/sessions(?:\?rulesVersion=v[45]|\/\d+(?:\?(?:(?:includeSource|includeProgress)=true|deliveryKey=[A-Za-z0-9_-]{1,64})(?:&(?:(?:includeSource|includeProgress)=true|deliveryKey=[A-Za-z0-9_-]{1,64}))*|\/(?:complete|abandon|deliveries))?)?$/.test(path)
     const rankingRequest = BUNGEOPPANG_RANKINGS_ENABLED && method === 'GET'
       && /^\/api\/v1\/minigames\/bungeoppang\/rankings\?period=ALL_TIME&rulesVersion=v[45]&limit=20(?:&durationMs=[1-9]\d{0,8})?(?:&cursor=[A-Za-z0-9%+_.~-]{1,1536})?$/.test(path)
     if (!this.active || (!notesRead && !notesWrite && !shopRequest && !profileRequest
-      && !minigameRequest && !rankingRequest && !/^\/api\/v1\/(?:wallets\/me|feedback)$/.test(path))
+      && !historyRequest && !minigameRequest && !jumpmapRequest && !rankingRequest && !/^\/api\/v1\/(?:wallets\/me|feedback)$/.test(path))
       || (path === '/api/v1/feedback' && init.method !== 'POST'))
       throw new Error('현재 공원에서 사용할 수 없는 요청입니다.')
     const signals = [this.bootAbort?.signal, init.signal].filter((s): s is AbortSignal => !!s)
@@ -388,6 +399,7 @@ export class ParkRuntime implements ParkRuntimePort {
     void this.boot()
   }
   private async boot() {
+    this.notesChanges.reset()
     this.mapAdmission.reset();this.mapConfirmationId='';this.beforeMap=[]
     if (TABLET_ENABLED) this.tablet.reset(true)
     this.mapReady = false
@@ -436,6 +448,7 @@ export class ParkRuntime implements ParkRuntimePort {
     }
   }
   async stop() {
+    this.notesChanges.reset()
     this.untrackTabGame?.()
     this.untrackTabGame = undefined
     this.tablet.end()
@@ -458,6 +471,7 @@ export class ParkRuntime implements ParkRuntimePort {
     await closing
   }
   private closed(code: number) {
+    this.notesChanges.reset()
     if(this.mapAdmission.status==='mismatch')return
     if (TABLET_ENABLED) this.tablet.reset(true)
     this.mapReady = false
@@ -554,6 +568,13 @@ export class ParkRuntime implements ParkRuntimePort {
       return
     }
     if (this.holdInitialState(message)) return
+    if (message.type === 'NOTES_CHANGED') {
+      const session = useSession.getState()
+      if (this.mapReady && this.mapAdmission.allowed && session.status === 'connected'
+        && session.mapCompatible && session.roomId && !session.pending)
+        this.notesChanges.accept(message)
+      return
+    }
     if (this.oneCardDefense.accept(message)) return
     if (this.oneCardPranks.accept(message)) return
     if (this.omokEvents.accept(message)) return
@@ -700,6 +721,7 @@ export class ParkRuntime implements ParkRuntimePort {
         throw new Error('경기 진행·복구·정산 중에는 채널을 바꿀 수 없습니다.')
       if (state.tableId) throw new Error('먼저 테이블에서 일어나주세요.')
       if (state.roomId === channelId) return
+      this.notesChanges.reset()
       this.follow.reset()
       this.facilities.reset()
       this.facilityMapInvalid = false
@@ -773,6 +795,7 @@ export class ParkRuntime implements ParkRuntimePort {
     }
   }
   sendChat = (value: string) =>
+    gameChatScope() ? this.sendSpectatorChat(filterChat(value)) :
     this.action(async () => {
       const text = filterChat(validateChat(value))
       if (!useSession.getState().roomId)
@@ -1256,10 +1279,12 @@ export class ParkRuntime implements ParkRuntimePort {
     useTableLobby.setState({ spectatorRequested: true, spectatorError: '' })
     return this.spectator.set({ gameId: ref.gameId, scope: JSON.stringify([this.generation, s.sessionId, s.roomId, current.watchedTableId, scope]) }, true)
   }
-  unwatchGame = (): Promise<boolean> => {
+  unwatchGame = async (): Promise<boolean> => {
     this.spectatorIntent = null
     useTableLobby.setState({ spectatorRequested: false })
-    return this.spectator.set(null, true)
+    const approved = await this.spectator.set(null, true)
+    if (approved) resetBenchSpectator()
+    return approved
   }
   closeTable = () => {
     this.spectatorIntent = null

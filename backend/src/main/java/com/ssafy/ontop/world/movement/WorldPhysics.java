@@ -36,6 +36,7 @@ public final class WorldPhysics implements AutoCloseable {
     }
     private JsonNode movement;
     private final boolean clientPositions;
+    private final boolean tunedMovement;
     private final java.util.function.LongSupplier clock;
     private PositionCollision positionCollision;
 
@@ -84,10 +85,18 @@ public final class WorldPhysics implements AutoCloseable {
         this(() -> java.util.Objects.requireNonNull(scene), clientPositions, clock);
     }
 
+    public WorldPhysics(ParkScene scene, boolean clientPositions, java.util.function.LongSupplier clock, boolean tunedMovement) {
+        this(() -> java.util.Objects.requireNonNull(scene), clientPositions, clock, tunedMovement);
+    }
     private WorldPhysics(java.util.function.Supplier<ParkScene> sceneSource, boolean clientPositions,
             java.util.function.LongSupplier clock) {
+        this(sceneSource, clientPositions, clock, false);
+    }
+    private WorldPhysics(java.util.function.Supplier<ParkScene> sceneSource, boolean clientPositions,
+            java.util.function.LongSupplier clock, boolean tunedMovement) {
         this.sceneSource = sceneSource;
         this.clientPositions = clientPositions;
+        this.tunedMovement = tunedMovement;
         this.clock = clock;
         try {
             call(
@@ -245,7 +254,7 @@ public final class WorldPhysics implements AutoCloseable {
         return call(() -> {
             Actor actor = actors.get(id);
             return actor != null && (actor.airborne || actor.jumpQueued || (actor.clientControlled && actor.moving
-                    && now >= actor.receivedAt && now - actor.receivedAt <= 500_000_000L) || (inputActive(actor, now)
+                    && now >= actor.receivedAt && now - actor.receivedAt <= (tunedMovement ? 2_000_000_000L : 500_000_000L)) || (inputActive(actor, now)
                     && (actor.input.dx() != 0 || actor.input.dz() != 0 || actor.input.jump())));
         });
     }
@@ -339,7 +348,7 @@ public final class WorldPhysics implements AutoCloseable {
                 // Catch-up steps can predate a report received just before this
                 // batch. The physical tick timestamp is not an expiry clock.
                 long freshnessNow = clock.getAsLong();
-                boolean fresh = !a.reportStarted || freshnessNow >= a.receivedAt && freshnessNow - a.receivedAt <= 500_000_000L;
+                boolean fresh = !a.reportStarted || freshnessNow >= a.receivedAt && freshnessNow - a.receivedAt <= (tunedMovement ? 2_000_000_000L : 500_000_000L);
                 if (!fresh) {
                     log.info("로컬 좌표 검증 복귀 reason=REPORT_EXPIRED seq={}", a.seq);
                     a.positionDisabled = true;
@@ -426,7 +435,7 @@ public final class WorldPhysics implements AutoCloseable {
                 if (active && a.jumpQueued && a.body.onGround()) {
                     a.body.setJumpSpeed(
                             isTower(position)
-                                    ? (float) scene.data.path("tower").path("jumpSpeed").asDouble()
+                                    ? (tunedMovement ? 8f : (float) scene.data.path("tower").path("jumpSpeed").asDouble())
                                     : number("jumpSpeed"));
                     a.body.jump();
                 }
@@ -529,7 +538,7 @@ public final class WorldPhysics implements AutoCloseable {
             if (a.positionValidator == null) {
                 double boundary = scene.data.path("world").path("halfSize").asDouble()
                         - scene.data.path("world").path("boundaryHalfDepth").asDouble() - number("radius") - number("offset");
-                a.positionValidator = new ClientPositionValidator(pose(a), a.motionEpoch, boundary, positionCollision, clock);
+                a.positionValidator = new ClientPositionValidator(pose(a), a.motionEpoch, boundary, positionCollision, clock, tunedMovement);
             }
             var before = pose(a);
             var result = a.positionValidator.accept(candidate);
@@ -543,7 +552,7 @@ public final class WorldPhysics implements AutoCloseable {
             }
             var p = result.approved();
             double seconds = Math.max(.001, (now - a.receivedAt) / 1e9);
-            double vy = Math.max(-20, Math.min(6.2, (p.y() - before.y()) / seconds));
+            double vy = Math.max(tunedMovement ? -78.4 : -20, Math.min(tunedMovement ? 8 : 6.2, (p.y() - before.y()) / seconds));
             a.body.warp(new Vector3f((float) p.x(), (float) p.y(), (float) p.z()));
             a.seq = candidate.seq(); a.receivedAt = now; a.yaw = candidate.yaw();
             a.reportStarted = true;
@@ -667,7 +676,10 @@ public final class WorldPhysics implements AutoCloseable {
     private Snapshot snapshotNow(String id) {
         Actor a = actors.get(id);
         Vector3f p = a.body.getPhysicsLocation(null);
-        return new Snapshot(a.seq, p.x, p.y, p.z, a.yaw, a.moving, a.running, a.swimming, a.motion);
+        Motion motion = a.motion;
+        if (tunedMovement) motion = new Motion(motion.epoch(), motion.tick(), motion.appliedInputSeq(),
+                motion.inputAgeMs(), motion.velocityY(), motion.grounded(), motion.inputActive(), motion.authority(), "PARK_V1");
+        return new Snapshot(a.seq, p.x, p.y, p.z, a.yaw, a.moving, a.running, a.swimming, motion);
     }
 
     /** Trusted server relocation, never exposed as a client coordinate command. */
@@ -739,6 +751,13 @@ public final class WorldPhysics implements AutoCloseable {
     }
 
     private float number(String key) {
+        if (tunedMovement) {
+            if (key.equals("walkSpeed")) return 6f;
+            if (key.equals("runSpeed")) return 8f;
+            if (key.equals("gravity")) return -30f;
+            if (key.equals("maxFallSpeed")) return -78.4f;
+            if (key.equals("jumpSpeed")) return 8f;
+        }
         return (float) movement.path(key).asDouble();
     }
 
@@ -777,7 +796,13 @@ public final class WorldPhysics implements AutoCloseable {
     public record Motion(long epoch, long tick, long appliedInputSeq, double inputAgeMs,
             double velocityY, boolean grounded, boolean inputActive,
             @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
-            String authority) {
+            String authority,
+            @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+            String profile) {
+        public Motion(long epoch, long tick, long appliedInputSeq, double inputAgeMs, double velocityY,
+                boolean grounded, boolean inputActive, String authority) {
+            this(epoch, tick, appliedInputSeq, inputAgeMs, velocityY, grounded, inputActive, authority, null);
+        }
         public Motion(long epoch, long tick, long appliedInputSeq, double inputAgeMs, double velocityY,
                 boolean grounded, boolean inputActive) {
             this(epoch, tick, appliedInputSeq, inputAgeMs, velocityY, grounded, inputActive, null);

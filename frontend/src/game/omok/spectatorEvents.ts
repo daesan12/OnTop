@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { integer, record, type Envelope } from '../../network/protocol'
+import { omokCoordinate } from '../omokPresentation'
 
 export interface EventScope { key: string; gameId: string; version: number; role: 'PLAYER' | 'SPECTATOR'; canSend: boolean }
 interface BaseEvent { gameId: string; eventId: string; senderUserId: string; sentAt: number; expiresAt: number; serverNow: number }
@@ -8,6 +9,7 @@ export type PingEvent = BaseEvent & { kind: 'ping'; basedOnVersion: number; x: n
 export type DisplayEvent<T> = T & { until: number; slot: number }
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const id = (v: unknown): v is string => typeof v === 'string' && !!v.trim() && v.length <= 120
+const pingThrottleMessage = '추천은 1초 간격으로 보낼 수 있어요.'
 export function spectatorText(value: string) {
   const text = value.trim()
   if (!text || [...text].length > 200 || /[\u0000-\u001f\u007f-\u009f\u2028\u2029\uD800-\uDFFF]/u.test(text))
@@ -36,9 +38,12 @@ export function parseSpectatorEvent(message: Envelope): ChatEvent | PingEvent | 
 }
 interface View {
   scope: string; canSend: boolean; chats: DisplayEvent<ChatEvent>[]; pings: DisplayEvent<PingEvent>[]
+  history: ChatEvent[]
   error: string; sending: boolean
+  pingSending: boolean; pingReadyAt: number; pingNotice: string; pingError: string
 }
-const initial = (): View => ({ scope: '', canSend: false, chats: [], pings: [], error: '', sending: false })
+const initial = (): View => ({ scope: '', canSend: false, chats: [], pings: [], history: [], error: '', sending: false,
+  pingSending: false, pingReadyAt: 0, pingNotice: '', pingError: '' })
 export const useOmokEvents = create<View>(initial)
 interface Dependencies {
   scope(): EventScope | null
@@ -49,6 +54,7 @@ interface Dependencies {
 export class OmokSpectatorEvents {
   private scope: EventScope | null = null
   private chats: DisplayEvent<ChatEvent>[] = []
+  private history: ChatEvent[] = []
   private pings: DisplayEvent<PingEvent>[] = []
   private seen = new Map<string, number>()
   private timer: ReturnType<typeof setTimeout> | undefined
@@ -56,11 +62,13 @@ export class OmokSpectatorEvents {
   private last = { chat: -Infinity, ping: -Infinity }
   private pending = { chat: false, ping: false }
   private blocked = false
+  private pingFeedback: { text: string; until: number } | null = null
   constructor(private readonly deps: Dependencies) {}
   private now() { return this.deps.now?.() ?? performance.now() }
   reset() {
-    clearTimeout(this.timer); this.scope = null; this.chats = []; this.pings = []; this.seen.clear()
+    clearTimeout(this.timer); this.scope = null; this.chats = []; this.pings = []; this.history = []; this.seen.clear()
     this.last = { chat: -Infinity, ping: -Infinity }; this.pending = { chat: false, ping: false }; this.blocked = false
+    this.pingFeedback = null
     useOmokEvents.setState(initial())
   }
   sync() {
@@ -76,10 +84,16 @@ export class OmokSpectatorEvents {
     this.pings = this.pings.filter(p => p.until > now)
     for (const [id, until] of this.seen) if (until <= now) this.seen.delete(id)
     const s = this.scope
+    const pingReadyAt = this.last.ping + 1000 > now ? this.last.ping + 1000 : 0
+    if (this.pingFeedback && this.pingFeedback.until <= now) this.pingFeedback = null
+    if (!pingReadyAt && !this.pending.ping && useOmokEvents.getState().pingError === pingThrottleMessage)
+      useOmokEvents.setState({ pingError: '' })
     useOmokEvents.setState({ scope: s?.key ?? '', canSend: !!s?.canSend && !this.blocked,
-      chats: this.chats, pings: this.pings.filter(p => p.basedOnVersion === s?.version) })
+      chats: this.chats, history: this.history, pings: this.pings.filter(p => p.basedOnVersion === s?.version),
+      pingSending: this.pending.ping, pingReadyAt, pingNotice: this.pingFeedback?.text ?? '' })
     clearTimeout(this.timer)
-    const expiry = Math.min(...this.chats.map(c => c.until), ...this.pings.map(p => p.until))
+    const expiry = Math.min(...this.chats.map(c => c.until), ...this.pings.map(p => p.until),
+      pingReadyAt || Infinity, this.pingFeedback?.until ?? Infinity)
     if (Number.isFinite(expiry)) this.timer = setTimeout(() => this.publish(), Math.max(1, expiry - now))
   }
   accept(message: Envelope) {
@@ -97,6 +111,7 @@ export class OmokSpectatorEvents {
     this.seen.set(event.eventId, now + 30_000)
     if (this.seen.size > 256) this.seen.delete(this.seen.keys().next().value!)
     if (event.kind === 'chat') {
+      this.history = [...this.history, event].slice(-100)
       const slot = [0, 1, 2].find(n => !this.chats.some(c => c.until > now && c.slot === n)) ?? this.chats[0]?.slot ?? 0
       this.chats = [...this.chats.filter(c => c.slot !== slot), { ...event, until: now + remaining, slot }].slice(-3)
     } else if (event.basedOnVersion >= scope.version) {
@@ -110,7 +125,8 @@ export class OmokSpectatorEvents {
     const scope = this.scope
     if (!scope?.canSend || this.blocked || (kind === 'ping' && scope.role !== 'SPECTATOR')) return false
     if (this.pending[kind] || this.now() - this.last[kind] < 1000) {
-      useOmokEvents.setState({ error: '잠시 후 다시 보내주세요. (1초 간격)' }); return false
+      useOmokEvents.setState(kind === 'chat' ? { error: '잠시 후 다시 보내주세요. (1초 간격)' }
+        : { pingError: pingThrottleMessage }); return false
     }
     let extra: Record<string, unknown>
     try {
@@ -123,7 +139,7 @@ export class OmokSpectatorEvents {
     } catch (error) { useOmokEvents.setState({ error: (error as Error).message }); return false }
     const eventId = crypto.randomUUID(), requestIds: string[] = []
     this.pending[kind] = true
-    useOmokEvents.setState({ error: '', ...(kind === 'chat' ? { sending: true } : {}) })
+    useOmokEvents.setState(kind === 'chat' ? { error: '', sending: true } : { pingError: '', pingSending: true })
     try {
       const response = await this.deps.request(kind === 'chat' ? 'GAME_SPECTATOR_CHAT_SEND' : 'OMOK_SPECTATOR_PING_SEND',
         { gameId: scope.gameId, eventId, ...extra }, [kind === 'chat' ? 'GAME_SPECTATOR_CHAT_MESSAGE' : 'OMOK_SPECTATOR_PING'],
@@ -132,6 +148,7 @@ export class OmokSpectatorEvents {
       const event = parseSpectatorEvent(response)
       if (!event || event.gameId !== scope.gameId || event.eventId !== eventId) throw new Error('관전 이벤트 승인 응답을 확인해주세요.')
       this.last[kind] = this.now()
+      if (event.kind === 'ping') this.pingFeedback = { text: `${omokCoordinate(event.x, event.y)} 추천을 보냈어요.`, until: this.now() + 2500 }
       this.accept(response) // ACK is displayed once; SharedSocket may have delivered it already.
       return true
     } catch (error) {
@@ -141,12 +158,13 @@ export class OmokSpectatorEvents {
         'GAME_SPECTATOR_UNSUPPORTED_GAME', 'GAME_SPECTATOR_GAME_NOT_PLAYING'].includes(String(code))) this.blocked = true
       const message = code === 'OMOK_SPECTATOR_PING_STALE_VERSION' ? '최신 판이 표시된 뒤 다시 추천해주세요.'
         : error instanceof Error ? error.message : '전송하지 못했어요. 자동으로 다시 보내지 않습니다.'
-      useOmokEvents.setState({ error: message }); this.publish(); return false
+      useOmokEvents.setState(kind === 'chat' ? { error: message } : { pingError: message }); this.publish(); return false
     } finally {
       requestIds.forEach(id => this.requests.delete(id))
       if (this.scope?.key === scope.key) {
         this.pending[kind] = false
         if (kind === 'chat') useOmokEvents.setState({ sending: false })
+        else this.publish()
       }
     }
   }

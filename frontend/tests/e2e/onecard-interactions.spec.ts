@@ -29,7 +29,7 @@ async function start(page: Page) {
   await page.getByLabel('1인 참가비').fill('1')
   await page.getByRole('button', { name: '원카드 선택', exact: true }).click()
   await page.getByRole('button', { name: '준비', exact: true }).click(); server.confirmStart()
-  await expect(cards(page)).toHaveCount(page.viewportSize()!.width <= 800 ? 3 : 7)
+  await expect(cards(page)).toHaveCount(7)
   server.cardSnapshot({ turnDeadline: new Date(Date.now() + 30000).toISOString() })
   await page.evaluate(now => { Date.now = () => now }, Date.now())
   await page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).visualTime(.46))
@@ -37,8 +37,11 @@ async function start(page: Page) {
   return server
 }
 async function beginDrag(page: Page, card: Locator, dx: number, dy: number) {
+  await card.hover()
+  await card.evaluate(async node => { await Promise.all(node.getAnimations().map(animation => animation.finished.catch(() => {}))) })
   const b = (await card.boundingBox())!, x = b.x + b.width / 2, y = b.y + b.height * .45
   await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move(x + dx, y + dy, { steps: 9 })
+  await expect(card).toHaveAttribute('data-dragging', 'true')
 }
 function afterPlay(server: Awaited<ReturnType<typeof fixture>>, rank = '4'): Hand {
   const hand = server.cardHand()
@@ -126,13 +129,13 @@ test('the deck accepts an attack and stale ACKs/recovery/expiry never allow extr
   await expect(cards(page)).toHaveCount(0)
   await page.mouse.click(target.x, target.y)
   server.holdState(false); server.flushGame()
-  await expect(cards(page)).toHaveCount(8)
+  await expect(cards(page)).toHaveCount(9)
   server.cardSnapshot({ turnUserId: '101', turnCount: 3 }, { ...next, canDraw: true })
   server.recoveryPending(); await expect(cards(page)).toHaveCount(0)
   target = await deck(page); await page.mouse.click(target.x, target.y)
-  server.restoreGame(); await expect(cards(page)).toHaveCount(8)
+  server.restoreGame(); await expect(cards(page)).toHaveCount(9)
   server.cardSnapshot({ turnDeadline: new Date(Date.now() - 60000).toISOString() })
-  await expect(panel(page).getByRole('button', { name: '한 장 뽑고 넘기기', exact: true })).toBeDisabled()
+  await expect(panel(page).getByRole('button', { name: '드로우', exact: true })).toBeDisabled()
   target = await deck(page); await page.mouse.click(target.x, target.y)
   expect(actions(server)).toEqual([{ kind: 'accept-attack' }])
 })

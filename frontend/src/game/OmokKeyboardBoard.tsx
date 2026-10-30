@@ -7,13 +7,19 @@ export function OmokKeyboardBoard({ omok, canPlace, place }: {
 }) {
   const [cursor, setCursor] = useState(112)
   const board = useRef<HTMLDivElement>(null)
-  return <details className="omok-keyboard"><summary>키보드로 오목판 조작</summary>
-    <p id="omok-keyboard-help">방향키로 이동 · Enter 또는 Space로 착수 · Tab으로 판 나가기</p>
+  const details = useRef<HTMLDetailsElement>(null), toggle = useRef<HTMLElement>(null)
+  return <details ref={details} className="omok-keyboard"><summary ref={toggle}>키보드로 오목판 조작</summary>
+    <p id="omok-keyboard-help">방향키로 이동 · Enter 또는 Space로 착수 · Tab으로 판 나가기 · Esc로 닫기</p>
     <div ref={board} role="group" aria-label="오목판" aria-describedby="omok-keyboard-help" className="omok-accessible-board"
       onKeyDown={event => {
         const x = cursor % 15, y = Math.floor(cursor / 15)
         let next: number
         switch (event.key) {
+          case 'Escape':
+            event.preventDefault(); event.stopPropagation()
+            if (details.current) details.current.open = false
+            toggle.current?.focus({ preventScroll: true })
+            return
           case 'ArrowLeft': next = y * 15 + Math.max(0, x - 1); break
           case 'ArrowRight': next = y * 15 + Math.min(14, x + 1); break
           case 'ArrowUp': next = Math.max(0, y - 1) * 15 + x; break

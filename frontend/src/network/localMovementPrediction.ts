@@ -1,17 +1,23 @@
 import type { MovementIntent } from './movementInput'
 import type { Pose } from './worldClient'
 import { MOVEMENT, NETWORK } from '../config'
+import { PARK_MOTION } from './parkMotion'
+import type { JumpGraceSnapshot } from '../features/jumpmap/jumpGrace'
 
 export interface MotionSnapshot {
   epoch: number; tick: number; appliedInputSeq: number; inputAgeMs: number
   velocityY: number; grounded: boolean; inputActive: boolean
   authority?: 'CLIENT_VALIDATED'
+  profile?: 'PARK_V1'
+  jumpGrace?: JumpGraceSnapshot
 }
 export interface PredictionSimulation {
-  reset(pose: Pose, velocityY: number, grounded: boolean): void
+  setMotionProfile?(profile: 'PARK_V1' | undefined): void
+  reset(pose: Pose, velocityY: number, grounded: boolean, jumpGrace?: JumpGraceSnapshot): void
   step(input: MovementIntent, seconds: number): void
   pose(): Pose
   setChairs(counts: ReadonlyMap<string, number>): void
+  movementFlags?(): {moving:boolean;running:boolean} | undefined
   dispose(): void
 }
 const STOP: MovementIntent = { dx: 0, dz: 0, run: false, jump: false }
@@ -47,6 +53,7 @@ export class LocalMovementPrediction {
   private lastJumpAt = -Infinity
   private acknowledgedJumpAt = -Infinity
   private idleWindow = true
+  private pendingPositionJump: {epoch:number;seq:number} | undefined
   private highestSent = 0
   private unavailable = false
   private facing: { from: number; to: number; at: number } | undefined
@@ -62,11 +69,13 @@ export class LocalMovementPrediction {
   positionFallback() {
     return this.unavailable && this.baseline?.motion.authority === 'CLIENT_VALIDATED' ? { epoch: this.baseline.motion.epoch } : undefined
   }
-  private get horizon() { return this.baseline?.motion.authority === 'CLIENT_VALIDATED' ? 500 : HORIZON_MS }
+  private get tuned() { return this.baseline?.motion.profile === 'PARK_V1' }
+  private get horizon() { return this.baseline?.motion.authority === 'CLIENT_VALIDATED' ? (this.tuned ? 2000 : 500) : HORIZON_MS }
   positionReport(seq: number, intent: MovementIntent, at = this.now()) {
     if (!this.ready || this.baseline?.motion.authority !== 'CLIENT_VALIDATED') return undefined
     this.advance(at)
-    return { seq, epoch: this.baseline.motion.epoch, ...this.sim!.pose(), run: intent.run, jump: intent.jump }
+    if (this.tuned && intent.jump && !this.pendingPositionJump) this.pendingPositionJump={epoch:this.baseline.motion.epoch,seq}
+    return { seq, epoch: this.baseline.motion.epoch, ...this.sim!.pose(), run: intent.run, jump: intent.jump || !!this.pendingPositionJump }
   }
   async prepare() {
     if (this.unavailable || this.sim || this.preparing) return this.preparing
@@ -82,7 +91,8 @@ export class LocalMovementPrediction {
           base.at = at
           this.timeline = [{ at, intent: { ...this.intent, jump: false } }]
         }
-        sim.reset(base.pose, base.motion.velocityY, base.motion.grounded); this.simulatedAt = at
+        sim.setMotionProfile?.(base.motion.profile)
+        sim.reset(base.pose, base.motion.velocityY, base.motion.grounded, base.motion.jumpGrace); this.simulatedAt = at
       }
     }).catch(() => {
       if (generation === this.generation) this.unavailable = true
@@ -94,6 +104,7 @@ export class LocalMovementPrediction {
     ++this.generation
     this.sim?.dispose(); this.sim = undefined; this.preparing = undefined
     this.scope = ''; this.baseline = undefined; this.timeline = []; this.sent = []
+    this.pendingPositionJump=undefined
     this.intent = { ...STOP }; this.allowed = false; this.firstInput = undefined
     this.lastJumpAt = -Infinity
     this.acknowledgedJumpAt = -Infinity
@@ -105,6 +116,7 @@ export class LocalMovementPrediction {
     this.roundTrips.length = this.diagnostics.length = 0
   }
   suspend() {
+    this.pendingPositionJump=undefined
     this.timeline = []; this.sent = []; this.intent = { ...STOP }; this.firstInput = undefined
     this.allowed = false; this.correction = { x: 0, y: 0, z: 0, at: 0 }
     this.facing = undefined
@@ -114,9 +126,16 @@ export class LocalMovementPrediction {
   reconcile(scope: string, pose: Pose & { moving?: boolean }, motion: MotionSnapshot | undefined, allowed: boolean, at = this.now()) {
     if (scope !== this.scope) { this.reset(); this.scope = scope }
     if (!motion || !allowed) { this.suspend(); return }
+    // Native Bullet handoff owns swimming/tower/follow/fallback. Do not replay
+    // the normal-ground client integrator over a different native trajectory.
+    if (motion.profile === 'PARK_V1' && motion.authority !== 'CLIENT_VALIDATED') {
+      this.baseline = {pose:{...pose}, motion, at, anchor:at}
+      this.suspend(); return
+    }
     const old = this.baseline
-    const newEpoch = !old || old.motion.epoch !== motion.epoch || !this.allowed
+    const newEpoch = !old || old.motion.epoch !== motion.epoch || old.motion.profile !== motion.profile || !this.allowed
     if (!newEpoch && motion.tick < old.motion.tick) return
+    if(this.pendingPositionJump&&(newEpoch||motion.epoch!==this.pendingPositionJump.epoch||motion.appliedInputSeq>=this.pendingPositionJump.seq))this.pendingPositionJump=undefined
     if (!newEpoch && motion.tick === old.motion.tick && distance(pose, old.pose) < .0001) {
       this.allowed = true
       if (motion.authority === 'CLIENT_VALIDATED') this.baseline = { ...old, motion,
@@ -153,7 +172,8 @@ export class LocalMovementPrediction {
     this.baseline = { pose: { ...pose }, motion, at, anchor }
     if (newEpoch) this.facing = { from: pose.yaw, to: pose.yaw, at }
     if (!this.sim) { void this.prepare(); return }
-    this.sim.reset(pose, motion.velocityY, motion.grounded)
+    this.sim.setMotionProfile?.(motion.profile)
+    this.sim.reset(pose, motion.velocityY, motion.grounded, motion.jumpGrace)
     this.simulatedAt = newEpoch ? at : anchor
     this.lastJumpAt = this.acknowledgedJumpAt
     if (newEpoch) {
@@ -214,7 +234,7 @@ export class LocalMovementPrediction {
   }
   reject(seq: number) {
     const rejected = this.sent.find(f => f.seq === seq)
-    if (rejected && Number.isFinite(rejected.jumpAt)
+    if (!this.tuned && rejected && Number.isFinite(rejected.jumpAt)
       && !this.sent.some(f => f.seq !== seq && f.jumpAt === rejected.jumpAt)) {
       for (const frame of this.timeline) if (frame.at === rejected.jumpAt)
         frame.intent = { ...frame.intent, jump: false }
@@ -235,7 +255,8 @@ export class LocalMovementPrediction {
   }
   displayFlags(at: number) {
     const active = this.ready && !!this.baseline && at - this.baseline.at <= this.horizon
-    return { moving: !!(active && (this.intent.dx || this.intent.dz)), running: !!(active && this.intent.run) }
+    const physical = active ? this.sim?.movementFlags?.() : undefined
+    return physical ?? { moving: !!(active && (this.intent.dx || this.intent.dz)), running: !!(active && this.intent.run) }
   }
   metrics() { return { firstResponseMs: [...this.responseTimes], correctionMetres: [...this.corrections],
     hardCorrections: this.resets, roundTripMs: [...this.roundTrips], reconciliations: [...this.diagnostics] } }
@@ -256,7 +277,8 @@ export class LocalMovementPrediction {
       const horizontal = Math.hypot(delta.x, delta.z)
       const limit = (MOVEMENT.runSpeed + MOVEMENT.walkSpeed / 2) * seconds
       if (horizontal > limit && horizontal > 0) { delta.x *= limit / horizontal; delta.z *= limit / horizontal }
-      delta.y = Math.max(MOVEMENT.maxFallSpeed * seconds, Math.min(-MOVEMENT.maxFallSpeed * seconds, delta.y))
+      const verticalLimit = this.tuned ? PARK_MOTION.maxFallSpeed : -MOVEMENT.maxFallSpeed
+      delta.y = Math.max(-verticalLimit * seconds, Math.min(verticalLimit * seconds, delta.y))
       // Collision belongs to the physical simulation, not to this correction
       // path. Sweeping a wrong display pose can trap it below a valid landing.
       pose.x = previous.pose.x + delta.x; pose.y = previous.pose.y + delta.y; pose.z = previous.pose.z + delta.z
@@ -283,7 +305,7 @@ export class LocalMovementPrediction {
     if (!this.sim || !this.baseline) return
     const end = Math.min(at, this.baseline.at + this.horizon)
     if (end <= this.simulatedAt) return
-    const start = Math.max(this.simulatedAt, end - this.horizon)
+    const start = Math.max(this.simulatedAt, end - (this.tuned && this.positionMode ? 100 : this.horizon))
     const initial = last(this.timeline, f => f.at <= start)
     let jumpAt = initial?.at ?? -Infinity
     let input = { ...(initial?.intent ?? STOP), jump: !!initial?.intent.jump && jumpAt > this.lastJumpAt }

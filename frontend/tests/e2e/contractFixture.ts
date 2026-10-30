@@ -1,4 +1,4 @@
-import { expect, type Page, type WebSocketRoute } from '@playwright/test'
+import { expect, test, type Page, type WebSocketRoute } from '@playwright/test'
 import os from 'node:os'
 import path from 'node:path'
 import fs from 'node:fs/promises'
@@ -6,6 +6,7 @@ import { TABLES, tableSeats } from '../../src/config'
 import { PARK_LAYOUT } from '../../src/map/park'
 import { PARK_MAP_VERSION } from '../../src/map/park/generated/mapVersion'
 import { generatedFacilityCatalog } from '../park-integration/fixture'
+import { disabledJumpmapStatus } from '../fixtures/jumpmap'
 import { EXPECTED_MAP_VERSION } from '../../src/config/mapVersion'
 import type { Farkle, Result } from '../../src/game/protocol'
 import type { OneCard, Hand, Card } from '../../src/game/onecard/protocol'
@@ -17,6 +18,7 @@ import { onecardPrankFixture, type OneCardPrankRoom } from './onecardPrankFixtur
 import type { PublicEquipment } from '../../src/network/equipment'
 import type { GameReactionEvent } from '../../src/game/presentation/defeat'
 import type { AvatarActivity } from '../../src/network/avatarActivity'
+import type { PublicTable } from '../../src/network/protocol'
 import developmentBindings from '../../public/park-bindings.dev.json' with { type: 'json' }
 
 // Contract fixtures intercept HTTP/RawWS only in tests. No production fake-auth or socket bypass.
@@ -45,7 +47,7 @@ export async function fixture(
     m09?: boolean
     startEvents?: boolean
     manualMovement?: boolean
-    ownUserId?: '101' | '102'
+    ownUserId?: '101' | '102' | '505'
     emoteBindings?: boolean | 'development'
     publicProfiles?: Record<string, { nickname?: string | null; characterGender?: 'MALE' | 'FEMALE' | null }>
     position?: { x: number; y: number; z: number; yaw: number }
@@ -60,15 +62,18 @@ export async function fixture(
     mapVerificationRequired?: boolean
     rejectMapConfirmation?: boolean
     spectatorEvents?: boolean
+    worldTables?: PublicTable[]
   } = {},
 ) {
+  options = { ...options, generatedPark: options.generatedPark ?? test.info().project.metadata.generatedPark === true }
   const anchors = options.generatedPark ? PARK_LAYOUT.DRAFT_TABLES : TABLES
   const anchor = anchors.find(t => t.id === options.anchorId) ?? anchors[0]!
   const expectedMapVersion = options.mapVersion ?? (options.generatedPark ? PARK_MAP_VERSION : EXPECTED_MAP_VERSION)
   const startingSeat = tableSeats(anchor)[0]!
   const ownId = options.onecardPreview?.observer ? '505' : options.ownUserId ?? '101'
+  let publicTables = options.worldTables
   const worldIds = () => options.onecardPreview ? ['101', '102', '103', '104', ...(options.onecardPreview.observer ? ['505'] : [])]
-    : Array.from({ length: options.players ?? 2 }, (_, i) => String(101 + i))
+    : [...new Set([...Array.from({ length: options.players ?? 2 }, (_, i) => String(101 + i)), ownId])]
   let tickets = 0,
     connections = 0,
     active = 0,
@@ -135,13 +140,15 @@ export async function fixture(
   const bridgeReplies: { input: object; patch: Partial<Bridge>; secret: SecretDie | null }[] = []
   const initialHand: Card[] = ['4', '7', 'K', 'Q', 'J', '2', 'A'].map(rank => ({ id: `hearts-${rank}`, suit: 'hearts', rank }))
   let cardState: OneCard = { gameCode: 'ONE_CARD', status: 'PLAYING', players: Array.from({ length: options.onecard ?? 2 }, (_, i) => ({ userId: String(101 + i), cardCount: 7,
-    active: true, oneCardUntil: null, oneCardStatus: 'none' })), turnUserId: options.ownUserId ?? '101', turnDeadline: new Date(Date.now() + 30000).toISOString(), turnTimeLimitMs: 30000,
+    active: true, oneCardUntil: null, oneCardStatus: 'none' })), turnUserId: options.ownUserId === '102' ? '102' : '101', turnDeadline: new Date(Date.now() + 30000).toISOString(), turnTimeLimitMs: 30000,
     direction: 1, stage: 'PLAYING', extraAction: false, topCard: { id: 'hearts-5', suit: 'hearts', rank: '5' }, activeSuit: 'hearts', drawCount: 54 - (options.onecard ?? 2) * 7 - 1,
     attackTotal: 0, lastAttack: null, turnCount: 1, winnerUserIds: [], endReason: null, endedAt: null }
   let cardHand: Hand = { userId: options.ownUserId ?? '101', hand: initialHand, playableCardIds: initialHand.map(c => c.id), canDraw: true }
   const cardReplies: { input: object; patch: Partial<OneCard>; hand: Hand }[] = []
   const cardPranks = onecardPrankFixture({ ownId, gameId: () => gameId, state: () => cardState, room: options.onecardPreview?.room,
+    autoResolve: options.onecardPreview?.interactionReview,
     emit: (type, payload, requestId) => emit(sockets.at(-1)!, type, payload, requestId ?? null) })
+  page.on('close', () => cardPranks.dispose())
   let diceState: Farkle = { gameCode: 'DICE', status: 'PLAYING', players: ['101', '102'], scores: [0, 0], targetScore: 4000,
     turnTimeLimitMs: 30000, turnUserId: '101', turnDeadline: new Date(Date.now() + 30000).toISOString(), turnScore: 0, dice: [],
     stage: 'AWAITING_ROLL', rollId: 0, round: 1, hotDice: false, lastEvent: 'START', winnerUserId: null, endReason: null, endedAt: null }
@@ -261,6 +268,8 @@ export async function fixture(
     )
   await page.route('**/api/v1/**', async (route) => {
     const url = new URL(route.request().url())
+    if (url.pathname === '/api/v1/minigames/jumpmap/status' && route.request().method() === 'GET')
+      return route.fulfill({ json: disabledJumpmapStatus('fixture-channel', expectedMapVersion) })
     if (url.pathname.endsWith('/auth/refresh'))
       return route.fulfill({
         json: loggedIn ? { accessToken: 'fixture-access' } : {},
@@ -299,7 +308,7 @@ export async function fixture(
             {
               channelId: 'fixture-channel',
               name: options.channelName ?? '공원 01',
-              currentUsers: options.players ?? 2,
+              currentUsers: worldIds().length,
               capacity: 16,
               joinable: true,
             },
@@ -318,8 +327,8 @@ export async function fixture(
               readyCount: 0,
               minimumPlayers: 2,
               allReady: false,
-              status: 'WAITING',
-              joinable: !seated,
+              status: options.publicSpectator && publicGameId ? 'PLAYING' : 'WAITING',
+              joinable: !seated && !options.publicSpectator,
               gameCode: null,
               targetScore,
               betAmountPerPlayer,
@@ -342,7 +351,7 @@ export async function fixture(
       },
     }),
   )
-  const world = (ws: WebSocketRoute, requestId: string | null = null) =>
+  const world = (ws: WebSocketRoute, requestId: string | null = null, patch: Record<string, unknown> = {}) =>
     ws.send(
       JSON.stringify({
         requestId,
@@ -350,7 +359,8 @@ export async function fixture(
         payload: {
           channelId: 'fixture-channel',
           version: ++version,
-          mapVersion: expectedMapVersion,
+          mapVersion: options.mapVersion ?? expectedMapVersion,
+          ...(publicTables === undefined ? {} : { tables: publicTables }),
           avatars: worldIds().map((userId, i) => ({
             userId,
             ...publicProfiles[userId],
@@ -358,7 +368,7 @@ export async function fixture(
             ...(userId in publicSeats ? { tableSeat: publicSeats[userId] } : {}),
             activity: activities[userId] ?? null,
             position:
-              (options.onecardPreview ? userId === ownId : i === 0)
+              userId === ownId
                 ? position
                 : {
                     ...position,
@@ -367,6 +377,7 @@ export async function fixture(
                     ...(i === 1 ? remotePosition : {}),
                   },
           })),
+          ...patch,
         },
       }),
     )
@@ -501,9 +512,9 @@ export async function fixture(
         if (ping && payload.basedOnVersion !== gameVersion) {
           emit(ws,'ERROR',{ code:'OMOK_SPECTATOR_PING_STALE_VERSION',message:'최신 판에서 다시 추천해주세요.' },requestId); return
         }
-        emit(ws, ping ? 'OMOK_SPECTATOR_PING' : 'GAME_SPECTATOR_CHAT_MESSAGE', {
-          ...payload, senderUserId:options.ownUserId ?? '101', sentAt:now, serverNow:now, expiresAt:now+(ping?2000:3000),
-        },requestId)
+        const event = { ...payload, senderUserId: ownId, sentAt: now, serverNow: now, expiresAt: now + (ping ? 2000 : 3000) }
+        if (options.onecardPreview) cardPranks.broadcast(ping ? 'OMOK_SPECTATOR_PING' : 'GAME_SPECTATOR_CHAT_MESSAGE', event, requestId)
+        else emit(ws, ping ? 'OMOK_SPECTATOR_PING' : 'GAME_SPECTATOR_CHAT_MESSAGE', event, requestId)
         return
       }
       if (type === 'WORLD_TIME_CHECK') {
@@ -533,7 +544,7 @@ export async function fixture(
                 name: options.channelName ?? '공원 01',
               version: ++channelVersion,
               capacity: 16,
-              currentUsers: options.players ?? 2,
+              currentUsers: worldIds().length,
               userIds: worldIds(),
             },
           }),
@@ -742,6 +753,17 @@ export async function fixture(
     mapMismatch: (map: { mapId: string; schemaVersion: number; mapVersion: string }) => emit(sockets.at(-1)!, 'ERROR', { code: 'MAP_VERSION_MISMATCH', serverMap: map, message: '맵 버전이 다릅니다.' }),
     sent,
     cardPranks,
+    publicTables: (tables: PublicTable[] | undefined) => {
+      publicTables = tables
+      for (const ws of sockets) world(ws)
+    },
+    worldMapVersion: (mapVersion: string | undefined) => {
+      options.mapVersion = mapVersion
+      for (const ws of sockets) world(ws)
+    },
+    worldSnapshot: (patch: Record<string, unknown>) => {
+      for (const ws of sockets) world(ws, null, patch)
+    },
     activity: (userId: string, activity: AvatarActivity | null) => {
       activities[userId] = activity
       for (const ws of sockets) world(ws)
@@ -957,6 +979,7 @@ export async function fixture(
     },
     close: (code: number) =>
       sockets.at(-1)!.close({ code, reason: 'Fixture close' }),
+    notesChanged: (revision: unknown) => emit(sockets.at(-1)!, 'NOTES_CHANGED', { revision }),
     endSession: () => {
       loggedIn = false
       sockets.at(-1)!.close({ code: 4401, reason: 'Login session ended' })

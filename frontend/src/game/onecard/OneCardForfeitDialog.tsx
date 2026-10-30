@@ -47,7 +47,10 @@ export function OneCardForfeitDialog({ gameId, disabled }: { gameId: string; dis
       ;(previousFocus.current?.isConnected ? previousFocus.current : document.querySelector<HTMLCanvasElement>('canvas'))?.focus({ preventScroll: true })
     }
   }, [open])
-  return createPortal(<dialog ref={dialog} className="onecard-forfeit-dialog" aria-labelledby="onecard-forfeit-title"
+  return <>
+    {(playing || recovering) && <button className="onecard-forfeit-trigger" aria-label="기권" disabled={!canStart && !recovering}
+      onClick={() => setOpen(true)} aria-haspopup="dialog"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="M5 22V3m0 1c5-4 9 4 14 0v10c-5 4-9-4-14 0" /></svg><span>기권</span><kbd>Esc</kbd></button>}
+    {createPortal(<dialog ref={dialog} className="onecard-forfeit-dialog" aria-labelledby="onecard-forfeit-title"
     aria-describedby="onecard-forfeit-warning" onCancel={event => { event.preventDefault(); setOpen(false) }}
     onClose={() => setOpen(false)} onKeyDown={event => event.stopPropagation()}>
     {open && <>
@@ -65,5 +68,6 @@ export function OneCardForfeitDialog({ gameId, disabled }: { gameId: string; dis
         </div>}
       {attempt && ['pending', 'approved', 'uncertain'].includes(attempt.status) && <button data-initial-focus onClick={() => setOpen(false)}>닫기</button>}
     </>}
-  </dialog>, document.body)
+  </dialog>, document.body)}
+  </>
 }
