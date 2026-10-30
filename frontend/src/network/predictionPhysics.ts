@@ -8,6 +8,8 @@ import { WORLD, WORLD_COLLIDERS, MOVEMENT, SWIMMING, LAKE, PARK_PAVILIONS, PAVIL
 import { GENERATED_PARK_ENABLED } from '../park/mapSelection'
 import { PARK_DATA } from '../map/park'
 import { addGeneratedPredictionColliders } from './predictionMap'
+import { furnitureLandingPosition,furnitureAllowsSupport } from './furnitureLanding'
+import { fountainExclusionPosition } from './fountainExclusion'
 import type { MovementIntent } from './movementInput'
 import type { Pose } from './worldClient'
 import type { PredictionSimulation } from './localMovementPrediction'
@@ -23,6 +25,8 @@ export async function createPredictionPhysics(profile?: 'PARK_V1'): Promise<Pred
 
 /** Display simulation only. The Java server owns every gameplay position and collision decision. */
 class PredictionPhysics implements PredictionSimulation {
+  private chairCounts:ReadonlyMap<string,number>=new Map()
+  private readonly furniture=PARK_DATA.physics.boxes.filter(b=>/^table-\d+-(top|chair-[0-3])$/.test(b.id))
   private readonly world = new RAPIER.World({ x: 0, y: 0, z: 0 })
   private readonly body
   private readonly collider
@@ -112,6 +116,7 @@ class PredictionPhysics implements PredictionSimulation {
     this.world.step()
   }
   setChairs(counts: ReadonlyMap<string, number>) {
+    this.chairCounts=counts
     for (const chair of this.chairs) chair.collider.setEnabled(chair.number <= (counts.get(chair.anchor) ?? 2))
   }
   step(input: MovementIntent, dt: number) {
@@ -135,7 +140,9 @@ class PredictionPhysics implements PredictionSimulation {
     }
     const jump = this.jumpEnabled ? this.jumpGrace.step(input.jump, this.grounded && !swimming, dt) : input.jump && this.grounded
     if (jump && !swimming) {
-      this.vy = predictionTowerSurface(p.x, p.y - MOVEMENT.halfHeight - MOVEMENT.radius - MOVEMENT.offset, p.z)
+      const footY=p.y-MOVEMENT.halfHeight-MOVEMENT.radius-MOVEMENT.offset
+      const onPavilion=this.onPavilion(p)
+      this.vy = onPavilion ? PARK_DATA.physics.pavilionJumpSpeed : predictionTowerSurface(p.x, footY, p.z)
         ? OBSERVATION_TOWER.jumpSpeed : MOVEMENT.jumpSpeed
       this.grounded = false
     }
@@ -150,16 +157,18 @@ class PredictionPhysics implements PredictionSimulation {
     const delta = this.controller.computedMovement()
     if (this.vy > 0 && delta.y + .0001 < this.vy * dt) this.vy = 0
     const limit = WORLD.halfSize - WORLD.boundaryHalfDepth - MOVEMENT.radius - MOVEMENT.offset
-    this.body.setNextKinematicTranslation({ x: Math.max(-limit, Math.min(limit, p.x + delta.x)),
-      y: p.y + delta.y, z: Math.max(-limit, Math.min(limit, p.z + delta.z)) })
-    this.grounded = this.controller.computedGrounded()
+    const proposed={ x: Math.max(-limit, Math.min(limit, p.x + delta.x)),y:p.y+delta.y,z:Math.max(-limit, Math.min(limit, p.z + delta.z)) }
+    const landing=this.preventClimbing(proposed)
+    this.body.setNextKinematicTranslation(landing)
+    this.grounded = this.controller.computedGrounded()&&Math.abs(landing.x-proposed.x)<1e-6&&Math.abs(landing.z-proposed.z)<1e-6&&this.supportAllowed(landing)
     if (this.grounded && this.vy < 0) this.vy = 0
     if (input.dx || input.dz) this.yaw = Math.atan2(input.dx, input.dz)
     this.world.timestep = dt
     this.world.step()
   }
   private stepTuned(input: MovementIntent, dt: number, launch: boolean) {
-    const p=this.body.translation(), wanted=this.parkMotion.advance(input,dt,this.grounded||launch)
+    const p=this.body.translation(),jumpSpeed=this.onPavilion(p)?PARK_DATA.physics.pavilionTunedJumpSpeed:undefined
+    const wanted=this.parkMotion.advance(input,dt,this.grounded||launch,jumpSpeed)
     // Finish a known stair rise before its centre crosses the tread. Rounded
     // capsule corner contact can otherwise report an interpenetrating mid-step.
     const foot=p.y-MOVEMENT.halfHeight-MOVEMENT.radius
@@ -177,6 +186,11 @@ class PredictionPhysics implements PredictionSimulation {
     const top=this.stairTop(p.x+delta.x,p.z+delta.z),afterFoot=p.y+delta.y-MOVEMENT.halfHeight-MOVEMENT.radius
     const onStair=stairLift&&Number.isFinite(top)&&afterFoot>=top-.0001&&afterFoot<=top+MOVEMENT.offset+.002
     this.grounded=wanted.velocityY<=0&&(this.controller.computedGrounded()||onStair)
+    const limit=WORLD.halfSize-WORLD.boundaryHalfDepth-MOVEMENT.radius-MOVEMENT.offset
+    const proposed={x:Math.max(-limit,Math.min(limit,p.x+delta.x)),y:p.y+delta.y,z:Math.max(-limit,Math.min(limit,p.z+delta.z))}
+    const landing=this.preventClimbing(proposed)
+    if(Math.abs(landing.x-proposed.x)>1e-6||Math.abs(landing.z-proposed.z)>1e-6)this.grounded=false
+    if(this.grounded&&!this.supportAllowed(landing))this.grounded=false
     const walls: {x:number;z:number}[]=[]
     const floorNormalY=Math.cos(this.controller.maxSlopeClimbAngle())
     for(let i=0;i<this.controller.numComputedCollisions();i++){
@@ -184,10 +198,22 @@ class PredictionPhysics implements PredictionSimulation {
       if(collision&&collision.normal1.y<floorNormalY)walls.push({x:collision.normal1.x,z:collision.normal1.z})
     }
     this.parkMotion.contact(wanted,delta,this.grounded,walls);this.vy=this.parkMotion.velocityY()
-    const limit=WORLD.halfSize-WORLD.boundaryHalfDepth-MOVEMENT.radius-MOVEMENT.offset
-    this.body.setNextKinematicTranslation({x:Math.max(-limit,Math.min(limit,p.x+delta.x)),y:p.y+delta.y,z:Math.max(-limit,Math.min(limit,p.z+delta.z))})
+    this.body.setNextKinematicTranslation(landing)
     if(input.dx||input.dz)this.yaw=Math.atan2(input.dx,input.dz)
     this.world.timestep=dt;this.world.step()
+  }
+  private preventClimbing(pose:{x:number;y:number;z:number}) {
+    if(!GENERATED_PARK_ENABLED)return pose
+    const footOffset=MOVEMENT.halfHeight+MOVEMENT.radius+MOVEMENT.offset
+    const landing=furnitureLandingPosition(pose,this.furniture,footOffset,MOVEMENT.radius,this.chairCounts)
+    return fountainExclusionPosition(landing,PARK_DATA.physics.fountainPolicy,footOffset,MOVEMENT.radius)
+  }
+  private supportAllowed(pose:{x:number;y:number;z:number}) {
+    return !GENERATED_PARK_ENABLED||furnitureAllowsSupport(pose,this.furniture,MOVEMENT.halfHeight+MOVEMENT.radius+MOVEMENT.offset,MOVEMENT.radius,this.chairCounts)
+  }
+  private onPavilion(pose:{x:number;y:number;z:number}) {
+    const foot=pose.y-MOVEMENT.halfHeight-MOVEMENT.radius-MOVEMENT.offset
+    return GENERATED_PARK_ENABLED&&PARK_PAVILIONS.some(site=>Math.abs(foot-site.floor)<.15&&Math.hypot(pose.x-site.x,pose.z-site.z)<4.5*site.scale+.3)
   }
   movementFlags() { return this.tunedActive ? this.parkMotion.flags() : undefined }
   pose(): Pose { return { ...this.body.translation(), yaw: this.yaw } }

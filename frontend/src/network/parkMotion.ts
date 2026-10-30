@@ -8,10 +8,10 @@ export const PARK_MOTION = {
 export class ParkMotion {
  private vx=0; private vz=0; private vy=0; private remaining=.05; private running=false
  reset(velocityY=0){this.vx=this.vz=0;this.vy=velocityY;this.remaining=.05;this.running=false}
- advance(input:MovementIntent,seconds:number,grounded:boolean){
+ advance(input:MovementIntent,seconds:number,grounded:boolean,jumpSpeed:number=PARK_MOTION.jumpSpeed){
   const settings=PARK_MOTION
   const dt=Math.max(0,Math.min(seconds,.1)), jump=input.jump&&grounded
-  if(jump){this.vy=settings.jumpSpeed;this.remaining=.05
+  if(jump){this.vy=jumpSpeed;this.remaining=.05
    if(input.run){this.vx+=input.dx*settings.sprintJumpBoost;this.vz+=input.dz*settings.sprintJumpBoost}
   }
   const supported=grounded&&!jump, drag=supported?PARK_MOTION.groundDrag:PARK_MOTION.airDrag

@@ -99,13 +99,23 @@ export const PARK_DEFINITION = {
   sites,
   // Includes the low-poly canopy and a clear place to stand in front of the sound box.
   planting:{mailboxTreeClearance:3.4},
+  // Lamp IDs stay stable. Local offsets follow their district when its layout moves.
+  lighting:{relocations:{
+    'lamp-0':{anchor:'plaza',offset:[21,9]},
+    'lamp-1':{anchor:'plaza',offset:[-12,19.3]},
+    'lamp-2':{anchor:'plaza',offset:[-15,-17]},
+    'lamp-3':{anchor:'plaza',offset:[15,-17]},
+    'lamp-4':{anchor:'plaza',offset:[12,19.3]},
+    'lamp-36':{anchor:'lake',offset:[19.25,-24.5]},
+    'lamp-41':{anchor:'fitness',offset:[-6.4,14]},
+  } as Record<string,{anchor:'plaza'|'lake'|'fitness';offset:MapPoint}>},
   pavilions:pavilionPositions,
   tables:otherTablePositions,
   routes,
   curvedRoutes:['event-winding','fountain-north-grove','photo-plaza'],
   routeTurnRadius:3.5,
   // Model sizes and district footprints. Rendering and collision derive from these values.
-  fountain:{scale:1.22,jetHeightScale:1.65,basePlazaRadius:14.4,baseBasinRadius:5.2},
+  fountain:{scale:1.22,jetHeightScale:1.65,basePlazaRadius:14.4,baseBasinRadius:5.2,baseFootRadius:5.4,movementBottom:-1.1,movementTop:2.5},
   vrCourt:{x:-63,z:-12,width:34,depth:40,yaw:Math.PI/2},
   vrEdgeTrees:[...[-27,-21,-15,-2,4].map(z=>({x:-43.4,z})),...[-27,-21,-3,3].map(z=>({x:-81.1,z})),...[-77,-71,-55,-49].flatMap(x=>[{x,z:-33.1},{x,z:9.1}])],
   event:{width:32,depth:26,benches:[{x:-75,z:14,side:-1},{x:-57,z:26,side:1}]},

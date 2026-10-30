@@ -49,5 +49,5 @@ it('keeps the entire outdoor stone seating footprint clear of paths, including f
   }
   const t=PARK_DATA.tables.find(t=>t.id==='table-15')!
   expect(t.position).toEqual([48,0,-70.5])
-  expect(PARK_DATA.physics.boxes.find(b=>b.id==='table-15-top')!.center).toEqual([48,.86,-70.5])
+  expect(PARK_DATA.physics.boxes.find(b=>b.id==='table-15-top')!.center).toEqual([48,1.25,-70.5])
 })

@@ -2,6 +2,8 @@
 
 공통 설정에서 서버 전달용 JSON과 FE 버전을 함께 생성한다. 새 맵의 `/park` 연결은 명시적인 `park-integration` 모드로 제공하며, 기본 서비스 모드와 `src/config/mapVersion.ts`는 기존 맵을 유지한다. 실행 중인 BE 좌표를 자동 갱신하지 않으며 Java·CI·배포는 담당자가 연결한다. [FE 연결·실행 안내](PARK_FE_INTEGRATION.md)를 참고한다.
 
+2026-10-30 이관 보완: `physics.furniturePolicy`와 `physics.pavilionJumpSpeed`는 [BE 연결 요청서](PARK_MIGRATION_FOLLOWUP_REQUEST_2026-10-30.md)를 따른다. 가구의 2.5m 박스는 올라타기 금지용 이동 프록시이며 시각 모델 높이가 아니다. 별도 점프맵 전달 데이터는 `pnpm jump:generate` / `pnpm jump:check`로 관리하고 `generated/park-jump/course.json`에 저장한다. `build:park`는 공원과 점프맵 전달 데이터를 함께 생성한다. 7단계 코스의 서비스 게임·보상 연결은 아직 완료하지 않았다.
+
 ## 실행
 
 `frontend`에서 Node 24와 기존 의존성을 사용한다. 새 패키지를 설치하지 않는다.
@@ -95,3 +97,7 @@ BE 요청에 따라 `data.interactions.notes`(익명 메모함 이용 위치·�
 - data.interactions.benches에 bench-forest-southwest/northeast/southeast를 추가했다. WORLD_FACILITY_CATALOG에는 기존 BENCH 계약으로 연결한다.
 - data.interactions.construction은 FE 공사 안내용 별도 목록이다. 각 항목은 id/kind=CONSTRUCTION/status=construction/label/position/reachPosition/yaw/radius/heightTolerance/message를 가진다. 이 목록은 WORLD_FACILITY_USE나 기존 BENCH/FITNESS/TELESCOPE catalog에 넣지 않는다. BE 로더는 이 부가 필드를 허용/무시하고 기존 판정은 유지하면 된다.
 - 기존 BE 매핑 파일은 신규 서버 ID 회신 전까지 16개를 유지한다. FE·BE 공동 검수 전 운영 전환하지 않는다.
+
+## 최신 dev 동기화 및 이관 보완 (2026-10-30)
+
+작업 전 GitLab 최신 dev를 fetch·반영하고 현재 맵 identity와 생성물 일치를 검사한다. FE 기능·배치는 최신 구현을 기준으로 유지한다. 가구·분수 충돌과 팔각정 점프의 BE 연결은 [이관 보완 요청서](PARK_MIGRATION_FOLLOWUP_REQUEST_2026-10-30.md)를 따른다. BE/인프라는 요청서만 작성하고 이 FE 작업에서 수정하지 않는다. 점프맵 생성물은 최신 dev의 docs/jumpmap/course.generated.json으로 통일하며 pnpm jumpmap:export/check를 사용한다.

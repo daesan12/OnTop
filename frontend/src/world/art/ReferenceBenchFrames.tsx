@@ -2,6 +2,8 @@ import { BENCHES, BENCH_PAVILIONS, BENCH_YAWS } from '../../config'
 import { PropBuilder } from './propGeometry'
 import { Instances, type Part } from './Instances'
 import { PropModel } from './PropModel'
+import { SIMPLE_MAP } from './mapRenderProfile'
+import { createConnectedBenchFrame } from './connectedBenchFrame'
 function frame(back: boolean) {
   const b = new PropBuilder([12, 8], `bench-frame-${back}`),
     c = '#283333'
@@ -85,8 +87,8 @@ function frame(back: boolean) {
   )
   return b.finish().metal!
 }
-const full = frame(true),
-  backless = frame(false)
+const full = SIMPLE_MAP?createConnectedBenchFrame(true):frame(true),
+  backless = SIMPLE_MAP?createConnectedBenchFrame(false):frame(false)
 const parts = (noBack: boolean): Part[] =>
   BENCHES.flatMap((p, i) =>
     !BENCH_PAVILIONS[i] && [6, 7].includes(i) === noBack

@@ -1,4 +1,5 @@
 import { SIMPLE_MAP } from '../world/art/mapRenderProfile'
+import { simpleEnvironmentPalette } from '../world/simpleEnvironmentPalette'
 import { existingTreeModel } from './existingTreeModel'
 import { FacetedParkTreeInstances } from '../world/art/FacetedParkTreeInstances'
 import { buildParkTreeParts } from '../world/art/parkTreeParts'
@@ -19,6 +20,7 @@ import { SurfaceMaterial } from '../world/art/SurfaceMaterial'
 import { WalkwayMaterial } from '../world/art/WalkwayMaterial'
 import { PavilionSlot, ObservationTower } from '../world/art/PlannedLandmarks'
 import { PavilionInterior } from '../world/art/PavilionInterior'
+import { TraditionalPavilionLanterns } from '../world/art/TraditionalPavilionLanterns'
 import { MainPavilionRefinements } from '../world/art/LandmarkRefinements'
 import { TableShell } from '../features/tables/TableShell'
 import { TraditionalMailbox } from '../world/art/TraditionalMailbox'
@@ -59,7 +61,7 @@ const inspectPreviewTable=()=>{} // No live commands from the layout-review entr
 export function PreviewLight({night}:{night:boolean}) {
   return <>
     <EnvironmentScene fixedTime={ENVIRONMENT.epochMs+ENVIRONMENT.dayDurationMs*(night?.02:.6)}/>
-    <directionalLight position={[-70,110,60]} color={night?'#a2bacb':'#fff0ce'} intensity={night?.5:2.4} castShadow
+    <directionalLight position={[-70,110,60]} color={night?(SIMPLE_MAP?simpleEnvironmentPalette.nightKeyColor:'#a2bacb'):'#fff0ce'} intensity={night?(SIMPLE_MAP?simpleEnvironmentPalette.nightKey:.5):2.4} castShadow
       shadow-mapSize={[2048,2048]} shadow-camera-left={-115} shadow-camera-right={115} shadow-camera-top={115} shadow-camera-bottom={-115} shadow-camera-far={300} shadow-bias={-.0004}/>
     {night&&!SIMPLE_MAP&&[[0,5,40],[0,5,84],[-60,5,-54],[62,8,56],[-25,5,35],[25,5,38]].map((p,i)=><pointLight key={i} position={p as [number,number,number]} color="#ffbd69" intensity={35} distance={22} decay={1.4}/>)}
   </>
@@ -87,6 +89,7 @@ export const PreviewWorld=memo(function PreviewWorld({live=false}:{live?:boolean
     <PropModel art={eventGroveArt} name="layout-event-grove"/>
     <group name="layout-vr-stone-furniture">{DRAFT_TABLES.filter(t=>t.assetId==='procedural/vr-stone-game-table').map(t=><TableShell key={t.id} anchor={t} onInspect={live?undefined:inspectPreviewTable}/>)}</group>
     <PavilionInterior placements={DRAFT_PAVILIONS}/>
+    {!live&&<TraditionalPavilionLanterns pavilions={DRAFT_PAVILIONS}/>}
     {DRAFT_PAVILIONS.map(p=><PavilionSlot key={p.id} p={p}/>)}
     <MainPavilionRefinements/>
     {DRAFT_TABLES.filter(t=>t.assetId!=='procedural/vr-stone-game-table').map(t=><TableShell key={t.id} anchor={t} onInspect={live?undefined:inspectPreviewTable}/>)}

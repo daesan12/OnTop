@@ -1,5 +1,7 @@
 import { SIMPLE_MAP } from './mapRenderProfile'
-import { useRef } from 'react'
+import { useMemo,useRef } from 'react'
+import { PARK_PAVILIONS } from '../../park/mapConfig'
+import { pavilionLanternLayout,type LanternPavilion } from './pavilionLanternLayout'
 import { useFrame } from '@react-three/fiber'
 import {
   LatheGeometry,
@@ -8,13 +10,9 @@ import {
   type MeshStandardMaterial,
 } from 'three'
 import {
-  PARK_PAVILIONS,
-  PAVILION_LANTERN,
-  PILLARS,
   smoothRange,
 } from '../../config'
 import { PropBuilder, type XYZ } from './propGeometry'
-import { type Part } from './Instances'
 import { DetailInstances } from './DetailInstances'
 import { SurfaceMaterial } from './SurfaceMaterial'
 import { hanjiGrain, metalGrain } from './ornamentTextures'
@@ -185,42 +183,6 @@ for (let i = 0; i < 12; i++) {
   )
 }
 const art = b.finish()
-const placements: Part[] = PARK_PAVILIONS.map((p) => ({
-  p: [p.x, p.floor + PAVILION_LANTERN.heightFactor * p.scale, p.z],
-  s: [1, 1, 1],
-  c: '#ffffff',
-}))
-const ceiling = PARK_PAVILIONS.map((p) => p.floor + 4.12 * p.scale)
-const main = PARK_PAVILIONS[0]
-for (let i = 0; i < 8; i += 2) {
-  const p = PILLARS[i]!
-  placements.push({
-    p: [
-      main.x + p[0] * 1.12 * main.scale,
-      main.floor + 2.9 * main.scale,
-      main.z + (p[2] + 3) * 1.12 * main.scale,
-    ],
-    s: [0.9, 0.9, 0.9],
-    c: '#ffffff',
-  })
-  ceiling.push(main.floor + 3.72 * main.scale)
-}
-const chainLinks: Part[] = [],
-  chainCaps: Part[] = []
-placements.forEach((p, i) => {
-  const start = p.p[1] + 0.96 * p.s[1],
-    end = ceiling[i]
-  const count = Math.ceil((end - start) / 0.06),
-    step = (end - start) / count
-  for (let j = 0; j < count; j++)
-    chainLinks.push({
-      p: [p.p[0], start + (j + 0.5) * step, p.p[2]],
-      s: [1, 1, 1],
-      r: [0, j % 2 ? Math.PI / 2 : 0, 0],
-      c: gold,
-    })
-  chainCaps.push({ p: [p.p[0], end, p.p[2]], s: [1, 1, 1], c: gold })
-})
 function PaperMaterial() {
   const ref = useRef<MeshStandardMaterial>(null)
   useFrame(() => {
@@ -242,9 +204,11 @@ function PaperMaterial() {
     />
   )
 }
-export function TraditionalPavilionLanterns() {
+export function TraditionalPavilionLanterns({pavilions=PARK_PAVILIONS}:{pavilions?:readonly LanternPavilion[]}={}) {
+  const {placements,chainLinks,chainCaps,simpleChains}=useMemo(()=>pavilionLanternLayout(pavilions),[pavilions])
   return (
     <group name="traditional-pavilion-lanterns" dispose={null}>
+      {SIMPLE_MAP&&<DetailInstances name="lantern-simple-chains" parts={simpleChains} range={Infinity} material={<meshStandardMaterial color={gold} roughness={.55}/>}><boxGeometry/></DetailInstances>}
       {Object.entries(art).map(([kind, geometry]) => (
         <DetailInstances
           key={kind}

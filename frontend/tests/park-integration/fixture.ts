@@ -18,7 +18,7 @@ export const generatedFacilityCatalog = { ...originalCatalog, mapVersion: PARK_M
 
 /** Browser-only wire simulation: production contains no mock login, physics or transport bypass. */
 export async function parkFixture(page:Page,options:{holdConfirmation?:boolean;serverMap?:MapIdentity;omitMap?:boolean}={}) {
-  // Current generated bindings already include table-17/18; never append duplicate anchors.
+  // All 18 canonical IDs remain aligned with the latest generated bindings.
   const bindings=bindingsFile.bindings.filter(b=>b.channelId==='channel-1')
   await page.route('**/park-bindings.generated.frontend-test.json',route=>route.fulfill({json:{...bindingsFile,bindings}}))
   const requests:{type:string;payload:Record<string,unknown>;requestId:string}[]=[]
@@ -53,7 +53,7 @@ export async function parkFixture(page:Page,options:{holdConfirmation?:boolean;s
   await page.routeWebSocket('**/ws/tables?**',ws=>{
     socket=ws
     let dx=0,dz=0
-    const tick=setInterval(()=>{if(position.moving){position.x+=dx*.2;position.z+=dz*.2;world()}},50)
+    const tick=setInterval(()=>{if(position.moving){const step=(position.running?9:6.25)*.05;position.x+=dx*step;position.z+=dz*step;world()}},50)
     ws.onClose((code,reason)=>{clearInterval(tick);ws.close({code,reason})})
     ws.onMessage(raw=>{
       const r=JSON.parse(String(raw));requests.push(r)

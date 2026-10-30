@@ -9,6 +9,7 @@ import type { resolveLake } from './lake'
 import type { BenchSite,Point3 } from './interactionData'
 import type { FitnessStation } from '../../config/fitness'
 import type { TableAnchor } from '../../config/world'
+import { furnitureMovementBoxes,FURNITURE_POLICY } from './furnitureCollision'
 
 export interface PhysicalBox {id:string;center:Point3;half:Point3;yaw:number;role:'solid'|'surface'}
 export interface PhysicalMesh {id:string;vertices:number[];indices:number[];role:'terrain'|'surface'}
@@ -102,18 +103,14 @@ export function buildPhysics(i:Input) {
     box(kind+'-back',local(0,1.6,-4.3),[6.25,1.6,.1],yaw)
     for(const sign of [-1,1])box(kind+'-side-'+sign,local(sign*6.2,1.35,-.2),[.075,1.35,4.1],yaw)
   }
-  for(const t of i.tables){
-    const vr=t.assetId==='procedural/vr-stone-game-table'
-    box(t.id+'-top',[t.position[0],t.position[1]+(vr?.94:.86),t.position[2]],[vr?1.2:t.pavilionId?1:.95,.12,t.pavilionId?1:.75])
-    if(vr)for(const [n,[x,,z]] of t.seatAnchors.entries()){
-      const yaw=[Math.PI,0,Math.PI/2,-Math.PI/2][n]!
-      box(t.id+'-chair-'+n,[t.position[0]+x,t.position[1]+.45,t.position[2]+z],[.525,.11,.425],yaw)
-      box(t.id+'-chair-back-'+n,[t.position[0]+x-Math.sin(yaw)*.37,t.position[1]+.88,t.position[2]+z-Math.cos(yaw)*.37],[.525,.325,.075],yaw)
-    }
-  }
-  // Fountain basin is round; its collision proxy must not enclose the surrounding sunken plaza.
-  const fountainRadius=d.fountain.baseBasinRadius*d.fountain.scale,basin:number[]=[]
-  for(const y of [-1.1,-.325])for(let n=0;n<48;n++){const a=n*Math.PI/24;basin.push(d.sites.fountain.x+Math.cos(a)*fountainRadius,y,d.sites.fountain.z+Math.sin(a)*fountainRadius)}
+  // Full movement columns also enclose chair backs, so hidden 3rd/4th chairs
+  // can be disabled using the same existing table-N-chair-[0-3] ID contract.
+  for(const t of i.tables)boxes.push(...furnitureMovementBoxes(t))
+  // Enclose the visible 5.4m foot, not the surrounding sunken plaza. The tall
+  // movement column prevents stepping/jumping onto the otherwise low basin rim.
+  const fountainRadius=d.fountain.baseFootRadius*d.fountain.scale,basin:number[]=[]
+  const fountainPolicy={id:'fountain-basin',kind:'no-climb',shape:'cylinder',...d.sites.fountain,radius:fountainRadius,bottom:d.fountain.movementBottom,top:d.fountain.movementTop,landing:'slide-out',exitGap:.03,characterRadiusIncluded:false} as const
+  for(const y of [fountainPolicy.bottom,fountainPolicy.top])for(let n=0;n<48;n++){const a=n*Math.PI/24;basin.push(d.sites.fountain.x+Math.cos(a)*fountainRadius,y,d.sites.fountain.z+Math.sin(a)*fountainRadius)}
   hulls.push({id:'fountain-basin',vertices:basin,role:'solid'})
   for(const s of i.fitness)box(s.id,[s.position[0],s.position[1]+1,s.position[2]],[1.15,1,1.1],s.yaw)
   for(const b of i.benches) {
@@ -133,7 +130,7 @@ export function buildPhysics(i:Input) {
     const at=(t:number):Point3=>[run.from[0]+(run.to[0]-run.from[0])*t,pg.floor*(1-t),run.from[1]+(run.to[1]-run.from[1])*t]
     segment(run.id+'-'+n,at(n/ps.steps),at((n+1)/ps.steps),.46,1.2)
   }
-  i.lamps.forEach((p,n)=>box('lamp-'+n,[p[0],2.5,p[2]],[.12,2.5,.12]))
+  i.lamps.forEach((p,n)=>box('lamp-'+n,[p[0],p[1]+2.5,p[2]],[.12,2.5,.12]))
   const lake=i.lake
   lake.SHORE_RUNS.forEach((r,n)=>segment('shore-rail-'+n,[r.from[0],0,r.from[1]],[r.to[0],0,r.to[1]],.14,1.18))
   for(const c of lake.CROSSINGS) {
@@ -188,7 +185,7 @@ export function buildPhysics(i:Input) {
   const surfaceOffset=towerPoint(0,OBSERVATION_TOWER.inner)[1]
   const tower={...OBSERVATION_TOWER,x:d.sites.tower.x,z:d.sites.tower.z,surfaceOffset,topY:OBSERVATION_TOWER.height+surfaceOffset}
   return {units:'m',upAxis:'Y',coordinateSpace:'world',playerInflation:0,collisionMargin:0,
-    tower,steppingStones,
+    tower,steppingStones,pavilionJumpSpeed:7.8,pavilionTunedJumpSpeed:8.6,furniturePolicy:FURNITURE_POLICY,fountainPolicy,
     character:{radius:MOVEMENT.radius,halfHeight:MOVEMENT.halfHeight,offset:MOVEMENT.offset},
     terrain:{meshId:'terrain',halfSize:half,step,columns:side,rows:side,triangleOrder:'a-c-b,b-c-d'},
     spawn:{position:[sx,spawnGround+centerOffset,sz] as Point3,yaw:Math.PI,origin:'capsule-center',groundClearance:d.physics.spawnClearance},
