@@ -20,9 +20,10 @@
      103은 walker-1 이용 후 종료 기록 없음, 2일차 101이 telescope-1을 1분 이용
 
 붕어빵(minigame_sessions, 행동 로그가 아닌 기능 테이블)
-- 1일차: 101 완료 2판(보상 60+40으로 일일 한도 100 도달), 102 포기 1판·완료 1판, 103 기한 초과 1판
-- 105: 1일차 23:59에 시작해 2일차 00:02에 완료(시작일과 보상일이 다름)
-- 2일차: 103 완료 1판, 101 진행 중 1판
+- 1일차(모두 v2): 101 완료 2판(보상 60+40으로 일일 한도 100 도달), 102 포기 1판·완료 1판, 103 기한 초과 1판,
+  104 입력 기록 거절 1판
+- 105: 1일차 23:59에 시작해 2일차 00:02에 완료(시작일과 보상일이 다름, v2)
+- 2일차: 103 완료 1판(v4, 60초), 101 진행 중 1판(v5 3분)
 
 소리함(feedback_messages, 기능 테이블. 본문은 쿼리가 읽지 않으므로 고정 문구만 넣는다)
 - 1일차: 101이 one에 2건, 102가 two에 1건, 탈퇴로 회원 번호가 지워진 1건(one)
@@ -159,6 +160,7 @@ def feature_sql() -> str:
         (105, "COMPLETED", 30, 50, "2026-10-27 14:59:00", "2026-10-27 15:02:00"),
         (103, "COMPLETED", 10, 15, "2026-10-28 05:01:00", "2026-10-28 05:03:00"),
         (101, "PLAYING", None, 0, "2026-10-28 01:03:00", None),
+        (104, "INVALID", None, 0, "2026-10-27 03:00:00", "2026-10-27 03:02:00"),
     ]:
         lines.append(
             "INSERT INTO minigame_sessions (user_id, minigame_type, status, score, reward_amount, started_at, "
@@ -176,6 +178,7 @@ def feature_sql() -> str:
             "INSERT INTO feedback_messages (user_id, channel_id, body, created_at) VALUES "
             f"({sql_value(user_id)}, '{channel}', 'seed', '{timestamp(created)}');"
         )
+    lines.extend(bungeoppang_version_sql())
     return "\n".join(lines) + "\n"
 
 
@@ -209,6 +212,34 @@ def sql_value(value) -> str:
     if isinstance(value, int):
         return str(value)
     return "'" + str(value).replace("'", "''") + "'"
+
+
+def bungeoppang_version_sql() -> list[str]:
+    """판마다 규칙 버전 기록을 두고, v4·v5 판에는 판 테이블(설정 버전·조리 시간)을 둔다.
+    판 번호는 feature_sql의 minigame_sessions 입력 순서(1부터)다."""
+    lines = []
+    # (판 번호, 규칙 버전, 기록 거절 여부)
+    for session, rules, rejected in [(1, "v2", False), (2, "v2", False), (3, "v2", False), (4, "v2", False),
+                                     (5, "v2", False), (6, "v2", False), (7, "v4", False), (8, "v5", False),
+                                     (9, "v2", True)]:
+        lines.append(
+            "INSERT INTO bungeoppang_records (minigame_session_id, rules_version, heats, is_first_game, "
+            f"rejection_detail) VALUES ({session}, '{rules}', '[]', 0, {sql_value('seed' if rejected else None)});"
+        )
+    # (판 번호, 설정 버전, 발급·카운트다운, 조리 시작, 조리 끝, 제출 기한, 만료). 조리 60초(v4)·180초(v5 3분)
+    for session, config, issued, play_start, play_end, deadline, expires in [
+        (7, "v4-20261027.1", "2026-10-28 05:01:00", "2026-10-28 05:01:03", "2026-10-28 05:02:03",
+         "2026-10-28 05:02:33", "2026-10-28 05:03:33"),
+        (8, "v5-20261027.1", "2026-10-28 01:03:00", "2026-10-28 01:03:03", "2026-10-28 01:06:03",
+         "2026-10-28 01:06:33", "2026-10-28 01:07:33"),
+    ]:
+        times = ", ".join(f"'{timestamp(value)}'" for value in (issued, issued, play_start, play_end, deadline, expires))
+        lines.append(
+            "INSERT INTO bungeoppang_v4_rounds (minigame_session_id, config_version, config_json, issued_at, "
+            "countdown_starts_at, play_starts_at, play_ends_at, submit_deadline, expires_at, approved_prefix_hash, "
+            f"checkpoint_json) VALUES ({session}, '{config}', '{{}}', {times}, '{'0' * 64}', '{{}}');"
+        )
+    return lines
 
 
 if __name__ == "__main__":

@@ -20,6 +20,8 @@ MIGRATIONS = [
     ROOT / "backend/src/main/resources/db/migration/V5__create_behavior_events.sql",
     ROOT / "backend/src/main/resources/db/migration/V6__create_world_position_samples.sql",
     ROOT / "backend/src/main/resources/db/minigame/V110__create_minigame_sessions.sql",
+    ROOT / "backend/src/main/resources/db/minigame/V111__create_bungeoppang_replay_records.sql",
+    ROOT / "backend/src/main/resources/db/minigame/V124__create_bungeoppang_v4_rounds_and_orders.sql",
     ROOT / "backend/src/main/resources/db/migration/V127__create_feedback_messages.sql",
 ]
 DATABASE = "analytics_verify"
@@ -80,12 +82,15 @@ EXPECTED: dict[str, list[dict[str, str]]] = {
         {"zone_id": "lake", "visitors": "1", "moving_samples": "0", "stops": "1"},
     ],
     "12_minigame_daily.sql": [
-        {"kst_date": "2026-10-27", "sessions": "6", "players": "4", "completed": "4", "abandoned": "1",
-         "expired": "1", "playing": "0", "completion_pct": "66.7", "avg_score": "35.0", "avg_minutes": "3.3",
-         "rewards": "180"},
-        {"kst_date": "2026-10-28", "sessions": "2", "players": "2", "completed": "1", "abandoned": "0",
-         "expired": "0", "playing": "1", "completion_pct": "50.0", "avg_score": "10.0", "avg_minutes": "2.0",
-         "rewards": "15"},
+        {"kst_date": "2026-10-27", "game_version": "v2", "play_seconds": "NULL", "sessions": "7", "players": "5",
+         "completed": "4", "abandoned": "1", "expired": "1", "rejected": "1", "playing": "0",
+         "completion_pct": "57.1", "avg_score": "35.0", "avg_minutes": "3.3", "rewards": "180"},
+        {"kst_date": "2026-10-28", "game_version": "v4-20261027.1", "play_seconds": "60", "sessions": "1",
+         "players": "1", "completed": "1", "abandoned": "0", "expired": "0", "rejected": "0", "playing": "0",
+         "completion_pct": "100.0", "avg_score": "10.0", "avg_minutes": "2.0", "rewards": "15"},
+        {"kst_date": "2026-10-28", "game_version": "v5-20261027.1", "play_seconds": "180", "sessions": "1",
+         "players": "1", "completed": "0", "abandoned": "0", "expired": "0", "rejected": "0", "playing": "1",
+         "completion_pct": "0.0", "avg_score": "NULL", "avg_minutes": "NULL", "rewards": "0"},
     ],
     "13_minigame_daily_cap.sql": [
         {"kst_date": "2026-10-27", "completers": "2", "cap_reached_users": "1", "cap_reached_pct": "50.0",
