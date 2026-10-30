@@ -1,5 +1,5 @@
 {
-  "description": "Centre-facing lottery and diagonal entrance paving, wheel temporarily disabled; ranking preview and ground fixes preserved, 2026-10-30",
+  "description": "Larger unfenced ranking board beside relocated mailbox; enlarged fish shop with clear entrance and crown-safe surrounding trees, 2026-10-30",
   "files": {
     "src/layout-preview/districtGeometry.ts": "882709ac240a987c6d7fc5d8740f9d48e93851c586b232dfa05bacd7b70fe1ff",
     "src/layout-preview/existingTreeModel.ts": "fcb9c89c3c90e11ac5a5670a0498dae14184a10b1acac281523ad56ed4748826",
@@ -30,18 +30,18 @@
     "src/layout-preview/PreviewSwimmingRipples.tsx": "7000a53d1d96f9e4aa21a23cdb89546168680a61a9ddb64240297151b22989b0",
     "src/layout-preview/PreviewWorld.tsx": "1605aa612d186e399ec5742e82cb176f9638d343c02adc1e37445545dc35a667",
     "src/layout-preview/reviewFurnitureGeometry.ts": "ebac00b5aa5aebf3625d49c7ac3485a02bcba28fa79de0a599a8f44bf54fdf53",
-    "src/layout-preview/sceneGeometry.ts": "66e222292d6068eaf4fc5274df7353bdb7417c5f3ba1b0e1b3309e1872c84b2c",
+    "src/layout-preview/sceneGeometry.ts": "c59760e759f846c1a288bff577fb8daf25ce655b31da88bab7e7843bfe0c14d2",
     "src/map/park/collision.ts": "5d0a325c26d0047ea8aa8ac493e8694060584eeeca03daa33938e25bb1488a8c",
-    "src/map/park/definition.ts": "85889b1290aa24d7b76e8d91a05f56535a3856d892aac5e42759a2f31952459e",
+    "src/map/park/definition.ts": "488f1eca691cc4d0a2be722161579bc445f82c1184ee9cdfd92019ae012a9111",
     "src/map/park/fountainHeight.ts": "9996ee1c49bd09c43142d4abde7f831ee4001553bb8232b7372ff1094c4b7573",
-    "src/map/park/generated/mapVersion.ts": "adfa5b6e8d1f1ddae92fc75eaa2389eb9c9f775ab745ad6fb5d02fc7314f1675",
+    "src/map/park/generated/mapVersion.ts": "be4f54853b118519d0e923c1cfd7c20891aa02f7a3da9a93cdc2d304dd20738f",
     "src/map/park/index.ts": "86ea47fe7b5e3b4472e9f74719374663e481e6c8c187f85317dbdbf2cd13cd02",
     "src/map/park/interactionData.ts": "34a447bb4521153f76cad68b4f9b2bfe62fa12695d7219b38f74b54d173f94d8",
     "src/map/park/lake.ts": "6b3544dfda8ae89b798d8c7f677f3e3e7b354197d7d2e2f5f31660a772070a4e",
     "src/map/park/physics.ts": "56519fb7fa1b95b856fc3bf5e4bbec9b3b78ce1dd33a4cdc622c2c6159f3f192",
-    "src/map/park/planting.ts": "bd3bdbb670b168952aab25e1c8a721b69b263da79cf985394f26c69199bed8e6",
-    "src/map/park/resolve.ts": "a6ca59f384d0db2db4788c5c846f77346066cdd53a8bdd9847b0f175cfaad448",
-    "src/map/park/validate.ts": "c2974dfaf52502f0db86230435f8c60016bf0ce7be1e128c58ae04c502849df4",
+    "src/map/park/planting.ts": "d393eee371d85d87b67cedfd637f2dea5a353b2a6a2265b8f2fb50687329ad78",
+    "src/map/park/resolve.ts": "6b3d055605da14226b110b472008cb4946805d714fd6201af3a793f8753b6f56",
+    "src/map/park/validate.ts": "020015b2b5e3771358074730199600e15e814d50372be9f2e5662d3297856c16",
     "src/world/art/activityPropGeometry.ts": "0af0ed0e25ec916cc9ab43debb7c6e76ad92fbbe4fa3ffcda1a602469851252f",
     "src/world/art/ActivityProps.tsx": "6f5a52839f518c2aacd507c989af67d427e6ef9e18d4bf560afea16acd107601",
     "src/world/art/advertisementFormats.ts": "6ea517ac25d0c3ea41b2f7641c76f8eae38f4b035a3d853350dda0d65834f9f9",
@@ -191,7 +191,7 @@
     "src/world/art/LuckyFacilities.tsx": "ebfcc20f68990332c4f2dc0633b23c04467e4f3dced0b5a37167040cdf582004",
     "src/world/art/luckyFacilityGeometry.ts": "5a661551c2548a29a9e34a8f19713812c07e4ef199711f9d1eae79a04b16e022",
     "src/layout-preview/stairFlightGeometry.ts": "73060545b54ff9e5cc27df141bdd5fb0f7912f971f5d821f74dad865aa2bab2d",
-    "src/layout-preview/RankingBoardModel.tsx": "e34813a24fac4dff56fffff3800a58e4affa0cb9ad8f30e6064a371cc21139d4"
+    "src/layout-preview/RankingBoardModel.tsx": "68ed8547a5d1cfc086ad7681c247dd159751404156dde08684324b65f3d9be77"
   },
   "compatibilityReview": {
     "date": "2026-10-29",

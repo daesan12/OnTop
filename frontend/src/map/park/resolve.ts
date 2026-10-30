@@ -10,7 +10,7 @@ import { buildCollision,isWalkable } from './collision'
 import { validateParkDefinition,assertUniqueIds,validatePhysics } from './validate'
 import { buildInteractionData } from './interactionData'
 import { buildPhysics } from './physics'
-import { inKioskEntrance,inMailboxClearing } from './planting'
+import { inKioskEntrance,inMailboxClearing,inCanopyClearing } from './planting'
 import { blendFountainEdge } from './fountainHeight'
 
 export type SiteMarker = { no: string; id: string; label: string; x: number; z: number; note: string }
@@ -44,6 +44,7 @@ const DRAFT_FITNESS_STATIONS=FITNESS_STATIONS.map((station,i)=>{
 const KIOSKS=(['shop','drink','photo'] as const).map(kind=>({kind,...SITES[kind],scale:1,...definition.kiosks[kind]})).filter(k=>k.enabled)
 const disabledKioskIds=new Set(Object.entries(definition.kiosks).filter(([,k])=>!k.enabled).map(([kind])=>'layout-'+kind))
 const facilityClearances=[...KIOSKS,{...SITES.cart,...definition.fishBreadShop}]
+const inFacilityCanopyClearing=(x:number,z:number)=>inCanopyClearing(x,z,SITES.cart,definition.fishBreadShop,definition.planting.facilityCanopyClearance)||inCanopyClearing(x,z,SITES.photo,{...definition.rankingBoard,yaw:definition.kiosks.photo.yaw},definition.planting.facilityCanopyClearance)
 const EVENT_BENCHES=definition.event.benches
 const MAIN_GATE={...definition.gate,z:DRAFT_PARK.half}
 const VR_STONE_SETS=definition.vrStoneSets
@@ -92,7 +93,7 @@ const MARKERS: readonly SiteMarker[] = [
   { no:'12', id:'layout-background',label:'외곽 건물',x:0,z:-133,note:'도로·보도·건물은 이동 불가 배경' },
   { no:'13', id:'layout-shop',label:'뽑기방',...SITES.shop,note:'돌림판 · 무료 2D 목업 체험' },
   { no:'14', id:'layout-drink',label:'복권방',...SITES.drink,note:'한옥 복권방 · 무료 체험권 목업' },
-  { no:'15', id:'layout-photo',label:'포토부스',...SITES.photo,note:'광장 동쪽 · 촬영 동선 확보' },
+  { no:'15', id:'layout-photo',label:'랭킹 보드',...SITES.photo,note:'보유량·승부사·승수 표시용 보드 · 전통 소리함 옆' },
   { no:'16', id:'layout-hall-room',label:'민속놀이 존',...SITES.folk,note:'VR 체험관과 구분한 두 번째 한옥' },
   { no:'17', id:'layout-fish-feed',label:'물고기 먹이주기',x:41,z:-14,note:'수변 위치 시안' },
   { no:'18', id:'layout-north-grove',label:'숲 탐색',x:48,z:-73,note:'북동쪽 수목 구역' },
@@ -137,7 +138,7 @@ const FENCE_COURTS:readonly FenceCourt[]=[
 const ROUND_COURTS=[
   {id:'fitness-court',...SITES.fitness,radius:definition.fitness.fenceRx,rx:definition.fitness.fenceRx,rz:definition.fitness.fenceRz,gates:[0,Math.PI/2,Math.PI,Math.PI*1.5],opening:definition.fitness.fenceOpening},
 ] as const
-const KIOSK_FENCE_RUNS=KIOSKS.filter(k=>k.kind!=='shop').flatMap(k=>{
+const KIOSK_FENCE_RUNS=KIOSKS.filter(k=>k.fenced).flatMap(k=>{
   const w=k.width/2+.5,d=k.depth/2+.5
   const at=(x:number,z:number):ParkPoint=>[k.x+x*Math.cos(k.yaw)+z*Math.sin(k.yaw),k.z-x*Math.sin(k.yaw)+z*Math.cos(k.yaw)]
   return [[[-w,-d],[w,-d]],[[-w,-d],[-w,d]],[[w,-d],[w,d]]].map((p,i)=>({id:'kiosk-'+k.kind+'-'+i,from:at(p[0]![0]!,p[0]![1]!),to:at(p[1]![0]!,p[1]![1]!)}))
@@ -179,10 +180,12 @@ const PLAZA_PLANTERS:readonly {id:string;x:number;z:number;radius:number;angle:n
 const PLAZA_BEDS:readonly {id:string;x:number;z:number;width:number;depth:number}[]=[]
 const PLAZA_BENCHES:readonly {id:string;x:number;z:number;yaw:number}[]=[]
 const PLAZA_TREE_SITES=definition.plazaTrees.filter(p=>!inMailboxClearing(p.x,p.z,SITES.mailbox,definition.planting.mailboxTreeClearance)&&Math.hypot(p.x-LIFE_PLAZA.x,p.z-LIFE_PLAZA.z)>LIFE_PLAZA.pavingRadius+.7&&!onPath(p.x,p.z,.9)&&!inKioskEntrance(p.x,p.z,facilityClearances)
+  &&!inFacilityCanopyClearing(p.x,p.z)
   &&!DRAFT_PAVILIONS.some(q=>Math.abs(p.x-q.x)<(q.id==='P0'?15:PAVILION_COURT.width/2+2)&&Math.abs(p.z-q.z)<(q.id==='P0'?18:PAVILION_COURT.depth/2+2))
   &&!facilityClearances.some(k=>{const dx=p.x-k.x,dz=p.z-k.z,c=Math.cos(k.yaw),sn=Math.sin(k.yaw);return Math.abs(dx*c-dz*sn)<k.width/2+1.8&&Math.abs(dx*sn+dz*c)<k.depth/2+1.8}))
   .reduce<{id:string;x:number;z:number}[]>((trees,p)=>{if(!trees.some(t=>Math.hypot(t.x-p.x,t.z-p.z)<2.35))trees.push(p);return trees},[])
 const PAVILION_TREE_SITES=definition.pavilionEdgeTrees.filter(p=>!inMailboxClearing(p.x,p.z,SITES.mailbox,definition.planting.mailboxTreeClearance)&&!onPath(p.x,p.z,.55)
+  &&!inFacilityCanopyClearing(p.x,p.z)&&!inKioskEntrance(p.x,p.z,[{...SITES.cart,...definition.fishBreadShop}])
   &&!DRAFT_PAVILIONS.some(q=>Math.abs(p.x-q.x)<(q.id==='P0'?13.5:PAVILION_COURT.width/2+.4)&&Math.abs(p.z-q.z)<(q.id==='P0'?16:PAVILION_COURT.depth/2+.4)))
 const LANDSCAPE_TREE_SITES=[...PLAZA_TREE_SITES,...PAVILION_TREE_SITES]
 const PLAZA_REST_GARDENS=definition.plazaRestGardens

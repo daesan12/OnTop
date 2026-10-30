@@ -18,11 +18,11 @@ describe('lucky facility mock and enlarged fish shop',()=>{
   })
   it('keeps the enlarged fish shop and places the lottery booth toward the plaza centre',()=>{
     const cart=MINI_PROPS[0],box=PARK_DATA.physics.boxes.find(b=>b.id==='fish-bread')!
-    expect([cart.x,cart.z,cart.width,cart.depth]).toEqual([-29.5,36,8.448,6.336])
-    expect(box.half).toEqual([4.224,2.684,3.168])
+    expect([cart.x,cart.z,cart.width,cart.depth]).toEqual([-30.1,35.8,9.216,6.912])
+    expect(box.half).toEqual([4.608,2.928,3.456])
     expect(box.yaw).toBe(Math.PI/3)
     expect(PARK_LAYOUT.KIOSK_FENCE_RUNS.some(f=>f.id.startsWith('kiosk-shop-'))).toBe(false)
-    expect(box.center).toEqual([cart.x,2.684,cart.z])
+    expect(box.center).toEqual([cart.x,2.928,cart.z])
     expect(PARK_LAYOUT.KIOSKS.filter(k=>k.kind!=='photo').map(k=>[k.kind,k.x,k.z,k.yaw])).toEqual([
       ['drink',31.8,54.6,Math.atan2(-31.8,46-54.6)],
     ])
@@ -72,7 +72,7 @@ describe('lucky facility mock and enlarged fish shop',()=>{
     expect(Math.hypot(end![0]-lottery.x,end![1]-lottery.z)).toBeCloseTo(lottery.depth/2-.15)
     const reach=PARK_DATA.interactions.construction.find(s=>s.id==='layout-drink')!.reachPosition
     for(let n=0;n<=30;n++)expect(PARK_LAYOUT.canWalk(start![0]+(reach[0]-start![0])*n/30,start![1]+(reach[2]-start![1])*n/30)).toBe(true)
-    expect(PARK_LAYOUT.KIOSKS.find(k=>k.kind==='photo')).toMatchObject({x:30,z:35.6,width:8.8,depth:6.6,yaw:-Math.PI/3})
+    expect(PARK_LAYOUT.KIOSKS.find(k=>k.kind==='photo')).toMatchObject({x:30,z:35.6,width:9.6,depth:6.6,yaw:-Math.PI/3,fenced:false})
     for(const site of PARK_DATA.interactions.construction){
       const [x,,z]=site.reachPosition
       expect(PARK_LAYOUT.canWalk(x,z),site.id).toBe(true)

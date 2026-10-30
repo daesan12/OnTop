@@ -55,6 +55,8 @@ export function validateParkDefinition(d:ParkDefinition) {
   positive(d.gate.opening,'gate.opening')
   positive(d.mailbox.scale,'mailbox.scale')
   positive(d.planting.mailboxTreeClearance,'planting.mailboxTreeClearance')
+  positive(d.planting.facilityCanopyClearance,'planting.facilityCanopyClearance')
+  positive(d.rankingBoard.scale,'rankingBoard.scale')
   if(d.planting.woodlandSupplementSpacing<3)throw new Error('woodlandSupplementSpacing must be at least 3m')
   for(const [id,k] of Object.entries(d.kiosks)){positive(k.width,`${id}.width`);positive(k.depth,`${id}.depth`)}
   for(const [id,n] of Object.entries({rx:d.lake.rx,rz:d.lake.rz,depth:d.lake.depth,swimmingThreshold:d.lake.swimmingThreshold,fountainScale:d.fountain.scale,vrWidth:d.vrCourt.width,vrDepth:d.vrCourt.depth}))positive(n,id)

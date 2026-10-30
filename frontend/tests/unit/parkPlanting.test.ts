@@ -1,5 +1,5 @@
 import {it,expect} from 'vitest'
-import {inKioskEntrance,inMailboxClearing} from '../../src/map/park/planting'
+import {inKioskEntrance,inMailboxClearing,inCanopyClearing} from '../../src/map/park/planting'
 import {PARK_DATA,PARK_LAYOUT} from '../../src/map/park'
 import {trunks,shoreTrunks,SUPPLEMENTAL_TREE_SITES} from '../../src/layout-preview/sceneGeometry'
 import {simpleTreeBelts} from '../../src/layout-preview/PreviewLandscaping'
@@ -27,8 +27,37 @@ it('keeps every tree belt outside the sound box and its usable clearing',()=>{
   const {mailbox}=PARK_LAYOUT.SITES,r=PARK_LAYOUT.SETTINGS.planting.mailboxTreeClearance
   for(const t of all)expect(inMailboxClearing(t.p[0],t.p[2],mailbox,r)).toBe(false)
   for(const t of [...PARK_LAYOUT.PLAZA_TREE_SITES,...PARK_LAYOUT.PAVILION_TREE_SITES])expect(inMailboxClearing(t.x,t.z,mailbox,r)).toBe(false)
-  expect(PARK_DATA.interactions.mailbox.position).toEqual([-18,0,18])
+  expect(PARK_DATA.interactions.mailbox.position).toEqual([34.3,0,41.5])
   expect(PARK_LAYOUT.canWalk(mailbox.x,mailbox.z+1.5)).toBe(true)
+})
+
+it('surrounds the enlarged fish shop on both sides and behind, with no crowns in its roof or entrance',()=>{
+ const {cart}=PARK_LAYOUT.SITES,shop=PARK_LAYOUT.SETTINGS.fishBreadShop
+ const all=[...trunks,...shoreTrunks,...Object.values(simpleTreeBelts).flatMap(b=>b.trunks)]
+ for(const t of all){
+  expect(inCanopyClearing(t.p[0],t.p[2],cart,shop,1.7),'tree crown '+t.p[0]+','+t.p[2]).toBe(false)
+  expect(inKioskEntrance(t.p[0],t.p[2],[{...cart,...shop}])).toBe(false)
+ }
+ const grove=PARK_LAYOUT.PLAZA_TREE_SITES.filter(t=>t.id.startsWith('fish-shop-tree-'))
+ const local=grove.map(t=>{
+  const dx=t.x-cart.x,dz=t.z-cart.z
+  return {across:dx*Math.cos(shop.yaw)-dz*Math.sin(shop.yaw),forward:dx*Math.sin(shop.yaw)+dz*Math.cos(shop.yaw)}
+ })
+ expect(grove.length).toBeGreaterThanOrEqual(5)
+ expect(local.some(p=>p.across<-6)).toBe(true)
+ expect(local.some(p=>p.across>6)).toBe(true)
+ expect(local.some(p=>p.forward<-5.5)).toBe(true)
+})
+
+it('removes ranking fences from rendered runs and both collision contracts, and places the mailbox nearby',()=>{
+ const prefix='kiosk-photo-'
+ for(const list of [PARK_LAYOUT.FENCE_RUNS,PARK_DATA.physics.boxes,PARK_DATA.collision.obstacles])expect(list.some(p=>p.id.startsWith(prefix))).toBe(false)
+ const {mailbox,photo}=PARK_LAYOUT.SITES
+ expect(Math.hypot(mailbox.x-photo.x,mailbox.z-photo.z)).toBeLessThan(8)
+ expect(PARK_DATA.physics.boxes.find(p=>p.id==='feedback-mailbox')!.center).toEqual([mailbox.x,1.35,mailbox.z])
+ for(let z=mailbox.z+1.5;z<=46;z+=.15)expect(PARK_LAYOUT.canWalk(mailbox.x,z)).toBe(true)
+ const roof={...PARK_LAYOUT.SETTINGS.rankingBoard,yaw:PARK_LAYOUT.SETTINGS.kiosks.photo.yaw}
+ for(const t of [...trunks,...shoreTrunks,...Object.values(simpleTreeBelts).flatMap(b=>b.trunks)])expect(inCanopyClearing(t.p[0],t.p[2],photo,roof,1.7)).toBe(false)
 })
 
 it('adds woodland trees in open gaps while keeping paths, facilities and neighbouring trunks clear',()=>{

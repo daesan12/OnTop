@@ -9,7 +9,7 @@ import {rankingBoardModelMetrics} from '../../src/layout-preview/RankingBoardMod
 export function rankingBoardProbe(){
  const scene=_roots.get(document.querySelector('canvas')!)!.store.getState().scene
  const board=scene.getObjectByName('ranking-board-preview')!
- return {position:board.position.toArray(),yaw:board.rotation.y,assetId:board.userData.assetId,
+ return {position:board.position.toArray(),yaw:board.rotation.y,scale:board.scale.toArray(),assetId:board.userData.assetId,
   meshCount:board.children.length,metrics:rankingBoardModelMetrics}
 }
 
@@ -18,7 +18,7 @@ export function plazaPlacementProbe(){
  const scene=_roots.get(document.querySelector('canvas')!)!.store.getState().scene
  scene.updateMatrixWorld(true)
  if(scene.getObjectByName('layout-shop'))throw new Error('The temporary wheel removal did not reach the rendered scene')
- return ['fish-bread-shop-exterior','layout-drink','ranking-board-preview'].map(name=>{
+ return ['fish-bread-shop-exterior','layout-drink','ranking-board-preview','feedback-mailbox'].map(name=>{
   const box=new Box3().setFromObject(scene.getObjectByName(name)!,true)
   return {name,min:box.min.toArray(),max:box.max.toArray()}
  })

@@ -32,6 +32,7 @@ test('lucky facility mocks and ranking board retain their independent models and
  const photo=KIOSKS.find(k=>k.kind==='photo')!
  expect(rankingBoard.position).toEqual([photo.x,0,photo.z])
  expect(rankingBoard.yaw).toBe(photo.yaw)
+ expect(rankingBoard.scale).toEqual([1.06,1.06,1.06])
  expect(rankingBoard.assetId).toBe('procedural/ranking-board')
  expect(rankingBoard.meshCount).toBe(9)
  expect(rankingBoard.metrics).toMatchObject({displayPlaneCount:3,structureTextureCount:0})
@@ -46,7 +47,7 @@ test('the full facility outlines and courtyard fences stay inside their lawn poc
   (await import('/tests/layout-e2e/plazaStructureProbe.ts' as string)).plazaPlacementProbe())
  for(const b of bounds){
   const [left,right,north,south]=b.name==='fish-bread-shop-exterior'?[-37,-20,28,44]:
-   b.name==='ranking-board-preview'?[20,37,28,44]:[20,37,48,60]
+   ['ranking-board-preview','feedback-mailbox'].includes(b.name)?[20,37,28,44]:[20,37,48,60]
   expect(b.min[0],b.name+' west').toBeGreaterThan(left!+.2)
   expect(b.max[0],b.name+' east').toBeLessThan(right!-.2)
   expect(b.min[2],b.name+' north').toBeGreaterThan(north!+.2)
@@ -75,4 +76,10 @@ test('the full facility outlines and courtyard fences stay inside their lawn poc
  const capture=await page.evaluate(async()=>
   (await import('/tests/layout-e2e/plazaStructureProbe.ts' as string)).plazaPlanCapture())
  await fs.writeFile(path.join(dir,'after-plan.png'),Buffer.from(capture.split(',')[1]!,'base64'))
+ await page.getByLabel('배치 시안 시설 목록').getByRole('button',{name:/^15/}).click()
+ await page.waitForTimeout(500)
+ await page.screenshot({path:path.join(dir,'ranking-mailbox.png')})
+ await page.getByLabel('배치 시안 시설 목록').getByRole('button',{name:/^28/}).click()
+ await page.waitForTimeout(500)
+ await page.screenshot({path:path.join(dir,'fish-grove.png')})
 })

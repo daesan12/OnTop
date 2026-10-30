@@ -1,4 +1,4 @@
-import { inKioskEntrance,inMailboxClearing } from '../map/park/planting'
+import { inKioskEntrance,inMailboxClearing,inCanopyClearing } from '../map/park/planting'
 import { SIMPLE_MAP } from '../world/art/mapRenderProfile'
 import { roundedSquare,insideRoundedSquare } from '../world/art/roundedOutline'
 import { ExtrudeGeometry,Path, Shape, ShapeGeometry } from 'three'
@@ -119,10 +119,12 @@ for(const side of [-1,1])for(let z=-75;z<84;z+=7) {
 }
 
 // Filter after seeded construction so clearing one facility does not reshuffle the forest.
-for(let i=trunks.length-1;i>=0;i--)if(inMailboxClearing(trunks[i]!.p[0],trunks[i]!.p[2],SITES.mailbox,SETTINGS.planting.mailboxTreeClearance)){
+const facilityPlantingClearing=(x:number,z:number)=>inCanopyClearing(x,z,SITES.cart,SETTINGS.fishBreadShop,SETTINGS.planting.facilityCanopyClearance)||inKioskEntrance(x,z,[{...SITES.cart,...SETTINGS.fishBreadShop}])||inCanopyClearing(x,z,SITES.photo,{...SETTINGS.rankingBoard,yaw:SETTINGS.kiosks.photo.yaw},SETTINGS.planting.facilityCanopyClearance)
+for(let i=trunks.length-1;i>=0;i--)if(inMailboxClearing(trunks[i]!.p[0],trunks[i]!.p[2],SITES.mailbox,SETTINGS.planting.mailboxTreeClearance)||facilityPlantingClearing(trunks[i]!.p[0],trunks[i]!.p[2])){
   trunks.splice(i,1);crowns.splice(i,1)
 }
-for(let i=shrubs.length-1;i>=0;i--)if(inMailboxClearing(shrubs[i]!.p[0],shrubs[i]!.p[2],SITES.mailbox,SETTINGS.planting.mailboxTreeClearance))shrubs.splice(i,1)
+for(let i=SUPPLEMENTAL_TREE_SITES.length-1;i>=0;i--)if(facilityPlantingClearing(SUPPLEMENTAL_TREE_SITES[i]!.x,SUPPLEMENTAL_TREE_SITES[i]!.z))SUPPLEMENTAL_TREE_SITES.splice(i,1)
+for(let i=shrubs.length-1;i>=0;i--)if(inMailboxClearing(shrubs[i]!.p[0],shrubs[i]!.p[2],SITES.mailbox,SETTINGS.planting.mailboxTreeClearance)||facilityPlantingClearing(shrubs[i]!.p[0],shrubs[i]!.p[2]))shrubs.splice(i,1)
 
 // A separate background ring: decorative, never included in walking bounds/colliders.
 const city=new PropBuilder([6,4]);

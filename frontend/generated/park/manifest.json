@@ -1,14 +1,14 @@
 {
   "artifacts": [
     {
-      "bytes": 2552480,
+      "bytes": 2552690,
       "path": "generated/park/server-map.json",
-      "sha256": "15b91df615fdcc008fbf3a0bdce852ec6e0eab794ce58119b163f04f04129062"
+      "sha256": "d72b12489a9f10015797db7c8d8f09cf740556513731dcf93e2bfe3414373ecc"
     },
     {
       "bytes": 329,
       "path": "src/map/park/generated/mapVersion.ts",
-      "sha256": "adfa5b6e8d1f1ddae92fc75eaa2389eb9c9f775ab745ad6fb5d02fc7314f1675"
+      "sha256": "be4f54853b118519d0e923c1cfd7c20891aa02f7a3da9a93cdc2d304dd20738f"
     }
   ],
   "counts": {
@@ -17,10 +17,10 @@
     "facilities": 11,
     "fitness": 12,
     "localSeats": 72,
-    "obstacles": 534,
-    "paths": 59,
+    "obstacles": 536,
+    "paths": 60,
     "pavilions": 9,
-    "physicalBoxes": 2136,
+    "physicalBoxes": 2138,
     "physicalHulls": 35,
     "physicalMeshes": 8,
     "tables": 18,
@@ -29,11 +29,11 @@
   "format": "ontop.park-map-manifest",
   "hashAlgorithm": "sha256",
   "hashes": {
-    "dataHash": "5069353667f8add98aa8ddf63b538c7387e34570b977cc7e928b64795b54fe7e",
-    "sourceHash": "dc14cc7b520169dc7ffc81162f6d9b3c94673f1c4c2b5720e649f912d1ee11f9"
+    "dataHash": "2a03f52cbb2060f5210d9fac20759045e56b3a775a0d1b862f8d4996f101f5b8",
+    "sourceHash": "35f07d429f00be5875e41fdf1d99de82541008e28d538a9f1af44dac00c460e5"
   },
   "mapId": "park",
-  "mapVersion": "70dc0fc5630a6d23d48ea22b5cd665b92bf2d47ee7c81e85d061778e29aa12f3",
+  "mapVersion": "910911a30396dae9a07c0ecfbb6be15cd069633e9a602751b4ed289d6cf57d8d",
   "schemaVersion": 2,
   "sources": [
     {
@@ -150,7 +150,7 @@
     },
     {
       "path": "src/map/park/definition.ts",
-      "sha256": "85889b1290aa24d7b76e8d91a05f56535a3856d892aac5e42759a2f31952459e"
+      "sha256": "488f1eca691cc4d0a2be722161579bc445f82c1184ee9cdfd92019ae012a9111"
     },
     {
       "path": "src/map/park/fountainHeight.ts",
@@ -178,15 +178,15 @@
     },
     {
       "path": "src/map/park/planting.ts",
-      "sha256": "bd3bdbb670b168952aab25e1c8a721b69b263da79cf985394f26c69199bed8e6"
+      "sha256": "d393eee371d85d87b67cedfd637f2dea5a353b2a6a2265b8f2fb50687329ad78"
     },
     {
       "path": "src/map/park/resolve.ts",
-      "sha256": "a6ca59f384d0db2db4788c5c846f77346066cdd53a8bdd9847b0f175cfaad448"
+      "sha256": "6b3d055605da14226b110b472008cb4946805d714fd6201af3a793f8753b6f56"
     },
     {
       "path": "src/map/park/validate.ts",
-      "sha256": "c2974dfaf52502f0db86230435f8c60016bf0ce7be1e128c58ae04c502849df4"
+      "sha256": "020015b2b5e3771358074730199600e15e814d50372be9f2e5662d3297856c16"
     }
   ],
   "validation": {
