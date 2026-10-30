@@ -6,6 +6,7 @@ export interface ParkRuntimePort {
   start(): void
   stop(): Promise<void>
   addAuthListener(listener: () => void): () => void
+  subscribeNotesChanged(changed: () => void): () => void
   reconnect(): void
   requestJSON(path: string, init?: RequestInit): Promise<unknown>
   checkFacilities(reloadCatalog?: boolean): Promise<void>

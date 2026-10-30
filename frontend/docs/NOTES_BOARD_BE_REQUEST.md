@@ -1,5 +1,7 @@
 # 전망대 온탑 메모함 — FE 구현 및 BE 연동 요청
 
+> 2026-10-29 후속 FE 연동: BE `3228c1c`의 category·NOTES_CHANGED 계약에 맞춰 주제를 기본 활성화하고 기존 공유 소켓 알림을 연결했습니다. 중복 revision 제거, 열린 방문의 조회 합치기, 초안·커서 보존과 재접속 처리를 포함합니다. 현재 동작과 남은 BE 확인 사항은 [메모 실시간 연동](./NOTES_LIVE_INTEGRATION_2026-10-29.md)을 참고하세요. 아래의 플래그 기본 꺼짐·subscribe 미연결 설명은 BE 요청 당시 기록입니다.
+
 2026-10-28 작성 / 2026-10-29 정리. 이번 작업은 **frontend 경로만 수정**한다. BE 코드·DB·마이그레이션·인프라는 수정하지 않는다.
 
 BE 담당자가 바로 진행할 항목만 모은 문서는 [소리함·메모함 BE 요청서](./handoff/TRADITIONAL_MAILBOX_BE_REQUEST_2026-10-29.md), 복사해 전달할 글은 [전달 메시지](./handoff/TRADITIONAL_MAILBOX_BE_MESSAGE_2026-10-29.md)를 참고한다.
