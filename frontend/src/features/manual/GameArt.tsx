@@ -158,7 +158,9 @@ export function GameArt({ game }: { game: ManualGameId }) {
               ? "#4d665b"
               : game === "farkle"
                 ? "#44584b"
-                : "#6c9390"
+                : game === "ledger"
+                  ? "#5b5140"
+                  : "#6c9390"
         }
       />
       <circle cx="289" cy="24" r="80" fill="#ead7a7" opacity=".08" />
@@ -422,6 +424,106 @@ export function GameArt({ game }: { game: ManualGameId }) {
           ))}
           <ellipse cx="91" cy="150" rx="15" ry="6" fill="#72966b" />
           <ellipse cx="237" cy="124" rx="17" ry="7" fill="#83a77b" />
+        </g>
+      )}
+      {game === "ledger" && (
+        <g>
+          {/* 한지 장부: 꿰맨 등, 칸 줄, 채운 점수, 금빛 '장원' 줄과 붉은 낙관 */}
+          <g transform="translate(104 92) rotate(-7)">
+            <rect x="-74" y="-58" width="152" height="124" rx="4" fill="#2c271d" opacity=".3" />
+            <rect x="-78" y="-64" width="152" height="124" rx="4" fill="#efe3c6" />
+            <rect x="-78" y="-64" width="16" height="124" rx="3" fill="#8c5b3a" />
+            {[-48, -18, 12, 42].map((y) => (
+              <path key={y} d={`M-74 ${y}h8`} stroke="#e8cfa2" strokeWidth="2" />
+            ))}
+            {Array.from({ length: 9 }, (_, i) => (
+              <path
+                key={i}
+                d={`M-56 ${-46 + i * 12}h124`}
+                stroke="#c9b48a"
+                strokeWidth="1"
+              />
+            ))}
+            <path d="M-20-58v112M14-58v112M44-58v112" stroke="#c9b48a" strokeWidth="1" />
+            <rect x="-56" y="2" width="124" height="12" fill="#e5bf68" opacity=".55" />
+            {[
+              [-12, -42],
+              [20, -42],
+              [-12, -30],
+              [50, -30],
+              [-12, -18],
+              [20, -6],
+              [50, 18],
+              [20, 30],
+            ].map(([x, y], i) => (
+              <path
+                key={i}
+                d={`M${x} ${y}q3-4 6 0t6 0`}
+                stroke="#4a3b2b"
+                strokeWidth="1.6"
+                fill="none"
+                strokeLinecap="round"
+              />
+            ))}
+            <path
+              d="M-11 9l4 4 8-9"
+              stroke="#9b3a2c"
+              strokeWidth="2.2"
+              fill="none"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <path d="M-50-56h24M-50-52h16" stroke="#7a6347" strokeWidth="2" strokeLinecap="round" />
+            <g transform="translate(52 42) rotate(8)">
+              <rect x="-9" y="-9" width="18" height="18" rx="2" fill="#b4432f" />
+              <rect x="-6" y="-6" width="12" height="12" fill="none" stroke="#f1d6c4" strokeWidth="1.4" />
+              <path d="M-3-3h6M-3 0h6M-3 3h6" stroke="#f1d6c4" strokeWidth="1.2" />
+            </g>
+          </g>
+          {/* 붓 */}
+          <g transform="translate(176 44) rotate(28)">
+            <rect x="-3" y="-34" width="6" height="56" rx="3" fill="#a47548" />
+            <rect x="-3.5" y="18" width="7" height="6" fill="#3d3a33" />
+            <path d="M-3.5 24q3.5 16 0 18 3.5-2 7-18Z" fill="#1f1d19" />
+          </g>
+          {/* 주사위: 아래 셋은 보관(금빛 테), 위 둘은 굴리는 중 */}
+          {[
+            [212, 142, 0, 6, true],
+            [250, 142, 0, 6, true],
+            [288, 142, 0, 6, true],
+            [228, 80, 18, 6, false],
+            [282, 96, -14, 5, false],
+          ].map(([x, y, angle, value, kept], i) => (
+            <g key={i} transform={`translate(${x} ${y})`}>
+              {kept && (
+                <ellipse cy="19" rx="15" ry="4" fill="none" stroke="#f0c56a" strokeWidth="2" opacity=".85" />
+              )}
+              <g transform={`rotate(${angle})`}>
+                <rect x="-15" y="-12" width="32" height="32" rx="6" fill="#243c31" opacity=".3" />
+                <rect x="-17" y="-17" width="34" height="34" rx="6" fill="#f2e9d3" />
+                <rect x="-15" y="-15" width="30" height="30" rx="5" fill="none" stroke="#d8c7a4" />
+                {(value === 5
+                  ? [
+                      [-8, -8],
+                      [8, -8],
+                      [0, 0],
+                      [-8, 8],
+                      [8, 8],
+                    ]
+                  : [
+                      [-8, -8],
+                      [8, -8],
+                      [-8, 0],
+                      [8, 0],
+                      [-8, 8],
+                      [8, 8],
+                    ]
+                ).map(([dx, dy], j) => (
+                  <circle key={j} cx={dx} cy={dy} r="2.7" fill="#37433a" />
+                ))}
+              </g>
+            </g>
+          ))}
         </g>
       )}
     </svg>

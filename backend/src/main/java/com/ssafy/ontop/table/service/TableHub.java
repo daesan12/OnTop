@@ -31,6 +31,7 @@ import com.ssafy.ontop.table.domain.TableGame;
 import com.ssafy.ontop.table.domain.TableRoom;
 import com.ssafy.ontop.table.domain.TableStartAttempt;
 import com.ssafy.ontop.table.dto.GameSpectatorChatMessage;
+import com.ssafy.ontop.table.dto.DiceLedgerSpectatorPing;
 import com.ssafy.ontop.table.dto.OmokSpectatorPing;
 import com.ssafy.ontop.table.dto.TableListResponse;
 import com.ssafy.ontop.table.dto.TableProtocol;
@@ -765,7 +766,8 @@ public class TableHub {
             }
             // 참가자에게도 로비 복구 오류 대신 관전 권한 오류를 주도록 복구 게이트 앞에서 처리한다.
             // 관전자의 로비 자격은 canSpectate에서 다시 검사한다.
-            if (request.type().equals("GAME_SPECTATOR_CHAT_SEND") || request.type().equals("OMOK_SPECTATOR_PING_SEND")) {
+            if (request.type().equals("GAME_SPECTATOR_CHAT_SEND") || request.type().equals("OMOK_SPECTATOR_PING_SEND")
+                    || request.type().equals("DICE_LEDGER_SPECTATOR_PING_SEND")) {
                 sendSpectatorEvent(sessionId, member, request);
                 return;
             }
@@ -2704,9 +2706,11 @@ public class TableHub {
     /**
      * 현재 플레이어의 채팅·승인 관전자의 채팅/핑을 같은 경기 안에 전달한다. 핑 권한은 관전 전용이다.
      * 엔진을 호출하지 않으며 판·버전·타이머·결과는 바꾸지 않는다. 다른 수신자에게는 비필수 이벤트로만 보낸다.
+     * 주사위 장부 핑은 오목 핑과 같은 간격·TTL·버전 규칙을 쓰고 대상만 점수 칸 또는 주사위다.
      */
     private void sendSpectatorEvent(String sessionId, Member member, Request request) {
-        boolean ping = request.type().equals("OMOK_SPECTATOR_PING_SEND");
+        boolean ledgerPing = request.type().equals("DICE_LEDGER_SPECTATOR_PING_SEND");
+        boolean ping = ledgerPing || request.type().equals("OMOK_SPECTATOR_PING_SEND");
         var payload = request.payload();
         if (member.accountId() == null) {
             fail(request, "GAME_SPECTATOR_AUTH_REQUIRED", "인증된 회원만 관전 채팅·핑을 보낼 수 있습니다.");
@@ -2720,9 +2724,9 @@ public class TableHub {
         if (push == null || ping && reconnect.get().canControlGame(member.accountId(), sessionId, gameId)) {
             fail(request, "GAME_SPECTATOR_ACCESS_DENIED", "관전이 승인된 경기에서만 보낼 수 있습니다.");
         }
-        if (ping && !"OMOK".equals(push.gameCode)
-                || !Set.of("OMOK", "DICE", "ONE_CARD", "LIAR_BRIDGE").contains(push.gameCode)) {
-            fail(request, "GAME_SPECTATOR_UNSUPPORTED_GAME", "지원하는 경기 채팅 또는 오목 위치 추천을 이용해주세요.");
+        if (ping && !(ledgerPing ? "DICE_LEDGER" : "OMOK").equals(push.gameCode)
+                || !Set.of("OMOK", "DICE", "ONE_CARD", "LIAR_BRIDGE", "DICE_LEDGER").contains(push.gameCode)) {
+            fail(request, "GAME_SPECTATOR_UNSUPPORTED_GAME", "지원하는 경기 채팅 또는 오목·주사위 장부 추천을 이용해주세요.");
         }
         if (!"PLAYING".equals(push.status)) {
             fail(request, "GAME_SPECTATOR_GAME_NOT_PLAYING", "진행 중인 경기에서만 보낼 수 있습니다.");
@@ -2731,31 +2735,36 @@ public class TableHub {
         var kind = ping ? SpectatorEventPolicy.Kind.PING : SpectatorEventPolicy.Kind.CHAT;
         String text = ping ? null : new ChatText(payload.get("text").textValue()).value();
         long basedOnVersion = ping ? payload.get("basedOnVersion").longValue() : 0;
-        int x = ping ? payload.get("x").intValue() : 0;
-        int y = ping ? payload.get("y").intValue() : 0;
-        String content = ping ? basedOnVersion + ":" + x + ":" + y : text;
-        String type = ping ? "OMOK_SPECTATOR_PING" : "GAME_SPECTATOR_CHAT_MESSAGE";
+        int x = ping && !ledgerPing ? payload.get("x").intValue() : 0;
+        int y = ping && !ledgerPing ? payload.get("y").intValue() : 0;
+        String category = ledgerPing && payload.has("category") ? payload.get("category").textValue() : null;
+        Integer dieId = ledgerPing && payload.has("dieId") ? payload.get("dieId").intValue() : null;
+        String content = ledgerPing ? basedOnVersion + ":" + (category != null ? category : "die" + dieId)
+                : ping ? basedOnVersion + ":" + x + ":" + y : text;
+        String type = ledgerPing ? "DICE_LEDGER_SPECTATOR_PING" : ping ? "OMOK_SPECTATOR_PING" : "GAME_SPECTATOR_CHAT_MESSAGE";
         long now = worldClock.sample().serverNow();
+        java.util.function.Function<SpectatorEventPolicy.Stamp, Object> eventOf = issued -> ledgerPing
+                ? new DiceLedgerSpectatorPing(gameId, eventId, member.userId(), basedOnVersion, category, dieId, issued, now)
+                : ping ? new OmokSpectatorPing(gameId, eventId, member.userId(), basedOnVersion, x, y, issued, now)
+                : new GameSpectatorChatMessage(gameId, eventId, member.userId(), text, issued, now);
         SpectatorEventPolicy.Stamp stamp;
         try {
             stamp = spectatorEvents.previous(member.accountId(), eventId, kind, gameId, content, now);
             if (stamp != null) {
                 // 같은 요청의 재전송은 원래 시각 그대로 요청자에게만 다시 확인해 준다. 다시 방송하지 않는다.
-                member.peer().offer(protocol.encode(request.requestId(), type, ping
-                        ? new OmokSpectatorPing(gameId, eventId, member.userId(), basedOnVersion, x, y, stamp, now)
-                        : new GameSpectatorChatMessage(gameId, eventId, member.userId(), text, stamp, now)));
+                member.peer().offer(protocol.encode(request.requestId(), type, eventOf.apply(stamp)));
                 return;
             }
             // Hub 잠금이 경기 상태 변경 알림과의 경계다. 더 새 버전 알림을 받았으면 아직 전달 전이어도 거절한다.
             if (ping && (basedOnVersion != push.deliveredVersion || push.requestedVersion > push.deliveredVersion)) {
-                fail(request, "OMOK_SPECTATOR_PING_STALE_VERSION", "최신 판 상태에서 다시 추천해주세요.");
+                fail(request, ledgerPing ? "DICE_LEDGER_SPECTATOR_PING_STALE_VERSION" : "OMOK_SPECTATOR_PING_STALE_VERSION",
+                        "최신 판 상태에서 다시 추천해주세요.");
             }
             stamp = spectatorEvents.accept(member.accountId(), eventId, kind, gameId, content, now);
         } catch (SpectatorEventPolicy.Rejected rejected) {
             throw new RequestException(request.requestId(), rejected.code(), rejected.getMessage());
         }
-        Object event = ping ? new OmokSpectatorPing(gameId, eventId, member.userId(), basedOnVersion, x, y, stamp, now)
-                : new GameSpectatorChatMessage(gameId, eventId, member.userId(), text, stamp, now);
+        Object event = eventOf.apply(stamp);
         // 요청자 확인은 일반 응답이다. 다른 수신자 전달은 큐가 붐비거나 만료되면 버려질 수 있다.
         member.peer().offer(protocol.encode(request.requestId(), type, event));
         String notice = protocol.encode(null, type, event);

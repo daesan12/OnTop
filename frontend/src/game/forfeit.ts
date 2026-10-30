@@ -31,6 +31,7 @@ export function canStartForfeit(userId: string, s: ForfeitGameState) {
     || gameState(g).status !== 'PLAYING' || !gamePlayers(g).includes(userId) || forfeitBlocksInput(g.gameId)) return false
   if (g.onecard && !g.onecard.players.some(p => p.userId === userId && p.active)) return false
   if (g.bridge && !g.bridge.players.some(p => p.userId === userId && !p.forfeited && !p.pendingForfeit)) return false
+  if (g.ledger && !g.ledger.players.some(p => p.userId === userId && !p.forfeited)) return false
   return true // It need not be this participant's turn; no local deadline or rule decision.
 }
 export function canRetryForfeit(userId: string, s: ForfeitGameState) {
