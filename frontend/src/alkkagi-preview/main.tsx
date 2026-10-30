@@ -125,7 +125,7 @@ function App() {
     <footer><p role="status">{notice}</p><div className="buttons">
       {actor === 0 && <button className="secondary" disabled={!connected || pending} onClick={() => send({ type: 'RESET' })}>새 판</button>}
       <a href="?role=red">홍팀</a><a href="?role=green" target="_blank">청팀 화면 열기 ↗</a><a href="?role=viewer" target="_blank">관전 ↗</a>
-    </div><small>작은 알은 빠르게, 큰 알은 묵직하게 · 클릭 선택 → 다시 눌러 드래그 · Esc / 우클릭 취소</small>
+    </div><small>큰 알일수록 밀어내는 힘과 버티는 무게가 큽니다 · 클릭 선택 → 다시 눌러 드래그 · Esc / 우클릭 취소</small>
       <details><summary>동기화 정보</summary><code>snapshot {seq} · tick {state?.tick} · shot {state?.simulationId} · version {state?.version}<br />game {state?.gameId}<br />{state?.endReason}</code></details></footer>
   </main>
 }

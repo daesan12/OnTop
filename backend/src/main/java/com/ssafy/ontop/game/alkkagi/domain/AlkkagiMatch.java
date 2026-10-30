@@ -43,13 +43,13 @@ public final class AlkkagiMatch {
             String[] back = {"車", "馬", "象", "士", "士", "象", "馬", "車"};
             double[] columns = {-4, -3, -2, -1, 1, 2, 3, 4};
             for (int i = 0; i < back.length; i++) {
-                // 영상에서 확인한 세 크기 그룹. 질량은 면적비에 가까운 로컬 검수값이다.
+                // 사용자 검수 기준: 작은 알은 왕을 거의 밀지 못한다. 원작 실측 질량은 아니다.
                 boolean small = back[i].equals("士");
-                add(owner, back[i], columns[i], sign * 4.2, small ? .24 : .32, small ? .8 : 1.4);
+                add(owner, back[i], columns[i], sign * 4.2, small ? .24 : .32, small ? .8 : 3.2);
             }
-            add(owner, owner == 0 ? "漢" : "楚", 0, sign * 3.2, 0.43, 2.6);
-            add(owner, "包", -3, sign * 2.2, 0.32, 1.4);
-            add(owner, "包", 3, sign * 2.2, 0.32, 1.4);
+            add(owner, owner == 0 ? "漢" : "楚", 0, sign * 3.2, 0.43, 19.2);
+            add(owner, "包", -3, sign * 2.2, 0.32, 3.2);
+            add(owner, "包", 3, sign * 2.2, 0.32, 3.2);
             for (int i = 0; i < 5; i++) {
                 add(owner, owner == 0 ? "兵" : "卒", i * 2 - 4, sign * 1.2, 0.24, 0.8);
             }
@@ -57,18 +57,23 @@ public final class AlkkagiMatch {
     }
 
     private void add(int owner, String type, double x, double y, double radius, double mass) {
-        Body body = new Body();
-        var fixture = body.addFixture(Geometry.createCircle(radius));
-        fixture.setDensity(mass / (Math.PI * radius * radius));
-        fixture.setRestitution(settings.restitution());
-        fixture.setFriction(0.15);
-        body.setMass(MassType.FIXED_ANGULAR_VELOCITY);
-        body.setLinearDamping(0);
-        body.setBullet(true);
+        Body body = collisionBody(radius, mass, settings.restitution());
         body.translate(x, y);
         String id = "p" + pieces.size();
         pieces.put(id, new Piece(id, owner, type, radius, mass, body));
         world.addBody(body);
+    }
+
+    static Body collisionBody(double radius, double mass, double restitution) {
+        Body body = new Body();
+        var fixture = body.addFixture(Geometry.createCircle(radius));
+        fixture.setDensity(mass / (Math.PI * radius * radius));
+        fixture.setRestitution(restitution);
+        fixture.setFriction(0.15);
+        body.setMass(MassType.FIXED_ANGULAR_VELOCITY);
+        body.setLinearDamping(0);
+        body.setBullet(true);
+        return body;
     }
 
     public void start(long now) {
@@ -116,10 +121,9 @@ public final class AlkkagiMatch {
         return version;
     }
 
-    /** 같은 당김은 같은 발사 에너지: 큰 알은 더 느리게 출발하지만 운동량은 더 크다.
-     * 영상의 크기/충돌 차이를 재현하기 위한 근사 모델이며 원작의 역산된 공식은 아니다. */
+    /** 출발 속도는 같게, 충격량·밀림 저항은 질량에 비례시킨 검수 모델. 원작 공식은 아니다. */
     static double launchImpulse(double referenceImpulse, double power, double mass) {
-        return referenceImpulse * power * Math.sqrt(mass / 0.8);
+        return referenceImpulse * power * (mass / 0.8);
     }
 
     public void advance(long now) {
@@ -129,10 +133,7 @@ public final class AlkkagiMatch {
         }
         for (Piece piece : pieces.values()) {
             if (!piece.alive) { continue; }
-            Vector2 velocity = piece.body.getLinearVelocity();
-            double speed = velocity.getMagnitude();
-            double next = Math.max(0, speed - settings.deceleration() * settings.stepSeconds());
-            piece.body.setLinearVelocity(speed > 0 ? velocity.product(next / speed) : new Vector2());
+            decelerate(piece.body, settings);
         }
         world.step(1);
         tick++;
@@ -162,6 +163,13 @@ public final class AlkkagiMatch {
         } else if (simulationSteps >= settings.maximumSimulationSteps()) {
             finish(null, "SIMULATION_LIMIT");
         }
+    }
+
+    static void decelerate(Body body, AlkkagiSettings settings) {
+        Vector2 velocity = body.getLinearVelocity();
+        double speed = velocity.getMagnitude();
+        double next = Math.max(0, speed - settings.deceleration() * settings.stepSeconds());
+        body.setLinearVelocity(speed > 0 ? velocity.product(next / speed) : new Vector2());
     }
 
     private void expire(long now) {

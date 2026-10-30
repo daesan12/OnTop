@@ -12,67 +12,52 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class AlkkagiMatchTests {
     @Test
-    void 같은_당김에서_큰_알은_더_큰_충격량으로_출발한다() {
+    void 같은_당김에서_출발속도는_유지하고_큰알_충격량은_더_크다() {
         var small = started(); var large = started();
         small.shoot(0, shot(small, "small", "p13", 1, 0, .6), 1);
         large.shoot(0, shot(large, "large", "p8", 1, 0, .6), 1);
         small.advance(2); large.advance(2);
         var soldier = small.snapshot(2).pieces().get(13);
         var king = large.snapshot(2).pieces().get(8);
-
-        assertThat(AlkkagiMatch.launchImpulse(12, .6, king.mass()))
-                .isCloseTo(7.2 * Math.sqrt(2.6 / .8), org.assertj.core.data.Offset.offset(1e-9));
-        assertThat(AlkkagiMatch.launchImpulse(12, .6, soldier.mass()))
-                .isCloseTo(7.2, org.assertj.core.data.Offset.offset(1e-9));
-        assertThat(king.vx()).isBetween(soldier.vx() * .5, soldier.vx() * .6);
-        assertThat(king.mass() * king.vx()).isGreaterThan(soldier.mass() * soldier.vx());
+        assertThat(king.vx()).isCloseTo(soldier.vx(), org.assertj.core.data.Offset.offset(1e-9));
+        assertThat(king.mass() * king.vx()).isGreaterThan(soldier.mass() * soldier.vx() * 20);
     }
 
     @Test
-    void 같은_작은_표적에_전달되는_속도를_크기별로_기록한다() throws Exception {
-        double smallTargetSpeed = impactTargetSpeed(.8, .24);
-        double largeTargetSpeed = impactTargetSpeed(2.6, .43);
-
-        assertThat(largeTargetSpeed).isGreaterThan(0);
-        // 같은 에너지에서는 무조건 큰 알이 표적을 더 빠르게 쏘는 것이 아니다.
-        // 무거운 알은 충돌 후 자기 진행 방향을 더 유지한다(아래 반대 충돌 검증).
-        var report = java.nio.file.Path.of("build/alkkagi/mass-impact.json");
+    void 최대힘_졸의_정면충돌에도_왕은_거의_밀리지_않고_왕은_졸을_크게_민다() throws Exception {
+        var pieces = started().snapshot(0).pieces();
+        var soldier = pieces.get(13); var middle = pieces.get(0); var king = pieces.get(8);
+        double pawnToKing = targetTravel(soldier, king);
+        double middleToKing = targetTravel(middle, king);
+        double kingToPawn = targetTravel(king, soldier);
+        assertThat(pawnToKing).isBetween(0.0, .15);
+        assertThat(middleToKing).isGreaterThan(pawnToKing * 5);
+        assertThat(kingToPawn).isGreaterThan(2);
+        assertThat(kingToPawn).isGreaterThan(pawnToKing * 20);
+        var report = java.nio.file.Path.of("build/alkkagi/size-knockback.json");
         java.nio.file.Files.createDirectories(report.getParent());
-        java.nio.file.Files.writeString(report, "{\"conditions\":\"stationary .8 target, power .6, restitution .9, 120Hz\","
-                + "\"smallProjectileMass\":0.8,\"largeProjectileMass\":2.6,\"smallTargetSpeed\":"
-                + smallTargetSpeed + ",\"largeTargetSpeed\":" + largeTargetSpeed + "}");
+        java.nio.file.Files.writeString(report, "{\"conditions\":\"head-on gap .05, power 1, actual profiles/fixtures/deceleration, 120Hz 4s, isolated unbounded world\","
+                + "\"pawnToKingDistance\":" + pawnToKing + ",\"middleToKingDistance\":" + middleToKing
+                + ",\"kingToPawnDistance\":" + kingToPawn + "}");
     }
 
-    private double impactTargetSpeed(double mass, double radius) {
+    private double targetTravel(AlkkagiMatch.PieceView projectilePiece, AlkkagiMatch.PieceView targetPiece) {
+        var settings = AlkkagiSettings.provisional();
         var world = new World<Body>();
         world.setGravity(World.ZERO_GRAVITY);
-        world.getSettings().setStepFrequency(1.0 / 120);
-        var projectile = collisionBody(mass, radius);
-        var target = collisionBody(.8, .24);
-        target.translate(1.5, 0);
+        world.getSettings().setStepFrequency(settings.stepSeconds());
+        var projectile = AlkkagiMatch.collisionBody(projectilePiece.radius(), projectilePiece.mass(), settings.restitution());
+        var target = AlkkagiMatch.collisionBody(targetPiece.radius(), targetPiece.mass(), settings.restitution());
+        double initialX = projectilePiece.radius() + targetPiece.radius() + .05;
+        target.translate(initialX, 0);
         world.addBody(projectile); world.addBody(target);
-        projectile.applyImpulse(new Vector2(AlkkagiMatch.launchImpulse(12, .6, mass), 0));
-        for (int i = 0; i < 30; i++) { world.step(1); }
-        return target.getLinearVelocity().getMagnitude();
-    }
-
-    @Test
-    void 작은_알은_큰_표적에_되튕기고_큰_알은_작은_표적을_밀며_전진한다() {
-        assertThat(projectileAfterImpact(.8, .24, 2.6, .43)).isLessThan(0);
-        assertThat(projectileAfterImpact(2.6, .43, .8, .24)).isGreaterThan(0);
-    }
-
-    private double projectileAfterImpact(double mass, double radius, double targetMass, double targetRadius) {
-        var world = new World<Body>();
-        world.setGravity(World.ZERO_GRAVITY);
-        world.getSettings().setStepFrequency(1.0 / 120);
-        var projectile = collisionBody(mass, radius);
-        var target = collisionBody(targetMass, targetRadius);
-        target.translate(1.5, 0);
-        world.addBody(projectile); world.addBody(target);
-        projectile.applyImpulse(new Vector2(AlkkagiMatch.launchImpulse(12, .6, mass), 0));
-        for (int i = 0; i < 40; i++) { world.step(1); }
-        return projectile.getLinearVelocity().x;
+        projectile.applyImpulse(new Vector2(AlkkagiMatch.launchImpulse(settings.maximumImpulse(), 1, projectilePiece.mass()), 0));
+        for (int i = 0; i < 480; i++) {
+            AlkkagiMatch.decelerate(projectile, settings);
+            AlkkagiMatch.decelerate(target, settings);
+            world.step(1);
+        }
+        return target.getWorldCenter().x - initialX;
     }
 
     @Test
@@ -86,18 +71,6 @@ class AlkkagiMatchTests {
                 .containsExactly(-4., -3., -2., -1., 1., 2., 3., 4.);
         assertThat(pieces.get(9).x()).isEqualTo(-3);
         assertThat(pieces.get(10).x()).isEqualTo(3);
-    }
-
-    private Body collisionBody(double mass, double radius) {
-        var body = new Body();
-        var fixture = body.addFixture(Geometry.createCircle(radius));
-        fixture.setDensity(mass / (Math.PI * radius * radius));
-        fixture.setRestitution(.9);
-        fixture.setFriction(0);
-        body.setMass(MassType.FIXED_ANGULAR_VELOCITY);
-        body.setLinearDamping(0);
-        body.setBullet(true);
-        return body;
     }
 
     @Test
