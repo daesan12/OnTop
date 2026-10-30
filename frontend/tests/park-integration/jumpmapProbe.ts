@@ -13,8 +13,8 @@ export function jumpmapProbe() {
     const group = course?.getObjectByName(`service-jump-${theme}`)
     if (!group) continue
     padsDrawn += (group.children[0] as InstancedMesh)?.count ?? 0
-    const expected = Object.values(jumpArt[theme]).map(g => g.getAttribute('position').count)
-    group.children.forEach(node => { const m = node as InstancedMesh; if (m.isInstancedMesh) { instances += m.count; if (expected.includes(m.geometry.getAttribute('position').count)) geometryMatches++ } })
+    const expected = Object.values(jumpArt[theme]).map(g => g.uuid)
+    group.children.forEach(node => { const m = node as InstancedMesh; if (m.isInstancedMesh) { instances += m.count; if (expected.includes(m.geometry.userData.jumpSource)) geometryMatches++ } })
   }
   return { state: useJumpmap.getState(), wallet: useWalletSettlement.getState(), session: useSession.getState(), instances, geometryMatches, padsDrawn,
     identity: scene?.getObjectByName('park-service-map')?.userData,

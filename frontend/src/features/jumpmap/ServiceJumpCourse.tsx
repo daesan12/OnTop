@@ -6,29 +6,28 @@ import type { JumpTheme } from '../../layout-preview/jumpCourse'
 import { avatars, sampleAvatar } from '../../network/worldClient'
 import { COURSE, START, targetFade, type CourseBlock } from './course'
 import { hits, onStep, standing, useJumpmap } from './state'
+import { applyLandingMotion, landingGeometry } from './landingMotion'
 
 const groups = [...new Set(COURSE.map(b => b.theme))].map(theme => ({ theme, pads: COURSE.filter(b => b.theme === theme) }))
 const clock = { value: 0 }
 function materialFor(theme: JumpTheme, finish: string) {
   const material = new MeshStandardMaterial({ vertexColors: true, roughness: theme === 'gomoku' ? .26 : theme === 'lily' ? .45 : .85, metalness: finish === 'gold' ? .75 : 0 })
   material.onBeforeCompile = shader => {
-    shader.uniforms.jumpTime = clock
-    shader.vertexShader = `attribute float aFade; attribute float aHit; attribute float aPower; varying float vFade; varying float vHit; uniform float jumpTime;\n${shader.vertexShader}`
+    shader.vertexShader = `attribute float aFade; varying float vFade;\n${shader.vertexShader}`
     shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
-      float t=max(0.,jumpTime-aHit); float h=exp(-t*7.)*aPower; vFade=aFade; vHit=h;
-      ${theme === 'cloud' ? 'transformed.y=transformed.y*(1.-h*.22)-h*.06;transformed.xz*=1.+h*.12;' : theme === 'fish' ? 'transformed.z+=sign(position.z)*h*.04;transformed.y*=1.-h*.08;' : theme === 'gomoku' ? 'transformed.y-=.07*sin(min(1.,t/.18)*3.14159)*exp(-t*3.)*aPower;' : theme === 'kite' ? 'transformed.y+=sin(t*22.)*exp(-t*6.)*position.z*.035*aPower;' : theme === 'lily' ? 'transformed.y-=.05*sin(t*17.)*exp(-t*5.)*aPower;' : 'transformed.y-=h*.012;'}
+      vFade=aFade;
     `)
-    shader.fragmentShader = `varying float vFade; varying float vHit;\n${shader.fragmentShader}`
+    shader.fragmentShader = `varying float vFade;\n${shader.fragmentShader}`
     shader.fragmentShader = shader.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
       vec2 px=mod(floor(gl_FragCoord.xy),4.);
       float b2=mod(2.*mod(px.x,2.)+3.*mod(px.y,2.),4.);
       float b4=mod(2.*floor(px.x/2.)+3.*floor(px.y/2.),4.);
       if(vFade<.995 && vFade<=(4.*b2+b4+.5)/16.)discard;
-      diffuseColor.rgb*=1.+vHit*${theme === 'lantern' ? '1.2' : '.55'};
     `)
-    if (finish === 'glow') shader.fragmentShader = shader.fragmentShader.replace('#include <opaque_fragment>', 'outgoingLight+=diffuseColor.rgb*(.45+vHit);\n#include <opaque_fragment>')
+    if (finish === 'glow') shader.fragmentShader = shader.fragmentShader.replace('#include <opaque_fragment>', 'outgoingLight+=diffuseColor.rgb*.45;\n#include <opaque_fragment>')
   }
-  material.customProgramCacheKey = () => `service-jump-${theme}-${finish}-1`
+  applyLandingMotion(material, theme, clock)
+  material.customProgramCacheKey = () => `service-jump-${theme}-${finish}-tactile-2`
   return material
 }
 function Batch({ theme, pads, art }: { theme: JumpTheme; pads: readonly CourseBlock[]; art?: Record<string, BufferGeometry> }) {
@@ -36,7 +35,7 @@ function Batch({ theme, pads, art }: { theme: JumpTheme; pads: readonly CourseBl
   const pose = useMemo(() => ({ x: 0, y: 0, z: 0, yaw: 0 }), [])
   const reduced = useMemo(() => matchMedia('(prefers-reduced-motion: reduce)'), [])
   const batches = useMemo(() => Object.entries(art ?? jumpArt[theme]).map(([finish, source]) => {
-    const geometry = source.clone()
+    const geometry = landingGeometry(source, theme)
     geometry.setAttribute('aFade', new InstancedBufferAttribute(new Float32Array(pads.length).fill(1), 1))
     geometry.setAttribute('aHit', new InstancedBufferAttribute(new Float32Array(pads.length).fill(-1e6), 1))
     geometry.setAttribute('aPower', new InstancedBufferAttribute(new Float32Array(pads.length).fill(0), 1))

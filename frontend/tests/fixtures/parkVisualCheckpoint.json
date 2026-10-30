@@ -1,5 +1,5 @@
 {
-  "description": "Preserve accepted plaza and gate with additional decorative woodland trees, 2026-10-30",
+  "description": "Preserve accepted plaza, gate and decorative woodland trees with user-requested tactile jump landing effects, 2026-10-30",
   "files": {
     "src/layout-preview/districtGeometry.ts": "ea0c6788c9ccdc5c819365e0bffe93479beec8b5e2c93814183ffddcec2530f9",
     "src/layout-preview/existingTreeModel.ts": "fcb9c89c3c90e11ac5a5670a0498dae14184a10b1acac281523ad56ed4748826",
@@ -24,7 +24,7 @@
     "src/layout-preview/plazaBuildingStructure.ts": "7ea5038b1fe941d8e72146a8a8f385b5bd7167ea48b7896bac7f90a11a702596",
     "src/layout-preview/PreviewBench.tsx": "ebdc4958755d78008bb27bee9e0933878ad71331479e522324a0c2c8333e0375",
     "src/layout-preview/PreviewCamera.tsx": "2c684a0a0ec36dc68fa68948f0c064231c079db8d9234428db0e11b41ad3be3b",
-    "src/layout-preview/PreviewJumpCourse.tsx": "44dc3d5008ffbc7c6090ed6c64ee6f8456e76773fcace5907c01d7bad4a04921",
+    "src/layout-preview/PreviewJumpCourse.tsx": "c403d6672ba9f080b5c3eead31de84059c4cba314f019d747bad24e4f8a58ad3",
     "src/layout-preview/PreviewLandscaping.tsx": "7bdec8aadc5b6e47e9d9ab3c0a0c86933e39d3ca2b86ced0d111bfc299f50dde",
     "src/layout-preview/PreviewPigeons.tsx": "f2ed2ba9dca9c8ce8020bb4d525e791bbdfae4dd53315b6d3fc3aca0760e4378",
     "src/layout-preview/PreviewSwimmingRipples.tsx": "7000a53d1d96f9e4aa21a23cdb89546168680a61a9ddb64240297151b22989b0",
@@ -178,7 +178,8 @@
     "src/world/art/previewSimpleParkTrees.tsx": "00101a0dbd0d22807faaeabf962d1c78b1313275720d5be3b826bb8408f302c2",
     "src/features/tables/PreviewPavilionWoodTable.tsx": "f5279a760aae6e630935dc8ce1c74f954e36026b52e054486ca1ed1526f9888d",
     "src/world/art/defaultBuildingParts.ts": "c07e68fca1249aa75e294e5564d3d96004937b17e958816c93d80b8f2a7c371c",
-    "src/layout-preview/mainGateStructure.ts": "019faaa1b5b162e72bf95f44e61b519199307a34aee50e433226a0c1cb2a1232"
+    "src/layout-preview/mainGateStructure.ts": "019faaa1b5b162e72bf95f44e61b519199307a34aee50e433226a0c1cb2a1232",
+    "src/features/jumpmap/landingMotion.ts": "bd2fef3d57e71cb273cfb2e0c63052bbfe55e6f44b1972676ba306380b434223"
   },
   "compatibilityReview": {
     "date": "2026-10-29",
