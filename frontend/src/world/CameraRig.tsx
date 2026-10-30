@@ -1,5 +1,5 @@
 import { gatheringCameraActive } from '../features/tableLobby/gathering'
-import { oneCardPlayerViewActive, oneCardCameraPose, ONECARD_CAMERA } from '../game/onecard/camera'
+import { oneCardPlayerViewActive, oneCardCameraPose, oneCardSpectatorCameraPose, ONECARD_CAMERA } from '../game/onecard/camera'
 import { tabletLobbyActive } from '../features/tableLobby/tabletModel'
 import { TABLET } from '../features/tableLobby/tabletProjection'
 import { renderedTableAnchors } from '../features/tableLobby/tabletAnchors'
@@ -288,6 +288,12 @@ export function CameraRig() {
         state.desired.set(...pose.position)
         state.look.set(...pose.target)
       }
+    } else if (game?.role === 'SPECTATOR' && game.onecard && (closeAnchor || watchedAnchor)) {
+      const anchor = (closeAnchor ?? watchedAnchor)!
+      const seats = tableSeats(anchor), turnSeat = seats[avatars.get(game.onecard.turnUserId ?? '')?.seatIndex ?? 0] ?? seats[0]!
+      const yaw = Math.atan2(-turnSeat.x, -turnSeat.z) + .35 + benchLook.yaw - Math.PI / 4
+      const pose = oneCardSpectatorCameraPose(anchor, yaw, camera instanceof PerspectiveCamera ? camera.aspect : 1.6, spectatorClearHeight(anchor.pavilionId))
+      state.desired.set(...pose.position); state.look.set(...pose.target)
     } else if (focusedOmok && camera instanceof PerspectiveCamera) {
       const anchor = TABLES.find(t => t.id === avatar.tableId)!
       state.look.set(anchor.position[0], anchor.position[1] + GOMOKU.boardY + .017, anchor.position[2])

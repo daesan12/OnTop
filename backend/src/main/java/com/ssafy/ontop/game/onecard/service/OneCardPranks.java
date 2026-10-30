@@ -14,7 +14,7 @@ import java.util.function.BiPredicate;
 
 /** 일회성 표현 상태만 보관한다. 호출자는 Hub→OneCardEngine 잠금 순서를 유지한다. */
 public final class OneCardPranks {
-    public static final long REACH_MS = 1400;
+    public static final long REACH_MS = 3200;
     public static final long BLOCK_MS = 3000;
     public static final long IMMUNE_MS = 2500;
     private static final long RETAIN_MS = 120_000;
@@ -25,7 +25,7 @@ public final class OneCardPranks {
     private record Pair(long actor, long target) { }
     private record Key(long user, String event) { }
     private record Receipt(String fingerprint, Notice notice) { }
-    private record Attempt(String id, String event, Pair pair, long turn, long resolveAt) { }
+    private record Attempt(String id, String event, Pair pair, long turn, long resolveAt, Integer cardIndex, Long handVersion) { }
     private record Effect(String id, long target, long turn, long expiresAt) { }
     private static final class Round {
         long turn = -1;
@@ -43,15 +43,22 @@ public final class OneCardPranks {
     public void clear() { rounds.clear(); }
 
     public Reply reach(Snapshot state, long actor, String event, long target, long turn, long now, boolean immediate) {
+        return reach(state, actor, event, target, turn, now, immediate, null, null);
+    }
+
+    public Reply reach(Snapshot state, long actor, String event, long target, long turn, long now, boolean immediate,
+                       Integer cardIndex, Long handVersion) {
         require(state != null, "GAME_NOT_PLAYING");
         Round round = round(state, now);
-        String fingerprint = (immediate ? "FLIP:" : "REACH:") + target + ":" + turn;
+        String fingerprint = (immediate ? "FLIP:" : "REACH:") + target + ":" + turn + ":" + cardIndex + ":" + handVersion;
         Notice old = previous(round, actor, event, fingerprint, now);
         if (old != null) { return new Reply(old, List.of()); }
         require(playing(state, now), "GAME_NOT_PLAYING");
         require(state.turnCount() == turn && state.turnUserId() != null && state.turnUserId() == target,
                 "STALE_TURN");
         require(!state.players().contains(actor) && state.players().contains(target), "ACCESS_DENIED");
+        require((cardIndex == null) == (handVersion == null), "INVALID_CARD");
+        require(cardIndex == null || handVersion == state.version() && cardIndex >= 0 && cardIndex < publicCount(state, target), "STALE_HAND");
         Pair pair = new Pair(actor, target);
         require(round.blocked.getOrDefault(pair, 0L) <= now, "BLOCKED");
         require(!round.used.contains(pair), "ALREADY_USED");
@@ -66,9 +73,9 @@ public final class OneCardPranks {
         Notice notice;
         if (immediate) {
             round.effects.put(target, new Effect(event, target, turn, now + 30_000));
-            notice = flipped(state, event, target, turn, now);
+            notice = flipped(state, event, target, turn, now, cardIndex, handVersion);
         } else {
-            var attempt = new Attempt(UUID.randomUUID().toString(), event, pair, turn, now + REACH_MS);
+            var attempt = new Attempt(UUID.randomUUID().toString(), event, pair, turn, now + REACH_MS, cardIndex, handVersion);
             round.pending.put(attempt.id, attempt);
             var payload = attemptPayload(state.gameId(), event, attempt, now);
             payload.put("resolveAt", attempt.resolveAt);
@@ -123,6 +130,7 @@ public final class OneCardPranks {
         for (Attempt attempt : new ArrayList<>(round.pending.values())) {
             boolean valid = playing(state, now) && state.turnCount() == attempt.turn
                     && state.turnUserId() != null && state.turnUserId() == attempt.pair.target
+                    && (attempt.cardIndex == null || state.version() == attempt.handVersion && attempt.cardIndex < publicCount(state, attempt.pair.target))
                     && authorized.test(attempt.pair.actor, attempt.pair.target);
             if (!valid || now >= attempt.resolveAt) {
                 round.pending.remove(attempt.id);
@@ -131,7 +139,7 @@ public final class OneCardPranks {
                 if (flip) {
                     round.effects.put(attempt.pair.target,
                             new Effect(attempt.event, attempt.pair.target, attempt.turn, now + 30_000));
-                    notices.add(flipped(state, attempt.event, attempt.pair.target, attempt.turn, now));
+                    notices.add(flipped(state, attempt.event, attempt.pair.target, attempt.turn, now, attempt.cardIndex, attempt.handVersion));
                 }
                 notices.add(resolved(gameId, attempt, now, flip ? "FLIPPED" : "CANCELLED"));
             }
@@ -189,12 +197,17 @@ public final class OneCardPranks {
         round.receipts.put(new Key(user, event), new Receipt(fingerprint, notice));
     }
 
-    private static Notice flipped(Snapshot state, String event, long target, long turn, long now) {
-        int count = state.publicPlayers().stream().filter(p -> p.userId() == target)
-                .mapToInt(p -> Math.min(2, p.cardCount())).findFirst().orElse(0);
+    private static int publicCount(Snapshot state, long target) {
+        return state.publicPlayers().stream().filter(p -> p.userId() == target).mapToInt(p -> p.cardCount()).findFirst().orElse(0);
+    }
+
+    private static Notice flipped(Snapshot state, String event, long target, long turn, long now, Integer cardIndex, Long handVersion) {
+        int count = cardIndex == null ? Math.min(2, publicCount(state, target)) : 1;
         require(count > 0, "GAME_NOT_PLAYING");
-        return new Notice("ONECARD_HAND_FLIPPED", Map.of("gameId", state.gameId(), "eventId", event,
+        var payload = new HashMap<String, Object>(Map.of("gameId", state.gameId(), "eventId", event,
                 "targetUserId", Long.toString(target), "turnCount", turn, "count", count, "serverNow", now));
+        if (cardIndex != null) { payload.put("cardIndex", cardIndex); payload.put("handVersion", handVersion); }
+        return new Notice("ONECARD_HAND_FLIPPED", Map.copyOf(payload));
     }
 
     private static Map<String, Object> attemptPayload(String game, String event, Attempt attempt, long now) {
@@ -203,6 +216,7 @@ public final class OneCardPranks {
         payload.put("actorUserId", Long.toString(attempt.pair.actor));
         payload.put("targetUserId", Long.toString(attempt.pair.target));
         payload.put("turnCount", attempt.turn); payload.put("serverNow", now);
+        if (attempt.cardIndex != null) { payload.put("cardIndex", attempt.cardIndex); payload.put("handVersion", attempt.handVersion); }
         return payload;
     }
 

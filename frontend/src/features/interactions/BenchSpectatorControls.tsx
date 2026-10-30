@@ -16,6 +16,7 @@ export function BenchSpectatorControls() {
     benchId: s.benchId, pending: s.pending, mapCompatible: s.mapCompatible,
     watchedTableId: s.watchedTableId, tableStates: s.tableStates })))
   const selectedView = useBenchSpectator(s => s.view), watching = useGame(s => s.watchedGameId)
+  const directHands = useGame(s => s.game?.role === 'SPECTATOR' && !!s.game.onecard)
   const publicView = useTableLobby(s => s.spectatorView)
   const view = watching && selectedView !== 'seated' ? publicView === 'board' ? 'board' : 'participants' : selectedView
   const busy = useGame(s => s.pending || s.uncertain)
@@ -51,7 +52,7 @@ export function BenchSpectatorControls() {
   }
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || event.code !== 'Tab' || event.repeat || event.isComposing || event.ctrlKey || event.altKey || event.metaKey
+      if (directHands || event.defaultPrevented || event.code !== 'Tab' || event.repeat || event.isComposing || event.ctrlKey || event.altKey || event.metaKey
         || !scope || !anchorId || !session.mapCompatible || panelOwnsKeys() || document.hidden) return
       const target = document.activeElement
       if (target instanceof HTMLElement && target.closest('input,textarea,select,a,[contenteditable="true"]')) return
@@ -63,7 +64,7 @@ export function BenchSpectatorControls() {
     window.addEventListener('keydown', keydown)
     return () => window.removeEventListener('keydown', keydown)
   })
-  if (!scope || !anchor || !session.mapCompatible) return null
+  if (!scope || !anchor || !session.mapCompatible || directHands) return null
   return <div className="bench-spectator" role="group" aria-label="벤치 관전" aria-keyshortcuts="Tab Shift+Tab">
     <button type="button" disabled={disabled || view === 'seated' && !available} aria-pressed={view !== 'seated'}
       onClick={() => void change(view === 'seated' ? 'participants' : 'seated')}>

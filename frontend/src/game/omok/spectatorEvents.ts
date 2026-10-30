@@ -36,9 +36,10 @@ export function parseSpectatorEvent(message: Envelope): ChatEvent | PingEvent | 
 }
 interface View {
   scope: string; canSend: boolean; chats: DisplayEvent<ChatEvent>[]; pings: DisplayEvent<PingEvent>[]
+  history: ChatEvent[]
   error: string; sending: boolean
 }
-const initial = (): View => ({ scope: '', canSend: false, chats: [], pings: [], error: '', sending: false })
+const initial = (): View => ({ scope: '', canSend: false, chats: [], pings: [], history: [], error: '', sending: false })
 export const useOmokEvents = create<View>(initial)
 interface Dependencies {
   scope(): EventScope | null
@@ -49,6 +50,7 @@ interface Dependencies {
 export class OmokSpectatorEvents {
   private scope: EventScope | null = null
   private chats: DisplayEvent<ChatEvent>[] = []
+  private history: ChatEvent[] = []
   private pings: DisplayEvent<PingEvent>[] = []
   private seen = new Map<string, number>()
   private timer: ReturnType<typeof setTimeout> | undefined
@@ -59,7 +61,7 @@ export class OmokSpectatorEvents {
   constructor(private readonly deps: Dependencies) {}
   private now() { return this.deps.now?.() ?? performance.now() }
   reset() {
-    clearTimeout(this.timer); this.scope = null; this.chats = []; this.pings = []; this.seen.clear()
+    clearTimeout(this.timer); this.scope = null; this.chats = []; this.pings = []; this.history = []; this.seen.clear()
     this.last = { chat: -Infinity, ping: -Infinity }; this.pending = { chat: false, ping: false }; this.blocked = false
     useOmokEvents.setState(initial())
   }
@@ -77,7 +79,7 @@ export class OmokSpectatorEvents {
     for (const [id, until] of this.seen) if (until <= now) this.seen.delete(id)
     const s = this.scope
     useOmokEvents.setState({ scope: s?.key ?? '', canSend: !!s?.canSend && !this.blocked,
-      chats: this.chats, pings: this.pings.filter(p => p.basedOnVersion === s?.version) })
+      chats: this.chats, history: this.history, pings: this.pings.filter(p => p.basedOnVersion === s?.version) })
     clearTimeout(this.timer)
     const expiry = Math.min(...this.chats.map(c => c.until), ...this.pings.map(p => p.until))
     if (Number.isFinite(expiry)) this.timer = setTimeout(() => this.publish(), Math.max(1, expiry - now))
@@ -97,6 +99,7 @@ export class OmokSpectatorEvents {
     this.seen.set(event.eventId, now + 30_000)
     if (this.seen.size > 256) this.seen.delete(this.seen.keys().next().value!)
     if (event.kind === 'chat') {
+      this.history = [...this.history, event].slice(-100)
       const slot = [0, 1, 2].find(n => !this.chats.some(c => c.until > now && c.slot === n)) ?? this.chats[0]?.slot ?? 0
       this.chats = [...this.chats.filter(c => c.slot !== slot), { ...event, until: now + remaining, slot }].slice(-3)
     } else if (event.basedOnVersion >= scope.version) {

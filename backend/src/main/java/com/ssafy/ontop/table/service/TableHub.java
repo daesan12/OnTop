@@ -1289,6 +1289,10 @@ public class TableHub {
     }
 
     private void sendChat(Member member, Request request) {
+        StatePush scope = statePushes.get(member.sessionId());
+        if (scope != null && scope.member == member && "PLAYING".equals(scope.status)) {
+            fail(request, "GAME_CHAT_REQUIRED", "경기 중에는 경기 전용 채팅을 이용해주세요.");
+        }
         String channelId = channels.channelOf(member.userId());
         if (channelId == null) {
             fail(request, "NOT_IN_CHANNEL", "먼저 채널에 입장해주세요.");
@@ -2566,7 +2570,9 @@ public class TableHub {
                     fail(request, "ONECARD_PRANK_ACCESS_DENIED", "현재 연결된 참가자에게만 요청할 수 있습니다.");
                 }
                 reply = onecardPranks.reach(state, member.accountId(), event, target,
-                        payload.path("turnCount").asLong(), now, legacy);
+                        payload.path("turnCount").asLong(), now, legacy,
+                        payload.has("cardIndex") ? payload.path("cardIndex").intValue() : null,
+                        payload.has("handVersion") ? payload.path("handVersion").longValue() : null);
             } else if (request.type().equals("ONECARD_PRANK_HIT_SEND")) {
                 reply = onecardPranks.hit(state, member.accountId(), event, payload.path("attemptId").asText(), now);
             } else {
@@ -2649,9 +2655,9 @@ public class TableHub {
         var publicState = view.publicState();
         push.gameCode = publicState.path("gameCode").textValue();
         push.status = publicState.path("status").textValue();
-        if ("ONE_CARD".equals(push.gameCode)) {
+        if (publicState.path("players").isArray()) {
             var players = new HashSet<String>();
-            publicState.path("players").forEach(player -> players.add(player.path("userId").asText()));
+            publicState.path("players").forEach(player -> players.add(player.isTextual() ? player.asText() : player.path("userId").asText()));
             push.players = Set.copyOf(players);
         } else {
             push.players = Set.copyOf(java.util.List.of(publicState.path("blackUserId").asText(),
@@ -2686,8 +2692,9 @@ public class TableHub {
         if (push == null || ping && reconnect.get().canControlGame(member.accountId(), sessionId, gameId)) {
             fail(request, "GAME_SPECTATOR_ACCESS_DENIED", "관전이 승인된 경기에서만 보낼 수 있습니다.");
         }
-        if (!"OMOK".equals(push.gameCode)) {
-            fail(request, "GAME_SPECTATOR_UNSUPPORTED_GAME", "오목 경기에서만 사용할 수 있습니다.");
+        if (ping && !"OMOK".equals(push.gameCode)
+                || !Set.of("OMOK", "DICE", "ONE_CARD", "LIAR_BRIDGE").contains(push.gameCode)) {
+            fail(request, "GAME_SPECTATOR_UNSUPPORTED_GAME", "지원하는 경기 채팅 또는 오목 위치 추천을 이용해주세요.");
         }
         if (!"PLAYING".equals(push.status)) {
             fail(request, "GAME_SPECTATOR_GAME_NOT_PLAYING", "진행 중인 경기에서만 보낼 수 있습니다.");

@@ -23,6 +23,8 @@ import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
@@ -38,6 +40,7 @@ import static org.mockito.Mockito.when;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "spring.profiles.active=local", "ontop.websocket.authenticated=true", "ontop.game-start.enabled=true",
         "ontop.games.onecard.enabled=true", "ontop.games.onecard.pranks-enabled=true",
+        "ontop.games.omok.enabled=true", "ontop.games.farkle.enabled=true", "ontop.games.bridge.enabled=true",
         "ontop.games.onecard.defense-enabled=true", "server.address=127.0.0.1",
         "ontop.world.channels[0].channel-id=one", "ontop.world.channels[0].name=원카드검증",
         "ontop.world.channels[0].capacity=10",
@@ -107,7 +110,7 @@ class OneCardPrankFlowTests {
                 "eventId", UUID.randomUUID().toString(), "targetUserId", targetId, "turnCount", turn));
         assertThat(secondReach.path("type").asText()).isEqualTo("ONECARD_PRANK_REACH_STARTED");
         target.await(m -> m.path("type").asText().equals("ONECARD_PRANK_REACH_STARTED"));
-        clock.advanceSeconds(2);
+        clock.advanceSeconds(4);
         JsonNode flipped = target.await(m -> m.path("type").asText().equals("ONECARD_HAND_FLIPPED"));
         assertThat(flipped.path("payload").has("hand")).isFalse();
         JsonNode restored = target.request("ONECARD_HAND_RESTORE_SEND", Map.of("gameId", GAME,
@@ -127,6 +130,29 @@ class OneCardPrankFlowTests {
                         "runId", System.getenv().getOrDefault("ONTOP_GAME_ADDITIONS_RUN_ID", "standalone"))));
     }
 
+    @Test void 관전자가_고른_카드위치와_버전이_실제소켓에서도_보존된다() throws Exception {
+        var first = connect(101); var second = connect(202); var viewer = connect(505);
+        start(first, second); watch(viewer);
+        var before = first.request("GAME_STATE_CHECK", Map.of("gameId", GAME)).path("payload");
+        String targetId = before.at("/publicState/turnUserId").asText();
+        var target = targetId.equals("101") ? first : second;
+        var payload = new java.util.HashMap<String, Object>(Map.of("gameId", GAME, "eventId", UUID.randomUUID().toString(),
+                "targetUserId", targetId, "turnCount", before.at("/publicState/turnCount").asLong(), "cardIndex", 2,
+                "handVersion", before.path("version").asLong() + 1));
+        assertThat(viewer.request("ONECARD_PRANK_REACH_SEND", payload).at("/payload/code").asText())
+                .isEqualTo("ONECARD_PRANK_STALE_HAND");
+        payload.put("handVersion", before.path("version").asLong());
+        var reached = viewer.request("ONECARD_PRANK_REACH_SEND", payload);
+        assertThat(reached.path("type").asText()).isEqualTo("ONECARD_PRANK_REACH_STARTED");
+        assertThat(reached.at("/payload/cardIndex").asInt()).isEqualTo(2);
+        clock.advanceSeconds(4);
+        var effect = target.await(m -> m.path("type").asText().equals("ONECARD_HAND_FLIPPED")).path("payload");
+        assertThat(effect.path("count").asInt()).isEqualTo(1);
+        assertThat(effect.path("cardIndex").asInt()).isEqualTo(2);
+        assertThat(effect.path("handVersion")).isEqualTo(before.path("version"));
+        assertThat(effect.has("cardId") || effect.has("hand") || effect.has("cardIds")).isFalse();
+    }
+
     @Test void 관전해제와_턴변경은_진행중손을취소하며_해제후권한을거절한다() throws Exception {
         var first = connect(101); var second = connect(202); var actor = connect(505);
         start(first, second); watch(actor);
@@ -142,14 +168,47 @@ class OneCardPrankFlowTests {
                 .at("/payload/outcome").asText()).isEqualTo("CANCELLED");
         assertThat(actor.request("ONECARD_PRANK_REACH_SEND", request).at("/payload/code").asText())
                 .isEqualTo("ONECARD_PRANK_ACCESS_DENIED");
-        clock.advanceSeconds(2);
+        clock.advanceSeconds(4);
         target.assertNoMessage(m -> m.path("type").asText().equals("ONECARD_HAND_FLIPPED"));
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"OMOK", "ONE_CARD", "DICE", "LIAR_BRIDGE"})
+    void 경기채팅은_참가자와_승인관전자에게만_전달하고_공원채팅_우회를_막는다(String gameCode) throws Exception {
+        var first = connect(101); var second = connect(202); var viewer = connect(505); var outsider = connect(707);
+        start(first, second, gameCode); watch(viewer);
+        var before = first.request("GAME_STATE_CHECK", Map.of("gameId", GAME)).path("payload");
+        assertThat(first.request("WORLD_CHAT_SEND", Map.of("text", "경기 밖으로 나가면 안 돼요"))
+                .at("/payload/code").asText()).isIn("GAME_CHAT_REQUIRED", "GAME_RECOVERY_REQUIRED");
+        String event = UUID.randomUUID().toString();
+        var approved = first.request("GAME_SPECTATOR_CHAT_SEND", Map.of("gameId", GAME, "eventId", event, "text", "우리 경기 대화"));
+        assertThat(approved.path("type").asText()).as(approved.toString()).isEqualTo("GAME_SPECTATOR_CHAT_MESSAGE");
+        for (var recipient : List.of(second, viewer)) {
+            assertThat(recipient.awaitSpectatorEvent(event).path("payload")).isEqualTo(approved.path("payload"));
+        }
+        outsider.assertNoMessage(message -> message.at("/payload/eventId").asText().equals(event));
+        assertThat(outsider.request("GAME_SPECTATOR_CHAT_SEND", Map.of("gameId", GAME,
+                "eventId", UUID.randomUUID().toString(), "text", "외부 사용자"))
+                .at("/payload/code").asText()).isEqualTo("GAME_SPECTATOR_ACCESS_DENIED");
+        assertThat(viewer.request("WORLD_CHAT_SEND", Map.of("text", "관전자도 경기 안에서만"))
+                .at("/payload/code").asText()).isEqualTo("GAME_CHAT_REQUIRED");
+        if (!gameCode.equals("OMOK")) {
+            assertThat(viewer.request("OMOK_SPECTATOR_PING_SEND", Map.of("gameId", GAME, "eventId", UUID.randomUUID().toString(),
+                    "basedOnVersion", before.path("version").asLong(), "x", 0, "y", 0))
+                    .at("/payload/code").asText()).isEqualTo("GAME_SPECTATOR_UNSUPPORTED_GAME");
+        }
+        assertThat(first.request("GAME_STATE_CHECK", Map.of("gameId", GAME)).path("payload")).isEqualTo(before);
+    }
+
     private void start(ScenarioClient first, ScenarioClient second) throws Exception {
+        start(first, second, "ONE_CARD");
+    }
+    private void start(ScenarioClient first, ScenarioClient second, String gameCode) throws Exception {
         first.request("TABLE_JOIN", Map.of("tableId", TABLE));
         second.request("TABLE_JOIN", Map.of("tableId", TABLE));
-        first.request("GAME_SELECT", Map.of("gameCode", "ONE_CARD", "betAmountPerPlayer", 1));
+        assertThat(first.request("GAME_SELECT", gameCode.equals("DICE")
+                ? Map.of("gameCode", gameCode, "betAmountPerPlayer", 1, "targetScore", 2000)
+                : Map.of("gameCode", gameCode, "betAmountPerPlayer", 1)).path("type").asText()).isEqualTo("TABLE_STATE");
         first.request("READY_SET", Map.of("ready", true));
         reservation.release.countDown();
         second.request("READY_SET", Map.of("ready", true));
