@@ -64,13 +64,14 @@ public final class AlkkagiDemoApplication {
         private final AtomicReference<String> latest = new AtomicReference<>();
         private final ArrayBlockingQueue<Runnable> commands = new ArrayBlockingQueue<>(64);
         private AlkkagiMatch match;
+        private AlkkagiSettings tuning = AlkkagiSettings.provisional();
         private long sequence;
         private int frames;
 
         public DemoSocket(ObjectMapper mapper) {
             this.mapper = mapper;
             // 생성부터 변경·조회까지 dyn4j 접근은 오직 이 스레드에서만 수행한다.
-            physics.execute(() -> match = new AlkkagiMatch(AlkkagiSettings.provisional()));
+            physics.execute(() -> match = new AlkkagiMatch(tuning));
             physics.scheduleAtFixedRate(this::step, 0, 8_333_333, TimeUnit.NANOSECONDS);
             sender.scheduleWithFixedDelay(this::send, 0, 50, TimeUnit.MILLISECONDS);
         }
@@ -133,7 +134,23 @@ public final class AlkkagiDemoApplication {
                     match.start(System.currentTimeMillis());
                 } else if (type.equals("RESET")) {
                     if (client.actor != 0) { throw new IllegalArgumentException("RED_RESET_ONLY"); }
-                    match = new AlkkagiMatch(AlkkagiSettings.provisional());
+                    match = new AlkkagiMatch(tuning);
+                } else if (type.equals("TUNE") || type.equals("TUNE_RESET")) {
+                    if (client.actor != 0) { throw new IllegalArgumentException("RED_TUNING_ONLY"); }
+                    var current = match.snapshot(System.currentTimeMillis());
+                    if (!input.path("gameId").asText().equals(current.gameId())
+                            || !input.path("expectedVersion").isIntegralNumber()
+                            || !input.path("expectedVersion").canConvertToLong()
+                            || input.path("expectedVersion").asLong() != current.version()) {
+                        throw new IllegalArgumentException("STALE_TUNING");
+                    }
+                    AlkkagiSettings next = type.equals("TUNE_RESET") ? AlkkagiSettings.provisional()
+                            : readTuning(input);
+                    // 미리보기 값으로 현재 발사를 바꾸지 않고, 명시적으로 새 판을 만든다.
+                    AlkkagiMatch replacement = new AlkkagiMatch(next);
+                    tuning = next;
+                    match = replacement;
+                    client.offer("{\"type\":\"TUNING_APPLIED\"}");
                 } else if (type.equals("SHOT")) {
                     var fields = input.fieldNames();
                     var allowed = java.util.Set.of("type", "gameId", "actionId", "expectedVersion", "pieceId",
@@ -166,6 +183,23 @@ public final class AlkkagiDemoApplication {
             } catch (IOException exception) {
                 throw new IllegalStateException(exception);
             }
+        }
+
+        private AlkkagiSettings readTuning(JsonNode input) {
+            double impulse = input.path("maximumImpulse").asDouble(Double.NaN);
+            double deceleration = input.path("deceleration").asDouble(Double.NaN);
+            double restitution = input.path("restitution").asDouble(Double.NaN);
+            if (!input.path("maximumImpulse").isNumber() || !input.path("deceleration").isNumber()
+                    || !input.path("restitution").isNumber() || !Double.isFinite(impulse)
+                    || !Double.isFinite(deceleration) || !Double.isFinite(restitution)
+                    || impulse < 0.5 || impulse > 30 || deceleration < 0.1 || deceleration > 20
+                    || restitution < 0 || restitution > 1) {
+                throw new IllegalArgumentException("INVALID_TUNING");
+            }
+            AlkkagiSettings base = AlkkagiSettings.provisional();
+            return new AlkkagiSettings(base.halfWidth(), base.halfHeight(), base.stepSeconds(), deceleration,
+                    restitution, impulse, base.stopSpeed(), base.settleSteps(), base.maximumSimulationSteps(),
+                    base.turnMillis(), base.matchMillis());
         }
 
         private void send() {

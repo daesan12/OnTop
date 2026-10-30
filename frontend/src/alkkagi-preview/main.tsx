@@ -12,6 +12,9 @@ const errorNames: Record<string, string> = {
   NOT_YOUR_TURN: '상대 차례입니다.', NOT_YOUR_PIECE: '내 알을 선택해주세요.',
   NOT_AIMING: '알이 멈춘 후 발사해주세요.', STALE_VERSION: '최신 상태를 확인하고 다시 조준해주세요.',
   STALE_GAME: '새 판으로 변경됐습니다.', PLAYER_REQUIRED: '관전자는 발사할 수 없습니다.',
+  STALE_TUNING: '판이 바뀌었습니다. 최신 상태에서 다시 적용해주세요.',
+  INVALID_TUNING: '조절 범위를 확인해주세요. 발사 힘 0.5~30 / 감속 0.1~20 / 반발 0~1',
+  RED_TUNING_ONLY: '홍팀 화면에서 물리값을 조절해주세요.',
 }
 
 function App() {
@@ -21,6 +24,11 @@ function App() {
   const [connected, setConnected] = useState(false), [notice, setNotice] = useState('서버 연결 중…')
   const [pending, setPending] = useState(false), [now, setNow] = useState(Date.now())
   const [seq, setSeq] = useState(0)
+  const [tuning, setTuning] = useState({ maximumImpulse: 12, deceleration: 5, restitution: .9 })
+  useEffect(() => {
+    if (state) setTuning({ maximumImpulse: state.settings.maximumImpulse,
+      deceleration: state.settings.deceleration, restitution: state.settings.restitution })
+  }, [state?.gameId, state?.settings.maximumImpulse, state?.settings.deceleration, state?.settings.restitution])
   const received = useRef({ wall: Date.now(), mono: performance.now() })
   useEffect(() => {
     let disposed = false, reconnect: ReturnType<typeof setTimeout> | undefined
@@ -39,6 +47,8 @@ function App() {
           setNotice(errorNames[msg.code] ?? msg.code); setPending(false)
         } else if (msg.type === 'SHOT_ACCEPTED') {
           setNotice('발사 승인 · 모든 화면이 같은 서버 결과를 재생합니다.')
+        } else if (msg.type === 'TUNING_APPLIED') {
+          setNotice('물리값 적용 완료 · 새 판에서 테스트 시작을 눌러주세요.')
         }
       }
       ws.onclose = event => {
@@ -80,6 +90,31 @@ function App() {
     <div className="play-guide"><strong>{instruction}</strong>
       {actor === 0 && <button disabled={!connected || pending || state?.stage !== 'WAITING'} onClick={() => send({ type: 'START' })}>테스트 시작</button>}
     </div>
+    <details className="tuning-panel">
+      <summary>물리값 조절 · 로컬 전용 <span>현재 힘 {state?.settings.maximumImpulse ?? '—'} / 감속 {state?.settings.deceleration ?? '—'} / 반발 {state?.settings.restitution ?? '—'}</span></summary>
+      <p>값을 바꾼 뒤 ‘적용하고 새 판’을 누르면 양쪽 화면에 반영됩니다. 진행 중인 판은 초기화됩니다.</p>
+      {([
+        ['maximumImpulse', '발사 힘', .5, 30, .5, '높을수록 빠르고 세게 발사'],
+        ['deceleration', '감속', .1, 20, .1, '높을수록 빨리 멈춤'],
+        ['restitution', '반발', 0, 1, .01, '높을수록 충돌 후 더 잘 튕김'],
+      ] as const).map(([key, title, min, max, step, description]) => <div className="tuning-row" key={key}>
+        <label htmlFor={`tuning-${key}`}>{title}<small>{description}</small></label>
+        <input aria-label={`${title} 슬라이더`} type="range" min={min} max={max} step={step} value={tuning[key]}
+          disabled={actor !== 0} onChange={event => setTuning({ ...tuning, [key]: Number(event.target.value) })} />
+        <input id={`tuning-${key}`} aria-label={`${title} 값`} type="number" min={min} max={max} step={step} value={tuning[key]}
+          disabled={actor !== 0} onChange={event => setTuning({ ...tuning, [key]: Number(event.target.value) })} />
+      </div>)}
+      {actor === 0 ? <div className="buttons">
+        <button disabled={!connected || pending || !state || !Number.isFinite(tuning.maximumImpulse)
+          || tuning.maximumImpulse < .5 || tuning.maximumImpulse > 30 || !Number.isFinite(tuning.deceleration)
+          || tuning.deceleration < .1 || tuning.deceleration > 20 || !Number.isFinite(tuning.restitution)
+          || tuning.restitution < 0 || tuning.restitution > 1}
+          onClick={() => state && send({ type: 'TUNE', gameId: state.gameId, expectedVersion: state.version, ...tuning })}>적용하고 새 판</button>
+        <button className="secondary" disabled={!connected || pending || !state}
+          onClick={() => state && send({ type: 'TUNE_RESET', gameId: state.gameId, expectedVersion: state.version })}>기본값으로 새 판</button>
+      </div> : <p>홍팀 화면에서 조절할 수 있어요. 현재 서버 값은 모든 화면에서 확인할 수 있습니다.</p>}
+      <small>일반 ‘새 판’은 조절한 값을 유지합니다. 서버를 다시 시작하면 기본값(12 / 5 / 0.9)으로 돌아갑니다.</small>
+    </details>
     <div className="board"><Canvas shadows camera={{ position: [0, 14, 0.01], fov: 46 }}>
       <color attach="background" args={['#253d37']} /><ambientLight intensity={1.8} />
       <directionalLight position={[3, 10, 6]} intensity={2.5} castShadow shadow-mapSize={[1024, 1024]} />

@@ -7,7 +7,7 @@ export interface Snapshot {
   stage: 'WAITING' | 'AIMING' | 'SIMULATING' | 'FINISHED'; turn: number; turnNumber: number
   turnDeadline: number; matchDeadline: number; winner: number | null; endReason: string | null
   pieces: Piece[]; timeouts: number[]; provisional: boolean
-  settings: { halfWidth: number; halfHeight: number }
+  settings: { halfWidth: number; halfHeight: number; maximumImpulse: number; deceleration: number; restitution: number }
 }
 type Frame = { seq: number; at: number; state: Snapshot }
 

@@ -24,6 +24,56 @@ class AlkkagiSocketTests {
     private final ObjectMapper mapper = new ObjectMapper();
 
     @Test
+    void 로컬_홍팀만_범위내_물리값을_새판에_적용하고_초기화할_수_있다() throws Exception {
+        var a = new Reader(); var b = new Reader();
+        WebSocket red = open("red", a), green = open("green", b);
+        try {
+            var first = a.until(m -> m.path("type").asText().equals("STATE"));
+            red.sendText("{\"type\":\"RESET\"}", true).join();
+            var ready = a.until(m -> m.path("type").asText().equals("STATE")
+                    && !m.path("state").path("gameId").equals(first.path("state").path("gameId")));
+            String prefix = "{\"type\":\"TUNE\",\"gameId\":\"" + ready.path("state").path("gameId").asText()
+                    + "\",\"expectedVersion\":0,";
+            String valid = prefix + "\"maximumImpulse\":7.5,\"deceleration\":4.5,\"restitution\":0.65}";
+            green.sendText(valid, true).join();
+            assertThat(b.until(m -> m.path("type").asText().equals("ERROR")).path("code").asText())
+                    .isEqualTo("RED_TUNING_ONLY");
+            for (String invalid : new String[]{"0", "21", "\"NaN\"", "1e309"}) {
+                red.sendText(prefix + "\"maximumImpulse\":12,\"deceleration\":" + invalid
+                        + ",\"restitution\":0.9}", true).join();
+                assertThat(a.until(m -> m.path("type").asText().equals("ERROR")).path("code").asText())
+                        .isEqualTo("INVALID_TUNING");
+            }
+            red.sendText(valid, true).join();
+            a.until(m -> m.path("type").asText().equals("TUNING_APPLIED"));
+            var applied = a.until(m -> m.path("type").asText().equals("STATE")
+                    && !m.path("state").path("gameId").equals(ready.path("state").path("gameId")));
+            var remote = b.until(m -> m.path("seq").equals(applied.path("seq")));
+
+            assertThat(applied.path("state")).isEqualTo(remote.path("state"));
+            assertThat(applied.path("state").path("settings").path("maximumImpulse").asDouble()).isEqualTo(7.5);
+            assertThat(applied.path("state").path("settings").path("deceleration").asDouble()).isEqualTo(4.5);
+            assertThat(applied.path("state").path("settings").path("restitution").asDouble()).isEqualTo(.65);
+            assertThat(applied.path("state").path("stage").asText()).isEqualTo("WAITING");
+            red.sendText(valid, true).join();
+            assertThat(a.until(m -> m.path("type").asText().equals("ERROR")).path("code").asText())
+                    .isEqualTo("STALE_TUNING");
+            red.sendText("{\"type\":\"RESET\"}", true).join();
+            var reset = a.until(m -> m.path("type").asText().equals("STATE")
+                    && !m.path("state").path("gameId").equals(applied.path("state").path("gameId")));
+            assertThat(reset.path("state").path("settings").path("maximumImpulse").asDouble()).isEqualTo(7.5);
+            red.sendText("{\"type\":\"TUNE_RESET\",\"gameId\":\"" + reset.path("state").path("gameId").asText()
+                    + "\",\"expectedVersion\":0}", true).join();
+            var defaults = a.until(m -> m.path("type").asText().equals("STATE")
+                    && !m.path("state").path("gameId").equals(reset.path("state").path("gameId")));
+            assertThat(defaults.path("state").path("settings").path("maximumImpulse").asDouble()).isEqualTo(12);
+            assertThat(defaults.path("state").path("settings").path("deceleration").asDouble()).isEqualTo(5);
+        } finally {
+            red.abort(); green.abort();
+        }
+    }
+
+    @Test
     void 두_화면이_같은_물리_스냅샷을_받고_관전자는_발사할_수_없다() throws Exception {
         var a = new Reader(); var b = new Reader();
         WebSocket red = open("red", a), viewer = open("viewer", b);

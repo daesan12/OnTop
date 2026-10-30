@@ -4,7 +4,8 @@ import { AlkkagiReplay, type Snapshot } from '../../src/game/alkkagi/replay'
 function state(x: number, alive = true): Snapshot {
   return { gameId: 'game-1', version: 2, tick: 3, simulationId: 1, stage: 'SIMULATING', turn: 0,
     turnNumber: 1, turnDeadline: 30000, matchDeadline: 720000, serverNow: 100, winner: null,
-    endReason: null, timeouts: [0, 0], provisional: true, settings: { halfWidth: 4.5, halfHeight: 5 },
+    endReason: null, timeouts: [0, 0], provisional: true,
+    settings: { halfWidth: 4.5, halfHeight: 5, maximumImpulse: 12, deceleration: 5, restitution: .9 },
     pieces: Array.from({ length: 32 }, (_, i) => ({ id: `p${i}`, owner: 0, type: '兵', x, y: 0,
       vx: 1, vy: 0, radius: .24, mass: .8, alive })) }
 }
