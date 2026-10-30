@@ -1,5 +1,7 @@
 # OnTop frontend
 
+팀 공통 FE 디자인과 신규 게임 UI 작업은 [FE 디자인 컨벤션](../docs/conventions/frontend-design.md)을 참고한다. 기존 화면의 색·글꼴·컴포넌트, 상태별 안내, CSS 범위, 6인 병렬 작업과 검수 기준을 정리했다.
+
 일반 `pnpm dev`와 `pnpm build`에서 착석하면 태블릿 게임 선택·준비·시작 화면을 표시한다. 별도의 tablet 모드나 활성화 환경변수는 필요하지 않다. 기존 AUTO 서버 호환이 필요한 환경만 `VITE_TABLET_LOBBY=false`를 명시한다. 시설/붕어빵 에셋 미리보기는 기존 화면을 유지한다. 서버 계약과 전달 문구는 [태블릿 인계 문서](docs/TABLET_LOBBY_HANDOFF.md), 생성 아트는 [제작 기록](docs/TABLET_ART_PROMPTS.md)을 참고한다. `dev:tablet`/`build:tablet`은 기존 검수 주소·산출물의 호환 명령으로 유지한다.
 
 실제 서버 접속 방법과 계정별 수동 시작·2분 제한시간·결과 승계 확인 순서는 [서버 검수 체크리스트](docs/TABLET_SERVER_CHECKLIST.md)를 따른다.
