@@ -1,5 +1,5 @@
 import { findParkRoute, type NavPoint } from './parkNavigation'
-import { EXPECTED_MAP_VERSION } from '../../config/mapVersion'
+import { EXPECTED_MAP_VERSION } from '../../park/mapConfig'
 
 export interface RouteWork { id: number; start: NavPoint; end: NavPoint; mapVersion: string }
 export interface RouteResult { id: number; path?: NavPoint[] | null; durationMs?: number; error?: string; mapVersion: string }

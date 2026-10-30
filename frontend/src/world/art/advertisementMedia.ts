@@ -22,6 +22,36 @@ export interface AdvertisementMedia {
 }
 export const ADVERTISEMENTS: readonly AdvertisementMedia[] = [
   {
+    id: 'adv-1',
+    title: '스프라이트',
+    subtitle: '광고를 준비하고 있어요',
+    color: '#31594f',
+    imageUrl: '/art/advertisements/adv_1.jpg',
+  },
+  {
+    id: 'adv-2',
+    title: '여기어때',
+    subtitle: '광고를 준비하고 있어요',
+    color: '#8b543e',
+    imageUrl: '/art/advertisements/adv_2.jpg',
+  },
+  {
+    id: 'adv-3',
+    title: '한국제지',
+    subtitle: '광고를 준비하고 있어요',
+    color: '#344d68',
+    imageUrl: '/art/advertisements/adv_3.jpg',
+  },
+  {
+    id: 'ontap-film',
+    title: '온탑',
+    subtitle: '함께 노는 순간',
+    color: '#173e49',
+    imageUrl: '/art/advertisements/ontap-film-poster.webp',
+    videoUrl: '/art/advertisements/ontap-film.webm',
+    videoDurationSeconds: 9.717658,
+  },
+  {
     id: 'pickus-poster',
     title: 'PICKUS',
     subtitle: '사진을 PICK! 그대로 찰칵!',

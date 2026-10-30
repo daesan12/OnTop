@@ -43,6 +43,28 @@ public class WorldChannelRegistry implements ChannelPresence {
     private final java.util.function.Supplier<ParkScene> scene;
     private long lastStep;
     private long lastPatch;
+    private boolean clientPositions;
+    private boolean tunedMovement;
+
+    @Autowired
+    void configurePositionReports(@Value("${ontop.world.movement.client-position:false}") boolean enabled,
+            org.springframework.core.env.Environment environment) {
+        if (enabled && (!environment.acceptsProfiles(org.springframework.core.env.Profiles.of("local", "dev"))
+                || environment.acceptsProfiles(org.springframework.core.env.Profiles.of("prod", "production")))) {
+            throw new IllegalArgumentException("좌표 검증 이동은 local 또는 dev 프로필에서만 허용합니다.");
+        }
+        clientPositions = enabled;
+    }
+
+    @Autowired
+    void configureTunedMovement(@Value("${ontop.world.movement.tuned-profile:false}") boolean enabled,
+            org.springframework.core.env.Environment environment) {
+        if (enabled && (!environment.acceptsProfiles(org.springframework.core.env.Profiles.of("local", "dev"))
+                || environment.acceptsProfiles(org.springframework.core.env.Profiles.of("prod", "production")))) {
+            throw new IllegalArgumentException("조정된 이동은 local 또는 dev 프로필에서만 허용합니다.");
+        }
+        tunedMovement = enabled;
+    }
 
     public WorldChannelRegistry(WorldChannelProperties properties) {
         this(properties, Duration.ofMillis(50));
@@ -135,13 +157,13 @@ public class WorldChannelRegistry implements ChannelPresence {
         long started = System.nanoTime();
         boolean cold = room.physics == null;
         if (cold) {
-            room.physics = new WorldPhysics(scene.get());
+            room.physics = new WorldPhysics(scene.get(), clientPositions, nanoTime, tunedMovement);
             room.physics.chairCounts(chairCounts(room.tables));
         }
         room.physics.add(userId);
         log.debug("공원 진입 물리 준비 cold={} elapsedMs={}", cold, (System.nanoTime() - started) / 1_000_000.0);
         room.users.add(userId);
-        room.positions.put(userId, new Movement(position(room.physics.snapshot(userId)), Long.MIN_VALUE));
+        room.positions.put(userId, new Movement(snapshotPosition(room, userId), Long.MIN_VALUE));
         membership.put(userId, channelId);
         room.version++;
         room.worldVersion++;
@@ -164,6 +186,8 @@ public class WorldChannelRegistry implements ChannelPresence {
         Room room = rooms.get(channelId);
         room.users.remove(userId);
         room.positions.remove(userId);
+        room.motions.remove(userId);
+        room.moveBudgets.remove(userId);
         room.equipment.remove(userId);
         room.profiles.remove(userId);
         room.tableSeats.remove(userId);
@@ -258,6 +282,7 @@ public class WorldChannelRegistry implements ChannelPresence {
             room.physics.chairCounts(chairCounts(copy)).forEach((user, moved) -> {
                 Movement previous = room.positions.get(user);
                 room.positions.put(user, new Movement(position(moved), previous.acceptedAtNanos()));
+                room.motions.put(user, moved.motion());
             });
         }
         room.tables = copy;
@@ -357,8 +382,8 @@ public class WorldChannelRegistry implements ChannelPresence {
         Room room = rooms.get(channelId);
         long now = nanoTime.getAsLong();
         Movement previous = room.positions.get(userId);
-        if (input.seq() > previous.position().lastInputSeq() && previous.acceptedAtNanos() != Long.MIN_VALUE
-                && now - previous.acceptedAtNanos() < minimumMoveNanos) {
+        if (input.seq() > previous.position().lastInputSeq()
+                && !room.moveBudgets.computeIfAbsent(userId, ignored -> new MoveBudget(now)).take(now, minimumMoveNanos)) {
             throw new ChannelException("MOVE_TOO_FREQUENT", "이동 입력 전송 간격을 확인해주세요.");
         }
         boolean changed = room.physics.input(userId, input, now);
@@ -379,12 +404,58 @@ public class WorldChannelRegistry implements ChannelPresence {
         }
     }
 
+    public synchronized WorldChange reportPosition(String userId,
+            com.ssafy.ontop.world.movement.ClientPositionValidator.Candidate report) {
+        if (!clientPositions) throw new ChannelException("UNSUPPORTED_MESSAGE_TYPE", "위치 보고 모드는 비활성화 상태입니다.");
+        String channel = membership.get(userId);
+        if (channel == null) throw new ChannelException("NOT_IN_CHANNEL", "먼저 채널에 입장해주세요.");
+        Room room = rooms.get(channel);
+        if (room.held.contains(userId) || room.tableSeats.containsKey(userId) || activity(userId) != null)
+            throw new ChannelException("ACTIVITY_BUSY", "활동을 종료한 뒤 이동해주세요.");
+        long now = nanoTime.getAsLong();
+        Movement previous = room.positions.get(userId);
+        if (report.seq() > previous.position().lastInputSeq()
+                && !room.moveBudgets.computeIfAbsent(userId, ignored -> new MoveBudget(now)).take(now, minimumMoveNanos))
+            throw new ChannelException("MOVE_TOO_FREQUENT", "위치 보고 간격을 확인해주세요.");
+        var snapshot = room.physics.report(userId, report, now);
+        Position position = position(snapshot);
+        boolean changed = !position.equals(previous.position()) || !snapshot.motion().equals(room.motions.get(userId));
+        room.positions.put(userId, new Movement(position, now));
+        room.motions.put(userId, snapshot.motion());
+        if (changed) { room.worldVersion++; room.dirty = true; }
+        return new WorldChange(room.worldState(), changed);
+    }
+
+    public synchronized WorldChange serverMovement(String userId) {
+        Room room = rooms.get(membership.get(userId));
+        if (!clientPositions) return new WorldChange(room.worldState(), false);
+        var snapshot = room.physics.serverMovement(userId);
+        var previous = room.positions.get(userId);
+        boolean changed = !snapshot.motion().equals(room.motions.get(userId));
+        room.positions.put(userId, new Movement(position(snapshot), previous.acceptedAtNanos()));
+        room.motions.put(userId, snapshot.motion());
+        if (changed) { room.worldVersion++; room.dirty = true; }
+        return new WorldChange(room.worldState(), changed);
+    }
+    public synchronized WorldChange disablePosition(String userId, long epoch) {
+        if (!clientPositions) throw new ChannelException("UNSUPPORTED_MESSAGE_TYPE", "위치 보고 모드는 비활성화 상태입니다.");
+        Room room = rooms.get(membership.get(userId));
+        if (room == null) throw new ChannelException("NOT_IN_CHANNEL", "먼저 채널에 입장해주세요.");
+        var snapshot = room.physics.disablePosition(userId, epoch);
+        var previous = room.positions.get(userId);
+        boolean changed = !snapshot.motion().equals(room.motions.get(userId));
+        room.positions.put(userId, new Movement(position(snapshot), previous.acceptedAtNanos()));
+        room.motions.put(userId, snapshot.motion());
+        if (changed) { room.worldVersion++; room.dirty = true; }
+        return new WorldChange(room.worldState(), changed);
+    }
+
     public synchronized void holdFacility(String userId, WorldFacilityService.Pose pose) {
         Room room = rooms.get(membership.get(userId));
         room.physics.hold(userId, pose.x(), pose.y(), pose.z(), pose.yaw());
         room.held.add(userId);
         Movement previous = room.positions.get(userId);
-        room.positions.put(userId, new Movement(position(room.physics.snapshot(userId)), previous.acceptedAtNanos()));
+        room.positions.put(userId, new Movement(snapshotPosition(room, userId), previous.acceptedAtNanos()));
         room.worldVersion++;
     }
 
@@ -430,6 +501,7 @@ public class WorldChannelRegistry implements ChannelPresence {
                 if (room.physics != null) {
                     var frozen = new java.util.HashSet<>(seated);
                     frozen.addAll(room.held);
+                    if (clientPositions) room.users.stream().filter(user -> activity(user) != null).forEach(frozen::add);
                     room.physics.step(tick, frozen, targets.getOrDefault(room.definition.channelId(), Map.of()));
                 }
             }
@@ -443,7 +515,7 @@ public class WorldChannelRegistry implements ChannelPresence {
             }
             boolean changed = false;
             for (String id : room.users) {
-                Position next = position(room.physics.snapshot(id));
+                Position next = snapshotPosition(room, id);
                 Movement previous = room.positions.get(id);
                 if (!next.equals(previous.position())) {
                     room.positions.put(id, new Movement(next, previous.acceptedAtNanos()));
@@ -495,6 +567,12 @@ public class WorldChannelRegistry implements ChannelPresence {
                 state.moving(), state.running(), state.swimming());
     }
 
+    private static Position snapshotPosition(Room room, String id) {
+        var snapshot = room.physics.snapshot(id);
+        room.motions.put(id, snapshot.motion());
+        return position(snapshot);
+    }
+
     @Override
     public synchronized Map<String, Integer> snapshot() {
         Map<String, Integer> counts = new LinkedHashMap<>();
@@ -514,6 +592,8 @@ public class WorldChannelRegistry implements ChannelPresence {
             if (!room.users.isEmpty()) {
                 room.users.clear();
                 room.positions.clear();
+                room.motions.clear();
+                room.moveBudgets.clear();
                 room.equipment.clear();
                 room.profiles.clear();
                 room.tableSeats.clear();
@@ -549,7 +629,13 @@ public class WorldChannelRegistry implements ChannelPresence {
             TableSeat tableSeat,
             /** Public server-approved GAME/BUNGEOPPANG activity; no private game data. */
             @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.ALWAYS)
-            String activity) {
+            String activity,
+            @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+            WorldPhysics.Motion motion) {
+        public Avatar(String userId, Position position, List<WorldAppearanceGateway.Equipment> equipment,
+                String nickname, String characterGender, TableSeat tableSeat, String activity) {
+            this(userId, position, equipment, nickname, characterGender, tableSeat, activity, null);
+        }
         public Avatar(String userId, Position position, List<WorldAppearanceGateway.Equipment> equipment,
                 String nickname, String characterGender, TableSeat tableSeat) {
             this(userId, position, equipment, nickname, characterGender, tableSeat, null);
@@ -590,6 +676,20 @@ public class WorldChannelRegistry implements ChannelPresence {
     private record Movement(Position position, long acceptedAtNanos) {
     }
 
+    /** Same average admission rate, with four packets of TCP/scheduler jitter tolerance.
+     * Accepted inputs still replace one intent; they cannot add physics time or movement steps. */
+    private static final class MoveBudget {
+        private double tokens = 4;
+        private long previous;
+        private MoveBudget(long now) { previous = now; }
+        private boolean take(long now, long interval) {
+            if (now > previous) { tokens = Math.min(4, tokens + (double) (now - previous) / interval); previous = now; }
+            if (tokens < 1) { return false; }
+            tokens--;
+            return true;
+        }
+    }
+
     /** untilNanos 0 marks an ended session; updatedNanos dates that ending for retention. */
     private record MinigamePresence(long sessionId, long untilNanos, long updatedNanos) {
         boolean active() { return untilNanos != 0; }
@@ -624,6 +724,8 @@ public class WorldChannelRegistry implements ChannelPresence {
         private final Channel definition;
         private final LinkedHashSet<String> users = new LinkedHashSet<>();
         private final Map<String, Movement> positions = new HashMap<>();
+        private final Map<String, WorldPhysics.Motion> motions = new HashMap<>();
+        private final Map<String, MoveBudget> moveBudgets = new HashMap<>();
         private final Map<String, List<WorldAppearanceGateway.Equipment>> equipment = new HashMap<>();
         private final Map<String, WorldProfileGateway.Profile> profiles = new HashMap<>();
         private final Map<String, TableSeat> tableSeats = new HashMap<>();
@@ -651,7 +753,7 @@ public class WorldChannelRegistry implements ChannelPresence {
                     .map(user -> new Avatar(user, positions.containsKey(user) ? positions.get(user).position() : null,
                             equipment.get(user), profiles.containsKey(user) ? profiles.get(user).nickname() : null,
                             profiles.containsKey(user) ? profiles.get(user).characterGender() : null,
-                            tableSeats.get(user), activity.apply(user)))
+                            tableSeats.get(user), activity.apply(user), motions.get(user)))
                     .toList(), scene.get().version(), tables);
         }
     }

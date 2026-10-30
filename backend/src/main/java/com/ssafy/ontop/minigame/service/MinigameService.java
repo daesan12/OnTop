@@ -186,11 +186,14 @@ public class MinigameService {
      */
     private void persistV5Source(long sessionId, Instant issuedAt, BungeoppangV4Responses.Timing timing,
             List<Integer> heats) {
-        List<BungeoppangV5Rules.Order> opening = openingV5Orders();
-        BungeoppangV5Responses.Checkpoint checkpoint = openingV5Checkpoint(sessionId, heats, opening);
+        // The current rules are read once here and stored; every later step reads them back from the round.
         V5ConfigSnapshot config = new V5ConfigSnapshot(BungeoppangV5Spec.rules(),
                 BungeoppangV5Spec.START_BUFFER_MS, BungeoppangV5Spec.SUBMISSION_GRACE_MS,
                 BungeoppangV5Spec.PROCESSING_DRAIN_MS);
+        BungeoppangV4Responses.Rules rules = BungeoppangV5Spec.calculationRules(config.rules());
+        List<BungeoppangV5Rules.Order> opening = openingV5Orders(rules);
+        BungeoppangV5Responses.Checkpoint checkpoint = openingV5Checkpoint(sessionId,
+                BungeoppangV5Spec.CONFIG_VERSION, rules, heats, opening);
         repository.persist(new BungeoppangV4Round(sessionId, BungeoppangV5Spec.CONFIG_VERSION,
                 write(config), issuedAt, timing.countdownStartsAt(), timing.playStartsAt(), timing.playEndsAt(),
                 timing.submitDeadline(), timing.expiresAt(), checkpoint.prefixHash(), write(checkpoint)));
@@ -203,11 +206,10 @@ public class MinigameService {
     }
 
     /** One opening order per customer slot: the first is the fixed bean-2 order, the rest use the v4 mix. */
-    private List<BungeoppangV5Rules.Order> openingV5Orders() {
+    private List<BungeoppangV5Rules.Order> openingV5Orders(BungeoppangV4Responses.Rules rules) {
         var orders = new ArrayList<BungeoppangV5Rules.Order>(BungeoppangV5Spec.MAX_ACTIVE_ORDERS);
         for (int slot = 0; slot < BungeoppangV5Spec.MAX_ACTIVE_ORDERS; slot++) {
-            BungeoppangV4Rules.Order generated = v4Rules.nextOrder(slot, random,
-                    BungeoppangV5Spec.calculationRules());
+            BungeoppangV4Rules.Order generated = v4Rules.nextOrder(slot, random, rules);
             orders.add(new BungeoppangV5Rules.Order(generated.orderId(), slot, 0, generated.items()));
         }
         return orders;
@@ -223,7 +225,7 @@ public class MinigameService {
             return new BungeoppangV5Responses.StartResponse(Long.toString(session.id()), session.minigameType(),
                     "PLAYING", "WAITING_START", V5, round.configVersion(), round.issuedAt(), session.startedAt(),
                     BungeoppangV4Spec.timing(round), v5Config(round).rules(), heats(record), record.firstGame(),
-                    openingV5Checkpoint(session.id(), heats(record)));
+                    openingV5Checkpoint(round, heats(record)));
         }
         if (!V4.equals(record.rulesVersion())) {
             throw versionMismatch();
@@ -535,21 +537,22 @@ public class MinigameService {
             List<BungeoppangV5Rules.Order> issued = storedOrders.stream().map(this::v5Order).toList();
             List<BungeoppangV4Rules.Action> actions = BungeoppangV5DeliveryContract.domainActions(request.log());
             List<Integer> heats = heats(record);
-            BungeoppangV5Rules.Result before = v5Rules.replay(actions.subList(0, actions.size() - 1), heats, issued);
+            BungeoppangV4Responses.Rules rules = v5CalculationRules(round);
+            BungeoppangV5Rules.Result before = v5Rules.replay(actions.subList(0, actions.size() - 1), heats, issued,
+                    rules);
             BungeoppangV5Rules.Order target = before.activeOrders().stream()
                     .filter(order -> order.orderId().equals(last.orderId())).findFirst()
                     .orElseThrow(() -> new MinigameException(409, "STALE_ORDER", "현재 활성 주문이 아닙니다."));
-            BungeoppangV5Rules.Result delivered = v5Rules.replay(actions, heats, issued);
+            BungeoppangV5Rules.Result delivered = v5Rules.replay(actions, heats, issued, rules);
 
             long nextOrderId = storedOrders.stream().mapToLong(BungeoppangV5Order::orderId).max().orElse(0) + 1;
-            BungeoppangV4Rules.Order generated = v4Rules.nextOrder(storedOrders.size(), random,
-                    BungeoppangV5Spec.calculationRules());
+            BungeoppangV4Rules.Order generated = v4Rules.nextOrder(storedOrders.size(), random, rules);
             var replacement = new BungeoppangV5Rules.Order(Long.toString(nextOrderId), target.customerSlot(),
                     request.throughSeq(), generated.items());
             var withReplacement = new ArrayList<>(issued);
             withReplacement.add(replacement);
             // The replacement must activate at this DELIVER in the freed slot; a mismatch is a server fault.
-            BungeoppangV5Rules.Result result = v5Rules.replay(actions, heats, withReplacement);
+            BungeoppangV5Rules.Result result = v5Rules.replay(actions, heats, withReplacement, rules);
 
             var checkpoint = BungeoppangV5Spec.checkpoint(round.revision() + 1, request.throughSeq(),
                     request.prefixHash(), result);
@@ -824,9 +827,10 @@ public class MinigameService {
 
         // Re-read after a trailing approval so its replacement order takes part in the final replay.
         List<BungeoppangV5Rules.Order> issued = repository.v5Orders(sessionId).stream().map(this::v5Order).toList();
-        BungeoppangV5Rules.Result result = v5Rules.replay(
-                BungeoppangV5DeliveryContract.domainActions(request.log()), heats(record), issued);
         BungeoppangV5Responses.Rules rules = v5Config(round).rules();
+        BungeoppangV5Rules.Result result = v5Rules.replay(
+                BungeoppangV5DeliveryContract.domainActions(request.log()), heats(record), issued,
+                BungeoppangV5Spec.calculationRules(rules));
         Instant settledAt = now();
         var rewardDate = settledAt.atZone(SEOUL).toLocalDate();
         long calculated = Math.floorDiv(result.score(), rules.pointsPerCoin());
@@ -930,7 +934,7 @@ public class MinigameService {
                 : BungeoppangV4DeliveryContract.prefixHash(round.sessionId(), round.configVersion(), actions);
     }
 
-    /** The play length comes from the stored round, so v4 keeps 60s and v5 gets 180s. */
+    /** The play length comes from the stored round, so v4 keeps 60s and each v5 round keeps its own length. */
     private void validateActionClock(Instant current, BungeoppangV4Round round,
             BungeoppangV4DeliveryDtos.Action last) {
         long elapsed = java.time.Duration.between(round.playStartsAt(), current).toMillis();
@@ -1159,19 +1163,25 @@ public class MinigameService {
      * stored heats and opening orders. A start retry after deliveries therefore matches the first response;
      * the current state is read with GET.
      */
-    private BungeoppangV5Responses.Checkpoint openingV5Checkpoint(long sessionId, List<Integer> heats) {
-        return openingV5Checkpoint(sessionId, heats, repository.v5Orders(sessionId).stream()
-                .filter(order -> order.availableAfterSeq() == 0).map(this::v5Order).toList());
+    private BungeoppangV5Responses.Checkpoint openingV5Checkpoint(BungeoppangV4Round round, List<Integer> heats) {
+        return openingV5Checkpoint(round.sessionId(), round.configVersion(), v5CalculationRules(round), heats,
+                repository.v5Orders(round.sessionId()).stream()
+                        .filter(order -> order.availableAfterSeq() == 0).map(this::v5Order).toList());
     }
 
-    private BungeoppangV5Responses.Checkpoint openingV5Checkpoint(long sessionId, List<Integer> heats,
-            List<BungeoppangV5Rules.Order> opening) {
-        return BungeoppangV5Spec.checkpoint(0, 0, BungeoppangV5Spec.initialPrefixHash(sessionId),
-                v5Rules.replay(List.of(), heats, opening));
+    private BungeoppangV5Responses.Checkpoint openingV5Checkpoint(long sessionId, String configVersion,
+            BungeoppangV4Responses.Rules rules, List<Integer> heats, List<BungeoppangV5Rules.Order> opening) {
+        return BungeoppangV5Spec.checkpoint(0, 0, BungeoppangV5Spec.initialPrefixHash(sessionId, configVersion),
+                v5Rules.replay(List.of(), heats, opening, rules));
     }
 
     private V5ConfigSnapshot v5Config(BungeoppangV4Round round) {
         return read(round.configJson(), V5ConfigSnapshot.class);
+    }
+
+    /** The rules stored when the round was issued; a later Spec change never reaches an existing round. */
+    private BungeoppangV4Responses.Rules v5CalculationRules(BungeoppangV4Round round) {
+        return BungeoppangV5Spec.calculationRules(v5Config(round).rules());
     }
 
     private BungeoppangV5Rules.Order v5Order(BungeoppangV5Order order) {

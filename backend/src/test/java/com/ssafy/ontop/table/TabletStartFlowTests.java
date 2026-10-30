@@ -235,6 +235,106 @@ class TabletStartFlowTests {
         assertThat(hub.listTables().tables().getFirst().readyCount()).isZero();assertThat(reservations).hasValue(0);
     }
 
+    @Test void 유예복귀는_좌석과_방장대기와_테이블시작상태를_다른사용자에게_보내지않고_받는다() throws Exception {
+        Peer a=peer(101), b=peer(202); prepare(a,b);
+        long deadline=a.request("TABLE_HOST_WAIT_CHECK",Map.of()).path("payload").path("expiresAt").asLong();
+        hub.disconnect(a.id,ConnectionCloseReason.SOCKET_CLOSED); clock.advance(10); drain(b);
+        a=peer(101);
+        var sent=initial(a, "101");
+        assertThat(sent).containsSubsequence("CONNECTED", "GAME_START_STATE:null:NOT_SEATED", "TABLE_STATE:table-1:own",
+                "TABLE_HOST_WAIT_STATE:table-1", "GAME_START_STATE:table-1:WAITING");
+        assertThat(a.request("TABLE_HOST_WAIT_CHECK",Map.of()).path("payload").path("expiresAt").asLong()).isEqualTo(deadline);
+        assertThat(initial(b, "202")).isEmpty();
+    }
+
+    @Test void 다른로그인세션은_유예좌석으로_복귀하지못하고_상태도받지않는다() throws Exception {
+        Peer a=peer(101), b=peer(202); prepare(a,b);
+        hub.disconnect(a.id,ConnectionCloseReason.SOCKET_CLOSED); drain(b);
+        var other = connection(101, "00000000-0000-0000-0000-000000000002");
+        assertThat(other.accepted()).isFalse();
+        assertThat(other.messages()).isEmpty();
+        assertThat(hub.listTables().tables().getFirst().occupiedSeats()).isEqualTo(2);
+        assertThat(initial(b, "202")).isEmpty();
+    }
+
+    @Test void 진행중과_정산중_frozen좌석복귀는_TABLE_STATE와_현재시작상태를_받는다() throws Exception {
+        Peer a=peer(101), b=peer(202); prepare(a,b);
+        long version=a.request("TABLE_JOIN",Map.of("tableId","table-1")).path("payload").path("version").asLong();
+        a.request("TABLE_START",Map.of("actionId","start","expectedVersion",version));
+        a.awaitType("GAME_START_STATE",m -> m.path("payload").path("phase").asText().equals("PLAYING"));
+        hub.disconnect(b.id,ConnectionCloseReason.SOCKET_CLOSED); drain(a);
+        b=peer(202);
+        assertThat(initial(b, "202")).containsSubsequence("CONNECTED", "GAME_START_STATE:null:NOT_SEATED",
+                "TABLE_STATE:table-1:own", "GAME_START_STATE:table-1:PLAYING");
+        assertThat(initial(a, "101")).isEmpty();
+        hub.roundEnded("table-1","tablet-game"); drain(a); drain(b);
+        hub.disconnect(b.id,ConnectionCloseReason.HEARTBEAT_TIMEOUT);
+        b=peer(202);
+        assertThat(initial(b, "202")).containsSubsequence("TABLE_STATE:table-1:own", "GAME_START_STATE:table-1:SETTLING");
+        assertThat(initial(a, "101")).isEmpty();
+    }
+
+    @Test void 정산때_미연결이면_좌석은_정리되고_복귀해도_좌석상태를_받지않는다() throws Exception {
+        Peer a=peer(101), b=peer(202); prepare(a,b);
+        long version=a.request("TABLE_JOIN",Map.of("tableId","table-1")).path("payload").path("version").asLong();
+        a.request("TABLE_START",Map.of("actionId","start","expectedVersion",version));
+        a.awaitType("GAME_START_STATE",m -> m.path("payload").path("phase").asText().equals("PLAYING"));
+        hub.roundEnded("table-1","tablet-game");
+        hub.disconnect(b.id,ConnectionCloseReason.SOCKET_CLOSED);
+        hub.roundSettled(new GameResultCommitted(new GameResultView(101,1,"tablet-game","OMOK",GameResultView.Status.FINISHED,
+                "NORMAL",GameResultView.SettlementStatus.SETTLED,1,List.of(new GameResultView.Participant("101","WIN"),
+                new GameResultView.Participant("202","LOSE")),1L,clock.instant())));
+        assertThat(hub.listTables().tables().getFirst().occupiedSeats()).isEqualTo(1);
+        b=peer(202);
+        assertThat(initial(b, "202")).containsExactly("CONNECTED", "GAME_START_STATE:null:NOT_SEATED");
+    }
+
+    @Test void AUTO대기석은_끊기면_좌석을정리하고_복귀해도_좌석상태를_받지않는다() throws Exception {
+        Peer a=peer(101), b=peer(202);
+        a.request("TABLE_JOIN",Map.of("tableId","table-1")); b.request("TABLE_JOIN",Map.of("tableId","table-1"));
+        a.request("GAME_SELECT",Map.of("gameCode","OMOK","betAmountPerPlayer",1));
+        hub.disconnect(b.id,ConnectionCloseReason.SOCKET_CLOSED);
+        assertThat(hub.listTables().tables().getFirst().occupiedSeats()).isEqualTo(1);
+        b=peer(202);
+        assertThat(initial(b, "202")).containsExactly("CONNECTED", "GAME_START_STATE:null:NOT_SEATED");
+    }
+
+    /** 연결 직후 동기 전송분을 도착 순서대로 요약한다. */
+    List<String> initial(Peer peer, String own) throws Exception {
+        List<String> seen = new java.util.ArrayList<>();
+        JsonNode message;
+        while ((message = peer.messages.poll(300, TimeUnit.MILLISECONDS)) != null) {
+            JsonNode p = message.path("payload");
+            String type = message.path("type").asText();
+            seen.add(switch (type) {
+                case "TABLE_STATE" -> type + ":" + p.path("tableId").asText()
+                        + (p.path("seats").findValuesAsText("userId").contains(own) ? ":own" : ":other");
+                case "TABLE_HOST_WAIT_STATE" -> type + ":" + p.path("tableId").asText();
+                case "GAME_START_STATE" -> type + ":" + (p.path("tableId").isNull() ? "null" : p.path("tableId").asText())
+                        + ":" + p.path("phase").asText();
+                default -> type;
+            });
+        }
+        return seen;
+    }
+    void drain(Peer peer) throws Exception { initial(peer, ""); peer.deferredMessages.clear(); }
+
+    record Connection(boolean accepted, List<JsonNode> messages) { }
+    Connection connection(long user, String loginSession) throws Exception {
+        var socket = mock(WebSocketSession.class);
+        when(socket.getId()).thenReturn(UUID.randomUUID().toString());
+        when(socket.isOpen()).thenReturn(true);
+        List<JsonNode> messages = new java.util.concurrent.CopyOnWriteArrayList<>();
+        doAnswer(call -> {
+            if (call.getArgument(0) instanceof TextMessage text) { messages.add(mapper.readTree(text.getPayload())); }
+            return null;
+        }).when(socket).sendMessage(any());
+        boolean accepted = hub.connectAuthenticated(socket,
+                new VerifiedWebSocketUser(user, VerifiedWebSocketUser.Provider.NAVER, loginSession));
+        Thread.sleep(200);
+        return new Connection(accepted, messages);
+    }
+
     void prepare(Peer a,Peer b) throws Exception {
         a.request("TABLE_JOIN",Map.of("tableId","table-1")); b.request("TABLE_JOIN",Map.of("tableId","table-1"));
         var state=a.request("TABLE_JOIN",Map.of("tableId","table-1")).path("payload");

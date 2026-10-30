@@ -49,13 +49,13 @@ test('unready movement exit works without optional GAME_START_STATE, while ready
   expect(await page.locator('vite-error-overlay').count()).toBe(0)
 })
 
-test('M09 lobby uses server host, four seats and exact game/target commands; preserves explicit exit', async ({ page }) => {
+test('M09 lobby uses server host, blocks construction games and preserves explicit exit', async ({ page }) => {
   const errors: string[] = []; page.on('pageerror', e => errors.push(e.message))
   const server = await fixture(page, { omok: true, m09: true })
-  await load(page)
-  await expect(lobby(page).getByRole('button', { name: '경기 관전', exact: true })).toBeDisabled()
-  await expect(lobby(page)).toContainText('현재 확정된 진행 경기가 없습니다.')
-  await lobby(page).getByRole('button', { name: '앉기', exact: true }).click()
+  await page.goto('/park')
+  await page.getByRole('button', { name: 'E 테이블에 앉기', exact: true }).click()
+  await page.getByRole('button', { name: '테이블 로비 열기', exact: true }).click()
+  await expect(lobby(page)).toBeVisible()
   await expect(lobby(page).getByRole('listitem')).toHaveCount(4)
   await expect(lobby(page)).toContainText('선택 담당자 · 게임과 참가비')
   const betAmountPerPlayer = 5
@@ -63,15 +63,12 @@ test('M09 lobby uses server host, four seats and exact game/target commands; pre
   await lobby(page).getByRole('button', { name: '원카드 선택', exact: true }).click()
   await expect(lobby(page).getByRole('listitem')).toHaveCount(4)
   await expect(lobby(page).getByRole('button', { name: '준비', exact: true })).toBeEnabled()
-  await lobby(page).getByRole('button', { name: '거짓말 다리 건너기 선택', exact: true }).click()
-  await expect(lobby(page).getByRole('button', { name: '준비', exact: true })).toBeEnabled()
-  await lobby(page).getByLabel('주사위 목표 점수').selectOption('4000')
-  await lobby(page).getByRole('button', { name: '주사위 한 판 선택', exact: true }).click()
-  await expect(lobby(page).getByRole('listitem')).toHaveCount(2)
-  expect(server.sent.filter(m => m.type === 'GAME_SELECT').at(-1)?.payload).toEqual({ gameCode: 'DICE', targetScore: 4000, betAmountPerPlayer })
-  await expect(lobby(page).getByLabel('1인 참가비', { exact: true })).toHaveValue('5')
-  await lobby(page).getByLabel('주사위 목표 점수').selectOption('6000')
-  await expect.poll(() => server.sent.filter(m => m.type === 'GAME_SELECT').at(-1)?.payload).toEqual({ gameCode: 'DICE', targetScore: 6000, betAmountPerPlayer })
+  for (const name of ['거짓말 다리 건너기', '주사위 한 판']) {
+    const button = lobby(page).getByRole('button', { name: `${name} 선택`, exact: true })
+    await expect(button).toBeDisabled()
+    await expect(button).toContainText('공사 중')
+  }
+  await expect(lobby(page).getByLabel('주사위 목표 점수')).toHaveCount(0)
   await expect(lobby(page).getByLabel('1인 참가비', { exact: true })).toHaveValue('5')
   await expect(lobby(page)).toContainText('확정 참가비: 5 코인 / 1인')
   server.host('102')
@@ -82,18 +79,21 @@ test('M09 lobby uses server host, four seats and exact game/target commands; pre
   await expect(lobby(page).getByRole('button', { name: '준비', exact: true })).toBeEnabled()
   await expect.poll(() => server.sent.filter(m => m.type === 'GAME_SELECT').map(m => m.payload)).toEqual([
     { gameCode: 'ONE_CARD', betAmountPerPlayer },
-    { gameCode: 'LIAR_BRIDGE', betAmountPerPlayer },
-    { gameCode: 'DICE', targetScore: 4000, betAmountPerPlayer },
-    { gameCode: 'DICE', targetScore: 6000, betAmountPerPlayer },
     { gameCode: 'OMOK', betAmountPerPlayer },
   ])
+  for (const gameCode of ['DICE', 'LIAR_BRIDGE']) {
+    server.configureTablet({ gameCode, playerCount: 2, betAmountPerPlayer, ...(gameCode === 'DICE' ? { targetScore: 4000 } : {}) })
+    await expect(lobby(page)).toContainText('공사 중인 게임입니다.')
+    await expect(lobby(page).getByRole('button', { name: '준비', exact: true })).toBeDisabled()
+    await expect(lobby(page).getByRole('button', { name: '오목 선택', exact: true })).toBeEnabled()
+  }
   await screenshot(page, 'm09-lobby')
   await page.setViewportSize({ width: 1000, height: 700 })
   await expect(lobby(page)).toBeInViewport()
   await expect(lobby(page).getByRole('button', { name: '일어나기', exact: true })).toBeInViewport()
   await screenshot(page, 'm09-lobby-mobile')
   await lobby(page).getByRole('button', { name: '일어나기', exact: true }).click()
-  await expect(lobby(page).getByRole('button', { name: '앉기', exact: true })).toBeVisible()
+  await expect(lobby(page)).toHaveCount(0)
   expect(server.maxActive).toBe(1)
   expect(errors).toEqual([])
 })

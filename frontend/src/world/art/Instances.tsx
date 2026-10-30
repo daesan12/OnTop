@@ -1,5 +1,5 @@
+import { SIMPLE_MAP } from './mapRenderProfile'
 import { useLayoutEffect, useMemo, useRef, type ReactNode } from 'react'
-import { attachSharedMaterial, sharedInstanceMaterial } from './sharedMaterials'
 import {
   Color,
   Euler,
@@ -85,7 +85,7 @@ export function Instances({
       receiveShadow
     >
       {children}
-      {material ?? <primitive object={sharedInstanceMaterial} attach={attachSharedMaterial} dispose={null} />}
+      {material ?? (SIMPLE_MAP ? <meshLambertMaterial flatShading/> : <meshStandardMaterial roughness={0.88} />)}
     </instancedMesh>
   )
 }

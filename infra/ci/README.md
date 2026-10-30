@@ -1,5 +1,7 @@
 # Story S15P31B105-116: GitLab Webhook → Jenkins CI/CD
 
+새 공원 맵 후보의 checksum·BE 전달본 테스트·별도 `dist-park` 빌드 및 공동 전환 절차는 [PARK_MAP_ROLLOUT.md](../app/PARK_MAP_ROLLOUT.md)를 따른다. 이 CI의 일반 FE 배포는 공동 검증 전까지 기존 맵을 유지한다.
+
 ## 구성과 현재 상태
 
 - `ci.on-top.world`은 DEV-CI의 Nginx에서 HTTPS를 종료한다. 외부에는 `/project/` 웹훅만 전달하며 Jenkins 관리 화면은 SSH 터널의 `http://localhost:8081`로 연다. EC2 인바운드에 8081을 추가하지 않는다.

@@ -30,7 +30,8 @@
 .omok-ping-label { position:absolute; transform:translate(-50%,-100%); padding:3px 7px; background:transparent; color:#d8f6e6; text-shadow:0 1px 3px #132c20; font-size:12px; white-space:nowrap; opacity:0; }
 .omok-spectator-chat { position:absolute; left:20px; bottom:20px; z-index:51; width:min(370px,calc(100vw - 120px)); background:#173b32f5; color:#f7f0dc; border-radius:10px; padding:14px; }
 .omok-spectator-chat label { display:block; font-size:14px; margin-bottom:10px; }
-.omok-spectator-chat>div { display:flex; gap:6px; }
+.omok-chat-body>div { display:flex; gap:6px; }
+.omok-chat-toggle { display:none; }
 .omok-spectator-chat input { min-width:0; flex:1; border:1px solid #8aaf9a; border-radius:6px; background:#f8f4e9; color:#243a2c; padding:10px; font-size:14px; }
 .omok-spectator-chat button { border:0; border-radius:6px; background:#e4c989; color:#2f3023; padding:8px 12px; font-size:14px; }
 .omok-spectator-chat button:disabled { opacity:.5; }
@@ -43,6 +44,12 @@
   .park-page[data-omok-focus="true"] .prototype-game .focus-actions { max-width:calc(100% - 24px); right:12px; bottom:12px; }
   .park-page[data-omok-focus="true"] .prototype-game .omok-keyboard { top:104px; left:10px; }
   .park-page[data-omok-focus="true"] .prototype-game .focus-hint { bottom:220px; max-width:90%; font-size:13px; }
+  .park-page[data-omok-focus="true"] .prototype-game .focus-hint { width:calc(100% - 32px); max-width:none; word-break:keep-all; }
+  .omok-spectator-chat { top:104px; right:10px; left:auto; bottom:auto; width:auto; padding:0; }
+  .omok-spectator-chat .omok-chat-toggle { display:block; min-height:42px; background:#173b32f5; color:#f7f0dc; }
+  .omok-spectator-chat[data-open=false] .omok-chat-body { display:none; }
+  .omok-spectator-chat[data-open=true] { top:154px; left:10px; right:10px; width:auto; padding:12px; box-sizing:border-box; }
+  .omok-spectator-chat[data-open=true] .omok-chat-toggle { margin:0 0 10px auto; }
   .omok-floating-chat { font-size:16px; }.omok-floating-chat span { font-size:13px; }
 }
 @media(prefers-reduced-motion:reduce) { .omok-floating-chat { animation-timing-function:steps(1,end); } }

@@ -44,10 +44,10 @@ for (const side of [-1, 1]) {
 }
 const padGeometry = pad.finish().stone!
 
-export function FitnessPads() {
+export function FitnessPads({stations=FITNESS_STATIONS}:{stations?:typeof FITNESS_STATIONS}={}) {
   return (
     <group name="fitness-stone-inlays" userData={{ keepOpaque: true }}>
-      {FITNESS_STATIONS.map((s) => (
+      {stations.map((s) => (
         <mesh
           key={s.id}
           geometry={padGeometry}

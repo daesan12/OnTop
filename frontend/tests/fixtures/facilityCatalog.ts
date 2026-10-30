@@ -6,8 +6,8 @@ export const facilityCatalog = JSON.parse(readFileSync(new URL('../../../backend
   mapVersion: string; aimIntervalMs: number; minPitch: number; maxPitch: number; initialPitch: number
   facilities: FacilityDefinition[]
 }
-export function facilityPage(offset = 0) {
-  const c = facilityCatalog, end = Math.min(offset + 10, c.facilities.length)
+export function facilityPage(offset = 0, c = facilityCatalog) {
+  const end = Math.min(offset + 10, c.facilities.length)
   return { mapVersion: c.mapVersion, aimIntervalMs: c.aimIntervalMs, minPitch: c.minPitch,
     maxPitch: c.maxPitch, initialPitch: c.initialPitch, offset, total: c.facilities.length,
     nextOffset: end < c.facilities.length ? end : -1, facilities: structuredClone(c.facilities.slice(offset, end)) }
