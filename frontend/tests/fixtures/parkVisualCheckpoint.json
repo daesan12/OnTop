@@ -55,7 +55,7 @@
     "src/world/art/boundaryGeometry.ts": "35a2970a050b0a17cea0db82f243e406f660589437c649b38ce89041100cb7b6",
     "src/world/art/BoundaryMaterial.tsx": "8900398806937412865d37622ec83be8dfb130c3b2282d35dcab8bd57c6ac4e2",
     "src/world/art/buildingParts.ts": "cc4608c2ae98199c9add599f9c43dd688a1a086d0f9a2aa1883e63c07c0d42e0",
-    "src/world/art/characterAssets.ts": "591ed91afd65bab3c446d0a4c713f16ed23974c516b3dff49a6ffa1d6465fe20",
+    "src/world/art/characterAssets.ts": "96ad4db6b9be1d4aab59e036a5ea135ff28beb6bf73c6915aabab2e13b2b60cf",
     "src/world/art/characterEmotes.ts": "fa6f71be2a2f40be9d32817e3fa8333c93e5f9b7cd07cdf72dc2a024882e8cb9",
     "src/world/art/characterMotion.ts": "32b692c0a9c674604e164d58876ac1b37bbbb6f7c28be39c3e2e2252de5a7084",
     "src/world/art/CharacterRig.ts": "6d5f34ce8b97b306af039f45589fe94f7cbb70c355b63cc680c2904efa372b94",

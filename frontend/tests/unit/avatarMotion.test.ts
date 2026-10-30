@@ -228,10 +228,10 @@ describe('avatar pose transitions and resource ownership', () => {
       step(avatar({ benchId: 'bench-0', seatIndex: 0, moving: true }), 900, 60)
       expect(rig.bones.upperLeg_L.rotation.x).toBeCloseTo(-Math.PI / 2, 4)
       expect(figure.position.z).toBe(0.18)
-      if (name === 'girl') {
-        const mesh = rig.root.getObjectByName('near-body') as SkinnedMesh
-        expect(mesh.morphTargetInfluences![mesh.morphTargetDictionary!.seatedCloth!]).toBeCloseTo(1, 4)
-      }
+      // A seated-cloth corrective (a skirt) is optional: the shared-body girl wears shorts.
+      const nearBody = rig.root.getObjectByName('near-body') as SkinnedMesh
+      if (nearBody.morphTargetDictionary?.seatedCloth !== undefined)
+        expect(nearBody.morphTargetInfluences![nearBody.morphTargetDictionary.seatedCloth]).toBeCloseTo(1, 4)
       step(avatar({ swimming: true, emote: 'EMOTE_WAVE' }))
       expect(figure.rotation.x).toBeCloseTo(0.18, 3)
       expect(Number.isFinite(figure.position.y)).toBe(true)
@@ -261,10 +261,9 @@ describe('avatar pose transitions and resource ownership', () => {
       expect(figure.rotation.x).toBe(0)
       expect(figure.position.z).toBe(0)
       expect(rig.bones.upperLeg_L.rotation.x).toBeCloseTo(0, 3)
-      if (name === 'girl') {
-        const mesh = rig.root.getObjectByName('far-body') as SkinnedMesh
-        expect(mesh.morphTargetInfluences![mesh.morphTargetDictionary!.seatedCloth!]).toBe(0)
-      }
+      const farBody = rig.root.getObjectByName('far-body') as SkinnedMesh
+      if (farBody.morphTargetDictionary?.seatedCloth !== undefined)
+        expect(farBody.morphTargetInfluences![farBody.morphTargetDictionary.seatedCloth]).toBe(0)
       rig.dispose()
     })
   }

@@ -1,91 +1,81 @@
 {
-  "provenance": "User supplied Tripo drafts for this project; no independent license assertion.",
-  "process": "User-supplied boy_web_noanim/girl_web_noanim surfaces and UVs; source Mixamo 65-joint skin reposed and mapped to 49 identity-axis runtime joints with model-specific bind positions; corrected head/torso influences and welded seam weights; maximum four normalized influences; whole-surface near/far LODs, one shared material; female seated skirt corrective; lossless Meshopt geometry. No new character generated from a reference image.",
-  "textureAtlas": "One original 2048x2048 RGB colour WebP per character, byte-preserved from the supplied GLB and shared across LODs/instances. No normal or metallic-roughness maps in this source. WebP reduces transfer only; KTX2 GPU compression is not applied.",
+  "provenance": "User supplied Tripo drafts for this project; outfits generated in Tripo from the user’s own Gemini-edited sheets; no independent license assertion.",
+  "process": "One shared bald base body (Tripo whole model, Mixamo 65-joint skin) dressed in layered items fitted onto it; the default outfit’s visible body pieces and items joined and welded, arms posed down 20.5° and taken as the bind pose, scaled to 1.7 m, Mixamo weights summed onto the 49 identity-axis runtime joints (four normalized influences); near and far LODs by decimation, one fresh unwrap baked into one atlas; lossless Meshopt geometry.",
+  "textureAtlas": "One 2048x2048 RGB colour WebP per character baked from the items’ own textures, shared across LODs/instances. No normal or metallic-roughness maps. WebP reduces transfer only; KTX2 GPU compression is not applied.",
   "records": [
     {
       "character": "man",
       "source": {
-        "file": "boy_web_noanim.glb",
-        "sha256": "3738cc63de820c30f2bae20060b2804a1af8a6b2e0d17a57fdad2f41e18a5aec",
-        "bytes": 979316,
-        "triangles": 51921,
-        "generator": "Tripo (user supplied)"
+        "file": "man_raw.glb",
+        "sha256": "c23ec8e3c245af1b8a5577703feff8ac4b4b0ded184d19074c7e9d0ff3ae05d1",
+        "bytes": 3987624,
+        "triangles": 31999,
+        "generator": "Tripo items on a shared base (user supplied)"
       },
       "runtime": {
         "file": "man.glb",
-        "sha256": "e7e837ed118943678200a28c038bddaa0ab102d0c35c3777a8879e4e27e2dc1c",
-        "bytes": 1408144,
+        "sha256": "cc498bdec073ac1976af36da06aa07056969fd0f49b7c9e2e42c2fd80010b72f",
+        "bytes": 2244188,
         "triangles": {
-          "near": 24000,
-          "far": 5999
+          "far": 6000,
+          "near": 31999
         }
-      },
-      "editable": {
-        "file": "assets/characters/man.blend",
-        "sha256": "cb7db79a48e23cb4967ee4821290770d17faec3b172088e8c283547542b3ff8d",
-        "bytes": 2014774
       },
       "heightMeters": 1.7,
       "bones": 49,
-      "surfaceRevision": 6,
+      "surfaceRevision": 7,
       "parts": [
         {
-          "name": "near-body",
-          "triangles": 24000,
-          "vertices": 13116
+          "name": "far-body",
+          "triangles": 6000,
+          "vertices": 10848
         },
         {
-          "name": "far-body",
-          "triangles": 5999,
-          "vertices": 3528
+          "name": "near-body",
+          "triangles": 31999,
+          "vertices": 35210
         }
       ],
       "limitations": [
-        "Source surface only; no concealed body reconstruction",
+        "Layered items joined into one surface; outfits are not swappable at runtime",
         "Procedural animation, no facial rig or cloth simulation"
       ]
     },
     {
       "character": "girl",
       "source": {
-        "file": "girl_web_noanim.glb",
-        "sha256": "369d88dd8b4679667f6fa7e899ef13728c2e4a5949137fe9159ee35d3fb521c9",
-        "bytes": 1000064,
-        "triangles": 56309,
-        "generator": "Tripo (user supplied)"
+        "file": "girl_raw.glb",
+        "sha256": "cd97fec29e215761fb24d7379c5257860f105b46d13de4a3987b5bb488e93d8a",
+        "bytes": 4018244,
+        "triangles": 31999,
+        "generator": "Tripo items on a shared base (user supplied)"
       },
       "runtime": {
         "file": "girl.glb",
-        "sha256": "351d3c2ca6d1258a5e171b04882a0721d10efe963be6cf9ee1d862b714b8fda8",
-        "bytes": 1502380,
+        "sha256": "4cdf4fc136af7a18bb13b8ac767923cb8deb1b1125ababd94023ba497b2c4fc9",
+        "bytes": 2148172,
         "triangles": {
-          "near": 23999,
-          "far": 6000
+          "far": 6000,
+          "near": 31999
         }
-      },
-      "editable": {
-        "file": "assets/characters/girl.blend",
-        "sha256": "3eb425bfbb201ebeb235003b66e8fb0b5c25458622e8c66899e6aa989d1fd014",
-        "bytes": 2213842
       },
       "heightMeters": 1.7,
       "bones": 49,
-      "surfaceRevision": 6,
+      "surfaceRevision": 7,
       "parts": [
-        {
-          "name": "near-body",
-          "triangles": 23999,
-          "vertices": 12172
-        },
         {
           "name": "far-body",
           "triangles": 6000,
-          "vertices": 3084
+          "vertices": 10474
+        },
+        {
+          "name": "near-body",
+          "triangles": 31999,
+          "vertices": 33548
         }
       ],
       "limitations": [
-        "Source surface only; no concealed body reconstruction",
+        "Layered items joined into one surface; outfits are not swappable at runtime",
         "Procedural animation, no facial rig or cloth simulation"
       ]
     }
