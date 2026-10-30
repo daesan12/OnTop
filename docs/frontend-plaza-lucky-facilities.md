@@ -2,7 +2,7 @@
 
 ## 작업 범위
 
-브랜치: feat/plaza-lucky-facilities. 다른 개발자의 체크아웃을 건드리지 않고 독립 worktree에서 구현했다. 포토부스는 다른 개발자의 교체 작업을 위해 기존 모델·좌표·방향·충돌 크기를 유지했다.
+브랜치: feat/plaza-lucky-facilities. 다른 개발자의 체크아웃을 건드리지 않고 독립 worktree에서 구현했다. 포토부스 교체 영역의 좌표·방향·충돌 크기는 유지했다. 최신 origin/dev 3703dc14의 랭킹 보드 모델을 배치 미리보기에 반영했으며 실제 공원 화면은 원격 변경의 의도대로 기존 포토부스를 유지한다.
 
 | 시설 | ID | X / Z | 방향 | 충돌 크기 W × D × H |
 |---|---|---|---|---|
@@ -66,3 +66,9 @@ frontend에서 pnpm exec vite --mode layout-preview --host 127.0.0.1 --port 5211
 정자와 돌탑 계단은 겹친 박스 대신 노출면만 있는 연속 형상으로 바꿨다. 단상과 맨 위 디딤면의 중복도 제거해 시점 이동 시 깊이 판정이 경쟁하지 않도록 했다. 관련 파일은 layout-preview/fountainPaving.ts, districtGeometry.ts, sceneGeometry.ts와 새 stairFlightGeometry.ts다.
 
 이 수정은 렌더링 형상만 바꾼다. server-map.json과 mapVersion은 위의 기존 값으로 유지되므로 추가 BE 맵 반영이나 별도 인프라 전환을 요구하지 않는다.
+
+## 최신 dev 병합 확인
+
+origin/dev 3703dc14까지 병합했다. RankingBoardModel.tsx가 기존 포토부스 자리에 보유량·승부사·승수 3개 판을 표시한다. 현재 1~10위의 빈 칸이 있는 표시용 모델이며 실제 랭킹 데이터 요청은 연결되어 있지 않다. PreviewWorld.tsx의 live 분기는 기존 포토부스를 사용한다.
+
+기존 붕어빵·돌림판·복권방, 소리함 크기, 분수 틈과 계단 수정은 보존했다. 맵 소스·서버 충돌 데이터가 바뀌지 않아 mapVersion은 448b20e7d1a24ed53dc41e2a628c5a52fafb6c38df038daea12118ddf708755b로 유지한다.

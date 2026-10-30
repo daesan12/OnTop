@@ -3,9 +3,9 @@ import {KIOSKS} from '../../src/layout-preview/layout'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import os from 'node:os'
-import type {plazaStructureProbe} from './plazaStructureProbe'
+import type {plazaStructureProbe,rankingBoardProbe} from './plazaStructureProbe'
 
-test('kiosks connect their roofs and retain the photo notice and lucky facility mocks',async({page})=>{
+test('lucky facility mocks and ranking board retain their independent models and interactions',async({page})=>{
  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text())})
  await page.goto('/layout-preview.html');await expect(page.getByText('배치 준비 완료',{exact:true})).toBeVisible({timeout:90000})
  const joints:ReturnType<typeof plazaStructureProbe>=await page.evaluate(async()=>(await import('/tests/layout-e2e/plazaStructureProbe.ts' as string)).plazaStructureProbe())
@@ -27,5 +27,14 @@ test('kiosks connect their roofs and retain the photo notice and lucky facility 
   await expect(page.getByRole('dialog')).toContainText(k.kind==='photo'?'공사 중':k.kind==='shop'?'행운의 돌림판':'오늘의 복권방')
   await page.keyboard.press('Escape')
  }
+ const rankingBoard:ReturnType<typeof rankingBoardProbe>=await page.evaluate(async()=>
+  (await import('/tests/layout-e2e/plazaStructureProbe.ts' as string)).rankingBoardProbe())
+ const photo=KIOSKS.find(k=>k.kind==='photo')!
+ expect(rankingBoard.position).toEqual([photo.x,0,photo.z])
+ expect(rankingBoard.yaw).toBe(photo.yaw)
+ expect(rankingBoard.assetId).toBe('procedural/ranking-board')
+ expect(rankingBoard.meshCount).toBe(9)
+ expect(rankingBoard.metrics).toMatchObject({displayPlaneCount:3,structureTextureCount:0})
+ expect(rankingBoard.metrics.triangleCount).toBeLessThan(500)
  expect(errors).toEqual([])
 })

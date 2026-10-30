@@ -1,5 +1,5 @@
 {
-  "description": "Closed fountain collar and continuous exposed stair flights; gameplay map and facilities preserved, 2026-10-30",
+  "description": "Merged latest dev ranking-board preview with lucky facilities and fountain/stair fixes, 2026-10-30",
   "files": {
     "src/layout-preview/districtGeometry.ts": "882709ac240a987c6d7fc5d8740f9d48e93851c586b232dfa05bacd7b70fe1ff",
     "src/layout-preview/existingTreeModel.ts": "fcb9c89c3c90e11ac5a5670a0498dae14184a10b1acac281523ad56ed4748826",
@@ -28,7 +28,7 @@
     "src/layout-preview/PreviewLandscaping.tsx": "7bdec8aadc5b6e47e9d9ab3c0a0c86933e39d3ca2b86ced0d111bfc299f50dde",
     "src/layout-preview/PreviewPigeons.tsx": "829f4d51b3832a6e78e11af044975dbe8567f24499605949fc32990c9c109b2a",
     "src/layout-preview/PreviewSwimmingRipples.tsx": "7000a53d1d96f9e4aa21a23cdb89546168680a61a9ddb64240297151b22989b0",
-    "src/layout-preview/PreviewWorld.tsx": "3172645c14f08fb4a4ebffaab713802df033200e9d280f3e7ebc33bcca366c0a",
+    "src/layout-preview/PreviewWorld.tsx": "1605aa612d186e399ec5742e82cb176f9638d343c02adc1e37445545dc35a667",
     "src/layout-preview/reviewFurnitureGeometry.ts": "ebac00b5aa5aebf3625d49c7ac3485a02bcba28fa79de0a599a8f44bf54fdf53",
     "src/layout-preview/sceneGeometry.ts": "66e222292d6068eaf4fc5274df7353bdb7417c5f3ba1b0e1b3309e1872c84b2c",
     "src/map/park/collision.ts": "5d0a325c26d0047ea8aa8ac493e8694060584eeeca03daa33938e25bb1488a8c",
@@ -190,7 +190,8 @@
     "src/features/jumpmap/landingMotion.ts": "bd2fef3d57e71cb273cfb2e0c63052bbfe55e6f44b1972676ba306380b434223",
     "src/world/art/LuckyFacilities.tsx": "505d3c28ae2d448ba2023d1a848be425fbc6610faa700c94f6c188f75b6b617b",
     "src/world/art/luckyFacilityGeometry.ts": "5a661551c2548a29a9e34a8f19713812c07e4ef199711f9d1eae79a04b16e022",
-    "src/layout-preview/stairFlightGeometry.ts": "73060545b54ff9e5cc27df141bdd5fb0f7912f971f5d821f74dad865aa2bab2d"
+    "src/layout-preview/stairFlightGeometry.ts": "73060545b54ff9e5cc27df141bdd5fb0f7912f971f5d821f74dad865aa2bab2d",
+    "src/layout-preview/RankingBoardModel.tsx": "a9910e290182e5e4259a52412bc85dab3183aa05bfbf3507844030ed933d6688"
   },
   "compatibilityReview": {
     "date": "2026-10-29",
