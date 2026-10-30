@@ -1,5 +1,5 @@
 {
-  "description": "Preserve the accepted ad-free map, including merged plaza palette 3ea825c1 and gate connections c938a97b, 2026-10-30",
+  "description": "Preserve accepted plaza and gate with additional decorative woodland trees, 2026-10-30",
   "files": {
     "src/layout-preview/districtGeometry.ts": "ea0c6788c9ccdc5c819365e0bffe93479beec8b5e2c93814183ffddcec2530f9",
     "src/layout-preview/existingTreeModel.ts": "fcb9c89c3c90e11ac5a5670a0498dae14184a10b1acac281523ad56ed4748826",
@@ -30,7 +30,7 @@
     "src/layout-preview/PreviewSwimmingRipples.tsx": "7000a53d1d96f9e4aa21a23cdb89546168680a61a9ddb64240297151b22989b0",
     "src/layout-preview/PreviewWorld.tsx": "c628b7e673704fac68fe420e70889b5ab3b5891a53aa8a71c6be582199ca9737",
     "src/layout-preview/reviewFurnitureGeometry.ts": "ebac00b5aa5aebf3625d49c7ac3485a02bcba28fa79de0a599a8f44bf54fdf53",
-    "src/layout-preview/sceneGeometry.ts": "2baf288c51e4bd0b75e3f94f3348c6521976c5ad09495d240f9f3e855358599d",
+    "src/layout-preview/sceneGeometry.ts": "d747537b34a3e65bf6e1cd5ed095f4c7c38f609b059ec50fced116165367cf14",
     "src/map/park/collision.ts": "00b7343a460881ba457dcb1ecce2fa35721f6c73b752de5822e8a32af3304d48",
     "src/map/park/definition.ts": "bc24581fc7db62063de077b0d328a329eba4fea17f192a80ca31b70e227b5331",
     "src/map/park/fountainHeight.ts": "9996ee1c49bd09c43142d4abde7f831ee4001553bb8232b7372ff1094c4b7573",
