@@ -9,10 +9,15 @@ import com.jme3.math.Vector3f;
 /** Queries the channel's active geometry; every call must run on WorldPhysics' owner thread. */
 final class PositionCollision implements ClientPositionValidator.Geometry {
     private final PhysicsSpace space;
+    private final ParkMovementPolicy policy;
+    private final java.util.function.Predicate<String> active;
     private final CapsuleCollisionShape capsule;
     private final PhysicsGhostObject probe;
     PositionCollision(ParkScene scene, PhysicsSpace space) {
-        this.space = space;
+        this(scene, space, id -> space.getRigidBodyList().stream().anyMatch(body -> id.equals(body.getUserObject())));
+    }
+    PositionCollision(ParkScene scene, PhysicsSpace space, java.util.function.Predicate<String> active) {
+        this.space = space; this.policy = scene.policy; this.active = active;
         var movement = scene.data.path("movement");
         float radius = (float) movement.path("radius").asDouble(), half = (float) movement.path("halfHeight").asDouble();
         capsule = new CapsuleCollisionShape(radius, half * 2, 1);
@@ -21,6 +26,7 @@ final class PositionCollision implements ClientPositionValidator.Geometry {
     }
     public boolean supported(ClientPositionValidator.Pose pose) {
         var from = point(pose);
+        if (!policy.allowsSupport(from, active)) return false;
         // A centre ray loses support earlier than the capsule at platform edges.
         return space.sweepTest(capsule, new Transform(from), new Transform(from.add(0, -.17f, 0))).stream()
                 .anyMatch(hit -> hit.getCollisionObject().getCollisionGroup() == 2 && hit.getHitNormalLocal(null).y > .6);
@@ -44,6 +50,14 @@ final class PositionCollision implements ClientPositionValidator.Geometry {
         // Conservative single-step allowance; multi-step/ramp parity remains an experiment.
         return allowStep && sweep(start, start.add(0, .22f, 0))
                 && sweep(start.add(0, .22f, 0), end.add(0, .22f, 0));
+    }
+    public double jumpSpeed(ClientPositionValidator.Pose from, boolean tuned) { return policy.jumpSpeed(point(from), tuned); }
+    boolean correctionClear(Vector3f from, Vector3f to) {
+        if (!clear(new ClientPositionValidator.Pose(to.x, to.y, to.z), new ClientPositionValidator.Pose(to.x, to.y, to.z), false)) return false;
+        var delta = to.subtract(from);
+        return space.sweepTest(capsule, new Transform(from), new Transform(to)).stream().noneMatch(hit ->
+                hit.getCollisionObject().getCollisionGroup() == 2 && !policy.manages(String.valueOf(hit.getCollisionObject().getUserObject()))
+                && hit.getHitFraction() < .9999 && hit.getHitNormalLocal(null).dot(delta) < -.0001);
     }
     private boolean sweep(Vector3f from, Vector3f to) {
         var delta = to.subtract(from);
