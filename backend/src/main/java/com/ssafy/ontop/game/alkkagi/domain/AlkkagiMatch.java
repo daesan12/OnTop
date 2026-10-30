@@ -24,10 +24,17 @@ public final class AlkkagiMatch {
     private final Map<String, Piece> pieces = new LinkedHashMap<>();
     private final Map<String, Receipt> receipts = new LinkedHashMap<>();
     private final AlkkagiInventory inventory = new AlkkagiInventory();
+    private final AlkkagiCardAwards awards;
+    private final AlkkagiCardRules cardRules;
     private final String gameId = UUID.randomUUID().toString();
     private String stage = "WAITING";
     private String reason;
     private Integer winner;
+    private Long endedAt;
+    private final java.util.ArrayDeque<ImpactView> impacts = new java.util.ArrayDeque<>();
+    private final Map<String, Long> lastImpact = new java.util.HashMap<>();
+    private long impactSequence;
+    private long advancingAt;
     private int turn;
     private int turnNumber = 1;
     private final int[] timeouts = new int[2];
@@ -51,11 +58,27 @@ public final class AlkkagiMatch {
         this(settings, AlkkagiPhysics.experimental(), itemRules);
     }
 
+    public AlkkagiMatch(AlkkagiSettings settings, AlkkagiItemRules itemRules, AlkkagiCardRules cardRules) {
+        this(settings, AlkkagiPhysics.experimental(), itemRules, cardRules, new java.security.SecureRandom());
+    }
+
     AlkkagiMatch(AlkkagiSettings settings, AlkkagiPhysics physics) {
         this(settings, physics, AlkkagiItemRules.localPreview());
     }
 
     private AlkkagiMatch(AlkkagiSettings settings, AlkkagiPhysics physics, AlkkagiItemRules itemRules) {
+        this(settings, physics, itemRules, new java.security.SecureRandom());
+    }
+
+    AlkkagiMatch(AlkkagiSettings settings, AlkkagiPhysics physics, AlkkagiItemRules itemRules,
+            java.util.random.RandomGenerator random) {
+        this(settings, physics, itemRules, AlkkagiCardRules.localPreview(), random);
+    }
+
+    private AlkkagiMatch(AlkkagiSettings settings, AlkkagiPhysics physics, AlkkagiItemRules itemRules,
+            AlkkagiCardRules cardRules, java.util.random.RandomGenerator random) {
+        this.cardRules = java.util.Objects.requireNonNull(cardRules);
+        this.awards = new AlkkagiCardAwards(java.util.Objects.requireNonNull(random), cardRules);
         this.itemRules = java.util.Objects.requireNonNull(itemRules);
         this.settings = settings;
         this.physics = physics;
@@ -65,6 +88,21 @@ public final class AlkkagiMatch {
         world.getSettings().setMaximumTranslation(2);
         // 경기의 stopSpeed/settleSteps만 정지 기준으로 사용한다.
         world.getSettings().setAtRestDetectionEnabled(false);
+        world.addContactListener(new org.dyn4j.world.listener.ContactListenerAdapter<Body>() {
+            @Override public void postSolve(org.dyn4j.world.ContactCollisionData<Body> data,
+                    org.dyn4j.dynamics.contact.SolvedContact contact) {
+                if (!contact.isSolved() || !Double.isFinite(contact.getNormalImpulse()) || contact.getNormalImpulse() < .1) return;
+                String a = String.valueOf(data.getBody1().getUserData()), b = String.valueOf(data.getBody2().getUserData());
+                String pair = a.compareTo(b) <= 0 ? a + ":" + b : b + ":" + a;
+                if (tick - lastImpact.getOrDefault(pair, -100L) < 12) return;
+                lastImpact.put(pair, tick);
+                var p = contact.getPoint();
+                if (!Double.isFinite(p.x) || !Double.isFinite(p.y)) return;
+                impacts.addLast(new ImpactView(++impactSequence, advancingAt, p.x, p.y, contact.getNormalImpulse(),
+                        a.equals("wall") || b.equals("wall") ? "WALL" : "PIECE"));
+                while (impacts.size() > 24) impacts.removeFirst();
+            }
+        });
         for (int owner = 0; owner < 2; owner++) {
             int sign = owner == 0 ? 1 : -1;
             String[] back = {"車", "馬", "象", "士", "士", "象", "馬", "車"};
@@ -87,6 +125,7 @@ public final class AlkkagiMatch {
         Body body = collisionBody(radius, mass, settings.restitution());
         body.translate(x, y);
         String id = "p" + pieces.size();
+        body.setUserData(id);
         pieces.put(id, new Piece(id, owner, type, radius, mass, body));
         world.addBody(body);
     }
@@ -234,6 +273,9 @@ public final class AlkkagiMatch {
             }
         }
         inventory.consume(actor, input.cardId());
+        for (var piece : pieces.values()) {
+            piece.safeX = piece.body.getWorldCenter().x; piece.safeY = piece.body.getWorldCenter().y;
+        }
         itemUsedThisTurn = true;
         version++;
         lastItemEffect = new ItemEffect(version, turnNumber, actor, card.type().name(), List.copyOf(targets));
@@ -284,6 +326,7 @@ public final class AlkkagiMatch {
         var fixture = body.addFixture(Geometry.createRectangle(candidate.length(), candidate.thickness()));
         fixture.setRestitution(settings.restitution()); fixture.setFriction(.15);
         body.setMass(MassType.INFINITE); body.rotate(p.angle()); body.translate(p.x(), p.y());
+        body.setUserData("wall");
         world.addBody(body); world.setUpdateRequired(true);
         wall = candidate; wallBody = body; wallsUsed[actor]++;
     }
@@ -316,7 +359,44 @@ public final class AlkkagiMatch {
     public PrivateView privateView(int actor) {
         require(actor == 0 || actor == 1, "PLAYER_REQUIRED");
         return new PrivateView(gameId, version, inventory.cards(actor).stream()
-                .map(card -> new CardView(card.id(), card.type().name())).toList());
+                .map(card -> new CardView(card.id(), card.type().name())).toList(),
+                awards.view(actor).stream().map(a -> new AwardView(a.losses(), a.result())).toList());
+    }
+
+    public long forfeit(int actor, String actionId, long now) {
+        require(actor == 0 || actor == 1, "PLAYER_REQUIRED");
+        require(actionId != null && actionId.matches("[A-Za-z0-9-]{1,64}"), "INVALID_ACTION");
+        String key = actor + ":" + actionId;
+        var command = new Departure(actor, "EXPLICIT_LEAVE");
+        var old = receipts.get(key);
+        if (old != null) {
+            require(old.command().equals(command), "ACTION_ID_CONFLICT");
+            return old.version();
+        }
+        depart(actor, "EXPLICIT_LEAVE", now);
+        remember(key, command);
+        return version;
+    }
+
+    /** 공통 재접속 유예·로그아웃 소비자가 호출하는 서버 경계. */
+    public void depart(int actor, String reason, long now) {
+        require(actor == 0 || actor == 1, "PLAYER_REQUIRED");
+        require(java.util.Set.of("EXPLICIT_LEAVE", "DISCONNECT_TIMEOUT", "LOGOUT", "MEMBER_DEACTIVATED").contains(reason), "INVALID_DEPARTURE");
+        expire(now);
+        require(!stage.equals("WAITING") && !stage.equals("FINISHED"), "GAME_FINISHED");
+        finish(1 - actor, reason, now);
+        for (var piece : pieces.values()) piece.body.setLinearVelocity(0, 0);
+    }
+
+    public void checkDeadlines(long now) { expire(now); }
+
+    public void abort(long now) {
+        if (stage.equals("FINISHED")) return;
+        for (var piece : pieces.values()) {
+            piece.body.getTransform().setTranslation(piece.safeX, piece.safeY);
+            piece.body.setLinearVelocity(0, 0);
+        }
+        finish(null, "SIMULATION_INVALID", now);
     }
 
     public void advance(long now) {
@@ -326,19 +406,24 @@ public final class AlkkagiMatch {
         }
         for (Piece piece : pieces.values()) {
             if (!piece.alive) { continue; }
+            if (!Double.isFinite(piece.body.getLinearVelocity().getMagnitude())) { abort(now); return; }
             decelerate(piece.body, settings);
         }
+        advancingAt = now;
         world.step(1);
         tick++;
+        // 공통 상태 전송기는 같은 version을 다시 보내지 않는다. 물리 프레임도20Hz로 갱신한다.
+        if (tick % 6 == 0) version++;
         simulationSteps++;
         boolean moving = false;
         for (Piece piece : pieces.values()) {
             if (!piece.alive) { continue; }
             Vector2 at = piece.body.getWorldCenter();
             if (!Double.isFinite(at.x) || !Double.isFinite(at.y)) {
-                finish(null, "SIMULATION_INVALID");
+                abort(now);
                 return;
             }
+            piece.safeX = at.x; piece.safeY = at.y;
             // 임시 정책: 알 중심이 외곽을 넘으면 탈락. 최종 낙하 기준은 별도 합의한다.
             if (Math.abs(at.x) > settings.halfWidth() || Math.abs(at.y) > settings.halfHeight()) {
                 piece.alive = false;
@@ -354,7 +439,7 @@ public final class AlkkagiMatch {
             }
             resolve(now);
         } else if (simulationSteps >= settings.maximumSimulationSteps()) {
-            finish(null, "SIMULATION_LIMIT");
+            finish(null, "SIMULATION_LIMIT", now);
         }
     }
 
@@ -369,12 +454,12 @@ public final class AlkkagiMatch {
     private void expire(long now) {
         if (!stage.equals("AIMING")) { return; }
         if (now >= matchDeadline) {
-            resolveByCount("MATCH_TIME_LIMIT");
+            resolveByCount("MATCH_TIME_LIMIT", matchDeadline);
         } else if (now >= turnDeadline) {
             if (shotsThisTurn > 0) { nextTurn(now); return; }
             timeouts[turn]++;
             if (timeouts[turn] >= 2) {
-                finish(1 - turn, "AFK_FORFEIT");
+                finish(1 - turn, "AFK_FORFEIT", turnDeadline);
             } else {
                 nextTurn(now);
             }
@@ -382,10 +467,13 @@ public final class AlkkagiMatch {
     }
 
     private void resolve(long now) {
+        if (count(0) > 0 && count(1) > 0 && now < matchDeadline) {
+            awards.resolve(count(0), count(1), wallsUsed[0], wallsUsed[1], inventory);
+        }
         if (count(0) == 0 || count(1) == 0) {
-            resolveByCount("PIECES_OUT");
+            resolveByCount("PIECES_OUT", now);
         } else if (now >= matchDeadline) {
-            resolveByCount("MATCH_TIME_LIMIT");
+            resolveByCount("MATCH_TIME_LIMIT", now);
         } else if (extraShotActivated && shotsThisTurn == 1 && now < turnDeadline) {
             stage = "AIMING";
             version++;
@@ -398,11 +486,15 @@ public final class AlkkagiMatch {
         return (int) pieces.values().stream().filter(p -> p.alive && p.owner == owner).count();
     }
 
-    private void resolveByCount(String endReason) {
-        finish(count(0) == count(1) ? null : count(0) > count(1) ? 0 : 1, endReason);
+    private void resolveByCount(String endReason, long now) {
+        finish(count(0) == count(1) ? null : count(0) > count(1) ? 0 : 1, endReason, now);
     }
 
-    private void finish(Integer player, String endReason) {
+    private void finish(Integer player, String endReason, long now) {
+        if (stage.equals("FINISHED")) return;
+        endedAt = now;
+        boostedPieceId = null; extraShotActivated = false;
+        for (var piece : pieces.values()) piece.body.setLinearVelocity(0, 0);
         stage = "FINISHED";
         winner = player;
         reason = endReason;
@@ -434,7 +526,7 @@ public final class AlkkagiMatch {
         return new Snapshot(gameId, version, tick, simulationId, stage, turn, turnNumber,
                 turnDeadline, matchDeadline, now, winner, reason, List.copyOf(views),
                 List.of(timeouts[0], timeouts[1]), settings, true, "separated-v1", physics.inputBoost(),
-                itemUsedThisTurn, !stage.equals("FINISHED") && extraShotActivated && shotsThisTurn < 2 ? 1 : 0, lastItemEffect, wall, List.of(wallsUsed[0], wallsUsed[1]), boostedPieceId, itemRules);
+                itemUsedThisTurn, !stage.equals("FINISHED") && extraShotActivated && shotsThisTurn < 2 ? 1 : 0, lastItemEffect, wall, List.of(wallsUsed[0], wallsUsed[1]), boostedPieceId, itemRules, endedAt, List.copyOf(impacts), cardRules);
     }
 
     private static void require(boolean condition, String code) {
@@ -457,16 +549,19 @@ public final class AlkkagiMatch {
     }
     public record ItemEffect(long version, int turnNumber, int actor, String type, List<String> targets) { }
     public record WallView(int owner, double x, double y, double length, double thickness, double angle, int expiresAfterTurn) { }
+    public record ImpactView(long id, long at, double x, double y, double impulse, String kind) { }
     public record CardView(String id, String type) { }
-    public record PrivateView(String gameId, long version, List<CardView> cards) { }
+    public record AwardView(int losses, String result) { }
+    public record PrivateView(String gameId, long version, List<CardView> cards, List<AwardView> awards) { }
     public record PieceView(String id, int owner, String type, double x, double y, double vx, double vy,
             double radius, double mass, boolean alive, double launchSpeed, String modifier, boolean restorePending) { }
     public record Snapshot(String gameId, long version, long tick, long simulationId, String stage,
             int turn, int turnNumber, long turnDeadline, long matchDeadline, long serverNow,
             Integer winner, String endReason, List<PieceView> pieces, List<Integer> timeouts,
             AlkkagiSettings settings, boolean provisional, String modelId, double inputCurveBoost,
-            boolean itemUsedThisTurn, int extraShotsRemaining, ItemEffect lastItemEffect, WallView wall, List<Integer> wallsUsed, String boostedPieceId, AlkkagiItemRules itemRules) { }
+            boolean itemUsedThisTurn, int extraShotsRemaining, ItemEffect lastItemEffect, WallView wall, List<Integer> wallsUsed, String boostedPieceId, AlkkagiItemRules itemRules, Long endedAt, List<ImpactView> impacts, AlkkagiCardRules cardRules) { }
     private record Receipt(Object command, long version) { }
+    private record Departure(int actor, String reason) { }
     private static final class Piece {
         private final String id;
         private final int owner;
@@ -478,12 +573,14 @@ public final class AlkkagiMatch {
         private String modifier;
         private int expiresAfterTurn;
         private boolean restorePending;
+        private double safeX, safeY;
         private final Body body;
         private boolean alive = true;
 
         private Piece(String id, int owner, String type, double radius, double mass, Body body) {
             this.id = id; this.owner = owner; this.type = type;
             this.radius = radius; this.mass = mass; this.baseRadius = radius; this.baseMass = mass; this.body = body;
+            this.safeX = body.getWorldCenter().x; this.safeY = body.getWorldCenter().y;
         }
     }
 }

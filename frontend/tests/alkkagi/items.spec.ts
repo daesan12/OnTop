@@ -115,6 +115,7 @@ test('아이템 설정은 새 판에만 적용하고 잘못된 값은 현재 판
   page.on('websocket', ws => ws.on('framereceived', f => { const m = JSON.parse(String(f.payload)); if (m.type === 'STATE') states.push(m.state) }))
   await page.goto('/alkkagi-preview.html?role=red')
   await expect(page.getByText('연결됨', { exact: true })).toBeVisible()
+  await expect.poll(() => states.at(-1)?.gameId).toBeTruthy()
   const initial = states.at(-1).gameId
   await page.getByText('아이템 수치 조절 · 로컬 임시값', { exact: true }).click()
   await page.getByLabel('힘 강화 배율', { exact: true }).fill('1.8')

@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ssafy.ontop.game.alkkagi.domain.AlkkagiMatch;
 import com.ssafy.ontop.game.alkkagi.domain.AlkkagiItemRules;
+import com.ssafy.ontop.game.alkkagi.service.AlkkagiSocialRoom;
+import com.ssafy.ontop.game.alkkagi.service.AlkkagiInputs;
 import com.ssafy.ontop.game.alkkagi.domain.AlkkagiSettings;
 import java.io.IOException;
 import java.util.Map;
@@ -60,6 +62,7 @@ public final class AlkkagiDemoApplication {
 
     public static final class DemoSocket extends TextWebSocketHandler implements AutoCloseable {
         private final ObjectMapper mapper;
+        private final java.time.Clock clock;
         private final Map<String, Client> clients = new ConcurrentHashMap<>();
         private final ScheduledExecutorService physics = Executors.newSingleThreadScheduledExecutor();
         private final ScheduledExecutorService sender = Executors.newSingleThreadScheduledExecutor();
@@ -71,9 +74,15 @@ public final class AlkkagiDemoApplication {
         private AlkkagiItemRules itemRules = AlkkagiItemRules.localPreview();
         private long sequence;
         private int frames;
+        private AlkkagiSocialRoom social;
+        private String socialGameId;
+        private final long[] absentSince = {-1, -1};
+        private long visitorNumber;
 
-        public DemoSocket(ObjectMapper mapper) {
-            this.mapper = mapper;
+        public DemoSocket(ObjectMapper mapper) { this(mapper, java.time.Clock.systemUTC()); }
+
+        public DemoSocket(ObjectMapper mapper, java.time.Clock clock) {
+            this.mapper = mapper; this.clock = clock;
             // 생성부터 변경·조회까지 dyn4j 접근은 오직 이 스레드에서만 수행한다.
             physics.execute(() -> match = new AlkkagiMatch(tuning, itemRules));
             physics.scheduleAtFixedRate(this::step, 0, 8_333_333, TimeUnit.NANOSECONDS);
@@ -86,12 +95,40 @@ public final class AlkkagiDemoApplication {
                     if (command == null) { break; }
                     command.run();
                 }
-                match.advance(System.currentTimeMillis());
+                long currentTime = clock.millis();
+                if (!match.snapshot(currentTime).gameId().equals(socialGameId)) {
+                    socialGameId = match.snapshot(currentTime).gameId(); social = new AlkkagiSocialRoom(socialGameId);
+                    java.util.Arrays.fill(absentSince, -1);
+                }
+                match.advance(currentTime);
+                var current = match.snapshot(currentTime);
+                if (!current.stage().equals("WAITING") && !current.stage().equals("FINISHED")) {
+                    for (int actor = 0; actor < 2; actor++) {
+                        int id = actor;
+                        if (clients.values().stream().anyMatch(c -> c.actor == id)) absentSince[id] = -1;
+                        else if (absentSince[id] < 0) absentSince[id] = currentTime;
+                        else if (currentTime - absentSince[id] >= 30_000) {
+                            try { match.depart(id, "DISCONNECT_TIMEOUT", currentTime); }
+                            catch (IllegalArgumentException finished) { if (!finished.getMessage().equals("GAME_FINISHED")) throw finished; }
+                            break;
+                        }
+                    }
+                }
                 if (++frames % 6 == 0) {
-                    long now = System.currentTimeMillis();
+                    long now = clock.millis();
                     long seq = ++sequence;
+                    social.retainSessions(clients.keySet());
+                    com.fasterxml.jackson.databind.node.ObjectNode publicState = mapper.valueToTree(match.snapshot(now));
+                    publicState.set("social", mapper.valueToTree(social.snapshot(match.snapshot(now), now)));
+                    publicState.set("connections", mapper.valueToTree(Map.of(
+                            "red", clients.values().stream().anyMatch(c -> c.actor == 0),
+                            "green", clients.values().stream().anyMatch(c -> c.actor == 1),
+                            "viewers", clients.values().stream().filter(c -> c.actor == -1).count())));
+                    publicState.set("reconnectDeadlines", mapper.valueToTree(java.util.Arrays.asList(
+                            absentSince[0] < 0 ? null : absentSince[0] + 30_000,
+                            absentSince[1] < 0 ? null : absentSince[1] + 30_000)));
                     latest.set(new Outbound(mapper.writeValueAsString(Map.of("type", "STATE", "seq", seq,
-                            "state", match.snapshot(now))), Map.of(
+                            "state", publicState)), Map.of(
                             0, mapper.writeValueAsString(Map.of("type", "PRIVATE_STATE", "seq", seq, "state", match.privateView(0))),
                             1, mapper.writeValueAsString(Map.of("type", "PRIVATE_STATE", "seq", seq, "state", match.privateView(1))))));
                     scheduleSend();
@@ -114,7 +151,8 @@ public final class AlkkagiDemoApplication {
             }
             session.setTextMessageSizeLimit(2048);
             clients.put(session.getId(), new Client(actor,
-                    new ConcurrentWebSocketSessionDecorator(session, 1000, 32768)));
+                    new ConcurrentWebSocketSessionDecorator(session, 1000, 32768),
+                    actor == 0 ? "홍팀" : actor == 1 ? "청팀" : "관전자 " + ++visitorNumber));
         }
 
         @Override
@@ -136,17 +174,28 @@ public final class AlkkagiDemoApplication {
 
         private void command(Client client, JsonNode input) {
             try {
-                if (client.actor < 0) { throw new IllegalArgumentException("PLAYER_REQUIRED"); }
                 String type = input.path("type").asText();
+                if (java.util.Set.of("CHAT", "CURSOR", "ADVICE").contains(type)) {
+                    if (social == null) throw new IllegalArgumentException("NOT_READY");
+                    social.apply(client.socket.getId(), client.label, client.actor, input,
+                            match.snapshot(clock.millis()), clock.millis());
+                    if (!type.equals("CURSOR")) client.offer(mapper.writeValueAsString(Map.of("type", "SOCIAL_ACCEPTED", "kind", type)));
+                    return;
+                }
+                if (client.actor < 0) { throw new IllegalArgumentException("PLAYER_REQUIRED"); }
                 if (type.equals("START")) {
                     if (client.actor != 0) { throw new IllegalArgumentException("RED_START_ONLY"); }
-                    match.start(System.currentTimeMillis());
+                    match.start(clock.millis());
+                } else if (type.equals("FORFEIT")) {
+                    if (!input.path("gameId").asText().equals(match.snapshot(0).gameId())) throw new IllegalArgumentException("STALE_GAME");
+                    long accepted = match.forfeit(client.actor, input.path("actionId").asText(), clock.millis());
+                    client.offer(mapper.writeValueAsString(Map.of("type", "FORFEIT_ACCEPTED", "version", accepted, "gameId", match.snapshot(0).gameId())));
                 } else if (type.equals("RESET")) {
                     if (client.actor != 0) { throw new IllegalArgumentException("RED_RESET_ONLY"); }
                     match = new AlkkagiMatch(tuning, itemRules);
                 } else if (type.equals("TUNE") || type.equals("TUNE_RESET")) {
                     if (client.actor != 0) { throw new IllegalArgumentException("RED_TUNING_ONLY"); }
-                    var current = match.snapshot(System.currentTimeMillis());
+                    var current = match.snapshot(clock.millis());
                     if (!input.path("gameId").asText().equals(current.gameId())
                             || !input.path("expectedVersion").isIntegralNumber()
                             || !input.path("expectedVersion").canConvertToLong()
@@ -162,7 +211,7 @@ public final class AlkkagiDemoApplication {
                     client.offer("{\"type\":\"TUNING_APPLIED\"}");
                 } else if (type.equals("TUNE_ITEMS")) {
                     if (client.actor != 0) throw new IllegalArgumentException("RED_TUNING_ONLY");
-                    var current = match.snapshot(System.currentTimeMillis());
+                    var current = match.snapshot(clock.millis());
                     if (!input.path("gameId").asText().equals(current.gameId())
                             || !input.path("expectedVersion").isIntegralNumber() || !input.path("expectedVersion").canConvertToLong()
                             || input.path("expectedVersion").asLong(-1) != current.version())
@@ -181,7 +230,7 @@ public final class AlkkagiDemoApplication {
                     client.offer("{\"type\":\"TUNING_APPLIED\"}");
                 } else if (type.equals("TEST_CARDS")) {
                     if (client.actor != 0) throw new IllegalArgumentException("RED_PRACTICE_ONLY");
-                    var current = match.snapshot(System.currentTimeMillis());
+                    var current = match.snapshot(clock.millis());
                     if (!input.path("gameId").asText().equals(current.gameId())
                             || !input.path("expectedVersion").isIntegralNumber()
                             || !input.path("expectedVersion").canConvertToLong()
@@ -201,52 +250,17 @@ public final class AlkkagiDemoApplication {
                         }
                     } else { types.add("SWAP"); types.add("EXTRA_SHOT"); }
                     for (int actor = 0; actor < 2; actor++) for (var cardType : types) match.receiveCard(actor, cardType);
-                } else if (type.equals("ITEM_USE")) {
-                    var fields = input.fieldNames();
-                    var allowed = java.util.Set.of("type", "gameId", "actionId", "expectedVersion", "cardId", "targetPieceIds", "placement");
-                    while (fields.hasNext()) {
-                        if (!allowed.contains(fields.next())) throw new IllegalArgumentException("UNKNOWN_FIELD");
-                    }
+                } else if (type.equals("ITEM_USE") || type.equals("SHOT")) {
+                    if (!input.path("gameId").asText().equals(match.snapshot(0).gameId())) throw new IllegalArgumentException("STALE_GAME");
                     if (!input.path("expectedVersion").isIntegralNumber() || !input.path("expectedVersion").canConvertToLong()
-                            || input.path("expectedVersion").asLong() < 0 || !input.path("targetPieceIds").isArray()
-                            || input.path("targetPieceIds").size() > 2) throw new IllegalArgumentException("INVALID_ITEM");
-                    var targets = new java.util.ArrayList<String>();
-                    for (var target : input.path("targetPieceIds")) {
-                        if (!target.isTextual()) throw new IllegalArgumentException("INVALID_TARGETS");
-                        targets.add(target.asText());
-                    }
-                    AlkkagiMatch.Placement placement = null;
-                    if (input.has("placement")) {
-                        var p = input.path("placement");
-                        if (!p.isObject() || p.size() != 3 || !p.path("x").isNumber() || !p.path("y").isNumber()
-                                || !p.path("angle").isNumber()) throw new IllegalArgumentException("INVALID_PLACEMENT");
-                        placement = new AlkkagiMatch.Placement(p.path("x").asDouble(), p.path("y").asDouble(), p.path("angle").asDouble());
-                    }
-                    long accepted = match.useItem(client.actor, new AlkkagiMatch.ItemUse(input.path("gameId").asText(),
-                            input.path("actionId").asText(), input.path("expectedVersion").asLong(),
-                            input.path("cardId").asText(), targets, placement), System.currentTimeMillis());
-                    client.offer(mapper.writeValueAsString(Map.of("type", "ITEM_ACCEPTED", "version", accepted,
-                            "actionId", input.path("actionId").asText())));
-                } else if (type.equals("SHOT")) {
-                    var fields = input.fieldNames();
-                    var allowed = java.util.Set.of("type", "gameId", "actionId", "expectedVersion", "pieceId",
-                            "dx", "dy", "power");
-                    while (fields.hasNext()) {
-                        if (!allowed.contains(fields.next())) { throw new IllegalArgumentException("UNKNOWN_FIELD"); }
-                    }
-                    if (!input.path("expectedVersion").isIntegralNumber()
-                            || !input.path("expectedVersion").canConvertToLong()
-                            || input.path("expectedVersion").asLong() < 0
-                            || !input.path("dx").isNumber() || !input.path("dy").isNumber()
-                            || !input.path("power").isNumber()) {
-                        throw new IllegalArgumentException("INVALID_SHOT");
-                    }
-                    long accepted = match.shoot(client.actor, new AlkkagiMatch.Shot(input.path("gameId").asText(),
-                            input.path("actionId").asText(), input.path("expectedVersion").asLong(),
-                            input.path("pieceId").asText(), input.path("dx").asDouble(),
-                            input.path("dy").asDouble(), input.path("power").asDouble()), System.currentTimeMillis());
-                    client.offer(mapper.writeValueAsString(Map.of("type", "SHOT_ACCEPTED", "version", accepted,
-                            "actionId", input.path("actionId").asText())));
+                            || input.path("expectedVersion").asLong() < 0 || !input.path("actionId").isTextual())
+                        throw new IllegalArgumentException("INVALID_ACTION");
+                    var action = ((com.fasterxml.jackson.databind.node.ObjectNode) input).deepCopy();
+                    action.remove(java.util.List.of("gameId", "actionId", "expectedVersion"));
+                    long accepted = AlkkagiInputs.apply(match, client.actor, input.path("actionId").asText(),
+                            input.path("expectedVersion").asLong(), action, clock.millis());
+                    client.offer(mapper.writeValueAsString(Map.of("type", type.equals("SHOT") ? "SHOT_ACCEPTED" : "ITEM_ACCEPTED",
+                            "version", accepted, "gameId", match.snapshot(0).gameId(), "actionId", input.path("actionId").asText())));
                 } else {
                     throw new IllegalArgumentException("UNKNOWN_TYPE");
                 }
@@ -335,8 +349,9 @@ public final class AlkkagiDemoApplication {
         private static final class Client {
             private final int actor;
             private final WebSocketSession socket;
+            private final String label;
             private final ArrayBlockingQueue<String> replies = new ArrayBlockingQueue<>(32);
-            private Client(int actor, WebSocketSession socket) { this.actor = actor; this.socket = socket; }
+            private Client(int actor, WebSocketSession socket, String label) { this.actor = actor; this.socket = socket; this.label = label; }
             private void offer(String reply) {
                 if (!replies.offer(reply)) { replies.poll(); replies.offer(reply); }
             }

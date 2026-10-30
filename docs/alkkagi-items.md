@@ -5,10 +5,18 @@
 ## 구현 경계
 
 - 실제 경기 객체는 빈 손패로 생성된다. 최대2장이고 카드 ID/종류는 소유자에게만 전달한다.
-- 아이템8종 모두 로컬에서 사용할 수 있다. 미정 수치·수명은 `AlkkagiItemRules`의 조절 가능한 임시값이며 운영 합의가 아니다. 랜덤 지급 규칙·밸런스 확정은 [미정 목록](alkkagi-decisions.md)에 남긴다.
+- 아이템8종과 손실 기반 지급 모두 로컬에서 사용할 수 있다. 미정 수치·수명은 `AlkkagiItemRules`, 추첨은 `AlkkagiCardRules`의 임시 설정이며 운영 합의가 아니다. 밸런스 확정은 [미정 목록](alkkagi-decisions.md)에 남긴다.
 - `receiveCard`는 신뢰된 서버 지급 경계다. 제품 클라이언트에 원하는 종류 지급 요청을 노출하지 않는다.
 - 로컬 테스트 클래스패스의 `TEST_CARDS`는 홍팀이 시작 전에 `cards` 배열(1~2종)을 골라 양쪽에 지급하는 연습 도구다. 생략 시 SWAP/EXTRA_SHOT이다. 실제 손실 기반 지급·중복 허용·확률 정책을 대신하지 않는다.
 - 물리값30/60/1·종류별 프로필·120Hz 물리·20Hz 공개 스냅샷·100ms 화면 버퍼는 유지한다.
+
+## 정상 플레이의 카드 지급
+
+초기0장. 실제 물리 안정화 후 누적 손실3/6/9/12/15 이정표를 서버에서 확인한다. 현재 남은 알이 상대보다 적을 때만1장, 최대2장. 이정표는 손패가 가득 찼거나 열세가 아니어도 처리 완료하므로 나중에 소급하지 않는다. 재접속·동일 발사 재전송은 재추첨하지 않는다. 종료가 확정되는 발사에는 더 사용할 수 없는 카드를 지급하지 않는다.
+
+미정 세부 정책의 **로컬 임시값**: 같은 발사의 탈락은 안정화 후 일괄 남은 수로 열세를 비교한다. 8종 동일 가중치·중복 허용, 경기 벽3회를 소진한 WALL은 추첨에서 제외한다. `AlkkagiCardRules`에서8종 가중치(0~1000, 적어도1종 양수)·중복 허용·소진 벽 제외를 한곳에서 바꿀 수 있다. 후보가 없으면 해당 이정표를 건너뛰고 소급하지 않는다. SecureRandom은 서버 안에서만 사용하고 RNG/시드는 DTO에 넣지 않는다. 이 임시값을 팀 합의나 원작 확률로 취급하지 않는다.
+
+소유자 PRIVATE_STATE의 awards에는 자신의 `{losses,result}` 이정표 내역(AWARDED/NOT_BEHIND/HAND_FULL/NO_AVAILABLE_CARD)만 들어간다. 공개 STATE·관전자 통신에는 손패나 지급 내역을 넣지 않는다. 연습 카드 선택 지급은 위 실제 이정표 계산과 별도의 로컬 도구다.
 
 ## 사용 규칙
 
@@ -52,7 +60,7 @@ role 쿼리는 로컬 테스트 역할이며 인증이 아니다. 이 데모 핸
 }
 ```
 
-EXTRA_SHOT/WALL의 targetPieceIds는 빈 배열, SWAP은2개, 나머지는1개다. WALL/RELOCATE만 `placement: {"x": 0, "y": 0, "angle": 0}`를 추가한다. XY는 판 평면, angle은 라디안(-π~π)이며 RELOCATE는 회전 없이 이동만 한다. 서버는 유한수치와 실제 형상·거리·소유권을 검사한다. 클라이언트가 카드 종류·효과 수치·교환 좌표를 지정하지 않는다. 미지 필드·2개 초과 대상·문자열 아닌 대상·잘못된 version은 거절한다.
+EXTRA_SHOT/WALL의 targetPieceIds는 빈 배열, SWAP은2개, 나머지는1개다. WALL/RELOCATE만 `placement: {"x": 0, "y": 0, "angle": 0}`를 추가한다. XY는 판 평면, angle은 라디안(-π~π)이며 RELOCATE는 회전 없이 이동만 한다. 서버는 유한수치와 실제 형상·거리·소유권을 검사한다. 클라이언트가 카드 종류·효과 수치·교환 좌표를 지정하지 않는다. 미지 필드·2개 초과 대상·문자열 아닌 대상·잘못된 version은 거절한다. 실제 입력 파서는 `AlkkagiInputs`로 로컬 소켓과 공통 엔진이 함께 사용한다.
 
 성공은 ITEM_ACCEPTED(actionId/version), 실패는 ERROR(code)다. 주요 코드는 PLAYER_REQUIRED, STALE_GAME, STALE_VERSION, NOT_AIMING, NOT_YOUR_TURN, CARD_NOT_OWNED, INVALID_TARGETS, NOT_YOUR_PIECE, ITEM_OVERLAP, ITEM_ALREADY_USED_OR_SHOT, ACTION_ID_CONFLICT다. 추가 코드는 INVALID_PLACEMENT, ITEM_OUTSIDE_BOARD, ITEM_OVERLAP_OR_OUTSIDE, RELOCATE_TOO_FAR, WALL_ALREADY_EXISTS, WALL_LIMIT, MODIFIER_ACTIVE, BOOST_TARGET_REQUIRED, INVALID_ITEM_RULES다.
 
@@ -74,8 +82,28 @@ EXTRA_SHOT/WALL의 targetPieceIds는 빈 배열, SWAP은2개, 나머지는1개�
 
 공개/개인 JSON을 물리 소유 스레드에서 같은 발행 묶음으로 만들고 AtomicReference 하나로 송신 스레드에 넘긴다. 최신 상태 교체 중에도 서로 다른 버전의 손패가 짝지어지지 않는다. 소켓 쓰기는 기존대로 별도 sender에서 수행한다. 연결 복구는 현재 손패/상태를 재조회하며 타이머를 초기화하지 않는다. 서버 프로세스 재시작은 데모 판을 초기화한다.
 
+물리 진행 중 version도6스텝마다 갱신한다. 같은 version을 재전송하지 않는 기존 공통 상태 전송 경로에서도20Hz 물리 변화가 전달되도록 하기 위함이다. actionId의 최초 승인 version은 별도로 보존되어 이후 물리 version이 올라도 같은 요청의 최초 결과를 반환한다. FE `AlkkagiInbox`는 승인된 최소 version보다 낮은 프레임, 역순 seq, 공개와 짝이 다른 개인 손패를 무시한다.
+
+## 로컬 관전·기권·복구
+
+STATE.social은 채팅·커서·훈수만 포함한다. CHAT은 gameId/actionId/text(공백 제외1~200 code point), CURSOR는 gameId/x/y, ADVICE는 gameId/actionId/expectedVersion/pieceId/dx/dy/power를 받는다. sender/역할은 연결에서 가져오고 입력으로 바꿀 수 없다. 채팅은 React 텍스트로 표시해 HTML로 실행하지 않는다.
+
+임시 제한: 채팅600ms, 커서80ms/2초 유효, 훈수600ms/4초 유효·관전자당 최신1개·전체 최신3개. 채팅은 최근50개를 보관하되 공개 프레임에는 보수적인 UTF-8/JSON 예산8KB 안의 최신 부분만 포함한다. 훈수는 관전자만, 현재 AIMING의 현재 턴 생존 알만 허용하고 방향/힘/버전을 검증한다. 실제 발사·물리·턴·승패를 변경하지 않는다. 훈수는 턴 변경·발사 시작·새 판·연결 종료에서 정리한다. 커서는2초 만료·새 판·연결 종료에서 정리하며 턴 전환만으로 지우지 않는다. 새 판은 채팅도 비운다. 이 로컬 통신은 제품의 기존 관전 거리·인증·채팅 권한을 대체하지 않는다.
+
+FORFEIT(gameId/actionId)은 자신의 명시적 기권이다. 같은 actionId는 최초 결과 재확인, 다른 동작에 사용한 actionId는 충돌 거절. 즉시 물리를 멈추고 상대 승리로 확정하며, 이미 끝난 결과를 덮지 않는다. 로컬에서는 같은 역할의 마지막 연결이 사라진 뒤30초 유예를 주고, 그 안에 복귀하면 같은 판/기한/손패/확정 효과를 유지한다. 유예 만료는 DISCONNECT_TIMEOUT. 로컬 역할 URL은 실제 회원/다중 로그인 세션 검증이 아니다.
+
+## 기존 게임 인터페이스와 연결할 경계
+
+`AlkkagiEngine`은 기존 GameEngine/Router의 입력·상태·기권·복구를 구현하고 `startCommitted(command,result)`에서 ALKKAGI·2명·전원 예약 커밋 계약을 확인한다. 실제 예약/차감 요청이나 DB 저장을 만들지 않는다. 공개 gameId는 서버의 외부 경기 ID, players는 참가자 순서의 회원 ID 문자열이며 내부 actor0/1과 매핑한다. publicState는 gameCode/status/tableId/turnUserId/winnerUserId와 공개 판, privateState는 해당 회원 손패만 담는다. 복구 state는 기존 원카드와 같은 publicState/privateState 객체다. 알까기 시간 필드는 epoch ms다.
+
+공통 요청은 기존 GAME_ACTION_SEND payload 안의 gameId/actionId/expectedVersion/input을 사용한다. input은 위 로컬 SHOT/ITEM_USE에서 type과 행동 필드만 남긴 형태다. 기권은 기존 GAME_FORFEIT, 상태는 기존 GAME_STATE_CHECK/관전 경로를 재사용할 수 있다. 이 어댑터는 일반 앱에 자동 등록하지 않았고, 검증에서는 예약 완료 계약 대역을 사용했다. 새 인증을 만들거나 팀원 DB 예약·정산 코드를 수정하지 않았다.
+
+**실제 공원/DB 활성화는 완료가 아니다.** 현재 CommittedGameStartService의 지원 목록·게임 선택 카탈로그와 DB 종료 검증 VerifiedGameFinish.REASONS에 ALKKAGI가 없다. DB의 게임 종류 등록, 시작 호출 연결, 종료 사유/무승부/물리 실패 무효·환급 계약을 담당자와 함께 반영해야 한다. 현재 어댑터의 GameFinished를 기존 DB 소비자에 바로 연결하면 거절된다. SIMULATION_INVALID/LIMIT는 로컬 검증 종료이며 금전 결과로 사용하면 안 된다. 변경이 필요한 DB/공통 시작 서비스는 이번 작업에서 건드리지 않았고, Flyway/새 스키마도 만들지 않았다.
+
 ## 화면·검증
 
 홍팀 로컬 화면에서 새 판 → 연습 카드2종 선택 → 연습 카드 받기(로컬) → 테스트 시작. 카드 선택 → 대상 알/빈 판 위치 선택 → 미리보기 → 아이템 확정. 벽은 각도 슬라이더로 회전한다. 취소/Esc/우클릭은 미확정 선택만 지운다. 일반 발사는 **처음 누른 채 바로 드래그하고 놓는 한 동작**이며 클릭/미세 흔들림은 발사하지 않는다. 추가 발사는 첫 정지 후 같은 남은 시간 안에 한 번 더 발사한다. 턴/판/승인 버전이 바뀌면 미확정 UI를 취소한다.
 
-검증: AlkkagiItemTests(손패/교환/추가발사), AlkkagiExtendedItemTests(나머지6종의 실제 충돌·소모·기한·질량/반경 원복·겹침 보류·가장자리 만료), AlkkagiSocketTests(실제 역할 분리/재접속), Chrome items.spec.ts(8종 선택/미리보기/확정·첫 드래그·설정). 기존 물리·조준·재생 회귀도 함께 실행한다. 로컬 검증을 제품 통합/운영 완료로 표시하지 않는다.
+검증: 기존 아이템/물리 검사에 Completion(실제 손실 지급/자연 종료/안전 종료), Engine(예약 계약·격리·동시 기권·다음 판/복구 경쟁), Social(권한/중복/한도), LocalReconnect(가상 시계+소켓 대역의30초 유예), 실제 소켓·Chrome 일반 한 판/8종/벽고스트/관전/기권/복구 검사를 연결했다. 로컬 검증·DB 계약 대역을 실서버·실DB·운영 완료로 표시하지 않는다. 필요한 효과음·이미지는 [전달 목록](alkkagi-assets.md)을 따른다.
+
+공용 화면 `frontend/src/game/alkkagi/AlkkagiBoard.tsx`는 승인 snapshot/replay/actor와 명령 callback으로 동작한다. 로컬 역할 URL·소켓·물리값 조절/연습 지급은 `alkkagi-preview/main.tsx`에 분리했다. 실제 공원 화면에서는 인증된 사용자/기존 GAME_ACTION_SEND와 상태 수신을 공급해야 하며 로컬 테스트 연결을 그대로 운영 인증으로 사용하지 않는다.

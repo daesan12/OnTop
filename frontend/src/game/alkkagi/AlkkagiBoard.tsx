@@ -1,0 +1,189 @@
+import { useEffect, useMemo, useRef } from 'react'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
+import { ArrowHelper, CanvasTexture, Group, Mesh, Plane, Vector2, Vector3 } from 'three'
+import { AlkkagiReplay, type Piece, type Snapshot } from './replay'
+import { draggedShot, launchResponse } from './aimInput'
+
+/** 전송·인증·URL에 의존하지 않는 공용 게임판. 호출자가 승인 상태와 명령 콜백을 공급한다. */
+export function AlkkagiBoard(props: Parameters<typeof Scene>[0]) {
+  return <Canvas shadows camera={{ position: [0, 14, 0.01], fov: 46 }}>
+    <color attach="background" args={['#253d37']} /><ambientLight intensity={1.8} />
+    <directionalLight position={[3, 10, 6]} intensity={2.5} castShadow shadow-mapSize={[1024, 1024]} />
+    <Scene {...props} />
+  </Canvas>
+}
+
+type Aim = { piece: Piece; origin: Vector3; end: Vector3; start: { x: number; y: number }
+  moved: number; pointerId: number; gameId: string; version: number }
+function Scene({ actor, state, replay, enabled, shoot, explain, blockedReason, itemMode, itemTargets, pickTarget, cancelItem, placement, pickPlacement, pinned, previewValid, rotatePlacement, cursor }: { actor: number; state: Snapshot | null; replay: AlkkagiReplay; enabled: boolean
+  shoot(p: Piece, dx: number, dy: number, power: number): void; explain(message: string): void; blockedReason: string; itemMode: string | null; itemTargets: string[]; pickTarget(piece: Piece): void; cancelItem(): void; placement: { x: number; y: number; angle: number } | null; pickPlacement(x: number, y: number, pin?: boolean): void; pinned: boolean; previewValid: boolean; rotatePlacement(delta: number): void; cursor(x: number, y: number): void }) {
+  const groups = useRef(new Map<string, Group>())
+  const displayed = useRef({ gameId: '', generation: -1, alive: new Map<string, boolean>() })
+  const { gl, camera, raycaster } = useThree()
+  const aim = useRef<Aim | null>(null), arrow = useMemo(() => new ArrowHelper(new Vector3(0, 0, -1), new Vector3(), 1, '#f3c16d'), [])
+  const selected = useRef<Piece | null>(null), selectionRing = useRef<Mesh>(null)
+  const floor = useMemo(() => new Plane(new Vector3(0, 1, 0), -.36), [])
+  const pieces = state?.pieces ?? []
+  const clearAim = () => { aim.current = null; arrow.visible = false }
+  const clear = () => { clearAim(); selected.current = null; if (selectionRing.current) selectionRing.current.visible = false }
+  useEffect(() => {
+    const canvas = gl.domElement
+    const point = (event: PointerEvent) => {
+      const rect = canvas.getBoundingClientRect()
+      raycaster.setFromCamera(new Vector2((event.clientX - rect.left) / rect.width * 2 - 1,
+        -(event.clientY - rect.top) / rect.height * 2 + 1), camera)
+      return raycaster.ray.intersectPlane(floor, new Vector3())
+    }
+    const move = (event: PointerEvent) => {
+      const a = aim.current, p = point(event)
+      if (a && p && event.pointerId === a.pointerId) {
+        a.end.copy(p); a.moved = Math.hypot(event.clientX - a.start.x, event.clientY - a.start.y)
+        const shot = draggedShot(a.start, { x: event.clientX, y: event.clientY }, a.origin, p)
+        const response = launchResponse(shot?.power ?? 0, state?.inputCurveBoost ?? 0)
+        explain(`조준 입력 ${Math.round((shot?.power ?? 0) * 100)}% · 예상 출발 속도 ${((a.piece.launchSpeed ?? 0) * response).toFixed(2)}칸/초 · 놓으면 발사`)
+      }
+    }
+    const up = (event: PointerEvent) => {
+      const a = aim.current
+      if (!a || event.pointerId !== a.pointerId) return
+      clearAim()
+      if (event.button !== 0 || !a || !enabled || a.gameId !== state?.gameId || a.version !== state.version) return
+      const shot = draggedShot(a.start, { x: event.clientX, y: event.clientY }, a.origin, point(event) ?? a.end)
+      if (shot) {
+        clear(); shoot(a.piece, shot.dx, shot.dy, shot.power)
+      } else explain(`${a.piece.type} 선택됨 · 클릭/작은 흔들림으로는 발사되지 않습니다. 누른 채 당겨주세요.`)
+    }
+    const key = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') clear()
+      if (itemMode === 'WALL' && !['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName)
+        && ['q', 'e', 'Q', 'E'].includes(e.key)) { e.preventDefault(); rotatePlacement(e.key.toLowerCase() === 'q' ? -Math.PI / 12 : Math.PI / 12) }
+    }
+    const wheel = (e: WheelEvent) => { if (itemMode === 'WALL') { e.preventDefault(); rotatePlacement(e.deltaY > 0 ? Math.PI / 12 : -Math.PI / 12) } }
+    const cancel = (e: Event) => { e.preventDefault(); clear(); cancelItem() }
+    canvas.addEventListener('wheel', wheel, { passive: false }); canvas.addEventListener('pointermove', move); canvas.addEventListener('pointerup', up)
+    canvas.addEventListener('pointercancel', clear); canvas.addEventListener('contextmenu', cancel)
+    window.addEventListener('keydown', key); window.addEventListener('blur', clear)
+    return () => { canvas.removeEventListener('wheel', wheel); canvas.removeEventListener('pointermove', move); canvas.removeEventListener('pointerup', up)
+      canvas.removeEventListener('pointercancel', clear); canvas.removeEventListener('contextmenu', cancel)
+      window.removeEventListener('keydown', key); window.removeEventListener('blur', clear) }
+  }, [camera, gl, raycaster, floor, enabled, state?.gameId, state?.version, shoot])
+  useEffect(clear, [enabled, state?.gameId, state?.version, itemMode])
+  useFrame((_, delta) => {
+    const frame = replay.sample(performance.now())
+    if (!frame) return
+    if (displayed.current.gameId !== frame.gameId || displayed.current.generation !== replay.generation) {
+      displayed.current = { gameId: frame.gameId, generation: replay.generation, alive: new Map() }
+    }
+    for (const p of frame.pieces) {
+      const group = groups.current.get(p.id)
+      if (!group) continue
+      const wasAlive = displayed.current.alive.get(p.id)
+      if (p.alive) { group.position.set(p.x, 0, p.y); group.rotation.set(0, 0, 0); group.visible = true }
+      else {
+        // 최신 상태에 이미 탈락한 알은 과거 낙하를 재생하지 않는다.
+        if (wasAlive === undefined) group.position.y = -5
+        else if (wasAlive) group.position.set(p.x, 0, p.y)
+        group.position.y = Math.max(-5, group.position.y - delta * 5)
+        group.rotation.x += delta * 1.4; group.visible = group.position.y > -4
+      }
+      displayed.current.alive.set(p.id, p.alive)
+    }
+    if (selectionRing.current) {
+      selectionRing.current.visible = !!selected.current && enabled
+      if (selected.current) {
+        selectionRing.current.position.set(selected.current.x, .31, selected.current.y)
+        selectionRing.current.scale.setScalar(selected.current.radius * 1.18)
+      }
+    }
+    if (aim.current) {
+      const a = aim.current, direction = new Vector3(a.origin.x - a.end.x, 0, a.origin.z - a.end.z)
+      const length = direction.length(); arrow.visible = a.moved >= 12 && length >= .08
+      arrow.position.set(a.piece.x, .45, a.piece.y); arrow.setDirection(direction.normalize())
+      arrow.setLength(2.5 * launchResponse(Math.min(1, length / 2.5), state?.inputCurveBoost ?? 0), .25, .14)
+    }
+  })
+  return <>
+    <mesh receiveShadow position={[0, -.14, 0]} onPointerDown={e => {
+      if (e.button === 0 && enabled && (itemMode === 'WALL' || itemMode === 'RELOCATE')) {
+        e.stopPropagation(); pickPlacement(e.point.x, e.point.z, true)
+      }
+    }} onPointerMove={e => {
+      cursor(e.point.x, e.point.z)
+      if (enabled && itemMode === 'WALL' && !pinned) pickPlacement(e.point.x, e.point.z)
+    }}><boxGeometry args={[9, .28, 10]} /><meshStandardMaterial color="#c5a06a" roughness={.85} /></mesh>
+    {Array.from({ length: 9 }, (_, i) => <mesh key={`v${i}`} position={[i - 4, .004, 0]}><boxGeometry args={[.012, .008, 9.5]} /><meshBasicMaterial color="#806243" /></mesh>)}
+    {Array.from({ length: 10 }, (_, i) => <mesh key={`h${i}`} position={[0, .004, i - 4.5]}><boxGeometry args={[8.5, .008, .012]} /><meshBasicMaterial color="#806243" /></mesh>)}
+    {pieces.map(piece => <group key={`${state!.gameId}-${piece.id}-${piece.radius}`} ref={g => { if (g) groups.current.set(piece.id, g); else groups.current.delete(piece.id) }}>
+      <mesh castShadow receiveShadow position={[0, .15, 0]} onPointerDown={e => {
+        if (e.button !== 0) return
+        e.stopPropagation()
+        if (!enabled) { explain(blockedReason); return }
+        if (!piece.alive || piece.owner !== (actor < 0 ? state?.turn : actor)) { explain(actor < 0 ? '현재 차례의 살아 있는 알을 골라주세요.' : '상대 알입니다. 내 팀 색깔의 알을 골라주세요.'); return }
+        if (!itemMode) window.dispatchEvent(new CustomEvent('alkkagi:feedback', { detail: {
+          id: `${state!.gameId}:select:${crypto.randomUUID()}`, type: 'PIECE_SELECTED', at: Date.now(), pieceId: piece.id,
+        } }))
+        if (itemMode) {
+          clear()
+          if (itemMode !== 'WALL' && itemMode !== 'EXTRA_SHOT') pickTarget(piece)
+          else explain('아이템 확정 또는 취소를 먼저 눌러주세요.')
+          return
+        }
+        const origin = e.ray.intersectPlane(floor, new Vector3())
+        if (!origin) return
+        gl.domElement.setPointerCapture(e.pointerId)
+        selected.current = piece
+        explain(`${piece.type} 조준 중 · 당긴 뒤 놓으면 발사됩니다. Esc로 취소`)
+        aim.current = { piece, origin, end: origin.clone(), start: { x: e.clientX, y: e.clientY },
+          moved: 0, pointerId: e.pointerId, gameId: state!.gameId, version: state!.version }
+      }}><cylinderGeometry args={[piece.radius, piece.radius * 1.03, .27, 8]} /><meshStandardMaterial color="#f0d5a1" roughness={.65} /></mesh>
+      <Label piece={piece} />
+    </group>)}
+    {itemTargets.map(id => {
+      const piece = pieces.find(p => p.id === id)
+      return piece ? <mesh key={id} position={[piece.x, .32, piece.y]} rotation={[-Math.PI / 2, 0, 0]} raycast={() => {}}>
+        <ringGeometry args={[piece.radius * 1.15, piece.radius * 1.32, 48]} /><meshBasicMaterial color="#5fffe6" depthWrite={false} />
+      </mesh> : null
+    })}
+    {state?.wall && <mesh position={[state.wall.x, .25, state.wall.y]} rotation={[0, -state.wall.angle, 0]} castShadow>
+      <boxGeometry args={[state.wall.length, .5, state.wall.thickness]} /><meshStandardMaterial color="#67503d" /></mesh>}
+    {placement && itemMode === 'WALL' && <mesh position={[placement.x, .26, placement.y]} rotation={[0, -placement.angle, 0]} raycast={() => {}}>
+      <boxGeometry args={[state?.itemRules?.wallLength ?? 1.6, .5, state?.itemRules?.wallThickness ?? .18]} />
+      <meshStandardMaterial color={previewValid ? "#47ddca" : "#ec604c"} transparent opacity={.55} />
+    </mesh>}
+    {placement && itemMode === 'RELOCATE' && <mesh position={[placement.x, .04, placement.y]} rotation={[-Math.PI / 2, 0, 0]} raycast={() => {}}>
+      <ringGeometry args={[.2, .3, 32]} /><meshBasicMaterial color={previewValid ? "#47ddca" : "#ec604c"} />
+    </mesh>}
+    {state?.social?.cursors.filter(c => c.actor !== actor || actor < 0).map(c => <mesh key={c.id} position={[c.x, .38, c.y]} rotation={[-Math.PI / 2, 0, 0]} raycast={() => {}}>
+      <ringGeometry args={[.08, .13, 16]} /><meshBasicMaterial color={c.actor === 0 ? '#e78770' : c.actor === 1 ? '#6ecea0' : '#79afff'} />
+    </mesh>)}
+    {state?.social?.advice.map(a => { const p = pieces.find(p => p.id === a.pieceId); return p && <AdviceArrow key={a.id} x={p.x} y={p.y} dx={a.dx} dy={a.dy} power={a.power} /> })}
+    {state?.impacts?.filter(i => state.serverNow - i.at < 220).map(i => <mesh key={i.id} position={[i.x, .4, i.y]} rotation={[-Math.PI / 2, 0, 0]} raycast={() => {}}>
+      <ringGeometry args={[.12, .19 + Math.min(.15, i.impulse * .01), 20]} /><meshBasicMaterial color="#ffe0a0" transparent opacity={.6} depthWrite={false} />
+    </mesh>)}
+    <primitive object={arrow} />
+    <mesh ref={selectionRing} visible={false} rotation={[-Math.PI / 2, 0, 0]} raycast={() => {}}>
+      <ringGeometry args={[1, 1.13, 48]} /><meshBasicMaterial color="#fff38b" depthWrite={false} />
+    </mesh>
+  </>
+}
+
+function AdviceArrow({ x, y, dx, dy, power }: { x: number; y: number; dx: number; dy: number; power: number }) {
+  const arrow = useMemo(() => new ArrowHelper(new Vector3(dx, 0, dy), new Vector3(x, .55, y), .5 + power * 2, '#75b4ff'), [x, y, dx, dy, power])
+  useEffect(() => () => arrow.dispose(), [arrow])
+  return <primitive object={arrow} />
+}
+
+function Label({ piece }: { piece: Piece }) {
+  const texture = useMemo(() => {
+    const canvas = document.createElement('canvas'); canvas.width = canvas.height = 256
+    const ctx = canvas.getContext('2d')!
+    ctx.fillStyle = '#efd6a5'; ctx.fillRect(0, 0, 256, 256)
+    ctx.strokeStyle = piece.owner === 0 ? '#9d302b' : '#286452'; ctx.lineWidth = 9
+    ctx.beginPath(); ctx.arc(128, 128, 113, 0, Math.PI * 2); ctx.stroke()
+    ctx.fillStyle = ctx.strokeStyle; ctx.font = 'bold 172px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.fillText(piece.type, 128, 137)
+    return new CanvasTexture(canvas)
+  }, [piece.type, piece.owner])
+  useEffect(() => () => texture.dispose(), [texture])
+  return <mesh position={[0, .29, 0]} rotation={[-Math.PI / 2, 0, 0]} raycast={() => {}}><circleGeometry args={[piece.radius * .9, 32]} /><meshBasicMaterial map={texture} /></mesh>
+}
