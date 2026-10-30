@@ -44,6 +44,7 @@ public class WorldChannelRegistry implements ChannelPresence {
     private long lastStep;
     private long lastPatch;
     private boolean clientPositions;
+    private boolean tunedMovement;
 
     @Autowired
     void configurePositionReports(@Value("${ontop.world.movement.client-position:false}") boolean enabled,
@@ -53,6 +54,16 @@ public class WorldChannelRegistry implements ChannelPresence {
             throw new IllegalArgumentException("좌표 검증 이동은 local 또는 dev 프로필에서만 허용합니다.");
         }
         clientPositions = enabled;
+    }
+
+    @Autowired
+    void configureTunedMovement(@Value("${ontop.world.movement.tuned-profile:false}") boolean enabled,
+            org.springframework.core.env.Environment environment) {
+        if (enabled && (!environment.acceptsProfiles(org.springframework.core.env.Profiles.of("local", "dev"))
+                || environment.acceptsProfiles(org.springframework.core.env.Profiles.of("prod", "production")))) {
+            throw new IllegalArgumentException("조정된 이동은 local 또는 dev 프로필에서만 허용합니다.");
+        }
+        tunedMovement = enabled;
     }
 
     public WorldChannelRegistry(WorldChannelProperties properties) {
@@ -146,7 +157,7 @@ public class WorldChannelRegistry implements ChannelPresence {
         long started = System.nanoTime();
         boolean cold = room.physics == null;
         if (cold) {
-            room.physics = new WorldPhysics(scene.get(), clientPositions, nanoTime);
+            room.physics = new WorldPhysics(scene.get(), clientPositions, nanoTime, tunedMovement);
             room.physics.chairCounts(chairCounts(room.tables));
         }
         room.physics.add(userId);
