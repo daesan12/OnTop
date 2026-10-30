@@ -15,9 +15,20 @@ test('실제 드래그 발사를 두 브라우저가 같은 서버 상태로 받
   await expect(page.getByText('연결됨', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: '새 판', exact: true }).click()
   await expect.poll(() => red.at(-1)?.state.stage).toBe('WAITING')
+  await expect.poll(async () => (await page.locator('canvas').boundingBox())?.height ?? 0).toBeGreaterThan(400)
+  const before = (await page.locator('canvas').boundingBox())!
+  const startButton = (await page.getByRole('button', { name: '테스트 시작' }).boundingBox())!
+  expect(startButton.y).toBeLessThan(before.y)
+  await expect(async () => {
+    await page.mouse.click(before.x + before.width / 2, before.y + before.height * .60)
+    await expect(page.getByRole('status')).toContainText('먼저 테스트 시작')
+  }).toPass({ timeout: 5000 })
   await page.getByRole('button', { name: '테스트 시작' }).click()
   await expect.poll(() => red.at(-1)?.state.stage).toBe('AIMING')
   const rect = (await page.locator('canvas').boundingBox())!
+  await page.mouse.click(rect.x + rect.width / 2, rect.y + rect.height * .60)
+  await expect(page.getByRole('status')).toContainText('선택됨')
+  await page.screenshot({ path: '.vite-cache/alkkagi-test-results/selected-piece.png', fullPage: true })
   await page.mouse.move(rect.x + rect.width / 2, rect.y + rect.height * .60)
   await page.mouse.down()
   await page.mouse.move(rect.x + rect.width / 2, rect.y + rect.height * .78, { steps: 15 })

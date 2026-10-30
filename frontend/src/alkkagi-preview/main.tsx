@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { ArrowHelper, CanvasTexture, Group, Plane, Vector2, Vector3 } from 'three'
+import { ArrowHelper, CanvasTexture, Group, Mesh, Plane, Vector2, Vector3 } from 'three'
 import { AlkkagiReplay, type Piece, type Snapshot } from '../game/alkkagi/replay'
 import './style.css'
 
@@ -62,6 +62,13 @@ function App() {
   }
   const left = state?.stage === 'AIMING' ? Math.max(0, Math.ceil((state.turnDeadline - now) / 1000)) : null
   const result = state?.stage === 'FINISHED' ? state.winner === null ? '무승부 / 검증 종료' : `${names[state.winner]} 승리` : ''
+  const instruction = !connected ? '서버에 연결되면 시작할 수 있어요.'
+    : !state || state.stage === 'WAITING' ? actor === 0 ? '먼저 테스트 시작을 눌러주세요.' : '홍팀 화면에서 테스트 시작을 눌러주세요.'
+    : state.stage === 'FINISHED' ? '경기가 끝났어요. 홍팀 화면의 새 판을 눌러 다시 시작하세요.'
+    : state.stage === 'SIMULATING' ? '알이 움직이는 중입니다. 모두 멈추면 다음 차례가 됩니다.'
+    : actor < 0 ? '관전 화면입니다. 홍팀·청팀 화면에서 발사할 수 있어요.'
+    : state.turn !== actor ? `${names[state.turn]} 차례입니다. 해당 팀 화면에서 조작해주세요.`
+    : `내 차례! ${actor === 0 ? '빨간' : '초록'} 알을 누른 채 뒤로 당겼다가 놓으세요.`
   return <main>
     <header><div><span className="eyebrow">ONTOP · LOCAL PHYSICS LAB</span><h1>아이템 알까기 <small>기본 물리</small></h1></div>
       <div className={`connection ${connected ? 'on' : ''}`}>{connected ? '연결됨' : '연결 끊김'}</div></header>
@@ -70,14 +77,17 @@ function App() {
       <div>현재 차례<strong>{result || (!state || state.stage === 'WAITING' ? '시작 대기' : `${names[state.turn]} · ${state.turnNumber}턴`)}</strong></div>
       <div>남은 시간<strong>{left === null ? state?.stage === 'SIMULATING' ? '충돌 계산 중' : '—' : `${left}초`}</strong></div>
       <div>생존 알<strong>{state?.pieces.filter(p => p.owner === 0 && p.alive).length ?? 16} : {state?.pieces.filter(p => p.owner === 1 && p.alive).length ?? 16}</strong></div></section>
+    <div className="play-guide"><strong>{instruction}</strong>
+      {actor === 0 && <button disabled={!connected || pending || state?.stage !== 'WAITING'} onClick={() => send({ type: 'START' })}>테스트 시작</button>}
+    </div>
     <div className="board"><Canvas shadows camera={{ position: [0, 14, 0.01], fov: 46 }}>
       <color attach="background" args={['#253d37']} /><ambientLight intensity={1.8} />
       <directionalLight position={[3, 10, 6]} intensity={2.5} castShadow shadow-mapSize={[1024, 1024]} />
-      <Scene state={state} replay={replay} enabled={connected && !pending && state?.stage === 'AIMING' && state.turn === actor} shoot={shoot} />
+      <Scene state={state} replay={replay} enabled={connected && !pending && state?.stage === 'AIMING' && state.turn === actor}
+        shoot={shoot} explain={setNotice} blockedReason={instruction} />
     </Canvas></div>
     <footer><p role="status">{notice}</p><div className="buttons">
-      {actor === 0 && <><button disabled={!connected || pending || state?.stage !== 'WAITING'} onClick={() => send({ type: 'START' })}>테스트 시작</button>
-        <button className="secondary" disabled={!connected || pending} onClick={() => send({ type: 'RESET' })}>새 판</button></>}
+      {actor === 0 && <button className="secondary" disabled={!connected || pending} onClick={() => send({ type: 'RESET' })}>새 판</button>}
       <a href="?role=red">홍팀</a><a href="?role=green" target="_blank">청팀 화면 열기 ↗</a><a href="?role=viewer" target="_blank">관전 ↗</a>
     </div><small>작은 알은 가볍게, 큰 알은 무겁게 · 드래그 길이 = 힘 · Esc / 우클릭 취소</small>
       <details><summary>동기화 정보</summary><code>snapshot {seq} · tick {state?.tick} · shot {state?.simulationId} · version {state?.version}<br />game {state?.gameId}<br />{state?.endReason}</code></details></footer>
@@ -85,15 +95,17 @@ function App() {
 }
 
 type Aim = { piece: Piece; end: Vector3; gameId: string; version: number }
-function Scene({ state, replay, enabled, shoot }: { state: Snapshot | null; replay: AlkkagiReplay; enabled: boolean
-  shoot(p: Piece, dx: number, dy: number, power: number): void }) {
+function Scene({ state, replay, enabled, shoot, explain, blockedReason }: { state: Snapshot | null; replay: AlkkagiReplay; enabled: boolean
+  shoot(p: Piece, dx: number, dy: number, power: number): void; explain(message: string): void; blockedReason: string }) {
   const groups = useRef(new Map<string, Group>())
   const displayed = useRef({ gameId: '', generation: -1, alive: new Map<string, boolean>() })
   const { gl, camera, raycaster } = useThree()
   const aim = useRef<Aim | null>(null), arrow = useMemo(() => new ArrowHelper(new Vector3(0, 0, -1), new Vector3(), 1, '#f3c16d'), [])
+  const selected = useRef<Piece | null>(null), selectionRing = useRef<Mesh>(null)
   const floor = useMemo(() => new Plane(new Vector3(0, 1, 0), -.36), [])
   const pieces = state?.pieces ?? []
-  const clear = () => { aim.current = null; arrow.visible = false }
+  const clearAim = () => { aim.current = null; arrow.visible = false }
+  const clear = () => { clearAim(); selected.current = null; if (selectionRing.current) selectionRing.current.visible = false }
   useEffect(() => {
     const canvas = gl.domElement
     const point = (event: PointerEvent) => {
@@ -104,11 +116,13 @@ function Scene({ state, replay, enabled, shoot }: { state: Snapshot | null; repl
     }
     const move = (event: PointerEvent) => { const p = point(event); if (aim.current && p) aim.current.end.copy(p) }
     const up = (event: PointerEvent) => {
-      const a = aim.current; clear()
+      const a = aim.current; clearAim()
       if (event.button !== 0 || !a || !enabled || a.gameId !== state?.gameId || a.version !== state.version) return
       const p = point(event) ?? a.end, dx = a.piece.x - p.x, dy = a.piece.y - p.z
       const length = Math.hypot(dx, dy)
-      if (length >= .08) shoot(a.piece, dx / length, dy / length, Math.min(1, length / 2.5))
+      if (length >= .08) {
+        clear(); shoot(a.piece, dx / length, dy / length, Math.min(1, length / 2.5))
+      } else explain(`${a.piece.type} 선택됨 · 이 알을 누른 채 뒤로 당겼다 놓으면 발사됩니다.`)
     }
     const key = (e: KeyboardEvent) => { if (e.key === 'Escape') clear() }
     const cancel = (e: Event) => { e.preventDefault(); clear() }
@@ -140,6 +154,13 @@ function Scene({ state, replay, enabled, shoot }: { state: Snapshot | null; repl
       }
       displayed.current.alive.set(p.id, p.alive)
     }
+    if (selectionRing.current) {
+      selectionRing.current.visible = !!selected.current && enabled
+      if (selected.current) {
+        selectionRing.current.position.set(selected.current.x, .31, selected.current.y)
+        selectionRing.current.scale.setScalar(selected.current.radius * 1.18)
+      }
+    }
     if (aim.current) {
       const a = aim.current, direction = new Vector3(a.piece.x - a.end.x, 0, a.piece.y - a.end.z)
       const length = direction.length(); arrow.visible = length > .05
@@ -153,13 +174,21 @@ function Scene({ state, replay, enabled, shoot }: { state: Snapshot | null; repl
     {Array.from({ length: 10 }, (_, i) => <mesh key={`h${i}`} position={[0, .004, i - 4.5]}><boxGeometry args={[8.5, .008, .012]} /><meshBasicMaterial color="#806243" /></mesh>)}
     {pieces.map(piece => <group key={`${state!.gameId}-${piece.id}`} ref={g => { if (g) groups.current.set(piece.id, g); else groups.current.delete(piece.id) }}>
       <mesh castShadow receiveShadow position={[0, .15, 0]} onPointerDown={e => {
-        if (!enabled || !piece.alive || piece.owner !== actor || e.button !== 0) return
-        e.stopPropagation(); gl.domElement.setPointerCapture(e.pointerId)
+        if (e.button !== 0) return
+        e.stopPropagation()
+        if (!enabled) { explain(blockedReason); return }
+        if (!piece.alive || piece.owner !== actor) { explain('상대 알입니다. 내 팀 색깔의 알을 골라주세요.'); return }
+        gl.domElement.setPointerCapture(e.pointerId)
+        selected.current = piece
+        explain(`${piece.type} 선택됨 · 마우스를 누른 채 뒤로 당기고 놓으세요.`)
         aim.current = { piece, end: new Vector3(piece.x, .36, piece.y), gameId: state!.gameId, version: state!.version }
       }}><cylinderGeometry args={[piece.radius, piece.radius * 1.03, .27, 8]} /><meshStandardMaterial color="#f0d5a1" roughness={.65} /></mesh>
       <Label piece={piece} />
     </group>)}
     <primitive object={arrow} />
+    <mesh ref={selectionRing} visible={false} rotation={[-Math.PI / 2, 0, 0]} raycast={() => {}}>
+      <ringGeometry args={[1, 1.13, 48]} /><meshBasicMaterial color="#fff38b" depthWrite={false} />
+    </mesh>
   </>
 }
 
