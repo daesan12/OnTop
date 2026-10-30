@@ -1,5 +1,7 @@
 # 새 공원 FE 보완본 · BE 연결 요청
 
+> 최신 재전달본: [PARK_BACKEND_CONNECTION_REQUEST_2026-10-30.md](PARK_BACKEND_CONNECTION_REQUEST_2026-10-30.md). `18225121`의 `PARK_V1` 및 잔여 접촉 지지 제외, 배포 순서를 반영한 최신 문서를 우선 사용한다. 아래는 이전 전달 기록이다.
+
 ## 기준과 담당 범위
 
 - 최신 GitLab `dev` 기준: `5a0e5b8a` (2026-10-30 확인). 최종 MR에서는 대상 dev가 갱신되지 않았는지 다시 확인한다.

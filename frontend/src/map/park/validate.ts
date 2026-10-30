@@ -4,7 +4,7 @@ export function validatePhysics(p:ReturnType<typeof buildPhysics>) {
   const fountain=p.fountainPolicy
   if(![fountain.x,fountain.z,fountain.radius,fountain.bottom,fountain.top,fountain.exitGap].every(Number.isFinite)
     ||fountain.radius<=0||fountain.top<=fountain.bottom||fountain.exitGap<0)throw new Error('invalid fountain movement policy')
-  if(!(p.pavilionJumpSpeed>0)||p.furniturePolicy.kind!=='no-climb'||p.furniturePolicy.movementHeight<=0)throw new Error('invalid pavilion movement policy')
+  if(!(p.pavilionJumpSpeed>0)||!(p.pavilionTunedJumpSpeed>0)||p.furniturePolicy.kind!=='no-climb'||p.furniturePolicy.movementHeight<=0)throw new Error('invalid pavilion movement policy')
   assertUniqueIds('physical shapes',[...p.boxes,...p.meshes,...p.hulls])
   for(const b of p.boxes)if(![...b.center,...b.half,b.yaw].every(Number.isFinite)||b.half.some(n=>n<=0))throw new Error(`${b.id}: invalid physical box`)
   for(const m of [...p.meshes,...p.hulls])if(m.vertices.length%3||m.vertices.length<9||!m.vertices.every(Number.isFinite))throw new Error(`${m.id}: invalid vertices`)

@@ -185,7 +185,7 @@ export function buildPhysics(i:Input) {
   const surfaceOffset=towerPoint(0,OBSERVATION_TOWER.inner)[1]
   const tower={...OBSERVATION_TOWER,x:d.sites.tower.x,z:d.sites.tower.z,surfaceOffset,topY:OBSERVATION_TOWER.height+surfaceOffset}
   return {units:'m',upAxis:'Y',coordinateSpace:'world',playerInflation:0,collisionMargin:0,
-    tower,steppingStones,pavilionJumpSpeed:7.8,furniturePolicy:FURNITURE_POLICY,fountainPolicy,
+    tower,steppingStones,pavilionJumpSpeed:7.8,pavilionTunedJumpSpeed:8.6,furniturePolicy:FURNITURE_POLICY,fountainPolicy,
     character:{radius:MOVEMENT.radius,halfHeight:MOVEMENT.halfHeight,offset:MOVEMENT.offset},
     terrain:{meshId:'terrain',halfSize:half,step,columns:side,rows:side,triangleOrder:'a-c-b,b-c-d'},
     spawn:{position:[sx,spawnGround+centerOffset,sz] as Point3,yaw:Math.PI,origin:'capsule-center',groundClearance:d.physics.spawnClearance},

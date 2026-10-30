@@ -9,8 +9,8 @@ const { createPredictionPhysics } = await import('../../src/network/predictionPh
 const { addGeneratedPredictionColliders } = await import('../../src/network/predictionMap');
 afterAll(() => vi.unstubAllEnvs());
 
-it('blocks running and jumping onto the fountain from all four sides, while its plaza remains walkable',async()=>{
- const simulation=await createPredictionPhysics(),f=PARK_DATA.physics.fountainPolicy
+it.each([undefined,'PARK_V1'] as const)('blocks running and jumping onto the fountain with profile %s from all four sides',async(profile)=>{
+ const simulation=await createPredictionPhysics(profile),f=PARK_DATA.physics.fountainPolicy
  const {PARK_LAYOUT}=await import('../../src/map/park')
  try {
   for(const [dx,dz] of [[1,0],[-1,0],[0,1],[0,-1]])for(const jump of [false,true]) {
@@ -29,8 +29,8 @@ it('blocks running and jumping onto the fountain from all four sides, while its 
  }finally{simulation.dispose()}
 })
 
-it('cannot land or remain on the fountain after a high fall or recovery inside it',async()=>{
- const simulation=await createPredictionPhysics(),f=PARK_DATA.physics.fountainPolicy
+it.each([undefined,'PARK_V1'] as const)('cannot remain on the fountain after a high fall or recovery with profile %s',async(profile)=>{
+ const simulation=await createPredictionPhysics(profile),f=PARK_DATA.physics.fountainPolicy
  try {
   for(const y of [12,0]) {
    simulation.reset({x:f.x,y,z:f.z,yaw:0},-2,false)
@@ -77,8 +77,8 @@ it('uses uninflated handoff shapes and server chair numbers at the new VR table'
   } finally { world.free(); }
 });
 
-it('blocks walking and boosted jumps through pavilion furniture without changing its seat anchors',async()=>{
- const simulation=await createPredictionPhysics()
+it.each([undefined,'PARK_V1'] as const)('blocks walking and jumps through pavilion furniture with profile %s without changing its seats',async(profile)=>{
+ const simulation=await createPredictionPhysics(profile)
  try {
   const table=PARK_DATA.tables.find(t=>t.pavilionId==='P1')!,box=PARK_DATA.physics.boxes.find(b=>b.id===table.id+'-top')!
   simulation.setChairs(new Map(PARK_DATA.tables.map(t=>[t.id,0])))
@@ -92,21 +92,21 @@ it('blocks walking and boosted jumps through pavilion furniture without changing
  } finally{simulation.dispose()}
 })
 
-it('allows a jump over the finite pavilion rail and bench but blocks walking through them',async()=>{
- const simulation=await createPredictionPhysics()
+it.each([undefined,'PARK_V1'] as const)('allows a jump over the finite pavilion rail and bench with profile %s but blocks walking',async(profile)=>{
+ const simulation=await createPredictionPhysics(profile)
  try {
   const p=PARK_DATA.pavilions.find(p=>p.id==='P5')!,a=Math.PI/4
   const normal={x:Math.cos(a),z:Math.sin(a)},face=3.65*p.scale*Math.cos(Math.PI/8)
   const start={x:p.x+normal.x*(face-1.7),y:p.floor+.8,z:p.z+normal.z*(face-1.7),yaw:a}
   simulation.setChairs(new Map(PARK_DATA.tables.map(t=>[t.id,0])))
-  const travel=(jump:boolean)=>{simulation.reset(start,0,true);for(let n=0;n<60;n++)simulation.step({dx:normal.x,dz:normal.z,run:false,jump:jump&&n===0},1/60);const at=simulation.pose();return (at.x-p.x)*normal.x+(at.z-p.z)*normal.z}
+  const travel=(jump:boolean)=>{simulation.reset(start,0,true);for(let n=0;n<10;n++)simulation.step({dx:normal.x,dz:normal.z,run:false,jump:false},1/60);for(let n=0;n<60;n++)simulation.step({dx:normal.x,dz:normal.z,run:false,jump:jump&&n===0},1/60);const at=simulation.pose();return (at.x-p.x)*normal.x+(at.z-p.z)*normal.z}
   expect(travel(false)).toBeLessThan(face)
   expect(travel(true)).toBeGreaterThan(face+.4)
  }finally{simulation.dispose()}
 })
 
-it('slides off the furniture movement barrier after a high fall instead of standing on its invisible top',async()=>{
- const simulation=await createPredictionPhysics()
+it.each([undefined,'PARK_V1'] as const)('slides off furniture after a high fall with profile %s instead of standing on its invisible top',async(profile)=>{
+ const simulation=await createPredictionPhysics(profile)
  try {
   const table=PARK_DATA.tables.find(t=>t.pavilionId==='P1')!
   simulation.setChairs(new Map(PARK_DATA.tables.map(t=>[t.id,0])))

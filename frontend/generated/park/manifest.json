@@ -1,14 +1,14 @@
 {
   "artifacts": [
     {
-      "bytes": 2562427,
+      "bytes": 2562464,
       "path": "generated/park/server-map.json",
-      "sha256": "c2c3aa2f2085a818a62628d42c7e600085fe0722c5b9ace8fdbf54e1f3c5397c"
+      "sha256": "0620716f518d499992e8c8cc7bc8dbf8c3d818216871d80bc6e0264ab92245a0"
     },
     {
       "bytes": 329,
       "path": "src/map/park/generated/mapVersion.ts",
-      "sha256": "b1a2c69d9a95542e6dd1c9dd2c0d20aa797fa37aeb3014aff6af5e451721a6c9"
+      "sha256": "2b297c1c3b04bdcca71483e0767bf6a9d0a0c381497c11ae9fd5ce5cb9cc5e41"
     }
   ],
   "counts": {
@@ -29,11 +29,11 @@
   "format": "ontop.park-map-manifest",
   "hashAlgorithm": "sha256",
   "hashes": {
-    "dataHash": "d7517ddc498218c5a7d6ce11bfb603071a8505e39eca1fea2e5f8461eddbc480",
-    "sourceHash": "d55fd5741fb311ab51039d4210e26a2d13ce474fceb9ca72073f79fadf75f858"
+    "dataHash": "a7d3828053567573e6f516fe2d7b2ac7353ee1dec6cd0fa0012d5b050ef6584f",
+    "sourceHash": "135d07434b20faec9091277df0106566ff2097203da1d2602cf3398c62305d9e"
   },
   "mapId": "park",
-  "mapVersion": "f79fb6c1861c791f80c28dc813c3ab2264822060e2bec6204655261fc12b7748",
+  "mapVersion": "04350122fdeee2b89212345ee4f776990d78832bb25435418b5ea6f2b2fbc769",
   "schemaVersion": 2,
   "sources": [
     {
@@ -174,7 +174,7 @@
     },
     {
       "path": "src/map/park/physics.ts",
-      "sha256": "00a21da66ad6d0d47c83914f5639cfecf6766dd13a210f13315dfc302aaf3e1d"
+      "sha256": "9b6fca6cc23cbbc630eb2aec83b707449d16a8941aa2079774c179df1fa0f1c6"
     },
     {
       "path": "src/map/park/planting.ts",
@@ -186,7 +186,7 @@
     },
     {
       "path": "src/map/park/validate.ts",
-      "sha256": "7da85c03d94dfce649c286da2c2e84f895defb0aad29298b6cadb22453f16377"
+      "sha256": "6e9d2e0d9d147795c355203602799a0f7761c45bedae910c9dc6efbd2fdb1f64"
     }
   ],
   "validation": {

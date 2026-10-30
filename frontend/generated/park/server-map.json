@@ -130181,6 +130181,7 @@
         }
       ],
       "pavilionJumpSpeed": 7.8,
+      "pavilionTunedJumpSpeed": 8.6,
       "playerInflation": 0,
       "spawn": {
         "groundClearance": 0.04,
@@ -131235,11 +131236,11 @@
   "format": "ontop.park-map",
   "hashAlgorithm": "sha256",
   "hashes": {
-    "dataHash": "d7517ddc498218c5a7d6ce11bfb603071a8505e39eca1fea2e5f8461eddbc480",
-    "sourceHash": "d55fd5741fb311ab51039d4210e26a2d13ce474fceb9ca72073f79fadf75f858"
+    "dataHash": "a7d3828053567573e6f516fe2d7b2ac7353ee1dec6cd0fa0012d5b050ef6584f",
+    "sourceHash": "135d07434b20faec9091277df0106566ff2097203da1d2602cf3398c62305d9e"
   },
   "mapId": "park",
-  "mapVersion": "f79fb6c1861c791f80c28dc813c3ab2264822060e2bec6204655261fc12b7748",
+  "mapVersion": "04350122fdeee2b89212345ee4f776990d78832bb25435418b5ea6f2b2fbc769",
   "schemaVersion": 2,
   "semantics": {
     "additionalPlayerInflation": "server-capsule-only",
