@@ -131,7 +131,7 @@ export const PreviewWorld=memo(function PreviewWorld({live=false}:{live?:boolean
     <group name="fish-bread" position={[SITES.cart.x,0,SITES.cart.z]} userData={{assetId:"user/repaired-fish-cart"}}><FishBreadShop/></group>
     <TraditionalMailbox position={[SITES.mailbox.x,0,SITES.mailbox.z]} scale={SETTINGS.mailbox.scale} yaw={SETTINGS.mailbox.yaw}/>
     <PlazaBuilding kind="shop" live={live}/><PlazaBuilding kind="drink" live={live}/>
-    {live?<PlazaBuilding kind="photo" live/>:<RankingBoardModel/>}
+    <RankingBoardModel/>
     <PreviewPigeons live={live}/>
     <FacetedParkTreeInstances parts={groveTreeModels.parts} name="layout-grove-original-trees" treeCount={groveTreeModels.plantings.length}/>
     <Instances parts={shrubs} shadow={false}><icosahedronGeometry args={[1,SIMPLE_MAP?0:1]}/></Instances>

@@ -63,18 +63,22 @@ it('connects dev feedback, notes and minigame entry to the accepted map instead 
  expect(canReachFeedback({x:mailbox[0],y:mailbox[1]+.8,z:mailbox[2],yaw:0})).toBe(true)
  expect(canReachNotes({x:notes[0],y:notes[1],z:notes[2],yaw:0})).toBe(true)
  expect(canReachNotes({x:notes[0],y:.8,z:notes[2],yaw:0})).toBe(false)
- expect(canReachBungeoppang({x:cart.x,y:.8,z:cart.z})).toBe(true)
+ const serving=PARK_DESTINATIONS.mini!
+ expect(canReachBungeoppang({...serving,y:.8})).toBe(true)
+ expect(canReachBungeoppang({x:cart.x,y:.8,z:cart.z})).toBe(false)
  expect(BUNG_GRILL.center).toEqual([cart.x+FISH_CART_GRILL.center[0],FISH_CART_GRILL.surfaceY,cart.z+FISH_CART_GRILL.center[2]])
 })
 
 it('scales the sound box and its collision footprint together while keeping its front usable',()=>{
  const scale=PARK_LAYOUT.SETTINGS.mailbox.scale,box=PARK_DATA.physics.boxes.find(b=>b.id==='feedback-mailbox')!
- expect(scale).toBe(1.5)
- expect(map.MAILBOX.height).toBeCloseTo(2.7)
+ expect(scale).toBe(1.9)
+ expect(map.MAILBOX.height).toBeCloseTo(3.42)
  expect(box.center).toEqual([map.MAILBOX.x,map.MAILBOX.height/2,map.MAILBOX.z])
  expect(box.half).toEqual([map.MAILBOX.bodyHalfWidth,map.MAILBOX.height/2,map.MAILBOX.bodyHalfDepth])
- expect(PARK_LAYOUT.canWalk(map.MAILBOX.x,map.MAILBOX.z+1.5)).toBe(true)
- expect(canReachFeedback({x:map.MAILBOX.x,y:.8,z:map.MAILBOX.z+1.5,yaw:Math.PI})).toBe(true)
+ expect(box.yaw).toBe(PARK_LAYOUT.SETTINGS.mailbox.yaw)
+ const front=PARK_DESTINATIONS.mailbox!
+ expect(PARK_LAYOUT.canWalk(front.x,front.z)).toBe(true)
+ expect(canReachFeedback({...front,y:.8,yaw:box.yaw+Math.PI})).toBe(true)
 })
 
 it('selects the same generated scene placements and identity used by the server handoff',()=>{

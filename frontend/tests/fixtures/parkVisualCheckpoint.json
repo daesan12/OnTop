@@ -28,7 +28,7 @@
     "src/layout-preview/PreviewLandscaping.tsx": "7bdec8aadc5b6e47e9d9ab3c0a0c86933e39d3ca2b86ced0d111bfc299f50dde",
     "src/layout-preview/PreviewPigeons.tsx": "829f4d51b3832a6e78e11af044975dbe8567f24499605949fc32990c9c109b2a",
     "src/layout-preview/PreviewSwimmingRipples.tsx": "7000a53d1d96f9e4aa21a23cdb89546168680a61a9ddb64240297151b22989b0",
-    "src/layout-preview/PreviewWorld.tsx": "6d4a1ea62924a5eff1ea973576054d23b8601700715368c6f3e578c463c2c963",
+    "src/layout-preview/PreviewWorld.tsx": "974f3a8460bb7cafab72f9d5b887def851c7c863a2fe8500441b534532d7b530",
     "src/layout-preview/reviewFurnitureGeometry.ts": "ebac00b5aa5aebf3625d49c7ac3485a02bcba28fa79de0a599a8f44bf54fdf53",
     "src/layout-preview/sceneGeometry.ts": "c59760e759f846c1a288bff577fb8daf25ce655b31da88bab7e7843bfe0c14d2",
     "src/map/park/collision.ts": "313810e0569a12607e463b0c706a05ce413504cf2d76158a04ae9621181a79de",
