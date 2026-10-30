@@ -1,0 +1,16 @@
+# Add only for a coordinated FE/BE park-map release. The normal Compose files
+# intentionally keep the legacy map until the candidate passes joint review.
+services:
+  app:
+    environment:
+      WORLD_MAP_SOURCE: generated
+      WORLD_MAP_JSON_PATH: /run/ontop/maps/server-map.json
+      WORLD_MAP_MANIFEST_PATH: /run/ontop/maps/manifest.json
+      WORLD_MAP_REQUIRE_MATCH: "true"
+    volumes:
+      - type: bind
+        source: ${PARK_MAP_HOST_DIR:?Set PARK_MAP_HOST_DIR to the staged immutable map directory}
+        target: /run/ontop/maps
+        read_only: true
+        bind:
+          create_host_path: false

@@ -10,6 +10,8 @@ sha=$1
 image="wooaw/ontop-backend:sha-$sha"
 env_file=/etc/ontop/dev-app/deploy.env
 compose_file=/opt/ontop/infra/app/compose.dev.yaml
+generated_compose=/opt/ontop/infra/app/compose.generated-map.yaml
+generated_marker=/etc/ontop/dev-app/park-map.enabled
 record_dir=/var/lib/ontop/ci
 record_file=$record_dir/dev-deployments.tsv
 
@@ -18,6 +20,19 @@ flock -n 9 || { echo 'Another dev deployment is active.' >&2; exit 1; }
 
 [[ -f $env_file && -f $compose_file ]] || { echo 'Dev deployment configuration is missing.' >&2; exit 1; }
 docker image inspect "$image" >/dev/null
+
+compose_args=(--env-file "$env_file" -f "$compose_file")
+if [[ -f $generated_marker ]]; then
+  map_version=$(<"$generated_marker")
+  map_dir=$(sed -n 's/^PARK_MAP_HOST_DIR=//p' "$env_file" | head -n 1)
+  [[ $map_version =~ ^[0-9a-f]{64}$ && $map_dir == "/opt/ontop/maps/$map_version" \
+    && -r "$map_dir/server-map.json" && -r "$map_dir/manifest.json" \
+    && -f $generated_compose ]] || {
+    echo 'Generated park marker, files, or Compose override are inconsistent.' >&2
+    exit 1
+  }
+  compose_args+=(-f "$generated_compose")
+fi
 
 old_image=$(sed -n 's/^BACKEND_IMAGE=//p' "$env_file" | head -n 1)
 [[ -n $old_image ]] || { echo 'BACKEND_IMAGE is missing.' >&2; exit 1; }
@@ -28,7 +43,7 @@ fi
 docker image inspect "$old_image" >/dev/null
 
 compose() {
-  docker compose --env-file "$env_file" -f "$compose_file" "$@"
+  docker compose "${compose_args[@]}" "$@"
 }
 
 set_image() {
