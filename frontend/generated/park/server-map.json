@@ -11477,7 +11477,7 @@
           "heightTolerance": 0.7,
           "id": "layout-photo",
           "kind": "CONSTRUCTION",
-          "label": "포토부스",
+          "label": "랭킹 보드",
           "message": "현재 공사 중입니다. 준비가 끝나면 이용할 수 있어요.",
           "position": [
             30,
@@ -130696,11 +130696,11 @@
   "format": "ontop.park-map",
   "hashAlgorithm": "sha256",
   "hashes": {
-    "dataHash": "d3eaf0f10e986f6bbc3957d786cded4bf20d6a154457ee83f7b145c23d9d1b67",
-    "sourceHash": "b15fd37548b5d9b73ec7c8cf80c310c65221cde11348976284192e76102d18ad"
+    "dataHash": "0f0498516087747690b0bd7c892fc1d7fe3c08c6c9d4c9f3352b5c20bd355c04",
+    "sourceHash": "324db2d6e3907f3b2f7c40577c3dd80eb5854640a50581b33f5595128d4ee8c7"
   },
   "mapId": "park",
-  "mapVersion": "a0f4df03ce302cfc8a82d2c9c933ae1a8d58dfaea307640e1191a7ab4556a620",
+  "mapVersion": "e4c6e290be56dfb333a7b2fafd286664a5dd7f5e19ede0acfff859f6f6144200",
   "schemaVersion": 2,
   "semantics": {
     "additionalPlayerInflation": "server-capsule-only",

@@ -10,9 +10,10 @@ export function LuckyFacilityPanel({id}:{id:string}){
   const lottery=id==='layout-drink',dialog=useRef<HTMLDialogElement>(null)
   const timer=useRef<ReturnType<typeof setTimeout>|undefined>(undefined)
   const [angle,setAngle]=useState(0),[spinning,setSpinning]=useState(false)
+  const [duration,setDuration]=useState(spinDuration)
   const [result,setResult]=useState<number|null>(null),[ticket,setTicket]=useState(false)
   useEffect(()=>{
-    const el=dialog.current;el?.showModal()
+    const el=dialog.current;el?.showModal();el?.querySelector<HTMLButtonElement>('.lucky-primary')?.focus()
     return()=>{clearTimeout(timer.current);el?.close()}
   },[])
   const spin=()=>{
@@ -20,8 +21,9 @@ export function LuckyFacilityPanel({id}:{id:string}){
     const random=crypto.getRandomValues(new Uint32Array(1))[0]!/2**32
     const index=Math.floor(random*WHEEL_VALUES.length)
     setResult(null);setSpinning(true);setAngle(previous=>wheelLanding(previous,index))
-    const duration=matchMedia('(prefers-reduced-motion: reduce)').matches?0:spinDuration
-    timer.current=setTimeout(()=>{setResult(WHEEL_VALUES[index]!);setSpinning(false)},duration)
+    const nextDuration=matchMedia('(prefers-reduced-motion: reduce)').matches?0:spinDuration
+    setDuration(nextDuration)
+    timer.current=setTimeout(()=>{setResult(WHEEL_VALUES[index]!);setSpinning(false)},nextDuration)
   }
   return <dialog ref={dialog} className="lucky-facility" aria-labelledby="lucky-title" aria-describedby="lucky-description"
     onCancel={e=>{e.preventDefault();closeConstructionNotice()}} onClose={closeConstructionNotice}
@@ -49,14 +51,14 @@ export function LuckyFacilityPanel({id}:{id:string}){
     </div>:<>
       <div className="lucky-wheel-stage" aria-hidden="true">
         <div className="lucky-pointer"/>
-        <div className="lucky-wheel" style={{background:wheelGradient,transform:`rotate(${angle}deg)`,transitionDuration:`${spinDuration}ms`}}>
+        <div className="lucky-wheel" style={{background:wheelGradient,transform:`rotate(${angle}deg)`,transitionDuration:`${duration}ms`}}>
           {WHEEL_VALUES.map((value,i)=><span key={i} style={{transform:`translate(-50%,-50%) rotate(${i*WHEEL_STEP}deg) translateY(calc(var(--wheel-size) * -.36))`}}>{value}</span>)}
           <div className="lucky-wheel-hub">福</div>
         </div>
         <div className="lucky-wheel-foot"/>
       </div>
       <div className="lucky-result" role="status" aria-live="polite">{spinning?'행운이 돌아가고 있어요…':result===null?'돌림판을 돌려 오늘의 숫자를 확인해 보세요.':<>오늘의 행운 숫자 <strong>{result}</strong><small>목업 결과예요. 실제 보상은 지급되지 않아요.</small></>}</div>
-      <button className="lucky-primary" autoFocus disabled={spinning} onClick={spin}>{spinning?'돌아가는 중…':result===null?'무료로 돌려보기':'한 번 더 돌리기'}</button>
+      <button className="lucky-primary" aria-disabled={spinning} aria-busy={spinning} onClick={spin}>{spinning?'돌아가는 중…':result===null?'무료로 돌려보기':'한 번 더 돌리기'}</button>
     </>}
     <footer>온탑 공원 · {lottery?'복권방':'뽑기방'}</footer>
   </dialog>

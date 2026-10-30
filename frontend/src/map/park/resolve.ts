@@ -285,7 +285,7 @@ const data={
   facilities,pavilions:DRAFT_PAVILIONS,tables:DRAFT_TABLES.map(({spectatorRadius:_unused,...t})=>t),
   interactions:{...facilityInteractions,construction:KIOSKS.map(k=>{
     const distance=k.depth/2+1.8
-    return {id:'layout-'+k.kind,kind:'CONSTRUCTION' as const,status:'construction' as const,label:({shop:'뽑기방',drink:'복권방',photo:'포토부스'})[k.kind],
+    return {id:'layout-'+k.kind,kind:'CONSTRUCTION' as const,status:'construction' as const,label:({shop:'뽑기방',drink:'복권방',photo:'랭킹 보드'})[k.kind],
       position:[k.x,0,k.z] as const,reachPosition:[k.x+Math.sin(k.yaw)*distance,.8,k.z+Math.cos(k.yaw)*distance] as const,
       yaw:k.yaw+Math.PI,radius:3,heightTolerance:.7,message:'현재 공사 중입니다. 준비가 끝나면 이용할 수 있어요.'}
   }),mailbox:{id:'feedback-mailbox',position:[SITES.mailbox.x,0,SITES.mailbox.z],radius:MAILBOX.interactionRadius},tableSeats:DRAFT_TABLES.map(t=>({tableId:t.id,position:t.position,localSeats:t.seatAnchors}))},

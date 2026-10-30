@@ -81,6 +81,7 @@ describe('lucky facility mock and enlarged fish shop',()=>{
     const mailbox=PARK_DESTINATIONS.mailbox!
     expect(PARK_LAYOUT.canWalk(mailbox.x,mailbox.z)).toBe(true)
     expect(PARK_LAYOUT.KIOSKS.find(k=>k.kind==='photo')).toMatchObject({x:30,z:35.6,width:9.6,depth:6.6,yaw:-Math.PI/3,fenced:false})
+    expect(PARK_DATA.interactions.construction.find(s=>s.id==='layout-photo')!.label).toBe('랭킹 보드')
     for(const site of PARK_DATA.interactions.construction){
       const [x,,z]=site.reachPosition
       expect(PARK_LAYOUT.canWalk(x,z),site.id).toBe(true)

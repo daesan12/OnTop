@@ -46,3 +46,31 @@ test('the enlarged public fish shop clears the unchanged private cooking set',as
   await page.evaluate(async()=>{(await import('/tests/layout-e2e/plazaStructureProbe.ts' as string)).setFishCooking(false)})
   await expect.poll(visible).toEqual({exterior:true,cart:false})
 })
+
+for(const reduced of [false,true])test(`retained wheel respects reduced motion=${reduced} and keeps keyboard focus during a spin`,async({page})=>{
+ await page.emulateMedia({reducedMotion:reduced?'reduce':'no-preference'})
+ await page.goto('/layout-preview.html')
+ await expect(page.getByText('배치 준비 완료',{exact:true})).toBeVisible({timeout:90000})
+ await page.evaluate(async()=>(await import('/tests/layout-e2e/luckyWheelReviewProbe.ts' as string)).mountRetainedWheel())
+ const dialog=page.getByRole('dialog',{name:'행운의 돌림판'}),spin=dialog.locator('.lucky-primary')
+ try{
+  await expect(spin).toBeFocused()
+  await page.keyboard.press('Enter')
+  await expect(dialog.locator('.lucky-wheel')).toHaveCSS('transition-duration',reduced?'0s':'3.4s')
+  await expect(spin).toBeFocused()
+  if(!reduced){
+   await expect(spin).toHaveAttribute('aria-busy','true')
+   const pose=await dialog.locator('.lucky-wheel').getAttribute('style')
+   await page.keyboard.press('Enter')
+   expect(await dialog.locator('.lucky-wheel').getAttribute('style')).toBe(pose)
+   await page.keyboard.press('Tab');await expect(dialog.getByRole('button',{name:'시설 닫기'})).toBeFocused()
+   await page.keyboard.press('Shift+Tab');await expect(spin).toBeFocused()
+  }
+  await expect(dialog.getByRole('status')).toContainText('오늘의 행운 숫자',{timeout:5000})
+  await expect(spin).toHaveAttribute('aria-busy','false')
+  if(reduced)expect(await dialog.locator('.lucky-wheel').evaluate(el=>(el as HTMLElement).style.transitionDuration)).toBe('0ms')
+ }finally{
+  await page.evaluate(async()=>(await import('/tests/layout-e2e/luckyWheelReviewProbe.ts' as string)).unmountRetainedWheel())
+ }
+ await expect(page.getByLabel('배치 시안 시설 목록').getByRole('button',{name:/^13/})).toHaveCount(0)
+})
