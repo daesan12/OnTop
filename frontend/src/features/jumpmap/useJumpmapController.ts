@@ -45,8 +45,8 @@ export function useJumpmapController() {
       if (s.run && s.run.runId !== before.run?.runId) { tip('RUN_STARTED'); if (!document.hidden) playSfx('game-start') }
       if (s.run && s.run.gatesPassed > (before.run?.gatesPassed ?? 0)) tip('FIRST_GATE')
       if (s.run?.finalReached && !before.run?.finalReached) tip('FINAL_PAD')
-      if (s.result && s.result.runId !== before.result?.runId && s.result.reason !== 'FINISH') tip('FIRST_FALL')
-      if (!document.hidden && s.result && s.result.runId !== before.result?.runId) playSfx(s.result.reason === 'FINISH' || s.result.reason === 'LAKE' ? 'move-splash' : 'move-land')
+      if (s.result && s.result.runId !== before.result?.runId && s.result.reason !== 'FINISH' && !s.result.recovered) tip('FIRST_FALL')
+      if (!document.hidden && s.result && !s.result.recovered && s.result.runId !== before.result?.runId) playSfx(s.result.reason === 'FINISH' || s.result.reason === 'LAKE' ? 'move-splash' : 'move-land')
     })
     const stopSound = onStep((block, player, power) => {
       if (!inScope() || document.hidden) return

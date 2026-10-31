@@ -171,6 +171,22 @@ public class TableHub {
 
     @Autowired(required = false)
     public void configureSpectatorEvents(SpectatorEventPolicy policy) { spectatorEvents = policy; }
+    // 점프맵 서비스가 없으면(비활성) 판정 신호를 버린다.
+    private java.util.function.Consumer<java.util.List<WorldChannelRegistry.JumpmapDelivery>> jumpmapSignals = ignored -> { };
+
+    @Autowired(required = false)
+    public void configureJumpmap(com.ssafy.ontop.world.jumpmap.JumpmapService service) {
+        jumpmapSignals = deliveries -> deliveries.forEach(delivery -> service.accept(delivery.signal(), delivery.recipients()));
+        service.sink(this::sendJumpmap);
+    }
+
+    /** 점프맵 저장 스레드에서도 호출된다. 같은 회원의 모든 연결(동시에 하나)에 송신 큐로만 넣는다. */
+    private synchronized void sendJumpmap(String userId, String type, java.util.Map<String, Object> payload) {
+        String encoded = protocol.encode(null, type, payload);
+        for (Member member : members.values()) {
+            if (member.userId().equals(userId)) member.peer().offer(encoded);
+        }
+    }
     private final ExecutorService startWorkers = Executors.newVirtualThreadPerTaskExecutor();
     private final ScheduledExecutorService heartbeatTimer = Executors.newSingleThreadScheduledExecutor(
             Thread.ofPlatform().daemon(true).name("table-heartbeat").factory());
@@ -471,6 +487,7 @@ public class TableHub {
         // 사용자 확정: 기존 연결이 살아 있으면 새 연결만 거절한다.
         boolean reservedStart = committedStarts.isPresent() && seating.containsKey(userId)
                 && starts.containsKey(seating.get(userId)) && starts.get(seating.get(userId)).frozen();
+        checkDuplicateConnection(userId, user.sessionId());
         if (seating.containsKey(userId) && !reservedStart && !reservedLobby
                 || members.values().stream().anyMatch(member -> member.userId().equals(userId))) {
             return false;
@@ -483,6 +500,48 @@ public class TableHub {
             activateConnection(member, session.getId(), user.sessionId(), reservedStart);
         }
         return true;
+    }
+
+    private Duration duplicateProbe = Duration.ZERO;
+    // 사용자 → 기존 연결 생존 확인 시작 시각(nanoTime)
+    private final Map<String, Long> duplicateProbes = new HashMap<>();
+
+    /** 0이면 끈다(기존 1008 거절). 후보값 3초는 스테이징 측정 전까지 운영값으로 확정하지 않는다. */
+    @Autowired(required = false)
+    public void configureDuplicateProbe(@Value("${ontop.websocket.duplicate-probe-timeout:0s}") String value) {
+        // 변환 서비스가 없는 최소 구성에서도 시작하도록 문자열을 직접 해석한다("500ms", "3s").
+        Duration timeout = org.springframework.boot.convert.DurationStyle.detectAndParse(value);
+        if (timeout.isNegative() || timeout.compareTo(heartbeatTimeout) >= 0) {
+            throw new IllegalArgumentException("기존 연결 확인 시간은 0 이상, heartbeat 제한 시간 미만이어야 합니다.");
+        }
+        duplicateProbe = timeout;
+    }
+
+    /**
+     * 같은 로그인 세션의 연결이 이미 있으면(half-open 의심) 기존 연결에 즉시 ping을 보내고 새 연결은 재시도로 돌려보낸다.
+     * 기존 연결이 기한 안에 응답했으면(다른 탭) 그대로 두고 기존 1008 거절로 넘어간다. 다른 로그인 세션은 검사하지 않는다.
+     */
+    private void checkDuplicateConnection(String userId, String loginSessionId) {
+        if (duplicateProbe.isZero()) return;
+        Member existing = members.values().stream().filter(member -> member.userId().equals(userId)).findFirst().orElse(null);
+        if (existing == null) {
+            duplicateProbes.remove(userId);
+            return;
+        }
+        if (!java.util.Objects.equals(loginSessions.get(existing.sessionId()), loginSessionId)) return;
+        long now = System.nanoTime();
+        Long started = duplicateProbes.get(userId);
+        // heartbeat 점검 주기(100ms)와 정리 여유를 더해 기한이 지난 뒤에도 남아 있으면 살아 있는 연결이다.
+        long settle = duplicateProbe.toNanos() + Duration.ofMillis(300).toNanos();
+        if (started == null || now - started > settle * 4) {
+            duplicateProbes.put(userId, now);
+            existing.peer().probeNow(duplicateProbe);
+            throw new com.ssafy.ontop.table.websocket.RetryableConnectionException("기존 연결을 확인하고 있습니다.");
+        }
+        if (now - started < settle) {
+            throw new com.ssafy.ontop.table.websocket.RetryableConnectionException("기존 연결을 확인하고 있습니다.");
+        }
+        duplicateProbes.remove(userId);
     }
 
     private void activateConnection(Member member, String sessionId, String loginSessionId, boolean reservedStart) {
@@ -856,7 +915,12 @@ public class TableHub {
         // disconnected()가 내부에서 release()를 부르므로 해제 전 점유를 한 번만 읽어 종료를 한 번만 기록한다.
         var facilityLease = facilities.current(member.userId());
         facilities.disconnected(member.userId());
-        WorldChannelRegistry.State channelState = channels.disconnect(member.userId());
+        // 점프맵 진행 중 네트워크 끊김은 15초 유예: 캐릭터와 채널 자리를 남기고 같은 채널 재입장 때 다시 묶는다.
+        boolean jumpmapGrace = member.accountId() != null && switch (reason) {
+            case SOCKET_CLOSED, TRANSPORT_ERROR, HEARTBEAT_TIMEOUT, SEND_ERROR, SEND_QUEUE_FULL -> true;
+            default -> false;
+        } && channels.suspendJumpmap(member.userId());
+        WorldChannelRegistry.State channelState = jumpmapGrace ? null : channels.disconnect(member.userId());
         if (facilityLease != null) {
             publishFacilities(facilityChannel, null, null);
             recordFacility(member.accountId(), facilityLease, "DISCONNECTED");
@@ -1225,6 +1289,11 @@ public class TableHub {
         }
         try {
             var worlds = channels.advance(Set.copyOf(seating.keySet()), follows.activeStates());
+            dispatchJumpmap(channels.drainJumpmap());
+            for (var ended : channels.drainSuspensionEnds()) {
+                publishChannel(ended, null, null);
+                publishWorld(channels.worldState(ended.channelId()), null, null);
+            }
             for (var following : follows.activeStates()) {
                 pruneFollows(channels.worldState(following.channelId()));
             }
@@ -1246,6 +1315,12 @@ public class TableHub {
             // Do not silently lose the scheduled simulation after one failed tick.
             org.slf4j.LoggerFactory.getLogger(TableHub.class).error("광장 이동 tick 실패", exception);
         }
+    }
+
+    /** 점프맵 판정 신호는 레지스트리 잠금 밖에서 넘긴다. 서비스가 없으면 버린다. */
+    private void dispatchJumpmap(java.util.List<WorldChannelRegistry.JumpmapDelivery> deliveries) {
+        if (deliveries.isEmpty()) return;
+        jumpmapSignals.accept(deliveries);
     }
 
     private void moveWorld(Member member, Request request) {

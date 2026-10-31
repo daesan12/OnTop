@@ -105,7 +105,8 @@ abstract class OpenApiHttpTestSupport {
                     "GET /api/v1/minigames/sessions/{sessionId}",
                     "POST /api/v1/minigames/sessions/{sessionId}/deliveries",
                     "POST /api/v1/minigames/sessions/{sessionId}/complete",
-                    "POST /api/v1/minigames/sessions/{sessionId}/abandon"));
+                    "POST /api/v1/minigames/sessions/{sessionId}/abandon",
+                    "GET /api/v1/minigames/jumpmap/status", "POST /api/v1/minigames/jumpmap/tips"));
             if (environment.getProperty("ontop.notes.enabled", Boolean.class, false)) {
                 expected.addAll(Set.of("GET /api/v1/notes", "POST /api/v1/notes"));
             }
