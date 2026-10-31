@@ -4,6 +4,7 @@ import { useFrame } from '@react-three/fiber'
 import { Color, Matrix4, Object3D, type InstancedMesh } from 'three'
 import { MOVEMENT, groundHeight, type QualityPreset } from '../../config'
 import { avatars } from '../../network/worldClient'
+import { playSfx } from '../../audio/sfx'
 import {
   createBirds,
   PIGEON,
@@ -50,6 +51,7 @@ export function ParkPigeons({ quality,habitat }: { quality: QualityPreset;habita
       part: new Object3D(),
       matrix: new Matrix4(),
       time: 0,
+      takeoffAt: (habitat?.sites ?? PIGEON_SITES).map(() => -Infinity),
       colors: [
         new Color('#d1d7e1'),
         new Color('#ffffff'),
@@ -95,13 +97,20 @@ export function ParkPigeons({ quality,habitat }: { quality: QualityPreset;habita
     }
     for (const batch of batches.current) batch.begin()
     state.birds.forEach((b, i) => {
+      const wasFlying = b.mode === 'fly'
+      const flock = Math.floor(i / PIGEON.countPerFlock)
       stepBird(
         b,
         dt,
         state.active,
-        (habitat?.sites??PIGEON_SITES)[Math.floor(i / PIGEON.countPerFlock)],
+        (habitat?.sites??PIGEON_SITES)[flock],
         habitat?.environment,
       )
+      // A flock scatters over several frames; play one cue instead of stacking every bird.
+      if (!wasFlying && b.mode === 'fly' && state.time - (state.takeoffAt[flock] ?? -Infinity) > 0.5) {
+        state.takeoffAt[flock] = state.time
+        playSfx('amb-pigeon-takeoff', { x: b.x, y: b.y, z: b.z })
+      }
       const flight = b.mode === 'fly',
         walking = b.mode === 'walk',
         t = state.time + b.phase
