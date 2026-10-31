@@ -79,8 +79,10 @@ class ParkContentDevMySqlTests {
         String admin = token(101);
         String member = token(202);
         try (var writer = connect(member); var viewer = connect(admin)) {
-            writer.request("CHANNEL_JOIN", Map.of("channelId", "channel-1"));
-            viewer.request("CHANNEL_JOIN", Map.of("channelId", "channel-1"));
+            for (var socket : new ScenarioClient[] {writer, viewer}) {
+                var joined = socket.request("CHANNEL_JOIN", Map.of("channelId", "channel-1"));
+                assertThat(joined.path("type").asText()).as(joined.toString()).isEqualTo("CHANNEL_STATE");
+            }
             locate("202", -10.8, .8, 14.5);
             String feedbackBody = json.writeValueAsString(Map.of("operationId", "combined-feedback",
                     "channelId", "channel-1", "text", "비공개 의견 테스트입니다"));
@@ -134,8 +136,11 @@ class ParkContentDevMySqlTests {
     private ScenarioClient connect(String token) throws Exception {
         var response = request("POST", "/auth/websocket-ticket", null, token);
         assertThat(response.statusCode()).isEqualTo(200);
-        return new ScenarioClient(port, "member", json.readTree(response.body()).path("ticket").asText(),
+        var client = new ScenarioClient(port, "member", json.readTree(response.body()).path("ticket").asText(),
                 "https://dev.on-top.world", "127.0.0.1:" + port);
+        // 접속 직후 경기 복구 확인이 끝나 LOBBY가 된 뒤에만 채널 입장을 받는다(GAME_RECOVERY_REQUIRED 방지).
+        client.state("LOBBY");
+        return client;
     }
 
     private void locate(String id, double x, double y, double z) {

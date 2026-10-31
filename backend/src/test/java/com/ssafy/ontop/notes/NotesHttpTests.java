@@ -130,6 +130,15 @@ class NotesHttpTests {
         assertThat(response.headers().firstValue("Access-Control-Allow-Origin")).contains("http://localhost:8080");
     }
 
+    @Test
+    void JPA_잠금과_조회_오류도_재시도할수있는_503으로_응답한다() throws Exception {
+        // 저장소는 Spring 예외 변환 대상(@Repository)이 아니므로 EntityManager 예외가 그대로 올라온다.
+        when(notes.list(anyLong(), any())).thenThrow(new jakarta.persistence.PessimisticLockException("lock wait timeout"));
+        var response = request("GET", "/notes?channelId=channel-1", null, jwt.issue(101, TestLoginSessions.ID));
+        assertThat(response.statusCode()).isEqualTo(503);
+        assertThat(response.body()).contains("\"code\":\"NOTES_UNAVAILABLE\"").doesNotContain("lock wait timeout");
+    }
+
     private HttpResponse<String> request(String method, String path, String body, String token) throws Exception {
         var request = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/api/v1" + path));
         if (token != null) { request.header("Authorization", "Bearer " + token); }
