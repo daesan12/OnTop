@@ -1,0 +1,6 @@
+.jm-preview{position:fixed;inset:0;background:#d4ddcf;color:#214b3b;font-family:'Malgun Gothic',system-ui,sans-serif;overflow:auto}
+.jm-preview>header{position:relative;z-index:30;padding:12px 24px;background:#f7f5ed;border-bottom:1px solid #c4cab9}
+.jm-preview h1{font-size:20px;margin:0}.jm-preview header p{font-size:12px;margin:5px 0 9px}
+.jm-preview header button{padding:8px 12px;margin:4px 6px 0 0;border:1px solid #c4cab9;border-radius:7px;background:#f7f5ed;color:#214b3b;font:700 12px 'Malgun Gothic',sans-serif;cursor:pointer}
+.jm-preview header button:disabled{opacity:.4;cursor:default}.jm-preview-stage{position:relative;min-height:640px;background:linear-gradient(#bacbb766,#d4ddcf),repeating-linear-gradient(0deg,transparent 0 59px,#214b3b12 60px)}
+.jm-preview-crosshair{position:absolute;top:45%;left:50%;color:#214b3b77;font-size:24px}.jm-preview-note{position:absolute;left:20px;right:20px;bottom:20px;text-align:center;font-size:13px}

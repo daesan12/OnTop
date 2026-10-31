@@ -3,6 +3,7 @@
 
 /* Shared glass for the HUD blocks; dropdowns stay a little denser so their lists read clearly. */
 .park-page {
+  --park-hint-scale: calc(var(--park-ui-scale) * .86);
   --hud-glass: rgba(41, 38, 32, 0.5);
   --hud-glass-strong: rgba(41, 38, 32, 0.72);
   --hud-blur: blur(14px) saturate(1.2);
@@ -144,7 +145,7 @@
   backdrop-filter: var(--hud-blur);
   white-space: nowrap;
   pointer-events: none;
-  transform: translateX(-50%) scale(var(--park-ui-scale));
+  transform: translateX(-50%) scale(var(--park-hint-scale));
   transform-origin: top center;
 }
 .park-location-chip > i { width: 1px; height: 16px; background: rgba(247, 241, 229, 0.25); }

@@ -41,6 +41,9 @@ import { canActOneCard } from '../../game/onecard/actions'
 import type { OneCardInput } from '../../game/onecard/protocol'
 import { canActBridge } from '../../game/bridge/actions'
 import type { BridgeInput } from '../../game/bridge/protocol'
+import { canActLedger } from '../../game/ledger/actions'
+import type { LedgerInput, LedgerPingTarget } from '../../game/ledger/protocol'
+import { LedgerPingEvents } from '../../game/ledger/pings'
 import { loadParkBindings } from './deployment'
 import type { ParkRuntimePort } from './contracts'
 import { benchBusy } from '../../features/interactions/benchState'
@@ -167,7 +170,8 @@ export class ParkRuntime implements ParkRuntimePort {
     stop: async () => { await this.socket.request('GAME_UNWATCH', {}, ['GAME_WATCH_LEFT']) },
     hide: () => {
       resetAlkkagiSocial()
-    this.omokEvents.reset()
+      this.omokEvents.reset()
+      this.ledgerPings.reset()
       this.oneCardPranks.reset()
       this.oneCardDefense.reset()
       if (this.gameWatchRequestId) this.obsoleteGameWatchRequests.add(this.gameWatchRequestId)
@@ -182,22 +186,29 @@ export class ParkRuntime implements ParkRuntimePort {
       spectatorError: error,
     }),
   })
+  private gameEventScope = () => {
+    const s = useSession.getState(), g = useGame.getState()
+    if (!this.active || !this.socket.connected || s.status !== 'connected' || !s.mapCompatible || !s.roomId
+      || !g.game || gameState(g.game).status !== 'PLAYING' || g.lastResult) return null
+    const game = g.game
+    if (game.role === 'PLAYER' && (!s.tableId || g.recovery !== 'RESTORED' || g.permittedGameId !== game.gameId
+      || !gamePlayers(game).includes(s.sessionId))) return null
+    if (game.role === 'SPECTATOR' && (!this.spectator.accepts(game.gameId) || g.watchedGameId !== game.gameId)) return null
+    return { key: JSON.stringify([this.generation, s.sessionId, s.roomId, game.gameId, game.role,
+      game.role === 'SPECTATOR' ? this.gameWatchRequestId : '']), gameId: game.gameId, version: game.version,
+      role: game.role, canSend: (game.role === 'PLAYER' || !s.tableId) && getAuthSession()?.status === 'AUTHENTICATED' }
+  }
   private omokEvents = new OmokSpectatorEvents({
-    scope: () => {
-      const s = useSession.getState(), g = useGame.getState()
-      if (!this.active || !this.socket.connected || s.status !== 'connected' || !s.mapCompatible || !s.roomId
-        || !g.game || gameState(g.game).status !== 'PLAYING' || g.lastResult) return null
-      const game = g.game
-      if (game.role === 'PLAYER' && (!s.tableId || g.recovery !== 'RESTORED' || g.permittedGameId !== game.gameId
-        || !gamePlayers(game).includes(s.sessionId))) return null
-      if (game.role === 'SPECTATOR' && (!this.spectator.accepts(game.gameId) || g.watchedGameId !== game.gameId)) return null
-      return { key: JSON.stringify([this.generation, s.sessionId, s.roomId, game.gameId, game.role,
-        game.role === 'SPECTATOR' ? this.gameWatchRequestId : '']), gameId: game.gameId, version: game.version,
-        role: game.role, canSend: (game.role === 'PLAYER' || !s.tableId) && getAuthSession()?.status === 'AUTHENTICATED' }
-    },
+    scope: () => this.gameEventScope(),
+    request: (type, payload, expected, onId) => this.socket.request(type, payload, expected, onId),
+  })
+  // 주사위 장부 관전자 훈수. 채팅과 같은 경기 범위를 쓰고 장부 경기에서만 열린다.
+  private ledgerPings = new LedgerPingEvents({
+    scope: () => useGame.getState().game?.ledger ? this.gameEventScope() : null,
     request: (type, payload, expected, onId) => this.socket.request(type, payload, expected, onId),
   })
   sendSpectatorChat = (text: string) => this.omokEvents.send('chat', text)
+  pingLedger = (target: LedgerPingTarget) => this.ledgerPings.send(target)
   private oneCardScope = (): PrankScope | null => {
       const s = useSession.getState(), state = useGame.getState(), game = state.game
       if (!this.active || !this.socket.connected || s.status !== 'connected' || !s.mapCompatible || !s.roomId
@@ -236,6 +247,7 @@ export class ParkRuntime implements ParkRuntimePort {
   pingOmok = (x: number, y: number) => this.omokEvents.send('ping', { x, y })
   private resetSpectator() {
     this.omokEvents.reset()
+    this.ledgerPings.reset()
     this.oneCardPranks.reset()
     this.oneCardDefense.reset()
     this.spectatorIntent = null; this.spectator.reset(); this.gameWatchRequestId = ''
@@ -376,12 +388,15 @@ export class ParkRuntime implements ParkRuntimePort {
     const profileRequest = ((method === 'PATCH' || method === 'DELETE') && path === '/api/v1/users/me')
       || (method === 'GET' && /^\/api\/v1\/users\/nickname-availability\?nickname=[^&#]+$/.test(path))
     const historyRequest = method === 'GET' && (path === '/api/v1/users/me/game-stats'
-      || /^\/api\/v1\/users\/me\/games\?size=20(?:&cursor=[1-9]\d{0,18})?(?:&gameCode=(?:OMOK|DICE|ONE_CARD|LIAR_BRIDGE))?$/.test(path))
+      || /^\/api\/v1\/users\/me\/games\?size=20(?:&cursor=[1-9]\d{0,18})?(?:&gameCode=(?:OMOK|DICE|ONE_CARD|LIAR_BRIDGE|DICE_LEDGER))?$/.test(path))
     const minigameRequest = /^\/api\/v1\/minigames\/sessions(?:\?rulesVersion=v[45]|\/\d+(?:\?(?:(?:includeSource|includeProgress)=true|deliveryKey=[A-Za-z0-9_-]{1,64})(?:&(?:(?:includeSource|includeProgress)=true|deliveryKey=[A-Za-z0-9_-]{1,64}))*|\/(?:complete|abandon|deliveries))?)?$/.test(path)
+      || method === 'POST' && /^\/api\/v1\/minigames\/sessions\/\d+\/manual-pause$/.test(path)
     const rankingRequest = BUNGEOPPANG_RANKINGS_ENABLED && method === 'GET'
       && /^\/api\/v1\/minigames\/bungeoppang\/rankings\?period=ALL_TIME&rulesVersion=v[45]&limit=20(?:&durationMs=[1-9]\d{0,8})?(?:&cursor=[A-Za-z0-9%+_.~-]{1,1536})?$/.test(path)
+    const parkRankingRequest = method === 'GET' && path === '/api/v1/rankings/park'
     if (!this.active || (!notesRead && !notesWrite && !shopRequest && !profileRequest
-      && !historyRequest && !minigameRequest && !jumpmapRequest && !rankingRequest && !/^\/api\/v1\/(?:wallets\/me|feedback)$/.test(path))
+      && !historyRequest && !minigameRequest && !jumpmapRequest && !rankingRequest && !parkRankingRequest
+      && !/^\/api\/v1\/(?:wallets\/me|feedback)$/.test(path))
       || (path === '/api/v1/feedback' && init.method !== 'POST'))
       throw new Error('현재 공원에서 사용할 수 없는 요청입니다.')
     const signals = [this.bootAbort?.signal, init.signal].filter((s): s is AbortSignal => !!s)
@@ -594,6 +609,7 @@ export class ParkRuntime implements ParkRuntimePort {
       acceptAlkkagiSocial(message, eligible ? g!.gameId : '', g?.version)
       return
     }
+    if (this.ledgerPings.accept(message)) return
     if (this.omokEvents.accept(message)) return
     if (this.worldTime.ownsError(message) || message.type === 'WORLD_TIME_STATE') return
     if (message.type === 'ERROR' && message.requestId && this.forfeitRequests.has(message.requestId)
@@ -636,6 +652,7 @@ export class ParkRuntime implements ParkRuntimePort {
       const alkkagi = useGame.getState().game?.alkkagi
       syncAlkkagiSocial(alkkagi?.gameId ?? '', alkkagi?.version ?? -1, alkkagi?.stage === 'AIMING')
       this.omokEvents.sync()
+      this.ledgerPings.sync()
       this.oneCardPranks.sync()
       this.oneCardDefense.sync()
     } catch (error) {
@@ -1056,7 +1073,7 @@ export class ParkRuntime implements ParkRuntimePort {
   setReady = (ready: boolean) =>
     this.action(async () => {
       const s = useSession.getState()
-      if (tableBusy() || !['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE', 'ALKKAGI'].includes(s.tableStates[s.tableId]?.gameCode ?? ''))
+      if (tableBusy() || !['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE', 'DICE_LEDGER', 'ALKKAGI'].includes(s.tableStates[s.tableId]?.gameCode ?? ''))
         throw new Error('플레이 가능한 게임을 선택한 대기 테이블에서 준비해주세요.')
       const table = s.tableStates[s.tableId]
       if (ready && !isTableGamePlayable(table.gameCode)) throw new Error(GAME_CONSTRUCTION_NOTICE)
@@ -1306,6 +1323,23 @@ export class ParkRuntime implements ParkRuntimePort {
       if (generation === this.generation && useGame.getState().permittedGameId === g.gameId)
         useGame.setState({ uncertain: !(error instanceof ServerError && ['GAME_ACTION_INVALID_ACTION', 'GAME_ACTION_NOT_YOUR_TURN'].includes(error.code)),
           error: error instanceof Error ? error.message : '다리 경기 처리 결과를 확인해주세요.' })
+      throw error
+    } finally { if (generation === this.generation) useGame.setState({ pending: false }) }
+  })
+  actLedger = (input: LedgerInput) => this.action(async () => {
+    const own = useSession.getState(), g = useGame.getState().game
+    if (own.status !== 'connected' || !g?.ledger || !canActLedger(own.sessionId, input))
+      throw new Error('본인 차례·남은 굴림·빈 칸·최신 장부 상태를 확인해주세요.')
+    const generation = this.generation
+    useGame.setState({ pending: true, error: '' })
+    try {
+      await this.socket.request('GAME_ACTION_SEND', { gameId: g.gameId, actionId: crypto.randomUUID(), expectedVersion: g.version,
+        input: input.kind === 'roll' ? { kind: 'roll', keepIds: [...input.keepIds] } : { kind: 'score', category: input.category } },
+      ['GAME_ACTION_RESULT'])
+    } catch (error) {
+      if (generation === this.generation && useGame.getState().permittedGameId === g.gameId)
+        useGame.setState({ uncertain: !(error instanceof ServerError && ['GAME_ACTION_INVALID_ACTION', 'GAME_ACTION_NOT_YOUR_TURN'].includes(error.code)),
+          error: error instanceof Error ? error.message : '주사위 장부 처리 결과를 확인해주세요.' })
       throw error
     } finally { if (generation === this.generation) useGame.setState({ pending: false }) }
   })

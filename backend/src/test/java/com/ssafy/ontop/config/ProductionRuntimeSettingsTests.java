@@ -23,8 +23,8 @@ class ProductionRuntimeSettingsTests {
                     var environment = context.getEnvironment();
                     for (String key : new String[] {"ontop.game-start.enabled", "ontop.games.omok.enabled",
                             "ontop.games.farkle.enabled", "ontop.games.onecard.enabled",
-                            "ontop.games.bridge.enabled", "ontop.minigames.enabled", "ontop.shop.enabled",
-                            "ontop.notes.enabled", "springdoc.api-docs.enabled", "springdoc.swagger-ui.enabled"}) {
+                            "ontop.games.bridge.enabled", "ontop.games.ledger.enabled", "ontop.minigames.enabled",
+                            "ontop.shop.enabled", "ontop.notes.enabled", "springdoc.api-docs.enabled", "springdoc.swagger-ui.enabled"}) {
                         assertThat(environment.getProperty(key)).as(key).isEqualTo("false");
                     }
                     assertThat(environment.getProperty("spring.flyway.locations"))
@@ -38,7 +38,8 @@ class ProductionRuntimeSettingsTests {
         new ApplicationContextRunner().withInitializer(new ConfigDataApplicationContextInitializer())
                 .withPropertyValues("spring.profiles.active=prod,db", "GAME_START_ENABLED=true",
                         "GAME_OMOK_ENABLED=true", "GAME_FARKLE_ENABLED=true", "GAME_ONECARD_ENABLED=true",
-                        "GAME_BRIDGE_ENABLED=true", "MINIGAMES_ENABLED=true", "BUNGEOPPANG_V5_ENABLED=true",
+                        "GAME_BRIDGE_ENABLED=true", "GAME_LEDGER_ENABLED=true", "MINIGAMES_ENABLED=true",
+                        "BUNGEOPPANG_V5_ENABLED=true",
                         "SHOP_ENABLED=true", "NOTES_ENABLED=true",
                         "DB_MIGRATION_LOCATIONS=classpath:db/migration,classpath:db/shop,classpath:db/minigame,classpath:db/notes")
                 .run(context -> {
@@ -46,7 +47,7 @@ class ProductionRuntimeSettingsTests {
                     var environment = context.getEnvironment();
                     for (String key : new String[] {"ontop.game-start.enabled", "ontop.games.omok.enabled",
                             "ontop.games.farkle.enabled", "ontop.games.onecard.enabled",
-                            "ontop.games.bridge.enabled", "ontop.minigames.enabled",
+                            "ontop.games.bridge.enabled", "ontop.games.ledger.enabled", "ontop.minigames.enabled",
                             "ontop.minigames.bungeoppang-v5-enabled", "ontop.shop.enabled",
                             "ontop.notes.enabled"}) {
                         assertThat(environment.getProperty(key)).as(key).isEqualTo("true");

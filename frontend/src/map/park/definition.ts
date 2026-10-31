@@ -2,16 +2,23 @@
 export type MapPoint = readonly [number,number]
 export type MapRoute = {id:string;points:readonly MapPoint[];width:number}
 const MAIN_AXIS_X=0
+const plaza={x:MAIN_AXIS_X,z:46,radius:7.4,pavingRadius:24,width:48,depth:48}
 const sites = {
   pagoda: { x: MAIN_AXIS_X, z: -40, floor: 1.8 }, fountain: { x: -63, z: -56 },
   hall: { x: -62, z: -12 }, fitness: { x: -63, z: 64 },
   event:{x:-64,z:21},
   tower: { x: 62, z: 56 },
   vr: {x:-74,z:-23},folk:{x:-74,z:-3},vrPagoda:{x:-53,z:-23},
-  cart: { x: -51, z: 23 }, mailbox: { x: -18, z: 18 },
-  shop: { x: -29.5, z: 36 }, drink: { x: -30, z: 54 }, photo: { x: 30, z: 35.6 },
+  cart: { x: -30.1, z: 35.8 }, mailbox: { x: 24.2, z: 30.4 },
+  shop: { x: 27, z: 50.8 }, drink: { x: 30.06, z: 54.13 }, photo: { x: 30, z: 35.6 },
 }
-const kiosks={shop:{width:9.6,depth:7.2,yaw:Math.PI/3},drink:{width:7.8,depth:5,yaw:Math.PI*2/3},photo:{width:8.8,depth:6.6,yaw:-Math.PI/3}}
+// Keep the wheel's anchor/model for later use, but omit it from the active map.
+const kiosks={shop:{enabled:false,fenced:false,width:4,depth:2,height:4.3,yaw:-Math.PI/2},drink:{enabled:true,fenced:true,width:6.8,depth:4.59,height:5.185,scale:.85,roofWidth:7.65,roofDepth:5.27,yaw:Math.atan2(plaza.x-sites.drink.x,plaza.z-sites.drink.z)},photo:{enabled:true,fenced:false,width:9.6,depth:6.6,yaw:-Math.PI/3}}
+const fishBreadShop={width:9.216,depth:6.912,height:5.856,scale:.96,yaw:Math.PI/3,roofWidth:10.176,roofDepth:8.064}
+const cartPoint=(across:number,forward:number):MapPoint=>[
+  sites.cart.x+across*Math.cos(fishBreadShop.yaw)+forward*Math.sin(fishBreadShop.yaw),
+  sites.cart.z-across*Math.sin(fishBreadShop.yaw)+forward*Math.cos(fishBreadShop.yaw),
+]
 
 // Persistent IDs are explicit. Array order never assigns pavilion/table identities.
 const pavilionPositions: Record<string, readonly [number, number]> = {
@@ -58,8 +65,6 @@ const routes:readonly MapRoute[] = [
   {id:'service-entry',points:[[-39,62],[39,62]],width:4},
   {id:'service-plaza',points:[[-39,46],[-20,46]],width:4},
   {id:'photo-plaza',points:[[20,46],[39,46]],width:4},
-  {id:'photo-front',points:[[23,40],[25.7,38.1]],width:2.2},
-  {id:'photo-north',points:[[25.7,38.1],[26,37.9]],width:2.2},
   {id:'fountain-south',points:[[-63,-42],[-63,-36]],width:4},
   {id:'fountain-vr',points:[[-63,-42],[-63,-32],[-62,-32]],width:3.5},
   {id:'vr-west-entry',points:[[-84,-12],[-62,-12]],width:3},
@@ -69,10 +74,6 @@ const routes:readonly MapRoute[] = [
   {id:'event-winding',points:[[-63,12],[-63,17],[-73,22],[-73,25],[-65,31],[-63,31]],width:3.5},
   {id:'event-east',points:[[-63,31],[-39,31]],width:3.5},
   {id:'event-west',points:[[-84,22],[-73,22]],width:3},
-  {id:'shop-approach',points:[[-22,40],[-25,38.6]],width:2.2},
-  {id:'raffle-approach',points:[[-23.5,50],[-26.5,52]],width:2.2},
-  {id:'cart-apron',points:[[-54.3,23],[-47.7,23]],width:5.4},
-  {id:'cart-access',points:[[-51,31],[-51,25.5]],width:2.8},
   {id:'south-east',points:[[39,27],[39,81],[82,81]],width:4},
   {id:'tower-west',points:[[39,56],[50.5,56]],width:4},
   {id:'tower-east',points:[[73.5,56],[84,56]],width:4},
@@ -98,14 +99,33 @@ export const PARK_DEFINITION = {
   // Main facility placements, metres in the X/Z ground plane.
   sites,
   // Includes the low-poly canopy and a clear place to stand in front of the sound box.
-  planting:{mailboxTreeClearance:3.4},
+  planting:{mailboxTreeClearance:4.4,facilityCanopyClearance:1.85,woodlandSupplementSpacing:3.15},
+  mailbox:{scale:1.9,yaw:Math.atan2(plaza.x-sites.mailbox.x,plaza.z-sites.mailbox.z)},
+  rankingBoard:{scale:1.06,roofWidth:10.6,roofDepth:2.226},
   // Lamp IDs stay stable. Local offsets follow their district when its layout moves.
-  lighting:{relocations:{
-    'lamp-0':{anchor:'plaza',offset:[21,9]},
+  lighting:{anchors:[
+    [20.284442352070435,51.43519994715294],[-20.284442352070432,51.43519994715294],[-20.284442352070435,40.564800052847076],
+    [14.849242404917494,31.1507575950825],[20.284442352070435,40.56480005284706],[-5,79.5],
+    [5,79.5],[-27,-33.5],[-27,-50.5],
+    [21,-33.5],[21,-50.5],[-30.214285714285715,-79],
+    [-12.642857142857146,-79],[4.928571428571431,-79],[22.5,-79],
+    [40.071428571428584,-79],[57.64285714285714,-79],[75.21428571428572,-79],
+    [-36,-68],[-36,-52],[-36,-36],
+    [-36,-20],[-42,-4],[-42,28],
+    [-42,44],[-42,60],[-36,76],
+    [-50.25,15],[-60.25,42],[29.25,59],
+    [36,54],[42,72],[49.75,78],
+    [71.25,78],[81.25,-68.44444444444444],[81.25,-51.333333333333336],
+    [81.25,-34.22222222222222],[81.25,17.111111111111114],[81.25,34.222222222222214],
+    [81.25,51.33333333333334],[81.25,68.44444444444443],[-73,78],
+  ] as readonly MapPoint[],relocations:{
+    'lamp-0':{anchor:'plaza',offset:[25,12.7]},
     'lamp-1':{anchor:'plaza',offset:[-12,19.3]},
     'lamp-2':{anchor:'plaza',offset:[-15,-17]},
     'lamp-3':{anchor:'plaza',offset:[15,-17]},
     'lamp-4':{anchor:'plaza',offset:[12,19.3]},
+    'lamp-29':{anchor:'plaza',offset:[-25,12.7]},
+    'lamp-30':{anchor:'plaza',offset:[42,4]},
     'lamp-36':{anchor:'lake',offset:[19.25,-24.5]},
     'lamp-41':{anchor:'fitness',offset:[-6.4,14]},
   } as Record<string,{anchor:'plaza'|'lake'|'fitness';offset:MapPoint}>},
@@ -119,8 +139,9 @@ export const PARK_DEFINITION = {
   vrCourt:{x:-63,z:-12,width:34,depth:40,yaw:Math.PI/2},
   vrEdgeTrees:[...[-27,-21,-15,-2,4].map(z=>({x:-43.4,z})),...[-27,-21,-3,3].map(z=>({x:-81.1,z})),...[-77,-71,-55,-49].flatMap(x=>[{x,z:-33.1},{x,z:9.1}])],
   event:{width:32,depth:26,benches:[{x:-75,z:14,side:-1},{x:-57,z:26,side:1}]},
-  fitness:{width:30,depth:22,radius:15,rx:15,rz:11,stationRx:11.5,stationRz:7.5,fenceRx:16.2,fenceRz:12.2,fenceOpening:5.6},
+  fitness:{width:30,depth:22,radius:15,rx:15,rz:11,stationRadius:7.5,exitOffset:2.8,fenceRx:16.2,fenceRz:12.2,fenceOpening:5.6},
   kiosks,
+  fishBreadShop,
   gate:{opening:5.2,boundaryOpening:5.2,postX:2.6},
   pavilionCourt:{width:14.5,depth:17},
   pavilionEdgeTrees:['P1','P2'].flatMap(id=>{
@@ -130,12 +151,23 @@ export const PARK_DEFINITION = {
   vrStoneSets:[{id:'layout-vr-stone-set-1',tableId:'table-17',x:-53,z:-8},{id:'layout-vr-stone-set-2',tableId:'table-18',x:-53,z:2}],
   vrStoneSeats:[[0,1.8],[0,-1.8],[-2,0],[2,0]] as readonly MapPoint[],
   forestBenches:[{id:'bench-forest-southwest',x:-73,z:80,yaw:0},{id:'bench-forest-northeast',x:52,z:-73,yaw:0},{id:'bench-forest-southeast',x:74,z:73,yaw:0}],
-  plaza:{x:MAIN_AXIS_X,z:46,radius:7.4,pavingRadius:24,width:48,depth:48},
+  plaza,
   plazaRestGardens:[] as {id:string;x:number;z:number;width:number;depth:number;side:number}[],
   plazaRestBenches:[] as {id:string;x:number;z:number;yaw:number}[],
   plazaBins:[] as {id:string;x:number;z:number}[],
   // Deliberate tree belt; resolve filters entrance paths, forecourts and buildings.
-  plazaTrees:[...(['shop','drink','photo'] as const).flatMap(kind=>{
+  plazaTrees:[...([[-1.6,-5.95],[1,-5.95],[3.6,-5.95],[-7.1,-1.3],[-7.1,1.3],[7.1,-1.3],[7.1,1.3]] as const).map(([across,forward],i)=>{
+    const [x,z]=cartPoint(across,forward)
+    return {id:'fish-shop-tree-'+i,x,z}
+  }),...([[-3,-5.2],[-.4,-5.2],[2.2,-5.2],[8,-2],[8,.6]] as const).map(([across,forward],i)=>({
+    id:'ranking-grove-tree-'+i,
+    x:sites.photo.x+across*Math.cos(kiosks.photo.yaw)+forward*Math.sin(kiosks.photo.yaw),
+    z:sites.photo.z-across*Math.sin(kiosks.photo.yaw)+forward*Math.cos(kiosks.photo.yaw),
+  })),...[-4.3,-1.7,.9,3.5].map((across,i)=>({
+    id:'lottery-back-tree-'+i,
+    x:sites.drink.x+across*Math.cos(kiosks.drink.yaw)-4.8*Math.sin(kiosks.drink.yaw),
+    z:sites.drink.z-across*Math.sin(kiosks.drink.yaw)-4.8*Math.cos(kiosks.drink.yaw),
+  })),...(['shop','drink','photo'] as const).filter(kind=>kiosks[kind].enabled).flatMap(kind=>{
     const p=sites[kind],k=kiosks[kind],points:{id:string;x:number;z:number}[]=[]
     // Two-dimensional side/back planting pockets; the front is intentionally empty.
     for(let row=0;row<10;row++)for(let col=0;col<17;col++){

@@ -68,9 +68,10 @@ export function FollowMenu() {
       <small>{reason || (followService.mode === 'unavailable' ? '따라가기 서버 연결이 준비 중이에요.' : followService.mode === 'preview' ? '개발 미리보기 · 실제 자동 이동은 하지 않아요.' : !state.ready || state.checking ? '따라가기 상태를 확인하고 있어요.' : '서버 승인 후 따라가요.')}</small>
       <button type="button" role="menuitem" onClick={close}>닫기</button>
     </div>}
-    {target && <aside className="follow-status" aria-label="따라가기 상태"><span>{nickname(target)} 따라가는 중</span>
+    {target && <aside className="follow-status follow-active" aria-label="따라가기 상태">
+      <span className="follow-active__icon" aria-hidden="true">↗</span><span className="follow-active__label" role="status"><b>{nickname(target)}</b> 따라가는 중</span>
       {followService.mode === 'preview' && <small>개발 미리보기 · 관계·줄 표시만 확인 / 실제 자동 이동 없음</small>}
-      <button type="button" disabled={state.pending || followService.mode === 'unavailable' || followService.mode === 'server' && (!state.ready || state.checking)} onClick={() => void requestFollow(null)}>따라가기 종료</button></aside>}
+      <button type="button" aria-label="따라가기 종료" title="따라가기 종료 · 이동키를 눌러도 종료할 수 있어요" disabled={state.pending || followService.mode === 'unavailable' || followService.mode === 'server' && (!state.ready || state.checking)} onClick={() => void requestFollow(null)}>×</button></aside>}
     {state.error && <aside className="follow-status follow-error" role="alert">{state.error}
       {followService.mode === 'server' && <button type="button" disabled={state.pending || state.checking}
         onClick={() => { void followService.check?.().catch(() => {}) }}>따라가기 상태 재조회</button>}

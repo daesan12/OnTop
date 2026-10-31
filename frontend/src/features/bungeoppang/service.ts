@@ -56,6 +56,7 @@ export interface BungeoppangService {
   nextOrder?(request: BungeoppangSubmit): Promise<{ index: number; order: BreadOrder; checkpoint?: V4Checkpoint }>
   recoverV4?(gameId: string): Promise<{ grill: import('./rulesV4').GrillState; checkpoint: V4Checkpoint }>
   syncTimeV4?(gameId: string): Promise<BungeoppangTimeSync>
+  setManualPaused?(gameId: string, paused: boolean): Promise<BungeoppangTimeSync | void>
   deliverV5?(request: BungeoppangSubmit): Promise<{ grill: V5Grill; revision: number }>
   recoverV5?(gameId: string): Promise<{ grill: V5Grill; revision: number }>
 }

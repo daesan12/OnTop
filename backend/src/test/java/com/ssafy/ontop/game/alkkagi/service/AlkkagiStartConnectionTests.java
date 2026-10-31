@@ -76,7 +76,7 @@ class AlkkagiStartConnectionTests {
 
     private CommittedGameStartService service(GameStartGateway gateway, AlkkagiEngine engine) {
         return new CommittedGameStartService(gateway, Optional.empty(), Optional.empty(), Optional.empty(),
-                Optional.empty(), Optional.empty(), Optional.ofNullable(engine), true, false);
+                Optional.empty(), Optional.empty(), Optional.empty(), Optional.ofNullable(engine), true, false);
     }
 
     private GameStartCommand command() {

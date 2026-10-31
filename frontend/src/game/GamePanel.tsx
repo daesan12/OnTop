@@ -4,6 +4,7 @@ import { OmokPanel } from './OmokPanel'
 import { FarklePanel } from './farkle/FarklePanel'
 import { OneCardPanel } from './onecard/OneCardPanel'
 import { BridgePanel } from './bridge/BridgePanel'
+import { LedgerPanel } from './ledger/LedgerPanel'
 import { useGathering } from '../features/tableLobby/gathering'
 import { useTableLobby } from '../features/tableLobby/state'
 import './prototypeTable.css'
@@ -26,10 +27,12 @@ export function GamePanel() {
   const dice = useGame(s => !!s.game?.dice || (s.start?.gameCode === 'DICE' && ['PLAYING', 'SETTLING'].includes(s.start.phase)))
   const card = useGame(s => !!s.game?.onecard || (s.start?.gameCode === 'ONE_CARD' && ['PLAYING', 'SETTLING'].includes(s.start.phase)))
   const bridge = useGame(s => !!s.game?.bridge || (s.start?.gameCode === 'LIAR_BRIDGE' && ['PLAYING', 'SETTLING'].includes(s.start.phase)))
+  const ledger = useGame(s => !!s.game?.ledger || (s.start?.gameCode === 'DICE_LEDGER' && ['PLAYING', 'SETTLING'].includes(s.start.phase)))
   if (terminalPlayer && !seated) return null
   if (alkkagi) return <AlkkagiPanel />
   if (spectatorResult) {
     if (spectatorResult.dice) return <FarklePanel />
+    if (spectatorResult.ledger) return <LedgerPanel />
     const winners = spectatorResult.onecard?.winnerUserIds ?? spectatorResult.bridge?.winnerUserIds
       ?? [spectatorResult.omok?.winnerUserId].filter((id): id is string => !!id)
     const label = spectatorResult.bridge ? '다리 경기' : spectatorResult.onecard ? '원카드 경기' : '오목 경기'
@@ -48,5 +51,5 @@ export function GamePanel() {
     <FinishedForfeitStatus />
     <button disabled={pending || !connected} onClick={() => void runtime.checkResult()}>정산 결과 확인</button>
   </section>
-  return bridge ? <BridgePanel /> : card ? <OneCardPanel /> : dice ? <FarklePanel /> : <OmokPanel />
+  return ledger ? <LedgerPanel /> : bridge ? <BridgePanel /> : card ? <OneCardPanel /> : dice ? <FarklePanel /> : <OmokPanel />
 }

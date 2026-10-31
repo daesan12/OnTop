@@ -53,6 +53,14 @@ public final class BungeoppangV4Spec {
                 round.playEndsAt(), round.submitDeadline(), round.expiresAt());
     }
 
+    public static BungeoppangV4Responses.Timing timing(BungeoppangV4Round round, Instant current) {
+        long offset = round.pauseOffset(current);
+        return new BungeoppangV4Responses.Timing(round.countdownStartsAt().plusMillis(offset),
+                round.playStartsAt().plusMillis(offset), round.playEndsAt().plusMillis(offset),
+                round.submitDeadline().plusMillis(offset), round.expiresAt().plusMillis(offset),
+                round.isManualPaused(), round.manualPauseRevision());
+    }
+
     public static BungeoppangV4Responses.Order order(BungeoppangV4Order order) {
         return new BungeoppangV4Responses.Order(Long.toString(order.orderId()), order.orderIndex(),
                 new BungeoppangV4Responses.FillingCounts(order.bean(), order.custard(), order.pizza(),
@@ -84,6 +92,7 @@ public final class BungeoppangV4Spec {
         if (!"PLAYING".equals(status)) {
             return status;
         }
+        now = round.gameTime(now);
         if (now.isBefore(round.countdownStartsAt())) {
             return "WAITING_START";
         }

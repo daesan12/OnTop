@@ -33,7 +33,9 @@ export function PropModel({
           receiveShadow
           userData={kind === 'stone' ? { keepOpaque: true } : undefined}
         >
-          {paving&&kind==='stone'?<WalkwayMaterial color={pavingColor} vertexColors excludedDisk={pavingHole}/>:SIMPLE_MAP?<primitive object={simplePropMaterial} attach="material" dispose={null}/>:kind === 'wood' ? (
+          {kind === 'glow' ? (
+            <NightMaterial color="#ffca79" emission="#ff9f35" strength={1.1} vertexColors />
+          ) : paving&&kind==='stone'?<WalkwayMaterial color={pavingColor} vertexColors excludedDisk={pavingHole}/>:SIMPLE_MAP?<primitive object={simplePropMaterial} attach="material" dispose={null}/>:kind === 'wood' ? (
             <SurfaceMaterial
               kind="wood"
               vertexColors
@@ -69,13 +71,6 @@ export function PropModel({
               vertexColors
               detail={0.12}
               strength={0.08}
-            />
-          ) : kind === 'glow' ? (
-            <NightMaterial
-              color="#ffca79"
-              emission="#ff9f35"
-              strength={1.1}
-              vertexColors
             />
           ) : (
             <OutdoorMetal

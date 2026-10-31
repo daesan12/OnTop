@@ -134,7 +134,7 @@ class BungeoppangRankingPaginationFlowTests {
 
     private Item item(long rank, long user, long made) {
         return new Item(rank, Long.toString(user), "회원" + user, made, 1,
-                Instant.parse("2026-10-28T00:00:00Z").plusSeconds(user));
+                Instant.parse("2026-10-28T00:00:00Z").plusSeconds(user), made, 9);
     }
 
     private JsonNode get(long user, String query, int status) throws Exception {

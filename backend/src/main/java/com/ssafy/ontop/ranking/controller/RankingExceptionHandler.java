@@ -8,7 +8,7 @@ import java.io.IOException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-@RestControllerAdvice(assignableTypes = RankingController.class)
+@RestControllerAdvice(assignableTypes = {RankingController.class, ParkRankingController.class})
 public class RankingExceptionHandler {
     private final RestSecurityErrorHandler errors;
 

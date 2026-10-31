@@ -137,7 +137,23 @@
 - v5는 판 원본의 `play_ends_at - play_starts_at`(저장된 플레이 시간)이 같은 기록끼리만 집계한다. `durationMs`를 생략하면
   신규 판 길이 `120000`, `180000`이면 기존 3분 판 기록이다. 같은 길이의 서로 다른 `configVersion`은 함께 집계한다.
 - 그 밖의 값은 400 `RANKING_INVALID_DURATION`. v4는 기존 조회 그대로이며 `durationMs`를 지정하면 같은 400이다.
-- 응답에 `durationMs`를 추가했다(v5는 조회한 시간, v4는 `null`). 정렬·순위·개인 최고 기록 선정은 바뀌지 않았다.
+- 응답에 `durationMs`를 추가했다(v5는 조회한 시간, v4는 `null`). 2026-10-31부터 개인 최고 점수·같은 판의 최대 콤보 순서로 선정하며 두 값이 같으면 공동 순위다.
 - 스냅샷은 시간까지 구분한다. 다른 `durationMs`로 커서를 다시 쓰면 409 `RANKING_SNAPSHOT_EXPIRED`이며 커서 형식·서명은 같다.
 - FE는 결과 화면에서 그 판에 저장된 `rules.durationMs`를 함께 보내고, 응답·다음 페이지의 `durationMs`가 같은지 확인한다.
   배포 순서는 BE 먼저다. FE만 먼저 배포되면 기존 BE 응답에 `durationMs`가 없어 v5 랭킹을 표시하지 않는다.
+
+## 9. F1 설명서 일시정지 · 2026-10-31
+
+- 붕어빵 v4/v5만 해당한다. 보드게임의 서버 턴·제한시간은 계속 흐른다. 탭 전환·브라우저 숨김은 자동 정지가 아니다.
+- 본인 세션에 `POST /api/v1/minigames/sessions/{id}/manual-pause`로
+  `{ "paused": true, "expectedPauseRevision": 0 }`을 보낸다. 닫을 때는 최신 버전과 `paused:false`를 보낸다.
+  기존 Access JWT·회원 권한·지갑 행 잠금으로 직렬화한다. 같은 상태 재요청은 상태를 반복 변경하지 않는다.
+- 응답은 기존 세션 조회 구조다. `timing.paused`와 `timing.pauseRevision`이 추가되며 GET에서도 현재 정지 상태를 읽는다.
+  다른 상태로 바꾸는 낡은 버전은 409 `MANUAL_PAUSE_CHANGED`, 정지 중 새 납품·완료는 409 `MINIGAME_PAUSED`다.
+  이미 확정된 동일 키 영수증은 계속 재조회할 수 있다.
+- 원래 시간 원점은 변경하지 않고 정지 구간을 제외한 시간으로 로그·완료·만료를 검사한다. 응답의 시간 창은 정지 시간만큼
+  모두 같은 폭으로 이동한다. 따라서 조리·손님 입장·남은 시간은 멈추며 2분·3분 랭킹 구분은 유지한다.
+- FE는 열기·닫기를 순서대로 확인하고, 확인 실패 시 조작을 잠근 채 재확인을 제공한다. 단순히 화면 숫자만 멈추지 않는다.
+- migration: `db/minigame/V132__add_bungeoppang_manual_pause.sql` (사용자 번호 확인 완료).
+  기존 migration은 변경하지 않는다. 운영 활성 Flyway locations에 `db/minigame`을 포함해 V132를 적용한 BE를 먼저 배포한다.
+- 새 DB 적용 및 V131의 기존 판을 보존한 순차 적용, 실제 HTTP 정지·재개·0점 완료·중복 완료와 점수 랭킹을 MySQL 8.4로 검증한다.

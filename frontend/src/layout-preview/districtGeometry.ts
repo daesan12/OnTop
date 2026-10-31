@@ -1,7 +1,8 @@
 import { BoxGeometry,BufferGeometry,Float32BufferAttribute } from 'three'
 import { PropBuilder } from '../world/art/propGeometry'
 import { SITES } from './layout'
-import { fountainPavingHeight,fountainPavingRadius,FOUNTAIN_PAVING_SEGMENTS } from './fountainPaving'
+import { fountainPavingHeight,fountainPavingRadius,FOUNTAIN_PAVING_SEGMENTS,createFountainPavingSkirt } from './fountainPaving'
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 
 const garden=new PropBuilder([12,8]),{x,z}=SITES.fitness
 garden.cylinder('stone','#ada78f',[x,.17,z],1.3,1.45,.34,[0,0,0],32)
@@ -40,5 +41,8 @@ for(let row=0;row<48;row++)for(let i=0;i<FOUNTAIN_PAVING_SEGMENTS;i++) {
   const a=at(row/48*fountainPavingRadius,i),b=at((row+1)/48*fountainPavingRadius,i),c=at(row/48*fountainPavingRadius,i+1),d=at((row+1)/48*fountainPavingRadius,i+1)
   for(const p of [a,c,b,b,c,d]){vertices.push(...p);uv.push(p[0]!/1.2,p[2]!/1.2)}
 }
-export const fountainTerrain=new BufferGeometry()
-fountainTerrain.setAttribute('position',new Float32BufferAttribute(vertices,3));fountainTerrain.setAttribute('uv',new Float32BufferAttribute(uv,2));fountainTerrain.computeVertexNormals()
+const fountainTop=new BufferGeometry()
+fountainTop.setAttribute('position',new Float32BufferAttribute(vertices,3));fountainTop.setAttribute('uv',new Float32BufferAttribute(uv,2));fountainTop.computeVertexNormals()
+const fountainSkirt=createFountainPavingSkirt()
+export const fountainTerrain=mergeGeometries([fountainTop,fountainSkirt])!
+fountainTop.dispose();fountainSkirt.dispose()

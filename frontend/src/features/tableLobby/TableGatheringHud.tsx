@@ -9,8 +9,11 @@ import { PaperPopup, ResultTrophy } from './PaperPopup'
 import { TABLET_ENABLED } from './tabletFeature'
 import { LegacyTableGatheringHud } from './LegacyTableGatheringHud'
 import { BoardRewardCoinSource } from '../wallet/RewardCoinFlight'
+import {useDebrisPresentation} from '../parkDebris/presentation'
 
 export function TableGatheringHud({ model }: { model: GatheringModel }) {
+  const presentation=useDebrisPresentation(model.tableId)
+  if(presentation&&!window.matchMedia('(prefers-reduced-motion: reduce)').matches)return null
   return TABLET_ENABLED ? <TabletResult model={model} /> : <LegacyTableGatheringHud model={model} />
 }
 function TabletResult({ model }: { model: GatheringModel }) {
@@ -30,14 +33,13 @@ function TabletResult({ model }: { model: GatheringModel }) {
       <span className="paper-player-outcome">{row.label}</span>
     </li>)}</ol>
     <div className="paper-settlement" role="status"><strong><BoardRewardCoinSource>{!model.settled && <i className="paper-pending" aria-hidden="true" />}{model.settled || model.invalid ? model.settlement : '보상 확인 중'}</BoardRewardCoinSource></strong>
-      <small>{model.invalid ? model.settled ? '서버에서 참가비 예약 해제를 확인했어요' : '서버의 참가비 예약 해제를 기다리고 있어요' : model.settled ? '서버에서 정산한 결과예요' : '확인이 끝나면 엽전에 반영돼요'}</small></div>
+      {!model.settled && <small>{model.invalid ? '참가비 예약 해제를 기다리고 있어요' : '확인이 끝나면 엽전에 반영돼요'}</small>}</div>
     <div className="paper-actions"><button className="paper-primary" disabled={disabled || !model.canReturn} onClick={returnToWaiting}>다음 판 준비</button>
       <button disabled={disabled || busy} onClick={() => void runtime.leaveTable()}>자리에서 일어나기</button>
       {!model.canReturn && <small>{model.settled ? '서버가 다음 판 대기실을 여는 중이에요' : '정산을 확인한 뒤 다음 판을 준비할 수 있어요'}</small>}
       {!model.settled && <button className="paper-text-button" disabled={disabled || !checkable} onClick={() => void runtime.checkResult()}>정산 결과 확인</button>}
     </div>
     <div className="paper-forfeit"><FinishedForfeitStatus /></div>
-    {model.reason && <details><summary>경기 종료 사유</summary><p>{model.reason}</p></details>}
     {error && <p className="paper-error" role="alert">{error}</p>}
   </PaperPopup>
 }

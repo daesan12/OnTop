@@ -39,6 +39,7 @@ import { RewardCoinFlight } from '../features/wallet/RewardCoinFlight'
 import { LocationChip } from '../features/parkMenus/LocationChip'
 import { JumpmapHud } from '../features/jumpmap/JumpmapHud'
 import { useJumpmapController } from '../features/jumpmap/useJumpmapController'
+import { RankingBoardHost } from '../features/rankingBoard/RankingBoardHost'
 
 const shortcuts = [
   { key: 'WASD', action: '이동' },
@@ -112,7 +113,7 @@ function ParkContent({ onExit, exitError, onAuthEnded }: ParkProps) {
           <AccountMenu exitError={exitError} onExit={onExit} onWithdrawn={onAuthEnded} />
         </div>}
 
-        <div className="park-roaming-ui" hidden={bungeoppang} inert={bungeoppang}>
+        <div className="park-chat-layer" hidden={bungeoppang} inert={bungeoppang}>
           {omokChat ? <SpectatorChat /> : !omokFocus && <ParkChat key={`${session.sessionId}:${session.roomId}`} />}
         </div>
 
@@ -144,6 +145,7 @@ function ParkContent({ onExit, exitError, onAuthEnded }: ParkProps) {
       </div>
       <BungeoppangHud />
       <OmokFeedback />
+      <RankingBoardHost />
       <ManualHost showLauncher={!omokFocus} worldActions={bungeoppang || omokFocus ? undefined : <ManualWorldActions />} />
     </main>
   )

@@ -122,6 +122,7 @@ gameId/version/state를 노출하지 않으며 기존 FE 파서와 재시도 UI�
 | 경기 입력 | GAME_ACTION_SEND | GAME_ACTION_RESULT (개별 GAME_STATE 갱신과 구분) |
 | 수동 기권 | GAME_FORFEIT | GAME_FORFEIT_RESULT |
 | 오목 관전 채팅·핑 | GAME_SPECTATOR_CHAT_SEND / OMOK_SPECTATOR_PING_SEND | GAME_SPECTATOR_CHAT_MESSAGE / OMOK_SPECTATOR_PING ([상세](../websocket-api/10-game-spectator-events.md), 승인 관전자만 발신) |
+| 주사위 장부 관전 훈수 | DICE_LEDGER_SPECTATOR_PING_SEND | DICE_LEDGER_SPECTATOR_PING ([상세](../dice-ledger.md#관전자-훈수-핑), 승인 관전자만 발신) |
 | 경기 결과 | GAME_RESULT_CHECK | GAME_RESULT |
 | 원카드 장난·방어 | ONECARD_PRANK_REACH_SEND / ONECARD_PRANK_HIT_SEND / ONECARD_HAND_RESTORE_SEND / ONECARD_HAND_FLIP_SEND | [방어·차단·뒤집기·복구](../onecard-ux-be-spec.md), 구형 FLIP은 방어 비활성 호환 전용 |
 | 오류 | 잘못된 메시지/권한/연동 미준비 | ERROR |
@@ -180,6 +181,14 @@ TABLE_STATE의 금액과 version을 전달한다. false는 기존 `{ready:false}
 GAME_SETTINGS_CHANGED는 상태를 변경하지 않는다. 금액이 다시 같아지는 ABA도 기존 version으로 거절한다.
 다른 참가자의 단순 준비 변경은 동의를 무효화하지 않는다. FE는 오류 후 새 금액을 확인받아야 한다.
 상세: [준비·취소](../websocket-api/03-ready-set.md).
+
+## 2인 기권 연출·공원 잔해 (2026-10-31, 로컬 구현)
+
+`WORLD_GAME_REACTION.participantCount`는 최초 참가 인원이다. 최초 2인 경기의 명시적 기권만 판을 엎으며
+일반 패배·연결 이탈·다인 경기는 판을 던지지 않는다. `WORLD_PARK_DEBRIS_STATE`는 같은 공원에 남는
+판·엽전 전체 상태를 채널 입장과 변경 시 공유한다. 기권 확정 후 15초가 지나면 서버가 자동 제거하며,
+만료 전 재접속 시 현재 잔해를 복원한다. 서버 재시작 시 초기화한다.
+현재 청소 AI는 없고 서버 내부 개별 물체 제거 연결점을 제공한다. [상세 계약·유지 범위](../world-game-reaction-api.md#공원에-남는-판엽전--world_park_debris_state-2026-10-31).
 
 ## 2026-10-27 태블릿·공통 시각 확장 (로컬 구현·미배포)
 

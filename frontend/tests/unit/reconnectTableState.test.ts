@@ -200,6 +200,20 @@ describe('connection, account and repeat safety', () => {
     expect(useGame.getState().start).toBeNull()
   })
 
+  it('retries after 1013 (previous connection check) but stops on 1008 (another live tab)', async () => {
+    await boot([])
+    const checked = socket
+    checked.close(1013)
+    await vi.waitFor(() => expect(useSession.getState().status).toBe('reconnecting'))
+    await vi.waitFor(() => expect(socket).not.toBe(checked), { timeout: 4000 })
+    await vi.waitFor(() => expect(useSession.getState().status).toBe('connected'), { timeout: 4000 })
+    const live = socket
+    live.close(1008)
+    await vi.waitFor(() => expect(useSession.getState().status).toBe('error'))
+    await new Promise(done => setTimeout(done, 1500))
+    expect(socket).toBe(live)
+  })
+
   it('an ended login discards held states', async () => {
     let release!: () => void
     tablesGate = new Promise(done => { release = done })

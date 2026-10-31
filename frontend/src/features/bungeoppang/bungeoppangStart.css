@@ -5,6 +5,8 @@
   width: min(964px, calc(100vw - 48px));
   max-height: calc(100dvh - 48px);
   overflow-y: auto;
+  scrollbar-width: none;
+  overscroll-behavior-y: contain;
   padding: 26px 50px 22px;
   color: #4a2510;
   background: radial-gradient(ellipse at 48% 35%, #fffdf7, #fcf5e9);
@@ -13,6 +15,7 @@
   box-shadow: 0 12px 36px #28150940;
   text-align: center;
 }
+.bung-root .bung-panel.bung-start::-webkit-scrollbar { display: none; }
 .bung-start-title { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
 .bung-root .bung-start .bung-start-title h2 {
   display: flex; align-items: center; justify-content: center; flex-shrink: 0; gap: 16px;
@@ -45,6 +48,15 @@
 .bung-root .bung-start .bung-start-exit:hover { background: #eddfc9; border-color: #bb9a72; }
 .bung-root .bung-start .bung-start-exit kbd { margin: 0; padding: 2px 5px; border: 1px solid #d1b997; border-radius: 4px; background: #fffaf1; color: inherit; font: 600 11px/1.25 'Malgun Gothic', system-ui, sans-serif; }
 .bung-start .bung-error { margin: 8px 0 12px; }
+.bung-start-controls { display:grid; grid-template-columns:1fr 1.35fr 1fr; gap:18px; margin:22px 0 0; padding:18px; border:1px solid #ddc8a9; border-radius:12px; background:#f6ecd9; text-align:left; font-family:'Malgun Gothic',system-ui,sans-serif; }
+.bung-start-controls > div { min-width:0; }
+.bung-start-controls h3 { margin:0 0 10px; font-size:16px; color:#49230e; }
+.bung-root .bung-start-controls p { margin:8px 0 0; font-size:14px; line-height:1.6; word-break:keep-all; }
+.bung-start-controls kbd { display:inline-grid; place-items:center; min-width:26px; min-height:26px; padding:2px 6px; border:1px solid #bfa37c; border-bottom-width:3px; border-radius:5px; background:#fffaf0; color:#4a2510; font:700 14px/1.2 system-ui,sans-serif; }
+.bung-start-key-row { display:flex; align-items:center; gap:7px; margin:6px 0; }
+.bung-start-key-row > span { width:42px; font-size:14px; }
+.bung-start-fillings ul { display:grid; grid-template-columns:1fr 1fr; gap:6px 12px; margin:0; padding:0; list-style:none; }
+.bung-start-fillings li { display:flex; align-items:center; gap:7px; font-size:14px; }
 @media (max-width: 1000px) {
   .bung-root .bung-panel.bung-start { padding: 24px 30px 22px; }
   .bung-start-steps { gap: 40px; }
@@ -56,6 +68,7 @@
   .bung-root .bung-start footer { margin-right: -10px; }
 }
 @media (max-width: 700px) {
+  .bung-start-controls { grid-template-columns:1fr; gap:16px; }
   .bung-root .bung-panel.bung-start { top: 50%; width: calc(100vw - 24px); max-height: calc(100dvh - 24px); padding: 20px; border-radius: 18px; }
   .bung-root .bung-start .bung-start-title h2 { font-size: 30px; gap: 9px; letter-spacing: -1.8px; }
   .bung-start-title { justify-content: center; gap: 8px; }

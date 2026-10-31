@@ -145,7 +145,11 @@ class WorldFullFlowTests {
 
     private JsonNode join(ScenarioClient client, String channel) throws Exception {
         payload(client, "CHANNEL_JOIN", Map.of("channelId", channel), "CHANNEL_STATE");
-        return client.await(message -> isType(message, "WORLD_STATE")).path("payload");
+        JsonNode world = client.await(message -> isType(message, "WORLD_STATE")).path("payload");
+        JsonNode debris = client.await(message -> isType(message, "WORLD_PARK_DEBRIS_STATE")).path("payload");
+        assertThat(debris.path("channelId").asText()).isEqualTo(channel);
+        assertThat(debris.path("items")).isEmpty();
+        return world;
     }
 
     private JsonNode table() throws Exception {

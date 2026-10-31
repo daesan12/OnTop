@@ -5,6 +5,7 @@ import {TABLES} from '../../src/config/world'
 import {tableSeats} from '../../src/config/table-seats'
 import {pathPaving} from '../../src/layout-preview/landscapeGeometry'
 import {canReachConstruction} from '../../src/features/construction/model'
+import {canReachRankingBoard,rankingBoardTarget} from '../../src/features/rankingBoard/model'
 
 describe('new park facility completion',()=>{
   it('appends two four-player VR tables without replacing existing IDs or seat offsets',()=>{
@@ -44,8 +45,8 @@ describe('new park facility completion',()=>{
     for(const b of d.interactions.benches.filter(b=>b.siteId.startsWith('bench-fountain-')))for(const s of b.seats)expect(l.canWalk(s.exit.x,s.exit.z),b.id+' exit').toBe(true)
     expect(d.interactions.benches.some(b=>b.siteId.includes('photo'))).toBe(false)
   })
-  it('registers three construction notices at reachable building entrances',()=>{
-    expect(d.interactions.construction.map(s=>s.id)).toEqual(['layout-shop','layout-drink','layout-photo'])
+  it('keeps unfinished facilities under construction and exposes the ranking board entrance',()=>{
+    expect(d.interactions.construction.map(s=>s.id)).toEqual(['layout-drink'])
     for(const site of d.interactions.construction){
       const [x,y,z]=site.reachPosition
       expect(site.status).toBe('construction')
@@ -54,5 +55,11 @@ describe('new park facility completion',()=>{
       expect(canReachConstruction({x,y:y+site.heightTolerance+.01,z},site.id)).toBe(false)
       expect(l.canWalk(x,z),site.id).toBe(true)
     }
+    expect(rankingBoardTarget).toMatchObject({id:'layout-photo',kind:'RANKING_BOARD',status:'active',label:'랭킹 보드'})
+    const [x,y,z]=rankingBoardTarget.reachPosition
+    expect(canReachRankingBoard({x,y,z})).toBe(true)
+    expect(canReachRankingBoard({x:x+rankingBoardTarget.radius+.01,y,z})).toBe(false)
+    expect(canReachRankingBoard({x,y:y+rankingBoardTarget.heightTolerance+.01,z})).toBe(false)
+    expect(l.canWalk(x,z)).toBe(true)
   })
 })

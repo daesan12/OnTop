@@ -1,9 +1,10 @@
-import { DoubleSide } from 'three'
-import { PropBuilder,hipRoof,type XYZ } from '../world/art/propGeometry'
+import { PropBuilder,hipRoof } from '../world/art/propGeometry'
 import { PropModel } from '../world/art/PropModel'
 import { PropSign } from '../world/art/CraftedProp'
 import { KIOSKS } from './layout'
 import { openConstructionNotice } from '../features/construction/model'
+import { LuckyFacility } from '../world/art/LuckyFacilities'
+import { luckyRoomArt,lotteryRoomArt } from '../world/art/luckyFacilityGeometry'
 import {connectRoof,constructionBoard,constructionBoardPosition} from './plazaBuildingStructure'
 
 type Kind='shop'|'drink'|'photo'
@@ -56,76 +57,6 @@ function board(b:PropBuilder,w:number,y:number,z:number){
   b.box('paint',cream,[0,y,z+.14],[w,.69,.04])
   for(const x of [-w/2,w/2])for(const dy of [-.4,.4])b.box('wood',trim,[x,y+dy,z+.18],[.24,.19,.08])
 }
-function gift(b:PropBuilder,p:XYZ,color:string,s=.32){
-  b.box('paint',color,p,[s,s*.85,s]);b.box('paint','#edcf8b',p,[s*.16,s*.9,s+.02]);b.box('paint','#edcf8b',[p[0],p[1]+s*.44,p[2]],[s+.03,.035,s*.18])
-}
-function bear(b:PropBuilder,x:number,y:number,z:number){
-  b.ball('paint','#be9765',[x,y,z],[.22,.3,.19]);b.ball('paint','#e0c28c',[x,y+.36,z],[.25,.23,.21])
-  for(const side of [-1,1]){b.ball('paint','#bc8d59',[x+side*.19,y+.54,z],[.095,.1,.07]);b.ball('paint','#cb9e69',[x+side*.27,y+.05,z],[.12,.19,.12])}
-  b.ball('paint','#efe0b6',[x,y+.3,z+.18],[.13,.1,.06]);for(const side of [-1,1])b.ball('paint','#29271f',[x+side*.08,y+.4,z+.19],[.025,.03,.02])
-}
-const shop=new PropBuilder([12,8]);base(shop,10.2,7.6);frame(shop,9.6,7.2)
-shop.box('paint','#dfcba3',[0,2.1,-3.25],[9.2,3.45,.2])
-for(const x of [-4.65,4.65])shop.box('wood',timber,[x,1.95,0],[.16,3.2,6.5])
-for(const x of [-3.45,3.45])lattice(shop,x,2.9,1.65,2.9)
-for(const x of [-3.15,3.15])shop.box('wood',timber,[x,1.8,-2.4],[.18,2.95,1])
-// Deep open merchandise shelves, a continuous front counter, bags and little gifts.
-for(const y of [1.15,2,2.85]){
-  shop.box('wood',dark,[0,y,-2.4],[6.5,.12,1]);
-  for(let n=0;n<10;n++){const x=-2.9+n*.63;gift(shop,[x,y+.27,-2.2],['#d19665','#688e91','#c6a450','#87936b'][n%4]!, .35);if(y>2)shop.box('paint','#e1d0aa',[x,y+.37,-2.7],[.3,.62,.12])}
-}
-shop.box('wood',timber,[0,1.08,2.9],[6.2,1.45,1.1]);shop.box('wood',trim,[0,1.85,2.9],[6.6,.18,1.45])
-for(let x=-2.9;x<3;x+=.25)shop.box('wood','#895a31',[x,1.1,3.47],[.025,1.35,.025])
-for(let i=0;i<7;i++)gift(shop,[-1.1+i*.48,2.08,2.95],['#e0c174','#8fa3a1','#b88471'][i%3]!,.34)
-for(const x of [-2.4,-1.8])bear(shop,x,2.18,2.8)
-shop.box('metal','#3b4440',[2.55,2.13,2.82],[.65,.55,.48]);shop.box('paint','#a9c1bb',[2.55,2.23,3.08],[.51,.25,.025])
-for(let i=0;i<7;i++){shop.box('paint',i%2?'#e9d9ba':'#f2e6cd',[-2.9+i*.96,3.47,3.55],[.93,.72,.06]);shop.cylinder('wood',trim,[-2.9+i*.96,3.89,3.55],.035,.035,.98,[0,0,Math.PI/2])}
-shop.box('wood',dark,[0,3.94,3.55],[6.9,.18,.16])
-for(const x of [-3.2,3.2])shop.box('wood',timber,[x,4.05,3.5],[.14,.5,.24])
-hipRoof(shop,11.4,9.2,4.65,1.75)
-connectRoof(shop,9.6,7.2)
-board(shop,3.7,4.27,4.14)
-for(const x of [-1.4,1.4])shop.box('wood',dark,[x,4.27,3.76],[.18,.25,1.05])
-for(const x of [-4,4])hungLantern(shop,x,3.2,3.95)
-for(const x of [-4.4,4.4])floorLantern(shop,x,.83,3.85,.75)
-// Freestanding gift board and a photo-card rack stay on the building apron.
-shop.box('wood',dark,[-3.9,1.37,4.0],[1.05,1.65,.12],[.1,0,0]);shop.box('paint','#344a40',[-3.9,1.38,4.09],[.89,1.43,.025])
-for(const x of [-4.25,-3.55])shop.box('wood',timber,[x,1,3.98],[.14,1.35,.23])
-for(const x of [3.6,4.35])shop.box('metal','#3a3931',[x,1.65,3.75],[.055,2.5,.055])
-for(const y of [.57,1.45,2.35])shop.box('metal','#3a3931',[3.98,y,3.78],[.85,.13,.18])
-for(let row=0;row<5;row++)for(let col=0;col<3;col++)shop.box('paint',row%2?'#879b99':'#d1bba0',[3.6+col*.25,.75+row*.43,3.83],[.21,.32,.05])
-
-const booth=new PropBuilder([14,10]);base(booth,8.2,5.4)
-for(const x of [-3.65,3.65])for(const z of [-2.1,2.1])booth.box('wood',timber,[x,2.47,z],[.22,4.2,.22])
-for(const x of [-3.75,3.75])booth.box('wood',dark,[x,4.55,-.2],[.22,.25,5])
-for(const z of [-2.4,0])booth.box('wood',trim,[0,4.55,z],[8,.22,.22])
-booth.box('wood',timber,[0,1.1,1.5],[7.25,1.45,1.05]);booth.box('wood',trim,[0,1.88,1.55],[7.65,.17,1.4])
-for(let x=-3.4;x<=3.4;x+=.28)booth.box('wood','#87552b',[x,1.08,2.04],[.025,1.32,.025])
-booth.box('paint','#efe0ba',[0,1.08,2.08],[2.2,1.25,.035]);booth.box('wood',dark,[0,1.08,2.1],[.06,1.2,.02])
-// Sloped striped fabric canopy with rounded scalloped valances.
-for(let i=0;i<14;i++){
- const x=-3.9+(i+.5)*7.8/14,c=i%2?'#f5e8cf':'#d76b42'
- booth.box('paint',c,[x,4.12,1.22],[.557,.055,3.2],[.23,0,0])
- booth.box('paint',c,[x,3.58,2.8],[.55,.47,.06]);booth.cylinder('paint',c,[x,3.35,2.8],.275,.275,.06,[Math.PI/2,0,0],18)
-}
-board(booth,4.8,5.06,1.3)
-for(const x of [-1.9,1.9]){
- booth.box('wood',dark,[x,4.55,.65],[.18,.2,1.55])
- booth.box('wood',timber,[x,4.77,1.3],[.18,.6,.18])
-}
-for(let n=0;n<5;n++){const x=-3.15+n*1.55;booth.curve('metal','#454034',[[x,3.8,2.6],[x,3.65,2.65],[x,3.4,2.65]],.075,8);booth.ball('glow','#ffe1a1',[x,3.27,2.65],[.1,.16,.1])}
-// Raffle drum, brass hoops, axle, feet and individual folded ticket slips.
-for(const x of [-.05,1.65]){booth.box('wood',dark,[x,2.13,1.35],[.1,.5,.55]);booth.ring('gold','#c2964a',[x,2.65,1.35],.62,.035,[0,Math.PI/2,0])}
-booth.cylinder('metal','#8b7652',[.8,2.65,1.35],.035,.035,2.3,[0,0,Math.PI/2],12)
-for(let n=0;n<36;n++){const a=n*2.4,r=.15+(n%4)*.09;booth.box('paint',n%3?'#ebd7a5':'#bb9277',[.13+(n%6)*.26,2.35+Math.abs(Math.sin(a))*r,1.35+Math.cos(a)*r],[.19,.04,.15],[a,.4,a/2])}
-booth.box('wood',trim,[-2.2,2.3,1.4],[1.25,.8,.95]);booth.box('metal','#3e3b2d',[-2.2,2.63,1.9],[.7,.07,.02]);booth.box('metal','#3d4240',[2.6,2.43,1.5],[.91,1.1,.13],[.12,0,0])
-for(const x of [-3.45,3.45])floorLantern(booth,x,.83,2.65,.75)
-for(let n=0;n<3;n++){
- const x=-4.0+n*.5,y=5.8+n*.65,z=-.8+n*.32
- booth.ball('paint',['#597b9c','#eee0bd','#f6e6c3'][n]!,[x,y,z],[.45,.6,.45]);booth.curve('wood',dark,[[x,.32,z],[x-.15,3,z],[x,y-.58,z]],.075,16)
-}
-booth.box('wood',dark,[4.1,2.4,.4],[.08,4.3,.08]);booth.box('wood',trim,[4.65,4.1,.4],[1.3,.08,.08]);booth.box('paint','#eee0be',[4.65,2.85,.4],[1.05,2.4,.035])
-
 const photo=new PropBuilder([14,10]);base(photo,9.2,7);frame(photo,8.8,6.6)
 photo.box('wood',dark,[0,2.22,-2.8],[8.4,3.7,.2]);photo.box('paint','#727f93',[0,2.38,-2.64],[5.7,3.4,.04])
 for(const x of [-3.65,3.65])lattice(photo,x,1,1.15,2.9)
@@ -145,11 +76,9 @@ photo.box('wood',dark,[-3.5,1.4,3.45],[1,1.8,.14],[.12,0,0]);photo.box('paint',c
 for(const x of [-3.85,-3.15])photo.box('wood',timber,[x,1,3.45],[.14,1.35,.23])
 for(const x of [-4,4])floorLantern(photo,x,.8,3.55,.7)
 
-constructionBoard(shop,KIOSKS.find(k=>k.kind==='shop')!.depth)
-constructionBoard(booth,KIOSKS.find(k=>k.kind==='drink')!.depth)
 constructionBoard(photo,KIOSKS.find(k=>k.kind==='photo')!.depth)
 
-export const plazaBuildingArt={shop:shop.finish(),drink:booth.finish(),photo:photo.finish()}
+export const plazaBuildingArt={shop:luckyRoomArt,drink:lotteryRoomArt,photo:photo.finish()}
 const titles={shop:'상점',drink:'응모부스',photo:'포토부스'}
 function title(kind:Kind){return(c:CanvasRenderingContext2D,w:number,h:number)=>{
  c.fillStyle=cream;c.fillRect(0,0,w,h);c.strokeStyle='#bd975d';c.lineWidth=9;c.strokeRect(7,7,w-14,h-14)
@@ -168,13 +97,13 @@ function backdrop(c:CanvasRenderingContext2D,w:number,h:number){
  c.fillStyle='#f9db99';for(let n=0;n<27;n++){c.beginPath();c.arc((n*.319%1)*w,h*(.7+n%4*.04),h*.006,0,Math.PI*2);c.fill()}
  c.font='500 '+h*.045+'px "Malgun Gothic",sans-serif';c.textAlign='center';c.fillText('온탑에서 남기는 오늘의 한 장',w/2,h*.94)
 }
-function tickets(c:CanvasRenderingContext2D,w:number,h:number){c.fillStyle='#f5ead2';c.fillRect(0,0,w,h);c.fillStyle='#ac623f';c.textAlign='center';c.font='700 '+w*.16+'px "Malgun Gothic",sans-serif';c.fillText('응모하기',w/2,h*.3);c.font=w*.11+'px "Malgun Gothic",sans-serif';c.fillText('오늘의 행운',w/2,h*.55);c.fillText('참여 안내',w/2,h*.75)}
 const signs={shop:title('shop'),drink:title('drink'),photo:title('photo')}
 const constructionSign=(c:CanvasRenderingContext2D,w:number,h:number)=>{
  c.fillStyle='#e7c878';c.fillRect(0,0,w,h);c.strokeStyle='#655537';c.lineWidth=12;c.strokeRect(6,6,w-12,h-12)
  c.fillStyle='#423d2c';c.font=`700 ${h*.55}px "Malgun Gothic",sans-serif`;c.textAlign='center';c.textBaseline='middle';c.fillText('공사 중',w/2,h/2,w*.85)
 }
 export function PlazaBuilding({kind,live=false}:{kind:Kind;live?:boolean}){
+ if(kind!=='photo')return <LuckyFacility kind={kind} live={live}/>
  const k=KIOSKS.find(k=>k.kind===kind)!
  const id='layout-'+kind
  return <group name={id} position={[k.x,0,k.z]} rotation={[0,k.yaw,0]} userData={{assetId:'procedural/plaza-'+kind,previewRole:kind,construction:true}} onClick={event=>{
@@ -186,8 +115,7 @@ export function PlazaBuilding({kind,live=false}:{kind:Kind;live?:boolean}){
  }}>
   <PropModel art={plazaBuildingArt[kind]} name={kind+'-draft-building'}/>
   <PropSign position={constructionBoardPosition(k.depth)} width={2.7} height={.8} draw={constructionSign}/>
-  <PropSign position={kind==='shop'?[0,4.27,4.3]:kind==='drink'?[0,5.06,1.47]:[0,4.23,4.06]} width={kind==='shop'?3.7:kind==='drink'?4.8:4.3} height={.69} draw={signs[kind]}/>
-  {kind==='drink'&&<><mesh position={[.8,2.65,1.35]} rotation={[0,0,Math.PI/2]}><cylinderGeometry args={[.62,.62,1.7,32,1,true]}/><meshPhysicalMaterial color="#d7e5df" transparent opacity={.24} roughness={.12} metalness={.05} depthWrite={false} side={DoubleSide}/></mesh><PropSign position={[2.6,2.43,1.59]} width={.72} height={.85} draw={tickets}/><PropSign position={[4.65,2.85,.43]} width={1} height={2.3} draw={tickets}/></>}
+  <PropSign position={[0,4.23,4.06]} width={4.3} height={.69} draw={signs.photo}/>
   {kind==='photo'&&<PropSign position={[0,2.38,-2.59]} width={5.7} height={3.4} draw={backdrop}/>}
  </group>
 }

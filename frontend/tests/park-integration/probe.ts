@@ -1,5 +1,5 @@
 import {_roots} from '@react-three/fiber'
-import {Vector3} from 'three'
+import {Matrix4,Vector3,type InstancedMesh} from 'three'
 import {useSession,avatars} from '../../src/network/worldClient'
 import {interactWithTable} from '../../src/features/tableLobby/tableInteraction'
 import {useFacilityState} from '../../src/features/facilities/state'
@@ -9,6 +9,32 @@ import {PARK_DATA} from '../../src/map/park'
 import type {Mesh} from 'three'
 import {GOMOKU} from '../../src/config'
 import {omokCamera} from '../../src/game/cameraState'
+import {fishBreadShopArt} from '../../src/world/art/luckyFacilityGeometry'
+import {useParkDebris} from '../../src/features/parkDebris/state'
+import {closeRankingBoard,useRankingBoardEntry} from '../../src/features/rankingBoard/model'
+
+export function hallSignClearance(name:string){
+ const {scene}=_roots.get(document.querySelector('canvas')!)!.store.getState()
+ scene.updateMatrixWorld(true)
+ const group=scene.getObjectByName(name)!,sign=group.children[0] as Mesh
+ const forward=new Vector3(0,0,1).transformDirection(sign.matrixWorld),ray=new Raycaster()
+ let visibleSamples=0
+ for(const x of [-1.4,0,1.4])for(const y of [-.2,0,.2]){
+  const point=sign.localToWorld(new Vector3(x,y,0))
+  ray.set(point.clone().addScaledVector(forward,2),forward.clone().negate())
+  if(ray.intersectObject(group.parent!,true)[0]?.object===sign)visibleSamples++
+ }
+ return {count:group.children.length,visibleSamples}
+}
+export function frameHallSign(name:string){
+ const state=_roots.get(document.querySelector('canvas')!)!.store.getState()
+ state.setFrameloop('never');state.scene.updateMatrixWorld(true)
+ const sign=state.scene.getObjectByName(name)!.children[0]!
+ const point=sign.getWorldPosition(new Vector3()),forward=new Vector3(0,0,1).transformDirection(sign.matrixWorld)
+ state.camera.position.copy(point).addScaledVector(forward,5)
+ state.camera.lookAt(point);state.camera.updateMatrixWorld(true)
+ state.gl.render(state.scene,state.camera)
+}
 
 /** Tablet selection clears focusedAnchorId; inspect the actual seated board camera. */
 export function omokPlayProbe(x=7,y=7){
@@ -21,6 +47,38 @@ export function omokPlayProbe(x=7,y=7){
   point:{x:rect.left+(point.x+1)*rect.width/2,y:rect.top+(1-point.y)*rect.height/2}}
 }
 export function sceneReady(){return !!_roots.get(document.querySelector('canvas')!)?.store.getState().scene.getObjectByName('park-service-map')}
+export function fishShopMenuProbe(){
+ const {scene}=_roots.get(document.querySelector('canvas')!)!.store.getState()
+ const menu=scene.getObjectByName('fish-bread-shop-menu')!.children[0]!
+ scene.updateMatrixWorld(true)
+ const target=menu.getWorldPosition(new Vector3()),direction=menu.getWorldDirection(new Vector3())
+ const ray=new Raycaster(target.clone().addScaledVector(direction,5),direction.negate(),0,6)
+ const first=ray.intersectObject(scene.getObjectByName('fish-bread-shop-exterior')!,true)[0]
+ return {localPosition:menu.position.toArray(),firstSurface:first?.object.name}
+}
+export function debrisRenderProbe(){
+ const scene=_roots.get(document.querySelector('canvas')!)?.store.getState().scene
+ if(!scene)return []
+ scene.updateMatrixWorld(true)
+ return useParkDebris.getState().items.map(item=>{
+  const root=scene.getObjectByName('park-debris-'+item.id),board=scene.getObjectByName('park-debris-board-'+item.id)
+  const stones=scene.getObjectByName('park-debris-stones-'+item.id) as InstancedMesh|undefined
+  const positions=stones?item.parts.filter(part=>part.startsWith('stone-')).map(part=>{
+   const matrix=new Matrix4();stones.getMatrixAt(Number(part.slice(6)),matrix)
+   return {part,position:new Vector3().setFromMatrixPosition(matrix).applyMatrix4(stones.matrixWorld).toArray()}
+  }):[]
+  return {id:item.id,parts:item.parts,settled:!!root?.userData.settled,visible:root?.visible,
+   stones:positions,
+   board:board?.getWorldPosition(new Vector3()).toArray(),sourceVisible:scene.getObjectByName('game-surface-'+item.anchorId)?.visible}
+ })
+}
+export function fishShopLanternProbe(){
+ const {scene}=_roots.get(document.querySelector('canvas')!)!.store.getState()
+ const shop=scene.getObjectByName('fish-bread-shop-building')!
+ const mesh=shop.children.find(o=>(o as Mesh).geometry===fishBreadShopArt.glow) as Mesh
+ const material=mesh.material as import('three').MeshStandardMaterial
+ return {emission:material.emissiveIntensity??0,emissive:!!material.emissive?.getHex()}
+}
 export function migrationFollowupsProbe(){
  const scene=_roots.get(document.querySelector('canvas')!)!.store.getState().scene
  const names:string[]=[];scene.traverse(o=>names.push(o.name))
@@ -50,9 +108,10 @@ export function detailProbe(){
 }
 export function probe(){
  const scene=_roots.get(document.querySelector('canvas')!)!.store.getState().scene,s=useSession.getState()
- return {identity:scene.getObjectByName('park-service-map')?.userData,session:s,pose:avatars.get(s.sessionId)?.current,swimming:avatars.get(s.sessionId)?.swimming,facilities:useFacilityState.getState().ready,target:getParkInteraction(),tables:Array.from({length:18},(_,n)=>({id:'table-'+(n+1),position:scene.getObjectByName('table-'+(n+1))?.getWorldPosition(new Vector3()).toArray()})),mailbox:scene.getObjectByName('feedback-mailbox')?.getWorldPosition(new Vector3()).toArray()}
+ return {identity:scene.getObjectByName('park-service-map')?.userData,session:s,pose:avatars.get(s.sessionId)?.current,swimming:avatars.get(s.sessionId)?.swimming,facilities:useFacilityState.getState().ready,target:getParkInteraction(),rankingBoardOpen:useRankingBoardEntry.getState().open,tables:Array.from({length:18},(_,n)=>({id:'table-'+(n+1),position:scene.getObjectByName('table-'+(n+1))?.getWorldPosition(new Vector3()).toArray()})),mailbox:scene.getObjectByName('feedback-mailbox')?.getWorldPosition(new Vector3()).toArray()}
 }
 export const inspect=(id:string)=>interactWithTable(id)
+export const resetRankingBoardEntry=()=>closeRankingBoard()
 export function renderedSeatHeights(id:string){
  const scene=_roots.get(document.querySelector('canvas')!)!.store.getState().scene,t=PARK_DATA.tables.find(t=>t.id===id)!,ray=new Raycaster(),object=scene.getObjectByName(id)!
  scene.updateMatrixWorld(true)

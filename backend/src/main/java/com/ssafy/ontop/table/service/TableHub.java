@@ -12,36 +12,37 @@ import com.ssafy.ontop.game.action.GameActionGateway;
 import com.ssafy.ontop.game.action.GameActionResult;
 import com.ssafy.ontop.game.action.GameForfeitCommand;
 import com.ssafy.ontop.game.action.GameForfeitResult;
-import com.ssafy.ontop.game.reconnect.GameReconnectService;
-import com.ssafy.ontop.game.result.GameDefeatConfirmed;
-import com.ssafy.ontop.game.result.GameResultService;
-import com.ssafy.ontop.game.result.GameResultCommitted;
-import com.ssafy.ontop.game.result.GameResultView;
-import com.ssafy.ontop.game.start.GameStartCommand;
-import com.ssafy.ontop.game.start.GameStartCommand.Participant;
-import com.ssafy.ontop.game.start.GameStartGateway;
-import com.ssafy.ontop.game.start.GameStartResult;
-import com.ssafy.ontop.game.start.CommittedGameStartService;
-import com.ssafy.ontop.game.state.GameStateGateway;
-import com.ssafy.ontop.game.state.GameStateChanged;
-import com.ssafy.ontop.game.state.GameStateView;
 import com.ssafy.ontop.game.onecard.service.OneCardEngine;
 import com.ssafy.ontop.game.onecard.service.OneCardPranks;
+import com.ssafy.ontop.game.reconnect.GameReconnectService;
+import com.ssafy.ontop.game.result.GameDefeatConfirmed;
+import com.ssafy.ontop.game.result.GameResultCommitted;
+import com.ssafy.ontop.game.result.GameResultService;
+import com.ssafy.ontop.game.result.GameResultView;
+import com.ssafy.ontop.game.start.CommittedGameStartService;
+import com.ssafy.ontop.game.start.GameStartCommand.Participant;
+import com.ssafy.ontop.game.start.GameStartCommand;
+import com.ssafy.ontop.game.start.GameStartGateway;
+import com.ssafy.ontop.game.start.GameStartResult;
+import com.ssafy.ontop.game.state.GameStateChanged;
+import com.ssafy.ontop.game.state.GameStateGateway;
+import com.ssafy.ontop.game.state.GameStateView;
 import com.ssafy.ontop.table.domain.TableGame;
 import com.ssafy.ontop.table.domain.TableRoom;
 import com.ssafy.ontop.table.domain.TableStartAttempt;
+import com.ssafy.ontop.table.dto.DiceLedgerSpectatorPing;
 import com.ssafy.ontop.table.dto.GameSpectatorChatMessage;
 import com.ssafy.ontop.table.dto.OmokSpectatorPing;
 import com.ssafy.ontop.table.dto.TableListResponse;
-import com.ssafy.ontop.table.dto.TableProtocol;
 import com.ssafy.ontop.table.dto.TableProtocol.Request;
 import com.ssafy.ontop.table.dto.TableProtocol.RequestException;
+import com.ssafy.ontop.table.dto.TableProtocol;
 import com.ssafy.ontop.table.dto.TableSummaryResponse;
 import com.ssafy.ontop.table.websocket.ConnectionCloseReason;
 import com.ssafy.ontop.table.websocket.TablePeer;
 import com.ssafy.ontop.table.websocket.WebSocketHeartbeat;
-import com.ssafy.ontop.world.config.WorldChannelProperties;
 import com.ssafy.ontop.world.config.DynamicChannelsProperties;
+import com.ssafy.ontop.world.config.WorldChannelProperties;
 import com.ssafy.ontop.world.config.WorldEmoteProperties;
 import com.ssafy.ontop.world.config.WorldProximityProperties;
 import com.ssafy.ontop.world.domain.ChatText;
@@ -50,6 +51,7 @@ import com.ssafy.ontop.world.dto.WorldGameReaction;
 import com.ssafy.ontop.world.map.LegacyParkTables;
 import com.ssafy.ontop.world.map.PreparedParkMap;
 import com.ssafy.ontop.world.map.WorldMapRuntime;
+import com.ssafy.ontop.world.service.ParkDebrisStore;
 import com.ssafy.ontop.world.service.WorldAppearanceGateway;
 import com.ssafy.ontop.world.service.WorldChannelRegistry;
 import com.ssafy.ontop.world.service.WorldChatService;
@@ -81,8 +83,8 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
@@ -141,6 +143,7 @@ public class TableHub {
     private final PreparedParkMap preparedPark;
     private final WorldFollowService follows = new WorldFollowService();
     private final Map<String, ReactionRound> reactionRounds = new HashMap<>();
+    private final ParkDebrisStore parkDebris = new ParkDebrisStore();
     private com.ssafy.ontop.world.service.WorldClock worldClock = new com.ssafy.ontop.world.service.WorldClock();
     private final Map<String, WaitingReconnect> waitingReconnects = new HashMap<>();
     private final Map<String, Long> connectionStarted = new HashMap<>();
@@ -171,6 +174,22 @@ public class TableHub {
 
     @Autowired(required = false)
     public void configureSpectatorEvents(SpectatorEventPolicy policy) { spectatorEvents = policy; }
+    // 점프맵 서비스가 없으면(비활성) 판정 신호를 버린다.
+    private java.util.function.Consumer<java.util.List<WorldChannelRegistry.JumpmapDelivery>> jumpmapSignals = ignored -> { };
+
+    @Autowired(required = false)
+    public void configureJumpmap(com.ssafy.ontop.world.jumpmap.JumpmapService service) {
+        jumpmapSignals = deliveries -> deliveries.forEach(delivery -> service.accept(delivery.signal(), delivery.recipients()));
+        service.sink(this::sendJumpmap);
+    }
+
+    /** 점프맵 저장 스레드에서도 호출된다. 같은 회원의 모든 연결(동시에 하나)에 송신 큐로만 넣는다. */
+    private synchronized void sendJumpmap(String userId, String type, java.util.Map<String, Object> payload) {
+        String encoded = protocol.encode(null, type, payload);
+        for (Member member : members.values()) {
+            if (member.userId().equals(userId)) member.peer().offer(encoded);
+        }
+    }
     private final ExecutorService startWorkers = Executors.newVirtualThreadPerTaskExecutor();
     private final ScheduledExecutorService heartbeatTimer = Executors.newSingleThreadScheduledExecutor(
             Thread.ofPlatform().daemon(true).name("table-heartbeat").factory());
@@ -442,6 +461,7 @@ public class TableHub {
                             (channelId + "\0table-" + number).getBytes(StandardCharsets.UTF_8));
                     rooms.put(tableId, new TableRoom(tableId));
                     tableChannels.put(tableId, channelId);
+                    tableAnchors.put(tableId, "table-" + number);
                 }
             }
         }
@@ -456,6 +476,7 @@ public class TableHub {
         heartbeatTimer.scheduleWithFixedDelay(this::checkHostWaits, 100, 100, TimeUnit.MILLISECONDS);
         heartbeatTimer.scheduleWithFixedDelay(this::pruneDynamicChannels, 1, 1, TimeUnit.SECONDS);
         heartbeatTimer.scheduleWithFixedDelay(this::tickOneCardPranks, 33, 33, TimeUnit.MILLISECONDS);
+        heartbeatTimer.scheduleWithFixedDelay(this::expireParkDebris, 1, 1, TimeUnit.SECONDS);
     }
 
     public synchronized void connect(WebSocketSession session) {
@@ -471,6 +492,7 @@ public class TableHub {
         // 사용자 확정: 기존 연결이 살아 있으면 새 연결만 거절한다.
         boolean reservedStart = committedStarts.isPresent() && seating.containsKey(userId)
                 && starts.containsKey(seating.get(userId)) && starts.get(seating.get(userId)).frozen();
+        checkDuplicateConnection(userId, user.sessionId());
         if (seating.containsKey(userId) && !reservedStart && !reservedLobby
                 || members.values().stream().anyMatch(member -> member.userId().equals(userId))) {
             return false;
@@ -483,6 +505,48 @@ public class TableHub {
             activateConnection(member, session.getId(), user.sessionId(), reservedStart);
         }
         return true;
+    }
+
+    private Duration duplicateProbe = Duration.ZERO;
+    // 사용자 → 기존 연결 생존 확인 시작 시각(nanoTime)
+    private final Map<String, Long> duplicateProbes = new HashMap<>();
+
+    /** 0이면 끈다(기존 1008 거절). 후보값 3초는 스테이징 측정 전까지 운영값으로 확정하지 않는다. */
+    @Autowired(required = false)
+    public void configureDuplicateProbe(@Value("${ontop.websocket.duplicate-probe-timeout:0s}") String value) {
+        // 변환 서비스가 없는 최소 구성에서도 시작하도록 문자열을 직접 해석한다("500ms", "3s").
+        Duration timeout = org.springframework.boot.convert.DurationStyle.detectAndParse(value);
+        if (timeout.isNegative() || timeout.compareTo(heartbeatTimeout) >= 0) {
+            throw new IllegalArgumentException("기존 연결 확인 시간은 0 이상, heartbeat 제한 시간 미만이어야 합니다.");
+        }
+        duplicateProbe = timeout;
+    }
+
+    /**
+     * 같은 로그인 세션의 연결이 이미 있으면(half-open 의심) 기존 연결에 즉시 ping을 보내고 새 연결은 재시도로 돌려보낸다.
+     * 기존 연결이 기한 안에 응답했으면(다른 탭) 그대로 두고 기존 1008 거절로 넘어간다. 다른 로그인 세션은 검사하지 않는다.
+     */
+    private void checkDuplicateConnection(String userId, String loginSessionId) {
+        if (duplicateProbe.isZero()) return;
+        Member existing = members.values().stream().filter(member -> member.userId().equals(userId)).findFirst().orElse(null);
+        if (existing == null) {
+            duplicateProbes.remove(userId);
+            return;
+        }
+        if (!java.util.Objects.equals(loginSessions.get(existing.sessionId()), loginSessionId)) return;
+        long now = System.nanoTime();
+        Long started = duplicateProbes.get(userId);
+        // heartbeat 점검 주기(100ms)와 정리 여유를 더해 기한이 지난 뒤에도 남아 있으면 살아 있는 연결이다.
+        long settle = duplicateProbe.toNanos() + Duration.ofMillis(300).toNanos();
+        if (started == null || now - started > settle * 4) {
+            duplicateProbes.put(userId, now);
+            existing.peer().probeNow(duplicateProbe);
+            throw new com.ssafy.ontop.table.websocket.RetryableConnectionException("기존 연결을 확인하고 있습니다.");
+        }
+        if (now - started < settle) {
+            throw new com.ssafy.ontop.table.websocket.RetryableConnectionException("기존 연결을 확인하고 있습니다.");
+        }
+        duplicateProbes.remove(userId);
     }
 
     private void activateConnection(Member member, String sessionId, String loginSessionId, boolean reservedStart) {
@@ -767,7 +831,8 @@ public class TableHub {
             if (request.type().equals("ALKKAGI_SPECTATOR_SEND")) { sendAlkkagiSpectator(sessionId, member, request); return; }
             // 참가자에게도 로비 복구 오류 대신 관전 권한 오류를 주도록 복구 게이트 앞에서 처리한다.
             // 관전자의 로비 자격은 canSpectate에서 다시 검사한다.
-            if (request.type().equals("GAME_SPECTATOR_CHAT_SEND") || request.type().equals("OMOK_SPECTATOR_PING_SEND")) {
+            if (request.type().equals("GAME_SPECTATOR_CHAT_SEND") || request.type().equals("OMOK_SPECTATOR_PING_SEND")
+                    || request.type().equals("DICE_LEDGER_SPECTATOR_PING_SEND")) {
                 sendSpectatorEvent(sessionId, member, request);
                 return;
             }
@@ -856,7 +921,12 @@ public class TableHub {
         // disconnected()가 내부에서 release()를 부르므로 해제 전 점유를 한 번만 읽어 종료를 한 번만 기록한다.
         var facilityLease = facilities.current(member.userId());
         facilities.disconnected(member.userId());
-        WorldChannelRegistry.State channelState = channels.disconnect(member.userId());
+        // 점프맵 진행 중 네트워크 끊김은 15초 유예: 캐릭터와 채널 자리를 남기고 같은 채널 재입장 때 다시 묶는다.
+        boolean jumpmapGrace = member.accountId() != null && switch (reason) {
+            case SOCKET_CLOSED, TRANSPORT_ERROR, HEARTBEAT_TIMEOUT, SEND_ERROR, SEND_QUEUE_FULL -> true;
+            default -> false;
+        } && channels.suspendJumpmap(member.userId());
+        WorldChannelRegistry.State channelState = jumpmapGrace ? null : channels.disconnect(member.userId());
         if (facilityLease != null) {
             publishFacilities(facilityChannel, null, null);
             recordFacility(member.accountId(), facilityLease, "DISCONNECTED");
@@ -939,6 +1009,7 @@ public class TableHub {
         actionRequests.clear();
         starts.clear();
         reactionRounds.clear();
+        parkDebris.clear();
         startWorkers.shutdownNow();
     }
 
@@ -1048,6 +1119,7 @@ public class TableHub {
             member.peer().offer(protocol.encode(request.requestId(), "CHANNEL_STATE", change.state()));
             member.peer().offer(protocol.encode(null, "WORLD_STATE", channels.worldState(channelId)));
         }
+        sendParkDebris(member, channelId);
         refreshAppearance(member);
         if (change.changed() || !profileMemberships.containsKey(member)) {
             profileMemberships.put(member, new ProfileTarget(member, channelId));
@@ -1225,6 +1297,11 @@ public class TableHub {
         }
         try {
             var worlds = channels.advance(Set.copyOf(seating.keySet()), follows.activeStates());
+            dispatchJumpmap(channels.drainJumpmap());
+            for (var ended : channels.drainSuspensionEnds()) {
+                publishChannel(ended, null, null);
+                publishWorld(channels.worldState(ended.channelId()), null, null);
+            }
             for (var following : follows.activeStates()) {
                 pruneFollows(channels.worldState(following.channelId()));
             }
@@ -1246,6 +1323,12 @@ public class TableHub {
             // Do not silently lose the scheduled simulation after one failed tick.
             org.slf4j.LoggerFactory.getLogger(TableHub.class).error("광장 이동 tick 실패", exception);
         }
+    }
+
+    /** 점프맵 판정 신호는 레지스트리 잠금 밖에서 넘긴다. 서비스가 없으면 버린다. */
+    private void dispatchJumpmap(java.util.List<WorldChannelRegistry.JumpmapDelivery> deliveries) {
+        if (deliveries.isEmpty()) return;
+        jumpmapSignals.accept(deliveries);
     }
 
     private void moveWorld(Member member, Request request) {
@@ -2367,6 +2450,49 @@ public class TableHub {
         }
     }
 
+    private Object parkDebrisState(String channelId) {
+        var state = parkDebris.state(channelId);
+        return Map.of("channelId", channelId, "mapVersion", maps.metadata().mapVersion(),
+                "version", state.version(), "items", state.items());
+    }
+
+    private void sendParkDebris(Member member, String channelId) {
+        if (isMapReady(member)) {
+            member.peer().offer(protocol.encode(null, "WORLD_PARK_DEBRIS_STATE", parkDebrisState(channelId)));
+        }
+    }
+
+    private void publishParkDebris(String channelId) {
+        String message = protocol.encode(null, "WORLD_PARK_DEBRIS_STATE", parkDebrisState(channelId));
+        for (Member target : members.values()) {
+            if (isMapReady(target) && channelId.equals(channels.channelOf(target.userId()))) {
+                target.peer().offer(message);
+            }
+        }
+    }
+
+    private synchronized void expireParkDebris() {
+        if (stopped) {
+            return;
+        }
+        try {
+            for (String channelId : parkDebris.expire(tableNow())) {
+                publishParkDebris(channelId);
+            }
+        } catch (RuntimeException exception) {
+            log.error("공원 잔해 자동 정리 실패", exception);
+        }
+    }
+
+    /** 서버 AI 청소 연결점이며 클라이언트에 잔해 삭제 권한을 주지 않는다. */
+    public synchronized boolean cleanParkDebris(String channelId, String itemId, String part) {
+        if (stopped || !parkDebris.clean(channelId, itemId, part)) {
+            return false;
+        }
+        publishParkDebris(channelId);
+        return true;
+    }
+
     @EventListener
     public synchronized void gameDefeatConfirmed(GameDefeatConfirmed event) {
         if (stopped) { return; }
@@ -2385,7 +2511,14 @@ public class TableHub {
         }
         // 한 테이블의 현재 경기, 참가자별 한 건만 보존한다. 새 경기의 사건이 오면 교체한다.
         if (!round.users().add(event.userId())) { return; }
-        String notification = protocol.encode(null, "WORLD_GAME_REACTION", WorldGameReaction.from(event, channelId));
+        var position = channels.positionOf(Long.toString(event.userId()));
+        // 서버 방향을 사용해 모든 방문자에게 같은 비행 경로를 보여준다.
+        double throwYaw = position == null ? 0 : position.yaw();
+        if (parkDebris.add(channelId, tableAnchors.get(event.tableId()), event, players.size(), throwYaw)) {
+            publishParkDebris(channelId);
+        }
+        String notification = protocol.encode(null, "WORLD_GAME_REACTION",
+                WorldGameReaction.from(event, channelId, players.size()));
         for (Member target : members.values()) {
             if (isMapReady(target) && channelId.equals(channels.channelOf(target.userId()))
                     && (players.contains(target.userId()) || canWatchTable(target, event.tableId()))) {
@@ -2707,6 +2840,7 @@ public class TableHub {
     /**
      * 현재 플레이어의 채팅·승인 관전자의 채팅/핑을 같은 경기 안에 전달한다. 핑 권한은 관전 전용이다.
      * 엔진을 호출하지 않으며 판·버전·타이머·결과는 바꾸지 않는다. 다른 수신자에게는 비필수 이벤트로만 보낸다.
+     * 주사위 장부 핑은 오목 핑과 같은 간격·TTL·버전 규칙을 쓰고 대상만 점수 칸 또는 주사위다.
      */
     private void sendAlkkagiSpectator(String sessionId, Member member, Request request) {
         if (member.accountId() == null || reconnect.isEmpty()) fail(request, "GAME_SPECTATOR_AUTH_REQUIRED", "인증된 관전자만 이용할 수 있습니다.");
@@ -2734,7 +2868,8 @@ public class TableHub {
     }
 
     private void sendSpectatorEvent(String sessionId, Member member, Request request) {
-        boolean ping = request.type().equals("OMOK_SPECTATOR_PING_SEND");
+        boolean ledgerPing = request.type().equals("DICE_LEDGER_SPECTATOR_PING_SEND");
+        boolean ping = ledgerPing || request.type().equals("OMOK_SPECTATOR_PING_SEND");
         var payload = request.payload();
         if (member.accountId() == null) {
             fail(request, "GAME_SPECTATOR_AUTH_REQUIRED", "인증된 회원만 관전 채팅·핑을 보낼 수 있습니다.");
@@ -2748,9 +2883,9 @@ public class TableHub {
         if (push == null || ping && reconnect.get().canControlGame(member.accountId(), sessionId, gameId)) {
             fail(request, "GAME_SPECTATOR_ACCESS_DENIED", "관전이 승인된 경기에서만 보낼 수 있습니다.");
         }
-        if (ping && !"OMOK".equals(push.gameCode)
-                || !Set.of("OMOK", "DICE", "ONE_CARD", "LIAR_BRIDGE", "ALKKAGI").contains(push.gameCode)) {
-            fail(request, "GAME_SPECTATOR_UNSUPPORTED_GAME", "지원하는 경기 채팅 또는 오목 위치 추천을 이용해주세요.");
+        if (ping && !(ledgerPing ? "DICE_LEDGER" : "OMOK").equals(push.gameCode)
+                || !Set.of("OMOK", "DICE", "ONE_CARD", "LIAR_BRIDGE", "DICE_LEDGER", "ALKKAGI").contains(push.gameCode)) {
+            fail(request, "GAME_SPECTATOR_UNSUPPORTED_GAME", "지원하는 경기 채팅 또는 오목·주사위 장부 추천을 이용해주세요.");
         }
         if (!"PLAYING".equals(push.status)) {
             fail(request, "GAME_SPECTATOR_GAME_NOT_PLAYING", "진행 중인 경기에서만 보낼 수 있습니다.");
@@ -2759,31 +2894,36 @@ public class TableHub {
         var kind = ping ? SpectatorEventPolicy.Kind.PING : SpectatorEventPolicy.Kind.CHAT;
         String text = ping ? null : new ChatText(payload.get("text").textValue()).value();
         long basedOnVersion = ping ? payload.get("basedOnVersion").longValue() : 0;
-        int x = ping ? payload.get("x").intValue() : 0;
-        int y = ping ? payload.get("y").intValue() : 0;
-        String content = ping ? basedOnVersion + ":" + x + ":" + y : text;
-        String type = ping ? "OMOK_SPECTATOR_PING" : "GAME_SPECTATOR_CHAT_MESSAGE";
+        int x = ping && !ledgerPing ? payload.get("x").intValue() : 0;
+        int y = ping && !ledgerPing ? payload.get("y").intValue() : 0;
+        String category = ledgerPing && payload.has("category") ? payload.get("category").textValue() : null;
+        Integer dieId = ledgerPing && payload.has("dieId") ? payload.get("dieId").intValue() : null;
+        String content = ledgerPing ? basedOnVersion + ":" + (category != null ? category : "die" + dieId)
+                : ping ? basedOnVersion + ":" + x + ":" + y : text;
+        String type = ledgerPing ? "DICE_LEDGER_SPECTATOR_PING" : ping ? "OMOK_SPECTATOR_PING" : "GAME_SPECTATOR_CHAT_MESSAGE";
         long now = worldClock.sample().serverNow();
+        java.util.function.Function<SpectatorEventPolicy.Stamp, Object> eventOf = issued -> ledgerPing
+                ? new DiceLedgerSpectatorPing(gameId, eventId, member.userId(), basedOnVersion, category, dieId, issued, now)
+                : ping ? new OmokSpectatorPing(gameId, eventId, member.userId(), basedOnVersion, x, y, issued, now)
+                : new GameSpectatorChatMessage(gameId, eventId, member.userId(), text, issued, now);
         SpectatorEventPolicy.Stamp stamp;
         try {
             stamp = spectatorEvents.previous(member.accountId(), eventId, kind, gameId, content, now);
             if (stamp != null) {
                 // 같은 요청의 재전송은 원래 시각 그대로 요청자에게만 다시 확인해 준다. 다시 방송하지 않는다.
-                member.peer().offer(protocol.encode(request.requestId(), type, ping
-                        ? new OmokSpectatorPing(gameId, eventId, member.userId(), basedOnVersion, x, y, stamp, now)
-                        : new GameSpectatorChatMessage(gameId, eventId, member.userId(), text, stamp, now)));
+                member.peer().offer(protocol.encode(request.requestId(), type, eventOf.apply(stamp)));
                 return;
             }
             // Hub 잠금이 경기 상태 변경 알림과의 경계다. 더 새 버전 알림을 받았으면 아직 전달 전이어도 거절한다.
             if (ping && (basedOnVersion != push.deliveredVersion || push.requestedVersion > push.deliveredVersion)) {
-                fail(request, "OMOK_SPECTATOR_PING_STALE_VERSION", "최신 판 상태에서 다시 추천해주세요.");
+                fail(request, ledgerPing ? "DICE_LEDGER_SPECTATOR_PING_STALE_VERSION" : "OMOK_SPECTATOR_PING_STALE_VERSION",
+                        "최신 판 상태에서 다시 추천해주세요.");
             }
             stamp = spectatorEvents.accept(member.accountId(), eventId, kind, gameId, content, now);
         } catch (SpectatorEventPolicy.Rejected rejected) {
             throw new RequestException(request.requestId(), rejected.code(), rejected.getMessage());
         }
-        Object event = ping ? new OmokSpectatorPing(gameId, eventId, member.userId(), basedOnVersion, x, y, stamp, now)
-                : new GameSpectatorChatMessage(gameId, eventId, member.userId(), text, stamp, now);
+        Object event = eventOf.apply(stamp);
         // 요청자 확인은 일반 응답이다. 다른 수신자 전달은 큐가 붐비거나 만료되면 버려질 수 있다.
         member.peer().offer(protocol.encode(request.requestId(), type, event));
         String notice = protocol.encode(null, type, event);

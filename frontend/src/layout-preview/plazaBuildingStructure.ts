@@ -2,7 +2,7 @@ import {BoxGeometry,DoubleSide,Mesh,MeshBasicMaterial,Raycaster,Vector3} from 't
 import {type PropBuilder} from '../world/art/propGeometry'
 
 /** A solid timber seat follows the actual roof, including its low-poly facets. */
-export function connectRoof(b:PropBuilder,width:number,depth:number){
+export function connectRoof(b:PropBuilder,width:number,depth:number,roofOverlap=-.012){
  const material=new MeshBasicMaterial({side:DoubleSide})
  const roofs=b.parts.tile.map(g=>new Mesh(g,material))
  const ray=new Raycaster(),heights=new Map<string,number>()
@@ -11,7 +11,7 @@ export function connectRoof(b:PropBuilder,width:number,depth:number){
   ray.set(new Vector3(x,20,z),new Vector3(0,-1,0))
   const hit=ray.intersectObjects(roofs,false)[0]
   if(!hit)throw new Error('Missing kiosk roof above its timber seat')
-  const top=hit.point.y-.012;heights.set(key,top);return top
+  const top=hit.point.y+roofOverlap;heights.set(key,top);return top
  }
  try{
   const thickness=.32,halfX=width/2-.1,halfZ=depth/2-.1

@@ -25,7 +25,7 @@ import { TraditionalPavilionLanterns } from '../world/art/TraditionalPavilionLan
 import { MainPavilionRefinements } from '../world/art/LandmarkRefinements'
 import { TableShell } from '../features/tables/TableShell'
 import { TraditionalMailbox } from '../world/art/TraditionalMailbox'
-import { CodeFishBreadCart } from '../world/art/CodeFishBreadCart'
+import { FishBreadShop } from '../world/art/LuckyFacilities'
 import { VrHanokBooth } from '../world/art/ActivityProps'
 import { FitnessGarden } from '../world/art/FitnessGarden'
 import { StonePagoda } from '../world/art/StonePagoda'
@@ -34,7 +34,7 @@ import { Water } from '../world/art/WaterGarden'
 import { LakeFish } from '../world/art/LakeFish'
 import { vrBoothArt } from '../world/art/activityPropGeometry'
 import { ParkLamps } from '../world/art/ParkFurniture'
-import { ENVIRONMENT, MINI_PROPS, MAILBOX, GARDEN_PAGODA,VR_PAGODA,LAKE } from '../config'
+import { ENVIRONMENT, MINI_PROPS, GARDEN_PAGODA,VR_PAGODA,LAKE } from '../config'
 import { DRAFT_PARK,SETTINGS,DRAFT_PAVILIONS,DRAFT_TABLES,DRAFT_FITNESS_AREA,DRAFT_FITNESS_STATIONS,DRAFT_TOWER_BENCHES,DRAFT_FOUNTAIN,PLAZA_REST_BENCHES,PLAZA_BEDS,PLAZA_BENCHES,DRAFT_LAMPS,MAIN_GATE,VR_YAW,SITES,ORIGINAL_SITES } from './layout'
 import { lawn,gardenArt,pavilionStairsArt,cityArt,detailArt,trunks,crowns,flowers,shrubs,lakeBank,shoreTrunks,shoreCrowns } from './sceneGeometry'
 import { pathPaving,pathCurbs,fenceArt,plazaArt } from './landscapeGeometry'
@@ -57,6 +57,8 @@ function sign(text:string,sub='ON TOP PARK') {
   }
 }
 const zoneSigns={vr:sign('VR 체험관','VIRTUAL REALITY'),folk:sign('민속놀이 존','TRADITIONAL GAMES'),swim:sign('수영 진입로','LAKE ACCESS')}
+// The front beam ends at z=3.8 and its trim at z=3.88; keep lettering clear of both.
+const hallSignPosition:[number,number,number]=[0,3.55,3.94]
 const inspectPreviewTable=()=>{} // No live commands from the layout-review entry.
 
 export function PreviewLight({night}:{night:boolean}) {
@@ -68,7 +70,7 @@ export function PreviewLight({night}:{night:boolean}) {
   </>
 }
 
-export const PreviewWorld=memo(function PreviewWorld({live=false}:{live?:boolean}={}){
+export const PreviewWorld=memo(function PreviewWorld({live=false,onRankingBoardInteract}:{live?:boolean;onRankingBoardInteract?:()=>void}={}){
   // The review entry is isolated; the selected service mode enables existing table interactions.
   return <group name="park-layout-draft">
     <group name="background-only" userData={{walkable:false}}><PropModel art={cityArt} name="layout-background"/>
@@ -98,11 +100,11 @@ export const PreviewWorld=memo(function PreviewWorld({live=false}:{live?:boolean
     <group position={[SITES.pagoda.x,SITES.pagoda.floor,SITES.pagoda.z-GARDEN_PAGODA.z]}><StonePagoda anchor={GARDEN_PAGODA} decorations={false}/></group>
     <group position={[SITES.vr.x,0,SITES.vr.z]} rotation={[0,VR_YAW,0]}>
       <group position={[-MINI_PROPS[1].x,0,-MINI_PROPS[1].z]}><VrHanokBooth/></group>
-      <PropSign position={[0,3.55,3.8]} width={3.4} height={.65} draw={zoneSigns.vr}/>
+      <group name="layout-vr-sign"><PropSign position={hallSignPosition} width={3.4} height={.65} draw={zoneSigns.vr}/></group>
     </group>
     <group name="layout-hall-room" position={[SITES.folk.x,0,SITES.folk.z]} rotation={[0,VR_YAW,0]}>
       <PropModel art={vrBoothArt} name="folk-hanok-model"/>
-      <PropSign position={[0,3.55,3.8]} width={3.4} height={.65} draw={zoneSigns.folk}/>
+      <group name="layout-folk-sign"><PropSign position={hallSignPosition} width={3.4} height={.65} draw={zoneSigns.folk}/></group>
     </group>
     <StonePagoda anchor={{...VR_PAGODA,x:SITES.vrPagoda.x,z:SITES.vrPagoda.z}}/>
     {!live&&<PreviewJumpCourse/>}
@@ -128,10 +130,10 @@ export const PreviewWorld=memo(function PreviewWorld({live=false}:{live?:boolean
       {SETTINGS.lake.swimEntryOffsets.map(offset=><PropSign key={offset} position={[SITES.lake.x+offset,1.3,SITES.lake.z-4.5]} width={1.6} height={.6} draw={zoneSigns.swim}/>)}
       {!live&&<PreviewSwimmingRipples/>}
     </group>
-    <group name="fish-bread" position={[SITES.cart.x,0,SITES.cart.z]} userData={{assetId:"user/repaired-fish-cart"}}><CodeFishBreadCart detailDistance={80}/></group>
-    <group position={[SITES.mailbox.x-MAILBOX.x,0,SITES.mailbox.z-MAILBOX.z]}><TraditionalMailbox/></group>
+    <group name="fish-bread" position={[SITES.cart.x,0,SITES.cart.z]} userData={{assetId:"user/repaired-fish-cart"}}><FishBreadShop/></group>
+    <TraditionalMailbox position={[SITES.mailbox.x,0,SITES.mailbox.z]} scale={SETTINGS.mailbox.scale} yaw={SETTINGS.mailbox.yaw}/>
     <PlazaBuilding kind="shop" live={live}/><PlazaBuilding kind="drink" live={live}/>
-    {live?<PlazaBuilding kind="photo" live/>:<RankingBoardModel/>}
+    <RankingBoardModel onInteract={onRankingBoardInteract}/>
     <PreviewPigeons live={live}/>
     <FacetedParkTreeInstances parts={groveTreeModels.parts} name="layout-grove-original-trees" treeCount={groveTreeModels.plantings.length}/>
     <Instances parts={shrubs} shadow={false}><icosahedronGeometry args={[1,SIMPLE_MAP?0:1]}/></Instances>

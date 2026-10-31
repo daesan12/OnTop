@@ -1,4 +1,7 @@
 ontop:
+  rankings:
+    park:
+      started-at: ${PARK_RANKING_STARTED_AT:2026-11-02T00:00:00Z}
   game-start:
     enabled: ${GAME_START_ENABLED:false}
   games:
@@ -10,6 +13,8 @@ ontop:
       enabled: ${GAME_ONECARD_ENABLED:false}
     bridge:
       enabled: ${GAME_BRIDGE_ENABLED:false}
+    ledger:
+      enabled: ${GAME_LEDGER_ENABLED:false}
   minigames:
     enabled: ${MINIGAMES_ENABLED:false}
     bungeoppang-v5-enabled: ${BUNGEOPPANG_V5_ENABLED:false}

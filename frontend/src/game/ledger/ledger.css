@@ -1,0 +1,100 @@
+/* Docked right so the 3D tray (camera-panned left) stays visible; shared by players and spectators. */
+.park-page :is(.ledger-panel, .ledger-menu) {
+  --ledger-ink: #f5ead5; --ledger-muted: #c8b69a; --ledger-gold: #e1bd79; --ledger-line: #c9a56945;
+  --ledger-panel: #271e16ed; --ledger-hint: #7cc7ff;
+}
+.park-page .ledger-panel {
+  /* 오른쪽 세로 메뉴(옷장~설정, 68px × UI 배율)를 가리지 않도록 그 왼쪽에 둔다. 설정은 왼쪽 메뉴로 빼서 스크롤 없이 들어온다. */
+  position: absolute; right: calc(var(--park-edge) + 84px * var(--park-ui-scale, 1)); top: calc(var(--park-edge) + 64px);
+  max-height: calc(100dvh - 2 * var(--park-edge) - 64px);
+  z-index: 5; width: min(380px, 32vw); box-sizing: border-box; overflow-y: auto; scrollbar-width: thin; display: flex; flex-direction: column; gap: 8px;
+  padding: 12px; border: 1px solid var(--ledger-line); border-radius: 10px; background: var(--ledger-panel); color: var(--ledger-ink);
+  font-size: 13px;
+}
+/* 높이가 모자랄 때 flex가 주사위 줄을 min-height까지 줄여 아래 굴리기 버튼과 겹치지 않도록 한다. */
+.park-page .ledger-panel > * { flex-shrink: 0; }
+.park-page .ledger-panel h2 { margin: 0; font-size: 17px; }
+.park-page :is(.ledger-panel, .ledger-menu) button { font: inherit; color: var(--ledger-ink); background: #483524; border: 1px solid var(--ledger-line);
+  border-radius: 7px; padding: 4px 8px; cursor: pointer; }
+.park-page :is(.ledger-panel, .ledger-menu) button:hover:not(:disabled) { background: #60462c; border-color: var(--ledger-gold); }
+.park-page :is(.ledger-panel, .ledger-menu) button:focus-visible { outline: 2px solid #ffe0a0; outline-offset: 2px; }
+.park-page :is(.ledger-panel, .ledger-menu) button:disabled { opacity: .45; cursor: default; }
+.park-page .ledger-panel kbd { font: inherit; font-size: 11px; padding: 1px 4px; border: 1px solid currentColor; border-radius: 4px; opacity: .65; }
+.park-page :is(.ledger-panel, .ledger-menu) p { margin: 0; }
+.ledger-head { display: flex; justify-content: space-between; align-items: center; }
+.ledger-head small { color: var(--ledger-muted); }
+.ledger-clock { font-size: 22px; font-weight: 700; color: var(--ledger-gold); }
+.ledger-clock[data-urgent="true"] { color: #ff8a6a; }
+.ledger-clock small { font-size: 12px; margin-left: 2px; }
+.ledger-status { font-weight: 600; }
+.ledger-last { color: var(--ledger-muted); font-size: 12px; }
+.ledger-dice { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 5px; min-height: 52px; align-items: stretch; }
+.ledger-dice > small { grid-column: 1 / -1; align-self: center; color: var(--ledger-muted); }
+.park-page .ledger-dice button { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 5px 2px; }
+.park-page .ledger-dice button[aria-pressed="true"] { background: #d6b162; color: #27231a; border-color: #f4c86a; }
+.park-page .ledger-dice button[data-hinted] { box-shadow: 0 0 0 2px var(--ledger-hint); }
+.ledger-dice small { font-size: 11px; }
+.ledger-rolling { font-size: 22px; line-height: 26px; }
+.ledger-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.ledger-actions > small { color: var(--ledger-muted); flex: 1 1 140px; }
+.park-page .ledger-actions .ledger-roll { padding: 6px 12px; font-weight: 700; }
+.ledger-board { width: 100%; border-collapse: collapse; table-layout: fixed; font-variant-numeric: tabular-nums; }
+.ledger-board th, .ledger-board td { padding: 3px 4px; border-bottom: 1px solid var(--ledger-line); text-align: center; height: 24px; }
+.ledger-board tbody th { text-align: left; font-weight: 500; word-break: keep-all; line-height: 1.15; width: 30%; }
+.ledger-board thead th { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ledger-board thead th small { display: block; color: var(--ledger-gold); font-size: 10px; }
+.ledger-board thead th[data-turn] { color: var(--ledger-gold); border-bottom: 2px solid var(--ledger-gold); }
+.ledger-board thead th[data-own] span { text-decoration: underline; text-underline-offset: 3px; }
+.ledger-board thead th[data-out] { opacity: .5; }
+.ledger-board td[data-current] { background: #c58f2518; }
+.ledger-board td[data-fresh] { background: #e1bd7940; transition: background .6s; }
+.ledger-board td[data-auto] { outline: 1px dashed #ff8a6a; outline-offset: -2px; }
+.ledger-board tr[data-hinted] th { color: var(--ledger-hint); }
+.ledger-board tr[data-hinted] td[data-current] { box-shadow: inset 0 0 0 2px var(--ledger-hint); }
+.ledger-hint { margin-left: 4px; padding: 0 4px; border-radius: 4px; font-size: 10px; color: #12263a; background: var(--ledger-hint); }
+.ledger-preview { color: var(--ledger-muted); opacity: .7; }
+.park-page .ledger-board .ledger-cell { width: 100%; padding: 0 2px; color: var(--ledger-gold); background: #3a2b1d; border-style: dashed; }
+.park-page .ledger-board .ledger-cell[data-zero] { color: var(--ledger-muted); }
+.ledger-subtotal th, .ledger-subtotal td, .ledger-total th, .ledger-total td { font-weight: 700; }
+.ledger-subtotal small { display: block; font-size: 10px; font-weight: 400; color: var(--ledger-muted); }
+.ledger-subtotal th small { display: block; }
+.ledger-total td { color: var(--ledger-gold); font-size: 15px; }
+.ledger-ping-help { font-size: 12px; color: var(--ledger-muted); }
+.ledger-pings { margin: 0; padding-left: 16px; font-size: 12px; color: var(--ledger-hint); }
+.ledger-feedback { display: grid; gap: 4px; font-size: 12px; }
+.ledger-feedback [role="alert"] { color: #ffb4a0; }
+/* 게임 설정: 왼쪽 가장자리 세로 메뉴. 채팅(왼쪽 아래)과 겹치지 않게 세로 가운데에 둔다. */
+.park-page .ledger-menu {
+  position: absolute; left: var(--park-edge); top: 50%; transform: translateY(-50%); z-index: 5;
+  display: flex; flex-direction: column; gap: 6px; width: 132px; box-sizing: border-box; padding: 8px;
+  border: 1px solid var(--ledger-line); border-radius: 10px; background: var(--ledger-panel); color: var(--ledger-ink); font-size: 12px;
+}
+.park-page .ledger-menu button { width: 100%; padding: 6px 8px; text-align: left; }
+.park-page .ledger-menu button[aria-pressed="true"] { border-color: var(--ledger-gold); }
+.ledger-menu .game-forfeit, .ledger-menu .game-forfeit [role="group"] { display: grid; gap: 6px; }
+.ledger-menu .game-forfeit p { font-size: 11px; line-height: 1.35; color: var(--ledger-muted); }
+/* 720p 등 낮은 화면: 장부 전체가 스크롤 없이 들어오도록 줄 간격만 줄인다. */
+@media (max-height: 820px) {
+  .park-page .ledger-panel { gap: 5px; padding: 9px 10px; font-size: 12px; }
+  .ledger-board th, .ledger-board td { height: 18px; padding: 1px 4px; }
+  .park-page .ledger-dice button { padding: 3px 2px; }
+  .park-page .ledger-dice .dice-face { --die-size: 22px; padding: 3px; }
+  .ledger-dice { min-height: 40px; }
+  .ledger-clock { font-size: 18px; }
+}
+@media (max-width: 900px) {
+  .park-page .ledger-panel { width: min(340px, 46vw); font-size: 12px; }
+}
+/* 더 낮은 화면(노트북 2배율 등)에서도 장부 전체가 들어오도록 한 단계 더 줄인다. */
+@media (max-height: 700px) {
+  .park-page .ledger-panel { gap: 4px; padding: 8px 10px; }
+  .park-page .ledger-panel h2 { font-size: 15px; }
+  .ledger-board th, .ledger-board td { height: 16px; padding: 0 4px; }
+  .ledger-subtotal small, .ledger-subtotal th small { font-size: 9px; line-height: 1.1; }
+  .park-page .ledger-actions .ledger-roll { padding: 4px 10px; }
+}
+@media (max-width: 600px) {
+  .park-page .ledger-panel { left: var(--park-edge); width: auto; top: auto; bottom: calc(var(--park-edge) + 80px); max-height: 52dvh; }
+  .park-page .ledger-menu { top: calc(var(--park-edge) + 64px); right: var(--park-edge); transform: none; width: auto; flex-flow: row wrap; }
+  .park-page .ledger-menu button { width: auto; }
+}

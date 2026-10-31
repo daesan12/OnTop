@@ -89,6 +89,7 @@ abstract class OpenApiHttpTestSupport {
                 "POST /api/v1/users/onboarding", "GET /api/v1/admin/me", "GET /api/v1/admin/analytics/summary",
                 "GET /api/v1/wallets/me",
                 "GET /api/v1/wallets/me/transactions", "GET /api/v1/rankings",
+                "GET /api/v1/rankings/park",
                 "GET /api/v1/minigames/bungeoppang/rankings",
                 "GET /api/v1/users/me/games", "GET /api/v1/users/me/game-stats"));
         if (environment.acceptsProfiles(Profiles.of("(local | dev) & !prod & !production"))) {
@@ -103,9 +104,11 @@ abstract class OpenApiHttpTestSupport {
         if (environment.acceptsProfiles(Profiles.of("(local | dev) & !prod & !production"))) {
             expected.addAll(Set.of("POST /api/v1/minigames/sessions", "GET /api/v1/minigames/sessions",
                     "GET /api/v1/minigames/sessions/{sessionId}",
+                    "POST /api/v1/minigames/sessions/{sessionId}/manual-pause",
                     "POST /api/v1/minigames/sessions/{sessionId}/deliveries",
                     "POST /api/v1/minigames/sessions/{sessionId}/complete",
-                    "POST /api/v1/minigames/sessions/{sessionId}/abandon"));
+                    "POST /api/v1/minigames/sessions/{sessionId}/abandon",
+                    "GET /api/v1/minigames/jumpmap/status", "POST /api/v1/minigames/jumpmap/tips"));
             if (environment.getProperty("ontop.notes.enabled", Boolean.class, false)) {
                 expected.addAll(Set.of("GET /api/v1/notes", "POST /api/v1/notes"));
             }

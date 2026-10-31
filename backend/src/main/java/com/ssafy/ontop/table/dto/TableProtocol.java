@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ssafy.ontop.game.ledger.domain.DiceLedgerScoring;
 import com.ssafy.ontop.world.domain.ChatText;
 import com.ssafy.ontop.world.domain.EmoteCode;
 import java.util.Map;
@@ -166,6 +167,16 @@ public final class TableProtocol {
                     && payload.path("basedOnVersion").longValue() >= 0
                     && payload.path("basedOnVersion").longValue() <= 9_007_199_254_740_991L
                     && omokPoint(payload.path("x")) && omokPoint(payload.path("y"));
+            case "DICE_LEDGER_SPECTATOR_PING_SEND" -> (fields(payload, Set.of("gameId", "eventId", "basedOnVersion", "category"))
+                    && ledgerCategory(payload.path("category"))
+                    || fields(payload, Set.of("gameId", "eventId", "basedOnVersion", "dieId"))
+                    && payload.path("dieId").isIntegralNumber() && payload.path("dieId").canConvertToInt()
+                    && payload.path("dieId").intValue() >= 0 && payload.path("dieId").intValue() <= 4)
+                    && validGameId(payload) && validEventId(payload)
+                    && payload.path("basedOnVersion").isIntegralNumber()
+                    && payload.path("basedOnVersion").canConvertToLong()
+                    && payload.path("basedOnVersion").longValue() >= 0
+                    && payload.path("basedOnVersion").longValue() <= 9_007_199_254_740_991L;
             case "GAME_STATE_CHECK", "GAME_WATCH" -> fields(payload, Set.of("gameId"))
                     && payload.get("gameId").isTextual()
                     && !payload.get("gameId").textValue().isBlank()
@@ -204,6 +215,10 @@ public final class TableProtocol {
     // 오목판 교차점(x=열, y=행). 7.0 같은 실수 표기와 문자열은 받지 않는다.
     private boolean omokPoint(JsonNode value) {
         return value.isIntegralNumber() && value.canConvertToInt() && value.intValue() >= 0 && value.intValue() <= 14;
+    }
+
+    private boolean ledgerCategory(JsonNode value) {
+        return value.isTextual() && DiceLedgerScoring.Category.find(value.textValue()) != null;
     }
 
     private boolean validLease(JsonNode payload) {

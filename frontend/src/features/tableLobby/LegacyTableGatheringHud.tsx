@@ -27,7 +27,7 @@ export function LegacyTableGatheringHud({ model }: { model: GatheringModel }) {
     <div className="gathering-accessible-roster" aria-label="참가자 상태">{model.rows.map(row => <p key={row.seat}>{row.nickname} · {row.label}{row.score ? ` · ${row.score}` : ''}</p>)}</div>
     <div className="gathering-actions">
       <p className="gathering-social-hint">관전자와 함께 한 판 <span>Enter · 훈수와 응원</span></p>
-      {model.finished && <p className="settlement-note">{model.reason} · <BoardRewardCoinSource>{model.settlement}</BoardRewardCoinSource></p>}
+      {model.finished && <p className="settlement-note"><BoardRewardCoinSource>{model.settlement}</BoardRewardCoinSource></p>}
       {model.finished && <FinishedForfeitStatus />}
       <div className="button-row">
         <button className="primary" disabled={disabled || (!model.finished && (busy || !model.playable))} onClick={primary}>

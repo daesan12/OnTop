@@ -1,4 +1,5 @@
 import { SeatedLookButton } from '../../features/tableLobby/SeatedLookButton'
+import { resultSettlement } from '../../features/tableLobby/gatheringModel'
 import { openManual } from '../../features/manual/manualState'
 import { useEffect, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
@@ -77,8 +78,7 @@ function FarklePlayerPanel() {
       {recoveryBlocked() && <p>경기 복구 확인 중 · 입력을 잠시 멈췄습니다.</p>}
       {s.error && <p role="alert">{s.error}</p>}
       </div>
-      {d.status === 'FINISHED' && <div className="farkle-result-note"><p>종료 사유: {d.endReason === 'TARGET_REACHED' ? '목표 점수 도달' : d.endReason === 'RECONNECT_EXPIRED' ? '재접속 유예 만료' : d.endReason === 'EXPLICIT_LEAVE' ? '수동 기권' : d.endReason}</p>
-        <p>{s.result ? s.result.settlementStatus === 'SETTLED' ? `정산 완료 · 내 엽전 증감 ${s.result.myCoinDelta}` : '정산 대기 중' : '결과·정산 확인 전입니다.'}</p></div>}
+      {d.status === 'FINISHED' && <div className="farkle-result-note"><p>{s.result ? resultSettlement(s.result) : '결과 확인 중'}</p></div>}
       <details className="farkle-settings" onKeyDown={e => { if (e.code === 'Escape') { e.preventDefault(); e.stopPropagation(); e.currentTarget.open = false; e.currentTarget.querySelector('summary')?.focus() } }}>
       <summary aria-label="게임 설정">게임 설정 <span aria-hidden="true">···</span></summary>
       <div className="farkle-tools"><SeatedLookButton /><button onClick={() => openManual('farkle')}>게임 설명</button>

@@ -26,11 +26,17 @@ final class PositionCollision implements ClientPositionValidator.Geometry {
         probe.setCollisionGroup(1); probe.setCollideWithGroups(2);
     }
     public boolean supported(ClientPositionValidator.Pose pose) {
+        return supportObject(pose) != null;
+    }
+    /** supported()와 같은 판정에서 가장 먼저 닿는 걷는 면. 없으면 null이다. */
+    com.jme3.bullet.collision.PhysicsCollisionObject supportObject(ClientPositionValidator.Pose pose) {
         var from = point(pose);
-        if (!policy.allowsSupport(from, active)) return false;
+        if (!policy.allowsSupport(from, active)) return null;
         // A centre ray loses support earlier than the capsule at platform edges.
         return space.sweepTest(capsule, new Transform(from), new Transform(from.add(0, -.17f, 0))).stream()
-                .anyMatch(hit -> hit.getCollisionObject().getCollisionGroup() == 2 && hit.getHitNormalLocal(null).y > .6);
+                .filter(hit -> hit.getCollisionObject().getCollisionGroup() == 2 && hit.getHitNormalLocal(null).y > .6)
+                .min(java.util.Comparator.comparingDouble(com.jme3.bullet.collision.PhysicsSweepTestResult::getHitFraction))
+                .map(com.jme3.bullet.collision.PhysicsSweepTestResult::getCollisionObject).orElse(null);
     }
     public Double ceiling(ClientPositionValidator.Pose pose, double rise) {
         var from = point(pose);
@@ -54,6 +60,29 @@ final class PositionCollision implements ClientPositionValidator.Geometry {
         // Conservative single-step allowance; multi-step/ramp parity remains an experiment.
         return allowStep && sweep(start, start.add(0, .22f, 0))
                 && sweep(start.add(0, .22f, 0), end.add(0, .22f, 0));
+    }
+    /** A reported chord can cut a rounded, walkable corner traversed over several render frames.
+     * Accept only a fully swept rise-then-across or across-then-drop path within one auto-step.
+     * The tuned validator still checks time, movement budget, jump origin/height and hovering.
+     */
+    public boolean clearCorner(ClientPositionValidator.Pose from, ClientPositionValidator.Pose to) {
+        double rise = to.y() - from.y();
+        if (Math.abs(rise) < .0001 || Math.abs(rise) > .22 + .0001
+                || (rise > 0 ? !supported(to) : !supported(from)) || !clear(to, to, false)) return false;
+        var start = point(from); var end = point(to); var delta = end.subtract(start);
+        var hits = space.sweepTest(capsule, new Transform(start), new Transform(end));
+        boolean corner = false;
+        for (var hit : hits) {
+            if (hit.getCollisionObject().getCollisionGroup() != 2 || hit.getHitFraction() >= .9999) continue;
+            var normal = hit.getHitNormalLocal(null);
+            if (normal.dot(delta) >= -.0001) continue;
+            if (normal.y < .6) return false; // No wall/ceiling or lateral detours.
+            corner = true;
+        }
+        if (!corner) return false;
+        var pivot = rise > 0 ? new ClientPositionValidator.Pose(from.x(), to.y(), from.z())
+                : new ClientPositionValidator.Pose(to.x(), from.y(), to.z());
+        return clear(from, pivot, false) && clear(pivot, to, false);
     }
     public boolean swimming(ClientPositionValidator.Pose pose) {
         var lake = scene.data.path("lake");
@@ -85,6 +114,26 @@ final class PositionCollision implements ClientPositionValidator.Geometry {
                 .filter(candidate -> supported(candidate) && clear(candidate, candidate, false)).findFirst().orElse(null);
     }
     public double jumpSpeed(ClientPositionValidator.Pose from, boolean tuned) { return policy.jumpSpeed(point(from), tuned); }
+    /**
+     * 서 있던 바닥 가장자리에서 걸어 내려갈 때, 직선 경로가 떠나는 바닥의 모서리(접촉 법선의 수평 성분이 이동 방향을 향함)만
+     * 스치는지 확인한다. 하강 성분 때문에 막힌 것으로 계산된 접촉만 해당한다. 도착 위치 겹침, 다가가며 부딪히는 벽·모서리,
+     * 평평한 바닥 관통(법선 수평 성분 없음), 한 보고 0.27m 넘는 하강은 허용하지 않는다.
+     */
+    public boolean rollsOff(ClientPositionValidator.Pose from, ClientPositionValidator.Pose to) {
+        var start = point(from); var end = point(to);
+        var delta = end.subtract(start);
+        if (delta.y >= 0 || delta.y < -.27 || delta.x * delta.x + delta.z * delta.z < 1e-8) return false;
+        if (!clear(to, to, false)) return false;
+        return space.sweepTest(capsule, new Transform(start), new Transform(end)).stream().noneMatch(hit -> {
+            if (hit.getCollisionObject().getCollisionGroup() != 2) return false;
+            var normal = hit.getHitNormalLocal(null);
+            if (hit.getHitFraction() >= .9999 || normal.dot(delta) >= -.0001) return false;
+            // 서 있던 바닥: FE 캡슐은 접촉 여유(약 2cm)만큼 떠 있어, 직선 경로가 그만큼 내려가며 윗면에 닿는다.
+            if (normal.y >= .6 && hit.getHitFraction() * -delta.y <= .04) return false;
+            // 떠나는 모서리: 접촉 법선의 수평 성분이 이동 방향과 같다(다가가며 부딪힌 벽·모서리는 반대).
+            return normal.y <= 0 || normal.x * delta.x + normal.z * delta.z <= 1e-4;
+        });
+    }
     boolean correctionClear(Vector3f from, Vector3f to) {
         if (!clear(new ClientPositionValidator.Pose(to.x, to.y, to.z), new ClientPositionValidator.Pose(to.x, to.y, to.z), false)) return false;
         var delta = to.subtract(from);

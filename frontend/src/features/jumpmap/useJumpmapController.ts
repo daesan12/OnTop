@@ -42,11 +42,8 @@ export function useJumpmapController() {
       if (!inScope()) return
       if (s.walletRevision > before.walletRevision) refreshWalletAfterSettlement(owner, `jumpmap:${channel}:${s.revision}`)
       if (s.refresh !== before.refresh && performance.now() >= reloadAt) void load()
-      if (s.run && s.run.runId !== before.run?.runId) { tip('RUN_STARTED'); if (!document.hidden) playSfx('game-start') }
-      if (s.run && s.run.gatesPassed > (before.run?.gatesPassed ?? 0)) tip('FIRST_GATE')
-      if (s.run?.finalReached && !before.run?.finalReached) tip('FINAL_PAD')
-      if (s.result && s.result.runId !== before.result?.runId && s.result.reason !== 'FINISH') tip('FIRST_FALL')
-      if (!document.hidden && s.result && s.result.runId !== before.result?.runId) playSfx(s.result.reason === 'FINISH' || s.result.reason === 'LAKE' ? 'move-splash' : 'move-land')
+      if (s.run && s.run.runId !== before.run?.runId && !document.hidden) playSfx('game-start')
+      if (!document.hidden && s.result && !s.result.recovered && s.result.runId !== before.result?.runId) playSfx(s.result.reason === 'FINISH' || s.result.reason === 'LAKE' ? 'move-splash' : 'move-land')
     })
     const stopSound = onStep((block, player, power) => {
       if (!inScope() || document.hidden) return
@@ -87,7 +84,7 @@ export function useJumpmapController() {
     }
     void load()
     const timer = setInterval(tick, 50), tipTimer = setInterval(() => { void saveTips() }, 5000)
-    const visible = () => { if (!document.hidden) { reloadAt = 0; tick(); if (useJumpmap.getState().run) tip('RUN_STARTED') } }
+    const visible = () => { if (!document.hidden) { reloadAt = 0; tick() } }
     document.addEventListener('visibilitychange', visible)
     return () => { disposed = true; abort.abort(); clearInterval(timer); clearInterval(tipTimer); stop(); stopSound(); standing.clear(); document.removeEventListener('visibilitychange', visible) }
   }, [runtime, owner, channel, map, verified])

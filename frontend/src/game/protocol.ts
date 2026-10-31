@@ -2,6 +2,7 @@ import { parseAlkkagi, parseAlkkagiHand, type Alkkagi, type AlkkagiHand } from '
 import { integer, record } from '../network/protocol'
 import { parseOneCard, parseHand, type OneCard, type Hand } from './onecard/protocol'
 import { parseBridge, parseSecret, type Bridge, type SecretDie } from './bridge/protocol'
+import { parseLedger, type DiceLedger } from './ledger/protocol'
 
 export type Recovery =
   | 'UNKNOWN'
@@ -44,12 +45,13 @@ interface GameHeader {
   version: number
   role: 'PLAYER' | 'SPECTATOR'
 }
-export interface OmokGame extends GameHeader { alkkagi?: never; alkkagiHand?: never; omok: Omok; dice?: never; onecard?: never; hand?: never; bridge?: never; secret?: never }
-export interface DiceGame extends GameHeader { alkkagi?: never; alkkagiHand?: never; dice: Farkle; omok?: never; onecard?: never; hand?: never; bridge?: never; secret?: never }
-export interface OneCardGame extends GameHeader { alkkagi?: never; alkkagiHand?: never; onecard: OneCard; hand: Hand | null; omok?: never; dice?: never; bridge?: never; secret?: never }
-export interface BridgeGame extends GameHeader { alkkagi?: never; alkkagiHand?: never; bridge: Bridge; secret: SecretDie | null; omok?: never; dice?: never; onecard?: never; hand?: never }
-export interface AlkkagiGame extends GameHeader { alkkagi: Alkkagi; alkkagiHand: AlkkagiHand | null; omok?: never; dice?: never; onecard?: never; hand?: never; bridge?: never; secret?: never }
-export type Game = OmokGame | DiceGame | OneCardGame | BridgeGame | AlkkagiGame
+export interface OmokGame extends GameHeader { ledger?: never; alkkagi?: never; alkkagiHand?: never; omok: Omok; dice?: never; onecard?: never; hand?: never; bridge?: never; secret?: never }
+export interface DiceGame extends GameHeader { ledger?: never; alkkagi?: never; alkkagiHand?: never; dice: Farkle; omok?: never; onecard?: never; hand?: never; bridge?: never; secret?: never }
+export interface OneCardGame extends GameHeader { ledger?: never; alkkagi?: never; alkkagiHand?: never; onecard: OneCard; hand: Hand | null; omok?: never; dice?: never; bridge?: never; secret?: never }
+export interface BridgeGame extends GameHeader { ledger?: never; alkkagi?: never; alkkagiHand?: never; bridge: Bridge; secret: SecretDie | null; omok?: never; dice?: never; onecard?: never; hand?: never }
+export interface AlkkagiGame extends GameHeader { ledger?: never; alkkagi: Alkkagi; alkkagiHand: AlkkagiHand | null; omok?: never; dice?: never; onecard?: never; hand?: never; bridge?: never; secret?: never }
+export interface LedgerGame extends GameHeader { alkkagi?: never; alkkagiHand?: never; ledger: DiceLedger; omok?: never; dice?: never; onecard?: never; hand?: never; bridge?: never; secret?: never }
+export type Game = OmokGame | DiceGame | OneCardGame | BridgeGame | AlkkagiGame | LedgerGame
 export interface Farkle {
   gameCode: 'DICE'; status: 'PLAYING' | 'FINISHED'; players: string[]; scores: number[]
   targetScore: number; turnTimeLimitMs: 30000; turnUserId: string | null; turnDeadline: string | null
@@ -58,8 +60,8 @@ export interface Farkle {
   hotDice: boolean; lastEvent: 'START' | 'ROLL' | 'HOT_DICE' | 'BANK' | 'BUST' | 'TURN_TIMEOUT'
   winnerUserId: string | null; endReason: string | null; endedAt: string | null
 }
-export const gameState = (g: Game) => g.omok ?? g.dice ?? g.onecard ?? g.bridge ?? g.alkkagi
-export const gamePlayers = (g: Game) => g.omok ? [g.omok.blackUserId, g.omok.whiteUserId] : g.dice ? g.dice.players : g.alkkagi ? g.alkkagi.players : (g.onecard ?? g.bridge).players.map(p => p.userId)
+export const gameState = (g: Game) => g.omok ?? g.dice ?? g.onecard ?? g.bridge ?? g.ledger ?? g.alkkagi
+export const gamePlayers = (g: Game) => g.omok ? [g.omok.blackUserId, g.omok.whiteUserId] : g.dice ? g.dice.players : g.alkkagi ? g.alkkagi.players : (g.onecard ?? g.bridge ?? g.ledger).players.map(p => p.userId)
 export interface Result {
   version: number
   gameSessionId: string
@@ -213,6 +215,7 @@ export function parseGame(p: Record<string, unknown>, ownId = ''): Game {
     const alkkagi = parseAlkkagi(p.publicState, common.gameId, common.version)
     return { ...common, alkkagi, alkkagiHand: parseAlkkagiHand(p.privateState, alkkagi, ownId, common.role) }
   }
+  if (record(p.publicState) && p.publicState.gameCode === 'DICE_LEDGER') return { ...common, ledger: parseLedger(p.publicState) }
   if (record(p.publicState) && p.publicState.gameCode === 'LIAR_BRIDGE') {
     const bridge = parseBridge(p.publicState)
     return { ...common, bridge, secret: parseSecret(p.privateState, ownId, common.role, bridge) }
@@ -228,7 +231,7 @@ export function parseResult(p: Record<string, unknown>, ownId: string): Result {
   if (
     !id(p.gameSessionId) ||
     !integer(p.version) ||
-    !['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE', 'ALKKAGI'].includes(String(p.gameCode)) ||
+    !['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE', 'DICE_LEDGER', 'ALKKAGI'].includes(String(p.gameCode)) ||
     !['FINISHED', 'INVALID'].includes(String(p.status)) ||
     typeof p.endReason !== 'string' || !/^[A-Z][A-Z0-9_]{0,31}$/.test(p.endReason) ||
     !['PENDING', 'SETTLED'].includes(String(p.settlementStatus)) ||

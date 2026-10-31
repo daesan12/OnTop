@@ -3,6 +3,7 @@ package com.ssafy.ontop.game.start;
 import com.ssafy.ontop.game.alkkagi.service.AlkkagiEngine;
 import com.ssafy.ontop.game.bridge.service.BridgeEngine;
 import com.ssafy.ontop.game.farkle.service.FarkleEngine;
+import com.ssafy.ontop.game.ledger.service.DiceLedgerEngine;
 import com.ssafy.ontop.game.omok.service.OmokEngine;
 import com.ssafy.ontop.game.onecard.service.OneCardEngine;
 import java.util.List;
@@ -25,6 +26,7 @@ public class CommittedGameStartService {
     private final Optional<OneCardEngine> onecard;
     private final Optional<BridgeEngine> bridge;
     private final Optional<FarkleEngine> dice;
+    private final Optional<DiceLedgerEngine> ledger;
     private final Optional<GameActivationPersistenceService> activations;
     private final AlkkagiEngine alkkagi;
 
@@ -41,17 +43,23 @@ public class CommittedGameStartService {
 
     public CommittedGameStartService(GameStartGateway gateway, Optional<OmokEngine> omok,
             Optional<OneCardEngine> onecard, Optional<BridgeEngine> bridge,
-            Optional<FarkleEngine> dice,
-            Optional<GameActivationPersistenceService> activations,
+            Optional<FarkleEngine> dice, Optional<GameActivationPersistenceService> activations,
             boolean authenticated, boolean rehearsal) {
-        this(gateway, omok, onecard, bridge, dice, activations, Optional.empty(), authenticated, rehearsal);
+        this(gateway, omok, onecard, bridge, dice, Optional.empty(), activations, authenticated, rehearsal);
+    }
+
+    public CommittedGameStartService(GameStartGateway gateway, Optional<OmokEngine> omok,
+            Optional<OneCardEngine> onecard, Optional<BridgeEngine> bridge,
+            Optional<FarkleEngine> dice, Optional<DiceLedgerEngine> ledger,
+            Optional<GameActivationPersistenceService> activations, boolean authenticated, boolean rehearsal) {
+        this(gateway, omok, onecard, bridge, dice, ledger, activations, Optional.empty(), authenticated, rehearsal);
     }
 
     @Autowired
     public CommittedGameStartService(GameStartGateway gateway, Optional<OmokEngine> omok,
             Optional<OneCardEngine> onecard, Optional<BridgeEngine> bridge,
-            Optional<FarkleEngine> dice, Optional<GameActivationPersistenceService> activations,
-            Optional<AlkkagiEngine> alkkagi,
+            Optional<FarkleEngine> dice, Optional<DiceLedgerEngine> ledger,
+            Optional<GameActivationPersistenceService> activations, Optional<AlkkagiEngine> alkkagi,
             @Value("${ontop.websocket.authenticated:false}") boolean authenticated,
             @Value("${ontop.start-rehearsal.enabled:false}") boolean rehearsal) {
         if (!authenticated || rehearsal || gateway instanceof LocalGameStartGateway) {
@@ -65,6 +73,7 @@ public class CommittedGameStartService {
         this.onecard = onecard;
         this.bridge = bridge;
         this.dice = dice;
+        this.ledger = ledger;
         this.activations = activations;
         this.alkkagi = alkkagi.orElse(null);
     }
@@ -91,6 +100,7 @@ public class CommittedGameStartService {
                 case "ONE_CARD" -> onecard.isPresent();
                 case "LIAR_BRIDGE" -> bridge.isPresent();
                 case "DICE" -> dice.isPresent() && players.size() == 2 && command.targetScore() != null;
+                case "DICE_LEDGER" -> ledger.isPresent();
                 default -> false;
             };
         } catch (IllegalArgumentException exception) {
@@ -113,6 +123,7 @@ public class CommittedGameStartService {
                 case "LIAR_BRIDGE" -> bridge.orElseThrow().create(result.gameSessionId(), command.tableId(), players);
                 case "DICE" -> dice.orElseThrow().create(result.gameSessionId(), command.tableId(), players,
                         command.targetScore());
+                case "DICE_LEDGER" -> ledger.orElseThrow().create(result.gameSessionId(), command.tableId(), players);
                 default -> throw new IllegalStateException("경기 실행 설정을 확인해주세요.");
             }
             activations.ifPresent(service -> service.started(command, result.gameSessionId()));

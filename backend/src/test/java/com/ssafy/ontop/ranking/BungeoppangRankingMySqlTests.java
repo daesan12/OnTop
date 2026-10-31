@@ -31,6 +31,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
@@ -99,9 +100,41 @@ class BungeoppangRankingMySqlTests {
 
             JsonNode v5Started = start(zero, "v5");
             String v5Session = v5Started.path("minigameSessionId").asText();
-            time.clock.time = Instant.parse(v5Started.at("/timing/playEndsAt").asText()).plusMillis(1);
+            String sessionPath = "/api/v1/minigames/sessions/" + v5Session;
             var v5Body = Map.of("rulesVersion", "v5", "throughSeq", 0,
                     "prefixHash", v5Started.at("/checkpoint/prefixHash").asText(), "log", List.of(), "seenTips", List.of());
+            var foreignPause = send(member(), "POST", sessionPath + "/manual-pause",
+                    Map.of("paused", true, "expectedPauseRevision", 0), null);
+            assertThat(foreignPause.statusCode()).as(foreignPause.body()).isEqualTo(404);
+            var malformedPause = send(zero, "POST", sessionPath + "/manual-pause",
+                    Map.of("paused", "true", "expectedPauseRevision", 0), null);
+            assertThat(malformedPause.statusCode()).as(malformedPause.body()).isEqualTo(400);
+            time.clock.time = Instant.parse(v5Started.at("/timing/playStartsAt").asText()).plusSeconds(10);
+            var paused = send(zero, "POST", sessionPath + "/manual-pause",
+                    Map.of("paused", true, "expectedPauseRevision", 0), null);
+            assertThat(paused.statusCode()).as(paused.body()).isEqualTo(200);
+            var duplicatePause = send(zero, "POST", sessionPath + "/manual-pause",
+                    Map.of("paused", true, "expectedPauseRevision", 0), null);
+            assertThat(duplicatePause.statusCode()).isEqualTo(200);
+            assertThat(mapper.readTree(duplicatePause.body()).at("/timing/pauseRevision").asLong()).isEqualTo(1);
+            var pausedComplete = send(zero, "POST", sessionPath + "/complete", v5Body, UUID.randomUUID().toString());
+            assertThat(pausedComplete.statusCode()).as(pausedComplete.body()).isEqualTo(409);
+            assertThat(mapper.readTree(pausedComplete.body()).path("code").asText()).isEqualTo("MINIGAME_PAUSED");
+            var staleResume = send(zero, "POST", sessionPath + "/manual-pause",
+                    Map.of("paused", false, "expectedPauseRevision", 0), null);
+            assertThat(staleResume.statusCode()).as(staleResume.body()).isEqualTo(409);
+            assertThat(mapper.readTree(staleResume.body()).path("code").asText()).isEqualTo("MANUAL_PAUSE_CHANGED");
+            time.clock.time = time.clock.instant().plusSeconds(300);
+            var stillPaused = send(zero, "GET", sessionPath, null, null);
+            JsonNode pausedState = mapper.readTree(stillPaused.body());
+            assertThat(pausedState.path("status").asText()).isEqualTo("PLAYING");
+            assertThat(pausedState.at("/timing/paused").asBoolean()).isTrue();
+            assertThat(pausedState.at("/timing/pauseRevision").asLong()).isEqualTo(1);
+            var resumed = send(zero, "POST", sessionPath + "/manual-pause",
+                    Map.of("paused", false, "expectedPauseRevision", 1), null);
+            assertThat(resumed.statusCode()).as(resumed.body()).isEqualTo(200);
+            time.clock.time = Instant.parse(mapper.readTree(resumed.body()).at("/timing/playEndsAt").asText())
+                    .plusMillis(1);
             String v5Key = UUID.randomUUID().toString();
             var v5Completed = send(zero, "POST", "/api/v1/minigames/sessions/" + v5Session + "/complete", v5Body, v5Key);
             assertThat(v5Completed.statusCode()).as(v5Completed.body()).isEqualTo(200);
@@ -215,6 +248,84 @@ class BungeoppangRankingMySqlTests {
         }
     }
 
+    @Test
+    void 최고점수와_같은판의_최대콤보로_공동순위를_계산하고_누락기록을_제외한다() throws Exception {
+        try {
+            Member a = member(), b = member(), c = member(), zero = member(), missing = member();
+            Instant base = time.clock.instant();
+            score(a, 1000, 30, 99, 0, base.plusSeconds(1));
+            score(a, 1200, 8, 2, 9, base.plusSeconds(2));
+            score(a, 1200, 12, 3, 5, base.plusSeconds(4));
+            score(b, 1200, 12, 1, 10, base.plusSeconds(3));
+            score(c, 1200, 8, 50, 0, base.plusSeconds(5));
+            score(zero, 0, 0, 0, 0, base.plusSeconds(6));
+            long invalid = score(missing, 9000, 50, 99, 0, base.plusSeconds(7));
+            jdbc.update("UPDATE bungeoppang_records SET result_json=JSON_REMOVE(result_json,'$.maxCombo')"
+                    + " WHERE minigame_session_id=?", invalid);
+            time.clock.time = base.plusSeconds(10);
+
+            JsonNode page = ranking(a, "v5", 20, null);
+
+            assertThat(page.path("totalParticipants").asInt()).isEqualTo(4);
+            assertThat(page.path("items")).extracting(row -> row.path("userId").asLong())
+                    .containsExactly(b.id, a.id, c.id, zero.id);
+            assertThat(page.path("items")).extracting(row -> row.path("rank").asInt())
+                    .containsExactly(1, 1, 3, 4);
+            assertThat(page.at("/me/score").asInt()).isEqualTo(1200);
+            assertThat(page.at("/me/maxCombo").asInt()).isEqualTo(12);
+            assertThat(page.at("/me/completedAt").asText()).isEqualTo(base.plusSeconds(4).toString());
+        } finally {
+            for (Member member : fixtures) {
+                jdbc.update("UPDATE users SET deleted_at=CURRENT_TIMESTAMP(3) WHERE id=?", member.id);
+            }
+        }
+    }
+
+    @Test
+    void V131_기존판을_보존하면서_V132를_순차_적용한다() throws Exception {
+        String suffix = UUID.randomUUID().toString().replace("-", "").substring(0, 16);
+        String schema = "ontop_ranking_test_bungeo_upgrade_" + suffix;
+        String current = jdbc.queryForObject("SELECT DATABASE()", String.class);
+        assertThat(current).matches("ontop_ranking_test_bungeo_[A-Za-z0-9_]+");
+        jdbc.execute("CREATE DATABASE " + schema);
+        String url = System.getenv("TEST_BUNGEO_RANKING_DB_URL")
+                .replaceFirst("/ontop_ranking_test_bungeo_[A-Za-z0-9_]+", "/" + schema);
+        var configuration = Flyway.configure().dataSource(url, System.getenv("TEST_GAME_DB_USERNAME"),
+                System.getenv("TEST_GAME_DB_PASSWORD"))
+                .locations("classpath:db/migration", "classpath:db/minigame", "classpath:db/shop");
+        configuration.target("131").load().migrate();
+        Member owner = member();
+        long sessionId = start(owner, "v5").path("minigameSessionId").asLong();
+        for (String table : List.of("users", "minigame_sessions")) {
+            long id = table.equals("users") ? owner.id : sessionId;
+            jdbc.update("INSERT INTO " + schema + "." + table + " SELECT * FROM " + current + "." + table
+                    + " WHERE id=?", id);
+        }
+        List<String> columns = jdbc.queryForList("SELECT COLUMN_NAME FROM information_schema.columns"
+                + " WHERE TABLE_SCHEMA=? AND TABLE_NAME='bungeoppang_v4_rounds' ORDER BY ORDINAL_POSITION",
+                String.class, schema);
+        String names = String.join(",", columns);
+        jdbc.update("INSERT INTO " + schema + ".bungeoppang_v4_rounds (" + names + ") SELECT " + names
+                + " FROM " + current + ".bungeoppang_v4_rounds WHERE minigame_session_id=?", sessionId);
+
+        configuration.target("132").load().migrate();
+
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM " + schema + ".bungeoppang_v4_rounds"
+                + " WHERE minigame_session_id=? AND manual_paused_at IS NULL AND manual_paused_ms=0"
+                + " AND manual_pause_revision=0", Long.class, sessionId)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM " + schema + ".flyway_schema_history"
+                + " WHERE version='132' AND success=1", Long.class)).isEqualTo(1);
+        jdbc.update("UPDATE users SET deleted_at=CURRENT_TIMESTAMP(3) WHERE id=?", owner.id);
+    }
+
+    private long score(Member member, long score, long combo, int made, int failed, Instant at) throws Exception {
+        long sessionId = seed(member, "v5", made, failed, at, "COMPLETED", true);
+        jdbc.update("UPDATE minigame_sessions SET score=? WHERE id=?", score, sessionId);
+        jdbc.update("UPDATE bungeoppang_records SET result_json=JSON_SET(result_json,'$.maxCombo',?)"
+                + " WHERE minigame_session_id=?", combo, sessionId);
+        return sessionId;
+    }
+
     /** The row a three-minute round got before 2026-10-29: legacy config version and a 180 s play window. */
     private void threeMinutes(long sessionId) {
         jdbc.update("UPDATE bungeoppang_v4_rounds SET config_version='v5-20261027.1',"
@@ -241,7 +352,8 @@ class BungeoppangRankingMySqlTests {
         long id = start(member, version).path("minigameSessionId").asLong();
         jdbc.update("UPDATE minigame_sessions SET status=?, score=?, ended_at=? WHERE id=?", status, made, Timestamp.from(at), id);
         jdbc.update("UPDATE bungeoppang_records SET result_json=? WHERE minigame_session_id=?",
-                mapper.writeValueAsString(Map.of("status", status, "rulesVersion", version, "made", made, "failed", failed)), id);
+                mapper.writeValueAsString(Map.of("status", status, "rulesVersion", version,
+                        "made", made, "failed", failed, "maxCombo", 10 - failed)), id);
         if (settled) {
             jdbc.update("""
                     UPDATE bungeoppang_v4_rounds

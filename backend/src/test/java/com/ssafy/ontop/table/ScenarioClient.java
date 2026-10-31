@@ -232,7 +232,8 @@ final class ScenarioClient implements AutoCloseable {
                     String type = message.path("type").asText();
                     if (type.equals("TABLE_STATE")) { tableState = message.path("payload"); }
                     if (type.equals("TABLE_LEFT")) { tableState = null; }
-                    if (type.equals("GAME_SPECTATOR_CHAT_MESSAGE") || type.equals("OMOK_SPECTATOR_PING")) {
+                    if (type.equals("GAME_SPECTATOR_CHAT_MESSAGE") || type.equals("OMOK_SPECTATOR_PING")
+                            || type.equals("DICE_LEDGER_SPECTATOR_PING")) {
                         spectatorEvents.add(message);
                     }
                     assertThat(forbidden.test(message)).as("동작 중 수신 금지 메시지: %s", message).isFalse();

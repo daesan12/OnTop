@@ -8,6 +8,7 @@ export function turnOwner(g: Game): string | null {
   if (g.omok) return g.omok.turnUserId
   if (g.dice) return g.dice.turnUserId
   if (g.onecard) return g.onecard.turnUserId
+  if (g.ledger) return g.ledger.turnUserId
   return g.bridge.stage === 'RESPONDING' ? g.bridge.responderUserId : g.bridge.turnUserId
 }
 

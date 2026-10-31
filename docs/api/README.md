@@ -77,19 +77,21 @@ application.yml은 기본 enabled=false, `(local | dev) & !prod & !production`�
 | Shop | GET /api/v1/users/me/items | Access JWT | 200 |
 | Shop | PATCH /api/v1/users/me/equipment | Access JWT | 200 |
 | Ranking | GET /api/v1/rankings | Access JWT | 200 |
+| Park Ranking | GET /api/v1/rankings/park | Access JWT | 200·503 |
 | Minigame | POST /api/v1/minigames/sessions | Access JWT + Idempotency-Key | 201 |
 | Minigame | GET /api/v1/minigames/sessions | Access JWT | 200 |
 | Minigame | GET /api/v1/minigames/sessions/{sessionId} | Access JWT·본인 세션 | 200 |
 | Minigame | POST /api/v1/minigames/sessions/{sessionId}/complete | Access JWT·본인 세션 | 200 |
 | Minigame | POST /api/v1/minigames/sessions/{sessionId}/abandon | Access JWT·본인 세션 | 200 |
+| Minigame | POST /api/v1/minigames/sessions/{sessionId}/manual-pause | Access JWT·본인 세션·일시정지 버전 | 200 |
 | Feedback | POST /api/v1/feedback | Access JWT·위치/활동 검사 | 201 |
 | Feedback | GET /api/v1/admin/feedback | Access JWT·서버 관리자 ID 목록 | 200 |
 | Notes | POST /api/v1/notes | Access JWT·위치/활동 검사 | 201 |
 | Notes | GET /api/v1/notes | Access JWT·위치/활동 검사 | 200 |
 
-**정적 export는 26개 경로·30개 operation**이다. OpenApiLocalTests가 Feedback/Notes를 켜고 생성한다.
-local/dev는 회원 WebSocket 인증 기본값에서 각각 26개이며, Feedback와 Notes의 enabled=true가 각각
-2개씩 추가된다. 두 기능을 모두 켠 문서 테스트는 local/dev 모두 30개다.
+**정적 export는 35개 경로·39개 operation**이다. OpenApiLocalTests가 Feedback/Notes를 켜고 생성한다.
+local/dev는 회원 WebSocket 인증 기본값과 Feedback/Notes 비활성 기준으로 35개 operation이며,
+두 기능을 켜면 각각 2개씩 추가되어 local/dev 모두 38개다.
 WebSocket 인증을 local에서 명시적으로 끄면 Ticket API 1개가 제외된다.
 Shop/Minigame/Notes는 local/dev 또는 운영 `prod,db`에서 기능별 설정으로 등록할 수 있다. 운영 배포에서는 기본 비활성이다. Feedback는 별도 기능 플래그를 따른다.
 Channel/Table 조회는 운영에서도 인증된 회원에게 제공한다.
@@ -111,7 +113,7 @@ SHOP_NOT_CONFIGURED(503) 또는 WALLET_NOT_READY(409)다. 온보딩 최초100코
 - Wallet [잔액 조회](../wallet-balance.md)와 [거래 내역 조회](../wallet-transactions.md)를 구현했다. Wallet 생성 전용 REST 및
   기획서상의 추가 상점/게임 REST는 추가하지 않았다.
   온보딩 내부의 지갑 생성·가입 보너스는 기존 온보딩 operation 설명에 반영한다.
-- 현재 30개는 실제 Controller 매핑이며 등록 조건·선택적 서비스 미등록과 기능 완료 여부를 구분한다.
+- 현재 38개는 실제 Controller 매핑이며 등록 조건·선택적 서비스 미등록과 기능 완료 여부를 구분한다.
 - 경기 예약·정산·INVALID 반환은 내부 이벤트/Raw WebSocket 계약이다. REST 생성·승리 신고·정산 API를 만들지 않았다.
   현재 boot의 종결 복구와 다른 boot의 미완료 경기 자동 반환을 구분한다. 후자는 미구현이다.
 
@@ -198,7 +200,7 @@ OpenAPI YAML과 JSON을 파싱해 트리를 비교하므로 객체 키 순서/�
 서버 `/`로 환경별 랜덤 포트 차이를 제거하고, `$ref` 연결·정확한 endpoint 목록·DTO와 인증 스키마·민감 필드를 검사한다.
 공식 swagger-parser로 스키마 오류/경고가 없는지도 확인한다. test 전용 parser의 javax Swagger core는 제외하여
 실제 springdoc Jakarta core와 중복되지 않게 했다. 기본 test는 파일이 없거나 드리프트가 있으면 실패한다.
-정적 파일은 local export 기준으로 비교한다. dev도 같은 기능 플래그 조건의 30개 매핑을 별도로 검사하며,
+정적 파일은 local export 기준으로 비교한다. dev도 같은 기능 플래그 조건의 38개 매핑을 별도로 검사하며,
 local 전용 개발 화면 2개는 두 환경의 REST OpenAPI 범위에 포함하지 않는다.
 
 ## 수동 검증과 배포 확인

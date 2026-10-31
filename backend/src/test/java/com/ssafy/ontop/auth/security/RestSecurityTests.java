@@ -6,9 +6,9 @@ import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
-import com.ssafy.ontop.auth.service.AccessJwtService;
 import com.ssafy.ontop.admin.analytics.AnalyticsSnapshot;
 import com.ssafy.ontop.admin.analytics.AnalyticsSnapshotStore;
+import com.ssafy.ontop.auth.service.AccessJwtService;
 import com.ssafy.ontop.user.domain.LoginProvider;
 import java.security.SecureRandom;
 import java.time.Instant;
@@ -304,7 +304,8 @@ class RestSecurityTests {
                 "DELETE /api/v1/users/me",
                 "GET /api/v1/admin/me", "GET /api/v1/admin/analytics/summary",
                 "GET /api/v1/wallets/me", "GET /api/v1/wallets/me/transactions",
-                "GET /api/v1/rankings", "GET /api/v1/minigames/bungeoppang/rankings",
+                "GET /api/v1/rankings", "GET /api/v1/rankings/park",
+                "GET /api/v1/minigames/bungeoppang/rankings",
                 "GET /api/v1/users/me/games", "GET /api/v1/users/me/game-stats",
                 "GET /api/v1/channels",
                 "GET /api/v1/tables", "GET /dev/tables", "GET /dev/world-config",
@@ -312,9 +313,11 @@ class RestSecurityTests {
                 "GET /api/v1/users/me/items", "PATCH /api/v1/users/me/equipment",
                 "POST /api/v1/minigames/sessions", "GET /api/v1/minigames/sessions",
                 "GET /api/v1/minigames/sessions/{sessionId}",
+                "POST /api/v1/minigames/sessions/{sessionId}/manual-pause",
                 "POST /api/v1/minigames/sessions/{sessionId}/deliveries",
                 "POST /api/v1/minigames/sessions/{sessionId}/complete",
-                "POST /api/v1/minigames/sessions/{sessionId}/abandon");
+                "POST /api/v1/minigames/sessions/{sessionId}/abandon",
+                "GET /api/v1/minigames/jumpmap/status", "POST /api/v1/minigames/jumpmap/tips");
     }
 
     private MockHttpServletRequestBuilder auth(MockHttpServletRequestBuilder request) {
