@@ -229,6 +229,7 @@ public final class OmokEngine implements GameEngine {
         if (before.version() != after.version()) {
             notices.add(new GameStateChanged(after.gameId(), after.version()));
             if (before.endedAt() == null && after.endedAt() != null) {
+                coinTossEnds.remove(after.gameId());
                 router.finished(this, after.gameId());
                 notices.add(new OmokGameFinished(after.gameId(), after.tableId(), after.version(),
                         after.blackUserId(), after.whiteUserId(), after.winnerUserId(), after.endReason(), after.endedAt()));
