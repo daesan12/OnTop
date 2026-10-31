@@ -83,14 +83,18 @@ test('generated park waits for approval, renders 18 mapped tables, and supports 
  for(const site of PARK_DATA.interactions.construction){
   const [x,y,z]=site.reachPosition;server.place({x,y,z,yaw:site.yaw})
   await expect(hint).toHaveAttribute('data-target-id',site.id)
-  const before=server.requests.filter(r=>r.type==='WORLD_FACILITY_USE').length
-  await page.keyboard.press('KeyE')
-  const dialog=page.getByRole('dialog',{name:site.label+' 공사 안내',exact:true})
-  await expect(dialog).toBeVisible();await expect(dialog.getByRole('heading')).toHaveText('공사 중')
-  expect(server.requests.filter(r=>r.type==='WORLD_FACILITY_USE')).toHaveLength(before)
-  await shot(page,'live-construction-'+site.id)
-  await page.keyboard.press('Escape');await expect(dialog).toBeHidden()
+  await expect(hint.getByRole('button')).toContainText(site.label+' · 무료 목업 체험')
  }
+ const ranking=PARK_DATA.interactions.rankingBoard
+ const [rankingX,rankingY,rankingZ]=ranking.reachPosition
+ server.place({x:rankingX,y:rankingY,z:rankingZ,yaw:ranking.yaw})
+ await expect(hint).toHaveAttribute('data-target-id',ranking.id)
+ await expect(hint.getByRole('button')).toContainText('랭킹 자세히 보기')
+ const rankingRequests=server.requests.filter(r=>r.type==='WORLD_FACILITY_USE').length
+ await page.keyboard.press('KeyE')
+ await expect.poll(async()=>(await state(page)).rankingBoardOpen).toBe(true)
+ expect(server.requests.filter(r=>r.type==='WORLD_FACILITY_USE')).toHaveLength(rankingRequests)
+ await page.evaluate(async()=>(await import('/tests/park-integration/probe.ts' as string)).resetRankingBoardEntry())
  const f=PARK_DATA.interactions.fitness[0]!
  server.place({x:f.position[0],y:f.position[1]+.8,z:f.position[2]})
  await expect(hint).toHaveAttribute('data-target-id',f.id)
