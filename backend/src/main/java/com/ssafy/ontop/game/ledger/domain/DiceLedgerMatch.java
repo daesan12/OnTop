@@ -13,6 +13,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.IntSupplier;
 
@@ -179,7 +180,7 @@ public final class DiceLedgerMatch {
 
     private void advance(Instant now) {
         List<Long> live = live();
-        if (live.stream().allMatch(userId -> full(players.indexOf(userId)))) {
+        if (live.stream().allMatch(userId -> isFull(players.indexOf(userId)))) {
             long best = live.stream().mapToLong(userId -> total(players.indexOf(userId))).max().orElse(0);
             finish(live.stream().filter(userId -> total(players.indexOf(userId)) == best).toList(),
                     "ALL_CATEGORIES_FILLED", now);
@@ -187,7 +188,7 @@ public final class DiceLedgerMatch {
         }
         for (int step = 1; step <= players.size(); step++) {
             int next = (turn + step) % players.size();
-            if (!forfeited.contains(players.get(next)) && !full(next)) {
+            if (!forfeited.contains(players.get(next)) && !isFull(next)) {
                 turn = next;
                 break;
             }
@@ -206,14 +207,14 @@ public final class DiceLedgerMatch {
     }
 
     private int[] faces() { return dice.stream().mapToInt(Die::value).toArray(); }
-    private boolean full(int index) { return Arrays.stream(cards[index]).allMatch(java.util.Objects::nonNull); }
+    private boolean isFull(int index) { return Arrays.stream(cards[index]).allMatch(Objects::nonNull); }
     private List<Long> live() { return players.stream().filter(userId -> !forfeited.contains(userId)).toList(); }
 
     private int upper(int index) {
         int sum = 0;
         for (Category category : Category.values()) {
             Integer value = cards[index][category.ordinal()];
-            if (category.upper() && value != null) { sum += value; }
+            if (category.isUpper() && value != null) { sum += value; }
         }
         return sum;
     }
@@ -237,7 +238,7 @@ public final class DiceLedgerMatch {
         }
         return new Snapshot(gameId, tableId, players, version, rollId, turnId,
                 endedAt == null ? players.get(turn) : null,
-                endedAt == null ? (int) Arrays.stream(cards[turn]).filter(java.util.Objects::nonNull).count() + 1 : null,
+                endedAt == null ? (int) Arrays.stream(cards[turn]).filter(Objects::nonNull).count() + 1 : null,
                 rollCount, dice, List.copyOf(views), lastEvent, lastScored, deadline, winners, endReason, endedAt);
     }
 
