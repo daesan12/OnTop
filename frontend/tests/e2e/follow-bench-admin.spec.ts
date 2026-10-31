@@ -79,7 +79,7 @@ test('ordinary dev exposes approved follow controls and closes the remote menu f
     const state = useSession.getState()
     openAvatarMenu({ id: state.ids.find((id: string) => id !== state.sessionId), x: 600, y: 300 })
   })
-  const menu = page.getByRole('menu').filter({ hasText: '서버 승인 후 따라가요' }); await expect(menu).toBeVisible()
+  const menu = page.getByRole('menu').filter({ hasText: '따라가기' }); await expect(menu).toBeVisible()
   await expect(menu.getByRole('menuitem', { name: '따라가기', exact: true })).toBeEnabled()
   const count = server.sent.filter(m => m.type === 'WORLD_MOVE' && m.payload.dx).length
   await page.keyboard.press('KeyW'); expect(server.sent.filter(m => m.type === 'WORLD_MOVE' && m.payload.dx)).toHaveLength(count)
