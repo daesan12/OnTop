@@ -1,4 +1,4 @@
-import { ALKKAGI_FOV, alkkagiTopDownHeight } from '../game/alkkagi/camera'
+import { ALKKAGI_FOV, alkkagiTopDownFrame } from '../game/alkkagi/camera'
 import { gatheringCameraActive } from '../features/tableLobby/gathering'
 import { oneCardPlayerViewActive, oneCardCameraPose, oneCardSpectatorCameraPose, ONECARD_CAMERA } from '../game/onecard/camera'
 import { tabletLobbyActive } from '../features/tableLobby/tabletModel'
@@ -289,9 +289,12 @@ export function CameraRig() {
       const anchor = game?.role === 'PLAYER' ? TABLES.find(t => t.id === avatar.tableId)! : (closeAnchor ?? watchedAnchor)!
       if (anchor) {
         state.look.set(anchor.position[0], anchor.position[1] + 1.14, anchor.position[2])
+        const frame = alkkagiTopDownFrame(gl.domElement.clientWidth, gl.domElement.clientHeight, tableScale(anchor))
+        const up = game?.role === 'SPECTATOR' || session.seatIndex === 0 ? -1 : 1
+        state.look.z += up * frame.offset
         state.desired.copy(state.look)
-        state.desired.y += alkkagiTopDownHeight(gl.domElement.clientWidth, gl.domElement.clientHeight, tableScale(anchor))
-        state.targetUp.set(0, 0, game?.role === 'SPECTATOR' || session.seatIndex === 0 ? -1 : 1)
+        state.desired.y += frame.height
+        state.targetUp.set(0, 0, up)
       }
     } else if (seated && avatar.tableId && oneCardPlayerViewActive(game)) {
       const anchor = TABLES.find(t => t.id === avatar.tableId)

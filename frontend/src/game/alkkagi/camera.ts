@@ -1,8 +1,15 @@
 export const ALKKAGI_FOV = 42
 
-/** HUD 공간을 남기고 9×10 판 전체를 수직으로 내려다본다. */
+/** PC에서는 손패를 우측에 두고 판에 높이를 더 배정한다. 작은 화면은 기존 하단 여백을 유지한다. */
+export function alkkagiTopDownFrame(width: number, height: number, scale: number) {
+  const w = Math.max(1, width), h = Math.max(1, height), wide = w >= 1280
+  const top = wide ? 128 : 130, bottom = wide ? 32 : 130
+  const usableHeight = Math.max(h * .3, h - top - bottom)
+  const usableWidth = wide ? Math.max(w * .3, w - 480) : w * .88
+  const vertical = Math.max(1.4 * scale * h / usableHeight, 1.26 * scale * w / usableWidth / (w / h))
+  return { height: vertical / (2 * Math.tan(ALKKAGI_FOV * Math.PI / 360)),
+    offset: (top - bottom) / (2 * h) * vertical }
+}
 export function alkkagiTopDownHeight(width: number, height: number, scale: number) {
-  const aspect = Math.max(.1, width / Math.max(1, height))
-  const fill = Math.max(.3, Math.min(.8, (height - 260) / Math.max(1, height)))
-  return Math.max(1.4, 1.26 / aspect) * scale / fill / (2 * Math.tan(ALKKAGI_FOV * Math.PI / 360))
+  return alkkagiTopDownFrame(width, height, scale).height
 }
