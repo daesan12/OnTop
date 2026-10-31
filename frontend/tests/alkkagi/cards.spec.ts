@@ -11,6 +11,10 @@ test('8종 도감은 조회만 가능하고 실제 초기 알은 교차점에 �
   await page.getByText('아이템 도감 · 8종', { exact: true }).click()
   await expect(page.locator('.item-catalog article')).toHaveCount(8)
   await expect(page.locator('.item-catalog button')).toHaveCount(0)
+  for (const card of await page.locator('.item-catalog article').all()) {
+    await card.scrollIntoViewIfNeeded()
+    await expect.poll(() => card.locator('img').evaluate((img: HTMLImageElement) => [img.naturalWidth, img.naturalHeight])).toEqual([600, 900])
+  }
   for (const piece of states.at(-1).pieces) {
     expect(boardColumns.some(x => Math.abs(piece.x - x) < 1e-9)).toBe(true)
     expect(boardRows.some(y => Math.abs(piece.y - y) < 1e-9)).toBe(true)
@@ -19,6 +23,18 @@ test('8종 도감은 조회만 가능하고 실제 초기 알은 교차점에 �
   await page.setViewportSize({ width: 390, height: 844 })
   await expect(page.locator('.item-catalog article').first()).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+})
+
+test('이미지 전송 실패 시 기존 아이콘으로 대체하고 카드 이름을 유지한다', async ({ page }) => {
+  await page.route('**/wall.webp', route => route.abort())
+  await page.goto('/alkkagi-preview.html?role=red')
+  await expect(page.getByText('연결됨', { exact: true })).toBeVisible()
+  await page.getByText('아이템 도감 · 8종', { exact: true }).click()
+  const wall = page.getByRole('article', { name: '벽 설치', exact: true })
+  await wall.scrollIntoViewIfNeeded()
+  await expect(wall.locator('svg')).toBeVisible()
+  await expect(wall.locator('img')).toHaveCount(0)
+  await expect(wall).toContainText('벽 설치')
 })
 
 test('카드 선택·취소·확정과 중복 비활성화를 기존 흐름으로 유지한다', async ({ page }) => {

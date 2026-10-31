@@ -1,4 +1,14 @@
-import type { CSSProperties } from 'react'
+import { useState, type CSSProperties } from 'react'
+import wall from './assets/cards/wall.webp'
+import relocate from './assets/cards/relocate.webp'
+import powerUp from './assets/cards/power-up.webp'
+import grow from './assets/cards/grow.webp'
+import shrink from './assets/cards/shrink.webp'
+import extraShot from './assets/cards/extra-shot.webp'
+import swap from './assets/cards/swap.webp'
+import defend from './assets/cards/defend.webp'
+
+const images: Record<string, string> = { WALL: wall, RELOCATE: relocate, POWER_UP: powerUp, GROW: grow, SHRINK: shrink, EXTRA_SHOT: extraShot, SWAP: swap, DEFEND: defend }
 
 const artwork: Record<string, { name: string; caption: string; color: string; path: string }> = {
   WALL: { name: '벽 설치', caption: '길을 막고 · 궤도를 바꾸다', color: '#8b5833', path: 'M12 19h40v28H12z M12 29h40 M12 38h40 M25 19v10 M40 19v10 M19 29v9 M35 29v9 M27 38v9' },
@@ -16,15 +26,22 @@ export const alkkagiItemTypes = Object.keys(artwork)
 export function AlkkagiItemCard({ type, selected = false, disabled = false, onClick }: {
   type: string; selected?: boolean; disabled?: boolean; onClick?(): void
 }) {
+  const [failed, setFailed] = useState(false)
   const art = artwork[type]
   if (!art) return null
-  const contents = <><span className="item-card-kicker">온탑 · 비책</span>
+  const image = images[type], hasImage = !!image && !failed
+  const content = <><span className="item-card-kicker">온탑 · 비책</span>
     <span className="item-card-art"><svg viewBox="0 0 64 64" aria-hidden="true" focusable="false">
       <path d={art.path} fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" />
     </svg></span><span className="item-card-name">{art.name}</span><span className="item-card-caption">{art.caption}</span>
-    <span className="item-card-seal" aria-hidden="true">策</span>{selected && <span className="item-card-selected">선택됨</span>}</>
+    <span className="item-card-seal" aria-hidden="true">策</span></>
+  const contents = <>{hasImage ? <><img className="item-card-picture" src={image} alt="" width="600" height="900"
+    loading={onClick ? 'eager' : 'lazy'} decoding="async" onError={() => setFailed(true)} />
+    <span className="item-card-image-copy"><span className="item-card-name">{art.name}</span><span className="item-card-caption">{art.caption}</span></span></> : content}
+    {selected && <span className="item-card-selected">선택됨</span>}</>
+  const classes = 'item-card' + (hasImage ? ' item-card-image' : '')
   const style = { '--item-ink': art.color } as CSSProperties
-  return onClick ? <button type="button" className="item-card" style={style} aria-label={art.name}
+  return onClick ? <button type="button" className={classes} style={style} aria-label={art.name}
     aria-pressed={selected} disabled={disabled} onClick={onClick}>{contents}</button>
-    : <article className="item-card item-card-sample" style={style} aria-label={art.name}>{contents}</article>
+    : <article className={classes + ' item-card-sample'} style={style} aria-label={art.name}>{contents}</article>
 }
