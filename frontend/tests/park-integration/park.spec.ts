@@ -93,8 +93,21 @@ test('generated park waits for approval, renders 18 mapped tables, and supports 
  const rankingRequests=server.requests.filter(r=>r.type==='WORLD_FACILITY_USE').length
  await page.keyboard.press('KeyE')
  await expect.poll(async()=>(await state(page)).rankingBoardOpen).toBe(true)
+ const rankingDialog=page.getByRole('dialog',{name:'온탑 랭킹'})
+ await expect(rankingDialog).toBeVisible()
+ await expect(rankingDialog.getByRole('heading',{name:'보유량'})).toBeVisible()
+ await expect(rankingDialog.getByText('새 맵 검증')).toBeVisible()
+ await expect(rankingDialog.getByText('12,580냥')).toHaveCount(2)
+ await expect(rankingDialog.getByText('한 판에서 번 엽전 최고 기록')).toBeVisible()
+ await expect(rankingDialog.getByText('1,842승')).toBeVisible()
+ expect(server.restRequests.filter(r=>r.path==='/api/v1/rankings/park').length).toBeGreaterThanOrEqual(1)
  expect(server.requests.filter(r=>r.type==='WORLD_FACILITY_USE')).toHaveLength(rankingRequests)
- await page.evaluate(async()=>(await import('/tests/park-integration/probe.ts' as string)).resetRankingBoardEntry())
+ const movementRequests=server.requests.filter(r=>r.type==='WORLD_MOVE').length
+ await page.keyboard.press('KeyW')
+ expect(server.requests.filter(r=>r.type==='WORLD_MOVE')).toHaveLength(movementRequests)
+ await page.keyboard.press('Escape')
+ await expect(rankingDialog).toBeHidden()
+ await expect.poll(async()=>(await state(page)).rankingBoardOpen).toBe(false)
  const f=PARK_DATA.interactions.fitness[0]!
  server.place({x:f.position[0],y:f.position[1]+.8,z:f.position[2]})
  await expect(hint).toHaveAttribute('data-target-id',f.id)

@@ -47,6 +47,14 @@ export async function parkFixture(page:Page,options:{holdConfirmation?:boolean;s
     if(p==='/api/v1/feedback'&&method==='POST'){
       await route.fulfill({json:{receiptId:'1',acceptedAt:new Date().toISOString(),nextAllowedAt:new Date(Date.now()+60000).toISOString()}});return
     }
+    if(p==='/api/v1/rankings/park'&&method==='GET'){
+      await route.fulfill({json:{
+        balance:[{rank:1,userId:'101',nickname:'새 맵 검증',coinBalance:12580},{rank:1,userId:'102',nickname:'공동 일등',coinBalance:12580},{rank:3,userId:'103',nickname:'세 번째',coinBalance:7200}],
+        singleGameProfit:[{rank:1,userId:'104',nickname:'한판 승부사',profit:2981}],
+        wins:[{rank:1,userId:'105',nickname:'보드게임 고수',winCount:1842}],
+        updatedAt:'2026-11-02T05:32:00Z',
+      }});return
+    }
     const body=p==='/api/v1/auth/refresh'?{accessToken:'park-fixture'}:p==='/api/v1/users/me'?{userId:101,nickname:'새 맵 검증',characterGender:'MALE'}:p==='/api/v1/auth/websocket-ticket'?{ticket:'park-fixture',expiresIn:30}:p==='/api/v1/channels'?{items:[{channelId:'channel-1',name:'새 공원 검증',capacity:16,currentUsers:1,joinable:true}]}:p==='/api/v1/tables'?{tables:bindings.map(b=>({tableId:b.tableId,capacity:4,minimumPlayers:2,occupiedSeats:0,availableSeats:4,readyCount:0,allReady:false,status:'WAITING',joinable:true,gameCode:null,targetScore:null,betAmountPerPlayer:null,gameId:null}))}:p==='/api/v1/wallets/me'?{balance:100,reservedBalance:0,availableBalance:100}:p==='/api/v1/notes'?{notes:[]}:null
     await route.fulfill(p==='/api/v1/notes'?{json:{notes}}:body?{json:body}:{status:404,json:{message:'Not part of this fixture'}})
   })

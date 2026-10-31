@@ -3,9 +3,10 @@ import { createPortal } from 'react-dom'
 import { inputState } from '../../world/inputOwnership'
 
 /** Modal card for the park menus; owns keys like the feedback dialog so world shortcuts never fire behind it. */
-export function MenuDialog({ label, className, onClose, children }: {
+export function MenuDialog({ label, className, backdropClassName = '', onClose, children }: {
   label: string
   className: string
+  backdropClassName?: string
   onClose: () => void
   children: ReactNode
 }) {
@@ -35,7 +36,7 @@ export function MenuDialog({ label, className, onClose, children }: {
     }
   }, [])
   // The HUD corners are CSS-scaled, which would trap a fixed backdrop inside them.
-  return createPortal(<div className="park-menu-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) onClose() }}>
+  return createPortal(<div className={`park-menu-backdrop ${backdropClassName}`} onPointerDown={event => { if (event.target === event.currentTarget) onClose() }}>
     <section ref={card} className={`park-menu-dialog ${className}`} role="dialog" aria-modal="true" aria-label={label}>
       {children}
     </section>
