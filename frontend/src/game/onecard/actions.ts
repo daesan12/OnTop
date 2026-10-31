@@ -2,6 +2,7 @@ import { useGame } from '../store'
 import { forfeitBlocksInput } from '../forfeit'
 import { isSuit, type OneCardInput } from './protocol'
 import { openingActive } from './opening'
+import { reducedMotionRequested } from './useReducedMotion'
 
 /** Only permission/expiry checks here. Legal cards, effects, shuffle and winners belong to BE. */
 export function canUseOneCard(ownId: string) {
@@ -15,7 +16,7 @@ export function canActOneCard(ownId: string, input: OneCardInput, now = Date.now
   const g = useGame.getState().game
   if (!canUseOneCard(ownId) || !g?.onecard || !g.hand) return false
   const o = g.onecard
-  if (openingActive(o, g.version, now)) return false
+  if (!reducedMotionRequested() && openingActive(o, g.version, now)) return false
   const inWindow = (id: string) => o.players.some(p => p.userId === id && p.active && p.cardCount === 1
     && p.oneCardStatus === 'pending' && !!p.oneCardUntil && now < Date.parse(p.oneCardUntil))
   if (input.kind === 'declare-one') return Object.keys(input).length === 1 && inWindow(ownId)

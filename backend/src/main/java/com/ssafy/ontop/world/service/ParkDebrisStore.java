@@ -67,7 +67,7 @@ public final class ParkDebrisStore {
             case "DICE_LEDGER" -> 5;
             default -> 0;
         };
-        for (int i = 0; i < pieceCount; i++) {
+        for (int i = 0; piece != null && i < pieceCount; i++) {
             parts.add(piece + "-" + i);
         }
         room.items.put(event.eventId(), new Item(event.eventId(), event.gameId(), event.tableId(), anchorId,

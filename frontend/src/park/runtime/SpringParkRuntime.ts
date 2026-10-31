@@ -936,7 +936,10 @@ export class ParkRuntime implements ParkRuntimePort {
       const session = useSession.getState()
       const reference = publicMatchService.find({ channelId: session.roomId, tableId: session.watchedTableId })
       if (reference) void this.watchGame(reference.gameId)
-      else this.report('지금 관전할 경기가 없어요. 경기 시작 후 다시 확인해주세요.')
+      else {
+        useTableLobby.setState({ panelOpen: true })
+        this.report('지금 관전할 경기가 없어요. 경기 시작 후 다시 확인해주세요.')
+      }
     })
   }
   private async watchTable(anchorId: string, panelOpen: boolean): Promise<boolean> {

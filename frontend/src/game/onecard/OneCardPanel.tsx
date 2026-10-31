@@ -51,7 +51,7 @@ export function OneCardPanel() {
     <p role="status">공개 판과 본인 손패를 확인하고 있습니다.</p>{s.error && <p role="alert">{s.error}</p>}
     <button disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkRecovery()}>경기 복구 다시 확인</button></section>
   const o = g.onecard, spectator = g.role === 'SPECTATOR', ownId = session.sessionId
-  const opening = openingActive(o, g.version, now)
+  const opening = !reduced && openingActive(o, g.version, now)
   const scope = handScope(ownId, session.roomId, g.gameId, g.version)
   const fresh = !spectator && g.hand?.userId === ownId && session.status === 'connected' && !recoveryBlocked() && !s.uncertain && g.version >= s.awaitingVersion
   const hand = fresh ? g.hand : null, selected = selection.scope === scope ? hand?.hand.find(c => c.id === selection.selectedId) : undefined

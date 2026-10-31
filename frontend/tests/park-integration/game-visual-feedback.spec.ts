@@ -55,6 +55,39 @@ for(const count of [2,4] as const)test(`new map onecard ${count}: shuffle, seque
  }
  server.cardSnapshot({turnCount:2});await expect.poll(async()=>(await visual(page)).opening).toBe(false)
 })
+test('reduced motion shows all cards and permits drawing immediately without an invisible opening lock',async({page})=>{
+ await page.emulateMedia({reducedMotion:'reduce'})
+ const server=await fixture(page,{generatedPark:true,omok:true,manualLobby:true,tabletServer:true,onecard:2,players:2})
+ await load(page);const tablet=await prepare(page,'ONE_CARD');server.readyTabletOthers(true)
+ await tablet.getByRole('button',{name:'게임 시작',exact:true}).click()
+ const draw=page.getByRole('button',{name:'드로우',exact:true})
+ await expect(draw).toBeEnabled()
+ const timing=await page.evaluate(async()=>{
+  const game=(await import('/src/game/store.ts' as string)).useGame.getState().game
+  const opening=await import('/src/game/onecard/opening.ts' as string)
+  const actions=await import('/src/game/onecard/actions.ts' as string)
+  return {stillOpening:opening.openingActive(game.onecard,game.version,Date.now()),allowed:actions.canActOneCard('101',{kind:'draw'})}
+ })
+ expect(timing).toEqual({stillOpening:true,allowed:true})
+ await expect(page.getByLabel('나만 볼 수 있는 카드').getByRole('button')).toHaveCount(7)
+ await expect(page.locator('.onecard-opening-status')).toHaveCount(0)
+ const hand=server.cardHand()
+ server.cardReply({kind:'draw'},{turnUserId:'102',players:server.cardState().players.map(p=>p.userId==='101'?{...p,cardCount:8}:p)},
+  {...hand,hand:[...hand.hand,{id:'clubs-8',suit:'clubs',rank:'8'}],playableCardIds:[],canDraw:false})
+ await draw.click();await expect(page.getByLabel('나만 볼 수 있는 카드').getByRole('button')).toHaveCount(8)
+ expect(server.sent.filter(m=>m.type==='GAME_ACTION_SEND')).toHaveLength(1)
+})
+test('a full waiting table keeps its public information without attempting to watch a nonexistent match',async({page})=>{
+ const server=await fixture(page,{generatedPark:true,omok:true,publicSpectator:true,manualMovement:true})
+ await load(page)
+ server.publicMatch(null)
+ await expect(page.getByRole('button',{name:'E 테이블 경기 보기',exact:true})).toBeVisible()
+ await page.getByRole('button',{name:'E 테이블 경기 보기',exact:true}).click()
+ const information=page.getByRole('dialog',{name:'테이블 정보',exact:true})
+ await expect(information).toBeVisible();await expect(information).toContainText('현재 확정된 진행 경기가 없습니다.')
+ await expect(information.getByRole('button',{name:'경기 관전',exact:true})).toBeDisabled()
+ expect(server.sent.some(m=>m.type==='GAME_WATCH'||m.type==='TABLE_JOIN')).toBe(false)
+})
 for(const seated of [false,true])test(`new map omok watch ${seated?'pavilion seated':'stone standing'}: no table panel and compact chat`,async({page})=>{
  const bench=generatedFacilityCatalog.facilities.find(b=>b.kind==='BENCH'&&benchTable(b.facilityId)?.pavilionId==='P1')!
  const anchor=seated?benchTable(bench.facilityId)!:undefined
