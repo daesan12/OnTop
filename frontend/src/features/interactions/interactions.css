@@ -13,6 +13,9 @@
 .park-interaction kbd { margin-right: 8px; }
 .park-page .park-interaction[hidden] { display:none; }
 .park-interaction small { max-width: 360px; line-height: 1.5; }
+@media (max-width: 900px) {
+  .park-page .park-interaction[data-fitness-id] { bottom: 210px; }
+}
 @media (max-width: 600px) {
   .park-page:has(.park-interaction[data-fitness-id]) .emotes { top: 140px; bottom: auto; }
 }

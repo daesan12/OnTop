@@ -156,6 +156,14 @@ public class TableHub {
 
     @Autowired(required = false)
     public void configureWorldClock(com.ssafy.ontop.world.service.WorldClock clock) { worldClock = clock; }
+    private com.ssafy.ontop.world.fitness.FitnessRewardService fitnessRewards;
+
+    @Autowired(required = false)
+    public void configureFitnessRewards(com.ssafy.ontop.world.fitness.FitnessRewardService service) {
+        fitnessRewards = service;
+        service.sink((userId, receipt) -> sendJumpmap(userId, "FITNESS_REWARD",
+                Map.of("userId", userId, "receipt", receipt)));
+    }
     private SpectatorEventPolicy spectatorEvents = new SpectatorEventPolicy();
     private Optional<OneCardEngine> prankEngine = Optional.empty();
     private final OneCardPranks onecardPranks = new OneCardPranks();
@@ -223,6 +231,13 @@ public class TableHub {
 
     // 실제 점유가 생기거나 풀린 뒤에만 호출한다. 시작·종료는 leaseId로 짝을 맞춘다.
     private void recordFacility(Long accountId, WorldFacilityService.Lease lease, String endReason) {
+        if (fitnessRewards != null) {
+            if (endReason == null) {
+                fitnessRewards.started(accountId, lease);
+            } else {
+                fitnessRewards.ended(lease);
+            }
+        }
         recordBehavior(endReason == null ? BehaviorEventType.FACILITY_USED : BehaviorEventType.FACILITY_RELEASED,
                 accountId, builder -> {
                     builder.channelId(lease.channelId()).prop("leaseId", lease.leaseId())
@@ -1457,6 +1472,7 @@ public class TableHub {
                         "mapVersion", catalog.mapVersion(), "total", catalog.facilities().size(),
                         "offset", offset, "nextOffset", end < catalog.facilities().size() ? end : -1,
                         "facilities", catalog.facilities().subList(offset, end),
+                        "fitnessRewardsEnabled", fitnessRewards != null && fitnessRewards.enabled(),
                         "aimIntervalMs", catalog.aimIntervalMs(), "minPitch", catalog.minPitch(),
                         "maxPitch", catalog.maxPitch(), "initialPitch", catalog.initialPitch())));
             }

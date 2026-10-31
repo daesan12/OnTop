@@ -18,6 +18,12 @@ export function refreshWalletAfterSettlement(userId: string, receipt: string) {
 
 /** Late own settlements still refresh the wallet after the table UI has closed. */
 export function receiveWalletSettlement(message: Envelope, userId: string) {
+  if (message.type === 'FITNESS_REWARD') {
+    const { receipt, userId: recipient } = message.payload
+    if (recipient === userId && typeof receipt === 'string' && /^fitness:[0-9a-f-]{36}:[1-9][0-9]*$/.test(receipt))
+      refreshWalletAfterSettlement(userId, receipt)
+    return
+  }
   if (message.type !== 'GAME_RESULT' || message.payload.settlementStatus !== 'SETTLED') return
   try {
     const result = parseResult(message.payload, userId)

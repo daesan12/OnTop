@@ -9,6 +9,7 @@ import { useFitnessState } from '../fitness/state'
 import { findFitness } from '../fitness/anchors'
 import { useTelescopeState } from '../telescopes/state'
 import { fitnessService } from '../fitness/service'
+import { useFacilityState } from '../facilities/state'
 import { telescopeService } from '../telescopes/service'
 import { BenchSpectatorControls } from './BenchSpectatorControls'
 import { useTableLobby } from '../tableLobby/state'
@@ -20,6 +21,7 @@ export function ParkInteractionHint() {
   const { pending, error } = useBenchState(useShallow(s => ({ pending: s.pending, error: s.error })))
   const fitness = useFitnessState(useShallow(s => ({ pending: s.pending, error: s.error })))
   const telescopePending = useTelescopeState(s => s.pending)
+  const fitnessRewards = useFacilityState(s => s.options?.fitnessRewardsEnabled === true)
   const joiningTable = useTableLobby(s => !!s.joiningAnchorId)
   const omokWatching = useGame(s => s.game?.role === 'SPECTATOR' && !!s.game.omok && !!s.watchedGameId)
   const [target, setTarget] = useState<ParkInteraction | null>(null)
@@ -47,6 +49,7 @@ export function ParkInteractionHint() {
     {fitnessId ? <>
       <strong>{station?.name} 이용 중{fitnessService.mode === 'mock' ? ' · 목업' : ''}</strong>
       <small>{station?.instruction}</small>
+      {fitnessRewards && <small>게임 6시간마다 1냥 · 하차·접속 종료 시 시간 초기화</small>}
     </> : benchId ? <>
       <strong>벤치 이용 중{benchService.mode === 'mock' ? ' · 목업' : ''}</strong>
       <BenchSpectatorControls />

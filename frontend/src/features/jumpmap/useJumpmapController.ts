@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { useParkRuntime } from '../../park/runtime/ParkRuntime'
 import { GENERATED_PARK_ENABLED } from '../../park/mapSelection'
 import { avatars, sampleAvatar, useSession } from '../../network/worldClient'
-import { effectsOutput } from '../../audio/bgm'
+import { effectsOutput, setJumpmapAudioFocus } from '../../audio/bgm'
 import { playSfx } from '../../audio/sfx'
 import { playJumpSound, preloadJumpSounds } from './audio'
 import { refreshWalletAfterSettlement } from '../wallet/settlementRefresh'
@@ -22,6 +22,8 @@ export function useJumpmapController() {
     let soundContext: AudioContext | undefined
     const abort = new AbortController(), pendingTips = new Set<TipKey>()
     const inScope = () => !disposed && useSession.getState().sessionId === owner && useSession.getState().roomId === channel && useSession.getState().mapVersion === map
+    const focus = () => { const s = useJumpmap.getState(); setJumpmapAudioFocus(inScope() && s.available && !!s.run) }
+    focus()
     async function load() {
       if (!inScope() || loading || document.hidden) return
       loading = true; reloadAt = performance.now() + 30_000
@@ -41,6 +43,7 @@ export function useJumpmapController() {
     }
     const stop = useJumpmap.subscribe((s, before) => {
       if (!inScope()) return
+      focus()
       if (s.walletRevision > before.walletRevision) refreshWalletAfterSettlement(owner, `jumpmap:${channel}:${s.revision}`)
       if (s.refresh !== before.refresh && performance.now() >= reloadAt) void load()
       if (s.run && s.run.runId !== before.run?.runId && !document.hidden) playSfx('game-start')
@@ -48,7 +51,7 @@ export function useJumpmapController() {
     })
     const stopSound = onStep((block, player, power) => {
       if (!inScope() || document.hidden) return
-      const own = avatars.get(owner), p = COURSE[block], output = effectsOutput()
+      const own = avatars.get(owner), p = COURSE[block], output = effectsOutput('jumpmap')
       if (!own || !p || !output) return
       const pose = sampleAvatar(own, performance.now(), { ...own.current })
       const distance = Math.hypot(p.x - pose.x, p.top - (pose.y - .8), p.z - pose.z)
@@ -58,7 +61,7 @@ export function useJumpmapController() {
     })
     const tick = () => {
       if (!inScope() || document.hidden) return
-      const output = effectsOutput()
+      const output = effectsOutput('jumpmap')
       if (output && soundContext !== output.context) { soundContext = output.context; void preloadJumpSounds(output.context) }
       const now = performance.now(), s = useJumpmap.getState()
       if (s.earningsDate && s.earningsDate !== kstDate()) { useJumpmap.setState({ earningsDate: kstDate(), todayEarned: null }); reloadAt = 0 }
@@ -85,6 +88,6 @@ export function useJumpmapController() {
     const timer = setInterval(tick, 50), tipTimer = setInterval(() => { void saveTips() }, 5000)
     const visible = () => { if (!document.hidden) { reloadAt = 0; tick() } }
     document.addEventListener('visibilitychange', visible)
-    return () => { disposed = true; abort.abort(); clearInterval(timer); clearInterval(tipTimer); stop(); stopSound(); standing.clear(); document.removeEventListener('visibilitychange', visible) }
+    return () => { disposed = true; setJumpmapAudioFocus(false); abort.abort(); clearInterval(timer); clearInterval(tipTimer); stop(); stopSound(); standing.clear(); document.removeEventListener('visibilitychange', visible) }
   }, [runtime, owner, channel, map, verified])
 }

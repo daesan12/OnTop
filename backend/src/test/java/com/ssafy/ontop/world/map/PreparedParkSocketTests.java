@@ -52,6 +52,12 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.timeout;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /** 별도 랜덤 포트 서버. 회원 검증은 고정 fixture이며 실제 인증·DB·기본 서버를 변경하지 않는다. */
 @SpringBootTest(classes = PreparedParkSocketTests.TestServer.class,
@@ -69,6 +75,33 @@ class PreparedParkSocketTests {
     @Autowired
     private PreparedParkMap park;
     private final ObjectMapper mapper = new ObjectMapper();
+
+    @Test
+    void 최신맵_운동기구_탑승과_하차와_접속종료만_서버_보상에_전달한다() throws Exception {
+        var rewards = mock(com.ssafy.ontop.world.fitness.FitnessRewardService.class);
+        when(rewards.enabled()).thenReturn(true);
+        hub.configureFitnessRewards(rewards);
+        var facility = park.facilities().facilities().stream()
+                .filter(item -> item.kind().equals("FITNESS")).findFirst().orElseThrow();
+        try (Client client = new Client()) {
+            client.confirm();
+            client.request("CHANNEL_JOIN", Map.of("channelId", "channel-1"));
+            String user = client.connected.path("payload").path("userId").asText();
+            assertThat(client.request("WORLD_FACILITY_CATALOG", Map.of()).path("payload")
+                    .path("fitnessRewardsEnabled").asBoolean()).isTrue();
+            channels.holdFacility(user, facility.center());
+            var used = client.request("WORLD_FACILITY_USE", Map.of("facilityId", facility.facilityId(), "seatIndex", 0));
+            assertThat(used.path("type").asText()).isEqualTo("WORLD_FACILITY_STATE");
+            verify(rewards).started(eq(Long.parseLong(user)), any());
+            String lease = used.path("payload").path("occupancies").get(0).path("leaseId").asText();
+            assertThat(client.request("WORLD_FACILITY_RELEASE", Map.of("leaseId", lease))
+                    .path("payload").path("occupancies").isEmpty()).isTrue();
+            verify(rewards).ended(any());
+            channels.holdFacility(user, facility.center());
+            client.request("WORLD_FACILITY_USE", Map.of("facilityId", facility.facilityId(), "seatIndex", 0));
+        }
+        verify(rewards, timeout(3000).times(2)).ended(any());
+    }
 
     @Test
     void 새맵_확인과_채널별_모든_테이블_착석_게임선택_준비를_실제소켓으로_처리한다() throws Exception {

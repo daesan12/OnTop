@@ -32,6 +32,42 @@ async function setup(page: Page, response: object | null = status) {
   const start = () => emit('JUMPMAP_STARTED', 1, { courseVersion: COURSE_VERSION, rulesVersion: RULES_VERSION, serverTime: Date.now() })
   return { server, tips, errors, emit, start }
 }
+
+test('ducks music and other effects during a run, keeps landings clear, and restores the mix on exit', async ({ page }) => {
+  await page.addInitScript(() => {
+    const gains: GainNode[] = []
+    Object.assign(window, { mixGains: gains })
+    const create = AudioContext.prototype.createGain
+    AudioContext.prototype.createGain = function() { const gain = create.call(this); gains.push(gain); return gain }
+  })
+  const { server, start, emit, errors } = await setup(page)
+  await page.keyboard.press('Shift')
+  await page.evaluate(async () => {
+    const a = await import('/src/audio/bgm.ts' as string)
+    a.setBgmSettings({ volume: 100, muted: false }); a.setSfxSettings({ volume: 100, muted: false })
+  })
+  const mix = () => page.evaluate(async () => {
+    const a = await import('/src/audio/bgm.ts' as string)
+    return { music: (window as unknown as { mixGains: GainNode[] }).mixGains[0]!.gain.value,
+      other: (a.effectsOutput()?.bus as GainNode).gain.value,
+      landing: (a.effectsOutput('jumpmap')?.bus as GainNode).gain.value,
+      settings: [a.useBgmSettings.getState(), a.useSfxSettings.getState()] }
+  })
+  start()
+  await expect.poll(async () => (await mix()).music).toBeCloseTo(.25, 2)
+  await expect.poll(async () => (await mix()).other).toBeCloseTo(.2, 2)
+  await expect.poll(async () => (await mix()).landing).toBeCloseTo(1, 2)
+  emit('JUMPMAP_ENDED', 2, { reason: 'FALL', gatesPassed: 0, maxHeight: 1, elapsedMs: 1000, runCoins: 0 })
+  await expect.poll(async () => (await mix()).music).toBeCloseTo(1, 2)
+  await expect.poll(async () => (await mix()).other).toBeCloseTo(1, 2)
+  emit('JUMPMAP_STARTED', 3, { runId: 'run-b', courseVersion: COURSE_VERSION, rulesVersion: RULES_VERSION, serverTime: Date.now() })
+  await expect.poll(async () => (await mix()).other).toBeCloseTo(.2, 2)
+  server.mismatch()
+  await expect.poll(async () => (await mix()).other).toBeCloseTo(1, 2)
+  await expect.poll(async () => (await mix()).music).toBeCloseTo(1, 2)
+  expect((await mix()).settings).toEqual([{ volume: 100, muted: false }, { volume: 100, muted: false }])
+  expect(errors).toEqual([])
+})
 test('plays the eight approved landing clips once through the independent effects bus', async ({ page }) => {
   await page.addInitScript(approved => {
     const trace = { decoded: [] as string[], played: [] as string[], active: 0 }
@@ -82,7 +118,7 @@ test('plays the eight approved landing clips once through the independent effect
   await expect.poll(async () => (await trace()).played.length).toBe(before + 9)
   await expect.poll(() => page.evaluate(async () => {
     const audio = await import('/src/audio/bgm.ts' as string)
-    return (audio.effectsOutput()?.bus as GainNode).gain.value
+    return (audio.effectsOutput('jumpmap')?.bus as GainNode).gain.value
   })).toBeLessThan(.001)
   expect(await page.evaluate(async () => {
     const audio = await import('/src/audio/bgm.ts' as string), value = audio.useBgmSettings.getState()
@@ -93,7 +129,7 @@ test('plays the eight approved landing clips once through the independent effect
   await expect.poll(async () => (await trace()).played.length).toBe(before + 10)
   await expect.poll(() => page.evaluate(async () => {
     const audio = await import('/src/audio/bgm.ts' as string)
-    return (audio.effectsOutput()?.bus as GainNode).gain.value
+    return (audio.effectsOutput('jumpmap')?.bus as GainNode).gain.value
   })).toBeGreaterThan(0)
   await shot(page, 'jumpmap-approved-audio')
   expect(errors).toEqual([])
