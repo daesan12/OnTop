@@ -10,13 +10,14 @@ import './park.css'
 
 /** 공원 장면은 그대로 두고 오목과 같은 최소 HUD만 겹친다. */
 export function AlkkagiPanel() {
-  const {session,game,g,state,actor,ready,looking,canItem,preview,act,ui}=useAlkkagiControls()
+  const {session,game,g,state,actor,ready,canItem,preview,act,ui}=useAlkkagiControls()
   const runtime=useParkRuntime(), [now,setNow]=useState(Date.now())
   useEffect(()=>{
     if(!state)return
     const wall=state.serverNow,mono=performance.now(), update=()=>setNow(wall+performance.now()-mono)
     update();const timer=setInterval(update,100);return ()=>clearInterval(timer)
   },[state?.serverNow])
+  useEffect(()=>{useAlkkagiUI.setState({notice:''})},[])
   if(!state || !g)return null
   const choice=g.alkkagiHand?.choice,left=Math.max(0,Math.ceil((state.turnDeadline-now)/1000))
   const name=(i:number)=>session.profiles[state.players[i]!]?.nickname ?? (i===0 ? '홍팀' : '청팀')
@@ -24,7 +25,7 @@ export function AlkkagiPanel() {
     <header className="alkkagi-match-header"><div data-turn={state.turn===0}><b>{name(0)}</b><span>홍 · {state.pieces.filter(p=>p.alive&&p.owner===0).length}알</span></div>
       <div className="alkkagi-clock"><small>알까기</small><strong>{state.stage==='AIMING' ? left : state.stage==='CHOOSING' ? '비책' : state.stage==='FINISHED' ? '종료' : '충돌'}</strong></div>
       <div data-turn={state.turn===1}><b>{name(1)}</b><span>청 · {state.pieces.filter(p=>p.alive&&p.owner===1).length}알</span></div></header>
-    <p className="alkkagi-hint" role="status">{looking ? '우클릭 드래그로 주변을 둘러보세요 · 제한시간은 계속 흐릅니다' : game.error || ui.notice || (actor<0 ? '관전 중 · 현재 차례의 알을 드래그하면 훈수 표시' : state.turn===actor ? '내 알을 누른 채 당겼다가 놓으세요' : '상대 차례입니다')}</p>
+    {(game.error || ui.notice)&&<p className="alkkagi-hint" role="alert">{game.error || ui.notice}</p>}
     {state.stage==='AIMING'&&left<=10&&<strong className="alkkagi-warning">{left}초 남았습니다</strong>}
     <div className="alkkagi-actions">{actor>=0&&<SeatedLookButton />}{actor>=0 ? <OmokSurrender context={{userId:session.sessionId,gameId:g.gameId,version:g.version}} disabled={!ready}/>
       : <button onClick={()=>void runtime.unwatchGame()}>관전 종료</button>}

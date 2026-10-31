@@ -66,9 +66,6 @@ function Scene({ actor, state, replay, enabled, shoot, explain, blockedReason, i
       const a = aim.current, p = point(event)
       if (a && p && event.pointerId === a.pointerId) {
         a.end.copy(p); a.moved = Math.hypot(event.clientX - a.start.x, event.clientY - a.start.y)
-        const shot = draggedShot(a.start, { x: event.clientX, y: event.clientY }, a.origin, p)
-        const response = launchResponse(shot?.power ?? 0, state?.inputCurveBoost ?? 0)
-        explain(`조준 입력 ${Math.round((shot?.power ?? 0) * 100)}% · 예상 출발 속도 ${((a.piece.launchSpeed ?? 0) * response).toFixed(2)}칸/초 · 놓으면 ${actor < 0 ? '훈수 표시' : '발사'}`)
       }
     }
     const up = (event: PointerEvent) => {
@@ -79,7 +76,7 @@ function Scene({ actor, state, replay, enabled, shoot, explain, blockedReason, i
       const shot = draggedShot(a.start, { x: event.clientX, y: event.clientY }, a.origin, point(event) ?? a.end)
       if (shot) {
         clear(); shoot(a.piece, shot.dx, shot.dy, shot.power)
-      } else explain(`${a.piece.type} 선택됨 · 클릭/작은 흔들림으로는 발사되지 않습니다. 누른 채 당겨주세요.`)
+      }
     }
     const key = (e: KeyboardEvent) => {
       if (e.key === 'Escape') { clear(); cancelItem() }
@@ -183,7 +180,7 @@ function Scene({ actor, state, replay, enabled, shoot, explain, blockedReason, i
         if (!origin) return
         gl.domElement.setPointerCapture(e.pointerId)
         selected.current = piece
-        explain(`${piece.type} 조준 중 · 당긴 뒤 놓으면 ${actor < 0 ? '훈수를 표시합니다' : '발사됩니다'}. Esc로 취소`)
+        explain('')
         aim.current = { piece, origin, end: origin.clone(), start: { x: e.clientX, y: e.clientY },
           moved: 0, pointerId: e.pointerId, gameId: state!.gameId, version: state!.version }
       }} />
