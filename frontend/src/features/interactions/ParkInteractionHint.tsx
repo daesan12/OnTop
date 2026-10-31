@@ -15,8 +15,10 @@ import { BenchSpectatorControls } from './BenchSpectatorControls'
 import { useTableLobby } from '../tableLobby/state'
 import { useGame } from '../../game/store'
 import { tableTermsLabel } from '../tableLobby/model'
+import { useParkRuntime } from '../../park/runtime/ParkRuntime'
 
 export function ParkInteractionHint() {
+  const runtime = useParkRuntime()
   const { benchId, fitnessId } = useSession(useShallow(s => ({ benchId: s.benchId, fitnessId: s.fitnessId })))
   const { pending, error } = useBenchState(useShallow(s => ({ pending: s.pending, error: s.error })))
   const fitness = useFitnessState(useShallow(s => ({ pending: s.pending, error: s.error })))
@@ -45,7 +47,8 @@ export function ParkInteractionHint() {
   const station = findFitness(fitnessId)
   return <aside className="park-runtime-panel park-interaction" aria-label="가까운 상호작용"
     hidden={omokWatching}
-    data-target-id={fitnessId || target?.id || benchId} data-fitness-id={fitnessId || (target?.kind === 'fitness' ? target.id : undefined)}>
+    data-target-id={fitnessId || target?.id || benchId} data-target-kind={target?.kind}
+    data-fitness-id={fitnessId || (target?.kind === 'fitness' ? target.id : undefined)}>
     {fitnessId ? <>
       <strong>{station?.name} 이용 중{fitnessService.mode === 'mock' ? ' · 목업' : ''}</strong>
       <small>{station?.instruction}</small>
@@ -62,6 +65,11 @@ export function ParkInteractionHint() {
       {target.kind === 'fitness' && target.available && fitnessService.mode === 'mock' && ' · 목업'}
       {target.kind === 'telescope' && target.available && telescopeService.mode === 'mock' && ' · 목업'}
     </button>}
+    {!benchId && !fitnessId && target?.kind === 'table' && target.label === '테이블에 앉기' &&
+      <button type="button" disabled={pending || fitness.pending || telescopePending || joiningTable || !target.available}
+        onClick={event => { runtime.inspectTable(target.id); event.currentTarget.blur() }}>
+        테이블 정보 · 관전
+      </button>}
     {roomTerms && <small aria-label="참가할 방 설정">{roomTerms}</small>}
     {joiningTable && <span role="status">자리를 확인하고 있어요…</span>}
     {pending && <span role="status">벤치 이용 요청 확인 중…</span>}
