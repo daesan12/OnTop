@@ -1,21 +1,21 @@
 package com.ssafy.ontop.minigame.config;
 
 import com.ssafy.ontop.minigame.controller.MinigameController;
-import com.ssafy.ontop.minigame.dto.BungeoppangV4Responses;
-import com.ssafy.ontop.minigame.dto.BungeoppangV4DeliveryDtos;
 import com.ssafy.ontop.minigame.dto.BungeoppangV4CompleteDtos;
+import com.ssafy.ontop.minigame.dto.BungeoppangV4DeliveryDtos;
+import com.ssafy.ontop.minigame.dto.BungeoppangV4Responses;
 import com.ssafy.ontop.minigame.dto.BungeoppangV5Responses;
 import io.swagger.v3.core.converter.ModelConverters;
-import io.swagger.v3.oas.models.Operation;
 import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.v3.oas.models.Operation;
 import io.swagger.v3.oas.models.media.ArraySchema;
 import io.swagger.v3.oas.models.media.BooleanSchema;
 import io.swagger.v3.oas.models.media.ComposedSchema;
 import io.swagger.v3.oas.models.media.Content;
 import io.swagger.v3.oas.models.media.IntegerSchema;
 import io.swagger.v3.oas.models.media.ObjectSchema;
-import io.swagger.v3.oas.models.media.StringSchema;
 import io.swagger.v3.oas.models.media.Schema;
+import io.swagger.v3.oas.models.media.StringSchema;
 import io.swagger.v3.oas.models.parameters.Parameter;
 import io.swagger.v3.oas.models.parameters.RequestBody;
 import java.util.ArrayList;
@@ -90,6 +90,14 @@ public class MinigameOpenApiCustomizer implements OperationCustomizer, OpenApiCu
                 responseSchema(operation, "200", oneOf("BungeoppangV4DeliveryResponse",
                         "BungeoppangV5DeliveryResponse"));
             }
+            if (method.equals("manualPause")) {
+                schema.addProperty("paused", new BooleanSchema());
+                schema.addProperty("expectedPauseRevision", new IntegerSchema().format("int64")
+                        .minimum(java.math.BigDecimal.ZERO)
+                        .maximum(java.math.BigDecimal.valueOf(9007199254740991L)));
+                schema.required(List.of("paused", "expectedPauseRevision"));
+                responseSchema(operation, "200", oneOf("BungeoppangV4SessionResponse", "BungeoppangV5SessionResponse"));
+            }
             operation.setRequestBody(new RequestBody().required(true).content(new Content()
                     .addMediaType("application/json", new io.swagger.v3.oas.models.media.MediaType().schema(schema))));
         }
@@ -123,7 +131,8 @@ public class MinigameOpenApiCustomizer implements OperationCustomizer, OpenApiCu
                 + "버전 생략은 기존 v2이고 v4는 명시적으로 선택합니다. v4는 납품 승인·checkpoint·다음 주문, "
                 + "마지막 미승인 납품 검증, 영속 멱등 완료와 Wallet 일일 한도 지급을 제공합니다. "
                 + "v2는 60초, 15점당 1냥, KST 하루 100냥 계약을 유지합니다. "
-                + "탭 이동 중에도 시간은 흐르며 랭킹은 제외합니다. score·rewardAmount·userId를 본문에 넣지 않습니다. "
+                + "탭 이동 중에도 시간은 흐르며, v4·v5는 F1 설명서 일시정지 API와 점수·최대 콤보 랭킹을 제공합니다. "
+                + "score·rewardAmount·userId를 본문에 넣지 않습니다. "
                 + "상태 GET도 지갑 잠금과 만료 세션 INVALID 갱신을 수행할 수 있습니다. 읽기 전용 트랜잭션이 아닙니다. "
                 + "v5(신규 판 120초·90초부터 가속, 기존 v5-20261027.1 판은 저장된 180초·150초 규칙 유지, "
                 + "활성 손님 3명, 선택 납품·충원, V128)도 제공하며 " + V5_FLAG);

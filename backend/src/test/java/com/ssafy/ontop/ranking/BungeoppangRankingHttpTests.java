@@ -37,7 +37,8 @@ class BungeoppangRankingHttpTests {
     @BeforeEach void member() {
         when(members.findActive(42, TestLoginSessions.ID)).thenReturn(Optional.of(new AuthenticatedUser(42,
                 LoginProvider.SSAFY, TestLoginSessions.ID)));
-        when(rankings.personalBests("v5", 120000)).thenReturn(List.of(new Item(1, "42", "본인", 8, 1, Instant.parse("2026-10-28T00:00:00Z"))));
+        when(rankings.personalBests("v5", 120000)).thenReturn(List.of(
+                new Item(1, "42", "본인", 8, 1, Instant.parse("2026-10-28T00:00:00Z"), 1200, 8)));
     }
     @Test void 인증된본인순위와_CORS_noStore_입력을확인한다() throws Exception {
         var response = send("GET", "?userId=99", true);

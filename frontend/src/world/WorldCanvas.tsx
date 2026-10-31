@@ -31,6 +31,7 @@ import { PerformanceProbe } from '../performance/PerformanceProbe'
 import { AdaptiveResolution } from '../performance/AdaptiveResolution'
 import { Canvas, preloadWorldAssets } from './worldAssets'
 import { BungeoppangGrill } from '../features/bungeoppang/BungeoppangGrill'
+import {ParkDebrisScene} from '../features/parkDebris/ParkDebrisScene'
 import { prepareScene } from './prepareScene'
 import { warmParkGeometry } from '../park/loadParkGeometry'
 
@@ -165,6 +166,7 @@ export const WorldCanvas = memo(function WorldCanvas({
         <FollowRopes />
         <RouteArrows />
         <BungeoppangGrill />
+        <ParkDebrisScene />
 
         {!GENERATED_PARK_ENABLED&&<ParkPigeons quality={quality} />}
         <CameraRig />

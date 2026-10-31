@@ -22,8 +22,8 @@ class GameDefeatTests {
         left(202, 2);
         left(303, 3);
         assertThat(reactions()).extracting(GameDefeatConfirmed::remainingBefore).containsExactly(4, 3, 2);
-        assertThat(reactions().stream().map(event -> WorldGameReaction.from(event, "one")))
-                .extracting(WorldGameReaction::motion).containsExactly("head-clutch", "head-clutch", "table-flip");
+        assertThat(reactions().stream().map(event -> WorldGameReaction.from(event, "one", 4)))
+                .extracting(WorldGameReaction::motion).containsExactly("head-clutch", "head-clutch", "head-clutch");
     }
 
     @Test
@@ -48,8 +48,33 @@ class GameDefeatTests {
         lifecycle.finished("game", "table", "OMOK", 1, List.of(101L, 202L), List.of(202L), "NORMAL", at, notices);
         assertThat(reactions()).singleElement().satisfies(event -> {
             assertThat(event.userId()).isEqualTo(101);
-            assertThat(WorldGameReaction.from(event, "one").durationMs()).isEqualTo(2800);
+            WorldGameReaction reaction = WorldGameReaction.from(event, "one", 2);
+            assertThat(reaction.motion()).isEqualTo("head-clutch");
+            assertThat(reaction.durationMs()).isEqualTo(3600);
         });
+    }
+
+    @Test
+    void 처음부터_2인인_경기의_명시적_기권에만_판을_엎는다() {
+        lifecycle.left("game", "table", "DICE_LEDGER", 1, 101,
+                GameDepartureReason.EXPLICIT_LEAVE, at, 2, notices);
+
+        WorldGameReaction reaction = WorldGameReaction.from(reactions().getFirst(), "one", 2);
+
+        assertThat(reaction.motion()).isEqualTo("table-flip");
+        assertThat(reaction.durationMs()).isEqualTo(2800);
+        assertThat(reaction.participantCount()).isEqualTo(2);
+    }
+
+    @Test
+    void 연결끊김으로_2인_경기에서_이탈해도_판은_엎지_않는다() {
+        lifecycle.left("game", "table", "OMOK", 1, 101,
+                GameDepartureReason.DISCONNECT_TIMEOUT, at, 2, notices);
+
+        WorldGameReaction reaction = WorldGameReaction.from(reactions().getFirst(), "one", 2);
+
+        assertThat(reaction.motion()).isEqualTo("head-clutch");
+        assertThat(reaction.durationMs()).isEqualTo(3600);
     }
 
     private void left(long userId, long version) {

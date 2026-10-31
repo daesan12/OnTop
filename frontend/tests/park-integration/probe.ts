@@ -1,5 +1,5 @@
 import {_roots} from '@react-three/fiber'
-import {Vector3} from 'three'
+import {Matrix4,Vector3,type InstancedMesh} from 'three'
 import {useSession,avatars} from '../../src/network/worldClient'
 import {interactWithTable} from '../../src/features/tableLobby/tableInteraction'
 import {useFacilityState} from '../../src/features/facilities/state'
@@ -10,6 +10,7 @@ import type {Mesh} from 'three'
 import {GOMOKU} from '../../src/config'
 import {omokCamera} from '../../src/game/cameraState'
 import {fishBreadShopArt} from '../../src/world/art/luckyFacilityGeometry'
+import {useParkDebris} from '../../src/features/parkDebris/state'
 
 /** Tablet selection clears focusedAnchorId; inspect the actual seated board camera. */
 export function omokPlayProbe(x=7,y=7){
@@ -22,6 +23,31 @@ export function omokPlayProbe(x=7,y=7){
   point:{x:rect.left+(point.x+1)*rect.width/2,y:rect.top+(1-point.y)*rect.height/2}}
 }
 export function sceneReady(){return !!_roots.get(document.querySelector('canvas')!)?.store.getState().scene.getObjectByName('park-service-map')}
+export function fishShopMenuProbe(){
+ const {scene}=_roots.get(document.querySelector('canvas')!)!.store.getState()
+ const menu=scene.getObjectByName('fish-bread-shop-menu')!.children[0]!
+ scene.updateMatrixWorld(true)
+ const target=menu.getWorldPosition(new Vector3()),direction=menu.getWorldDirection(new Vector3())
+ const ray=new Raycaster(target.clone().addScaledVector(direction,5),direction.negate(),0,6)
+ const first=ray.intersectObject(scene.getObjectByName('fish-bread-shop-exterior')!,true)[0]
+ return {localPosition:menu.position.toArray(),firstSurface:first?.object.name}
+}
+export function debrisRenderProbe(){
+ const scene=_roots.get(document.querySelector('canvas')!)?.store.getState().scene
+ if(!scene)return []
+ scene.updateMatrixWorld(true)
+ return useParkDebris.getState().items.map(item=>{
+  const root=scene.getObjectByName('park-debris-'+item.id),board=scene.getObjectByName('park-debris-board-'+item.id)
+  const stones=scene.getObjectByName('park-debris-stones-'+item.id) as InstancedMesh|undefined
+  const positions=stones?item.parts.filter(part=>part.startsWith('stone-')).map(part=>{
+   const matrix=new Matrix4();stones.getMatrixAt(Number(part.slice(6)),matrix)
+   return {part,position:new Vector3().setFromMatrixPosition(matrix).applyMatrix4(stones.matrixWorld).toArray()}
+  }):[]
+  return {id:item.id,parts:item.parts,settled:!!root?.userData.settled,visible:root?.visible,
+   stones:positions,
+   board:board?.getWorldPosition(new Vector3()).toArray(),sourceVisible:scene.getObjectByName('game-surface-'+item.anchorId)?.visible}
+ })
+}
 export function fishShopLanternProbe(){
  const {scene}=_roots.get(document.querySelector('canvas')!)!.store.getState()
  const shop=scene.getObjectByName('fish-bread-shop-building')!

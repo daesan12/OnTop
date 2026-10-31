@@ -9,8 +9,11 @@ import { PaperPopup, ResultTrophy } from './PaperPopup'
 import { TABLET_ENABLED } from './tabletFeature'
 import { LegacyTableGatheringHud } from './LegacyTableGatheringHud'
 import { BoardRewardCoinSource } from '../wallet/RewardCoinFlight'
+import {useDebrisPresentation} from '../parkDebris/presentation'
 
 export function TableGatheringHud({ model }: { model: GatheringModel }) {
+  const presentation=useDebrisPresentation(model.tableId)
+  if(presentation&&!window.matchMedia('(prefers-reduced-motion: reduce)').matches)return null
   return TABLET_ENABLED ? <TabletResult model={model} /> : <LegacyTableGatheringHud model={model} />
 }
 function TabletResult({ model }: { model: GatheringModel }) {

@@ -19,7 +19,7 @@ public final class GameLifecycle {
         left(gameId, tableId, gameCode, version, userId, reason, at, notices);
         if (first) {
             react(gameId, tableId, gameCode, version, userId, GameDefeatConfirmed.Kind.FORFEIT,
-                    remaining, at, notices);
+                    remaining, at, notices, reason);
         }
     }
 
@@ -41,17 +41,18 @@ public final class GameLifecycle {
         for (var player : event.participants()) {
             if (player.result() == GameFinished.Result.LOSE) {
                 react(gameId, tableId, gameCode, version, player.userId(), GameDefeatConfirmed.Kind.DEFEAT,
-                        remaining, endedAt, notices);
+                        remaining, endedAt, notices, null);
             }
         }
         return event;
     }
 
     private void react(String gameId, String tableId, String gameCode, long version, long userId,
-            GameDefeatConfirmed.Kind kind, int remaining, Instant at, List<Object> notices) {
+            GameDefeatConfirmed.Kind kind, int remaining, Instant at, List<Object> notices,
+            GameDepartureReason reason) {
         if (reactions.computeIfAbsent(gameId, ignored -> new HashSet<>()).add(userId)) {
             notices.add(new GameDefeatConfirmed(gameId + ":reaction:" + userId, gameId, tableId, gameCode,
-                    version, userId, kind, remaining, at));
+                    version, userId, kind, remaining, at, reason));
         }
     }
 

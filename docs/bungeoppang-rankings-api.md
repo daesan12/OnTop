@@ -1,6 +1,6 @@
 # 붕어빵 개인 최고 전체 랭킹
 
-> 2026-10-29 변경 요청: 아래는 기존 BE의 개수 기준 계약입니다. FE는 **개인 최고 점수 → 해당 경기의 최대 연속 콤보** 기준으로 변경했습니다. 두 값이 같으면 공동 순위이며 먼저 완료한 기록부터 표시합니다. BE 변경 요청·신규 응답 계약은 [점수·콤보 랭킹 BE 전달 문서](bungeoppang-score-ranking-handoff.md)를 확인해 주세요. BE 반영 전에는 점수·콤보 랭킹 준비 안내가 표시됩니다.
+> 2026-10-31 구현: **개인 최고 점수 → 같은 경기의 최대 연속 콤보**로 FE·BE 계약을 맞췄습니다. 두 값이 같으면 공동 순위이며 먼저 완료한 기록부터 표시합니다. 로컬 구현·검증이며 운영 적용에는 BE 배포가 필요합니다.
 
 2026-10-28 · 담당 장대산 · S15P31B105-260. 최신 FE v4/v5 요청 기준. 기존 보유 엽전 /api/v1/rankings와 별도다. 구현·로컬 검증과 배포·실계정 검수는 구분한다.
 
@@ -12,15 +12,16 @@ GET `/api/v1/minigames/bungeoppang/rankings?period=ALL_TIME&rulesVersion=v5&limi
 
 ## 집계
 
-- 같은 버전·사용자별 made 최대, failed 최소, 확정 완료가 가장 이른 기록1개를 선택한다.
-- made 내림차순·failed 오름차순. 두 값 동점은 공동 순위1,1,3, completedAt 오름차순·숫자 userId 오름차순 노출.
-- 기존 minigame_sessions의 COMPLETED/ended_at, bungeoppang_v4_rounds의 terminal_reason=VERIFIED/settled_at을 확인한다. v5도 팀원 구현의 같은 rounds 테이블을 사용한다. 탈퇴 회원·잘못된 made/failed JSON 제외.
+- 같은 버전·사용자·플레이 시간 안에서 score 최대, 같은 판의 maxCombo 최대, 확정 완료가 가장 이른 기록1개를 선택한다.
+- score 내림차순·maxCombo 내림차순. 두 값 동점은 공동 순위1,1,3, completedAt 오름차순·숫자 userId 오름차순 노출. made/failed는 순위에 영향을 주지 않는다.
+- 기존 minigame_sessions의 COMPLETED/ended_at, bungeoppang_v4_rounds의 terminal_reason=VERIFIED/settled_at을 확인한다. 점수는 session.score, 콤보는 같은 세션의 result_json.maxCombo다. 탈퇴 회원·음수·누락·잘못된 형식은 제외하며 누락 콤보를 0으로 만들지 않는다.
 - 0점·보상0 정상 확정도 포함. 미완료/기권/INVALID/미정산 제외. completedAt은 settled_at이다.
 - 기존 결과만 조회한다. 신규 테이블/Flyway/인덱스/기존 SQL/팀원 완료·보상 코드는 변경하지 않는다. 완료 트랜잭션 커밋 후 새 첫 페이지에 반영한다.
 
 ```json
 {
   "rulesVersion": "v5",
+  "durationMs": 120000,
   "period": "ALL_TIME",
   "basis": "PERSONAL_BEST",
   "snapshotId": "40000000-0000-4000-8000-000000000001",
@@ -31,6 +32,8 @@ GET `/api/v1/minigames/bungeoppang/rankings?period=ALL_TIME&rulesVersion=v5&limi
       "rank": 1,
       "userId": "101",
       "nickname": "테스트회원",
+      "score": 1200,
+      "maxCombo": 12,
       "made": 12,
       "failed": 1,
       "completedAt": "2026-10-28T08:50:00Z"

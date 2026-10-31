@@ -25,6 +25,15 @@ class MinigameOpenApiTests {
                     "http://127.0.0.1:" + port + "/v3/api-docs")).GET().build(), HttpResponse.BodyHandlers.ofString());
             assertThat(response.statusCode()).isEqualTo(200);
             var paths = new ObjectMapper().readTree(response.body()).path("paths");
+            var pause = paths.path("/api/v1/minigames/sessions/{sessionId}/manual-pause").path("post");
+            var pauseBody = pause.at("/requestBody/content/application~1json/schema");
+            assertThat(pauseBody.path("required")).hasSize(2);
+            assertThat(pauseBody.path("additionalProperties").asBoolean()).isFalse();
+            assertThat(pauseBody.at("/properties/paused/type").asText()).isEqualTo("boolean");
+            assertThat(pauseBody.at("/properties/expectedPauseRevision/maximum").asLong())
+                    .isEqualTo(9007199254740991L);
+            assertThat(pause.at("/responses/200/content/application~1json/schema/oneOf").toString())
+                    .contains("BungeoppangV4SessionResponse", "BungeoppangV5SessionResponse");
             var start = paths.path("/api/v1/minigames/sessions").path("post");
             assertThat(start.at("/security/0").has("AccessJwt")).isTrue();
             assertThat(start.at("/responses/201/content/application~1json/schema/oneOf").toString())

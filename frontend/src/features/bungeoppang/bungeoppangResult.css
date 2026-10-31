@@ -58,3 +58,24 @@
  .bungeoppang-paper-result .paper-actions svg { width:16px; height:16px; }
 }
 @media(prefers-reduced-motion:reduce) { .bungeoppang-paper-result .paper-actions button { transition:none; } }
+/* Keep the summary compact while leaving the full ranking list independently sized. */
+.table-paper-popup.bungeoppang-paper-result:not(.bungeoppang-ranking-popup) { width:min(480px,calc(100vw - 24px)); padding:20px; border-radius:20px; }
+.bungeoppang-paper-result:not(.bungeoppang-ranking-popup) h2 { font-size:28px; }
+.bungeoppang-paper-result .bung-result-hero { height:96px; min-height:0; }
+.bungeoppang-paper-result .bung-result-hero img { width:200px; height:96px; max-height:96px; min-height:0; }
+.bungeoppang-paper-result .paper-stats>div { padding:8px; }
+.bungeoppang-paper-result .paper-stats span { font-size:14px; }
+.bungeoppang-paper-result .paper-stats b { font-size:30px; }
+.bungeoppang-paper-result .bung-ranking-summary { margin:10px 0; }
+.bungeoppang-paper-result .bung-ranking-summary h3 { margin-bottom:7px; font-size:16px; }
+.bungeoppang-paper-result .bung-ranking-preview { padding:9px 10px; gap:9px; }
+.bungeoppang-paper-result .bung-ranking-medal { width:54px; height:64px; }
+.bungeoppang-paper-result .bung-ranking-position>strong { font-size:28px; }
+.bungeoppang-paper-result .bung-ranking-position>small { word-break:keep-all; overflow-wrap:normal; }
+.bungeoppang-paper-result .bung-ranking-open { padding:9px 10px; font-size:13px; }
+.bungeoppang-paper-result .paper-settlement { min-height:64px; padding:10px; }
+.bungeoppang-paper-result .paper-settlement strong { font-size:17px; }
+.bungeoppang-paper-result .paper-settlement small { font-size:12px; }
+.bungeoppang-paper-result .paper-actions { margin-top:11px; gap:7px; }
+.bungeoppang-paper-result .paper-actions button { min-height:44px; padding:8px 6px; font-size:14px; gap:6px; }
+.bungeoppang-paper-result .paper-actions svg { width:18px; height:18px; }

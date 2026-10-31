@@ -21,6 +21,7 @@ import com.ssafy.ontop.minigame.service.MinigameException;
 import com.ssafy.ontop.minigame.service.MinigameService;
 import com.ssafy.ontop.wallet.domain.Wallet;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -395,6 +396,39 @@ class MinigameV5ServiceTests {
                 .isInstanceOfSatisfying(MinigameException.class,
                         error -> assertThat(error.code()).isEqualTo("INVALID_REQUEST"));
         assertThat(sessions.get(sessionId).status()).isEqualTo("PLAYING");
+    }
+
+    @Test
+    void 설명서_정지는_재시도에도_한번만_적용하고_재개하면_남은시간을_유지한다() {
+        var started = service.startV5(USER_ID, "BUNGEOPPANG", "manual-pause");
+        long sessionId = Long.parseLong(started.minigameSessionId());
+        Instant playStart = started.timing().playStartsAt();
+        clock.set(playStart.plusSeconds(10));
+
+        service.manualPause(USER_ID, sessionId, true, 0);
+        service.manualPause(USER_ID, sessionId, true, 0);
+        clock.set(playStart.plusSeconds(310));
+        var reading = load(sessionId);
+
+        assertThat(reading.status()).isEqualTo("PLAYING");
+        assertThat(reading.timing().paused()).isTrue();
+        assertThat(reading.timing().pauseRevision()).isEqualTo(1);
+        assertThat(Duration.between(reading.serverNow(), reading.timing().playEndsAt()))
+                .isEqualTo(Duration.ofSeconds(110));
+        assertThat(rounds.get(sessionId).playEndsAt()).isEqualTo(started.timing().playEndsAt());
+
+        service.manualPause(USER_ID, sessionId, false, 1);
+        clock.set(playStart.plusSeconds(315));
+        var resumed = load(sessionId);
+
+        assertThat(resumed.timing().paused()).isFalse();
+        assertThat(resumed.timing().pauseRevision()).isEqualTo(2);
+        assertThat(Duration.between(resumed.serverNow(), resumed.timing().playEndsAt()))
+                .isEqualTo(Duration.ofSeconds(105));
+        assertThatThrownBy(() -> service.manualPause(USER_ID, sessionId, true, 0))
+                .isInstanceOfSatisfying(MinigameException.class,
+                        error -> assertThat(error.code()).isEqualTo("MANUAL_PAUSE_CHANGED"));
+        assertThat(wallet.balance()).isEqualTo(100);
     }
 
     private String phase(long sessionId) {

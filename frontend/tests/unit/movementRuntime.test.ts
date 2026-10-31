@@ -90,6 +90,19 @@ afterEach(async () => {
 })
 
 describe('M14 authenticated REST and movement ownership boundary', () => {
+  it.each([true,false])('sends manual paused=%s with the existing authentication and pause revision',async paused=>{
+    vi.mocked(fetch).mockResolvedValueOnce(json({timing:{paused,pauseRevision:paused?1:2}}))
+    const path='/api/v1/minigames/sessions/901/manual-pause'
+    const body=JSON.stringify({paused,expectedPauseRevision:paused?0:1})
+    await runtime.requestJSON(path,{method:'POST',headers:{'Content-Type':'application/json'},body})
+    expect(fetch).toHaveBeenLastCalledWith(path,expect.objectContaining({method:'POST',body,credentials:'omit',
+      headers:{Authorization:'Bearer fixture-access','Content-Type':'application/json'}}))
+  })
+  it.each(['GET','PATCH'])('blocks unsupported %s manual pause requests before sending',async method=>{
+    vi.mocked(fetch).mockClear()
+    await expect(runtime.requestJSON('/api/v1/minigames/sessions/901/manual-pause',{method})).rejects.toThrow('사용할 수 없는 요청')
+    expect(fetch).not.toHaveBeenCalled()
+  })
   it.each(['/api/v1/users/me/games?size=20', '/api/v1/users/me/games?size=20&cursor=9007199254740993&gameCode=OMOK',
     '/api/v1/users/me/game-stats'])('sends history GET %s with the existing Bearer authentication', async path => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ items: [] }))

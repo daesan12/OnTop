@@ -25,9 +25,10 @@ public class BungeoppangRankingRepository {
                 : "AND TIMESTAMPDIFF(MICROSECOND, r.play_starts_at, r.play_ends_at)=:durationMicros";
         var query = entities.createNativeQuery("""
                 WITH completed AS (
-                    SELECT s.id AS session_id, s.user_id, u.nickname, r.settled_at,
+                    SELECT s.id AS session_id, s.user_id, u.nickname, r.settled_at, s.score,
                            JSON_EXTRACT(IF(JSON_VALID(b.result_json), b.result_json, '{}'), '$.made') AS made_json,
-                           JSON_EXTRACT(IF(JSON_VALID(b.result_json), b.result_json, '{}'), '$.failed') AS failed_json
+                           JSON_EXTRACT(IF(JSON_VALID(b.result_json), b.result_json, '{}'), '$.failed') AS failed_json,
+                           JSON_EXTRACT(IF(JSON_VALID(b.result_json), b.result_json, '{}'), '$.maxCombo') AS combo_json
                     FROM minigame_sessions s
                     JOIN bungeoppang_records b ON b.minigame_session_id=s.id
                     JOIN bungeoppang_v4_rounds r ON r.minigame_session_id=s.id
@@ -37,29 +38,34 @@ public class BungeoppangRankingRepository {
                       AND b.rules_version=:version AND u.deleted_at IS NULL
                       %s
                 ), scores AS (
-                    SELECT session_id, user_id, nickname, settled_at,
+                    SELECT session_id, user_id, nickname, settled_at, score,
                            CAST(JSON_UNQUOTE(made_json) AS UNSIGNED) AS made,
-                           CAST(JSON_UNQUOTE(failed_json) AS UNSIGNED) AS failed
+                           CAST(JSON_UNQUOTE(failed_json) AS UNSIGNED) AS failed,
+                           CAST(JSON_UNQUOTE(combo_json) AS UNSIGNED) AS max_combo
                     FROM completed
                     WHERE JSON_TYPE(made_json)='INTEGER' AND JSON_TYPE(failed_json)='INTEGER'
                       AND JSON_UNQUOTE(made_json) REGEXP '^[0-9]{1,10}$'
                       AND JSON_UNQUOTE(failed_json) REGEXP '^[0-9]{1,10}$'
+                      AND score BETWEEN 0 AND 9007199254740991
+                      AND JSON_TYPE(combo_json)='INTEGER'
+                      AND JSON_UNQUOTE(combo_json) REGEXP '^[0-9]{1,10}$'
                 ), choices AS (
                     SELECT *, ROW_NUMBER() OVER (PARTITION BY user_id
-                        ORDER BY made DESC, failed ASC, settled_at ASC, session_id ASC) AS choice
+                        ORDER BY score DESC, max_combo DESC, settled_at ASC, session_id ASC) AS choice
                     FROM scores
                 )
-                SELECT RANK() OVER (ORDER BY made DESC, failed ASC) AS place,
-                       user_id, nickname, made, failed, settled_at
+                SELECT RANK() OVER (ORDER BY score DESC, max_combo DESC) AS place,
+                       user_id, nickname, made, failed, settled_at, score, max_combo
                 FROM choices WHERE choice=1
-                ORDER BY made DESC, failed ASC, settled_at ASC, user_id ASC
+                ORDER BY score DESC, max_combo DESC, settled_at ASC, user_id ASC
                 """.formatted(duration), Object[].class).setParameter("version", version);
         if (durationMs != null) { query.setParameter("durationMicros", durationMs * 1_000L); }
         List<?> rows = query.setMaxResults(10_001).getResultList();
         return rows.stream().map(value -> {
             Object[] row = (Object[]) value;
             return new Item(((Number)row[0]).longValue(), row[1].toString(), (String)row[2],
-                    ((Number)row[3]).longValue(), ((Number)row[4]).longValue(), ((Timestamp)row[5]).toInstant());
+                    ((Number)row[3]).longValue(), ((Number)row[4]).longValue(), ((Timestamp)row[5]).toInstant(),
+                    ((Number)row[6]).longValue(), ((Number)row[7]).longValue());
         }).toList();
     }
 }

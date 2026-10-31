@@ -4,6 +4,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 
@@ -50,6 +51,12 @@ public class BungeoppangV4Round {
     private Instant settledAt;
     @Column(name = "reward_date")
     private LocalDate rewardDate;
+    @Column(name = "manual_paused_at", columnDefinition = "TIMESTAMP(3)")
+    private Instant manualPausedAt;
+    @Column(name = "manual_paused_ms", nullable = false)
+    private long manualPausedMs;
+    @Column(name = "manual_pause_revision", nullable = false)
+    private long manualPauseRevision;
 
     protected BungeoppangV4Round() {
     }
@@ -91,6 +98,40 @@ public class BungeoppangV4Round {
     public String finalPrefixHash() { return finalPrefixHash; }
     public Instant settledAt() { return settledAt; }
     public LocalDate rewardDate() { return rewardDate; }
+
+    public boolean isManualPaused() {
+        return manualPausedAt != null;
+    }
+
+    public long manualPauseRevision() {
+        return manualPauseRevision;
+    }
+
+    /** 조리 기록은 기존 시간 원점을 유지하고 설명서 정지 시간만 제외한다. */
+    public Instant gameTime(Instant current) {
+        return (isManualPaused() ? manualPausedAt : current).minusMillis(manualPausedMs);
+    }
+
+    public long pauseOffset(Instant current) {
+        return Math.max(0, Duration.between(gameTime(current), current).toMillis());
+    }
+
+    public void changeManualPause(boolean paused, Instant current) {
+        if (terminalReason != null) {
+            throw new IllegalStateException("종료된 판은 일시정지할 수 없습니다.");
+        }
+        if (paused == isManualPaused()) {
+            return;
+        }
+        if (paused) {
+            manualPausedAt = current;
+        } else {
+            manualPausedMs = Math.addExact(manualPausedMs,
+                    Math.max(0, Duration.between(manualPausedAt, current).toMillis()));
+            manualPausedAt = null;
+        }
+        manualPauseRevision = Math.addExact(manualPauseRevision, 1);
+    }
 
     public void approve(int throughSeq, String prefixHash, String checkpointJson) {
         if (terminalReason != null || throughSeq <= approvedThroughSeq) {
