@@ -24,7 +24,7 @@ const errorNames: Record<string, string> = {
   INVALID_TUNING: '조절 범위를 확인해주세요. 발사 힘 0.5~30 / 감속 0.1~60 / 반발 0~1',
   ITEM_OVERLAP: '다른 알이나 벽과 겹칩니다. 위치를 다시 골라주세요.',
   ITEM_OVERLAP_OR_OUTSIDE: '겹치거나 판 밖인 위치입니다.', RELOCATE_TOO_FAR: '이동 가능 거리를 넘었습니다.',
-  WALL_ALREADY_EXISTS: '이번 경기에는 이미 벽이 설치되어 있습니다.', WALL_LIMIT: '경기당 벽 3회를 모두 사용했습니다.',
+  WALL_LIMIT: '내 벽 3개를 모두 설치했습니다.',
   MODIFIER_ACTIVE: '이 알의 기존 크기·방어 효과가 끝난 뒤 사용해주세요.', BOOST_TARGET_REQUIRED: '힘 강화한 알로 발사해주세요.',
   INVALID_ITEM_RULES: '아이템 조절 범위를 확인해주세요.',
   RED_TUNING_ONLY: '홍팀 화면에서 물리값을 조절해주세요.',
@@ -202,7 +202,7 @@ function App() {
           <button disabled={!connected || pending || !currentHand || !!currentHand.cards.length}
           onClick={() => state && send({ type: 'TEST_CARDS', gameId: state.gameId, expectedVersion: state.version, cards: practice })}>연습 카드 받기 (로컬)</button></div>}
         <div className="hand-cards">{currentHand?.cards.map(card => <AlkkagiItemCard key={card.id} type={card.type}
-          disabled={!canItem} selected={item?.id === card.id} onClick={() => { setItem(card); setTargets([]); setPlacement(null); setPinned(false) }} />)}</div>
+          disabled={!canItem || card.type==='WALL' && (state?.wallsUsed?.[actor] ?? 0)>=3} selected={item?.id === card.id} onClick={() => { setItem(card); setTargets([]); setPlacement(null); setPinned(false) }} />)}</div>
         {currentHand && !currentHand.cards.length && <p className="empty-hand">아직 비책이 없습니다. 알을 3개 잃을 때마다 후보 3장 중 하나를 고릅니다.</p>}
         <details className="item-catalog"><summary>아이템 도감 · 8종</summary><p>효과와 사용 방법을 살펴보세요. 실제 사용은 보유한 카드로만 가능합니다.</p>
           <div className="item-catalog-grid">{alkkagiItemTypes.map(type => <AlkkagiItemCard key={type} type={type} />)}</div></details>
@@ -244,7 +244,7 @@ function App() {
           onChange={e => setRules(old => ({ ...old, [key]: Number(e.target.value) }))} /></label>)}
       {actor === 0 && <button disabled={!connected || pending || !state || Object.values(rules).some(v => !Number.isFinite(v))}
         onClick={() => state && send({ type: 'TUNE_ITEMS', gameId: state.gameId, expectedVersion: state.version, rules })}>아이템 설정 적용하고 새 판</button>}
-      <small>벽은 전체1개이며 경기 끝까지 유지합니다. 크기·힘 강화·방어도 경기 내내 지속하고, 추가 발사만 사용한 턴에 1회 더 쏩니다.</small>
+      <small>벽은 개인당 최대3개이며 경기 끝까지 유지합니다. 3개를 설치한 사람에게는 벽 카드가 더 나오지 않습니다. 크기·힘 강화·방어도 경기 내내 지속하고, 추가 발사만 사용한 턴에 1회 더 쏩니다.</small>
     </details>
     <details className="tuning-panel">
       <summary>물리값 조절 · 로컬 전용 <span>현재 힘 {state?.settings.maximumImpulse ?? '—'} / 감속 {state?.settings.deceleration ?? '—'} / 반발 {state?.settings.restitution ?? '—'}</span></summary>

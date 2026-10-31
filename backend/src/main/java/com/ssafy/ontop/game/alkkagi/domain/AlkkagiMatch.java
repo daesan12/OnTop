@@ -16,8 +16,7 @@ public final class AlkkagiMatch {
     private final AlkkagiSettings settings;
     private final AlkkagiPhysics physics;
     private final AlkkagiItemRules itemRules;
-    private WallView wall;
-    private Body wallBody;
+    private final List<WallView> walls = new ArrayList<>();
     private final int[] wallsUsed = new int[2];
     private final World<Body> world = new World<>();
     private final Map<String, Piece> pieces = new LinkedHashMap<>();
@@ -290,7 +289,7 @@ public final class AlkkagiMatch {
                 require(destination.distance(other.body.getWorldCenter()) >= moving.radius + other.radius - 1e-9, "ITEM_OVERLAP");
             }
         }
-        require(wall == null || !AlkkagiWallGeometry.overlaps(destination.x, destination.y, moving.radius, wall), "ITEM_OVERLAP");
+        require(walls.stream().noneMatch(wall -> AlkkagiWallGeometry.overlaps(destination.x, destination.y, moving.radius, wall)), "ITEM_OVERLAP");
     }
 
     private boolean fits(double x, double y, double radius, Piece a, Piece b, boolean fullInside) {
@@ -300,7 +299,7 @@ public final class AlkkagiMatch {
             if (other.alive && other != a && other != b
                     && Math.hypot(x - other.body.getWorldCenter().x, y - other.body.getWorldCenter().y) < radius + other.radius - 1e-9) return false;
         }
-        return wall == null || !AlkkagiWallGeometry.overlaps(x, y, radius, wall);
+        return walls.stream().noneMatch(wall -> AlkkagiWallGeometry.overlaps(x, y, radius, wall));
     }
 
     private void validatePlacement(Placement p) {
@@ -310,7 +309,6 @@ public final class AlkkagiMatch {
 
     private void placeWall(int actor, Placement p) {
         validatePlacement(p);
-        require(wall == null, "WALL_ALREADY_EXISTS");
         require(wallsUsed[actor] < 3, "WALL_LIMIT");
         double c = Math.abs(Math.cos(p.angle())), s = Math.abs(Math.sin(p.angle()));
         double halfX = (c * itemRules.wallLength() + s * itemRules.wallThickness()) / 2;
@@ -318,6 +316,7 @@ public final class AlkkagiMatch {
         require(Math.abs(p.x()) + halfX + itemRules.wallMargin() <= settings.halfWidth()
                 && Math.abs(p.y()) + halfY + itemRules.wallMargin() <= settings.halfHeight(), "ITEM_OUTSIDE_BOARD");
         var candidate = new WallView(actor, p.x(), p.y(), itemRules.wallLength(), itemRules.wallThickness(), p.angle(), null);
+        require(walls.stream().noneMatch(existing -> AlkkagiWallGeometry.overlaps(candidate, existing)), "ITEM_OVERLAP");
         for (var piece : pieces.values()) {
             var at = piece.body.getWorldCenter();
             require(!piece.alive || !AlkkagiWallGeometry.overlaps(at.x, at.y, piece.radius + .02, candidate), "ITEM_OVERLAP");
@@ -328,7 +327,7 @@ public final class AlkkagiMatch {
         body.setMass(MassType.INFINITE); body.rotate(p.angle()); body.translate(p.x(), p.y());
         body.setUserData("wall");
         world.addBody(body); world.setUpdateRequired(true);
-        wall = candidate; wallBody = body; wallsUsed[actor]++;
+        walls.add(candidate); wallsUsed[actor]++;
     }
 
     private void resize(Piece piece, double radius, double mass) {
@@ -551,7 +550,7 @@ public final class AlkkagiMatch {
         return new Snapshot(gameId, version, tick, simulationId, stage, turn, turnNumber,
                 turnDeadline, matchDeadline, now, winner, reason, List.copyOf(views),
                 List.of(timeouts[0], timeouts[1]), settings, true, "separated-v1", physics.inputBoost(),
-                itemUsedThisTurn, !stage.equals("FINISHED") && extraShotActivated && shotsThisTurn < 2 ? 1 : 0, lastItemEffect, wall, List.of(wallsUsed[0], wallsUsed[1]), null, itemRules, endedAt, List.copyOf(impacts), cardRules, choiceClocks(), stage.equals("CHOOSING") ? pausedTurnMillis : null);
+                itemUsedThisTurn, !stage.equals("FINISHED") && extraShotActivated && shotsThisTurn < 2 ? 1 : 0, lastItemEffect, walls.isEmpty() ? null : walls.getFirst(), List.of(wallsUsed[0], wallsUsed[1]), null, itemRules, endedAt, List.copyOf(impacts), cardRules, choiceClocks(), stage.equals("CHOOSING") ? pausedTurnMillis : null, List.copyOf(walls));
     }
 
     private List<ChoiceClock> choiceClocks() {
@@ -596,7 +595,7 @@ public final class AlkkagiMatch {
             int turn, int turnNumber, long turnDeadline, long matchDeadline, long serverNow,
             Integer winner, String endReason, List<PieceView> pieces, List<Integer> timeouts,
             AlkkagiSettings settings, boolean provisional, String modelId, double inputCurveBoost,
-            boolean itemUsedThisTurn, int extraShotsRemaining, ItemEffect lastItemEffect, WallView wall, List<Integer> wallsUsed, String boostedPieceId, AlkkagiItemRules itemRules, Long endedAt, List<ImpactView> impacts, AlkkagiCardRules cardRules, List<ChoiceClock> cardChoices, Long pausedTurnMillis) { }
+            boolean itemUsedThisTurn, int extraShotsRemaining, ItemEffect lastItemEffect, WallView wall, List<Integer> wallsUsed, String boostedPieceId, AlkkagiItemRules itemRules, Long endedAt, List<ImpactView> impacts, AlkkagiCardRules cardRules, List<ChoiceClock> cardChoices, Long pausedTurnMillis, List<WallView> walls) { }
     private record Receipt(Object command, long version) { }
     private record Departure(int actor, String reason) { }
     private static final class Piece {

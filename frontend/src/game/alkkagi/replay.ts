@@ -8,6 +8,8 @@ export interface SocialView {
   cursors: { id: string; label: string; actor: number; x: number; y: number; expiresAt: number }[]
   advice: { id: string; label: string; turnNumber: number; pieceId: string; dx: number; dy: number; power: number; expiresAt: number }[]
 }
+export type Wall = { owner: number; x: number; y: number; length: number; thickness: number; angle: number; expiresAfterTurn: number | null }
+export const snapshotWalls = (s: Snapshot | null) => s?.walls ?? (s?.wall ? [s.wall] : [])
 export interface Snapshot {
   gameId: string; version: number; tick: number; simulationId: number; serverNow: number
   stage: 'WAITING' | 'AIMING' | 'SIMULATING' | 'CHOOSING' | 'FINISHED'; turn: number; turnNumber: number
@@ -20,7 +22,8 @@ export interface Snapshot {
   reconnectDeadlines?: (number | null)[]; endedAt?: number | null
   impacts?: { id: number; at: number; x: number; y: number; impulse: number; kind: string }[]
   cardRules?: { weights: number[]; allowDuplicates: boolean; excludeExhaustedWalls: boolean }
-  wall?: { owner: number; x: number; y: number; length: number; thickness: number; angle: number; expiresAfterTurn: number | null } | null
+  walls?: Wall[]
+  wall?: Wall | null
   wallsUsed?: number[]; boostedPieceId?: string | null
   itemRules?: { wallLength: number; wallThickness: number; wallMargin: number; relocateDistance: number; powerMultiplier: number;
     growScale: number; shrinkScale: number; defendMassMultiplier: number; effectOpponentTurns: number }

@@ -31,7 +31,7 @@ final class AlkkagiCardAwards {
         while (offers[actor] == null && !queues.get(actor).isEmpty()) {
             int loss = queues.get(actor).removeFirst();
             var pool = new ArrayList<>(List.of(AlkkagiInventory.Type.values()));
-            if (rules.excludeExhaustedWalls() && walls >= 3) pool.remove(AlkkagiInventory.Type.WALL);
+            if (walls >= 3) pool.remove(AlkkagiInventory.Type.WALL);
             if (!rules.allowDuplicates()) for (var held : inventory.cards(actor)) pool.remove(held.type());
             pool.removeIf(type -> rules.weights().get(type.ordinal()) == 0);
             if (pool.isEmpty()) { record(actor, loss, "NO_AVAILABLE_CARD"); continue; }

@@ -36,11 +36,12 @@ class AlkkagiExtendedItemTests {
         }
     }
 
-    @Test void 지속벽의_추가설치는_소모없이_거절한다() {
+    @Test void 기존벽이_있어도_떨어진_위치에_추가설치한다() {
         var m=match("WALL");use(m,"wall",List.of(),new AlkkagiMatch.Placement(0,0,0),1);
         m.advance(30_000);m.advance(60_000);m.receiveCard(0,"WALL");
-        assertThatThrownBy(()->use(m,"second",List.of(),new AlkkagiMatch.Placement(2,0,0),60_001)).hasMessage("WALL_ALREADY_EXISTS");
-        assertThat(m.privateView(0).cards()).hasSize(1);
+        use(m,"second",List.of(),new AlkkagiMatch.Placement(2,0,0),60_001);
+        assertThat(m.snapshot(0).walls()).hasSize(2);
+        assertThat(m.privateView(0).cards()).isEmpty();
     }
 
     @Test

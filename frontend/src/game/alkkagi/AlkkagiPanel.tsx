@@ -31,7 +31,7 @@ export function AlkkagiPanel() {
     <div className="alkkagi-actions">{actor>=0&&<SeatedLookButton />}{actor>=0 ? <OmokSurrender context={{userId:session.sessionId,gameId:g.gameId,version:g.version}} disabled={!ready}/>
       : <button onClick={()=>void runtime.unwatchGame()}>관전 종료</button>}
       {game.uncertain&&<button onClick={()=>void runtime.checkRecovery()}>경기 다시 확인</button>}</div>
-    {actor>=0&&<footer className="alkkagi-hand"><span>내 비책 {g.alkkagiHand?.cards.length ?? 0}장</span><div>{g.alkkagiHand?.cards.map(c=><AlkkagiItemCard key={c.id} type={c.type} selected={ui.item?.id===c.id} disabled={!canItem}
+    {actor>=0&&<footer className="alkkagi-hand"><span>내 비책 {g.alkkagiHand?.cards.length ?? 0}장 · 벽 {state.wallsUsed?.[actor] ?? 0}/3</span><div>{g.alkkagiHand?.cards.map(c=><AlkkagiItemCard key={c.id} type={c.type} selected={ui.item?.id===c.id} disabled={!canItem || c.type==='WALL' && (state.wallsUsed?.[actor] ?? 0)>=3}
       onClick={()=>{cancelAlkkagiItem();useAlkkagiUI.setState({item:c})}}/>)}</div>
       {ui.item&&canItem&&<div className="alkkagi-item-confirm"><p>{preview.reason}</p><button disabled={!preview.valid} onClick={()=>act({type:'ITEM_USE',cardId:ui.item!.id,targetPieceIds:ui.targets,...(ui.placement ? {placement:ui.placement} : {})})}>아이템 확정</button>
         <button onClick={cancelAlkkagiItem}>아이템 취소</button>{ui.pinned&&<button onClick={()=>useAlkkagiUI.setState({pinned:false})}>위치 다시 고르기</button>}</div>}</footer>}

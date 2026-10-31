@@ -3,7 +3,7 @@ import { intersectAlkkagiBoard } from './boardSpace'
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { ArrowHelper, Group, Mesh, OrthographicCamera, Plane, Ray, Vector2, Vector3 } from 'three'
-import { AlkkagiReplay, type Piece, type Snapshot } from './replay'
+import { AlkkagiReplay, snapshotWalls, type Piece, type Snapshot } from './replay'
 import { draggedShot, launchResponse } from './aimInput'
 import { exitFlight } from './flight'
 import { AlkkagiPiece, PieceAppearanceProvider } from './AlkkagiPiece'
@@ -201,9 +201,9 @@ function Scene({ layer = 0, actor, state, replay, enabled, shoot, explain, block
       const p = pieces.find(p => p.id === id), to = pieces.find(p => p.id === itemTargets[1-i])
       return p && to ? <DestinationGhost key={'swap-'+id} x={to.x} y={to.y} radius={p.radius} valid={previewValid} /> : null
     })}
-    {state?.wall && <mesh position={[state.wall.x, .25, state.wall.y]} rotation={[0, -state.wall.angle, 0]} castShadow>
-      <boxGeometry args={[state.wall.length, .5, state.wall.thickness]} /><meshStandardMaterial color="#67503d" /></mesh>}
-    {placement && itemMode === 'WALL' && <mesh position={[placement.x, .26, placement.y]} rotation={[0, -placement.angle, 0]} raycast={() => {}}>
+    {snapshotWalls(state).map((wall,i) => <mesh key={i} name="alkkagi-wall" position={[wall.x, .25, wall.y]} rotation={[0, -wall.angle, 0]} castShadow>
+      <boxGeometry args={[wall.length, .5, wall.thickness]} /><meshStandardMaterial color={wall.owner === 0 ? "#8a4c3b" : "#3b7163"} /></mesh>)}
+    {placement && itemMode === 'WALL' && <mesh name="alkkagi-wall-preview" position={[placement.x, .26, placement.y]} rotation={[0, -placement.angle, 0]} raycast={() => {}}>
       <boxGeometry args={[state?.itemRules?.wallLength ?? 1.6, .5, state?.itemRules?.wallThickness ?? .18]} />
       <meshStandardMaterial color={previewValid ? "#47ddca" : "#ec604c"} transparent opacity={.55} />
     </mesh>}

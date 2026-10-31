@@ -36,7 +36,7 @@ EXTRA_SHOT은 첫 발사 정지 후 같은 사용자의 두 번째 발사를 허
 
 | 종류 | 로컬 동작 | 임시 설정/만료 |
 | --- | --- | --- |
-| WALL | 빈 판의 위치·회전 선택, 서버 직사각형 정적 충돌체 설치. 알·판 가장자리 겹침 거절 | 길이1.6/두께.18/가장자리 여백.12, 알과.02 여백. 전역1개·인당 경기3회. 경기 종료까지 유지 (`expiresAfterTurn: null`) |
+| WALL | 빈 판의 위치·회전 선택, 서버 직사각형 정적 충돌체 설치. 알·판 가장자리 겹침 거절 | 길이1.6/두께.18/가장자리 여백.12, 알과.02 여백. 개인당 최대3개·전체 최대6개. 경기 종료까지 유지 (`expiresAfterTurn: null`) |
 | RELOCATE | 양팀 생존 알1개와 목적지 선택. 현재 반경·벽·다른 알·중심 경계 검사 | 현재 위치에서 최대2칸 |
 | POWER_UP | 지정한 내 알의 출발속도를 지속 강화. 다른 알도 발사 가능 | 출발속도1.5배, 경기 종료까지 유지. 같은 알 중복 강화는 POWER_ALREADY_ACTIVE로 소모 없이 거절 |
 | GROW | 반경과 실제 dyn4j fixture 변경 | 반경1.25배, 질량1.25²배 |
@@ -68,7 +68,7 @@ role 쿼리는 로컬 테스트 역할이며 인증이 아니다. 이 데모 핸
 
 EXTRA_SHOT/WALL의 targetPieceIds는 빈 배열, SWAP은2개, 나머지는1개다. WALL/RELOCATE만 `placement: {"x": 0, "y": 0, "angle": 0}`를 추가한다. XY는 판 평면, angle은 라디안(-π~π)이며 RELOCATE는 회전 없이 이동만 한다. 서버는 유한수치와 실제 형상·거리·소유권을 검사한다. 클라이언트가 카드 종류·효과 수치·교환 좌표를 지정하지 않는다. 미지 필드·2개 초과 대상·문자열 아닌 대상·잘못된 version은 거절한다. 실제 입력 파서는 `AlkkagiInputs`로 로컬 소켓과 공통 엔진이 함께 사용한다.
 
-성공은 ITEM_ACCEPTED(actionId/version), 실패는 ERROR(code)다. 주요 코드는 PLAYER_REQUIRED, STALE_GAME, STALE_VERSION, NOT_AIMING, NOT_YOUR_TURN, CARD_NOT_OWNED, INVALID_TARGETS, NOT_YOUR_PIECE, ITEM_OVERLAP, ITEM_ALREADY_USED_OR_SHOT, ACTION_ID_CONFLICT다. 추가 코드는 INVALID_PLACEMENT, ITEM_OUTSIDE_BOARD, ITEM_OVERLAP_OR_OUTSIDE, RELOCATE_TOO_FAR, WALL_ALREADY_EXISTS, WALL_LIMIT, MODIFIER_ACTIVE, BOOST_TARGET_REQUIRED, INVALID_ITEM_RULES다.
+성공은 ITEM_ACCEPTED(actionId/version), 실패는 ERROR(code)다. 주요 코드는 PLAYER_REQUIRED, STALE_GAME, STALE_VERSION, NOT_AIMING, NOT_YOUR_TURN, CARD_NOT_OWNED, INVALID_TARGETS, NOT_YOUR_PIECE, ITEM_OVERLAP, ITEM_ALREADY_USED_OR_SHOT, ACTION_ID_CONFLICT다. 추가 코드는 INVALID_PLACEMENT, ITEM_OUTSIDE_BOARD, ITEM_OVERLAP_OR_OUTSIDE, RELOCATE_TOO_FAR, WALL_LIMIT, MODIFIER_ACTIVE, POWER_ALREADY_ACTIVE, INVALID_ITEM_RULES다.
 
 매 공개 STATE와 같은 seq/gameId/version의 PRIVATE_STATE를 본인에게만 보낸다.
 
@@ -84,7 +84,7 @@ EXTRA_SHOT/WALL의 targetPieceIds는 빈 배열, SWAP은2개, 나머지는1개�
 }
 ```
 
-상대·관전자에게 미사용 종류/ID는 보내지 않는다. 공개 STATE에는 itemUsedThisTurn, extraShotsRemaining(추가분0/1), lastItemEffect(version/turnNumber/actor/type/targets), wall(소유자/위치/길이/두께/각도/expiresAfterTurn:null) 또는 null, wallsUsed, boostedPieceId(호환 필드, 항상 null), itemRules가 있다. 알별 radius/mass/launchSpeed/modifier/powerUp/restorePending(항상 false)도 서버 현재값이다. lastItemEffect는 최신 확정 효과를 설명하는 상태이며 일회성 연출 이벤트가 아니다. 재접속 시 이를 새 연출로 재생하면 안 된다.
+상대·관전자에게 미사용 종류/ID는 보내지 않는다. 공개 STATE에는 itemUsedThisTurn, extraShotsRemaining(추가분0/1), lastItemEffect(version/turnNumber/actor/type/targets), walls[](소유자/위치/길이/두께/각도/expiresAfterTurn:null), wall(호환용 첫 벽 또는 null), wallsUsed, boostedPieceId(호환 필드, 항상 null), itemRules가 있다. 알별 radius/mass/launchSpeed/modifier/powerUp/restorePending(항상 false)도 서버 현재값이다. lastItemEffect는 최신 확정 효과를 설명하는 상태이며 일회성 연출 이벤트가 아니다. 재접속 시 이를 새 연출로 재생하면 안 된다.
 
 공개/개인 JSON을 물리 소유 스레드에서 같은 발행 묶음으로 만들고 AtomicReference 하나로 송신 스레드에 넘긴다. 최신 상태 교체 중에도 서로 다른 버전의 손패가 짝지어지지 않는다. 소켓 쓰기는 기존대로 별도 sender에서 수행한다. 연결 복구는 현재 손패/상태를 재조회하며 타이머를 초기화하지 않는다. 서버 프로세스 재시작은 데모 판을 초기화한다.
 
@@ -125,3 +125,7 @@ FORFEIT(gameId/actionId)은 자신의 명시적 기권이다. 같은 actionId는
 
 ## 2026-10-31 지속 효과·아이템 미리보기
 대상 선택은 맥동하는 테두리로 표시한다. 확대/축소는 변경 반경, 방어/힘 강화는 효과를 사전 표시한다. 벽과 재배치는 포인터를 따라 녹색(가능)/빨강(불가) 고스트를 표시하고 클릭으로 위치를 고정한 뒤 확정한다. 교환은 두 알의 변경 위치·반경을 반투명으로 표시한다. 취소/Esc/우클릭/차례·승인 버전 변경 시 미확정 표시를 지운다. 미리보기는 실제 물리·소모를 변경하지 않으며 최종 서버 검증을 유지한다. 공원 집중 카메라의 렌더 레이어를 매 UI 렌더에 새 메시까지 적용한다.
+
+## 벽 개인별 설치 한도 (2026-10-31 확정)
+각 플레이어는 벽을 최대3개 설치한다. 양쪽 합쳐 최대6개, 모든 벽은 경기 끝까지 유지하고 새 경기에는 남기지 않는다. 개인별 설치 성공 횟수 wallsUsed[actor]가3이면 그 사람의 이후 후보 생성에서 WALL을 무조건 제외한다(구버전 excludeExhaustedWalls=false도 true로 정규화). 상대의 설치 횟수는 본인 후보에 영향을 주지 않는다. 이미 보유한 벽 카드는 삭제하지 않지만 한도에 도달하면 사용 버튼을 비활성화하고 서버도 WALL_LIMIT로 소모 없이 거절한다. 미리 보유한 벽 카드가 후보로 다시 나오는 것은 별개의 allowDuplicates 규칙을 따른다.
+서버/클라이언트는 모든 회전 벽과 알/확대/재배치/교환의 겹침을 검사한다. 벽끼리는 회전 직사각형의 네 분리축(SAT)으로 교차/겹침을 검사하며 맞닿는 것은 허용한다. 설치 실패/같은 actionId 재확인은 벽 수·카드를 중복 증가/소모하지 않는다. 공개 walls 배열이 전체 상태이며 프론트는 이를 우선한다. legacy wall은 첫 벽 하나만 담으므로 다중 벽 표시에는 사용하지 않는다.

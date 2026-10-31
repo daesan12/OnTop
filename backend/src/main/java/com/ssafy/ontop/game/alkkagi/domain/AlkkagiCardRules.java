@@ -8,6 +8,8 @@ public record AlkkagiCardRules(List<Integer> weights, boolean allowDuplicates, b
         if (weights == null || weights.size() != 8 || weights.stream().anyMatch(w -> w == null || w < 0 || w > 1000)
                 || weights.stream().noneMatch(w -> w > 0)) throw new IllegalArgumentException("INVALID_CARD_RULES");
         weights = List.copyOf(weights);
+        // 개인 설치 3개 한도는 로컬 설정으로도 우회하지 않는다.
+        excludeExhaustedWalls = true;
     }
     public static AlkkagiCardRules localPreview() {
         return new AlkkagiCardRules(List.of(1, 1, 1, 1, 1, 1, 1, 1), true, true);

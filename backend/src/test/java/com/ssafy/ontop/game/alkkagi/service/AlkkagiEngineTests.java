@@ -152,6 +152,31 @@ class AlkkagiEngineTests {
         }
         assertThat(router.load(42).orElseThrow().gameId()).isEqualTo("round-20");
     }
+    @Test
+    void 여러벽은_복구와_관전자_공개상태에_유지하고_손패는_분리한다() {
+        engine.create("multi-wall", "table", 42, 84);
+        var games=(Map<?,?>)org.springframework.test.util.ReflectionTestUtils.getField(engine,"games");
+        var match=(com.ssafy.ontop.game.alkkagi.domain.AlkkagiMatch)org.springframework.test.util.ReflectionTestUtils.getField(games.get("multi-wall"),"match");
+        match.receiveCard(0,"WALL");var first=match.snapshot(0);
+        match.useItem(0,new com.ssafy.ontop.game.alkkagi.domain.AlkkagiMatch.ItemUse(first.gameId(),"wall0",first.version(),
+                match.privateView(0).cards().getFirst().id(),List.of(),new com.ssafy.ontop.game.alkkagi.domain.AlkkagiMatch.Placement(0,0,0)),1);
+        var shotState=match.snapshot(0);
+        match.shoot(0,new com.ssafy.ontop.game.alkkagi.domain.AlkkagiMatch.Shot(shotState.gameId(),"pass",shotState.version(),"p0",0,1,.001),2);
+        for(int i=0;i<1_000&&match.snapshot(0).stage().equals("SIMULATING");i++)match.advance(3+i*8);
+        match.receiveCard(1,"WALL");var second=match.snapshot(0);
+        match.useItem(1,new com.ssafy.ontop.game.alkkagi.domain.AlkkagiMatch.ItemUse(second.gameId(),"wall1",second.version(),
+                match.privateView(1).cards().getFirst().id(),List.of(),new com.ssafy.ontop.game.alkkagi.domain.AlkkagiMatch.Placement(2,0,0)),1_000);
+        match.receiveCard(0,"POWER_UP");
+        var own=engine.load(42,"multi-wall").orElseThrow();
+        var viewer=engine.load(505,"multi-wall").orElseThrow();
+        var recovered=router.load(42).orElseThrow();
+        assertThat(own.publicState().path("walls")).hasSize(2);
+        assertThat(viewer.publicState().path("walls")).isEqualTo(own.publicState().path("walls"));
+        assertThat(recovered.state().path("publicState").path("walls")).isEqualTo(own.publicState().path("walls"));
+        assertThat(own.privateState().path("cards")).hasSize(1);
+        assertThat(viewer.privateState().isEmpty()).isTrue();
+    }
+
     private static final class TestClock extends Clock {
         long now;
         @Override public ZoneId getZone() { return ZoneOffset.UTC; }

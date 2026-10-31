@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { AlkkagiFeedback } from '../../src/game/alkkagi/feedback'
 import { AlkkagiInbox } from '../../src/game/alkkagi/inbox'
-import { itemPreview, overlapsWall } from '../../src/game/alkkagi/placement'
+import { itemPreview, overlapsWall, wallsOverlap } from '../../src/game/alkkagi/placement'
 import type { Snapshot } from '../../src/game/alkkagi/replay'
 
 function state(): Snapshot {
@@ -94,4 +94,28 @@ describe('승인 응답과 공개/개인 상태 순서', () => {
     inbox.reset()
     expect(inbox.publicState(1, s)).toBe(true)
   })
+})
+
+describe('여러 벽의 배치 미리보기', () => {
+ const wall=(x:number,y:number,angle=0)=>({owner:0,x,y,angle,length:1.6,thickness:.18,expiresAfterTurn:null})
+ it('상대가 세개 설치해도 내 한도는 별개이고 기존 모든 벽 겹침을 검사한다',()=>{
+   const s={...state(),walls:[wall(-2,0),wall(0,0),wall(2,0)],wallsUsed:[0,3]}
+   expect(itemPreview(s,'WALL',[],{x:2,y:.5,angle:0}).valid).toBe(true)
+   expect(itemPreview(s,'WALL',[],{x:2,y:0,angle:Math.PI/2}).valid).toBe(false)
+   s.wallsUsed=[3,0]
+   expect(itemPreview(s,'WALL',[],{x:2,y:.5,angle:0}).valid).toBe(false)
+ })
+ it('회전벽 교차는 거절하고 평행으로 떨어진 벽은 허용한다',()=>{
+   expect(wallsOverlap(wall(0,0,Math.PI/4),wall(0,0,-Math.PI/4))).toBe(true)
+   expect(wallsOverlap(wall(0,0,Math.PI/4),wall(0,2,Math.PI/4))).toBe(false)
+ })
+ it('재배치·확대·교환은 첫벽 이외의 벽도 검사하고 기존 단일벽 상태도 지원한다',()=>{
+   const s={...state(),walls:[wall(-2,0),wall(0,0),wall(2,0)]}
+   s.pieces[1]={...s.pieces[1],x:2,y:1}
+   expect(itemPreview(s,'RELOCATE',['p1'],{x:2,y:0,angle:0}).valid).toBe(false)
+   s.pieces[1].y=.35
+   expect(itemPreview(s,'GROW',['p1'],null).valid).toBe(false)
+   expect(itemPreview(s,'SWAP',['p0','p1'],null).valid).toBe(false)
+   expect(itemPreview({...s,walls:undefined,wall:wall(2,0)},'RELOCATE',['p1'],{x:2,y:0,angle:0}).valid).toBe(false)
+ })
 })
