@@ -135,3 +135,6 @@ FORFEIT(gameId/actionId)은 자신의 명시적 기권이다. 같은 actionId는
 
 ### 기권 종료 연출 수신·상대 퇴장 회귀 (2026-10-31)
 서버가 보내는 WORLD_PARK_DEBRIS_STATE.items[].gameCode=ALKKAGI를 프론트도 허용하며, 파편 표시에서 목재판과 알을 사용한다. 알까기는 오목용 stone-* 부품을 허용하지 않고 기존 board/coin-* 검증과 개수·중복 제한을 유지한다. 기권 뒤 GAME_CONNECTION_STATE FINISHED와 SETTLED 결과·WAITING을 정상 수신하면 기존 결과 확인→대기실 복귀→퇴장 흐름을 따른다. 임의로 busy/uncertain이나 서버 정산 제한을 해제하지 않는다.
+
+### 기권 응답 순서와 다음 판 회귀
+기권 승인 응답보다 WAITING 방송이 먼저 도착하면 활성 경기 ID가 비워질 수 있다. 동일 completedGameId의 기권 응답도 처리해 요청 pending을 정리하며, 새 경기 ID가 활성화된 경우 과거 응답으로 새 요청을 해제하지 않는다. 회귀 검증은 양쪽 퇴장→재착석→방장 수동 시작→새 경기 ID·알32개·빈 손패/벽→첫 발사까지 포함한다. 로컬 공원 검수는 메모리 예약·정산 대역이며 실제 DB 지급 검증이 아니다.

@@ -71,7 +71,8 @@ public final class AlkkagiParkApplication {
         }
         @Bean LocalLedger alkkagiLedger(ApplicationEventPublisher events) { return new LocalLedger(events); }
         @Bean FilterRegistrationBean<OncePerRequestFilter> alkkagiFixtureHttp(AccessJwtService jwt,
-                AccessAuthenticationService auth, ObjectMapper mapper) {
+                AccessAuthenticationService auth, ObjectMapper mapper,
+                com.ssafy.ontop.auth.config.AuthTokenProperties properties) {
             var codes = new ConcurrentHashMap<String,Long>();
             var registration = new FilterRegistrationBean<OncePerRequestFilter>();
             registration.setOrder(-200);
@@ -82,7 +83,7 @@ public final class AlkkagiParkApplication {
                     Object body = null;
                     if (path.equals("/dev/alkkagi-park/session") && request.getMethod().equals("POST")) {
                         String origin=request.getHeader("Origin");
-                        if (origin != null && !Set.of("http://127.0.0.1:5207","http://localhost:5207").contains(origin)) { response.setStatus(403); return; }
+                        if (origin != null && (properties.allowedOrigins() == null || !properties.allowedOrigins().contains(origin))) { response.setStatus(403); return; }
                         long id = switch(mapper.readTree(request.getInputStream()).path("role").asText()) { case "red" -> 101; case "green" -> 202; case "viewer" -> 505; default -> 0; };
                         if (id == 0 || codes.size() >= 64) { response.setStatus(400); return; }
                         String code = UUID.randomUUID().toString().replace("-", "") + UUID.randomUUID().toString().replace("-", "").substring(0,11);

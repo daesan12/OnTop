@@ -1179,8 +1179,11 @@ export class ParkRuntime implements ParkRuntimePort {
       status: 'pending' as const, error: '' }
     const generation = this.generation
     useForfeit.setState({ attempt }); useGame.setState({ pending: true, error: '' })
+    // WAITING may arrive before the correlated receipt and retire the active game.
+    const sameGame = () => { const s = useGame.getState(); return s.permittedGameId === gameId
+      || (!s.permittedGameId && s.completedGameId === gameId) }
     const current = () => this.active && generation === this.generation && useSession.getState().sessionId === attempt.userId
-      && useGame.getState().permittedGameId === gameId && useForfeit.getState().attempt === attempt
+      && sameGame() && useForfeit.getState().attempt === attempt
     try {
       const reply = await this.socket.request('GAME_FORFEIT', { gameId, actionId: attempt.actionId }, ['GAME_FORFEIT_RESULT'], id => {
         this.forfeitRequests.set(id, JSON.stringify([own.sessionId, gameId]))
@@ -1197,7 +1200,7 @@ export class ParkRuntime implements ParkRuntimePort {
         throw cause
       }
     } finally {
-      if (generation === this.generation && useGame.getState().permittedGameId === gameId) useGame.setState({ pending: false })
+      if (generation === this.generation && sameGame()) useGame.setState({ pending: false })
     }
   })
   placeOmok = (x: number, y: number) =>

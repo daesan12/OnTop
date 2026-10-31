@@ -50,12 +50,14 @@ class AlkkagiForfeitFlowTests {
             positions.move(""+user,new WorldChannelRegistry.Position(1,0,.8,0,0));return client;
         }
     }
-    @Test void 방장기권_이후_상대도_종료정산과_대기실을_받고_퇴장한다() throws Exception {
+    @Test void 방장기권_이후_상대퇴장_재착석과_다음판을_시작한다() throws Exception {
         try(var red=connect(101);var green=connect(202)) {
-            red.request("TABLE_JOIN",Map.of("tableId",TABLE));
-            red.request("GAME_SELECT",Map.of("gameCode","ALKKAGI","betAmountPerPlayer",1));
+            var firstSeat=red.request("TABLE_JOIN",Map.of("tableId",TABLE));
+            red.request("TABLE_CONFIGURE",Map.of("gameCode","ALKKAGI","selectedPlayers",2,"betAmountPerPlayer",1,"expectedVersion",firstSeat.at("/payload/version").asLong()));
             green.request("TABLE_JOIN",Map.of("tableId",TABLE));red.request("TABLE_JOIN",Map.of("tableId",TABLE));
             red.request("READY_SET",Map.of("ready",true));green.request("READY_SET",Map.of("ready",true));
+            var ready=red.request("TABLE_JOIN",Map.of("tableId",TABLE));
+            red.request("TABLE_START",Map.of("actionId","first-start","expectedVersion",ready.at("/payload/version").asLong()));
             String game=red.state("RESTORED").path("gameId").asText();green.state("RESTORED");
             var initial=green.request("GAME_STATE_CHECK",Map.of("gameId",game));
             var initialStart=green.request("GAME_START_CHECK",Map.of());
@@ -73,14 +75,42 @@ class AlkkagiForfeitFlowTests {
             var result=green.request("GAME_RESULT_CHECK",Map.of("gameSessionId",game));
             var waiting=green.request("GAME_START_CHECK",Map.of());
             var left=green.request("TABLE_LEAVE",Map.of());
-            java.nio.file.Files.writeString(java.nio.file.Path.of("build/alkkagi-forfeit-frames.json"),mapper.writerWithDefaultPrettyPrinter().writeValueAsString(Map.of(
-                    "initial",initial,"initialStart",initialStart,"accepted",accepted,"ended",ended,"debris",debris,"result",result,"waiting",waiting,"left",left,"trace",frames)));
             assertThat(accepted.path("type").asText()).isEqualTo("GAME_FORFEIT_RESULT");
             assertThat(ended.at("/payload/state/publicState/winnerUserId").asText()).isEqualTo("202");
             assertThat(result.path("type").asText()).isEqualTo("GAME_RESULT");
             assertThat(result.at("/payload/settlementStatus").asText()).isEqualTo("SETTLED");
             assertThat(waiting.at("/payload/phase").asText()).isEqualTo("WAITING");
             assertThat(left.path("type").asText()).isEqualTo("TABLE_LEFT");
+            var redLeft=red.request("TABLE_LEAVE",Map.of());
+            assertThat(redLeft.path("type").asText()).isEqualTo("TABLE_LEFT");
+            var rejoined=green.request("TABLE_JOIN",Map.of("tableId",TABLE));
+            red.request("TABLE_JOIN",Map.of("tableId",TABLE));
+            var configVersion=green.request("TABLE_JOIN",Map.of("tableId",TABLE)).at("/payload/version").asLong();
+            var configured=green.request("TABLE_CONFIGURE",Map.of("gameCode","ALKKAGI","selectedPlayers",2,"betAmountPerPlayer",1,"expectedVersion",configVersion));
+            assertThat(configured.at("/payload/selectorUserId").asText()).isEqualTo("202");
+            red.request("READY_SET",Map.of("ready",true));green.request("READY_SET",Map.of("ready",true));
+            var nextReady=green.request("TABLE_JOIN",Map.of("tableId",TABLE));
+            var nextStart=green.request("TABLE_START",Map.of("actionId","next-start","expectedVersion",nextReady.at("/payload/version").asLong()));
+            var nextRecovery=green.state("RESTORED");red.state("RESTORED");
+            String nextId=nextRecovery.path("gameId").asText();
+            assertThat(nextId).isNotBlank().isNotEqualTo(game);
+            var next=green.request("GAME_STATE_CHECK",Map.of("gameId",nextId));
+            var nextStartState=green.request("GAME_START_CHECK",Map.of());
+            assertThat(next.at("/payload/publicState/status").asText()).isEqualTo("PLAYING");
+            assertThat(next.at("/payload/publicState/pieces")).hasSize(32);
+            assertThat(next.at("/payload/publicState/walls")).isEmpty();
+            assertThat(next.at("/payload/privateState/cards")).isEmpty();
+            var shooter=next.at("/payload/publicState/turnUserId").asText().equals("202")?green:red;
+            var shot=shooter.request("GAME_ACTION_SEND",Map.of("gameId",nextId,"actionId","next-shot","expectedVersion",next.at("/payload/version").asLong(),
+                    "input",Map.of("type","SHOT","pieceId","p0","dx",0,"dy",1,"power",.001)));
+            assertThat(shot.path("type").asText()).isEqualTo("GAME_ACTION_RESULT");
+            var advanced=green.request("GAME_STATE_CHECK",Map.of("gameId",nextId));
+            assertThat(advanced.at("/payload/publicState/simulationId").asLong()).isEqualTo(1);
+            var output=new java.util.LinkedHashMap<String,Object>(Map.of("initial",initial,"initialStart",initialStart,"accepted",accepted,"ended",ended,"debris",debris,
+                    "result",result,"waiting",waiting,"left",left,"trace",frames));
+            output.put("rejoined",rejoined);output.put("configured",configured);output.put("nextStart",nextStartState);output.put("nextGame",next);
+            output.put("nextRecovery",nextRecovery);output.put("nextShot",shot);output.put("advanced",advanced);
+            java.nio.file.Files.writeString(java.nio.file.Path.of("build/alkkagi-forfeit-frames.json"),mapper.writerWithDefaultPrettyPrinter().writeValueAsString(output));
         }
     }
 }

@@ -8,6 +8,9 @@ import { ParkRuntime } from '../../src/park/runtime/SpringParkRuntime'
 import { useGame } from '../../src/game/store'
 import { bridgeState } from '../fixtures/bridge'
 import { useFacilityState, useFacilityUseNotice } from '../../src/features/facilities/state'
+import { readFileSync } from 'node:fs'
+import { parseGame } from '../../src/game/protocol'
+import { useForfeit } from '../../src/game/forfeit'
 
 const table = { tableId: 'server-table', version: 1, capacity: 2, minimumPlayers: 2,
   seats: [{ seatNumber: 1, userId: null, ready: false }, { seatNumber: 2, userId: '102', ready: false }],
@@ -79,6 +82,23 @@ function nearTable() {
     benchId: '', fitnessId: '', fitnessStartedAt: 0, telescopeId: '', telescopeYaw: 0, telescopePitch: 0, followTargetId: '' })
   return TABLES[0]!.id
 }
+it('a waiting broadcast before the forfeit receipt releases the finished game request', async () => {
+  const wire = JSON.parse(readFileSync(new URL('../fixtures/alkkagi-forfeit.json', import.meta.url), 'utf8'))
+  useSession.setState({tableId:table.tableId,seatIndex:0,mapCompatible:true})
+  useGame.setState({game:parseGame(wire.initial.payload,'101'),permittedGameId:wire.initial.payload.gameId,
+    recovery:'RESTORED',pending:false,uncertain:false,awaitingVersion:-1,
+    start:{...wire.initialStart.payload,tableId:table.tableId}})
+  useForfeit.setState({attempt:null})
+  const request=runtime.forfeitGame(wire.initial.payload.gameId)
+  await vi.waitFor(()=>expect(socket.requests.some(r=>r.type==='GAME_FORFEIT')).toBe(true))
+  const sent=socket.requests.find(r=>r.type==='GAME_FORFEIT')!
+  socket.emit('GAME_START_STATE',{...wire.waiting.payload,tableId:table.tableId})
+  expect(useGame.getState().permittedGameId).toBe('')
+  socket.emit('GAME_FORFEIT_RESULT',{...wire.accepted.payload,actionId:sent.payload.actionId},sent.requestId)
+  expect(await request).toBe(true)
+  expect(useGame.getState().pending).toBe(false)
+  expect(useForfeit.getState().attempt?.status).toBe('approved')
+})
 it('a delayed movement rejection after approved seating cannot become the tablet error', async () => {
   const anchor = nearTable()
   runtime.move(1, 0, false, false)
