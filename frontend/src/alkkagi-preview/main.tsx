@@ -156,7 +156,7 @@ function App() {
     : state.turn !== actor ? `${names[state.turn]} 차례입니다. 해당 팀 화면에서 조작해주세요.`
     : `내 차례! ${actor === 0 ? '빨간' : '초록'} 알을 누른 채 드래그 → 놓아서 발사`
   return <main>
-    <header><div><span className="eyebrow">ONTOP · LOCAL PHYSICS LAB</span><h1>아이템 알까기 <small>로컬 플레이</small></h1></div>
+    <header><div><span className="eyebrow">ONTOP · LOCAL PHYSICS LAB</span><h1>알까기 <small>로컬 플레이</small></h1></div>
       <div className={`connection ${connected ? 'on' : ''}`}>{connected ? '연결됨' : '연결 끊김'}</div></header>
     <div className="provisional">영상 기준 16개/인·세 크기 그룹 · 물리값은 검수용 근사 · 아이템8종 · 알3개 손실마다 후보3장 중 선택 · 선택10초/발사30초 별도 · 미정 세부 규칙은 로컬 임시값 · 실제 판돈 없음</div>
     <section className="stats"><div>내 역할<strong>{actor < 0 ? '관전자' : names[actor]}</strong></div>

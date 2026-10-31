@@ -4,7 +4,7 @@ import { tableBusy, type useGame } from '../../game/store'
 
 export const ALKKAGI_LOCAL_ENABLED = import.meta.env.DEV && import.meta.env.VITE_ALKKAGI_ENABLED === 'true'
 const GAME_OPTIONS = [
-  { code: 'ALKKAGI', name: '아이템 알까기', capacity: 2, playable: ALKKAGI_LOCAL_ENABLED },
+  { code: 'ALKKAGI', name: '알까기', capacity: 2, playable: ALKKAGI_LOCAL_ENABLED },
   { code: 'OMOK', name: '오목', capacity: 2, playable: true },
   { code: 'DICE', name: '주사위 한 판', capacity: 2, playable: false },
   { code: 'ONE_CARD', name: '원카드', capacity: 4, playable: true },

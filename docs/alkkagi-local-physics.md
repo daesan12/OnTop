@@ -1,4 +1,4 @@
-# 아이템 알까기 기본 물리·발사 동기화
+# 알까기 기본 물리·발사 동기화
 
 2026-10-30 · S15P31B105-294 · **로컬 검증 전용, 실제 서비스 계약/배포 완료 아님**.
 
@@ -134,7 +134,7 @@ BE `AlkkagiMatchTests`, `AlkkagiSocketTests`, FE `tests/unit/alkkagiReplay.test.
 전용 물리 테스트 페이지와 별개로 실제 공원 테이블의 선택→착석→준비→방장 시작→공용 경기 입력/상태→기권/복구→다음 판 경로를 연결한다. `ALKKAGI`는2인 게임이며, 로컬 엔진은 `ontop.games.alkkagi.enabled=true`를 명시한 local에서만 등록한다. DEV/운영 자동 활성화는 하지 않는다. 실제 지갑/DB 예약·정산 구현과 스키마는 변경하지 않았다.
 
 - BE: Java21에서 `./gradlew.bat alkkagiPark` → loopback19184. 테스트 classpath의 AlkkagiParkApplication이 메모리 검수 계정101/202/505·시작/결과 대역을 제공한다. 실제 재화는 변하지 않으며 표시 잔액10,000과 증감0은 검수용 값이다. 회원 검증 대역 뒤의 Access JWT 검사·1회용 웹소켓 티켓·공원 소켓은 기존 경로를 그대로 사용한다. 이 도구와 고정 테스트 서명값은 운영 JAR에 포함되지 않는다.
-- FE: `pnpm dev:alkkagi-park` → `http://127.0.0.1:5207/alkkagi-park.html?role=red`. green/viewer 링크는 별도 창으로 연다. 채널A 선택 →1번 탁자 확인 →앉기 →아이템 알까기/판돈 설정 →두 명 준비 →방장이 시작. 로컬 테스트 전용 로그인 진입이며 정식 로그인 변경이 아니다.
+- FE: `pnpm dev:alkkagi-park` → `http://127.0.0.1:5207/alkkagi-park.html?role=red`. green/viewer 링크는 별도 창으로 연다. 채널A 선택 →1번 탁자 확인 →앉기 →알까기/판돈 설정 →두 명 준비 →방장이 시작. 로컬 테스트 전용 로그인 진입이며 정식 로그인 변경이 아니다.
 - 공원 렌더링: 기존 TableShell의 같은 Canvas 안에 판/알을 배치한다. 별도 전체 게임창/초록 배경/두 번째 게임 Canvas는 없다. 기본 카메라는 오목처럼 판을 수직으로 내려다보고 HUD·손패만 겹친다. 주변 둘러보기/판으로 돌아가기로 전환하며 둘러보기 중 판·아이템 조작은 막고 제한시간은 계속 흐른다. 승인 관전자의 채팅은 기존 오목 입력창과 화면 응원 표시를 재사용한다. 위치 추천 핑은 오목 전용이다. 테이블의 위치·회전·배율을 역변환해 포인터를 서버 판 좌표로 계산한다. 물리30/60/1·장외·카드 효과는 변경하지 않는다.
 
 공통 소켓 계약: TABLE_CONFIGURE/GAME_SELECT의 gameCode=`ALKKAGI`, 정원2, targetScore없음. 기존 TABLE_GAME_START·GAME_START_STATE·GAME_CONNECTION_STATE·GAME_STATE·GAME_FORFEIT를 재사용한다. 공개 상태 gameCode/status/players/turnUserId와 알까기 Snapshot을 묶고 privateState는 본인 cards/choice만 포함한다. 관전자 privateState는빈객체다. 종료는 공통 GameFinished를 테이블 종료 연결부에 전달한다. 실제 DB 정산이 없는 로컬 검수에서는 테스트 결과 대역만 다음 판을 연다.
