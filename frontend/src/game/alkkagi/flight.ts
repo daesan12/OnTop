@@ -4,7 +4,9 @@ import type { Piece } from './replay'
 export function exitFlight(piece: Piece, elapsed: number) {
   const exit = piece.exit ?? { x: piece.x, y: piece.y, vx: piece.vx, vy: piece.vy }
   const t = Math.max(0, Math.min(.9, elapsed))
-  return { x: exit.x + exit.vx * t, z: exit.y + exit.vy * t,
+  // 수평 속도 v(t)=v0*exp(-6t)의 적분. 프레임률에 관계없이 빠르게 감속한다.
+  const travelTime = -Math.expm1(-6 * t) / 6
+  return { x: exit.x + exit.vx * travelTime, z: exit.y + exit.vy * travelTime,
     height: .45 * t - 7 * t * t, opacity: Math.max(0, 1 - t / .9),
-    spin: t * (2 + Math.min(10, Math.hypot(exit.vx, exit.vy))), visible: elapsed < .9 }
+    spin: travelTime * (2 + Math.min(10, Math.hypot(exit.vx, exit.vy))), visible: elapsed < .9 }
 }
