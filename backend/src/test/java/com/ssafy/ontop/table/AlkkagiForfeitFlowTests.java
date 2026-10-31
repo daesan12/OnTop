@@ -63,14 +63,26 @@ class AlkkagiForfeitFlowTests {
             var ready=red.request("TABLE_JOIN",Map.of("tableId",TABLE));
             red.request("TABLE_START",Map.of("actionId","refresh-start","expectedVersion",ready.at("/payload/version").asLong()));
             String game=red.state("RESTORED").path("gameId").asText();green.state("RESTORED");
+            var beforeRefresh=red.request("GAME_STATE_CHECK",Map.of("gameId",game));
             red.close();
             try(var resumed=connect(101,"RESTORED")) {
                 assertThat(resumed.request("CHANNEL_JOIN",Map.of("channelId","other")).at("/payload/code").asText()).isEqualTo("GAME_RECOVERY_REQUIRED");
-                assertThat(resumed.request("GAME_STATE_CHECK",Map.of("gameId",game)).at("/payload/publicState/status").asText()).isEqualTo("PLAYING");
-                assertThat(resumed.request("GAME_FORFEIT",Map.of("gameId",game,"actionId","refresh-forfeit")).path("type").asText()).isEqualTo("GAME_FORFEIT_RESULT");
-                green.state("FINISHED");
-                assertThat(resumed.request("TABLE_LEAVE",Map.of()).path("type").asText()).isEqualTo("TABLE_LEFT");
-                assertThat(green.request("TABLE_LEAVE",Map.of()).path("type").asText()).isEqualTo("TABLE_LEFT");
+                green.close();
+                try(var resumedGreen=connect(202,"RESTORED")) {
+                    for(var actor:List.of(resumed,resumedGreen)) {
+                        var restored=actor.request("GAME_STATE_CHECK",Map.of("gameId",game));
+                        assertThat(restored.at("/payload/publicState/status").asText()).isEqualTo("PLAYING");
+                        assertThat(restored.at("/payload/publicState/turnDeadline")).isEqualTo(beforeRefresh.at("/payload/publicState/turnDeadline"));
+                        assertThat(actor.request("WORLD_FACILITY_CATALOG",Map.of()).path("type").asText()).isEqualTo("WORLD_FACILITY_CATALOG");
+                        assertThat(actor.request("WORLD_FACILITY_CHECK",Map.of()).path("type").asText()).isEqualTo("WORLD_FACILITY_STATE");
+                        assertThat(actor.request("WORLD_FOLLOW_CHECK",Map.of()).path("type").asText()).isEqualTo("WORLD_FOLLOW_STATE");
+                        assertThat(actor.request("WORLD_MOVE",Map.of("seq",1,"dx",1,"dz",0,"run",false,"jump",false)).at("/payload/code").asText()).isEqualTo("GAME_RECOVERY_REQUIRED");
+                    }
+                    assertThat(resumed.request("GAME_FORFEIT",Map.of("gameId",game,"actionId","refresh-forfeit")).path("type").asText()).isEqualTo("GAME_FORFEIT_RESULT");
+                    resumedGreen.state("FINISHED");
+                    assertThat(resumed.request("TABLE_LEAVE",Map.of()).path("type").asText()).isEqualTo("TABLE_LEFT");
+                    assertThat(resumedGreen.request("TABLE_LEAVE",Map.of()).path("type").asText()).isEqualTo("TABLE_LEFT");
+                }
             }
         }
     }

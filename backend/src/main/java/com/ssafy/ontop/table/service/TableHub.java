@@ -838,7 +838,7 @@ public class TableHub {
             }
             if (member.accountId() != null && reconnect.isPresent()
                     && !reconnect.get().canUseLobby(member.accountId(), sessionId)
-                    && !restoredChannelJoin(member, request)) {
+                    && !restoredChannelAccess(member, request)) {
                 fail(request, "GAME_RECOVERY_REQUIRED", "현재 경기 복구 상태를 먼저 확인해주세요.");
             }
             switch (request.type()) {
@@ -1089,13 +1089,15 @@ public class TableHub {
                 builder -> builder.tableId(tableId).channelId(tableChannels.get(tableId)));
     }
 
-    /** A recovered participant may re-enter only the channel of the preserved game seat. */
-    private boolean restoredChannelJoin(Member member, Request request) {
-        if (!request.type().equals("CHANNEL_JOIN") || member.accountId() == null || reconnect.isEmpty()) return false;
+    /** Recovery permits the original channel and its read-only boot snapshots, never lobby actions. */
+    private boolean restoredChannelAccess(Member member, Request request) {
+        if (member.accountId() == null || reconnect.isEmpty()) return false;
         String tableId = seating.get(member.userId()), gameId = seatedGames.get(member.userId());
-        return tableId != null && gameId != null
-                && java.util.Objects.equals(tableChannels.get(tableId), request.payload().get("channelId").textValue())
-                && reconnect.get().canControlGame(member.accountId(), member.sessionId(), gameId);
+        String channel = tableId == null ? null : tableChannels.get(tableId);
+        if (channel == null || gameId == null || !reconnect.get().canControlGame(member.accountId(), member.sessionId(), gameId)) return false;
+        if (request.type().equals("CHANNEL_JOIN")) return channel.equals(request.payload().get("channelId").textValue());
+        return Set.of("WORLD_FACILITY_CATALOG", "WORLD_FACILITY_CHECK", "WORLD_FOLLOW_CHECK").contains(request.type())
+                && channels.isInChannel(member.userId(), channel);
     }
 
     private void joinChannel(Member member, Request request) {
