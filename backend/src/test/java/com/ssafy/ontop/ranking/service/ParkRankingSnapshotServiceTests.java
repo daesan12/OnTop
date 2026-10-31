@@ -1,0 +1,132 @@
+package com.ssafy.ontop.ranking.service;
+
+import com.ssafy.ontop.ranking.dto.ParkRankingResponse;
+import com.ssafy.ontop.ranking.exception.RankingException;
+import com.ssafy.ontop.ranking.repository.BoardGameWinsRankingRepository;
+import com.ssafy.ontop.ranking.repository.BoardGameWinsRankingRepository.WinStanding;
+import com.ssafy.ontop.ranking.repository.ParkBalanceRankingRepository;
+import com.ssafy.ontop.ranking.repository.ParkBalanceRankingRepository.BalanceStanding;
+import com.ssafy.ontop.ranking.repository.SingleGameProfitRankingRepository;
+import com.ssafy.ontop.ranking.repository.SingleGameProfitRankingRepository.ProfitStanding;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.scheduling.annotation.Scheduled;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+
+class ParkRankingSnapshotServiceTests {
+    private static final Instant STARTED_AT = Instant.parse("2026-11-02T00:00:00Z");
+    private static final Instant UPDATED_AT = Instant.parse("2026-11-02T01:00:00Z");
+
+    private final ParkBalanceRankingRepository balances = mock(ParkBalanceRankingRepository.class);
+    private final SingleGameProfitRankingRepository profits = mock(SingleGameProfitRankingRepository.class);
+    private final BoardGameWinsRankingRepository wins = mock(BoardGameWinsRankingRepository.class);
+    private final SimpleMeterRegistry meters = new SimpleMeterRegistry();
+    private final Clock clock = Clock.fixed(UPDATED_AT, ZoneOffset.UTC);
+
+    @Test
+    void 최초_집계_전에는_503이고_성공_후에는_세_목록을_같은_시각에_공개한다() {
+        ParkRankingSnapshotService service = service(STARTED_AT.toString());
+        when(balances.findTopTen()).thenReturn(List.of(new BalanceStanding(1, 11, "보유자", 50)));
+        when(profits.findTopTen(STARTED_AT)).thenReturn(List.of(
+                new ProfitStanding(1, 12, "승부사", 9, UPDATED_AT, 101)));
+        when(wins.findTopTen(STARTED_AT)).thenReturn(List.of(
+                new WinStanding(1, 13, "승리자", 3, UPDATED_AT, 102)));
+
+        assertThatThrownBy(service::current).isInstanceOfSatisfying(RankingException.class,
+                error -> assertThat(error.error().code()).isEqualTo("RANKING_UNAVAILABLE"));
+        service.refresh();
+        ParkRankingResponse first = service.current();
+        ParkRankingResponse again = service.current();
+
+        assertThat(first).isSameAs(again);
+        assertThat(first.updatedAt()).isEqualTo(UPDATED_AT);
+        assertThat(first.balance()).extracting(ParkRankingResponse.BalanceItem::userId).containsExactly("11");
+        assertThat(first.singleGameProfit()).extracting(ParkRankingResponse.ProfitItem::profit).containsExactly(9L);
+        assertThat(first.wins()).extracting(ParkRankingResponse.WinsItem::winCount).containsExactly(3L);
+        assertThat(meters.counter("ontop.ranking.park.refresh", "result", "success").count()).isEqualTo(1);
+        verify(balances, times(1)).findTopTen();
+        verify(profits, times(1)).findTopTen(STARTED_AT);
+        verify(wins, times(1)).findTopTen(STARTED_AT);
+    }
+
+    @Test
+    void 일부_집계가_실패하면_마지막_정상_스냅샷을_유지한다() {
+        ParkRankingSnapshotService service = service(STARTED_AT.toString());
+        when(balances.findTopTen()).thenReturn(List.of(new BalanceStanding(1, 11, "보유자", 50)));
+        when(profits.findTopTen(STARTED_AT)).thenReturn(List.of());
+        when(wins.findTopTen(STARTED_AT)).thenReturn(List.of())
+                .thenThrow(new DataAccessResourceFailureException("test-db-down"));
+
+        service.refresh();
+        ParkRankingResponse previous = service.current();
+        service.refresh();
+
+        assertThat(service.current()).isSameAs(previous);
+        assertThat(meters.counter("ontop.ranking.park.refresh", "result", "failure").count()).isEqualTo(1);
+        assertThat(meters.timer("ontop.ranking.park.refresh.duration").count()).isEqualTo(2);
+    }
+
+    @Test
+    void 개발_시작시각이_없으면_기존_서비스는_기동하고_집계는_실행하지_않는다() {
+        ParkRankingSnapshotService service = service("");
+
+        service.refresh();
+
+        assertThatThrownBy(service::current).isInstanceOf(RankingException.class);
+        verifyNoInteractions(balances, profits, wins);
+    }
+
+    @Test
+    void 이전_집계가_끝나지_않았다면_중복_집계를_시작하지_않는다() throws Exception {
+        ParkRankingSnapshotService service = service(STARTED_AT.toString());
+        CountDownLatch entered = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        when(balances.findTopTen()).thenAnswer(invocation -> {
+            entered.countDown();
+            release.await(3, TimeUnit.SECONDS);
+            return List.of();
+        });
+        when(profits.findTopTen(STARTED_AT)).thenReturn(List.of());
+        when(wins.findTopTen(STARTED_AT)).thenReturn(List.of());
+        Thread first = new Thread(service::refresh);
+
+        first.start();
+        try {
+            assertThat(entered.await(3, TimeUnit.SECONDS)).isTrue();
+            service.refresh();
+        } finally {
+            release.countDown();
+            first.join(3_000);
+        }
+
+        assertThat(first.isAlive()).isFalse();
+        verify(balances, times(1)).findTopTen();
+        assertThat(meters.counter("ontop.ranking.park.refresh", "result", "success").count()).isEqualTo(1);
+    }
+
+    @Test
+    void 집계는_시작직후부터_일분_주기로_예약된다() throws Exception {
+        Scheduled schedule = ParkRankingSnapshotService.class.getMethod("refresh").getAnnotation(Scheduled.class);
+
+        assertThat(schedule.fixedRate()).isEqualTo(60_000);
+        assertThat(schedule.initialDelay()).isZero();
+    }
+
+    private ParkRankingSnapshotService service(String startedAt) {
+        return new ParkRankingSnapshotService(balances, profits, wins, meters, startedAt, clock);
+    }
+}
