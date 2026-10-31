@@ -1,3 +1,4 @@
+import { alkkagiLabelElements } from './AlkkagiSpectatorLabels'
 import { intersectAlkkagiBoard } from './boardSpace'
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
@@ -121,6 +122,23 @@ function Scene({ actor, state, replay, enabled, shoot, explain, blockedReason, i
         }
       }
       displayed.current.alive.set(p.id, p.alive)
+    }
+    if (space.current && state?.social) {
+      const rect = gl.domElement.getBoundingClientRect(), point = new Vector3()
+      const positionLabel = (id: string, x: number, y: number) => {
+        const label = alkkagiLabelElements.get(id)
+        if (!label) return
+        point.set(x, .62, y); space.current!.localToWorld(point); point.project(camera)
+        const visible = point.z >= -1 && point.z <= 1 && Math.abs(point.x) <= 1 && Math.abs(point.y) <= 1
+        label.style.display = visible ? '' : 'none'
+        label.style.left = rect.left + (point.x + 1) / 2 * rect.width + 'px'
+        label.style.top = rect.top + (1 - point.y) / 2 * rect.height + 'px'
+      }
+      for (const cursor of state.social.cursors) positionLabel(cursor.id, cursor.x, cursor.y)
+      for (const advice of state.social.advice) {
+        const piece = pieces.find(p => p.id === advice.pieceId)
+        if (piece) positionLabel(advice.id, piece.x + advice.dx * (.5 + advice.power * 2), piece.y + advice.dy * (.5 + advice.power * 2))
+      }
     }
     if (selectionRing.current) {
       selectionRing.current.visible = !!selected.current && enabled

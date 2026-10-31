@@ -23,9 +23,9 @@ export function ParkAlkkagiBoard({anchor}:{anchor:TableAnchor}) {
   const selected=!!binding && session.tableStates[binding.tableId]?.gameCode==='ALKKAGI'
   const focused=relevant && (g?.role==='PLAYER' ? lookScope!==seatScope(session) : spectatorView==='board')
   useLayoutEffect(()=>{
-    if(!focused || !root.current?.parent)return
+    if(!focused || !root.current)return
     const changed:Group[]=[]
-    root.current.parent.traverse(object=>{if(!object.layers.isEnabled(OMOK_FOCUS_LAYER)){object.layers.enable(OMOK_FOCUS_LAYER);changed.push(object as Group)}})
+    root.current.traverse(object=>{if(!object.layers.isEnabled(OMOK_FOCUS_LAYER)){object.layers.enable(OMOK_FOCUS_LAYER);changed.push(object as Group)}})
     return ()=>changed.forEach(object=>object.layers.disable(OMOK_FOCUS_LAYER))
   },[focused,g?.version,socialMarks])
   if(!selected && !relevant)return null

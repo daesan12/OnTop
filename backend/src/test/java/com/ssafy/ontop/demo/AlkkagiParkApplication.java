@@ -10,6 +10,8 @@ import com.ssafy.ontop.auth.service.AccessJwtService;
 import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser;
 import com.ssafy.ontop.auth.websocket.WebSocketAccountLookup;
 import com.ssafy.ontop.user.domain.LoginProvider;
+import com.ssafy.ontop.world.service.WorldProfileGateway;
+import java.util.HashMap;
 import com.ssafy.ontop.game.start.GameStartCommand;
 import com.ssafy.ontop.game.start.GameStartResult;
 import com.ssafy.ontop.game.start.GameStartGateway;
@@ -57,6 +59,15 @@ public final class AlkkagiParkApplication {
         }
         @Bean @Primary WebSocketAccountLookup alkkagiAccounts(ActiveMemberLookup members) {
             return (id,sid) -> members.findActive(id,sid).map(VerifiedWebSocketUser::from);
+        }
+        @Bean WorldProfileGateway alkkagiProfiles() {
+            return ids -> {
+                var result = new HashMap<Long, WorldProfileGateway.Profile>();
+                for (long id : ids) if (Set.of(101L,202L,505L).contains(id))
+                    result.put(id, new WorldProfileGateway.Profile(
+                        id==101 ? "홍팀 로컬" : id==202 ? "청팀 로컬" : "관전 로컬", "MALE"));
+                return Map.copyOf(result);
+            };
         }
         @Bean LocalLedger alkkagiLedger(ApplicationEventPublisher events) { return new LocalLedger(events); }
         @Bean FilterRegistrationBean<OncePerRequestFilter> alkkagiFixtureHttp(AccessJwtService jwt,

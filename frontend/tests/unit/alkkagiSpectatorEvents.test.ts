@@ -30,3 +30,9 @@ test('전송 지연을 반영하고 수신 시 이미 만료된 표시는 버린
   expect(useAlkkagiSocial.getState().marks[0].until-before).toBeLessThanOrEqual(510)
   resetAlkkagiSocial();acceptAlkkagiSocial(event(),'g',3,3100);expect(useAlkkagiSocial.getState().marks).toHaveLength(0)
 })
+
+test('화살표와 이름이 사용할 훈수는 최신 세 개로 한정한다',()=>{
+  for(let i=0;i<4;i++){const e=event('ADVICE');e.payload.senderUserId=String(505+i);acceptAlkkagiSocial(e,'g')}
+  const shown=alkkagiSocialView('g',2,true,'101').advice
+  expect(shown).toHaveLength(3);expect(shown.map(m=>m.label)).toEqual(['506','507','508'])
+})

@@ -146,3 +146,5 @@ BE `AlkkagiMatchTests`, `AlkkagiSocketTests`, FE `tests/unit/alkkagiReplay.test.
 카드 사용 input은 `{type:ITEM_USE,cardId,targetPieceIds,placement?}`, 선택은 `{type:CARD_CHOOSE,choiceId,optionId}`다. 플레이어 경기 채팅은 기존 GAME_SPECTATOR_CHAT_SEND로 같은 경기 승인자에게만 전달한다. 전용 데모의 CURSOR/ADVICE 경로를 공원 소켓으로 임의 우회하지 않으며 공원 관전자 커서/훈수는 ALKKAGI_SPECTATOR_SEND/EVENT로 연결했다. 파란 훈수 화살표는 방향 표시이며 물리 예측이나 실제 발사가 아니다. 상세는 websocket-api/11-alkkagi-spectator-events.md다. 실제 DB/공용 서버 활성화와 구분한다.
 
 카드 선택 표현: 후보3장이 순서대로 펼쳐지고 서버 손패에 새 카드가 들어오면 회전/광선 획득 표시가 1.9초 나타난다. 클릭은 즉시 서버에 전달하며 선택10초·자동선택·턴30초는 변경하지 않는다. 최초 손패 조회는 획득으로 연출하지 않는다. 움직임 줄이기 설정에서는 회전 효과를 생략한다. 관전 채팅은 어두운 배경과 최대3줄로 판 위에서도 대비를 유지한다.
+
+공원 집중 보기에서는 장기판 root만 오목과 같은 집중 레이어에 등록해 돌탁자·위아래 벤치를 숨긴다. 주변 보기에서는 기존 공원 가구가 다시 보인다. 관전자 이름은 서버 공개 프로필의 nickname을 실제 커서/훈수와 같은 위치에 DOM으로 표시한다(훈수 최신3개). 오목/알까기 집중 보기의 렌더 예산은 동일하게 최대FullHD·DPR1로 고정하고, 주변 보기/종료에서는 기존 공원 화질 예산과 적응형 해상도를 사용한다. 더 많은 픽셀을 그리므로 GPU 비용은 늘 수 있으며 FPS 개선으로 해석하지 않는다.
