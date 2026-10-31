@@ -1040,7 +1040,7 @@ export class ParkRuntime implements ParkRuntimePort {
   setReady = (ready: boolean) =>
     this.action(async () => {
       const s = useSession.getState()
-      if (tableBusy() || !['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE'].includes(s.tableStates[s.tableId]?.gameCode ?? ''))
+      if (tableBusy() || !['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE', 'ALKKAGI'].includes(s.tableStates[s.tableId]?.gameCode ?? ''))
         throw new Error('플레이 가능한 게임을 선택한 대기 테이블에서 준비해주세요.')
       const table = s.tableStates[s.tableId]
       if (ready && !isTableGamePlayable(table.gameCode)) throw new Error(GAME_CONSTRUCTION_NOTICE)
@@ -1240,6 +1240,22 @@ export class ParkRuntime implements ParkRuntimePort {
       if (generation === this.generation && useGame.getState().permittedGameId === g.gameId)
         useGame.setState({ uncertain: !(error instanceof ServerError && ['GAME_ACTION_INVALID_ACTION', 'GAME_ACTION_NOT_YOUR_TURN'].includes(error.code)),
           error: error instanceof Error ? error.message : '원카드 처리 결과를 확인해주세요.' })
+      throw error
+    } finally { if (generation === this.generation) useGame.setState({ pending: false }) }
+  })
+  actAlkkagi = (input: Record<string, unknown>) => this.action(async () => {
+    const own = useSession.getState(), s = useGame.getState(), g = s.game
+    if (own.status !== 'connected' || !g?.alkkagi || g.role !== 'PLAYER' || g.gameId !== s.permittedGameId
+      || s.recovery !== 'RESTORED' || s.pending || s.uncertain || g.version < s.awaitingVersion
+      || g.alkkagi.status !== 'PLAYING' || (input.type !== 'CARD_CHOOSE' && g.alkkagi.turnUserId !== own.sessionId))
+      throw new Error('본인 차례와 최신 알까기 상태를 확인해주세요.')
+    const generation = this.generation
+    useGame.setState({ pending: true, error: '' })
+    try {
+      await this.socket.request('GAME_ACTION_SEND', { gameId: g.gameId, actionId: crypto.randomUUID(), expectedVersion: g.version, input }, ['GAME_ACTION_RESULT'])
+    } catch (error) {
+      if (generation === this.generation && useGame.getState().permittedGameId === g.gameId)
+        useGame.setState({ uncertain: !(error instanceof ServerError), error: error instanceof Error ? error.message : '알까기 처리 결과를 확인해주세요.' })
       throw error
     } finally { if (generation === this.generation) useGame.setState({ pending: false }) }
   })

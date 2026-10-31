@@ -9,6 +9,7 @@
   },
   "scripts": {
     "dev": "vite",
+    "dev:alkkagi-park": "vite --config vite.alkkagi-park.config.ts --mode frontend-test --open /alkkagi-park.html?role=red",
     "dev:park": "vite --mode park-integration --host localhost --port 5202 --strictPort",
     "build:park": "node scripts/generate-park-map.mjs && node scripts/export-jumpmap-course.mjs && node scripts/publish-rulebooks.mjs && tsc --noEmit && vite build --mode park-integration --outDir dist-park",
     "dev:layout": "vite --mode layout-preview --host 127.0.0.1 --port 5201 --strictPort",

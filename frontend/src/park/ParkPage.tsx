@@ -68,7 +68,7 @@ export function ParkPage(props: ParkProps) {
 function ParkContent({ onExit, exitError, onAuthEnded }: ParkProps) {
   useJumpmapController()
   const bungeoppang = useBungeoppang(s => s.phase !== 'idle')
-  const omokFocus = useGame(s => s.game?.omok?.status === 'PLAYING' && !s.lastResult)
+  const omokFocus = useGame(s => (s.game?.omok?.status === 'PLAYING' || s.game?.alkkagi?.status === 'PLAYING') && !s.lastResult)
   const omokChat = useGame(s => s.game?.omok?.status === 'PLAYING' && !s.lastResult)
   const session = useSession(useShallow(s=>({ sessionId:s.sessionId,roomId:s.roomId })))
   // Everyone plays on the Low preset; the graphics choice is not offered.

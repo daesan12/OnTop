@@ -59,4 +59,12 @@ public class GameFinishedResultListener {
         // 엔진의 일회성 종료 통지가 유실되어도 DB 종결 정보로 SETTLING 진입을 복구한다.
         tables.ifPresent(hub -> hub.roundEnded(event.tableId(), event.result().gameSessionId()));
     }
+
+    @EventListener
+    public void finished(GameFinished event) {
+        // 기존 네 엔진은 위 전용 알림을 사용한다. 알까기는 공통 종료 알림으로 연결한다.
+        if (!"ALKKAGI".equals(event.gameCode())) { return; }
+        tables.ifPresent(hub -> hub.roundEnded(event.tableId(), event.gameId()));
+        results.finished(event.gameId(), event.participants().stream().map(GameFinished.Participant::userId).toList());
+    }
 }

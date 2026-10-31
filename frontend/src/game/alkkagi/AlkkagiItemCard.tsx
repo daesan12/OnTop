@@ -1,3 +1,4 @@
+import './cards.css'
 import { useState, type CSSProperties } from 'react'
 import wall from './assets/cards/wall.webp'
 import relocate from './assets/cards/relocate.webp'

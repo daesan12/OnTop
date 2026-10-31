@@ -102,9 +102,9 @@ FORFEIT(gameId/actionId)은 자신의 명시적 기권이다. 같은 actionId는
 
 `AlkkagiEngine`은 기존 GameEngine/Router의 입력·상태·기권·복구를 구현하고 `startCommitted(command,result)`에서 ALKKAGI·2명·전원 예약 커밋 계약을 확인한다. 실제 예약/차감 요청이나 DB 저장을 만들지 않는다. 공개 gameId는 서버의 외부 경기 ID, players는 참가자 순서의 회원 ID 문자열이며 내부 actor0/1과 매핑한다. publicState는 gameCode/status/tableId/turnUserId/winnerUserId와 공개 판, privateState는 해당 회원 손패만 담는다. 복구 state는 기존 원카드와 같은 publicState/privateState 객체다. 알까기 시간 필드는 epoch ms다.
 
-공통 요청은 기존 GAME_ACTION_SEND payload 안의 gameId/actionId/expectedVersion/input을 사용한다. input은 로컬 SHOT/ITEM_USE/CARD_CHOOSE에서 type과 행동 필드만 남긴 형태다. 기권은 기존 GAME_FORFEIT, 상태는 기존 GAME_STATE_CHECK/관전 경로를 재사용할 수 있다. 이 어댑터는 일반 앱에 자동 등록하지 않았고, 검증에서는 예약 완료 계약 대역을 사용했다. 새 인증을 만들거나 팀원 DB 예약·정산 코드를 수정하지 않았다.
+공통 요청은 기존 GAME_ACTION_SEND payload 안의 gameId/actionId/expectedVersion/input을 사용한다. input은 로컬 SHOT/ITEM_USE/CARD_CHOOSE에서 type과 행동 필드만 남긴 형태다. 기권은 기존 GAME_FORFEIT, 상태는 기존 GAME_STATE_CHECK/관전 경로를 재사용할 수 있다. 이 어댑터는 local에서 명시적으로 활성화하는 Configuration과 공원 연결 경로를 추가했다. dev/prod의 기본 등록은 하지 않았으며 검수 서버에서는 예약 완료 계약 대역을 사용한다. 새 인증을 만들거나 팀원 DB 예약·정산 코드를 수정하지 않았다.
 
-**실제 공원/DB 활성화는 완료가 아니다.** 현재 CommittedGameStartService의 지원 목록·게임 선택 카탈로그와 DB 종료 검증 VerifiedGameFinish.REASONS에 ALKKAGI가 없다. DB의 게임 종류 등록, 시작 호출 연결, 종료 사유/무승부/물리 실패 무효·환급 계약을 담당자와 함께 반영해야 한다. 현재 어댑터의 GameFinished를 기존 DB 소비자에 바로 연결하면 거절된다. SIMULATION_INVALID/LIMIT는 로컬 검증 종료이며 금전 결과로 사용하면 안 된다. 변경이 필요한 DB/공통 시작 서비스는 이번 작업에서 건드리지 않았고, Flyway/새 스키마도 만들지 않았다.
+**실제 공원/DB 활성화는 완료가 아니다.** CommittedGameStartService 지원과 DEV 명시 플래그의 게임 선택 카탈로그는 연결했다. DB 종료 검증 VerifiedGameFinish.REASONS 등 실제 DB 계약은 아직 ALKKAGI를 지원하지 않는다. DB의 게임 종류 등록, 시작 호출 연결, 종료 사유/무승부/물리 실패 무효·환급 계약을 담당자와 함께 반영해야 한다. 현재 어댑터의 GameFinished를 기존 DB 소비자에 바로 연결하면 거절된다. SIMULATION_INVALID/LIMIT는 로컬 검증 종료이며 금전 결과로 사용하면 안 된다. DB 구현·Flyway·스키마는 변경하지 않았다. 공통 시작 서비스는 엔진 존재 확인/예약 확정 후 호출만 추가했다.
 
 ## 화면·검증
 

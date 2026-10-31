@@ -2,13 +2,16 @@ import type { TableState } from '../../network/protocol'
 import type { StartState } from '../../game/protocol'
 import { tableBusy, type useGame } from '../../game/store'
 
-export const TABLE_GAMES = [
+export const ALKKAGI_LOCAL_ENABLED = import.meta.env.DEV && import.meta.env.VITE_ALKKAGI_ENABLED === 'true'
+const GAME_OPTIONS = [
+  { code: 'ALKKAGI', name: '아이템 알까기', capacity: 2, playable: ALKKAGI_LOCAL_ENABLED },
   { code: 'OMOK', name: '오목', capacity: 2, playable: true },
   { code: 'DICE', name: '주사위 한 판', capacity: 2, playable: false },
   { code: 'ONE_CARD', name: '원카드', capacity: 4, playable: true },
   { code: 'LIAR_BRIDGE', name: '거짓말 다리 건너기', capacity: 4, playable: false },
 ] as const
-export type TableGameCode = typeof TABLE_GAMES[number]['code']
+export const TABLE_GAMES = GAME_OPTIONS.filter(game => game.code !== 'ALKKAGI' || ALKKAGI_LOCAL_ENABLED)
+export type TableGameCode = typeof GAME_OPTIONS[number]['code']
 export const GAME_CONSTRUCTION_NOTICE = '공사 중인 게임입니다. 오목 또는 원카드를 선택해주세요.'
 export const isTableGamePlayable = (code: string | null | undefined) => TABLE_GAMES.some(game => game.code === code && game.playable)
 export const TARGET_SCORES = [2000, 4000, 6000] as const

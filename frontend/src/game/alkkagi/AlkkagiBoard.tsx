@@ -1,6 +1,7 @@
+import { intersectAlkkagiBoard } from './boardSpace'
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { ArrowHelper, Group, Mesh, OrthographicCamera, Plane, Vector2, Vector3 } from 'three'
+import { ArrowHelper, Group, Mesh, OrthographicCamera, Plane, Ray, Vector2, Vector3 } from 'three'
 import { AlkkagiReplay, type Piece, type Snapshot } from './replay'
 import { draggedShot, launchResponse } from './aimInput'
 import { exitFlight } from './flight'
@@ -14,7 +15,7 @@ export function AlkkagiBoard(props: Parameters<typeof Scene>[0]) {
     <BoardProjection />
     <color attach="background" args={['#253d37']} /><ambientLight intensity={1.8} />
     <directionalLight position={[3, 10, 6]} intensity={2.5} castShadow shadow-mapSize={[1024, 1024]} />
-    <PieceAppearanceProvider><Scene {...props} /></PieceAppearanceProvider>
+    <AlkkagiScene {...props} />
   </Canvas>
 }
 
@@ -28,10 +29,21 @@ function BoardProjection() {
   return null
 }
 
+export function AlkkagiScene(props: Parameters<typeof Scene>[0]) {
+  return <PieceAppearanceProvider><Scene {...props} /></PieceAppearanceProvider>
+}
+
 type Aim = { piece: Piece; origin: Vector3; end: Vector3; start: { x: number; y: number }
   moved: number; pointerId: number; gameId: string; version: number }
 function Scene({ actor, state, replay, enabled, shoot, explain, blockedReason, itemMode, itemTargets, pickTarget, cancelItem, placement, pickPlacement, pinned, previewValid, rotatePlacement, cursor }: { actor: number; state: Snapshot | null; replay: AlkkagiReplay; enabled: boolean
   shoot(p: Piece, dx: number, dy: number, power: number): void; explain(message: string): void; blockedReason: string; itemMode: string | null; itemTargets: string[]; pickTarget(piece: Piece): void; cancelItem(): void; placement: { x: number; y: number; angle: number } | null; pickPlacement(x: number, y: number, pin?: boolean): void; pinned: boolean; previewValid: boolean; rotatePlacement(delta: number): void; cursor(x: number, y: number): void }) {
+  const space = useRef<Group>(null)
+  const localPoint = (point: Vector3) => space.current!.worldToLocal(point.clone())
+  const hitPlane = (ray: Ray) => {
+    if (!space.current) return null
+    space.current.updateWorldMatrix(true, false)
+    return intersectAlkkagiBoard(ray, space.current.matrixWorld, floor)
+  }
   const groups = useRef(new Map<string, Group>())
   const displayed = useRef({ gameId: '', generation: -1, alive: new Map<string, boolean>(), flights: new Map<string, number>() })
   const { gl, camera, raycaster } = useThree()
@@ -47,7 +59,7 @@ function Scene({ actor, state, replay, enabled, shoot, explain, blockedReason, i
       const rect = canvas.getBoundingClientRect()
       raycaster.setFromCamera(new Vector2((event.clientX - rect.left) / rect.width * 2 - 1,
         -(event.clientY - rect.top) / rect.height * 2 + 1), camera)
-      return raycaster.ray.intersectPlane(floor, new Vector3())
+      return hitPlane(raycaster.ray)
     }
     const move = (event: PointerEvent) => {
       const a = aim.current, p = point(event)
@@ -69,7 +81,7 @@ function Scene({ actor, state, replay, enabled, shoot, explain, blockedReason, i
       } else explain(`${a.piece.type} 선택됨 · 클릭/작은 흔들림으로는 발사되지 않습니다. 누른 채 당겨주세요.`)
     }
     const key = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') clear()
+      if (e.key === 'Escape') { clear(); cancelItem() }
       if (itemMode === 'WALL' && !['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName)
         && ['q', 'e', 'Q', 'E'].includes(e.key)) { e.preventDefault(); rotatePlacement(e.key.toLowerCase() === 'q' ? -Math.PI / 12 : Math.PI / 12) }
     }
@@ -124,14 +136,14 @@ function Scene({ actor, state, replay, enabled, shoot, explain, blockedReason, i
       arrow.setLength(2.5 * launchResponse(Math.min(1, length / 2.5), state?.inputCurveBoost ?? 0), .25, .14)
     }
   })
-  return <>
+  return <group ref={space}>
     <AlkkagiBoardSurface onPointerDown={e => {
       if (e.button === 0 && enabled && (itemMode === 'WALL' || itemMode === 'RELOCATE')) {
-        e.stopPropagation(); pickPlacement(e.point.x, e.point.z, true)
+        e.stopPropagation(); pickPlacement(localPoint(e.point).x, localPoint(e.point).z, true)
       }
     }} onPointerMove={e => {
-      cursor(e.point.x, e.point.z)
-      if (enabled && itemMode === 'WALL' && !pinned) pickPlacement(e.point.x, e.point.z)
+      cursor(localPoint(e.point).x, localPoint(e.point).z)
+      if (enabled && itemMode === 'WALL' && !pinned) pickPlacement(localPoint(e.point).x, localPoint(e.point).z)
     }} />
     {pieces.map(piece => <group key={`${state!.gameId}-${piece.id}-${piece.radius}`} ref={g => { if (g) groups.current.set(piece.id, g); else groups.current.delete(piece.id) }}>
       <AlkkagiPiece piece={piece} onPointerDown={e => {
@@ -149,7 +161,7 @@ function Scene({ actor, state, replay, enabled, shoot, explain, blockedReason, i
           else explain('아이템 확정 또는 취소를 먼저 눌러주세요.')
           return
         }
-        const origin = e.ray.intersectPlane(floor, new Vector3())
+        const origin = hitPlane(e.ray)
         if (!origin) return
         gl.domElement.setPointerCapture(e.pointerId)
         selected.current = piece
@@ -185,7 +197,7 @@ function Scene({ actor, state, replay, enabled, shoot, explain, blockedReason, i
     <mesh ref={selectionRing} visible={false} rotation={[-Math.PI / 2, 0, 0]} raycast={() => {}}>
       <ringGeometry args={[1, 1.13, 48]} /><meshBasicMaterial color="#fff38b" depthWrite={false} />
     </mesh>
-  </>
+  </group>
 }
 
 function AdviceArrow({ x, y, dx, dy, power }: { x: number; y: number; dx: number; dy: number; power: number }) {

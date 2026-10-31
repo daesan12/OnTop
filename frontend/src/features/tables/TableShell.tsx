@@ -1,3 +1,4 @@
+import { ParkAlkkagiBoard } from '../../game/alkkagi/ParkAlkkagiBoard'
 import { SIMPLE_MAP } from '../../world/art/mapRenderProfile'
 import { useMemo } from 'react'
 
@@ -106,6 +107,7 @@ export function TableShell({ anchor, onInspect = interactWithTable }: {
           </Instances>
         </>
       )}
+      <ParkAlkkagiBoard anchor={anchor} />
       <OmokBoard anchor={anchor} />
       <FarkleTable anchor={anchor} />
       <OneCardBoard anchor={anchor} />

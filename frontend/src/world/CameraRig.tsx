@@ -282,6 +282,15 @@ export function CameraRig() {
         state.desired.set(anchor.position[0] + Math.sin(yaw) * radius,
           Math.min(anchor.position[1] + 2.8, spectatorClearHeight(anchor.pavilionId)), anchor.position[2] + Math.cos(yaw) * radius)
       }
+    } else if (game?.alkkagi && ((seated && avatar.tableId && game.role === 'PLAYER') || (game.role === 'SPECTATOR' && (closeAnchor || watchedAnchor)))) {
+      const anchor = game.role === 'PLAYER' ? TABLES.find(t => t.id === avatar.tableId)! : (closeAnchor ?? watchedAnchor)!
+      if (anchor) {
+        const seat = tableSeats(anchor)[session.seatIndex] ?? tableSeats(anchor)[0]!
+        const scale = tableScale(anchor), side = game.role === 'PLAYER' ? Math.sign(seat.z) || 1 : 1
+        const fit = camera instanceof PerspectiveCamera ? Math.max(1, 1.15 / camera.aspect) : 1
+        state.look.set(anchor.position[0], anchor.position[1] + 1.14, anchor.position[2])
+        state.desired.set(state.look.x + .12 * scale, state.look.y + 2.0 * scale * fit, state.look.z + side * 1.05 * scale * fit)
+      }
     } else if (seated && avatar.tableId && oneCardPlayerViewActive(game)) {
       const anchor = TABLES.find(t => t.id === avatar.tableId)
       if (anchor) {
@@ -410,7 +419,7 @@ export function CameraRig() {
       )
       state.look.copy(center)
     }
-    const targetFov = tablet ? 43 : gathering ? ownOmok ? 60 : CAMERA.fov : seated && oneCardPlayerViewActive(game) ? ONECARD_CAMERA.fov : diceFocus ? DICE_CAMERA.fov : boardFocus || spectatorBoard ? GOMOKU.topDownFov : seated ? GOMOKU.seatedFov : CAMERA.fov
+    const targetFov = tablet ? 43 : game?.alkkagi ? 42 : gathering ? ownOmok ? 60 : CAMERA.fov : seated && oneCardPlayerViewActive(game) ? ONECARD_CAMERA.fov : diceFocus ? DICE_CAMERA.fov : boardFocus || spectatorBoard ? GOMOKU.topDownFov : seated ? GOMOKU.seatedFov : CAMERA.fov
     const smoothingOmok = focusedOmok || ownOmok || state.omokTransition
     const smoothingDice = ownDice || state.diceTransition
     const smoothingBoard = smoothingOmok || smoothingDice

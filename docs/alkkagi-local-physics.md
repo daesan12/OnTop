@@ -128,3 +128,19 @@ BE `AlkkagiMatchTests`, `AlkkagiSocketTests`, FE `tests/unit/alkkagiReplay.test.
 현재 조작: 처음 알을 누른 채 드래그하고 놓으면 바로 발사한다. 클릭·미세 흔들림은 발사하지 않는다. 이전 두 제스처 방식은 사용자 요청으로 제거했다.
 
 2026-10-31 사용자가 실제 조작 후 선택한30/60/1을 기본값으로 저장했다. 프로필/응답곡선은 그대로이고, 실제 기본 최대속도는 소형30/중형27.5/왕25다. 아래 분석·비교 문서의12/18/.55는 이전 후보 측정이며 원시 결과를 덮어쓰지 않는다.
+
+## 로컬 공원 연결 (2026-10-31)
+
+전용 물리 테스트 페이지와 별개로 실제 공원 테이블의 선택→착석→준비→방장 시작→공용 경기 입력/상태→기권/복구→다음 판 경로를 연결한다. `ALKKAGI`는2인 게임이며, 로컬 엔진은 `ontop.games.alkkagi.enabled=true`를 명시한 local에서만 등록한다. DEV/운영 자동 활성화는 하지 않는다. 실제 지갑/DB 예약·정산 구현과 스키마는 변경하지 않았다.
+
+- BE: Java21에서 `./gradlew.bat alkkagiPark` → loopback19184. 테스트 classpath의 AlkkagiParkApplication이 메모리 검수 계정101/202/505·시작/결과 대역을 제공한다. 실제 재화는 변하지 않으며 표시 잔액10,000과 증감0은 검수용 값이다. 회원 검증 대역 뒤의 Access JWT 검사·1회용 웹소켓 티켓·공원 소켓은 기존 경로를 그대로 사용한다. 이 도구와 고정 테스트 서명값은 운영 JAR에 포함되지 않는다.
+- FE: `pnpm dev:alkkagi-park` → `http://127.0.0.1:5207/alkkagi-park.html?role=red`. green/viewer 링크는 별도 창으로 연다. 채널A 선택 →1번 탁자 확인 →앉기 →아이템 알까기/판돈 설정 →두 명 준비 →방장이 시작. 로컬 테스트 전용 로그인 진입이며 정식 로그인 변경이 아니다.
+- 공원 렌더링: 기존 TableShell의 같은 Canvas 안에 판/알을 배치한다. 별도 전체 게임창/초록 배경/두 번째 게임 Canvas는 없다. 공원 카메라가 실제 테이블을 비스듬히 내려다보고 HUD·손패만 겹친다. 테이블의 위치·회전·배율을 역변환해 포인터를 서버 판 좌표로 계산한다. 물리30/60/1·장외·카드 효과는 변경하지 않는다.
+
+공통 소켓 계약: TABLE_CONFIGURE/GAME_SELECT의 gameCode=`ALKKAGI`, 정원2, targetScore없음. 기존 TABLE_GAME_START·GAME_START_STATE·GAME_CONNECTION_STATE·GAME_STATE·GAME_FORFEIT를 재사용한다. 공개 상태 gameCode/status/players/turnUserId와 알까기 Snapshot을 묶고 privateState는 본인 cards/choice만 포함한다. 관전자 privateState는빈객체다. 종료는 공통 GameFinished를 테이블 종료 연결부에 전달한다. 실제 DB 정산이 없는 로컬 검수에서는 테스트 결과 대역만 다음 판을 연다.
+
+발사 예시(공원):
+```json
+{ "requestId": "요청식별자", "type": "GAME_ACTION_SEND", "payload": { "gameId": "서버 확정 경기 ID", "actionId": "UUID", "expectedVersion": 1, "input": { "type": "SHOT", "pieceId": "p13", "dx": 0, "dy": -1, "power": 0.8 } } }
+```
+카드 사용 input은 `{type:ITEM_USE,cardId,targetPieceIds,placement?}`, 선택은 `{type:CARD_CHOOSE,choiceId,optionId}`다. 플레이어 경기 채팅은 기존 GAME_SPECTATOR_CHAT_SEND로 같은 경기 승인자에게만 전달한다. 전용 데모의 CURSOR/ADVICE 경로를 공원 소켓으로 임의 우회하지 않으며 공원 관전자 커서/유령샷은 아직 별도 연결이 필요하다. 실제 DB/공용 서버 활성화와 구분한다.

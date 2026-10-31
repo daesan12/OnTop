@@ -2721,7 +2721,7 @@ public class TableHub {
             fail(request, "GAME_SPECTATOR_ACCESS_DENIED", "관전이 승인된 경기에서만 보낼 수 있습니다.");
         }
         if (ping && !"OMOK".equals(push.gameCode)
-                || !Set.of("OMOK", "DICE", "ONE_CARD", "LIAR_BRIDGE").contains(push.gameCode)) {
+                || !Set.of("OMOK", "DICE", "ONE_CARD", "LIAR_BRIDGE", "ALKKAGI").contains(push.gameCode)) {
             fail(request, "GAME_SPECTATOR_UNSUPPORTED_GAME", "지원하는 경기 채팅 또는 오목 위치 추천을 이용해주세요.");
         }
         if (!"PLAYING".equals(push.status)) {

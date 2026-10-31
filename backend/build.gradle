@@ -56,6 +56,15 @@ tasks.register('alkkagiDemo', JavaExec) {
     javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
 }
 
+tasks.register('alkkagiPark', JavaExec) {
+    description = '127.0.0.1:19184 로컬 공원 알까기 연결 검수 (실제 DB/재화 없음, 운영 JAR 제외)'
+    group = 'verification'
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.ssafy.ontop.demo.AlkkagiParkApplication'
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
+}
+
 tasks.named('test') {
     useJUnitPlatform {
         excludeTags 'mysql'
