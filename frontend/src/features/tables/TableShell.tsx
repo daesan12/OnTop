@@ -16,6 +16,7 @@ import { OneCardBoard } from '../../game/onecard/OneCardBoard'
 import { BridgeBoard } from '../../game/bridge/BridgeBoard'
 import { LedgerTable } from '../../game/ledger/LedgerTable'
 import { usePresentedChairCount } from '../tableLobby/useTablePresentation'
+import {DebrisGameSurface} from '../parkDebris/presentation'
 
 /** Stable game/seat anchors survive replacement of the visual table subtree. */
 export function TableShell({ anchor, onInspect = interactWithTable }: {
@@ -107,11 +108,13 @@ export function TableShell({ anchor, onInspect = interactWithTable }: {
           </Instances>
         </>
       )}
-      <OmokBoard anchor={anchor} />
-      <FarkleTable anchor={anchor} />
-      <OneCardBoard anchor={anchor} />
-      <BridgeBoard anchor={anchor} />
-      <LedgerTable anchor={anchor} />
+      <DebrisGameSurface anchorId={anchor.id}>
+        <OmokBoard anchor={anchor} />
+        <FarkleTable anchor={anchor} />
+        <OneCardBoard anchor={anchor} />
+        <BridgeBoard anchor={anchor} />
+        <LedgerTable anchor={anchor} />
+      </DebrisGameSurface>
     </group>
   )
 }

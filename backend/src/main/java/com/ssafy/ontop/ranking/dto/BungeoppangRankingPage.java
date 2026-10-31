@@ -12,5 +12,7 @@ public record BungeoppangRankingPage(String rulesVersion,
         Instant updatedAt, long totalParticipants, List<Item> items, @Schema(nullable = true) Item me,
         @Schema(nullable = true) String nextCursor) {
     @Schema(name = "BungeoppangRankingItem")
-    public record Item(long rank, String userId, String nickname, long made, long failed, Instant completedAt) { }
+    public record Item(long rank, String userId, String nickname, long made, long failed,
+            Instant completedAt, long score, long maxCombo) {
+    }
 }

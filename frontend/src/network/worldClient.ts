@@ -43,6 +43,7 @@ import { sameEquipment, type PublicEquipment } from './equipment'
 import { resetFollow } from '../features/follow/state'
 import { resetBenchSpectator } from '../features/interactions/benchSpectator'
 import { defeatTimeline, parseGameReaction } from '../game/presentation/defeat'
+import {acceptParkDebris,parseParkDebris,resetParkDebris} from '../features/parkDebris/state'
 import { receiveJumpmap, resetJumpmap } from '../features/jumpmap/state'
 
 export interface Pose {
@@ -192,6 +193,7 @@ export function showMovementNotice(message: string, sequence: number) {
   }, 3000)
 }
 export function resetWorld(status: Session['status'] = 'idle', error = '') {
+  resetParkDebris()
   resetJumpmap()
   localMovement.reset()
   remoteMovement.reset()
@@ -220,6 +222,7 @@ export function resetWorld(status: Session['status'] = 'idle', error = '') {
   useSession.setState({ ...initial(), status, error })
 }
 export function clearChannel(keepFeedbackDraft = false, keepNotesDraft = false) {
+  resetParkDebris()
   resetJumpmap()
   localMovement.reset()
   remoteMovement.reset()
@@ -489,7 +492,7 @@ export function receive(message: Envelope, expectedMapVersion: string = EXPECTED
       worldVersion = next.version
       const mapCompatible = next.mapVersion === expectedMapVersion
       if (!mapCompatible || state.mapVersion && state.mapVersion !== next.mapVersion) remoteMovement.reset()
-      if (!mapCompatible) { defeatTimeline.clear(); resetBenchState(); resetFitnessState(); resetTelescopeState(); resetFeedbackState(true); resetNotesState(true); clearRoamingInput() }
+      if (!mapCompatible) { defeatTimeline.clear(); resetParkDebris(); resetBenchState(); resetFitnessState(); resetTelescopeState(); resetFeedbackState(true); resetNotesState(true); clearRoamingInput() }
       const ids = next.avatars.map((a) => a.userId),
         now = performance.now()
       // Preserve the last approved values while the server's async profile read is pending.
@@ -683,6 +686,14 @@ export function receive(message: Envelope, expectedMapVersion: string = EXPECTED
           [chat.userId]: { ...chat, expiresAt: performance.now() + OVERHEAD.bubbleDurationMs },
         },
       })
+      break
+    }
+    case 'WORLD_PARK_DEBRIS_STATE': {
+      if(message.requestId!==null||state.status!=='connected'||!state.mapCompatible||p.channelId!==state.roomId||p.mapVersion!==expectedMapVersion)return
+      const snapshot=parseParkDebris(p)
+      if(snapshot.items.some(item=>!TABLES.some(t=>t.id===item.anchorId)
+        ||state.bindings.some(b=>b.channelId===snapshot.channelId&&b.anchorId===item.anchorId&&b.tableId!==item.tableId)))return
+      acceptParkDebris(snapshot)
       break
     }
     case 'WORLD_GAME_REACTION': {

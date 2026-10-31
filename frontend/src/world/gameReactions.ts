@@ -1,7 +1,7 @@
 import { useGame } from '../game/store'
 import { DEFEAT_DURATION, defeatTimeline } from '../game/presentation/defeat'
 import { authoritativePose, useSession, type AvatarSnapshot } from '../network/worldClient'
-import { TABLES } from '../config'
+import { TABLES } from '../park/mapConfig'
 
 const anchors = new Map(TABLES.map(t => [t.id, t]))
 

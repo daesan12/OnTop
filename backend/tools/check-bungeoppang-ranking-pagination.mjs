@@ -47,7 +47,7 @@ try {
     'v5', '42', signal, first.nextCursor, 120000), /RANKING_SNAPSHOT_EXPIRED/)
   const fresh = await fetchRanking(request(wire.fresh), 'v5', '42', signal, undefined, 120000)
   assert.equal(fresh.me.rank, 1)
-  assert.equal(fresh.me.made, 200)
+  assert.equal(fresh.me.score, 200)
   assert.notEqual(fresh.snapshotId, first.snapshotId)
   assert.throws(() => appendRanking(first, fresh), /랭킹 응답/)
   const empty = parseRanking(wire.empty, 'v4', '42')

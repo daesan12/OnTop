@@ -83,13 +83,14 @@ application.yml은 기본 enabled=false, `(local | dev) & !prod & !production`�
 | Minigame | GET /api/v1/minigames/sessions/{sessionId} | Access JWT·본인 세션 | 200 |
 | Minigame | POST /api/v1/minigames/sessions/{sessionId}/complete | Access JWT·본인 세션 | 200 |
 | Minigame | POST /api/v1/minigames/sessions/{sessionId}/abandon | Access JWT·본인 세션 | 200 |
+| Minigame | POST /api/v1/minigames/sessions/{sessionId}/manual-pause | Access JWT·본인 세션·일시정지 버전 | 200 |
 | Feedback | POST /api/v1/feedback | Access JWT·위치/활동 검사 | 201 |
 | Feedback | GET /api/v1/admin/feedback | Access JWT·서버 관리자 ID 목록 | 200 |
 | Notes | POST /api/v1/notes | Access JWT·위치/활동 검사 | 201 |
 | Notes | GET /api/v1/notes | Access JWT·위치/활동 검사 | 200 |
 
-**정적 export는 34개 경로·38개 operation**이다. OpenApiLocalTests가 Feedback/Notes를 켜고 생성한다.
-local/dev는 회원 WebSocket 인증 기본값과 Feedback/Notes 비활성 기준으로 34개 operation이며,
+**정적 export는 35개 경로·39개 operation**이다. OpenApiLocalTests가 Feedback/Notes를 켜고 생성한다.
+local/dev는 회원 WebSocket 인증 기본값과 Feedback/Notes 비활성 기준으로 35개 operation이며,
 두 기능을 켜면 각각 2개씩 추가되어 local/dev 모두 38개다.
 WebSocket 인증을 local에서 명시적으로 끄면 Ticket API 1개가 제외된다.
 Shop/Minigame/Notes는 local/dev 또는 운영 `prod,db`에서 기능별 설정으로 등록할 수 있다. 운영 배포에서는 기본 비활성이다. Feedback는 별도 기능 플래그를 따른다.

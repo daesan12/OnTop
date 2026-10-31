@@ -6,7 +6,7 @@
 
 붕어빵 전체 랭킹을 **개인 최고 점수 → 해당 경기의 최대 연속 콤보** 순서로 집계해 주세요. 점수와 최대 콤보가 모두 같으면 공동 순위이며, 먼저 완료한 기록이 위에 표시되어야 합니다. 완성 개수(`made`)·실수 횟수(`failed`)는 순위·동점 판정에 사용하지 않습니다.
 
-FE의 표시·응답 검증은 이 계약으로 수정했습니다. 이번 작업에서 BE 소스는 수정하지 않았습니다. 현재 BE 응답에는 `score`·`maxCombo`가 없으므로 FE는 준비 안내를 표시합니다. **실제 전체 순위 전환에는 BE 집계·응답 변경과 배포가 필요합니다.**
+2026-10-31: BE 집계·DTO에도 이 계약을 반영했습니다. 같은 세션의 `score`·`maxCombo`, 공동 순위, 고정 페이지와 2분·3분 분리를 MySQL 8.4 및 FE 파서로 검증했습니다. 운영 전체 순위 전환에는 해당 BE 배포가 필요합니다. 아래 기존 코드 설명은 변경 전 상태입니다.
 
 ## 집계 규칙
 
@@ -18,7 +18,7 @@ FE의 표시·응답 검증은 이 계약으로 수정했습니다. 이번 작�
 6. 기존 정상 완료·정산 조건을 유지합니다: 붕어빵 세션 `COMPLETED`·`ended_at`, 라운드 `terminal_reason=VERIFIED`·`settled_at`, 요청한 `rules_version`, 탈퇴하지 않은 회원. 미완료·기권·INVALID·미정산 기록은 제외합니다.
 7. 정상 정산된 0점·최대 콤보 0·지급 보상 0인 기록도 포함합니다. null·음수·잘못된 형식의 점수/콤보는 정상 기록으로 집계하지 않습니다. 누락된 콤보를 임의로 0으로 치환하지 말고, 기존 데이터가 누락된 경우 검증 가능한 기록을 통한 복구 여부를 확인해 주세요.
 
-## 현재 코드와 집계 원천
+## 변경 전 코드와 집계 원천
 
 - `backend/src/main/java/com/ssafy/ontop/ranking/repository/BungeoppangRankingRepository.java`: 현재 대표 경기·순위를 `made DESC, failed ASC`로 계산합니다.
 - `backend/src/main/java/com/ssafy/ontop/ranking/dto/BungeoppangRankingPage.java`: 랭킹 Item에 `score`·`maxCombo`가 없습니다.

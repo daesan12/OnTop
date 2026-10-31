@@ -7,4 +7,11 @@
 .follow-menu button:focus-visible, .follow-status button:focus-visible { outline:2px solid #e8d4a4; outline-offset:3px; }
 .follow-status { top:230px; right:30px; max-width:280px; display:grid; gap:10px; }
 .follow-error { top:350px; }
+.follow-status.follow-active { top:calc(var(--park-edge,20px) + 52px * var(--park-ui-scale,1)); left:50%; right:auto; display:flex; align-items:center; gap:8px; width:max-content; max-width:min(360px,calc(100vw - 32px)); padding:5px 6px 5px 12px; border-radius:999px; background:#202c23dc; box-shadow:0 3px 12px #0002; font:500 14px/1.4 'Malgun Gothic',sans-serif; transform:translateX(-50%) scale(var(--park-hint-scale,1)); transform-origin:top center; }
+.follow-active__icon { color:#e8b451; font-size:18px; }
+.follow-active__label { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.follow-active__label b { font-weight:700; }
+.follow-status.follow-active button { flex:0 0 30px; width:30px; height:30px; padding:0; border:0; border-radius:50%; font:500 23px/1 system-ui,sans-serif; text-align:center; }
+.follow-status.follow-active small { display:none; }
 @media(max-width:1200px) { .follow-menu, .follow-status { right:16px; top:180px; } .follow-error { top:300px; } }
+@media(max-width:900px) { .follow-status.follow-active { top:144px; left:16px; transform:none; transform-origin:top left; max-width:calc(100vw - 32px); } }

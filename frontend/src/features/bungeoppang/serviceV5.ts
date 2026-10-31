@@ -5,7 +5,7 @@ import { completeResult, createBungeoppangV4Service, prefixHash, toCheckpoint, t
 import { validateCustomers, type CustomerOrder, type GrillState } from './rulesV5';
 import { BREAD_FILLINGS, type BungeoppangRules, type GrillLogEntry } from './rulesV4';
 import { BungeoppangServiceError, messages, type BungeoppangService, type BungeoppangSubmit } from './service';
-import type { RoundTiming } from './serverTime';
+import {validTimingUpdate,type RoundTiming} from './serverTime';
 
 type WireAction = { seq: number; action: GrillLogEntry['action']; t: number; slot?: number;
   filling?: GrillLogEntry['filling']; breadId?: number; orderId?: string; deliveryKey?: string };
@@ -141,11 +141,20 @@ export function createBungeoppangV5Service(requestJSON: (path: string, init?: Re
         || !['PLAYING', 'COMPLETED', 'ABANDONED', 'INVALID'].includes(String(p.status))
         || typeof p.serverNow !== 'string' || !Number.isFinite(Date.parse(p.serverNow))) return fail();
       const timing = toTiming(p.timing, s.rules.durationMs);
-      if (JSON.stringify(timing) !== JSON.stringify(s.timing)) return fail();
+      if (!validTimingUpdate(s.timing,timing)) return fail();
+      s.timing=timing;
       if (receivedAt - sent > 1000) throw new BungeoppangServiceError('TIME_SYNC_SLOW', '서버 시간을 다시 확인해 주세요.', true);
       return { timing, sample: { receivedAt, serverNowMs: Date.parse(p.serverNow), rttMs: receivedAt - sent },
         status: p.status as 'PLAYING' | 'COMPLETED' | 'ABANDONED' | 'INVALID',
         ...(p.status === 'COMPLETED' ? { result: completeResult(p.result, gameId, 'v5') } : {}) };
+    },
+    async setManualPaused(gameId,paused) {
+      const current=await service.syncTimeV4!(gameId);
+      if(current.status!=='PLAYING')return current;
+      const s=source(gameId);
+      if(s.timing.pauseRevision===undefined)throw new BungeoppangServiceError('PAUSE_UNAVAILABLE','일시정지 연결을 확인해주세요.',true);
+      await request(`${sessionPath(gameId)}/manual-pause`,post({paused,expectedPauseRevision:s.timing.pauseRevision}));
+      return service.syncTimeV4!(gameId);
     },
     async deliverV5(input) {
       const s = source(input.gameId), data = await body(input, 'DELIVERY');

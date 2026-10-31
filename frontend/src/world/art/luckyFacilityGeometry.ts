@@ -120,6 +120,7 @@ for(let i=0;i<3;i++){
 }
 export const lotteryRoomArt=lottery.finish()
 
+export const FISH_MENU_BOARD={position:[2.55,1.08,3.28] as XYZ,width:2.52,height:1.2,depth:.12}
 const fish=house(FISH_SHOP_SIZE.width,FISH_SHOP_SIZE.depth,true)
 // Red-and-cream awning is tucked into the front beam, with a continuous support rail.
 fish.box('wood',dark,[0,3.76,3.08],[9,.18,.2])
@@ -143,8 +144,10 @@ for(const y of [1.93,2.43]){
   }
 }
 for(const x of [1,3.4])fish.box('wood',wood,[x,2.18,2.6],[.12,.85,1])
-fish.box('wood',dark,[3.25,2.8,-.2],[1.45,1.9,.16])
-fish.box('paint','#34443b',[3.25,2.8,-.1],[1.25,1.7,.04])
+// Mount the menu on the customer-facing counter, clear of the display and awning.
+fish.box('wood',dark,FISH_MENU_BOARD.position,[FISH_MENU_BOARD.width,FISH_MENU_BOARD.height,FISH_MENU_BOARD.depth])
+fish.box('paint',cream,[FISH_MENU_BOARD.position[0],FISH_MENU_BOARD.position[1],3.345],
+  [FISH_MENU_BOARD.width-.16,FISH_MENU_BOARD.height-.16,.02])
 for(const y of [1.05,2.1])fish.box('wood',wood,[-.5,y,-2.65],[6.5,.12,.7])
 for(let n=0;n<8;n++)fish.cylinder('paint',n%2?'#d5b17a':'#b56641',[-3+n*.7,1.35,-2.65],.16,.2,.48)
 export const fishBreadShopArt=fish.finish()
@@ -161,7 +164,15 @@ export function facilitySign(label:string,subtitle=''){
 }
 export const lotteryRoomSign=facilitySign('복권방','작은 기대, 커다란 설렘')
 export const fishBreadShopSign=facilitySign('붕어빵','갓 구운 따끈한 한 입')
-export const fishMenuSign=facilitySign('오늘의 메뉴','팥 · 슈크림')
+export function fishMenuSign(c:CanvasRenderingContext2D,w:number,h:number){
+  c.fillStyle=cream;c.fillRect(0,0,w,h)
+  c.fillStyle=dark;c.textAlign='center';c.textBaseline='middle'
+  c.font=`800 ${h*.25}px "Malgun Gothic",sans-serif`;c.fillText('오늘의 메뉴',w/2,h*.24,w*.88)
+  c.strokeStyle='#bd9454';c.lineWidth=h*.008;c.beginPath();c.moveTo(w*.14,h*.42);c.lineTo(w*.86,h*.42);c.stroke()
+  c.font=`600 ${h*.2}px "Malgun Gothic",sans-serif`
+  c.fillText('팥 · 슈크림',w/2,h*.61,w*.88)
+  c.fillText('피자 · 초코',w/2,h*.85,w*.88)
+}
 export function wheelFace(c:CanvasRenderingContext2D,w:number,h:number){
   const cx=w/2,cy=h/2,r=w*.49,step=Math.PI*2/WHEEL_VALUES.length
   c.textAlign='center';c.textBaseline='middle';c.font=`800 ${w*.052}px "Malgun Gothic",sans-serif`

@@ -26,7 +26,7 @@ class BungeoppangRankingServiceTests {
         when(repository.personalBests("v5", 120000)).thenReturn(List.of(item(1, "1", 12, 1), item(1, "2", 12, 1), item(3, "42", 8, 2)));
     }
     private Item item(long rank, String user, long made, long failed) {
-        return new Item(rank, user, "별명" + user, made, failed, clock.instant());
+        return new Item(rank, user, "별명" + user, made, failed, clock.instant(), made, 10 - failed);
     }
 
     @Test void 페이지중새기록이생겨도_원래스냅샷과_본인순위를_유지하고_새조회는갱신한다() {

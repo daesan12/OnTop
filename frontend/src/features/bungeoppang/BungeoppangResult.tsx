@@ -57,11 +57,11 @@ export function BungeoppangResult() {
       <button className="bung-result-action--park" onClick={escapeBungeoppang}><ActionIcon kind="park" />공원으로</button>
       <button className="bung-result-action--help" onClick={() => setBungeoppangHelp(true)}><ActionIcon kind="book" />설명서</button>
     </div>
-    <div className="bung-result-score"><span>{preview ? '승인된 납품 점수' : result ? '서버 확정 점수' : v4 ? '승인 대기 납품 점수' : '미리보기 점수'}</span><b aria-label={preview ? '승인된 납품 점수' : result ? '서버 확정 점수' : v4 ? '승인 대기 납품 점수' : '미리보기 점수'}>{summary.score.toLocaleString()}<small>점</small></b></div>
+    <div className="bung-result-score"><span>점수</span><b aria-label="점수">{summary.score.toLocaleString()}<small>점</small></b></div>
     <details><summary>장사 기록 자세히</summary><p>양면 황금 {summary.golden}개 · 버린 개수 {summary.wasted}개 · 최고 콤보 {summary.maxCombo}</p>
       {v4 && <p>전달한 개수 {result?.served ?? grill.served}개 · 완료한 주문 {result?.customersServed ?? grill.customersServed}개</p>}
       {v4 && <p>특수 추가 점수 {result?.bonusScore ?? grill.bonusScore}</p>}
-      <p>엽전 환산 {R.pointsPerCoin}점당 1냥 · {preview ? '미리보기 · 실제 엽전 지급 없음' : result ? '서버 정산 완료' : '서버 결과 확인 중'}</p></details>
+      <p>엽전 환산 {R.pointsPerCoin}점당 1냥{preview && ' · 미리보기 · 실제 엽전 지급 없음'}</p></details>
     </section>
   </PaperPopup>
 }

@@ -80,7 +80,7 @@ test('a forfeit confirmation alone does not pose; confirmed four-player eliminat
   expect(server.sent.some(m => m.type === 'WORLD_EMOTE_SEND')).toBe(false)
 })
 
-for (const loss of ['forfeit', 'normal'] as const) test(`four-player game narrowed to 1v1 uses only the existing table flip for ${loss}`, async ({ page }) => {
+for (const loss of ['forfeit', 'normal'] as const) test(`four-player game narrowed to 1v1 keeps head-clutch for ${loss}`, async ({ page }) => {
   const server = await start(page)
   const state = server.bridgeState()
   server.bridgeSnapshot({ players: state.players.map(p => ['103', '104'].includes(p.userId) ? { ...p, forfeited: true } : p) })
@@ -90,7 +90,7 @@ for (const loss of ['forfeit', 'normal'] as const) test(`four-player game narrow
     server.bridgeSnapshot({ players: current.players.map(p => p.userId === '101' ? { ...p, forfeited: true } : p), ...finished() })
   } else server.bridgeSnapshot(finished())
   server.reaction({ remainingBefore: 2, kind: loss === 'forfeit' ? 'FORFEIT' : 'DEFEAT' })
-  await expect.poll(async () => (await probe(page)).reaction?.kind).toBe('table-flip')
+  await expect.poll(async () => (await probe(page)).reaction?.kind).toBe('head-clutch')
   expect((await probe(page, '102')).reaction).toBeNull()
   expect(server.sent.some(m => m.type === 'WORLD_EMOTE_SEND')).toBe(false)
 })

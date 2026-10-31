@@ -182,6 +182,13 @@ GAME_SETTINGS_CHANGED는 상태를 변경하지 않는다. 금액이 다시 같�
 다른 참가자의 단순 준비 변경은 동의를 무효화하지 않는다. FE는 오류 후 새 금액을 확인받아야 한다.
 상세: [준비·취소](../websocket-api/03-ready-set.md).
 
+## 2인 기권 연출·공원 잔해 (2026-10-31, 로컬 구현)
+
+`WORLD_GAME_REACTION.participantCount`는 최초 참가 인원이다. 최초 2인 경기의 명시적 기권만 판을 엎으며
+일반 패배·연결 이탈·다인 경기는 판을 던지지 않는다. `WORLD_PARK_DEBRIS_STATE`는 같은 공원에 남는
+판·엽전 전체 상태를 채널 입장과 변경 시 공유한다. 서버 프로세스 동안 유지하며 재접속 시 복원한다.
+현재 청소 AI는 없고 서버 내부 개별 물체 제거 연결점을 제공한다. [상세 계약·유지 범위](../world-game-reaction-api.md#공원에-남는-판엽전--world_park_debris_state-2026-10-31).
+
 ## 2026-10-27 태블릿·공통 시각 확장 (로컬 구현·미배포)
 
 - TABLE_CONFIGURE: 방장 게임·정원·목표·판돈을 최신 expectedVersion으로 확정, TABLE_STATE 수신.

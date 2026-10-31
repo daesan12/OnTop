@@ -6,9 +6,9 @@ import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
-import com.ssafy.ontop.auth.service.AccessJwtService;
 import com.ssafy.ontop.admin.analytics.AnalyticsSnapshot;
 import com.ssafy.ontop.admin.analytics.AnalyticsSnapshotStore;
+import com.ssafy.ontop.auth.service.AccessJwtService;
 import com.ssafy.ontop.user.domain.LoginProvider;
 import java.security.SecureRandom;
 import java.time.Instant;
@@ -313,6 +313,7 @@ class RestSecurityTests {
                 "GET /api/v1/users/me/items", "PATCH /api/v1/users/me/equipment",
                 "POST /api/v1/minigames/sessions", "GET /api/v1/minigames/sessions",
                 "GET /api/v1/minigames/sessions/{sessionId}",
+                "POST /api/v1/minigames/sessions/{sessionId}/manual-pause",
                 "POST /api/v1/minigames/sessions/{sessionId}/deliveries",
                 "POST /api/v1/minigames/sessions/{sessionId}/complete",
                 "POST /api/v1/minigames/sessions/{sessionId}/abandon",

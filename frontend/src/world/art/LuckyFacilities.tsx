@@ -7,7 +7,7 @@ import { KIOSKS,SETTINGS } from '../../layout-preview/layout'
 import { openConstructionNotice } from '../../features/construction/model'
 import { CodeFishBreadCart } from './CodeFishBreadCart'
 import { bungeoppangView } from '../../features/bungeoppang/bungeoppangView'
-import { luckyRoomArt,lotteryRoomArt,fishBreadShopArt,LUCKY_WHEEL_SCALE,lotteryRoomSign,fishBreadShopSign,fishMenuSign,wheelFace } from './luckyFacilityGeometry'
+import { luckyRoomArt,lotteryRoomArt,fishBreadShopArt,FISH_MENU_BOARD,LUCKY_WHEEL_SCALE,lotteryRoomSign,fishBreadShopSign,fishMenuSign,wheelFace } from './luckyFacilityGeometry'
 
 export function LuckyFacility({kind,live}:{kind:'shop'|'drink';live:boolean}){
   const k=KIOSKS.find(k=>k.kind===kind),lottery=kind==='drink'
@@ -43,7 +43,10 @@ export function FishBreadShop(){
     <group ref={shop} name="fish-bread-shop-exterior" scale={SETTINGS.fishBreadShop.scale} rotation={[0,SETTINGS.fishBreadShop.yaw,0]}>
       <PropModel art={fishBreadShopArt} name="fish-bread-shop-building"/>
       <PropSign position={[0,4.27,3.95]} width={5.88} height={.76} draw={fishBreadShopSign}/>
-      <PropSign position={[3.25,2.8,-.065]} width={1.25} height={1.7} draw={fishMenuSign}/>
+      <group name="fish-bread-shop-menu">
+        <PropSign position={[FISH_MENU_BOARD.position[0],FISH_MENU_BOARD.position[1],FISH_MENU_BOARD.position[2]+FISH_MENU_BOARD.depth/2+.02]}
+          width={FISH_MENU_BOARD.width-.2} height={FISH_MENU_BOARD.height-.2} draw={fishMenuSign}/>
+      </group>
     </group>
     <group ref={cookingCart} name="fish-bread-cooking-cart" visible={false}><CodeFishBreadCart detailDistance={80}/></group>
   </group>

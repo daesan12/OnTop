@@ -22,6 +22,7 @@ import { remoteMovement } from '../network/remoteMovement'
 import { useGame } from '../game/store'
 import { openAvatarMenu } from '../features/follow/FollowMenu'
 import { gameReaction, installGameReactions } from './gameReactions'
+import {activeParkDebris} from '../features/parkDebris/state'
 
 import {
   AvatarOverlayPositions,
@@ -85,8 +86,9 @@ function Avatar({
     overlapOpacity.current = targetOpacity + (overlapOpacity.current - targetOpacity) * Math.exp(-Math.min(delta, .1) * 6)
     if (Math.abs(overlapOpacity.current - targetOpacity) < .001) overlapOpacity.current = targetOpacity
     const opacity = own ? bungeoppangReturnOpacity(frameAt, reducedMotion.matches) : overlapOpacity.current
-    root.current.visible = opacity > 0 && !(own && (((avatar.tableId && seated && !gatheringCameraActive() || avatar.benchId && seated) || avatar.telescopeId)
-      || roamingFirstPerson(avatar, !!useGame.getState().watchedGameId)))
+    const debrisMotion=!reducedMotion.matches&&activeParkDebris(useSession.getState().tableId,estimatedServerTime())
+    root.current.visible = opacity > 0 && (!!debrisMotion || !(own && (((avatar.tableId && seated && !gatheringCameraActive() || avatar.benchId && seated) || avatar.telescopeId)
+      || roamingFirstPerson(avatar, !!useGame.getState().watchedGameId))))
     appearance.set(root.current.visible ? opacity : 1)
     root.current.userData.appearanceOpacity = root.current.visible ? opacity : 0
     root.current.position.set(

@@ -3,8 +3,8 @@ package com.ssafy.ontop.table;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ssafy.ontop.table.service.TableHub;
-import com.ssafy.ontop.world.config.WorldChannelProperties;
 import com.ssafy.ontop.world.config.WorldChannelProperties.Channel;
+import com.ssafy.ontop.world.config.WorldChannelProperties;
 import com.ssafy.ontop.world.service.WorldChannelRegistry;
 import com.ssafy.ontop.world.service.WorldChatService;
 import java.time.Clock;
@@ -114,6 +114,7 @@ class WorldChatHubTests {
         private void join(String channel) throws Exception {
             request("CHANNEL_JOIN", Map.of("channelId", channel));
             next("WORLD_STATE");
+            assertThat(next("WORLD_PARK_DEBRIS_STATE").at("/payload/items")).isEmpty();
             registry.move(userId, new WorldChannelRegistry.Position(0, 0, 0, 0, 0));
         }
 

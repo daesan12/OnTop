@@ -2,11 +2,13 @@ package com.ssafy.ontop.minigame.controller;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ssafy.ontop.auth.dto.AuthErrorResponse;
+import com.ssafy.ontop.config.RuntimeProfiles;
+import com.ssafy.ontop.minigame.dto.BungeoppangV4DeliveryDtos;
+import com.ssafy.ontop.minigame.dto.BungeoppangV4Responses;
 import com.ssafy.ontop.minigame.dto.MinigameAbandonResponse;
 import com.ssafy.ontop.minigame.dto.MinigameCompleteResponse;
 import com.ssafy.ontop.minigame.dto.MinigameStartResponse;
 import com.ssafy.ontop.minigame.dto.MinigameStatusResponse;
-import com.ssafy.ontop.minigame.dto.BungeoppangV4DeliveryDtos;
 import com.ssafy.ontop.minigame.service.BungeoppangV4DeliveryContract;
 import com.ssafy.ontop.minigame.service.BungeoppangV5DeliveryContract;
 import com.ssafy.ontop.minigame.service.MinigameException;
@@ -25,7 +27,6 @@ import java.security.Principal;
 import java.util.Collections;
 import java.util.Set;
 import org.springframework.beans.factory.ObjectProvider;
-import com.ssafy.ontop.config.RuntimeProfiles;
 import org.springframework.context.annotation.Profile;
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.CacheControl;
@@ -108,6 +109,26 @@ public class MinigameController {
         boolean progress = optionalBoolean(includeProgress);
         if (deliveryKey != null && !deliveryKey.matches("[A-Za-z0-9_-]{1,64}")) { throw invalid(); }
         return ok(service().loadSession(account(principal), sessionId(sessionId), source, progress, deliveryKey));
+    }
+
+    @PostMapping("/{sessionId}/manual-pause")
+    @Operation(summary = "본인 붕어빵 설명서 일시정지 또는 재개")
+    @ApiResponse(responseCode = "200", description = "현재 일시정지 상태와 서버 시간",
+            content = @Content(mediaType = "application/json",
+                    schema = @Schema(implementation = BungeoppangV4Responses.SessionResponse.class)))
+    @ApiResponse(responseCode = "404", description = "MINIGAME_NOT_FOUND")
+    @ApiResponse(responseCode = "409", description = "MANUAL_PAUSE_CHANGED / GAME_NOT_ACTIVE / RULES_VERSION_MISMATCH")
+    public ResponseEntity<?> manualPause(Principal principal, @PathVariable String sessionId,
+            @RequestBody JsonNode body) {
+        if (!body.isObject() || body.size() != 2 || !body.path("paused").isBoolean()
+                || !body.path("expectedPauseRevision").isIntegralNumber()
+                || !body.path("expectedPauseRevision").canConvertToLong()
+                || body.path("expectedPauseRevision").asLong() < 0
+                || body.path("expectedPauseRevision").asLong() > 9007199254740991L) {
+            throw invalid();
+        }
+        return ok(service().manualPause(account(principal), sessionId(sessionId), body.path("paused").asBoolean(),
+                body.path("expectedPauseRevision").asLong()));
     }
 
     @GetMapping
