@@ -42,7 +42,7 @@ export function itemPreview(state: Snapshot | null, type: string, targets: strin
     if (Math.hypot(a.x - at.x, a.y - at.y) > (state.itemRules?.relocateDistance ?? 2)) return no('이동 가능 거리를 넘었습니다.')
     return fits(at.x, at.y, a.radius, targets) ? yes : no('다른 알·벽과 겹치거나 중심이 판 밖입니다.')
   }
-  if (type === 'POWER_UP') return yes
+  if (type === 'POWER_UP') return a.powerUp ? no('이미 힘 강화가 적용된 알입니다.') : yes
   if (a.modifier) return no('기존 크기·방어 효과가 남아 있습니다.')
   if (type === 'DEFEND') return yes
   const scale = type === 'GROW' ? state.itemRules?.growScale ?? 1.25 : state.itemRules?.shrinkScale ?? .8

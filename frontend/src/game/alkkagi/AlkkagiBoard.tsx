@@ -36,7 +36,7 @@ export function AlkkagiScene(props: Parameters<typeof Scene>[0]) {
 
 type Aim = { piece: Piece; origin: Vector3; end: Vector3; start: { x: number; y: number }
   moved: number; pointerId: number; gameId: string; version: number }
-function Scene({ actor, state, replay, enabled, shoot, explain, blockedReason, itemMode, itemTargets, pickTarget, cancelItem, placement, pickPlacement, pinned, previewValid, rotatePlacement, cursor }: { actor: number; state: Snapshot | null; replay: AlkkagiReplay; enabled: boolean
+function Scene({ layer = 0, actor, state, replay, enabled, shoot, explain, blockedReason, itemMode, itemTargets, pickTarget, cancelItem, placement, pickPlacement, pinned, previewValid, rotatePlacement, cursor }: { layer?: number; actor: number; state: Snapshot | null; replay: AlkkagiReplay; enabled: boolean
   shoot(p: Piece, dx: number, dy: number, power: number): void; explain(message: string): void; blockedReason: string; itemMode: string | null; itemTargets: string[]; pickTarget(piece: Piece): void; cancelItem(): void; placement: { x: number; y: number; angle: number } | null; pickPlacement(x: number, y: number, pin?: boolean): void; pinned: boolean; previewValid: boolean; rotatePlacement(delta: number): void; cursor(x: number, y: number): void }) {
   const space = useRef<Group>(null)
   const localPoint = (point: Vector3) => space.current!.worldToLocal(point.clone())
@@ -52,6 +52,8 @@ function Scene({ actor, state, replay, enabled, shoot, explain, blockedReason, i
   const selected = useRef<Piece | null>(null), selectionRing = useRef<Mesh>(null)
   const floor = useMemo(() => new Plane(new Vector3(0, 1, 0), -.36), [])
   const pieces = state?.pieces ?? []
+  // Local UI changes can mount new meshes without a server version update.
+  useLayoutEffect(() => { space.current?.traverse(object => object.layers.set(layer)) })
   const clearAim = () => { aim.current = null; arrow.visible = false }
   const clear = () => { clearAim(); selected.current = null; if (selectionRing.current) selectionRing.current.visible = false }
   useEffect(() => {
@@ -91,7 +93,7 @@ function Scene({ actor, state, replay, enabled, shoot, explain, blockedReason, i
     return () => { canvas.removeEventListener('wheel', wheel); canvas.removeEventListener('pointermove', move); canvas.removeEventListener('pointerup', up)
       canvas.removeEventListener('pointercancel', clear); canvas.removeEventListener('contextmenu', cancel)
       window.removeEventListener('keydown', key); window.removeEventListener('blur', clear) }
-  }, [camera, gl, raycaster, floor, enabled, state?.gameId, state?.version, shoot])
+  }, [camera, gl, raycaster, floor, enabled, state?.gameId, state?.version, shoot, itemMode, cancelItem, rotatePlacement])
   useEffect(clear, [enabled, state?.gameId, state?.version, itemMode])
   useFrame((_, delta) => {
     const frame = replay.sample(performance.now())
@@ -158,7 +160,7 @@ function Scene({ actor, state, replay, enabled, shoot, explain, blockedReason, i
       }
     }} onPointerMove={e => {
       cursor(localPoint(e.point).x, localPoint(e.point).z)
-      if (enabled && itemMode === 'WALL' && !pinned) pickPlacement(localPoint(e.point).x, localPoint(e.point).z)
+      if (enabled && (itemMode === 'WALL' || itemMode === 'RELOCATE') && !pinned) pickPlacement(localPoint(e.point).x, localPoint(e.point).z)
     }} />
     {pieces.map(piece => <group key={`${state!.gameId}-${piece.id}-${piece.radius}`} ref={g => { if (g) groups.current.set(piece.id, g); else groups.current.delete(piece.id) }}>
       <AlkkagiPiece piece={piece} onPointerDown={e => {
@@ -184,13 +186,20 @@ function Scene({ actor, state, replay, enabled, shoot, explain, blockedReason, i
         aim.current = { piece, origin, end: origin.clone(), start: { x: e.clientX, y: e.clientY },
           moved: 0, pointerId: e.pointerId, gameId: state!.gameId, version: state!.version }
       }} />
-      {piece.alive && <PieceEffect radius={piece.radius} type={state?.boostedPieceId === piece.id ? 'POWER_UP' : piece.modifier ?? null} />}
+      {piece.alive && <PieceEffect radius={piece.radius} type={piece.modifier ?? null} />}
+      {piece.alive && piece.powerUp && <PieceEffect radius={piece.radius * 1.12} type="POWER_UP" />}
     </group>)}
     {itemTargets.map(id => {
-      const piece = pieces.find(p => p.id === id)
-      return piece ? <mesh key={id} position={[piece.x, .32, piece.y]} rotation={[-Math.PI / 2, 0, 0]} raycast={() => {}}>
-        <ringGeometry args={[piece.radius * 1.15, piece.radius * 1.32, 48]} /><meshBasicMaterial color="#5fffe6" depthWrite={false} />
-      </mesh> : null
+      const piece = pieces.find(p => p.id === id && p.alive)
+      return piece ? <group key={id} position={[piece.x, 0, piece.y]}>
+        <TargetHalo radius={piece.radius} valid={previewValid} />
+        {itemMode && ['GROW', 'SHRINK', 'DEFEND', 'POWER_UP'].includes(itemMode) &&
+          <PieceEffect radius={piece.radius * (itemMode === 'GROW' ? state?.itemRules?.growScale ?? 1.25 : itemMode === 'SHRINK' ? state?.itemRules?.shrinkScale ?? .8 : 1)} type={itemMode} />}
+      </group> : null
+    })}
+    {itemMode === 'SWAP' && itemTargets.length === 2 && itemTargets.map((id, i) => {
+      const p = pieces.find(p => p.id === id), to = pieces.find(p => p.id === itemTargets[1-i])
+      return p && to ? <DestinationGhost key={'swap-'+id} x={to.x} y={to.y} radius={p.radius} valid={previewValid} /> : null
     })}
     {state?.wall && <mesh position={[state.wall.x, .25, state.wall.y]} rotation={[0, -state.wall.angle, 0]} castShadow>
       <boxGeometry args={[state.wall.length, .5, state.wall.thickness]} /><meshStandardMaterial color="#67503d" /></mesh>}
@@ -198,9 +207,8 @@ function Scene({ actor, state, replay, enabled, shoot, explain, blockedReason, i
       <boxGeometry args={[state?.itemRules?.wallLength ?? 1.6, .5, state?.itemRules?.wallThickness ?? .18]} />
       <meshStandardMaterial color={previewValid ? "#47ddca" : "#ec604c"} transparent opacity={.55} />
     </mesh>}
-    {placement && itemMode === 'RELOCATE' && <mesh position={[placement.x, .04, placement.y]} rotation={[-Math.PI / 2, 0, 0]} raycast={() => {}}>
-      <ringGeometry args={[.2, .3, 32]} /><meshBasicMaterial color={previewValid ? "#47ddca" : "#ec604c"} />
-    </mesh>}
+    {placement && itemMode === 'RELOCATE' && itemTargets.length === 1 && <DestinationGhost x={placement.x} y={placement.y}
+      radius={pieces.find(p => p.id === itemTargets[0])?.radius ?? .24} valid={previewValid} />}
     {state?.social?.cursors.filter(c => c.actor !== actor || actor < 0).map(c => <mesh key={c.id} position={[c.x, .38, c.y]} rotation={[-Math.PI / 2, 0, 0]} raycast={() => {}}>
       <ringGeometry args={[.08, .13, 16]} /><meshBasicMaterial color={c.actor === 0 ? '#e78770' : c.actor === 1 ? '#6ecea0' : '#79afff'} />
     </mesh>)}
@@ -238,4 +246,18 @@ function PieceEffect({ radius, type }: { radius: number; type: string | null }) 
       <coneGeometry args={[.055, type === 'POWER_UP' ? .3 : .17, 5]} /><meshBasicMaterial color={color} transparent opacity={.85} depthWrite={false} />
     </mesh>)}
   </group>
+}
+
+/** Non-interactive overlays never steal board/piece pointer events. */
+function TargetHalo({radius,valid}:{radius:number;valid:boolean}) {
+  const ring=useRef<Mesh>(null)
+  useFrame(({clock})=>{if(ring.current)ring.current.scale.setScalar(1+Math.sin(clock.elapsedTime*7)*.05)})
+  return <mesh ref={ring} position={[0,.43,0]} rotation={[-Math.PI/2,0,0]} raycast={()=>{}} renderOrder={10}>
+    <ringGeometry args={[radius*1.08,radius*1.35,64]} /><meshBasicMaterial color={valid?'#55ffdb':'#ff735f'} depthTest={false} depthWrite={false} transparent opacity={.9} />
+  </mesh>
+}
+function DestinationGhost({x,y,radius,valid}:{x:number;y:number;radius:number;valid:boolean}) {
+  return <mesh position={[x,.2,y]} raycast={()=>{}} renderOrder={9}>
+    <cylinderGeometry args={[radius,radius,.34,48]} /><meshBasicMaterial color={valid?'#55ffdb':'#ff735f'} transparent opacity={.5} depthWrite={false} />
+  </mesh>
 }

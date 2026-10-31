@@ -19,7 +19,6 @@ public final class AlkkagiMatch {
     private WallView wall;
     private Body wallBody;
     private final int[] wallsUsed = new int[2];
-    private String boostedPieceId;
     private final World<Body> world = new World<>();
     private final Map<String, Piece> pieces = new LinkedHashMap<>();
     private final Map<String, Receipt> receipts = new LinkedHashMap<>();
@@ -172,12 +171,10 @@ public final class AlkkagiMatch {
                 && shot.power() > 0 && shot.power() <= 1, "INVALID_SHOT");
         double length = Math.hypot(shot.dx(), shot.dy());
         require(Double.isFinite(length) && length >= 0.0001 && length <= 1.0001, "INVALID_DIRECTION");
-        require(boostedPieceId == null || boostedPieceId.equals(piece.id), "BOOST_TARGET_REQUIRED");
-        double boost = boostedPieceId == null ? 1 : itemRules.powerMultiplier();
+        double boost = piece.powerUp ? itemRules.powerMultiplier() : 1;
         piece.body.applyImpulse(new Vector2(shot.dx() / length, shot.dy() / length)
                 .multiply(physics.launchImpulse(settings.maximumImpulse(), shot.power(), physics.profile(piece.type))
                         * piece.mass / piece.baseMass * boost));
-        boostedPieceId = null;
         timeouts[actor] = 0;
         shotsThisTurn++;
         stage = "SIMULATING";
@@ -260,7 +257,8 @@ public final class AlkkagiMatch {
                 piece.body.translate(destination.x() - at.x, destination.y() - at.y);
                 world.setUpdateRequired(true);
             } else if (card.type() == AlkkagiInventory.Type.POWER_UP) {
-                boostedPieceId = piece.id;
+                require(!piece.powerUp, "POWER_ALREADY_ACTIVE");
+                piece.powerUp = true;
             } else {
                 require(piece.modifier == null, "MODIFIER_ACTIVE");
                 double scale = card.type() == AlkkagiInventory.Type.GROW ? itemRules.growScale()
@@ -272,7 +270,6 @@ public final class AlkkagiMatch {
                         || fits(at.x, at.y, piece.baseRadius * scale, piece, null, false), "ITEM_OVERLAP_OR_OUTSIDE");
                 resize(piece, piece.baseRadius * scale, mass);
                 piece.modifier = card.type().name();
-                piece.expiresAfterTurn = turnNumber + itemRules.effectOpponentTurns() * 2 - 1;
             }
         }
         inventory.consume(actor, input.cardId());
@@ -320,7 +317,7 @@ public final class AlkkagiMatch {
         double halfY = (s * itemRules.wallLength() + c * itemRules.wallThickness()) / 2;
         require(Math.abs(p.x()) + halfX + itemRules.wallMargin() <= settings.halfWidth()
                 && Math.abs(p.y()) + halfY + itemRules.wallMargin() <= settings.halfHeight(), "ITEM_OUTSIDE_BOARD");
-        var candidate = new WallView(actor, p.x(), p.y(), itemRules.wallLength(), itemRules.wallThickness(), p.angle(), turnNumber + 1);
+        var candidate = new WallView(actor, p.x(), p.y(), itemRules.wallLength(), itemRules.wallThickness(), p.angle(), null);
         for (var piece : pieces.values()) {
             var at = piece.body.getWorldCenter();
             require(!piece.alive || !AlkkagiWallGeometry.overlaps(at.x, at.y, piece.radius + .02, candidate), "ITEM_OVERLAP");
@@ -341,22 +338,6 @@ public final class AlkkagiMatch {
         piece.body.setMass(MassType.FIXED_ANGULAR_VELOCITY);
         piece.radius = radius; piece.mass = mass;
         world.setUpdateRequired(true);
-    }
-
-    private void endTurnEffects() {
-        boostedPieceId = null;
-        if (wall != null && turnNumber >= wall.expiresAfterTurn()) {
-            world.removeBody(wallBody); wall = null; wallBody = null; world.setUpdateRequired(true);
-        }
-        for (var piece : pieces.values()) {
-            if (piece.modifier == null || turnNumber < piece.expiresAfterTurn) continue;
-            var at = piece.body.getWorldCenter();
-            // 같은 크기/축소 원복에는 새 공간이 필요 없다. 축소 효과의 확대 원복만 검사한다.
-            if (!piece.alive || piece.baseRadius <= piece.radius
-                    || fits(at.x, at.y, piece.baseRadius, piece, null, false)) {
-                resize(piece, piece.baseRadius, piece.baseMass); piece.modifier = null; piece.restorePending = false;
-            } else piece.restorePending = true;
-        }
     }
 
     public PrivateView privateView(int actor) {
@@ -538,7 +519,7 @@ public final class AlkkagiMatch {
         if (stage.equals("FINISHED")) return;
         endedAt = now;
         awards.clear();
-        boostedPieceId = null; extraShotActivated = false;
+        extraShotActivated = false;
         for (var piece : pieces.values()) piece.body.setLinearVelocity(0, 0);
         stage = "FINISHED";
         winner = player;
@@ -547,7 +528,6 @@ public final class AlkkagiMatch {
     }
 
     private void nextTurn(long now) {
-        endTurnEffects();
         turn = 1 - turn;
         turnNumber++;
         turnDeadline = now + settings.turnMillis();
@@ -566,12 +546,12 @@ public final class AlkkagiMatch {
             views.add(new PieceView(piece.id, piece.owner, piece.type, at.x, at.y, v.x, v.y,
                     piece.radius, piece.mass, piece.alive,
                     physics.maximumSpeed(settings.maximumImpulse(), physics.profile(piece.type))
-                            * (piece.id.equals(boostedPieceId) ? itemRules.powerMultiplier() : 1), piece.modifier, piece.restorePending, piece.exit));
+                            * (piece.powerUp ? itemRules.powerMultiplier() : 1), piece.modifier, false, piece.exit, piece.powerUp));
         }
         return new Snapshot(gameId, version, tick, simulationId, stage, turn, turnNumber,
                 turnDeadline, matchDeadline, now, winner, reason, List.copyOf(views),
                 List.of(timeouts[0], timeouts[1]), settings, true, "separated-v1", physics.inputBoost(),
-                itemUsedThisTurn, !stage.equals("FINISHED") && extraShotActivated && shotsThisTurn < 2 ? 1 : 0, lastItemEffect, wall, List.of(wallsUsed[0], wallsUsed[1]), boostedPieceId, itemRules, endedAt, List.copyOf(impacts), cardRules, choiceClocks(), stage.equals("CHOOSING") ? pausedTurnMillis : null);
+                itemUsedThisTurn, !stage.equals("FINISHED") && extraShotActivated && shotsThisTurn < 2 ? 1 : 0, lastItemEffect, wall, List.of(wallsUsed[0], wallsUsed[1]), null, itemRules, endedAt, List.copyOf(impacts), cardRules, choiceClocks(), stage.equals("CHOOSING") ? pausedTurnMillis : null);
     }
 
     private List<ChoiceClock> choiceClocks() {
@@ -601,7 +581,7 @@ public final class AlkkagiMatch {
         }
     }
     public record ItemEffect(long version, int turnNumber, int actor, String type, List<String> targets) { }
-    public record WallView(int owner, double x, double y, double length, double thickness, double angle, int expiresAfterTurn) { }
+    public record WallView(int owner, double x, double y, double length, double thickness, double angle, Integer expiresAfterTurn) { }
     public record ImpactView(long id, long at, double x, double y, double impulse, String kind) { }
     public record CardView(String id, String type) { }
     public record AwardView(int losses, String result) { }
@@ -611,7 +591,7 @@ public final class AlkkagiMatch {
     public record PrivateView(String gameId, long version, List<CardView> cards, List<AwardView> awards, ChoiceView choice) { }
     public record ExitView(double x, double y, double vx, double vy, long at) { }
     public record PieceView(String id, int owner, String type, double x, double y, double vx, double vy,
-            double radius, double mass, boolean alive, double launchSpeed, String modifier, boolean restorePending, ExitView exit) { }
+            double radius, double mass, boolean alive, double launchSpeed, String modifier, boolean restorePending, ExitView exit, boolean powerUp) { }
     public record Snapshot(String gameId, long version, long tick, long simulationId, String stage,
             int turn, int turnNumber, long turnDeadline, long matchDeadline, long serverNow,
             Integer winner, String endReason, List<PieceView> pieces, List<Integer> timeouts,
@@ -628,8 +608,7 @@ public final class AlkkagiMatch {
         private final double baseRadius;
         private final double baseMass;
         private String modifier;
-        private int expiresAfterTurn;
-        private boolean restorePending;
+        private boolean powerUp;
         private double safeX, safeY;
         private ExitView exit;
         private final Body body;

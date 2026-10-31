@@ -1,6 +1,6 @@
 export interface Piece {
   id: string; owner: number; type: string; x: number; y: number; vx: number; vy: number
-  radius: number; mass: number; alive: boolean; launchSpeed?: number; modifier?: string | null; restorePending?: boolean
+  radius: number; mass: number; alive: boolean; launchSpeed?: number; modifier?: string | null; powerUp?: boolean; restorePending?: boolean
   exit?: { x: number; y: number; vx: number; vy: number; at: number } | null
 }
 export interface SocialView {
@@ -20,7 +20,7 @@ export interface Snapshot {
   reconnectDeadlines?: (number | null)[]; endedAt?: number | null
   impacts?: { id: number; at: number; x: number; y: number; impulse: number; kind: string }[]
   cardRules?: { weights: number[]; allowDuplicates: boolean; excludeExhaustedWalls: boolean }
-  wall?: { owner: number; x: number; y: number; length: number; thickness: number; angle: number; expiresAfterTurn: number } | null
+  wall?: { owner: number; x: number; y: number; length: number; thickness: number; angle: number; expiresAfterTurn: number | null } | null
   wallsUsed?: number[]; boostedPieceId?: string | null
   itemRules?: { wallLength: number; wallThickness: number; wallMargin: number; relocateDistance: number; powerMultiplier: number;
     growScale: number; shrinkScale: number; defendMassMultiplier: number; effectOpponentTurns: number }

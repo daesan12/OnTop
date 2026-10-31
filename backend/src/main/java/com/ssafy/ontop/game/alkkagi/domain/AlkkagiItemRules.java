@@ -8,13 +8,15 @@ public record AlkkagiItemRules(double wallLength, double wallThickness, double w
         if (!range(wallLength, .5, 3) || !range(wallThickness, .1, .5) || !range(wallMargin, .02, .4)
                 || !range(relocateDistance, .5, 3) || !range(powerMultiplier, 1.05, 2)
                 || !range(growScale, 1.05, 1.5) || !range(shrinkScale, .5, .95)
-                || !range(defendMassMultiplier, 1.1, 4) || effectOpponentTurns < 1 || effectOpponentTurns > 3)
+                || !range(defendMassMultiplier, 1.1, 4) || effectOpponentTurns < 0 || effectOpponentTurns > 3)
             throw new IllegalArgumentException("INVALID_ITEM_RULES");
+        // 구버전 로컬 입력도 경기 지속(0)으로 정규화한다. 턴 기반 만료는 사용하지 않는다.
+        effectOpponentTurns = 0;
     }
     private static boolean range(double value, double min, double max) {
         return Double.isFinite(value) && value >= min && value <= max;
     }
     public static AlkkagiItemRules localPreview() {
-        return new AlkkagiItemRules(1.6, .18, .12, 2, 1.5, 1.25, .8, 2, 1);
+        return new AlkkagiItemRules(1.6, .18, .12, 2, 1.5, 1.25, .8, 2, 0);
     }
 }

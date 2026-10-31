@@ -24,7 +24,7 @@ const errorNames: Record<string, string> = {
   INVALID_TUNING: '조절 범위를 확인해주세요. 발사 힘 0.5~30 / 감속 0.1~60 / 반발 0~1',
   ITEM_OVERLAP: '다른 알이나 벽과 겹칩니다. 위치를 다시 골라주세요.',
   ITEM_OVERLAP_OR_OUTSIDE: '겹치거나 판 밖인 위치입니다.', RELOCATE_TOO_FAR: '이동 가능 거리를 넘었습니다.',
-  WALL_ALREADY_EXISTS: '현재 벽이 사라진 뒤 설치할 수 있습니다.', WALL_LIMIT: '경기당 벽 3회를 모두 사용했습니다.',
+  WALL_ALREADY_EXISTS: '이번 경기에는 이미 벽이 설치되어 있습니다.', WALL_LIMIT: '경기당 벽 3회를 모두 사용했습니다.',
   MODIFIER_ACTIVE: '이 알의 기존 크기·방어 효과가 끝난 뒤 사용해주세요.', BOOST_TARGET_REQUIRED: '힘 강화한 알로 발사해주세요.',
   INVALID_ITEM_RULES: '아이템 조절 범위를 확인해주세요.',
   RED_TUNING_ONLY: '홍팀 화면에서 물리값을 조절해주세요.',
@@ -52,7 +52,7 @@ function App() {
   const [pinned, setPinned] = useState(false), [forfeitOpen, setForfeitOpen] = useState(false)
   const [practice, setPractice] = useState(['SWAP', 'EXTRA_SHOT'])
   const [rules, setRules] = useState({ wallLength: 1.6, wallThickness: .18, wallMargin: .12, relocateDistance: 2,
-    powerMultiplier: 1.5, growScale: 1.25, shrinkScale: .8, defendMassMultiplier: 2, effectOpponentTurns: 1 })
+    powerMultiplier: 1.5, growScale: 1.25, shrinkScale: .8, defendMassMultiplier: 2, effectOpponentTurns: 0 })
   useEffect(() => { if (state?.itemRules) setRules(state.itemRules) }, [state?.gameId])
   const cancelItem = () => { setItem(null); setTargets([]); setPlacement(null); setPinned(false) }
   useEffect(cancelItem, [state?.gameId, state?.version, connected])
@@ -227,25 +227,24 @@ function App() {
         </div>}
         <small>연습 카드 받기는 검수용입니다 · 일반 플레이는 알3개 손실마다 10초 안에 선택 · 턴당 1개·첫 발사 전 사용</small>
       </> : <p>관전자는 미사용 카드 종류와 식별자를 받지 않습니다.</p>}
-      {state?.boostedPieceId && <p>힘 강화 대상: {state.boostedPieceId} · 이 알로 발사하세요.</p>}
-      {state?.pieces.filter(p => p.alive && p.modifier).map(p => <small key={p.id}>{p.id}: {cardNames[p.modifier!] ?? p.modifier}{p.restorePending ? ' · 원복 공간 대기' : ''}</small>)}
+      {state?.pieces.filter(p => p.alive && (p.modifier || p.powerUp)).map(p => <small key={p.id}>{p.id}: {p.modifier ? cardNames[p.modifier] ?? p.modifier : ''}{p.powerUp ? ' · 힘 강화' : ''}</small>)}
       {!!state?.extraShotsRemaining && <p>추가 발사 예약 1회 · 원래 제한시간 안에서만 사용</p>}
       {state?.lastItemEffect && <p>공개된 사용 효과: {names[state.lastItemEffect.actor]} · {cardNames[state.lastItemEffect.type] ?? state.lastItemEffect.type}</p>}
     </section>
     <details className="tuning-panel">
       <summary>아이템 수치 조절 · 로컬 임시값</summary>
-      <p>운영 확정 규칙이 아닙니다. 크기 변경 시 질량은 크기 배율의 제곱에 비례하며, 원복 자리가 겹치면 안전해질 때까지 보류합니다.</p>
+      <p>운영 확정 규칙이 아닙니다. 크기 변경 시 질량은 크기 배율의 제곱에 비례하며, 크기·힘·방어·벽은 경기 끝까지 유지합니다.</p>
       {([
         ['wallLength', '벽 길이', .5, 3, .1], ['wallThickness', '벽 두께', .1, .5, .01], ['wallMargin', '벽 가장자리 여백', .02, .4, .01],
         ['relocateDistance', '재배치 거리', .5, 3, .1], ['powerMultiplier', '힘 강화 배율', 1.05, 2, .05],
         ['growScale', '확대 배율', 1.05, 1.5, .05], ['shrinkScale', '축소 배율', .5, .95, .05],
-        ['defendMassMultiplier', '방어 질량 배율', 1.1, 4, .1], ['effectOpponentTurns', '효과 지속 상대 턴 수', 1, 3, 1],
+        ['defendMassMultiplier', '방어 질량 배율', 1.1, 4, .1],
       ] as const).map(([key, title, min, max, step]) => <label key={key} className="item-rule">{title}
         <input aria-label={title} type="number" min={min} max={max} step={step} disabled={actor !== 0} value={rules[key]}
           onChange={e => setRules(old => ({ ...old, [key]: Number(e.target.value) }))} /></label>)}
       {actor === 0 && <button disabled={!connected || pending || !state || Object.values(rules).some(v => !Number.isFinite(v))}
         onClick={() => state && send({ type: 'TUNE_ITEMS', gameId: state.gameId, expectedVersion: state.version, rules })}>아이템 설정 적용하고 새 판</button>}
-      <small>벽은 전체1개·인당 경기3회, 상대의 다음 발사/스킵 턴 종료까지 유지합니다. 힘 강화는 지정 알의 이번 발사만 적용, 미발사 시 턴 종료에 해제합니다.</small>
+      <small>벽은 전체1개이며 경기 끝까지 유지합니다. 크기·힘 강화·방어도 경기 내내 지속하고, 추가 발사만 사용한 턴에 1회 더 쏩니다.</small>
     </details>
     <details className="tuning-panel">
       <summary>물리값 조절 · 로컬 전용 <span>현재 힘 {state?.settings.maximumImpulse ?? '—'} / 감속 {state?.settings.deceleration ?? '—'} / 반발 {state?.settings.restitution ?? '—'}</span></summary>

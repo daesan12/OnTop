@@ -28,7 +28,7 @@ class AlkkagiPresentationContractTests {
         }
     }
 
-    @Test void 모서리에_걸쳐도_중심이_안이면_확대축소와_원복을_허용한다() {
+    @Test void 모서리에_걸쳐도_중심이_안이면_확대축소와_지속을_허용한다() {
         for (String type : List.of("GROW", "SHRINK")) {
             var m = match(type); move(m, "p15", 4.49, 4.99);
             use(m, List.of("p15"), null);
@@ -36,7 +36,7 @@ class AlkkagiPresentationContractTests {
             assertThat(p.alive()).isTrue(); assertThat(p.x()).isEqualTo(4.49);
             assertThat(p.modifier()).isEqualTo(type);
             m.advance(m.snapshot(0).turnDeadline()); m.advance(m.snapshot(0).turnDeadline());
-            assertThat(m.snapshot(0).pieces().get(15).modifier()).isNull();
+            assertThat(m.snapshot(0).pieces().get(15).modifier()).isEqualTo(type);
         }
     }
 

@@ -34,3 +34,10 @@ describe('장외 연출과 중심 기준 변형', () => {
     expect(itemPreview(s, 'GROW', ['p'], null).valid).toBe(false)
   })
 })
+
+it('힘 강화는 이미 강화된 내 알의 중복 사용만 막고 다른 대상은 허용한다', () => {
+ const s={turn:0,settings:{halfWidth:4.5,halfHeight:5},pieces:[{id:'p',owner:0,alive:true,x:0,y:0,radius:.24,powerUp:true}]} as Snapshot
+ expect(itemPreview(s,'POWER_UP',['p'],null).valid).toBe(false)
+ s.pieces[0].powerUp=false
+ expect(itemPreview(s,'POWER_UP',['p'],null).valid).toBe(true)
+})
