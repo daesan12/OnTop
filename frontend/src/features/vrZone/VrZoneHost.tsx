@@ -20,10 +20,11 @@ export function VrZoneHost({ controller }: { controller: VrZoneController }) {
   useEffect(() => { if (state.phase === 'game') panel.current?.focus() }, [state.phase])
   if (state.phase === 'closed') return null
   const preview = controller.admission.mode === 'local-preview'
-  const cannotPrepare = state.loading || state.balance === null || state.balance < VR_PLAY_FEE || controller.admission.mode === 'unavailable'
+  const recovering = controller.recovering
+  const cannotPrepare = state.loading || (!recovering && (state.balance === null || state.balance < VR_PLAY_FEE)) || controller.admission.mode === 'unavailable'
   const admissionNotice = <>
     {state.error ? <p className="vr-zone-error" role="alert">{state.error}</p> : null}
-    {controller.admission.mode === 'unavailable' ? <p className="vr-zone-error" role="status">VR 이용권 서버 연결을 준비하고 있어요. 지금은 엽전이 차감되지 않아요.</p> : state.balance !== null && state.balance < VR_PLAY_FEE ? <p className="vr-zone-error" role="status">엽전이 부족해요. 한 판에 10냥이 필요해요.</p> : null}
+    {recovering ? <p className="vr-zone-error" role="status">이전 이용 요청이 남아 있어요. 게임을 선택하고 시작하면 같은 이용권을 다시 확인해요. 이미 차감됐다면 추가로 차감하지 않아요.</p> : controller.admission.mode === 'unavailable' ? <p className="vr-zone-error" role="status">VR 이용권 서버 연결을 준비하고 있어요. 지금은 엽전이 차감되지 않아요.</p> : state.balance !== null && state.balance < VR_PLAY_FEE ? <p className="vr-zone-error" role="status">엽전이 부족해요. 한 판에 10냥이 필요해요.</p> : null}
   </>
   const leave = () => {
     if (state.purchasing) return
@@ -62,7 +63,7 @@ export function VrZoneHost({ controller }: { controller: VrZoneController }) {
       <p className="vr-zone-mode-help">VR 플레이는 Quest 2와 VR 지원 브라우저가 필요해요</p>
       {admissionNotice}
     </PaperPopup> : <div className="vr-zone-game-shell" tabIndex={-1} ref={panel}>
-      <div className="vr-zone-play-bar"><button onClick={leave} disabled={state.purchasing}>VR 게임 목록으로</button><span>{preview ? '테스트 잔액' : '사용 가능'} {state.balance ?? '—'}냥 · {state.purchasing ? '이용권 확인 중…' : state.receipt ? '이번 판 이용료 10냥 결제 완료' : '시작할 때 10냥'}</span></div>
+      <div className="vr-zone-play-bar"><button onClick={leave} disabled={state.purchasing}>VR 게임 목록으로</button><span>{preview ? '테스트 잔액' : '사용 가능'} {state.balance ?? '—'}냥 · {state.purchasing ? '이용권 확인 중…' : recovering ? '시작하면 이전 이용권 재확인 · 중복 차감 없음' : state.receipt ? '이번 판 이용료 10냥 결제 완료' : '시작할 때 10냥'}</span></div>
       {state.error ? <div className="vr-zone-payment-error" role="alert">{state.error}</div> : null}
       <Suspense fallback={<div className="vr-zone-loading" role="status">조리대를 준비하고 있어요…</div>}><SkewerPage authorizeStart={controller.authorize} entryFee={VR_PLAY_FEE} onExit={leave} onResultExit={() => controller.back()} playMode={state.playMode} onChangeMode={() => controller.changeMode()} /></Suspense>
     </div>}

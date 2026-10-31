@@ -19,6 +19,14 @@ export class ServerVrAdmission implements VrAdmissionPort {
     return (payload as { availableBalance: number }).availableBalance
   }
 
+  hasPendingRequest() {
+    try {
+      const owner = this.context.owner()
+      const key = owner && this.context.storage().getItem(`ontop:skewer:pending-admission:${owner}`)
+      return typeof key === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(key)
+    } catch { return false }
+  }
+
   async start(game: VrGameId, key: string): Promise<VrAdmission> {
     const owner = this.context.owner()
     if (!owner || game !== 'skewer' || !/^[A-Za-z0-9_-]{1,64}$/.test(key))

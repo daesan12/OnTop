@@ -4,6 +4,7 @@ export interface VrAdmission { id: string; game: VrGameId; fee: number; availabl
 export interface VrAdmissionPort {
   readonly mode: 'local-preview' | 'unavailable' | 'server'
   balance(): Promise<number>
+  hasPendingRequest?(): boolean
   start(game: VrGameId, idempotencyKey: string): Promise<VrAdmission>
 }
 
