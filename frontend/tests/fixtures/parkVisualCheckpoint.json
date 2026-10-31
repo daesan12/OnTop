@@ -191,7 +191,7 @@
     "src/world/art/LuckyFacilities.tsx": "cf1f198fea3e3e0130bdf3b94c96d44c014174e352ba0645240ce41a511b77d4",
     "src/world/art/luckyFacilityGeometry.ts": "1a5d69183e7c931d75901020d6d5ca7dfe1b41534fe7d0bb9cf2804a710a41c1",
     "src/layout-preview/stairFlightGeometry.ts": "73060545b54ff9e5cc27df141bdd5fb0f7912f971f5d821f74dad865aa2bab2d",
-    "src/layout-preview/RankingBoardModel.tsx": "eac4166348a9191a0652883718e6569c5d1f43a16ac864612c47a52d18a2414f",
+    "src/layout-preview/RankingBoardModel.tsx": "37496bbdc97a20ae0d16f79f8e005e8e54e753a731fe433c048eb66f5bfc9195",
     "src/layout-preview/rankingBoardRoofSeats.ts": "dfeebed6f3acdb238dd855aa65c12cc72adfb8c606964cca86a1a42bdb026a1d",
     "src/world/art/shopLanternLayout.ts": "a12a5e070c4ac1be12d3f29ef93bef162e0fb4c2cfd93099073d609abe89ee94"
   },
