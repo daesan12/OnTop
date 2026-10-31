@@ -52,10 +52,11 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.timeout;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -92,15 +93,24 @@ class PreparedParkSocketTests {
             channels.holdFacility(user, facility.center());
             var used = client.request("WORLD_FACILITY_USE", Map.of("facilityId", facility.facilityId(), "seatIndex", 0));
             assertThat(used.path("type").asText()).isEqualTo("WORLD_FACILITY_STATE");
-            verify(rewards).started(eq(Long.parseLong(user)), any());
+            await().atMost(Duration.ofSeconds(3))
+                    .untilAsserted(() -> verify(rewards).started(eq(Long.parseLong(user)), any()));
             String lease = used.path("payload").path("occupancies").get(0).path("leaseId").asText();
             assertThat(client.request("WORLD_FACILITY_RELEASE", Map.of("leaseId", lease))
                     .path("payload").path("occupancies").isEmpty()).isTrue();
-            verify(rewards).ended(any());
+            await().atMost(Duration.ofSeconds(3)).untilAsserted(() -> verify(rewards).ended(any()));
             channels.holdFacility(user, facility.center());
-            client.request("WORLD_FACILITY_USE", Map.of("facilityId", facility.facilityId(), "seatIndex", 0));
+            var reused = client.request("WORLD_FACILITY_USE",
+                    Map.of("facilityId", facility.facilityId(), "seatIndex", 0));
+            assertThat(reused.path("type").asText()).isEqualTo("WORLD_FACILITY_STATE");
+            await().atMost(Duration.ofSeconds(3))
+                    .untilAsserted(() -> verify(rewards, times(2)).started(eq(Long.parseLong(user)), any()));
+
+            // abort의 서버 감지 시점에 의존하지 않고 Close 프레임으로 접속 종료를 전달한다.
+            client.socket.sendClose(WebSocket.NORMAL_CLOSURE, "test done").get(5, TimeUnit.SECONDS);
+            // synchronized mock 메서드 안에서 timeout 검증을 대기하면 서버의 ended 호출도 막힌다.
+            await().atMost(Duration.ofSeconds(3)).untilAsserted(() -> verify(rewards, times(2)).ended(any()));
         }
-        verify(rewards, timeout(3000).times(2)).ended(any());
     }
 
     @Test
