@@ -1,3 +1,4 @@
+import { AlkkagiTurnNotice } from './AlkkagiTurnNotice'
 import { AlkkagiSpectatorLabels } from './AlkkagiSpectatorLabels'
 import { SeatedLookButton } from '../../features/tableLobby/SeatedLookButton'
 import { useEffect, useState } from 'react'
@@ -34,6 +35,9 @@ export function AlkkagiPanel() {
       onClick={()=>{cancelAlkkagiItem();useAlkkagiUI.setState({item:c})}}/>)}</div>
       {ui.item&&canItem&&<div className="alkkagi-item-confirm"><p>{preview.reason}</p><button disabled={!preview.valid} onClick={()=>act({type:'ITEM_USE',cardId:ui.item!.id,targetPieceIds:ui.targets,...(ui.placement ? {placement:ui.placement} : {})})}>아이템 확정</button>
         <button onClick={cancelAlkkagiItem}>아이템 취소</button>{ui.pinned&&<button onClick={()=>useAlkkagiUI.setState({pinned:false})}>위치 다시 고르기</button>}</div>}</footer>}
+    <AlkkagiTurnNotice gameId={state.gameId} turnNumber={state.turnNumber} turn={state.turn}
+      actor={actor} stage={state.stage} enabled={actor>=0 ? ready : session.status==='connected' && !game.uncertain && game.watchedGameId===g.gameId}
+      nickname={name(state.turn)} cards={g.alkkagiHand?.cards ?? []} />
     <AlkkagiSpectatorLabels />
     <AlkkagiCardAward hand={g.alkkagiHand} />
     {choice&&<AlkkagiChoiceFan key={choice.id} choice={choice} ready={ready}
