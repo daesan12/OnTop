@@ -41,13 +41,37 @@ class AlkkagiForfeitFlowTests {
         r.add("ontop.world.proximity.tables["+TABLE+"].z",()->0);
     }
     ScenarioClient connect(long user) throws Exception {
+        return connect(user,"LOBBY");
+    }
+    ScenarioClient connect(long user,String status) throws Exception {
         try(var http=HttpClient.newHttpClient()) {
             var response=http.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:"+port+"/api/v1/auth/websocket-ticket"))
                 .header("Authorization","Bearer "+jwt.issue(user,TestLoginSessions.ID)).POST(HttpRequest.BodyPublishers.noBody()).build(),HttpResponse.BodyHandlers.ofString());
             assertThat(response.statusCode()).isEqualTo(200);
             var client=new ScenarioClient(port,""+user,mapper.readTree(response.body()).path("ticket").asText());
-            client.state("LOBBY");client.request("CHANNEL_JOIN",Map.of("channelId","one"));
+            client.state(status);
+            assertThat(client.request("CHANNEL_JOIN",Map.of("channelId","one")).path("type").asText()).isEqualTo("CHANNEL_STATE");
             positions.move(""+user,new WorldChannelRegistry.Position(1,0,.8,0,0));return client;
+        }
+    }
+    @Test void 진행중_새연결도_보존된좌석의채널로만_복귀하고_기권퇴장한다() throws Exception {
+        try(var red=connect(101);var green=connect(202)) {
+            var seat=red.request("TABLE_JOIN",Map.of("tableId",TABLE));
+            red.request("TABLE_CONFIGURE",Map.of("gameCode","ALKKAGI","selectedPlayers",2,"betAmountPerPlayer",1,"expectedVersion",seat.at("/payload/version").asLong()));
+            green.request("TABLE_JOIN",Map.of("tableId",TABLE));
+            red.request("READY_SET",Map.of("ready",true));green.request("READY_SET",Map.of("ready",true));
+            var ready=red.request("TABLE_JOIN",Map.of("tableId",TABLE));
+            red.request("TABLE_START",Map.of("actionId","refresh-start","expectedVersion",ready.at("/payload/version").asLong()));
+            String game=red.state("RESTORED").path("gameId").asText();green.state("RESTORED");
+            red.close();
+            try(var resumed=connect(101,"RESTORED")) {
+                assertThat(resumed.request("CHANNEL_JOIN",Map.of("channelId","other")).at("/payload/code").asText()).isEqualTo("GAME_RECOVERY_REQUIRED");
+                assertThat(resumed.request("GAME_STATE_CHECK",Map.of("gameId",game)).at("/payload/publicState/status").asText()).isEqualTo("PLAYING");
+                assertThat(resumed.request("GAME_FORFEIT",Map.of("gameId",game,"actionId","refresh-forfeit")).path("type").asText()).isEqualTo("GAME_FORFEIT_RESULT");
+                green.state("FINISHED");
+                assertThat(resumed.request("TABLE_LEAVE",Map.of()).path("type").asText()).isEqualTo("TABLE_LEFT");
+                assertThat(green.request("TABLE_LEAVE",Map.of()).path("type").asText()).isEqualTo("TABLE_LEFT");
+            }
         }
     }
     @Test void 방장기권_이후_상대퇴장_재착석과_다음판을_시작한다() throws Exception {
@@ -111,6 +135,8 @@ class AlkkagiForfeitFlowTests {
             output.put("rejoined",rejoined);output.put("configured",configured);output.put("nextStart",nextStartState);output.put("nextGame",next);
             output.put("nextRecovery",nextRecovery);output.put("nextShot",shot);output.put("advanced",advanced);
             java.nio.file.Files.writeString(java.nio.file.Path.of("build/alkkagi-forfeit-frames.json"),mapper.writerWithDefaultPrettyPrinter().writeValueAsString(output));
+            shooter.request("GAME_FORFEIT",Map.of("gameId",nextId,"actionId","next-cleanup"));
+            red.request("TABLE_LEAVE",Map.of());green.request("TABLE_LEAVE",Map.of());
         }
     }
 }

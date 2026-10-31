@@ -6,7 +6,9 @@ export function alkkagiTopDownFrame(width: number, height: number, scale: number
   const top = wide ? 128 : 130, bottom = wide ? 32 : 130
   const usableHeight = Math.max(h * .3, h - top - bottom)
   const usableWidth = wide ? Math.max(w * .3, w - 480) : w * .88
-  const vertical = Math.max(1.4 * scale * h / usableHeight, 1.26 * scale * w / usableWidth / (w / h))
+  // Include the raised piece faces and a rim around the 1.26 x 1.4 board.
+  // Fitting only the flat board clips elevated pieces through perspective.
+  const vertical = Math.max(1.48 * scale * h / usableHeight, 1.34 * scale * w / usableWidth / (w / h))
   return { height: vertical / (2 * Math.tan(ALKKAGI_FOV * Math.PI / 360)),
     offset: (top - bottom) / (2 * h) * vertical }
 }

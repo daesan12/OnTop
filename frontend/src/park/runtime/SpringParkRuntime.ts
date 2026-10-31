@@ -814,9 +814,9 @@ export class ParkRuntime implements ParkRuntimePort {
     if (!held || message.requestId !== null || held.length >= 64) return false
     const seat = message.type === 'TABLE_STATE' || message.type === 'TABLE_HOST_WAIT_STATE'
       || message.type === 'GAME_START_STATE' && message.payload.tableId !== null
-    // After a held seat its game messages wait too, so they are read with the table as before the refresh.
-    const game = held.some(m => m.type === 'TABLE_STATE')
-      && ['GAME_START_STATE', 'GAME_CONNECTION_STATE', 'GAME_STATE', 'GAME_RESULT'].includes(message.type)
+    // Recovery can precede the seat itself. Applying it now would block the
+    // initial channel join as an active game, leaving the board without a seat.
+    const game = ['GAME_START_STATE', 'GAME_CONNECTION_STATE', 'GAME_STATE', 'GAME_RESULT'].includes(message.type)
     if (!seat && !game) return false
     held.push(message)
     return true

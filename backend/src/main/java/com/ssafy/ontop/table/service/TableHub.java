@@ -837,7 +837,8 @@ public class TableHub {
                 return;
             }
             if (member.accountId() != null && reconnect.isPresent()
-                    && !reconnect.get().canUseLobby(member.accountId(), sessionId)) {
+                    && !reconnect.get().canUseLobby(member.accountId(), sessionId)
+                    && !restoredChannelJoin(member, request)) {
                 fail(request, "GAME_RECOVERY_REQUIRED", "현재 경기 복구 상태를 먼저 확인해주세요.");
             }
             switch (request.type()) {
@@ -1086,6 +1087,15 @@ public class TableHub {
         endFollows(member.userId());
         recordBehavior(BehaviorEventType.TABLE_JOINED, member.accountId(),
                 builder -> builder.tableId(tableId).channelId(tableChannels.get(tableId)));
+    }
+
+    /** A recovered participant may re-enter only the channel of the preserved game seat. */
+    private boolean restoredChannelJoin(Member member, Request request) {
+        if (!request.type().equals("CHANNEL_JOIN") || member.accountId() == null || reconnect.isEmpty()) return false;
+        String tableId = seating.get(member.userId()), gameId = seatedGames.get(member.userId());
+        return tableId != null && gameId != null
+                && java.util.Objects.equals(tableChannels.get(tableId), request.payload().get("channelId").textValue())
+                && reconnect.get().canControlGame(member.accountId(), member.sessionId(), gameId);
     }
 
     private void joinChannel(Member member, Request request) {
