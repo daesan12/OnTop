@@ -52,7 +52,7 @@ export function LedgerPanel() {
     : `${mine ? '내 차례' : `${names[l.turnUserId!]} 차례`} · ${l.rollCount === 0 ? '굴려 주세요' : l.rollCount < l.maxRolls
       ? `${l.maxRolls - l.rollCount}번 더 굴릴 수 있어요` : '칸을 골라 기록하세요'}`
   const scored = l.lastScored
-  return <section className="ledger-panel" aria-label="주사위 장부" data-role={g.role}>
+  return <><section className="ledger-panel" aria-label="주사위 장부" data-role={g.role}>
     <header className="ledger-head">
       <div><h2>주사위 장부</h2><small>{playing ? `${l.round} / 12 라운드` : LEDGER_END_REASON[l.endReason ?? ''] ?? l.endReason}</small></div>
       {remaining !== null && <span className="ledger-clock" data-urgent={remaining <= 5} aria-label={`남은 시간 ${remaining}초`}>{remaining}<small>초</small></span>}
@@ -91,18 +91,16 @@ export function LedgerPanel() {
       {s.error && <p role="alert">{s.error}</p>}
       {player && !playing && <p>{s.result ? s.result.settlementStatus === 'SETTLED' ? `정산 완료 · 내 엽전 증감 ${s.result.myCoinDelta}` : '정산 대기 중' : '결과·정산 확인 전입니다.'}</p>}
     </div>
-    <details className="ledger-settings">
-      <summary>게임 설정 <span aria-hidden="true">···</span></summary>
-      <div>
-        {player && <SeatedLookButton />}
-        <button onClick={() => openManual('ledger')}>게임 설명</button>
-        <button aria-pressed={sound} onClick={() => setDiceSound(!sound)}>소리 {sound ? '켜짐' : '꺼짐'}</button>
-        <button disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkGame()}>최신 장부 확인</button>
-        {player && recoveryBlocked() && <button disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkRecovery()}>경기 복구 다시 확인</button>}
-        {player && !playing && <button disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkResult()}>정산 결과 확인</button>}
-        {player && <OmokSurrender key={`${own}:${g.gameId}`} context={{ userId: own, gameId: g.gameId, version: g.version }} disabled={session.pending} />}
-        {!player && <button disabled={session.pending} onClick={() => void runtime.unwatchGame()}>관전 종료</button>}
-      </div>
-    </details>
   </section>
+  {/* 장부가 스크롤 없이 한 화면에 들어오도록 게임 설정은 왼쪽 세로 메뉴로 분리한다. */}
+  <nav className="ledger-menu" aria-label="게임 메뉴">
+    {player && <SeatedLookButton />}
+    <button onClick={() => openManual('ledger')}>게임 설명</button>
+    <button aria-pressed={sound} onClick={() => setDiceSound(!sound)}>소리 {sound ? '켜짐' : '꺼짐'}</button>
+    <button disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkGame()}>최신 장부 확인</button>
+    {player && recoveryBlocked() && <button disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkRecovery()}>경기 복구 다시 확인</button>}
+    {player && !playing && <button disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkResult()}>정산 결과 확인</button>}
+    {player && <OmokSurrender key={`${own}:${g.gameId}`} context={{ userId: own, gameId: g.gameId, version: g.version }} disabled={session.pending} />}
+    {!player && <button disabled={session.pending} onClick={() => void runtime.unwatchGame()}>관전 종료</button>}
+  </nav></>
 }
