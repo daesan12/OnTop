@@ -2,23 +2,25 @@ import { seatScope, useTableLobby } from '../../features/tableLobby/state'
 import { useEffect } from 'react'
 import { create } from 'zustand'
 import { useGame } from '../store'
+import { forfeitBlocksInput, useForfeit } from '../forfeit'
 import { useSession } from '../../network/worldClient'
 import { parkRuntime } from '../../park/runtime/runtime'
 import { itemPreview, type Placement } from './placement'
 import type { Card } from './protocol'
 import type { Piece } from './replay'
 
-const empty = { item:null as Card | null, targets:[] as string[], placement:null as Placement | null, pinned:false, notice:'' }
+const empty = { item:null as Card | null, targets:[] as string[], placement:null as Placement | null, pinned:false, notice:'', dialogOpen:false }
 export const useAlkkagiUI = create(() => ({ ...empty }))
 export function cancelAlkkagiItem() { useAlkkagiUI.setState({ item:null,targets:[],placement:null,pinned:false }) }
 export function useAlkkagiControls() {
   const session=useSession(), game=useGame(), ui=useAlkkagiUI()
+  useForfeit(s=>s.attempt)
   const lookScope=useTableLobby(s=>s.lookScope), looking=!!seatScope(session) && lookScope===seatScope(session)
   const g=game.game?.alkkagi ? game.game : null, state=g?.alkkagi ?? null
   const actor=g?.role === 'PLAYER' ? state!.players.indexOf(session.sessionId) : -1
   const ready=actor>=0 && session.status==='connected' && !session.pending && !game.pending && !game.uncertain
-    && g?.gameId===game.permittedGameId && game.recovery==='RESTORED' && (g?.version ?? -1)>=game.awaitingVersion
-  const canItem=ready && !looking && state?.turn===actor && state.stage==='AIMING' && !state.itemUsedThisTurn
+    && !forfeitBlocksInput(g?.gameId ?? '') && g?.gameId===game.permittedGameId && game.recovery==='RESTORED' && (g?.version ?? -1)>=game.awaitingVersion
+  const canItem=ready && !ui.dialogOpen && !looking && state?.turn===actor && state.stage==='AIMING' && !state.itemUsedThisTurn
   useEffect(cancelAlkkagiItem,[state?.gameId,state?.version,session.status,looking])
   const act=(input:Record<string,unknown>) => { if(parkRuntime.actAlkkagi) void parkRuntime.actAlkkagi(input) }
   const preview=itemPreview(state,ui.item?.type ?? '',ui.targets,ui.placement)

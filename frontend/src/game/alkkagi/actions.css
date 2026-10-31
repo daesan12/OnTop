@@ -1,0 +1,73 @@
+.alkkagi-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  width: 174px;
+}
+.alkkagi-actions button {
+  width: 100%;
+  min-height: 44px;
+  border-radius: 12px;
+  padding: 10px 16px;
+  border: 1px solid #b69a65;
+  background: linear-gradient(135deg, #33352cf5, #21291ff5);
+  color: #f7e9c7;
+  box-shadow: 0 3px 12px #24170c25, inset 0 1px #fff1c914;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+}
+.alkkagi-actions button:hover:not(:disabled),
+.alkkagi-actions button[aria-pressed=true] { border-color: #efcc83; background: #384c39f5; }
+.alkkagi-actions button:focus-visible,
+.alkkagi-item-confirm button:focus-visible { outline: 3px solid #efcc83; outline-offset: 3px; }
+.alkkagi-actions button:disabled,
+.alkkagi-item-confirm button:disabled { opacity: .45; cursor: default; }
+.alkkagi-actions .game-forfeit > button {
+  color: #f2b2a2;
+  border-color: #a4705b;
+  background: #382c25db;
+}
+.alkkagi-actions .game-forfeit > button:hover:not(:disabled) { background: #563b30; border-color: #da9d82; }
+.alkkagi-actions .game-forfeit p {
+  margin: 0 0 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #292c23f2;
+  color: #f5e6c1;
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.alkkagi-actions .game-forfeit button + button { margin-top: 7px; }
+.alkkagi-item-confirm { gap: 8px; }
+.alkkagi-item-confirm button { min-height: 40px; cursor: pointer; font: inherit; font-size: 13px; }
+.alkkagi-item-confirm button:first-of-type { background: #27543e; color: #fff2cc; border-color: #c5aa6e; }
+.alkkagi-item-confirm button:not(:first-of-type) { background: #2c3028; color: #cfc5ac; }
+.alkkagi-forfeit-dialog { width: min(430px, calc(100vw - 36px)); box-sizing: border-box; }
+.alkkagi-forfeit-dialog .paper-caption { font-size: 13px; letter-spacing: .15em; color: #8a734b; }
+.alkkagi-forfeit-seal {
+  display: grid;
+  place-items: center;
+  width: 62px;
+  height: 62px;
+  margin: 15px auto 18px;
+  border: 1px solid #b99a6c;
+  border-radius: 50%;
+  background: #e5d1ae73;
+  color: #815344;
+}
+.alkkagi-forfeit-seal svg { width: 32px; height: 32px; }
+.table-paper-popup.alkkagi-forfeit-dialog h2 { font-size: 34px; line-height: 1.4; margin-bottom: 14px; }
+.table-paper-popup.alkkagi-forfeit-dialog .paper-subtitle { font-size: 14px; line-height: 1.7; color: #6c6453; }
+.alkkagi-forfeit-buttons { display: grid; grid-template-columns: 1.2fr 1fr; gap: 10px; margin-top: 24px; }
+.alkkagi-forfeit-buttons .paper-primary { font-size: 16px; }
+.table-paper-popup .alkkagi-confirm-forfeit { color: #8d4e3b; border-color: #ba947b; background: #f0e1c9; font-size: 15px; }
+.alkkagi-dialog-clock-note { display: block; margin-top: 17px; color: #8a7c63; font-size: 11px; }
+@media(max-width:600px) {
+  .alkkagi-actions { width: 135px; gap: 6px; }
+  .alkkagi-actions button { min-height: 40px; font-size: 12px; padding: 8px; }
+  .alkkagi-forfeit-dialog { padding: 27px 22px 23px; }
+  .table-paper-popup.alkkagi-forfeit-dialog h2 { font-size: 30px; }
+}

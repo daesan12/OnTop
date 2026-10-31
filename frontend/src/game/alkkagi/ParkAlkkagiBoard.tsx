@@ -41,7 +41,7 @@ function LiveAlkkagiSurface({focused}:{focused:boolean}) {
   useEffect(()=>{if(state)replay.push(state.version,state,performance.now())},[state,replay])
   if(!state)return null
   return <AlkkagiScene layer={focused ? OMOK_FOCUS_LAYER : 0} actor={actor} state={{...state,social:alkkagiSocialView(state.gameId,state.turnNumber,state.stage==='AIMING',session.sessionId)}} replay={replay}
-      enabled={(spectating || ready && !looking && state.turn===actor) && state.stage==='AIMING'}
+      enabled={!ui.dialogOpen && (spectating || ready && !looking && state.turn===actor) && state.stage==='AIMING'}
       shoot={(p,dx,dy,power)=>{if(spectating)void parkRuntime.sendAlkkagiSpectator?.({kind:'ADVICE',pieceId:p.id,dx,dy,power});else act({type:'SHOT',pieceId:p.id,dx,dy,power})}}
       explain={notice=>useAlkkagiUI.setState({notice})} blockedReason="현재 차례·연결 상태를 확인해주세요."
       itemMode={canItem ? ui.item?.type ?? null : null} itemTargets={ui.targets} pickTarget={chooseTarget} cancelItem={cancelAlkkagiItem}
