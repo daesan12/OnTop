@@ -2,6 +2,7 @@ import { SeatedLookButton } from '../../features/tableLobby/SeatedLookButton'
 import { useEffect, useState } from 'react'
 import { useParkRuntime } from '../../park/runtime/ParkRuntime'
 import { OmokSurrender } from '../OmokSurrender'
+import { AlkkagiCardAward, AlkkagiChoiceFan } from './AlkkagiCardReveal'
 import { AlkkagiItemCard } from './AlkkagiItemCard'
 import { useAlkkagiControls, useAlkkagiUI, cancelAlkkagiItem } from './parkControls'
 import './park.css'
@@ -31,7 +32,9 @@ export function AlkkagiPanel() {
       onClick={()=>{cancelAlkkagiItem();useAlkkagiUI.setState({item:c})}}/>)}</div>
       {ui.item&&canItem&&<div className="alkkagi-item-confirm"><p>{preview.reason}</p><button disabled={!preview.valid} onClick={()=>act({type:'ITEM_USE',cardId:ui.item!.id,targetPieceIds:ui.targets,...(ui.placement ? {placement:ui.placement} : {})})}>아이템 확정</button>
         <button onClick={cancelAlkkagiItem}>아이템 취소</button>{ui.pinned&&<button onClick={()=>useAlkkagiUI.setState({pinned:false})}>위치 다시 고르기</button>}</div>}</footer>}
-    {choice&&ready&&<div className="alkkagi-choice" role="dialog" aria-modal="true" aria-label="카드 선택"><h3>비책 한 장 선택 · {Math.max(0,Math.ceil((choice.deadline-now)/1000))}초</h3>
-      <div>{choice.options.map(c=><AlkkagiItemCard key={c.id} type={c.type} onClick={()=>act({type:'CARD_CHOOSE',choiceId:choice.id,optionId:c.id})}/>)}</div></div>}
+    <AlkkagiCardAward hand={g.alkkagiHand} />
+    {choice&&<AlkkagiChoiceFan key={choice.id} choice={choice} ready={ready}
+      seconds={Math.max(0,Math.ceil((choice.deadline-now)/1000))}
+      choose={optionId=>act({type:'CARD_CHOOSE',choiceId:choice.id,optionId})} />}
   </section>
 }
