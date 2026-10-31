@@ -29,9 +29,10 @@ import { canReachTable } from '../tableLobby/tableReach'
 import { GENERATED_PARK_ENABLED } from '../../park/mapSelection'
 import { constructionSites,canReachConstruction,openConstructionNotice } from '../construction/model'
 import { canReachRankingBoard,openRankingBoard,rankingBoardTarget } from '../rankingBoard/model'
+import { canReachParkVr, openParkVrZone, parkVrEntrance } from '../vrZone/parkBridge'
 
 export interface ParkInteraction {
-  kind: 'bench' | 'table' | 'fitness' | 'telescope' | 'feedback' | 'notes' | 'bungeoppang' | 'construction' | 'ranking-board'
+  kind: 'bench' | 'table' | 'fitness' | 'telescope' | 'feedback' | 'notes' | 'bungeoppang' | 'construction' | 'ranking-board' | 'vr'
   id: string
   label: string
   seat?: 0 | 1
@@ -58,6 +59,11 @@ export function getParkInteraction(): ParkInteraction | null {
     if(!canReachConstruction(p.current,site.id))continue
     const [x,y,z]=site.reachPosition,distance=Math.hypot(p.current.x-x,p.current.z-z)
     choices.push({kind:'construction',id:site.id,label:site.label+' · 무료 목업 체험',occupied:false,available:true,distance,score:interactionScore(distance,{x,y,z})})
+  }
+  if (canReachParkVr(p.current)) {
+    const distance = Math.hypot(p.current.x - parkVrEntrance.x, p.current.z - parkVrEntrance.z)
+    choices.push({ kind: 'vr', id: 'vr-experience-hall', label: 'VR 게임 선택 · 한 판 10냥', occupied: false, available: true, distance,
+      score: interactionScore(distance, { x: parkVrEntrance.x, y: 1.5, z: parkVrEntrance.z }) })
   }
   if (canReachBungeoppang(p.current)) {
     const cart = MINI_PROPS[0], distance = Math.hypot(p.current.x - cart.x, p.current.z - cart.z)
@@ -120,6 +126,7 @@ export function interactWithPark(): boolean {
   const target = getParkInteraction()
   if (!target) return false
   if (target.kind === 'ranking-board') openRankingBoard()
+  else if (target.kind === 'vr') openParkVrZone()
   else if (target.kind === 'construction') openConstructionNotice(target.id)
   else if (target.kind === 'bungeoppang') openBungeoppang()
   else if (target.kind === 'table') interactWithTable(target.id)
