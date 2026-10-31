@@ -107,7 +107,7 @@ export function ParkPigeons({ quality,habitat }: { quality: QualityPreset;habita
         habitat?.environment,
       )
       // A flock scatters over several frames; play one cue instead of stacking every bird.
-      if (!wasFlying && b.mode === 'fly' && state.time - state.takeoffAt[flock] > 0.5) {
+      if (!wasFlying && b.mode === 'fly' && state.time - (state.takeoffAt[flock] ?? -Infinity) > 0.5) {
         state.takeoffAt[flock] = state.time
         playSfx('amb-pigeon-takeoff', { x: b.x, y: b.y, z: b.z })
       }
