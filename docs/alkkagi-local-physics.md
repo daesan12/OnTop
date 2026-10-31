@@ -143,6 +143,6 @@ BE `AlkkagiMatchTests`, `AlkkagiSocketTests`, FE `tests/unit/alkkagiReplay.test.
 ```json
 { "requestId": "요청식별자", "type": "GAME_ACTION_SEND", "payload": { "gameId": "서버 확정 경기 ID", "actionId": "UUID", "expectedVersion": 1, "input": { "type": "SHOT", "pieceId": "p13", "dx": 0, "dy": -1, "power": 0.8 } } }
 ```
-카드 사용 input은 `{type:ITEM_USE,cardId,targetPieceIds,placement?}`, 선택은 `{type:CARD_CHOOSE,choiceId,optionId}`다. 플레이어 경기 채팅은 기존 GAME_SPECTATOR_CHAT_SEND로 같은 경기 승인자에게만 전달한다. 전용 데모의 CURSOR/ADVICE 경로를 공원 소켓으로 임의 우회하지 않으며 공원 관전자 커서/유령샷은 아직 별도 연결이 필요하다. 실제 DB/공용 서버 활성화와 구분한다.
+카드 사용 input은 `{type:ITEM_USE,cardId,targetPieceIds,placement?}`, 선택은 `{type:CARD_CHOOSE,choiceId,optionId}`다. 플레이어 경기 채팅은 기존 GAME_SPECTATOR_CHAT_SEND로 같은 경기 승인자에게만 전달한다. 전용 데모의 CURSOR/ADVICE 경로를 공원 소켓으로 임의 우회하지 않으며 공원 관전자 커서/훈수는 ALKKAGI_SPECTATOR_SEND/EVENT로 연결했다. 파란 훈수 화살표는 방향 표시이며 물리 예측이나 실제 발사가 아니다. 상세는 websocket-api/11-alkkagi-spectator-events.md다. 실제 DB/공용 서버 활성화와 구분한다.
 
 카드 선택 표현: 후보3장이 순서대로 펼쳐지고 서버 손패에 새 카드가 들어오면 회전/광선 획득 표시가 1.9초 나타난다. 클릭은 즉시 서버에 전달하며 선택10초·자동선택·턴30초는 변경하지 않는다. 최초 손패 조회는 획득으로 연출하지 않는다. 움직임 줄이기 설정에서는 회전 효과를 생략한다. 관전 채팅은 어두운 배경과 최대3줄로 판 위에서도 대비를 유지한다.

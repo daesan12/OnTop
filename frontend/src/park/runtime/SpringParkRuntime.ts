@@ -1,3 +1,4 @@
+import { acceptAlkkagiSocial, resetAlkkagiSocial, syncAlkkagiSocial } from '../../game/alkkagi/spectatorEvents'
 import {
   clearAuthSession,
   getAuthSession,
@@ -165,7 +166,8 @@ export class ParkRuntime implements ParkRuntimePort {
     },
     stop: async () => { await this.socket.request('GAME_UNWATCH', {}, ['GAME_WATCH_LEFT']) },
     hide: () => {
-      this.omokEvents.reset()
+      resetAlkkagiSocial()
+    this.omokEvents.reset()
       this.oneCardPranks.reset()
       this.oneCardDefense.reset()
       if (this.gameWatchRequestId) this.obsoleteGameWatchRequests.add(this.gameWatchRequestId)
@@ -580,6 +582,18 @@ export class ParkRuntime implements ParkRuntimePort {
     }
     if (this.oneCardDefense.accept(message)) return
     if (this.oneCardPranks.accept(message)) return
+    if (message.type === 'ERROR' && message.requestId && this.alkkagiSocialRequests.delete(message.requestId)) return
+    if (message.type === 'ALKKAGI_SPECTATOR_EVENT') {
+      const state = useGame.getState(), session = useSession.getState()
+      this.alkkagiSocialRequests.delete(message.requestId ?? '')
+      const g = state.game
+      const eligible = this.active && session.status === 'connected' && session.mapCompatible && !!session.roomId
+        && g?.alkkagi?.status === 'PLAYING' && !state.lastResult
+        && (g.role === 'PLAYER' ? state.recovery === 'RESTORED' && state.permittedGameId === g.gameId
+          : this.spectator.accepts(g.gameId) && state.watchedGameId === g.gameId)
+      acceptAlkkagiSocial(message, eligible ? g!.gameId : '', g?.version)
+      return
+    }
     if (this.omokEvents.accept(message)) return
     if (this.worldTime.ownsError(message) || message.type === 'WORLD_TIME_STATE') return
     if (message.type === 'ERROR' && message.requestId && this.forfeitRequests.has(message.requestId)
@@ -619,6 +633,8 @@ export class ParkRuntime implements ParkRuntimePort {
     try {
       receiveGame(message, session.sessionId, session.tableId)
       receiveWalletSettlement(message, session.sessionId)
+      const alkkagi = useGame.getState().game?.alkkagi
+      syncAlkkagiSocial(alkkagi?.gameId ?? '', alkkagi?.version ?? -1, alkkagi?.stage === 'AIMING')
       this.omokEvents.sync()
       this.oneCardPranks.sync()
       this.oneCardDefense.sync()
@@ -1243,6 +1259,25 @@ export class ParkRuntime implements ParkRuntimePort {
       throw error
     } finally { if (generation === this.generation) useGame.setState({ pending: false }) }
   })
+  private alkkagiSocialRequests = new Set<string>()
+  private alkkagiCursorAt = -Infinity
+  private alkkagiCursorPending = false
+  sendAlkkagiSpectator = async (input: Record<string, unknown>): Promise<boolean> => {
+    const session = useSession.getState(), state = useGame.getState(), g = state.game
+    if (!this.active || !this.socket.connected || session.status !== 'connected' || !session.mapCompatible || !session.roomId
+      || !g?.alkkagi || g.role !== 'SPECTATOR' || g.alkkagi.stage !== 'AIMING'
+      || state.watchedGameId !== g.gameId || !this.spectator.accepts(g.gameId) || state.lastResult) return false
+    const cursor = input.kind === 'CURSOR', at = performance.now()
+    if (cursor && (this.alkkagiCursorPending || at - this.alkkagiCursorAt < 90)) return false
+    if (cursor) { this.alkkagiCursorAt = at; this.alkkagiCursorPending = true }
+    let requestId = ''
+    try {
+      await this.socket.request('ALKKAGI_SPECTATOR_SEND', { ...input, gameId: g.gameId, eventId: crypto.randomUUID(), basedOnVersion: g.version },
+        ['ALKKAGI_SPECTATOR_EVENT'], id => { requestId = id; this.alkkagiSocialRequests.add(id) })
+      return true
+    } catch { return false }
+    finally { this.alkkagiSocialRequests.delete(requestId); if (cursor) this.alkkagiCursorPending = false }
+  }
   actAlkkagi = (input: Record<string, unknown>) => this.action(async () => {
     const own = useSession.getState(), s = useGame.getState(), g = s.game
     if (own.status !== 'connected' || !g?.alkkagi || g.role !== 'PLAYER' || g.gameId !== s.permittedGameId

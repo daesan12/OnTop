@@ -39,6 +39,7 @@ export interface ParkRuntimePort {
   flipOneCardHand?(targetUserId: string, cardIndex?: number, handVersion?: number): Promise<boolean>
   restoreOneCardHand?(): Promise<boolean>
   hitOneCardHand?(attemptId: string): Promise<boolean>
+  sendAlkkagiSpectator?(input: Record<string, unknown>): Promise<boolean>
   actAlkkagi?(input: Record<string, unknown>): Promise<boolean>
   actBridge(input: import('../../game/bridge/protocol').BridgeInput): Promise<boolean>
   watchGame(gameId: string): Promise<boolean>

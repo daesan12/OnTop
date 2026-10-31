@@ -868,6 +868,38 @@
           "content": "{\n  \"requestId\": \"{{$guid}}\",\n  \"type\": \"ONECARD_HAND_RESTORE_SEND\",\n  \"payload\": {\n    \"gameId\": \"{{gameId}}\",\n    \"eventId\": \"{{prankEventId}}\",\n    \"effectId\": \"{{prankEffectId}}\"\n  }\n}"
         }
       ]
+    },
+    {
+      "name": "알까기 관전자 커서·훈수 — 로컬 공원",
+      "$kind": "websocket-request",
+      "url": "{{wsUrl}}",
+      "description": "WORLD_MOVE는 {seq,dx,dz,run,jump?} 입력만 허용합니다. seq1~4294967295, dx/dz 각[-1,1] 대각선 정규화, run필수 boolean/jump선택. 서버30Hz·변화100ms동기화·입력 평균50ms당1개/일시4개·250ms만료. 걷기6.25/달리기9/점프6.2/중력-18/단차0.22. 채널 입장 시 서버 스폰(캡슐 중심), lastInputSeq는 수락순번, mapVersion 대조. 기존 sequence/x/y/z/yaw 주입은 INVALID_PAYLOAD. 재접속30초·채팅/관전20m 유지. 누구나 GAME_WATCH 후 첫 GAME_STATE를 받으면 관전합니다(방장 승인 없음). 같은 채널/20m/미착석 검사 유지. ALKKAGI_SPECTATOR_EVENT는 본인 ACK와 같은 경기 일시 방송. 커서80ms·TTL2초, 훈수600ms·TTL4초. 최신 AIMING/현재 차례 알만. 훈수는 방향 표시이며 실제 발사/물리/차례에 영향 없음. gameId/gameVersion/pieceId를 실제 상태로 바꾸세요. 신규 UUID는 새 표시, 같은 요청 재확인은 같은 UUID입니다. docs/websocket-api/11-alkkagi-spectator-events.md. 로컬 구현이며 개발 서버 배포와 웹 저장은 별도입니다.",
+      "headers": [
+        {
+          "key": "Origin",
+          "value": "{{baseUrl}}",
+          "description": "서버와 같은 출처. CORS/Origin 허용 범위를 넓히지 않습니다."
+        }
+      ],
+      "settings": {
+        "handshakeTimeout": 10000,
+        "retryCount": 0,
+        "maxPayload": 1048576
+      },
+      "messages": [
+        {
+          "name": "알까기 커서 → ALKKAGI_SPECTATOR_EVENT",
+          "$kind": "websocket-message",
+          "contentType": "json",
+          "content": "{\n  \"requestId\": \"{{$guid}}\",\n  \"type\": \"ALKKAGI_SPECTATOR_SEND\",\n  \"payload\": {\n    \"gameId\": \"{{gameId}}\",\n    \"eventId\": \"{{$guid}}\",\n    \"basedOnVersion\": \"{{gameVersion}}\",\n    \"kind\": \"CURSOR\",\n    \"x\": 0,\n    \"y\": 0\n  }\n}"
+        },
+        {
+          "name": "알까기 훈수 → ALKKAGI_SPECTATOR_EVENT",
+          "$kind": "websocket-message",
+          "contentType": "json",
+          "content": "{\n  \"requestId\": \"{{$guid}}\",\n  \"type\": \"ALKKAGI_SPECTATOR_SEND\",\n  \"payload\": {\n    \"gameId\": \"{{gameId}}\",\n    \"eventId\": \"{{$guid}}\",\n    \"basedOnVersion\": \"{{gameVersion}}\",\n    \"kind\": \"ADVICE\",\n    \"pieceId\": \"p0\",\n    \"dx\": 0.8,\n    \"dy\": -0.6,\n    \"power\": 0.8\n  }\n}"
+        }
+      ]
     }
   ]
 }

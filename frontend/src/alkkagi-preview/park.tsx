@@ -1,3 +1,4 @@
+import { useAlkkagiSocial } from '../game/alkkagi/spectatorEvents'
 import { _roots } from '@react-three/fiber'
 import { Vector3 } from 'three'
 import { useGame } from '../game/store'
@@ -21,7 +22,7 @@ async function boot() {
   // 검수 엔트리에서만 실제 화면과 같은 모듈 인스턴스를 테스트에 제공한다. 토큰은 노출하지 않는다.
   Object.assign(window, { alkkagiParkTest: {
     state: () => { const s=useGame.getState(),w=useSession.getState();return {gameId:s.game?.gameId,public:s.game?.alkkagi,private:s.game?.alkkagiHand,
-      status:w.status,roomId:w.roomId,tableId:w.tableId,phase:s.start?.phase,recovery:s.recovery,error:s.error,sessionError:w.error,pending:s.pending,uncertain:s.uncertain,table:w.tableStates[w.tableId]} },
+      social:useAlkkagiSocial.getState(),status:w.status,roomId:w.roomId,tableId:w.tableId,phase:s.start?.phase,recovery:s.recovery,error:s.error,sessionError:w.error,pending:s.pending,uncertain:s.uncertain,table:w.tableStates[w.tableId]} },
     project: (id:string) => {
       for(const root of _roots.values()) {
         const {scene,camera,gl}=root.store.getState(), board=scene.getObjectByName('alkkagi-world-board')
@@ -37,6 +38,7 @@ async function boot() {
       return null
     },
     command: (method:string,arg:unknown) => {
+      if(method==='sendAlkkagiSpectator') return parkRuntime.sendAlkkagiSpectator!(arg as Record<string,unknown>)
       if(method==='actAlkkagi') return parkRuntime.actAlkkagi!(arg as Record<string,unknown>)
       if(method==='sendSpectatorChat') return parkRuntime.sendSpectatorChat(String(arg))
       if(method==='forfeitGame') return parkRuntime.forfeitGame(String(arg))
