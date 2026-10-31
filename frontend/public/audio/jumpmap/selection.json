@@ -1,0 +1,86 @@
+{
+  "approvedOn": "2026-10-31",
+  "format": "48000 Hz mono PCM16 WAV",
+  "sounds": [
+    {
+      "sound": "stone",
+      "pad": "석탑",
+      "file": "stone.wav",
+      "duration": 0.35,
+      "sha256": "888afe44cd13651832c7784479ac18a29ae17246fa334c51b720e5a3adc0700d",
+      "sourceClip": "JM_R2_01_stone_A_target0.35s",
+      "sourceUrl": "https://suno.com/song/7d9eec09-5462-4d63-8cfe-155a55425b17",
+      "sourceStartSeconds": 1.982
+    },
+    {
+      "sound": "gomoku-black",
+      "pad": "검은 오목돌",
+      "file": "gomoku-black.wav",
+      "duration": 0.4,
+      "sha256": "619d1bc6839054944be0e99f536dca382ee4cbb670abb39d002c4433164031be",
+      "sourceClip": "ASMR_R4_03_squishy_slime_A_target0.40s",
+      "sourceUrl": "https://suno.com/song/bfd85e3f-c817-4870-aace-34d2b0191c6c",
+      "sourceStartSeconds": 0.0
+    },
+    {
+      "sound": "gomoku-white",
+      "pad": "흰 오목돌",
+      "file": "gomoku-white.wav",
+      "duration": 0.4,
+      "sha256": "02497b4ec343985c4bf664eee756ae9a6301f3ee4439cd8fbcdc6d16e9ebfe41",
+      "sourceClip": "ASMR_R4_03_squishy_slime_B_target0.40s",
+      "sourceUrl": "https://suno.com/song/3d5f8d37-9555-44af-adc4-509e675f920d",
+      "sourceStartSeconds": 0.0
+    },
+    {
+      "sound": "fish",
+      "pad": "붕어빵",
+      "file": "bread.wav",
+      "duration": 0.12,
+      "sha256": "451f7722a15dd4db3417f8010b32c7619fddb8d03055a80ee742cdef3b68233c",
+      "sourceClip": "ASMR_R4_07_keycap_creamy_A_target0.12s",
+      "sourceUrl": "https://suno.com/song/1ea26c57-5c52-42dd-bf6f-3ee5afe6ea57",
+      "sourceStartSeconds": 0.056
+    },
+    {
+      "sound": "cloud",
+      "pad": "구름",
+      "file": "cloud.wav",
+      "duration": 0.25,
+      "sha256": "235f20213ec29f8d372681d75fbaff0759433cbdef3ab15b9bbc31b3244599c0",
+      "sourceClip": "JM05_cloud_asmr_A_target0.25s",
+      "sourceUrl": "https://suno.com/song/e93f8acc-9e8b-4f13-9deb-fa1939f46d2b",
+      "sourceStartSeconds": 0.002
+    },
+    {
+      "sound": "lantern",
+      "pad": "청사초롱",
+      "file": "lantern.wav",
+      "duration": 0.12,
+      "sha256": "5688e49a6651539fd87e7fe25de52161707e80ced4a600ac1ba20ce6cc04ca0c",
+      "sourceClip": "JM_R2_06_lantern_A_target0.12s",
+      "sourceUrl": "https://suno.com/song/3c4e7774-c641-4be4-81c2-1912f8b46000",
+      "sourceStartSeconds": 0.004
+    },
+    {
+      "sound": "kite",
+      "pad": "방패연",
+      "file": "kite.wav",
+      "duration": 0.2,
+      "sha256": "eb416a7d93515c5794dd21d19fd309ec7a58b67aa02a47bd581da80c567c9648",
+      "sourceClip": "JM07_kite_asmr_A_target0.20s",
+      "sourceUrl": "https://suno.com/song/bf51e768-aa29-485a-9bd7-3bb0fb19e0e8",
+      "sourceStartSeconds": 0
+    },
+    {
+      "sound": "lily",
+      "pad": "연잎",
+      "file": "lotus.wav",
+      "duration": 0.15,
+      "sha256": "494b4fe16b08a8498d9d95d7ed2a5c4de9a456aa26d205c4aed85bc6788f081f",
+      "sourceClip": "JM12_lotus_sub_A_target0.15s",
+      "sourceUrl": "https://suno.com/song/e6284742-3f81-44a9-abc2-32ab7be475b9",
+      "sourceStartSeconds": 0.064
+    }
+  ]
+}

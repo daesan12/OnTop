@@ -5,6 +5,7 @@ import os from 'node:os'
 import { parkFixture, identity } from './fixture'
 import { COURSE, COURSE_VERSION, RULES_VERSION, START, kstDate } from '../../src/features/jumpmap/course'
 import { PARK_DATA } from '../../src/map/park'
+import selection from '../../public/audio/jumpmap/selection.json' with { type: 'json' }
 const scope = { channelId: 'channel-1', mapVersion: identity.mapVersion }
 const earnings = { earningsDate: kstDate(), dailyCap: 100, todayEarned: 0 }
 const status = { ...scope, ...earnings, revision: 0, enabled: true, courseVersion: COURSE_VERSION, rulesVersion: RULES_VERSION, isFirstRun: true, seenTips: [], activeRunId: null, bestFinishMs: null }
@@ -31,6 +32,73 @@ async function setup(page: Page, response: object | null = status) {
   const start = () => emit('JUMPMAP_STARTED', 1, { courseVersion: COURSE_VERSION, rulesVersion: RULES_VERSION, serverTime: Date.now() })
   return { server, tips, errors, emit, start }
 }
+test('plays the eight approved landing clips once through the independent effects bus', async ({ page }) => {
+  await page.addInitScript(approved => {
+    const trace = { decoded: [] as string[], played: [] as string[], active: 0 }
+    Object.assign(window, { jumpAudioTrace: trace })
+    const hashes = new WeakMap<AudioBuffer, string>()
+    const decode = AudioContext.prototype.decodeAudioData
+    AudioContext.prototype.decodeAudioData = async function(data: ArrayBuffer) {
+      const hash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', data.slice(0))), b => b.toString(16).padStart(2, '0')).join('')
+      const buffer = await decode.call(this, data)
+      hashes.set(buffer, hash); trace.decoded.push(hash)
+      return buffer
+    }
+    const start = AudioBufferSourceNode.prototype.start
+    AudioBufferSourceNode.prototype.start = function(...args: Parameters<typeof start>) {
+      const hash = this.buffer && hashes.get(this.buffer)
+      if (hash && approved.includes(hash)) {
+        trace.played.push(hash); trace.active++
+        this.addEventListener('ended', () => trace.active--, { once: true })
+      }
+      return start.apply(this, args)
+    }
+  }, selection.sounds.map(s => s.sha256))
+  const { errors, emit, start } = await setup(page)
+  await page.keyboard.press('Shift')
+  const trace = () => page.evaluate(() => (window as unknown as { jumpAudioTrace: { decoded: string[]; played: string[]; active: number } }).jumpAudioTrace)
+  const hashes = selection.sounds.map(s => s.sha256)
+  await expect.poll(async () => (await trace()).decoded.filter(h => hashes.includes(h)).sort()).toEqual([...hashes].sort())
+  start()
+  const before = (await trace()).played.length
+  let revision = 2
+  for (const sound of selection.sounds) {
+    const pad = COURSE.find(p => sound.sound.startsWith('gomoku-')
+      ? p.theme === 'gomoku' && Boolean(p.ordinal % 2) === (sound.sound === 'gomoku-black')
+      : p.theme === sound.sound)!
+    emit('JUMPMAP_STEP', revision++, { playerId: '101', block: pad.block })
+    await expect.poll(async () => (await trace()).played.at(-1)).toBe(sound.sha256)
+    await expect.poll(async () => (await trace()).active).toBe(0)
+  }
+  expect((await trace()).played.slice(before)).toEqual(hashes)
+  const music = await page.evaluate(async () => {
+    const audio = await import('/src/audio/bgm.ts' as string)
+    const before = audio.useBgmSettings.getState()
+    audio.setSfxSettings({ muted: true })
+    return { volume: before.volume, muted: before.muted }
+  })
+  // AudioParam values can remain at their last rendered value while this bus is idle.
+  emit('JUMPMAP_STEP', revision++, { playerId: '101', block: COURSE.find(p => p.theme === 'stone')!.block })
+  await expect.poll(async () => (await trace()).played.length).toBe(before + 9)
+  await expect.poll(() => page.evaluate(async () => {
+    const audio = await import('/src/audio/bgm.ts' as string)
+    return (audio.effectsOutput()?.bus as GainNode).gain.value
+  })).toBeLessThan(.001)
+  expect(await page.evaluate(async () => {
+    const audio = await import('/src/audio/bgm.ts' as string), value = audio.useBgmSettings.getState()
+    audio.setSfxSettings({ muted: false })
+    return { volume: value.volume, muted: value.muted }
+  })).toEqual(music)
+  emit('JUMPMAP_STEP', revision++, { playerId: '101', block: COURSE.find(p => p.theme === 'cloud')!.block })
+  await expect.poll(async () => (await trace()).played.length).toBe(before + 10)
+  await expect.poll(() => page.evaluate(async () => {
+    const audio = await import('/src/audio/bgm.ts' as string)
+    return (audio.effectsOutput()?.bus as GainNode).gain.value
+  })).toBeGreaterThan(0)
+  await shot(page, 'jumpmap-approved-audio')
+  expect(errors).toEqual([])
+})
+
 test('reuses the new-map assets, shows authoritative progress and settles pending coins once', async ({ page }) => {
   const { server, errors, emit, start } = await setup(page)
   server.place({ x: START.x, y: START.y + .8, z: START.z })
