@@ -132,7 +132,15 @@ public final class ClientPositionValidator {
                 flight = null; airWindowAt = now; airWindowY = target.y;
                 return new Decision(true, "ACCEPTED", approved, sequence);
             }
-            if (next == null && candidate.jump && supportedFrom) next = new Flight(approved.y, now, launchSpeed);
+            // A short landing can happen between position reports. A new jump
+            // from server-confirmed support must not reuse the preceding flight's
+            // origin/height ceiling, or be cleared as that flight's landing.
+            boolean landingJump = candidate.jump && (supportedFrom || supportedTo && dy <= 0)
+                    && (next == null || next.speed == 0 || now - next.started > 150_000_000L);
+            if (landingJump) {
+                Pose origin = supportedFrom ? approved : target;
+                next = new Flight(origin.y, now, geometry.jumpSpeed(origin, true));
+            }
             if (next == null) {
                 // Grounded steps/slopes retain the existing geometric allowance.
                 // Leaving support without a jump can fall, but cannot invent lift.

@@ -90,4 +90,38 @@ class TunedMovementValidatorTests {
   var v=validator(true);now=50_000_000;assertThat(v.accept(jump(1,2.0)).accepted()).isTrue();
   now+=50_000_000;assertThat(v.accept(move(2,0,2.3)).reason()).isEqualTo("JUMP_HEIGHT");
  }
+ @Test void 착지보고에_새점프가_겹쳐도_이전점프의_착지로_지우지않는다(){
+  var v=validator(true);now=60_000_000;assertThat(v.accept(jump(1,1.2)).accepted()).isTrue();
+  now=160_000_000;assertThat(v.accept(move(2,0,1.7)).accepted()).isTrue();
+  now=660_000_000;assertThat(v.accept(jump(3,.84)).accepted()).isTrue();
+  now+=60_000_000;assertThat(v.accept(move(4,0,1.3)).accepted()).isTrue();
+  now+=60_000_000;assertThat(v.accept(move(5,0,1.7)).accepted()).isTrue();
+ }
+ @Test void 공중에서_점프표시를_반복해도_높이상한을_재충전하지않는다(){
+  var v=validator(true);now=60_000_000;assertThat(v.accept(jump(1,1.3)).accepted()).isTrue();
+  now+=200_000_000;assertThat(v.accept(jump(2,1.9)).accepted()).isTrue();
+  now+=200_000_000;assertThat(v.accept(jump(3,2.5)).reason()).isEqualTo("JUMP_HEIGHT");
+ }
+ @Test void 닿지못한_높은발판을_목적지로_주장해서_점프상한을_초기화하지못한다(){
+  Geometry platforms=new Geometry(){
+   public boolean supported(Pose p){return p.y()<=.85||Math.abs(p.y()-2.5)<.01;}
+   public boolean clear(Pose a,Pose b,boolean step){return true;}
+   public Double ceiling(Pose p,double rise){return null;}
+  };
+  var v=new ClientPositionValidator(new Pose(0,.8,0),1,79,platforms,()->now,true);
+  now=60_000_000;assertThat(v.accept(jump(1,1.3)).accepted()).isTrue();
+  now+=200_000_000;assertThat(v.accept(move(2,0,1.9)).accepted()).isTrue();
+  now+=200_000_000;assertThat(v.accept(jump(3,2.5)).reason()).isEqualTo("JUMP_HEIGHT");
+ }
+ @Test void 작은상승이라도_지지목적지로_기존상한을_넘겨_재충전하지못한다(){
+  Geometry platforms=new Geometry(){
+   public boolean supported(Pose p){return p.y()<=.85||p.y()>=2.26;}
+   public boolean clear(Pose a,Pose b,boolean step){return true;}
+   public Double ceiling(Pose p,double rise){return null;}
+  };
+  var v=new ClientPositionValidator(new Pose(0,.8,0),1,79,platforms,()->now,true);
+  now=60_000_000;assertThat(v.accept(jump(1,1.3)).accepted()).isTrue();
+  now+=200_000_000;assertThat(v.accept(move(2,0,2.22)).accepted()).isTrue();
+  now+=200_000_000;assertThat(v.accept(jump(3,2.26)).reason()).isEqualTo("JUMP_HEIGHT");
+ }
 }

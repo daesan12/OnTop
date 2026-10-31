@@ -210,9 +210,19 @@ class PredictionPhysics implements PredictionSimulation {
     if(this.grounded&&!this.supportAllowed(landing))this.grounded=false
     const walls: {x:number;z:number}[]=[]
     const floorNormalY=Math.cos(this.controller.maxSlopeClimbAngle())
+    let walkableContact=false
     for(let i=0;i<this.controller.numComputedCollisions();i++){
       const collision=this.controller.computedCollision(i)
+      if(collision&&collision.normal1.y>=.6)walkableContact=true
       if(collision&&collision.normal1.y<floorNormalY)walls.push({x:collision.normal1.x,z:collision.normal1.z})
+    }
+    // computedGrounded can be true while the rounded capsule only touches a
+    // near-vertical fence corner. A side contact is not a floor or a new jump.
+    // Keep genuine floor support when a wall contact hides it in the controller's list.
+    if(this.grounded&&walls.length&&!walkableContact&&!onStair){
+      const feet=landing.y-MOVEMENT.halfHeight-MOVEMENT.radius
+      const floor=this.world.castRayAndGetNormal(new RAPIER.Ray({x:landing.x,y:feet+.05,z:landing.z},{x:0,y:-1,z:0}),.22,true,undefined,undefined,this.collider)
+      this.grounded=!!floor&&floor.normal.y>=.6
     }
     this.parkMotion.contact(wanted,delta,this.grounded,walls);this.vy=this.parkMotion.velocityY()
     this.body.setNextKinematicTranslation(landing)

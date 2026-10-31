@@ -17,10 +17,11 @@ class ObstacleContactParityTests {
    var now=new AtomicLong();try(var w=new WorldPhysics(scene,true,now::get,true)){
     var chairCounts=new HashMap<String,Integer>();for(var b:scene.data.path("boxes")){String id=b.path("id").asText();if(id.matches(".+-chair-[0-3]"))chairCounts.put(id.substring(0,id.lastIndexOf("-chair-")),2);}w.chairCounts(chairCounts);
     w.add("a");var p=trace.path("initial");w.place("a",p.path("x").asDouble(),p.path("y").asDouble(),p.path("z").asDouble());long epoch=w.snapshot("a").motion().epoch(),seq=0;
+    var history=new ArrayList<Map<String,Object>>();
     for(var sample:trace.path("samples")){
      now.set(Math.round(sample.path("at").asDouble()*1e9));p=sample.path("pose");var before=w.snapshot("a");
      var result=w.report("a",new ClientPositionValidator.Candidate(++seq,epoch,new ClientPositionValidator.Pose(p.path("x").asDouble(),p.path("y").asDouble(),p.path("z").asDouble()),sample.path("run").asBoolean(),sample.path("jump").asBoolean()),now.get());
-     if(result.motion().correctionReason()!=null){failures.add(Map.of("scenario",trace.path("scenario").asText(),"at",sample.path("at").asDouble(),"reason",result.motion().correctionReason(),"from",before,"to",p,"geometry",diagnose(scene,before,p)));break;}accepted++;w.step(now.get(),Set.of());
+     if(result.motion().correctionReason()!=null){failures.add(Map.of("scenario",trace.path("scenario").asText(),"at",sample.path("at").asDouble(),"reason",result.motion().correctionReason(),"from",before,"to",p,"geometry",diagnose(scene,before,p),"history",history));break;}history.add(Map.of("at",sample.path("at").asDouble(),"jump",sample.path("jump").asBoolean(),"result",result));if(history.size()>8)history.removeFirst();accepted++;w.step(now.get(),Set.of());
     }
    }
   }
