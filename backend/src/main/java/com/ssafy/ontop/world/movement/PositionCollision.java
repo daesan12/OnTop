@@ -14,6 +14,11 @@ final class PositionCollision implements ClientPositionValidator.Geometry {
     private final java.util.function.Predicate<String> active;
     private final CapsuleCollisionShape capsule;
     private final PhysicsGhostObject probe;
+    // Rapier/Bullet surface disagreement is bounded by this fixed skin, not by
+    // the distance since the last report. Repeated reports cannot grow it.
+    private static final float CONTACT_SKIN = .03f;
+    private final CapsuleCollisionShape contactCapsule;
+    private final PhysicsGhostObject contactProbe;
     PositionCollision(ParkScene scene, PhysicsSpace space) {
         this(scene, space, id -> space.getRigidBodyList().stream().anyMatch(body -> id.equals(body.getUserObject())));
     }
@@ -24,6 +29,9 @@ final class PositionCollision implements ClientPositionValidator.Geometry {
         capsule = new CapsuleCollisionShape(radius, half * 2, 1);
         probe = new PhysicsGhostObject(capsule);
         probe.setCollisionGroup(1); probe.setCollideWithGroups(2);
+        contactCapsule = new CapsuleCollisionShape(radius - CONTACT_SKIN, half * 2, 1);
+        contactProbe = new PhysicsGhostObject(contactCapsule);
+        contactProbe.setCollisionGroup(1); contactProbe.setCollideWithGroups(2);
     }
     public boolean supported(ClientPositionValidator.Pose pose) {
         return supportObject(pose) != null;
@@ -84,6 +92,27 @@ final class PositionCollision implements ClientPositionValidator.Geometry {
                 : new ClientPositionValidator.Pose(to.x(), from.y(), to.z());
         return clear(from, pivot, false) && clear(pivot, to, false);
     }
+    /** A fixed 3cm outer shell may disagree across solvers. The remaining
+     * capsule must still be clear at both ends and along the entire segment.
+     * In particular, a clear destination across a thin wall is not enough.
+     */
+    public boolean clearContact(ClientPositionValidator.Pose from, ClientPositionValidator.Pose to) {
+        if (!contactFree(point(from)) || !contactFree(point(to))) return false;
+        var start = point(from); var end = point(to); var delta = end.subtract(start);
+        if (delta.lengthSquared() < 1e-10) return true;
+        return space.sweepTest(contactCapsule, new Transform(start), new Transform(end)).stream().noneMatch(hit ->
+                hit.getCollisionObject().getCollisionGroup() == 2 && hit.getHitFraction() < .9999
+                        && hit.getHitNormalLocal(null).dot(delta) < -.0001);
+    }
+    private boolean contactFree(Vector3f point) {
+        contactProbe.setPhysicsLocation(point);
+        boolean[] overlapping = {false};
+        space.contactTest(contactProbe, event -> {
+            var other = event.getObjectA() == contactProbe ? event.getObjectB() : event.getObjectA();
+            if (other.getCollisionGroup() == 2 && event.getDistance1() < -.0001f) overlapping[0] = true;
+        });
+        return !overlapping[0];
+    }
     public boolean swimming(ClientPositionValidator.Pose pose) {
         var lake = scene.data.path("lake");
         double radius = Math.hypot((pose.x() - lake.path("x").asDouble()) / lake.path("radiusX").asDouble(),
@@ -114,6 +143,17 @@ final class PositionCollision implements ClientPositionValidator.Geometry {
                 .filter(candidate -> supported(candidate) && clear(candidate, candidate, false)).findFirst().orElse(null);
     }
     public double jumpSpeed(ClientPositionValidator.Pose from, boolean tuned) { return policy.jumpSpeed(point(from), tuned); }
+    public double jumpSpeed(ClientPositionValidator.Pose from, ClientPositionValidator.Pose to, boolean tuned) {
+        double speed = jumpSpeed(from, tuned);
+        if (!tuned || !supported(from)) return speed;
+        // The report can straddle the final stair and the pavilion takeoff.
+        // Only a reachable, swept server support surface may select its existing boost.
+        var support = supportBelow(to);
+        double travel = Math.hypot(to.x() - from.x(), to.z() - from.z());
+        if (support == null || support.y() < from.y() - .17 || support.y() > from.y() + travel + .22
+                || !(clear(from, support, true) || clearCorner(from, support) || clearContact(from, support))) return speed;
+        return Math.max(speed, jumpSpeed(support, true));
+    }
     /**
      * 서 있던 바닥 가장자리에서 걸어 내려갈 때, 직선 경로가 떠나는 바닥의 모서리(접촉 법선의 수평 성분이 이동 방향을 향함)만
      * 스치는지 확인한다. 하강 성분 때문에 막힌 것으로 계산된 접촉만 해당한다. 도착 위치 겹침, 다가가며 부딪히는 벽·모서리,

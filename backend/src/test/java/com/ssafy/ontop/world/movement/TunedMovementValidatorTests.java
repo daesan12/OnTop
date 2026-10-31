@@ -12,6 +12,48 @@ class TunedMovementValidatorTests {
  private ClientPositionValidator validator(boolean tuned){return new ClientPositionValidator(new Pose(0,.8,0),1,79,ground,()->now,tuned);}
  private Candidate move(long n,double x,double y){return new Candidate(n,1,new Pose(x,y,0),true,false);}
  private Candidate jump(long n,double y){return new Candidate(n,1,new Pose(0,y,0),true,true);}
+ @Test void 상승중_다음발판_가까이를_스쳐도_진행중점프를_착지로_지우지않는다(){
+  Geometry platforms=new Geometry(){
+   public boolean supported(Pose p){return p.y()<=.85||p.y()>=1.75&&p.y()<=1.95;}
+   public boolean clear(Pose a,Pose b,boolean step){return true;}
+   public Double ceiling(Pose p,double rise){return null;}
+  };
+  var v=new ClientPositionValidator(new Pose(0,.8,0),1,79,platforms,()->now,true);
+  now=60_000_000;assertThat(v.accept(jump(1,1.3)).accepted()).isTrue();
+  now=200_000_000;assertThat(v.accept(move(2,.2,1.8)).accepted()).isTrue();
+  now=260_000_000;assertThat(v.accept(move(3,.4,1.9)).accepted()).isTrue();
+  now=320_000_000;assertThat(v.accept(move(4,.6,2.05)).accepted()).isTrue();
+ }
+ @Test void 착지직전_수신한_점프입력은_짧은착지후_상승에_한번만_사용한다(){
+  var v=validator(true);now=60_000_000;assertThat(v.accept(jump(1,1.3)).accepted()).isTrue();
+  now=200_000_000;assertThat(v.accept(move(2,0,1.8)).accepted()).isTrue();
+  now=400_000_000;assertThat(v.accept(jump(3,1.7)).accepted()).isTrue();
+  now=460_000_000;assertThat(v.accept(move(4,0,.84)).accepted()).isTrue();
+  now=520_000_000;assertThat(v.accept(move(5,0,1.3)).accepted()).isTrue();
+  now=720_000_000;assertThat(v.accept(move(6,0,2.4)).reason()).isEqualTo("JUMP_HEIGHT");
+ }
+ @Test void 만료됐거나_보정세대가_바뀐_입력으로_공중점프를_만들지않는다(){
+  for(boolean corrected:new boolean[]{false,true}){
+   now=0;var v=validator(true);now=60_000_000;assertThat(v.accept(jump(1,1.3)).accepted()).isTrue();
+   now=200_000_000;assertThat(v.accept(move(2,0,1.8)).accepted()).isTrue();
+   now=400_000_000;assertThat(v.accept(jump(3,1.7)).accepted()).isTrue();
+   now=460_000_000;assertThat(v.accept(move(4,0,.84)).accepted()).isTrue();
+   if(corrected)v.resynchronize(2);now=corrected?520_000_000:700_000_000;
+   assertThat(v.accept(new Candidate(5,corrected?2:1,new Pose(0,1.3,0),true,false)).reason()).isEqualTo("JUMP_REQUIRED");
+  }
+ }
+ @Test void 점프후_계단을_오르는_지지이동에_이전점프의_높이상한을_적용하지않는다(){
+  Geometry stairs=new Geometry(){
+   public boolean supported(Pose p){return p.y()<=.85||p.y()>=1.8;}
+   public boolean clear(Pose a,Pose b,boolean step){return true;}
+   public Double ceiling(Pose p,double rise){return null;}
+  };
+  var v=new ClientPositionValidator(new Pose(0,.8,0),1,79,stairs,()->now,true);
+  now=60_000_000;assertThat(v.accept(jump(1,1.3)).accepted()).isTrue();
+  now=200_000_000;assertThat(v.accept(move(2,.2,1.8)).accepted()).isTrue();
+  now=260_000_000;assertThat(v.accept(move(3,.4,2.1)).accepted()).isTrue();
+  now=320_000_000;assertThat(v.accept(move(4,.6,2.4)).accepted()).isTrue();
+ }
  @Test void 짧은_렌더링지연을_무조건_보고만료로_거절하지않는다(){
   var v=validator(true);now=100_000_000;assertThat(v.accept(move(1,0,.8)).accepted()).isTrue();
   now=1_300_000_000L;assertThat(v.accept(move(2,.8,.8)).accepted()).isTrue();
@@ -89,5 +131,39 @@ class TunedMovementValidatorTests {
  @Test void 지연되어_확인된_점프신호는_최고점_안에서만_승인한다(){
   var v=validator(true);now=50_000_000;assertThat(v.accept(jump(1,2.0)).accepted()).isTrue();
   now+=50_000_000;assertThat(v.accept(move(2,0,2.3)).reason()).isEqualTo("JUMP_HEIGHT");
+ }
+ @Test void 착지보고에_새점프가_겹쳐도_이전점프의_착지로_지우지않는다(){
+  var v=validator(true);now=60_000_000;assertThat(v.accept(jump(1,1.2)).accepted()).isTrue();
+  now=160_000_000;assertThat(v.accept(move(2,0,1.7)).accepted()).isTrue();
+  now=660_000_000;assertThat(v.accept(jump(3,.84)).accepted()).isTrue();
+  now+=60_000_000;assertThat(v.accept(move(4,0,1.3)).accepted()).isTrue();
+  now+=60_000_000;assertThat(v.accept(move(5,0,1.7)).accepted()).isTrue();
+ }
+ @Test void 공중에서_점프표시를_반복해도_높이상한을_재충전하지않는다(){
+  var v=validator(true);now=60_000_000;assertThat(v.accept(jump(1,1.3)).accepted()).isTrue();
+  now+=200_000_000;assertThat(v.accept(jump(2,1.9)).accepted()).isTrue();
+  now+=200_000_000;assertThat(v.accept(jump(3,2.5)).reason()).isEqualTo("JUMP_HEIGHT");
+ }
+ @Test void 닿지못한_높은발판을_목적지로_주장해서_점프상한을_초기화하지못한다(){
+  Geometry platforms=new Geometry(){
+   public boolean supported(Pose p){return p.y()<=.85||Math.abs(p.y()-2.5)<.01;}
+   public boolean clear(Pose a,Pose b,boolean step){return true;}
+   public Double ceiling(Pose p,double rise){return null;}
+  };
+  var v=new ClientPositionValidator(new Pose(0,.8,0),1,79,platforms,()->now,true);
+  now=60_000_000;assertThat(v.accept(jump(1,1.3)).accepted()).isTrue();
+  now+=200_000_000;assertThat(v.accept(move(2,0,1.9)).accepted()).isTrue();
+  now+=200_000_000;assertThat(v.accept(jump(3,2.5)).reason()).isEqualTo("JUMP_HEIGHT");
+ }
+ @Test void 작은상승이라도_지지목적지로_기존상한을_넘겨_재충전하지못한다(){
+  Geometry platforms=new Geometry(){
+   public boolean supported(Pose p){return p.y()<=.85||p.y()>=2.26;}
+   public boolean clear(Pose a,Pose b,boolean step){return true;}
+   public Double ceiling(Pose p,double rise){return null;}
+  };
+  var v=new ClientPositionValidator(new Pose(0,.8,0),1,79,platforms,()->now,true);
+  now=60_000_000;assertThat(v.accept(jump(1,1.3)).accepted()).isTrue();
+  now+=200_000_000;assertThat(v.accept(move(2,0,2.22)).accepted()).isTrue();
+  now+=200_000_000;assertThat(v.accept(jump(3,2.26)).reason()).isEqualTo("JUMP_HEIGHT");
  }
 }

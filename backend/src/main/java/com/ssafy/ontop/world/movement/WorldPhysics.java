@@ -733,6 +733,14 @@ public final class WorldPhysics implements AutoCloseable {
                 log.info("로컬 좌표 검증 복귀 reason={} seq={}", result.reason(), a.seq);
                 if (tunedMovement) {
                     if (result.reason().equals("STALE")) expireReports(a);
+                    else if (result.reason().equals("HOVER")) {
+                        // Resetting repeatedly at the same unsupported pose cannot
+                        // accumulate enough fall to leave the hover window. Recover once.
+                        expireReports(a);
+                        a.positionValidator = newPositionValidator(a);
+                        a.positionValidator.resumeTrusted(0);
+                        a.correctionReason = "HOVER";
+                    }
                     else correctReport(a, result.reason());
                     return snapshotNow(id);
                 }
