@@ -50,8 +50,8 @@ test('the ready sheet leads with game and stake for two and four players',async(
   server.configureTablet({gameCode:'ONE_CARD',playerCount:count,betAmountPerPlayer:250})
   await expect(tablet.getByRole('heading',{name:'원카드',exact:true})).toBeVisible()
   await expect(tablet.locator('.tablet-bet-confirm')).toContainText('250냥')
-  const layout=await tablet.evaluate(node=>{const a=node.querySelector('.tablet-bet-confirm')!.getBoundingClientRect(),b=node.querySelector('.tablet-roster')!.getBoundingClientRect();return {primary:a.width,secondary:b.width,overlap:Math.max(0,Math.min(a.right,b.right)-Math.max(a.left,b.left))}})
-  expect(layout.primary).toBeGreaterThan(layout.secondary);expect(layout.overlap).toBe(0)
+  const layout=await tablet.evaluate(node=>{const a=node.querySelector('.tablet-bet-confirm')!.getBoundingClientRect(),b=node.querySelector('.tablet-roster')!.getBoundingClientRect(),art=node.querySelector('.tablet-bet-confirm .tablet-game-art')!.getBoundingClientRect();return {primaryBottom:a.bottom,secondaryTop:b.top,aspect:art.width/art.height}})
+  expect(layout.secondaryTop).toBeGreaterThan(layout.primaryBottom);expect(layout.aspect).toBeCloseTo(2,1)
   await screenshot(page,`feedback-v3-ready-${count}`)
  }
  await tablet.getByRole('checkbox',{name:'참가 금액을 확인했어요'}).check()
