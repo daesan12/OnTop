@@ -3,6 +3,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { ArrowHelper, CanvasTexture, Group, Mesh, Plane, Vector2, Vector3 } from 'three'
 import { AlkkagiReplay, type Piece, type Snapshot } from './replay'
 import { draggedShot, launchResponse } from './aimInput'
+import { exitFlight } from './flight'
 
 /** 전송·인증·URL에 의존하지 않는 공용 게임판. 호출자가 승인 상태와 명령 콜백을 공급한다. */
 export function AlkkagiBoard(props: Parameters<typeof Scene>[0]) {
@@ -18,7 +19,7 @@ type Aim = { piece: Piece; origin: Vector3; end: Vector3; start: { x: number; y:
 function Scene({ actor, state, replay, enabled, shoot, explain, blockedReason, itemMode, itemTargets, pickTarget, cancelItem, placement, pickPlacement, pinned, previewValid, rotatePlacement, cursor }: { actor: number; state: Snapshot | null; replay: AlkkagiReplay; enabled: boolean
   shoot(p: Piece, dx: number, dy: number, power: number): void; explain(message: string): void; blockedReason: string; itemMode: string | null; itemTargets: string[]; pickTarget(piece: Piece): void; cancelItem(): void; placement: { x: number; y: number; angle: number } | null; pickPlacement(x: number, y: number, pin?: boolean): void; pinned: boolean; previewValid: boolean; rotatePlacement(delta: number): void; cursor(x: number, y: number): void }) {
   const groups = useRef(new Map<string, Group>())
-  const displayed = useRef({ gameId: '', generation: -1, alive: new Map<string, boolean>() })
+  const displayed = useRef({ gameId: '', generation: -1, alive: new Map<string, boolean>(), flights: new Map<string, number>() })
   const { gl, camera, raycaster } = useThree()
   const aim = useRef<Aim | null>(null), arrow = useMemo(() => new ArrowHelper(new Vector3(0, 0, -1), new Vector3(), 1, '#f3c16d'), [])
   const selected = useRef<Piece | null>(null), selectionRing = useRef<Mesh>(null)
@@ -72,7 +73,7 @@ function Scene({ actor, state, replay, enabled, shoot, explain, blockedReason, i
     const frame = replay.sample(performance.now())
     if (!frame) return
     if (displayed.current.gameId !== frame.gameId || displayed.current.generation !== replay.generation) {
-      displayed.current = { gameId: frame.gameId, generation: replay.generation, alive: new Map() }
+      displayed.current = { gameId: frame.gameId, generation: replay.generation, alive: new Map(), flights: new Map() }
     }
     for (const p of frame.pieces) {
       const group = groups.current.get(p.id)
@@ -80,11 +81,18 @@ function Scene({ actor, state, replay, enabled, shoot, explain, blockedReason, i
       const wasAlive = displayed.current.alive.get(p.id)
       if (p.alive) { group.position.set(p.x, 0, p.y); group.rotation.set(0, 0, 0); group.visible = true }
       else {
-        // 최신 상태에 이미 탈락한 알은 과거 낙하를 재생하지 않는다.
-        if (wasAlive === undefined) group.position.y = -5
-        else if (wasAlive) group.position.set(p.x, 0, p.y)
-        group.position.y = Math.max(-5, group.position.y - delta * 5)
-        group.rotation.x += delta * 1.4; group.visible = group.position.y > -4
+        // 이미 탈락한 복구 상태는 숨기고, 화면에서 새 탈락을 본 경우만 속도를 이어 재생한다.
+        if (wasAlive) displayed.current.flights.set(p.id, 0)
+        const elapsed = displayed.current.flights.get(p.id)
+        if (elapsed === undefined) group.visible = false
+        else {
+          const flight = exitFlight(p, elapsed)
+          group.position.set(flight.x, flight.height, flight.z)
+          group.rotation.set(flight.spin, 0, flight.spin * .35)
+          group.scale.setScalar(Math.max(.05, flight.opacity))
+          group.visible = flight.visible
+          displayed.current.flights.set(p.id, elapsed + delta)
+        }
       }
       displayed.current.alive.set(p.id, p.alive)
     }
@@ -118,7 +126,8 @@ function Scene({ actor, state, replay, enabled, shoot, explain, blockedReason, i
         if (e.button !== 0) return
         e.stopPropagation()
         if (!enabled) { explain(blockedReason); return }
-        if (!piece.alive || piece.owner !== (actor < 0 ? state?.turn : actor)) { explain(actor < 0 ? '현재 차례의 살아 있는 알을 골라주세요.' : '상대 알입니다. 내 팀 색깔의 알을 골라주세요.'); return }
+        const anyTarget = itemMode && ['SWAP', 'RELOCATE', 'GROW', 'SHRINK'].includes(itemMode)
+        if (!piece.alive || (!anyTarget && piece.owner !== (actor < 0 ? state?.turn : actor))) { explain(actor < 0 ? '현재 차례의 살아 있는 알을 골라주세요.' : '상대 알입니다. 내 팀 색깔의 알을 골라주세요.'); return }
         if (!itemMode) window.dispatchEvent(new CustomEvent('alkkagi:feedback', { detail: {
           id: `${state!.gameId}:select:${crypto.randomUUID()}`, type: 'PIECE_SELECTED', at: Date.now(), pieceId: piece.id,
         } }))
@@ -137,6 +146,7 @@ function Scene({ actor, state, replay, enabled, shoot, explain, blockedReason, i
           moved: 0, pointerId: e.pointerId, gameId: state!.gameId, version: state!.version }
       }}><cylinderGeometry args={[piece.radius, piece.radius * 1.03, .27, 8]} /><meshStandardMaterial color="#f0d5a1" roughness={.65} /></mesh>
       <Label piece={piece} />
+      {piece.alive && <PieceEffect radius={piece.radius} type={state?.boostedPieceId === piece.id ? 'POWER_UP' : piece.modifier ?? null} />}
     </group>)}
     {itemTargets.map(id => {
       const piece = pieces.find(p => p.id === id)
@@ -186,4 +196,23 @@ function Label({ piece }: { piece: Piece }) {
   }, [piece.type, piece.owner])
   useEffect(() => () => texture.dispose(), [texture])
   return <mesh position={[0, .29, 0]} rotation={[-Math.PI / 2, 0, 0]} raycast={() => {}}><circleGeometry args={[piece.radius * .9, 32]} /><meshBasicMaterial map={texture} /></mesh>
+}
+
+function PieceEffect({ radius, type }: { radius: number; type: string | null }) {
+  const ring = useRef<Mesh>(null)
+  useFrame(({ clock }) => { if (ring.current) { ring.current.rotation.z = clock.elapsedTime * 1.4; ring.current.scale.setScalar(1 + Math.sin(clock.elapsedTime * 5) * .08) } })
+  if (!type) return null
+  const color = type === 'DEFEND' ? '#6bc9ff' : type === 'POWER_UP' ? '#ff913f' : type === 'GROW' ? '#d49aff' : '#72f2dc'
+  return <group raycast={() => {}}>
+    <mesh ref={ring} position={[0, .07, 0]} rotation={[-Math.PI / 2, 0, 0]} raycast={() => {}}>
+      <torusGeometry args={[radius * 1.25, .035, 8, 40]} /><meshBasicMaterial color={color} transparent opacity={.85} depthWrite={false} />
+    </mesh>
+    {type === 'DEFEND' ? <mesh position={[0, .18, 0]} raycast={() => {}}>
+      <sphereGeometry args={[radius * 1.35, 16, 10]} /><meshBasicMaterial color={color} wireframe transparent opacity={.24} depthWrite={false} />
+    </mesh> : Array.from({ length: type === 'POWER_UP' ? 5 : 3 }, (_, i) => <mesh key={i} raycast={() => {}}
+      position={[Math.cos(i * Math.PI * 2 / (type === 'POWER_UP' ? 5 : 3)) * radius * 1.3, .35, Math.sin(i * Math.PI * 2 / (type === 'POWER_UP' ? 5 : 3)) * radius * 1.3]}
+      rotation={[type === 'SHRINK' ? Math.PI : 0, 0, 0]}>
+      <coneGeometry args={[.055, type === 'POWER_UP' ? .3 : .17, 5]} /><meshBasicMaterial color={color} transparent opacity={.85} depthWrite={false} />
+    </mesh>)}
+  </group>
 }

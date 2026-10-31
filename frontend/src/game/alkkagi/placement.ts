@@ -5,14 +5,15 @@ export type Placement = { x: number; y: number; angle: number }
 export function itemPreview(state: Snapshot | null, type: string, targets: string[], at: Placement | null) {
   const no = (reason: string) => ({ valid: false, reason }), yes = { valid: true, reason: '확정할 수 있습니다.' }
   if (!state) return no('경기 상태를 기다리는 중입니다.')
-  const own = state.pieces.filter(p => p.alive && p.owner === state.turn)
+  const ownOnly = type === 'POWER_UP' || type === 'DEFEND'
+  const own = state.pieces.filter(p => p.alive && (!ownOnly || p.owner === state.turn))
   const chosen = targets.map(id => own.find(p => p.id === id))
   const wall = state.wall
   const circleWall = (x: number, y: number, radius: number) => {
     if (!wall) return false
     return overlapsWall(x, y, radius, wall)
   }
-  const fits = (x: number, y: number, r: number, excluded: string[], full = true) =>
+  const fits = (x: number, y: number, r: number, excluded: string[], full = false) =>
     Math.abs(x) + (full ? r : 0) <= state.settings.halfWidth && Math.abs(y) + (full ? r : 0) <= state.settings.halfHeight
     && state.pieces.every(p => !p.alive || excluded.includes(p.id) || Math.hypot(x - p.x, y - p.y) >= r + p.radius - 1e-9)
     && !circleWall(x, y, r)
@@ -29,7 +30,7 @@ export function itemPreview(state: Snapshot | null, type: string, targets: strin
     if (state.pieces.some(p => p.alive && overlapsWall(p.x, p.y, p.radius + .02, { ...at, length, thickness }))) return no('알과 겹칩니다.')
     return yes
   }
-  if (chosen.some(p => !p) || chosen.length !== (type === 'SWAP' ? 2 : 1)) return no(type === 'SWAP' ? '내 알 두 개를 고르세요.' : '내 알 하나를 고르세요.')
+  if (chosen.some(p => !p) || chosen.length !== (type === 'SWAP' ? 2 : 1)) return no(type === 'SWAP' ? '살아 있는 알 두 개를 고르세요.' : ownOnly ? '내 알 하나를 고르세요.' : '살아 있는 알 하나를 고르세요.')
   const a = chosen[0]!
   if (type === 'SWAP') {
     const b = chosen[1]!
@@ -39,7 +40,7 @@ export function itemPreview(state: Snapshot | null, type: string, targets: strin
   if (type === 'RELOCATE') {
     if (!at) return no('이동할 위치를 고르세요.')
     if (Math.hypot(a.x - at.x, a.y - at.y) > (state.itemRules?.relocateDistance ?? 2)) return no('이동 가능 거리를 넘었습니다.')
-    return fits(at.x, at.y, a.radius, targets) ? yes : no('알·벽·판 가장자리와 겹칩니다.')
+    return fits(at.x, at.y, a.radius, targets) ? yes : no('다른 알·벽과 겹치거나 중심이 판 밖입니다.')
   }
   if (type === 'POWER_UP') return yes
   if (a.modifier) return no('기존 크기·방어 효과가 남아 있습니다.')

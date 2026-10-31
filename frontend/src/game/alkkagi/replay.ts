@@ -1,6 +1,7 @@
 export interface Piece {
   id: string; owner: number; type: string; x: number; y: number; vx: number; vy: number
   radius: number; mass: number; alive: boolean; launchSpeed?: number; modifier?: string | null; restorePending?: boolean
+  exit?: { x: number; y: number; vx: number; vy: number; at: number } | null
 }
 export interface SocialView {
   chat: { id: string; label: string; actor: number; text: string; at: number }[]
@@ -60,7 +61,7 @@ export class AlkkagiReplay {
     // 턴/권한 UI는 별도 최신 상태를 쓰고, 화면만 100ms 버퍼로 재생한다.
     return { ...a.state, pieces: a.state.pieces.map((p, i) => {
       const next = b.state.pieces[i]
-      return { ...p, x: p.x + (next.x - p.x) * t, y: p.y + (next.y - p.y) * t,
+      return { ...(t >= 1 ? next : p), x: p.x + (next.x - p.x) * t, y: p.y + (next.y - p.y) * t,
         alive: t >= 1 ? next.alive : p.alive }
     }) }
   }

@@ -41,7 +41,7 @@ class AlkkagiItemTests {
     void 잘못된_대상_권한_버전은_소모하지_않는다() {
         var match = withCard("SWAP");
         assertThatThrownBy(() -> match.useItem(0, input(match, "same", "p11", "p11"), 1)).hasMessage("INVALID_TARGETS");
-        assertThatThrownBy(() -> match.useItem(0, input(match, "other", "p11", "p16"), 1)).hasMessage("NOT_YOUR_PIECE");
+        assertThatThrownBy(() -> match.useItem(0, input(match, "missing", "p11", "unknown"), 1)).hasMessage("NOT_YOUR_PIECE");
         assertThatThrownBy(() -> match.useItem(1, input(match, "turn", "p11", "p12"), 1)).hasMessage("NOT_YOUR_TURN");
         var valid = input(match, "stale", "p11", "p12");
         assertThatThrownBy(() -> match.useItem(0, new AlkkagiMatch.ItemUse(valid.gameId(), "stale", 0,

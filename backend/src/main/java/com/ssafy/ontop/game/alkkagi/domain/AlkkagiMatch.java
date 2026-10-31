@@ -229,7 +229,7 @@ public final class AlkkagiMatch {
         if (card.type() == AlkkagiInventory.Type.SWAP) {
             require(targets != null && targets.size() == 2 && !targets.get(0).equals(targets.get(1)), "INVALID_TARGETS");
             var a = pieces.get(targets.get(0)); var b = pieces.get(targets.get(1));
-            require(a != null && b != null && a.alive && b.alive && a.owner == actor && b.owner == actor, "NOT_YOUR_PIECE");
+            require(a != null && b != null && a.alive && b.alive, "NOT_YOUR_PIECE");
             var pa = a.body.getWorldCenter().copy(); var pb = b.body.getWorldCenter().copy();
             validateSwapPosition(a, pb, a, b); validateSwapPosition(b, pa, a, b);
             require(pa.distance(pb) >= a.radius + b.radius - 1e-9, "ITEM_OVERLAP");
@@ -246,13 +246,15 @@ public final class AlkkagiMatch {
         } else {
             require(targets != null && targets.size() == 1, "INVALID_TARGETS");
             var piece = pieces.get(targets.getFirst());
-            require(piece != null && piece.alive && piece.owner == actor, "NOT_YOUR_PIECE");
+            require(piece != null && piece.alive, "INVALID_TARGETS");
+            if (card.type() == AlkkagiInventory.Type.POWER_UP || card.type() == AlkkagiInventory.Type.DEFEND)
+                require(piece.owner == actor, "NOT_YOUR_PIECE");
             if (card.type() == AlkkagiInventory.Type.RELOCATE) {
                 require(input.placement() != null, "INVALID_PLACEMENT");
                 var destination = input.placement();
                 validatePlacement(destination);
                 require(piece.body.getWorldCenter().distance(destination.x(), destination.y()) <= itemRules.relocateDistance(), "RELOCATE_TOO_FAR");
-                require(fits(destination.x(), destination.y(), piece.radius, piece, null, true), "ITEM_OVERLAP_OR_OUTSIDE");
+                require(fits(destination.x(), destination.y(), piece.radius, piece, null, false), "ITEM_OVERLAP_OR_OUTSIDE");
                 var at = piece.body.getWorldCenter().copy();
                 piece.body.translate(destination.x() - at.x, destination.y() - at.y);
                 world.setUpdateRequired(true);
@@ -266,7 +268,7 @@ public final class AlkkagiMatch {
                         ? itemRules.defendMassMultiplier() : scale * scale);
                 var at = piece.body.getWorldCenter();
                 require(card.type() == AlkkagiInventory.Type.DEFEND
-                        || fits(at.x, at.y, piece.baseRadius * scale, piece, null, true), "ITEM_OVERLAP_OR_OUTSIDE");
+                        || fits(at.x, at.y, piece.baseRadius * scale, piece, null, false), "ITEM_OVERLAP_OR_OUTSIDE");
                 resize(piece, piece.baseRadius * scale, mass);
                 piece.modifier = card.type().name();
                 piece.expiresAfterTurn = turnNumber + itemRules.effectOpponentTurns() * 2 - 1;
@@ -350,7 +352,7 @@ public final class AlkkagiMatch {
             var at = piece.body.getWorldCenter();
             // 같은 크기/축소 원복에는 새 공간이 필요 없다. 축소 효과의 확대 원복만 검사한다.
             if (!piece.alive || piece.baseRadius <= piece.radius
-                    || fits(at.x, at.y, piece.baseRadius, piece, null, true)) {
+                    || fits(at.x, at.y, piece.baseRadius, piece, null, false)) {
                 resize(piece, piece.baseRadius, piece.baseMass); piece.modifier = null; piece.restorePending = false;
             } else piece.restorePending = true;
         }
@@ -426,6 +428,8 @@ public final class AlkkagiMatch {
             piece.safeX = at.x; piece.safeY = at.y;
             // 임시 정책: 알 중심이 외곽을 넘으면 탈락. 최종 낙하 기준은 별도 합의한다.
             if (Math.abs(at.x) > settings.halfWidth() || Math.abs(at.y) > settings.halfHeight()) {
+                var velocity = piece.body.getLinearVelocity();
+                piece.exit = new ExitView(at.x, at.y, velocity.x, velocity.y, now);
                 piece.alive = false;
                 world.removeBody(piece.body);
             } else if (piece.body.getLinearVelocity().getMagnitude() > settings.stopSpeed()) {
@@ -521,7 +525,7 @@ public final class AlkkagiMatch {
             views.add(new PieceView(piece.id, piece.owner, piece.type, at.x, at.y, v.x, v.y,
                     piece.radius, piece.mass, piece.alive,
                     physics.maximumSpeed(settings.maximumImpulse(), physics.profile(piece.type))
-                            * (piece.id.equals(boostedPieceId) ? itemRules.powerMultiplier() : 1), piece.modifier, piece.restorePending));
+                            * (piece.id.equals(boostedPieceId) ? itemRules.powerMultiplier() : 1), piece.modifier, piece.restorePending, piece.exit));
         }
         return new Snapshot(gameId, version, tick, simulationId, stage, turn, turnNumber,
                 turnDeadline, matchDeadline, now, winner, reason, List.copyOf(views),
@@ -553,8 +557,9 @@ public final class AlkkagiMatch {
     public record CardView(String id, String type) { }
     public record AwardView(int losses, String result) { }
     public record PrivateView(String gameId, long version, List<CardView> cards, List<AwardView> awards) { }
+    public record ExitView(double x, double y, double vx, double vy, long at) { }
     public record PieceView(String id, int owner, String type, double x, double y, double vx, double vy,
-            double radius, double mass, boolean alive, double launchSpeed, String modifier, boolean restorePending) { }
+            double radius, double mass, boolean alive, double launchSpeed, String modifier, boolean restorePending, ExitView exit) { }
     public record Snapshot(String gameId, long version, long tick, long simulationId, String stage,
             int turn, int turnNumber, long turnDeadline, long matchDeadline, long serverNow,
             Integer winner, String endReason, List<PieceView> pieces, List<Integer> timeouts,
@@ -574,6 +579,7 @@ public final class AlkkagiMatch {
         private int expiresAfterTurn;
         private boolean restorePending;
         private double safeX, safeY;
+        private ExitView exit;
         private final Body body;
         private boolean alive = true;
 

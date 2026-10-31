@@ -12,11 +12,11 @@ test('비밀 카드의 취소·교환·추가 발사를 실제 화면에서 확�
   await page.getByRole('button', { name: '연습 카드 받기 (로컬)' }).click()
   await expect.poll(() => privateState()?.cards.length).toBe(2)
   await page.getByRole('button', { name: '테스트 시작', exact: true }).click()
-  await page.getByRole('button', { name: '내 알 위치 교환', exact: true }).click()
+  await page.getByRole('button', { name: '알 위치 교환', exact: true }).click()
   await page.getByRole('button', { name: '아이템 취소', exact: true }).click()
   expect(privateState().cards.length).toBe(2)
   expect(current().itemUsedThisTurn).toBe(false)
-  await page.getByRole('button', { name: '내 알 위치 교환', exact: true }).click()
+  await page.getByRole('button', { name: '알 위치 교환', exact: true }).click()
   await page.locator('canvas').scrollIntoViewIfNeeded()
   let rect = (await page.locator('canvas').boundingBox())!
   await page.mouse.click(rect.x + rect.width * .30, rect.y + rect.height * .60)

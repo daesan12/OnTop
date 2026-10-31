@@ -33,9 +33,12 @@ describe('알까기 확정 전 미리보기', () => {
     s.pieces[2] = { ...s.pieces[2], alive: true, x: -1.45, y: 2 }
     expect(itemPreview(s, 'SWAP', ['p0', 'p1'], null).valid).toBe(false)
   })
-  it('상대 알·미선택·효과 중첩을 거절한다', () => {
+  it('변형은 상대 알도 허용하고 강화·방어 소유권과 중첩은 검사한다', () => {
     const s = state()
-    expect(itemPreview(s, 'GROW', ['p16'], null).valid).toBe(false)
+    s.pieces[16] = { ...s.pieces[16], alive: true, x: 2, y: -2 }
+    expect(itemPreview(s, 'GROW', ['p16'], null).valid).toBe(true)
+    expect(itemPreview(s, 'DEFEND', ['p16'], null).valid).toBe(false)
+    expect(itemPreview(s, 'POWER_UP', ['p16'], null).valid).toBe(false)
     expect(itemPreview(s, 'GROW', [], null).valid).toBe(false)
     s.pieces[0].modifier = 'GROW'
     expect(itemPreview(s, 'DEFEND', ['p0'], null).valid).toBe(false)

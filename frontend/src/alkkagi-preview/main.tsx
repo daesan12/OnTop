@@ -30,7 +30,7 @@ const errorNames: Record<string, string> = {
 
 type Card = { id: string; type: string }
 type PrivateState = { gameId: string; version: number; cards: Card[]; awards?: { losses: number; result: string }[] }
-const cardNames: Record<string, string> = { SWAP: '내 알 위치 교환', EXTRA_SHOT: '한 번 더 튕기기',
+const cardNames: Record<string, string> = { SWAP: '알 위치 교환', EXTRA_SHOT: '한 번 더 튕기기',
   WALL: '벽 설치', RELOCATE: '알 재배치', POWER_UP: '힘 강화', GROW: '크기 확대', SHRINK: '크기 축소', DEFEND: '방어 자세' }
 
 function App() {
@@ -188,10 +188,10 @@ function App() {
         <div className="buttons">{currentHand?.cards.map(card => <button key={card.id} disabled={!canItem}
           aria-pressed={item?.id === card.id} onClick={() => { setItem(card); setTargets([]); setPlacement(null); setPinned(false) }}>{cardNames[card.type] ?? card.type}</button>)}</div>
         {item && <div>
-          <p>{item.type === 'SWAP' ? '교환할 내 알 두 개를 클릭하세요.' : item.type === 'EXTRA_SHOT'
+          <p>{item.type === 'SWAP' ? '교환할 알 두 개를 클릭하세요. 상대 알도 선택할 수 있습니다.' : item.type === 'EXTRA_SHOT'
             ? '원래 30초 안에서 발사 한 번을 추가합니다. 시간이 늘어나지 않습니다.' : item.type === 'WALL'
             ? '커서를 따라오는 벽을 클릭해 위치 고정 · Q/E·휠로 회전 · 확정 또는 취소' : item.type === 'RELOCATE'
-            ? '내 알 하나를 클릭한 뒤 빈 판을 클릭해 이동 위치를 선택하세요.' : '효과를 적용할 내 알 하나를 클릭하세요.'}</p>
+            ? '이동할 알을 클릭한 뒤 빈 판을 클릭하세요. 상대 알도 가능합니다.' : ['GROW', 'SHRINK'].includes(item.type) ? '효과를 적용할 알을 클릭하세요. 상대 알도 가능합니다.' : '효과를 적용할 내 알 하나를 클릭하세요.'}</p>
           {!['WALL', 'EXTRA_SHOT'].includes(item.type) && <p>선택: {targets.join(' ↔ ') || '없음'} ({targets.length}/{item.type === 'SWAP' ? 2 : 1})</p>}
           {['WALL', 'RELOCATE'].includes(item.type) && <p>위치: {placement ? `${placement.x.toFixed(2)}, ${placement.y.toFixed(2)}` : '판을 클릭하세요'}
             {item.type === 'WALL' && <label> 각도 <input aria-label="벽 각도" type="range" min={-180} max={180} step={15}
@@ -254,6 +254,7 @@ function App() {
       <small>일반 ‘새 판’은 조절한 값을 유지합니다. 서버를 다시 시작하면 선택한 기본값(30 / 60 / 1)으로 돌아갑니다.</small>
     </details>
     <div className="board">
+      {left !== null && left > 0 && left <= 10 && <div className="turn-warning" role="timer" aria-label="턴 마감 경고"><strong>{left}</strong><span>초 남음</span></div>}
       <AlkkagiBoard actor={actor} state={state} replay={replay} enabled={connected && !pending && state?.stage === 'AIMING' && (actor < 0 || state.turn === actor)}
         shoot={shoot} explain={setNotice} blockedReason={instruction}
         itemMode={item?.type ?? null} itemTargets={targets} pickTarget={pickTarget} cancelItem={cancelItem} placement={placement} pinned={pinned} previewValid={preview.valid} cursor={cursor}

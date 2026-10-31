@@ -61,11 +61,11 @@ class AlkkagiExtendedItemTests {
     }
 
     @Test
-    void 재배치는_거리_소유권_겹침을_검사하고_서버좌표를_변경한다() {
+    void 재배치는_거리_중심경계_겹침을_검사하고_서버좌표를_변경한다() {
         var m = match("RELOCATE");
         assertThatThrownBy(() -> use(m, "far", List.of("p13"), new AlkkagiMatch.Placement(0, -4, 0), 1)).hasMessage("RELOCATE_TOO_FAR");
         assertThatThrownBy(() -> use(m, "overlap", List.of("p13"), new AlkkagiMatch.Placement(0, 3.2, 0), 1)).hasMessage("ITEM_OVERLAP_OR_OUTSIDE");
-        assertThatThrownBy(() -> use(m, "other", List.of("p16"), new AlkkagiMatch.Placement(0, 0, 0), 1)).hasMessage("NOT_YOUR_PIECE");
+        assertThatThrownBy(() -> use(m, "other", List.of("p16"), new AlkkagiMatch.Placement(0, 0, 0), 1)).hasMessage("RELOCATE_TOO_FAR");
         assertThat(m.privateView(0).cards()).hasSize(1);
         use(m, "move", List.of("p13"), new AlkkagiMatch.Placement(1, .4, 0), 1);
         assertThat(m.snapshot(0).pieces().get(13).x()).isEqualTo(1);
