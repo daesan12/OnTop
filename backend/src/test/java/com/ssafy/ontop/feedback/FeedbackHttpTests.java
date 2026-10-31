@@ -80,6 +80,19 @@ class FeedbackHttpTests {
                 eq(new com.ssafy.ontop.feedback.domain.FeedbackText("의견입니다")));
     }
 
+    @Test
+    void JPA_잠금오류도_재시도할수있는_503으로_응답하고_본문을_남기지않는다() throws Exception {
+        // 저장소는 Spring 예외 변환 대상(@Repository)이 아니므로 EntityManager 예외가 그대로 올라온다.
+        when(feedback.submit(anyLong(), any(), any(), any()))
+                .thenThrow(new jakarta.persistence.PessimisticLockException("lock wait timeout"));
+        var response = request("POST", "/feedback", """
+                {"operationId":"one","channelId":"channel-1","text":"비공개 의견입니다"}
+                """, jwt.issue(101, TestLoginSessions.ID));
+        assertThat(response.statusCode()).isEqualTo(503);
+        assertThat(response.body()).contains("\"code\":\"FEEDBACK_UNAVAILABLE\"")
+                .doesNotContain("lock wait timeout", "비공개 의견");
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"?limit=0", "?limit=51", "?cursor=-1", "?cursor=9999999999999999999"})
     void 조회_범위를_제한한다(String query) throws Exception {

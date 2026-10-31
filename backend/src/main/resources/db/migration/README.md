@@ -28,6 +28,9 @@ GAME Story 1의 `V112__create_game_sessions_and_participants.sql`은 경기·참
 기존 고버전 DB의 누락 V5/V6와 선택 모듈 추가는 별도 편입 검토 대상이며 자동 repair/out-of-order를 켜지 않는다.
 격리 신규 DB 적용 및 시작 예약 계약, 후속 정산/복구 범위는 docs/game-start-persistence.md를 따른다.
 
+S15P31B105-296의 `V133__create_anonymous_notes.sql`은 이전 `db/notes` V121·V129의 최종 익명 메모 스키마를
+공통 경로에서 만든다. `db/notes`·`db/feedback` 폴더는 실행 경로에 추가하지 않는다(각 폴더 README 참고).
+
 users의 collation·시각·탈퇴 데이터 보존 및 실제 MySQL 테스트는
 저장소 루트의 `docs/users-schema.md`를 따른다.
 

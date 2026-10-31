@@ -44,7 +44,6 @@ import static org.mockito.Mockito.doNothing;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "spring.profiles.active=dev,db", "ontop.notes.enabled=true",
         "ontop.notes.privacy-secret=synthetic-note-privacy-key-32-bytes-only",
-        "spring.flyway.locations=classpath:db/migration,classpath:db/minigame,classpath:db/notes",
         "ontop.auth.allowed-origins=https://dev.on-top.world",
         "ontop.auth.jwt-secret-base64=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
 })

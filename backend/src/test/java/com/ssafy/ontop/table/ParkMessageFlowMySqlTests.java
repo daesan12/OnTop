@@ -41,7 +41,6 @@ import static org.awaitility.Awaitility.await;
         "ontop.world.channels[0].capacity=40",
         "ontop.world.channels[1].channel-id=channel-2", "ontop.world.channels[1].name=검증 공원2",
         "ontop.world.channels[1].capacity=40",
-        "spring.flyway.locations=classpath:db/migration,classpath:db/minigame,classpath:db/notes",
         "ontop.auth.allowed-origins=https://dev.on-top.world",
         "ontop.auth.jwt-secret-base64=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
 })
