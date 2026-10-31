@@ -81,6 +81,25 @@ class ParkRankingSnapshotServiceTests {
     }
 
     @Test
+    void 예상하지_못한_매핑오류도_실패로_기록하고_다음_집계를_계속한다() {
+        ParkRankingSnapshotService service = service(STARTED_AT.toString());
+        when(balances.findTopTen()).thenReturn(List.of());
+        when(profits.findTopTen(STARTED_AT)).thenReturn(List.of())
+                .thenThrow(new IllegalStateException("mapping-failed")).thenReturn(List.of());
+        when(wins.findTopTen(STARTED_AT)).thenReturn(List.of());
+
+        service.refresh();
+        ParkRankingResponse previous = service.current();
+        service.refresh();
+        assertThat(service.current()).isSameAs(previous);
+        service.refresh();
+
+        assertThat(service.current()).isNotSameAs(previous);
+        assertThat(meters.counter("ontop.ranking.park.refresh", "result", "failure").count()).isEqualTo(1);
+        assertThat(meters.counter("ontop.ranking.park.refresh", "result", "success").count()).isEqualTo(2);
+    }
+
+    @Test
     void 개발_시작시각이_없으면_기존_서비스는_기동하고_집계는_실행하지_않는다() {
         ParkRankingSnapshotService service = service("");
 

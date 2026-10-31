@@ -20,11 +20,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
-import org.springframework.dao.DataAccessException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.TransactionException;
-import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @Profile("db")
@@ -68,7 +65,6 @@ public class ParkRankingSnapshotService {
     }
 
     @Scheduled(fixedRate = 60_000, initialDelay = 0)
-    @Transactional(readOnly = true)
     public void refresh() {
         if (startedAt == null || !refreshing.compareAndSet(false, true)) {
             return;
@@ -87,7 +83,7 @@ public class ParkRankingSnapshotService {
                             row.nickname(), row.winCount())).toList();
             snapshot.set(new ParkRankingResponse(balanceItems, profitItems, winItems, clock.instant()));
             meters.counter("ontop.ranking.park.refresh", "result", "success").increment();
-        } catch (DataAccessException | TransactionException failure) {
+        } catch (RuntimeException failure) {
             meters.counter("ontop.ranking.park.refresh", "result", "failure").increment();
             LOG.warn("공원 랭킹 스냅샷 갱신 실패; 이전 정상 결과 유지", failure);
         } finally {
