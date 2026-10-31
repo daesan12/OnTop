@@ -5,7 +5,7 @@ import os from 'node:os'
 import {PARK_DATA} from '../../src/map/park'
 import type {facilityCompletionProbe} from './facilityCompletionProbe'
 
-test('restores fountain seats, seats all forest benches, and shows construction notices without service calls',async({page})=>{
+test('restores fountain seats, seats all forest benches, and separates the active ranking board from construction notices',async({page})=>{
   const errors:string[]=[],requests:string[]=[]
   page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text())})
   page.on('request',r=>{if(/\/api\/|\/ws\//.test(r.url()))requests.push(r.url())})
@@ -38,17 +38,19 @@ test('restores fountain seats, seats all forest benches, and shows construction 
     }
   }
   await page.getByRole('button',{name:'조감도',exact:true}).click()
-  for(const [no,label] of [['13','상점'],['14','응모부스'],['15','포토부스']]){
-    await select(new RegExp(no+'.*'+label));await page.getByRole('button',{name:'공사 안내 보기',exact:true}).click()
-    const dialog=page.getByRole('dialog',{name:label+' 공사 안내',exact:true})
-    await expect(dialog).toBeVisible();await expect(dialog.getByRole('heading')).toHaveText('공사 중')
-    await shot('construction-'+no)
-    await page.keyboard.press('Tab');await expect(dialog.getByRole('button',{name:'확인'})).toBeFocused()
-    await page.keyboard.press('Escape');await expect(dialog).toBeHidden()
-  }
+  await select(/14.*복권방/)
+  await page.getByRole('button',{name:'무료 목업 체험',exact:true}).click()
+  const lottery=page.getByRole('dialog',{name:/오늘의 복권방/})
+  await expect(lottery).toBeVisible();await expect(lottery.getByRole('heading')).toHaveText('오늘의 복권방')
+  await shot('lottery-14')
+  await page.keyboard.press('Escape');await expect(lottery).toBeHidden()
+  await select(/15.*랭킹 보드/)
+  await expect(page.getByRole('button',{name:'공사 안내 보기',exact:true})).toHaveCount(0)
+  await expect(page.getByLabel('선택한 시설')).toContainText('보유량·승부사·승수 표시용 보드')
+  await select(/14.*복권방/)
   await page.setViewportSize({width:390,height:844})
-  await page.getByRole('button',{name:'공사 안내 보기',exact:true}).click()
-  const dialog=page.getByRole('dialog',{name:'포토부스 공사 안내',exact:true}),bounds=await dialog.boundingBox()
+  await page.getByRole('button',{name:'무료 목업 체험',exact:true}).click()
+  const dialog=page.getByRole('dialog',{name:/오늘의 복권방/}),bounds=await dialog.boundingBox()
   expect(bounds!.x).toBeGreaterThanOrEqual(0);expect(bounds!.x+bounds!.width).toBeLessThanOrEqual(390)
   await shot('construction-mobile')
   expect(errors).toEqual([]);expect(requests).toEqual([]);await expect(page.locator('vite-error-overlay')).toHaveCount(0)

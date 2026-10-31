@@ -11472,26 +11472,6 @@
           ],
           "status": "construction",
           "yaw": 1.3066566530403017
-        },
-        {
-          "heightTolerance": 0.7,
-          "id": "layout-photo",
-          "kind": "CONSTRUCTION",
-          "label": "랭킹 보드",
-          "message": "현재 공사 중입니다. 준비가 끝나면 이용할 수 있어요.",
-          "position": [
-            30,
-            0,
-            35.6
-          ],
-          "radius": 3,
-          "reachPosition": [
-            25.583270440699366,
-            0.8,
-            38.15
-          ],
-          "status": "construction",
-          "yaw": 2.0943951023931957
         }
       ],
       "fitness": [
@@ -11810,6 +11790,25 @@
           18.92,
           54.5
         ]
+      },
+      "rankingBoard": {
+        "heightTolerance": 0.7,
+        "id": "layout-photo",
+        "kind": "RANKING_BOARD",
+        "label": "랭킹 보드",
+        "position": [
+          30,
+          0,
+          35.6
+        ],
+        "radius": 3,
+        "reachPosition": [
+          25.583270440699366,
+          0.8,
+          38.15
+        ],
+        "status": "active",
+        "yaw": 2.0943951023931957
       },
       "tableSeats": [
         {
@@ -130696,11 +130695,11 @@
   "format": "ontop.park-map",
   "hashAlgorithm": "sha256",
   "hashes": {
-    "dataHash": "0f0498516087747690b0bd7c892fc1d7fe3c08c6c9d4c9f3352b5c20bd355c04",
-    "sourceHash": "324db2d6e3907f3b2f7c40577c3dd80eb5854640a50581b33f5595128d4ee8c7"
+    "dataHash": "f1390f7571782e1e8ebf22d9b0f17da1a394d41658a12542519deb45ae5da7b3",
+    "sourceHash": "4c5d86eb9ad41ed04040bf6dc699fef81ba63d66585a536921dcf8300bc8ed93"
   },
   "mapId": "park",
-  "mapVersion": "e4c6e290be56dfb333a7b2fafd286664a5dd7f5e19ede0acfff859f6f6144200",
+  "mapVersion": "c05d8ada8b12d4e509f50c7e807949bd976811e1c69a628232520b88c15a0d07",
   "schemaVersion": 2,
   "semantics": {
     "additionalPlayerInflation": "server-capsule-only",

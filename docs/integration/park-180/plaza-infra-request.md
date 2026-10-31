@@ -11,9 +11,9 @@
 | 항목 | 확정값 |
 |---|---|
 | mapId / schemaVersion | `park` / `2` |
-| mapVersion | `e4c6e290be56dfb333a7b2fafd286664a5dd7f5e19ede0acfff859f6f6144200` |
-| server-map.json SHA-256 | `3eeacb4b96c99e42bfde6a865d0aaef3212a781b31cec0d1d65ec4af86c369d5` |
-| manifest.json SHA-256 | `bded322bbdf276cd9a69d92afbd341b27b902f551bb111a40a44d9afcc16b4d5` |
+| mapVersion | `c05d8ada8b12d4e509f50c7e807949bd976811e1c69a628232520b88c15a0d07` |
+| server-map.json SHA-256 | `81d9a70a1b28751f3dc8708bb0c21fc5cae17604263f1f6ae10f4e2c6d3aeafb` |
+| manifest.json SHA-256 | `c6f1614beade4a7d2f45a1d73dc786a3d77e22e03b85860aa1ae0ae2f23ee37e` |
 
 같은 커밋의 다음 파일을 한 세트로 적용 부탁드립니다.
 
@@ -27,7 +27,7 @@ FE 빌드는 frontend에서 다음 명령으로 진행하며 출력은 `dist-par
 VITE_PARK_BINDINGS_URL=/park-bindings.generated.dev.json pnpm run build:park
 ```
 
-BE는 새 버전 디렉터리 `/opt/ontop/maps/e4c6e290be56dfb333a7b2fafd286664a5dd7f5e19ede0acfff859f6f6144200/`에 두 JSON을 스테이징하고, 기존 generated-map Compose 구성을 사용해 주세요.
+BE는 새 버전 디렉터리 `/opt/ontop/maps/c05d8ada8b12d4e509f50c7e807949bd976811e1c69a628232520b88c15a0d07/`에 두 JSON을 스테이징하고, 기존 generated-map Compose 구성을 사용해 주세요.
 
 ```text
 WORLD_MAP_SOURCE=generated
@@ -64,7 +64,7 @@ WORLD_MAP_REQUIRE_MATCH=true
 
 정식 `build:park`의 exporter로 `frontend/docs/jumpmap/course.generated.json`과 `.sha256`도 현재 기본 맵 버전에 동기화했다. 기본 공원 JSON과 별도 계약이며 코스 좌표·`courseVersion=park180-jump-v1`·`rulesVersion=v2`는 유지한다.
 
-- course JSON SHA-256: `30ce531d815411476616d5144aa9649ecdb98db55415139c5d3f515989077e57`
+- course JSON SHA-256: `db459acd4e0b1e81c7f247c890107f4419ebb68245e84d6e708764e11c1be47b`
 - BE가 별도 점프맵 API·물리·보상 계약을 제공하지 않으면 기존 비활성 처리를 유지한다. 기본 공원 맵 전환만으로 점프맵 기능까지 활성화하지 않는다.
 - 별도 연동은 `frontend/docs/jumpmap/BE_추가요청_2026-10-30.md`를 참고한다. 사용자/BE 담당자 간 인계 시 이번에 동기화한 코스 파일을 사용한다.
 

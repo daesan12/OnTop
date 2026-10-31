@@ -11,6 +11,7 @@ import {GOMOKU} from '../../src/config'
 import {omokCamera} from '../../src/game/cameraState'
 import {fishBreadShopArt} from '../../src/world/art/luckyFacilityGeometry'
 import {useParkDebris} from '../../src/features/parkDebris/state'
+import {closeRankingBoard,useRankingBoardEntry} from '../../src/features/rankingBoard/model'
 
 /** Tablet selection clears focusedAnchorId; inspect the actual seated board camera. */
 export function omokPlayProbe(x=7,y=7){
@@ -84,9 +85,10 @@ export function detailProbe(){
 }
 export function probe(){
  const scene=_roots.get(document.querySelector('canvas')!)!.store.getState().scene,s=useSession.getState()
- return {identity:scene.getObjectByName('park-service-map')?.userData,session:s,pose:avatars.get(s.sessionId)?.current,swimming:avatars.get(s.sessionId)?.swimming,facilities:useFacilityState.getState().ready,target:getParkInteraction(),tables:Array.from({length:18},(_,n)=>({id:'table-'+(n+1),position:scene.getObjectByName('table-'+(n+1))?.getWorldPosition(new Vector3()).toArray()})),mailbox:scene.getObjectByName('feedback-mailbox')?.getWorldPosition(new Vector3()).toArray()}
+ return {identity:scene.getObjectByName('park-service-map')?.userData,session:s,pose:avatars.get(s.sessionId)?.current,swimming:avatars.get(s.sessionId)?.swimming,facilities:useFacilityState.getState().ready,target:getParkInteraction(),rankingBoardOpen:useRankingBoardEntry.getState().open,tables:Array.from({length:18},(_,n)=>({id:'table-'+(n+1),position:scene.getObjectByName('table-'+(n+1))?.getWorldPosition(new Vector3()).toArray()})),mailbox:scene.getObjectByName('feedback-mailbox')?.getWorldPosition(new Vector3()).toArray()}
 }
 export const inspect=(id:string)=>interactWithTable(id)
+export const resetRankingBoardEntry=()=>closeRankingBoard()
 export function renderedSeatHeights(id:string){
  const scene=_roots.get(document.querySelector('canvas')!)!.store.getState().scene,t=PARK_DATA.tables.find(t=>t.id===id)!,ray=new Raycaster(),object=scene.getObjectByName(id)!
  scene.updateMatrixWorld(true)

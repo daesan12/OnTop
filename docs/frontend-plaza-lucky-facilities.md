@@ -59,8 +59,8 @@
 
 ## 현재 로컬 검증본 — 최종 통합본 아님
 
-- mapVersion: e4c6e290be56dfb333a7b2fafd286664a5dd7f5e19ede0acfff859f6f6144200
-- server-map.json SHA-256: 3eeacb4b96c99e42bfde6a865d0aaef3212a781b31cec0d1d65ec4af86c369d5
+- mapVersion: c05d8ada8b12d4e509f50c7e807949bd976811e1c69a628232520b88c15a0d07
+- server-map.json SHA-256: 81d9a70a1b28751f3dc8708bb0c21fc5cae17604263f1f6ae10f4e2c6d3aeafb
 - 최종 통합 후 다시 생성하면 위 값이 바뀔 수 있다. 인프라에는 최종 합본의 값을 전달한다.
 - 이번 작업에서 서버 배포·실행 중 맵 전환은 하지 않았다.
 
