@@ -118,14 +118,12 @@ const drawTitle = (c: CanvasRenderingContext2D, w: number, h: number) => {
   for(const x of [w*.09,w*.91]){c.save();c.translate(x,h/2);c.rotate(Math.PI/4);c.fillRect(-h*.045,-h*.045,h*.09,h*.09);c.restore()}
 }
 
-export function RankingBoardModel({live=false}:{live?:boolean}={}) {
+export function RankingBoardModel({onInteract}:{onInteract?:()=>void}={}) {
   const site = KIOSKS.find(kiosk => kiosk.kind === 'photo')!
   return <group name="ranking-board-preview" position={[site.x, 0, site.z]} rotation={[0, site.yaw, 0]} scale={SETTINGS.rankingBoard.scale}
     userData={{ assetId: 'procedural/ranking-board', previewRole: 'ranking-board' }} onClick={event=>{
       event.stopPropagation()
-      if(live)void import('../features/interactions/parkInteraction').then(({getParkInteraction,interactWithPark})=>{
-        if(getParkInteraction()?.id==='layout-photo')interactWithPark()
-      })
+      onInteract?.()
     }}>
     {entries.map(([kind, geometry]) => <mesh key={kind} geometry={geometry} dispose={null} castShadow={kind !== 'glow'} receiveShadow>
       <primitive object={kind === 'glow' ? lanternMaterial : flatMaterial} attach="material" dispose={null} />
