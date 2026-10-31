@@ -5,7 +5,7 @@ import { useSession } from '../../network/worldClient'
 import { useGame, tableBusy } from '../../game/store'
 import { useParkRuntime } from '../../park/runtime/ParkRuntime'
 import { GameControls } from '../../game/OmokPanel'
-import { TABLE_GAMES, canLeaveByMovement, waitingForRound } from './model'
+import { TABLE_GAMES, canLeaveByMovement, waitingForRound, tableTermsLabel } from './model'
 import { publicMatchService } from './publicMatch'
 import { resetSeatedLook, useTableLobby } from './state'
 import './tableLobby.css'
@@ -60,6 +60,7 @@ function TableLobbyContent() {
     {!tableId ? <p>서버 테이블과 공원 배치 연결이 필요합니다.</p> : <>
       {gameError && <p role="alert">{gameError}</p>}
       <p className="table-lobby-role">{ownTable ? '참가자' : '공개 대기 상태 보기'} · {table ? `${table.seats.filter(s => s.userId).length}/${table.capacity}석` : `${summary?.occupiedSeats ?? '—'}/${summary?.capacity ?? '—'}석`}</p>
+      <p aria-label="현재 방 설정">{tableTermsLabel(table ?? summary)}</p>
       {!ownTable && query.tableId === tableId && query.status === 'error' ?
         <div role="alert"><p>{query.error}</p><button disabled={s.pending || !s.connected} onClick={() => runtime.inspectTable(s.focused)}>테이블 정보 다시 확인</button></div>
         : !table && <p role="status">테이블 상태 확인 중</p>}

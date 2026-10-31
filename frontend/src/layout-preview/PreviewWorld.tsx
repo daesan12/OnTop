@@ -57,6 +57,8 @@ function sign(text:string,sub='ON TOP PARK') {
   }
 }
 const zoneSigns={vr:sign('VR 체험관','VIRTUAL REALITY'),folk:sign('민속놀이 존','TRADITIONAL GAMES'),swim:sign('수영 진입로','LAKE ACCESS')}
+// The front beam ends at z=3.8 and its trim at z=3.88; keep lettering clear of both.
+const hallSignPosition:[number,number,number]=[0,3.55,3.94]
 const inspectPreviewTable=()=>{} // No live commands from the layout-review entry.
 
 export function PreviewLight({night}:{night:boolean}) {
@@ -98,11 +100,11 @@ export const PreviewWorld=memo(function PreviewWorld({live=false,onRankingBoardI
     <group position={[SITES.pagoda.x,SITES.pagoda.floor,SITES.pagoda.z-GARDEN_PAGODA.z]}><StonePagoda anchor={GARDEN_PAGODA} decorations={false}/></group>
     <group position={[SITES.vr.x,0,SITES.vr.z]} rotation={[0,VR_YAW,0]}>
       <group position={[-MINI_PROPS[1].x,0,-MINI_PROPS[1].z]}><VrHanokBooth/></group>
-      <PropSign position={[0,3.55,3.8]} width={3.4} height={.65} draw={zoneSigns.vr}/>
+      <group name="layout-vr-sign"><PropSign position={hallSignPosition} width={3.4} height={.65} draw={zoneSigns.vr}/></group>
     </group>
     <group name="layout-hall-room" position={[SITES.folk.x,0,SITES.folk.z]} rotation={[0,VR_YAW,0]}>
       <PropModel art={vrBoothArt} name="folk-hanok-model"/>
-      <PropSign position={[0,3.55,3.8]} width={3.4} height={.65} draw={zoneSigns.folk}/>
+      <group name="layout-folk-sign"><PropSign position={hallSignPosition} width={3.4} height={.65} draw={zoneSigns.folk}/></group>
     </group>
     <StonePagoda anchor={{...VR_PAGODA,x:SITES.vrPagoda.x,z:SITES.vrPagoda.z}}/>
     {!live&&<PreviewJumpCourse/>}

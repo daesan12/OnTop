@@ -1,4 +1,4 @@
-import type { TableState } from '../../network/protocol'
+import type { TableState, TableSummary } from '../../network/protocol'
 import type { StartState } from '../../game/protocol'
 import { tableBusy, type useGame } from '../../game/store'
 
@@ -10,6 +10,13 @@ export const TABLE_GAMES = [
   { code: 'DICE_LEDGER', name: '주사위 장부', capacity: 4, playable: true },
 ] as const
 export type TableGameCode = typeof TABLE_GAMES[number]['code']
+/** Display only server-approved room terms, including rooms retained after the host leaves. */
+export function tableTermsLabel(table: Pick<TableSummary, 'gameCode' | 'betAmountPerPlayer'> | undefined) {
+  if (!table) return '방 설정 확인 중'
+  const name = TABLE_GAMES.find(game => game.code === table.gameCode)?.name ?? (table.gameCode ? '게임 정보 확인 중' : '게임 선택 중')
+  const amount = table.betAmountPerPlayer
+  return `${name} · ${amount != null && Number.isSafeInteger(amount) && amount > 0 ? `1인 판돈 ${amount.toLocaleString('ko-KR')}냥` : '판돈 미정'}`
+}
 export const GAME_CONSTRUCTION_NOTICE = '공사 중인 게임입니다. 오목 또는 원카드를 선택해주세요.'
 export const isTableGamePlayable = (code: string | null | undefined) => TABLE_GAMES.some(game => game.code === code && game.playable)
 export const TARGET_SCORES = [2000, 4000, 6000] as const

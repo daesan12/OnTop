@@ -306,6 +306,9 @@ export async function fixture(
           characterGender: options.onecardPreview ? publicProfiles[ownId]?.characterGender ?? 'MALE' : 'MALE' },
       })
     }
+    if (url.pathname === '/api/v1/rankings/park') {
+      return route.fulfill({ json: { balance: [], singleGameProfit: [], wins: [], updatedAt: new Date().toISOString() } })
+    }
     if (url.pathname === '/api/v1/wallets/me') {
       walletReads++
       return route.fulfill({ json: { balance: walletAmount, reservedBalance: 0, availableBalance: walletAmount } })
@@ -338,7 +341,7 @@ export async function fixture(
               allReady: false,
               status: options.publicSpectator && publicGameId ? 'PLAYING' : 'WAITING',
               joinable: !seated && !options.publicSpectator,
-              gameCode: null,
+              gameCode,
               targetScore,
               betAmountPerPlayer,
               ...(options.publicSpectator ? { gameId: publicGameId } : {}),
