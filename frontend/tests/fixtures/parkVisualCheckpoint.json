@@ -1,10 +1,10 @@
 {
-  "description": "Accepted ranking-board facility and interaction entry retained with the new plaza, lantern, fish-shop counter, dice-ledger and duel-forfeit surfaces while preserving park tables/chairs, 2026-10-31",
+  "description": "Accepted ranking-board facility and interaction entry retained with the new plaza, lantern, fish-shop counter, dice-ledger and duel-forfeit surfaces while preserving park tables/chairs. Approved jumpmap landing audio adapter and sound-layer diagnostic updated without geometry or placement changes (MR !258), 2026-10-31",
   "files": {
     "src/layout-preview/districtGeometry.ts": "882709ac240a987c6d7fc5d8740f9d48e93851c586b232dfa05bacd7b70fe1ff",
     "src/layout-preview/existingTreeModel.ts": "fcb9c89c3c90e11ac5a5670a0498dae14184a10b1acac281523ad56ed4748826",
     "src/layout-preview/fountainPaving.ts": "b8955836fa9cb447e8d6f4523b0f81341cebdb1c292760b06a4f5ef63076c549",
-    "src/layout-preview/jumpAudio.ts": "577826a54148ebaea63f0bcee38802a99e5e822614e0831fd775dc8e5958146d",
+    "src/layout-preview/jumpAudio.ts": "f5e622b72bda6876a12a72b883fa57f00260d24423bb412d362c9b0c6dede41a",
     "src/layout-preview/jumpCourse.ts": "8f78898d78ba683c7c50df8db68b28a73c8db27bd0433d9ca18df8a995432b39",
     "src/layout-preview/jumpGeometry.ts": "070ef9dcd882f1dcd27d9f85731dbcd9060f864583c7fef4c31c9b9a775d7577",
     "src/layout-preview/JumpHud.tsx": "0c27b8c58b3259ebf69d9c009cead700e4bd77b1b5b8d009352911a16f589287",
@@ -24,7 +24,7 @@
     "src/layout-preview/plazaBuildingStructure.ts": "129c2fae114d2fba97779eab1892a867bf33e6a1337ec8ab654d8a198cd18925",
     "src/layout-preview/PreviewBench.tsx": "ebdc4958755d78008bb27bee9e0933878ad71331479e522324a0c2c8333e0375",
     "src/layout-preview/PreviewCamera.tsx": "e3a317388ec9381b18800217b1c5d426acad9d5926e4f9b68ff4dd275d81fad2",
-    "src/layout-preview/PreviewJumpCourse.tsx": "c403d6672ba9f080b5c3eead31de84059c4cba314f019d747bad24e4f8a58ad3",
+    "src/layout-preview/PreviewJumpCourse.tsx": "b5042b158a2f26f96bfcc06d0711922eea3ad89654e6d5893785617e6ee52ba0",
     "src/layout-preview/PreviewLandscaping.tsx": "7bdec8aadc5b6e47e9d9ab3c0a0c86933e39d3ca2b86ced0d111bfc299f50dde",
     "src/layout-preview/PreviewPigeons.tsx": "829f4d51b3832a6e78e11af044975dbe8567f24499605949fc32990c9c109b2a",
     "src/layout-preview/PreviewSwimmingRipples.tsx": "7000a53d1d96f9e4aa21a23cdb89546168680a61a9ddb64240297151b22989b0",
