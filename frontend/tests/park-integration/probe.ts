@@ -13,6 +13,29 @@ import {fishBreadShopArt} from '../../src/world/art/luckyFacilityGeometry'
 import {useParkDebris} from '../../src/features/parkDebris/state'
 import {closeRankingBoard,useRankingBoardEntry} from '../../src/features/rankingBoard/model'
 
+export function hallSignClearance(name:string){
+ const {scene}=_roots.get(document.querySelector('canvas')!)!.store.getState()
+ scene.updateMatrixWorld(true)
+ const group=scene.getObjectByName(name)!,sign=group.children[0] as Mesh
+ const forward=new Vector3(0,0,1).transformDirection(sign.matrixWorld),ray=new Raycaster()
+ let visibleSamples=0
+ for(const x of [-1.4,0,1.4])for(const y of [-.2,0,.2]){
+  const point=sign.localToWorld(new Vector3(x,y,0))
+  ray.set(point.clone().addScaledVector(forward,2),forward.clone().negate())
+  if(ray.intersectObject(group.parent!,true)[0]?.object===sign)visibleSamples++
+ }
+ return {count:group.children.length,visibleSamples}
+}
+export function frameHallSign(name:string){
+ const state=_roots.get(document.querySelector('canvas')!)!.store.getState()
+ state.setFrameloop('never');state.scene.updateMatrixWorld(true)
+ const sign=state.scene.getObjectByName(name)!.children[0]!
+ const point=sign.getWorldPosition(new Vector3()),forward=new Vector3(0,0,1).transformDirection(sign.matrixWorld)
+ state.camera.position.copy(point).addScaledVector(forward,5)
+ state.camera.lookAt(point);state.camera.updateMatrixWorld(true)
+ state.gl.render(state.scene,state.camera)
+}
+
 /** Tablet selection clears focusedAnchorId; inspect the actual seated board camera. */
 export function omokPlayProbe(x=7,y=7){
  const state=_roots.get(document.querySelector('canvas')!)?.store.getState()

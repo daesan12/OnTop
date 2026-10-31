@@ -101,4 +101,57 @@ class ParkDebrisStoreTests {
                 .hasSize(17).contains("board", "coin-0", "stone-1").doesNotContain("stone-0");
         assertThat(store.state("one").version()).isEqualTo(2);
     }
+
+    @Test
+    void 기권_15초_경계에서_채널별로_자동_정리하고_변경이_없으면_버전을_유지한다() {
+        var store = new ParkDebrisStore();
+        var event = forfeit("expiry");
+        store.add("one", "table-1", event, 2, 0);
+        store.add("two", "table-2", forfeit("other"), 2, 0);
+        var before = store.state("one");
+
+        assertThat(store.expire(event.occurredAt().plus(ParkDebrisStore.RETENTION).minusNanos(1))).isEmpty();
+        assertThat(store.state("one").version()).isEqualTo(1);
+        assertThat(store.expire(event.occurredAt().plus(ParkDebrisStore.RETENTION)))
+                .containsExactlyInAnyOrder("one", "two");
+
+        assertThat(store.state("one").items()).isEmpty();
+        assertThat(store.state("two").items()).isEmpty();
+        assertThat(store.state("one").version()).isEqualTo(2);
+        assertThat(before.items()).hasSize(1);
+        assertThat(store.expire(event.occurredAt().plusSeconds(60))).isEmpty();
+        assertThat(store.state("one").version()).isEqualTo(2);
+    }
+
+    @Test
+    void 일부_청소한_잔해도_기존_기권_시각에_만료하고_새_잔해는_유지한다() {
+        var store = new ParkDebrisStore();
+        var first = forfeit("first");
+        var later = new GameDefeatConfirmed("later", "game-later", "table", "OMOK", 1, 101,
+                GameDefeatConfirmed.Kind.FORFEIT, 2, first.occurredAt().plusSeconds(10),
+                GameDepartureReason.EXPLICIT_LEAVE);
+        store.add("one", "table-1", first, 2, 0);
+        store.add("one", "table-1", later, 2, 0);
+        store.clean("one", "first", "coin-0");
+
+        assertThat(store.expire(first.occurredAt().plusSeconds(15))).containsExactly("one");
+
+        assertThat(store.state("one").items()).singleElement()
+                .satisfies(item -> assertThat(item.id()).isEqualTo("later"));
+        assertThat(store.clean("one", "first", "board")).isFalse();
+        assertThat(store.clean("one", "later", "board")).isTrue();
+    }
+
+    @Test
+    void 자동_정리한_용량에_새_잔해를_저장할_수_있다() {
+        var store = new ParkDebrisStore();
+        for (int i = 0; i < ParkDebrisStore.MAX_BATCHES; i++) {
+            store.add("one", "table-1", forfeit("item-" + i), 2, 0);
+        }
+
+        store.expire(forfeit("time").occurredAt().plusSeconds(15));
+
+        assertThat(store.add("one", "table-1", forfeit("new"), 2, 0)).isTrue();
+        assertThat(store.state("one").items()).hasSize(1);
+    }
 }

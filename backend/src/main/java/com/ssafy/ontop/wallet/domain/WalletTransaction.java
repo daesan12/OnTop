@@ -37,6 +37,23 @@ public class WalletTransaction {
     protected WalletTransaction() {
     }
 
+    public long id() {
+        return id;
+    }
+
+    public static WalletTransaction minigameEntryFee(long walletId, long fee, String key, Instant now) {
+        if (walletId <= 0 || fee <= 0 || key == null || key.isBlank() || key.length() > 120) {
+            throw new IllegalArgumentException("미니게임 이용료 기록을 확인하세요.");
+        }
+        WalletTransaction transaction = new WalletTransaction();
+        transaction.walletId = walletId;
+        transaction.balanceDelta = -fee;
+        transaction.transactionType = "MINIGAME_ENTRY_FEE";
+        transaction.idempotencyKey = key;
+        transaction.createdAt = Objects.requireNonNull(now).truncatedTo(ChronoUnit.MILLIS);
+        return transaction;
+    }
+
     public WalletTransaction(long walletId, long itemId, long total, String key) {
         this.walletId = walletId;
         this.itemId = itemId;

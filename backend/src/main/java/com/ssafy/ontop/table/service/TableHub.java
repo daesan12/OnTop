@@ -475,6 +475,7 @@ public class TableHub {
         heartbeatTimer.scheduleWithFixedDelay(this::checkHostWaits, 100, 100, TimeUnit.MILLISECONDS);
         heartbeatTimer.scheduleWithFixedDelay(this::pruneDynamicChannels, 1, 1, TimeUnit.SECONDS);
         heartbeatTimer.scheduleWithFixedDelay(this::tickOneCardPranks, 33, 33, TimeUnit.MILLISECONDS);
+        heartbeatTimer.scheduleWithFixedDelay(this::expireParkDebris, 1, 1, TimeUnit.SECONDS);
     }
 
     public synchronized void connect(WebSocketSession session) {
@@ -2465,6 +2466,19 @@ public class TableHub {
             if (isMapReady(target) && channelId.equals(channels.channelOf(target.userId()))) {
                 target.peer().offer(message);
             }
+        }
+    }
+
+    private synchronized void expireParkDebris() {
+        if (stopped) {
+            return;
+        }
+        try {
+            for (String channelId : parkDebris.expire(tableNow())) {
+                publishParkDebris(channelId);
+            }
+        } catch (RuntimeException exception) {
+            log.error("공원 잔해 자동 정리 실패", exception);
         }
     }
 

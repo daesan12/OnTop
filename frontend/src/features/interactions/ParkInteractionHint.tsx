@@ -13,6 +13,7 @@ import { telescopeService } from '../telescopes/service'
 import { BenchSpectatorControls } from './BenchSpectatorControls'
 import { useTableLobby } from '../tableLobby/state'
 import { useGame } from '../../game/store'
+import { tableTermsLabel } from '../tableLobby/model'
 
 export function ParkInteractionHint() {
   const { benchId, fitnessId } = useSession(useShallow(s => ({ benchId: s.benchId, fitnessId: s.fitnessId })))
@@ -22,6 +23,12 @@ export function ParkInteractionHint() {
   const joiningTable = useTableLobby(s => !!s.joiningAnchorId)
   const omokWatching = useGame(s => s.game?.role === 'SPECTATOR' && !!s.game.omok && !!s.watchedGameId)
   const [target, setTarget] = useState<ParkInteraction | null>(null)
+  const roomTerms = useSession(s => {
+    if (target?.kind !== 'table') return null
+    const binding = s.bindings.find(b => b.channelId === s.roomId && b.anchorId === target.id)
+    const table = s.tables.find(t => t.tableId === binding?.tableId)
+    return table && table.occupiedSeats > 0 ? tableTermsLabel(table) : null
+  })
   useEffect(() => {
     const sample = () => {
       const next = getParkInteraction()
@@ -52,6 +59,7 @@ export function ParkInteractionHint() {
       {target.kind === 'fitness' && target.available && fitnessService.mode === 'mock' && ' · 목업'}
       {target.kind === 'telescope' && target.available && telescopeService.mode === 'mock' && ' · 목업'}
     </button>}
+    {roomTerms && <small aria-label="참가할 방 설정">{roomTerms}</small>}
     {joiningTable && <span role="status">자리를 확인하고 있어요…</span>}
     {pending && <span role="status">벤치 이용 요청 확인 중…</span>}
     {fitness.pending && <span role="status">운동기구 이용 요청 확인 중…</span>}
