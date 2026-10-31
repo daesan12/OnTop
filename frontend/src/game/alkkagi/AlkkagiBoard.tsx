@@ -5,6 +5,7 @@ import { AlkkagiReplay, type Piece, type Snapshot } from './replay'
 import { draggedShot, launchResponse } from './aimInput'
 import { exitFlight } from './flight'
 import { AlkkagiPiece, PieceAppearanceProvider } from './AlkkagiPiece'
+import { AlkkagiBoardSurface } from './AlkkagiBoardSurface'
 
 /** 전송·인증·URL에 의존하지 않는 공용 게임판. 호출자가 승인 상태와 명령 콜백을 공급한다. */
 export function AlkkagiBoard(props: Parameters<typeof Scene>[0]) {
@@ -112,16 +113,14 @@ function Scene({ actor, state, replay, enabled, shoot, explain, blockedReason, i
     }
   })
   return <>
-    <mesh receiveShadow position={[0, -.14, 0]} onPointerDown={e => {
+    <AlkkagiBoardSurface onPointerDown={e => {
       if (e.button === 0 && enabled && (itemMode === 'WALL' || itemMode === 'RELOCATE')) {
         e.stopPropagation(); pickPlacement(e.point.x, e.point.z, true)
       }
     }} onPointerMove={e => {
       cursor(e.point.x, e.point.z)
       if (enabled && itemMode === 'WALL' && !pinned) pickPlacement(e.point.x, e.point.z)
-    }}><boxGeometry args={[9, .28, 10]} /><meshStandardMaterial color="#c5a06a" roughness={.85} /></mesh>
-    {Array.from({ length: 9 }, (_, i) => <mesh key={`v${i}`} position={[i - 4, .004, 0]}><boxGeometry args={[.012, .008, 9.5]} /><meshBasicMaterial color="#806243" /></mesh>)}
-    {Array.from({ length: 10 }, (_, i) => <mesh key={`h${i}`} position={[0, .004, i - 4.5]}><boxGeometry args={[8.5, .008, .012]} /><meshBasicMaterial color="#806243" /></mesh>)}
+    }} />
     {pieces.map(piece => <group key={`${state!.gameId}-${piece.id}-${piece.radius}`} ref={g => { if (g) groups.current.set(piece.id, g); else groups.current.delete(piece.id) }}>
       <AlkkagiPiece piece={piece} onPointerDown={e => {
         if (e.button !== 0) return
