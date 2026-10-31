@@ -10,6 +10,7 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
 import java.sql.Date;
 import java.sql.Timestamp;
+import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -37,12 +38,14 @@ public class JdbcJumpmapStore implements JumpmapStore {
     private final EntityManager entities;
     private final TransactionTemplate transactions;
     private final ObjectMapper json = new ObjectMapper();
+    private final JumpmapRankingSnapshot rankings;
 
     public JdbcJumpmapStore(JdbcTemplate jdbc, EntityManager entities, PlatformTransactionManager transactions) {
         this.jdbc = jdbc;
         this.entities = entities;
         this.transactions = new TransactionTemplate(transactions);
         this.transactions.setIsolationLevel(TransactionDefinition.ISOLATION_READ_COMMITTED);
+        this.rankings = new JumpmapRankingSnapshot(this::loadRanking, Clock.systemUTC());
     }
 
     /** 원장 멱등 키. (판, 문)마다 하나다. */
@@ -80,38 +83,32 @@ public class JdbcJumpmapStore implements JumpmapStore {
 
     @Override
     public Ranking ranking(long userId) {
+        return rankings.ranking(userId);
+    }
+
+    private List<RankingEntry> loadRanking() {
         return transaction(() -> {
             var rows = jdbc.queryForList("""
                     WITH choices AS (
-                        SELECT r.*, u.nickname, ROW_NUMBER() OVER (PARTITION BY r.user_id
+                        SELECT r.user_id, r.finish_ms, r.ended_at, u.nickname,
+                            ROW_NUMBER() OVER (PARTITION BY r.user_id
                             ORDER BY r.finish_ms, r.ended_at, r.id) AS choice
                         FROM jump_runs r JOIN users u ON u.id = r.user_id
                         WHERE r.status = 'ENDED' AND r.end_reason = 'FINISH' AND r.suspicious = FALSE
                           AND r.finish_ms > 0 AND r.final_reached = TRUE AND r.gates_passed = 7
                           AND r.rules_version = ? AND r.course_version = ? AND u.deleted_at IS NULL
-                    ), ranked AS (
-                        SELECT *, RANK() OVER (ORDER BY finish_ms) AS place,
-                            ROW_NUMBER() OVER (ORDER BY finish_ms, ended_at, user_id) AS position
-                        FROM choices WHERE choice = 1
                     )
-                    SELECT place, user_id, nickname, finish_ms, ended_at, position
-                    FROM ranked WHERE position <= 50 OR user_id = ? ORDER BY position
-                    """, JumpCourse.RULES_VERSION, JumpCourse.COURSE_VERSION, userId);
+                    SELECT RANK() OVER (ORDER BY finish_ms) AS place, user_id, nickname, finish_ms, ended_at
+                    FROM choices WHERE choice = 1 ORDER BY finish_ms, ended_at, user_id
+                    """, JumpCourse.RULES_VERSION, JumpCourse.COURSE_VERSION);
             var items = new ArrayList<RankingEntry>();
-            RankingEntry me = null;
             for (var row : rows) {
-                var entry = new RankingEntry(((Number) row.get("place")).intValue(),
+                items.add(new RankingEntry(((Number) row.get("place")).intValue(),
                         row.get("user_id").toString(), String.valueOf(row.get("nickname")),
                         ((Number) row.get("finish_ms")).longValue(),
-                        ((Timestamp) row.get("ended_at")).toInstant().toString());
-                if (((Number) row.get("position")).intValue() <= 50) {
-                    items.add(entry);
-                }
-                if (entry.userId().equals(Long.toString(userId))) {
-                    me = entry;
-                }
+                        ((Timestamp) row.get("ended_at")).toInstant().toString()));
             }
-            return new Ranking(List.copyOf(items), me);
+            return List.copyOf(items);
         });
     }
 

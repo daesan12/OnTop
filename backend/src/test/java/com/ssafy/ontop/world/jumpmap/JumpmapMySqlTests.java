@@ -67,14 +67,22 @@ class JumpmapMySqlTests {
         assertThat(call("GET", "/rankings", null, null).statusCode()).isEqualTo(401);
         assertThat(mapper.readTree(call("GET", "/rankings", 101L, null).body()).path("items").size()).isEqualTo(3);
         jdbc.update("UPDATE jump_runs SET rules_version = 'v2' WHERE id = ?", first);
-        assertThat(store.ranking(202).me()).isNotNull(); // the slower current-rule result remains
-        assertThat(store.ranking(101).items()).extracting(JumpmapStore.RankingEntry::userId).containsExactly("101", "202", "303");
+        // 공유 스냅샷은 2분 동안 유지한다. 새 인스턴스의 첫 조회는 변경된 DB를 읽는다.
+        assertThat(store.ranking(202).me().finishMs()).isEqualTo(90_123);
+        assertThat(store.ranking(101).items()).extracting(JumpmapStore.RankingEntry::userId)
+                .containsExactly("202", "101", "303");
+        var refreshed = new JdbcJumpmapStore(jdbc, entities, transactions).ranking(202);
+        assertThat(refreshed.me().finishMs()).isEqualTo(100_000);
+        assertThat(refreshed.items()).extracting(JumpmapStore.RankingEntry::userId)
+                .containsExactly("101", "202", "303");
     }
     @Autowired JdbcTemplate jdbc;
     @Autowired JumpmapStore store;
     @Autowired JumpmapService service;
     @Autowired JumpmapActivation activation;
     @Autowired Flyway flyway;
+    @Autowired jakarta.persistence.EntityManager entities;
+    @Autowired org.springframework.transaction.PlatformTransactionManager transactions;
     @Autowired com.ssafy.ontop.auth.service.AuthExchangePersistenceService issuer;
     @org.springframework.boot.test.web.server.LocalServerPort int port;
     private final java.net.http.HttpClient http = java.net.http.HttpClient.newHttpClient();
