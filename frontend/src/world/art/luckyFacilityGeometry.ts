@@ -126,8 +126,9 @@ const fish=house(FISH_SHOP_SIZE.width,FISH_SHOP_SIZE.depth,true)
 fish.box('wood',dark,[0,3.76,3.08],[9,.18,.2])
 for(let n=0;n<12;n++){
   const x=-4.4+(n+.5)*8.8/12,color=n%2?'#f5e4be':'#b84c38'
-  fish.box('paint',color,[x,3.56,3.52],[8.8/12+.015,.09,1.3],[.29,0,0])
-  fish.box('paint',color,[x,3.13,4.1],[8.8/12+.015,.5,.08])
+  // Neighbouring colours must meet edge-to-edge. Coplanar overlap flickers as the camera moves.
+  fish.box('paint',color,[x,3.56,3.52],[8.8/12,.09,1.3],[.29,0,0])
+  fish.box('paint',color,[x,3.13,4.1],[8.8/12,.5,.08])
 }
 // The counter and display are within the solid footprint; the serving apron remains walkable.
 fish.box('paint','#ad4935',[0,1.07,3.21],[7.8,1.3,.08])
