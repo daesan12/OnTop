@@ -35,6 +35,18 @@ test('두 역할로 실제 한 판을 전멸까지 진행하고 카드 획득·�
         pieceId: piece.id, dx: horizontal ? Math.sign(piece.x) || 1 : 0, dy: horizontal ? 0 : Math.sign(piece.y) || 1, power: 1 }))
       await wait(() => states[0].simulationId > s.simulationId)
       await wait(() => states[0].stage !== 'SIMULATING')
+      while (states[0].stage === 'CHOOSING') {
+        await wait(() => states[0].stage !== 'CHOOSING' || hands.some((h, i) => h?.choice && states[0].cardChoices.some((c: any) => c.actor === i && c.deadline === h.choice.deadline)))
+        if (states[0].stage !== 'CHOOSING') break
+        const previous = states[0].version
+        for (let owner = 0; owner < 2; owner++) {
+          const choice = hands[owner]?.choice
+          if (choice) sockets[owner].send(JSON.stringify({ type: 'CARD_CHOOSE', gameId: states[0].gameId,
+            actionId: crypto.randomUUID(), expectedVersion: states[0].version, choiceId: choice.id, optionId: choice.options[0].id }))
+        }
+        await wait(() => states[0].version !== previous)
+        await new Promise(r => setTimeout(r, 30))
+      }
       if (!observedReward && hands.some(h => h?.awards?.some((a: any) => a.result === 'AWARDED'))) {
         observedReward = true
         await page.screenshot({ path: '.vite-cache/alkkagi-test-results/round-card-earned.png', fullPage: true })

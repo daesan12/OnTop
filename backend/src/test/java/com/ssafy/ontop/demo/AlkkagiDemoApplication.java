@@ -250,7 +250,7 @@ public final class AlkkagiDemoApplication {
                         }
                     } else { types.add("SWAP"); types.add("EXTRA_SHOT"); }
                     for (int actor = 0; actor < 2; actor++) for (var cardType : types) match.receiveCard(actor, cardType);
-                } else if (type.equals("ITEM_USE") || type.equals("SHOT")) {
+                } else if (type.equals("ITEM_USE") || type.equals("SHOT") || type.equals("CARD_CHOOSE")) {
                     if (!input.path("gameId").asText().equals(match.snapshot(0).gameId())) throw new IllegalArgumentException("STALE_GAME");
                     if (!input.path("expectedVersion").isIntegralNumber() || !input.path("expectedVersion").canConvertToLong()
                             || input.path("expectedVersion").asLong() < 0 || !input.path("actionId").isTextual())
@@ -259,7 +259,7 @@ public final class AlkkagiDemoApplication {
                     action.remove(java.util.List.of("gameId", "actionId", "expectedVersion"));
                     long accepted = AlkkagiInputs.apply(match, client.actor, input.path("actionId").asText(),
                             input.path("expectedVersion").asLong(), action, clock.millis());
-                    client.offer(mapper.writeValueAsString(Map.of("type", type.equals("SHOT") ? "SHOT_ACCEPTED" : "ITEM_ACCEPTED",
+                    client.offer(mapper.writeValueAsString(Map.of("type", type.equals("SHOT") ? "SHOT_ACCEPTED" : type.equals("CARD_CHOOSE") ? "CARD_CHOSEN" : "ITEM_ACCEPTED",
                             "version", accepted, "gameId", match.snapshot(0).gameId(), "actionId", input.path("actionId").asText())));
                 } else {
                     throw new IllegalArgumentException("UNKNOWN_TYPE");

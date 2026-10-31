@@ -13,6 +13,12 @@ public final class AlkkagiInputs {
         if (input == null || !input.isObject() || !input.path("type").isTextual()) reject();
         String gameId = match.snapshot(now).gameId();
         return switch (input.path("type").asText()) {
+            case "CARD_CHOOSE" -> {
+                only(input, Set.of("type", "choiceId", "optionId"));
+                if (!input.path("choiceId").isTextual() || !input.path("optionId").isTextual()) reject();
+                yield match.chooseCard(actor, new AlkkagiMatch.CardChoice(gameId, actionId,
+                        input.path("choiceId").asText(), input.path("optionId").asText()), now);
+            }
             case "SHOT" -> {
                 only(input, Set.of("type", "pieceId", "dx", "dy", "power"));
                 if (!input.path("pieceId").isTextual() || !input.path("dx").isNumber()

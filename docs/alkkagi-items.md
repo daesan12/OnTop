@@ -12,11 +12,17 @@
 
 ## 정상 플레이의 카드 지급
 
-초기0장. 실제 물리 안정화 후 누적 손실3/6/9/12/15 이정표를 서버에서 확인한다. 현재 남은 알이 상대보다 적을 때만1장, 최대2장. 이정표는 손패가 가득 찼거나 열세가 아니어도 처리 완료하므로 나중에 소급하지 않는다. 재접속·동일 발사 재전송은 재추첨하지 않는다. 종료가 확정되는 발사에는 더 사용할 수 없는 카드를 지급하지 않는다.
+초기0장. 양쪽 각자의 누적 손실3/6/9/12/15마다 후보3장 중1장을 선택한다. 열세/동수/우세와 관계없다. 물리 안정화 후 손실을 확정하며 경기 종료가 우선하면 새 선택을 열지 않는다. 같은 이정표/재접속은 후보를 다시 추첨하지 않는다.
 
-미정 세부 정책의 **로컬 임시값**: 같은 발사의 탈락은 안정화 후 일괄 남은 수로 열세를 비교한다. 8종 동일 가중치·중복 허용, 경기 벽3회를 소진한 WALL은 추첨에서 제외한다. `AlkkagiCardRules`에서8종 가중치(0~1000, 적어도1종 양수)·중복 허용·소진 벽 제외를 한곳에서 바꿀 수 있다. 후보가 없으면 해당 이정표를 건너뛰고 소급하지 않는다. SecureRandom은 서버 안에서만 사용하고 RNG/시드는 DTO에 넣지 않는다. 이 임시값을 팀 합의나 원작 확률로 취급하지 않는다.
+선택은 서버 기준10초이며 만료하면 현재 후보 중 서버 RNG로 한 장만 확정한다. 정상 설정에서는 서로 다른3종을 가중 추첨한다. 로컬 가중치 설정이3종 미만만 허용하면 가능한 종류를 반복해3개의 서로 다른 optionId를 만든다. 벽3회 소진 제외/보유종류 중복 허용 설정은 유지한다. RNG/시드는 전송하지 않는다.
 
-소유자 PRIVATE_STATE의 awards에는 자신의 `{losses,result}` 이정표 내역(AWARDED/NOT_BEHIND/HAND_FULL/NO_AVAILABLE_CARD)만 들어간다. 공개 STATE·관전자 통신에는 손패나 지급 내역을 넣지 않는다. 연습 카드 선택 지급은 위 실제 이정표 계산과 별도의 로컬 도구다.
+CHOOSING 중에는 양쪽 발사/아이템 사용을 막고 턴 시간을 정지한다. 각자 동시에 선택 가능하며 한쪽이 골라도 상대의 원래 기한은 바뀌지 않는다. 같은 발사에 여러 손실 이정표를 넘으면 각자 순서대로10초씩 선택한다. 전원 선택 완료 후 다음 턴30초를 시작하거나, 추가 발사 중이었다면 원래 남은 시간만 이어간다. 늦게 tick/조회해도 자동선택의 원래 deadline을 재개 기준으로 사용해 시간을 더 주지 않는다. 전체 경기12분은 기존대로 계속 흐르며 전체 기한/기권 확정 시 대기 후보를 폐기한다.
+
+기존 손패 최대2장·가득 차면 해당 이정표 건너뛰기는 현재 유지한다. 이 경우 교체/건너뛰기/한도변경 정책은 사용자 확인 질문 중이며, 후보 UI/10초 구현과 별도다. 임의로 손패 한도를 늘리거나 기존 카드를 버리지 않는다.
+
+소유자 PRIVATE_STATE에는 cards/awards와 choice:{id,losses,deadline,options:[{id,type}]} 또는 null이 있다. 공개 STATE에는 stage=CHOOSING, cardChoices:[{actor,deadline}], pausedTurnMillis만 추가한다. 상대/관전자에게 후보 종류·ID·선택 이력은 보내지 않는다. options ID는 보유 cardId가 아니며 선택 후 새 손패 ID가 발급된다.
+
+CARD_CHOOSE는 gameId/actionId/expectedVersion/choiceId/optionId를 보낸다. 공통 GAME_ACTION_SEND input은 type=CARD_CHOOSE/choiceId/optionId이며 외부 경기/action/version은 기존 envelope를 쓴다. 후보 소유자·ID·기한을 검증하므로 양쪽 동시 선택으로 public version이 변해도 본인 유효 후보는 고를 수 있다. 같은 actionId/같은 선택은 최초 결과 재확인, 다른 선택은 ACTION_ID_CONFLICT. 만료/종료된 후보 CHOICE_NOT_ACTIVE, 틀린 option CHOICE_OPTION_INVALID, 미지 필드 INVALID_ACTION. 성공 로컬 ACK는 CARD_CHOSEN이며 공개/개인 상태의 같은 버전 송신 경계를 유지한다.
 
 ## 사용 규칙
 
@@ -96,7 +102,7 @@ FORFEIT(gameId/actionId)은 자신의 명시적 기권이다. 같은 actionId는
 
 `AlkkagiEngine`은 기존 GameEngine/Router의 입력·상태·기권·복구를 구현하고 `startCommitted(command,result)`에서 ALKKAGI·2명·전원 예약 커밋 계약을 확인한다. 실제 예약/차감 요청이나 DB 저장을 만들지 않는다. 공개 gameId는 서버의 외부 경기 ID, players는 참가자 순서의 회원 ID 문자열이며 내부 actor0/1과 매핑한다. publicState는 gameCode/status/tableId/turnUserId/winnerUserId와 공개 판, privateState는 해당 회원 손패만 담는다. 복구 state는 기존 원카드와 같은 publicState/privateState 객체다. 알까기 시간 필드는 epoch ms다.
 
-공통 요청은 기존 GAME_ACTION_SEND payload 안의 gameId/actionId/expectedVersion/input을 사용한다. input은 위 로컬 SHOT/ITEM_USE에서 type과 행동 필드만 남긴 형태다. 기권은 기존 GAME_FORFEIT, 상태는 기존 GAME_STATE_CHECK/관전 경로를 재사용할 수 있다. 이 어댑터는 일반 앱에 자동 등록하지 않았고, 검증에서는 예약 완료 계약 대역을 사용했다. 새 인증을 만들거나 팀원 DB 예약·정산 코드를 수정하지 않았다.
+공통 요청은 기존 GAME_ACTION_SEND payload 안의 gameId/actionId/expectedVersion/input을 사용한다. input은 로컬 SHOT/ITEM_USE/CARD_CHOOSE에서 type과 행동 필드만 남긴 형태다. 기권은 기존 GAME_FORFEIT, 상태는 기존 GAME_STATE_CHECK/관전 경로를 재사용할 수 있다. 이 어댑터는 일반 앱에 자동 등록하지 않았고, 검증에서는 예약 완료 계약 대역을 사용했다. 새 인증을 만들거나 팀원 DB 예약·정산 코드를 수정하지 않았다.
 
 **실제 공원/DB 활성화는 완료가 아니다.** 현재 CommittedGameStartService의 지원 목록·게임 선택 카탈로그와 DB 종료 검증 VerifiedGameFinish.REASONS에 ALKKAGI가 없다. DB의 게임 종류 등록, 시작 호출 연결, 종료 사유/무승부/물리 실패 무효·환급 계약을 담당자와 함께 반영해야 한다. 현재 어댑터의 GameFinished를 기존 DB 소비자에 바로 연결하면 거절된다. SIMULATION_INVALID/LIMIT는 로컬 검증 종료이며 금전 결과로 사용하면 안 된다. 변경이 필요한 DB/공통 시작 서비스는 이번 작업에서 건드리지 않았고, Flyway/새 스키마도 만들지 않았다.
 

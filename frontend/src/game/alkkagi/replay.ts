@@ -10,12 +10,13 @@ export interface SocialView {
 }
 export interface Snapshot {
   gameId: string; version: number; tick: number; simulationId: number; serverNow: number
-  stage: 'WAITING' | 'AIMING' | 'SIMULATING' | 'FINISHED'; turn: number; turnNumber: number
+  stage: 'WAITING' | 'AIMING' | 'SIMULATING' | 'CHOOSING' | 'FINISHED'; turn: number; turnNumber: number
   turnDeadline: number; matchDeadline: number; winner: number | null; endReason: string | null
   pieces: Piece[]; timeouts: number[]; provisional: boolean
   settings: { halfWidth: number; halfHeight: number; maximumImpulse: number; deceleration: number; restitution: number }
   modelId?: string; inputCurveBoost?: number
   social?: SocialView; connections?: { red: boolean; green: boolean; viewers: number }
+  cardChoices?: { actor: number; deadline: number }[]; pausedTurnMillis?: number | null
   reconnectDeadlines?: (number | null)[]; endedAt?: number | null
   impacts?: { id: number; at: number; x: number; y: number; impulse: number; kind: string }[]
   cardRules?: { weights: number[]; allowDuplicates: boolean; excludeExhaustedWalls: boolean }

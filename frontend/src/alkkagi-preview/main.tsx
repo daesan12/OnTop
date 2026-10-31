@@ -13,6 +13,7 @@ const role = new URLSearchParams(location.search).get('role') ?? 'red'
 const actor = role === 'red' ? 0 : role === 'green' ? 1 : -1
 const names = ['홍팀', '청팀']
 const errorNames: Record<string, string> = {
+  CHOICE_NOT_ACTIVE: '이미 확정됐거나 종료된 선택입니다.', CHOICE_EXPIRED: '선택 시간이 끝났습니다.', CHOICE_OPTION_INVALID: '현재 후보 카드를 선택해주세요.',
   GAME_FINISHED: '이미 종료된 경기입니다.', CHAT_RATE_LIMIT: '잠시 후 다시 보내주세요.',
   ADVICE_RATE_LIMIT: '훈수는 잠시 간격을 두고 보내주세요.', INVALID_CHAT: '채팅은 공백을 제외한 1~200자로 입력해주세요.',
   SPECTATOR_REQUIRED: '관전자만 훈수를 보낼 수 있습니다.', INVALID_ADVICE_TARGET: '현재 차례의 살아 있는 알을 골라주세요.',
@@ -30,7 +31,7 @@ const errorNames: Record<string, string> = {
 }
 
 type Card = { id: string; type: string }
-type PrivateState = { gameId: string; version: number; cards: Card[]; awards?: { losses: number; result: string }[] }
+type PrivateState = { gameId: string; version: number; cards: Card[]; awards?: { losses: number; result: string }[]; choice?: { id: string; losses: number; deadline: number; options: Card[] } | null }
 const cardNames: Record<string, string> = { SWAP: '알 위치 교환', EXTRA_SHOT: '한 번 더 튕기기',
   WALL: '벽 설치', RELOCATE: '알 재배치', POWER_UP: '힘 강화', GROW: '크기 확대', SHRINK: '크기 축소', DEFEND: '방어 자세' }
 
@@ -97,6 +98,8 @@ function App() {
         } else if (msg.type === 'FORFEIT_ACCEPTED') {
           inbox.ack(msg.gameId, msg.version)
           setNotice('기권이 확정됐습니다.'); setForfeitOpen(false)
+        } else if (msg.type === 'CARD_CHOSEN') {
+          inbox.ack(msg.gameId, msg.version); setNotice('카드 선택이 확정됐습니다.')
         } else if (msg.type === 'ITEM_ACCEPTED') {
           inbox.ack(msg.gameId, msg.version)
           setNotice('아이템 적용 완료 · 발사 제한시간은 그대로입니다.')
@@ -135,6 +138,8 @@ function App() {
     cursorAt.current = at; send({ type: 'CURSOR', gameId: state.gameId, x, y }, false)
   }
   const currentHand = hand?.gameId === state?.gameId ? hand : null
+  const choice = state?.stage === 'CHOOSING' && actor >= 0 ? currentHand?.choice : null
+  const choiceSeconds = choice ? Math.max(0, Math.ceil((choice.deadline - now) / 1000)) : 0
   const canItem = connected && !pending && state?.stage === 'AIMING' && state.turn === actor
     && !state.itemUsedThisTurn && currentHand?.version === state.version
   const pickTarget = (piece: Piece) => setTargets(old => old.includes(piece.id)
@@ -145,6 +150,7 @@ function App() {
   const instruction = !connected ? '서버에 연결되면 시작할 수 있어요.'
     : !state || state.stage === 'WAITING' ? actor === 0 ? '먼저 테스트 시작을 눌러주세요.' : '홍팀 화면에서 테스트 시작을 눌러주세요.'
     : state.stage === 'FINISHED' ? '경기가 끝났어요. 홍팀 화면의 새 판을 눌러 다시 시작하세요.'
+    : state.stage === 'CHOOSING' ? '비책 선택 중 · 발사 제한시간은 멈춰 있습니다.'
     : state.stage === 'SIMULATING' ? '알이 움직이는 중입니다. 모두 멈추면 다음 차례가 됩니다.'
     : actor < 0 ? '관전 중 · 현재 차례의 알을 드래그하면 파란 훈수를 보냅니다. 실제 발사는 되지 않습니다.'
     : state.turn !== actor ? `${names[state.turn]} 차례입니다. 해당 팀 화면에서 조작해주세요.`
@@ -152,10 +158,10 @@ function App() {
   return <main>
     <header><div><span className="eyebrow">ONTOP · LOCAL PHYSICS LAB</span><h1>아이템 알까기 <small>로컬 플레이</small></h1></div>
       <div className={`connection ${connected ? 'on' : ''}`}>{connected ? '연결됨' : '연결 끊김'}</div></header>
-    <div className="provisional">영상 기준 16개/인·세 크기 그룹 · 물리값은 검수용 근사 · 아이템8종 · 손실3개마다 열세 시 카드 획득 · 미정 세부 규칙은 로컬 임시값 · 실제 판돈 없음</div>
+    <div className="provisional">영상 기준 16개/인·세 크기 그룹 · 물리값은 검수용 근사 · 아이템8종 · 알3개 손실마다 후보3장 중 선택 · 선택10초/발사30초 별도 · 미정 세부 규칙은 로컬 임시값 · 실제 판돈 없음</div>
     <section className="stats"><div>내 역할<strong>{actor < 0 ? '관전자' : names[actor]}</strong></div>
       <div>현재 차례<strong>{result || (!state || state.stage === 'WAITING' ? '시작 대기' : `${names[state.turn]} · ${state.turnNumber}턴`)}</strong></div>
-      <div>남은 시간<strong>{left === null ? state?.stage === 'SIMULATING' ? '충돌 계산 중' : '—' : `${left}초`}</strong></div>
+      <div>남은 시간<strong>{left === null ? state?.stage === 'CHOOSING' ? '카드 선택 중' : state?.stage === 'SIMULATING' ? '충돌 계산 중' : '—' : `${left}초`}</strong></div>
       <div>생존 알<strong>{state?.pieces.filter(p => p.owner === 0 && p.alive).length ?? 16} : {state?.pieces.filter(p => p.owner === 1 && p.alive).length ?? 16}</strong></div></section>
     <div className="round-meta">
       <span>전체 남은 시간 {state && state.stage !== 'WAITING' ? `${Math.floor(matchLeft / 60)}:${String(matchLeft % 60).padStart(2, '0')}` : '12:00'}</span>
@@ -169,6 +175,15 @@ function App() {
       <p>남은 알 {state.pieces.filter(p => p.alive && p.owner === 0).length} : {state.pieces.filter(p => p.alive && p.owner === 1).length} · 실제 판돈/DB 정산 없음</p>
       {actor === 0 && <button onClick={() => send({ type: 'RESET' })}>다음 판 준비</button>}
     </section>}
+    {choice && <div className="modal-shade choice-shade"><section className="choice-panel" role="dialog" aria-label="카드 선택" aria-modal="true">
+      <span className="eyebrow">나만의 비책</span><h2>카드 한 장을 골라주세요</h2>
+      <p>알 {choice.losses}개 손실 보상 · <strong role="timer" aria-label="카드 선택 남은 시간">{choiceSeconds}초</strong></p>
+      <p>선택 시간은 턴 30초와 별도입니다. 시간이 끝나면 후보 중 하나가 자동으로 확정됩니다.</p>
+      <div className="choice-options">{choice.options.map(option => <AlkkagiItemCard key={option.id} type={option.type}
+        disabled={!connected || pending || choiceSeconds <= 0} onClick={() => state && send({ type: 'CARD_CHOOSE',
+          gameId: state.gameId, actionId: crypto.randomUUID(), expectedVersion: state.version, choiceId: choice.id, optionId: option.id })} />)}</div>
+      <small>{choiceSeconds > 0 ? '받을 카드를 눌러 확정하세요.' : '서버에서 랜덤 선택을 확정하고 있어요.'}</small>
+    </section></div>}
     {forfeitOpen && <div className="modal-shade"><section role="alertdialog" aria-label="기권 확인" aria-modal="true"><h2>이번 판을 기권할까요?</h2>
       <p>상대의 승리로 경기가 종료됩니다.</p><button className="secondary" autoFocus onClick={() => setForfeitOpen(false)}>계속 플레이</button>
       <button onClick={() => state && send({ type: 'FORFEIT', gameId: state.gameId, actionId: crypto.randomUUID() })}>기권 확정</button>
@@ -188,7 +203,7 @@ function App() {
           onClick={() => state && send({ type: 'TEST_CARDS', gameId: state.gameId, expectedVersion: state.version, cards: practice })}>연습 카드 받기 (로컬)</button></div>}
         <div className="hand-cards">{currentHand?.cards.map(card => <AlkkagiItemCard key={card.id} type={card.type}
           disabled={!canItem} selected={item?.id === card.id} onClick={() => { setItem(card); setTargets([]); setPlacement(null); setPinned(false) }} />)}</div>
-        {currentHand && !currentHand.cards.length && <p className="empty-hand">아직 비책이 없습니다. 알을 잃고 열세가 되면 지급 조건에 따라 카드를 받습니다.</p>}
+        {currentHand && !currentHand.cards.length && <p className="empty-hand">아직 비책이 없습니다. 알을 3개 잃을 때마다 후보 3장 중 하나를 고릅니다.</p>}
         <details className="item-catalog"><summary>아이템 도감 · 8종</summary><p>효과와 사용 방법을 살펴보세요. 실제 사용은 보유한 카드로만 가능합니다.</p>
           <div className="item-catalog-grid">{alkkagiItemTypes.map(type => <AlkkagiItemCard key={type} type={type} />)}</div></details>
         {item && <div>
@@ -210,7 +225,7 @@ function App() {
               ...(['WALL', 'RELOCATE'].includes(item.type) && placement ? { placement } : {}) })
           }}>아이템 확정</button> <button className="secondary" onClick={cancelItem}>아이템 취소</button>
         </div>}
-        <small>연습 카드 받기는 검수용입니다 · 일반 플레이는 손실 조건 충족 시 서버 지급 · 턴당 1개·첫 발사 전 사용</small>
+        <small>연습 카드 받기는 검수용입니다 · 일반 플레이는 알3개 손실마다 10초 안에 선택 · 턴당 1개·첫 발사 전 사용</small>
       </> : <p>관전자는 미사용 카드 종류와 식별자를 받지 않습니다.</p>}
       {state?.boostedPieceId && <p>힘 강화 대상: {state.boostedPieceId} · 이 알로 발사하세요.</p>}
       {state?.pieces.filter(p => p.alive && p.modifier).map(p => <small key={p.id}>{p.id}: {cardNames[p.modifier!] ?? p.modifier}{p.restorePending ? ' · 원복 공간 대기' : ''}</small>)}

@@ -7,46 +7,55 @@ import static org.assertj.core.api.Assertions.*;
 
 class AlkkagiCompletionTests {
     @Test
-    void 세개_손실과_열세_한도_검사를_한번만_수행한다() {
+    void 세개_손실마다_후보를_고르고_같은이정표는_다시_추첨하지_않는다() {
         var inventory = new AlkkagiInventory(); var awards = new AlkkagiCardAwards(new Random(1));
-        awards.resolve(13, 16, 0, 0, inventory);
-        assertThat(inventory.cards(0)).hasSize(1); assertThat(inventory.cards(1)).isEmpty();
-        awards.resolve(13, 16, 0, 0, inventory); assertThat(inventory.cards(0)).hasSize(1);
-        awards.resolve(7, 16, 0, 0, inventory); assertThat(inventory.cards(0)).hasSize(2);
+        awards.resolve(13, 16, 0, 0, inventory, 1);
+        var offer = awards.offer(0);
+        assertThat(offer.options()).hasSize(3); assertThat(offer.options()).extracting(o -> o.type()).doesNotHaveDuplicates();
+        assertThat(inventory.cards(0)).isEmpty(); assertThat(awards.offer(1)).isNull();
+        awards.resolve(13, 16, 0, 0, inventory, 100); assertThat(awards.offer(0)).isEqualTo(offer);
+        awards.choose(0, offer.id(), offer.options().getFirst().id(), 200, 0, inventory);
+        assertThat(inventory.cards(0)).hasSize(1);
+        awards.resolve(10, 16, 0, 0, inventory, 300); offer = awards.offer(0);
+        awards.choose(0, offer.id(), offer.options().getFirst().id(), 400, 0, inventory);
+        assertThat(inventory.cards(0)).hasSize(2);
+        awards.resolve(7, 16, 0, 0, inventory, 500);
         assertThat(awards.view(0)).extracting(AlkkagiCardAwards.Attempt::result).containsExactly("AWARDED", "AWARDED", "HAND_FULL");
-        inventory.consume(0, inventory.cards(0).getFirst().id());
-        awards.resolve(7, 16, 0, 0, inventory); assertThat(inventory.cards(0)).hasSize(1);
-        awards.resolve(4, 16, 0, 0, inventory); assertThat(inventory.cards(0)).hasSize(2);
     }
 
     @Test
-    void 동수_일괄손실은_열세가_아니며_나중에_소급하지_않는다() {
+    void 동수여도_각자_손실마다_비공개_후보가_생긴다() {
         var hand = new AlkkagiInventory(); var awards = new AlkkagiCardAwards(new Random(2));
-        awards.resolve(13, 13, 0, 0, hand); awards.resolve(12, 13, 0, 0, hand);
-        assertThat(hand.cards(0)).isEmpty(); assertThat(hand.cards(1)).isEmpty();
-        assertThat(awards.view(0)).extracting(AlkkagiCardAwards.Attempt::result).containsExactly("NOT_BEHIND");
+        awards.resolve(13, 13, 0, 0, hand, 1);
+        var red = awards.offer(0); var green = awards.offer(1);
+        assertThat(red).isNotNull(); assertThat(green).isNotNull(); assertThat(red.id()).isNotEqualTo(green.id());
+        awards.resolve(12, 13, 0, 0, hand, 2);
+        assertThat(awards.offer(0)).isEqualTo(red); assertThat(hand.cards(0)).isEmpty();
     }
 
     @Test
-    void 벽_사용한도를_소진하면_추가_벽카드는_추첨하지_않는다() {
+    void 벽_사용한도를_소진하면_벽은_후보에서_제외한다() {
         var hand = new AlkkagiInventory();
         var awards = new AlkkagiCardAwards(new Random() { @Override public int nextInt(int bound) { return 0; } });
-        awards.resolve(13, 16, 3, 0, hand);
-        assertThat(hand.cards(0).getFirst().type()).isEqualTo(AlkkagiInventory.Type.RELOCATE);
+        awards.resolve(13, 16, 3, 0, hand, 1);
+        assertThat(awards.offer(0).options()).noneMatch(o -> o.type() == AlkkagiInventory.Type.WALL);
     }
 
     @Test
-    void 실제_세알_탈락_후_카드는_본인에게만_한장_지급된다() throws Exception {
+    void 실제_세알_탈락_후_본인만_후보를_받고_선택해야_지급된다() throws Exception {
         var m = new AlkkagiMatch(AlkkagiSettings.provisional(), AlkkagiPhysics.experimental(), AlkkagiItemRules.localPreview(), new Random(3));
         m.start(0); long now = 1;
         for (String piece : List.of("p0", "p7", "p8")) {
             fire(m, piece, 0, 1, 1, now); settle(m, now + 1); now += 3000;
+            if (m.snapshot(0).stage().equals("CHOOSING")) break;
             if (m.snapshot(0).turn() == 1) { fire(m, "p31", 0, -1, .001, now); settle(m, now + 1); now += 1000; }
         }
-        assertThat(m.privateView(0).cards()).hasSize(1); assertThat(m.privateView(1).cards()).isEmpty();
-        assertThat(m.privateView(0).awards()).extracting(AlkkagiMatch.AwardView::losses).contains(3);
+        var choice = m.privateView(0).choice(); assertThat(choice).isNotNull();
+        assertThat(m.privateView(0).cards()).isEmpty(); assertThat(m.privateView(1).choice()).isNull();
         var json = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(m.snapshot(now));
-        assertThat(json).doesNotContain(m.privateView(0).cards().getFirst().id(), "AWARDED");
+        assertThat(json).doesNotContain(choice.id(), choice.options().getFirst().id());
+        m.chooseCard(0, new AlkkagiMatch.CardChoice(m.snapshot(0).gameId(), "select", choice.id(), choice.options().getFirst().id()), now);
+        assertThat(m.privateView(0).cards()).hasSize(1);
     }
 
     @Test
@@ -91,16 +100,15 @@ class AlkkagiCompletionTests {
     }
 
     @Test
-    void 가중치와_중복금지_규칙도_보류이정표를_소급하지_않는다() {
+    void 제한된_가중치_후보와_중복금지_규칙을_유지한다() {
         var rules = new AlkkagiCardRules(List.of(1, 0, 0, 0, 0, 0, 0, 0), false, true);
         var hand = new AlkkagiInventory(); var awards = new AlkkagiCardAwards(new Random(1), rules);
-        awards.resolve(13, 16, 0, 0, hand);
-        assertThat(hand.cards(0).getFirst().type()).isEqualTo(AlkkagiInventory.Type.WALL);
-        awards.resolve(10, 16, 0, 0, hand);
-        assertThat(hand.cards(0)).hasSize(1);
-        assertThat(awards.view(0).getLast().result()).isEqualTo("NO_AVAILABLE_CARD");
-        hand.consume(0, hand.cards(0).getFirst().id()); awards.resolve(10, 16, 0, 0, hand);
-        assertThat(hand.cards(0)).isEmpty();
+        awards.resolve(13, 16, 0, 0, hand, 1);
+        var offer = awards.offer(0); assertThat(offer.options()).hasSize(3);
+        assertThat(offer.options()).allMatch(o -> o.type() == AlkkagiInventory.Type.WALL);
+        awards.choose(0, offer.id(), offer.options().getFirst().id(), 2, 0, hand);
+        awards.resolve(10, 16, 0, 0, hand, 3);
+        assertThat(awards.offer(0)).isNull(); assertThat(awards.view(0).getLast().result()).isEqualTo("NO_AVAILABLE_CARD");
         assertThatThrownBy(() -> new AlkkagiCardRules(List.of(0, 0, 0, 0, 0, 0, 0, 0), true, true)).hasMessage("INVALID_CARD_RULES");
     }
 
@@ -115,6 +123,7 @@ class AlkkagiCompletionTests {
             fire(m, piece.id(), horizontal ? Math.copySign(1, piece.x()) : 0,
                     horizontal ? 0 : Math.copySign(1, piece.y()), 1, turn * 3000L + 1);
             settle(m, turn * 3000L + 2);
+            chooseAll(m, turn * 3000L + 2500);
             assertThat(m.privateView(0).cards()).hasSizeLessThanOrEqualTo(2);
             assertThat(m.privateView(1).cards()).hasSizeLessThanOrEqualTo(2);
             assertThat(m.snapshot(0).pieces()).allMatch(p -> Double.isFinite(p.x()) && Double.isFinite(p.y()));
@@ -125,6 +134,14 @@ class AlkkagiCompletionTests {
                 || result.pieces().stream().filter(p -> p.alive() && p.owner() == 1).count() == 0).isTrue();
         m.advance(999_999);
         assertThat(m.snapshot(0).version()).isEqualTo(result.version());
+    }
+    private void chooseAll(AlkkagiMatch m, long now) {
+        for (int actor = 0; actor < 2; actor++) {
+            while (m.privateView(actor).choice() != null) {
+                var c = m.privateView(actor).choice(); m.chooseCard(actor, new AlkkagiMatch.CardChoice(m.snapshot(0).gameId(),
+                        "choose-" + actor + "-" + c.losses(), c.id(), c.options().getFirst().id()), now);
+            }
+        }
     }
     private void settle(AlkkagiMatch m, long at) {
         for (int i = 0; i < 1200 && m.snapshot(at).stage().equals("SIMULATING"); i++) m.advance(at + i * 8);

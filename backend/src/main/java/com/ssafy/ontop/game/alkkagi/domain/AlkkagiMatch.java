@@ -43,6 +43,7 @@ public final class AlkkagiMatch {
     private long simulationId;
     private long turnDeadline;
     private long matchDeadline;
+    private long pausedTurnMillis;
     private int simulationSteps;
     private int stableSteps;
     private int shotsThisTurn;
@@ -362,7 +363,39 @@ public final class AlkkagiMatch {
         require(actor == 0 || actor == 1, "PLAYER_REQUIRED");
         return new PrivateView(gameId, version, inventory.cards(actor).stream()
                 .map(card -> new CardView(card.id(), card.type().name())).toList(),
-                awards.view(actor).stream().map(a -> new AwardView(a.losses(), a.result())).toList());
+                awards.view(actor).stream().map(a -> new AwardView(a.losses(), a.result())).toList(), choiceView(actor));
+    }
+
+    private ChoiceView choiceView(int actor) {
+        var offer = awards.offer(actor);
+        return offer == null ? null : new ChoiceView(offer.id(), offer.losses(), offer.deadline(), offer.options().stream()
+                .map(o -> new CardView(o.id(), o.type().name())).toList());
+    }
+
+    public long chooseCard(int actor, CardChoice input, long now) {
+        require(actor == 0 || actor == 1, "PLAYER_REQUIRED");
+        require(input != null && input.actionId() != null && input.actionId().matches("[A-Za-z0-9-]{1,64}"), "INVALID_ACTION");
+        require(gameId.equals(input.gameId()), "STALE_GAME");
+        String key = actor + ":" + input.actionId(); var old = receipts.get(key);
+        if (old != null) { require(old.command().equals(input), "ACTION_ID_CONFLICT"); return old.version(); }
+        expire(now);
+        require(stage.equals("CHOOSING"), "CHOICE_NOT_ACTIVE");
+        // 상대의 동시 선택으로 version이 바뀌어도 본인 후보는 유지한다. 소유자/후보ID/기한을 검사한다.
+        awards.choose(actor, input.choiceId(), input.optionId(), now, wallsUsed[actor], inventory);
+        version++; resumeAfterChoices(now); remember(key, input); return version;
+    }
+
+    private void pauseForChoices(long now) {
+        if (!awards.hasPending()) return;
+        pausedTurnMillis = Math.max(0, turnDeadline - now);
+        stage = "CHOOSING"; version++;
+    }
+
+    private void resumeAfterChoices(long now) {
+        if (!stage.equals("CHOOSING") || awards.hasPending()) return;
+        turnDeadline = awards.lastResolvedAt() + pausedTurnMillis;
+        stage = "AIMING"; version++;
+        expire(now);
     }
 
     public long forfeit(int actor, String actionId, long now) {
@@ -456,6 +489,12 @@ public final class AlkkagiMatch {
     }
 
     private void expire(long now) {
+        if (stage.equals("CHOOSING")) {
+            if (now >= matchDeadline) { resolveByCount("MATCH_TIME_LIMIT", matchDeadline); return; }
+            if (awards.expire(now, wallsUsed[0], wallsUsed[1], inventory)) version++;
+            resumeAfterChoices(now);
+            return;
+        }
         if (!stage.equals("AIMING")) { return; }
         if (now >= matchDeadline) {
             resolveByCount("MATCH_TIME_LIMIT", matchDeadline);
@@ -472,7 +511,7 @@ public final class AlkkagiMatch {
 
     private void resolve(long now) {
         if (count(0) > 0 && count(1) > 0 && now < matchDeadline) {
-            awards.resolve(count(0), count(1), wallsUsed[0], wallsUsed[1], inventory);
+            awards.resolve(count(0), count(1), wallsUsed[0], wallsUsed[1], inventory, now);
         }
         if (count(0) == 0 || count(1) == 0) {
             resolveByCount("PIECES_OUT", now);
@@ -484,6 +523,7 @@ public final class AlkkagiMatch {
         } else {
             nextTurn(now);
         }
+        if (stage.equals("AIMING")) pauseForChoices(now);
     }
 
     private int count(int owner) {
@@ -497,6 +537,7 @@ public final class AlkkagiMatch {
     private void finish(Integer player, String endReason, long now) {
         if (stage.equals("FINISHED")) return;
         endedAt = now;
+        awards.clear();
         boostedPieceId = null; extraShotActivated = false;
         for (var piece : pieces.values()) piece.body.setLinearVelocity(0, 0);
         stage = "FINISHED";
@@ -530,7 +571,15 @@ public final class AlkkagiMatch {
         return new Snapshot(gameId, version, tick, simulationId, stage, turn, turnNumber,
                 turnDeadline, matchDeadline, now, winner, reason, List.copyOf(views),
                 List.of(timeouts[0], timeouts[1]), settings, true, "separated-v1", physics.inputBoost(),
-                itemUsedThisTurn, !stage.equals("FINISHED") && extraShotActivated && shotsThisTurn < 2 ? 1 : 0, lastItemEffect, wall, List.of(wallsUsed[0], wallsUsed[1]), boostedPieceId, itemRules, endedAt, List.copyOf(impacts), cardRules);
+                itemUsedThisTurn, !stage.equals("FINISHED") && extraShotActivated && shotsThisTurn < 2 ? 1 : 0, lastItemEffect, wall, List.of(wallsUsed[0], wallsUsed[1]), boostedPieceId, itemRules, endedAt, List.copyOf(impacts), cardRules, choiceClocks(), stage.equals("CHOOSING") ? pausedTurnMillis : null);
+    }
+
+    private List<ChoiceClock> choiceClocks() {
+        var result = new ArrayList<ChoiceClock>();
+        for (int actor = 0; actor < 2; actor++) {
+            var offer = awards.offer(actor); if (offer != null) result.add(new ChoiceClock(actor, offer.deadline()));
+        }
+        return List.copyOf(result);
     }
 
     private static void require(boolean condition, String code) {
@@ -556,7 +605,10 @@ public final class AlkkagiMatch {
     public record ImpactView(long id, long at, double x, double y, double impulse, String kind) { }
     public record CardView(String id, String type) { }
     public record AwardView(int losses, String result) { }
-    public record PrivateView(String gameId, long version, List<CardView> cards, List<AwardView> awards) { }
+    public record ChoiceView(String id, int losses, long deadline, List<CardView> options) { }
+    public record ChoiceClock(int actor, long deadline) { }
+    public record CardChoice(String gameId, String actionId, String choiceId, String optionId) { }
+    public record PrivateView(String gameId, long version, List<CardView> cards, List<AwardView> awards, ChoiceView choice) { }
     public record ExitView(double x, double y, double vx, double vy, long at) { }
     public record PieceView(String id, int owner, String type, double x, double y, double vx, double vy,
             double radius, double mass, boolean alive, double launchSpeed, String modifier, boolean restorePending, ExitView exit) { }
@@ -564,7 +616,7 @@ public final class AlkkagiMatch {
             int turn, int turnNumber, long turnDeadline, long matchDeadline, long serverNow,
             Integer winner, String endReason, List<PieceView> pieces, List<Integer> timeouts,
             AlkkagiSettings settings, boolean provisional, String modelId, double inputCurveBoost,
-            boolean itemUsedThisTurn, int extraShotsRemaining, ItemEffect lastItemEffect, WallView wall, List<Integer> wallsUsed, String boostedPieceId, AlkkagiItemRules itemRules, Long endedAt, List<ImpactView> impacts, AlkkagiCardRules cardRules) { }
+            boolean itemUsedThisTurn, int extraShotsRemaining, ItemEffect lastItemEffect, WallView wall, List<Integer> wallsUsed, String boostedPieceId, AlkkagiItemRules itemRules, Long endedAt, List<ImpactView> impacts, AlkkagiCardRules cardRules, List<ChoiceClock> cardChoices, Long pausedTurnMillis) { }
     private record Receipt(Object command, long version) { }
     private record Departure(int actor, String reason) { }
     private static final class Piece {
