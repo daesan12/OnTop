@@ -29,6 +29,7 @@ public final class ClientPositionValidator {
         boolean supported(Pose pose);
         boolean clear(Pose from, Pose to, boolean allowStep);
         default boolean clearCorner(Pose from, Pose to) { return false; }
+        default boolean clearContact(Pose from, Pose to) { return false; }
         Double ceiling(Pose from, double rise);
         default double jumpSpeed(Pose from, boolean tuned) { return tuned ? 8 : 6.2; }
         default boolean swimming(Pose pose) { return false; }
@@ -125,7 +126,8 @@ public final class ClientPositionValidator {
                 // Buoyancy is valid inside real water, bounded by the server's float level.
                 if (!shore && (dy > 2 * seconds + .08 || dy > 0 && target.y > Math.max(approved.y, geometry.floatY() + .15) + .00001))
                     return deny("SWIM_HEIGHT");
-                if (!geometry.clear(approved, target, supportedTo && (supportedFrom || shore))) return deny("COLLISION");
+                if (!geometry.clear(approved, target, supportedTo && (supportedFrom || shore))
+                        && !geometry.clearContact(approved, target)) return deny("COLLISION");
                 budget -= horizontal; approved = target; sequence = candidate.seq; approvedAt = now;
                 flight = null; airWindowAt = now; airWindowY = target.y;
                 return new Decision(true, "ACCEPTED", approved, sequence);
@@ -158,7 +160,7 @@ public final class ClientPositionValidator {
                     sequence = candidate.seq; approvedAt = now;
                     return new Decision(true, "CONTACT_HELD", approved, sequence);
                 }
-                return deny("COLLISION");
+                if (!geometry.clearContact(approved, target)) return deny("COLLISION");
             }
             flight = next;
             budget -= horizontal; approved = target; sequence = candidate.seq; approvedAt = now;

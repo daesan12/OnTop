@@ -14,6 +14,11 @@ final class PositionCollision implements ClientPositionValidator.Geometry {
     private final java.util.function.Predicate<String> active;
     private final CapsuleCollisionShape capsule;
     private final PhysicsGhostObject probe;
+    // Rapier/Bullet surface disagreement is bounded by this fixed skin, not by
+    // the distance since the last report. Repeated reports cannot grow it.
+    private static final float CONTACT_SKIN = .03f;
+    private final CapsuleCollisionShape contactCapsule;
+    private final PhysicsGhostObject contactProbe;
     PositionCollision(ParkScene scene, PhysicsSpace space) {
         this(scene, space, id -> space.getRigidBodyList().stream().anyMatch(body -> id.equals(body.getUserObject())));
     }
@@ -24,6 +29,9 @@ final class PositionCollision implements ClientPositionValidator.Geometry {
         capsule = new CapsuleCollisionShape(radius, half * 2, 1);
         probe = new PhysicsGhostObject(capsule);
         probe.setCollisionGroup(1); probe.setCollideWithGroups(2);
+        contactCapsule = new CapsuleCollisionShape(radius - CONTACT_SKIN, half * 2, 1);
+        contactProbe = new PhysicsGhostObject(contactCapsule);
+        contactProbe.setCollisionGroup(1); contactProbe.setCollideWithGroups(2);
     }
     public boolean supported(ClientPositionValidator.Pose pose) {
         var from = point(pose);
@@ -77,6 +85,27 @@ final class PositionCollision implements ClientPositionValidator.Geometry {
         var pivot = rise > 0 ? new ClientPositionValidator.Pose(from.x(), to.y(), from.z())
                 : new ClientPositionValidator.Pose(to.x(), from.y(), to.z());
         return clear(from, pivot, false) && clear(pivot, to, false);
+    }
+    /** A fixed 3cm outer shell may disagree across solvers. The remaining
+     * capsule must still be clear at both ends and along the entire segment.
+     * In particular, a clear destination across a thin wall is not enough.
+     */
+    public boolean clearContact(ClientPositionValidator.Pose from, ClientPositionValidator.Pose to) {
+        if (!contactFree(point(from)) || !contactFree(point(to))) return false;
+        var start = point(from); var end = point(to); var delta = end.subtract(start);
+        if (delta.lengthSquared() < 1e-10) return true;
+        return space.sweepTest(contactCapsule, new Transform(start), new Transform(end)).stream().noneMatch(hit ->
+                hit.getCollisionObject().getCollisionGroup() == 2 && hit.getHitFraction() < .9999
+                        && hit.getHitNormalLocal(null).dot(delta) < -.0001);
+    }
+    private boolean contactFree(Vector3f point) {
+        contactProbe.setPhysicsLocation(point);
+        boolean[] overlapping = {false};
+        space.contactTest(contactProbe, event -> {
+            var other = event.getObjectA() == contactProbe ? event.getObjectB() : event.getObjectA();
+            if (other.getCollisionGroup() == 2 && event.getDistance1() < -.0001f) overlapping[0] = true;
+        });
+        return !overlapping[0];
     }
     public boolean swimming(ClientPositionValidator.Pose pose) {
         var lake = scene.data.path("lake");
