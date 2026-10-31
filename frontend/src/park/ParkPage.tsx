@@ -39,6 +39,10 @@ import { RewardCoinFlight } from '../features/wallet/RewardCoinFlight'
 import { LocationChip } from '../features/parkMenus/LocationChip'
 import { JumpmapHud } from '../features/jumpmap/JumpmapHud'
 import { useJumpmapController } from '../features/jumpmap/useJumpmapController'
+import { useStore } from 'zustand'
+import { ParkVrZone } from '../features/vrZone/ParkVrZone'
+import { parkVrZone } from '../features/vrZone/parkBridge'
+import { RankingBoardHost } from '../features/rankingBoard/RankingBoardHost'
 
 const shortcuts = [
   { key: 'WASD', action: '이동' },
@@ -67,6 +71,7 @@ export function ParkPage(props: ParkProps) {
 }
 function ParkContent({ onExit, exitError, onAuthEnded }: ParkProps) {
   useJumpmapController()
+  const vrPhase = useStore(parkVrZone.store, state => state.phase)
   const bungeoppang = useBungeoppang(s => s.phase !== 'idle')
   const omokFocus = useGame(s => s.game?.omok?.status === 'PLAYING' && !s.lastResult)
   const omokChat = useGame(s => s.game?.omok?.status === 'PLAYING' && !s.lastResult)
@@ -95,7 +100,7 @@ function ParkContent({ onExit, exitError, onAuthEnded }: ParkProps) {
       '--park-ui-scale': hudScale,
       '--park-edge': `${20 * hudScale}px`,
     } as CSSProperties}>
-      <ParkScene quality={quality} />
+      <ParkScene quality={quality} active={vrPhase !== 'game'} />
       <ParkBgm />
       <ParkSfx />
       <RewardCoinFlight />
@@ -142,8 +147,10 @@ function ParkContent({ onExit, exitError, onAuthEnded }: ParkProps) {
         <JumpmapHud />
         </div>
       </div>
+      <ParkVrZone />
       <BungeoppangHud />
       <OmokFeedback />
+      <RankingBoardHost />
       <ManualHost showLauncher={!omokFocus} worldActions={bungeoppang || omokFocus ? undefined : <ManualWorldActions />} />
     </main>
   )

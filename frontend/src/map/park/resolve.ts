@@ -274,6 +274,8 @@ const facilities=Object.entries(facilityIds).filter(([,id])=>!disabledKioskIds.h
   return {id,kind,position:[site.x,kind==='pagoda'?SITES.pagoda.floor:0,site.z] as const,yaw:kiosk?.yaw??(kind==='cart'?definition.fishBreadShop.yaw:kind==='mailbox'?definition.mailbox.yaw:kind==='vr'||kind==='folk'?VR_YAW:0)}
 })
 const interactionData=buildInteractionData({definition,pavilions:DRAFT_PAVILIONS,towerBenches:DRAFT_TOWER_BENCHES,plazaBenches:PLAZA_BENCHES,restBenches:PLAZA_REST_BENCHES,fitness:DRAFT_FITNESS_STATIONS,decks:lake.FISHING_DECKS})
+const rankingBoardKiosk=KIOSKS.find(k=>k.kind==='photo')!
+const rankingBoardDistance=rankingBoardKiosk.depth/2+1.8
 const terrainHeight=(x:number,z:number)=>lake.lakeRadius(x,z)<1?lakeFloorHeight(x,z):Math.hypot(x-SITES.fountain.x,z-SITES.fountain.z)<DRAFT_FOUNTAIN.plazaRadius?fountainGroundHeight(x,z):0
 const physics=buildPhysics({definition,lake,terrainHeight,supportHeight:walkHeight,pavilions:DRAFT_PAVILIONS,stairs:DRAFT_STAIRS,tables:DRAFT_TABLES,fitness:DRAFT_FITNESS_STATIONS,benches:interactionData.benchSites,kiosks:KIOSKS,plazaTrees:LANDSCAPE_TREE_SITES,fences:FENCE_RUNS,centralRails:CENTRAL_RAIL_RUNS,stairRails:STAIR_RAIL_RUNS,lamps:DRAFT_LAMPS})
 validatePhysics(physics)
@@ -283,12 +285,16 @@ const data={
   metadata:definition.metadata,
   world:{...DRAFT_PARK,boundary:COLLISION.boundary,wallCornerRadius:definition.park.wallCornerRadius},
   facilities,pavilions:DRAFT_PAVILIONS,tables:DRAFT_TABLES.map(({spectatorRadius:_unused,...t})=>t),
-  interactions:{...facilityInteractions,construction:KIOSKS.map(k=>{
+  interactions:{...facilityInteractions,construction:KIOSKS.filter(k=>k.kind!=='photo').map(k=>{
     const distance=k.depth/2+1.8
-    return {id:'layout-'+k.kind,kind:'CONSTRUCTION' as const,status:'construction' as const,label:({shop:'뽑기방',drink:'복권방',photo:'랭킹 보드'})[k.kind],
+    return {id:'layout-'+k.kind,kind:'CONSTRUCTION' as const,status:'construction' as const,label:k.kind==='drink'?'복권방':'뽑기방',
       position:[k.x,0,k.z] as const,reachPosition:[k.x+Math.sin(k.yaw)*distance,.8,k.z+Math.cos(k.yaw)*distance] as const,
       yaw:k.yaw+Math.PI,radius:3,heightTolerance:.7,message:'현재 공사 중입니다. 준비가 끝나면 이용할 수 있어요.'}
-  }),mailbox:{id:'feedback-mailbox',position:[SITES.mailbox.x,0,SITES.mailbox.z],radius:MAILBOX.interactionRadius},tableSeats:DRAFT_TABLES.map(t=>({tableId:t.id,position:t.position,localSeats:t.seatAnchors}))},
+  }),rankingBoard:{id:'layout-photo',kind:'RANKING_BOARD' as const,status:'active' as const,label:'랭킹 보드',
+    position:[rankingBoardKiosk.x,0,rankingBoardKiosk.z] as const,
+    reachPosition:[rankingBoardKiosk.x+Math.sin(rankingBoardKiosk.yaw)*rankingBoardDistance,.8,rankingBoardKiosk.z+Math.cos(rankingBoardKiosk.yaw)*rankingBoardDistance] as const,
+    yaw:rankingBoardKiosk.yaw+Math.PI,radius:3,heightTolerance:.7},
+  mailbox:{id:'feedback-mailbox',position:[SITES.mailbox.x,0,SITES.mailbox.z],radius:MAILBOX.interactionRadius},tableSeats:DRAFT_TABLES.map(t=>({tableId:t.id,position:t.position,localSeats:t.seatAnchors}))},
   paths:PATHS,perimeter:{points:PERIMETER,width:definition.park.perimeterWidth},
   fences:{courts:FENCE_COURTS,roundCourts:ROUND_COURTS,runs:FENCE_RUNS,centralRails:CENTRAL_RAIL_RUNS,stairRails:STAIR_RAIL_RUNS},
   collision:COLLISION,physics,
@@ -297,7 +303,7 @@ const data={
 assertUniqueIds('facilities',facilities)
 assertUniqueIds('collision',COLLISION.obstacles)
 assertUniqueIds('physical shapes',[...physics.boxes,...physics.meshes,...physics.hulls])
-assertUniqueIds('interaction facilities',[...facilityInteractions.benches,...facilityInteractions.fitness,...facilityInteractions.telescopes])
+assertUniqueIds('interaction facilities',[...facilityInteractions.benches,...facilityInteractions.fitness,...facilityInteractions.telescopes,...data.interactions.construction,data.interactions.rankingBoard])
 if(!canWalk(...DRAFT_PARK.spawn))throw new Error('park.spawn is blocked')
 if(lake.swimmingAt(...DRAFT_PARK.spawn))throw new Error('park.spawn cannot be underwater')
 return {data,SETTINGS:definition,TREE_LAMP_RESERVATIONS,PAVILION_TREE_SITES,PLAZA_TREE_SITES,DRAFT_FITNESS_STATIONS,DRAFT_TOWER_BENCHES,DRAFT_JUMP_PADS,DRAFT_PAVILIONS,DRAFT_STAIRS,DRAFT_TABLES,MARKERS,roundRoute,PATHS,PERIMETER,FENCE_COURTS,ROUND_COURTS,KIOSK_FENCE_RUNS,FENCE_RUNS,CENTRAL_RAIL_RUNS,STAIR_RAIL_RUNS,FENCE_BLOCKERS,PLAZA_PLANTERS,PLAZA_BEDS,PLAZA_BENCHES,DRAFT_BOXES,DRAFT_LAMPS,ORIGINAL_SITES,fountainGroundHeight,nearSegment,onPath,walkHeight,COLLISION,canWalk,lake,DRAFT_PARK,SITES,DRAFT_FOUNTAIN,VR_COURT,VR_EDGE_TREE_SITES,EVENT_GROVE,DRAFT_FITNESS_AREA,KIOSKS,EVENT_BENCHES,MAIN_GATE,VR_STONE_SETS,VR_YAW,PAVILION_COURT,LIFE_PLAZA,PLAZA_REST_GARDENS,PLAZA_REST_BENCHES,PLAZA_BINS}

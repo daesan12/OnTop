@@ -155,7 +155,8 @@ public class NotesController {
         return failure(invalid());
     }
 
-    @ExceptionHandler({DataAccessException.class, TransactionException.class})
+    // 저장소가 EntityManager를 직접 쓰므로 잠금 대기 초과 등 JPA 예외는 Spring 예외로 변환되지 않는다.
+    @ExceptionHandler({DataAccessException.class, TransactionException.class, jakarta.persistence.PersistenceException.class})
     ResponseEntity<ErrorResponse> unavailable() {
         return failure(new NoteException(503, "NOTES_UNAVAILABLE", "메모를 처리하지 못했습니다. 같은 키로 재시도해주세요."));
     }

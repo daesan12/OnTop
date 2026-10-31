@@ -18,6 +18,8 @@ public final class WorldPhysics implements AutoCloseable {
     private long physicsTick;
     public static final long STEP_NANOS = 1_000_000_000L / 30;
     private static final float DT = 1f / 30;
+    /** 측정한 ghost sweep 관통 시작 속도(약 27m/s)의 절반 이하. */
+    private static final double FAST_FALL_SWEEP = 12;
     private ParkScene scene;
     private final java.util.function.Supplier<ParkScene> sceneSource;
     private PhysicsSpace space;
@@ -37,6 +39,8 @@ public final class WorldPhysics implements AutoCloseable {
     private JsonNode movement;
     private final boolean clientPositions;
     private final boolean tunedMovement;
+    // 활성화가 승인한 코스만 받는다. null이면 기존 공원 충돌만 사용한다.
+    private final com.ssafy.ontop.world.jumpmap.JumpCourse course;
     private final java.util.function.LongSupplier clock;
     private PositionCollision positionCollision;
 
@@ -86,17 +90,23 @@ public final class WorldPhysics implements AutoCloseable {
     }
 
     public WorldPhysics(ParkScene scene, boolean clientPositions, java.util.function.LongSupplier clock, boolean tunedMovement) {
-        this(() -> java.util.Objects.requireNonNull(scene), clientPositions, clock, tunedMovement);
+        this(scene, clientPositions, clock, tunedMovement, null);
+    }
+
+    public WorldPhysics(ParkScene scene, boolean clientPositions, java.util.function.LongSupplier clock, boolean tunedMovement,
+            com.ssafy.ontop.world.jumpmap.JumpCourse course) {
+        this(() -> java.util.Objects.requireNonNull(scene), clientPositions, clock, tunedMovement, course);
     }
     private WorldPhysics(java.util.function.Supplier<ParkScene> sceneSource, boolean clientPositions,
             java.util.function.LongSupplier clock) {
-        this(sceneSource, clientPositions, clock, false);
+        this(sceneSource, clientPositions, clock, false, null);
     }
     private WorldPhysics(java.util.function.Supplier<ParkScene> sceneSource, boolean clientPositions,
-            java.util.function.LongSupplier clock, boolean tunedMovement) {
+            java.util.function.LongSupplier clock, boolean tunedMovement, com.ssafy.ontop.world.jumpmap.JumpCourse course) {
         this.sceneSource = sceneSource;
         this.clientPositions = clientPositions;
         this.tunedMovement = tunedMovement;
+        this.course = course;
         this.clock = clock;
         try {
             call(
@@ -135,6 +145,12 @@ public final class WorldPhysics implements AutoCloseable {
                 chair.active = chair.number <= 2;
                 if (chair.active) { space.addCollisionObject(body); }
             } else { space.addCollisionObject(body); }
+        }
+        if (course != null) {
+            if (!course.mapVersion().equals(scene.version())) {
+                throw new IllegalArgumentException("점프맵 코스와 공원 충돌 맵의 버전이 다릅니다.");
+            }
+            JumpCourseColliders.addTo(space, course);
         }
         positionCollision = new PositionCollision(scene, space, this::activeShape);
     }
@@ -254,7 +270,7 @@ public final class WorldPhysics implements AutoCloseable {
     public boolean hasMovementActivity(String id, long now) {
         return call(() -> {
             Actor actor = actors.get(id);
-            return actor != null && (actor.airborne || actor.jumpQueued || (actor.moving && (!actor.clientControlled
+            return actor != null && (actor.airborne || actor.jumpQueued || actor.jumpRequestTick >= 0 || (actor.moving && (!actor.clientControlled
                     || now >= actor.receivedAt && now - actor.receivedAt <= (tunedMovement ? 2_000_000_000L : 500_000_000L))) || (inputActive(actor, now)
                     && (actor.input.dx() != 0 || actor.input.dz() != 0 || actor.input.jump())));
         });
@@ -280,6 +296,12 @@ public final class WorldPhysics implements AutoCloseable {
         actor.seq = input.seq();
         actor.input = input;
         actor.receivedAt = now;
+        if (jumpGrace() && !actor.swimming) {
+            // v2: 접지 여부와 상관없이 요청 틱만 기록한다. 판단은 매 틱 버퍼·코요테 창으로 한다.
+            // 명세의 "지금 틱"은 이 입력을 처리할 다음 물리 틱이다(착지 4틱 전 입력은 착지 틱에 뛴다).
+            if (input.jump()) actor.jumpRequestTick = physicsTick + 1;
+            return true;
+        }
         boolean canJump = actor.swimming || actor.body.onGround()
                 && scene.policy.allowsSupport(actor.body.getPhysicsLocation(null), this::activeShape);
         actor.jumpQueued |= input.jump() && canJump;
@@ -337,6 +359,7 @@ public final class WorldPhysics implements AutoCloseable {
                     a.positionValidator = null;
                     a.body.setLinearVelocity(Vector3f.ZERO);
                     a.seated = true;
+                    a.relocations++;
                     if (wasClientControlled) resetMotion(a);
                 }
                 continue;
@@ -394,6 +417,12 @@ public final class WorldPhysics implements AutoCloseable {
                                             .asDouble()
                             : number(active && input.run() ? "runSpeed" : "walkSpeed");
             double dx = active ? input.dx() : 0, dz = active ? input.dz() : 0;
+            if (course != null) {
+                // 기본 ghost sweep은 겹친 몸체만 검사해 얇은 발판을 약 27m/s 이상 낙하에서 지나칠 수 있다.
+                // 코스 활성 채널에서 빠르게 떨어지는 틱만 world sweep으로 경로 전체를 검사한다.
+                // 걷기·계단·벽·일반 점프는 기존 ghost sweep 그대로다.
+                a.body.setSweepTest(a.motion.velocityY() >= -FAST_FALL_SWEEP);
+            }
             a.body.setWalkDirection(
                     new Vector3f((float) dx * speed * DT, 0, (float) dz * speed * DT));
             if (active && a.jumpQueued && a.swimming && (dx != 0 || dz != 0)) {
@@ -444,11 +473,10 @@ public final class WorldPhysics implements AutoCloseable {
                         new Vector3f((float) dx * speed * DT, buoyancy, (float) dz * speed * DT));
             } else {
                 a.body.setGravity(-number("gravity"));
-                if (active && a.jumpQueued && a.body.onGround() && scene.policy.allowsSupport(position, this::activeShape)) {
-                    a.body.setJumpSpeed(
-                            isTower(position)
-                                    ? (tunedMovement ? 8f : (float) scene.data.path("tower").path("jumpSpeed").asDouble())
-                                    : (float) scene.policy.jumpSpeed(position, tunedMovement));
+                if (jumpGrace()) {
+                    applyJumpGrace(a, position);
+                } else if (active && a.jumpQueued && a.body.onGround() && scene.policy.allowsSupport(position, this::activeShape)) {
+                    a.body.setJumpSpeed((float) surfaceJumpSpeed(position));
                     a.body.jump();
                 }
             }
@@ -499,6 +527,12 @@ public final class WorldPhysics implements AutoCloseable {
                 }
                 if (supported) {
                     a.lastSafe.set(x, position.y, z);
+                    if (jumpGrace() && !a.swimming) {
+                        a.lastGroundedTick = physicsTick;
+                        a.leftByJump = false;
+                        a.coyoteUsed = false;
+                        a.groundJumpSpeed = surfaceJumpSpeed(a.body.getPhysicsLocation(null));
+                    }
                 }
             }
             a.airborne = !a.seated && !supported;
@@ -513,6 +547,45 @@ public final class WorldPhysics implements AutoCloseable {
             }
         }
     }
+
+    /** 서버 30Hz 코요테 3틱·점프 버퍼 4틱(BE 명세 12장). 점프맵 활성(코스 적용) 채널의 공원 전체에만 쓴다. */
+    static final int COYOTE_TICKS = 3;
+    static final int JUMP_BUFFER_TICKS = 4;
+
+    private boolean jumpGrace() { return course != null; }
+
+    /** 전망대 길은 전망대 점프 속도, 그 밖은 팔각정 등 지역 정책 속도다. */
+    private double surfaceJumpSpeed(Vector3f position) {
+        return isTower(position)
+                ? (tunedMovement ? 8f : scene.data.path("tower").path("jumpSpeed").asDouble())
+                : scene.policy.jumpSpeed(position, tunedMovement);
+    }
+
+    private void applyJumpGrace(Actor a, Vector3f position) {
+        if (a.jumpRequestTick >= 0 && physicsTick - a.jumpRequestTick > JUMP_BUFFER_TICKS) a.jumpRequestTick = -1;
+        if (a.jumpRequestTick < 0) return;
+        boolean grounded = a.body.onGround() && scene.policy.allowsSupport(position, this::activeShape);
+        boolean coyote = !grounded && !a.leftByJump && !a.coyoteUsed && physicsTick - a.lastGroundedTick <= COYOTE_TICKS;
+        if (!grounded && !coyote) return;
+        // 코요테는 떠나온 바닥의 점프 속도를 쓴다.
+        a.body.setJumpSpeed((float) (grounded ? surfaceJumpSpeed(position) : a.groundJumpSpeed));
+        a.body.jump();
+        if (!grounded) a.coyoteUsed = true;
+        a.leftByJump = true;
+        a.jumpRequestTick = -1;
+    }
+
+    /** 재조정 뒤 FE가 남은 창을 복원하는 선택 필드. 서버 이동 중일 때만 싣는다. */
+    private JumpGrace graceOf(Actor a) {
+        if (!jumpGrace() || a.clientControlled || a.seated || a.swimming) return null;
+        int coyote = a.leftByJump || a.coyoteUsed ? 0
+                : (int) Math.max(0, Math.min(COYOTE_TICKS, COYOTE_TICKS - (physicsTick - a.lastGroundedTick)));
+        int buffer = a.jumpRequestTick < 0 ? 0
+                : (int) Math.max(0, Math.min(JUMP_BUFFER_TICKS, JUMP_BUFFER_TICKS - (physicsTick - a.jumpRequestTick)));
+        return new JumpGrace(coyote, buffer);
+    }
+
+    public record JumpGrace(int coyoteTicks, int jumpBufferTicks) {}
 
     private long freshnessTime() { return clock.getAsLong(); }
     private void anticipateExclusion(Actor actor, long now) {
@@ -568,10 +641,43 @@ public final class WorldPhysics implements AutoCloseable {
         actor.body.setLinearVelocity(new Vector3f(0, vertical, 0));
         resetMotion(actor);
     }
+    /**
+     * 재접속 유예 뒤 같은 캐릭터에 새 연결을 묶는다. 위치·속도는 그대로 두고 입력 순번을 0부터, 이동 epoch를 새로 시작한다.
+     * 유예용 위치 보고 중지(positionDisabled)도 풀어, PARK_V1은 다음 틱에 기존 resumeClientControl로 위치 보고에 돌아간다.
+     */
+    public Snapshot rebind(String id) {
+        return call(() -> {
+            Actor actor = actors.get(id);
+            stopNow(id);
+            actor.seq = 0;
+            actor.positionDisabled = false;
+            actor.positionReportedEver = false;
+            if (actor.clientControlled) serverControl(actor);
+            else resetMotion(actor);
+            return snapshotNow(id);
+        });
+    }
+
+    /**
+     * 점프맵 재접속 유예: 연결이 없는 동안 서버 물리로 낙하·호수 판정을 잇는다. PARK_V1의 자동 위치 보고 복귀
+     * (resumeClientControl)는 rebind 전까지 막는다.
+     */
+    public Snapshot suspendClient(String id) {
+        return call(() -> {
+            Actor actor = actors.get(id);
+            stopNow(id);
+            actor.positionDisabled = true;
+            serverControl(actor);
+            return snapshotNow(id);
+        });
+    }
+
     private ClientPositionValidator newPositionValidator(Actor actor) {
         double boundary = scene.data.path("world").path("halfSize").asDouble()
                 - scene.data.path("world").path("boundaryHalfDepth").asDouble() - number("radius") - number("offset");
-        return new ClientPositionValidator(pose(actor), actor.motionEpoch, boundary, positionCollision, clock, tunedMovement);
+        var validator = new ClientPositionValidator(pose(actor), actor.motionEpoch, boundary, positionCollision, clock, tunedMovement);
+        validator.jumpGrace(jumpGrace());
+        return validator;
     }
     private void resumeClientControl(Actor actor) {
         double velocityY = actor.motion.velocityY();
@@ -679,6 +785,7 @@ public final class WorldPhysics implements AutoCloseable {
             var below = positionCollision.supportBelow(current);
             Vector3f safe = below == null ? validatedFallback(actor, (float)scene.data.path("world").path("halfSize").asDouble()-1)
                     : new Vector3f((float)below.x(), (float)below.y(), (float)below.z());
+            actor.relocations++; // 서버가 옮긴 위치다(점프맵은 진행 중 판을 RESET). 지지면 위 대기는 해당하지 않는다.
             actor.body.warp(safe);
         }
         actor.body.setLinearVelocity(Vector3f.ZERO);
@@ -714,6 +821,7 @@ public final class WorldPhysics implements AutoCloseable {
     }
 
     private void recover(Actor actor, Vector3f from, Vector3f target, String reason, long now) {
+        actor.relocations++;
         actor.recovery = new Recovery(reason, physicsTick, actor.seq, now, from.x, from.y, from.z,
                 target.x, target.y, target.z, actor.lastSafe.x, actor.lastSafe.y, actor.lastSafe.z,
                 Vector3f.isValidVector(from) ? scene.groundHeight(from.x, from.z) : Double.NaN, actor.body.onGround(), actor.swimming,
@@ -729,6 +837,49 @@ public final class WorldPhysics implements AutoCloseable {
         actor.moving = actor.running = false;
         actor.swimming = swimming(target);
         resetMotion(actor);
+    }
+
+    /**
+     * 서버가 가진 현재 위치의 발밑 충돌체. CLIENT_VALIDATED에서는 검증을 통과한 승인 좌표다.
+     * 클라이언트가 보낸 착지 여부나 발판 번호는 사용하지 않는다. 착석·시설 이용 중에는 NONE이다.
+     */
+    public Support support(String id) {
+        return call(() -> {
+            Actor actor = actors.get(id);
+            if (actor == null || actor.seated) return Support.NONE;
+            var object = positionCollision.supportObject(pose(actor));
+            if (object == null) return Support.NONE;
+            if (object.getUserObject() instanceof com.ssafy.ontop.world.jumpmap.JumpCourse.Collider pad) {
+                return new Support(Support.Kind.COURSE, pad.id(), pad);
+            }
+            String collider = String.valueOf(object.getUserObject());
+            // 두 맵 모두 meshes[0]이 지형이다(groundHeight와 같은 기준).
+            boolean terrain = collider.equals(scene.data.path("meshes").get(0).path("id").asText());
+            return new Support(terrain ? Support.Kind.TERRAIN : Support.Kind.STRUCTURE, collider, null);
+        });
+    }
+
+    /**
+     * 점프맵 판정 입력 한 건. 서버 몸체(승인 좌표) 기준이며 feet는 캡슐 중심 - 발 높이,
+     * aboveGround는 발 높이와 그 자리 지형 높이의 차이다.
+     */
+    public Observation observe(String id) {
+        return call(() -> {
+            Actor actor = actors.get(id);
+            Vector3f p = actor.body.getPhysicsLocation(null);
+            double feet = p.y - number("halfHeight") - number("radius") - number("offset");
+            return new Observation(support(id), actor.swimming, actor.seated, feet,
+                    feet - scene.groundHeight(p.x, p.z), actor.relocations, p.x, p.z);
+        });
+    }
+
+    public record Observation(Support support, boolean swimming, boolean seated, double feet, double aboveGround,
+            long relocations, double x, double z) {}
+
+    public record Support(Kind kind, String colliderId, com.ssafy.ontop.world.jumpmap.JumpCourse.Collider course) {
+        public static final Support NONE = new Support(Kind.NONE, null, null);
+
+        public enum Kind { NONE, COURSE, TERRAIN, STRUCTURE }
     }
 
     /** 서버 진단 전용. 사용자별 마지막 복구 한 건만 메모리에 유지하며 WS에는 노출하지 않는다. */
@@ -805,8 +956,10 @@ public final class WorldPhysics implements AutoCloseable {
         Actor a = actors.get(id);
         Vector3f p = a.body.getPhysicsLocation(null);
         Motion motion = a.motion;
-        if (tunedMovement) motion = new Motion(motion.epoch(), motion.tick(), motion.appliedInputSeq(),
-                motion.inputAgeMs(), motion.velocityY(), motion.grounded(), motion.inputActive(), motion.authority(), "PARK_V1", a.followSteering, a.correctionReason);
+        var grace = graceOf(a);
+        if (tunedMovement || grace != null) motion = new Motion(motion.epoch(), motion.tick(), motion.appliedInputSeq(),
+                motion.inputAgeMs(), motion.velocityY(), motion.grounded(), motion.inputActive(), motion.authority(),
+                tunedMovement ? "PARK_V1" : null, a.followSteering, a.correctionReason, grace);
         return new Snapshot(a.seq, p.x, p.y, p.z, a.yaw, a.moving, a.running, a.swimming, motion);
     }
 
@@ -830,6 +983,7 @@ public final class WorldPhysics implements AutoCloseable {
                 actor.positionValidator = null;
                 actor.seated = true;
             }
+            actor.relocations++;
             actor.body.warp(new Vector3f((float) x, (float) y, (float) z));
             actor.body.setLinearVelocity(Vector3f.ZERO);
             actor.yaw = yaw;
@@ -860,6 +1014,7 @@ public final class WorldPhysics implements AutoCloseable {
 
     private void placeNow(String id, double x, double y, double z) {
         Actor a = actors.get(id);
+        a.relocations++;
         stop(id);
         a.body.warp(new Vector3f((float) x, (float) y, (float) z));
         correctExclusion(a, a.body.getPhysicsLocation(null), scene.policy.slide(a.body.getPhysicsLocation(null), this::activeShape));
@@ -874,6 +1029,11 @@ public final class WorldPhysics implements AutoCloseable {
                 actor.clientControlled ? "CLIENT_VALIDATED" : null);
         actor.positionValidator = null;
         actor.reportedJumpSpeed = 0;
+        // 순간 이동·착석·epoch 변경은 남은 코요테·버퍼 창을 지운다.
+        actor.jumpRequestTick = -1;
+        actor.lastGroundedTick = Long.MIN_VALUE / 2;
+        actor.leftByJump = false;
+        actor.coyoteUsed = false;
         actor.followSteering = null; actor.correctionReason = null;
         if (actor.clientControlled) {
             actor.receivedAt = clock.getAsLong();
@@ -933,7 +1093,13 @@ public final class WorldPhysics implements AutoCloseable {
             @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
             Steering steering,
             @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
-            String correctionReason) {
+            String correctionReason,
+            @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+            JumpGrace jumpGrace) {
+        public Motion(long epoch, long tick, long appliedInputSeq, double inputAgeMs, double velocityY, boolean grounded,
+                boolean inputActive, String authority, String profile, Steering steering, String correctionReason) {
+            this(epoch, tick, appliedInputSeq, inputAgeMs, velocityY, grounded, inputActive, authority, profile, steering, correctionReason, null);
+        }
         public Motion(long epoch, long tick, long appliedInputSeq, double inputAgeMs, double velocityY,
                 boolean grounded, boolean inputActive, String authority, String profile) {
             this(epoch, tick, appliedInputSeq, inputAgeMs, velocityY, grounded, inputActive, authority, profile, null, null);
@@ -966,6 +1132,12 @@ public final class WorldPhysics implements AutoCloseable {
         Recovery recovery;
         double reportedJumpSpeed;
         boolean clientControlled, positionDisabled, reportStarted, positionReportedEver;
+        // 서버 순간 이동(복구·배치·착석·시설) 횟수. 점프맵은 진행 중 변화를 RESET으로 본다.
+        long relocations;
+        // v2 점프 보조(점프맵 활성 채널). 요청 틱(-1 없음), 마지막 접지 틱, 떠난 이유, 코요테 사용 여부, 떠나온 바닥 점프 속도.
+        long jumpRequestTick = -1, lastGroundedTick = Long.MIN_VALUE / 2;
+        boolean leftByJump, coyoteUsed;
+        double groundJumpSpeed = 8;
         ClientPositionValidator positionValidator;
         Steering followSteering;
         String correctionReason;

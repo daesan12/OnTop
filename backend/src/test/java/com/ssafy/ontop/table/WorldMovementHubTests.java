@@ -6,8 +6,8 @@ import com.ssafy.ontop.auth.security.TestLoginSessions;
 import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser;
 import com.ssafy.ontop.minigame.service.MinigameActivityChanged;
 import com.ssafy.ontop.table.service.TableHub;
-import com.ssafy.ontop.world.config.WorldChannelProperties;
 import com.ssafy.ontop.world.config.WorldChannelProperties.Channel;
+import com.ssafy.ontop.world.config.WorldChannelProperties;
 import com.ssafy.ontop.world.service.WorldChannelRegistry;
 import java.time.Duration;
 import java.time.Instant;
@@ -143,7 +143,11 @@ class WorldMovementHubTests {
         when(session.getId()).thenReturn(peer.id);
         doAnswer(invocation -> {
             if (invocation.getArgument(0) instanceof TextMessage text) {
-                peer.messages.add(mapper.readTree(text.getPayload()));
+                JsonNode message = mapper.readTree(text.getPayload());
+                // 잔해 상태는 WorldGameReactionTests에서 검증하며 이동 알림 순서는 그대로 검사한다.
+                if (!message.path("type").asText().equals("WORLD_PARK_DEBRIS_STATE")) {
+                    peer.messages.add(message);
+                }
             }
             return null;
         }).when(session).sendMessage(any());

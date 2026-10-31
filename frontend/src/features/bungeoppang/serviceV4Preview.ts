@@ -4,7 +4,7 @@ import type { BungeoppangGame, BungeoppangService, BungeoppangSubmit, Bungeoppan
 
 /** Explicit local development simulation; no persistence, HTTP, wallet writes or API fallback. */
 export function createV4PreviewService(random = Math.random, now = Date.now): BungeoppangService {
-  type Round = { game: BungeoppangGame; orders: BreadOrder[]; at: number; abandoned: boolean; result?: BungeoppangSubmitResult };
+  type Round = { game: BungeoppangGame; orders: BreadOrder[]; at: number; pausedAt?:number; abandoned: boolean; result?: BungeoppangSubmitResult };
   const rounds = new Map<string, Round>();
   const keys = new Map<string, string>();
   let id = 0;
@@ -28,6 +28,12 @@ export function createV4PreviewService(random = Math.random, now = Date.now): Bu
         heats: makeHeatList(random, R), isFirstGame: true, v4: { rules: { ...R }, order: orders[0]! } };
       rounds.set(gameId, { game, orders, at: now(), abandoned: false }); keys.set(key, gameId);
       return clone(game);
+    },
+    async setManualPaused(gameId,paused) {
+      const r=rounds.get(gameId);
+      if(!r||r.abandoned||r.result)throw new Error('진행 중인 미리보기 판이 아니에요.');
+      if(paused&&r.pausedAt===undefined)r.pausedAt=now();
+      else if(!paused&&r.pausedAt!==undefined){r.at+=now()-r.pausedAt;delete r.pausedAt;}
     },
     async nextOrder(input) {
       const round = active(input);

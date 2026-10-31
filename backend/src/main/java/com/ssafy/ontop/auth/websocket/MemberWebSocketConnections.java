@@ -64,6 +64,12 @@ public class MemberWebSocketConnections {
             close(connection, unavailable ? new CloseStatus(1013, "Authentication temporarily unavailable")
                             : new CloseStatus(4401, "Login session ended"),
                     unavailable ? ConnectionCloseReason.TRANSPORT_ERROR : ConnectionCloseReason.AUTH_SESSION_REVOKED);
+        } catch (com.ssafy.ontop.table.websocket.RetryableConnectionException exception) {
+            // 기존 연결 생존 확인 중. FE는 1013을 재시도 대상으로 처리한다.
+            if (!removeOwned(connection)) {
+                return;
+            }
+            close(connection, new CloseStatus(1013, "Previous connection check"), ConnectionCloseReason.SOCKET_CLOSED);
         } catch (RuntimeException exception) {
             if (!removeOwned(connection)) {
                 return;

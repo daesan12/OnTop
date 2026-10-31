@@ -1,19 +1,19 @@
 {
   "artifacts": [
     {
-      "bytes": 2551278,
+      "bytes": 2551154,
       "path": "generated/park/server-map.json",
-      "sha256": "3eeacb4b96c99e42bfde6a865d0aaef3212a781b31cec0d1d65ec4af86c369d5"
+      "sha256": "81d9a70a1b28751f3dc8708bb0c21fc5cae17604263f1f6ae10f4e2c6d3aeafb"
     },
     {
       "bytes": 329,
       "path": "src/map/park/generated/mapVersion.ts",
-      "sha256": "51117b29ceb2e17db38cb19f60d08a2a5815da5449d8c5bec3c817b4d4f0648f"
+      "sha256": "283d27d770c82aa4a3d617f51f020134ffb8f5e1574752101713d5ba8543f9e2"
     }
   ],
   "counts": {
     "benches": 71,
-    "construction": 2,
+    "construction": 1,
     "facilities": 11,
     "fitness": 12,
     "localSeats": 72,
@@ -29,11 +29,11 @@
   "format": "ontop.park-map-manifest",
   "hashAlgorithm": "sha256",
   "hashes": {
-    "dataHash": "0f0498516087747690b0bd7c892fc1d7fe3c08c6c9d4c9f3352b5c20bd355c04",
-    "sourceHash": "324db2d6e3907f3b2f7c40577c3dd80eb5854640a50581b33f5595128d4ee8c7"
+    "dataHash": "f1390f7571782e1e8ebf22d9b0f17da1a394d41658a12542519deb45ae5da7b3",
+    "sourceHash": "4c5d86eb9ad41ed04040bf6dc699fef81ba63d66585a536921dcf8300bc8ed93"
   },
   "mapId": "park",
-  "mapVersion": "e4c6e290be56dfb333a7b2fafd286664a5dd7f5e19ede0acfff859f6f6144200",
+  "mapVersion": "c05d8ada8b12d4e509f50c7e807949bd976811e1c69a628232520b88c15a0d07",
   "schemaVersion": 2,
   "sources": [
     {
@@ -182,7 +182,7 @@
     },
     {
       "path": "src/map/park/resolve.ts",
-      "sha256": "f66da9ae290e15885773250842c1ecaf26e3b23772710a364a4059b1a2e06ee3"
+      "sha256": "1d360dbc69e6904a412f7d3818459f9b34cce8c9b43a3f5af9914a9264b98d4c"
     },
     {
       "path": "src/map/park/validate.ts",

@@ -2,6 +2,7 @@ package com.ssafy.ontop.game.start;
 
 import com.ssafy.ontop.game.bridge.service.BridgeEngine;
 import com.ssafy.ontop.game.farkle.service.FarkleEngine;
+import com.ssafy.ontop.game.ledger.service.DiceLedgerEngine;
 import com.ssafy.ontop.game.omok.service.OmokEngine;
 import com.ssafy.ontop.game.onecard.service.OneCardEngine;
 import java.util.List;
@@ -24,6 +25,7 @@ public class CommittedGameStartService {
     private final Optional<OneCardEngine> onecard;
     private final Optional<BridgeEngine> bridge;
     private final Optional<FarkleEngine> dice;
+    private final Optional<DiceLedgerEngine> ledger;
     private final Optional<GameActivationPersistenceService> activations;
 
     public CommittedGameStartService(GameStartGateway gateway, Optional<OmokEngine> omok,
@@ -37,10 +39,17 @@ public class CommittedGameStartService {
         this(gateway, omok, onecard, bridge, dice, Optional.empty(), authenticated, rehearsal);
     }
 
+    public CommittedGameStartService(GameStartGateway gateway, Optional<OmokEngine> omok,
+            Optional<OneCardEngine> onecard, Optional<BridgeEngine> bridge,
+            Optional<FarkleEngine> dice, Optional<GameActivationPersistenceService> activations,
+            boolean authenticated, boolean rehearsal) {
+        this(gateway, omok, onecard, bridge, dice, Optional.empty(), activations, authenticated, rehearsal);
+    }
+
     @Autowired
     public CommittedGameStartService(GameStartGateway gateway, Optional<OmokEngine> omok,
             Optional<OneCardEngine> onecard, Optional<BridgeEngine> bridge,
-            Optional<FarkleEngine> dice,
+            Optional<FarkleEngine> dice, Optional<DiceLedgerEngine> ledger,
             Optional<GameActivationPersistenceService> activations,
             @Value("${ontop.websocket.authenticated:false}") boolean authenticated,
             @Value("${ontop.start-rehearsal.enabled:false}") boolean rehearsal) {
@@ -55,6 +64,7 @@ public class CommittedGameStartService {
         this.onecard = onecard;
         this.bridge = bridge;
         this.dice = dice;
+        this.ledger = ledger;
         this.activations = activations;
     }
 
@@ -79,6 +89,7 @@ public class CommittedGameStartService {
                 case "ONE_CARD" -> onecard.isPresent();
                 case "LIAR_BRIDGE" -> bridge.isPresent();
                 case "DICE" -> dice.isPresent() && players.size() == 2 && command.targetScore() != null;
+                case "DICE_LEDGER" -> ledger.isPresent();
                 default -> false;
             };
         } catch (IllegalArgumentException exception) {
@@ -100,6 +111,7 @@ public class CommittedGameStartService {
                 case "LIAR_BRIDGE" -> bridge.orElseThrow().create(result.gameSessionId(), command.tableId(), players);
                 case "DICE" -> dice.orElseThrow().create(result.gameSessionId(), command.tableId(), players,
                         command.targetScore());
+                case "DICE_LEDGER" -> ledger.orElseThrow().create(result.gameSessionId(), command.tableId(), players);
                 default -> throw new IllegalStateException("경기 실행 설정을 확인해주세요.");
             }
             activations.ifPresent(service -> service.started(command, result.gameSessionId()));

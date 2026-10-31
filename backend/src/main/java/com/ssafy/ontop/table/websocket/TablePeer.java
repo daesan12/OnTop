@@ -90,6 +90,15 @@ public final class TablePeer {
         return true;
     }
 
+    /** 기존 연결 생존을 deadline 안에 확인한다. 응답이 없으면 다음 heartbeat 점검이 HEARTBEAT_TIMEOUT으로 닫는다. */
+    public void probeNow(Duration deadline) {
+        if (!active.get()) return;
+        var ping = heartbeat.probeNow(deadline);
+        if (ping != null && !outgoing.offer(new Outgoing(ping, 0, false))) {
+            rememberCloseReason(ConnectionCloseReason.SEND_QUEUE_FULL);
+        }
+    }
+
     public void pong(ByteBuffer payload) {
         heartbeat.pong(payload);
     }

@@ -10,7 +10,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class WebSocketDocumentationTests {
     @Test
-    void 중앙_문서가_실제_RawWebSocket_요청_40종을_모두_열거한다() throws Exception {
+    void 중앙_문서가_실제_RawWebSocket_요청_41종을_모두_열거한다() throws Exception {
         String source = Files.readString(Path.of("src/main/java/com/ssafy/ontop/table/dto/TableProtocol.java"));
         var cases = Pattern.compile("case ((?:\"[^\"]+\"(?:,\\s*)?)+)\\s*->").matcher(source);
         var types = new HashSet<String>();
@@ -18,7 +18,7 @@ class WebSocketDocumentationTests {
             var literals = Pattern.compile("\"([^\"]+)\"").matcher(cases.group(1));
             while (literals.find()) { types.add(literals.group(1)); }
         }
-        assertThat(types).hasSize(40);
+        assertThat(types).hasSize(41);
         String index = Files.readString(Path.of("../docs/api/websocket.md"));
         types.forEach(type -> assertThat(index).contains(type));
         assertThat(index).contains("클라이언트 수신 ACK", "다중 노드", "다른 boot", "30초 유예");

@@ -31,10 +31,16 @@ import { PerformanceProbe } from '../performance/PerformanceProbe'
 import { AdaptiveResolution } from '../performance/AdaptiveResolution'
 import { Canvas, preloadWorldAssets } from './worldAssets'
 import { BungeoppangGrill } from '../features/bungeoppang/BungeoppangGrill'
+import {ParkDebrisScene} from '../features/parkDebris/ParkDebrisScene'
+import { getParkInteraction, interactWithPark } from '../features/interactions/parkInteraction'
 import { prepareScene } from './prepareScene'
 import { warmParkGeometry } from '../park/loadParkGeometry'
 
 preloadWorldAssets()
+
+const interactWithRankingBoard = () => {
+  if (getParkInteraction()?.id === 'layout-photo') interactWithPark()
+}
 
 function SceneReady({ onReady }: { onReady: () => void }) {
   const startup = useMemo(
@@ -157,7 +163,7 @@ export const WorldCanvas = memo(function WorldCanvas({
         <ParkSun quality={quality} />
         <NightLighting quality={GENERATED_PARK_ENABLED ? 'low' : quality} />
         <Suspense fallback={null}>
-          {GENERATED_PARK_ENABLED?<group name="park-service-map" userData={{...LIVE_MAP_IDENTITY}}><GeneratedParkWorld live/></group>:<PlaceholderWorld quality={quality} />}
+          {GENERATED_PARK_ENABLED?<group name="park-service-map" userData={{...LIVE_MAP_IDENTITY}}><GeneratedParkWorld live onRankingBoardInteract={interactWithRankingBoard}/></group>:<PlaceholderWorld quality={quality} />}
           {GENERATED_PARK_ENABLED && <ServiceJumpCourse />}
           <SceneReady onReady={onReady} />
         </Suspense>
@@ -165,6 +171,7 @@ export const WorldCanvas = memo(function WorldCanvas({
         <FollowRopes />
         <RouteArrows />
         <BungeoppangGrill />
+        <ParkDebrisScene />
 
         {!GENERATED_PARK_ENABLED&&<ParkPigeons quality={quality} />}
         <CameraRig />

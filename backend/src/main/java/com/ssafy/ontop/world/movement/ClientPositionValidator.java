@@ -33,6 +33,8 @@ public final class ClientPositionValidator {
         Double ceiling(Pose from, double rise);
         default double jumpSpeed(Pose from, boolean tuned) { return tuned ? 8 : 6.2; }
         default double jumpSpeed(Pose from, Pose to, boolean tuned) { return jumpSpeed(from, tuned); }
+        /** 가장자리에서 굴러 내려가며 떠나는 바닥의 모서리만 스친 경로인지. 기본은 허용하지 않는다. */
+        default boolean rollsOff(Pose from, Pose to) { return false; }
         default boolean swimming(Pose pose) { return false; }
         default double swimSpeed(boolean run) { return run ? 6.25 : 4; }
         default double floatY() { return 0; }
@@ -56,6 +58,12 @@ public final class ClientPositionValidator {
     private long airWindowAt;
     private long pendingJumpUntil = Long.MIN_VALUE;
     private double airWindowY;
+    /** 코요테 3틱(100ms)에 보고 간격 여유 50ms. 점프맵 활성 채널에서만 켠다. */
+    private static final long COYOTE_NANOS = 150_000_000L;
+    private boolean jumpGrace;
+    private double groundLaunchSpeed = 8;
+
+    void jumpGrace(boolean enabled) { jumpGrace = enabled; }
     ClientPositionValidator(Pose initial, long epoch, double boundary, Geometry geometry, LongSupplier clock) {
         this(initial, epoch, boundary, geometry, clock, false);
     }
@@ -119,6 +127,7 @@ public final class ClientPositionValidator {
             }
             Flight next = flight;
             long nextJumpUntil = candidate.jump ? now + 150_000_000L : pendingJumpUntil;
+            if (supportedFrom) groundLaunchSpeed = launchSpeed;
             if (fromWater && candidate.jump) {
                 Double climb = geometry.swimClimb(approved, target);
                 if (climb != null && (next == null || next.ceilingY == null)) next = new Flight(approved.y, now, 5.5, climb);
@@ -146,10 +155,19 @@ public final class ClientPositionValidator {
                 next = new Flight(origin.y, now, geometry.jumpSpeed(origin, target, true));
                 nextJumpUntil = Long.MIN_VALUE;
             }
-            // Climbing supported steps after landing is not continued free flight.
-            // Preserve the initial takeoff window so near-ground ascent cannot erase a new jump.
-            if (!landingJump && next != null && supportedFrom && supportedTo && now - next.started > 150_000_000L)
+            // Supported stairs can outgrow an earlier jump envelope after landing.
+            // Merely passing close to the next platform while rising must not erase
+            // a still-valid flight (including the course's coyote jump).
+            if (!landingJump && next != null && supportedFrom && supportedTo && now - next.started > 150_000_000L
+                    && target.y > (next.ceilingY == null ? next.originY + (next.speed > 0 ? tunedRise(next.speed) : .05) : next.ceilingY))
                 next = null;
+            // v2 코요테: 걸어 나가 떨어진 지 100ms(+보고 간격 여유) 안의 점프 한 번은 떠나온 바닥 기준으로 허용한다.
+            // 점프로 떠난 비행(speed>0)이나 이미 코요테를 쓴 비행은 다시 올라갈 수 없다.
+            if (jumpGrace && next != null && next.speed == 0 && candidate.jump && !supportedFrom
+                    && now - next.started <= COYOTE_NANOS) {
+                next = new Flight(next.originY, now, groundLaunchSpeed);
+                nextJumpUntil = Long.MIN_VALUE;
+            }
             if (next == null) {
                 // Grounded steps/slopes retain the existing geometric allowance.
                 // Leaving support without a jump can fall, but cannot invent lift.
@@ -168,7 +186,11 @@ public final class ClientPositionValidator {
                 if (supportedTo && target.y <= approved.y + .01
                         && (next.speed == 0 || now - next.started > 150_000_000L)) next = null;
             }
-            if (!geometry.clear(approved, target, supportedFrom && supportedTo) && !geometry.clearCorner(approved, target)) {
+            // dev clearCorner: 공원 전체에서 한 자동 계단 높이 안의 둥근 걷는 모서리(모든 접촉이 걷는 면).
+            // 점프맵 rollsOff: 점프맵 활성 채널에서 지지면을 떠나 내려가는 경로의 떠나는 모서리(얇은 발판의 가파른 모서리 포함).
+            // 두 허용은 서로 다른 조건이며 어느 쪽도 다가가는 벽·바닥 관통·도착 겹침은 받지 않는다.
+            if (!geometry.clear(approved, target, supportedFrom && supportedTo) && !geometry.clearCorner(approved, target)
+                    && !(jumpGrace && supportedFrom && dy < 0 && geometry.rollsOff(approved, target))) {
                 // Sub-millimetre contact jitter must not disable the client profile.
                 // Acknowledge the report at the LAST SAFE point, never at target:
                 // repeated wall reports cannot accumulate penetration.

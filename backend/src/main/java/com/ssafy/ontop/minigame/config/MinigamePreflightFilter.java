@@ -3,13 +3,13 @@ package com.ssafy.ontop.minigame.config;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ssafy.ontop.auth.exception.AuthExchangeException;
 import com.ssafy.ontop.auth.service.AuthExchangeOriginPolicy;
+import com.ssafy.ontop.config.RuntimeProfiles;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.List;
-import com.ssafy.ontop.config.RuntimeProfiles;
 import org.springframework.context.annotation.Profile;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.MediaType;
@@ -35,7 +35,8 @@ public class MinigamePreflightFilter extends OncePerRequestFilter {
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI().substring(request.getContextPath().length());
         return !request.getMethod().equals("OPTIONS")
-                || !path.matches("/api/v1/minigames/sessions(?:/[1-9][0-9]{0,18}(?:/(?:complete|abandon|deliveries))?)?");
+                || !path.matches("/api/v1/minigames/(?:skewer/admissions|sessions(?:/[1-9][0-9]{0,18}"
+                        + "(?:/(?:complete|abandon|deliveries|manual-pause))?)?)");
     }
 
     @Override

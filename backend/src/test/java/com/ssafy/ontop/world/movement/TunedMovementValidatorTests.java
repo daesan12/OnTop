@@ -12,6 +12,18 @@ class TunedMovementValidatorTests {
  private ClientPositionValidator validator(boolean tuned){return new ClientPositionValidator(new Pose(0,.8,0),1,79,ground,()->now,tuned);}
  private Candidate move(long n,double x,double y){return new Candidate(n,1,new Pose(x,y,0),true,false);}
  private Candidate jump(long n,double y){return new Candidate(n,1,new Pose(0,y,0),true,true);}
+ @Test void 상승중_다음발판_가까이를_스쳐도_진행중점프를_착지로_지우지않는다(){
+  Geometry platforms=new Geometry(){
+   public boolean supported(Pose p){return p.y()<=.85||p.y()>=1.75&&p.y()<=1.95;}
+   public boolean clear(Pose a,Pose b,boolean step){return true;}
+   public Double ceiling(Pose p,double rise){return null;}
+  };
+  var v=new ClientPositionValidator(new Pose(0,.8,0),1,79,platforms,()->now,true);
+  now=60_000_000;assertThat(v.accept(jump(1,1.3)).accepted()).isTrue();
+  now=200_000_000;assertThat(v.accept(move(2,.2,1.8)).accepted()).isTrue();
+  now=260_000_000;assertThat(v.accept(move(3,.4,1.9)).accepted()).isTrue();
+  now=320_000_000;assertThat(v.accept(move(4,.6,2.05)).accepted()).isTrue();
+ }
  @Test void 착지직전_수신한_점프입력은_짧은착지후_상승에_한번만_사용한다(){
   var v=validator(true);now=60_000_000;assertThat(v.accept(jump(1,1.3)).accepted()).isTrue();
   now=200_000_000;assertThat(v.accept(move(2,0,1.8)).accepted()).isTrue();

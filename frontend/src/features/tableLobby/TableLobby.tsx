@@ -5,7 +5,7 @@ import { useSession } from '../../network/worldClient'
 import { useGame, tableBusy } from '../../game/store'
 import { useParkRuntime } from '../../park/runtime/ParkRuntime'
 import { GameControls } from '../../game/OmokPanel'
-import { TABLE_GAMES, canLeaveByMovement, waitingForRound } from './model'
+import { TABLE_GAMES, canLeaveByMovement, waitingForRound, tableTermsLabel } from './model'
 import { publicMatchService } from './publicMatch'
 import { resetSeatedLook, useTableLobby } from './state'
 import './tableLobby.css'
@@ -55,11 +55,12 @@ function TableLobbyContent() {
       <div className="table-heading-actions">{ownTable && <button disabled={s.pending || busy || !s.connected} onClick={() => void runtime.leaveTable()}>일어나기</button>}
         <button aria-label="테이블 정보 닫기" onClick={runtime.closeTable}>닫기</button></div></div>
     {gathering && <button className="gathering-settings-return" onClick={() => useTableLobby.setState({ gatheringDetails: '' })}>테이블 함께 보기</button>}
-    <div className="prototype-table-heading"><h2>{TABLE_GAMES.find(g => g.code === table?.gameCode)?.name ?? '어떤 한 판 할까요?'}</h2><span aria-hidden="true">{table?.gameCode === 'DICE' ? '⚄' : table?.gameCode === 'ONE_CARD' ? '♠' : table?.gameCode === 'LIAR_BRIDGE' ? '橋' : '五目'}</span></div>
-    <p className="table-lobby-note">{table?.gameCode === 'OMOK' ? '15×15 렌주 · 흑 금수 · 한 수 30초' : table?.gameCode === 'DICE' ? '주사위 6개 · R 굴리기 · Q Bank · 차례 전체 30초' : table?.gameCode === 'ONE_CARD' ? '2~4인 · 손패 7장 · 원카드 선언 · 차례 전체 30초' : table?.gameCode === 'LIAR_BRIDGE' ? '2~4인 · 비밀 주사위와 다우트 · 말 3개 골인' : '자리에 앉아 함께할 게임을 선택하세요.'}</p>
+    <div className="prototype-table-heading"><h2>{TABLE_GAMES.find(g => g.code === table?.gameCode)?.name ?? '어떤 한 판 할까요?'}</h2><span aria-hidden="true">{table?.gameCode === 'DICE' ? '⚄' : table?.gameCode === 'DICE_LEDGER' ? '帳' : table?.gameCode === 'ONE_CARD' ? '♠' : table?.gameCode === 'LIAR_BRIDGE' ? '橋' : '五目'}</span></div>
+    <p className="table-lobby-note">{table?.gameCode === 'OMOK' ? '15×15 렌주 · 흑 금수 · 한 수 30초' : table?.gameCode === 'DICE' ? '주사위 6개 · R 굴리기 · Q Bank · 차례 전체 30초' : table?.gameCode === 'ONE_CARD' ? '2~4인 · 손패 7장 · 원카드 선언 · 차례 전체 30초' : table?.gameCode === 'LIAR_BRIDGE' ? '2~4인 · 비밀 주사위와 다우트 · 말 3개 골인' : table?.gameCode === 'DICE_LEDGER' ? '2~4인 · 주사위 5개 · 세 번 굴려 12칸 기록 · 차례 30초' : '자리에 앉아 함께할 게임을 선택하세요.'}</p>
     {!tableId ? <p>서버 테이블과 공원 배치 연결이 필요합니다.</p> : <>
       {gameError && <p role="alert">{gameError}</p>}
       <p className="table-lobby-role">{ownTable ? '참가자' : '공개 대기 상태 보기'} · {table ? `${table.seats.filter(s => s.userId).length}/${table.capacity}석` : `${summary?.occupiedSeats ?? '—'}/${summary?.capacity ?? '—'}석`}</p>
+      <p aria-label="현재 방 설정">{tableTermsLabel(table ?? summary)}</p>
       {!ownTable && query.tableId === tableId && query.status === 'error' ?
         <div role="alert"><p>{query.error}</p><button disabled={s.pending || !s.connected} onClick={() => runtime.inspectTable(s.focused)}>테이블 정보 다시 확인</button></div>
         : !table && <p role="status">테이블 상태 확인 중</p>}

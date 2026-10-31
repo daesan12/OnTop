@@ -20,7 +20,11 @@ public final class BungeoppangV4Responses {
 
     @Schema(name = "BungeoppangV4Timing")
     public record Timing(Instant countdownStartsAt, Instant playStartsAt, Instant playEndsAt,
-            Instant submitDeadline, Instant expiresAt) {
+            Instant submitDeadline, Instant expiresAt, boolean paused, long pauseRevision) {
+        public Timing(Instant countdownStartsAt, Instant playStartsAt, Instant playEndsAt,
+                Instant submitDeadline, Instant expiresAt) {
+            this(countdownStartsAt, playStartsAt, playEndsAt, submitDeadline, expiresAt, false, 0);
+        }
     }
 
     @Schema(name = "BungeoppangV4Rules")

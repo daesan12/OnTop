@@ -5,6 +5,9 @@ import { PropSign } from '../world/art/CraftedProp'
 import { closeSurface } from '../world/art/closedSurface'
 import { createRankingRoofSeats } from './rankingBoardRoofSeats'
 import { KIOSKS,SETTINGS } from './layout'
+import { useMemo } from 'react'
+import { formatRankingUpdatedAt, rankingColumns, type RankingDisplayColumn } from '../features/rankingBoard/service'
+import { useRankingBoardFeed } from '../features/rankingBoard/state'
 
 const wood = '#694725'
 const cream = '#f1e7cf'
@@ -76,7 +79,10 @@ const columns = [
   { title: '승수', x: 2.77 },
 ] as const
 
-const panelDraws = columns.map(({ title }) => (c: CanvasRenderingContext2D, w: number, h: number) => {
+type BoardPanelState = { title: string; column: RankingDisplayColumn | null; message: string; updatedAt: string; stale: boolean }
+
+export const drawRankingBoardPanel = ({ title, column, message, updatedAt, stale }: BoardPanelState) =>
+  (c: CanvasRenderingContext2D, w: number, h: number) => {
   c.fillStyle = cream
   c.fillRect(0, 0, w, h)
   const pad=w*.035,header=h*.17
@@ -88,20 +94,29 @@ const panelDraws = columns.map(({ title }) => (c: CanvasRenderingContext2D, w: n
   c.font = `700 ${header * 0.42}px "Malgun Gothic", sans-serif`
   c.textAlign = 'center'
   c.textBaseline = 'middle'
-  c.fillText(title, w / 2, (header+pad) / 2)
+  c.fillText(column?.title ?? title, w / 2, (header+pad) / 2)
   c.fillStyle='#c5a266';c.fillRect(pad,header,w-pad*2,h*.004)
-  c.textAlign = 'left'
-  c.fillStyle = '#827967'
-  c.font = `500 ${h * 0.032}px "Malgun Gothic", sans-serif`
-  for (let i = 0; i < 10; i++) {
-    const row=(h-header-pad*1.7)/10,top=header+pad*.7+i*row,y=top+row/2
-    if(i%2===0){c.fillStyle='#eae2d0';c.fillRect(pad,top,w-pad*2,row)}
-    c.fillStyle = '#827967'
-    c.fillText(String(i + 1), w * 0.085, y)
-    c.fillStyle = '#d4cbb7'
-    c.fillRect(w * 0.23, top+row*.73, w * 0.65, h * 0.002)
+  if (!column || !column.rows.length) {
+    c.fillStyle='#726957';c.font=`600 ${h*.038}px "Malgun Gothic", sans-serif`;c.textAlign='center'
+    c.fillText(column ? '아직 기록이 없습니다' : message, w/2, h*.52, w*.82)
+  } else {
+    c.font = `600 ${h * 0.031}px "Malgun Gothic", sans-serif`
+    for (let i = 0; i < column.rows.length; i++) {
+      const row=(h-header-pad*2.6)/10,top=header+pad*.55+i*row,y=top+row/2
+      if(i%2===0){c.fillStyle='#eae2d0';c.fillRect(pad,top,w-pad*2,row)}
+      const item=column.rows[i]!
+      c.textAlign='left';c.fillStyle=i<3?'#7c5522':'#827967';c.font=`700 ${h*.034}px "Malgun Gothic", sans-serif`
+      c.fillText(String(item.rank),w*.075,y,w*.08)
+      c.fillStyle='#4f4a40';c.font=`600 ${h*.029}px "Malgun Gothic", sans-serif`
+      c.fillText(item.nickname,w*.18,y,w*.42)
+      c.textAlign='right';c.font=`600 ${h*.027}px "Malgun Gothic", sans-serif`
+      c.fillText(item.value,w*.92,y,w*.29)
+      c.fillStyle = '#d4cbb7';c.fillRect(w*.18,top+row*.86,w*.74,h*.002)
+    }
   }
-})
+  c.textAlign='center';c.fillStyle=stale?'#9a5f26':'#776f60';c.font=`500 ${h*.021}px "Malgun Gothic", sans-serif`
+  c.fillText(stale?'이전 집계 표시 중':updatedAt?`집계 ${updatedAt}`:'',w/2,h*.965,w*.88)
+}
 
 const drawTitle = (c: CanvasRenderingContext2D, w: number, h: number) => {
   c.fillStyle = cream
@@ -118,10 +133,25 @@ const drawTitle = (c: CanvasRenderingContext2D, w: number, h: number) => {
   for(const x of [w*.09,w*.91]){c.save();c.translate(x,h/2);c.rotate(Math.PI/4);c.fillRect(-h*.045,-h*.045,h*.09,h*.09);c.restore()}
 }
 
-export function RankingBoardModel() {
+export function RankingBoardModel({onInteract}:{onInteract?:()=>void}={}) {
   const site = KIOSKS.find(kiosk => kiosk.kind === 'photo')!
+  const snapshot=useRankingBoardFeed(state=>state.snapshot)
+  // Background polling must not recreate three canvas textures every 15 seconds.
+  // Only the first-load/error presentation changes while no snapshot exists.
+  const loading=useRankingBoardFeed(state=>!state.snapshot&&state.loading)
+  const error=useRankingBoardFeed(state=>state.snapshot?'':state.error)
+  const stale=useRankingBoardFeed(state=>state.stale)
+  const panelDraws=useMemo(()=>{
+    const data=snapshot?rankingColumns(snapshot):[]
+    const message=loading?'랭킹 불러오는 중':error||'랭킹 준비 중'
+    const time=snapshot?formatRankingUpdatedAt(snapshot.updatedAt):''
+    return columns.map((definition,index)=>drawRankingBoardPanel({title:definition.title,column:data[index]??null,message,updatedAt:time,stale}))
+  },[snapshot,loading,error,stale])
   return <group name="ranking-board-preview" position={[site.x, 0, site.z]} rotation={[0, site.yaw, 0]} scale={SETTINGS.rankingBoard.scale}
-    userData={{ assetId: 'procedural/ranking-board', previewRole: 'ranking-board' }}>
+    userData={{ assetId: 'procedural/ranking-board', previewRole: 'ranking-board' }} onClick={event=>{
+      event.stopPropagation()
+      onInteract?.()
+    }}>
     {entries.map(([kind, geometry]) => <mesh key={kind} geometry={geometry} dispose={null} castShadow={kind !== 'glow'} receiveShadow>
       <primitive object={kind === 'glow' ? lanternMaterial : flatMaterial} attach="material" dispose={null} />
     </mesh>)}

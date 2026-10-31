@@ -19,7 +19,9 @@
 .table-tablet button:focus-visible, .table-tablet input:focus-visible, .table-tablet select:focus-visible { outline: 3px solid #38885a; outline-offset: 3px; }
 .table-tablet button:not(:disabled):hover { background-color: #e6ebc8; }
 .tablet-selection { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 28px; height: 550px; }
-.tablet-game-list { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr 35px; gap: 16px; }
+.tablet-game-list { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-auto-rows: max-content; align-content: start; gap: 16px; height: 100%; overflow-y: auto; overscroll-behavior-y: contain; scrollbar-width: none; padding: 3px; }
+.tablet-game-list::-webkit-scrollbar { display: none; }
+.tablet-title .tablet-room-summary { color: var(--tablet-ink); font-weight: 700; }
 .tablet-game-list .tablet-game-card { padding: 9px 10px 8px; text-align: left; border-radius: 16px; background: #fff7e4b3; border: 1px solid #b8a780; min-width: 0; }
 .tablet-game-card[data-selected='true'] { background: #e1eccb; border: 3px solid #1f5037; padding: 7px 8px 6px; box-shadow: inset 0 0 0 3px #fffae7; }
 .tablet-game-list .tablet-game-card[data-construction='true'] { position: relative; opacity: 1; cursor: not-allowed; }
@@ -27,7 +29,7 @@
 .tablet-construction { position: absolute; top: 33%; left: 50%; transform: translate(-50%, -50%); padding: 9px 22px; border: 2px solid #8b642a; border-radius: 8px; background: #fff1c9; color: #69491d; font-size: 24px; white-space: nowrap; }
 .tablet-game-art { background-image: url('/art/tablet/games.webp'); background-size: 200% 200%; background-position: 0 0; border-radius: 10px; aspect-ratio: 2 / 1; width: 100%; }
 .tablet-game-art[data-game='ONE_CARD'] { background-image: url('/art/tablet/onecard-v2.webp'); background-size: cover; background-position: center; }
-.tablet-game-art[data-game='DICE'] { background-image: url('/art/tablet/dice-v2.webp'); background-size: cover; background-position: center; }
+.tablet-game-art[data-game='DICE'], .tablet-game-art[data-game='DICE_LEDGER'] { background-image: url('/art/tablet/dice-v2.webp'); background-size: cover; background-position: center; }
 .tablet-game-art[data-game='LIAR_BRIDGE'] { background-image: url('/art/tablet/bridge-v2.webp'); background-size: cover; background-position: center; }
 .tablet-game-card > span { display: flex; align-items: center; justify-content: space-between; gap: 4px; padding: 11px 5px 2px; }
 .tablet-game-card strong { font-size: 23px; letter-spacing: -.05em; }
@@ -108,15 +110,16 @@
 .park-page:has(.table-tablet[data-active='true']) [class^='park-dock-'],
 .park-page:has(.table-tablet[data-active='true']) .avatar-overlays,
 .park-page:has(.table-tablet[data-active='true']) .park-runtime-tools { display: none; }
+/* 지도·감정표현 런처는 .park-map/.emotes로 독에 배치된다. 독 틀이 숨은 뒤 버튼만 남지 않도록 함께 숨긴다. */
 .park-page:has(.table-tablet[data-active='true']) .park-hud .park-roaming-ui,
-.park-page:has(.table-tablet[data-active='true']) .park-dock-map,
-.park-page:has(.table-tablet[data-active='true']) .park-dock-emote,
+.park-page:has(.table-tablet[data-active='true']) .park-map,
+.park-page:has(.table-tablet[data-active='true']) .emotes,
 .park-page:has(.table-tablet[data-active='true']) .manual-launcher { display: none; }
 @media (max-width: 799px), (max-height: 549px) {
   .table-tablet { inset:50px 16px 200px; width:auto; height:auto; border:6px solid #70543e; border-radius:18px; box-shadow:0 0 0 3px #29382c,0 12px 40px #0007; }
   .tablet-paper { overflow-y: auto; padding: 20px 15px 64px; background-size: cover; }
   .tablet-brand { font-size: 29px; }.tablet-title h2 { font-size: 27px; }.tablet-title p { font-size: 14px; }
-  .tablet-selection { grid-template-columns: 1fr; height: auto; gap: 20px; }.tablet-game-list { grid-template-rows: auto auto 25px; gap: 10px; }
+  .tablet-selection { grid-template-columns: 1fr; height: auto; gap: 20px; }.tablet-game-list { height: auto; max-height: 420px; gap: 10px; }
   .tablet-game-list .tablet-game-card { padding: 6px; }.tablet-game-card strong { font-size: 16px; }.tablet-game-card small { font-size: 12px; padding: 2px 5px; }
   .tablet-selection-detail { padding: 16px; }.tablet-selection-detail h3 { font-size: 27px; }.tablet-selection-detail > .tablet-game-art { min-height: 120px; }
   .tablet-score-slot { flex: none; }.tablet-score-slot:empty { display: none; }

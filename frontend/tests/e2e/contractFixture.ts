@@ -12,11 +12,14 @@ import type { Farkle, Result } from '../../src/game/protocol'
 import type { OneCard, Hand, Card } from '../../src/game/onecard/protocol'
 import { bridgeState as makeBridge } from '../fixtures/bridge'
 import type { Bridge, SecretDie } from '../../src/game/bridge/protocol'
+import { ledgerState as makeLedger } from '../fixtures/ledger'
+import type { DiceLedger } from '../../src/game/ledger/protocol'
 import { facilityFixture } from './facilityFixture'
 import { followFixture } from './followFixture'
 import { onecardPrankFixture, type OneCardPrankRoom } from './onecardPrankFixture'
 import type { PublicEquipment } from '../../src/network/equipment'
 import type { GameReactionEvent } from '../../src/game/presentation/defeat'
+import type {ParkDebris} from '../../src/features/parkDebris/state'
 import type { AvatarActivity } from '../../src/network/avatarActivity'
 import type { PublicTable } from '../../src/network/protocol'
 import developmentBindings from '../../public/park-bindings.dev.json' with { type: 'json' }
@@ -44,6 +47,7 @@ export async function fixture(
     onecardPranks?: boolean
     onecardPreview?: { observer: boolean; room: OneCardPrankRoom; interactionReview?: boolean }
     bridge?: 2 | 3 | 4
+    ledger?: 2 | 3 | 4
     m09?: boolean
     startEvents?: boolean
     manualMovement?: boolean
@@ -54,6 +58,7 @@ export async function fixture(
     anchorId?: string
     publicSpectator?: boolean
     forfeit?: boolean
+    parkDebris?: boolean
     manualLobby?: boolean
     /** DB-style decimal game ID; the default IDs are readable fixture names. */
     gameId?: string
@@ -90,6 +95,8 @@ export async function fixture(
     sockets: WebSocketRoute[] = []
   const serverTime = () => ({ serverNow: Date.now() + (options.serverTimeOffsetMs ?? 0),
     cycleEpochMs: 1767193200000, cycleDurationMs: 1800000, timeZone: 'Asia/Seoul' })
+  let debrisVersion=0
+  let debrisItems:ParkDebris[]=[]
   const position = {
     x: anchor.position[0] + (options.generatedPark ? startingSeat.x : 0),
     y: anchor.position[1] + 0.8,
@@ -131,13 +138,15 @@ export async function fixture(
     finished = false,
     holdState = false,
     forbid = false
-  let gameId = options.gameId ?? (options.bridge ? 'fixture-confirmed-bridge' : options.onecard ? 'fixture-confirmed-onecard' : options.dice ? 'fixture-confirmed-dice' : 'fixture-confirmed-omok')
+  let gameId = options.gameId ?? (options.ledger ? 'fixture-confirmed-ledger' : options.bridge ? 'fixture-confirmed-bridge' : options.onecard ? 'fixture-confirmed-onecard' : options.dice ? 'fixture-confirmed-dice' : 'fixture-confirmed-omok')
   let publicGameId: string | null = options.publicSpectator ? gameId : null
   let watchingGameId = '', holdGameWatch = false
   const heldGameWatches: { requestId: string; gameId: string }[] = []
-  if (options.publicSpectator) gameCode = options.bridge ? 'LIAR_BRIDGE' : options.onecard ? 'ONE_CARD' : options.dice ? 'DICE' : 'OMOK'
+  if (options.publicSpectator) gameCode = options.ledger ? 'DICE_LEDGER' : options.bridge ? 'LIAR_BRIDGE' : options.onecard ? 'ONE_CARD' : options.dice ? 'DICE' : 'OMOK'
   let bridgeState = makeBridge(options.bridge), bridgeSecret: SecretDie | null = null
   const bridgeReplies: { input: object; patch: Partial<Bridge>; secret: SecretDie | null }[] = []
+  let ledgerState = makeLedger(options.ledger)
+  const ledgerReplies: { input: object; patch: Partial<DiceLedger> }[] = []
   const initialHand: Card[] = ['4', '7', 'K', 'Q', 'J', '2', 'A'].map(rank => ({ id: `hearts-${rank}`, suit: 'hearts', rank }))
   let cardState: OneCard = { gameCode: 'ONE_CARD', status: 'PLAYING', players: Array.from({ length: options.onecard ?? 2 }, (_, i) => ({ userId: String(101 + i), cardCount: 7,
     active: true, oneCardUntil: null, oneCardStatus: 'none' })), turnUserId: options.ownUserId === '102' ? '102' : '101', turnDeadline: new Date(Date.now() + 30000).toISOString(), turnTimeLimitMs: 30000,
@@ -214,7 +223,7 @@ export async function fixture(
         gameId: displayedId,
         version: gameVersion,
         role,
-        publicState: options.bridge ? bridgeState : options.onecard ? cardState : options.dice ? diceState : omok(),
+        publicState: options.ledger ? ledgerState : options.bridge ? bridgeState : options.onecard ? cardState : options.dice ? diceState : omok(),
         privateState: role === 'SPECTATOR' ? {} : options.bridge ? bridgeSecret ?? {} : options.onecard ? cardHand : {},
       },
       requestId,
@@ -224,7 +233,7 @@ export async function fixture(
       status: status ?? (options.forfeit ? recoveryStatus : 'RESTORED'),
       gameId,
       version: gameVersion,
-      state: options.bridge ? { publicState: bridgeState, privateState: bridgeSecret ?? {} } : options.onecard ? { publicState: cardState, privateState: cardHand } : options.dice ? diceState : omok(),
+      state: options.ledger ? { publicState: ledgerState, privateState: {} } : options.bridge ? { publicState: bridgeState, privateState: bridgeSecret ?? {} } : options.onecard ? { publicState: cardState, privateState: cardHand } : options.dice ? diceState : omok(),
       reconnectUntil: null,
       code: null,
     }, requestId)
@@ -235,10 +244,10 @@ export async function fixture(
   const resultEndedAt = new Date().toISOString()
   // Scripted single-winner, all-winner and draw results only; never a production payout calculator.
   const resultPayload = (): Result => {
-    const ids = Array.from({ length: options.onecard ?? options.bridge ?? 2 }, (_, i) => String(101 + i))
-    const state = options.bridge ? bridgeState : options.onecard ? cardState : options.dice ? diceState : omok()
+    const ids = Array.from({ length: options.onecard ?? options.bridge ?? options.ledger ?? 2 }, (_, i) => String(101 + i))
+    const state = options.ledger ? ledgerState : options.bridge ? bridgeState : options.onecard ? cardState : options.dice ? diceState : omok()
     const winnerIds = options.forfeit && forfeitVersion >= 0 ? ['102']
-      : options.bridge ? bridgeState.winnerUserIds : options.onecard ? cardState.winnerUserIds
+      : options.ledger ? ledgerState.winnerUserIds : options.bridge ? bridgeState.winnerUserIds : options.onecard ? cardState.winnerUserIds
       : (options.dice ? diceState.winnerUserId : winner) ? [options.dice ? diceState.winnerUserId! : winner!] : []
     const allWin = winnerIds.length === ids.length
     if (winnerIds.length > 1 && !allWin) throw new Error('부분 공동 승리에는 명시적인 서버 정산 fixture가 필요합니다.')
@@ -246,7 +255,7 @@ export async function fixture(
     const coinDelta = allWin || !winnerIds.length ? 0 : winnerIds.includes(own) ? resultBet * (ids.length - 1) : -resultBet
     return {
     version: resultVersion, gameSessionId: gameId,
-    gameCode: options.bridge ? 'LIAR_BRIDGE' : options.onecard ? 'ONE_CARD' : options.dice ? 'DICE' : 'OMOK',
+    gameCode: options.ledger ? 'DICE_LEDGER' : options.bridge ? 'LIAR_BRIDGE' : options.onecard ? 'ONE_CARD' : options.dice ? 'DICE' : 'OMOK',
     status: resultStatus, endReason: resultStatus === 'INVALID' ? resultReason : state.endReason ?? resultReason,
     settlementStatus: settled ? 'SETTLED' : 'PENDING',
     betAmountPerPlayer: resultBet,
@@ -297,6 +306,9 @@ export async function fixture(
           characterGender: options.onecardPreview ? publicProfiles[ownId]?.characterGender ?? 'MALE' : 'MALE' },
       })
     }
+    if (url.pathname === '/api/v1/rankings/park') {
+      return route.fulfill({ json: { balance: [], singleGameProfit: [], wins: [], updatedAt: new Date().toISOString() } })
+    }
     if (url.pathname === '/api/v1/wallets/me') {
       walletReads++
       return route.fulfill({ json: { balance: walletAmount, reservedBalance: 0, availableBalance: walletAmount } })
@@ -329,7 +341,7 @@ export async function fixture(
               allReady: false,
               status: options.publicSpectator && publicGameId ? 'PLAYING' : 'WAITING',
               joinable: !seated && !options.publicSpectator,
-              gameCode: null,
+              gameCode,
               targetScore,
               betAmountPerPlayer,
               ...(options.publicSpectator ? { gameId: publicGameId } : {}),
@@ -393,8 +405,9 @@ export async function fixture(
           minimumPlayers: 2,
           seats: Array.from({ length: options.onecardPreview ? 4 : options.manualLobby ? tabletCount : options.m09 && !['OMOK', 'DICE'].includes(gameCode ?? '') ? 4 : 2 }, (_, i) => ({
             seatNumber: i + 1, userId: options.onecardPreview ? i > 0 || seated || options.publicSpectator ? String(101 + i) : null
-              : i === 0 ? seated ? '101' : null : options.manualLobby ? String(101 + i) : i === 1 ? '102' : null,
-            ready: options.onecardPreview ? ready : i === 0 ? ready : options.manualLobby ? tabletOthersReady : i === 1 && options.omok ? ready : false,
+              : i === 0 ? seated ? '101' : null : options.manualLobby ? String(101 + i) : options.ledger ? i < options.ledger ? String(101 + i) : null : i === 1 ? '102' : null,
+            ready: options.onecardPreview ? ready : i === 0 ? ready : options.manualLobby ? tabletOthersReady
+              : options.ledger ? i < options.ledger && ready : i === 1 && options.omok ? ready : false,
           })),
           allReady: ready && (!options.manualLobby || tabletOthersReady),
           selectedPlayers: tabletManual ? tabletCount : null,
@@ -428,10 +441,14 @@ export async function fixture(
   const scriptedForfeitState = () => {
     if (forfeitVersion >= 0) return
     forfeitApplications++; gameVersion++; forfeitVersion = gameVersion
-    finished = !(options.onecard && options.onecard > 2 || options.bridge && options.bridge > 2 || pendingBridgeForfeit)
+    finished = !(options.onecard && options.onecard > 2 || options.bridge && options.bridge > 2 || options.ledger && options.ledger > 2 || pendingBridgeForfeit)
     finishReason = 'EXPLICIT_LEAVE'; winner = '102'; recoveryStatus = finished ? 'FINISHED' : 'ELIMINATED'
     if (options.dice) diceState = { ...diceState, status: 'FINISHED', stage: 'FINISHED', turnUserId: null, turnDeadline: null,
       winnerUserId: '102', endReason: 'EXPLICIT_LEAVE', endedAt: new Date().toISOString() }
+    if (options.ledger) ledgerState = {...ledgerState,
+      players:ledgerState.players.map(p=>p.userId==='101'?{...p,forfeited:true}:p),lastEvent:'PLAYER_LEFT',
+      turnUserId:finished?null:'102',...(finished?{status:'FINISHED',round:null,turnDeadline:null,
+        winnerUserIds:['102'],endReason:'LAST_PLAYER_STANDING',endedAt:new Date().toISOString()}:{})}
     if (options.onecard) {
       cardHand = { userId: '101', hand: [], playableCardIds: [], canDraw: false }
       cardState = { ...cardState, players: cardState.players.map(p => p.userId === '101' ? { ...p, active: false, cardCount: 0 } : p),
@@ -450,6 +467,18 @@ export async function fixture(
   const approveForfeit = (entry: typeof heldForfeits[number], mode = forfeitMode) => {
     const duplicate = forfeitVersion >= 0
     scriptedForfeitState()
+    if(options.parkDebris&&!duplicate&&(options.bridge??options.onecard??options.ledger??2)===2){
+      const occurredAt=new Date(serverTime().serverNow).toISOString(),id=gameId+':reaction:101'
+      debrisItems=[...debrisItems,{id,gameId,tableId,anchorId:anchor.id,gameCode:options.ledger?'DICE_LEDGER':options.bridge?'LIAR_BRIDGE':options.onecard?'ONE_CARD':options.dice?'DICE':'OMOK',
+        userId:'101',occurredAt,throwYaw:position.yaw,seed:12345,parts:['board',...Array.from({length:12},(_,i)=>'coin-'+i),
+          ...(!options.ledger&&!options.bridge&&!options.onecard&&!options.dice?Array.from({length:5},(_,i)=>'stone-'+i):[])]}]
+      debrisVersion++
+      for(const ws of sockets){
+        emit(ws,'WORLD_PARK_DEBRIS_STATE',{channelId:'fixture-channel',mapVersion:expectedMapVersion,version:debrisVersion,items:debrisItems})
+        emit(ws,'WORLD_GAME_REACTION',{eventId:id,gameId,tableId,channelId:'fixture-channel',gameCode:debrisItems.at(-1)!.gameCode,
+          version:gameVersion,userId:'101',kind:'FORFEIT',remainingBefore:2,participantCount:2,motion:'table-flip',durationMs:2800,occurredAt})
+      }
+    }
     const state = () => { recovery(entry.ws); game(entry.ws); if (finished) start(entry.ws, 'SETTLING') }
     const receipt = () => emit(entry.ws, 'GAME_FORFEIT_RESULT', { gameId: mode === 'malformed' ? 'foreign-game' : entry.payload.gameId,
       actionId: entry.payload.actionId, version: forfeitVersion, duplicate }, entry.requestId)
@@ -503,6 +532,17 @@ export async function fixture(
       sent.push(message)
       const { requestId, type, payload } = message
       if (options.onecardPranks && cardPranks.handle(type, payload, requestId)) return
+      if (options.spectatorEvents && options.ledger && type === 'DICE_LEDGER_SPECTATOR_PING_SEND') {
+        const now = Date.now()
+        if (seated || !watchingGame || finished || payload.gameId !== gameId) {
+          emit(ws, 'ERROR', { code: 'GAME_SPECTATOR_ACCESS_DENIED', message: '관전 권한을 확인해주세요.' }, requestId); return
+        }
+        if (payload.basedOnVersion !== gameVersion) {
+          emit(ws, 'ERROR', { code: 'DICE_LEDGER_SPECTATOR_PING_STALE_VERSION', message: '최신 장부에서 다시 훈수해주세요.' }, requestId); return
+        }
+        emit(ws, 'DICE_LEDGER_SPECTATOR_PING', { category: null, dieId: null, ...payload, senderUserId: ownId, sentAt: now, serverNow: now, expiresAt: now + 2000 }, requestId)
+        return
+      }
       if (options.spectatorEvents && ['GAME_SPECTATOR_CHAT_SEND', 'OMOK_SPECTATOR_PING_SEND'].includes(type)) {
         const ping = type === 'OMOK_SPECTATOR_PING_SEND', now = Date.now()
         const approved = !seated && watchingGame || !ping && seated && started
@@ -550,6 +590,7 @@ export async function fixture(
           }),
         )
         world(ws)
+        if(options.parkDebris)emit(ws,'WORLD_PARK_DEBRIS_STATE',{channelId:'fixture-channel',mapVersion:expectedMapVersion,version:debrisVersion,items:debrisItems})
       }
       if (type === 'WORLD_MOVE') {
         if (rejectNextMovement) {
@@ -691,6 +732,13 @@ export async function fixture(
           emit(ws, 'ERROR', error, requestId)
           return
         }
+        if (options.ledger) {
+          const reply = ledgerReplies.shift(); expect(reply, 'Explicitly script each approved ledger response').toBeTruthy(); expect(payload.input).toEqual(reply!.input)
+          ledgerState = { ...ledgerState, ...reply!.patch }; gameVersion++
+          emit(ws, 'GAME_ACTION_RESULT', { gameId, actionId: payload.actionId, version: gameVersion }, requestId)
+          if (!holdState) game(ws)
+          return
+        }
         if (options.bridge) {
           const reply = bridgeReplies.shift(); expect(reply, 'Explicitly script each approved bridge response').toBeTruthy(); expect(payload.input).toEqual(reply!.input)
           bridgeState = { ...bridgeState, ...reply!.patch }; bridgeSecret = reply!.secret; gameVersion++
@@ -771,14 +819,21 @@ export async function fixture(
     rejectNextMove: () => { rejectNextMovement = true },
     reaction: (patch: Partial<GameReactionEvent> = {}) => {
       const remainingBefore = patch.remainingBefore ?? options.bridge ?? options.onecard ?? 2
-      const motion = remainingBefore === 2 ? 'table-flip' : 'head-clutch'
+      const participantCount=patch.participantCount??options.bridge??options.onecard??2
+      const motion = remainingBefore === 2 && participantCount===2 && patch.kind==='FORFEIT' ? 'table-flip' : 'head-clutch'
       const event: GameReactionEvent = { eventId: `${patch.gameId ?? gameId}:reaction:${patch.userId ?? '101'}`,
-        gameId, tableId, channelId: 'fixture-channel', gameCode: options.bridge ? 'LIAR_BRIDGE' : options.onecard ? 'ONE_CARD' : options.dice ? 'DICE' : 'OMOK',
-        version: gameVersion, userId: '101', kind: 'DEFEAT', remainingBefore, motion,
+        gameId, tableId, channelId: 'fixture-channel', gameCode: options.ledger ? 'DICE_LEDGER' : options.bridge ? 'LIAR_BRIDGE' : options.onecard ? 'ONE_CARD' : options.dice ? 'DICE' : 'OMOK',
+        version: gameVersion, userId: '101', kind: 'DEFEAT', remainingBefore,participantCount, motion,
         durationMs: motion === 'table-flip' ? 2800 : 3600,
         occurredAt: new Date(serverTime().serverNow).toISOString(), ...patch }
       emit(sockets.at(-1)!, 'WORLD_GAME_REACTION', event)
       return event
+    },
+    debris:()=>debrisItems,
+    cleanDebris:(id:string,part:string)=>{
+      debrisItems=debrisItems.map(item=>item.id===id?{...item,parts:item.parts.filter(p=>p!==part)}:item).filter(item=>item.parts.length)
+      debrisVersion++
+      for(const ws of sockets)emit(ws,'WORLD_PARK_DEBRIS_STATE',{channelId:'fixture-channel',mapVersion:expectedMapVersion,version:debrisVersion,items:debrisItems})
     },
     spectatorEvent: (kind: 'chat' | 'ping', patch: Record<string, unknown> = {}) => {
       const now = Date.now(), ping = kind === 'ping'
@@ -796,6 +851,15 @@ export async function fixture(
     bridgeReply: (input: object, patch: Partial<Bridge>, secret: SecretDie | null = null) => bridgeReplies.push({ input, patch, secret }),
     bridgeSnapshot: (patch: Partial<Bridge>, secret: SecretDie | null = null, role = 'PLAYER') => { bridgeState = { ...bridgeState, ...patch }; bridgeSecret = secret; gameVersion++; game(sockets.at(-1)!, null, role) },
     bridgeState: () => structuredClone(bridgeState),
+    ledgerReply: (input: object, patch: Partial<DiceLedger>) => ledgerReplies.push({ input, patch }),
+    ledgerSnapshot: (patch: Partial<DiceLedger>, role = 'PLAYER') => { ledgerState = { ...ledgerState, ...patch }; gameVersion++; game(sockets.at(-1)!, null, role) },
+    ledgerState: () => structuredClone(ledgerState),
+    /** Another approved spectator's hint, delivered to this connection with requestId=null. */
+    ledgerPing: (target: { category?: string; dieId?: number }, senderUserId = '505') => {
+      const now = Date.now()
+      emit(sockets.at(-1)!, 'DICE_LEDGER_SPECTATOR_PING', { gameId, eventId: crypto.randomUUID(), senderUserId, basedOnVersion: gameVersion,
+        category: target.category ?? null, dieId: target.dieId ?? null, sentAt: now, serverNow: now, expiresAt: now + 2000 })
+    },
     cardReply: (input: object, patch: Partial<OneCard>, hand: Hand) => { cardReplies.push({ input, patch, hand }) },
     cardSnapshot: (patch: Partial<OneCard>, hand = cardHand, role = 'PLAYER') => { cardState = { ...cardState, ...patch }; cardHand = hand; gameVersion++; game(sockets.at(-1)!, null, role) },
     cardState: () => structuredClone(cardState),
@@ -876,6 +940,7 @@ export async function fixture(
       if (options.dice) diceState = { ...diceState, turnDeadline: gameDeadline }
       if (options.onecard) cardState = { ...cardState, turnDeadline: gameDeadline }
       if (options.bridge) bridgeState = { ...bridgeState, turnDeadline: gameDeadline }
+      if (options.ledger) ledgerState = { ...ledgerState, turnDeadline: gameDeadline }
       start(sockets.at(-1)!, 'PLAYING')
       recovery(sockets.at(-1)!)
     },

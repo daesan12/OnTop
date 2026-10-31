@@ -5,7 +5,7 @@ import { useGame, tableBusy } from '../../game/store'
 import { useParkRuntime } from '../../park/runtime/ParkRuntime'
 import { openManual } from '../manual/manualState'
 import { GAME_MANUAL } from './gatheringModel'
-import { GAME_CONSTRUCTION_NOTICE, isTableGamePlayable, TABLE_GAMES, TARGET_SCORES, type TableGameCode } from './model'
+import { GAME_CONSTRUCTION_NOTICE, isTableGamePlayable, TABLE_GAMES, TARGET_SCORES, tableTermsLabel, type TableGameCode } from './model'
 import { manualStartAllowed, preparationContext, readyWouldAutoStart, usePreparationPort } from './tabletModel'
 import { tabletProjection } from './tabletProjection'
 import { HostStartButton, HostStartWaitStatus } from './HostStartWaitControls'
@@ -18,8 +18,9 @@ const TabletPortrait = lazy(() => import('./TabletPortrait').then(module => ({ d
 const descriptions: Record<TableGameCode, string> = {
   OMOK: '다섯 돌을 이어 만드는 한 수', DICE: '주사위를 굴려 목표 점수에 도전해요',
   ONE_CARD: '손에 든 카드를 모두 내려놓으면 승리!', LIAR_BRIDGE: '믿거나 의심하거나, 다리를 건너요',
+  DICE_LEDGER: '세 번 굴려 장부 열두 칸을 채워요',
 }
-const choiceOrder: TableGameCode[] = ['OMOK', 'ONE_CARD', 'DICE', 'LIAR_BRIDGE']
+const choiceOrder: TableGameCode[] = ['OMOK', 'ONE_CARD', 'DICE_LEDGER', 'DICE', 'LIAR_BRIDGE']
 export function GameArt({ code }: { code: TableGameCode }) {
   return <div className="tablet-game-art" data-game={code} role="img" aria-label={TABLE_GAMES.find(g => g.code === code)?.name} />
 }
@@ -127,7 +128,7 @@ function TabletSession({ tableId }: { tableId: string }) {
     aria-label="게임 태블릿" aria-modal={active ? false : undefined} aria-hidden={!active} inert={!active} data-active={active} data-stage={step}>
     <div className="tablet-paper">
       <header className="tablet-title"><b className="tablet-brand">온탑</b>
-        {step === 'ready' && <p>{game?.name ?? '게임 선택 대기'} · {s.anchor?.replace('table-', '') ?? ''}번 탁자</p>}
+        {step === 'ready' && <p className="tablet-room-summary" aria-label="현재 방 설정">{tableTermsLabel(table)} · {approvedCount ?? table.capacity}인 · {s.anchor?.replace('table-', '') ?? ''}번 탁자</p>}
         <h2>{step === 'select' ? '어떤 게임을 할까요?' : '함께 시작할까요?'}</h2>
         {step === 'select' && <p>{host ? '게임을 고르고 참가 인원을 선택해요' : '방장이 게임을 선택하고 있어요'}</p>}
         {step === 'ready' && game && !game.playable && <p role="status">{GAME_CONSTRUCTION_NOTICE}</p>}

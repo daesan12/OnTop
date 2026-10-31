@@ -5,6 +5,8 @@
   width: min(964px, calc(100vw - 48px));
   max-height: calc(100dvh - 48px);
   overflow-y: auto;
+  scrollbar-width: none;
+  overscroll-behavior-y: contain;
   padding: 26px 50px 22px;
   color: #4a2510;
   background: radial-gradient(ellipse at 48% 35%, #fffdf7, #fcf5e9);
@@ -13,6 +15,7 @@
   box-shadow: 0 12px 36px #28150940;
   text-align: center;
 }
+.bung-root .bung-panel.bung-start::-webkit-scrollbar { display: none; }
 .bung-start-title { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
 .bung-root .bung-start .bung-start-title h2 {
   display: flex; align-items: center; justify-content: center; flex-shrink: 0; gap: 16px;

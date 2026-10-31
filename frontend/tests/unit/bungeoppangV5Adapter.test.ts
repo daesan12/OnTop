@@ -36,6 +36,25 @@ const deliveryInput: BungeoppangSubmit = { gameId: '901', log: [...fixture.log.s
   clientScore: 10, seenTips: [], deliveryKey: 'delivery-two' };
 
 describe('v5 draft REST port, opt-in only', () => {
+  it('uses server pause revisions and accepts only uniformly shifted timing after pause and resume',async()=>{
+    const p=await responses();
+    let paused=false,revision=0,offset=0;
+    const initial={...p.session.timing,paused:false,pauseRevision:0};
+    p.start.timing=initial;
+    const request=vi.fn(async(path:string,init?:RequestInit)=>{
+      if(init?.method==='POST'&&path.endsWith('/manual-pause')){
+        const input=JSON.parse(String(init.body));expect(input.expectedPauseRevision).toBe(revision);
+        paused=input.paused;revision++;offset=5000;return {};
+      }
+      if(init?.method==='POST')return p.start;
+      const shifted=Object.fromEntries(Object.entries(p.session.timing).map(([key,value])=>[key,new Date(Date.parse(value)+offset).toISOString()]));
+      return {...p.session,timing:{...shifted,paused,pauseRevision:revision}};
+    });
+    const service=createBungeoppangV5Service(request);
+    await service.startGame('pause');
+    expect((await service.setManualPaused!('901',true))?.timing).toMatchObject({paused:true,pauseRevision:1});
+    expect((await service.setManualPaused!('901',false))?.timing).toMatchObject({paused:false,pauseRevision:2});
+  });
   it('selects v5 explicitly, samples a fresh GET clock and restores three active orders', async () => {
     const p = await responses();
     const request = vi.fn().mockResolvedValueOnce(p.start).mockResolvedValueOnce(p.session).mockResolvedValueOnce(p.session);

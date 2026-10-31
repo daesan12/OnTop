@@ -4,9 +4,9 @@ export type DefeatKind = 'head-clutch' | 'table-flip'
 export const DEFEAT_DURATION = { 'head-clutch': 3600, 'table-flip': 2800 } as const
 export interface GameReactionEvent {
   eventId: string; gameId: string; tableId: string; channelId: string
-  gameCode: 'OMOK' | 'DICE' | 'ONE_CARD' | 'LIAR_BRIDGE'; version: number
+  gameCode: 'OMOK' | 'DICE' | 'ONE_CARD' | 'LIAR_BRIDGE' | 'DICE_LEDGER'; version: number
   userId: string; kind: 'FORFEIT' | 'DEFEAT'; remainingBefore: number
-  motion: DefeatKind; durationMs: number; occurredAt: string
+  motion: DefeatKind; durationMs: number; occurredAt: string; participantCount?: number
 }
 export interface DefeatReaction {
   key: string; gameId: string; userId: string; kind: DefeatKind; at: number
@@ -16,17 +16,21 @@ export interface DefeatReaction {
 export function parseGameReaction(p: unknown): GameReactionEvent {
   const id = (v: unknown) => typeof v === 'string' && !!v.trim() && v.length <= 128
   if (!record(p) || !['eventId', 'gameId', 'tableId', 'channelId', 'userId'].every(k => id(p[k]))
-    || !['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE'].includes(String(p.gameCode))
+    || !['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE', 'DICE_LEDGER'].includes(String(p.gameCode))
     || !integer(p.version) || !['FORFEIT', 'DEFEAT'].includes(String(p.kind))
     || !integer(p.remainingBefore) || p.remainingBefore < 1 || p.remainingBefore > 4
-    || p.motion !== (p.remainingBefore === 2 ? 'table-flip' : 'head-clutch')
+    || p.participantCount !== undefined && (!integer(p.participantCount) || p.participantCount < p.remainingBefore || p.participantCount > 4)
+    || !['head-clutch', 'table-flip'].includes(String(p.motion))
+    || p.motion === 'table-flip' && (p.remainingBefore !== 2 || p.participantCount !== undefined && (p.participantCount !== 2 || p.kind !== 'FORFEIT'))
+    || p.motion === 'head-clutch' && p.participantCount === undefined && p.remainingBefore === 2
     || p.durationMs !== DEFEAT_DURATION[p.motion as DefeatKind]
     || typeof p.occurredAt !== 'string' || !/Z$/.test(p.occurredAt) || !Number.isFinite(Date.parse(p.occurredAt)))
     throw new Error('경기 연출 응답 형식을 확인할 수 없습니다.')
   return { eventId: String(p.eventId), gameId: String(p.gameId), tableId: String(p.tableId),
     channelId: String(p.channelId), userId: String(p.userId), gameCode: p.gameCode as GameReactionEvent['gameCode'],
     version: p.version, kind: p.kind as GameReactionEvent['kind'], remainingBefore: p.remainingBefore,
-    motion: p.motion as DefeatKind, durationMs: Number(p.durationMs), occurredAt: p.occurredAt }
+    motion: p.motion as DefeatKind, durationMs: Number(p.durationMs), occurredAt: p.occurredAt,
+    ...(p.participantCount === undefined ? {} : { participantCount: p.participantCount as number }) }
 }
 
 /** Only server notifications trigger a pose. Dedup survives interruption/reconnect. */
@@ -51,7 +55,7 @@ export class DefeatTimeline {
     keys.forEach(k => this.seen.set(k, now + 10_000))
     this.latest.set(event.userId, at)
     const reaction: DefeatReaction = { key: event.eventId, gameId: event.gameId, userId: event.userId,
-      kind: event.motion, at, tableId: event.tableId, channelId: event.channelId, anchorId, position: { ...position } }
+      kind: event.kind === 'DEFEAT' ? 'head-clutch' : event.motion, at, tableId: event.tableId, channelId: event.channelId, anchorId, position: { ...position } }
     this.playing.set(event.userId, reaction)
     return reaction
   }
