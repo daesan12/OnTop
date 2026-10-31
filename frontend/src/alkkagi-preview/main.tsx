@@ -6,6 +6,7 @@ import { itemPreview } from '../game/alkkagi/placement'
 import { AlkkagiFeedback } from '../game/alkkagi/feedback'
 import { AlkkagiInbox } from '../game/alkkagi/inbox'
 import { SocialPanel } from './SocialPanel'
+import { AlkkagiItemCard, alkkagiItemTypes } from '../game/alkkagi/AlkkagiItemCard'
 import './style.css'
 
 const role = new URLSearchParams(location.search).get('role') ?? 'red'
@@ -185,8 +186,11 @@ function App() {
           </select>)}
           <button disabled={!connected || pending || !currentHand || !!currentHand.cards.length}
           onClick={() => state && send({ type: 'TEST_CARDS', gameId: state.gameId, expectedVersion: state.version, cards: practice })}>연습 카드 받기 (로컬)</button></div>}
-        <div className="buttons">{currentHand?.cards.map(card => <button key={card.id} disabled={!canItem}
-          aria-pressed={item?.id === card.id} onClick={() => { setItem(card); setTargets([]); setPlacement(null); setPinned(false) }}>{cardNames[card.type] ?? card.type}</button>)}</div>
+        <div className="hand-cards">{currentHand?.cards.map(card => <AlkkagiItemCard key={card.id} type={card.type}
+          disabled={!canItem} selected={item?.id === card.id} onClick={() => { setItem(card); setTargets([]); setPlacement(null); setPinned(false) }} />)}</div>
+        {currentHand && !currentHand.cards.length && <p className="empty-hand">아직 비책이 없습니다. 알을 잃고 열세가 되면 지급 조건에 따라 카드를 받습니다.</p>}
+        <details className="item-catalog"><summary>아이템 도감 · 8종</summary><p>효과와 사용 방법을 살펴보세요. 실제 사용은 보유한 카드로만 가능합니다.</p>
+          <div className="item-catalog-grid">{alkkagiItemTypes.map(type => <AlkkagiItemCard key={type} type={type} />)}</div></details>
         {item && <div>
           <p>{item.type === 'SWAP' ? '교환할 알 두 개를 클릭하세요. 상대 알도 선택할 수 있습니다.' : item.type === 'EXTRA_SHOT'
             ? '원래 30초 안에서 발사 한 번을 추가합니다. 시간이 늘어나지 않습니다.' : item.type === 'WALL'

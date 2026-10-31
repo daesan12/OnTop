@@ -1,19 +1,31 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { ArrowHelper, Group, Mesh, Plane, Vector2, Vector3 } from 'three'
+import { ArrowHelper, Group, Mesh, OrthographicCamera, Plane, Vector2, Vector3 } from 'three'
 import { AlkkagiReplay, type Piece, type Snapshot } from './replay'
 import { draggedShot, launchResponse } from './aimInput'
 import { exitFlight } from './flight'
 import { AlkkagiPiece, PieceAppearanceProvider } from './AlkkagiPiece'
 import { AlkkagiBoardSurface } from './AlkkagiBoardSurface'
+import { fitBoardCamera } from './boardLayout'
 
 /** 전송·인증·URL에 의존하지 않는 공용 게임판. 호출자가 승인 상태와 명령 콜백을 공급한다. */
 export function AlkkagiBoard(props: Parameters<typeof Scene>[0]) {
-  return <Canvas shadows camera={{ position: [0, 14, 0.01], fov: 46 }}>
+  return <Canvas orthographic shadows camera={{ position: [0, 14, 0], up: [0, 0, -1], zoom: 50, near: .1, far: 100 }}>
+    <BoardProjection />
     <color attach="background" args={['#253d37']} /><ambientLight intensity={1.8} />
     <directionalLight position={[3, 10, 6]} intensity={2.5} castShadow shadow-mapSize={[1024, 1024]} />
     <PieceAppearanceProvider><Scene {...props} /></PieceAppearanceProvider>
   </Canvas>
+}
+
+/** 기존 화면 높이 범위는 유지하고 높이에 따른 원근 확대만 제거한다. */
+function BoardProjection() {
+  const { camera, size } = useThree()
+  useLayoutEffect(() => {
+    if (!(camera instanceof OrthographicCamera)) return
+    fitBoardCamera(camera, size.height)
+  }, [camera, size.height])
+  return null
 }
 
 type Aim = { piece: Piece; origin: Vector3; end: Vector3; start: { x: number; y: number }

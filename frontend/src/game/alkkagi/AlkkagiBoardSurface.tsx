@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react'
 import type { ThreeEvent } from '@react-three/fiber'
 import { CanvasTexture, SRGBColorSpace } from 'three'
+import { boardColumns, boardRows } from './boardLayout'
 
 function createBoardTexture() {
   const canvas = document.createElement('canvas'); canvas.width = 1080; canvas.height = 1200
@@ -31,12 +32,12 @@ function createBoardTexture() {
   const x = (v: number) => (v / 9 + .5) * w, y = (v: number) => (v / 10 + .5) * h
   ctx.strokeStyle = '#76532f'; ctx.lineWidth = 1.9
   const line = (a: number, b: number, c: number, d: number) => { ctx.beginPath(); ctx.moveTo(x(a), y(b)); ctx.lineTo(x(c), y(d)); ctx.stroke() }
-  for (let i = -4; i <= 4; i++) line(i, -4.5, i, 4.5)
-  for (let i = 0; i < 10; i++) line(-4, i - 4.5, 4, i - 4.5)
-  ctx.lineWidth = 3; ctx.strokeRect(x(-4), y(-4.5), x(4) - x(-4), y(4.5) - y(-4.5))
+  for (const column of boardColumns) line(column, -4.2, column, 4.2)
+  for (const row of boardRows) line(-4, row, 4, row)
+  ctx.lineWidth = 3; ctx.strokeRect(x(-4), y(-4.2), x(4) - x(-4), y(4.2) - y(-4.2))
   // 궁성 대각선은 표면 무늬이며 알 배치·이동 규칙과 무관하다.
   ctx.lineWidth = 1.6
-  for (const sign of [-1, 1]) { line(-1, sign * 2.5, 1, sign * 4.5); line(1, sign * 2.5, -1, sign * 4.5) }
+  for (const sign of [-1, 1]) { line(-1, sign * 2.2, 1, sign * 4.2); line(1, sign * 2.2, -1, sign * 4.2) }
   ctx.fillStyle = '#e5c17f'
   for (const [cx, cy] of [[22, 22], [w - 22, 22], [22, h - 22], [w - 22, h - 22]]) {
     ctx.save(); ctx.translate(cx, cy); ctx.rotate(Math.PI / 4); ctx.fillRect(-3, -3, 6, 6); ctx.restore()
