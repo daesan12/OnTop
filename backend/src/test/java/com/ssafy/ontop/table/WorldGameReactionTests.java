@@ -115,7 +115,7 @@ class WorldGameReactionTests {
             for (Peer peer : List.of(first, second, near, far)) {
                 assertThat(peer.debris()).hasSize(1);
                 assertThat(peer.debris().getFirst().at("/payload/items/0/parts"))
-                        .hasSize("OMOK".equals(gameCode) ? 18 : 13);
+                        .hasSize(18);
                 assertThat(peer.debris().getFirst().at("/payload/items/0/gameCode").asText()).isEqualTo(gameCode);
             }
             assertThat(other.debris()).isEmpty();

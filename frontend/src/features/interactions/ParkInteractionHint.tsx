@@ -32,7 +32,7 @@ export function ParkInteractionHint() {
   useEffect(() => {
     const sample = () => {
       const next = getParkInteraction()
-      setTarget(old => old?.id === next?.id && old?.seat === next?.seat && old?.occupied === next?.occupied
+      setTarget(old => old?.id === next?.id && old?.label === next?.label && old?.seat === next?.seat && old?.occupied === next?.occupied
         && old?.available === next?.available && old?.occupant === next?.occupant ? old : next)
     }
     sample()

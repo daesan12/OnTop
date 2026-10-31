@@ -128,7 +128,7 @@
   flex-direction: column;
   height: 270px;
   padding: 12px 0;
-  border-radius: 15px;
+  border-radius: 0;
   background: transparent;
 }
 

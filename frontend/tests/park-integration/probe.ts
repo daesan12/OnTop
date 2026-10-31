@@ -128,3 +128,18 @@ export function renderedSeatHeights(id:string){
  scene.updateMatrixWorld(true)
  return {count:object.userData.presentedSeatCount,heights:t.seatAnchors.map(([x,,z])=>{ray.set(new Vector3(t.position[0]+x,t.position[1]+.8,t.position[2]+z),new Vector3(0,-1,0));return ray.intersectObject(object,true)[0]?.point.y})}
 }
+export function gameVisualProbe(){
+ const scene=_roots.get(document.querySelector('canvas')!)?.store.getState().scene
+ const opening=scene?.getObjectByName('onecard-opening')
+ const top=scene?.getObjectByName('onecard-public-top')
+ return {opening:!!opening?.visible,phase:opening?.userData.phase,topRotation:top?.rotation.toArray().slice(0,3),
+  counts:['101','102','103','104'].map(id=>(scene?.getObjectByName('onecard-held-cards-'+id) as InstancedMesh|undefined)?.count??0),
+  debris:useParkDebris.getState().items.map(item=>{
+   const root=scene?.getObjectByName('park-debris-'+item.id)
+   const mesh=scene?.getObjectByName('park-debris-'+(item.gameCode==='OMOK'?'stones-':'pieces-')+item.id) as InstancedMesh|undefined
+   const matrix=new Matrix4();mesh?.getMatrixAt(0,matrix)
+   return {id:item.id,present:!!root,visible:!!root?.visible,pieces:mesh?.count??0,
+    pieceHeight:new Vector3().setFromMatrixPosition(matrix).y,
+    sourceVisible:scene?.getObjectByName('game-surface-'+item.anchorId)?.visible}
+  })}
+}

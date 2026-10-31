@@ -22,7 +22,7 @@
 }
 .park-page .onecard-game-hud.onecard-panel .onecard-public .onecard-card {
   border-radius:6px;
-  transform:rotate(-3deg);
+  transform:none;
   box-shadow:0 2px 0 #bba577,0 5px 9px #0005;
 }
 .park-page .onecard-game-hud.onecard-panel .onecard-public-details { align-items:flex-start; }
