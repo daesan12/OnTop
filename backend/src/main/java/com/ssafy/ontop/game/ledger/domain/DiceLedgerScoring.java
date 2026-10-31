@@ -11,7 +11,7 @@ public final class DiceLedgerScoring {
         ONES, TWOS, THREES, FOURS, FIVES, SIXES,
         CHOICE, FOUR_OF_A_KIND, FULL_HOUSE, SMALL_STRAIGHT, LARGE_STRAIGHT, FIVE_OF_A_KIND;
 
-        public boolean upper() { return ordinal() < 6; }
+        public boolean isUpper() { return ordinal() < 6; }
 
         public static Category find(String name) {
             for (Category category : values()) {

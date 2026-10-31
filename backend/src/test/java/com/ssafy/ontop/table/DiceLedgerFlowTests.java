@@ -100,8 +100,31 @@ class DiceLedgerFlowTests {
             assertThat(timeout.path("lastEvent").asText()).isEqualTo("TURN_TIMEOUT");
             assertThat(timeout.path("lastScored").path("auto").asBoolean()).isTrue();
             assertThat(timeout.path("turnUserId").asText()).isEqualTo(Long.toString(actor));
+
+            // heartbeat 응답이 끊겨 연결이 닫혀도 같은 계정으로 돌아오면 같은 장부·마감을 받고 이어서 둔다.
+            var before = owner.request("GAME_STATE_CHECK", Map.of("gameId", "ledger")).path("payload");
+            owner.stopPong();
+            assertThat(owner.awaitClose()).isEqualTo(1001);
+            try (ScenarioClient returned = new ScenarioClient(port, actor == 101 ? "naver" : "ssafy")) {
+                var restored = returned.state("RESTORED");
+                assertThat(restored.path("gameId").asText()).isEqualTo("ledger");
+                assertThat(restored.at("/state/publicState/gameCode").asText()).isEqualTo("DICE_LEDGER");
+                assertThat(restored.at("/state/privateState").isEmpty()).isTrue();
+                var recovered = returned.request("GAME_STATE_CHECK", Map.of("gameId", "ledger")).path("payload");
+                assertThat(recovered.path("version").asLong()).isEqualTo(3);
+                assertThat(recovered.path("publicState").path("players"))
+                        .isEqualTo(before.path("publicState").path("players"));
+                assertThat(recovered.path("publicState").path("turnDeadline"))
+                        .isEqualTo(before.path("publicState").path("turnDeadline"));
+                var reroll = action("r2", 3, Map.of("kind", "roll", "keepIds", List.of()));
+                assertThat(returned.request("GAME_ACTION_SEND", reroll).path("type").asText())
+                        .isEqualTo("GAME_ACTION_RESULT");
+                assertThat(viewer.await(message -> version(message, 4)).path("payload").path("publicState")
+                        .path("rollCount").asInt()).isEqualTo(1);
+            }
         }
-        System.out.println("[PASS] 주사위 장부 실제엔진/SecureRandom/RawWS: 굴림·기록·관전자 칸/주사위 핑·핑 거절·30초 자동 기록. 인증/시작은대역·제어시계,DB/지급아님.");
+        System.out.println("[PASS] 주사위 장부 실제엔진/SecureRandom/RawWS: 굴림·기록·관전자 칸/주사위 핑·핑 거절·"
+                + "30초 자동 기록·heartbeat 복귀. 인증/시작은대역·제어시계,DB/지급아님.");
     }
 
     private Map<String, Object> action(String id, long version, Map<String, Object> input) {
