@@ -17,7 +17,7 @@ const facilities:FacilityDefinition[]=[
 export const generatedFacilityCatalog = { ...originalCatalog, mapVersion: PARK_MAP_VERSION, facilities }
 
 /** Browser-only wire simulation: production contains no mock login, physics or transport bypass. */
-export async function parkFixture(page:Page,options:{holdConfirmation?:boolean;serverMap?:MapIdentity;omitMap?:boolean}={}) {
+export async function parkFixture(page:Page,options:{holdConfirmation?:boolean;serverMap?:MapIdentity;omitMap?:boolean;fitnessRewardsEnabled?:boolean}={}) {
   // All 18 canonical IDs remain aligned with the latest generated bindings.
   const bindings=bindingsFile.bindings.filter(b=>b.channelId==='channel-1')
   await page.route('**/park-bindings.generated.frontend-test.json',route=>route.fulfill({json:{...bindingsFile,bindings}}))
@@ -77,7 +77,7 @@ export async function parkFixture(page:Page,options:{holdConfirmation?:boolean;s
       if(r.type==='GAME_RECONNECT_CHECK')emit('GAME_CONNECTION_STATE',{status:'NONE',gameId:null,version:null,state:null,reconnectUntil:null,code:null},r.requestId)
       if(r.type==='WORLD_FACILITY_CATALOG') {
         const offset=Number(r.payload.offset??0),end=Math.min(offset+10,facilities.length)
-        emit(r.type,{mapVersion:identity.mapVersion,offset,total:facilities.length,nextOffset:end<facilities.length?end:-1,aimIntervalMs:originalCatalog.aimIntervalMs,minPitch:originalCatalog.minPitch,maxPitch:originalCatalog.maxPitch,initialPitch:originalCatalog.initialPitch,facilities:facilities.slice(offset,end)},r.requestId)
+        emit(r.type,{fitnessRewardsEnabled:options.fitnessRewardsEnabled??false,mapVersion:identity.mapVersion,offset,total:facilities.length,nextOffset:end<facilities.length?end:-1,aimIntervalMs:originalCatalog.aimIntervalMs,minPitch:originalCatalog.minPitch,maxPitch:originalCatalog.maxPitch,initialPitch:originalCatalog.initialPitch,facilities:facilities.slice(offset,end)},r.requestId)
       }
       if(r.type==='WORLD_FACILITY_CHECK')occupancy(r.requestId)
       if(r.type==='WORLD_FACILITY_USE') {

@@ -8,6 +8,7 @@ export interface FacilityDefinition {
   heightTolerance: number; seats: Pose[]; exit: Pose
 }
 export interface FacilityCatalogPage {
+  fitnessRewardsEnabled?: boolean
   mapVersion: string; offset: number; total: number; nextOffset: number
   aimIntervalMs: number; minPitch: number; maxPitch: number; initialPitch: number
   facilities: FacilityDefinition[]
@@ -45,6 +46,7 @@ export function parseFacilityCatalogPage(value: unknown, expectedMapVersion: str
     || !Array.isArray(value.facilities) || value.facilities.length > 10) return invalid()
   return { mapVersion: map(value.mapVersion,expectedMapVersion), offset: value.offset, total: value.total, nextOffset: value.nextOffset as number,
     aimIntervalMs: value.aimIntervalMs, minPitch: value.minPitch, maxPitch: value.maxPitch, initialPitch: value.initialPitch,
+    fitnessRewardsEnabled: value.fitnessRewardsEnabled === true,
     facilities: value.facilities.map(parseFacilityDefinition) }
 }
 export function parseFacilitySnapshot(value: unknown, expectedMapVersion: string = EXPECTED_MAP_VERSION): FacilitySnapshot {

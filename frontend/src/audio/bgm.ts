@@ -43,6 +43,14 @@ export const [useSfxSettings, setSfxSettings] = soundSettings('ontop-sfx-v1')
 
 type Voice = { track: BgmTrack; source: AudioBufferSourceNode; gain: GainNode; startedAt: number; offset: number; duration: number }
 let audio: AudioContext | undefined, master: GainNode | undefined, music: GainNode | undefined, effects: GainNode | undefined
+let jumpEffects: GainNode | undefined
+let jumpmapFocused = false
+
+/** Temporary mix only: never overwrite the player's saved volume or mute choices. */
+export function setJumpmapAudioFocus(focused: boolean) {
+  jumpmapFocused = focused
+  applyVolume()
+}
 let current: Voice | undefined
 let wanted: BgmTrack | null = null
 let armed = false
@@ -66,13 +74,16 @@ export function loadSound(context: AudioContext, name: string) {
 
 function applyVolume() {
   if (!audio || !master || !effects) return
-  for (const [node, { volume, muted }] of [[master, useBgmSettings.getState()], [effects, useSfxSettings.getState()]] as const)
-    node.gain.setTargetAtTime(muted ? 0 : (volume / 100) ** 2, audio.currentTime, 0.05)
+  for (const [node, { volume, muted }, focus] of [[master, useBgmSettings.getState(), jumpmapFocused ? .25 : 1], [effects, useSfxSettings.getState(), jumpmapFocused ? .2 : 1]] as const)
+    node.gain.setTargetAtTime(muted ? 0 : (volume / 100) ** 2 * focus, audio.currentTime, 0.05)
+  const sfx = useSfxSettings.getState()
+  jumpEffects?.gain.setTargetAtTime(sfx.muted ? 0 : (sfx.volume / 100) ** 2, audio.currentTime, .05)
 }
 
 /** The effects bus once a gesture has opened audio; effects never open it on their own. */
-export function effectsOutput() {
-  return audio && effects && audio.state === 'running' ? { context: audio, bus: effects } : null
+export function effectsOutput(focus: 'background' | 'jumpmap' = 'background') {
+  const bus = focus === 'jumpmap' ? jumpEffects : effects
+  return audio && bus && audio.state === 'running' ? { context: audio, bus } : null
 }
 
 function unlock() {
@@ -84,8 +95,10 @@ function unlock() {
     master = audio.createGain()
     music = audio.createGain()
     effects = audio.createGain()
+    jumpEffects = audio.createGain()
     music.connect(master).connect(audio.destination)
     effects.connect(audio.destination)
+    jumpEffects.connect(audio.destination)
     applyVolume()
     void audio.resume().catch(() => {})
     document.addEventListener('visibilitychange', () => {
