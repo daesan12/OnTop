@@ -930,8 +930,17 @@ export class ParkRuntime implements ParkRuntimePort {
       this.movementRequests.delete(requestId)
     }
   }
-  inspectTable = (anchorId: string) => {
-    void this.watchTable(anchorId, true)
+  inspectTable = (anchorId: string, watch = false) => {
+    void this.watchTable(anchorId, !watch).then(approved => {
+      if (!approved || !watch || useSession.getState().focusedAnchorId !== anchorId) return
+      const session = useSession.getState()
+      const reference = publicMatchService.find({ channelId: session.roomId, tableId: session.watchedTableId })
+      if (reference) void this.watchGame(reference.gameId)
+      else {
+        useTableLobby.setState({ panelOpen: true })
+        this.report('지금 관전할 경기가 없어요. 경기 시작 후 다시 확인해주세요.')
+      }
+    })
   }
   private async watchTable(anchorId: string, panelOpen: boolean): Promise<boolean> {
     const own = useSession.getState(), facilities = useFacilityState.getState()
@@ -1307,7 +1316,7 @@ export class ParkRuntime implements ParkRuntimePort {
       )
       { this.report('관전 가능한 경기 정보를 확인해주세요.'); return false }
       this.spectatorIntent = { userId: session.sessionId, channelId: session.roomId, tableId: session.watchedTableId, benchScope: benchViewScope(session) }
-      useTableLobby.setState({ spectatorRequested: true, spectatorError: '' })
+      useTableLobby.setState({ spectatorRequested: true, spectatorError: '', panelOpen: false })
       return this.spectator.set({ gameId, scope: JSON.stringify([this.generation, session.sessionId, session.roomId, session.watchedTableId, benchViewScope(session)]) }, true)
   }
   watchBench = async (anchorId: string, observeOnly = false): Promise<boolean> => {

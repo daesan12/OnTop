@@ -1,10 +1,12 @@
-import {useMemo,useRef} from 'react'
+import {useEffect,useMemo,useRef,useState} from 'react'
 import {useFrame} from '@react-three/fiber'
-import {BoxGeometry,BufferGeometry,Color,CylinderGeometry,ExtrudeGeometry,Float32BufferAttribute,Group,InstancedMesh,LineBasicMaterial,MeshStandardMaterial,Object3D,Path,Shape} from 'three'
+import {BoxGeometry,BufferGeometry,Color,CylinderGeometry,ExtrudeGeometry,Float32BufferAttribute,Group,InstancedMesh,LatheGeometry,LineBasicMaterial,MeshStandardMaterial,Object3D,Path,Shape,Vector2} from 'three'
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js'
 import {TABLES,serviceWalkHeight,tableScale,type TableAnchor} from '../../park/mapConfig'
 import {estimatedServerTime,useSession} from '../../network/worldClient'
-import {DEBRIS_COINS,DEBRIS_STONES,type ParkDebris,useParkDebris} from './state'
+import {DEBRIS_COINS,DEBRIS_RETENTION,debrisPieces,debrisVisible,type ParkDebris,useParkDebris} from './state'
+import {createBackTexture} from '../../game/onecard/artwork'
+import {farkleArt} from '../../game/farkle/art/FarkleProps'
 import {debrisLanding,debrisPose} from './motion'
 
 const anchors=new Map(TABLES.map(table=>[table.id,table]))
@@ -12,8 +14,11 @@ const box=new RoundedBoxGeometry(1.5,.065,1.5,2,.018)
 const wood=new MeshStandardMaterial({color:'#b18043',roughness:.8})
 const felt=new MeshStandardMaterial({color:'#285342',roughness:.9})
 const lineMaterial=new LineBasicMaterial({color:'#47301c'})
-const die=new BoxGeometry(.13,.13,.13),card=new BoxGeometry(.23,.015,.34)
-const ivory=new MeshStandardMaterial({color:'#f1e6cf'}),red=new MeshStandardMaterial({color:'#9b3e2d'})
+const card=new BoxGeometry(.23,.015,.34)
+const pawn=new LatheGeometry([[.045,0],[.045,.025],[.025,.04],[.02,.09],[.035,.11],[.03,.14],[0,.15]].map(([x,y])=>new Vector2(x,y)),12)
+let cardMaterial:MeshStandardMaterial|undefined
+const pieceMaterial=(code:ParkDebris['gameCode'])=>code==='ONE_CARD'?(cardMaterial??=new MeshStandardMaterial({map:createBackTexture(),roughness:.9}))
+  :code==='DICE'||code==='DICE_LEDGER'?farkleArt().boneMaterials[0]!:stoneMaterial
 const gridPoints:number[]=[]
 for(let i=0;i<15;i++){const n=(i/14-.5)*1.34;gridPoints.push(-.67,.034,n,.67,.034,n,n,.034,-.67,n,.034,.67)}
 const grid=new BufferGeometry().setAttribute('position',new Float32BufferAttribute(gridPoints,3))
@@ -30,25 +35,29 @@ const noRaycast=()=>{}
 function ThrownBoard({code}:{code:ParkDebris['gameCode']}){
   return <group><mesh geometry={box} material={code==='OMOK'?wood:felt} raycast={noRaycast}/>
     {code==='OMOK'?<lineSegments geometry={grid} material={lineMaterial} raycast={noRaycast}/>
-      : code==='LIAR_BRIDGE'?Array.from({length:8},(_,i)=><mesh key={i} geometry={counter} material={i%2?wood:gold} position={[(i%4-1.5)*.27,.044,Math.floor(i/4)*.55-.275]} raycast={noRaycast}/>)
-      : code==='DICE'||code==='DICE_LEDGER'?[-.3,0,.3].map((x,i)=><mesh key={x} geometry={die} material={ivory} position={[x,.1,(i%2-.5)*.3]} raycast={noRaycast}/>)
-      :[-.22,.22].map((x,i)=><mesh key={x} geometry={card} material={i?ivory:red} position={[x,.045,0]} rotation={[0,(i-.5)*.2,0]} raycast={noRaycast}/>)}
+      : null}
   </group>
 }
 function DebrisBatch({item,anchor}:{item:ParkDebris;anchor:TableAnchor}){
   const root=useRef<Group>(null),board=useRef<Group>(null),coins=useRef<InstancedMesh>(null)
   const stones=useRef<InstancedMesh>(null)
+  const parts=useMemo(()=>debrisPieces(item.gameCode),[item.gameCode])
   const scratch=useMemo(()=>new Object3D(),[]),settled=useRef(false)
   const reduced=useMemo(()=>window.matchMedia('(prefers-reduced-motion: reduce)'),[])
   const scale=tableScale(anchor),at=Date.parse(item.occurredAt)
-  const paths=useMemo(()=>Array.from({length:DEBRIS_COINS+1+(item.gameCode==='OMOK'?DEBRIS_STONES:0)},(_,n)=>{
+  useEffect(()=>{
+    const coinInstances=coins.current,pieceInstances=stones.current
+    return()=>{coinInstances?.dispose();pieceInstances?.dispose()}
+  },[])
+  const paths=useMemo(()=>Array.from({length:DEBRIS_COINS+1+parts.length},(_,n)=>{
     const p=debrisLanding(item,n-1),x=anchor.position[0]+p.x*scale,z=anchor.position[2]+p.z*scale
-    return {floor:(serviceWalkHeight(x,z)-anchor.position[1])/scale+(n===0?.045:n>DEBRIS_COINS?.009:.012)}
-  }),[item,anchor,scale])
+    const pieceHeight=item.gameCode==='DICE'||item.gameCode==='DICE_LEDGER'?.075:.012
+    return {floor:(serviceWalkHeight(x,z)-anchor.position[1])/scale+(n===0?.045:n>DEBRIS_COINS?pieceHeight:.012)}
+  }),[item,anchor,scale,parts])
   useFrame(({camera})=>{
     if(!root.current||!board.current||!coins.current)return
     const age=estimatedServerTime()-at
-    root.current.visible=age>=0&&Math.hypot(camera.position.x-anchor.position[0],camera.position.z-anchor.position[2])<65
+    root.current.visible=debrisVisible(item,estimatedServerTime())&&Math.hypot(camera.position.x-anchor.position[0],camera.position.z-anchor.position[2])<65
     if(!root.current.visible||settled.current)return
     const sampleAge=reduced.matches?3000:age
     const b=debrisPose(item,-1,sampleAge,1.09,paths[0]!.floor)
@@ -62,12 +71,12 @@ function DebrisBatch({item,anchor}:{item:ParkDebris;anchor:TableAnchor}){
     }
     coins.current.instanceMatrix.needsUpdate=true
     if(stones.current){
-      for(let n=0;n<DEBRIS_STONES;n++){
+      for(let n=0;n<parts.length;n++){
         const p=debrisPose(item,DEBRIS_COINS+n,sampleAge,1.136,paths[DEBRIS_COINS+1+n]!.floor)
         scratch.position.set(p.x,p.y,p.z);scratch.rotation.set(p.rx,p.ry,p.rz)
-        scratch.scale.setScalar(p.visible&&item.parts.includes('stone-'+n)?1:0)
+        scratch.scale.setScalar(p.visible&&item.parts.includes(parts[n]!)?1:0)
         scratch.updateMatrix();stones.current.setMatrixAt(n,scratch.matrix)
-        stones.current.setColorAt(n,stoneColors[n%2]!)
+        stones.current.setColorAt(n,item.gameCode==='OMOK'?stoneColors[n%2]!:new Color(item.gameCode==='LIAR_BRIDGE'?n%2?'#dc404d':'#a45ddd':'#ffffff'))
       }
       stones.current.instanceMatrix.needsUpdate=true
       stones.current.instanceColor!.needsUpdate=true
@@ -79,14 +88,23 @@ function DebrisBatch({item,anchor}:{item:ParkDebris;anchor:TableAnchor}){
     dispose={null} userData={{debrisId:item.id,gameId:item.gameId,cleanableObjects:item.parts.map(part=>item.id+'/'+part),cosmetic:true}}>
     <group ref={board} name={'park-debris-board-'+item.id}><ThrownBoard code={item.gameCode}/></group>
     <instancedMesh ref={coins} name={'park-debris-coins-'+item.id} args={[coin,gold,DEBRIS_COINS]} frustumCulled={false} raycast={noRaycast} dispose={null}/>
-    {item.gameCode==='OMOK'&&<instancedMesh ref={stones} name={'park-debris-stones-'+item.id} args={[counter,stoneMaterial,DEBRIS_STONES]} frustumCulled={false} raycast={noRaycast} dispose={null}/>}
+    <instancedMesh ref={stones} name={(item.gameCode==='OMOK'?'park-debris-stones-':'park-debris-pieces-')+item.id}
+      args={[item.gameCode==='ONE_CARD'?card:item.gameCode==='DICE'||item.gameCode==='DICE_LEDGER'?farkleArt().dice:item.gameCode==='LIAR_BRIDGE'?pawn:counter,pieceMaterial(item.gameCode),parts.length]}
+      frustumCulled={false} raycast={noRaycast} dispose={null}/>
   </group>
 }
 export function ParkDebrisScene(){
   const items=useParkDebris(s=>s.items)
+  const [clock,setClock]=useState(0)
+  useEffect(()=>{
+    const now=estimatedServerTime(),next=Math.min(...items.map(item=>Date.parse(item.occurredAt)+DEBRIS_RETENTION).filter(at=>at>now))
+    if(!Number.isFinite(next))return
+    const timer=setTimeout(()=>setClock(n=>n+1),Math.max(0,next-now)+1)
+    return()=>clearTimeout(timer)
+  },[items,clock])
   const channelId=useParkDebris(s=>s.channelId)
   const ready=useSession(s=>s.status==='connected'&&s.mapCompatible&&s.roomId===channelId)
   if(!ready)return null
-  return <group name="park-persistent-debris">{items.map(item=>{const anchor=anchors.get(item.anchorId)
+  return <group name="park-persistent-debris">{items.filter(item=>Date.parse(item.occurredAt)+DEBRIS_RETENTION>estimatedServerTime()).map(item=>{const anchor=anchors.get(item.anchorId)
     return anchor?<DebrisBatch key={item.id+'/'+item.parts.join(',')} item={item} anchor={anchor}/>:null})}</group>
 }

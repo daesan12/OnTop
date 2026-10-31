@@ -4,7 +4,9 @@ import { DoubleSide, EdgesGeometry, LineBasicMaterial, MeshStandardMaterial, Obj
   type Group, type InstancedMesh, type LineSegments } from 'three'
 import type { createCharacterRig } from '../../world/art/CharacterRig'
 import { useGame } from '../store'
-import { avatars } from '../../network/worldClient'
+import { avatars, estimatedServerTime } from '../../network/worldClient'
+import { dealtCount } from './opening'
+import { useReducedMotion } from './useReducedMotion'
 import { scenePointerOwners } from '../../world/inputOwnership'
 import { useParkRuntime } from '../../park/runtime/ParkRuntime'
 import { createBackTexture } from './artwork'
@@ -19,6 +21,7 @@ function visible(object: Object3D) { for (let node: Object3D | null = object; no
 
 /** Both sides remain generic backs. Picking uses the actual instance hit, including avatar occlusion. */
 export function OneCardHeldHand({ userId, model }: { userId: string; model: ReturnType<typeof createCharacterRig> }) {
+  const reduced = useReducedMotion()
   const root = useRef<Group>(null), mesh = useRef<InstancedMesh>(null), outline = useRef<LineSegments>(null)
   const points = useMemo(() => ({ left: new Vector3(), right: new Vector3() }), [])
   const transform = useMemo(() => new Object3D(), []), layout = useRef({ count: -1, mark: -1 })
@@ -36,21 +39,22 @@ export function OneCardHeldHand({ userId, model }: { userId: string; model: Retu
     if (!root.current || !mesh.current) return
     root.current.visible = !!avatar && avatar.seatIndex >= 0 && oneCardHeldCount(userId, avatar.tableId) > 0
     if (!root.current.visible || !root.current.parent) return
+    const displayed = !reduced && game?.onecard ? dealtCount(game.onecard, game.version, userId, estimatedServerTime()) : count
     model.bones.hand_L.getWorldPosition(points.left); model.bones.hand_R.getWorldPosition(points.right)
     points.left.add(points.right).multiplyScalar(.5); root.current.parent.worldToLocal(points.left)
     root.current.position.copy(points.left); root.current.position.y += .15; root.current.position.z += .025
     const picking = useHeldCardPicking.getState(), candidate = picking.hover ?? picking.selected
     const mark = game?.role === 'SPECTATOR' && candidate?.version === game.version && candidate.userId === userId
       && candidate.index < count ? candidate.index : -1
-    if (layout.current.count !== count || layout.current.mark !== mark) {
+    if (layout.current.count !== displayed || layout.current.mark !== mark) {
       for (let index = 0; index < count; index++) {
         const card = heldCardPose(index, count)
         transform.position.set(card.x, card.y, card.z)
         transform.rotation.set(0, 0, card.angle); transform.updateMatrix(); mesh.current.setMatrixAt(index, transform.matrix)
         if (index === mark && outline.current) outline.current.matrix.copy(transform.matrix)
       }
-      mesh.current.count = count; mesh.current.instanceMatrix.needsUpdate = true
-      mesh.current.computeBoundingSphere(); mesh.current.computeBoundingBox(); layout.current = { count, mark }
+      mesh.current.count = displayed; mesh.current.instanceMatrix.needsUpdate = true
+      mesh.current.computeBoundingSphere(); mesh.current.computeBoundingBox(); layout.current = { count: displayed, mark }
     }
     if (outline.current) outline.current.visible = mark >= 0
     mesh.current.userData.highlightedIndex = mark

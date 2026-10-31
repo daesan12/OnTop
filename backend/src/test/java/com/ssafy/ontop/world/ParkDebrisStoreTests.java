@@ -79,12 +79,35 @@ class ParkDebrisStoreTests {
         assertThat(added).isTrue();
         assertThat(store.state("one").items()).singleElement().satisfies(item -> {
             assertThat(item.gameCode()).isEqualTo("DICE_LEDGER");
-            assertThat(item.parts()).hasSize(13);
+            assertThat(item.parts()).hasSize(18).contains("die-0", "die-4");
         });
     }
 
     private GameDefeatConfirmed forfeit(String id) {
         return event(id, GameDefeatConfirmed.Kind.FORFEIT, GameDepartureReason.EXPLICIT_LEAVE);
+    }
+
+    @Test
+    void 각_게임의_기물을_따로_청소할_수_있고_모두_15초에_만료한다() {
+        String[] games = {"ONE_CARD", "DICE", "DICE_LEDGER", "LIAR_BRIDGE"};
+        String[] prefixes = {"card", "die", "die", "pawn"};
+        int[] counts = {14, 6, 5, 6};
+        var at = Instant.parse("2026-11-01T00:00:00Z");
+        for (int index = 0; index < games.length; index++) {
+            var store = new ParkDebrisStore();
+            var event = new GameDefeatConfirmed("pieces", "game", "table", games[index], 1, 101,
+                    GameDefeatConfirmed.Kind.FORFEIT, 2, at, GameDepartureReason.EXPLICIT_LEAVE);
+
+            assertThat(store.add("one", "table-1", event, 2, 0)).isTrue();
+            assertThat(store.state("one").items().getFirst().parts()).hasSize(13 + counts[index]);
+            assertThat(store.clean("one", "pieces", prefixes[index] + "-0")).isTrue();
+            assertThat(store.state("one").items().getFirst().parts())
+                    .contains("board", "coin-0", prefixes[index] + "-1")
+                    .doesNotContain(prefixes[index] + "-0");
+            assertThat(store.expire(at.plusSeconds(15).minusNanos(1))).isEmpty();
+            assertThat(store.expire(at.plusSeconds(15))).containsExactly("one");
+            assertThat(store.state("one").items()).isEmpty();
+        }
     }
 
     @Test

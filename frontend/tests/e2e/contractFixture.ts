@@ -19,7 +19,7 @@ import { followFixture } from './followFixture'
 import { onecardPrankFixture, type OneCardPrankRoom } from './onecardPrankFixture'
 import type { PublicEquipment } from '../../src/network/equipment'
 import type { GameReactionEvent } from '../../src/game/presentation/defeat'
-import type {ParkDebris} from '../../src/features/parkDebris/state'
+import {debrisPieces,type ParkDebris} from '../../src/features/parkDebris/state'
 import type { AvatarActivity } from '../../src/network/avatarActivity'
 import type { PublicTable } from '../../src/network/protocol'
 import developmentBindings from '../../public/park-bindings.dev.json' with { type: 'json' }
@@ -473,7 +473,7 @@ export async function fixture(
       const occurredAt=new Date(serverTime().serverNow).toISOString(),id=gameId+':reaction:101'
       debrisItems=[...debrisItems,{id,gameId,tableId,anchorId:anchor.id,gameCode:options.ledger?'DICE_LEDGER':options.bridge?'LIAR_BRIDGE':options.onecard?'ONE_CARD':options.dice?'DICE':'OMOK',
         userId:'101',occurredAt,throwYaw:position.yaw,seed:12345,parts:['board',...Array.from({length:12},(_,i)=>'coin-'+i),
-          ...(!options.ledger&&!options.bridge&&!options.onecard&&!options.dice?Array.from({length:5},(_,i)=>'stone-'+i):[])]}]
+          ...debrisPieces(options.ledger?'DICE_LEDGER':options.bridge?'LIAR_BRIDGE':options.onecard?'ONE_CARD':options.dice?'DICE':'OMOK')]}]
       debrisVersion++
       for(const ws of sockets){
         emit(ws,'WORLD_PARK_DEBRIS_STATE',{channelId:'fixture-channel',mapVersion:expectedMapVersion,version:debrisVersion,items:debrisItems})

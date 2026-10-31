@@ -8,6 +8,6 @@ export function interactWithTable(anchorId: string) {
   if (session.tableId) return
   const tableId = bindAnchor(session.bindings, session.roomId, anchorId, session.tables.map(t => t.tableId))
   const table = session.tables.find(t => t.tableId === tableId)
-  if (table?.joinable === false) parkRuntime.inspectTable(anchorId)
+  if (table?.joinable === false) parkRuntime.inspectTable(anchorId, table.status === 'PLAYING')
   else void parkRuntime.joinTable(anchorId)
 }

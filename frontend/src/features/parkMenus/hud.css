@@ -178,7 +178,7 @@
 .park-page .park-chat__heading { padding-bottom: 14px; margin-bottom: 14px; border-bottom: 1px solid rgba(247, 241, 229, 0.14); }
 .park-page .park-chat__messages h1 { display: flex; align-items: center; gap: 8px; font-size: 19px; font-weight: 700; }
 .park-page .park-chat__messages h1 img { width: 18px; height: 18px; }
-.park-chat__radius { padding: 2px 8px 3px; border-radius: 999px; color: #e8b451; background: rgba(232, 180, 81, 0.18); font-size: 12px; font-weight: 500; }
+.park-chat__radius { flex-shrink:0; padding: 2px 8px 3px; border-radius: 4px; color: #e8b451; background: rgba(232, 180, 81, 0.18); font-size: 12px; font-weight: 500; }
 .park-page .park-chat__heading button { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 8px; background: none; }
 .park-page .park-chat__heading button:hover { background: rgba(247, 241, 229, 0.1); }
 .park-page .park-chat__heading button img { width: 18px; height: 18px; transition: transform 150ms; }
