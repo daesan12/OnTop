@@ -25,6 +25,18 @@ async function clearOfDock(p: Page) {
   const ledger = await panel(p).boundingBox(), dock = await p.locator('.park-dock-wardrobe').boundingBox()
   expect(ledger && dock && ledger.x + ledger.width <= dock.x + 1).toBe(true)
 }
+/** 장부가 스크롤 없이 들어오고, 주사위 줄과 굴리기 버튼·왼쪽 게임 메뉴가 서로 겹치지 않는다. */
+async function fitsWithoutOverlap(p: Page) {
+  const ledger = panel(p)
+  expect(await ledger.evaluate(el => el.scrollHeight - el.clientHeight)).toBeLessThanOrEqual(1)
+  // 줄 상자가 줄어들어도 버튼은 넘쳐 보이므로 버튼 자체의 아래 끝을 잰다.
+  const diceBottom = Math.max(...await ledger.getByRole('group', { name: /주사위/ }).locator('button')
+    .evaluateAll(buttons => buttons.map(b => b.getBoundingClientRect().bottom)))
+  const roll = await ledger.locator('.ledger-actions').boundingBox()
+  expect(roll && diceBottom <= roll.y + 1).toBe(true)
+  const menu = await p.getByRole('navigation', { name: '게임 메뉴', exact: true }).boundingBox(), box = await ledger.boundingBox()
+  expect(menu && box && menu.x + menu.width <= box.x).toBe(true)
+}
 
 test('주사위 장부 참가자: 굴림·예상 점수·보관·관전자 훈수·기록·자동 기록·공동 승리', async ({ page }) => {
   const server = await fixture(page, { omok: true, m09: true, ledger: 3, players: 3 }), p = panel(page)
@@ -47,7 +59,8 @@ test('주사위 장부 참가자: 굴림·예상 점수·보관·관전자 훈�
   await expect(p.getByRole('button', { name: '풀하우스 기록 · 예상 0점', exact: true })).toBeVisible()
   await expect(p.getByRole('button', { name: '자유 기록 · 예상 29점', exact: true })).toBeVisible()
   await settle(page); await clearOfDock(page); await screenshot(page, 'ledger-03-rolled-preview')
-  await page.setViewportSize({ width: 1280, height: 720 }); await expect(p).toBeInViewport(); await clearOfDock(page)
+  await fitsWithoutOverlap(page)
+  await page.setViewportSize({ width: 1280, height: 720 }); await expect(p).toBeInViewport(); await clearOfDock(page); await fitsWithoutOverlap(page)
   await page.waitForTimeout(800); await screenshot(page, 'ledger-07-narrow')
   await page.setViewportSize({ width: 1920, height: 1080 }); await page.waitForTimeout(500)
 
@@ -111,7 +124,7 @@ test('주사위 장부 4인: 장부 4열이 메뉴와 겹치지 않고, 기권�
   await p.getByRole('button', { name: /굴리기/ }).click()
   await expect(p.getByRole('button', { name: '라지 스트레이트 기록 · 예상 30점', exact: true })).toBeVisible()
   await expect(p.getByRole('button', { name: '스몰 스트레이트 기록 · 예상 15점', exact: true })).toBeVisible()
-  await settle(page); await clearOfDock(page)
+  await settle(page); await clearOfDock(page); await fitsWithoutOverlap(page)
   const cells = await board.locator('tbody tr').first().locator('td').evaluateAll(tds => tds.map(td => td.getBoundingClientRect().width))
   expect(cells).toHaveLength(4); expect(Math.min(...cells)).toBeGreaterThan(40)
   await screenshot(page, 'ledger-10-four-players')

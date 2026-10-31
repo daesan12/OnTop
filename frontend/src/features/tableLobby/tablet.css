@@ -108,9 +108,10 @@
 .park-page:has(.table-tablet[data-active='true']) [class^='park-dock-'],
 .park-page:has(.table-tablet[data-active='true']) .avatar-overlays,
 .park-page:has(.table-tablet[data-active='true']) .park-runtime-tools { display: none; }
+/* 지도·감정표현 런처는 .park-map/.emotes로 독에 배치된다. 독 틀이 숨은 뒤 버튼만 남지 않도록 함께 숨긴다. */
 .park-page:has(.table-tablet[data-active='true']) .park-hud .park-roaming-ui,
-.park-page:has(.table-tablet[data-active='true']) .park-dock-map,
-.park-page:has(.table-tablet[data-active='true']) .park-dock-emote,
+.park-page:has(.table-tablet[data-active='true']) .park-map,
+.park-page:has(.table-tablet[data-active='true']) .emotes,
 .park-page:has(.table-tablet[data-active='true']) .manual-launcher { display: none; }
 @media (max-width: 799px), (max-height: 549px) {
   .table-tablet { inset:50px 16px 200px; width:auto; height:auto; border:6px solid #70543e; border-radius:18px; box-shadow:0 0 0 3px #29382c,0 12px 40px #0007; }
