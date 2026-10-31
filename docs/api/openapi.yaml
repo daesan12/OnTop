@@ -11,6 +11,8 @@ tags:
   description: 붕어빵 버전별 개인 최고 기록
 - name: WALLET
   description: 인증된 본인의 지갑 조회
+- name: Park Ranking
+  description: 공원 랭킹판의 세 목록
 - name: Ranking
   description: 보유 엽전 랭킹
 - name: HISTORY
@@ -3319,6 +3321,50 @@ paths:
                 $ref: "#/components/schemas/AuthErrorResponse"
       security:
       - AccessJwt: []
+  /api/v1/rankings/park:
+    get:
+      tags:
+      - Park Ranking
+      summary: 공원 랭킹판 TOP 10
+      description: 보유량·단판 최고 순이익·누적 승수의 마지막 정상 1분 스냅샷을 반환합니다. updatedAt은 세 목록의 실제
+        갱신 완료 시각입니다. 최초 성공 전에는 503을 반환합니다.
+      operationId: rankings_1
+      responses:
+        "200":
+          description: "마지막 정상 스냅샷 (Cache-Control: no-store)"
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ParkRankingResponse"
+        "401":
+          description: Access JWT·회원·sid 검증 실패
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "503":
+          description: "RANKING_UNAVAILABLE: 최초 집계 전 또는 저장소 부재"
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+      security:
+      - AccessJwt: []
   /api/v1/minigames/sessions/{sessionId}:
     get:
       tags:
@@ -3493,7 +3539,7 @@ paths:
         된 플레이 시간(durationMs)별로 따로 집계합니다. 생략하면 신규 판의 120000(2분), 180000이면 기존 3분 판 기\
         록이며 같은 시간의 configVersion은 함께 집계합니다. 커서 없는 조회는 최신 DB를 읽고 후속 페이지는 최대2분의 동일 스\
         냅샷을 읽습니다."
-      operationId: rankings_1
+      operationId: rankings_2
       parameters:
       - name: period
         in: query
@@ -5115,6 +5161,63 @@ components:
         updatedAt:
           type: string
           format: date-time
+    BalanceItem:
+      type: object
+      properties:
+        rank:
+          type: integer
+          format: int64
+        userId:
+          type: string
+        nickname:
+          type: string
+        coinBalance:
+          type: integer
+          format: int64
+    ParkRankingResponse:
+      type: object
+      properties:
+        balance:
+          type: array
+          items:
+            $ref: "#/components/schemas/BalanceItem"
+        singleGameProfit:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProfitItem"
+        wins:
+          type: array
+          items:
+            $ref: "#/components/schemas/WinsItem"
+        updatedAt:
+          type: string
+          format: date-time
+    ProfitItem:
+      type: object
+      properties:
+        rank:
+          type: integer
+          format: int64
+        userId:
+          type: string
+        nickname:
+          type: string
+        profit:
+          type: integer
+          format: int64
+    WinsItem:
+      type: object
+      properties:
+        rank:
+          type: integer
+          format: int64
+        userId:
+          type: string
+        nickname:
+          type: string
+        winCount:
+          type: integer
+          format: int64
     NoteListResponse:
       required:
       - notes
