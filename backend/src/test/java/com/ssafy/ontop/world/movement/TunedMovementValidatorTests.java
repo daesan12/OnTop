@@ -12,6 +12,36 @@ class TunedMovementValidatorTests {
  private ClientPositionValidator validator(boolean tuned){return new ClientPositionValidator(new Pose(0,.8,0),1,79,ground,()->now,tuned);}
  private Candidate move(long n,double x,double y){return new Candidate(n,1,new Pose(x,y,0),true,false);}
  private Candidate jump(long n,double y){return new Candidate(n,1,new Pose(0,y,0),true,true);}
+ @Test void 착지직전_수신한_점프입력은_짧은착지후_상승에_한번만_사용한다(){
+  var v=validator(true);now=60_000_000;assertThat(v.accept(jump(1,1.3)).accepted()).isTrue();
+  now=200_000_000;assertThat(v.accept(move(2,0,1.8)).accepted()).isTrue();
+  now=400_000_000;assertThat(v.accept(jump(3,1.7)).accepted()).isTrue();
+  now=460_000_000;assertThat(v.accept(move(4,0,.84)).accepted()).isTrue();
+  now=520_000_000;assertThat(v.accept(move(5,0,1.3)).accepted()).isTrue();
+  now=720_000_000;assertThat(v.accept(move(6,0,2.4)).reason()).isEqualTo("JUMP_HEIGHT");
+ }
+ @Test void 만료됐거나_보정세대가_바뀐_입력으로_공중점프를_만들지않는다(){
+  for(boolean corrected:new boolean[]{false,true}){
+   now=0;var v=validator(true);now=60_000_000;assertThat(v.accept(jump(1,1.3)).accepted()).isTrue();
+   now=200_000_000;assertThat(v.accept(move(2,0,1.8)).accepted()).isTrue();
+   now=400_000_000;assertThat(v.accept(jump(3,1.7)).accepted()).isTrue();
+   now=460_000_000;assertThat(v.accept(move(4,0,.84)).accepted()).isTrue();
+   if(corrected)v.resynchronize(2);now=corrected?520_000_000:700_000_000;
+   assertThat(v.accept(new Candidate(5,corrected?2:1,new Pose(0,1.3,0),true,false)).reason()).isEqualTo("JUMP_REQUIRED");
+  }
+ }
+ @Test void 점프후_계단을_오르는_지지이동에_이전점프의_높이상한을_적용하지않는다(){
+  Geometry stairs=new Geometry(){
+   public boolean supported(Pose p){return p.y()<=.85||p.y()>=1.8;}
+   public boolean clear(Pose a,Pose b,boolean step){return true;}
+   public Double ceiling(Pose p,double rise){return null;}
+  };
+  var v=new ClientPositionValidator(new Pose(0,.8,0),1,79,stairs,()->now,true);
+  now=60_000_000;assertThat(v.accept(jump(1,1.3)).accepted()).isTrue();
+  now=200_000_000;assertThat(v.accept(move(2,.2,1.8)).accepted()).isTrue();
+  now=260_000_000;assertThat(v.accept(move(3,.4,2.1)).accepted()).isTrue();
+  now=320_000_000;assertThat(v.accept(move(4,.6,2.4)).accepted()).isTrue();
+ }
  @Test void 짧은_렌더링지연을_무조건_보고만료로_거절하지않는다(){
   var v=validator(true);now=100_000_000;assertThat(v.accept(move(1,0,.8)).accepted()).isTrue();
   now=1_300_000_000L;assertThat(v.accept(move(2,.8,.8)).accepted()).isTrue();

@@ -32,6 +32,7 @@ public final class ClientPositionValidator {
         default boolean clearContact(Pose from, Pose to) { return false; }
         Double ceiling(Pose from, double rise);
         default double jumpSpeed(Pose from, boolean tuned) { return tuned ? 8 : 6.2; }
+        default double jumpSpeed(Pose from, Pose to, boolean tuned) { return jumpSpeed(from, tuned); }
         default boolean swimming(Pose pose) { return false; }
         default double swimSpeed(boolean run) { return run ? 6.25 : 4; }
         default double floatY() { return 0; }
@@ -53,6 +54,7 @@ public final class ClientPositionValidator {
     private Flight flight;
     private final boolean tuned;
     private long airWindowAt;
+    private long pendingJumpUntil = Long.MIN_VALUE;
     private double airWindowY;
     ClientPositionValidator(Pose initial, long epoch, double boundary, Geometry geometry, LongSupplier clock) {
         this(initial, epoch, boundary, geometry, clock, false);
@@ -68,7 +70,7 @@ public final class ClientPositionValidator {
         if (tuned) pose = bounded(pose);
         if (!geometry.clear(pose, pose, false)) throw new IllegalArgumentException("unsafe origin");
         approved = pose; this.epoch = epoch; sequence = 0; approvedAt = budgetAt = clock.getAsLong();
-        budget = .9; flight = null; airWindowAt = approvedAt; airWindowY = pose.y;
+        budget = .9; flight = null; airWindowAt = approvedAt; airWindowY = pose.y; pendingJumpUntil = Long.MIN_VALUE;
     }
     // Trusted native-to-client handoff carries vertical motion, never a free movement burst.
     synchronized void resumeTrusted(double velocityY) {
@@ -77,7 +79,7 @@ public final class ClientPositionValidator {
             flight = new Flight(approved.y, approvedAt, Math.max(0, velocityY));
     }
     // Changing the correction epoch never grants a fresh movement budget or jump.
-    synchronized void resynchronize(long nextEpoch) { epoch = nextEpoch; }
+    synchronized void resynchronize(long nextEpoch) { epoch = nextEpoch; pendingJumpUntil = Long.MIN_VALUE; }
     synchronized void blocked(boolean value) { blocked = value; }
     synchronized Decision accept(Candidate candidate) {
         long now = clock.getAsLong();
@@ -116,6 +118,7 @@ public final class ClientPositionValidator {
                 nextAirAt = now; nextAirY = target.y;
             }
             Flight next = flight;
+            long nextJumpUntil = candidate.jump ? now + 150_000_000L : pendingJumpUntil;
             if (fromWater && candidate.jump) {
                 Double climb = geometry.swimClimb(approved, target);
                 if (climb != null && (next == null || next.ceilingY == null)) next = new Flight(approved.y, now, 5.5, climb);
@@ -135,12 +138,18 @@ public final class ClientPositionValidator {
             // A short landing can happen between position reports. A new jump
             // from server-confirmed support must not reuse the preceding flight's
             // origin/height ceiling, or be cleared as that flight's landing.
-            boolean landingJump = candidate.jump && (supportedFrom || supportedTo && dy <= 0)
+            boolean jumpRequested = candidate.jump || now <= pendingJumpUntil && supportedFrom && !supportedTo && dy > .05;
+            boolean landingJump = jumpRequested && (supportedFrom || supportedTo && dy <= 0)
                     && (next == null || next.speed == 0 || now - next.started > 150_000_000L);
             if (landingJump) {
                 Pose origin = supportedFrom ? approved : target;
-                next = new Flight(origin.y, now, geometry.jumpSpeed(origin, true));
+                next = new Flight(origin.y, now, geometry.jumpSpeed(origin, target, true));
+                nextJumpUntil = Long.MIN_VALUE;
             }
+            // Climbing supported steps after landing is not continued free flight.
+            // Preserve the initial takeoff window so near-ground ascent cannot erase a new jump.
+            if (!landingJump && next != null && supportedFrom && supportedTo && now - next.started > 150_000_000L)
+                next = null;
             if (next == null) {
                 // Grounded steps/slopes retain the existing geometric allowance.
                 // Leaving support without a jump can fall, but cannot invent lift.
@@ -171,6 +180,7 @@ public final class ClientPositionValidator {
                 if (!geometry.clearContact(approved, target)) return deny("COLLISION");
             }
             flight = next;
+            pendingJumpUntil = nextJumpUntil;
             budget -= horizontal; approved = target; sequence = candidate.seq; approvedAt = now;
             airWindowAt = nextAirAt; airWindowY = nextAirY;
             return new Decision(true, "ACCEPTED", approved, sequence);

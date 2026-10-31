@@ -137,6 +137,17 @@ final class PositionCollision implements ClientPositionValidator.Geometry {
                 .filter(candidate -> supported(candidate) && clear(candidate, candidate, false)).findFirst().orElse(null);
     }
     public double jumpSpeed(ClientPositionValidator.Pose from, boolean tuned) { return policy.jumpSpeed(point(from), tuned); }
+    public double jumpSpeed(ClientPositionValidator.Pose from, ClientPositionValidator.Pose to, boolean tuned) {
+        double speed = jumpSpeed(from, tuned);
+        if (!tuned || !supported(from)) return speed;
+        // The report can straddle the final stair and the pavilion takeoff.
+        // Only a reachable, swept server support surface may select its existing boost.
+        var support = supportBelow(to);
+        double travel = Math.hypot(to.x() - from.x(), to.z() - from.z());
+        if (support == null || support.y() < from.y() - .17 || support.y() > from.y() + travel + .22
+                || !(clear(from, support, true) || clearCorner(from, support) || clearContact(from, support))) return speed;
+        return Math.max(speed, jumpSpeed(support, true));
+    }
     boolean correctionClear(Vector3f from, Vector3f to) {
         if (!clear(new ClientPositionValidator.Pose(to.x, to.y, to.z), new ClientPositionValidator.Pose(to.x, to.y, to.z), false)) return false;
         var delta = to.subtract(from);

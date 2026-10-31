@@ -56,5 +56,22 @@ it.skipIf(!process.env.OBSTACLE_CONTACT_DIR)('exports real pavilion obstacle con
    traces.push({scenario:`${id}/${angle}/repeat-${period}`,initial,samples,frames})
   }finally{sim.dispose()}
  }
+ for(const id of ['P0','P5'])for(const side of [-1,1])for(const period of [18,27])for(const phase of [0,5,11]){
+  const sim=await createPredictionPhysics('PARK_V1')
+  try{
+   sim.setChairs(new Map(PARK_DATA.tables.map(t=>[t.id,2])))
+   const p=PARK_DATA.pavilions.find(p=>p.id===id)!,steps=PARK_DATA.physics.boxes.filter(b=>b.id.startsWith(`${id}-step-${side}-`))
+   const outer=side>0?Math.max(...steps.map(b=>b.center[2]+b.half[2])):Math.min(...steps.map(b=>b.center[2]-b.half[2]))
+   sim.reset({x:p.x,y:p.ground+.84,z:outer+side*.8,yaw:0},0,true)
+   for(let n=0;n<60;n++)sim.step(stop,1/60)
+   const initial=sim.pose(),samples=[],frames=[];let jump=false
+   for(let n=1;n<=720;n++){
+    const dz=-side*(Math.floor((n-1)/120)%2?-1:1),intent={dx:0,dz,run:true,jump:(n-1+phase)%period===0}
+    jump ||=intent.jump;sim.step(intent,1/60);frames.push({at:n/60,pose:sim.pose()})
+    if(n%4===0){samples.push({at:n/60,pose:sim.pose(),run:true,jump});jump=false}
+   }
+   traces.push({scenario:`stairs/${id}/${side}/${period}/${phase}`,initial,samples,frames})
+  }finally{sim.dispose()}
+ }
  mkdirSync(process.env.OBSTACLE_CONTACT_DIR!,{recursive:true});writeFileSync(join(process.env.OBSTACLE_CONTACT_DIR!,'obstacle-traces.json'),JSON.stringify(traces))
 },60000)
