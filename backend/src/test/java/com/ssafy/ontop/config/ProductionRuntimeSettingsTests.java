@@ -24,7 +24,8 @@ class ProductionRuntimeSettingsTests {
                     for (String key : new String[] {"ontop.game-start.enabled", "ontop.games.omok.enabled",
                             "ontop.games.farkle.enabled", "ontop.games.onecard.enabled",
                             "ontop.games.bridge.enabled", "ontop.games.ledger.enabled", "ontop.minigames.enabled",
-                            "ontop.shop.enabled", "ontop.notes.enabled", "springdoc.api-docs.enabled", "springdoc.swagger-ui.enabled"}) {
+                            "ontop.shop.enabled", "ontop.notes.enabled", "ontop.feedback.enabled",
+                            "springdoc.api-docs.enabled", "springdoc.swagger-ui.enabled"}) {
                         assertThat(environment.getProperty(key)).as(key).isEqualTo("false");
                     }
                     assertThat(environment.getProperty("spring.flyway.locations"))
@@ -54,6 +55,34 @@ class ProductionRuntimeSettingsTests {
                     }
                     assertThat(environment.getProperty("spring.flyway.locations"))
                             .isEqualTo("classpath:db/migration,classpath:db/shop,classpath:db/minigame,classpath:db/notes");
+                });
+    }
+
+    @Test
+    void 개발DB의_메모와_소리함은_기본으로_꺼져있고_서버_환경변수로만_켠다() {
+        new ApplicationContextRunner().withInitializer(new ConfigDataApplicationContextInitializer())
+                .withPropertyValues("spring.profiles.active=dev,db")
+                .run(context -> {
+                    var environment = context.getEnvironment();
+                    assertThat(environment.getProperty("ontop.notes.enabled")).isEqualTo("false");
+                    assertThat(environment.getProperty("ontop.feedback.enabled")).isEqualTo("false");
+                    assertThat(environment.getProperty("ontop.notes.privacy-secret")).isEmpty();
+                    assertThat(environment.getProperty("ontop.feedback.administrator-ids")).isEmpty();
+                });
+        new ApplicationContextRunner().withInitializer(new ConfigDataApplicationContextInitializer())
+                .withPropertyValues("spring.profiles.active=dev,db", "NOTES_ENABLED=true", "FEEDBACK_ENABLED=true",
+                        "NOTES_PRIVACY_SECRET=synthetic-dev-runtime-settings-key-only", "ADMIN_READ_IDS=101,202")
+                .run(context -> {
+                    var environment = context.getEnvironment();
+                    assertThat(environment.getProperty("ontop.notes.enabled")).isEqualTo("true");
+                    assertThat(environment.getProperty("ontop.feedback.enabled")).isEqualTo("true");
+                    assertThat(environment.getProperty("ontop.notes.privacy-secret"))
+                            .isEqualTo("synthetic-dev-runtime-settings-key-only");
+                    // 관리자 조회 권한과 소리함 관리자 목록은 같은 ADMIN_READ_IDS에서 온다.
+                    assertThat(environment.getProperty("ontop.admin.read-ids")).isEqualTo("101,202");
+                    assertThat(environment.getProperty("ontop.feedback.administrator-ids")).isEqualTo("101,202");
+                    assertThat(environment.getProperty("spring.flyway.locations"))
+                            .isEqualTo("classpath:db/migration,classpath:db/minigame");
                 });
     }
 

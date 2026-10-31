@@ -139,7 +139,10 @@ DB 커밋 성공 뒤 반환한다. 주제는 daily/cheer/worry/recommend/free �
 - local/dev + db에서 `ontop.notes.enabled=true`, `ontop.notes.privacy-secret` 32자 이상을 명시해야 한다.
   dev 환경변수 `NOTES_ENABLED=true`, `NOTES_PRIVACY_SECRET` 사용. 비밀키는 모든 인스턴스가 공유하며
   24시간 내 교체하면 기존 재시도·간격 정보가 복구되지 않으므로 함께 조율한다.
-- 기본값은 꺼짐(경로 미등록). 활성화했지만 DB 서비스가 없으면503. 운영 프로필은 등록하지 않는다.
+- 기본값은 꺼짐(경로 미등록). 활성화했지만 DB 서비스가 없으면503. 운영(`prod,db`)도 `NOTES_ENABLED=true`와
+  비밀키를 명시했을 때만 등록한다(DEV·PROD 기본 OFF).
+- 켠 상태에서 비밀키가 없거나 32자 미만이면 앱 기동이 실패한다(오류에는 비밀키 값을 남기지 않음).
+  V133 메모 테이블이 없는 DB에서 켜도 JPA 스키마 검증으로 기동이 실패한다.
 - 메모 테이블 4개(`anonymous_notes`, `anonymous_note_requests`, `anonymous_note_rates`, `anonymous_note_board`)는
   공통 `db/migration/V133__create_anonymous_notes.sql`이 만든다. DEV(`db/migration`·`db/minigame`)와
   PROD(`db/migration`) 기본 실행 경로에 이미 포함되므로 Flyway locations를 바꾸지 않는다.

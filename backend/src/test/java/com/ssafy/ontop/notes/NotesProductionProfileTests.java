@@ -46,6 +46,23 @@ class NotesProductionProfileTests {
     }
 
     @Test
+    void 켠상태에서_비밀키가_32자_미만이면_기동을_멈추고_오류에_비밀키를_남기지_않는다() {
+        String secret = "short-synthetic-secret-value";
+        for (String profiles : new String[] {"dev,db", "prod,db"}) {
+            runner.withPropertyValues("spring.profiles.active=" + profiles, "ontop.notes.enabled=true",
+                    "ontop.notes.privacy-secret=" + secret)
+                    .run(context -> {
+                        assertThat(context).hasFailed();
+                        var messages = new StringBuilder();
+                        for (Throwable failure = context.getStartupFailure(); failure != null; failure = failure.getCause()) {
+                            messages.append(failure).append('\n');
+                        }
+                        assertThat(messages).as(profiles).contains("32자").doesNotContain(secret);
+                    });
+        }
+    }
+
+    @Test
     void 운영DB에서_비밀키를_설정하고_켜면_메모를_등록한다() {
         runner.withPropertyValues("spring.profiles.active=prod,db", "ontop.notes.enabled=true",
                 "ontop.notes.privacy-secret=abcdefghijklmnopqrstuvwxyz012345")

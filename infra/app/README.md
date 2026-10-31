@@ -102,7 +102,18 @@ sudo docker compose --env-file /etc/ontop/dev-app/deploy.env -f infra/app/compos
 - 배포 전: `legacy_notes_history_count=0`, `notes_table_count=0`, 최신 성공 버전이 V133 미만이어야 한다.
   하나라도 다르면 V133 배포를 멈추고 기존 스키마·데이터를 보존하는 편입 절차를 따로 정한다(repair/baseline/outOfOrder 금지).
 - 배포 후: V133 `success=1`, `notes_table_count=4`, `notes_board_rows=1`을 확인한다.
-- V133 적용만으로 메모 기능은 켜지지 않는다. `NOTES_ENABLED`·`NOTES_PRIVACY_SECRET` 설정은 별도 절차다.
+- V133 적용만으로 메모 기능은 켜지지 않는다. `NOTES_ENABLED`·`NOTES_PRIVACY_SECRET` 설정은 아래 별도 절차다.
+
+### DEV 메모·소리함 활성화 (인프라 담당자 수동 작업)
+
+DEV·PROD 모두 기본 OFF이며 저장소 변경만으로 켜지지 않는다. V133이 적용된 이미지가 healthy인 것을 확인한 뒤 진행한다.
+
+1. `/etc/ontop/dev-app/app.env`에 `FEEDBACK_ENABLED=true`, `NOTES_ENABLED=true`, `ADMIN_READ_IDS=<관리자 내부 회원 ID>`를 추가한다.
+2. 같은 파일에 `NOTES_PRIVACY_SECRET`을 32자 이상 새 난수로 넣는다(예: 서버에서 `openssl rand -base64 48`).
+   값은 저장소·채팅·명령 기록에 남기지 않는다. 모든 인스턴스가 같은 값을 쓰며, 바꾸면 24시간 안의 재시도·간격 정보가 초기화된다.
+3. `up -d --no-deps --force-recreate app`으로 앱만 재생성하고 헬스를 확인한다. 비밀키 누락·길이 부족이나 V133 미적용이면 기동이 실패하므로
+   `NOTES_ENABLED=false`로 되돌려 다시 재생성한다.
+4. `Flyway locations`·`SPRING_FLYWAY_LOCATIONS`는 바꾸지 않는다.
 
 ## 저장소 파일과 비밀정보
 
