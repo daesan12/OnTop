@@ -1,3 +1,4 @@
+import { SeatedLookButton } from '../../features/tableLobby/SeatedLookButton'
 import { useEffect, useState } from 'react'
 import { useParkRuntime } from '../../park/runtime/ParkRuntime'
 import { OmokSurrender } from '../OmokSurrender'
@@ -7,7 +8,7 @@ import './park.css'
 
 /** 공원 장면은 그대로 두고 오목과 같은 최소 HUD만 겹친다. */
 export function AlkkagiPanel() {
-  const {session,game,g,state,actor,ready,canItem,preview,act,ui}=useAlkkagiControls()
+  const {session,game,g,state,actor,ready,looking,canItem,preview,act,ui}=useAlkkagiControls()
   const runtime=useParkRuntime(), [now,setNow]=useState(Date.now())
   useEffect(()=>{
     if(!state)return
@@ -21,9 +22,9 @@ export function AlkkagiPanel() {
     <header className="alkkagi-match-header"><div data-turn={state.turn===0}><b>{name(0)}</b><span>홍 · {state.pieces.filter(p=>p.alive&&p.owner===0).length}알</span></div>
       <div className="alkkagi-clock"><small>아이템 알까기</small><strong>{state.stage==='AIMING' ? left : state.stage==='CHOOSING' ? '비책' : state.stage==='FINISHED' ? '종료' : '충돌'}</strong></div>
       <div data-turn={state.turn===1}><b>{name(1)}</b><span>청 · {state.pieces.filter(p=>p.alive&&p.owner===1).length}알</span></div></header>
-    <p className="alkkagi-hint" role="status">{game.error || ui.notice || (actor<0 ? '관전 중' : state.turn===actor ? '내 알을 누른 채 당겼다가 놓으세요' : '상대 차례입니다')}</p>
+    <p className="alkkagi-hint" role="status">{looking ? '우클릭 드래그로 주변을 둘러보세요 · 제한시간은 계속 흐릅니다' : game.error || ui.notice || (actor<0 ? '관전 중' : state.turn===actor ? '내 알을 누른 채 당겼다가 놓으세요' : '상대 차례입니다')}</p>
     {state.stage==='AIMING'&&left<=10&&<strong className="alkkagi-warning">{left}초 남았습니다</strong>}
-    <div className="alkkagi-actions">{actor>=0 ? <OmokSurrender context={{userId:session.sessionId,gameId:g.gameId,version:g.version}} disabled={!ready}/>
+    <div className="alkkagi-actions">{actor>=0&&<SeatedLookButton />}{actor>=0 ? <OmokSurrender context={{userId:session.sessionId,gameId:g.gameId,version:g.version}} disabled={!ready}/>
       : <button onClick={()=>void runtime.unwatchGame()}>관전 종료</button>}
       {game.uncertain&&<button onClick={()=>void runtime.checkRecovery()}>경기 다시 확인</button>}</div>
     {actor>=0&&<footer className="alkkagi-hand"><span>내 비책 {g.alkkagiHand?.cards.length ?? 0}장</span><div>{g.alkkagiHand?.cards.map(c=><AlkkagiItemCard key={c.id} type={c.type} selected={ui.item?.id===c.id} disabled={!canItem}

@@ -1,6 +1,9 @@
 import { useGame } from '../store'
 import { useSession } from '../../network/worldClient'
-import { useEffect, useMemo } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
+import { Group } from 'three'
+import { OMOK_FOCUS_LAYER } from '../../world/omokCamera'
+import { seatScope, useTableLobby } from '../../features/tableLobby/state'
 import type { TableAnchor } from '../../config'
 import { AlkkagiScene } from './AlkkagiBoard'
 import { AlkkagiBoardSurface } from './AlkkagiBoardSurface'
@@ -9,23 +12,32 @@ import { useAlkkagiControls, useAlkkagiUI, cancelAlkkagiItem } from './parkContr
 
 /** TableShell의 좌표/크기와 같은 월드 Canvas에 배치한다. */
 export function ParkAlkkagiBoard({anchor}:{anchor:TableAnchor}) {
+  const root=useRef<Group>(null)
+  const lookScope=useTableLobby(s=>s.lookScope), spectatorView=useTableLobby(s=>s.spectatorView)
   const session=useSession(),g=useGame(s=>s.game?.alkkagi ? s.game : null)
   const binding=session.bindings.find(b=>b.channelId===session.roomId && b.anchorId===anchor.id)
   const relevant=!!binding && !!g && (g.role==='PLAYER' ? session.tableId : session.watchedTableId)===binding.tableId
   const selected=!!binding && session.tableStates[binding.tableId]?.gameCode==='ALKKAGI'
+  const focused=relevant && (g?.role==='PLAYER' ? lookScope!==seatScope(session) : spectatorView==='board')
+  useLayoutEffect(()=>{
+    if(!focused || !root.current?.parent)return
+    const changed:Group[]=[]
+    root.current.parent.traverse(object=>{if(!object.layers.isEnabled(OMOK_FOCUS_LAYER)){object.layers.enable(OMOK_FOCUS_LAYER);changed.push(object as Group)}})
+    return ()=>changed.forEach(object=>object.layers.disable(OMOK_FOCUS_LAYER))
+  },[focused,g?.version])
   if(!selected && !relevant)return null
-  return <group onClick={e=>{if(relevant)e.stopPropagation()}} name="alkkagi-world-board" position={[0,1.12,0]} scale={.14}>
+  return <group ref={root} onClick={e=>{if(relevant)e.stopPropagation()}} name="alkkagi-world-board" position={[0,1.12,0]} scale={.14}>
     {relevant ? <LiveAlkkagiSurface /> : <AlkkagiBoardSurface onPointerDown={()=>{}} onPointerMove={()=>{}} />}
   </group>
 }
 function LiveAlkkagiSurface() {
-  const {state,actor,ready,canItem,preview,act,ui,chooseTarget}=useAlkkagiControls()
+  const {state,actor,ready,looking,canItem,preview,act,ui,chooseTarget}=useAlkkagiControls()
   const replay=useMemo(()=>new AlkkagiReplay(),[])
   useEffect(()=>{replay.clear()},[state?.gameId,replay])
   useEffect(()=>{if(state)replay.push(state.version,state,performance.now())},[state,replay])
   if(!state)return null
   return <AlkkagiScene actor={actor} state={state} replay={replay}
-      enabled={ready && state.turn===actor && state.stage==='AIMING'}
+      enabled={ready && !looking && state.turn===actor && state.stage==='AIMING'}
       shoot={(p,dx,dy,power)=>act({type:'SHOT',pieceId:p.id,dx,dy,power})}
       explain={notice=>useAlkkagiUI.setState({notice})} blockedReason="현재 차례·연결 상태를 확인해주세요."
       itemMode={canItem ? ui.item?.type ?? null : null} itemTargets={ui.targets} pickTarget={chooseTarget} cancelItem={cancelAlkkagiItem}

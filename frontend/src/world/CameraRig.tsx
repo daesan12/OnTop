@@ -1,3 +1,4 @@
+import { ALKKAGI_FOV, alkkagiTopDownHeight } from '../game/alkkagi/camera'
 import { gatheringCameraActive } from '../features/tableLobby/gathering'
 import { oneCardPlayerViewActive, oneCardCameraPose, oneCardSpectatorCameraPose, ONECARD_CAMERA } from '../game/onecard/camera'
 import { tabletLobbyActive } from '../features/tableLobby/tabletModel'
@@ -243,7 +244,9 @@ export function CameraRig() {
     const gathering = !TABLET_ENABLED && gatheringCameraActive()
     const spectatorOmok = spectatorBoard && game?.role === 'SPECTATOR' && game.omok?.status === 'PLAYING'
     const focusedOmok = boardFocus && ownOmok && !gathering || spectatorOmok
-    if (focusedOmok) {
+    const alkkagiCamera = !!game?.alkkagi && ((seated && !!avatar.tableId && game.role === 'PLAYER') || (game.role === 'SPECTATOR' && !!(closeAnchor || watchedAnchor)))
+    const focusedAlkkagi = alkkagiCamera && (game?.role === 'PLAYER' ? !looking : spectatorBoard)
+    if (focusedOmok || focusedAlkkagi) {
       camera.layers.set(OMOK_FOCUS_LAYER)
       raycaster.layers.set(OMOK_FOCUS_LAYER)
     }
@@ -282,14 +285,13 @@ export function CameraRig() {
         state.desired.set(anchor.position[0] + Math.sin(yaw) * radius,
           Math.min(anchor.position[1] + 2.8, spectatorClearHeight(anchor.pavilionId)), anchor.position[2] + Math.cos(yaw) * radius)
       }
-    } else if (game?.alkkagi && ((seated && avatar.tableId && game.role === 'PLAYER') || (game.role === 'SPECTATOR' && (closeAnchor || watchedAnchor)))) {
-      const anchor = game.role === 'PLAYER' ? TABLES.find(t => t.id === avatar.tableId)! : (closeAnchor ?? watchedAnchor)!
+    } else if (focusedAlkkagi) {
+      const anchor = game?.role === 'PLAYER' ? TABLES.find(t => t.id === avatar.tableId)! : (closeAnchor ?? watchedAnchor)!
       if (anchor) {
-        const seat = tableSeats(anchor)[session.seatIndex] ?? tableSeats(anchor)[0]!
-        const scale = tableScale(anchor), side = game.role === 'PLAYER' ? Math.sign(seat.z) || 1 : 1
-        const fit = camera instanceof PerspectiveCamera ? Math.max(1, 1.15 / camera.aspect) : 1
         state.look.set(anchor.position[0], anchor.position[1] + 1.14, anchor.position[2])
-        state.desired.set(state.look.x + .12 * scale, state.look.y + 2.0 * scale * fit, state.look.z + side * 1.05 * scale * fit)
+        state.desired.copy(state.look)
+        state.desired.y += alkkagiTopDownHeight(gl.domElement.clientWidth, gl.domElement.clientHeight, tableScale(anchor))
+        state.targetUp.set(0, 0, game?.role === 'SPECTATOR' || session.seatIndex === 0 ? -1 : 1)
       }
     } else if (seated && avatar.tableId && oneCardPlayerViewActive(game)) {
       const anchor = TABLES.find(t => t.id === avatar.tableId)
@@ -419,10 +421,10 @@ export function CameraRig() {
       )
       state.look.copy(center)
     }
-    const targetFov = tablet ? 43 : game?.alkkagi ? 42 : gathering ? ownOmok ? 60 : CAMERA.fov : seated && oneCardPlayerViewActive(game) ? ONECARD_CAMERA.fov : diceFocus ? DICE_CAMERA.fov : boardFocus || spectatorBoard ? GOMOKU.topDownFov : seated ? GOMOKU.seatedFov : CAMERA.fov
+    const targetFov = tablet ? 43 : focusedAlkkagi ? ALKKAGI_FOV : gathering ? ownOmok ? 60 : CAMERA.fov : seated && oneCardPlayerViewActive(game) ? ONECARD_CAMERA.fov : diceFocus ? DICE_CAMERA.fov : boardFocus || spectatorBoard ? GOMOKU.topDownFov : seated ? GOMOKU.seatedFov : CAMERA.fov
     const smoothingOmok = focusedOmok || ownOmok || state.omokTransition
     const smoothingDice = ownDice || state.diceTransition
-    const smoothingBoard = smoothingOmok || smoothingDice
+    const smoothingBoard = smoothingOmok || smoothingDice || alkkagiCamera
     let omokSettled = false
     if (smoothingBoard) {
       // A stable up vector preserves each seat's orientation at exactly 90 degrees.
