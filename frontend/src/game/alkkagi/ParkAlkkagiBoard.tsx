@@ -1,3 +1,4 @@
+import { FocusWood } from '../omok/BoardWood'
 import { alkkagiSocialView, useAlkkagiSocial } from './spectatorEvents'
 import { parkRuntime } from '../../park/runtime/runtime'
 import { useGame } from '../store'
@@ -29,9 +30,15 @@ export function ParkAlkkagiBoard({anchor}:{anchor:TableAnchor}) {
     return ()=>changed.forEach(object=>object.layers.disable(OMOK_FOCUS_LAYER))
   },[focused,g?.version,socialMarks])
   if(!selected && !relevant)return null
-  return <group ref={root} onClick={e=>{if(relevant)e.stopPropagation()}} name="alkkagi-world-board" position={[0,1.12,0]} scale={.14}>
+  return <>
+    <mesh name={'alkkagi-focus-surface-' + anchor.id} visible={focused} layers-mask={1 << OMOK_FOCUS_LAYER}
+      position={[0,1.06,0]} rotation={[-Math.PI/2,0,0]} raycast={()=>{}}>
+      <planeGeometry args={[14,14]} /><FocusWood />
+    </mesh>
+    <group ref={root} onClick={e=>{if(relevant)e.stopPropagation()}} name="alkkagi-world-board" position={[0,1.12,0]} scale={.14}>
     {relevant ? <LiveAlkkagiSurface /> : <AlkkagiBoardSurface onPointerDown={()=>{}} onPointerMove={()=>{}} />}
   </group>
+  </>
 }
 function LiveAlkkagiSurface() {
   const {state,session,game,actor,ready,looking,canItem,preview,act,ui,chooseTarget}=useAlkkagiControls()
