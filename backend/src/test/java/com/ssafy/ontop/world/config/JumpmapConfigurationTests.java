@@ -4,9 +4,12 @@ import com.ssafy.ontop.world.jumpmap.JumpmapActivation;
 import com.ssafy.ontop.world.jumpmap.JumpmapService;
 import com.ssafy.ontop.world.jumpmap.JumpmapStore;
 import java.nio.file.Path;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.boot.convert.ApplicationConversionService;
+import org.springframework.boot.test.context.ConfigDataApplicationContextInitializer;
+import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -58,6 +61,28 @@ class JumpmapConfigurationTests {
             assertThat(context.getBean(JumpmapActivation.class).state()).isEqualTo(JumpmapActivation.State.DISABLED);
             assertThat(context.getBean(JumpmapService.class).active()).isFalse();
         });
+    }
+
+    private static Boolean flag(String... properties) {
+        var values = new Boolean[1];
+        new ApplicationContextRunner().withInitializer(new ConfigDataApplicationContextInitializer())
+                .withPropertyValues(properties)
+                .run(context -> values[0] = context.getEnvironment().getProperty("ontop.world.jumpmap.enabled", Boolean.class));
+        return values[0];
+    }
+
+    @Test
+    void 개발서버_프로필은_환경변수_없이_점프맵_플래그가_켜지고_명시적으로_끌수있다() {
+        assertThat(flag("spring.profiles.active=dev,db")).isTrue();
+        assertThat(flag("spring.profiles.active=dev,db", "WORLD_JUMPMAP_ENABLED=false")).isFalse();
+    }
+
+    @Test
+    void 운영과_로컬_프로필의_점프맵_플래그_기본값은_꺼져있다() {
+        for (String profiles : List.of("prod,db", "dev,prod", "dev,production", "local", "local,db")) {
+            assertThat(flag("spring.profiles.active=" + profiles)).as(profiles).isFalse();
+        }
+        assertThat(flag()).isFalse();
     }
 
     @Test
