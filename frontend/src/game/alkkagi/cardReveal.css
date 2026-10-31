@@ -1,5 +1,5 @@
-.alkkagi-choice-reveal{background:radial-gradient(ellipse at 50% 0,#5d4927f5,#15251bf5 70%);border-color:#e6be70;box-shadow:0 0 0 5px #251b16a0,0 0 75px #e7ac3f40,0 20px 100px #000b;width:min(680px,94vw);box-sizing:border-box;max-height:94dvh;overflow-y:auto;overflow-x:hidden;animation:alkkagi-reveal-panel .3s ease-out both}
-.alkkagi-choice-reveal small{letter-spacing:.25em;color:#e7c27f}.alkkagi-choice-reveal h3{font-size:22px;margin:8px 0 24px}.alkkagi-choice-reveal p{font-size:12px;color:#e3d3ac;margin:24px 0 0}
+.alkkagi-choice.alkkagi-choice-reveal{background:transparent;border:0;box-shadow:none;width:min(680px,94vw);box-sizing:border-box;max-height:94dvh;overflow-y:auto;overflow-x:hidden;animation:alkkagi-reveal-panel .3s ease-out both}
+.alkkagi-choice-reveal small{letter-spacing:.25em;color:#e7c27f}.alkkagi-choice-reveal h3{font-size:22px;margin:8px 0 24px}.alkkagi-choice-reveal small,.alkkagi-choice-reveal h3{text-shadow:0 2px 5px #000,0 0 12px #000}
 .alkkagi-choice-fan{padding:12px 10px 20px;perspective:1100px;align-items:flex-start;gap:22px!important}
 .alkkagi-choice-slot{position:relative;transform:rotate(0);transform-origin:50% 100%;animation:alkkagi-card-deal .65s cubic-bezier(.16,.8,.3,1) both;animation-delay:calc(var(--card-index)*90ms)}
 .alkkagi-choice-slot .item-card{transition:transform .2s,filter .2s;box-shadow:0 12px 28px #0008}

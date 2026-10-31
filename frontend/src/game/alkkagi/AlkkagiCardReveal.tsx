@@ -39,6 +39,5 @@ export function AlkkagiChoiceFan({ choice, ready, seconds, choose }: {
         <AlkkagiItemCard type={card.type} selected={picked === card.id} disabled={!ready || seconds <= 0}
           onClick={() => { setPicked(card.id); choose(card.id) }} />
       </div>)}</div>
-    <p>시간이 끝나면 서버가 한 장을 무작위로 선택합니다</p>
   </div>
 }
