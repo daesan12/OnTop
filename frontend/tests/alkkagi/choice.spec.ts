@@ -54,11 +54,13 @@ test('재접속해도 같은 후보·기한이며 10초 만료시 서버가 한�
   test.setTimeout(60000)
   const room = await reachChoice(page)
   try {
-    const c = room.hands[0].choice
+    const c = room.hands[0].choice, recovered: any[] = []
+    page.on('websocket', ws => ws.on('framereceived', frame => {
+      const m = JSON.parse(String(frame.payload)); if (m.type === 'PRIVATE_STATE') recovered.push(m.state)
+    }))
     await page.reload()
     await expect(page.getByRole('dialog', { name: '카드 선택' })).toBeVisible()
-    await room.wait(() => room.hands[0]?.choice?.id === c.id)
-    expect(room.hands[0].choice.deadline).toBe(c.deadline)
+    await expect.poll(() => recovered.find(h => h.choice?.id === c.id)?.choice.deadline).toBe(c.deadline)
     await room.wait(() => room.states[0].stage === 'AIMING' && room.hands[0].cards.length === 1)
     expect(c.options.some((o: any) => o.type === room.hands[0].cards[0].type)).toBe(true)
     expect(room.states[0].turnDeadline).toBe(c.deadline + 30000)

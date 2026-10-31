@@ -193,7 +193,7 @@ function App() {
     </div>
     <section className="item-panel" aria-label="비밀 카드">
       {actor >= 0 ? <>
-        <strong>내 비밀 카드 ({currentHand?.cards.length ?? 0}/2)</strong>
+        <strong>내 비밀 카드 ({currentHand?.cards.length ?? 0}장)</strong>
         {actor === 0 && state?.stage === 'WAITING' && <div className="buttons">
           {practice.map((value, index) => <select key={index} aria-label={`연습 카드 ${index + 1}`} value={value}
             onChange={e => setPractice(old => old.map((v, i) => i === index ? e.target.value : v))}>

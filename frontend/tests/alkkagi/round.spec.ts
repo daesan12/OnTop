@@ -25,7 +25,7 @@ test('두 역할로 실제 한 판을 전멸까지 진행하고 카드 획득·�
     await expect(page.getByText('연결됨', { exact: true })).toBeVisible()
     sockets[0].send(JSON.stringify({ type: 'START' }))
     await wait(() => states[0].stage === 'AIMING')
-    let observedReward = false
+    let observedReward = false, observedMany = false
     for (let turn = 0; turn < 80 && states[0].stage !== 'FINISHED'; turn++) {
       const s = states[0], actor = s.turn
       const piece = s.pieces.filter((p: any) => p.alive && p.owner === actor).sort((a: any, b: any) =>
@@ -51,14 +51,25 @@ test('두 역할로 실제 한 판을 전멸까지 진행하고 카드 획득·�
         observedReward = true
         await page.screenshot({ path: '.vite-cache/alkkagi-test-results/round-card-earned.png', fullPage: true })
       }
-      expect(hands.every(h => h.cards.length <= 2)).toBe(true)
+      expect(hands.every(h => h.cards.length === h.awards.filter((a: any) => a.result === 'AWARDED').length)).toBe(true)
+      if (!observedMany && hands[0].cards.length >= 3) {
+        observedMany = true
+        await page.setViewportSize({ width: 390, height: 844 })
+        const third = page.getByRole('region', { name: '비밀 카드' }).locator('.hand-cards button').nth(2)
+        await expect(third).toBeVisible(); await third.scrollIntoViewIfNeeded()
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+        await page.getByRole('region', { name: '비밀 카드' }).screenshot({ path: '.vite-cache/alkkagi-test-results/hand-many-mobile.png' })
+        await page.setViewportSize({ width: 1280, height: 960 })
+      }
     }
     expect(observedReward).toBe(true)
+    expect(hands.some(h => h.cards.length >= 3)).toBe(true)
+    expect(observedMany).toBe(true)
     expect(states[0].endReason).toBe('PIECES_OUT')
     await expect(page.getByRole('region', { name: '경기 결과' })).toBeVisible()
     await page.screenshot({ path: '.vite-cache/alkkagi-test-results/round-natural-finish.png', fullPage: true })
     await page.getByRole('button', { name: '다음 판 준비', exact: true }).click()
-    await expect(page.getByRole('region', { name: '비밀 카드' })).toContainText('(0/2)')
+    await expect(page.getByRole('region', { name: '비밀 카드' })).toContainText('(0장)')
   } finally { sockets.forEach(s => s.close()) }
 })
 
@@ -152,7 +163,7 @@ test('기권 확인·종료 복구·다음 판은 결과를 중복 재생하거�
   expect(await page.evaluate(() => (window as any).__feedback.filter((e: any) => e.type === 'GAME_FINISHED').length)).toBe(0)
   await page.getByRole('button', { name: '다음 판 준비', exact: true }).click()
   await expect.poll(() => states.at(-1)?.gameId).not.toBe(gameId)
-  await expect(page.getByRole('region', { name: '비밀 카드' })).toContainText('(0/2)')
+  await expect(page.getByRole('region', { name: '비밀 카드' })).toContainText('(0장)')
   expect(states.at(-1).stage).toBe('WAITING')
   expect(states.at(-1).social.chat).toHaveLength(0)
 })

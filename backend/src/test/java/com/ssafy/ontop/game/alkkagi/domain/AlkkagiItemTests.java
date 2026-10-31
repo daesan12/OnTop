@@ -7,11 +7,12 @@ import static org.assertj.core.api.Assertions.*;
 
 class AlkkagiItemTests {
     @Test
-    void 손패는_최대두장이고_미사용_종류와_ID는_공개하지_않는다() throws Exception {
+    void 손패는_두장을_넘게_보관하고_미사용_종류와_ID는_공개하지_않는다() throws Exception {
         var match = fresh();
         assertThat(match.privateView(0).cards()).isEmpty();
         match.receiveCard(0, "SWAP"); match.receiveCard(0, "EXTRA_SHOT");
-        assertThatThrownBy(() -> match.receiveCard(0, "DEFEND")).hasMessage("HAND_FULL");
+        match.receiveCard(0, "DEFEND");
+        assertThat(match.privateView(0).cards()).hasSize(3);
         assertThat(match.privateView(1).cards()).isEmpty();
         assertThatThrownBy(() -> match.privateView(-1)).hasMessage("PLAYER_REQUIRED");
         String publicJson = new ObjectMapper().writeValueAsString(match.snapshot(0));

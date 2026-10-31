@@ -58,6 +58,19 @@ class AlkkagiCardChoiceTests {
         assertThat(m.snapshot(0).turnDeadline()).isEqualTo(second.deadline() + 30_000);
     }
 
+    @Test void 다섯_선택과_기존두장_보유상태에서도_보상을_모두_보관한다() {
+        for (int held : new int[]{0, 2}) {
+            int losses = held == 0 ? 15 : 9;
+            var m = choosing(losses, 0); var first = m.privateView(0).choice();
+            if (held == 2) { m.receiveCard(0, "DEFEND"); m.receiveCard(0, "SWAP"); }
+            m.checkDeadlines(first.deadline() + (losses / 3 - 1) * 10_000L);
+            assertThat(m.privateView(0).cards()).hasSize(5);
+            assertThat(m.privateView(0).awards()).hasSize(losses / 3).allMatch(a -> a.result().equals("AWARDED"));
+            assertThat(m.privateView(0).choice()).isNull();
+            assertThat(m.snapshot(0).stage()).isEqualTo("AIMING");
+        }
+    }
+
     @Test void 선택중_발사관전자선택은_거절하고_기권후_남은선택은_폐기한다() {
         var m = choosing(3, 0); var c = m.privateView(0).choice(); var s = m.snapshot(0);
         assertThatThrownBy(() -> m.shoot(s.turn(), new AlkkagiMatch.Shot(s.gameId(), "shot", s.version(), "p31", 1, 0, .2), 1000))
@@ -113,7 +126,7 @@ class AlkkagiCardChoiceTests {
             var p = pieces.get("p" + (owner * 16 + i)); ReflectionTestUtils.setField(p, "alive", false);
             world.removeBody((Body) ReflectionTestUtils.getField(p, "body"));
         }
-        var s = m.snapshot(0); m.shoot(0, new AlkkagiMatch.Shot(s.gameId(), "start", s.version(), "p13", 0, -1, .001), 1);
+        var s = m.snapshot(0); m.shoot(0, new AlkkagiMatch.Shot(s.gameId(), "start", s.version(), "p15", 0, -1, .001), 1);
         for (int i = 0; i < 100 && m.snapshot(0).stage().equals("SIMULATING"); i++) m.advance(2 + i * 8);
         assertThat(m.snapshot(0).stage()).isEqualTo("CHOOSING"); return m;
     }

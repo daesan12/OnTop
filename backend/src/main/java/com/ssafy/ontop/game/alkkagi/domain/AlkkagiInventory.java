@@ -11,7 +11,6 @@ final class AlkkagiInventory {
     private final List<LinkedHashMap<String, Card>> hands = List.of(new LinkedHashMap<>(), new LinkedHashMap<>());
 
     void grant(int actor, Type type) {
-        if (hands.get(actor).size() >= 2) throw new IllegalArgumentException("HAND_FULL");
         var card = new Card(UUID.randomUUID().toString(), type);
         hands.get(actor).put(card.id(), card);
     }

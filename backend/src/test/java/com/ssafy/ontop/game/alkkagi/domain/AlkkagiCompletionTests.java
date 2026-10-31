@@ -20,7 +20,10 @@ class AlkkagiCompletionTests {
         awards.choose(0, offer.id(), offer.options().getFirst().id(), 400, 0, inventory);
         assertThat(inventory.cards(0)).hasSize(2);
         awards.resolve(7, 16, 0, 0, inventory, 500);
-        assertThat(awards.view(0)).extracting(AlkkagiCardAwards.Attempt::result).containsExactly("AWARDED", "AWARDED", "HAND_FULL");
+        offer = awards.offer(0);
+        assertThat(offer).isNotNull(); awards.choose(0, offer.id(), offer.options().getFirst().id(), 600, 0, inventory);
+        assertThat(inventory.cards(0)).hasSize(3);
+        assertThat(awards.view(0)).extracting(AlkkagiCardAwards.Attempt::result).containsExactly("AWARDED", "AWARDED", "AWARDED");
     }
 
     @Test
@@ -113,7 +116,7 @@ class AlkkagiCompletionTests {
     }
 
     @Test
-    void 시작부터_실제_전멸까지_한판을_진행해도_카드한도와_종료가_유지된다() {
+    void 시작부터_전멸까지_보상카드를_모두_보관하고_종료한다() {
         var m = new AlkkagiMatch(AlkkagiSettings.provisional()); m.start(0);
         for (int turn = 0; turn < 80 && !m.snapshot(0).stage().equals("FINISHED"); turn++) {
             var state = m.snapshot(0);
@@ -124,8 +127,8 @@ class AlkkagiCompletionTests {
                     horizontal ? 0 : Math.copySign(1, piece.y()), 1, turn * 3000L + 1);
             settle(m, turn * 3000L + 2);
             chooseAll(m, turn * 3000L + 2500);
-            assertThat(m.privateView(0).cards()).hasSizeLessThanOrEqualTo(2);
-            assertThat(m.privateView(1).cards()).hasSizeLessThanOrEqualTo(2);
+            for (int owner = 0; owner < 2; owner++)
+                assertThat(m.privateView(owner).cards()).hasSize((int) m.privateView(owner).awards().stream().filter(a -> a.result().equals("AWARDED")).count());
             assertThat(m.snapshot(0).pieces()).allMatch(p -> Double.isFinite(p.x()) && Double.isFinite(p.y()));
         }
         var result = m.snapshot(0);
