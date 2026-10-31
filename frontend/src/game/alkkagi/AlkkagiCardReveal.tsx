@@ -35,7 +35,7 @@ export function AlkkagiChoiceFan({ choice, ready, seconds, choose }: {
     <small>운명을 바꿀 비책</small><h3>한 장을 선택하세요 · {seconds}초</h3>
     <div className="alkkagi-choice-fan">{choice.options.map((card, index) =>
       <div key={card.id} className="alkkagi-choice-slot" data-picked={picked === card.id}
-        style={{ '--card-index': index, '--fan-angle': `${(index - 1) * 7}deg` } as CSSProperties}>
+        style={{ '--card-index': index } as CSSProperties}>
         <AlkkagiItemCard type={card.type} selected={picked === card.id} disabled={!ready || seconds <= 0}
           onClick={() => { setPicked(card.id); choose(card.id) }} />
       </div>)}</div>
