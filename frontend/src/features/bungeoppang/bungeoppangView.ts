@@ -43,7 +43,7 @@ export function bungeoppangReturnOpacity(now: number, reducedMotion = false) {
   return t * t * (3 - 2 * t);
 }
 
-/** Monotonic wall time: hidden tabs and help do not pause the server's 60-second round. */
+/** Hidden tabs keep wall time; an acknowledged manual pause freezes the private cooking clock. */
 export const bungeoppangClock = {
   t: 0,
   durationMs: Number(BUNGEOPPANG.durationMs),
@@ -53,11 +53,12 @@ export const bungeoppangClock = {
   playAt: 0,
   countdownAt: 0,
   preparing: false,
+  pausedAt: null as number | null,
 };
 export function gameNow() {
   return Math.min(
     bungeoppangClock.durationMs,
-    Math.max(0, Math.floor(performance.now() - bungeoppangClock.playAt)),
+    Math.max(0, Math.floor((bungeoppangClock.pausedAt??performance.now()) - bungeoppangClock.playAt)),
   );
 }
 

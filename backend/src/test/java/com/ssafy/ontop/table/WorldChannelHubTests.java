@@ -3,8 +3,8 @@ package com.ssafy.ontop.table;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ssafy.ontop.table.service.TableHub;
-import com.ssafy.ontop.world.config.WorldChannelProperties;
 import com.ssafy.ontop.world.config.WorldChannelProperties.Channel;
+import com.ssafy.ontop.world.config.WorldChannelProperties;
 import com.ssafy.ontop.world.service.WorldChannelRegistry;
 import java.time.Duration;
 import java.util.List;
@@ -12,10 +12,10 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.socket.TextMessage;
@@ -178,8 +178,9 @@ class WorldChannelHubTests {
             Object message = invocation.getArgument(0);
             if (message instanceof TextMessage text) {
                 JsonNode value = mapper.readTree(text.getPayload());
-                // 위치 알림은 WorldMovementHubTests에서 검증하고 여기서는 기존 채널·테이블 계약만 읽는다.
-                if (!value.path("type").asText().equals("WORLD_STATE")) {
+                // 위치·잔해는 별도 테스트에서 검증하고 여기서는 채널·테이블 계약만 읽는다.
+                String type = value.path("type").asText();
+                if (!type.equals("WORLD_STATE") && !type.equals("WORLD_PARK_DEBRIS_STATE")) {
                     peer.messages.add(ReadyConsent.received(peer, value));
                 }
             }

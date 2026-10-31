@@ -17,6 +17,7 @@ import fixture from '../fixtures/bungeoppang-v5.json';
 import { beginCustomerSpeechV5, advanceCustomerSpeechV5, useCustomerSpeechV5 } from '../../src/features/bungeoppang/customerSpeechV5';
 import { useCustomerDeparturesV5 } from '../../src/features/bungeoppang/customerDepartureV5';
 import { useCustomerArrivalsV5 } from '../../src/features/bungeoppang/customerArrivalV5';
+import {openManual,closeManual,finishManualOpening,finishManualClosing} from '../../src/features/manual/manualState';
 const heats = Array(2048).fill(100);
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date', 'performance'] });
@@ -32,7 +33,7 @@ beforeEach(() => {
   vi.mocked(service.submitResult).mockResolvedValue({ score: 0, made: 0, golden: 0, failed: 0, wasted: 0,
     maxCombo: 0, coinsCalculated: 0, coinsGranted: 0, todayEarned: 0, dailyCap: 100, capReached: false });
 });
-afterEach(() => { resetBungeoppang(); vi.useRealTimers(); vi.unstubAllGlobals(); vi.clearAllMocks(); });
+afterEach(() => { resetBungeoppang(); delete service.setManualPaused; vi.useRealTimers(); vi.unstubAllGlobals(); vi.clearAllMocks(); });
 async function start() {
   openBungeoppang(); await vi.advanceTimersByTimeAsync(800); await startBungeoppang();
   await vi.advanceTimersByTimeAsync(3500);
@@ -43,6 +44,39 @@ async function start() {
 const current = () => useBungeoppang.getState().grill as GrillState;
 const stock = (...fillings: BreadFilling[]) => fillings.map((filling, index) =>
   ({ id: index + 1, filling, front: 80, back: 80, points: 10 }));
+it('F1 freezes cooking and countdown time, then resumes without burning or consuming the remaining round',async()=>{
+  await start();await vi.advanceTimersByTimeAsync(2000);
+  const before=gameNow();
+  openManual('fish-bread');finishManualOpening();await vi.advanceTimersByTimeAsync(0);
+  expect(useBungeoppang.getState().manualPaused).toBe(true);
+  await vi.advanceTimersByTimeAsync(180000);
+  expect(gameNow()).toBe(before);expect(bungeoppangClock.t).toBe(before);
+  expect(useBungeoppang.getState().phase).toBe('play');expect(service.submitResult).not.toHaveBeenCalled();
+  closeManual();finishManualClosing();await vi.advanceTimersByTimeAsync(0);
+  expect(useBungeoppang.getState().manualPaused).toBe(false);
+  await vi.advanceTimersByTimeAsync(1000);
+  expect(gameNow()).toBe(before+1000);
+});
+it('F1 recovers a completed server round instead of trapping the player in a paused error',async()=>{
+  await start();
+  const result=await service.submitResult({gameId:'preview-1',log:[],seenTips:[],clientScore:0,completeKey:'completed'});
+  const at=new Date(0).toISOString();
+  service.setManualPaused=vi.fn(async()=>({status:'COMPLETED' as const,result,
+    timing:{countdownStartsAt:at,playStartsAt:at,playEndsAt:at,submitDeadline:at,expiresAt:at},
+    sample:{receivedAt:performance.now(),serverNowMs:0,rttMs:0}}));
+  openManual('fish-bread');finishManualOpening();await vi.advanceTimersByTimeAsync(0);
+  expect(useBungeoppang.getState()).toMatchObject({phase:'result',result,manualPaused:false,manualPauseError:null,manualPausePending:false});
+  expect(bungeoppangClock.pausedAt).toBeNull();
+});
+it('an unconfirmed pause stays frozen and cannot burn bread while the player retries',async()=>{
+  await start();const before=gameNow();
+  service.setManualPaused=vi.fn().mockRejectedValue(new Error('연결 확인 필요'));
+  openManual('fish-bread');finishManualOpening();await vi.advanceTimersByTimeAsync(0);
+  expect(useBungeoppang.getState().manualPauseError).toBe('연결 확인 필요');
+  await vi.advanceTimersByTimeAsync(180000);pressBungeoppangSlot(0);
+  expect(gameNow()).toBe(before);expect(current().log).toEqual([]);
+  expect(useBungeoppang.getState().phase).toBe('play');
+});
 it('R finds an unselected fulfillable order, keeps extra bread and blocks repeat delivery while pending', async () => {
   await start(); await vi.advanceTimersByTimeAsync(14000);
   const grill: GrillState = { ...current(), activeOrders: [...current().activeOrders].reverse(),

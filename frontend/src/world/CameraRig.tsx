@@ -13,7 +13,8 @@ import { telescopeView } from '../features/telescopeView'
 import { interactionAim } from '../features/interactions/interactionAim'
 import { useGame } from '../game/store'
 import { omokCamera, omokSpectatorViewport } from '../game/cameraState'
-import { avatars, sampleAvatar, useSession } from '../network/worldClient'
+import { avatars, sampleAvatar, useSession,estimatedServerTime } from '../network/worldClient'
+import {activeParkDebris} from '../features/parkDebris/state'
 import { cameraOcclusion, CameraOcclusionFader } from './cameraOcclusion'
 import { installRoamingInput, viewControls } from './input'
 import { constrainRoamingCamera } from './cameraCollision'
@@ -63,6 +64,7 @@ function wardrobeFrame(camera: PerspectiveCamera) {
 
 export function CameraRig() {
   const { gl, camera: mountedCamera, raycaster } = useThree()
+  const reducedMotion=useMemo(()=>window.matchMedia('(prefers-reduced-motion: reduce)'),[])
   const state = useMemo(
     () => ({
       focus: new Vector3(),
@@ -262,7 +264,13 @@ export function CameraRig() {
       1 - Math.exp(-CAMERA.followSpeed * Math.min(delta, 0.1)),
     )
     const tablet = tabletLobbyActive()
-    if (tablet) {
+    const debris = reducedMotion.matches?null:activeParkDebris(session.tableId||session.watchedTableId,estimatedServerTime())
+    const debrisAnchor=debris?TABLES.find(t=>t.id===debris.anchorId):undefined
+    if(debris&&debrisAnchor){
+      const scale=tableScale(debrisAnchor),yaw=debris.throwYaw+Math.PI*.7
+      state.look.set(debrisAnchor.position[0],debrisAnchor.position[1]+.85*scale,debrisAnchor.position[2])
+      state.desired.set(debrisAnchor.position[0]+Math.sin(yaw)*6.5*scale,debrisAnchor.position[1]+3.6*scale,debrisAnchor.position[2]+Math.cos(yaw)*6.5*scale)
+    } else if (tablet) {
       const anchor = renderedTableAnchors.get(avatar.tableId) ?? TABLES.find(t => t.id === avatar.tableId)
       if (anchor) {
         const seat = tableSeats(anchor)[session.seatIndex] ?? tableSeats(anchor)[0]!
@@ -419,7 +427,7 @@ export function CameraRig() {
       )
       state.look.copy(center)
     }
-    const targetFov = tablet ? 43 : gathering ? ownOmok ? 60 : CAMERA.fov : seated && oneCardPlayerViewActive(game) ? ONECARD_CAMERA.fov : diceFocus ? DICE_CAMERA.fov : ledgerFocus ? LEDGER_CAMERA.fov : boardFocus || spectatorBoard ? GOMOKU.topDownFov : seated ? GOMOKU.seatedFov : CAMERA.fov
+    const targetFov = debrisAnchor ? 55 : tablet ? 43 : gathering ? ownOmok ? 60 : CAMERA.fov : seated && oneCardPlayerViewActive(game) ? ONECARD_CAMERA.fov : diceFocus ? DICE_CAMERA.fov : ledgerFocus ? LEDGER_CAMERA.fov : boardFocus || spectatorBoard ? GOMOKU.topDownFov : seated ? GOMOKU.seatedFov : CAMERA.fov
     const smoothingOmok = focusedOmok || ownOmok || state.omokTransition
     const smoothingDice = ownDice || state.diceTransition
     const smoothingBoard = smoothingOmok || smoothingDice

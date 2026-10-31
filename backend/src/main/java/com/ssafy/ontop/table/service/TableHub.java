@@ -12,37 +12,37 @@ import com.ssafy.ontop.game.action.GameActionGateway;
 import com.ssafy.ontop.game.action.GameActionResult;
 import com.ssafy.ontop.game.action.GameForfeitCommand;
 import com.ssafy.ontop.game.action.GameForfeitResult;
-import com.ssafy.ontop.game.reconnect.GameReconnectService;
-import com.ssafy.ontop.game.result.GameDefeatConfirmed;
-import com.ssafy.ontop.game.result.GameResultService;
-import com.ssafy.ontop.game.result.GameResultCommitted;
-import com.ssafy.ontop.game.result.GameResultView;
-import com.ssafy.ontop.game.start.GameStartCommand;
-import com.ssafy.ontop.game.start.GameStartCommand.Participant;
-import com.ssafy.ontop.game.start.GameStartGateway;
-import com.ssafy.ontop.game.start.GameStartResult;
-import com.ssafy.ontop.game.start.CommittedGameStartService;
-import com.ssafy.ontop.game.state.GameStateGateway;
-import com.ssafy.ontop.game.state.GameStateChanged;
-import com.ssafy.ontop.game.state.GameStateView;
 import com.ssafy.ontop.game.onecard.service.OneCardEngine;
 import com.ssafy.ontop.game.onecard.service.OneCardPranks;
+import com.ssafy.ontop.game.reconnect.GameReconnectService;
+import com.ssafy.ontop.game.result.GameDefeatConfirmed;
+import com.ssafy.ontop.game.result.GameResultCommitted;
+import com.ssafy.ontop.game.result.GameResultService;
+import com.ssafy.ontop.game.result.GameResultView;
+import com.ssafy.ontop.game.start.CommittedGameStartService;
+import com.ssafy.ontop.game.start.GameStartCommand.Participant;
+import com.ssafy.ontop.game.start.GameStartCommand;
+import com.ssafy.ontop.game.start.GameStartGateway;
+import com.ssafy.ontop.game.start.GameStartResult;
+import com.ssafy.ontop.game.state.GameStateChanged;
+import com.ssafy.ontop.game.state.GameStateGateway;
+import com.ssafy.ontop.game.state.GameStateView;
 import com.ssafy.ontop.table.domain.TableGame;
 import com.ssafy.ontop.table.domain.TableRoom;
 import com.ssafy.ontop.table.domain.TableStartAttempt;
-import com.ssafy.ontop.table.dto.GameSpectatorChatMessage;
 import com.ssafy.ontop.table.dto.DiceLedgerSpectatorPing;
+import com.ssafy.ontop.table.dto.GameSpectatorChatMessage;
 import com.ssafy.ontop.table.dto.OmokSpectatorPing;
 import com.ssafy.ontop.table.dto.TableListResponse;
-import com.ssafy.ontop.table.dto.TableProtocol;
 import com.ssafy.ontop.table.dto.TableProtocol.Request;
 import com.ssafy.ontop.table.dto.TableProtocol.RequestException;
+import com.ssafy.ontop.table.dto.TableProtocol;
 import com.ssafy.ontop.table.dto.TableSummaryResponse;
 import com.ssafy.ontop.table.websocket.ConnectionCloseReason;
 import com.ssafy.ontop.table.websocket.TablePeer;
 import com.ssafy.ontop.table.websocket.WebSocketHeartbeat;
-import com.ssafy.ontop.world.config.WorldChannelProperties;
 import com.ssafy.ontop.world.config.DynamicChannelsProperties;
+import com.ssafy.ontop.world.config.WorldChannelProperties;
 import com.ssafy.ontop.world.config.WorldEmoteProperties;
 import com.ssafy.ontop.world.config.WorldProximityProperties;
 import com.ssafy.ontop.world.domain.ChatText;
@@ -51,6 +51,7 @@ import com.ssafy.ontop.world.dto.WorldGameReaction;
 import com.ssafy.ontop.world.map.LegacyParkTables;
 import com.ssafy.ontop.world.map.PreparedParkMap;
 import com.ssafy.ontop.world.map.WorldMapRuntime;
+import com.ssafy.ontop.world.service.ParkDebrisStore;
 import com.ssafy.ontop.world.service.WorldAppearanceGateway;
 import com.ssafy.ontop.world.service.WorldChannelRegistry;
 import com.ssafy.ontop.world.service.WorldChatService;
@@ -82,8 +83,8 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
@@ -142,6 +143,7 @@ public class TableHub {
     private final PreparedParkMap preparedPark;
     private final WorldFollowService follows = new WorldFollowService();
     private final Map<String, ReactionRound> reactionRounds = new HashMap<>();
+    private final ParkDebrisStore parkDebris = new ParkDebrisStore();
     private com.ssafy.ontop.world.service.WorldClock worldClock = new com.ssafy.ontop.world.service.WorldClock();
     private final Map<String, WaitingReconnect> waitingReconnects = new HashMap<>();
     private final Map<String, Long> connectionStarted = new HashMap<>();
@@ -458,6 +460,7 @@ public class TableHub {
                             (channelId + "\0table-" + number).getBytes(StandardCharsets.UTF_8));
                     rooms.put(tableId, new TableRoom(tableId));
                     tableChannels.put(tableId, channelId);
+                    tableAnchors.put(tableId, "table-" + number);
                 }
             }
         }
@@ -1003,6 +1006,7 @@ public class TableHub {
         actionRequests.clear();
         starts.clear();
         reactionRounds.clear();
+        parkDebris.clear();
         startWorkers.shutdownNow();
     }
 
@@ -1112,6 +1116,7 @@ public class TableHub {
             member.peer().offer(protocol.encode(request.requestId(), "CHANNEL_STATE", change.state()));
             member.peer().offer(protocol.encode(null, "WORLD_STATE", channels.worldState(channelId)));
         }
+        sendParkDebris(member, channelId);
         refreshAppearance(member);
         if (change.changed() || !profileMemberships.containsKey(member)) {
             profileMemberships.put(member, new ProfileTarget(member, channelId));
@@ -2442,6 +2447,36 @@ public class TableHub {
         }
     }
 
+    private Object parkDebrisState(String channelId) {
+        var state = parkDebris.state(channelId);
+        return Map.of("channelId", channelId, "mapVersion", maps.metadata().mapVersion(),
+                "version", state.version(), "items", state.items());
+    }
+
+    private void sendParkDebris(Member member, String channelId) {
+        if (isMapReady(member)) {
+            member.peer().offer(protocol.encode(null, "WORLD_PARK_DEBRIS_STATE", parkDebrisState(channelId)));
+        }
+    }
+
+    private void publishParkDebris(String channelId) {
+        String message = protocol.encode(null, "WORLD_PARK_DEBRIS_STATE", parkDebrisState(channelId));
+        for (Member target : members.values()) {
+            if (isMapReady(target) && channelId.equals(channels.channelOf(target.userId()))) {
+                target.peer().offer(message);
+            }
+        }
+    }
+
+    /** 서버 AI 청소 연결점이며 클라이언트에 잔해 삭제 권한을 주지 않는다. */
+    public synchronized boolean cleanParkDebris(String channelId, String itemId, String part) {
+        if (stopped || !parkDebris.clean(channelId, itemId, part)) {
+            return false;
+        }
+        publishParkDebris(channelId);
+        return true;
+    }
+
     @EventListener
     public synchronized void gameDefeatConfirmed(GameDefeatConfirmed event) {
         if (stopped) { return; }
@@ -2460,7 +2495,14 @@ public class TableHub {
         }
         // 한 테이블의 현재 경기, 참가자별 한 건만 보존한다. 새 경기의 사건이 오면 교체한다.
         if (!round.users().add(event.userId())) { return; }
-        String notification = protocol.encode(null, "WORLD_GAME_REACTION", WorldGameReaction.from(event, channelId));
+        var position = channels.positionOf(Long.toString(event.userId()));
+        // 서버 방향을 사용해 모든 방문자에게 같은 비행 경로를 보여준다.
+        double throwYaw = position == null ? 0 : position.yaw();
+        if (parkDebris.add(channelId, tableAnchors.get(event.tableId()), event, players.size(), throwYaw)) {
+            publishParkDebris(channelId);
+        }
+        String notification = protocol.encode(null, "WORLD_GAME_REACTION",
+                WorldGameReaction.from(event, channelId, players.size()));
         for (Member target : members.values()) {
             if (isMapReady(target) && channelId.equals(channels.channelOf(target.userId()))
                     && (players.contains(target.userId()) || canWatchTable(target, event.tableId()))) {

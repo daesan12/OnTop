@@ -19,6 +19,7 @@ import { followFixture } from './followFixture'
 import { onecardPrankFixture, type OneCardPrankRoom } from './onecardPrankFixture'
 import type { PublicEquipment } from '../../src/network/equipment'
 import type { GameReactionEvent } from '../../src/game/presentation/defeat'
+import type {ParkDebris} from '../../src/features/parkDebris/state'
 import type { AvatarActivity } from '../../src/network/avatarActivity'
 import type { PublicTable } from '../../src/network/protocol'
 import developmentBindings from '../../public/park-bindings.dev.json' with { type: 'json' }
@@ -57,6 +58,7 @@ export async function fixture(
     anchorId?: string
     publicSpectator?: boolean
     forfeit?: boolean
+    parkDebris?: boolean
     manualLobby?: boolean
     /** DB-style decimal game ID; the default IDs are readable fixture names. */
     gameId?: string
@@ -93,6 +95,8 @@ export async function fixture(
     sockets: WebSocketRoute[] = []
   const serverTime = () => ({ serverNow: Date.now() + (options.serverTimeOffsetMs ?? 0),
     cycleEpochMs: 1767193200000, cycleDurationMs: 1800000, timeZone: 'Asia/Seoul' })
+  let debrisVersion=0
+  let debrisItems:ParkDebris[]=[]
   const position = {
     x: anchor.position[0] + (options.generatedPark ? startingSeat.x : 0),
     y: anchor.position[1] + 0.8,
@@ -434,10 +438,14 @@ export async function fixture(
   const scriptedForfeitState = () => {
     if (forfeitVersion >= 0) return
     forfeitApplications++; gameVersion++; forfeitVersion = gameVersion
-    finished = !(options.onecard && options.onecard > 2 || options.bridge && options.bridge > 2 || pendingBridgeForfeit)
+    finished = !(options.onecard && options.onecard > 2 || options.bridge && options.bridge > 2 || options.ledger && options.ledger > 2 || pendingBridgeForfeit)
     finishReason = 'EXPLICIT_LEAVE'; winner = '102'; recoveryStatus = finished ? 'FINISHED' : 'ELIMINATED'
     if (options.dice) diceState = { ...diceState, status: 'FINISHED', stage: 'FINISHED', turnUserId: null, turnDeadline: null,
       winnerUserId: '102', endReason: 'EXPLICIT_LEAVE', endedAt: new Date().toISOString() }
+    if (options.ledger) ledgerState = {...ledgerState,
+      players:ledgerState.players.map(p=>p.userId==='101'?{...p,forfeited:true}:p),lastEvent:'PLAYER_LEFT',
+      turnUserId:finished?null:'102',...(finished?{status:'FINISHED',round:null,turnDeadline:null,
+        winnerUserIds:['102'],endReason:'LAST_PLAYER_STANDING',endedAt:new Date().toISOString()}:{})}
     if (options.onecard) {
       cardHand = { userId: '101', hand: [], playableCardIds: [], canDraw: false }
       cardState = { ...cardState, players: cardState.players.map(p => p.userId === '101' ? { ...p, active: false, cardCount: 0 } : p),
@@ -456,6 +464,18 @@ export async function fixture(
   const approveForfeit = (entry: typeof heldForfeits[number], mode = forfeitMode) => {
     const duplicate = forfeitVersion >= 0
     scriptedForfeitState()
+    if(options.parkDebris&&!duplicate&&(options.bridge??options.onecard??options.ledger??2)===2){
+      const occurredAt=new Date(serverTime().serverNow).toISOString(),id=gameId+':reaction:101'
+      debrisItems=[...debrisItems,{id,gameId,tableId,anchorId:anchor.id,gameCode:options.ledger?'DICE_LEDGER':options.bridge?'LIAR_BRIDGE':options.onecard?'ONE_CARD':options.dice?'DICE':'OMOK',
+        userId:'101',occurredAt,throwYaw:position.yaw,seed:12345,parts:['board',...Array.from({length:12},(_,i)=>'coin-'+i),
+          ...(!options.ledger&&!options.bridge&&!options.onecard&&!options.dice?Array.from({length:5},(_,i)=>'stone-'+i):[])]}]
+      debrisVersion++
+      for(const ws of sockets){
+        emit(ws,'WORLD_PARK_DEBRIS_STATE',{channelId:'fixture-channel',mapVersion:expectedMapVersion,version:debrisVersion,items:debrisItems})
+        emit(ws,'WORLD_GAME_REACTION',{eventId:id,gameId,tableId,channelId:'fixture-channel',gameCode:debrisItems.at(-1)!.gameCode,
+          version:gameVersion,userId:'101',kind:'FORFEIT',remainingBefore:2,participantCount:2,motion:'table-flip',durationMs:2800,occurredAt})
+      }
+    }
     const state = () => { recovery(entry.ws); game(entry.ws); if (finished) start(entry.ws, 'SETTLING') }
     const receipt = () => emit(entry.ws, 'GAME_FORFEIT_RESULT', { gameId: mode === 'malformed' ? 'foreign-game' : entry.payload.gameId,
       actionId: entry.payload.actionId, version: forfeitVersion, duplicate }, entry.requestId)
@@ -567,6 +587,7 @@ export async function fixture(
           }),
         )
         world(ws)
+        if(options.parkDebris)emit(ws,'WORLD_PARK_DEBRIS_STATE',{channelId:'fixture-channel',mapVersion:expectedMapVersion,version:debrisVersion,items:debrisItems})
       }
       if (type === 'WORLD_MOVE') {
         if (rejectNextMovement) {
@@ -795,14 +816,21 @@ export async function fixture(
     rejectNextMove: () => { rejectNextMovement = true },
     reaction: (patch: Partial<GameReactionEvent> = {}) => {
       const remainingBefore = patch.remainingBefore ?? options.bridge ?? options.onecard ?? 2
-      const motion = remainingBefore === 2 ? 'table-flip' : 'head-clutch'
+      const participantCount=patch.participantCount??options.bridge??options.onecard??2
+      const motion = remainingBefore === 2 && participantCount===2 && patch.kind==='FORFEIT' ? 'table-flip' : 'head-clutch'
       const event: GameReactionEvent = { eventId: `${patch.gameId ?? gameId}:reaction:${patch.userId ?? '101'}`,
         gameId, tableId, channelId: 'fixture-channel', gameCode: options.ledger ? 'DICE_LEDGER' : options.bridge ? 'LIAR_BRIDGE' : options.onecard ? 'ONE_CARD' : options.dice ? 'DICE' : 'OMOK',
-        version: gameVersion, userId: '101', kind: 'DEFEAT', remainingBefore, motion,
+        version: gameVersion, userId: '101', kind: 'DEFEAT', remainingBefore,participantCount, motion,
         durationMs: motion === 'table-flip' ? 2800 : 3600,
         occurredAt: new Date(serverTime().serverNow).toISOString(), ...patch }
       emit(sockets.at(-1)!, 'WORLD_GAME_REACTION', event)
       return event
+    },
+    debris:()=>debrisItems,
+    cleanDebris:(id:string,part:string)=>{
+      debrisItems=debrisItems.map(item=>item.id===id?{...item,parts:item.parts.filter(p=>p!==part)}:item).filter(item=>item.parts.length)
+      debrisVersion++
+      for(const ws of sockets)emit(ws,'WORLD_PARK_DEBRIS_STATE',{channelId:'fixture-channel',mapVersion:expectedMapVersion,version:debrisVersion,items:debrisItems})
     },
     spectatorEvent: (kind: 'chat' | 'ping', patch: Record<string, unknown> = {}) => {
       const now = Date.now(), ping = kind === 'ping'

@@ -13,9 +13,9 @@ import com.ssafy.ontop.minigame.domain.BungeoppangV5Order;
 import com.ssafy.ontop.minigame.domain.MinigameSession;
 import com.ssafy.ontop.minigame.domain.MinigameStartRequest;
 import com.ssafy.ontop.minigame.dto.BungeoppangStatusResponse;
-import com.ssafy.ontop.minigame.dto.BungeoppangV4Responses;
-import com.ssafy.ontop.minigame.dto.BungeoppangV4DeliveryDtos;
 import com.ssafy.ontop.minigame.dto.BungeoppangV4CompleteDtos;
+import com.ssafy.ontop.minigame.dto.BungeoppangV4DeliveryDtos;
+import com.ssafy.ontop.minigame.dto.BungeoppangV4Responses;
 import com.ssafy.ontop.minigame.dto.BungeoppangV5Responses;
 import com.ssafy.ontop.minigame.dto.MinigameAbandonResponse;
 import com.ssafy.ontop.minigame.dto.MinigameCompleteResponse;
@@ -29,8 +29,8 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
-import java.util.Arrays;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -344,7 +344,7 @@ public class MinigameService {
         return new BungeoppangV5Responses.SessionResponse(Long.toString(session.id()), V5,
                 round.configVersion(), session.status(), BungeoppangV4Spec.phase(session.status(), current, round),
                 session.score(), session.rewardAmount(), session.endedAt(), active ? null : round.terminalReason(),
-                current, session.startedAt(), BungeoppangV4Spec.timing(round),
+                current, session.startedAt(), BungeoppangV4Spec.timing(round, current),
                 progress ? v5Checkpoint(round) : null, new ArrayList<>(accepted),
                 progress ? repository.v5Orders(session.id()).stream().map(this::v5Order)
                         .map(BungeoppangV5Spec::order).toList() : List.of(),
@@ -367,7 +367,7 @@ public class MinigameService {
         return new BungeoppangV4Responses.SessionResponse(Long.toString(session.id()), V4,
                 round.configVersion(), session.status(), BungeoppangV4Spec.phase(session.status(), current, round),
                 session.score(), session.rewardAmount(), session.endedAt(), active ? null : round.terminalReason(),
-                current, session.startedAt(), BungeoppangV4Spec.timing(round),
+                current, session.startedAt(), BungeoppangV4Spec.timing(round, current),
                 progress ? checkpoint(round) : null, new ArrayList<>(accepted),
                 progress ? repository.v4Orders(session.id()).stream().map(BungeoppangV4Spec::order).toList() : List.of(),
                 finalResult, lookup, includeSource ? config(round).rules() : null,
@@ -403,7 +403,8 @@ public class MinigameService {
             throw error(409, "GAME_NOT_ACTIVE", "이미 종료된 미니게임입니다.");
         }
         Instant current = now();
-        if (receivedAt.isAfter(round.submitDeadline())) {
+        requireNotPaused(round);
+        if (round.gameTime(receivedAt).isAfter(round.submitDeadline())) {
             throw error(409, "GAME_NOT_ACTIVE", "납품 제출 기한이 지났습니다.");
         }
         BungeoppangV4DeliveryDtos.Action last = request.log().getLast();
@@ -509,7 +510,8 @@ public class MinigameService {
             throw error(409, "GAME_NOT_ACTIVE", "이미 종료된 미니게임입니다.");
         }
         Instant current = now();
-        if (receivedAt.isAfter(round.submitDeadline())) {
+        requireNotPaused(round);
+        if (round.gameTime(receivedAt).isAfter(round.submitDeadline())) {
             throw error(409, "GAME_NOT_ACTIVE", "납품 제출 기한이 지났습니다.");
         }
         BungeoppangV4DeliveryDtos.Action last = request.log().getLast();
@@ -673,13 +675,14 @@ public class MinigameService {
         if (!"PLAYING".equals(session.status()) || round.terminalReason() != null) {
             throw terminalError(session.status());
         }
-        if (receivedAt.isBefore(round.playEndsAt())) {
+        requireNotPaused(round);
+        if (round.gameTime(receivedAt).isBefore(round.playEndsAt())) {
             return error(422, "TOO_EARLY", "플레이 종료 후 같은 요청으로 다시 확인해 주세요.");
         }
-        if (receivedAt.isAfter(round.submitDeadline())) {
+        if (round.gameTime(receivedAt).isAfter(round.submitDeadline())) {
             // drain 중 늦은 제출이 기한 내 수신 후 잠금을 기다리는 완료를 먼저 무효화하지 않게 expiresAt 이후에만 만료한다.
             Instant current = now();
-            if (!current.isBefore(round.expiresAt())) {
+            if (!round.gameTime(current).isBefore(round.expiresAt())) {
                 invalidate(session, current, "SUBMISSION_EXPIRED");
                 repository.flush();
             }
@@ -783,12 +786,13 @@ public class MinigameService {
         if (!"PLAYING".equals(session.status()) || round.terminalReason() != null) {
             throw terminalError(session.status());
         }
-        if (receivedAt.isBefore(round.playEndsAt())) {
+        requireNotPaused(round);
+        if (round.gameTime(receivedAt).isBefore(round.playEndsAt())) {
             return error(422, "TOO_EARLY", "플레이 종료 후 같은 요청으로 다시 확인해 주세요.");
         }
-        if (receivedAt.isAfter(round.submitDeadline())) {
+        if (round.gameTime(receivedAt).isAfter(round.submitDeadline())) {
             Instant current = now();
-            if (!current.isBefore(round.expiresAt())) {
+            if (!round.gameTime(current).isBefore(round.expiresAt())) {
                 invalidate(session, current, "SUBMISSION_EXPIRED");
                 repository.flush();
             }
@@ -937,7 +941,7 @@ public class MinigameService {
     /** The play length comes from the stored round, so v4 keeps 60s and each v5 round keeps its own length. */
     private void validateActionClock(Instant current, BungeoppangV4Round round,
             BungeoppangV4DeliveryDtos.Action last) {
-        long elapsed = java.time.Duration.between(round.playStartsAt(), current).toMillis();
+        long elapsed = java.time.Duration.between(round.playStartsAt(), round.gameTime(current)).toMillis();
         long duration = java.time.Duration.between(round.playStartsAt(), round.playEndsAt()).toMillis();
         long allowed = Math.min(duration - 1L, Math.max(-1L, elapsed + 250L));
         if (last.t() > allowed) {
@@ -1046,6 +1050,40 @@ public class MinigameService {
         };
     }
 
+    /** 본인의 1인 미니게임만 정지한다. 보드게임 엔진·턴·정산에는 접근하지 않는다. */
+    public Object manualPause(long userId, long sessionId, boolean paused, long expectedRevision) {
+        return transactions.execute(tx -> {
+            lockWallet(userId);
+            MinigameSession session = requireSession(userId, sessionId, true);
+            BungeoppangRecord record = requireAnyRecord(sessionId);
+            if (!hasRound(record)) {
+                throw versionMismatch();
+            }
+            requirePlaying(session);
+            BungeoppangV4Round round = requireV4Round(sessionId, true);
+            Instant current = now();
+            if (paused != round.isManualPaused()) {
+                if (expectedRevision != round.manualPauseRevision()) {
+                    throw error(409, "MANUAL_PAUSE_CHANGED", "일시정지 상태를 다시 확인해주세요.");
+                }
+                if (!round.gameTime(current).isBefore(round.playEndsAt())) {
+                    throw error(409, "GAME_NOT_ACTIVE", "플레이가 이미 종료되었습니다.");
+                }
+                round.changeManualPause(paused, current);
+                repository.flush();
+            }
+            return V5.equals(record.rulesVersion())
+                    ? v5SessionResponse(session, record, current, false, false, null)
+                    : v4SessionResponse(session, record, current, false, false, null);
+        });
+    }
+
+    private void requireNotPaused(BungeoppangV4Round round) {
+        if (round.isManualPaused()) {
+            throw error(409, "MINIGAME_PAUSED", "설명서를 닫으면 게임을 계속할 수 있습니다.");
+        }
+    }
+
     public MinigameAbandonResponse abandon(long userId, long sessionId) {
         return transactions.execute(tx -> {
             lockWallet(userId);
@@ -1073,7 +1111,8 @@ public class MinigameService {
     private boolean expired(MinigameSession session, Instant current) {
         var record = repository.record(session.id());
         if (record.isPresent() && hasRound(record.get())) {
-            return !current.isBefore(requireV4Round(session.id(), false).expiresAt());
+            var round = requireV4Round(session.id(), false);
+            return !round.gameTime(current).isBefore(round.expiresAt());
         }
         return !current.isBefore(session.startedAt().plusSeconds(600));
     }

@@ -16,7 +16,7 @@ import {
   type BungeoppangSubmit,
   type BungeoppangTimeSync,
 } from './service';
-import type { RoundTiming } from './serverTime';
+import {validTimingUpdate,type RoundTiming} from './serverTime';
 
 type RequestJson = (path: string, init?: RequestInit) => Promise<unknown>;
 type WireAction = {
@@ -82,7 +82,10 @@ export function toTiming(value: unknown, durationMs = 60000): RoundTiming {
   const times = fields.map(name => Date.parse(value[name] as string));
   if (times.some((time, index) => index > 0 && time <= times[index - 1]!)
     || times[1]! - times[0]! !== 3500 || times[2]! - times[1]! !== durationMs) return fail();
-  return Object.fromEntries(fields.map(name => [name, value[name]])) as unknown as RoundTiming;
+  if((value.paused!==undefined||value.pauseRevision!==undefined)
+    &&(typeof value.paused!=='boolean'||!whole(value.pauseRevision)))return fail();
+  return {...Object.fromEntries(fields.map(name => [name, value[name]])),
+    ...(value.paused===undefined?{}:{paused:value.paused,pauseRevision:Number(value.pauseRevision)})} as unknown as RoundTiming;
 }
 
 export function toRules(value: unknown): Readonly<BungeoppangRules & { rulesVersion: 'v4' }> {
@@ -350,8 +353,8 @@ export function createBungeoppangV4Service(requestJSON: RequestJson): Bungeoppan
           || p.configVersion !== source.configVersion || !instant(p.serverNow)
           || !['PLAYING', 'COMPLETED', 'ABANDONED', 'INVALID'].includes(String(p.status))) return fail();
         const timing = toTiming(p.timing);
-        if (Object.keys(source.timing).some(name => timing[name as keyof RoundTiming]
-          !== source.timing[name as keyof RoundTiming])) return fail();
+        if (!validTimingUpdate(source.timing,timing)) return fail();
+        source.timing=timing;
         const sample = { serverNowMs: Date.parse(p.serverNow), receivedAt, rttMs: receivedAt - sentAt };
         const status = p.status as BungeoppangTimeSync['status'];
         if (status !== 'PLAYING' || sample.rttMs <= 1000) {
@@ -362,6 +365,14 @@ export function createBungeoppangV4Service(requestJSON: RequestJson): Bungeoppan
       }
       throw new BungeoppangServiceError('TIME_SYNC_SLOW',
         '연결 지연으로 시간을 확인하지 못했어요. 같은 판의 시간을 다시 확인해 주세요.', true);
+    },
+    async setManualPaused(gameId,paused) {
+      const current=await service.syncTimeV4!(gameId);
+      if(current.status!=='PLAYING')return current;
+      const source=sessions.get(gameId);
+      if(!source||source.timing.pauseRevision===undefined)throw new BungeoppangServiceError('PAUSE_UNAVAILABLE','일시정지 연결을 확인해주세요.',true);
+      await request(`${sessionPath(gameId)}/manual-pause`,post({paused,expectedPauseRevision:source.timing.pauseRevision}));
+      return service.syncTimeV4!(gameId);
     },
     async nextOrder(input) {
       const source = sessions.get(input.gameId);
