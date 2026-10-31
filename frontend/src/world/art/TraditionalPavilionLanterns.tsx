@@ -5,6 +5,10 @@ import { pavilionLanternLayout,type LanternPavilion } from './pavilionLanternLay
 import { useFrame } from '@react-three/fiber'
 import {
   LatheGeometry,
+  CatmullRomCurve3,
+  TubeGeometry,
+  Vector3,
+  DoubleSide,
   SphereGeometry,
   Vector2,
   type MeshStandardMaterial,
@@ -36,8 +40,8 @@ for (let i = 0; i < 8; i++) {
   b.box(
     'wood',
     red,
-    [Math.sin(vertex) * 0.283, 0.29, Math.cos(vertex) * 0.283],
-    [0.033, 0.63, 0.033],
+    [Math.sin(vertex) * 0.283, 0.35, Math.cos(vertex) * 0.283],
+    [0.033, 0.75, 0.033],
     [0, vertex, 0],
   )
   for (const y of [0.015, 0.565]) {
@@ -80,18 +84,14 @@ for (let i = 0; i < 8; i++) {
       )
   }
   // Curved miniature roof ribs and raised eave corners.
-  b.curve(
-    'wood',
-    trim,
-    [
+  // These ribs support the eave tips; the generic simplified builder drops
+  // thin curves and otherwise leaves the gold tips floating in mid-air.
+  b.add('wood', new TubeGeometry(new CatmullRomCurve3([
       [Math.sin(vertex) * 0.045, 0.85, Math.cos(vertex) * 0.045],
       [Math.sin(vertex) * 0.19, 0.74, Math.cos(vertex) * 0.19],
       [Math.sin(vertex) * 0.34, 0.7, Math.cos(vertex) * 0.34],
       [Math.sin(vertex) * 0.4, 0.76, Math.cos(vertex) * 0.4],
-    ],
-    0.022,
-    12,
-  )
+    ].map(p => new Vector3(...p))), SIMPLE_MAP ? 4 : 12, .022, SIMPLE_MAP ? 3 : 5), trim)
   b.ball(
     'gold',
     gold,
@@ -121,7 +121,7 @@ const roofProfile = [
 ]
   .reverse()
   .map((p) => new Vector2(p[0], p[1]))
-b.add('paint', new LatheGeometry(roofProfile, 8), green)
+b.add('tile', new LatheGeometry(roofProfile, 8), green)
 b.cylinder(
   'wood',
   red,
@@ -230,6 +230,7 @@ export function TraditionalPavilionLanterns({pavilions=PARK_PAVILIONS}:{pavilion
             ) : (
               <meshStandardMaterial
                 vertexColors
+                side={kind === 'tile' ? DoubleSide : undefined}
                 roughness={kind === 'gold' ? 0.4 : 0.7}
                 metalness={kind === 'gold' ? 0.7 : 0}
                 roughnessMap={!SIMPLE_MAP&&kind === 'gold' ? metalGrain : null}
