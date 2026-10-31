@@ -3,6 +3,7 @@ import { BENCH_PAVILIONS, TABLES, CHARACTER, PAVILION_LANTERN, PARK_PAVILIONS } 
 import type { Pose, Session } from '../../network/worldClient'
 import { useBenchState } from './benchState'
 import { lookScale } from '../../world/lookSensitivity'
+import { pavilionLanternY } from '../../world/art/pavilionCanopy'
 
 export function benchTable(benchId: string) {
   if (!/^bench-\d+$/.test(benchId)) return undefined
@@ -28,6 +29,6 @@ export function benchBoardLook(pose: Pose, target: readonly number[]) {
 }
 export function spectatorClearHeight(pavilionId?: string) {
   const pavilion = PARK_PAVILIONS.find(p => p.id === pavilionId)
-  return pavilion ? pavilion.floor + PAVILION_LANTERN.heightFactor * pavilion.scale
+  return pavilion ? pavilionLanternY(pavilion)
     - PAVILION_LANTERN.bottomOffset - PAVILION_LANTERN.spectatorClearance : Infinity
 }
