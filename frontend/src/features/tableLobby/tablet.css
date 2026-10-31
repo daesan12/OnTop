@@ -143,3 +143,32 @@
   .park-page:has(.table-tablet[data-active='true']) .park-chat__history-hint { display:none; }
 }
 @media (prefers-reduced-motion: reduce) { .table-tablet * { transition: none !important; } }
+/* Room terms lead the ready screen; the roster stays visible as a compact secondary list. */
+.table-tablet[data-stage='ready'] .tablet-title h2{font-size:48px;margin:6px 0 14px}
+.table-tablet[data-stage='ready'] .tablet-ready-content{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto auto;gap:12px 28px;height:510px}
+.table-tablet[data-stage='ready'] .tablet-bet-confirm{position:static;grid-column:1;grid-row:1;width:100%;margin:0;padding:16px 24px;display:flex;flex-direction:column;gap:6px}
+.tablet-bet-confirm>.tablet-game-art{width:100%;min-height:0;flex:1;max-height:130px}
+.table-tablet .tablet-ready-description{font-size:18px;margin:4px 0 6px}
+.table-tablet[data-stage='ready'] .tablet-bet-confirm strong{font-size:60px;margin:0;white-space:nowrap}
+.table-tablet[data-stage='ready'] .tablet-bet-confirm strong small{font-size:32px}
+.table-tablet[data-stage='ready'] .tablet-roster{grid-column:2;grid-row:1;grid-template-columns:1fr;align-content:center;gap:12px;margin:0}
+.table-tablet[data-stage='ready'] .tablet-person{display:grid;grid-template-columns:64px minmax(0,1fr);grid-template-rows:auto auto;gap:5px 12px;text-align:left;align-items:center}
+.table-tablet[data-stage='ready'] .tablet-portrait{grid-row:1/3;height:70px;border-radius:10px}
+.table-tablet[data-stage='ready'] .tablet-name{margin:0;font-size:18px;padding:6px 10px}
+.table-tablet[data-stage='ready'] .tablet-ready-stamp{margin:0;font-size:15px;max-width:none;text-align:center;padding:4px}
+.table-tablet[data-stage='ready'] .tablet-empty-seat{font-size:24px}
+.table-tablet[data-stage='ready'] .tablet-empty-seat small{display:none}
+.tablet-ready-content>.tablet-waiting-status,.tablet-ready-content>.host-start-wait,.tablet-ready-content>.tablet-contract-note,.tablet-ready-content>.tablet-ready-actions{grid-column:1/-1}
+.table-tablet[data-stage='ready'] .tablet-ready-actions{margin:0 40px}
+@media(max-width:900px){
+  .table-tablet[data-stage='ready'] .tablet-title h2{font-size:32px}
+  .table-tablet[data-stage='ready'] .tablet-ready-content{display:flex;height:auto;gap:16px}
+  .table-tablet[data-stage='ready'] .tablet-bet-confirm{order:0;min-height:280px;padding:14px}
+  .tablet-bet-confirm>.tablet-game-art{flex:none;height:110px}
+  .table-tablet[data-stage='ready'] .tablet-roster{order:1;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .table-tablet[data-stage='ready'] .tablet-person{grid-template-columns:minmax(0,1fr)}
+  .table-tablet[data-stage='ready'] .tablet-portrait{display:none}
+  .table-tablet[data-stage='ready'] .tablet-name{font-size:15px}
+  .tablet-ready-content>p,.tablet-ready-content>.tablet-ready-actions{order:2}
+  .table-tablet[data-stage='ready'] .tablet-ready-actions{margin:0}
+}

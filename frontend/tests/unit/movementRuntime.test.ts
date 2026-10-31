@@ -104,13 +104,14 @@ describe('M14 authenticated REST and movement ownership boundary', () => {
     expect(fetch).not.toHaveBeenCalled()
   })
   it.each(['/api/v1/users/me/games?size=20', '/api/v1/users/me/games?size=20&cursor=9007199254740993&gameCode=OMOK',
-    '/api/v1/users/me/game-stats'])('sends history GET %s with the existing Bearer authentication', async path => {
+    '/api/v1/users/me/game-stats', '/api/v1/minigames/jumpmap/rankings'])('sends history GET %s with the existing Bearer authentication', async path => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ items: [] }))
     await runtime.requestJSON(path, { method: 'GET', cache: 'no-store' })
     expect(fetch).toHaveBeenLastCalledWith(path, expect.objectContaining({ method: 'GET', cache: 'no-store', credentials: 'omit',
       headers: { Authorization: 'Bearer fixture-access' } }))
   })
   it.each([
+    ['/api/v1/minigames/jumpmap/rankings', 'POST'], ['/api/v1/minigames/jumpmap/rankings?userId=102', 'GET'],
     ['/api/v1/users/me/games?size=20', 'POST'], ['/api/v1/users/me/game-stats', 'DELETE'],
     ['/api/v1/users/102/games?size=20', 'GET'], ['/api/v1/users/me/games?size=20&userId=102', 'GET'],
     ['/api/v1/users/me/games?size=20&cursor=-1', 'GET'], ['/api/v1/users/me/games?size=20&gameCode=FARKLE', 'GET'],
@@ -122,7 +123,7 @@ describe('M14 authenticated REST and movement ownership boundary', () => {
   it.each(['v4', 'v5'] as const)('sends the %s lobby through the authenticated runtime', async rulesVersion => {
     const original = vi.mocked(fetch).getMockImplementation()!
     const path = `/api/v1/minigames/sessions?rulesVersion=${rulesVersion}`
-    const lobby = { rulesVersion, todayEarned: 0, dailyCap: 100, isFirstGame: true, seenTips: [] }
+    const lobby = { rulesVersion, todayEarned: 0, dailyCap: 500, isFirstGame: true, seenTips: [] }
     vi.mocked(fetch).mockImplementation(async (input, init) =>
       input === path ? json(lobby) : original(input, init))
     const create = rulesVersion === 'v5' ? createBungeoppangV5Service : createBungeoppangV4Service

@@ -102,7 +102,7 @@ v4로 다시 계산하지 않는다. v2/v4를 합쳐 회원당 활성 판은 최
     "okPoint": 2,
     "goldenPoint": 5,
     "pointsPerCoin": 15,
-    "dailyCoinCap": 100,
+    "dailyCoinCap": 500,
     "minGapMs": 50,
     "sameSlotGapMs": 300,
     "maxLogEntries": 1200
@@ -143,7 +143,7 @@ v4로 다시 계산하지 않는다. v2/v4를 합쳐 회원당 활성 판은 최
   "rulesVersion": "v4",
   "serverNow": "2026-10-27T00:00:00.200Z",
   "todayEarned": 5,
-  "dailyCap": 100,
+  "dailyCap": 500,
   "isFirstGame": false,
   "seenTips": ["GOLD", "START"],
   "activeSessionId": "901",
@@ -204,7 +204,7 @@ Story 2 복구에는 `?includeProgress=true`를 사용하며 서버가 승인한
   잠금을 기다린 완료가 이길 수 있다. `expiresAt` 이후에만 `INVALID`(SUBMISSION_EXPIRED/EXPIRED) 무보상으로 확정한다.
 - 승인되지 않은 마지막 DELIVER 한 건은 원래 deliveryKey로 재검증한다. 합법이면 납품 영수증·다음 주문·완료를
   같은 트랜잭션에 저장한다. 그 뒤 suffix가 불법이면 새 납품 승인까지 전부 롤백한다.
-- 보상은 `floor(score/15)`, v2/v4 합산 KST 일일 100냥 잔여 한도 안에서 지급한다. 양수 지급만
+- 보상은 `floor(score/15)`, 모든 미니게임 합산 KST 일일 500냥 잔여 한도 안에서 지급한다. 양수 지급만
   `MINIGAME_REWARD` 원장 한 건을 만들며 0냥도 검증된 판은 COMPLETED다. reserved_balance는 바꾸지 않는다.
 - 완료 응답에는 기존 v2 공통 필드와 successfulMade/served/customersServed/specialServed/bonusScore,
   폐기·미납품·미완성 수, rewardDate/settledAt/finalThroughSeq/finalPrefixHash/configVersion이 포함된다.
@@ -289,7 +289,7 @@ Story 3 전용 MySQL 8.4 컨테이너의 새 DB에서만 실행했다. 공용 DE
 ```json
 {
   "todayEarned": 5,
-  "dailyCap": 100,
+  "dailyCap": 500,
   "isFirstGame": false,
   "seenTips": ["GOLD", "START"],
   "rulesVersion": "v2"
@@ -365,12 +365,12 @@ Story 3 전용 MySQL 8.4 컨테이너의 새 DB에서만 실행했다. 공용 DE
   "coinsCalculated": 5,
   "coinsGranted": 5,
   "todayEarned": 5,
-  "dailyCap": 100,
+  "dailyCap": 500,
   "capReached": false
 }
 ```
 
-15점당 1냥(나머지 버림), 한국 날짜 하루 최대 100냥. 자정을 넘어 제출하면 제출 처리 날짜에 포함한다.
+15점당 1냥(나머지 버림), 한국 날짜 모든 미니게임 합산 하루 최대 500냥. 자정을 넘어 제출하면 제출 처리 날짜에 포함한다.
 `verifiedCompletedCount`는 꺼낸 개수(made), `rewardAmount`는 실제 지급액(coinsGranted)과 같은 호환 필드다.
 상한으로 0냥이어도 COMPLETED로 저장한다. 첫 결과를 저장하므로 재요청은 날짜·상한이 달라도 처음 응답을 반환한다.
 세션 완료·보상·거래·결과·안내 저장은 한 트랜잭션이며 저장 실패 시 전부 롤백한다.

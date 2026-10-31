@@ -1,3 +1,4 @@
+import { OmokCoinToss } from './omok/OmokCoinToss'
 import { openManual } from '../features/manual/manualState'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useGame, tableBusy, recoveryBlocked } from './store'
@@ -153,6 +154,7 @@ export function OmokPanel() {
   const player = g.role === 'PLAYER', ownBlack = own === o.blackUserId
   const opponent = ownBlack ? o.whiteUserId : o.blackUserId
   return <section className={`prototype-game gomoku-focus-hud omok-panel${player ? '' : ' omok-spectator-hud'}`} aria-label="오목 경기" data-spectator={!player} data-board-view={!player && spectatorView === 'board'}>
+    <OmokCoinToss key={g.gameId} game={o} />
     {player ? <header ref={header} className="omok-match-header" aria-label="오목 경기 정보">
       <div className="omok-match-player"><i className={`stone-chip ${ownBlack ? 'black' : 'white'}`} /><div>
         <b>{profiles[own]?.nickname ?? '나'}</b><small>나 · {ownBlack ? '흑돌' : '백돌'}</small></div></div>

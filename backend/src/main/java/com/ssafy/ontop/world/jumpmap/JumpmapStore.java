@@ -13,7 +13,7 @@ import java.util.Set;
  */
 public interface JumpmapStore {
     ZoneId KST = ZoneId.of("Asia/Seoul");
-    int DAILY_CAP = 100;
+    int DAILY_CAP = com.ssafy.ontop.minigame.service.MinigameRewardBudget.DAILY_CAP;
     Set<String> TIPS = Set.of("START_SPOT", "RUN_STARTED", "FIRST_GATE", "FIRST_FALL", "FINAL_PAD");
 
     static LocalDate kstDate(Instant at) { return LocalDate.ofInstant(at, KST); }
@@ -26,6 +26,12 @@ public interface JumpmapStore {
     record Ended(int runCoins, int todayEarned, LocalDate today, Long bestFinishMs, boolean newBest) {}
     record Status(boolean firstRun, List<String> seenTips, Long bestFinishMs, int todayEarned, LocalDate today) {}
     record RewardKey(String runId, int gate) {}
+    record RankingEntry(int rank, String userId, String nickname, long finishMs, String finishedAt) {}
+    record Ranking(List<RankingEntry> items, RankingEntry me) {}
+
+    default Ranking ranking(long userId) {
+        return new Ranking(List.of(), null);
+    }
 
     /** 점프맵 테이블(V131)이 현재 DB에 있는지. 없으면 플래그를 켜도 점프맵만 비활성으로 두고 서버는 시작한다. */
     default boolean ready() { return true; }

@@ -34,6 +34,7 @@ export interface Omok {
   turnUserId: string | null
   turnDeadline: string | null
   moveCount: number
+  coinTossEndsAt?: string
   lastMove: { x: number; y: number; stone: 'BLACK' | 'WHITE' } | null
   winnerUserId: string | null
   endReason: string | null
@@ -182,6 +183,7 @@ export function parseOmok(p: unknown): Omok {
     turnUserId: p.turnUserId as string | null,
     turnDeadline: p.turnDeadline as string | null,
     moveCount: p.moveCount,
+    ...(typeof p.coinTossEndsAt === 'string' && Number.isFinite(Date.parse(p.coinTossEndsAt)) ? { coinTossEndsAt: p.coinTossEndsAt } : {}),
     lastMove:
       p.lastMove === null
         ? null

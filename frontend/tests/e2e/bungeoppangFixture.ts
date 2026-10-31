@@ -15,7 +15,7 @@ const items = (bean = 0, custard = 0, pizza = 0, chocolate = 0) => ({ bean, cust
 const wireRules = { slots: 6, durationMs: 60000, countdownMs: 3500, sideMs: 8000, rushSideMs: 6000,
   rushFromMs: 40000, heatMin: 85, heatMax: 115, heatListLength: 512, trayCapacity: 4, maxOrderItems: 4,
   specialOrderChancePercent: 20, specialBonusPercent: 50, firstOrder: items(2), okFrom: 50, goldenFrom: 70,
-  goldenTo: 90, burntFrom: 100, okPoint: 2, goldenPoint: 5, pointsPerCoin: 15, dailyCoinCap: 100,
+  goldenTo: 90, burntFrom: 100, okPoint: 2, goldenPoint: 5, pointsPerCoin: 15, dailyCoinCap: 500,
   minGapMs: 50, sameSlotGapMs: 300, maxLogEntries: 1200 }
 const { countdownMs: _countdown, specialOrderChancePercent, ...shared } = wireRules
 const rules: BungeoppangRules = { ...shared, orderListLength: 0, specialOrderChance: specialOrderChancePercent / 100 }
@@ -75,7 +75,7 @@ export async function bungeoppangFixture(page: Page, players = 4) {
         return statusFailure
           ? route.fulfill({ status: 503, json: { code: 'MINIGAME_NOT_CONFIGURED', message: '설정 미완료' } })
           : route.fulfill({ json: { rulesVersion: 'v4', serverNow: new Date().toISOString(), todayEarned: earned,
-            dailyCap: 100, isFirstGame: earned === 0, seenTips: [], activeSessionId: null, supportedRulesVersions: ['v2', 'v4'] } })
+            dailyCap: 500, isFirstGame: earned === 0, seenTips: [], activeSessionId: null, supportedRulesVersions: ['v2', 'v4'] } })
       }
       expect(body).toEqual({ minigameType: 'BUNGEOPPANG', rulesVersion: 'v4' })
       expect(key).toMatch(keyPattern)
@@ -154,7 +154,7 @@ export async function bungeoppangFixture(page: Page, players = 4) {
       earned += reward
       game.result = { minigameSessionId: game.id, status: 'COMPLETED', rulesVersion: 'v4', configVersion,
         verifiedCompletedCount: state.made, rewardAmount: reward, ...stats(state, input.log), coinsCalculated: calculated,
-        coinsGranted: reward, todayEarned: earned, dailyCap: 100, capReached: earned === 100,
+        coinsGranted: reward, todayEarned: earned, dailyCap: 500, capReached: earned === 100,
         undeliveredCount: state.tray.length, unfinishedGrillCount: state.slots.filter(slot => slot.phase !== 'empty').length,
         rewardDate: new Date(settledAt.getTime() + 9 * 3_600_000).toISOString().slice(0, 10), settledAt: settledAt.toISOString(),
         finalThroughSeq: input.log.length, finalPrefixHash: input.prefixHash }

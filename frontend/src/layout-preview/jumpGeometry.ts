@@ -33,8 +33,9 @@ function themeModel(theme:JumpTheme) {
   } else if(theme==='gomoku') {
     b.add('stone',new LatheGeometry([[0,0],[.5,0],[.73,.04],[.84,.16],[.85,.27],[.81,.4],[.7,.5],[0,.5]].map(p=>new Vector2(p[0],p[1])),SIMPLE_MAP?12:64),'#e9e5d9',[0,-.5,0])
   } else if(theme==='fish') {
-    b.ball('paint','#c99343',[0,-.3,0],[1,.3,.62])
-    slab(b,'paint','#dfa854',1.4,.82,.13)
+    // A rounded pastry below the unchanged walkable top, rather than a thin slab.
+    b.ball('paint','#c99343',[0,-.52,0],[1,.52,.62])
+    b.ball('paint','#dfa854',[.05,-.26,0],[.82,.26,.48])
     const tail=new Shape();tail.moveTo(-.8,-.18);tail.lineTo(-1.5,-.5);tail.quadraticCurveTo(-1.35,0,-1.5,.5);tail.lineTo(-.8,.18);tail.closePath()
     const tg=new ExtrudeGeometry(tail,{depth:.3,bevelEnabled:true,bevelSize:.06,bevelThickness:.05,bevelSegments:2});tg.rotateX(-Math.PI/2);b.add('paint',tg,'#b97d32',[0,-.45,0])
     for(const side of [-1,1]) {
@@ -47,8 +48,8 @@ function themeModel(theme:JumpTheme) {
       const px=col*.22, pz=row*.15
       b.curve('paint',(row+col)%2?'#a36b2f':'#bd853d',[[px-.08,-.012,pz-.06],[px,-.004,pz+.055],[px+.08,-.012,pz-.06]],.009,8)
     }
-    b.ball('paint','#e4ae5c',[.94,-.18,0],[.13,.1,.24])
-    b.box('paint','#5b1f1a',[0,-.24,0],[1.6,.035,.06])
+    b.ball('paint','#e4ae5c',[.94,-.29,0],[.13,.16,.24])
+    b.box('paint','#5b1f1a',[0,-.5,0],[1.6,.035,.06])
   } else if(theme==='cloud') {
     for(const [x,y,z,r] of [[0,-.45,0,.85],[-.65,-.45,.1,.6],[.65,-.43,-.08,.6],[.1,-.34,-.6,.57],[-.1,-.4,.6,.58],[.38,-.27,.3,.52]]) {
       const g=new SphereGeometry(1,SIMPLE_MAP?6:18,SIMPLE_MAP?4:12);g.scale(r!,r!*.85,r!);g.translate(x!,y!,z!);const p=g.getAttribute('position');for(let i=0;i<p.count;i++)p.setY(i,Math.min(0,p.getY(i)));g.computeVertexNormals();b.add('paint',g,'#edf0eb')

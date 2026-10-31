@@ -637,13 +637,13 @@ public class MinigameService {
         }
         long calculated = score.score() / 15;
         long today = earned(userId, current);
-        long reward = Math.min(calculated, Math.max(0, BungeoppangRules.DAILY_CAP - today));
+        long reward = MinigameRewardBudget.grant(calculated, today);
         wallet.creditReward(reward);
         session.complete(score.score(), reward, current);
         activityEnded(session);
         if (reward > 0) {
             repository.persist(WalletTransaction.minigameReward(wallet.id(), session.id(), reward,
-                    "minigame-reward:" + session.id()));
+                    "minigame-reward:" + session.id(), current));
         }
         rememberTips(userId, submission.path("seenTips"));
         var response = new MinigameCompleteResponse(Long.toString(sessionId), "COMPLETED", score.made(), reward,
@@ -735,13 +735,13 @@ public class MinigameService {
         var rewardDate = settledAt.atZone(SEOUL).toLocalDate();
         long calculated = Math.floorDiv(result.score(), config(round).rules().pointsPerCoin());
         long today = earned(userId, settledAt);
-        long reward = Math.min(calculated, Math.max(0, BungeoppangRules.DAILY_CAP - today));
+        long reward = MinigameRewardBudget.grant(calculated, today);
         wallet.creditReward(reward);
         session.complete(result.score(), reward, settledAt);
         activityEnded(session);
         if (reward > 0) {
             repository.persist(WalletTransaction.minigameReward(wallet.id(), sessionId, reward,
-                    "minigame-reward:" + sessionId));
+                    "minigame-reward:" + sessionId, settledAt));
         }
         int unfinished = (int) result.slots().stream().filter(slot -> !"empty".equals(slot.phase())).count();
         var response = new BungeoppangV4CompleteDtos.Response(Long.toString(sessionId), "COMPLETED", V4,
@@ -839,13 +839,13 @@ public class MinigameService {
         var rewardDate = settledAt.atZone(SEOUL).toLocalDate();
         long calculated = Math.floorDiv(result.score(), rules.pointsPerCoin());
         long today = earned(userId, settledAt);
-        long reward = Math.min(calculated, Math.max(0, BungeoppangRules.DAILY_CAP - today));
+        long reward = MinigameRewardBudget.grant(calculated, today);
         wallet.creditReward(reward);
         session.complete(result.score(), reward, settledAt);
         activityEnded(session);
         if (reward > 0) {
             repository.persist(WalletTransaction.minigameReward(wallet.id(), sessionId, reward,
-                    "minigame-reward:" + sessionId));
+                    "minigame-reward:" + sessionId, settledAt));
         }
         int unfinished = (int) result.slots().stream().filter(slot -> !"empty".equals(slot.phase())).count();
         var response = new BungeoppangV4CompleteDtos.Response(Long.toString(sessionId), "COMPLETED", V5,

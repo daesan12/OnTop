@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ssafy.ontop.config.RuntimeProfiles;
+import com.ssafy.ontop.minigame.service.MinigameRewardBudget;
 import com.ssafy.ontop.wallet.domain.Wallet;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
@@ -23,6 +24,7 @@ import org.springframework.dao.TransientDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /** MySQL 저장. 지갑은 기존 Wallet 엔티티의 비관적 잠금·creditReward를 재사용하고 원장 멱등 키로 이중 지급을 막는다. */
@@ -40,6 +42,7 @@ public class JdbcJumpmapStore implements JumpmapStore {
         this.jdbc = jdbc;
         this.entities = entities;
         this.transactions = new TransactionTemplate(transactions);
+        this.transactions.setIsolationLevel(TransactionDefinition.ISOLATION_READ_COMMITTED);
     }
 
     /** 원장 멱등 키. (판, 문)마다 하나다. */
@@ -72,6 +75,43 @@ public class JdbcJumpmapStore implements JumpmapStore {
                     """, runId, userId, channelId, JumpCourse.RULES_VERSION, JumpCourse.COURSE_VERSION, first, time(at));
             LocalDate today = JumpmapStore.kstDate(at);
             return new Started(first, earned(userId, today, false), today);
+        });
+    }
+
+    @Override
+    public Ranking ranking(long userId) {
+        return transaction(() -> {
+            var rows = jdbc.queryForList("""
+                    WITH choices AS (
+                        SELECT r.*, u.nickname, ROW_NUMBER() OVER (PARTITION BY r.user_id
+                            ORDER BY r.finish_ms, r.ended_at, r.id) AS choice
+                        FROM jump_runs r JOIN users u ON u.id = r.user_id
+                        WHERE r.status = 'ENDED' AND r.end_reason = 'FINISH' AND r.suspicious = FALSE
+                          AND r.finish_ms > 0 AND r.final_reached = TRUE AND r.gates_passed = 7
+                          AND r.rules_version = ? AND r.course_version = ? AND u.deleted_at IS NULL
+                    ), ranked AS (
+                        SELECT *, RANK() OVER (ORDER BY finish_ms) AS place,
+                            ROW_NUMBER() OVER (ORDER BY finish_ms, ended_at, user_id) AS position
+                        FROM choices WHERE choice = 1
+                    )
+                    SELECT place, user_id, nickname, finish_ms, ended_at, position
+                    FROM ranked WHERE position <= 50 OR user_id = ? ORDER BY position
+                    """, JumpCourse.RULES_VERSION, JumpCourse.COURSE_VERSION, userId);
+            var items = new ArrayList<RankingEntry>();
+            RankingEntry me = null;
+            for (var row : rows) {
+                var entry = new RankingEntry(((Number) row.get("place")).intValue(),
+                        row.get("user_id").toString(), String.valueOf(row.get("nickname")),
+                        ((Number) row.get("finish_ms")).longValue(),
+                        ((Timestamp) row.get("ended_at")).toInstant().toString());
+                if (((Number) row.get("position")).intValue() <= 50) {
+                    items.add(entry);
+                }
+                if (entry.userId().equals(Long.toString(userId))) {
+                    me = entry;
+                }
+            }
+            return new Ranking(List.copyOf(items), me);
         });
     }
 
@@ -110,18 +150,16 @@ public class JdbcJumpmapStore implements JumpmapStore {
             if (rows.isEmpty()) return Optional.<Settled>empty();
             var row = rows.getFirst();
             long userId = ((Number) row.get("user_id")).longValue();
-            LocalDate date = ((Date) row.get("kst_date")).toLocalDate();
             int calculated = ((Number) row.get("coins_calculated")).intValue();
             int granted;
             if ("GRANTED".equals(row.get("status"))) {
                 granted = ((Number) row.get("coins_granted")).intValue();
             } else {
-                int earned = earned(userId, date, true);
-                granted = Math.min(calculated, Math.max(0, DAILY_CAP - earned));
+                int earned = earned(userId, JumpmapStore.kstDate(now), true);
+                granted = MinigameRewardBudget.grant(calculated, earned);
                 if (granted > 0) {
                     credit(userId, granted, rewardKey(runId, gate), now);
-                    jdbc.update("UPDATE jump_daily_earnings SET coins_earned = coins_earned + ? WHERE user_id = ? AND kst_date = ?",
-                            granted, userId, Date.valueOf(date));
+                    // V131의 게임별 일일 카운터는 보존하고 실제 지급 원장을 공통 기준으로 사용한다.
                     jdbc.update("UPDATE jump_runs SET coins_granted = coins_granted + ? WHERE id = ?", granted, runId);
                 }
                 jdbc.update("""
@@ -154,7 +192,7 @@ public class JdbcJumpmapStore implements JumpmapStore {
                 // 13장: 의심 판은 개인 최고 기록에 넣지 않는다. 동점은 새 기록이 아니다.
                 if (end.reason() == JumpRun.EndReason.FINISH && end.finishMs() != null && !end.suspicious()) {
                     touchProfile(userId, null);
-                    Long best = jdbc.queryForObject("SELECT best_finish_ms FROM jump_profiles WHERE user_id = ?", Long.class, userId);
+                    Long best = best(userId, runId);
                     if (best == null || end.finishMs() < best) {
                         newBest = true;
                         jdbc.update("UPDATE jump_profiles SET best_finish_ms = ?, best_run_id = ?, updated_at = ? WHERE user_id = ?",
@@ -162,8 +200,7 @@ public class JdbcJumpmapStore implements JumpmapStore {
                     }
                 }
             }
-            Long best = jdbc.query("SELECT best_finish_ms FROM jump_profiles WHERE user_id = ?",
-                    rs -> rs.next() ? (Long) rs.getObject(1, Long.class) : null, userId);
+            Long best = best(userId, "");
             int runCoins = ((Number) row.get("coins_granted")).intValue();
             LocalDate today = JumpmapStore.kstDate(end.endedAt());
             return new Ended(runCoins, earned(userId, today, false), today, best, newBest);
@@ -178,9 +215,8 @@ public class JdbcJumpmapStore implements JumpmapStore {
             int earned = earned(userId, today, false);
             if (rows.isEmpty()) return new Status(true, List.of(), null, earned, today);
             var row = rows.getFirst();
-            Object best = row.get("best_finish_ms");
             return new Status(row.get("first_run_at") == null, read(String.valueOf(row.get("seen_tips"))),
-                    best == null ? null : ((Number) best).longValue(), earned, today);
+                    best(userId, ""), earned, today);
         });
     }
 
@@ -232,17 +268,26 @@ public class JdbcJumpmapStore implements JumpmapStore {
         return true;
     }
 
+    private Long best(long userId, String excludedRun) {
+        return jdbc.queryForObject("""
+                SELECT MIN(finish_ms) FROM jump_runs
+                WHERE user_id = ? AND id <> ? AND status = 'ENDED' AND end_reason = 'FINISH'
+                  AND suspicious = FALSE AND gates_passed = 7 AND final_reached = TRUE
+                  AND rules_version = ? AND course_version = ? AND finish_ms > 0
+                """, Long.class, userId, excludedRun, JumpCourse.RULES_VERSION, JumpCourse.COURSE_VERSION);
+    }
+
     private int earned(long userId, LocalDate date, boolean lock) {
         if (lock) {
-            jdbc.update("""
-                    INSERT INTO jump_daily_earnings(user_id, kst_date, coins_earned) VALUES (?, ?, 0)
-                    ON DUPLICATE KEY UPDATE coins_earned = coins_earned
-                    """, userId, Date.valueOf(date));
+            var wallets = entities.createQuery("select w from Wallet w where w.userId = :user", Wallet.class)
+                    .setParameter("user", userId).setLockMode(LockModeType.PESSIMISTIC_WRITE).getResultList();
+            if (wallets.isEmpty()) {
+                throw new IllegalStateException("지갑이 없는 회원입니다.");
+            }
         }
-        Integer earned = jdbc.query("SELECT coins_earned FROM jump_daily_earnings WHERE user_id = ? AND kst_date = ?"
-                        + (lock ? " FOR UPDATE" : ""),
-                rs -> rs.next() ? rs.getInt(1) : 0, userId, Date.valueOf(date));
-        return earned == null ? 0 : earned;
+        Instant from = date.atStartOfDay(KST).toInstant();
+        return Math.toIntExact(MinigameRewardBudget.earned(entities, userId, from,
+                date.plusDays(1).atStartOfDay(KST).toInstant()));
     }
 
     private void credit(long userId, int amount, String key, Instant now) {

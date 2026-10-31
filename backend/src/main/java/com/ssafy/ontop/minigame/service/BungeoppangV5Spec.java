@@ -47,7 +47,7 @@ public final class BungeoppangV5Spec {
     private static BungeoppangV5Responses.Rules rules(int durationMs, int rushFromMs) {
         return new BungeoppangV5Responses.Rules(
                 6, durationMs, COUNTDOWN_MS, 8_000, 6_000, rushFromMs, 85, 115, 2_048,
-                10, 4, 20, 50, FIRST_ORDER, 50, 70, 90, 100, 2, 5, 15, 100,
+                10, 4, 20, 50, FIRST_ORDER, 50, 70, 90, 100, 2, 5, 15, MinigameRewardBudget.DAILY_CAP,
                 50, 300, 3_600, HEAT_ASSIGNMENT, MAX_ACTIVE_ORDERS);
     }
 

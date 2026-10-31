@@ -9,19 +9,22 @@ import com.ssafy.ontop.game.action.GameForfeitReceipts;
 import com.ssafy.ontop.game.action.GameForfeitResult;
 import com.ssafy.ontop.game.engine.GameEngine;
 import com.ssafy.ontop.game.engine.GameEngineRouter;
-import com.ssafy.ontop.game.omok.domain.OmokMatch;
 import com.ssafy.ontop.game.omok.domain.OmokMatch.Snapshot;
+import com.ssafy.ontop.game.omok.domain.OmokMatch;
 import com.ssafy.ontop.game.reconnect.GameRecoverySnapshot;
 import com.ssafy.ontop.game.result.GameDepartureReason;
 import com.ssafy.ontop.game.result.GameLifecycle;
 import com.ssafy.ontop.game.state.GameStateChanged;
 import com.ssafy.ontop.game.state.GameStateView;
+import java.security.SecureRandom;
 import java.time.Clock;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,6 +37,8 @@ public final class OmokEngine implements GameEngine {
     private final GameEngineRouter router;
     private final Map<String, OmokMatch> games = new HashMap<>();
     private final Map<Long, String> latest = new HashMap<>();
+    private final Map<String, Instant> coinTossEnds = new HashMap<>();
+    private final BooleanSupplier coin;
     private final GameLifecycle lifecycle = new GameLifecycle();
     private final GameForfeitReceipts forfeits = new GameForfeitReceipts();
 
@@ -42,21 +47,36 @@ public final class OmokEngine implements GameEngine {
     }
 
     public OmokEngine(ObjectMapper mapper, Clock clock, Consumer<Object> events, GameEngineRouter router) {
+        this(mapper, clock, events, router, new SecureRandom()::nextBoolean);
+    }
+
+    public OmokEngine(ObjectMapper mapper, Clock clock, Consumer<Object> events, GameEngineRouter router, BooleanSupplier coin) {
         this.mapper = mapper;
         this.clock = clock;
         this.events = events;
         this.router = router;
+        this.coin = java.util.Objects.requireNonNull(coin);
     }
 
     // 실제 참가·차감 커밋을 확인한 서버 코드만 호출한다. 외부 HTTP/WS 생성 API는 제공하지 않는다.
     public void create(String gameId, String tableId, long blackUserId, long whiteUserId) {
+        create(gameId, tableId, blackUserId, whiteUserId, false);
+    }
+
+    /** 예약 커밋 이후 한 번만 추첨한다. 동일 경기 재호출은 추첨 결과를 유지한다. */
+    public void createWithCoinToss(String gameId, String tableId, long firstUserId, long secondUserId) {
+        create(gameId, tableId, firstUserId, secondUserId, true);
+    }
+
+    private void create(String gameId, String tableId, long blackUserId, long whiteUserId, boolean toss) {
         tick();
         synchronized (this) {
             OmokMatch existing = games.get(gameId);
             if (existing != null) {
                 Snapshot state = existing.snapshot();
-                if (!state.tableId().equals(tableId) || state.blackUserId() != blackUserId
-                        || state.whiteUserId() != whiteUserId) {
+                boolean samePlayers = state.blackUserId() == blackUserId && state.whiteUserId() == whiteUserId
+                        || toss && state.blackUserId() == whiteUserId && state.whiteUserId() == blackUserId;
+                if (!state.tableId().equals(tableId) || !samePlayers) {
                     throw new IllegalStateException("기존 경기와 다른 오목 생성 요청입니다.");
                 }
                 return;
@@ -67,9 +87,15 @@ public final class OmokEngine implements GameEngine {
                     || state.whiteUserId() == whiteUserId))) {
                 throw new IllegalStateException("이미 진행 중인 오목 경기입니다.");
             }
-            OmokMatch game = new OmokMatch(gameId, tableId, blackUserId, whiteUserId, clock.instant());
+            boolean reverse = toss && coin.getAsBoolean();
+            var startsAt = toss ? clock.instant().plusMillis(2500) : clock.instant();
+            OmokMatch game = new OmokMatch(gameId, tableId, reverse ? whiteUserId : blackUserId,
+                    reverse ? blackUserId : whiteUserId, startsAt);
             router.register(this, gameId, tableId, List.of(blackUserId, whiteUserId));
             games.put(gameId, game);
+            if (toss) {
+                coinTossEnds.put(gameId, startsAt);
+            }
             latest.put(blackUserId, gameId);
             latest.put(whiteUserId, gameId);
         }
@@ -225,6 +251,9 @@ public final class OmokEngine implements GameEngine {
         data.put("turnDeadline", state.turnDeadline() == null ? null : state.turnDeadline().toString());
         data.put("endedAt", state.endedAt() == null ? null : state.endedAt().toString());
         data.put("endReason", state.endReason());
+        if (coinTossEnds.containsKey(state.gameId())) {
+            data.put("coinTossEndsAt", coinTossEnds.get(state.gameId()).toString());
+        }
         data.set("lastMove", mapper.valueToTree(state.board().lastMove()));
         return data;
     }

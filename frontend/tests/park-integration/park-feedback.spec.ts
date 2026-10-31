@@ -101,7 +101,7 @@ for (const viewport of [{ width: 1920, height: 1080 }, { width: 1366, height: 76
     await expect(detail.getByRole('heading', { name: '원카드', exact: true })).toBeVisible()
     await tablet.getByLabel('1인 참가비').fill('20')
     await tablet.getByRole('button', { name: '선택하고 준비하기' }).click()
-    await expect(tablet.getByRole('heading', { name: '함께 시작할까요?' })).toBeVisible()
+    await expect(tablet.getByRole('heading', { name: '오목' })).toBeVisible()
     await tablet.getByRole('button', { name: '일어나기', exact: true }).click()
     await expect(tablet).toHaveCount(0)
   })

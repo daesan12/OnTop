@@ -341,7 +341,7 @@ class MinigameV5DeliveryServiceTests {
 
     @Test
     void 일일_상한이_차면_0냥으로_완료하고_원장을_남기지_않는다() {
-        when(repository.earned(eq(USER_ID), any(), any())).thenReturn(100L);
+        when(repository.earned(eq(USER_ID), any(), any())).thenReturn(500L);
         var request = delivery(twoBeans(), "1", "deliver-one");
         service.deliverV5(USER_ID, id, "deliver-one", request);
         clock.set(NOW.plusMillis(125_000));

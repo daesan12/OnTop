@@ -67,7 +67,7 @@ export function useJumpmapController() {
       const own = avatars.get(owner)
       if (!own) return
       const pose = sampleAvatar(own, now, { ...own.current }), feet = pose.y - .8
-      if (!s.run && Math.hypot(pose.x - START.x, pose.z - START.z) < 3 && Math.abs(feet - START.y) < 2) tip('START_SPOT')
+      if (!s.run && !(s.tip?.key === 'FIRST_FALL' && now < s.tip.until) && Math.hypot(pose.x - START.x, pose.z - START.z) < 3 && Math.abs(feet - START.y) < 2) tip('START_SPOT')
       const pad = !own.tableId && !own.benchId && !own.fitnessId && !own.telescopeId ? blockAtFeet({ ...pose, y: feet }) : undefined
       if (pad && pad.block !== previousBlock && Number.isFinite(previousFeet) && previousFeet >= feet - .02) {
         presentStep(pad.block, owner, 1, now)

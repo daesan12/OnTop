@@ -78,6 +78,10 @@ public class JumpmapService implements AutoCloseable {
 
     public boolean active() { return store != null; }
 
+    public JumpmapStore.Ranking ranking(long userId) {
+        return store == null ? new JumpmapStore.Ranking(List.of(), null) : store.ranking(userId);
+    }
+
     public void sink(Sink sink) { this.sink = sink; }
 
     public String mapVersion() { return activation.course().map(JumpCourse::mapVersion).orElse(""); }

@@ -6,7 +6,7 @@ import { acceptJumpEvent, anticipateGate, applyJumpStatus, bindJumpmap, onStep, 
 import { JumpGrace } from '../../src/features/jumpmap/jumpGrace'
 
 const scope = { channelId: 'channel-1', mapVersion: MAP_VERSION }
-const earnings = () => ({ earningsDate: kstDate(), todayEarned: 0, dailyCap: 100 })
+const earnings = () => ({ earningsDate: kstDate(), todayEarned: 0, dailyCap: 500 })
 const status = (patch: Partial<JumpStatus> = {}): JumpStatus => ({ ...scope, ...earnings(), revision: 0, enabled: true, courseVersion: COURSE_VERSION, rulesVersion: RULES_VERSION, isFirstRun: true, seenTips: [], activeRunId: null, bestFinishMs: null, ...patch })
 const emit = (type: string, revision: number, p: object = {}) => acceptJumpEvent(parseJumpEvent(type, { ...scope, ...earnings(), revision, runId: 'run-a', ...p })!, 1000 + revision)
 const start = (revision = 1, runId = 'run-a') => emit('JUMPMAP_STARTED', revision, { runId, courseVersion: COURSE_VERSION, rulesVersion: RULES_VERSION, serverTime: Date.now() })
@@ -26,7 +26,7 @@ describe('accepted new-map course', () => {
     expect(COURSE_COLLIDERS.filter(c => c.stage === 6 && !c.gate).every(c => c.thickness === .05 && c.yaw === 0)).toBe(true)
   })
   it('caps expected receipts and uses Korea midnight', () => {
-    expect(expectedCoins(7, 95)).toBe(5); expect(expectedCoins(7, 100)).toBe(0)
+    expect(expectedCoins(7, 495)).toBe(5); expect(expectedCoins(7, 500)).toBe(0)
     expect(kstDate(Date.parse('2026-10-30T14:59:59Z'))).toBe('2026-10-30')
     expect(kstDate(Date.parse('2026-10-30T15:00:00Z'))).toBe('2026-10-31')
   })
@@ -79,7 +79,7 @@ describe('server-owned run projection', () => {
   it('isolates malformed feature events and rejects invalid settlement values', () => {
     expect(() => receiveJumpmap('JUMPMAP_GATE', {}, '101', 'channel-1', MAP_VERSION)).not.toThrow()
     expect(useJumpmap.getState().refresh).toBe(1)
-    expect(() => parseJumpStatus(status({ todayEarned: 101 }))).toThrow()
+    expect(() => parseJumpStatus(status({ todayEarned: 501 }))).toThrow()
     expect(() => emit('JUMPMAP_GATE', 2, { gate: 1, elapsedMs: 2, coinsCalculated: 2, coinsGranted: 3, pending: false, runCoins: 3 })).toThrow()
     expect(parseJumpEvent('JUMPMAP_FUTURE_EVENT', {})).toBeNull()
   })

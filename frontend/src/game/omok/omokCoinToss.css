@@ -1,0 +1,7 @@
+.omok-coin-toss{position:fixed;inset:0;z-index:60;display:grid;place-items:center;background:#102d2059;pointer-events:auto}
+.omok-coin-paper{width:min(420px,calc(100vw - 32px));padding:28px;text-align:center;background:#fcf3d9;border:3px double #b58e43;border-radius:20px;color:#183f2c;box-shadow:0 15px 60px #10251b66}
+.omok-coin-paper p{font-size:20px;margin:0}.omok-coin-paper strong{display:block;font-size:26px;margin:18px 0 8px}.omok-coin-paper span{font-size:15px}
+.omok-toss-coin{display:grid;place-items:center;width:90px;height:90px;margin:24px auto;border-radius:50%;background:radial-gradient(circle at 32% 25%,#fff1ac,#c59532);border:7px double #966b22;color:#74511b;font:700 24px BusanDandiMyeongjo,serif;box-shadow:0 12px 15px #67420e33;animation:omok-coin-flip .45s linear infinite}
+.omok-coin-toss[data-landed=true] .omok-toss-coin{animation:none}
+@keyframes omok-coin-flip{50%{transform:translateY(-24px) rotateY(180deg)}100%{transform:rotateY(360deg)}}
+@media(prefers-reduced-motion:reduce){.omok-toss-coin{animation:none}}

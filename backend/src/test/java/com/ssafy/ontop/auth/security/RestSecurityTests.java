@@ -318,7 +318,7 @@ class RestSecurityTests {
                 "POST /api/v1/minigames/sessions/{sessionId}/deliveries",
                 "POST /api/v1/minigames/sessions/{sessionId}/complete",
                 "POST /api/v1/minigames/sessions/{sessionId}/abandon",
-                "GET /api/v1/minigames/jumpmap/status", "POST /api/v1/minigames/jumpmap/tips");
+                "GET /api/v1/minigames/jumpmap/status", "GET /api/v1/minigames/jumpmap/rankings", "POST /api/v1/minigames/jumpmap/tips");
     }
 
     private MockHttpServletRequestBuilder auth(MockHttpServletRequestBuilder request) {

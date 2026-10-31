@@ -60,6 +60,8 @@ test('a retained room discloses its game and stake before joining and requires t
  await tablet.getByRole('button',{name:'일어나기',exact:true}).click();await expect(tablet).toHaveCount(0)
  server.host('102')
  await page.reload();await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({timeout:90000})
+ await expect.poll(()=>page.evaluate(async()=>(await import('/tests/park-integration/probe.ts' as string)).sceneReady()),{timeout:90000}).toBe(true)
+ await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({timeout:90000})
  await expect(page.getByLabel('참가할 방 설정')).toHaveText('원카드 · 1인 판돈 250냥')
  await screenshot(page,'retained-room-before-seating')
  await page.evaluate(async()=>{

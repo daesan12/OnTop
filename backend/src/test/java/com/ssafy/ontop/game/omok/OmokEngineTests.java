@@ -25,6 +25,30 @@ import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class OmokEngineTests {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void 동전추첨은_한번만하고_공개후에만_흑돌이_착수하며_재접속도_같은결과다(boolean reverse) throws Exception {
+        var flips = new java.util.concurrent.atomic.AtomicInteger();
+        var engine = new OmokEngine(mapper, clock, events::add, new com.ssafy.ontop.game.engine.GameEngineRouter(),
+                () -> { flips.incrementAndGet(); return reverse; });
+        engine.createWithCoinToss("toss", "other", 303, 404);
+        var before = engine.load(303, "toss").orElseThrow().publicState();
+        long black = before.path("blackUserId").asLong();
+        assertThat(black).isEqualTo(reverse ? 404 : 303);
+        assertThat(before.path("whiteUserId").asLong()).isEqualTo(black == 303 ? 404 : 303);
+        assertThat(before.path("coinTossEndsAt").asText()).isEqualTo(clock.instant().plusMillis(2500).toString());
+        engine.createWithCoinToss("toss", "other", 404, 303);
+        assertThat(flips).hasValue(1);
+        assertThat(engine.load(404, "toss").orElseThrow().publicState()).isEqualTo(before);
+        var action = new GameActionCommand(black, "toss", "coin-first", 0, mapper.readTree("{\"x\":7,\"y\":7}"));
+        assertThatThrownBy(() -> engine.apply(action)).isInstanceOfSatisfying(Rejected.class,
+                error -> assertThat(error.reason()).isEqualTo(Rejection.INVALID_ACTION));
+        clock.advanceMillis(2500);
+        engine.apply(action);
+        assertThat(engine.load(black, "toss").orElseThrow().publicState().path("moveCount").asInt()).isEqualTo(1);
+        assertThatThrownBy(() -> engine.createWithCoinToss("toss", "other", 303, 505))
+                .isInstanceOf(IllegalStateException.class);
+    }
     private final ObjectMapper mapper = new ObjectMapper();
     private final TestClock clock = new TestClock();
     private final List<Object> events = new CopyOnWriteArrayList<>();

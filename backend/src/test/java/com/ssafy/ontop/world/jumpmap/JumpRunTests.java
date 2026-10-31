@@ -91,14 +91,15 @@ class JumpRunTests {
     }
 
     @Test
-    void 마지막_연잎_뒤_호수는_7구간_36냥과_FINISH다() {
+    void 마지막_연잎_착지에_7구간_보상과_완주시간을_확정한다() {
         var run = completeToGate6();
         long at = 60_000;
         for (int block = 99; block <= 111; block++) run.land(block, null, at += 500);
-        assertThat(run.land(112, null, at += 500)).containsExactly(new JumpRun.FinalPad());
+        at += 500;
+        assertThat(run.land(112, null, at)).containsExactly(new JumpRun.FinalPad(),
+                new JumpRun.GatePassed(7, at, 36), new JumpRun.Ended(JumpRun.EndReason.FINISH, at, at));
         assertThat(run.land(112, null, at += 10)).isEmpty();
-        assertThat(run.lake(at += 600)).containsExactly(new JumpRun.GatePassed(7, at, 36),
-                new JumpRun.Ended(JumpRun.EndReason.FINISH, at, at));
+        assertThat(run.lake(at += 600)).isEmpty();
         assertThat(run.gatesPassed()).isEqualTo(7);
         assertThat(run.finalReached()).isTrue();
     }
@@ -107,10 +108,9 @@ class JumpRunTests {
     void 완주도_7구간_검사에_걸리면_엽전없이_FINISH와_의심판이다() {
         var run = completeToGate6();
         // 문 6은 39,200ms. 7구간 최소 6,000ms 전에 뛰어든다.
-        run.land(112, null, 40_000);
-        var outcomes = run.lake(45_199);
-        assertThat(outcomes.getFirst()).isEqualTo(new JumpRun.GateRejected(7, "TOO_FAST", true));
-        assertThat(outcomes.get(1)).isEqualTo(new JumpRun.Ended(JumpRun.EndReason.FINISH, 45_199, 45_199L));
+        var outcomes = run.land(112, null, 40_000);
+        assertThat(outcomes.get(1)).isEqualTo(new JumpRun.GateRejected(7, "TOO_FAST", true));
+        assertThat(outcomes.get(2)).isEqualTo(new JumpRun.Ended(JumpRun.EndReason.FINISH, 40_000, 40_000L));
         assertThat(run.gatesPassed()).isEqualTo(7);
         assertThat(run.suspicious()).isTrue();
     }
