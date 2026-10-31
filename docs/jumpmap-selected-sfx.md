@@ -31,3 +31,11 @@ pnpm test:e2e:jumpmap
 맵 `c05d8ada8b12d4e509f50c7e807949bd976811e1c69a628232520b88c15a0d07`, 코스 `park180-jump-v1`, 규칙 `v2`, 발판/문 113개. 코스 SHA-256은 `db459acd4e0b1e81c7f247c890107f4419ebb68245e84d6e708764e11c1be47b`이다.
 
 REST/WS는 테스트 대역이다. 실제 서버와의 전체 코스 주행·운영 배포 결과나 주관적인 청감 평가는 이 테스트가 보장하지 않는다. 실서버 시작/보상 처리는 기존 구현을 그대로 연결한다.
+
+## Jenkins #218 후속 수정
+
+`dev@67345dfb`의 Frontend tests and build 단계에서 `parkVisualPreservation.test.ts` 1개가 실패했다. 확정 효과음 적용으로 프리뷰의 `jumpAudio.ts`와 `PreviewJumpCourse.tsx`(soundLayers 진단 카운터 1줄)가 바뀌었으나 보존 기준 해시는 이전 합성음 버전이었다. 이전 검증은 점프맵·오디오 관련 테스트에 한정되어 이 전체 회귀 검사를 누락했다.
+
+후속 브랜치 `fix/jumpmap-sfx-ci-20261031`은 같은 작업 위치에서 최신 `origin/dev@67345dfb`를 기준으로 한다. 두 파일의 오디오 변경만 확인한 뒤 `parkVisualCheckpoint.json`의 해당 SHA-256 2개와 설명을 갱신한다. 테스트 로직·보호 파일 목록·나머지 해시는 유지하고 런타임·맵·에셋·BE·DB·Jenkins 설정은 수정하지 않는다. 재현/독립 검증은 `pnpm exec vitest run parkVisualPreservation jumpmapAudio`, 전체 검증은 `pnpm test --maxWorkers=4`와 기존 빌드 명령을 사용한다. 브라우저 재생 로직 변경은 없다.
+
+로컬 전체 회귀: 185개 파일/1,699개 테스트 통과, 기존 3개 파일/6개 테스트 제외. Windows 샌드박스에서 별도 맵 생성 테스트의 임시 파일 rename이 EPERM으로 막혀 동일 명령을 일반 권한으로 다시 실행했다. `typecheck:tests`, `map:check`, `jumpmap:check`, `build`, `build:park`도 통과했다.
