@@ -1,10 +1,19 @@
 import {afterEach,expect,it} from 'vitest'
-import {acceptParkDebris,DEBRIS_COINS,DEBRIS_STONES,parseParkDebris,resetParkDebris,useParkDebris,type ParkDebris} from '../../src/features/parkDebris/state'
+import {acceptParkDebris,DEBRIS_COINS,DEBRIS_STONES,debrisPieces,debrisVisible,parseParkDebris,resetParkDebris,useParkDebris,type ParkDebris} from '../../src/features/parkDebris/state'
 import {debrisLanding,debrisPose} from '../../src/features/parkDebris/motion'
 const item:ParkDebris={id:'g:reaction:101',gameId:'g',tableId:'table',anchorId:'table-1',gameCode:'OMOK',userId:'101',
  occurredAt:'2026-10-31T00:00:00Z',throwYaw:0,seed:123,parts:['board',...Array.from({length:12},(_,i)=>'coin-'+i)]}
 const state=(version=1)=>({channelId:'one',mapVersion:'map',version,items:[item]})
 afterEach(resetParkDebris)
+it.each(['OMOK','DICE','ONE_CARD','LIAR_BRIDGE','DICE_LEDGER'] as const)('accepts separate %s pieces and enforces the exact 15-second display boundary',gameCode=>{
+ const full={...item,gameCode,parts:[...item.parts,...debrisPieces(gameCode)]}
+ expect(parseParkDebris({...state(),items:[full]}).items[0]!.parts).toEqual(full.parts)
+ const at=Date.parse(item.occurredAt)
+ expect(debrisVisible(full,at-1)).toBe(false)
+ expect(debrisVisible(full,at+14_999)).toBe(true)
+ expect(debrisVisible(full,at+15_000)).toBe(false)
+ expect(()=>parseParkDebris({...state(),items:[{...full,parts:[...full.parts,'card-14']}]})).toThrow()
+})
 it.each(['OMOK','DICE','ONE_CARD','LIAR_BRIDGE','DICE_LEDGER'] as const)('accepts and retains %s debris from the server snapshot',gameCode=>{
  const parsed=parseParkDebris({...state(),items:[{...item,gameCode}]})
  expect(acceptParkDebris(parsed)).toBe(true)

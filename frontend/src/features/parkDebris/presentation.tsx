@@ -3,7 +3,7 @@ import {useFrame} from '@react-three/fiber'
 import type {Group} from 'three'
 import {estimatedServerTime,useSession} from '../../network/worldClient'
 import {useGame} from '../../game/store'
-import {activeParkDebris,DEBRIS_DURATION,DEBRIS_LAUNCH,useParkDebris} from './state'
+import {activeParkDebris,DEBRIS_DURATION,DEBRIS_LAUNCH,debrisVisible,useParkDebris} from './state'
 
 export function useDebrisPresentation(tableId:string){
   const items=useParkDebris(s=>s.items),[,update]=useState(0)
@@ -27,7 +27,7 @@ export function DebrisGameSurface({anchorId,children}:{anchorId:string;children:
       ??(game&&((session.tableId||session.watchedTableId)===binding?.tableId)?game.gameId:null)
     const now=estimatedServerTime()
     root.current.visible=!useParkDebris.getState().items.some(item=>item.anchorId===anchorId
-      &&(!current||current===item.gameId)&&now-Date.parse(item.occurredAt)>=DEBRIS_LAUNCH)
+      &&(!current||current===item.gameId)&&debrisVisible(item,now)&&now-Date.parse(item.occurredAt)>=DEBRIS_LAUNCH)
   })
   return <group ref={root} name={'game-surface-'+anchorId}>{children}</group>
 }

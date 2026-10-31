@@ -55,6 +55,21 @@ public final class ParkDebrisStore {
                 parts.add("stone-" + i);
             }
         }
+        String piece = switch (event.gameCode()) {
+            case "ONE_CARD" -> "card";
+            case "DICE", "DICE_LEDGER" -> "die";
+            case "LIAR_BRIDGE" -> "pawn";
+            default -> null;
+        };
+        int pieceCount = switch (event.gameCode()) {
+            case "ONE_CARD" -> 14;
+            case "DICE", "LIAR_BRIDGE" -> 6;
+            case "DICE_LEDGER" -> 5;
+            default -> 0;
+        };
+        for (int i = 0; i < pieceCount; i++) {
+            parts.add(piece + "-" + i);
+        }
         room.items.put(event.eventId(), new Item(event.eventId(), event.gameId(), event.tableId(), anchorId,
                 event.gameCode(), Long.toString(event.userId()), event.occurredAt(), throwYaw,
                 event.eventId().hashCode() & 0x7fffffff, List.copyOf(parts)));

@@ -11,6 +11,7 @@ import { canActOneCard } from './actions'
 import { createBackTexture, createFaceTexture, createFeltTexture } from './artwork'
 import { stepSpring } from './motion'
 import { useReducedMotion } from './useReducedMotion'
+import { OneCardOpening } from './OneCardOpening'
 
 // Only approved public cards and common backs enter the shared scene.
 const face = new PlaneGeometry(.3, .43), slab = new BoxGeometry(1, 1, 1), hit = new BoxGeometry(.44, .09, .61)
@@ -41,7 +42,7 @@ function tableArtwork() {
     back: new MeshStandardMaterial({ map: createBackTexture(), roughness: .9 }),
   }
 }
-function CardBody({ back = false }: { back?: boolean }) {
+export function CardBody({ back = false }: { back?: boolean }) {
   return <><mesh geometry={slab} material={paper} scale={[.3, .006, .43]} />
     {back && <mesh geometry={face} material={tableArtwork().back} position={[0, .004, 0]} rotation={[-Math.PI / 2, 0, 0]} />}</>
 }
@@ -71,7 +72,7 @@ function PublicCard({ card, surfaceY, turnUserId, anchor }: { card: Card; surfac
     const t = Math.min(1, motion.elapsed / .72), ease = 1 - (1 - t) ** 3
     const settle = !reduced && t >= 1 ? stepSpring(impact.current, 0, delta) : 0
     root.current.position.set(motion.x + (.23 - motion.x) * ease, surfaceY + Math.sin(t * Math.PI) * .17 + Math.abs(settle), motion.z * (1 - ease))
-    root.current.rotation.set((1 - ease) * .18, .045 + (1 - ease) * -.35 + settle * 2, (1 - ease) * -.12)
+    root.current.rotation.set((1 - ease) * .18, (1 - ease) * -.35 + settle * 2, (1 - ease) * -.12)
     root.current.userData.moving = motion.elapsed < 1
   })
   return <group ref={root} name="onecard-public-top" position={[.23, surfaceY, 0]} scale={[.9, 1, .9]} userData={{ cardId: card.id }} dispose={null}>
@@ -160,6 +161,7 @@ export function OneCardBoard({ anchor }: { anchor: TableAnchor }) {
     {o && <group key={state.gameId}>
       <PublicCard card={o.topCard} surfaceY={surfaceY} turnUserId={o.turnUserId} anchor={anchor} />
       <DrawnCards state={o} anchor={anchor} surfaceY={surfaceY} connected={session.status === 'connected' && !state.recovering} />
+      <OneCardOpening anchor={anchor} surfaceY={surfaceY} />
     </group>}
   </group>
 }
