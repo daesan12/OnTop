@@ -54,8 +54,8 @@ for(const gameCode of ['OMOK','DICE_LEDGER'] as const)test(`${gameCode} duel for
  await tablet.getByRole('button',{name:'게임 시작',exact:true}).click()
  const panel=page.getByRole('region',{name:gameCode==='DICE_LEDGER'?'주사위 장부':'오목 경기',exact:true})
  await expect(panel).toBeVisible()
- if(gameCode==='DICE_LEDGER')await panel.locator('summary').filter({hasText:'게임 설정'}).click()
- await panel.getByRole('button',{name:'기권',exact:true}).click()
+ const forfeitControls=gameCode==='DICE_LEDGER'?page.getByRole('navigation',{name:'게임 메뉴',exact:true}):panel
+ await forfeitControls.getByRole('button',{name:'기권',exact:true}).click()
  await page.getByRole('button',{name:'기권 확정',exact:true}).click()
  const probe=()=>page.evaluate(async()=>(await import('/tests/park-integration/probe.ts' as string)).debrisRenderProbe())
  await expect.poll(async()=>(await probe()).length).toBe(1)

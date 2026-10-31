@@ -2,6 +2,15 @@ import { describe, expect, it } from 'vitest'
 import { approvedChairCount, manualStartAllowed, presentedChairCount, readyWouldAutoStart } from '../../src/features/tableLobby/tabletModel'
 import { screenTransform, TABLET } from '../../src/features/tableLobby/tabletProjection'
 import type { TableState, TableSummary } from '../../src/network/protocol'
+import { tableTermsLabel } from '../../src/features/tableLobby/model'
+
+it('labels retained server room settings and never presents an unset stake as free entry', () => {
+  expect(tableTermsLabel({ gameCode: 'ONE_CARD', betAmountPerPlayer: 2500 })).toBe('원카드 · 1인 판돈 2,500냥')
+  expect(tableTermsLabel({ gameCode: 'DICE_LEDGER', betAmountPerPlayer: 25 })).toBe('주사위 장부 · 1인 판돈 25냥')
+  expect(tableTermsLabel({ gameCode: null, betAmountPerPlayer: null })).toBe('게임 선택 중 · 판돈 미정')
+  expect(tableTermsLabel({ gameCode: 'OMOK', betAmountPerPlayer: 0 })).toBe('오목 · 판돈 미정')
+  expect(tableTermsLabel(undefined)).toBe('방 설정 확인 중')
+})
 
 const table: TableState = { tableId: 'a', version: 2, capacity: 4, minimumPlayers: 2, gameCode: 'ONE_CARD', targetScore: null,
   betAmountPerPlayer: 20, selectorUserId: 'a', allReady: true,

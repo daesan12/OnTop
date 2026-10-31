@@ -16,9 +16,13 @@ import com.ssafy.ontop.world.service.WorldChannelRegistry;
 import com.ssafy.ontop.world.service.WorldChatService;
 import com.ssafy.ontop.world.service.WorldEmoteService;
 import com.ssafy.ontop.world.service.WorldProximity;
+import com.ssafy.ontop.world.service.WorldClock;
+import java.time.Clock;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -69,6 +73,12 @@ class WorldGameReactionTests {
                 Duration.ofMinutes(1), Duration.ofMinutes(1), channels, new WorldChatService(Duration.ofMillis(1)),
                 new WorldEmoteService(new WorldEmoteProperties(null), Duration.ofMillis(1)), Optional.empty(),
                 Optional.empty(), Optional.empty(), proximity);
+        var wallTime = new AtomicLong(Instant.parse("2026-10-31T00:00:00Z").toEpochMilli());
+        hub.configureWorldClock(new WorldClock(new Clock() {
+            @Override public ZoneId getZone() { return ZoneOffset.UTC; }
+            @Override public Clock withZone(ZoneId zone) { return this; }
+            @Override public Instant instant() { return Instant.ofEpochMilli(wallTime.get()); }
+        }));
         try {
             Peer first = peer(hub, 101, "one");
             Peer second = peer(hub, 202, "one");
@@ -88,7 +98,7 @@ class WorldGameReactionTests {
             channels.move("101", new WorldChannelRegistry.Position(2, 50, .8, 0, 0));
             first.fence(); second.fence(); near.fence(); far.fence(); other.fence();
             var event = new GameDefeatConfirmed("game:reaction:101", "game", TABLE, gameCode, 1,
-                    101, GameDefeatConfirmed.Kind.FORFEIT, 2, Instant.parse("2026-10-26T09:00:00Z"));
+                    101, GameDefeatConfirmed.Kind.FORFEIT, 2, Instant.ofEpochMilli(wallTime.get()));
             hub.gameDefeatConfirmed(event);
             hub.gameDefeatConfirmed(event);
             JsonNode one = first.reaction();
@@ -122,6 +132,16 @@ class WorldGameReactionTests {
             assertThat(hub.cleanParkDebris("one", event.eventId(), "coin-0")).isTrue();
             returned.fence();
             assertThat(returned.debris().getLast().at("/payload/items/0/parts").toString()).doesNotContain("coin-0\"");
+            wallTime.addAndGet(15_000);
+            JsonNode expired = returned.await(message -> message.path("type").asText().equals("WORLD_PARK_DEBRIS_STATE")
+                    && message.at("/payload/items").isEmpty());
+            assertThat(expired.at("/payload/version").asLong()).isEqualTo(3);
+            assertThat(first.await(message -> message.path("type").asText().equals("WORLD_PARK_DEBRIS_STATE")
+                    && message.at("/payload/items").isEmpty()).path("payload")).isEqualTo(expired.path("payload"));
+            hub.gameDefeatConfirmed(event);
+            Peer afterExpiry = peer(hub, 606, "one");
+            assertThat(afterExpiry.await(message -> message.path("type").asText().equals("WORLD_PARK_DEBRIS_STATE"))
+                    .at("/payload/items")).isEmpty();
         } finally { hub.shutdown(); }
     }
 
