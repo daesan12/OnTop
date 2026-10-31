@@ -10,6 +10,8 @@ ontop:
       enabled: ${GAME_ONECARD_ENABLED:false}
     bridge:
       enabled: ${GAME_BRIDGE_ENABLED:false}
+    ledger:
+      enabled: ${GAME_LEDGER_ENABLED:false}
   minigames:
     enabled: ${MINIGAMES_ENABLED:false}
     bungeoppang-v5-enabled: ${BUNGEOPPANG_V5_ENABLED:false}

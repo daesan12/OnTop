@@ -5,6 +5,7 @@ import { FacetedParkTreeInstances } from '../world/art/FacetedParkTreeInstances'
 import { buildParkTreeParts } from '../world/art/parkTreeParts'
 import { PreviewLandscaping } from './PreviewLandscaping'
 import { PlazaBuilding } from './PlazaBuildings'
+import { RankingBoardModel } from './RankingBoardModel'
 import { PreviewJumpCourse } from './PreviewJumpCourse'
 import { pagodaBalustradeArt } from './pagodaBalustrade'
 import { mainGateArt,eventGroveArt } from './reviewFurnitureGeometry'
@@ -24,7 +25,7 @@ import { TraditionalPavilionLanterns } from '../world/art/TraditionalPavilionLan
 import { MainPavilionRefinements } from '../world/art/LandmarkRefinements'
 import { TableShell } from '../features/tables/TableShell'
 import { TraditionalMailbox } from '../world/art/TraditionalMailbox'
-import { CodeFishBreadCart } from '../world/art/CodeFishBreadCart'
+import { FishBreadShop } from '../world/art/LuckyFacilities'
 import { VrHanokBooth } from '../world/art/ActivityProps'
 import { FitnessGarden } from '../world/art/FitnessGarden'
 import { StonePagoda } from '../world/art/StonePagoda'
@@ -33,7 +34,7 @@ import { Water } from '../world/art/WaterGarden'
 import { LakeFish } from '../world/art/LakeFish'
 import { vrBoothArt } from '../world/art/activityPropGeometry'
 import { ParkLamps } from '../world/art/ParkFurniture'
-import { ENVIRONMENT, MINI_PROPS, MAILBOX, GARDEN_PAGODA,VR_PAGODA,LAKE } from '../config'
+import { ENVIRONMENT, MINI_PROPS, GARDEN_PAGODA,VR_PAGODA,LAKE } from '../config'
 import { DRAFT_PARK,SETTINGS,DRAFT_PAVILIONS,DRAFT_TABLES,DRAFT_FITNESS_AREA,DRAFT_FITNESS_STATIONS,DRAFT_TOWER_BENCHES,DRAFT_FOUNTAIN,PLAZA_REST_BENCHES,PLAZA_BEDS,PLAZA_BENCHES,DRAFT_LAMPS,MAIN_GATE,VR_YAW,SITES,ORIGINAL_SITES } from './layout'
 import { lawn,gardenArt,pavilionStairsArt,cityArt,detailArt,trunks,crowns,flowers,shrubs,lakeBank,shoreTrunks,shoreCrowns } from './sceneGeometry'
 import { pathPaving,pathCurbs,fenceArt,plazaArt } from './landscapeGeometry'
@@ -127,9 +128,10 @@ export const PreviewWorld=memo(function PreviewWorld({live=false}:{live?:boolean
       {SETTINGS.lake.swimEntryOffsets.map(offset=><PropSign key={offset} position={[SITES.lake.x+offset,1.3,SITES.lake.z-4.5]} width={1.6} height={.6} draw={zoneSigns.swim}/>)}
       {!live&&<PreviewSwimmingRipples/>}
     </group>
-    <group name="fish-bread" position={[SITES.cart.x,0,SITES.cart.z]} userData={{assetId:"user/repaired-fish-cart"}}><CodeFishBreadCart detailDistance={80}/></group>
-    <group position={[SITES.mailbox.x-MAILBOX.x,0,SITES.mailbox.z-MAILBOX.z]}><TraditionalMailbox/></group>
-    <PlazaBuilding kind="shop" live={live}/><PlazaBuilding kind="drink" live={live}/><PlazaBuilding kind="photo" live={live}/>
+    <group name="fish-bread" position={[SITES.cart.x,0,SITES.cart.z]} userData={{assetId:"user/repaired-fish-cart"}}><FishBreadShop/></group>
+    <TraditionalMailbox position={[SITES.mailbox.x,0,SITES.mailbox.z]} scale={SETTINGS.mailbox.scale} yaw={SETTINGS.mailbox.yaw}/>
+    <PlazaBuilding kind="shop" live={live}/><PlazaBuilding kind="drink" live={live}/>
+    <RankingBoardModel/>
     <PreviewPigeons live={live}/>
     <FacetedParkTreeInstances parts={groveTreeModels.parts} name="layout-grove-original-trees" treeCount={groveTreeModels.plantings.length}/>
     <Instances parts={shrubs} shadow={false}><icosahedronGeometry args={[1,SIMPLE_MAP?0:1]}/></Instances>

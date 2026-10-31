@@ -64,12 +64,11 @@ describe('continuous slim-corner park paving',()=>{
     for(let x=-39;x<-20;x+=.5)expect(paved(geometry,x,46),`fitness x=${x}`).toBe(true)
     geometry.dispose()
   })
-  it('uses one paved surface from the fitness entrance through the cart forecourt',()=>{
+  it('keeps the established fitness entrance and connecting routes paved',()=>{
     const {geometry}=buildPathNetwork(PATHS)
     for(let z=23;z<=31;z+=.25)expect(paved(geometry,-51,z),`cart approach ${z}`).toBe(true)
     for(let x=-62.8;x<=-51;x+=.25)expect(paved(geometry,x,31),`fitness connection ${x}`).toBe(true)
     for(let z=31;z<=52;z+=.25)expect(paved(geometry,-63,z),`fitness north ${z}`).toBe(true)
-    for(const x of [-53,-51,-49])for(const z of [21,23,25])expect(paved(geometry,x,z),`cart apron ${x},${z}`).toBe(true)
     geometry.dispose()
   })
 })

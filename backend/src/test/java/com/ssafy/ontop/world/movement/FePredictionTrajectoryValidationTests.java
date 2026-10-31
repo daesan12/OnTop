@@ -77,7 +77,9 @@ class FePredictionTrajectoryValidationTests {
                 var state = physics.report("a", new ClientPositionValidator.Candidate(++seq, epoch,
                         new ClientPositionValidator.Pose(f.get(0).asDouble(), f.get(1).asDouble(), f.get(2).asDouble()), true, pending > 0), now[0]);
                 if (pending > 0) pending--;
-                if (!"CLIENT_VALIDATED".equals(state.motion().authority())) {
+                // PARK_V1은 거절해도 위치 보고 방식을 유지하고 correctionReason과 새 epoch로 되돌린다.
+                if (!"CLIENT_VALIDATED".equals(state.motion().authority()) || state.motion().correctionReason() != null
+                        || state.motion().epoch() != epoch) {
                     return new Result(false, "frame " + i + " " + f, pads);
                 }
                 var support = physics.support("a");
@@ -121,8 +123,9 @@ class FePredictionTrajectoryValidationTests {
         var onEdge = new ClientPositionValidator.Pose(edge - .08, stand, kite.z());
         // 정상: 바깥으로 걸어 나가며 0.17m 내려감(FE walkoff 궤적과 같은 모양)
         assertThat(validate(onEdge, new ClientPositionValidator.Pose(edge + .28, stand - .172, kite.z()), true)).isEqualTo("ok");
-        // 점프맵 비활성은 기존 직선 검사 그대로(같은 이동도 COLLISION)
-        assertThat(validate(onEdge, new ClientPositionValidator.Pose(edge + .28, stand - .172, kite.z()), false)).isEqualTo("COLLISION");
+        // 점프맵 비활성: rollsOff 없이도 dev의 공원 전체 clearCorner(걷는 모서리·자동 계단 높이 안 L자 경로)가 이 경로를 받는다.
+        // 얇은 발판의 가파른 모서리 일부(FE 가장자리 궤적 320건 중 4건)는 rollsOff(점프맵 활성)만 받는다.
+        assertThat(validate(onEdge, new ClientPositionValidator.Pose(edge + .28, stand - .172, kite.z()), false)).isEqualTo("ok");
         // 발판 안으로 파고들기·제자리 하강·한 보고 0.27m 넘는 하강은 거절
         var center = new ClientPositionValidator.Pose(kite.x(), stand, kite.z());
         assertThat(validate(center, new ClientPositionValidator.Pose(kite.x(), stand - .2, kite.z()), true)).isEqualTo("COLLISION");

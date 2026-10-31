@@ -20,6 +20,7 @@ import { constrainRoamingCamera } from './cameraCollision'
 import { seatScope, seatedLook, resetSeatedLook, useTableLobby, SEATED_LOOK } from '../features/tableLobby/state'
 import { useDiceUI, diceCamera } from '../game/farkle/controls'
 import { DICE_CAMERA, diceFocusActive } from '../game/farkle/camera'
+import { LEDGER_CAMERA, ledgerCameraPose, ledgerFocusActive } from '../game/ledger/camera'
 import { roamingFirstPerson } from './roamingCamera'
 import { rememberRoamingView, restoreRoamingView } from './cameraReturn'
 import { useFacilityState } from '../features/facilities/state'
@@ -250,6 +251,7 @@ export function CameraRig() {
     state.targetUp.set(0, 1, 0)
     const ownDice = seated && !!avatar.tableId && game?.role === 'PLAYER' && !!game.dice
     const diceFocus = seated && !!avatar.tableId && diceFocusActive(game, session.sessionId, looking, useDiceUI.getState().boardView)
+    const ledgerFocus = seated && !!avatar.tableId && ledgerFocusActive(game, session.sessionId, looking)
     state.look.set(pose.x, pose.y + CAMERA.focusHeight - 0.8, pose.z)
     if (state.owner !== session.sessionId) {
       state.focus.copy(state.look)
@@ -314,16 +316,23 @@ export function CameraRig() {
       state.look.set(anchor.position[0], anchor.position[1] + GOMOKU.boardY + .017, anchor.position[2])
       state.desired.set(anchor.position[0], anchor.position[1] + DICE_CAMERA.tableHeight + DICE_CAMERA.height * scale,
         anchor.position[2] + Math.sign(seat.z) * DICE_CAMERA.seatOffset * scale)
+    } else if (ledgerFocus) {
+      const anchor = TABLES.find(t => t.id === avatar.tableId)!
+      const seat = tableSeats(anchor)[session.seatIndex] ?? tableSeats(anchor)[0]!
+      const scale = tableScale(anchor), pose = ledgerCameraPose(anchor.position, seat.x * scale, seat.z * scale, scale)
+      state.desired.set(...pose.position)
+      state.look.set(...pose.target)
     } else if (boardFocus || spectatorBoard) {
       const anchor = closeAnchor ?? watchedAnchor ?? TABLES.find((t) => t.id === avatar.tableId)!
       state.look.set(
-        anchor.position[0],
+        // 주사위 장부 관전은 오른쪽 2D 장부에 판이 가리지 않도록 화면 왼쪽에 둔다.
+        anchor.position[0] + (spectatorBoard && game?.ledger ? LEDGER_CAMERA.panOffset * tableScale(anchor) : 0),
         anchor.position[1] + GOMOKU.boardY,
         anchor.position[2],
       )
       state.desired.set(
         state.look.x,
-        Math.min(state.look.y + (spectatorBoard && game?.dice ? 3.2 : 2.6) * tableScale(anchor), spectatorClearHeight(anchor.pavilionId)),
+        Math.min(state.look.y + (spectatorBoard && (game?.dice || game?.ledger) ? 3.2 : 2.6) * tableScale(anchor), spectatorClearHeight(anchor.pavilionId)),
         state.look.z + 0.001,
       )
     } else if (closeAnchor) {
@@ -410,7 +419,7 @@ export function CameraRig() {
       )
       state.look.copy(center)
     }
-    const targetFov = tablet ? 43 : gathering ? ownOmok ? 60 : CAMERA.fov : seated && oneCardPlayerViewActive(game) ? ONECARD_CAMERA.fov : diceFocus ? DICE_CAMERA.fov : boardFocus || spectatorBoard ? GOMOKU.topDownFov : seated ? GOMOKU.seatedFov : CAMERA.fov
+    const targetFov = tablet ? 43 : gathering ? ownOmok ? 60 : CAMERA.fov : seated && oneCardPlayerViewActive(game) ? ONECARD_CAMERA.fov : diceFocus ? DICE_CAMERA.fov : ledgerFocus ? LEDGER_CAMERA.fov : boardFocus || spectatorBoard ? GOMOKU.topDownFov : seated ? GOMOKU.seatedFov : CAMERA.fov
     const smoothingOmok = focusedOmok || ownOmok || state.omokTransition
     const smoothingDice = ownDice || state.diceTransition
     const smoothingBoard = smoothingOmok || smoothingDice

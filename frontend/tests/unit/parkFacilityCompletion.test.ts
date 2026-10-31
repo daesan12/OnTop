@@ -44,8 +44,8 @@ describe('new park facility completion',()=>{
     for(const b of d.interactions.benches.filter(b=>b.siteId.startsWith('bench-fountain-')))for(const s of b.seats)expect(l.canWalk(s.exit.x,s.exit.z),b.id+' exit').toBe(true)
     expect(d.interactions.benches.some(b=>b.siteId.includes('photo'))).toBe(false)
   })
-  it('registers three construction notices at reachable building entrances',()=>{
-    expect(d.interactions.construction.map(s=>s.id)).toEqual(['layout-shop','layout-drink','layout-photo'])
+  it('registers active construction notices at reachable building entrances',()=>{
+    expect(d.interactions.construction.map(s=>s.id)).toEqual(['layout-drink','layout-photo'])
     for(const site of d.interactions.construction){
       const [x,y,z]=site.reachPosition
       expect(site.status).toBe('construction')

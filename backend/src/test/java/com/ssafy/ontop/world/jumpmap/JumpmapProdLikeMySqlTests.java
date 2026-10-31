@@ -11,7 +11,7 @@ import org.springframework.test.context.DynamicPropertySource;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 운영과 같은 migration 위치(db/migration만, V130 없음)에서 플래그를 잘못 켜도 서버가 시작하고
+ * 운영과 같은 migration 위치(db/migration만, 점프맵 V131 없음)에서 플래그를 잘못 켜도 서버가 시작하고
  * 점프맵(충돌체·판정·status)만 비활성인지 실제 MySQL로 확인한다.
  */
 @Tag("mysql")
@@ -43,8 +43,8 @@ class JumpmapProdLikeMySqlTests {
     }
 
     @Test
-    void V130이_없는_DB에서는_서버가_시작하고_점프맵만_비활성이다() {
-        assertThat(flyway.info().applied()).extracting(info -> info.getVersion().getVersion()).doesNotContain("130");
+    void V131이_없는_DB에서는_서버가_시작하고_점프맵만_비활성이다() {
+        assertThat(flyway.info().applied()).extracting(info -> info.getVersion().getVersion()).doesNotContain("131");
         assertThat(store.ready()).isFalse();
         assertThat(activation.state()).isEqualTo(JumpmapActivation.State.NO_STORE);
         assertThat(activation.course()).isEmpty();

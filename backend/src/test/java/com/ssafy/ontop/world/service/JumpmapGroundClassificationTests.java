@@ -64,7 +64,7 @@ class JumpmapGroundClassificationTests {
     @ParameterizedTest(name = "{0} → {1}")
     @CsvSource({
             // 지면: 광장·코트·나루 착지장. 지형 메시 자체.
-            "plaza-floor, GROUND,", "vr-court-floor, GROUND,", "bridge-landing-0, GROUND,", "layout-fishing-east, GROUND,",
+            "plaza-floor, GROUND,", "vr-court-floor, GROUND,", "fishing-landing-42, GROUND,", "layout-fishing-east, GROUND,",
             // 구조물: 석탑 몸체 꼭대기, 팔각정 바닥, 낚시 데크, 벤치, 징검돌
             "vr-pagoda-body, STRUCTURE,", "P1-floor, STRUCTURE, -3", "P0-floor, STRUCTURE, -8", "layout-fishing-deck, STRUCTURE,",
             "bench-event-east-seat, STRUCTURE,", "layout-stone-bridge-stone-12, STRUCTURE,", "tower-deck, STRUCTURE,",

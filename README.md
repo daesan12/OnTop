@@ -1,5 +1,6 @@
 # OnTop
 
+- [FE 디자인 컨벤션 · 신규 게임 UI · 관전자 채팅/핑](docs/conventions/frontend-design.md)
 - [Swagger UI / REST OpenAPI 실행·인증·명세 갱신](docs/api/README.md)
 - [생성된 OpenAPI YAML](docs/api/openapi.yaml)
 - [WebSocket 연결·메시지 계약](docs/api/websocket.md)

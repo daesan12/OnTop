@@ -170,7 +170,8 @@ class JumpCourseCollisionTests {
             var forged = course.colliders().get(60);
             now += 50_000_000;
             var denied = physics.report("a", candidate(2, epoch, forged.x(), standingY(forged), forged.z()), now);
-            assertThat(denied.motion().authority()).isNull();
+            // PARK_V1 거절은 위치 보고 방식을 유지한 채 승인 좌표로 되돌리고 보정 사유를 싣는다.
+            assertThat(denied.motion().correctionReason()).isNotNull();
             assertThat(denied.x()).isEqualTo(moved.x());
             assertThat(physics.support("a").course()).isSameAs(pad);
         }
@@ -180,10 +181,12 @@ class JumpCourseCollisionTests {
     void 위치검증은_서버물리와_같은_코스몸체로_얇은_방패연_관통보고를_거부한다() {
         var kite = course.colliders().get(80);
         assertThat(kite.thickness()).isEqualTo(.05);
-        assertThat(crossKite(kite, null).motion().authority()).as("코스 없음").isEqualTo("CLIENT_VALIDATED");
+        var passed = crossKite(kite, null);
+        assertThat(passed.motion().correctionReason()).as("코스 없음").isNull();
+        assertThat(passed.y()).isLessThan(kite.top());
 
         var denied = crossKite(kite, course);
-        assertThat(denied.motion().authority()).as("코스 활성: 서버 이동으로 복귀").isNull();
+        assertThat(denied.motion().correctionReason()).as("코스 활성: 관통 보고 거절").isEqualTo("COLLISION");
         assertThat(denied.y()).isGreaterThan(kite.top());
     }
 

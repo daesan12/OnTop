@@ -41,12 +41,12 @@ it('clips movement against actual geometry rather than drifting through a wall',
  }finally{sim.dispose()}
 })
 
-it('returns to the existing swimming motion flags and restores ground momentum state',async()=>{
+it('reports swimming movement without changing the ground momentum profile',async()=>{
  const {LAKE,groundHeight,lakeRadiusAt}=await import('../../src/config')
  const sim=await createPredictionPhysics('PARK_V1')
  try{const water=[-6,0,6].flatMap(dx=>[-10,0,10].map(dz=>({x:LAKE.x+dx,z:LAKE.z+dz}))).find(p=>lakeRadiusAt(p.x,p.z)<.8&&LAKE.surfaceY-groundHeight(p.x,p.z)>1)!
   expect(water).toBeTruthy();sim.reset({...water,y:LAKE.surfaceY-.12,yaw:0},0,false)
-  sim.step({...stop,dx:1},1/60);expect(sim.movementFlags?.()).toBeUndefined()
+  sim.step({...stop,dx:1},1/60);expect(sim.movementFlags?.()).toEqual({moving:true,running:false})
   sim.reset({x:-10,y:.84,z:42,yaw:0},0,true);sim.step({...stop,dx:1},1/60)
   expect(sim.movementFlags?.()?.moving).toBe(true)
  }finally{sim.dispose()}

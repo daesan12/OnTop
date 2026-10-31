@@ -3,6 +3,7 @@ export const manualGameIds = [
   "farkle",
   "onecard",
   "bridge",
+  "ledger",
   "janggi",
   "fishing",
   "fish-bread",

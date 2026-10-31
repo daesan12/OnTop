@@ -89,8 +89,13 @@ public class WorldChannelRegistry implements ChannelPresence {
         String channelId = membership.get(userId);
         if (jumpmap == null || channelId == null || jumpmapRun(userId).isEmpty() || suspended.containsKey(userId)) return false;
         Room room = rooms.get(channelId);
-        room.physics.stop(userId);
-        serverMovement(userId);
+        // 위치 보고 중이었어도 유예 동안은 서버 물리로 진행한다(PARK_V1 자동 위치 보고 복귀는 재결합 때까지 막는다).
+        var snapshot = room.physics.suspendClient(userId);
+        var previous = room.positions.get(userId);
+        room.positions.put(userId, new Movement(position(snapshot), previous.acceptedAtNanos()));
+        room.motions.put(userId, snapshot.motion());
+        room.worldVersion++;
+        room.dirty = true;
         room.moveBudgets.remove(userId);
         suspended.put(userId, nanoTime.getAsLong() + JUMPMAP_GRACE.toNanos());
         return true;
@@ -571,7 +576,7 @@ public class WorldChannelRegistry implements ChannelPresence {
     public synchronized WorldChange serverMovement(String userId) {
         Room room = rooms.get(membership.get(userId));
         if (!clientPositions) return new WorldChange(room.worldState(), false);
-        var snapshot = room.physics.serverMovement(userId);
+        var snapshot = room.physics.followMovement(userId);
         var previous = room.positions.get(userId);
         boolean changed = !snapshot.motion().equals(room.motions.get(userId));
         room.positions.put(userId, new Movement(position(snapshot), previous.acceptedAtNanos()));
@@ -662,9 +667,14 @@ public class WorldChannelRegistry implements ChannelPresence {
             }
             boolean changed = false;
             for (String id : room.users) {
+                WorldPhysics.Motion oldMotion = room.motions.get(id);
                 Position next = snapshotPosition(room, id);
+                WorldPhysics.Motion newMotion = room.motions.get(id);
                 Movement previous = room.positions.get(id);
-                if (!next.equals(previous.position())) {
+                if (!next.equals(previous.position()) || oldMotion != null && newMotion != null && (
+                        oldMotion.epoch() != newMotion.epoch() || !java.util.Objects.equals(oldMotion.authority(), newMotion.authority())
+                        || !java.util.Objects.equals(oldMotion.steering(), newMotion.steering())
+                        || !java.util.Objects.equals(oldMotion.correctionReason(), newMotion.correctionReason()))) {
                     room.positions.put(id, new Movement(next, previous.acceptedAtNanos()));
                     changed = true;
                 }

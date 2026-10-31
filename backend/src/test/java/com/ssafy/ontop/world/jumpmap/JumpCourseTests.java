@@ -18,7 +18,16 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 /** FE 전달본(frontend/docs/jumpmap)과 서버 리소스가 같은 바이트인지, 검증 규칙이 변조를 거부하는지 확인한다. */
 class JumpCourseTests {
     private static final Path HANDOFF = Path.of("../frontend/docs/jumpmap");
-    private static final String GENERATED_MAP = "04350122fdeee2b89212345ee4f776990d78832bb25435418b5ea6f2b2fbc769";
+    /** 현재 저장소의 생성 맵 mapVersion. 맵 재생성 시 FE가 코스 전달본을 다시 내보내므로 상수로 고정하지 않는다. */
+    private static final String GENERATED_MAP = generatedMapVersion();
+
+    private static String generatedMapVersion() {
+        try {
+            return new ObjectMapper().readTree(Path.of("../frontend/generated/park/manifest.json").toFile()).path("mapVersion").asText();
+        } catch (java.io.IOException exception) {
+            throw new IllegalStateException(exception);
+        }
+    }
 
     @Test
     void 서버_리소스는_FE_전달본과_같은_바이트와_checksum이다() throws Exception {
@@ -36,7 +45,7 @@ class JumpCourseTests {
         assertThat(course.mapVersion()).isEqualTo(GENERATED_MAP).isEqualTo(manifest.path("mapVersion").asText());
         assertThat(course.courseVersion()).isEqualTo("park180-jump-v1");
         assertThat(course.rulesVersion()).isEqualTo("v2");
-        assertThat(course.sha256()).isEqualTo("daabdd8346576f0dfcde7cfbdd7c1845ce75ff776779a59610255f472fe5e5fb");
+        assertThat(course.sha256()).isEqualTo(Files.readString(HANDOFF.resolve("course.generated.sha256")).strip());
         assertThat(course.colliders()).hasSize(113);
         assertThat(course.colliders()).extracting(JumpCourse.Collider::block)
                 .containsExactlyElementsOf(java.util.stream.IntStream.range(0, 113).boxed().toList());

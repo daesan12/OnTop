@@ -18,8 +18,9 @@ const TabletPortrait = lazy(() => import('./TabletPortrait').then(module => ({ d
 const descriptions: Record<TableGameCode, string> = {
   OMOK: '다섯 돌을 이어 만드는 한 수', DICE: '주사위를 굴려 목표 점수에 도전해요',
   ONE_CARD: '손에 든 카드를 모두 내려놓으면 승리!', LIAR_BRIDGE: '믿거나 의심하거나, 다리를 건너요',
+  DICE_LEDGER: '세 번 굴려 장부 열두 칸을 채워요',
 }
-const choiceOrder: TableGameCode[] = ['OMOK', 'ONE_CARD', 'DICE', 'LIAR_BRIDGE']
+const choiceOrder: TableGameCode[] = ['OMOK', 'ONE_CARD', 'DICE_LEDGER', 'DICE', 'LIAR_BRIDGE']
 export function GameArt({ code }: { code: TableGameCode }) {
   return <div className="tablet-game-art" data-game={code} role="img" aria-label={TABLE_GAMES.find(g => g.code === code)?.name} />
 }
@@ -71,6 +72,27 @@ function TabletSession({ tableId }: { tableId: string }) {
   }, [active])
   useEffect(() => {
     if (!active) return
+    const tab = (event: KeyboardEvent) => {
+      if (event.key !== 'Tab' || event.defaultPrevented || event.isComposing || event.ctrlKey || event.altKey || event.metaKey) return
+      if (Object.entries(inputState).some(([key, open]) => open && key !== 'chatOpen')) return
+      const node = element.current, chat = document.querySelector<HTMLElement>('.park-chat'), focus = document.activeElement
+      if (!node || !focus || !node.contains(focus) && !chat?.contains(focus)) return
+      if ([...document.querySelectorAll<HTMLElement>('dialog[open],[role="dialog"],[role="alertdialog"]')]
+        .some(dialog => dialog !== node && dialog.getClientRects().length)) return
+      // Treat preparation and its chat as one keyboard region so both stay reachable.
+      const selector = 'button:not(:disabled),input:not(:disabled),textarea:not(:disabled),select:not(:disabled)'
+      const controls = [node, chat].flatMap(region => region ? [...region.querySelectorAll<HTMLElement>(selector)] : [])
+        .filter(control => control.getClientRects().length && !control.closest('[inert],[hidden]'))
+      if (!controls.length) return
+      const index = controls.indexOf(focus as HTMLElement)
+      const next = index < 0 ? event.shiftKey ? controls.length - 1 : 0 : (index + (event.shiftKey ? -1 : 1) + controls.length) % controls.length
+      event.preventDefault(); controls[next]?.focus()
+    }
+    window.addEventListener('keydown', tab)
+    return () => window.removeEventListener('keydown', tab)
+  }, [active])
+  useEffect(() => {
+    if (!active) return
     const escape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape' || event.defaultPrevented || event.repeat || event.isComposing
         || event.ctrlKey || event.altKey || event.metaKey || document.hidden || Object.values(inputState).some(Boolean)) return
@@ -103,14 +125,7 @@ function TabletSession({ tableId }: { tableId: string }) {
   const seats = table.seats.slice(0, Math.max(2, approvedCount ?? table.capacity))
   const game = TABLE_GAMES.find(game => game.code === table.gameCode)
   return <section ref={element} tabIndex={-1} className="table-tablet" role={active ? 'dialog' : undefined}
-    aria-label="게임 태블릿" aria-hidden={!active} inert={!active} data-active={active} data-stage={step}
-    onKeyDown={event => {
-      if (event.key !== 'Tab') return
-      const controls = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled),input:not(:disabled),select:not(:disabled)')).filter(e => e.getClientRects().length)
-      const first = controls[0], last = controls.at(-1)
-      if (event.shiftKey && (document.activeElement === first || document.activeElement === element.current)) { event.preventDefault(); last?.focus() }
-      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus() }
-    }}>
+    aria-label="게임 태블릿" aria-modal={active ? false : undefined} aria-hidden={!active} inert={!active} data-active={active} data-stage={step}>
     <div className="tablet-paper">
       <header className="tablet-title"><b className="tablet-brand">온탑</b>
         {step === 'ready' && <p>{game?.name ?? '게임 선택 대기'} · {s.anchor?.replace('table-', '') ?? ''}번 탁자</p>}

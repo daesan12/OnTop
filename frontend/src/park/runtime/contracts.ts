@@ -18,6 +18,7 @@ export interface ParkRuntimePort {
   sendChat(text: string): Promise<boolean>
   sendSpectatorChat(text: string): Promise<boolean>
   pingOmok(x: number, y: number): Promise<boolean>
+  pingLedger(target: import('../../game/ledger/protocol').LedgerPingTarget): Promise<boolean>
   sendEmote(id: import('../../features/emotes/catalog').EmoteId): Promise<boolean>
   move(dx: number, dz: number, run: boolean, jump?: boolean): void
   stopMovement(): void
@@ -40,6 +41,7 @@ export interface ParkRuntimePort {
   restoreOneCardHand?(): Promise<boolean>
   hitOneCardHand?(attemptId: string): Promise<boolean>
   actBridge(input: import('../../game/bridge/protocol').BridgeInput): Promise<boolean>
+  actLedger(input: import('../../game/ledger/protocol').LedgerInput): Promise<boolean>
   watchGame(gameId: string): Promise<boolean>
   watchBench(anchorId: string, observeOnly?: boolean): Promise<boolean>
   unwatchGame(): Promise<boolean>

@@ -27,7 +27,7 @@ import org.springframework.test.context.DynamicPropertySource;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/** 실제 MySQL 8.4: V130, 문 지급 트랜잭션·하루 상한·멱등·자정·원장 일치·재시작 정리(BE 명세 8·10·15장). */
+/** 실제 MySQL 8.4: V131, 문 지급 트랜잭션·하루 상한·멱등·자정·원장 일치·재시작 정리(BE 명세 8·10·15장). */
 @Tag("mysql")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "spring.profiles.active=local,db", "ontop.world.jumpmap.enabled=true",
@@ -177,8 +177,8 @@ class JumpmapMySqlTests {
     }
 
     @Test
-    void V130이_적용되고_생성맵에서_점프맵이_활성이다() {
-        assertThat(flyway.info().applied()).extracting(info -> info.getVersion().getVersion()).contains("130");
+    void V131이_적용되고_생성맵에서_점프맵이_활성이다() {
+        assertThat(flyway.info().applied()).extracting(info -> info.getVersion().getVersion()).contains("130", "131");
         assertThat(flyway.info().pending()).isEmpty();
         assertThat(activation.state()).isEqualTo(JumpmapActivation.State.ACTIVE);
         assertThat(service.active()).isTrue();

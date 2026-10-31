@@ -2893,6 +2893,7 @@ paths:
           - DICE
           - ONE_CARD
           - LIAR_BRIDGE
+          - DICE_LEDGER
       responses:
         "200":
           description: 본인 경기 내역 (no-store)

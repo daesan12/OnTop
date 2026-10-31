@@ -288,7 +288,7 @@ export function sampleAvatar(
 function predictionAllowed() {
   const s = useSession.getState(), own = avatars.get(s.sessionId)
   return !!own && s.status === 'connected' && s.mapCompatible && !own.tableId && !own.benchId
-    && !own.fitnessId && !own.telescopeId && !own.followTargetId && !s.activities[s.sessionId]
+    && !own.fitnessId && !own.telescopeId && (!own.followTargetId || localMovement.motionProfile === 'PARK_V1') && !s.activities[s.sessionId]
 }
 // UTC event time advances on a monotonic clock after CONNECTED; world day rendering is separate.
 export const estimatedServerTime = () => eventClock.ready ? eventClock.now(performance.now()) : Date.now()

@@ -3,7 +3,8 @@
   z-index: 7;
   left: 50%;
   bottom: 110px;
-  transform: translateX(-50%);
+  transform: translateX(-50%) scale(var(--park-hint-scale));
+  transform-origin:bottom center;
   max-width: calc(100vw - 32px);
   align-items: center;
   gap: 8px;
