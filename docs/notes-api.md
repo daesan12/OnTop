@@ -155,6 +155,7 @@ DB 커밋 성공 뒤 반환한다. 주제는 daily/cheer/worry/recommend/free �
 2026-10-29 V129(주제·공용 변경번호)를 `db/notes`에 추가했으나 공유 DB 실행 경로에는 포함되지 않았다.
 S15P31B105-296에서 V121·V129 최종 스키마를 공통 V133으로 옮겼다(`NotesSchemaMigrationMySqlTests`가 같은 스키마임을 격리 DB로 검증).
 공용 DB 적용 이력·배포 성공은 아직 확인하지 않았다. notes 활성화(JPA 검증) 전에 V133이 먼저 적용돼야 한다.
+배포 전 확인·환경변수·DEV QA 체크리스트는 `docs/notes-feedback-dev-rollout.md`를 따른다.
 FE는 배포 확인 후 빌드 환경의 `VITE_NOTES_CATEGORIES=true`로 다시 빌드하고 NOTES_CHANGED 수신을 subscribe에 연결한다.
 
 ## 실제 접속 연동 검증
