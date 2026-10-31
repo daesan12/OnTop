@@ -13,7 +13,7 @@ const param = () => ({ value: 0, setValueAtTime: vi.fn(), linearRampToValueAtTim
 const connection = () => ({ connect: vi.fn(), disconnect: vi.fn() })
 function makeAudio() {
   const sources: ReturnType<typeof source>[] = [], gains: ReturnType<typeof gain>[] = [], pans: ReturnType<typeof pan>[] = []
-  function source() { return { ...connection(), buffer: null as AudioBuffer | null, playbackRate: { value: 1 }, loop: false, start: vi.fn(), onended: undefined as (() => void) | undefined } }
+  function source() { return { ...connection(), buffer: null as AudioBuffer | null, playbackRate: { value: 1 }, loop: false, start: vi.fn(), stop: vi.fn(), onended: undefined as (() => void) | undefined } }
   function gain() { return { ...connection(), gain: param() } }
   function pan() { return { ...connection(), pan: param() } }
   const audio = {
@@ -143,6 +143,25 @@ describe('approved jumpmap landing audio', () => {
     playJumpSound(hit('stone'), { output: a }); await flush(); expect(fetcher).toHaveBeenCalledTimes(1)
     fetcher.mockResolvedValue(response())
     playJumpSound(hit('cloud'), { output: a }); await flush(); expect(a.sources).toHaveLength(1)
+  })
+
+  it.each(['timeout', 'abort'] as const)('releases voices once if ended never arrives (%s)', async mode => {
+    vi.useFakeTimers()
+    const { playJumpSound, preloadJumpSounds } = await import('../../src/features/jumpmap/audio')
+    const a = makeAudio(), abort = new AbortController(); await preloadJumpSounds(a.context)
+    for (let i = 0; i < 6; i++) playJumpSound(hit('stone'), { output: a, signal: abort.signal })
+    await flush(); expect(a.sources).toHaveLength(6)
+    a.audio.state = 'suspended'
+    if (mode === 'abort') abort.abort(); else await vi.advanceTimersByTimeAsync(500)
+    for (const source of a.sources) {
+      expect(source.stop).toHaveBeenCalledTimes(1)
+      expect(source.disconnect).toHaveBeenCalledTimes(1)
+      source.onended!() // A late event cannot return a voice twice.
+    }
+    await vi.advanceTimersByTimeAsync(500)
+    a.audio.state = 'running'
+    for (let i = 0; i < 7; i++) playJumpSound(hit('stone'), { output: a })
+    await flush(); expect(a.sources).toHaveLength(12)
   })
 
   it('keeps the existing gate chime layers, including the remote single-layer cue', async () => {

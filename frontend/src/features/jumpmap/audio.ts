@@ -82,7 +82,14 @@ export function playJumpSound(hit: JumpHit, options: SoundOptions) {
     if (!buffer || document.hidden || ctx.state !== 'running' || options.signal?.aborted
       || performance.now() - requestedAt > MAX_START_DELAY_MS) { voices--; return }
     let source: AudioBufferSourceNode | undefined, gain: GainNode | undefined, pan: StereoPannerNode | undefined
-    const clean = () => { voices--; source?.disconnect(); gain?.disconnect(); pan?.disconnect() }
+    let released = false, timer: ReturnType<typeof setTimeout> | undefined
+    const clean = () => {
+      if (released) return
+      released = true; clearTimeout(timer); options.signal?.removeEventListener('abort', clean)
+      voices--
+      try { source?.stop() } catch { /* A source that failed to start has nothing to stop. */ }
+      source?.disconnect(); gain?.disconnect(); pan?.disconnect()
+    }
     try {
       source = ctx.createBufferSource(); gain = ctx.createGain(); pan = ctx.createStereoPanner()
       source.buffer = buffer
@@ -91,6 +98,9 @@ export function playJumpSound(hit: JumpHit, options: SoundOptions) {
       source.connect(gain); gain.connect(pan); pan.connect(bus)
       source.onended = clean
       source.start(ctx.currentTime)
+      // Suspended/closed devices must not retain voices or replay an old landing on resume.
+      timer = setTimeout(clean, buffer.duration * 1000 + 100)
+      options.signal?.addEventListener('abort', clean, { once: true })
     } catch { clean() }
   })
 }
