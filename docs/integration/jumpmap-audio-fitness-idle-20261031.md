@@ -2,6 +2,8 @@
 
 ## 최신 dev 통합 확인 (2026-11-01)
 
+최종 통합 기준은 돌 테이블 MR까지 반영한 `origin/dev@5ac9cfd5`다. 공통 안내 CSS의 운동/테이블 선택자 충돌은 두 조건을 함께 유지해 해결했다. 최종 동일 코드에서 관련 FE 단위 테스트 17파일 117개, 점프맵·운동 전체 브라우저 12개와 돌 테이블 브라우저 4개가 모두 통과했다. FE/테스트 타입 검사, park-integration 빌드, BE bootJar, 맵/코스 정합성도 통과했다. 우클릭 메뉴·붕어빵 가게의 각 최종 브라우저 검증 2개씩은 해당 선행 MR에서 수행했다.
+
 기존 변경을 Git stash에 보존하고 최신 `origin/dev@5df6447c`를 반영했다. 최신 점프맵 시간제한·보상·즉시 재시도 정책 및 공통 지갑 원장 변경을 자동 병합했고 코드 충돌은 없다. 새 migration은 없으며 V133을 포함한 기존 파일을 수정하지 않았다.
 
 관련 FE 단위 테스트 8파일 61개, FE/테스트 타입 검사, 서버 테스트 20개(FitnessRewardService 7, PreparedParkSocket 3, WorldFacility/Flow 10), 별도 loopback MySQL 8.4 DB `ontop_users80_test_fitness_20261101_feedback`의 동시 지급·롤백 2개가 통과했다. 새 테스트 DB의 Flyway 초기 적용도 함께 검증했다. 계정/권한은 생성하지 않았다.
