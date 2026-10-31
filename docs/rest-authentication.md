@@ -58,6 +58,7 @@ HttpSecurity를 요구하지 않으며, 실제 Servlet 서버에서는 프로필
 | GET `/api/v1/channels` | **Access JWT + 활성 회원** | local/dev 및 운영 prod,db에서 등록. 채널 목록 조회 |
 | GET `/api/v1/tables` | **Access JWT + 활성 회원** | local/dev 및 운영 prod,db에서 등록. 채널 설정 시 channelId 필요 |
 | POST `/api/v1/minigames/sessions` | **Access JWT + 활성 회원** | local/dev 및 운영 prod,db에서 등록. Idempotency-Key 필수, 미니게임 서비스는 별도 활성화 |
+| POST `/api/v1/minigames/skewer/admissions` | **Access JWT + 활성 회원/로그인 세션** | 본인 고정 이용료 10냥·단일 Idempotency-Key·본문 없음. 기존 원장으로 중복 차감 방지. [계약](skewer-admissions.md) |
 | GET `/api/v1/minigames/sessions` | **Access JWT + 활성 회원** | 본인 오늘 획득·규칙 버전 상태 조회 |
 | GET `/api/v1/minigames/sessions/{sessionId}` | **Access JWT + 활성 회원** | 본인 세션만 조회 |
 | POST `/api/v1/minigames/sessions/{sessionId}/deliveries` | **Access JWT + 활성 회원** | v4 납품 승인. Idempotency-Key 필수, 엄격한 JSON 본문·256KB 제한, 본인 진행 판만 |
