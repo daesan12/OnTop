@@ -28,8 +28,9 @@ const stoneColors=[new Color('#272421'),new Color('#ede8db')]
 const noRaycast=()=>{}
 
 function ThrownBoard({code}:{code:ParkDebris['gameCode']}){
-  return <group><mesh geometry={box} material={code==='OMOK'?wood:felt} raycast={noRaycast}/>
+  return <group><mesh geometry={box} material={code==='OMOK'||code==='ALKKAGI'?wood:felt} raycast={noRaycast}/>
     {code==='OMOK'?<lineSegments geometry={grid} material={lineMaterial} raycast={noRaycast}/>
+      : code==='ALKKAGI'?Array.from({length:8},(_,i)=><mesh key={i} geometry={counter} material={i<4?red:felt} scale={[1.5,1.5,1.5]} position={[(i%4-1.5)*.25,.05,i<4?-.4:.4]} raycast={noRaycast}/>)
       : code==='LIAR_BRIDGE'?Array.from({length:8},(_,i)=><mesh key={i} geometry={counter} material={i%2?wood:gold} position={[(i%4-1.5)*.27,.044,Math.floor(i/4)*.55-.275]} raycast={noRaycast}/>)
       : code==='DICE'||code==='DICE_LEDGER'?[-.3,0,.3].map((x,i)=><mesh key={x} geometry={die} material={ivory} position={[x,.1,(i%2-.5)*.3]} raycast={noRaycast}/>)
       :[-.22,.22].map((x,i)=><mesh key={x} geometry={card} material={i?ivory:red} position={[x,.045,0]} rotation={[0,(i-.5)*.2,0]} raycast={noRaycast}/>)}

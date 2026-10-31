@@ -3,7 +3,7 @@ import {integer,record} from '../../network/protocol'
 
 export const DEBRIS_DURATION=2800,DEBRIS_LAUNCH=550,DEBRIS_COINS=12,DEBRIS_STONES=5
 export interface ParkDebris {
-  id:string;gameId:string;tableId:string;anchorId:string;gameCode:'OMOK'|'DICE'|'ONE_CARD'|'LIAR_BRIDGE'|'DICE_LEDGER'
+  id:string;gameId:string;tableId:string;anchorId:string;gameCode:'OMOK'|'DICE'|'ONE_CARD'|'LIAR_BRIDGE'|'DICE_LEDGER'|'ALKKAGI'
   userId:string;occurredAt:string;throwYaw:number;seed:number;parts:string[]
 }
 export interface ParkDebrisState {channelId:string;mapVersion:string;version:number;items:ParkDebris[]}
@@ -14,7 +14,7 @@ export function parseParkDebris(value:unknown):ParkDebrisState {
   const ids=new Set<string>()
   const items=value.items.map(raw=>{
     if(!record(raw)||!['id','gameId','tableId','anchorId','userId'].every(k=>id(raw[k]))
-      ||!['OMOK','DICE','ONE_CARD','LIAR_BRIDGE','DICE_LEDGER'].includes(String(raw.gameCode))
+      ||!['OMOK','DICE','ONE_CARD','LIAR_BRIDGE','DICE_LEDGER','ALKKAGI'].includes(String(raw.gameCode))
       ||typeof raw.occurredAt!=='string'||!raw.occurredAt.endsWith('Z')||!Number.isFinite(Date.parse(raw.occurredAt))
       ||typeof raw.throwYaw!=='number'||!Number.isFinite(raw.throwYaw)||!integer(raw.seed)||raw.seed>0x7fffffff
       ||!Array.isArray(raw.parts)||raw.parts.length<1||raw.parts.length>(raw.gameCode==='OMOK'?18:13)

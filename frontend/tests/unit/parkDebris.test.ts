@@ -5,7 +5,7 @@ const item:ParkDebris={id:'g:reaction:101',gameId:'g',tableId:'table',anchorId:'
  occurredAt:'2026-10-31T00:00:00Z',throwYaw:0,seed:123,parts:['board',...Array.from({length:12},(_,i)=>'coin-'+i)]}
 const state=(version=1)=>({channelId:'one',mapVersion:'map',version,items:[item]})
 afterEach(resetParkDebris)
-it.each(['OMOK','DICE','ONE_CARD','LIAR_BRIDGE','DICE_LEDGER'] as const)('accepts and retains %s debris from the server snapshot',gameCode=>{
+it.each(['OMOK','DICE','ONE_CARD','LIAR_BRIDGE','DICE_LEDGER','ALKKAGI'] as const)('accepts and retains %s debris from the server snapshot',gameCode=>{
  const parsed=parseParkDebris({...state(),items:[{...item,gameCode}]})
  expect(acceptParkDebris(parsed)).toBe(true)
  expect(useParkDebris.getState().items[0]!.gameCode).toBe(gameCode)
