@@ -106,4 +106,50 @@ describe('server skewer admission', () => {
     expect(f.request.mock.calls.map(call => call[1].headers['Idempotency-Key']))
       .toEqual(['original', 'original', 'original'])
   })
+  it('recovers the last ten coins after leaving and reloading with a zero balance', async () => {
+    const f = fixture()
+    let coins = 10
+    const charged = new Set<string>()
+    const keys: string[] = []
+    f.request.mockImplementation(async (path, init) => {
+      if (path.endsWith('/me')) return { balance: coins, reservedBalance: 0, availableBalance: coins }
+      const key = init.headers['Idempotency-Key']
+      keys.push(key)
+      if (!charged.has(key)) {
+        coins -= 10; charged.add(key)
+        throw new TypeError('paid response lost')
+      }
+      return { ...receipt, availableBalance: coins }
+    })
+    const first = new VrZoneController(f.admission)
+    await first.open(); first.select('skewer'); first.prepare('pc')
+    expect(await first.authorize()).toBe(false)
+    expect(coins).toBe(0)
+    expect(first.back()).toBe(true)
+    expect(first.close()).toBe(true)
+    const restored = new VrZoneController(new ServerVrAdmission(f.request, f.context))
+    await restored.open()
+    expect(restored.recovering).toBe(true)
+    restored.select('skewer'); restored.prepare('pc')
+    expect(restored.store.getState().phase).toBe('game')
+    expect(await restored.authorize()).toBe(true)
+    expect(keys).toHaveLength(2)
+    expect(keys[1]).toBe(keys[0])
+    expect(charged.size).toBe(1)
+    expect(restored.recovering).toBe(false)
+    expect(await restored.authorize()).toBe(false)
+    restored.back(); restored.select('skewer'); restored.prepare('pc')
+    expect(restored.store.getState().phase).toBe('mode')
+  })
+  it('does not use another owner pending request to bypass the balance guard', async () => {
+    const f = fixture()
+    f.values.set('ontop:skewer:pending-admission:member-2', 'other-owner')
+    f.request.mockResolvedValue({ balance: 0, reservedBalance: 0, availableBalance: 0 })
+    const zone = new VrZoneController(f.admission)
+    await zone.open(); zone.select('skewer'); zone.prepare('pc')
+    expect(zone.recovering).toBe(false)
+    expect(zone.store.getState().phase).toBe('mode')
+    expect(await zone.authorize()).toBe(false)
+    expect(f.request).toHaveBeenCalledTimes(1)
+  })
 })

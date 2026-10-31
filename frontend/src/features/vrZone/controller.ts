@@ -21,6 +21,8 @@ export class VrZoneController {
   private inFlight: Promise<boolean> | null = null
   constructor(readonly admission: VrAdmissionPort) {}
 
+  get recovering() { return Boolean(this.key || this.admission.hasPendingRequest?.()) }
+
   async open() {
     if (this.store.getState().phase !== 'closed') return
     const visit = ++this.visit
@@ -37,7 +39,7 @@ export class VrZoneController {
   }
   prepare(playMode: VrPlayMode) {
     const state = this.store.getState()
-    if (state.phase !== 'mode' || state.loading || state.balance === null || state.balance < VR_PLAY_FEE || this.admission.mode === 'unavailable') return
+    if (state.phase !== 'mode' || state.loading || (!this.recovering && (state.balance === null || state.balance < VR_PLAY_FEE)) || this.admission.mode === 'unavailable') return
     this.store.setState({ phase: 'game', playMode, error: '', receipt: null })
   }
   changeMode() {
@@ -50,7 +52,7 @@ export class VrZoneController {
     if (this.inFlight) return this.inFlight
     if (this.store.getState().phase !== 'game') return Promise.resolve(false)
     const balance = this.store.getState().balance
-    if (balance !== null && balance < VR_PLAY_FEE) {
+    if (balance !== null && balance < VR_PLAY_FEE && !this.recovering) {
       this.store.setState({ error: '엽전이 부족해요. 다음 판에는 10냥이 필요합니다.' })
       return Promise.resolve(false)
     }
@@ -74,13 +76,13 @@ export class VrZoneController {
   }
   back() {
     if (this.store.getState().purchasing) return false
-    // An uncertain debit must be retried with the original key, not discarded.
-    if (this.key) return false
+    // Leaving is safe only when the server adapter durably retains the same request.
+    if (this.key && !this.admission.hasPendingRequest?.()) return false
     this.store.setState({ phase: 'catalog', receipt: null, error: '' })
     return true
   }
   close() {
-    if (this.store.getState().purchasing || this.key) return false
+    if (this.store.getState().purchasing || (this.key && !this.admission.hasPendingRequest?.())) return false
     ++this.visit
     this.store.setState({ phase: 'closed', receipt: null, loading: false, error: '' })
     return true

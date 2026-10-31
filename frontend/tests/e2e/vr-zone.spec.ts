@@ -188,3 +188,45 @@ test('latest park VR entrance plays a complete solo round and returns without a 
   expect(server.sent.some(message => message.type === 'TABLE_JOIN')).toBe(false)
   expect(errors).toEqual([])
 })
+
+test('last ten coins remain recoverable after a lost response, leaving and reload', async ({ page }) => {
+  const entrance = vrEntrance(PARK_LAYOUT.SITES.vr, PARK_LAYOUT.VR_YAW)
+  await fixture(page, { generatedPark: true, position: { ...entrance, yaw: 0 } })
+  let coins = 10
+  const paidKeys = new Set<string>(), requests: string[] = []
+  await page.route('**/api/v1/wallets/me', route => route.fulfill({ json: { balance: coins, reservedBalance: 0, availableBalance: coins } }))
+  await page.route('**/api/v1/minigames/skewer/admissions', async route => {
+    const key = route.request().headers()['idempotency-key']
+    requests.push(key)
+    if (!paidKeys.has(key)) {
+      coins -= 10; paidKeys.add(key)
+      await route.abort('failed'); return
+    }
+    await route.fulfill({ status: 201, json: { id: 'skewer-1', game: 'skewer', fee: 10, availableBalance: coins } })
+  })
+  const catalog = page.getByRole('dialog', { name: 'VR 게임 선택', exact: true })
+  const enter = async () => {
+    await expect(page.locator('.park-scene-message')).toBeHidden({ timeout: 90000 })
+    await page.getByRole('button', { name: /VR 게임 선택 · 한 판 10냥/ }).click()
+    await expect(catalog.locator('.vr-zone-balance')).not.toContainText('확인 중')
+    await page.getByRole('button', { name: '온탑 꼬치왕 선택', exact: true }).click()
+    await page.getByRole('button', { name: 'VR 없이 플레이', exact: true }).click()
+    await page.getByRole('button', { name: '시작 · 10냥', exact: true }).click()
+  }
+  await page.goto('/park')
+  await enter()
+  await expect(page.locator('.vr-zone-payment-error')).toContainText('같은 요청')
+  await page.getByRole('button', { name: 'VR 게임 목록으로', exact: true }).click()
+  await expect(catalog).toBeVisible()
+  await page.getByRole('button', { name: 'VR 게임 선택 닫기', exact: true }).click()
+  await expect(catalog).toBeHidden()
+  await page.reload()
+  await enter()
+  await expect(page.locator('.sk-app')).toHaveAttribute('data-phase', 'countdown')
+  await expect(page.locator('.vr-zone-play-bar')).toContainText('0냥')
+  expect(requests).toHaveLength(2)
+  expect(requests[1]).toBe(requests[0])
+  expect(paidKeys.size).toBe(1)
+  expect(coins).toBe(0)
+  await screenshot(page, 'vr-zone-last-ticket-recovered', 'disabled')
+})
