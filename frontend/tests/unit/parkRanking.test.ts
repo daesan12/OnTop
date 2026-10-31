@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { parseParkRanking, rankingColumns } from '../../src/features/rankingBoard/service'
+import { formatRankingUpdatedAt, parseParkRanking, rankingColumns } from '../../src/features/rankingBoard/service'
+import { canPollParkRanking } from '../../src/features/rankingBoard/RankingBoardHost'
 import { completeRankingRefresh, failRankingRefresh, resetRankingBoardFeed, useRankingBoardFeed } from '../../src/features/rankingBoard/state'
 
 const response = {
@@ -23,6 +24,15 @@ describe('park ranking contract', () => {
 
   it('accepts an empty board', () => {
     expect(parseParkRanking({ ...response, balance: [], singleGameProfit: [], wins: [] }).balance).toEqual([])
+  })
+
+  it('keeps a space between the Korean date and time', () => {
+    expect(formatRankingUpdatedAt('2026-11-02T05:32:00Z')).toBe('2026.11.02 14:32')
+  })
+
+  it('polls only while the document is visible', () => {
+    expect(canPollParkRanking('visible')).toBe(true)
+    expect(canPollParkRanking('hidden')).toBe(false)
   })
 
   it('rejects over ten rows, duplicate users, malformed values and reordered ranks', () => {

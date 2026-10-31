@@ -91,7 +91,8 @@ export function rankingColumns(snapshot: ParkRankingSnapshot): RankingDisplayCol
 }
 
 export function formatRankingUpdatedAt(value: string) {
-  return updatedAt.format(new Date(value)).replace(/\. /g, '.').replace(/\.$/, '')
+  const parts = Object.fromEntries(updatedAt.formatToParts(new Date(value)).map(part => [part.type, part.value]))
+  return `${parts.year}.${parts.month}.${parts.day} ${parts.hour}:${parts.minute}`
 }
 
 export function parkRankingError(error: unknown) {
