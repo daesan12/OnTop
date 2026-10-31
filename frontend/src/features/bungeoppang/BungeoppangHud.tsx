@@ -488,9 +488,7 @@ function StartPanel() {
         </div>
       </section>
       <p className="bung-start-earned" aria-label={`오늘 번 엽전 ${status ? `${status.todayEarned}냥` : '확인 중'} / ${status?.dailyCap ?? R.dailyCoinCap}냥`}>
-        <span className="bung-start-amount">{!status ? '수익 확인 중' : status.todayEarned > 0
-          ? <><img src={coinIcon} alt="" width="28" height="28" />{status.todayEarned.toLocaleString()}냥</>
-          : '오늘 한 번의 도전'}</span>
+        <span>미니게임 오늘</span><span className="bung-start-amount">{!status ? '수익 확인 중' : <><img src={coinIcon} alt="" width="28" height="28" />{status.todayEarned.toLocaleString()}냥</>}</span>
         <span aria-hidden="true">/</span>
         <strong className="bung-start-amount"><img src={coinIcon} alt="" width="28" height="28" />{status?.dailyCap ?? R.dailyCoinCap}냥</strong>
       </p>

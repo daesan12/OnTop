@@ -375,7 +375,7 @@ class MinigameV5ServiceTests {
         var lobby = service.statusV5(USER_ID);
 
         assertThat(lobby.rulesVersion()).isEqualTo("v5");
-        assertThat(lobby.dailyCap()).isEqualTo(100);
+        assertThat(lobby.dailyCap()).isEqualTo(500);
         assertThat(lobby.activeSessionId()).isEqualTo(Long.toString(sessionId));
         assertThat(lobby.supportedRulesVersions()).containsExactly("v2", "v4", "v5");
     }

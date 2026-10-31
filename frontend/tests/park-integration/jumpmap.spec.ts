@@ -7,7 +7,7 @@ import { COURSE, COURSE_VERSION, RULES_VERSION, START, kstDate } from '../../src
 import { PARK_DATA } from '../../src/map/park'
 import selection from '../../public/audio/jumpmap/selection.json' with { type: 'json' }
 const scope = { channelId: 'channel-1', mapVersion: identity.mapVersion }
-const earnings = { earningsDate: kstDate(), dailyCap: 100, todayEarned: 0 }
+const earnings = { earningsDate: kstDate(), dailyCap: 500, todayEarned: 0 }
 const status = { ...scope, ...earnings, revision: 0, enabled: true, courseVersion: COURSE_VERSION, rulesVersion: RULES_VERSION, isFirstRun: true, seenTips: [], activeRunId: null, bestFinishMs: null }
 const probe = (page: Page) => page.evaluate(async () => (await import('/tests/park-integration/jumpmapProbe.ts' as string)).jumpmapProbe())
 async function shot(page: Page, name: string) {
@@ -142,16 +142,18 @@ test('fall and late settlement leave the park free for immediate retry', async (
 test('finish, daily cap and recovered run remain readable at 740px', async ({ page }) => {
   await page.setViewportSize({ width: 740, height: 900 })
   const activeRun = { runId: 'run-a', elapsedMs: 123000, gatesPassed: 6, finalReached: true, maxHeight: 47, runCoins: 64 }
-  const { server, errors, emit } = await setup(page, { ...status, todayEarned: 64, revision: 5, activeRunId: 'run-a', activeRun })
+  const { server, errors, emit } = await setup(page, { ...status, todayEarned: 464, revision: 5, activeRunId: 'run-a', activeRun })
   const pad = COURSE.at(-1)!; server.place({ x: pad.x, y: pad.top + .8, z: pad.z })
   await expect.poll(async () => (await probe(page)).ownPosition?.[1]).toBeCloseTo(pad.top, 1)
   await expect.poll(async () => Math.abs((await probe(page)).camera![1]! - pad.top)).toBeLessThan(12)
   await expect(page.getByLabel('도전 현황')).toContainText('연잎')
   await shot(page, 'jumpmap-playing-narrow')
-  emit('JUMPMAP_ENDED', 6, { reason: 'FINISH', gatesPassed: 7, maxHeight: 47, elapsedMs: 145321, runCoins: 100, todayEarned: 100, finishMs: 145321, bestFinishMs: 145321, newBest: true })
-  await expect.poll(async () => (await probe(page)).state.todayEarned).toBe(100)
+  emit('JUMPMAP_ENDED', 6, { reason: 'FINISH', gatesPassed: 7, maxHeight: 47, elapsedMs: 145321, runCoins: 100, todayEarned: 500, finishMs: 145321, bestFinishMs: 145321, newBest: true })
+  await expect.poll(async () => (await probe(page)).state.todayEarned).toBe(500)
   await expect(page.getByRole('dialog', { name: '점프맵 결과' })).toHaveCount(0)
   await expect(page.getByLabel('마지막 발판 완료')).toHaveCount(0)
+  await expect(page.getByRole('dialog', { name: '점프맵 완료' })).toBeVisible()
+  await expect(page.getByLabel('완주 시간')).toHaveText('145.321초')
   await shot(page, 'jumpmap-finish-narrow')
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   expect(errors).toEqual([])
@@ -257,6 +259,8 @@ test('final leaf opens a persistent paper completion, locks movement and updates
   const last = COURSE.at(-1)!; server.place({ x: last.x, y: last.top + .8, z: last.z })
   emit('JUMPMAP_FINAL_PAD', 3)
   const complete = page.getByRole('dialog', { name: '점프맵 완료', exact: true })
+  await expect(complete).toHaveCount(0)
+  emit('JUMPMAP_ENDED', 4, { reason: 'FINISH', gatesPassed: 7, maxHeight: 47, elapsedMs: 145321, runCoins: 64, todayEarned: 464, finishMs: 145321, bestFinishMs: 145321, newBest: true })
   await expect(complete).toBeVisible()
   await expect(complete).toContainText('이번 도전 받은 엽전64냥')
   await complete.locator('img').evaluateAll(imgs => Promise.all(imgs.map(i => (i as HTMLImageElement).decode())))
@@ -266,14 +270,14 @@ test('final leaf opens a persistent paper completion, locks movement and updates
   const beforeMovement = server.requests.length
   await page.keyboard.press('w')
   expect(server.requests.slice(beforeMovement).some(r => r.type === 'WORLD_MOVE' && !!(r.payload.dx || r.payload.dz))).toBe(false)
-  emit('JUMPMAP_FINAL_PAD', 4)
+  emit('JUMPMAP_FINAL_PAD', 5)
   await expect(page.getByRole('dialog', { name: '점프맵 완료' })).toHaveCount(1)
-  emit('JUMPMAP_ENDED', 5, { reason: 'FINISH', gatesPassed: 7, maxHeight: 47, elapsedMs: 145321, runCoins: 100, todayEarned: 100, finishMs: 145321, bestFinishMs: 145321, newBest: true })
+  emit('JUMPMAP_GATE_SETTLED', 6, { gate: 7, coinsGranted: 36, runCoins: 100, todayEarned: 500 })
   await expect(complete).toContainText('이번 도전 받은 엽전100냥')
-  await expect(complete).toContainText('완주 보상이 반영됐어요.')
-  await expect(complete).not.toContainText(/최고 기록|랭킹|완주 시간/)
+  await expect(complete).toContainText('145.321')
+  await expect(complete.getByRole('button', { name: '타임어택 랭킹 보기', exact: true })).toBeVisible()
   await page.keyboard.press('Escape'); await expect(complete).toBeHidden()
-  emit('JUMPMAP_GATE_SETTLED', 6, { gate: 7, coinsGranted: 36, runCoins: 100, todayEarned: 100 })
+  emit('JUMPMAP_ENDED', 7, { reason: 'FINISH', gatesPassed: 7, maxHeight: 47, elapsedMs: 145321, runCoins: 100, todayEarned: 500, finishMs: 145321, bestFinishMs: 145321, newBest: true })
   await expect(complete).toHaveCount(0)
   await page.locator('canvas').focus()
   const afterClose = server.requests.length
@@ -283,11 +287,13 @@ test('final leaf opens a persistent paper completion, locks movement and updates
   expect(errors).toEqual([])
 })
 
-test('completion can close before diving, never repeats, and fits the narrow viewport', async ({ page }) => {
+test('server finish completion never repeats and fits the narrow viewport', async ({ page }) => {
   await page.setViewportSize({ width: 740, height: 900 })
   const { start, emit, errors } = await setup(page)
   start(); emit('JUMPMAP_FINAL_PAD', 2)
   const complete = page.getByRole('dialog', { name: '점프맵 완료', exact: true })
+  await expect(complete).toHaveCount(0)
+  emit('JUMPMAP_ENDED', 3, { reason: 'FINISH', gatesPassed: 7, maxHeight: 47, elapsedMs: 145321, runCoins: 100, todayEarned: 500, finishMs: 145321, bestFinishMs: 145321, newBest: true })
   await expect(complete).toBeVisible()
   await expect(complete.getByRole('button', { name: '계속하기', exact: true })).toBeInViewport()
   await complete.getByRole('button', { name: '완료 화면 닫기', exact: true }).focus()
@@ -297,9 +303,9 @@ test('completion can close before diving, never repeats, and fits the narrow vie
   await shot(page, 'jumpmap-paper-completion-narrow')
   await complete.getByRole('button', { name: '계속하기', exact: true }).click()
   await expect(complete).toBeHidden()
-  expect((await probe(page)).state.run.finalReached).toBe(true)
-  emit('JUMPMAP_FINAL_PAD', 3); await expect(complete).toHaveCount(0)
-  emit('JUMPMAP_ENDED', 4, { reason: 'FINISH', gatesPassed: 7, maxHeight: 47, elapsedMs: 145321, runCoins: 100, todayEarned: 100, finishMs: 145321 })
+  expect((await probe(page)).state.run).toBeNull()
+  emit('JUMPMAP_FINAL_PAD', 4); await expect(complete).toHaveCount(0)
+  emit('JUMPMAP_ENDED', 5, { reason: 'FINISH', gatesPassed: 7, maxHeight: 47, elapsedMs: 145321, runCoins: 100, todayEarned: 500, finishMs: 145321, bestFinishMs: 145321, newBest: true })
   await expect(complete).toHaveCount(0)
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   expect(errors).toEqual([])

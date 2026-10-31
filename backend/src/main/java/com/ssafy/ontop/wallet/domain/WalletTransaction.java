@@ -64,6 +64,10 @@ public class WalletTransaction {
     }
 
     public static WalletTransaction minigameReward(long walletId, long sessionId, long reward, String key) {
+        return minigameReward(walletId, sessionId, reward, key, Instant.now());
+    }
+
+    public static WalletTransaction minigameReward(long walletId, long sessionId, long reward, String key, Instant now) {
         if (walletId <= 0 || sessionId <= 0 || reward <= 0 || key == null || key.length() > 120) {
             throw new IllegalArgumentException("미니게임 보상 기록을 확인하세요.");
         }
@@ -73,7 +77,7 @@ public class WalletTransaction {
         transaction.balanceDelta = reward;
         transaction.transactionType = "MINIGAME_REWARD";
         transaction.idempotencyKey = key;
-        transaction.createdAt = Instant.now();
+        transaction.createdAt = Objects.requireNonNull(now).truncatedTo(ChronoUnit.MILLIS);
         return transaction;
     }
 

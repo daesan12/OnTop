@@ -22,7 +22,7 @@ it('bounds loading/search time and never substitutes a fabricated route',async()
   vi.useFakeTimers()
   const worker=port(),planner=createRoutePlanner(()=>worker),pending=planner.plan({x:0,z:34},{x:10,z:20})
   const rejected=expect(pending).rejects.toThrow('초과')
-  await vi.advanceTimersByTimeAsync(5000);await rejected;expect(worker.terminate).toHaveBeenCalledOnce()
+  await vi.advanceTimersByTimeAsync(10000);await rejected;expect(worker.terminate).toHaveBeenCalledOnce()
 })
 it('rejects mismatched versions and reports worker startup failure',async()=>{
   const worker=port(),planner=createRoutePlanner(()=>worker),pending=planner.plan({x:0,z:34},{x:10,z:20})

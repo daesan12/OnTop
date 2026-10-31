@@ -1,5 +1,6 @@
 package com.ssafy.ontop.minigame.repository;
 
+import com.ssafy.ontop.config.RuntimeProfiles;
 import com.ssafy.ontop.minigame.domain.BungeoppangProfile;
 import com.ssafy.ontop.minigame.domain.BungeoppangRecord;
 import com.ssafy.ontop.minigame.domain.BungeoppangV4Order;
@@ -9,6 +10,7 @@ import com.ssafy.ontop.minigame.domain.BungeoppangV4Round;
 import com.ssafy.ontop.minigame.domain.BungeoppangV5Order;
 import com.ssafy.ontop.minigame.domain.MinigameSession;
 import com.ssafy.ontop.minigame.domain.MinigameStartRequest;
+import com.ssafy.ontop.minigame.service.MinigameRewardBudget;
 import com.ssafy.ontop.wallet.domain.Wallet;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
@@ -16,7 +18,6 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import com.ssafy.ontop.config.RuntimeProfiles;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Repository;
 
@@ -137,9 +138,6 @@ public class MinigameRepository {
     }
 
     public long earned(long userId, Instant from, Instant until) {
-        return entities.createQuery("select coalesce(sum(s.rewardAmount), 0) from MinigameSession s"
-                + " where s.userId = :user and s.status = 'COMPLETED' and s.endedAt >= :from and s.endedAt < :until",
-                Long.class).setParameter("user", userId).setParameter("from", from).setParameter("until", until)
-                .getSingleResult();
+        return MinigameRewardBudget.earned(entities, userId, from, until);
     }
 }

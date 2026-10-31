@@ -174,7 +174,9 @@ export async function fixture(
   const board: number[][] = Array.from({ length: 15 }, () => Array(15).fill(0))
   let lastMove: { x: number; y: number; stone: string } | null = null,
     turn = '101'
+  let coinTossEndsAt: string | undefined
   const omok = () => ({
+    ...(coinTossEndsAt ? { coinTossEndsAt } : {}),
     gameCode: 'OMOK',
     status: finished ? 'FINISHED' : 'PLAYING',
     boardSize: 15,
@@ -798,6 +800,7 @@ export async function fixture(
     })
   })
   return {
+    coinToss: (until: string) => { coinTossEndsAt = until; gameVersion++; game(sockets.at(-1)!) },
     mapMismatch: (map: { mapId: string; schemaVersion: number; mapVersion: string }) => emit(sockets.at(-1)!, 'ERROR', { code: 'MAP_VERSION_MISMATCH', serverMap: map, message: '맵 버전이 다릅니다.' }),
     sent,
     cardPranks,

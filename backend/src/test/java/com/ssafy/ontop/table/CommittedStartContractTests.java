@@ -38,7 +38,7 @@ class CommittedStartContractTests {
         assertThat(service.start(command)).isEqualTo(pending);
         verifyNoInteractions(omok);
         assertThat(service.find(command)).isEqualTo(reserved);
-        verify(omok).create("game", "table", 101, 202);
+        verify(omok).createWithCoinToss("game", "table", 101, 202);
         verify(gateway, times(1)).startGame(command);
     }
 
@@ -64,12 +64,12 @@ class CommittedStartContractTests {
         when(gateway.startGame(command)).thenReturn(committed);
         when(gateway.findStartResult(command.startAttemptId())).thenReturn(committed);
         doThrow(new IllegalStateException("runtime unavailable")).doNothing()
-                .when(omok).create("game", "table", 101, 202);
+                .when(omok).createWithCoinToss("game", "table", 101, 202);
         assertThatThrownBy(() -> service.start(command)).isInstanceOf(IllegalStateException.class);
         assertThat(service.find(command)).isEqualTo(committed);
         verify(gateway, times(1)).startGame(command);
         verify(gateway, times(1)).findStartResult(command.startAttemptId());
-        verify(omok, times(2)).create("game", "table", 101, 202);
+        verify(omok, times(2)).createWithCoinToss("game", "table", 101, 202);
     }
 
     @Test

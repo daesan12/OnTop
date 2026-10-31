@@ -36,6 +36,17 @@ export function frameHallSign(name:string){
  state.gl.render(state.scene,state.camera)
 }
 
+export function frameVrEntrance(){
+ const state=_roots.get(document.querySelector('canvas')!)!.store.getState()
+ state.setFrameloop('never');state.scene.updateMatrixWorld(true)
+ const marker=state.scene.getObjectByName('vr-entrance-marker')!
+ const point=marker.getWorldPosition(new Vector3()),forward=new Vector3(0,0,1).transformDirection(marker.matrixWorld)
+ state.camera.position.copy(point).addScaledVector(forward,9).add(new Vector3(0,3.4,0))
+ state.camera.lookAt(point.clone().addScaledVector(forward,-4));state.camera.updateMatrixWorld(true)
+ state.gl.render(state.scene,state.camera)
+ return {position:point.toArray(),children:marker.children.length}
+}
+
 /** Tablet selection clears focusedAnchorId; inspect the actual seated board camera. */
 export function omokPlayProbe(x=7,y=7){
  const state=_roots.get(document.querySelector('canvas')!)?.store.getState()

@@ -11,7 +11,7 @@ public final class JumpRun {
     public static final long TIMEOUT_MS = 30 * 60 * 1000L;
     public static final long LANDING_MS = 400;
     /** 구간별 착지 횟수(문 착지·호수 다이빙 포함). 최소 시간 = 횟수 × 400ms. */
-    public static final List<Integer> SECTION_LANDINGS = List.of(24, 10, 14, 13, 18, 19, 15);
+    public static final List<Integer> SECTION_LANDINGS = List.of(24, 10, 14, 13, 18, 19, 14);
     public static final int FINAL_BLOCK = 112;
     public static final int START_BLOCK = 0;
 
@@ -60,8 +60,18 @@ public final class JumpRun {
             }
         }
         if (block == FINAL_BLOCK && !finalReached) {
+            if (gatesPassed < 6) {
+                reasons.add("GATE_SKIPPED:7");
+                result.add(new GateRejected(7, "GATE_SKIPPED", false));
+                return result;
+            }
             finalReached = true;
             result.add(new FinalPad());
+            result.add(check(7, nowMs));
+            gatesPassed = 7;
+            ended = EndReason.FINISH;
+            long elapsed = Math.max(0, nowMs - startedAtMs);
+            result.add(new Ended(EndReason.FINISH, elapsed, elapsed));
         }
         return result;
     }
@@ -71,25 +81,9 @@ public final class JumpRun {
         return end(EndReason.FALL, nowMs);
     }
 
-    /** 수면 아래로 처음 내려간 순간. 마지막 연잎 뒤면 7구간 검사 후 FINISH, 아니면 LAKE. */
+    /** 완주는 마지막 연잎에서 확정하며, 완주 전 수면 진입은 LAKE다. */
     public List<Outcome> lake(long nowMs) {
-        if (ended != null) return List.of();
-        if (!finalReached || gatesPassed < 6) {
-            if (finalReached) reasons.add("GATE_SKIPPED:7");
-            return end(EndReason.LAKE, nowMs);
-        }
-        landings[6]++; // 다이빙도 7구간 착지 한 번이다.
-        var result = new ArrayList<Outcome>();
-        Outcome gate = check(7, nowMs);
-        result.add(gate);
-        if (!(gate instanceof GatePassed)) {
-            // 7장: 검사에 걸린 완주는 7구간 엽전 없이 FINISH로 끝내고 의심 판으로 남긴다.
-            gatesPassed = 7;
-        }
-        ended = EndReason.FINISH;
-        long elapsed = nowMs - startedAtMs;
-        result.add(new Ended(EndReason.FINISH, elapsed, elapsed));
-        return result;
+        return end(EndReason.LAKE, nowMs);
     }
 
     public void height(double feet) {

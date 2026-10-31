@@ -91,6 +91,12 @@ class TableGameIdFlowTests {
 
     @BeforeEach
     void accounts() {
+        // These scenarios isolate chat/settlement from toss randomness; dedicated engine tests cover both coin faces.
+        org.mockito.Mockito.doAnswer(call -> {
+            engine.create(call.getArgument(0), call.getArgument(1), call.getArgument(2), call.getArgument(3));
+            return null;
+        }).when(engine).createWithCoinToss(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyLong());
         when(oauthClock.instant()).thenAnswer(invocation -> clock.instant());
         for (long id : List.of(101L, 202L, 505L, 606L)) {
             when(accounts.findActive(id, TestLoginSessions.ID)).thenReturn(Optional.of(new VerifiedWebSocketUser(

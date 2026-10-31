@@ -80,6 +80,7 @@ export function canPlace(
     g.version >= s.awaitingVersion &&
     g.omok.status === 'PLAYING' &&
     g.omok.turnUserId === ownId &&
+    (!g.omok.coinTossEndsAt || Date.parse(g.omok.coinTossEndsAt) <= now) &&
     Date.parse(g.omok.turnDeadline!) > now &&
     Number.isInteger(x) &&
     Number.isInteger(y) &&

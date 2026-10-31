@@ -91,6 +91,12 @@ public class JumpmapController {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(body);
     }
 
+    @GetMapping("/rankings")
+    @Operation(summary = "돌탑 점프맵 타임어택 랭킹", description = "현 규칙의 검증된 개인 최고 기록 상위 50명과 내 기록. 동점은 같은 등수, 먼저 도착한 기록이 먼저 표시된다.")
+    public ResponseEntity<JumpmapStore.Ranking> rankings(Principal principal) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(service.ranking(account(principal)));
+    }
+
     @PostMapping("/tips")
     @Operation(summary = "본 말풍선 저장", description = "모르는 키는 버리고 기존 목록과 합친다.")
     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "204", description = "저장됨")

@@ -25,3 +25,15 @@
 .jumpmap .jm-completion-paper button:focus-visible{outline:3px solid #ad7b2f;outline-offset:3px}
 .jumpmap .jm-completion-shortcut{font-size:11px;color:#646859;margin:12px 0 0}
 @media(max-width:600px),(max-height:740px){.jumpmap .table-paper-popup.jm-completion-paper{padding:24px 18px 17px;border-radius:20px}.jumpmap .jm-paper-hero,.jumpmap .jm-paper-hero img{height:120px;max-height:120px}.jumpmap .jm-paper-hero img{width:200px}.jumpmap .jm-completion-paper .paper-stats b{font-size:30px}.jumpmap .jm-completion-paper .paper-settlement strong{font-size:14px}.jumpmap .jm-completion-paper .paper-stats span{font-size:13px}}
+.jumpmap .jm-finish-time{font:700 42px/1.2 system-ui,sans-serif;font-variant-numeric:tabular-nums;margin:14px 0;color:#214b3b}
+.jumpmap .jm-ranking{margin-top:12px;text-align:center}
+.jumpmap .jm-ranking>button{min-height:42px}
+.jumpmap .jm-ranking-content{font-size:13px;text-align:left}
+.jumpmap .jm-ranking-content>p{line-height:1.6;margin:10px 0}
+.jumpmap .jm-ranking-content ol{list-style:none;padding:0;margin:0;max-height:180px;overflow-y:auto;scrollbar-width:none}
+.jumpmap .jm-ranking-content ol::-webkit-scrollbar{display:none}
+.jumpmap .jm-ranking-content li{display:grid;grid-template-columns:42px minmax(0,1fr) auto;gap:8px;padding:9px 4px;border-bottom:1px solid #d5c8a9}
+.jumpmap .jm-ranking-content li span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.jumpmap .jm-ranking-content time{font-variant-numeric:tabular-nums}
+.jumpmap .jm-completion-paper:has(.jm-finish-time) .jm-paper-hero{height:80px}
+.jumpmap .jm-completion-paper:has(.jm-finish-time) .jm-paper-hero img{height:80px}

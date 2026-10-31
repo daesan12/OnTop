@@ -41,7 +41,7 @@ class GameStartTerminationTests {
                 Optional.empty(), Optional.empty(), Optional.of(activation), true, false);
 
         assertThatThrownBy(() -> service.find(command)).isSameAs(failure);
-        verify(engine).create("7", "table", 11, 22);
+        verify(engine).createWithCoinToss("7", "table", 11, 22);
         verify(gateway, org.mockito.Mockito.never()).startGame(command);
     }
 

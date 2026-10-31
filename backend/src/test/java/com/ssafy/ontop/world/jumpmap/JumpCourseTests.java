@@ -44,7 +44,7 @@ class JumpCourseTests {
 
         assertThat(course.mapVersion()).isEqualTo(GENERATED_MAP).isEqualTo(manifest.path("mapVersion").asText());
         assertThat(course.courseVersion()).isEqualTo("park180-jump-v1");
-        assertThat(course.rulesVersion()).isEqualTo("v2");
+        assertThat(course.rulesVersion()).isEqualTo("v3");
         assertThat(course.sha256()).isEqualTo(Files.readString(HANDOFF.resolve("course.generated.sha256")).strip());
         assertThat(course.colliders()).hasSize(113);
         assertThat(course.colliders()).extracting(JumpCourse.Collider::block)

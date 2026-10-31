@@ -379,6 +379,7 @@ export class ParkRuntime implements ParkRuntimePort {
     const notesWrite = path === '/api/v1/notes' && init.method === 'POST'
     const method = init.method ?? 'GET'
     const jumpmapRequest = (method === 'GET' && /^\/api\/v1\/minigames\/jumpmap\/status\?channelId=[^&#?]+$/.test(path))
+      || (method === 'GET' && path === '/api/v1/minigames/jumpmap/rankings')
       || (method === 'POST' && path === '/api/v1/minigames/jumpmap/tips')
     const shopRequest = (method === 'GET' && (path === '/api/v1/shop/items' || path === '/api/v1/users/me/items'))
       || (method === 'POST' && path === '/api/v1/shop/purchases')
