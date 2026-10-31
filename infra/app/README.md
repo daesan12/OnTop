@@ -36,7 +36,7 @@
 
 - `compose.prod.yaml`은 `prod,db`를 사용한다. 이 프로필에서는 경기 시작·4종 엔진·결과·재접속, 붕어빵, 상점, 익명 메모가 **명시적으로 활성화했을 때** 등록될 수 있다. 로컬 시연 Gateway와 `/dev/tables`, 개발용 API 문서는 운영 프로필에서 등록되지 않는다. `local` 또는 `dev`와 `prod`/`production`을 섞어 실행하지 않는다.
 - `application-prod.yml`의 게임·미니게임·상점·메모 활성화 기본값은 `false`다. `prod.app.env.example`에 필요한 환경변수 이름을 기록했지만, 실제 서버의 `/etc/ontop/prod-app/app.env`는 자동 변경되지 않는다. 환경파일을 바꾼 뒤에는 `restart`가 아닌 앱 컨테이너 **재생성**이 필요하다.
-- 현재 운영용 Flyway 위치 기본값은 공통 `db/migration`이다. 붕어빵 `db/minigame`, 상점 `db/shop`, 익명 메모 `db/notes`를 활성화하기 전에 **운영 DB의 `flyway_schema_history`와 기존 테이블을 읽기 전용으로 확인**하고, 필요한 위치·버전·적용 순서를 한 번의 검토된 배포로 결정한다. 특히 낮은 버전의 마이그레이션을 뒤늦게 추가할 때는 Flyway 적용 순서를 검증한다. 이 코드 변경만으로 운영 DB에 새 테이블을 만들거나 기능을 켜지 않는다.
+- 현재 운영용 Flyway 위치 기본값은 공통 `db/migration`이다. 붕어빵 `db/minigame`, 상점 `db/shop`을 활성화하기 전에(익명 메모는 공통 V133이며 `db/notes`는 추가하지 않는다) **운영 DB의 `flyway_schema_history`와 기존 테이블을 읽기 전용으로 확인**하고, 필요한 위치·버전·적용 순서를 한 번의 검토된 배포로 결정한다. 특히 낮은 버전의 마이그레이션을 뒤늦게 추가할 때는 Flyway 적용 순서를 검증한다. 이 코드 변경만으로 운영 DB에 새 테이블을 만들거나 기능을 켜지 않는다.
 - 운영 승격 전 별도 환경에서 로그인 → 채널 → 테이블 → 오목·원카드·파클·브릿지·붕어빵 시작·종료·정산·재접속과 상점·메모를 확인한다. 인증과 기능 플래그를 모두 켰다는 사실만으로 완료 처리하지 않는다.
 
 ## 2026-10-23 행동 로그 설정 (S15P31B105-138, 140)
@@ -83,6 +83,26 @@ sudo docker compose --env-file /etc/ontop/dev-app/deploy.env -f infra/app/compos
 일반 회원은 403, 미로그인은 401이어야 한다. 운영에서도 DB 서버의
 MySQL 컨테이너에서 같은 스크립트를 `ontop` 인수로 실행한다.
 실제 접수에는 서버에 등록된 공원 채널과 WebSocket 입장이 필요하다.
+
+## 익명 메모 DB (S15P31B105-296)
+
+익명 메모 테이블 4개는 공통 `db/migration/V133__create_anonymous_notes.sql`이 만든다. DEV·PROD 기본
+Flyway 경로에 이미 포함되므로 locations를 바꾸지 않는다. 이전 `db/notes/V121`·`V129`는 참고용이며
+`classpath:db/notes`를 추가하면 V132 이상 DB에서 out-of-order 검증이 실패한다.
+
+V133은 메모 테이블이 없는 DB 전용이다. V133이 포함된 이미지를 배포하기 **전에** 대상 DB에서 읽기 전용
+스크립트를 실행해 아래를 확인한다. 저장소에는 실제 DB의 적용 결과를 기록하지 않았다.
+
+```bash
+# DEV-CI (운영은 DB 서버의 MySQL 컨테이너에서 ontop 인수로 실행)
+cd /opt/ontop
+sudo docker compose --env-file /etc/ontop/dev-app/deploy.env -f infra/app/compose.dev.yaml exec -T mysql sh -s -- ontop_dev < infra/app/verify-notes-db.sh
+```
+
+- 배포 전: `legacy_notes_history_count=0`, `notes_table_count=0`, 최신 성공 버전이 V133 미만이어야 한다.
+  하나라도 다르면 V133 배포를 멈추고 기존 스키마·데이터를 보존하는 편입 절차를 따로 정한다(repair/baseline/outOfOrder 금지).
+- 배포 후: V133 `success=1`, `notes_table_count=4`, `notes_board_rows=1`을 확인한다.
+- V133 적용만으로 메모 기능은 켜지지 않는다. `NOTES_ENABLED`·`NOTES_PRIVACY_SECRET` 설정은 별도 절차다.
 
 ## 저장소 파일과 비밀정보
 

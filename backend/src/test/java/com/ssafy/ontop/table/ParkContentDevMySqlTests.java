@@ -59,8 +59,7 @@ class ParkContentDevMySqlTests {
         registry.add("ADMIN_READ_IDS", () -> "101");
         registry.add("NOTES_ENABLED", () -> "true");
         registry.add("NOTES_PRIVACY_SECRET", () -> "synthetic-content-note-privacy-key-only");
-        registry.add("spring.flyway.locations", () -> "classpath:db/migration,classpath:db/minigame,"
-                + "classpath:db/notes");
+        // Flyway locations는 application-db.yml의 dev 경로 그대로 사용한다(메모 스키마는 공통 V133).
     }
 
     @Test
@@ -70,7 +69,7 @@ class ParkContentDevMySqlTests {
         }
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM users", Integer.class)).isZero();
         assertThat(jdbc.queryForList("SELECT version FROM flyway_schema_history WHERE success=1", String.class))
-                .contains("110", "111", "121", "127");
+                .contains("110", "111", "127", "133").doesNotContain("120", "121", "129");
         for (long id : new long[]{101, 202, 909}) {
             jdbc.update("INSERT INTO users(id,login_provider,provider_user_id,nickname,character_gender,created_at,updated_at)"
                     + " VALUES(?,'NAVER',?,?,'MALE',CURRENT_TIMESTAMP(3),CURRENT_TIMESTAMP(3))",
