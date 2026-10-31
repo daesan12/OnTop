@@ -1,16 +1,17 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { ArrowHelper, CanvasTexture, Group, Mesh, Plane, Vector2, Vector3 } from 'three'
+import { ArrowHelper, Group, Mesh, Plane, Vector2, Vector3 } from 'three'
 import { AlkkagiReplay, type Piece, type Snapshot } from './replay'
 import { draggedShot, launchResponse } from './aimInput'
 import { exitFlight } from './flight'
+import { AlkkagiPiece, PieceAppearanceProvider } from './AlkkagiPiece'
 
 /** 전송·인증·URL에 의존하지 않는 공용 게임판. 호출자가 승인 상태와 명령 콜백을 공급한다. */
 export function AlkkagiBoard(props: Parameters<typeof Scene>[0]) {
   return <Canvas shadows camera={{ position: [0, 14, 0.01], fov: 46 }}>
     <color attach="background" args={['#253d37']} /><ambientLight intensity={1.8} />
     <directionalLight position={[3, 10, 6]} intensity={2.5} castShadow shadow-mapSize={[1024, 1024]} />
-    <Scene {...props} />
+    <PieceAppearanceProvider><Scene {...props} /></PieceAppearanceProvider>
   </Canvas>
 }
 
@@ -122,7 +123,7 @@ function Scene({ actor, state, replay, enabled, shoot, explain, blockedReason, i
     {Array.from({ length: 9 }, (_, i) => <mesh key={`v${i}`} position={[i - 4, .004, 0]}><boxGeometry args={[.012, .008, 9.5]} /><meshBasicMaterial color="#806243" /></mesh>)}
     {Array.from({ length: 10 }, (_, i) => <mesh key={`h${i}`} position={[0, .004, i - 4.5]}><boxGeometry args={[8.5, .008, .012]} /><meshBasicMaterial color="#806243" /></mesh>)}
     {pieces.map(piece => <group key={`${state!.gameId}-${piece.id}-${piece.radius}`} ref={g => { if (g) groups.current.set(piece.id, g); else groups.current.delete(piece.id) }}>
-      <mesh castShadow receiveShadow position={[0, .15, 0]} onPointerDown={e => {
+      <AlkkagiPiece piece={piece} onPointerDown={e => {
         if (e.button !== 0) return
         e.stopPropagation()
         if (!enabled) { explain(blockedReason); return }
@@ -144,8 +145,7 @@ function Scene({ actor, state, replay, enabled, shoot, explain, blockedReason, i
         explain(`${piece.type} 조준 중 · 당긴 뒤 놓으면 발사됩니다. Esc로 취소`)
         aim.current = { piece, origin, end: origin.clone(), start: { x: e.clientX, y: e.clientY },
           moved: 0, pointerId: e.pointerId, gameId: state!.gameId, version: state!.version }
-      }}><cylinderGeometry args={[piece.radius, piece.radius * 1.03, .27, 8]} /><meshStandardMaterial color="#f0d5a1" roughness={.65} /></mesh>
-      <Label piece={piece} />
+      }} />
       {piece.alive && <PieceEffect radius={piece.radius} type={state?.boostedPieceId === piece.id ? 'POWER_UP' : piece.modifier ?? null} />}
     </group>)}
     {itemTargets.map(id => {
@@ -181,21 +181,6 @@ function AdviceArrow({ x, y, dx, dy, power }: { x: number; y: number; dx: number
   const arrow = useMemo(() => new ArrowHelper(new Vector3(dx, 0, dy), new Vector3(x, .55, y), .5 + power * 2, '#75b4ff'), [x, y, dx, dy, power])
   useEffect(() => () => arrow.dispose(), [arrow])
   return <primitive object={arrow} />
-}
-
-function Label({ piece }: { piece: Piece }) {
-  const texture = useMemo(() => {
-    const canvas = document.createElement('canvas'); canvas.width = canvas.height = 256
-    const ctx = canvas.getContext('2d')!
-    ctx.fillStyle = '#efd6a5'; ctx.fillRect(0, 0, 256, 256)
-    ctx.strokeStyle = piece.owner === 0 ? '#9d302b' : '#286452'; ctx.lineWidth = 9
-    ctx.beginPath(); ctx.arc(128, 128, 113, 0, Math.PI * 2); ctx.stroke()
-    ctx.fillStyle = ctx.strokeStyle; ctx.font = 'bold 172px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    ctx.fillText(piece.type, 128, 137)
-    return new CanvasTexture(canvas)
-  }, [piece.type, piece.owner])
-  useEffect(() => () => texture.dispose(), [texture])
-  return <mesh position={[0, .29, 0]} rotation={[-Math.PI / 2, 0, 0]} raycast={() => {}}><circleGeometry args={[piece.radius * .9, 32]} /><meshBasicMaterial map={texture} /></mesh>
 }
 
 function PieceEffect({ radius, type }: { radius: number; type: string | null }) {
