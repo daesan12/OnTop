@@ -20,6 +20,7 @@ import com.ssafy.ontop.wallet.repository.WalletRepository;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Callable;
@@ -28,6 +29,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 import org.flywaydb.core.Flyway;
+import org.flywaydb.core.api.MigrationInfo;
+import org.flywaydb.core.api.MigrationState;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -76,8 +79,13 @@ class HalliGalliSettlementMySqlTests {
         registry.add("spring.datasource.password", () -> System.getenv("TEST_GAME_DB_PASSWORD"));
     }
 
-    @Test void 신규_DB에_V135가_마지막으로_적용되고_참가인원_CHECK에_기존게임과_할리갈리가_모두_있다() {
-        assertThat(flyway.info().applied()).extracting(m -> m.getVersion().getVersion()).endsWith("134", "135");
+    // V135가 V134 뒤에 성공으로 적용됐는지만 본다. 이후 마이그레이션이 추가돼도 할리갈리 CHECK가 남아 있으면 통과한다.
+    @Test void 신규_DB에_V135가_적용되고_참가인원_CHECK에_기존게임과_할리갈리가_모두_있다() {
+        MigrationInfo[] applied = flyway.info().applied();
+        assertThat(applied).extracting(m -> m.getVersion().getVersion()).containsSubsequence("134", "135");
+        MigrationInfo v135 = Arrays.stream(applied).filter(m -> "135".equals(m.getVersion().getVersion())).findFirst().orElseThrow();
+        assertThat(v135.getScript()).isEqualTo("V135__allow_halli_galli_game_sessions.sql");
+        assertThat(v135.getState()).isEqualTo(MigrationState.SUCCESS);
         assertThat(flyway.validateWithResult().validationSuccessful).isTrue();
         assertThat(flyway.migrate().migrationsExecuted).isZero();
         assertThat(jdbc.queryForObject("SELECT VERSION()", String.class)).startsWith("8.4.");
