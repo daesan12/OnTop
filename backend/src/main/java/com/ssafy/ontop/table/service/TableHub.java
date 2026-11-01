@@ -157,6 +157,7 @@ public class TableHub {
 
     @Autowired(required = false)
     public void configureWorldClock(com.ssafy.ontop.world.service.WorldClock clock) { worldClock = clock; }
+    private final AlkkagiSpectatorPolicy alkkagiSpectators = new AlkkagiSpectatorPolicy();
     private com.ssafy.ontop.world.fitness.FitnessRewardService fitnessRewards;
 
     @Autowired(required = false)
@@ -843,6 +844,7 @@ public class TableHub {
                 replyHostWait(member, room, request.requestId());
                 return;
             }
+            if (request.type().equals("ALKKAGI_SPECTATOR_SEND")) { sendAlkkagiSpectator(sessionId, member, request); return; }
             // 참가자에게도 로비 복구 오류 대신 관전 권한 오류를 주도록 복구 게이트 앞에서 처리한다.
             // 관전자의 로비 자격은 canSpectate에서 다시 검사한다.
             if (request.type().equals("GAME_SPECTATOR_CHAT_SEND") || request.type().equals("OMOK_SPECTATOR_PING_SEND")
@@ -851,7 +853,8 @@ public class TableHub {
                 return;
             }
             if (member.accountId() != null && reconnect.isPresent()
-                    && !reconnect.get().canUseLobby(member.accountId(), sessionId)) {
+                    && !reconnect.get().canUseLobby(member.accountId(), sessionId)
+                    && !restoredChannelAccess(member, request)) {
                 fail(request, "GAME_RECOVERY_REQUIRED", "현재 경기 복구 상태를 먼저 확인해주세요.");
             }
             switch (request.type()) {
@@ -1100,6 +1103,17 @@ public class TableHub {
         endFollows(member.userId());
         recordBehavior(BehaviorEventType.TABLE_JOINED, member.accountId(),
                 builder -> builder.tableId(tableId).channelId(tableChannels.get(tableId)));
+    }
+
+    /** Recovery permits the original channel and its read-only boot snapshots, never lobby actions. */
+    private boolean restoredChannelAccess(Member member, Request request) {
+        if (member.accountId() == null || reconnect.isEmpty()) return false;
+        String tableId = seating.get(member.userId()), gameId = seatedGames.get(member.userId());
+        String channel = tableId == null ? null : tableChannels.get(tableId);
+        if (channel == null || gameId == null || !reconnect.get().canControlGame(member.accountId(), member.sessionId(), gameId)) return false;
+        if (request.type().equals("CHANNEL_JOIN")) return channel.equals(request.payload().get("channelId").textValue());
+        return Set.of("WORLD_FACILITY_CATALOG", "WORLD_FACILITY_CHECK", "WORLD_FOLLOW_CHECK").contains(request.type())
+                && channels.isInChannel(member.userId(), channel);
     }
 
     private void joinChannel(Member member, Request request) {
@@ -2667,6 +2681,7 @@ public class TableHub {
             }
         } else if (view.version() > push.deliveredVersion || push.initialRequestId != null) {
             push.tableId = view.tableId();
+        push.publicState = view.publicState().deepCopy();
             push.deliveredVersion = view.version();
             // 관전 채팅·핑 판정용. 엔진을 다시 호출하지 않도록 전달한 공개 상태의 일부만 기억한다.
             rememberEventScope(push, view);
@@ -2866,6 +2881,31 @@ public class TableHub {
      * 엔진을 호출하지 않으며 판·버전·타이머·결과는 바꾸지 않는다. 다른 수신자에게는 비필수 이벤트로만 보낸다.
      * 주사위 장부 핑은 오목 핑과 같은 간격·TTL·버전 규칙을 쓰고 대상만 점수 칸 또는 주사위다.
      */
+    private void sendAlkkagiSpectator(String sessionId, Member member, Request request) {
+        if (member.accountId() == null || reconnect.isEmpty()) fail(request, "GAME_SPECTATOR_AUTH_REQUIRED", "인증된 관전자만 이용할 수 있습니다.");
+        String gameId = request.payload().path("gameId").asText();
+        StatePush push = approvedSpectator(sessionId, member, gameId);
+        if (push == null || reconnect.get().canControlGame(member.accountId(), sessionId, gameId))
+            fail(request, "GAME_SPECTATOR_ACCESS_DENIED", "관전 승인된 경기에서만 이용할 수 있습니다.");
+        if (!"ALKKAGI".equals(push.gameCode) || !"PLAYING".equals(push.status))
+            fail(request, "GAME_SPECTATOR_GAME_NOT_PLAYING", "진행 중인 알까기 경기에서만 이용할 수 있습니다.");
+        if (push.requestedVersion > push.deliveredVersion) fail(request, "ALKKAGI_SPECTATOR_STALE_VERSION", "최신 판을 확인해주세요.");
+        long now = worldClock.sample().serverNow();
+        AlkkagiSpectatorPolicy.Emission emission;
+        try { emission = alkkagiSpectators.accept(member.userId(), request.payload(), push.publicState, now); }
+        catch (IllegalArgumentException rejected) { throw new RequestException(request.requestId(), rejected.getMessage(), "관전 표시 요청을 확인해주세요."); }
+        member.peer().offer(protocol.encode(request.requestId(), "ALKKAGI_SPECTATOR_EVENT", emission.event()));
+        if (!emission.fresh()) return;
+        String notice = protocol.encode(null, "ALKKAGI_SPECTATOR_EVENT", emission.event());
+        Duration ttl = Duration.ofMillis((long) emission.event().get("expiresAt") - now);
+        for (var entry : members.entrySet()) {
+            Member target = entry.getValue();
+            if (target == member || target.accountId() == null) continue;
+            boolean player = push.players.contains(target.userId()) && reconnect.get().canControlGame(target.accountId(), entry.getKey(), gameId);
+            if (player || approvedSpectator(entry.getKey(), target, gameId) != null) target.peer().offerTransient(notice, ttl);
+        }
+    }
+
     private void sendSpectatorEvent(String sessionId, Member member, Request request) {
         boolean ledgerPing = request.type().equals("DICE_LEDGER_SPECTATOR_PING_SEND");
         boolean ping = ledgerPing || request.type().equals("OMOK_SPECTATOR_PING_SEND");
@@ -2883,7 +2923,7 @@ public class TableHub {
             fail(request, "GAME_SPECTATOR_ACCESS_DENIED", "관전이 승인된 경기에서만 보낼 수 있습니다.");
         }
         if (ping && !(ledgerPing ? "DICE_LEDGER" : "OMOK").equals(push.gameCode)
-                || !Set.of("OMOK", "DICE", "ONE_CARD", "LIAR_BRIDGE", "DICE_LEDGER").contains(push.gameCode)) {
+                || !Set.of("OMOK", "DICE", "ONE_CARD", "LIAR_BRIDGE", "DICE_LEDGER", "ALKKAGI").contains(push.gameCode)) {
             fail(request, "GAME_SPECTATOR_UNSUPPORTED_GAME", "지원하는 경기 채팅 또는 오목·주사위 장부 추천을 이용해주세요.");
         }
         if (!"PLAYING".equals(push.status)) {
@@ -3098,6 +3138,7 @@ public class TableHub {
         private String gameCode;
         private String status;
         private Set<String> players = Set.of();
+        private com.fasterxml.jackson.databind.JsonNode publicState;
 
         private StatePush(Member member, String gameId) {
             this(member, gameId, GameStateView.Role.PLAYER, null);

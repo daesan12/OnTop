@@ -13,6 +13,7 @@ import java.util.Set;
 
 public final class TableProtocol {
 
+    private static boolean finitePoint(JsonNode value) { return value.isNumber() && Double.isFinite(value.asDouble()); }
     private final ObjectMapper mapper;
     private boolean startRehearsal;
 
@@ -129,6 +130,17 @@ public final class TableProtocol {
                     && payload.path("gameId").asText().length() <= 120
                     && payload.path("actionId").isTextual() && !payload.path("actionId").asText().isBlank()
                     && payload.path("actionId").asText().length() <= 64;
+            case "ALKKAGI_SPECTATOR_SEND" -> validGameId(payload) && validEventId(payload)
+                    && payload.path("basedOnVersion").isIntegralNumber() && payload.path("basedOnVersion").canConvertToLong()
+                    && payload.path("basedOnVersion").asLong() >= 0 && payload.path("basedOnVersion").asLong() <= 9_007_199_254_740_991L
+                    && (payload.path("kind").asText().equals("CURSOR")
+                        && fields(payload, Set.of("gameId", "eventId", "basedOnVersion", "kind", "x", "y"))
+                        && finitePoint(payload.path("x")) && finitePoint(payload.path("y"))
+                    || payload.path("kind").asText().equals("ADVICE")
+                        && fields(payload, Set.of("gameId", "eventId", "basedOnVersion", "kind", "pieceId", "dx", "dy", "power"))
+                        && payload.path("pieceId").isTextual() && payload.path("pieceId").asText().length() <= 64
+                        && finitePoint(payload.path("dx")) && finitePoint(payload.path("dy")) && finitePoint(payload.path("power"))
+                        && payload.path("power").asDouble() > 0 && payload.path("power").asDouble() <= 1);
             case "GAME_SPECTATOR_CHAT_SEND" -> fields(payload, Set.of("gameId", "eventId", "text"))
                     && validGameId(payload) && validEventId(payload) && validChatText(payload.get("text"));
             case "ONECARD_PRANK_REACH_SEND", "ONECARD_HAND_FLIP_SEND" ->

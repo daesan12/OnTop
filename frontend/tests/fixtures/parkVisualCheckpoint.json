@@ -172,7 +172,7 @@
     "src/features/tables/PavilionWoodTable.tsx": "ad3ab15bcb2d485451a5cd27487ca422f59346b0632f54f9a22e329f1cd204e4",
     "src/features/tables/StonePicnicTable.tsx": "bea0d2e0f9742efb8be61a4cc34ea7dd9b604642c939882ebd4e2b82602755ad",
     "src/features/tables/tablePresentation.ts": "2a06fc627ba69b9858af39fd10132d500f32877e774e9243bfebb71de077b434",
-    "src/features/tables/TableShell.tsx": "a4ea63b8f803494a6426f1332fdc6dd1e4143f108d95d9657e5933d779aac5c7",
+    "src/features/tables/TableShell.tsx": "f651d98ed9f6114087cdd78dd39eef1ec6d9366e5915f2e9d77fd29b9411a19c",
     "src/features/tables/WoodTable.tsx": "75b861034293a665636b3f672b68c8193d4e24ef778cf67ab2acf42f05a13ee0",
     "src/world/art/previewPropGeometry.ts": "ec34bbfbe8a113ef4459b33fd232c0e3699fe646c51e0c3cdeef0c5495653385",
     "src/world/art/previewSimpleParkTrees.tsx": "00101a0dbd0d22807faaeabf962d1c78b1313275720d5be3b826bb8408f302c2",

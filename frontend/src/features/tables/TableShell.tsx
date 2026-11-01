@@ -1,3 +1,4 @@
+import { ParkAlkkagiBoard } from '../../game/alkkagi/ParkAlkkagiBoard'
 import { SIMPLE_MAP } from '../../world/art/mapRenderProfile'
 import { Suspense, useMemo } from 'react'
 
@@ -110,6 +111,7 @@ export function TableShell({ anchor, onInspect = interactWithTable }: {
       )}
       <DebrisGameSurface anchorId={anchor.id}>
         <Suspense fallback={null}>
+        <ParkAlkkagiBoard anchor={anchor} />
         <OmokBoard anchor={anchor} />
         <FarkleTable anchor={anchor} />
         <OneCardBoard anchor={anchor} />

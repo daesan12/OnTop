@@ -1,5 +1,6 @@
 package com.ssafy.ontop.game.start;
 
+import com.ssafy.ontop.game.alkkagi.service.AlkkagiEngine;
 import com.ssafy.ontop.config.RuntimeProfiles;
 import com.ssafy.ontop.game.bridge.service.BridgeEngine;
 import com.ssafy.ontop.game.farkle.service.FarkleEngine;
@@ -27,6 +28,7 @@ public class CommittedGameStartService {
     private final Optional<FarkleEngine> dice;
     private final Optional<DiceLedgerEngine> ledger;
     private final Optional<GameActivationPersistenceService> activations;
+    private final AlkkagiEngine alkkagi;
 
     public CommittedGameStartService(GameStartGateway gateway, Optional<OmokEngine> omok,
             Optional<OneCardEngine> onecard, Optional<BridgeEngine> bridge, boolean authenticated, boolean rehearsal) {
@@ -46,11 +48,18 @@ public class CommittedGameStartService {
         this(gateway, omok, onecard, bridge, dice, Optional.empty(), activations, authenticated, rehearsal);
     }
 
+    public CommittedGameStartService(GameStartGateway gateway, Optional<OmokEngine> omok,
+            Optional<OneCardEngine> onecard, Optional<BridgeEngine> bridge,
+            Optional<FarkleEngine> dice, Optional<DiceLedgerEngine> ledger,
+            Optional<GameActivationPersistenceService> activations, boolean authenticated, boolean rehearsal) {
+        this(gateway, omok, onecard, bridge, dice, ledger, activations, Optional.empty(), authenticated, rehearsal);
+    }
+
     @Autowired
     public CommittedGameStartService(GameStartGateway gateway, Optional<OmokEngine> omok,
             Optional<OneCardEngine> onecard, Optional<BridgeEngine> bridge,
             Optional<FarkleEngine> dice, Optional<DiceLedgerEngine> ledger,
-            Optional<GameActivationPersistenceService> activations,
+            Optional<GameActivationPersistenceService> activations, Optional<AlkkagiEngine> alkkagi,
             @Value("${ontop.websocket.authenticated:false}") boolean authenticated,
             @Value("${ontop.start-rehearsal.enabled:false}") boolean rehearsal) {
         if (!authenticated || rehearsal || gateway instanceof LocalGameStartGateway) {
@@ -66,6 +75,7 @@ public class CommittedGameStartService {
         this.dice = dice;
         this.ledger = ledger;
         this.activations = activations;
+        this.alkkagi = alkkagi.orElse(null);
     }
 
     public GameStartResult start(GameStartCommand command) {
@@ -85,6 +95,7 @@ public class CommittedGameStartService {
         try {
             List<Long> players = players(command);
             return switch (command.gameCode()) {
+                case "ALKKAGI" -> alkkagi != null && players.size() == 2;
                 case "OMOK" -> omok.isPresent() && players.size() == 2;
                 case "ONE_CARD" -> onecard.isPresent();
                 case "LIAR_BRIDGE" -> bridge.isPresent();
@@ -105,6 +116,7 @@ public class CommittedGameStartService {
             List<Long> players = players(command);
             // 엔진 create의 tick/종료 콜백은 별도 DB 트랜잭션을 사용할 수 있어 경기 행 잠금을 보유하지 않는다.
             switch (command.gameCode()) {
+                case "ALKKAGI" -> alkkagi.startCommitted(command, result);
                 case "OMOK" -> omok.orElseThrow().createWithCoinToss(result.gameSessionId(), command.tableId(),
                         players.get(0), players.get(1));
                 case "ONE_CARD" -> onecard.orElseThrow().create(result.gameSessionId(), command.tableId(), players);

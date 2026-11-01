@@ -28,13 +28,15 @@ const hole=new Path();hole.moveTo(-.027,-.027);hole.lineTo(-.027,.027);hole.line
 const coin=new ExtrudeGeometry(coinShape,{depth:.016,bevelEnabled:true,bevelSize:.003,bevelThickness:.003,bevelSegments:1,curveSegments:14})
 coin.rotateX(-Math.PI/2)
 const counter=new CylinderGeometry(.046,.046,.016,12)
+const alkkagiRed=new MeshStandardMaterial({color:'#a93439',roughness:.8})
 const stoneMaterial=new MeshStandardMaterial({color:'#ffffff',roughness:.4})
 const stoneColors=[new Color('#272421'),new Color('#ede8db')]
 const noRaycast=()=>{}
 
 function ThrownBoard({code}:{code:ParkDebris['gameCode']}){
-  return <group><mesh geometry={box} material={code==='OMOK'?wood:felt} raycast={noRaycast}/>
+  return <group><mesh geometry={box} material={code==='OMOK'||code==='ALKKAGI'?wood:felt} raycast={noRaycast}/>
     {code==='OMOK'?<lineSegments geometry={grid} material={lineMaterial} raycast={noRaycast}/>
+      : code==='ALKKAGI'?Array.from({length:8},(_,i)=><mesh key={i} geometry={counter} material={i<4?alkkagiRed:felt} scale={[1.5,1.5,1.5]} position={[(i%4-1.5)*.25,.05,i<4?-.4:.4]} raycast={noRaycast}/>)
       : null}
   </group>
 }

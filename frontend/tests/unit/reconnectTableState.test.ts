@@ -27,6 +27,7 @@ const hostWait = { tableId: 'server-table', tableVersion: 4, epoch: 'e', revisio
 type Sent = [type: string, payload: object]
 let socket: ContractSocket, runtime: ParkRuntime, activation: Sent[] = [], channelTables = [table.tableId]
 let tablesGate: Promise<void> | null = null
+let multipleChannels = false
 class ContractSocket implements SocketLike {
   readyState = 0; onopen: SocketLike['onopen'] = null; onclose: SocketLike['onclose'] = null
   onmessage: SocketLike['onmessage'] = null; onerror: SocketLike['onerror'] = null
@@ -66,7 +67,7 @@ async function reconnect(sequence: Sent[]) {
   await new Promise(done => setTimeout(done, 0))
 }
 beforeEach(() => {
-  clearAuthSession(); resetWorld(); activation = []; channelTables = [table.tableId]; tablesGate = null
+  clearAuthSession(); resetWorld(); activation = []; channelTables = [table.tableId]; tablesGate = null; multipleChannels = false
   socket = undefined as unknown as ContractSocket
   vi.stubGlobal('window', { location: { href: 'http://localhost:5198/park' } })
   vi.stubGlobal('WebSocket', ContractSocket)
@@ -75,7 +76,7 @@ beforeEach(() => {
     const body = url.endsWith('/auth/refresh') ? { accessToken: 'fixture' }
       : url === '/park-bindings.json' ? { bindings: [{ channelId: 'c', tableId: table.tableId, anchorId: 'table-1' }] }
       : url.endsWith('/users/me') ? { userId: 101, nickname: '회원', characterGender: 'MALE' }
-      : url.endsWith('/channels') ? { items: [{ channelId: 'c', name: '공원', currentUsers: 0, capacity: 4, joinable: true }] }
+      : url.endsWith('/channels') ? { items: [{ channelId: 'c', name: '공원', currentUsers: 0, capacity: 4, joinable: true }, ...(multipleChannels ? [{channelId:'other',name:'다른 공원',currentUsers:0,capacity:4,joinable:true}] : [])] }
       : url.endsWith('/websocket-ticket') ? { ticket: 'fixture', expiresIn: 30 }
       : url.startsWith('/api/v1/tables?') ? { tables: channelTables.map(tableId => ({ tableId, capacity: 2, occupiedSeats: 2,
         availableSeats: 0, joinable: false, gameCode: 'OMOK', status: 'WAITING' })) }
@@ -88,6 +89,19 @@ beforeEach(() => {
 afterEach(async () => { await runtime.stop(); clearAuthSession(); vi.unstubAllGlobals() })
 
 describe('seat states that precede CHANNEL_JOIN and the table list', () => {
+  it('does not let an early recovery block initial channel selection after refresh', async () => {
+    multipleChannels = true
+    activation = [['GAME_CONNECTION_STATE', {status:'RESTORED',gameId:'7',version:3,state:omok()}],
+      ['TABLE_STATE',table],['GAME_START_STATE',start('PLAYING')]]
+    runtime = new ParkRuntime(); await restoreAuthSession(true); runtime.start()
+    await vi.waitFor(()=>expect(useSession.getState().status).toBe('connected'))
+    expect(useGame.getState().game).toBeNull()
+    expect(tableBusy()).toBe(false)
+    expect(await runtime.selectChannel('c')).toBe(true)
+    expect(useSession.getState()).toMatchObject({roomId:'c',tableId:'server-table',seatIndex:0})
+    expect(useGame.getState()).toMatchObject({recovery:'RESTORED',permittedGameId:'7',start:{phase:'PLAYING'}})
+    expect(canPlace('101',7,7)).toBe(true)
+  })
   it('restores a WAITING lease seat, host wait and this table\'s start state', async () => {
     await boot([['TABLE_STATE', table], ['TABLE_HOST_WAIT_STATE', hostWait], ['GAME_START_STATE', start('WAITING')],
       ['GAME_CONNECTION_STATE', { status: 'LOBBY' }]])

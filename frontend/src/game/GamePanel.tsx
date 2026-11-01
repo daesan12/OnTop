@@ -1,3 +1,4 @@
+import { AlkkagiPanel } from './alkkagi/AlkkagiPanel'
 import { useGame } from './store'
 import { OmokPanel } from './OmokPanel'
 import { FarklePanel } from './farkle/FarklePanel'
@@ -17,6 +18,7 @@ export function GamePanel() {
   const runtime = useParkRuntime(), pending = useSession(s => s.pending), connected = useSession(s => s.status === 'connected')
   const gathering = useGathering(), details = useTableLobby(s => s.gatheringDetails)
   const spectatorResult = useGame(s => s.game?.role === 'SPECTATOR' && gameState(s.game).status === 'FINISHED' ? s.game : null)
+  const alkkagi = useGame(s => !!s.game?.alkkagi)
   const profiles = useSession(s => s.profiles)
   const seated = useSession(s => !!s.tableId && s.seatIndex >= 0
     && !!s.tableStates[s.tableId]?.seats.some(seat => seat.userId === s.sessionId))
@@ -27,6 +29,7 @@ export function GamePanel() {
   const bridge = useGame(s => !!s.game?.bridge || (s.start?.gameCode === 'LIAR_BRIDGE' && ['PLAYING', 'SETTLING'].includes(s.start.phase)))
   const ledger = useGame(s => !!s.game?.ledger || (s.start?.gameCode === 'DICE_LEDGER' && ['PLAYING', 'SETTLING'].includes(s.start.phase)))
   if (terminalPlayer && !seated) return null
+  if (alkkagi) return <AlkkagiPanel />
   if (spectatorResult) {
     if (spectatorResult.dice) return <FarklePanel />
     if (spectatorResult.ledger) return <LedgerPanel />

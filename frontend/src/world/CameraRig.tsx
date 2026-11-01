@@ -1,3 +1,4 @@
+import { ALKKAGI_FOV, alkkagiTopDownFrame } from '../game/alkkagi/camera'
 import { gatheringCameraActive } from '../features/tableLobby/gathering'
 import { oneCardPlayerViewActive, oneCardCameraPose, oneCardSpectatorCameraPose, ONECARD_CAMERA } from '../game/onecard/camera'
 import { tabletLobbyActive } from '../features/tableLobby/tabletModel'
@@ -247,7 +248,9 @@ export function CameraRig() {
     const gathering = !TABLET_ENABLED && gatheringCameraActive()
     const spectatorOmok = spectatorBoard && game?.role === 'SPECTATOR' && game.omok?.status === 'PLAYING'
     const focusedOmok = boardFocus && ownOmok && !gathering || spectatorOmok
-    if (focusedOmok) {
+    const alkkagiCamera = !!game?.alkkagi && ((seated && !!avatar.tableId && game.role === 'PLAYER') || (game.role === 'SPECTATOR' && !!(closeAnchor || watchedAnchor)))
+    const focusedAlkkagi = alkkagiCamera && (game?.role === 'PLAYER' ? !looking : spectatorBoard)
+    if (focusedOmok || focusedAlkkagi) {
       camera.layers.set(OMOK_FOCUS_LAYER)
       raycaster.layers.set(OMOK_FOCUS_LAYER)
     }
@@ -268,6 +271,9 @@ export function CameraRig() {
     const debris = reducedMotion.matches?null:activeParkDebris(session.tableId||session.watchedTableId,estimatedServerTime())
     const debrisAnchor=debris?TABLES.find(t=>t.id===debris.anchorId):undefined
     if(debris&&debrisAnchor){
+      // World defeat effects take priority over a retained Alkkagi result board.
+      camera.layers.set(0)
+      raycaster.layers.set(0)
       const scale=tableScale(debrisAnchor),yaw=debris.throwYaw+Math.PI*.7
       state.look.set(debrisAnchor.position[0],debrisAnchor.position[1]+.85*scale,debrisAnchor.position[2])
       state.desired.set(debrisAnchor.position[0]+Math.sin(yaw)*6.5*scale,debrisAnchor.position[1]+3.6*scale,debrisAnchor.position[2]+Math.cos(yaw)*6.5*scale)
@@ -292,6 +298,17 @@ export function CameraRig() {
         state.look.set(anchor.position[0], anchor.position[1] + 1.35, anchor.position[2])
         state.desired.set(anchor.position[0] + Math.sin(yaw) * radius,
           Math.min(anchor.position[1] + 2.8, spectatorClearHeight(anchor.pavilionId)), anchor.position[2] + Math.cos(yaw) * radius)
+      }
+    } else if (focusedAlkkagi) {
+      const anchor = game?.role === 'PLAYER' ? TABLES.find(t => t.id === avatar.tableId)! : (closeAnchor ?? watchedAnchor)!
+      if (anchor) {
+        state.look.set(anchor.position[0], anchor.position[1] + 1.14, anchor.position[2])
+        const frame = alkkagiTopDownFrame(gl.domElement.clientWidth, gl.domElement.clientHeight, tableScale(anchor))
+        const up = game?.role === 'SPECTATOR' || session.seatIndex === 0 ? -1 : 1
+        state.look.z += up * frame.offset
+        state.desired.copy(state.look)
+        state.desired.y += frame.height
+        state.targetUp.set(0, 0, up)
       }
     } else if (seated && avatar.tableId && oneCardPlayerViewActive(game)) {
       const anchor = TABLES.find(t => t.id === avatar.tableId)
@@ -428,10 +445,10 @@ export function CameraRig() {
       )
       state.look.copy(center)
     }
-    const targetFov = debrisAnchor ? 55 : tablet ? 43 : gathering ? ownOmok ? 60 : CAMERA.fov : seated && oneCardPlayerViewActive(game) ? ONECARD_CAMERA.fov : diceFocus ? DICE_CAMERA.fov : ledgerFocus ? LEDGER_CAMERA.fov : boardFocus || spectatorBoard ? GOMOKU.topDownFov : seated ? GOMOKU.seatedFov : CAMERA.fov
+    const targetFov = debrisAnchor ? 55 : tablet ? 43 : focusedAlkkagi ? ALKKAGI_FOV : gathering ? ownOmok ? 60 : CAMERA.fov : seated && oneCardPlayerViewActive(game) ? ONECARD_CAMERA.fov : diceFocus ? DICE_CAMERA.fov : ledgerFocus ? LEDGER_CAMERA.fov : boardFocus || spectatorBoard ? GOMOKU.topDownFov : seated ? GOMOKU.seatedFov : CAMERA.fov
     const smoothingOmok = focusedOmok || ownOmok || state.omokTransition
     const smoothingDice = ownDice || state.diceTransition
-    const smoothingBoard = smoothingOmok || smoothingDice
+    const smoothingBoard = smoothingOmok || smoothingDice || alkkagiCamera
     let omokSettled = false
     if (smoothingBoard) {
       // A stable up vector preserves each seat's orientation at exactly 90 degrees.
