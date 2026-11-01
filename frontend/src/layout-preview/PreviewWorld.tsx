@@ -1,4 +1,5 @@
 import { SIMPLE_MAP } from '../world/art/mapRenderProfile'
+import { GENERATED_NOTES_BOARD_SETBACK } from '../config/notes'
 import { simpleEnvironmentPalette } from '../world/simpleEnvironmentPalette'
 import { existingTreeModel } from './existingTreeModel'
 import { FacetedParkTreeInstances } from '../world/art/FacetedParkTreeInstances'
@@ -45,6 +46,7 @@ import { PlannedCity } from '../world/art/PlannedCity'
 import { EnvironmentScene } from '../world/EnvironmentScene'
 import { fitnessRestArt,fountainTerrain } from './districtGeometry'
 import { vrEntrance } from '../features/vrZone/anchors'
+import { VrEntranceMarker } from '../features/vrZone/VrEntranceMarker'
 
 const groveTreeModels=existingTreeModel(trunks,crowns)
 const shoreTreeModels=existingTreeModel(shoreTrunks,shoreCrowns)
@@ -61,7 +63,6 @@ const zoneSigns={vr:sign('VR 체험관','VIRTUAL REALITY'),folk:sign('민속놀�
 // The front beam ends at z=3.8 and its trim at z=3.88; keep lettering clear of both.
 const hallSignPosition:[number,number,number]=[0,3.55,3.94]
 const vrStart=vrEntrance(SITES.vr,VR_YAW)
-const vrStartSign=sign('VR 체험 시작','E 키로 게임 선택')
 const inspectPreviewTable=()=>{} // No live commands from the layout-review entry.
 
 export function PreviewLight({night}:{night:boolean}) {
@@ -109,11 +110,7 @@ export const PreviewWorld=memo(function PreviewWorld({live=false,onRankingBoardI
       <PropModel art={vrBoothArt} name="folk-hanok-model"/>
       <group name="layout-folk-sign"><PropSign position={hallSignPosition} width={3.4} height={.65} draw={zoneSigns.folk}/></group>
     </group>
-    <group name="vr-entrance-marker" position={[vrStart.x,.18,vrStart.z]} rotation={[0,VR_YAW,0]} userData={{walkable:false}}>
-      <mesh rotation={[-Math.PI/2,0,0]}><ringGeometry args={[1.3,1.5,48]}/><meshStandardMaterial color="#b89349" roughness={.8}/></mesh>
-      <mesh rotation={[-Math.PI/2,0,0]} position={[0,.004,0]}><circleGeometry args={[1.29,48]}/><meshStandardMaterial color="#204b42" roughness={.9}/></mesh>
-      <PropSign position={[0,.012,0]} rotation={[-Math.PI/2,0,0]} width={2.2} height={1.1} draw={vrStartSign}/>
-    </group>
+    <VrEntranceMarker entrance={vrStart}/>
     <StonePagoda anchor={{...VR_PAGODA,x:SITES.vrPagoda.x,z:SITES.vrPagoda.z}}/>
     {!live&&<PreviewJumpCourse/>}
     <PropModel art={pagodaBalustradeArt} name="layout-central-pagoda-stone-balustrade"/>
@@ -122,7 +119,7 @@ export const PreviewWorld=memo(function PreviewWorld({live=false,onRankingBoardI
     <FacetedParkTreeInstances parts={fitnessTreeParts} name="layout-fitness-original-tree" treeCount={1}/>
     <mesh name="layout-original-fountain-terrain" geometry={fountainTerrain} dispose={null} receiveShadow><WalkwayMaterial color="#c4bfb1"/></mesh>
     <group name="layout-enlarged-fountain" position={[SITES.fountain.x,0,SITES.fountain.z]} scale={[DRAFT_FOUNTAIN.scale,1,DRAFT_FOUNTAIN.scale]}><group position={[-ORIGINAL_SITES.fountain.x,0,-ORIGINAL_SITES.fountain.z]}><ParkFountain quality="high" jetHeightScale={DRAFT_FOUNTAIN.jetHeightScale}/></group></group>
-    <group position={[SITES.tower.x-ORIGINAL_SITES.tower.x,0,SITES.tower.z-ORIGINAL_SITES.tower.z]}><ObservationTower/></group>
+    <group position={[SITES.tower.x-ORIGINAL_SITES.tower.x,0,SITES.tower.z-ORIGINAL_SITES.tower.z]}><ObservationTower notesSetback={GENERATED_NOTES_BOARD_SETBACK}/></group>
     {DRAFT_TOWER_BENCHES.map(b=><ReferenceBench key={b.id} name={b.id} position={[b.x,b.y,b.z]} yaw={b.yaw}/>)}
     <group name="lake-district"><Water position={[SITES.lake.x,SITES.lake.surfaceY,SITES.lake.z]} radius={[SITES.lake.rx,SITES.lake.rz]}/>
       <mesh name="layout-lake-bed" geometry={lakeBed} dispose={null} receiveShadow><SurfaceMaterial kind="stone" mapping="box" color="#7b8b6d" side={DoubleSide}/></mesh>

@@ -43,7 +43,10 @@ it('suspends all 13 complete lanterns below the ceiling, inside its edges and cl
     const chain = layout.simpleChains[i]!, cap = layout.chainCaps[i]!
     const ceiling = p.floor + pavilionCeilingBottom * p.scale
     expect(ceiling - (lamp.p[1] + .968 * lamp.s[1])).toBeGreaterThan(.3)
-    expect(chain.p[1] - chain.s[1] / 2).toBeCloseTo(lamp.p[1] + .936 * lamp.s[1], 8)
+    const chainBottom = chain.p[1] - chain.s[1] / 2
+    // The .84-.91 finial must enclose the stem; the eye's centre is empty.
+    expect(chainBottom).toBeGreaterThan(lamp.p[1] + .84 * lamp.s[1])
+    expect(lamp.p[1] + .91 * lamp.s[1] - chainBottom).toBeGreaterThan(.01 * lamp.s[1])
     expect(chain.p[1] + chain.s[1] / 2).toBeCloseTo(ceiling, 8)
     expect(cap.p[1]).toBeCloseTo(ceiling, 8)
     const radius = Math.hypot(lamp.p[0] - p.x, lamp.p[2] - p.z)

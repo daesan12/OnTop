@@ -110,6 +110,7 @@ export class ParkRuntime implements ParkRuntimePort {
   private retryCount = 0
   private preferredChannel = ''
   private timer: ReturnType<typeof setTimeout> | undefined
+  private actionErrorTimer: ReturnType<typeof setTimeout> | undefined
   private bootAbort: AbortController | undefined
   private authListeners = new Set<AuthEnded>()
   private notesChanges = new NotesChangeEvents()
@@ -317,6 +318,8 @@ export class ParkRuntime implements ParkRuntimePort {
       showFacilityUseNotice(useSession.getState().sessionId)
       return
     }
+    clearTimeout(this.actionErrorTimer)
+    this.actionErrorTimer = undefined
     if (this.active)
       useSession.setState({
         error: error instanceof Error ? error.message : String(error),
@@ -499,6 +502,8 @@ export class ParkRuntime implements ParkRuntimePort {
     this.initialStates = null
     this.actionBusy = false
     clearTimeout(this.timer)
+    clearTimeout(this.actionErrorTimer)
+    this.actionErrorTimer = undefined
     this.bootAbort?.abort()
     const closing = this.socket.disconnect()
     resetWorld()
@@ -755,7 +760,18 @@ export class ParkRuntime implements ParkRuntimePort {
       await job()
       return true
     } catch (error) {
-      if (generation === this.generation) this.report(error)
+      if (generation === this.generation) {
+        this.report(error)
+        const { status, error: message } = useSession.getState()
+        if (status === 'connected' && message && !(error instanceof FacilityUseBlockedError)) {
+          this.actionErrorTimer = setTimeout(() => {
+            this.actionErrorTimer = undefined
+            const current = useSession.getState()
+            if (this.active && generation === this.generation && current.status === 'connected'
+              && current.error === message) useSession.setState({ error: '' })
+          }, 2000)
+        }
+      }
       return false
     } finally {
       if (generation === this.generation) {

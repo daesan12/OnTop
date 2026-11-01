@@ -141,6 +141,34 @@ test('generated park waits for approval, renders 18 mapped tables, and supports 
  await page.locator('canvas').focus();await page.keyboard.press('KeyW')
  expect(server.requests.slice(after).filter(r=>['CHANNEL_JOIN','WORLD_MOVE','WORLD_FACILITY_USE'].includes(r.type))).toHaveLength(0)
 })
+test('distant table guidance disappears within three seconds without sitting and can be shown again',async({page})=>{
+ const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message))
+ page.on('console',message=>{if(message.type()==='error')errors.push(message.text())})
+ const server=await parkFixture(page)
+ await page.goto('/park');await expect(page).toHaveTitle('OnTop')
+ await expect.poll(()=>page.evaluate(async()=>(await import('/tests/park-integration/probe.ts' as string)).sceneReady()),{timeout:90000}).toBe(true)
+ await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({timeout:90000})
+ await expect.poll(async()=>(await state(page)).session.status).toBe('connected')
+ const notice=page.locator('.park-runtime-status')
+ for(let attempt=0;attempt<2;attempt++){
+  expect(await page.evaluate(async()=>
+   (await import('/src/park/runtime/runtime.ts' as string)).parkRuntime.joinTable('table-1'))).toBe(false)
+  await expect(notice).toContainText('테이블 의자 가까이에서 앉기를 눌러주세요.')
+  if(attempt===0)await shot(page,'table-guidance-visible')
+  await expect(notice).toBeHidden({timeout:2700})
+  expect((await state(page)).session.tableId).toBe('')
+  expect((await state(page)).session.error).toBe('')
+ }
+ expect(server.requests.filter(request=>request.type==='TABLE_JOIN')).toHaveLength(0)
+ await shot(page,'table-guidance-expired')
+ const table=PARK_DATA.tables.find(table=>table.id==='table-16')!
+ const seat=tableSeats(TABLES.find(anchor=>anchor.id===table.id)!)[0]!
+ server.place({x:table.position[0]+seat.x,y:table.position[1]+.8,z:table.position[2]+seat.z+.6})
+ await page.evaluate(async()=>(await import('/tests/park-integration/probe.ts' as string)).inspect('table-16'))
+ await expect(page.getByRole('dialog',{name:'게임 태블릿',exact:true})).toBeVisible()
+ await expect(page.locator('vite-error-overlay')).toHaveCount(0)
+ expect(errors).toEqual([])
+})
 for(const omitted of [false,true])test(omitted?'generated map refuses missing server identity':'generated map refuses the legacy server before entry',async({page})=>{
  const server=await parkFixture(page,omitted?{omitMap:true}:{serverMap:{...identity,schemaVersion:1,mapVersion:'a'.repeat(64)}})
  await page.goto('/park');await expect(page.locator('.park-runtime-status')).toContainText('새로고침',{timeout:30000})

@@ -34,12 +34,14 @@ test('latest park pavilion furniture and hanging lanterns stay connected and cle
       return { x: p.x, y: p.floor + .8, z: p.z + p.scale, yaw: Math.PI }
     }, id)
     server.place(stand)
-    for (const view of ['inside', 'bench', 'outside'] as const) {
+    for (const view of ['inside', 'bench', 'outside', 'hanger'] as const) {
       await daylight()
       await page.evaluate(async ({ id, view }) => (await import('/tests/park-integration/pavilionAssetProbe.ts' as string)).pavilionView(id, view), { id, view })
       await page.waitForTimeout(700)
       await screenshot(page, `pavilion-assets-${id}-${view}`)
     }
+    expect(await page.evaluate(async id =>
+      (await import('/tests/park-integration/pavilionAssetProbe.ts' as string)).pavilionHangerConnected(id), id)).toEqual([true, true, true, true, true])
     await page.evaluate(async id => {
       (await import('/tests/park-integration/pavilionAssetProbe.ts' as string)).pavilionView(id, 'inside')
       ;(await import('/tests/e2e/sceneProbe.ts' as string)).visualTime(.02)
