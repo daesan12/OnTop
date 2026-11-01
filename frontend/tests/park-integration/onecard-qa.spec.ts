@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 import { fixture, screenshot } from '../e2e/contractFixture'
 import { openingDuration } from '../../src/game/onecard/opening'
 
-test('셔플 후 양쪽 손에 일곱 장을 나누고 작은 채팅과 기권 카드 비행·15초 정리를 유지한다', async ({ page }) => {
+test('셔플 후 양쪽 손에 일곱 장을 나누고 공원 크기의 채팅과 기권 카드 비행·15초 정리를 유지한다', async ({ page }) => {
   const errors: string[] = []
   page.on('pageerror', e => errors.push(e.message))
   page.on('console', m => { if (m.type() === 'error') errors.push(m.text()) })
@@ -31,13 +31,14 @@ test('셔플 후 양쪽 손에 일곱 장을 나누고 작은 채팅과 기권 �
     (await import('/tests/e2e/onecardSceneProbe.ts' as string)).oneCardSceneProbe().players)
   expect(hands.slice(0, 2).map((hand: { displayedCount: number }) => hand.displayedCount)).toEqual([7, 7])
   const chat = page.locator('.park-chat')
-  expect((await chat.boundingBox())!.width).toBeLessThanOrEqual(231)
-  expect((await chat.boundingBox())!.height).toBeLessThanOrEqual(140)
+  const comparison=await page.evaluate(async()=>(await import('/tests/park-integration/onecardChatProbe.ts' as string)).compareParkChat())
+  expect(comparison.actual.width).toBeCloseTo(comparison.common.width,0)
+  expect(comparison.actual.height).toBeCloseTo(comparison.common.height,0)
   await chat.getByRole('button', { name: '채팅 입력창 열기' }).click()
   await chat.locator('input').fill('작은 채팅 확인')
   await chat.locator('input').press('Enter')
   await expect(chat.getByRole('log')).toContainText('작은 채팅 확인')
-  await screenshot(page, 'onecard-qa-compact-chat')
+  await screenshot(page, 'onecard-qa-common-chat')
   await page.getByRole('button', { name: '기권', exact: true }).click()
   await page.getByRole('button', { name: '기권 확정', exact: true }).click()
   await expect.poll(async () => (await opening()).pieces.length).toBe(1)

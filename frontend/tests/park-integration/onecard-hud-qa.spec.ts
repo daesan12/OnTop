@@ -47,6 +47,14 @@ test('동일한 크기의 채팅이 기록·입력·긴 손패를 가리지 않�
       server.cardSnapshot({turnDeadline:new Date(Date.now()+30000).toISOString(),drawCount:44-count,
         players:server.cardState().players.map((p,i)=>({...p,cardCount:i===0?count:7}))},hand(count))
       await expect(cards).toHaveCount(count); await page.mouse.move(1,1)
+      const comparison=await page.evaluate(async()=>(await import('/tests/park-integration/onecardChatProbe.ts' as string)).compareParkChat())
+      expect(comparison.actual.width).toBeCloseTo(comparison.common.width,0)
+      expect(comparison.actual.height).toBeCloseTo(comparison.common.height,0)
+      expect(comparison.actual.x).toBeCloseTo(comparison.common.x,0)
+      expect(comparison.actual.y+comparison.actual.height).toBeCloseTo(comparison.common.y+comparison.common.height,0)
+      const tray=(await page.locator('.onecard-command-tray').boundingBox())!
+      expect(tray.x+tray.width/2).toBeCloseTo(size.width/2,0)
+      if(count===7) await screenshot(page,`onecard-hud-${size.width}`,'disabled')
       await expect.poll(async()=>{
         const bounds=(await chat.boundingBox())!
         return cards.evaluateAll((nodes,b)=>nodes.every(node=>{
@@ -55,11 +63,6 @@ test('동일한 크기의 채팅이 기록·입력·긴 손패를 가리지 않�
             &&(r.right<=b.x||r.left>=b.x+b.width||r.bottom<=b.y||r.top>=b.y+b.height)
         }),bounds)
       }).toBe(true)
-      expect((await chat.boundingBox())!.width).toBeCloseTo(230,0)
-      expect((await chat.boundingBox())!.height).toBeCloseTo(138,0)
-      const anchor=(await chat.boundingBox())!, edge=size.width<=800?12:20
-      expect(anchor.x).toBeCloseTo(edge,0)
-      expect(anchor.y+anchor.height).toBeCloseTo(size.height-edge,0)
       if(size.width>1500||size.width<=600){
         const fan=(await page.getByLabel('나만 볼 수 있는 카드').boundingBox())!
         expect(fan.x+fan.width/2).toBeCloseTo(size.width/2,0)
@@ -71,7 +74,6 @@ test('동일한 크기의 채팅이 기록·입력·긴 손패를 가리지 않�
         const r=node.getBoundingClientRect()
         return r.right<=b.x||r.left>=b.x+b.width||r.bottom<=b.y||r.top>=b.y+b.height
       }),chatBounds)).toBe(true)
-      if(count===7) await screenshot(page,`onecard-hud-${size.width}`)
     }
     const before=(await chat.boundingBox())!
     await chat.getByRole('button',{name:'채팅 기록 보기',exact:true}).click()
@@ -80,9 +82,22 @@ test('동일한 크기의 채팅이 기록·입력·긴 손패를 가리지 않�
     await chat.getByRole('textbox').fill('채팅과 손패를 함께 확인해요')
     await expect(chat.getByRole('textbox')).toBeFocused()
     expect((await chat.boundingBox())!.width).toBeCloseTo(before.width,0)
-    expect((await chat.boundingBox())!.height).toBeCloseTo(before.height,0)
     expect((await chat.boundingBox())!.x).toBeCloseTo(before.x,0)
-    expect((await chat.boundingBox())!.y).toBeCloseTo(before.y,0)
+    const expanded=await page.evaluate(async()=>(await import('/tests/park-integration/onecardChatProbe.ts' as string)).compareParkChat())
+    expect(expanded.actual.width).toBeCloseTo(expanded.common.width,0)
+    expect(expanded.actual.height).toBeCloseTo(expanded.common.height,0)
+    expect(expanded.actual.y+expanded.actual.height).toBeCloseTo(before.y+before.height,0)
+    await expect.poll(()=>cards.evaluateAll((nodes,b)=>nodes.every(node=>{
+      const r=node.getBoundingClientRect()
+      return r.left>=0&&r.right<=innerWidth&&r.top>=0&&r.bottom<=innerHeight
+        &&(r.right<=b.x||r.left>=b.x+b.width||r.bottom<=b.y||r.top>=b.y+b.height)
+    }),expanded.actual)).toBe(true)
+    const expandedTray=(await page.locator('.onecard-command-tray').boundingBox())!
+    expect(expandedTray.x+expandedTray.width/2).toBeCloseTo(size.width/2,0)
+    await expect(page.getByRole('button',{name:'드로우',exact:true})).toBeInViewport()
+    expect(expandedTray.x+expandedTray.width<=expanded.actual.x||expandedTray.x>=expanded.actual.x+expanded.actual.width
+      ||expandedTray.y+expandedTray.height<=expanded.actual.y||expandedTray.y>=expanded.actual.y+expanded.actual.height).toBe(true)
+    await screenshot(page,`onecard-expanded-chat-${size.width}`,'disabled')
     await expect(chat.getByRole('log')).toContainText('긴 대화 기록 11')
     await chat.getByRole('textbox').press('Escape')
   }

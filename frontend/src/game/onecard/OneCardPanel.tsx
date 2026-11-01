@@ -10,6 +10,7 @@ import { cardLabel, cardEffect, oneCardGuidance, redCard, SUIT_GLYPH, SUIT_NAME 
 import type { OneCardInput } from './protocol'
 import { CardFace } from './CardFace'
 import { FanHand } from './FanHand'
+import { useChatClearance } from './useChatClearance'
 import { handScope, useOneCardUI } from './uiState'
 import { useOneCardPranks } from './prankEvents'
 import { useOneCardDefense } from './defenseEvents'
@@ -41,6 +42,7 @@ export function OneCardPanel() {
   useEffect(() => () => { useOneCardUI.setState({ scope: '', selectedId: '' }) }, [])
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 100); return () => clearInterval(timer) }, [])
   const g = s.game?.onecard ? s.game : null
+  useChatClearance(g?.gameId??'',g?.role==='PLAYER'&&g.onecard.status==='PLAYING')
   useEffect(() => setHammerHeld(false), [g?.gameId])
   const canUseHammer = !!g && g.role === 'PLAYER' && g.onecard.status === 'PLAYING'
     && g.hand?.userId === session.sessionId && session.status === 'connected' && !session.pending && !s.pending
