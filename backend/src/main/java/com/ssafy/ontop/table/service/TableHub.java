@@ -1982,7 +1982,7 @@ public class TableHub {
         if (worldChanged) { publishWorld(channels.worldState(tableChannels.get(snapshot.tableId())), null, null); }
     }
 
-    /** 준비·판돈·경기 비공개 정보 없이, 같은 Hub 확정 시점의 실제 좌석만 복사한다. */
+    /** 선택 게임과 실제 좌석만 공개하며 준비·판돈·경기 비공개 정보는 포함하지 않는다. */
     private boolean syncWorldTableSeats(String channelId) {
         if (channelId == null) { return false; }
         long previous = channels.worldState(channelId).version();
@@ -1991,7 +1991,7 @@ public class TableHub {
         for (var entry : rooms.entrySet()) {
             if (!channelId.equals(tableChannels.get(entry.getKey()))) { continue; }
             publicTables.add(new WorldChannelRegistry.PublicTable(entry.getKey(), tableAnchors.get(entry.getKey()),
-                    chairCount(entry.getValue().snapshot())));
+                    chairCount(entry.getValue().snapshot()), entry.getValue().snapshot().gameCode()));
             for (var seat : entry.getValue().snapshot().seats()) {
                 if (seat.userId() != null && entry.getKey().equals(seating.get(seat.userId()))) {
                     seats.put(seat.userId(), new WorldChannelRegistry.TableSeat(entry.getKey(), seat.seatNumber()));

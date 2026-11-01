@@ -108,6 +108,12 @@ export function renderedOwnPosition(){
  return scene?.getObjectByName('avatar-'+useSession.getState().sessionId)?.position.toArray()
 }
 export function cameraPosition(){return _roots.get(document.querySelector('canvas')!)!.store.getState().camera.position.toArray()}
+export function preparedAssetVisible(name:string){
+ const object=_roots.get(document.querySelector('canvas')!)?.store.getState().scene.getObjectByName(name)
+ if(!object)return false
+ for(let node:import('three').Object3D|null=object;node;node=node.parent)if(!node.visible)return false
+ return true
+}
 export function detailProbe(){
  const {scene}=_roots.get(document.querySelector('canvas')!)!.store.getState()
  scene.updateMatrixWorld(true)
