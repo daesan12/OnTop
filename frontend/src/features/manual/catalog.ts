@@ -1,5 +1,6 @@
 import { rulebooks } from './rulebooks';
 import { jumpManual } from '../jumpmap/manual';
+import { rpsRouletteManual } from '../rpsRoulette/manual';
 import { GENERATED_PARK_ENABLED } from '../../park/mapSelection';
 import { bungeoppangV4Preview, bungeoppangV5Enabled, bungeoppangV5Preview } from '../bungeoppang/config';
 import type { GameManual, GuideId, ManualCategory, ManualSection } from './types';
@@ -22,8 +23,9 @@ const allGameManuals: GameManual[] = [
     {id:'bread-keys',title:'재료 선택 → 조리 → 쟁반 → 전달',table:{headers:['조작','하는 일'],rows:[['Space','반죽'],['1 / 2 / 3 / 4 · 숫자패드도 가능','팥 / 슈크림 / 피자 / 초코'],['휠 위·아래','이전·다음 재료, 양 끝에서 멈춤'],['Q W E / A S D · 철판 클릭','반죽 → 소 → 앞면 뒤집기 → 뒷면 꺼내기'],['R / 전달 버튼','주문 종류·수량 전체 납품'],['우클릭 / Shift+칸 키 · 쟁반 버리기','폐기, 콤보 초기화'],['F1 / Esc','설명서 / 그만두기 확인']]},paragraphs:['가득 찬 쟁반에서는 정상 빵을 꺼낼 수 없고 계속 익어요. 실패 빵은 치울 수 있어요.','설명서·확인창에서도 시간은 흘러요. 37초 몰림 예고, 40초부터 가속해요.']},
     {id:'bread-result',title:'납품해야 득점',paragraphs:['보관 점수는 아직 총점이 아니에요. 주문 전체를 전달하면 주문분만 소비하고 여분은 남아요. 미납품 재고·철판은 종료 점수에 포함하지 않아요.','양면 황금 콤보 3~5는 ×1.2, 6 이상은 ×1.5예요. 피자·초코 납품분에는 초기 설정 50% 추가 점수를 각 빵마다 내림해요.',bungeoppangV4Preview ? '미리보기 엽전은 예상 환산이며 실제 지갑에 반영하지 않아요.' : '60초 후 서버가 기록을 검증해 결과를 확정해요. 15점당 1냥, 한국 날짜 기준 모든 미니게임 합계 하루 최대 500냥이며 최종 지급은 서버 결과를 따라요. 정산이 지연되면 결과 화면에서 다시 확인해요.']},
   ]},
+  rpsRouletteManual,
 ];
-export const gameManuals = allGameManuals.filter(game => GENERATED_PARK_ENABLED || game.id !== 'jump');
+export const gameManuals =allGameManuals.filter(game => GENERATED_PARK_ENABLED || game.id !== 'jump');
 
 if (bungeoppangV5Enabled) {
   const bread = gameManuals.find(game => game.id === 'fish-bread')!;

@@ -23,6 +23,8 @@ import { canReachNotes } from '../notes/validation'
 import { openNotes } from '../notes/controller'
 import { canReachBungeoppang } from '../bungeoppang/access'
 import { openBungeoppang } from '../bungeoppang/store'
+import { canOpenRpsRoulette, canReachRpsRoulette, RPS_CABINET } from '../rpsRoulette/access'
+import { openRpsRoulette } from '../rpsRoulette/store'
 import { MINI_PROPS } from '../../park/mapConfig'
 import { interactWithTable } from '../tableLobby/tableInteraction'
 import { tableEntry } from '../tableLobby/tableEntry'
@@ -37,7 +39,7 @@ import { START as JUMPMAP_START } from '../jumpmap/course'
 import { useJumpmap } from '../jumpmap/state'
 
 export interface ParkInteraction {
-  kind: 'bench' | 'table' | 'fitness' | 'telescope' | 'feedback' | 'notes' | 'bungeoppang' | 'construction' | 'ranking-board' | 'vr' | 'jumpmap-guide'
+  kind: 'bench' | 'table' | 'fitness' | 'telescope' | 'feedback' | 'notes' | 'bungeoppang' | 'rps-roulette' | 'construction' | 'ranking-board' | 'vr' | 'jumpmap-guide'
   id: string
   label: string
   seat?: 0 | 1
@@ -79,6 +81,11 @@ export function getParkInteraction(): ParkInteraction | null {
     const cart = MINI_PROPS[0], distance = Math.hypot(p.current.x - cart.x, p.current.z - cart.z)
     choices.push({ kind: 'bungeoppang', id: cart.id, label: '붕어빵 굽기', occupied: false, available: true,
       distance, score: interactionScore(distance, { x: cart.x, y: 1.875, z: cart.z }) })
+  }
+  if (canReachRpsRoulette(p.current)) {
+    const distance = Math.hypot(p.current.x - RPS_CABINET.x, p.current.z - RPS_CABINET.z)
+    choices.push({ kind: 'rps-roulette', id: 'rps-roulette-cabinet', label: '가위바위보 룰렛 하기', occupied: false, available: true,
+      distance, score: interactionScore(distance, { x: RPS_CABINET.x, y: 1.3, z: RPS_CABINET.z }) })
   }
   if (canReachNotes(p.current)) {
     const distance = Math.hypot(p.current.x - NOTES_BOX.x, p.current.z - NOTES_BOX.z)
@@ -140,6 +147,7 @@ export function interactWithPark(): boolean {
   else if (target.kind === 'vr') openParkVrZone()
   else if (target.kind === 'construction') openConstructionNotice(target.id)
   else if (target.kind === 'bungeoppang') openBungeoppang()
+  else if (target.kind === 'rps-roulette') { if (canOpenRpsRoulette()) openRpsRoulette() }
   else if (target.kind === 'table') interactWithTable(target.id)
   else if (target.kind === 'notes') openNotes()
   else if (target.kind === 'feedback') openFeedback()

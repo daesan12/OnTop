@@ -50,6 +50,12 @@ function Section({
         <span>{String(index + 1).padStart(2, "0")}</span>
         {section.title}
       </h4>
+      {section.figure && (
+        <figure className="manual-figure">
+          {section.figure.render()}
+          <figcaption>{section.figure.caption}</figcaption>
+        </figure>
+      )}
       {section.markdown && (
         <div className="manual-markdown">
           <Markdown text={section.markdown} />

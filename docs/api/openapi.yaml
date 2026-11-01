@@ -1881,6 +1881,365 @@ paths:
                 $ref: "#/components/schemas/AuthErrorResponse"
       security:
       - AccessJwt: []
+  /api/v1/minigames/rps-roulette/rounds:
+    post:
+      tags:
+      - MINIGAME
+      summary: 가위바위보 룰렛 START
+      description: 참가비(10/20/30냥)와 하루 판 수를 차감하고 첫 대결의 기계 손 커밋을 발급합니다. Idempotency-Key를
+        재사용하면 같은 판을 반환하며 다시 차감하지 않습니다.
+      operationId: startRpsRouletteRound
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          maxLength: 64
+          minLength: 1
+          pattern: "^[A-Za-z0-9_-]{1,64}$"
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RpsRouletteStartRequest"
+      responses:
+        "400":
+          description: RPS_INVALID_REQUEST
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RpsRouletteStateResponse"
+        "401":
+          description: 인증된 활성 회원 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RpsRouletteStateResponse"
+        "403":
+          description: 허용되지 않은 출처 또는 권한
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RpsRouletteStateResponse"
+        "409":
+          description: WALLET_NOT_READY / INSUFFICIENT_COINS / RPS_DAILY_LIMIT / RPS_ROUND_IN_PROGRESS
+            / RPS_INVALID_PHASE / IDEMPOTENCY_KEY_CONFLICT
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RpsRouletteStateResponse"
+        "503":
+          description: RPS_UNAVAILABLE
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RpsRouletteStateResponse"
+        "201":
+          description: 판 시작 또는 같은 요청 재확인
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RpsRouletteStateResponse"
+      security:
+      - AccessJwt: []
+  /api/v1/minigames/rps-roulette/rounds/{roundId}/stop:
+    post:
+      tags:
+      - MINIGAME
+      summary: 멈추고 룰렛 돌리기
+      description: 현재 배수로 룰렛 칸을 정하고 참가비 × 칸 × 배수를 지급합니다.
+      operationId: stopRpsRouletteRound
+      parameters:
+      - name: roundId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RpsRouletteActionRequest"
+      responses:
+        "400":
+          description: RPS_INVALID_REQUEST
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RpsRouletteStateResponse"
+        "401":
+          description: 인증된 활성 회원 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RpsRouletteStateResponse"
+        "403":
+          description: 허용되지 않은 출처 또는 권한
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RpsRouletteStateResponse"
+        "409":
+          description: WALLET_NOT_READY / INSUFFICIENT_COINS / RPS_DAILY_LIMIT / RPS_ROUND_IN_PROGRESS
+            / RPS_INVALID_PHASE / IDEMPOTENCY_KEY_CONFLICT
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RpsRouletteStateResponse"
+        "503":
+          description: RPS_UNAVAILABLE
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RpsRouletteStateResponse"
+        "200":
+          description: 룰렛 결과와 현재 상태
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RpsRouletteStateResponse"
+      security:
+      - AccessJwt: []
+  /api/v1/minigames/rps-roulette/rounds/{roundId}/hands:
+    post:
+      tags:
+      - MINIGAME
+      summary: 가위바위보 손 내기
+      description: 현재 순번(seq)의 대결에 손을 냅니다. 지난 순번은 다시 적용하지 않고 현재 상태를 반환합니다.
+      operationId: playRpsRouletteHand
+      parameters:
+      - name: roundId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RpsRouletteActionRequest"
+      responses:
+        "400":
+          description: RPS_INVALID_REQUEST
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RpsRouletteStateResponse"
+        "401":
+          description: 인증된 활성 회원 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RpsRouletteStateResponse"
+        "403":
+          description: 허용되지 않은 출처 또는 권한
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RpsRouletteStateResponse"
+        "409":
+          description: WALLET_NOT_READY / INSUFFICIENT_COINS / RPS_DAILY_LIMIT / RPS_ROUND_IN_PROGRESS
+            / RPS_INVALID_PHASE / IDEMPOTENCY_KEY_CONFLICT
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RpsRouletteStateResponse"
+        "503":
+          description: RPS_UNAVAILABLE
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RpsRouletteStateResponse"
+        "200":
+          description: 공개된 결과와 현재 상태
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RpsRouletteStateResponse"
+      security:
+      - AccessJwt: []
+  /api/v1/minigames/rps-roulette/rounds/{roundId}/challenge:
+    post:
+      tags:
+      - MINIGAME
+      summary: 도전하기
+      description: "이긴 뒤 한 번 더 대결합니다. 1차 성공 ×1.5, 2차 성공 ×2.0, 실패하면 꽝입니다."
+      operationId: challengeRpsRouletteRound
+      parameters:
+      - name: roundId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RpsRouletteActionRequest"
+      responses:
+        "400":
+          description: RPS_INVALID_REQUEST
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RpsRouletteStateResponse"
+        "401":
+          description: 인증된 활성 회원 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RpsRouletteStateResponse"
+        "403":
+          description: 허용되지 않은 출처 또는 권한
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RpsRouletteStateResponse"
+        "409":
+          description: WALLET_NOT_READY / INSUFFICIENT_COINS / RPS_DAILY_LIMIT / RPS_ROUND_IN_PROGRESS
+            / RPS_INVALID_PHASE / IDEMPOTENCY_KEY_CONFLICT
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RpsRouletteStateResponse"
+        "503":
+          description: RPS_UNAVAILABLE
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RpsRouletteStateResponse"
+        "200":
+          description: 다음 대결의 커밋과 현재 상태
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RpsRouletteStateResponse"
+      security:
+      - AccessJwt: []
   /api/v1/minigames/jumpmap/tips:
     post:
       tags:
@@ -3742,6 +4101,84 @@ paths:
                 $ref: "#/components/schemas/AuthErrorResponse"
       security:
       - AccessJwt: []
+  /api/v1/minigames/rps-roulette/status:
+    get:
+      tags:
+      - MINIGAME
+      summary: 가위바위보 룰렛 상태 조회
+      description: "오늘 판 수, 사용 가능 잔액, 규칙과 가장 최근 판을 반환합니다. 마감이 지난 진행 중 판은 먼저 서버가 끝냅\
+        니다."
+      operationId: getRpsRouletteStatus
+      responses:
+        "400":
+          description: RPS_INVALID_REQUEST
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RpsRouletteStateResponse"
+        "401":
+          description: 인증된 활성 회원 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RpsRouletteStateResponse"
+        "403":
+          description: 허용되지 않은 출처 또는 권한
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RpsRouletteStateResponse"
+        "409":
+          description: WALLET_NOT_READY / INSUFFICIENT_COINS / RPS_DAILY_LIMIT / RPS_ROUND_IN_PROGRESS
+            / RPS_INVALID_PHASE / IDEMPOTENCY_KEY_CONFLICT
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RpsRouletteStateResponse"
+        "503":
+          description: RPS_UNAVAILABLE
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RpsRouletteStateResponse"
+        "200":
+          description: 현재 상태
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RpsRouletteStateResponse"
+      security:
+      - AccessJwt: []
   /api/v1/minigames/jumpmap/status:
     get:
       tags:
@@ -5138,6 +5575,189 @@ components:
         rewardAmount:
           type: integer
           format: int64
+    RpsRouletteStartRequest:
+      required:
+      - fee
+      type: object
+      properties:
+        fee:
+          type: integer
+          format: int32
+          enum:
+          - 10
+          - 20
+          - 30
+    RpsRouletteLastDuel:
+      required:
+      - auto
+      - duelNo
+      - machineHand
+      - playerHand
+      - result
+      - salt
+      type: object
+      properties:
+        duelNo:
+          type: integer
+          format: int32
+        playerHand:
+          type: string
+        machineHand:
+          type: string
+        salt:
+          type: string
+        result:
+          type: string
+          enum:
+          - WIN
+          - DRAW
+          - LOSE
+        auto:
+          type: boolean
+    RpsRouletteRound:
+      required:
+      - challenging
+      - duelNo
+      - fee
+      - id
+      - multiplier
+      - payout
+      - phase
+      - seq
+      - stakeLevel
+      - startedAt
+      type: object
+      properties:
+        id:
+          type: string
+        fee:
+          type: integer
+          format: int32
+        phase:
+          type: string
+          enum:
+          - DUEL
+          - DECIDE
+          - SETTLED
+        seq:
+          type: integer
+          format: int32
+        stakeLevel:
+          type: integer
+          format: int32
+        multiplier:
+          type: number
+          format: double
+        challenging:
+          type: boolean
+        duelNo:
+          type: integer
+          format: int32
+        commitment:
+          type: string
+          description: DUEL 단계의 기계 손 SHA-256 커밋
+        inputEndsAt:
+          type: string
+          format: date-time
+        deadlineAt:
+          type: string
+          format: date-time
+        lastDuel:
+          $ref: "#/components/schemas/RpsRouletteLastDuel"
+        outcome:
+          type: string
+          enum:
+          - LOST
+          - PAID
+        rouletteCell:
+          type: integer
+          format: int32
+        rouletteValue:
+          type: integer
+          format: int32
+        payout:
+          type: integer
+          format: int32
+        startedAt:
+          type: string
+          format: date-time
+        settledAt:
+          type: string
+          format: date-time
+    RpsRouletteRules:
+      required:
+      - dailyPlays
+      - decideLimitMs
+      - duelLimitMs
+      - fees
+      - graceMs
+      - multipliers
+      - roulette
+      type: object
+      properties:
+        fees:
+          type: array
+          items:
+            type: integer
+            format: int32
+        dailyPlays:
+          type: integer
+          format: int32
+        multipliers:
+          type: array
+          items:
+            type: number
+            format: double
+        roulette:
+          type: array
+          items:
+            type: integer
+            format: int32
+        duelLimitMs:
+          type: integer
+          format: int64
+        decideLimitMs:
+          type: integer
+          format: int64
+        graceMs:
+          type: integer
+          format: int64
+    RpsRouletteStateResponse:
+      required:
+      - availableBalance
+      - playedToday
+      - rules
+      - serverNow
+      type: object
+      properties:
+        serverNow:
+          type: string
+          format: date-time
+        availableBalance:
+          type: integer
+          format: int64
+        playedToday:
+          type: integer
+          format: int32
+        rules:
+          $ref: "#/components/schemas/RpsRouletteRules"
+        round:
+          $ref: "#/components/schemas/RpsRouletteRound"
+    RpsRouletteActionRequest:
+      required:
+      - seq
+      type: object
+      properties:
+        seq:
+          type: integer
+          format: int32
+        hand:
+          type: string
+          description: hands 요청에서만 사용
+          enum:
+          - ROCK
+          - SCISSORS
+          - PAPER
     FeedbackReceiptResponse:
       required:
       - acceptedAt

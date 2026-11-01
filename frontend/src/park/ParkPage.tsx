@@ -43,6 +43,7 @@ import { useStore } from 'zustand'
 import { ParkVrZone } from '../features/vrZone/ParkVrZone'
 import { parkVrZone } from '../features/vrZone/parkBridge'
 import { RankingBoardHost } from '../features/rankingBoard/RankingBoardHost'
+import { RpsRoulettePanel } from '../features/rpsRoulette/RpsRoulettePanel'
 
 const shortcuts = [
   { key: 'WASD', action: '이동' },
@@ -132,6 +133,7 @@ function ParkContent({ onExit, exitError, onAuthEnded }: ParkProps) {
         <ParkInteractionHint />
         <div hidden={omokFocus} inert={omokFocus}>
         <ConstructionNotice />
+        <RpsRoulettePanel />
         <FacilityStatus />
         <EmoteWheel />
         <TelescopePanel />
