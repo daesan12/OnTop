@@ -1,6 +1,7 @@
 import { memo, useEffect, useMemo } from 'react'
 import { CanvasTexture, SRGBColorSpace } from 'three'
 import { OMOK_HALF, OMOK_SIZE, OMOK_SPACING } from '../omokPresentation'
+import { OMOK_BOARD_ART_SPAN, OMOK_COORDINATE_OFFSET } from './boardLayout'
 
 /** A1은 좌상단, 열은 오른쪽·행은 아래쪽으로 읽는 두 면 좌표. */
 export const BoardCoordinates = memo(function BoardCoordinates() {
@@ -8,7 +9,7 @@ export const BoardCoordinates = memo(function BoardCoordinates() {
     const canvas = document.createElement('canvas')
     canvas.width = canvas.height = 2048
     const ctx = canvas.getContext('2d')!
-    const pixel = (value: number) => (value / 1.5 + .5) * canvas.width
+    const pixel = (value: number) => (value / OMOK_BOARD_ART_SPAN + .5) * canvas.width
     ctx.fillStyle = '#fff0cd'
     ctx.strokeStyle = '#372215'
     ctx.lineWidth = 7
@@ -21,8 +22,8 @@ export const BoardCoordinates = memo(function BoardCoordinates() {
     }
     for (let index = 0; index < OMOK_SIZE; index++) {
       const p = index * OMOK_SPACING - OMOK_HALF
-      label(String.fromCharCode(65 + index), p, -.725)
-      label(String(index + 1), -.725, p)
+      label(String.fromCharCode(65 + index), p, -OMOK_COORDINATE_OFFSET)
+      label(String(index + 1), -OMOK_COORDINATE_OFFSET, p)
     }
     const map = new CanvasTexture(canvas)
     map.colorSpace = SRGBColorSpace; map.anisotropy = 4
@@ -30,7 +31,7 @@ export const BoardCoordinates = memo(function BoardCoordinates() {
   }, [])
   useEffect(() => () => texture.dispose(), [texture])
   return <mesh name="omok-board-coordinates" position={[0, .043, 0]} rotation={[-Math.PI / 2, 0, 0]} raycast={() => {}}>
-    <planeGeometry args={[1.5, 1.5]} />
+    <planeGeometry args={[OMOK_BOARD_ART_SPAN, OMOK_BOARD_ART_SPAN]} />
     <meshBasicMaterial map={texture} transparent depthWrite={false} toneMapped={false} />
   </mesh>
 })

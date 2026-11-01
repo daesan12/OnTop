@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { JumpmapOverlay } from './JumpmapOverlay'
 import { acceptJumpEvent, applyJumpStatus, bindJumpmap, resetJumpmap, showTip, useJumpmap } from './state'
 import { COURSE_VERSION, MAP_VERSION, RULES_VERSION, kstDate } from './course'
+import { JumpmapGuideDialog } from './JumpmapGuide'
 import './jumpmapPreview.css'
 
 const scope = { channelId: 'preview', mapVersion: MAP_VERSION }
@@ -41,10 +42,11 @@ function end(reason: 'FINISH' | 'FALL') {
     ...(reason === 'FINISH' ? { finishMs: 272180, bestFinishMs: 272180, newBest: true } : {}) })
 }
 function Preview() {
-  const s = useJumpmap(), [now, setNow] = useState(performance.now())
+  const s = useJumpmap(), [now, setNow] = useState(performance.now()), [guide, setGuide] = useState(false)
   useEffect(() => { fresh(); const timer = setInterval(() => setNow(performance.now()), 50); return () => { clearInterval(timer); resetJumpmap() } }, [])
   return <main className="jm-preview"><header><h1>돌탑 점프맵 · 반복 도전 HUD</h1><p>실제 FE 컴포넌트 · 모의 상태 · 지도/서버 연결 및 실제 엽전 지급 없음</p><div>
     <button onClick={fresh}>처음 상태</button><button disabled={!!s.run} onClick={firstPad}>첫 발판 (테스트)</button>
+    <button disabled={!!s.run} onClick={()=>setGuide(true)}>출발 안내 보기</button>
     <button disabled={!s.run || s.run.gatesPassed >= 6} onClick={gate}>구간 통과 (테스트)</button>
     <button disabled={!s.run} onClick={() => end('FALL')}>낙하 (테스트)</button>
     <button disabled={!s.run || s.run.finalReached} onClick={lastPad}>마지막 발판 (테스트)</button>
@@ -52,6 +54,6 @@ function Preview() {
   </div></header><div className="jm-preview-stage"><div className="jm-preview-crosshair" aria-hidden="true">+</div>
     <JumpmapOverlay state={s} now={now} nearStart={!s.run} />
     <p className="jm-preview-note">낙하 후 바로 다시 도전해 보세요. 마지막 연잎에서는 완료 화면을 확인하고 계속하기로 진행해요.</p>
-  </div></main>
+  </div>{guide&&<JumpmapGuideDialog onClose={()=>setGuide(false)} />}</main>
 }
 if (import.meta.env.DEV) createRoot(document.getElementById('root')!).render(<Preview />)

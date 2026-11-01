@@ -65,7 +65,7 @@ function Batch({ theme, pads, art }: { theme: JumpTheme; pads: readonly CourseBl
       pads.forEach((p, i) => {
         const along = lengthSq ? ((p.x - pose.x) * dx + (p.top - pose.y - .4) * dy + (p.z - pose.z) * dz) / lengthSq : 0
         const occluded = along > .03 && along < .97 && Math.hypot(p.x - pose.x - dx * along, p.top - pose.y - .4 - dy * along, p.z - pose.z - dz * along) < Math.max(p.halfX, p.halfZ) + .5
-        const target = art ? s.run ? .8 : .4 : targetFade(p.top, pose.y - .8, !!s.run, occupied.has(p.block), occluded)
+        const target = art === jumpStartArt ? 1 : art ? s.run ? .8 : .4 : targetFade(p.top, pose.y - .8, !!s.run, occupied.has(p.block), occluded)
         fade.setX(i, target + (fade.getX(i) - target) * Math.exp(-Math.min(dt, .1) * 6))
         const h = hits.get(p.block)
         if (!art && h && (h.power === 1 || Math.hypot(p.x - pose.x, p.top - pose.y + .8, p.z - pose.z) <= 25)) {

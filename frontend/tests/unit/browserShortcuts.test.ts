@@ -129,6 +129,29 @@ it('interrupts Ctrl+W even when W was already held for movement', () => {
   expect(interrupt).toHaveBeenCalledTimes(2)
 })
 
+it('requests a leave confirmation without a delivered keydown and clears held input', () => {
+  const interrupt = vi.fn(); win.addEventListener('ontop-browser-interrupt', interrupt)
+  const unload = new Event('beforeunload', { cancelable: true })
+  Object.defineProperty(unload, 'returnValue', { value: '', writable: true })
+  expect(win.dispatchEvent(unload)).toBe(false)
+  expect(unload.defaultPrevented).toBe(true)
+  expect(unload.returnValue).toBe('true')
+  expect(interrupt).toHaveBeenCalledTimes(1)
+  // Dismissing the native dialog does not require a remount to protect the next attempt.
+  expect(win.dispatchEvent(new Event('beforeunload', { cancelable: true }))).toBe(false)
+  expect(interrupt).toHaveBeenCalledTimes(2)
+})
+
+it('removes leave confirmation on cleanup and reinstalls it after StrictMode remount', () => {
+  const interrupt = vi.fn(); win.addEventListener('ontop-browser-interrupt', interrupt)
+  dispose()
+  expect(win.dispatchEvent(new Event('beforeunload', { cancelable: true }))).toBe(true)
+  expect(interrupt).not.toHaveBeenCalled()
+  dispose = installBrowserShortcutGuard()
+  expect(win.dispatchEvent(new Event('beforeunload', { cancelable: true }))).toBe(false)
+  expect(interrupt).toHaveBeenCalledTimes(1)
+})
+
 it('clears transient controls on blur, hidden tab, pagehide and fullscreen change; removes all handlers', () => {
   const interrupt = vi.fn(); win.addEventListener('ontop-browser-interrupt', interrupt)
   doc.dispatchEvent(new Event('visibilitychange'))

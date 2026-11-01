@@ -1,47 +1,4 @@
-/* Keep the chat readable without inheriting the park HUD's visual scale. */
-.park-page:has(.onecard-game-hud) .park-chat {
-  box-sizing:border-box;
-  top:auto;
-  bottom:20px;
-  width:min(230px,calc(100% - 40px));
-  max-height:138px;
-  padding:8px;
-  gap:7px;
-  transform:none;
-  border:1px solid #c5a76a80;
-  border-radius:8px;
-  background:linear-gradient(145deg,#45352cf5,#241e1afa);
-  box-shadow:inset 0 0 0 3px #c5a76a15,0 5px 18px #21150c25;
-  color:#f7edcf;
-  text-shadow:none;
-  z-index:7;
-}
-.park-page:has(.onecard-game-hud) .park-chat[data-expanded=true] {
-  width:min(280px,calc(100% - 40px));
-  max-height:min(240px,calc(100dvh - 300px));
-}
-.park-page:has(.onecard-game-hud) .park-chat__messages { flex:1 1 auto; height:auto; min-height:0; padding:0; overflow:hidden; }
-.park-page:has(.onecard-game-hud) .park-chat__heading { flex:0 0 auto; gap:8px; margin:0; padding:0 0 6px; border-bottom:1px solid #c5a76a33; }
-.park-page:has(.onecard-game-hud) .park-chat__heading h1 { flex:1; min-width:0; gap:6px; font-size:12px; line-height:1.4; white-space:nowrap; }
-.park-page:has(.onecard-game-hud) .park-chat__heading h1 img { width:14px; height:14px; }
-.park-page:has(.onecard-game-hud) .park-chat__radius { padding:2px 6px; font-size:10px; color:#e3c58a; background:#c5a76a20; }
-.park-page:has(.onecard-game-hud) .park-chat__heading button { flex:0 0 24px; width:24px; height:24px; border-radius:4px; }
-.park-page:has(.onecard-game-hud) .park-chat__heading button img { width:16px; height:16px; }
-.park-page:has(.onecard-game-hud) .park-chat__list { flex:1 1 auto; min-height:0; max-height:40px; gap:5px; margin-top:6px; overflow-y:auto; overflow-x:hidden; }
-.park-page:has(.onecard-game-hud) .park-chat[data-expanded=true] .park-chat__list { max-height:160px; }
-.park-page:has(.onecard-game-hud) .park-chat__message { gap:6px; font-size:12px; line-height:1.5; }
-.park-page:has(.onecard-game-hud) .park-chat__author { flex:0 0 auto; max-width:72px; }
-.park-page:has(.onecard-game-hud) .park-chat__message>span:last-child { flex:1; min-width:0; overflow-wrap:anywhere; }
-.park-page:has(.onecard-game-hud) .park-chat:not([data-expanded=true]) .park-chat__message>span:last-child { overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
-.park-page:has(.onecard-game-hud) .park-chat__system { font-size:11px; line-height:1.5; color:#c6b8a4; }
-.park-page:has(.onecard-game-hud) .park-chat:not([data-expanded=true]) .park-chat__system { display:none; }
-.park-page:has(.onecard-game-hud) .park-chat__history-hint { flex:0 0 auto; margin-top:6px; font-size:10px; line-height:1.4; color:#c6b8a4; }
-.park-page:has(.onecard-game-hud) .park-chat__notice { flex:0 0 auto; font-size:11px; line-height:1.5; overflow-wrap:anywhere; }
-.park-page:has(.onecard-game-hud) .park-chat__composer { --chat-composer-height:36px; flex:0 0 var(--chat-composer-height); min-width:0; border-radius:5px; font-size:12px; }
-.park-page:has(.onecard-game-hud) .park-chat__composer--open input { min-width:0; font-size:12px; }
-.park-page:has(.onecard-game-hud) .park-chat__composer--open button { flex-shrink:0; }
-.park-page:has(.onecard-game-hud) .park-chat__composer:focus-visible,
-.park-page:has(.onecard-game-hud) .park-chat__composer--open:focus-within { outline:2px solid #e3c58a; outline-offset:2px; }
+/* 채팅 크기와 위치는 공원의 공통 ParkChat 스타일을 그대로 사용한다. */
 .park-page:has(.onecard-game-hud) .avatar-speech:not(.avatar-activity) {
   display:-webkit-box;
   -webkit-box-orient:vertical;
@@ -50,11 +7,4 @@
   max-width:210px;
   font-size:13px;
   line-height:1.5;
-}
-
-@media(max-width:800px) {
-  .park-page:has(.onecard-game-hud) .park-chat { top:auto; bottom:12px; left:12px; width:min(220px,calc(100% - 24px)); transform:none; }
-  .park-page:has(.onecard-game-hud) .park-chat[data-expanded=true] { width:min(280px,calc(100% - 24px)); max-height:min(260px,calc(100dvh - 370px)); }
-  .park-page:has(.onecard-game-hud[data-role=SPECTATOR]) .park-chat { top:auto; bottom:18px; width:220px; }
-  .park-page:has(.onecard-game-hud[data-role=SPECTATOR]) .park-chat[data-expanded=true] { width:min(280px,calc(100% - 24px)); }
 }

@@ -1,5 +1,8 @@
-import { BufferGeometry, Float32BufferAttribute } from 'three'
+import { useMemo, useRef } from 'react'
+import { useFrame } from '@react-three/fiber'
+import { BufferGeometry, Color, Float32BufferAttribute, type MeshBasicMaterial } from 'three'
 import { Instances, type Part } from './Instances'
+import { environmentFrame } from '../environmentState'
 
 // Low-cost skyline silhouettes, intentionally outside playable space.
 function ridge(radius: number, phase: number, base: number) {
@@ -26,8 +29,8 @@ function ridge(radius: number, phase: number, base: number) {
   g.computeVertexNormals()
   return g
 }
-const far = ridge(650, 0.6, 95),
-  near = ridge(520, 2.1, 62)
+const far = ridge(650, 0.6, 80),
+  near = ridge(520, 2.1, 46)
 const tower: Part[] = [
   { p: [0, 39, 0], s: [2.1, 78, 2.1], c: '#899594' },
   { p: [0, 80, 0], s: [11, 5, 11], c: '#7a878a' },
@@ -35,13 +38,23 @@ const tower: Part[] = [
   { p: [0, 104, 0], s: [0.55, 34, 0.55], c: '#8b9797' },
 ]
 export function DistantLandscape() {
+  const farMaterial = useRef<MeshBasicMaterial>(null), nearMaterial = useRef<MeshBasicMaterial>(null)
+  const colors = useMemo(() => ({
+    dayFar: new Color('#b6dfdf'), dayNear: new Color('#a9d4b9'),
+    nightFar: new Color('#233a4a'), nightNear: new Color('#1b3340'),
+  }), [])
+  useFrame(() => {
+    // A soft painted backdrop keeps hills fresh without brightening the park floor.
+    farMaterial.current?.color.copy(colors.nightFar).lerp(colors.dayFar, environmentFrame.daylight)
+    nearMaterial.current?.color.copy(colors.nightNear).lerp(colors.dayNear, environmentFrame.daylight)
+  }, -90)
   return (
     <group name="seoul-distant-landscape" userData={{ keepOpaque: true }}>
-      <mesh geometry={far} dispose={null}>
-        <meshStandardMaterial color="#a4b5b9" roughness={1} side={2} />
+      <mesh name="distant-mountain-far" geometry={far} dispose={null}>
+        <meshBasicMaterial ref={farMaterial} color="#b6dfdf" side={2} />
       </mesh>
-      <mesh geometry={near} dispose={null}>
-        <meshStandardMaterial color="#95a9ab" roughness={1} side={2} />
+      <mesh name="distant-mountain-near" geometry={near} dispose={null}>
+        <meshBasicMaterial ref={nearMaterial} color="#a9d4b9" side={2} />
       </mesh>
       <group name="namsan-tower-silhouette" position={[-368, 62, 368]}>
         <Instances parts={tower} shadow={false}>

@@ -11,7 +11,7 @@ test('service map restores rails and lights while retaining the latest authorita
  await expect.poll(()=>page.evaluate(async()=>(await import('/tests/park-integration/probe.ts' as string)).sceneReady()),{timeout:90000}).toBe(true)
  await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({timeout:90000})
  const state=await page.evaluate(async()=>(await import('/tests/park-integration/probe.ts' as string)).migrationFollowupsProbe())
- expect(state.rails).toHaveLength(9);expect(state.lanterns).toBe(true);expect(state.clouds).toEqual([])
+ expect(state.rails).toHaveLength(9);expect(state.lanterns).toBe(true);expect(state.clouds).toEqual(['simple-sky-clouds'])
  expect(state.course).toBe(true);expect(state.localCourse).toBe(false)
  expect(state.birdModes).toHaveLength(18)
  await expect(page.getByLabel('점프맵 도전 상태')).toHaveCount(0)

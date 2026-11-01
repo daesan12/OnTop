@@ -139,4 +139,80 @@ test('login has no game shortcut guard', async ({ page }) => {
       code, key: code, ctrlKey: code !== 'F12', shiftKey: code !== 'F12', bubbles: true, cancelable: true,
     })))
   })).toBe(true)
+  expect(await page.evaluate(() => window.dispatchEvent(new Event('beforeunload', { cancelable: true })))).toBe(true)
+})
+
+test('cancelling browser close and reload preserves the park; logout removes the leave confirmation', async ({ page }) => {
+  const errors: string[] = []
+  page.on('pageerror', error => errors.push(error.message))
+  page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
+  const server = await fixture(page, { manualMovement: true, position: { x: 0, y: 0.8, z: 34, yaw: 0 } })
+  await page.goto('/park')
+  await expect(page).toHaveTitle('OnTop')
+  await expect(page.getByLabel('공원 기본 화면')).toBeVisible()
+  await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90_000 })
+  const canvas = page.locator('canvas')
+  await canvas.click()
+  await page.keyboard.down('KeyW')
+  await expect.poll(() => server.sent.filter(m => m.type === 'WORLD_MOVE' && (m.payload.dx || m.payload.dz)).length).toBeGreaterThan(0)
+
+  // A real browser close request runs beforeunload without dispatching Ctrl+W.
+  // Playwright's keyboard.press alone does not exercise the browser's native tab shortcut.
+  const closing = page.waitForEvent('dialog')
+  await page.close({ runBeforeUnload: true })
+  const closeDialog = await closing
+  expect(closeDialog.type()).toBe('beforeunload')
+  await closeDialog.dismiss()
+  expect(page.isClosed()).toBe(false)
+  await expect(page).toHaveURL(/\/park$/)
+  const stopped = server.sent.filter(m => m.type === 'WORLD_MOVE' && (m.payload.dx || m.payload.dz)).length
+  await page.waitForTimeout(250)
+  expect(server.sent.filter(m => m.type === 'WORLD_MOVE' && (m.payload.dx || m.payload.dz)).length).toBe(stopped)
+  await page.keyboard.up('KeyW')
+  // Remaining in the park must leave ordinary movement usable.
+  await canvas.focus()
+  await page.keyboard.down('KeyW')
+  await expect.poll(() => server.sent.filter(m => m.type === 'WORLD_MOVE' && (m.payload.dx || m.payload.dz)).length).toBeGreaterThan(stopped)
+  await page.keyboard.up('KeyW')
+  await page.keyboard.press('Enter')
+  const input = page.locator('.park-chat input')
+  await input.fill('탭 닫기 취소 후 입력 유지')
+  await Promise.all([
+    page.waitForEvent('dialog').then(async dialog => {
+      expect(dialog.type()).toBe('beforeunload')
+      await dialog.dismiss()
+    }),
+    page.evaluate(() => { window.location.reload() }),
+  ])
+  await expect(input).toHaveValue('탭 닫기 취소 후 입력 유지')
+  await expect(page.locator('vite-error-overlay')).toHaveCount(0)
+  await screenshot(page, 'tab-close-cancelled-park')
+  await page.keyboard.press('Escape')
+  await page.getByRole('button', { name: '내 메뉴', exact: true }).click()
+  await page.getByRole('menuitem', { name: '로그아웃', exact: true }).click()
+  await page.getByRole('dialog', { name: '로그아웃 확인' }).getByRole('button', { name: '로그아웃', exact: true }).click()
+  await expect(page.locator('.login-page')).toBeVisible()
+  expect(await page.evaluate(() => window.dispatchEvent(new Event('beforeunload', { cancelable: true })))).toBe(true)
+  expect(errors).toEqual([])
+  const dialogs: string[] = []
+  page.on('dialog', async dialog => { dialogs.push(dialog.type()); await dialog.dismiss() })
+  await page.close({ runBeforeUnload: true })
+  await expect.poll(() => page.isClosed()).toBe(true)
+  expect(dialogs).toEqual([])
+})
+
+test('confirming browser close still lets the player leave', async ({ page }) => {
+  await fixture(page)
+  await page.goto('/park')
+  await expect(page.getByLabel('공원 기본 화면')).toBeVisible()
+  await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90_000 })
+  await page.locator('canvas').click()
+  const closing = page.waitForEvent('dialog')
+  await page.close({ runBeforeUnload: true })
+  const dialog = await closing
+  expect(dialog.type()).toBe('beforeunload')
+  const closed = page.waitForEvent('close')
+  await dialog.accept()
+  await closed
+  expect(page.isClosed()).toBe(true)
 })

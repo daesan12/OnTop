@@ -11781,14 +11781,14 @@
         "position": [
           60.5,
           18.12,
-          54.5
+          54.05
         ],
         "radius": 2.6,
         "radiusComparison": "less-than-or-equal",
         "reachPosition": [
           60.5,
           18.92,
-          54.5
+          54.05
         ]
       },
       "rankingBoard": {
@@ -34049,6 +34049,21 @@
             1.05
           ],
           "id": "lake-boulder-44",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            60.5,
+            19.841,
+            54.05
+          ],
+          "half": [
+            1.302,
+            1.721,
+            0.962
+          ],
+          "id": "tower-notes-board",
           "role": "solid",
           "yaw": 0
         },
@@ -130695,11 +130710,11 @@
   "format": "ontop.park-map",
   "hashAlgorithm": "sha256",
   "hashes": {
-    "dataHash": "f1390f7571782e1e8ebf22d9b0f17da1a394d41658a12542519deb45ae5da7b3",
-    "sourceHash": "4c5d86eb9ad41ed04040bf6dc699fef81ba63d66585a536921dcf8300bc8ed93"
+    "dataHash": "2fd5870b8f5c66163289bd40ef195f76fe5cabb9eef40bccd6209837108f87a9",
+    "sourceHash": "0d8dc93db4abe6ce4f5486910c53f23a7f037cab3babad1ae4766198740010cb"
   },
   "mapId": "park",
-  "mapVersion": "c05d8ada8b12d4e509f50c7e807949bd976811e1c69a628232520b88c15a0d07",
+  "mapVersion": "aa9fd9dc40f7a72d53bbdc57a982f30e16ea4fcf3800769ab7fd8f339f358464",
   "schemaVersion": 2,
   "semantics": {
     "additionalPlayerInflation": "server-capsule-only",
