@@ -2,6 +2,7 @@ package com.ssafy.ontop.game.result;
 
 import com.ssafy.ontop.game.bridge.service.BridgeGameFinished;
 import com.ssafy.ontop.game.farkle.service.FarkleGameFinished;
+import com.ssafy.ontop.game.halligalli.service.HalliGalliGameFinished;
 import com.ssafy.ontop.game.omok.service.OmokGameFinished;
 import com.ssafy.ontop.game.onecard.service.OneCardGameFinished;
 import java.util.List;
@@ -50,6 +51,12 @@ public class GameFinishedResultListener {
 
     @EventListener
     public void finished(BridgeGameFinished event) {
+        tables.ifPresent(hub -> hub.roundEnded(event.tableId(), event.gameId()));
+        results.finished(event.gameId(), event.players());
+    }
+
+    @EventListener
+    public void finished(HalliGalliGameFinished event) {
         tables.ifPresent(hub -> hub.roundEnded(event.tableId(), event.gameId()));
         results.finished(event.gameId(), event.players());
     }

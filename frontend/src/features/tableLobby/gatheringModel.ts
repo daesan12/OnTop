@@ -4,7 +4,7 @@ import { TABLE_GAMES } from './model'
 import { omokEndReason } from '../../game/omokPresentation'
 import { LEDGER_END_REASON } from '../../game/ledger/protocol'
 
-export const GAME_MANUAL = { OMOK: 'gomoku', DICE: 'farkle', ONE_CARD: 'onecard', LIAR_BRIDGE: 'bridge', DICE_LEDGER: 'ledger' } as const
+export const GAME_MANUAL = { OMOK: 'gomoku', DICE: 'farkle', ONE_CARD: 'onecard', LIAR_BRIDGE: 'bridge', DICE_LEDGER: 'ledger', HALLI_GALLI: 'halligalli' } as const
 
 interface Context {
   table: TableState; ownId: string; game: Game | null; result: Result | null
@@ -34,7 +34,7 @@ export function gatheringModel({ table, ownId, game, result, start, nickname }: 
   }
   const winners = !finished || invalid ? [] : result
     ? result.participants.filter(p => p.result === 'WIN').map(p => p.userId)
-    : game?.onecard?.winnerUserIds ?? game?.bridge?.winnerUserIds ?? game?.ledger?.winnerUserIds ?? (game?.omok?.winnerUserId || game?.dice?.winnerUserId ? [game.omok?.winnerUserId ?? game.dice?.winnerUserId ?? ''] : [])
+    : game?.onecard?.winnerUserIds ?? game?.bridge?.winnerUserIds ?? game?.ledger?.winnerUserIds ?? game?.halli?.winnerUserIds ?? (game?.omok?.winnerUserId || game?.dice?.winnerUserId ? [game.omok?.winnerUserId ?? game.dice?.winnerUserId ?? ''] : [])
   const rows = result ? result.participants.map((p, i) => ({
     playerId: p.userId, nickname: nickname(p.userId), seat: i, winner: !invalid && p.result === 'WIN', ready: false,
     label: participantResultLabel(result.status, p.result), score: invalid ? '' : score(p.userId),

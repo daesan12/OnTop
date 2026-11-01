@@ -15,6 +15,9 @@ ontop:
       enabled: ${GAME_BRIDGE_ENABLED:false}
     ledger:
       enabled: ${GAME_LEDGER_ENABLED:false}
+    halligalli:
+      enabled: ${GAME_HALLIGALLI_ENABLED:false}
+      result-pause-ms: ${GAME_HALLIGALLI_RESULT_PAUSE_MS:1000}
   minigames:
     enabled: ${MINIGAMES_ENABLED:false}
     bungeoppang-v5-enabled: ${BUNGEOPPANG_V5_ENABLED:false}

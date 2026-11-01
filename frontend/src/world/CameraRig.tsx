@@ -24,6 +24,7 @@ import { seatScope, seatedLook, resetSeatedLook, useTableLobby, SEATED_LOOK } fr
 import { useDiceUI, diceCamera } from '../game/farkle/controls'
 import { DICE_CAMERA, diceFocusActive } from '../game/farkle/camera'
 import { LEDGER_CAMERA, ledgerCameraPose, ledgerFocusActive } from '../game/ledger/camera'
+import { HALLI_CAMERA, halliCameraPose, halliPlayerViewActive, halliSpectatorCameraPose, halliSpectatorViewActive } from '../game/halligalli/camera'
 import { roamingFirstPerson } from './roamingCamera'
 import { rememberRoamingView, restoreRoamingView } from './cameraReturn'
 import { useFacilityState } from '../features/facilities/state'
@@ -323,6 +324,17 @@ export function CameraRig() {
       const yaw = Math.atan2(-turnSeat.x, -turnSeat.z) + .35 + benchLook.yaw - Math.PI / 4
       const pose = oneCardSpectatorCameraPose(anchor, yaw, camera instanceof PerspectiveCamera ? camera.aspect : 1.6, spectatorClearHeight(anchor.pavilionId))
       state.desired.set(...pose.position); state.look.set(...pose.target)
+    } else if (halliPlayerViewActive(game, seated && !!avatar.tableId, looking)) {
+      const anchor = TABLES.find(t => t.id === avatar.tableId)
+      if (anchor) {
+        const pose = halliCameraPose(anchor, session.seatIndex, camera instanceof PerspectiveCamera ? camera.aspect : 1.6)
+        state.desired.set(...pose.position); state.look.set(...pose.target)
+      }
+    } else if (halliSpectatorViewActive(game, !!(closeAnchor || watchedAnchor))) {
+      const anchor = (closeAnchor ?? watchedAnchor)!
+      const pose = halliSpectatorCameraPose(anchor, avatars.get(game!.halli!.players[0]?.userId ?? '')?.seatIndex ?? 0, benchLook.yaw,
+        camera instanceof PerspectiveCamera ? camera.aspect : 1.6, spectatorClearHeight(anchor.pavilionId))
+      state.desired.set(...pose.position); state.look.set(...pose.target)
     } else if (focusedOmok && camera instanceof PerspectiveCamera) {
       const anchor = spectatorOmok ? (closeAnchor ?? watchedAnchor)! : TABLES.find(t => t.id === avatar.tableId)!
       state.look.set(anchor.position[0], anchor.position[1] + OMOK_BOARD_Y + .017, anchor.position[2])
@@ -482,7 +494,9 @@ export function CameraRig() {
     omokCamera.ready =
       focusedOmok ? omokSettled : !!(boardFocus || spectatorBoard) && camera.position.distanceTo(state.desired) < 0.005
     if (!smoothingBoard && camera instanceof PerspectiveCamera && state.bungeoppangFov === null) {
-      const fov = targetFov
+      const halliView = !debrisAnchor && !tablet && !gathering && (halliPlayerViewActive(game, seated && !!avatar.tableId, looking)
+        || halliSpectatorViewActive(game, !!(closeAnchor || watchedAnchor)))
+      const fov = halliView ? HALLI_CAMERA.fov : targetFov
       if (Math.abs(camera.fov - fov) > 0.01) {
         camera.fov = fov
         camera.updateProjectionMatrix()
