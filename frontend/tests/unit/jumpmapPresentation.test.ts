@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { acceptJumpEvent, applyJumpStatus, bindJumpmap, closeJumpCompletion, resetJumpmap, useJumpmap } from '../../src/features/jumpmap/state'
 import { COURSE_VERSION, MAP_VERSION, RULES_VERSION, kstDate } from '../../src/features/jumpmap/course'
+import { jumpTime } from '../../src/features/jumpmap/JumpmapRanking'
 const scope = { channelId: 'channel-1', mapVersion: MAP_VERSION }
 const money = { earningsDate: kstDate(), dailyCap: 500, todayEarned: 0 }
 const start = (runId = 'run-a', revision = 1) => acceptJumpEvent({ type: 'JUMPMAP_STARTED', ...scope, ...money,
@@ -11,6 +12,12 @@ beforeEach(() => {
     isFirstRun: true, seenTips: [], activeRunId: null, bestFinishMs: null }, 1000)
 })
 describe('repeat jumpmap feedback', () => {
+  it.each([
+    [0, '0분 00.000초'], [59999, '0분 59.999초'], [60000, '1분 00.000초'],
+    [124910, '2분 04.910초'], [145321, '2분 25.321초'], [3600000, '60분 00.000초'],
+  ])('formats %d milliseconds as %s without dropping ranking precision', (ms, expected) => {
+    expect(jumpTime(ms as number)).toBe(expected)
+  })
   it('starts on server first landing and immediately accepts another run after falling', () => {
     expect(useJumpmap.getState().run).toBeNull()
     start()
