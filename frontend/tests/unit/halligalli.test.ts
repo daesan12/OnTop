@@ -13,6 +13,10 @@ import { resetWorld, useSession } from '../../src/network/worldClient'
 import { ServerError } from '../../src/network/socketClient'
 import { ParkRuntime } from '../../src/park/runtime/runtime'
 import { HalliTable } from '../../src/game/halligalli/HalliTable'
+import { HALLI_CAMERA, halliCameraPose, halliPlayerViewActive, halliSpectatorCameraPose, halliSpectatorViewActive,
+  halliSpectatorYaw } from '../../src/game/halligalli/camera'
+import { ONECARD_CAMERA, oneCardCameraPose, oneCardSpectatorCameraPose } from '../../src/game/onecard/camera'
+import { TABLES, tableSeats } from '../../src/config'
 import { CardBack, FruitCard } from '../../src/game/halligalli/FruitCard'
 import { FRUIT_LAYOUT, FRUIT_SCALE } from '../../src/game/halligalli/FruitArt'
 import { FRUITS } from '../../src/game/halligalli/protocol'
@@ -211,6 +215,51 @@ describe('table rendering', () => {
     expect(out).toContain('data-out="forfeited"')
     expect(out).toContain('data-out="eliminated"')
     expect(out).toContain('마지막 종 기회')
+  })
+})
+
+describe('table camera', () => {
+  const pitch = (position: readonly number[], target: readonly number[]) =>
+    Math.atan2(position[1]! - target[1]!, Math.hypot(position[0]! - target[0]!, position[2]! - target[2]!))
+  it('sits behind every physical seat, higher and steeper than ONE_CARD, looking at the table centre', () => {
+    for (const anchor of TABLES) for (let seatIndex = 0; seatIndex < 4; seatIndex++) {
+      const halli = halliCameraPose(anchor, seatIndex), onecard = oneCardCameraPose(anchor, seatIndex), seat = tableSeats(anchor)[seatIndex]!
+      expect([...halli.position, ...halli.target].every(Number.isFinite)).toBe(true)
+      expect((halli.position[0] - anchor.position[0]) * seat.x + (halli.position[2] - anchor.position[2]) * seat.z)
+        .toBeGreaterThan(seat.x ** 2 + seat.z ** 2)
+      expect([halli.target[0], halli.target[2]]).toEqual([anchor.position[0], anchor.position[2]])
+      expect(halli.position[1]).toBeGreaterThan(onecard.position[1])
+      expect(pitch(halli.position, halli.target)).toBeGreaterThan(pitch(onecard.position, onecard.target))
+      expect(pitch(halli.position, halli.target)).toBeLessThan(Math.PI / 3)
+    }
+    expect(HALLI_CAMERA.eyeHeight).toBeGreaterThan(ONECARD_CAMERA.eyeHeight)
+  })
+  it('pulls back on narrow screens instead of cropping the side seats', () => {
+    const anchor = TABLES[0]!, wide = halliCameraPose(anchor, 0, 16 / 9), narrow = halliCameraPose(anchor, 0, 390 / 844)
+    const flat = (p: readonly number[]) => Math.hypot(p[0]! - anchor.position[0], p[2]! - anchor.position[2])
+    expect(flat(narrow.position)).toBeGreaterThan(flat(wide.position))
+    expect(halliCameraPose(anchor, 0, 2.4)).toEqual(wide)
+  })
+  it('switches on only for a seated playing player who is not looking around, and for a watching spectator', () => {
+    const player = parseGame({ gameId: 'halli', version: 4, role: 'PLAYER', publicState: halliState(), privateState: {} }, '101')
+    const spectator = parseGame({ gameId: 'halli', version: 4, role: 'SPECTATOR', publicState: halliState(), privateState: {} }, '505')
+    const finished = parseGame({ gameId: 'halli', version: 9, role: 'PLAYER', publicState: halliFinished(), privateState: {} }, '101')
+    expect(halliPlayerViewActive(player, true, false)).toBe(true)
+    expect(halliPlayerViewActive(player, true, true)).toBe(false)
+    expect(halliPlayerViewActive(player, false, false)).toBe(false)
+    expect(halliPlayerViewActive(finished, true, false)).toBe(false)
+    expect(halliPlayerViewActive(spectator, true, false)).toBe(false)
+    expect(halliSpectatorViewActive(spectator, true)).toBe(true)
+    expect(halliSpectatorViewActive(spectator, false)).toBe(false)
+    expect(halliSpectatorViewActive(player, true)).toBe(false)
+    expect(halliPlayerViewActive(null, true, false)).toBe(false)
+  })
+  it('keeps the spectator orbit on a stable seat and only the drag rotates it', () => {
+    const anchor = TABLES[0]!
+    expect(halliSpectatorYaw(anchor, 1, 0)).toBeCloseTo(Math.atan2(tableSeats(anchor)[1]!.x, tableSeats(anchor)[1]!.z))
+    expect(halliSpectatorYaw(anchor, 1, .5) - halliSpectatorYaw(anchor, 1, 0)).toBeCloseTo(.5)
+    const pose = halliSpectatorCameraPose(anchor, 0, 0, 16 / 9, 99)
+    expect(pose.target).toEqual(oneCardSpectatorCameraPose(anchor, halliSpectatorYaw(anchor, 0, 0), 16 / 9, 99).target)
   })
 })
 
