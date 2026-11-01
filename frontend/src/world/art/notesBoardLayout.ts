@@ -1,8 +1,8 @@
 import type { AnonymousNote } from '../../config/notes'
 import { compareNotes } from '../../features/notes/validation'
 
-import { NOTES_BOARD_SCALE } from '../../config/notes'
-export { NOTES_BOARD_SCALE } from '../../config/notes'
+/** Display scale only. The authoritative collision contract is maintained separately. */
+export const NOTES_BOARD_SCALE = 2
 export const NOTES_BOARD_LOD_DISTANCE = 16 * NOTES_BOARD_SCALE
 export const NOTES_BOARD_VISIBLE_LIMIT = 6
 export const MEMO_ATLAS_GRID = 3

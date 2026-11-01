@@ -1,14 +1,14 @@
 {
   "artifacts": [
     {
-      "bytes": 2551440,
+      "bytes": 2551154,
       "path": "generated/park/server-map.json",
-      "sha256": "e146b432f1c486554d5a5b5ea7c9d901e1a065f30181e51508dd0eafe4164cfe"
+      "sha256": "81d9a70a1b28751f3dc8708bb0c21fc5cae17604263f1f6ae10f4e2c6d3aeafb"
     },
     {
       "bytes": 329,
       "path": "src/map/park/generated/mapVersion.ts",
-      "sha256": "43bc49318b1d23de5d8af6dc0ddbfbd048e1060767fce07701672af71916b418"
+      "sha256": "283d27d770c82aa4a3d617f51f020134ffb8f5e1574752101713d5ba8543f9e2"
     }
   ],
   "counts": {
@@ -20,7 +20,7 @@
     "obstacles": 536,
     "paths": 54,
     "pavilions": 9,
-    "physicalBoxes": 2139,
+    "physicalBoxes": 2138,
     "physicalHulls": 35,
     "physicalMeshes": 8,
     "tables": 18,
@@ -29,11 +29,11 @@
   "format": "ontop.park-map-manifest",
   "hashAlgorithm": "sha256",
   "hashes": {
-    "dataHash": "2fd5870b8f5c66163289bd40ef195f76fe5cabb9eef40bccd6209837108f87a9",
-    "sourceHash": "0d8dc93db4abe6ce4f5486910c53f23a7f037cab3babad1ae4766198740010cb"
+    "dataHash": "f1390f7571782e1e8ebf22d9b0f17da1a394d41658a12542519deb45ae5da7b3",
+    "sourceHash": "4c5d86eb9ad41ed04040bf6dc699fef81ba63d66585a536921dcf8300bc8ed93"
   },
   "mapId": "park",
-  "mapVersion": "aa9fd9dc40f7a72d53bbdc57a982f30e16ea4fcf3800769ab7fd8f339f358464",
+  "mapVersion": "c05d8ada8b12d4e509f50c7e807949bd976811e1c69a628232520b88c15a0d07",
   "schemaVersion": 2,
   "sources": [
     {
@@ -82,7 +82,7 @@
     },
     {
       "path": "src/config/notes.ts",
-      "sha256": "57442e69a17422e1e9e475ff25f3a08c13f0135eb5fc35d63a3eed6e0e2c87fd"
+      "sha256": "6e149be8272ad43c41741e40cde0fe19300b7b451d344cd58bd232e61611793f"
     },
     {
       "path": "src/config/pagoda.ts",
@@ -166,7 +166,7 @@
     },
     {
       "path": "src/map/park/interactionData.ts",
-      "sha256": "e8351b0a8d88bc353f3700d1b9cc8846633bcf714503ba287668ca3a187b2bd7"
+      "sha256": "34a447bb4521153f76cad68b4f9b2bfe62fa12695d7219b38f74b54d173f94d8"
     },
     {
       "path": "src/map/park/lake.ts",
@@ -174,7 +174,7 @@
     },
     {
       "path": "src/map/park/physics.ts",
-      "sha256": "f5c0c62bff0db582db11847164c1c20a13a5f0fd0a21f54a9757d3759dfc2a0e"
+      "sha256": "d19d04a8e909d875cd88327324cdaa58690feecf3f8c083f3adf19c166b5777c"
     },
     {
       "path": "src/map/park/planting.ts",

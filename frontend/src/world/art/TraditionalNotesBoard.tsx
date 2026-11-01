@@ -12,7 +12,7 @@ import { SIMPLE_MAP } from './mapRenderProfile'
 
 const emptyNotes: never[] = []
 const noteFont = '500 32px "BusanDandiMyeongjo"'
-export function TraditionalNotesBoard({ setback = 0 }: { setback?: number }) {
+export function TraditionalNotesBoard() {
   useNearbyNotes()
   const fontsReady=useCanvasFont(noteFont),notes=useNotesState(s=>s.displayNotes)
   const owner=useNotesState(s=>s.ownerId),channel=useNotesState(s=>s.channelId)
@@ -27,7 +27,7 @@ export function TraditionalNotesBoard({ setback = 0 }: { setback?: number }) {
   useEffect(()=>()=>paper?.dispose(),[paper])
   useEffect(()=>()=>wood?.dispose(),[wood])
   useEffect(()=>()=>{for(const art of [papers.near,papers.far])for(const geometry of Object.values(art))geometry.dispose()},[papers])
-  return <group name="tower-notes-mailbox" position={[NOTES_BOX.x,NOTES_BOX.y,NOTES_BOX.z-setback]} scale={NOTES_BOARD_SCALE}>
+  return <group name="tower-notes-mailbox" position={[NOTES_BOX.x,NOTES_BOX.y,NOTES_BOX.z]} scale={NOTES_BOARD_SCALE}>
     <CraftedPropLod name="observatory-notes-board" near={notesBoardArt.near} far={notesBoardArt.far} distance={NOTES_BOARD_LOD_DISTANCE} heritage surfaceMaps={woodMaps}/>
     {count>0&&<group name="observatory-user-notes" userData={{noteIds:visible.map(n=>n.id)}}>
       <CraftedPropLod name="observatory-user-notes-papers" near={papers.near} far={papers.far} distance={NOTES_BOARD_LOD_DISTANCE} heritage surfaceMaps={paperMaps}/>

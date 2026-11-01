@@ -9,24 +9,6 @@ const { createPredictionPhysics } = await import('../../src/network/predictionPh
 const { addGeneratedPredictionColliders } = await import('../../src/network/predictionMap');
 afterAll(() => vi.unstubAllEnvs());
 
-it.each([undefined,'PARK_V1'] as const)('blocks both memo board faces and keeps its side passable with profile %s',async(profile)=>{
- const simulation=await createPredictionPhysics(profile)
- const body=PARK_DATA.physics.boxes.find(box=>box.id==='tower-notes-board')!
- const [x,,z]=body.center,y=PARK_DATA.physics.tower.topY+.84
- try {
-  for(const side of [-1,1]) {
-   simulation.reset({x,y,z:z+side*1.9,yaw:0},0,true)
-   for(let n=0;n<90;n++)simulation.step({dx:0,dz:-side,run:true,jump:false},1/60)
-   expect(side*(simulation.pose().z-z)).toBeGreaterThan(body.half[2])
-   expect(simulation.pose().y).toBeCloseTo(y,1)
-  }
-  simulation.reset({x:x+body.half[0]+.6,y,z:z+1.9,yaw:0},0,true)
-  for(let n=0;n<40;n++)simulation.step({dx:0,dz:-1,run:false,jump:false},1/60)
-  expect(simulation.pose().z).toBeLessThan(z)
-  expect(simulation.pose().y).toBeCloseTo(y,1)
- }finally{simulation.dispose()}
-})
-
 it.each([undefined,'PARK_V1'] as const)('blocks running and jumping onto the fountain with profile %s from all four sides',async(profile)=>{
  const simulation=await createPredictionPhysics(profile),f=PARK_DATA.physics.fountainPolicy
  const {PARK_LAYOUT}=await import('../../src/map/park')

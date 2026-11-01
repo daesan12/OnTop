@@ -3,7 +3,7 @@ import { TELESCOPES, TELESCOPE } from '../../config/telescopes'
 import { FOUNTAIN_BENCH_SITES } from '../../config/plazaGarden'
 import { FOUNTAIN, TOWER_SITE, PARK_PAVILIONS, PAVILION_CLOSED_SIDES, pavilionBenchRadius, pavilionBenchHalfWidth } from '../../config/parkPlan'
 import { BENCHES } from '../../config/world'
-import { NOTES_BOX,GENERATED_NOTES_BOARD_SETBACK } from '../../config/notes'
+import { NOTES_BOX } from '../../config/notes'
 import type { ParkDefinition } from './definition'
 
 export type Point3 = readonly [number,number,number]
@@ -70,7 +70,7 @@ export function buildInteractionData(i:Input) {
     return {id:t.id,kind:'TELESCOPE' as const,position:[x,y,z] as Point3,yaw:t.yaw,radius:TELESCOPE.interactionRadius,heightTolerance:.7,use:pose(TELESCOPE.standOffset),exit:pose(TELESCOPE.exitOffset)}
   })
   // NOTES_BOX is attached to the tower model; translate its local offset with the new site.
-  const position:Point3=[d.sites.tower.x+NOTES_BOX.x-TOWER_SITE.x,NOTES_BOX.y,d.sites.tower.z+NOTES_BOX.z-TOWER_SITE.z-GENERATED_NOTES_BOARD_SETBACK]
+  const position:Point3=[d.sites.tower.x+NOTES_BOX.x-TOWER_SITE.x,NOTES_BOX.y,d.sites.tower.z+NOTES_BOX.z-TOWER_SITE.z]
   const notes={id:'anonymous-notes',position,
     reachPosition:[position[0],position[1]+.8,position[2]] as Point3,
     radius:NOTES_BOX.interactionRadius,heightTolerance:.7,
