@@ -37,6 +37,10 @@ for (const own of ['101', '102'] as const) test(`${own} 좌석의 흑돌·두 �
   await expect.poll(() => page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).omokCameraProbe().ready)).toBe(true)
   const probe: ReturnType<typeof import('./omokPolishProbe').omokPolishProbe> = await page.evaluate(async () => (await import('/tests/park-integration/omokPolishProbe.ts' as string)).omokPolishProbe())
   expect(probe.edges.filter(n => n > 0)).toHaveLength(2)
+  expect(probe.edges[0]).toBeGreaterThan(0); expect(probe.edges[2]).toBeGreaterThan(0)
+  // 양쪽 좌석 모두 A1은 좌상단, O1은 우상단, A15는 좌하단이다.
+  expect(probe.corners[0]!.x).toBeLessThan(probe.corners[1]!.x)
+  expect(probe.corners[0]!.y).toBeLessThan(probe.corners[2]!.y)
   expect(probe.boardColor).toBe('ad7848')
   expect(probe.supplies.find(s => s.color === '101717')!.screenY).toBeLessThan(probe.supplies.find(s => s.color === 'f3eee2')!.screenY)
   for (const size of [{ width: 1920, height: 1080 }, { width: 1366, height: 768 }, { width: 390, height: 844 }]) {
@@ -78,6 +82,15 @@ for (const own of ['101', '102'] as const) test(`${own} 좌석의 흑돌·두 �
   await expect(page.getByRole('dialog', { name: '게임 설명서', exact: true })).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(page.getByRole('dialog', { name: '게임 설명서', exact: true })).toBeHidden()
+  await page.setViewportSize({ width: 1920, height: 1080 })
+  await expect.poll(() => page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).omokCameraProbe().ready)).toBe(true)
+  server.turnTo(own)
+  const origin = await page.evaluate(async () => (await import('/tests/park-integration/omokPolishProbe.ts' as string)).omokPolishProbe())
+  await page.mouse.click(origin.corners[0]!.x, origin.corners[0]!.y)
+  await expect.poll(() => server.sent.filter(m => m.type === 'GAME_ACTION_SEND').length).toBe(1)
+  expect(server.sent.find(m => m.type === 'GAME_ACTION_SEND')!.payload.input).toEqual({ x: 0, y: 0 })
+  await expect(page.locator('.omok-last-move-text')).toContainText('A1 (1행 1열)')
+  await screenshot(page, `omok-origin-${own}`)
 })
 
 test('대기 중 관전 입력은 없고 진행 경기만 팝업 없이 관전한 뒤 종료 즉시 복귀한다', async ({ page }) => {

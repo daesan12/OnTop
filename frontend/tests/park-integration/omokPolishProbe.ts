@@ -23,5 +23,9 @@ export function omokPolishProbe() {
     const p = mesh.localToWorld(new Vector3().setFromMatrixPosition(matrix)).project(camera)
     return { side, color: (mesh.material as MeshStandardMaterial).color.getHexString(), screenY: p.y }
   })
-  return { edges, supplies, boardColor: (surface.material as MeshStandardMaterial).color.getHexString() }
+  const corners = [[0, 0], [14, 0], [0, 14]].map(([x, y]) => {
+    const p = board.localToWorld(new Vector3((x! / 14 - .5) * 1.3, .019, (y! / 14 - .5) * 1.3)).project(camera)
+    return { x: (p.x + 1) * innerWidth / 2, y: (1 - p.y) * innerHeight / 2 }
+  })
+  return { edges, supplies, corners, boardColor: (surface.material as MeshStandardMaterial).color.getHexString() }
 }
