@@ -1,12 +1,12 @@
 {
-  "description": "Accepted ranking-board facility and interaction entry retained with the new plaza, lantern, fish-shop counter, dice-ledger and duel-forfeit surfaces while preserving park tables/chairs. Approved jumpmap landing audio adapter and sound-layer diagnostic updated without geometry or placement changes (MR !258), 2026-10-31; authorized VR floor/start pad and plump jumpmap pastry, 2026-10-31. Merged pavilion bench/lantern clearance (f4af1d15), optional render-mode access for spectator collection tests (3ed52827), and fish-shop awning overlap repair (a4e53bb6), 2026-11-01. 사용자 QA 승인 범위의 돌 기단 겹침 제거, 오목 시각 높이의 게임 모듈 격리로 기존 맵 버전 유지, 2026-11-01. 돌 난간의 겹친 접지 밑면 제거, 2026-11-01.",
+  "description": "Accepted ranking-board facility and interaction entry retained with the new plaza, lantern, fish-shop counter, dice-ledger and duel-forfeit surfaces while preserving park tables/chairs. Approved jumpmap landing audio adapter and sound-layer diagnostic updated without geometry or placement changes (MR !258), 2026-10-31; authorized VR floor/start pad and plump jumpmap pastry, 2026-10-31. Merged pavilion bench/lantern clearance (f4af1d15), optional render-mode access for spectator collection tests (3ed52827), and fish-shop awning overlap repair (a4e53bb6), 2026-11-01. 사용자 QA 승인 범위의 돌 기단 겹침 제거, 오목 시각 높이의 게임 모듈 격리로 기존 맵 버전 유지, 2026-11-01. 돌 난간의 겹친 접지 밑면 제거, 2026-11-01. 사용자 요청으로 돌탑 출발 표식만 엽전에서 돌탑 무늬로 교체하고 게임 모듈로 격리, 코스·배치·충돌 유지, 2026-11-01.",
   "files": {
     "src/layout-preview/districtGeometry.ts": "882709ac240a987c6d7fc5d8740f9d48e93851c586b232dfa05bacd7b70fe1ff",
     "src/layout-preview/existingTreeModel.ts": "fcb9c89c3c90e11ac5a5670a0498dae14184a10b1acac281523ad56ed4748826",
     "src/layout-preview/fountainPaving.ts": "b8955836fa9cb447e8d6f4523b0f81341cebdb1c292760b06a4f5ef63076c549",
     "src/layout-preview/jumpAudio.ts": "f5e622b72bda6876a12a72b883fa57f00260d24423bb412d362c9b0c6dede41a",
     "src/layout-preview/jumpCourse.ts": "8f78898d78ba683c7c50df8db68b28a73c8db27bd0433d9ca18df8a995432b39",
-    "src/layout-preview/jumpGeometry.ts": "9e76fcc731b36503b1ca983aa0cc77b62f7492d3dfb6a852564f838526ee1d60",
+    "src/layout-preview/jumpGeometry.ts": "a5c6636cbb7eadaec413807b4ba5aa412a2838ace11a68cbe7b072d87c8087ea",
     "src/layout-preview/JumpHud.tsx": "0c27b8c58b3259ebf69d9c009cead700e4bd77b1b5b8d009352911a16f589287",
     "src/layout-preview/jumpNavigation.ts": "199f815588101149550c36b2f513278ab288d955a982d79067c2b87899d7a60a",
     "src/layout-preview/jumpSimulation.ts": "71339bbee942e540a43c68f434ee3c3f6a35084c0b3b8c8ec5991057e31f10ab",
@@ -193,7 +193,8 @@
     "src/layout-preview/stairFlightGeometry.ts": "73060545b54ff9e5cc27df141bdd5fb0f7912f971f5d821f74dad865aa2bab2d",
     "src/layout-preview/RankingBoardModel.tsx": "37496bbdc97a20ae0d16f79f8e005e8e54e753a731fe433c048eb66f5bfc9195",
     "src/layout-preview/rankingBoardRoofSeats.ts": "dfeebed6f3acdb238dd855aa65c12cc72adfb8c606964cca86a1a42bdb026a1d",
-    "src/world/art/shopLanternLayout.ts": "a12a5e070c4ac1be12d3f29ef93bef162e0fb4c2cfd93099073d609abe89ee94"
+    "src/world/art/shopLanternLayout.ts": "a12a5e070c4ac1be12d3f29ef93bef162e0fb4c2cfd93099073d609abe89ee94",
+    "src/features/jumpmap/guideArt.ts": "839e1bc3852bc1f668a0b32c2f93358920ed42ae5b7a9347755c3935f8e9b771"
   },
   "preparedTableReview": {
     "date": "2026-11-01",
