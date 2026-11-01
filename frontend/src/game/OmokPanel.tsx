@@ -90,12 +90,11 @@ export function GameControls({ tableId }: { tableId: string }) {
 }
 
 function OmokPingStatus() {
-  const sending = useOmokEvents(s => s.pingSending), readyAt = useOmokEvents(s => s.pingReadyAt)
+  const sending = useOmokEvents(s => s.pingSending)
   const notice = useOmokEvents(s => s.pingNotice), error = useOmokEvents(s => s.pingError)
-  const canSend = useOmokEvents(s => s.canSend)
+  if (!sending && !notice && !error) return null
   return <p className="omok-ping-status" role="status" aria-label="위치 추천 전송 상태">
-    {error || (sending ? '추천 위치 전송 중…' : notice || (canSend ? '교차점을 누르면 위치를 추천해요' : '관전 연결을 확인해주세요'))}
-    <small>{readyAt ? '다음 추천은 1초 뒤에 보낼 수 있어요' : '추천은 1초 간격 · ◇ 표시는 잠시 후 사라져요'}</small>
+    {error || (sending ? '추천 위치 전송 중…' : notice)}
   </p>
 }
 
@@ -117,10 +116,12 @@ export function OmokPanel() {
     const measure = () => {
       if (!header.current || !toolbar.current) return
       root.style.setProperty('--omok-spectator-toolbar-height', `${toolbar.current!.getBoundingClientRect().height}px`)
+      const chatRect = chat?.getBoundingClientRect()
+      const chatAtTop = window.matchMedia('(max-width:1280px)').matches
       omokSpectatorViewport.gameId = spectatorGameId
       omokSpectatorViewport.insets = {
-        top: Math.ceil(header.current!.getBoundingClientRect().bottom + 14),
-        bottom: Math.ceil(innerHeight - Math.min(toolbar.current!.getBoundingClientRect().top, chat?.getBoundingClientRect().top ?? innerHeight) + 14),
+        top: Math.ceil(Math.max(header.current!.getBoundingClientRect().bottom, chatAtTop ? chatRect?.bottom ?? 0 : 0) + 14),
+        bottom: Math.ceil(innerHeight - Math.min(toolbar.current!.getBoundingClientRect().top, !chatAtTop ? chatRect?.top ?? innerHeight : innerHeight) + 14),
         left: 20, right: 20,
       }
     }
@@ -158,8 +159,9 @@ export function OmokPanel() {
     {player ? <header ref={header} className="omok-match-header omok-player-header" aria-label="오목 경기 정보">
       <div className="omok-match-player omok-own-stone" aria-label="내 돌"><i className={`stone-chip ${ownBlack ? 'black' : 'white'}`} /><div>
         <small>내 돌 · {profiles[own]?.nickname ?? '나'}</small><b>{ownBlack ? '흑돌' : '백돌'}</b></div></div>
-      <div className="omok-match-clock" aria-label="남은 착수 시간" data-urgent={myTurn && o.status === 'PLAYING' && remaining !== null && remaining > 0 && remaining <= 10} role="status">
-        <span>{myTurn ? '내 차례' : '상대 차례'}</span><strong>{remaining ?? '—'}<small>초</small></strong></div>
+      <div className="omok-match-clock" aria-label="남은 착수 시간" data-my-turn={myTurn && o.status === 'PLAYING'} data-urgent={myTurn && o.status === 'PLAYING' && remaining !== null && remaining > 0 && remaining <= 10} role="timer">
+        <span className="omok-turn-label">{myTurn ? '내 차례' : '상대 차례'}</span><strong>{remaining ?? '—'}<small>초</small></strong>
+        <small className="omok-clock-hint">{remaining === 0 ? '종료 판정 대기' : myTurn ? '지금 착수하세요' : '상대가 생각 중이에요'}</small></div>
       <div className="omok-match-player"><div><b>{profiles[opponent]?.nickname ?? '상대'}</b>
         <small>상대 · {ownBlack ? '백돌' : '흑돌'}</small></div><i className={`stone-chip ${ownBlack ? 'white' : 'black'}`} /></div>
     </header> : <header ref={header} className="omok-match-header" aria-label="오목 관전 경기 정보">
@@ -178,9 +180,7 @@ export function OmokPanel() {
         <button disabled={pending || !connected} aria-pressed={spectatorView === 'table'} onClick={() => useTableLobby.setState({ spectatorView: 'table' })}>주변 보기</button>
         <button disabled={pending || !connected} aria-pressed={spectatorView === 'board'} onClick={() => useTableLobby.setState({ spectatorView: 'board' })}>판 보기</button>
       </div><button onClick={() => openManual('gomoku')}>게임 설명 · F1</button><button disabled={pending} onClick={() => void runtime.unwatchGame()}>관전 종료</button></div>
-      <div className="omok-mark-legend" aria-label="오목판 표시 안내"><span><i className="omok-legend-ping" />추천 핑</span><span><i className="omok-legend-preview" />착수 미리보기</span><span><i className="omok-legend-last" />마지막 수</span></div>
       <OmokPingStatus />
-      <div className="omok-spectator-record"><span>관전 전용 · {o.moveCount}수</span><span>{lastMoveText(o.lastMove)}</span></div>
     </div>}
     <div className="focus-error">
       {remaining === 0 && <p role="status">착수 시간이 끝났습니다. 서버의 종료 판정을 기다리고 있습니다.</p>}
