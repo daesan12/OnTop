@@ -88,6 +88,7 @@ export function SpectatorChat() {
   const input = useRef<HTMLInputElement>(null)
   const player = useGame(s => s.game?.role === 'PLAYER')
   const omok = useGame(s => !!s.game?.omok)
+  const compact = omok && !player
   useEffect(() => { setDraft(''); setNotice(''); setOpen(false); return () => setChatInputOpen(false) }, [scope])
   useEffect(() => { if (open) input.current?.focus() }, [open])
   useEffect(() => { if (!canSend) { input.current?.blur(); setChatInputOpen(false) } }, [canSend])
@@ -112,11 +113,11 @@ export function SpectatorChat() {
     const text = draft
     if (await runtime.sendSpectatorChat(text)) { setDraft(''); setNotice('전달 요청이 승인됐어요.'); }
   }
-  return <form className="omok-spectator-chat" data-open={open} onSubmit={event => void send(event)} aria-label={player ? '경기 채팅' : '관전 채팅'}>
+  return <form className="omok-spectator-chat" data-open={open} data-compact={compact} onSubmit={event => void send(event)} aria-label={player ? '경기 채팅' : '관전 채팅'}>
     <button className="omok-chat-toggle" type="button" aria-expanded={open} aria-controls="omok-chat-body" onClick={() => {
       setOpen(!open)
       if (open) { input.current?.blur(); document.querySelector<HTMLCanvasElement>('canvas')?.focus() }
-    }}>{open ? '채팅 닫기' : '경기 채팅 열기'}</button>
+    }}>{open ? '채팅 닫기' : compact ? '관전 채팅 · Enter' : '경기 채팅 열기'}</button>
     <div id="omok-chat-body" className="omok-chat-body">
     <label htmlFor="omok-spectator-message">{player ? '경기 채팅' : omok ? '관전 채팅 · 판을 눌러 위치 추천' : '관전 채팅'}</label>
     <div><input id="omok-spectator-message" ref={input} value={draft} disabled={!canSend} readOnly={sending} aria-keyshortcuts="Enter"
