@@ -42,6 +42,9 @@ export interface ParkRuntimePort {
   hitOneCardHand?(attemptId: string): Promise<boolean>
   actBridge(input: import('../../game/bridge/protocol').BridgeInput): Promise<boolean>
   actLedger(input: import('../../game/ledger/protocol').LedgerInput): Promise<boolean>
+  flipHalli(): Promise<boolean>
+  /** bellWindowId and expectedVersion come from the state the player saw when pressing the bell. */
+  ringHalli(bellWindowId: number, expectedVersion: number): Promise<boolean>
   watchGame(gameId: string): Promise<boolean>
   watchBench(anchorId: string, observeOnly?: boolean): Promise<boolean>
   unwatchGame(): Promise<boolean>

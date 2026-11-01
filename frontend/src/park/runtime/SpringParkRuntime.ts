@@ -43,6 +43,8 @@ import type { BridgeInput } from '../../game/bridge/protocol'
 import { canActLedger } from '../../game/ledger/actions'
 import type { LedgerInput, LedgerPingTarget } from '../../game/ledger/protocol'
 import { LedgerPingEvents } from '../../game/ledger/pings'
+import { canFlipHalli, canRingHalli, classifyHalliError, halliNotice, markHalliRing } from '../../game/halligalli/actions'
+import type { HalliInput } from '../../game/halligalli/protocol'
 import { loadParkBindings } from './deployment'
 import type { ParkRuntimePort } from './contracts'
 import { benchBusy } from '../../features/interactions/benchState'
@@ -77,6 +79,7 @@ import {
   applyFacilityOccupancies,
   resetWorld,
   useSession,
+  estimatedServerTime,
 } from '../../network/worldClient'
 
 export function validateChat(value: string): string {
@@ -1085,7 +1088,7 @@ export class ParkRuntime implements ParkRuntimePort {
   setReady = (ready: boolean) =>
     this.action(async () => {
       const s = useSession.getState()
-      if (tableBusy() || !['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE', 'DICE_LEDGER'].includes(s.tableStates[s.tableId]?.gameCode ?? ''))
+      if (tableBusy() || !['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE', 'DICE_LEDGER', 'HALLI_GALLI'].includes(s.tableStates[s.tableId]?.gameCode ?? ''))
         throw new Error('플레이 가능한 게임을 선택한 대기 테이블에서 준비해주세요.')
       const table = s.tableStates[s.tableId]
       if (ready && !isTableGamePlayable(table.gameCode)) throw new Error(GAME_CONSTRUCTION_NOTICE)
@@ -1320,6 +1323,71 @@ export class ParkRuntime implements ParkRuntimePort {
       throw error
     } finally { if (generation === this.generation) useGame.setState({ pending: false }) }
   })
+  /**
+   * HALLI_GALLI. The server accepts one game action per socket, so a bell pressed while this tab's own flip or ring
+   * is in flight waits in a single slot with the window the player saw. It is sent inside the same action() job
+   * after that request is answered: no second lock, no window swap, dropped on any unanswered request or reconnect.
+   */
+  private halliJob: object | null = null
+  private halliQueued: { gameId: string; bellWindowId: number; expectedVersion: number } | null = null
+  flipHalli = () => {
+    const own = useSession.getState(), g = useGame.getState().game
+    if (own.status !== 'connected' || !g?.halli || !canFlipHalli(own.sessionId, estimatedServerTime())) return Promise.resolve(false)
+    return this.action(() => this.runHalli(g.gameId, { kind: 'flip' }, g.version))
+  }
+  ringHalli = (bellWindowId: number, expectedVersion: number) => {
+    const own = useSession.getState(), g = useGame.getState().game
+    if (own.status !== 'connected' || !g?.halli || !canRingHalli(own.sessionId, bellWindowId)) return Promise.resolve(false)
+    if (this.halliJob) {
+      if (this.halliQueued) return Promise.resolve(false)
+      this.halliQueued = { gameId: g.gameId, bellWindowId, expectedVersion }
+      markHalliRing(g.gameId, bellWindowId, 'queued')
+      return Promise.resolve(true)
+    }
+    if (this.actionBusy) { halliNotice('다른 요청을 처리하는 중이라 종을 보내지 못했어요.'); return Promise.resolve(false) }
+    return this.action(() => this.runHalli(g.gameId, { kind: 'ring', bellWindowId }, expectedVersion))
+  }
+  private async runHalli(gameId: string, input: HalliInput, expectedVersion: number) {
+    const job = {}, generation = this.generation
+    this.halliJob = job
+    try {
+      let answered = await this.sendHalli(gameId, input, expectedVersion, generation)
+      while (answered && this.halliQueued && this.halliJob === job && generation === this.generation) {
+        const ring = this.halliQueued, s = useGame.getState()
+        this.halliQueued = null
+        if (s.permittedGameId !== ring.gameId || s.game?.gameId !== ring.gameId || s.game.halli?.status !== 'PLAYING') {
+          markHalliRing(ring.gameId, ring.bellWindowId, null); break
+        }
+        answered = await this.sendHalli(ring.gameId, { kind: 'ring', bellWindowId: ring.bellWindowId }, ring.expectedVersion, generation)
+      }
+    } finally {
+      if (this.halliJob === job) {
+        const left = this.halliQueued
+        this.halliJob = null; this.halliQueued = null
+        if (left) markHalliRing(left.gameId, left.bellWindowId, null)
+      }
+    }
+  }
+  /** Returns whether the server answered; only an unknown outcome is uncertain and rethrown. */
+  private async sendHalli(gameId: string, input: HalliInput, expectedVersion: number, generation: number) {
+    if (input.kind === 'ring') markHalliRing(gameId, input.bellWindowId, 'sent')
+    useGame.setState({ pending: true, error: '' })
+    try {
+      await this.socket.request('GAME_ACTION_SEND', { gameId, actionId: crypto.randomUUID(), expectedVersion,
+        input: input.kind === 'ring' ? { kind: 'ring', bellWindowId: input.bellWindowId } : { kind: 'flip' } }, ['GAME_ACTION_RESULT'])
+      return true
+    } catch (error) {
+      const outcome = classifyHalliError(input.kind, error instanceof ServerError ? error.code : null)
+      // A definite rejection frees the window again; an unknown result may have been charged, so it stays blocked.
+      if (input.kind === 'ring' && outcome.kind !== 'uncertain') markHalliRing(gameId, input.bellWindowId, null)
+      if (generation === this.generation && useGame.getState().permittedGameId === gameId) {
+        if (outcome.kind === 'uncertain') useGame.setState({ uncertain: true, error: outcome.message })
+        else halliNotice(outcome.message)
+      }
+      if (outcome.kind === 'uncertain') throw error
+      return true
+    } finally { if (generation === this.generation) useGame.setState({ pending: false }) }
+  }
   /** gameId must come from an approved public game reference; no guessed table→game IDs. */
   watchGame = async (gameId: string): Promise<boolean> => {
       const session = useSession.getState()

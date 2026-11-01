@@ -8,6 +8,7 @@ export const TABLE_GAMES = [
   { code: 'ONE_CARD', name: '원카드', capacity: 4, playable: true },
   { code: 'LIAR_BRIDGE', name: '거짓말 다리 건너기', capacity: 4, playable: false },
   { code: 'DICE_LEDGER', name: '주사위 장부', capacity: 4, playable: true },
+  { code: 'HALLI_GALLI', name: '할리갈리', capacity: 4, playable: true },
 ] as const
 export type TableGameCode = typeof TABLE_GAMES[number]['code']
 /** Display only server-approved room terms, including rooms retained after the host leaves. */

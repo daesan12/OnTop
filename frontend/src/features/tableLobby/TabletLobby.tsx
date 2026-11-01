@@ -19,8 +19,9 @@ const descriptions: Record<TableGameCode, string> = {
   OMOK: '다섯 돌을 이어 만드는 한 수', DICE: '주사위를 굴려 목표 점수에 도전해요',
   ONE_CARD: '손에 든 카드를 모두 내려놓으면 승리!', LIAR_BRIDGE: '믿거나 의심하거나, 다리를 건너요',
   DICE_LEDGER: '세 번 굴려 장부 열두 칸을 채워요',
+  HALLI_GALLI: '같은 과일이 다섯 개면 누구보다 빨리 종!',
 }
-const choiceOrder: TableGameCode[] = ['OMOK', 'ONE_CARD', 'DICE_LEDGER', 'DICE', 'LIAR_BRIDGE']
+const choiceOrder: TableGameCode[] = ['OMOK', 'ONE_CARD', 'DICE_LEDGER', 'DICE', 'LIAR_BRIDGE', 'HALLI_GALLI']
 export function GameArt({ code }: { code: TableGameCode }) {
   return <div className="tablet-game-art" data-game={code} role="img" aria-label={TABLE_GAMES.find(g => g.code === code)?.name} />
 }

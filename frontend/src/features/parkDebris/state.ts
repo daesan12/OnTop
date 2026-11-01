@@ -4,13 +4,15 @@ import {integer,record} from '../../network/protocol'
 export const DEBRIS_DURATION=2800,DEBRIS_LAUNCH=550,DEBRIS_COINS=12,DEBRIS_STONES=5
 export const DEBRIS_RETENTION=15_000
 export function debrisPieces(code:ParkDebris['gameCode']) {
+  // 할리갈리 잔해는 서버(ParkDebrisStore)가 아직 동전만 보낸다. 카드 조각은 서버와 함께 정한다.
+  if(code==='HALLI_GALLI')return []
   const [prefix,count]=code==='OMOK'?['stone',5] as const:code==='ONE_CARD'?['card',14] as const
     :code==='LIAR_BRIDGE'?['pawn',6] as const:['die',code==='DICE_LEDGER'?5:6] as const
   return Array.from({length:count},(_,i)=>`${prefix}-${i}`)
 }
 export const debrisVisible=(item:ParkDebris,now:number)=>now>=Date.parse(item.occurredAt)&&now<Date.parse(item.occurredAt)+DEBRIS_RETENTION
 export interface ParkDebris {
-  id:string;gameId:string;tableId:string;anchorId:string;gameCode:'OMOK'|'DICE'|'ONE_CARD'|'LIAR_BRIDGE'|'DICE_LEDGER'
+  id:string;gameId:string;tableId:string;anchorId:string;gameCode:'OMOK'|'DICE'|'ONE_CARD'|'LIAR_BRIDGE'|'DICE_LEDGER'|'HALLI_GALLI'
   userId:string;occurredAt:string;throwYaw:number;seed:number;parts:string[]
 }
 export interface ParkDebrisState {channelId:string;mapVersion:string;version:number;items:ParkDebris[]}
@@ -21,7 +23,7 @@ export function parseParkDebris(value:unknown):ParkDebrisState {
   const ids=new Set<string>()
   const items=value.items.map(raw=>{
     if(!record(raw)||!['id','gameId','tableId','anchorId','userId'].every(k=>id(raw[k]))
-      ||!['OMOK','DICE','ONE_CARD','LIAR_BRIDGE','DICE_LEDGER'].includes(String(raw.gameCode))
+      ||!['OMOK','DICE','ONE_CARD','LIAR_BRIDGE','DICE_LEDGER','HALLI_GALLI'].includes(String(raw.gameCode))
       ||typeof raw.occurredAt!=='string'||!raw.occurredAt.endsWith('Z')||!Number.isFinite(Date.parse(raw.occurredAt))
       ||typeof raw.throwYaw!=='number'||!Number.isFinite(raw.throwYaw)||!integer(raw.seed)||raw.seed>0x7fffffff
       ||!Array.isArray(raw.parts)||raw.parts.length<1||raw.parts.length>13+debrisPieces(raw.gameCode as ParkDebris['gameCode']).length
