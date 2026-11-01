@@ -1,3 +1,4 @@
+import { acceptAlkkagiSocial, resetAlkkagiSocial, syncAlkkagiSocial } from '../../game/alkkagi/spectatorEvents'
 import {
   clearAuthSession,
   getAuthSession,
@@ -171,6 +172,7 @@ export class ParkRuntime implements ParkRuntimePort {
     },
     stop: async () => { await this.socket.request('GAME_UNWATCH', {}, ['GAME_WATCH_LEFT']) },
     hide: () => {
+      resetAlkkagiSocial()
       this.omokEvents.reset()
       this.ledgerPings.reset()
       this.oneCardPranks.reset()
@@ -609,6 +611,18 @@ export class ParkRuntime implements ParkRuntimePort {
     }
     if (this.oneCardDefense.accept(message)) return
     if (this.oneCardPranks.accept(message)) return
+    if (message.type === 'ERROR' && message.requestId && this.alkkagiSocialRequests.delete(message.requestId)) return
+    if (message.type === 'ALKKAGI_SPECTATOR_EVENT') {
+      const state = useGame.getState(), session = useSession.getState()
+      this.alkkagiSocialRequests.delete(message.requestId ?? '')
+      const g = state.game
+      const eligible = this.active && session.status === 'connected' && session.mapCompatible && !!session.roomId
+        && g?.alkkagi?.status === 'PLAYING' && !state.lastResult
+        && (g.role === 'PLAYER' ? state.recovery === 'RESTORED' && state.permittedGameId === g.gameId
+          : this.spectator.accepts(g.gameId) && state.watchedGameId === g.gameId)
+      acceptAlkkagiSocial(message, eligible ? g!.gameId : '', g?.version)
+      return
+    }
     if (this.ledgerPings.accept(message)) return
     if (this.omokEvents.accept(message)) return
     if (this.worldTime.ownsError(message) || message.type === 'WORLD_TIME_STATE') return
@@ -649,6 +663,8 @@ export class ParkRuntime implements ParkRuntimePort {
     try {
       receiveGame(message, session.sessionId, session.tableId)
       receiveWalletSettlement(message, session.sessionId)
+      const alkkagi = useGame.getState().game?.alkkagi
+      syncAlkkagiSocial(alkkagi?.gameId ?? '', alkkagi?.version ?? -1, alkkagi?.stage === 'AIMING')
       this.omokEvents.sync()
       this.ledgerPings.sync()
       this.oneCardPranks.sync()
@@ -817,9 +833,9 @@ export class ParkRuntime implements ParkRuntimePort {
     if (!held || message.requestId !== null || held.length >= 64) return false
     const seat = message.type === 'TABLE_STATE' || message.type === 'TABLE_HOST_WAIT_STATE'
       || message.type === 'GAME_START_STATE' && message.payload.tableId !== null
-    // After a held seat its game messages wait too, so they are read with the table as before the refresh.
-    const game = held.some(m => m.type === 'TABLE_STATE')
-      && ['GAME_START_STATE', 'GAME_CONNECTION_STATE', 'GAME_STATE', 'GAME_RESULT'].includes(message.type)
+    // Recovery can precede the seat itself. Applying it now would block the
+    // initial channel join as an active game, leaving the board without a seat.
+    const game = ['GAME_START_STATE', 'GAME_CONNECTION_STATE', 'GAME_STATE', 'GAME_RESULT'].includes(message.type)
     if (!seat && !game) return false
     held.push(message)
     return true
@@ -1088,7 +1104,7 @@ export class ParkRuntime implements ParkRuntimePort {
   setReady = (ready: boolean) =>
     this.action(async () => {
       const s = useSession.getState()
-      if (tableBusy() || !['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE', 'DICE_LEDGER', 'HALLI_GALLI'].includes(s.tableStates[s.tableId]?.gameCode ?? ''))
+      if (tableBusy() || !['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE', 'DICE_LEDGER', 'ALKKAGI', 'HALLI_GALLI'].includes(s.tableStates[s.tableId]?.gameCode ?? ''))
         throw new Error('플레이 가능한 게임을 선택한 대기 테이블에서 준비해주세요.')
       const table = s.tableStates[s.tableId]
       if (ready && !isTableGamePlayable(table.gameCode)) throw new Error(GAME_CONSTRUCTION_NOTICE)
@@ -1194,8 +1210,11 @@ export class ParkRuntime implements ParkRuntimePort {
       status: 'pending' as const, error: '' }
     const generation = this.generation
     useForfeit.setState({ attempt }); useGame.setState({ pending: true, error: '' })
+    // WAITING may arrive before the correlated receipt and retire the active game.
+    const sameGame = () => { const s = useGame.getState(); return s.permittedGameId === gameId
+      || (!s.permittedGameId && s.completedGameId === gameId) }
     const current = () => this.active && generation === this.generation && useSession.getState().sessionId === attempt.userId
-      && useGame.getState().permittedGameId === gameId && useForfeit.getState().attempt === attempt
+      && sameGame() && useForfeit.getState().attempt === attempt
     try {
       const reply = await this.socket.request('GAME_FORFEIT', { gameId, actionId: attempt.actionId }, ['GAME_FORFEIT_RESULT'], id => {
         this.forfeitRequests.set(id, JSON.stringify([own.sessionId, gameId]))
@@ -1212,7 +1231,7 @@ export class ParkRuntime implements ParkRuntimePort {
         throw cause
       }
     } finally {
-      if (generation === this.generation && useGame.getState().permittedGameId === gameId) useGame.setState({ pending: false })
+      if (generation === this.generation && sameGame()) useGame.setState({ pending: false })
     }
   })
   placeOmok = (x: number, y: number) =>
@@ -1288,6 +1307,41 @@ export class ParkRuntime implements ParkRuntimePort {
       if (generation === this.generation && useGame.getState().permittedGameId === g.gameId)
         useGame.setState({ uncertain: !(error instanceof ServerError && ['GAME_ACTION_INVALID_ACTION', 'GAME_ACTION_NOT_YOUR_TURN'].includes(error.code)),
           error: error instanceof Error ? error.message : '원카드 처리 결과를 확인해주세요.' })
+      throw error
+    } finally { if (generation === this.generation) useGame.setState({ pending: false }) }
+  })
+  private alkkagiSocialRequests = new Set<string>()
+  private alkkagiCursorAt = -Infinity
+  private alkkagiCursorPending = false
+  sendAlkkagiSpectator = async (input: Record<string, unknown>): Promise<boolean> => {
+    const session = useSession.getState(), state = useGame.getState(), g = state.game
+    if (!this.active || !this.socket.connected || session.status !== 'connected' || !session.mapCompatible || !session.roomId
+      || !g?.alkkagi || g.role !== 'SPECTATOR' || g.alkkagi.stage !== 'AIMING'
+      || state.watchedGameId !== g.gameId || !this.spectator.accepts(g.gameId) || state.lastResult) return false
+    const cursor = input.kind === 'CURSOR', at = performance.now()
+    if (cursor && (this.alkkagiCursorPending || at - this.alkkagiCursorAt < 90)) return false
+    if (cursor) { this.alkkagiCursorAt = at; this.alkkagiCursorPending = true }
+    let requestId = ''
+    try {
+      await this.socket.request('ALKKAGI_SPECTATOR_SEND', { ...input, gameId: g.gameId, eventId: crypto.randomUUID(), basedOnVersion: g.version },
+        ['ALKKAGI_SPECTATOR_EVENT'], id => { requestId = id; this.alkkagiSocialRequests.add(id) })
+      return true
+    } catch { return false }
+    finally { this.alkkagiSocialRequests.delete(requestId); if (cursor) this.alkkagiCursorPending = false }
+  }
+  actAlkkagi = (input: Record<string, unknown>) => this.action(async () => {
+    const own = useSession.getState(), s = useGame.getState(), g = s.game
+    if (own.status !== 'connected' || !g?.alkkagi || g.role !== 'PLAYER' || g.gameId !== s.permittedGameId
+      || s.recovery !== 'RESTORED' || s.pending || s.uncertain || g.version < s.awaitingVersion
+      || g.alkkagi.status !== 'PLAYING' || (input.type !== 'CARD_CHOOSE' && g.alkkagi.turnUserId !== own.sessionId))
+      throw new Error('본인 차례와 최신 알까기 상태를 확인해주세요.')
+    const generation = this.generation
+    useGame.setState({ pending: true, error: '' })
+    try {
+      await this.socket.request('GAME_ACTION_SEND', { gameId: g.gameId, actionId: crypto.randomUUID(), expectedVersion: g.version, input }, ['GAME_ACTION_RESULT'])
+    } catch (error) {
+      if (generation === this.generation && useGame.getState().permittedGameId === g.gameId)
+        useGame.setState({ uncertain: !(error instanceof ServerError), error: error instanceof Error ? error.message : '알까기 처리 결과를 확인해주세요.' })
       throw error
     } finally { if (generation === this.generation) useGame.setState({ pending: false }) }
   })

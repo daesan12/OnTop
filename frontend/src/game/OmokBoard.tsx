@@ -24,6 +24,7 @@ import { useOmokEvents } from './omok/spectatorEvents'
 import { OmokPings } from './omok/OmokFeedback'
 import { panelOwnsKeys } from '../world/inputOwnership'
 import { BoardCoordinates } from './omok/BoardCoordinates'
+import { useTableGameCode } from '../features/tableLobby/tableGamePresentation'
 
 const noRaycast = () => {} // Three line threshold is too wide for 9cm grid cells; pick the board surface.
 const blackPreview = blackMaterial.clone(), whitePreview = whiteMaterial.clone()
@@ -52,8 +53,7 @@ export function OmokBoard({ anchor }: { anchor: TableAnchor }) {
   const binding = session.bindings.find(
     (b) => b.channelId === session.roomId && b.anchorId === anchor.id,
   )
-  const selected =
-    !!binding && session.tableStates[binding.tableId]?.gameCode === 'OMOK'
+  const selected = useTableGameCode(anchor.id) === 'OMOK'
   const relevant =
     !!game &&
     !!binding &&

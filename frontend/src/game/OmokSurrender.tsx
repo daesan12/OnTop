@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { surrenderService } from './surrender'
 import type { SurrenderContext } from './surrender'
@@ -16,7 +16,9 @@ export function FinishedForfeitStatus() {
   return <OmokSurrender key={`${ownId}:${game.gameId}`} context={{ userId: ownId, gameId: game.gameId, version: game.version }} disabled />
 }
 
-export function OmokSurrender({ context, disabled }: { context: SurrenderContext; disabled: boolean }) {
+export interface ForfeitConfirmationControls { disabled: boolean; onConfirm(): void; onCancel(): void }
+export function OmokSurrender({ context, disabled, renderConfirmation }: { context: SurrenderContext; disabled: boolean
+  renderConfirmation?: (controls: ForfeitConfirmationControls) => ReactNode }) {
   const [confirm, setConfirm] = useState(false)
   const [completed, setCompleted] = useState(false)
   const continueButton = useRef<HTMLButtonElement>(null)
@@ -55,9 +57,11 @@ export function OmokSurrender({ context, disabled }: { context: SurrenderContext
         <button disabled={!canRetry} onClick={() => void runtime.forfeitGame(context.gameId, true)}>같은 기권 요청 확인</button>
       </> : <>
         {attempt?.error && <p role="alert">{attempt.error}</p>}
-        {playing && (confirm ? state.game?.omok ? <PaperPopup title="기권할까요?" label="기권 확인" closeLabel="기권 취소" className="omok-forfeit-confirm" initialFocusRef={continueButton} onClose={() => setConfirm(false)}>{confirmation}</PaperPopup>
+        {playing && (confirm ? renderConfirmation ? renderConfirmation({disabled:!canStart,
+          onConfirm:()=>{setConfirm(false);void runtime.forfeitGame(context.gameId)},onCancel:()=>setConfirm(false)})
+          : state.game?.omok ? <PaperPopup title="기권할까요?" label="기권 확인" closeLabel="기권 취소" className="omok-forfeit-confirm" initialFocusRef={continueButton} onClose={() => setConfirm(false)}>{confirmation}</PaperPopup>
           : <div role="group" aria-label="기권 확인">{confirmation}</div>
-          : <button disabled={!canStart} onClick={() => setConfirm(true)}>기권</button>)}
+          : <button disabled={!canStart} aria-haspopup={renderConfirmation ? 'dialog' : undefined} aria-expanded={renderConfirmation ? confirm : undefined} onClick={() => setConfirm(true)}>{renderConfirmation ? '기권하기' : '기권'}</button>)}
       </>}
   </div>
 }

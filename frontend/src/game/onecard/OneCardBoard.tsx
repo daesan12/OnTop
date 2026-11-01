@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
+import { useTableGameCode } from '../../features/tableLobby/tableGamePresentation'
 import { useFrame, useThree } from '@react-three/fiber'
 import { useShallow } from 'zustand/react/shallow'
 import { BoxGeometry, ExtrudeGeometry, MeshBasicMaterial, MeshStandardMaterial, Path, PlaneGeometry, Shape, ShapeGeometry, type Group } from 'three'
@@ -147,7 +148,7 @@ export function OneCardBoard({ anchor }: { anchor: TableAnchor }) {
   const session = useSession(useShallow(s => ({ bindings: s.bindings, roomId: s.roomId, tableId: s.tableId, watchedTableId: s.watchedTableId, tableStates: s.tableStates, status: s.status })))
   const binding = session.bindings.find(b => b.channelId === session.roomId && b.anchorId === anchor.id)
   const relevant = state.onecard && !!binding && (state.role === 'PLAYER' ? session.tableId : session.watchedTableId) === binding.tableId
-  const selected = !!binding && session.tableStates[binding.tableId]?.gameCode === 'ONE_CARD'
+  const selected = useTableGameCode(anchor.id) === 'ONE_CARD'
   if (!relevant && !selected) return null
   const o = relevant ? state.onecard! : null, main = anchor.pavilionId === 'P0', surfaceY = main ? 1.078 : 1.094
   return <group name="onecard-table" dispose={null}>

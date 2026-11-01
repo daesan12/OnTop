@@ -23,7 +23,7 @@ function chatPosition(chat: { eventId: string; slot: number }) {
 export function OmokFeedback() {
   const chats = useOmokEvents(s => s.chats), pings = useOmokEvents(s => s.pings)
   const profiles = useSession(s => s.profiles), manual = useManual(s => s.open)
-  const active = useGame(s => !!s.game?.omok && s.game.omok.status === 'PLAYING')
+  const active = useGame(s => !s.lastResult && (s.game?.omok?.status === 'PLAYING' || s.game?.alkkagi?.status === 'PLAYING'))
   if (!active) return null
   return <div className="omok-feedback" hidden={manual} aria-label="관전자 응원과 위치 추천">
     {chats.map(chat => <div key={chat.eventId} className={`omok-floating-chat slot-${chat.slot}`} role="status"
@@ -87,6 +87,7 @@ export function SpectatorChat() {
   const [draft, setDraft] = useState(''), [notice, setNotice] = useState(''), [open, setOpen] = useState(false)
   const input = useRef<HTMLInputElement>(null)
   const player = useGame(s => s.game?.role === 'PLAYER')
+  const omok = useGame(s => !!s.game?.omok)
   useEffect(() => { setDraft(''); setNotice(''); setOpen(false); return () => setChatInputOpen(false) }, [scope])
   useEffect(() => { if (open) input.current?.focus() }, [open])
   useEffect(() => { if (!canSend) { input.current?.blur(); setChatInputOpen(false) } }, [canSend])
@@ -111,13 +112,13 @@ export function SpectatorChat() {
     const text = draft
     if (await runtime.sendSpectatorChat(text)) { setDraft(''); setNotice('전달 요청이 승인됐어요.'); }
   }
-  return <form className="omok-spectator-chat" data-open={open} onSubmit={event => void send(event)} aria-label={player ? '오목 경기 채팅' : '오목 관전 채팅'}>
+  return <form className="omok-spectator-chat" data-open={open} onSubmit={event => void send(event)} aria-label={player ? '경기 채팅' : '관전 채팅'}>
     <button className="omok-chat-toggle" type="button" aria-expanded={open} aria-controls="omok-chat-body" onClick={() => {
       setOpen(!open)
       if (open) { input.current?.blur(); document.querySelector<HTMLCanvasElement>('canvas')?.focus() }
     }}>{open ? '채팅 닫기' : '경기 채팅 열기'}</button>
     <div id="omok-chat-body" className="omok-chat-body">
-    <label htmlFor="omok-spectator-message">{player ? '경기 채팅' : '관전 채팅 · 판을 눌러 위치 추천'}</label>
+    <label htmlFor="omok-spectator-message">{player ? '경기 채팅' : omok ? '관전 채팅 · 판을 눌러 위치 추천' : '관전 채팅'}</label>
     <div><input id="omok-spectator-message" ref={input} value={draft} disabled={!canSend} readOnly={sending} aria-keyshortcuts="Enter"
       placeholder={canSend ? '이 경기에서 대화해요' : player ? '경기 연결을 확인해주세요' : '관전 승인을 확인해주세요'} maxLength={400}
       onFocus={() => setChatInputOpen(true)} onBlur={() => setChatInputOpen(false)}

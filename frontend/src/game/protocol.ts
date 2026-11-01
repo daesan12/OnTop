@@ -1,3 +1,4 @@
+import { parseAlkkagi, parseAlkkagiHand, type Alkkagi, type AlkkagiHand } from './alkkagi/protocol'
 import { integer, record } from '../network/protocol'
 import { parseOneCard, parseHand, type OneCard, type Hand } from './onecard/protocol'
 import { parseBridge, parseSecret, type Bridge, type SecretDie } from './bridge/protocol'
@@ -46,13 +47,14 @@ interface GameHeader {
   version: number
   role: 'PLAYER' | 'SPECTATOR'
 }
-export interface OmokGame extends GameHeader { omok: Omok; dice?: never; onecard?: never; hand?: never; bridge?: never; secret?: never; ledger?: never; halli?: never }
-export interface DiceGame extends GameHeader { dice: Farkle; omok?: never; onecard?: never; hand?: never; bridge?: never; secret?: never; ledger?: never; halli?: never }
-export interface OneCardGame extends GameHeader { onecard: OneCard; hand: Hand | null; omok?: never; dice?: never; bridge?: never; secret?: never; ledger?: never; halli?: never }
-export interface BridgeGame extends GameHeader { bridge: Bridge; secret: SecretDie | null; omok?: never; dice?: never; onecard?: never; hand?: never; ledger?: never; halli?: never }
-export interface LedgerGame extends GameHeader { ledger: DiceLedger; omok?: never; dice?: never; onecard?: never; hand?: never; bridge?: never; secret?: never; halli?: never }
-export interface HalliGame extends GameHeader { halli: HalliGalli; omok?: never; dice?: never; onecard?: never; hand?: never; bridge?: never; secret?: never; ledger?: never }
-export type Game = OmokGame | DiceGame | OneCardGame | BridgeGame | LedgerGame | HalliGame
+export interface OmokGame extends GameHeader { ledger?: never; alkkagi?: never; alkkagiHand?: never; omok: Omok; dice?: never; onecard?: never; hand?: never; bridge?: never; secret?: never; halli?: never }
+export interface DiceGame extends GameHeader { ledger?: never; alkkagi?: never; alkkagiHand?: never; dice: Farkle; omok?: never; onecard?: never; hand?: never; bridge?: never; secret?: never; halli?: never }
+export interface OneCardGame extends GameHeader { ledger?: never; alkkagi?: never; alkkagiHand?: never; onecard: OneCard; hand: Hand | null; omok?: never; dice?: never; bridge?: never; secret?: never; halli?: never }
+export interface BridgeGame extends GameHeader { ledger?: never; alkkagi?: never; alkkagiHand?: never; bridge: Bridge; secret: SecretDie | null; omok?: never; dice?: never; onecard?: never; hand?: never; halli?: never }
+export interface AlkkagiGame extends GameHeader { ledger?: never; alkkagi: Alkkagi; alkkagiHand: AlkkagiHand | null; omok?: never; dice?: never; onecard?: never; hand?: never; bridge?: never; secret?: never; halli?: never }
+export interface LedgerGame extends GameHeader { alkkagi?: never; alkkagiHand?: never; ledger: DiceLedger; omok?: never; dice?: never; onecard?: never; hand?: never; bridge?: never; secret?: never; halli?: never }
+export interface HalliGame extends GameHeader { ledger?: never; alkkagi?: never; alkkagiHand?: never; halli: HalliGalli; omok?: never; dice?: never; onecard?: never; hand?: never; bridge?: never; secret?: never }
+export type Game = OmokGame | DiceGame | OneCardGame | BridgeGame | AlkkagiGame | LedgerGame | HalliGame
 export interface Farkle {
   gameCode: 'DICE'; status: 'PLAYING' | 'FINISHED'; players: string[]; scores: number[]
   targetScore: number; turnTimeLimitMs: 30000; turnUserId: string | null; turnDeadline: string | null
@@ -61,8 +63,8 @@ export interface Farkle {
   hotDice: boolean; lastEvent: 'START' | 'ROLL' | 'HOT_DICE' | 'BANK' | 'BUST' | 'TURN_TIMEOUT'
   winnerUserId: string | null; endReason: string | null; endedAt: string | null
 }
-export const gameState = (g: Game) => g.omok ?? g.dice ?? g.onecard ?? g.bridge ?? g.ledger ?? g.halli
-export const gamePlayers = (g: Game) => g.omok ? [g.omok.blackUserId, g.omok.whiteUserId] : g.dice ? g.dice.players : (g.onecard ?? g.bridge ?? g.ledger ?? g.halli).players.map(p => p.userId)
+export const gameState = (g: Game) => g.omok ?? g.dice ?? g.onecard ?? g.bridge ?? g.ledger ?? g.alkkagi ?? g.halli
+export const gamePlayers = (g: Game) => g.omok ? [g.omok.blackUserId, g.omok.whiteUserId] : g.dice ? g.dice.players : g.alkkagi ? g.alkkagi.players : (g.onecard ?? g.bridge ?? g.ledger ?? g.halli).players.map(p => p.userId)
 export interface Result {
   version: number
   gameSessionId: string
@@ -205,13 +207,17 @@ export function parseGame(p: Record<string, unknown>, ownId = ''): Game {
     !integer(p.version) ||
     !['PLAYER', 'SPECTATOR'].includes(String(p.role)) ||
     !record(p.privateState) ||
-    (!(record(p.publicState) && ['ONE_CARD', 'LIAR_BRIDGE'].includes(String(p.publicState.gameCode)) && p.role === 'PLAYER') && Object.keys(p.privateState).length !== 0)
+    (!(record(p.publicState) && ['ONE_CARD', 'LIAR_BRIDGE', 'ALKKAGI'].includes(String(p.publicState.gameCode)) && p.role === 'PLAYER') && Object.keys(p.privateState).length !== 0)
   )
     throw new Error('경기 공개 상태 또는 관전 권한을 확인해주세요.')
   const common = {
     gameId: p.gameId,
     version: p.version,
     role: p.role as Game['role'],
+  }
+  if (record(p.publicState) && p.publicState.gameCode === 'ALKKAGI') {
+    const alkkagi = parseAlkkagi(p.publicState, common.gameId, common.version)
+    return { ...common, alkkagi, alkkagiHand: parseAlkkagiHand(p.privateState, alkkagi, ownId, common.role) }
   }
   if (record(p.publicState) && p.publicState.gameCode === 'DICE_LEDGER') return { ...common, ledger: parseLedger(p.publicState) }
   if (record(p.publicState) && p.publicState.gameCode === 'HALLI_GALLI') return { ...common, halli: parseHalliGalli(p.publicState) }
@@ -230,7 +236,7 @@ export function parseResult(p: Record<string, unknown>, ownId: string): Result {
   if (
     !id(p.gameSessionId) ||
     !integer(p.version) ||
-    !['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE', 'DICE_LEDGER', 'HALLI_GALLI'].includes(String(p.gameCode)) ||
+    !['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE', 'DICE_LEDGER', 'ALKKAGI', 'HALLI_GALLI'].includes(String(p.gameCode)) ||
     !['FINISHED', 'INVALID'].includes(String(p.status)) ||
     typeof p.endReason !== 'string' || !/^[A-Z][A-Z0-9_]{0,31}$/.test(p.endReason) ||
     !['PENDING', 'SETTLED'].includes(String(p.settlementStatus)) ||

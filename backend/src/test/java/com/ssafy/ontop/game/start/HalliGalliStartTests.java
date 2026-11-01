@@ -92,7 +92,7 @@ class HalliGalliStartTests {
 
     private CommittedGameStartService service(Optional<HalliGalliEngine> halligalli) {
         return new CommittedGameStartService(gateway, Optional.empty(), Optional.empty(), Optional.empty(),
-                Optional.empty(), Optional.empty(), halligalli, Optional.empty(), true, false);
+                Optional.empty(), Optional.empty(), halligalli, Optional.empty(), Optional.empty(), true, false);
     }
 
     private static GameStartCommand command(int count) {

@@ -12,18 +12,20 @@ import { HostStartButton, HostStartWaitStatus } from './HostStartWaitControls'
 import { useTabletStartStatus } from './TabletLobbyClient'
 import { inputState } from '../../world/inputOwnership'
 import coinImage from '../../assets/entry/yeopjeon-icon.webp'
+import alkkagiThumbnail from '../../game/alkkagi/assets/thumbnail.webp'
 import './tablet.css'
 const TabletPortrait = lazy(() => import('./TabletPortrait').then(module => ({ default: module.TabletPortrait })))
 
 const descriptions: Record<TableGameCode, string> = {
+  ALKKAGI: '알을 튕기고 비책으로 승부하는 2인 경기',
   OMOK: '다섯 돌을 이어 만드는 한 수', DICE: '주사위를 굴려 목표 점수에 도전해요',
   ONE_CARD: '손에 든 카드를 모두 내려놓으면 승리!', LIAR_BRIDGE: '믿거나 의심하거나, 다리를 건너요',
   DICE_LEDGER: '세 번 굴려 장부 열두 칸을 채워요',
   HALLI_GALLI: '같은 과일이 다섯 개면 누구보다 빨리 종!',
 }
-const choiceOrder: TableGameCode[] = ['OMOK', 'ONE_CARD', 'DICE_LEDGER', 'DICE', 'LIAR_BRIDGE', 'HALLI_GALLI']
+const choiceOrder: TableGameCode[] = ['OMOK', 'ONE_CARD', 'DICE_LEDGER', 'DICE', 'LIAR_BRIDGE', 'ALKKAGI', 'HALLI_GALLI']
 export function GameArt({ code }: { code: TableGameCode }) {
-  return <div className="tablet-game-art" data-game={code} role="img" aria-label={TABLE_GAMES.find(g => g.code === code)?.name} />
+  return <div className="tablet-game-art" data-game={code} style={code === 'ALKKAGI' ? { backgroundImage: `url(${alkkagiThumbnail})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined} role="img" aria-label={TABLE_GAMES.find(g => g.code === code)?.name} />
 }
 export function TabletLobby({ tableId }: { tableId: string }) {
   const own = useSession(s => s.sessionId)
@@ -136,7 +138,7 @@ function TabletSession({ tableId }: { tableId: string }) {
       </header>
       {step === 'select' ? <div className="tablet-selection">
         <div className="tablet-game-list" role="group" aria-label="게임 선택">
-          {choiceOrder.map(gameCode => { const item = TABLE_GAMES.find(g => g.code === gameCode)!; return <button key={gameCode}
+          {choiceOrder.filter(code => TABLE_GAMES.some(g => g.code === code)).map(gameCode => { const item = TABLE_GAMES.find(g => g.code === gameCode)!; return <button key={gameCode}
             className="tablet-game-card" data-selected={code === gameCode} data-construction={!item.playable} aria-pressed={code === gameCode} disabled={!item.playable || !host || busy}
             onClick={() => { setCode(gameCode); setCount(2) }}>
             <GameArt code={gameCode} />{!item.playable && <b className="tablet-construction">공사 중</b>}<span><strong>{item.name}</strong><small>{item.capacity === 2 ? '2인' : '2~4인'}</small></span>
@@ -155,7 +157,7 @@ function TabletSession({ tableId }: { tableId: string }) {
               placeholder="금액" onChange={e => setBet(e.target.value)} /><span>냥</span></span></label>
           {!countSupported && <p className="tablet-contract-note" role="status">{count}인 정원 선택은 서버 연결 준비 중입니다.</p>}
           {count < occupied && <p role="status">현재 앉은 {occupied}명보다 적게 설정할 수 없어요.</p>}
-          <button className="tablet-manual" onClick={() => openManual(GAME_MANUAL[code])}>설명서</button>
+          {code !== 'ALKKAGI' && <button className="tablet-manual" onClick={() => openManual(GAME_MANUAL[code])}>설명서</button>}
           <button className="tablet-primary" disabled={busy || !canConfigure} onClick={() => void command(async () => {
             const choice = { gameCode: code, playerCount: count, betAmountPerPlayer: amount, ...(code === 'DICE' ? { targetScore: target } : {}) }
             const ok = port ? await port.configure(preparationContext(table), choice) : await runtime.selectGame(code, amount, code === 'DICE' ? target : undefined)

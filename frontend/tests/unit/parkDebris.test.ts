@@ -5,6 +5,10 @@ const item:ParkDebris={id:'g:reaction:101',gameId:'g',tableId:'table',anchorId:'
  occurredAt:'2026-10-31T00:00:00Z',throwYaw:0,seed:123,parts:['board',...Array.from({length:12},(_,i)=>'coin-'+i)]}
 const state=(version=1)=>({channelId:'one',mapVersion:'map',version,items:[item]})
 afterEach(resetParkDebris)
+it('does not reinterpret alkkagi as dice debris',()=>{
+ expect(debrisPieces('ALKKAGI')).toEqual([])
+ expect(()=>parseParkDebris({...state(),items:[{...item,gameCode:'ALKKAGI',parts:[...item.parts,'die-0']}]})).toThrow()
+})
 it.each(['OMOK','DICE','ONE_CARD','LIAR_BRIDGE','DICE_LEDGER'] as const)('accepts separate %s pieces and enforces the exact 15-second display boundary',gameCode=>{
  const full={...item,gameCode,parts:[...item.parts,...debrisPieces(gameCode)]}
  expect(parseParkDebris({...state(),items:[full]}).items[0]!.parts).toEqual(full.parts)
@@ -14,7 +18,7 @@ it.each(['OMOK','DICE','ONE_CARD','LIAR_BRIDGE','DICE_LEDGER'] as const)('accept
  expect(debrisVisible(full,at+15_000)).toBe(false)
  expect(()=>parseParkDebris({...state(),items:[{...full,parts:[...full.parts,'card-14']}]})).toThrow()
 })
-it.each(['OMOK','DICE','ONE_CARD','LIAR_BRIDGE','DICE_LEDGER'] as const)('accepts and retains %s debris from the server snapshot',gameCode=>{
+it.each(['OMOK','DICE','ONE_CARD','LIAR_BRIDGE','DICE_LEDGER','ALKKAGI'] as const)('accepts and retains %s debris from the server snapshot',gameCode=>{
  const parsed=parseParkDebris({...state(),items:[{...item,gameCode}]})
  expect(acceptParkDebris(parsed)).toBe(true)
  expect(useParkDebris.getState().items[0]!.gameCode).toBe(gameCode)

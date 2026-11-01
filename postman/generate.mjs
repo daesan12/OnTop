@@ -744,6 +744,13 @@ for (const index of [5,6]) {
     // Saved Message 변수는 문자열 치환이므로 turnCount만 JSON 정수로 둔다.
     wsItems[index].messages.at(-3).content = wsItems[index].messages.at(-3).content.replace('"{{prankTurnCount}}"','{{prankTurnCount}}');
 }
+wsItems.push(wsRequest('알까기 관전자 커서·훈수 — 로컬 공원',
+    '누구나 GAME_WATCH 후 첫 GAME_STATE를 받으면 관전합니다(방장 승인 없음). 같은 채널/20m/미착석 검사 유지. ALKKAGI_SPECTATOR_EVENT는 본인 ACK와 같은 경기 일시 방송. 커서80ms·TTL2초, 훈수600ms·TTL4초. 최신 AIMING/현재 차례 알만. 훈수는 방향 표시이며 실제 발사/물리/차례에 영향 없음. gameId/gameVersion/pieceId를 실제 상태로 바꾸세요. 신규 UUID는 새 표시, 같은 요청 재확인은 같은 UUID입니다. docs/websocket-api/11-alkkagi-spectator-events.md. 로컬 구현이며 개발 서버 배포와 웹 저장은 별도입니다.', [
+    message('알까기 커서 → ALKKAGI_SPECTATOR_EVENT','ALKKAGI_SPECTATOR_SEND',
+      {gameId:'{{gameId}}',eventId:'{{$guid}}',basedOnVersion:'{{gameVersion}}',kind:'CURSOR',x:0,y:0}),
+    message('알까기 훈수 → ALKKAGI_SPECTATOR_EVENT','ALKKAGI_SPECTATOR_SEND',
+      {gameId:'{{gameId}}',eventId:'{{$guid}}',basedOnVersion:'{{gameVersion}}',kind:'ADVICE',pieceId:'p0',dx:0.8,dy:-0.6,power:0.8})
+]));
 const wsV3 = { name: 'OnTop WebSocket', $kind: 'collection', description: wsGuide + appearanceGuide + publicProfileGuide + seatGuide
         + facilityGuide + followGuide + mapGuide + tabletGuide + reactionGuide + prankGuide,
     items: wsItems };
