@@ -12,7 +12,7 @@ HISTORY-01 / HISTORY-02. Notion REST 명세의 기존 경로·응답 필드를 �
 | --- | --- |
 | cursor | 선택, 양수 BIGINT의 문자열. 생략 시 첫 페이지 |
 | size | 선택, 정수 1~100, 기본 20 |
-| gameCode | 선택, OMOK / DICE / ONE_CARD / LIAR_BRIDGE |
+| gameCode | 선택, OMOK / DICE / ONE_CARD / LIAR_BRIDGE / DICE_LEDGER / HALLI_GALLI |
 
 ```json
 {

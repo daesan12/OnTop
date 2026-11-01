@@ -79,8 +79,8 @@ START는 같은 READ_COMMITTED 트랜잭션에서 기존 요청 키 조회 → �
 
 ## DB
 
-`db/minigame/V136__create_rps_roulette_rounds.sql`. V135(할리갈리)가 dev에 병합·적용된 뒤 병합한다.
-Flyway `outOfOrder`가 꺼져 있어 V136이 먼저 적용된 DB에는 V135를 적용할 수 없다.
+`db/minigame/V136__create_rps_roulette_rounds.sql`. 직전 번호 V135(`db/migration`, 할리갈리)는 2026-11-01 dev에
+병합됐다(`292ccd3e`). Flyway `outOfOrder`가 꺼져 있으므로 V136은 V135가 적용된 DB에 순서대로 더해진다.
 MySQL 검증은 매번 만든 loopback 전용 `ontop_rps_test_` DB에서만 실행하고 개발용 로컬 DB에는 적용하지 않는다.
 
 ## 범위 밖

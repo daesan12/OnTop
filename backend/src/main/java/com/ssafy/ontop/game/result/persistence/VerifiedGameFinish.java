@@ -21,7 +21,9 @@ final class VerifiedGameFinish {
             "ONE_CARD", Set.of("EMPTY_HAND", "STALEMATE", "PLAYER_LEFT"),
             "LIAR_BRIDGE", Set.of("THREE_GOALS", "LAST_PLAYER_STANDING", "GOAL_SLOTS_EXHAUSTED",
                     "NO_RUNNABLE_PAWNS", "ABORTED_NO_PLAYERS"),
-            "DICE_LEDGER", Set.of("ALL_CATEGORIES_FILLED", "LAST_PLAYER_STANDING"));
+            "DICE_LEDGER", Set.of("ALL_CATEGORIES_FILLED", "LAST_PLAYER_STANDING"),
+            // CARD_COUNT·NO_CARDS_TO_FLIP은 카드 수 공동 1위를 모두 승자로 둔다. 기권 종료도 LAST_PLAYER_STANDING이다.
+            "HALLI_GALLI", Set.of("CARD_COUNT", "LAST_PLAYER_STANDING", "NO_CARDS_TO_FLIP"));
 
     private VerifiedGameFinish() { }
 

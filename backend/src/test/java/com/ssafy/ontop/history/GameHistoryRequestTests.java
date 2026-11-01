@@ -19,6 +19,13 @@ class GameHistoryRequestTests {
     }
 
     @ParameterizedTest
+    @ValueSource(strings = {"OMOK", "DICE", "ONE_CARD", "LIAR_BRIDGE", "DICE_LEDGER", "HALLI_GALLI"})
+    void 기록이_저장되는_모든_게임을_필터로_허용한다(String gameCode) {
+        assertThat(GameHistoryPageRequest.parse(null, null, gameCode))
+                .isEqualTo(new GameHistoryPageRequest(null, 20, gameCode));
+    }
+
+    @ParameterizedTest
     @ValueSource(strings = {"", "0", "-1", " 1", "1.0", "1e2", "+1", "9223372036854775808", "bad"})
     void 잘못된_커서를_명시적으로_거절한다(String cursor) {
         assertThatThrownBy(() -> GameHistoryPageRequest.parse(cursor, null, null))
@@ -35,7 +42,7 @@ class GameHistoryRequestTests {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"", "omok", "FARKLE", "BRIDGE", "BUNGEOPPANG", "DICE' OR 1=1"})
+    @ValueSource(strings = {"", "omok", "FARKLE", "BRIDGE", "BUNGEOPPANG", "halli_galli", "HALLIGALLI", "DICE' OR 1=1"})
     void 지원하지_않는_게임_코드를_거절한다(String gameCode) {
         assertThatThrownBy(() -> GameHistoryPageRequest.parse(null, null, gameCode))
                 .isInstanceOfSatisfying(GameHistoryException.class,

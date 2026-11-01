@@ -28,6 +28,7 @@ describe('approved history API contract', () => {
     const first = parseHistory(page({ nextCursor: '9007199254740993', hasNext: true }))
     expect(historyPath()).toBe('/api/v1/users/me/games?size=20')
     expect(historyPath('OMOK', first.nextCursor!)).toBe('/api/v1/users/me/games?size=20&cursor=9007199254740993&gameCode=OMOK')
+    expect(historyPath('HALLI_GALLI')).toBe('/api/v1/users/me/games?size=20&gameCode=HALLI_GALLI')
     const second = parseHistory(page({ items: [item('9007199254740992')] }), 'OMOK', first.nextCursor!)
     expect(appendHistory(first, second)).toMatchObject({ items: [item(), item('9007199254740992')], nextCursor: null, hasNext: false })
   })

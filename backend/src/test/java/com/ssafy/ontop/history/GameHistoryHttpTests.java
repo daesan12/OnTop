@@ -72,6 +72,12 @@ class GameHistoryHttpTests {
     }
 
     @Test
+    void 할리갈리_필터는_같은_요청_형식으로_저장소에_전달한다() throws Exception {
+        assertThat(send("GET", "/games?size=20&gameCode=HALLI_GALLI", token()).statusCode()).isEqualTo(200);
+        verify(repository).findHistory(42, new GameHistoryPageRequest(null, 20, "HALLI_GALLI"));
+    }
+
+    @Test
     void 미인증과_위조와_비활성_회원은_조회하지_못한다() throws Exception {
         for (String path : List.of("/games", "/game-stats")) {
             assertThat(send("GET", path, null).statusCode()).isEqualTo(401);
