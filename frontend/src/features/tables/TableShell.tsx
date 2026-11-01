@@ -16,6 +16,7 @@ import { FarkleTable } from '../../game/farkle/FarkleTable'
 import { OneCardBoard } from '../../game/onecard/OneCardBoard'
 import { BridgeBoard } from '../../game/bridge/BridgeBoard'
 import { LedgerTable } from '../../game/ledger/LedgerTable'
+import { HalliBoard } from '../../game/halligalli/HalliBoard'
 import { usePresentedChairCount } from '../tableLobby/useTablePresentation'
 import {DebrisGameSurface} from '../parkDebris/presentation'
 
@@ -117,6 +118,7 @@ export function TableShell({ anchor, onInspect = interactWithTable }: {
         <OneCardBoard anchor={anchor} />
         <BridgeBoard anchor={anchor} />
         <LedgerTable anchor={anchor} />
+        <HalliBoard anchor={anchor} />
         </Suspense>
       </DebrisGameSurface>
     </group>

@@ -4,6 +4,7 @@ import com.ssafy.ontop.game.alkkagi.service.AlkkagiEngine;
 import com.ssafy.ontop.config.RuntimeProfiles;
 import com.ssafy.ontop.game.bridge.service.BridgeEngine;
 import com.ssafy.ontop.game.farkle.service.FarkleEngine;
+import com.ssafy.ontop.game.halligalli.service.HalliGalliEngine;
 import com.ssafy.ontop.game.ledger.service.DiceLedgerEngine;
 import com.ssafy.ontop.game.omok.service.OmokEngine;
 import com.ssafy.ontop.game.onecard.service.OneCardEngine;
@@ -27,6 +28,7 @@ public class CommittedGameStartService {
     private final Optional<BridgeEngine> bridge;
     private final Optional<FarkleEngine> dice;
     private final Optional<DiceLedgerEngine> ledger;
+    private final Optional<HalliGalliEngine> halligalli;
     private final Optional<GameActivationPersistenceService> activations;
     private final AlkkagiEngine alkkagi;
 
@@ -55,10 +57,18 @@ public class CommittedGameStartService {
         this(gateway, omok, onecard, bridge, dice, ledger, activations, Optional.empty(), authenticated, rehearsal);
     }
 
-    @Autowired
     public CommittedGameStartService(GameStartGateway gateway, Optional<OmokEngine> omok,
             Optional<OneCardEngine> onecard, Optional<BridgeEngine> bridge,
             Optional<FarkleEngine> dice, Optional<DiceLedgerEngine> ledger,
+            Optional<GameActivationPersistenceService> activations, Optional<AlkkagiEngine> alkkagi,
+            boolean authenticated, boolean rehearsal) {
+        this(gateway, omok, onecard, bridge, dice, ledger, Optional.empty(), activations, alkkagi, authenticated, rehearsal);
+    }
+
+    @Autowired
+    public CommittedGameStartService(GameStartGateway gateway, Optional<OmokEngine> omok,
+            Optional<OneCardEngine> onecard, Optional<BridgeEngine> bridge,
+            Optional<FarkleEngine> dice, Optional<DiceLedgerEngine> ledger, Optional<HalliGalliEngine> halligalli,
             Optional<GameActivationPersistenceService> activations, Optional<AlkkagiEngine> alkkagi,
             @Value("${ontop.websocket.authenticated:false}") boolean authenticated,
             @Value("${ontop.start-rehearsal.enabled:false}") boolean rehearsal) {
@@ -74,6 +84,7 @@ public class CommittedGameStartService {
         this.bridge = bridge;
         this.dice = dice;
         this.ledger = ledger;
+        this.halligalli = halligalli;
         this.activations = activations;
         this.alkkagi = alkkagi.orElse(null);
     }
@@ -101,6 +112,7 @@ public class CommittedGameStartService {
                 case "LIAR_BRIDGE" -> bridge.isPresent();
                 case "DICE" -> dice.isPresent() && players.size() == 2 && command.targetScore() != null;
                 case "DICE_LEDGER" -> ledger.isPresent();
+                case "HALLI_GALLI" -> halligalli.isPresent();
                 default -> false;
             };
         } catch (IllegalArgumentException exception) {
@@ -124,6 +136,7 @@ public class CommittedGameStartService {
                 case "DICE" -> dice.orElseThrow().create(result.gameSessionId(), command.tableId(), players,
                         command.targetScore());
                 case "DICE_LEDGER" -> ledger.orElseThrow().create(result.gameSessionId(), command.tableId(), players);
+                case "HALLI_GALLI" -> halligalli.orElseThrow().create(result.gameSessionId(), command.tableId(), players);
                 default -> throw new IllegalStateException("경기 실행 설정을 확인해주세요.");
             }
             activations.ifPresent(service -> service.started(command, result.gameSessionId()));

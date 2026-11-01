@@ -104,6 +104,7 @@ describe('M14 authenticated REST and movement ownership boundary', () => {
     expect(fetch).not.toHaveBeenCalled()
   })
   it.each(['/api/v1/users/me/games?size=20', '/api/v1/users/me/games?size=20&cursor=9007199254740993&gameCode=OMOK',
+    '/api/v1/users/me/games?size=20&gameCode=DICE_LEDGER', '/api/v1/users/me/games?size=20&cursor=9007199254740993&gameCode=HALLI_GALLI',
     '/api/v1/users/me/game-stats', '/api/v1/minigames/jumpmap/rankings'])('sends history GET %s with the existing Bearer authentication', async path => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ items: [] }))
     await runtime.requestJSON(path, { method: 'GET', cache: 'no-store' })
@@ -115,6 +116,7 @@ describe('M14 authenticated REST and movement ownership boundary', () => {
     ['/api/v1/users/me/games?size=20', 'POST'], ['/api/v1/users/me/game-stats', 'DELETE'],
     ['/api/v1/users/102/games?size=20', 'GET'], ['/api/v1/users/me/games?size=20&userId=102', 'GET'],
     ['/api/v1/users/me/games?size=20&cursor=-1', 'GET'], ['/api/v1/users/me/games?size=20&gameCode=FARKLE', 'GET'],
+    ['/api/v1/users/me/games?size=20&gameCode=halli_galli', 'GET'], ['/api/v1/users/me/games?size=20&gameCode=HALLI_GALLI&gameCode=OMOK', 'GET'],
   ])('blocks undocumented history request %s %s', async (path, method) => {
     vi.mocked(fetch).mockClear()
     await expect(runtime.requestJSON(path, { method })).rejects.toThrow('사용할 수 없는 요청')

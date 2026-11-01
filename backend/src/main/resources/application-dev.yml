@@ -18,6 +18,10 @@ ontop:
       enabled: ${GAME_BRIDGE_ENABLED:false}
     ledger:
       enabled: ${GAME_LEDGER_ENABLED:false}
+    # 개발 서버는 할리갈리 QA를 위해 기본으로 켠다. 서버 app.env에 명시한 값이 있으면 그 값이 우선한다.
+    halligalli:
+      enabled: ${GAME_HALLIGALLI_ENABLED:true}
+      result-pause-ms: ${GAME_HALLIGALLI_RESULT_PAUSE_MS:1000}
   notes:
     enabled: ${NOTES_ENABLED:false}
     privacy-secret: ${NOTES_PRIVACY_SECRET:}

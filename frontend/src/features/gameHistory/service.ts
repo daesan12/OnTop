@@ -1,7 +1,7 @@
 import type { ParkRuntimePort } from '../../park/runtime/contracts'
 import { RestError } from '../../network/restError'
 
-export const RECORD_GAMES = { OMOK: '오목', DICE: '주사위 한 판', ONE_CARD: '원카드', LIAR_BRIDGE: '거짓말 다리 건너기', DICE_LEDGER: '주사위 장부' } as const
+export const RECORD_GAMES = { OMOK: '오목', DICE: '주사위 한 판', ONE_CARD: '원카드', LIAR_BRIDGE: '거짓말 다리 건너기', DICE_LEDGER: '주사위 장부', HALLI_GALLI: '할리갈리' } as const
 export type RecordGame = keyof typeof RECORD_GAMES
 export type RecordFilter = RecordGame | 'ALL'
 export type GameResult = 'WIN' | 'LOSE' | 'FORFEIT' | 'DRAW'
@@ -45,7 +45,8 @@ export function parseHistory(value: unknown, filter: RecordFilter = 'ALL', curso
 }
 
 export function parseStats(value: unknown): GameStat[] {
-  if (!record(value) || !Array.isArray(value.items) || value.items.length > 4) return invalid()
+  // One row per known game at most. A fixed 4 already rejected users with five games (DICE_LEDGER).
+  if (!record(value) || !Array.isArray(value.items) || value.items.length > Object.keys(RECORD_GAMES).length) return invalid()
   const seen = new Set<RecordGame>()
   return value.items.map((item): GameStat => {
     if (!record(item) || !game(item.gameCode) || seen.has(item.gameCode)

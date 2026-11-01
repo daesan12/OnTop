@@ -56,7 +56,7 @@ test('M15 original scroll, search, categories, rulebook images/zoom/downloads an
   await fixture(page,{omok:true,players:8}); await loaded(page)
   expect(images).toEqual([])
   await page.getByRole('button',{name:'게임 설명서 F1',exact:true}).click(); await opened(page)
-  await expect(manual(page).getByRole('button',{name:/설명 읽기$/})).toHaveCount(6)
+  await expect(manual(page).getByRole('button',{name:/설명 읽기$/})).toHaveCount(7)
   await screenshot(page,'m15-catalog')
   await manual(page).getByRole('button',{name:'미니게임',exact:true}).click()
   await expect(manual(page).getByRole('button',{name:/설명 읽기$/})).toHaveCount(1)
