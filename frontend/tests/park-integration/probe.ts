@@ -58,6 +58,12 @@ export function omokPlayProbe(x=7,y=7){
   point:{x:rect.left+(point.x+1)*rect.width/2,y:rect.top+(1-point.y)*rect.height/2}}
 }
 export function sceneReady(){return !!_roots.get(document.querySelector('canvas')!)?.store.getState().scene.getObjectByName('park-service-map')}
+export function parkVisible(){
+ const park=_roots.get(document.querySelector('canvas')!)?.store.getState().scene.getObjectByName('park-service-map')
+ if(!park)return false
+ for(let node:import('three').Object3D|null=park;node;node=node.parent)if(!node.visible)return false
+ return true
+}
 export function fishShopMenuProbe(){
  const {scene}=_roots.get(document.querySelector('canvas')!)!.store.getState()
  const menu=scene.getObjectByName('fish-bread-shop-menu')!.children[0]!

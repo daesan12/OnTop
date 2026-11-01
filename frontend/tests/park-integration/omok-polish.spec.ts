@@ -93,22 +93,47 @@ for (const own of ['101', '102'] as const) test(`${own} 좌석의 흑돌·두 �
   await screenshot(page, `omok-origin-${own}`)
 })
 
-test('대기 중 관전 입력은 없고 진행 경기만 팝업 없이 관전한 뒤 종료 즉시 복귀한다', async ({ page }) => {
-  const server = await fixture(page, { generatedPark: true, omok: true, publicSpectator: true, ownUserId: '505' })
-  let active = false
+test('실시간 만석은 관전으로 바뀌고 취소한 대기는 시작하지 않으며 재신청하면 자동 관전한다', async ({ page }) => {
+  const server = await fixture(page, { generatedPark: true, omok: true, publicSpectator: true, ownUserId: '505', manualMovement: true,
+    worldTables: [{ tableId, anchorId: 'table-1', chairCount: 2 }] })
   await page.route('**/api/v1/tables?**', route => route.fulfill({ json: { tables: [{ tableId, capacity: 2,
-    minimumPlayers: 2, occupiedSeats: 2, availableSeats: 0, readyCount: 2, allReady: true,
-    status: active ? 'PLAYING' : 'WAITING', joinable: false, gameCode: 'OMOK', targetScore: null,
-    betAmountPerPlayer: 1, gameId: active ? 'fixture-game' : null }] } }))
+    minimumPlayers: 2, occupiedSeats: 0, availableSeats: 2, readyCount: 0, allReady: false,
+    status: 'WAITING', joinable: true, gameCode: 'OMOK', targetScore: null,
+    betAmountPerPlayer: 1, gameId: null }] } }))
   await load(page)
-  await expect(page.getByRole('button', { name: /E 테이블/ })).toHaveCount(0)
-  await page.locator('canvas').focus(); await page.keyboard.press('e')
-  expect(server.sent.filter(m => ['TABLE_JOIN', 'TABLE_WATCH', 'GAME_WATCH'].includes(m.type))).toHaveLength(0)
-  active = true; await page.reload()
-  await expect(page.getByRole('button', { name: 'E 테이블 경기 보기', exact: true })).toBeVisible({ timeout: 90000 })
-  await page.getByRole('button', { name: 'E 테이블 경기 보기', exact: true }).click()
+  await screenshot(page, 'live-table-before-seats')
+  await expect(page.getByRole('button', { name: 'E 테이블에 앉기', exact: true })).toBeVisible()
+  server.tableSeat('101', { tableId, seatNumber: 1 })
+  await expect(page.getByRole('button', { name: 'E 테이블에 앉기', exact: true })).toBeVisible()
+  server.tableSeat('102', { tableId, seatNumber: 2 })
+  await expect(page.getByRole('button', { name: 'E 관전하기', exact: true })).toBeVisible()
+  server.publicMatch(null)
+  await page.getByRole('button', { name: 'E 관전하기', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'E 관전 대기 취소', exact: true })).toBeVisible()
+  await expect(page.getByText(/관전 대기 중 · 게임이 시작되면/)).toBeVisible()
+  expect(server.sent.filter(m => m.type === 'GAME_WATCH')).toHaveLength(0)
+  let lastCamera: number[] | null = null
+  await expect.poll(async () => {
+    const p: number[] = await page.evaluate(async () => (await import('/tests/park-integration/probe.ts' as string)).cameraPosition())
+    const delta = lastCamera ? Math.hypot(...p.map((v, i) => v - lastCamera![i]!)) : Infinity
+    lastCamera = p; return delta
+  }).toBeLessThan(.005)
+  await screenshot(page, 'live-table-watch-waiting')
+  expect(await page.evaluate(async () => (await import('/tests/park-integration/probe.ts' as string)).parkVisible())).toBe(true)
+  await page.locator('canvas').focus(); await page.keyboard.press('Escape')
+  await expect(page.getByRole('button', { name: 'E 관전하기', exact: true })).toBeVisible()
+  server.publicMatch('cancelled-watch-game')
+  await page.waitForTimeout(200)
+  expect(server.sent.filter(m => m.type === 'GAME_WATCH')).toHaveLength(0)
+  server.publicMatch(null)
+  await page.getByRole('button', { name: 'E 관전하기', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'E 관전 대기 취소', exact: true })).toBeVisible()
+  server.publicMatch('first-approved-game')
   await expect(page.getByLabel('오목 관전 경기 정보', { exact: true })).toBeVisible()
   await expect(page.getByRole('dialog', { name: '테이블 정보', exact: true })).toHaveCount(0)
+  expect(server.sent.filter(m => m.type === 'TABLE_JOIN')).toHaveLength(0)
+  await expect.poll(() => page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).omokCameraProbe().ready)).toBe(true)
+  await screenshot(page, 'live-table-watch-started')
   server.finishGame()
   await expect(page.getByLabel('오목 관전 경기 정보', { exact: true })).toHaveCount(0)
   await expect.poll(() => server.sent.filter(m => m.type === 'GAME_UNWATCH').length).toBe(1)
@@ -117,17 +142,41 @@ test('대기 중 관전 입력은 없고 진행 경기만 팝업 없이 관전�
   await page.waitForTimeout(250)
   expect(server.sent.filter(m => m.type === 'GAME_WATCH')).toHaveLength(1)
   await expect(page.getByRole('dialog', { name: '테이블 정보', exact: true })).toHaveCount(0)
+  server.tableSeat('101', null); server.tableSeat('102', null)
+  await expect(page.getByRole('button', { name: 'E 테이블에 앉기', exact: true })).toBeVisible()
 })
 
 test('원카드 관전도 초록 팝업을 열지 않고 공개 경기 종료와 함께 복귀한다', async ({ page }) => {
   const server = await fixture(page, { generatedPark: true, onecard: 2, publicSpectator: true, ownUserId: '505' })
   await load(page)
-  await page.getByRole('button', { name: 'E 테이블 경기 보기', exact: true }).click()
+  await page.getByRole('button', { name: 'E 관전하기', exact: true }).click()
   await expect.poll(() => page.evaluate(async () => (await import('/src/game/store.ts' as string)).useGame.getState().game?.role)).toBe('SPECTATOR')
   await expect(page.getByRole('dialog', { name: '테이블 정보', exact: true })).toHaveCount(0)
   server.publicMatch(null)
   await expect.poll(() => page.evaluate(async () => (await import('/src/game/store.ts' as string)).useGame.getState().game)).toBeNull()
   await expect.poll(() => server.sent.filter(m => m.type === 'GAME_UNWATCH').length).toBe(1)
+  await expect(page.getByRole('dialog', { name: '테이블 정보', exact: true })).toHaveCount(0)
+})
+
+test('관전 대기는 E로 신청하고 버튼이나 테이블에서 벗어나기로 취소한다', async ({ page }) => {
+  const server = await fixture(page, { generatedPark: true, omok: true, publicSpectator: true, ownUserId: '505',
+    worldTables: [{ tableId, anchorId: 'table-1', chairCount: 2 }] })
+  await load(page)
+  server.tableSeat('101', { tableId, seatNumber: 1 }); server.tableSeat('102', { tableId, seatNumber: 2 })
+  server.publicMatch(null)
+  await expect(page.getByRole('button', { name: 'E 관전하기', exact: true })).toBeVisible()
+  await page.locator('canvas').focus(); await page.keyboard.press('e')
+  const cancel = page.getByRole('button', { name: 'E 관전 대기 취소', exact: true })
+  await expect(cancel).toBeVisible(); await cancel.click()
+  await expect(page.getByRole('button', { name: 'E 관전하기', exact: true })).toBeVisible()
+  await page.locator('canvas').focus(); await page.keyboard.press('e')
+  await expect(cancel).toBeVisible()
+  server.pose({ x: 100, z: 100 })
+  await expect.poll(() => page.evaluate(async () => (await import('/src/network/worldClient.ts' as string)).useSession.getState().watchedTableId)).toBe('')
+  server.publicMatch('far-away-game')
+  await page.waitForTimeout(200)
+  expect(server.sent.filter(m => m.type === 'GAME_WATCH')).toHaveLength(0)
+  expect(server.sent.filter(m => m.type === 'TABLE_JOIN')).toHaveLength(0)
   await expect(page.getByRole('dialog', { name: '테이블 정보', exact: true })).toHaveCount(0)
 })
 
@@ -157,4 +206,18 @@ test('팔각정 관전 종료는 벤치 시점으로 돌아오며 다음 경기�
   })
   expect(session).toEqual({ bench: benchId, table: '' })
   await expect(page.getByRole('dialog', { name: '테이블 정보', exact: true })).toHaveCount(0)
+})
+
+test('관전 대기 중 재접속해도 이전 신청이 다음 경기를 자동 관전하지 않는다', async ({ page }) => {
+  const server = await fixture(page, { generatedPark: true, omok: true, publicSpectator: true, ownUserId: '505' })
+  await load(page); server.publicMatch(null)
+  await page.getByRole('button', { name: 'E 관전하기', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'E 관전 대기 취소', exact: true })).toBeVisible()
+  server.close(1006)
+  await expect.poll(() => server.connections, { timeout: 20000 }).toBeGreaterThan(1)
+  await expect.poll(() => page.evaluate(async () => (await import('/src/network/worldClient.ts' as string)).useSession.getState().status)).toBe('connected')
+  expect(await page.evaluate(async () => (await import('/src/features/tableLobby/state.ts' as string)).useTableLobby.getState().spectatorRequested)).toBe(false)
+  server.publicMatch('after-reconnect-game')
+  await page.waitForTimeout(200)
+  expect(server.sent.filter(m => m.type === 'GAME_WATCH')).toHaveLength(0)
 })

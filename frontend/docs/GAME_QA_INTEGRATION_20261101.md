@@ -60,3 +60,17 @@ Browser plugin not available로 기존 Edge/Playwright를 사용했다. UI 검�
 독립 오목 단위 48개 및 Edge 3개 통과 후, 통합 위치의 playwright.omok-polish.config.ts(5245) 16개와 playwright.park.config.ts park-feedback-v2.spec.ts --grep 'retained room'(5202) 1개가 모두 통과했다. 실제 좌상단 클릭의 x=0,y=0 요청/마지막 수, 관전 A1 핑의 위치·착수 미전송, 양쪽 흑/백 돌통, 반응형 HUD·중앙 기권, 경기 종료 복귀/팔각정 재관전, 원카드 분배·기권 카드·15초 제거 및 장부 회귀를 포함한다. 타입·프로덕션 빌드·경계·맵/코스 전달물·dev 충돌 검사 통과. 최신 맵 c05d8ada, 코스 e6cd40d0 유지.
 
 Browser plugin not available로 기존 Edge/Playwright를 사용했다. HTTP/WS는 계약 대역으로 실제 운영 사용자 경기/정산과 구분한다. 기존 Three/셰이더·번들 경고 외 pageerror/console.error/오류 오버레이 없음. 캡처는 저장소 외부에 보관한다. 한국어 커밋/MR/머지 후 Jenkins DEV 성공을 확인한 다음 이번 작업 브랜치만 삭제한다.
+
+## 실시간 만석 관전 대기·건조한 오목 타격음 통합
+
+기준 origin/dev@36adfa1e을 작업 전·통합 직전 fetch로 확인했다. 오목 전용 OnTop/qa-omok-polish-20261101에서 e16a567c(타격음)·c9f150bc(판 로딩 격리)를 독립 검증하고 OnTop/game-visual-feedback의 fix/live-table-watch-tap-20261101에 통합했다. 초기 HTTP joinable에만 의존해 실시간 착석 뒤에도 앉기 안내가 남는 원인을 확인했다. 공통 tableEntry는 최신 WORLD_STATE의 승인 좌석/의자 수와 게임 중 활동을 우선하며 이전 서버에서는 TABLE_STATE/HTTP를 사용한다. 표시와 E/3D 클릭 모두 같은 선택 기준을 사용한다. 2~4인 만석은 관전하기, 빈자리는 테이블에 앉기로 전환한다. 서버의 참가·관전 승인을 대체하지 않는다.
+
+사용자가 선택한 시작 전 관전 대기: TABLE_WATCH 승인 후 경기 ID가 없으면 공원에서 대기 안내/취소를 표시한다. 공개 경기 ID가 오면 기존 GAME_WATCH 승인 경로로 한 번 진입한다. 취소 버튼·E·Esc, 거리 이탈, 채널/사용자/연결 변경은 대기를 해제한다. 종료와 함께 복귀하고 다음 경기를 자동으로 따라가지 않는다. 초록 테이블 팝업은 표시하지 않는다. 실제 운영 대기는 재접속 후 자동 복원하지 않는다.
+
+착수음은 공명 꼬리가 없는 65ms stone-tap.wav로 교체하고 캐시를 구분한다. 승인 착수와 동시에 상대에게 겹치던 내 차례 전자음을 제거한다. 초기 시작/다른 게임의 차례 알림과 효과음 버스/음량/음소거/승인·중복 방지 규칙은 유지한다. 판 재질의 첫 로딩이 상위 Suspense로 공원 전체를 숨기는 현상도 확인해 OmokBoard 내부 로딩 경계로 제한했다. 캡처 전후 공원 루트 가시성과 자동 진입 후 카메라 준비를 확인했다.
+
+공통 변경: features/tableLobby/{tableEntry,tableInteraction,state}, interactions/{parkInteraction,ParkInteractionHint}, park/runtime/SpringParkRuntime의 관전 대기 연결, audio/{bgm,sfxEvents}. 게임 변경은 오목 음원/생성 스크립트/출처와 OmokBoard의 로딩 경계다. 요청/응답·privateState·게임 규칙·기권/지갑/정산·BE·DB/Flyway/V133·공통 카메라·맵/코스 변경 없음. 맵 c05d8ada, 코스 e6cd40d0 유지.
+
+독립 음향·표시 단위 12개와 실제 착수 Edge 시나리오(5245), 로딩 경계 독립 Edge(5239) 통과. 통합 관련 단위 59개, 최종 playwright.omok-polish.config.ts(5245) 18개 모두 통과. 별도 playwright.game-visual-feedback.config.ts --grep 'full waiting table'(5235) 1개도 통과했다. 오래된 HTTP 빈자리와 실시간 만석, 2/3/4인 선택, 취소 후 시작 무시·재신청 자동 관전·대기 거리 이탈/재접속, 종료 후 다음 경기 미진입, A1 착수/핑·흑백 돌통·반응형 UI, 오목·장부 기권/15초 정리, 원카드 분배/기권 카드 및 돌 테이블/팔각정을 포함한다. 소스/테스트 타입·최신 맵/코스·경계·프로덕션 빌드·dev 충돌 검사 통과.
+
+Browser plugin not available로 기존 Edge/Playwright를 사용했다. HTTP/WS·이동/시간 일부는 계약 대역으로 운영 사용자 경기/정산 및 장치별 음향 청감 검증과 구분한다. 기존 Three/셰이더·번들 경고 외 pageerror/console.error/오류 오버레이 없음. 캡처/음원 검증 자료는 저장소 외부 또는 기존 오목 음원 경로에 보관한다. 한국어 커밋/MR/머지 후 Jenkins DEV 성공을 확인하고 이번 작업 브랜치만 삭제한다.

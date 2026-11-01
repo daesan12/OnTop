@@ -9,7 +9,7 @@ test('새 오목판과 돌을 표시하고 코인이 튀어 오른 뒤 승인 �
     AudioContext.prototype.createBufferSource = function() {
       const source = create.call(this), start = source.start.bind(source)
       source.start = (...args: Parameters<AudioBufferSourceNode['start']>) => {
-        if (source.buffer && Math.abs(source.buffer.duration - .14) < .0001) (window as unknown as { omokHits: number }).omokHits++
+        if (source.buffer && Math.abs(source.buffer.duration - .065) < .0001) (window as unknown as { omokHits: number }).omokHits++
         return start(...args)
       }
       return source
@@ -17,7 +17,7 @@ test('새 오목판과 돌을 표시하고 코인이 튀어 오른 뒤 승인 �
   })
   page.on('pageerror', e => errors.push(e.message))
   page.on('console', m => { if (m.type() === 'error') errors.push(m.text()) })
-  page.on('request', r => { if (r.url().endsWith('/audio/omok/stone-place.wav')) sounds.push(r.url()) })
+  page.on('request', r => { if (r.url().endsWith('/audio/omok/stone-tap.wav')) sounds.push(r.url()) })
   const server = await fixture(page, { generatedPark: true, omok: true, manualLobby: true, tabletServer: true })
   await page.goto('/park')
   await expect(page).toHaveTitle('OnTop')
