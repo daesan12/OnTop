@@ -112,6 +112,35 @@ class PreparedParkMovementTests {
         }
     }
 
+    @Test
+    void 전망대_메모함의_앞뒤는_막히고_옆으로는_지나갈_수_있다() {
+        JsonNode body = java.util.stream.StreamSupport.stream(data.path("boxes").spliterator(), false)
+                .filter(box -> box.path("id").asText().equals("tower-notes-board"))
+                .findFirst().orElseThrow();
+        double x = body.path("center").get(0).doubleValue();
+        double z = body.path("center").get(2).doubleValue();
+        double halfDepth = body.path("half").get(2).doubleValue();
+        double standing = data.path("tower").path("topY").doubleValue() + 0.84;
+        try (var physics = actor()) {
+            for (int side : new int[]{1, -1}) {
+                physics.place("a", x, standing, z + side * 1.9);
+                drive(physics, 15, 0, 0, false, false);
+                drive(physics, 60, 0, -side, true, false);
+                var position = physics.snapshot("a");
+                assertThat(side * (position.z() - z)).as("메모함 %s쪽 충돌: %s", side, position)
+                        .isGreaterThan(halfDepth);
+                assertThat(position.y()).isBetween(standing - 0.15, standing + 0.1);
+            }
+            double beside = x + body.path("half").get(0).doubleValue() + 0.6;
+            physics.place("a", beside, standing, z + 1.9);
+            drive(physics, 15, 0, 0, false, false);
+            drive(physics, 40, 0, -1, false, false);
+            assertThat(physics.snapshot("a").z()).as("메모함 옆 통로: %s", physics.snapshot("a"))
+                    .isLessThan(z);
+            assertThat(physics.snapshot("a").y()).isBetween(standing - 0.15, standing + 0.1);
+        }
+    }
+
     private WorldPhysics actor() {
         tick = 0;
         var physics = new WorldPhysics(scene);

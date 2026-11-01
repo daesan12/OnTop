@@ -1,4 +1,5 @@
 import { SIMPLE_MAP } from '../world/art/mapRenderProfile'
+import { GENERATED_NOTES_BOARD_SETBACK } from '../config/notes'
 import { simpleEnvironmentPalette } from '../world/simpleEnvironmentPalette'
 import { existingTreeModel } from './existingTreeModel'
 import { FacetedParkTreeInstances } from '../world/art/FacetedParkTreeInstances'
@@ -122,7 +123,7 @@ export const PreviewWorld=memo(function PreviewWorld({live=false,onRankingBoardI
     <FacetedParkTreeInstances parts={fitnessTreeParts} name="layout-fitness-original-tree" treeCount={1}/>
     <mesh name="layout-original-fountain-terrain" geometry={fountainTerrain} dispose={null} receiveShadow><WalkwayMaterial color="#c4bfb1"/></mesh>
     <group name="layout-enlarged-fountain" position={[SITES.fountain.x,0,SITES.fountain.z]} scale={[DRAFT_FOUNTAIN.scale,1,DRAFT_FOUNTAIN.scale]}><group position={[-ORIGINAL_SITES.fountain.x,0,-ORIGINAL_SITES.fountain.z]}><ParkFountain quality="high" jetHeightScale={DRAFT_FOUNTAIN.jetHeightScale}/></group></group>
-    <group position={[SITES.tower.x-ORIGINAL_SITES.tower.x,0,SITES.tower.z-ORIGINAL_SITES.tower.z]}><ObservationTower/></group>
+    <group position={[SITES.tower.x-ORIGINAL_SITES.tower.x,0,SITES.tower.z-ORIGINAL_SITES.tower.z]}><ObservationTower notesSetback={GENERATED_NOTES_BOARD_SETBACK}/></group>
     {DRAFT_TOWER_BENCHES.map(b=><ReferenceBench key={b.id} name={b.id} position={[b.x,b.y,b.z]} yaw={b.yaw}/>)}
     <group name="lake-district"><Water position={[SITES.lake.x,SITES.lake.surfaceY,SITES.lake.z]} radius={[SITES.lake.rx,SITES.lake.rz]}/>
       <mesh name="layout-lake-bed" geometry={lakeBed} dispose={null} receiveShadow><SurfaceMaterial kind="stone" mapping="box" color="#7b8b6d" side={DoubleSide}/></mesh>

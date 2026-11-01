@@ -88,7 +88,7 @@ describe('park server physics and interaction contract',()=>{
   })
   it('exports the anonymous notes reach origin on the new tower separately from the sound mailbox',()=>{
     const notes=PARK_DATA.interactions.notes
-    expect(notes.position).toEqual([PARK_DEFINITION.sites.tower.x-1.5,OBSERVATION_TOWER.height+.12,PARK_DEFINITION.sites.tower.z-1.5])
+    expect(notes.position).toEqual([PARK_DEFINITION.sites.tower.x-1.5,OBSERVATION_TOWER.height+.12,PARK_DEFINITION.sites.tower.z-1.95])
     expect(notes.radius).toBe(NOTES_BOX.interactionRadius)
     expect(notes.heightTolerance).toBe(.7)
     expect(notes.heightReference).toBe('legacy-avatar-origin')
