@@ -58,6 +58,7 @@ export const BUNGEOPPANG_V5 = {
   rushWarnFromMs: 87_000,
   trayCapacity: 10,
   maxActiveOrders: 3,
+  queueComplaintPenalty: 5,
   heatListLength: 2048,
   maxLogEntries: 3600,
 } as const;
@@ -67,6 +68,7 @@ export const BUNGEOPPANG_V5_LEGACY = {
   durationMs: 180_000,
   rushFromMs: 150_000,
   rushWarnFromMs: 147_000,
+  queueComplaintPenalty: 0,
 } as const;
 /** Deliberate opt-in only. A missing v5 backend must never turn into a simulated reward. */
 export const bungeoppangV5Preview = import.meta.env?.DEV === true && import.meta.env.MODE === 'bungeoppang-v5-preview';

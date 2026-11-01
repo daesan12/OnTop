@@ -19,6 +19,37 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class BungeoppangV5RulesTests {
+    @Test
+    void 세번째_뒤_손님을_먼저_제공하면_대기_손님마다_한번만_5점을_감점한다() {
+        var items = new FillingCounts(1, 0, 0, 0);
+        var issued = new ArrayList<>(List.of(new Order("1", 0, 0, items), new Order("3", 1, 0, items),
+                new Order("9", 2, 0, items)));
+        var log = new ArrayList<Action>();
+        String[] customers = {"3", "15", "20", "38"};
+        for (int i = 0; i < customers.length; i++) {
+            int t = i * 14_000;
+            log.add(Action.pour(log.size() + 1, t, 0));
+            log.add(Action.fill(log.size() + 1, t + 300, 0, Filling.BEAN));
+            log.add(Action.turn(log.size() + 1, t + 6_700, 0));
+            log.add(Action.turn(log.size() + 1, t + 13_100, 0));
+            log.add(new Action(log.size() + 1, "DELIVER", t + 13_150, null, null, null,
+                    customers[i], "delivery-" + i));
+            if (i < customers.length - 1) {
+                issued.add(new Order(customers[i + 1], 1, log.size(), items));
+            }
+        }
+
+        var engine = new BungeoppangV5Rules();
+        var snapshot = BungeoppangV5Spec.calculationRules(BungeoppangV5Spec.rules());
+        var normal = engine.replay(log, Collections.nCopies(4, 100), issued, snapshot);
+        var result = engine.replay(log, Collections.nCopies(4, 100), issued, snapshot, 5);
+
+        assertThat(result.score()).isEqualTo(normal.score() - 10);
+        assertThat(result.complainedOrderIds()).containsExactly("1", "9");
+        assertThat(engine.replay(log.subList(0, 5), Collections.nCopies(4, 100), issued, snapshot, 5).complainedOrderIds()).isEmpty();
+        assertThat(engine.replay(log.subList(0, 15), Collections.nCopies(4, 100), issued, snapshot, 5).complainedOrderIds())
+                .containsExactly("1");
+    }
     /** New rounds: 120 s, rush from 90 s. Cases that do not depend on the play length use this snapshot. */
     private final Replay rules = new Replay(BungeoppangV5Spec.calculationRules(BungeoppangV5Spec.rules()));
     /** Rounds stored with v5-20261027.1: 180 s, rush from 150 s. */
