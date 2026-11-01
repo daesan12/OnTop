@@ -91,12 +91,7 @@
 .park-page .onecard-game-hud.onecard-panel .onecard-hand-card:disabled { opacity:1; }
 .park-page .onecard-game-hud.onecard-panel .onecard-actions-panel .mini-status { position:static; transform:none; width:max-content; max-width:100%; margin:0 0 3px; padding:8px 15px; }
 .park-page:has(.onecard-game-hud) :is(.park-shortcuts,.park-location-chip,.park-channel-menu,.park-account) { display:none; }
-.park-page:has(.onecard-game-hud) .park-chat { left:20px; bottom:20px; width:225px; padding:10px; max-height:150px; }
-.park-page:has(.onecard-game-hud) .park-chat__list { max-height:42px; }
-.park-page:has(.onecard-game-hud) .park-chat__composer { --chat-composer-height:36px; height:var(--chat-composer-height); font-size:12px; }
-.park-page:has(.onecard-game-hud) .park-chat__heading h1 { font-size:12px; }
 @media(max-width:800px) {
- .park-page:has(.onecard-game-hud) .park-chat { bottom:auto; top:190px; width:180px; left:12px; transform:scale(.8); transform-origin:top left; }
  .park-page:has(.onecard-game-hud) :is(.park-quick-dock,.park-dock-wardrobe,.park-dock-settings) { visibility:hidden; }
  .park-page .onecard-game-hud.onecard-panel .onecard-actions-panel .mini-status { padding:7px 10px; }
 }
@@ -143,7 +138,7 @@
 .onecard-forfeit-dialog .onecard-forfeit-confirm { background:#8d453e; border-color:#d3917a; }
 .onecard-forfeit-dialog button:focus-visible { outline:2px solid #edce76; outline-offset:3px; }
 .onecard-forfeit-actions { display:flex; justify-content:center; flex-wrap:wrap; gap:10px; margin-top:24px; }
-.park-page:has(.prototype-game.minigame-hud,.prototype-game.farkle-hud) .park-chat__composer { --chat-composer-height:36px; }
+.park-page:has(.prototype-game.minigame-hud,.prototype-game.farkle-hud):where(:not(:has(.onecard-game-hud))) .park-chat__composer { --chat-composer-height:36px; }
 @media(max-width:800px) {
  .park-page .onecard-game-hud.onecard-panel .onecard-turn-timer { top:12px; left:12px; min-width:90px; padding:10px 12px; gap:3px; }
  .park-page .onecard-game-hud.onecard-panel .onecard-turn-timer strong { font-size:34px; }
@@ -242,8 +237,6 @@
 .park-page:has(.bench-spectator button[aria-pressed="true"]) .onecard-game-hud.onecard-panel[data-role=SPECTATOR] .onecard-recovery-controls { bottom:auto; }
 @media(max-width:800px) {
  .park-page .onecard-game-hud.onecard-panel[data-role=SPECTATOR] .onecard-recovery-controls { top:126px; left:12px; right:auto; }
- .park-page:has(.onecard-game-hud[data-role=SPECTATOR]) .park-chat { top:auto; bottom:18px; transform:none; width:180px; max-height:170px; }
- .park-page:has(.onecard-game-hud[data-role=SPECTATOR]) .park-chat:not([data-expanded=true]) .park-chat__list { display:none; }
  .park-page .onecard-game-hud.onecard-panel .onecard-spectator-hint { bottom:160px; max-width:90vw; width:max-content; font-size:11px; padding:7px 10px; }
  .park-page:has(.park-chat[data-expanded=true]) .onecard-game-hud.onecard-panel .onecard-spectator-hint { display:none; }
 

@@ -18,6 +18,11 @@ export function OneCardSpectatorHands() {
   useEffect(() => () => useHeldCardPicking.setState({ hover: null, selected: null }), [])
   if (!game?.onecard || game.role !== 'SPECTATOR' || game.onecard.status !== 'PLAYING') return null
   const state = game.onecard, name = (id: string) => profiles[id]?.nickname ?? `참가자 ${state.players.findIndex(player => player.userId === id) + 1}`
+  const hint = prank.effect ? `${name(prank.effect.targetUserId)}의 카드 ${prank.effect.count}장이 뒤집혔어요`
+    : defense.pending || prank.pending || defense.attempts.length ? '손을 뻗는 중 · 상대가 방어할 수 있어요'
+      : prank.usedTurn === `${state.turnUserId}/${state.turnCount}` ? '복구 완료 · 이번 차례의 장난은 사용했어요'
+        : defense.usedTurn === `${state.turnUserId}/${state.turnCount}` ? '이번 차례의 장난을 사용했어요'
+          : hover ? `${name(hover.userId)} · ${hover.index + 1}번째 카드` : ''
   return <>
     <div className="visually-hidden" role="group" aria-label="손에 든 카드 키보드 선택">
       {state.players.filter(player => player.active && player.cardCount > 0).map(player => <div key={player.userId} role="group" aria-label={`${name(player.userId)} 손패 · ${player.cardCount}장`}>
@@ -33,10 +38,6 @@ export function OneCardSpectatorHands() {
           }}>{index + 1}</button>)}
       </div>)}
     </div>
-    <p className="onecard-spectator-hint" role="status">{prank.effect ? `${name(prank.effect.targetUserId)}의 카드 ${prank.effect.count}장이 뒤집혔어요`
-      : defense.pending || prank.pending || defense.attempts.length ? '손을 뻗는 중 · 상대가 방어할 수 있어요'
-        : prank.usedTurn === `${state.turnUserId}/${state.turnCount}` ? '복구 완료 · 이번 차례의 장난은 사용했어요'
-          : defense.usedTurn === `${state.turnUserId}/${state.turnCount}` ? '이번 차례의 장난을 사용했어요'
-          : hover ? `${name(hover.userId)} · ${hover.index + 1}번째 카드` : '캐릭터가 손에 든 카드를 선택하세요'}<small>빈 곳을 드래그해 시점 회전 · Esc 관전 종료</small></p>
+    {hint && <p className="onecard-spectator-hint" role="status">{hint}</p>}
   </>
 }
