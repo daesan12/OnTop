@@ -40,6 +40,7 @@ export interface PublicTable {
   tableId: string
   anchorId: string | null
   chairCount: ChairCount
+  gameCode?: string | null
 }
 export const validChairCount = (value: unknown): value is ChairCount => value === 2 || value === 3 || value === 4
 export interface WorldState {
@@ -211,7 +212,8 @@ export function worldState(value: Record<string, unknown>): WorldState {
   if (value.tables !== undefined) {
     const publicId = (id: unknown): id is string => text(id) && !!id.trim() && id.length <= 120
     if (!Array.isArray(value.tables) || !value.tables.every(table => record(table)
-      && publicId(table.tableId) && (table.anchorId == null || publicId(table.anchorId)) && validChairCount(table.chairCount)))
+      && publicId(table.tableId) && (table.anchorId == null || publicId(table.anchorId)) && validChairCount(table.chairCount)
+      && (table.gameCode == null || text(table.gameCode) && !!table.gameCode.trim() && table.gameCode.length <= 64)))
       throw new Error('공개 의자 상태 형식이 올바르지 않습니다.')
     const anchors = value.tables.flatMap(table => table.anchorId == null ? [] : [table.anchorId])
     if (new Set(value.tables.map(table => table.tableId)).size !== value.tables.length || new Set(anchors).size !== anchors.length)

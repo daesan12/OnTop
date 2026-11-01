@@ -440,7 +440,11 @@ public class WorldChannelRegistry implements ChannelPresence {
         return counts;
     }
 
-    public record PublicTable(String tableId, String anchorId, int chairCount) {
+    public record PublicTable(String tableId, String anchorId, int chairCount, String gameCode) {
+        public PublicTable(String tableId, String anchorId, int chairCount) {
+            this(tableId, anchorId, chairCount, null);
+        }
+
         public PublicTable {
             if (tableId == null || tableId.isBlank() || chairCount < 2 || chairCount > 4) {
                 throw new IllegalArgumentException("공개 테이블 의자 설정이 올바르지 않습니다.");

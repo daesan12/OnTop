@@ -74,3 +74,12 @@ Browser plugin not available로 기존 Edge/Playwright를 사용했다. HTTP/WS�
 독립 음향·표시 단위 12개와 실제 착수 Edge 시나리오(5245), 로딩 경계 독립 Edge(5239) 통과. 통합 관련 단위 59개, 최종 playwright.omok-polish.config.ts(5245) 18개 모두 통과. 별도 playwright.game-visual-feedback.config.ts --grep 'full waiting table'(5235) 1개도 통과했다. 오래된 HTTP 빈자리와 실시간 만석, 2/3/4인 선택, 취소 후 시작 무시·재신청 자동 관전·대기 거리 이탈/재접속, 종료 후 다음 경기 미진입, A1 착수/핑·흑백 돌통·반응형 UI, 오목·장부 기권/15초 정리, 원카드 분배/기권 카드 및 돌 테이블/팔각정을 포함한다. 소스/테스트 타입·최신 맵/코스·경계·프로덕션 빌드·dev 충돌 검사 통과.
 
 Browser plugin not available로 기존 Edge/Playwright를 사용했다. HTTP/WS·이동/시간 일부는 계약 대역으로 운영 사용자 경기/정산 및 장치별 음향 청감 검증과 구분한다. 기존 Three/셰이더·번들 경고 외 pageerror/console.error/오류 오버레이 없음. 캡처/음원 검증 자료는 저장소 외부 또는 기존 오목 음원 경로에 보관한다. 한국어 커밋/MR/머지 후 Jenkins DEV 성공을 확인하고 이번 작업 브랜치만 삭제한다.
+## 선택 게임 준비 에셋 공개
+
+기준 origin/dev@38d0d8b6을 작업 전과 통합 직전에 fetch로 확인했다. 작업 위치는 OnTop/game-visual-feedback, 브랜치는 fix/public-table-game-assets-20261101이다. 이번 변경은 공통 공개 테이블 표시 기능이며 오목·원카드·장부의 기존 게임 경로와 준비 에셋을 재사용했다. 게임별 브라우저 시나리오를 각각 검증했으며 별도 게임 worktree 개발로 간주하지 않는다. 기존 다른 작업 위치의 변경은 보존했다.
+
+WORLD_STATE.tables[].gameCode에 선택 게임 코드만 공개한다. 방장의 게임 변경은 비착석자에게 즉시 반영되고 늦게 입장한 사용자도 같은 준비 에셋을 받는다. 명시적 null은 이전 선택을 지우며 오래된 worldVersion은 무시한다. 필드가 없는 이전 서버는 기존 공개/테이블 조회 정보로 호환한다. 판돈·준비 상태·개인 손패 등 비공개 정보는 추가하지 않으며 참가·관전 권한과 요청 흐름을 변경하지 않는다.
+
+게임별 변경은 OmokBoard, onecard/OneCardBoard, ledger/LedgerTable의 준비 표시 조건이다. 공통 변경은 TableHub/WorldChannelRegistry의 공개 투영, network protocol/worldClient, tableLobby/tableGamePresentation, TableShell의 에셋 로딩 경계다. 로딩 중에도 공원과 실제 테이블은 유지한다. 게임 규칙·시작/종료·기권·재접속·지갑/정산 계약 및 맵/카메라/충돌 변경 없음. DB/Flyway 및 V133 사용 없음. 맵 c05d8ada, 점프 코스 e6cd40d0 유지.
+
+독립 실행은 frontend에서 node node_modules/@playwright/test/cli.js test --config playwright.prepared-table.config.ts, 포트 5246이다. 세 게임의 비착석 준비 표시·선택 변경/해제·늦은 입장과 참가/관전/행동 요청 미전송을 확인해 Edge 3개가 통과했다. FE 관련 단위 31개, BE 공개 상태/소켓 검사 8개, 소스/테스트 타입·맵/코스·경계·park-integration 빌드·dev 충돌 검사가 통과했다. Browser plugin not available로 기존 Edge/Playwright를 사용했다. 브라우저 HTTP/WS와 이동은 계약 대역이며 BE는 실제 소켓과 테스트 인증/저장소를 사용한다. 운영 사용자 접속·MySQL 정산 검증과 구분한다. 기존 Three/셰이더·번들 경고 외 새 브라우저 오류 없음. 캡처는 저장소 외부에 보관했다.
