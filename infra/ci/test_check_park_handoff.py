@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+import re
 import shutil
 import tempfile
 import unittest
@@ -13,8 +14,14 @@ ROOT = Path(__file__).resolve().parents[2]
 class ParkHandoffChecks(unittest.TestCase):
     def test_current_candidate_is_consistent(self):
         version, digest = validate(ROOT)
-        self.assertEqual(version, "c05d8ada8b12d4e509f50c7e807949bd976811e1c69a628232520b88c15a0d07")
-        self.assertEqual(digest, "81d9a70a1b28751f3dc8708bb0c21fc5cae17604263f1f6ae10f4e2c6d3aeafb")
+        # 정상적인 맵 갱신을 과거 해시로 막지 않고 FE 런타임과 BE 전달본의 동일성을 검사한다.
+        runtime = (ROOT / "frontend/src/map/park/generated/mapVersion.ts").read_text(encoding="utf-8")
+        runtime_version = re.search(r'\bexport\s+const\s+PARK_MAP_VERSION\s*=\s*["\']([0-9a-f]{64})["\']', runtime)
+        self.assertIsNotNone(runtime_version, "Generated FE map version must be present")
+        self.assertEqual(version, runtime_version.group(1))
+        manifest = json.loads((ROOT / "frontend/generated/park/manifest.json").read_text(encoding="utf-8"))
+        artifact = next(row for row in manifest["artifacts"] if row["path"] == "generated/park/server-map.json")
+        self.assertEqual(digest, artifact["sha256"])
 
     def test_prepares_the_four_be_handoff_files(self):
         with tempfile.TemporaryDirectory(dir=ROOT) as folder:
