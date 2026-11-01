@@ -15,7 +15,7 @@ async function result(page: Page) {
     const { createGrill } = await import('/src/features/bungeoppang/rulesV4.ts' as string)
     const { BUNGEOPPANG_V4 } = await import('/src/features/bungeoppang/config.ts' as string)
     useBungeoppang.setState({ phase: 'result', gameId: 'rank-fixture', grill: { ...createGrill(Array(400).fill(100), { orderId: '1', orderIndex: 0, items: { bean: 2, custard: 0, pizza: 0, chocolate: 0 } }, BUNGEOPPANG_V4), made: 8, failed: 2, score: 120 },
-      result: { score: 120, made: 8, golden: 6, failed: 2, wasted: 0, maxCombo: 4, coinsCalculated: 8, coinsGranted: 8, todayEarned: 8, dailyCap: 100, capReached: false },
+      result: { score: 120, made: 8, golden: 6, failed: 2, wasted: 0, maxCombo: 4, coinsCalculated: 8, coinsGranted: 8, todayEarned: 8, dailyCap: 500, capReached: false },
       submitting: false, starting: false, confirmExit: false, walletError: null, startError: null, submitError: null })
   })
   await expect(page.getByRole('dialog', { name: '붕어빵 결과', exact: true })).toBeVisible()

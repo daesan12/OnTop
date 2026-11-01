@@ -90,3 +90,47 @@
   .bung-root .bung-start .bung-primary,
   .bung-root .bung-start .bung-start-exit { transition: none; }
 }
+/* Keep the full entry guide, earnings and start/exit actions in the first viewport. */
+.bung-root .bung-panel.bung-start{top:50%;padding:20px 30px;max-height:calc(100dvh - 24px)}
+.bung-root .bung-start .bung-start-title h2{font-size:36px}
+.bung-root .bung-start .bung-start-intro{font-size:16px;margin:4px 0 16px}
+.bung-start-steps{gap:36px}
+.bung-start-step-heading{min-height:40px;margin-bottom:8px;gap:8px}
+.bung-start-step-number{flex-basis:34px;height:34px;font-size:22px}
+.bung-start-step-heading h3{font-size:18px}
+.bung-start-steps>li>img{height:auto;aspect-ratio:800 / 686;object-fit:contain;background:#eee2cf}
+.bung-start-steps>li:not(:last-child)::after{right:-29px;font-size:25px}
+.bung-start-controls{margin-top:14px;padding:12px;gap:12px}
+.bung-start-controls h3{font-size:14px;margin-bottom:6px}
+.bung-root .bung-start-controls p{font-size:13px;margin-top:5px;line-height:1.45}
+.bung-start-controls kbd{min-width:22px;min-height:22px;font-size:12px}
+.bung-start-key-row{margin:3px 0;gap:5px}
+.bung-start-key-row>span,.bung-start-fillings li{font-size:12px}
+.bung-start-fillings ul{gap:4px 8px}
+.bung-root .bung-start .bung-start-earned{margin:12px 0 8px;font-size:18px}
+.bung-root .bung-start .bung-primary{min-height:48px;padding:8px 18px;font-size:22px}
+.bung-root .bung-start footer{margin:-38px 0 0}
+@media(max-width:700px){
+  .bung-root .bung-panel.bung-start{width:calc(100vw - 20px);padding:14px}
+  .bung-root .bung-start .bung-start-title h2{font-size:28px}
+  .bung-root .bung-start .bung-start-intro{font-size:13px;margin-bottom:12px}
+  .bung-start-steps{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+  .bung-start-step-heading{display:block;min-height:57px;margin-bottom:5px}
+  .bung-start-step-number{float:left;width:22px;height:22px;font-size:15px;margin-right:4px}
+  .bung-start-step-heading h3{font-size:14px;white-space:normal;line-height:1.5}
+  .bung-root .bung-start-step-heading p{font-size:11px;line-height:1.4;white-space:normal;clear:both}
+  .bung-start-steps>li>img{height:auto;border-width:1px;border-radius:6px}
+  .bung-start-controls{grid-template-columns:1fr 1.2fr;gap:10px;padding:10px;margin-top:10px}
+  .bung-start-serve{grid-column:1/-1;display:flex;align-items:center;gap:10px}
+  .bung-start-serve h3,.bung-root .bung-start-serve p{margin:0}
+  .bung-start-fillings ul{grid-template-columns:1fr}
+  .bung-root .bung-start footer{margin:8px 0 0;min-height:36px}
+  .bung-root .bung-start .bung-start-exit{min-height:36px}
+}
+@media(min-width:701px) and (max-height:650px){
+  .bung-root .bung-panel.bung-start{padding:12px 24px}
+  .bung-root .bung-start .bung-start-title h2{font-size:28px}
+  .bung-start-steps>li>img{height:auto}
+  .bung-start-controls{margin-top:10px;padding:8px}
+  .bung-root .bung-start .bung-start-earned{margin-top:8px}
+}

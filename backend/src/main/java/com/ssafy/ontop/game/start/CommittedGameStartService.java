@@ -1,6 +1,7 @@
 package com.ssafy.ontop.game.start;
 
 import com.ssafy.ontop.game.alkkagi.service.AlkkagiEngine;
+import com.ssafy.ontop.config.RuntimeProfiles;
 import com.ssafy.ontop.game.bridge.service.BridgeEngine;
 import com.ssafy.ontop.game.farkle.service.FarkleEngine;
 import com.ssafy.ontop.game.ledger.service.DiceLedgerEngine;
@@ -8,10 +9,9 @@ import com.ssafy.ontop.game.omok.service.OmokEngine;
 import com.ssafy.ontop.game.onecard.service.OneCardEngine;
 import java.util.List;
 import java.util.Optional;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import com.ssafy.ontop.config.RuntimeProfiles;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 
@@ -117,7 +117,7 @@ public class CommittedGameStartService {
             // 엔진 create의 tick/종료 콜백은 별도 DB 트랜잭션을 사용할 수 있어 경기 행 잠금을 보유하지 않는다.
             switch (command.gameCode()) {
                 case "ALKKAGI" -> alkkagi.startCommitted(command, result);
-                case "OMOK" -> omok.orElseThrow().create(result.gameSessionId(), command.tableId(),
+                case "OMOK" -> omok.orElseThrow().createWithCoinToss(result.gameSessionId(), command.tableId(),
                         players.get(0), players.get(1));
                 case "ONE_CARD" -> onecard.orElseThrow().create(result.gameSessionId(), command.tableId(), players);
                 case "LIAR_BRIDGE" -> bridge.orElseThrow().create(result.gameSessionId(), command.tableId(), players);

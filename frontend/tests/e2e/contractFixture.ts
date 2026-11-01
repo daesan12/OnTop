@@ -19,7 +19,7 @@ import { followFixture } from './followFixture'
 import { onecardPrankFixture, type OneCardPrankRoom } from './onecardPrankFixture'
 import type { PublicEquipment } from '../../src/network/equipment'
 import type { GameReactionEvent } from '../../src/game/presentation/defeat'
-import type {ParkDebris} from '../../src/features/parkDebris/state'
+import {debrisPieces,type ParkDebris} from '../../src/features/parkDebris/state'
 import type { AvatarActivity } from '../../src/network/avatarActivity'
 import type { PublicTable } from '../../src/network/protocol'
 import developmentBindings from '../../public/park-bindings.dev.json' with { type: 'json' }
@@ -44,6 +44,7 @@ export async function fixture(
     omok?: boolean
     dice?: boolean
     onecard?: 2 | 3 | 4
+    onecardDealMs?: number
     onecardPranks?: boolean
     onecardPreview?: { observer: boolean; room: OneCardPrankRoom; interactionReview?: boolean }
     bridge?: 2 | 3 | 4
@@ -174,13 +175,16 @@ export async function fixture(
   const board: number[][] = Array.from({ length: 15 }, () => Array(15).fill(0))
   let lastMove: { x: number; y: number; stone: string } | null = null,
     turn = '101'
+  let coinTossEndsAt: string | undefined
+  let blackUserId = '101', whiteUserId = '102'
   const omok = () => ({
+    ...(coinTossEndsAt ? { coinTossEndsAt } : {}),
     gameCode: 'OMOK',
     status: finished ? 'FINISHED' : 'PLAYING',
     boardSize: 15,
     board,
-    blackUserId: '101',
-    whiteUserId: '102',
+    blackUserId,
+    whiteUserId,
     turnUserId: finished ? null : turn,
     turnDeadline: finished ? null : gameDeadline,
     moveCount: board.flat().filter(Boolean).length,
@@ -471,7 +475,7 @@ export async function fixture(
       const occurredAt=new Date(serverTime().serverNow).toISOString(),id=gameId+':reaction:101'
       debrisItems=[...debrisItems,{id,gameId,tableId,anchorId:anchor.id,gameCode:options.ledger?'DICE_LEDGER':options.bridge?'LIAR_BRIDGE':options.onecard?'ONE_CARD':options.dice?'DICE':'OMOK',
         userId:'101',occurredAt,throwYaw:position.yaw,seed:12345,parts:['board',...Array.from({length:12},(_,i)=>'coin-'+i),
-          ...(!options.ledger&&!options.bridge&&!options.onecard&&!options.dice?Array.from({length:5},(_,i)=>'stone-'+i):[])]}]
+          ...debrisPieces(options.ledger?'DICE_LEDGER':options.bridge?'LIAR_BRIDGE':options.onecard?'ONE_CARD':options.dice?'DICE':'OMOK')]}]
       debrisVersion++
       for(const ws of sockets){
         emit(ws,'WORLD_PARK_DEBRIS_STATE',{channelId:'fixture-channel',mapVersion:expectedMapVersion,version:debrisVersion,items:debrisItems})
@@ -693,8 +697,9 @@ export async function fixture(
       if (type === 'TABLE_START' && options.tabletServer && !tabletStartHold) {
         started = true; waitExpiresAt = null; waitRevision++
         resultBet = betAmountPerPlayer ?? 1; resultStatus = 'FINISHED'; resultReason = 'NORMAL'; resultVersion = 1; settled = false
-        gameDeadline = new Date(Date.now() + 30000).toISOString()
-        if (options.onecard) cardState = { ...cardState, turnDeadline: gameDeadline }
+        gameDeadline = new Date(Date.now() + 30000 + (options.onecardDealMs ?? 0)).toISOString()
+        if (options.onecard) cardState = { ...cardState, turnDeadline: gameDeadline,
+          ...(options.onecardDealMs ? { dealEndsAt: new Date(Date.parse(gameDeadline) - 30000).toISOString() } : {}) }
         start(ws, 'PLAYING', requestId); game(ws); recovery(ws)
       }
       if (options.omok && type === 'GAME_SELECT') {
@@ -783,8 +788,8 @@ export async function fixture(
           return
         }
         const { x, y } = payload.input
-        board[y]![x] = options.ownUserId === '102' ? 2 : 1
-        lastMove = { x, y, stone: options.ownUserId === '102' ? 'WHITE' : 'BLACK' }
+        board[y]![x] = (options.ownUserId ?? '101') === blackUserId ? 1 : 2
+        lastMove = { x, y, stone: (options.ownUserId ?? '101') === blackUserId ? 'BLACK' : 'WHITE' }
         turn = options.ownUserId === '102' ? '101' : '102'
         gameVersion++
         emit(
@@ -798,6 +803,7 @@ export async function fixture(
     })
   })
   return {
+    coinToss: (until: string) => { coinTossEndsAt = until; gameVersion++; game(sockets.at(-1)!) },
     mapMismatch: (map: { mapId: string; schemaVersion: number; mapVersion: string }) => emit(sockets.at(-1)!, 'ERROR', { code: 'MAP_VERSION_MISMATCH', serverMap: map, message: '맵 버전이 다릅니다.' }),
     sent,
     cardPranks,
@@ -871,6 +877,10 @@ export async function fixture(
     turnTo: (userId: string, deadline = new Date(Date.now() + 30_000).toISOString()) => {
       turn = userId; gameDeadline = deadline; gameVersion++; game(sockets.at(-1)!)
     },
+    omokColors: (black: '101' | '102') => {
+      blackUserId = black; whiteUserId = black === '101' ? '102' : '101'; turn = black; gameVersion++
+      game(sockets.at(-1)!)
+    },
     resendGame: (role = 'PLAYER') => game(sockets.at(-1)!, null, role),
     rejectGameWatch: (value: boolean) => { rejectGameWatch = value },
     holdGameWatch: (value: boolean) => { holdGameWatch = value },
@@ -936,9 +946,10 @@ export async function fixture(
       started = true
       resultBet = betAmountPerPlayer ?? 1
       resultStatus = 'FINISHED'; resultReason = 'NORMAL'; resultVersion = 1; settled = false
-      gameDeadline = new Date(Date.now() + 30_000).toISOString()
+      gameDeadline = new Date(Date.now() + 30_000 + (options.onecardDealMs ?? 0)).toISOString()
       if (options.dice) diceState = { ...diceState, turnDeadline: gameDeadline }
-      if (options.onecard) cardState = { ...cardState, turnDeadline: gameDeadline }
+      if (options.onecard) cardState = { ...cardState, turnDeadline: gameDeadline,
+        ...(options.onecardDealMs ? { dealEndsAt: new Date(Date.parse(gameDeadline) - 30000).toISOString() } : {}) }
       if (options.bridge) bridgeState = { ...bridgeState, turnDeadline: gameDeadline }
       if (options.ledger) ledgerState = { ...ledgerState, turnDeadline: gameDeadline }
       start(sockets.at(-1)!, 'PLAYING')

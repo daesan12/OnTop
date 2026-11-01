@@ -5,7 +5,7 @@ import { RestError } from '../../src/network/restError'
 const start = { minigameSessionId: '901', minigameType: 'BUNGEOPPANG', status: 'PLAYING', startedAt: '2026-10-24T01:00:00Z',
   rulesVersion: 'v2', heats: Array(64).fill(100), isFirstGame: true }
 const result = { minigameSessionId: '901', status: 'COMPLETED', score: 86, made: 7, golden: 7, failed: 0, wasted: 0, maxCombo: 7,
-  verifiedCompletedCount: 7, rewardAmount: 5, coinsCalculated: 5, coinsGranted: 5, todayEarned: 5, dailyCap: 100, capReached: false }
+  verifiedCompletedCount: 7, rewardAmount: 5, coinsCalculated: 5, coinsGranted: 5, todayEarned: 5, dailyCap: 500, capReached: false }
 describe('M14 existing REST adapter', () => {
   it('uses approved paths, same start key, exact body and the issued session identity', async () => {
     const request = vi.fn().mockResolvedValueOnce(start).mockResolvedValueOnce({ minigameSessionId: '901', status: 'PLAYING' })

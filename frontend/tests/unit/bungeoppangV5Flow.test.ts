@@ -18,7 +18,7 @@ function wireCheckpoint(state: GrillState, revision: number, hash: string) {
 }
 
 describe.each([
-  { name: 'two minutes', R: BUNGEOPPANG_V5, flow: twoMinuteFlow, config: 'v5-20261029.1' },
+  { name: 'two minutes', R: { ...BUNGEOPPANG_V5, queueComplaintPenalty: 0 }, flow: twoMinuteFlow, config: 'v5-20261029.1' },
   // Keep the fixture already used by BE tests intact during deployment transition.
   { name: 'legacy three minutes', R: BUNGEOPPANG_V5_LEGACY, flow: legacyFlow, config: 'v5-20261027.1' },
 ])('v5 shared full-round flow: $name', ({ R, flow, config }) => {
@@ -74,7 +74,7 @@ describe.each([
       if (path.endsWith('/complete')) return { minigameSessionId: '901', status: 'COMPLETED', rulesVersion: 'v5',
         configVersion: config, verifiedCompletedCount: state.made, rewardAmount: 2, score: state.score, made: state.made,
         golden: state.golden, failed: state.failed, wasted: state.wasted, maxCombo: state.maxCombo,
-        coinsCalculated: 2, coinsGranted: 2, todayEarned: 2, dailyCap: 100, capReached: false,
+        coinsCalculated: 2, coinsGranted: 2, todayEarned: 2, dailyCap: 500, capReached: false,
         successfulMade: state.made, served: state.served, customersServed: state.customersServed,
         specialServed: state.specialServed, bonusScore: state.bonusScore, grillDiscarded: 1, trayDiscarded: 1,
         undeliveredCount: 0, unfinishedGrillCount: 0, rewardDate: '2026-10-28', settledAt: iso(R.durationMs + 500),

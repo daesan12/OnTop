@@ -1,10 +1,23 @@
 import {afterEach,expect,it} from 'vitest'
-import {acceptParkDebris,DEBRIS_COINS,DEBRIS_STONES,parseParkDebris,resetParkDebris,useParkDebris,type ParkDebris} from '../../src/features/parkDebris/state'
+import {acceptParkDebris,DEBRIS_COINS,DEBRIS_STONES,debrisPieces,debrisVisible,parseParkDebris,resetParkDebris,useParkDebris,type ParkDebris} from '../../src/features/parkDebris/state'
 import {debrisLanding,debrisPose} from '../../src/features/parkDebris/motion'
 const item:ParkDebris={id:'g:reaction:101',gameId:'g',tableId:'table',anchorId:'table-1',gameCode:'OMOK',userId:'101',
  occurredAt:'2026-10-31T00:00:00Z',throwYaw:0,seed:123,parts:['board',...Array.from({length:12},(_,i)=>'coin-'+i)]}
 const state=(version=1)=>({channelId:'one',mapVersion:'map',version,items:[item]})
 afterEach(resetParkDebris)
+it('does not reinterpret alkkagi as dice debris',()=>{
+ expect(debrisPieces('ALKKAGI')).toEqual([])
+ expect(()=>parseParkDebris({...state(),items:[{...item,gameCode:'ALKKAGI',parts:[...item.parts,'die-0']}]})).toThrow()
+})
+it.each(['OMOK','DICE','ONE_CARD','LIAR_BRIDGE','DICE_LEDGER'] as const)('accepts separate %s pieces and enforces the exact 15-second display boundary',gameCode=>{
+ const full={...item,gameCode,parts:[...item.parts,...debrisPieces(gameCode)]}
+ expect(parseParkDebris({...state(),items:[full]}).items[0]!.parts).toEqual(full.parts)
+ const at=Date.parse(item.occurredAt)
+ expect(debrisVisible(full,at-1)).toBe(false)
+ expect(debrisVisible(full,at+14_999)).toBe(true)
+ expect(debrisVisible(full,at+15_000)).toBe(false)
+ expect(()=>parseParkDebris({...state(),items:[{...full,parts:[...full.parts,'card-14']}]})).toThrow()
+})
 it.each(['OMOK','DICE','ONE_CARD','LIAR_BRIDGE','DICE_LEDGER','ALKKAGI'] as const)('accepts and retains %s debris from the server snapshot',gameCode=>{
  const parsed=parseParkDebris({...state(),items:[{...item,gameCode}]})
  expect(acceptParkDebris(parsed)).toBe(true)
@@ -50,6 +63,12 @@ it('keeps every scattered stone off the board with independent flights and repea
   expect(debrisPose(item,index,86400000,1.136,.009)).toEqual(landed)
  }
  expect(new Set(points.map(p=>p.join(','))).size).toBe(DEBRIS_STONES)
+})
+it('오목판은 서버가 정한 상대 방향으로 날아가고 반대 좌석은 반대편에 도착한다',()=>{
+ const south=debrisLanding({...item,throwYaw:Math.PI},-1),north=debrisLanding({...item,throwYaw:0},-1)
+ expect(south.x).toBeCloseTo(0);expect(south.z).toBeLessThan(0)
+ expect(north.x).toBeCloseTo(0);expect(north.z).toBeGreaterThan(0)
+ expect(Math.abs(south.z)).toBeCloseTo(Math.abs(north.z))
 })
 it('accepts and individually cleans stone parts only for omok while retaining the board and coins',()=>{
  const full={...item,parts:[...item.parts,...Array.from({length:DEBRIS_STONES},(_,i)=>'stone-'+i)]}

@@ -312,12 +312,13 @@ class RestSecurityTests {
                 "GET /api/v1/shop/items", "POST /api/v1/shop/purchases",
                 "GET /api/v1/users/me/items", "PATCH /api/v1/users/me/equipment",
                 "POST /api/v1/minigames/sessions", "GET /api/v1/minigames/sessions",
+                "POST /api/v1/minigames/skewer/admissions",
                 "GET /api/v1/minigames/sessions/{sessionId}",
                 "POST /api/v1/minigames/sessions/{sessionId}/manual-pause",
                 "POST /api/v1/minigames/sessions/{sessionId}/deliveries",
                 "POST /api/v1/minigames/sessions/{sessionId}/complete",
                 "POST /api/v1/minigames/sessions/{sessionId}/abandon",
-                "GET /api/v1/minigames/jumpmap/status", "POST /api/v1/minigames/jumpmap/tips");
+                "GET /api/v1/minigames/jumpmap/status", "GET /api/v1/minigames/jumpmap/rankings", "POST /api/v1/minigames/jumpmap/tips");
     }
 
     private MockHttpServletRequestBuilder auth(MockHttpServletRequestBuilder request) {

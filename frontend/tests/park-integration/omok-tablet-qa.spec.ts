@@ -44,7 +44,7 @@ test('generated park tablet keeps the coin, agreement spacing and full portraits
   await expect(tablet.getByLabel('1인 참가비')).toBeFocused()
   await expect(message).toHaveCount(0)
   await tablet.getByRole('button', { name: '선택하고 준비하기' }).click()
-  await expect(tablet.getByRole('heading', { name: '함께 시작할까요?' })).toBeVisible()
+  await expect(tablet.getByRole('heading', { name: '오목' })).toBeVisible()
   const agreement = tablet.getByRole('checkbox', { name: '참가 금액을 확인했어요' })
   const ready = tablet.getByRole('button', { name: '준비 완료', exact: true })
   const lastTabletControl = tablet.locator('button:enabled,input:enabled,select:enabled').last()
@@ -62,12 +62,17 @@ test('generated park tablet keeps the coin, agreement spacing and full portraits
       const label = (await tablet.locator('.tablet-amount-agreement').boundingBox())!
       const edit = (await tablet.getByRole('button', { name: '게임·판돈 변경' }).boundingBox())!
       expect(edit.y - label.y - label.height).toBeGreaterThan(6)
-      const portraits = await page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).tabletPortraitProbe())
-      expect(portraits.filter(Boolean)).toHaveLength(2)
-      for (const portrait of portraits) {
-        expect(portrait!.orthographic).toBe(true)
-        expect(Math.abs(portrait!.width - portrait!.containerWidth)).toBeLessThanOrEqual(2)
-        for (const hand of portrait!.hands) { expect(Math.abs(hand[0]!)).toBeLessThan(.94); expect(Math.abs(hand[1]!)).toBeLessThan(.94) }
+      await expect(tablet.locator('.tablet-name')).toHaveCount(2)
+      if (size.width <= 900) {
+        await expect(tablet.locator('.tablet-portrait').first()).toBeHidden()
+      } else {
+        const portraits = await page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).tabletPortraitProbe())
+        expect(portraits.filter(Boolean)).toHaveLength(2)
+        for (const portrait of portraits) {
+          expect(portrait!.orthographic).toBe(true)
+          expect(Math.abs(portrait!.width - portrait!.containerWidth)).toBeLessThanOrEqual(2)
+          for (const hand of portrait!.hands) { expect(Math.abs(hand[0]!)).toBeLessThan(.94); expect(Math.abs(hand[1]!)).toBeLessThan(.94) }
+        }
       }
     }).toPass({ timeout: 15000 })
     await expect(chat).toBeVisible()
@@ -104,9 +109,9 @@ test('generated park spectator fits the board around the HUD and sends H8 withou
   await page.evaluate(async () => {
     const { TABLES } = await import('/src/park/mapConfig.ts' as string)
     const { parkRuntime } = await import('/src/park/runtime/runtime.ts' as string)
-    parkRuntime.inspectTable(TABLES[0].id)
+    parkRuntime.inspectTable(TABLES[0].id, true)
   })
-  await page.getByRole('dialog', { name: '테이블 정보', exact: true }).getByRole('button', { name: '경기 관전', exact: true }).click()
+  await expect(page.getByRole('dialog', { name: '테이블 정보', exact: true })).toHaveCount(0)
   const header = page.getByLabel('오목 관전 경기 정보', { exact: true })
   await expect(header).toContainText('관전 백돌')
   await expect(page.getByRole('group', { name: '관전 시점', exact: true })).toHaveCount(1)
@@ -136,6 +141,14 @@ test('generated park spectator fits the board around the HUD and sends H8 withou
   await expect(page.getByLabel('위치 추천 전송 상태')).toContainText('H8 추천을 보냈어요.')
   await expect(page.locator('.omok-ping-label')).toContainText('H8 추천')
   await screenshot(page, 'new-map-observer-h8')
+  await page.waitForTimeout(1050)
+  const origin = await page.evaluate(async () => (await import('/tests/park-integration/probe.ts' as string)).omokPlayProbe(0, 0))
+  expect(origin!.point.x).toBeLessThan(point!.point.x)
+  expect(origin!.point.y).toBeLessThan(point!.point.y)
+  await page.mouse.click(origin!.point.x, origin!.point.y)
+  await expect(page.getByLabel('위치 추천 전송 상태')).toContainText('A1 추천을 보냈어요.')
+  await expect(page.locator('.omok-ping-label').filter({ hasText: 'A1 추천' })).toBeVisible()
+  await screenshot(page, 'omok-origin-observer-a1')
   expect(server.sent.filter(message => message.type === 'GAME_ACTION_SEND')).toHaveLength(0)
   await page.getByRole('button', { name: '주변 보기', exact: true }).click()
   await expect(page.getByRole('button', { name: '주변 보기', exact: true })).toHaveAttribute('aria-pressed', 'true')

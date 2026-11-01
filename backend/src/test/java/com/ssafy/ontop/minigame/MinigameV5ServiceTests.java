@@ -160,7 +160,7 @@ class MinigameV5ServiceTests {
         long sessionId = Long.parseLong(started.minigameSessionId());
 
         assertThat(started.rulesVersion()).isEqualTo("v5");
-        assertThat(started.configVersion()).isEqualTo(BungeoppangV5Spec.CONFIG_VERSION).isEqualTo("v5-20261029.1");
+        assertThat(started.configVersion()).isEqualTo(BungeoppangV5Spec.CONFIG_VERSION).isEqualTo("v5-20261101.1");
         assertThat(started.rules().durationMs()).isEqualTo(120_000);
         assertThat(started.rules().rushFromMs()).isEqualTo(90_000);
         assertThat(started.status()).isEqualTo("PLAYING");
@@ -375,7 +375,7 @@ class MinigameV5ServiceTests {
         var lobby = service.statusV5(USER_ID);
 
         assertThat(lobby.rulesVersion()).isEqualTo("v5");
-        assertThat(lobby.dailyCap()).isEqualTo(100);
+        assertThat(lobby.dailyCap()).isEqualTo(500);
         assertThat(lobby.activeSessionId()).isEqualTo(Long.toString(sessionId));
         assertThat(lobby.supportedRulesVersions()).containsExactly("v2", "v4", "v5");
     }

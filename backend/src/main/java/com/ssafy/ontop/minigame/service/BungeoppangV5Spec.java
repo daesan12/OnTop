@@ -10,7 +10,7 @@ import java.util.List;
 public final class BungeoppangV5Spec {
     public static final String RULES_VERSION = "v5";
     /** New rounds: 120 seconds, rush from 90 seconds. */
-    public static final String CONFIG_VERSION = "v5-20261029.1";
+    public static final String CONFIG_VERSION = "v5-20261101.1";
     /**
      * Rounds issued before 2026-10-29: 180 seconds, rush from 150 seconds. Such a round keeps this snapshot in
      * its stored config, which stays authoritative; this copy only names it for regression checks.
@@ -47,8 +47,8 @@ public final class BungeoppangV5Spec {
     private static BungeoppangV5Responses.Rules rules(int durationMs, int rushFromMs) {
         return new BungeoppangV5Responses.Rules(
                 6, durationMs, COUNTDOWN_MS, 8_000, 6_000, rushFromMs, 85, 115, 2_048,
-                10, 4, 20, 50, FIRST_ORDER, 50, 70, 90, 100, 2, 5, 15, 100,
-                50, 300, 3_600, HEAT_ASSIGNMENT, MAX_ACTIVE_ORDERS);
+                10, 4, 20, 50, FIRST_ORDER, 50, 70, 90, 100, 2, 5, 15, MinigameRewardBudget.DAILY_CAP,
+                50, 300, 3_600, HEAT_ASSIGNMENT, MAX_ACTIVE_ORDERS, durationMs == DURATION_MS ? 5 : 0);
     }
 
     /**
@@ -105,6 +105,6 @@ public final class BungeoppangV5Spec {
                 result.specialServed(), result.bonusScore());
         return new BungeoppangV5Responses.Checkpoint(revision, throughSeq, prefixHash, result.heatCursor(),
                 result.lastAt(), List.copyOf(slots), tray, stats,
-                result.activeOrders().stream().map(BungeoppangV5Spec::order).toList());
+                result.activeOrders().stream().map(BungeoppangV5Spec::order).toList(), result.complainedOrderIds());
     }
 }

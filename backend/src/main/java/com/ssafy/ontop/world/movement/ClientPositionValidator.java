@@ -29,8 +29,10 @@ public final class ClientPositionValidator {
         boolean supported(Pose pose);
         boolean clear(Pose from, Pose to, boolean allowStep);
         default boolean clearCorner(Pose from, Pose to) { return false; }
+        default boolean clearContact(Pose from, Pose to) { return false; }
         Double ceiling(Pose from, double rise);
         default double jumpSpeed(Pose from, boolean tuned) { return tuned ? 8 : 6.2; }
+        default double jumpSpeed(Pose from, Pose to, boolean tuned) { return jumpSpeed(from, tuned); }
         /** 가장자리에서 굴러 내려가며 떠나는 바닥의 모서리만 스친 경로인지. 기본은 허용하지 않는다. */
         default boolean rollsOff(Pose from, Pose to) { return false; }
         default boolean swimming(Pose pose) { return false; }
@@ -54,6 +56,7 @@ public final class ClientPositionValidator {
     private Flight flight;
     private final boolean tuned;
     private long airWindowAt;
+    private long pendingJumpUntil = Long.MIN_VALUE;
     private double airWindowY;
     /** 코요테 3틱(100ms)에 보고 간격 여유 50ms. 점프맵 활성 채널에서만 켠다. */
     private static final long COYOTE_NANOS = 150_000_000L;
@@ -75,7 +78,7 @@ public final class ClientPositionValidator {
         if (tuned) pose = bounded(pose);
         if (!geometry.clear(pose, pose, false)) throw new IllegalArgumentException("unsafe origin");
         approved = pose; this.epoch = epoch; sequence = 0; approvedAt = budgetAt = clock.getAsLong();
-        budget = .9; flight = null; airWindowAt = approvedAt; airWindowY = pose.y;
+        budget = .9; flight = null; airWindowAt = approvedAt; airWindowY = pose.y; pendingJumpUntil = Long.MIN_VALUE;
     }
     // Trusted native-to-client handoff carries vertical motion, never a free movement burst.
     synchronized void resumeTrusted(double velocityY) {
@@ -84,7 +87,7 @@ public final class ClientPositionValidator {
             flight = new Flight(approved.y, approvedAt, Math.max(0, velocityY));
     }
     // Changing the correction epoch never grants a fresh movement budget or jump.
-    synchronized void resynchronize(long nextEpoch) { epoch = nextEpoch; }
+    synchronized void resynchronize(long nextEpoch) { epoch = nextEpoch; pendingJumpUntil = Long.MIN_VALUE; }
     synchronized void blocked(boolean value) { blocked = value; }
     synchronized Decision accept(Candidate candidate) {
         long now = clock.getAsLong();
@@ -123,6 +126,7 @@ public final class ClientPositionValidator {
                 nextAirAt = now; nextAirY = target.y;
             }
             Flight next = flight;
+            long nextJumpUntil = candidate.jump ? now + 150_000_000L : pendingJumpUntil;
             if (supportedFrom) groundLaunchSpeed = launchSpeed;
             if (fromWater && candidate.jump) {
                 Double climb = geometry.swimClimb(approved, target);
@@ -134,17 +138,35 @@ public final class ClientPositionValidator {
                 // Buoyancy is valid inside real water, bounded by the server's float level.
                 if (!shore && (dy > 2 * seconds + .08 || dy > 0 && target.y > Math.max(approved.y, geometry.floatY() + .15) + .00001))
                     return deny("SWIM_HEIGHT");
-                if (!geometry.clear(approved, target, supportedTo && (supportedFrom || shore))) return deny("COLLISION");
+                if (!geometry.clear(approved, target, supportedTo && (supportedFrom || shore))
+                        && !geometry.clearContact(approved, target)) return deny("COLLISION");
                 budget -= horizontal; approved = target; sequence = candidate.seq; approvedAt = now;
                 flight = null; airWindowAt = now; airWindowY = target.y;
                 return new Decision(true, "ACCEPTED", approved, sequence);
             }
-            if (next == null && candidate.jump && supportedFrom) next = new Flight(approved.y, now, launchSpeed);
+            // A short landing can happen between position reports. A new jump
+            // from server-confirmed support must not reuse the preceding flight's
+            // origin/height ceiling, or be cleared as that flight's landing.
+            boolean jumpRequested = candidate.jump || now <= pendingJumpUntil && supportedFrom && !supportedTo && dy > .05;
+            boolean landingJump = jumpRequested && (supportedFrom || supportedTo && dy <= 0)
+                    && (next == null || next.speed == 0 || now - next.started > 150_000_000L);
+            if (landingJump) {
+                Pose origin = supportedFrom ? approved : target;
+                next = new Flight(origin.y, now, geometry.jumpSpeed(origin, target, true));
+                nextJumpUntil = Long.MIN_VALUE;
+            }
+            // Supported stairs can outgrow an earlier jump envelope after landing.
+            // Merely passing close to the next platform while rising must not erase
+            // a still-valid flight (including the course's coyote jump).
+            if (!landingJump && next != null && supportedFrom && supportedTo && now - next.started > 150_000_000L
+                    && target.y > (next.ceilingY == null ? next.originY + (next.speed > 0 ? tunedRise(next.speed) : .05) : next.ceilingY))
+                next = null;
             // v2 코요테: 걸어 나가 떨어진 지 100ms(+보고 간격 여유) 안의 점프 한 번은 떠나온 바닥 기준으로 허용한다.
             // 점프로 떠난 비행(speed>0)이나 이미 코요테를 쓴 비행은 다시 올라갈 수 없다.
             if (jumpGrace && next != null && next.speed == 0 && candidate.jump && !supportedFrom
                     && now - next.started <= COYOTE_NANOS) {
                 next = new Flight(next.originY, now, groundLaunchSpeed);
+                nextJumpUntil = Long.MIN_VALUE;
             }
             if (next == null) {
                 // Grounded steps/slopes retain the existing geometric allowance.
@@ -177,9 +199,10 @@ public final class ClientPositionValidator {
                     sequence = candidate.seq; approvedAt = now;
                     return new Decision(true, "CONTACT_HELD", approved, sequence);
                 }
-                return deny("COLLISION");
+                if (!geometry.clearContact(approved, target)) return deny("COLLISION");
             }
             flight = next;
+            pendingJumpUntil = nextJumpUntil;
             budget -= horizontal; approved = target; sequence = candidate.seq; approvedAt = now;
             airWindowAt = nextAirAt; airWindowY = nextAirY;
             return new Decision(true, "ACCEPTED", approved, sequence);

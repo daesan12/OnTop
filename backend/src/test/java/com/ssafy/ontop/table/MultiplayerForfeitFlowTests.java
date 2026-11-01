@@ -207,6 +207,12 @@ class MultiplayerForfeitFlowTests {
             }
             String turn = nextState.at("/payload/publicState/turnUserId").asText();
             var current = players.stream().filter(player -> player.userId.equals(turn)).findFirst().orElseThrow();
+            if (code.equals("ONE_CARD")) {
+                assertThat(current.request("GAME_ACTION_SEND", Map.of("gameId", GAME + "-2", "actionId", "during-deal",
+                        "expectedVersion", 0, "input", Map.of("kind", "draw")))
+                        .at("/payload/code").asText()).isEqualTo("GAME_ACTION_INVALID_ACTION");
+                clock.advanceSeconds(4); // 3~4인 손패 분배 완료 뒤 새 경기의 첫 입력을 검증한다.
+            }
             assertThat(current.request("GAME_ACTION_SEND", Map.of("gameId", GAME + "-2", "actionId", "fresh-round",
                     "expectedVersion", 0, "input", Map.of("kind", code.equals("ONE_CARD") ? "draw" : "roll")))
                     .path("type").asText()).isEqualTo("GAME_ACTION_RESULT");

@@ -327,11 +327,11 @@ class MinigameMySqlTests {
 
     @Test
     void 하루상한_남은2냥만_지급하고_다음판은_0냥으로_정상완료한다() {
-        historyReward(98);
+        historyReward(498);
         var first = ready("first");
         var result = minigames.complete(101, id(first), BungeoppangFixtures.sevenGolden(first.heats()));
         assertThat(result.coinsGranted()).isEqualTo(2);
-        assertThat(result.todayEarned()).isEqualTo(100);
+        assertThat(result.todayEarned()).isEqualTo(500);
         var second = ready("second");
         assertThat(minigames.complete(101, id(second), BungeoppangFixtures.sevenGolden(second.heats())).coinsGranted()).isZero();
         assertThat(balance()).isEqualTo(102);
@@ -339,8 +339,9 @@ class MinigameMySqlTests {
 
     @Test
     void KST자정_전날보상은_오늘상한에_포함하지않는다() {
-        historyReward(100);
+        historyReward(500);
         jdbc.update("UPDATE minigame_sessions SET ended_at = DATE_SUB(UTC_TIMESTAMP(3), INTERVAL 1 DAY)");
+        jdbc.update("UPDATE wallet_transactions SET created_at = DATE_SUB(UTC_TIMESTAMP(3), INTERVAL 1 DAY)");
         var start = ready("one");
         assertThat(minigames.complete(101, id(start), BungeoppangFixtures.sevenGolden(start.heats())).coinsGranted()).isEqualTo(5);
     }
@@ -373,6 +374,13 @@ class MinigameMySqlTests {
     private void historyReward(int reward) {
         jdbc.update("INSERT INTO minigame_sessions(user_id,minigame_type,status,score,reward_amount,started_at,ended_at)"
                 + " VALUES (101,'BUNGEOPPANG','COMPLETED',1500,?,UTC_TIMESTAMP(3),UTC_TIMESTAMP(3))", reward);
+        // 공통 한도는 세션의 계산 보상이 아니라 실제 지급 원장을 기준으로 한다.
+        jdbc.update("""
+                INSERT INTO wallet_transactions(wallet_id, transaction_type, balance_delta, reserved_delta,
+                    idempotency_key, created_at)
+                SELECT id, 'MINIGAME_REWARD', ?, 0, 'history-reward', UTC_TIMESTAMP(3)
+                FROM wallets WHERE user_id = 101
+                """, reward);
     }
 
     @Test

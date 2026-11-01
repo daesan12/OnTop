@@ -189,10 +189,11 @@ export const createFishCartArt = cartArt
 function boothArt() {
   const b = new PropBuilder([12, 8], 'vr-booth')
   // The thin stone apron stays below the existing auto-step height.
-  b.box('stone', '#b5b6ae', [0, 0.07, 0], [12.5, 0.14, 8.6])
+  // Keep the apron above the generated paving (y=.14) to avoid coplanar flicker.
+  b.box('stone', '#b5b6ae', [0, 0.09, 0], [12.5, 0.14, 8.6])
   for (let x = -6; x <= 6; x += 0.6)
     for (const z of [-4.23, 4.23])
-      b.box('stone', '#d0caba', [x, 0.07, z], [0.57, 0.14, 0.3])
+      b.box('stone', '#d0caba', [x, 0.095, z], [0.57, 0.14, 0.3])
   for (const side of [-1, 1]) {
     b.box('wood', '#7a5140', [side * 6.2, 0.5, -0.2], [0.15, 1, 8.2])
     for (let z = -4; z < 3.9; z += 0.45)

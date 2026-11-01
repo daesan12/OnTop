@@ -36,6 +36,17 @@ export function frameHallSign(name:string){
  state.gl.render(state.scene,state.camera)
 }
 
+export function frameVrEntrance(){
+ const state=_roots.get(document.querySelector('canvas')!)!.store.getState()
+ state.setFrameloop('never');state.scene.updateMatrixWorld(true)
+ const marker=state.scene.getObjectByName('vr-entrance-marker')!
+ const point=marker.getWorldPosition(new Vector3()),forward=new Vector3(0,0,1).transformDirection(marker.matrixWorld)
+ state.camera.position.copy(point).addScaledVector(forward,9).add(new Vector3(0,3.4,0))
+ state.camera.lookAt(point.clone().addScaledVector(forward,-4));state.camera.updateMatrixWorld(true)
+ state.gl.render(state.scene,state.camera)
+ return {position:point.toArray(),children:marker.children.length}
+}
+
 /** Tablet selection clears focusedAnchorId; inspect the actual seated board camera. */
 export function omokPlayProbe(x=7,y=7){
  const state=_roots.get(document.querySelector('canvas')!)?.store.getState()
@@ -47,6 +58,12 @@ export function omokPlayProbe(x=7,y=7){
   point:{x:rect.left+(point.x+1)*rect.width/2,y:rect.top+(1-point.y)*rect.height/2}}
 }
 export function sceneReady(){return !!_roots.get(document.querySelector('canvas')!)?.store.getState().scene.getObjectByName('park-service-map')}
+export function parkVisible(){
+ const park=_roots.get(document.querySelector('canvas')!)?.store.getState().scene.getObjectByName('park-service-map')
+ if(!park)return false
+ for(let node:import('three').Object3D|null=park;node;node=node.parent)if(!node.visible)return false
+ return true
+}
 export function fishShopMenuProbe(){
  const {scene}=_roots.get(document.querySelector('canvas')!)!.store.getState()
  const menu=scene.getObjectByName('fish-bread-shop-menu')!.children[0]!
@@ -91,6 +108,12 @@ export function renderedOwnPosition(){
  return scene?.getObjectByName('avatar-'+useSession.getState().sessionId)?.position.toArray()
 }
 export function cameraPosition(){return _roots.get(document.querySelector('canvas')!)!.store.getState().camera.position.toArray()}
+export function preparedAssetVisible(name:string){
+ const object=_roots.get(document.querySelector('canvas')!)?.store.getState().scene.getObjectByName(name)
+ if(!object)return false
+ for(let node:import('three').Object3D|null=object;node;node=node.parent)if(!node.visible)return false
+ return true
+}
 export function detailProbe(){
  const {scene}=_roots.get(document.querySelector('canvas')!)!.store.getState()
  scene.updateMatrixWorld(true)
@@ -116,4 +139,19 @@ export function renderedSeatHeights(id:string){
  const scene=_roots.get(document.querySelector('canvas')!)!.store.getState().scene,t=PARK_DATA.tables.find(t=>t.id===id)!,ray=new Raycaster(),object=scene.getObjectByName(id)!
  scene.updateMatrixWorld(true)
  return {count:object.userData.presentedSeatCount,heights:t.seatAnchors.map(([x,,z])=>{ray.set(new Vector3(t.position[0]+x,t.position[1]+.8,t.position[2]+z),new Vector3(0,-1,0));return ray.intersectObject(object,true)[0]?.point.y})}
+}
+export function gameVisualProbe(){
+ const scene=_roots.get(document.querySelector('canvas')!)?.store.getState().scene
+ const opening=scene?.getObjectByName('onecard-opening')
+ const top=scene?.getObjectByName('onecard-public-top')
+ return {opening:!!opening?.visible,phase:opening?.userData.phase,topRotation:top?.rotation.toArray().slice(0,3),
+  counts:['101','102','103','104'].map(id=>(scene?.getObjectByName('onecard-held-cards-'+id) as InstancedMesh|undefined)?.count??0),
+  debris:useParkDebris.getState().items.map(item=>{
+   const root=scene?.getObjectByName('park-debris-'+item.id)
+   const mesh=scene?.getObjectByName('park-debris-'+(item.gameCode==='OMOK'?'stones-':'pieces-')+item.id) as InstancedMesh|undefined
+   const matrix=new Matrix4();mesh?.getMatrixAt(0,matrix)
+   return {id:item.id,present:!!root,visible:!!root?.visible,pieces:mesh?.count??0,
+    pieceHeight:new Vector3().setFromMatrixPosition(matrix).y,
+    sourceVisible:scene?.getObjectByName('game-surface-'+item.anchorId)?.visible}
+  })}
 }

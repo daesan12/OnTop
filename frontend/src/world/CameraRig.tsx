@@ -14,6 +14,7 @@ import { telescopeView } from '../features/telescopeView'
 import { interactionAim } from '../features/interactions/interactionAim'
 import { useGame } from '../game/store'
 import { omokCamera, omokSpectatorViewport } from '../game/cameraState'
+import { OMOK_BOARD_Y } from '../game/omokPresentation'
 import { avatars, sampleAvatar, useSession,estimatedServerTime } from '../network/worldClient'
 import {activeParkDebris} from '../features/parkDebris/state'
 import { cameraOcclusion, CameraOcclusionFader } from './cameraOcclusion'
@@ -324,7 +325,7 @@ export function CameraRig() {
       state.desired.set(...pose.position); state.look.set(...pose.target)
     } else if (focusedOmok && camera instanceof PerspectiveCamera) {
       const anchor = spectatorOmok ? (closeAnchor ?? watchedAnchor)! : TABLES.find(t => t.id === avatar.tableId)!
-      state.look.set(anchor.position[0], anchor.position[1] + GOMOKU.boardY + .017, anchor.position[2])
+      state.look.set(anchor.position[0], anchor.position[1] + OMOK_BOARD_Y + .017, anchor.position[2])
       if (spectatorOmok) {
         const frame = omokSpectatorFrame(gl.domElement.clientWidth, gl.domElement.clientHeight, tableScale(anchor), omokSpectatorViewport.insets)
         state.look.x += frame.offsetX; state.look.z += frame.offsetZ

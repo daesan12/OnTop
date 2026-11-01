@@ -504,16 +504,16 @@ class MinigameV4ServiceTests {
     }
 
     @Test
-    void v4_보상은_정산시각_KST날짜의_v2v4_합산_잔여한도만_지급한다() {
+    void v4_보상은_정산시각_KST날짜의_미니게임전체_합산_잔여한도만_지급한다() {
         when(repository.earned(USER_ID, Instant.parse("2026-10-26T15:00:00Z"), Instant.parse("2026-10-27T15:00:00Z")))
-                .thenReturn(99L);
+                .thenReturn(499L);
 
         var result = settleAt(Instant.parse("2026-10-27T14:58:50Z"), Instant.parse("2026-10-27T14:59:59.999Z"));
 
         assertThat(result.rewardDate()).isEqualTo(java.time.LocalDate.of(2026, 10, 27));
         assertThat(result).extracting(BungeoppangV4CompleteDtos.Response::coinsCalculated,
                 BungeoppangV4CompleteDtos.Response::coinsGranted, BungeoppangV4CompleteDtos.Response::todayEarned,
-                BungeoppangV4CompleteDtos.Response::capReached).containsExactly(1L, 1L, 100L, true);
+                BungeoppangV4CompleteDtos.Response::capReached).containsExactly(1L, 1L, 500L, true);
         assertThat(wallet.balance()).isEqualTo(101);
         verify(repository).persist(any(WalletTransaction.class));
     }
@@ -521,7 +521,7 @@ class MinigameV4ServiceTests {
     @Test
     void v4_KST자정_이후_정산은_다음날로_귀속하고_한도소진이면_0냥으로_완료한다() {
         when(repository.earned(USER_ID, Instant.parse("2026-10-27T15:00:00Z"), Instant.parse("2026-10-28T15:00:00Z")))
-                .thenReturn(100L);
+                .thenReturn(500L);
 
         var result = settleAt(Instant.parse("2026-10-27T14:59:00Z"), Instant.parse("2026-10-27T15:00:05Z"));
 
@@ -529,7 +529,7 @@ class MinigameV4ServiceTests {
         assertThat(result.rewardDate()).isEqualTo(java.time.LocalDate.of(2026, 10, 28));
         assertThat(result).extracting(BungeoppangV4CompleteDtos.Response::coinsCalculated,
                 BungeoppangV4CompleteDtos.Response::coinsGranted, BungeoppangV4CompleteDtos.Response::todayEarned,
-                BungeoppangV4CompleteDtos.Response::capReached).containsExactly(1L, 0L, 100L, true);
+                BungeoppangV4CompleteDtos.Response::capReached).containsExactly(1L, 0L, 500L, true);
         assertThat(wallet.balance()).isEqualTo(100);
         verify(repository, never()).persist(any(WalletTransaction.class));
     }

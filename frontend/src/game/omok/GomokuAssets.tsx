@@ -13,19 +13,19 @@ import { BoardWood, OmokWood } from "./BoardWood";
 
 // Shared by the four table settings, placed stones, previews and decorative supplies.
 const frameGeometry = new RoundedBoxGeometry(1, 1, 1, 1, .025);
-export const stoneGeometry = new SphereGeometry(0.039, 16, 10);
+export const stoneGeometry = new SphereGeometry(0.039, 32, 20);
 export const blackStoneMaterial = new MeshStandardMaterial({
   color: "#101717",
-  roughness: .23,
+  roughness: .34,
 });
 export const whiteStoneMaterial = new MeshStandardMaterial({
   color: "#f3eee2",
-  roughness: .28,
+  roughness: .38,
 });
 
 const body: Part[] = [
-  { p: [0, -0.011, 0], s: [1.48, 0.046, 1.48], c: "#73452d" },
-  { p: [0, -0.023, 0], s: [1.5, 0.014, 1.5], c: "#47291c" },
+  { p: [0, -0.046, 0], s: [1.48, 0.104, 1.48], c: "#73452d" },
+  { p: [0, -0.092, 0], s: [1.5, 0.016, 1.5], c: "#47291c" },
   { p: [0, -0.012, 0], s: [1.488, 0.008, 1.488], c: "#a06a43" },
 ];
 const inlay: Part[] = [];
@@ -108,7 +108,9 @@ for (const [index, sign] of ([-1, 1] as const).entries()) {
 /** Original prototype art, adapted to the current tabletop. Keep the grid at local Y=0.
  * Static parts stay instanced; the prototype's rounded frame and polished stones share geometry.
  * The lower base is shallower to clear the current pavilion felt without moving seat/camera anchors. */
-export const GomokuAssets = memo(function GomokuAssets() {
+export const GomokuAssets = memo(function GomokuAssets({ blackAtSouth = true, reverseSupplies = false }: {
+  blackAtSouth?: boolean; reverseSupplies?: boolean
+}) {
   const root = useRef<Group>(null);
   useLayoutEffect(() => {
     root.current!.traverse(object => {
@@ -144,6 +146,8 @@ export const GomokuAssets = memo(function GomokuAssets() {
       >
         <boxGeometry />
       </Instances>
+      {/* 탑뷰 판 방향과 별개로 돌통은 실제 좌석 쪽에 유지한다. */}
+      <group rotation={[0, reverseSupplies ? Math.PI : 0, 0]}>
       <Instances
         parts={bowls}
         material={<OmokWood detail={0.45} strength={0.08} />}
@@ -157,20 +161,20 @@ export const GomokuAssets = memo(function GomokuAssets() {
         <primitive object={lidGeometry} attach="geometry" dispose={null} />
       </Instances>
       {supplies.map((parts, i) => (
-        <Instances
-          key={i}
+        <group key={i} name={`omok-supply-${i ? 'north' : 'south'}`}><Instances
           parts={parts}
           material={
             <primitive
-              object={i ? whiteStoneMaterial : blackStoneMaterial}
+              object={(blackAtSouth ? i : 1 - i) ? whiteStoneMaterial : blackStoneMaterial}
               attach="material"
               dispose={null}
             />
           }
         >
           <primitive object={stoneGeometry} attach="geometry" dispose={null} />
-        </Instances>
+        </Instances></group>
       ))}
+      </group>
     </group>
   );
 });

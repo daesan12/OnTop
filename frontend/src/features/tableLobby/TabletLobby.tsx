@@ -131,7 +131,7 @@ function TabletSession({ tableId }: { tableId: string }) {
     <div className="tablet-paper">
       <header className="tablet-title"><b className="tablet-brand">온탑</b>
         {step === 'ready' && <p className="tablet-room-summary" aria-label="현재 방 설정">{tableTermsLabel(table)} · {approvedCount ?? table.capacity}인 · {s.anchor?.replace('table-', '') ?? ''}번 탁자</p>}
-        <h2>{step === 'select' ? '어떤 게임을 할까요?' : '함께 시작할까요?'}</h2>
+        <h2>{step === 'select' ? '어떤 게임을 할까요?' : game?.name ?? '게임 준비'}</h2>
         {step === 'select' && <p>{host ? '게임을 고르고 참가 인원을 선택해요' : '방장이 게임을 선택하고 있어요'}</p>}
         {step === 'ready' && game && !game.playable && <p role="status">{GAME_CONSTRUCTION_NOTICE}</p>}
       </header>
@@ -170,7 +170,7 @@ function TabletSession({ tableId }: { tableId: string }) {
           <b className="tablet-name">{seat.userId === s.own ? '나' : seat.userId ? s.profiles[seat.userId]?.nickname ?? '산책자' : `${seat.seatNumber}번 빈자리`}{seat.userId && seat.userId === table.selectorUserId ? ' · 방장' : ''}</b>
           <span className="tablet-ready-stamp" data-ready={seat.ready}>{seat.userId ? seat.ready ? '✓ 준비 완료' : '준비 대기' : '참가 대기'}</span>
         </div>)}</div>
-        <div className="tablet-bet-confirm"><span>참가 판돈</span><strong><img className="tablet-coin" src={coinImage} alt="" /> {table.betAmountPerPlayer?.toLocaleString() ?? '—'}<small>냥</small></strong>
+        <div className="tablet-bet-confirm"><GameArt code={game?.code ?? 'OMOK'} /><p className="tablet-ready-description">{game && descriptions[game.code]}</p><span>1인 참가 판돈</span><strong><img className="tablet-coin" src={coinImage} alt="" /> {table.betAmountPerPlayer?.toLocaleString() ?? '—'}<small>냥</small></strong>
           <label className="tablet-amount-agreement"><input type="checkbox" checked={confirmedBet === confirmation || !!mine?.ready} disabled={busy || !!mine?.ready || !table.betAmountPerPlayer}
             onChange={e => setConfirmedBet(e.target.checked ? confirmation : '')} />
             <span className="tablet-agreement-mark" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none"><path d="m4 10 4 4 8-8" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg></span>

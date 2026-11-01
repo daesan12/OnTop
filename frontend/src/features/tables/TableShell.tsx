@@ -1,6 +1,6 @@
 import { ParkAlkkagiBoard } from '../../game/alkkagi/ParkAlkkagiBoard'
 import { SIMPLE_MAP } from '../../world/art/mapRenderProfile'
-import { useMemo } from 'react'
+import { Suspense, useMemo } from 'react'
 
 import { GOMOKU, TABLE_SEATS, tableScale, tableSeats, type TableAnchor } from '../../config'
 import { interactWithTable } from '../tableLobby/tableInteraction'
@@ -110,12 +110,14 @@ export function TableShell({ anchor, onInspect = interactWithTable }: {
         </>
       )}
       <DebrisGameSurface anchorId={anchor.id}>
+        <Suspense fallback={null}>
         <ParkAlkkagiBoard anchor={anchor} />
         <OmokBoard anchor={anchor} />
         <FarkleTable anchor={anchor} />
         <OneCardBoard anchor={anchor} />
         <BridgeBoard anchor={anchor} />
         <LedgerTable anchor={anchor} />
+        </Suspense>
       </DebrisGameSurface>
     </group>
   )

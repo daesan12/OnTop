@@ -124,7 +124,7 @@ export class ParkRuntime implements ParkRuntimePort {
   private quietResultChecks = new Set<string>()
   private untrackTabGame: (() => void) | undefined
   private facilityMapInvalid = false
-  private spectatorIntent: { userId: string; channelId: string; tableId: string; benchScope: string } | null = null
+  private spectatorIntent: { userId: string; channelId: string; tableId: string; benchScope: string; awaitingStart?: boolean } | null = null
   private gameWatchRequestId = ''
   private spectatorChecks = new Map<string, string>()
   private obsoleteGameWatchRequests = new Set<string>()
@@ -261,6 +261,15 @@ export class ParkRuntime implements ParkRuntimePort {
       this.closeTable(); return
     }
     const reference = intent ? publicMatchService.find({ channelId: intent.channelId, tableId: intent.tableId }) : null
+    if (intent?.awaitingStart) {
+      if (!canReachTable(avatars.get(s.sessionId)?.current, s.focusedAnchorId)) { this.closeTable(); return }
+      if (!reference) return
+      intent.awaitingStart = false
+      useTableLobby.setState({ entryNotice: null })
+    }
+    if (intent && (!reference || useGame.getState().watchedGameId && reference.gameId !== useGame.getState().watchedGameId)) {
+      this.closeTable(); return
+    }
     void this.spectator.set(reference && intent ? { gameId: reference.gameId,
       scope: JSON.stringify([this.generation, intent.userId, intent.channelId, intent.tableId, intent.benchScope]) } : null)
   }
@@ -381,6 +390,7 @@ export class ParkRuntime implements ParkRuntimePort {
     const notesWrite = path === '/api/v1/notes' && init.method === 'POST'
     const method = init.method ?? 'GET'
     const jumpmapRequest = (method === 'GET' && /^\/api\/v1\/minigames\/jumpmap\/status\?channelId=[^&#?]+$/.test(path))
+      || (method === 'GET' && path === '/api/v1/minigames/jumpmap/rankings')
       || (method === 'POST' && path === '/api/v1/minigames/jumpmap/tips')
     const shopRequest = (method === 'GET' && (path === '/api/v1/shop/items' || path === '/api/v1/users/me/items'))
       || (method === 'POST' && path === '/api/v1/shop/purchases')
@@ -394,8 +404,9 @@ export class ParkRuntime implements ParkRuntimePort {
     const rankingRequest = BUNGEOPPANG_RANKINGS_ENABLED && method === 'GET'
       && /^\/api\/v1\/minigames\/bungeoppang\/rankings\?period=ALL_TIME&rulesVersion=v[45]&limit=20(?:&durationMs=[1-9]\d{0,8})?(?:&cursor=[A-Za-z0-9%+_.~-]{1,1536})?$/.test(path)
     const parkRankingRequest = method === 'GET' && path === '/api/v1/rankings/park'
+    const skewerAdmission = method === 'POST' && path === '/api/v1/minigames/skewer/admissions'
     if (!this.active || (!notesRead && !notesWrite && !shopRequest && !profileRequest
-      && !historyRequest && !minigameRequest && !jumpmapRequest && !rankingRequest && !parkRankingRequest
+      && !historyRequest && !minigameRequest && !jumpmapRequest && !rankingRequest && !parkRankingRequest && !skewerAdmission
       && !/^\/api\/v1\/(?:wallets\/me|feedback)$/.test(path))
       || (path === '/api/v1/feedback' && init.method !== 'POST'))
       throw new Error('현재 공원에서 사용할 수 없는 요청입니다.')
@@ -663,6 +674,11 @@ export class ParkRuntime implements ParkRuntimePort {
       throw error
     }
     if (TABLET_ENABLED) this.tablet.accept(message)
+    const watched = useGame.getState().game
+    if (this.spectatorIntent && watched?.role === 'SPECTATOR' && gameState(watched).status === 'FINISHED') {
+      this.closeTable()
+    }
+    if (this.spectatorIntent && message.type === 'GAME_WATCH_LEFT' && message.requestId === null) this.closeTable()
     if (message.type === 'TABLE_LEFT') keepTabGame(session.sessionId, '')
     this.discoverResult()
     if ((message.type === 'ERROR' && message.requestId === null || message.type === 'GAME_WATCH_LEFT' && message.requestId === null)
@@ -944,8 +960,20 @@ export class ParkRuntime implements ParkRuntimePort {
       this.movementRequests.delete(requestId)
     }
   }
-  inspectTable = (anchorId: string) => {
-    void this.watchTable(anchorId, true)
+  inspectTable = (anchorId: string, watch = false) => {
+    useTableLobby.setState({ entryNotice: null })
+    void this.watchTable(anchorId, !watch).then(approved => {
+      if (!approved || !watch || useSession.getState().focusedAnchorId !== anchorId) return
+      const session = useSession.getState()
+      const reference = publicMatchService.find({ channelId: session.roomId, tableId: session.watchedTableId })
+      if (reference) void this.watchGame(reference.gameId)
+      else {
+        this.spectatorIntent = { userId: session.sessionId, channelId: session.roomId,
+          tableId: session.watchedTableId, benchScope: '', awaitingStart: true }
+        useTableLobby.setState({ spectatorRequested: true, spectatorStatus: 'waiting',
+          entryNotice: { anchorId, text: '관전 대기 중 · 게임이 시작되면 자동으로 들어가요. Esc로 취소' } })
+      }
+    })
   }
   private async watchTable(anchorId: string, panelOpen: boolean): Promise<boolean> {
     const own = useSession.getState(), facilities = useFacilityState.getState()
@@ -1359,7 +1387,7 @@ export class ParkRuntime implements ParkRuntimePort {
       )
       { this.report('관전 가능한 경기 정보를 확인해주세요.'); return false }
       this.spectatorIntent = { userId: session.sessionId, channelId: session.roomId, tableId: session.watchedTableId, benchScope: benchViewScope(session) }
-      useTableLobby.setState({ spectatorRequested: true, spectatorError: '' })
+      useTableLobby.setState({ spectatorRequested: true, spectatorError: '', panelOpen: false })
       return this.spectator.set({ gameId, scope: JSON.stringify([this.generation, session.sessionId, session.roomId, session.watchedTableId, benchViewScope(session)]) }, true)
   }
   watchBench = async (anchorId: string, observeOnly = false): Promise<boolean> => {
@@ -1376,6 +1404,7 @@ export class ParkRuntime implements ParkRuntimePort {
     return this.spectator.set({ gameId: ref.gameId, scope: JSON.stringify([this.generation, s.sessionId, s.roomId, current.watchedTableId, scope]) }, true)
   }
   unwatchGame = async (): Promise<boolean> => {
+    if (this.spectatorIntent?.awaitingStart) { this.closeTable(); return true }
     this.spectatorIntent = null
     useTableLobby.setState({ spectatorRequested: false })
     const approved = await this.spectator.set(null, true)
@@ -1384,7 +1413,8 @@ export class ParkRuntime implements ParkRuntimePort {
   }
   closeTable = () => {
     this.spectatorIntent = null
-    useTableLobby.setState({ spectatorRequested: false, panelOpen: false })
+    resetBenchSpectator()
+    useTableLobby.setState({ spectatorRequested: false, panelOpen: false, entryNotice: null })
     const cleanup = this.spectator.set(null, true)
     const tableId = useSession.getState().watchedTableId
     ++this.inspection

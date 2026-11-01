@@ -24,3 +24,5 @@
 @keyframes jm-receipt{0%{opacity:0}12%,75%{opacity:1}100%{opacity:0}}
 @media(max-width:760px){.jumpmap .jm-hint{top:150px}.jumpmap .jm-compact{top:150px;gap:12px;padding:9px 14px;border-radius:14px;flex-wrap:wrap;justify-content:center;width:max-content;max-width:calc(100% - 32px)}.jumpmap .jm-compact>strong{font-size:12px}.jumpmap .jm-progress{gap:4px}.jumpmap .jm-compact-coins{font-size:11px}.jumpmap .jm-compact-coins small{font-size:10px}.jumpmap .jm-complete{top:225px}.jumpmap .jm-complete span{white-space:normal}.jumpmap .jm-receipt{top:225px}.jumpmap .jm-complete~.jm-receipt{top:305px}.jumpmap .jm-unavailable{display:block}.jumpmap .jm-unavailable span{display:block}}
 @media(prefers-reduced-motion:reduce){.jumpmap .jm-receipt{animation:none}}
+.jumpmap .jm-time{font:700 23px/1.2 system-ui,sans-serif;font-variant-numeric:tabular-nums;white-space:nowrap}
+.jumpmap .jm-time small{font-size:12px;margin-left:4px}

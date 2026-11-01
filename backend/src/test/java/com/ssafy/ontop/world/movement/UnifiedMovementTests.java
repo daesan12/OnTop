@@ -26,6 +26,24 @@ class UnifiedMovementTests {
         return PreparedParkMap.load(Path.of("../frontend/generated/park/server-map.json"),
                 Path.of("../frontend/generated/park/manifest.json"),Set.of("channel-1")).createScene();
     }
+    @Test void 공중정체_거절후_같은공중좌표에서_반복복구되지않고_안전지면에서_재개한다(){
+        try(var world=new WorldPhysics(flat(),true,now::get,true)){
+            world.add("a");world.place("a",-10,3,42);long epoch=world.snapshot("a").motion().epoch();
+            WorldPhysics.Snapshot recovered=null;long seq=0;
+            for(int i=1;i<=20;i++){
+                now.addAndGet(100_000_000);
+                var state=world.report("a",new Candidate(++seq,epoch,new Pose(-10,3,42),false,false),now.get());
+                if("HOVER".equals(state.motion().correctionReason())){recovered=state;break;}
+            }
+            assertThat(recovered).isNotNull();assertThat(recovered.y()).isLessThan(1.1);
+            assertThat(recovered.motion().grounded()).isTrue();assertThat(recovered.motion().authority()).isEqualTo("CLIENT_VALIDATED");
+            var denied=world.report("a",new Candidate(++seq,recovered.motion().epoch(),new Pose(-9.5,recovered.y(),42),true,false),now.get());
+            assertThat(denied.motion().correctionReason()).isEqualTo("SPEED");
+            now.addAndGet(60_000_000);
+            var resumed=world.report("a",new Candidate(++seq,denied.motion().epoch(),new Pose(-9.9,denied.y(),42),false,false),now.get());
+            assertThat(resumed.motion().correctionReason()).isNull();assertThat(resumed.x()).isCloseTo(-9.9,within(.00001));
+        }
+    }
     @Test void 검증거절은_같은_이동으로_복구하고_새보고와_이전세대를_구분한다() {
         try (var world = new WorldPhysics(flat(),true,now::get,true)) {
             world.add("a"); world.place("a",-10,.84,42);

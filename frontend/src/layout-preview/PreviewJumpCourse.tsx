@@ -87,7 +87,7 @@ function JumpEffects() {
     pulse.time=performance.now()/1000
     for(const h of jumpSession.hits)if(h.id>last.current) {
       jumpVisualState.hits++;jumpVisualState.lastTheme=h.pad.theme
-      if(!jumpSession.muted)jumpVisualState.soundLayers+=3
+      if(!jumpSession.muted&&h.kind==='land')jumpVisualState.soundLayers+=h.pad.theme==='gate'?3:1
       playJumpSound(h,jumpSession.muted)
       const p=h.pad,water=p.theme==='lily',glow=p.theme==='lantern'||p.theme==='gate'
       Object.assign(rings[ringCursor++%rings.length]!,{age:0,x:p.x,y:p.height+.025,z:p.z,color:water?'#bfe6ff':glow?'#ffdc81':'#d9dfc0'})

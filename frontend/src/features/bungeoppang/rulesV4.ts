@@ -1,5 +1,7 @@
 // Pure v4 prediction/replay. Internal FE types, not approved production DTOs.
 export interface BungeoppangRules {
+  /** v5 신규 판만 사용하며, 이전 서버/진행 중 판은 0으로 유지한다. */
+  queueComplaintPenalty?: number;
   slots: number;
   durationMs: number;
   sideMs: number;
@@ -475,7 +477,7 @@ export function summarize(
     customersServed,
     specialServed,
     bonusScore,
-    coins: Math.floor(score / rules.pointsPerCoin),
+    coins: Math.max(0, Math.floor(score / rules.pointsPerCoin)),
   };
 }
 export function replayGrill(

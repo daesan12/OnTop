@@ -15,6 +15,24 @@ const takeLog: GrillLogEntry[] = [
   { slot: 0, action: 'TURN', t: 6400 }, { slot: 0, action: 'TURN', t: 12800 },
 ];
 describe('v5 independent simulation', () => {
+  it('세 번째 뒤 손님을 먼저 제공하면 기다리던 손님마다 한 번만 5점을 감점한다', () => {
+    const items = { bean: 1, custard: 0, pizza: 0, chocolate: 0 };
+    const history = ['1', '3', '9'].map((orderId, customerSlot) => ({ orderId, customerSlot, availableAfterSeq: 0, items }));
+    const log: GrillLogEntry[] = [];
+    for (const [i, orderId] of ['3', '15', '20', '38'].entries()) {
+      const t = i * 14000;
+      log.push({ action: 'POUR', slot: 0, t }, { action: 'FILL', slot: 0, t: t + 300, filling: 'bean' },
+        { action: 'TURN', slot: 0, t: t + 6700 }, { action: 'TURN', slot: 0, t: t + 13100 },
+        { action: 'DELIVER', slot: -1, t: t + 13150, orderId });
+      if (i < 3) history.push({ orderId: ['15', '20', '38'][i]!, customerSlot: 1, availableAfterSeq: log.length, items });
+    }
+    const normal = replay(log, initial().heats, history, { ...R, queueComplaintPenalty: 0 });
+    const result = replay(log, initial().heats, history, R);
+    expect(result.score).toBe(normal.score - 10);
+    expect(result.complainedOrderIds).toEqual(['1', '9']);
+    expect(replay(log.slice(0, 5), initial().heats, history, R).complainedOrderIds).toEqual([]);
+    expect(replay(log.slice(0, 15), initial().heats, history, R).complainedOrderIds).toEqual(['1']);
+  });
   it('keeps batter cold, consumes the heat at FILL and starts the front clock there', () => {
     let s = initial();
     s = applyAction(s, { slot: 0, action: 'POUR', t: 0 }, R).state;

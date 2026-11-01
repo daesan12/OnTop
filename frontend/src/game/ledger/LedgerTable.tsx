@@ -13,7 +13,7 @@ import { preloadCraftMaps } from '../farkle/art/CraftMaterials'
 import { DIE_REST_Y, FARKLE_VISUAL } from '../farkle/presentation'
 import { createCupPour, dieFlightProgress, sampleCupPour, sampleDiePour, POUR, type CupPour } from '../farkle/pour'
 import { diceSound } from '../farkle/sound'
-import { TABLET_ENABLED } from '../../features/tableLobby/tabletFeature'
+import { useTableGameCode } from '../../features/tableLobby/tableGamePresentation'
 import { keptDice, LEDGER_ROLL_MS, toggleKeep, useLedgerUI } from './controls'
 import { useLedgerPings } from './pings'
 import type { LedgerDie } from './protocol'
@@ -71,10 +71,9 @@ export function LedgerTable({ anchor }: { anchor: TableAnchor }) {
     watchedTableId: s.watchedTableId, tableStates: s.tableStates, seatIndex: s.seatIndex }))), g = useGame(s => s.game?.ledger ? s.game : null)
   const binding = session.bindings.find(b => b.channelId === session.roomId && b.anchorId === anchor.id)
   const relevant = !!binding && !!g && (session.tableId === binding.tableId || (g.role === 'SPECTATOR' && session.watchedTableId === binding.tableId))
-  const selected = !!binding && session.tableStates[binding.tableId]?.gameCode === 'DICE_LEDGER'
+  const selected = useTableGameCode(anchor.id) === 'DICE_LEDGER'
   useEffect(() => { if (selected) preloadCraftMaps() }, [selected])
   if (!relevant && !selected) return null
-  if (TABLET_ENABLED && !relevant) return null
   // 참가자는 자기 좌석 쪽에 보관 줄이 오도록 판을 돌린다. 관전자는 기본 방향으로 본다.
   const seat = relevant && g?.role === 'PLAYER' ? tableSeats(anchor)[session.seatIndex] : undefined
   return <LedgerSurface anchor={anchor} game={relevant ? g : null} yaw={seat ? Math.atan2(seat.x, seat.z) : 0} />

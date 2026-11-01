@@ -98,7 +98,7 @@ public final class BungeoppangV4DeliveryContract {
             });
         }
         Long clientScore = body.has("clientScore") ? body.path("clientScore").longValue() : null;
-        if (clientScore != null && clientScore < 0) { throw invalid(); }
+        if (clientScore != null && clientScore < 0 && !"v5".equals(version)) { throw invalid(); }
         return new BungeoppangV4CompleteDtos.Request(version, throughSeq, prefixHash,
                 List.copyOf(actions), List.copyOf(tips), clientScore);
     }

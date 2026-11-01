@@ -5,10 +5,41 @@ import os from 'node:os'
 import { parkFixture, identity } from './fixture'
 import { COURSE, COURSE_VERSION, RULES_VERSION, START, kstDate } from '../../src/features/jumpmap/course'
 import { PARK_DATA } from '../../src/map/park'
+import selection from '../../public/audio/jumpmap/selection.json' with { type: 'json' }
 const scope = { channelId: 'channel-1', mapVersion: identity.mapVersion }
-const earnings = { earningsDate: kstDate(), dailyCap: 100, todayEarned: 0 }
+const earnings = { earningsDate: kstDate(), dailyCap: 500, todayEarned: 0 }
 const status = { ...scope, ...earnings, revision: 0, enabled: true, courseVersion: COURSE_VERSION, rulesVersion: RULES_VERSION, isFirstRun: true, seenTips: [], activeRunId: null, bestFinishMs: null }
 const probe = (page: Page) => page.evaluate(async () => (await import('/tests/park-integration/jumpmapProbe.ts' as string)).jumpmapProbe())
+
+test('지연된 빈 상태 응답 뒤에도 진행 중인 판과 다음 발판을 유지한다', async ({ page }) => {
+  const server = await parkFixture(page)
+  let release!: () => Promise<void>
+  await page.route('**/api/v1/minigames/jumpmap/status?*', route => {
+    release = () => route.fulfill({ json: status })
+  })
+  await page.goto('/park')
+  await expect.poll(() => !!release).toBe(true)
+  const pad = COURSE.find(p => p.top >= 18)!
+  server.place({ x: pad.x, y: pad.top + .8, z: pad.z, yaw: 0 })
+  server.emit('JUMPMAP_STARTED', { ...scope, ...earnings, revision: 1, runId: 'slow-status-run',
+    courseVersion: COURSE_VERSION, rulesVersion: RULES_VERSION, serverTime: Date.now() })
+  await expect.poll(async () => (await probe(page)).state.run?.runId).toBe('slow-status-run')
+  await release()
+  await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90000 })
+  await page.waitForTimeout(400)
+  expect((await probe(page)).state.run?.runId).toBe('slow-status-run')
+  expect((await probe(page)).padsDrawn).toBe(COURSE.length)
+  await shot(page, 'jumpmap-qa-delayed-status')
+  const { SITES, SETTINGS } = await import('../../src/layout-preview/layout')
+  server.place({ x: SITES.pagoda.x + SETTINGS.pagoda.terraceHalf - 1,
+    y: SITES.pagoda.floor + .8, z: SITES.pagoda.z + SETTINGS.pagoda.terraceHalf - 1, yaw: -Math.PI * .75 })
+  await page.evaluate(async () => {
+    const { viewControls } = await import('/src/world/cameraPerspective.ts' as string)
+    viewControls.yaw = -Math.PI * .75; viewControls.pitch = .22
+  })
+  await page.waitForTimeout(700)
+  await shot(page, 'jumpmap-qa-stone-foundation')
+})
 async function shot(page: Page, name: string) {
   const dir = process.env.QA_ARTIFACT_DIR ?? path.join(os.tmpdir(), 'ontop-jumpmap-qa'); await fs.mkdir(dir, { recursive: true }); await page.screenshot({ path: path.join(dir, name + '.png') })
 }
@@ -31,6 +62,109 @@ async function setup(page: Page, response: object | null = status) {
   const start = () => emit('JUMPMAP_STARTED', 1, { courseVersion: COURSE_VERSION, rulesVersion: RULES_VERSION, serverTime: Date.now() })
   return { server, tips, errors, emit, start }
 }
+
+test('ducks music and other effects during a run, keeps landings clear, and restores the mix on exit', async ({ page }) => {
+  await page.addInitScript(() => {
+    const gains: GainNode[] = []
+    Object.assign(window, { mixGains: gains })
+    const create = AudioContext.prototype.createGain
+    AudioContext.prototype.createGain = function() { const gain = create.call(this); gains.push(gain); return gain }
+  })
+  const { server, start, emit, errors } = await setup(page)
+  await page.keyboard.press('Shift')
+  await page.evaluate(async () => {
+    const a = await import('/src/audio/bgm.ts' as string)
+    a.setBgmSettings({ volume: 100, muted: false }); a.setSfxSettings({ volume: 100, muted: false })
+  })
+  const mix = () => page.evaluate(async () => {
+    const a = await import('/src/audio/bgm.ts' as string)
+    return { music: (window as unknown as { mixGains: GainNode[] }).mixGains[0]!.gain.value,
+      other: (a.effectsOutput()?.bus as GainNode).gain.value,
+      landing: (a.effectsOutput('jumpmap')?.bus as GainNode).gain.value,
+      settings: [a.useBgmSettings.getState(), a.useSfxSettings.getState()] }
+  })
+  start()
+  await expect.poll(async () => (await mix()).music).toBeCloseTo(.25, 2)
+  await expect.poll(async () => (await mix()).other).toBeCloseTo(.2, 2)
+  await expect.poll(async () => (await mix()).landing).toBeCloseTo(1, 2)
+  emit('JUMPMAP_ENDED', 2, { reason: 'FALL', gatesPassed: 0, maxHeight: 1, elapsedMs: 1000, runCoins: 0 })
+  await expect.poll(async () => (await mix()).music).toBeCloseTo(1, 2)
+  await expect.poll(async () => (await mix()).other).toBeCloseTo(1, 2)
+  emit('JUMPMAP_STARTED', 3, { runId: 'run-b', courseVersion: COURSE_VERSION, rulesVersion: RULES_VERSION, serverTime: Date.now() })
+  await expect.poll(async () => (await mix()).other).toBeCloseTo(.2, 2)
+  server.mismatch()
+  await expect.poll(async () => (await mix()).other).toBeCloseTo(1, 2)
+  await expect.poll(async () => (await mix()).music).toBeCloseTo(1, 2)
+  expect((await mix()).settings).toEqual([{ volume: 100, muted: false }, { volume: 100, muted: false }])
+  expect(errors).toEqual([])
+})
+test('plays the eight approved landing clips once through the independent effects bus', async ({ page }) => {
+  await page.addInitScript(approved => {
+    const trace = { decoded: [] as string[], played: [] as string[], active: 0 }
+    Object.assign(window, { jumpAudioTrace: trace })
+    const hashes = new WeakMap<AudioBuffer, string>()
+    const decode = AudioContext.prototype.decodeAudioData
+    AudioContext.prototype.decodeAudioData = async function(data: ArrayBuffer) {
+      const hash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', data.slice(0))), b => b.toString(16).padStart(2, '0')).join('')
+      const buffer = await decode.call(this, data)
+      hashes.set(buffer, hash); trace.decoded.push(hash)
+      return buffer
+    }
+    const start = AudioBufferSourceNode.prototype.start
+    AudioBufferSourceNode.prototype.start = function(...args: Parameters<typeof start>) {
+      const hash = this.buffer && hashes.get(this.buffer)
+      if (hash && approved.includes(hash)) {
+        trace.played.push(hash); trace.active++
+        this.addEventListener('ended', () => trace.active--, { once: true })
+      }
+      return start.apply(this, args)
+    }
+  }, selection.sounds.map(s => s.sha256))
+  const { errors, emit, start } = await setup(page)
+  await page.keyboard.press('Shift')
+  const trace = () => page.evaluate(() => (window as unknown as { jumpAudioTrace: { decoded: string[]; played: string[]; active: number } }).jumpAudioTrace)
+  const hashes = selection.sounds.map(s => s.sha256)
+  await expect.poll(async () => (await trace()).decoded.filter(h => hashes.includes(h)).sort()).toEqual([...hashes].sort())
+  start()
+  const before = (await trace()).played.length
+  let revision = 2
+  for (const sound of selection.sounds) {
+    const pad = COURSE.find(p => sound.sound.startsWith('gomoku-')
+      ? p.theme === 'gomoku' && Boolean(p.ordinal % 2) === (sound.sound === 'gomoku-black')
+      : p.theme === sound.sound)!
+    emit('JUMPMAP_STEP', revision++, { playerId: '101', block: pad.block })
+    await expect.poll(async () => (await trace()).played.at(-1)).toBe(sound.sha256)
+    await expect.poll(async () => (await trace()).active).toBe(0)
+  }
+  expect((await trace()).played.slice(before)).toEqual(hashes)
+  const music = await page.evaluate(async () => {
+    const audio = await import('/src/audio/bgm.ts' as string)
+    const before = audio.useBgmSettings.getState()
+    audio.setSfxSettings({ muted: true })
+    return { volume: before.volume, muted: before.muted }
+  })
+  // AudioParam values can remain at their last rendered value while this bus is idle.
+  emit('JUMPMAP_STEP', revision++, { playerId: '101', block: COURSE.find(p => p.theme === 'stone')!.block })
+  await expect.poll(async () => (await trace()).played.length).toBe(before + 9)
+  await expect.poll(() => page.evaluate(async () => {
+    const audio = await import('/src/audio/bgm.ts' as string)
+    return (audio.effectsOutput('jumpmap')?.bus as GainNode).gain.value
+  })).toBeLessThan(.001)
+  expect(await page.evaluate(async () => {
+    const audio = await import('/src/audio/bgm.ts' as string), value = audio.useBgmSettings.getState()
+    audio.setSfxSettings({ muted: false })
+    return { volume: value.volume, muted: value.muted }
+  })).toEqual(music)
+  emit('JUMPMAP_STEP', revision++, { playerId: '101', block: COURSE.find(p => p.theme === 'cloud')!.block })
+  await expect.poll(async () => (await trace()).played.length).toBe(before + 10)
+  await expect.poll(() => page.evaluate(async () => {
+    const audio = await import('/src/audio/bgm.ts' as string)
+    return (audio.effectsOutput('jumpmap')?.bus as GainNode).gain.value
+  })).toBeGreaterThan(0)
+  await shot(page, 'jumpmap-approved-audio')
+  expect(errors).toEqual([])
+})
+
 test('reuses the new-map assets, shows authoritative progress and settles pending coins once', async ({ page }) => {
   const { server, errors, emit, start } = await setup(page)
   server.place({ x: START.x, y: START.y + .8, z: START.z })
@@ -74,16 +208,18 @@ test('fall and late settlement leave the park free for immediate retry', async (
 test('finish, daily cap and recovered run remain readable at 740px', async ({ page }) => {
   await page.setViewportSize({ width: 740, height: 900 })
   const activeRun = { runId: 'run-a', elapsedMs: 123000, gatesPassed: 6, finalReached: true, maxHeight: 47, runCoins: 64 }
-  const { server, errors, emit } = await setup(page, { ...status, todayEarned: 64, revision: 5, activeRunId: 'run-a', activeRun })
+  const { server, errors, emit } = await setup(page, { ...status, todayEarned: 464, revision: 5, activeRunId: 'run-a', activeRun })
   const pad = COURSE.at(-1)!; server.place({ x: pad.x, y: pad.top + .8, z: pad.z })
   await expect.poll(async () => (await probe(page)).ownPosition?.[1]).toBeCloseTo(pad.top, 1)
   await expect.poll(async () => Math.abs((await probe(page)).camera![1]! - pad.top)).toBeLessThan(12)
   await expect(page.getByLabel('도전 현황')).toContainText('연잎')
   await shot(page, 'jumpmap-playing-narrow')
-  emit('JUMPMAP_ENDED', 6, { reason: 'FINISH', gatesPassed: 7, maxHeight: 47, elapsedMs: 145321, runCoins: 100, todayEarned: 100, finishMs: 145321, bestFinishMs: 145321, newBest: true })
-  await expect.poll(async () => (await probe(page)).state.todayEarned).toBe(100)
+  emit('JUMPMAP_ENDED', 6, { reason: 'FINISH', gatesPassed: 7, maxHeight: 47, elapsedMs: 145321, runCoins: 100, todayEarned: 500, finishMs: 145321, bestFinishMs: 145321, newBest: true })
+  await expect.poll(async () => (await probe(page)).state.todayEarned).toBe(500)
   await expect(page.getByRole('dialog', { name: '점프맵 결과' })).toHaveCount(0)
   await expect(page.getByLabel('마지막 발판 완료')).toHaveCount(0)
+  await expect(page.getByRole('dialog', { name: '점프맵 완료' })).toBeVisible()
+  await expect(page.getByLabel('완주 시간')).toHaveText('145.321초')
   await shot(page, 'jumpmap-finish-narrow')
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   expect(errors).toEqual([])
@@ -189,6 +325,8 @@ test('final leaf opens a persistent paper completion, locks movement and updates
   const last = COURSE.at(-1)!; server.place({ x: last.x, y: last.top + .8, z: last.z })
   emit('JUMPMAP_FINAL_PAD', 3)
   const complete = page.getByRole('dialog', { name: '점프맵 완료', exact: true })
+  await expect(complete).toHaveCount(0)
+  emit('JUMPMAP_ENDED', 4, { reason: 'FINISH', gatesPassed: 7, maxHeight: 47, elapsedMs: 145321, runCoins: 64, todayEarned: 464, finishMs: 145321, bestFinishMs: 145321, newBest: true })
   await expect(complete).toBeVisible()
   await expect(complete).toContainText('이번 도전 받은 엽전64냥')
   await complete.locator('img').evaluateAll(imgs => Promise.all(imgs.map(i => (i as HTMLImageElement).decode())))
@@ -198,14 +336,14 @@ test('final leaf opens a persistent paper completion, locks movement and updates
   const beforeMovement = server.requests.length
   await page.keyboard.press('w')
   expect(server.requests.slice(beforeMovement).some(r => r.type === 'WORLD_MOVE' && !!(r.payload.dx || r.payload.dz))).toBe(false)
-  emit('JUMPMAP_FINAL_PAD', 4)
+  emit('JUMPMAP_FINAL_PAD', 5)
   await expect(page.getByRole('dialog', { name: '점프맵 완료' })).toHaveCount(1)
-  emit('JUMPMAP_ENDED', 5, { reason: 'FINISH', gatesPassed: 7, maxHeight: 47, elapsedMs: 145321, runCoins: 100, todayEarned: 100, finishMs: 145321, bestFinishMs: 145321, newBest: true })
+  emit('JUMPMAP_GATE_SETTLED', 6, { gate: 7, coinsGranted: 36, runCoins: 100, todayEarned: 500 })
   await expect(complete).toContainText('이번 도전 받은 엽전100냥')
-  await expect(complete).toContainText('완주 보상이 반영됐어요.')
-  await expect(complete).not.toContainText(/최고 기록|랭킹|완주 시간/)
+  await expect(complete).toContainText('145.321')
+  await expect(complete.getByRole('button', { name: '타임어택 랭킹 보기', exact: true })).toBeVisible()
   await page.keyboard.press('Escape'); await expect(complete).toBeHidden()
-  emit('JUMPMAP_GATE_SETTLED', 6, { gate: 7, coinsGranted: 36, runCoins: 100, todayEarned: 100 })
+  emit('JUMPMAP_ENDED', 7, { reason: 'FINISH', gatesPassed: 7, maxHeight: 47, elapsedMs: 145321, runCoins: 100, todayEarned: 500, finishMs: 145321, bestFinishMs: 145321, newBest: true })
   await expect(complete).toHaveCount(0)
   await page.locator('canvas').focus()
   const afterClose = server.requests.length
@@ -215,11 +353,13 @@ test('final leaf opens a persistent paper completion, locks movement and updates
   expect(errors).toEqual([])
 })
 
-test('completion can close before diving, never repeats, and fits the narrow viewport', async ({ page }) => {
+test('server finish completion never repeats and fits the narrow viewport', async ({ page }) => {
   await page.setViewportSize({ width: 740, height: 900 })
   const { start, emit, errors } = await setup(page)
   start(); emit('JUMPMAP_FINAL_PAD', 2)
   const complete = page.getByRole('dialog', { name: '점프맵 완료', exact: true })
+  await expect(complete).toHaveCount(0)
+  emit('JUMPMAP_ENDED', 3, { reason: 'FINISH', gatesPassed: 7, maxHeight: 47, elapsedMs: 145321, runCoins: 100, todayEarned: 500, finishMs: 145321, bestFinishMs: 145321, newBest: true })
   await expect(complete).toBeVisible()
   await expect(complete.getByRole('button', { name: '계속하기', exact: true })).toBeInViewport()
   await complete.getByRole('button', { name: '완료 화면 닫기', exact: true }).focus()
@@ -229,9 +369,9 @@ test('completion can close before diving, never repeats, and fits the narrow vie
   await shot(page, 'jumpmap-paper-completion-narrow')
   await complete.getByRole('button', { name: '계속하기', exact: true }).click()
   await expect(complete).toBeHidden()
-  expect((await probe(page)).state.run.finalReached).toBe(true)
-  emit('JUMPMAP_FINAL_PAD', 3); await expect(complete).toHaveCount(0)
-  emit('JUMPMAP_ENDED', 4, { reason: 'FINISH', gatesPassed: 7, maxHeight: 47, elapsedMs: 145321, runCoins: 100, todayEarned: 100, finishMs: 145321 })
+  expect((await probe(page)).state.run).toBeNull()
+  emit('JUMPMAP_FINAL_PAD', 4); await expect(complete).toHaveCount(0)
+  emit('JUMPMAP_ENDED', 5, { reason: 'FINISH', gatesPassed: 7, maxHeight: 47, elapsedMs: 145321, runCoins: 100, todayEarned: 500, finishMs: 145321, bestFinishMs: 145321, newBest: true })
   await expect(complete).toHaveCount(0)
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   expect(errors).toEqual([])

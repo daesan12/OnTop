@@ -37,7 +37,7 @@ class WorldGameReactionFlowTests {
     private static final String TABLE = "table-" + UUID.nameUUIDFromBytes(
             "one\0table-1".getBytes(StandardCharsets.UTF_8));
     @LocalServerPort private int port;
-    @Autowired private OmokEngine engine;
+    @org.springframework.test.context.bean.override.mockito.MockitoSpyBean private OmokEngine engine;
     @Autowired private OmokFlowTests.TestClock clock;
     @Autowired private WorldChannelRegistry positions;
     @Autowired private AccessJwtService jwt;
@@ -48,6 +48,15 @@ class WorldGameReactionFlowTests {
     static void location(DynamicPropertyRegistry properties) {
         properties.add("ontop.world.proximity.tables[" + TABLE + "].x", () -> 0);
         properties.add("ontop.world.proximity.tables[" + TABLE + "].z", () -> 0);
+    }
+
+    @org.junit.jupiter.api.BeforeEach
+    void 종료연출_회귀는_추첨결과를_고정한다() {
+        org.mockito.Mockito.doAnswer(call -> {
+            engine.create(call.getArgument(0), call.getArgument(1), call.getArgument(2), call.getArgument(3));
+            return null;
+        }).when(engine).createWithCoinToss(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyLong());
     }
 
     @Test

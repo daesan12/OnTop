@@ -45,6 +45,19 @@ class CornerContactGeometryTests {
             assertThat(g.clearCorner(downFrom, downTo)).isTrue();
         } finally { space.destroy(); }
     }
+    @Test void 마지막계단과_팔각정_점프사이_보고는_실제_도달가능한_지지면으로_기존부스트를_확인한다() throws Exception {
+        var scene=scene();var space=actual(scene);
+        try {
+            var g=new PositionCollision(scene,space);
+            var from=new ClientPositionValidator.Pose(-.000448853,2.4796340465545654,15.234306335449219);
+            var to=new ClientPositionValidator.Pose(-.000448842,2.940207004547119,14.726399421691895);
+            assertThat(g.supported(from)).isTrue();
+            assertThat(g.jumpSpeed(from,true)).isEqualTo(8);
+            assertThat(g.jumpSpeed(from,to,true)).isEqualTo(8.6);
+            add(space,"blocking-wall",new Vector3f(0,3,15),new Vector3f(1,2,.04f));
+            assertThat(g.jumpSpeed(from,to,true)).isEqualTo(8);
+        } finally {space.destroy();}
+    }
     @Test void 작은높이차라도_벽과_깊은바닥침투를_허용하지않는다() throws Exception {
         var scene = scene(); var space = new PhysicsSpace(PhysicsSpace.BroadphaseType.DBVT);
         try {

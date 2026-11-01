@@ -2,9 +2,9 @@ import { useEffect } from 'react'
 import { useParkRuntime } from '../../park/runtime/ParkRuntime'
 import { GENERATED_PARK_ENABLED } from '../../park/mapSelection'
 import { avatars, sampleAvatar, useSession } from '../../network/worldClient'
-import { effectsOutput } from '../../audio/bgm'
+import { effectsOutput, setJumpmapAudioFocus } from '../../audio/bgm'
 import { playSfx } from '../../audio/sfx'
-import { playJumpSound } from './audio'
+import { playJumpSound, preloadJumpSounds } from './audio'
 import { refreshWalletAfterSettlement } from '../wallet/settlementRefresh'
 import { STATUS_PATH, TIPS_PATH, COURSE, blockAtFeet, kstDate, START } from './course'
 import { parseJumpStatus, type TipKey } from './protocol'
@@ -19,8 +19,11 @@ export function useJumpmapController() {
     if (!GENERATED_PARK_ENABLED || !owner || !channel || !verified) return
     bindJumpmap(owner, channel, map)
     let disposed = false, loading = false, reloadAt = 0, previousFeet = NaN, previousBlock = -1
+    let soundContext: AudioContext | undefined
     const abort = new AbortController(), pendingTips = new Set<TipKey>()
     const inScope = () => !disposed && useSession.getState().sessionId === owner && useSession.getState().roomId === channel && useSession.getState().mapVersion === map
+    const focus = () => { const s = useJumpmap.getState(); setJumpmapAudioFocus(inScope() && s.available && !!s.run) }
+    focus()
     async function load() {
       if (!inScope() || loading || document.hidden) return
       loading = true; reloadAt = performance.now() + 30_000
@@ -40,6 +43,7 @@ export function useJumpmapController() {
     }
     const stop = useJumpmap.subscribe((s, before) => {
       if (!inScope()) return
+      focus()
       if (s.walletRevision > before.walletRevision) refreshWalletAfterSettlement(owner, `jumpmap:${channel}:${s.revision}`)
       if (s.refresh !== before.refresh && performance.now() >= reloadAt) void load()
       if (s.run && s.run.runId !== before.run?.runId && !document.hidden) playSfx('game-start')
@@ -47,16 +51,18 @@ export function useJumpmapController() {
     })
     const stopSound = onStep((block, player, power) => {
       if (!inScope() || document.hidden) return
-      const own = avatars.get(owner), p = COURSE[block], output = effectsOutput()
+      const own = avatars.get(owner), p = COURSE[block], output = effectsOutput('jumpmap')
       if (!own || !p || !output) return
       const pose = sampleAvatar(own, performance.now(), { ...own.current })
       const distance = Math.hypot(p.x - pose.x, p.top - (pose.y - .8), p.z - pose.z)
       if (player !== owner && distance >= 15) return
       playJumpSound({ id: 0, pad: { ...p, stage: p.stage - 1 }, time: performance.now(), kind: 'land' },
-        { output, remote: player !== owner, level: power * (player === owner ? 1 : .5 * (1 - distance / 15)), pan: Math.max(-1, Math.min(1, ((p.x - pose.x) * Math.cos(pose.yaw) - (p.z - pose.z) * Math.sin(pose.yaw)) / 10)) })
+        { output, signal: abort.signal, remote: player !== owner, level: power * (player === owner ? 1 : .5 * (1 - distance / 15)), pan: Math.max(-1, Math.min(1, ((p.x - pose.x) * Math.cos(pose.yaw) - (p.z - pose.z) * Math.sin(pose.yaw)) / 10)) })
     })
     const tick = () => {
       if (!inScope() || document.hidden) return
+      const output = effectsOutput('jumpmap')
+      if (output && soundContext !== output.context) { soundContext = output.context; void preloadJumpSounds(output.context) }
       const now = performance.now(), s = useJumpmap.getState()
       if (s.earningsDate && s.earningsDate !== kstDate()) { useJumpmap.setState({ earningsDate: kstDate(), todayEarned: null }); reloadAt = 0 }
       if (now >= reloadAt) { void load(); void saveTips() }
@@ -64,12 +70,8 @@ export function useJumpmapController() {
       const own = avatars.get(owner)
       if (!own) return
       const pose = sampleAvatar(own, now, { ...own.current }), feet = pose.y - .8
-      if (!s.run && Math.hypot(pose.x - START.x, pose.z - START.z) < 3 && Math.abs(feet - START.y) < 2) tip('START_SPOT')
+      if (!s.run && !(s.tip?.key === 'FIRST_FALL' && now < s.tip.until) && Math.hypot(pose.x - START.x, pose.z - START.z) < 3 && Math.abs(feet - START.y) < 2) tip('START_SPOT')
       const pad = !own.tableId && !own.benchId && !own.fitnessId && !own.telescopeId ? blockAtFeet({ ...pose, y: feet }) : undefined
-      if (previousBlock >= 0 && pad?.block !== previousBlock && COURSE[previousBlock]?.theme === 'kite') {
-        const output = effectsOutput(), p = COURSE[previousBlock]!
-        if (output) playJumpSound({ id: 0, pad: { ...p, stage: p.stage - 1 }, time: now, kind: 'leave' }, { output, level: .5 })
-      }
       if (pad && pad.block !== previousBlock && Number.isFinite(previousFeet) && previousFeet >= feet - .02) {
         presentStep(pad.block, owner, 1, now)
         if (pad.gate) anticipateGate(pad.gate, now)
@@ -86,6 +88,6 @@ export function useJumpmapController() {
     const timer = setInterval(tick, 50), tipTimer = setInterval(() => { void saveTips() }, 5000)
     const visible = () => { if (!document.hidden) { reloadAt = 0; tick() } }
     document.addEventListener('visibilitychange', visible)
-    return () => { disposed = true; abort.abort(); clearInterval(timer); clearInterval(tipTimer); stop(); stopSound(); standing.clear(); document.removeEventListener('visibilitychange', visible) }
+    return () => { disposed = true; setJumpmapAudioFocus(false); abort.abort(); clearInterval(timer); clearInterval(tipTimer); stop(); stopSound(); standing.clear(); document.removeEventListener('visibilitychange', visible) }
   }, [runtime, owner, channel, map, verified])
 }

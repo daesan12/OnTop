@@ -20,7 +20,7 @@ import java.util.List;
  */
 public final class JumpCourse {
     public static final String COURSE_VERSION = "park180-jump-v1";
-    public static final String RULES_VERSION = "v2";
+    public static final String RULES_VERSION = "v3";
     public static final int COLLIDERS = 113;
     public static final int GATES = 6;
     public static final int STAGES = 7;

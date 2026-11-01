@@ -70,7 +70,7 @@ for(const gameCode of ['OMOK','DICE_LEDGER'] as const)test(`${gameCode} duel for
  await expect.poll(async()=>(await probe())[0]?.settled,{timeout:10000}).toBe(true)
  await expect(page.getByRole('dialog',{name:'경기 결과',exact:true})).toBeVisible()
  const landed=(await probe())[0]!
- const partCount=gameCode==='OMOK'?18:13
+ const partCount=18 // 판 1 + 엽전 12 + 오목돌 또는 장부 주사위 5
  expect(landed.parts).toHaveLength(partCount)
  expect(landed.stones).toHaveLength(gameCode==='OMOK'?5:0)
  for(const stone of landed.stones)expect(Math.hypot(stone.position[0]!-landed.board![0]!,stone.position[2]!-landed.board![2]!)).toBeGreaterThan(1)

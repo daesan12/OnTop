@@ -28,7 +28,7 @@ test('reference result layout shows pending, confirmed, failed lookup and mobile
   await page.keyboard.press('Escape')
   await expect(page.getByRole('dialog', { name: '게임 설명서', exact: true })).toHaveCount(0)
   await page.evaluate(async () => (await import('/src/features/bungeoppang/store.ts' as string)).useBungeoppang.setState({
-    result: { score: 120, made: 8, golden: 6, failed: 2, wasted: 0, maxCombo: 4, coinsCalculated: 8, coinsGranted: 8, todayEarned: 8, dailyCap: 100, capReached: false },
+    result: { score: 120, made: 8, golden: 6, failed: 2, wasted: 0, maxCombo: 4, coinsCalculated: 8, coinsGranted: 8, todayEarned: 8, dailyCap: 500, capReached: false },
   }))
   await expect(result).toContainText('받은 엽전 8냥')
   await expect(result.getByRole('button', { name: '다시 도전', exact: true })).toBeEnabled()

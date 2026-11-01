@@ -139,14 +139,23 @@ DB 커밋 성공 뒤 반환한다. 주제는 daily/cheer/worry/recommend/free �
 - local/dev + db에서 `ontop.notes.enabled=true`, `ontop.notes.privacy-secret` 32자 이상을 명시해야 한다.
   dev 환경변수 `NOTES_ENABLED=true`, `NOTES_PRIVACY_SECRET` 사용. 비밀키는 모든 인스턴스가 공유하며
   24시간 내 교체하면 기존 재시도·간격 정보가 복구되지 않으므로 함께 조율한다.
-- 기본값은 꺼짐(경로 미등록). 활성화했지만 DB 서비스가 없으면503. 운영 프로필은 등록하지 않는다.
-- 신규 `db/notes/V121__create_anonymous_notes.sql`은 별도 opt-in 경로다. 기존 공통/미니게임 경로를 유지하고
-  팀 버전 순서 합의 후 `classpath:db/notes`를 추가한다. 기존 DB repair/reset/outOfOrder 자동 실행 없음.
+- 기본값은 꺼짐(경로 미등록). 활성화했지만 DB 서비스가 없으면503. 운영(`prod,db`)도 `NOTES_ENABLED=true`와
+  비밀키를 명시했을 때만 등록한다(DEV·PROD 기본 OFF).
+- 켠 상태에서 비밀키가 없거나 32자 미만이면 앱 기동이 실패한다(오류에는 비밀키 값을 남기지 않음).
+  V133 메모 테이블이 없는 DB에서 켜도 JPA 스키마 검증으로 기동이 실패한다.
+- 메모 테이블 4개(`anonymous_notes`, `anonymous_note_requests`, `anonymous_note_rates`, `anonymous_note_board`)는
+  공통 `db/migration/V133__create_anonymous_notes.sql`이 만든다. DEV(`db/migration`·`db/minigame`)와
+  PROD(`db/migration`) 기본 실행 경로에 이미 포함되므로 Flyway locations를 바꾸지 않는다.
+- 이전 `db/notes/V121`·`V129`는 참고용으로 보존하며 실행 경로에 추가하지 않는다. V132 이상이 적용된 DB에
+  낮은 버전을 추가하면 out-of-order로 검증이 실패한다. 기존 DB repair/reset/outOfOrder/baseline 자동 실행 없음.
+- V133은 메모 테이블이 없는 DB 전용이다. 배포 전 대상 DB에서 `infra/app/verify-notes-db.sh`로
+  V121/V129 이력과 메모 테이블이 없음을 확인한다. 하나라도 있으면 V133 배포를 멈추고 별도 편입 절차를 정한다.
 - 신고·삭제·필터 관리 API는 이번 범위에 없다. 실제 개발 서버 배포와 FE UI 연결 완료를 의미하지 않는다.
 
-2026-10-29 사용자 전달로 V129 번호 사용 가능을 확인했고 푸시·dev 대상 MR 생성을 승인받았다.
-격리 DB 검증은 완료했으며 기존 SQL은 보존한다. 공용 DB 적용 이력·배포 성공은 아직 확인하지 않았다.
-배포 시 기존 Flyway 이력을 유지하고 notes 활성화/새 코드의 JPA 검증 전에 V129를 적용해야 한다.
+2026-10-29 V129(주제·공용 변경번호)를 `db/notes`에 추가했으나 공유 DB 실행 경로에는 포함되지 않았다.
+S15P31B105-296에서 V121·V129 최종 스키마를 공통 V133으로 옮겼다(`NotesSchemaMigrationMySqlTests`가 같은 스키마임을 격리 DB로 검증).
+공용 DB 적용 이력·배포 성공은 아직 확인하지 않았다. notes 활성화(JPA 검증) 전에 V133이 먼저 적용돼야 한다.
+배포 전 확인·환경변수·DEV QA 체크리스트는 `docs/notes-feedback-dev-rollout.md`를 따른다.
 FE는 배포 확인 후 빌드 환경의 `VITE_NOTES_CATEGORIES=true`로 다시 빌드하고 NOTES_CHANGED 수신을 subscribe에 연결한다.
 
 ## 실제 접속 연동 검증

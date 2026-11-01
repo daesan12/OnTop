@@ -103,12 +103,13 @@ abstract class OpenApiHttpTestSupport {
         }
         if (environment.acceptsProfiles(Profiles.of("(local | dev) & !prod & !production"))) {
             expected.addAll(Set.of("POST /api/v1/minigames/sessions", "GET /api/v1/minigames/sessions",
+                    "POST /api/v1/minigames/skewer/admissions",
                     "GET /api/v1/minigames/sessions/{sessionId}",
                     "POST /api/v1/minigames/sessions/{sessionId}/manual-pause",
                     "POST /api/v1/minigames/sessions/{sessionId}/deliveries",
                     "POST /api/v1/minigames/sessions/{sessionId}/complete",
                     "POST /api/v1/minigames/sessions/{sessionId}/abandon",
-                    "GET /api/v1/minigames/jumpmap/status", "POST /api/v1/minigames/jumpmap/tips"));
+                    "GET /api/v1/minigames/jumpmap/status", "GET /api/v1/minigames/jumpmap/rankings", "POST /api/v1/minigames/jumpmap/tips"));
             if (environment.getProperty("ontop.notes.enabled", Boolean.class, false)) {
                 expected.addAll(Set.of("GET /api/v1/notes", "POST /api/v1/notes"));
             }
@@ -319,7 +320,8 @@ abstract class OpenApiHttpTestSupport {
         }
         var nickname = api.at("/components/schemas/UserNicknameUpdateRequest/properties/nickname/pattern").asText();
         assertThat(java.util.regex.Pattern.compile(nickname).matcher("미지!").find()).isFalse();
-        for (String path : Set.of("/api/v1/shop/purchases", "/api/v1/minigames/sessions")) {
+        for (String path : Set.of("/api/v1/shop/purchases", "/api/v1/minigames/sessions",
+                "/api/v1/minigames/skewer/admissions")) {
             api.path("paths").path(path).path("post").path("parameters").forEach(parameter -> {
                 if (parameter.path("name").asText().equals("Idempotency-Key")) {
                     assertThat(parameter.at("/schema/pattern").asText()).isEqualTo("^[A-Za-z0-9_-]{1,64}$");

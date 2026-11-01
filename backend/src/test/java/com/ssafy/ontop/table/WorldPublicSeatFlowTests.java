@@ -29,6 +29,40 @@ class WorldPublicSeatFlowTests {
     @Autowired TableHub hub;
 
     @Test
+    void 비착석자는_선택게임만_즉시받고_늦은입장도_동일한_공개준비상태를_받는다() throws Exception {
+        try (var host = client("naver", "a"); var observer = client("ssafy", "a");
+                var other = client("spectator", "b")) {
+            String table = hub.listTables("a").tables().getFirst().tableId();
+            JsonNode state = host.request("TABLE_JOIN", Map.of("tableId", table));
+            for (String game : new String[] { "OMOK", "ONE_CARD", "DICE_LEDGER" }) {
+                state = host.request("TABLE_CONFIGURE", Map.of("gameCode", game, "selectedPlayers", 2,
+                        "betAmountPerPlayer", 1, "expectedVersion", state.at("/payload/version").asLong()));
+                assertThat(state.path("type").asText()).isEqualTo("TABLE_STATE");
+                JsonNode published = observer.await(message -> world(message)
+                        && game.equals(publicTable(message, table).path("gameCode").asText()));
+                assertThat(publicTable(published, table).size()).isEqualTo(4);
+                assertThat(publicTable(published, table).has("privateState")).isFalse();
+                assertThat(publicTable(published, table).has("betAmountPerPlayer")).isFalse();
+                assertThat(publicTable(other.request("WORLD_FOLLOW_CHECK", Map.of()), table).isMissingNode()).isTrue();
+            }
+            observer.close();
+            host.await(message -> world(message) && avatar(message, observer.userId).isMissingNode());
+            try (var late = client("ssafy", "a")) {
+                JsonNode initial = late.await(message -> world(message)
+                        && "DICE_LEDGER".equals(publicTable(message, table).path("gameCode").asText()));
+                assertThat(publicTable(initial, table).path("chairCount").asInt()).isEqualTo(2);
+            }
+        }
+    }
+
+    private static JsonNode publicTable(JsonNode message, String tableId) {
+        for (JsonNode table : message.at("/payload/tables")) {
+            if (table.path("tableId").asText().equals(tableId)) { return table; }
+        }
+        return com.fasterxml.jackson.databind.node.MissingNode.getInstance();
+    }
+
+    @Test
     void 비관전자도_좌석만_바뀐_월드와_퇴장후_null을_받고_다른_채널에는_전송하지_않는다() throws Exception {
         try (var first = client("naver", "a"); var observer = client("ssafy", "a");
                 var other = client("spectator", "b")) {

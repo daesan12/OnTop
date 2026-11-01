@@ -78,6 +78,10 @@ public class JumpmapService implements AutoCloseable {
 
     public boolean active() { return store != null; }
 
+    public JumpmapStore.Ranking ranking(long userId) {
+        return store == null ? new JumpmapStore.Ranking(List.of(), null) : store.ranking(userId);
+    }
+
     public void sink(Sink sink) { this.sink = sink; }
 
     public String mapVersion() { return activation.course().map(JumpCourse::mapVersion).orElse(""); }
@@ -229,11 +233,15 @@ public class JumpmapService implements AutoCloseable {
     }
 
     /** REST status. activeRun은 월드 메모리(레지스트리)의 진행 판이고, lastRun은 최근 끝난 판이다. */
-    public StatusView status(String userId, Optional<JumpmapTracker.RunView> active) {
+    public StatusView status(String userId, Supplier<Optional<JumpmapTracker.RunView>> readActive) {
         if (store == null) {
             LocalDate today = JumpmapStore.kstDate(clock.instant());
             return new StatusView(false, revisions.get(), false, List.of(), null, 0, today, null, null, null);
         }
+        // 조회 뒤 새 revision을 붙이면 느린 DB 조회 중 발생한 START/END 이벤트를 낡은 판으로 덮는다.
+        // 월드 스냅샷 이전 revision을 고정하며, 레지스트리 잠금을 DB 조회나 서비스 잠금과 겹치지 않는다.
+        long snapshotRevision = revisions.get();
+        var active = readActive.get();
         var stored = store.status(Long.parseLong(userId), clock.instant());
         synchronized (this) {
             Map<String, Object> run = null;
@@ -254,7 +262,7 @@ public class JumpmapService implements AutoCloseable {
                 lastRuns.remove(userId);
                 last = null;
             }
-            return new StatusView(true, revisions.incrementAndGet(), stored.firstRun(), stored.seenTips(),
+            return new StatusView(true, snapshotRevision, stored.firstRun(), stored.seenTips(),
                     stored.bestFinishMs(), stored.todayEarned(), stored.today(), runId, run, last);
         }
     }

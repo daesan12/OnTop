@@ -7,6 +7,7 @@ export interface OneCard {
   gameCode: 'ONE_CARD'; status: 'PLAYING' | 'FINISHED'
   players: { userId: string; cardCount: number; active: boolean; oneCardUntil: string | null; oneCardStatus: 'none' | 'pending' | 'declared' | 'caught' | 'expired' }[]
   turnUserId: string | null; turnDeadline: string | null; turnTimeLimitMs: 30000
+  dealEndsAt?: string
   direction: 1 | -1; stage: 'PLAYING' | 'CHOOSE_SUIT' | 'FINISHED'; extraAction: boolean
   topCard: Card; activeSuit: Suit; drawCount: number; attackTotal: number; lastAttack: Card | null; turnCount: number
   winnerUserIds: string[]; endReason: string | null; endedAt: string | null
@@ -45,6 +46,7 @@ export function parseOneCard(v: unknown): OneCard {
       : v.stage !== 'FINISHED' || v.turnUserId !== null || v.turnDeadline !== null || !date(v.endedAt) || !id(v.endReason) || !v.winnerUserIds.length))
     throw new Error('원카드 차례·종료 상태를 확인해주세요.')
   return { gameCode: 'ONE_CARD', status: v.status as OneCard['status'], players, turnUserId: v.turnUserId as string | null,
+    ...(date(v.dealEndsAt) ? { dealEndsAt: v.dealEndsAt } : {}),
     turnDeadline: v.turnDeadline as string | null, turnTimeLimitMs: 30000, direction: v.direction as 1 | -1,
     stage: v.stage as OneCard['stage'], extraAction: v.extraAction, topCard: parseCard(v.topCard), activeSuit: v.activeSuit,
     drawCount: v.drawCount, attackTotal: v.attackTotal, lastAttack: v.lastAttack === null ? null : parseCard(v.lastAttack), turnCount: v.turnCount,

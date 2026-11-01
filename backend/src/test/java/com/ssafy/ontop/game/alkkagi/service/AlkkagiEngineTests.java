@@ -140,7 +140,15 @@ class AlkkagiEngineTests {
         engine.create("round-0", "table", 42, 84); router.forfeit(new GameForfeitCommand(42, "round-0", "quit"));
         try (var workers = java.util.concurrent.Executors.newFixedThreadPool(3)) {
             var read = workers.submit(() -> {
-                for (int i = 0; i < 200; i++) assertThat(router.load(42).orElseThrow().userId()).isEqualTo(42);
+                for (int i = 0; i < 200; i++) {
+                    try {
+                        assertThat(router.load(42).orElseThrow().userId()).isEqualTo(42);
+                    } catch (IllegalStateException changedRepeatedly) {
+                        // The router deliberately bounds retries while rounds change repeatedly.
+                        // A half-installed or mismatched snapshot must still fail this test.
+                        assertThat(changedRepeatedly).hasMessage("조회 중 경기 등록이 반복 변경되었습니다. 다시 조회해주세요.");
+                    }
+                }
             });
             var write = workers.submit(() -> {
                 for (int i = 1; i <= 20; i++) {

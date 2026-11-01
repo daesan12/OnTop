@@ -52,8 +52,8 @@ public class JumpmapController {
             throw new JumpmapRequestException(400, "INVALID_REQUEST", "채널을 확인해주세요.");
         }
         // 다른 탭·채널의 진행 판을 섞지 않는다. 사용자가 그 채널에 있을 때만 진행 판을 싣는다.
-        var active = channelId.equals(channels.channelOf(userId)) ? channels.jumpmapRun(userId) : Optional.<com.ssafy.ontop.world.jumpmap.JumpmapTracker.RunView>empty();
-        var view = service.status(userId, active);
+        var view = service.status(userId, () -> channelId.equals(channels.channelOf(userId))
+                ? channels.jumpmapRun(userId) : Optional.empty());
         var body = new LinkedHashMap<String, Object>();
         body.put("channelId", channelId);
         body.put("mapVersion", channels.mapMetadata().mapVersion());
@@ -89,6 +89,12 @@ public class JumpmapController {
             body.put("lastRun", null);
         }
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(body);
+    }
+
+    @GetMapping("/rankings")
+    @Operation(summary = "돌탑 점프맵 타임어택 랭킹", description = "현 규칙의 검증된 개인 최고 기록 상위 50명과 내 기록. 동점은 같은 등수, 먼저 도착한 기록이 먼저 표시된다.")
+    public ResponseEntity<JumpmapStore.Ranking> rankings(Principal principal) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(service.ranking(account(principal)));
     }
 
     @PostMapping("/tips")

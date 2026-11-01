@@ -36,8 +36,11 @@ export function BenchSpectatorControls() {
   }, [scope, runtime])
   // Subscribe to public table starts while seated; GAME_WATCH requires an explicit view change.
   useEffect(() => {
-    if (scope && anchorId && session.mapCompatible && !bench.pending) void runtime.watchBench(anchorId, true)
-  }, [scope, anchorId, session.mapCompatible, bench.pending, runtime])
+    if (scope && anchorId && session.mapCompatible && !bench.pending && !session.watchedTableId) {
+      useBenchSpectator.setState({ scope, view: 'seated' })
+      void runtime.watchBench(anchorId, true)
+    }
+  }, [scope, anchorId, session.mapCompatible, session.watchedTableId, bench.pending, runtime])
   const disabled = session.pending || bench.pending || busy
   const change = async (next: typeof view) => {
     if (changing.current || disabled || !scope || !anchorId || !session.mapCompatible || next !== 'seated' && !available) return

@@ -25,6 +25,61 @@ import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class OmokEngineTests {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"WIN", "TIMEOUT", "FORFEIT", "GRACE"})
+    void 동전추첨_경기가_끝나면_연출정보를_정리하고_종료결과는_복구한다(String ending) throws Exception {
+        var tossed = new OmokEngine(mapper, clock, events::add,
+                new com.ssafy.ontop.game.engine.GameEngineRouter(), () -> false);
+        tossed.createWithCoinToss("toss-clean", "other", 303, 404);
+        assertThat(tossed.load(303, "toss-clean").orElseThrow().publicState().has("coinTossEndsAt")).isTrue();
+        switch (ending) {
+            case "WIN" -> {
+                clock.advanceMillis(2500);
+                for (int index = 0; index < 9; index++) {
+                    boolean black = index % 2 == 0;
+                    tossed.apply(new GameActionCommand(black ? 303 : 404, "toss-clean", "move-" + index,
+                            index, mapper.readTree("{\"x\":" + index / 2 + ",\"y\":" + (black ? 0 : 2) + "}")));
+                }
+            }
+            case "TIMEOUT" -> { clock.advanceMillis(32500); tossed.tick(); }
+            case "FORFEIT" -> tossed.forfeit(new com.ssafy.ontop.game.action.GameForfeitCommand(
+                    303, "toss-clean", "leave"));
+            case "GRACE" -> tossed.graceExpired(new GameRecoveryGateway.GraceExpiration(UUID.randomUUID(),
+                    303, "toss-clean", clock.instant(), clock.instant(), GameRecoveryGateway.Action.FORFEIT));
+            default -> throw new IllegalArgumentException(ending);
+        }
+        tossed.tick();
+        var recovered = tossed.load(303).orElseThrow();
+        assertThat(recovered.phase()).isEqualTo(GameRecoverySnapshot.Phase.FINISHED);
+        assertThat(recovered.state().has("coinTossEndsAt")).isFalse();
+        assertThat(recovered.state().path("blackUserId").asLong()).isEqualTo(303);
+        assertThat(events.stream().filter(OmokGameFinished.class::isInstance)).hasSize(1);
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void 동전추첨은_한번만하고_공개후에만_흑돌이_착수하며_재접속도_같은결과다(boolean reverse) throws Exception {
+        var flips = new java.util.concurrent.atomic.AtomicInteger();
+        var engine = new OmokEngine(mapper, clock, events::add, new com.ssafy.ontop.game.engine.GameEngineRouter(),
+                () -> { flips.incrementAndGet(); return reverse; });
+        engine.createWithCoinToss("toss", "other", 303, 404);
+        var before = engine.load(303, "toss").orElseThrow().publicState();
+        long black = before.path("blackUserId").asLong();
+        assertThat(black).isEqualTo(reverse ? 404 : 303);
+        assertThat(before.path("whiteUserId").asLong()).isEqualTo(black == 303 ? 404 : 303);
+        assertThat(before.path("coinTossEndsAt").asText()).isEqualTo(clock.instant().plusMillis(2500).toString());
+        engine.createWithCoinToss("toss", "other", 404, 303);
+        assertThat(flips).hasValue(1);
+        assertThat(engine.load(404, "toss").orElseThrow().publicState()).isEqualTo(before);
+        var action = new GameActionCommand(black, "toss", "coin-first", 0, mapper.readTree("{\"x\":7,\"y\":7}"));
+        assertThatThrownBy(() -> engine.apply(action)).isInstanceOfSatisfying(Rejected.class,
+                error -> assertThat(error.reason()).isEqualTo(Rejection.INVALID_ACTION));
+        clock.advanceMillis(2500);
+        engine.apply(action);
+        assertThat(engine.load(black, "toss").orElseThrow().publicState().path("moveCount").asInt()).isEqualTo(1);
+        assertThatThrownBy(() -> engine.createWithCoinToss("toss", "other", 303, 505))
+                .isInstanceOf(IllegalStateException.class);
+    }
     private final ObjectMapper mapper = new ObjectMapper();
     private final TestClock clock = new TestClock();
     private final List<Object> events = new CopyOnWriteArrayList<>();

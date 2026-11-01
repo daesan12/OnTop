@@ -3,9 +3,9 @@ import { PARK_MAP_VERSION } from '../../map/park/generated/mapVersion'
 
 /** Service data wraps the accepted new-map course. Never reconstructs/scales the art. */
 export const COURSE_VERSION = 'park180-jump-v1'
-export const RULES_VERSION = 'v2'
+export const RULES_VERSION = 'v3'
 export const MAP_VERSION = PARK_MAP_VERSION
-export const DAILY_CAP = 100
+export const DAILY_CAP = 500
 export const STATUS_PATH = '/api/v1/minigames/jumpmap/status'
 export const TIPS_PATH = '/api/v1/minigames/jumpmap/tips'
 export const STAGES = JUMP_STAGES.map((s, i) => ({ ...s, stage: i + 1, subtitle: ['돌탑을 따라 한 걸음', '또각또각, 하늘로', '노릇한 구름길', '폭신한 하늘 계단', '공원 위 반짝이는 길', '바람을 타고', '호수로 뛰어들어요'][i]! }))

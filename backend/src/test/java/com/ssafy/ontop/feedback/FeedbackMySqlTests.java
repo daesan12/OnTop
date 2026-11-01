@@ -196,8 +196,9 @@ class FeedbackMySqlTests {
         assertThat(feedback.deleteExpired()).isEqualTo(1);
         assertThat(count()).isZero();
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM users WHERE id=909", Integer.class)).isEqualTo(1);
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE version='120' AND success=1",
-                Integer.class)).isEqualTo(1);
+        // 소리함 테이블은 공통 V127이 만들고, 이전 db/feedback V120은 실행 경로에 없다.
+        assertThat(jdbc.queryForList("SELECT version FROM flyway_schema_history WHERE success=1", String.class))
+                .contains("127").doesNotContain("120");
     }
 
     @Test

@@ -540,12 +540,13 @@ public class MinigameService {
             List<BungeoppangV4Rules.Action> actions = BungeoppangV5DeliveryContract.domainActions(request.log());
             List<Integer> heats = heats(record);
             BungeoppangV4Responses.Rules rules = v5CalculationRules(round);
+            int complaintPenalty = v5Config(round).rules().queueComplaintPenalty();
             BungeoppangV5Rules.Result before = v5Rules.replay(actions.subList(0, actions.size() - 1), heats, issued,
-                    rules);
+                    rules, complaintPenalty);
             BungeoppangV5Rules.Order target = before.activeOrders().stream()
                     .filter(order -> order.orderId().equals(last.orderId())).findFirst()
                     .orElseThrow(() -> new MinigameException(409, "STALE_ORDER", "현재 활성 주문이 아닙니다."));
-            BungeoppangV5Rules.Result delivered = v5Rules.replay(actions, heats, issued, rules);
+            BungeoppangV5Rules.Result delivered = v5Rules.replay(actions, heats, issued, rules, complaintPenalty);
 
             long nextOrderId = storedOrders.stream().mapToLong(BungeoppangV5Order::orderId).max().orElse(0) + 1;
             BungeoppangV4Rules.Order generated = v4Rules.nextOrder(storedOrders.size(), random, rules);
@@ -554,7 +555,7 @@ public class MinigameService {
             var withReplacement = new ArrayList<>(issued);
             withReplacement.add(replacement);
             // The replacement must activate at this DELIVER in the freed slot; a mismatch is a server fault.
-            BungeoppangV5Rules.Result result = v5Rules.replay(actions, heats, withReplacement, rules);
+            BungeoppangV5Rules.Result result = v5Rules.replay(actions, heats, withReplacement, rules, complaintPenalty);
 
             var checkpoint = BungeoppangV5Spec.checkpoint(round.revision() + 1, request.throughSeq(),
                     request.prefixHash(), result);
@@ -637,13 +638,13 @@ public class MinigameService {
         }
         long calculated = score.score() / 15;
         long today = earned(userId, current);
-        long reward = Math.min(calculated, Math.max(0, BungeoppangRules.DAILY_CAP - today));
+        long reward = MinigameRewardBudget.grant(calculated, today);
         wallet.creditReward(reward);
         session.complete(score.score(), reward, current);
         activityEnded(session);
         if (reward > 0) {
             repository.persist(WalletTransaction.minigameReward(wallet.id(), session.id(), reward,
-                    "minigame-reward:" + session.id()));
+                    "minigame-reward:" + session.id(), current));
         }
         rememberTips(userId, submission.path("seenTips"));
         var response = new MinigameCompleteResponse(Long.toString(sessionId), "COMPLETED", score.made(), reward,
@@ -735,13 +736,13 @@ public class MinigameService {
         var rewardDate = settledAt.atZone(SEOUL).toLocalDate();
         long calculated = Math.floorDiv(result.score(), config(round).rules().pointsPerCoin());
         long today = earned(userId, settledAt);
-        long reward = Math.min(calculated, Math.max(0, BungeoppangRules.DAILY_CAP - today));
+        long reward = MinigameRewardBudget.grant(calculated, today);
         wallet.creditReward(reward);
         session.complete(result.score(), reward, settledAt);
         activityEnded(session);
         if (reward > 0) {
             repository.persist(WalletTransaction.minigameReward(wallet.id(), sessionId, reward,
-                    "minigame-reward:" + sessionId));
+                    "minigame-reward:" + sessionId, settledAt));
         }
         int unfinished = (int) result.slots().stream().filter(slot -> !"empty".equals(slot.phase())).count();
         var response = new BungeoppangV4CompleteDtos.Response(Long.toString(sessionId), "COMPLETED", V4,
@@ -834,18 +835,18 @@ public class MinigameService {
         BungeoppangV5Responses.Rules rules = v5Config(round).rules();
         BungeoppangV5Rules.Result result = v5Rules.replay(
                 BungeoppangV5DeliveryContract.domainActions(request.log()), heats(record), issued,
-                BungeoppangV5Spec.calculationRules(rules));
+                BungeoppangV5Spec.calculationRules(rules), rules.queueComplaintPenalty());
         Instant settledAt = now();
         var rewardDate = settledAt.atZone(SEOUL).toLocalDate();
-        long calculated = Math.floorDiv(result.score(), rules.pointsPerCoin());
+        long calculated = Math.max(0, Math.floorDiv(result.score(), rules.pointsPerCoin()));
         long today = earned(userId, settledAt);
-        long reward = Math.min(calculated, Math.max(0, BungeoppangRules.DAILY_CAP - today));
+        long reward = MinigameRewardBudget.grant(calculated, today);
         wallet.creditReward(reward);
         session.complete(result.score(), reward, settledAt);
         activityEnded(session);
         if (reward > 0) {
             repository.persist(WalletTransaction.minigameReward(wallet.id(), sessionId, reward,
-                    "minigame-reward:" + sessionId));
+                    "minigame-reward:" + sessionId, settledAt));
         }
         int unfinished = (int) result.slots().stream().filter(slot -> !"empty".equals(slot.phase())).count();
         var response = new BungeoppangV4CompleteDtos.Response(Long.toString(sessionId), "COMPLETED", V5,

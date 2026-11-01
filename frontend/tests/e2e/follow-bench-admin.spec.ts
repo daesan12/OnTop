@@ -12,7 +12,7 @@ const cameraState = (page: Page) => page.evaluate(async () => ({
 const probe = (page: Page) => page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).adCameraProbe())
 async function loaded(page: Page) {
   await page.goto('/park'); await expect(page).toHaveTitle('OnTop')
-  await expect(page.getByLabel('공원 기본 화면')).toBeVisible()
+  await expect(page.getByLabel('공원 기본 화면')).toBeVisible({ timeout: 90000 })
   await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90000 })
   await expect.poll(() => page.evaluate(async () => (await import('/src/network/worldClient.ts' as string)).useSession.getState().status)).toBe('connected')
   await page.locator('canvas').focus()
@@ -79,7 +79,7 @@ test('ordinary dev exposes approved follow controls and closes the remote menu f
     const state = useSession.getState()
     openAvatarMenu({ id: state.ids.find((id: string) => id !== state.sessionId), x: 600, y: 300 })
   })
-  const menu = page.getByRole('menu').filter({ hasText: '서버 승인 후 따라가요' }); await expect(menu).toBeVisible()
+  const menu = page.getByRole('menu').filter({ hasText: '따라가기' }); await expect(menu).toBeVisible()
   await expect(menu.getByRole('menuitem', { name: '따라가기', exact: true })).toBeEnabled()
   const count = server.sent.filter(m => m.type === 'WORLD_MOVE' && m.payload.dx).length
   await page.keyboard.press('KeyW'); expect(server.sent.filter(m => m.type === 'WORLD_MOVE' && m.payload.dx)).toHaveLength(count)

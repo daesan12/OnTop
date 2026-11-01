@@ -17,6 +17,8 @@ import { OneCardDefenseOverlay } from './OneCardDefense'
 import { OneCardSpectatorHands } from './OneCardSpectatorHands'
 import { useHammerShortcut } from './useHammerShortcut'
 import { OneCardSuitChoice } from './OneCardSuitChoice'
+import { dealtCount, openingActive, openingAge, SHUFFLE_MS } from './opening'
+import { useReducedMotion } from './useReducedMotion'
 import './onecard.css'
 import './onecardChrome.css'
 import './onecardChat.css'
@@ -30,6 +32,7 @@ function ActionIcon({ kind }: { kind: 'play' | 'draw' | 'restore' }) {
 }
 
 export function OneCardPanel() {
+  const reduced = useReducedMotion()
   const s = useGame(), session = useSession(useShallow(s => ({ sessionId: s.sessionId, roomId: s.roomId, profiles: s.profiles, status: s.status, pending: s.pending }))), runtime = useParkRuntime()
   const [now, setNow] = useState(Date.now)
   const guidanceRef = useRef<HTMLDivElement>(null)
@@ -48,6 +51,7 @@ export function OneCardPanel() {
     <p role="status">공개 판과 본인 손패를 확인하고 있습니다.</p>{s.error && <p role="alert">{s.error}</p>}
     <button disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkRecovery()}>경기 복구 다시 확인</button></section>
   const o = g.onecard, spectator = g.role === 'SPECTATOR', ownId = session.sessionId
+  const opening = !reduced && openingActive(o, g.version, now)
   const scope = handScope(ownId, session.roomId, g.gameId, g.version)
   const fresh = !spectator && g.hand?.userId === ownId && session.status === 'connected' && !recoveryBlocked() && !s.uncertain && g.version >= s.awaitingVersion
   const hand = fresh ? g.hand : null, selected = selection.scope === scope ? hand?.hand.find(c => c.id === selection.selectedId) : undefined
@@ -55,7 +59,7 @@ export function OneCardPanel() {
   const send = (input: OneCardInput) => { if (can(input)) void runtime.actOneCard(input) }
   const restore = () => { void runtime.restoreOneCardHand?.() }
   const name = (id: string) => id === ownId ? '나' : session.profiles[id]?.nickname ?? `참가자 ${o.players.findIndex(p => p.userId === id) + 1}`
-  const remaining = o.turnDeadline ? Math.max(0, Math.ceil((Date.parse(o.turnDeadline) - now) / 1000)) : null
+  const remaining = o.turnDeadline ? Math.min(o.turnTimeLimitMs / 1000, Math.max(0, Math.ceil((Date.parse(o.turnDeadline) - now) / 1000))) : null
   const windowLeft = (until: string | null) => until ? Math.max(0, Math.ceil((Date.parse(until) - now) / 1000)) : 0
   const own = o.players.find(p => p.userId === ownId), finished = o.status === 'FINISHED'
   const myTurn = o.turnUserId === ownId
@@ -65,11 +69,12 @@ export function OneCardPanel() {
   const actionHint = !fresh ? '최신 판과 손패를 확인하고 있어요.' : s.pending ? '서버가 요청을 확인하고 있어요.'
     : remaining === 0 ? '시간이 끝났어요. 서버 판정을 기다려주세요.' : guidance.hint
   return <section className="minigame-hud onecard-panel onecard-game-hud" aria-label="원카드 경기" data-stage={o.stage} data-role={g.role} data-own-turn={!!ownTurn}>
+    {opening && <div className="onecard-opening-status" role="status">{openingAge(o, g.version, now) < SHUFFLE_MS ? '카드를 섞고 있어요' : '카드를 나누고 있어요'}</div>}
     {finished ? <div className="mini-status"><p role="status">{o.winnerUserIds.map(name).join(' · ')} {o.winnerUserIds.length > 1 ? '공동 승리' : '승리'}</p></div>
       : remaining !== null && <div className="onecard-turn-timer" role="timer" aria-label="차례 남은 시간" data-urgent={remaining <= 5}>
         <span title={myTurn ? '내 차례' : `${name(o.turnUserId ?? '')}의 차례`}>{myTurn ? '내 차례' : `${name(o.turnUserId ?? '')}의 차례`}</span><strong>{remaining}<small>초</small></strong>
       </div>}
-    {!spectator && !finished && <div key={`${o.turnUserId}/${o.turnCount}`} className="onecard-turn-cue" data-own={!!ownTurn} role="status" aria-label="현재 차례">
+    {!spectator && !finished && !opening && <div key={`${o.turnUserId}/${o.turnCount}`} className="onecard-turn-cue" data-own={!!ownTurn} role="status" aria-label="현재 차례">
       <span aria-hidden="true">{ownTurn ? '◆' : '◷'}</span><strong>{ownTurn ? '내 차례' : `${name(o.turnUserId ?? '')}의 차례`}</strong>
       {ownTurn && o.stage === 'CHOOSE_SUIT' && <small>무늬를 선택하세요</small>}
     </div>}
@@ -86,7 +91,7 @@ export function OneCardPanel() {
     {!spectator && !finished && <section className="mini-actions onecard-actions-panel">
       {!fresh && <p>최신 공개 판과 본인 손패를 함께 확인 중입니다. 이전 패로 행동할 수 없습니다.</p>}
       {own?.active === false && <p>기권 처리되어 이번 경기에서 더 이상 행동할 수 없습니다.</p>}
-      <FanHand key={`${ownId}/${session.roomId}/${g.gameId}`} scope={scope} cards={hand?.hand ?? []} playableIds={hand?.playableCardIds ?? []} flippedIds={prank.flippedIds} selectedId={selected?.id}
+      <FanHand key={`${ownId}/${session.roomId}/${g.gameId}`} scope={scope} cards={reduced ? hand?.hand ?? [] : hand?.hand.slice(0, dealtCount(o, g.version, ownId, now)) ?? []} playableIds={hand?.playableCardIds ?? []} flippedIds={prank.flippedIds} selectedId={selected?.id}
         canPlay={id => can({ kind: 'play', cardId: id })} restore={restore}
         grab={id => useOneCardUI.setState({ scope, selectedId: id })} play={id => send({ kind: 'play', cardId: id })}
         select={id => useOneCardUI.setState({ scope, selectedId: selected?.id === id ? '' : id })} />

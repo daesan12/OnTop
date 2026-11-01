@@ -12,6 +12,7 @@ import com.ssafy.ontop.game.action.GameActionGateway;
 import com.ssafy.ontop.game.action.GameActionResult;
 import com.ssafy.ontop.game.action.GameForfeitCommand;
 import com.ssafy.ontop.game.action.GameForfeitResult;
+import com.ssafy.ontop.game.omok.service.OmokForfeitDirection;
 import com.ssafy.ontop.game.onecard.service.OneCardEngine;
 import com.ssafy.ontop.game.onecard.service.OneCardPranks;
 import com.ssafy.ontop.game.reconnect.GameReconnectService;
@@ -157,6 +158,14 @@ public class TableHub {
     @Autowired(required = false)
     public void configureWorldClock(com.ssafy.ontop.world.service.WorldClock clock) { worldClock = clock; }
     private final AlkkagiSpectatorPolicy alkkagiSpectators = new AlkkagiSpectatorPolicy();
+    private com.ssafy.ontop.world.fitness.FitnessRewardService fitnessRewards;
+
+    @Autowired(required = false)
+    public void configureFitnessRewards(com.ssafy.ontop.world.fitness.FitnessRewardService service) {
+        fitnessRewards = service;
+        service.sink((userId, receipt) -> sendJumpmap(userId, "FITNESS_REWARD",
+                Map.of("userId", userId, "receipt", receipt)));
+    }
     private SpectatorEventPolicy spectatorEvents = new SpectatorEventPolicy();
     private Optional<OneCardEngine> prankEngine = Optional.empty();
     private final OneCardPranks onecardPranks = new OneCardPranks();
@@ -224,6 +233,13 @@ public class TableHub {
 
     // 실제 점유가 생기거나 풀린 뒤에만 호출한다. 시작·종료는 leaseId로 짝을 맞춘다.
     private void recordFacility(Long accountId, WorldFacilityService.Lease lease, String endReason) {
+        if (fitnessRewards != null) {
+            if (endReason == null) {
+                fitnessRewards.started(accountId, lease);
+            } else {
+                fitnessRewards.ended(lease);
+            }
+        }
         recordBehavior(endReason == null ? BehaviorEventType.FACILITY_USED : BehaviorEventType.FACILITY_RELEASED,
                 accountId, builder -> {
                     builder.channelId(lease.channelId()).prop("leaseId", lease.leaseId())
@@ -1471,6 +1487,7 @@ public class TableHub {
                         "mapVersion", catalog.mapVersion(), "total", catalog.facilities().size(),
                         "offset", offset, "nextOffset", end < catalog.facilities().size() ? end : -1,
                         "facilities", catalog.facilities().subList(offset, end),
+                        "fitnessRewardsEnabled", fitnessRewards != null && fitnessRewards.enabled(),
                         "aimIntervalMs", catalog.aimIntervalMs(), "minPitch", catalog.minPitch(),
                         "maxPitch", catalog.maxPitch(), "initialPitch", catalog.initialPitch())));
             }
@@ -1979,7 +1996,7 @@ public class TableHub {
         if (worldChanged) { publishWorld(channels.worldState(tableChannels.get(snapshot.tableId())), null, null); }
     }
 
-    /** 준비·판돈·경기 비공개 정보 없이, 같은 Hub 확정 시점의 실제 좌석만 복사한다. */
+    /** 선택 게임과 실제 좌석만 공개하며 준비·판돈·경기 비공개 정보는 포함하지 않는다. */
     private boolean syncWorldTableSeats(String channelId) {
         if (channelId == null) { return false; }
         long previous = channels.worldState(channelId).version();
@@ -1988,7 +2005,7 @@ public class TableHub {
         for (var entry : rooms.entrySet()) {
             if (!channelId.equals(tableChannels.get(entry.getKey()))) { continue; }
             publicTables.add(new WorldChannelRegistry.PublicTable(entry.getKey(), tableAnchors.get(entry.getKey()),
-                    chairCount(entry.getValue().snapshot())));
+                    chairCount(entry.getValue().snapshot()), entry.getValue().snapshot().gameCode()));
             for (var seat : entry.getValue().snapshot().seats()) {
                 if (seat.userId() != null && entry.getKey().equals(seating.get(seat.userId()))) {
                     seats.put(seat.userId(), new WorldChannelRegistry.TableSeat(entry.getKey(), seat.seatNumber()));
@@ -2524,8 +2541,18 @@ public class TableHub {
         // 한 테이블의 현재 경기, 참가자별 한 건만 보존한다. 새 경기의 사건이 오면 교체한다.
         if (!round.users().add(event.userId())) { return; }
         var position = channels.positionOf(Long.toString(event.userId()));
-        // 서버 방향을 사용해 모든 방문자에게 같은 비행 경로를 보여준다.
+        // 오목은 참가 확정 좌석으로 상대 방향을 정해 관전자도 같은 비행 경로를 본다.
         double throwYaw = position == null ? 0 : position.yaw();
+        if ("OMOK".equals(event.gameCode()) && players.size() == 2) {
+            var participants = attempt.command().participants();
+            int fromSeat = participants.stream()
+                    .filter(player -> player.userId().equals(Long.toString(event.userId())))
+                    .findFirst().orElseThrow().seatNumber();
+            int toSeat = participants.stream()
+                    .filter(player -> !player.userId().equals(Long.toString(event.userId())))
+                    .findFirst().orElseThrow().seatNumber();
+            throwYaw = OmokForfeitDirection.towardOpponent(fromSeat, toSeat);
+        }
         if (parkDebris.add(channelId, tableAnchors.get(event.tableId()), event, players.size(), throwYaw)) {
             publishParkDebris(channelId);
         }

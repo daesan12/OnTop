@@ -29,7 +29,7 @@ public class OneCardConfiguration {
             GameEngineRouter router) {
         SecureRandom random = new SecureRandom();
         return new OneCardEngine(mapper, clock.orElseGet(Clock::systemUTC), events::publishEvent, router,
-                cards -> java.util.Collections.shuffle(cards, random), random::nextInt, ForfeitHandPolicy.REMOVE);
+                cards -> java.util.Collections.shuffle(cards, random), random::nextInt, ForfeitHandPolicy.REMOVE, true);
     }
 
     @Bean(destroyMethod = "shutdownNow")

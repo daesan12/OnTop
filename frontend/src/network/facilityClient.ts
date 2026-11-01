@@ -119,8 +119,8 @@ export class FacilityClient {
             throw new Error('시설 목록 페이지가 올바르지 않습니다.')
           offset = page.nextOffset
         }
-        const { mapVersion, aimIntervalMs, minPitch, maxPitch, initialPitch } = first!
-        useFacilityState.setState({ catalog, options: { mapVersion, aimIntervalMs, minPitch, maxPitch, initialPitch } })
+        const { mapVersion, aimIntervalMs, minPitch, maxPitch, initialPitch, fitnessRewardsEnabled } = first!
+        useFacilityState.setState({ catalog, options: { mapVersion, aimIntervalMs, minPitch, maxPitch, initialPitch, fitnessRewardsEnabled } })
       }
       await this.request('WORLD_FACILITY_CHECK', {})
       if (!this.current(epoch)) throw cancelled()

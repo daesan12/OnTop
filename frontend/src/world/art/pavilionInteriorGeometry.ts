@@ -147,11 +147,17 @@ export function createPavilionBench(scale: number) {
   }
   if(SIMPLE_MAP) {
     const span=(radius-TIMBER.seatHalfDepth)*MITRE*2
-    box(0,TIMBER.seatHeight-.06,0,span,.12,TIMBER.seatHalfDepth*2,'#b9956e')
-    box(0,.82,-TIMBER.inset,span,.45,.12,'#a37b54')
+    // A rectangular board meets only at the inner corners and leaves a wedge
+    // missing at every outer corner. Mitre both the seat and its framed back.
+    parts.push(mitred(radius,-TIMBER.seatHalfDepth,TIMBER.seatHalfDepth,
+      TIMBER.seatHeight-.12,TIMBER.seatHeight,'#b9956e'))
+    parts.push(mitred(radius,-TIMBER.inset-.06,-TIMBER.inset+.06,.6,1.1,'#a37b54'))
+    // Cover the existing 1.22m collision railing without coplanar top faces.
+    parts.push(mitred(radius,-TIMBER.inset-.09,-TIMBER.inset+.1,
+      1.1,TIMBER.railHeight+.008,'#c09b71'))
     for(const x of [-span*.35,span*.35]){
       box(x,.255,0,.16,.51,.5,'#9d7652')
-      box(x,.51,-.41,.12,1.02,.16,'#9d7652')
+      box(x,TIMBER.railHeight/2,-.41,.12,TIMBER.railHeight,.16,'#9d7652')
     }
     return merge(parts)
   }

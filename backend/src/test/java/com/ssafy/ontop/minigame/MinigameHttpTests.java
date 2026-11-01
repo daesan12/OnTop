@@ -156,7 +156,7 @@ class MinigameHttpTests {
         var checkpoint = new BungeoppangV5Responses.Checkpoint(0, 0, BungeoppangV5Spec.initialPrefixHash(901,
                 BungeoppangV5Spec.CONFIG_VERSION), 0,
                 null, BungeoppangV4Spec.initialCheckpoint(901).slots(), List.of(),
-                BungeoppangV4Spec.initialCheckpoint(901).stats(), orders);
+                BungeoppangV4Spec.initialCheckpoint(901).stats(), orders, List.of());
         when(minigames.v5Enabled()).thenReturn(true);
         when(minigames.startV5(101, "BUNGEOPPANG", "v5-key")).thenReturn(new BungeoppangV5Responses.StartResponse(
                 "901", "BUNGEOPPANG", "PLAYING", "WAITING_START", "v5", BungeoppangV5Spec.CONFIG_VERSION, issued,
@@ -244,7 +244,7 @@ class MinigameHttpTests {
                 new BungeoppangV4Responses.FillingCounts(1, 0, 0, 0));
         var checkpoint = new BungeoppangV5Responses.Checkpoint(1, 1, "0".repeat(64), 0, 1000,
                 BungeoppangV4Spec.initialCheckpoint(901).slots(), List.of(),
-                BungeoppangV4Spec.initialCheckpoint(901).stats(), List.of(replacement));
+                BungeoppangV4Spec.initialCheckpoint(901).stats(), List.of(replacement), List.of());
         when(minigames.deliverV5(101, 901, "delivery-5", delivery)).thenReturn(
                 new BungeoppangV5Responses.DeliveryResponse("901", "delivery-5", "2", true,
                         Instant.parse("2026-10-28T00:00:10Z"), 1, "0".repeat(64), List.of(1L), 10, 0,

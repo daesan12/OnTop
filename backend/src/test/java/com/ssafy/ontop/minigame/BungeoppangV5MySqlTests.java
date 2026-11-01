@@ -50,6 +50,49 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
         "ontop.auth.jwt-secret-base64=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
 })
 class BungeoppangV5MySqlTests {
+    @Autowired jakarta.persistence.EntityManager budgetEntities;
+    @Autowired org.springframework.transaction.PlatformTransactionManager budgetTransactions;
+
+    @org.junit.jupiter.api.AfterEach
+    void 공통지급_검증용_점프맵_행을_정리한다() {
+        jdbc.update("DELETE FROM jump_gate_rewards WHERE run_id = 'shared-budget-run'");
+        jdbc.update("DELETE FROM jump_runs WHERE id = 'shared-budget-run'");
+        jdbc.update("DELETE FROM jump_profiles WHERE user_id = 101");
+    }
+
+    @Test
+    void 붕어빵과_점프맵이_동시에_보상받아도_공통500냥만_지급하고_재시도는_중복지급하지않는다() throws Exception {
+        long sessionId = readyV5("shared-budget");
+        var request = delivery(sessionId, "1", "shared-one");
+        minigames.deliverV5(101, sessionId, "shared-one", request);
+        shift(sessionId, TO_SETTLEMENT);
+        JsonNode body = mapper.readTree(completion(sessionId, request.log()));
+        jdbc.update("""
+                INSERT INTO wallet_transactions(wallet_id, transaction_type, balance_delta, reserved_delta, idempotency_key, created_at)
+                SELECT id, 'JUMP_GATE_REWARD', 498, 0, 'shared-budget-seed', CURRENT_TIMESTAMP(3) FROM wallets WHERE user_id = 101
+                """);
+        jdbc.update("UPDATE wallets SET balance = balance + 498 WHERE user_id = 101");
+        var jumps = new com.ssafy.ontop.world.jumpmap.JdbcJumpmapStore(jdbc, budgetEntities, budgetTransactions);
+        var now = java.time.Instant.now();
+        jumps.start("shared-budget-run", 101, "channel-1", now);
+        jumps.passGate("shared-budget-run", 101, 1, 2, 10000, now);
+        var gate = new CountDownLatch(1);
+        BungeoppangV4CompleteDtos.Response result;
+        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            var bread = executor.submit(() -> race(gate, () -> minigames.complete(101, sessionId, "shared-complete", body)));
+            var jump = executor.submit(() -> race(gate, () -> jumps.settle("shared-budget-run", 1, now).orElseThrow()));
+            gate.countDown();
+            result = (BungeoppangV4CompleteDtos.Response) bread.get(10, TimeUnit.SECONDS);
+            var paid = (com.ssafy.ontop.world.jumpmap.JumpmapStore.Settled) jump.get(10, TimeUnit.SECONDS);
+            assertThat(result.coinsGranted() + paid.coinsGranted()).isEqualTo(2);
+        }
+        assertThat(balance()).isEqualTo(600);
+        assertThat(jumps.status(101, now).todayEarned()).isEqualTo(500);
+        assertThat(result.dailyCap()).isEqualTo(500);
+        assertThat(minigames.complete(101, sessionId, "shared-complete", body)).isEqualTo(result);
+        jumps.settle("shared-budget-run", 1, now);
+        assertThat(balance()).isEqualTo(600);
+    }
     private static final String START = "{\"minigameType\":\"BUNGEOPPANG\",\"rulesVersion\":\"v5\"}";
 
     @Autowired JdbcTemplate jdbc;
@@ -85,7 +128,8 @@ class BungeoppangV5MySqlTests {
         jdbc.execute("DROP TRIGGER IF EXISTS minigame_test_fail_v5_order");
         jdbc.execute("DROP TRIGGER IF EXISTS minigame_test_fail_v5_receipt");
         jdbc.execute("DROP TRIGGER IF EXISTS minigame_test_fail_v5_ledger");
-        for (String table : List.of("bungeoppang_v5_orders", "bungeoppang_v4_receipts", "bungeoppang_v4_progress",
+        for (String table : List.of("jump_gate_rewards", "jump_daily_earnings", "jump_profiles", "jump_runs",
+                "bungeoppang_v5_orders", "bungeoppang_v4_receipts", "bungeoppang_v4_progress",
                 "bungeoppang_v4_orders", "bungeoppang_v4_rounds", "bungeoppang_records", "bungeoppang_profiles",
                 "minigame_start_requests", "wallet_transactions", "minigame_sessions", "shop_purchases",
                 "user_items", "items", "wallets", "refresh_tokens", "users")) {
