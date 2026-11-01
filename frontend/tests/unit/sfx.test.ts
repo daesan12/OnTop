@@ -16,6 +16,8 @@ it('승인된 오목 착수는 한 번 소리 내고 마지막 승리 착수도 
   next.omok!.moveCount = 1
   next.omok!.lastMove = { x: 7, y: 7, stone: 'BLACK' }
   next.omok!.board[7]![7] = 1
+  next.omok!.turnUserId = 'other'
+  expect(gameSfx(before, next, 'other')).toEqual(['omok-place'])
   expect(gameSfx(before, next, 'other')).toContain('omok-place')
   expect(gameSfx(next, next, 'other')).not.toContain('omok-place')
   expect(gameSfx(null, next, 'other')).not.toContain('omok-place')

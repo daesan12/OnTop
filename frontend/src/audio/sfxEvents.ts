@@ -17,13 +17,15 @@ export function gameSfx(prev: Game | null, next: Game | null, ownId: string): Sf
   const out: SfxName[] = []
   const before = prev?.gameId === next.gameId ? prev : null
   const move = next.omok?.lastMove
-  if (next.omok && before?.omok && move && next.version > before.version
+  const omokPlaced = next.omok && before?.omok && move && next.version > before.version
     && next.omok.moveCount === before.omok.moveCount + 1
-    && before.omok.board[move.y]?.[move.x] === 0 && next.omok.board[move.y]?.[move.x] !== 0) out.push('omok-place')
+    && before.omok.board[move.y]?.[move.x] === 0 && next.omok.board[move.y]?.[move.x] !== 0
+  if (omokPlaced) out.push('omok-place')
   // 마지막 승리 착수도 소리가 나며, 상태 복구·중복 스냅샷·거절 입력은 재생하지 않는다.
   if (gameState(next).status !== 'PLAYING') return out
   if (!before && next.role === 'PLAYER') out.push('game-start')
-  if (next.role === 'PLAYER' && turnOwner(next) === ownId && (!before || turnOwner(before) !== ownId)) out.push('game-turn')
+  // 승인 착수에는 '탁'만 재생한다. 차례 알림의 전자음이 동시에 겹치지 않게 한다.
+  if (!omokPlaced && next.role === 'PLAYER' && turnOwner(next) === ownId && (!before || turnOwner(before) !== ownId)) out.push('game-turn')
   if (!before) return out
   if (next.dice && before.dice && next.dice.rollId !== before.dice.rollId) out.push('dice-roll')
   if (next.onecard && before.onecard) {
