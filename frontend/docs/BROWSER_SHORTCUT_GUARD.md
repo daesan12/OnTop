@@ -1,5 +1,20 @@
 # 게임 화면 개발자 도구 단축키 제한 (FE)
 
+## 탭 실수 종료 확인 추가 (2026-11-01)
+
+사용자 요청: `Ctrl+W`를 실수로 눌러 공원 탭이 바로 닫히는 것을 방지한다. 기준은 원격 fetch 후 `origin/dev@99428b2a`, 브랜치는 `fix/accidental-tab-close-20261101`, 작업 위치는 `OnTop/tab-close-guard`다. 이 변경은 개별 게임 규칙이 아닌 공원 공통 입력 기능이며, 실제 구현 변경은 `src/park/browserShortcuts.ts`에 한정한다. 게임 코드·맵·WS/API·BE·DB·Flyway 변경은 없다.
+
+- 브라우저가 `Ctrl+W`를 선점해 `keydown`을 전달하지 않아도, 공원 화면의 `beforeunload`에서 브라우저 기본 이탈 확인창을 요청한다. 사용자가 취소하면 현재 공원과 채팅 초안을 유지하고, 종료를 승인하면 정상적으로 나갈 수 있다. 강제 종료 차단이나 반복 경고창은 사용하지 않는다.
+- 이탈 확인 직전에 기존 `ontop-browser-interrupt`로 눌린 이동·마우스·게임 임시 입력을 정리한다. 확인창을 취소한 뒤 키가 계속 눌린 상태로 남지 않도록 하며, 기권·게임 액션·로그아웃 요청을 새로 보내지 않는다.
+- `beforeunload`는 닫기 원인을 구별하지 못하므로 탭/창 닫기뿐 아니라 새로고침과 다른 문서로 이동할 때도 확인창이 나올 수 있다. 브라우저가 문구를 정하며 사용자의 사전 클릭/키 입력이 필요하다. 모바일 앱 강제 종료·브라우저 강제 종료 등에서는 실행을 보장하지 않는다. 근거: [MDN beforeunload](https://developer.mozilla.org/en-US/docs/Web/API/Window/beforeunload_event).
+- 기존 단축키 guard와 같은 수명주기를 사용한다. 운영 빌드의 공원에서 활성화되고, 개발 서버는 `VITE_BROWSER_SHORTCUT_GUARD=true`일 때만 활성화된다. 로그인 화면은 제외하며 정상 로그아웃·인증 종료로 공원 화면을 벗어나면 리스너를 제거한다. 로그아웃 실패로 공원에 남아 있으면 보호도 유지한다.
+
+독립 검증은 최신 생성 맵을 사용하는 기존 `pnpm test:e2e:browser-guard`를 실행한다. 전용 주소는 `http://127.0.0.1:5236`, Chrome/Edge 1920×1080이며 HTTP/WS는 `contractFixture` 대역이다. 실제 서버·정산·배포 완료 검증과 구분한다. Browser plugin not available에 따라 프로젝트 Playwright를 사용했고, 설치된 동일 lockfile 의존성을 재사용했다.
+
+검증 결과: 관련 단위 테스트 4개 파일/172개, 전체 단위 테스트 202개 파일/1,797개 통과(3개 파일/6개 테스트는 기존 skip), 소스·테스트 타입 검사, 운영 빌드, M00–M14 배포 경계 검사 통과. 전체 단위 테스트의 첫 샌드박스 실행에서는 임시 파일 교체 EPERM과 맵 외형 테스트 시간 초과가 있었고, 일반 권한 환경에서 `--maxWorkers=4`로 전체 재실행해 통과했다. Chrome/Edge E2E 8개 통과: 실제 브라우저 종료 요청(`page.close({runBeforeUnload:true})`)의 확인창 취소·승인, 새로고침 취소 시 채팅 초안 유지, 취소 후 이동 재개, 로그인 제외 및 정상 로그아웃 후 보호 해제, 기존 단축키·모달·채팅 회귀를 확인했다. 관련 앱 오류·Vite 오류 오버레이는 없으며 기존 Three.js/셰이더·큰 번들 경고는 유지된다.
+
+실제 OS `Ctrl+W` 키 입력을 추가로 확인하려던 Windows Computer Use 검증은 도구가 브라우저 URL을 확인하지 못해 중단했다. 자동화 키 이벤트 취소나 브라우저 종료 요청 검증을 OS 단축키 실측으로 보고하지 않는다. macOS·Firefox·모바일 및 실제 배포 사이트는 이번 실행 범위에 포함하지 않았다. 캡처는 저장소 밖 `tab-close-cancelled-park.png`에 보관했다.
+
 작성일: 2026-10-28 · 기준: 로컬 origin/dev `0d20b3b` · BE/인프라 변경 없음
 
 최신 통합: 2026-10-29 원격 fetch 후 `origin/dev` `7f63ef3`에 rebase했다. Playwright 제외 목록 충돌 1건은 최신 `notes-preview.spec.ts`와 이번 `browser-shortcuts.spec.ts` 제외를 모두 보존하여 해결했다. 기존 게임 접근/채팅/시설/메모판 변경을 유지했고, MR 변경 파일은 모두 `frontend/` 하위다.
