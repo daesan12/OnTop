@@ -1,8 +1,9 @@
 /* Keep the chat readable without inheriting the park HUD's visual scale. */
 .park-page:has(.onecard-game-hud) .park-chat {
   box-sizing:border-box;
-  top:154px;
-  bottom:auto;
+  top:auto;
+  bottom:20px;
+  left:20px;
   width:min(230px,calc(100% - 40px));
   height:138px;
   min-height:138px;
@@ -55,6 +56,6 @@
 }
 
 @media(max-width:800px) {
-  .park-page:has(.onecard-game-hud) .park-chat { top:174px; bottom:auto; left:12px; width:min(230px,calc(100% - 24px)); transform:none; }
+  .park-page:has(.onecard-game-hud) .park-chat { top:auto; bottom:12px; left:12px; width:min(230px,calc(100% - 24px)); transform:none; }
   .park-page:has(.onecard-game-hud) .park-chat[data-expanded=true] { width:min(230px,calc(100% - 24px)); max-height:138px; }
 }

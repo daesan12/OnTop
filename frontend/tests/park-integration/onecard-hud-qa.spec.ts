@@ -57,12 +57,20 @@ test('동일한 크기의 채팅이 기록·입력·긴 손패를 가리지 않�
       }).toBe(true)
       expect((await chat.boundingBox())!.width).toBeCloseTo(230,0)
       expect((await chat.boundingBox())!.height).toBeCloseTo(138,0)
-      if(size.height>650){
+      const anchor=(await chat.boundingBox())!, edge=size.width<=800?12:20
+      expect(anchor.x).toBeCloseTo(edge,0)
+      expect(anchor.y+anchor.height).toBeCloseTo(size.height-edge,0)
+      if(size.width>1500||size.width<=600){
         const fan=(await page.getByLabel('나만 볼 수 있는 카드').boundingBox())!
         expect(fan.x+fan.width/2).toBeCloseTo(size.width/2,0)
       }
       await expect(page.getByRole('button',{name:'드로우',exact:true})).toBeInViewport()
       await expect(page.getByRole('button',{name:'뿅망치 들기',exact:false})).toBeInViewport()
+      const chatBounds=(await chat.boundingBox())!
+      expect(await page.locator('.onecard-primary-actions button').evaluateAll((nodes,b)=>nodes.every(node=>{
+        const r=node.getBoundingClientRect()
+        return r.right<=b.x||r.left>=b.x+b.width||r.bottom<=b.y||r.top>=b.y+b.height
+      }),chatBounds)).toBe(true)
       if(count===7) await screenshot(page,`onecard-hud-${size.width}`)
     }
     const before=(await chat.boundingBox())!
@@ -73,6 +81,8 @@ test('동일한 크기의 채팅이 기록·입력·긴 손패를 가리지 않�
     await expect(chat.getByRole('textbox')).toBeFocused()
     expect((await chat.boundingBox())!.width).toBeCloseTo(before.width,0)
     expect((await chat.boundingBox())!.height).toBeCloseTo(before.height,0)
+    expect((await chat.boundingBox())!.x).toBeCloseTo(before.x,0)
+    expect((await chat.boundingBox())!.y).toBeCloseTo(before.y,0)
     await expect(chat.getByRole('log')).toContainText('긴 대화 기록 11')
     await chat.getByRole('textbox').press('Escape')
   }
