@@ -132,6 +132,34 @@ it('a facility-blocked table action is temporary guidance and never becomes a pe
   useFacilityState.setState({ pending: false })
   expect(useFacilityUseNotice.getState().message).toBe('')
 })
+it('distant seating guidance expires after two seconds and repeated attempts restart its lifetime', async () => {
+  const anchor = nearTable(); avatars.get('101')!.current.z += 20
+  vi.useFakeTimers()
+  expect(await runtime.joinTable(anchor)).toBe(false)
+  const message = '테이블 의자 가까이에서 앉기를 눌러주세요.'
+  expect(useSession.getState().error).toBe(message)
+  await vi.advanceTimersByTimeAsync(1000)
+  expect(await runtime.joinTable(anchor)).toBe(false)
+  await vi.advanceTimersByTimeAsync(1000)
+  expect(useSession.getState().error).toBe(message)
+  await vi.advanceTimersByTimeAsync(1000)
+  expect(useSession.getState().error).toBe('')
+  expect(socket.requests.some(r => r.type === 'TABLE_JOIN')).toBe(false)
+  expect(useSession.getState().tableId).toBe('')
+})
+it('an old action timer does not erase a later connection failure or unrelated server error', async () => {
+  const anchor = nearTable(); avatars.get('101')!.current.z += 20
+  vi.useFakeTimers()
+  expect(await runtime.joinTable(anchor)).toBe(false)
+  await vi.advanceTimersByTimeAsync(1000)
+  socket.emit('ERROR', { code: 'TABLE_BUSY', message: '실제 테이블 설정 오류' }, 'configuration-error')
+  await vi.advanceTimersByTimeAsync(2000)
+  expect(useSession.getState().error).toBe('실제 테이블 설정 오류')
+  expect(await runtime.joinTable(anchor)).toBe(false)
+  useSession.setState({ status: 'error', error: '서버 연결을 확인해주세요.' })
+  await vi.advanceTimersByTimeAsync(2000)
+  expect(useSession.getState().error).toBe('서버 연결을 확인해주세요.')
+})
 it('direct seating does not inspect or assign a seat until the server approves and blocks duplicate requests', async () => {
   const anchor = nearTable(); socket.joinMode = 'hold'
   const request = runtime.joinTable(anchor)
