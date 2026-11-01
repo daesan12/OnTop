@@ -109,9 +109,9 @@ test('generated park spectator fits the board around the HUD and sends H8 withou
   await page.evaluate(async () => {
     const { TABLES } = await import('/src/park/mapConfig.ts' as string)
     const { parkRuntime } = await import('/src/park/runtime/runtime.ts' as string)
-    parkRuntime.inspectTable(TABLES[0].id)
+    parkRuntime.inspectTable(TABLES[0].id, true)
   })
-  await page.getByRole('dialog', { name: '테이블 정보', exact: true }).getByRole('button', { name: '경기 관전', exact: true }).click()
+  await expect(page.getByRole('dialog', { name: '테이블 정보', exact: true })).toHaveCount(0)
   const header = page.getByLabel('오목 관전 경기 정보', { exact: true })
   await expect(header).toContainText('관전 백돌')
   await expect(page.getByRole('group', { name: '관전 시점', exact: true })).toHaveCount(1)

@@ -81,6 +81,11 @@ function OmokSurface({
   const connected = useSession(s => s.status === 'connected'), pending = useSession(s => s.pending)
   const scope = useSession(seatScope)
   const seatIndex = useSession(s => s.seatIndex)
+  const blackAtSouth = useSession(s => {
+    const table = s.tableStates[s.tableId || s.watchedTableId]
+    const seat = table?.seats.find(seat => seat.userId === game?.omok.blackUserId)?.seatNumber
+    return seat ? seat === 1 : game?.role === 'PLAYER' ? (s.sessionId === game.omok.blackUserId) === (s.seatIndex === 0) : true
+  })
   const spectatorView = useTableLobby(s => s.spectatorView)
   const focused = game?.omok.status === 'PLAYING' && (game.role === 'PLAYER' ? !!scope : spectatorView === 'board')
   useLayoutEffect(() => {
@@ -206,7 +211,7 @@ function OmokSurface({
         }
       }}
     >
-      <GomokuAssets />
+      <GomokuAssets blackAtSouth={blackAtSouth} />
       <BoardCoordinates reversed={game?.role === 'PLAYER' && focused && seatIndex === 1} />
       {game && <OmokPings gameId={game.gameId} focused={focused} />}
       {/* Decorations never pick cells; keep the approved grid's original local coordinates. */}

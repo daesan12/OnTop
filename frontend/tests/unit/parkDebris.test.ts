@@ -60,6 +60,12 @@ it('keeps every scattered stone off the board with independent flights and repea
  }
  expect(new Set(points.map(p=>p.join(','))).size).toBe(DEBRIS_STONES)
 })
+it('오목판은 서버가 정한 상대 방향으로 날아가고 반대 좌석은 반대편에 도착한다',()=>{
+ const south=debrisLanding({...item,throwYaw:Math.PI},-1),north=debrisLanding({...item,throwYaw:0},-1)
+ expect(south.x).toBeCloseTo(0);expect(south.z).toBeLessThan(0)
+ expect(north.x).toBeCloseTo(0);expect(north.z).toBeGreaterThan(0)
+ expect(Math.abs(south.z)).toBeCloseTo(Math.abs(north.z))
+})
 it('accepts and individually cleans stone parts only for omok while retaining the board and coins',()=>{
  const full={...item,parts:[...item.parts,...Array.from({length:DEBRIS_STONES},(_,i)=>'stone-'+i)]}
  expect(acceptParkDebris(parseParkDebris({...state(),items:[full]}))).toBe(true)
