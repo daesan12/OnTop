@@ -25,6 +25,8 @@ import { canReachBungeoppang } from '../bungeoppang/access'
 import { openBungeoppang } from '../bungeoppang/store'
 import { MINI_PROPS } from '../../park/mapConfig'
 import { interactWithTable } from '../tableLobby/tableInteraction'
+import { tableEntry } from '../tableLobby/tableEntry'
+import { useTableLobby } from '../tableLobby/state'
 import { canReachTable } from '../tableLobby/tableReach'
 import { GENERATED_PARK_ENABLED } from '../../park/mapSelection'
 import { constructionSites,canReachConstruction,openConstructionNotice } from '../construction/model'
@@ -114,11 +116,9 @@ export function getParkInteraction(): ParkInteraction | null {
   for (const table of TABLES) {
     const distance = Math.hypot(p.current.x - table.position[0], p.current.z - table.position[2])
     if (!canReachTable(p.current, table.id)) continue
-    const binding = session.bindings.find(b => b.channelId === session.roomId && b.anchorId === table.id)
-    const summary = session.tables.find(t => t.tableId === binding?.tableId)
-    const watching = summary?.joinable === false
-    if (watching && summary.status !== 'PLAYING') continue
-    choices.push({ kind: 'table', id: table.id, label: watching ? '테이블 경기 보기' : '테이블에 앉기', occupied: false, available: true,
+    const lobby = useTableLobby.getState()
+    const waiting = lobby.spectatorRequested && lobby.spectatorStatus === 'waiting' && session.focusedAnchorId === table.id
+    choices.push({ kind: 'table', id: table.id, label: waiting ? '관전 대기 취소' : tableEntry(table.id) === 'watch' ? '관전하기' : '테이블에 앉기', occupied: false, available: true,
       distance, score: interactionScore(distance, { x: table.position[0], y: table.position[1] + 0.65, z: table.position[2] }) })
   }
   return choices.filter(c => Number.isFinite(c.score)).sort((a, b) => a.score - b.score || a.distance - b.distance

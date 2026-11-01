@@ -22,10 +22,10 @@ for (const anchor of tables) test(`${anchor.id}: 돌 테이블은 정보 팝업 
   await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90000 })
   const hint = page.getByRole('complementary', { name: '가까운 상호작용' })
   await expect(hint).toHaveAttribute('data-target-id', anchor.id)
-  await expect(hint.getByRole('button', { name: 'E 테이블 경기 보기', exact: true })).toBeEnabled()
+  await expect(hint.getByRole('button', { name: 'E 관전하기', exact: true })).toBeEnabled()
   await screenshot(page, `stone-entry-${anchor.id}`)
   await page.setViewportSize({ width: 740, height: 900 })
-  const entry = hint.getByRole('button', { name: 'E 테이블 경기 보기', exact: true })
+  const entry = hint.getByRole('button', { name: 'E 관전하기', exact: true })
   await expect(entry).toBeInViewport()
   expect(await entry.evaluate(element => {
     const box = element.getBoundingClientRect()
@@ -80,7 +80,7 @@ for (const anchor of tables) test(`${anchor.id}: 돌 테이블은 정보 팝업 
   if (anchor === tables[0]) {
     server.publicMatch(null)
     await entry.click()
-    await expect(entry).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'E 관전 대기 취소', exact: true })).toBeVisible()
     await expect(info).toHaveCount(0)
     expect(server.sent.filter(r => r.type === 'GAME_WATCH')).toHaveLength(watchRequests)
   }

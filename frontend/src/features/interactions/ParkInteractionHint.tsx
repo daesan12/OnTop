@@ -22,6 +22,7 @@ export function ParkInteractionHint() {
   const telescopePending = useTelescopeState(s => s.pending)
   const fitnessRewards = useFacilityState(s => s.options?.fitnessRewardsEnabled === true)
   const joiningTable = useTableLobby(s => !!s.joiningAnchorId)
+  const entryNotice = useTableLobby(s => s.entryNotice)
   const omokWatching = useGame(s => s.game?.role === 'SPECTATOR' && !!s.game.omok && !!s.watchedGameId)
   const [target, setTarget] = useState<ParkInteraction | null>(null)
   useEffect(() => {
@@ -56,6 +57,8 @@ export function ParkInteractionHint() {
       {target.kind === 'fitness' && target.available && fitnessService.mode === 'mock' && ' · 목업'}
       {target.kind === 'telescope' && target.available && telescopeService.mode === 'mock' && ' · 목업'}
     </button>}
+    {target?.kind === 'table' && target.id === entryNotice?.anchorId
+      && <span role="status">{entryNotice.text}</span>}
     {joiningTable && <span role="status">자리를 확인하고 있어요…</span>}
     {pending && <span role="status">벤치 이용 요청 확인 중…</span>}
     {fitness.pending && <span role="status">운동기구 이용 요청 확인 중…</span>}

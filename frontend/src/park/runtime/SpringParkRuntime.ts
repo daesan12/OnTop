@@ -123,7 +123,7 @@ export class ParkRuntime implements ParkRuntimePort {
   private quietResultChecks = new Set<string>()
   private untrackTabGame: (() => void) | undefined
   private facilityMapInvalid = false
-  private spectatorIntent: { userId: string; channelId: string; tableId: string; benchScope: string } | null = null
+  private spectatorIntent: { userId: string; channelId: string; tableId: string; benchScope: string; awaitingStart?: boolean } | null = null
   private gameWatchRequestId = ''
   private spectatorChecks = new Map<string, string>()
   private obsoleteGameWatchRequests = new Set<string>()
@@ -259,6 +259,12 @@ export class ParkRuntime implements ParkRuntimePort {
       this.closeTable(); return
     }
     const reference = intent ? publicMatchService.find({ channelId: intent.channelId, tableId: intent.tableId }) : null
+    if (intent?.awaitingStart) {
+      if (!canReachTable(avatars.get(s.sessionId)?.current, s.focusedAnchorId)) { this.closeTable(); return }
+      if (!reference) return
+      intent.awaitingStart = false
+      useTableLobby.setState({ entryNotice: null })
+    }
     if (intent && (!reference || useGame.getState().watchedGameId && reference.gameId !== useGame.getState().watchedGameId)) {
       this.closeTable(); return
     }
@@ -939,12 +945,18 @@ export class ParkRuntime implements ParkRuntimePort {
     }
   }
   inspectTable = (anchorId: string, watch = false) => {
+    useTableLobby.setState({ entryNotice: null })
     void this.watchTable(anchorId, !watch).then(approved => {
       if (!approved || !watch || useSession.getState().focusedAnchorId !== anchorId) return
       const session = useSession.getState()
       const reference = publicMatchService.find({ channelId: session.roomId, tableId: session.watchedTableId })
       if (reference) void this.watchGame(reference.gameId)
-      else this.closeTable()
+      else {
+        this.spectatorIntent = { userId: session.sessionId, channelId: session.roomId,
+          tableId: session.watchedTableId, benchScope: '', awaitingStart: true }
+        useTableLobby.setState({ spectatorRequested: true, spectatorStatus: 'waiting',
+          entryNotice: { anchorId, text: '관전 대기 중 · 게임이 시작되면 자동으로 들어가요. Esc로 취소' } })
+      }
     })
   }
   private async watchTable(anchorId: string, panelOpen: boolean): Promise<boolean> {
@@ -1338,6 +1350,7 @@ export class ParkRuntime implements ParkRuntimePort {
     return this.spectator.set({ gameId: ref.gameId, scope: JSON.stringify([this.generation, s.sessionId, s.roomId, current.watchedTableId, scope]) }, true)
   }
   unwatchGame = async (): Promise<boolean> => {
+    if (this.spectatorIntent?.awaitingStart) { this.closeTable(); return true }
     this.spectatorIntent = null
     useTableLobby.setState({ spectatorRequested: false })
     const approved = await this.spectator.set(null, true)
@@ -1347,7 +1360,7 @@ export class ParkRuntime implements ParkRuntimePort {
   closeTable = () => {
     this.spectatorIntent = null
     resetBenchSpectator()
-    useTableLobby.setState({ spectatorRequested: false, panelOpen: false })
+    useTableLobby.setState({ spectatorRequested: false, panelOpen: false, entryNotice: null })
     const cleanup = this.spectator.set(null, true)
     const tableId = useSession.getState().watchedTableId
     ++this.inspection
