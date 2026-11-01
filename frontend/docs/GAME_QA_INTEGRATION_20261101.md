@@ -83,3 +83,11 @@ WORLD_STATE.tables[].gameCode에 선택 게임 코드만 공개한다. 방장의
 게임별 변경은 OmokBoard, onecard/OneCardBoard, ledger/LedgerTable의 준비 표시 조건이다. 공통 변경은 TableHub/WorldChannelRegistry의 공개 투영, network protocol/worldClient, tableLobby/tableGamePresentation, TableShell의 에셋 로딩 경계다. 로딩 중에도 공원과 실제 테이블은 유지한다. 게임 규칙·시작/종료·기권·재접속·지갑/정산 계약 및 맵/카메라/충돌 변경 없음. DB/Flyway 및 V133 사용 없음. 맵 c05d8ada, 점프 코스 e6cd40d0 유지.
 
 독립 실행은 frontend에서 node node_modules/@playwright/test/cli.js test --config playwright.prepared-table.config.ts, 포트 5246이다. 세 게임의 비착석 준비 표시·선택 변경/해제·늦은 입장과 참가/관전/행동 요청 미전송을 확인해 Edge 3개가 통과했다. FE 관련 단위 31개, BE 공개 상태/소켓 검사 8개, 소스/테스트 타입·맵/코스·경계·park-integration 빌드·dev 충돌 검사가 통과했다. Browser plugin not available로 기존 Edge/Playwright를 사용했다. 브라우저 HTTP/WS와 이동은 계약 대역이며 BE는 실제 소켓과 테스트 인증/저장소를 사용한다. 운영 사용자 접속·MySQL 정산 검증과 구분한다. 기존 Three/셰이더·번들 경고 외 새 브라우저 오류 없음. 캡처는 저장소 외부에 보관했다.
+
+## 준비 에셋 공개 CI 보존 기준 보완
+
+MR !281은 origin/dev@00d81dc4에 병합됐다. Jenkins #238은 기존 점프맵 재접속 검사 1개가 실패했고, 같은 커밋을 기존 Jenkins 웹훅으로 재실행한 #239에서는 BE 330개 클래스·2,626개 검사 실패 0개로 통과했다. FE 전체 검사에서는 TableShell.tsx의 외형 보존 기준 해시 갱신 누락 1개가 확인됐다. 재시도만으로 해결되는 항목이 아니므로 최신 origin/dev@00d81dc4에서 fix/prepared-table-visual-checkpoint-20261101을 분기했다.
+
+38d0d8b6과 00d81dc4 사이의 TableShell 차이가 Suspense import 및 게임 자식 로딩 경계 두 줄뿐임을 검토했다. 테이블/의자 모델·재질·좌표는 같고, 파일의 LF 정규화 SHA-256은 a4ea63b8f803494a6426f1332fdc6dd1e4143f108d95d9657e5933d779aac5c7이다. parkVisualCheckpoint.json에서 이 파일 해시 하나와 검토 이유만 갱신한다. 테스트 로직·보호 파일 목록·다른 해시·런타임·BE·DB/Flyway·V133·Jenkins 설정은 바꾸지 않는다.
+
+FE 전체 1,755개 통과(기존 6개 제외), 최신 맵 c05d8ada·코스 e6cd40d0 및 모듈 경계 검사 통과. 준비 에셋 Edge 시나리오는 기존 5246 진입점과 HTTP/WS 계약 대역을 사용한다. 운영 사용자 경기·정산 검증과 구분하며, 후속 MR 병합과 Jenkins 최종 성공을 확인한 뒤 원래 작업 및 보완 브랜치만 삭제한다.
