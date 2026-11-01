@@ -6,6 +6,7 @@ import { useGame } from '../game/store'
 import { useSession } from '../network/worldClient'
 import { playSfx, setSfxLoop } from './sfx'
 import { gameSfx } from './sfxEvents'
+import { useBungeoppang } from '../features/bungeoppang/store'
 
 type Session = ReturnType<typeof useSession.getState>
 const ownReady = (s: Session) => !!s.tableStates[s.tableId]?.seats.find(seat => seat.userId === s.sessionId)?.ready
@@ -21,7 +22,9 @@ export function ParkSfx() {
       useSession.subscribe((next, prev) => {
         const balance = next.account?.balance, before = prev.account?.balance
         // The first read after entry is not income.
-        if (balance != null && before != null && balance > before) playSfx('coin-gain')
+        const breadPhase = useBungeoppang.getState().phase
+        // 붕어빵 지급음은 결과의 지급 문구가 실제로 보일 때 한 번 재생한다.
+        if (balance != null && before != null && balance > before && !['ending', 'result'].includes(breadPhase)) playSfx('coin-gain')
         if (next.tableId && next.tableId === prev.tableId && ownReady(next) && !ownReady(prev)) playSfx('game-ready')
       }),
       useWardrobe.subscribe((next, prev) => {

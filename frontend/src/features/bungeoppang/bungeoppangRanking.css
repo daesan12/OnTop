@@ -30,7 +30,6 @@
 .bung-ranking-number { font-size:16px; font-weight:700; }.bung-ranking-number[data-podium=true] { color:#9e722e; }
 .bung-ranking-message { margin:24px 0; padding:22px 15px; border:1px dashed #ccb78f; border-radius:14px; color:#747467; font-size:14px; line-height:1.8; }
 .table-paper-popup .bung-ranking-more { min-height:40px; width:100%; margin-top:12px; background:transparent; border:1px solid #c1b18d; color:#526247; font-size:13px; }
-.bung-ranking-updated { font-size:10px; color:#8a8a7c; margin:12px 0; }
 .table-paper-popup .bung-ranking-back { margin-top:18px; min-width:180px; color:#fffdf3; background:#27503e; border:1px solid #27503e; font-size:15px; font-weight:700; }
 @media(max-width:600px) {
  .bung-ranking-preview { gap:9px; padding:12px 10px; flex-wrap:wrap; }.bung-ranking-medal { width:58px; height:70px; }

@@ -50,7 +50,7 @@ for(const size of [{width:1920,height:1080},{width:390,height:844}])test(`tablet
  await expect(tablet.locator('.tablet-selection-detail h3')).toHaveText('원카드')
 })
 
-test('a retained room discloses its game and stake before joining and requires the returning guest to agree',async({page})=>{
+test('a retained room offers only seating outside and requires stake agreement in the tablet',async({page})=>{
  const server=await fixture(page,{generatedPark:true,omok:true,manualLobby:true,tabletServer:true})
  await load(page);await page.locator('canvas').focus();await page.keyboard.press('KeyE')
  const tablet=page.getByRole('dialog',{name:'게임 태블릿',exact:true})
@@ -62,16 +62,14 @@ test('a retained room discloses its game and stake before joining and requires t
  await page.reload();await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({timeout:90000})
  await expect.poll(()=>page.evaluate(async()=>(await import('/tests/park-integration/probe.ts' as string)).sceneReady()),{timeout:90000}).toBe(true)
  await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({timeout:90000})
- await expect(page.getByLabel('참가할 방 설정')).toHaveText('원카드 · 1인 판돈 250냥')
+ const interaction=page.getByRole('complementary',{name:'가까운 상호작용'})
+ await expect(interaction.getByRole('button')).toHaveCount(1)
+ await expect(interaction.getByRole('button',{name:'E 테이블에 앉기',exact:true})).toBeVisible()
+ await expect(interaction).not.toContainText(/게임 선택 중|판돈 미정|관전|250냥/)
+ await expect(page.getByLabel('참가할 방 설정')).toHaveCount(0)
  await screenshot(page,'retained-room-before-seating')
- await page.evaluate(async()=>{
-  const {useSession}=await import('/src/network/worldClient.ts' as string),s=useSession.getState()
-  const {parkRuntime}=await import('/src/park/runtime/runtime.ts' as string)
-  parkRuntime.inspectTable(s.bindings.find((b:{channelId:string})=>b.channelId===s.roomId).anchorId)
- })
- const info=page.getByRole('dialog',{name:'테이블 정보',exact:true})
- await expect(info.getByLabel('현재 방 설정')).toHaveText('원카드 · 1인 판돈 250냥')
- await info.getByRole('button',{name:'앉기',exact:true}).click()
+ await interaction.getByRole('button',{name:'E 테이블에 앉기',exact:true}).click()
+ await expect(page.getByRole('dialog',{name:'테이블 정보',exact:true})).toHaveCount(0)
  await expect(tablet.getByLabel('현재 방 설정')).toContainText('원카드 · 1인 판돈 250냥')
  await expect(tablet.getByRole('button',{name:'준비 완료',exact:true})).toBeDisabled()
  expect(server.sent.filter(m=>m.type==='TABLE_CONFIGURE')).toHaveLength(0)

@@ -259,6 +259,9 @@ export class ParkRuntime implements ParkRuntimePort {
       this.closeTable(); return
     }
     const reference = intent ? publicMatchService.find({ channelId: intent.channelId, tableId: intent.tableId }) : null
+    if (intent && (!reference || useGame.getState().watchedGameId && reference.gameId !== useGame.getState().watchedGameId)) {
+      this.closeTable(); return
+    }
     void this.spectator.set(reference && intent ? { gameId: reference.gameId,
       scope: JSON.stringify([this.generation, intent.userId, intent.channelId, intent.tableId, intent.benchScope]) } : null)
   }
@@ -649,6 +652,11 @@ export class ParkRuntime implements ParkRuntimePort {
       throw error
     }
     if (TABLET_ENABLED) this.tablet.accept(message)
+    const watched = useGame.getState().game
+    if (this.spectatorIntent && watched?.role === 'SPECTATOR' && gameState(watched).status === 'FINISHED') {
+      this.closeTable()
+    }
+    if (this.spectatorIntent && message.type === 'GAME_WATCH_LEFT' && message.requestId === null) this.closeTable()
     if (message.type === 'TABLE_LEFT') keepTabGame(session.sessionId, '')
     this.discoverResult()
     if ((message.type === 'ERROR' && message.requestId === null || message.type === 'GAME_WATCH_LEFT' && message.requestId === null)
@@ -936,10 +944,7 @@ export class ParkRuntime implements ParkRuntimePort {
       const session = useSession.getState()
       const reference = publicMatchService.find({ channelId: session.roomId, tableId: session.watchedTableId })
       if (reference) void this.watchGame(reference.gameId)
-      else {
-        useTableLobby.setState({ panelOpen: true })
-        this.report('지금 관전할 경기가 없어요. 경기 시작 후 다시 확인해주세요.')
-      }
+      else this.closeTable()
     })
   }
   private async watchTable(anchorId: string, panelOpen: boolean): Promise<boolean> {
@@ -1341,6 +1346,7 @@ export class ParkRuntime implements ParkRuntimePort {
   }
   closeTable = () => {
     this.spectatorIntent = null
+    resetBenchSpectator()
     useTableLobby.setState({ spectatorRequested: false, panelOpen: false })
     const cleanup = this.spectator.set(null, true)
     const tableId = useSession.getState().watchedTableId

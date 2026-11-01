@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { fixture, screenshot, tableId } from '../e2e/contractFixture'
+import { fixture, screenshot } from '../e2e/contractFixture'
 import { PARK_LAYOUT } from '../../src/map/park'
 import { PARK_MAP_VERSION } from '../../src/map/park/generated/mapVersion'
 
@@ -9,16 +9,12 @@ const tables = [
   ...PARK_LAYOUT.DRAFT_TABLES.filter(t => t.assetId === 'procedural/vr-stone-game-table'),
 ]
 
-for (const anchor of tables) test(`${anchor.id}: stale public list still permits approved stone table spectating and exit`, async ({ page }) => {
+for (const anchor of tables) test(`${anchor.id}: 돌 테이블은 정보 팝업 없이 진행 경기만 관전하고 종료 시 복귀한다`, async ({ page }) => {
   const errors: string[] = []
   page.on('pageerror', error => errors.push(error.message))
   const server = await fixture(page, { generatedPark: true, anchorId: anchor.id, ownUserId: '505',
     publicSpectator: true, omok: true, spectatorEvents: true, manualMovement: true,
     position: { x: anchor.position[0], y: anchor.position[1] + .8, z: anchor.position[2] + 3, yaw: Math.PI } })
-  // Public HTTP is a stale hint. The current WS table state alone supplies the authorized game ID.
-  await page.route('**/api/v1/tables?**', route => route.fulfill({ json: { tables: [{ tableId, capacity: 2,
-    minimumPlayers: 2, occupiedSeats: 1, availableSeats: 1, readyCount: 0, allReady: false,
-    status: 'WAITING', joinable: true, gameCode: null, targetScore: null, betAmountPerPlayer: null, gameId: null }] } }))
   await page.goto('/park')
   await expect(page).toHaveTitle('OnTop')
   await expect(page).toHaveURL(/\/park$/)
@@ -26,10 +22,10 @@ for (const anchor of tables) test(`${anchor.id}: stale public list still permits
   await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90000 })
   const hint = page.getByRole('complementary', { name: '가까운 상호작용' })
   await expect(hint).toHaveAttribute('data-target-id', anchor.id)
-  await expect(hint.getByRole('button', { name: 'E 테이블에 앉기', exact: true })).toBeEnabled()
+  await expect(hint.getByRole('button', { name: 'E 테이블 경기 보기', exact: true })).toBeEnabled()
   await screenshot(page, `stone-entry-${anchor.id}`)
   await page.setViewportSize({ width: 740, height: 900 })
-  const entry = hint.getByRole('button', { name: '테이블 정보 · 관전', exact: true })
+  const entry = hint.getByRole('button', { name: 'E 테이블 경기 보기', exact: true })
   await expect(entry).toBeInViewport()
   expect(await entry.evaluate(element => {
     const box = element.getBoundingClientRect()
@@ -37,26 +33,23 @@ for (const anchor of tables) test(`${anchor.id}: stale public list still permits
   })).toBe(true)
   await screenshot(page, `stone-entry-narrow-${anchor.id}`)
   await page.setViewportSize({ width: 1920, height: 1080 })
-  await hint.getByRole('button', { name: '테이블 정보 · 관전', exact: true }).click()
   const info = page.getByRole('dialog', { name: '테이블 정보', exact: true })
-  await expect(info.getByRole('button', { name: '경기 관전', exact: true })).toBeEnabled()
   expect(server.sent.filter(r => r.type === 'TABLE_JOIN')).toHaveLength(0)
   expect(server.sent.filter(r => r.type === 'GAME_WATCH')).toHaveLength(0)
   let watchRequests = 1
   if (anchor === tables[0]) {
     server.rejectGameWatch(true)
-    await info.getByRole('button', { name: '경기 관전', exact: true }).click()
+    await entry.click()
     await expect.poll(() => page.evaluate(async () => (await import('/src/features/tableLobby/state.ts' as string)).useTableLobby.getState().spectatorStatus)).toBe('error')
     expect(await page.evaluate(async () => (await import('/src/game/store.ts' as string)).useGame.getState().game?.role)).not.toBe('SPECTATOR')
     server.rejectGameWatch(false)
     // Current runtime clears the rejected table subscription and closes its dialog.
     // Retry through the visible park entry so a new server watch is approved first.
     await expect(info).toBeHidden()
-    await hint.getByRole('button', { name: '테이블 정보 · 관전', exact: true }).click()
-    await expect(info.getByRole('button', { name: '경기 관전', exact: true })).toBeEnabled()
     watchRequests++
   }
-  await info.getByRole('button', { name: '경기 관전', exact: true }).click()
+  await entry.click()
+  await expect(info).toHaveCount(0)
   const role = () => page.evaluate(async () => (await import('/src/game/store.ts' as string)).useGame.getState().game?.role)
   await expect.poll(role).toBe('SPECTATOR')
   expect(server.sent.filter(r => r.type === 'GAME_WATCH')).toHaveLength(watchRequests)
@@ -81,14 +74,14 @@ for (const anchor of tables) test(`${anchor.id}: stale public list still permits
   await expect.poll(() => server.sent.filter(r => r.type === 'OMOK_SPECTATOR_PING_SEND').length).toBe(1)
   expect(server.sent.filter(r => r.type === 'GAME_ACTION_SEND')).toHaveLength(0)
   await screenshot(page, `stone-spectator-${anchor.id}`)
-  await page.locator('canvas').focus()
-  await page.keyboard.press('Escape')
+  server.finishGame()
   await expect.poll(() => page.evaluate(async () => (await import('/src/game/store.ts' as string)).useGame.getState().watchedGameId)).toBe('')
   expect(server.sent.filter(r => r.type === 'GAME_UNWATCH')).toHaveLength(watchRequests)
   if (anchor === tables[0]) {
     server.publicMatch(null)
-    await hint.getByRole('button', { name: '테이블 정보 · 관전', exact: true }).click()
-    await expect(info.getByRole('button', { name: '경기 관전', exact: true })).toBeDisabled()
+    await entry.click()
+    await expect(entry).toHaveCount(0)
+    await expect(info).toHaveCount(0)
     expect(server.sent.filter(r => r.type === 'GAME_WATCH')).toHaveLength(watchRequests)
   }
   await expect(page.locator('vite-error-overlay')).toHaveCount(0)

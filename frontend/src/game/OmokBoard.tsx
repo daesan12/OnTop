@@ -81,8 +81,15 @@ function OmokSurface({
   const connected = useSession(s => s.status === 'connected'), pending = useSession(s => s.pending)
   const scope = useSession(seatScope)
   const seatIndex = useSession(s => s.seatIndex)
+  const blackAtSouth = useSession(s => {
+    const table = s.tableStates[s.tableId || s.watchedTableId]
+    const seat = table?.seats.find(seat => seat.userId === game?.omok.blackUserId)?.seatNumber
+    return seat ? seat === 1 : game?.role === 'PLAYER' ? (s.sessionId === game.omok.blackUserId) === (s.seatIndex === 0) : true
+  })
   const spectatorView = useTableLobby(s => s.spectatorView)
   const focused = game?.omok.status === 'PLAYING' && (game.role === 'PLAYER' ? !!scope : spectatorView === 'board')
+  // 반대 좌석의 탑뷰도 A1이 좌상단이다. 돌·미리보기·핑·피킹을 함께 회전한다.
+  const reversed = game?.role === 'PLAYER' && focused && seatIndex === 1
   useLayoutEffect(() => {
     root.current?.traverse(object => {
       if (focused) object.layers.enable(OMOK_FOCUS_LAYER)
@@ -160,6 +167,7 @@ function OmokSurface({
     <group
       ref={root}
       position={[0, OMOK_BOARD_Y, 0]}
+      rotation={[0, reversed ? Math.PI : 0, 0]}
       name={'omok-board-' + anchor.id}
       onPointerDown={(event) => {
         const g = useGame.getState().game, point = cell(event)
@@ -206,8 +214,8 @@ function OmokSurface({
         }
       }}
     >
-      <GomokuAssets />
-      <BoardCoordinates reversed={game?.role === 'PLAYER' && focused && seatIndex === 1} />
+      <GomokuAssets blackAtSouth={blackAtSouth} reverseSupplies={reversed} />
+      <BoardCoordinates />
       {game && <OmokPings gameId={game.gameId} focused={focused} />}
       {/* Decorations never pick cells; keep the approved grid's original local coordinates. */}
       <mesh name="omok-pick-surface" position={[0, 0.0005, 0]} rotation={[-Math.PI / 2, 0, 0]}>

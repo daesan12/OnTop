@@ -12,6 +12,7 @@ import com.ssafy.ontop.game.action.GameActionGateway;
 import com.ssafy.ontop.game.action.GameActionResult;
 import com.ssafy.ontop.game.action.GameForfeitCommand;
 import com.ssafy.ontop.game.action.GameForfeitResult;
+import com.ssafy.ontop.game.omok.service.OmokForfeitDirection;
 import com.ssafy.ontop.game.onecard.service.OneCardEngine;
 import com.ssafy.ontop.game.onecard.service.OneCardPranks;
 import com.ssafy.ontop.game.reconnect.GameReconnectService;
@@ -2526,8 +2527,18 @@ public class TableHub {
         // 한 테이블의 현재 경기, 참가자별 한 건만 보존한다. 새 경기의 사건이 오면 교체한다.
         if (!round.users().add(event.userId())) { return; }
         var position = channels.positionOf(Long.toString(event.userId()));
-        // 서버 방향을 사용해 모든 방문자에게 같은 비행 경로를 보여준다.
+        // 오목은 참가 확정 좌석으로 상대 방향을 정해 관전자도 같은 비행 경로를 본다.
         double throwYaw = position == null ? 0 : position.yaw();
+        if ("OMOK".equals(event.gameCode()) && players.size() == 2) {
+            var participants = attempt.command().participants();
+            int fromSeat = participants.stream()
+                    .filter(player -> player.userId().equals(Long.toString(event.userId())))
+                    .findFirst().orElseThrow().seatNumber();
+            int toSeat = participants.stream()
+                    .filter(player -> !player.userId().equals(Long.toString(event.userId())))
+                    .findFirst().orElseThrow().seatNumber();
+            throwYaw = OmokForfeitDirection.towardOpponent(fromSeat, toSeat);
+        }
         if (parkDebris.add(channelId, tableAnchors.get(event.tableId()), event, players.size(), throwYaw)) {
             publishParkDebris(channelId);
         }

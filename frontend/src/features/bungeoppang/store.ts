@@ -720,14 +720,14 @@ function onEvent(event: GrillEvent | v4.GrillEvent, before: AnyGrill, afterOverr
         kind: 'deliver', filling: bread.filling, points: event.points,
         guestIndex: v5.isV5Grill(v4Grill) ? v4Grill.activeOrders.find(o => o.orderId === (customerId ?? get().selectedCustomer))?.customerSlot : v4Grill.orderIndex,
         from: elementPoint(`[data-tray-bread-id="${bread.id}"]`, { x: window.innerWidth - 130, y: 250 + i * 50 }),
-        message: `${event.count}개 전달! +${event.points}점${event.bonus ? ` · 특수 +${event.bonus}` : ''}`,
+        message: `${event.count}개 전달! +${event.points}점`,
         ...(v5.isV5Grill(v4Grill) ? { guestOrderId: customerId ?? get().selectedCustomer ?? undefined,
           fromWorld: trayPoint(v4Grill.tray.indexOf(bread)),
           toWorld: customerPoint(v4Grill.activeOrders.find(o => o.orderId === (customerId ?? get().selectedCustomer))?.customerSlot ?? 0)
             .map((n, axis) => n + (axis === 1 ? 1.1 : 0)) as [number, number, number] } : {}),
       }));
     }
-    popup(null, `${event.count}개 전달! +${event.points}점 (특수 +${event.bonus})`, 'PERFECT'); return;
+    popup(null, `${event.count}개 전달! +${event.points}점`, 'PERFECT'); return;
   }
   if (event.kind === 'trayDiscard') {
     const bread = v4Grill?.tray[event.slot];

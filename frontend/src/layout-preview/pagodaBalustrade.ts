@@ -8,12 +8,20 @@ export function stairRailFrame(dx:number,dz:number,rise:number){
 }
 export const stairSupportSites:Array<{x:number;z:number;bottom:number}>=[]
 const stone=new PropBuilder([12,8]),floor=SITES.pagoda.floor
+// 바닥에 붙는 상자 밑면은 보이지 않으며 서로 중첩돼 그림자 깊이 충돌을 만든다.
+// 받침·기둥의 접지 면을 만들지 않아 바닥과 그림자 패스 모두 같은 면을 중복하지 않는다.
+function groundedBox(color:string,position:[number,number,number],size:[number,number,number],rotation:[number,number,number]=[0,0,0]) {
+  const geometry=new BoxGeometry(...size),bottom=geometry.groups[3]!,indices=Array.from(geometry.index!.array)
+  geometry.setIndex([...indices.slice(0,bottom.start),...indices.slice(bottom.start+bottom.count)])
+  geometry.clearGroups()
+  stone.add('stone',geometry,color,position,[1,1,1],rotation)
+}
 const posts=new Map<string,[number,number]>()
 for(const run of CENTRAL_RAIL_RUNS) {
   const dx=run.to[0]-run.from[0],dz=run.to[1]-run.from[1],length=Math.hypot(dx,dz),yaw=Math.atan2(dx,dz)
   const x=(run.from[0]+run.to[0])/2,z=(run.from[1]+run.to[1])/2
   // 모서리 받침과 긴 기단의 윗면이 겹치면 카메라 이동 시 깊이 충돌로 반짝인다.
-  stone.box('stone','#b7b3a4',[x,floor+.11,z],[.5,.22,length-.5],[0,yaw,0])
+  groundedBox('#b7b3a4',[x,floor+.11,z],[.5,.22,length-.5],[0,yaw,0])
   stone.box('stone','#d0cbbd',[x,floor+1.08,z],[.46,.19,length],[0,yaw,0])
   stone.box('stone','#c0bcae',[x,floor+.94,z],[.32,.1,length],[0,yaw,0])
   const count=Math.ceil(length/.85)
@@ -28,8 +36,8 @@ for(const run of CENTRAL_RAIL_RUNS) {
   }
 }
 for(const [x,z] of posts.values()) {
-  stone.box('stone','#b7b3a4',[x,floor+.11,z],[.5,.22,.5])
-  stone.box('stone','#bbb7a9',[x,floor+.65,z],[.44,1.3,.44])
+  groundedBox('#b7b3a4',[x,floor+.11,z],[.5,.22,.5])
+  groundedBox('#bbb7a9',[x,floor+.65,z],[.44,1.3,.44])
   stone.box('stone','#d0cabb',[x,floor+1.3,z],[.56,.16,.56])
   stone.lathe('stone','#bcb7a8',[x,floor+1.38,z],[[.23,0],[.24,.08],[.16,.16],[.13,.27],[.06,.35],[0,.38]])
   // Small carved guardian-like finial; restrained to the handrail scale in the reference.
@@ -45,15 +53,15 @@ for(const run of STAIR_RAIL_RUNS) {
   // Ten stepped foundations fill the space under each baluster and bond to the stair tread.
   for(let n=0;n<SETTINGS.pagoda.steps;n++) {
     const r=SETTINGS.pagoda.terraceHalf+SETTINGS.pagoda.tread/2+n*SETTINGS.pagoda.tread,t=(r-SETTINGS.pagoda.terraceHalf)/length,px=run.from[0]+dx*t,pz=run.from[1]+dz*t,h=(SETTINGS.pagoda.steps-n)*SETTINGS.pagoda.riser
-    stone.box('stone','#bcb7a8',[px,h+.09,pz],[Math.abs(dx)>.1?.42:.48,.18,Math.abs(dz)>.1?.42:.48])
+    groundedBox('#bcb7a8',[px,h+.09,pz],[Math.abs(dx)>.1?.42:.48,.18,Math.abs(dz)>.1?.42:.48])
   }
   for(let i=1;i<=6;i++) {
     const t=i/6,px=run.from[0]+dx*t,pz=run.from[1]+dz*t,y=floor*(1-t)
-    if(i===6){stairSupportSites.push({x:px,z:pz,bottom:0});stone.box('stone','#bbb7a9',[px,y+.65,pz],[.44,1.3,.44]);stone.box('stone','#d0cabb',[px,y+1.3,pz],[.56,.16,.56]);stone.ball('stone','#bcb7a8',[px,y+1.48,pz],[.2,.19,.2])}
+    if(i===6){stairSupportSites.push({x:px,z:pz,bottom:0});groundedBox('#bbb7a9',[px,y+.65,pz],[.44,1.3,.44]);stone.box('stone','#d0cabb',[px,y+1.3,pz],[.56,.16,.56]);stone.ball('stone','#bcb7a8',[px,y+1.48,pz],[.2,.19,.2])}
     else {
       const step=Math.max(0,Math.min(floor,Math.ceil((SETTINGS.pagoda.terraceHalf+SETTINGS.pagoda.steps*SETTINGS.pagoda.tread-(SETTINGS.pagoda.terraceHalf+length*t))/SETTINGS.pagoda.tread)*SETTINGS.pagoda.riser)),height=y+1.03-step
       stairSupportSites.push({x:px,z:pz,bottom:step})
-      stone.box('stone','#bab5a6',[px,step+.06,pz],[.4,.12,.4])
+      groundedBox('#bab5a6',[px,step+.06,pz],[.4,.12,.4])
       stone.lathe('stone','#c5c0b1',[px,step+.12,pz],[[.2,0],[.2,.12],[.13,.22],[.11,.4],[.2,.49],[.2,.59],[.12,.7],[.14,.82],[.2,.9]].map(([r,h])=>[r!,h!*(height-.12)/.9]))
     }
   }

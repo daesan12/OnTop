@@ -33,7 +33,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 
@@ -50,8 +50,9 @@ class WorldGameReactionTests {
             "one\0table-1".getBytes(StandardCharsets.UTF_8));
 
     @ParameterizedTest
-    @ValueSource(strings = {"OMOK", "DICE_LEDGER"})
-    void 참가자와_20m_비구독자에게만_한번_전달하고_재접속에_재생하지_않는다(String gameCode) throws Exception {
+    @CsvSource({"OMOK,101", "OMOK,202", "DICE_LEDGER,101", "DICE_LEDGER,202"})
+    void 참가자와_20m_비구독자에게만_한번_전달하고_재접속에_재생하지_않는다(String gameCode, long quitter)
+            throws Exception {
         var properties = new WorldChannelProperties(List.of(
                 new WorldChannelProperties.Channel("one", "하나", 8),
                 new WorldChannelProperties.Channel("two", "둘", 8)));
@@ -96,16 +97,17 @@ class WorldGameReactionTests {
             first.await(message -> message.path("type").asText().equals("GAME_START_STATE")
                     && message.at("/payload/phase").asText().equals("CONFIRMED"));
             channels.move("101", new WorldChannelRegistry.Position(2, 50, .8, 0, 0));
+            channels.move("202", new WorldChannelRegistry.Position(2, -50, .8, 0, Math.PI));
             first.fence(); second.fence(); near.fence(); far.fence(); other.fence();
-            var event = new GameDefeatConfirmed("game:reaction:101", "game", TABLE, gameCode, 1,
-                    101, GameDefeatConfirmed.Kind.FORFEIT, 2, Instant.ofEpochMilli(wallTime.get()));
+            var event = new GameDefeatConfirmed("game:reaction:" + quitter, "game", TABLE, gameCode, 1,
+                    quitter, GameDefeatConfirmed.Kind.FORFEIT, 2, Instant.ofEpochMilli(wallTime.get()));
             hub.gameDefeatConfirmed(event);
             hub.gameDefeatConfirmed(event);
             JsonNode one = first.reaction();
             assertThat(second.reaction().path("payload")).isEqualTo(one.path("payload"));
             assertThat(near.reaction().path("payload")).isEqualTo(one.path("payload"));
             assertThat(one.path("requestId").isNull()).isTrue();
-            assertThat(one.at("/payload/userId").asText()).isEqualTo("101");
+            assertThat(one.at("/payload/userId").asText()).isEqualTo(Long.toString(quitter));
             assertThat(one.at("/payload/motion").asText()).isEqualTo("table-flip");
             assertThat(one.at("/payload/remainingBefore").asInt()).isEqualTo(2);
             assertThat(one.path("payload").fieldNames()).toIterable().containsExactlyInAnyOrder(
@@ -117,6 +119,9 @@ class WorldGameReactionTests {
                 assertThat(peer.debris().getFirst().at("/payload/items/0/parts"))
                         .hasSize(18);
                 assertThat(peer.debris().getFirst().at("/payload/items/0/gameCode").asText()).isEqualTo(gameCode);
+                assertThat(peer.debris().getFirst().at("/payload/items/0/throwYaw").asDouble())
+                        .isEqualTo("OMOK".equals(gameCode) ? quitter == 101 ? Math.PI : 0.0
+                                : quitter == 101 ? 0.0 : Math.PI);
             }
             assertThat(other.debris()).isEmpty();
             for (Peer peer : List.of(first, second, near, far, other)) { assertThat(peer.reactions()).isEmpty(); }
