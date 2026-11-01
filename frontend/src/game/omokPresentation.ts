@@ -2,6 +2,9 @@ import { GOMOKU } from '../config'
 import type { Omok } from './protocol'
 
 export const OMOK_SIZE = 15
+// 두꺼운 판의 최하단(-114mm)이 테이블 상판을 침범하지 않도록 시각 루트만 높인다.
+// 공원 배치·충돌 맵 버전을 구성하는 공통 설정은 유지한다.
+export const OMOK_BOARD_Y = GOMOKU.boardY + .06
 export const OMOK_SPACING = GOMOKU.boardSpan / (OMOK_SIZE - 1)
 export const OMOK_HALF = GOMOKU.boardSpan / 2
 export function omokCell(x: number, z: number) {

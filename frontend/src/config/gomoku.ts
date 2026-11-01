@@ -2,8 +2,8 @@
 export const GOMOKU = {
   interactionRadius: 3.5,
   boardSpan: 1.3,
-  // 두꺼운 판의 최하단(-114mm)이 1.064m 테이블 상판을 침범하지 않는다.
-  boardY: 1.18,
+  // The board's lowest bevel is 48mm below this anchor; clear the 1.064m felt.
+  boardY: 1.12,
   seatedFov: 76,
   topDownFov: 42,
   boardOuterSpan: 1.48,
