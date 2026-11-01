@@ -100,6 +100,9 @@ public final class HalliGalliMatch {
             return previous.result();
         }
         HalliGalliPlayer actor = seats.get(command.userId());
+        if (endedAt == null && actor.isForfeited()) {
+            throw new Rejected(Rejection.NOT_ACTIVE);
+        }
         if (endedAt != null || actor.isEliminated() || command.expectedVersion() > version) {
             throw new Rejected(Rejection.INVALID_ACTION);
         }
@@ -248,6 +251,24 @@ public final class HalliGalliMatch {
         }
     }
 
+    // 기권 확정. 이미 끝났거나 경기에서 빠진 참가자면 아무것도 바꾸지 않는다.
+    // 남은 유효 참가자가 1명이면 끝내고, 기권자가 공개 차례였으면 결과 연출 뒤(없으면 지금) 다음 좌석에 새 턴을 준다.
+    public void forfeit(long user, Instant now) {
+        HalliGalliPlayer leaver = seats.get(user);
+        if (endedAt != null || leaver == null || leaver.isEliminated()) {
+            return;
+        }
+        version++;
+        leaver.forfeit();
+        if (activeCount() <= 1) {
+            finish(activeUsers(), LAST_PLAYER_STANDING, now);
+            return;
+        }
+        if (turn >= 0 && players.get(turn) == user) {
+            startTurn(turn + 1, resultUntil != null && now.isBefore(resultUntil) ? resultUntil : now);
+        }
+    }
+
     private void startTurn(int from, Instant at) {
         turn = -1;
         for (int step = 0; step < players.size(); step++) {
@@ -326,7 +347,7 @@ public final class HalliGalliMatch {
 
     public Snapshot snapshot() {
         List<Player> views = players.stream().map(seats::get).map(seat -> new Player(seat.userId(), seat.drawCount(),
-                seat.faceUpCount(), seat.topCard(), seat.isEliminated())).toList();
+                seat.faceUpCount(), seat.topCard(), seat.isEliminated(), seat.isForfeited())).toList();
         return new Snapshot(gameId, tableId, players, views, version, turn < 0 ? null : players.get(turn),
                 turnDeadline, resultUntil, windowOpen ? Long.valueOf(flipSeq) : null, flipSeq, issuedPenaltyCards,
                 lastEvent, winners, endReason, endedAt);
@@ -343,8 +364,9 @@ public final class HalliGalliMatch {
     public record Event(String type, long userId, Instant at, int cardCount, int issuedCards) {
     }
 
-    // topCard는 공개 더미가 비었으면 null이다.
-    public record Player(long userId, int drawCount, int faceUpCount, FruitCard topCard, boolean eliminated) {
+    // topCard는 공개 더미가 비었으면 null이다. eliminated는 규칙 탈락과 기권을 모두 포함하고, forfeited는 기권만이다.
+    public record Player(long userId, int drawCount, int faceUpCount, FruitCard topCard, boolean eliminated,
+            boolean forfeited) {
     }
 
     // bellWindowId는 종을 칠 수 있는 창이 열려 있을 때만 값이 있다.

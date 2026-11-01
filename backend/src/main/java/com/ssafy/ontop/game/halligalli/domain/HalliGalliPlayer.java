@@ -10,6 +10,7 @@ final class HalliGalliPlayer {
     private final ArrayDeque<FruitCard> drawPile = new ArrayDeque<>();
     private final ArrayDeque<FruitCard> faceUpPile = new ArrayDeque<>();
     private boolean eliminated;
+    private boolean forfeited;
 
     HalliGalliPlayer(long userId, List<FruitCard> cards) {
         this.userId = userId;
@@ -63,7 +64,17 @@ final class HalliGalliPlayer {
         return cards;
     }
 
+    boolean isForfeited() {
+        return forfeited;
+    }
+
     void eliminate() {
         eliminated = true;
+    }
+
+    // 기권도 경기에서 빠지지만 카드는 그대로 둔다. 뒷면은 비활성 보관, 공개 더미는 종 판정·수거 대상으로 남는다.
+    void forfeit() {
+        eliminated = true;
+        forfeited = true;
     }
 }
