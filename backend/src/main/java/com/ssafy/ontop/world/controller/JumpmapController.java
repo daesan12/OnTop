@@ -52,8 +52,8 @@ public class JumpmapController {
             throw new JumpmapRequestException(400, "INVALID_REQUEST", "채널을 확인해주세요.");
         }
         // 다른 탭·채널의 진행 판을 섞지 않는다. 사용자가 그 채널에 있을 때만 진행 판을 싣는다.
-        var active = channelId.equals(channels.channelOf(userId)) ? channels.jumpmapRun(userId) : Optional.<com.ssafy.ontop.world.jumpmap.JumpmapTracker.RunView>empty();
-        var view = service.status(userId, active);
+        var view = service.status(userId, () -> channelId.equals(channels.channelOf(userId))
+                ? channels.jumpmapRun(userId) : Optional.empty());
         var body = new LinkedHashMap<String, Object>();
         body.put("channelId", channelId);
         body.put("mapVersion", channels.mapMetadata().mapVersion());

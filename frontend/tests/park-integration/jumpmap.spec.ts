@@ -10,6 +10,36 @@ const scope = { channelId: 'channel-1', mapVersion: identity.mapVersion }
 const earnings = { earningsDate: kstDate(), dailyCap: 500, todayEarned: 0 }
 const status = { ...scope, ...earnings, revision: 0, enabled: true, courseVersion: COURSE_VERSION, rulesVersion: RULES_VERSION, isFirstRun: true, seenTips: [], activeRunId: null, bestFinishMs: null }
 const probe = (page: Page) => page.evaluate(async () => (await import('/tests/park-integration/jumpmapProbe.ts' as string)).jumpmapProbe())
+
+test('지연된 빈 상태 응답 뒤에도 진행 중인 판과 다음 발판을 유지한다', async ({ page }) => {
+  const server = await parkFixture(page)
+  let release!: () => Promise<void>
+  await page.route('**/api/v1/minigames/jumpmap/status?*', route => {
+    release = () => route.fulfill({ json: status })
+  })
+  await page.goto('/park')
+  await expect.poll(() => !!release).toBe(true)
+  const pad = COURSE.find(p => p.top >= 18)!
+  server.place({ x: pad.x, y: pad.top + .8, z: pad.z, yaw: 0 })
+  server.emit('JUMPMAP_STARTED', { ...scope, ...earnings, revision: 1, runId: 'slow-status-run',
+    courseVersion: COURSE_VERSION, rulesVersion: RULES_VERSION, serverTime: Date.now() })
+  await expect.poll(async () => (await probe(page)).state.run?.runId).toBe('slow-status-run')
+  await release()
+  await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90000 })
+  await page.waitForTimeout(400)
+  expect((await probe(page)).state.run?.runId).toBe('slow-status-run')
+  expect((await probe(page)).padsDrawn).toBe(COURSE.length)
+  await shot(page, 'jumpmap-qa-delayed-status')
+  const { SITES, SETTINGS } = await import('../../src/layout-preview/layout')
+  server.place({ x: SITES.pagoda.x + SETTINGS.pagoda.terraceHalf - 1,
+    y: SITES.pagoda.floor + .8, z: SITES.pagoda.z + SETTINGS.pagoda.terraceHalf - 1, yaw: -Math.PI * .75 })
+  await page.evaluate(async () => {
+    const { viewControls } = await import('/src/world/cameraPerspective.ts' as string)
+    viewControls.yaw = -Math.PI * .75; viewControls.pitch = .22
+  })
+  await page.waitForTimeout(700)
+  await shot(page, 'jumpmap-qa-stone-foundation')
+})
 async function shot(page: Page, name: string) {
   const dir = process.env.QA_ARTIFACT_DIR ?? path.join(os.tmpdir(), 'ontop-jumpmap-qa'); await fs.mkdir(dir, { recursive: true }); await page.screenshot({ path: path.join(dir, name + '.png') })
 }

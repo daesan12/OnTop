@@ -24,6 +24,7 @@ class JumpmapServiceTests {
         volatile long settleDelayMs;
         final AtomicInteger failures = new AtomicInteger();
         volatile boolean pending = true;
+        Runnable duringStatus = () -> { };
 
         @Override public Started start(String runId, long userId, String channelId, Instant at) {
             return new Started(true, 10, LocalDate.of(2026, 10, 30));
@@ -36,7 +37,10 @@ class JumpmapServiceTests {
             return Optional.of(new Settled(runId, 101, gate, 2, 2, 2, 12, LocalDate.of(2026, 10, 30)));
         }
         @Override public Ended end(String runId, RunEnd end) { return new Ended(2, 12, LocalDate.of(2026, 10, 30), null, false); }
-        @Override public Status status(long userId, Instant now) { return new Status(false, List.of(), null, 12, LocalDate.of(2026, 10, 30)); }
+        @Override public Status status(long userId, Instant now) {
+            duringStatus.run();
+            return new Status(false, List.of(), null, 12, LocalDate.of(2026, 10, 30));
+        }
         @Override public void seeTips(long userId, Set<String> tips, Instant now) { }
         @Override public int abandonOpenRuns(Instant now) { return 0; }
         @Override public List<RewardKey> pendingRewards(Instant before, int limit) {
@@ -45,6 +49,28 @@ class JumpmapServiceTests {
     }
 
     private record Sent(String user, String type, Map<String, Object> payload) {}
+
+    @Test
+    void 상태조회_중_시작된_판을_낡은_빈_스냅샷이_최신_revision으로_덮지_않는다() throws Exception {
+        var store = new SlowStore();
+        var sent = new CopyOnWriteArrayList<Sent>();
+        try (var service = service(store, sent)) {
+            store.duringStatus = () -> {
+                gate(service);
+                try {
+                    service.drain(Duration.ofSeconds(5));
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                    throw new AssertionError(exception);
+                }
+            };
+
+            var status = service.status("101", Optional::empty);
+
+            assertThat(status.activeRunId()).isNull();
+            assertThat(status.revision()).isLessThan((long) sent.getFirst().payload().get("revision"));
+        }
+    }
 
     private static JumpmapService service(SlowStore store, List<Sent> sent) throws Exception {
         var course = JumpCourse.loadDefault();
@@ -115,7 +141,7 @@ class JumpmapServiceTests {
             service.drain(Duration.ofSeconds(2));
             assertThat(sent).isEmpty();
             assertThat(service.active()).isFalse();
-            assertThat(service.status("101", Optional.empty()).enabled()).isFalse();
+            assertThat(service.status("101", Optional::empty).enabled()).isFalse();
         }
     }
 }

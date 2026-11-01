@@ -12,7 +12,8 @@ const posts=new Map<string,[number,number]>()
 for(const run of CENTRAL_RAIL_RUNS) {
   const dx=run.to[0]-run.from[0],dz=run.to[1]-run.from[1],length=Math.hypot(dx,dz),yaw=Math.atan2(dx,dz)
   const x=(run.from[0]+run.to[0])/2,z=(run.from[1]+run.to[1])/2
-  stone.box('stone','#b7b3a4',[x,floor+.11,z],[.5,.22,length],[0,yaw,0])
+  // 모서리 받침과 긴 기단의 윗면이 겹치면 카메라 이동 시 깊이 충돌로 반짝인다.
+  stone.box('stone','#b7b3a4',[x,floor+.11,z],[.5,.22,length-.5],[0,yaw,0])
   stone.box('stone','#d0cbbd',[x,floor+1.08,z],[.46,.19,length],[0,yaw,0])
   stone.box('stone','#c0bcae',[x,floor+.94,z],[.32,.1,length],[0,yaw,0])
   const count=Math.ceil(length/.85)
@@ -27,6 +28,7 @@ for(const run of CENTRAL_RAIL_RUNS) {
   }
 }
 for(const [x,z] of posts.values()) {
+  stone.box('stone','#b7b3a4',[x,floor+.11,z],[.5,.22,.5])
   stone.box('stone','#bbb7a9',[x,floor+.65,z],[.44,1.3,.44])
   stone.box('stone','#d0cabb',[x,floor+1.3,z],[.56,.16,.56])
   stone.lathe('stone','#bcb7a8',[x,floor+1.38,z],[[.23,0],[.24,.08],[.16,.16],[.13,.27],[.06,.35],[0,.38]])
