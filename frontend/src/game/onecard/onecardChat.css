@@ -1,9 +1,11 @@
 /* Keep the chat readable without inheriting the park HUD's visual scale. */
 .park-page:has(.onecard-game-hud) .park-chat {
   box-sizing:border-box;
-  top:auto;
-  bottom:20px;
+  top:154px;
+  bottom:auto;
   width:min(230px,calc(100% - 40px));
+  height:138px;
+  min-height:138px;
   max-height:138px;
   padding:8px;
   gap:7px;
@@ -17,8 +19,8 @@
   z-index:7;
 }
 .park-page:has(.onecard-game-hud) .park-chat[data-expanded=true] {
-  width:min(280px,calc(100% - 40px));
-  max-height:min(240px,calc(100dvh - 300px));
+  width:min(230px,calc(100% - 40px));
+  max-height:138px;
 }
 .park-page:has(.onecard-game-hud) .park-chat__messages { flex:1 1 auto; height:auto; min-height:0; padding:0; overflow:hidden; }
 .park-page:has(.onecard-game-hud) .park-chat__heading { flex:0 0 auto; gap:8px; margin:0; padding:0 0 6px; border-bottom:1px solid #c5a76a33; }
@@ -27,8 +29,8 @@
 .park-page:has(.onecard-game-hud) .park-chat__radius { padding:2px 6px; font-size:10px; color:#e3c58a; background:#c5a76a20; }
 .park-page:has(.onecard-game-hud) .park-chat__heading button { flex:0 0 24px; width:24px; height:24px; border-radius:4px; }
 .park-page:has(.onecard-game-hud) .park-chat__heading button img { width:16px; height:16px; }
-.park-page:has(.onecard-game-hud) .park-chat__list { flex:1 1 auto; min-height:0; max-height:40px; gap:5px; margin-top:6px; overflow-y:auto; overflow-x:hidden; }
-.park-page:has(.onecard-game-hud) .park-chat[data-expanded=true] .park-chat__list { max-height:160px; }
+.park-page:has(.onecard-game-hud) .park-chat__list { flex:1 1 auto; min-height:0; max-height:none; gap:5px; margin-top:6px; overflow-y:auto; overflow-x:hidden; }
+.park-page:has(.onecard-game-hud) .park-chat[data-expanded=true] .park-chat__list { max-height:none; }
 .park-page:has(.onecard-game-hud) .park-chat__message { gap:6px; font-size:12px; line-height:1.5; }
 .park-page:has(.onecard-game-hud) .park-chat__author { flex:0 0 auto; max-width:72px; }
 .park-page:has(.onecard-game-hud) .park-chat__message>span:last-child { flex:1; min-width:0; overflow-wrap:anywhere; }
@@ -53,8 +55,6 @@
 }
 
 @media(max-width:800px) {
-  .park-page:has(.onecard-game-hud) .park-chat { top:auto; bottom:12px; left:12px; width:min(220px,calc(100% - 24px)); transform:none; }
-  .park-page:has(.onecard-game-hud) .park-chat[data-expanded=true] { width:min(280px,calc(100% - 24px)); max-height:min(260px,calc(100dvh - 370px)); }
-  .park-page:has(.onecard-game-hud[data-role=SPECTATOR]) .park-chat { top:auto; bottom:18px; width:220px; }
-  .park-page:has(.onecard-game-hud[data-role=SPECTATOR]) .park-chat[data-expanded=true] { width:min(280px,calc(100% - 24px)); }
+  .park-page:has(.onecard-game-hud) .park-chat { top:174px; bottom:auto; left:12px; width:min(230px,calc(100% - 24px)); transform:none; }
+  .park-page:has(.onecard-game-hud) .park-chat[data-expanded=true] { width:min(230px,calc(100% - 24px)); max-height:138px; }
 }
