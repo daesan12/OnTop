@@ -38,7 +38,7 @@ public class RpsRouletteRound {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 16)
     private Phase phase;
-    @Column(name = "stake_level", nullable = false)
+    @Column(name = "stake_level", nullable = false, columnDefinition = "TINYINT")
     private int stakeLevel;
     @Column(nullable = false)
     private boolean challenging;
@@ -49,9 +49,9 @@ public class RpsRouletteRound {
     @Enumerated(EnumType.STRING)
     @Column(name = "machine_hand", length = 8)
     private Hand machineHand;
-    @Column(name = "machine_salt", length = 32)
+    @Column(name = "machine_salt", length = 32, columnDefinition = "CHAR(32)")
     private String machineSalt;
-    @Column(length = 64)
+    @Column(length = 64, columnDefinition = "CHAR(64)")
     private String commitment;
     @Column(name = "input_ends_at", columnDefinition = "TIMESTAMP(3)")
     private Instant inputEndsAt;
@@ -65,7 +65,7 @@ public class RpsRouletteRound {
     @Enumerated(EnumType.STRING)
     @Column(name = "last_machine_hand", length = 8)
     private Hand lastMachineHand;
-    @Column(name = "last_salt", length = 32)
+    @Column(name = "last_salt", length = 32, columnDefinition = "CHAR(32)")
     private String lastSalt;
     @Enumerated(EnumType.STRING)
     @Column(name = "last_result", length = 8)
@@ -75,7 +75,7 @@ public class RpsRouletteRound {
     @Enumerated(EnumType.STRING)
     @Column(length = 8)
     private Outcome outcome;
-    @Column(name = "roulette_cell")
+    @Column(name = "roulette_cell", columnDefinition = "TINYINT")
     private Integer rouletteCell;
     @Column(nullable = false)
     private int payout;
