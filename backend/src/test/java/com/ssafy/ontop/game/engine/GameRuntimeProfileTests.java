@@ -48,14 +48,20 @@ class GameRuntimeProfileTests {
             .withBean(GameParticipantRepository.class, () -> mock(GameParticipantRepository.class))
             .withUserConfiguration(GameReconnectService.class, JpaActiveGameLookup.class, GameRuntimeIdentity.class);
 
+    // dev는 할리갈리 QA를 위해 할리갈리 엔진만 기본으로 켠다. 시작과 다른 게임 엔진은 환경변수로만 켠다.
     @Test
-    void 기본dev는_시작과_엔진을_자동활성화하지_않는다() {
+    void 기본dev는_시작과_다른엔진을_자동활성화하지_않고_할리갈리엔진만_대기한다() {
         runner.withPropertyValues("spring.profiles.active=dev").run(context -> {
             assertThat(context).hasNotFailed().doesNotHaveBean(CommittedGameStartService.class)
-                    .doesNotHaveBean(GameEngineRouter.class).doesNotHaveBean(HalliGalliEngine.class)
+                    .doesNotHaveBean(OmokEngine.class).doesNotHaveBean(FarkleEngine.class)
+                    .doesNotHaveBean(OneCardEngine.class).doesNotHaveBean(BridgeEngine.class)
+                    .doesNotHaveBean(DiceLedgerEngine.class)
+                    .hasSingleBean(HalliGalliEngine.class).hasSingleBean(GameEngineRouter.class)
                     .hasSingleBean(GameReconnectService.class)
                     .hasSingleBean(GameResultService.class).hasSingleBean(GameFinishedResultListener.class);
         });
+        runner.withPropertyValues("spring.profiles.active=dev", "GAME_HALLIGALLI_ENABLED=false").run(context ->
+                assertThat(context).hasNotFailed().doesNotHaveBean(GameEngineRouter.class).doesNotHaveBean(HalliGalliEngine.class));
     }
 
     @Test

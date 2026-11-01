@@ -51,21 +51,31 @@ class HalliGalliConfigurationTests {
     }
 
     @Test
-    void 개발_운영_설정은_환경변수가_없으면_꺼져있고_연출은_1초다() {
-        for (String profiles : new String[] {"dev,db", "prod,db"}) {
+    void 환경변수가_없으면_개발은_켜지고_운영은_꺼지며_연출은_1초다() {
+        for (String[] expected : new String[][] {{"dev,db", "true"}, {"prod,db", "false"}}) {
             new ApplicationContextRunner().withInitializer(new ConfigDataApplicationContextInitializer())
-                    .withPropertyValues("spring.profiles.active=" + profiles).run(context -> {
+                    .withPropertyValues("spring.profiles.active=" + expected[0]).run(context -> {
                         var environment = context.getEnvironment();
-                        assertThat(environment.getProperty("ontop.games.halligalli.enabled")).isEqualTo("false");
+                        assertThat(environment.getProperty("ontop.games.halligalli.enabled")).as(expected[0]).isEqualTo(expected[1]);
                         assertThat(environment.getProperty("ontop.games.halligalli.result-pause-ms")).isEqualTo("1000");
+                        // 공통 시작 플래그는 이번 기본값과 무관하게 기존대로 꺼져 있다.
+                        assertThat(environment.getProperty("ontop.game-start.enabled")).isEqualTo("false");
                     });
-            new ApplicationContextRunner().withInitializer(new ConfigDataApplicationContextInitializer())
-                    .withPropertyValues("spring.profiles.active=" + profiles, "GAME_HALLIGALLI_ENABLED=true",
-                            "GAME_HALLIGALLI_RESULT_PAUSE_MS=800").run(context -> {
-                        var environment = context.getEnvironment();
-                        assertThat(environment.getProperty("ontop.games.halligalli.enabled")).isEqualTo("true");
-                        assertThat(environment.getProperty("ontop.games.halligalli.result-pause-ms")).isEqualTo("800");
-                    });
+        }
+    }
+
+    @Test
+    void 개발_운영_모두_명시한_환경변수가_기본값보다_우선한다() {
+        for (String profiles : new String[] {"dev,db", "prod,db"}) {
+            for (String value : new String[] {"true", "false"}) {
+                new ApplicationContextRunner().withInitializer(new ConfigDataApplicationContextInitializer())
+                        .withPropertyValues("spring.profiles.active=" + profiles, "GAME_HALLIGALLI_ENABLED=" + value,
+                                "GAME_HALLIGALLI_RESULT_PAUSE_MS=800").run(context -> {
+                            var environment = context.getEnvironment();
+                            assertThat(environment.getProperty("ontop.games.halligalli.enabled")).as(profiles).isEqualTo(value);
+                            assertThat(environment.getProperty("ontop.games.halligalli.result-pause-ms")).isEqualTo("800");
+                        });
+            }
         }
     }
 }
