@@ -2,6 +2,7 @@ package com.ssafy.ontop.game.onecard;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ssafy.ontop.game.action.GameActionCommand;
+import com.ssafy.ontop.game.action.GameForfeitCommand;
 import com.ssafy.ontop.game.action.GameActionGateway.Rejected;
 import com.ssafy.ontop.game.engine.GameEngineRouter;
 import com.ssafy.ontop.game.onecard.domain.ForfeitHandPolicy;
@@ -48,5 +49,7 @@ class OneCardOpeningTests {
         engine.apply(command);
 
         assertThat(engine.load(101, "opening").orElseThrow().version()).isOne();
+        engine.forfeit(new GameForfeitCommand(202, "opening", "leave"));
+        assertThat(engine.load(101, "opening").orElseThrow().publicState().has("dealEndsAt")).isFalse();
     }
 }

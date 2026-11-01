@@ -234,6 +234,7 @@ public final class OneCardEngine implements GameEngine {
         if (before.version() == after.version()) { return; }
         notices.add(new GameStateChanged(after.gameId(), after.version()));
         if (before.endedAt() == null && after.endedAt() != null) {
+            dealEnds.remove(after.gameId());
             router.finished(this, after.gameId());
             notices.add(new OneCardGameFinished(after.gameId(), after.tableId(), after.version(), after.players(),
                     after.winnerUserIds(), after.endReason(), after.endedAt()));
