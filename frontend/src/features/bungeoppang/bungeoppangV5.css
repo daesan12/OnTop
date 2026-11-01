@@ -26,6 +26,10 @@
 .bung25-order[data-selected="true"] { --cloud-fill:#fff8df; --cloud-stroke:#e8b859; }
 .bung25-order[data-selected="true"] .bung25-cloud-body { stroke-width:2.8; }
 .bung25-order[data-ready="true"] { --cloud-fill:#f4fae9; --cloud-stroke:#a2b98a; }
+.bung-root .bung25-order[data-complaint="true"] { --cloud-fill:#852e25; --cloud-stroke:#ffad83; color:#fff8ed; }
+.bung-root .bung25-order[data-complaint="true"] .bung25-cloud-body { stroke-width:3; }
+.bung-root .bung25-order[data-complaint="true"] .bung25-complaint { color:#fff8ed; font-weight:700; }
+.bung-root .bung25-complaint strong { display:inline-block; margin-top:5px; color:#ffe09a; font-size:17px; }
 .bung25-order:has(button:focus-visible) .bung25-cloud-body { stroke:#78501f; stroke-width:3; }
 @keyframes bung-order-appear { from { opacity:0; transform:translateY(4px) scale(.98); } to { opacity:1; transform:translateY(0) scale(1); } }
 .bung25-order-empty { display:grid; place-items:center; grid-template-rows:1fr; opacity:.65; color:#85623f; font-size:12px; }
