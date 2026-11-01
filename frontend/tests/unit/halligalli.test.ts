@@ -16,7 +16,13 @@ import { HalliTable } from '../../src/game/halligalli/HalliTable'
 import { HALLI_CAMERA, halliCameraPose, halliPlayerViewActive, halliSpectatorCameraPose, halliSpectatorViewActive,
   halliSpectatorYaw } from '../../src/game/halligalli/camera'
 import { ONECARD_CAMERA, oneCardCameraPose, oneCardSpectatorCameraPose } from '../../src/game/onecard/camera'
-import { TABLES, tableSeats } from '../../src/config'
+import { TABLES, tableScale, tableSeats } from '../../src/config'
+import { HALLI_LAYOUT, bellCentre, faceUpCorners, halliSeatIndices, labelPoint, pileCorners, quadTransform, seatFrame, stackHeight } from '../../src/game/halligalli/anchors'
+import { HalliStage } from '../../src/game/halligalli/HalliStage'
+import { ringAllowedBell } from '../../src/game/halligalli/controls'
+import { bellLabel } from '../../src/game/halligalli/Bell'
+import { parkRuntime } from '../../src/park/runtime/runtime'
+import { PerspectiveCamera, Vector3 } from 'three'
 import { CardBack, FruitCard } from '../../src/game/halligalli/FruitCard'
 import { FRUIT_LAYOUT, FRUIT_SCALE } from '../../src/game/halligalli/FruitArt'
 import { FRUITS } from '../../src/game/halligalli/protocol'
@@ -325,5 +331,152 @@ describe('runtime bell queue', () => {
     expect(await runtime.ringHalli(5, 5)).toBe(false)
     expect(useHalliUI.getState().notice).toContain('다른 요청')
     expect(sent).toHaveLength(1)
+  })
+  it('3D bell click takes the same ring path once per window and never rings for a spectator', async () => {
+    // ringShownBell talks to the app runtime; give it the same fake socket.
+    const shared = parkRuntime as unknown as Record<string, unknown>, internals = runtime as unknown as Record<string, unknown>
+    Object.assign(shared, { active: true, mapAdmission: internals.mapAdmission, socket: internals.socket })
+    expect(ringAllowedBell()).toBe(true)
+    // A second press of the same window (another click, Enter on the bell button or Space) is not sent again.
+    expect(ringAllowedBell()).toBe(false)
+    await flush()
+    expect(sent.map(r => r.payload.input)).toEqual([{ kind: 'ring', bellWindowId: 4 }])
+    expect(sent[0]!.payload).toMatchObject({ gameId: 'halli', expectedVersion: 4 })
+    expect(halliRingMark('halli', 4)).toBe('sent')
+    sent[0]!.done.resolve({}); await flush()
+    useGame.setState(s => ({ game: { ...s.game!, role: 'SPECTATOR', version: 5, halli: { ...s.game!.halli!, bellWindowId: 5 } } as typeof s.game }))
+    expect(ringAllowedBell()).toBe(false)
+    await flush()
+    expect(sent).toHaveLength(1)
+  })
+})
+
+describe('table stage anchors', () => {
+  type Anchor = (typeof TABLES)[number]
+  const toLocal = (anchor: Anchor, p: readonly number[]) =>
+    ({ x: (p[0]! - anchor.position[0]) / tableScale(anchor), z: (p[2]! - anchor.position[2]) / tableScale(anchor) })
+  const box = (anchor: Anchor, corners: readonly (readonly number[])[]) => {
+    const local = corners.map(c => toLocal(anchor, c)), xs = local.map(p => p.x), zs = local.map(p => p.z)
+    return { minX: Math.min(...xs), maxX: Math.max(...xs), minZ: Math.min(...zs), maxZ: Math.max(...zs) }
+  }
+  const apart = (a: ReturnType<typeof box>, b: ReturnType<typeof box>) =>
+    a.maxX <= b.minX || b.maxX <= a.minX || a.maxZ <= b.minZ || b.maxZ <= a.minZ
+  it('uses each avatar seat and gives unknown or doubled seats the next free seat in table order', () => {
+    const seats: Record<string, number> = { a: 3, b: 0, c: 1 }
+    expect(halliSeatIndices(['a', 'b', 'c'], id => seats[id])).toEqual([3, 0, 1])
+    expect(halliSeatIndices(['a', 'b', 'c', 'd'], id => id === 'a' || id === 'b' ? 1 : undefined)).toEqual([1, 0, 2, 3])
+    expect(halliSeatIndices(['a', 'b'], () => -1)).toEqual([0, 2])
+  })
+  it('lays every seat\'s face-up card and pile inside the felt, apart from each other and clear of the bell', () => {
+    for (const anchor of TABLES) {
+      const items = [0, 1, 2, 3].flatMap(seat => [box(anchor, faceUpCorners(anchor, seat, 1)), box(anchor, pileCorners(anchor, seat, 13))])
+      for (const b of items) {
+        expect(Math.max(Math.abs(b.minX), Math.abs(b.maxX))).toBeLessThanOrEqual(HALLI_LAYOUT.felt.x)
+        expect(Math.max(Math.abs(b.minZ), Math.abs(b.maxZ))).toBeLessThanOrEqual(HALLI_LAYOUT.felt.z)
+        // The point of each card nearest the bell stays outside the bell's base.
+        const nx = Math.max(b.minX, Math.min(0, b.maxX)), nz = Math.max(b.minZ, Math.min(0, b.maxZ))
+        expect(Math.hypot(nx, nz)).toBeGreaterThan(HALLI_LAYOUT.bellRadius)
+      }
+      for (let i = 0; i < items.length; i++) for (let j = i + 1; j < items.length; j++) expect(apart(items[i]!, items[j]!)).toBe(true)
+    }
+  })
+  it('points the card top at the bell, puts the pile on the seated player\'s right and scales with the table', () => {
+    const anchor = TABLES.find(t => t.pavilionId !== 'P0') ?? TABLES[0]!
+    for (let seat = 0; seat < 4; seat++) {
+      const [tl, tr, bl, br] = faceUpCorners(anchor, seat, 1).map(c => toLocal(anchor, c))
+      const out = seatFrame(anchor, seat).out
+      expect((tl!.x + tr!.x) * out.x + (tl!.z + tr!.z) * out.z).toBeLessThan((bl!.x + br!.x) * out.x + (bl!.z + br!.z) * out.z)
+      // Facing the bell (-out), the pile lies on the right: the y of cross(facing, toPile) is negative.
+      const pile = box(anchor, pileCorners(anchor, seat, 5)), px = (pile.minX + pile.maxX) / 2, pz = (pile.minZ + pile.maxZ) / 2
+      expect(-out.z * px - -out.x * pz).toBeLessThan(0)
+    }
+    const main = TABLES.find(t => t.pavilionId === 'P0')
+    if (main) {
+      const reach = (a: Anchor) => Math.hypot(faceUpCorners(a, 0, 1)[0]![0] - a.position[0], faceUpCorners(a, 0, 1)[0]![2] - a.position[2])
+      expect(reach(main) / reach(anchor)).toBeCloseTo(tableScale(main) / tableScale(anchor))
+    }
+  })
+  it('stacks cards in height with a cap and keeps the label past the felt edge', () => {
+    expect(stackHeight(0)).toBe(0)
+    expect(stackHeight(10)).toBeGreaterThan(stackHeight(1))
+    expect(stackHeight(56)).toBe(HALLI_LAYOUT.maxStack)
+    const anchor = TABLES[0]!
+    expect(faceUpCorners(anchor, 0, 20)[0]![1]).toBeGreaterThan(faceUpCorners(anchor, 0, 1)[0]![1])
+    for (let seat = 0; seat < 4; seat++) {
+      const p = toLocal(anchor, labelPoint(anchor, seat))
+      expect(Math.abs(p.x) > HALLI_LAYOUT.felt.x || Math.abs(p.z) > HALLI_LAYOUT.felt.z).toBe(true)
+    }
+  })
+  it('builds a matrix3d that maps the element corners exactly onto the projected quad', () => {
+    const quad = [{ x: 310, y: 402 }, { x: 395, y: 398 }, { x: 290, y: 520 }, { x: 420, y: 515 }]
+    const m = quadTransform(120, 180, quad).match(/matrix3d\((.*)\)/)![1]!.split(',').map(Number)
+    ;[[0, 0], [120, 0], [0, 180], [120, 180]].forEach(([x, y], i) => {
+      const w = m[3]! * x! + m[7]! * y! + m[15]!
+      expect((m[0]! * x! + m[4]! * y! + m[12]!) / w).toBeCloseTo(quad[i]!.x, 4)
+      expect((m[1]! * x! + m[5]! * y! + m[13]!) / w).toBeCloseTo(quad[i]!.y, 4)
+    })
+    expect(quadTransform(120, 180, [{ x: 0, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 0 }])).toBe('')
+  })
+  it('projects from the seated camera: bell on screen, own card nearest and largest, opposite card beyond the bell', () => {
+    for (const anchor of TABLES) {
+      const width = 1920, height = 1080, pose = halliCameraPose(anchor, 0, width / height)
+      const camera = new PerspectiveCamera(HALLI_CAMERA.fov, width / height, .1, 500)
+      camera.position.set(...pose.position); camera.lookAt(...pose.target); camera.updateMatrixWorld()
+      const project = (p: readonly number[]) => {
+        const v = new Vector3(p[0], p[1], p[2]).project(camera)
+        return { x: (v.x + 1) * width / 2, y: (1 - v.y) * height / 2, front: v.z > -1 && v.z < 1 }
+      }
+      const bell = project(bellCentre(anchor))
+      expect(bell.front && bell.x > 0 && bell.x < width && bell.y > 0 && bell.y < height).toBe(true)
+      const cards = [0, 1, 2, 3].map(seat => faceUpCorners(anchor, seat, 1).map(project))
+      expect(cards.flat().every(c => c.front && c.x > 0 && c.x < width && c.y > 0 && c.y < height)).toBe(true)
+      const centre = (q: { x: number; y: number }[]) => ({ x: q.reduce((s, c) => s + c.x, 0) / 4, y: q.reduce((s, c) => s + c.y, 0) / 4 })
+      const span = (q: { x: number }[]) => Math.max(...q.map(c => c.x)) - Math.min(...q.map(c => c.x))
+      expect(centre(cards[0]!).y).toBeGreaterThan(bell.y)
+      expect(centre(cards[1]!).y).toBeLessThan(bell.y)
+      expect(span(cards[0]!)).toBeGreaterThan(span(cards[1]!))
+      // Behind the camera is not "front", so the stage falls back instead of drawing a mirrored quad.
+      const behind = new Vector3(...pose.position).multiplyScalar(2).sub(new Vector3(...pose.target))
+      expect(project([behind.x, behind.y, behind.z]).front).toBe(false)
+    }
+  })
+})
+
+describe('table stage rendering', () => {
+  const html = (viewerId: string, props: { canFlip?: boolean; canRing?: boolean; keyHint?: boolean } = {}, state: object = halliState(4)) =>
+    renderToStaticMarkup(createElement(HalliStage, { halli: parseHalliGalli(state), gameId: 'halli', viewerId,
+      names: { '101': '나', '102': '둘', '103': '셋', '104': '넷' }, canFlip: false, canRing: false, onFlip: () => {}, onRing: () => {}, ...props }))
+  it('renders one flat card and label per seat and only an accessible button for the 3D bell', () => {
+    const own = html('101', { canFlip: true, canRing: true, keyHint: true })
+    expect(own.match(/class="hg-stage-face"/g)).toHaveLength(4)
+    expect(own.match(/hg-stage-seat/g)).toHaveLength(4)
+    // No 2D bell drawing on the stage: one keyboard/screen-reader button over the 3D bell.
+    expect(own).not.toContain('class="hg-bell"')
+    expect(own.match(/class="hg-stage-bell"/g)).toHaveLength(1)
+    expect(own).toMatch(/<button[^>]*class="hg-stage-bell"[^>]*aria-keyshortcuts="Space"[^>]*aria-label="종 치기 \(Space\)"/)
+    expect(own).not.toMatch(/<button[^>]*class="hg-stage-bell"[^>]*disabled/)
+    expect(own).not.toContain('hg-table')
+    expect(own.match(/class="hg-stage-draw"/g)).toHaveLength(1)
+    expect(own).toContain('내 뒷면 카드 13장 · 눌러서 공개')
+    expect(own).toContain('Space</kbd> 종 치기')
+    expect(html('102')).not.toContain('hg-stage-draw')
+    expect(html('505')).toMatch(/<button[^>]*class="hg-stage-bell"[^>]*disabled/)
+    expect(html('101', { canRing: true }, halliState(4, { bellWindowId: null }))).toContain('종 · 다음 카드를 기다리는 중')
+  })
+  it('speaks the same queued and rung bell states as the 2D bell', () => {
+    // SSR renders the store's initial state, so the label helper both bells use is checked directly.
+    const h = parseHalliGalli(halliState(2))
+    expect(bellLabel(h, 'queued')).toBe('종 · 앞선 요청 뒤에 보냄')
+    expect(bellLabel(h, 'sent')).toBe('종 · 이 카드에서는 이미 쳤어요')
+    expect(bellLabel(h, undefined)).toBe('종 치기 (Space)')
+  })
+  it('keeps an empty spot, out badges and the last bell chance', () => {
+    const players = [halliPlayer(0, { active: false, eliminated: true, forfeited: true }), halliPlayer(1, { topCard: null, faceUpCount: 0, cardCount: 13 }),
+      halliPlayer(2, { active: false, eliminated: true, drawCount: 0, faceUpCount: 0, cardCount: 0, topCard: null })]
+    const out = html('103', {}, halliState(3, { turnUserId: null, players }))
+    expect(out).toContain('공개 카드 없음')
+    expect(out).toContain('data-out="forfeited"')
+    expect(out).toContain('data-out="eliminated"')
+    expect(out).toContain('마지막 종 기회')
   })
 })

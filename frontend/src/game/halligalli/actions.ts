@@ -3,7 +3,7 @@ import { useGame } from '../store'
 import { forfeitBlocksInput } from '../forfeit'
 import type { HalliGalli, HalliInput } from './protocol'
 
-type RingMark = 'queued' | 'sent'
+export type RingMark = 'queued' | 'sent'
 const initial = () => ({ gameId: '', rings: {} as Record<number, RingMark>, notice: '', noticeAt: 0 })
 /**
  * Bell windows this tab already rang in, per game. The server keeps a window open after a wrong ring and would

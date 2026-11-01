@@ -2,6 +2,7 @@ import { useGame } from '../store'
 import { useSession } from '../../network/worldClient'
 import { inputState } from '../../world/inputOwnership'
 import { parkRuntime } from '../../park/runtime/runtime'
+import { canRingHalli } from './actions'
 
 /** Rings for the window currently shown. The press is captured here and never re-targeted later. */
 export function ringShownBell() {
@@ -10,7 +11,13 @@ export function ringShownBell() {
   void parkRuntime.ringHalli(g.halli.bellWindowId, g.version); return true
 }
 
-const ownsTarget = (target: EventTarget | null) => target instanceof HTMLElement
+/** The 3D table bell: the same ring path, only while this player may ring the shown window (spectators never). */
+export function ringAllowedBell() {
+  const id = useGame.getState().game?.halli?.bellWindowId
+  return id !== null && id !== undefined && canRingHalli(useSession.getState().sessionId, id) && ringShownBell()
+}
+
+const ownsTarget =(target: EventTarget | null) => target instanceof HTMLElement
   && !!target.closest('input,textarea,select,[contenteditable="true"],[role="dialog"]')
 
 /** Space rings the bell for players. Repeats, IME composition, text inputs and open panels are ignored. */

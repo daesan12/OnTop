@@ -11,6 +11,8 @@ import { canFlipHalli, canRingHalli, useHalliUI } from './actions'
 import { installHalliControls, ringShownBell } from './controls'
 import { HALLI_END_REASON, type HalliEvent } from './protocol'
 import { HalliTable } from './HalliTable'
+import { HalliStage } from './HalliStage'
+import { useHalliStage } from './anchors'
 import './halligalli.css'
 
 const NOTICE_MS = 2500
@@ -27,6 +29,8 @@ export function HalliGalliPanel() {
   const session = useSession(useShallow(s => ({ sessionId: s.sessionId, profiles: s.profiles, status: s.status, pending: s.pending })))
   const notice = useHalliUI(useShallow(s => ({ text: s.notice, at: s.noticeAt })))
   const [now, setNow] = useState(estimatedServerTime)
+  // Wide screens lay the cards and the bell on the 3D table once it can be projected; otherwise the fixed 2D table.
+  const projected = useHalliStage(s => s.projected)
   const role = s.game?.halli ? s.game.role : null
   useEffect(() => role === 'PLAYER' ? installHalliControls() : undefined, [role])
   // Re-checks the result pause end and expires notices; the bar animates on its own.
@@ -49,14 +53,15 @@ export function HalliGalliPanel() {
     : `${names[h.turnUserId]} 차례 · 같은 과일이 정확히 5개면 종!`
   const standing = !player ? '관전 중 · 종과 카드는 참가자만 다룰 수 있어요'
     : me?.forfeited ? '기권했어요 · 공개 카드는 판정에 계속 남아요' : me?.eliminated ? '탈락했어요 · 경기를 끝까지 볼 수 있어요' : ''
-  return <section className="halligalli-panel" aria-label="할리갈리" data-role={g.role} data-status={h.status}>
+  const Table = projected ? HalliStage : HalliTable
+  return <section className="halligalli-panel" aria-label="할리갈리" data-role={g.role} data-status={h.status} data-layout={projected ? 'stage' : 'fixed'}>
     <header className="hg-head">
       <h2>할리갈리</h2>
       <p role="status">{status}</p>
       {h.lastEvent && playing && <small aria-live="polite">{eventText(h.lastEvent, names[h.lastEvent.userId] ?? '참가자')}</small>}
       {!playing && <small>{HALLI_END_REASON[h.endReason ?? ''] ?? h.endReason}</small>}
     </header>
-    <HalliTable halli={h} gameId={g.gameId} viewerId={own} names={names} canFlip={canFlip} canRing={canRing}
+    <Table halli={h} gameId={g.gameId} viewerId={own} names={names} canFlip={canFlip} canRing={canRing}
       onFlip={() => void runtime.flipHalli()} onRing={ringShownBell} keyHint={player && !!me?.active} />
     <div className="hg-feedback">
       {standing && <p>{standing}</p>}

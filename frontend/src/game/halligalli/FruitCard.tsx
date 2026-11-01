@@ -31,14 +31,14 @@ const BACK_PATTERN: { fruit: Card['fruit']; x: number; y: number; scale: number;
   { fruit: 'BANANA', x: 66, y: 142, scale: 1.3, rotate: -70 },
   { fruit: 'LIME', x: 12, y: 142, scale: 1.25, rotate: 0 },
 ]
-/** Pink line-art back with a white border. Simple strokes so a 3D pile can reuse it at small sizes. */
+/** Pink line-art back with a white border. Colours are also attributes so the 3D pile can draw it as a texture without CSS. */
 export function CardBack({ size = 'normal' }: { size?: 'normal' | 'small' }) {
   const clip = `hg-back-${useId().replace(/:/g, '')}`
   return <svg className="hg-card hg-card-back" data-size={size} viewBox="0 0 100 150" aria-hidden="true">
     <defs><clipPath id={clip}><rect x="5" y="5" width="90" height="140" rx="6" /></clipPath></defs>
-    <rect x="1" y="1" width="98" height="148" rx="9" className="hg-back-border" />
-    <rect x="5" y="5" width="90" height="140" rx="6" className="hg-back-paper" />
-    <g clipPath={`url(#${clip})`} className="hg-back-art">
+    <rect x="1" y="1" width="98" height="148" rx="9" className="hg-back-border" fill="#fff" stroke="#d9d4cc" strokeWidth="1.2" />
+    <rect x="5" y="5" width="90" height="140" rx="6" className="hg-back-paper" fill="#f5dde5" />
+    <g clipPath={`url(#${clip})`} className="hg-back-art" color="#ad2f67">
       {BACK_PATTERN.map((p, i) => <g key={i} transform={`translate(${p.x} ${p.y}) rotate(${p.rotate}) scale(${p.scale})`}>
         <FruitShape fruit={p.fruit} outline />
       </g>)}

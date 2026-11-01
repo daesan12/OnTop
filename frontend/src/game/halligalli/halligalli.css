@@ -100,6 +100,47 @@
 .park-page .hg-timer[data-phase='paused'] > span { background: var(--hg-muted); }
 .park-page .hg-timer[data-phase='waiting'] > span { background: var(--hg-alert); }
 
+/*
+ * Table stage (wide screens): HalliBoard writes each element's transform from the 3D camera every frame, with
+ * transform-origin 0 0 at the canvas origin. Hidden until the first placement so nothing flashes in the corner.
+ */
+.park-page .hg-stage { position: absolute; inset: 0; pointer-events: none; }
+.park-page .hg-stage > :is(.hg-stage-face, .hg-stage-draw, .hg-stage-seat, .hg-stage-bell) {
+  position: absolute; left: 0; top: 0; transform-origin: 0 0; visibility: hidden; margin: 0;
+}
+/* 120 × 180 matches HALLI_STAGE_PX.card; the homography lays it flat on the felt. */
+.park-page .hg-stage-face { width: 120px; height: 180px; }
+.park-page .hg-stage-face :is(.hg-card, .hg-empty) { width: 100%; height: 100%; border-radius: 12px; filter: none; }
+.park-page .hg-stage-face .hg-card-face { animation: hg-flip-in .22s ease-out; }
+.park-page .hg-stage-face .hg-empty { border: 4px dashed #f7efe066; }
+.park-page .hg-stage-face[data-out='eliminated'] { filter: saturate(.25) brightness(.82); }
+.park-page .hg-stage-draw {
+  width: 120px; height: 180px; padding: 0; border: 0; border-radius: 12px; background: none; pointer-events: auto;
+}
+.park-page .hg-stage-draw .hg-card { width: 100%; height: 100%; filter: none; }
+.park-page .hg-stage-draw:not(:disabled) { box-shadow: 0 0 0 8px var(--hg-turn), 0 0 28px 8px #ffd27a99; }
+.park-page .hg-stage-draw:not(:disabled):hover { filter: brightness(1.08); }
+.park-page .halligalli-panel .hg-stage-draw:focus-visible { outline: 8px solid #ffe0a0; outline-offset: 4px; }
+.park-page .hg-stage-seat { width: max-content; max-width: 210px; padding: 6px 10px; gap: 3px; }
+.park-page .hg-stage-seat .hg-timer { min-width: 140px; }
+.park-page .hg-stage-piles { color: var(--hg-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.park-page .hg-stage-seat .hg-keys { align-self: center; }
+/*
+ * The bell is 3D. This button only covers its screen box for keyboard and screen readers: invisible, and the pointer
+ * passes through to the 3D bell so one click is never handled twice. Its state chip sits under the base.
+ */
+.park-page .hg-stage-bell { padding: 0; border: 0; border-radius: 50%; background: none; pointer-events: none; }
+.park-page .halligalli-panel .hg-stage-bell:focus-visible { outline: 3px solid #ffe0a0; outline-offset: 4px; }
+.park-page .hg-stage-bell > span {
+  position: absolute; left: 50%; top: 100%; transform: translate(-50%, 4px); padding: 1px 8px; border-radius: 999px;
+  background: #000b; color: #fff; font-size: 11px; font-weight: 700; white-space: nowrap;
+}
+.park-page .hg-stage-bell[data-state='queued'] > span { background: var(--hg-turn); color: #2a2111; }
+.park-page .hg-stage-hud {
+  position: absolute; left: 50%; top: calc(var(--park-edge, 16px) + 150px); transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 220px; pointer-events: auto;
+}
+
 .park-page .hg-feedback {
   position: absolute; left: 50%; bottom: calc(var(--park-edge, 16px) + 72px); transform: translateX(-50%);
   display: flex; flex-direction: column; gap: 2px; max-width: min(520px, 90vw); text-align: center; color: var(--hg-ink);

@@ -1,13 +1,18 @@
 import { useId } from 'react'
-import { useHalliUI } from './actions'
+import { useHalliUI, type RingMark } from './actions'
 import type { HalliGalli } from './protocol'
+
+/** Ring mark of the shown window, and the spoken bell label; shared with the table stage's accessible bell button. */
+export const useBellMark = (halli: HalliGalli, gameId: string) =>
+  useHalliUI(s => s.gameId === gameId && halli.bellWindowId !== null ? s.rings[halli.bellWindowId] : undefined)
+export const bellLabel = (halli: HalliGalli, mark: RingMark | undefined) => halli.bellWindowId === null ? '종 · 다음 카드를 기다리는 중'
+  : mark === 'queued' ? '종 · 앞선 요청 뒤에 보냄' : mark === 'sent' ? '종 · 이 카드에서는 이미 쳤어요' : '종 치기 (Space)'
 
 /** Silver desk bell on a black base. The pressed window is read at click time from the shown state, then fixed. */
 export function Bell({ halli, gameId, enabled, onRing }: { halli: HalliGalli; gameId: string; enabled: boolean; onRing: () => void }) {
-  const mark = useHalliUI(s => s.gameId === gameId && halli.bellWindowId !== null ? s.rings[halli.bellWindowId] : undefined)
+  const mark = useBellMark(halli, gameId)
   const id = useId().replace(/:/g, '')
-  const label = halli.bellWindowId === null ? '종 · 다음 카드를 기다리는 중' : mark === 'queued' ? '종 · 앞선 요청 뒤에 보냄'
-    : mark === 'sent' ? '종 · 이 카드에서는 이미 쳤어요' : '종 치기 (Space)'
+  const label = bellLabel(halli, mark)
   return <button type="button" className="hg-bell" data-state={mark ?? (halli.bellWindowId === null ? 'closed' : 'open')}
     disabled={!enabled} aria-keyshortcuts="Space" aria-label={label} onClick={onRing}>
     <svg viewBox="0 0 120 120" aria-hidden="true">

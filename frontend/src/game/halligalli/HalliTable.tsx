@@ -4,16 +4,16 @@ import { Bell } from './Bell'
 import { seatSlots } from './actions'
 import type { HalliGalli, HalliPlayer } from './protocol'
 
-interface Props {
+export interface HalliTableProps {
   halli: HalliGalli; gameId: string; viewerId: string; names: Record<string, string>
   canFlip: boolean; canRing: boolean; onFlip: () => void; onRing: () => void
   /** Players get the bell shortcut next to the bell, since the park key bar is hidden during the game. */
   keyHint?: boolean
 }
-const stateLabel = (p: HalliPlayer) => p.forfeited ? '기권' : p.eliminated ? '탈락' : ''
+export const stateLabel = (p: HalliPlayer) => p.forfeited ? '기권' : p.eliminated ? '탈락' : ''
 
 /** 2D table: own seat at the bottom, face-down pile beside the face-up top card, bell in the middle. */
-export function HalliTable({ halli, gameId, viewerId, names, canFlip, canRing, onFlip, onRing, keyHint = false }: Props) {
+export function HalliTable({ halli, gameId, viewerId, names, canFlip, canRing, onFlip, onRing, keyHint = false }: HalliTableProps) {
   const slots = seatSlots(halli, viewerId), playing = halli.status === 'PLAYING'
   return <div className="hg-table" data-players={halli.players.length}>
     {halli.players.map((p, i) => {
