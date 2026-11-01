@@ -26,3 +26,5 @@ MR !273 병합 후 Jenkins #231은 변경된 맵 버전이 CI 고정값과 달�
 보완 브랜치 `fix/game-qa-map-check-20261101`은 `origin/dev@c2a97811` 기준이다. CI Python 검사 37개, 소스·테스트 타입 검사, 오목·카메라·시각 보존·돌 기단 단위 15개, BE 맵 전달 6개 클래스와 점프맵 설정 총 23개, 최신 맵 Edge의 점프맵·오목·태블릿·관전 15개를 다시 통과했다. 기존 규칙과 DB 변경은 추가하지 않았다.
 
 Jenkins #232의 전체 BE 검사에서 붕어빵의 추가 응답 필드와 정적 OpenAPI 명세 차이가 발견되어 기존 `backend`의 `exportOpenApi` 작업으로 재생성했다. `queueComplaintPenalty`, `complainedOrderIds` 두 필드의 스키마만 추가됐으며 런타임 코드는 변경하지 않았다. 별도 `OpenApiLocalTests`로 실제 HTTP 응답과 커밋 명세의 일치를 확인했다. 보완 기준 `origin/dev@092d84a5`, 브랜치 `docs/bungeoppang-qa-api-20261101`.
+
+공통 다인전 기권 시나리오의 다음 경기 첫 드로우도 분배 완료 뒤 검증하도록 맞췄다. 3~4인 원카드에서 분배 중 입력 거절을 먼저 검증한 뒤 제어 시계를 4초 진행하고 첫 행동을 검증한다. 라이어 브리지 3~4인까지 네 시나리오가 모두 통과했다. 런타임 변경 없이 테스트 계약만 보완했으며 기준은 `origin/dev@2a828f10`, 브랜치 `fix/onecard-opening-flow-20261101`이다.
