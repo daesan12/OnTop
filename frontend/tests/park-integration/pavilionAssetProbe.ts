@@ -5,12 +5,16 @@ import { Mesh, MeshStandardMaterial, Raycaster, Vector3, Box3 } from 'three'
 import { pavilionLanternLayout } from '../../src/world/art/pavilionLanternLayout'
 import { PAVILION_CANOPY } from '../../src/world/art/pavilionCanopy'
 let release: (() => void) | undefined
-export function pavilionView(id: string, view: 'inside' | 'outside' | 'bench' = 'inside') {
+export function pavilionView(id: string, view: 'inside' | 'outside' | 'bench' | 'hanger' = 'inside') {
   release?.()
   const p = PARK_PAVILIONS.find(p => p.id === id)!
   const store = _roots.get(document.querySelector('canvas')!)!.store
   release = store.getState().internal.subscribe({ current: ({ camera }) => {
-    if (view === 'outside') {
+    if (view === 'hanger') {
+      const lamp = pavilionLanternLayout([p]).placements[0]!
+      camera.position.set(p.x + .35, lamp.p[1] + 1.05, p.z + .85)
+      camera.lookAt(p.x, lamp.p[1] + 1.02, p.z)
+    } else if (view === 'outside') {
       camera.position.set(p.x + 6 * p.scale, p.floor + 4 * p.scale, p.z + 8 * p.scale)
       camera.lookAt(p.x, p.floor + 2.3 * p.scale, p.z)
     } else if (view === 'bench') {
@@ -24,6 +28,21 @@ export function pavilionView(id: string, view: 'inside' | 'outside' | 'bench' = 
   } }, .5, store)
 }
 export function releasePavilionView() { release?.(); release = undefined }
+
+export function pavilionHangerConnected(id: string) {
+  const { scene } = _roots.get(document.querySelector('canvas')!)!.store.getState()
+  scene.updateMatrixWorld(true)
+  const p = PARK_PAVILIONS.find(p => p.id === id)!
+  const lamp = pavilionLanternLayout([p]).placements[0]!
+  const stem = scene.getObjectByName('lantern-simple-chains')!
+  const ray = new Raycaster()
+  // Probe the actual stem inside the hanging eye, not the ring's outer rim.
+  return [.905, .915, .925, .935, .945].map(y => {
+    ray.set(new Vector3(p.x + .1, lamp.p[1] + y, p.z), new Vector3(-1, 0, 0))
+    ray.far = .2
+    return ray.intersectObject(stem).length > 0
+  })
+}
 
 export function pavilionClearance() {
   const { scene } = _roots.get(document.querySelector('canvas')!)!.store.getState()
