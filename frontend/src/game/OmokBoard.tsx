@@ -10,12 +10,12 @@ import {
 } from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { useShallow } from 'zustand/react/shallow'
-import { GOMOKU, type TableAnchor } from '../config'
+import { type TableAnchor } from '../config'
 import { useSession } from '../network/worldClient'
 import { canPlace, useGame } from './store'
 import { parkRuntime } from '../park/runtime/runtime'
 import { omokCamera } from './cameraState'
-import { omokCell, stonePoint, OMOK_SIZE, OMOK_SPACING as spacing, OMOK_HALF as half } from './omokPresentation'
+import { omokCell, stonePoint, OMOK_SIZE, OMOK_BOARD_Y, OMOK_SPACING as spacing, OMOK_HALF as half } from './omokPresentation'
 import { GomokuAssets, stoneGeometry, blackStoneMaterial as blackMaterial, whiteStoneMaterial as whiteMaterial } from './omok/GomokuAssets'
 import { FocusWood } from './omok/BoardWood'
 import { OMOK_FOCUS_LAYER } from '../world/omokCamera'
@@ -153,13 +153,13 @@ function OmokSurface({
     <>
     {/* Original local presentation backdrop: roofs cannot obstruct a resized top view. */}
     <mesh name={'omok-focus-surface-' + anchor.id} visible={focused} layers-mask={1 << OMOK_FOCUS_LAYER}
-      position={[0, GOMOKU.boardY - .12, 0]} rotation={[-Math.PI / 2, 0, 0]} raycast={noRaycast}>
+      position={[0, OMOK_BOARD_Y - .12, 0]} rotation={[-Math.PI / 2, 0, 0]} raycast={noRaycast}>
       <planeGeometry args={[14, 14]} />
       <FocusWood />
     </mesh>
     <group
       ref={root}
-      position={[0, GOMOKU.boardY, 0]}
+      position={[0, OMOK_BOARD_Y, 0]}
       name={'omok-board-' + anchor.id}
       onPointerDown={(event) => {
         const g = useGame.getState().game, point = cell(event)
