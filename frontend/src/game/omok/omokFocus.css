@@ -14,22 +14,8 @@
 .omok-view-switch { display:flex; gap:3px; padding:3px; border:1px solid #b79b7566; border-radius:11px; background:#e5d7bc; }
 .park-page .omok-view-switch button { min-width:84px; border-color:transparent; background:transparent; color:#705b3e; }
 .park-page .omok-view-switch button[aria-pressed="true"] { background:#2f5645; color:#fff6df; font-weight:700; box-shadow:0 2px 4px #263c2d33; }
-.omok-mark-legend { display:flex; flex-wrap:wrap; align-items:center; gap:9px 18px; color:#685338; font-size:12px; }
-.omok-mark-legend>span { display:inline-flex; align-items:center; gap:7px; }
-.omok-mark-legend i { display:inline-block; width:10px; height:10px; flex-shrink:0; }
-.omok-legend-ping { border:2px solid #317e65; transform:rotate(45deg); }
-.omok-legend-preview { border:1px dashed #816b4b; border-radius:50%; background:#c9baa066; }
-.omok-legend-last { border:2px solid #e88b37; }
-.omok-ping-status { display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 12px; margin:0; color:#315b48; font-size:13px; }
-.omok-ping-status small { color:#776348; font-size:11px; }
-.omok-spectator-meta { display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:6px 14px; }
-.omok-spectator-record { display:flex; flex-wrap:wrap; gap:4px 12px; color:#78654a; font-size:12px; }
-.omok-spectator-guide { max-width:100%; font-size:12px; color:#78654a; }
-.omok-spectator-guide summary { cursor:pointer; padding:2px; }
-.omok-spectator-guide[open] { flex-basis:100%; border-top:1px solid #b79b7540; padding-top:8px; }
-.omok-spectator-guide[open] summary { margin-bottom:9px; }
-.omok-spectator-guide p { margin:8px 0 0; line-height:1.6; word-break:keep-all; }
-.omok-spectator-toolbar :is(button,summary):focus-visible { outline:2px solid #27644b; outline-offset:3px; }
+.omok-spectator-toolbar .omok-ping-status { position:absolute; left:50%; bottom:calc(100% + 8px); transform:translateX(-50%); width:max-content; max-width:100%; box-sizing:border-box; margin:0; padding:8px 12px; border:1px solid #b79b7580; border-radius:9px; color:#315b48; background:#fff9eaf5; font-size:12px; text-align:center; }
+.omok-spectator-toolbar button:focus-visible { outline:2px solid #27644b; outline-offset:3px; }
 .omok-match-player:last-child { justify-content:flex-end; text-align:right; }
 .omok-match-player div { display:flex; flex-direction:column; gap:5px; min-width:0; }
 .omok-match-player b { font-size:18px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -126,7 +112,6 @@
 @media(max-width:560px) {
   .omok-spectator-actions .omok-view-switch { width:100%; }
   .omok-spectator-actions .omok-view-switch button { flex:1; }
-  .omok-spectator-record { font-size:11px; }
 }
 @media(prefers-reduced-motion:reduce) {
   .omok-floating-chat { animation-timing-function:steps(1,end); }

@@ -90,12 +90,11 @@ export function GameControls({ tableId }: { tableId: string }) {
 }
 
 function OmokPingStatus() {
-  const sending = useOmokEvents(s => s.pingSending), readyAt = useOmokEvents(s => s.pingReadyAt)
+  const sending = useOmokEvents(s => s.pingSending)
   const notice = useOmokEvents(s => s.pingNotice), error = useOmokEvents(s => s.pingError)
-  const canSend = useOmokEvents(s => s.canSend)
+  if (!sending && !notice && !error) return null
   return <p className="omok-ping-status" role="status" aria-label="위치 추천 전송 상태">
-    {error || (sending ? '추천 위치 전송 중…' : notice || (canSend ? '교차점을 누르면 위치를 추천해요' : '관전 연결을 확인해주세요'))}
-    {readyAt > performance.now() && <small>다음 추천은 1초 뒤에 보낼 수 있어요</small>}
+    {error || (sending ? '추천 위치 전송 중…' : notice)}
   </p>
 }
 
@@ -182,13 +181,6 @@ export function OmokPanel() {
         <button disabled={pending || !connected} aria-pressed={spectatorView === 'board'} onClick={() => useTableLobby.setState({ spectatorView: 'board' })}>판 보기</button>
       </div><button onClick={() => openManual('gomoku')}>게임 설명 · F1</button><button disabled={pending} onClick={() => void runtime.unwatchGame()}>관전 종료</button></div>
       <OmokPingStatus />
-      <div className="omok-spectator-meta">
-        <div className="omok-spectator-record"><span>{o.moveCount}수</span><span>{lastMoveText(o.lastMove)}</span></div>
-        <details className="omok-spectator-guide" onKeyDown={event=>{if(event.key==='Tab')event.stopPropagation()}}><summary>표시 안내</summary>
-          <div className="omok-mark-legend" aria-label="오목판 표시 안내"><span><i className="omok-legend-ping" />추천 핑</span><span><i className="omok-legend-preview" />착수 미리보기</span><span><i className="omok-legend-last" />마지막 수</span></div>
-          <p>교차점을 눌러 위치를 추천해요. 추천은 1초 간격으로 보내며, ◇ 표시는 잠시 후 사라져요.</p>
-        </details>
-      </div>
     </div>}
     <div className="focus-error">
       {remaining === 0 && <p role="status">착수 시간이 끝났습니다. 서버의 종료 판정을 기다리고 있습니다.</p>}
