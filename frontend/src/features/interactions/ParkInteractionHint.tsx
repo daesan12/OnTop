@@ -15,10 +15,8 @@ import { BenchSpectatorControls } from './BenchSpectatorControls'
 import { useTableLobby } from '../tableLobby/state'
 import { useGame } from '../../game/store'
 import { tableTermsLabel } from '../tableLobby/model'
-import { useParkRuntime } from '../../park/runtime/ParkRuntime'
 
 export function ParkInteractionHint() {
-  const runtime = useParkRuntime()
   const { benchId, fitnessId } = useSession(useShallow(s => ({ benchId: s.benchId, fitnessId: s.fitnessId })))
   const { pending, error } = useBenchState(useShallow(s => ({ pending: s.pending, error: s.error })))
   const fitness = useFitnessState(useShallow(s => ({ pending: s.pending, error: s.error })))
@@ -65,11 +63,6 @@ export function ParkInteractionHint() {
       {target.kind === 'fitness' && target.available && fitnessService.mode === 'mock' && ' · 목업'}
       {target.kind === 'telescope' && target.available && telescopeService.mode === 'mock' && ' · 목업'}
     </button>}
-    {!benchId && !fitnessId && target?.kind === 'table' && target.label === '테이블에 앉기' &&
-      <button type="button" disabled={pending || fitness.pending || telescopePending || joiningTable || !target.available}
-        onClick={event => { runtime.inspectTable(target.id); event.currentTarget.blur() }}>
-        테이블 정보 · 관전
-      </button>}
     {roomTerms && <small aria-label="참가할 방 설정">{roomTerms}</small>}
     {joiningTable && <span role="status">자리를 확인하고 있어요…</span>}
     {pending && <span role="status">벤치 이용 요청 확인 중…</span>}

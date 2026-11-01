@@ -115,7 +115,9 @@ export function getParkInteraction(): ParkInteraction | null {
     const distance = Math.hypot(p.current.x - table.position[0], p.current.z - table.position[2])
     if (!canReachTable(p.current, table.id)) continue
     const binding = session.bindings.find(b => b.channelId === session.roomId && b.anchorId === table.id)
-    const watching = session.tables.find(t => t.tableId === binding?.tableId)?.joinable === false
+    const summary = session.tables.find(t => t.tableId === binding?.tableId)
+    const watching = summary?.joinable === false
+    if (watching && summary.status !== 'PLAYING') continue
     choices.push({ kind: 'table', id: table.id, label: watching ? '테이블 경기 보기' : '테이블에 앉기', occupied: false, available: true,
       distance, score: interactionScore(distance, { x: table.position[0], y: table.position[1] + 0.65, z: table.position[2] }) })
   }

@@ -176,14 +176,15 @@ export async function fixture(
   let lastMove: { x: number; y: number; stone: string } | null = null,
     turn = '101'
   let coinTossEndsAt: string | undefined
+  let blackUserId = '101', whiteUserId = '102'
   const omok = () => ({
     ...(coinTossEndsAt ? { coinTossEndsAt } : {}),
     gameCode: 'OMOK',
     status: finished ? 'FINISHED' : 'PLAYING',
     boardSize: 15,
     board,
-    blackUserId: '101',
-    whiteUserId: '102',
+    blackUserId,
+    whiteUserId,
     turnUserId: finished ? null : turn,
     turnDeadline: finished ? null : gameDeadline,
     moveCount: board.flat().filter(Boolean).length,
@@ -787,8 +788,8 @@ export async function fixture(
           return
         }
         const { x, y } = payload.input
-        board[y]![x] = options.ownUserId === '102' ? 2 : 1
-        lastMove = { x, y, stone: options.ownUserId === '102' ? 'WHITE' : 'BLACK' }
+        board[y]![x] = (options.ownUserId ?? '101') === blackUserId ? 1 : 2
+        lastMove = { x, y, stone: (options.ownUserId ?? '101') === blackUserId ? 'BLACK' : 'WHITE' }
         turn = options.ownUserId === '102' ? '101' : '102'
         gameVersion++
         emit(
@@ -875,6 +876,10 @@ export async function fixture(
     dropActions: (value: boolean) => { dropAction = value },
     turnTo: (userId: string, deadline = new Date(Date.now() + 30_000).toISOString()) => {
       turn = userId; gameDeadline = deadline; gameVersion++; game(sockets.at(-1)!)
+    },
+    omokColors: (black: '101' | '102') => {
+      blackUserId = black; whiteUserId = black === '101' ? '102' : '101'; turn = black; gameVersion++
+      game(sockets.at(-1)!)
     },
     resendGame: (role = 'PLAYER') => game(sockets.at(-1)!, null, role),
     rejectGameWatch: (value: boolean) => { rejectGameWatch = value },

@@ -108,7 +108,7 @@ for (const [index, sign] of ([-1, 1] as const).entries()) {
 /** Original prototype art, adapted to the current tabletop. Keep the grid at local Y=0.
  * Static parts stay instanced; the prototype's rounded frame and polished stones share geometry.
  * The lower base is shallower to clear the current pavilion felt without moving seat/camera anchors. */
-export const GomokuAssets = memo(function GomokuAssets() {
+export const GomokuAssets = memo(function GomokuAssets({ blackAtSouth = true }: { blackAtSouth?: boolean }) {
   const root = useRef<Group>(null);
   useLayoutEffect(() => {
     root.current!.traverse(object => {
@@ -157,19 +157,18 @@ export const GomokuAssets = memo(function GomokuAssets() {
         <primitive object={lidGeometry} attach="geometry" dispose={null} />
       </Instances>
       {supplies.map((parts, i) => (
-        <Instances
-          key={i}
+        <group key={i} name={`omok-supply-${i ? 'north' : 'south'}`}><Instances
           parts={parts}
           material={
             <primitive
-              object={i ? whiteStoneMaterial : blackStoneMaterial}
+              object={(blackAtSouth ? i : 1 - i) ? whiteStoneMaterial : blackStoneMaterial}
               attach="material"
               dispose={null}
             />
           }
         >
           <primitive object={stoneGeometry} attach="geometry" dispose={null} />
-        </Instances>
+        </Instances></group>
       ))}
     </group>
   );

@@ -2,26 +2,28 @@ import { memo, useEffect, useMemo } from 'react'
 import { CanvasTexture, SRGBColorSpace } from 'three'
 import { OMOK_HALF, OMOK_SIZE, OMOK_SPACING } from '../omokPresentation'
 
-/** One transparent board-local texture; coordinate positions never depend on the viewer's seat. */
+/** 실제 교차점에 맞춘 좌표 텍스처. 좌석에 따라 읽는 방향과 두 표시 변만 바꾼다. */
 export const BoardCoordinates = memo(function BoardCoordinates({ reversed }: { reversed: boolean }) {
   const texture = useMemo(() => {
     const canvas = document.createElement('canvas')
     canvas.width = canvas.height = 2048
     const ctx = canvas.getContext('2d')!
     const pixel = (value: number) => (value / 1.5 + .5) * canvas.width
-    ctx.fillStyle = '#f5dfba'
-    ctx.font = '600 38px Georgia, serif'
+    ctx.fillStyle = '#fff0cd'
+    ctx.strokeStyle = '#372215'
+    ctx.lineWidth = 7
+    ctx.lineJoin = 'round'
+    ctx.font = '700 46px Georgia, serif'
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
     const label = (text: string, x: number, y: number) => {
       ctx.save(); ctx.translate(pixel(x), pixel(y)); ctx.rotate(reversed ? Math.PI : 0)
-      ctx.fillText(text, 0, 0); ctx.restore()
+      ctx.strokeText(text, 0, 0); ctx.fillText(text, 0, 0); ctx.restore()
     }
     for (let index = 0; index < OMOK_SIZE; index++) {
       const p = index * OMOK_SPACING - OMOK_HALF
-      for (const edge of [-.725, .725]) {
-        label(String.fromCharCode(65 + index), p, edge)
-        label(String(index + 1), edge, p)
-      }
+      // 시점이 반전돼도 손앞과 왼쪽 두 변에 실제 교차점의 좌표를 표시한다.
+      label(String.fromCharCode(65 + index), p, reversed ? -.725 : .725)
+      label(String(index + 1), reversed ? .725 : -.725, p)
     }
     const map = new CanvasTexture(canvas)
     map.colorSpace = SRGBColorSpace; map.anisotropy = 4

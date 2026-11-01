@@ -3,8 +3,8 @@
 .omok-coin-paper{text-shadow:none}.omok-coin-paper p{font-size:20px;margin:0}.omok-coin-paper strong{display:block;font-size:24px;line-height:1.5;margin:10px 0 8px}.omok-coin-paper>span{font-size:15px}
 .omok-toss-stage{position:relative;height:190px;perspective:700px;display:grid;place-items:end center;padding-bottom:14px;box-sizing:border-box}
 .omok-toss-coin{position:relative;width:82px;height:82px;transform-style:preserve-3d;animation:omok-coin-launch 2500ms both;animation-delay:var(--toss-delay)}
-.omok-toss-coin>span{position:absolute;inset:0;display:grid;place-items:center;box-sizing:border-box;border:7px double #996b24;border-radius:50%;background:radial-gradient(circle at 32% 25%,#fff4b5,#d3a444 65%,#aa7526);color:#6e4817;font:700 29px BusanDandiMyeongjo,serif;backface-visibility:hidden;box-shadow:inset 0 0 0 3px #eec977,0 3px 0 #885b1d}
-.omok-toss-front{transform:translateZ(3px)}.omok-toss-back{transform:rotateY(180deg) translateZ(3px);font-size:21px!important}
+.omok-toss-coin>img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;backface-visibility:hidden;filter:drop-shadow(0 3px 1px #885b1d88)}
+.omok-toss-front{transform:translateZ(3px)}.omok-toss-back{transform:rotateY(180deg) translateZ(3px)}
 .omok-toss-shadow{position:absolute;bottom:4px;width:78px;height:15px;border-radius:50%;background:#6a451958;filter:blur(4px);animation:omok-coin-shadow 2500ms both;animation-delay:var(--toss-delay)}
 @keyframes omok-coin-launch{0%{transform:translateY(0) rotateX(18deg) rotateY(0)}12%{transform:translateY(-36px) rotateX(-12deg) rotateY(180deg)}36%{transform:translateY(-103px) rotateX(14deg) rotateY(720deg)}60%{transform:translateY(-12px) rotateX(0) rotateY(1440deg)}67%{transform:translateY(-29px) rotateY(1440deg)}75%{transform:translateY(0) rotateY(1440deg)}82%{transform:translateY(-7px) rotateY(1440deg)}90%,100%{transform:translateY(0) rotateY(1440deg)}}
 @keyframes omok-coin-shadow{0%,75%,100%{transform:scale(1);opacity:1}36%{transform:scale(.45);opacity:.3}67%{transform:scale(.8);opacity:.65}}

@@ -11,7 +11,7 @@ export function debrisLanding(item:ParkDebris,index:number) {
     return {x:Math.sin(yaw)*r,z:Math.cos(yaw)*r,yaw:random(item.seed,index+40)*Math.PI*2}
   }
   const board=index<0,r=board?2.7:1.65+random(item.seed,index+3)*2.1
-  const yaw=item.throwYaw+(board?.1:(random(item.seed,index+20)-.5)*1.8)
+  const yaw=item.throwYaw+(board?0:(random(item.seed,index+20)-.5)*1.8)
   return {x:Math.sin(yaw)*r,z:Math.cos(yaw)*r,yaw:random(item.seed,index+40)*Math.PI*2}
 }
 /** Deterministic ballistic-looking flight/bounces: everyone samples the same server timestamp.

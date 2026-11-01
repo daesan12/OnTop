@@ -155,10 +155,10 @@ export function OmokPanel() {
   const opponent = ownBlack ? o.whiteUserId : o.blackUserId
   return <section className={`prototype-game gomoku-focus-hud omok-panel${player ? '' : ' omok-spectator-hud'}`} aria-label="오목 경기" data-spectator={!player} data-board-view={!player && spectatorView === 'board'}>
     <OmokCoinToss key={g.gameId} game={o} />
-    {player ? <header ref={header} className="omok-match-header" aria-label="오목 경기 정보">
-      <div className="omok-match-player"><i className={`stone-chip ${ownBlack ? 'black' : 'white'}`} /><div>
-        <b>{profiles[own]?.nickname ?? '나'}</b><small>나 · {ownBlack ? '흑돌' : '백돌'}</small></div></div>
-      <div className="omok-match-clock" data-urgent={myTurn && o.status === 'PLAYING' && remaining !== null && remaining > 0 && remaining <= 10} role="status">
+    {player ? <header ref={header} className="omok-match-header omok-player-header" aria-label="오목 경기 정보">
+      <div className="omok-match-player omok-own-stone" aria-label="내 돌"><i className={`stone-chip ${ownBlack ? 'black' : 'white'}`} /><div>
+        <small>내 돌 · {profiles[own]?.nickname ?? '나'}</small><b>{ownBlack ? '흑돌' : '백돌'}</b></div></div>
+      <div className="omok-match-clock" aria-label="남은 착수 시간" data-urgent={myTurn && o.status === 'PLAYING' && remaining !== null && remaining > 0 && remaining <= 10} role="status">
         <span>{myTurn ? '내 차례' : '상대 차례'}</span><strong>{remaining ?? '—'}<small>초</small></strong></div>
       <div className="omok-match-player"><div><b>{profiles[opponent]?.nickname ?? '상대'}</b>
         <small>상대 · {ownBlack ? '백돌' : '흑돌'}</small></div><i className={`stone-chip ${ownBlack ? 'white' : 'black'}`} /></div>

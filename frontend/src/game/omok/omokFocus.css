@@ -33,11 +33,27 @@
 .omok-match-clock { display:flex; align-items:center; gap:16px; }
 .omok-match-clock strong { font-size:30px; font-variant-numeric:tabular-nums; font-weight:600; }
 .omok-match-clock span { font-size:17px; }
+.park-page[data-omok-focus="true"] .omok-player-header { background:none; border:0; padding:0; align-items:start; pointer-events:none; }
+.omok-player-header>.omok-match-player,.omok-player-header>.omok-match-clock { box-sizing:border-box; padding:14px 18px; border:1px solid #d6bd8a66; border-radius:12px; background:#28251ff5; width:max-content; max-width:100%; box-shadow:0 4px 18px #140d0726; }
+.omok-player-header>.omok-match-player:last-child { justify-self:end; }
+.omok-player-header>.omok-match-clock { min-width:150px; display:flex; flex-direction:column; gap:3px; text-align:center; }
+.omok-player-header>.omok-match-clock strong { font-size:42px; line-height:1.15; }
+.omok-player-header>.omok-match-clock strong small { margin-left:4px; font-size:18px; }
+.omok-player-header>.omok-match-clock[data-urgent="true"] { margin:0; padding:14px 18px; }
+.omok-player-header .omok-own-stone b { font-size:27px; color:#ffe6ac; }
+.park-page .omok-panel .omok-own-stone .stone-chip { width:42px; height:42px; flex-basis:42px; }
+.omok-panel .omok-forfeit-confirm { width:min(420px,calc(100vw - 32px)); text-align:center; text-shadow:none; }
+.omok-panel .omok-forfeit-confirm :is(p,button) { text-shadow:none; }
+.park-page[data-omok-focus="true"] .prototype-game .omok-forfeit-confirm .paper-close { min-height:38px; padding:6px; background:transparent; color:#6e4b20; }
+.omok-panel .omok-forfeit-confirm p { font-size:17px; line-height:1.7; }
+.omok-panel .omok-forfeit-actions { display:flex; justify-content:center; gap:12px; margin-top:22px; }
+.park-page[data-omok-focus="true"] .prototype-game .omok-forfeit-confirm .omok-forfeit-actions button { min-height:46px; background:#f5ebd3; color:#27372b; border:1px solid #ad986d; }
+.park-page[data-omok-focus="true"] .prototype-game .omok-forfeit-confirm .omok-forfeit-actions button:first-child { background:#7d382c; color:#fff7e9; border-color:#7d382c; }
 .omok-match-clock[data-urgent="true"] { border-radius:10px; padding:6px 14px; margin:-6px -14px; animation:omok-turn-warning 1s ease-in-out infinite; }
 .omok-match-clock[data-urgent="true"] strong { color:#ffd7ac; }
 @keyframes omok-turn-warning { 0%,100% { background:#b85b2820; box-shadow:0 0 0 1px #edb77640; } 50% { background:#b85b2880; box-shadow:0 0 22px 3px #edb77660; } }
 .park-page[data-omok-focus="true"] .prototype-game .focus-actions { left:auto; right:20px; bottom:16px; width:auto; max-width:50%; max-height:140px; flex-direction:row; flex-wrap:wrap; justify-content:flex-end; align-items:center; }
-.park-page[data-omok-focus="true"] .prototype-game .focus-actions button { padding:10px 14px; font-size:14px; background:#28251ff5; }
+.park-page[data-omok-focus="true"] .prototype-game .focus-actions button { min-height:44px; padding:10px 14px; font-size:14px; background:#28251ff5; }
 .park-page[data-omok-focus="true"] .prototype-game .focus-record { left:420px; bottom:24px; flex-direction:row; font-size:15px; }
 .park-page[data-omok-focus="true"] .prototype-game .focus-hint { bottom:72px; max-width:600px; font-size:15px; }
 .park-page[data-omok-focus="true"] .prototype-game .focus-error { top:110px; bottom:auto; left:50%; transform:translateX(-50%); width:max-content; max-width:80%; font-size:14px; }
@@ -61,9 +77,15 @@
   .park-page[data-omok-focus="true"] .omok-match-header { inset:10px 10px auto; padding:10px; gap:8px; }
   .omok-match-player { gap:6px; }.omok-match-player b { font-size:15px; }.omok-match-player small { font-size:12px; }
   .omok-match-clock { flex-direction:column; gap:2px; }.omok-match-clock span { font-size:14px; }.omok-match-clock strong { font-size:26px; }
+  .park-page[data-omok-focus="true"] .omok-player-header { grid-template-columns:1fr auto; padding:0; }
+  .omok-player-header>.omok-match-player,.omok-player-header>.omok-match-clock { padding:10px 12px; }
+  .omok-player-header>.omok-match-clock { min-width:108px; grid-column:2; grid-row:1 / span 2; }
+  .omok-player-header>.omok-match-clock strong { font-size:36px; }
+  .omok-player-header>.omok-match-player:last-child { justify-self:start; grid-column:1; padding:6px 10px; }
+  .omok-player-header .omok-own-stone b { font-size:23px; }
   .park-page[data-omok-focus="true"] .prototype-game .focus-record { left:12px; bottom:180px; font-size:13px; flex-direction:column; }
   .park-page[data-omok-focus="true"] .prototype-game .focus-actions { max-width:calc(100% - 24px); right:12px; bottom:12px; }
-  .park-page[data-omok-focus="true"] .prototype-game .focus-hint { bottom:220px; max-width:90%; font-size:13px; }
+  .park-page[data-omok-focus="true"] .prototype-game .focus-hint { bottom:120px; max-width:90%; font-size:13px; }
   .park-page[data-omok-focus="true"] .prototype-game .focus-hint { width:calc(100% - 32px); max-width:none; word-break:keep-all; }
   .omok-spectator-chat { top:104px; right:10px; left:auto; bottom:auto; width:auto; padding:0; }
   .omok-spectator-chat .omok-chat-toggle { display:block; min-height:42px; background:#493a2c; color:#f7f0dc; }

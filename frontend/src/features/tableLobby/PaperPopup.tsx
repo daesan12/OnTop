@@ -1,15 +1,15 @@
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode, type RefObject } from 'react'
 import './paperPopup.css'
 
-export function PaperPopup({ title, label, onClose, children, className = '', closeLabel = '결과 창 닫기' }: {
-  title: string; label: string; onClose: () => void; children: ReactNode; className?: string; closeLabel?: string
+export function PaperPopup({ title, label, onClose, children, className = '', closeLabel = '결과 창 닫기', initialFocusRef }: {
+  title: string; label: string; onClose: () => void; children: ReactNode; className?: string; closeLabel?: string; initialFocusRef?: RefObject<HTMLElement | null>
 }) {
   const dialog = useRef<HTMLDivElement>(null), close = useRef(onClose)
   close.current = onClose
   useEffect(() => {
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null
     if (document.pointerLockElement) document.exitPointerLock()
-    dialog.current?.focus({ preventScroll: true })
+    ;(initialFocusRef?.current ?? dialog.current)?.focus({ preventScroll: true })
     // Async dialogs can remove the focused load-more button. Escape must still close the top popup.
     const key = (event: KeyboardEvent) => {
       if (event.key !== 'Escape' || event.defaultPrevented || event.repeat || event.isComposing) return
