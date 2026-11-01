@@ -91,10 +91,7 @@ function themeModel(theme:JumpTheme) {
   return b.finish()
 }
 export const jumpArt=Object.fromEntries(['stone','gomoku','fish','cloud','lantern','kite','lily','gate'].map(t=>[t,themeModel(t as JumpTheme)])) as Record<JumpTheme,ReturnType<PropBuilder['finish']>>
-const start=new PropBuilder();slab(start,'stone','#c7bfac',2.8,2.2,.1)
-start.add('gold',new RingGeometry(.74,.92,64),'#cfad56',[0,.012,0],[1,1,1],[-Math.PI/2,0,0])
-for(const side of [-1,1]){start.box('gold','#c99d43',[side*.22,.018,0],[.03,.02,.47]);start.box('gold','#c99d43',[0,.018,side*.22],[.47,.02,.03])}
-export const jumpStartArt=start.finish()
+export { jumpmapGuideArt as jumpStartArt } from '../features/jumpmap/guideArt'
 const finish=new PropBuilder();finish.add('gold',coinGeometry(2.6,.08),'#dba944',[JUMP_FINISH.x,JUMP_FINISH.y,JUMP_FINISH.z],[1,1,1],[-Math.PI/2,0,0])
 export const jumpFinishArt=finish.finish()
 export const jumpParticleGeometry=new BoxGeometry(.055,.055,.055)
