@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
+import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { useThree, type ThreeEvent } from '@react-three/fiber'
 import {
   BufferGeometry,
@@ -60,7 +60,8 @@ export function OmokBoard({ anchor }: { anchor: TableAnchor }) {
     (start?.tableId === binding.tableId || session.tableId === binding.tableId ||
       (game.role === 'SPECTATOR' && session.watchedTableId === binding.tableId))
   if (!selected && !relevant) return null
-  return <OmokSurface anchor={anchor} game={relevant ? game : null} />
+  // 대기 관전 중 판 재질을 처음 읽어도 공원 전체를 Suspense로 숨기지 않는다.
+  return <Suspense fallback={null}><OmokSurface anchor={anchor} game={relevant ? game : null} /></Suspense>
 }
 function OmokSurface({
   anchor,
