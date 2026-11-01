@@ -406,7 +406,7 @@ class MinigameV5DeliveryServiceTests {
         assertThat(ledger).isEmpty();
 
         var result = (BungeoppangV4CompleteDtos.Response) service.complete(USER_ID, id, "edge", edge);
-        assertThat(result.configVersion()).isEqualTo("v5-20261029.1");
+        assertThat(result.configVersion()).isEqualTo("v5-20261101.1");
         assertThat(result.finalThroughSeq()).isEqualTo(9);
         assertThat(result.unfinishedGrillCount()).isOne();
         assertThat(service.complete(USER_ID, id, "edge", edge)).isEqualTo(result);
@@ -516,7 +516,7 @@ class MinigameV5DeliveryServiceTests {
         var opening = JSON.readValue(current.checkpointJson(), BungeoppangV5Responses.Checkpoint.class);
         String hash = BungeoppangV5Spec.initialPrefixHash(id, BungeoppangV5Spec.LEGACY_CONFIG_VERSION);
         var checkpoint = new BungeoppangV5Responses.Checkpoint(0, 0, hash, opening.heatCursor(), opening.lastAt(),
-                opening.slots(), opening.tray(), opening.stats(), opening.activeOrders());
+                opening.slots(), opening.tray(), opening.stats(), opening.activeOrders(), List.of());
         String storedConfig = JSON.writeValueAsString(Map.of("rules", BungeoppangV5Spec.legacyRules(),
                 "startBufferMs", 1_000, "submissionGraceMs", 15_000, "processingDrainMs", 10_000));
         Instant end = current.playStartsAt().plusMillis(180_000);

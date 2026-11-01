@@ -24,13 +24,15 @@ function orders(value: unknown, rules: BungeoppangRules): CustomerOrder[] {
 }
 function checkpoint(value: unknown, source: Pick<Source, 'rules' | 'heats'>, log: GrillLogEntry[]) {
   if (!record(value)) return fail();
-  const c = toCheckpoint({ ...value, currentOrder: null }), activeOrders = orders(value.activeOrders, source.rules);
+  const c = toCheckpoint({ ...value, currentOrder: null }, true), activeOrders = orders(value.activeOrders, source.rules);
   if (c.throughSeq !== log.length || c.tray.length > 10 || c.heatCursor > source.heats.length
     || new Set(c.tray.map(b => b.breadId)).size !== c.tray.length
     || activeOrders.some(o => o.availableAfterSeq > c.throughSeq)
     || c.slots.some(s => s.since >= source.rules.durationMs || s.heat < source.rules.heatMin || s.heat > source.rules.heatMax
       || (s.lastAt !== null && s.lastAt >= source.rules.durationMs))) return fail();
   const grill: GrillState = { rulesVersion: 'v5', order: null, orderIndex: c.stats.customersServed,
+    complainedOrderIds: Array.isArray(value.complainedOrderIds) && value.complainedOrderIds.every(id)
+      ? [...value.complainedOrderIds] : [],
     activeOrders, slots: c.slots.map(({ slot: _slot, ...s }) => s), heats: [...source.heats],
     tray: c.tray.map(({ breadId, ...b }) => ({ id: breadId, ...b })), fills: c.heatCursor,
     lastAt: c.lastAt, score: c.stats.score, made: c.stats.made, golden: c.stats.golden,
@@ -117,7 +119,8 @@ export function createBungeoppangV5Service(requestJSON: (path: string, init?: Re
       if (!record(p) || !id(p.minigameSessionId) || p.rulesVersion !== 'v5' || p.minigameType !== 'BUNGEOPPANG'
         || p.status !== 'PLAYING' || typeof p.configVersion !== 'string' || typeof p.startedAt !== 'string'
         || !Number.isFinite(Date.parse(p.startedAt)) || typeof p.isFirstGame !== 'boolean' || !Array.isArray(p.heats)) return fail();
-      const rules = toRules(p.rules), timing = toTiming(p.timing, rules.durationMs);
+      const rules = { ...toRules(p.rules), queueComplaintPenalty: record(p.rules) && p.rules.queueComplaintPenalty === 5 ? 5 : 0 };
+      const timing = toTiming(p.timing, rules.durationMs);
       const supportedTiming = [R, BUNGEOPPANG_V5_LEGACY].some(profile =>
         rules.durationMs === profile.durationMs && rules.rushFromMs === profile.rushFromMs);
       if (!record(p.rules) || p.rules.heatAssignment !== 'FILL' || p.rules.maxActiveOrders !== 3

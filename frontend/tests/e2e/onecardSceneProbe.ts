@@ -2,6 +2,22 @@ import { _roots } from '@react-three/fiber'
 import { avatars, useSession } from '../../src/network/worldClient'
 import { Matrix4, Raycaster, Vector2, Vector3, type InstancedMesh, type Object3D, type PerspectiveCamera } from 'three'
 
+export function oneCardOpeningProbe() {
+  const scene = _roots.get(document.querySelector('canvas')!)!.store.getState().scene
+  const opening = scene.getObjectByName('onecard-opening')
+  const pieces: { visible: boolean; positions: number[][] }[] = []
+  scene.traverse(object => {
+    if (!object.name.startsWith('park-debris-pieces-')) return
+    const mesh = object as InstancedMesh, matrix = new Matrix4()
+    pieces.push({ visible: mesh.parent!.visible, positions: Array.from({ length: mesh.count }, (_, i) => {
+      mesh.getMatrixAt(i, matrix)
+      return new Vector3().setFromMatrixPosition(matrix).toArray()
+    }) })
+  })
+  return { visible: opening?.visible, phase: opening?.userData.phase,
+    flying: opening?.children.slice(6).filter(card => card.visible).length ?? 0, pieces }
+}
+
 export function oneCardSceneProbe() {
   const state = _roots.get(document.querySelector('canvas')!)!.store.getState()
   return { ownVisible: state.scene.getObjectByName('avatar-' + useSession.getState().sessionId)?.visible,

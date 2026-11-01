@@ -50,6 +50,15 @@ function CustomerOrderCloud({ order, selected, done, counts, active, pending, er
   const admitted = useCustomerArrivalsV5(s => s.admitted[order.orderId] !== undefined);
   const speech = useCustomerSpeechV5(s => s.stages[order.orderId] ?? 'waiting');
   const dialogue = useCustomerSpeechV5(s => s.dialogues[order.orderId]);
+  const complained = useBungeoppang(s => !!s.grill && 'rulesVersion' in s.grill && isV5Grill(s.grill)
+    && s.grill.complainedOrderIds.includes(order.orderId));
+  const [complaintVisible, setComplaintVisible] = useState(false);
+  useEffect(() => {
+    setComplaintVisible(complained);
+    if (!complained) return;
+    const timer = setTimeout(() => setComplaintVisible(false), 3500);
+    return () => clearTimeout(timer);
+  }, [complained]);
   const stage = admitted ? speech : 'waiting';
   const summary = stage === 'summary', fillings = BREAD_FILLINGS.filter(f => order.items[f]);
   return <section ref={element => { registerCustomerCloudV5(order.orderId, element); }} className="bung25-order" aria-label={`${order.customerSlot + 1}번 자리 손님 주문`}
@@ -59,7 +68,7 @@ function CustomerOrderCloud({ order, selected, done, counts, active, pending, er
       onClick={e => { e.currentTarget.blur(); if (selectBungeoppangCustomer(order.orderId)) advanceCustomerSpeechV5(order.orderId, 'summary'); }}>
       {selected && <span className="bung25-selected-mark" aria-hidden="true">✓</span>}
     </button>
-    {summary ? <ul data-items={fillings.length} aria-label="주문 요약">{fillings.map(f => {
+    {complaintVisible ? <p className="bung25-speech bung25-complaint" role="status">제가 먼저 왔어요!<br /><strong>컴플레인 −5점</strong></p> : summary ? <ul data-items={fillings.length} aria-label="주문 요약">{fillings.map(f => {
       const have = Math.min(counts[f], order.items[f]), complete = have === order.items[f];
       return <li key={f} data-complete={complete} style={ingredientStyle(f)} aria-label={`${BREAD_NAMES[f]} ${order.items[f]}개 주문, ${have}개 준비`}>
         <span className="bung25-order-food"><BreadPortraitV5 filling={f} /></span>

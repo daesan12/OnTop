@@ -16,7 +16,8 @@ public final class BungeoppangV5Responses {
             int maxOrderItems, int specialOrderChancePercent, int specialBonusPercent,
             BungeoppangV4Responses.FillingCounts firstOrder, int okFrom, int goldenFrom, int goldenTo,
             int burntFrom, int okPoint, int goldenPoint, int pointsPerCoin, int dailyCoinCap, int minGapMs,
-            int sameSlotGapMs, int maxLogEntries, String heatAssignment, int maxActiveOrders) {
+            int sameSlotGapMs, int maxLogEntries, String heatAssignment, int maxActiveOrders,
+            int queueComplaintPenalty) {
     }
 
     /** An issued customer order. A replacement becomes active only after its approved action prefix. */
@@ -29,7 +30,7 @@ public final class BungeoppangV5Responses {
     public record Checkpoint(long revision, int throughSeq, String prefixHash, int heatCursor,
             Integer lastAt, List<BungeoppangV4Responses.Slot> slots,
             List<BungeoppangV4Responses.TrayBread> tray, BungeoppangV4Responses.Stats stats,
-            List<Order> activeOrders) {
+            List<Order> activeOrders, List<String> complainedOrderIds) {
     }
 
     /** Timing keeps the v4 field names; only the play length differs. */

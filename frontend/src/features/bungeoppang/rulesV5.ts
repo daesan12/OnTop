@@ -14,6 +14,7 @@ export interface CustomerOrder extends BreadOrder {
 export interface GrillState extends V4State {
   readonly rulesVersion: 'v5';
   activeOrders: CustomerOrder[];
+  complainedOrderIds: string[];
 }
 export const isV5Grill = (grill: V4State | null | undefined): grill is GrillState => grill?.rulesVersion === 'v5';
 const reject = (code: ConstructorParameters<typeof BungeoppangRuleError>[0], message: string): never => {
@@ -38,7 +39,12 @@ export function createGrill(heats: readonly number[], orders: readonly CustomerO
   validateCustomers(orders, rules);
   if (!orders.length || orders.some(o => o.availableAfterSeq !== 0)) reject('BAD_ENTRY', '처음 손님 주문이 필요해요.');
   return { ...createV4(heats, orders[0]!, rules), rulesVersion: 'v5', order: null,
-    activeOrders: orders.map(o => ({ ...o, items: { ...o.items } })) };
+    activeOrders: orders.map(o => ({ ...o, items: { ...o.items } })), complainedOrderIds: [] };
+}
+/** 발급 ID 간격 대신 승인된 제공 순서로 실제 도착 순서를 계산한다. */
+export function arrivalIndex(order: CustomerOrder, log: readonly GrillLogEntry[]) {
+  return order.availableAfterSeq === 0 ? order.customerSlot
+    : 2 + log.slice(0, order.availableAfterSeq).filter(entry => entry.action === 'DELIVER').length;
 }
 export function ready(state: GrillState, order: CustomerOrder) {
   return BREAD_FILLINGS.every(f => state.tray.filter(b => b.filling === f).length >= order.items[f]);
@@ -78,7 +84,12 @@ export function applyAction(state: GrillState, entry: GrillLogEntry, rules: Bung
       return false;
     });
     next.activeOrders = state.activeOrders.filter(o => o.orderId !== order!.orderId);
-    next.score += points; next.bonusScore += bonus; next.served += count;
+    const complaints = (rules.queueComplaintPenalty ?? 0) > 0 ? next.activeOrders.filter(waiting =>
+      !state.complainedOrderIds.includes(waiting.orderId)
+      && arrivalIndex(order!, state.log) - arrivalIndex(waiting, state.log) >= 3) : [];
+    next.complainedOrderIds = [...state.complainedOrderIds, ...complaints.map(waiting => waiting.orderId)];
+    next.score += points - complaints.length * (rules.queueComplaintPenalty ?? 0);
+    next.bonusScore += bonus; next.served += count;
     next.specialServed += special; next.customersServed++; next.orderIndex++;
     return { state: next, event: { kind: 'deliver', slot: null, points, bonus, count } };
   }

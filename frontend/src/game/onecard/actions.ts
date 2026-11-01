@@ -16,6 +16,7 @@ export function canActOneCard(ownId: string, input: OneCardInput, now = Date.now
   const g = useGame.getState().game
   if (!canUseOneCard(ownId) || !g?.onecard || !g.hand) return false
   const o = g.onecard
+  if (o.dealEndsAt && now < Date.parse(o.dealEndsAt)) return false
   if (!reducedMotionRequested() && openingActive(o, g.version, now)) return false
   const inWindow = (id: string) => o.players.some(p => p.userId === id && p.active && p.cardCount === 1
     && p.oneCardStatus === 'pending' && !!p.oneCardUntil && now < Date.parse(p.oneCardUntil))

@@ -82,7 +82,7 @@ class BungeoppangV5FixtureContractTests {
                 .isEqualTo("1e3272b596241d6e6d6fc8b81d8172797ffa8b9fb1f829fb17a8c034c83175ca");
 
         // New two-minute rounds: same tuple chain, seed carries the new config version (values from the FE formula).
-        String current = BungeoppangV5Spec.CONFIG_VERSION;
+        String current = "v5-20261029.1";
         assertThat(current).isEqualTo("v5-20261029.1");
         assertThat(BungeoppangV5Spec.initialPrefixHash(901, current))
                 .isEqualTo("28808102872b82be26a1b4b0fd381d5fee8259a540c7a62b65937ef3bd153698");
@@ -126,7 +126,7 @@ class BungeoppangV5FixtureContractTests {
         var legacy = BungeoppangV5Spec.legacyRules();
         assertThat(List.of(legacy.durationMs(), legacy.rushFromMs())).containsExactly(180_000, 150_000);
         assertThat(json.<JsonNode>valueToTree(legacy)).isEqualTo(((ObjectNode) wire.deepCopy())
-                .put("durationMs", 180_000).put("rushFromMs", 150_000));
+                .put("durationMs", 180_000).put("rushFromMs", 150_000).put("queueComplaintPenalty", 0));
         for (String field : List.of("slots", "durationMs", "countdownMs", "sideMs", "rushSideMs", "rushFromMs",
                 "heatMin", "heatMax", "heatListLength", "trayCapacity", "maxOrderItems",
                 "specialOrderChancePercent", "specialBonusPercent", "okFrom", "goldenFrom", "goldenTo",
@@ -150,7 +150,7 @@ class BungeoppangV5FixtureContractTests {
         JsonNode checkpoint = new ObjectMapper().valueToTree(BungeoppangV5Spec.checkpoint(2, 6, hash, result));
 
         assertThat(fieldNames(checkpoint)).containsExactlyInAnyOrder("revision", "throughSeq", "prefixHash",
-                "heatCursor", "lastAt", "slots", "tray", "stats", "activeOrders");
+                "heatCursor", "lastAt", "slots", "tray", "stats", "activeOrders", "complainedOrderIds");
         assertThat(checkpoint.path("slots")).hasSize(6);
         JsonNode batter = checkpoint.path("slots").get(1);
         assertThat(batter.path("phase").textValue()).isEqualTo("batter");

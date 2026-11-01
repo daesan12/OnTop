@@ -439,7 +439,7 @@ class JumpmapMySqlTests {
         assertThat(jdbc.queryForObject("SELECT end_reason FROM jump_runs WHERE id = 'svc-run'", String.class)).isEqualTo("FALL");
         assertThat(balance(101)).isEqualTo(102);
 
-        var status = service.status("101", java.util.Optional.empty());
+        var status = service.status("101", java.util.Optional::empty);
         assertThat(status.enabled()).isTrue();
         assertThat(status.lastRun()).isNotNull().extracting(JumpmapService.LastRun::runId).isEqualTo("svc-run");
         assertThat(status.revision()).isGreaterThan(revisions.getLast());

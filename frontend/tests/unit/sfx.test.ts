@@ -6,6 +6,22 @@ const omok = (turn: string, status = 'PLAYING', gameId = 'g1', role = 'PLAYER') 
   ({ gameId, version: 1, role, omok: { status, turnUserId: turn } }) as unknown as Game
 const dice = (rollId: number) =>
   ({ gameId: 'd1', version: rollId, role: 'PLAYER', dice: { status: 'PLAYING', turnUserId: 'other', rollId } }) as unknown as Game
+
+it('승인된 오목 착수는 한 번 소리 내고 마지막 승리 착수도 재생한다', () => {
+  const before = omok('me')
+  before.omok!.moveCount = 0
+  before.omok!.board = Array.from({ length: 15 }, () => Array(15).fill(0))
+  const next = structuredClone(before)
+  next.version = 2
+  next.omok!.moveCount = 1
+  next.omok!.lastMove = { x: 7, y: 7, stone: 'BLACK' }
+  next.omok!.board[7]![7] = 1
+  expect(gameSfx(before, next, 'other')).toContain('omok-place')
+  expect(gameSfx(next, next, 'other')).not.toContain('omok-place')
+  expect(gameSfx(null, next, 'other')).not.toContain('omok-place')
+  next.omok!.status = 'FINISHED'
+  expect(gameSfx(before, next, 'other')).toEqual(['omok-place'])
+})
 const onecard = (counts: number[], declared = -1) => ({
   gameId: 'c1', version: 1, role: 'PLAYER', hand: null,
   onecard: { status: 'PLAYING', turnUserId: 'other', players: counts.map((cardCount, i) =>

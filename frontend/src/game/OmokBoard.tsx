@@ -2,11 +2,13 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { useThree, type ThreeEvent } from '@react-three/fiber'
 import {
   BufferGeometry,
+  BoxGeometry,
   Float32BufferAttribute,
   Matrix4,
   type Group,
   type InstancedMesh,
 } from 'three'
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { useShallow } from 'zustand/react/shallow'
 import { GOMOKU, type TableAnchor } from '../config'
 import { useSession } from '../network/worldClient'
@@ -114,15 +116,15 @@ function OmokSurface({
     && useSession.getState().status === 'connected' && useOmokEvents.getState().canSend && !panelOwnsKeys()
     && omokCamera.ready && omokCamera.anchorId === anchor.id
   const grid = useMemo(() => {
-    const vertices: number[] = []
+    const strips: BufferGeometry[] = []
     for (let i = 0; i < OMOK_SIZE; i++) {
       const a = -half + i * spacing
-      vertices.push(-half, 0, a, half, 0, a, a, 0, -half, a, 0, half)
+      strips.push(new BoxGeometry(2 * half + .003, .0015, .003).translate(0, 0, a),
+        new BoxGeometry(.003, .0015, 2 * half + .003).translate(a, 0, 0))
     }
-    return new BufferGeometry().setAttribute(
-      'position',
-      new Float32BufferAttribute(vertices, 3),
-    )
+    const merged = mergeGeometries(strips, false)!
+    strips.forEach(strip => strip.dispose())
+    return merged
   }, [])
   useEffect(() => () => grid.dispose(), [grid])
   useLayoutEffect(() => {
@@ -151,7 +153,7 @@ function OmokSurface({
     <>
     {/* Original local presentation backdrop: roofs cannot obstruct a resized top view. */}
     <mesh name={'omok-focus-surface-' + anchor.id} visible={focused} layers-mask={1 << OMOK_FOCUS_LAYER}
-      position={[0, GOMOKU.boardY - .06, 0]} rotation={[-Math.PI / 2, 0, 0]} raycast={noRaycast}>
+      position={[0, GOMOKU.boardY - .12, 0]} rotation={[-Math.PI / 2, 0, 0]} raycast={noRaycast}>
       <planeGeometry args={[14, 14]} />
       <FocusWood />
     </mesh>
@@ -212,13 +214,13 @@ function OmokSurface({
         <planeGeometry args={[1.4, 1.4]} />
         <meshBasicMaterial transparent opacity={0} depthWrite={false} />
       </mesh>
-      <lineSegments
+      <mesh name="omok-grid"
         geometry={grid}
-        position={[0, 0.001, 0]}
+        position={[0, 0.0015, 0]}
         raycast={noRaycast}
       >
-        <lineBasicMaterial color="#49301f" />
-      </lineSegments>
+        <meshBasicMaterial color="#28170c" />
+      </mesh>
       {[3, 7, 11].flatMap(x => [3, 7, 11].map(y => <mesh key={`${x}-${y}`}
         position={[x * spacing - half, 0.002, y * spacing - half]} rotation={[-Math.PI / 2, 0, 0]} raycast={noRaycast}>
         <circleGeometry args={[0.009, 8]} /><meshBasicMaterial color="#49301f" />

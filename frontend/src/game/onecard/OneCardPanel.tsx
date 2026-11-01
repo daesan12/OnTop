@@ -59,7 +59,7 @@ export function OneCardPanel() {
   const send = (input: OneCardInput) => { if (can(input)) void runtime.actOneCard(input) }
   const restore = () => { void runtime.restoreOneCardHand?.() }
   const name = (id: string) => id === ownId ? '나' : session.profiles[id]?.nickname ?? `참가자 ${o.players.findIndex(p => p.userId === id) + 1}`
-  const remaining = o.turnDeadline ? Math.max(0, Math.ceil((Date.parse(o.turnDeadline) - now) / 1000)) : null
+  const remaining = o.turnDeadline ? Math.min(o.turnTimeLimitMs / 1000, Math.max(0, Math.ceil((Date.parse(o.turnDeadline) - now) / 1000))) : null
   const windowLeft = (until: string | null) => until ? Math.max(0, Math.ceil((Date.parse(until) - now) / 1000)) : 0
   const own = o.players.find(p => p.userId === ownId), finished = o.status === 'FINISHED'
   const myTurn = o.turnUserId === ownId

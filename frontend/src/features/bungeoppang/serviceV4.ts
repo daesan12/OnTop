@@ -125,7 +125,7 @@ function toOrder(value: unknown): WireOrder {
   } };
 }
 
-export function toCheckpoint(value: unknown): V4Checkpoint {
+export function toCheckpoint(value: unknown, allowNegativeScore = false): V4Checkpoint {
   if (!record(value) || !whole(value.revision) || !whole(value.throughSeq)
     || typeof value.prefixHash !== 'string' || !/^[0-9a-f]{64}$/.test(value.prefixHash)
     || !whole(value.heatCursor) || !(value.lastAt === null || whole(value.lastAt))
@@ -150,7 +150,7 @@ export function toCheckpoint(value: unknown): V4Checkpoint {
   const stats = value.stats;
   const names = ['score', 'made', 'successfulMade', 'golden', 'failed', 'wasted', 'grillDiscarded',
     'trayDiscarded', 'combo', 'maxCombo', 'served', 'customersServed', 'specialServed', 'bonusScore'] as const;
-  if (!names.every(name => whole(stats[name]))) return fail();
+  if (!names.every(name => name === 'score' && allowNegativeScore ? Number.isSafeInteger(stats[name]) : whole(stats[name]))) return fail();
   return { revision: Number(value.revision), throughSeq: Number(value.throughSeq), prefixHash: value.prefixHash,
     heatCursor: Number(value.heatCursor), lastAt: value.lastAt === null ? null : Number(value.lastAt), slots, tray,
     stats: Object.fromEntries(names.map(name => [name, Number(stats[name])])) as V4Checkpoint['stats'],
@@ -264,7 +264,7 @@ export function completeResult(value: unknown, gameId: string, version = 'v4') {
     'maxCombo', 'coinsCalculated', 'coinsGranted', 'todayEarned', 'dailyCap', 'successfulMade', 'served',
     'customersServed', 'specialServed', 'bonusScore', 'grillDiscarded', 'trayDiscarded', 'undeliveredCount',
     'unfinishedGrillCount', 'finalThroughSeq'] as const;
-  if (!integers.every(name => whole(value[name])) || typeof value.capReached !== 'boolean'
+  if (!integers.every(name => name === 'score' && version === 'v5' ? Number.isSafeInteger(value[name]) : whole(value[name])) || typeof value.capReached !== 'boolean'
     || typeof value.rewardDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value.rewardDate)
     || !instant(value.settledAt) || typeof value.finalPrefixHash !== 'string'
     || !/^[0-9a-f]{64}$/.test(value.finalPrefixHash)

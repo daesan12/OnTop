@@ -27,7 +27,9 @@
 .omok-match-player div { display:flex; flex-direction:column; gap:5px; min-width:0; }
 .omok-match-player b { font-size:18px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .omok-match-player small { font-size:14px; color:#d2c3ab; }
-.omok-match-player .stone-chip { width:22px; height:22px; flex-shrink:0; }
+.park-page .omok-panel .omok-match-player .stone-chip { box-sizing:border-box; display:block; width:24px; height:24px; aspect-ratio:1; flex:0 0 24px; margin:0; padding:0; transform:none; border-radius:50%; border:1px solid #b9aa92; box-shadow:0 2px 0 #0005; }
+.park-page .omok-panel .stone-chip.black { background:radial-gradient(circle at 35% 28%,#4b5151,#151b1b 55%,#080d0d); }
+.park-page .omok-panel .stone-chip.white { background:radial-gradient(circle at 35% 28%,#fffef8,#eee9dc 70%,#d0c6b0); }
 .omok-match-clock { display:flex; align-items:center; gap:16px; }
 .omok-match-clock strong { font-size:30px; font-variant-numeric:tabular-nums; font-weight:600; }
 .omok-match-clock span { font-size:17px; }

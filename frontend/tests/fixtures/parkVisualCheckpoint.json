@@ -1,5 +1,5 @@
 {
-  "description": "Accepted ranking-board facility and interaction entry retained with the new plaza, lantern, fish-shop counter, dice-ledger and duel-forfeit surfaces while preserving park tables/chairs. Approved jumpmap landing audio adapter and sound-layer diagnostic updated without geometry or placement changes (MR !258), 2026-10-31; authorized VR floor/start pad and plump jumpmap pastry, 2026-10-31. Merged pavilion bench/lantern clearance (f4af1d15), optional render-mode access for spectator collection tests (3ed52827), and fish-shop awning overlap repair (a4e53bb6), 2026-11-01.",
+  "description": "Accepted ranking-board facility and interaction entry retained with the new plaza, lantern, fish-shop counter, dice-ledger and duel-forfeit surfaces while preserving park tables/chairs. Approved jumpmap landing audio adapter and sound-layer diagnostic updated without geometry or placement changes (MR !258), 2026-10-31; authorized VR floor/start pad and plump jumpmap pastry, 2026-10-31. Merged pavilion bench/lantern clearance (f4af1d15), optional render-mode access for spectator collection tests (3ed52827), and fish-shop awning overlap repair (a4e53bb6), 2026-11-01. 사용자 QA 승인 범위의 돌 기단 겹침 제거와 오목판 높이·파생 맵 버전 동기화, 2026-11-01.",
   "files": {
     "src/layout-preview/districtGeometry.ts": "882709ac240a987c6d7fc5d8740f9d48e93851c586b232dfa05bacd7b70fe1ff",
     "src/layout-preview/existingTreeModel.ts": "fcb9c89c3c90e11ac5a5670a0498dae14184a10b1acac281523ad56ed4748826",
@@ -17,7 +17,7 @@
     "src/layout-preview/layout.ts": "9b39be8fb13e09a48ff74c94566e26c5dfaf4dc115dfd5baa8d3378636a93901",
     "src/layout-preview/LayoutPreview.tsx": "d8d0063596e21a91e39dfd2499be53382d7ec3dfb986f969efe09857b7095f8a",
     "src/layout-preview/main.tsx": "98384f6476282511430a78a6f748c6f692e2665f4e24375b08f58f68c51dfcd7",
-    "src/layout-preview/pagodaBalustrade.ts": "e7e3e26504de5d4ed1298b08e4de8c178944634e32adb685755279edd2be7ab5",
+    "src/layout-preview/pagodaBalustrade.ts": "2cc8283458d1c7b55fc59bb4fccc2499246103d63df92fa392d30377b201c80d",
     "src/layout-preview/pathNetwork.ts": "4311ab7cad0d1aedb8b1e921f368c303f4e123b3e93cee6e74d36c8b6aab952f",
     "src/layout-preview/pathUnion.ts": "a8a4f1b9ad6ec96585aad0bdf5de78ba80d82161c2ac86987b1d6537c0aed9ba",
     "src/layout-preview/PlazaBuildings.tsx": "3dbbf17a86c9ed2fd0c765c3be750171f05687511075ce58b7e6130da5b9ca97",
@@ -34,7 +34,7 @@
     "src/map/park/collision.ts": "313810e0569a12607e463b0c706a05ce413504cf2d76158a04ae9621181a79de",
     "src/map/park/definition.ts": "19330af6b232693d120711e4445f389ab7ff52ded9880ee034ba9d736b59fd77",
     "src/map/park/fountainHeight.ts": "9996ee1c49bd09c43142d4abde7f831ee4001553bb8232b7372ff1094c4b7573",
-    "src/map/park/generated/mapVersion.ts": "283d27d770c82aa4a3d617f51f020134ffb8f5e1574752101713d5ba8543f9e2",
+    "src/map/park/generated/mapVersion.ts": "3f13ef56e6e159290ca14a61e249d06aa97615612c54015ff2fada10864e1c31",
     "src/map/park/index.ts": "86ea47fe7b5e3b4472e9f74719374663e481e6c8c187f85317dbdbf2cd13cd02",
     "src/map/park/interactionData.ts": "34a447bb4521153f76cad68b4f9b2bfe62fa12695d7219b38f74b54d173f94d8",
     "src/map/park/lake.ts": "6b3544dfda8ae89b798d8c7f677f3e3e7b354197d7d2e2f5f31660a772070a4e",
@@ -145,7 +145,7 @@
     "src/config/fishCart.ts": "51d4910a7e3fd79d49e717e48b88d184b1891e8c291ffad001b497866de3d318",
     "src/config/fitness.ts": "e55b3a0347cfad4c4292901bf9dce737135239c1945359e0f859175bdefaddc6",
     "src/config/gardenAdditions.ts": "b3eebe43aaceae03c54e648d11cdac2792291315422df910c6e97aa2930c3d66",
-    "src/config/gomoku.ts": "c8b30f1645f27207944ec4ab56384c86a7c5567ba2cc4a259695f0b5fbe57a4b",
+    "src/config/gomoku.ts": "3dbac27ef5b2fc45b422b2f6e34bc5b16c25c348c8b5070afa3f6624990b6608",
     "src/config/index.ts": "115375d3a6c1fae898f3b2239ff369c9e3e918016e4824e8c574ec9c6911d18f",
     "src/config/lakeCrossings.ts": "b417b36864223222f756f19c8dc7869f8fd10d431bd6c7517d47c33f22321bd6",
     "src/config/lakeRocks.ts": "d5140e2fb11fad78435e7540e295f71dc5b0f56e8f1d05fd2947a97c4000b25a",
