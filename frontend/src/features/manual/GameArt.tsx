@@ -1,4 +1,5 @@
 import type { ManualGameId } from "./types";
+import { RpsRouletteArt } from "../rpsRoulette/manualArt";
 
 /** Original vector thumbnails: no external images, logos, fonts or requests. */
 export function BookIcon() {
@@ -23,6 +24,7 @@ export function BookIcon() {
 }
 
 export function GameArt({ game }: { game: ManualGameId }) {
+  if (game === "rps-roulette") return <RpsRouletteArt />;
   if (["janggi", "fishing", "fish-bread", "jump", "vr-jump"].includes(game))
     return (
       <svg

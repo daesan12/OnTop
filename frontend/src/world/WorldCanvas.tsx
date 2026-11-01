@@ -38,6 +38,7 @@ import {ParkDebrisScene} from '../features/parkDebris/ParkDebrisScene'
 import { getParkInteraction, interactWithPark } from '../features/interactions/parkInteraction'
 import { prepareScene } from './prepareScene'
 import { warmParkGeometry } from '../park/loadParkGeometry'
+import { RpsRouletteCabinet } from '../features/rpsRoulette/RpsRouletteCabinet'
 
 preloadWorldAssets()
 
@@ -176,6 +177,7 @@ export const WorldCanvas = memo(function WorldCanvas({
         <Suspense fallback={null}>
           {GENERATED_PARK_ENABLED?<group name="park-service-map" userData={{...LIVE_MAP_IDENTITY}}><GeneratedParkWorld live onRankingBoardInteract={interactWithRankingBoard}/></group>:<PlaceholderWorld quality={quality} />}
           {GENERATED_PARK_ENABLED && <ServiceJumpCourse />}
+          <RpsRouletteCabinet />
           <SceneReady onReady={onReady} />
         </Suspense>
         <Avatars overlayTargets={overlayTargets} />
