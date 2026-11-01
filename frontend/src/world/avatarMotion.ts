@@ -69,7 +69,7 @@ export function createAvatarMotion(model: Rig) {
   const grip = createFitnessGrip(), hipFit = new Vector3(), clip = createClipPose()
   let phase = 0, swimPhase = 0, move = 0, run = 0
   return {
-    apply(avatar: Avatar, now: number, delta: number, pose: Pose, figure: Group, reaction?: DefeatReaction | null, seatedPose?: (model: Rig) => void, groundMotion: 'clips' | 'procedural' = 'clips') {
+    apply(avatar: Avatar, now: number, delta: number, pose: Pose, figure: Group, reaction?: DefeatReaction | null, seatedPose?: (model: Rig) => void) {
       const kind = avatarPoseKind(avatar)
       const seated = kind === 'seated'
       const age = avatarEmoteAge(avatar, now)
@@ -95,12 +95,9 @@ export function createAvatarMotion(model: Rig) {
       set('lowerArm_L', seated ? -0.8 : gait.elbow)
       set('lowerArm_R', seated ? -0.8 : gait.elbow)
       if (kind === 'ground') {
-        // PARK_V1 keeps the procedural gait selected in the 5174 movement preview.
-        // Other profiles retain the authored cycles; gestures/facilities still layer below.
-        if (groundMotion === 'procedural') {
-          set('hips', 0, gait.hipYaw, gait.hipRoll)
-          set('chest', gait.lean, -gait.hipYaw * 0.6, -gait.hipRoll * 0.5)
-        } else clip.ground(dt, move, run, set)
+        // Authored idle/walk/run cycles (blended by the same smoothed move/run amounts) replace the gait.
+        // The own avatar uses them too, so it looks the same as other players see it.
+        clip.ground(dt, move, run, set)
       } else if (kind === 'telescope') {
         set('upperArm_L', -1.1)
         set('upperArm_R', -1.1)
