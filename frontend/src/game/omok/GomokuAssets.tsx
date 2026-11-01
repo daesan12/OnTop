@@ -13,19 +13,19 @@ import { BoardWood, OmokWood } from "./BoardWood";
 
 // Shared by the four table settings, placed stones, previews and decorative supplies.
 const frameGeometry = new RoundedBoxGeometry(1, 1, 1, 1, .025);
-export const stoneGeometry = new SphereGeometry(0.039, 16, 10);
+export const stoneGeometry = new SphereGeometry(0.039, 32, 20);
 export const blackStoneMaterial = new MeshStandardMaterial({
   color: "#101717",
-  roughness: .23,
+  roughness: .34,
 });
 export const whiteStoneMaterial = new MeshStandardMaterial({
   color: "#f3eee2",
-  roughness: .28,
+  roughness: .38,
 });
 
 const body: Part[] = [
-  { p: [0, -0.011, 0], s: [1.48, 0.046, 1.48], c: "#73452d" },
-  { p: [0, -0.023, 0], s: [1.5, 0.014, 1.5], c: "#47291c" },
+  { p: [0, -0.046, 0], s: [1.48, 0.104, 1.48], c: "#73452d" },
+  { p: [0, -0.092, 0], s: [1.5, 0.016, 1.5], c: "#47291c" },
   { p: [0, -0.012, 0], s: [1.488, 0.008, 1.488], c: "#a06a43" },
 ];
 const inlay: Part[] = [];

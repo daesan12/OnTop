@@ -49,7 +49,7 @@ export function OmokWood({ color = '#ffffff', detail = .42, strength = .1, mappi
 }
 
 export function BoardWood() {
-  return <OmokWood color="#78472d" detail={.38} strength={.08} />
+  return <OmokWood color="#c89b62" detail={.22} strength={.035} />
 }
 
 export function FocusWood() {

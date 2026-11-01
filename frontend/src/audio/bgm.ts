@@ -62,7 +62,8 @@ const isPark = (track: BgmTrack) => track.startsWith('park-')
 export function loadSound(context: AudioContext, name: string) {
   let buffer = buffers.get(name)
   if (!buffer) {
-    buffer = fetch(`${import.meta.env.BASE_URL}audio/bgm/${name}.ogg`)
+    const file = name === 'omok-place' ? 'audio/jumpmap/stone.wav' : `audio/bgm/${name}.ogg`
+    buffer = fetch(`${import.meta.env.BASE_URL}${file}`)
       .then(response => response.ok ? response.arrayBuffer() : Promise.reject(new Error(String(response.status))))
       .then(data => context.decodeAudioData(data))
       // A missing or undecodable file simply stays silent.
