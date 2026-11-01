@@ -27,3 +27,12 @@ it('does not replay a deal after an action, a late watch/reconnect, or a finishe
  expect(openingActive({...game,turnCount:2},0,at)).toBe(false)
  expect(openingActive({...game,players:game.players.map(p=>({...p,cardCount:6}))},0,at)).toBe(false)
 })
+
+it('서버 분배 시각으로 재접속 위치를 맞추고 분배가 끝나면 재생하지 않는다', () => {
+ const count=4,until=at+openingDuration(count)
+ const game={...state(count),dealEndsAt:new Date(until).toISOString(),turnDeadline:new Date(until+30_000).toISOString()}
+ expect(openingAge(game,0,at+500)).toBe(500)
+ expect(dealtCount(game,0,'0',at+SHUFFLE_MS-1)).toBe(0)
+ expect(dealtCount(game,0,'0',until)).toBe(7)
+ expect(openingActive(game,0,until+1000)).toBe(false)
+})

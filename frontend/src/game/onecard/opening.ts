@@ -1,11 +1,13 @@
 import type { OneCard } from './protocol'
 
-export const SHUFFLE_MS = 700, DEAL_GAP_MS = 75, DEAL_FLIGHT_MS = 360
+export const SHUFFLE_MS = 1000, DEAL_GAP_MS = 95, DEAL_FLIGHT_MS = 420
 /** Use the first server turn's clock. Joining late never replays a completed deal. */
 export function openingAge(state: OneCard, version: number, now: number) {
-  if (version !== 0 || state.status !== 'PLAYING' || state.turnCount !== 1 || !state.turnDeadline
+  if ((!state.dealEndsAt && version !== 0) || state.status !== 'PLAYING' || state.turnCount !== 1 || !state.turnDeadline
     || state.players.some(player => !player.active || player.cardCount !== 7)) return Infinity
-  return Math.max(0, now - (Date.parse(state.turnDeadline) - state.turnTimeLimitMs))
+  const start = state.dealEndsAt ? Date.parse(state.dealEndsAt) - openingDuration(state.players.length)
+    : Date.parse(state.turnDeadline) - state.turnTimeLimitMs
+  return Math.max(0, now - start)
 }
 export const dealArrival = (round: number, seat: number, players: number) =>
   SHUFFLE_MS + (round * players + seat) * DEAL_GAP_MS + DEAL_FLIGHT_MS

@@ -44,6 +44,7 @@ export async function fixture(
     omok?: boolean
     dice?: boolean
     onecard?: 2 | 3 | 4
+    onecardDealMs?: number
     onecardPranks?: boolean
     onecardPreview?: { observer: boolean; room: OneCardPrankRoom; interactionReview?: boolean }
     bridge?: 2 | 3 | 4
@@ -695,8 +696,9 @@ export async function fixture(
       if (type === 'TABLE_START' && options.tabletServer && !tabletStartHold) {
         started = true; waitExpiresAt = null; waitRevision++
         resultBet = betAmountPerPlayer ?? 1; resultStatus = 'FINISHED'; resultReason = 'NORMAL'; resultVersion = 1; settled = false
-        gameDeadline = new Date(Date.now() + 30000).toISOString()
-        if (options.onecard) cardState = { ...cardState, turnDeadline: gameDeadline }
+        gameDeadline = new Date(Date.now() + 30000 + (options.onecardDealMs ?? 0)).toISOString()
+        if (options.onecard) cardState = { ...cardState, turnDeadline: gameDeadline,
+          ...(options.onecardDealMs ? { dealEndsAt: new Date(Date.parse(gameDeadline) - 30000).toISOString() } : {}) }
         start(ws, 'PLAYING', requestId); game(ws); recovery(ws)
       }
       if (options.omok && type === 'GAME_SELECT') {
@@ -939,9 +941,10 @@ export async function fixture(
       started = true
       resultBet = betAmountPerPlayer ?? 1
       resultStatus = 'FINISHED'; resultReason = 'NORMAL'; resultVersion = 1; settled = false
-      gameDeadline = new Date(Date.now() + 30_000).toISOString()
+      gameDeadline = new Date(Date.now() + 30_000 + (options.onecardDealMs ?? 0)).toISOString()
       if (options.dice) diceState = { ...diceState, turnDeadline: gameDeadline }
-      if (options.onecard) cardState = { ...cardState, turnDeadline: gameDeadline }
+      if (options.onecard) cardState = { ...cardState, turnDeadline: gameDeadline,
+        ...(options.onecardDealMs ? { dealEndsAt: new Date(Date.parse(gameDeadline) - 30000).toISOString() } : {}) }
       if (options.bridge) bridgeState = { ...bridgeState, turnDeadline: gameDeadline }
       if (options.ledger) ledgerState = { ...ledgerState, turnDeadline: gameDeadline }
       start(sockets.at(-1)!, 'PLAYING')

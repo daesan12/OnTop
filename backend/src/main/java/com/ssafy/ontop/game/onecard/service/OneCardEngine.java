@@ -19,6 +19,7 @@ import com.ssafy.ontop.game.result.GameLifecycle;
 import com.ssafy.ontop.game.state.GameStateChanged;
 import com.ssafy.ontop.game.state.GameStateView;
 import java.time.Clock;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -38,6 +39,8 @@ public final class OneCardEngine implements GameEngine {
     private final Consumer<List<OneCard>> shuffle;
     private final IntUnaryOperator firstPlayer;
     private final ForfeitHandPolicy forfeitHandPolicy;
+    private final boolean openingPresentation;
+    private final Map<String, Instant> dealEnds = new HashMap<>();
     private final Map<String, OneCardMatch> games = new HashMap<>();
     private final Map<Long, String> latest = new HashMap<>();
     private final GameLifecycle lifecycle = new GameLifecycle();
@@ -45,6 +48,13 @@ public final class OneCardEngine implements GameEngine {
 
     public OneCardEngine(ObjectMapper mapper, Clock clock, Consumer<Object> events, GameEngineRouter router,
             Consumer<List<OneCard>> shuffle, IntUnaryOperator firstPlayer, ForfeitHandPolicy forfeitHandPolicy) {
+        this(mapper, clock, events, router, shuffle, firstPlayer, forfeitHandPolicy, false);
+    }
+
+    /** 독립 규칙 실행은 즉시 시작하고, 서비스 연결은 분배 완료 뒤 첫 30초를 시작한다. */
+    public OneCardEngine(ObjectMapper mapper, Clock clock, Consumer<Object> events, GameEngineRouter router,
+            Consumer<List<OneCard>> shuffle, IntUnaryOperator firstPlayer, ForfeitHandPolicy forfeitHandPolicy,
+            boolean openingPresentation) {
         this.mapper = mapper;
         this.clock = clock;
         this.events = events;
@@ -52,6 +62,7 @@ public final class OneCardEngine implements GameEngine {
         this.shuffle = shuffle;
         this.firstPlayer = firstPlayer;
         this.forfeitHandPolicy = java.util.Objects.requireNonNull(forfeitHandPolicy);
+        this.openingPresentation = openingPresentation;
     }
 
     // 실제 참가·차감 커밋을 확인한 서버만 호출한다. 덱·선공도 서버에서 정한다.
@@ -70,8 +81,13 @@ public final class OneCardEngine implements GameEngine {
                 throw new IllegalArgumentException("원카드 참가자는2~4명입니다.");
             }
             List<OneCard> deck = initialDeck(players.size());
+            Instant startsAt = clock.instant();
+            if (openingPresentation) {
+                startsAt = startsAt.plusMillis(1_000 + (7L * players.size() - 1) * 95 + 420);
+                dealEnds.put(gameId, startsAt);
+            }
             OneCardMatch match = new OneCardMatch(gameId, tableId, players, deck, firstPlayer.applyAsInt(players.size()),
-                    clock.instant(), shuffle, forfeitHandPolicy);
+                    startsAt, shuffle, forfeitHandPolicy);
             router.register(this, gameId, tableId, players);
             games.put(gameId, match);
             for (long userId : players) { latest.put(userId, gameId); }
@@ -104,6 +120,8 @@ public final class OneCardEngine implements GameEngine {
         synchronized (this) {
             OneCardMatch match = games.get(command.gameId());
             if (match == null || !match.isPlayer(command.userId())) { throw new Rejected(Rejection.ACCESS_DENIED); }
+            Instant until = dealEnds.get(command.gameId());
+            if (until != null && clock.instant().isBefore(until)) { throw new Rejected(Rejection.INVALID_ACTION); }
             Snapshot before = match.snapshot();
             try {
                 result = match.apply(command, clock.instant());
@@ -226,6 +244,8 @@ public final class OneCardEngine implements GameEngine {
 
     private ObjectNode publicState(Snapshot state) {
         ObjectNode data = mapper.createObjectNode();
+        Instant until = dealEnds.get(state.gameId());
+        if (until != null) { data.put("dealEndsAt", until.toString()); }
         data.put("gameCode", "ONE_CARD").put("status", state.endedAt() == null ? "PLAYING" : "FINISHED")
                 .put("turnTimeLimitMs", 30_000).put("direction", state.direction()).put("stage", state.stage())
                 .put("extraAction", state.extraAction()).put("activeSuit", state.activeSuit())
