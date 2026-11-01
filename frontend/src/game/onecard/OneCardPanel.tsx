@@ -10,6 +10,7 @@ import { cardLabel, cardEffect, oneCardGuidance, redCard, SUIT_GLYPH, SUIT_NAME 
 import type { OneCardInput } from './protocol'
 import { CardFace } from './CardFace'
 import { FanHand } from './FanHand'
+import { useChatClearance } from './useChatClearance'
 import { handScope, useOneCardUI } from './uiState'
 import { useOneCardPranks } from './prankEvents'
 import { useOneCardDefense } from './defenseEvents'
@@ -41,6 +42,7 @@ export function OneCardPanel() {
   useEffect(() => () => { useOneCardUI.setState({ scope: '', selectedId: '' }) }, [])
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 100); return () => clearInterval(timer) }, [])
   const g = s.game?.onecard ? s.game : null
+  useChatClearance(g?.gameId??'',g?.role==='PLAYER'&&g.onecard.status==='PLAYING')
   useEffect(() => setHammerHeld(false), [g?.gameId])
   const canUseHammer = !!g && g.role === 'PLAYER' && g.onecard.status === 'PLAYING'
     && g.hand?.userId === session.sessionId && session.status === 'connected' && !session.pending && !s.pending
@@ -64,14 +66,16 @@ export function OneCardPanel() {
   const own = o.players.find(p => p.userId === ownId), finished = o.status === 'FINISHED'
   const myTurn = o.turnUserId === ownId
   const ownTurn = !spectator && own?.active && myTurn && !finished
+  const timeWarning = !!ownTurn && fresh && !opening && remaining !== null && remaining > 0 && remaining <= 5
   const guidance = oneCardGuidance(o, ownId, name(o.turnUserId ?? ''), hand?.playableCardIds.length ?? 0, hand?.canDraw ?? false)
   const selectedForPlay = myTurn && o.stage === 'PLAYING' ? selected : undefined
   const actionHint = !fresh ? '최신 판과 손패를 확인하고 있어요.' : s.pending ? '서버가 요청을 확인하고 있어요.'
     : remaining === 0 ? '시간이 끝났어요. 서버 판정을 기다려주세요.' : guidance.hint
   return <section className="minigame-hud onecard-panel onecard-game-hud" aria-label="원카드 경기" data-stage={o.stage} data-role={g.role} data-own-turn={!!ownTurn}>
+    {timeWarning && <div className="onecard-time-warning" aria-hidden="true" />}
     {opening && <div className="onecard-opening-status" role="status">{openingAge(o, g.version, now) < SHUFFLE_MS ? '카드를 섞고 있어요' : '카드를 나누고 있어요'}</div>}
     {finished ? <div className="mini-status"><p role="status">{o.winnerUserIds.map(name).join(' · ')} {o.winnerUserIds.length > 1 ? '공동 승리' : '승리'}</p></div>
-      : remaining !== null && <div className="onecard-turn-timer" role="timer" aria-label="차례 남은 시간" data-urgent={remaining <= 5}>
+      : remaining !== null && <div className="onecard-turn-timer" role="timer" aria-label="차례 남은 시간" data-urgent={remaining > 0 && remaining <= 5} data-warning={timeWarning}>
         <span title={myTurn ? '내 차례' : `${name(o.turnUserId ?? '')}의 차례`}>{myTurn ? '내 차례' : `${name(o.turnUserId ?? '')}의 차례`}</span><strong>{remaining}<small>초</small></strong>
       </div>}
     {!spectator && !finished && !opening && <div key={`${o.turnUserId}/${o.turnCount}`} className="onecard-turn-cue" data-own={!!ownTurn} role="status" aria-label="현재 차례">

@@ -43,10 +43,18 @@ export function installBrowserShortcutGuard(): () => void {
     event.stopImmediatePropagation()
   }
   const leave = () => { suppressed.clear(); interrupt() }
+  const beforeUnload = (event: BeforeUnloadEvent) => {
+    // Browser-owned close shortcuts may never deliver a keydown to the page.
+    // Clear held input even when the player cancels the browser's leave dialog.
+    leave()
+    event.preventDefault()
+    event.returnValue = 'true' // Legacy browsers; the browser supplies the dialog text.
+  }
   const visibility = () => { if (document.hidden) leave() }
   window.addEventListener('keydown', down, capture)
   window.addEventListener('keyup', up, capture)
   window.addEventListener('blur', leave)
+  window.addEventListener('beforeunload', beforeUnload)
   window.addEventListener('pagehide', leave)
   document.addEventListener('visibilitychange', visibility)
   // Includes a native exit from DOM fullscreen. Browser F11 fullscreen may only resize.
@@ -56,6 +64,7 @@ export function installBrowserShortcutGuard(): () => void {
     window.removeEventListener('keydown', down, capture)
     window.removeEventListener('keyup', up, capture)
     window.removeEventListener('blur', leave)
+    window.removeEventListener('beforeunload', beforeUnload)
     window.removeEventListener('pagehide', leave)
     document.removeEventListener('visibilitychange', visibility)
     document.removeEventListener('fullscreenchange', leave)

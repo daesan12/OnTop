@@ -3,6 +3,7 @@ import { createTowerRamp,createTowerDeck,towerPoint,OBSERVATION_TOWER,TOWER_DECK
 import { PAVILION_CLOSED_SIDES,PAVILION_TIMBER,TOWER_SITE,MAILBOX } from '../../config/parkPlan'
 import { GARDEN_PAGODA,PAGODA_COLLIDERS } from '../../config/pagoda'
 import { TELESCOPES } from '../../config/telescopes'
+import { NOTES_BOX,NOTES_BOARD_BODY,GENERATED_NOTES_BOARD_SETBACK } from '../../config/notes'
 import { roundedSquare } from '../geometry'
 import type { ParkDefinition } from './definition'
 import type { resolveLake } from './lake'
@@ -158,6 +159,8 @@ export function buildPhysics(i:Input) {
   lake.FISHING_RAILS.forEach((r,n)=>segment('fishing-rail-'+n,[r.from[0],.32,r.from[1]],[r.to[0],.32,r.to[1]],.18,1.06))
   for(const r of lake.DRAFT_LAKE_ROCKS)box(r.id,[r.x,r.y,r.z],r.size,r.yaw)
   const dx=d.sites.tower.x-TOWER_SITE.x,dz=d.sites.tower.z-TOWER_SITE.z
+  box('tower-notes-board',[NOTES_BOX.x+dx,NOTES_BOX.y+NOTES_BOARD_BODY.height/2,NOTES_BOX.z+dz-GENERATED_NOTES_BOARD_SETBACK],
+    [NOTES_BOARD_BODY.halfWidth,NOTES_BOARD_BODY.height/2,NOTES_BOARD_BODY.halfDepth])
   for(const t of TELESCOPES)box(t.id,[t.position[0]+dx,t.position[1]+.65,t.position[2]+dz],[.23,.65,.23])
   for(const [id,create] of [['tower-ramp',createTowerRamp],['tower-deck',createTowerDeck]] as const) {
     const m=create(),v=Array.from(m.vertices);for(let n=0;n<v.length;n+=3){v[n]!+=dx;v[n+2]!+=dz}

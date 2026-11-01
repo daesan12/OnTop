@@ -7,6 +7,19 @@ const initial = () => ({
   readyAt: 0, error: '', notice: '', epoch: 0,
 })
 export const useEmoteState = create(initial)
+let feedbackTimer: ReturnType<typeof setTimeout> | undefined
+// Every feedback writer shares this lifetime; request and playback state stay authoritative.
+useEmoteState.subscribe((state, previous) => {
+  if (state.error === previous.error && state.notice === previous.notice) return
+  clearTimeout(feedbackTimer)
+  feedbackTimer = undefined
+  if (!state.error && !state.notice) return
+  feedbackTimer = setTimeout(() => {
+    const current = useEmoteState.getState()
+    if (current.epoch === state.epoch && current.error === state.error && current.notice === state.notice)
+      useEmoteState.setState({ error: '', notice: '' })
+  }, 2000)
+})
 let lifetime = new AbortController()
 const retiredRequests = new Set<string>()
 export const retiredEmoteRequest = (id: string | null) => !!id && retiredRequests.has(id)

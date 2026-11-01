@@ -12,6 +12,32 @@ import {omokCamera} from '../../src/game/cameraState'
 import {fishBreadShopArt} from '../../src/world/art/luckyFacilityGeometry'
 import {useParkDebris} from '../../src/features/parkDebris/state'
 import {closeRankingBoard,useRankingBoardEntry} from '../../src/features/rankingBoard/model'
+import {memoSlots,NOTES_BOARD_SCALE} from '../../src/world/art/notesBoardLayout'
+
+export function notesBoardView(){
+ const store=_roots.get(document.querySelector('canvas')!)!.store
+ const [x,y,z]=PARK_DATA.interactions.notes.position
+ store.getState().internal.subscribe({current:({camera})=>{
+  camera.position.set(x+.5,y+2.4,z+6.5)
+  camera.lookAt(x,y+1.7,z);camera.updateMatrixWorld()
+ }},.5,store)
+}
+export function notesPaperVisible(){
+ const {scene}=_roots.get(document.querySelector('canvas')!)!.store.getState()
+ scene.updateMatrixWorld(true)
+ const board=scene.getObjectByName('tower-notes-mailbox')!,slot=memoSlots[0]
+ const target=board.localToWorld(new Vector3(slot.x,slot.y,.15))
+ const ray=new Raycaster(target.clone().add(new Vector3(0,0,3)),new Vector3(0,0,-1),0,4)
+ // LOD raycasts can include hidden levels; use the first visible mesh.
+ const hit=ray.intersectObject(board,true).find(h=>{
+  for(let node:import('three').Object3D|null=h.object;node;node=node.parent)if(!node.visible)return false
+  return true
+ })
+ let paper=false
+ for(let node:import('three').Object3D|null=hit?.object??null;node;node=node.parent)if(node.name==='observatory-user-notes')paper=true
+ const material=(hit?.object as Mesh|undefined)?.material as import('three').MeshBasicMaterial|undefined
+ return {paper,textured:!!material?.map,scale:board.scale.x,expectedScale:NOTES_BOARD_SCALE}
+}
 
 export function hallSignClearance(name:string){
  const {scene}=_roots.get(document.querySelector('canvas')!)!.store.getState()
@@ -36,13 +62,19 @@ export function frameHallSign(name:string){
  state.gl.render(state.scene,state.camera)
 }
 
-export function frameVrEntrance(){
- const state=_roots.get(document.querySelector('canvas')!)!.store.getState()
- state.setFrameloop('never');state.scene.updateMatrixWorld(true)
+let releaseVrFrame:(()=>void)|undefined
+export function frameVrEntrance(detail=false){
+ releaseVrFrame?.()
+ const store=_roots.get(document.querySelector('canvas')!)!.store,state=store.getState()
+ state.scene.updateMatrixWorld(true)
  const marker=state.scene.getObjectByName('vr-entrance-marker')!
  const point=marker.getWorldPosition(new Vector3()),forward=new Vector3(0,0,1).transformDirection(marker.matrixWorld)
- state.camera.position.copy(point).addScaledVector(forward,9).add(new Vector3(0,3.4,0))
- state.camera.lookAt(point.clone().addScaledVector(forward,-4));state.camera.updateMatrixWorld(true)
+ const frame=()=>{
+  state.camera.position.copy(point).addScaledVector(forward,detail?4.3:9).add(new Vector3(0,detail?6:3.4,0))
+  state.camera.lookAt(point.clone().addScaledVector(forward,detail?0:-4));state.camera.updateMatrixWorld(true)
+ }
+ releaseVrFrame=state.internal.subscribe({current:frame},.5,store)
+ frame()
  state.gl.render(state.scene,state.camera)
  return {position:point.toArray(),children:marker.children.length}
 }

@@ -32,9 +32,12 @@ import { GENERATED_PARK_ENABLED } from '../../park/mapSelection'
 import { constructionSites,canReachConstruction,openConstructionNotice } from '../construction/model'
 import { canReachRankingBoard,openRankingBoard,rankingBoardTarget } from '../rankingBoard/model'
 import { canReachParkVr, openParkVrZone, parkVrEntrance } from '../vrZone/parkBridge'
+import { canReachJumpmapGuide, jumpmapGuideScope, openJumpmapGuide } from '../jumpmap/guideState'
+import { START as JUMPMAP_START } from '../jumpmap/course'
+import { useJumpmap } from '../jumpmap/state'
 
 export interface ParkInteraction {
-  kind: 'bench' | 'table' | 'fitness' | 'telescope' | 'feedback' | 'notes' | 'bungeoppang' | 'construction' | 'ranking-board' | 'vr'
+  kind: 'bench' | 'table' | 'fitness' | 'telescope' | 'feedback' | 'notes' | 'bungeoppang' | 'construction' | 'ranking-board' | 'vr' | 'jumpmap-guide'
   id: string
   label: string
   seat?: 0 | 1
@@ -53,6 +56,11 @@ export function getParkInteraction(): ParkInteraction | null {
     || p.fitnessId || p.telescopeId || p.swimming || session.pending || benches.pending || fitness.pending
     || useTelescopeState.getState().pending || tableBusy() || useGame.getState().watchedGameId || panelOwnsKeys()) return null
   const choices: ParkInteraction[] = []
+  if (GENERATED_PARK_ENABLED && !useJumpmap.getState().run && canReachJumpmapGuide(p.current)) {
+    const distance=Math.hypot(p.current.x-JUMPMAP_START.x,p.current.z-JUMPMAP_START.z)
+    choices.push({kind:'jumpmap-guide',id:'jumpmap-guide',label:'돌탑 점프맵 안내',occupied:false,available:true,distance,
+      score:interactionScore(distance,{x:JUMPMAP_START.x,y:JUMPMAP_START.y+.12,z:JUMPMAP_START.z})})
+  }
   if(GENERATED_PARK_ENABLED&&canReachRankingBoard(p.current)){
     const [x,y,z]=rankingBoardTarget.reachPosition,distance=Math.hypot(p.current.x-x,p.current.z-z)
     choices.push({kind:'ranking-board',id:rankingBoardTarget.id,label:'랭킹 자세히 보기',occupied:false,available:true,distance,score:interactionScore(distance,{x,y,z})})
@@ -127,7 +135,8 @@ export function getParkInteraction(): ParkInteraction | null {
 export function interactWithPark(): boolean {
   const target = getParkInteraction()
   if (!target) return false
-  if (target.kind === 'ranking-board') openRankingBoard()
+  if (target.kind === 'jumpmap-guide') openJumpmapGuide(jumpmapGuideScope(useSession.getState()))
+  else if (target.kind === 'ranking-board') openRankingBoard()
   else if (target.kind === 'vr') openParkVrZone()
   else if (target.kind === 'construction') openConstructionNotice(target.id)
   else if (target.kind === 'bungeoppang') openBungeoppang()

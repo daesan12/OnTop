@@ -10,7 +10,7 @@ describe('original omok camera projection and transition', () => {
       const camera = new PerspectiveCamera(42, width / height)
       camera.position.set(frame.offsetX, frame.height, frame.offsetZ)
       camera.up.set(0, 0, -1); camera.lookAt(frame.offsetX, 0, frame.offsetZ); camera.updateMatrixWorld()
-      for (const x of [-.75, .75]) for (const z of [-.75, .75]) {
+      for (const x of [-.8, .8]) for (const z of [-.8, .8]) {
         const point = new Vector3(x * scale, 0, z * scale).project(camera)
         const screenX = (point.x + 1) * width / 2, screenY = (1 - point.y) * height / 2
         expect(screenX).toBeGreaterThan(insets.left); expect(screenX).toBeLessThan(width - insets.right)
@@ -24,7 +24,7 @@ describe('original omok camera projection and transition', () => {
       camera.position.set(0, omokTopDownHeight(camera.aspect, scale), 0)
       camera.quaternion.setFromRotationMatrix(new Matrix4().lookAt(camera.position, new Vector3(), new Vector3(0, 0, -1)))
       camera.updateMatrixWorld()
-      const p = new Vector3(.74 * scale, 0, 0).project(camera)
+      const p = new Vector3(.8 * scale, 0, 0).project(camera)
       expect(p.x * width / Math.min(width, height)).toBeCloseTo(.8, 10)
     }
   })

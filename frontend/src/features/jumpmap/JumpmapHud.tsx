@@ -5,8 +5,9 @@ import { GENERATED_PARK_ENABLED } from '../../park/mapSelection'
 import { START } from './course'
 import { useJumpmap } from './state'
 import { JumpmapOverlay } from './JumpmapOverlay'
+import { JumpmapGuide } from './JumpmapGuide'
 
-/** 반복 도전의 화면은 정보를 읽기만 한다. E·시작 요청·입력 잠금을 갖지 않는다. */
+/** 반복 도전 HUD와 선택형 출발 안내. 안내를 읽어야 도전할 수 있는 조건은 두지 않는다. */
 export function JumpmapHud() {
   const runtime = useParkRuntime()
   const loadRankings = useCallback((signal: AbortSignal) => runtime.requestJSON('/api/v1/minigames/jumpmap/rankings', { signal }), [runtime])
@@ -22,5 +23,5 @@ export function JumpmapHud() {
     }, 100)
     return () => clearInterval(timer)
   }, [])
-  return GENERATED_PARK_ENABLED ? <JumpmapOverlay state={state} now={frame.now} nearStart={frame.near} loadRankings={loadRankings} /> : null
+  return GENERATED_PARK_ENABLED ? <><JumpmapGuide /><JumpmapOverlay state={state} now={frame.now} nearStart={frame.near} loadRankings={loadRankings} /></> : null
 }
