@@ -1,5 +1,5 @@
 {
-  "description": "Accepted ranking-board facility and interaction entry retained with the new plaza, lantern, fish-shop counter, dice-ledger and duel-forfeit surfaces while preserving park tables/chairs. Approved jumpmap landing audio adapter and sound-layer diagnostic updated without geometry or placement changes (MR !258), 2026-10-31; authorized VR floor/start pad and plump jumpmap pastry, 2026-10-31. Merged pavilion bench/lantern clearance (f4af1d15), optional render-mode access for spectator collection tests (3ed52827), and fish-shop awning overlap repair (a4e53bb6), 2026-11-01. 사용자 QA 승인 범위의 돌 기단 겹침 제거, 오목 시각 높이의 게임 모듈 격리로 기존 맵 버전 유지, 2026-11-01. 돌 난간의 겹친 접지 밑면 제거, 2026-11-01. 사용자 요청에 따른 하늘·배경 산·경량 구름의 산뜻한 표현 보완, 바닥 타일·공원 조명·맵 배치 유지, 2026-11-01. 사용자 요청으로 전망대 메모함을 뒤로 0.45m 이동하고 공유 충돌 형상 추가, 2026-11-01.",
+  "description": "Accepted ranking-board facility and interaction entry retained with the new plaza, lantern, fish-shop counter, dice-ledger and duel-forfeit surfaces while preserving park tables/chairs. Approved jumpmap landing audio adapter and sound-layer diagnostic updated without geometry or placement changes (MR !258), 2026-10-31; authorized VR floor/start pad and plump jumpmap pastry, 2026-10-31. Merged pavilion bench/lantern clearance (f4af1d15), optional render-mode access for spectator collection tests (3ed52827), and fish-shop awning overlap repair (a4e53bb6), 2026-11-01. 사용자 QA 승인 범위의 돌 기단 겹침 제거, 오목 시각 높이의 게임 모듈 격리로 기존 맵 버전 유지, 2026-11-01. 돌 난간의 겹친 접지 밑면 제거, 2026-11-01. 사용자 요청에 따른 하늘·배경 산·경량 구름의 산뜻한 표현 보완, 바닥 타일·공원 조명·맵 배치 유지, 2026-11-01. 사용자 요청으로 전망대 메모함을 뒤로 0.45m 이동하고 공유 충돌 형상 추가, 2026-11-01. 사용자 요청으로 배경 구름 크기를 기존의 55%로 축소, 2026-11-01.",
   "files": {
     "src/layout-preview/districtGeometry.ts": "882709ac240a987c6d7fc5d8740f9d48e93851c586b232dfa05bacd7b70fe1ff",
     "src/layout-preview/existingTreeModel.ts": "fcb9c89c3c90e11ac5a5670a0498dae14184a10b1acac281523ad56ed4748826",
@@ -194,7 +194,7 @@
     "src/layout-preview/RankingBoardModel.tsx": "37496bbdc97a20ae0d16f79f8e005e8e54e753a731fe433c048eb66f5bfc9195",
     "src/layout-preview/rankingBoardRoofSeats.ts": "dfeebed6f3acdb238dd855aa65c12cc72adfb8c606964cca86a1a42bdb026a1d",
     "src/world/art/shopLanternLayout.ts": "a12a5e070c4ac1be12d3f29ef93bef162e0fb4c2cfd93099073d609abe89ee94",
-    "src/world/SimpleSkyClouds.tsx": "bf50890baa146f565dde99a6b6b56b5dfc6393783ecdf36ad10ae05aef833983"
+    "src/world/SimpleSkyClouds.tsx": "8f74a2ca95a0ca2f5629c998980da61fb7e9e95ffbb36f8f1bdd69e9722b25f8"
   },
   "preparedTableReview": {
     "date": "2026-11-01",
