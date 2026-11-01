@@ -6,7 +6,19 @@
 
 통합 후 재검증: FE 전체 단위 테스트 112개 파일/1,038개 통과, 소스·테스트 타입 검사 통과, 운영 빌드 및 M00–M14 배포 경계 검사 통과, 전용 Edge E2E 2개 통과. E2E의 예외/console.error/오류 오버레이가 없으며, 2026-10-29 캡처는 `OnTop/output/browser-guard-qa-20261029/browser-shortcuts-park.png`에 보관했다. 아래 2026-10-28 결과는 최초 구현 검증 기록이다.
 
-## 현재 정책: F12 및 Ctrl+Shift+I/J/C만 제한
+## 현재 정책: 브라우저별 개발 도구·소스 보기·닫기 키 보완 (2026-11-01)
+
+기준 `origin/dev@ba3583f9`, 브랜치 `fix/browser-shortcut-coverage-20261101`, 작업 위치 `OnTop/game-visual-feedback`. 공통 FE 입력 계층 `src/park/browserShortcuts.ts`만 변경한다. 게임 엔진·공개/개인 상태·WS/API·정산 계약·BE·DB·Flyway 변경은 없다. 기존 Ctrl+W 제한을 유지하고 macOS 및 Firefox 진입 키를 추가한다.
+
+Chrome/Edge 공통 키와 Firefox 전용 키는 아래 표를 따른다. Firefox 추가 키는 설치 시 user agent로 구분하여 Chrome/Edge의 Shift+F5 새로고침과 Ctrl+Shift+Z 다시 실행을 보존한다. user agent는 편의를 위한 분기이며 보안 판정에 사용하지 않는다. IME/AltGraph 입력은 유지한다.
+
+**페이지가 받은 이벤트에 한해서 기본 동작 취소를 시도한다. Ctrl+W/Command+W도 브라우저가 선점하면 탭이 닫힐 수 있다.** 브라우저 메뉴, 사용자 지정 단축키, Windows의 Win 키·Alt+Tab·Alt+F4·Ctrl+Alt+Delete, 주소창에 포커스된 입력, 이미 열린 개발 도구는 이 리스너로 통제하지 못한다. 키 차단을 비정상 HTTP/WS 요청 방지나 게임 무결성 보장으로 사용하지 않는다. 강제 전체화면·Keyboard Lock·반복 경고창·개발 도구 탐지·자동 기권은 추가하지 않는다.
+
+전용 QA: `pnpm test:e2e:browser-guard`는 최신 생성 맵(`park-integration`), `http://127.0.0.1:5236`, Chrome/Edge 1920×1080에서 실행한다. HTTP/WS는 `contractFixture` 대역이며 실제 서버 연동 검증과 구분한다. Firefox/macOS 전용 매핑은 단위 테스트로 검사하며 해당 OS/브라우저의 네이티브 단축키를 실제 실행한 검증은 아니다. 자동화 브라우저의 키 이벤트 취소 역시 OS 예약 키 차단의 증거가 아니다.
+
+검증 결과: 관련 단위 테스트 4개 파일/170개, 소스·테스트 타입 검사, 최신 맵 운영 빌드, 배포 경계 검사 통과. Chrome/Edge E2E 4개 통과: 공원 로딩·단축키 이벤트 취소·이동 정지·모달 우선순위·채팅 원문/포커스 유지·로그인 제외를 확인했다. pageerror·console.error·오류 오버레이 없음. 기존 Three.js/셰이더 및 큰 번들 경고는 남아 있다. Browser plugin not available에 따라 프로젝트 Playwright를 사용했다. pnpm 실행 시 sandbox 프로젝트 등록 symlink 권한 오류가 발생하여 같은 설치된 CLI를 Node로 직접 실행했다. 캡처는 `%TEMP%/ontop-fe-qa/browser-shortcuts-park.png`에 저장했다.
+
+## 이전 정책 기록: F12 및 Ctrl+Shift+I/J/C만 제한
 
 2026-10-29 원격 fetch로 확인한 최신 `dev` `d9711ba` 기준으로 사용자 요청의 Ctrl+Shift+I/J/C만 추가한다. F12의 기존 제한은 유지한다. Ctrl+Shift+K, macOS Command+Option+I/J/C, F5·Ctrl+F5·Ctrl+R·Ctrl+Shift+R·Command+R, F11, 저장·인쇄·소스 보기·일반 복사 등은 이 보호 계층에서 취소하지 않는다. Ctrl+Shift+I/J/C에 Alt 또는 Meta가 추가되거나 IME/AltGraph 조합 중이면 제한하지 않는다. 키보드의 문자 배치와 관계없이 물리 코드로 판정하고, 코드가 없는 환경은 key의 영문 대소문자를 정규화한다.
 
@@ -22,7 +34,7 @@
 
 ## 목적과 보장 범위
 
-게임 화면에 전달되는 F12 및 Ctrl+Shift+I/J/C의 기본 동작 취소를 시도하고, 해당 입력이나 화면 이탈 때 조작 상태가 남지 않도록 한다. **개발자 도구 접근 또는 부정 조작을 완전히 차단하는 보안 기능은 아니다.** 브라우저 메뉴, 이미 열린 개발자 도구, 원격 디버깅, 확장 프로그램, 직접 HTTP/WS 호출, 다운로드한 JS 수정은 FE가 통제하지 못한다. F11은 전체화면 전환이며 그 자체가 개발자 도구나 게임 조작 기능은 아니다.
+게임 화면에 전달되는 위 입력 정책의 단축키에 대해 기본 동작 취소를 시도하고, 해당 입력이나 화면 이탈 때 조작 상태가 남지 않도록 한다. **개발자 도구 접근 또는 부정 조작을 완전히 차단하는 보안 기능은 아니다.** 브라우저 메뉴, 이미 열린 개발자 도구, 원격 디버깅, 확장 프로그램, 직접 HTTP/WS 호출, 다운로드한 JS 수정은 FE가 통제하지 못한다. F11은 전체화면 전환이며 그 자체가 개발자 도구나 게임 조작 기능은 아니다.
 
 브라우저가 키를 페이지에 전달하지 않거나 취소 불가로 전달하면 제한할 수 없다. ESC를 통한 전체화면·마우스 고정 해제와 브라우저의 사용자 탈출 기능을 유지한다. 창 크기 차이·실행 시간·콘솔 접근으로 개발자 도구를 탐지하거나 강제 로그아웃/기권/패배/보상 회수를 하지 않는다.
 
@@ -39,18 +51,23 @@
 | F12 (수정키 포함) | 페이지에 전달된 취소 가능한 이벤트의 기본 동작 취소 시도 |
 | F11 | 전체화면 전환 허용 |
 | Ctrl+Shift+I/J/C (Alt·Meta 추가 없음) | 페이지에 전달된 취소 가능한 이벤트의 기본 동작 취소 시도 |
-| Ctrl+Shift+K | 기본 동작 허용 |
-| Command+Option+I/J/C/K, Command+Option+U | 기본 동작 허용 |
-| Ctrl 또는 Command + U/S/P/R (Shift 포함) | 소스 보기·저장·인쇄·새로고침 허용 |
-| F5 (수정키 포함) | 새로고침 허용 |
+| Command+Option+I/J/C, Command+Shift+C | 기본 동작 취소 시도 |
+| Ctrl+U, Command+Option+U | 소스 보기 기본 동작 취소 시도 |
+| Ctrl/Command+W, Ctrl/Command+Shift+W, Ctrl+F4 | 탭/창 닫기 기본 동작 취소 시도 (브라우저 선점 시 보장 불가) |
+| Firefox: Ctrl+Shift+K/E/M/Z, Ctrl+Alt+Shift+I | 추가 개발 도구 기본 동작 취소 시도 |
+| Firefox: Command+Option+K/E/M/Z, Command+Option+Shift+I | 추가 개발 도구 기본 동작 취소 시도 |
+| Firefox: Command+U | 소스 보기 기본 동작 취소 시도 |
+| Firefox: Shift+F5/F7/F9 | 프로파일러·스타일·저장소 도구 기본 동작 취소 시도 |
+| Ctrl 또는 Command + S/P/R (Shift 포함), F5, Ctrl+F5 | 저장·인쇄·새로고침 허용 |
+| Shift+F5, Ctrl+Shift+Z (Chrome/Edge) | 새로고침·다시 실행 허용 |
 | WASD/방향키/Shift/Space/E/V, R/Q/T 등 | 기존 게임 조작 유지 |
 | F1 / Esc / Tab | 기존 안내서·닫기·키보드 탐색 유지 |
 | Ctrl/Command + A/C/V/X/Z/Y, 찾기, 확대·축소 | 기존 편집·접근성 기능 유지 |
-| 브라우저 탭 닫기·주소창·탭 전환·이전 페이지 | 제한하지 않음 |
+| 주소창·탭 전환·이전 페이지·OS 예약 키 | 제한하지 않음 |
 | 텍스트 입력 중 IME 조합·AltGraph | 조합 입력 우선 |
 | 우클릭 | 기존 정책 유지: 공원 기본 메뉴 취소, 텍스트 편집 메뉴와 캐릭터 게임 메뉴 유지 |
 
-제한하는 네 종류의 keydown을 차단하고 같은 키의 keyup도 추적한다. 수정키를 먼저 떼어도 해당 keyup을 정리한다. 제한된 Ctrl 조합 입력이 Ctrl 단독 탭으로 잘못 판정되어 마우스 고정이 켜지는 경우를 방지한다. 이 네 종류 이외의 단축키는 이 보호 계층에서 기본 동작 취소·전파 중단·입력 정리 이벤트를 발생시키지 않는다. 실제 화면 이탈 이벤트에 따른 입력 정리는 별도 유지한다.
+제한 keydown과 같은 키의 keyup을 추적한다. 수정키를 먼저 떼어도 keyup을 정리하며, 제한된 Ctrl 조합이 Ctrl 단독 탭으로 오인되어 마우스 고정이 켜지지 않도록 한다. W 이동 중 Ctrl을 추가한 반복 입력도 첫 제한 입력에 포함하여 이동을 정지한다. 목록 밖 단축키에는 이 보호 계층이 개입하지 않는다. 실제 화면 이탈 이벤트에 따른 입력 정리는 별도 유지한다.
 
 ## 조작 정리
 
@@ -104,6 +121,11 @@ QA 캡처는 저장소 밖 `OnTop/output/browser-guard-qa/browser-shortcuts-park
 5. 개발자 도구를 먼저 열거나 직접 API를 호출해도 서버가 권한·시간·정산을 검증하는지 BE가 별도로 검증한다. 요청은 [BE 전달 문서](BROWSER_GAME_INTEGRITY_BE_REQUEST.md)를 사용한다.
 
 ## 근거
+
+- [Chrome DevTools 열기](https://developer.chrome.com/docs/devtools/open/), [Edge DevTools 단축키](https://learn.microsoft.com/en-us/microsoft-edge/devtools/shortcuts/): Windows/Linux 및 macOS 진입 조합.
+- [Firefox 도구 단축키](https://firefox-source-docs.mozilla.org/devtools-user/keyboard_shortcuts/), [Firefox 소스 보기](https://firefox-source-docs.mozilla.org/devtools-user/view_source/index.html): Firefox 추가 조합.
+- [Chrome 브라우저 단축키](https://support.google.com/chrome/answer/157179): 탭/창 닫기·소스 보기.
+- [Chrome Keyboard Lock](https://developer.chrome.com/docs/capabilities/web-apis/keyboard-lock): OS/브라우저 선점, 전체화면·권한 제약. 이번 변경에서 사용하지 않는다.
 
 - [MDN preventDefault](https://developer.mozilla.org/en-US/docs/Web/API/Event/preventDefault): 취소 불가능한 이벤트에는 기본 동작 취소가 효과가 없다.
 - [MDN Fullscreen API](https://developer.mozilla.org/en-US/docs/Web/API/Fullscreen_API): 사용자는 Esc 또는 F11 등으로 전체화면을 해제할 수 있다.
