@@ -98,7 +98,7 @@
 .bung-start-step-heading{min-height:40px;margin-bottom:8px;gap:8px}
 .bung-start-step-number{flex-basis:34px;height:34px;font-size:22px}
 .bung-start-step-heading h3{font-size:18px}
-.bung-start-steps>li>img{height:auto;aspect-ratio:auto;object-fit:contain;background:#eee2cf}
+.bung-start-steps>li>img{height:auto;aspect-ratio:800 / 686;object-fit:contain;background:#eee2cf}
 .bung-start-steps>li:not(:last-child)::after{right:-29px;font-size:25px}
 .bung-start-controls{margin-top:14px;padding:12px;gap:12px}
 .bung-start-controls h3{font-size:14px;margin-bottom:6px}

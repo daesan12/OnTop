@@ -6,6 +6,7 @@ import { useSession } from '../../network/worldClient'
 import { useGame } from '../../game/store'
 import { RewardFlightLedger, rewardCoinPose, type CoinPoint } from './rewardFlight'
 import './rewardCoinFlight.css'
+import { playSfx } from '../../audio/sfx'
 
 interface Flight { owner: string; room: string; receipt: string; amount: number; from: CoinPoint }
 const useFlight = create(() => ({ current: null as Flight | null }))
@@ -19,16 +20,21 @@ function center(node: HTMLElement | null) {
 }
 
 /** Attach only to a displayed, server-confirmed positive payout. Reopening cannot replay it. */
-export function RewardCoinSource({ receipt, amount, children }: { receipt: string; amount: number; children: ReactNode }) {
+export function RewardCoinSource({ receipt, amount, children, soundOnReveal = false }: { receipt: string; amount: number; children: ReactNode; soundOnReveal?: boolean }) {
   const source = useRef<HTMLSpanElement>(null)
   const owner = useSession(s => s.sessionId), connected = useSession(s => s.status === 'connected'), room = useSession(s => s.roomId)
   useEffect(() => {
     if (!receipt || !Number.isSafeInteger(amount) || amount <= 0 || !owner || !connected) return
-    let frame = 0, visible = false, done = false
+    let frame = 0, visible = false, done = false, sounded = false
     const attempt = () => {
       frame = 0
       if (done || !visible || document.hidden) return
       const from = center(source.current), to = center(walletIcon())
+      // 미니게임은 결과 화면에서 공원 지갑을 숨겨도 지급 문구가 보이면 소리를 낸다.
+      if (from && soundOnReveal && !sounded) {
+        sounded = true
+        if (ledger.claim(owner, `sound:${receipt}`, amount)) playSfx('coin-gain')
+      }
       if (!from || !to) return
       done = true
       if (ledger.claim(owner, receipt, amount)) useFlight.setState({ current: { owner, room, receipt, amount, from } })
@@ -40,7 +46,7 @@ export function RewardCoinSource({ receipt, amount, children }: { receipt: strin
     window.addEventListener('resize', schedule)
     document.addEventListener('visibilitychange', schedule)
     return () => { done = true; observer.disconnect(); cancelAnimationFrame(frame); window.removeEventListener('resize', schedule); document.removeEventListener('visibilitychange', schedule) }
-  }, [receipt, amount, owner, connected, room])
+  }, [receipt, amount, owner, connected, room, soundOnReveal])
   return <span ref={source} data-reward-coin-source={receipt || undefined}>{children}</span>
 }
 

@@ -62,13 +62,13 @@ function CustomerOrderCloud({ order, selected, done, counts, active, pending, er
   const stage = admitted ? speech : 'waiting';
   const summary = stage === 'summary', fillings = BREAD_FILLINGS.filter(f => order.items[f]);
   return <section ref={element => { registerCustomerCloudV5(order.orderId, element); }} className="bung25-order" aria-label={`${order.customerSlot + 1}번 자리 손님 주문`}
-    data-order-id={order.orderId} data-selected={selected} data-ready={done} data-stage={stage} aria-hidden={stage === 'waiting'}>
+    data-order-id={order.orderId} data-selected={selected} data-ready={done} data-complaint={complaintVisible} data-stage={stage} aria-hidden={stage === 'waiting'}>
     {stage !== 'waiting' && <><OrderCloud />
     <button type="button" className="bung25-select" aria-label={`${order.customerSlot + 1}번 손님 주문 선택`} aria-pressed={selected} disabled={!active || stage === 'greeting'}
       onClick={e => { e.currentTarget.blur(); if (selectBungeoppangCustomer(order.orderId)) advanceCustomerSpeechV5(order.orderId, 'summary'); }}>
       {selected && <span className="bung25-selected-mark" aria-hidden="true">✓</span>}
     </button>
-    {complaintVisible ? <p className="bung25-speech bung25-complaint" role="status">제가 먼저 왔어요!<br /><strong>컴플레인 −5점</strong></p> : summary ? <ul data-items={fillings.length} aria-label="주문 요약">{fillings.map(f => {
+    {complaintVisible ? <p className="bung25-speech bung25-complaint" role="alert"><span aria-hidden="true">⚠ </span>제가 먼저 왔어요!<br /><strong>컴플레인 −5점</strong></p> : summary ? <ul data-items={fillings.length} aria-label="주문 요약">{fillings.map(f => {
       const have = Math.min(counts[f], order.items[f]), complete = have === order.items[f];
       return <li key={f} data-complete={complete} style={ingredientStyle(f)} aria-label={`${BREAD_NAMES[f]} ${order.items[f]}개 주문, ${have}개 준비`}>
         <span className="bung25-order-food"><BreadPortraitV5 filling={f} /></span>
