@@ -51,4 +51,6 @@
 
 - 공원 맵 미변경: 게임기는 충돌이 없고 시설 점유·주변 관전 방송은 위치 확정 후 후속 작업이다. 위치는 `features/rpsRoulette/access.ts`의 값만 옮긴다.
 - DEV 화면 확인은 `VITE_RPS_ROULETTE_PREVIEW=true`의 대역 서비스로 할 수 있으며 실제 엽전과 연결되지 않는다.
+- 공원 E2E: `npx playwright test --config playwright.rps-roulette.config.ts`. 생성 공원 맵에서 게임기 앞 E → START → 비김 → 승리 →
+  도전 1차 → 멈춤·룰렛 지급 → 설명서까지 진행한다. HTTP/WS는 계약 대역이며 실제 서버·엽전 검수가 아니다.
 - 효과음은 기존 `coin-gain`(지급)만 연결했다. 전용 효과음은 별도 작업이다.

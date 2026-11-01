@@ -128,15 +128,25 @@ function RpsRouletteDialog() {
   const range = round ? payoutRange(round.fee, round.multiplier) : null
   const message = statusLine({ round, busy, error, revealing, spinning, timeUp, playsLeft })
 
-  const onKeyDown = (event: React.KeyboardEvent) => {
-    event.stopPropagation()
-    if (event.nativeEvent.isComposing || event.repeat) return
-    const index = ['1', '2', '3'].indexOf(event.key)
-    if (index >= 0 && canHand) { event.preventDefault(); playRpsHand(HANDS[index]) }
-    else if (event.key === 'Enter' && canStart && event.target === dialog.current) { event.preventDefault(); void startRpsRound() }
-  }
+  // 누른 버튼이 잠기면 포커스가 창 밖으로 빠지므로 창이 열린 동안의 키 입력을 문서에서 받는다.
+  // 공원 단축키는 열린 dialog 때문에 panelOwnsKeys()로 이미 막혀 있다.
+  const keys = useRef({ canHand, canStart })
+  keys.current = { canHand, canStart }
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.isComposing || event.repeat || document.querySelectorAll('dialog[open]').length > 1) return
+      const index = ['1', '2', '3'].indexOf(event.key)
+      if (index >= 0 && keys.current.canHand) { event.preventDefault(); playRpsHand(HANDS[index]) }
+      else if (event.key === 'Enter' && keys.current.canStart
+        && !(event.target instanceof HTMLElement && event.target.closest('button,input,select,textarea'))) {
+        event.preventDefault(); void startRpsRound()
+      }
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [])
 
-  return <dialog ref={dialog} className="rps-roulette" aria-labelledby="rps-roulette-title" onKeyDown={onKeyDown}
+  return <dialog ref={dialog} className="rps-roulette" aria-labelledby="rps-roulette-title"
     onCancel={event => { event.preventDefault(); closeRpsRoulette() }}>
     <header className="rps-roulette-top">
       <h2 id="rps-roulette-title">가위바위보 룰렛</h2>
