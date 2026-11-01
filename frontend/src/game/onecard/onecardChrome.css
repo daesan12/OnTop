@@ -135,7 +135,7 @@
   .park-page .onecard-game-hud.onecard-panel[data-role=PLAYER] .onecard-recovery-controls { top:auto; bottom:170px; z-index:2; }
 }
 /* Short landscape screens reserve a clear column for the unchanged chat footprint. */
-@media(max-height:740px) and (min-width:601px) {
+@media(max-height:650px) and (min-width:601px) {
   .park-page .onecard-game-hud.onecard-panel .onecard-hand { width:calc(100% - 300px); align-self:flex-end; }
 }
 .park-page .onecard-game-hud.onecard-panel[data-role=SPECTATOR] .onecard-recovery-controls { border-color:#bda26c; background:linear-gradient(150deg,#244d40f7,#12362ff7); border-radius:12px; box-shadow:0 5px 18px #142e2533; }

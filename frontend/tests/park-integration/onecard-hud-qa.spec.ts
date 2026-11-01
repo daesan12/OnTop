@@ -57,6 +57,10 @@ test('동일한 크기의 채팅이 기록·입력·긴 손패를 가리지 않�
       }).toBe(true)
       expect((await chat.boundingBox())!.width).toBeCloseTo(230,0)
       expect((await chat.boundingBox())!.height).toBeCloseTo(138,0)
+      if(size.height>650){
+        const fan=(await page.getByLabel('나만 볼 수 있는 카드').boundingBox())!
+        expect(fan.x+fan.width/2).toBeCloseTo(size.width/2,0)
+      }
       await expect(page.getByRole('button',{name:'드로우',exact:true})).toBeInViewport()
       await expect(page.getByRole('button',{name:'뿅망치 들기',exact:false})).toBeInViewport()
       if(count===7) await screenshot(page,`onecard-hud-${size.width}`)
