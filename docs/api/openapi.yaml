@@ -6400,6 +6400,7 @@ components:
       - okFrom
       - okPoint
       - pointsPerCoin
+      - queueComplaintPenalty
       - rushFromMs
       - rushSideMs
       - sameSlotGapMs
@@ -6489,6 +6490,9 @@ components:
         maxActiveOrders:
           type: integer
           format: int32
+        queueComplaintPenalty:
+          type: integer
+          format: int32
     BungeoppangV5Order:
       required:
       - availableAfterSeq
@@ -6510,6 +6514,7 @@ components:
     BungeoppangV5Checkpoint:
       required:
       - activeOrders
+      - complainedOrderIds
       - heatCursor
       - lastAt
       - prefixHash
@@ -6549,6 +6554,10 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/BungeoppangV5Order"
+        complainedOrderIds:
+          type: array
+          items:
+            type: string
     BungeoppangV5StartResponse:
       required:
       - checkpoint
