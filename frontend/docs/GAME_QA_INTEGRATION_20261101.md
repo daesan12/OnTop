@@ -50,3 +50,13 @@ Jenkins #232의 전체 BE 검사에서 붕어빵의 추가 응답 필드와 정�
 통합 Edge `node node_modules/@playwright/test/cli.js test --config playwright.omok-polish.config.ts` 16개 모두 통과했다. 양쪽 좌석의 흑/백 돌통, 두 면 좌표 텍스처, 1920/1366/390 HUD·기권창과 안전한 초기 포커스/Tab/Esc/입력 차단/설명서, 엽전 던지기와 AudioBufferSource 실제 착수음 시작/중복 무음, 테이블 대기 중 E 관전 차단·오목/원카드 종료 복귀·팔각정 벤치와 다음 경기 명시적 관전, 4개 돌 테이블의 채팅/핑/승인 거절 재시도/종료 복귀, 기존 원카드 분배·채팅·기권 카드·15초 정리 및 오목/장부 잔해·청소를 확인했다. 이전 장부 잔해 검사의 13개 기대값은 현재 판 1+엽전 12+주사위 5 계약인 18개로 맞췄다.
 
 Browser plugin not available로 기존 Edge/Playwright를 사용했다. UI 검증은 HTTP/WS 계약 대역이며 BE 소켓 검사도 인증/시간/저장소 일부 대역을 사용한다. 실제 운영 사용자 경기·MySQL 정산 및 음향 청감 선호를 보장하지 않는다. 기존 Three.js/셰이더·큰 번들 경고 외 새 pageerror/console.error/오류 오버레이는 없었다. 한국어 커밋/MR/머지 메시지를 사용하고 Jenkins DEV 성공 확인 후 작업 브랜치를 삭제한다.
+
+## 착석 안내 단순화·오목 좌상단 원점 통합
+
+기준 origin/dev@77320270을 작업 전·통합 직전 fetch로 확인했다. 오목 전용 OnTop/qa-omok-polish-20261101의 검증 커밋 706ee198을 OnTop/game-visual-feedback의 fix/table-hint-omok-origin-20261101에 통합했다. 담당 범위는 OMOK 2인 표시 코드와 공통 ParkInteractionHint의 방 요약 제거다. 공원 테이블 접근 안내에는 E 테이블에 앉기만 남기고 게임 선택 중·판돈 미정·방 설정 요약을 표시하지 않는다. 기존 dev에서 이미 제거된 테이블 정보·관전 보조 버튼은 다시 추가하지 않는다. 실제 진행 경기의 관전, 착석 후 태블릿의 금액 확인·동의와 금액 변경 시 재동의는 유지한다.
+
+양쪽 플레이어와 관전 판 보기에서 좌상단 A1, 위쪽 A→O·왼쪽 1→15를 확인했다. 반대 좌석의 표시·돌·미리보기·핑·실제 피킹을 함께 회전하고 돌통은 좌석 가까이에 유지한다. 서버 x/y·공개/개인 상태·기권·정산 계약, 공통 카메라, 맵/코스, BE·DB·Flyway와 V133은 변경하지 않았다.
+
+독립 오목 단위 48개 및 Edge 3개 통과 후, 통합 위치의 playwright.omok-polish.config.ts(5245) 16개와 playwright.park.config.ts park-feedback-v2.spec.ts --grep 'retained room'(5202) 1개가 모두 통과했다. 실제 좌상단 클릭의 x=0,y=0 요청/마지막 수, 관전 A1 핑의 위치·착수 미전송, 양쪽 흑/백 돌통, 반응형 HUD·중앙 기권, 경기 종료 복귀/팔각정 재관전, 원카드 분배·기권 카드·15초 제거 및 장부 회귀를 포함한다. 타입·프로덕션 빌드·경계·맵/코스 전달물·dev 충돌 검사 통과. 최신 맵 c05d8ada, 코스 e6cd40d0 유지.
+
+Browser plugin not available로 기존 Edge/Playwright를 사용했다. HTTP/WS는 계약 대역으로 실제 운영 사용자 경기/정산과 구분한다. 기존 Three/셰이더·번들 경고 외 pageerror/console.error/오류 오버레이 없음. 캡처는 저장소 외부에 보관한다. 한국어 커밋/MR/머지 후 Jenkins DEV 성공을 확인한 다음 이번 작업 브랜치만 삭제한다.
