@@ -21,8 +21,19 @@ test('latest park has a visible VR start marker and keeps the approach walkable'
  await page.getByRole('button',{name:/E VR 게임 선택/}).click()
  await expect(page.getByRole('dialog',{name:'VR 게임 선택',exact:true})).toBeVisible()
  await page.getByRole('button',{name:'VR 게임 선택 닫기',exact:true}).click()
+ // Keep the inlay visible beside the avatar and inspect it in both lighting states.
+ const beside={...entrance,x:entrance.x-Math.cos(entrance.yaw)*2.1,z:entrance.z+Math.sin(entrance.yaw)*2.1}
+ server.pose(beside)
+ await expect.poll(()=>page.evaluate(async()=>(await import('/tests/park-integration/probe.ts' as string)).renderedOwnPosition()?.[2])).toBeCloseTo(beside.z,1)
+ await page.evaluate(async()=>(await import('/tests/e2e/sceneProbe.ts' as string)).visualTime(.5))
+ await expect.poll(()=>page.evaluate(async()=>(await import('/src/world/environmentState.ts' as string)).environmentFrame.daylight)).toBeGreaterThan(.95)
  const marker=await page.evaluate(async()=>(await import('/tests/park-integration/probe.ts' as string)).frameVrEntrance())
  expect(marker.children).toBe(3);await screenshot(page,'feedback-v3-vr-entrance')
+ await page.evaluate(async()=>(await import('/tests/park-integration/probe.ts' as string)).frameVrEntrance(true))
+ await screenshot(page,'vr-stone-inlay-detail-day')
+ await page.evaluate(async()=>(await import('/tests/e2e/sceneProbe.ts' as string)).visualTime(.02))
+ await expect.poll(()=>page.evaluate(async()=>(await import('/src/world/environmentState.ts' as string)).environmentFrame.night)).toBeGreaterThan(.9)
+ await screenshot(page,'vr-stone-inlay-detail-night')
 })
 
 test('jumpmap standalone preview supports start, fall, final-pad result and close',async({page})=>{

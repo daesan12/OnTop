@@ -62,13 +62,19 @@ export function frameHallSign(name:string){
  state.gl.render(state.scene,state.camera)
 }
 
-export function frameVrEntrance(){
- const state=_roots.get(document.querySelector('canvas')!)!.store.getState()
- state.setFrameloop('never');state.scene.updateMatrixWorld(true)
+let releaseVrFrame:(()=>void)|undefined
+export function frameVrEntrance(detail=false){
+ releaseVrFrame?.()
+ const store=_roots.get(document.querySelector('canvas')!)!.store,state=store.getState()
+ state.scene.updateMatrixWorld(true)
  const marker=state.scene.getObjectByName('vr-entrance-marker')!
  const point=marker.getWorldPosition(new Vector3()),forward=new Vector3(0,0,1).transformDirection(marker.matrixWorld)
- state.camera.position.copy(point).addScaledVector(forward,9).add(new Vector3(0,3.4,0))
- state.camera.lookAt(point.clone().addScaledVector(forward,-4));state.camera.updateMatrixWorld(true)
+ const frame=()=>{
+  state.camera.position.copy(point).addScaledVector(forward,detail?4.3:9).add(new Vector3(0,detail?6:3.4,0))
+  state.camera.lookAt(point.clone().addScaledVector(forward,detail?0:-4));state.camera.updateMatrixWorld(true)
+ }
+ releaseVrFrame=state.internal.subscribe({current:frame},.5,store)
+ frame()
  state.gl.render(state.scene,state.camera)
  return {position:point.toArray(),children:marker.children.length}
 }

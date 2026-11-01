@@ -46,6 +46,7 @@ import { PlannedCity } from '../world/art/PlannedCity'
 import { EnvironmentScene } from '../world/EnvironmentScene'
 import { fitnessRestArt,fountainTerrain } from './districtGeometry'
 import { vrEntrance } from '../features/vrZone/anchors'
+import { VrEntranceMarker } from '../features/vrZone/VrEntranceMarker'
 
 const groveTreeModels=existingTreeModel(trunks,crowns)
 const shoreTreeModels=existingTreeModel(shoreTrunks,shoreCrowns)
@@ -62,7 +63,6 @@ const zoneSigns={vr:sign('VR 체험관','VIRTUAL REALITY'),folk:sign('민속놀�
 // The front beam ends at z=3.8 and its trim at z=3.88; keep lettering clear of both.
 const hallSignPosition:[number,number,number]=[0,3.55,3.94]
 const vrStart=vrEntrance(SITES.vr,VR_YAW)
-const vrStartSign=sign('VR 체험 시작','E 키로 게임 선택')
 const inspectPreviewTable=()=>{} // No live commands from the layout-review entry.
 
 export function PreviewLight({night}:{night:boolean}) {
@@ -110,11 +110,7 @@ export const PreviewWorld=memo(function PreviewWorld({live=false,onRankingBoardI
       <PropModel art={vrBoothArt} name="folk-hanok-model"/>
       <group name="layout-folk-sign"><PropSign position={hallSignPosition} width={3.4} height={.65} draw={zoneSigns.folk}/></group>
     </group>
-    <group name="vr-entrance-marker" position={[vrStart.x,.18,vrStart.z]} rotation={[0,VR_YAW,0]} userData={{walkable:false}}>
-      <mesh rotation={[-Math.PI/2,0,0]}><ringGeometry args={[1.3,1.5,48]}/><meshStandardMaterial color="#b89349" roughness={.8}/></mesh>
-      <mesh rotation={[-Math.PI/2,0,0]} position={[0,.004,0]}><circleGeometry args={[1.29,48]}/><meshStandardMaterial color="#204b42" roughness={.9}/></mesh>
-      <PropSign position={[0,.012,0]} rotation={[-Math.PI/2,0,0]} width={2.2} height={1.1} draw={vrStartSign}/>
-    </group>
+    <VrEntranceMarker entrance={vrStart}/>
     <StonePagoda anchor={{...VR_PAGODA,x:SITES.vrPagoda.x,z:SITES.vrPagoda.z}}/>
     {!live&&<PreviewJumpCourse/>}
     <PropModel art={pagodaBalustradeArt} name="layout-central-pagoda-stone-balustrade"/>
