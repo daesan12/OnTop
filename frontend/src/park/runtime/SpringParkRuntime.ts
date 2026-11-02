@@ -320,10 +320,23 @@ export class ParkRuntime implements ParkRuntimePort {
     }
     clearTimeout(this.actionErrorTimer)
     this.actionErrorTimer = undefined
-    if (this.active)
+    if (this.active) {
       useSession.setState({
         error: error instanceof Error ? error.message : String(error),
       })
+      this.expireActionError()
+    }
+  }
+  private expireActionError() {
+    clearTimeout(this.actionErrorTimer)
+    const { status, error: message } = useSession.getState(), generation = this.generation
+    if (status !== 'connected' || !message) return
+    this.actionErrorTimer = setTimeout(() => {
+      this.actionErrorTimer = undefined
+      const current = useSession.getState()
+      if (this.active && generation === this.generation && current.status === 'connected'
+        && current.error === message) useSession.setState({ error: '' })
+    }, 3000)
   }
   private authEnded() {
     this.notesChanges.reset()
@@ -652,6 +665,7 @@ export class ParkRuntime implements ParkRuntimePort {
         (message.requestId !== null && message.requestId !== this.tableWatchRequestId)) return
     }
     receive(message,this.mapAdmission.expected.mapVersion)
+    if (message.type === 'ERROR') this.expireActionError()
     if (serverFacilities) {
       if (message.type === 'WORLD_FACILITY_STATE') this.facilities.accept(message)
       if (message.type === 'WORLD_STATE') {
@@ -765,15 +779,6 @@ export class ParkRuntime implements ParkRuntimePort {
     } catch (error) {
       if (generation === this.generation) {
         this.report(error)
-        const { status, error: message } = useSession.getState()
-        if (status === 'connected' && message && !(error instanceof FacilityUseBlockedError)) {
-          this.actionErrorTimer = setTimeout(() => {
-            this.actionErrorTimer = undefined
-            const current = useSession.getState()
-            if (this.active && generation === this.generation && current.status === 'connected'
-              && current.error === message) useSession.setState({ error: '' })
-          }, 2000)
-        }
       }
       return false
     } finally {
