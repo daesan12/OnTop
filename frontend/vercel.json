@@ -23,5 +23,7 @@
     { "source": "/admin", "destination": "/index.html" },
     { "source": "/admin/feedback", "destination": "/index.html" },
     { "source": "/admin/analytics", "destination": "/index.html" }
-  ]
+  ],
+  "buildCommand": "VITE_PARK_BINDINGS_URL=/park-bindings.generated.prod.json pnpm run build:park",
+  "outputDirectory": "dist-park"
 }
