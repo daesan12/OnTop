@@ -14,6 +14,7 @@ final class GameDeliveryScope {
     private boolean closed;
     private boolean left;
     private boolean starting;
+    private final java.util.Set<String> departedGames = new java.util.HashSet<>();
     private final Map<String, Delivery> pendingResults = new java.util.LinkedHashMap<>();
 
     GameDeliveryScope(TableProtocol protocol, Consumer<String> output) {
@@ -39,9 +40,13 @@ final class GameDeliveryScope {
         return !closed && candidate != null && candidate.equals(gameId);
     }
 
+    synchronized void rememberDeparture(String gameId) { departedGames.add(gameId); }
+    synchronized boolean hasDeparted(String gameId) { return departedGames.contains(gameId); }
+
     synchronized void recovery(String requestId, View view) {
         if (closed) { return; }
-        if (view.status().equals("FINISHED") && !allowsFinished(view.gameId())
+        if ((view.status().equals("FINISHED") || view.status().equals("ELIMINATED"))
+                    && !allowsFinished(view.gameId())
                 || left && view.status().equals("RESTORED")) {
             view = new View("LOBBY", null, null, null, null, null);
         }

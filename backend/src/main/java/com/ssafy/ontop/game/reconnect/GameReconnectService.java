@@ -73,6 +73,12 @@ public class GameReconnectService {
 
     public synchronized void connected(long userId, String sessionId, String loginSessionId,
             BiConsumer<String, View> output, java.util.function.Predicate<String> finishedAllowed) {
+        connected(userId, sessionId, loginSessionId, output, finishedAllowed, game -> false);
+    }
+
+    public synchronized void connected(long userId, String sessionId, String loginSessionId,
+            BiConsumer<String, View> output, java.util.function.Predicate<String> finishedAllowed,
+            java.util.function.Predicate<String> departed) {
         if (!recoveryConfigured() || stopped) {
             return;
         }
@@ -84,6 +90,7 @@ public class GameReconnectService {
         slot.pendingDeparture = null;
         slot.output = output;
         slot.finishedAllowed = finishedAllowed;
+        slot.departed = departed;
         slot.returnedInTime = slot.deadline != null && clock.instant().isBefore(slot.deadline)
                 && slot.expiration == null;
         slot.loading = false;
@@ -419,12 +426,14 @@ public class GameReconnectService {
 
     private void apply(Slot slot, Optional<GameRecoverySnapshot> result, boolean activeMarker, String requestId) {
         // 종료 이력은 활성 복구와 분리한다. 기존 기권 영수증 재확인 권한은 유지한다.
-        slot.finishedReceiptGameId = result.filter(snapshot -> snapshot.phase() == Phase.FINISHED)
+        slot.finishedReceiptGameId = result.filter(snapshot -> snapshot.phase() != Phase.PLAYING)
                 .map(GameRecoverySnapshot::gameId).orElse(null);
+        // 좌석/종료 이력 부재만으로 풀지 않고, 서버가 확인한 참가 종료만 복귀를 허용한다.
         boolean hiddenActiveTerminal = activeMarker && result.filter(snapshot -> snapshot.phase() == Phase.FINISHED)
-                .filter(snapshot -> !slot.finishedAllowed.test(snapshot.gameId())).isPresent();
-        result = result.filter(snapshot -> snapshot.phase() != Phase.FINISHED
-                || slot.finishedAllowed.test(snapshot.gameId()));
+                .filter(snapshot -> !slot.finishedAllowed.test(snapshot.gameId())
+                        && !slot.departed.test(snapshot.gameId())).isPresent();
+        result = result.filter(snapshot -> !slot.departed.test(snapshot.gameId()))
+                .filter(snapshot -> snapshot.phase() != Phase.FINISHED || slot.finishedAllowed.test(snapshot.gameId()));
         slot.snapshot = result.orElse(null);
         if (hiddenActiveTerminal) {
             // DB 예약이 남은 종결 경기를 현재 테이블 이력 부재만으로 LOBBY라고 하지 않는다.
@@ -526,6 +535,7 @@ public class GameReconnectService {
         private GameDepartureReason pendingDeparture;
         private BiConsumer<String, View> output;
         private java.util.function.Predicate<String> finishedAllowed = game -> true;
+        private java.util.function.Predicate<String> departed = game -> false;
         private long generation;
         private boolean loading;
         private String loadRequestId;

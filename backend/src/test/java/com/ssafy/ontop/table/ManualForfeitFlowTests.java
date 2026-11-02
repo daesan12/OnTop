@@ -91,7 +91,7 @@ class ManualForfeitFlowTests {
                 var third = connect("spectator", "RESTORED")) {
             assertThat(second.request("GAME_FORFEIT", Map.of("gameId", "multi", "actionId", "leave"))
                     .path("type").asText()).isEqualTo("GAME_FORFEIT_RESULT");
-            second.state("ELIMINATED");
+            second.state("LOBBY");
             assertThat(second.request("GAME_ACTION_SEND", Map.of("gameId", "multi", "actionId", "revive",
                     "expectedVersion", 1, "input", Map.of("kind", "draw")))
                     .at("/payload/code").asText()).isEqualTo("GAME_RECOVERY_REQUIRED");
