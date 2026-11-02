@@ -43,8 +43,12 @@ public class Wallet {
     }
 
     public void debit(long total) {
+        debit(total, Instant.now());
+    }
+
+    public void debit(long total, Instant now) {
         balance -= total;
-        updatedAt = Instant.now();
+        updatedAt = Objects.requireNonNull(now).truncatedTo(ChronoUnit.MILLIS);
     }
 
     public void reserveGameEntry(Instant now) {

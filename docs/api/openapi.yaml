@@ -269,6 +269,82 @@ paths:
                 - $ref: "#/components/schemas/ShopErrorResponse"
       security:
       - AccessJwt: []
+  /api/v1/raffles/current/tickets:
+    post:
+      tags:
+      - Raffle
+      summary: 응모권 한 장 구매
+      description: 주간 최대 10장까지 미사용 번호 한 개를 배정하고 100냥을 차감합니다. 같은 키는 기존 결과를 반환합니다.
+      operationId: purchase_1
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        description: 영문·숫자·밑줄·하이픈 1~64자
+        required: true
+        schema:
+          maxLength: 64
+          minLength: 1
+          pattern: "^[A-Za-z0-9_-]{1,64}$"
+          type: string
+      responses:
+        "200":
+          description: 성공
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RafflePurchaseResponse"
+        "400":
+          description: INVALID_REQUEST
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+        "401":
+          description: UNAUTHENTICATED
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+        "409":
+          description: RAFFLE_SALES_CLOSED / RAFFLE_WEEKLY_LIMIT_REACHED / INSUFFICIENT_BALANCE
+            / WALLET_NOT_READY / RAFFLE_NUMBERS_EXHAUSTED
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+        "503":
+          description: RAFFLE_NOT_CONFIGURED / RAFFLE_UNAVAILABLE
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+      security:
+      - AccessJwt: []
   /api/v1/notes:
     get:
       tags:
@@ -3965,6 +4041,60 @@ paths:
                 $ref: "#/components/schemas/AuthErrorResponse"
       security:
       - AccessJwt: []
+  /api/v1/raffles/current:
+    get:
+      tags:
+      - Raffle
+      summary: 이번 주 응모권 조회
+      description: KST 월요일 09:00부터 다음 월요일 00:00까지 판매하는 이번 주 응모권과 지갑 상태를 조회합니다.
+      operationId: current
+      responses:
+        "200":
+          description: 성공
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/CurrentRaffleResponse"
+        "401":
+          description: UNAUTHENTICATED
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+        "409":
+          description: WALLET_NOT_READY
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+        "503":
+          description: RAFFLE_NOT_CONFIGURED / RAFFLE_UNAVAILABLE
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+      security:
+      - AccessJwt: []
   /api/v1/minigames/sessions/{sessionId}:
     get:
       tags:
@@ -4932,6 +5062,33 @@ components:
         details:
           type: object
           nullable: true
+    RafflePurchaseResponse:
+      type: object
+      properties:
+        ticketId:
+          type: integer
+          format: int64
+        roundId:
+          type: integer
+          format: int64
+        ticketNumber:
+          type: integer
+          format: int32
+        purchasePrice:
+          type: integer
+          format: int64
+        purchasedAt:
+          type: string
+          format: date-time
+        balanceAfter:
+          type: integer
+          format: int64
+        purchasedCount:
+          type: integer
+          format: int32
+        remainingCount:
+          type: integer
+          format: int32
     NoteReceiptResponse:
       required:
       - nextAllowedAt
@@ -6350,6 +6507,60 @@ components:
           items:
             $ref: "#/components/schemas/JumpmapItem"
         updatedAt:
+          type: string
+          format: date-time
+    CurrentRaffleResponse:
+      type: object
+      properties:
+        roundId:
+          type: integer
+          format: int64
+        weekStartDate:
+          type: string
+          format: date
+        salesStatus:
+          type: string
+        salesStartsAt:
+          type: string
+          format: date-time
+        salesEndsAt:
+          type: string
+          format: date-time
+        ticketPrice:
+          type: integer
+          format: int64
+        weeklyLimit:
+          type: integer
+          format: int32
+        purchasedCount:
+          type: integer
+          format: int32
+        remainingCount:
+          type: integer
+          format: int32
+        balance:
+          type: integer
+          format: int64
+        reservedBalance:
+          type: integer
+          format: int64
+        availableBalance:
+          type: integer
+          format: int64
+        tickets:
+          type: array
+          items:
+            $ref: "#/components/schemas/RaffleTicketResponse"
+    RaffleTicketResponse:
+      type: object
+      properties:
+        ticketId:
+          type: integer
+          format: int64
+        ticketNumber:
+          type: integer
+          format: int32
+        purchasedAt:
           type: string
           format: date-time
     NoteListResponse:
