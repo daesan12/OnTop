@@ -130,7 +130,7 @@ fi
 set -euo pipefail
 pnpm install --frozen-lockfile
 pnpm map:check
-VITE_PARK_BINDINGS_URL=/park-bindings.generated.dev.json pnpm run build:park
+VITE_ALKKAGI_ENABLED=true VITE_PARK_BINDINGS_URL=/park-bindings.generated.dev.json pnpm run build:park
 '''
                 }
             }
@@ -147,7 +147,7 @@ pnpm map:check
 pnpm run test
 pnpm run build
 if [[ "$TEST_PARK_MAP" != 1 ]]; then
-  VITE_PARK_BINDINGS_URL=/park-bindings.generated.dev.json pnpm run build:park
+  VITE_ALKKAGI_ENABLED=true VITE_PARK_BINDINGS_URL=/park-bindings.generated.dev.json pnpm run build:park
 fi
 '''
                 }

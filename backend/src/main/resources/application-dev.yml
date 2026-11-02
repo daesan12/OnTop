@@ -8,6 +8,9 @@ ontop:
   game-start:
     enabled: ${GAME_START_ENABLED:false}
   games:
+    # V137 참가 인원 제약과 공통 종료 정산 검증을 함께 배포한다.
+    alkkagi:
+      enabled: ${GAME_ALKKAGI_ENABLED:true}
     omok:
       enabled: ${GAME_OMOK_ENABLED:false}
     farkle:
