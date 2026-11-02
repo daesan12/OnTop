@@ -34,13 +34,15 @@ for (const durationMs of [120000, 180000]) test(`new park preserves score/combo 
   const first = { rank: 1, userId: '102', nickname: '먼저 완료', score: 1200, maxCombo: 12, completedAt: '2026-10-29T08:00:00Z' };
   const second = { ...first, userId: '103', nickname: '나중 완료', completedAt: '2026-10-29T09:00:00Z' };
   const me = { ...first, rank: 3, userId: '101', nickname: '새 맵 검증', maxCombo: 8, completedAt: '2026-10-29T07:00:00Z' };
+  const lower = Array.from({ length: 27 }, (_, i) => ({ ...first, rank: i + 4, userId: String(i + 104), nickname: `랭킹 참여자 ${i + 4}`, score: 1000 - i }));
   let reads = 0;
   await page.route('**/api/v1/minigames/bungeoppang/rankings?**', route => {
     const query = new URL(route.request().url()).searchParams; reads++;
     expect(query.get('rulesVersion')).toBe('v5'); expect(query.get('durationMs')).toBe(String(durationMs));
     return route.fulfill({ json: { rulesVersion: 'v5', durationMs, period: 'ALL_TIME', basis: 'PERSONAL_BEST',
-      snapshotId: `generated-${durationMs}`, updatedAt: '2026-10-29T10:00:00Z', totalParticipants: 3,
-      items: query.has('cursor') ? [me] : [first, second], me, nextCursor: query.has('cursor') ? null : 'next' } });
+      snapshotId: `generated-${durationMs}`, updatedAt: '2026-10-29T10:00:00Z', totalParticipants: 30,
+      items: query.get('cursor') === 'last' ? lower.slice(17) : query.has('cursor') ? [me, ...lower.slice(0, 17)] : [first, second],
+      me, nextCursor: query.get('cursor') === 'last' ? null : query.has('cursor') ? 'last' : 'next' } });
   });
   await page.evaluate(async duration => {
     const { useBungeoppang } = await import('/src/features/bungeoppang/store.ts' as string);
@@ -63,14 +65,33 @@ for (const durationMs of [120000, 180000]) test(`new park preserves score/combo 
   await expect(rows.nth(0)).toContainText('먼저 완료'); await expect(rows.nth(1)).toContainText('나중 완료');
   for (const row of await rows.all()) await expect(row).toContainText('1위');
   await ranking.getByRole('button', { name: '다음 순위 더 보기', exact: true }).click();
-  await expect(rows).toHaveCount(3); await expect(rows.nth(2)).toContainText('3위');
+  await expect(rows).toHaveCount(20);
+  await ranking.getByRole('button', { name: '다음 순위 더 보기', exact: true }).click();
+  await expect(rows).toHaveCount(30); await expect(rows.nth(2)).toContainText('3위');
   await expect(rows.nth(2)).toContainText('8콤보');
-  await screenshot(page, `generated-score-combo-${durationMs}`, 'disabled');
-  await page.setViewportSize({ width: 390, height: 844 });
-  await expect(ranking.getByRole('columnheader', { name: '최대 콤보', exact: true })).toBeVisible();
-  expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
-  await screenshot(page, `generated-score-combo-${durationMs}-mobile`, 'disabled');
-  expect(reads).toBe(2); expect(errors).toEqual([]);
+  for (const viewport of [{ width: 1920, height: 1080 }, { width: 1366, height: 768 }, { width: 1280, height: 720 }, { width: 800, height: 600 }, { width: 390, height: 844 }]) {
+    await page.setViewportSize(viewport);
+    await ranking.evaluate(node => { node.scrollTop = 0 });
+    await expect(ranking.getByRole('columnheader', { name: '최대 콤보', exact: true })).toBeInViewport();
+    await expect(ranking).toHaveCSS('scrollbar-width', 'none');
+    await expect(ranking.locator('.bung-ranking-table-wrap')).toHaveCSS('overflow-y', 'visible');
+    const bounds = await ranking.boundingBox();
+    expect(bounds!.y).toBeGreaterThanOrEqual(0);
+    expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(viewport.height);
+    const before = await ranking.evaluate(node => node.scrollTop);
+    await ranking.hover(); await page.mouse.wheel(0, 100000);
+    await expect.poll(() => ranking.evaluate(node => node.scrollTop)).toBeGreaterThan(before);
+    await expect(rows.last()).toBeInViewport({ ratio: 1 });
+    await expect(ranking.getByRole('button', { name: '결과로 돌아가기', exact: true })).toBeInViewport({ ratio: 1 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
+    await expect(page.locator('vite-error-overlay')).toHaveCount(0);
+    await screenshot(page, `ranking-wheel-${durationMs}-${viewport.width}`, 'disabled');
+  }
+  await ranking.getByRole('button', { name: '결과로 돌아가기', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: '붕어빵 결과', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '공원으로', exact: true }).click();
+  await expect(page.locator('.bung-root')).toHaveCount(0);
+  expect(reads).toBe(3); expect(errors).toEqual([]);
 });
 
 test('new cart renders smaller child customers, supports selection and returns to the generated park', async ({ page }) => {
