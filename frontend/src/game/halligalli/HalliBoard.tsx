@@ -5,7 +5,7 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { useShallow } from 'zustand/react/shallow'
 import {
   BoxGeometry, CanvasTexture, CircleGeometry, CylinderGeometry, LatheGeometry, MeshBasicMaterial, MeshStandardMaterial,
-  PlaneGeometry, RingGeometry, Shape, ShapeGeometry, SRGBColorSpace, Vector2, Vector3, type Group,
+  PlaneGeometry, RingGeometry, Shape, ShapeGeometry, SRGBColorSpace, Vector2, Vector3, type Group, type Mesh,
 } from 'three'
 import type { TableAnchor } from '../../config'
 import { avatars, useSession } from '../../network/worldClient'
@@ -16,9 +16,11 @@ import { useHalliUI } from './actions'
 import { ringAllowedBell } from './controls'
 import type { HalliGalli } from './protocol'
 import {
-  HALLI_BELL, HALLI_LAYOUT, HALLI_STAGE_MIN, HALLI_STAGE_PX, bellCentre, bellOutline, faceUpCorners, halliSeatIndices, halliStageElements,
-  halliSurfaceY, labelPoint, pileCorners, quadTransform, seatFrame, stackHeight, useHalliStage, type Point, type Vec3,
+  HALLI_BELL, HALLI_LAYOUT, HALLI_STAGE_MIN, HALLI_STAGE_PX, bellCentre, bellOutline, faceUpCorners, faceUpPose, flightPose, halliSeatIndices,
+  halliStageElements, halliSurfaceY, issuePose, labelPoint, pileCorners, pilePose, poseCorners, quadTransform, seatFrame, stackHeight,
+  useHalliStage, type Point, type Vec3,
 } from './anchors'
+import { flightElapsed, flightPhase, pileOffset, useHalliFlights } from './flights'
 
 const { card, faceUp, pile } = HALLI_LAYOUT
 const slab = new BoxGeometry(card.w, 1, card.h), glow = new PlaneGeometry(card.w + .05, card.h + .05).rotateX(-Math.PI / 2)
@@ -98,22 +100,38 @@ function tableArtwork() {
   }
 }
 
-/** One player's face-down pile and face-up stack as real slabs; the face-up top is the projected DOM card. */
-function Piles({ anchor, seatIndex, drawCount, faceUpCount, turn, forfeited, showFaceUp }: {
-  anchor: TableAnchor; seatIndex: number; drawCount: number; faceUpCount: number; turn: boolean; forfeited: boolean; showFaceUp: boolean
+/**
+ * One player's face-down pile and face-up stack as real slabs; the face-up top is the projected DOM card. While cards
+ * fly after a bell the slabs keep what has not left yet and lack what has not landed yet, so a pile never grows
+ * before its cards arrive. The counts themselves are the server's.
+ */
+function Piles({ anchor, seatIndex, userId, drawCount, faceUpCount, turn, forfeited, showFaceUp }: {
+  anchor: TableAnchor; seatIndex: number; userId: string; drawCount: number; faceUpCount: number; turn: boolean; forfeited: boolean
+  showFaceUp: boolean
 }) {
-  const { out, right } = seatFrame(anchor, seatIndex), yaw = Math.atan2(out.x, out.z), surface = halliSurfaceY(anchor)
-  const drawHeight = stackHeight(drawCount), upHeight = stackHeight(faceUpCount), art = tableArtwork()
+  const { out, right } = seatFrame(anchor, seatIndex), yaw = Math.atan2(out.x, out.z), surface = halliSurfaceY(anchor), art = tableArtwork()
   const at = (radial: number, lateral: number) => [out.x * radial + right.x * lateral, out.z * radial + right.z * lateral] as const
   const [px, pz] = at(pile.radial, pile.lateral), [fx, fz] = at(faceUp, 0)
+  const drawPile = useRef<Mesh>(null), faceStack = useRef<Mesh>(null)
+  useFrame(() => {
+    const { plan } = useHalliFlights.getState(), offset = pileOffset(plan, flightElapsed(), userId)
+    stack(drawPile.current, drawCount + offset.draw, surface)
+    stack(faceStack.current, showFaceUp ? faceUpCount + offset.face : 0, surface)
+  })
   return <group name="halligalli-seat" userData={{ seatIndex, drawCount, faceUpCount }}>
     {turn && <mesh geometry={glow} material={gold} position={[px, surface + .0006, pz]} rotation={[0, yaw, 0]} />}
-    {drawCount > 0 && <mesh name="halligalli-draw-pile" geometry={slab} position={[px, surface + drawHeight / 2, pz]} rotation={[0, yaw, 0]}
-      scale={[1, drawHeight, 1]} material={[paper, paper, forfeited ? art.dim : art.back, paper, paper, paper]} />}
+    <mesh ref={drawPile} name="halligalli-draw-pile" geometry={slab} position={[px, surface, pz]} rotation={[0, yaw, 0]}
+      visible={false} material={[paper, paper, forfeited ? art.dim : art.back, paper, paper, paper]} />
     {/* Only the stage draws the face-up top; without it (fixed 2D layout) the stack would show as a blank white card. */}
-    {showFaceUp && faceUpCount > 0 && <mesh name="halligalli-faceup-stack" geometry={slab} material={paper}
-      position={[fx, surface + upHeight / 2, fz]} rotation={[0, yaw, 0]} scale={[1, upHeight, 1]} />}
+    <mesh ref={faceStack} name="halligalli-faceup-stack" geometry={slab} material={paper} position={[fx, surface, fz]}
+      rotation={[0, yaw, 0]} visible={false} />
   </group>
+}
+function stack(mesh: Mesh | null, cards: number, surface: number) {
+  if (!mesh) return
+  const height = stackHeight(cards)
+  mesh.visible = height > 0
+  if (height > 0) { mesh.scale.y = height; mesh.position.y = surface + height / 2 }
 }
 
 const PRESS_MS = 150, PLUNGER_Y = HALLI_BELL.baseHeight + HALLI_BELL.domeHeight * .96
@@ -184,7 +202,7 @@ export function HalliBoard({ anchor }: { anchor: TableAnchor }) {
     </group>
     <TableBell surface={surface} interactive={!!h && projected && state.role === 'PLAYER'} gameId={h ? state.gameId : undefined}
       bellWindowId={h?.bellWindowId ?? null} />
-    {h && h.players.map((p, i) => <Piles key={p.userId} anchor={anchor} seatIndex={seats[i]!} drawCount={p.drawCount}
+    {h && h.players.map((p, i) => <Piles key={p.userId} anchor={anchor} seatIndex={seats[i]!} userId={p.userId} drawCount={p.drawCount}
       faceUpCount={p.faceUpCount} turn={h.status === 'PLAYING' && h.turnUserId === p.userId} forfeited={p.forfeited} showFaceUp={projected} />)}
     {h && <StageProjector anchor={anchor} halli={h} />}
   </group>
@@ -252,6 +270,22 @@ function StageProjector({ anchor, halli }: { anchor: TableAnchor; halli: HalliGa
       const x = Math.max(8, Math.min(size.width - w - 8, at.x + dx / length * w / 2 - w / 2))
       const y = Math.max(8, Math.min(size.height - hgt - 8, at.y + dy / length * hgt / 2 - hgt / 2))
       place(`label:${p.userId}`, `translate3d(${x.toFixed(1)}px,${y.toFixed(1)}px,0)`)
+    })
+    // Cards moving after a bell glide over the felt along a low arc, through the same projection as the cards at rest.
+    const { plan } = useHalliFlights.getState()
+    if (!plan) return
+    const elapsed = flightElapsed(), seatOf = (userId: string) => seats[h.players.findIndex(p => p.userId === userId)] ?? 0
+    plan.flights.forEach((f, i) => {
+      const element = halliStageElements.get(`flight:${i}`), phase = flightPhase(f, elapsed)
+      if (!element) return
+      if (!phase) { if (element.style.visibility !== 'hidden') element.style.visibility = 'hidden'; return }
+      const to = pilePose(anchor, seatOf(f.to.userId), f.to.count)
+      const from = f.from.pile === 'bell' ? { ...issuePose(anchor, seatOf(f.to.userId)), scale: .5 + .5 * phase.appear }
+        : f.from.pile === 'face' ? faceUpPose(anchor, seatOf(f.from.userId), f.from.count) : pilePose(anchor, seatOf(f.from.userId), f.from.count)
+      // Lower cards of a collected stack start just under the top one.
+      const pose = flightPose({ ...from, lift: Math.max(.001, from.lift - f.layer * HALLI_LAYOUT.thickness * 2) }, to, phase.t)
+      quad(`flight:${i}`, poseCorners(anchor, pose).map(project), HALLI_STAGE_PX.card.w, HALLI_STAGE_PX.card.h)
+      element.style.opacity = String(phase.appear)
     })
   }, 1)
   return null

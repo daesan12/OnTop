@@ -4,6 +4,7 @@ import { FlipTimerBar } from './FlipTimerBar'
 import { bellLabel, useBellMark } from './Bell'
 import { stateLabel, turnLabel, type HalliTableProps } from './HalliTable'
 import { stageRef } from './anchors'
+import { HalliFlights } from './HalliFlights'
 
 /**
  * Table-anchored layout for wide screens. The 3D board (HalliBoard) places every element each frame: face-up cards
@@ -48,6 +49,7 @@ export function HalliStage({ halli, gameId, viewerId, names, canFlip, canRing, o
       disabled={!canRing} aria-keyshortcuts="Space" aria-label={bellLabel(halli, mark)} onClick={onRing}>
       {mark && <span>{mark === 'queued' ? '대기' : '쳤음'}</span>}
     </button>
+    <HalliFlights layout="stage" />
     {playing && halli.turnUserId === null && <div className="hg-stage-hud">
       <p className="hg-last-chance">공개할 카드가 없어요 · 마지막 종 기회</p><FlipTimerBar halli={halli} />
     </div>}
