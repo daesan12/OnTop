@@ -4,6 +4,8 @@ ontop:
   # 상점 V100 적용 이력·순서를 확인한 뒤 기존 Flyway 목록에 db/shop을 명시적으로 추가한다.
   shop:
     enabled: ${SHOP_ENABLED:false}
+  raffle:
+    enabled: ${RAFFLE_ENABLED:false}
   # DB 시작 Gateway를 등록한 뒤 명시적으로 켠다. 시연용 Gateway는 dev에 등록하지 않는다.
   game-start:
     enabled: ${GAME_START_ENABLED:false}
