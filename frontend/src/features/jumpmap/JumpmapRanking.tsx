@@ -11,12 +11,6 @@ export const jumpTime = (ms: number) => {
   const seconds=Math.floor(Math.max(0,ms)/1000)
   return `${Math.floor(seconds/60)}분 ${String(seconds%60).padStart(2,'0')}초`
 }
-/** 결과의 정밀 기록과 서버의 순위 판정은 밀리초를 유지한다. 랭킹 목록만 분·초로 표시한다. */
-export const jumpPreciseTime = (ms: number) => {
-  const time = Math.max(0, Math.round(ms))
-  const seconds = String(Math.floor(time / 1000) % 60).padStart(2, '0')
-  return `${Math.floor(time / 60000)}분 ${seconds}.${String(time % 1000).padStart(3, '0')}초`
-}
 export function JumpmapRanking({ load, onBack }: { load?: RankingLoader; onBack(): void }) {
   const [attempt, retry] = useState(0)
   const [state, setState] = useState<{ items: Entry[]; me: Entry | null; error: string; loading: boolean }>({ items: [], me: null, error: '', loading: !!load })
