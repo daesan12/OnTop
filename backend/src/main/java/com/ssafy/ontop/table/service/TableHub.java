@@ -589,8 +589,11 @@ public class TableHub {
             member.delivery().starting();
         }
         gameResults.ifPresent(service -> service.connected(sessionId, member.accountId(), member.delivery()::result));
+        inactiveGameParticipants.forEach((game, users) -> {
+            if (users.contains(member.userId())) { member.delivery().rememberDeparture(game); }
+        });
         reconnect.ifPresent(service -> service.connected(member.accountId(), sessionId, loginSessionId,
-                member.delivery()::recovery, member.delivery()::allowsFinished));
+                member.delivery()::recovery, member.delivery()::allowsFinished, member.delivery()::hasDeparted));
     }
 
     private Member register(WebSocketSession session, String userId, Long accountId) {
@@ -2049,10 +2052,31 @@ public class TableHub {
             attempt.rememberDeparture(event.gameId(), Long.toString(event.userId()));
             return;
         }
-        if (!event.gameId().equals(publicGameId(event.tableId()))) { return; }
+        if (!event.gameId().equals(publicGameId(event.tableId()))
+                && !event.gameId().equals(seatedGames.get(Long.toString(event.userId())))) { return; }
         inactiveGameParticipants.computeIfAbsent(event.gameId(), ignored -> new HashSet<>())
                 .add(Long.toString(event.userId()));
+        releaseDepartedSeat(event.tableId(), event.gameId(), Long.toString(event.userId()));
         syncGameActivities();
+    }
+
+    private void releaseDepartedSeat(String tableId, String gameId, String userId) {
+        // 참가 종료가 확정된 좌석만 해제한다. 최초 참가자와 판돈 예약은 기존 정산 경로에 남긴다.
+        if (!gameId.equals(seatedGames.get(userId)) || !tableId.equals(seating.get(userId))) { return; }
+        seating.remove(userId);
+        seatedGames.remove(userId);
+        waitingReconnects.remove(userId);
+        TableRoom room = rooms.get(tableId);
+        room.leave(userId);
+        for (Member target : members.values()) {
+            if (!target.userId().equals(userId)) { continue; }
+            statePushes.remove(target.sessionId());
+            target.delivery().rememberDeparture(gameId);
+            target.delivery().left(null, tableId);
+            replyStartState(target, null, null);
+        }
+        publish(room, null, null);
+        recordTableLeft(accountIdOf(userId), tableId, "GAME_DEPARTURE");
     }
 
     private TableRoom.Snapshot publicSnapshot(TableRoom room) {
@@ -2192,6 +2216,9 @@ public class TableHub {
                 }
             }
             refreshDeliveryScopes();
+            for (String userId : early) {
+                releaseDepartedSeat(tableId, result.gameSessionId(), userId);
+            }
         }
         if (committedStarts.isPresent() && attempt.frozen() && !attempt.starting()) {
             recordGameStarted(tableId, attempt, result);

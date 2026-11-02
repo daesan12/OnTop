@@ -27,7 +27,7 @@ export function GameControls({ tableId }: { tableId: string }) {
   const busy = tableBusy(),
     mine = table.seats.find((s) => s.userId === own)
   const lobby = lobbyStatus(table, own, busy)
-  const bet = Number(betInput), validBet = Number.isSafeInteger(bet) && bet > 0
+  const bet = Number(betInput), validBet = betInput.trim() !== '' && Number.isSafeInteger(bet) && bet >= 0
   return (
     <div className="omok-lobby">
       <strong>
@@ -36,7 +36,7 @@ export function GameControls({ tableId }: { tableId: string }) {
       </strong>
       <p>{lobby.host ? '선택 담당자 · 게임과 참가비를 설정할 수 있어요.' : '선택 담당자가 게임과 참가비를 설정합니다.'}</p>
       <p>확정 참가비: {table.betAmountPerPlayer == null ? '미설정' : `${table.betAmountPerPlayer.toLocaleString()} 코인 / 1인`}</p>
-      <label>1인 참가비 <input aria-label="1인 참가비" type="number" min="1" step="1" value={betInput}
+      <label>1인 참가비 <input aria-label="1인 참가비" type="number" min="0" step="1" value={betInput}
         disabled={pending || busy || !lobby.host} onChange={event => setBetInput(event.target.value)} /></label>
       <button disabled={pending || busy || !lobby.host || !validBet || !isTableGamePlayable(table.gameCode) || bet === table.betAmountPerPlayer}
         onClick={() => void runtime.selectGame(table.gameCode as typeof TABLE_GAMES[number]['code'], bet,

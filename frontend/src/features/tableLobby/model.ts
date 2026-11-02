@@ -19,13 +19,13 @@ export function tableTermsLabel(table: Pick<TableSummary, 'gameCode' | 'betAmoun
   if (!table) return '방 설정 확인 중'
   const name = TABLE_GAMES.find(game => game.code === table.gameCode)?.name ?? (table.gameCode ? '게임 정보 확인 중' : '게임 선택 중')
   const amount = table.betAmountPerPlayer
-  return `${name} · ${amount != null && Number.isSafeInteger(amount) && amount > 0 ? `1인 판돈 ${amount.toLocaleString('ko-KR')}냥` : '판돈 미정'}`
+  return `${name} · ${amount != null && Number.isSafeInteger(amount) && amount >= 0 ? `1인 판돈 ${amount.toLocaleString('ko-KR')}냥` : '판돈 미정'}`
 }
 export const GAME_CONSTRUCTION_NOTICE = '공사 중인 게임입니다. 오목 또는 원카드를 선택해주세요.'
 export const isTableGamePlayable = (code: string | null | undefined) => TABLE_GAMES.some(game => game.code === code && game.playable)
 export const TARGET_SCORES = [2000, 4000, 6000] as const
 export function gameSelection(code: TableGameCode, betAmountPerPlayer: number, targetScore?: number) {
-  if (!Number.isSafeInteger(betAmountPerPlayer) || betAmountPerPlayer <= 0) throw new Error('참가비를 양의 정수로 입력해주세요.')
+  if (!Number.isSafeInteger(betAmountPerPlayer) || betAmountPerPlayer < 0) throw new Error('참가비를 0 이상의 정수로 입력해주세요.')
   if (!TABLE_GAMES.some(g => g.code === code)) throw new Error('지원하는 게임을 선택해주세요.')
   if (!isTableGamePlayable(code)) throw new Error(GAME_CONSTRUCTION_NOTICE)
   const maxPlayers = TABLE_GAMES.find(g => g.code === code)!.capacity
@@ -43,7 +43,7 @@ export function lobbyStatus(table: TableState, ownId: string, busy: boolean) {
   return {
     mine, count, host: table.selectorUserId === ownId,
     canLeaveByMovement: !!mine && !mine.ready && !busy,
-    canReady: !!mine && !busy && table.betAmountPerPlayer != null && table.betAmountPerPlayer > 0
+    canReady: !!mine && !busy && table.betAmountPerPlayer != null && table.betAmountPerPlayer >= 0
       && isTableGamePlayable(table.gameCode),
     message: count < table.minimumPlayers
       ? `최소 ${table.minimumPlayers}명 필요 · 현재 ${count}명`

@@ -98,6 +98,19 @@ class ReadyBetConsentTests {
         assertThat(cancelled.path("seats").get(0).path("ready").asBoolean()).isFalse();
     }
 
+    @Test void 영냥도_모든참가자가_같은금액을_확인해야_준비된다() throws Exception {
+        Peer first = peer(); Peer second = peer();
+        JsonNode selected = select(first, second, 0);
+
+        error(second.request("READY_SET", Map.of("ready", true, "betAmountPerPlayer", 1,
+                "expectedVersion", selected.path("version").asLong())), "GAME_BET_CHANGED");
+        first.request("READY_SET", consent(selected));
+        JsonNode both = second.request("READY_SET", consent(selected)).path("payload");
+
+        assertThat(both.path("betAmountPerPlayer").asLong()).isZero();
+        assertThat(both.path("allReady").asBoolean()).isTrue();
+    }
+
     @Test void 참가비변경과_늦은준비_경합에서_새금액에_과거동의가_남지않는다() throws Exception {
         Peer first = peer(); Peer second = peer(); select(first, second, 100);
         try (var executor = Executors.newFixedThreadPool(2)) {

@@ -10,7 +10,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import static org.assertj.core.api.Assertions.*;
 
 class GameSettlementCalculationTests {
-    @ParameterizedTest @ValueSource(longs = {1, 2, 5, 10, 100, 2_251_799_813_685_247L})
+    @ParameterizedTest @ValueSource(longs = {0, 1, 2, 5, 10, 100, 2_251_799_813_685_247L})
     void 모든_인원과_공동승리에서_판돈과_보너스가_한번만_계상된다(long bet) {
         for (int count = 2; count <= 4; count++) {
             for (int winners = 1; winners <= count; winners++) {
@@ -56,7 +56,7 @@ class GameSettlementCalculationTests {
         assertThatThrownBy(() -> GameAmounts.validate(largest + 1, count)).isInstanceOf(IllegalArgumentException.class);
     }
 
-    @ParameterizedTest @ValueSource(longs = {0, -1, Long.MIN_VALUE, Long.MAX_VALUE, 9_007_199_254_740_992L})
+    @ParameterizedTest @ValueSource(longs = {-1, Long.MIN_VALUE, Long.MAX_VALUE, 9_007_199_254_740_992L})
     void 잘못된금액과_long오버플로입력을_예약전에_거절한다(long bet) {
         assertThatThrownBy(() -> GameAmounts.validate(bet, 4)).isInstanceOf(IllegalArgumentException.class);
     }
