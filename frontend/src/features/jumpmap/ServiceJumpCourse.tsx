@@ -30,7 +30,7 @@ function materialFor(theme: JumpTheme, finish: string) {
   material.customProgramCacheKey = () => `service-jump-${theme}-${finish}-tactile-2`
   return material
 }
-function Batch({ theme, pads, art }: { theme: JumpTheme; pads: readonly CourseBlock[]; art?: Record<string, BufferGeometry> }) {
+function Batch({ theme, pads, art, enabled = true }: { theme: JumpTheme; pads: readonly CourseBlock[]; art?: Record<string, BufferGeometry>; enabled?: boolean }) {
   const meshes = useRef<InstancedMesh[]>([])
   const pose = useMemo(() => ({ x: 0, y: 0, z: 0, yaw: 0 }), [])
   const reduced = useMemo(() => matchMedia('(prefers-reduced-motion: reduce)'), [])
@@ -54,7 +54,15 @@ function Batch({ theme, pads, art }: { theme: JumpTheme; pads: readonly CourseBl
     }
     return () => { meshes.current.forEach(m => m.dispose()); batches.forEach(b => { b.geometry.dispose(); b.material.dispose() }) }
   }, [batches, pads, theme])
+  useLayoutEffect(() => {
+    if (enabled) return
+    for (const batch of batches) for (const [name, value] of [['aFade', 1], ['aHit', -1e6], ['aPower', 0]] as const) {
+      const attribute = batch.geometry.getAttribute(name) as InstancedBufferAttribute
+      attribute.array.fill(value); attribute.needsUpdate = true
+    }
+  }, [batches, enabled])
   useFrame(({ camera }, dt) => {
+    if (!enabled) return
     const now = performance.now(); clock.value = now / 1000
     const s = useJumpmap.getState(), own = avatars.get(s.owner)
     if (own) sampleAvatar(own, now, pose)
@@ -75,17 +83,25 @@ function Batch({ theme, pads, art }: { theme: JumpTheme; pads: readonly CourseBl
       fade.needsUpdate = hit.needsUpdate = power.needsUpdate = true
     }
   })
-  return <group name={art ? art === jumpStartArt ? 'service-jump-start' : 'service-jump-finish' : `service-jump-${theme}`} userData={{ keepOpaque: true }}>{batches.map((b, i) => <instancedMesh key={b.finish} ref={m => { if (m) meshes.current[i] = m }} args={[b.geometry, b.material, pads.length]} dispose={null} />)}</group>
+  return <group name={art ? art === jumpStartArt ? 'service-jump-start' : 'service-jump-finish' : `service-jump-${theme}`} userData={{ keepOpaque: true }}>{batches.map((b, i) => <instancedMesh key={b.finish} visible={enabled} userData={{ prepareWhenHidden: true }} ref={m => { if (m) meshes.current[i] = m }} args={[b.geometry, b.material, pads.length]} dispose={null} />)}</group>
 }
-function LandingEffects() {
+function LandingEffects({ enabled }: { enabled: boolean }) {
   const mesh = useRef<InstancedMesh>(null)
   const particles = useMemo(() => Array.from({ length: 96 }, () => ({ life: 0, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, color: '#fff' })), [])
   const cursor = useRef(0), object = useMemo(() => new Object3D(), []), color = useMemo(() => new Color(), [])
   const material = useMemo(() => new MeshBasicMaterial(), [])
-  useLayoutEffect(() => { const current = mesh.current; return () => { current?.dispose(); material.dispose() } }, [material])
+  useLayoutEffect(() => {
+    const current = mesh.current!
+    object.scale.setScalar(0); object.updateMatrix(); color.set('#fff')
+    for (let i = 0; i < particles.length; i++) { current.setMatrixAt(i, object.matrix); current.setColorAt(i, color) }
+    current.instanceMatrix.needsUpdate = true
+    if (current.instanceColor) current.instanceColor.needsUpdate = true
+    return () => { current.dispose(); material.dispose() }
+  }, [material, particles, object, color])
+  useLayoutEffect(() => { if (!enabled) particles.forEach(p => { p.life = 0 }) }, [enabled, particles])
   useLayoutEffect(() => onStep((block, player, power) => {
     const p = COURSE[block], s = useJumpmap.getState(), own = avatars.get(s.owner)
-    if (document.hidden || !p || !own || matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    if (!s.available || document.hidden || !p || !own || matchMedia('(prefers-reduced-motion: reduce)').matches) return
     if (player !== s.owner && new Vector3(p.x, p.top, p.z).distanceTo(new Vector3(own.current.x, own.current.y - .8, own.current.z)) > 25) return
     for (let i = 0; i < (player === s.owner ? 10 : 5); i++) {
       const a = i * 2.39996
@@ -93,7 +109,7 @@ function LandingEffects() {
     }
   }), [particles])
   useFrame((_, delta) => {
-    if (!mesh.current) return
+    if (!enabled || !mesh.current) return
     const dt = Math.min(delta, .05)
     particles.forEach((p, i) => {
       p.life -= dt; p.vy -= dt * 12; p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt
@@ -103,7 +119,7 @@ function LandingEffects() {
     mesh.current.instanceMatrix.needsUpdate = true
     if (mesh.current.instanceColor) mesh.current.instanceColor.needsUpdate = true
   })
-  return <instancedMesh name="service-jump-effects" ref={mesh} args={[jumpParticleGeometry, material, particles.length]} dispose={null} frustumCulled={false} />
+  return <instancedMesh name="service-jump-effects" visible={enabled} userData={{ prepareWhenHidden: true }} ref={mesh} args={[jumpParticleGeometry, material, particles.length]} dispose={null} frustumCulled={false} />
 }
 const marker = [{ ...COURSE[0]!, block: -1, x: START.x, z: START.z, top: .11, yaw: 0 }]
 const finish = [{ ...marker[0]!, x: 0, z: 0, top: 0 }]
@@ -111,6 +127,10 @@ export function ServiceJumpCourse() {
   const available = useJumpmap(s => s.available)
   return <group name="service-jump-course" userData={{ cameraCollision: false }}>
     <Batch theme="gate" pads={marker} art={jumpStartArt} />
-    {available && <>{groups.map(g => <Batch key={g.theme} {...g} />)}<Batch theme="gate" pads={finish} art={jumpFinishArt} /><LandingEffects /></>}
+    {/* Prepare GPU resources before the status request completes. Visibility and
+        hit targets still follow server availability; physics uses its own contract. */}
+    {groups.map(g => <Batch key={g.theme} {...g} enabled={available} />)}
+    <Batch theme="gate" pads={finish} art={jumpFinishArt} enabled={available} />
+    <LandingEffects enabled={available} />
   </group>
 }

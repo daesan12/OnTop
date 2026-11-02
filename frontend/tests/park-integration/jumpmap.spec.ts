@@ -425,6 +425,30 @@ test('final leaf opens a persistent paper completion, locks movement and updates
   expect(errors).toEqual([])
 })
 
+test('prepared course follows server availability and reuses graphics after reactivation', async ({ page }) => {
+  const { start, emit, errors } = await setup(page)
+  const graphics = () => page.evaluate(async () => {
+    const source = await (await fetch('/tests/park-integration/jumpmapProbe.ts')).text()
+    const dependency = source.match(/import\s*\{\s*_roots\s*\}\s*from\s*["']([^"']+)/)![1]!
+    const { _roots } = await import(dependency)
+    const course = _roots.get(document.querySelector('canvas')!)!.store.getState().scene.getObjectByName('service-jump-stone')!
+    const mesh = course.children[0] as import('three').InstancedMesh
+    return { id: mesh.geometry.uuid, visible: mesh.visible, power: mesh.geometry.getAttribute('aPower').getX(0) }
+  })
+  const original = await graphics()
+  start(); emit('JUMPMAP_STEP', 2, { playerId:'101', block:0 })
+  await expect.poll(async () => (await graphics()).power).toBe(1)
+  emit('JUMPMAP_STARTED', 3, { runId:'unsupported-run', courseVersion:'retired-course', rulesVersion:RULES_VERSION, serverTime:Date.now() })
+  await expect.poll(async () => (await graphics()).visible).toBe(false)
+  expect((await probe(page)).padsDrawn).toBe(0)
+  expect((await graphics()).power).toBe(0)
+  emit('JUMPMAP_STARTED', 4, { runId:'supported-run', courseVersion:COURSE_VERSION, rulesVersion:RULES_VERSION, serverTime:Date.now() })
+  await expect.poll(async () => (await graphics()).visible).toBe(true)
+  expect((await graphics()).id).toBe(original.id)
+  expect((await probe(page)).state.run?.runId).toBe('supported-run')
+  expect(errors).toEqual([])
+})
+
 test('server finish completion never repeats and fits the narrow viewport', async ({ page }) => {
   await page.setViewportSize({ width: 740, height: 900 })
   const { start, emit, errors } = await setup(page)
