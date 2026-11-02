@@ -214,9 +214,11 @@ public final class HalliGalliMatch {
     }
 
     // 다른 유효 참가자에게 한 장씩 준다. 뒷면 카드가 모자라면 부족분을 발행해 지급하고 벌칙 대상은 즉시 탈락한다.
-    // 이 탈락으로 1명이 남으면 끝난다. 마지막 종 기회인 참가자는 상대의 벌칙 카드를 받아 그 차례에 다시 공개할 수 있다.
+    // 이 탈락으로 1명이 남으면 끝난다. 마지막 종 기회인 참가자는 상대의 벌칙 카드를 받으면 새 5초 차례에 다시 공개할 수 있다.
     private void penalize(HalliGalliPlayer ringer, Instant now) {
         version++;
+        // 지급 전에 본다. 카드를 받고 나면 마지막 종 기회였다는 사실이 canFlip()에서 사라진다.
+        boolean lastChance = turn >= 0 && activeCount() == 2 && !seat(turn).canFlip();
         List<HalliGalliPlayer> recipients = othersAfter(ringer);
         int issued = 0;
         for (HalliGalliPlayer recipient : recipients) {
@@ -240,6 +242,9 @@ public final class HalliGalliMatch {
         if (turn < 0 || !seat(turn).canFlip()) {
             boolean keepTurn = activeCount() == 2 && turn >= 0 && !seat(turn).isEliminated();
             startTurn(keepTurn ? turn : players.indexOf(ringer.userId()) + 1, now);
+        } else if (lastChance) {
+            // 마지막 종 기회 중 상대의 벌칙 카드로 다시 공개할 수 있게 되면 남은 시간 대신 정상 5초 공개 차례를 새로 준다.
+            startTurn(turn, now);
         }
     }
 

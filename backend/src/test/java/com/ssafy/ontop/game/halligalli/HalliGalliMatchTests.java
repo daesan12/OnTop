@@ -626,21 +626,80 @@ class HalliGalliMatchTests {
     }
 
     @Test
-    void 마지막_종_기회에_상대의_오답_벌칙_카드를_받으면_같은_마감에_공개해_계속한다() {
+    void 마지막_종_기회_마감_직전_상대의_오답_벌칙_카드를_받으면_새_5초_공개_차례가_된다() {
         HalliGalliMatch match = lastChanceOfA(card(BANANA, 1), card(LIME, 2));
+        Instant justBefore = START.plusSeconds(270).minusMillis(100);
 
-        ring(match, B, "wrong", 54, START.plusSeconds(266));
+        ring(match, B, "wrong", 54, justBefore);
         HalliGalliMatch.Snapshot afterRing = match.snapshot();
-        match.expire(START.plusSeconds(270));
+        match.expire(justBefore.plusSeconds(5).minusNanos(1));
+        HalliGalliMatch.Snapshot beforeNewDeadline = match.snapshot();
+        match.expire(justBefore.plusSeconds(5));
 
-        assertThat(afterRing.lastEvent()).isEqualTo(new HalliGalliMatch.Event("RING_PENALTY", B, START.plusSeconds(266), 1, 0));
+        assertThat(afterRing.lastEvent()).isEqualTo(new HalliGalliMatch.Event("RING_PENALTY", B, justBefore, 1, 0));
         assertThat(afterRing.publicPlayers()).extracting(HalliGalliMatch.Player::drawCount).containsExactly(1, 1);
         assertThat(afterRing.turnUserId()).isEqualTo(A);
-        assertThat(afterRing.turnDeadline()).isEqualTo(START.plusSeconds(270));
-        assertThat(match.snapshot().lastEvent()).isEqualTo(new HalliGalliMatch.Event("AUTO_FLIP", A, START.plusSeconds(270), 1, 0));
+        assertThat(afterRing.turnDeadline()).isEqualTo(justBefore.plusSeconds(5));
+        assertThat(beforeNewDeadline.version()).isEqualTo(afterRing.version());
+        assertThat(beforeNewDeadline.flipSeq()).isEqualTo(54);
+        assertThat(beforeNewDeadline.endedAt()).isNull();
+        assertThat(match.snapshot().lastEvent()).isEqualTo(new HalliGalliMatch.Event("AUTO_FLIP", A, justBefore.plusSeconds(5), 1, 0));
         assertThat(match.snapshot().endedAt()).isNull();
         assertThat(match.snapshot().turnUserId()).isEqualTo(B);
         assertThat(match.totalCards()).isEqualTo(56);
+    }
+
+    @Test
+    void 마지막_종_기회에_벌칙_카드를_받은_참가자는_새_차례에_바로_직접_공개할_수_있다() {
+        HalliGalliMatch match = lastChanceOfA(card(BANANA, 1), card(LIME, 2));
+        ring(match, B, "wrong", 54, START.plusSeconds(268));
+
+        flip(match, A, "a-again", START.plusSeconds(269));
+
+        assertThat(match.snapshot().lastEvent()).isEqualTo(new HalliGalliMatch.Event("FLIP", A, START.plusSeconds(269), 1, 0));
+        assertThat(match.snapshot().turnUserId()).isEqualTo(B);
+        assertThat(match.snapshot().turnDeadline()).isEqualTo(START.plusSeconds(274));
+    }
+
+    @Test
+    void 활성_2명의_일반_오답은_공개_차례의_마감을_바꾸지_않는다() {
+        HalliGalliMatch match = match(List.of(A, B), Map.of(0, card(STRAWBERRY, 1)));
+        flip(match, A, "a1", START);
+        HalliGalliMatch.Snapshot turnOfB = match.snapshot();
+
+        ring(match, A, "a-wrong", 1, START.plusSeconds(3));
+        HalliGalliMatch.Snapshot afterA = match.snapshot();
+        ring(match, B, "b-wrong", 1, START.plusSeconds(4));
+        HalliGalliMatch.Snapshot afterB = match.snapshot();
+        match.expire(START.plusSeconds(5));
+
+        assertThat(turnOfB.turnDeadline()).isEqualTo(START.plusSeconds(5));
+        assertThat(afterA.turnUserId()).isEqualTo(B);
+        assertThat(afterA.turnDeadline()).isEqualTo(START.plusSeconds(5));
+        assertThat(afterB.turnUserId()).isEqualTo(B);
+        assertThat(afterB.turnDeadline()).isEqualTo(START.plusSeconds(5));
+        assertThat(match.snapshot().lastEvent()).isEqualTo(new HalliGalliMatch.Event("AUTO_FLIP", B, START.plusSeconds(5), 1, 0));
+    }
+
+    @Test
+    void 활성_3명_이상의_오답은_뒷면이_빈_참가자에게_카드가_가도_차례와_마감을_바꾸지_않는다() {
+        HalliGalliMatch match = match(List.of(A, B, C), Map.of(51, card(BANANA, 4), 52, card(LIME, 2), 53, card(STRAWBERRY, 1)));
+        match.expire(START.plusSeconds(270));
+        HalliGalliMatch.Snapshot before = match.snapshot();
+
+        ring(match, B, "wrong", 54, START.plusSeconds(274));
+
+        HalliGalliMatch.Snapshot state = match.snapshot();
+        assertThat(before.publicPlayers()).extracting(HalliGalliMatch.Player::drawCount).containsExactly(1, 1, 0);
+        assertThat(before.turnUserId()).isEqualTo(A);
+        assertThat(state.lastEvent()).isEqualTo(new HalliGalliMatch.Event("RING_PENALTY", B, START.plusSeconds(274), 2, 1));
+        assertThat(state.publicPlayers()).extracting(HalliGalliMatch.Player::drawCount).containsExactly(2, 0, 1);
+        assertThat(state.publicPlayers()).extracting(HalliGalliMatch.Player::eliminated).containsExactly(false, true, false);
+        assertThat(state.turnUserId()).isEqualTo(A);
+        assertThat(state.turnDeadline()).isEqualTo(START.plusSeconds(275));
+        match.expire(START.plusSeconds(275));
+        assertThat(match.snapshot().lastEvent()).isEqualTo(new HalliGalliMatch.Event("AUTO_FLIP", A, START.plusSeconds(275), 1, 0));
+        assertThat(match.snapshot().turnUserId()).isEqualTo(C);
     }
 
     @Test
