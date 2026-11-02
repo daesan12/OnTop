@@ -4,6 +4,8 @@ import { InstancedMesh, MeshBasicMaterial, Object3D, Raycaster, Shape, ShapeGeom
 import { avatars, useSession } from '../../network/worldClient'
 import { useNavigation } from './navigationState'
 import { navigationHeight } from './parkNavigation'
+import { isOnParkWalkway } from '../../park/mapConfig'
+import { GENERATED_PARK_ENABLED } from '../../park/mapSelection'
 
 /** Chevrons painted on the ground along the planned route; only this player sees them. */
 const ARROWS = { count: 40, spacing: 1.6, speed: 1.1, lift: 0.04, size: 0.95, outline: 1.22, fade: 1.4, reach: 40 }
@@ -22,6 +24,8 @@ function chevron() {
 }
 
 const down = new Raycaster(), from = new Vector3(), below = new Vector3(0, -1, 0)
+/** Top of the generated park's walkway paving, a flat sheet over every path (layout-preview/pathNetwork.ts). */
+const PATH_PAVING_TOP = .085
 /** Paving, steps and bridge decks sit above the terrain height the planner uses; a short ray finds the top.
  * Cached on a 0.5 m grid, so drifting arrows cost a ray only when they enter a new cell. */
 function surfaceHeight(park: Object3D | undefined, cache: Map<string, number>, x: number, z: number) {
@@ -29,7 +33,10 @@ function surfaceHeight(park: Object3D | undefined, cache: Map<string, number>, x
   if (known !== undefined) return known
   const terrain = navigationHeight({ x, z })
   let height = terrain
-  if (park) {
+  // The generated park is too large to ray-test per cell (~300k triangles); its paving height is known instead.
+  if (GENERATED_PARK_ENABLED) {
+    if (isOnParkWalkway(x, z)) height = Math.max(height, PATH_PAVING_TOP)
+  } else if (park) {
     down.set(from.set(x, terrain + 1, z), below)
     down.far = 1.6
     // Instanced scatter (grass tufts, flowers, pebbles) is not something to walk on.
@@ -66,7 +73,8 @@ export function RouteArrows() {
     const { path, status } = useNavigation.getState(), session = useSession.getState()
     const pose = avatars.get(session.sessionId)?.current
     fill.count = edge.count = 0
-    if (status !== 'guiding' || path.length < 2 || !pose || session.tableId || session.benchId || session.fitnessId || session.telescopeId) return
+    // While a new route is being planned, the previous one stays visible until it is replaced.
+    if ((status !== 'guiding' && status !== 'planning') || path.length < 2 || !pose || session.tableId || session.benchId || session.fitnessId || session.telescopeId) return
     if (heights.path !== path) { heights.path = path; heights.cells.clear() }
     const park = scene.getObjectByName('placeholder-park')
     // Start from the player's foot point on the route, so walked parts drop away.
