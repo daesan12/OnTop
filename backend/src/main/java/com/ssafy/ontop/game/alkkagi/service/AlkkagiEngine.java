@@ -131,9 +131,12 @@ public final class AlkkagiEngine implements GameEngine {
             var old = e.forfeits.previous(command); if (old != null) return old;
             long before = e.match.snapshot(0).version();
             try {
-                e.match.forfeit(e.players.indexOf(command.userId()), command.actionId(), clock.millis());
+                // 물리 종료와 이탈 이벤트를 같은 판정 시각으로 만든다. Instant 나노초를 섞으면
+                // leftAt > endedAt이 되어 정상 기권도 DB 종료 검증에서 거절된다.
+                long decidedAt = clock.millis();
+                e.match.forfeit(e.players.indexOf(command.userId()), command.actionId(), decidedAt);
                 e.lifecycle.left(e.gameId, e.tableId, "ALKKAGI", e.match.snapshot(0).version(), command.userId(),
-                        GameDepartureReason.EXPLICIT_LEAVE, clock.instant(), 2, notices);
+                        GameDepartureReason.EXPLICIT_LEAVE, Instant.ofEpochMilli(decidedAt), 2, notices);
                 result = e.forfeits.accepted(command, e.match.snapshot(0).version());
             } catch (IllegalArgumentException failure) { rejected = reject(failure.getMessage()); result = null; }
             collect(e, before, notices);
@@ -150,9 +153,10 @@ public final class AlkkagiEngine implements GameEngine {
         synchronized (e) {
             long before = e.match.snapshot(0).version();
             try {
-                e.match.depart(e.players.indexOf(command.userId()), command.reason().name(), command.deadline().toEpochMilli());
+                long decidedAt = command.deadline().toEpochMilli();
+                e.match.depart(e.players.indexOf(command.userId()), command.reason().name(), decidedAt);
                 e.lifecycle.left(e.gameId, e.tableId, "ALKKAGI", e.match.snapshot(0).version(), command.userId(),
-                        command.reason(), command.deadline(), 2, notices);
+                        command.reason(), Instant.ofEpochMilli(decidedAt), 2, notices);
             } catch (IllegalArgumentException finished) {
                 if (!"GAME_FINISHED".equals(finished.getMessage())) throw finished;
             }

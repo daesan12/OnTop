@@ -113,7 +113,7 @@ class AlkkagiFinishValidationTests {
         when(participants.findByGameSessionIdOrderByParticipantOrder(7)).thenReturn(players);
         var service = new GameFinishPersistenceService(sessions, participants, published);
         var events = new ArrayList<Object>();
-        var engine = new AlkkagiEngine(new ObjectMapper(), Clock.fixed(ENDED_AT, ZoneOffset.UTC),
+        var engine = new AlkkagiEngine(new ObjectMapper(), Clock.fixed(ENDED_AT.plusNanos(456789), ZoneOffset.UTC),
                 events::add, new GameEngineRouter());
         engine.create("7", "table", 11, 22);
         engine.forfeit(new GameForfeitCommand(11, "7", "leave-11"));
