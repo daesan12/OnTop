@@ -1,4 +1,5 @@
-"""Fail before publishing the generated DEV frontend to an incompatible backend."""
+"""Fail before publishing a generated frontend to an incompatible backend."""
+import argparse
 import json
 from pathlib import Path
 import subprocess
@@ -7,24 +8,27 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def validate_live(expected, source, actual):
+def validate_live(expected, source, actual, environment="DEV"):
     if source.strip() != "generated":
-        raise ValueError("DEV backend is not using the generated park map")
+        raise ValueError(f"{environment} backend is not using the generated park map")
     for key in ("mapId", "schemaVersion", "mapVersion"):
         if actual.get(key) != expected[key]:
-            raise ValueError(f"DEV backend park {key} does not match the frontend")
+            raise ValueError(f"{environment} backend park {key} does not match the frontend")
     return expected["mapVersion"]
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--container", default="ontop-dev-app-app-1")
+    parser.add_argument("--environment", default="DEV")
+    args = parser.parse_args()
     expected = json.loads((ROOT / "frontend/generated/park/server-map.json").read_text(encoding="utf-8"))
-    container = "ontop-dev-app-app-1"
     source = subprocess.check_output(
-        ["docker", "exec", container, "printenv", "WORLD_MAP_SOURCE"], text=True)
+        ["docker", "exec", args.container, "printenv", "WORLD_MAP_SOURCE"], text=True)
     actual = json.loads(subprocess.check_output(
-        ["docker", "exec", container, "cat", "/run/ontop/maps/server-map.json"], text=True))
-    version = validate_live(expected, source, actual)
-    print(f"DEV backend generated park matches frontend: {version}")
+        ["docker", "exec", args.container, "cat", "/run/ontop/maps/server-map.json"], text=True))
+    version = validate_live(expected, source, actual, args.environment)
+    print(f"{args.environment} backend generated park matches frontend: {version}")
 
 
 if __name__ == "__main__":
