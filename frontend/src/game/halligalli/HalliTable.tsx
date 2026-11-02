@@ -11,6 +11,9 @@ export interface HalliTableProps {
   keyHint?: boolean
 }
 export const stateLabel = (p: HalliPlayer) => p.forfeited ? '기권' : p.eliminated ? '탈락' : ''
+/** Two players left and the turn holder has no face-down card: the 5s turn is only a last bell chance, no flip. */
+export const onLastChance = (h: HalliGalli, p: HalliPlayer) => h.status === 'PLAYING' && h.turnUserId === p.userId && p.drawCount === 0
+export const turnLabel = (h: HalliGalli, p: HalliPlayer) => onLastChance(h, p) ? '마지막 종 기회' : '공개 차례'
 
 /** 2D table: own seat at the bottom, face-down pile beside the face-up top card, bell in the middle. */
 export function HalliTable({ halli, gameId, viewerId, names, canFlip, canRing, onFlip, onRing, keyHint = false }: HalliTableProps) {
@@ -20,11 +23,11 @@ export function HalliTable({ halli, gameId, viewerId, names, canFlip, canRing, o
       const own = p.userId === viewerId, turn = playing && halli.turnUserId === p.userId, out = stateLabel(p)
       return <section key={p.userId} className="hg-seat" data-slot={slots[i]} data-turn={turn || undefined}
         data-own={own || undefined} data-out={out ? (p.forfeited ? 'forfeited' : 'eliminated') : undefined}
-        aria-label={`${names[p.userId]}${turn ? ' · 공개 차례' : ''}${out ? ` · ${out}` : ''}`}>
+        aria-label={`${names[p.userId]}${turn ? ` · ${turnLabel(halli, p)}` : ''}${out ? ` · ${out}` : ''}`}>
         <header className="hg-seat-name">
           <strong>{names[p.userId]}</strong>
           {out ? <span className="hg-badge" data-kind={p.forfeited ? 'forfeited' : 'eliminated'}>{out}</span>
-            : turn ? <span className="hg-badge" data-kind="turn">공개 차례</span> : null}
+            : turn ? <span className="hg-badge" data-kind="turn">{turnLabel(halli, p)}</span> : null}
           <span className="hg-count">{p.cardCount}장</span>
         </header>
         <div className="hg-piles">

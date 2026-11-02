@@ -328,7 +328,7 @@ class HalliGalliMatchTests {
     }
 
     @Test
-    void 처음_3인이면_탈락으로_2인이_된_뒤_다음_정답에서_카드_수로_종료한다() {
+    void 처음_3인이면_탈락으로_2인이_된_뒤의_정답도_카드_수로_끝내지_않고_계속한다() {
         HalliGalliMatch match = match(List.of(A, B, C), Map.of(51, card(BANANA, 4), 52, card(LIME, 2),
                 53, card(BANANA, 1), 54, card(STRAWBERRY, 2), 55, card(STRAWBERRY, 3)));
         match.expire(START.plusSeconds(270));
@@ -336,16 +336,16 @@ class HalliGalliMatchTests {
         flip(match, A, "a-last", START.plusSeconds(272));
         flip(match, B, "b-last", START.plusSeconds(272));
 
-        ring(match, B, "final", 56, START.plusSeconds(273));
+        ring(match, B, "bell-two", 56, START.plusSeconds(273));
 
         HalliGalliMatch.Snapshot state = match.snapshot();
-        assertThat(state.endReason()).isEqualTo(HalliGalliMatch.CARD_COUNT);
-        assertThat(state.endedAt()).isEqualTo(START.plusSeconds(273));
-        assertThat(state.winnerUserIds()).containsExactly(A);
+        assertThat(state.lastEvent()).isEqualTo(new HalliGalliMatch.Event("RING_SUCCESS", B, START.plusSeconds(273), 2, 0));
+        assertThat(state.endedAt()).isNull();
+        assertThat(state.endReason()).isNull();
         assertThat(state.publicPlayers()).extracting(HalliGalliMatch.Player::drawCount).containsExactly(54, 2, 0);
-        assertThat(state.turnDeadline()).isNull();
+        assertThat(state.turnUserId()).isEqualTo(B);
+        assertThat(state.resultUntil()).isEqualTo(START.plusSeconds(274));
         assertThat(match.totalCards()).isEqualTo(56);
-        reject(Rejection.INVALID_ACTION, () -> flip(match, A, "after-end", START.plusSeconds(274)));
     }
 
     @Test
@@ -423,30 +423,30 @@ class HalliGalliMatchTests {
     }
 
     @Test
-    void 최종_2인_오답으로_카드_수가_같으면_공동_1위_모두_승자다() {
+    void 처음_3인이면_탈락으로_2인이_된_뒤의_오답도_일반_벌칙을_주고_계속한다() {
         HalliGalliMatch match = match(List.of(A, B, C), Map.of(0, card(STRAWBERRY, 1)));
         flip(match, A, "a1", START);
         for (int count = 0; count < 9; count++) {
             ring(match, C, "wrong-" + count, 1, START);
         }
-        HalliGalliMatch.Snapshot finalTwo = match.snapshot();
+        HalliGalliMatch.Snapshot twoLeft = match.snapshot();
 
-        ring(match, B, "final-wrong", 1, START);
+        ring(match, B, "two-wrong", 1, START);
 
         HalliGalliMatch.Snapshot state = match.snapshot();
-        assertThat(finalTwo.publicPlayers()).extracting(HalliGalliMatch.Player::eliminated)
+        assertThat(twoLeft.publicPlayers()).extracting(HalliGalliMatch.Player::eliminated)
                 .containsExactly(false, false, true);
-        assertThat(finalTwo.endedAt()).isNull();
-        assertThat(state.lastEvent()).isEqualTo(new HalliGalliMatch.Event("FINAL_PENALTY", B, START, 1, 0));
-        assertThat(state.publicPlayers()).extracting(HalliGalliMatch.Player::drawCount).containsExactly(28, 28, 0);
-        assertThat(state.endReason()).isEqualTo(HalliGalliMatch.CARD_COUNT);
-        assertThat(state.winnerUserIds()).containsExactly(A, B);
-        assertThat(state.issuedPenaltyCards()).isZero();
+        assertThat(state.lastEvent()).isEqualTo(new HalliGalliMatch.Event("RING_PENALTY", B, START, 1, 0));
+        assertThat(state.publicPlayers()).extracting(HalliGalliMatch.Player::drawCount).containsExactly(28, 27, 0);
+        assertThat(state.publicPlayers()).extracting(HalliGalliMatch.Player::faceUpCount).containsExactly(1, 0, 0);
+        assertThat(state.endedAt()).isNull();
+        assertThat(state.turnUserId()).isEqualTo(B);
+        assertThat(state.bellWindowId()).isEqualTo(1);
         assertThat(match.totalCards()).isEqualTo(56);
     }
 
     @Test
-    void 처음_4인이면_탈락으로_최종_2인에_들어간_뒤_다음_정답에서_카드_수로_종료한다() {
+    void 처음_4인이면_탈락으로_2인이_된_뒤의_정답도_카드_수로_끝내지_않고_계속한다() {
         HalliGalliMatch match = match(List.of(A, B, C, D), Map.of(0, card(STRAWBERRY, 1), 1, card(STRAWBERRY, 4)));
         flip(match, A, "a1", START);
         for (int count = 0; count < 5; count++) {
@@ -455,25 +455,24 @@ class HalliGalliMatchTests {
         for (int count = 0; count < 10; count++) {
             ring(match, C, "c-wrong-" + count, 1, START);
         }
-        HalliGalliMatch.Snapshot finalTwo = match.snapshot();
+        HalliGalliMatch.Snapshot twoLeft = match.snapshot();
         flip(match, B, "b1", START);
 
-        ring(match, A, "final", 2, START);
+        ring(match, A, "bell-two", 2, START);
 
         HalliGalliMatch.Snapshot state = match.snapshot();
-        assertThat(finalTwo.publicPlayers()).extracting(HalliGalliMatch.Player::eliminated)
+        assertThat(twoLeft.publicPlayers()).extracting(HalliGalliMatch.Player::eliminated)
                 .containsExactly(false, false, true, true);
-        assertThat(finalTwo.endedAt()).isNull();
         assertThat(state.lastEvent()).isEqualTo(new HalliGalliMatch.Event("RING_SUCCESS", A, START, 2, 0));
         assertThat(state.publicPlayers()).extracting(HalliGalliMatch.Player::drawCount).containsExactly(30, 28, 0, 0);
-        assertThat(state.endReason()).isEqualTo(HalliGalliMatch.CARD_COUNT);
-        assertThat(state.winnerUserIds()).containsExactly(A);
+        assertThat(state.endedAt()).isNull();
+        assertThat(state.turnUserId()).isEqualTo(A);
         assertThat(state.issuedPenaltyCards()).isEqualTo(2);
         assertThat(match.totalCards()).isEqualTo(56 + 2);
     }
 
     @Test
-    void 처음_3인이면_탈락으로_2인이_된_뒤의_오답에_상대가_공개_더미를_가져가고_종료한다() {
+    void 처음_3인이면_탈락으로_2인이_된_뒤의_오답에도_상대가_공개_더미를_가져가지_않는다() {
         HalliGalliMatch match = match(List.of(A, B, C), Map.of(51, card(BANANA, 4), 52, card(LIME, 2),
                 53, card(BANANA, 1), 54, card(STRAWBERRY, 2), 55, card(STRAWBERRY, 3)));
         match.expire(START.plusSeconds(270));
@@ -483,16 +482,16 @@ class HalliGalliMatchTests {
         ring(match, B, "wrong", 55, START.plusSeconds(273));
 
         HalliGalliMatch.Snapshot state = match.snapshot();
-        assertThat(state.lastEvent()).isEqualTo(new HalliGalliMatch.Event("FINAL_PENALTY", B, START.plusSeconds(273), 1, 0));
-        assertThat(state.publicPlayers()).extracting(HalliGalliMatch.Player::drawCount).containsExactly(55, 1, 0);
-        assertThat(state.endReason()).isEqualTo(HalliGalliMatch.CARD_COUNT);
+        assertThat(state.lastEvent()).isEqualTo(new HalliGalliMatch.Event("RING_PENALTY", B, START.plusSeconds(273), 1, 0));
+        assertThat(state.publicPlayers()).extracting(HalliGalliMatch.Player::drawCount).containsExactly(55, 0, 0);
+        assertThat(state.publicPlayers()).extracting(HalliGalliMatch.Player::faceUpCount).containsExactly(1, 0, 0);
+        assertThat(state.endReason()).isEqualTo(HalliGalliMatch.LAST_PLAYER_STANDING);
         assertThat(state.winnerUserIds()).containsExactly(A);
-        assertThat(match.isActive(B)).isTrue();
         assertThat(match.totalCards()).isEqualTo(56);
     }
 
     @Test
-    void 최종_2인_오답으로_친_사람의_카드가_모두_없어지면_상대가_마지막_생존자로_이긴다() {
+    void 처음_3인이면_탈락으로_2인이_된_뒤의_오답에도_뒷면이_모자라면_발행해_주고_탈락시킨다() {
         HalliGalliMatch match = match(List.of(A, B, C), Map.of(51, card(BANANA, 4), 52, card(LIME, 2),
                 53, card(BANANA, 1), 54, card(STRAWBERRY, 2), 55, card(STRAWBERRY, 1)));
         match.expire(START.plusSeconds(270));
@@ -503,30 +502,283 @@ class HalliGalliMatchTests {
         ring(match, B, "wrong", 56, START.plusSeconds(273));
 
         HalliGalliMatch.Snapshot state = match.snapshot();
-        assertThat(state.lastEvent()).isEqualTo(new HalliGalliMatch.Event("FINAL_PENALTY", B, START.plusSeconds(273), 2, 0));
-        assertThat(state.publicPlayers()).extracting(HalliGalliMatch.Player::drawCount).containsExactly(56, 0, 0);
+        assertThat(state.lastEvent()).isEqualTo(new HalliGalliMatch.Event("RING_PENALTY", B, START.plusSeconds(273), 1, 1));
+        assertThat(state.publicPlayers()).extracting(HalliGalliMatch.Player::drawCount).containsExactly(55, 0, 0);
         assertThat(state.publicPlayers()).extracting(HalliGalliMatch.Player::eliminated).containsExactly(false, true, true);
-        assertThat(state.issuedPenaltyCards()).isZero();
+        assertThat(state.issuedPenaltyCards()).isEqualTo(1);
         assertThat(state.endReason()).isEqualTo(HalliGalliMatch.LAST_PLAYER_STANDING);
         assertThat(state.winnerUserIds()).containsExactly(A);
+        assertThat(match.totalCards()).isEqualTo(56 + 1);
+    }
+
+    @Test
+    void 활성_2명에서_마지막_카드를_공개한_직후에는_끝나지_않고_상대_차례로_넘어간다() {
+        HalliGalliMatch match = match(List.of(A, B), Map.of());
+
+        match.expire(START.plusSeconds(275));
+
+        HalliGalliMatch.Snapshot state = match.snapshot();
+        assertThat(state.lastEvent()).isEqualTo(new HalliGalliMatch.Event("AUTO_FLIP", A, START.plusSeconds(275), 1, 0));
+        assertThat(state.publicPlayers()).extracting(HalliGalliMatch.Player::drawCount).containsExactly(0, 1);
+        assertThat(match.isActive(A)).isTrue();
+        assertThat(state.endedAt()).isNull();
+        assertThat(state.turnUserId()).isEqualTo(B);
+        assertThat(state.turnDeadline()).isEqualTo(START.plusSeconds(280));
+        assertThat(state.bellWindowId()).isEqualTo(55);
+    }
+
+    @Test
+    void 활성_2명에서_뒷면이_빈_참가자의_차례가_오면_5초_마지막_종_기회를_연다() {
+        HalliGalliMatch match = match(List.of(A, B), Map.of());
+        match.expire(START.plusSeconds(275));
+
+        flip(match, B, "b-last", START.plusSeconds(276));
+
+        HalliGalliMatch.Snapshot state = match.snapshot();
+        assertThat(state.publicPlayers()).extracting(HalliGalliMatch.Player::drawCount).containsExactly(0, 0);
+        assertThat(state.endedAt()).isNull();
+        assertThat(state.turnUserId()).isEqualTo(A);
+        assertThat(state.turnDeadline()).isEqualTo(START.plusSeconds(281));
+        assertThat(state.bellWindowId()).isEqualTo(56);
+    }
+
+    @Test
+    void 마지막_종_기회에는_공개를_거절하고_자동_공개도_하지_않으며_마감에_상대가_이긴다() {
+        HalliGalliMatch match = match(List.of(A, B), Map.of(54, card(STRAWBERRY, 1), 55, card(BANANA, 1)));
+        match.expire(START.plusSeconds(280));
+        HalliGalliMatch.Snapshot waiting = match.snapshot();
+
+        reject(Rejection.INVALID_ACTION, () -> flip(match, A, "nothing", START.plusSeconds(281)));
+        reject(Rejection.NOT_YOUR_TURN, () -> flip(match, B, "not-mine", START.plusSeconds(281)));
+        match.expire(START.plusSeconds(285).minusNanos(1));
+        HalliGalliMatch.Snapshot beforeDeadline = match.snapshot();
+        match.expire(START.plusSeconds(285));
+
+        HalliGalliMatch.Snapshot state = match.snapshot();
+        assertThat(waiting.turnUserId()).isEqualTo(A);
+        assertThat(waiting.turnDeadline()).isEqualTo(START.plusSeconds(285));
+        assertThat(waiting.bellWindowId()).isEqualTo(56);
+        assertThat(beforeDeadline.version()).isEqualTo(waiting.version());
+        assertThat(beforeDeadline.flipSeq()).isEqualTo(56);
+        assertThat(beforeDeadline.endedAt()).isNull();
+        assertThat(state.flipSeq()).isEqualTo(56);
+        assertThat(state.endReason()).isEqualTo(HalliGalliMatch.NO_CARDS_TO_FLIP);
+        assertThat(state.endedAt()).isEqualTo(START.plusSeconds(285));
+        assertThat(state.winnerUserIds()).containsExactly(B);
+        assertThat(state.turnUserId()).isNull();
+        assertThat(state.turnDeadline()).isNull();
+        assertThat(state.bellWindowId()).isNull();
+        assertThat(match.totalCards()).isEqualTo(56);
+        reject(Rejection.INVALID_ACTION, () -> ring(match, A, "after-end", 56, START.plusSeconds(286)));
+    }
+
+    @Test
+    void 늦은_자동_처리도_마감을_차례로_따라잡아_마지막_종_기회_마감_시각에_한_번만_끝낸다() {
+        HalliGalliMatch match = match(List.of(A, B), Map.of(54, card(STRAWBERRY, 1), 55, card(BANANA, 1)));
+
+        match.expire(START.plusSeconds(400));
+        HalliGalliMatch.Snapshot state = match.snapshot();
+        match.expire(START.plusSeconds(500));
+
+        assertThat(state.flipSeq()).isEqualTo(56);
+        assertThat(state.endReason()).isEqualTo(HalliGalliMatch.NO_CARDS_TO_FLIP);
+        assertThat(state.endedAt()).isEqualTo(START.plusSeconds(285));
+        assertThat(state.winnerUserIds()).containsExactly(B);
+        assertThat(match.snapshot()).isEqualTo(state);
+    }
+
+    @Test
+    void 마지막_종_기회에_종을_맞히면_카드를_얻고_결과_연출_뒤_정상_차례로_돌아간다() {
+        HalliGalliMatch match = lastChanceOfA(card(STRAWBERRY, 2), card(STRAWBERRY, 3));
+        HalliGalliMatch.Snapshot waiting = match.snapshot();
+
+        ring(match, A, "bell", 54, START.plusSeconds(266));
+        HalliGalliMatch.Snapshot afterRing = match.snapshot();
+        match.expire(START.plusSeconds(272));
+
+        assertThat(waiting.turnUserId()).isEqualTo(A);
+        assertThat(waiting.turnDeadline()).isEqualTo(START.plusSeconds(270));
+        assertThat(waiting.publicPlayers()).extracting(HalliGalliMatch.Player::drawCount).containsExactly(0, 2);
+        assertThat(afterRing.lastEvent()).isEqualTo(new HalliGalliMatch.Event("RING_SUCCESS", A, START.plusSeconds(266), 54, 0));
+        assertThat(afterRing.publicPlayers()).extracting(HalliGalliMatch.Player::drawCount).containsExactly(54, 2);
+        assertThat(afterRing.endedAt()).isNull();
+        assertThat(afterRing.turnUserId()).isEqualTo(A);
+        assertThat(afterRing.resultUntil()).isEqualTo(START.plusSeconds(267));
+        assertThat(afterRing.turnDeadline()).isEqualTo(START.plusSeconds(272));
+        assertThat(match.snapshot().lastEvent()).isEqualTo(new HalliGalliMatch.Event("AUTO_FLIP", A, START.plusSeconds(272), 1, 0));
+        assertThat(match.snapshot().endedAt()).isNull();
+        assertThat(match.snapshot().turnUserId()).isEqualTo(B);
         assertThat(match.totalCards()).isEqualTo(56);
     }
 
     @Test
-    void 아무도_공개할_카드가_없으면_마지막_종_기회_뒤_카드_수로_종료한다() {
-        HalliGalliMatch match = match(List.of(A, B), Map.of(54, card(STRAWBERRY, 1), 55, card(BANANA, 1)));
+    void 마지막_종_기회에_상대가_종을_맞히면_공개_더미를_잃은_참가자가_탈락한다() {
+        HalliGalliMatch match = lastChanceOfA(card(STRAWBERRY, 2), card(STRAWBERRY, 3));
+
+        ring(match, B, "bell", 54, START.plusSeconds(266));
+
+        HalliGalliMatch.Snapshot state = match.snapshot();
+        assertThat(state.lastEvent()).isEqualTo(new HalliGalliMatch.Event("RING_SUCCESS", B, START.plusSeconds(266), 54, 0));
+        assertThat(state.publicPlayers()).extracting(HalliGalliMatch.Player::eliminated).containsExactly(true, false);
+        assertThat(state.endReason()).isEqualTo(HalliGalliMatch.LAST_PLAYER_STANDING);
+        assertThat(state.winnerUserIds()).containsExactly(B);
+        assertThat(match.totalCards()).isEqualTo(56);
+    }
+
+    @Test
+    void 마지막_종_기회에_상대의_오답_벌칙_카드를_받으면_같은_마감에_공개해_계속한다() {
+        HalliGalliMatch match = lastChanceOfA(card(BANANA, 1), card(LIME, 2));
+
+        ring(match, B, "wrong", 54, START.plusSeconds(266));
+        HalliGalliMatch.Snapshot afterRing = match.snapshot();
+        match.expire(START.plusSeconds(270));
+
+        assertThat(afterRing.lastEvent()).isEqualTo(new HalliGalliMatch.Event("RING_PENALTY", B, START.plusSeconds(266), 1, 0));
+        assertThat(afterRing.publicPlayers()).extracting(HalliGalliMatch.Player::drawCount).containsExactly(1, 1);
+        assertThat(afterRing.turnUserId()).isEqualTo(A);
+        assertThat(afterRing.turnDeadline()).isEqualTo(START.plusSeconds(270));
+        assertThat(match.snapshot().lastEvent()).isEqualTo(new HalliGalliMatch.Event("AUTO_FLIP", A, START.plusSeconds(270), 1, 0));
+        assertThat(match.snapshot().endedAt()).isNull();
+        assertThat(match.snapshot().turnUserId()).isEqualTo(B);
+        assertThat(match.totalCards()).isEqualTo(56);
+    }
+
+    @Test
+    void 마지막_종_기회에_본인이_종을_잘못_치면_일반_벌칙으로_발행해_주고_탈락한다() {
+        HalliGalliMatch match = lastChanceOfA(card(BANANA, 1), card(LIME, 2));
+
+        ring(match, A, "last-wrong", 54, START.plusSeconds(266));
+
+        HalliGalliMatch.Snapshot state = match.snapshot();
+        assertThat(state.lastEvent()).isEqualTo(new HalliGalliMatch.Event("RING_PENALTY", A, START.plusSeconds(266), 1, 1));
+        assertThat(state.publicPlayers()).extracting(HalliGalliMatch.Player::drawCount).containsExactly(0, 3);
+        assertThat(state.publicPlayers()).extracting(HalliGalliMatch.Player::eliminated).containsExactly(true, false);
+        assertThat(state.endReason()).isEqualTo(HalliGalliMatch.LAST_PLAYER_STANDING);
+        assertThat(state.endedAt()).isEqualTo(START.plusSeconds(266));
+        assertThat(state.winnerUserIds()).containsExactly(B);
+        assertThat(match.totalCards()).isEqualTo(56 + 1);
+    }
+
+    @Test
+    void 활성_2명에서_자기_차례에_벌칙으로_마지막_뒷면_카드를_내면_새_5초_마지막_종_기회가_된다() {
+        HalliGalliMatch match = match(List.of(A, B), Map.of());
+        match.expire(START.plusSeconds(275));
+
+        ring(match, B, "wrong", 55, START.plusSeconds(276));
+
+        HalliGalliMatch.Snapshot state = match.snapshot();
+        assertThat(state.lastEvent()).isEqualTo(new HalliGalliMatch.Event("RING_PENALTY", B, START.plusSeconds(276), 1, 0));
+        assertThat(state.publicPlayers()).extracting(HalliGalliMatch.Player::drawCount).containsExactly(1, 0);
+        assertThat(state.turnUserId()).isEqualTo(B);
+        assertThat(state.turnDeadline()).isEqualTo(START.plusSeconds(281));
+        reject(Rejection.NOT_YOUR_TURN, () -> flip(match, A, "not-mine", START.plusSeconds(277)));
+        match.expire(START.plusSeconds(281));
+        assertThat(match.snapshot().endReason()).isEqualTo(HalliGalliMatch.NO_CARDS_TO_FLIP);
+        assertThat(match.snapshot().winnerUserIds()).containsExactly(A);
+        assertThat(match.snapshot().endedAt()).isEqualTo(START.plusSeconds(281));
+    }
+
+    @Test
+    void 마지막_종_기회_중_상대가_기권하면_남은_참가자가_마지막_생존자로_이긴다() {
+        HalliGalliMatch match = match(List.of(A, B), Map.of());
+        match.expire(START.plusSeconds(280));
+
+        match.forfeit(B, START.plusSeconds(281));
+        match.expire(START.plusSeconds(290));
+
+        HalliGalliMatch.Snapshot state = match.snapshot();
+        assertThat(state.endReason()).isEqualTo(HalliGalliMatch.LAST_PLAYER_STANDING);
+        assertThat(state.endedAt()).isEqualTo(START.plusSeconds(281));
+        assertThat(state.winnerUserIds()).containsExactly(A);
+    }
+
+    @Test
+    void 활성_3명_이상이면_뒷면이_빈_참가자의_차례를_건너뛰고_그_참가자도_종을_칠_수_있다() {
+        HalliGalliMatch match = match(List.of(A, B, C), Map.of(0, card(STRAWBERRY, 1)));
+        flip(match, A, "a1", START);
+        ring(match, C, "wrong", 1, START);
+
+        match.expire(START.plusSeconds(245));
+
+        HalliGalliMatch.Snapshot state = match.snapshot();
+        assertThat(state.publicPlayers()).extracting(HalliGalliMatch.Player::drawCount).containsExactly(3, 3, 0);
+        assertThat(match.isActive(C)).isTrue();
+        assertThat(state.turnUserId()).isEqualTo(A);
+        assertThat(state.turnDeadline()).isEqualTo(START.plusSeconds(250));
+        assertThat(state.endedAt()).isNull();
+    }
+
+    @Test
+    void 활성_3명_이상이면_아무도_공개할_카드가_없을_때_마지막_종_기회_뒤_카드_수로_종료한다() {
+        HalliGalliMatch match = match(List.of(A, B, C), Map.of());
         match.expire(START.plusSeconds(280));
         HalliGalliMatch.Snapshot waiting = match.snapshot();
 
         match.expire(START.plusSeconds(285));
 
         assertThat(waiting.turnUserId()).isNull();
-        assertThat(waiting.bellWindowId()).isEqualTo(56);
         assertThat(waiting.endedAt()).isNull();
         assertThat(match.snapshot().endReason()).isEqualTo(HalliGalliMatch.NO_CARDS_TO_FLIP);
         assertThat(match.snapshot().endedAt()).isEqualTo(START.plusSeconds(285));
         assertThat(match.snapshot().winnerUserIds()).containsExactly(A, B);
         assertThat(match.totalCards()).isEqualTo(56);
+    }
+
+    @Test
+    void 뒷면이_빈_참가자가_있는_3인에서_기권으로_2인이_되면_그_참가자의_다음_차례가_마지막_종_기회다() {
+        HalliGalliMatch match = match(List.of(A, B, C), Map.of());
+        match.expire(START.plusSeconds(270));
+
+        match.forfeit(B, START.plusSeconds(271));
+        HalliGalliMatch.Snapshot twoLeft = match.snapshot();
+        flip(match, A, "a-last", START.plusSeconds(272));
+        HalliGalliMatch.Snapshot waiting = match.snapshot();
+        match.expire(START.plusSeconds(277));
+
+        assertThat(twoLeft.publicPlayers()).extracting(HalliGalliMatch.Player::drawCount).containsExactly(1, 1, 0);
+        assertThat(twoLeft.turnUserId()).isEqualTo(A);
+        assertThat(twoLeft.turnDeadline()).isEqualTo(START.plusSeconds(275));
+        assertThat(waiting.turnUserId()).isEqualTo(C);
+        assertThat(waiting.turnDeadline()).isEqualTo(START.plusSeconds(277));
+        assertThat(waiting.endedAt()).isNull();
+        assertThat(match.snapshot().endReason()).isEqualTo(HalliGalliMatch.NO_CARDS_TO_FLIP);
+        assertThat(match.snapshot().winnerUserIds()).containsExactly(A);
+    }
+
+    @Test
+    void 공개_차례인_참가자가_기권해_2인이_되면_뒷면이_빈_다음_좌석에_바로_마지막_종_기회를_준다() {
+        HalliGalliMatch match = match(List.of(A, B, C), Map.of());
+        match.expire(START.plusSeconds(275));
+
+        match.forfeit(B, START.plusSeconds(276));
+
+        HalliGalliMatch.Snapshot state = match.snapshot();
+        assertThat(state.publicPlayers()).extracting(HalliGalliMatch.Player::drawCount).containsExactly(0, 1, 0);
+        assertThat(state.turnUserId()).isEqualTo(C);
+        assertThat(state.turnDeadline()).isEqualTo(START.plusSeconds(281));
+        match.expire(START.plusSeconds(281));
+        assertThat(match.snapshot().endReason()).isEqualTo(HalliGalliMatch.NO_CARDS_TO_FLIP);
+        assertThat(match.snapshot().winnerUserIds()).containsExactly(A);
+    }
+
+    @Test
+    void 아무도_공개할_수_없던_3인에서_기권으로_2인이_되면_다음_좌석의_마지막_종_기회로_바꾼다() {
+        HalliGalliMatch match = match(List.of(A, B, C), Map.of());
+        match.expire(START.plusSeconds(280));
+        HalliGalliMatch.Snapshot noTurn = match.snapshot();
+
+        match.forfeit(C, START.plusSeconds(281));
+        match.expire(START.plusSeconds(285));
+        HalliGalliMatch.Snapshot afterOldDeadline = match.snapshot();
+        match.expire(START.plusSeconds(286));
+
+        assertThat(noTurn.turnUserId()).isNull();
+        assertThat(afterOldDeadline.endedAt()).isNull();
+        assertThat(afterOldDeadline.turnUserId()).isEqualTo(A);
+        assertThat(afterOldDeadline.turnDeadline()).isEqualTo(START.plusSeconds(286));
+        assertThat(match.snapshot().endReason()).isEqualTo(HalliGalliMatch.NO_CARDS_TO_FLIP);
+        assertThat(match.snapshot().endedAt()).isEqualTo(START.plusSeconds(286));
+        assertThat(match.snapshot().winnerUserIds()).containsExactly(B);
     }
 
     @Test
@@ -564,6 +816,16 @@ class HalliGalliMatchTests {
         flip(match, A, "a1", START);
         flip(match, B, "b1", START);
         ring(match, C, "bell", 2, START.plusSeconds(1));
+        return match;
+    }
+
+    // A가 첫 카드에서 종을 잘못 쳐 B에게 한 장을 준 뒤 자동 공개로 진행한다. 265초에 B가 공개하면 뒷면이 빈 A의
+    // 마지막 종 기회가 270초까지 열린다. 이때 B는 뒷면 2장이 남고 맨 위 카드는 A가 aLast, B가 bLast다(창 54).
+    private static HalliGalliMatch lastChanceOfA(FruitCard aLast, FruitCard bLast) {
+        HalliGalliMatch match = match(List.of(A, B), Map.of(0, card(STRAWBERRY, 1), 53, bLast, 54, aLast));
+        flip(match, A, "a1", START);
+        ring(match, A, "wrong", 1, START);
+        match.expire(START.plusSeconds(265));
         return match;
     }
 

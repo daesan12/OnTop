@@ -19,9 +19,10 @@ import java.util.random.RandomGenerator;
 
 // 모든 변경·조회를 소유 엔진의 동일 잠금 안에서 수행한다.
 // 버전은 상태 관찰용이다. 늦은 입력은 행동별 기준(카드 공개는 턴 시작 버전, 종은 bellWindowId)으로 가린다.
+// 활성 참가자가 2명이면 뒷면이 빈 참가자의 차례도 건너뛰지 않는다. 그 차례는 공개 대신 5초 마지막 종 기회이고,
+// 마감까지 뒷면 카드를 얻지 못하면 그 참가자가 지고 상대가 이긴다(NO_CARDS_TO_FLIP). 3명 이상이면 빈 좌석을 건너뛴다.
 public final class HalliGalliMatch {
     public static final String GAME_CODE = "HALLI_GALLI";
-    public static final String CARD_COUNT = "CARD_COUNT";
     public static final String LAST_PLAYER_STANDING = "LAST_PLAYER_STANDING";
     public static final String NO_CARDS_TO_FLIP = "NO_CARDS_TO_FLIP";
     private static final int BELL_TOTAL = 5;
@@ -34,7 +35,8 @@ public final class HalliGalliMatch {
     private final RandomGenerator random;
     private final HalliGalliTiming timing;
     private long version;
-    // 카드를 공개할 좌석 번호. -1이면 뒷면 카드가 남은 참가자가 없어 마지막 종 기회만 남는다.
+    // 카드를 공개할 좌석 번호. -1이면(3명 이상일 때만) 뒷면 카드가 남은 참가자가 없어 마지막 종 기회만 남는다.
+    // 활성 2명에서 이 좌석의 뒷면이 비어 있으면 그 참가자의 마지막 종 기회다.
     private int turn;
     private long turnVersion;
     private Instant turnDeadline;
@@ -119,14 +121,19 @@ public final class HalliGalliMatch {
     }
 
     // 마감이 지난 턴은 마감 시각 기준으로 서버가 대신 공개한다. 여러 마감을 놓쳤으면 차례대로 따라잡는다.
+    // 마지막 종 기회가 끝난 차례는 공개하지 않고 그 참가자의 상대를 승자로 끝낸다.
     public void expire(Instant now) {
         while (endedAt == null && !now.isBefore(turnDeadline)) {
             Instant at = turnDeadline;
             if (turn < 0) {
                 version++;
                 finish(mostCards(), NO_CARDS_TO_FLIP, at);
-            } else {
+            } else if (seat(turn).canFlip()) {
                 flipBy(turn, at, "AUTO_FLIP");
+            } else {
+                version++;
+                long loser = players.get(turn);
+                finish(activeUsers().stream().filter(id -> id != loser).toList(), NO_CARDS_TO_FLIP, at);
             }
         }
     }
@@ -141,6 +148,10 @@ public final class HalliGalliMatch {
         }
         if (turn < 0 || players.get(turn) != actor.userId()) {
             throw new Rejected(Rejection.NOT_YOUR_TURN);
+        }
+        // 마지막 종 기회 차례에는 공개할 카드가 없다.
+        if (!actor.canFlip()) {
+            throw new Rejected(Rejection.INVALID_ACTION);
         }
         flipBy(turn, now, "FLIP");
     }
@@ -166,19 +177,17 @@ public final class HalliGalliMatch {
         if (window.longValue() != flipSeq || !windowOpen) {
             throw new Rejected(Rejection.STALE_VERSION);
         }
-        // 최종 2인 라운드는 3인 이상으로 시작해 탈락으로 2인이 된 경기에만 있다. 2인 시작 경기는 일반 규칙으로 끝까지 간다.
-        boolean finalTwo = players.size() > 2 && activeCount() == 2;
+        // 인원과 관계없이 같은 판정이다. 활성 2명이라는 이유만으로 종 판정 직후 끝내지 않는다.
         List<FruitCard> tops = seats.values().stream().map(HalliGalliPlayer::topCard).filter(Objects::nonNull).toList();
         if (bellMatches(tops)) {
-            collect(actor, finalTwo, now);
-        } else if (finalTwo) {
-            finalPenalty(actor, now);
+            collect(actor, now);
         } else {
             penalize(actor, now);
         }
     }
 
-    private void collect(HalliGalliPlayer ringer, boolean finalTwo, Instant now) {
+    // 수거한 사람은 뒷면 카드가 생기므로 마지막 종 기회였어도 결과 연출 뒤 정상 차례로 돌아간다.
+    private void collect(HalliGalliPlayer ringer, Instant now) {
         version++;
         int cards = gatherFaceUp(ringer);
         windowOpen = false;
@@ -188,29 +197,10 @@ public final class HalliGalliMatch {
             finish(activeUsers(), LAST_PLAYER_STANDING, now);
             return;
         }
-        // 최종 2인 라운드에서 공개 더미를 수거하면 그 시점 보유 카드 수로 승부를 낸다.
-        if (finalTwo) {
-            finish(mostCards(), CARD_COUNT, now);
-            return;
-        }
         resultUntil = now.plus(timing.resultPause());
         turn = players.indexOf(ringer.userId());
         turnDeadline = resultUntil.plus(timing.turnLimit());
         turnVersion = version;
-    }
-
-    // 기본판 특례: 최종 2인 라운드에서 종을 잘못 치면 벌칙 카드 대신 상대가 모든 공개 더미를 가져가고 경기가 끝난다.
-    private void finalPenalty(HalliGalliPlayer ringer, Instant now) {
-        version++;
-        int cards = gatherFaceUp(othersAfter(ringer).getFirst());
-        windowOpen = false;
-        lastEvent = new Event("FINAL_PENALTY", ringer.userId(), now, cards, 0);
-        eliminateExhausted();
-        if (activeCount() <= 1) {
-            finish(activeUsers(), LAST_PLAYER_STANDING, now);
-        } else {
-            finish(mostCards(), CARD_COUNT, now);
-        }
     }
 
     // 탈락자 것을 포함한 모든 공개 더미를 받는 사람의 뒷면 맨 아래로 옮긴다.
@@ -224,7 +214,7 @@ public final class HalliGalliMatch {
     }
 
     // 다른 유효 참가자에게 한 장씩 준다. 뒷면 카드가 모자라면 부족분을 발행해 지급하고 벌칙 대상은 즉시 탈락한다.
-    // 2인 시작 경기는 이 탈락으로 1명이 남아 끝날 수 있다.
+    // 이 탈락으로 1명이 남으면 끝난다. 마지막 종 기회인 참가자는 상대의 벌칙 카드를 받아 그 차례에 다시 공개할 수 있다.
     private void penalize(HalliGalliPlayer ringer, Instant now) {
         version++;
         List<HalliGalliPlayer> recipients = othersAfter(ringer);
@@ -246,13 +236,16 @@ public final class HalliGalliMatch {
             finish(activeUsers(), LAST_PLAYER_STANDING, now);
             return;
         }
+        // 활성 2명에서 차례인 사람이 벌칙으로 마지막 뒷면 카드를 냈으면 그 차례를 새 5초 마지막 종 기회로 다시 연다.
         if (turn < 0 || !seat(turn).canFlip()) {
-            startTurn(players.indexOf(ringer.userId()) + 1, now);
+            boolean keepTurn = activeCount() == 2 && turn >= 0 && !seat(turn).isEliminated();
+            startTurn(keepTurn ? turn : players.indexOf(ringer.userId()) + 1, now);
         }
     }
 
     // 기권 확정. 이미 끝났거나 경기에서 빠진 참가자면 아무것도 바꾸지 않는다.
     // 남은 유효 참가자가 1명이면 끝내고, 기권자가 공개 차례였으면 결과 연출 뒤(없으면 지금) 다음 좌석에 새 턴을 준다.
+    // 아무도 공개할 수 없던 상태(turn -1)에서 2명이 남으면 기권자 다음 좌석의 마지막 종 기회로 바꾼다.
     public void forfeit(long user, Instant now) {
         HalliGalliPlayer leaver = seats.get(user);
         if (endedAt != null || leaver == null || leaver.isEliminated()) {
@@ -264,16 +257,19 @@ public final class HalliGalliMatch {
             finish(activeUsers(), LAST_PLAYER_STANDING, now);
             return;
         }
-        if (turn >= 0 && players.get(turn) == user) {
-            startTurn(turn + 1, resultUntil != null && now.isBefore(resultUntil) ? resultUntil : now);
+        boolean leaverTurn = turn >= 0 && players.get(turn) == user;
+        if (leaverTurn || turn < 0 && activeCount() == 2) {
+            startTurn(players.indexOf(user) + 1, resultUntil != null && now.isBefore(resultUntil) ? resultUntil : now);
         }
     }
 
+    // 3명 이상이면 공개할 수 있는 좌석만, 활성 2명이면 뒷면이 비어도 다음 유효 좌석에 차례를 준다.
     private void startTurn(int from, Instant at) {
+        boolean twoLeft = activeCount() == 2;
         turn = -1;
         for (int step = 0; step < players.size(); step++) {
             int seat = Math.floorMod(from + step, players.size());
-            if (seat(seat).canFlip()) {
+            if (twoLeft ? !seat(seat).isEliminated() : seat(seat).canFlip()) {
                 turn = seat;
                 break;
             }
@@ -359,8 +355,8 @@ public final class HalliGalliMatch {
     private record Accepted(long expectedVersion, JsonNode input, GameActionResult result) {
     }
 
-    // type: FLIP, AUTO_FLIP, RING_SUCCESS, RING_PENALTY, FINAL_PENALTY. userId는 행동한 사람(종은 친 사람)이다.
-    // cardCount는 공개·수거·지급 장수다. FINAL_PENALTY는 상대가 가져간 공개 카드 장수다.
+    // type: FLIP, AUTO_FLIP, RING_SUCCESS, RING_PENALTY. userId는 행동한 사람(종은 친 사람)이다.
+    // cardCount는 공개·수거·지급 장수다. 예전 최종 2인 특례의 FINAL_PENALTY는 더 이상 만들지 않는다.
     public record Event(String type, long userId, Instant at, int cardCount, int issuedCards) {
     }
 
