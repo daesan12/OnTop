@@ -437,6 +437,10 @@
 .manual-first-card:hover {
   background: #e0e6d3;
 }
+.manual-first-card:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
 .manual-first-icon {
   font-size: 30px;
   color: #758368;

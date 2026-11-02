@@ -11,6 +11,7 @@ import com.ssafy.ontop.behavior.service.BehaviorLog;
 import com.ssafy.ontop.table.service.TableHub;
 import com.ssafy.ontop.world.config.WorldChannelProperties;
 import com.ssafy.ontop.world.config.WorldChannelProperties.Channel;
+import com.ssafy.ontop.world.movement.WorldPhysics;
 import com.ssafy.ontop.world.service.WorldChannelRegistry;
 import java.time.Duration;
 import java.util.List;
@@ -21,14 +22,15 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -37,8 +39,9 @@ import static org.mockito.Mockito.when;
 class TableHubPositionTests {
 
     private final ObjectMapper mapper = new ObjectMapper();
+    private final AtomicLong clock = new AtomicLong();
     private final WorldChannelRegistry registry = new WorldChannelRegistry(new WorldChannelProperties(List.of(
-            new Channel("one", "하나", 3))), Duration.ofNanos(1), System::nanoTime);
+            new Channel("one", "하나", 3))), Duration.ofNanos(1), clock::get);
     private final TableHub hub = new TableHub(mapper, Optional.empty(), false, Optional.empty(),
             Duration.ofSeconds(10), Duration.ofSeconds(10), registry);
     private final List<PositionSample> positions = new CopyOnWriteArrayList<>();
@@ -64,8 +67,13 @@ class TableHubPositionTests {
 
         user.request("WORLD_MOVE", Map.of("seq", 1, "dx", 0, "dz", -1, "run", false));
 
-        await().atMost(Duration.ofSeconds(5)).until(() -> positions.size() >= 3
-                && positions.get(1).moving() && !positions.getLast().moving());
+        // CI 스케줄러가 늦으면 250ms 입력 유효 시간이 먼저 끝난다. 물리 시각을 직접 진행한다.
+        tick(5);
+        assertThat(positions).hasSizeGreaterThanOrEqualTo(2);
+        assertThat(positions.get(1).moving()).isTrue();
+        tick(30);
+        assertThat(positions).hasSizeGreaterThanOrEqualTo(3);
+        assertThat(positions.getLast().moving()).isFalse();
         PositionSample spawn = positions.getFirst();
         PositionSample stopped = positions.getLast();
         assertThat(Math.hypot(stopped.x() - spawn.x(), stopped.z() - spawn.z())).isGreaterThan(0.1);
@@ -79,9 +87,18 @@ class TableHubPositionTests {
         user.request("TABLE_JOIN", Map.of("tableId", hub.listTables("one").tables().getFirst().tableId()));
         positions.clear();
 
-        TimeUnit.MILLISECONDS.sleep(300);
+        tick(30);
 
         assertThat(positions).isEmpty();
+    }
+
+    private void tick(int count) {
+        synchronized (hub) {
+            for (int tick = 0; tick < count; tick++) {
+                clock.addAndGet(WorldPhysics.STEP_NANOS);
+                ReflectionTestUtils.invokeMethod(hub, "advanceWorld");
+            }
+        }
     }
 
     private Peer peer(long accountId) throws Exception {

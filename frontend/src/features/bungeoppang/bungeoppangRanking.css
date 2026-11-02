@@ -12,6 +12,8 @@
 .bung-ranking-open>svg { width:18px; height:18px; flex-shrink:0; color:#7c865d; }
 .table-paper-popup .bung-ranking-open:hover { border-color:#82916e; background:#f1f0e2; }
 .table-paper-popup.bungeoppang-ranking-popup { width:min(650px,calc(100vw - 28px)); }
+/* Use the popup's hidden-scrollbar wheel/touch scrolling, including the back button. */
+.bungeoppang-ranking-popup .bung-ranking-table-wrap { max-height:none; overflow:visible; }
 .bung-ranking-rule { margin:14px 0; color:#737264; font-size:12px; line-height:1.8; }
 .bung-ranking-overview { display:flex; align-items:center; gap:13px; padding:9px 16px; margin:0 0 16px; border-radius:15px; background:#e9e1cf66; text-align:left; }
 .bung-ranking-overview .bung-ranking-medal { width:50px; height:61px; }

@@ -19,7 +19,7 @@ export class VrZoneController {
   private visit = 0
   private key: string | null = null
   private inFlight: Promise<boolean> | null = null
-  constructor(readonly admission: VrAdmissionPort) {}
+  constructor(readonly admission: VrAdmissionPort, readonly underConstruction = false) {}
 
   get recovering() { return Boolean(this.key || this.admission.hasPendingRequest?.()) }
 
@@ -35,9 +35,11 @@ export class VrZoneController {
     finally { if (visit === this.visit) this.store.setState({ loading: false }) }
   }
   select(game: VrGameId) {
+    if (this.underConstruction) return
     if (this.store.getState().phase === 'catalog' && VR_GAMES.some(item => item.id === game && item.available)) this.store.setState({ selected: game, phase: 'mode' })
   }
   prepare(playMode: VrPlayMode) {
+    if (this.underConstruction) return
     const state = this.store.getState()
     if (state.phase !== 'mode' || state.loading || (!this.recovering && (state.balance === null || state.balance < VR_PLAY_FEE)) || this.admission.mode === 'unavailable') return
     this.store.setState({ phase: 'game', playMode, error: '', receipt: null })
@@ -49,6 +51,7 @@ export class VrZoneController {
     return true
   }
   authorize = (): Promise<boolean> => {
+    if (this.underConstruction) return Promise.resolve(false)
     if (this.inFlight) return this.inFlight
     if (this.store.getState().phase !== 'game') return Promise.resolve(false)
     const balance = this.store.getState().balance
