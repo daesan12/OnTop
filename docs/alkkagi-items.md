@@ -4,6 +4,8 @@
 
 ## 구현 경계
 
+2026-11-02 공원 UI: F1에서 알까기 설명서를 열 수 있다. 비책은 카드 선택 뒤 대상 클릭으로 바로 제출한다. 교환은 두 번째 알, 재배치는 거리 제한 없이 대상 알을 고른 뒤 판 안의 빈 목적지 클릭으로 제출한다. 벽은 유효한 빈 위치 클릭으로 미리보기를 고정하고 휠 또는 Q/E로 회전한 뒤 ‘벽 설치’로 제출한다. Q/E·휠 회전과 위치 다시 고르기도 지원한다. 추가 발사는 카드 클릭 즉시 제출한다. 같은 카드 재클릭·Esc·우클릭으로 미확정 선택을 취소한다. 잘못된 대상·겹침은 소모 없이 막고 최종 판정·소모는 서버 승인을 따른다. 아래 독립 물리 데모의 확정 버튼은 별도 로컬 검수 도구 동작이다.
+
 - 실제 경기 객체는 빈 손패로 생성된다. 보유 장수 제한 없이 누적하며 카드 ID/종류는 소유자에게만 전달한다.
 - 아이템8종과 손실 기반 지급 모두 로컬에서 사용할 수 있다. 미정 수치·수명은 `AlkkagiItemRules`, 추첨은 `AlkkagiCardRules`의 임시 설정이며 운영 합의가 아니다. 밸런스 확정은 [미정 목록](alkkagi-decisions.md)에 남긴다.
 - `receiveCard`는 신뢰된 서버 지급 경계다. 제품 클라이언트에 원하는 종류 지급 요청을 노출하지 않는다.
@@ -37,7 +39,7 @@ EXTRA_SHOT은 첫 발사 정지 후 같은 사용자의 두 번째 발사를 허
 | 종류 | 로컬 동작 | 임시 설정/만료 |
 | --- | --- | --- |
 | WALL | 빈 판의 위치·회전 선택, 서버 직사각형 정적 충돌체 설치. 알·판 가장자리 겹침 거절 | 길이1.6/두께.18/가장자리 여백.12, 알과.02 여백. 개인당 최대3개·전체 최대6개. 경기 종료까지 유지 (`expiresAfterTurn: null`) |
-| RELOCATE | 양팀 생존 알1개와 목적지 선택. 현재 반경·벽·다른 알·중심 경계 검사 | 현재 위치에서 최대2칸 |
+| RELOCATE | 양팀 생존 알1개와 목적지 선택. 현재 반경·벽·다른 알·중심 경계 검사 | 거리 제한 없음 |
 | POWER_UP | 지정한 내 알의 출발속도를 지속 강화. 다른 알도 발사 가능 | 출발속도1.5배, 경기 종료까지 유지. 같은 알 중복 강화는 POWER_ALREADY_ACTIVE로 소모 없이 거절 |
 | GROW | 반경과 실제 dyn4j fixture 변경 | 반경1.25배, 질량1.25²배 |
 | SHRINK | 반경과 실제 dyn4j fixture 변경 | 반경.8배, 질량.8²배 |
@@ -47,7 +49,7 @@ EXTRA_SHOT은 첫 발사 정지 후 같은 사용자의 두 번째 발사를 허
 
 크기/방어로 질량이 달라도 같은 조준의 출발속도는 유지하도록 현재 질량으로 충격량을 계산한다. 충돌 시 운동량·버티는 정도가 달라진다. 힘 강화 배율은 출발속도에 적용하며 별도 질량 강화가 아니다. 평상시 물리30/60/1은 바꾸지 않는다.
 
-임시 수치 근거: 확대1.25/축소.8은 전달된 초기 검토값, 나머지는 원작 측정이나 팀 합의가 없는 로컬 검수 시작값이다. 벽 길이.5~3/두께.1~.5/여백.02~.4, 재배치.5~3, 힘1.05~2, 확대1.05~1.5/축소.5~.95, 방어1.1~4, 지속 턴 설정은 폐기하고 effectOpponentTurns=0(경기 지속)을 사용한다. 홍팀의 ‘아이템 수치 조절’은 `TUNE_ITEMS(gameId/expectedVersion/rules)`로 검증된 **새 판**만 생성한다. 현재 시뮬레이션 계수를 중간에 바꾸거나 파일/환경변수를 저장하지 않는다. 잘못된 값은 기존 판 보존, 청팀/관전자 변경 거절. 일반 새 판/물리 조절은 현재 아이템 설정을 유지하고 서버 재시작은 기본 임시값으로 돌아간다.
+임시 수치 근거: 확대1.25/축소.8은 전달된 초기 검토값, 나머지는 원작 측정이나 팀 합의가 없는 로컬 검수 시작값이다. 벽 길이.5~3/두께.1~.5/여백.02~.4, 힘1.05~2, 확대1.05~1.5/축소.5~.95, 방어1.1~4, 지속 턴 설정은 폐기하고 effectOpponentTurns=0(경기 지속)을 사용한다. 홍팀의 ‘아이템 수치 조절’은 `TUNE_ITEMS(gameId/expectedVersion/rules)`로 검증된 **새 판**만 생성한다. 현재 시뮬레이션 계수를 중간에 바꾸거나 파일/환경변수를 저장하지 않는다. 잘못된 값은 기존 판 보존, 청팀/관전자 변경 거절. 일반 새 판/물리 조절은 현재 아이템 설정을 유지하고 서버 재시작은 기본 임시값으로 돌아간다.
 
 ## 로컬 요청·응답
 
@@ -66,9 +68,9 @@ role 쿼리는 로컬 테스트 역할이며 인증이 아니다. 이 데모 핸
 }
 ```
 
-EXTRA_SHOT/WALL의 targetPieceIds는 빈 배열, SWAP은2개, 나머지는1개다. WALL/RELOCATE만 `placement: {"x": 0, "y": 0, "angle": 0}`를 추가한다. XY는 판 평면, angle은 라디안(-π~π)이며 RELOCATE는 회전 없이 이동만 한다. 서버는 유한수치와 실제 형상·거리·소유권을 검사한다. 클라이언트가 카드 종류·효과 수치·교환 좌표를 지정하지 않는다. 미지 필드·2개 초과 대상·문자열 아닌 대상·잘못된 version은 거절한다. 실제 입력 파서는 `AlkkagiInputs`로 로컬 소켓과 공통 엔진이 함께 사용한다.
+EXTRA_SHOT/WALL의 targetPieceIds는 빈 배열, SWAP은2개, 나머지는1개다. WALL/RELOCATE만 `placement: {"x": 0, "y": 0, "angle": 0}`를 추가한다. XY는 판 평면, angle은 라디안(-π~π)이며 RELOCATE는 회전 없이 이동만 한다. 서버는 유한수치와 실제 형상·판 경계·소유권을 검사한다. 클라이언트가 카드 종류·효과 수치·교환 좌표를 지정하지 않는다. 미지 필드·2개 초과 대상·문자열 아닌 대상·잘못된 version은 거절한다. 실제 입력 파서는 `AlkkagiInputs`로 로컬 소켓과 공통 엔진이 함께 사용한다.
 
-성공은 ITEM_ACCEPTED(actionId/version), 실패는 ERROR(code)다. 주요 코드는 PLAYER_REQUIRED, STALE_GAME, STALE_VERSION, NOT_AIMING, NOT_YOUR_TURN, CARD_NOT_OWNED, INVALID_TARGETS, NOT_YOUR_PIECE, ITEM_OVERLAP, ITEM_ALREADY_USED_OR_SHOT, ACTION_ID_CONFLICT다. 추가 코드는 INVALID_PLACEMENT, ITEM_OUTSIDE_BOARD, ITEM_OVERLAP_OR_OUTSIDE, RELOCATE_TOO_FAR, WALL_LIMIT, MODIFIER_ACTIVE, POWER_ALREADY_ACTIVE, INVALID_ITEM_RULES다.
+성공은 ITEM_ACCEPTED(actionId/version), 실패는 ERROR(code)다. 주요 코드는 PLAYER_REQUIRED, STALE_GAME, STALE_VERSION, NOT_AIMING, NOT_YOUR_TURN, CARD_NOT_OWNED, INVALID_TARGETS, NOT_YOUR_PIECE, ITEM_OVERLAP, ITEM_ALREADY_USED_OR_SHOT, ACTION_ID_CONFLICT다. 추가 코드는 INVALID_PLACEMENT, ITEM_OUTSIDE_BOARD, ITEM_OVERLAP_OR_OUTSIDE, WALL_LIMIT, MODIFIER_ACTIVE, POWER_ALREADY_ACTIVE, INVALID_ITEM_RULES다.
 
 매 공개 STATE와 같은 seq/gameId/version의 PRIVATE_STATE를 본인에게만 보낸다.
 

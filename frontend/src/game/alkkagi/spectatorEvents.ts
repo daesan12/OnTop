@@ -20,6 +20,8 @@ function prune() {
 export function acceptAlkkagiSocial(message: Envelope, gameId: string, version?: number, estimatedServerNow?: number) {
   if (message.type !== 'ALKKAGI_SPECTATOR_EVENT') return false
   const p = message.payload
+  // 구버전 관전자의 이동 이벤트도 표시하지 않는다. 확정한 훈수만 공유한다.
+  if (record(p) && p.kind === 'CURSOR') return true
   if (!record(p) || p.gameId !== gameId || typeof p.eventId !== 'string' || !/^[0-9a-f-]{36}$/.test(p.eventId)
     || typeof p.senderUserId !== 'string' || !/^[1-9][0-9]*$/.test(p.senderUserId)
     || !integer(p.basedOnVersion) || (version !== undefined && p.basedOnVersion < version) || !integer(p.turnNumber) || !integer(p.sentAt) || !integer(p.serverNow) || !integer(p.expiresAt)
@@ -51,11 +53,10 @@ export function syncAlkkagiSocial(gameId: string, version: number, aiming: boole
   const marks = aiming ? feed.marks.filter(m => m.basedOnVersion === version) : []
   if (marks.length !== feed.marks.length) useAlkkagiSocial.setState({ marks })
 }
-export function alkkagiSocialView(gameId: string, turnNumber: number, aiming: boolean, ownId: string): SocialView {
+export function alkkagiSocialView(gameId: string, turnNumber: number, aiming: boolean, _ownId: string): SocialView {
   const feed = useAlkkagiSocial.getState()
   const marks = feed.gameId === gameId && aiming ? feed.marks.filter(m => m.turnNumber === turnNumber && m.until > performance.now()) : []
-  return { chat: [], cursors: marks.filter(m => m.kind === 'CURSOR' && m.senderUserId !== ownId).map(m => ({
-    id: m.eventId, label: m.senderUserId, actor: -1, x: m.x, y: m.y, expiresAt: m.until })),
+  return { chat: [], cursors: [],
     advice: marks.filter(m => m.kind === 'ADVICE').slice(-3).map(m => ({ id: m.eventId, label: m.senderUserId,
       turnNumber, pieceId: m.pieceId, dx: m.dx, dy: m.dy, power: m.power, expiresAt: m.until })) }
 }

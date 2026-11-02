@@ -25,7 +25,7 @@ export function BookIcon() {
 
 export function GameArt({ game }: { game: ManualGameId }) {
   if (game === "rps-roulette") return <RpsRouletteArt />;
-  if (["janggi", "fishing", "fish-bread", "jump", "vr-jump"].includes(game))
+  if (["alkkagi", "janggi", "fishing", "fish-bread", "jump", "vr-jump"].includes(game))
     return (
       <svg
         className={`manual-art art-${game}`}
@@ -36,11 +36,11 @@ export function GameArt({ game }: { game: ManualGameId }) {
           width="240"
           height="150"
           fill={
-            game === "janggi" || game === "fish-bread" ? "#c6ad83" : "#405f56"
+            game === "alkkagi" || game === "janggi" || game === "fish-bread" ? "#c6ad83" : "#405f56"
           }
         />
         <circle cx="196" cy="28" r="70" fill="#f7e9c0" opacity=".08" />
-        {game === "janggi" ? (
+        {game === "alkkagi" || game === "janggi" ? (
           <>
             <path
               d="M28 28h184v96H28ZM28 60h184M28 92h184M74 28v96m46-96v96m46-96v96M28 28l46 32m-46 0 46-32"
