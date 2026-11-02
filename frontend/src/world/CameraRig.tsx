@@ -1,4 +1,4 @@
-import { ALKKAGI_FOV, alkkagiTopDownFrame } from '../game/alkkagi/camera'
+import { ALKKAGI_FOV, alkkagiCameraActive, alkkagiTopDownFrame } from '../game/alkkagi/camera'
 import { gatheringCameraActive } from '../features/tableLobby/gathering'
 import { oneCardPlayerViewActive, oneCardCameraPose, oneCardSpectatorCameraPose, ONECARD_CAMERA } from '../game/onecard/camera'
 import { tabletLobbyActive } from '../features/tableLobby/tabletModel'
@@ -85,7 +85,7 @@ export function CameraRig() {
       seatScope: '',
       bungeoppangFov: null as number | null,
       rotation: new Quaternion(), targetRotation: new Quaternion(),
-      targetUp: new Vector3(0, 1, 0), lookMatrix: new Matrix4(), omokTransition: false, diceTransition: false,
+      targetUp: new Vector3(0, 1, 0), lookMatrix: new Matrix4(), omokTransition: false, diceTransition: false, alkkagiTransition: false,
       center: new Vector3(), pan: new Vector3(), feet: new Vector3(),
     }),
     [],
@@ -155,6 +155,7 @@ export function CameraRig() {
       state.owner = ''
       state.omokTransition = false
       state.diceTransition = false
+      state.alkkagiTransition = false
     }
     if (!avatar) {
       interactionAim.ready = false
@@ -166,6 +167,7 @@ export function CameraRig() {
       state.owner = ''
       state.omokTransition = false
       state.diceTransition = false
+      state.alkkagiTransition = false
       return
     }
     if (welcomeFlight.active) {
@@ -197,6 +199,7 @@ export function CameraRig() {
     if (bungeoppangView.active) {
       state.omokTransition = false
       state.diceTransition = false
+      state.alkkagiTransition = false
       if (camera instanceof PerspectiveCamera) {
         state.bungeoppangFov ??= camera.fov
         // Keep all three mould columns in view on narrow screens too.
@@ -229,6 +232,7 @@ export function CameraRig() {
     if (telescope) {
       state.omokTransition = false
       state.diceTransition = false
+      state.alkkagiTransition = false
       const { yaw, pitch } = telescopeView
       camera.position.set(telescope.position[0], telescope.position[1] + TELESCOPE.eyeHeight, telescope.position[2])
       state.look.set(camera.position.x + Math.sin(yaw) * Math.cos(pitch), camera.position.y + Math.sin(pitch),
@@ -276,7 +280,8 @@ export function CameraRig() {
     const gathering = !TABLET_ENABLED && gatheringCameraActive()
     const spectatorOmok = spectatorBoard && game?.role === 'SPECTATOR' && game.omok?.status === 'PLAYING'
     const focusedOmok = boardFocus && ownOmok && !gathering || spectatorOmok
-    const alkkagiCamera = !!game?.alkkagi && ((seated && !!avatar.tableId && game.role === 'PLAYER') || (game.role === 'SPECTATOR' && !!(closeAnchor || watchedAnchor)))
+    const alkkagiCamera = !!game && alkkagiCameraActive(game.alkkagi?.status, !!gameSession.lastResult)
+      && ((seated && !!avatar.tableId && game.role === 'PLAYER') || (game.role === 'SPECTATOR' && !!(closeAnchor || watchedAnchor)))
     const focusedAlkkagi = alkkagiCamera && (game?.role === 'PLAYER' ? !looking : spectatorBoard)
     if (focusedOmok || focusedAlkkagi) {
       camera.layers.set(OMOK_FOCUS_LAYER)
@@ -487,7 +492,8 @@ export function CameraRig() {
     const targetFov = debrisAnchor ? 55 : tablet ? 43 : focusedAlkkagi ? ALKKAGI_FOV : gathering ? ownOmok ? 60 : CAMERA.fov : seated && oneCardPlayerViewActive(game) ? ONECARD_CAMERA.fov : diceFocus ? DICE_CAMERA.fov : ledgerFocus ? LEDGER_CAMERA.fov : boardFocus || spectatorBoard ? GOMOKU.topDownFov : seated ? GOMOKU.seatedFov : CAMERA.fov
     const smoothingOmok = focusedOmok || ownOmok || state.omokTransition
     const smoothingDice = ownDice || state.diceTransition
-    const smoothingBoard = smoothingOmok || smoothingDice || alkkagiCamera
+    const smoothingAlkkagi = alkkagiCamera || state.alkkagiTransition
+    const smoothingBoard = smoothingOmok || smoothingDice || smoothingAlkkagi
     let omokSettled = false
     if (smoothingBoard) {
       // A stable up vector preserves each seat's orientation at exactly 90 degrees.
@@ -496,6 +502,7 @@ export function CameraRig() {
       omokSettled = advanceOmokCamera(camera, state.desired, state.targetRotation, targetFov, delta)
       if (smoothingOmok) state.omokTransition = focusedOmok || ownOmok || !omokSettled
       if (smoothingDice) state.diceTransition = ownDice || !omokSettled
+      if (smoothingAlkkagi) state.alkkagiTransition = alkkagiCamera || !omokSettled
     } else {
       if (firstPerson && performance.now() >= bungeoppangView.returningUntil) camera.position.copy(state.desired)
       else camera.position.lerp(state.desired, 1 - Math.exp(-(performance.now() < bungeoppangView.returningUntil ? 24 : 12) * Math.min(delta, 0.1)))
