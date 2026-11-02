@@ -57,38 +57,56 @@ test('지도는 분수대 연결 마당·징검다리를 표시하고 누락된 
 })
 
 for (const size of [{ width: 320, height: 480 }, { width: 800, height: 360 }]) {
-  test(`복권방은 제목·닫기를 유지하며 첫 경품부터 마지막 안내·응모 결과까지 잘리지 않는다 ${size.width}`, async ({ page }) => {
+  test(`가위바위보는 제목·닫기를 유지하며 룰렛부터 마지막 조작부까지 잘리지 않는다 ${size.width}`, async ({ page }) => {
     await page.setViewportSize(size); await page.emulateMedia({ reducedMotion: 'reduce' })
     await load(page)
     await page.evaluate(async () => {
-      const store = await import('/src/features/raffle/store.ts' as string)
-      const { PreviewRaffleService } = await import('/src/features/raffle/preview.ts' as string)
-      store.setRafflePort(new PreviewRaffleService())
-      ;(await import('/src/features/construction/model.ts' as string)).openConstructionNotice('layout-drink')
+      const store = await import('/src/features/rpsRoulette/store.ts' as string)
+      const { PreviewRpsRouletteService } = await import('/src/features/rpsRoulette/preview.ts' as string)
+      store.setRpsRoulettePort(new PreviewRpsRouletteService()); store.openRpsRoulette()
     })
-    const raffle = page.getByRole('dialog', { name: '복권방 행운의 뽑기', exact: true })
-    const content = raffle.getByLabel('복권방 내용'), close = raffle.getByRole('button', { name: '복권방 닫기' })
-    await contained(page, raffle); await contained(page, content)
-    await expect(raffle.getByRole('heading', { name: /행운의/ })).toBeInViewport()
-    await expect(raffle.locator('.raffle-rank').first()).toBeInViewport()
+    const rps = page.getByRole('dialog', { name: '가위바위보 룰렛', exact: true })
+    const content = rps.getByLabel('가위바위보 게임기 내용'), close = rps.getByRole('button', { name: '게임기 닫기' })
+    await contained(page, rps); await contained(page, content)
+    await expect(rps.getByRole('heading', { name: '가위바위보 룰렛' })).toBeInViewport()
+    await expect(rps.locator('.rps-roulette-face')).toBeInViewport()
     await expect(close).toBeInViewport()
-    await screenshot(page, `raffle-first-content-${size.width}`, 'disabled')
+    await screenshot(page, `rps-first-content-${size.width}`, 'disabled')
     await wheel(page, content, 4000)
-    await expect.poll(() => content.evaluate(el => el.scrollTop)).toBeGreaterThan(0)
-    await expect(raffle.locator('.raffle-note')).toBeInViewport(); await expect(close).toBeInViewport()
-    await screenshot(page, `raffle-last-content-${size.width}`, 'disabled')
-    const draw = raffle.getByRole('button', { name: '뽑기권 뽑기 · 100냥', exact: true })
-    await draw.scrollIntoViewIfNeeded(); await draw.click()
-    const result = raffle.getByRole('group', { name: '뽑은 응모 번호', exact: true })
-    await expect(result).toBeVisible(); await contained(page, result)
-    await expect(result.locator('strong')).toHaveText(/^\d{1,5}$/)
-    const confirm = result.getByRole('button', { name: '확인', exact: true })
-    await confirm.scrollIntoViewIfNeeded(); await expect(confirm).toBeInViewport()
-    await screenshot(page, `raffle-result-accessible-${size.width}`, 'disabled')
-    await confirm.click(); await expect(result).toHaveCount(0)
-    await expect(close).toBeInViewport(); await close.click(); await expect(raffle).toHaveCount(0)
+    await expect(rps.locator('.rps-roulette-foot')).toBeInViewport(); await expect(close).toBeInViewport()
+    const start = rps.getByRole('button', { name: 'START', exact: true })
+    await expect(start).toBeInViewport(); await expect(rps.getByRole('button', { name: '멈춤', exact: true })).toBeInViewport()
+    await screenshot(page, `rps-last-content-${size.width}`, 'disabled')
+    await start.click()
+    await expect.poll(() => page.evaluate(async () =>
+      (await import('/src/features/rpsRoulette/store.ts' as string)).useRpsRoulette.getState().data?.round?.phase)).toBe('DUEL')
+    await expect(close).toBeInViewport(); await close.click(); await expect(rps).toHaveCount(0)
   })
 }
+
+test('장소 바로가기는 지도 범례와 높이를 맞추고 목록 안에서만 스크롤한다', async ({ page }) => {
+  await load(page); await page.getByRole('button', { name: '공원 지도', exact: true }).click()
+  const map = page.getByRole('dialog', { name: '공원 지도창', exact: true })
+  const list = map.getByRole('group', { name: '장소 바로가기 목록', exact: true })
+  for (const size of [{ width: 1920, height: 1080 }, { width: 1366, height: 768 }, { width: 390, height: 844 }]) {
+    await page.setViewportSize(size)
+    await list.evaluate(el => { el.scrollTop = 0 })
+    await list.scrollIntoViewIfNeeded()
+    if (size.width > 900) {
+      const figure = (await map.locator('.park-map-figure').boundingBox())!, side = (await map.locator('.park-map-side').boundingBox())!
+      expect(Math.abs(figure.y - side.y)).toBeLessThan(1)
+      expect(Math.abs(figure.height - side.height)).toBeLessThan(1)
+    }
+    expect(await list.evaluate(el => getComputedStyle(el).scrollbarWidth)).toBe('none')
+    expect(await list.evaluate(el => getComputedStyle(el, '::-webkit-scrollbar').display)).toBe('none')
+    const before = await map.evaluate(el => el.scrollTop)
+    await wheel(page, list, 3000)
+    await expect.poll(() => list.evaluate(el => el.scrollTop)).toBeGreaterThan(0)
+    expect(await map.evaluate(el => el.scrollTop)).toBe(before)
+    await expect(list.getByRole('button', { name: /랭킹 보드/ })).toBeInViewport()
+    await screenshot(page, `map-destination-list-scroll-${size.width}`, 'disabled')
+  }
+})
 
 test('공통 메뉴와 종이 팝업은 낮은 화면에서 내용과 마지막 버튼까지 스크롤할 수 있다', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
