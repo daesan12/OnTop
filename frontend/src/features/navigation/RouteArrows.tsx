@@ -66,7 +66,8 @@ export function RouteArrows() {
     const { path, status } = useNavigation.getState(), session = useSession.getState()
     const pose = avatars.get(session.sessionId)?.current
     fill.count = edge.count = 0
-    if (status !== 'guiding' || path.length < 2 || !pose || session.tableId || session.benchId || session.fitnessId || session.telescopeId) return
+    // While a new route is being planned, the previous one stays visible until it is replaced.
+    if ((status !== 'guiding' && status !== 'planning') || path.length < 2 || !pose || session.tableId || session.benchId || session.fitnessId || session.telescopeId) return
     if (heights.path !== path) { heights.path = path; heights.cells.clear() }
     const park = scene.getObjectByName('placeholder-park')
     // Start from the player's foot point on the route, so walked parts drop away.

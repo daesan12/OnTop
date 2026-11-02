@@ -29,12 +29,12 @@ export function ParkNavigation() {
       const hidden = session.status !== 'connected' || !session.mapCompatible || inputState.manualOpen || inputState.blocked
         || !!(session.tableId || session.benchId || session.fitnessId || session.telescopeId || game.watchedGameId || game.game)
         || inputState.minigameOpen || inputState.feedbackOpen || inputState.notesOpen
-      const pose = avatars.get(session.sessionId)?.current
+      const avatar = avatars.get(session.sessionId), pose = avatar?.current, swimming = !!avatar?.swimming
       setDisplay(old => old.hidden === hidden ? old : { ...old, hidden })
       if (!pose || hidden) return
       const now = performance.now()
       if (arrivalAt) { if (now - arrivalAt > 3000) cancelNavigation(); return }
-      if (Math.abs(pose.y - 0.8 - navigationHeight(pose)) > 0.9) {
+      if (!swimming && Math.abs(pose.y - 0.8 - navigationHeight(pose)) > 0.9) {
         raisedSince ||= now
         // The path is kept, so the same route resumes the moment the player is back on the ground.
         if (now - raisedSince >= RAISED_PAUSE_MS && state.status !== 'paused') useNavigation.setState({ status: 'paused' })
@@ -46,7 +46,7 @@ export function ParkNavigation() {
         state = useNavigation.getState()
       }
       // A nearby reachable approach is enough, even when search is pending or the
-      // player has left the planned line. Check before replanning clears the path.
+      // player has left the planned line.
       const end = state.path.at(-1) ?? target
       if (navDistance(pose, end) <= ARRIVAL_RADIUS && navigationSegmentClear(pose, end)) {
         arrivalAt = now; useNavigation.setState({ status: 'arrived', path: [] }); return
@@ -54,12 +54,16 @@ export function ParkNavigation() {
       if (pending) return
       let path = state.path, nearest = 0, distance = Infinity
       for (let i = 0; i < path.length; i++) { const d = navDistance(pose, path[i]!); if (d < distance) { distance = d; nearest = i } }
-      if (!path.length || distance > 2.5 || !navigationSegmentClear(pose, path[nearest]!)) {
+      const offRoute = !path.length || distance > 2.5 || !navigationSegmentClear(pose, path[nearest]!)
+      // Water is not walkable, so a swimmer keeps the land route on screen instead of failing to plan from the lake.
+      if (offRoute && swimming && !path.length) return
+      if (offRoute && !swimming) {
         if ((state.status === 'unreachable' || state.status === 'unavailable') && lastOrigin && navDistance(pose, lastOrigin) < 2) return
         if (now - lastPlan < 2000) return
         lastPlan = now; lastOrigin = { x: pose.x, z: pose.z }
         pending = true
-        useNavigation.setState({ path: [], status: 'planning' })
+        // The previous arrows stay until the new route replaces them.
+        useNavigation.setState({ status: 'planning' })
         const ownsReply = () => !disposed && !arrivalAt && useNavigation.getState().target === target
           && useSession.getState().sessionId === session.sessionId && useSession.getState().roomId === session.roomId
           && useSession.getState().status === 'connected' && useSession.getState().mapCompatible
