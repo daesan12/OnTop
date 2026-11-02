@@ -483,8 +483,14 @@ function StartPanel() {
           <p><kbd>Space</kbd> 반죽 선택</p>
         </div>
         <div className="bung-start-serve">
-          <h3>손님에게 전달</h3>
-          <p><kbd>R</kbd> 주문에 맞는 완성품 전달</p>
+          <div><h3>손님에게 전달</h3>
+            <p><kbd>R</kbd> 주문에 맞는 완성품 전달</p></div>
+          <div className="bung-start-combo" aria-label="붕어빵 콤보 안내">
+            <h3>황금빛 콤보</h3>
+            <p>양면 황금색 완성 시 콤보 +1</p>
+            <p><b>3콤보 ×1.2 · 6콤보 ×1.5</b></p>
+            <p>실패하거나 버리면 콤보 초기화</p>
+          </div>
         </div>
       </section>
       <p className="bung-start-earned" aria-label={`오늘 번 엽전 ${status ? `${status.todayEarned}냥` : '확인 중'} / ${status?.dailyCap ?? R.dailyCoinCap}냥`}>
