@@ -4,7 +4,7 @@ import { PaperPopup } from '../tableLobby/PaperPopup'
 import { clearRoamingInput } from '../../world/inputOwnership'
 import coinImage from '../../assets/entry/yeopjeon-icon.webp'
 import './jumpmapCompletion.css'
-import { JumpmapRanking, jumpPreciseTime, type RankingLoader } from './JumpmapRanking'
+import { JumpmapRanking, jumpTime, type RankingLoader } from './JumpmapRanking'
 
 /** 마지막 연잎에서만 여는 종이 완료 화면. 이동을 정리하고, 닫은 뒤 직접 호수로 진행한다. */
 export function JumpmapCompletion({ runCoins, todayEarned, settled, finishMs, loadRankings, onClose }: {
@@ -22,7 +22,7 @@ export function JumpmapCompletion({ runCoins, todayEarned, settled, finishMs, lo
       initialFocusRef={returning.current ? rankingButton : undefined}>
       <h2>돌탑 도전 완료</h2>
       <p className="paper-subtitle">마지막 연잎까지 멋지게 완주했어요!</p>
-      <p className="jm-finish-time" aria-label="완주 시간">{finishMs === null ? '기록 확인 중…' : jumpPreciseTime(finishMs)}</p>
+      <p className="jm-finish-time" aria-label="완주 시간">{finishMs === null ? '기록 확인 중…' : jumpTime(finishMs)}</p>
       <div className="jm-paper-ornament" aria-hidden="true">❖</div>
       <div className="jm-paper-hero"><img src="/art/jumpmap/guide-3.webp" alt="마지막 연잎에서 호수로 뛰어드는 캐릭터" width="400" height="240" /></div>
       <div className="paper-stats"><div><span>도착 구간</span><b>7 / 7</b></div><div><span>이번 도전 받은 엽전</span><b>{runCoins}<small>냥</small></b></div></div>

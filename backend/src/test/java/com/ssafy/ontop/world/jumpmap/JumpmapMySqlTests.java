@@ -41,6 +41,37 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 })
 class JumpmapMySqlTests {
     @Test
+    void 완주_저장후_빈랭킹과_개인최고를_즉시_갱신하고_밀리초를_보존한다() throws Exception {
+        assertThat(store.ranking(101).items()).isEmpty();
+        String run = startRun(101, NOON);
+        var finish = new JumpmapStore.RunEnd(JumpRun.EndReason.FINISH, NOON.plusSeconds(100), 90_085,
+                90_085L, 7, true, 46, List.of(), false, List.of());
+
+        store.end(run, finish);
+        var first = mapper.readTree(call("GET", "/rankings", 101L, null).body());
+
+        assertThat(first.at("/me/finishMs").asLong()).isEqualTo(90_085);
+        assertThat(first.at("/items/0/finishMs").asLong()).isEqualTo(90_085);
+        String faster = startRun(202, NOON.plusSeconds(200));
+        store.end(faster, new JumpmapStore.RunEnd(JumpRun.EndReason.FINISH, NOON.plusSeconds(290), 89_999,
+                89_999L, 7, true, 46, List.of(), false, List.of()));
+        assertThat(store.ranking(101).me().rank()).isEqualTo(2);
+        String improved = startRun(101, NOON.plusSeconds(300));
+        store.end(improved, new JumpmapStore.RunEnd(JumpRun.EndReason.FINISH, NOON.plusSeconds(380), 80_085,
+                80_085L, 7, true, 46, List.of(), false, List.of()));
+        assertThat(store.ranking(101).me().finishMs()).isEqualTo(80_085);
+        assertThat(store.ranking(202).me().rank()).isEqualTo(2);
+        assertThat(jdbc.queryForObject("SELECT finish_ms FROM jump_runs WHERE id=?", Long.class, improved))
+                .isEqualTo(80_085);
+        // 같은 종료 재시도와 의심 기록은 확정 최고 기록을 바꾸지 않는다.
+        assertThat(store.end(improved, finish).newBest()).isFalse();
+        String suspicious = startRun(101, NOON.plusSeconds(400));
+        store.end(suspicious, new JumpmapStore.RunEnd(JumpRun.EndReason.FINISH, NOON.plusSeconds(401), 1_000,
+                1_000L, 7, true, 46, List.of(), true, List.of("TOO_FAST")));
+        assertThat(store.ranking(101).me().finishMs()).isEqualTo(80_085);
+    }
+
+    @Test
     void 랭킹은_검증된_개인최고와_공동등수와_먼저도착한순서를_사용한다() throws Exception {
         jdbc.update("INSERT INTO users(id, login_provider, provider_user_id, nickname, character_gender, created_at, updated_at)"
                 + " VALUES (303, 'NAVER', 'rank303', '세번째', 'MALE', CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3))");
@@ -442,7 +473,8 @@ class JumpmapMySqlTests {
         var status = service.status("101", java.util.Optional::empty);
         assertThat(status.enabled()).isTrue();
         assertThat(status.lastRun()).isNotNull().extracting(JumpmapService.LastRun::runId).isEqualTo("svc-run");
-        assertThat(status.revision()).isGreaterThan(revisions.getLast());
+        // 상태 조회는 새 이벤트를 만들지 않고 조회 시작 시점 revision을 유지한다.
+        assertThat(status.revision()).isEqualTo(revisions.getLast());
         assertThat(status.todayEarned()).isEqualTo(2);
     }
 }

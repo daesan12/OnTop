@@ -66,6 +66,26 @@ class JumpmapRankingSnapshotTests {
     }
 
     @Test
+    void 새기록_저장후_캐시를_비우면_이분을_기다리지_않고_모두에게_반영한다() {
+        var entries = new ArrayList<>(List.of(entry(1)));
+        var calls = new AtomicInteger();
+        var snapshot = new JumpmapRankingSnapshot(() -> {
+            calls.incrementAndGet();
+            return entries;
+        }, clock);
+        Ranking before = snapshot.ranking(2);
+        entries.add(entry(2));
+
+        snapshot.invalidate();
+        Ranking after = snapshot.ranking(2);
+
+        assertThat(after.me()).isEqualTo(entry(2));
+        assertThat(snapshot.ranking(1).items()).isSameAs(after.items());
+        assertThat(calls).hasValue(2);
+        assertThat(before.items()).containsExactly(entry(1));
+    }
+
+    @Test
     void 빈_랭킹도_이분간_공유한다() {
         var calls = new AtomicInteger();
         var snapshot = new JumpmapRankingSnapshot(() -> {
