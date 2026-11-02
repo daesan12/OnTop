@@ -134,16 +134,9 @@
   .park-page .onecard-game-hud.onecard-panel .onecard-selection-info { flex-direction:row; flex-wrap:wrap; gap:2px 6px; }
   .park-page .onecard-game-hud.onecard-panel[data-role=PLAYER] .onecard-recovery-controls { top:auto; bottom:170px; z-index:2; }
 }
-/* 행동 바는 화면 중앙에 두고, 채팅과의 여백은 손패 영역에만 적용한다. */
-@media(min-width:601px) {
-  .park-page .onecard-game-hud.onecard-panel .onecard-hand { width:min(100%,var(--oc-hand-width,100%)); align-self:flex-end; }
-}
-@media(max-width:1200px) {
-  .park-page .onecard-game-hud.onecard-panel .onecard-command-tray { position:fixed; left:50%; bottom:var(--oc-chat-clearance,240px); transform:translateX(-50%); max-width:calc(100vw - 24px); }
-}
-@media(max-width:600px) {
-  .park-page .onecard-game-hud.onecard-panel .onecard-actions-panel { bottom:calc(var(--oc-chat-clearance,240px) + var(--oc-tray-height,140px) + 12px); }
-}
+/* 채팅은 기존 위치에 두고 손패·행동 바를 같은 중앙 축에서 위로 이동한다. */
+.park-page .onecard-game-hud.onecard-panel .onecard-hand { width:100%; align-self:center; }
+.park-page .onecard-game-hud.onecard-panel .onecard-actions-panel { bottom:var(--oc-panel-bottom,16px); }
 .park-page .onecard-game-hud.onecard-panel[data-role=SPECTATOR] .onecard-recovery-controls { border-color:#bda26c; background:linear-gradient(150deg,#244d40f7,#12362ff7); border-radius:12px; box-shadow:0 5px 18px #142e2533; }
 .park-page .onecard-game-hud.onecard-panel[data-role=SPECTATOR] .onecard-recovery-controls button { color:#f5e9cf; border-color:#bda26c80; background:#315344; box-shadow:none; }
 .park-page .onecard-game-hud.onecard-panel .onecard-time-warning { position:absolute; inset:3px; pointer-events:none; border-radius:16px; box-shadow:inset 0 0 0 3px #e8b96799,inset 0 0 42px #d7914938; animation:onecard-warning-glow 1s ease-in-out infinite; }

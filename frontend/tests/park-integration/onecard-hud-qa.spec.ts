@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 import { fixture, screenshot, tableId } from '../e2e/contractFixture'
 import type { Card, Hand } from '../../src/game/onecard/protocol'
+import { choose3DCard } from '../e2e/onecardHeldInput'
 
 const errors=new WeakMap<Page,string[]>()
 test.beforeEach(({page})=>{
@@ -63,10 +64,13 @@ test('동일한 크기의 채팅이 기록·입력·긴 손패를 가리지 않�
             &&(r.right<=b.x||r.left>=b.x+b.width||r.bottom<=b.y||r.top>=b.y+b.height)
         }),bounds)
       }).toBe(true)
-      if(size.width>1500||size.width<=600){
-        const fan=(await page.getByLabel('나만 볼 수 있는 카드').boundingBox())!
-        expect(fan.x+fan.width/2).toBeCloseTo(size.width/2,0)
-      }
+      const fan=(await page.getByLabel('나만 볼 수 있는 카드').boundingBox())!
+      expect(fan.x+fan.width/2).toBeCloseTo(size.width/2,0)
+      const cardCenter=await cards.evaluateAll(nodes=>{
+        const boxes=nodes.map(node=>node.getBoundingClientRect())
+        return (Math.min(...boxes.map(box=>box.left))+Math.max(...boxes.map(box=>box.right)))/2
+      })
+      expect(cardCenter).toBeCloseTo(size.width/2,0)
       await expect(page.getByRole('button',{name:'드로우',exact:true})).toBeInViewport()
       await expect(page.getByRole('button',{name:'뿅망치 들기',exact:false})).toBeInViewport()
       const chatBounds=(await chat.boundingBox())!
@@ -94,6 +98,8 @@ test('동일한 크기의 채팅이 기록·입력·긴 손패를 가리지 않�
     }),expanded.actual)).toBe(true)
     const expandedTray=(await page.locator('.onecard-command-tray').boundingBox())!
     expect(expandedTray.x+expandedTray.width/2).toBeCloseTo(size.width/2,0)
+    const expandedFan=(await page.getByLabel('나만 볼 수 있는 카드').boundingBox())!
+    expect(expandedFan.x+expandedFan.width/2).toBeCloseTo(size.width/2,0)
     await expect(page.getByRole('button',{name:'드로우',exact:true})).toBeInViewport()
     expect(expandedTray.x+expandedTray.width<=expanded.actual.x||expandedTray.x>=expanded.actual.x+expanded.actual.width
       ||expandedTray.y+expandedTray.height<=expanded.actual.y||expandedTray.y>=expanded.actual.y+expanded.actual.height).toBe(true)
@@ -115,6 +121,49 @@ test('동일한 크기의 채팅이 기록·입력·긴 손패를 가리지 않�
   await submit.click()
   await expect.poll(()=>server.sent.filter(m=>m.type==='GAME_ACTION_SEND').length).toBe(1)
   await expect(cards).toHaveCount(6)
+})
+
+test('중앙 손패의 Q를 위로 드래그하면 한 번만 내고 상대 차례를 표시한다',async({page})=>{
+  await page.setViewportSize({width:1280,height:720})
+  const server=await start(page)
+  const queen:Card={id:'hearts-Q',suit:'hearts',rank:'Q'}, king:Card={id:'spades-K',suit:'spades',rank:'K'}
+  server.cardSnapshot({turnCount:2,turnDeadline:new Date(Date.now()+30000).toISOString(),
+    players:server.cardState().players.map(p=>({...p,cardCount:p.userId==='101'?2:p.cardCount}))},
+    {userId:'101',hand:[queen,king],playableCardIds:[queen.id],canDraw:true})
+  const card=page.getByLabel('나만 볼 수 있는 카드').getByRole('button',{name:'하트 Q · 방향 반전',exact:true})
+  await expect(card).toBeEnabled()
+  server.cardReply({kind:'play',cardId:queen.id},{direction:-1,turnUserId:'102',turnCount:3,topCard:queen,
+    players:server.cardState().players.map(p=>({...p,cardCount:p.userId==='101'?1:p.cardCount}))},
+    {userId:'101',hand:[king],playableCardIds:[],canDraw:false})
+  await card.hover()
+  await card.evaluate(node=>Promise.all(node.getAnimations().map(animation=>animation.finished)))
+  const box=(await card.boundingBox())!, x=box.x+box.width/2, y=box.y+box.height*.45
+  await page.mouse.move(x,y); await page.mouse.down(); await page.mouse.move(x,y-130,{steps:9})
+  await expect(card).toHaveAttribute('data-drop-ready','true')
+  await page.mouse.up()
+  await expect(page.getByLabel('나만 볼 수 있는 카드').getByRole('button')).toHaveCount(1)
+  await expect(page.getByRole('timer',{name:'차례 남은 시간',exact:true})).toContainText('참가자 2의 차례')
+  expect(server.sent.filter(m=>m.type==='GAME_ACTION_SEND').map(m=>m.payload.input)).toEqual([{kind:'play',cardId:queen.id}])
+  await screenshot(page,'onecard-queen-opponent-turn','disabled')
+})
+
+test('스페이드 A는 URL·QR 장식 없는 카드로 표시되고 선택할 수 있다',async({page})=>{
+  const server=await start(page)
+  const ace:Card={id:'spades-A',suit:'spades',rank:'A'}
+  server.cardSnapshot({activeSuit:'spades',topCard:{id:'spades-5',suit:'spades',rank:'5'},
+    players:server.cardState().players.map(p=>({...p,cardCount:p.userId==='101'?1:p.cardCount})),
+    turnDeadline:new Date(Date.now()+30000).toISOString()},
+    {userId:'101',hand:[ace],playableCardIds:[ace.id],canDraw:true})
+  const card=page.getByLabel('나만 볼 수 있는 카드').getByRole('button',{name:/스페이드 A/})
+  await expect(card).toBeVisible()
+  const image=card.locator('.onecard-face-art')
+  await expect(image).toHaveAttribute('src','/art/onecard/classic/S-A.svg')
+  await expect.poll(()=>image.evaluate(node=>(node as HTMLImageElement).naturalWidth)).toBe(240)
+  const svg=await (await page.request.get('/art/onecard/classic/S-A.svg')).text()
+  expect(svg).not.toMatch(/www\.me\.uk|\/cards\/|<text[ >]|stroke-dasharray/)
+  await card.click()
+  await expect(page.getByRole('button',{name:'스페이드 A 내기',exact:true})).toBeEnabled()
+  await screenshot(page,'onecard-spade-ace-redrawn','disabled')
 })
 
 test('내 차례 마지막 5초만 흔들림·화면 테두리 경고를 표시하고 모션 감소와 종료를 따른다',async({page})=>{
@@ -171,14 +220,8 @@ test('관전자 상시 조작 문구를 숨기고 승인된 카드 선택·상�
     return ['101','102'].some(id=>[0,1,2].some(index=>!!probe.oneCardHeldCardTarget(id,index)))
   })).toBe(true)
   await screenshot(page,'onecard-spectator-clean-hud')
-  const target:{x:number;y:number}=await page.evaluate(async()=>{
-    const probe=await import('/tests/e2e/onecardSceneProbe.ts' as string)
-    for(const id of ['101','102'])for(const index of [0,1,2]){
-      const point=probe.oneCardHeldCardTarget(id,index); if(point)return point
-    }
-    throw new Error('Visible held card target not found')
-  })
-  await page.mouse.click(target.x,target.y)
+  // 장난 요청은 현재 차례인 참가자에게만 허용된다. 반대편 비차례 손패를 대신 클릭하지 않는다.
+  await choose3DCard(page,'101',0)
   await expect.poll(()=>server.sent.filter(m=>m.type==='ONECARD_PRANK_REACH_SEND').length).toBe(1)
   await expect(page.locator('.onecard-spectator-hint')).toBeVisible()
   expect(server.sent.filter(m=>m.type==='GAME_ACTION_SEND')).toHaveLength(0)
