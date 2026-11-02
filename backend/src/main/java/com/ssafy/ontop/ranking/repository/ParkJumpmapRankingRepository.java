@@ -10,8 +10,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Repository
 @Profile("db")
-public class ParkJumpmapChampionRepository {
-    static final String CHAMPION_SQL = """
+public class ParkJumpmapRankingRepository {
+    static final String RANKING_SQL = """
             WITH eligible AS (
                 SELECT r.id AS run_id, r.user_id, u.nickname, r.finish_ms, r.ended_at
                 FROM jump_runs r
@@ -42,13 +42,13 @@ public class ParkJumpmapChampionRepository {
 
     private final EntityManager entities;
 
-    public ParkJumpmapChampionRepository(EntityManager entities) {
+    public ParkJumpmapRankingRepository(EntityManager entities) {
         this.entities = entities;
     }
 
     @Transactional(readOnly = true)
-    public List<JumpmapChampionStanding> findTopTen(Instant startedAt) {
-        return entities.createNativeQuery(CHAMPION_SQL, Object[].class)
+    public List<JumpmapRankingStanding> findTopTen(Instant startedAt) {
+        return entities.createNativeQuery(RANKING_SQL, Object[].class)
                 .setParameter("requiredGates", JumpCourse.STAGES)
                 .setParameter("rulesVersion", JumpCourse.RULES_VERSION)
                 .setParameter("courseVersion", JumpCourse.COURSE_VERSION)
@@ -56,7 +56,7 @@ public class ParkJumpmapChampionRepository {
                 .getResultStream()
                 .map(value -> {
                     Object[] row = (Object[]) value;
-                    return new JumpmapChampionStanding(((Number) row[0]).longValue(),
+                    return new JumpmapRankingStanding(((Number) row[0]).longValue(),
                             ((Number) row[1]).longValue(), (String) row[2],
                             ((Number) row[3]).longValue(),
                             Instant.ofEpochMilli(((Number) row[4]).longValue()));
@@ -64,7 +64,7 @@ public class ParkJumpmapChampionRepository {
                 .toList();
     }
 
-    public record JumpmapChampionStanding(long rank, long userId, String nickname, long finishMs,
+    public record JumpmapRankingStanding(long rank, long userId, String nickname, long finishMs,
                                           Instant completedAt) {
     }
 }

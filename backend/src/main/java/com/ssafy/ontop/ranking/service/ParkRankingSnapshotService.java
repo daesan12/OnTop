@@ -6,8 +6,8 @@ import com.ssafy.ontop.ranking.dto.ParkRankingResponse.BungeoppangItem;
 import com.ssafy.ontop.ranking.dto.ParkRankingResponse.JumpmapItem;
 import com.ssafy.ontop.ranking.exception.RankingException;
 import com.ssafy.ontop.ranking.repository.ParkBalanceRankingRepository;
-import com.ssafy.ontop.ranking.repository.ParkBungeoppangChampionRepository;
-import com.ssafy.ontop.ranking.repository.ParkJumpmapChampionRepository;
+import com.ssafy.ontop.ranking.repository.ParkBungeoppangRankingRepository;
+import com.ssafy.ontop.ranking.repository.ParkJumpmapRankingRepository;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import java.time.Clock;
@@ -29,8 +29,8 @@ public class ParkRankingSnapshotService {
     private static final Logger LOG = LoggerFactory.getLogger(ParkRankingSnapshotService.class);
 
     private final ParkBalanceRankingRepository balances;
-    private final ParkBungeoppangChampionRepository bungeoppang;
-    private final ParkJumpmapChampionRepository jumpmap;
+    private final ParkBungeoppangRankingRepository bungeoppang;
+    private final ParkJumpmapRankingRepository jumpmap;
     private final MeterRegistry meters;
     private final Clock clock;
     private final Instant startedAt;
@@ -39,13 +39,13 @@ public class ParkRankingSnapshotService {
 
     @Autowired
     public ParkRankingSnapshotService(ParkBalanceRankingRepository balances,
-            ParkBungeoppangChampionRepository bungeoppang, ParkJumpmapChampionRepository jumpmap,
+            ParkBungeoppangRankingRepository bungeoppang, ParkJumpmapRankingRepository jumpmap,
             MeterRegistry meters, @Value("${ontop.rankings.park.started-at:}") String startedAt) {
         this(balances, bungeoppang, jumpmap, meters, startedAt, Clock.systemUTC());
     }
 
     ParkRankingSnapshotService(ParkBalanceRankingRepository balances,
-            ParkBungeoppangChampionRepository bungeoppang, ParkJumpmapChampionRepository jumpmap,
+            ParkBungeoppangRankingRepository bungeoppang, ParkJumpmapRankingRepository jumpmap,
             MeterRegistry meters, String startedAt, Clock clock) {
         this.balances = balances;
         this.bungeoppang = bungeoppang;

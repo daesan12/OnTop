@@ -1,7 +1,7 @@
 package com.ssafy.ontop.ranking.repository;
 
 import com.ssafy.ontop.minigame.service.BungeoppangV5Spec;
-import com.ssafy.ontop.ranking.repository.ParkBungeoppangChampionRepository.BungeoppangChampionStanding;
+import com.ssafy.ontop.ranking.repository.ParkBungeoppangRankingRepository.BungeoppangRankingStanding;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -24,12 +24,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 @ActiveProfiles({"local", "db"})
 @DataJpaTest(properties = "spring.flyway.locations=classpath:db/migration,classpath:db/minigame")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import(ParkBungeoppangChampionRepository.class)
-class ParkBungeoppangChampionRepositoryTests {
+@Import(ParkBungeoppangRankingRepository.class)
+class ParkBungeoppangRankingRepositoryTests {
     private static final Instant STARTED_AT = Instant.parse("2026-11-02T00:00:00Z");
 
     @Autowired private JdbcTemplate jdbc;
-    @Autowired private ParkBungeoppangChampionRepository rankings;
+    @Autowired private ParkBungeoppangRankingRepository rankings;
 
     @DynamicPropertySource
     static void isolatedDatabase(DynamicPropertyRegistry registry) {
@@ -55,9 +55,9 @@ class ParkBungeoppangChampionRepositoryTests {
         round(lowerComboUser, 10_000, 14, STARTED_AT.plusSeconds(1),
                 BungeoppangV5Spec.RULES_VERSION, BungeoppangV5Spec.DURATION_MS);
 
-        List<BungeoppangChampionStanding> standings = rankings.findTopTen(STARTED_AT);
+        List<BungeoppangRankingStanding> standings = rankings.findTopTen(STARTED_AT);
 
-        assertThat(standings).extracting(BungeoppangChampionStanding::rank).containsExactly(1L, 1L, 3L);
+        assertThat(standings).extracting(BungeoppangRankingStanding::rank).containsExactly(1L, 1L, 3L);
         assertThat(standings).first().satisfies(result -> {
             assertThat(result.userId()).isEqualTo(earliestUser);
             assertThat(result.score()).isEqualTo(10_000);
@@ -83,7 +83,7 @@ class ParkBungeoppangChampionRepositoryTests {
                 BungeoppangV5Spec.RULES_VERSION, BungeoppangV5Spec.DURATION_MS);
         jdbc.update("UPDATE users SET deleted_at = CURRENT_TIMESTAMP(3) WHERE id = ?", deleted);
 
-        List<BungeoppangChampionStanding> standings = rankings.findTopTen(STARTED_AT);
+        List<BungeoppangRankingStanding> standings = rankings.findTopTen(STARTED_AT);
 
         assertThat(standings).singleElement().satisfies(result -> {
             assertThat(result.userId()).isEqualTo(included);
@@ -106,7 +106,7 @@ class ParkBungeoppangChampionRepositoryTests {
         }
 
         assertThat(rankings.findTopTen(STARTED_AT)).hasSize(10)
-                .extracting(BungeoppangChampionStanding::score)
+                .extracting(BungeoppangRankingStanding::score)
                 .containsExactly(1_000L, 999L, 998L, 997L, 996L, 995L, 994L, 993L, 992L, 991L);
     }
 
@@ -114,7 +114,7 @@ class ParkBungeoppangChampionRepositoryTests {
     void 실행계획과_JSON검증을_포함한_집계시간을_기록한다() throws Exception {
         round(member("계획측정"), 100, 3, STARTED_AT.plusSeconds(1),
                 BungeoppangV5Spec.RULES_VERSION, BungeoppangV5Spec.DURATION_MS);
-        String explainSql = ParkBungeoppangChampionRepository.CHAMPION_SQL
+        String explainSql = ParkBungeoppangRankingRepository.RANKING_SQL
                 .replace(":startedAtMillis", "?")
                 .replace(":rulesVersion", "?")
                 .replace(":durationMicros", "?");
@@ -123,12 +123,12 @@ class ParkBungeoppangChampionRepositoryTests {
                 BungeoppangV5Spec.DURATION_MS * 1_000L);
         long started = System.nanoTime();
 
-        List<BungeoppangChampionStanding> standings = rankings.findTopTen(STARTED_AT);
+        List<BungeoppangRankingStanding> standings = rankings.findTopTen(STARTED_AT);
         long elapsedNanos = System.nanoTime() - started;
 
         assertThat(plan).contains("ix_bungeoppang_rounds_ranking");
         assertThat(standings).hasSize(1);
-        Path report = Path.of("build", "park-bungeoppang-champion-plan.txt");
+        Path report = Path.of("build", "park-bungeoppang-ranking-plan.txt");
         Files.createDirectories(report.getParent());
         Files.writeString(report, "Elapsed: " + elapsedNanos / 1_000_000.0 + " ms\n\n" + plan + "\n");
     }

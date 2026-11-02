@@ -10,8 +10,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Repository
 @Profile("db")
-public class ParkBungeoppangChampionRepository {
-    static final String CHAMPION_SQL = """
+public class ParkBungeoppangRankingRepository {
+    static final String RANKING_SQL = """
             WITH completed AS (
                 SELECT s.id AS session_id, s.user_id, u.nickname, s.score, r.settled_at,
                        JSON_EXTRACT(b.result_json, '$.maxCombo') AS combo_json
@@ -55,20 +55,20 @@ public class ParkBungeoppangChampionRepository {
 
     private final EntityManager entities;
 
-    public ParkBungeoppangChampionRepository(EntityManager entities) {
+    public ParkBungeoppangRankingRepository(EntityManager entities) {
         this.entities = entities;
     }
 
     @Transactional(readOnly = true)
-    public List<BungeoppangChampionStanding> findTopTen(Instant startedAt) {
-        return entities.createNativeQuery(CHAMPION_SQL, Object[].class)
+    public List<BungeoppangRankingStanding> findTopTen(Instant startedAt) {
+        return entities.createNativeQuery(RANKING_SQL, Object[].class)
                 .setParameter("startedAtMillis", startedAt.toEpochMilli())
                 .setParameter("rulesVersion", BungeoppangV5Spec.RULES_VERSION)
                 .setParameter("durationMicros", BungeoppangV5Spec.DURATION_MS * 1_000L)
                 .getResultStream()
                 .map(value -> {
                     Object[] row = (Object[]) value;
-                    return new BungeoppangChampionStanding(((Number) row[0]).longValue(),
+                    return new BungeoppangRankingStanding(((Number) row[0]).longValue(),
                             ((Number) row[1]).longValue(), (String) row[2],
                             ((Number) row[3]).longValue(), ((Number) row[4]).longValue(),
                             Instant.ofEpochMilli(((Number) row[5]).longValue()));
@@ -76,7 +76,7 @@ public class ParkBungeoppangChampionRepository {
                 .toList();
     }
 
-    public record BungeoppangChampionStanding(long rank, long userId, String nickname, long score, long maxCombo,
+    public record BungeoppangRankingStanding(long rank, long userId, String nickname, long score, long maxCombo,
                                               Instant completedAt) {
     }
 }

@@ -1,6 +1,6 @@
 package com.ssafy.ontop.ranking.repository;
 
-import com.ssafy.ontop.ranking.repository.ParkJumpmapChampionRepository.JumpmapChampionStanding;
+import com.ssafy.ontop.ranking.repository.ParkJumpmapRankingRepository.JumpmapRankingStanding;
 import com.ssafy.ontop.world.jumpmap.JumpCourse;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -24,12 +24,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 @ActiveProfiles({"local", "db"})
 @DataJpaTest(properties = "spring.flyway.locations=classpath:db/migration,classpath:db/minigame")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import(ParkJumpmapChampionRepository.class)
-class ParkJumpmapChampionRepositoryTests {
+@Import(ParkJumpmapRankingRepository.class)
+class ParkJumpmapRankingRepositoryTests {
     private static final Instant STARTED_AT = Instant.parse("2026-11-02T00:00:00Z");
 
     @Autowired private JdbcTemplate jdbc;
-    @Autowired private ParkJumpmapChampionRepository rankings;
+    @Autowired private ParkJumpmapRankingRepository rankings;
 
     @DynamicPropertySource
     static void isolatedDatabase(DynamicPropertyRegistry registry) {
@@ -54,9 +54,9 @@ class ParkJumpmapChampionRepositoryTests {
         run(laterUser, 8_000, STARTED_AT.plusSeconds(20), false,
                 JumpCourse.RULES_VERSION, JumpCourse.COURSE_VERSION, JumpCourse.STAGES);
 
-        List<JumpmapChampionStanding> standings = rankings.findTopTen(STARTED_AT);
+        List<JumpmapRankingStanding> standings = rankings.findTopTen(STARTED_AT);
 
-        assertThat(standings).extracting(JumpmapChampionStanding::rank).containsExactly(1L, 1L);
+        assertThat(standings).extracting(JumpmapRankingStanding::rank).containsExactly(1L, 1L);
         assertThat(standings).first().satisfies(result -> {
             assertThat(result.userId()).isEqualTo(earlierUser);
             assertThat(result.finishMs()).isEqualTo(8_000);
@@ -82,7 +82,7 @@ class ParkJumpmapChampionRepositoryTests {
                 JumpCourse.RULES_VERSION, JumpCourse.COURSE_VERSION, JumpCourse.STAGES);
         jdbc.update("UPDATE users SET deleted_at = CURRENT_TIMESTAMP(3) WHERE id = ?", deleted);
 
-        List<JumpmapChampionStanding> standings = rankings.findTopTen(STARTED_AT);
+        List<JumpmapRankingStanding> standings = rankings.findTopTen(STARTED_AT);
 
         assertThat(standings).singleElement().satisfies(result -> {
             assertThat(result.userId()).isEqualTo(included);
@@ -103,7 +103,7 @@ class ParkJumpmapChampionRepositoryTests {
         }
 
         assertThat(rankings.findTopTen(STARTED_AT)).hasSize(10)
-                .extracting(JumpmapChampionStanding::finishMs)
+                .extracting(JumpmapRankingStanding::finishMs)
                 .containsExactly(8_000L, 8_001L, 8_002L, 8_003L, 8_004L,
                         8_005L, 8_006L, 8_007L, 8_008L, 8_009L);
     }
@@ -112,7 +112,7 @@ class ParkJumpmapChampionRepositoryTests {
     void 실행계획과_집계시간을_기록한다() throws Exception {
         run(member("계획측정"), 8_000, STARTED_AT.plusSeconds(1), false,
                 JumpCourse.RULES_VERSION, JumpCourse.COURSE_VERSION, JumpCourse.STAGES);
-        String explainSql = ParkJumpmapChampionRepository.CHAMPION_SQL
+        String explainSql = ParkJumpmapRankingRepository.RANKING_SQL
                 .replace(":requiredGates", "?")
                 .replace(":rulesVersion", "?")
                 .replace(":courseVersion", "?")
@@ -122,10 +122,10 @@ class ParkJumpmapChampionRepositoryTests {
                 STARTED_AT.toEpochMilli());
         long started = System.nanoTime();
 
-        List<JumpmapChampionStanding> standings = rankings.findTopTen(STARTED_AT);
+        List<JumpmapRankingStanding> standings = rankings.findTopTen(STARTED_AT);
         long elapsedNanos = System.nanoTime() - started;
 
-        Path report = Path.of("build", "park-jumpmap-champion-plan.txt");
+        Path report = Path.of("build", "park-jumpmap-ranking-plan.txt");
         Files.createDirectories(report.getParent());
         Files.writeString(report, "Elapsed: " + elapsedNanos / 1_000_000.0 + " ms\n\n" + plan + "\n");
         assertThat(plan).contains("Limit: 10 row(s)");

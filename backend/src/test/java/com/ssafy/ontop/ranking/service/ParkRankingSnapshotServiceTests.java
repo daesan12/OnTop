@@ -4,10 +4,10 @@ import com.ssafy.ontop.ranking.dto.ParkRankingResponse;
 import com.ssafy.ontop.ranking.exception.RankingException;
 import com.ssafy.ontop.ranking.repository.ParkBalanceRankingRepository;
 import com.ssafy.ontop.ranking.repository.ParkBalanceRankingRepository.BalanceStanding;
-import com.ssafy.ontop.ranking.repository.ParkBungeoppangChampionRepository;
-import com.ssafy.ontop.ranking.repository.ParkBungeoppangChampionRepository.BungeoppangChampionStanding;
-import com.ssafy.ontop.ranking.repository.ParkJumpmapChampionRepository;
-import com.ssafy.ontop.ranking.repository.ParkJumpmapChampionRepository.JumpmapChampionStanding;
+import com.ssafy.ontop.ranking.repository.ParkBungeoppangRankingRepository;
+import com.ssafy.ontop.ranking.repository.ParkBungeoppangRankingRepository.BungeoppangRankingStanding;
+import com.ssafy.ontop.ranking.repository.ParkJumpmapRankingRepository;
+import com.ssafy.ontop.ranking.repository.ParkJumpmapRankingRepository.JumpmapRankingStanding;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Clock;
 import java.time.Instant;
@@ -32,8 +32,8 @@ class ParkRankingSnapshotServiceTests {
     private static final Instant UPDATED_AT = Instant.parse("2026-11-02T01:00:00Z");
 
     private final ParkBalanceRankingRepository balances = mock(ParkBalanceRankingRepository.class);
-    private final ParkBungeoppangChampionRepository bungeoppang = mock(ParkBungeoppangChampionRepository.class);
-    private final ParkJumpmapChampionRepository jumpmap = mock(ParkJumpmapChampionRepository.class);
+    private final ParkBungeoppangRankingRepository bungeoppang = mock(ParkBungeoppangRankingRepository.class);
+    private final ParkJumpmapRankingRepository jumpmap = mock(ParkJumpmapRankingRepository.class);
     private final SimpleMeterRegistry meters = new SimpleMeterRegistry();
     private final Clock clock = Clock.fixed(UPDATED_AT, ZoneOffset.UTC);
 
@@ -42,9 +42,9 @@ class ParkRankingSnapshotServiceTests {
         ParkRankingSnapshotService service = service(STARTED_AT.toString());
         when(balances.findTopTen()).thenReturn(List.of(new BalanceStanding(1, 11, "보유자", 50)));
         when(bungeoppang.findTopTen(STARTED_AT)).thenReturn(List.of(
-                new BungeoppangChampionStanding(1, 12, "붕어빵왕", 9_000, 12, UPDATED_AT)));
+                new BungeoppangRankingStanding(1, 12, "붕어빵왕", 9_000, 12, UPDATED_AT)));
         when(jumpmap.findTopTen(STARTED_AT)).thenReturn(List.of(
-                new JumpmapChampionStanding(1, 13, "점프왕", 8_500, UPDATED_AT)));
+                new JumpmapRankingStanding(1, 13, "점프왕", 8_500, UPDATED_AT)));
 
         assertThatThrownBy(service::current).isInstanceOfSatisfying(RankingException.class,
                 error -> assertThat(error.error().code()).isEqualTo("RANKING_UNAVAILABLE"));
