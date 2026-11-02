@@ -282,6 +282,8 @@ export function CameraRig() {
     const focusedOmok = boardFocus && ownOmok && !gathering || spectatorOmok
     const alkkagiCamera = !!game && alkkagiCameraActive(game.alkkagi?.status, !!gameSession.lastResult)
       && ((seated && !!avatar.tableId && game.role === 'PLAYER') || (game.role === 'SPECTATOR' && !!(closeAnchor || watchedAnchor)))
+    const ownAlkkagi = seated && !!avatar.tableId && (session.tableStates[session.tableId]?.gameCode === 'ALKKAGI'
+      || game?.role === 'PLAYER' && !!game.alkkagi)
     const focusedAlkkagi = alkkagiCamera && (game?.role === 'PLAYER' ? !looking : spectatorBoard)
     if (focusedOmok || focusedAlkkagi) {
       camera.layers.set(OMOK_FOCUS_LAYER)
@@ -492,7 +494,9 @@ export function CameraRig() {
     const targetFov = debrisAnchor ? 55 : tablet ? 43 : focusedAlkkagi ? ALKKAGI_FOV : gathering ? ownOmok ? 60 : CAMERA.fov : seated && oneCardPlayerViewActive(game) ? ONECARD_CAMERA.fov : diceFocus ? DICE_CAMERA.fov : ledgerFocus ? LEDGER_CAMERA.fov : boardFocus || spectatorBoard ? GOMOKU.topDownFov : seated ? GOMOKU.seatedFov : CAMERA.fov
     const smoothingOmok = focusedOmok || ownOmok || state.omokTransition
     const smoothingDice = ownDice || state.diceTransition
-    const smoothingAlkkagi = alkkagiCamera || state.alkkagiTransition
+    // A defeat shot is an intermediate camera goal, not the end of the return transition.
+    const holdAlkkagi = ownAlkkagi || alkkagiCamera || !!debrisAnchor && debris?.gameCode === 'ALKKAGI'
+    const smoothingAlkkagi = holdAlkkagi || state.alkkagiTransition
     const smoothingBoard = smoothingOmok || smoothingDice || smoothingAlkkagi
     let omokSettled = false
     if (smoothingBoard) {
@@ -502,7 +506,7 @@ export function CameraRig() {
       omokSettled = advanceOmokCamera(camera, state.desired, state.targetRotation, targetFov, delta)
       if (smoothingOmok) state.omokTransition = focusedOmok || ownOmok || !omokSettled
       if (smoothingDice) state.diceTransition = ownDice || !omokSettled
-      if (smoothingAlkkagi) state.alkkagiTransition = alkkagiCamera || !omokSettled
+      if (smoothingAlkkagi) state.alkkagiTransition = holdAlkkagi || !omokSettled
     } else {
       if (firstPerson && performance.now() >= bungeoppangView.returningUntil) camera.position.copy(state.desired)
       else camera.position.lerp(state.desired, 1 - Math.exp(-(performance.now() < bungeoppangView.returningUntil ? 24 : 12) * Math.min(delta, 0.1)))
