@@ -1,5 +1,5 @@
 import { useEffect, useState, type CSSProperties } from "react";
-import { BUNGEOPPANG, bungeoppangV4Preview, bungeoppangV5Preview } from "./config";
+import { BUNGEOPPANG, BUNGEOPPANG_V4, BUNGEOPPANG_V5, bungeoppangV4Preview, bungeoppangV5Preview, bungeoppangV5Enabled } from "./config";
 import { isV5Grill } from './rulesV5';
 import { BungeoppangHudV5 } from './BungeoppangHudV5';
 import { BREAD_NAMES, BREAD_TOOLS, BREAD_FILLINGS, orderReady, trayCounts, orderSize, type BreadTool } from './rulesV4';
@@ -462,6 +462,8 @@ function StartPanel() {
   const startError = useBungeoppang((s) => s.startError);
   const walletError = useBungeoppang((s) => s.walletError);
   const capped = !!status && status.todayEarned >= status.dailyCap;
+  const v5 = status ? status.rulesVersion === 'v5' : bungeoppangV5Enabled;
+  const readyRules = v5 ? BUNGEOPPANG_V5 : BUNGEOPPANG_V4;
   return (
     <section className="bung-panel bung-start" aria-label="붕어빵 굽기 시작">
       <header className="bung-start-title">
@@ -471,26 +473,36 @@ function StartPanel() {
       </header>
       <p className="bung-start-intro">제한 시간 동안 붕어빵을 빠르고 정확하게 뒤집어 양쪽이 모두 익으면 완성!</p>
       <Steps />
-      <section className="bung-start-controls" aria-label="붕어빵 단축키 안내">
-        <div className="bung-start-plates">
-          <h3>굽는 틀 선택</h3>
-          <div className="bung-start-key-row"><span>위쪽</span>{R.slotKeys.slice(0, 3).map(key => <kbd key={key}>{key.toUpperCase()}</kbd>)}</div>
-          <div className="bung-start-key-row"><span>아래쪽</span>{R.slotKeys.slice(3).map(key => <kbd key={key}>{key.toUpperCase()}</kbd>)}</div>
-        </div>
-        <div className="bung-start-fillings">
-          <h3>반죽·소 선택</h3>
-          <ul>{BREAD_FILLINGS.map((filling, index) => <li key={filling}><kbd>{index + 1}</kbd>{BREAD_NAMES[filling]}</li>)}</ul>
-          <p><kbd>Space</kbd> 반죽 선택</p>
+      <section className="bung-start-controls" aria-label="붕어빵 조작과 점수 안내">
+        <div className="bung-start-setup">
+          <h3>틀·재료 선택</h3>
+          <div className="bung-start-plates" aria-label="굽는 틀 선택">
+            <div className="bung-start-key-row"><span>위쪽</span>{R.slotKeys.slice(0, 3).map(key => <kbd key={key}>{key.toUpperCase()}</kbd>)}</div>
+            <div className="bung-start-key-row"><span>아래쪽</span>{R.slotKeys.slice(3).map(key => <kbd key={key}>{key.toUpperCase()}</kbd>)}</div>
+          </div>
+          <div className="bung-start-fillings">
+            <h4>반죽·소 선택</h4>
+            <ul>{BREAD_FILLINGS.map((filling, index) => <li key={filling}><kbd>{index + 1}</kbd>{BREAD_NAMES[filling]}</li>)}</ul>
+            <p><kbd>Space</kbd> 반죽 선택</p>
+          </div>
         </div>
         <div className="bung-start-serve">
-          <div><h3>손님에게 전달</h3>
-            <p><kbd>R</kbd> 주문에 맞는 완성품 전달</p></div>
+          <h3>손님에게 전달</h3>
+          <p>주문의 종류·수량을 확인하고 완성품을 모아요.</p>
+          <p><kbd>R</kbd> 준비된 주문 전달</p>
+          <p>손님을 클릭해서 전달할 수도 있어요.</p>
+          <p>먼저 온 손님부터 챙겨주세요!</p>
+        </div>
+        <div className="bung-start-score" aria-label="점수와 랭킹 안내">
+          <h3>점수·랭킹</h3>
           <div className="bung-start-combo" aria-label="붕어빵 콤보 안내">
-            <h3>황금빛 콤보</h3>
-            <p>양면 황금색 완성 시 콤보 +1</p>
+            <h4>황금빛 콤보</h4>
+            <p>양면 황금색 +1 · 실패·폐기 시 초기화</p>
             <p><b>3콤보 ×1.2 · 6콤보 ×1.5</b></p>
-            <p>실패하거나 버리면 콤보 초기화</p>
           </div>
+          <p className="bung-start-bonus"><b>피자·초코</b> 납품 보너스 +{readyRules.specialBonusPercent}%</p>
+          {v5 && <p className="bung-start-complaint"><b>컴플레인 −{BUNGEOPPANG_V5.queueComplaintPenalty}점</b><span>도착 순서가 3번 이상 뒤인 손님을 먼저 전달하면, 기다린 손님마다 한 번 감점돼요.</span></p>}
+          <p className="bung-start-ranking">개인 최고 점수 순 · 동점은 최대 콤보 순</p>
         </div>
       </section>
       <p className="bung-start-earned" aria-label={`오늘 번 엽전 ${status ? `${status.todayEarned}냥` : '확인 중'} / ${status?.dailyCap ?? R.dailyCoinCap}냥`}>
