@@ -50,8 +50,8 @@ export async function parkFixture(page:Page,options:{holdConfirmation?:boolean;s
     if(p==='/api/v1/rankings/park'&&method==='GET'){
       await route.fulfill({json:{
         balance:[{rank:1,userId:'101',nickname:'새 맵 검증',coinBalance:12580},{rank:1,userId:'102',nickname:'공동 일등',coinBalance:12580},{rank:3,userId:'103',nickname:'세 번째',coinBalance:7200}],
-        singleGameProfit:[{rank:1,userId:'104',nickname:'한판 승부사',profit:2981}],
-        wins:[{rank:1,userId:'105',nickname:'보드게임 고수',winCount:1842}],
+        bungeoppangChampion:{userId:'104',nickname:'붕어빵 장인',score:2981,maxCombo:14,completedAt:'2026-11-02T05:31:00Z'},
+        jumpmapChampion:{userId:'105',nickname:'점프 고수',finishMs:62543,completedAt:'2026-11-02T05:31:30Z'},
         updatedAt:'2026-11-02T05:32:00Z',
       }});return
     }
