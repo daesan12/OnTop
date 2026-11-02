@@ -153,6 +153,7 @@ function RpsRouletteDialog() {
       <button type="button" className="rps-roulette-ghost" onClick={() => openManual('rps-roulette')}>설명서</button>
       <button type="button" className="rps-roulette-close" aria-label="게임기 닫기" onClick={closeRpsRoulette}>×</button>
     </header>
+    <div className="rps-roulette-content" tabIndex={0} aria-label="가위바위보 게임기 내용">
     <div className="rps-roulette-cabinet">
       <RouletteFace roulette={roulette} litCell={litCell} led={led} lamps={lamps}
         machineHand={showDuel ? duel!.machineHand : null} />
@@ -234,5 +235,6 @@ function RpsRouletteDialog() {
       </div>
     </div>
     <p className="rps-roulette-foot">손이 공개된 판은 창을 닫아도 서버가 마감에 맞춰 결과를 적용해요.</p>
+    </div>
   </dialog>
 }
