@@ -231,7 +231,7 @@ describe('M02 real runtime delivery through the existing SharedSocket', () => {
       await vi.advanceTimersByTimeAsync(0)
     } else await vi.advanceTimersByTimeAsync(3000)
     expect(useSession.getState().movementNotice).toBeNull()
-    expect(useSession.getState().error).toBe('다른 작업 오류')
+    expect(useSession.getState().error).toBe(mode === 'expiry' ? '' : '다른 작업 오류')
   })
   it.each(['channel', 'stop'])('clears the notice and its timer on %s exit', async boundary => {
     socket.holdMoves = true

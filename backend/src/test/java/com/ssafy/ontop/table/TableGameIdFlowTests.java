@@ -140,7 +140,7 @@ class TableGameIdFlowTests {
                     second.close();
                     first.await(message -> message.path("type").asText().equals("CHANNEL_STATE")
                             && message.at("/payload/currentUsers").asInt() == 2);
-                    returned = connect(202, "one", "FINISHED");
+                    returned = connect(202, "one", "LOBBY");
                     player = returned;
                     acknowledgement = player.request("GAME_FORFEIT", command);
                     assertThat(acknowledgement.at("/payload/duplicate").asBoolean()).isTrue();
@@ -150,19 +150,22 @@ class TableGameIdFlowTests {
                     assertThat(acknowledgement.at("/payload/duplicate").asBoolean()).isFalse();
                 }
                 assertThat(acknowledgement.path("type").asText()).isEqualTo("GAME_FORFEIT_RESULT");
-                player.state("FINISHED");
+                player.state("LOBBY");
+                assertThat(player.request("CHANNEL_LEAVE", Map.of()).path("type").asText()).isEqualTo("CHANNEL_LEFT");
                 assertThat(player.request("CHANNEL_JOIN", Map.of("channelId", "two"))
-                        .at("/payload/code").asText()).isEqualTo("TABLE_BUSY");
+                        .path("type").asText()).isEqualTo("CHANNEL_STATE");
+                player.request("CHANNEL_LEAVE", Map.of());
+                player.request("CHANNEL_JOIN", Map.of("channelId", "one"));
                 var ended = viewer.await(message -> message.path("type").asText().equals("GAME_STATE")
                         && message.at("/payload/publicState/status").asText().equals("FINISHED"));
                 assertThat(ended.at("/payload/privateState").isEmpty()).isTrue();
                 assertThat(ended.at("/payload/publicState/endReason").asText()).isEqualTo("EXPLICIT_LEAVE");
                 assertThat(summary().path("status").asText()).isEqualTo("SETTLING");
                 assertThat(summary().path("gameId").isNull()).isTrue();
-                assertThat(summary().path("occupiedSeats").asInt()).isEqualTo(2);
+                assertThat(summary().path("occupiedSeats").asInt()).isEqualTo(1);
                 assertThat(summary().path("readyCount").asInt()).isZero();
                 assertThat(player.request("READY_SET", Map.of("ready", true, "betAmountPerPlayer", 1, "expectedVersion", 0))
-                        .at("/payload/code").asText()).isEqualTo("TABLE_BUSY");
+                        .at("/payload/code").asText()).isEqualTo("NOT_SEATED");
                 var pending = forfeitResult(202, gameId, GameResultView.SettlementStatus.PENDING);
                 results.saved.put(202L, pending);
                 var pendingReply = player.request("GAME_RESULT_CHECK", Map.of("gameSessionId", gameId));
@@ -178,18 +181,17 @@ class TableGameIdFlowTests {
                     settlement = player.request("GAME_RESULT_CHECK", Map.of("gameSessionId", gameId));
                 } else {
                     events.publishEvent(new GameResultCommitted(settled));
-                    settlement = player.await(message -> message.path("type").asText().equals("GAME_RESULT")
-                            && message.at("/payload/settlementStatus").asText().equals("SETTLED"));
+                    settlement = player.request("GAME_RESULT_CHECK", Map.of("gameSessionId", gameId));
                 }
                 assertThat(settlement.at("/payload/myCoinDelta").asLong()).isEqualTo(-1);
-                player.await(message -> message.path("type").asText().equals("GAME_START_STATE")
+                first.await(message -> message.path("type").asText().equals("GAME_START_STATE")
                         && message.at("/payload/phase").asText().equals("WAITING"));
                 assertThat(summary().path("status").asText()).isEqualTo("WAITING");
                 first.request("TABLE_JOIN", Map.of("tableId", TABLE));
+                player.request("TABLE_JOIN", Map.of("tableId", TABLE));
                 first.request("READY_SET", Map.of("ready", true));
                 assertThat(reservation.starts).hasValue(1);
                 assertThat(summary().path("readyCount").asInt()).isEqualTo(1);
-                player.request("TABLE_JOIN", Map.of("tableId", TABLE));
                 player.request("READY_SET", Map.of("ready", true));
                 var next = publicState(viewer, "committed-test-game-2");
                 first.state("RESTORED");

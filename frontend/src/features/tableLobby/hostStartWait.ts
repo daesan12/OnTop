@@ -69,7 +69,7 @@ export function activeHostWait(state: HostWaitState, table: TableState, userId: 
   if (!connected || (phase && phase !== 'WAITING') || !scope || !snapshot || snapshot.expiresAt === null
     || scope.userId !== userId || scope.channelId !== channelId || scope.tableId !== table.tableId
     || snapshot.hostUserId !== table.selectorUserId || snapshot.tableVersion !== table.version
-    || !table.gameCode || !table.betAmountPerPlayer || !table.allReady
+    || !table.gameCode || table.betAmountPerPlayer == null || !table.allReady
     || selectedCount === null || selectedCount < table.minimumPlayers || selectedCount > table.capacity
     || table.seats.filter(s => s.userId).length !== selectedCount
     || !table.seats.some(s => s.userId === userId) || !table.seats.filter(s => s.userId).every(s => s.ready)) return null

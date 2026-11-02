@@ -195,10 +195,11 @@ class CommittedStartFlowTests {
             clock.advanceSeconds(seconds);
             reservation.release.countDown();
             playing(first);
-            try (var returned = connect(202, seconds == 29 ? "RESTORED" : "FINISHED")) {
+            try (var returned = connect(202, seconds == 29 ? "RESTORED" : "LOBBY")) {
                 assertThat(reservation.reservations.get()).isEqualTo(1);
-                assertThat(returned.request("GAME_START_CHECK", Map.of()).path("type").asText())
-                        .isEqualTo("GAME_START_STATE");
+                var checked = returned.request("GAME_START_CHECK", Map.of());
+                if (seconds == 29) { assertThat(checked.path("type").asText()).isEqualTo("GAME_START_STATE"); }
+                else { assertThat(checked.at("/payload/code").asText()).isEqualTo("NOT_SEATED"); }
             }
         }
     }
@@ -510,7 +511,7 @@ class CommittedStartFlowTests {
                 clock.advanceSeconds(2);
                 reservation.release.countDown();
                 playing(first);
-                returned.state(seconds == 29 ? "RESTORED" : "FINISHED");
+                returned.state(seconds == 29 ? "RESTORED" : "LOBBY");
                 assertThat(reservation.reservations.get()).isEqualTo(1);
             }
         }
@@ -537,7 +538,9 @@ class CommittedStartFlowTests {
             try (var returned = connect(202, "LOBBY")) {
                 reservation.release.countDown();
                 playing(first);
-                assertThat(returned.state("FINISHED").path("gameId").asText()).isEqualTo(GAME);
+                assertThat(returned.state("LOBBY").path("gameId").isNull()).isTrue();
+                assertThat(returned.request("TABLE_LEAVE", Map.of()).at("/payload/code").asText())
+                        .isEqualTo("NOT_SEATED");
             }
         }
     }

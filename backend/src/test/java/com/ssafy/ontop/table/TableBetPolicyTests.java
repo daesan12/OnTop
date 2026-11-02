@@ -28,7 +28,7 @@ class TableBetPolicyTests {
         assertThat(room.snapshot().betAmountPerPlayer()).isNull();
     }
 
-    @ParameterizedTest @ValueSource(strings = {"0", "-1", "1.5", "\"5\"", "null", "9223372036854775808"})
+    @ParameterizedTest @ValueSource(strings = {"-1", "1.5", "\"5\"", "null", "9223372036854775808"})
     void 공개선택은_잘못된금액형식을_거절한다(String amount) {
         assertThatThrownBy(() -> new TableProtocol(new ObjectMapper()).parse(
                 "{\"requestId\":\"a\",\"type\":\"GAME_SELECT\",\"payload\":{\"gameCode\":\"OMOK\",\"betAmountPerPlayer\":" + amount + "}}"))
