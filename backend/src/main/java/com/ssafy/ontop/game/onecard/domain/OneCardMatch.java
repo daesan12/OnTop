@@ -141,7 +141,7 @@ public final class OneCardMatch {
         if (card.joker() || card.rank().equals("7")) { stage = "CHOOSE_SUIT"; return; }
         if (card.rank().equals("K")) { extraAction = true; return; }
         if (card.rank().equals("Q")) { direction = -direction; }
-        int steps = card.rank().equals("J") || card.rank().equals("Q") && active.size() == 2 ? 2 : 1;
+        int steps = card.rank().equals("J") ? 2 : 1;
         completeTurn(true,now,steps);
     }
 
