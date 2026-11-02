@@ -16,7 +16,7 @@ public record GameResultView(@JsonIgnore long userId, long version, String gameS
     public GameResultView {
         if (userId <= 0 || version < 0 || version > MAX_NUMBER || gameSessionId == null
                 || gameSessionId.isBlank() || gameSessionId.length() > 120 || !token(gameCode) || !token(endReason)
-                || betAmountPerPlayer <= 0 || betAmountPerPlayer > MAX_NUMBER) {
+                || betAmountPerPlayer < 0 || betAmountPerPlayer > MAX_NUMBER) {
             throw new IllegalArgumentException("경기 결과 형식을 확인해주세요.");
         }
         Objects.requireNonNull(status);

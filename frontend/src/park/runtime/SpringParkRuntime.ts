@@ -1132,7 +1132,7 @@ export class ParkRuntime implements ParkRuntimePort {
         throw new Error('플레이 가능한 게임을 선택한 대기 테이블에서 준비해주세요.')
       const table = s.tableStates[s.tableId]
       if (ready && !isTableGamePlayable(table.gameCode)) throw new Error(GAME_CONSTRUCTION_NOTICE)
-      if (ready && (table.betAmountPerPlayer == null || table.betAmountPerPlayer <= 0)) throw new Error('확정 참가비를 먼저 확인해주세요.')
+      if (ready && (table.betAmountPerPlayer == null || table.betAmountPerPlayer < 0)) throw new Error('확정 참가비를 먼저 확인해주세요.')
       await this.socket.request('READY_SET', ready
         ? { ready, betAmountPerPlayer: table.betAmountPerPlayer, expectedVersion: table.version }
         : { ready }, ['TABLE_STATE'])

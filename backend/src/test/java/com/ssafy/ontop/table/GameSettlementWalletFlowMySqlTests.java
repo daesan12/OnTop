@@ -28,7 +28,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
@@ -74,9 +74,8 @@ class GameSettlementWalletFlowMySqlTests {
     }
 
     @ParameterizedTest
-    @ValueSource(booleans = {false, true})
-    void 실제경기종료_정산알림직후_잔액조회와_퇴장재접속을_검증한다(boolean forfeit) throws Exception {
-        long bet = 5;
+    @CsvSource({"false, 0", "true, 0", "false, 5", "true, 5"})
+    void 실제경기종료_정산알림직후_잔액조회와_퇴장재접속을_검증한다(boolean forfeit, long bet) throws Exception {
         Member winner = member();
         Member loser = member();
         Member outsider = member();

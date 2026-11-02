@@ -119,7 +119,7 @@ function TabletSession({ tableId }: { tableId: string }) {
     finally { if (alive.current && epoch === commandEpoch.current) setWorking(false) }
   }
   if (!table) return null
-  const amount = Number(bet), validBet = /^\d+$/.test(bet) && Number.isSafeInteger(amount) && amount > 0 && Number.isSafeInteger(amount * max)
+  const amount = Number(bet), validBet = /^\d+$/.test(bet) && Number.isSafeInteger(amount) && amount >= 0 && Number.isSafeInteger(amount * max)
   const countSupported = !!port || count === max
   const canConfigure = host && isTableGamePlayable(code) && validBet && countSupported && count >= occupied
   const confirmation = signature
@@ -172,7 +172,7 @@ function TabletSession({ tableId }: { tableId: string }) {
           <span className="tablet-ready-stamp" data-ready={seat.ready}>{seat.userId ? seat.ready ? '✓ 준비 완료' : '준비 대기' : '참가 대기'}</span>
         </div>)}</div>
         <div className="tablet-bet-confirm"><GameArt code={game?.code ?? 'OMOK'} /><p className="tablet-ready-description">{game && descriptions[game.code]}</p><span>1인 참가 판돈</span><strong><img className="tablet-coin" src={coinImage} alt="" /> {table.betAmountPerPlayer?.toLocaleString() ?? '—'}<small>냥</small></strong>
-          <label className="tablet-amount-agreement"><input type="checkbox" checked={confirmedBet === confirmation || !!mine?.ready} disabled={busy || !!mine?.ready || !table.betAmountPerPlayer}
+          <label className="tablet-amount-agreement"><input type="checkbox" checked={confirmedBet === confirmation || !!mine?.ready} disabled={busy || !!mine?.ready || table.betAmountPerPlayer == null}
             onChange={e => setConfirmedBet(e.target.checked ? confirmation : '')} />
             <span className="tablet-agreement-mark" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none"><path d="m4 10 4 4 8-8" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg></span>
             <span>참가 금액을 확인했어요</span></label>
@@ -185,7 +185,7 @@ function TabletSession({ tableId }: { tableId: string }) {
         <footer className="tablet-ready-actions"><button disabled={busy || !mine} aria-keyshortcuts="Escape" title="일어나기 (Esc)" onClick={() => void runtime.leaveTable()}>일어나기</button>
           {host ? <HostStartButton table={table} selectedCount={approvedCount ?? null} disabled={!startEnabled} onStart={() => port && void command(() => port.start(preparationContext(table)))} />
             : <span className="tablet-host-wait">방장이 게임을 시작해요</span>}
-          <button disabled={busy || !mine || !table.gameCode || !table.betAmountPerPlayer || (!mine.ready && (!isTableGamePlayable(table.gameCode) || confirmedBet !== confirmation || !port || approvedCount == null))}
+          <button disabled={busy || !mine || !table.gameCode || table.betAmountPerPlayer == null || (!mine.ready && (!isTableGamePlayable(table.gameCode) || confirmedBet !== confirmation || !port || approvedCount == null))}
             onClick={() => void command(() => runtime.setReady(!mine?.ready))}>{mine?.ready ? '준비 취소' : '준비 완료'}</button>
         </footer>
       </div>}

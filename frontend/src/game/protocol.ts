@@ -241,7 +241,7 @@ export function parseResult(p: Record<string, unknown>, ownId: string): Result {
     typeof p.endReason !== 'string' || !/^[A-Z][A-Z0-9_]{0,31}$/.test(p.endReason) ||
     !['PENDING', 'SETTLED'].includes(String(p.settlementStatus)) ||
     !integer(p.betAmountPerPlayer) ||
-    p.betAmountPerPlayer < 1 ||
+    p.betAmountPerPlayer < 0 ||
     !date(p.endedAt) ||
     !Array.isArray(p.participants) ||
     p.participants.length < 2 ||
