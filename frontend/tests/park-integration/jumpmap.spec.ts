@@ -425,6 +425,43 @@ test('final leaf opens a persistent paper completion, locks movement and updates
   expect(errors).toEqual([])
 })
 
+test('unlocked repeated camera drags avoid raycasting the local avatar and stop turning on release', async ({ page }) => {
+  const { server, start, errors } = await setup(page)
+  start()
+  const pad = COURSE.find(p => p.top > 35)!
+  server.place({ x: pad.x, y: pad.top + .8, z: pad.z })
+  await expect.poll(async () => (await probe(page)).ownPosition?.[1] ?? 0).toBeGreaterThan(30)
+  const before = await page.evaluate(async () => {
+    const source = await (await fetch('/tests/park-integration/jumpmapProbe.ts')).text()
+    const dependency = source.match(/import\s*\{\s*_roots\s*\}\s*from\s*["']([^"']+)/)![1]!
+    const { _roots } = await import(dependency)
+    const avatar = _roots.get(document.querySelector('canvas')!)!.store.getState().scene.getObjectByName('avatar-101')!
+    const counter = { calls: 0 }
+    Object.assign(window, { ownAvatarRaycasts: counter })
+    avatar.traverse((object: import('three').Object3D) => {
+      if (!('isSkinnedMesh' in object)) return
+      const raycast = object.raycast
+      object.raycast = function (...args) { counter.calls++; return raycast.apply(this, args) }
+    })
+    return (await import('/src/world/cameraPerspective.ts' as string)).viewControls.yaw
+  })
+  for (let i = 0; i < 20; i++) {
+    await page.mouse.move(960, 450); await page.mouse.down()
+    await page.mouse.move(1000, 450, { steps: 2 }); await page.mouse.up()
+  }
+  const read = () => page.evaluate(async () => ({
+    yaw: (await import('/src/world/cameraPerspective.ts' as string)).viewControls.yaw,
+    calls: (window as unknown as { ownAvatarRaycasts: { calls: number } }).ownAvatarRaycasts.calls,
+    locked: !!document.pointerLockElement,
+  }))
+  const after = await read()
+  expect(after.yaw).not.toBe(before); expect(after.calls).toBe(0); expect(after.locked).toBe(false)
+  await page.mouse.move(1060, 450)
+  expect((await read()).yaw).toBe(after.yaw)
+  await expect(page.getByRole('menu')).toHaveCount(0)
+  expect(errors).toEqual([])
+})
+
 test('prepared course follows server availability and reuses graphics after reactivation', async ({ page }) => {
   const { start, emit, errors } = await setup(page)
   const graphics = () => page.evaluate(async () => {
