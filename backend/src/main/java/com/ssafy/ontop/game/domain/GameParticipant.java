@@ -63,7 +63,7 @@ public class GameParticipant {
     }
 
     public GameParticipant(long gameSessionId, long userId, int seatNumber, int participantOrder, long amount) {
-        if (amount <= 0) { throw new IllegalArgumentException("예약액을 확인하세요."); }
+        if (amount < 0) { throw new IllegalArgumentException("예약액을 확인하세요."); }
         this.gameSessionId = gameSessionId;
         this.userId = userId;
         this.seatNumber = (short) seatNumber;

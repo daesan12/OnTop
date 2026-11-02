@@ -28,7 +28,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
@@ -74,35 +74,46 @@ class GameSettlementWalletFlowMySqlTests {
     }
 
     @ParameterizedTest
-    @ValueSource(booleans = {false, true})
-    void 실제경기종료_정산알림직후_잔액조회와_퇴장재접속을_검증한다(boolean forfeit) throws Exception {
+    @CsvSource({"false, 0", "true, 0", "false, 5", "true, 5"})
+    void 실제경기종료_정산알림직후_잔액조회와_퇴장재접속을_검증한다(boolean forfeit, long bet) throws Exception {
         Member winner = member();
         Member loser = member();
         Member outsider = member();
         try (var first = connect(winner); var second = connect(loser); var observer = connect(outsider)) {
             assertType(first.request("TABLE_JOIN", Map.of("tableId", "table-1")), "TABLE_STATE");
             assertType(second.request("TABLE_JOIN", Map.of("tableId", "table-1")), "TABLE_STATE");
-            assertType(first.request("GAME_SELECT", Map.of("gameCode", "OMOK", "betAmountPerPlayer", 5)), "TABLE_STATE");
+            assertType(first.request("GAME_SELECT", Map.of("gameCode", "OMOK", "betAmountPerPlayer", bet)), "TABLE_STATE");
             first.request("READY_SET", Map.of("ready", true));
             second.request("READY_SET", Map.of("ready", true));
             String game = first.await(m -> m.path("type").asText().equals("GAME_START_STATE")
                     && m.at("/payload/phase").asText().equals("PLAYING")).at("/payload/gameSessionId").asText();
             first.state("RESTORED");
             second.state("RESTORED");
-            assertWallet(winner, 100, 5);
-            assertWallet(loser, 100, 5);
+            assertWallet(winner, 100, bet);
+            assertWallet(loser, 100, bet);
 
             if (forfeit) {
                 assertType(second.request("GAME_FORFEIT", Map.of("gameId", game, "actionId", "wallet-flow-forfeit")),
                         "GAME_FORFEIT_RESULT");
-                // 정산 대기 중에는 기존 정책대로 좌석을 잠근다. 지급 확정 뒤에만 퇴장한다.
-                assertThat(second.request("TABLE_LEAVE", Map.of()).at("/payload/code").asText()).isEqualTo("TABLE_BUSY");
+                // 정산 전에도 기권자의 착석과 복구 입력은 즉시 해제한다.
+                second.state("LOBBY");
+                assertThat(second.request("TABLE_LEAVE", Map.of()).at("/payload/code").asText()).isEqualTo("NOT_SEATED");
             } else {
-                // 흑의 정상 오목 승리도 같은 정산 경로로 이어져야 한다.
-                for (int turn = 0; turn < 9; turn++) {
-                    ScenarioClient player = turn % 2 == 0 ? first : second;
+                // 서버의 흑백 추첨과 시작 연출을 따른다. 첫 참가자가 흑이라는 가정은 하지 않는다.
+                JsonNode opening = first.request("GAME_STATE_CHECK", Map.of("gameId", game));
+                String tossEnds = opening.at("/payload/publicState/coinTossEndsAt").asText();
+                if (!tossEnds.isEmpty()) {
+                    while (Instant.now().isBefore(Instant.parse(tossEnds))) { Thread.sleep(10); }
+                }
+                int winningMoves = 0, otherMoves = 0;
+                for (int turn = 0; winningMoves < 5; turn++) {
+                    JsonNode state = first.request("GAME_STATE_CHECK", Map.of("gameId", game));
+                    boolean winningTurn = state.at("/payload/publicState/turnUserId").asText().equals(winner.id());
+                    ScenarioClient player = winningTurn ? first : second;
+                    int x = winningTurn ? 3 + winningMoves++ : 1 + 2 * otherMoves++;
                     assertType(player.request("GAME_ACTION_SEND", Map.of("gameId", game, "actionId", "move-" + turn,
-                            "expectedVersion", turn, "input", Map.of("x", 3 + turn / 2, "y", turn % 2 == 0 ? 7 : 10))),
+                            "expectedVersion", state.at("/payload/version").asLong(),
+                            "input", Map.of("x", x, "y", winningTurn ? 7 : 10))),
                             "GAME_ACTION_RESULT");
                 }
             }
@@ -112,11 +123,12 @@ class GameSettlementWalletFlowMySqlTests {
                 assertThat(notifications.dispatchOnce(50)).isPositive();
                 JsonNode won = settled(first, game);
                 // 알림 수신 직후 조회한다. 임의 대기나 잔액 재계산 없이 DB 커밋 결과가 보여야 한다.
-                JsonNode winnerWallet = assertWallet(winner, 105, 0);
-                JsonNode lost = settled(second, game);
-                JsonNode loserWallet = assertWallet(loser, 95, 0);
-                assertThat(won.at("/payload/myCoinDelta").asLong()).isEqualTo(5);
-                assertThat(lost.at("/payload/myCoinDelta").asLong()).isEqualTo(-5);
+                JsonNode winnerWallet = assertWallet(winner, 100 + bet, 0);
+                JsonNode lost = forfeit ? second.request("GAME_RESULT_CHECK", Map.of("gameSessionId", game))
+                        : settled(second, game);
+                JsonNode loserWallet = assertWallet(loser, 100 - bet, 0);
+                assertThat(won.at("/payload/myCoinDelta").asLong()).isEqualTo(bet);
+                assertThat(lost.at("/payload/myCoinDelta").asLong()).isEqualTo(-bet);
                 assertWallet(outsider, 100, 0);
                 long ledger = ledger(game);
                 for (int repeat = 0; repeat < 2; repeat++) {
@@ -130,7 +142,10 @@ class GameSettlementWalletFlowMySqlTests {
                 assertThat(ledger(game)).isEqualTo(ledger).isEqualTo(4);
                 assertThat(notifications.dispatchOnce(50)).isZero();
                 first.assertNoMessage(GameSettlementWalletFlowMySqlTests::isResult);
-                assertType(second.request("TABLE_LEAVE", Map.of()), "TABLE_LEFT");
+                if (forfeit) {
+                    assertThat(second.request("TABLE_LEAVE", Map.of()).at("/payload/code").asText())
+                            .isEqualTo("NOT_SEATED");
+                } else { assertType(second.request("TABLE_LEAVE", Map.of()), "TABLE_LEFT"); }
                 second.close();
                 // 클라이언트 close() 반환은 서버 중복 접속 슬롯 정리 완료가 아니다.
                 long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(5);
@@ -144,7 +159,7 @@ class GameSettlementWalletFlowMySqlTests {
                             .isEqualTo("GAME_RECOVERY_REQUIRED");
                     assertThat(returned.request("GAME_RESULT_CHECK", Map.of("gameSessionId", game)).path("payload"))
                             .isEqualTo(lost.path("payload"));
-                    assertWallet(loser, 95, 0);
+                    assertWallet(loser, 100 - bet, 0);
                 }
                 EVIDENCE.add(Map.of("scenario", forfeit ? "FORFEIT_SETTLE_THEN_LEAVE" : "FIVE_IN_ROW",
                         "winnerUserId", winner.id(), "loserUserId", loser.id(), "winnerResult", won,
@@ -203,7 +218,9 @@ class GameSettlementWalletFlowMySqlTests {
     }
 
     private static boolean isResult(JsonNode message) { return message.path("type").asText().equals("GAME_RESULT"); }
-    private static void assertType(JsonNode message, String type) { assertThat(message.path("type").asText()).isEqualTo(type); }
+    private static void assertType(JsonNode message, String type) {
+        assertThat(message.path("type").asText()).as("응답: %s", message).isEqualTo(type);
+    }
     private record Member(String id, String token) { }
 
     @AfterAll

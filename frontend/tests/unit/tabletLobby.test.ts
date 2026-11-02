@@ -8,7 +8,7 @@ it('labels retained server room settings and never presents an unset stake as fr
   expect(tableTermsLabel({ gameCode: 'ONE_CARD', betAmountPerPlayer: 2500 })).toBe('원카드 · 1인 판돈 2,500냥')
   expect(tableTermsLabel({ gameCode: 'DICE_LEDGER', betAmountPerPlayer: 25 })).toBe('주사위 장부 · 1인 판돈 25냥')
   expect(tableTermsLabel({ gameCode: null, betAmountPerPlayer: null })).toBe('게임 선택 중 · 판돈 미정')
-  expect(tableTermsLabel({ gameCode: 'OMOK', betAmountPerPlayer: 0 })).toBe('오목 · 판돈 미정')
+  expect(tableTermsLabel({ gameCode: 'OMOK', betAmountPerPlayer: 0 })).toBe('오목 · 1인 판돈 0냥')
   expect(tableTermsLabel(undefined)).toBe('방 설정 확인 중')
 })
 
@@ -24,6 +24,7 @@ describe('tablet lobby authority', () => {
     expect(manualStartAllowed({ ...table, allReady: false }, 'a', 2)).toBe(false)
     expect(manualStartAllowed({ ...table, seats: table.seats.map(s => ({ ...s, ready: false })) }, 'a', 2)).toBe(false)
     expect(manualStartAllowed({ ...table, betAmountPerPlayer: null }, 'a', 2)).toBe(false)
+    expect(manualStartAllowed({ ...table, betAmountPerPlayer: 0 }, 'a', 2)).toBe(true)
   })
   it('blocks the legacy last ready to avoid silently auto-starting', () => {
     expect(readyWouldAutoStart(table, 'a')).toBe(true)

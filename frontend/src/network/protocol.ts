@@ -113,7 +113,7 @@ export function userProfile(value: unknown) {
   }
 }
 const text = (x: unknown): x is string => typeof x === 'string' && x.length > 0
-const publicBet = (x: unknown) => x == null || integer(x) && Number(x) > 0
+const publicBet = (x: unknown) => x == null || integer(x) && Number(x) >= 0
 function validTableMode(value: Record<string, unknown>) {
   return (value.startMode === undefined || value.startMode === 'AUTO' || value.startMode === 'MANUAL')
     && (value.startMode === 'MANUAL'

@@ -115,7 +115,7 @@ class MultiplayerForfeitFlowTests {
             Map<String, String> command = Map.of("gameId", GAME, "actionId", "middle-forfeit");
             var receipt = players.get(1).request("GAME_FORFEIT", command);
             assertThat(receipt.path("type").asText()).isEqualTo("GAME_FORFEIT_RESULT");
-            players.get(1).state("ELIMINATED");
+            players.get(1).state("LOBBY");
             var continuing = viewer.await(message -> message.path("type").asText().equals("GAME_STATE")
                     && message.at("/payload/version").asLong() >= receipt.at("/payload/version").asLong());
             assertPublic(continuing);
@@ -130,12 +130,17 @@ class MultiplayerForfeitFlowTests {
             players.get(1).close();
             viewer.await(message -> message.path("type").asText().equals("CHANNEL_STATE")
                     && message.at("/payload/currentUsers").asInt() == count);
-            players.set(1, connect(202, "ELIMINATED"));
+            players.set(1, connect(202, "LOBBY"));
             var returned = players.get(1);
             assertThat(returned.request("GAME_FORFEIT", command).at("/payload/duplicate").asBoolean()).isTrue();
-            returned.state("ELIMINATED");
+            returned.state("LOBBY");
+            assertThat(returned.request("CHANNEL_LEAVE", Map.of()).path("type").asText()).isEqualTo("CHANNEL_LEFT");
             assertThat(returned.request("CHANNEL_JOIN", Map.of("channelId", "two"))
-                    .at("/payload/code").asText()).isEqualTo("TABLE_BUSY");
+                    .path("type").asText()).isEqualTo("CHANNEL_STATE");
+            assertThat(returned.request("WORLD_MOVE", Map.of("seq", 1, "dx", 1, "dz", 0,
+                    "run", false, "jump", false)).path("type").asText()).isEqualTo("WORLD_STATE");
+            returned.request("CHANNEL_LEAVE", Map.of());
+            returned.request("CHANNEL_JOIN", Map.of("channelId", "one"));
             assertThat(returned.request("GAME_ACTION_SEND", Map.of("gameId", GAME, "actionId", "revive",
                     "expectedVersion", receipt.at("/payload/version").asLong(), "input", Map.of("kind", "roll")))
                     .at("/payload/code").asText()).isEqualTo("GAME_RECOVERY_REQUIRED");
@@ -146,18 +151,19 @@ class MultiplayerForfeitFlowTests {
                 assertThat(players.get(index).request("GAME_FORFEIT", Map.of("gameId", GAME,
                         "actionId", "forfeit-" + index)).path("type").asText()).isEqualTo("GAME_FORFEIT_RESULT");
                 if (index < count - 1) {
-                    players.get(index).state("ELIMINATED");
+                    players.get(index).state("LOBBY");
                     assertThat(summary().path("status").asText()).isEqualTo("PLAYING");
                     assertThat(lifecycle.finished).isEmpty();
                 }
             }
-            for (var player : players) { player.state("FINISHED"); }
+            players.getFirst().state("FINISHED");
+            players.getLast().state("LOBBY");
             var ended = viewer.await(message -> message.path("type").asText().equals("GAME_STATE")
                     && message.at("/payload/publicState/status").asText().equals("FINISHED"));
             assertPublic(ended);
             assertThat(summary().path("status").asText()).isEqualTo("SETTLING");
             assertThat(summary().path("gameId").isNull()).isTrue();
-            assertThat(summary().path("occupiedSeats").asInt()).isEqualTo(count);
+            assertThat(summary().path("occupiedSeats").asInt()).isEqualTo(1);
             assertThat(summary().path("readyCount").asInt()).isZero();
             assertThat(lifecycle.left).hasSize(count - 1);
             assertThat(lifecycle.finished).hasSize(1);
@@ -168,7 +174,7 @@ class MultiplayerForfeitFlowTests {
             assertThat(finished.participants().stream().filter(p -> p.result() == GameFinished.Result.WIN)
                     .map(GameFinished.Participant::userId)).containsExactly(101L);
             assertThat(returned.request("READY_SET", Map.of("ready", true, "betAmountPerPlayer", 1, "expectedVersion", 0))
-                    .at("/payload/code").asText()).isEqualTo("TABLE_BUSY");
+                    .at("/payload/code").asText()).isEqualTo("NOT_SEATED");
 
             // 저장/정산은 대역이다. 전체 최초 참가자와 맞지 않는 SETTLED는 다음 판을 열 수 없다.
             var participants = users.stream().map(user -> new GameResultView.Participant(user.toString(),
@@ -181,15 +187,14 @@ class MultiplayerForfeitFlowTests {
             var replay = returned.request("GAME_RESULT_CHECK", Map.of("gameSessionId", GAME));
             assertThat(replay.at("/payload/participants")).hasSize(count);
             assertThat(replay.at("/payload/myCoinDelta").asLong()).isEqualTo(-1);
-            returned.await(message -> message.path("type").asText().equals("GAME_START_STATE")
+            players.getFirst().await(message -> message.path("type").asText().equals("GAME_START_STATE")
                     && message.at("/payload/phase").asText().equals("WAITING"));
             assertThat(summary().path("status").asText()).isEqualTo("WAITING");
+            for (var player : players) { player.request("TABLE_JOIN", Map.of("tableId", TABLE)); }
             for (int index = 0; index < count - 1; index++) {
-                players.get(index).request("TABLE_JOIN", Map.of("tableId", TABLE));
                 players.get(index).request("READY_SET", Map.of("ready", true));
             }
             assertThat(reservation.reservations).hasValue(1);
-            players.getLast().request("TABLE_JOIN", Map.of("tableId", TABLE));
             players.getLast().request("READY_SET", Map.of("ready", true));
             var next = tableState(viewer, GAME + "-2");
             for (var player : players) { player.state("RESTORED"); }

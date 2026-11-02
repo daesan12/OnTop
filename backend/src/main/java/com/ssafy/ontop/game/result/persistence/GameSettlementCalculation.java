@@ -17,7 +17,7 @@ public record GameSettlementCalculation(long bonus, long payoutPerWinner, boolea
     }
 
     public static GameSettlementCalculation calculate(long bet, List<Result> results) {
-        if (bet <= 0 || results.size() < 2 || results.size() > 4 || results.stream().anyMatch(java.util.Objects::isNull)) {
+        if (bet < 0 || results.size() < 2 || results.size() > 4 || results.stream().anyMatch(java.util.Objects::isNull)) {
             throw new IllegalArgumentException("정산 참가자와 금액을 확인하세요.");
         }
         long pot = com.ssafy.ontop.game.domain.GameAmounts.validate(bet, results.size());

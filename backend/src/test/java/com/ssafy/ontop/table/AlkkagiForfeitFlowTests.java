@@ -80,7 +80,7 @@ class AlkkagiForfeitFlowTests {
                     }
                     assertThat(resumed.request("GAME_FORFEIT",Map.of("gameId",game,"actionId","refresh-forfeit")).path("type").asText()).isEqualTo("GAME_FORFEIT_RESULT");
                     resumedGreen.state("FINISHED");
-                    assertThat(resumed.request("TABLE_LEAVE",Map.of()).path("type").asText()).isEqualTo("TABLE_LEFT");
+                    assertThat(resumed.request("TABLE_LEAVE",Map.of()).at("/payload/code").asText()).isEqualTo("NOT_SEATED");
                     assertThat(resumedGreen.request("TABLE_LEAVE",Map.of()).path("type").asText()).isEqualTo("TABLE_LEFT");
                 }
             }
@@ -118,7 +118,7 @@ class AlkkagiForfeitFlowTests {
             assertThat(waiting.at("/payload/phase").asText()).isEqualTo("WAITING");
             assertThat(left.path("type").asText()).isEqualTo("TABLE_LEFT");
             var redLeft=red.request("TABLE_LEAVE",Map.of());
-            assertThat(redLeft.path("type").asText()).isEqualTo("TABLE_LEFT");
+            assertThat(redLeft.at("/payload/code").asText()).isEqualTo("NOT_SEATED");
             var rejoined=green.request("TABLE_JOIN",Map.of("tableId",TABLE));
             red.request("TABLE_JOIN",Map.of("tableId",TABLE));
             var configVersion=green.request("TABLE_JOIN",Map.of("tableId",TABLE)).at("/payload/version").asLong();
