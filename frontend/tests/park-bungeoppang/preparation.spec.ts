@@ -59,6 +59,12 @@ test('준비 화면의 세 이미지 전체와 시작 버튼을 다양한 화면
       return aligned('h3', 0) && aligned('.bung-start-ranking', 0)
         && aligned('.bung-start-combo', 1) && aligned('.bung-start-bonus', 2) && aligned('.bung-start-complaint', 2)
     })).toBe(true)
+    expect(await guide.evaluate(node => {
+      const pictures = [...node.querySelectorAll('.bung-start-steps > li > img')]
+      const controls = [...node.querySelectorAll('.bung-start-controls > div')].slice(0, 3)
+      return pictures.every((picture, index) =>
+        Math.abs(picture.getBoundingClientRect().left - controls[index]!.getBoundingClientRect().left) < 1)
+    })).toBe(true)
     const start = guide.getByRole('button', { name: '시작', exact: true })
     await expect(start).toBeInViewport()
     await expect(guide.getByRole('button', { name: /나가기/ })).toBeInViewport()

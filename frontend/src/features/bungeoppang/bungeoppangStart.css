@@ -45,7 +45,7 @@
 .bung-root .bung-start .bung-start-exit:hover { background: #eddfc9; border-color: #bb9a72; }
 .bung-root .bung-start .bung-start-exit kbd { margin: 0; padding: 2px 5px; border: 1px solid #d1b997; border-radius: 4px; background: #fffaf1; color: inherit; font: 600 11px/1.25 'Malgun Gothic', system-ui, sans-serif; }
 .bung-start .bung-error { margin: 8px 0 12px; }
-.bung-start-controls { display:grid; grid-template-columns:1fr 1.35fr 1fr; gap:18px; margin:22px 0 0; padding:18px; border:1px solid #ddc8a9; border-radius:12px; background:#f6ecd9; text-align:left; font-family:'Malgun Gothic',system-ui,sans-serif; }
+.bung-start-controls { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:18px; margin:22px 0 0; padding:18px; border:1px solid #ddc8a9; border-radius:12px; background:#f6ecd9; text-align:left; font-family:'Malgun Gothic',system-ui,sans-serif; }
 .bung-start-controls > div { min-width:0; }
 .bung-start-controls h3 { margin:0 0 10px; font-size:16px; color:#49230e; }
 .bung-root .bung-start-controls p { margin:8px 0 0; font-size:14px; line-height:1.6; word-break:keep-all; }
@@ -88,16 +88,16 @@
   .bung-root .bung-start .bung-start-exit { transition: none; }
 }
 /* Keep the full entry guide, earnings and start/exit actions in the first viewport. */
-.bung-root .bung-panel.bung-start{top:50%;padding:20px 30px;max-height:calc(100dvh - 24px)}
+.bung-root .bung-panel.bung-start{--bung-guide-padding:12px;--bung-guide-gap:36px;top:50%;padding:20px 30px;max-height:calc(100dvh - 24px)}
 .bung-root .bung-start .bung-start-title h2{font-size:36px}
 .bung-root .bung-start .bung-start-intro{font-size:16px;margin:4px 0 16px}
-.bung-start-steps{gap:36px}
+.bung-root .bung-start .bung-start-steps{margin-inline:calc(var(--bung-guide-padding) + 1px);gap:var(--bung-guide-gap)}
 .bung-start-step-heading{min-height:40px;margin-bottom:8px;gap:8px}
 .bung-start-step-number{flex-basis:34px;height:34px;font-size:22px}
 .bung-start-step-heading h3{font-size:18px}
 .bung-start-steps>li>img{height:auto;aspect-ratio:800 / 686;object-fit:contain;background:#eee2cf}
-.bung-start-steps>li:not(:last-child)::after{right:-29px;font-size:25px}
-.bung-start-controls{margin-top:14px;padding:12px;gap:12px}
+.bung-start-steps>li:not(:last-child)::after{right:calc(7px - var(--bung-guide-gap));font-size:25px}
+.bung-start-controls{margin-top:14px;padding:var(--bung-guide-padding);row-gap:12px;column-gap:var(--bung-guide-gap)}
 .bung-start-controls h3{font-size:14px;margin-bottom:6px}
 .bung-root .bung-start-controls p{font-size:13px;margin-top:5px;line-height:1.45}
 .bung-start-controls kbd{min-width:22px;min-height:22px;font-size:12px}
@@ -120,10 +120,10 @@
 .bung-root .bung-start .bung-start-ranking { grid-column:1; grid-row:2; color:#735137; font-size:11px; }
 /* 낮은 화면에서도 이미지 비율과 전체 안내·버튼을 스크롤 없이 유지한다. */
 @media(min-width:701px){
-  .bung-start-steps>li>img { max-width:calc((100dvh - 535px) * 800 / 686); margin-inline:auto; }
+  .bung-start-steps>li>img { max-width:calc((100dvh - 535px) * 800 / 686); margin-inline:0; }
 }
 @media(max-width:700px){
-  .bung-root .bung-panel.bung-start{width:calc(100vw - 20px);padding:14px}
+  .bung-root .bung-panel.bung-start{--bung-guide-padding:8px;--bung-guide-gap:8px;width:calc(100vw - 20px);padding:14px}
   .bung-root .bung-start .bung-start-title h2{font-size:28px}
   .bung-root .bung-start .bung-start-intro{font-size:13px;margin-bottom:12px}
   .bung-start-steps{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
@@ -132,7 +132,7 @@
   .bung-start-step-heading h3{font-size:14px;white-space:normal;line-height:1.5}
   .bung-root .bung-start-step-heading p{font-size:11px;line-height:1.4;white-space:normal;clear:both}
   .bung-start-steps>li>img{height:auto;border-width:1px;border-radius:6px}
-  .bung-start-controls{grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;padding:8px;margin-top:10px}
+  .bung-start-controls{grid-template-columns:repeat(3,minmax(0,1fr));row-gap:10px;column-gap:var(--bung-guide-gap);padding:var(--bung-guide-padding);margin-top:10px}
   .bung-root .bung-start .bung-start-earned{margin-top:8px}
   .bung-start-fillings ul{grid-template-columns:1fr}
   .bung-start-key-row{flex-wrap:wrap;gap:4px}
@@ -141,9 +141,9 @@
   .bung-root .bung-start .bung-start-exit{min-height:36px}
 }
 @media(min-width:701px) and (max-height:650px){
-  .bung-root .bung-panel.bung-start{padding:12px 24px}
+  .bung-root .bung-panel.bung-start{--bung-guide-padding:8px;--bung-guide-gap:24px;padding:12px 24px}
   .bung-root .bung-start .bung-start-title h2{font-size:28px}
   .bung-start-steps>li>img{height:auto;max-width:calc((100dvh - 500px) * 800 / 686)}
-  .bung-start-controls{margin-top:10px;padding:8px}
+  .bung-start-controls{margin-top:10px;padding:var(--bung-guide-padding)}
   .bung-root .bung-start .bung-start-earned{margin-top:8px}
 }
