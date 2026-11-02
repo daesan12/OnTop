@@ -2,8 +2,10 @@ package com.ssafy.ontop.ranking.repository;
 
 import com.ssafy.ontop.ranking.repository.ParkJumpmapChampionRepository.JumpmapChampionStanding;
 import com.ssafy.ontop.world.jumpmap.JumpCourse;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
-import java.util.Optional;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -42,7 +44,7 @@ class ParkJumpmapChampionRepositoryTests {
     }
 
     @Test
-    void 개인최고를_선택하고_완주시간_완료시각_회원번호순으로_우승자를_결정한다() {
+    void 개인최고를_선택하고_완주시간_완료시각_회원번호순으로_상위목록을_결정한다() {
         long earlierUser = member("먼저완주");
         long laterUser = member("나중완주");
         run(earlierUser, 9_000, STARTED_AT.plusSeconds(1), false,
@@ -52,9 +54,10 @@ class ParkJumpmapChampionRepositoryTests {
         run(laterUser, 8_000, STARTED_AT.plusSeconds(20), false,
                 JumpCourse.RULES_VERSION, JumpCourse.COURSE_VERSION, JumpCourse.STAGES);
 
-        Optional<JumpmapChampionStanding> champion = rankings.findChampion(STARTED_AT);
+        List<JumpmapChampionStanding> standings = rankings.findTopTen(STARTED_AT);
 
-        assertThat(champion).isPresent().get().satisfies(result -> {
+        assertThat(standings).extracting(JumpmapChampionStanding::rank).containsExactly(1L, 1L);
+        assertThat(standings).first().satisfies(result -> {
             assertThat(result.userId()).isEqualTo(earlierUser);
             assertThat(result.finishMs()).isEqualTo(8_000);
             assertThat(result.completedAt()).isEqualTo(STARTED_AT.plusSeconds(10));
@@ -79,17 +82,54 @@ class ParkJumpmapChampionRepositoryTests {
                 JumpCourse.RULES_VERSION, JumpCourse.COURSE_VERSION, JumpCourse.STAGES);
         jdbc.update("UPDATE users SET deleted_at = CURRENT_TIMESTAMP(3) WHERE id = ?", deleted);
 
-        Optional<JumpmapChampionStanding> champion = rankings.findChampion(STARTED_AT);
+        List<JumpmapChampionStanding> standings = rankings.findTopTen(STARTED_AT);
 
-        assertThat(champion).isPresent().get().satisfies(result -> {
+        assertThat(standings).singleElement().satisfies(result -> {
             assertThat(result.userId()).isEqualTo(included);
             assertThat(result.finishMs()).isEqualTo(8_000);
         });
     }
 
     @Test
-    void 정상기록이_없으면_우승자가_없다() {
-        assertThat(rankings.findChampion(STARTED_AT)).isEmpty();
+    void 정상기록이_없으면_랭킹이_비어있다() {
+        assertThat(rankings.findTopTen(STARTED_AT)).isEmpty();
+    }
+
+    @Test
+    void 열한명의_정상기록이_있어도_상위_열명만_반환한다() {
+        for (int index = 0; index < 11; index++) {
+            run(member("상위" + index), 8_000 + index, STARTED_AT.plusSeconds(index + 1L), false,
+                    JumpCourse.RULES_VERSION, JumpCourse.COURSE_VERSION, JumpCourse.STAGES);
+        }
+
+        assertThat(rankings.findTopTen(STARTED_AT)).hasSize(10)
+                .extracting(JumpmapChampionStanding::finishMs)
+                .containsExactly(8_000L, 8_001L, 8_002L, 8_003L, 8_004L,
+                        8_005L, 8_006L, 8_007L, 8_008L, 8_009L);
+    }
+
+    @Test
+    void 실행계획과_집계시간을_기록한다() throws Exception {
+        run(member("계획측정"), 8_000, STARTED_AT.plusSeconds(1), false,
+                JumpCourse.RULES_VERSION, JumpCourse.COURSE_VERSION, JumpCourse.STAGES);
+        String explainSql = ParkJumpmapChampionRepository.CHAMPION_SQL
+                .replace(":requiredGates", "?")
+                .replace(":rulesVersion", "?")
+                .replace(":courseVersion", "?")
+                .replace(":startedAtMillis", "?");
+        String plan = jdbc.queryForObject("EXPLAIN FORMAT=TREE " + explainSql, String.class,
+                JumpCourse.STAGES, JumpCourse.RULES_VERSION, JumpCourse.COURSE_VERSION,
+                STARTED_AT.toEpochMilli());
+        long started = System.nanoTime();
+
+        List<JumpmapChampionStanding> standings = rankings.findTopTen(STARTED_AT);
+        long elapsedNanos = System.nanoTime() - started;
+
+        Path report = Path.of("build", "park-jumpmap-champion-plan.txt");
+        Files.createDirectories(report.getParent());
+        Files.writeString(report, "Elapsed: " + elapsedNanos / 1_000_000.0 + " ms\n\n" + plan + "\n");
+        assertThat(plan).contains("Limit: 10 row(s)");
+        assertThat(standings).hasSize(1);
     }
 
     private long member(String nickname) {

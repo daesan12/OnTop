@@ -5,7 +5,7 @@ import com.ssafy.ontop.ranking.repository.ParkBungeoppangChampionRepository.Bung
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
-import java.util.Optional;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -44,7 +44,7 @@ class ParkBungeoppangChampionRepositoryTests {
     }
 
     @Test
-    void 점수_콤보_완료시각_회원번호순으로_v5_2분_우승자를_결정한다() {
+    void 점수_콤보_완료시각_회원번호순으로_v5_2분_상위목록을_결정한다() {
         long earliestUser = member("먼저완료");
         long laterUser = member("나중완료");
         long lowerComboUser = member("낮은콤보");
@@ -55,9 +55,10 @@ class ParkBungeoppangChampionRepositoryTests {
         round(lowerComboUser, 10_000, 14, STARTED_AT.plusSeconds(1),
                 BungeoppangV5Spec.RULES_VERSION, BungeoppangV5Spec.DURATION_MS);
 
-        Optional<BungeoppangChampionStanding> champion = rankings.findChampion(STARTED_AT);
+        List<BungeoppangChampionStanding> standings = rankings.findTopTen(STARTED_AT);
 
-        assertThat(champion).isPresent().get().satisfies(result -> {
+        assertThat(standings).extracting(BungeoppangChampionStanding::rank).containsExactly(1L, 1L, 3L);
+        assertThat(standings).first().satisfies(result -> {
             assertThat(result.userId()).isEqualTo(earliestUser);
             assertThat(result.score()).isEqualTo(10_000);
             assertThat(result.maxCombo()).isEqualTo(15);
@@ -82,9 +83,9 @@ class ParkBungeoppangChampionRepositoryTests {
                 BungeoppangV5Spec.RULES_VERSION, BungeoppangV5Spec.DURATION_MS);
         jdbc.update("UPDATE users SET deleted_at = CURRENT_TIMESTAMP(3) WHERE id = ?", deleted);
 
-        Optional<BungeoppangChampionStanding> champion = rankings.findChampion(STARTED_AT);
+        List<BungeoppangChampionStanding> standings = rankings.findTopTen(STARTED_AT);
 
-        assertThat(champion).isPresent().get().satisfies(result -> {
+        assertThat(standings).singleElement().satisfies(result -> {
             assertThat(result.userId()).isEqualTo(included);
             assertThat(result.score()).isEqualTo(200);
             assertThat(result.maxCombo()).isEqualTo(4);
@@ -92,8 +93,21 @@ class ParkBungeoppangChampionRepositoryTests {
     }
 
     @Test
-    void 정상기록이_없으면_우승자가_없다() {
-        assertThat(rankings.findChampion(STARTED_AT)).isEmpty();
+    void 정상기록이_없으면_랭킹이_비어있다() {
+        assertThat(rankings.findTopTen(STARTED_AT)).isEmpty();
+    }
+
+    @Test
+    void 열한명의_정상기록이_있어도_상위_열명만_반환한다() {
+        for (int index = 0; index < 11; index++) {
+            round(member("상위" + index), 1_000 - index, index,
+                    STARTED_AT.plusSeconds(index + 1L), BungeoppangV5Spec.RULES_VERSION,
+                    BungeoppangV5Spec.DURATION_MS);
+        }
+
+        assertThat(rankings.findTopTen(STARTED_AT)).hasSize(10)
+                .extracting(BungeoppangChampionStanding::score)
+                .containsExactly(1_000L, 999L, 998L, 997L, 996L, 995L, 994L, 993L, 992L, 991L);
     }
 
     @Test
@@ -109,11 +123,11 @@ class ParkBungeoppangChampionRepositoryTests {
                 BungeoppangV5Spec.DURATION_MS * 1_000L);
         long started = System.nanoTime();
 
-        Optional<BungeoppangChampionStanding> champion = rankings.findChampion(STARTED_AT);
+        List<BungeoppangChampionStanding> standings = rankings.findTopTen(STARTED_AT);
         long elapsedNanos = System.nanoTime() - started;
 
-        assertThat(plan).isNotBlank();
-        assertThat(champion).isPresent();
+        assertThat(plan).contains("ix_bungeoppang_rounds_ranking");
+        assertThat(standings).hasSize(1);
         Path report = Path.of("build", "park-bungeoppang-champion-plan.txt");
         Files.createDirectories(report.getParent());
         Files.writeString(report, "Elapsed: " + elapsedNanos / 1_000_000.0 + " ms\n\n" + plan + "\n");

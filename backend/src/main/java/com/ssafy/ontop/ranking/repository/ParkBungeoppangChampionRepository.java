@@ -3,7 +3,7 @@ package com.ssafy.ontop.ranking.repository;
 import com.ssafy.ontop.minigame.service.BungeoppangV5Spec;
 import jakarta.persistence.EntityManager;
 import java.time.Instant;
-import java.util.Optional;
+import java.util.List;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,13 +40,17 @@ public class ParkBungeoppangChampionRepository {
                        ROW_NUMBER() OVER (PARTITION BY user_id
                            ORDER BY score DESC, max_combo DESC, settled_at ASC, session_id ASC) AS choice
                 FROM eligible
+            ), ranked AS (
+                SELECT personal_best.*,
+                       RANK() OVER (ORDER BY score DESC, max_combo DESC) AS ranking
+                FROM personal_best
+                WHERE choice = 1
             )
-            SELECT user_id, nickname, score, max_combo,
+            SELECT ranking, user_id, nickname, score, max_combo,
                    CAST(UNIX_TIMESTAMP(settled_at) * 1000 AS SIGNED) AS settled_epoch_millis
-            FROM personal_best
-            WHERE choice = 1
+            FROM ranked
             ORDER BY score DESC, max_combo DESC, settled_at ASC, user_id ASC
-            LIMIT 1
+            LIMIT 10
             """;
 
     private final EntityManager entities;
@@ -56,7 +60,7 @@ public class ParkBungeoppangChampionRepository {
     }
 
     @Transactional(readOnly = true)
-    public Optional<BungeoppangChampionStanding> findChampion(Instant startedAt) {
+    public List<BungeoppangChampionStanding> findTopTen(Instant startedAt) {
         return entities.createNativeQuery(CHAMPION_SQL, Object[].class)
                 .setParameter("startedAtMillis", startedAt.toEpochMilli())
                 .setParameter("rulesVersion", BungeoppangV5Spec.RULES_VERSION)
@@ -64,14 +68,15 @@ public class ParkBungeoppangChampionRepository {
                 .getResultStream()
                 .map(value -> {
                     Object[] row = (Object[]) value;
-                    return new BungeoppangChampionStanding(((Number) row[0]).longValue(), (String) row[1],
-                            ((Number) row[2]).longValue(), ((Number) row[3]).longValue(),
-                            Instant.ofEpochMilli(((Number) row[4]).longValue()));
+                    return new BungeoppangChampionStanding(((Number) row[0]).longValue(),
+                            ((Number) row[1]).longValue(), (String) row[2],
+                            ((Number) row[3]).longValue(), ((Number) row[4]).longValue(),
+                            Instant.ofEpochMilli(((Number) row[5]).longValue()));
                 })
-                .findFirst();
+                .toList();
     }
 
-    public record BungeoppangChampionStanding(long userId, String nickname, long score, long maxCombo,
+    public record BungeoppangChampionStanding(long rank, long userId, String nickname, long score, long maxCombo,
                                               Instant completedAt) {
     }
 }
