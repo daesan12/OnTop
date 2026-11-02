@@ -70,7 +70,7 @@ export function getParkInteraction(): ParkInteraction | null {
   if(GENERATED_PARK_ENABLED)for(const site of constructionSites){
     if(!canReachConstruction(p.current,site.id))continue
     const [x,y,z]=site.reachPosition,distance=Math.hypot(p.current.x-x,p.current.z-z)
-    choices.push({kind:'construction',id:site.id,label:site.label+' · 무료 목업 체험',occupied:false,available:true,distance,score:interactionScore(distance,{x,y,z})})
+    choices.push({kind:'construction',id:site.id,label:site.label+' · 행운의 뽑기',occupied:false,available:true,distance,score:interactionScore(distance,{x,y,z})})
   }
   if (canReachParkVr(p.current)) {
     const distance = Math.hypot(p.current.x - parkVrEntrance.x, p.current.z - parkVrEntrance.z)
