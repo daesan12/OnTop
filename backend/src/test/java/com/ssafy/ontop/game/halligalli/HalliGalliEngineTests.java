@@ -456,7 +456,7 @@ class HalliGalliEngineTests {
     }
 
     @Test
-    void 세_명_중_한_명이_기권해_두_명이_남으면_최종_2인_규칙으로_끝나고_기권자는_FORFEIT이다() {
+    void 세_명_중_한_명이_기권해_두_명이_남아도_정답_뒤에_끝내지_않고_기권자는_FORFEIT이다() {
         fixed.putAll(Map.of(0, card(STRAWBERRY, 2), 1, card(STRAWBERRY, 3)));
         engine.create(GAME, "table", List.of(A, B, C));
         flip(A, "a1");
@@ -464,15 +464,19 @@ class HalliGalliEngineTests {
         flip(B, "b1");
 
         ring(C, "bell", 2);
+        JsonNode afterRing = state();
+        engine.forfeit(new GameForfeitCommand(B, GAME, "leave-b"));
 
-        JsonNode state = state();
         GameFinished finished = only(GameFinished.class);
-        assertThat(state.path("endReason").asText()).isEqualTo("CARD_COUNT");
-        assertThat(state.path("players")).extracting(player -> player.path("drawCount").asInt())
+        assertThat(afterRing.path("status").asText()).isEqualTo("PLAYING");
+        assertThat(afterRing.path("lastEvent").path("type").asText()).isEqualTo("RING_SUCCESS");
+        assertThat(afterRing.path("turnUserId").asText()).isEqualTo("303");
+        assertThat(afterRing.path("players")).extracting(player -> player.path("drawCount").asInt())
                 .containsExactly(18, 18, 20);
-        assertThat(state.path("winnerUserIds").toString()).isEqualTo("[\"303\"]");
+        assertThat(state().path("endReason").asText()).isEqualTo("LAST_PLAYER_STANDING");
+        assertThat(state().path("winnerUserIds").toString()).isEqualTo("[\"303\"]");
         assertThat(finished.participants()).extracting(GameFinished.Participant::result).containsExactly(
-                GameFinished.Result.FORFEIT, GameFinished.Result.LOSE, GameFinished.Result.WIN);
+                GameFinished.Result.FORFEIT, GameFinished.Result.FORFEIT, GameFinished.Result.WIN);
         assertThat(totalCards()).isEqualTo(56);
     }
 
@@ -495,26 +499,61 @@ class HalliGalliEngineTests {
     }
 
     @Test
-    void 카드_수_공동_1위면_종료_알림에_승자가_여럿이다() {
+    void 활성_2명의_마지막_종_기회가_끝나면_상대_단독_승리로_종료_알림을_한_번만_보낸다() {
         fixed.putAll(Map.of(54, card(STRAWBERRY, 1), 55, card(BANANA, 1)));
         engine.create(GAME, "table", List.of(A, B));
         clock.set(START.plusSeconds(280));
         engine.tick();
         JsonNode waiting = state();
+        reject(Rejection.INVALID_ACTION, () -> flip(A, "nothing"));
 
         clock.set(START.plusSeconds(285));
         engine.tick();
+        engine.tick();
+        engine.graceExpired(new GraceExpiration(UUID.randomUUID(), A, GAME, START, START.plusSeconds(285),
+                Action.FORFEIT));
 
         JsonNode state = state();
         GameFinished finished = only(GameFinished.class);
         assertThat(waiting.path("status").asText()).isEqualTo("PLAYING");
-        assertThat(waiting.path("turnUserId").isNull()).isTrue();
+        assertThat(waiting.path("turnUserId").asText()).isEqualTo("101");
+        assertThat(waiting.path("flipDeadline").asText()).isEqualTo(START.plusSeconds(285).toString());
         assertThat(waiting.path("bellWindowId").asLong()).isEqualTo(56);
+        assertThat(waiting.path("players").get(0).path("drawCount").asInt()).isZero();
+        assertThat(state.path("status").asText()).isEqualTo("FINISHED");
         assertThat(state.path("endReason").asText()).isEqualTo("NO_CARDS_TO_FLIP");
-        assertThat(state.path("winnerUserIds").toString()).isEqualTo("[\"101\",\"202\"]");
+        assertThat(state.path("flipSeq").asLong()).isEqualTo(56);
+        assertThat(state.path("winnerUserIds").toString()).isEqualTo("[\"202\"]");
+        assertThat(finished.endReason()).isEqualTo("NO_CARDS_TO_FLIP");
         assertThat(finished.participants()).extracting(GameFinished.Participant::result)
-                .containsExactly(GameFinished.Result.WIN, GameFinished.Result.WIN);
-        assertThat(only(HalliGalliGameFinished.class).winnerUserIds()).containsExactly(A, B);
+                .containsExactly(GameFinished.Result.LOSE, GameFinished.Result.WIN);
+        assertThat(only(HalliGalliGameFinished.class).winnerUserIds()).containsExactly(B);
+        assertThat(events).noneMatch(GameParticipantLeft.class::isInstance);
+        assertThat(router.load(A).orElseThrow().phase()).isEqualTo(GameRecoverySnapshot.Phase.FINISHED);
+        assertThat(totalCards()).isEqualTo(56);
+    }
+
+    @Test
+    void 재접속_유예가_끝나_2명이_남으면_뒷면이_빈_다음_좌석의_마지막_종_기회_뒤에_끝난다() {
+        engine.create(GAME, "table", List.of(A, B, C));
+        clock.set(START.plusSeconds(280));
+
+        engine.graceExpired(new GraceExpiration(UUID.randomUUID(), B, GAME, START, START.plusSeconds(276),
+                Action.ELIMINATE));
+        JsonNode afterGrace = state();
+        clock.set(START.plusSeconds(281));
+        engine.tick();
+
+        GameFinished finished = only(GameFinished.class);
+        assertThat(afterGrace.path("status").asText()).isEqualTo("PLAYING");
+        assertThat(afterGrace.path("turnUserId").asText()).isEqualTo("303");
+        assertThat(afterGrace.path("flipDeadline").asText()).isEqualTo(START.plusSeconds(281).toString());
+        assertThat(state().path("endReason").asText()).isEqualTo("NO_CARDS_TO_FLIP");
+        assertThat(state().path("winnerUserIds").toString()).isEqualTo("[\"101\"]");
+        assertThat(finished.endedAt()).isEqualTo(START.plusSeconds(281));
+        assertThat(finished.participants()).extracting(GameFinished.Participant::result).containsExactly(
+                GameFinished.Result.WIN, GameFinished.Result.FORFEIT, GameFinished.Result.LOSE);
+        assertThat(finished.participants().get(1).leaveReason()).isEqualTo(GameDepartureReason.DISCONNECT_TIMEOUT);
         assertThat(totalCards()).isEqualTo(56);
     }
 

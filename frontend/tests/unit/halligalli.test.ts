@@ -12,7 +12,7 @@ import { parseHistory, parseStats } from '../../src/features/gameHistory/service
 import { resetWorld, useSession } from '../../src/network/worldClient'
 import { ServerError } from '../../src/network/socketClient'
 import { ParkRuntime } from '../../src/park/runtime/runtime'
-import { HalliTable } from '../../src/game/halligalli/HalliTable'
+import { HalliTable, onLastChance } from '../../src/game/halligalli/HalliTable'
 import { HALLI_CAMERA, halliCameraPose, halliPlayerViewActive, halliSpectatorCameraPose, halliSpectatorViewActive,
   halliSpectatorYaw } from '../../src/game/halligalli/camera'
 import { ONECARD_CAMERA, oneCardCameraPose, oneCardSpectatorCameraPose } from '../../src/game/onecard/camera'
@@ -86,6 +86,10 @@ describe('action gates', () => {
     expect(canFlipHalli('101', Date.parse(pausedUntil))).toBe(false)
     useGame.setState({ pending: false, awaitingVersion: 6 })
     expect(canFlipHalli('101', Date.parse(pausedUntil))).toBe(false)
+    // Two players left and no face-down card on the own turn: only the bell, never a flip.
+    restore(halliState(2, { players: [halliPlayer(0, { drawCount: 0, cardCount: 1 }), halliPlayer(1)] }), 6)
+    expect(canFlipHalli('101')).toBe(false)
+    expect(canRingHalli('101', 4)).toBe(true)
     resetGame()
     useGame.setState({ watchedGameId: 'halli' })
     receiveGame({ type: 'GAME_STATE', requestId: null, payload: { gameId: 'halli', version: 4, role: 'SPECTATOR',
@@ -221,6 +225,21 @@ describe('table rendering', () => {
     expect(out).toContain('data-out="forfeited"')
     expect(out).toContain('data-out="eliminated"')
     expect(out).toContain('마지막 종 기회')
+  })
+  it('names a two-player turn without face-down cards as the last bell chance, for the holder and the others', () => {
+    const state = halliState(2, { players: [halliPlayer(0, { drawCount: 0, cardCount: 1 }), halliPlayer(1)] })
+    const h = parseHalliGalli(state)
+    expect(onLastChance(h, h.players[0]!)).toBe(true)
+    expect(onLastChance(h, h.players[1]!)).toBe(false)
+    const normal = parseHalliGalli(halliState(2))
+    expect(onLastChance(normal, normal.players[0]!)).toBe(false)
+    const own = html('101', {}, state)
+    expect(own).toContain('나 · 마지막 종 기회')
+    expect(own).toContain('data-kind="turn">마지막 종 기회')
+    expect(own).not.toContain('공개 차례')
+    expect(own).toMatch(/<button[^>]*class="hg-draw"[^>]*disabled/)
+    expect(html('102', {}, state)).toContain('data-kind="turn">마지막 종 기회')
+    expect(html('101')).toContain('data-kind="turn">공개 차례')
   })
 })
 
@@ -478,5 +497,12 @@ describe('table stage rendering', () => {
     expect(out).toContain('data-out="forfeited"')
     expect(out).toContain('data-out="eliminated"')
     expect(out).toContain('마지막 종 기회')
+  })
+  it('badges the two-player last bell chance on the seat label and keeps the own pile button disabled', () => {
+    const state = halliState(2, { players: [halliPlayer(0, { drawCount: 0, cardCount: 1 }), halliPlayer(1)] })
+    const own = html('101', {}, state)
+    expect(own).toContain('data-kind="turn">마지막 종 기회')
+    expect(own).toMatch(/<button[^>]*class="hg-stage-draw"[^>]*disabled/)
+    expect(html('505', {}, state)).toContain('나 · 마지막 종 기회')
   })
 })
