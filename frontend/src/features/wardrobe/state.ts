@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { EquipSlot } from '../../network/equipment'
+import type { EquipSlot, PublicEquipment } from '../../network/equipment'
 import { avatars, useSession } from '../../network/worldClient'
 import { parkRuntime } from '../../park/runtime/runtime'
 import { viewControls } from '../../world/cameraPerspective'
@@ -35,6 +35,29 @@ const current = (owner: string, generation: number) => epoch === generation && u
 const message = (error: unknown) => error instanceof Error ? error.message : '옷장을 불러오지 못했어요.'
 /** Only wearable items belong in the wardrobe; consumables stay in the shop. */
 export const wearable = (items: OwnedItem[]) => items.filter(owned => owned.item.itemType === 'EQUIPMENT' && !!owned.item.equipSlot)
+/** The owned pieces worn together with `owned`: its whole set, or itself. */
+export const setPieces = (items: OwnedItem[], owned: OwnedItem) =>
+  owned.item.setCode ? items.filter(other => other.item.setCode === owned.item.setCode) : [owned]
+/** A set's name from its pieces' shared prefix ("장군 투구", "장군 갑옷" → "장군 세트"); a single item's own name. */
+export function itemLabel(items: OwnedItem[], owned: OwnedItem) {
+  if (!owned.item.setCode) return owned.item.name
+  const names = setPieces(items, owned).map(other => other.item.name)
+  let prefix = names[0] ?? ''
+  for (const name of names) while (!name.startsWith(prefix)) prefix = prefix.slice(0, -1)
+  return prefix.trim() ? `${prefix.trim()} 세트` : owned.item.name
+}
+/** What is worn after putting `chosen` on, by the server's rule: its set comes with it, the items in those
+ * slots come off, and a set that loses a piece comes off whole. */
+export function wearing(items: OwnedItem[], chosen: OwnedItem) {
+  const on = setPieces(items, chosen), slots = new Set(on.map(owned => owned.item.equipSlot))
+  const broken = new Set(items.filter(owned => owned.equipped && slots.has(owned.item.equipSlot) && owned.item.setCode).map(owned => owned.item.setCode))
+  return [...items.filter(owned => owned.equipped && !slots.has(owned.item.equipSlot) && !broken.has(owned.item.setCode)), ...on]
+}
+/** The own avatar's public look while trying `previewId` on (null if it is not in the wardrobe). */
+export function previewEquipment(items: OwnedItem[], previewId: number): PublicEquipment[] | null {
+  const chosen = items.find(owned => owned.userItemId === previewId)
+  return chosen ? wearing(items, chosen).map(({ item }) => ({ itemId: item.itemId, itemCode: item.itemCode, equipSlot: item.equipSlot!, imageKey: item.imageKey })) : null
+}
 
 export function openWardrobe() {
   const s = useSession.getState()
@@ -107,6 +130,22 @@ export function previewWardrobeItem(userItemId: number) {
   useWardrobe.setState({ previewId: userItemId, equipError: '', notice: '' })
 }
 export function cancelWardrobePreview() { useWardrobe.setState({ previewId: 0, equipError: '' }) }
+/** Back to the default outfit in the previewed item's slot (its whole set, for a set piece). */
+export async function takeOffPreviewedItem() {
+  const s = useWardrobe.getState(), owner = s.owner, generation = epoch
+  const target = s.items.find(owned => owned.userItemId === s.previewId)
+  if (!current(owner, generation) || !target || !target.equipped || s.equipping || s.loading) return
+  const abort = writeAbort = new AbortController()
+  useWardrobe.setState({ equipping: target.userItemId, equipError: '', notice: '' })
+  try {
+    await service.unequip(target.userItemId, abort.signal)
+    if (!current(owner, generation)) return
+    useWardrobe.setState({ equipping: 0, previewId: 0, notice: `${itemLabel(s.items, target)} 해제를 확인했어요. 기본 옷으로 돌아갔어요.` })
+    await refreshWardrobe()
+  } catch (error) {
+    if (current(owner, generation)) useWardrobe.setState({ equipping: 0, equipError: message(error) })
+  }
+}
 export async function wearPreviewedItem() {
   const s = useWardrobe.getState(), owner = s.owner, generation = epoch
   const target = s.items.find(owned => owned.userItemId === s.previewId)
@@ -117,7 +156,7 @@ export async function wearPreviewedItem() {
     await service.equip(target.userItemId, abort.signal)
     if (!current(owner, generation)) return
     // The REST answer is the whole equipped list; re-read the inventory so every card is current.
-    useWardrobe.setState({ equipping: 0, previewId: 0, notice: `${target.item.name} 착용을 확인했어요.` })
+    useWardrobe.setState({ equipping: 0, previewId: 0, notice: `${itemLabel(s.items, target)} 착용을 확인했어요.` })
     await refreshWardrobe()
   } catch (error) {
     if (current(owner, generation)) useWardrobe.setState({ equipping: 0, equipError: message(error) })

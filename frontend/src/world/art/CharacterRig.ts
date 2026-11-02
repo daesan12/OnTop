@@ -3,6 +3,7 @@ import {
   Euler,
   Group,
   Quaternion,
+  Skeleton,
   SkinnedMesh,
   Sphere,
   Vector3,
@@ -10,6 +11,7 @@ import {
 import type { GLTF } from 'three/addons/loaders/GLTFLoader.js'
 import { clone } from 'three/addons/utils/SkeletonUtils.js'
 import { CHARACTER, CLAP_EMOTE } from '../../config'
+import { defaultLook, drawnVertices, pieceGeometry, pieceShown, type CharacterVariant, type Look, type PieceRange } from './characterLook'
 
 export { characterUrls } from './characterAssets'
 const bodyBones = [
@@ -54,10 +56,18 @@ const ease = (value: number) => {
 }
 
 /** One private skeleton per player, shared immutable geometry/material/texture caches.
- * Parts use one skeleton even across LODs; swapping detail cannot reset the pose. */
-export function createCharacterRig(source: GLTF) {
+ * Parts use one skeleton even across LODs; swapping detail cannot reset the pose.
+ * `look` picks the worn pieces (characterLook.ts); `sources` holds the files other than the avatar's own
+ * that those pieces come from (another character's default items, outfit files). */
+export function createCharacterRig(source: GLTF, look?: Look, sources?: ReadonlyMap<string, GLTF>) {
   const root = clone(source.scene) as Group
   root.name = 'character-model'
+  const variant = (root.getObjectByName('CharacterRig')?.userData.variant === 'girl' ? 'girl' : 'man') as CharacterVariant
+  const worn = look ?? defaultLook(variant)
+  const pieces = (mesh: SkinnedMesh, from: string) => {
+    const ranges = mesh.userData.pieces as PieceRange[] | undefined
+    return ranges ? pieceGeometry(mesh.geometry, ranges, name => pieceShown(name, from, variant, worn)) : mesh.geometry
+  }
   const bones = Object.fromEntries(
     characterBones.map((name) => {
       const bone = root.getObjectByName(name)
@@ -67,12 +77,16 @@ export function createCharacterRig(source: GLTF) {
     }),
   ) as Record<Joint, Bone>
   const meshes: SkinnedMesh[] = []
+  const prepare = (mesh: SkinnedMesh) => {
+    meshes.push(mesh)
+    mesh.castShadow = true
+    mesh.boundingSphere = new Sphere(new Vector3(0, 0.85, 0), 1.5)
+    mesh.visible = mesh.name.startsWith('near-')
+  }
   root.traverse((object) => {
     if (!(object instanceof SkinnedMesh)) return
-    meshes.push(object)
-    object.castShadow = true
-    object.boundingSphere = new Sphere(new Vector3(0, 0.85, 0), 1.5)
-    object.visible = object.name.startsWith('near-')
+    object.geometry = pieces(object, variant)
+    prepare(object)
   })
   if (meshes.length !== 10 && meshes.length !== 2)
     throw new Error('Expected complete character surfaces at two LODs')
@@ -80,6 +94,27 @@ export function createCharacterRig(source: GLTF) {
     root.getObjectByName('CharacterRig')?.userData.sourceRig === 'Mixamo65'
   const skeleton = meshes[0]!.skeleton
   for (const mesh of meshes) mesh.skeleton = skeleton
+  // Pieces from other files: their own mesh on this avatar's bones (same 49 joints, their own bind matrices).
+  const extraSkeletons: Skeleton[] = []
+  for (const [from, gltf] of sources ?? []) {
+    if (from === variant) continue
+    gltf.scene.traverse((object) => {
+      if (!(object instanceof SkinnedMesh) || !object.userData.pieces) return
+      const geometry = pieces(object, from)
+      if (!geometry.index?.count) return
+      const mesh = new SkinnedMesh(geometry, object.material)
+      mesh.name = `${object.name.split('-')[0]}-${from}`
+      const bound = new Skeleton(object.skeleton.bones.map((bone) => bones[bone.name as Joint]), object.skeleton.boneInverses)
+      extraSkeletons.push(bound)
+      meshes[0]!.parent!.add(mesh)
+      mesh.bind(bound, object.bindMatrix)
+      prepare(mesh)
+    })
+  }
+  const updateSkeletons = () => {
+    skeleton.update()
+    for (const bound of extraSkeletons) bound.update()
+  }
   const seatedCloth = meshes.flatMap((mesh) => {
     const index = mesh.morphTargetDictionary?.seatedCloth
     return index === undefined ? [] : [{ mesh, index }]
@@ -93,18 +128,18 @@ export function createCharacterRig(source: GLTF) {
     }
     for (const { mesh, index } of seatedCloth) mesh.morphTargetInfluences![index] = 1
     root.updateMatrixWorld(true)
-    skeleton.update()
+    updateSkeletons()
     const point = new Vector3(), hip = bones.hips.position.y
     let bottom = Infinity
     for (const mesh of meshes) {
       if (!mesh.name.startsWith('near-')) continue
       const p = mesh.geometry.getAttribute('position')
       const weights = mesh.geometry.getAttribute('skinWeight'), indices = mesh.geometry.getAttribute('skinIndex')
-      for (let i = 0; i < p.count; i++) {
+      for (const i of drawnVertices(mesh.geometry)) {
         if (p.getY(i) < hip - 0.2 || p.getY(i) > hip + 0.1) continue
         let support = 0
         for (let j = 0; j < 4; j++) {
-          const name = skeleton.bones[indices.getComponent(i, j)]!.name
+          const name = mesh.skeleton.bones[indices.getComponent(i, j)]!.name
           if (name === 'hips' || name === 'spine') support += weights.getComponent(i, j)
         }
         if (support < 0.65) continue
@@ -118,22 +153,22 @@ export function createCharacterRig(source: GLTF) {
     }
     for (const { mesh, index } of seatedCloth) mesh.morphTargetInfluences![index] = 0
     root.updateMatrixWorld(true)
-    skeleton.update()
+    updateSkeletons()
     return Number.isFinite(bottom) ? Math.max(0, Math.min(0.25, hip - bottom)) + 0.008 : 0
   })()
-  const shoes =
-    meshes.find((mesh) => mesh.name === 'near-shoes-socks') ??
-    meshes.find((mesh) => mesh.name === 'near-body')!
-  const positions = shoes.geometry.getAttribute('position')
-  // Lowest rest vertex in each sole cell. A few dozen weighted samples rather
-  // than a per-frame bounding-box pass over every character vertex.
-  const soleCells = new Map<string, number>()
-  for (let i = 0; i < positions.count; i++) {
-    if (positions.getY(i) > 0.045) continue
-    const key = `${Math.floor(positions.getX(i) / 0.045)},${Math.floor(positions.getZ(i) / 0.045)}`
-    const previous = soleCells.get(key)
-    if (previous === undefined || positions.getY(i) < positions.getY(previous))
-      soleCells.set(key, i)
+  const shoes = meshes.find((mesh) => mesh.name === 'near-shoes-socks')
+  // Lowest rest vertex in each sole cell, over the worn near surfaces. A few dozen
+  // weighted samples rather than a per-frame bounding-box pass over every vertex.
+  const soleCells = new Map<string, { mesh: SkinnedMesh; i: number; y: number }>()
+  for (const mesh of shoes ? [shoes] : meshes.filter((mesh) => mesh.name.startsWith('near-'))) {
+    const positions = mesh.geometry.getAttribute('position')
+    for (const i of drawnVertices(mesh.geometry)) {
+      const y = positions.getY(i)
+      if (y > 0.045) continue
+      const key = `${Math.floor(positions.getX(i) / 0.045)},${Math.floor(positions.getZ(i) / 0.045)}`
+      const previous = soleCells.get(key)
+      if (previous === undefined || y < previous.y) soleCells.set(key, { mesh, i, y })
+    }
   }
   const soleIndices = [...soleCells.values()]
   const solePoint = new Vector3()
@@ -332,10 +367,10 @@ export function createCharacterRig(source: GLTF) {
     },
     groundShift() {
       root.updateMatrixWorld(true)
-      skeleton.update()
+      updateSkeletons()
       let bottom = Infinity
-      for (const i of soleIndices) {
-        shoes.getVertexPosition(i, solePoint)
+      for (const { mesh, i } of soleIndices) {
+        mesh.getVertexPosition(i, solePoint)
         bottom = Math.min(bottom, solePoint.y)
       }
       return Number.isFinite(bottom)
@@ -378,6 +413,7 @@ export function createCharacterRig(source: GLTF) {
     },
     dispose() {
       skeleton.dispose()
+      for (const bound of extraSkeletons) bound.dispose()
     },
   }
 }

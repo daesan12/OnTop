@@ -26,10 +26,11 @@ export function parseShopItem(value: unknown): ShopItem {
   if (!record(value) || !positive(value.itemId) || !text(value.itemCode) || !text(value.name)
     || !['EQUIPMENT', 'CONSUMABLE'].includes(String(value.itemType))
     || !(value.equipSlot === null || isEquipSlot(value.equipSlot)) || !integer(value.price)
-    || !(value.imageKey === null || typeof value.imageKey === 'string')) return invalid()
+    || !(value.imageKey === null || typeof value.imageKey === 'string')
+    || !(value.setCode == null || text(value.setCode))) return invalid()
   return { itemId: value.itemId, itemCode: value.itemCode, name: value.name,
     itemType: value.itemType as ShopItem['itemType'], equipSlot: value.equipSlot,
-    price: value.price, imageKey: value.imageKey }
+    price: value.price, imageKey: value.imageKey, ...(value.setCode ? { setCode: value.setCode } : {}) }
 }
 function owned(value: unknown): OwnedItem {
   if (!record(value) || !positive(value.userItemId) || !positive(value.quantity) || value.quantity > 2147483647
@@ -90,6 +91,14 @@ export function createShopService(requestJSON: (path: string, init?: RequestInit
       if (!record(p)) return invalid()
       const items = ownedList(p.equipment)
       if (items.length > 5 || items.some(item => !item.equipped) || !items.some(item => item.userItemId === userItemId)) return invalid()
+      return items
+    },
+    async unequip(userItemId, signal) {
+      if (!positive(userItemId)) return invalid()
+      const p = await request('/api/v1/users/me/equipment', json('PATCH', { userItemId, equipped: false }, signal))
+      if (!record(p)) return invalid()
+      const items = ownedList(p.equipment)
+      if (items.length > 5 || items.some(item => !item.equipped || item.userItemId === userItemId)) return invalid()
       return items
     },
     async wallet(signal) {

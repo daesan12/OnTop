@@ -5,6 +5,9 @@ export type CharacterVariant = 'man' | 'girl'
 // Each character's own default outfit, rendered slot by slot from its GLB (man/girl × five slots).
 const partImages = import.meta.glob<string>('./parts/*.webp', { eager: true, import: 'default' })
 export const partImage = (variant: CharacterVariant, slot: EquipSlot) => partImages[`./parts/${variant}-${slot.toLowerCase()}.webp`]
+// A whole set's picture (parts/set-<set code>.webp): the character wearing it, since a set is only worn whole.
+const setImages = import.meta.glob<string>('./parts/set-*.webp', { eager: true, import: 'default' })
+export const setImage = (setCode?: string | null) => setCode ? setImages[`./parts/set-${setCode.toLowerCase()}.webp`] : undefined
 
 /** Colour words in item names (shop items ship without artwork yet; imageKey has no files behind it). */
 const colours: [RegExp, string][] = [

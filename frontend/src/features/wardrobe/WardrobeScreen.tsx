@@ -5,11 +5,12 @@ import { equipSlots, type EquipSlot } from '../../network/equipment'
 import { useSession } from '../../network/worldClient'
 import type { OwnedItem } from '../shop/contracts'
 import {
-  cancelWardrobePreview, closeWardrobe, previewWardrobeItem, refreshWardrobe,
-  setWardrobeFilter, setWardrobeQuery, slotLabels, turnWardrobeView, useWardrobe, wearPreviewedItem, type WardrobeFilter,
+  cancelWardrobePreview, closeWardrobe, itemLabel, previewWardrobeItem, refreshWardrobe, setPieces,
+  setWardrobeFilter, setWardrobeQuery, slotLabels, takeOffPreviewedItem, turnWardrobeView, useWardrobe, wearPreviewedItem, type WardrobeFilter,
 } from './state'
+import { wornPiece } from '../../world/art/characterLook'
 import { wardrobeView } from './view'
-import { useItemArt, type CharacterVariant } from './itemArt'
+import { setImage, useItemArt, type CharacterVariant } from './itemArt'
 import './wardrobe.css'
 
 const tabs: WardrobeFilter[] = ['ALL', ...equipSlots]
@@ -17,8 +18,9 @@ const QUARTER_TURN = Math.PI / 4
 const walkKeys = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ShiftLeft', 'ShiftRight', 'Space'])
 
 function ItemArt({ owned, variant }: { owned: OwnedItem; variant: CharacterVariant }) {
+  const art = useItemArt(variant, owned.item.equipSlot!, owned.item.name)
   return <span className="wardrobe-art" data-slot={owned.item.equipSlot}>
-    <img src={useItemArt(variant, owned.item.equipSlot!, owned.item.name)} alt="" />
+    <img src={setImage(owned.item.setCode) ?? art} alt="" />
   </span>
 }
 
@@ -77,9 +79,16 @@ export function WardrobeScreen() {
   if (!shown) return null
 
   const query = s.query.trim()
-  const visible = s.items.filter(owned => (s.filter === 'ALL' || owned.item.equipSlot === s.filter)
-    && (!query || owned.item.name.includes(query)))
+  // A set is one card (its top, else its first piece): it is only worn whole. It shows under each of its slots.
+  const cards = s.items.filter(owned => !owned.item.setCode || setPieces(s.items, owned).reduce((pick, other) =>
+    other.item.equipSlot === 'TOP' ? other : pick, setPieces(s.items, owned)[0]) === owned)
+  const slotsOf = (owned: OwnedItem) => equipSlots.filter(slot => setPieces(s.items, owned).some(other => other.item.equipSlot === slot))
+  const label = (owned: OwnedItem) => itemLabel(s.items, owned)
+  const slotText = (owned: OwnedItem) => owned.item.setCode ? `세트 · ${slotsOf(owned).map(slot => slotLabels[slot]).join('·')}` : slotLabels[owned.item.equipSlot!]
+  const visible = cards.filter(owned => (s.filter === 'ALL' || slotsOf(owned).includes(s.filter))
+    && (!query || label(owned).includes(query) || setPieces(s.items, owned).some(other => other.item.name.includes(query))))
   const preview = s.items.find(owned => owned.userItemId === s.previewId)
+  const previewed = (owned: OwnedItem) => !!preview && setPieces(s.items, owned).includes(preview)
   const worn = (slot: EquipSlot) => s.items.find(owned => owned.equipped && owned.item.equipSlot === slot)
   const bubble = (slot: EquipSlot) => <SlotBubble key={slot} slot={slot} worn={worn(slot)} variant={variant} active={s.filter === slot} />
 
@@ -107,10 +116,10 @@ export function WardrobeScreen() {
       <Leaf className="wardrobe-leaf--a" /><Leaf className="wardrobe-leaf--b" /><Leaf className="wardrobe-leaf--c" /><Leaf className="wardrobe-leaf--d" />
       <div className="wardrobe-stage__controls">
         <button type="button" aria-label="왼쪽으로 돌리기" onClick={() => turnWardrobeView(-QUARTER_TURN)}>‹</button>
-        <span>{preview ? `미리보기 · ${preview.item.name}` : '내 캐릭터'}</span>
+        <span>{preview ? `미리보기 · ${label(preview)}` : '내 캐릭터'}</span>
         <button type="button" aria-label="오른쪽으로 돌리기" onClick={() => turnWardrobeView(QUARTER_TURN)}>›</button>
       </div>
-      {preview && <p className="wardrobe-stage__note" role="note">의상 3D 모델이 준비되면 캐릭터에 바로 보여요. 지금은 착용 정보만 바뀌어요.</p>}
+      {preview && !wornPiece(preview.item.imageKey) && <p className="wardrobe-stage__note" role="note">의상 3D 모델이 준비되면 캐릭터에 바로 보여요. 지금은 착용 정보만 바뀌어요.</p>}
     </section>
     <p className="wardrobe-hint"><span aria-hidden="true">🖱</span>WASD 이동 · 드래그로 회전 · Esc 닫기</p>
 
@@ -141,13 +150,13 @@ export function WardrobeScreen() {
           <b>찾는 의상이 없어요</b><p>다른 부위를 고르거나 검색어를 바꿔 보세요.</p>
         </div> : <ul className="wardrobe-grid">
           {visible.map(owned => <li key={owned.userItemId}>
-            <button type="button" className="wardrobe-card" aria-pressed={owned.userItemId === s.previewId}
-              aria-label={`${owned.item.name} ${slotLabels[owned.item.equipSlot!]}${owned.equipped ? ' 착용 중' : ''}`}
+            <button type="button" className="wardrobe-card" aria-pressed={previewed(owned)}
+              aria-label={`${label(owned)} ${slotText(owned)}${owned.equipped ? ' 착용 중' : ''}`}
               disabled={!!s.equipping} onClick={() => previewWardrobeItem(owned.userItemId)}>
               <ItemArt owned={owned} variant={variant} />
               {owned.equipped ? <span className="wardrobe-badge wardrobe-badge--worn">착용 중</span>
-                : owned.userItemId === s.previewId && <span className="wardrobe-badge wardrobe-badge--preview">미리보기</span>}
-              <span className="wardrobe-card__text"><b>{owned.item.name}</b><small>{slotLabels[owned.item.equipSlot!]}</small></span>
+                : previewed(owned) && <span className="wardrobe-badge wardrobe-badge--preview">미리보기</span>}
+              <span className="wardrobe-card__text"><b>{label(owned)}</b><small>{slotText(owned)}</small></span>
             </button>
           </li>)}
         </ul>}
@@ -157,11 +166,15 @@ export function WardrobeScreen() {
       <footer className="wardrobe-detail" aria-live="polite">
         {preview ? <>
           <ItemArt owned={preview} variant={variant} />
-          <div className="wardrobe-detail__text"><b>{preview.item.name}</b><small>{slotLabels[preview.item.equipSlot!]} | 보유 아이템</small></div>
+          <div className="wardrobe-detail__text"><b>{label(preview)}</b><small>{preview.item.setCode ? `${slotText(preview)} | 한 벌로만 입어요` : `${slotText(preview)} | 보유 아이템`}</small></div>
           <div className="wardrobe-detail__actions">
-            <button type="button" className="wardrobe-wear" disabled={preview.equipped || !!s.equipping || s.loading} onClick={() => void wearPreviewedItem()}>
-              {s.equipping ? '착용하는 중…' : preview.equipped ? '착용 중' : '착용하기'}
-            </button>
+            {preview.equipped
+              ? <button type="button" className="wardrobe-wear" disabled={!!s.equipping || s.loading} onClick={() => void takeOffPreviewedItem()}>
+                {s.equipping ? '벗는 중…' : preview.item.setCode ? '세트 벗기' : '벗기'}
+              </button>
+              : <button type="button" className="wardrobe-wear" disabled={!!s.equipping || s.loading} onClick={() => void wearPreviewedItem()}>
+                {s.equipping ? '착용하는 중…' : preview.item.setCode ? '세트 입기' : '착용하기'}
+              </button>}
             <button type="button" className="wardrobe-cancel" disabled={!!s.equipping} onClick={cancelWardrobePreview}>미리보기 취소</button>
           </div>
         </> : <p className="wardrobe-detail__empty">{s.notice || '입어 볼 의상을 골라 주세요.'}</p>}
