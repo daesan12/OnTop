@@ -129,10 +129,15 @@ public class ShopController {
     @PatchMapping("/api/v1/users/me/equipment")
     public ResponseEntity<?> equip(Principal principal, @RequestBody JsonNode body) {
         long userId = account(principal);
-        if (!body.isObject() || body.size() != 1 || !isPositive(body.get("userItemId"))) {
+        // {"userItemId":n} 또는 {"userItemId":n,"equipped":true|false}. false는 해제(기본 옷으로)다.
+        var equipped = body.get("equipped");
+        if (!body.isObject() || !isPositive(body.get("userItemId"))
+                || body.size() != (equipped == null ? 1 : 2) || equipped != null && !equipped.isBoolean()) {
             throw invalid();
         }
-        return ok(service().equip(userId, body.get("userItemId").longValue()));
+        long userItemId = body.get("userItemId").longValue();
+        return ok(equipped == null || equipped.booleanValue()
+                ? service().equip(userId, userItemId) : service().unequip(userId, userItemId));
     }
 
     private ShopService service() {
