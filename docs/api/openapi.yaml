@@ -11,10 +11,10 @@ tags:
   description: 붕어빵 버전별 개인 최고 기록
 - name: WALLET
   description: 인증된 본인의 지갑 조회
-- name: Park Ranking
-  description: 공원 랭킹판의 세 목록
 - name: Ranking
   description: 보유 엽전 랭킹
+- name: Park Ranking
+  description: 공원 랭킹판의 보유량 목록과 미니게임 우승자
 - name: HISTORY
   description: 인증된 본인의 종료 경기 내역과 게임별 전적
 paths:
@@ -3925,9 +3925,9 @@ paths:
     get:
       tags:
       - Park Ranking
-      summary: 공원 랭킹판 TOP 10
-      description: 보유량·단판 최고 순이익·누적 승수의 마지막 정상 1분 스냅샷을 반환합니다. updatedAt은 세 목록의 실제
-        갱신 완료 시각입니다. 최초 성공 전에는 503을 반환합니다.
+      summary: 공원 랭킹판 스냅샷
+      description: "보유량 TOP 10과 붕어빵·점프맵 우승자의 마지막 정상 1분 스냅샷을 반환합니다. 기록이 없는 게임의 우승자는\
+        \ null입니다. updatedAt은 전체 집계 완료 시각이며, 최초 성공 전에는 503을 반환합니다."
       operationId: rankings_1
       responses:
         "200":
@@ -6293,6 +6293,37 @@ components:
         coinBalance:
           type: integer
           format: int64
+    BungeoppangChampion:
+      type: object
+      properties:
+        userId:
+          type: string
+        nickname:
+          type: string
+        score:
+          type: integer
+          format: int64
+        maxCombo:
+          type: integer
+          format: int64
+        completedAt:
+          type: string
+          format: date-time
+      nullable: true
+    JumpmapChampion:
+      type: object
+      properties:
+        userId:
+          type: string
+        nickname:
+          type: string
+        finishMs:
+          type: integer
+          format: int64
+        completedAt:
+          type: string
+          format: date-time
+      nullable: true
     ParkRankingResponse:
       type: object
       properties:
@@ -6300,43 +6331,13 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/BalanceItem"
-        singleGameProfit:
-          type: array
-          items:
-            $ref: "#/components/schemas/ProfitItem"
-        wins:
-          type: array
-          items:
-            $ref: "#/components/schemas/WinsItem"
+        bungeoppangChampion:
+          $ref: "#/components/schemas/BungeoppangChampion"
+        jumpmapChampion:
+          $ref: "#/components/schemas/JumpmapChampion"
         updatedAt:
           type: string
           format: date-time
-    ProfitItem:
-      type: object
-      properties:
-        rank:
-          type: integer
-          format: int64
-        userId:
-          type: string
-        nickname:
-          type: string
-        profit:
-          type: integer
-          format: int64
-    WinsItem:
-      type: object
-      properties:
-        rank:
-          type: integer
-          format: int64
-        userId:
-          type: string
-        nickname:
-          type: string
-        winCount:
-          type: integer
-          format: int64
     NoteListResponse:
       required:
       - notes

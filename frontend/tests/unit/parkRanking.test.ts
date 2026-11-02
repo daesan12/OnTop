@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatRankingUpdatedAt, parseParkRanking, rankingColumns } from '../../src/features/rankingBoard/service'
+import { formatJumpmapFinish, formatRankingUpdatedAt, parseParkRanking, rankingColumns } from '../../src/features/rankingBoard/service'
 import { canPollParkRanking } from '../../src/features/rankingBoard/RankingBoardHost'
 import { completeRankingRefresh, failRankingRefresh, resetRankingBoardFeed, useRankingBoardFeed } from '../../src/features/rankingBoard/state'
 
@@ -9,8 +9,8 @@ const response = {
     { rank: 1, userId: '12', nickname: '호랑이', coinBalance: 300 },
     { rank: 3, userId: '13', nickname: '곰', coinBalance: 200 },
   ],
-  singleGameProfit: [{ rank: 1, userId: '14', nickname: '승부사', profit: 25 }],
-  wins: [{ rank: 1, userId: '15', nickname: '고수', winCount: 7 }],
+  bungeoppangChampion: { userId: '14', nickname: '붕어빵 장인', score: 2_981, maxCombo: 14, completedAt: '2026-11-02T05:30:00Z' },
+  jumpmapChampion: { userId: '15', nickname: '점프 고수', finishMs: 62_543, completedAt: '2026-11-02T05:31:00Z' },
   updatedAt: '2026-11-02T05:32:00Z',
 }
 
@@ -19,11 +19,17 @@ describe('park ranking contract', () => {
     const parsed = parseParkRanking(response)
     expect(parsed.balance.map(item => item.rank)).toEqual([1, 1, 3])
     expect(parsed.balance.map(item => item.userId)).toEqual(['11', '12', '13'])
-    expect(rankingColumns(parsed).map(column => column.rows[0]?.value)).toEqual(['300냥', '25냥', '7승'])
+    expect(rankingColumns(parsed).map(column => column.rows[0]?.value)).toEqual(['300냥', '2,981점', '1분 02.543초'])
   })
 
   it('accepts an empty board', () => {
-    expect(parseParkRanking({ ...response, balance: [], singleGameProfit: [], wins: [] }).balance).toEqual([])
+    const empty = parseParkRanking({ ...response, balance: [], bungeoppangChampion: null, jumpmapChampion: null })
+    expect(rankingColumns(empty).map(column => column.rows)).toEqual([[], [], []])
+  })
+
+  it('formats jumpmap records with minutes, seconds and milliseconds', () => {
+    expect(formatJumpmapFinish(8_500)).toBe('0분 08.500초')
+    expect(formatJumpmapFinish(125_006)).toBe('2분 05.006초')
   })
 
   it('keeps a space between the Korean date and time', () => {
@@ -39,7 +45,10 @@ describe('park ranking contract', () => {
     const rows = Array.from({ length: 11 }, (_, index) => ({ rank: index + 1, userId: String(index + 1), nickname: '사용자', coinBalance: 1 }))
     expect(() => parseParkRanking({ ...response, balance: rows })).toThrow('랭킹 응답')
     expect(() => parseParkRanking({ ...response, balance: [response.balance[0], response.balance[0]] })).toThrow('랭킹 응답')
-    expect(() => parseParkRanking({ ...response, wins: [{ rank: 1, userId: '15', nickname: '', winCount: 7 }] })).toThrow('랭킹 응답')
+    expect(() => parseParkRanking({ ...response, bungeoppangChampion: 'invalid' })).toThrow('랭킹 응답')
+    expect(() => parseParkRanking({ ...response, jumpmapChampion: 123 })).toThrow('랭킹 응답')
+    expect(() => parseParkRanking({ ...response, bungeoppangChampion: { ...response.bungeoppangChampion, nickname: '' } })).toThrow('랭킹 응답')
+    expect(() => parseParkRanking({ ...response, jumpmapChampion: { ...response.jumpmapChampion, finishMs: 0 } })).toThrow('랭킹 응답')
     expect(() => parseParkRanking({ ...response, balance: [response.balance[2], response.balance[0]] })).toThrow('랭킹 응답')
   })
 

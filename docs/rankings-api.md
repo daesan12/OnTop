@@ -1,6 +1,7 @@
 # 보유 엽전 랭킹
 
-공원 랭킹판의 세 목록과 1분 스냅샷 계약은 [park-ranking-api.md](park-ranking-api.md)를 참고한다.
+공원 랭킹판의 보유량 TOP 10·붕어빵 우승자·점프맵 우승자와 1분 스냅샷 계약은
+[park-ranking-api.md](park-ranking-api.md)를 참고한다.
 
 RANK-01 · 담당 장대산. 2026-10-25 사용자가 팀원 요청에 따른 추가 담당을 확정했다.
 기준은 OnTop 통합 기획서 v0.4의 현재 보유량 랭킹과 Notion RANK-01의 응답 형식이다.

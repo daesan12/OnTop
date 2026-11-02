@@ -7,8 +7,8 @@ import com.ssafy.ontop.auth.security.TestLoginSessions;
 import com.ssafy.ontop.auth.service.AccessJwtService;
 import com.ssafy.ontop.ranking.dto.ParkRankingResponse;
 import com.ssafy.ontop.ranking.dto.ParkRankingResponse.BalanceItem;
-import com.ssafy.ontop.ranking.dto.ParkRankingResponse.ProfitItem;
-import com.ssafy.ontop.ranking.dto.ParkRankingResponse.WinsItem;
+import com.ssafy.ontop.ranking.dto.ParkRankingResponse.BungeoppangChampion;
+import com.ssafy.ontop.ranking.dto.ParkRankingResponse.JumpmapChampion;
 import com.ssafy.ontop.ranking.exception.RankingException;
 import com.ssafy.ontop.ranking.service.ParkRankingSnapshotService;
 import com.ssafy.ontop.user.domain.LoginProvider;
@@ -59,24 +59,41 @@ class ParkRankingHttpTests {
     }
 
     @Test
-    void 인증된_회원에게_세_목록과_실제_집계시각을_한번에_반환한다() throws Exception {
+    void 인증된_회원에게_보유량과_두_우승자와_집계시각을_한번에_반환한다() throws Exception {
         Instant updatedAt = Instant.parse("2026-11-02T01:00:00Z");
         when(snapshots.current()).thenReturn(new ParkRankingResponse(
                 List.of(new BalanceItem(1, "11", "보유자", 100)),
-                List.of(new ProfitItem(1, "12", "승부사", 20)),
-                List.of(new WinsItem(1, "13", "승리자", 3)), updatedAt));
+                new BungeoppangChampion("12", "붕어빵왕", 20_000, 14, updatedAt.minusSeconds(2)),
+                new JumpmapChampion("13", "점프왕", 8_500, updatedAt.minusSeconds(1)), updatedAt));
 
         HttpResponse<String> response = get(jwt.issue(42, TestLoginSessions.ID));
 
         assertThat(response.statusCode()).isEqualTo(200);
         var body = mapper.readTree(response.body());
         assertThat(body.at("/balance/0/userId").asText()).isEqualTo("11");
-        assertThat(body.at("/singleGameProfit/0/profit").asLong()).isEqualTo(20);
-        assertThat(body.at("/wins/0/winCount").asLong()).isEqualTo(3);
+        assertThat(body.at("/bungeoppangChampion/score").asLong()).isEqualTo(20_000);
+        assertThat(body.at("/bungeoppangChampion/maxCombo").asLong()).isEqualTo(14);
+        assertThat(body.at("/jumpmapChampion/finishMs").asLong()).isEqualTo(8_500);
+        assertThat(body.has("singleGameProfit")).isFalse();
+        assertThat(body.has("wins")).isFalse();
         assertThat(body.path("updatedAt").asText()).isEqualTo(updatedAt.toString());
         assertThat(response.headers().firstValue("Cache-Control")).contains("no-store");
         assertThat(response.headers().firstValue("Set-Cookie")).isEmpty();
         verify(snapshots).current();
+    }
+
+    @Test
+    void 게임기록이_없으면_두_우승자만_null로_반환한다() throws Exception {
+        Instant updatedAt = Instant.parse("2026-11-02T01:00:00Z");
+        when(snapshots.current()).thenReturn(new ParkRankingResponse(List.of(), null, null, updatedAt));
+
+        HttpResponse<String> response = get(jwt.issue(42, TestLoginSessions.ID));
+
+        assertThat(response.statusCode()).isEqualTo(200);
+        var body = mapper.readTree(response.body());
+        assertThat(body.path("balance").isArray()).isTrue();
+        assertThat(body.path("bungeoppangChampion").isNull()).isTrue();
+        assertThat(body.path("jumpmapChampion").isNull()).isTrue();
     }
 
     @Test

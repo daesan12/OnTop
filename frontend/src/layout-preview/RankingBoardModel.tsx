@@ -75,8 +75,8 @@ export const rankingBoardModelMetrics = {
 
 const columns = [
   { title: '보유량', x: -2.77 },
-  { title: '승부사', x: 0 },
-  { title: '승수', x: 2.77 },
+  { title: '붕어빵 굽기', x: 0 },
+  { title: '점프맵', x: 2.77 },
 ] as const
 
 type BoardPanelState = { title: string; column: RankingDisplayColumn | null; message: string; updatedAt: string; stale: boolean }

@@ -2,18 +2,18 @@ import { record } from '../../network/protocol'
 import { RestError } from '../../network/restError'
 
 export interface BalanceRankingEntry { rank: number; userId: string; nickname: string; coinBalance: number }
-export interface ProfitRankingEntry { rank: number; userId: string; nickname: string; profit: number }
-export interface WinsRankingEntry { rank: number; userId: string; nickname: string; winCount: number }
+export interface BungeoppangChampion { userId: string; nickname: string; score: number; maxCombo: number; completedAt: string }
+export interface JumpmapChampion { userId: string; nickname: string; finishMs: number; completedAt: string }
 export interface ParkRankingSnapshot {
   balance: BalanceRankingEntry[]
-  singleGameProfit: ProfitRankingEntry[]
-  wins: WinsRankingEntry[]
+  bungeoppangChampion: BungeoppangChampion | null
+  jumpmapChampion: JumpmapChampion | null
   updatedAt: string
 }
 
 export interface RankingDisplayRow { rank: number; userId: string; nickname: string; value: string }
 export interface RankingDisplayColumn {
-  key: 'balance' | 'singleGameProfit' | 'wins'
+  key: 'balance' | 'bungeoppang' | 'jumpmap'
   title: string
   description: string
   rows: RankingDisplayRow[]
@@ -39,29 +39,39 @@ function list<T>(value: unknown, parse: (item: unknown) => T & { rank: number; u
   })
 }
 
-function identity(value: unknown) {
-  if (!record(value) || !rank(value.rank) || !userId(value.userId) || !nickname(value.nickname)) return invalid()
+function identity(value: Record<string, unknown>) {
+  if (!rank(value.rank) || !userId(value.userId) || !nickname(value.nickname)) return invalid()
   return { rank: value.rank, userId: value.userId, nickname: value.nickname }
+}
+
+function championIdentity(value: Record<string, unknown>) {
+  if (!userId(value.userId) || !nickname(value.nickname) || !instant(value.completedAt)) return invalid()
+  return { userId: value.userId, nickname: value.nickname, completedAt: value.completedAt }
 }
 
 export function parseParkRanking(value: unknown): ParkRankingSnapshot {
   if (!record(value) || !instant(value.updatedAt)) return invalid()
   const balance = list(value.balance, item => {
+    if (!record(item)) return invalid()
     const base = identity(item)
-    if (!record(item) || !safeWhole(item.coinBalance)) return invalid()
+    if (!safeWhole(item.coinBalance)) return invalid()
     return { ...base, coinBalance: item.coinBalance }
   })
-  const singleGameProfit = list(value.singleGameProfit, item => {
-    const base = identity(item)
-    if (!record(item) || !safeWhole(item.profit)) return invalid()
-    return { ...base, profit: item.profit }
-  })
-  const wins = list(value.wins, item => {
-    const base = identity(item)
-    if (!record(item) || !safeWhole(item.winCount)) return invalid()
-    return { ...base, winCount: item.winCount }
-  })
-  return { balance, singleGameProfit, wins, updatedAt: value.updatedAt }
+  const bungeoppangChampion = value.bungeoppangChampion === null ? null : (() => {
+    const candidate = value.bungeoppangChampion
+    if (!record(candidate)) return invalid()
+    const base = championIdentity(candidate)
+    if (!safeWhole(candidate.score) || !safeWhole(candidate.maxCombo)) return invalid()
+    return { ...base, score: candidate.score, maxCombo: candidate.maxCombo }
+  })()
+  const jumpmapChampion = value.jumpmapChampion === null ? null : (() => {
+    const candidate = value.jumpmapChampion
+    if (!record(candidate)) return invalid()
+    const base = championIdentity(candidate)
+    if (!safeWhole(candidate.finishMs) || candidate.finishMs === 0) return invalid()
+    return { ...base, finishMs: candidate.finishMs }
+  })()
+  return { balance, bungeoppangChampion, jumpmapChampion, updatedAt: value.updatedAt }
 }
 
 export async function fetchParkRanking(
@@ -77,17 +87,26 @@ const updatedAt = new Intl.DateTimeFormat('ko-KR', {
 })
 
 export function rankingColumns(snapshot: ParkRankingSnapshot): RankingDisplayColumn[] {
+  const bungeoppang = snapshot.bungeoppangChampion
+  const jumpmap = snapshot.jumpmapChampion
   return [
-    { key: 'balance', title: '보유량', description: '현재 보유한 엽전', rows: snapshot.balance.map(item => ({
+    { key: 'balance', title: '보유량', description: '현재 보유 엽전 순', rows: snapshot.balance.map(item => ({
       rank: item.rank, userId: item.userId, nickname: item.nickname, value: `${number.format(item.coinBalance)}냥`,
     })) },
-    { key: 'singleGameProfit', title: '승부사', description: '한 판에서 번 엽전 최고 기록', rows: snapshot.singleGameProfit.map(item => ({
-      rank: item.rank, userId: item.userId, nickname: item.nickname, value: `${number.format(item.profit)}냥`,
-    })) },
-    { key: 'wins', title: '승수', description: '보드게임에서 이긴 횟수', rows: snapshot.wins.map(item => ({
-      rank: item.rank, userId: item.userId, nickname: item.nickname, value: `${number.format(item.winCount)}승`,
-    })) },
+    { key: 'bungeoppang', title: '붕어빵 굽기', description: '점수 · 최대 콤보 · 먼저 완료', rows: bungeoppang ? [{
+      rank: 1, userId: bungeoppang.userId, nickname: bungeoppang.nickname, value: `${number.format(bungeoppang.score)}점`,
+    }] : [] },
+    { key: 'jumpmap', title: '점프맵', description: '최단 기록 · 먼저 완료', rows: jumpmap ? [{
+      rank: 1, userId: jumpmap.userId, nickname: jumpmap.nickname, value: formatJumpmapFinish(jumpmap.finishMs),
+    }] : [] },
   ]
+}
+
+export function formatJumpmapFinish(value: number) {
+  const minutes = Math.floor(value / 60_000)
+  const seconds = Math.floor((value % 60_000) / 1_000)
+  const milliseconds = value % 1_000
+  return `${minutes}분 ${String(seconds).padStart(2, '0')}.${String(milliseconds).padStart(3, '0')}초`
 }
 
 export function formatRankingUpdatedAt(value: string) {
