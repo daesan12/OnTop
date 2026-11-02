@@ -14,6 +14,8 @@ import withdrawIcon from './icons/icon-withdraw.svg'
 import logoutDialogIcon from './icons/dialog-logout.svg'
 import warningIcon from './icons/dialog-warning.svg'
 import chevronIcon from './icons/chevron-profile.svg'
+import placeIcon from './icons/place-pin.svg'
+import { replayWelcomeTour, tourBlockReason } from '../welcomeTour/state'
 import './parkMenus.css'
 
 const GameRecordsDialog = lazy(() => import('../gameHistory/GameRecordsDialog'))
@@ -44,6 +46,8 @@ export function AccountMenu({ exitError, onExit, onWithdrawn }: {
     return () => { window.removeEventListener('pointerdown', outside, true); window.removeEventListener('keydown', escape) }
   }, [open])
   const choose = (next: Dialog) => { setOpen(false); setDialog(next) }
+  // 메뉴를 열 때마다 다시 그려지므로 그 시점의 상태로 판단한다.
+  const tourBlocked = open ? tourBlockReason() : ''
 
   return <div className="park-account" ref={root}>
     <div className="park-account__summary" aria-label="내 정보">
@@ -71,6 +75,10 @@ export function AccountMenu({ exitError, onExit, onWithdrawn }: {
       </button>
       <button type="button" role="menuitem" className="park-menu-item" onClick={() => choose('records')}>
         <img src={profileIcon} alt="" /><span><b>내 전적</b><small>경기 내역 · 게임별 전적</small></span>
+      </button>
+      <button type="button" role="menuitem" className="park-menu-item" disabled={!!tourBlocked}
+        title={tourBlocked || undefined} onClick={() => { setOpen(false); replayWelcomeTour() }}>
+        <img src={placeIcon} alt="" /><span><b>공원 투어 다시 보기</b><small>{tourBlocked || '걸으면서 공원 기능 익히기'}</small></span>
       </button>
       <hr />
       <button type="button" role="menuitem" className="park-menu-item" onClick={() => choose('logout')}>

@@ -5,6 +5,7 @@ import { clearRoamingInput, inputState, panelOwnsKeys } from '../../world/inputO
 import { emoteSlots as slots, emoteSector as sector, type Emote } from './catalog'
 import { emoteUnavailable } from './availability'
 import { useEmoteState } from './state'
+import { noteTourAction } from '../welcomeTour/state'
 import './emotes.css'
 import emoteIcon from '../parkMenus/icons/dock-emote.svg'
 
@@ -102,7 +103,7 @@ export function EmoteWheel() {
       !inputState.manualOpen &&
       !document.hidden
     )
-      void parkRuntime.sendEmote(choice.id);
+      void parkRuntime.sendEmote(choice.id).then((sent) => { if (sent) noteTourAction("emote"); });
   }
   function open(mode: Wheel["mode"]) {
     if (

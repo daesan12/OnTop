@@ -22,7 +22,6 @@ import {
   MANUAL_CLOSE_MS,
   MANUAL_REDUCED_MS,
   resetManual,
-  takeWelcomeManual,
 } from "./manualState";
 import type { ManualGameId } from "./types";
 import { OnDemandContent } from "../../park/OnDemandContent";
@@ -78,7 +77,6 @@ export function ManualHost({
   useEffect(() => {
     const unsubscribe = useSession.subscribe((s, old) => {
       if (s.status !== "connected" || s.sessionId !== old.sessionId || s.roomId !== old.roomId) resetManual();
-      if (s.status === "connected" && s.roomId && takeWelcomeManual()) openManual("welcome");
     });
     return () => { unsubscribe(); resetManual(); };
   }, []);
