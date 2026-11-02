@@ -160,7 +160,7 @@ class MinigameV5ServiceTests {
         long sessionId = Long.parseLong(started.minigameSessionId());
 
         assertThat(started.rulesVersion()).isEqualTo("v5");
-        assertThat(started.configVersion()).isEqualTo(BungeoppangV5Spec.CONFIG_VERSION).isEqualTo("v5-20261101.1");
+        assertThat(started.configVersion()).isEqualTo(BungeoppangV5Spec.CONFIG_VERSION).isEqualTo("v5-20261102.1");
         assertThat(started.rules().durationMs()).isEqualTo(120_000);
         assertThat(started.rules().rushFromMs()).isEqualTo(90_000);
         assertThat(started.status()).isEqualTo("PLAYING");

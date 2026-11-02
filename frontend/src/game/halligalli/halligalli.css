@@ -122,6 +122,23 @@
 .park-page .hg-stage-draw:not(:disabled):hover { filter: brightness(1.08); }
 .park-page .halligalli-panel .hg-stage-draw:focus-visible { outline: 8px solid #ffe0a0; outline-offset: 4px; }
 .park-page .hg-stage-seat { width: max-content; max-width: 210px; padding: 6px 10px; gap: 3px; }
+
+/*
+ * Cards moving after a bell (HalliFlights): copies over the real piles, never interactive. On the stage HalliBoard
+ * projects them like the face-up cards; on the fixed table they move between the piles' boxes.
+ */
+.park-page .hg-flights { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
+.park-page .hg-flight {
+  position: absolute; left: 0; top: 0; width: 120px; height: 180px; transform-origin: 0 0; visibility: hidden; will-change: transform;
+}
+.park-page .hg-flight > :is(.hg-card, .hg-flight-blank) { display: block; width: 100%; height: 100%; border-radius: 12px; filter: none; }
+.park-page .hg-flight .hg-card-face { animation: none; }
+/* Cards under the top of a collected stack: their fruit is not public, so only the paper edge shows. */
+.park-page .hg-flight-blank { box-sizing: border-box; background: #fbf8f2; border: 1px solid #d9d4cc; box-shadow: 0 1px 2px #0003; }
+/* A newly issued penalty card: same back, with a warm rim so it reads as new rather than paid from a pile. */
+.park-page .hg-flights > .hg-flight[data-kind='issued'] > .hg-card { filter: drop-shadow(0 0 5px #ffd27a) drop-shadow(0 0 2px #ffd27a); }
+.park-page .hg-table .hg-flight { transform-origin: 50% 50%; }
+.park-page .hg-table .hg-flight > :is(.hg-card, .hg-flight-blank) { border-radius: 9%; filter: drop-shadow(0 3px 4px #0006); }
 .park-page .hg-stage-seat .hg-timer { min-width: 140px; }
 .park-page .hg-stage-piles { color: var(--hg-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
 .park-page .hg-stage-seat .hg-keys { align-self: center; }

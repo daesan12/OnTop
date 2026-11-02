@@ -2,8 +2,9 @@ import { Fragment } from 'react'
 import { CardBack, FruitCard } from './FruitCard'
 import { FlipTimerBar } from './FlipTimerBar'
 import { bellLabel, useBellMark } from './Bell'
-import { stateLabel, type HalliTableProps } from './HalliTable'
+import { stateLabel, turnLabel, type HalliTableProps } from './HalliTable'
 import { stageRef } from './anchors'
+import { HalliFlights } from './HalliFlights'
 
 /**
  * Table-anchored layout for wide screens. The 3D board (HalliBoard) places every element each frame: face-up cards
@@ -27,11 +28,11 @@ export function HalliStage({ halli, gameId, viewerId, names, canFlip, canRing, o
           aria-label={`내 뒷면 카드 ${p.drawCount}장 · 눌러서 공개`}>{p.drawCount > 0 && <CardBack />}</button>}
         <section ref={stageRef(`label:${p.userId}`)} className="hg-seat hg-stage-seat" data-turn={turn || undefined}
           data-own={own || undefined} data-out={outKind}
-          aria-label={`${names[p.userId]}${turn ? ' · 공개 차례' : ''}${out ? ` · ${out}` : ''}`}>
+          aria-label={`${names[p.userId]}${turn ? ` · ${turnLabel(halli, p)}` : ''}${out ? ` · ${out}` : ''}`}>
           <header className="hg-seat-name">
             <strong>{names[p.userId]}</strong>
             {out ? <span className="hg-badge" data-kind={outKind}>{out}</span>
-              : turn ? <span className="hg-badge" data-kind="turn">공개 차례</span> : null}
+              : turn ? <span className="hg-badge" data-kind="turn">{turnLabel(halli, p)}</span> : null}
             <span className="hg-count">{p.cardCount}장</span>
           </header>
           <small className="hg-stage-piles">뒷면 {p.drawCount} · 공개 {p.faceUpCount}</small>
@@ -48,6 +49,7 @@ export function HalliStage({ halli, gameId, viewerId, names, canFlip, canRing, o
       disabled={!canRing} aria-keyshortcuts="Space" aria-label={bellLabel(halli, mark)} onClick={onRing}>
       {mark && <span>{mark === 'queued' ? '대기' : '쳤음'}</span>}
     </button>
+    <HalliFlights layout="stage" />
     {playing && halli.turnUserId === null && <div className="hg-stage-hud">
       <p className="hg-last-chance">공개할 카드가 없어요 · 마지막 종 기회</p><FlipTimerBar halli={halli} />
     </div>}
