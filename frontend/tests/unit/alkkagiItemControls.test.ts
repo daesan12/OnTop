@@ -52,11 +52,11 @@ it('does not submit a wall rotated into a piece, and cancellation consumes nothi
   c.placeWall();expect(mock.send).not.toHaveBeenCalled()
   cancelAlkkagiItem();c.placeWall();expect(mock.send).not.toHaveBeenCalled()
 })
-it('relocation waits for a destination, clears the old preview, and rejects distant destinations',()=>{
+it('relocation rejects outside positions but accepts distant empty destinations',()=>{
   const c=controls();c.selectItem({id:'r',type:'RELOCATE'});c.pickPlacement(0,0)
   c.chooseTarget(mock.state.pieces[0]);expect(useAlkkagiUI.getState().placement).toBeNull();expect(mock.send).not.toHaveBeenCalled()
-  c.pickPlacement(4,2,true);expect(mock.send).not.toHaveBeenCalled()
-  c.pickPlacement(-1,2,true);expect(mock.send).toHaveBeenCalledTimes(1)
+  c.pickPlacement(5,2,true);expect(mock.send).not.toHaveBeenCalled()
+  c.pickPlacement(4,2,true);expect(mock.send).toHaveBeenCalledExactlyOnceWith({type:'ITEM_USE',cardId:'r',targetPieceIds:['a'],placement:{x:4,y:2,angle:0}})
 })
 it('extra shot needs only the card click, but cannot bypass the pending or turn guard',()=>{
   controls().selectItem({id:'e',type:'EXTRA_SHOT'});expect(mock.send).toHaveBeenCalledTimes(1)
