@@ -72,7 +72,7 @@ function DebrisBatch({item,anchor}:{item:ParkDebris;anchor:TableAnchor}){
       scratch.updateMatrix();coins.current.setMatrixAt(n,scratch.matrix)
     }
     coins.current.instanceMatrix.needsUpdate=true
-    if(stones.current){
+    if(stones.current && parts.length>0){
       for(let n=0;n<parts.length;n++){
         const p=debrisPose(item,DEBRIS_COINS+n,sampleAge,1.136,paths[DEBRIS_COINS+1+n]!.floor)
         scratch.position.set(p.x,p.y,p.z);scratch.rotation.set(p.rx,p.ry,p.rz)
@@ -90,9 +90,9 @@ function DebrisBatch({item,anchor}:{item:ParkDebris;anchor:TableAnchor}){
     dispose={null} userData={{debrisId:item.id,gameId:item.gameId,cleanableObjects:item.parts.map(part=>item.id+'/'+part),cosmetic:true}}>
     <group ref={board} name={'park-debris-board-'+item.id}><ThrownBoard code={item.gameCode}/></group>
     <instancedMesh ref={coins} name={'park-debris-coins-'+item.id} args={[coin,gold,DEBRIS_COINS]} frustumCulled={false} raycast={noRaycast} dispose={null}/>
-    <instancedMesh ref={stones} name={(item.gameCode==='OMOK'?'park-debris-stones-':'park-debris-pieces-')+item.id}
+    {parts.length>0&&<instancedMesh ref={stones} name={(item.gameCode==='OMOK'?'park-debris-stones-':'park-debris-pieces-')+item.id}
       args={[item.gameCode==='ONE_CARD'?card:item.gameCode==='DICE'||item.gameCode==='DICE_LEDGER'?farkleArt().dice:item.gameCode==='LIAR_BRIDGE'?pawn:counter,pieceMaterial(item.gameCode),parts.length]}
-      frustumCulled={false} raycast={noRaycast} dispose={null}/>
+      frustumCulled={false} raycast={noRaycast} dispose={null}/>}
   </group>
 }
 export function ParkDebrisScene(){
