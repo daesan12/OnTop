@@ -53,11 +53,14 @@ class OneCardEngineTests {
 
     @Test
     void 마지막특수카드로승리하면_종료는한번이며_다음경기를허용한다() {
-        for (String card : opening) { action(101,card,engine.load(101,"one").orElseThrow().version(),Map.of("kind","play","cardId",card)); }
+        for (String card : opening.subList(0,6)) { action(101,card,engine.load(101,"one").orElseThrow().version(),Map.of("kind","play","cardId",card)); }
+        action(202,"return-turn",engine.load(202,"one").orElseThrow().version(),Map.of("kind","draw"));
+        long lastVersion = engine.load(101,"one").orElseThrow().version();
+        action(101,"clubs-7",lastVersion,Map.of("kind","play","cardId","clubs-7"));
         var end = engine.load(202,"one").orElseThrow();
         assertThat(end.publicState().path("status").asText()).isEqualTo("FINISHED");
         assertThat(end.publicState().path("winnerUserIds").get(0).asText()).isEqualTo("101");
-        action(101,"clubs-7",6,Map.of("kind","play","cardId","clubs-7"));
+        action(101,"clubs-7",lastVersion,Map.of("kind","play","cardId","clubs-7"));
         assertThat(events.stream().filter(OneCardGameFinished.class::isInstance)).hasSize(1);
         assertThatThrownBy(() -> action(202,"late",7,Map.of("kind","draw"))).isInstanceOf(Rejected.class);
         assertThat(router.load(202).orElseThrow().phase().name()).isEqualTo("FINISHED");

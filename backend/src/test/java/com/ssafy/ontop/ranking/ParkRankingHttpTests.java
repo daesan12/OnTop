@@ -7,8 +7,8 @@ import com.ssafy.ontop.auth.security.TestLoginSessions;
 import com.ssafy.ontop.auth.service.AccessJwtService;
 import com.ssafy.ontop.ranking.dto.ParkRankingResponse;
 import com.ssafy.ontop.ranking.dto.ParkRankingResponse.BalanceItem;
-import com.ssafy.ontop.ranking.dto.ParkRankingResponse.BungeoppangChampion;
-import com.ssafy.ontop.ranking.dto.ParkRankingResponse.JumpmapChampion;
+import com.ssafy.ontop.ranking.dto.ParkRankingResponse.BungeoppangItem;
+import com.ssafy.ontop.ranking.dto.ParkRankingResponse.JumpmapItem;
 import com.ssafy.ontop.ranking.exception.RankingException;
 import com.ssafy.ontop.ranking.service.ParkRankingSnapshotService;
 import com.ssafy.ontop.user.domain.LoginProvider;
@@ -59,21 +59,25 @@ class ParkRankingHttpTests {
     }
 
     @Test
-    void 인증된_회원에게_보유량과_두_우승자와_집계시각을_한번에_반환한다() throws Exception {
+    void 인증된_회원에게_세_랭킹과_집계시각을_한번에_반환한다() throws Exception {
         Instant updatedAt = Instant.parse("2026-11-02T01:00:00Z");
         when(snapshots.current()).thenReturn(new ParkRankingResponse(
                 List.of(new BalanceItem(1, "11", "보유자", 100)),
-                new BungeoppangChampion("12", "붕어빵왕", 20_000, 14, updatedAt.minusSeconds(2)),
-                new JumpmapChampion("13", "점프왕", 8_500, updatedAt.minusSeconds(1)), updatedAt));
+                List.of(new BungeoppangItem(1, "12", "붕어빵왕", 20_000, 14,
+                        updatedAt.minusSeconds(2))),
+                List.of(new JumpmapItem(1, "13", "점프왕", 8_500,
+                        updatedAt.minusSeconds(1))), updatedAt));
 
         HttpResponse<String> response = get(jwt.issue(42, TestLoginSessions.ID));
 
         assertThat(response.statusCode()).isEqualTo(200);
         var body = mapper.readTree(response.body());
         assertThat(body.at("/balance/0/userId").asText()).isEqualTo("11");
-        assertThat(body.at("/bungeoppangChampion/score").asLong()).isEqualTo(20_000);
-        assertThat(body.at("/bungeoppangChampion/maxCombo").asLong()).isEqualTo(14);
-        assertThat(body.at("/jumpmapChampion/finishMs").asLong()).isEqualTo(8_500);
+        assertThat(body.at("/bungeoppang/0/rank").asLong()).isEqualTo(1);
+        assertThat(body.at("/bungeoppang/0/score").asLong()).isEqualTo(20_000);
+        assertThat(body.at("/bungeoppang/0/maxCombo").asLong()).isEqualTo(14);
+        assertThat(body.at("/jumpmap/0/rank").asLong()).isEqualTo(1);
+        assertThat(body.at("/jumpmap/0/finishMs").asLong()).isEqualTo(8_500);
         assertThat(body.has("singleGameProfit")).isFalse();
         assertThat(body.has("wins")).isFalse();
         assertThat(body.path("updatedAt").asText()).isEqualTo(updatedAt.toString());
@@ -83,17 +87,19 @@ class ParkRankingHttpTests {
     }
 
     @Test
-    void 게임기록이_없으면_두_우승자만_null로_반환한다() throws Exception {
+    void 게임기록이_없으면_두_미니게임_랭킹을_빈_목록으로_반환한다() throws Exception {
         Instant updatedAt = Instant.parse("2026-11-02T01:00:00Z");
-        when(snapshots.current()).thenReturn(new ParkRankingResponse(List.of(), null, null, updatedAt));
+        when(snapshots.current()).thenReturn(new ParkRankingResponse(List.of(), List.of(), List.of(), updatedAt));
 
         HttpResponse<String> response = get(jwt.issue(42, TestLoginSessions.ID));
 
         assertThat(response.statusCode()).isEqualTo(200);
         var body = mapper.readTree(response.body());
         assertThat(body.path("balance").isArray()).isTrue();
-        assertThat(body.path("bungeoppangChampion").isNull()).isTrue();
-        assertThat(body.path("jumpmapChampion").isNull()).isTrue();
+        assertThat(body.path("bungeoppang").isArray()).isTrue();
+        assertThat(body.path("bungeoppang")).isEmpty();
+        assertThat(body.path("jumpmap").isArray()).isTrue();
+        assertThat(body.path("jumpmap")).isEmpty();
     }
 
     @Test

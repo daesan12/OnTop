@@ -6293,9 +6293,12 @@ components:
         coinBalance:
           type: integer
           format: int64
-    BungeoppangChampion:
+    BungeoppangItem:
       type: object
       properties:
+        rank:
+          type: integer
+          format: int64
         userId:
           type: string
         nickname:
@@ -6309,10 +6312,12 @@ components:
         completedAt:
           type: string
           format: date-time
-      nullable: true
-    JumpmapChampion:
+    JumpmapItem:
       type: object
       properties:
+        rank:
+          type: integer
+          format: int64
         userId:
           type: string
         nickname:
@@ -6323,18 +6328,27 @@ components:
         completedAt:
           type: string
           format: date-time
-      nullable: true
     ParkRankingResponse:
       type: object
       properties:
         balance:
+          maxItems: 10
+          minItems: 0
           type: array
           items:
             $ref: "#/components/schemas/BalanceItem"
-        bungeoppangChampion:
-          $ref: "#/components/schemas/BungeoppangChampion"
-        jumpmapChampion:
-          $ref: "#/components/schemas/JumpmapChampion"
+        bungeoppang:
+          maxItems: 10
+          minItems: 0
+          type: array
+          items:
+            $ref: "#/components/schemas/BungeoppangItem"
+        jumpmap:
+          maxItems: 10
+          minItems: 0
+          type: array
+          items:
+            $ref: "#/components/schemas/JumpmapItem"
         updatedAt:
           type: string
           format: date-time

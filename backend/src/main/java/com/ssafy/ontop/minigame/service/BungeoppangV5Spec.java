@@ -9,8 +9,8 @@ import java.util.List;
 /** Immutable v5 configuration. Changing a value requires a new config version; v4 stays untouched. */
 public final class BungeoppangV5Spec {
     public static final String RULES_VERSION = "v5";
-    /** New rounds: 120 seconds, rush from 90 seconds. */
-    public static final String CONFIG_VERSION = "v5-20261101.1";
+    /** 새 판은 120초, 특수 소 납품 보너스 30%를 적용한다. */
+    public static final String CONFIG_VERSION = "v5-20261102.1";
     /**
      * Rounds issued before 2026-10-29: 180 seconds, rush from 150 seconds. Such a round keeps this snapshot in
      * its stored config, which stays authoritative; this copy only names it for regression checks.
@@ -27,8 +27,8 @@ public final class BungeoppangV5Spec {
 
     private static final BungeoppangV4Responses.FillingCounts FIRST_ORDER =
             new BungeoppangV4Responses.FillingCounts(2, 0, 0, 0);
-    private static final BungeoppangV5Responses.Rules RULES = rules(DURATION_MS, RUSH_FROM_MS);
-    private static final BungeoppangV5Responses.Rules LEGACY_RULES = rules(180_000, 150_000);
+    private static final BungeoppangV5Responses.Rules RULES = rules(DURATION_MS, RUSH_FROM_MS, 30);
+    private static final BungeoppangV5Responses.Rules LEGACY_RULES = rules(180_000, 150_000, 50);
 
     private BungeoppangV5Spec() {
     }
@@ -43,11 +43,10 @@ public final class BungeoppangV5Spec {
         return LEGACY_RULES;
     }
 
-    /** Only the play length and rush start differ between config versions. */
-    private static BungeoppangV5Responses.Rules rules(int durationMs, int rushFromMs) {
+    private static BungeoppangV5Responses.Rules rules(int durationMs, int rushFromMs, int specialBonusPercent) {
         return new BungeoppangV5Responses.Rules(
                 6, durationMs, COUNTDOWN_MS, 8_000, 6_000, rushFromMs, 85, 115, 2_048,
-                10, 4, 20, 50, FIRST_ORDER, 50, 70, 90, 100, 2, 5, 15, MinigameRewardBudget.DAILY_CAP,
+                10, 4, 20, specialBonusPercent, FIRST_ORDER, 50, 70, 90, 100, 2, 5, 15, MinigameRewardBudget.DAILY_CAP,
                 50, 300, 3_600, HEAT_ASSIGNMENT, MAX_ACTIVE_ORDERS, durationMs == DURATION_MS ? 5 : 0);
     }
 

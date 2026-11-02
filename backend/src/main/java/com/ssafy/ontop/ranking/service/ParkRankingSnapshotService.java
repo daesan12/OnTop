@@ -2,12 +2,12 @@ package com.ssafy.ontop.ranking.service;
 
 import com.ssafy.ontop.ranking.dto.ParkRankingResponse;
 import com.ssafy.ontop.ranking.dto.ParkRankingResponse.BalanceItem;
-import com.ssafy.ontop.ranking.dto.ParkRankingResponse.BungeoppangChampion;
-import com.ssafy.ontop.ranking.dto.ParkRankingResponse.JumpmapChampion;
+import com.ssafy.ontop.ranking.dto.ParkRankingResponse.BungeoppangItem;
+import com.ssafy.ontop.ranking.dto.ParkRankingResponse.JumpmapItem;
 import com.ssafy.ontop.ranking.exception.RankingException;
 import com.ssafy.ontop.ranking.repository.ParkBalanceRankingRepository;
-import com.ssafy.ontop.ranking.repository.ParkBungeoppangChampionRepository;
-import com.ssafy.ontop.ranking.repository.ParkJumpmapChampionRepository;
+import com.ssafy.ontop.ranking.repository.ParkBungeoppangRankingRepository;
+import com.ssafy.ontop.ranking.repository.ParkJumpmapRankingRepository;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import java.time.Clock;
@@ -29,8 +29,8 @@ public class ParkRankingSnapshotService {
     private static final Logger LOG = LoggerFactory.getLogger(ParkRankingSnapshotService.class);
 
     private final ParkBalanceRankingRepository balances;
-    private final ParkBungeoppangChampionRepository bungeoppang;
-    private final ParkJumpmapChampionRepository jumpmap;
+    private final ParkBungeoppangRankingRepository bungeoppang;
+    private final ParkJumpmapRankingRepository jumpmap;
     private final MeterRegistry meters;
     private final Clock clock;
     private final Instant startedAt;
@@ -39,13 +39,13 @@ public class ParkRankingSnapshotService {
 
     @Autowired
     public ParkRankingSnapshotService(ParkBalanceRankingRepository balances,
-            ParkBungeoppangChampionRepository bungeoppang, ParkJumpmapChampionRepository jumpmap,
+            ParkBungeoppangRankingRepository bungeoppang, ParkJumpmapRankingRepository jumpmap,
             MeterRegistry meters, @Value("${ontop.rankings.park.started-at:}") String startedAt) {
         this(balances, bungeoppang, jumpmap, meters, startedAt, Clock.systemUTC());
     }
 
     ParkRankingSnapshotService(ParkBalanceRankingRepository balances,
-            ParkBungeoppangChampionRepository bungeoppang, ParkJumpmapChampionRepository jumpmap,
+            ParkBungeoppangRankingRepository bungeoppang, ParkJumpmapRankingRepository jumpmap,
             MeterRegistry meters, String startedAt, Clock clock) {
         this.balances = balances;
         this.bungeoppang = bungeoppang;
@@ -75,15 +75,13 @@ public class ParkRankingSnapshotService {
             List<BalanceItem> balanceItems = balances.findTopTen().stream()
                     .map(row -> new BalanceItem(row.rank(), Long.toString(row.userId()),
                             row.nickname(), row.coinBalance())).toList();
-            BungeoppangChampion bungeoppangChampion = bungeoppang.findChampion(startedAt)
-                    .map(row -> new BungeoppangChampion(Long.toString(row.userId()), row.nickname(),
-                            row.score(), row.maxCombo(), row.completedAt()))
-                    .orElse(null);
-            JumpmapChampion jumpmapChampion = jumpmap.findChampion(startedAt)
-                    .map(row -> new JumpmapChampion(Long.toString(row.userId()), row.nickname(),
-                            row.finishMs(), row.completedAt()))
-                    .orElse(null);
-            snapshot.set(new ParkRankingResponse(balanceItems, bungeoppangChampion, jumpmapChampion,
+            List<BungeoppangItem> bungeoppangItems = bungeoppang.findTopTen(startedAt).stream()
+                    .map(row -> new BungeoppangItem(row.rank(), Long.toString(row.userId()), row.nickname(),
+                            row.score(), row.maxCombo(), row.completedAt())).toList();
+            List<JumpmapItem> jumpmapItems = jumpmap.findTopTen(startedAt).stream()
+                    .map(row -> new JumpmapItem(row.rank(), Long.toString(row.userId()), row.nickname(),
+                            row.finishMs(), row.completedAt())).toList();
+            snapshot.set(new ParkRankingResponse(balanceItems, bungeoppangItems, jumpmapItems,
                     clock.instant()));
             meters.counter("ontop.ranking.park.refresh", "result", "success").increment();
         } catch (RuntimeException failure) {

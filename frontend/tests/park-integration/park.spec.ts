@@ -100,10 +100,12 @@ test('generated park waits for approval, renders 18 mapped tables, and supports 
  await expect(rankingDialog.getByText('12,580냥')).toHaveCount(2)
  await expect(rankingDialog.getByRole('heading',{name:'붕어빵 굽기'})).toBeVisible()
  await expect(rankingDialog.getByText('붕어빵 장인')).toBeVisible()
+ await expect(rankingDialog.getByText('붕어빵 도전자')).toBeVisible()
  await expect(rankingDialog.getByText('2,981점')).toBeVisible()
  await expect(rankingDialog.getByRole('heading',{name:'점프맵'})).toBeVisible()
  await expect(rankingDialog.getByText('점프 고수')).toBeVisible()
- await expect(rankingDialog.getByText('1분 02.543초')).toBeVisible()
+ await expect(rankingDialog.getByText('공동 고수')).toBeVisible()
+ await expect(rankingDialog.getByText('1분 02.543초')).toHaveCount(2)
  expect(server.restRequests.filter(r=>r.path==='/api/v1/rankings/park').length).toBeGreaterThanOrEqual(1)
  expect(server.requests.filter(r=>r.type==='WORLD_FACILITY_USE')).toHaveLength(rankingRequests)
  const movementRequests=server.requests.filter(r=>r.type==='WORLD_MOVE').length
