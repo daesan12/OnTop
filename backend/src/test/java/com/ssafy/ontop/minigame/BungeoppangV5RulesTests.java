@@ -19,6 +19,24 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class BungeoppangV5RulesTests {
+    @ParameterizedTest
+    @CsvSource({"PIZZA", "CHOCOLATE"})
+    void 특수소_보너스는_새판에서_30퍼센트이고_기존_저장규칙은_50퍼센트를_유지한다(Filling filling) {
+        var items = filling == Filling.PIZZA ? new FillingCounts(0, 0, 1, 0) : new FillingCounts(0, 0, 0, 1);
+        var issued = List.of(new Order("1", 0, 0, items));
+        var log = List.of(Action.pour(1, 0, 0), Action.fill(2, 300, 0, filling),
+                Action.turn(3, 6_700, 0), Action.turn(4, 13_100, 0),
+                Action.deliver(5, 13_150, "1", "special-delivery"));
+
+        var current = rules.replay(log, heats(100), issued);
+        var previous = legacy.replay(log, heats(100), issued);
+
+        assertThat(current.score()).isEqualTo(13);
+        assertThat(current.bonusScore()).isEqualTo(3);
+        assertThat(previous.score()).isEqualTo(15);
+        assertThat(previous.bonusScore()).isEqualTo(5);
+    }
+
     @Test
     void 세번째_뒤_손님을_먼저_제공하면_대기_손님마다_한번만_5점을_감점한다() {
         var items = new FillingCounts(1, 0, 0, 0);

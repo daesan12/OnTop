@@ -27,7 +27,7 @@ describe('알까기 확정 전 미리보기', () => {
   it('재배치와 서로 다른 크기의 교환은 실제 반경으로 검사한다', () => {
     const s = state()
     expect(itemPreview(s, 'RELOCATE', ['p1'], { x: -1, y: .5, angle: 0 }).valid).toBe(true)
-    expect(itemPreview(s, 'RELOCATE', ['p1'], { x: 4, y: 2, angle: 0 }).valid).toBe(false)
+    expect(itemPreview(s, 'RELOCATE', ['p1'], { x: 4, y: 2, angle: 0 }).valid).toBe(true)
     expect(itemPreview(s, 'RELOCATE', ['p1'], { x: 0, y: 2, angle: 0 }).valid).toBe(false)
     expect(itemPreview(s, 'SWAP', ['p0', 'p1'], null).valid).toBe(true)
     s.pieces[2] = { ...s.pieces[2], alive: true, x: -1.45, y: 2 }

@@ -302,6 +302,34 @@ class BungeoppangV5MySqlTests {
                 .isInstanceOf(MinigameException.class);
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({"pizza,false", "chocolate,false", "pizza,true", "chocolate,true"})
+    void HTTP_특수소_납품은_새판_30퍼센트와_기존판_50퍼센트를_구분하고_재시도에_보존한다(
+            String filling, boolean previous) throws Exception {
+        long sessionId = readyV5("bonus");
+        if (previous) {
+            var old = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.valueToTree(BungeoppangV5Spec.rules());
+            old.put("specialBonusPercent", 50);
+            storedSnapshot(sessionId, "v5-20261101.1", mapper.treeToValue(old, BungeoppangV5Responses.Rules.class));
+        }
+        jdbc.update("UPDATE bungeoppang_v5_orders SET bean=0, pizza=?, chocolate=?"
+                + " WHERE minigame_session_id=? AND order_id=2",
+                filling.equals("pizza") ? 1 : 0, filling.equals("chocolate") ? 1 : 0, sessionId);
+        var log = List.of(action(1, "POUR", 0, 0, null), action(2, "FILL", 300, 0, filling),
+                action(3, "TURN", 6_700, 0, null), action(4, "TURN", 13_100, 0, null),
+                new BungeoppangV4DeliveryDtos.Action(5, "DELIVER", 13_150, null, null, null, "2", "bonus-delivery"));
+        var body = new BungeoppangV4DeliveryDtos.Request("v5", log.size(),
+                BungeoppangV5DeliveryContract.prefixHash(sessionId, config(sessionId), log), log);
+
+        var response = request("POST", "/" + sessionId + "/deliveries", json.writeValueAsString(body), "bonus-delivery");
+        assertThat(response.statusCode()).as(response.body()).isEqualTo(200);
+        var approved = mapper.readTree(response.body());
+        assertThat(approved.path("scoreDelta").asLong()).isEqualTo(previous ? 15 : 13);
+        assertThat(approved.path("bonusDelta").asLong()).isEqualTo(previous ? 5 : 3);
+        assertThat(request("POST", "/" + sessionId + "/deliveries", json.writeValueAsString(body), "bonus-delivery").body())
+                .isEqualTo(response.body());
+    }
+
     @Test
     void HTTP_선택_납품은_충원_주문_checkpoint_영수증을_원자_저장하고_재접속과_완료_정산이_한번만_이뤄진다()
             throws Exception {
@@ -543,6 +571,11 @@ class BungeoppangV5MySqlTests {
         JsonNode flow = mapper.readTree(java.nio.file.Files.readString(FIXTURES.resolve(fixture)));
         long sessionId = readyV5("shared-flow");
         if (BungeoppangV5Spec.LEGACY_CONFIG_VERSION.equals(configVersion)) { legacy(sessionId); }
+        else {
+            var old = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.valueToTree(BungeoppangV5Spec.rules());
+            old.put("specialBonusPercent", 50).put("queueComplaintPenalty", 0);
+            storedSnapshot(sessionId, configVersion, mapper.treeToValue(old, BungeoppangV5Responses.Rules.class));
+        }
         // A start retry returns the round as stored: its config version, rules and play length.
         JsonNode start = mapper.readTree(request("POST", "", START, "shared-flow").body());
         assertThat(start.path("configVersion").asText()).isEqualTo(configVersion);
@@ -840,20 +873,25 @@ class BungeoppangV5MySqlTests {
      * opening hash seeded with the legacy version. Call before any delivery.
      */
     private void legacy(long sessionId) throws Exception {
-        String hash = BungeoppangV5Spec.initialPrefixHash(sessionId, BungeoppangV5Spec.LEGACY_CONFIG_VERSION);
+        storedSnapshot(sessionId, BungeoppangV5Spec.LEGACY_CONFIG_VERSION, BungeoppangV5Spec.legacyRules());
+    }
+
+    private void storedSnapshot(long sessionId, String version, BungeoppangV5Responses.Rules rules) throws Exception {
+        String hash = BungeoppangV5Spec.initialPrefixHash(sessionId, version);
         var round = jdbc.queryForMap("SELECT config_json, checkpoint_json FROM bungeoppang_v4_rounds"
                 + " WHERE minigame_session_id=?", sessionId);
         var config = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.readTree((String) round.get("config_json"));
-        config.set("rules", mapper.valueToTree(BungeoppangV5Spec.legacyRules()));
+        config.set("rules", mapper.valueToTree(rules));
         var checkpoint = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.readTree(
                 (String) round.get("checkpoint_json"));
         checkpoint.put("prefixHash", hash);
         jdbc.update("UPDATE bungeoppang_v4_rounds SET config_version=?, config_json=?, approved_prefix_hash=?,"
-                + " checkpoint_json=?, play_ends_at=TIMESTAMPADD(MICROSECOND,180000000,play_starts_at),"
-                + " submit_deadline=TIMESTAMPADD(MICROSECOND,195000000,play_starts_at),"
-                + " expires_at=TIMESTAMPADD(MICROSECOND,205000000,play_starts_at) WHERE minigame_session_id=?",
-                BungeoppangV5Spec.LEGACY_CONFIG_VERSION, mapper.writeValueAsString(config), hash,
-                mapper.writeValueAsString(checkpoint), sessionId);
+                + " checkpoint_json=?, play_ends_at=TIMESTAMPADD(MICROSECOND,?,play_starts_at),"
+                + " submit_deadline=TIMESTAMPADD(MICROSECOND,?,play_starts_at),"
+                + " expires_at=TIMESTAMPADD(MICROSECOND,?,play_starts_at) WHERE minigame_session_id=?",
+                version, mapper.writeValueAsString(config), hash, mapper.writeValueAsString(checkpoint),
+                rules.durationMs() * 1000L, (rules.durationMs() + 15_000L) * 1000L,
+                (rules.durationMs() + 25_000L) * 1000L, sessionId);
     }
 
     private String config(long sessionId) {

@@ -24,7 +24,41 @@ export function useAlkkagiControls() {
   useEffect(cancelAlkkagiItem,[state?.gameId,state?.version,session.status,looking])
   const act=(input:Record<string,unknown>) => { if(parkRuntime.actAlkkagi) void parkRuntime.actAlkkagi(input) }
   const preview=itemPreview(state,ui.item?.type ?? '',ui.targets,ui.placement)
-  const chooseTarget=(piece:Piece) => useAlkkagiUI.setState(s=>({ targets:s.targets.includes(piece.id) ? s.targets.filter(x=>x!==piece.id)
-    : s.item?.type==='SWAP' ? [...s.targets.slice(-1),piece.id] : [piece.id] }))
-  return {session,game,g,state,actor,ready,looking,canItem,preview,act,ui,chooseTarget}
+  const submitItem=(card:Card,targets:string[],placement:Placement|null) => {
+    const result=itemPreview(state,card.type,targets,placement)
+    if(!canItem || !result.valid)return false
+    act({type:'ITEM_USE',cardId:card.id,targetPieceIds:targets,...(placement ? {placement} : {})})
+    cancelAlkkagiItem()
+    return true
+  }
+  const selectItem=(card:Card) => {
+    if(!canItem)return
+    const same=useAlkkagiUI.getState().item?.id===card.id
+    cancelAlkkagiItem()
+    if(same)return
+    if(card.type==='EXTRA_SHOT')submitItem(card,[],null)
+    else useAlkkagiUI.setState({item:card,notice:''})
+  }
+  const chooseTarget=(piece:Piece) => {
+    const current=useAlkkagiUI.getState(),card=current.item
+    if(!canItem || !card)return
+    const targets=current.targets.includes(piece.id) ? current.targets.filter(x=>x!==piece.id)
+      : card.type==='SWAP' ? [...current.targets.slice(-1),piece.id] : [piece.id]
+    useAlkkagiUI.setState({targets,placement:null})
+    if(card.type!=='RELOCATE')submitItem(card,targets,null)
+  }
+  const pickPlacement=(x:number,y:number,pin?:boolean) => {
+    const current=useAlkkagiUI.getState(),card=current.item
+    if(!canItem || !card)return
+    if(card.type==='WALL' && current.pinned)return
+    const placement={x,y,angle:current.placement?.angle ?? 0}
+    const fixed=card.type==='WALL' && !!pin && itemPreview(state,card.type,current.targets,placement).valid
+    useAlkkagiUI.setState({placement,pinned:fixed})
+    if(pin && card.type!=='WALL')submitItem(card,current.targets,placement)
+  }
+  const placeWall=()=>{
+    const current=useAlkkagiUI.getState()
+    if(current.item?.type==='WALL' && current.pinned)submitItem(current.item,[],current.placement)
+  }
+  return {session,game,g,state,actor,ready,looking,canItem,preview,act,ui,chooseTarget,selectItem,pickPlacement,placeWall}
 }

@@ -9,7 +9,8 @@
 ## 1. 공통
 
 - 경로는 v4와 같다: `/api/v1/minigames/sessions`. 요청 본문 `rulesVersion`으로 v5를 고른다.
-- 신규 판 `configVersion`은 `v5-20261029.1`(2분)이다. 2026-10-29 이전에 발급된 판은 `v5-20261027.1`(3분)을
+- 신규 판 `configVersion`은 `v5-20261102.1`(2분, 피자·초코 납품 보너스 30%)이다. 기존 판은 발급 당시
+  `rules.specialBonusPercent`(50%)와 `configVersion`을 유지한다. 2026-10-29 이전 판은 `v5-20261027.1`(3분)을
   유지한다(7절). 행동 tuple·필드 규칙은 v4와 같고, prefix hash seed만
   `BUNGEOPPANG/v5\n{sessionId}\n{configVersion}\n`이며 판에 저장된 `configVersion`을 쓴다.
 - 행동 시각과 가속은 판에 저장된 `rules`를 따른다. 신규 판은 `0 <= t < 120000`, 가속 `90000 <= t`.
