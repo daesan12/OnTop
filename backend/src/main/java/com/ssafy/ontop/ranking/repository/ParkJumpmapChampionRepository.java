@@ -2,7 +2,6 @@ package com.ssafy.ontop.ranking.repository;
 
 import com.ssafy.ontop.world.jumpmap.JumpCourse;
 import jakarta.persistence.EntityManager;
-import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.Optional;
 import org.springframework.context.annotation.Profile;
@@ -29,7 +28,8 @@ public class ParkJumpmapChampionRepository {
                            ORDER BY finish_ms ASC, ended_at ASC, run_id ASC) AS choice
                 FROM eligible
             )
-            SELECT user_id, nickname, finish_ms, ended_at
+            SELECT user_id, nickname, finish_ms,
+                   CAST(UNIX_TIMESTAMP(ended_at) * 1000 AS SIGNED) AS ended_epoch_millis
             FROM personal_best
             WHERE choice = 1
             ORDER BY finish_ms ASC, ended_at ASC, user_id ASC
@@ -53,7 +53,8 @@ public class ParkJumpmapChampionRepository {
                 .map(value -> {
                     Object[] row = (Object[]) value;
                     return new JumpmapChampionStanding(((Number) row[0]).longValue(), (String) row[1],
-                            ((Number) row[2]).longValue(), ((Timestamp) row[3]).toInstant());
+                            ((Number) row[2]).longValue(),
+                            Instant.ofEpochMilli(((Number) row[3]).longValue()));
                 })
                 .findFirst();
     }

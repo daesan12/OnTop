@@ -2,6 +2,8 @@ package com.ssafy.ontop.ranking.repository;
 
 import com.ssafy.ontop.minigame.service.BungeoppangV5Spec;
 import com.ssafy.ontop.ranking.repository.ParkBungeoppangChampionRepository.BungeoppangChampionStanding;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
@@ -92,6 +94,29 @@ class ParkBungeoppangChampionRepositoryTests {
     @Test
     void 정상기록이_없으면_우승자가_없다() {
         assertThat(rankings.findChampion(STARTED_AT)).isEmpty();
+    }
+
+    @Test
+    void 실행계획과_JSON검증을_포함한_집계시간을_기록한다() throws Exception {
+        round(member("계획측정"), 100, 3, STARTED_AT.plusSeconds(1),
+                BungeoppangV5Spec.RULES_VERSION, BungeoppangV5Spec.DURATION_MS);
+        String explainSql = ParkBungeoppangChampionRepository.CHAMPION_SQL
+                .replace(":startedAtMillis", "?")
+                .replace(":rulesVersion", "?")
+                .replace(":durationMicros", "?");
+        String plan = jdbc.queryForObject("EXPLAIN FORMAT=TREE " + explainSql, String.class,
+                STARTED_AT.toEpochMilli(), BungeoppangV5Spec.RULES_VERSION,
+                BungeoppangV5Spec.DURATION_MS * 1_000L);
+        long started = System.nanoTime();
+
+        Optional<BungeoppangChampionStanding> champion = rankings.findChampion(STARTED_AT);
+        long elapsedNanos = System.nanoTime() - started;
+
+        assertThat(plan).isNotBlank();
+        assertThat(champion).isPresent();
+        Path report = Path.of("build", "park-bungeoppang-champion-plan.txt");
+        Files.createDirectories(report.getParent());
+        Files.writeString(report, "Elapsed: " + elapsedNanos / 1_000_000.0 + " ms\n\n" + plan + "\n");
     }
 
     private long member(String nickname) {
