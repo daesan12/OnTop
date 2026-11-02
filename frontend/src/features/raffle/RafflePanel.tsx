@@ -49,7 +49,7 @@ export function RafflePanel() {
     void refreshRaffle()
     return () => { mounted.current = false; timers.current.forEach(clearTimeout); el?.close() }
   }, [])
-  useEffect(() => { if (phase === 'reveal') confirm.current?.focus() }, [phase])
+  useEffect(() => { if (phase === 'reveal') confirm.current?.focus({ preventScroll: true }) }, [phase])
   const later = (ms: number, task: () => void) => { timers.current.push(window.setTimeout(task, ms)) }
   const closeReveal = () => { setPhase('idle'); requestAnimationFrame(() => drawButton.current?.focus()) }
 
@@ -100,9 +100,12 @@ export function RafflePanel() {
       if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus() }
       else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus() }
     }}>
-    <button className="raffle-close" aria-label="복권방 닫기" onClick={closeConstructionNotice}>×</button>
-    <header className="raffle-head">
+    <header className="raffle-toolbar">
       <h2 className="raffle-title"><Crown className="raffle-title-crown"/><span>행운의</span> <span>뽑기</span></h2>
+      <button className="raffle-close" aria-label="복권방 닫기" onClick={closeConstructionNotice}>×</button>
+    </header>
+    <div className="raffle-content" tabIndex={0} aria-label="복권방 내용">
+    <div className="raffle-head">
       <ul className="raffle-prizes" aria-label="이번 주 경품">
         {PRIZES.map(p => <li key={p.rank} data-rank={p.rank}>
           <span className="raffle-rank"><Crown/>{p.rank}등</span>
@@ -110,7 +113,7 @@ export function RafflePanel() {
           <p><b>{p.brand}</b><span>{p.item}</span></p>
         </li>)}
       </ul>
-    </header>
+    </div>
 
     <div ref={board} className="raffle-board" role="img" aria-label={`별 타일 판. 이번 주 내가 뽑은 칸 ${empty.size}개`}>
       <div className="raffle-grid">
@@ -154,6 +157,7 @@ export function RafflePanel() {
       <p className="raffle-note">엽전은 경기 참가금으로 예약된 금액을 뺀 사용 가능 엽전에서 차감돼요. 새 회차가 시작되면 지난주 번호는 이 화면에서 보이지 않으니 응모 번호를 꼭 기억해 두세요.</p>
     </section>
 
+    </div>
     {phase === 'reveal' && drawn && <div className="raffle-reveal" role="group" aria-label="뽑은 응모 번호">
       <div className="raffle-paper" style={{ '--digits': String(drawn.number).length } as CSSProperties}>
         <i className="raffle-spark" aria-hidden="true"/><i className="raffle-spark" aria-hidden="true"/>
