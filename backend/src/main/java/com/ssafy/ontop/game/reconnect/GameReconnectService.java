@@ -41,6 +41,7 @@ public class GameReconnectService {
     private final Optional<GameRecoveryGateway> gateway;
     private final Optional<ActiveGameLookup> activeGames;
     private final Optional<GameRuntimeIdentity> runtimeIdentity;
+    private final Optional<TerminalGameRecovery> terminalRecovery;
     private final Clock clock;
     private final Map<Long, Slot> users = new HashMap<>();
     private final ExecutorService workers = Executors.newVirtualThreadPerTaskExecutor();
@@ -52,12 +53,19 @@ public class GameReconnectService {
         this(gateway, clock, Optional.empty(), Optional.empty());
     }
 
-    @Autowired
     public GameReconnectService(Optional<GameRecoveryGateway> gateway, Optional<Clock> clock,
             Optional<ActiveGameLookup> activeGames, Optional<GameRuntimeIdentity> runtimeIdentity) {
+        this(gateway, clock, activeGames, runtimeIdentity, Optional.empty());
+    }
+
+    @Autowired
+    public GameReconnectService(Optional<GameRecoveryGateway> gateway, Optional<Clock> clock,
+            Optional<ActiveGameLookup> activeGames, Optional<GameRuntimeIdentity> runtimeIdentity,
+            Optional<TerminalGameRecovery> terminalRecovery) {
         this.gateway = gateway;
         this.activeGames = activeGames;
         this.runtimeIdentity = runtimeIdentity;
+        this.terminalRecovery = terminalRecovery;
         this.clock = clock.orElseGet(Clock::systemUTC);
         timer.scheduleWithFixedDelay(this::checkTimeouts, 1, 1, TimeUnit.SECONDS);
     }
@@ -360,6 +368,22 @@ public class GameReconnectService {
         } catch (RuntimeException exception) {
             throw new RecoveryConsistencyException(RecoveryFailure.DB_LOOKUP_FAILED, exception);
         }
+        if (active.isPresent() && terminalRecovery.isPresent()
+                && (active.get().status() == GameSession.Status.FINISHED
+                    || active.get().status() == GameSession.Status.INVALID)) {
+            ActiveGameRecord terminal = active.get();
+            try {
+                // 조회 worker에서 실행한다. Hub/복구 모니터를 잡은 채 DB 정산을 기다리지 않는다.
+                terminalRecovery.orElseThrow().settleStored(userId, terminal);
+                active = activeGames.orElseThrow().findByUserId(userId);
+            } catch (RuntimeException exception) {
+                throw new RecoveryConsistencyException(RecoveryFailure.TERMINAL_SETTLEMENT_FAILED, exception);
+            }
+            if (active.isPresent() && active.get().gameSessionId() == terminal.gameSessionId()) {
+                throw new RecoveryConsistencyException(RecoveryFailure.ACTIVE_MARKER_INVALID);
+            }
+            // 다른 탭에서 새 경기가 시작됐다면 그 기록과 현재 엔진을 다시 대조한다.
+        }
         if (gateway.isEmpty()) {
             if (active.isEmpty()) {
                 return new RecoveryRead(Optional.empty(), false);
@@ -564,7 +588,8 @@ public class GameReconnectService {
         GAME_MISMATCH,
         OWNER_MISMATCH,
         ACTIVE_MARKER_INVALID,
-        TERMINAL_STATE_MISMATCH
+        TERMINAL_STATE_MISMATCH,
+        TERMINAL_SETTLEMENT_FAILED
     }
 
     private static final class RecoveryConsistencyException extends RuntimeException {
