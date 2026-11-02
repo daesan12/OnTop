@@ -41,6 +41,7 @@ public class GameReconnectService {
     private final Optional<GameRecoveryGateway> gateway;
     private final Optional<ActiveGameLookup> activeGames;
     private final Optional<GameRuntimeIdentity> runtimeIdentity;
+    private final Optional<TerminalGameRecovery> terminalRecovery;
     private final Clock clock;
     private final Map<Long, Slot> users = new HashMap<>();
     private final ExecutorService workers = Executors.newVirtualThreadPerTaskExecutor();
@@ -52,12 +53,19 @@ public class GameReconnectService {
         this(gateway, clock, Optional.empty(), Optional.empty());
     }
 
-    @Autowired
     public GameReconnectService(Optional<GameRecoveryGateway> gateway, Optional<Clock> clock,
             Optional<ActiveGameLookup> activeGames, Optional<GameRuntimeIdentity> runtimeIdentity) {
+        this(gateway, clock, activeGames, runtimeIdentity, Optional.empty());
+    }
+
+    @Autowired
+    public GameReconnectService(Optional<GameRecoveryGateway> gateway, Optional<Clock> clock,
+            Optional<ActiveGameLookup> activeGames, Optional<GameRuntimeIdentity> runtimeIdentity,
+            Optional<TerminalGameRecovery> terminalRecovery) {
         this.gateway = gateway;
         this.activeGames = activeGames;
         this.runtimeIdentity = runtimeIdentity;
+        this.terminalRecovery = terminalRecovery;
         this.clock = clock.orElseGet(Clock::systemUTC);
         timer.scheduleWithFixedDelay(this::checkTimeouts, 1, 1, TimeUnit.SECONDS);
     }
@@ -73,6 +81,12 @@ public class GameReconnectService {
 
     public synchronized void connected(long userId, String sessionId, String loginSessionId,
             BiConsumer<String, View> output, java.util.function.Predicate<String> finishedAllowed) {
+        connected(userId, sessionId, loginSessionId, output, finishedAllowed, game -> false);
+    }
+
+    public synchronized void connected(long userId, String sessionId, String loginSessionId,
+            BiConsumer<String, View> output, java.util.function.Predicate<String> finishedAllowed,
+            java.util.function.Predicate<String> departed) {
         if (!recoveryConfigured() || stopped) {
             return;
         }
@@ -84,6 +98,7 @@ public class GameReconnectService {
         slot.pendingDeparture = null;
         slot.output = output;
         slot.finishedAllowed = finishedAllowed;
+        slot.departed = departed;
         slot.returnedInTime = slot.deadline != null && clock.instant().isBefore(slot.deadline)
                 && slot.expiration == null;
         slot.loading = false;
@@ -353,6 +368,22 @@ public class GameReconnectService {
         } catch (RuntimeException exception) {
             throw new RecoveryConsistencyException(RecoveryFailure.DB_LOOKUP_FAILED, exception);
         }
+        if (active.isPresent() && terminalRecovery.isPresent()
+                && (active.get().status() == GameSession.Status.FINISHED
+                    || active.get().status() == GameSession.Status.INVALID)) {
+            ActiveGameRecord terminal = active.get();
+            try {
+                // 조회 worker에서 실행한다. Hub/복구 모니터를 잡은 채 DB 정산을 기다리지 않는다.
+                terminalRecovery.orElseThrow().settleStored(userId, terminal);
+                active = activeGames.orElseThrow().findByUserId(userId);
+            } catch (RuntimeException exception) {
+                throw new RecoveryConsistencyException(RecoveryFailure.TERMINAL_SETTLEMENT_FAILED, exception);
+            }
+            if (active.isPresent() && active.get().gameSessionId() == terminal.gameSessionId()) {
+                throw new RecoveryConsistencyException(RecoveryFailure.ACTIVE_MARKER_INVALID);
+            }
+            // 다른 탭에서 새 경기가 시작됐다면 그 기록과 현재 엔진을 다시 대조한다.
+        }
         if (gateway.isEmpty()) {
             if (active.isEmpty()) {
                 return new RecoveryRead(Optional.empty(), false);
@@ -419,12 +450,14 @@ public class GameReconnectService {
 
     private void apply(Slot slot, Optional<GameRecoverySnapshot> result, boolean activeMarker, String requestId) {
         // 종료 이력은 활성 복구와 분리한다. 기존 기권 영수증 재확인 권한은 유지한다.
-        slot.finishedReceiptGameId = result.filter(snapshot -> snapshot.phase() == Phase.FINISHED)
+        slot.finishedReceiptGameId = result.filter(snapshot -> snapshot.phase() != Phase.PLAYING)
                 .map(GameRecoverySnapshot::gameId).orElse(null);
+        // 좌석/종료 이력 부재만으로 풀지 않고, 서버가 확인한 참가 종료만 복귀를 허용한다.
         boolean hiddenActiveTerminal = activeMarker && result.filter(snapshot -> snapshot.phase() == Phase.FINISHED)
-                .filter(snapshot -> !slot.finishedAllowed.test(snapshot.gameId())).isPresent();
-        result = result.filter(snapshot -> snapshot.phase() != Phase.FINISHED
-                || slot.finishedAllowed.test(snapshot.gameId()));
+                .filter(snapshot -> !slot.finishedAllowed.test(snapshot.gameId())
+                        && !slot.departed.test(snapshot.gameId())).isPresent();
+        result = result.filter(snapshot -> !slot.departed.test(snapshot.gameId()))
+                .filter(snapshot -> snapshot.phase() != Phase.FINISHED || slot.finishedAllowed.test(snapshot.gameId()));
         slot.snapshot = result.orElse(null);
         if (hiddenActiveTerminal) {
             // DB 예약이 남은 종결 경기를 현재 테이블 이력 부재만으로 LOBBY라고 하지 않는다.
@@ -526,6 +559,7 @@ public class GameReconnectService {
         private GameDepartureReason pendingDeparture;
         private BiConsumer<String, View> output;
         private java.util.function.Predicate<String> finishedAllowed = game -> true;
+        private java.util.function.Predicate<String> departed = game -> false;
         private long generation;
         private boolean loading;
         private String loadRequestId;
@@ -554,7 +588,8 @@ public class GameReconnectService {
         GAME_MISMATCH,
         OWNER_MISMATCH,
         ACTIVE_MARKER_INVALID,
-        TERMINAL_STATE_MISMATCH
+        TERMINAL_STATE_MISMATCH,
+        TERMINAL_SETTLEMENT_FAILED
     }
 
     private static final class RecoveryConsistencyException extends RuntimeException {

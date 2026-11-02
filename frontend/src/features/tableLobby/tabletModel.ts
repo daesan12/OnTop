@@ -31,7 +31,7 @@ export function readyWouldAutoStart(table: TableState, ownId: string) {
 }
 export function manualStartAllowed(table: TableState, ownId: string, count: number | null) {
   return count !== null && count >= table.minimumPlayers && count <= table.capacity
-    && table.selectorUserId === ownId && isTableGamePlayable(table.gameCode) && !!table.betAmountPerPlayer
+    && table.selectorUserId === ownId && isTableGamePlayable(table.gameCode) && table.betAmountPerPlayer != null
     && table.seats.filter(s => s.userId).length === count && table.allReady
     && table.seats.filter(s => s.userId).every(s => s.ready)
 }

@@ -69,7 +69,7 @@ class HalliGalliFinishPersistenceTests {
     }
 
     @Test
-    void 카드_수_동점은_전원_공동승리로_저장하고_중복_종료는_한번만_반영한다() {
+    void 두명의_마지막_종_기회가_끝나면_상대_단독승리로_저장하고_중복_종료는_한번만_반영한다() {
         start(2);
         clock.advance(285);
         engine.tick();
@@ -79,7 +79,8 @@ class HalliGalliFinishPersistenceTests {
         assertThat(service.accept(finished)).isEqualTo(7);
         assertThat(service.accept(finished)).isEqualTo(7);
         assertThat(game.status()).isEqualTo(GameSession.Status.FINISHED);
-        assertThat(players).allSatisfy(player -> assertThat(player.result()).isEqualTo(GameFinished.Result.WIN));
+        assertThat(players).extracting(GameParticipant::result)
+                .containsExactly(GameFinished.Result.LOSE, GameFinished.Result.WIN);
         verify(published, times(1)).publishEvent(any(GameResultsReady.class));
     }
 

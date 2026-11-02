@@ -248,7 +248,7 @@ public final class TableProtocol {
         return fields(payload, Set.of("ready", "betAmountPerPlayer", "expectedVersion"))
                 && payload.path("betAmountPerPlayer").isIntegralNumber()
                 && payload.path("betAmountPerPlayer").canConvertToLong()
-                && payload.path("betAmountPerPlayer").longValue() > 0
+                && payload.path("betAmountPerPlayer").longValue() >= 0
                 && payload.path("expectedVersion").isIntegralNumber()
                 && payload.path("expectedVersion").canConvertToLong()
                 && payload.path("expectedVersion").longValue() >= 0
@@ -258,7 +258,7 @@ public final class TableProtocol {
     private boolean validGameSelection(JsonNode payload) {
         if (!payload.path("betAmountPerPlayer").isIntegralNumber()
                 || !payload.path("betAmountPerPlayer").canConvertToLong()
-                || payload.path("betAmountPerPlayer").longValue() <= 0) { return false; }
+                || payload.path("betAmountPerPlayer").longValue() < 0) { return false; }
         if (!payload.path("gameCode").isTextual() || payload.path("gameCode").textValue().isBlank()) { return false; }
         if (!payload.has("targetScore")) { return fields(payload, Set.of("gameCode", "betAmountPerPlayer")); }
         return fields(payload, Set.of("gameCode", "targetScore", "betAmountPerPlayer")) && payload.path("gameCode").asText().equals("DICE")

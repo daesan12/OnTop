@@ -10,7 +10,7 @@ import { OmokSurrender } from '../OmokSurrender'
 import { canFlipHalli, canRingHalli, useHalliUI } from './actions'
 import { installHalliControls, ringShownBell } from './controls'
 import { HALLI_END_REASON, type HalliEvent } from './protocol'
-import { HalliTable } from './HalliTable'
+import { HalliTable, onLastChance } from './HalliTable'
 import { HalliStage } from './HalliStage'
 import { useHalliStage } from './anchors'
 import './halligalli.css'
@@ -46,9 +46,13 @@ export function HalliGalliPanel() {
   const me = h.players.find(p => p.userId === own)
   const paused = !!h.resultUntil && now < Date.parse(h.resultUntil)
   const canFlip = player && canFlipHalli(own, now), canRing = player && h.bellWindowId !== null && canRingHalli(own, h.bellWindowId)
+  const turnPlayer = h.players.find(p => p.userId === h.turnUserId)
+  const lastChance = !!turnPlayer && onLastChance(h, turnPlayer)
   const status = !playing ? `${h.winnerUserIds.map(id => names[id]).join(' · ')} ${h.winnerUserIds.length > 1 ? '공동 승리' : '승리'}`
     : paused ? '종 결과 확인 중 · 잠시 뒤 다음 카드를 공개해요'
     : h.turnUserId === null ? '공개할 카드가 없어요 · 마지막으로 종을 칠 수 있어요'
+    : lastChance && h.turnUserId === own ? '내 마지막 종 기회 · 공개할 카드가 없어요. 시간 안에 종으로 카드를 얻지 못하면 패배해요'
+    : lastChance ? `${names[h.turnUserId]} 마지막 종 기회 · 시간 안에 카드를 얻지 못하면 경기가 끝나요`
     : h.turnUserId === own ? '내 차례 · 뒷면 카드를 눌러 공개하세요'
     : `${names[h.turnUserId]} 차례 · 같은 과일이 정확히 5개면 종!`
   const standing = !player ? '관전 중 · 종과 카드는 참가자만 다룰 수 있어요'

@@ -16,16 +16,20 @@ export function FanHand({ cards, playableIds, flippedIds, scope, selectedId, can
       const width = root.current?.clientWidth ?? 0, height = innerHeight
       if (width) setSize(old => old.width === width && old.height === height ? old : { width, height })
     }
-    const observer = new ResizeObserver(update)
+    let frame = 0
+    const schedule = () => { if (!frame) frame = requestAnimationFrame(() => { frame = 0; update() }) }
+    const observer = new ResizeObserver(schedule)
     if (root.current) observer.observe(root.current)
-    window.addEventListener('resize', update); update()
-    return () => { observer.disconnect(); window.removeEventListener('resize', update) }
+    window.addEventListener('resize', schedule); update()
+    return () => { observer.disconnect(); cancelAnimationFrame(frame); window.removeEventListener('resize', schedule) }
   }, [])
   const layout = privateHandLayout(cards.length, size.width, size.height)
   const [drag, setDrag] = useState<{ id: string; ready: boolean } | null>(null)
   return <>
     <div ref={root} className="onecard-hand" aria-label="나만 볼 수 있는 카드" style={{ '--fan-count': cards.length,
-      '--card-width': `${layout.cardWidth}px`, '--fan-step': `${layout.step}px`, '--preview-scale': Math.min(2.5, Math.max(1.12, 100 / layout.cardWidth)) } as CSSProperties} data-dragging={!!drag} data-dense={cards.length > 12}>
+      '--card-width': `min(${layout.cardWidth}px, var(--oc-card-max-width, 144px))`,
+      '--fan-step': `min(${layout.step}px, calc(var(--card-width) * .85))`,
+      '--preview-scale': Math.min(2.5, Math.max(1.12, 100 / layout.cardWidth)) } as CSSProperties} data-dragging={!!drag} data-dense={cards.length > 12}>
       {drag && <div className="onecard-drop-guide" role="status" data-ready={drag.ready}>
         <span aria-hidden="true">↑</span><span>{drag.ready ? '놓으면 카드를 내요' : '카드를 위로 올려주세요'}</span>
       </div>}

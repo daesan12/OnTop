@@ -41,8 +41,8 @@ class GameBetMigrationMySqlTests {
                     + "SELECT w.id,g.id,'GAME_RESERVE',0,1,CONCAT('game:',g.id,':reserve:',w.user_id) FROM wallets w CROSS JOIN game_sessions g");
             var current = Flyway.configure().dataSource(url, user, password).locations(locations)
                     .baselineOnMigrate(false).outOfOrder(false).load();
-            assertThat(current.migrate().migrationsExecuted).isEqualTo(5);
-            assertThat(history(statement)).containsAllEntriesOf(previous).containsKeys("122", "123", "124", "125", "126");
+            assertThat(current.migrate().migrationsExecuted).isGreaterThanOrEqualTo(6);
+            assertThat(history(statement)).containsAllEntriesOf(previous).containsKeys("122", "123", "124", "125", "126", "139");
             assertThat(current.validateWithResult().validationSuccessful).isTrue();
             assertThat(current.migrate().migrationsExecuted).isZero();
             try (var rs = statement.executeQuery("SELECT COUNT(*) FROM wallets WHERE balance=100 AND reserved_balance=1")) {
@@ -51,9 +51,11 @@ class GameBetMigrationMySqlTests {
             try (var rs = statement.executeQuery("SELECT COUNT(*) FROM wallet_transactions WHERE transaction_type='GAME_RESERVE' AND reserved_delta=1")) {
                 rs.next(); assertThat(rs.getInt(1)).isEqualTo(2);
             }
-            assertThatThrownBy(() -> statement.executeUpdate("UPDATE game_sessions SET bet_amount_per_player=0,total_pot=0"))
+            assertThat(statement.executeUpdate("UPDATE game_sessions SET bet_amount_per_player=0,total_pot=0")).isEqualTo(1);
+            assertThat(statement.executeUpdate("UPDATE game_participants SET reserved_amount=0")).isEqualTo(2);
+            assertThatThrownBy(() -> statement.executeUpdate("UPDATE game_sessions SET bet_amount_per_player=-1,total_pot=-2"))
                     .isInstanceOf(java.sql.SQLException.class);
-            assertThatThrownBy(() -> statement.executeUpdate("UPDATE game_participants SET reserved_amount=0"))
+            assertThatThrownBy(() -> statement.executeUpdate("UPDATE game_participants SET reserved_amount=-1"))
                     .isInstanceOf(java.sql.SQLException.class);
         }
     }

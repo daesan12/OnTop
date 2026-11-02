@@ -299,15 +299,20 @@ for (const variant of [
   await tablet.getByRole('button', { name: variant.name, exact: false }).first().click()
   await tablet.getByRole('button', { name: `${variant.count}인`, exact: true }).click()
   if (variant.game === 'DICE') await tablet.getByLabel('주사위 목표 점수').selectOption('6000')
-  await tablet.getByLabel('1인 참가비').fill('7'); await tablet.getByRole('button', { name: '선택하고 준비하기' }).click()
+  const bet = variant.count > 2 ? 0 : 7
+  await tablet.getByLabel('1인 참가비').fill(String(bet)); await tablet.getByRole('button', { name: '선택하고 준비하기' }).click()
   await expect(tablet.getByRole('heading', { level: 2 })).toHaveText(/^(오목|원카드|주사위 장부)$/)
-  expect(server.sent.find(m => m.type === 'TABLE_CONFIGURE')?.payload).toMatchObject({ gameCode: variant.game, selectedPlayers: variant.count, betAmountPerPlayer: 7,
+  expect(server.sent.find(m => m.type === 'TABLE_CONFIGURE')?.payload).toMatchObject({ gameCode: variant.game, selectedPlayers: variant.count, betAmountPerPlayer: bet,
     ...(variant.game === 'DICE' ? { targetScore: 6000 } : {}) })
   expect(server.sent.find(m => m.type === 'TABLE_CONFIGURE')?.payload.expectedVersion).toEqual(expect.any(Number))
   await tablet.getByRole('checkbox').check(); await tablet.getByRole('button', { name: '준비 완료', exact: true }).click()
   server.readyTabletOthers(true); server.publishTabletWait(120)
   await expect(tablet.getByRole('timer')).toHaveText('2:00')
   await expect(tablet.getByRole('button', { name: '게임 시작', exact: true })).toBeEnabled()
+  const paper = await tablet.locator('.tablet-paper').boundingBox()
+  const startButton = await tablet.getByRole('button', { name: '게임 시작', exact: true }).boundingBox()
+  expect(startButton!.y + startButton!.height).toBeLessThanOrEqual(paper!.y + paper!.height)
+  if (variant.count > 2) await expect(tablet.locator('.tablet-room-summary')).toContainText('0냥')
   expect(server.sent.some(m => m.type === 'TABLE_HOST_WAIT_CHECK')).toBe(true)
   await tablet.getByRole('button', { name: '준비 취소', exact: true }).click()
   server.publishTabletWait(null)
@@ -318,7 +323,18 @@ for (const variant of [
   server.publishTabletWait(120)
   await expect(tablet.getByRole('timer')).toHaveText('2:00')
   expect(server.sent.some(m => m.type === 'GAME_SELECT' || m.type === 'TABLE_START')).toBe(false)
-  await screenshot(page, `tablet-real-server-contract-ready-${variant.game}`)
+  await screenshot(page, `tablet-real-server-contract-ready-${variant.game}-${variant.count}`)
+  if (variant.count > 2) {
+    for (const viewport of [{ width: 1366, height: 768 }, { width: 390, height: 844 }]) {
+      await page.setViewportSize(viewport)
+      const start = tablet.getByRole('button', { name: '게임 시작', exact: true })
+      await start.scrollIntoViewIfNeeded()
+      await expect(start).toBeInViewport()
+      await start.click({ trial: true })
+      await screenshot(page, `tablet-ready-${variant.count}-${viewport.width}`)
+    }
+    await page.setViewportSize({ width: 1920, height: 1080 })
+  }
   await tablet.getByRole('button', { name: '게임 시작', exact: true }).click()
   await expect(tablet).toHaveCount(0)
   await expect(page.getByRole('region', { name: variant.panel, exact: true })).toBeVisible()

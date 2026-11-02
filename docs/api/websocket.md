@@ -174,7 +174,7 @@ participants/myCoinDelta/endedAt이며 PENDING의 myCoinDelta는 null이다. 응
 
 ## GAME_SELECT 참가비 계약 (Story 172 보완/173)
 
-GAME_SELECT payload는 `{gameCode, betAmountPerPlayer, targetScore?}`다. 참가비는 필수 양의 안전 정수이며 DICE만 targetScore가 필요하다. TABLE_STATE/TABLE_WATCH_STATE와 테이블 목록에 nullable betAmountPerPlayer가 추가된다. selector만 WAITING에서 변경할 수 있으며 변경 시 전원 준비를 초기화한다. 게임 시작 이후에는 수정할 수 없고 종료 정산은 DB 확정 금액을 사용한다. 상세: [가변 참가비·정산](../game-settlement.md).
+GAME_SELECT payload는 `{gameCode, betAmountPerPlayer, targetScore?}`다. 참가비는 0 이상의 필수 안전 정수이며 DICE만 targetScore가 필요하다. TABLE_STATE/TABLE_WATCH_STATE와 테이블 목록에 nullable betAmountPerPlayer가 추가된다. selector만 WAITING에서 변경할 수 있으며 변경 시 전원 준비를 초기화한다. 게임 시작 이후에는 수정할 수 없고 종료 정산은 DB 확정 금액을 사용한다. 상세: [가변 참가비·정산](../game-settlement.md).
 
 READY_SET의 true는 `{ready:true, betAmountPerPlayer, expectedVersion}`이다. 사용자가 확인한
 TABLE_STATE의 금액과 version을 전달한다. false는 기존 `{ready:false}`를 유지한다.

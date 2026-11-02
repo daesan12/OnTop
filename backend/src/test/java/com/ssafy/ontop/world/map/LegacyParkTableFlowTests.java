@@ -189,6 +189,9 @@ class LegacyParkTableFlowTests {
             assertThat(world.worldState("channel-1").avatars()).allSatisfy(a -> assertThat(a.activity()).isNull());
             String previous = null;
             for (int round = 1; round <= 2; round++) {
+                // 기권자는 좌석을 벗어나므로 전원이 다시 착석한 뒤 준비한다.
+                first.state(table);
+                second.state(table);
                 first.ready(table); second.ready(table);
                 first.request("TABLE_START", Map.of("actionId", "activity-" + round,
                         "expectedVersion", first.state(table).path("version").asLong()));
@@ -216,6 +219,8 @@ class LegacyParkTableFlowTests {
                         .findFirst().orElseThrow().activity()).isEqualTo("GAME");
                 long leftVersion = world.worldState("channel-1").version();
                 walker.await(m -> publicActivity(m, "202", null, leftVersion));
+                assertThat(second.request("GAME_START_CHECK", Map.of()).at("/payload/code").asText())
+                        .isEqualTo("NOT_SEATED");
                 hub.roundEnded(table, game);
                 assertThat(world.worldState("channel-1").avatars()).allSatisfy(a -> assertThat(a.activity()).isNull());
                 long endedVersion = world.worldState("channel-1").version();

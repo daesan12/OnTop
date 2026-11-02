@@ -2,12 +2,12 @@ import { record } from '../../network/protocol'
 import { RestError } from '../../network/restError'
 
 export interface BalanceRankingEntry { rank: number; userId: string; nickname: string; coinBalance: number }
-export interface BungeoppangChampion { userId: string; nickname: string; score: number; maxCombo: number; completedAt: string }
-export interface JumpmapChampion { userId: string; nickname: string; finishMs: number; completedAt: string }
+export interface BungeoppangRankingEntry { rank: number; userId: string; nickname: string; score: number; maxCombo: number; completedAt: string }
+export interface JumpmapRankingEntry { rank: number; userId: string; nickname: string; finishMs: number; completedAt: string }
 export interface ParkRankingSnapshot {
   balance: BalanceRankingEntry[]
-  bungeoppangChampion: BungeoppangChampion | null
-  jumpmapChampion: JumpmapChampion | null
+  bungeoppang: BungeoppangRankingEntry[]
+  jumpmap: JumpmapRankingEntry[]
   updatedAt: string
 }
 
@@ -44,9 +44,10 @@ function identity(value: Record<string, unknown>) {
   return { rank: value.rank, userId: value.userId, nickname: value.nickname }
 }
 
-function championIdentity(value: Record<string, unknown>) {
-  if (!userId(value.userId) || !nickname(value.nickname) || !instant(value.completedAt)) return invalid()
-  return { userId: value.userId, nickname: value.nickname, completedAt: value.completedAt }
+function gameIdentity(value: Record<string, unknown>) {
+  const base = identity(value)
+  if (!instant(value.completedAt)) return invalid()
+  return { ...base, completedAt: value.completedAt }
 }
 
 export function parseParkRanking(value: unknown): ParkRankingSnapshot {
@@ -57,21 +58,19 @@ export function parseParkRanking(value: unknown): ParkRankingSnapshot {
     if (!safeWhole(item.coinBalance)) return invalid()
     return { ...base, coinBalance: item.coinBalance }
   })
-  const bungeoppangChampion = value.bungeoppangChampion === null ? null : (() => {
-    const candidate = value.bungeoppangChampion
-    if (!record(candidate)) return invalid()
-    const base = championIdentity(candidate)
-    if (!safeWhole(candidate.score) || !safeWhole(candidate.maxCombo)) return invalid()
-    return { ...base, score: candidate.score, maxCombo: candidate.maxCombo }
-  })()
-  const jumpmapChampion = value.jumpmapChampion === null ? null : (() => {
-    const candidate = value.jumpmapChampion
-    if (!record(candidate)) return invalid()
-    const base = championIdentity(candidate)
-    if (!safeWhole(candidate.finishMs) || candidate.finishMs === 0) return invalid()
-    return { ...base, finishMs: candidate.finishMs }
-  })()
-  return { balance, bungeoppangChampion, jumpmapChampion, updatedAt: value.updatedAt }
+  const bungeoppang = list(value.bungeoppang, item => {
+    if (!record(item)) return invalid()
+    const base = gameIdentity(item)
+    if (!safeWhole(item.score) || !safeWhole(item.maxCombo)) return invalid()
+    return { ...base, score: item.score, maxCombo: item.maxCombo }
+  })
+  const jumpmap = list(value.jumpmap, item => {
+    if (!record(item)) return invalid()
+    const base = gameIdentity(item)
+    if (!safeWhole(item.finishMs) || item.finishMs === 0) return invalid()
+    return { ...base, finishMs: item.finishMs }
+  })
+  return { balance, bungeoppang, jumpmap, updatedAt: value.updatedAt }
 }
 
 export async function fetchParkRanking(
@@ -87,18 +86,16 @@ const updatedAt = new Intl.DateTimeFormat('ko-KR', {
 })
 
 export function rankingColumns(snapshot: ParkRankingSnapshot): RankingDisplayColumn[] {
-  const bungeoppang = snapshot.bungeoppangChampion
-  const jumpmap = snapshot.jumpmapChampion
   return [
     { key: 'balance', title: '보유량', description: '현재 보유 엽전 순', rows: snapshot.balance.map(item => ({
       rank: item.rank, userId: item.userId, nickname: item.nickname, value: `${number.format(item.coinBalance)}냥`,
     })) },
-    { key: 'bungeoppang', title: '붕어빵 굽기', description: '점수 · 최대 콤보 · 먼저 완료', rows: bungeoppang ? [{
-      rank: 1, userId: bungeoppang.userId, nickname: bungeoppang.nickname, value: `${number.format(bungeoppang.score)}점`,
-    }] : [] },
-    { key: 'jumpmap', title: '점프맵', description: '최단 기록 · 먼저 완료', rows: jumpmap ? [{
-      rank: 1, userId: jumpmap.userId, nickname: jumpmap.nickname, value: formatJumpmapFinish(jumpmap.finishMs),
-    }] : [] },
+    { key: 'bungeoppang', title: '붕어빵 굽기', description: '점수 · 최대 콤보 · 먼저 완료', rows: snapshot.bungeoppang.map(item => ({
+      rank: item.rank, userId: item.userId, nickname: item.nickname, value: `${number.format(item.score)}점`,
+    })) },
+    { key: 'jumpmap', title: '점프맵', description: '최단 기록 · 먼저 완료', rows: snapshot.jumpmap.map(item => ({
+      rank: item.rank, userId: item.userId, nickname: item.nickname, value: formatJumpmapFinish(item.finishMs),
+    })) },
   ]
 }
 

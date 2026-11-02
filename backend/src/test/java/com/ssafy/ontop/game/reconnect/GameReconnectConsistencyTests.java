@@ -130,6 +130,20 @@ class GameReconnectConsistencyTests {
     }
 
     @Test
+    void 서버가_확인한_기권자는_정산대기_활성마커가_있어도_로비로_복귀한다() throws Exception {
+        try (Harness harness = harnessCurrent(GameSession.Status.FINISHED, GameSession.SettlementStatus.PENDING,
+                user -> Optional.of(snapshot("1", Phase.FINISHED)))) {
+            Inbox inbox = new Inbox();
+            harness.service.connected(USER_ID, "session", null, inbox::offer, game -> false, "1"::equals);
+
+            assertThat(inbox.await("LOBBY").gameId()).isNull();
+            assertThat(harness.service.canUseLobby(USER_ID, "session")).isTrue();
+            assertThat(harness.service.canControlGame(USER_ID, "session", "1")).isFalse();
+            assertThat(harness.service.canForfeitGame(USER_ID, "session", "1")).isTrue();
+        }
+    }
+
+    @Test
     void 정산완료인데_활성마커가_남은_기록은_정상으로_묵인하지_않는다() throws Exception {
         try (Harness harness = harnessCurrent(GameSession.Status.FINISHED, GameSession.SettlementStatus.SETTLED,
                 user -> Optional.of(snapshot("1", Phase.FINISHED)))) {

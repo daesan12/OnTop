@@ -58,10 +58,56 @@ const toWorld = (anchor: TableAnchor, x: number, y: number, z: number): Vec3 => 
  * Order is top-left, top-right, bottom-left, bottom-right as seen from the seat, matching quadTransform.
  */
 export function cardCorners(anchor: TableAnchor, seatIndex: number, radial: number, lateral: number, lift: number): Vec3[] {
-  const { out, right } = seatFrame(anchor, seatIndex), { w, h } = HALLI_LAYOUT.card, y = halliSurfaceY(anchor) + lift
-  const cx = out.x * radial + right.x * lateral, cz = out.z * radial + right.z * lateral
+  return poseCorners(anchor, seatPose(anchor, seatIndex, radial, lateral, lift))
+}
+
+/**
+ * A flat card in table-local x/z: centre, heading (atan2 of the seat's outward direction, so the top edge faces the
+ * bell), lift above the felt and a size factor about the centre. Flights interpolate poses, not corners: corners of
+ * cards at opposite seats are turned half a circle, and blending them would fold the card through a point.
+ */
+export type CardPose = { x: number; z: number; heading: number; lift: number; scale: number }
+export function seatPose(anchor: TableAnchor, seatIndex: number, radial: number, lateral: number, lift: number): CardPose {
+  const { out, right } = seatFrame(anchor, seatIndex)
+  return { x: out.x * radial + right.x * lateral, z: out.z * radial + right.z * lateral, heading: Math.atan2(out.x, out.z), lift, scale: 1 }
+}
+export function poseCorners(anchor: TableAnchor, pose: CardPose): Vec3[] {
+  const out = { x: Math.sin(pose.heading), z: Math.cos(pose.heading) }, right = { x: out.z, z: -out.x }
+  const w = HALLI_LAYOUT.card.w * pose.scale, h = HALLI_LAYOUT.card.h * pose.scale, y = halliSurfaceY(anchor) + pose.lift
   return ([[-1, -1], [1, -1], [-1, 1], [1, 1]] as const).map(([side, depth]) =>
-    toWorld(anchor, cx + right.x * side * w / 2 + out.x * depth * h / 2, y, cz + right.z * side * w / 2 + out.z * depth * h / 2))
+    toWorld(anchor, pose.x + right.x * side * w / 2 + out.x * depth * h / 2, y, pose.z + right.z * side * w / 2 + out.z * depth * h / 2))
+}
+export const faceUpPose = (anchor: TableAnchor, seatIndex: number, faceUpCount: number) =>
+  seatPose(anchor, seatIndex, HALLI_LAYOUT.faceUp, 0, stackHeight(faceUpCount) + .001)
+export const pilePose = (anchor: TableAnchor, seatIndex: number, drawCount: number) =>
+  seatPose(anchor, seatIndex, HALLI_LAYOUT.pile.radial, HALLI_LAYOUT.pile.lateral, stackHeight(drawCount) + .001)
+/** Where a newly issued penalty card appears: on the felt just past the bell base, toward the seat it is paid to. */
+export const issuePose = (anchor: TableAnchor, seatIndex: number) =>
+  ({ ...seatPose(anchor, seatIndex, HALLI_LAYOUT.bellRadius + .1, 0, .002), scale: .5 })
+/** Height of the arc a moving card lifts off the felt at mid-flight, in metres. */
+export const FLIGHT_ARC = .045
+/** How far from the bell's centre a moving card's centre keeps: it slides past the bell instead of through it. */
+export const FLIGHT_CLEARANCE = .24
+/**
+ * Pose t (0..1, already eased) of the way along, turning the shorter way round and lifting off the felt in an arc.
+ * A straight path that would cross the bell bends round it: a quadratic curve through the nearest clear point.
+ */
+export function flightPose(from: CardPose, to: CardPose, t: number, arc = FLIGHT_ARC): CardPose {
+  const turn = Math.atan2(Math.sin(to.heading - from.heading), Math.cos(to.heading - from.heading))
+  const mix = (a: number, b: number) => a + (b - a) * t
+  const dx = to.x - from.x, dz = to.z - from.z, length = dx * dx + dz * dz
+  const s = length ? Math.max(0, Math.min(1, -(from.x * dx + from.z * dz) / length)) : 0
+  const near = { x: from.x + dx * s, z: from.z + dz * s }, distance = Math.hypot(near.x, near.z)
+  let { x, z } = { x: mix(from.x, to.x), z: mix(from.z, to.z) }
+  if (distance < FLIGHT_CLEARANCE && length) {
+    // Push the path's nearest point out from the bell; through the centre, go round the path's right side.
+    const out = distance > 1e-6 ? { x: near.x / distance, z: near.z / distance } : { x: dz / Math.sqrt(length), z: -dx / Math.sqrt(length) }
+    const mid = { x: out.x * FLIGHT_CLEARANCE, z: out.z * FLIGHT_CLEARANCE }
+    const control = { x: 2 * mid.x - (from.x + to.x) / 2, z: 2 * mid.z - (from.z + to.z) / 2 }
+    x = (1 - t) ** 2 * from.x + 2 * (1 - t) * t * control.x + t * t * to.x
+    z = (1 - t) ** 2 * from.z + 2 * (1 - t) * t * control.z + t * t * to.z
+  }
+  return { x, z, heading: from.heading + turn * t, lift: mix(from.lift, to.lift) + Math.sin(t * Math.PI) * arc, scale: mix(from.scale, to.scale) }
 }
 export const faceUpCorners = (anchor: TableAnchor, seatIndex: number, faceUpCount: number) =>
   cardCorners(anchor, seatIndex, HALLI_LAYOUT.faceUp, 0, stackHeight(faceUpCount) + .001)
@@ -124,7 +170,7 @@ export function quadTransform(width: number, height: number, points: readonly Po
  */
 export const HALLI_STAGE_MIN = { width: 801, height: 550 } as const
 export const useHalliStage = create<{ projected: boolean }>(() => ({ projected: false }))
-/** DOM elements the 3D board places every frame, keyed `face:<id>`, `draw:<id>`, `label:<id>` and `bell`. */
+/** DOM elements the 3D board places every frame, keyed `face:<id>`, `draw:<id>`, `label:<id>`, `bell` and `flight:<n>`. */
 export const halliStageElements = new Map<string, HTMLElement>()
 const refs = new Map<string, (element: HTMLElement | null) => void>()
 /** Stable ref callback per key, so re-renders do not unregister and re-register the element. */

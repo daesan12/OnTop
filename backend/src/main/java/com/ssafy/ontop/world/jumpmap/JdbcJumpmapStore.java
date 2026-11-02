@@ -172,7 +172,7 @@ public class JdbcJumpmapStore implements JumpmapStore {
 
     @Override
     public Ended end(String runId, RunEnd end) {
-        return transaction(() -> {
+        Ended result = transaction(() -> {
             var rows = jdbc.queryForList("SELECT user_id, status, coins_granted FROM jump_runs WHERE id = ? FOR UPDATE", runId);
             if (rows.isEmpty()) throw new IllegalStateException("점프맵 판이 없습니다.");
             var row = rows.getFirst();
@@ -202,6 +202,11 @@ public class JdbcJumpmapStore implements JumpmapStore {
             LocalDate today = JumpmapStore.kstDate(end.endedAt());
             return new Ended(runCoins, earned(userId, today, false), today, best, newBest);
         });
+        // 저장 커밋 후, 완료 이벤트가 전달되기 전에 이전 랭킹을 비운다.
+        if (result.newBest()) {
+            rankings.invalidate();
+        }
+        return result;
     }
 
     @Override

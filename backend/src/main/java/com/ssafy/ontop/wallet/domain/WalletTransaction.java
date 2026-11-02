@@ -121,7 +121,7 @@ public class WalletTransaction {
     }
 
     public static WalletTransaction gameReserve(long walletId, long gameSessionId, long userId, long amount, Instant now) {
-        if (walletId <= 0 || gameSessionId <= 0 || userId <= 0 || amount <= 0) {
+        if (walletId <= 0 || gameSessionId <= 0 || userId <= 0 || amount < 0) {
             throw new IllegalArgumentException("저장된 지갑과 경기 및 회원이 필요합니다.");
         }
         WalletTransaction transaction = new WalletTransaction();
@@ -136,7 +136,7 @@ public class WalletTransaction {
 
     public static WalletTransaction gameClose(long walletId, long gameId, long userId, long amount,
             long potDelta, boolean release, Instant now) {
-        if (amount <= 0 || release && potDelta != 0) { throw new IllegalArgumentException("정산 내역을 확인하세요."); }
+        if (amount < 0 || (release || amount == 0) && potDelta != 0) { throw new IllegalArgumentException("정산 내역을 확인하세요."); }
         return gameEntry(walletId, gameId, userId, release ? "GAME_RELEASE" : "GAME_SETTLEMENT",
                 potDelta, -amount, "close", now);
     }

@@ -43,8 +43,9 @@ DB 기능이 켜진 환경의 `GameReconnectService`는 자동 연결 조회와 
   사용한다. PLAYING은 `RESTORED`, 탈락·종료는 기존 의미를 유지한다.
 - DB 활성 경기만 남았거나 gameId/owner/state가 다르거나 DB 조회가 실패하면
   `UNAVAILABLE(code=RECOVERY_UNAVAILABLE)`이다. snapshot과 저장소 오류 상세는 노출하지 않는다.
-- FINISHED/INVALID + PENDING은 진행 중 복구와 구분한다. 엔진도 FINISHED일 때만 종료 snapshot으로
-  취급하며, 현재 테이블 이력이 없어 종료 snapshot을 표시할 수 없더라도 `LOBBY`로 바꾸지 않는다.
+- FINISHED/INVALID는 진행 중 복구와 구분한다. db + game-start.enabled 환경에서는 아래 종결 복구
+  연결로 저장된 판정의 기존 정산을 먼저 재확인한다. 연결이 없거나 정산·예약 해제가 확인되지 않으면
+  엔진도 FINISHED일 때만 종료 snapshot으로 취급하며 임의로 `LOBBY`로 바꾸지 않는다.
 - SETTLED인데 active marker가 남은 기록은 정상 완료로 묵인하지 않는다.
 - 엔진 종료와 DB 판정 수신 사이의 `RUNNING + FINISHED snapshot`, 정산 커밋으로 active marker가
   해제된 직후의 FINISHED snapshot은 시점 경합으로 허용한다. 다음 조회에서 최신 상태를 다시 판정한다.
@@ -56,6 +57,37 @@ DB 기능이 켜진 환경의 `GameReconnectService`는 자동 연결 조회와 
 이 대조는 heartbeat/lease/fencing이나 엔진 복원이 아니다. 과거 boot의 RESERVED/RUNNING을 INVALID로
 바꾸거나 참가비를 반환하지 않으며, 자동 무효화·환불은 후속 운영 소유권 계약 전까지 지원하지 않는다.
 운영 로그는 불일치 분류와 예외 종류만 기록하고 사용자·Wallet 상세를 기록하지 않는다.
+
+### 저장된 종결 경기의 재접속 연결
+
+`GameReconnectService`의 조회 worker는 FINISHED/INVALID 활성 기록에 대해
+`StoredTerminalGameRecovery`를 호출한다. 본인 결과 조회의 userId/gameId/gameCode/status/endedAt을
+대조한 뒤 PENDING이면 기존 `GameSettlementPersistenceService.settle`을 호출한다. 기존 경기 행·지갑
+잠금, 멱등 키, 원장, outbox 및 정상/무효 정산 계산은 그대로 재사용한다. SETTLED면 재지급하지 않는다.
+
+정산 반환 뒤 본인 결과가 SETTLED인지, 활성 경기 조회에서 같은 예약이 해제됐는지 다시 확인한다.
+이 두 확인이 끝난 경우에만 엔진이 없고 다른 활성 경기도 없으면 기존 `LOBBY`로 전환한다.
+현재 테이블 이력이 없는 과거 결과를 보드 snapshot으로 만들거나 다시 보여주지 않는다.
+다른 탭에서 새 경기가 생겼으면 새 활성 기록과 엔진을 기존 규칙으로 대조한다.
+
+종결 판정에는 이전 owner boot라는 이유로 정산을 막지 않는다. RESERVED/RUNNING의 owner·엔진 검사는
+유지하며 승패 추정·자동 INVALID·환불은 하지 않는다. 오류 응답은 기존 RECOVERY_UNAVAILABLE이고,
+로그의 TERMINAL_SETTLEMENT_FAILED(결과/정산 확인 실패), ACTIVE_MARKER_INVALID(예약 잔존),
+OWNER_MISMATCH/ENGINE_MISSING(미종결 복구 불일치)로 확인 지점을 구분한다. DB 스키마 변경은 없다.
+
+DB 담당 확인 항목:
+
+1. 제보 계정의 실제 내부 userId와 active_user_id로 연결된 경기 ID, gameCode, status,
+   settlement_status, owner instance/boot, ended_at을 읽기 전용으로 확인한다.
+2. FINISHED/INVALID라면 참가자 판정·이탈 시각, 예약금, coin_delta,
+   reservation_released_at과 GAME 정산 원장·outbox의 상태를 확인한다.
+   정산 실패는 기존 settle의 예외·예약/지갑 불일치부터 확인하며 원장/잔액을 수동으로 덮지 않는다.
+3. RESERVED/RUNNING인데 이전 엔진이 소실됐다면 이번 연결의 자동 정산 대상이 아니다.
+   이전 실행 종료와 저장된 종료 이벤트 유무를 확인하고, 판정 유실 처리 정책을 별도로 결정한다.
+   active marker 삭제나 임의 승패 입력으로 우회하지 않는다.
+
+이 목록은 실제 계정 DB 조회 결과가 아니다. 로컬 회귀는 정산/저장소 대역과 실제 WebSocket을 사용하며,
+공용 DB 정산·실계정 잠금 해제 완료는 배포 후 별도 확인해야 한다.
 
 ### 활성화와 RUNNING
 
