@@ -1,14 +1,4 @@
 .raffle{--ink:#1c2f86;--title-outline:3px 0 0 var(--ink),-3px 0 0 var(--ink),0 3px 0 var(--ink),0 -3px 0 var(--ink),2px 2px 0 var(--ink),-2px 2px 0 var(--ink),2px -2px 0 var(--ink),-2px -2px 0 var(--ink),0 6px 0 var(--ink);box-sizing:border-box;width:min(600px,calc(100vw - 24px));max-height:calc(100dvh - 24px);overflow:auto;padding:46px 16px 16px;border:4px solid #fff;border-radius:26px;background:repeating-linear-gradient(135deg,#ffd42b 0 26px,#ffdd4a 26px 52px);color:#2b2a40;font-family:"Malgun Gothic",sans-serif;box-shadow:0 24px 100px #211b1966}
-.raffle{position:fixed;inset:0;margin:auto;padding:0;overflow:hidden;min-width:0}
-.raffle[open]{display:flex;flex-direction:column}
-.raffle-toolbar{flex:none;display:flex;align-items:center;justify-content:space-between;gap:20px;min-width:0;padding:24px 18px 14px;border-bottom:2px solid #fff8;background:#ffdc40}
-.raffle-toolbar .raffle-title{flex-direction:row;align-items:baseline;gap:9px;transform:rotate(-3deg);margin:0 0 0 8px;min-width:0}
-.raffle-toolbar .raffle-title span:first-of-type{font-size:clamp(20px,5vw,28px)}
-.raffle-toolbar .raffle-title span:last-of-type{font-size:clamp(30px,7vw,40px)}
-.raffle-toolbar .raffle-title-crown{left:-10px;right:auto;top:-20px;width:26px}
-.raffle-toolbar .raffle-close{position:static;flex:none}
-.raffle-content{flex:1 1 auto;min-height:0;min-width:0;overflow-y:auto;overscroll-behavior:contain;scroll-padding-block:18px;padding:28px 16px 16px}
-.raffle-content .raffle-head{display:block}
 .raffle::backdrop{background:#252c27b0;backdrop-filter:blur(5px)}
 .raffle button{font:inherit;cursor:pointer}.raffle button:focus-visible{outline:3px solid var(--ink);outline-offset:3px}
 .raffle-close{position:absolute;right:8px;top:6px;z-index:3;width:34px;height:34px;border:2px solid #fff;border-radius:50%;background:var(--ink);color:#fff;font-size:22px!important;line-height:1}
@@ -60,7 +50,7 @@
 .raffle-round{margin:8px 0 0;padding:8px 10px;border-radius:10px;background:#eaf0ff;color:var(--ink);font-size:12px;line-height:1.6}
 .raffle-note{margin:8px 0 0;font-size:11px;line-height:1.6;color:#86764f}
 
-.raffle-reveal{position:absolute;inset:0;z-index:5;display:grid;place-items:center;align-content:safe center;gap:18px;padding:36px 20px;overflow-y:auto;overscroll-behavior:contain;background:#ffe36aeb;backdrop-filter:blur(7px);animation:raffle-fade .25s ease-out}
+.raffle-reveal{position:fixed;inset:0;z-index:5;display:grid;place-items:center;align-content:center;gap:18px;padding:16px;background:#ffe36a40;backdrop-filter:blur(7px);animation:raffle-fade .25s ease-out}
 /* -5° 기울기로 내려오는 아래 모서리(약 w×4.4%)와 그림자만큼 문구 창과 띄운다. */
 .raffle-paper{--w:min(78vw,400px);position:relative;display:grid;margin-bottom:calc(var(--w) * .07);place-items:center;align-content:center;width:var(--w);aspect-ratio:1.42;rotate:-5deg;border-radius:4px;background:linear-gradient(90deg,#0000 32.8%,#00000014 33.3%,#ffffff47 33.8%,#0000 34.3%,#0000 65.7%,#00000014 66.2%,#ffffff47 66.7%,#0000 67.2%),linear-gradient(180deg,#0000 49.4%,#00000017 50%,#ffffff57 50.6%,#0000 51.2%),radial-gradient(circle at 30% 20%,#f6f3ec,#ddd7ca);box-shadow:0 18px 40px #00000052;animation:raffle-unfold .6s cubic-bezier(.2,.9,.3,1.25) both}
 .raffle-paper::before{content:"";position:absolute;inset:6%;border:3px solid #2b4c9b;border-radius:6px;box-shadow:inset 0 0 0 4px #ece8df,inset 0 0 0 6px #2b4c9b59}
@@ -76,12 +66,10 @@
 @keyframes raffle-unfold{from{transform:scale(.2,.06) rotate(10deg);opacity:0}}
 
 @media(max-width:520px){
-  .raffle-content{padding:28px 12px 12px}
+  .raffle{padding:44px 12px 12px}
   .raffle-head{grid-template-columns:1fr;gap:20px}
   .raffle-title{flex-direction:row;gap:8px;align-items:baseline;transform:rotate(-4deg)}
   .raffle-title-crown{right:auto;left:-6px;top:-14px;transform:rotate(-18deg)}
   .raffle-prizes p{font-size:10px}
 }
-.raffle-reveal .raffle-paper{--w:min(60vw,340px)}
-.raffle-reveal p{max-width:min(340px,100%);overflow-wrap:anywhere}
 @media(prefers-reduced-motion:reduce){.raffle-hand,.raffle-paper,.raffle-reveal{animation:none!important;transition:none!important}}
