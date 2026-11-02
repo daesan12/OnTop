@@ -50,9 +50,15 @@ export function useAlkkagiControls() {
   const pickPlacement=(x:number,y:number,pin?:boolean) => {
     const current=useAlkkagiUI.getState(),card=current.item
     if(!canItem || !card)return
+    if(card.type==='WALL' && current.pinned)return
     const placement={x,y,angle:current.placement?.angle ?? 0}
-    useAlkkagiUI.setState({placement,pinned:false})
-    if(pin)submitItem(card,current.targets,placement)
+    const fixed=card.type==='WALL' && !!pin && itemPreview(state,card.type,current.targets,placement).valid
+    useAlkkagiUI.setState({placement,pinned:fixed})
+    if(pin && card.type!=='WALL')submitItem(card,current.targets,placement)
   }
-  return {session,game,g,state,actor,ready,looking,canItem,preview,act,ui,chooseTarget,selectItem,pickPlacement}
+  const placeWall=()=>{
+    const current=useAlkkagiUI.getState()
+    if(current.item?.type==='WALL' && current.pinned)submitItem(current.item,[],current.placement)
+  }
+  return {session,game,g,state,actor,ready,looking,canItem,preview,act,ui,chooseTarget,selectItem,pickPlacement,placeWall}
 }

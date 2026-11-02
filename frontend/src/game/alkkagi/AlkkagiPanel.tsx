@@ -11,7 +11,7 @@ import './park.css'
 
 /** 공원 장면은 그대로 두고 오목과 같은 최소 HUD만 겹친다. */
 export function AlkkagiPanel() {
-  const {session,game,g,state,actor,ready,canItem,preview,act,ui,selectItem}=useAlkkagiControls()
+  const {session,game,g,state,actor,ready,canItem,preview,act,ui,selectItem,placeWall}=useAlkkagiControls()
   const runtime=useParkRuntime(), [now,setNow]=useState(Date.now())
   useEffect(()=>{
     if(!state)return
@@ -33,8 +33,10 @@ export function AlkkagiPanel() {
       {game.uncertain&&<button onClick={()=>void runtime.checkRecovery()}>경기 다시 확인</button>}</div>
     {actor>=0&&<footer className="alkkagi-hand"><span>내 비책 {g.alkkagiHand?.cards.length ?? 0}장 · 벽 {state.wallsUsed?.[actor] ?? 0}/3</span><div>{g.alkkagiHand?.cards.map(c=><AlkkagiItemCard key={c.id} type={c.type} selected={ui.item?.id===c.id} disabled={!canItem || c.type==='WALL' && (state.wallsUsed?.[actor] ?? 0)>=3}
       onClick={()=>selectItem(c)}/>)}</div>
-      {ui.item&&canItem&&<div className="alkkagi-item-confirm" role="status"><p>{preview.valid ? '클릭하면 바로 사용해요.' : preview.reason}</p>
-        {ui.item.type==='WALL'&&<p>Q / E 또는 휠로 회전 · 빈 위치 클릭</p>}
+      {ui.item&&canItem&&<div className="alkkagi-item-confirm" role="status"><p>{ui.item.type==='WALL' && preview.valid ? (ui.pinned ? '둥근 손잡이를 드래그해 회전하세요.' : '빈 위치를 클릭해 벽을 고정하세요.') : preview.valid ? '클릭하면 바로 사용해요.' : preview.reason}</p>
+        {ui.item.type==='WALL'&&<><p>손잡이 드래그 · Q / E · 휠로 회전</p>{ui.pinned&&<>
+          <button disabled={!preview.valid} onClick={placeWall}>벽 설치</button>
+          <button onClick={()=>useAlkkagiUI.setState({pinned:false})}>위치 다시 고르기</button></>}</>}
         <button onClick={cancelAlkkagiItem}>취소 · Esc</button></div>}</footer>}
     <AlkkagiTurnNotice gameId={state.gameId} turnNumber={state.turnNumber} turn={state.turn}
       actor={actor} stage={state.stage} enabled={actor>=0 ? ready : session.status==='connected' && !game.uncertain && game.watchedGameId===g.gameId}

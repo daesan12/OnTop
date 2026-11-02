@@ -9,6 +9,7 @@ import { exitFlight } from './flight'
 import { AlkkagiPiece, PieceAppearanceProvider } from './AlkkagiPiece'
 import { AlkkagiBoardSurface } from './AlkkagiBoardSurface'
 import { fitBoardCamera } from './boardLayout'
+import { wallRotationStep } from './wallRotation'
 
 /** 전송·인증·URL에 의존하지 않는 공용 게임판. 호출자가 승인 상태와 명령 콜백을 공급한다. */
 export function AlkkagiBoard(props: Parameters<typeof Scene>[0]) {
@@ -36,7 +37,7 @@ export function AlkkagiScene(props: Parameters<typeof Scene>[0]) {
 
 type Aim = { piece: Piece; origin: Vector3; end: Vector3; start: { x: number; y: number }
   moved: number; pointerId: number; gameId: string; version: number }
-function Scene({ layer = 0, actor, state, replay, enabled, shoot, explain, blockedReason, itemMode, itemTargets, pickTarget, cancelItem, placement, pickPlacement, pinned, previewValid, rotatePlacement, cursor }: { layer?: number; actor: number; state: Snapshot | null; replay: AlkkagiReplay; enabled: boolean
+function Scene({ layer = 0, actor, state, replay, enabled, shoot, explain, blockedReason, itemMode, itemTargets, pickTarget, cancelItem, placement, pickPlacement, pinned, previewValid, rotatePlacement }: { layer?: number; actor: number; state: Snapshot | null; replay: AlkkagiReplay; enabled: boolean
   shoot(p: Piece, dx: number, dy: number, power: number): void; explain(message: string): void; blockedReason: string; itemMode: string | null; itemTargets: string[]; pickTarget(piece: Piece): void; cancelItem(): void; placement: { x: number; y: number; angle: number } | null; pickPlacement(x: number, y: number, pin?: boolean): void; pinned: boolean; previewValid: boolean; rotatePlacement(delta: number): void; cursor(x: number, y: number): void }) {
   const space = useRef<Group>(null)
   const localPoint = (point: Vector3) => space.current!.worldToLocal(point.clone())
@@ -50,12 +51,17 @@ function Scene({ layer = 0, actor, state, replay, enabled, shoot, explain, block
   const { gl, camera, raycaster } = useThree()
   const aim = useRef<Aim | null>(null), arrow = useMemo(() => new ArrowHelper(new Vector3(0, 0, -1), new Vector3(), 1, '#f3c16d'), [])
   const selected = useRef<Piece | null>(null), selectionRing = useRef<Mesh>(null)
+  const rotating=useRef<{pointerId:number;x:number;y:number;angle:number}|null>(null)
   const floor = useMemo(() => new Plane(new Vector3(0, 1, 0), -.36), [])
   const pieces = state?.pieces ?? []
   // Local UI changes can mount new meshes without a server version update.
   useLayoutEffect(() => { space.current?.traverse(object => object.layers.set(layer)) })
   const clearAim = () => { aim.current = null; arrow.visible = false }
-  const clear = () => { clearAim(); selected.current = null; if (selectionRing.current) selectionRing.current.visible = false }
+  const clear = () => {
+    const pointer=rotating.current?.pointerId
+    if(pointer!==undefined && gl.domElement.hasPointerCapture(pointer))gl.domElement.releasePointerCapture(pointer)
+    rotating.current=null; clearAim(); selected.current = null; if (selectionRing.current) selectionRing.current.visible = false
+  }
   useEffect(() => {
     const canvas = gl.domElement
     const point = (event: PointerEvent) => {
@@ -66,11 +72,18 @@ function Scene({ layer = 0, actor, state, replay, enabled, shoot, explain, block
     }
     const move = (event: PointerEvent) => {
       const a = aim.current, p = point(event)
+      const r=rotating.current
+      if(r && p && event.pointerId===r.pointerId){
+        if(!enabled || itemMode!=='WALL'){clear();return}
+        const step=wallRotationStep(r.angle,p.x-r.x,p.z-r.y)
+        r.angle=step.angle;rotatePlacement(step.delta);return
+      }
       if (a && p && event.pointerId === a.pointerId) {
         a.end.copy(p); a.moved = Math.hypot(event.clientX - a.start.x, event.clientY - a.start.y)
       }
     }
     const up = (event: PointerEvent) => {
+      if(rotating.current?.pointerId===event.pointerId){clear();return}
       const a = aim.current
       if (!a || event.pointerId !== a.pointerId) return
       clearAim()
@@ -159,7 +172,6 @@ function Scene({ layer = 0, actor, state, replay, enabled, shoot, explain, block
         e.stopPropagation(); pickPlacement(localPoint(e.point).x, localPoint(e.point).z, true)
       }
     }} onPointerMove={e => {
-      cursor(localPoint(e.point).x, localPoint(e.point).z)
       if (enabled && (itemMode === 'WALL' || itemMode === 'RELOCATE') && !pinned) pickPlacement(localPoint(e.point).x, localPoint(e.point).z)
     }} />
     {pieces.map(piece => <group key={`${state!.gameId}-${piece.id}-${piece.radius}`} ref={g => { if (g) groups.current.set(piece.id, g); else groups.current.delete(piece.id) }}>
@@ -207,11 +219,27 @@ function Scene({ layer = 0, actor, state, replay, enabled, shoot, explain, block
       <boxGeometry args={[state?.itemRules?.wallLength ?? 1.6, .5, state?.itemRules?.wallThickness ?? .18]} />
       <meshStandardMaterial color={previewValid ? "#47ddca" : "#ec604c"} transparent opacity={.55} />
     </mesh>}
+    {placement && itemMode==='WALL' && pinned && enabled && <group name="alkkagi-wall-rotation" position={[placement.x,.65,placement.y]} rotation={[0,-placement.angle,0]}>
+      <mesh position={[0,0,.5]} rotation={[Math.PI/2,0,0]} raycast={()=>{}}>
+        <cylinderGeometry args={[.018,.018,1,8]}/><meshBasicMaterial color="#fff0b0" depthTest={false}/>
+      </mesh>
+      <mesh name="alkkagi-wall-rotate-handle" position={[0,0,1]} renderOrder={20}
+        onPointerDown={e=>{
+          if(e.button!==0)return
+          e.stopPropagation();clearAim()
+          const p=hitPlane(e.ray)
+          if(!p)return
+          rotating.current={pointerId:e.pointerId,x:placement.x,y:placement.y,angle:Math.atan2(p.z-placement.y,p.x-placement.x)}
+          gl.domElement.setPointerCapture(e.pointerId)
+        }}>
+        <sphereGeometry args={[.19,20,12]}/><meshBasicMaterial color="#fff1b5" depthTest={false}/>
+      </mesh>
+      <mesh position={[0,.02,1]} rotation={[-Math.PI/2,0,0]} raycast={()=>{}} renderOrder={21}>
+        <ringGeometry args={[.22,.27,36]}/><meshBasicMaterial color="#49d9c5" depthTest={false}/>
+      </mesh>
+    </group>}
     {placement && itemMode === 'RELOCATE' && itemTargets.length === 1 && <DestinationGhost x={placement.x} y={placement.y}
       radius={pieces.find(p => p.id === itemTargets[0])?.radius ?? .24} valid={previewValid} />}
-    {state?.social?.cursors.filter(c => c.actor !== actor || actor < 0).map(c => <mesh key={c.id} position={[c.x, .38, c.y]} rotation={[-Math.PI / 2, 0, 0]} raycast={() => {}}>
-      <ringGeometry args={[.08, .13, 16]} /><meshBasicMaterial color={c.actor === 0 ? '#e78770' : c.actor === 1 ? '#6ecea0' : '#79afff'} />
-    </mesh>)}
     {state?.social?.advice.map(a => { const p = pieces.find(p => p.id === a.pieceId); return p && <AdviceArrow key={a.id} x={p.x} y={p.y} dx={a.dx} dy={a.dy} power={a.power} /> })}
     {state?.impacts?.filter(i => state.serverNow - i.at < 220).map(i => <mesh key={i.id} position={[i.x, .4, i.y]} rotation={[-Math.PI / 2, 0, 0]} raycast={() => {}}>
       <ringGeometry args={[.12, .19 + Math.min(.15, i.impulse * .01), 20]} /><meshBasicMaterial color="#ffe0a0" transparent opacity={.6} depthWrite={false} />

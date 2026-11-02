@@ -36,11 +36,21 @@ it('waits for both swap targets and allows the opposing piece',()=>{
   const c=controls();c.selectItem({id:'s',type:'SWAP'});c.chooseTarget(mock.state.pieces[0]);expect(mock.send).not.toHaveBeenCalled()
   c.chooseTarget(mock.state.pieces[1]);expect(mock.send).toHaveBeenCalledExactlyOnceWith({type:'ITEM_USE',cardId:'s',targetPieceIds:['a','b']})
 })
-it('keeps wall hover as a preview, rejects overlap, and commits only a valid click',()=>{
+it('pins a valid wall, permits rotation without consumption, and installs only on explicit submission',()=>{
   const c=controls();c.selectItem({id:'w',type:'WALL'})
   c.pickPlacement(0,0);expect(mock.send).not.toHaveBeenCalled()
   c.pickPlacement(-2,2,true);expect(mock.send).not.toHaveBeenCalled();expect(useAlkkagiUI.getState().pinned).toBe(false)
-  c.pickPlacement(0,0,true);expect(mock.send).toHaveBeenCalledExactlyOnceWith({type:'ITEM_USE',cardId:'w',targetPieceIds:[],placement:{x:0,y:0,angle:0}})
+  c.pickPlacement(0,0,true);expect(mock.send).not.toHaveBeenCalled();expect(useAlkkagiUI.getState().pinned).toBe(true)
+  c.pickPlacement(2,0);expect(useAlkkagiUI.getState().placement?.x).toBe(0)
+  useAlkkagiUI.setState({placement:{x:0,y:0,angle:Math.PI/2}})
+  c.placeWall();expect(mock.send).toHaveBeenCalledExactlyOnceWith({type:'ITEM_USE',cardId:'w',targetPieceIds:[],placement:{x:0,y:0,angle:Math.PI/2}})
+})
+it('does not submit a wall rotated into a piece, and cancellation consumes nothing',()=>{
+  const c=controls();c.selectItem({id:'w',type:'WALL'});c.pickPlacement(-2,1.2,true)
+  expect(useAlkkagiUI.getState().pinned).toBe(true)
+  useAlkkagiUI.setState({placement:{x:-2,y:1.2,angle:Math.PI/2}})
+  c.placeWall();expect(mock.send).not.toHaveBeenCalled()
+  cancelAlkkagiItem();c.placeWall();expect(mock.send).not.toHaveBeenCalled()
 })
 it('relocation waits for a destination, clears the old preview, and rejects distant destinations',()=>{
   const c=controls();c.selectItem({id:'r',type:'RELOCATE'});c.pickPlacement(0,0)

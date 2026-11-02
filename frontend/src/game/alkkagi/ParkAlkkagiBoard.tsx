@@ -48,5 +48,5 @@ function LiveAlkkagiSurface({focused}:{focused:boolean}) {
       placement={ui.placement} pinned={ui.pinned} previewValid={preview.valid}
       pickPlacement={pickPlacement}
       rotatePlacement={delta=>useAlkkagiUI.setState(s=>({placement:s.placement && {...s.placement,angle:Math.atan2(Math.sin(s.placement.angle+delta),Math.cos(s.placement.angle+delta))}}))}
-      cursor={(x,y)=>{if(spectating)void parkRuntime.sendAlkkagiSpectator?.({kind:'CURSOR',x,y})}} />
+      cursor={()=>{}} />
 }
