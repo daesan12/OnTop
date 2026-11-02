@@ -8,9 +8,9 @@ ontop:
   game-start:
     enabled: ${GAME_START_ENABLED:false}
   games:
-    # DB 허용 제약·종료 정산 연결을 확인한 뒤 명시적으로 활성화한다.
+    # V137 참가 인원 제약과 공통 종료 정산 검증을 함께 배포한다.
     alkkagi:
-      enabled: ${GAME_ALKKAGI_ENABLED:false}
+      enabled: ${GAME_ALKKAGI_ENABLED:true}
     omok:
       enabled: ${GAME_OMOK_ENABLED:false}
     farkle:

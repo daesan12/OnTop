@@ -37,14 +37,28 @@ BE31개(알까기 물리/계측/실제소켓과 기존 GameEngineRouter·GameEng
 ## 2026-11-02 배포 번들·개발 프로필 연결
 
 서버 `AlkkagiConfiguration`은 명시적으로 켠 `local` 또는 `dev`에서 등록한다.
-`prod`/`production`이 섞이면 등록하지 않으며 개발 기본값도 비활성이다.
-`GAME_ALKKAGI_ENABLED=true`는 개발 프로필의 엔진 등록만 허용한다.
-기존 실제 DB 시작 Gateway·종료 이벤트 검증·참가 인원 제약 준비를 대신하지 않는다.
+`prod`/`production`이 섞이면 등록하지 않는다. V137과 종료 정산 연결을 함께 배포하며
+`dev` 설정의 `GAME_ALKKAGI_ENABLED` 기본값은 true다. 명시적인 false는 우선한다.
+실제 시작에는 기존 `GAME_START_ENABLED=true`와 인증·DB Gateway가 필요하다.
+local 및 개발 프로필 외에는 기존 명시적 활성화 조건을 유지한다.
 
 FE는 Vite 개발 서버 여부와 분리해 `VITE_ALKKAGI_ENABLED=true`인 번들에서만
 알까기 선택을 노출한다. 따라서 개발용으로 빌드한 정적 파일에서도 선택할 수 있고,
 해당 빌드 플래그가 없거나 false이면 계속 숨긴다. 할리갈리 등 기존 게임은 유지한다.
 
-이 변경은 기존 별도 작업의 V137 SQL·DB 종료 정산 검증·Jenkins 설정을 포함하지 않는다.
-DB 적용 순서 및 실제 정산 연결 확인 전에는 기본 비활성 상태를 유지한다.
-게임 입력/상태/복구 JSON 계약은 바뀌지 않는다.
+개발 전용 Jenkins 빌드의 두 `build:park` 경로는 위 FE 플래그를 true로 전달한다.
+실제 Vercel 원격 재빌드에도 `frontend/vercel.dev.json`으로 같은 플래그를 전달한다.
+서버 이미지·V137 적용이 먼저 완료된 뒤 FE를 연결한다. 운영용 빌드는 변경하지 않는다.
+
+V137은 `game_sessions`의 기존 참가 인원 CHECK에 ALKKAGI 2인만 추가한다.
+기존 할리갈리 2~4인과 나머지 게임 조건·데이터는 유지한다. 2026-11-02 사용자가
+팀 공유와 V136 다음 적용 순서 확인을 완료했다. 기존 SQL 수정·repair·outOfOrder는 하지 않는다.
+
+`VerifiedGameFinish`는 알까기 종료 사유·2인·승자 1명을 검증한다. 동시 탈락/제한시간 동률은
+전원 DRAW로 정상 종료하고 예약금을 반환한다. `SIMULATION_INVALID`/`SIMULATION_LIMIT`는
+전원 DRAW인 무효 경기로 보존하고 예약금을 반환한다. 기권·연결 유예 만료·로그아웃·탈퇴는
+기존 이탈 사유/시각을 보존한다. 저장·정산 서비스의 잠금·중복 방지 방식은 변경하지 않는다.
+할리갈리의 카드 수 공동 승리도 유지한다. 게임 입력/상태/복구 JSON 계약은 바뀌지 않는다.
+
+로컬 검증은 엔진 이벤트→종료 검증→저장 서비스의 대역 검사와 기존 정산 회귀를 포함한다.
+공용 DB 적용·개발 서버 두 계정 실검수·Jenkins 배포 성공은 MR 생성만으로 완료되지 않는다.
