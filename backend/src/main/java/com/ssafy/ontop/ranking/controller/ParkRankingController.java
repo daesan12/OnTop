@@ -22,7 +22,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@Tag(name = "Park Ranking", description = "공원 랭킹판의 세 목록")
+@Tag(name = "Park Ranking", description = "공원 랭킹판의 보유량 목록과 미니게임 우승자")
 public class ParkRankingController {
     private final ObjectProvider<ParkRankingSnapshotService> snapshots;
 
@@ -30,9 +30,10 @@ public class ParkRankingController {
         this.snapshots = snapshots;
     }
 
-    @Operation(summary = "공원 랭킹판 TOP 10", security = @SecurityRequirement(name = "AccessJwt"),
-            description = "보유량·단판 최고 순이익·누적 승수의 마지막 정상 1분 스냅샷을 반환합니다. "
-                    + "updatedAt은 세 목록의 실제 갱신 완료 시각입니다. 최초 성공 전에는 503을 반환합니다.")
+    @Operation(summary = "공원 랭킹판 스냅샷", security = @SecurityRequirement(name = "AccessJwt"),
+            description = "보유량 TOP 10과 붕어빵·점프맵 우승자의 마지막 정상 1분 스냅샷을 반환합니다. "
+                    + "기록이 없는 게임의 우승자는 null입니다. updatedAt은 전체 집계 완료 시각이며, "
+                    + "최초 성공 전에는 503을 반환합니다.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "마지막 정상 스냅샷 (Cache-Control: no-store)",
                 content = @Content(schema = @Schema(implementation = ParkRankingResponse.class))),

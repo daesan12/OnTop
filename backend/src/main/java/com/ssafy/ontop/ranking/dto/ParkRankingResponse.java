@@ -1,22 +1,24 @@
 package com.ssafy.ontop.ranking.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
 import java.util.List;
 
-public record ParkRankingResponse(List<BalanceItem> balance, List<ProfitItem> singleGameProfit,
-                                  List<WinsItem> wins, Instant updatedAt) {
+public record ParkRankingResponse(List<BalanceItem> balance,
+                                  @Schema(nullable = true) BungeoppangChampion bungeoppangChampion,
+                                  @Schema(nullable = true) JumpmapChampion jumpmapChampion,
+                                  Instant updatedAt) {
     public ParkRankingResponse {
         balance = List.copyOf(balance);
-        singleGameProfit = List.copyOf(singleGameProfit);
-        wins = List.copyOf(wins);
     }
 
     public record BalanceItem(long rank, String userId, String nickname, long coinBalance) {
     }
 
-    public record ProfitItem(long rank, String userId, String nickname, long profit) {
+    public record BungeoppangChampion(String userId, String nickname, long score, long maxCombo,
+                                     Instant completedAt) {
     }
 
-    public record WinsItem(long rank, String userId, String nickname, long winCount) {
+    public record JumpmapChampion(String userId, String nickname, long finishMs, Instant completedAt) {
     }
 }
