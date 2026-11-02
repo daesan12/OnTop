@@ -19,6 +19,9 @@ class RaffleMigrationContractTests {
                 .contains("week_start_date DATE NOT NULL")
                 .contains("sales_starts_at TIMESTAMP(3) NOT NULL")
                 .contains("sales_ends_at TIMESTAMP(3) NOT NULL")
+                .contains("ticket_price BIGINT NOT NULL DEFAULT 100")
+                .contains("weekly_ticket_limit SMALLINT UNSIGNED NOT NULL DEFAULT 10")
+                .contains("sales_status VARCHAR(16) NOT NULL DEFAULT 'SCHEDULED'")
                 .contains("wallet_transaction_id BIGINT NOT NULL")
                 .contains("idempotency_key VARCHAR(120) CHARACTER SET ascii COLLATE ascii_bin NOT NULL")
                 .doesNotContain("DROP TABLE", "DELETE FROM", "TRUNCATE TABLE");
@@ -35,7 +38,11 @@ class RaffleMigrationContractTests {
                         + "(round_id, user_id, idempotency_key)")
                 .contains("CONSTRAINT uk_raffle_tickets_wallet_transaction UNIQUE (wallet_transaction_id)")
                 .contains("CONSTRAINT ck_raffle_tickets_number CHECK (ticket_number BETWEEN 1 AND 10000)")
-                .contains("CONSTRAINT ck_raffle_tickets_purchase_price CHECK (purchase_price = 100)")
+                .contains("CONSTRAINT ck_raffle_rounds_ticket_price CHECK (ticket_price > 0)")
+                .contains("CONSTRAINT ck_raffle_rounds_weekly_limit CHECK (weekly_ticket_limit > 0)")
+                .contains("CONSTRAINT ck_raffle_rounds_sales_status "
+                        + "CHECK (sales_status IN ('SCHEDULED', 'OPEN', 'CLOSED'))")
+                .contains("CONSTRAINT ck_raffle_tickets_purchase_price CHECK (purchase_price > 0)")
                 .contains("CONSTRAINT ck_raffle_tickets_balance_after CHECK (balance_after >= 0)");
     }
 
