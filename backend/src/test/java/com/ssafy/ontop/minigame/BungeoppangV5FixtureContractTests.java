@@ -122,11 +122,12 @@ class BungeoppangV5FixtureContractTests {
                 rules.sideMs(), rules.rushSideMs(), rules.heatMin(), rules.heatMax(), rules.heatListLength(),
                 rules.maxLogEntries(), rules.minGapMs(), rules.sameSlotGapMs()))
                 .containsExactly(6, 120_000, 90_000, 10, 8_000, 6_000, 85, 115, 2_048, 3_600, 50, 300);
-        // FE serviceV5 accepts exactly (120000, 90000) and the legacy (180000, 150000); nothing else differs.
+        // 기존 판의 저장 규칙은 보너스 50%를 유지한다.
         var legacy = BungeoppangV5Spec.legacyRules();
         assertThat(List.of(legacy.durationMs(), legacy.rushFromMs())).containsExactly(180_000, 150_000);
         assertThat(json.<JsonNode>valueToTree(legacy)).isEqualTo(((ObjectNode) wire.deepCopy())
-                .put("durationMs", 180_000).put("rushFromMs", 150_000).put("queueComplaintPenalty", 0));
+                .put("durationMs", 180_000).put("rushFromMs", 150_000).put("queueComplaintPenalty", 0)
+                .put("specialBonusPercent", 50));
         for (String field : List.of("slots", "durationMs", "countdownMs", "sideMs", "rushSideMs", "rushFromMs",
                 "heatMin", "heatMax", "heatListLength", "trayCapacity", "maxOrderItems",
                 "specialOrderChancePercent", "specialBonusPercent", "okFrom", "goldenFrom", "goldenTo",
