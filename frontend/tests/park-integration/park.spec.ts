@@ -83,7 +83,7 @@ test('generated park waits for approval, renders 18 mapped tables, and supports 
  for(const site of PARK_DATA.interactions.construction){
   const [x,y,z]=site.reachPosition;server.place({x,y,z,yaw:site.yaw})
   await expect(hint).toHaveAttribute('data-target-id',site.id)
-  await expect(hint.getByRole('button')).toContainText(site.label+' · 무료 목업 체험')
+  await expect(hint.getByRole('button')).toContainText(site.label+' · 행운의 뽑기')
  }
  const ranking=PARK_DATA.interactions.rankingBoard
  const [rankingX,rankingY,rankingZ]=ranking.reachPosition

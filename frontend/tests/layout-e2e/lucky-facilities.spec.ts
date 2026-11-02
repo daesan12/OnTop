@@ -3,7 +3,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import os from 'node:os'
 
-test('lottery mock finishes, closes and fits mobile while the wheel is absent',async({page})=>{
+test('lottery room opens the weekly raffle, closes and fits mobile while the wheel is absent',async({page})=>{
   const errors:string[]=[],requests:string[]=[]
   page.on('pageerror',e=>errors.push(e.message))
   page.on('console',m=>{if(m.type()==='error')errors.push(m.text())})
@@ -19,19 +19,14 @@ test('lottery mock finishes, closes and fits mobile while the wheel is absent',a
   await page.getByLabel('배치 시안 시설 목록').getByRole('button',{name:/^14/}).click()
   await page.getByRole('button',{name:'무료 목업 체험',exact:true}).click()
   const dialog=page.getByRole('dialog')
-  await expect(dialog).toHaveAccessibleName('오늘의 복권방')
-  await page.getByRole('button',{name:'체험권 열어보기'}).click()
-  await expect(dialog).toContainText('실제 당첨 아님')
-  await page.screenshot({path:path.join(out,'lottery-result.png')})
+  await expect(dialog).toHaveAccessibleName('복권방 행운의 뽑기')
+  await expect(dialog).toContainText('응모·추첨 안내')
+  await page.screenshot({path:path.join(out,'lottery-raffle.png')})
   await page.setViewportSize({width:390,height:844})
   const bounds=await dialog.boundingBox();expect(bounds!.x).toBeGreaterThanOrEqual(0)
   expect(bounds!.x+bounds!.width).toBeLessThanOrEqual(390);expect(bounds!.y).toBeGreaterThanOrEqual(0)
   expect(bounds!.y+bounds!.height).toBeLessThanOrEqual(844)
   await page.screenshot({path:path.join(out,'lottery-mobile.png')})
-  await dialog.getByRole('button',{name:'시설 닫기'}).focus();await page.keyboard.press('Shift+Tab')
-  await expect(page.getByRole('button',{name:'새 체험권 받기'})).toBeFocused()
-  await page.getByRole('button',{name:'새 체험권 받기'}).click()
-  await expect(dialog).toContainText('오늘의 행운을 열어보세요')
   await page.keyboard.press('Escape');await expect(dialog).not.toBeVisible()
   await page.setViewportSize({width:1600,height:1000})
   expect(errors).toEqual([]);expect(requests).toEqual([])

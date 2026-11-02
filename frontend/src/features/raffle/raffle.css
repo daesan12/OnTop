@@ -1,0 +1,75 @@
+.raffle{--ink:#1c2f86;--title-outline:3px 0 0 var(--ink),-3px 0 0 var(--ink),0 3px 0 var(--ink),0 -3px 0 var(--ink),2px 2px 0 var(--ink),-2px 2px 0 var(--ink),2px -2px 0 var(--ink),-2px -2px 0 var(--ink),0 6px 0 var(--ink);box-sizing:border-box;width:min(600px,calc(100vw - 24px));max-height:calc(100dvh - 24px);overflow:auto;padding:46px 16px 16px;border:4px solid #fff;border-radius:26px;background:repeating-linear-gradient(135deg,#ffd42b 0 26px,#ffdd4a 26px 52px);color:#2b2a40;font-family:"Malgun Gothic",sans-serif;box-shadow:0 24px 100px #211b1966}
+.raffle::backdrop{background:#252c27b0;backdrop-filter:blur(5px)}
+.raffle button{font:inherit;cursor:pointer}.raffle button:focus-visible{outline:3px solid var(--ink);outline-offset:3px}
+.raffle-close{position:absolute;right:8px;top:6px;z-index:3;width:34px;height:34px;border:2px solid #fff;border-radius:50%;background:var(--ink);color:#fff;font-size:22px!important;line-height:1}
+
+.raffle-head{display:grid;grid-template-columns:minmax(120px,.85fr) 3fr;gap:12px;align-items:end}
+.raffle-title{position:relative;margin:0 0 6px;display:flex;flex-direction:column;align-items:center;transform:rotate(-8deg);line-height:.92;font-weight:900;letter-spacing:-.07em}
+.raffle-title span{white-space:nowrap;-webkit-text-stroke:7px #fff;paint-order:stroke fill;text-shadow:var(--title-outline)}
+.raffle-title span:first-of-type{font-size:clamp(24px,5.2vw,34px);color:#2c58cc}
+.raffle-title span:last-of-type{font-size:clamp(40px,9vw,60px);color:#ff4c9c}
+.raffle-title-crown{position:absolute;right:-4px;top:-18px;width:34px;transform:rotate(18deg)}
+.raffle-prizes{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:0;padding:0;list-style:none}
+.raffle-prizes li{--c:#e5245a;position:relative;display:flex;flex-direction:column;padding:20px 6px 6px;border:3px solid var(--c);border-radius:16px;background:#fff;box-shadow:0 4px 0 #0000001f;text-align:center}
+.raffle-prizes li[data-rank="2"]{--c:#1f5ad6}.raffle-prizes li[data-rank="3"]{--c:#18774a}
+.raffle-rank{position:absolute;left:50%;top:-15px;transform:translateX(-50%);padding:1px 12px 2px;border:2px solid #fff;border-radius:12px;background:var(--c);box-shadow:0 0 0 2px var(--c);color:#fff;font-size:18px;font-weight:900;letter-spacing:-.04em;white-space:nowrap}
+.raffle-rank svg{position:absolute;left:50%;top:-17px;width:24px;transform:translateX(-50%)}
+.raffle-prizes img{width:100%;aspect-ratio:4/3;object-fit:contain;user-select:none}
+.raffle-prizes p{display:flex;flex-direction:column;justify-content:center;flex:1;margin:4px 0 0;padding:4px 4px;border-radius:14px;background:var(--c);color:#fff;font-size:11px;line-height:1.3;letter-spacing:-.04em;word-break:keep-all}
+.raffle-prizes li:not([data-rank="3"]) p span{color:#ffe55a}
+
+.raffle-board{position:relative;margin-top:14px;padding:2.6%;overflow:hidden;border:3px solid #ffc214;border-radius:20px;background:#fff;box-shadow:0 4px 0 #e2a400}
+.raffle-grid{position:relative;display:grid;grid-template-columns:repeat(16,1fr);aspect-ratio:16/15}
+.raffle-grid>span{position:relative}
+.raffle-grid>span::before{content:"";position:absolute;inset:6%;border-radius:18%;background:linear-gradient(160deg,#3f82f0,#1747b8 60%,#103a9b);box-shadow:inset 0 2px 0 #ffffff59,inset 0 -2px 0 #0b2c78,0 1px 1px #00000047}
+.raffle-grid>span::after{content:"";position:absolute;inset:24%;background:radial-gradient(circle at 40% 35%,#fff8b8,#ffd31f 55%,#eea600);clip-path:polygon(50% 0,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%)}
+.raffle-grid>span.is-empty::before{background:#eff1f4;box-shadow:inset 0 2px 4px #00000024}
+.raffle-grid>span.is-empty::after{content:none}
+/* hand.webp 속 들고 있는 타일 중심이 그림의 (12.4%, 15.1%)에 있다. 이 점을 left/top 칸 중심에 맞춘다. */
+.raffle-hand{position:absolute;z-index:2;width:39%;transform:translate(-12.4%,-15.1%);pointer-events:none;user-select:none;filter:drop-shadow(0 8px 10px #00000038);transition:left .7s cubic-bezier(.3,.7,.2,1),top .7s cubic-bezier(.3,.7,.2,1),transform .55s ease-in,opacity .55s ease-in}
+.raffle-hand[data-phase="reach"]{animation:raffle-hand-in .6s ease-out both,raffle-hover 1.1s ease-in-out .6s infinite alternate}
+.raffle-hand[data-phase="lift"]{transform:translate(-6%,-42%) rotate(-5deg);opacity:0}
+@keyframes raffle-hand-in{from{translate:70% 70%;opacity:0}}
+@keyframes raffle-hover{to{translate:-4% -3%}}
+
+.raffle-desk,.raffle-guide{margin-top:14px;padding:14px;border:2px solid #f2c53d;border-radius:18px;background:#fffdf3}
+.raffle-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:0}
+.raffle-stats div{padding:8px 4px;border-radius:12px;background:#fff1bd;text-align:center}
+.raffle-stats dt{font-size:11px;color:#8a6b1c}.raffle-stats dd{margin:2px 0 0;font-size:17px;font-weight:900;color:var(--ink)}
+.raffle-message{min-height:20px;margin:10px 0 0;font-size:13px;line-height:1.55;color:#6b5a32;text-align:center}
+.raffle-draw{display:block;width:100%;min-height:52px;margin-top:10px;border:0;border-radius:14px;background:linear-gradient(#ff63a4,#e8307a);color:#fff;font-size:17px!important;font-weight:900!important;box-shadow:0 4px 0 #b51c5b}
+.raffle-draw:hover:not(:disabled,[aria-disabled="true"]){filter:brightness(1.05)}
+.raffle-draw:disabled{background:#cbc5b6;box-shadow:none;cursor:not-allowed}
+.raffle-draw[aria-disabled="true"]{background:#e98bb3;box-shadow:none;cursor:wait}
+.raffle-reload{display:block;margin:8px auto 0;padding:6px 14px;border:2px solid var(--ink);border-radius:999px;background:#fff;color:var(--ink);font-weight:700!important}
+.raffle-mine h3,.raffle-guide h3{margin:12px 0 0;font-size:14px;color:var(--ink)}.raffle-guide h3{margin:0}
+.raffle-mine ul{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 0;padding:0;list-style:none}
+.raffle-mine li{padding:4px 11px;border-radius:999px;background:#1f50c6;color:#fff;font-weight:800;font-variant-numeric:tabular-nums}
+.raffle-guide ol{margin:6px 0 0;padding-left:20px;font-size:13px;line-height:1.7}
+.raffle-guide b{margin-right:6px;color:#d42a72}
+.raffle-round{margin:8px 0 0;padding:8px 10px;border-radius:10px;background:#eaf0ff;color:var(--ink);font-size:12px;line-height:1.6}
+.raffle-note{margin:8px 0 0;font-size:11px;line-height:1.6;color:#86764f}
+
+.raffle-reveal{position:fixed;inset:0;z-index:5;display:grid;place-items:center;align-content:center;gap:18px;padding:16px;background:#ffe36a40;backdrop-filter:blur(7px);animation:raffle-fade .25s ease-out}
+/* -5° 기울기로 내려오는 아래 모서리(약 w×4.4%)와 그림자만큼 문구 창과 띄운다. */
+.raffle-paper{--w:min(78vw,400px);position:relative;display:grid;margin-bottom:calc(var(--w) * .07);place-items:center;align-content:center;width:var(--w);aspect-ratio:1.42;rotate:-5deg;border-radius:4px;background:linear-gradient(90deg,#0000 32.8%,#00000014 33.3%,#ffffff47 33.8%,#0000 34.3%,#0000 65.7%,#00000014 66.2%,#ffffff47 66.7%,#0000 67.2%),linear-gradient(180deg,#0000 49.4%,#00000017 50%,#ffffff57 50.6%,#0000 51.2%),radial-gradient(circle at 30% 20%,#f6f3ec,#ddd7ca);box-shadow:0 18px 40px #00000052;animation:raffle-unfold .6s cubic-bezier(.2,.9,.3,1.25) both}
+.raffle-paper::before{content:"";position:absolute;inset:6%;border:3px solid #2b4c9b;border-radius:6px;box-shadow:inset 0 0 0 4px #ece8df,inset 0 0 0 6px #2b4c9b59}
+.raffle-paper svg{position:relative;width:17%}
+.raffle-paper strong{position:relative;font-size:min(130px,calc(var(--w) * 1.1 / (var(--digits) + 1.2)));line-height:1;font-weight:900;color:#25428f;letter-spacing:-.03em;-webkit-text-stroke:6px #fff;paint-order:stroke fill;font-variant-numeric:tabular-nums}
+.raffle-spark{position:absolute;width:5%;height:15%;border:3px solid #fff;border-radius:999px;background:#ffcd1f;box-shadow:0 0 0 2px #e3a300}
+.raffle-spark:nth-of-type(1){left:-8%;top:-6%;rotate:-40deg}.raffle-spark:nth-of-type(2){left:3%;top:-16%;rotate:-15deg}
+.raffle-spark:nth-of-type(3){right:3%;top:-16%;rotate:15deg}.raffle-spark:nth-of-type(4){right:-8%;top:-6%;rotate:40deg}
+.raffle-reveal p{position:relative;z-index:1;max-width:340px;margin:0;padding:10px 16px;border-radius:14px;background:#fffdf3f2;color:#3b3220;font-size:14px;line-height:1.6;text-align:center;box-shadow:0 6px 18px #0000002e}
+.raffle-reveal p b{color:#d42a72;font-size:17px}
+.raffle-reveal button{min-width:140px;min-height:46px;border:0;border-radius:14px;background:var(--ink);color:#fff;font-weight:800!important;box-shadow:0 4px 0 #0f1c57}
+@keyframes raffle-fade{from{opacity:0}}
+@keyframes raffle-unfold{from{transform:scale(.2,.06) rotate(10deg);opacity:0}}
+
+@media(max-width:520px){
+  .raffle{padding:44px 12px 12px}
+  .raffle-head{grid-template-columns:1fr;gap:20px}
+  .raffle-title{flex-direction:row;gap:8px;align-items:baseline;transform:rotate(-4deg)}
+  .raffle-title-crown{right:auto;left:-6px;top:-14px;transform:rotate(-18deg)}
+  .raffle-prizes p{font-size:10px}
+}
+@media(prefers-reduced-motion:reduce){.raffle-hand,.raffle-paper,.raffle-reveal{animation:none!important;transition:none!important}}

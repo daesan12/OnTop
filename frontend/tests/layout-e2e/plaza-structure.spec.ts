@@ -24,7 +24,7 @@ test('lucky facility mocks and ranking board retain their independent models and
   await page.getByLabel('배치 시안 시설 목록').getByRole('button',{name:new RegExp('^'+no)}).click()
   await page.waitForTimeout(700);await page.screenshot({path:path.join(dir,k.kind+'-connected.png')})
   await page.getByRole('button',{name:k.kind==='photo'?'공사 안내 보기':'무료 목업 체험',exact:true}).click()
-  await expect(page.getByRole('dialog')).toContainText(k.kind==='photo'?'공사 중':k.kind==='shop'?'행운의 돌림판':'오늘의 복권방')
+  await expect(page.getByRole('dialog')).toContainText(k.kind==='photo'?'공사 중':k.kind==='shop'?'행운의 돌림판':'응모·추첨 안내')
   await page.keyboard.press('Escape')
  }
  const rankingBoard:ReturnType<typeof rankingBoardProbe>=await page.evaluate(async()=>
