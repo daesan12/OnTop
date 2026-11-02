@@ -5,13 +5,15 @@ const b = new PropBuilder()
 // 기존 출발 표식과 같은 2.8 × 2.2m, 높이 0.1m. 문양만 바꾸고 충돌·코스는 유지한다.
 b.box('stone','#9c9c8e',[0,-.09,0],[2.8,.02,2.2])
 b.box('stone','#d2cbb8',[0,-.04,0],[2.72,.08,2.12])
-b.add('gold',new RingGeometry(.86,.91,8),'#bda36a',[0,.012,0],[1,1,1],[-Math.PI/2,0,0])
+// 안내 문양은 발광/금속 장식 대신 무광 석재로 그린다.
+b.add('stone',new RingGeometry(.86,.91,8),'#bda36a',[0,.012,0],[1,1,1],[-Math.PI/2,0,0])
 function roof(width:number,z:number) {
   const points=[[-width,z],[0,z-.19],[width,z],[width*.83,z+.065],[-width*.83,z+.065]]
   const shape=new Shape()
   points.forEach(([x,y],i)=>i?shape.lineTo(x!,-y!):shape.moveTo(x!,-y!))
   shape.closePath()
-  b.add('stone',new ShapeGeometry(shape),'#526251',[0,.024,0],[1,1,1],[-Math.PI/2,0,0])
+  // 몸체 윗면(.024)과 지붕이 같은 평면이면 카메라 이동 시 깜빡인다.
+  b.add('stone',new ShapeGeometry(shape),'#526251',[0,.028,0],[1,1,1],[-Math.PI/2,0,0])
 }
 b.box('stone','#526251',[0,.02,-.59],[.045,.012,.21])
 roof(.32,-.37); roof(.49,-.04); roof(.65,.31)
