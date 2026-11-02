@@ -16,9 +16,9 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Profile;
 
-/** 공원 연결 검수 중에는 명시적으로 켠 local에서만 제공한다. */
+/** 로컬·개발에서 명시적으로 켠 엔진만 등록한다. 실제 DB 준비와 운영 활성화는 별도다. */
 @Configuration(proxyBeanMethods = false)
-@Profile("local & !dev & !prod & !production")
+@Profile("(local | dev) & !prod & !production")
 @ConditionalOnProperty(name = "ontop.games.alkkagi.enabled", havingValue = "true")
 @Import(GameEngineGateways.class)
 public class AlkkagiConfiguration {
