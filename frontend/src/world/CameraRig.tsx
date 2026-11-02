@@ -9,7 +9,8 @@ import { useEffect, useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { Matrix4, PerspectiveCamera, Quaternion, Raycaster, SkinnedMesh, Vector3, type Object3D } from 'three'
 import { bungeoppangView } from '../features/bungeoppang/bungeoppangView'
-import { CAMERA, CHARACTER, GOMOKU, TABLES, TELESCOPE, TELESCOPES, telescopeFov, groundHeight, tableScale, tableSeats } from '../park/mapConfig'
+import { CAMERA, CHARACTER, GOMOKU, PARK_SIZE, TABLES, TELESCOPE, TELESCOPES, telescopeFov, groundHeight, tableScale, tableSeats } from '../park/mapConfig'
+import { WELCOME_FLIGHT_MS, welcomeFlight, welcomeFlightPose } from '../features/welcomeTour/flight'
 import { telescopeView } from '../features/telescopeView'
 import { interactionAim } from '../features/interactions/interactionAim'
 import { useGame } from '../game/store'
@@ -165,6 +166,29 @@ export function CameraRig() {
       state.owner = ''
       state.omokTransition = false
       state.diceTransition = false
+      return
+    }
+    if (welcomeFlight.active) {
+      // The flight ends exactly on the ordinary third-person pose, so the follow camera takes over without a jump.
+      sampleAvatar(avatar, performance.now(), state.pose)
+      state.look.set(state.pose.x, state.pose.y + CAMERA.focusHeight - 0.8, state.pose.z)
+      const horizontal = viewControls.distance * Math.cos(viewControls.pitch)
+      state.desired.set(state.look.x + Math.sin(viewControls.yaw) * horizontal,
+        state.look.y + viewControls.distance * Math.sin(viewControls.pitch), state.look.z + Math.cos(viewControls.yaw) * horizontal)
+      const flight = welcomeFlightPose((performance.now() - welcomeFlight.startedAt) / WELCOME_FLIGHT_MS,
+        { position: state.desired, look: state.look }, PARK_SIZE)
+      camera.position.set(flight.position.x, flight.position.y, flight.position.z)
+      constrainRoamingCamera(camera.position)
+      camera.lookAt(flight.look.x, flight.look.y, flight.look.z)
+      if (camera instanceof PerspectiveCamera && Math.abs(camera.fov - CAMERA.fov) > 0.01) { camera.fov = CAMERA.fov; camera.updateProjectionMatrix() }
+      state.focus.copy(state.look)
+      state.owner = session.sessionId
+      state.omokTransition = false
+      state.diceTransition = false
+      interactionAim.ready = omokCamera.ready = false
+      omokCamera.anchorId = ''
+      cameraOcclusion.strength.value = 0
+      occlusion.update(camera.position, state.look, false, delta)
       return
     }
     if (bungeoppangView.active) {

@@ -11,6 +11,7 @@ import expandIcon from '../parkMenus/icons/chevron-channel.svg'
 import { useGame } from '../../game/store'
 import { useOmokEvents } from '../../game/omok/spectatorEvents'
 import { gameChatScope } from './gameChat'
+import { noteTourAction } from '../welcomeTour/state'
 
 const textControl = (target: EventTarget | null) => target instanceof HTMLElement
   && !!target.closest('input,textarea,select,button,a,[contenteditable="true"],[role="button"]')
@@ -71,6 +72,7 @@ function ChatPanel({ gameId }: { gameId: string }) {
     if (!alive.current) return
     setSending(false)
     if (!approved) { setNotice('전송하지 못했어요. 내용을 보관했으니 안내를 확인하고 다시 보내주세요.'); return }
+    noteTourAction('chat')
     setDraft(''); close(true)
   }
   useEffect(() => {
