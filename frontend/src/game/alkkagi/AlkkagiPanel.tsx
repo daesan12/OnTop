@@ -11,7 +11,7 @@ import './park.css'
 
 /** 공원 장면은 그대로 두고 오목과 같은 최소 HUD만 겹친다. */
 export function AlkkagiPanel() {
-  const {session,game,g,state,actor,ready,canItem,preview,act,ui}=useAlkkagiControls()
+  const {session,game,g,state,actor,ready,canItem,preview,act,ui,selectItem}=useAlkkagiControls()
   const runtime=useParkRuntime(), [now,setNow]=useState(Date.now())
   useEffect(()=>{
     if(!state)return
@@ -32,9 +32,10 @@ export function AlkkagiPanel() {
       : <button onClick={()=>void runtime.unwatchGame()}>관전 종료</button>}
       {game.uncertain&&<button onClick={()=>void runtime.checkRecovery()}>경기 다시 확인</button>}</div>
     {actor>=0&&<footer className="alkkagi-hand"><span>내 비책 {g.alkkagiHand?.cards.length ?? 0}장 · 벽 {state.wallsUsed?.[actor] ?? 0}/3</span><div>{g.alkkagiHand?.cards.map(c=><AlkkagiItemCard key={c.id} type={c.type} selected={ui.item?.id===c.id} disabled={!canItem || c.type==='WALL' && (state.wallsUsed?.[actor] ?? 0)>=3}
-      onClick={()=>{cancelAlkkagiItem();useAlkkagiUI.setState({item:c})}}/>)}</div>
-      {ui.item&&canItem&&<div className="alkkagi-item-confirm"><p>{preview.reason}</p><button disabled={!preview.valid} onClick={()=>act({type:'ITEM_USE',cardId:ui.item!.id,targetPieceIds:ui.targets,...(ui.placement ? {placement:ui.placement} : {})})}>사용하기</button>
-        <button onClick={cancelAlkkagiItem}>취소</button>{ui.pinned&&<button onClick={()=>useAlkkagiUI.setState({pinned:false})}>위치 다시 고르기</button>}</div>}</footer>}
+      onClick={()=>selectItem(c)}/>)}</div>
+      {ui.item&&canItem&&<div className="alkkagi-item-confirm" role="status"><p>{preview.valid ? '클릭하면 바로 사용해요.' : preview.reason}</p>
+        {ui.item.type==='WALL'&&<p>Q / E 또는 휠로 회전 · 빈 위치 클릭</p>}
+        <button onClick={cancelAlkkagiItem}>취소 · Esc</button></div>}</footer>}
     <AlkkagiTurnNotice gameId={state.gameId} turnNumber={state.turnNumber} turn={state.turn}
       actor={actor} stage={state.stage} enabled={actor>=0 ? ready : session.status==='connected' && !game.uncertain && game.watchedGameId===g.gameId}
       nickname={name(state.turn)} cards={g.alkkagiHand?.cards ?? []} />

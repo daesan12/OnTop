@@ -175,7 +175,7 @@ function Scene({ layer = 0, actor, state, replay, enabled, shoot, explain, block
         if (itemMode) {
           clear()
           if (itemMode !== 'WALL' && itemMode !== 'EXTRA_SHOT') pickTarget(piece)
-          else explain('아이템 확정 또는 취소를 먼저 눌러주세요.')
+          else explain('벽을 놓을 빈 위치를 클릭하거나 Esc로 취소하세요.')
           return
         }
         const origin = hitPlane(e.ray)

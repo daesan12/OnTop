@@ -33,7 +33,7 @@ export function ParkAlkkagiBoard({anchor}:{anchor:TableAnchor}) {
   </>
 }
 function LiveAlkkagiSurface({focused}:{focused:boolean}) {
-  const {state,session,game,actor,ready,looking,canItem,preview,act,ui,chooseTarget}=useAlkkagiControls()
+  const {state,session,game,actor,ready,looking,canItem,preview,act,ui,chooseTarget,pickPlacement}=useAlkkagiControls()
   const spectatorBoard=useTableLobby(s=>s.spectatorView)==='board'
   const spectating=actor<0 && spectatorBoard && session.status==='connected' && session.mapCompatible && !game.uncertain && game.game?.gameId===game.watchedGameId
   const replay=useMemo(()=>new AlkkagiReplay(),[])
@@ -46,7 +46,7 @@ function LiveAlkkagiSurface({focused}:{focused:boolean}) {
       explain={notice=>useAlkkagiUI.setState({notice})} blockedReason="현재 차례·연결 상태를 확인해주세요."
       itemMode={canItem ? ui.item?.type ?? null : null} itemTargets={ui.targets} pickTarget={chooseTarget} cancelItem={cancelAlkkagiItem}
       placement={ui.placement} pinned={ui.pinned} previewValid={preview.valid}
-      pickPlacement={(x,y,pin)=>{if(canItem && !ui.pinned)useAlkkagiUI.setState({placement:{x,y,angle:ui.placement?.angle ?? 0},pinned:!!pin})}}
+      pickPlacement={pickPlacement}
       rotatePlacement={delta=>useAlkkagiUI.setState(s=>({placement:s.placement && {...s.placement,angle:Math.atan2(Math.sin(s.placement.angle+delta),Math.cos(s.placement.angle+delta))}}))}
       cursor={(x,y)=>{if(spectating)void parkRuntime.sendAlkkagiSpectator?.({kind:'CURSOR',x,y})}} />
 }
