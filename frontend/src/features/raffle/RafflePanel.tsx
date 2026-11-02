@@ -90,7 +90,7 @@ export function RafflePanel() {
 
   return <dialog ref={dialog} className="raffle" aria-label="복권방 행운의 뽑기"
     onCancel={e => { e.preventDefault(); if (phase === 'reveal') closeReveal(); else closeConstructionNotice() }}
-    onClose={closeConstructionNotice}
+    onClose={() => { if (!dialog.current?.open) closeConstructionNotice() }}
     onKeyDown={e => {
       e.stopPropagation()
       if (e.key !== 'Tab') return
