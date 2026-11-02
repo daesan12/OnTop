@@ -62,7 +62,7 @@ class OneCardMatchTests {
     }
 
     @Test
-    void K는시간연장없이추가행동_J와Q는2인에서새시간으로본인차례다() {
+    void K는시간연장없이추가행동_J는2인에서본인차례이고_Q는상대에게넘긴다() {
         var match = match(List.of(101L,202L),Map.of(101L,List.of("hearts-K","spades-K","spades-J","spades-Q")));
         play(match,101,"hearts-K",START.plusSeconds(10));
         play(match,101,"spades-K",START.plusSeconds(20));
@@ -73,8 +73,20 @@ class OneCardMatchTests {
         assertThat(match.snapshot().turnDeadline()).isEqualTo(START.plusSeconds(55));
         play(match,101,"spades-Q",START.plusSeconds(26));
         assertThat(match.snapshot().direction()).isEqualTo(-1);
-        assertThat(match.snapshot().turnUserId()).isEqualTo(101);
+        assertThat(match.snapshot().turnUserId()).isEqualTo(202);
         assertThat(match.snapshot().turnDeadline()).isEqualTo(START.plusSeconds(56));
+    }
+
+    @Test
+    void 기권후_둘만_남아도_Q는_방향만_반전하고_다른_생존자에게_넘긴다() {
+        var match = match(List.of(101L,202L,303L),Map.of(101L,List.of("hearts-Q")));
+        match.forfeit(303,START.plusSeconds(1));
+
+        play(match,101,"hearts-Q",START.plusSeconds(2));
+
+        assertThat(match.snapshot().direction()).isEqualTo(-1);
+        assertThat(match.snapshot().turnUserId()).isEqualTo(202);
+        assertThat(match.snapshot().turnDeadline()).isEqualTo(START.plusSeconds(32));
     }
 
     @Test
@@ -219,6 +231,7 @@ class OneCardMatchTests {
     private OneCardMatch oneLeft() {
         var match = match(List.of(101L,202L),Map.of(101L,List.of("hearts-K","spades-K","diamonds-K","clubs-K","clubs-J","clubs-Q","clubs-7")));
         for (String id : List.of("hearts-K","spades-K","diamonds-K","clubs-K","clubs-J","clubs-Q")) { play(match,101,id,START); }
+        act(match,202,"return-turn",Map.of("kind","draw"),START);
         assertThat(match.hand(101)).hasSize(1);
         return match;
     }
